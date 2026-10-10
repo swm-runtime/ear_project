@@ -4,7 +4,7 @@
 |---|---|
 | 대상 문서 | `spec/uiux/auth-uiux.md`(화면 ID 신설) · `features/auth.md` 7 · `spec/api/auth-api.md` 4.1·5 |
 | 발행 날짜 | 2026-09-07 |
-| 발견 시점 | `tickets/frontend/pending/age-confirmation-send.md`의 완료 조건 3을 닫으려다 — **렌더할 화면이 문서에 없다** |
+| 발견 시점 | `tickets/frontend/archive/age-confirmation-send.md`의 완료 조건 3을 닫으려다 — **렌더할 화면이 문서에 없다** |
 | 요청 성격 | **문서 신설**(코드 아님). 화면이 정의되기 전에는 FE가 만들 수 없다 |
 
 ## 문제
@@ -58,7 +58,7 @@
 
 ## 참고 — 이 문서가 닫아 주는 것
 
-`tickets/frontend/pending/age-confirmation-send.md`의 완료 조건 3이 이 화면에 막혀 있다.
+`tickets/frontend/archive/age-confirmation-send.md`의 완료 조건 3이 이 화면에 막혀 있다.
 화면이 정의되면 그 티켓도 함께 닫힌다.
 
 ---

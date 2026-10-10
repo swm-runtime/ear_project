@@ -4,6 +4,7 @@ import { BusinessException } from '@/common/exceptions/business.exception';
 import { ErrorCode } from '@/common/exceptions/error-code.enum';
 import {
   isWeekStartLabel,
+  serviceDateStart,
   shiftWeekStart,
   toCurrentWeekStart,
   toServiceDate,
@@ -25,6 +26,7 @@ import {
   buildTopicDistribution,
   buildWeeklyTopicDistributions,
   buildWeeklyBuckets,
+  calculateListeningTopPercent,
   calculateStreakDays,
 } from './profile.stats';
 import {
@@ -210,20 +212,26 @@ export class ProfileOrchestrator {
     }
 
     const weekDates = toWeekDates(weekStart);
+    const previousWeekStart = shiftWeekStart(weekStart, -1);
+    const nextWeekStart = shiftWeekStart(weekStart, 1);
     const [listenedSecByDate, listenedByContentAndDate] = await Promise.all([
       this.playbackService.sumListenedSecByDates(user.id, weekDates),
       this.playbackService.sumListenedSecByContentAndDates(user.id, weekDates),
     ]);
-    const topicDistributions = await this.buildWeeklyTopicDistributions(
-      weekDates,
-      listenedByContentAndDate,
-    );
-    const previousWeekStart = shiftWeekStart(weekStart, -1);
-    const nextWeekStart = shiftWeekStart(weekStart, 1);
+    const dailyListenedSec = buildWeeklyBuckets(weekDates, listenedSecByDate);
+    const [topicDistributions, listeningTopPercent] = await Promise.all([
+      this.buildWeeklyTopicDistributions(weekDates, listenedByContentAndDate),
+      this.buildListeningTopPercent(
+        weekDates,
+        dailyListenedSec.reduce((sum, sec) => sum + sec, 0),
+        serviceDateStart(nextWeekStart),
+      ),
+    ]);
 
     return {
       weekStart,
-      dailyListenedSec: buildWeeklyBuckets(weekDates, listenedSecByDate),
+      dailyListenedSec,
+      listeningTopPercent,
       topicDistribution: topicDistributions.weekly,
       dailyTopicDistribution: topicDistributions.daily,
       // 가입 주보다 앞이면 이전 주가 없다 — 가입 전 주는 조회할 것도 없다
@@ -232,6 +240,34 @@ export class ProfileOrchestrator {
       // 이번 주를 넘어가는 주는 존재하지 않는다
       nextWeekStart: nextWeekStart > currentWeekStart ? null : nextWeekStart,
     };
+  }
+
+  /**
+   * 그 주 청취 시간 전체 상위 %(KAN-168). 모집단은 **그 주가 끝나기 전에 가입한 전체 계정**이다 —
+   * 그 주 0초인 사용자도 들어간다(PM "전체에서"). 내가 0초면 어차피 `null`이라 세지 않는다.
+   */
+  private async buildListeningTopPercent(
+    weekDates: string[],
+    listenedSec: number,
+    weekEnd: Date,
+  ): Promise<number | null> {
+    if (listenedSec <= 0) {
+      return null;
+    }
+
+    const [listenedMoreCount, population] = await Promise.all([
+      this.playbackService.countUsersListenedMoreByDates(
+        weekDates,
+        listenedSec,
+      ),
+      this.userService.countJoinedBefore(weekEnd),
+    ]);
+
+    return calculateListeningTopPercent(
+      listenedSec,
+      listenedMoreCount,
+      population,
+    );
   }
 
   /**

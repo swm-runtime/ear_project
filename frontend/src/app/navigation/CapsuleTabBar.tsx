@@ -7,9 +7,10 @@ import { Animated, PanResponder, PixelRatio, Platform, StyleSheet, View } from '
 
 import { useAnimatedValue } from '@/shared/hooks/useAnimatedValue';
 import { androidNavigationModeOf } from '@/shared/lib/android-navigation';
-import { motion, theme } from '@/shared/theme';
+import { motion, theme, LAUNCH_SCHEME } from '@/shared/theme';
 import GlassSurface, { GlassGroup, GlassPill } from '@/shared/ui/GlassSurface';
 import TabBarIcon, { type TabBarIconName } from '@/shared/ui/TabBarIcon';
+import TabIconBadge from '@/shared/ui/TabIconBadge';
 import { Text, AnimatedText } from '@/shared/ui/Typography';
 
 import {
@@ -83,7 +84,7 @@ const SOLID_DOCK = IS_ANDROID;
 const SOLID_PILL_INSET = PixelRatio.roundToNearestPixel(CAPSULE_INSET);
 const SOLID_PILL_HEIGHT = PixelRatio.roundToNearestPixel(CAPSULE_HEIGHT) - SOLID_PILL_INSET * 2;
 /** 불투명 캡슐 위 선택 알약 — 흰 면 위에서 한 단 내려앉은 중립 회색 */
-const SOLID_PILL_COLOR = '#ECECF0';
+const SOLID_PILL_COLOR = theme.color.tabPillSolid;
 // 미니플레이어 카드와 같은 반지름 — 뒤 판(그림자)이 카드 모양을 그대로 따른다
 const CARD_RADIUS = MINI_CARD_RADIUS;
 const ICON_SIZE = 24;
@@ -483,6 +484,7 @@ export default function CapsuleTabBar({
                       size={ICON_SIZE}
                     />
                   </Animated.View>
+                  <TabIconBadge value={options.tabBarBadge} />
                 </View>
                 <View>
                   <Text style={styles.label} numberOfLines={1}>
@@ -545,7 +547,7 @@ const styles = StyleSheet.create({
     borderRadius: CARD_RADIUS,
     borderCurve: 'continuous',
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(0, 0, 0, 0.10)',
+    borderColor: theme.color.hairline,
   },
   capsuleGlassBox: {
     position: 'absolute',
@@ -579,7 +581,7 @@ const styles = StyleSheet.create({
     borderRadius: theme.radius.full,
     backgroundColor: theme.color.background,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(0, 0, 0, 0.10)',
+    borderColor: theme.color.hairline,
     boxShadow: '0 4px 20px rgba(0, 0, 0, 0.10)',
   },
   capsuleBorder: {
@@ -590,13 +592,17 @@ const styles = StyleSheet.create({
     bottom: 0,
     borderRadius: theme.radius.full,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(0, 0, 0, 0.10)',
+    borderColor: theme.color.hairline,
   },
   // Android 유리 림 — 바깥 흰 테두리(굴절 하이라이트) + 위쪽 안쪽 광택선. 밝은 목록 위 경계는 판의 그림자가 맡는다
   androidRim: {
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.75)',
-    boxShadow: 'inset 0 1.5px 0 rgba(255, 255, 255, 0.9), inset 0 -1px 0 rgba(0, 0, 0, 0.04)',
+    borderColor: theme.color.glassRimStrong,
+    // 안쪽 광택선은 그림자 문자열이라 동적 색을 못 쓴다 — Android 는 이 실행의 모드로 정한다(다크에선 옅게)
+    boxShadow:
+      LAUNCH_SCHEME === 'dark'
+        ? 'inset 0 1.5px 0 rgba(255, 255, 255, 0.16), inset 0 -1px 0 rgba(0, 0, 0, 0.3)'
+        : 'inset 0 1.5px 0 rgba(255, 255, 255, 0.9), inset 0 -1px 0 rgba(0, 0, 0, 0.04)',
   },
   // 선택 알약 — 유리 렌즈(GlassPill). 첫 칸 자리에 두고 translateX 로 옮긴다. 색은 GlassPill 이 정한다
   indicator: {

@@ -24,16 +24,19 @@ interface ProfileCardProps {
   onRetry: () => void;
   isRetrying: boolean;
   /**
-   * 라벨 오른쪽에 붙는 요약값(예: "2개 선택"). 라벨과 한 줄로 읽히는 짧은 값만 둔다 —
-   * 본문으로 내리면 요약 한 줄에 카드 높이를 한 줄 더 쓰게 된다. 에러 상태에서는 그리지 않는다.
+   * 라벨에 붙는 요약값(예: "2개 선택"). 기본은 라벨 오른쪽, inline 배치에서는 라벨 아래다.
+   * 긴 요약은 줄바꿈을 허용하며 에러 상태에서는 그리지 않는다.
    */
   labelAccessory?: ReactNode;
+  /** 제목·요약은 왼쪽, 사진은 오른쪽에 두는 요약 카드 배치. 에러 본문은 기존 세로 배치를 유지한다. */
+  inline?: boolean;
   children: ReactNode;
 }
 
 /**
- * 요약 카드 셸(profile-uiux.md 5장) — 카드 전체가 탭 영역 + 우측 셰브론.
- * 카드별 독립 에러 상태를 가진다. 인라인 편집·토글·저장 버튼은 두지 않는다(8장 금지).
+ * 요약 그룹의 한 행(profile-uiux.md 5장) — 행 전체가 탭 영역 + 우측 셰브론.
+ * 바깥 면·모서리·구분선은 InsetGroup이 소유한다. 행별 독립 에러 상태를 가진다.
+ * 인라인 편집·토글·저장 버튼은 두지 않는다(8장 금지).
  */
 export default function ProfileCard({
   label,
@@ -43,20 +46,25 @@ export default function ProfileCard({
   onRetry,
   isRetrying,
   labelAccessory,
+  inline = false,
   children,
 }: ProfileCardProps) {
   const readsAsSingleUnit = a11yLabel !== null && !hasError;
   return (
     <Pressable
-      style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}
+      style={({ pressed }) => [
+        styles.card,
+        inline && styles.inlineCard,
+        pressed && styles.cardPressed,
+      ]}
       onPress={onPress}
       accessible={readsAsSingleUnit}
       accessibilityRole={readsAsSingleUnit ? 'button' : undefined}
       accessibilityLabel={readsAsSingleUnit ? a11yLabel : undefined}
     >
-      <View style={styles.body}>
-        <View style={styles.labelRow}>
-          <Text style={styles.label}>{label}</Text>
+      <View style={[styles.body, inline && !hasError && styles.inlineBody]}>
+        <View style={[styles.labelRow, inline && !hasError && styles.inlineLabelRow]}>
+          <Text style={[styles.label, inline && styles.inlineLabel]}>{label}</Text>
           {!hasError && labelAccessory !== undefined ? labelAccessory : null}
         </View>
         {hasError ? (
@@ -89,21 +97,27 @@ const styles = StyleSheet.create({
   card: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: theme.color.surface,
-    borderRadius: theme.radius.md,
-    borderCurve: 'continuous',
     paddingHorizontal: theme.spacing.md,
     paddingVertical: theme.spacing.md,
-    marginHorizontal: theme.spacing.md,
     // 터치 타깃 최소 44pt(profile-uiux.md 7장)
     minHeight: theme.touchTarget.minHeight,
   },
   cardPressed: {
     opacity: 0.7,
   },
+  // 72 → 56(PM 2026-10-11 04:15) — 한 줄짜리 관심 주제 행의 위아래가 휑했다. 두 줄인 커리어 행은 내용대로 더 높다(iOS 설정 부제 행처럼)
+  inlineCard: {
+    minHeight: 56,
+    paddingVertical: theme.spacing.sm + theme.spacing.xs,
+  },
   body: {
     flex: 1,
     gap: theme.spacing.xs,
+  },
+  inlineBody: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.sm,
   },
   labelRow: {
     flexDirection: 'row',
@@ -115,6 +129,19 @@ const styles = StyleSheet.create({
   label: {
     fontSize: theme.font.size.xs,
     color: theme.color.textSecondary,
+  },
+  inlineLabelRow: {
+    flex: 1,
+    minWidth: 0,
+    flexDirection: 'column',
+    alignItems: 'flex-start',
+    flexWrap: 'nowrap',
+    gap: theme.spacing.xs,
+  },
+  inlineLabel: {
+    fontSize: theme.font.size.md,
+    fontWeight: '600',
+    color: theme.color.textPrimary,
   },
   errorRow: {
     flexDirection: 'row',

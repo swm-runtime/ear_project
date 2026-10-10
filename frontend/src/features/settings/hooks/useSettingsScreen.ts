@@ -1,17 +1,22 @@
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { AccessibilityInfo, AppState, Linking } from 'react-native';
+import { AccessibilityInfo, Alert, AppState, Linking, Platform } from 'react-native';
 
 import { track } from '@/shared/analytics';
 import { copyToClipboard } from '@/shared/lib/clipboard';
+import { IS_SUBSCRIPTION_UI_ENABLED } from '@/shared/lib/feature-flags';
 import { logger } from '@/shared/lib/logger';
+import { isOnCellular } from '@/shared/lib/network-type';
+import { secureStorage } from '@/shared/storage/secure-storage';
+import { STORAGE_KEYS } from '@/shared/storage/storage-keys';
 import { useToastStore } from '@/shared/ui/toast.store';
 
 import { sessionService } from '@/features/auth';
 import { getOsPermissionStatus, type OsPermissionStatus } from '@/features/notification';
 
 import { settingsKeys, submitMarketingConsent, updateUserSettings } from '../api/settings.api';
+import { visibleAudioQualityOptions } from '../settings.audio-quality';
 import {
   KAKAO_CHANNEL_URL,
   PRIVACY_POLICY_URL,
@@ -22,6 +27,8 @@ import {
 import { SETTINGS_COPY } from '../settings.copy';
 import { deriveEmailStatus } from '../settings.format';
 import type {
+  AudioQuality,
+  AudioQualityOption,
   EmailStatus,
   PlaybackRate,
   SettingsPlan,
@@ -40,7 +47,13 @@ export type PlanRowVM =
    * **무료 상태에만 싣는다** — 구독자가 체험 중이어도 줄은 구독 문구 그대로다(profile-uiux.md 4.2)
    */
   | { kind: 'free'; dailyPlayLimit: number | null; trialLastFreeDate: string | null }
-  | { kind: 'subscribed'; planName: string; renewsAt: string | null }
+  /** pendingPlan — 다운그레이드 예약이면 "N월 N일까지 이용 · 이후 {다음}"(PM 2026-10-08) */
+  | {
+      kind: 'subscribed';
+      planName: string;
+      renewsAt: string | null;
+      pendingPlan: { planName: string; effectiveAt: string } | null;
+    }
   | { kind: 'cancelScheduled'; planName: string; expiresAt: string | null }
   | { kind: 'grace'; planName: string };
 
@@ -56,6 +69,12 @@ export interface SettingsControlsVM {
   isMarketingAgreed: boolean;
 }
 
+/** 음질 섹션 VM(settings.md 4.6) — 그릴 선택지가 둘 미만이면 섹션이 없다(null) */
+export interface AudioQualityVM {
+  selected: AudioQuality;
+  options: AudioQualityOption[];
+}
+
 const toPlanRowVM = (plan: SettingsPlan): PlanRowVM => {
   switch (plan.status) {
     case 'free':
@@ -65,7 +84,12 @@ const toPlanRowVM = (plan: SettingsPlan): PlanRowVM => {
         trialLastFreeDate: plan.trialLastFreeDate,
       };
     case 'subscribed':
-      return { kind: 'subscribed', planName: plan.planName, renewsAt: plan.renewsAt };
+      return {
+        kind: 'subscribed',
+        planName: plan.planName,
+        renewsAt: plan.renewsAt,
+        pendingPlan: plan.pendingPlan,
+      };
     case 'cancel_scheduled':
       return { kind: 'cancelScheduled', planName: plan.planName, expiresAt: plan.expiresAt };
     case 'grace':
@@ -88,6 +112,7 @@ interface OptimisticOverlay {
   defaultPlaybackRate?: PlaybackRate;
   isDripNotificationEnabled?: boolean;
   isMarketingAgreed?: boolean;
+  preferredAudioQuality?: AudioQuality;
 }
 
 export const useSettingsScreen = () => {
@@ -160,7 +185,7 @@ export const useSettingsScreen = () => {
   const saveSettingsField = (
     field: Exclude<SettingsToggleField, 'marketing_consent'>,
     overlayKey: keyof OptimisticOverlay,
-    value: PlaybackRate | boolean,
+    value: PlaybackRate | AudioQuality | boolean,
   ): void => {
     const clientSeq = ++clientSeqRef.current;
     lastSeqByFieldRef.current[field] = clientSeq;
@@ -172,8 +197,17 @@ export const useSettingsScreen = () => {
         onSuccess: (result) => {
           if (lastSeqByFieldRef.current[field] !== result.clientSeq) return; // 오래된 응답 무시
           // 갱신 후의 설정 전체로 화면 값을 확정한다(settings-api.md 4.2)
+          // 저장 응답에는 음질 선택지가 없다(settings-api.md 4.2) — 조회 캐시의 목록을 남긴다
           queryClient.setQueryData<SettingsSummary>(settingsKeys.summary(), (prev) =>
-            prev ? { ...prev, settings: result.settings } : prev,
+            prev
+              ? {
+                  ...prev,
+                  settings: {
+                    ...result.settings,
+                    audioQualities: result.settings.audioQualities ?? prev.settings.audioQualities,
+                  },
+                }
+              : prev,
           );
           clearOverlay(overlayKey);
         },
@@ -256,6 +290,52 @@ export const useSettingsScreen = () => {
   const selectPlaybackRate = (rate: PlaybackRate): void => {
     setIsRateSheetVisible(false);
     saveSettingsField('default_playback_rate', 'defaultPlaybackRate', rate);
+  };
+
+  /* ── 음질(settings.md 4.6) — 체크 목록에서 즉시 저장. 다음 편부터 적용된다(재생 중인 편은 처음 음질 그대로) ── */
+
+  const saveAudioQuality = (quality: AudioQuality): void => {
+    saveSettingsField('preferred_audio_quality', 'preferredAudioQuality', quality);
+  };
+
+  /** 무손실을 셀룰러(또는 망을 모를 때)에서 처음 고르면 한 번 묻는다. 띄운 순간 기록한다 — [취소]여도 다시 묻지 않는다 */
+  const confirmLosslessOnCellular = async (): Promise<boolean> => {
+    const seen = await secureStorage
+      .get(STORAGE_KEYS.LOSSLESS_CELLULAR_NOTICE_SEEN)
+      .catch(() => null);
+    if (seen !== null) return true;
+    if ((await isOnCellular()) === false) return true;
+    void secureStorage
+      .set(STORAGE_KEYS.LOSSLESS_CELLULAR_NOTICE_SEEN, '1')
+      .catch((error) => logger.warn('[settings] failed to record cellular notice', error));
+    const copy = SETTINGS_COPY.audioQuality;
+    return new Promise((resolve) => {
+      Alert.alert(
+        copy.cellularTitle,
+        copy.cellularMessage,
+        [
+          { text: copy.cellularCancel, style: 'cancel', onPress: () => resolve(false) },
+          { text: copy.cellularConfirm, onPress: () => resolve(true) },
+        ],
+        { cancelable: true, onDismiss: () => resolve(false) },
+      );
+    });
+  };
+
+  const selectAudioQuality = (option: AudioQualityOption): void => {
+    // 잠긴 선택지는 값을 바꾸지 않고 요금제 관리로 보낸다 — 허용 여부는 서버 값이다(티어명으로 가르지 않는다)
+    if (!option.allowed) {
+      openDestination('Subscription');
+      return;
+    }
+    if (audioQuality === null || option.quality === audioQuality.selected) return;
+    if (option.quality !== 'lossless') {
+      saveAudioQuality(option.quality);
+      return;
+    }
+    void confirmLosslessOnCellular().then((confirmed) => {
+      if (confirmed) saveAudioQuality(option.quality);
+    });
   };
 
   /* ── 로그아웃(S5) — 서버 폐기 실패해도 진행한다(auth.md 4.2, sessionService 소관) ── */
@@ -363,6 +443,16 @@ export const useSettingsScreen = () => {
       }
     : null;
 
+  const audioQualityOptions = summary
+    ? visibleAudioQualityOptions(summary.settings.audioQualities, IS_SUBSCRIPTION_UI_ENABLED)
+    : null;
+  const preferredAudioQuality =
+    overlay.preferredAudioQuality ?? summary?.settings.preferredAudioQuality ?? null;
+  const audioQuality: AudioQualityVM | null =
+    audioQualityOptions !== null && preferredAudioQuality !== null
+      ? { selected: preferredAudioQuality, options: audioQualityOptions }
+      : null;
+
   const retry = (): void => {
     if (query.isFetching) return; // 연타는 인플라이트 요청이 있으면 무시한다
     void query.refetch();
@@ -400,8 +490,26 @@ export const useSettingsScreen = () => {
     closeRateSheet: () => setIsRateSheetVisible(false),
     selectPlaybackRate,
 
+    audioQuality,
+    selectAudioQuality,
+
     isLogoutDialogVisible,
-    openLogoutDialog: () => setIsLogoutDialogVisible(true),
+    // iOS 는 시스템 알림창(UIAlertController — PM 2026-10-07 "애플처럼"). 파괴적 버튼은 OS 가 빨간 글자로 그린다.
+    // Android 는 Alert 가 파괴적 표시를 못 해 종전 확인 팝업(SettingsDialog) 그대로
+    openLogoutDialog: () => {
+      if (Platform.OS !== 'ios') {
+        setIsLogoutDialogVisible(true);
+        return;
+      }
+      Alert.alert(SETTINGS_COPY.account.logoutConfirmTitle, undefined, [
+        { text: SETTINGS_COPY.account.logoutCancel, style: 'cancel' },
+        {
+          text: SETTINGS_COPY.account.logoutConfirm,
+          style: 'destructive',
+          onPress: confirmLogout,
+        },
+      ]);
+    },
     closeLogoutDialog: () => {
       if (isLoggingOut) return; // 처리 중에는 팝업을 닫지 않는다(settings-uiux.md 4.4)
       setIsLogoutDialogVisible(false);

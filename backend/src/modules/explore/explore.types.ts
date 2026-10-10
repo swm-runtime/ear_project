@@ -24,6 +24,8 @@ export interface ExploreContentView {
   /** 재발행 판정용. 올라갔으면 클라이언트가 저장한 위치·오프라인 파일을 폐기한다 */
   contentVersion: number;
   topicIds: string[];
+  /** 화면 해시태그('#' 없이). 받은 적 없는 콘텐츠는 빈 배열 (KAN-162) */
+  tags: string[];
 }
 
 /**

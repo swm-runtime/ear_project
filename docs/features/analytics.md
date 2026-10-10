@@ -124,7 +124,7 @@
 - 앱 실행(activate)은 SDK 가 자동 기록한다(`autoLogAppEventsEnabled`).
 - **개발계 앱·웹·mock 은 Meta 전송이 없다** — JS(`IS_META_STUBBED`)와 네이티브(개발계 변형은 플러그인 `autoLogAppEventsEnabled`·`isAutoInitEnabled` false) 둘 다.
 - IDFA 미수집(`advertiserIDCollectionEnabled: false`), ATT 설명문 없음 — 4장 그대로. iOS 성과 측정은 AEM·SKAdNetwork 로 한다.
-- Android 광고 ID(AAID/GAID)는 운영 SDK의 JS 초기화에서만 수집을 켠다(2026-10-02). 네이티브 기본값은 false를 유지한다. 운영 빌드 1.1.0(16)의 최종 AAB에서 AD_ID 권한과 설정 변경 모듈을 확인했으므로 해당 빌드는 OTA 적용 가능하다. **운영 적용 선행: Play Console 광고 ID·데이터 보안 신고는 사용자 확인 완료. 개인정보처리방침은 2026-10-02 공지, 2026-11-01 적용 예정으로 준비하며 실제 게시를 확인해야 한다. 이 변경은 적용일 이전에 운영 OTA로 배포하지 않는다(자동 활성화 예약 없음).** 개발계·웹·mock은 계속 SDK 호출을 건너뛴다.
+- Android 광고 ID(AAID/GAID)는 **네이티브 기본값부터 켠다**(KAN-118, 개정 2026-10-09 — `changes/archive/analytics-android-ad-id-native-default(fe).md`) — `app.json` 의 로컬 플러그인 `plugins/with-android-meta-advertiser-id.js` 가 매니페스트 meta-data `com.facebook.sdk.AdvertiserIDCollectionEnabled` 를 `true` 로 덮고(`react-native-fbsdk-next` 플러그인보다 **앞에** 둔다), JS 초기화(`meta.ts`)도 Android `true` 를 가리킨다. 운영 SDK 는 앱 시작 즉시 네이티브 값으로 첫 실행 이벤트를 보내므로, 설치 이벤트에 광고 ID 를 실으려면 네이티브 값이 `true` 여야 한다. **iOS 는 그대로** — 플러그인 옵션 `advertiserIDCollectionEnabled: false` 로 `Info.plist` 가 false, ATT 설명문 없음. 네이티브 값이라 OTA 가 아니라 스토어 빌드로만 바뀐다(묶음 네이티브 빌드 runtimeVersion 32, 2026-10-07 빌드). **운영 공개 시점**: Play Console 광고 ID·데이터 보안 신고는 완료. 개인정보처리방침은 2026-10-02 공지, 2026-11-01 적용 — 네이티브 값이 들어간 빌드의 운영 공개는 **적용일(2026-11-01) 이후**이고, 공개 뒤 확인은 `tickets/frontend/pending/android-ad-id-post-launch-check.md`(KAN-156). 개발계·웹·mock은 계속 SDK 호출을 건너뛴다.
 - 네이티브 모듈이라 runtimeVersion 7 → **8**(`frontend/architecture.md` 2.1).
 
 ## 4. 처리 로직
@@ -134,7 +134,7 @@
 - **재생 이벤트는 `PlaybackService`만 보낸다.** 화면이 보내면 미니플레이어·푸시 딥링크 경로에서 빠진다.
 - **실패해도 앱 동작에 영향이 없다.** 발송 오류는 `logger.warn`으로만 남기고 던지지 않는다.
 - **로그아웃·탈퇴 시 `user_id`·사용자 속성을 지운다**(`setUserId(null)`) — 다음 사용자에게 앞 사용자의 속성이 넘어가지 않게.
-- iOS **광고 식별자(IDFA)는 쓰지 않는다** → ATT 팝업을 띄우지 않는다. Firebase iOS SDK는 `FirebaseAnalyticsWithoutAdIdSupport` 변형을 쓴다. **Meta SDK(fbsdk)도 IDFA 를 끈다**(`advertiserIDCollectionEnabled: false`, ATT 설명문 없음 — 3.5).
+- iOS **광고 식별자(IDFA)는 쓰지 않는다** → ATT 팝업을 띄우지 않는다. Firebase iOS SDK는 `FirebaseAnalyticsWithoutAdIdSupport` 변형을 쓴다. **Meta SDK(fbsdk)도 iOS IDFA 를 끈다**(`advertiserIDCollectionEnabled: false`, ATT 설명문 없음 — 3.5). Android 광고 ID 는 3.5(네이티브 기본값 `true`).
 
 ## 5. 화면 상태
 
@@ -174,7 +174,8 @@
 
 - `content_remove` — 라이브러리 삭제는 `entry: 'library'`, 스낵바 5초가 지나 서버 요청이 나갈 때 `undone: false`, 실행취소를 누르면 `undone: true`(서버 호출 없음).
 - `drip_play` — 편성분(source `drip`·`discovery`) 중 **`lastPlayedAt`이 null 인 항목을 눌렀을 때**(첫 재생 시도). 실제 재생 여부는 `play_start`가 따로 말한다. `hours_since_arrival`은 `addedAt` 기준 기기 시각, 소수 1자리.
-- `drip_arrival_view` — 배너가 뜨는 시점. `hours_since_arrival`은 가장 최근 편성 `addedAt` 기준.
+- `drip_arrival_view` — 라이브러리 탭 배지에 새 편성 수가 더해지는 시점(2026-10-11, 종전 배너 노출). `hours_since_arrival`은 가장 최근 편성 `addedAt` 기준.
+- `push_foreground_banner` — 이벤트 이름은 분석 호환을 위해 유지한다. `view`는 포그라운드 푸시 수신, `tap`은 도착 배지가 있는 라이브러리 탭을 눌러 확인한 시점이다(2026-10-11).
 - `play_abandon` `background` — **멈춘 채** 앱을 떠났을 때만(소리가 나는 채로 나간 것은 이탈이 아니다). 세션당 한 번이라 나중에 교체(`switch`)해도 다시 세지 않는다. `pause_timeout`은 **타이머 자체가 없어 보내지 않는다** — 재생 서비스에 일시정지 만료 로직이 생기면 그때 붙인다.
 - `paywall_view` — MVP는 안내 토스트지만 노출 자체를 센다. `entry`는 연 화면(`library`·`explore`·`player`, 푸시 지연 경로는 그 진입점).
 - `onboarding_step` `tutorial` — 건너뛰기 버튼이 없어 마지막 장을 넘긴 것만 `next`로 센다. `notification`은 온보딩 경로의 프리프롬프트에서만(설정에서 다시 연 것은 `push_permission`만).

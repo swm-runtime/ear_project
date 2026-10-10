@@ -3,6 +3,7 @@ import type { DevicePlatform } from '@/shared/lib/device-platform';
 
 import { IS_SETTINGS_API_MOCKED } from '../settings.constants';
 import type {
+  AudioQuality,
   MarketingConsent,
   PlaybackRate,
   SettingsSummary,
@@ -32,11 +33,25 @@ export const settingsKeys = {
 
 /* ── 변환 — snake_case ↔ camelCase 변환은 이 모듈 안에서만 일어난다 ── */
 
+const AUDIO_QUALITIES: readonly AudioQuality[] = ['compressed', 'aac', 'lossless'];
+
+/** 아는 음질만 받는다 — 모르는 값은 null(그 선택지는 버린다) */
+const toAudioQuality = (value: string | undefined): AudioQuality | null =>
+  AUDIO_QUALITIES.find((quality) => quality === value) ?? null;
+
 const toUserSettings = (dto: UserSettingsDto): UserSettings => ({
   // 허용값 집합은 서버가 검증한다(settings-api.md 7장) — 응답 값은 계약상 PlaybackRate다
   defaultPlaybackRate: dto.default_playback_rate as PlaybackRate,
   isAutoExpandEnabled: dto.is_auto_expand_enabled,
   isDripNotificationEnabled: dto.is_drip_notification_enabled,
+  preferredAudioQuality: toAudioQuality(dto.preferred_audio_quality),
+  audioQualities:
+    dto.audio_qualities === undefined
+      ? null
+      : dto.audio_qualities.flatMap((option) => {
+          const quality = toAudioQuality(option.quality);
+          return quality === null ? [] : [{ quality, allowed: option.allowed }];
+        }),
 });
 
 const toMarketingConsent = (dto: MarketingConsentDto): MarketingConsent => ({
@@ -66,6 +81,13 @@ const toSettingsSummary = (dto: SettingsSummaryResponseDto): SettingsSummary => 
           hasPaymentIssue: dto.plan.has_payment_issue,
           // 필드가 없으면(운영 반영 전 서버) 체험 아님으로 읽는다
           trialLastFreeDate: dto.plan.trial?.last_free_date ?? null,
+          // 필드가 없으면(운영 반영 전 서버) 예약 없음으로 읽는다
+          pendingPlan: dto.plan.pending_plan
+            ? {
+                planName: dto.plan.pending_plan.plan_name,
+                effectiveAt: dto.plan.pending_plan.effective_at,
+              }
+            : null,
         },
   interestSummary:
     dto.interest_summary === null
@@ -113,12 +135,7 @@ export const fetchSettingsSummary = async (input: {
  * client_seq는 연타의 순서 문제용 — 서버는 저장·판정하지 않고 응답에 되돌린다.
  */
 export const updateUserSettings = async (input: {
-  patch: Partial<
-    Pick<
-      UserSettingsDto,
-      'default_playback_rate' | 'is_drip_notification_enabled' | 'is_auto_expand_enabled'
-    >
-  >;
+  patch: Omit<UpdateSettingsRequestDto, 'client_seq'>;
   clientSeq: number;
 }): Promise<{ settings: UserSettings; clientSeq: number }> => {
   const body: UpdateSettingsRequestDto = { ...input.patch, client_seq: input.clientSeq };

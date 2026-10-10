@@ -4,7 +4,7 @@
 |---|---|
 | 대상 문서 | `docs/features/player.md` 7 · `docs/spec/api/player-api.md` 4.1 · `docs/spec/api/admin-api.md` 4.10 |
 | 발행 날짜 | 2026-09-07 |
-| 발견 시점 | `tickets/backend/pending/republish-stale-playback-position.md` 구현(안 A, PR #165) — 문서의 "클라이언트가 폐기" 규칙이 구현과 어긋나게 됐다 |
+| 발견 시점 | `tickets/backend/archive/republish-stale-playback-position.md` 구현(안 A, PR #165) — 문서의 "클라이언트가 폐기" 규칙이 구현과 어긋나게 됐다 |
 | 요청 파트 | 백엔드 |
 
 ## 수정 내용

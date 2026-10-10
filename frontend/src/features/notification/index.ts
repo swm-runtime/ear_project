@@ -7,7 +7,6 @@
  */
 export { default as BellIcon } from './components/BellIcon';
 export { default as NotificationPrePromptModal } from './components/NotificationPrePromptModal';
-export { default as PushArrivalBanner } from './components/PushArrivalBanner';
 export { useNotificationStore } from './store/notification.store';
 export {
   getOsPermissionStatus,
@@ -22,11 +21,7 @@ export { usePushLinkGate } from './hooks/usePushLinkGate';
  * 기기 동기화·푸시 수신 기동 — app/bootstrap이 로그인 여부 판정과 라이브러리 갱신을 주입해 켠다
  * (architecture.md 5.5). notification이 auth·library를 직접 import하면 의존 표(4.4)를 어긴다.
  */
-export {
-  resetDeviceSync,
-  startDeviceSync,
-  syncDeviceNow,
-} from './services/device-sync.service';
+export { resetDeviceSync, startDeviceSync, syncDeviceNow } from './services/device-sync.service';
 export { clearPushState, startPushReceiving } from './services/push-receiving.service';
 export { NOTIFICATION_COPY } from './notification.copy';
 export type { OsPermissionStatus } from './notification.types';

@@ -15,7 +15,7 @@
 > - `LibraryScreen` 설명 문단에 "잔여 재생 표시값은 직접 조립하지 않는다" 불릿 추가. 한도 판정이 필요한 재생 시작은 이 함수를 쓰지 않는다는 단서도 함께 적었다
 > - 같은 표의 `Explore` 행 신설과 함께 반영했다 — `changes/archive/module-dependency-explore(be).md`
 
-> `changes/pending/module-dependency-explore(be).md`의 "함께 확인할 것"에서 별도 결정으로 미뤄 두었던 항목이다. **하기로 확정**되어 이 문서로 분리한다.
+> `changes/archive/module-dependency-explore(be).md`의 "함께 확인할 것"에서 별도 결정으로 미뤄 두었던 항목이다. **하기로 확정**되어 이 문서로 분리한다.
 
 ---
 

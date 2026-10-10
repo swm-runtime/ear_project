@@ -14,35 +14,26 @@ import { EnvironmentVariables } from '@/config/env.validation';
 
 import { AppModule } from './app.module';
 
-export async function bootstrap(): Promise<void> {
-  const app = await NestFactory.create<NestExpressApplication>(AppModule, {
-    // 본문 파서는 아래에서 직접 등록한다(주석 참고)
-    bodyParser: false,
-  });
-  const configService =
-    app.get<ConfigService<EnvironmentVariables, true>>(ConfigService);
+/**
+ * `NestFactory.create` 옵션 — 부팅과 부팅 스모크(`test/bootstrap.e2e-spec.ts`)가 **같은 값**을 쓴다.
+ * `bodyParser: false` 는 `configureApp` 이 파서를 직접 등록하기 때문이다(그 주석).
+ */
+export const NEST_APP_OPTIONS = { bodyParser: false } as const;
 
+/**
+ * 앱 조립 — 미들웨어·전역 설정 전부. `bootstrap` 과 부팅 스모크 e2e 가 같은 함수를 부른다(2026-10-07 운영 장애 뒤).
+ * 종전에는 e2e 가 각자 조립해서 `main.ts` 의 실수(전역 JSON 파서 누락)를 아무 테스트도 잡지 못했다.
+ */
+export function configureApp(
+  app: NestExpressApplication,
+  configService: ConfigService<EnvironmentVariables, true>,
+): void {
   /**
-   * LB 뒤에 배포할 때만 env로 켠다(`TRUST_PROXY_HOPS` — 기본 0).
-   *
-   * 켜야 `X-Forwarded-For`에서 진짜 클라이언트 IP를 읽어 `audio_access_logs.ip_hash`
-   * 이상 탐지(FR-33)가 동작한다. **프록시가 없는데 켜면 반대로 IP 위조 구멍이 된다** —
-   * 그래서 값은 코드가 아니라 배포 설정이 정한다(env.validation.ts 참조).
-   */
-  const trustProxyHops = configService.get('TRUST_PROXY_HOPS', {
-    infer: true,
-  });
-  if (trustProxyHops > 0) {
-    app.set('trust proxy', trustProxyHops);
-  }
-
-  /**
-   * 본문 파서는 **직접 등록한다**(`bodyParser: false`, 2026-10-07 운영 장애 — `v1.2.0+3`).
+   * 본문 파서는 **직접 등록한다**(`NEST_APP_OPTIONS.bodyParser: false`, 2026-10-07 운영 장애 — `v1.2.0+3`).
    *
    * Sentry 웹훅 경로에만 `express.json()`을 따로 걸었더니, Nest 가 앱 어딘가에 `jsonParser` 라는 이름의 미들웨어가
    * 있으면 **자기 전역 파서 등록을 건너뛰는** 바람에(`ExpressAdapter.isMiddlewareApplied` — 경로 한정이어도 이름만
-   * 본다) 다른 모든 경로의 본문이 비어 들어와 로그인·토큰 갱신이 전부 400 이었다(18:30~19:00 KST). e2e 는 `main.ts`
-   * 를 거치지 않아 잡지 못했다.
+   * 본다) 다른 모든 경로의 본문이 비어 들어와 로그인·토큰 갱신이 전부 400 이었다(18:30~19:00 KST).
    *
    * 그래서 Nest 의 자동 등록에 기대지 않고 둘을 **이 순서로** 명시한다:
    * 1. Sentry 웹훅 경로 — 본문이 이벤트(스택·컨텍스트)째 와서 기본 한도(100kb)를 넘긴다 → **2mb**. 서명 검증은 받은
@@ -61,6 +52,24 @@ export async function bootstrap(): Promise<void> {
   );
   app.use(json());
   app.use(urlencoded({ extended: true }));
+
+  /**
+   * LB 뒤에 배포할 때만 env로 켠다(`TRUST_PROXY_HOPS` — 기본 0).
+   *
+   * 켜야 `X-Forwarded-For`에서 진짜 클라이언트 IP를 읽어 `audio_access_logs.ip_hash` 이상 탐지(FR-33)와
+   * IP 단위 레이트 리밋(`RateLimitGuard`)이 동작한다. **프록시가 없는데 켜면 반대로 IP 위조 구멍이 된다** —
+   * 그래서 값은 코드가 아니라 배포 설정이 정한다(env.validation.ts 참조). 2026-10-07 `configureApp` 분리 때 이 블록이
+   * 빠져 Caddy 뒤의 모든 요청이 프록시 IP 하나로 보였다(로그인·갱신 20회/분 버킷이 전원 공용 — 2026-10-09 전체 검증).
+   * 부팅 스모크 e2e 가 `trust proxy` 값을 확인한다.
+   */
+  // 숫자로 고정한다 — env 검증기(`@Type(() => Number)`)를 거치지 않은 조립(부팅 스모크 e2e)에서는 문자열 "1"이
+  // 들어오고, Express 는 문자열을 홉 수가 아니라 IP 목록으로 읽는다
+  const trustProxyHops = Number(
+    configService.get('TRUST_PROXY_HOPS', { infer: true }) ?? 0,
+  );
+  if (Number.isInteger(trustProxyHops) && trustProxyHops > 0) {
+    app.set('trust proxy', trustProxyHops);
+  }
 
   // architecture.md 9.5 — 보안 헤더 전역 적용, CORS 허용 오리진 명시(`*` 금지)
   app.use(helmet());
@@ -88,6 +97,17 @@ export async function bootstrap(): Promise<void> {
    * 스케줄러 작업이 중간에 잘린다(2026-09-09 감사 — 하등급).
    */
   app.enableShutdownHooks();
+}
+
+export async function bootstrap(): Promise<void> {
+  const app = await NestFactory.create<NestExpressApplication>(
+    AppModule,
+    NEST_APP_OPTIONS,
+  );
+  const configService =
+    app.get<ConfigService<EnvironmentVariables, true>>(ConfigService);
+
+  configureApp(app, configService);
 
   if (sentryEnabled) {
     new Logger('Bootstrap').log('sentry enabled');

@@ -57,6 +57,32 @@ export class DripBatchRunRepository {
     return this.scoped(manager).findOneBy({ runDate });
   }
 
+  /**
+   * **미완료 행만** 다시 집는다 — 프로세스 재시작 직후의 재개 경로(`DripBatchRunService.claim` `reclaimUnfinished`).
+   * `claim`과 달리 행을 **만들지 않는다**: INSERT 경로를 그대로 쓰면 그날 행이 없을 때(경계 뒤·05:00 크론 전 재시작)
+   * 새 실행이 성립해 전 사용자 편성·푸시가 예정보다 먼저 나갔다(2026-10-09 전체 검증). 정상 종료한 날이나 아직 시작하지
+   * 않은 날은 `null` — 호출부는 아무것도 하지 않는다.
+   */
+  async reclaimUnfinished(
+    runDate: string,
+    startedAt: Date,
+    manager?: EntityManager,
+  ): Promise<DripBatchRun | null> {
+    const result = await this.scoped(manager)
+      .createQueryBuilder()
+      .update()
+      .set({ startedAt })
+      .where('run_date = :runDate AND finished_at IS NULL', { runDate })
+      .returning('id')
+      .execute();
+
+    if ((result.raw as unknown[]).length === 0) {
+      return null;
+    }
+
+    return this.scoped(manager).findOneBy({ runDate });
+  }
+
   async save(
     run: DripBatchRun,
     manager?: EntityManager,

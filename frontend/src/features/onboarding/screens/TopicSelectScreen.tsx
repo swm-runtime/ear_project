@@ -257,14 +257,14 @@ const styles = StyleSheet.create({
     paddingLeft: theme.spacing.md,
     fontSize: theme.font.size.sm,
     fontWeight: '700',
-    color: theme.color.onPrimary,
+    color: theme.color.onPhoto,
   },
   selectedChipX: {
     // 오른쪽 여백. 라벨과 ✕ 사이 간격은 selectedChip 의 gap 이 그대로 유지한다
     paddingRight: theme.spacing.md,
     fontSize: theme.font.size.sm,
     fontWeight: '700',
-    color: theme.color.onPrimary,
+    color: theme.color.onPhoto,
     opacity: 0.85,
   },
   /** 캐러셀 위아래 균등 여백 — 세로 중앙 배치 */

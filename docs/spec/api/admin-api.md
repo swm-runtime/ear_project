@@ -60,7 +60,7 @@
 | POST | `/admin/notices` | 공지 작성 — `published_at` 없으면 초안 (4.13) |
 | PATCH | `/admin/notices/:noticeId` | 공지 부분 수정 — `published_at: null`은 발행 취소 (4.14) |
 | DELETE | `/admin/notices/:noticeId` | 공지 삭제(soft) (4.15) |
-| GET | `/admin/system-stats` | 서버 자원·DB 부하 스냅샷 (로그 콘솔 상태 탭) |
+| GET | `/admin/system-stats` | 서버 자원·DB 부하 스냅샷 (로그 콘솔 대시보드 — 옛 서버 상태 탭, 2026-10-08 통합) |
 | GET | `/admin/drip/preview` | 편성 미리보기 — 지금 데이터로 배치를 돌리면 갈 정규·탐험 편성분과 점수 분해, 읽기 전용 (4.16) |
 | GET | `/admin/recommend-test/account` | 추천 테스트 계정 상태 — 환경·계정·관심 주제·라이브러리. **개발계 전용** (4.17) |
 | GET | `/admin/recommend-test/feed` | 추천 테스트 계정의 탐색 피드 — `explore-api.md` 4.1과 같은 본문 (4.17) |
@@ -71,6 +71,9 @@
 | GET | `/admin/recommend-eval/snapshot` | 추천 평가 스냅샷 내보내기 — 발행 콘텐츠·익명 사용자 행동, 읽기 전용 (4.18) |
 | GET | `/admin/drip-feedback/versions` | 추천 알고리즘 버전별 별점 — 편성 수·평가 수·평균·분포, 버전 역순 (4.19) |
 | GET | `/admin/search-query-logs/summary` | 검색 질의 로그 요약 — 미스율·일별 추이·0건 질의·상위 질의, 읽기 전용 (4.21) |
+| GET | `/admin/insights/summary` | 서비스 지표 요약 — 가입·탈퇴·활성 사용자·청취 시간·완청률·사용자/콘텐츠 순위·리텐션·탈퇴 사유, 읽기 전용 (4.22) |
+| GET · POST | `/admin/invite-codes` | 초대 코드 목록(사용 현황 포함)·만들기 (4.23, 2026-10-10) |
+| PATCH | `/admin/invite-codes/:inviteCodeId` | 초대 코드 고치기 — 이름·켜기/끄기·한도·입력 기간만 (4.23) |
 
 ## 4. 엔드포인트 상세
 
@@ -127,7 +130,7 @@
 {
   "items": [ /* AdminContentItem — 8장 */ ],
   "total": 137,
-  "current_enrichment_schema_version": 2   // 서버가 아는 현재 추천 메타 형식 버전 (4.6 schema_version 상한과 같은 값). 2026-09-11
+  "current_enrichment_schema_version": 3   // 서버가 아는 현재 추천 메타 형식 버전 (4.6 schema_version 상한과 같은 값). 2026-09-11
 }
 ```
 
@@ -173,13 +176,16 @@
 
 **`enrichment_file` — 추천 메타 파일** (`admin.md` 3.1의 계약 표현, 등재 2026-09-08)
 
-- 저장 대상: `difficulty` · `format` · `is_evergreen` · `keywords` · **`target_audiences`**(형식 v2, 2026-09-11) → `contents` 메타,
+- 저장 대상: `difficulty` · `format` · `is_evergreen` · `keywords` · **`target_audiences`**(형식 v2, 2026-09-11) · **`tags`**(형식 v3, 2026-10-08 KAN-162) → `contents` 메타,
   `embedding.vector` → `content_embeddings` upsert(콘텐츠당 1행). 생략된 키는 저장하지 않는다(재부여 시에는 기존 값을 유지한다 — 부분 갱신, 2026-09-26)
   (결손 = 스코어링 중립 — `domain.md` 5.1·5.6).
 - **`schema_version`**(정수, 생략 시 1)을 `contents.enrichment_schema_version`에, 적용 시각을 `enriched_at`에 기록한다.
-  현재 형식은 **2**다 — 서버가 아는 최신보다 높으면 파일을 거부한다(모르는 키가 결손으로 둔갑하는 것을 막는다).
+  현재 형식은 **3**이다 — 서버가 아는 최신보다 높으면 파일을 거부한다(모르는 키가 결손으로 둔갑하는 것을 막는다).
 - `target_audiences`는 `[{ "job_category", "years_of_experience" }]` — 직군은 `GET /job-categories` 목록, 연차는
   `0-1 | 2-3 | 4-6 | 7+`(온보딩 입력과 같은 값 집합). 최대 8세트, 중복은 하나로 접고, 목록 밖 값은 파일 거부.
+- `tags`(형식 v3)는 화면 해시태그 문자열 배열 **2~4개** — 각 항목 `^[가-힣A-Za-z0-9]{2,10}$`(띄어쓰기·'#' 없음),
+  대소문자 무시 중복 없음. 화면에 그대로 보이는 값이라 **고치거나 접지 않고 파일을 거부한다.** 탐색 카드(`explore-api.md`)·
+  상세(`content-detail-api.md` 4.1)의 `tags`로 나간다.
 - 검증: enum은 `domain.md` 5.1과 글자 일치, 벡터는 1536차원, `embedding.model`은 현재 모델
   (`text-embedding-3-small`)과 일치해야 한다. **모르는 최상위 키는 거부한다**(오타가 결손으로
   둔갑하는 것을 막는다 — 명세의 `source` 폴백 표식은 허용).
@@ -278,7 +284,7 @@
 
 | 파트 | 규격 | 필수 |
 |---|---|---|
-| `audio` | 압축 음질 mp3 / m4a, ≤320MB — 4.6과 같다 | 선택 |
+| `audio` | 압축 음질 mp3 / m4a, ≤200MB — 4.6과 같다(정정 2026-10-10 — 320MB 상향은 되돌렸다) | 선택 |
 | `audio_aac` · `audio_lossless` | 4.6과 같다. **오디오를 바꾸는 재발행은 3종을 한 세트로 본다** — `audio`를 보내면서 안 보낸 음질의 행은 지운다(버전이 다른 음질이 섞이지 않게, `domain.md` 5.1-1). `audio` 없이 `audio_aac`·`audio_lossless`만 보내는 것은 400(`details.field = "audio"`) | 선택 (2026-10-06) |
 | `thumbnail` | jpg / png / webp, ≤5MB — 4.6 과 같이 서버가 WebP 768px 로 다시 쓴다 | 선택 |
 | `payload` | JSON 문자열 — 4.6 `payload`의 부분집합(`title` `description` `source_name` `topic_ids` `sources`). 넘긴 키만 바꾼다 | 선택 |
@@ -541,6 +547,99 @@
 - `missed`는 0건이 한 번이라도 있던 질의를 0건 수 내림차순으로, `top`은 검색 수 내림차순으로 각 최대 50개. `last_searched_at`은 그 질의의 마지막 요청 시각(`updated_at`).
 - 인증은 다른 `/admin/*`와 같다(2장). 400 `VALIDATION_FAILED` — `days` 범위 밖.
 
+### 4.22 `GET /admin/insights/summary` — 서비스 지표 요약 (읽기 전용)
+
+> 추가: 2026-10-08. 로그 콘솔 "서비스 지표" 탭(`backend-monitoring.md` 4장)이 읽는다 — 가입·탈퇴·청취를 수치로 보고 인사이트를 얻기 위한 화면. 다른 운영 지표 화면(일일 지표 Slack 보고 — GA4)과 달리 **전부 제품 DB 집계**다. **열 때 1회 + [새로고침]**만 호출하고 자동 폴링하지 않는다(3장) — 서버도 질의를 순차로 돌려 운영 DB 연결을 한 번에 하나만 쓴다.
+
+**Query** — `days` (선택, 정수 1~90, 기본 14): 추이(`daily`·`hourly`)와 창 집계(`listening.window`)의 일수. `now - days` 이후의 행만 센다. 누적 카드·순위·구조 표는 창과 무관하게 **전 기간**이다.
+
+**Response 200** (값은 예시)
+
+```json
+{
+  "days": 14, "since": "2026-09-24T03:00:00.000Z", "generated_at": "2026-10-08T03:00:00.000Z",
+  "users": {
+    "total_signups": 259, "current": 225, "withdrawals": 34, "withdrawal_rate": 0.131,
+    "onboarding_completed": 208, "onboarding_rate": 0.924, "trial_active": 139,
+    "tiers": { "light": 225, "daily": 0, "pro": 0 }, "tier_events": { "daily": 0, "pro": 0 }, "paid_active": 0, "paid_rate": 0,
+    "activated": 149, "activation_rate": 0.662,
+    "active_1d": 63, "active_7d": 190, "active_30d": 220, "stickiness": 0.286,
+    "listeners_1d": 52, "listeners_7d": 130, "listeners_30d": 149,
+    "listener_rate_1d": 0.825, "listener_rate_7d": 0.684, "listener_rate_30d": 0.677,
+    "by_provider": [ { "provider": "kakao", "count": 180 } ]
+  },
+  "listening": {
+    "all_time": { "listen_sec": 122642, "plays": 373, "completes": 54, "complete_rate": 0.145, "listeners": 149, "saves": 119, "avg_listen_sec_per_play": 328.8, "avg_listen_sec_per_listener": 823.1 },
+    "window":   { "listen_sec": 70844, "plays": 233, "completes": 40, "complete_rate": 0.172, "listeners": 130, "saves": 61, "avg_listen_sec_per_play": 304.1, "avg_listen_sec_per_listener": 545.0 }
+  },
+  "daily":  [ { "date": "2026-10-08", "signups": 28, "withdrawals": 1, "plays": 88, "listeners": 52, "listen_sec": 25100, "completes": 9 } ],
+  "hourly": [ { "hour": 0, "plays": 3, "listen_sec": 900 } ],
+  "top_users":    [ { "user_id": "…", "listen_sec": 14953, "plays": 25, "completes": 6, "tier": "light", "signed_up_at": "…", "last_played_at": "…" } ],
+  "top_contents": [ { "content_id": "…", "title": "…", "duration_sec": 812, "listen_sec": 9000, "plays": 40, "listeners": 31, "completes": 8, "complete_rate": 0.2, "saves": 5 } ],
+  "withdrawal_reasons": [ { "reason_code": "low_usage", "count": 9 }, { "reason_code": null, "count": 3 } ],
+  "retention": [ { "day": 1, "cohort_size": 200, "returned": 50, "rate": 0.25 }, { "day": 7, "cohort_size": 150, "returned": 30, "rate": 0.2 }, { "day": 30, "cohort_size": 0, "returned": 0, "rate": null } ]
+}
+```
+
+- **개인 식별 정보는 어떤 필드에도 없다** — 사용자 순위는 `user_id`·티어·가입일·마지막 재생뿐이다(루트 CLAUDE.md 개인정보 원칙). 화면도 `user_id` 앞 8자만 적는다.
+- `total_signups` = `current`(`users` 행 수 — 탈퇴 행은 지워져 없으므로 `status` 필터를 두지 않는다) + `withdrawals`(`withdrawal_logs` 행 수). 탈퇴는 `users` 행을 지우므로(`domain.md` 12.3) 둘을 더해야 "가입한 적 있는 사람"이다. `withdrawal_rate` = `withdrawals / total_signups`.
+- `tiers`는 `users.tier` 캐시 기준이라 **초대 코드 이벤트로 받은 요금제도 들어 있다**(`domain.md` 8.6). `tier_events`는 그중 이벤트로 그 티어인 계정 수다 — 지금 지급 중인 요금제가 그 티어이고 같은 티어 이상의 살아 있는 구독이 없는 계정(결제와 겹치면 결제로 센다, 2026-10-10). 콘솔은 "Pro 30명 (이벤트 11명)"으로 그린다. `paid_active`는 결제만 세므로 이벤트 계정이 들어가지 않는다.
+- `paid_active`는 `subscriptions`의 `status in (active, grace, cancelled)`(해지 예약은 만료일까지 유효 — `domain.md` 8.2) · `environment = production` · 미만료인 **사용자 수**(distinct)다. 샌드박스 결제는 세지 않는다. `trial_active`는 `users.trial_ends_at > now`.
+- `active_1d/7d/30d`는 **앱 사용 기준 DAU·WAU·MAU** — 그 창 안에 `sessions.issued_at`이 있는 사용자 수(distinct). 액세스 토큰이 30분(`ACCESS_TOKEN_TTL_SEC`)이라 앱을 열면 거의 매번 리프레시 회전으로 세션 행이 새로 생기므로, 서버가 가진 신호 중 "앱 실행"에 가장 가깝다(30분 안의 재실행은 안 잡히고, 세션 행 보존 30일이 창의 상한). `stickiness` = `active_1d / active_30d`.
+- `activated`는 `play_records`에 행이 하나라도 있는 사용자 수, `listeners_1d/7d/30d`는 그 창 안에 `played_at`이 있는 사용자 수(**재생** 기준). `listener_rate_*` = `listeners_* / active_*` — 활성 사용자 중 청취까지 간 비율(켜고 안 듣는 사람을 가른다).
+- 청취의 원천은 **`play_records`**(`listened_sec` 합·행 수·distinct 사용자)다. `content_stats`는 04시 배치 집계라 하루 뒤처지고 탈퇴자 몫이 남아 두 숫자는 다를 수 있다 — 이 응답은 전자다. `completes`는 `user_signals.action = complete` 수, `saves`는 `library_items.source = save` 수(삭제분 포함 — 담은 사실이 지표). 평균 두 개는 분모 0이면 `null`.
+- 모든 비율(`*_rate`·`stickiness`)은 **분모 0이면 `null`**(0%와 "셀 수 없음"을 구분). 표본이 작을 때의 "참고" 표시는 화면 몫이다.
+- `daily`는 `since`의 KST 날짜부터 오늘(KST)까지 **하루도 빠지지 않고**(기록 없는 날은 0), `hourly`는 0~23시 전부다. `daily.signups`는 `users.created_at`이라 그날 가입했다가 탈퇴한 사람은 빠진다(`withdrawal_logs`에는 가입일이 없다 — 생존 편향). 날짜는 **KST 달력일**이다(검색 로그 요약과 같은 기준 — 04/05시 서비스 날짜 경계를 쓰지 않는다. 정책 판정이 아니라 운영자가 읽는 단위).
+- `top_users`·`top_contents`는 전 기간 청취 시간 내림차순 각 최대 15. `top_contents.saves`는 그 콘텐츠를 직접 담은 수.
+- `retention`은 D1·D7·D30 — `cohort_size`는 가입한 지 `day`일이 지난 **현재 계정** 수, `returned`는 그중 가입 `day`일 뒤 이후 아무 때나 **앱을 쓴** 사람(토큰 갱신 `sessions.issued_at` 또는 재생 `play_records` — 세션 행은 30일만 보존되므로 영구 보존되는 재생을 합친다. 언바운디드). 탈퇴자는 분모에 없어 실제보다 높게 나온다(생존 편향). 하루만 보는(bounded) 방식은 수백 명 규모에서 표본이 너무 작아 쓰지 않는다.
+- 인증은 다른 `/admin/*`와 같다(2장). 400 `VALIDATION_FAILED` — `days` 범위 밖. 응답은 `Cache-Control: no-store`.
+
+### 4.23 `/admin/invite-codes` — 초대 코드 관리 (2026-10-10)
+
+PoC·제휴 캠페인마다 코드를 만들고, 켜고 끄고, 사용 현황을 본다. 규칙의 원본은 `subscription.md` 4.9, 저장은 `domain.md` 8.5·8.6, 사용자 입력은 `subscription-api.md` 4.8-1이다. 콘솔 화면은 아직 없다(파이프라인 웹 몫 — 화면이 생기기 전에는 API로 직접 만든다). **삭제는 없다** — 끄면 새 입력만 막히고 지급 기록은 남는다.
+
+**`POST /admin/invite-codes`** → 201 항목
+
+```json
+{
+  "code": "SANGUN-POC",
+  "name": "산군 PoC",
+  "tier": "pro",
+  "grant_days": 30,
+  "max_redemptions": 50,
+  "redeemable_until": "2026-12-01T00:00:00+09:00"
+}
+```
+
+| 필드 | 필수 | 규칙 |
+|---|---|---|
+| `code` | 선택 | 영문·숫자·하이픈 4~32자. 대문자로 맞춰 저장한다. **비우면 서버가 8자로 만든다**(헷갈리는 0·O·1·I·L 제외). 같은 값이 있으면 409 `INVITE_CODE_DUPLICATE` |
+| `name` | 필수 | 캠페인 이름(100자). 사용자 응답 `plan.grant.name`으로도 나간다 |
+| `tier` | 필수 | `daily` \| `pro` |
+| `grant_days` · `grant_until_date` | **정확히 하나** | 입력한 날부터 N일(1~366, 입력한 서비스 날짜가 1일째) 또는 마지막 서비스 날짜(`YYYY-MM-DD`, 그날까지). 둘 다·둘 다 없음·이미 지난 마지막 날은 400 |
+| `max_redemptions` | 선택 | 사용 한도(계정 수, 1~1,000,000). 없으면 제한 없음 |
+| `redeemable_from` · `redeemable_until` | 선택 | 입력을 받는 기간(ISO 8601, **시간대 필수** — `Z` 또는 `+09:00`. 없으면 서버 시간대로 해석돼 어긋나므로 400). 뒤집혀 있으면 400 |
+
+**`GET /admin/invite-codes`** → 200 `{ "items": [항목] }` — 최근에 만든 순. `Cache-Control: no-store`.
+
+**`PATCH /admin/invite-codes/:inviteCodeId`** → 200 항목. 받는 필드: `name` · `is_active` · `max_redemptions` · `redeemable_from` · `redeemable_until`(한도·기간은 `null`로 풀 수 있다. `name`·`is_active`의 `null`은 400). **코드 값·지급 요금제·지급 기간은 받지 않는다**(400) — 이미 받은 사람과 앞으로 받을 사람의 조건이 갈린다. 바꾸려면 새 코드를 만든다. 없는 id는 404 `INVITE_CODE_NOT_FOUND`.
+
+**항목**
+
+```json
+{
+  "id": "uuid", "code": "SANGUN-POC", "name": "산군 PoC", "tier": "pro",
+  "grant_days": 30, "grant_until_date": null, "max_redemptions": 50,
+  "redeemed_count": 12, "active_count": 11,
+  "redeemable_from": null, "redeemable_until": "2026-11-30T15:00:00.000Z",
+  "is_active": true, "created_at": "…", "updated_at": "…"
+}
+```
+
+- `redeemed_count` — 지금까지 사용한 계정 수(탈퇴해도 줄지 않는다). `active_count` — 지금 지급 중인 계정 수(목록에서만, 만들기·고치기 응답은 `null`).
+- **사용자 식별 정보는 싣지 않는다** — 누가 썼는지는 집계만 본다(CLAUDE.md 개인정보 원칙). PoC 사용 데이터 분석이 계정 단위로 필요해지면 그때 `user_id` 목록 API를 따로 정한다.
+- 같은 코드를 동시에 만들어도 409다(유니크 인덱스). 만들기·고치기는 `audit_logs`에 `invite_code.create` · `invite_code.update`로 남는다(전후 값 — 코드 테이블에 작성자 컬럼이 없다).
+
 ## 5. 에러 코드 표
 
 | error_code | HTTP | retryable | 발생 지점 |
@@ -559,6 +658,8 @@
 | `NOTICE_NOT_FOUND` | 404 | false | 4.14·4.15 — 없거나 삭제된 공지 |
 | `NOT_FOUND` | 404 | false | 4.16 — 그 이메일의 사용자 없음 / 4.17 — 테스트 계정이 이 서버에 가입돼 있지 않음 · `delete` 대상이 라이브러리에 없음 |
 | `ADMIN_RECOMMEND_TEST_DISABLED` | 409 | false | 4.17 — 운영 환경(`SENTRY_ENVIRONMENT=production`)이거나 `RECOMMEND_TEST_EMAIL` 미설정 |
+| `INVITE_CODE_DUPLICATE` | 409 | false | 4.23 — 같은 값의 초대 코드가 이미 있다 |
+| `INVITE_CODE_NOT_FOUND` | 404 | false | 4.23 — 고치려는 초대 코드가 없다 |
 
 전체 목록·클라이언트 동작은 `common-error-handling.md` 9.10이 기준이다.
 
@@ -598,7 +699,7 @@ topics[{ topic_id, name }],
 enrichment_schema_version, enriched_at          // 마지막 적용 메타 파일의 형식 버전·시각. null = 받은 적 없음 (2026-09-11)
 ```
 
-- `enrichment_schema_version`이 현재 형식(목록 응답 최상위 `current_enrichment_schema_version` — 4.5, 지금 2)보다 낮거나 null이면 **구형 메타**다. 콘솔이 그 콘텐츠를 골라 메타를 다시 뽑아 4.10의 `enrichment_file` 단독 전송으로 갱신한다(콘솔 기능은 `tickets/ai/pending` 참조).
+- `enrichment_schema_version`이 현재 형식(목록 응답 최상위 `current_enrichment_schema_version` — 4.5, 지금 3 — 2026-10-08 KAN-162)보다 낮거나 null이면 **구형 메타**다. 콘솔이 그 콘텐츠를 골라 메타를 다시 뽑아 4.10의 `enrichment_file` 단독 전송으로 갱신한다(콘솔 기능은 `tickets/ai/pending` 참조).
 
 **`audio_path`는 싣지 않는다**(7장).
 

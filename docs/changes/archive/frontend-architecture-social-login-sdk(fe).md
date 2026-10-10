@@ -39,6 +39,6 @@ architecture.md 미결 사항이던 SDK 선정이 `feat(fe)/social-login` 구현
 
 ## 처리 기록 (반영 날짜 2026-08-26 — 브랜치 `feat(fe)/social-login`, 사용자 요청으로 통합 전 반영)
 
-- `frontend/architecture.md` 미결 사항에서 "소셜 로그인 SDK 확정" 제거 — 자리에 "Android 애플 로그인(웹 OAuth)" 미결 항목 신설(콘솔 준비 완료·콜백 방식 백엔드 협의 대기, `changes/pending/auth-api-apple-android-web-flow(fe).md` 링크)
+- `frontend/architecture.md` 미결 사항에서 "소셜 로그인 SDK 확정" 제거 — 자리에 "Android 애플 로그인(웹 OAuth)" 미결 항목 신설(콘솔 준비 완료·콜백 방식 백엔드 협의 대기, `changes/archive/auth-api-apple-android-web-flow(fe).md` 링크)
 - 2장 기술 스택 표에 소셜 로그인 행 추가 — 4종 패키지, config plugin 기반, "Expo Go=mock·dev client=실동작" 제약, 키 관리 위치, 개정 표기
 - 9.1에 적용 사례 항목 추가 — `extra.socialAuth`(런타임)+plugin 옵션(빌드타임) 관리, 네이버 시크릿의 앱 탑재 불가피 성격 기록

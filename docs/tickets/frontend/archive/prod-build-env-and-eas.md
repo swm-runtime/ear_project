@@ -6,7 +6,7 @@
 | 요청 파트 | 백엔드 (인프라 구축 완료 통지 겸) |
 | 발행 날짜 | 2026-08-31 |
 | 발견 시점 | 2026-08-31 서버 배포·소셜 로그인 종단 확인 후 — 서버는 실기기를 받을 준비가 됐는데 **앱이 실서버를 가리키는 빌드 프로필이 없다** |
-| 근거 문서 | `tickets/backend/pending/api-server-deployment.md`(완료 조건의 "FE 스탠드얼론 빌드" 검증이 이것에 막힘) · `frontend/convention.md`(env 전환 패턴) |
+| 근거 문서 | `tickets/backend/archive/api-server-deployment.md`(완료 조건의 "FE 스탠드얼론 빌드" 검증이 이것에 막힘) · `frontend/convention.md`(env 전환 패턴) |
 | 심각도 | **높음** — 지금까지의 전 기능(로그인 4종 포함)의 실기기 종단 검증이 이 하나에 걸려 있다 |
 | 상태 | **완료** (2026-09-08 — 완료 조건 4개 전부 충족) |
 
@@ -286,7 +286,7 @@ SES 인프라는 이미 검증됐다(2026-09-07 발송 테스트 수신 확인, 
 메일은 **아웃룩 스팸함**에 들어갔다. 다만 헤더의 `Authentication-Results` 는 `spf=pass` ·
 `dkim=pass header.d=earcast.co.kr` · `dmarc=pass` · `compauth=pass` 로 **전부 통과**다 —
 설정 문제가 아니라 수신측(Microsoft) 평판 정책이며, 같은 발신이 Gmail 에는 정상 수신함으로 갔다.
-**도달률 개선은 `tickets/backend/pending/email-spf-dmarc-records.md` 가 이어받는다.**
+**도달률 개선은 `tickets/backend/archive/email-spf-dmarc-records.md` 가 이어받는다.**
 
 ### 완료 조건 전부 판정
 

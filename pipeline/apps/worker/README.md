@@ -54,6 +54,6 @@ tts · package: 연쇄 없음 — 사람이 UI 에서 명시적으로 요청할 
 
 ## 비평 모델·병렬 실행 (2026-09-01)
 
-- **비평은 Opus 고정** — `.env`의 `CRITIC_MODEL`(기본 `claude-opus-5`). 판정자 모델은 사람 판정(κ)의 대상이므로 바꾸면 회귀 세트 재검증(spec/09 7.4). 다른 단계는 `CLAUDE_MODEL`(비우면 CLI 기본 모델).
+- **비평은 Opus 고정** — `.env`의 `CRITIC_MODEL`(기본 `claude-opus-5-5` — 2026-10-09 Opus 5 → 5.5). 판정자 모델은 사람 판정(κ)의 대상이므로 바꾸면 회귀 세트 재검증(spec/09 7.4). 다른 단계는 `CLAUDE_MODEL`(비우면 CLI 기본 모델).
 - **여러 워커 동시 실행 가능** — 큐가 `FOR UPDATE SKIP LOCKED`로 분배한다. 터미널 3개에서 `npm run worker`를 띄우면 비평 9편이 30분 안에 끝난다. 구독 5시간 창을 함께 쓴다는 점만 유의.
 - `domain_check`는 AI 없는 IO 작업 — `EXECUTOR=none CAPABILITIES=io npx tsx src/index.ts --once`로 따로 처리해도 된다 (AI 워커와 병행 가능).

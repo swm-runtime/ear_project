@@ -29,7 +29,7 @@
 >
 > **문서는 건드리지 않았다.** 계약은 이 티켓 발행 시점에 이미 반영돼 있었다(`settings-api.md` 4.1).
 
-> **짝 티켓** — `tickets/frontend/pending/settings-version-platform-param.md`. **아직 대기다.** `platform`을 필수로 만들었으므로 **이 브랜치가 FE보다 먼저 배포되면 값을 안 보내는 클라이언트가 400을 받는다.** 통합 브랜치에서 함께 머지되면 문제가 없다 — 배포 순서는 아래 "함께 확인할 것" 참조.
+> **짝 티켓** — `tickets/frontend/archive/settings-version-platform-param.md`. **아직 대기다.** `platform`을 필수로 만들었으므로 **이 브랜치가 FE보다 먼저 배포되면 값을 안 보내는 클라이언트가 400을 받는다.** 통합 브랜치에서 함께 머지되면 문제가 없다 — 배포 순서는 아래 "함께 확인할 것" 참조.
 >
 > **계약은 이미 확정·반영됐다**(2026-08-09). `settings-api.md` 4.1 Request 표에 `platform`이 필수로 들어갔고, `splash.md` 6장도 같은 규칙을 따르도록 기재됐다. 이 티켓은 **코드를 계약에 맞추는 일**이다.
 

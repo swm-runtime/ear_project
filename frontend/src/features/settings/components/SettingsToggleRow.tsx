@@ -44,7 +44,7 @@ export default function SettingsToggleRow({
         onValueChange={handlePress}
         disabled={disabled}
         trackColor={{ false: theme.color.border, true: theme.color.primary }}
-        thumbColor={theme.color.onPrimary}
+        thumbColor={theme.color.onPhoto}
         ios_backgroundColor={theme.color.border}
         style={[styles.switch, isDimmed && styles.switchDimmed]}
         // 행 전체가 하나의 스위치로 읽힌다 — 스위치 자체는 보조 표면이 아니다

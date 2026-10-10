@@ -17,6 +17,7 @@ import { generateId } from '@/shared/lib/generate-id';
 import { logger } from '@/shared/lib/logger';
 import { toTab } from '@/shared/navigation/to-tab';
 import { HAS_NATIVE_TAB_BAR } from '@/shared/ui/GlassSurface';
+import { warmRemoteImages } from '@/shared/ui/RemoteImage';
 import { useToastStore } from '@/shared/ui/toast.store';
 
 import { libraryKeys } from '@/features/library';
@@ -39,6 +40,11 @@ import { explorePopularQueryOptions, useExplorePopularQuery } from './useExplore
 import { useExploreTopicsQuery } from './useExploreTopicsQuery';
 import { useSaveContentMutation } from './useSaveContentMutation';
 import { useUnsaveContentMutation } from './useUnsaveContentMutation';
+
+/** 구간 전환 전에 메모리에 올릴 인기 카드 수 — 화면에 보이는 1장 + 반쯤 보이는 2장째 + 흐름 중 드러나는 몫 */
+const POPULAR_WARM_COUNT = 3;
+/** 사진 올리기를 기다리는 상한 — 넘으면 그냥 바꾼다(느린 망에서 전환이 멈춘 듯 보이지 않게) */
+const POPULAR_WARM_MS = 600;
 
 type EmptyKind = 'none' | 'feed' | 'filtered';
 
@@ -69,7 +75,6 @@ export const useExploreScreen = () => {
 
   /* ── 필터 상태 — 앱을 종료하면 초기화된다(메모리 보관) ── */
   const [selectedTopicIds, setSelectedTopicIds] = useState<string[]>([]);
-  const isFiltered = selectedTopicIds.length > 0;
 
   /* ── E7 관련 주제 칩 복귀(explore.md 4.5-3) — 그 주제의 단일 목록(E2)으로 전환한다.
      파라미터 수신은 렌더 중 상태 조정으로 처리하고(effect 내 setState 금지 — lint 규칙),
@@ -113,8 +118,23 @@ export const useExploreScreen = () => {
   const isLatestSeq = (contentId: string, seq: number): boolean =>
     seqRef.current.get(contentId) === seq;
 
-  const feedQuery = useExploreFeedQuery(!isFiltered);
   const contentsQuery = useExploreContentsQuery(selectedTopicIds);
+  /*
+   * **화면 모드(격자/피드)는 고른 주제의 목록이 도착해야 바뀐다**(PM 2026-10-09 — 칩을 누르면 받는 동안 화면 전체가 비었다가
+   * 다시 그려져 깜빡였다). 그 사이엔 지금 화면(피드 또는 앞 주제의 격자)을 흐리게 두고(isSwitching), 오면 바꾼다.
+   * 칩 강조는 누른 즉시다(selectedTopicIds). 렌더 중 상태 조정 패턴 — effect 로 하면 한 프레임 빈 화면이 낀다
+   */
+  const hasFreshContents = contentsQuery.data !== undefined && !contentsQuery.isPlaceholderData;
+  const [isGridShown, setIsGridShown] = useState(false);
+  const nextGridShown =
+    selectedTopicIds.length > 0 && (isGridShown || hasFreshContents || contentsQuery.isError);
+  if (nextGridShown !== isGridShown) setIsGridShown(nextGridShown);
+  const isFiltered = nextGridShown;
+  const isSwitching =
+    selectedTopicIds.length > 0 &&
+    !contentsQuery.isError &&
+    (isFiltered ? contentsQuery.isPlaceholderData : !hasFreshContents);
+  const feedQuery = useExploreFeedQuery(!isFiltered);
   // 확정된 구간만 구독한다 — 전환 중 목록은 이 캐시(직전 구간)가 유지하고, 새 구간은 선조회로 채운다
   const popularQuery = useExplorePopularQuery(activePeriod);
   const topicsQuery = useExploreTopicsQuery();
@@ -301,7 +321,8 @@ export const useExploreScreen = () => {
   );
 
   const activeQuery = isFiltered ? contentsQuery : feedQuery;
-  const hasData = isFiltered ? contentsQuery.data !== undefined : feedData !== undefined;
+  // 앞 주제의 자리표시 목록은 데이터로 치지 않는다 — 새 주제가 실패하면 앞 주제 목록을 그대로 두지 않고 오류를 보인다
+  const hasData = isFiltered ? hasFreshContents : feedData !== undefined;
   const isInitialLoading = activeQuery.isPending;
   const showSkeleton = useDelayedVisible(isInitialLoading);
   // 캐시 피드를 노출하지 않는다(합의 2026-08-06) — 데이터 없는 실패는 전체 화면 에러 하나다
@@ -489,7 +510,13 @@ export const useExploreScreen = () => {
     setPendingPeriod(period);
     queryClient
       .fetchInfiniteQuery(explorePopularQueryOptions(period))
-      .then((result) => {
+      .then(async (result) => {
+        // 새 카드 줄이 빈 칸으로 흘러 들어오지 않게 앞쪽 카드 사진을 메모리에 올린 뒤 바꾼다(최대 POPULAR_WARM_MS — 흐림이 그동안 이어진다)
+        const firstPage = result.pages[0]?.items ?? [];
+        await warmRemoteImages(
+          firstPage.slice(0, POPULAR_WARM_COUNT).map((item) => item.content.thumbnailUrl),
+          POPULAR_WARM_MS,
+        );
         setActivePeriod(period);
         // 전환 완료를 한 번만 알린다 — aria-live polite의 대역(uiux 7)
         const count = result.pages.reduce((sum, page) => sum + page.items.length, 0);
@@ -528,11 +555,12 @@ export const useExploreScreen = () => {
     popularQuery.isFetchNextPageError &&
     !(isApiError(popularError) && popularError.errorCode === ERROR_CODES.EXPLORE_CURSOR_INVALID);
 
-  /* ── 주제 칩 — 다중 선택 OR. 선택이 생기면 단일 목록, 전부 해제하면 섹션형 복귀 ── */
+  /*
+   * ── 주제 칩 — **하나만 고른다**(PM 2026-10-09, 종전 다중 선택 OR). 다른 칩을 누르면 그 주제로 바뀌고, 고른 칩을 다시 누르면
+   * 해제돼 섹션형으로 돌아간다. 고르면 단일 목록. 요청은 종전처럼 목록으로 보낸다(explore-api 4.2 — 1개 이상) ──
+   */
   const toggleTopic = (topicId: string) => {
-    setSelectedTopicIds((prev) =>
-      prev.includes(topicId) ? prev.filter((id) => id !== topicId) : [...prev, topicId],
-    );
+    setSelectedTopicIds((prev) => (prev.includes(topicId) ? [] : [topicId]));
   };
 
   const clearTopicFilter = () => setSelectedTopicIds([]);
@@ -561,6 +589,7 @@ export const useExploreScreen = () => {
   return {
     // 모드·목록
     isFiltered,
+    isSwitching,
     sections,
     filteredItems,
     emptyKind,

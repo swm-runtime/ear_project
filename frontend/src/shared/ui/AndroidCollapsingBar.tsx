@@ -4,7 +4,7 @@ import { Animated, Pressable, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useAnimatedValue } from '@/shared/hooks/useAnimatedValue';
-import { motion, theme } from '@/shared/theme';
+import { motion, theme, useActiveScheme } from '@/shared/theme';
 import { LARGE_TITLE_ROW_HEIGHT } from '@/shared/ui/LargeTitleRow';
 import { AnimatedText } from '@/shared/ui/Typography';
 
@@ -64,6 +64,8 @@ export default function AndroidCollapsingBar({
   blurTarget,
   onTitlePress,
 }: AndroidCollapsingBarProps) {
+  // 블러 띠·흰 막도 화면 모드를 따른다(다크 모드, 2026-10-10)
+  const scheme = useActiveScheme();
   const insets = useSafeAreaInsets();
   /*
    * 위아래 여백 맞춤(PM 2026-09-30 03:29 "시간·배터리 밑 ↔ 원·알약 위, 원·알약 밑 ↔ 바 아래 선 공백을 같게") — 줄 안에서는
@@ -123,12 +125,17 @@ export default function AndroidCollapsingBar({
       <Animated.View style={[StyleSheet.absoluteFill, { opacity: collapse }]} pointerEvents="none">
         <BlurView
           style={StyleSheet.absoluteFill}
-          tint="light"
+          tint={scheme}
           intensity={FROST_BLUR_INTENSITY}
           blurTarget={blurTarget}
           blurMethod="dimezisBlurView"
         />
-        <View style={[StyleSheet.absoluteFill, styles.frostWhite]} />
+        <View
+          style={[
+            StyleSheet.absoluteFill,
+            scheme === 'dark' ? styles.frostDark : styles.frostWhite,
+          ]}
+        />
         <View style={styles.edge} />
       </Animated.View>
       {/*
@@ -194,13 +201,17 @@ const styles = StyleSheet.create({
   frostWhite: {
     backgroundColor: 'rgba(255, 255, 255, 0.82)',
   },
+  // 다크 — 같은 세기의 검정 막(systemBackground 82%)
+  frostDark: {
+    backgroundColor: 'rgba(0, 0, 0, 0.82)',
+  },
   edge: {
     position: 'absolute',
     left: 0,
     right: 0,
     bottom: 0,
     height: StyleSheet.hairlineWidth,
-    backgroundColor: 'rgba(60, 60, 67, 0.2)',
+    backgroundColor: theme.color.separator,
   },
   // 큰 제목 줄(LargeTitleRow)과 같은 높이·좌우 여백 — 정지 때 오른쪽 컨트롤이 큰 제목과 한 줄로 선다
   row: {

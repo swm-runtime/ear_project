@@ -309,7 +309,7 @@ describe('구독·인앱 결제 E2E', () => {
     // 조회·요금제 목록도 같은 상태를 본다
     expect(await getSubscription(auth)).toEqual(purchased);
     expect((await listPlans(auth)).map((plan) => plan.action)).toEqual([
-      'none',
+      'cancel',
       'downgrade',
       'current',
     ]);
@@ -470,6 +470,18 @@ describe('구독·인앱 결제 E2E', () => {
       plan_name: 'Daily',
       effective_at: thisPeriod.expiresAt.toISOString(),
     });
+    // 프로필·설정의 plan 도 같은 예약을 싣는다 — 같은 조립 함수(KAN-161). 세 응답이 다른 판정을 내리지 않는다
+    for (const [suffix, query] of [
+      ['/users/me/profile', {}],
+      ['/users/me/settings', { app_version: '1.2.0', platform: 'ios' }],
+    ] as const) {
+      const body = (await get(suffix, auth).query(query).expect(HttpStatus.OK))
+        .body as {
+        plan: { tier: string; pending_plan: unknown };
+      };
+      expect(body.plan.tier).toBe('pro');
+      expect(body.plan.pending_plan).toEqual(pending.pending_plan);
+    }
 
     // 순서가 뒤바뀐 옛 알림은 덮지 않는다(예약보다 먼저 서명된 "예약 취소")
     await webhook({

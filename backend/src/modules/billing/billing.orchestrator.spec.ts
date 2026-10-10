@@ -123,7 +123,7 @@ describe('BillingOrchestrator — 요금제 목록(4.1)', () => {
     expect(catalog.isEmailVerified).toBe(true);
   });
 
-  it('데일리 구독자에게 프로는 업그레이드, 프로 구독자에게 데일리는 변경(다운그레이드)이다', async () => {
+  it('데일리 구독자에게 프로는 업그레이드, 프로 구독자에게 데일리는 변경(다운그레이드)이고 무료는 해지(cancel)다', async () => {
     const { orchestrator, purchase } = setup();
 
     await purchase(
@@ -131,7 +131,7 @@ describe('BillingOrchestrator — 요금제 목록(4.1)', () => {
     );
     const asDaily = await orchestrator.listPlans(USER, DevicePlatform.IOS);
     expect(asDaily.plans.map((plan) => plan.action)).toEqual([
-      PlanAction.NONE,
+      PlanAction.CANCEL,
       PlanAction.CURRENT,
       PlanAction.UPGRADE,
     ]);
@@ -146,10 +146,42 @@ describe('BillingOrchestrator — 요금제 목록(4.1)', () => {
     );
     const asPro = await orchestrator.listPlans(USER, DevicePlatform.IOS);
     expect(asPro.plans.map((plan) => plan.action)).toEqual([
-      PlanAction.NONE,
+      PlanAction.CANCEL,
       PlanAction.DOWNGRADE,
       PlanAction.CURRENT,
     ]);
+  });
+
+  it('해지 예약 중이어도 무료 요금제는 해지(cancel)다 — 스토어에서 종료일을 확인한다(2026-10-08 팀 결정)', async () => {
+    const { orchestrator, purchase, notify } = setup();
+
+    await purchase(signTransaction(THIS_PERIOD));
+    await notify({
+      id: 'n-cancel',
+      type: 'DID_CHANGE_RENEWAL_STATUS',
+      subtype: 'AUTO_RENEW_DISABLED',
+      transaction: THIS_PERIOD,
+      renewal: { isAutoRenew: false },
+    });
+
+    const catalog = await orchestrator.listPlans(USER, DevicePlatform.IOS);
+    expect(catalog.plans.map((plan) => plan.action)).toEqual([
+      PlanAction.CANCEL,
+      PlanAction.DOWNGRADE,
+      PlanAction.CURRENT,
+    ]);
+
+    // 다시 켜도 무료는 해지 경로다
+    await notify({
+      id: 'n-resume',
+      type: 'DID_CHANGE_RENEWAL_STATUS',
+      subtype: 'AUTO_RENEW_ENABLED',
+      transaction: THIS_PERIOD,
+      renewal: { isAutoRenew: true },
+    });
+    expect(
+      (await orchestrator.listPlans(USER, DevicePlatform.IOS)).plans[0].action,
+    ).toBe(PlanAction.CANCEL);
   });
 
   it('그 플랫폼에서 살 수 없으면(Android·검증 미구성) 유료 요금제는 버튼이 없다 — 무료는 여전히 이용 중', async () => {
@@ -173,7 +205,7 @@ describe('BillingOrchestrator — 요금제 목록(4.1)', () => {
     ).toBe(true);
   });
 
-  it('다른 스토어에서 구독 중이면 이용 중 표시만 있고 나머지 유료 요금제는 버튼이 없다', async () => {
+  it('다른 스토어에서 구독 중이면 이용 중 표시만 있고 무료·유료 모두 버튼이 없다 — 이 기기에서는 해지도 못 한다', async () => {
     const { world, orchestrator, purchase } = setup();
 
     await purchase(
@@ -1439,5 +1471,154 @@ describe('만료 보정의 상한 — 확인할 수 없는 구독(4.2 — 2026-1
 
     expect(world.subscriptions[0].status).toBe(SubscriptionStatus.ACTIVE);
     expect(world.users.get(USER)!.tier).toBe(UserTier.PRO);
+  });
+});
+
+describe('초대 코드 지급과 결제(subscription-api.md 4.8 — 2026-10-10)', () => {
+  /** 테스트 시각(NOW)을 덮는 지급 기간 — 결제·알림 반영은 넘겨받은 시각으로 지급을 판정한다(실제 시계를 읽지 않는다) */
+  const GRANT_WINDOW = {
+    startsAt: new Date('2026-10-08T00:00:00Z'),
+    endsAt: new Date('2026-11-30T19:00:00Z'),
+  };
+
+  it('구독 없이 Pro 지급 중이면 티어 캐시·플랜 요약·권한이 Pro이고, 구독 상태는 무료 그대로다', async () => {
+    const { world, orchestrator } = setup();
+    world.grantInvite(USER, UserTier.PRO, GRANT_WINDOW);
+
+    await world.dataSource.transaction((manager) =>
+      assembleBilling(world).sync.syncUserTier(USER, manager, NOW),
+    );
+    const view = await orchestrator.getSubscription(USER, NOW);
+
+    expect(world.users.get(USER)!.tier).toBe(UserTier.PRO);
+    expect(view.plan).toMatchObject({
+      status: PlanStatus.FREE,
+      tier: UserTier.PRO,
+      planName: 'Pro',
+      dailyPlayLimit: null,
+      grant: {
+        name: '테스트 PoC',
+        tier: UserTier.PRO,
+        planName: 'Pro',
+        endsAt: GRANT_WINDOW.endsAt,
+        lastDate: '2026-11-30',
+      },
+    });
+    expect(view.entitlements.dailyPlayLimit).toBeNull();
+  });
+
+  it('Daily 이벤트 중 Pro를 결제하면 이벤트가 끝나고 Pro 구독이 된다', async () => {
+    const { world, purchase } = setup();
+    const grant = world.grantInvite(USER, UserTier.DAILY, GRANT_WINDOW);
+
+    world.addIntent(USER, INTENT_A);
+    // 결제 반영은 요청 시각 하나로 지급을 끝내고 응답도 조립한다 — 끝난 지급이 응답에 남지 않는다
+    const view = await purchase(
+      signTransaction({ ...THIS_PERIOD, accountToken: INTENT_A }),
+    );
+
+    expect(grant.redemption.tierReleasedAt).not.toBeNull();
+    expect(grant.redemption.endsAt.getTime()).toBeLessThan(
+      GRANT_WINDOW.endsAt.getTime(),
+    );
+    expect(world.users.get(USER)!.tier).toBe(UserTier.PRO);
+    expect(view.plan).toMatchObject({
+      status: PlanStatus.SUBSCRIBED,
+      tier: UserTier.PRO,
+      grant: null,
+    });
+  });
+
+  it('스토어 알림으로 결제가 먼저 반영돼도 알림 수신 시각으로 지급을 판정해, 그 시각에 살아 있던 이벤트를 끝낸다', async () => {
+    const { world, notify } = setup();
+    // 알림 수신 시각(NOW) 직후에 끝나는 지급 — 실제 시계로 판정하면 이미 끝난 것으로 보여 결제가 대체하지 않는다
+    const grant = world.grantInvite(USER, UserTier.DAILY, {
+      startsAt: GRANT_WINDOW.startsAt,
+      endsAt: new Date(NOW.getTime() + 1000),
+    });
+
+    world.addIntent(USER, INTENT_A);
+    await notify({
+      id: 'n-grant',
+      type: 'SUBSCRIBED',
+      subtype: 'INITIAL_BUY',
+      transaction: { ...THIS_PERIOD, accountToken: INTENT_A },
+      renewal: { autoRenewProductId: PRODUCT_PRO },
+    });
+
+    expect(grant.redemption.tierReleasedAt).toEqual(NOW);
+    expect(grant.redemption.endsAt).toEqual(NOW);
+    expect(world.users.get(USER)!.tier).toBe(UserTier.PRO);
+  });
+
+  it('Pro 이벤트 중 Daily를 결제하면(확인은 앱 몫) 이벤트가 끝나고 Daily가 된다 — 결제가 지급을 대체한다', async () => {
+    const { world, purchase } = setup();
+    const grant = world.grantInvite(USER, UserTier.PRO, GRANT_WINDOW);
+
+    world.addIntent(USER, INTENT_A);
+    await purchase(
+      signTransaction({
+        ...THIS_PERIOD,
+        productId: PRODUCT_DAILY,
+        accountToken: INTENT_A,
+      }),
+    );
+
+    expect(grant.redemption.tierReleasedAt).not.toBeNull();
+    expect(world.users.get(USER)!.tier).toBe(UserTier.DAILY);
+  });
+
+  it('입력 때 이미 구독 중이었으면 그 구독의 갱신은 지급을 끝내지 않고, 높은 쪽(지급 Pro)을 쓴다', async () => {
+    const { world, purchase, notify } = setup();
+
+    world.addIntent(USER, INTENT_A);
+    await purchase(
+      signTransaction({
+        ...THIS_PERIOD,
+        productId: PRODUCT_DAILY,
+        accountToken: INTENT_A,
+      }),
+    );
+    // 입력할 때 이미 구독 중이었다
+    const grant = world.grantInvite(USER, UserTier.PRO, {
+      ...GRANT_WINDOW,
+      subscribedAtStart: true,
+    });
+
+    await notify({
+      id: 'renewal-1',
+      type: 'DID_RENEW',
+      transaction: { ...NEXT_PERIOD, productId: PRODUCT_DAILY },
+    });
+
+    expect(grant.redemption.tierReleasedAt).toBeNull();
+    expect(world.users.get(USER)!.tier).toBe(UserTier.PRO);
+  });
+
+  it('끝난 구독 행이 되살아나는 재구독(App Store 같은 구독 그룹)도 이벤트 중 결제로 보고 지급을 끝낸다', async () => {
+    const { world, purchase } = setup();
+
+    world.addIntent(USER, INTENT_A);
+    await purchase(signTransaction({ ...THIS_PERIOD, accountToken: INTENT_A }));
+    world.subscriptions[0].status = SubscriptionStatus.EXPIRED;
+    await world.dataSource.transaction((manager) =>
+      assembleBilling(world).sync.syncUserTier(USER, manager, NOW),
+    );
+    expect(world.users.get(USER)!.tier).toBe(UserTier.LIGHT);
+    const grant = world.grantInvite(USER, UserTier.PRO, GRANT_WINDOW);
+
+    // 같은 originalTransactionId 로 다시 구독 — 옛 행이 되살아난다
+    world.addIntent(USER, INTENT_B);
+    await purchase(
+      signTransaction({
+        ...NEXT_PERIOD,
+        productId: PRODUCT_DAILY,
+        accountToken: INTENT_B,
+      }),
+    );
+
+    expect(world.subscriptions).toHaveLength(1);
+    expect(grant.redemption.tierReleasedAt).not.toBeNull();
+    expect(world.users.get(USER)!.tier).toBe(UserTier.DAILY);
   });
 });

@@ -5,7 +5,7 @@
 | 대상 | `backend/src/modules/explore/` — `controllers/explore.controller.ts` · `explore.orchestrator.ts` · `explore.types.ts` · `dto/`(응답 DTO 신설) |
 | 요청 파트 | 백엔드 |
 | 발견 시점 | 2026-08-07 탐색 백엔드 구현 (`feat(be)/explore`) — 계약에 통로가 없다는 것을 발견 |
-| 근거 문서 | `changes/pending/explore-api-topics-endpoint(fe).md`(계약) · `changes/pending/explore-topic-chip-list(be).md`(서버 규칙) · `features/explore.md` 4.2 |
+| 근거 문서 | `changes/archive/explore-api-topics-endpoint(fe).md`(계약) · `changes/archive/explore-topic-chip-list(be).md`(서버 규칙) · `features/explore.md` 4.2 |
 | 심각도 | **상** — 주제 필터 조회(`GET /explore/contents`)는 구현돼 있는데 **무엇으로 필터할지 고를 목록이 없다.** 탐색 칩 줄이 통째로 동작하지 않는다 |
 | 상태 | **완료** (2026-08-08) — `fix(be)/explore-period-and-topics` |
 
@@ -21,7 +21,7 @@
 >
 > **관심사 관리 화면과의 엔드포인트 공유는 손대지 않았다** — 티켓이 적어 둔 대로 그 화면의 API 명세를 쓸 때 정한다. 프로필과의 정렬 차이도 그대로 남겨 뒀다.
 
-> **짝 티켓** — `tickets/frontend/pending/explore-topics-endpoint.md`. FE는 이 계약으로 **mock을 이미 구현해 두었다**(`frontend/src/features/explore/api/explore.dto.ts`의 `ExploreTopicsResponseDto`). **서버가 나가면 FE는 실서버 호출 경로만 붙이면 된다** — mock은 개발·테스트 경로로 그대로 남는다(`EXPO_PUBLIC_EXPLORE_API=real`로 전환).
+> **짝 티켓** — `tickets/frontend/archive/explore-topics-endpoint.md`. FE는 이 계약으로 **mock을 이미 구현해 두었다**(`frontend/src/features/explore/api/explore.dto.ts`의 `ExploreTopicsResponseDto`). **서버가 나가면 FE는 실서버 호출 경로만 붙이면 된다** — mock은 개발·테스트 경로로 그대로 남는다(`EXPO_PUBLIC_EXPLORE_API=real`로 전환).
 >
 > **계약이 아직 `explore-api.md`에 반영되지 않았다.** 두 `changes/pending` 문서가 근거이며, 통합 시 그 둘을 함께 `explore-api.md` 3·4장과 `explore.md` 4.2에 반영해야 한다. 구현과 문서 반영의 순서는 팀이 정한다.
 

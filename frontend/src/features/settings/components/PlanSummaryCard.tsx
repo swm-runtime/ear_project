@@ -2,7 +2,6 @@ import { Pressable, StyleSheet, View } from 'react-native';
 
 import { theme } from '@/shared/theme';
 import ChevronIcon, { chevronTrailingGutter } from '@/shared/ui/ChevronIcon';
-import { pillButton } from '@/shared/ui/pill-button.styles';
 import { Text } from '@/shared/ui/Typography';
 
 import type { PlanRowVM, SectionState } from '../hooks/useSettingsScreen';
@@ -18,7 +17,7 @@ interface PlanSummaryCardProps {
 }
 
 /** 상태별 본문 — 프로필 플랜 카드와 같은 문구·같은 톤을 쓴다(settings-uiux.md 4.1 표) */
-const valueText = (vm: PlanRowVM): string => {
+export const valueText = (vm: PlanRowVM): string => {
   switch (vm.kind) {
     case 'free':
       // 체험 여부는 서버의 plan.trial로만 본다 — tier === 'trial' 분기 금지(settings-api.md 4.1)
@@ -26,6 +25,9 @@ const valueText = (vm: PlanRowVM): string => {
         ? SETTINGS_COPY.plan.free(vm.dailyPlayLimit)
         : SETTINGS_COPY.plan.trial(vm.trialLastFreeDate);
     case 'subscribed':
+      if (vm.pendingPlan !== null) {
+        return `${vm.planName} · ${SETTINGS_COPY.plan.pendingPlan(vm.pendingPlan.effectiveAt, vm.pendingPlan.planName)}`;
+      }
       return vm.renewsAt === null
         ? vm.planName
         : `${vm.planName} · ${SETTINGS_COPY.plan.renewsAt(vm.renewsAt)}`;
@@ -75,16 +77,10 @@ export default function PlanSummaryCard({
       accessibilityLabel={`${valueText(vm)}, ${SETTINGS_COPY.plan.a11y}`}
     >
       <Text style={[styles.value, vm.kind === 'grace' && styles.valueDanger]}>{valueText(vm)}</Text>
-      {vm.kind === 'free' ? (
-        // 진입 유도 칩 — 카드 탭과 같은 목적지의 시각 강조일 뿐이다(settings.md 5장 무료 변형)
-        <View style={[pillButton.base, pillButton.primary, styles.freeAction]}>
-          <Text style={styles.freeActionText}>{SETTINGS_COPY.plan.freeAction}</Text>
-        </View>
-      ) : (
-        <View style={styles.chevron} accessibilityElementsHidden importantForAccessibility="no">
-          <ChevronIcon direction="right" size={CHEVRON_SIZE} color={theme.color.textSecondary} />
-        </View>
-      )}
+      {/* 모든 상태가 같은 [>] — 무료의 [구독 알아보기] 알약은 뺐다(PM 2026-10-09 "> 이거로 퉁치자"). 카드 전체가 같은 목적지다 */}
+      <View style={styles.chevron} accessibilityElementsHidden importantForAccessibility="no">
+        <ChevronIcon direction="right" size={CHEVRON_SIZE} color={theme.color.textSecondary} />
+      </View>
     </Pressable>
   );
 }
@@ -138,13 +134,4 @@ const styles = StyleSheet.create({
     color: theme.color.danger,
   },
   // 버튼 모양 칩 — 공용 알약(pillButton). 여백만 여기서
-  freeAction: {
-    paddingHorizontal: theme.spacing.sm,
-    paddingVertical: theme.spacing.xs,
-  },
-  freeActionText: {
-    fontSize: theme.font.size.sm,
-    fontWeight: '600',
-    color: theme.color.onPrimary,
-  },
 });

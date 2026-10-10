@@ -1,8 +1,9 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Animated, PanResponder, Pressable, StyleSheet, View } from 'react-native';
+import Svg, { Circle, Path } from 'react-native-svg';
 
 import { useAnimatedValue } from '@/shared/hooks/useAnimatedValue';
-import { motion, theme } from '@/shared/theme';
+import { motion, theme, useThemePalette } from '@/shared/theme';
 import ChevronIcon from '@/shared/ui/ChevronIcon';
 import { pillButton } from '@/shared/ui/pill-button.styles';
 import { SkeletonBlock, SkeletonGroup } from '@/shared/ui/Skeleton';
@@ -10,13 +11,23 @@ import { Text } from '@/shared/ui/Typography';
 
 import type { WeeklyNavigation } from '../hooks/useWeeklyNavigation';
 import { PROFILE_COPY } from '../profile.copy';
-import { isWeekAllZero, toBarRatios, toDailyAverageSec } from '../profile.format';
+import {
+  isWeekAllZero,
+  toBarRatios,
+  toDailyAverageSec,
+  toListenedDayParts,
+} from '../profile.format';
 import type { WeeklyListening } from '../profile.types';
 
 interface WeeklyChartProps {
   weekly: WeeklyNavigation;
   /** 카드 맨 아래 구획 — 주제 분포(PM 2026-09-28 00:47 합침). 주 전환·로딩·빈 주와 무관하게 늘 그린다 */
   footer?: ReactNode;
+  /**
+   * 그래프를 가로로 끄는 동안 true — 화면이 세로 스크롤을 잠근다(PM 2026-10-09 "그래프 스와이프할 때 화면 스크롤은 작동 안
+   * 하게"). 잡은 뒤 손이 세로로 흘러도 화면이 같이 움직이지 않는다
+   */
+  onSwipingChange?: (isSwiping: boolean) => void;
 }
 const CHART_HEIGHT = 144;
 const ZERO_BAR_HEIGHT = 3;
@@ -30,12 +41,8 @@ const DAY_BADGE_SIZE = theme.spacing.xl;
  * 바뀐다(KAN-149·150). 이 번들은 1.2.0 빌드부터 닿아 그 전환 뒤에 쓰인다 — 판정이 아니라 오늘 강조·평균의 표시용이다
  */
 const SERVICE_DAY_OFFSET_MS = 5 * 60 * 60 * 1000;
-/**
- * 막대 위 말풍선 자리의 **최소** 높이 — 실제 높이는 실측값이 이긴다(`annotationHeight`). 말풍선은 14pt 글자 +
- * 위아래 8 여백이라 34 안팎이므로 44 는 10 넘게 과하게 비웠고, 아무 막대도 고르지 않은 기본 상태에서는 그 자리가
- * 그냥 빈 공간으로 보였다(PM 2026-09-28 01:28 "하루 청취 시간 아래 공백이 많다"). 실측이 더 크면(200% 글꼴) 그 값을 쓴다
- */
-const ANNOTATION_MIN_HEIGHT = 32;
+/** 맨 위 막대와 카드 위쪽 사이 — 말풍선 자리 대신 남기는 여백 */
+const BAR_TOP_INSET = 8;
 const GRID_RATIOS = [0, 0.5, 1] as const;
 /**
  * 오른쪽 축(PM 2026-09-28 02:36 — 애플 건강) — 격자 오른쪽 끝에 **위 = 이 주의 최대값, 평균 점선 옆 = "평균", 아래 = 0**.
@@ -49,8 +56,8 @@ const AXIS_LABEL_HEIGHT = 14;
  * 격자선 — 1pt 회색. hairline(0.33pt)은 systemSeparator 색이어도 회색 카드 위에서 안 보였다(PM 2026-09-28 03:11 "격자 안 보인다").
  * 세로선(요일 경계)은 한 단 옅게 — 가로선(값 눈금)이 주인공이다
  */
-const GRID_COLOR = 'rgba(60, 60, 67, 0.2)';
-const GRID_COLUMN_COLOR = 'rgba(60, 60, 67, 0.1)';
+const GRID_COLOR = theme.color.separator;
+const GRID_COLUMN_COLOR = theme.color.separatorFaint;
 /** 주 이동 화살표 원 — 보이는 크기만 줄이고 터치는 hitSlop 으로 44 를 지킨다(PM 2026-09-28 00:32 "버튼 크기 줄이자") */
 const ARROW_SIZE = 28;
 const ARROW_HIT_SLOP = (theme.touchTarget.minHeight - ARROW_SIZE) / 2;
@@ -133,7 +140,6 @@ interface WeekBodyProps {
   selectedIndex?: number | null;
   onToggleBar?: (dayIndex: number) => void;
   onChartLayout?: (width: number) => void;
-  tooltip?: ReactNode;
   /**
    * 평균 점선의 등장 — 오른쪽 축("평균"·"0")과 **같은 값**(axisFade)으로 나타난다(PM 2026-09-29 13:45 "평균선을 애니메이션으로,
    * 주 이동할 때 평균·분·0 나올 때 같이"). 가운데 주만 준다 — 이웃 주(끌리는 동안의 그림)에는 점선을 그리지 않아, 새 주가
@@ -149,7 +155,6 @@ function WeekBody({
   selectedIndex = null,
   onToggleBar,
   onChartLayout,
-  tooltip,
   averageAppear,
 }: WeekBodyProps) {
   const view = toWeekView(week);
@@ -251,7 +256,6 @@ function WeekBody({
             );
           })}
         </View>
-        {tooltip}
       </View>
     </>
   );
@@ -290,7 +294,7 @@ function useCountTo(target: number | null): number | null {
 }
 
 /** P8/P9: 서버 주 경계·상대 높이를 유지하고 탭한 요일의 값을 보여준다. */
-export default function WeeklyChart({ weekly, footer }: WeeklyChartProps) {
+export default function WeeklyChart({ weekly, footer, onSwipingChange }: WeeklyChartProps) {
   const { displayed, weekLabelStart, selectedBarIndex: selectedIndex } = weekly;
   /*
    * 하루 평균은 **넘김 구획 밖에 고정**하고 숫자만 굴린다(PM 2026-09-28 03:22) — 차트만 옆 주로 미끄러지고, 평균은
@@ -299,6 +303,14 @@ export default function WeeklyChart({ weekly, footer }: WeeklyChartProps) {
   const targetAverageSec =
     displayed !== null && !weekly.isSwitching ? toWeekView(displayed).averageSec : null;
   const shownAverageSec = useCountTo(targetAverageSec);
+  /** 상위 % — 평균과 같이 전환 중엔 숨긴다(옆 주 값이 남아 있으면 엉뚱한 주의 순위로 읽힌다) */
+  const topPercent =
+    displayed !== null && !weekly.isSwitching ? displayed.listeningTopPercent : null;
+  // 막대를 고른 요일의 청취 시간 — 있으면 요약 줄이 그 요일로 바뀐다(스크린 타임)
+  const selectedDaySec =
+    selectedIndex !== null && displayed !== null
+      ? (displayed.dailyListenedSec[selectedIndex] ?? null)
+      : null;
   /*
    * 카드를 가로로 밀어 주를 넘긴다(PM 2026-09-28 01:40) — 애플 건강·스크린 타임과 같은 방향: 손가락을 **오른쪽으로 밀면
    * 이전 주**(왼쪽 < 와 같은 쪽), 왼쪽으로 밀면 다음 주. 화살표와 같은 판정(canGoPrev/Next · 전환 중 막힘)을 거친다.
@@ -388,9 +400,9 @@ export default function WeeklyChart({ weekly, footer }: WeeklyChartProps) {
       go();
     });
   };
-  const swipeActionsRef = useRef({ settleSwipe, turnWeek, hideAxis });
+  const swipeActionsRef = useRef({ settleSwipe, turnWeek, hideAxis, onSwipingChange });
   useEffect(() => {
-    swipeActionsRef.current = { settleSwipe, turnWeek, hideAxis };
+    swipeActionsRef.current = { settleSwipe, turnWeek, hideAxis, onSwipingChange };
   });
   const swipeResponder = useMemo(
     () =>
@@ -410,6 +422,7 @@ export default function WeeklyChart({ weekly, footer }: WeeklyChartProps) {
         onPanResponderGrant: () => {
           swipeX.stopAnimation();
           swipeActionsRef.current.hideAxis();
+          swipeActionsRef.current.onSwipingChange?.(true);
         },
         onPanResponderMove: (_, gesture) => {
           const current = weeklyRef.current;
@@ -420,6 +433,7 @@ export default function WeeklyChart({ weekly, footer }: WeeklyChartProps) {
         onPanResponderRelease: (_, gesture) => {
           const current = weeklyRef.current;
           const { settleSwipe: settle, turnWeek: turn } = swipeActionsRef.current;
+          swipeActionsRef.current.onSwipingChange?.(false);
           const width = pageWidthRef.current;
           const commit = Math.min(SWIPE_COMMIT_DISTANCE, width * 0.3 || SWIPE_COMMIT_DISTANCE);
           const toPrev = gesture.dx > commit || gesture.vx > SWIPE_COMMIT_VELOCITY;
@@ -428,20 +442,18 @@ export default function WeeklyChart({ weekly, footer }: WeeklyChartProps) {
           else if (!current.isSwitching && toNext && current.canGoNext) turn('next', gesture.vx);
           else settle(gesture.vx);
         },
-        onPanResponderTerminate: () => swipeActionsRef.current.settleSwipe(),
+        onPanResponderTerminate: () => {
+          swipeActionsRef.current.onSwipingChange?.(false);
+          swipeActionsRef.current.settleSwipe();
+        },
       }),
     [swipeX],
   );
-  const [chartWidth, setChartWidth] = useState(0);
-  const [tooltipSize, setTooltipSize] = useState({ width: 0, height: ANNOTATION_MIN_HEIGHT });
   /*
-   * 말풍선 자리의 높이는 **숨은 말풍선(probe)으로 처음부터** 잰다(PM 2026-09-29 14:24 "요일 누르면 공간 확보하느라 그래프가
-   * 살짝 내려온다") — 종전엔 최소값(32)으로 비워 두다 실제 말풍선이 뜬 뒤 잰 높이(≈34~36)로 늘어나 그래프가 밀렸다.
-   * 한 줄 말풍선이라 요일·값과 무관하게 높이가 같다. 실제 말풍선은 폭(가운데 맞춤)만 잰다
+   * **막대를 눌러도 말풍선을 띄우지 않는다 — 위 요약 줄이 그 요일로 바뀐다**(애플 스크린 타임, PM 2026-10-11 A안). 종전엔 말풍선
+   * 자리(약 42)를 처음부터 비워 둬서 숫자와 그래프 사이에 빈 띠가 늘 있었다. 이제 막대 위는 맨 위 막대가 카드에 닿지 않을 만큼만
    */
-  const [reserveHeight, setReserveHeight] = useState(ANNOTATION_MIN_HEIGHT);
-  const annotationHeight = Math.max(ANNOTATION_MIN_HEIGHT, reserveHeight) + theme.spacing.sm;
-  const selectedCenter = ((selectedIndex ?? 0) + 0.5) * (chartWidth / DAYS_IN_WEEK);
+  const annotationHeight = BAR_TOP_INSET;
   // 축은 가운데 주가 그래프로 보일 때만 — 조회 중·실패·빈 주에는 비운다
   const axisView =
     displayed !== null && !weekly.isSwitching && !weekly.hasSwitchError
@@ -463,15 +475,6 @@ export default function WeeklyChart({ weekly, footer }: WeeklyChartProps) {
             label.key === 'average' ||
             Math.abs(label.top - axisView.averageTop) >= AXIS_LABEL_HEIGHT,
         );
-  // 좁은 요일 칸 대신 말풍선 전체를 실측하고, 양 끝 요일도 카드 안에 담는다.
-  const tooltipLeft = Math.max(
-    theme.spacing.sm,
-    Math.min(
-      selectedCenter - tooltipSize.width / 2,
-      chartWidth - tooltipSize.width - theme.spacing.sm,
-    ),
-  );
-
   // 카드가 surface 면이라 블록은 한 단 진한 border 색이다 — surface 위 surface 는 보이지 않는다
   const skeleton = (
     <SkeletonGroup style={styles.stateBox} color={theme.color.border}>
@@ -506,38 +509,7 @@ export default function WeeklyChart({ weekly, footer }: WeeklyChartProps) {
       annotationHeight={annotationHeight}
       selectedIndex={selectedIndex}
       onToggleBar={weekly.toggleBar}
-      onChartLayout={setChartWidth}
       averageAppear={axisFade}
-      tooltip={
-        selectedIndex !== null ? (
-          <View
-            pointerEvents="none"
-            accessibilityElementsHidden
-            importantForAccessibility="no-hide-descendants"
-            style={[
-              styles.tooltip,
-              {
-                transform: [{ translateX: tooltipLeft - theme.spacing.sm }],
-                maxWidth: chartWidth > 0 ? chartWidth - theme.spacing.md : undefined,
-                opacity: chartWidth > 0 ? 1 : 0,
-              },
-            ]}
-            onLayout={({ nativeEvent: { layout } }) => {
-              const width = Math.ceil(layout.width);
-              setTooltipSize((previous) =>
-                previous.width === width ? previous : { ...previous, width },
-              );
-            }}
-          >
-            <Text style={styles.tooltipText}>
-              {PROFILE_COPY.stats.dayBarA11y(
-                selectedIndex,
-                displayed.dailyListenedSec[selectedIndex],
-              )}
-            </Text>
-          </View>
-        ) : null
-      }
     />
   );
 
@@ -572,31 +544,61 @@ export default function WeeklyChart({ weekly, footer }: WeeklyChartProps) {
           <View
             style={styles.summary}
             accessible
-            accessibilityLabel={PROFILE_COPY.stats.averageA11y(targetAverageSec ?? shownAverageSec)}
+            // 요약 줄은 한 덩어리로 읽힌다 — 상위 % 도 같은 낭독에 잇는다
+            accessibilityLabel={
+              selectedDaySec !== null && selectedIndex !== null
+                ? PROFILE_COPY.stats.dayBarA11y(selectedIndex, selectedDaySec)
+                : [
+                    PROFILE_COPY.stats.averageA11y(targetAverageSec ?? shownAverageSec),
+                    topPercent !== null ? PROFILE_COPY.stats.topPercentA11y(topPercent) : null,
+                  ]
+                    .filter(Boolean)
+                    .join(', ')
+            }
+            accessibilityLiveRegion="polite"
           >
             {/* 점선 범례(─ ─)는 뺐다(PM 2026-09-28 00:23) — 라벨만 */}
-            <Text style={styles.summaryLabel}>{PROFILE_COPY.stats.dailyAverageTitle}</Text>
-            <Text style={styles.summaryValue}>
-              {PROFILE_COPY.stats.dayValue(Math.round(shownAverageSec))}
+            <Text style={styles.summaryLabel}>
+              {selectedDaySec !== null && selectedIndex !== null
+                ? PROFILE_COPY.stats.selectedDayTitle(selectedIndex)
+                : PROFILE_COPY.stats.dailyAverageTitle}
             </Text>
+            {/*
+              상위 % 는 **큰 숫자와 같은 줄 오른쪽, 회색 글자 + 원 화살표**(PM 2026-10-11 00:28 스크린 타임 스샷 "지난주 대비 8%"
+              처럼). 종전 라벨 줄 흰 알약에서 옮겼다. 긴 평균값이면 숫자 쪽이 줄어든다(오른쪽은 줄지 않는다)
+            */}
+            <View style={styles.valueRow}>
+              <View style={styles.valueBox}>
+                <AverageValue sec={selectedDaySec ?? Math.round(shownAverageSec)} />
+              </View>
+              {/*
+                요일을 고른 동안엔 순위를 숨긴다 — 하루 값에는 순위가 없다. **떼지 않고 투명하게** 둔다(PM 2026-10-11 03:54
+                "선택했을 때 그래프가 움직인다"): 두 줄 블록(15pt 줄 + 20pt 아이콘 줄 + 아래 6)이 큰 숫자 한 줄(34pt)보다 높아서,
+                블록을 떼면 요약 줄이 몇 pt 줄며 그래프가 올라온다. 자리를 그대로 두면 선택 전후 높이가 같다
+              */}
+              {topPercent !== null ? (
+                // 두 줄 고정(PM 2026-10-11 02:05) — 평균 길이와 무관하게 모양이 같고, 두 줄 높이가 큰 숫자 높이를 채운다
+                <View
+                  style={[styles.rankBlock, selectedDaySec !== null && styles.rankHidden]}
+                  pointerEvents="none"
+                  accessibilityElementsHidden={selectedDaySec !== null}
+                  importantForAccessibility={selectedDaySec !== null ? 'no-hide-descendants' : 'auto'}
+                >
+                  <Text style={styles.rankLead} numberOfLines={1}>
+                    {PROFILE_COPY.stats.topPercentLead}
+                  </Text>
+                  <View style={styles.rankInline}>
+                    <RankUpIcon />
+                    <Text style={styles.rankText} numberOfLines={1}>
+                      {PROFILE_COPY.stats.topPercent(topPercent)}
+                    </Text>
+                  </View>
+                </View>
+              ) : null}
+            </View>
           </View>
         )}
         <View style={styles.chartStrip}>
-          {/* 말풍선 높이 재기용 — 보이지 않고 눌리지 않는다(위 reserveHeight) */}
-          <View
-            pointerEvents="none"
-            accessibilityElementsHidden
-            importantForAccessibility="no-hide-descendants"
-            style={[styles.tooltip, styles.tooltipProbe]}
-            onLayout={({ nativeEvent: { layout } }) => {
-              const height = Math.ceil(layout.height);
-              setReserveHeight((previous) => (previous === height ? previous : height));
-            }}
-          >
-            <Text style={styles.tooltipText} numberOfLines={1}>
-              {PROFILE_COPY.stats.dayBarA11y(0, 0)}
-            </Text>
-          </View>
           <View
             style={styles.pager}
             onLayout={({ nativeEvent }) => setPageWidth(nativeEvent.layout.width)}
@@ -655,6 +657,60 @@ export default function WeeklyChart({ weekly, footer }: WeeklyChartProps) {
   );
 }
 
+/**
+ * 하루 평균 숫자 — **숫자는 크게, 단위는 작게**(애플 건강·스크린 타임, PM 2026-10-10 "시간이 많으면 넘칠 것 같다"). 단위가
+ * 숫자와 같은 34pt 면 "23시간 59분"이 카드 폭을 거의 다 쓴다. 그래도 넘치면 한 줄 안에서 글자를 줄인다
+ */
+function AverageValue({ sec }: { sec: number }) {
+  // 1분 미만은 숫자가 없는 문구 그대로(profile-uiux 4.6)
+  if (sec > 0 && sec < 60) {
+    return <Text style={styles.summaryValue}>{PROFILE_COPY.stats.dayValue(sec)}</Text>;
+  }
+  const { hours, minutes } = toListenedDayParts(sec);
+  return (
+    <Text style={styles.summaryValue} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>
+      {hours > 0 ? (
+        <>
+          {hours}
+          <Text style={styles.summaryUnit}>시간 </Text>
+        </>
+      ) : null}
+      {minutes}
+      <Text style={styles.summaryUnit}>분</Text>
+    </Text>
+  );
+}
+
+/** 원 안 위 화살표 — 스크린 타임의 arrow.down.circle.fill 문법(채운 회색 원 + 카드 색 화살표) */
+function RankUpIcon() {
+  // SVG 는 문자열 색만 받는다 — 지금 모드의 값(다크 모드)
+  const palette = useThemePalette();
+  return (
+    <Svg width={RANK_ICON_SIZE} height={RANK_ICON_SIZE} viewBox="0 0 24 24">
+      <Circle cx={12} cy={12} r={12} fill={palette.textSecondary} />
+      <Path
+        d="M12 18V7M7 11.5l5-5 5 5"
+        stroke={palette.surface}
+        strokeWidth={2.6}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        fill="none"
+      />
+    </Svg>
+  );
+}
+
+const RANK_ICON_SIZE = 20;
+/**
+ * 요약 줄의 고정 치수(PM 2026-10-11 04:19 "요일 선택할 때 그래프가 위아래로 왔다갔다") — 라벨 14pt → 18, 큰 숫자 34pt → 40,
+ * 순위 윗줄 15pt → 18, 순위 아랫줄 18pt(아이콘 20) → 22, 순위 블록을 숫자 밑변에 맞추는 들림 6. 글꼴 측정에 맡기지 않는다
+ */
+const SUMMARY_LABEL_LINE_HEIGHT = 18;
+const SUMMARY_VALUE_LINE_HEIGHT = 40;
+const RANK_LEAD_LINE_HEIGHT = 18;
+const RANK_TEXT_LINE_HEIGHT = 22;
+const RANK_BASELINE_LIFT = 6;
+
 const styles = StyleSheet.create({
   container: { paddingHorizontal: theme.spacing.md, gap: theme.spacing.sm },
   card: {
@@ -712,15 +768,80 @@ const styles = StyleSheet.create({
     paddingTop: theme.spacing.sm,
     gap: theme.spacing.xs,
   },
-  summaryLabel: { fontSize: theme.font.size.sm, color: theme.color.textSecondary, flexShrink: 1 },
+  /*
+   * 요약 줄(라벨·큰 숫자·상위 %)은 **글자마다 줄 높이를 박고 값 줄은 고정 높이**다(PM 2026-10-11 04:19 "아직도 요일
+   * 선택할 때 그래프가 위아래로 왔다갔다"). 요일을 고르면 라벨·숫자·단위·순위 블록의 내용이 한꺼번에 바뀌는데, 줄 높이를
+   * 글꼴 측정에 맡기면(특히 34pt 숫자 안에 20pt 단위가 섞인 줄 · adjustsFontSizeToFit 로 줄어드는 숫자) 문장마다 몇 pt
+   * 달라져 밑의 그래프가 따라 움직인다. 높이가 내용에 좌우되지 않아야 그래프가 제자리에 있다
+   */
+  summaryLabel: {
+    fontSize: theme.font.size.sm,
+    lineHeight: SUMMARY_LABEL_LINE_HEIGHT,
+    color: theme.color.textSecondary,
+    flexShrink: 1,
+  },
+  // 큰 숫자 + 상위 % — 아래 변을 맞춘다(스크린 타임처럼 오른쪽 글자가 숫자 밑줄에 앉는다). 높이는 숫자 줄 높이로 고정
+  valueRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    justifyContent: 'space-between',
+    gap: theme.spacing.sm,
+    height: SUMMARY_VALUE_LINE_HEIGHT,
+  },
+  // 숫자 쪽만 줄어든다 — 오른쪽 상위 % 는 제 폭을 지킨다
+  valueBox: {
+    flexShrink: 1,
+  },
+  // 오른쪽 정렬 두 줄 — 숫자(34)의 글자 아래 여백만큼 올려 아랫줄 밑변을 숫자 밑변에 맞춘다.
+  // 두 줄(18 + 22)에 아래 6 을 더하면 46 으로 숫자 줄(40)보다 높다 — 위로 그만큼 빼서(음수 위 여백) 줄 높이 안에 들어오게
+  // 한다. 블록이 값 줄의 높이를 정하지 않으니 있든 없든(순위 없는 계정) 값 줄은 40 이다
+  rankBlock: {
+    alignItems: 'flex-end',
+    marginBottom: RANK_BASELINE_LIFT,
+    marginTop: -(RANK_LEAD_LINE_HEIGHT + RANK_TEXT_LINE_HEIGHT + RANK_BASELINE_LIFT - SUMMARY_VALUE_LINE_HEIGHT),
+  },
+  /** 요일 선택 중 — 자리는 지키고 보이지만 않는다(요약 줄 높이 고정) */
+  rankHidden: { opacity: 0 },
+  // 윗줄 "다른 사용자 대비" — 라벨(하루 평균)과 같은 위계
+  // 한 단계 크게(PM 2026-10-11 "조금만 더 키우자") — 14 → 15
+  rankLead: {
+    fontSize: 15,
+    lineHeight: RANK_LEAD_LINE_HEIGHT,
+    color: theme.color.textSecondary,
+  },
+  // 아랫줄 아이콘 + "상위 N%" — 아이콘은 이 줄에만(설명 문구가 아니라 순위를 가리킨다). 줄 높이 고정(아이콘 20 < 22)
+  rankInline: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.xs + 2,
+    height: RANK_TEXT_LINE_HEIGHT,
+  },
+  // 회색 그대로 한 단계 크고 진하게 — 강조색 없이 굵기로만 위계(design.md §1)
+  // 16 → 18(PM 2026-10-11) — 아이콘도 18 → 20
+  rankText: {
+    fontSize: 18,
+    lineHeight: RANK_TEXT_LINE_HEIGHT,
+    fontWeight: '600',
+    fontVariant: ['tabular-nums'],
+    color: theme.color.textSecondary,
+  },
+  // 단위 — 숫자(34) 옆 20pt 회색. 숫자와 같은 줄 기준선에 앉는다(중첩 Text). 줄 높이는 숫자와 같게 명시 — 다른 값을
+  // 물려받거나 글꼴 측정으로 돌아가 줄이 커지지 않게
+  summaryUnit: {
+    fontSize: theme.font.size.lg,
+    lineHeight: SUMMARY_VALUE_LINE_HEIGHT,
+    fontWeight: '600',
+    color: theme.color.textSecondary,
+  },
   summaryValue: {
     fontSize: theme.font.size.xxl,
+    lineHeight: SUMMARY_VALUE_LINE_HEIGHT,
     fontWeight: '600',
     fontVariant: ['tabular-nums'],
     color: theme.color.textPrimary,
   },
   stateBox: {
-    minHeight: CHART_HEIGHT + ANNOTATION_MIN_HEIGHT + theme.spacing.xxl,
+    minHeight: CHART_HEIGHT + BAR_TOP_INSET + theme.spacing.xxl,
     padding: theme.spacing.md,
     alignItems: 'center',
     justifyContent: 'center',
@@ -771,7 +892,9 @@ const styles = StyleSheet.create({
     backgroundColor: GRID_COLUMN_COLOR,
   },
   // [넘김 구획 | 고정 축] — 넘김 구획은 카드 왼쪽 여백부터 축 앞까지만 보이고 양옆 주는 잘린다
-  chartStrip: { flexDirection: 'row', paddingLeft: theme.spacing.md },
+  // 띠를 4 올려 평균 숫자(34pt) 글자 상자의 아래 빈 줄간(글리프 밑 ≈7)과 겹친다 — 숫자 밑과 막대 위 여백(8) 사이
+  // (PM 2026-10-11 03:29 "하루 평균 아래 공백 줄였으면"). 말풍선은 없어졌다(막대 탭 → 요약 줄이 그 요일로, 2026-10-11)
+  chartStrip: { flexDirection: 'row', paddingLeft: theme.spacing.md, marginTop: -theme.spacing.xs },
   pager: { flex: 1, overflow: 'hidden' },
   pagerRow: { flexDirection: 'row', alignItems: 'flex-start' },
   axis: {
@@ -826,23 +949,6 @@ const styles = StyleSheet.create({
     bottom: 0,
     width: StyleSheet.hairlineWidth,
     backgroundColor: theme.color.textSecondary,
-  },
-  tooltip: {
-    position: 'absolute',
-    top: 0,
-    left: theme.spacing.sm,
-    borderRadius: theme.radius.md,
-    borderCurve: 'continuous',
-    backgroundColor: theme.color.background,
-    paddingHorizontal: theme.spacing.sm,
-    paddingVertical: theme.spacing.sm,
-  },
-  tooltipProbe: { opacity: 0 },
-  tooltipText: {
-    fontSize: theme.font.size.sm,
-    fontWeight: '600',
-    color: theme.color.textPrimary,
-    fontVariant: ['tabular-nums'],
   },
   /*
    * 요일 원 — **크기를 고정**(최소값 아님)하고 반지름을 그 절반으로, 넘치는 건 자른다. Android 에서 선택 원이 사각형으로

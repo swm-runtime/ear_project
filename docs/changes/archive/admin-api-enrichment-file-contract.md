@@ -4,7 +4,7 @@
 |---|---|
 | 대상 문서 | `docs/spec/api/admin-api.md` 1장(미구현 표) · 4.6(업로드) · 4.10(재발행) |
 | 발행 날짜 | 2026-09-07 |
-| 발견 시점 | `tickets/backend/pending/metadata-pipeline-after-script-quality.md` 개발 범위 2(서버 저장 반영) 착수 검토 — 동작 규칙(`admin.md` 3.1)과 산출물 형식(`ai/metadata-pipeline.md` 4.4)은 확정돼 있는데 **HTTP 계약만 없다.** 계약 없는 필드는 만들지 않는 규칙이라 구현을 보류했다 |
+| 발견 시점 | `tickets/backend/archive/metadata-pipeline-after-script-quality.md` 개발 범위 2(서버 저장 반영) 착수 검토 — 동작 규칙(`admin.md` 3.1)과 산출물 형식(`ai/metadata-pipeline.md` 4.4)은 확정돼 있는데 **HTTP 계약만 없다.** 계약 없는 필드는 만들지 않는 규칙이라 구현을 보류했다 |
 | 요청 파트 | 백엔드 |
 
 ## 배경

@@ -4,6 +4,9 @@
  */
 export { default as LibraryScreen } from './screens/LibraryScreen';
 export { LIBRARY_COPY } from './library.copy';
+export { useLibraryArrivalBadge } from './hooks/useLibraryArrivalBadge';
+/** 로그아웃 때 앞 계정의 도착 수·관측 기준을 다음 계정으로 넘기지 않는다. */
+export { useLibraryArrivalStore } from './store/library-arrival.store';
 /** libraryKeys — 탐색의 담기·재생이 라이브러리 목록을 재조회시킬 때 쓴다(architecture.md 4.4) */
 export { libraryKeys } from './api/library.api';
 /**
@@ -25,8 +28,5 @@ export {
 } from './api/library.mock';
 export type { MockLibrarySaveMeta, MockLibrarySaveResult } from './api/library.mock';
 export { default as LibraryItemTile } from './components/LibraryItemTile';
-/** 상단 배너 — 첫 사용 튜토리얼이 드립 도착을 실제와 같은 컴포넌트·문구로 그린다 */
-export { default as LibraryBanner } from './components/LibraryBanner';
-export type { LibraryBannerState } from './components/LibraryBanner';
 export { default as LibrarySearchBarRow } from './components/LibrarySearchBarRow';
 export { default as LibraryToolbar } from './components/LibraryToolbar';

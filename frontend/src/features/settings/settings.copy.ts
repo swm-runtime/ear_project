@@ -32,6 +32,9 @@ export const SETTINGS_COPY = {
     subscription: '요금제 관리',
     content: '콘텐츠',
     playback: '재생',
+    audioQuality: '음질',
+    /** 화면 모드(다크 모드, 2026-10-10) */
+    colorMode: '화면',
     notification: '알림',
     info: '정보',
     support: '지원',
@@ -62,10 +65,15 @@ export const SETTINGS_COPY = {
     /** N은 서버 daily_play_limit — 하드코딩하지 않는다(paywall.md 5장). null은 무제한 */
     free: (dailyPlayLimit: number | null) =>
       dailyPlayLimit === null ? '무료 이용 중' : `무료 이용 중 · 하루 ${dailyPlayLimit}편`,
-    freeAction: '구독 알아보기',
     renewsAt: (iso: string) => `다음 결제일 ${monthDay(iso)}`,
-    /** 해지 예약 — 중립 톤. 사용자가 스스로 내린 결정이지 장애가 아니다(settings-uiux.md 4.1) */
-    cancelScheduled: (iso: string) => `${monthDay(iso)}까지 이용 가능`,
+    /**
+     * 해지 예약 — 중립 톤. 사용자가 스스로 내린 결정이지 장애가 아니다(settings-uiux.md 4.1). 다운그레이드 예약과 같은 꼴로
+     * 그 뒤를 말한다(PM 2026-10-09). 무료 상태를 이 요약은 "무료"라 부른다(`free` 문구) — 티어명을 쓰지 않는다
+     */
+    cancelScheduled: (iso: string) => `${monthDay(iso)}까지 이용 · 이후 무료`,
+    /** 다운그레이드 예약 — 지금 요금제는 적용일까지, 그 뒤 다음 요금제(PM 2026-10-08). 프로필 플랜 줄과 같은 문자열 */
+    pendingPlan: (iso: string, nextPlanName: string) =>
+      `${monthDay(iso)}까지 이용 · 이후 ${nextPlanName}`,
     /** 결제 문제 — 경고색을 쓰는 유일한 플랜 상태(profile.md 4.2·subscription.md 4.7과 동일) */
     paymentIssue: '결제에 문제가 있어요',
     /** 가입 체험 중인 무료 계정 — 프로필 플랜 줄과 같은 문자열(settings-uiux.md 6장 · profile-uiux.md 4.2) */
@@ -83,6 +91,27 @@ export const SETTINGS_COPY = {
     rate: '기본 배속',
     rateValue: (rate: number) => `${rate}×`,
     sheetTitle: '기본 배속',
+  },
+
+  /** 음질 섹션(settings-uiux.md 4.1 "음질" — 2026-10-07, KAN-143). 티어명을 쓰지 않는다 */
+  audioQuality: {
+    label: { compressed: '압축', aac: '고음질', lossless: '무손실' },
+    footer:
+      '무손실은 원본 그대로예요. 압축보다 데이터를 더 많이 써요. 바꾼 음질은 다음 편부터 적용돼요.',
+    lockedA11y: (label: string) => `${label}, 구독하면 쓸 수 있어요`,
+    cellularTitle: '셀룰러 데이터를 더 많이 써요',
+    cellularMessage: '무손실은 압축보다 파일이 커요. Wi-Fi에서 듣는 걸 권해요.',
+    cellularCancel: '취소',
+    cellularConfirm: '무손실로 바꾸기',
+  },
+
+  /** 화면 모드 — 시스템 / 라이트 / 다크(PM 2026-10-10) */
+  colorMode: {
+    label: { system: '시스템 설정', light: '라이트', dark: '다크' },
+    footer: '시스템 설정을 고르면 기기의 라이트·다크 설정을 따라가요.',
+    /** Android 는 모드를 바꾸면 앱을 다시 불러 칠한다(shared/theme/color-mode) — 화면이 한 번 깜빡인다 */
+    footerAndroid:
+      '시스템 설정을 고르면 기기의 라이트·다크 설정을 따라가요. 바꾸면 화면을 한 번 다시 불러와요.',
   },
 
   notification: {

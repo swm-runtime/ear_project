@@ -1,4 +1,4 @@
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Image, Pressable, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { theme } from '@/shared/theme';
@@ -10,13 +10,11 @@ import { pillButton } from '@/shared/ui/pill-button.styles';
 import { SkeletonBlock, SkeletonGroup } from '@/shared/ui/Skeleton';
 import { Text } from '@/shared/ui/Typography';
 
+import { InterestBubbleField, InterestBubbleSkeleton } from '../components/InterestBubbleField';
 import InterestDialog from '../components/InterestDialog';
-import TopicChip from '../components/TopicChip';
+import { topicImageSource } from '../components/TopicChip';
 import { useInterestManagementScreen } from '../hooks/useInterestManagementScreen';
 import { INTEREST_COPY } from '../interest.copy';
-
-/** IM9 — 칩 모양 스켈레톤. 스피너를 중앙에 띄우지 않는다(interest-management-uiux.md 4.7) */
-const SKELETON_CHIP_COUNT = 8;
 
 /**
  * IM1~IM9 관심 주제 관리 — 화면은 뷰만 담당하고 로직은 useInterestManagementScreen이 소유한다.
@@ -26,12 +24,11 @@ const SKELETON_CHIP_COUNT = 8;
 export default function InterestManagementScreen() {
   const screen = useInterestManagementScreen();
 
-  const showBadge = screen.hasChanges;
-  // 개수 표기와 변경 배지는 하나의 라이브 리전으로 묶어 한 문장으로 읽힌다(uiux 7장)
-  const countA11yLabel = [
-    INTEREST_COPY.countA11y(screen.selectedCount, screen.maxSelectable),
-    ...(showBadge ? [INTEREST_COPY.changeBadge(screen.changeCount)] : []),
-  ].join(', ');
+  // 하단 독의 요약 — 고른 주제의 사진을 겹쳐 쌓고 이름을 잇는다(PM 2026-10-09 D안)
+  const selectedTopics = screen.topics.filter((topic) => topic.isSelected);
+  const isFull = screen.selectedCount >= screen.maxSelectable;
+  // 진행 막대·"변경 사항 N개" 배지는 뺐다(PM 2026-10-10 00:57) — 개수는 "N/3 선택" 한 줄이 맡는다
+  const countA11yLabel = INTEREST_COPY.countA11y(screen.selectedCount, screen.maxSelectable);
 
   return (
     <SafeAreaView style={styles.container}>
@@ -83,13 +80,6 @@ export default function InterestManagementScreen() {
                 <Text style={styles.countLabel}>
                   {INTEREST_COPY.countLabel(screen.selectedCount, screen.maxSelectable)}
                 </Text>
-                {showBadge ? (
-                  <View style={styles.changeBadge}>
-                    <Text style={styles.changeBadgeLabel}>
-                      {INTEREST_COPY.changeBadge(screen.changeCount)}
-                    </Text>
-                  </View>
-                ) : null}
               </View>
             )}
             {/* IM6 — 초과 보유자 안내. "5/3 선택"을 거짓 클램프하지 않는다(uiux 4.5) */}
@@ -102,35 +92,27 @@ export default function InterestManagementScreen() {
             ) : null}
           </View>
 
-          <ScrollView contentContainerStyle={styles.chipArea}>
+          {/*
+            버블 밭(PM 2026-10-09 D안 — 종전 사진 알약 2열은 선택 여부가 보이지 않았다). 상한까지 고르면 남은 버블이
+            흐려지고, 누르면 고르지 않고 상한 토스트가 뜬다(PM 2026-10-10 01:08 — 종전 "탭 허용·저장만 막음"(08-11)을 바꿨다)
+          */}
+          {/* 스크롤하지 않는다 — 버블은 남은 높이 안에서 물리로 뭉치고, 끌기는 밭이 받는다(runtime 33) */}
+          <View style={styles.field}>
             {screen.isLoading ? (
               screen.showSkeleton ? (
-                <SkeletonGroup style={styles.skeletonChipArea}>
-                  {Array.from({ length: SKELETON_CHIP_COUNT }, (_, index) => (
-                    <SkeletonBlock key={index} style={styles.skeletonChip} />
-                  ))}
-                </SkeletonGroup>
+                <InterestBubbleSkeleton />
               ) : null
             ) : (
-              // 선택 개수로 칩을 비활성 처리하지 않는다(변경 2026-08-11) — 상한은 저장 게이트가 안내한다
-              screen.topics.map((topic) => (
-                <TopicChip
-                  key={topic.topicId}
-                  topicId={topic.topicId}
-                  label={topic.name}
-                  isSelected={topic.isSelected}
-                  isDimmed={false}
-                  onPress={() => screen.toggleTopic(topic.topicId)}
-                />
-              ))
+              <InterestBubbleField
+                topics={screen.topics}
+                isFull={isFull}
+                onToggle={screen.toggleTopic}
+              />
             )}
-          </ScrollView>
+          </View>
 
           {/* 하단 고정 독 — 칩이 늘어 스크롤이 생겨도 [저장]이 묻히지 않는다(uiux 4.1) */}
           <View style={styles.dock}>
-            {screen.isBelowMin && !screen.isLoading ? (
-              <Text style={styles.dockNotice}>{INTEREST_COPY.minRequired}</Text>
-            ) : null}
             {/* 상한 초과 — 0개 사유와 같은 패턴으로 저장이 왜 잠겼는지 상시 노출한다(변경 2026-08-11) */}
             {screen.isOverLimit && !screen.isLoading ? (
               <Text style={styles.dockNotice}>
@@ -142,43 +124,76 @@ export default function InterestManagementScreen() {
                 {screen.saveErrorMessage}
               </Text>
             ) : null}
-            {screen.saveErrorMessage !== null ? (
-              /* IM8 — 같은 저장의 반복이라 확인 팝업 없이 다시 보낸다(uiux 4.7) */
-              <Pressable
-                style={[pillButton.base, pillButton.primary, styles.save]}
-                disabled={screen.isSaving}
-                onPress={screen.retrySave}
-                accessibilityRole="button"
-                accessibilityLabel={INTEREST_COPY.retry}
-                accessibilityState={{ disabled: screen.isSaving }}
-              >
-                {screen.isSaving ? (
-                  <ActivityIndicator color={theme.color.onPrimary} />
+            {/* 요약 바 — 고른 주제 사진 겹침 · 이름 · [저장] 한 줄(D안). 저장 규칙·문구는 종전 그대로 */}
+            <View style={styles.summaryBar}>
+              <View style={styles.avatars}>
+                {selectedTopics.length === 0 ? (
+                  // 0개 — 점선 원 없이 자리만 비워 둔다(PM 2026-10-10 00:56). 자리는 남겨 옆 문구가 좌우로 뛰지 않게
+                  <View style={styles.avatarEmpty} />
                 ) : (
-                  <Text style={styles.saveLabel}>{INTEREST_COPY.retry}</Text>
+                  selectedTopics
+                    .slice(0, AVATAR_MAX)
+                    .map((topic, index) => (
+                      <Image
+                        key={topic.topicId}
+                        source={topicImageSource(topic.name)}
+                        style={[styles.avatar, index > 0 && styles.avatarOverlap]}
+                      />
+                    ))
                 )}
-              </Pressable>
-            ) : (
-              <Pressable
-                style={[
-                  pillButton.base,
-                  pillButton.primary,
-                  styles.save,
-                  !screen.canSave && styles.saveDisabled,
-                ]}
-                disabled={!screen.canSave}
-                onPress={screen.handleSavePress}
-                accessibilityRole="button"
-                accessibilityLabel={INTEREST_COPY.save}
-                accessibilityState={{ disabled: !screen.canSave }}
-              >
-                {screen.isSaving ? (
-                  <ActivityIndicator color={theme.color.onPrimary} />
-                ) : (
-                  <Text style={styles.saveLabel}>{INTEREST_COPY.save}</Text>
-                )}
-              </Pressable>
-            )}
+              </View>
+              {/* 0개 사유는 [저장] 바로 왼쪽에 — 왜 잠겼는지가 버튼 옆에서 읽힌다(PM 2026-10-09 23:27, 종전 바 위 한 줄) */}
+              {screen.isBelowMin && !screen.isLoading ? (
+                <Text
+                  style={[styles.summaryLabel, styles.summaryNotice]}
+                  numberOfLines={2}
+                  accessibilityLiveRegion="polite"
+                >
+                  {INTEREST_COPY.minRequired}
+                </Text>
+              ) : (
+                <Text style={styles.summaryLabel} numberOfLines={1}>
+                  {selectedTopics.map((topic) => topic.name).join(' · ')}
+                </Text>
+              )}
+              {screen.saveErrorMessage !== null ? (
+                /* IM8 — 같은 저장의 반복이라 확인 팝업 없이 다시 보낸다(uiux 4.7) */
+                <Pressable
+                  style={[pillButton.base, pillButton.primary, styles.save]}
+                  disabled={screen.isSaving}
+                  onPress={screen.retrySave}
+                  accessibilityRole="button"
+                  accessibilityLabel={INTEREST_COPY.retry}
+                  accessibilityState={{ disabled: screen.isSaving }}
+                >
+                  {screen.isSaving ? (
+                    <ActivityIndicator color={theme.color.onPrimary} />
+                  ) : (
+                    <Text style={styles.saveLabel}>{INTEREST_COPY.retry}</Text>
+                  )}
+                </Pressable>
+              ) : (
+                <Pressable
+                  style={[
+                    pillButton.base,
+                    pillButton.primary,
+                    styles.save,
+                    !screen.canSave && styles.saveDisabled,
+                  ]}
+                  disabled={!screen.canSave}
+                  onPress={screen.handleSavePress}
+                  accessibilityRole="button"
+                  accessibilityLabel={INTEREST_COPY.save}
+                  accessibilityState={{ disabled: !screen.canSave }}
+                >
+                  {screen.isSaving ? (
+                    <ActivityIndicator color={theme.color.onPrimary} />
+                  ) : (
+                    <Text style={styles.saveLabel}>{INTEREST_COPY.save}</Text>
+                  )}
+                </Pressable>
+              )}
+            </View>
           </View>
         </>
       )}
@@ -213,6 +228,10 @@ export default function InterestManagementScreen() {
   );
 }
 
+/** 요약 바에 겹쳐 그리는 사진 수 — 초과 보유자(IM6)여도 바가 넘치지 않게 */
+const AVATAR_MAX = 3;
+const AVATAR_SIZE = 34;
+
 /** 앱바 뒤로 셰브론 — 글자 `‹` 는 폰트마다 굵기·세로 위치가 달라 도형으로 그린다(design.md §5). 유리 원(40) 안쪽 값 */
 const BACK_ICON_SIZE = 20;
 
@@ -242,12 +261,18 @@ const styles = StyleSheet.create({
     paddingHorizontal: theme.spacing.lg,
     gap: theme.spacing.sm,
   },
+  // 큰 제목 — 화면의 주인공이 버블이라 머리말은 크고 짧게(D안). 굵기는 다른 화면 큰 제목과 같은 700 — 800 은 Android
+  // Pretendard 에 파일이 없어 시스템 글꼴로 떨어졌다(PM 2026-10-10 "제목 굵기가 굵은 것 같다", design.md 굵기 표)
   headline: {
-    fontSize: theme.font.size.lg,
+    fontSize: theme.font.size.xl,
     fontWeight: '700',
+    letterSpacing: -0.6,
     color: theme.color.textPrimary,
-    lineHeight: theme.font.size.lg * 1.4,
-    marginTop: theme.spacing.md,
+    lineHeight: theme.font.size.xl * 1.25,
+    marginTop: theme.spacing.sm,
+  },
+  field: {
+    flex: 1,
   },
   countRow: {
     flexDirection: 'row',
@@ -257,18 +282,6 @@ const styles = StyleSheet.create({
   countLabel: {
     fontSize: theme.font.size.sm,
     color: theme.color.textSecondary,
-  },
-  changeBadge: {
-    borderRadius: theme.radius.lg,
-    borderCurve: 'continuous',
-    backgroundColor: theme.color.surface,
-    paddingHorizontal: theme.spacing.sm,
-    paddingVertical: theme.spacing.xs / 2,
-  },
-  changeBadgeLabel: {
-    fontSize: theme.font.size.xs,
-    fontWeight: '600',
-    color: theme.color.primary,
   },
   overLimitBanner: {
     borderRadius: theme.radius.md,
@@ -281,36 +294,56 @@ const styles = StyleSheet.create({
     color: theme.color.textPrimary,
     lineHeight: theme.font.size.sm * 1.5,
   },
-  chipArea: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: theme.spacing.sm,
-    paddingHorizontal: theme.spacing.lg,
-    paddingVertical: theme.spacing.lg,
-  },
   skeletonCount: {
     width: 96,
     height: theme.font.size.sm * 1.4,
     borderRadius: theme.radius.sm,
   },
-  // 칩 스켈레톤 묶음 — chipArea 의 줄바꿈 격자를 그대로 이어받는다(낭독·반짝임을 영역 하나로)
-  skeletonChipArea: {
-    width: '100%',
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: theme.spacing.sm,
-  },
-  skeletonChip: {
-    // 실제 칩과 같은 격자 규칙
-    flexGrow: 1,
-    flexBasis: '40%',
-    height: theme.touchTarget.minHeight + theme.spacing.md,
-    borderRadius: theme.radius.full,
-  },
   dock: {
     gap: theme.spacing.sm,
-    paddingHorizontal: theme.spacing.lg,
+    paddingHorizontal: theme.spacing.md,
+    paddingTop: theme.spacing.sm,
     paddingBottom: theme.spacing.md,
+  },
+  summaryBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.md - 4,
+    minHeight: 64,
+    paddingLeft: theme.spacing.md - 4,
+    paddingRight: theme.spacing.sm,
+    borderRadius: theme.radius.full,
+    borderCurve: 'continuous',
+    backgroundColor: theme.color.surface,
+  },
+  avatars: {
+    flexDirection: 'row',
+  },
+  avatar: {
+    width: AVATAR_SIZE,
+    height: AVATAR_SIZE,
+    borderRadius: AVATAR_SIZE / 2,
+    // 겹친 사진 사이를 바 색 테두리로 가른다
+    borderWidth: 2.5,
+    borderColor: theme.color.surface,
+  },
+  avatarOverlap: {
+    marginLeft: -10,
+  },
+  avatarEmpty: {
+    width: AVATAR_SIZE,
+    height: AVATAR_SIZE,
+  },
+  summaryLabel: {
+    flex: 1,
+    minWidth: 0,
+    fontSize: theme.font.size.sm,
+    fontWeight: '600',
+    color: theme.color.textPrimary,
+  },
+  summaryNotice: {
+    fontWeight: '500',
+    color: theme.color.textSecondary,
   },
   dockNotice: {
     fontSize: theme.font.size.sm,
@@ -322,9 +355,10 @@ const styles = StyleSheet.create({
     color: theme.color.danger,
     textAlign: 'center',
   },
-  // 크기만 — 모양·색은 공용 알약(pillButton)
+  // 크기만 — 모양·색은 공용 알약(pillButton). 요약 바 안의 오른쪽 알약이라 폭은 글자만큼
   save: {
-    minHeight: theme.touchTarget.minHeight + theme.spacing.sm,
+    minHeight: theme.touchTarget.minHeight + 4,
+    paddingHorizontal: theme.spacing.lg,
   },
   saveDisabled: {
     backgroundColor: theme.color.border,

@@ -102,6 +102,6 @@ const styles = StyleSheet.create({
   divider: {
     width: StyleSheet.hairlineWidth,
     height: HEADER_CONTROL_HEIGHT - theme.spacing.md,
-    backgroundColor: 'rgba(0, 0, 0, 0.12)',
+    backgroundColor: theme.color.divider,
   },
 });

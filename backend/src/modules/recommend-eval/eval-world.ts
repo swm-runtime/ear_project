@@ -405,7 +405,6 @@ export class EvalWorld {
       {} as never,
       {} as never,
       {} as never,
-      {} as never,
       this.topicService() as never,
       this.userSettingService() as never,
       {

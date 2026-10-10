@@ -1,12 +1,15 @@
 import { Pressable, StyleSheet, View } from 'react-native';
 
-import { theme } from '@/shared/theme';
+import { motion, theme } from '@/shared/theme';
 import MoreIcon from '@/shared/ui/MoreIcon';
 import RemoteImage from '@/shared/ui/RemoteImage';
 import { Text } from '@/shared/ui/Typography';
 
 import { EXPLORE_COPY } from '../explore.copy';
 import type { ExploreItem } from '../explore.types';
+
+/** 카드 하단 줄에 싣는 해시태그 수 — 한 줄에 길이와 함께 들어가야 한다 */
+const MAX_CARD_TAGS = 2;
 
 interface ExploreTileProps {
   item: ExploreItem;
@@ -52,14 +55,21 @@ export default function ExploreTile({
         })}
       >
         <View style={isGrid ? styles.gridArtworkFrame : styles.artworkFrame}>
-          <RemoteImage uri={item.content.thumbnailUrl} recyclingKey={item.content.id} style={styles.artwork} />
+          <RemoteImage
+            uri={item.content.thumbnailUrl}
+            recyclingKey={item.content.id}
+            style={styles.artwork}
+            // 주제 격자는 목록이 통째로 바뀐다 — 사진이 툭 튀지 않게 짧게 페이드인(PM 2026-10-09)
+            fadeInMs={isGrid ? motion.duration.fast : undefined}
+          />
           {/* 완청 체크는 없다(2026-09-22 PM) — 사진 위 스티커라 뺐다. 완청은 낭독기 라벨(completed)로만 전한다 */}
         </View>
         <Text style={styles.title} numberOfLines={2}>
           {item.content.title}
         </Text>
+        {/* 콘텐츠 해시태그(최대 2) + 길이(KAN-163). 태그가 없으면 길이만 — 자리를 비우지 않는다. 표시만, 탭 없음 */}
         <Text style={styles.meta} numberOfLines={1}>
-          {EXPLORE_COPY.row.durationLabel(minutes)}
+          {EXPLORE_COPY.row.metaWithTags(item.content.tags.slice(0, MAX_CARD_TAGS), minutes)}
         </Text>
       </Pressable>
 
@@ -70,7 +80,7 @@ export default function ExploreTile({
         accessibilityLabel={EXPLORE_COPY.row.moreA11y}
       >
         <View style={styles.moreBadge}>
-          <MoreIcon size={22} color={theme.color.onPrimary} shadow />
+          <MoreIcon size={22} color={theme.color.onPhoto} shadow />
         </View>
       </Pressable>
     </View>
@@ -87,6 +97,8 @@ const styles = StyleSheet.create({
     width: EXPLORE_TILE_WIDTH,
     height: EXPLORE_TILE_WIDTH,
     marginBottom: theme.spacing.sm,
+    // 사진이 뜨기 전 칸 — 흰 바탕에 흰 칸이면 비어 보여 깜빡임으로 읽힌다. 옅은 회색 면을 깐다
+    backgroundColor: theme.color.surface,
     borderRadius: theme.radius.md,
     borderCurve: 'continuous',
     overflow: 'hidden',
@@ -99,6 +111,7 @@ const styles = StyleSheet.create({
     width: '100%',
     aspectRatio: 1,
     marginBottom: theme.spacing.sm,
+    backgroundColor: theme.color.surface,
     borderRadius: theme.radius.lg,
     borderCurve: 'continuous',
     overflow: 'hidden',

@@ -5,8 +5,8 @@
 | 대상 | `backend/deploy/push.sh` · 신규 `backend/deploy/apply-secrets.py` |
 | 요청 파트 | 백엔드 (인프라 → 백엔드) |
 | 발행 날짜 | 2026-09-09 |
-| 발견 시점 | `tickets/infra/pending/prod-secrets-storage.md`(KAN-35) 인프라 몫 완료 — AWS 쪽은 끝났고 배포 경로 연결만 남았다 |
-| 근거 문서 | `tickets/infra/pending/prod-secrets-storage.md`(패치 제안 전문) · `backend/deploy/aws/README.md` |
+| 발견 시점 | `tickets/infra/archive/prod-secrets-storage.md`(KAN-35) 인프라 몫 완료 — AWS 쪽은 끝났고 배포 경로 연결만 남았다 |
+| 근거 문서 | `tickets/infra/archive/prod-secrets-storage.md`(패치 제안 전문) · `backend/deploy/aws/README.md` |
 | 심각도 | **하** — 지금도 `.env.prod`로 정상 동작한다. 다만 이걸 붙여야 KAN-35의 완료 조건이 찬다 |
 | 상태 | 반영 완료 (2026-09-09) |
 | 연관 | Jira KAN-35(인프라) — 이 티켓이 닫혀야 그쪽 완료 조건 2가 찬다 |
@@ -28,7 +28,7 @@
 ## 요청 내용
 
 **배포 경로에서 시크릿을 받아 `.env.prod`의 비밀 항목만 덮어쓴다.** 패치 제안 전문은
-`tickets/infra/pending/prod-secrets-storage.md`에 있다. 요지만 옮긴다.
+`tickets/infra/archive/prod-secrets-storage.md`에 있다. 요지만 옮긴다.
 
 1. **신규 `backend/deploy/apply-secrets.py`** — 시크릿 JSON으로 `.env.prod`의 해당 키 **줄만
    치환**한다. 파일을 새로 만들지 않는다(비밀 아닌 설정이 날아간다).

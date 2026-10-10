@@ -139,6 +139,7 @@ Frontend는 다음 5가지를 책임진다.
   | `6` | 2026-09-23 | `@sentry/react-native` 추가(KAN-92 — 8.4) |
   | `7` | 2026-09-23 | `@react-native-firebase/app`·`analytics` 추가(GA4 — KAN-90, `analytics.md`) |
   | `8` | 2026-09-24 | `react-native-fbsdk-next` 추가(Meta 광고 측정 — KAN-94, `analytics.md` 3.5) |
+  | `32` | 2026-10-07 | `expo-iap` 추가(KAN-120) + KAN-118(Android 광고 ID 네이티브 기본값)·KAN-124·KAN-103 묶음 빌드 |
 
   사이의 값은 각 PR의 `app.json` 이력을 따른다.
 - **OTA 번들의 env는 `eas.json`과 같은 값을 유지해야 한다.** 워크플로가 `EXPO_PUBLIC_API_BASE_URL`을 번들에 박으므로, `eas.json`의 `preview`·`production` env와 어긋나면 **OTA 번들만 다른 서버를 본다.** mock 플래그들은 `__DEV__` 가드라 릴리스 번들에서는 무관하다.
@@ -270,8 +271,9 @@ feature가 늘어나면 아래 표를 갱신한다. 표에 없는 의존이 코�
 | library | player, share, interest | 재생 시작 게이트 호출, 미니플레이어 상태 구독 / 시트 [공유] 실행(`IS_SHARE_ENABLED`·`shareContent` — share 공개 API) / 필터 시트 주제 칩의 배경 사진(`topicImageSource` — 2026-09-27, 탐색·프로필과 같은 재사용) |
 | explore | player, library, share, interest | 게이트 호출 / 담기(라이브러리 적립) 호출 / 시트 [공유] 실행(share 공개 API) / 주제 칩 배경 사진(`topicImageSource` — 2026-09-27, 프로필의 관심 주제 카드와 같은 재사용) |
 | content-detail | player, library, explore, share, interest | 재생 게이트·확인 팝업·재생 세션 구독(`usePlaybackStore` — 현재 재생 중 콘텐츠 판정)·원문 클릭 계약(`sendSourceLinkClick`) / [삭제] 계약(`deleteLibraryItem`)·목록 무효화(`libraryKeys`) / [담기] 계약(`saveContent` — `explore-api.md` 4.3 재사용, `content-detail-api.md` 4.2 "신규 계약 없음") / 앱바 공유 아이콘(`ShareIcon`)·[공유] 실행(share 공개 API). **세 진입점 화면(library·explore·player)은 content-detail을 import하지 않는다** — 라우트 이름(`ContentDetail`)으로 내비게이션만 하고 화면 등록은 `app/navigation`이 담당한다(역방향 의존 없음 — 순환 미발생)  / 주제 칩 배경 사진(`topicImageSource` — 2026-09-27)|
-| player | paywall, subscription, settings, share, interest | 차단 시 페이월 시트 표시 / entitlements 조회 / 배속 저장·조회(`user_settings` — `settings-api.md` 4.2 계약 재사용. player가 재선언하면 같은 엔드포인트의 DTO가 두 벌이 된다) / 시트 [공유] 실행(share 공개 API) / 카테고리 줄의 주제 이름(`useTopicsQuery` — 같은 계약·같은 캐시 `interestKeys.topics()`, onboarding 행과 같은 방식. 역방향 import 없음 — 2026-09-17 `player-controls-redesign`) / 재생 목록 패널은 라이브러리 첫 페이지 조회를 `app/bootstrap`이 주입하는 브리지로 받는다(library → player 역방향 의존 없음) |
+| player | paywall, subscription, settings, share, interest | 차단 시 한도 안내 시트에 `PaywallPlansSection` 을 얹는다 — 결제 확정 뒤 재생은 게이트가 다시 요청한다(store 의 resume 콜백) / entitlements 조회 / 배속 저장·조회(`user_settings` — `settings-api.md` 4.2 계약 재사용. player가 재선언하면 같은 엔드포인트의 DTO가 두 벌이 된다) / 음질 값 형(`AudioQuality` — 재생 중 갱신에 처음 받은 음질을 되돌려 보낸다, 2026-10-07) / 시트 [공유] 실행(share 공개 API) / 카테고리 줄의 주제 이름(`useTopicsQuery` — 같은 계약·같은 캐시 `interestKeys.topics()`, onboarding 행과 같은 방식. 역방향 import 없음 — 2026-09-17 `player-controls-redesign`) / 재생 목록 패널은 라이브러리 첫 페이지 조회를 `app/bootstrap`이 주입하는 브리지로 받는다(library → player 역방향 의존 없음) |
 | paywall | subscription | 요금제 비교·결제 실행. **player를 알지 못한다** (→ 5.2) |
+| subscription | (없음) | 결제·요금제 관리·페이월 요금제 비교. 이메일 인증 화면 열기·다른 feature 캐시 무효화·로그인 전이는 `app/bootstrap` 이 주입한다(`registerEmailVerificationOpener` · `registerSubscriptionChangedListener` · `resumeSubscriptionSync`/`stopSubscriptionSync`) |
 | profile | interest, subscription, auth, career | 관심사·플랜 카드 / 이메일 인증 진입 / 커리어 카드(dev mock 요약 원본 `getCareerMockSummary`). 가입 체험 안내 팝업(`SignupTrialNotice`, P11)은 profile 이 소유하고 app(MainNavigator)이 그린다 — 계정 id 는 auth 의 `useSessionStore`, 앞서 뜨는 안내·팝업(튜토리얼·알림 사전 안내·권장 업데이트·푸시 재생 확인·한도 안내)이 없는지는 app 이 `isReady` 로 묶어 넘긴다(`app/navigation/launch-dialog-gate.ts` — profile → notification·app-update·player 의존 없음, 2026-10-05 KAN-119 · KAN-121). 관심사·커리어 저장 후 요약 invalidate는 각 feature가 노출한 `registerInterestSavedListener` · `registerCareerSavedListener`에 bootstrap이 주입한다(역방향 import 없음 — player ↔ library 브리지와 같은 방식) |
 | settings | auth, subscription, notification, interest | 각 도메인 진입점 허브. 요약 invalidate 배선은 profile 행과 동일(`registerInterestSavedListener`) |
 | onboarding | interest, library, notification, auth, career | 주제 목록 조회(`useTopicsQuery` — 같은 계약·같은 캐시 `interestKeys.topics()`) · `TopicChip` 공용 · 저장 시 interest mock 원본 갱신 / 커리어 단계 저장 시 career mock 원본 갱신(`seedCareerMockFromOnboarding`). 직군 목록 공용(`useJobCategoriesQuery` · `careerKeys.jobCategories()`) 완료 — 2026-08-26, 티켓 `onboarding-job-categories-server-list` / 첫 담기 / 알림 권한 / 종료 시 세션 상태 갱신(라이브러리 진입 전환) |
@@ -355,7 +357,7 @@ startPlayback(contentId, origin)
 | 재생 위치 | 같은 콘텐츠는 최신 1건만 유지(덮어쓰기) |
 | 소비 신호 | 전부 보존, 발생 순서대로 전송 |
 | 담기·삭제 | 마지막 상태만 유지 |
-| 영수증 검증 | **성공할 때까지 무기한 재시도. 절대 폐기하지 않는다** |
+| 영수증 검증 | **성공할 때까지 무기한 재시도. 절대 폐기하지 않는다.** **SQLite 큐에 영수증을 적재하지 않는다 — 스토어가 끝나지 않은 거래를 보관하는 것이 곧 큐다**(2026-10-09 — KAN-120). iOS 는 서버 200 전까지 `finish` 하지 않고, Android 는 앱이 확인(acknowledge)하지 않으므로 거래가 스토어에 남는다. 세션 중에는 결제 서비스가 간격을 늘려(5초→15초→30초→1분→5분 반복) 다시 제출하고, 앱 재실행·포그라운드 복귀 때 미완료 거래를 다시 제출한다(`features/subscription/services/purchase.service.ts`). 영수증 원문을 기기 저장소에 쓰지 않는다(convention.md 9장) |
 
 - 큐 항목은 `request_id`(멱등키)·`type`·`payload`·`created_at`·`retry_count`를 갖는다. 발생 시각으로 서버가 순서를 판정한다.
 - 상한 초과 시 오래된 소비 신호부터 폐기한다. 결제·영수증은 폐기 대상에서 제외한다.
@@ -581,7 +583,7 @@ RootStack
 - ~~크래시·에러 수집 도구 선정(Sentry / Firebase Crashlytics)과 마스킹 규칙~~ → **확정(2026-09-23): Sentry(8.4)**
 - 무료 티어 광고 형태(오디오 프리롤 / 배너 — PRD 결정 포인트 #20)에 따른 플레이어·광고 SDK 구조
 - Query 캐시의 디스크 영속(persistQueryClient) 도입 여부 — MVP는 수동 캐시(MMKV 1페이지)로 시작
-- Android 애플 로그인(웹 OAuth) — 네이티브 모듈이 iOS 전용이라 별도 구현 필요. 콘솔 준비(Services ID)는 완료, 콜백 처리 방식은 백엔드 협의 대기(`changes/pending/auth-api-apple-android-web-flow(fe).md`)
+- Android 애플 로그인(웹 OAuth) — 네이티브 모듈이 iOS 전용이라 별도 구현 필요. 콘솔 준비(Services ID)는 완료, 콜백 처리 방식은 백엔드 협의 대기(`changes/archive/auth-api-apple-android-web-flow(fe).md`)
 - ~~푸시 토큰 갱신·`UNREGISTERED` 처리 세부 흐름~~ → **확정(2026-09-17)**: 토큰 변경은 `addPushTokenListener`로 받아 `PUT /users/me/devices/:device_id`로 동기화하고, 무효 토큰(`DeviceNotRegistered`)은 서버가 Expo receipt로 판정해 무효화한다(`notification.md` 7)
 - 다크 모드 대응 범위(`auth-uiux.md` 미결) — theme 토큰 구조는 대응 가능하게 설계하되 MVP 범위 미정. 플레이어의 상시 어두운 팔레트(4.3 예외)는 이 미결과 무관하다
 - E2E 테스트 도구(Maestro / Detox) 도입 여부와 시점

@@ -222,7 +222,7 @@ published ──withdraw──→ withdrawn ──restore──→ published
 
 - **파트너 포털 구축 여부** — MVP 2주 일정(PRD 8.1)에서 파트너용 웹 포털까지 만들 여력이 있는지. 대안은 운영자 대행 + 내부 콘솔. **회수 반영 로직 자체는 P0이므로 반드시 구현**
 - 라이선스 만료 시 이미 적립된 `LibraryItem` 처리 — 회수와 동일하게 삭제할지, 만료 전까지 들은 것은 남길지 (계약 조건에 종속)
-- ~~재생 중 회수 시 강제 중단 여부~~ → **강제 중단으로 확정(2026-09-08)**: 위치 저장(4.3) 응답의 `content_status` 신호로 저장 주기(5초) 내 중단한다. 서버 구현 완료, 클라이언트 연결은 `tickets/frontend/pending/withdrawn-republish-playback-sync.md`
+- ~~재생 중 회수 시 강제 중단 여부~~ → **강제 중단으로 확정(2026-09-08)**: 위치 저장(4.3) 응답의 `content_status` 신호로 저장 주기(5초) 내 중단한다. 서버 구현 완료, 클라이언트 연결은 `tickets/frontend/archive/withdrawn-republish-playback-sync.md`
 - 파트너 측 구독·열람 전환 데이터(PRD 10장) 수급 경로 — 파트너 계약 의존
 - 오프라인 저장분의 회수 반영 지연(최대 30일)을 계약서에 어떻게 명시할지
 - 리포팅 제공 주기·형식(대시보드 / 정기 CSV / API) 확정

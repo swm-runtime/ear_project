@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { EntityManager, In, Repository } from 'typeorm';
+import { EntityManager, Repository } from 'typeorm';
 
 import { ContentEmbedding } from '../entities/content-embedding.entity';
 
@@ -13,18 +13,6 @@ export class ContentEmbeddingRepository {
 
   private scoped(manager?: EntityManager): Repository<ContentEmbedding> {
     return manager ? manager.getRepository(ContentEmbedding) : this.repository;
-  }
-
-  /** 편성 배치의 임베딩 축 입력 — 행이 없는 콘텐츠는 축 제외로 처리된다(`drip-scheduling.md` 4.2) */
-  async findAllByContentIds(
-    contentIds: string[],
-    manager?: EntityManager,
-  ): Promise<ContentEmbedding[]> {
-    if (contentIds.length === 0) {
-      return [];
-    }
-
-    return this.scoped(manager).findBy({ contentId: In(contentIds) });
   }
 
   /**

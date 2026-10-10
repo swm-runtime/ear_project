@@ -49,7 +49,7 @@ export default function TermsConsentScreen({ route, navigation }: TermsConsentSc
       <View style={styles.body}>
         {/* 브랜드 로고 + 환영 인사 — 이 화면의 주인공. 동의는 그 아래 조연이다 */}
         <Image
-          source={require('../../../../assets/logo.png')}
+          source={require('../../../../assets/logo-mark.png')}
           style={styles.logo}
           resizeMode="contain"
           accessibilityLabel="이어"
@@ -136,6 +136,8 @@ const styles = StyleSheet.create({
     paddingTop: theme.spacing.xl + theme.spacing.md,
   },
   logo: {
+    // 로고는 투명 바탕 검정 한 색 — tintColor 로 모드에 맞춘다(라이트 검정 · 다크 흰색, 2026-10-11)
+    tintColor: theme.color.textPrimary,
     width: 176,
     height: 144,
     marginBottom: theme.spacing.lg,

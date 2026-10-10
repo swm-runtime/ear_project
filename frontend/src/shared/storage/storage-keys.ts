@@ -62,4 +62,9 @@ export const STORAGE_KEYS = {
    * 않는다. **이관 대상이 아니다** — 처음부터 새 접근성으로 쓰인다. 로그아웃과 무관하다(기기의 값)
    */
   KEYCHAIN_ACCESSIBILITY_VERSION: 'storage.keychain_accessibility_version',
+  /**
+   * 무손실 음질의 셀룰러 데이터 안내를 이 기기에서 이미 띄웠는가(`settings.md` 4.6 — 한 번만). 값은 `'1'`.
+   * 서버에는 기록하지 않는다(재생 확인 팝업 억제와 같은 기기 로컬 상태). 로그아웃과 무관하다
+   */
+  LOSSLESS_CELLULAR_NOTICE_SEEN: 'settings.lossless_cellular_notice_seen',
 } as const;

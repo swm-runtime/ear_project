@@ -1,0 +1,8 @@
+{
+  "name": "play-subscription-change",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Google Play 정기 결제 교체(업·다운그레이드)를 교체 방식까지 지정해 여는 로컬 Expo 모듈 — Android 전용",
+  "main": "src/index.ts",
+  "types": "src/index.ts"
+}

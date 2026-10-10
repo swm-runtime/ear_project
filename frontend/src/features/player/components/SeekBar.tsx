@@ -2,13 +2,14 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, PanResponder, StyleSheet, View } from 'react-native';
 
 import { useAnimatedValue } from '@/shared/hooks/useAnimatedValue';
+import { tickHaptic } from '@/shared/lib/haptics';
 import { motion, theme } from '@/shared/theme';
 import { Text } from '@/shared/ui/Typography';
 
 import { SEEK_STEP_SEC } from '../player.constants';
 import { PLAYER_COPY } from '../player.copy';
 import { formatPlaybackTime, formatPlaybackTimeA11y } from '../player.format';
-import { chapterSegmentsOf } from '../player.section';
+import { chapterIndexOf, chapterSegmentsOf } from '../player.section';
 import { playerColor } from '../player.theme';
 
 interface SeekBarProps {
@@ -60,11 +61,11 @@ export default function SeekBar({
   );
 
   // PanResponder 콜백은 생성 시점의 값을 캡처한다 — 최신 값은 ref로 읽고, 갱신은 렌더 밖에서 한다
-  const stateRef = useRef({ trackWidth, durationSec, disabled });
+  const stateRef = useRef({ trackWidth, durationSec, disabled, chapterStartsSec });
   const onSeekToRef = useRef(onSeekTo);
   const onScrubRef = useRef(onScrub);
   useEffect(() => {
-    stateRef.current = { trackWidth, durationSec, disabled };
+    stateRef.current = { trackWidth, durationSec, disabled, chapterStartsSec };
     onSeekToRef.current = onSeekTo;
     onScrubRef.current = onScrub;
   });
@@ -73,6 +74,8 @@ export default function SeekBar({
     const dragRef = { current: null as number | null };
     /** 누른 지점(터치 영역 기준 x) — 그 뒤 위치는 이 값 + 이동량(dx)으로 잰다 */
     const grantXRef = { current: 0 };
+    /** 끄는 위치의 구간 번호 — 바뀌면 경계를 넘은 것이라 약하게 진동한다(애플 팟캐스트, PM 2026-10-07) */
+    const chapterRef = { current: 0 };
     const openChapters = () => {
       if (chapterTimerRef.current !== null) clearTimeout(chapterTimerRef.current);
       chapterTimerRef.current = null;
@@ -99,10 +102,16 @@ export default function SeekBar({
     return PanResponder.create({
       onStartShouldSetPanResponder: () => !stateRef.current.disabled,
       onMoveShouldSetPanResponder: () => !stateRef.current.disabled,
+      // 한번 잡으면 끝까지 놓지 않는다 — 끄는 손가락이 조금만 아래로 가도 플레이어 끌어내리기(collapsePanResponder)가
+      // 넘겨 달라고 요청해, 넘겨주면 바가 중간에 손가락을 안 따라왔다(PM 2026-10-07 실기기)
+      onPanResponderTerminationRequest: () => false,
+      // 바깥의 네이티브 제스처(스크롤·시스템 닫기)도 끄는 동안은 막는다
+      onShouldBlockNativeResponder: () => true,
       onPanResponderGrant: (event) => {
         grantXRef.current = event.nativeEvent.locationX;
         const next = positionFromX(grantXRef.current);
         dragRef.current = next;
+        chapterRef.current = chapterIndexOf(stateRef.current.chapterStartsSec, next);
         setDragPositionSec(next);
         onScrubRef.current?.(next);
         openChapters();
@@ -111,6 +120,11 @@ export default function SeekBar({
       // 않고 손가락 아래 다른 뷰 기준으로 와서, 왼쪽 끝까지 밀어도 0 으로 가지 않았다(PM 2026-10-07). 이동량은 정확하다
       onPanResponderMove: (_event, gesture) => {
         const next = positionFromX(grantXRef.current + gesture.dx);
+        const chapter = chapterIndexOf(stateRef.current.chapterStartsSec, next);
+        if (chapter !== chapterRef.current) {
+          chapterRef.current = chapter;
+          tickHaptic();
+        }
         dragRef.current = next;
         setDragPositionSec(next);
         onScrubRef.current?.(next);
@@ -167,10 +181,12 @@ export default function SeekBar({
   // 틈 폭 — 레이아웃 값이라 JS 구동. 닫히면 조각들이 맞닿아 한 줄 바로 보인다(맞닿는 모서리는 직각)
   const chapterGap = useAnimatedValue(0);
   useEffect(() => {
-    const animation = Animated.timing(chapterGap, {
+    // 스프링(SwiftUI `.smooth`, 튕김 없음) — 닫히는 중에 다시 잡아도 지금 속도를 이어 방향만 바꾼다(PM 2026-10-09, 종전 220ms easeOut)
+    const animation = Animated.spring(chapterGap, {
       toValue: isChapterOpen ? CHAPTER_GAP : 0,
-      duration: CHAPTER_GAP_MS,
-      easing: motion.easing.easeOut,
+      ...motion.spring.smooth,
+      // 닫힐 때 0.1pt 안쪽이면 끝난 것으로 본다 — 기본 문턱(0.001)은 꼬리가 길어 조각난 바가 그만큼 오래 남았다
+      restDisplacementThreshold: 0.1,
       useNativeDriver: false,
     });
     animation.start(({ finished }) => {
@@ -178,10 +194,11 @@ export default function SeekBar({
     });
     return () => animation.stop();
   }, [isChapterOpen, chapterGap]);
-  // 닫혀 있을 때 조각을 살짝 겹친다 — 소수점 폭이 맞닿으면 경계에 가는 이음선이 비친다
+  // 닫혀 있을 때 조각을 살짝 겹친다 — 소수점 폭이 맞닿으면 경계에 가는 이음선이 비친다. **사진 위(반투명 트랙)는 겹치지
+  // 않는다** — 겹친 1pt 만큼 흰색이 두 번 칠해져 경계마다 밝은 줄이 생겼다(PM 2026-10-09, 재생 목록 연 상태 실기기)
   const chapterMargin = chapterGap.interpolate({
     inputRange: [0, CHAPTER_GAP],
-    outputRange: [-CHAPTER_SEAM_OVERLAP, CHAPTER_GAP],
+    outputRange: [onImage ? 0 : -CHAPTER_SEAM_OVERLAP, CHAPTER_GAP],
   });
   const trackStyle = [
     styles.track,
@@ -305,14 +322,12 @@ const TIME_ACTIVE_SHIFT = 4;
 const TIME_ACTIVE_SCALE = 1.15;
 /** 잡았을 때 바가 양옆으로 넓어지는 폭(한쪽) — 시간 숫자도 같은 만큼 바깥으로 */
 const ACTIVE_WIDEN = 8;
-/** 구간 조각 사이 틈 — 잡았을 때만 벌어진다 */
-const CHAPTER_GAP = 3;
+/** 구간 조각 사이 틈 — 잡았을 때만 벌어진다. 3 은 평소 바(6)의 절반이라 듬성듬성했다 → 2(PM 2026-10-09) */
+const CHAPTER_GAP = 2;
 /** 닫힌 조각끼리 겹치는 폭 — 이음선 감춤 */
 const CHAPTER_SEAM_OVERLAP = 1;
 /** 놓은 뒤 틈이 닫히기까지 */
 const CHAPTER_HOLD_MS = 2000;
-/** 틈이 벌어지고 닫히는 시간 */
-const CHAPTER_GAP_MS = 220;
 const NO_CHAPTERS: readonly number[] = [];
 /*
  * 사진 위(재생 목록 열림) 트랙 — 선이 사진 밑변에 걸쳐 위 절반은 사진, 아래 절반은 플레이어의 검정 바탕이다.

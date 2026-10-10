@@ -13,6 +13,7 @@
 import { isApiError } from '@/shared/api/api-error';
 import { ERROR_CODES } from '@/shared/api/error-codes';
 import { logger } from '@/shared/lib/logger';
+import { reportError } from '@/shared/monitoring/sentry';
 
 import type { SubmittedTransaction } from '../api/subscription.api';
 import { RESTORE_MAX_ITEMS, SUBMIT_RETRY_DELAYS_MS } from '../subscription.constants';
@@ -27,6 +28,7 @@ import {
   StoreError,
   toStoreError,
   type IapAdapter,
+  type ReplaceSubscription,
   type StoreProduct,
   type StorePurchase,
 } from './iap-adapter';
@@ -46,6 +48,16 @@ export type PurchaseFailure =
   | 'storeMismatch'
   | 'receiptInvalid'
   | 'ownedByAnotherAccount'
+  /** Play 두 번째 구독(409) — 교체 없이 결제됐다 */
+  | 'alreadySubscribed'
+  /** Android 요금제 변경인데 바꿀 지금 구독이 기기에 없다 — 결제 시트를 열지 않는다 */
+  | 'replaceSourceMissing'
+  /** Android 다운그레이드 예약은 교체 모듈이 든 빌드에서만 된다 — 앱 업데이트 안내 */
+  | 'downgradeNeedsUpdate'
+  /** 스토어가 요금제 변경을 거절했다(Play DEVELOPER_ERROR) */
+  | 'changeRejected'
+  /** 이미 다음 갱신부터 바뀌는 예약이 있다(Play "existing deferred replacement") — 안내로 보인다 */
+  | 'downgradeAlreadyScheduled'
   | 'storeUnavailable'
   | 'network'
   | 'unknown';
@@ -62,7 +74,8 @@ export type PurchaseOutcome =
   | { kind: 'emailRequired' }
   /** 결제는 됐고 서버 반영만 늦다(503·네트워크) — 거래를 유지한 채 재시도 중 */
   | { kind: 'delayed' }
-  | { kind: 'failed'; reason: PurchaseFailure }
+  /** detail — 스토어 실패의 원문(코드·responseCode·debugMessage). 개발계 화면에만 덧붙인다 */
+  | { kind: 'failed'; reason: PurchaseFailure; detail?: string }
   /** 다른 결제·복원이 진행 중이다 — 연타 */
   | { kind: 'busy' };
 
@@ -125,7 +138,11 @@ const toFailure = (error: unknown): PurchaseFailure => {
       ? 'storeUnavailable'
       : error.kind === 'network'
         ? 'network'
-        : 'unknown';
+        : error.kind === 'rejected'
+          ? /existing deferred replacement/i.test(error.message)
+            ? 'downgradeAlreadyScheduled'
+            : 'changeRejected'
+          : 'unknown';
   }
   if (!isApiError(error)) return 'unknown';
   switch (error.errorCode) {
@@ -137,6 +154,8 @@ const toFailure = (error: unknown): PurchaseFailure => {
       return 'receiptInvalid';
     case ERROR_CODES.SUBSCRIPTION_OWNED_BY_ANOTHER_ACCOUNT:
       return 'ownedByAnotherAccount';
+    case ERROR_CODES.SUBSCRIPTION_ALREADY_SUBSCRIBED:
+      return 'alreadySubscribed';
     case ERROR_CODES.SUBSCRIPTION_STORE_UNAVAILABLE:
       return 'storeUnavailable';
     case ERROR_CODES.NETWORK_ERROR:
@@ -150,6 +169,15 @@ const toFailure = (error: unknown): PurchaseFailure => {
 /** 스토어 결제 시트의 실패 → 결과. 취소는 문구가 없는 정상 결과다 */
 const fromStoreError = (error: unknown): PurchaseOutcome => {
   const storeError = toStoreError(error);
+  // "이미 다음 갱신부터 예약됨"은 실패가 아니라 안내다 — Sentry 로 올리지 않는다(EAR-APP-D 가 이것만으로 10건 쌓였다)
+  const isAlreadyScheduled =
+    storeError.kind === 'rejected' && /existing deferred replacement/i.test(storeError.message);
+  if (storeError.kind !== 'cancelled' && storeError.kind !== 'pending' && !isAlreadyScheduled) {
+    // 시트가 왜 끊겼는지 — Play responseCode · debugMessage 가 메시지에 실려 있다(KAN-158). warn 은 개발 빌드에만
+    // 찍혀 preview 앱에서 아무 데도 안 남았다 — error + Sentry 로 올린다
+    logger.error('[subscription] store purchase failed', storeError.kind, storeError.message);
+    reportError(storeError, { area: 'subscription', kind: storeError.kind });
+  }
   switch (storeError.kind) {
     case 'cancelled':
       return { kind: 'cancelled' };
@@ -158,7 +186,7 @@ const fromStoreError = (error: unknown): PurchaseOutcome => {
     case 'alreadyOwned':
       return { kind: 'alreadyOwned' };
     default:
-      return { kind: 'failed', reason: toFailure(storeError) };
+      return { kind: 'failed', reason: toFailure(storeError), detail: storeError.message };
   }
 };
 
@@ -342,6 +370,9 @@ export const createPurchaseService = (deps: PurchaseServiceDeps) => {
     /** 포그라운드 복귀 — 미완료 거래를 다시 제출한다(재시도 대기 중이던 것도 즉시) */
     recoverUnfinished,
 
+    /** 다운그레이드를 이 빌드에서 "다음 갱신부터"로 예약할 수 있는가 — 화면이 확인 팝업 전에 본다 */
+    supportsDeferredDowngrade: deps.adapter.supportsDeferredDowngrade,
+
     /** 스토어 현지 가격 조회 — 화면은 이 값만 그린다. 실패하면 던진다("요금제를 불러올 수 없어요") */
     fetchStoreProducts: async (productIds: string[]): Promise<StoreProduct[]> => {
       if (productIds.length === 0) return [];
@@ -353,9 +384,17 @@ export const createPurchaseService = (deps: PurchaseServiceDeps) => {
      * [구독하기]·[업그레이드]·[변경] — 결제 의도 → 결제 시트 → 서버 제출 → 종료.
      * 결과는 한 번만 돌아온다. 화면은 결과 종류로 문구·닫기·자동 재생을 고른다.
      */
-    purchase: async (plan: Plan, entryPoint: PurchaseEntryPoint): Promise<PurchaseOutcome> => {
+    purchase: async (
+      plan: Plan,
+      entryPoint: PurchaseEntryPoint,
+      /** 서버의 지금 구독 상품(이용 중 카드) — Android 교체 대상을 고를 때만 쓴다 */
+      currentProductId: string | null = null,
+    ): Promise<PurchaseOutcome> => {
       if (phase !== 'idle') return { kind: 'busy' };
       if (plan.storeProductId === null) return { kind: 'failed', reason: 'planUnavailable' };
+      if (plan.action === 'downgrade' && !deps.adapter.supportsDeferredDowngrade) {
+        return { kind: 'failed', reason: 'downgradeNeedsUpdate' };
+      }
       setPhase('purchasing');
       try {
         let intent: PurchaseIntent;
@@ -378,6 +417,35 @@ export const createPurchaseService = (deps: PurchaseServiceDeps) => {
           return { kind: 'failed', reason: toFailure(toStoreError(error)) };
         }
 
+        /*
+         * Android 요금제 변경 — 지금 구독을 **교체**한다(KAN-158). Pro·Daily 는 Play 에서 독립 정기 결제라 교체 정보 없이
+         * 사면 두 번째 구독이 생기고 서버가 409 로 거부한다(Google 이 3일 뒤 자동 환불). 지금 구독의 토큰은 서버에 없어
+         * 기기에서 찾는다 — 없으면 시트를 열지 않는다. 방식은 서버가 준 action 으로 고른다(티어 순서를 비교하지 않는다):
+         * upgrade = 즉시 + 비례 정산, downgrade = 다음 갱신부터. iOS 는 구독 그룹이 알아서 바꾼다
+         */
+        let replace: ReplaceSubscription | undefined;
+        if (
+          deps.platform === 'android' &&
+          (plan.action === 'upgrade' || plan.action === 'downgrade')
+        ) {
+          let source: StorePurchase | null;
+          try {
+            source = await deps.adapter.findReplaceable(intent.storeProductId, currentProductId);
+          } catch (error) {
+            return { kind: 'failed', reason: toFailure(toStoreError(error)) };
+          }
+          if (source === null || source.token === null) {
+            return { kind: 'failed', reason: 'replaceSourceMissing' };
+          }
+          replace = {
+            purchaseToken: source.token,
+            oldProductId: source.productId,
+            // 교체되는 구매의 계정 id — 새 의도 id(intent.accountToken)는 서버 제출에만 쓴다(Google 규칙, KAN-158)
+            accountToken: source.obfuscatedAccountId,
+            mode: plan.action === 'upgrade' ? 'chargeProrated' : 'deferred',
+          };
+        }
+
         const outcome = new Promise<PurchaseOutcome>((resolve) => {
           activeAttempt = { productId: intent.storeProductId, intentId: intent.intentId, resolve };
         });
@@ -387,10 +455,28 @@ export const createPurchaseService = (deps: PurchaseServiceDeps) => {
           const purchases = await deps.adapter.requestSubscription({
             productId: intent.storeProductId,
             accountToken: intent.accountToken,
+            replace,
           });
           // 결과가 바로 왔으면(iOS) 그 거래로 확정한다. 리스너가 같은 거래를 또 들고 와도 한 번만 제출된다
-          const purchase = purchases.find((p) => p.productId === intent.storeProductId);
-          if (purchase) handlePurchaseUpdated(purchase);
+          const target = purchases.find((p) => p.productId === intent.storeProductId);
+          // Android 교체 모듈 경로는 리스너가 울리지 않는다 — 반환값이 전부다. 다음 갱신부터(DEFERRED) 교체는 대상 상품이 아니라
+          // 지금 구독(옛 상품)의 구매가 오거나 빈 목록이라, 대상만 기다리면 결과가 영영 안 와 로딩이 멈추지 않았다(2026-10-08)
+          const isDirect = replace !== undefined && deps.adapter.resolvesDirectly(replace);
+          if (target) {
+            handlePurchaseUpdated(target);
+          } else if (isDirect) {
+            const other = purchases.find((p) => p.state === 'purchased') ?? purchases[0];
+            if (other) {
+              // 옛 구독 구매를 서버에 다시 보낸다 — 서버가 Google 에서 예약(다음 갱신의 상품)을 읽어 반영한다
+              setPhase('verifying');
+              void submit(other, intent.intentId).then((result) =>
+                attempt?.resolve(result.kind === 'ignored' ? { kind: 'delayed' } : result),
+              );
+            } else {
+              // 돌려받은 구매가 없다 — 예약은 Google 쪽에 섰고, 서버는 RTDN 으로 받는다. 로딩을 끝내고 "반영 중"으로 둔다
+              attempt?.resolve({ kind: 'delayed' });
+            }
+          }
         } catch (error) {
           attempt?.resolve(fromStoreError(error));
         }

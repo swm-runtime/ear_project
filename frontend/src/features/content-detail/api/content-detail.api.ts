@@ -24,6 +24,7 @@ const toContentDetail = (dto: ContentDetailResponseDto): ContentDetail => ({
     thumbnailUrl: dto.content.thumbnail_url,
     contentVersion: dto.content.content_version,
     topics: dto.content.topics.map((topic) => ({ id: topic.id, name: topic.name })),
+    tags: dto.content.tags ?? [],
     series: dto.content.series
       ? {
           seriesId: dto.content.series.series_id,

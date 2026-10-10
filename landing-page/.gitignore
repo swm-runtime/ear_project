@@ -39,3 +39,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# 빌드마다 생성 — scripts/build-meta.mjs
+/public/build-meta.json

@@ -9,7 +9,7 @@
 | 근거 문서 | `features/share.md` 4.2~4.3 · `spec/uiux/share-uiux.md` 4.4 |
 | 심각도 | **높음** — 공유의 **주 경로가 카톡**인데 그 경로에서 앱 전환이 성립하지 않는다. 기능은 정상인데 실제 도달률이 낮다 |
 | 상태 | **완료** (2026-09-08 실기기 확인) |
-| 연관 | `share-app-links-and-deep-link-routing.md`(수신 라우팅) · `share-p1-activation-next-build.md`(스토어 URL) · `tickets/backend/pending/share-universal-links-hosting.md`(랜딩·`.well-known`) |
+| 연관 | `share-app-links-and-deep-link-routing.md`(수신 라우팅) · `share-p1-activation-next-build.md`(스토어 URL) · `tickets/backend/archive/share-universal-links-hosting.md`(랜딩·`.well-known`) |
 
 ## 문제
 

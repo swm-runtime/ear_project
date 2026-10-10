@@ -67,7 +67,8 @@ export class AppStoreWebhookService {
       const userId = await this.findUserId(notification, manager);
 
       if (userId !== null) {
-        await this.billingSyncService.syncUserTier(userId, manager);
+        // 위 반영이 구독 상태를 판정한 시각으로 지급도 판정한다 — 새로 시계를 읽지 않는다
+        await this.billingSyncService.syncUserTier(userId, manager, now);
       }
 
       await this.storeNotificationLogService.markProcessed(

@@ -1,4 +1,7 @@
+import type { ColorValue } from 'react-native';
 import Svg, { Path, Rect } from 'react-native-svg';
+
+import { useResolvedColor } from '@/shared/theme';
 
 /**
  * 둥근 재생·일시정지 그림 — 애플 `play.fill`·`pause.fill` 의 인상(꼭짓점·모서리가 둥근 꽉 찬 모양)을 **직접 그린** 것이다.
@@ -8,7 +11,7 @@ import Svg, { Path, Rect } from 'react-native-svg';
 interface PlayPauseGlyphProps {
   kind: 'play' | 'pause';
   size: number;
-  color: string;
+  color: ColorValue;
 }
 
 /** 삼각형 꼭짓점 둥글기 — 같은 색 선을 둥근 이음으로 둘러 꼭짓점을 깎는다(선 굵기의 절반이 곧 반경) */
@@ -16,7 +19,9 @@ const PLAY_CORNER_STROKE = 2.6;
 /** 일시정지 막대 모서리 반경(24 격자 기준) */
 const PAUSE_BAR_RADIUS = 1.2;
 
-export default function PlayPauseGlyph({ kind, size, color }: PlayPauseGlyphProps) {
+export default function PlayPauseGlyph({ kind, size, color: colorValue }: PlayPauseGlyphProps) {
+  // 토큰(iOS 동적 색)을 지금 모드의 문자열로 — SVG·기호는 문자열 색만 받는다(다크 모드, 2026-10-10)
+  const color = useResolvedColor(colorValue);
   return (
     <Svg width={size} height={size} viewBox="0 0 24 24">
       {kind === 'play' ? (

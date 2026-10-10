@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { longestQuietRun } from "./audio.js";
+import { longestQuietRun, speechIslands, guardCutFromIslands, trailingBlip, pcmTrailingBlip } from "./audio.js";
 
 test("조용한 구간 — 창 최저값 + 12dB 아래로 가장 긴 연속 구간, 짧으면 null", () => {
   // 말(−20) 10칸 · 쉼(−60~−58) 30칸 · 말(−22) 10칸 → 쉼 0.6초(20ms 홉)
@@ -40,4 +40,42 @@ test("fadeOutPcm — 끝 n 샘플을 선형으로 0 까지 줄이고 앞은 그�
   assert.equal(out.readInt16LE(99 * 2), 0);
   assert.ok(out.readInt16LE(94 * 2) > 0 && out.readInt16LE(94 * 2) < 10000);
   assert.equal(buf.readInt16LE(99 * 2), 10000); // 원본은 건드리지 않는다
+});
+
+// 끝 꼬리 v2·덧말 검수 (2026-10-08 박수헌 "마지막 인사 뒤 대본에 없는 '네~'") — 시각은 10-08 56편 실측 패턴(배포본 끝, 20ms 프레임)
+const isl = (...xs: [number, number][]) => xs.map(([start, end]) => ({ start, end, peak: -12 }));
+
+test("말소리 덩어리 — 최고값 −30dB 문턱, 0.1초 이하 틈(폐쇄음 정지)은 잇고 그보다 긴 쉼은 가른다", () => {
+  const db = [...Array(30).fill(-10), ...Array(4).fill(-60), ...Array(20).fill(-12), ...Array(12).fill(-60), ...Array(8).fill(-15)];
+  const r = speechIslands(db, 0.02);
+  assert.equal(r.length, 2);
+  assert.ok(Math.abs(r[0].end - 1.08) < 1e-9 && Math.abs(r[1].start - 1.32) < 1e-9);
+});
+
+test("덧말 절단 — 마지막 덩어리가 덧말, 그 앞 덩어리 끝 + min(0.1, 쉼/2)에서 자른다", () => {
+  const r = guardCutFromIslands(isl([0, 0.62], [0.82, 1.1]), 0.4);
+  assert.ok(!("fail" in r));
+  if (!("fail" in r)) { assert.ok(Math.abs(r.cut - 0.72) < 1e-9); assert.ok(Math.abs(r.gap - 0.2) < 1e-9); }
+});
+
+test("덧말 절단 — 판정 불능은 사유를 돌려준다(붙음·안 들림·너무 김)", () => {
+  assert.ok("fail" in guardCutFromIslands(isl([0, 1.4]), 0.4));                    // 마지막 음절과 덧말이 한 덩어리
+  assert.ok("fail" in guardCutFromIslands(isl([0, 0.3], [0.4, 0.62]), 0.45));       // 마지막 덩어리가 마지막 글자 — 덧말이 안 들림
+  assert.ok("fail" in guardCutFromIslands(isl([0, 0.5], [0.7, 1.75]), 0.3));        // 1.05초 — 덧말이 아니다
+});
+
+test("덧말 검수 — 남은 \"네\" 앞부분(T260923-014: 쉼 0.26초 뒤 0.18초)을 잡는다", () => {
+  const b = trailingBlip(isl([0, 1.06], [1.32, 1.5]), 1.5);
+  assert.ok(b && Math.abs(b.gap - 0.26) < 1e-9);
+});
+
+test("덧말 검수 — 깨끗한 끝(T260923-007: 마지막 음절이 0.1초 틈 뒤, 끝 0.1초 전에 끝남)은 통과", () => {
+  assert.equal(trailingBlip(isl([0, 0.78], [0.88, 1.4]), 1.5), null);
+});
+
+test("덧말 검수 — PCM 끝 1.5초에 바로 적용한다", () => {
+  const rate = 44100, tone = (sec: number) => Buffer.from(Int16Array.from({ length: Math.round(sec * rate) }, (_, i) => Math.round(8000 * Math.sin(i / 7))).buffer);
+  const silence = (sec: number) => Buffer.alloc(Math.round(sec * rate) * 2);
+  assert.ok(pcmTrailingBlip(Buffer.concat([tone(1.2), silence(0.25), tone(0.15)])));
+  assert.equal(pcmTrailingBlip(Buffer.concat([tone(1.2), silence(0.25)])), null);
 });

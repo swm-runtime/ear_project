@@ -19,6 +19,8 @@ const toParticle = (word: string): '로' | '으로' => {
 export const SUBSCRIPTION_COPY = {
   /** 화면 제목 — 설정의 진입 항목 이름과 같다(KAN-146, settings.copy sections.subscription) */
   title: '요금제 관리',
+  /** 제목 밑 안내 — 낮출 수 있는 요금제가 있을 때만(PM 2026-10-08 KAN-158). 낮추기는 지금 기간이 끝난 뒤 적용된다 */
+  downgradeNotice: '요금제를 낮추면 지금 요금제 기간이 끝난 뒤 자동으로 바뀌어요',
   backA11y: '뒤로 가기',
   loadingA11y: '요금제를 불러오는 중',
 
@@ -31,6 +33,21 @@ export const SUBSCRIPTION_COPY = {
     renewsAt: (iso: string) => `다음 결제일 ${monthDay(iso)}`,
     /** 해지 예약 — 중립 톤. 사용자가 스스로 내린 결정이지 장애가 아니다 */
     cancelScheduled: (iso: string) => `${monthDay(iso)}까지 이용 가능해요`,
+    /** Android — 다운그레이드 예약 중 이용 중 카드 안 안내(되돌릴 수 없어서 바뀐 뒤 다시 올린다, PM 2026-10-08) */
+    revertAfterChange: (iso: string, nextPlanName: string) =>
+      `${monthDay(iso)} ${nextPlanName}${toParticle(nextPlanName)} 바뀐 뒤 다시 올릴 수 있어요`,
+    /**
+     * 제목 밑 알림 섹션(KAN-160) — 굵은 첫 줄 + 옅은 둘째 줄. 한 문장으로 두면 "이후"에서 어색하게 끊겼다(PM 2026-10-08).
+     * 무료 요금제 이름은 서버 값, 모르면 "무료"
+     */
+    cancelScheduledNotice: (iso: string, planName: string) =>
+      `${monthDay(iso)}까지 ${planName} 요금제를 이용할 수 있어요`,
+    cancelScheduledNoticeDetail: (freePlanName: string | null) =>
+      `이후 ${freePlanName ?? '무료'} 요금제로 바뀌어요`,
+    pendingPlanNoticeDetail: (currentPlanName: string) =>
+      `그때까지는 ${currentPlanName} 요금제를 그대로 이용할 수 있어요`,
+    /** 무료 요금제로 바꾸기(해지)를 골랐을 때 버튼 밑 안내 — 날짜는 서버의 다음 결제일(그날까지는 지금 요금제다) */
+    cancelUntil: (iso: string) => `지금 요금제는 ${monthDay(iso)}까지 이용할 수 있어요`,
     /** 결제 문제(유예) — 경고색을 쓰는 유일한 상태 */
     paymentIssueTitle: '결제에 문제가 있어요',
     paymentIssueBody: '결제 수단을 확인하지 않으면 구독이 종료될 수 있어요',
@@ -44,9 +61,8 @@ export const SUBSCRIPTION_COPY = {
         : 'App Store에서 구독 중이에요. 구독한 기기에서 변경해주세요',
   },
 
-  /** 스토어로 보내는 버튼 — 해지 API 는 없다(subscription.md 4.5) */
+  /** 스토어로 보내는 목록 아래 버튼 — 해지 API 는 없다(subscription.md 4.5). 해지는 무료 요금제 카드의 [{이름}로 변경] */
   manage: {
-    cancel: '구독 해지',
     resume: '구독 다시 시작',
     checkPayment: '결제 수단 확인',
   },
@@ -59,12 +75,27 @@ export const SUBSCRIPTION_COPY = {
     upgrade: '업그레이드',
     downgrade: '변경',
     current: '이용 중',
+    /** 다음 결제일부터 바뀌도록 예약된 요금제 — 이름 옆 배지(누를 수 없음, 2026-10-08) */
+    scheduled: '예약됨',
     downgradeHint: '다음 결제일부터 적용돼요',
+    /** [변경](다운그레이드)을 누르면 결제 시트 전에 묻는다(PM 2026-10-08 KAN-158) — 시스템 알림창 */
+    downgradeConfirmTitle: (name: string) => `${name}${toParticle(name)} 변경할까요?`,
+    downgradeConfirmMessage:
+      '지금 요금제는 다음 결제일까지 그대로 쓸 수 있고, 그 뒤 자동으로 바뀌어요.',
+    /**
+     * Android — Google Play 는 예약된 변경만 취소하는 길이 없다(PM 2026-10-08 결정: 바뀐 뒤 다시 올린다). 확인 팝업에서 미리 알린다
+     */
+    downgradeConfirmMessageAndroid:
+      '지금 요금제는 다음 결제일까지 그대로 쓸 수 있고, 그 뒤 자동으로 바뀌어요. 예약한 변경은 되돌릴 수 없어요 — 바뀐 뒤 다시 올릴 수 있어요.',
+    /** iOS — 다운그레이드 예약 중 이용 중 카드를 고르면 아래 버튼. 지금 요금제를 다시 사면 Apple 이 예약을 취소한다 */
+    keepCurrent: (name: string) => `${name} 유지`,
+    downgradeConfirmCancel: '취소',
+    downgradeConfirmOk: '변경',
     /**
      * 카드 아래 버튼 하나 — 고른 요금제 이름을 붙인다("Daily 구독하기" · "Pro 업그레이드" · "Daily로 변경"). 이름은 서버 값이라
      * 조사는 마지막 글자로 고른다(받침 있으면 "으로", 없거나 ㄹ 받침·영문이면 "로")
      */
-    cta: (name: string, action: 'purchase' | 'upgrade' | 'downgrade') => {
+    cta: (name: string, action: 'purchase' | 'upgrade' | 'downgrade' | 'cancel') => {
       if (action === 'purchase') return `${name} 구독하기`;
       if (action === 'upgrade') return `${name} 업그레이드`;
       return `${name}${toParticle(name)} 변경`;
@@ -72,8 +103,14 @@ export const SUBSCRIPTION_COPY = {
     /** 고를 수 있는 카드 묶음 — 스크린리더가 "요금제, 라디오 그룹"으로 읽는다 */
     groupA11y: '요금제',
     /** 카드 요약을 한 문장으로 — 이용 중이면 끝에 "이용 중"(색만으로 구분하지 않는다) */
-    cardA11y: (name: string, price: string, description: string, isCurrent: boolean) =>
-      [name, price, description, isCurrent ? '이용 중' : '']
+    cardA11y: (
+      name: string,
+      price: string,
+      description: string,
+      isCurrent: boolean,
+      isScheduled = false,
+    ) =>
+      [name, price, description, isCurrent ? '이용 중' : '', isScheduled ? '예약됨' : '']
         .filter((part) => part !== '')
         .join(', '),
   },
@@ -125,6 +162,12 @@ export const SUBSCRIPTION_COPY = {
     pending: '결제 승인을 기다리고 있어요. 승인되면 자동으로 반영돼요',
     alreadyOwned: '이미 구독 중이에요. [구매 복원]을 눌러 이 계정에 연결해주세요',
     emailRequired: '구독하려면 이메일 인증이 필요해요',
+    /** 다운그레이드 예약 성공 — 서버에 예약 날짜가 아직 없을 때(RTDN 대기) 날짜 없이 */
+    downgradeScheduled: '다음 결제일부터 바꾼 요금제가 적용돼요',
+    /** 이미 다음 결제일 변경이 예약돼 있다(Play "existing deferred replacement") — 실패가 아니라 안내 */
+    downgradeAlreadyScheduled: '이미 다음 결제일부터 요금제가 바뀌도록 예약돼 있어요',
+    /** iOS [유지] 성공 — 예약된 변경이 취소됐다 */
+    keptCurrent: '예약된 변경을 취소했어요',
   },
 
   /** 실패 — subscription-api.md 5장 문구 */
@@ -135,6 +178,15 @@ export const SUBSCRIPTION_COPY = {
     storeMismatch: '다른 스토어에서 구독 중이에요. 구독한 기기에서 변경해주세요',
     receiptInvalid: '구독을 확인할 수 없어요. 문의하기로 알려 주시면 확인해 드릴게요',
     ownedByAnotherAccount: '이미 다른 계정에서 사용 중인 구독이에요',
+    /** Play 두 번째 구독 409(subscription-api.md 5장 표 문구 그대로) */
+    alreadySubscribed: '이미 구독 중이에요. 요금제는 변경으로 바꿔주세요',
+    /** Android 요금제 변경 — 바꿀 지금 구독이 이 기기의 Google 계정에 없다(교체 없이 결제하면 두 번째 구독이 된다) */
+    /** 스토어가 요금제 변경을 거절했다(Play DEVELOPER_ERROR, KAN-158) */
+    changeRejected: '지금은 요금제를 바꿀 수 없어요. 잠시 후 다시 시도해주세요',
+    /** Android 다운그레이드 예약은 교체 모듈이 든 빌드에서만 된다(KAN-158) */
+    downgradeNeedsUpdate: '요금제를 낮추려면 앱을 최신 버전으로 업데이트해주세요',
+    replaceSourceMissing:
+      '지금 구독을 이 기기에서 찾을 수 없어요. 구독한 Google 계정으로 다시 시도해주세요',
     storeUnavailable: '지금은 결제를 진행할 수 없어요. 잠시 후 다시 시도해주세요',
     network: '네트워크 연결을 확인해주세요',
     unknown: '결제를 완료하지 못했어요. 잠시 후 다시 시도해주세요',

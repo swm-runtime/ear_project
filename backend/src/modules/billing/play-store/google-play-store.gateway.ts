@@ -176,6 +176,15 @@ export class GooglePlayStoreGateway extends PlayStoreGateway {
         url: `${this.appUrl()}/purchases/subscriptions/${encodeURIComponent(productId)}/tokens/${encodeURIComponent(purchaseToken)}:acknowledge`,
       });
     } catch (error) {
+      // 이미 확인된 구매 — 영수증 제출과 RTDN이 같은 순간 와서 다른 경로가 먼저 확인했다(2026-10-09 개발계 실측,
+      // KAN-165). 목적(확인됨)은 이뤄졌으니 성공이다. 실패로 올리면 반영은 끝난 결제에 503 이 돌아가 앱이 오류를 보인다
+      if (statusOf(error) === ALREADY_ACKNOWLEDGED_STATUS) {
+        this.logger.log('google play purchase already acknowledged', {
+          product_id: productId,
+        });
+        return;
+      }
+
       throw this.unavailable('acknowledge_failed', statusOf(error));
     }
   }
@@ -377,6 +386,9 @@ function statusOf(error: unknown): number | null {
 /** 서비스 계정 인증이 실패했을 때 올리는 상태 — 호출부가 "우리 자격증명 문제"로 다룬다 */
 const CREDENTIAL_FAILURE_STATUS = 401;
 
+/** 확인(acknowledge)이 이미 끝난 구매에 Google 이 답하는 상태 — 실패가 아니다 */
+const ALREADY_ACKNOWLEDGED_STATUS = 409;
+
 /**
  * `google-auth-library`(gaxios)가 던진 오류를 HTTP 상태로 옮긴다. 응답이 없었으면(네트워크) `null`.
  *
@@ -430,7 +442,17 @@ function toPlayPurchase(
     state,
     startedAt: new Date(body.startTime),
     expiresAt: new Date(item.expiryTime!),
-    isAutoRenew: item.autoRenewingPlan?.autoRenewEnabled === true,
+    /**
+     * 다운그레이드 예약(DEFERRED) 중인 줄에는 Google 이 `autoRenewingPlan`을 **빈 객체(`{}`)로** 싣는다 — `autoRenewEnabled`
+     * 가 없다(2026-10-08 실측 두 번째: 처음엔 없다고 보고 `undefined`만 처리해 놓쳤다). 다음 갱신은
+     * `deferredItemReplacement`의 상품으로 이어지므로 자동 갱신은 켜진 것이다. 이걸 "꺼짐"으로 읽으면 예약이 해지
+     * 예약(`cancelled`)으로 저장돼 앱이 [구독 다시 시작]을 띄운다(2026-10-08 개발계 실측). 실제로 해지하면 구독 상태가
+     * `CANCELED`로 오고, 그때는 매퍼가 상태로 자동 갱신을 끈다(`play-purchase.mapper.ts`)
+     */
+    isAutoRenew:
+      item.autoRenewingPlan?.autoRenewEnabled === true ||
+      (item.autoRenewingPlan?.autoRenewEnabled !== false &&
+        item.deferredItemReplacement?.productId !== undefined),
     pendingProductId: item.deferredItemReplacement?.productId ?? null,
     // UUID는 대소문자를 가리지 않는다 — 결제 의도의 `id`(소문자)와 맞춘다
     accountToken:

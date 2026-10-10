@@ -5,7 +5,7 @@ import path from "node:path";
 
 /**
  * 오디오 조립 (spec/06 7장) — ffmpeg 로: 본편[앞 무음 → 세그먼트 디코드·연결(문맥 겹침 경계는 그대로, 폴백 경계는 자연 쉼 길이의 무음) → 뒤 무음]
- * → 본편만 라우드니스 정규화(2패스 linear, -16 LUFS) → 스테레오(목소리는 양쪽 같게) → [인트로 | 본편 | 아웃트로] 연결
+ * → 본편만 라우드니스 정규화(2패스 linear, -16 LUFS — 피크 여유가 모자라면 피크 리미터를 먼저, 2026-10-08) → 스테레오(목소리는 양쪽 같게) → [인트로 | 본편 | 아웃트로] 연결
  * → 마스터 wav(스테레오) + 배포본 mp3 192kbps (2026-09-22: ElevenLabs 원본이 mp3 128k 라 배포본을 128k 로 다시 인코딩하면 손실을 두 번 거친다 —
  *   192k 는 그 두 번째 열화를 거의 없앤다. 원본이 pcm 이 되면(Pro 플랜) 다시 정한다). 재처리는 항상 마스터에서.
  * 징글은 업로드 때 한 번 음량·포맷을 맞춰 두고(cli/jingle.ts) 조립 때는 손대지 않는다 — 2026-10-05 KAN-122: 모노 합치기가 넓은 스테레오 징글의
@@ -63,20 +63,90 @@ export function firstQuietRun(db: number[], hopSec: number, minSec: number, opts
   return null;
 }
 
+/** s16le mono PCM → 20ms(882샘플@44.1kHz) RMS dB 궤적. 순수 함수 */
+export function pcmDb(buf: Buffer, win = 882): number[] {
+  const db: number[] = [];
+  for (let i = 0; i + win <= buf.length / 2; i += win) { let acc = 0; for (let k = 0; k < win; k++) { const v = buf.readInt16LE((i + k) * 2) / 32768; acc += v * v; } db.push(10 * Math.log10(acc / win + 1e-12)); }
+  return db;
+}
+async function fileDb(file: string, from: number, to: number): Promise<number[]> {
+  const { stdout } = await run("ffmpeg", ["-v", "error", "-ss", Math.max(0, from).toFixed(3), "-to", to.toFixed(3), "-i", file, "-f", "s16le", "-ac", "1", "-ar", "44100", "-"], { encoding: "buffer", maxBuffer: 1 << 26 });
+  return pcmDb(stdout as unknown as Buffer);
+}
+
 /**
  * 끝 꼬리 절단점 (2026-10-01 박수헌 "마지막 말이 끝나자마자 뚝 끊긴다"): ElevenLabs 출력은 요청의 마지막 음절 뒤 약 20ms 만에 −20dB 에서 0 으로 끊긴다(spec/06 7장).
  * 마지막 요청 끝에 버릴 덧말(가드)을 붙여 생성하면 마지막 낱말이 자연스럽게 감쇠하고 쉼이 생긴다 — [마지막 턴 마지막 글자 시작 −0.2초, 가드 첫 글자 시작 +1.5초]
  * 창에서 첫 쉼을 찾아, 쉼 시작 뒤 keepSec 만큼(감쇠 끝과 바닥 일부)만 남기고 자른다. 없으면 null.
+ * 2026-10-08: 이제 findGuardCut 이 먼저다 — 이 함수는 그것이 덧말을 못 가려낼 때의 폴백이다.
  */
 export async function findTailCut(file: string, from: number, to: number, minSec = 0.15, keepSec = 0.1): Promise<number | null> {
   if (!(to > from)) return null;
-  const { stdout } = await run("ffmpeg", ["-v", "error", "-ss", Math.max(0, from).toFixed(3), "-to", to.toFixed(3), "-i", file, "-f", "s16le", "-ac", "1", "-ar", "44100", "-"], { encoding: "buffer", maxBuffer: 1 << 26 });
-  const buf = stdout as unknown as Buffer;
-  const win = 882;
-  const db: number[] = [];
-  for (let i = 0; i + win <= buf.length / 2; i += win) { let acc = 0; for (let k = 0; k < win; k++) { const v = buf.readInt16LE((i + k) * 2) / 32768; acc += v * v; } db.push(10 * Math.log10(acc / win + 1e-12)); }
+  const db = await fileDb(file, from, to);
   const q = firstQuietRun(db, 0.02, minSec);
   return q ? Math.max(0, from) + q.start + Math.min(keepSec, (q.end - q.start) / 2) : null;
+}
+
+export interface Island { start: number; end: number; peak: number }
+/**
+ * dB 궤적의 말소리 덩어리 — 문턱은 창 안 최고값 − rangeDb(기본 30). mergeSec 이하 틈(낱말 안 폐쇄음 정지 0.03~0.08초)은 이어 붙인다. 순수 함수.
+ * 최고값 기준인 이유: 덧말을 판정하는 창은 바닥이 디지털 0·페이드 끝이라 "바닥 + 여유" 문턱은 숨소리까지 말로 센다. 말소리 봉우리는 −8~−23dB, 쉼은 −38dB 아래다(2026-10-08 56편 실측).
+ */
+export function speechIslands(db: number[], hopSec: number, opts: { rangeDb?: number; mergeSec?: number } = {}): Island[] {
+  const { rangeDb = 30, mergeSec = 0.1 } = opts;
+  if (!db.length) return [];
+  const th = Math.max(...db) - rangeDb;
+  const out: Island[] = [];
+  for (let i = 0; i < db.length; i++) {
+    if (db[i] <= th) continue;
+    const t = i * hopSec, last = out[out.length - 1];
+    if (last && t - last.end <= mergeSec + 1e-9) { last.end = t + hopSec; last.peak = Math.max(last.peak, db[i]); }
+    else out.push({ start: t, end: t + hopSec, peak: db[i] });
+  }
+  return out;
+}
+
+/**
+ * 끝 꼬리 절단 v2 (2026-10-08 박수헌 "마지막 인사 뒤 대본에 없는 '네~'가 들린다"): 가드 요청의 원본 오디오는 [마지막 턴 … 마지막 음절][쉼][덧말 "네."]로 끝나고
+ * ElevenLabs 는 마지막 음절 뒤 20ms 만에 끊으므로 **덧말은 오디오의 마지막 말소리 덩어리**다. 강제 정렬의 덧말 시작 시각은 실제보다 0.1~0.4초 늦게 잡혀
+ * 그 앞에서 자른 38편에 "네" 앞부분이 남았다 — 시각이 아니라 이 구조로 자른다: 마지막 덩어리 = 덧말, 그 앞 덩어리 = 마지막 음절, 절단 = 마지막 음절 끝 + min(keep, 쉼/2).
+ * 판정 불능이면 사유를 돌려준다(덧말이 안 들림·마지막 음절과 붙음·덧말이 너무 김) — 호출부가 종전 방식으로 폴백하고 검수(trailingBlip)로 확인한다. 순수 함수.
+ * @param lastCharStart 강제 정렬의 마지막 턴 마지막 글자 시작(창 기준) — 덧말 덩어리는 이보다 뒤에서 시작해야 한다
+ */
+export function guardCutFromIslands(isl: Island[], lastCharStart: number, opts: { keepSec?: number; guardMaxSec?: number; minGapSec?: number } = {}): { cut: number; gap: number; guardStart: number } | { fail: string } {
+  const { keepSec = 0.1, guardMaxSec = 0.9, minGapSec = 0.08 } = opts;
+  if (isl.length < 2) return { fail: `말소리 덩어리 ${isl.length}개` };
+  const guard = isl[isl.length - 1], prev = isl[isl.length - 2];
+  if (guard.start <= lastCharStart + 0.02) return { fail: "마지막 덩어리가 마지막 글자에서 시작 — 덧말이 안 들리거나 붙음" };
+  if (guard.end - guard.start > guardMaxSec) return { fail: `마지막 덩어리 ${(guard.end - guard.start).toFixed(2)}초 — 덧말이 마지막 음절과 붙은 것으로 보임` };
+  const gap = guard.start - prev.end;
+  if (gap < minGapSec) return { fail: `덧말 앞 쉼 ${gap.toFixed(2)}초` };
+  return { cut: prev.end + Math.min(keepSec, gap / 2), gap, guardStart: guard.start };
+}
+export async function findGuardCut(file: string, from: number, to: number, lastCharStart: number): Promise<{ cut: number; gap: number; guardStart: number } | { fail: string }> {
+  if (!(to > from)) return { fail: "창 없음" };
+  const f = Math.max(0, from);
+  const r = guardCutFromIslands(speechIslands(await fileDb(file, f, to), 0.02), lastCharStart - f);
+  return "fail" in r ? r : { cut: f + r.cut, gap: r.gap, guardStart: f + r.guardStart };
+}
+
+/**
+ * 끝 덧말 검수 (2026-10-08): 끝 창의 마지막 말소리 덩어리가 앞 덩어리와 minGap 이상 떨어져 있고 maxDur 이하로 짧고 창 끝에서 nearEnd 안에서 끝나면
+ * 덧말이 남은 것으로 본다(10-08 56편: 남은 38편을 전부 잡고 오탐 1편). 오탐은 대본이 쉼 뒤 짧은 낱말로 끝나는 경우("있지, 하고요." — T260831-002)라
+ * TTS 단계에서는 경고(⚠️ 청취 확인)로만 쓴다. 순수 함수. 시각은 창 기준.
+ */
+export function trailingBlip(isl: Island[], windowSec: number, opts: { minGapSec?: number; maxDurSec?: number; nearEndSec?: number } = {}): { start: number; end: number; gap: number; prevEnd: number } | null {
+  const { minGapSec = 0.12, maxDurSec = 0.6, nearEndSec = 0.3 } = opts;
+  if (isl.length < 2) return null;
+  const last = isl[isl.length - 1], prev = isl[isl.length - 2];
+  const gap = last.start - prev.end;
+  return gap >= minGapSec && last.end - last.start <= maxDurSec && last.end >= windowSec - nearEndSec ? { start: last.start, end: last.end, gap, prevEnd: prev.end } : null;
+}
+/** PCM(s16le mono) 끝 windowSec 의 덧말 검수 — trailingBlip 을 PCM 에 바로 */
+export function pcmTrailingBlip(pcm: Buffer, windowSec = 1.5, rate = 44100) {
+  const n = Math.floor(pcm.length / 2), w = Math.min(n, Math.round(windowSec * rate));
+  const win = pcm.subarray((n - w) * 2, n * 2);
+  return trailingBlip(speechIslands(pcmDb(win), 0.02), w / rate);
 }
 
 /** s16le mono PCM 끝에 선형 페이드아웃 — 절단점의 딸깍임·뚝 끊김을 지운다. 새 버퍼를 돌려준다 */
@@ -180,7 +250,8 @@ async function loudnormJson(args: string[]): Promise<Record<string, string>> {
 
 export interface LoudnessResult {
   type: string;          // "linear" | "dynamic"(선형이 성립하지 않아 ffmpeg 가 바꾼 경우 — 경고 대상) | "skipped"(무음에 가까워 측정 불가)
-  targetI: number;       // 실제로 쓴 목표 (피크 여유가 없으면 요청 목표보다 낮춘다)
+  targetI: number;       // 실제로 쓴 목표 (리미터 상한으로도 피크 여유가 모자라면 요청 목표보다 낮춘다)
+  limitedDb?: number;    // 피크 리미터로 누른 최대량(dB) — 0/없음이면 리미터를 쓰지 않았다
   requestedI: number;
   measuredI: number; measuredTp: number; measuredLra: number;
   outputI: number; outputTp: number;
@@ -189,9 +260,12 @@ export interface LoudnessResult {
 /**
  * 2패스 라우드니스 정규화 (2026-10-05 KAN-122): 1패스로 재고, 2패스에 측정값을 넘겨 linear=true — 파일 전체에 고정 게인 한 번.
  * 1패스(동적) loudnorm 은 읽으면서 게인을 계속 바꿔 말소리가 출렁이고 쉼 뒤 바닥이 들뜬다. 고정 게인으로 목표에 닿으면 최대 피크가 TP 를 넘는 경우엔
- * ffmpeg 가 몰래 동적 모드로 바꾸므로, 그때는 목표를 피크 여유만큼 낮춰 선형을 지킨다(결과에 남긴다 — 리미터로 누르지 않는다).
+ * ffmpeg 가 몰래 동적 모드로 바꾸므로, 그때는 목표를 피크 여유만큼 낮춰 선형을 지킨다(결과에 남긴다).
+ * 피크 리미터 (2026-10-08 박수헌 "전체 음량은 높이자"): `limitMaxDb` 를 주면 피크 여유가 모자랄 때 먼저 피크만 누른다 — 목표까지 고정 게인을 건 뒤
+ * alimiter(미리 보기 5ms·복귀 50ms·자동 레벨 끔·지연 보정)로 샘플 피크를 TP-1dB 에 묶고, 그 결과를 다시 2패스 linear 로 맞춘다. 누르는 양은 limitMaxDb 까지 —
+ * 넘으면 그만큼 목표를 낮춘다. eleven_v4·stability 0 본편이 말소리에 비해 피크가 커서(PLR ~19dB) 리미터 없이 -20.7 LUFS 에 멈췄다(T260927-001 시험).
  */
-export async function normalizeLinear(src: string, outFile: string, o: { targetI: number; tp?: number; lra?: number; channels: 1 | 2 }): Promise<LoudnessResult> {
+export async function normalizeLinear(src: string, outFile: string, o: { targetI: number; tp?: number; lra?: number; channels: 1 | 2; limitMaxDb?: number }): Promise<LoudnessResult> {
   const tp = o.tp ?? -1.5;
   const p1 = await loudnormJson(["-i", src, "-af", `loudnorm=I=${o.targetI}:TP=${tp}:LRA=${o.lra ?? 11}:print_format=json`, "-f", "null", "-"]);
   const mi = Number(p1.input_i), mtp = Number(p1.input_tp), mlra = Number(p1.input_lra), mth = Number(p1.input_thresh);
@@ -200,6 +274,16 @@ export async function normalizeLinear(src: string, outFile: string, o: { targetI
     return { type: "skipped", targetI: o.targetI, requestedI: o.targetI, measuredI: mi, measuredTp: mtp, measuredLra: mlra, outputI: mi, outputTp: mtp };
   }
   const headroom = tp - 0.1 - mtp; // 고정 게인으로 올릴 수 있는 최대치
+  if (o.limitMaxDb && o.limitMaxDb > 0 && mi + headroom < o.targetI - 0.05) {
+    const ceilDb = tp - 1; // 샘플 피크 상한 — 표본 사이 피크(트루 피크)는 이보다 조금 높아 TP 안에 들도록 1dB 남긴다
+    const gainDb = Math.round(Math.min(o.targetI - mi, ceilDb - mtp + o.limitMaxDb) * 100) / 100;
+    const limitedDb = Math.round(Math.max(0, mtp + gainDb - ceilDb) * 10) / 10;
+    const limited = outFile.replace(/(\.wav)?$/, ".limited.wav");
+    await ffmpeg(["-i", src, "-af", `volume=${gainDb}dB,alimiter=limit=${Math.pow(10, ceilDb / 20).toFixed(4)}:attack=5:release=50:level=false:latency=true`, "-ar", "44100", "-ac", String(o.channels), "-c:a", "pcm_s16le", limited]);
+    const r = await normalizeLinear(limited, outFile, { ...o, limitMaxDb: 0 });
+    await fs.rm(limited, { force: true });
+    return { ...r, requestedI: o.targetI, measuredI: mi, measuredTp: mtp, measuredLra: mlra, limitedDb };
+  }
   const targetI = Math.round(Math.min(o.targetI, mi + headroom) * 100) / 100;
   const lra = Math.min(20, Math.max(o.lra ?? 11, Math.ceil(mlra) + 1)); // 측정 LRA 보다 작은 목표는 선형을 막는다
   const f = `loudnorm=I=${targetI}:TP=${tp}:LRA=${lra}:linear=true:measured_I=${mi}:measured_TP=${mtp}:measured_LRA=${mlra}:measured_thresh=${mth}:offset=${Number(p1.target_offset) || 0}:print_format=json`;
@@ -300,6 +384,8 @@ export async function encodeRenditions(masterFile: string, out: { distOut: strin
  *  배포본(스테레오)에서는 -13 LUFS 로 잰다. 이전 모노 배포본도 플레이어가 양쪽으로 내보내 같은 크기로 들렸다 — 청취 음량은 바뀌지 않는다 (2026-10-05) */
 export const VOICE_TARGET_LUFS = -16;
 export const VOICE_TARGET_TP = -1.5;
+/** 본편 피크 리미터 최대량 (2026-10-08) — 목표 음량까지 고정 게인으로 못 올릴 때 피크만 이만큼까지 누른다. 넘으면 목표를 낮춘다(run 결과에 남는다) */
+export const VOICE_PEAK_LIMIT_MAX_DB = 6;
 /** 배포본(스테레오)에서 본편의 라우드니스 = 모노 목표 + 3 */
 export const VOICE_STEREO_LUFS = VOICE_TARGET_LUFS + 3;
 /** 징글 목표 (스테레오로 잰 값) — 본편보다 2LU 작게 (KAN-122 "본편보다 크지 않게") */
@@ -325,7 +411,7 @@ export async function assemble(i: AssembleInput): Promise<{ durationSec: number;
   if (tailSec > 0) voice.push(await silenceWav(tailSec, path.join(tmp, "tail.wav")));
   const voiceRaw = await concatWavs(voice, path.join(tmp, "voice.wav"), tmp, "voice");
   // 2) 본편만 정규화 (앞뒤 무음은 게이트에 걸려 측정에 들어가지 않는다) → 스테레오
-  const loudness = await normalizeLinear(voiceRaw, path.join(tmp, "voice.norm.wav"), { targetI: VOICE_TARGET_LUFS, tp: VOICE_TARGET_TP, channels: 1 });
+  const loudness = await normalizeLinear(voiceRaw, path.join(tmp, "voice.norm.wav"), { targetI: VOICE_TARGET_LUFS, tp: VOICE_TARGET_TP, channels: 1, limitMaxDb: VOICE_PEAK_LIMIT_MAX_DB });
   const voiceSt = await monoToStereo(path.join(tmp, "voice.norm.wav"), path.join(tmp, "voice.st.wav"));
   // 3) 징글은 포맷만 맞춰 그대로 (스테레오 유지, 음량 처리 없음)
   const parts: string[] = [];

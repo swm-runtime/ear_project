@@ -1,21 +1,22 @@
-import { useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Animated,
   FlatList,
+  InteractionManager,
   Platform,
   Pressable,
   RefreshControl,
   StyleSheet,
   View,
-  useWindowDimensions,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { useAnimatedValue } from '@/shared/hooks/useAnimatedValue';
 import { useNativeHeaderInset } from '@/shared/navigation/useNativeHeaderInset';
 import { useSystemLargeTitle } from '@/shared/navigation/useSystemLargeTitle';
 import { useTabScrollToTop } from '@/shared/navigation/useTabScrollToTop';
-import { theme } from '@/shared/theme';
+import { motion, theme } from '@/shared/theme';
 import AndroidBlurTarget from '@/shared/ui/AndroidBlurTarget';
 import AndroidCollapsingBar from '@/shared/ui/AndroidCollapsingBar';
 import FloatingHeader, {
@@ -36,21 +37,19 @@ import {
 
 import ExploreSearchScreen from './ExploreSearchScreen';
 import ExploreEmptyState from '../components/ExploreEmptyState';
-import ExploreFeaturedCard, { featuredCardWidth } from '../components/ExploreFeaturedCard';
+import ExploreFeaturedCard from '../components/ExploreFeaturedCard';
 import ExploreMoreSheet from '../components/ExploreMoreSheet';
 import ExploreRingPill from '../components/ExploreRingPill';
 import ExploreSearchBarRow from '../components/ExploreSearchBarRow';
 import ExploreSkeleton from '../components/ExploreSkeleton';
 import ExploreTile from '../components/ExploreTile';
-import PeriodSwap from '../components/PeriodSwap';
+import PeriodCrossfade from '../components/PeriodCrossfade';
 import PopularPeriodToggle from '../components/PopularPeriodToggle';
 import SearchToolbar from '../components/SearchToolbar';
-import StripSwapAndroid from '../components/StripSwapAndroid';
 import TopicChips from '../components/TopicChips';
 import { EXPLORE_COPY } from '../explore.copy';
-import { exploreGridKey, toExploreGridData } from '../explore.grid';
 import { buildSectionListKey } from '../explore.section-key';
-import type { ExploreSection } from '../explore.types';
+import type { ExploreItem, ExploreSection } from '../explore.types';
 import { useExploreScreen } from '../hooks/useExploreScreen';
 
 /**
@@ -64,7 +63,6 @@ import { useExploreScreen } from '../hooks/useExploreScreen';
  */
 export default function ExploreScreen() {
   const screen = useExploreScreen();
-  const { width: windowWidth } = useWindowDimensions();
   const miniInset = useBottomDockInset();
   // 떠 있는 머리 줄(검색창·칩)의 높이 — 목록이 그만큼 위를 비운다(시스템 바 갈래에서는 0)
   const [headerHeight, setHeaderHeight] = useState(0);
@@ -76,6 +74,41 @@ export default function ExploreScreen() {
   const nativeBarInset = useNativeHeaderInset();
   // 머리 줄(JS 탭 바 갈래)의 루트 ref — 종전 시스템 edge effect 연결용, 지금은 FloatingHeader 가 요구만 한다
   const headerRef = useRef<View>(null);
+  // 주제 칩 줄의 가로 위치 — 피드 ↔ 격자 전환으로 칩 줄이 새로 그려져도 제자리에 둔다(TopicChips offsetRef)
+  const chipsOffsetRef = useRef(0);
+  /*
+   * 주제를 바꾸는 동안 지금 콘텐츠를 흐리게 둔다(screen.isSwitching) — 새 목록이 오면 그 목록이 흐린 상태에서 제 밝기로
+   * 돌아오며 바뀐다(PM 2026-10-09 깜빡임). 검색창·칩 줄은 흐리지 않는다
+   */
+  const switchDim = useAnimatedValue(1);
+  /*
+   * 피드로 돌아올 때 섹션을 한 번에 다 그리지 않는다 — 캐러셀마다 사진 목록이라 한 프레임에 몰리면 전환이 끊긴다.
+   * 첫 화면 몫만 먼저, 나머지는 전환 모션이 끝난 뒤(InteractionManager) 붙인다. 아래쪽이라 눈에 띄지 않는다
+   */
+  const [feedSectionLimit, setFeedSectionLimit] = useState(Number.POSITIVE_INFINITY);
+  const [limitedFor, setLimitedFor] = useState(screen.isFiltered);
+  if (limitedFor !== screen.isFiltered) {
+    setLimitedFor(screen.isFiltered);
+    if (!screen.isFiltered) setFeedSectionLimit(FEED_FIRST_SECTIONS);
+  }
+  useEffect(() => {
+    if (feedSectionLimit === Number.POSITIVE_INFINITY) return;
+    const task = InteractionManager.runAfterInteractions(() =>
+      setFeedSectionLimit(Number.POSITIVE_INFINITY),
+    );
+    return () => task.cancel();
+  }, [feedSectionLimit]);
+  useEffect(() => {
+    const animation = Animated.timing(switchDim, {
+      toValue: screen.isSwitching ? SWITCH_DIM_OPACITY : 1,
+      duration: motion.duration.fast,
+      // 금방 오면 흐리지 않는다 — 흰 바탕에서 짧게 흐렸다 돌아오는 게 깜빡임으로 읽혔다(PM 2026-10-09)
+      delay: screen.isSwitching ? DIM_DELAY_MS : 0,
+      useNativeDriver: true,
+    });
+    animation.start();
+    return () => animation.stop();
+  }, [screen.isSwitching, switchDim]);
   // Android 서리 유리 띠의 블러 대상(AndroidBlurTarget)
   const blurTargetRef = useRef<View>(null);
   // 제자리 검색 모드(iOS 26·Android) — 아래 isSearching 분기
@@ -97,15 +130,6 @@ export default function ExploreScreen() {
       screen.openSearch();
     }
   };
-  /*
-   * 인기 섹션의 **카드가 실제로 바뀐** 구간 — section.period 는 누르는 순간 조회 중인 구간으로 먼저 바뀌므로(토글 표시용), 목록을
-   * 새로 만드는 key 는 조회가 끝난 뒤의 값으로 둔다. 누르자마자 직전 카드로 목록이 다시 만들어져 깜빡였다(PM 2026-09-30 06:20)
-   */
-  const popularPeriod = screen.sections.find((section) => section.period !== null)?.period ?? null;
-  const [settledPopularPeriod, setSettledPopularPeriod] = useState(popularPeriod);
-  if (!screen.isPopularSwitching && popularPeriod !== settledPopularPeriod) {
-    setSettledPopularPeriod(popularPeriod);
-  }
 
   /*
    * 제자리 검색(iOS 26 — PM 2026-09-27 21:03 "검색 화면을 따로 두지 말고 그냥 탐색"): 검색창을 누르면 새 화면으로 가지 않고
@@ -220,6 +244,7 @@ export default function ExploreScreen() {
       topics={screen.topics}
       selectedTopicIds={screen.selectedTopicIds}
       onToggle={screen.toggleTopic}
+      offsetRef={chipsOffsetRef}
     />
   ) : null;
   // 시스템 바 갈래에서는 제목 줄·검색 필드·칩이 콘텐츠의 첫 줄이다 — 목록과 같이 스크롤한다.
@@ -266,7 +291,9 @@ export default function ExploreScreen() {
   // E13 인기 섹션의 인라인 상태 — 전환 중 로딩 · 전환 실패 · 추가 로딩(uiux 4.10)
   const renderPopularSectionFooter = (section: ExploreSection) => {
     if (section.period === null) return null;
-    if (screen.isPopularSwitching || screen.isFetchingPopularNextPage) {
+    // 구간 전환 중엔 스피너 줄을 넣지 않는다 — 캐러셀 아래에 줄이 끼었다 빠지며 그 아래 섹션 전체가 밀렸다 돌아와 깜빡였다
+    // (PM 2026-10-09 "인기 콘텐츠 아래가 전부 깜빡"). 전환 중 표시는 카드 줄의 흐림(PeriodCrossfade)이 맡는다
+    if (screen.isFetchingPopularNextPage) {
       return <ActivityIndicator style={styles.footer} color={theme.color.primary} />;
     }
     if (screen.isPopularSwitchFailed) {
@@ -339,104 +366,39 @@ export default function ExploreScreen() {
           </Text>
         )}
 
-        {/* 구간 전환 중에는 직전 목록을 흐리게 유지한다 — 그 섹션만이다(uiux 4.10). 새 구간이 오면 옆에서 밀려 들어온다(PeriodSwap).
-            새 구간 줄은 PeriodSwap 이 새 칸에 만든다 — 넘기던 가로 위치와 무관하게 맨 앞에서 시작한다 */}
-        {isPopular && Platform.OS === 'android' ? (
-          // Android — 카드 두 장이 정적 줄로 이어져 흐른다(끊김·깜빡임 없이, StripSwapAndroid 주석)
-          <StripSwapAndroid
-            swapKey={section.period ?? 'static'}
-            isDimmed={screen.isPopularSwitching}
-            items={section.items}
-            renderCard={(item) => (
-              <ExploreFeaturedCard
-                item={item}
-                topicNames={topicNamesOf(item.content.topicIds)}
-                onPress={() => {}}
-                onMorePress={() => {}}
-              />
-            )}
-            itemExtent={featuredCardWidth(windowWidth) + theme.spacing.md}
-            leadingInset={theme.spacing.md}
-            gap={theme.spacing.md}
-          >
-            <FlatList
-              // 구간마다 새로 만든다 — 숨긴 채 먼저 그려 두고(흐르기 전) 맨 앞에서 시작한다
-              key={settledPopularPeriod ?? 'static'}
-              horizontal
-              // 인기 캐러셀은 목록 밖으로도 카드를 그린다 — 구간 전환 때 반쯤 보이던 카드가 잘린 채로 떠나지 않게(PeriodSwap).
-              // 화면 밖이라 평소엔 보이지 않는다. Android 는 화면 밖 셀을 떼는 최적화도 끈다
-              style={isPopular && POPULAR_WHOLE_CARDS ? styles.carouselUnclipped : undefined}
-              removeClippedSubviews={isPopular && POPULAR_WHOLE_CARDS ? false : undefined}
-              data={section.items}
-              keyExtractor={(item) => item.content.id}
-              renderItem={({ item }) =>
-                isPopular ? (
-                  <ExploreFeaturedCard
-                    item={item}
-                    topicNames={topicNamesOf(item.content.topicIds)}
-                    onPress={screen.handleRowPress}
-                    onMorePress={screen.openMoreSheet}
-                  />
-                ) : (
-                  <ExploreTile
-                    item={item}
-                    onPress={screen.handleRowPress}
-                    onMorePress={screen.openMoreSheet}
-                  />
-                )
-              }
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.carousel}
-              ItemSeparatorComponent={() => <View style={styles.carouselGap} />}
-              onEndReached={isPopular ? screen.loadMorePopular : undefined}
-              onEndReachedThreshold={0.5}
-            />
-          </StripSwapAndroid>
-        ) : (
-          <PeriodSwap
-            swapKey={section.period ?? 'static'}
-            isDimmed={isPopular && screen.isPopularSwitching}
-            // 카드 두 장씩 온전히 흐르기는 iOS 만 — Android 는 목록 밖 카드까지 그리니 심하게 끊기고 깜빡였다(PM 2026-09-30 05:52·06:02).
-            // Android 는 화면 폭만큼 흐른다(#1027)
-            itemExtent={
-              isPopular && POPULAR_WHOLE_CARDS
-                ? featuredCardWidth(windowWidth) + theme.spacing.md
-                : undefined
+        {/* 구간 전환 중에는 직전 줄을 흐리게 유지한다 — 그 섹션만이다(uiux 4.10). 새 구간이 오면 같은 자리에서 교차한다
+            (PeriodCrossfade). 새 줄은 새로 만들어져 넘기던 가로 위치와 무관하게 첫 카드부터 보인다 */}
+        <PeriodCrossfade
+          swapKey={section.period ?? 'static'}
+          isDimmed={isPopular && screen.isPopularSwitching}
+        >
+          <FlatList
+            horizontal
+            data={section.items}
+            keyExtractor={(item) => item.content.id}
+            renderItem={({ item }) =>
+              isPopular ? (
+                <ExploreFeaturedCard
+                  item={item}
+                  topicNames={topicNamesOf(item.content.topicIds)}
+                  onPress={screen.handleRowPress}
+                  onMorePress={screen.openMoreSheet}
+                />
+              ) : (
+                <ExploreTile
+                  item={item}
+                  onPress={screen.handleRowPress}
+                  onMorePress={screen.openMoreSheet}
+                />
+              )
             }
-            leadingInset={theme.spacing.md}
-          >
-            <FlatList
-              horizontal
-              // 인기 캐러셀은 목록 밖으로도 카드를 그린다 — 구간 전환 때 반쯤 보이던 카드가 잘린 채로 떠나지 않게(PeriodSwap).
-              // 화면 밖이라 평소엔 보이지 않는다. Android 는 화면 밖 셀을 떼는 최적화도 끈다
-              style={isPopular && POPULAR_WHOLE_CARDS ? styles.carouselUnclipped : undefined}
-              removeClippedSubviews={isPopular && POPULAR_WHOLE_CARDS ? false : undefined}
-              data={section.items}
-              keyExtractor={(item) => item.content.id}
-              renderItem={({ item }) =>
-                isPopular ? (
-                  <ExploreFeaturedCard
-                    item={item}
-                    topicNames={topicNamesOf(item.content.topicIds)}
-                    onPress={screen.handleRowPress}
-                    onMorePress={screen.openMoreSheet}
-                  />
-                ) : (
-                  <ExploreTile
-                    item={item}
-                    onPress={screen.handleRowPress}
-                    onMorePress={screen.openMoreSheet}
-                  />
-                )
-              }
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.carousel}
-              ItemSeparatorComponent={() => <View style={styles.carouselGap} />}
-              onEndReached={isPopular ? screen.loadMorePopular : undefined}
-              onEndReachedThreshold={0.5}
-            />
-          </PeriodSwap>
-        )}
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.carousel}
+            ItemSeparatorComponent={CarouselGap}
+            onEndReached={isPopular ? screen.loadMorePopular : undefined}
+            onEndReachedThreshold={0.5}
+          />
+        </PeriodCrossfade>
 
         {renderPopularSectionFooter(section)}
       </View>
@@ -455,79 +417,89 @@ export default function ExploreScreen() {
     }
     if (screen.isInitialLoading) return <View style={styles.container} />;
 
-    // E2 — 주제 필터 단일 목록(무한 스크롤). 필터 결과는 캐러셀이 아니라 세로 목록이다 —
-    // 개수가 정해져 있지 않아 가로로 밀게 하면 끝을 가늠할 수 없다
-    if (screen.isFiltered) {
-      return (
-        <Animated.FlatList
-          ref={listRef}
-          {...DOCK_SCROLL_PROPS}
-          {...scrollProps}
-          data={toExploreGridData(screen.filteredItems)}
-          keyExtractor={exploreGridKey}
-          numColumns={2}
-          columnWrapperStyle={styles.gridRow}
-          renderItem={({ item }) =>
-            item === null ? (
-              <View style={styles.gridSpacer} />
-            ) : (
-              <ExploreTile
-                item={item}
-                layout="grid"
-                onPress={screen.handleRowPress}
-                onMorePress={screen.openMoreSheet}
-              />
-            )
-          }
-          ItemSeparatorComponent={() => <View style={styles.gridSeparator} />}
-          ListEmptyComponent={
-            screen.emptyKind === 'filtered' ? (
-              <ExploreEmptyState
-                title={EXPLORE_COPY.empty.filtered.title}
-                actionLabel={EXPLORE_COPY.empty.filtered.action}
-                onActionPress={screen.clearTopicFilter}
-              />
-            ) : null
-          }
-          ListHeaderComponent={contentChips}
-          ListHeaderComponentStyle={contentChips ? styles.contentChips : undefined}
-          ListFooterComponent={renderFooter()}
-          contentContainerStyle={[
-            screen.filteredItems.length === 0 ? styles.emptyContent : styles.gridContent,
-            { paddingTop: headerInset, paddingBottom: miniInset },
-          ]}
-          refreshControl={refreshControl}
-          onEndReached={screen.loadMore}
-          onEndReachedThreshold={0.4}
-        />
-      );
-    }
-
-    // E1 — 섹션형 피드. 섹션 구성·순서·제목은 서버 응답 그대로다(explore.md 4.1)
+    /*
+     * **피드(E1)와 주제 격자(E2)는 한 목록이다**(PM 2026-10-09 — 칩을 고르고 풀 때 끊김). 종전엔 피드는 ScrollView, 격자는
+     * FlatList 라 모드가 바뀔 때마다 검색창·칩 줄까지 든 목록을 통째로 지우고 새로 만들었다. 이제 목록·머리(검색창·칩)는
+     * 그대로 두고 내용(data)만 섹션 ↔ 격자 줄로 바꾼다. 격자는 두 칸을 한 줄 항목으로 묶는다(numColumns 는 바꿀 수 없다).
+     * 섹션 구성·순서·제목은 서버 응답 그대로(explore.md 4.1), 격자는 무한 스크롤(필터 결과는 개수를 가늠할 수 없어 세로)
+     */
+    const listItems: ExploreListItem[] = screen.isFiltered
+      ? toGridRows(screen.filteredItems)
+      : screen.sections
+          .slice(0, feedSectionLimit)
+          .map((section, index) => ({ kind: 'section', section, index }));
+    const isListEmpty = screen.isFiltered
+      ? screen.filteredItems.length === 0
+      : screen.sections.length === 0;
     return (
-      <Animated.ScrollView
+      <Animated.FlatList
         ref={listRef}
         {...DOCK_SCROLL_PROPS}
         {...scrollProps}
-        contentContainerStyle={[
-          screen.sections.length === 0 ? styles.emptyContent : styles.feedContent,
-          { paddingTop: headerInset, paddingBottom: miniInset },
-        ]}
-        refreshControl={refreshControl}
-      >
-        {contentChips}
-        {screen.sections.length === 0 ? (
-          screen.emptyKind === 'feed' ? (
+        data={listItems}
+        keyExtractor={(item) =>
+          item.kind === 'section' ? buildSectionListKey(item.section) : item.key
+        }
+        renderItem={({ item }) =>
+          item.kind === 'section' ? (
+            <Animated.View style={{ opacity: switchDim }}>
+              {renderSection(item.section, item.index)}
+            </Animated.View>
+          ) : (
+            <Animated.View style={[styles.gridRow, { opacity: switchDim }]}>
+              {item.items.map((cell, column) =>
+                cell === null ? (
+                  <View key={`spacer-${column}`} style={styles.gridCell} />
+                ) : (
+                  <View key={cell.content.id} style={styles.gridCell}>
+                    <ExploreTile
+                      item={cell}
+                      layout="grid"
+                      onPress={screen.handleRowPress}
+                      onMorePress={screen.openMoreSheet}
+                    />
+                  </View>
+                ),
+              )}
+            </Animated.View>
+          )
+        }
+        ItemSeparatorComponent={screen.isFiltered ? GridSeparator : undefined}
+        // 첫 화면 몫만 먼저 — 섹션은 캐러셀이라 무겁다
+        initialNumToRender={screen.isFiltered ? 4 : FEED_FIRST_SECTIONS}
+        ListEmptyComponent={
+          screen.emptyKind === 'filtered' ? (
+            <ExploreEmptyState
+              title={EXPLORE_COPY.empty.filtered.title}
+              actionLabel={EXPLORE_COPY.empty.filtered.action}
+              onActionPress={screen.clearTopicFilter}
+            />
+          ) : screen.emptyKind === 'feed' ? (
             <ExploreEmptyState
               title={EXPLORE_COPY.empty.feed.title}
               actionLabel={EXPLORE_COPY.empty.feed.action}
               onActionPress={screen.goToLibrary}
             />
           ) : null
-        ) : (
-          screen.sections.map(renderSection)
-        )}
-      </Animated.ScrollView>
+        }
+        ListHeaderComponent={contentChips}
+        // 격자 위 칩 — 칩 줄 아래 여백(8)에 8 을 더해 첫 줄 사진과 16(#1335). 스타일만 바뀌고 머리는 다시 만들지 않는다
+        ListHeaderComponentStyle={
+          contentChips && screen.isFiltered ? styles.gridHeaderChips : undefined
+        }
+        ListFooterComponent={screen.isFiltered ? renderFooter() : null}
+        contentContainerStyle={[
+          isListEmpty
+            ? styles.emptyContent
+            : screen.isFiltered
+              ? styles.gridContent
+              : styles.feedContent,
+          { paddingTop: headerInset, paddingBottom: miniInset },
+        ]}
+        refreshControl={refreshControl}
+        onEndReached={screen.loadMore}
+        onEndReachedThreshold={0.4}
+      />
     );
   };
 
@@ -611,10 +583,33 @@ export default function ExploreScreen() {
 }
 
 /** Android — iOS 26 탐색 상단(큰 제목·검색창·칩이 목록 첫 줄 + 접히면 가운데 제목) 흉내. 옛 iOS 는 떠 있는 머리 줄 그대로 */
-/** 인기 캐러셀 전환에서 카드 두 장씩 온전히 흐르기(PeriodSwap itemExtent) — iOS 만 */
-const POPULAR_WHOLE_CARDS = Platform.OS === 'ios';
 
 const ANDROID_IOS_HEADER = Platform.OS === 'android' && !HAS_NATIVE_TAB_BAR;
+
+const CarouselGap = () => <View style={styles.carouselGap} />;
+
+/** 한 목록(피드 섹션 · 격자 줄)의 항목 */
+type ExploreListItem =
+  | { kind: 'section'; section: ExploreSection; index: number }
+  | { kind: 'gridRow'; key: string; items: (ExploreItem | null)[] };
+
+/** 격자 두 칸을 한 줄로 묶는다 — 홀수면 마지막 줄 오른쪽은 빈 칸 */
+const toGridRows = (items: ExploreItem[]): ExploreListItem[] => {
+  const rows: ExploreListItem[] = [];
+  for (let i = 0; i < items.length; i += 2) {
+    rows.push({ kind: 'gridRow', key: items[i].content.id, items: [items[i], items[i + 1] ?? null] });
+  }
+  return rows;
+};
+
+const GridSeparator = () => <View style={styles.gridSeparator} />;
+
+/** 주제 전환 중 콘텐츠 흐림 */
+const SWITCH_DIM_OPACITY = 0.5;
+/** 이보다 빨리 오면 흐리지 않는다 — 스켈레톤 지연 표시(useDelayedVisible)와 같은 생각 */
+const DIM_DELAY_MS = 300;
+/** 피드로 돌아올 때 먼저 그리는 섹션 수 — 첫 화면 몫 */
+const FEED_FIRST_SECTIONS = 2;
 
 const styles = StyleSheet.create({
   // 고정 제목 아래로 목록이 지나가도 글자가 겹치지 않도록 화면 바탕을 채운다.
@@ -629,14 +624,17 @@ const styles = StyleSheet.create({
     paddingBottom: theme.spacing.lg,
   },
   // 주제 필터 결과 — 라이브러리와 같은 두 칸 썸네일 격자(2026-09-18 PM). 좌우 여백은 검색 줄과 같은 선
+  // 좌우 여백은 격자 줄(gridRow)이 갖는다 — 머리(검색창·칩)는 피드와 같은 자리에 그대로 있어야 한다(한 목록)
   gridContent: {
-    paddingHorizontal: theme.spacing.md,
-    paddingVertical: theme.spacing.sm,
+    paddingBottom: theme.spacing.sm,
   },
   gridRow: {
+    flexDirection: 'row',
     gap: theme.spacing.sm * 1.5,
+    paddingHorizontal: theme.spacing.md,
   },
-  gridSpacer: {
+  // 격자 칸 — 주제 전환 흐림(opacity)을 칸마다 건다. 칸 폭은 타일(gridTile flex 1)이 아니라 이 칸이 나눈다
+  gridCell: {
     flex: 1,
   },
   gridSeparator: {
@@ -659,9 +657,9 @@ const styles = StyleSheet.create({
     paddingTop: theme.spacing.lg,
     paddingBottom: theme.spacing.sm,
   },
-  // 콘텐츠 첫 줄의 칩(시스템 바 갈래) — 좌우 여백은 칩 줄이 갖는다. 격자 목록은 gridContent 의 좌우 여백을 되돌린다
-  contentChips: {
-    marginHorizontal: -theme.spacing.md,
+  // 격자 위 칩 — 칩 줄 아래 여백(8)에 8 을 더해 첫 줄 사진과 16. 검색창 ↔ 칩 간격과 맞춘다(PM 2026-10-09 — 8 은 칩이 격자에 붙어 보였다)
+  gridHeaderChips: {
+    marginBottom: theme.spacing.sm,
   },
   sectionHeaderRow: {
     flexDirection: 'row',
@@ -698,9 +696,6 @@ const styles = StyleSheet.create({
   // 캐러셀 좌우 여백은 섹션 제목과 같은 선에서 시작한다
   carousel: {
     paddingHorizontal: theme.spacing.md,
-  },
-  carouselUnclipped: {
-    overflow: 'visible',
   },
   carouselGap: {
     width: theme.spacing.md,

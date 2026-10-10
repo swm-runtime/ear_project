@@ -21,11 +21,6 @@ export interface ProfileUserView {
   isEmailVerified: boolean;
 }
 
-export interface ProfileTopicView {
-  id: string;
-  name: string;
-}
-
 /** 커리어 요약 — 세 값 모두 선택 입력이라 미입력이면 `null`이다 */
 export interface ProfileCareerView {
   jobCategory: string | null;
@@ -46,6 +41,11 @@ export interface WeeklyListeningView {
   weekStart: string;
   /** 월~일 **7개 고정 배열**. 기록 없는 요일도 0으로 자리를 유지한다 */
   dailyListenedSec: number[];
+  /**
+   * 그 주 청취 시간 전체 상위 %(1~50 정수, KAN-168). 그 주 0초이거나 상위 50% 밖이면 `null` →
+   * 화면이 알약을 그리지 않는다
+   */
+  listeningTopPercent: number | null;
   /** `null`이면 이전 주가 없다(가입 주) → 화면이 [◀]를 비활성화한다 */
   previousWeekStart: string | null;
   /** `null`이면 이번 주다 → [다음 주 ▶] 비활성 */

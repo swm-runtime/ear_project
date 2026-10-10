@@ -102,7 +102,9 @@
     "renews_at": "2026-09-01T00:00:00Z",
     "expires_at": null,
     "has_payment_issue": false,
-    "trial": null
+    "trial": null,
+    "grant": null,
+    "pending_plan": null
   },
   "interest_summary": {
     "count": 3,
@@ -378,7 +380,7 @@
 ```
 프로필 [⚙] ──> GET /users/me/settings?app_version=1.3.0&platform=ios
    ├─ 계정 섹션(이메일)         → auth-api 4.8~4.11 (이메일 인증 화면)
-   ├─ 구독 섹션                 → 구독 관리 (subscription.md)
+   ├─ 요금제 관리 섹션          → 요금제 관리 (subscription.md)
    ├─ 관심 주제 관리            → 관심사 관리 (interest-management.md)
    ├─ 커리어 정보               → 커리어 정보 화면 (career.md)
    ├─ 토글 · 배속 시트          → PATCH /users/me/settings (낙관적)

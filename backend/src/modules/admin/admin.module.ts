@@ -8,18 +8,24 @@ import { LibraryModule } from '@/modules/library/library.module';
 import { NoticeModule } from '@/modules/notice/notice.module';
 import { PartnerModule } from '@/modules/partner/partner.module';
 import { PlaybackModule } from '@/modules/playback/playback.module';
+import { SubscriptionModule } from '@/modules/subscription/subscription.module';
 
 import { AdminController } from './admin.controller';
+import { AdminInviteCodeController } from './admin-invite-code.controller';
+import { AdminInsightsController } from './admin-insights.controller';
 import { AudioProbe } from './audio-probe';
 import { ContentStorageClient } from './content-storage.client';
 import { LocalContentStorageClient } from './local-content-storage.client';
 import { S3ContentStorageClient } from './s3-content-storage.client';
 import { ThumbnailImage } from './thumbnail-image';
 import { AdminContentService } from './services/admin-content.service';
+import { AdminInsightsRepository } from './repositories/admin-insights.repository';
+import { AdminInsightsService } from './services/admin-insights.service';
 import { AdminSystemStatsService } from './services/admin-system-stats.service';
 import { ResourceAlertService } from './services/resource-alert.service';
 import { AdminTopicService } from './services/admin-topic.service';
 import { AdminNoticeService } from './services/admin-notice.service';
+import { AdminInviteCodeService } from './services/admin-invite-code.service';
 import { TopicExposureService } from './services/topic-exposure.service';
 import { TopicExposureScheduler } from './topic-exposure.scheduler';
 import { DailyMetricsDbService } from './services/daily-metrics-db.service';
@@ -47,13 +53,23 @@ import { Ga4Service } from './services/ga4.service';
     NoticeModule,
     PartnerModule,
     PlaybackModule,
+    // 초대 코드 관리(admin-api 4.23) — subscription 은 admin 을 모르므로 순환이 없다
+    SubscriptionModule,
   ],
-  controllers: [AdminController],
+  // 서비스 지표 요약(admin-api 4.22) — 여러 모듈의 테이블을 한 화면으로 모으는 읽기 전용 집계라 소유 모듈이 없어 여기 둔다
+  controllers: [
+    AdminController,
+    AdminInsightsController,
+    AdminInviteCodeController,
+  ],
   providers: [
     AdminContentService,
     AdminSystemStatsService,
+    AdminInsightsRepository,
+    AdminInsightsService,
     AdminTopicService,
     AdminNoticeService,
+    AdminInviteCodeService,
     TopicExposureService,
     TopicExposureScheduler,
     ResourceAlertService,

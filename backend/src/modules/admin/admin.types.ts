@@ -174,3 +174,130 @@ export interface SystemStats {
   db: DbStats;
   measuredAt: Date;
 }
+
+// ── 서비스 지표 요약 (admin-api.md 4.22 — 로그 콘솔 "서비스 지표" 탭) ──
+// 전부 집계값과 `user_id`뿐이다 — 이름·이메일은 어떤 항목에도 싣지 않는다(루트 CLAUDE.md 개인정보 원칙).
+
+export interface InsightsUserTotals {
+  /** 현재 계정 수 + 탈퇴 기록 수 — 탈퇴는 행을 지우므로(domain.md 12.3) 둘을 더해야 "가입한 적 있는 사람"이 된다 */
+  totalSignups: number;
+  /** 현재 계정 수(`users` 행 수 — 탈퇴 행은 지워져 없다) */
+  current: number;
+  withdrawals: number;
+  onboardingCompleted: number;
+  /** 가입 체험 진행 중(`trial_ends_at > now`) */
+  trialActive: number;
+  /** `users.tier` 캐시 기준 분포 */
+  tiers: { light: number; daily: number; pro: number };
+  /** `tiers` 중 초대 코드 이벤트로 그 티어인 계정 수(같은 티어 이상 결제 중이면 결제로 센다) */
+  tierEvents: { daily: number; pro: number };
+  /** 실결제 구독이 유효한 사용자 수(`subscriptions` active·grace·cancelled(해지 예약, 만료일까지 유효) · production · 미만료) */
+  paidActive: number;
+  /** 재생을 한 번이라도 한 사용자 수 — 활성화(activation) */
+  activated: number;
+  /**
+   * 최근 1·7·30일 안에 **앱을 쓴** 사용자 수(DAU·WAU·MAU) — `sessions.issued_at` 기준. 액세스 토큰이 30분짜리라
+   * 앱을 열면 거의 매번 토큰 갱신(세션 행 신규 발급)이 일어나, 서버가 가진 신호 중 "앱 실행"에 가장 가깝다.
+   * 30분 안의 재실행은 잡히지 않고, 세션 행 보존이 30일이라 30일 창이 상한이다
+   */
+  active1d: number;
+  active7d: number;
+  active30d: number;
+  /** 최근 1·7·30일 안에 **재생**한 사용자 수 — 활성 사용자 중 청취까지 간 사람 */
+  listeners1d: number;
+  listeners7d: number;
+  listeners30d: number;
+  byProvider: { provider: string; count: number }[];
+}
+
+export interface InsightsListeningTotals {
+  listenSec: number;
+  plays: number;
+  /** 완청 신호 수(`user_signals.action = complete`) — 삭제된 라이브러리 항목의 완청도 남는다 */
+  completes: number;
+  listeners: number;
+  /** 담기 수(`library_items.source = save`, 삭제분 포함 — 담은 사실이 지표다) */
+  saves: number;
+}
+
+/** 일별 추이 한 칸 — `date`는 KST 달력일(검색 로그 요약과 같은 기준) */
+export interface InsightsDaily {
+  date: string;
+  signups: number;
+  withdrawals: number;
+  plays: number;
+  listeners: number;
+  listenSec: number;
+  completes: number;
+}
+
+export interface InsightsHourly {
+  /** KST 0~23시 */
+  hour: number;
+  plays: number;
+  listenSec: number;
+}
+
+export interface InsightsTopUser {
+  userId: string;
+  listenSec: number;
+  plays: number;
+  completes: number;
+  tier: string;
+  signedUpAt: Date;
+  lastPlayedAt: Date;
+}
+
+export interface InsightsTopContent {
+  contentId: string;
+  title: string;
+  durationSec: number;
+  listenSec: number;
+  plays: number;
+  listeners: number;
+  completes: number;
+  saves: number;
+}
+
+export interface InsightsWithdrawalReason {
+  /** `withdrawal_logs.reason_code` — null 은 사유 미선택 */
+  reasonCode: string | null;
+  count: number;
+}
+
+export interface InsightsRetention {
+  /** 가입 뒤 일수(1·7·30) */
+  day: number;
+  /** 가입한 지 `day`일이 지난 현재 계정 수 — 기회가 있었던 사람만 */
+  cohortSize: number;
+  /** 그중 가입 `day`일 뒤에도 앱을 쓴(토큰 갱신 또는 재생) 사람 수 — 언바운디드(그날 이후 아무 때나) */
+  returned: number;
+}
+
+export interface InsightsDailyRows {
+  signups: { date: string; count: number }[];
+  withdrawals: { date: string; count: number }[];
+  plays: {
+    date: string;
+    plays: number;
+    listeners: number;
+    listenSec: number;
+  }[];
+  completes: { date: string; count: number }[];
+}
+
+export interface InsightsSummary {
+  since: Date;
+  generatedAt: Date;
+  users: InsightsUserTotals;
+  listening: {
+    allTime: InsightsListeningTotals;
+    window: InsightsListeningTotals;
+  };
+  daily: InsightsDaily[];
+  hourly: InsightsHourly[];
+  topUsers: InsightsTopUser[];
+  topContents: InsightsTopContent[];
+  withdrawalReasons: InsightsWithdrawalReason[];
+  retention: InsightsRetention[];
+}

@@ -106,7 +106,7 @@
 
 ```json
 {
-  "job_category": "기획·PM",
+  "job_category": "기획",
   "job_title": "서비스 기획자",
   "years_of_experience": "4-6"
 }
@@ -135,7 +135,7 @@
 
 ```json
 {
-  "job_category": "기획·PM",
+  "job_category": "기획",
   "job_title": "서비스 기획자",
   "years_of_experience": "4-6"
 }
@@ -160,7 +160,7 @@
 
 ```json
 {
-  "job_category": "기획·PM",
+  "job_category": "기획",
   "job_title": "서비스 기획자",
   "years_of_experience": "4-6"
 }
@@ -196,10 +196,12 @@
 {
   "items": [
     { "name": "개발" },
-    { "name": "기획·PM" },
+    { "name": "기획" },
     { "name": "디자인" },
-    { "name": "마케팅" },
-    { "name": "데이터" }
+    { "name": "마케팅·영업" },
+    { "name": "운영·CS" },
+    { "name": "연구·교육" },
+    { "name": "기타" }
   ]
 }
 ```

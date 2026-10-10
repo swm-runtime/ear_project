@@ -27,6 +27,7 @@ export function assembleBilling(world = new BillingTestWorld()) {
     world.planService,
     world.purchaseIntentService,
     world.userService,
+    world.inviteCodeService,
   );
   const playPurchase = new PlayPurchaseService(
     world.playGateway,
@@ -54,6 +55,7 @@ export function assembleBilling(world = new BillingTestWorld()) {
     playPurchase,
     world.dataSource,
     alerts,
+    world.inviteCodeService,
   );
   const appStoreWebhook = new AppStoreWebhookService(
     world.gateway,

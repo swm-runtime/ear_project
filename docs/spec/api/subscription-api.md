@@ -47,7 +47,7 @@
 **`entitlements` — 기능 분기의 유일한 근거** (`subscription.md` 4.1)
 
 ```json
-{ "daily_play_limit": 5, "daily_drip_count": 2, "drip_enabled": true, "ads_enabled": false }
+{ "daily_play_limit": 5, "daily_drip_count": 2, "drip_enabled": true, "ads_enabled": false, "max_audio_quality": "aac" }
 ```
 
 | 필드 | 타입 | 의미 |
@@ -56,6 +56,7 @@
 | `daily_drip_count` | int | 하루 정규 편성 편수 |
 | `drip_enabled` | boolean | |
 | `ads_enabled` | boolean | |
+| `max_audio_quality` | enum `compressed` / `aac` / `lossless` | `plans.max_audio_quality` — 이 티어가 들을 수 있는 가장 높은 음질(`player.md` 4.9 · `domain.md` 1.3-1, KAN-141). 가입 체험은 반영하지 않는다(저장된 티어를 따른다). 등재 2026-10-10 — 구현 2026-10-06 `726e94ca` |
 
 - `plans`에서 **매번 조립**한다. 저장하는 컬럼이 아니다. 클라이언트는 티어명으로 분기하지 않고 이 객체로 분기한다(CLAUDE.md 공통 원칙).
 
@@ -76,6 +77,7 @@
 | 5 | POST | `/users/me/subscription/restore` | 구매 복원 (4.5) | 필요 |
 | 6 | POST | `/webhooks/app-store` | App Store Server Notifications V2 수신 (4.6) | **스토어 서명** |
 | 7 | POST | `/webhooks/play-store` | Google Play RTDN(Pub/Sub push) 수신 (4.7) | **스토어 서명** |
+| 8 | POST | `/users/me/subscription/invite-codes` | 초대 코드 입력 → 요금제 지급 (4.8, 2026-10-10) | 필요 |
 
 **설계 메모**
 
@@ -91,7 +93,7 @@
 
 ### 4.1 `GET /plans`
 
-페이월 시트·구독 관리 화면이 3티어 비교 카드를 그릴 때 호출한다. 응답을 받은 뒤 클라이언트는 `store_product_id`로 **스토어 SDK에서 현지 가격을 조회해 병합**한다(`subscription.md` 4.2-1).
+페이월 시트·요금제 관리 화면이 3티어 비교 카드를 그릴 때 호출한다. 응답을 받은 뒤 클라이언트는 `store_product_id`로 **스토어 SDK에서 현지 가격을 조회해 병합**한다(`subscription.md` 4.2-1).
 
 **Request** — `?platform=ios|android` (필수)
 
@@ -139,7 +141,8 @@
 | `current` | 현재 구독 중인 요금제, 또는 **유효한 구독이 없는 사용자의 무료 요금제**(2026-10-06 — KAN-147. 가입 체험 중이어도 같다 — 체험은 4.2 `plan.trial`이 따로 알린다) | "이용 중" 표시 |
 | `upgrade` | 현재보다 높은 티어 | [업그레이드] — 즉시 적용(스토어 비례 정산) |
 | `downgrade` | 현재보다 낮은 **유료** 티어 | [변경] — "다음 결제일부터 적용돼요" 안내 |
-| `none` | **유료 구독자에게** 무료 티어(유료 → 무료는 해지다 — 스토어 이동), 또는 그 플랫폼에 상품이 없는 유료 요금제 | 버튼 없음 |
+| `cancel` | **유료 구독자**(구독 중 · 결제 문제 유예 · **해지 예약 중**)의 무료 요금제 — 유료 → 무료는 해지다(2026-10-08 PM — KAN-159). 해지 예약 중에도 고를 수 있다 — 스토어 구독 관리에서 종료일을 확인하는 경로다(2026-10-08 팀 결정: 막아 두면 "언제 무료가 되는지"를 알 길이 없었다) | 고를 수 있다 → [{이름}로 변경] = **스토어 구독 관리로 이동**(해지 API 없음). 요금제 관리 화면에서만, 페이월에서는 고를 수 없다 |
+| `none` | 다른 스토어 구독자의 모든 요금제, 또는 그 플랫폼에 상품이 없는 유료 요금제. (종전 "유료 구독자에게 무료 티어"·"해지 예약 중인 구독자의 무료 티어"는 2026-10-08 `cancel` 로 옮겼다) | 버튼 없음 |
 
 - **다른 스토어에서 결제한 구독자**(예: Android에서 구독하고 iOS로 접속): 유료 요금제 전부 `none`이다. 한 계정에 두 스토어 구독을 겹치지 않는다. 화면은 4.2의 `store`로 "Google Play에서 구독 중이에요"를 안내한다.
 - **표시 문구는 DB 값이다**(`plans.name`·`description` — `domain.md` 8.1). 2026-10-06 PM 결정으로 `Light` / `Daily` / `Pro`, 설명은 "하루 2편까지 들을 수 있어요" / "하루 5편까지 들을 수 있어요" / "제한 없이 마음껏 들을 수 있어요"(마이그레이션 `RenamePlanDisplayNames`). 화면은 이 값을 그대로 그린다 — 앱에 티어명을 두지 않는다.
@@ -160,7 +163,7 @@
   "plan": {
     "status": "subscribed", "tier": "pro", "plan_name": "프로", "daily_play_limit": null,
     "renews_at": "2026-11-02T03:00:00Z", "expires_at": null, "has_payment_issue": false,
-    "trial": null
+    "trial": null, "grant": null
   },
   "entitlements": { "daily_play_limit": null, "daily_drip_count": 2, "drip_enabled": true, "ads_enabled": false },
   "store": "app_store",
@@ -173,6 +176,7 @@
 | `plan` | 구독 요약 — `profile-api.md` 4.1과 같은 모양(2장). 무료면 `status: "free"`, `tier: "light"`. 가입 체험 중인 무료 계정은 `tier: "trial"` + `trial` 객체(2장) |
 | `entitlements` | **현재 유효한** 티어의 권한(2장). 해지 예약·유예 중에는 유료 티어의 값이다 |
 | `store` | `app_store` \| `play_store` \| `null`(무료). [구독 해지]·[결제 수단 확인]을 어느 스토어로 보낼지의 근거 |
+| `plan.grant` | **초대 코드 지급** 중이면 `{ "name", "tier", "plan_name", "ends_at", "last_date" }`, 아니면 `null`(4.8 — 2026-10-10). 프로필·설정의 `plan.grant`와 같다 |
 | `pending_plan` | **다운그레이드 예약**이 있으면 `{ "tier", "plan_name", "effective_at" }`, 없으면 `null`. `effective_at`은 현재 결제 주기 만료 시각이다(`subscription.md` 4.4 — "언제부터 적용되는지" 표시) |
 
 - **`users.tier` 캐시가 아니라 `subscriptions`를 기준으로 조립한다**(`domain.md` 8.2). 프로필·설정과 같은 규칙이다.
@@ -270,6 +274,8 @@
 
 **Android의 검증은 iOS와 다르다** — 구매 토큰은 서명된 사실이 아니라 열쇠다. 서버가 그 토큰으로 Google에 **현재 상태를 조회해** 그대로 반영한다(4.7). 그래서 유효성도 Google의 상태로 판정한다: `ACTIVE`·`IN_GRACE_PERIOD`·만료 전 `CANCELED`만 받고, 결제 대기(`PENDING`)·보류(`ON_HOLD`)·만료는 `SUBSCRIPTION_RECEIPT_INVALID`다(복원에서는 무시). Google이 그 토큰을 모르면(400·404·410) 위조로 본다.
 
+- **한 계정에 살아 있는 Play 구독은 하나다**(2026-10-07, KAN-130). Apple은 구독 그룹이 "하나만"을 보장하지만 Google은 Pro·Daily가 독립 정기 결제라 둘 다 살 수 있다. 정상 경로는 요금제를 바꿀 때 앱이 **이전 구매 토큰을 넘겨 교체**하는 것이고, 그러면 Google이 새 토큰에 `linkedPurchaseToken`을 붙여 서버가 같은 구독 행에 이어 붙인다(4.7 "구독 행의 키"). 그 밖의 경우 — 요청자에게 **같은 스토어의 살아 있는 구독 행이 이미 있고 이 구매가 그 행에 이어지지 않으면**(`original_transaction_id`가 다름) — 두 번째 구독이다. 영수증 제출은 `SUBSCRIPTION_ALREADY_SUBSCRIBED`(409)로 거부하고 **구매를 확인(acknowledge)하지 않는다** — 확인되지 않은 구매는 Google이 3일 안에 자동 환불한다. Slack 결제 알림에 올린다(3-6). 복원(4.5)은 거부하지 않는다 — 이미 두 개를 산 사람의 연결을 막아도 돈이 돌아오지 않는다. iOS는 Apple이 막아 주므로 해당 없다
+
 - **같은 거래의 재전송은 같은 결과다**(멱등). 업그레이드처럼 같은 `original_transaction_id`에 새 거래가 오면 그 행을 갱신한다.
 - **업그레이드는 즉시 반영된다.** 다운그레이드는 스토어가 "다음 갱신부터"로 예약하므로, 제출된 거래의 티어는 그대로이고 `pending_plan`이 채워진다(S2S 알림으로도 들어온다 — 4.6).
 - 5번이 실패(DB)하면 5xx다 — 클라이언트는 거래를 끝내지 않고 재시도한다. **결제는 됐는데 티어가 안 붙은 채 거래가 닫히는 일이 없어야 한다**(`subscription.md` 7).
@@ -280,13 +286,14 @@
 |---|---|---|---|
 | `SUBSCRIPTION_RECEIPT_INVALID` | 400 | false | 서명 불일치·번들 불일치·허용하지 않는 환경·모르는 상품·만료/환불된 거래 |
 | `SUBSCRIPTION_OWNED_BY_ANOTHER_ACCOUNT` | 409 | false | 다른 계정에 연결된 스토어 구독 |
+| `SUBSCRIPTION_ALREADY_SUBSCRIBED` | 409 | false | Android — 같은 스토어에 살아 있는 구독이 있는데 교체가 아닌 두 번째 구독(위 "한 계정에 살아 있는 Play 구독은 하나다"). 구매를 확인하지 않는다 |
 | `SUBSCRIPTION_STORE_UNAVAILABLE` | 503 | **true** | 스토어 API 조회 실패(주로 Android — iOS는 서명만으로 검증이 끝난다). 거래를 끝내지 않고 재시도 |
 
 ---
 
 ### 4.5 `POST /users/me/subscription/restore`
 
-설정 > 구독 관리 > [구매 복원], 페이월의 복원 링크. 클라이언트가 스토어 SDK에서 **현재 유효한 구독 거래**를 모아 보낸다(iOS `Transaction.currentEntitlements`, Android `queryPurchasesAsync`).
+요금제 관리·페이월 맨 아래 '이용약관 · 개인정보처리방침 · 구매 복원' 줄의 [구매 복원](개정 2026-10-09 — KAN-146). 클라이언트가 스토어 SDK에서 **현재 유효한 구독 거래**를 모아 보낸다(iOS `Transaction.currentEntitlements`, Android `queryPurchasesAsync`).
 
 **Request**
 
@@ -380,6 +387,7 @@ Google Cloud Pub/Sub **push 구독**이 호출한다. 본문은 Pub/Sub 메시�
 - **알림은 신호일 뿐이다.** 본문에는 `purchaseToken`과 유형 번호만 있으므로, 서버가 `purchases.subscriptionsv2.get`으로 **현재 상태를 조회해** 반영한다. 그래서 알림의 순서가 뒤바뀌어도 결과가 같다(마지막에 조회한 상태가 맞는 상태다). 조회 실패는 5xx로 답해 Pub/Sub가 재전송하게 한다
 - **처리 완료 표시는 구매 확인(acknowledge)까지 끝난 뒤에 한다.** 반영만 하고 완료로 표시하면, 확인이 실패했을 때 재전송된 알림이 "이미 처리함"으로 걸러져 그 구매를 다시 확인할 기회가 없다
 - **주인을 모르는 구매**(구독 행도 계정 토큰도 없음)는 반영도 확인도 하지 않고 `processed_at`을 비워 둔다 — 이후 영수증 제출·복원이 연결한다. 주인 없는 구매를 확인하면 "결제됐는데 아무 계정에도 없음"이 굳는다
+- **두 번째 구독의 알림**(2026-10-07) — 주인은 찾았지만 그 사용자에게 같은 스토어의 살아 있는 구독 행이 따로 있고 이 구매가 그 행에 이어지지 않으면(4.4의 규칙과 같다) 반영도 확인도 하지 않고 `processed_at`은 기록한다(재전송돼도 같은 판정이다). 확인하지 않으므로 Google이 3일 안에 자동 환불한다. Slack 결제 알림에 올린다
 - 응답: 4.6과 같다(성공·중복 200, 검증 실패 400, 일시 실패 5xx)
 
 **`subscriptionState` → `subscriptions.status`**
@@ -403,10 +411,62 @@ Google Cloud Pub/Sub **push 구독**이 호출한다. 본문은 Pub/Sub 메시�
 2. 응답의 `linkedPurchaseToken`(이전 토큰)이 어느 행의 `original_transaction_id`이거나 `latest_receipt`이면 그 행 — 이전 토큰은 최초 토큰이 아니라 중간에 한 번 바뀐 토큰일 수 있어 둘 다로 찾는다
 3. 어디에도 없으면 새 구독 — 그 토큰이 키가 된다
 
+- **교체된 옛 토큰의 종결은 구독의 종결이 아니다**(2026-10-08 — 개발계 실측). 요금제 변경 직후 Google은 옛 토큰에 `SUBSCRIPTION_EXPIRED`(13)를 보내고, 그 알림은 사슬을 따라 **같은 행**으로 들어온다. 행이 이미 다른(새) 토큰으로 살아 있고 들어온 토큰이 그보다 먼저 끝나는 것이면, 그 토큰의 `EXPIRED`·결제 재시도·환불은 **무시한다**(`ignore: replaced_token`). 그대로 반영했더니 Daily→Pro 업그레이드가 3초 뒤 `expired`·light 로 떨어졌다. 지금 토큰의 종결, 더 늦게 끝나는 토큰, 이미 끝난 행은 종전 규칙대로다
+- **끝난 토큰은 두 번째 구독이 아니다**(2026-10-08 — 개발계 실측). 요금제를 여러 번 바꾸면 사슬 A → B → C → D 가 생기고 행은 최초(A)·마지막(D)만 기억한다. 사슬 **중간** 토큰(C)의 늦은 만료 알림은 C 도, C 의 이전 토큰(B)도 행에 없어 위 1·2로 찾지 못하고 "새 구독"이 된다. 이때 그 사용자에게 살아 있는 행이 있어도 **들어온 구매가 이미 끝났으면(만료·환불·결제 재시도) 두 번째 구독으로 보지 않고** `ignore: replaced_token`으로 넘긴다 — 행을 만들지 않고 Slack 결제 경보도 내지 않는다. 종전에는 요금제를 두세 번 바꿀 때마다 거짓 "두 번째 구독 거부" 경보가 났다. 살아 있는(유효·유예) 두 번째 구독만 4.4대로 거부·경보한다
+
 - **환경** — 응답에 `testPurchase`가 있으면(라이선스 테스터) `environment = sandbox`, 없으면 `production`이다. Play는 서비스 계정 하나로 둘 다 조회되므로 서버가 받는 환경을 따로 설정하지 않는다
 - **만료 보정**(4.2)은 그 행의 `latest_receipt`로 같은 조회를 한다
 
 ---
+
+### 4.8 초대 코드 지급 — 규칙과 `plan.grant` (2026-10-10)
+
+규칙의 원본은 `subscription.md` 4.9, 저장은 `domain.md` 8.5·8.6이다.
+
+**`plan.grant`** — 구독 조회(4.2)·프로필(`profile-api.md` 4.1)·설정(`settings-api.md` 4.1)의 `plan`에 같은 모양으로 실린다(조립 함수 하나).
+
+```json
+"grant": {
+  "name": "산군 PoC",
+  "tier": "pro",
+  "plan_name": "Pro",
+  "ends_at": "2026-11-08T19:00:00Z",
+  "last_date": "2026-11-08"
+}
+```
+
+| 필드 | 의미 |
+|---|---|
+| `name` | 코드(캠페인) 이름. 화면에 쓸지는 클라이언트가 정한다 |
+| `tier` · `plan_name` | 지급 요금제 |
+| `ends_at` | 지급이 끝나는 시각(배타 경계 — 서비스 날짜 경계) |
+| `last_date` | 지급으로 쓸 수 있는 마지막 서비스 날짜(`YYYY-MM-DD`) — "N월 N일까지"는 이 값. 클라이언트가 04시 보정을 하지 않는다 |
+
+- **`plan.status`는 지급과 무관하다** — 구독 상태 그대로다(지급은 구독이 아니다). 지급 요금제가 구독보다 높으면 `plan.tier` · `plan_name` · `daily_play_limit`과 `entitlements`가 지급 요금제의 값이 된다. 낮으면 구독 표시 그대로이고 `grant`만 실린다.
+- 가입 체험과 겹치면 지급이 표시를 이긴다(`tier`는 지급 요금제). 한도는 둘 중 넉넉한 쪽이다.
+- **이벤트 중 결제** — 코드를 입력할 때 구독이 없던 계정에 지급 기간 중 살아 있는 구독이 반영되면(4.4·4.5·스토어 알림 — 재구독 포함) 서버가 지급을 끝낸다. 결제 응답의 `plan.grant`는 `null`이 된다. 결제 전에 "이벤트가 끝나요"를 알리거나 막는 것은 클라이언트가 `plan.grant.tier`와 고른 요금제로 정한다. 입력 때 이미 구독 중이었으면 그 구독의 갱신·변경은 지급을 끝내지 않는다.
+- 체험과 지급이 겹치면 `plan.trial.daily_play_limit_after`는 지급까지 반영한 한도다.
+- 요금제 목록(4.1)의 `action`은 **구독만 보고** 정한다 — 지급은 반영하지 않는다(구독이 없으면 무료가 `current`). 지급 중 표시는 `plan.grant`로 한다.
+- 지급이 끝나면 10분 안에 `users.tier`가 되돌아간다(`domain.md` 8.6 만료 배치). 그 사이 응답의 `plan`은 이미 지급 없이 조립된다.
+
+#### 4.8-1 `POST /users/me/subscription/invite-codes` — 코드 입력
+
+앱에서 코드를 입력받는 곳(화면·위치)은 클라이언트가 정한다. `Cache-Control: no-store`. 레이트 리밋 사용자 단위 **분당 10회**(`architecture.md` 9.6 — 코드 추측 대입의 앞단 방어).
+
+**Request**
+
+```json
+{ "code": "SANGUN-POC" }
+```
+
+- 대소문자·앞뒤 공백은 서버가 정규화한다(`sangun-poc`도 같은 코드). 빈 값·64자 초과만 400(`VALIDATION_FAILED`)이고, 저장 규칙 밖의 값은 "없는 코드"(404)와 같이 처리한다.
+
+**Response 200** — 4.2와 **같은 본문**이다. `plan.grant`에 지급 내용이 실린다(앱이 4.2를 다시 부르지 않는다).
+
+- **멱등키를 쓰지 않는다.** 같은 계정이 같은 코드를 다시 보내면 지급 중인 한 새로 만들지 않고 같은 결과(200)다 — 응답 유실 뒤 재전송이 안전하다.
+- 판정 순서(앞이 우선): 없음·꺼짐(404) → 이 계정이 쓴 코드(지급 중이면 200, 끝났으면 409 `INVITE_CODE_ALREADY_USED`) → 입력 기간 밖(409 `INVITE_CODE_EXPIRED`) → 다른 지급 진행 중(409 `INVITE_GRANT_ALREADY_ACTIVE`) → 한도 소진(409 `INVITE_CODE_EXHAUSTED`) → 지급 마지막 날 경과(409 `INVITE_CODE_EXPIRED`).
+- 유료 구독 중이어도 입력할 수 있다. 지급 요금제가 구독보다 높으면 그 기간 동안 지급 요금제를 쓰고, 낮거나 같으면 표시는 구독 그대로다(`grant`만 실린다). 입력 전부터 있던 구독은 지급을 끝내지 않는다.
+- 지급 행과 `users.tier`는 한 트랜잭션에서 고친다. 코드 행을 잠그고 판정해 동시 입력이 한도를 넘지 않는다.
 
 ## 5. 에러 코드 표
 
@@ -419,7 +479,13 @@ Google Cloud Pub/Sub **push 구독**이 호출한다. 본문은 Pub/Sub 메시�
 | `SUBSCRIPTION_STORE_MISMATCH` | 409 | false | "다른 스토어에서 구독 중이에요. 구독한 기기에서 변경해주세요" |
 | `SUBSCRIPTION_RECEIPT_INVALID` | 400 | false | "구독을 확인할 수 없어요". 거래를 `finish`하지 않는다 — 재시도해도 결과가 같으므로 자동 재시도 대상은 아니다. 문의 경로 안내 |
 | `SUBSCRIPTION_OWNED_BY_ANOTHER_ACCOUNT` | 409 | false | "이미 다른 계정에서 사용 중인 구독이에요"(`subscription.md` 4.6) |
+| `SUBSCRIPTION_ALREADY_SUBSCRIBED` | 409 | false | "이미 구독 중이에요. 요금제는 변경으로 바꿔주세요"(2026-10-07 — Play 두 번째 구독, 4.4). 거래를 `finish`하지 않는다 — 서버가 확인하지 않은 구매는 Google이 3일 안에 자동 환불한다. 요금제 변경 화면으로 보낸다 |
 | `SUBSCRIPTION_STORE_UNAVAILABLE` | 503 | **true** | "구독을 확인하고 있어요… 잠시 후 자동으로 반영됩니다". **거래를 끝내지 않고** 재시도 큐에 넣는다(다음 실행의 미완료 거래 처리도 같은 경로) |
+| `INVITE_CODE_NOT_FOUND` | 404 | false | "사용할 수 없는 코드예요" — 없는 코드·꺼진 코드·저장 규칙 밖 값(4.8-1) |
+| `INVITE_CODE_EXPIRED` | 409 | false | "사용 기간이 지난 코드예요" — 입력 기간 밖이거나 지급 마지막 날이 지났다 |
+| `INVITE_CODE_EXHAUSTED` | 409 | false | "선착순이 마감된 코드예요" — 사용 한도(계정 수)를 다 썼다 |
+| `INVITE_CODE_ALREADY_USED` | 409 | false | "이미 사용한 코드예요" — 이 계정이 쓴 코드이고 지급이 끝났다(지급 중이면 200 재전송) |
+| `INVITE_GRANT_ALREADY_ACTIVE` | 409 | false | "다른 코드의 혜택이 아직 남아 있어요" — 지급은 계정당 동시에 하나 |
 
 - 401·429·5xx는 `common-error-handling.md` 4.1~4.2의 공통 규칙을 따른다.
 - **결제 취소**(사용자가 시트를 닫음)는 서버 호출이 없다 — 에러 문구도 없다(`subscription.md` 5장).
@@ -431,7 +497,7 @@ Google Cloud Pub/Sub **push 구독**이 호출한다. 본문은 Pub/Sub 메시�
 **구매**
 
 ```
-페이월 시트 / 구독 관리
+페이월 시트 / 요금제 관리
    ↓ GET /plans?platform=ios            → plans[](store_product_id · action) + is_email_verified
    ↓ 스토어 SDK로 현지 가격 조회 → 병합 표시
 [구독하기] 탭
@@ -476,6 +542,7 @@ Google Cloud Pub/Sub **push 구독**이 호출한다. 본문은 Pub/Sub 메시�
 - **클라이언트가 보낸 값으로 티어를 바꾸지 않는다.** 티어를 바꾸는 근거는 ① 스토어가 서명한 거래(JWS)·스토어 API 응답 ② 스토어 서버 알림 둘뿐이다. 요청 본문의 평문 필드(`product_id`, `intent_id`)는 조회 열쇠·교차 확인용이다.
 - **`users.tier`를 쓰는 경로는 한 곳이다**(`domain.md` 3.1 — `BillingSyncService.syncUserTier`). 영수증 제출·복원·웹훅·만료 보정이 전부 같은 반영 함수를 거치고, 구독 행과 `users.tier`를 **한 트랜잭션에서** 고친다. `subscription` 모듈이 아니라 그 위의 `billing` 모듈에 있다 — `user` 모듈이 `subscription`을 의존해(탈퇴 시 결제 이력 판정) 반대 방향으로는 의존할 수 없어서다.
 - **거래의 주인 확인** — 결제에 실은 `account_token`(= `purchase_intents.id`)이 서명된 거래 안에 들어온다. 그 의도가 다른 사용자의 것이면 거부한다. 토큰이 없거나(복원·프로모션 코드·스토어 밖 구매) 의도 행이 이미 없으면(탈퇴로 파기) `original_transaction_id`의 유일성으로만 판정한다 — 살아 있는 다른 계정에 있으면 거부, 없으면 연결.
+  - **한 계정에 살아 있는 Play 구독은 하나다**(2026-10-07 — 4.4). 요청자에게 같은 스토어의 살아 있는 행이 따로 있고 새 구매가 그 행에 이어지지 않으면 두 번째 구독으로 보고 제출을 거부한다(`SUBSCRIPTION_ALREADY_SUBSCRIBED`). 교체로 산 구매는 `linkedPurchaseToken`으로 같은 행에 이어지므로 걸리지 않는다
   - **끝난 구독의 재결제는 결제한 계정의 것이다**(2026-10-06). 다른 계정의 행이 이미 끝난 구독(`expired`·`refunded`)이고, 지금 온 거래의 계정 토큰이 **요청자의** 결제 의도이며, 그 반영이 구독을 되살리는 것이면 → 행의 `user_id`를 요청자로 바꾼다(영수증 제출·복원·서버 알림 모두 같은 규칙). App Store는 같은 Apple 계정이 같은 구독 그룹을 다시 결제하면 예전 `originalTransactionId`를 이어 쓸 수 있어, 이 예외가 없으면 방금 결제한 계정이 409를 받고 결제하지 않은 예전 계정이 유료가 된다. **살아 있는 구독**(`active`·`grace`·`cancelled`)은 종전대로 거부한다. 토큰이 없거나 예전 계정의 의도면 넘기지 않는다 — 그 결제는 예전 계정이 시작한 것이다. **토큰은 있는데 그 의도가 없으면(탈퇴로 파기) 끝난 행의 주인에게도 반영하지 않고 `unlinked`로 둔다**(2026-10-07) — 결제한 계정은 이미 떠났고, 예전 주인은 결제하지 않았다. 그 사람이 재가입해 영수증을 제출·복원하면 그때 연결된다.
 - **거래 ID만으로 복원하지 않는다.** `archived_subscriptions`의 `original_transaction_id`는 보존 기록이지 권한이 아니다(`domain.md` 11.5). 재가입 복원은 **그 스토어 계정이 지금 제출한 서명된 거래**가 있을 때만 성립한다.
 - **환경 분리** — iOS 거래·알림의 `environment`(`Production` / `Sandbox`)를 본다. **서버가 받는 환경은 설정값이다**(`APP_STORE_ENVIRONMENTS`): 개발계 서버는 `Sandbox`, 운영 서버는 `Production`, 심사·TestFlight 결제까지 받으려면 `Production,Sandbox`다(App Store 심사와 TestFlight는 운영 빌드로 샌드박스 결제를 한다). 받지 않는 환경은 서명이 맞아도 `SUBSCRIPTION_RECEIPT_INVALID`다. **운영이 샌드박스를 함께 받을 때 시험 결제는 `subscriptions.environment = sandbox`로 구분된다**(`domain.md` 8.2) — 권한은 똑같이 주되(그래야 심사·시험이 된다) 매출·구독자 집계에서 뺀다.

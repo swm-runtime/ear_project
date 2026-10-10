@@ -1,8 +1,11 @@
+import type { ColorValue } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
+
+import { useResolvedColor } from '@/shared/theme';
 
 interface BellIconProps {
   size: number;
-  color: string;
+  color: ColorValue;
 }
 
 /**
@@ -11,7 +14,9 @@ interface BellIconProps {
  *
  * 장식이므로 이 컴포넌트를 쓰는 쪽에서 낭독기 노출을 막는다.
  */
-export default function BellIcon({ size, color }: BellIconProps) {
+export default function BellIcon({ size, color: colorValue }: BellIconProps) {
+  // 토큰(iOS 동적 색)을 지금 모드의 문자열로 — SVG·기호는 문자열 색만 받는다(다크 모드, 2026-10-10)
+  const color = useResolvedColor(colorValue);
   return (
     <Svg width={size} height={size} viewBox="0 0 24 24">
       {/* 종몸통 — 위 꼭지에서 아래 테두리까지 한 붓으로 잇는다 */}

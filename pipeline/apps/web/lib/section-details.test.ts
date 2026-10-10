@@ -8,8 +8,8 @@ const secs = [
   { start_sec: 61.7, title: "깬 직후의 멍함은 잠이 모자란 신호가 아니다", kind: "body", summary: "멍함은 정상적 수면 관성" },
 ];
 
-test("SEND_SECTION_DETAILS — 운영 서버가 받기 전이라 꺼져 있다", () => {
-  assert.equal(SEND_SECTION_DETAILS, false);
+test("SEND_SECTION_DETAILS — KAN-151 운영 배포(v1.2.0+4) 뒤 켰다", () => {
+  assert.equal(SEND_SECTION_DETAILS, true);
 });
 
 test("sectionsForSend — 꺼져 있으면 start_sec·title 만 보낸다", () => {

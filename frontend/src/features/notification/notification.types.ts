@@ -10,6 +10,6 @@ export type PushTarget = { kind: 'library' } | { kind: 'content'; contentId: str
 /** 드립 도착 통지 한 건 — 푸시 `data`에서 읽은 값 */
 export interface PushArrival {
   target: PushTarget;
-  /** 도착한 편수(정규 + 탐험). 못 읽었으면 null — 배너가 숫자 없는 문구를 쓴다 */
+  /** 도착한 편수(정규 + 탐험). 못 읽었으면 null. 탭 배지는 갱신한 목록 응답으로 센다. */
   contentCount: number | null;
 }

@@ -5,7 +5,7 @@
 | 대상 | `frontend/src/features/explore/api/explore.dto.ts`(TODO 주석 제거) · `api/explore.api.ts` · `api/explore.mock.ts` · `hooks/useExploreTopicsQuery.ts` |
 | 요청 파트 | 프론트엔드 |
 | 발견 시점 | 2026-08-07 탐색 FE 구현 (`feat(fe)/explore`) — 계약에 없는 엔드포인트를 mock으로 선반영 |
-| 근거 문서 | `changes/pending/explore-api-topics-endpoint(fe).md`(계약) · `changes/pending/explore-topic-chip-list(be).md`(서버 규칙) · `features/explore.md` 4.2 |
+| 근거 문서 | `changes/archive/explore-api-topics-endpoint(fe).md`(계약) · `changes/archive/explore-topic-chip-list(be).md`(서버 규칙) · `features/explore.md` 4.2 |
 | 심각도 | **상** — 실서버로 전환하면 주제 칩 줄이 채워지지 않고, 칩을 고를 수 없으니 주제 필터(E2) 경로가 통째로 막힌다 |
 | 상태 | **완료** (2026-08-08) — `feat(fe)/explore` (PR #18) + 짝 티켓 서버 반영 `fix(be)/explore-period-and-topics` (PR #19) |
 

@@ -6,7 +6,7 @@ import { theme } from '@/shared/theme';
 
 import { useSessionStore } from '@/features/auth';
 import { ExploreScreen } from '@/features/explore';
-import { LibraryScreen } from '@/features/library';
+import { LibraryScreen, useLibraryArrivalBadge } from '@/features/library';
 import { MiniPlayer, useIsMiniPlayerVisible } from '@/features/player';
 import { ProfileScreen } from '@/features/profile';
 
@@ -41,6 +41,7 @@ const TRANSPARENT_BAR = {
  * 으로 비운다(DOCK_SCROLL_PROPS) — useBottomDockInset 은 간격만 준다.
  */
 export default function NativeMainTabs() {
+  const arrivalBadge = useLibraryArrivalBadge();
   const justCompletedOnboarding = useSessionStore((s) => s.justCompletedOnboarding);
   const [restoredTab] = useState(takePrimedTab);
   // 볼 게 없으면 액세서리를 **숨긴다**(떼지 않는다) — react-native-screens 의 bottomAccessoryHidden(setBottomAccessory nil animated).
@@ -85,12 +86,15 @@ export default function NativeMainTabs() {
         component={LibraryScreen}
         options={{
           tabBarLabel: '라이브러리',
+          tabBarBadge: arrivalBadge.value,
+          tabBarBadgeStyle: { backgroundColor: theme.color.primary, color: theme.color.onPrimary },
           tabBarIcon: ({ focused }) => ({
             type: 'sfSymbol',
             name: focused ? 'books.vertical.fill' : 'books.vertical',
           }),
           ...TRANSPARENT_BAR,
         }}
+        listeners={{ tabPress: arrivalBadge.acknowledge }}
       />
       {/* 탐색 — 상단을 애플 문법으로(PM 2026-09-25 23:50 "애플이라면 상단을 어떻게"). 떠 있는 유리 컨트롤(FloatingHeader)은
           어두운 카드가 밑에 오면 글자가 죽었다. 링은 제목 줄 오른쪽, 검색 필드는 제목 줄 밑(누르면 검색 화면), 주제 칩은

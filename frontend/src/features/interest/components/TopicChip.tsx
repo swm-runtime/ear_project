@@ -126,7 +126,11 @@ export default function TopicChip({
       <Image source={source} resizeMode="cover" style={styles.photo} />
       {/* 사진 위 가독성용 오버레이 — 선택은 짙은 면 + ✓, 상한 dim은 하얗게 물러난다 */}
       <View
-        style={[styles.overlay, isSelected && styles.overlaySelected, isDimmed && styles.overlayDimmed]}
+        style={[
+          styles.overlay,
+          isSelected && styles.overlaySelected,
+          isDimmed && styles.overlayDimmed,
+        ]}
       />
       {/* 선택 표시는 짙은 오버레이만 — 체크 글리프는 두지 않는다. 낭독은 accessibilityState가 한다 */}
       <Text style={[styles.label, isDimmed && styles.labelDimmed]} numberOfLines={1}>
@@ -206,7 +210,7 @@ const styles = StyleSheet.create({
   },
   // 흐린 칩은 사진째 물러나야 한 덩어리로 읽힌다
   overlayDimmed: {
-    backgroundColor: 'rgba(255, 255, 255, 0.78)',
+    backgroundColor: theme.color.backgroundWash,
   },
   label: {
     // 칩이 아니라 라벨이 좌우 여백을 갖는다 — 위 chip 주석 참조
@@ -214,7 +218,7 @@ const styles = StyleSheet.create({
     fontSize: theme.font.size.md,
     // 선택 여부와 무관하게 굵기를 고정한다 — 선택 시 굵어지면 라벨 폭이 변해 시선이 튄다
     fontWeight: '700',
-    color: theme.color.onPrimary,
+    color: theme.color.onPhoto,
     textShadowColor: theme.color.photoTextShadow,
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 4,

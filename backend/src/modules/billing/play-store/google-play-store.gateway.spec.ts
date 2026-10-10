@@ -296,6 +296,51 @@ describe('GooglePlayStoreGateway', () => {
       });
     });
 
+    it('예약 줄에 autoRenewingPlan 이 아예 없어도 자동 갱신이다', async () => {
+      const { gateway } = buildGateway(FULL_ENV, {
+        respond: () =>
+          googlePurchase({
+            lineItems: [
+              {
+                productId: 'ear_pro_monthly',
+                expiryTime: '2026-11-01T00:00:00Z',
+                deferredItemReplacement: { productId: 'ear_daily_monthly' },
+              },
+            ],
+          }),
+      });
+
+      expect((await gateway.fetchPurchase('t'))?.isAutoRenew).toBe(true);
+    });
+
+    it('다운그레이드 예약 중인 줄은 autoRenewingPlan 이 없어도 자동 갱신이다 — 다음 갱신이 예약 상품으로 이어진다(2026-10-08 실측 응답)', async () => {
+      const { gateway } = buildGateway(FULL_ENV, {
+        respond: () =>
+          googlePurchase({
+            lineItems: [
+              // 실측: 예약된 상품의 자리표시 줄(만료 없음)과 지금 상품의 줄이 함께 온다
+              {
+                productId: 'ear_daily_monthly',
+                autoRenewingPlan: {},
+              },
+              {
+                productId: 'ear_pro_monthly',
+                expiryTime: '2026-11-01T00:00:00Z',
+                // 실측: autoRenewEnabled 가 없는 빈 객체
+                autoRenewingPlan: {},
+                deferredItemReplacement: { productId: 'ear_daily_monthly' },
+              },
+            ],
+          }),
+      });
+
+      expect(await gateway.fetchPurchase('t')).toMatchObject({
+        productId: 'ear_pro_monthly',
+        isAutoRenew: true,
+        pendingProductId: 'ear_daily_monthly',
+      });
+    });
+
     it.each([400, 404, 410])(
       'Google이 %i 로 답하면 모르는 토큰이다(null)',
       async (status) => {
@@ -356,6 +401,18 @@ describe('GooglePlayStoreGateway', () => {
           url: `https://androidpublisher.googleapis.com/androidpublisher/v3/applications/${PACKAGE}/purchases/subscriptions/ear_pro_monthly/tokens/tok%2Fen:acknowledge`,
         },
       ]);
+    });
+
+    it('이미 확인된 구매(409)는 성공이다 — 영수증 제출과 알림이 같은 순간 와서 다른 경로가 먼저 확인했다', async () => {
+      const { gateway } = buildGateway(FULL_ENV, {
+        respond: () => {
+          throw new GoogleHttpError(409);
+        },
+      });
+
+      await expect(
+        gateway.acknowledge('ear_pro_monthly', 't'),
+      ).resolves.toBeUndefined();
     });
 
     it('실패하면 재시도 대상으로 올린다 — 확인하지 못한 구매는 3일 뒤 환불된다', async () => {

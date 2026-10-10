@@ -3,14 +3,19 @@ import { useVideoPlayer, VideoView } from 'expo-video';
 import { useEffect, useState } from 'react';
 import { AccessibilityInfo, Image, StyleSheet, View } from 'react-native';
 
-import { theme } from '@/shared/theme';
+import { theme, useActiveScheme } from '@/shared/theme';
 
 import { useSplashStore } from '../store/splash.store';
 
 /** 모션 축소 설정에서 대신 두는 정지 로고 */
 const SPLASH_STILL = require('../../../../assets/splash-icon.png');
 /** 로고 모션 영상(1080×1920, 4.03초) — 선이 2.23초에 다 그려지고 나머지는 완성 로고로 머문다 */
+const SPLASH_VIDEO_DARK = require('../../../../assets/splash-logo-dark.mp4');
 const SPLASH_VIDEO = require('../../../../assets/splash-logo.mp4');
+/**
+ * 다크 모드 영상 — 같은 영상의 색 반전(검정 바탕 흰 선, ffmpeg negate, 2026-10-11). 영상에 바탕색이 박혀 있어 흰 영상을 검정
+ * 화면에 두면 가운데 흰 사각형이 떴다. 로고가 흑백 한 색이라 반전이 곧 다크판이다
+ */
 
 /** 영상에서 선이 다 그려지는 시점(67프레임 / 30fps) */
 const SPLASH_DRAW_SEC = 2.233;
@@ -55,14 +60,19 @@ export default function SplashScreen() {
     };
   }, []);
 
-  const player = useVideoPlayer(SPLASH_VIDEO, (instance) => {
-    instance.loop = false;
-    // 영상에 소리가 없지만 명시한다 — 다른 앱 재생을 끊거나 잠금화면 컨트롤을 띄우면 안 된다
-    instance.muted = true;
-    instance.audioMixingMode = 'mixWithOthers';
-    instance.showNowPlayingNotification = false;
-    instance.timeUpdateEventInterval = TIME_UPDATE_INTERVAL_SEC;
-  });
+  // 모드는 스플래시가 뜰 때 한 번만 본다 — 재생 중에 영상을 바꾸지 않는다
+  const scheme = useActiveScheme();
+  const player = useVideoPlayer(
+    scheme === 'dark' ? SPLASH_VIDEO_DARK : SPLASH_VIDEO,
+    (instance) => {
+      instance.loop = false;
+      // 영상에 소리가 없지만 명시한다 — 다른 앱 재생을 끊거나 잠금화면 컨트롤을 띄우면 안 된다
+      instance.muted = true;
+      instance.audioMixingMode = 'mixWithOthers';
+      instance.showNowPlayingNotification = false;
+      instance.timeUpdateEventInterval = TIME_UPDATE_INTERVAL_SEC;
+    },
+  );
 
   useEffect(() => {
     if (isReduceMotion === false) player.play();
@@ -107,7 +117,7 @@ export default function SplashScreen() {
         <VideoView
           player={player}
           style={styles.video}
-          // 박스 안에 영상 전체가 들어오게 맞춘다 — 여백은 배경과 같은 흰색이라 경계가 보이지 않는다
+          // 박스 안에 영상 전체가 들어오게 맞춘다 — 여백은 배경과 같은 색(라이트 흰 · 다크 검정)이라 경계가 보이지 않는다
           contentFit="contain"
           nativeControls={false}
           allowsPictureInPicture={false}
@@ -134,6 +144,8 @@ const styles = StyleSheet.create({
     aspectRatio: 1080 / 1920,
   },
   still: {
+    // 로고는 투명 바탕 검정 한 색 — tintColor 로 모드에 맞춘다(라이트 검정 · 다크 흰색, 2026-10-11)
+    tintColor: theme.color.textPrimary,
     width: 160,
     height: 160,
   },

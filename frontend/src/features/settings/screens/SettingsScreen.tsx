@@ -20,6 +20,8 @@ import { Text } from '@/shared/ui/Typography';
 
 import { NotificationPrePromptModal } from '@/features/notification';
 
+import AudioQualitySection from '../components/AudioQualitySection';
+import ColorModeSection from '../components/ColorModeSection';
 import DevDiagnosticsRows from '../components/DevDiagnosticsRows';
 import DevPushTokenRow from '../components/DevPushTokenRow';
 import EmailRow from '../components/EmailRow';
@@ -180,6 +182,18 @@ export default function SettingsScreen() {
             />
             {/* 오프라인 저장 관리는 P1 이연 — 메뉴를 노출하지 않는다(settings.md 4.1) */}
           </SettingsSection>
+
+          {/* 음질(settings.md 4.6) — 고를 것이 둘 이상일 때만. 구독 UI 꺼진 바이너리·옛 서버면 섹션 없음 */}
+          {screen.audioQuality !== null ? (
+            <AudioQualitySection
+              selected={screen.audioQuality.selected}
+              options={screen.audioQuality.options}
+              onSelect={screen.selectAudioQuality}
+            />
+          ) : null}
+
+          {/* 화면 모드(다크 모드, 2026-10-10) — 기기 표시 설정이라 서버 응답과 무관하게 늘 보인다 */}
+          <ColorModeSection />
 
           <SettingsSection title={SETTINGS_COPY.sections.notification}>
             {screen.isNotificationBannerVisible ? (

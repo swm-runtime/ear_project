@@ -81,22 +81,4 @@ export class PlaybackProgressRepository {
   ): Promise<void> {
     await this.scoped(manager).delete({ contentId });
   }
-
-  /**
-   * 미니플레이어 복원 후보(library-api.md 4.3) — **위치가 0보다 큰 콘텐츠만.**
-   * 위치가 0이면 처음부터 듣는 것과 같아 이어들 자리가 없다.
-   */
-  async findAllStartedContentIdsByUserId(
-    userId: string,
-    manager?: EntityManager,
-  ): Promise<string[]> {
-    const rows = await this.scoped(manager)
-      .createQueryBuilder('progress')
-      .select('progress.content_id', 'content_id')
-      .where('progress.user_id = :userId', { userId })
-      .andWhere('progress.position_sec > 0')
-      .getRawMany<{ content_id: string }>();
-
-    return rows.map((row) => row.content_id);
-  }
 }

@@ -9,7 +9,7 @@
 | 근거 문서 | `features/player.md` 7 · `spec/api/player-api.md` 4.1·4.3 · `features/offline-download.md` |
 | 심각도 | **하(코드 위생) / 중(오해 유발)** — 동작 버그는 아니다. 다만 **코드가 "하고 있다"고 주장하는 일을 하지 않고 있어서** 다음 사람이 구멍을 못 본다 |
 | 상태 | **완료** (2026-09-08 실기기 확인 — 재진입 0초, 라이브러리 유지) |
-| 연관 | `tickets/backend/pending/republish-stale-playback-position.md` — **실제 해결은 그쪽이다** |
+| 연관 | `tickets/backend/archive/republish-stale-playback-position.md` — **실제 해결은 그쪽이다** |
 
 ## 문제
 
@@ -69,7 +69,7 @@ if (issue.content.durationSec > 0 && startPositionSec >= issue.content.durationS
 
 **FE에 로컬 위치 저장을 새로 넣지 않는다.** 위치의 단일 진실은 서버 `playback_progresses`이고
 (`domain.md` 14장), 판정은 서버가 하고 클라이언트는 표시만 한다(공통 원칙). 같은 규칙을 두 곳에
-두면 어긋난다. **실제 해결은 `tickets/backend/pending/republish-stale-playback-position.md`다.**
+두면 어긋난다. **실제 해결은 `tickets/backend/archive/republish-stale-playback-position.md`다.**
 
 이 티켓이 요청하는 것은 **코드가 거짓말하지 않게 만드는 것**이다.
 
@@ -114,7 +114,7 @@ if (issue.content.durationSec > 0 && startPositionSec >= issue.content.durationS
 
 ### 보류하는 것과 사유
 
-요청 3·4(= 완료 조건 3번)는 **`tickets/backend/pending/republish-stale-playback-position.md`가
+요청 3·4(= 완료 조건 3번)는 **`tickets/backend/archive/republish-stale-playback-position.md`가
 안 A/안 B 중 무엇으로 확정되는지에 달려 있다.** 그 티켓은 2026-09-07 기준 `상태: 대기`이고 선택이
 아직 안 됐다. 안이 갈리면 FE가 할 일도 갈린다.
 
@@ -204,7 +204,7 @@ this.ctx.tracking = createTrackingState(issue.progress?.maxReachedSec ?? 0);
 변하지 않아야 한다 — `player-uiux.md` 4.9).
 
 **안 A(서버에서 행 삭제)는 "다음 진입"만 고친다.** 진행 중 세션에는 닿지 않는다.
-회수해도 재생이 안 멈추는 것과 **같은 뿌리**이므로 `tickets/backend/pending/withdrawn-sync-stops-playback.md`
+회수해도 재생이 안 멈추는 것과 **같은 뿌리**이므로 `tickets/backend/archive/withdrawn-sync-stops-playback.md`
 에 합쳐 다룬다.
 
 ### 테스트 절차 메모 — 다음 사람을 위해

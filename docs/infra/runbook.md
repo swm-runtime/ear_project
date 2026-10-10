@@ -112,6 +112,8 @@ AUDIO_BUCKET=earcast-audio-prod KVS_ARN=<값> deploy/upload-audio.sh <contentId(
   - `import skip` 만 반복되면 S3 덤프가 안 바뀐 것이다 — 운영 로그에서 `export skip`/`export ok` 를 먼저 본다
   - 검증 실패(`검증 실패: <표> 운영 N행 / 개발계 M행`)면 ETag 를 적지 않으므로 다음 알림·크론이 같은 덤프로 다시 시도한다
 
+- **표 목록은 `backend/deploy/sync-content-export.sh`·`sync-content-import.sh`의 `TABLES`가 원본이다.** 콘텐츠에 붙는 표가 새로 생기면 **둘 다**에 넣고 import 의 충돌 키 목록에도 추가한다. 빠뜨리면 개발계만 조용히 어긋난다 — 2026-10-07 `content_audio_renditions`(KAN-141)가 빠져 개발계 재생이 전부 실패했다(행이 옛 mp3 경로를 가리켰고 그 키는 운영 재발행으로 지워짐). 같은 날 추가했고, 서버도 압축 음질은 `contents.audio_path`를 믿도록 방어했다(`audio-url.service.ts`).
+
 ### 3.4 회수 (API 미구현 — 현재 SQL 수동)
 
 ```sql
@@ -190,6 +192,8 @@ ssh -i … ec2-user@<IP> 'cd /opt/ear/backend \
 사용자 신호(가입·탈퇴·스토어 리뷰·앱 삭제)와 일일 지표 보고도 같은 Slack 채널로 온다 — 알림이 아니라 **정보**다([`backend-monitoring.md`](../features/backend-monitoring.md) 3-2~3-5). 임계값이 없고 받으면 할 일도 없다.
 
 **겹침은 의도다**: CPU·메모리는 백엔드 자체 경보와 Grafana Alerting 둘 다 울린다(KAN-97 5번 — 몇 주 겹쳐 보고 하나로 정리). API 다운은 Grafana 합성 체크가 주, EC2 상태 검사가 뒤를 받는다. 백엔드 프로세스 안에서 도는 경보(자원·결제·배치)는 그 프로세스가 죽으면 같이 멈춘다 — 그 경우를 합성 체크·EC2 상태 검사·워커 생존 알람이 받는다. **감시가 감시를 덮는 구조**를 이 표로 확인한다.
+
+**배포 자체의 관문**(2026-10-07 운영 장애 뒤): ① CI e2e `test/bootstrap.e2e-spec.ts` — `main.ts`의 앱 조립(`configureApp`)을 그대로 거쳐 JSON·urlencoded 본문 파싱, Sentry 경로 2mb, 그 외 413, 프리픽스·보안 헤더를 본다. 다른 e2e 는 각자 조립해서 `main.ts`의 실수를 못 잡았다. ② 배포 워크플로 "배포 후 스모크" — 배포 직후 `POST /auth/token/refresh`에 가짜 본문을 보내 **401**이어야 통과(400 = 본문 파싱 깨짐, 5xx = 서버 문제). GET /health 만으로는 본문 파싱이 깨져도 지나간다.
 
 #### 점검 — 주기가 오면 사람이 연다
 

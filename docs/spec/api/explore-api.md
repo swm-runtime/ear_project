@@ -123,7 +123,8 @@
             "duration_sec": 620,
             "thumbnail_url": "https://...",
             "content_version": 1,
-            "topic_ids": ["uuid"]
+            "topic_ids": ["uuid"],
+            "tags": ["협상", "앵커링"]
           },
           "library": null,
           "is_counted_today": false
@@ -156,6 +157,7 @@
 | `sections[].title` | **화면에 그대로 그리는 문자열.** 섹션 구성·순서·제목은 서버 제어다(`explore.md` 4.1) — 클라이언트가 `key`로 제목을 하드코딩하면 서버가 섹션을 바꿀 수 없다 |
 | `sections[].topic` | `topic_group` 섹션만 값이 있다. 탭 시 그 주제로 4.2를 호출하는 데 쓴다 |
 | `sections[].period` | **`popular` 섹션만 값이 있다**(`week` / `month` / `all`). 그 섹션이 어느 구간으로 만들어졌는지이며, **구간 토글의 선택 상태를 그리는 근거다**(`explore-uiux.md` 4.10). 다른 섹션에서는 생략하거나 `null`이다 |
+| `content.tags` | 화면 해시태그('#' 없이 — **'#'은 화면이 붙인다**). 2~4개, 받은 적 없는 콘텐츠는 **빈 배열**(`null`이 아니다). 표시용이며 탭 동작·필터 연결은 없다(추가 2026-10-08, KAN-162 — 저장은 `domain.md` 5.1 `contents.tags`). 4.2·4.4·검색 결과도 같은 항목 모양이라 함께 실린다 |
 | `library` | 이 콘텐츠의 라이브러리 상태. **없으면 `null`** — 라이브러리에 담기지 않은 상태다 |
 | `library.item_id` / `source` / `status` | `library_items` 원값. **더보기 시트의 담기/제거 분기와 완청 체크 마킹**에 쓴다(`explore-uiux.md` 4.1) — 완청은 `status == 'completed'`로 가르며, **행에 담김 표시는 두지 않는다** |
 | `is_counted_today` | 이 콘텐츠가 **재청취 창 안**에 있는가 — 최근 15일(당일 포함) 내 차감 행(`play_records.is_counted = true`)이 있어, 재생해도 차감이 없는 상태(개정 2026-08-10 — `paywall.md` 4.3-1 · `library-api.md` 4.1과 같은 필드, 같은 정의). 재생 확인 팝업을 **탭 즉시** 띄우기 위한 힌트다 |
@@ -408,7 +410,7 @@
 
 | 필드 | 타입 | 필수 | 비고 |
 |---|---|---|---|
-| query | string | 필수(**트림 후 2자 이상** — 개정 2026-08-23) | 제목·설명·저자·주제명 대상(`explore.md` 4.5-2) |
+| query | string | 필수(**트림 후 2자 이상** — 개정 2026-08-23, **100자 이하** — 서버 상한, 등재 2026-10-10) | 제목·설명·저자·주제명 대상(`explore.md` 4.5-2) |
 | topic_ids | string (uuid 콤마 구분) | 선택 | 검색 결과에 주제 필터를 겹칠 때 |
 | cursor | string(opaque) | 선택 | 직전 응답의 `next_cursor` |
 | limit | int | 선택(기본 `20`, 최대 `50`) | 페이지 단위 20건(`explore.md` 4.5-3). 상한을 서버가 강제한다(`architecture.md` 9.3) |
@@ -457,7 +459,7 @@
 | 코드 | HTTP | 상황 |
 |---|---|---|
 | `EXPLORE_CURSOR_INVALID` | 400 | 커서 형식 오류, 또는 발급 시점과 다른 `query`·`topic_ids` |
-| `VALIDATION_FAILED` | 400 | `query` 누락·트림 후 2자 미만·특수문자만, `limit` 범위 초과 |
+| `VALIDATION_FAILED` | 400 | `query` 누락·트림 후 2자 미만·100자 초과·특수문자만, `limit` 범위 초과 |
 
 ---
 
@@ -567,7 +569,7 @@ GET /explore/feed                       → 섹션형 피드 + daily_play_limit/
 
 ## 9. 미결 사항
 
-- ~~주제 칩 목록을 내려줄 엔드포인트가 없다~~ → **확정(합의 2026-08-07): `GET /explore/topics` 신설**(3장 · 4.2-2). 관심 주제를 선택한 순서로 앞에 두고 나머지를 `display_order` 순으로 붙인다. 구현은 티켓으로 이관했다(`tickets/backend/pending/explore-topics-endpoint.md` · `tickets/frontend/pending/explore-topics-endpoint.md`). ~~숨김 처리된 관심 주제도 포함한다~~ → **개정(결정 2026-08-11): 숨김 주제는 관심 주제여도 제외한다**(4.2-2).
+- ~~주제 칩 목록을 내려줄 엔드포인트가 없다~~ → **확정(합의 2026-08-07): `GET /explore/topics` 신설**(3장 · 4.2-2). 관심 주제를 선택한 순서로 앞에 두고 나머지를 `display_order` 순으로 붙인다. 구현은 티켓으로 이관했다(`tickets/backend/archive/explore-topics-endpoint.md` · `tickets/frontend/archive/explore-topics-endpoint.md`). ~~숨김 처리된 관심 주제도 포함한다~~ → **개정(결정 2026-08-11): 숨김 주제는 관심 주제여도 제외한다**(4.2-2).
     - **관심사 관리 화면(`interest-management.md`)도 전체 주제 목록이 필요하다.** 같은 엔드포인트를 재사용할지는 그 화면의 API 명세를 쓸 때 정한다.
     - **프로필의 관심 주제 요약(`profile-api.md` 4.1)은 `display_order` 순이라 칩 줄과 순서가 다르다.** 목적이 달라(칩은 필터 조작, 카드는 요약) 의도된 차이로 두되, 어긋나 보인다는 지적이 나오면 함께 정한다.
 - ~~담기 UI의 features 개정 필요~~ → **해소(2026-08-06): `explore.md` 4.3 개정 완료.** 담기/제거는 더보기 시트가 소유하고 행에는 담기 버튼도 담김 표시도 없다(2026-08-07 개정 — `explore-uiux.md` 4.1) — 이 문서 4.3·4.4·6장이 그 확정과 정합하며, `library` 필드 계약은 그대로다.

@@ -1,7 +1,7 @@
-import { Platform } from 'react-native';
+import { Platform, type ColorValue } from 'react-native';
 import Svg, { Circle, Defs, G, Mask, Path, Rect } from 'react-native-svg';
 
-import { theme } from '@/shared/theme';
+import { useResolvedColor, useThemePalette } from '@/shared/theme';
 
 import PersonIcon from './PersonIcon';
 
@@ -9,7 +9,7 @@ export type TabBarIconName = 'library' | 'explore' | 'profile';
 
 interface TabBarIconProps {
   name: TabBarIconName;
-  color: string;
+  color: ColorValue;
   /** 선택된 탭은 면으로, 나머지는 선으로 그린다 */
   focused: boolean;
   size: number;
@@ -72,7 +72,10 @@ const NEEDLE_HOLE = 'M12 10.8a1.2 1.2 0 1 0 0 2.4a1.2 1.2 0 1 0 0-2.4Z';
  * 어깨). SF Symbols 는 애플 플랫폼 밖에서 쓸 수 없어(라이선스) 벡터를 가져오지 않고 치수만 재서 직접 그렸다.
  * 이 SVG 는 Android 와 iOS 26 미만의 캡슐 탭 바, 첫 실행 튜토리얼이 쓴다(iOS 26 은 시스템 SF Symbols)
  */
-export default function TabBarIcon({ name, color, focused, size }: TabBarIconProps) {
+export default function TabBarIcon({ name, color: colorValue, focused, size }: TabBarIconProps) {
+  // 토큰(iOS 동적 색)을 지금 모드의 문자열로 — SVG·기호는 문자열 색만 받는다(다크 모드, 2026-10-10)
+  const color = useResolvedColor(colorValue);
+  const onPrimaryColor = useThemePalette().onPrimary;
   if (name === 'library' && Platform.OS === 'android') {
     // Android 는 Solar library(위 상수 주석) — iOS 탭 바를 따른 책 아이콘은 iOS 26 미만·튜토리얼에 남는다
     return focused ? (
@@ -160,7 +163,7 @@ export default function TabBarIcon({ name, color, focused, size }: TabBarIconPro
       return (
         <Svg width={size} height={size} viewBox="0 0 24 24">
           <Circle cx="12" cy="12" r="11.5" fill={color} />
-          <Path d={`${NEEDLE} ${NEEDLE_HOLE}`} fill={theme.color.onPrimary} fillRule="evenodd" />
+          <Path d={`${NEEDLE} ${NEEDLE_HOLE}`} fill={onPrimaryColor} fillRule="evenodd" />
         </Svg>
       );
     }

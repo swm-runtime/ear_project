@@ -11,7 +11,7 @@
 | 시작 날짜 | 2026-10-05 |
 | 기한 | 2026-10-09 (Low — 이번 주 안) |
 | 선행 | 없음 |
-| 근거 문서 | KAN-127(FE 표시 — `tickets/frontend/pending/player-bar-section-summary.md`) · `backend/domain.md` 5.3 `content_scripts` · `frontend/design.md` |
+| 근거 문서 | KAN-127(FE 표시 — `tickets/frontend/archive/player-bar-section-summary.md`) · `backend/domain.md` 5.3 `content_scripts` · `frontend/design.md` |
 | 중요도 | Low — PM 발행(2026-10-05). 중요도 미지정이라 이번 주 마감으로 잡았다 — 바꾸려면 Jira·이 표를 함께 고친다 |
 | 상태 | **완료** (2026-10-06) — 1·2·4번 반영, 3번(표시 디자인)은 KAN-127(FE)로 이관 |
 

@@ -36,6 +36,8 @@ export class WeeklyListeningResponseDto {
   readonly week_start: string;
   /** 월~일 **7개 고정 배열**(초). 기록 없는 요일도 0으로 자리를 지킨다 */
   readonly daily_listened_sec: number[];
+  /** 그 주 청취 시간 전체 상위 %(1~50). 0초이거나 상위 50% 밖이면 `null` → 알약을 그리지 않는다(KAN-168) */
+  readonly listening_top_percent: number | null;
   /** `null`이면 이전 주가 없다(가입 주) → [◀] 비활성 */
   readonly previous_week_start: string | null;
   /** `null`이면 이번 주다 → [다음 주 ▶] 비활성 */
@@ -49,6 +51,7 @@ export class WeeklyListeningResponseDto {
     return {
       week_start: view.weekStart,
       daily_listened_sec: view.dailyListenedSec,
+      listening_top_percent: view.listeningTopPercent,
       previous_week_start: view.previousWeekStart,
       next_week_start: view.nextWeekStart,
       topic_distribution: TopicDistributionDto.from(view.topicDistribution),

@@ -51,6 +51,7 @@ const purchaseOf = (overrides: Partial<StorePurchase> = {}): StorePurchase => ({
   transactionId: 'tx-1',
   productId: INTENT.storeProductId,
   token: 'signed-jws',
+  obfuscatedAccountId: null,
   state: 'purchased',
   raw: {},
   ...overrides,
@@ -61,7 +62,7 @@ const apiError = (code: string, retryable = false) =>
 
 /* ── 가짜 스토어·서버 ── */
 
-const createHarness = (platform: PurchasePlatform = 'ios') => {
+const createHarness = (platform: PurchasePlatform = 'ios', supportsDeferredDowngrade = true) => {
   let updatedListener: ((purchase: StorePurchase) => void) | null = null;
   let errorListener: ((error: StoreError) => void) | null = null;
   const scheduled: { callback: () => void; delayMs: number; cancelled: boolean }[] = [];
@@ -76,6 +77,9 @@ const createHarness = (platform: PurchasePlatform = 'ios') => {
     finish: jest.fn<IapAdapter['finish']>().mockResolvedValue(undefined),
     getUnfinished: jest.fn<IapAdapter['getUnfinished']>().mockResolvedValue([]),
     getActiveForRestore: jest.fn<IapAdapter['getActiveForRestore']>().mockResolvedValue([]),
+    findReplaceable: jest.fn<IapAdapter['findReplaceable']>().mockResolvedValue(null),
+    supportsDeferredDowngrade,
+    resolvesDirectly: jest.fn<IapAdapter['resolvesDirectly']>().mockReturnValue(false),
     onPurchaseUpdated: jest.fn((listener: (purchase: StorePurchase) => void) => {
       updatedListener = listener;
       return () => {
@@ -414,6 +418,210 @@ describe('PurchaseService', () => {
       // then
       expect(outcome).toEqual({ kind: 'cancelled' });
       expect(h.api.submit).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('Android 요금제 변경 — 지금 구독을 교체한다(KAN-158)', () => {
+    const CURRENT_DAILY = purchaseOf({
+      transactionId: 'tx-daily',
+      productId: 'com.runtime.ear.subscription.daily.monthly',
+      token: 'daily-token',
+      // Daily 를 살 때 실은 결제 의도 id — 교체 결제는 새 의도 id 가 아니라 이 값을 싣는다(Google 규칙)
+      obfuscatedAccountId: 'intent-daily',
+    });
+
+    beforeEach(() => {
+      h = createHarness('android');
+    });
+
+    const resolveByListener = () =>
+      h.adapter.requestSubscription.mockImplementation(async () => {
+        setTimeout(() => h.emitUpdated(purchaseOf({ token: 'play-token' })), 0);
+        return [];
+      });
+
+    it('업그레이드는 지금 구독 토큰과 그 구독의 계정 id 를 넘겨 즉시 + 비례 정산으로 교체한다', async () => {
+      // given
+      await h.service.start();
+      h.adapter.findReplaceable.mockResolvedValue(CURRENT_DAILY);
+      resolveByListener();
+
+      // when
+      const outcome = await h.service.purchase(
+        { ...PRO_PLAN, action: 'upgrade' },
+        'settings',
+        CURRENT_DAILY.productId,
+      );
+
+      // then
+      expect(h.adapter.findReplaceable).toHaveBeenCalledWith(
+        INTENT.storeProductId,
+        CURRENT_DAILY.productId,
+      );
+      expect(h.adapter.requestSubscription).toHaveBeenCalledWith({
+        productId: INTENT.storeProductId,
+        accountToken: 'intent-1',
+        replace: {
+          purchaseToken: 'daily-token',
+          oldProductId: CURRENT_DAILY.productId,
+          accountToken: 'intent-daily',
+          mode: 'chargeProrated',
+        },
+      });
+      expect(outcome.kind).toBe('success');
+    });
+
+    it('다운그레이드는 다음 갱신부터(deferred)로 교체한다', async () => {
+      // given
+      await h.service.start();
+      h.adapter.findReplaceable.mockResolvedValue(CURRENT_DAILY);
+      resolveByListener();
+
+      // when
+      await h.service.purchase({ ...PRO_PLAN, action: 'downgrade' }, 'settings');
+
+      // then
+      expect(h.adapter.requestSubscription).toHaveBeenCalledWith(
+        expect.objectContaining({ replace: expect.objectContaining({ mode: 'deferred' }) }),
+      );
+    });
+
+    it('다운그레이드를 예약할 수 없는 빌드(교체 모듈 없음)면 결제 의도도 시트도 없이 업데이트 안내다', async () => {
+      // given
+      h = createHarness('android', false);
+      await h.service.start();
+
+      // when
+      const outcome = await h.service.purchase({ ...PRO_PLAN, action: 'downgrade' }, 'settings');
+
+      // then
+      expect(outcome).toEqual({ kind: 'failed', reason: 'downgradeNeedsUpdate' });
+      expect(h.api.createIntent).not.toHaveBeenCalled();
+      expect(h.adapter.requestSubscription).not.toHaveBeenCalled();
+    });
+
+    it('교체 모듈 경로에서 다음 갱신부터 교체가 옛 구독 구매를 돌려주면 그걸 제출해 끝낸다 — 리스너를 기다리지 않는다', async () => {
+      // given — DEFERRED 는 대상(Daily)이 아니라 지금 구독(Pro)의 구매가 온다
+      await h.service.start();
+      h.adapter.findReplaceable.mockResolvedValue(CURRENT_DAILY);
+      h.adapter.resolvesDirectly.mockReturnValue(true);
+      const oldPro = purchaseOf({
+        transactionId: 'tx-pro',
+        productId: 'pro.old',
+        token: 'pro-token',
+      });
+      h.adapter.requestSubscription.mockResolvedValue([oldPro]);
+
+      // when
+      const outcome = await h.service.purchase({ ...PRO_PLAN, action: 'downgrade' }, 'settings');
+
+      // then
+      expect(h.api.submit).toHaveBeenCalledWith(expect.objectContaining({ intentId: 'intent-1' }));
+      expect(outcome.kind).toBe('success');
+    });
+
+    it('교체 모듈 경로가 빈 목록을 돌려주면 로딩을 끝내고 delayed 다', async () => {
+      // given
+      await h.service.start();
+      h.adapter.findReplaceable.mockResolvedValue(CURRENT_DAILY);
+      h.adapter.resolvesDirectly.mockReturnValue(true);
+      h.adapter.requestSubscription.mockResolvedValue([]);
+
+      // when
+      const outcome = await h.service.purchase({ ...PRO_PLAN, action: 'downgrade' }, 'settings');
+
+      // then
+      expect(outcome).toEqual({ kind: 'delayed' });
+      expect(h.api.submit).not.toHaveBeenCalled();
+    });
+
+    it('이미 다음 갱신부터 교체가 예약돼 있으면 downgradeAlreadyScheduled 다', async () => {
+      // given
+      await h.service.start();
+      h.adapter.findReplaceable.mockResolvedValue(CURRENT_DAILY);
+      h.adapter.requestSubscription.mockRejectedValue(
+        new StoreError(
+          'rejected',
+          '5: There is an existing deferred replacement for the old product',
+        ),
+      );
+
+      // when
+      const outcome = await h.service.purchase({ ...PRO_PLAN, action: 'downgrade' }, 'settings');
+
+      // then
+      expect(outcome).toMatchObject({ kind: 'failed', reason: 'downgradeAlreadyScheduled' });
+    });
+
+    it('스토어가 교체를 거절하면(DEVELOPER_ERROR) changeRejected 이고 원문을 detail 로 싣는다', async () => {
+      // given
+      await h.service.start();
+      h.adapter.findReplaceable.mockResolvedValue(CURRENT_DAILY);
+      h.adapter.requestSubscription.mockRejectedValue(
+        new StoreError('rejected', "5: Account identifiers don't match"),
+      );
+
+      // when
+      const outcome = await h.service.purchase({ ...PRO_PLAN, action: 'upgrade' }, 'settings');
+
+      // then
+      expect(outcome).toEqual({
+        kind: 'failed',
+        reason: 'changeRejected',
+        detail: "5: Account identifiers don't match",
+      });
+    });
+
+    it('바꿀 지금 구독이 기기에 없으면 결제 시트를 열지 않는다 — 두 번째 구독을 만들지 않는다', async () => {
+      // given
+      await h.service.start();
+      h.adapter.findReplaceable.mockResolvedValue(null);
+
+      // when
+      const outcome = await h.service.purchase({ ...PRO_PLAN, action: 'upgrade' }, 'settings');
+
+      // then
+      expect(outcome).toEqual({ kind: 'failed', reason: 'replaceSourceMissing' });
+      expect(h.adapter.requestSubscription).not.toHaveBeenCalled();
+    });
+
+    it('새 구독(purchase)은 교체 없이 결제한다', async () => {
+      // given
+      await h.service.start();
+      resolveByListener();
+
+      // when
+      await h.service.purchase(PRO_PLAN, 'paywall');
+
+      // then
+      expect(h.adapter.findReplaceable).not.toHaveBeenCalled();
+      expect(h.adapter.requestSubscription.mock.calls[0][0].replace).toBeUndefined();
+    });
+
+    it('서버가 두 번째 구독(SUBSCRIPTION_ALREADY_SUBSCRIBED)으로 거부하면 alreadySubscribed 다 — "결제 실패"가 아니다', async () => {
+      // given
+      await h.service.start();
+      resolveByListener();
+      h.api.submit.mockRejectedValue(apiError(ERROR_CODES.SUBSCRIPTION_ALREADY_SUBSCRIBED));
+
+      // when
+      const outcome = await h.service.purchase(PRO_PLAN, 'paywall');
+
+      // then
+      expect(outcome).toEqual({ kind: 'failed', reason: 'alreadySubscribed' });
+      expect(h.adapter.finish).not.toHaveBeenCalled();
+    });
+
+    it('iOS 는 요금제 변경이어도 교체 입력을 만들지 않는다 — 구독 그룹이 바꾼다', async () => {
+      // given
+      h = createHarness('ios');
+
+      // when
+      await h.service.purchase({ ...PRO_PLAN, action: 'upgrade' }, 'settings');
+
+      // then
+      expect(h.adapter.findReplaceable).not.toHaveBeenCalled();
+      expect(h.adapter.requestSubscription.mock.calls[0][0].replace).toBeUndefined();
     });
   });
 

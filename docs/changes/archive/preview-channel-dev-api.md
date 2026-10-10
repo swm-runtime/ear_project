@@ -3,7 +3,7 @@
 | 항목 | 값 |
 |---|---|
 | 대상 문서 | `frontend/architecture.md` 2.1(OTA 번들 env 규칙, "eas.json 과 같은 값" 문단) · `infra/runbook.md` 4장(배포 흐름 표 — 앱 채널 행) |
-| 요청 파트 | 문서(FE 구현은 `chore(fe)/preview-channel-dev-api`에서 선반영 — 티켓 `tickets/frontend/pending/dev-api-test-method.md`, KAN-65) |
+| 요청 파트 | 문서(FE 구현은 `chore(fe)/preview-channel-dev-api`에서 선반영 — 티켓 `tickets/frontend/archive/dev-api-test-method.md`, KAN-65) |
 | 발행 날짜 | 2026-09-17 |
 | 발견 시점 | KAN-62 배포 흐름 전환 뒤 dev 머지 백엔드를 폰 앱으로 확인할 통로가 없었다 — KAN-65 결정 A |
 | 심각도 | 하 — 운영 규칙 명시. 스토어 앱의 동작은 바뀌지 않는다 |
