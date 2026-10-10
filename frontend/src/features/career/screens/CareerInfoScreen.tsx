@@ -1,4 +1,4 @@
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { theme } from '@/shared/theme';
@@ -12,6 +12,7 @@ import { Text, TextInput } from '@/shared/ui/Typography';
 
 import { JOB_TITLE_MAX_LENGTH } from '../career.constants';
 import { CAREER_COPY } from '../career.copy';
+import { jobCategoryImageSource } from '../career.images';
 import type { YearsOfExperienceRange } from '../career.types';
 import CareerDialog from '../components/CareerDialog';
 import { useCareerInfoScreen } from '../hooks/useCareerInfoScreen';
@@ -106,6 +107,16 @@ export default function CareerInfoScreen() {
                         accessibilityState={{ checked: isSelected, disabled: screen.isSaving }}
                         accessibilityLabel={category.name}
                       >
+                        {/* 배경 사진 + 막 — 고른 칩은 사진이 짙게 살아나고 흰 글자, 나머지는 흰 막에 물러난다(PM 2026-10-10 17:47) */}
+                        <Image
+                          source={jobCategoryImageSource(category.name)}
+                          resizeMode="cover"
+                          style={styles.chipPhoto}
+                        />
+                        <View
+                          style={[styles.chipScrim, isSelected && styles.chipScrimSelected]}
+                          pointerEvents="none"
+                        />
                         <Text style={[styles.chipLabel, isSelected && styles.chipLabelSelected]}>
                           {category.name}
                         </Text>
@@ -308,19 +319,39 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     gap: theme.spacing.sm,
   },
+  // 사진 알약 — 테두리 없이 배경 사진(PM 2026-10-10 17:47). 사진·막 클리핑은 칩이 한 번만 한다
   chip: {
     minHeight: theme.touchTarget.minHeight,
     paddingHorizontal: theme.spacing.md,
     borderRadius: theme.radius.lg + theme.radius.sm,
     borderCurve: 'continuous',
-    borderWidth: 1.5,
-    borderColor: theme.color.border,
+    overflow: 'hidden',
     alignItems: 'center',
     justifyContent: 'center',
+    backgroundColor: theme.color.surface,
   },
-  chipSelected: {
-    borderColor: theme.color.primary,
-    backgroundColor: theme.color.primary,
+  chipSelected: {},
+  /** inset 과 퍼센트 크기를 함께 준다 — 웹에서 inset 만으로는 원본 크기가 남는다(TopicChip 과 같은 규칙) */
+  chipPhoto: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    width: '100%',
+    height: '100%',
+  },
+  // 고르지 않은 칩은 흰 막으로 물러나 글자가 검정으로 읽힌다 — 고른 칩과 밝기로 크게 갈려 색만이 아니라 대비로 구분된다
+  chipScrim: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(255, 255, 255, 0.74)',
+  },
+  chipScrimSelected: {
+    backgroundColor: 'rgba(0, 0, 0, 0.42)',
   },
   chipLabel: {
     fontSize: theme.font.size.sm,
@@ -331,6 +362,9 @@ const styles = StyleSheet.create({
   },
   chipLabelSelected: {
     color: theme.color.onPrimary,
+    textShadowColor: theme.color.photoTextShadow,
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 4,
   },
   // 연차 한 줄 구간 선택 — 옅은 트랙 위에 고른 칸만 검정(직군 칩의 선택과 같은 색)
   segment: {
