@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { EntityManager, IsNull, LessThan, Repository } from 'typeorm';
 
+import { SessionRevokedReason } from './auth.enum';
 import { Session } from './session.entity';
 
 @Injectable()
@@ -37,6 +38,8 @@ export class SessionRepository {
    * `findByRefreshTokenHash` → `save`의 read-modify-write는 동시 갱신 두 건이 둘 다
    * `revoked_at IS NULL`을 보고 통과해 한 토큰에서 세션 두 개가 나오는 경합이 있었다
    * (재사용 탐지가 우회됨 — 2026-09-09 감사). 이 경로는 한 건만 `true`를 받는다.
+   *
+   * 사유는 `rotated`다 — 이 토큰이 다시 오면 그때가 탈취 의심이다(KAN-167).
    */
   async revokeIfActive(
     id: string,
@@ -45,12 +48,13 @@ export class SessionRepository {
   ): Promise<boolean> {
     const result = await this.scoped(manager).update(
       { id, revokedAt: IsNull() },
-      { revokedAt },
+      { revokedAt, revokedReason: SessionRevokedReason.ROTATED },
     );
 
     return (result.affected ?? 0) > 0;
   }
 
+  /** 탈취 의심으로 사용자 세션 전체를 끊는다 — 사유는 `reuse_detected` */
   async revokeAllByUserId(
     userId: string,
     revokedAt: Date,
@@ -58,7 +62,7 @@ export class SessionRepository {
   ): Promise<void> {
     await this.scoped(manager).update(
       { userId, revokedAt: IsNull() },
-      { revokedAt },
+      { revokedAt, revokedReason: SessionRevokedReason.REUSE_DETECTED },
     );
   }
 
@@ -79,6 +83,7 @@ export class SessionRepository {
     return result.affected ?? 0;
   }
 
+  /** 그 기기의 로그아웃 — 사유는 `logout`. 이 토큰의 재제출은 탈취가 아니다(KAN-167) */
   async revokeByUserIdAndDeviceId(
     userId: string,
     deviceId: string,
@@ -87,7 +92,7 @@ export class SessionRepository {
   ): Promise<void> {
     await this.scoped(manager).update(
       { userId, deviceId, revokedAt: IsNull() },
-      { revokedAt },
+      { revokedAt, revokedReason: SessionRevokedReason.LOGOUT },
     );
   }
 }

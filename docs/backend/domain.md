@@ -269,12 +269,20 @@ sessions
   issued_at                 timestamptz
   expires_at                timestamptz
   revoked_at                timestamptz     NULL
+  revoked_reason            enum            NULL   rotated | logout | reuse_detected   ★폐기 사유 (2026-10-10, KAN-167)
 
 idx_sessions_user_id
 idx_sessions_refresh_token_hash
 ```
 
 - 다중 기기 동시 로그인을 허용한다. 로그아웃은 해당 기기 세션만 폐기한다(`auth.md` 7).
+- **`revoked_reason`은 폐기 때 `revoked_at`과 함께 쓴다**(2026-10-10, KAN-167). 갱신이 폐기된 토큰을 받았을 때 **탈취로 볼지의 근거**다 — 계약은 "이미 **회전된** 토큰의 재제출"만 탈취 의심(`auth-api.md` 4.3 `AUTH_REFRESH_TOKEN_REUSED`)이다.
+  - `rotated` — 갱신으로 회전됨. 이 토큰이 다시 오면 REUSED + 사용자 세션 전체 폐기.
+  - `logout` — 그 기기의 로그아웃. 이 토큰이 다시 오면 `AUTH_REFRESH_TOKEN_INVALID`만 — 로그아웃 204 직후 로컬 삭제 전에 자동 갱신이 실어 보낼 수 있는 정상 경합이라 다른 기기를 건드리지 않는다.
+  - `reuse_detected` — 재사용 감지로 함께 끊긴 세션. 회전된 토큰이 아니므로 다시 와도 INVALID다(이미 전부 끊겼다).
+  - **NULL** — 활성 세션, 또는 이 컬럼 도입 전에 폐기된 행(사유 모름). 폐기된 NULL 행은 **종전대로 회전으로 보고** REUSED로 판정한다 — 마이그레이션이 옛 행의 판정을 바꾸지 않게 한다. 폐기 행은 30일 뒤 지워지므로([12.1](#121-운영-중-삭제-정책)) 저절로 사라진다.
+  - 회원 탈퇴는 폐기가 아니라 행 삭제(`users` FK CASCADE)라 사유 값이 없다.
+  - 물리 컬럼은 `varchar(20)` + TypeScript enum `SessionRevokedReason`(`convention.md` 4.2). 대안으로 "같은 사용자·기기의 더 새 세션이 있으면 회전"이라는 추론(컬럼 없음)을 검토했으나, 회전 직후 새 세션까지 로그아웃된 경우 판정이 흐려져 사유를 직접 남겼다.
 - **원문 토큰을 저장하지 않는다.** 해시만 저장한다.
 
 ### 3.4 `withdrawal_logs`

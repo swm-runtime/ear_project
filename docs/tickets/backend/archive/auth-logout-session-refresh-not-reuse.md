@@ -13,7 +13,7 @@
 | 선행 | 없음 |
 | 근거 문서 | `spec/api/auth-api.md` 4.3(REUSED 는 "이미 회전된 토큰") · `backend/architecture.md` 9.1 · `features/auth.md` 4.2(로그아웃 순서: 서버 폐기 → 로컬 삭제) · `features/common-error-handling.md` 4.1(401 → 단일 인플라이트 갱신) |
 | 중요도 | Medium — 발생 조건이 좁지만(로그아웃 직후 수 ms 안의 자동 갱신) 결과가 "다른 기기까지 로그아웃"이라 사용자가 설명할 수 없는 현상이다. 2026-10-09 전체 검증(인증 리뷰) 발견 |
-| 상태 | 대기 |
+| 상태 | 완료 (반영 날짜 2026-10-10) |
 
 ## 현상
 
@@ -46,3 +46,13 @@
 ## 처리 기록
 
 - 2026-10-09 발행(마크다운 + Jira). 2026-10-09 백엔드 전체 검증(인증 코어 리뷰)에서 발견. 코드 대조: `auth.service.ts` 174~189행.
+- **2026-10-10 — 반영(반영 날짜 2026-10-10).** 1-(a)를 골랐다 — `sessions.revoked_reason`(`rotated | logout | reuse_detected`, NULL 허용) 추가. (b)는 컬럼이 없지만 "회전 직후 새 세션도 로그아웃"처럼 같은 기기의 더 새 세션 유무가 사유를 말해 주지 못하는 경우 판정이 흐려지고, 판정이 다른 행의 존재에 기대 경합에도 약하다. 사유를 폐기 시점에 직접 남기면 갱신은 그 행 하나만 보고 판정한다.
+  - 폐기 경로 전수: 회전(`SessionRepository.revokeIfActive` → `rotated`) · 로그아웃(`revokeByUserIdAndDeviceId` → `logout`) · 재사용 감지 전체 폐기(`revokeAllByUserId` → `reuse_detected`) — 이 셋뿐이다. 회원 탈퇴는 `users` FK CASCADE 로 행을 지우므로 사유가 없다.
+  - `refresh`: 폐기 + 사유 `rotated` 또는 **NULL**(컬럼 도입 전 폐기 행 — 사유를 모르므로 종전 동작 유지) → REUSED + 전체 폐기. `logout`·`reuse_detected` → `AUTH_REFRESH_TOKEN_INVALID`만, 다른 세션 미변경.
+  - 문서: `domain.md` 3.3(컬럼·값 의미·NULL 취급) · `architecture.md` 9.1(탈취 판정 범위) 개정. `auth-api.md` 4.3 반영 요청은 `changes/pending/auth-refresh-logout-token-invalid.md`. 마이그레이션 `1789500000000-AddSessionRevokedReason`(기존 행 미변경, revert 확인).
+  - 완료 조건 1(로그아웃 토큰 → INVALID·B 유지): E2E `test/auth-refresh.e2e-spec.ts` 첫 케이스 — A 로그아웃 뒤 A 옛 토큰 401 `AUTH_REFRESH_TOKEN_INVALID`, A 행 `revoked_reason = logout`, B 행 활성이고 B 갱신 200.
+  - 완료 조건 2(회전 토큰 → REUSED·전체 폐기): 같은 E2E 둘째 케이스 — 회전된 A 옛 토큰 401 `AUTH_REFRESH_TOKEN_REUSED`, 활성 세션 0, B 행 `reuse_detected`, 함께 끊긴 토큰 재제출은 INVALID.
+  - 완료 조건 3: `auth.service.spec.ts` refresh 에 로그아웃 사유 → INVALID·`revokeAllByUserId` 미호출 / 회전 사유 → REUSED·전체 폐기 / `reuse_detected` → INVALID / 사유 NULL → REUSED(종전 유지) 4건.
+  - 완료 조건 4: `domain.md` 3.3 반영 · `auth-api.md` 4.3 은 `changes/pending` 경유 기록.
+  - 검증(로컬): lint·build 통과, 유닛 135 스위트 1581건 통과, E2E 17 스위트 81건 통과, `migration:revert` → `migration:run` 왕복 확인.
+  - 함께 본 것(device_id 대조)은 (a)를 골라 이번 범위에 넣지 않았다.
