@@ -2,11 +2,8 @@ import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View } from 'reac
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { theme } from '@/shared/theme';
-import ChevronIcon from '@/shared/ui/ChevronIcon';
 import FullScreenError from '@/shared/ui/FullScreenError';
 import GlassCapsule, { HEADER_CONTROL_HEIGHT } from '@/shared/ui/GlassCapsule';
-import GlassIconButton from '@/shared/ui/GlassIconButton';
-import { pillButton } from '@/shared/ui/pill-button.styles';
 import { SkeletonBlock, SkeletonGroup } from '@/shared/ui/Skeleton';
 import { Text, TextInput } from '@/shared/ui/Typography';
 
@@ -25,17 +22,31 @@ const YEARS_OPTIONS: YearsOfExperienceRange[] = ['0-1', '2-3', '4-6', '7+'];
  */
 export default function CareerInfoScreen() {
   const screen = useCareerInfoScreen();
+  // 저장 실패(CR4)면 [완료]가 같은 편집 값으로 다시 보낸다 — 변경 있음 판정과 무관하게 켜 둔다
+  const isRetry = screen.saveError?.isRetryable === true;
+  const canDone = !screen.isSaving && (isRetry || screen.canSave);
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* 앱바 — 뒤로가기 + "커리어 정보" + 우측 [초기화]. [저장](하단 독)과 오탭 거리를 두는
-          배치가 확인 팝업 없는 즉시 실행의 전제다(career-uiux.md 4.2) */}
+      {/*
+        앱바 — **iOS 편집 화면 문법**(PM 2026-10-10 A안): 왼쪽 [취소] · 가운데 제목 · 오른쪽 [완료]. 종전 하단 독 [저장]과
+        앱바 [초기화]를 대신한다. [취소]는 뒤로가기와 같다(변경 있으면 이탈 확인 CR5). [완료]는 변경 있을 때만 켜지고(값 비교 —
+        uiux 4.1), 저장 실패 뒤에는 같은 편집 값으로 다시 보낸다(CR4). [모두 지우기]는 [완료]에서 먼 폼 맨 아래다(오탭 거리, 4.2)
+      */}
       <View style={styles.appBar}>
-        {/* 뒤로 — 유리 원 안의 셰브론(상세 화면과 같은 문법, PM 2026-09-28 03:07) */}
-        <GlassIconButton onPress={screen.handleBackPress} accessibilityLabel={CAREER_COPY.backA11y}>
-          <ChevronIcon direction="left" size={BACK_ICON_SIZE} color={theme.color.textPrimary} />
-        </GlassIconButton>
-        {/* 터치를 통과시키는 View 로 감싼다 — Android 의 Text 는 pointerEvents 를 따르지 않아, 줄 전체에 겹친 제목이 뒤로 원의
+        <GlassCapsule style={styles.barCapsule}>
+          <Pressable
+            style={styles.barButton}
+            onPress={screen.handleBackPress}
+            disabled={screen.isSaving}
+            accessibilityRole="button"
+            accessibilityLabel={CAREER_COPY.cancel}
+            hitSlop={BAR_HIT_SLOP}
+          >
+            <Text style={styles.barLabel}>{CAREER_COPY.cancel}</Text>
+          </Pressable>
+        </GlassCapsule>
+        {/* 터치를 통과시키는 View 로 감싼다 — Android 의 Text 는 pointerEvents 를 따르지 않아, 줄 전체에 겹친 제목이 버튼
             탭을 가로챌 수 있다(AndroidCollapsingBar 제목과 같은 이유, 2026-09-30) */}
         <View style={styles.appBarTitleBox} pointerEvents="none">
           <Text style={styles.appBarTitle} accessibilityRole="header">
@@ -43,21 +54,25 @@ export default function CareerInfoScreen() {
           </Text>
         </View>
         <View style={styles.appBarFill} />
-        {/* [초기화] — 뒤로와 같은 유리 재질의 알약(글자 버튼이라 원이 아니라 캡슐이다) */}
-        <GlassCapsule style={styles.resetCapsule}>
+        <GlassCapsule style={styles.barCapsule}>
           <Pressable
-            style={styles.resetButton}
-            disabled={!screen.canReset}
-            onPress={screen.resetForm}
+            style={styles.barButton}
+            disabled={!canDone}
+            onPress={isRetry ? screen.retrySave : screen.handleSavePress}
             accessibilityRole="button"
-            accessibilityLabel={CAREER_COPY.resetA11yLabel}
-            accessibilityHint={CAREER_COPY.resetA11yHint}
-            accessibilityState={{ disabled: !screen.canReset }}
-            hitSlop={RESET_HIT_SLOP}
+            accessibilityLabel={CAREER_COPY.done}
+            accessibilityState={{ disabled: !canDone, busy: screen.isSaving }}
+            hitSlop={BAR_HIT_SLOP}
           >
-            <Text style={[styles.resetLabel, !screen.canReset && styles.resetLabelDisabled]}>
-              {CAREER_COPY.reset}
-            </Text>
+            {screen.isSaving ? (
+              <ActivityIndicator color={theme.color.textPrimary} />
+            ) : (
+              <Text
+                style={[styles.barLabel, styles.doneLabel, !canDone && styles.barLabelDisabled]}
+              >
+                {CAREER_COPY.done}
+              </Text>
+            )}
           </Pressable>
         </GlassCapsule>
       </View>
@@ -128,76 +143,56 @@ export default function CareerInfoScreen() {
                 />
 
                 <Text style={styles.fieldLabel}>{CAREER_COPY.yearsLabel}</Text>
-                <View style={styles.chipRow}>
+                {/* 연차 — 칸이 고정된 4택이라 **한 줄 구간 선택**(세그먼트, PM 2026-10-10 A안). 줄바꿈 칩보다 같은 질문의 답으로
+                    읽힌다. 선택한 칸을 다시 누르면 해제(빈 값 저장 경로 — uiux 4.4)는 그대로다 */}
+                <View style={styles.segment}>
                   {YEARS_OPTIONS.map((option) => {
                     const isSelected = screen.yearsOfExperience === option;
                     return (
                       <Pressable
                         key={option}
-                        style={[styles.chip, isSelected && styles.chipSelected]}
+                        style={[styles.segmentItem, isSelected && styles.segmentItemSelected]}
                         disabled={screen.isSaving}
                         onPress={() => screen.toggleYears(option)}
-                        accessibilityRole="checkbox"
+                        accessibilityRole="radio"
                         accessibilityState={{ checked: isSelected, disabled: screen.isSaving }}
                         accessibilityLabel={CAREER_COPY.yearsChip[option]}
                       >
-                        <Text style={[styles.chipLabel, isSelected && styles.chipLabelSelected]}>
+                        <Text
+                          style={[styles.segmentLabel, isSelected && styles.segmentLabelSelected]}
+                          numberOfLines={1}
+                        >
                           {CAREER_COPY.yearsChip[option]}
                         </Text>
                       </Pressable>
                     );
                   })}
                 </View>
+
+                {screen.saveError !== null ? (
+                  // CR4 — 폼 하단 인라인 에러. 사용자가 시작한 저장의 직접 결과라 assertive다(uiux 7장)
+                  <Text style={styles.saveError} accessibilityLiveRegion="assertive">
+                    {screen.saveError.message}
+                  </Text>
+                ) : null}
+
+                {/* [모두 지우기] — 종전 앱바 [초기화]. [완료]와 먼 폼 맨 아래라 확인 팝업 없이 즉시 비운다(uiux 4.2) */}
+                <Pressable
+                  style={styles.clearButton}
+                  disabled={!screen.canReset || screen.isSaving}
+                  onPress={screen.resetForm}
+                  accessibilityRole="button"
+                  accessibilityLabel={CAREER_COPY.resetA11yLabel}
+                  accessibilityHint={CAREER_COPY.resetA11yHint}
+                  accessibilityState={{ disabled: !screen.canReset || screen.isSaving }}
+                >
+                  <Text style={[styles.clearLabel, !screen.canReset && styles.barLabelDisabled]}>
+                    {CAREER_COPY.reset}
+                  </Text>
+                </Pressable>
               </>
             )}
           </ScrollView>
-
-          {/* 하단 고정 독 — [저장]은 변경 사항이 있을 때만 활성이다(career.md 4.1) */}
-          <View style={styles.dock}>
-            {screen.saveError !== null ? (
-              // 사용자가 시작한 저장의 직접 결과라 assertive다(uiux 7장)
-              <Text style={styles.dockError} accessibilityLiveRegion="assertive">
-                {screen.saveError.message}
-              </Text>
-            ) : null}
-            {screen.saveError?.isRetryable === true ? (
-              /* CR4 — 같은 편집 값으로 다시 보낸다. 편집 상태는 유지된다(uiux 4.5) */
-              <Pressable
-                style={[pillButton.base, pillButton.primary, styles.save]}
-                disabled={screen.isSaving}
-                onPress={screen.retrySave}
-                accessibilityRole="button"
-                accessibilityLabel={CAREER_COPY.retry}
-                accessibilityState={{ disabled: screen.isSaving }}
-              >
-                {screen.isSaving ? (
-                  <ActivityIndicator color={theme.color.onPrimary} />
-                ) : (
-                  <Text style={styles.saveLabel}>{CAREER_COPY.retry}</Text>
-                )}
-              </Pressable>
-            ) : (
-              <Pressable
-                style={[
-                  pillButton.base,
-                  pillButton.primary,
-                  styles.save,
-                  !screen.canSave && styles.saveDisabled,
-                ]}
-                disabled={!screen.canSave}
-                onPress={screen.handleSavePress}
-                accessibilityRole="button"
-                accessibilityLabel={CAREER_COPY.save}
-                accessibilityState={{ disabled: !screen.canSave }}
-              >
-                {screen.isSaving ? (
-                  <ActivityIndicator color={theme.color.onPrimary} />
-                ) : (
-                  <Text style={styles.saveLabel}>{CAREER_COPY.save}</Text>
-                )}
-              </Pressable>
-            )}
-          </View>
         </>
       )}
 
@@ -216,11 +211,11 @@ export default function CareerInfoScreen() {
   );
 }
 
-/** 앱바 뒤로 셰브론 — 글자 `‹` 는 폰트마다 굵기·세로 위치가 달라 도형으로 그린다(design.md §5). 유리 원(40) 안쪽 값 */
-const BACK_ICON_SIZE = 20;
-
 /** 보이는 40 을 터치 44 로 채운다(design.md §6) */
-const RESET_HIT_SLOP = 2;
+const BAR_HIT_SLOP = 2;
+
+/** 구간 선택 트랙 안쪽 여백 */
+const SEGMENT_INSET = 3;
 
 const styles = StyleSheet.create({
   container: {
@@ -252,23 +247,28 @@ const styles = StyleSheet.create({
     color: theme.color.textPrimary,
   },
   // 유리 알약은 머리 줄 컨트롤 높이(40)를 쓰고, 44 터치는 안쪽 Pressable 의 hitSlop 이 채운다
-  resetCapsule: {
+  barCapsule: {
     height: HEADER_CONTROL_HEIGHT,
   },
   appBarFill: { flex: 1 },
-  resetButton: {
+  barButton: {
     flex: 1,
+    minWidth: HEADER_CONTROL_HEIGHT + theme.spacing.md,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: theme.spacing.md,
   },
-  resetLabel: {
-    fontSize: theme.font.size.sm,
-    fontWeight: '600',
-    color: theme.color.textSecondary,
+  barLabel: {
+    fontSize: theme.font.size.md,
+    fontWeight: '500',
+    color: theme.color.textPrimary,
   },
-  resetLabelDisabled: {
-    opacity: 0.4,
+  // [완료] — 주 동작이라 굵게(iOS 편집 화면의 완료와 같다)
+  doneLabel: {
+    fontWeight: '700',
+  },
+  barLabelDisabled: {
+    opacity: 0.35,
   },
   form: {
     paddingHorizontal: theme.spacing.lg,
@@ -337,26 +337,50 @@ const styles = StyleSheet.create({
     borderRadius: theme.radius.md,
     marginTop: theme.spacing.md,
   },
-  dock: {
-    gap: theme.spacing.sm,
-    paddingHorizontal: theme.spacing.lg,
-    paddingBottom: theme.spacing.md,
+  // 연차 한 줄 구간 선택 — 옅은 트랙 위에 고른 칸만 검정(직군 칩의 선택과 같은 색)
+  segment: {
+    flexDirection: 'row',
+    padding: SEGMENT_INSET,
+    gap: SEGMENT_INSET,
+    borderRadius: theme.radius.full,
+    borderCurve: 'continuous',
+    backgroundColor: theme.color.surface,
   },
-  dockError: {
+  segmentItem: {
+    flex: 1,
+    minHeight: theme.touchTarget.minHeight - SEGMENT_INSET * 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: theme.radius.full,
+    borderCurve: 'continuous',
+  },
+  segmentItemSelected: {
+    backgroundColor: theme.color.primary,
+  },
+  segmentLabel: {
+    fontSize: theme.font.size.sm,
+    fontWeight: '600',
+    color: theme.color.textPrimary,
+  },
+  segmentLabelSelected: {
+    color: theme.color.onPrimary,
+  },
+  saveError: {
+    marginTop: theme.spacing.md,
     fontSize: theme.font.size.sm,
     color: theme.color.danger,
-    textAlign: 'center',
   },
-  // 크기만 — 모양·색은 공용 알약(pillButton)
-  save: {
-    minHeight: theme.touchTarget.minHeight + theme.spacing.sm,
+  // [모두 지우기] — 폼 맨 아래 가운데 글자 버튼(파괴적 빨강 아님 — 저장 전 로컬 편집이라 잃는 것이 없다, uiux 4.2)
+  clearButton: {
+    alignSelf: 'center',
+    minHeight: theme.touchTarget.minHeight,
+    justifyContent: 'center',
+    paddingHorizontal: theme.spacing.md,
+    marginTop: theme.spacing.xl,
   },
-  saveDisabled: {
-    backgroundColor: theme.color.border,
-  },
-  saveLabel: {
-    fontSize: theme.font.size.md,
+  clearLabel: {
+    fontSize: theme.font.size.sm,
     fontWeight: '600',
-    color: theme.color.onPrimary,
+    color: theme.color.textSecondary,
   },
 });
