@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { StyleSheet, View, type LayoutChangeEvent } from 'react-native';
-import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, {
   useAnimatedStyle,
   useFrameCallback,
@@ -35,17 +34,15 @@ interface InterestBubbleFieldProps {
   onToggle: (topicId: string) => void;
 }
 
-/** 끌기를 놓았을 때 손가락 속도를 얼마나 물려받는가 — 1 이면 그대로 튕겨 나간다 */
-const FLING_CARRY = 0.55;
 const SKELETON_COUNT = 9;
 
 /**
  * 관심 주제 버블 밭 — **UI 스레드 물리**(PM 2026-10-10 "버블 최대한 좋게", runtime 33 Reanimated).
- * 애플 뮤직 장르 선택·Magnetic 과 같은 모델(services/bubble-physics): 중앙으로 끌리는 중력 + 충돌 + 감속.
+ * 모델은 services/bubble-physics: 버블마다 주제 순서대로 정한 자기 자리로 끌리는 용수철 + 충돌 + 감속.
  *
- * - 처음엔 밭 바깥에서 **날아들어 와** 한 덩어리로 뭉친다
- * - 고르면 커지면서 이웃을 밀고, 밀린 이웃이 또 다음을 민다(연쇄) — 커지는 동안에도 매 프레임 충돌을 푼다
- * - 밭을 끌면 덩어리가 손가락을 따라오고, 놓으면 그 속도로 미끄러지다 다시 중앙으로 모인다
+ * - 처음엔 밭 바깥에서 각자 자리로 **날아들어 와** 모인다
+ * - 고르면 커지면서 이웃을 밀고, 밀린 이웃은 자기 자리로 돌아간다 — **순서는 바뀌지 않는다**
+ * - 끌기는 없다(PM 2026-10-10 17:27 "끌려가거나 하는 건 좀 그렇다") — 탭만 받는다
  * - 고요해지면 계산을 쉰다(배터리). 선택·끌기가 오면 다시 깬다
  * - 동작 줄이기면 끝 상태를 바로 그린다(날아들기·출렁임 없음)
  *
@@ -57,8 +54,6 @@ export function InterestBubbleField({ topics, isFull, onToggle }: InterestBubble
   const [box, setBox] = useState({ width: 0, height: 0 });
   const sim = useSharedValue<BubbleSim | null>(null);
   const awake = useSharedValue(false);
-  const fieldWidth = useSharedValue(0);
-  const fieldHeight = useSharedValue(0);
 
   const count = topics.length;
   const base = bubbleBaseSize(count, box.width, box.height);
@@ -78,9 +73,7 @@ export function InterestBubbleField({ topics, isFull, onToggle }: InterestBubble
     targetsKey.split(',').forEach((target, index) => {
       next.target[index] = Number(target);
     });
-    if (reduceMotion) settleBubbleSim(next, box.width, box.height);
-    fieldWidth.set(box.width);
-    fieldHeight.set(box.height);
+    if (reduceMotion) settleBubbleSim(next);
     sim.set(next);
     awake.set(!reduceMotion);
     // 선택 변화는 아래 effect 가 따라간다 — 여기서는 처음 띄울 때의 목표만 쓴다
@@ -100,12 +93,12 @@ export function InterestBubbleField({ topics, isFull, onToggle }: InterestBubble
           current.target[i] = nextTargets[i];
         }
         current.calmFor = 0;
-        if (settle) settleBubbleSim(current, fieldWidth.get(), fieldHeight.get());
+        if (settle) settleBubbleSim(current);
         return current;
       });
       awake.set(!settle);
     });
-  }, [targetsKey, reduceMotion, sim, awake, fieldWidth, fieldHeight]);
+  }, [targetsKey, reduceMotion, sim, awake]);
 
   useFrameCallback((frame) => {
     'worklet';
@@ -115,42 +108,11 @@ export function InterestBubbleField({ topics, isFull, onToggle }: InterestBubble
     sim.modify((current) => {
       'worklet';
       if (current === null) return current;
-      calm = stepBubbleSim(current, fieldWidth.get(), fieldHeight.get(), dt);
+      calm = stepBubbleSim(current, dt);
       return current;
     });
     if (calm) awake.set(false);
   });
-
-  // 밭을 끌면 덩어리가 따라온다 — 짧은 탭은 버블의 Pressable 이 받는다(8pt 넘게 움직여야 끌기)
-  const pan = Gesture.Pan()
-    .minDistance(8)
-    .onChange((event) => {
-      'worklet';
-      sim.modify((current) => {
-        'worklet';
-        if (current === null) return current;
-        for (let i = 0; i < current.x.length; i += 1) {
-          current.x[i] += event.changeX;
-          current.y[i] += event.changeY;
-        }
-        current.calmFor = 0;
-        return current;
-      });
-      awake.set(true);
-    })
-    .onEnd((event) => {
-      'worklet';
-      sim.modify((current) => {
-        'worklet';
-        if (current === null) return current;
-        for (let i = 0; i < current.x.length; i += 1) {
-          current.vx[i] = event.velocityX * FLING_CARRY;
-          current.vy[i] = event.velocityY * FLING_CARRY;
-        }
-        return current;
-      });
-      awake.set(true);
-    });
 
   const onLayout = (event: LayoutChangeEvent) => {
     const { width, height } = event.nativeEvent.layout;
@@ -160,29 +122,27 @@ export function InterestBubbleField({ topics, isFull, onToggle }: InterestBubble
   };
 
   return (
-    <GestureDetector gesture={pan}>
-      <View style={styles.field} onLayout={onLayout}>
-        {box.width > 0
-          ? topics.map((topic, index) => (
-              <PhysicsSlot
-                key={topic.topicId}
-                sim={sim}
-                index={index}
+    <View style={styles.field} onLayout={onLayout}>
+      {box.width > 0
+        ? topics.map((topic, index) => (
+            <PhysicsSlot
+              key={topic.topicId}
+              sim={sim}
+              index={index}
+              size={sizes[index] ?? base}
+              isSelected={topic.isSelected}
+            >
+              <InterestBubble
+                name={topic.name}
                 size={sizes[index] ?? base}
                 isSelected={topic.isSelected}
-              >
-                <InterestBubble
-                  name={topic.name}
-                  size={sizes[index] ?? base}
-                  isSelected={topic.isSelected}
-                  isDimmed={isFull && !topic.isSelected}
-                  onPress={() => onToggle(topic.topicId)}
-                />
-              </PhysicsSlot>
-            ))
-          : null}
-      </View>
-    </GestureDetector>
+                isDimmed={isFull && !topic.isSelected}
+                onPress={() => onToggle(topic.topicId)}
+              />
+            </PhysicsSlot>
+          ))
+        : null}
+    </View>
   );
 }
 
@@ -229,7 +189,7 @@ export function InterestBubbleSkeleton() {
     if (box.width === 0 || box.height === 0) return null;
     const sizes = Array.from({ length: SKELETON_COUNT }, (_, index) => bubbleSizeAt(index, base));
     const next = createBubbleSim(sizes, box.width, box.height);
-    settleBubbleSim(next, box.width, box.height);
+    settleBubbleSim(next);
     return next;
   }, [box.width, box.height, base]);
   return (
