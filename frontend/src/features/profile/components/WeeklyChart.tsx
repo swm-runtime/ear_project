@@ -571,10 +571,19 @@ export default function WeeklyChart({ weekly, footer, onSwipingChange }: WeeklyC
               <View style={styles.valueBox}>
                 <AverageValue sec={selectedDaySec ?? Math.round(shownAverageSec)} />
               </View>
-              {/* 요일을 고른 동안엔 순위를 숨긴다 — 하루 값에는 순위가 없다 */}
-              {topPercent !== null && selectedDaySec === null ? (
+              {/*
+                요일을 고른 동안엔 순위를 숨긴다 — 하루 값에는 순위가 없다. **떼지 않고 투명하게** 둔다(PM 2026-10-11 03:54
+                "선택했을 때 그래프가 움직인다"): 두 줄 블록(15pt 줄 + 20pt 아이콘 줄 + 아래 6)이 큰 숫자 한 줄(34pt)보다 높아서,
+                블록을 떼면 요약 줄이 몇 pt 줄며 그래프가 올라온다. 자리를 그대로 두면 선택 전후 높이가 같다
+              */}
+              {topPercent !== null ? (
                 // 두 줄 고정(PM 2026-10-11 02:05) — 평균 길이와 무관하게 모양이 같고, 두 줄 높이가 큰 숫자 높이를 채운다
-                <View style={styles.rankBlock}>
+                <View
+                  style={[styles.rankBlock, selectedDaySec !== null && styles.rankHidden]}
+                  pointerEvents="none"
+                  accessibilityElementsHidden={selectedDaySec !== null}
+                  importantForAccessibility={selectedDaySec !== null ? 'no-hide-descendants' : 'auto'}
+                >
                   <Text style={styles.rankLead} numberOfLines={1}>
                     {PROFILE_COPY.stats.topPercentLead}
                   </Text>
@@ -767,6 +776,8 @@ const styles = StyleSheet.create({
     alignItems: 'flex-end',
     marginBottom: 6,
   },
+  /** 요일 선택 중 — 자리는 지키고 보이지만 않는다(요약 줄 높이 고정) */
+  rankHidden: { opacity: 0 },
   // 윗줄 "다른 사용자 대비" — 라벨(하루 평균)과 같은 위계
   // 한 단계 크게(PM 2026-10-11 "조금만 더 키우자") — 14 → 15
   rankLead: {
