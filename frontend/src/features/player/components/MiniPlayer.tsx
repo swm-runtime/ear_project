@@ -571,14 +571,14 @@ const styles = StyleSheet.create({
     borderRadius: MINI_CARD_RADIUS,
     borderCurve: 'continuous',
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(0, 0, 0, 0.10)',
+    borderColor: theme.color.hairline,
   },
   // Android 독 카드 — 흰 불투명 면 + 윤곽(탭 바 capsuleSolidPlate 와 같은 재질)
   solidCard: {
     borderRadius: MINI_CARD_RADIUS,
     backgroundColor: theme.color.background,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(0, 0, 0, 0.10)',
+    borderColor: theme.color.hairline,
   },
   progressTrackSolid: {
     marginHorizontal: PROGRESS_INSET,

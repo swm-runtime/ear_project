@@ -101,7 +101,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: theme.spacing.md,
     fontSize: theme.font.size.sm,
     fontWeight: '700',
-    color: theme.color.onPrimary,
+    color: theme.color.onPhoto,
     textShadowColor: theme.color.photoTextShadow,
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 4,

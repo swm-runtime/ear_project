@@ -80,7 +80,7 @@ export default function ExploreTile({
         accessibilityLabel={EXPLORE_COPY.row.moreA11y}
       >
         <View style={styles.moreBadge}>
-          <MoreIcon size={22} color={theme.color.onPrimary} shadow />
+          <MoreIcon size={22} color={theme.color.onPhoto} shadow />
         </View>
       </Pressable>
     </View>

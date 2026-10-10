@@ -49,6 +49,8 @@ HIG 원문: https://developer.apple.com/design/human-interface-guidelines/
 
 - **색 값은 전부 JS** 다 — 네이티브 리소스(Android values-night)에 두면 색을 바꿀 때마다 빌드해야 한다. 바꾸는 법만 플랫폼별: iOS 는 `theme.color.*` 가 `DynamicColorIOS` 라 OS 가 즉시 다시 칠하고, Android 는 앱이 켜질 때 고른 팔레트로 칠한 뒤 모드가 바뀌면 JS 를 다시 불러 칠한다(설정에서 바꾸면 즉시, 시스템이 바뀐 것이면 앱이 앞으로 돌아올 때 — 재생 중이면 미룸). 네이티브는 `userInterfaceStyle: automatic` · `expo-system-ui` 뿐(runtime 34).
 - **색 문자열이 꼭 필요한 곳**(SVG 아이콘·그라데이션·애니메이션 색 보간)은 `useThemePalette()` / `useResolvedColor()` 로 지금 모드의 값을 받는다 — iOS 의 `theme.color.*` 는 문자열이 아니다.
+- **테두리·막 토큰**(2026-10-11 — 화면 코드에 박혀 있던 값 정리): `hairline`(검정 10% / 흰 14%) · `hairlineStrong` · `separator`·`separatorFaint`(iOS separator) · `fillTertiary`·`fillSecondary`(iOS tertiary/secondarySystemFill) · `divider` · `glassPillFill` · `glassRim`·`glassRimStrong`(다크에선 옅게) · `tabPillSolid` · `backgroundWash`(사진 칩을 배경 쪽으로 물리는 막 — 라이트 흰·다크 검정) · `onPrimarySecondary`. **`onPhoto`(두 모드 흰색)** — 사진·어두운 막 위 글자·아이콘·스위치 손잡이. `onPrimary` 는 다크에서 검정으로 뒤집혀 사진 위에 쓰면 안 보인다.
+- 그대로 두는 고정 색: 소셜 로그인 버튼(카카오·네이버·구글·애플 브랜드 규정) · 그림자(검정) · 사진·썸네일 위 막과 흰 글자 · 첫 실행 튜토리얼 가림막 · 플레이어(원래 어두움).
 - 사진 위 막(photoScrim)·플레이어(`playerColor`, 원래 어두움)는 두 모드 같다. 유리(GlassView)·블러(BlurView)·상태 바·내비게이션 바탕·루트 뷰 바탕은 모드를 따른다.
 
 ## 2. 모서리 (HIG: Layout — corner concentricity)

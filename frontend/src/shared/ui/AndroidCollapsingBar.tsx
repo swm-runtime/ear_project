@@ -211,7 +211,7 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
     height: StyleSheet.hairlineWidth,
-    backgroundColor: 'rgba(60, 60, 67, 0.2)',
+    backgroundColor: theme.color.separator,
   },
   // 큰 제목 줄(LargeTitleRow)과 같은 높이·좌우 여백 — 정지 때 오른쪽 컨트롤이 큰 제목과 한 줄로 선다
   row: {

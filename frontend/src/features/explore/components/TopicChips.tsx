@@ -196,7 +196,7 @@ const styles = StyleSheet.create({
     // 뒤쪽 칩들이 옆으로 밀리고, 여러 개를 연속으로 고르는 동안 표적이 움직인다
     // (features/interest/components/TopicChip.tsx도 같은 이유로 고정돼 있다)
     fontWeight: '700',
-    color: theme.color.onPrimary,
+    color: theme.color.onPhoto,
     textShadowColor: theme.color.photoTextShadow,
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 4,

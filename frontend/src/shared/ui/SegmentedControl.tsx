@@ -233,7 +233,7 @@ const styles = StyleSheet.create({
     bottom: 0,
     borderRadius: theme.radius.full,
     borderWidth: TRACK_BORDER,
-    borderColor: 'rgba(0, 0, 0, 0.10)',
+    borderColor: theme.color.hairline,
   },
   // fill — 부모가 준 폭을 그대로 쓴다(alignSelf 로 좌측에 붙지 않게)
   trackFill: {
@@ -243,7 +243,7 @@ const styles = StyleSheet.create({
   trackSystem: {
     borderRadius: 9,
     borderCurve: 'continuous',
-    backgroundColor: 'rgba(118, 118, 128, 0.12)',
+    backgroundColor: theme.color.fillTertiary,
     padding: 2,
   },
   indicatorSystem: {
@@ -257,7 +257,7 @@ const styles = StyleSheet.create({
   // iOS 26 캡슐 선택바 — 트랙 tertiary fill, 안쪽 3, 선택 칸 검정 알약
   trackModern: {
     borderRadius: theme.radius.full,
-    backgroundColor: 'rgba(118, 118, 128, 0.12)',
+    backgroundColor: theme.color.fillTertiary,
     padding: 3,
   },
   indicatorModern: {
@@ -269,7 +269,7 @@ const styles = StyleSheet.create({
   // iOS 26 UISegmentedControl — 캡슐 트랙(tertiarySystemFill), 안쪽 2
   trackIos26: {
     borderRadius: theme.radius.full,
-    backgroundColor: 'rgba(118, 118, 128, 0.12)',
+    backgroundColor: theme.color.fillTertiary,
     padding: 2,
   },
   // 떠 있는 흰 캡슐 — iOS 26 선택 칸의 부드러운 이중 그림자
