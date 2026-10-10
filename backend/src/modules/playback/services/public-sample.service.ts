@@ -29,7 +29,7 @@ export interface PublicSampleView {
  *   않는다(FK가 users를 가리킨다). 발급 사실은 구조화 로그로 남긴다.
  * - 대상은 요청이 아니라 **서버 설정**(`PUBLIC_SAMPLE_CONTENT_ID`)이 정한다. 로그인 없는
  *   경로에서 임의 콘텐츠 id를 받으면 전 카탈로그의 서명 URL 발급기가 된다.
- * - 회수·만료 판정은 앱과 같다(`getPublishedById`). 샘플로 지정한 콘텐츠가 회수되면 404다.
+ * - 회수·만료 판정은 앱과 같다(`getPublishedById`). 샘플로 지정한 콘텐츠가 회수되면 403 `CONTENT_WITHDRAWN`이다.
  */
 @Injectable()
 export class PublicSampleService {

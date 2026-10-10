@@ -238,7 +238,8 @@ export class PlayPurchaseService {
           { createIfMissing: true },
         );
 
-        await this.billingSyncService.syncUserTier(ownerId, manager);
+        // 위 반영이 구독 상태를 판정한 시각으로 지급도 판정한다 — 새로 시계를 읽지 않는다
+        await this.billingSyncService.syncUserTier(ownerId, manager, now);
 
         return result;
       },
