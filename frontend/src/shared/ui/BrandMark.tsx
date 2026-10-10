@@ -21,8 +21,9 @@ export default function BrandMark({ size = 28 }: BrandMarkProps) {
   return (
     <View style={styles.row} accessibilityRole="header" accessibilityLabel={BRAND_NAME}>
       <Image
-        source={require('../../../assets/logo.png')}
-        style={{ width: size, height: size }}
+        source={require('../../../assets/logo-mark.png')}
+        // 로고는 투명 바탕 검정 한 색 — tintColor 로 모드에 맞춘다(라이트 검정 · 다크 흰색, 2026-10-11)
+        style={{ width: size, height: size, tintColor: theme.color.textPrimary }}
         resizeMode="contain"
         accessibilityElementsHidden
         importantForAccessibility="no"

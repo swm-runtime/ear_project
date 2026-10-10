@@ -223,6 +223,8 @@ const styles = StyleSheet.create({
     marginBottom: theme.spacing.sm,
   },
   logo: {
+    // 로고는 투명 바탕 검정 한 색 — tintColor 로 모드에 맞춘다(라이트 검정 · 다크 흰색, 2026-10-11)
+    tintColor: theme.color.textPrimary,
     width: LOGO_SIZE,
     height: Math.round((LOGO_SIZE * 365) / 452),
   },
