@@ -350,7 +350,10 @@ export interface EarInsightsSummary {
   users: {
     total_signups: number; current: number; withdrawals: number; withdrawal_rate: number | null;
     onboarding_completed: number; onboarding_rate: number | null; trial_active: number;
-    tiers: { light: number; daily: number; pro: number }; paid_active: number; paid_rate: number | null;
+    tiers: { light: number; daily: number; pro: number };
+    /** 초대 코드 이벤트로 그 티어인 계정 수 — 운영 API 가 아직 모르면 없다(2026-10-10 추가) */
+    tier_events?: { daily: number; pro: number };
+    paid_active: number; paid_rate: number | null;
     activated: number; activation_rate: number | null;
     active_1d: number; active_7d: number; active_30d: number; stickiness: number | null;
     listeners_1d: number; listeners_7d: number; listeners_30d: number;

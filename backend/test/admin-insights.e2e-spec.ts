@@ -15,9 +15,11 @@ import { Content } from '@/modules/content/entities/content.entity';
 import { PlayRecord } from '@/modules/playback/entities/play-record.entity';
 import { UserSignal } from '@/modules/playback/entities/user-signal.entity';
 import { UserSignalAction } from '@/modules/playback/playback.enum';
+import { InviteCodeRedemption } from '@/modules/subscription/entities/invite-code-redemption.entity';
+import { InviteCode } from '@/modules/subscription/entities/invite-code.entity';
 import { User } from '@/modules/user/entities/user.entity';
 import { WithdrawalLog } from '@/modules/user/entities/withdrawal-log.entity';
-import { SocialProvider, UserRole } from '@/modules/user/user.enum';
+import { SocialProvider, UserRole, UserTier } from '@/modules/user/user.enum';
 
 interface SummaryBody {
   days: number;
@@ -30,6 +32,8 @@ interface SummaryBody {
     active_1d: number;
     listeners_1d: number;
     listeners_7d: number;
+    tiers: { light: number; daily: number; pro: number };
+    tier_events: { daily: number; pro: number };
   };
   listening: {
     all_time: { listen_sec: number; plays: number; completes: number };
@@ -65,6 +69,7 @@ describe('서비스 지표 요약 E2E', () => {
   const userIds: string[] = [];
   const contentIds: string[] = [];
   const withdrawalIds: string[] = [];
+  const inviteCodeIds: string[] = [];
   const TOKEN = `e2einsight${Date.now()}`;
   const path = (p: string) => `/api/v1${p}`;
 
@@ -98,6 +103,9 @@ describe('서비스 지표 요약 E2E', () => {
     }
     for (const contentId of contentIds) {
       await dataSource.query(`DELETE FROM contents WHERE id = $1`, [contentId]);
+    }
+    for (const id of inviteCodeIds) {
+      await dataSource.query(`DELETE FROM invite_codes WHERE id = $1`, [id]);
     }
     for (const id of withdrawalIds) {
       await dataSource.query(`DELETE FROM withdrawal_logs WHERE id = $1`, [id]);
@@ -162,6 +170,26 @@ describe('서비스 지표 요약 E2E', () => {
       }),
     );
     withdrawalIds.push(withdrawal.id);
+    // given — 초대 코드 이벤트로 Pro 인 계정 하나(구독 없음)
+    const eventUserId = await createUserId('event');
+    await dataSource.query(`UPDATE users SET tier = 'pro' WHERE id = $1`, [
+      eventUserId,
+    ]);
+    const inviteCode = await dataSource.getRepository(InviteCode).save({
+      code: TOKEN.slice(0, 32).toUpperCase(),
+      name: 'E2E PoC',
+      tier: UserTier.PRO,
+      grantDays: 30,
+      grantUntilDate: null,
+    });
+    inviteCodeIds.push(inviteCode.id);
+    await dataSource.getRepository(InviteCodeRedemption).save({
+      inviteCodeId: inviteCode.id,
+      userId: eventUserId,
+      tier: UserTier.PRO,
+      startsAt: new Date(now.getTime() - 60_000),
+      endsAt: new Date(now.getTime() + 86_400_000),
+    });
 
     // when
     const res = await request(app.getHttpServer())
@@ -181,6 +209,14 @@ describe('서비스 지표 요약 E2E', () => {
       body.users.current + body.users.withdrawals,
     );
     expect(body.users.withdrawals).toBeGreaterThanOrEqual(1);
+    // 이벤트 인원은 그 티어 인원의 일부다 — 이 테스트가 심은 이벤트 Pro 1명이 들어 있다
+    expect(body.users.tier_events.pro).toBeGreaterThanOrEqual(1);
+    expect(body.users.tier_events.pro).toBeLessThanOrEqual(
+      body.users.tiers.pro,
+    );
+    expect(body.users.tier_events.daily).toBeLessThanOrEqual(
+      body.users.tiers.daily,
+    );
     expect(body.users.activated).toBeGreaterThanOrEqual(1);
     expect(body.users.activated).toBeLessThanOrEqual(body.users.current);
     expect(body.users.listeners_1d).toBeGreaterThanOrEqual(1);

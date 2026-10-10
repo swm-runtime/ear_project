@@ -114,7 +114,7 @@ function InsightsView({ channel, days, onSwitchToDev }: { channel: EarChannel; d
         <Stat label="누적 가입 (탈퇴 포함)" value={fmtInt(u.total_signups)} sub="현재 계정 + 탈퇴 기록" />
         <Stat label="현재 가입자" value={fmtInt(u.current)} sub={`온보딩 완료 ${fmtInt(u.onboarding_completed)}명 · ${fmtPct(u.onboarding_rate)}`} tone="text-brand-ink" />
         <Stat label="탈퇴 · 탈퇴율" value={`${fmtInt(u.withdrawals)}명 · ${fmtPct(u.withdrawal_rate)}`} sub="탈퇴 ÷ 누적 가입" tone={(u.withdrawal_rate ?? 0) >= 0.2 ? "text-rose-700" : "text-ink"} />
-        <Stat label="체험 중 · 유료" value={`${fmtInt(u.trial_active)} · ${fmtInt(u.paid_active)}`} sub={`유료 전환 ${fmtPct(u.paid_rate)} · 티어 무료 ${u.tiers.light} / 데일리 ${u.tiers.daily} / 프로 ${u.tiers.pro}`} />
+        <Stat label="체험 중 · 유료" value={`${fmtInt(u.trial_active)} · ${fmtInt(u.paid_active)}`} sub={`유료 전환 ${fmtPct(u.paid_rate)} · 무료 ${fmtInt(u.tiers.light)}명 · ${tierWithEvent("Daily", u.tiers.daily, u.tier_events?.daily)} · ${tierWithEvent("Pro", u.tiers.pro, u.tier_events?.pro)}`} />
         <Stat label="활성화율" value={fmtPct(u.activation_rate)} sub={`한 번이라도 재생 ${fmtInt(u.activated)}명 ÷ 현재 가입자`} />
         <Stat label="가입 경로" value={u.by_provider.length ? `${labelOf(PROVIDER_LABEL, u.by_provider[0].provider)} ${fmtPct(u.by_provider[0].count / Math.max(1, u.current), 0)}` : "-"} sub={u.by_provider.map((p) => `${labelOf(PROVIDER_LABEL, p.provider)} ${p.count}`).join(" · ")} />
       </div>
@@ -289,4 +289,9 @@ function DailyBars({ rows, primary, height, overlay, title, legend }: {
       <p className="mt-2 text-xs text-ink-soft">{legend}</p>
     </div>
   );
+}
+
+/** "Pro 30명 (이벤트 11명)" — 이벤트가 0이거나 값이 없으면(옛 API) 괄호를 뺀다. 유료 수(`paid_active`)는 결제만 센다 */
+function tierWithEvent(label: string, count: number, eventCount: number | undefined): string {
+  return eventCount ? `${label} ${fmtInt(count)}명 (이벤트 ${fmtInt(eventCount)}명)` : `${label} ${fmtInt(count)}명`;
 }

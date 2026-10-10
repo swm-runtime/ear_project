@@ -25,6 +25,7 @@ const summary = (): InsightsSummary => ({
     onboardingCompleted: 208,
     trialActive: 139,
     tiers: { light: 225, daily: 0, pro: 0 },
+    tierEvents: { daily: 0, pro: 0 },
     paidActive: 0,
     activated: 149,
     active1d: 63,

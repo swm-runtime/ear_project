@@ -21,6 +21,8 @@ interface UserTotalsRow {
   tier_light: number;
   tier_daily: number;
   tier_pro: number;
+  tier_daily_event: number;
+  tier_pro_event: number;
   paid_active: number;
   activated: number;
   active_1d: number;
@@ -105,6 +107,21 @@ const kstDateExpr = (column: string): string =>
  *   전부 합쳐도 수십 ms 다.
  * - 개인 식별 정보는 어떤 행에도 넣지 않는다 — 사용자 순위는 `user_id`·티어·가입일뿐이다.
  */
+/**
+ * 그 티어 중 **초대 코드 이벤트로** 그 티어인 계정 수(domain.md 8.6, 2026-10-10) — 지금 지급 중인 요금제가 그 티어이고,
+ * 같은 티어 이상의 살아 있는 구독이 없는 계정. 이벤트와 결제가 겹친 계정(같은 티어를 결제 중)은 결제로 센다.
+ * 쿼리 상수 조각이라 값 바인딩 없이 끼워 넣는다(인자는 이 파일의 리터럴뿐이다).
+ */
+const EVENT_TIER_COUNT = (
+  tier: 'daily' | 'pro',
+): string => `(select count(*) from users u
+           where u.tier = '${tier}'
+             and exists (select 1 from invite_code_redemptions r
+                         where r.user_id = u.id and r.tier = '${tier}' and r.starts_at <= $1 and r.ends_at > $1)
+             and not exists (select 1 from subscriptions s
+                         where s.user_id = u.id and s.status in ('active', 'grace', 'cancelled') and s.expires_at > $1
+                           and s.tier in (${tier === 'daily' ? "'daily', 'pro'" : "'pro'"})))::int`;
+
 @Injectable()
 export class AdminInsightsRepository {
   constructor(private readonly dataSource: DataSource) {}
@@ -119,6 +136,8 @@ export class AdminInsightsRepository {
          (select count(*) from users where tier = 'light')::int as tier_light,
          (select count(*) from users where tier = 'daily')::int as tier_daily,
          (select count(*) from users where tier = 'pro')::int as tier_pro,
+         ${EVENT_TIER_COUNT('daily')} as tier_daily_event,
+         ${EVENT_TIER_COUNT('pro')} as tier_pro_event,
          (select count(distinct user_id) from subscriptions
            where status in ('active', 'grace', 'cancelled') and environment = 'production' and expires_at > $1)::int as paid_active,
          (select count(distinct user_id) from play_records)::int as activated,
@@ -144,6 +163,10 @@ export class AdminInsightsRepository {
         light: row.tier_light,
         daily: row.tier_daily,
         pro: row.tier_pro,
+      },
+      tierEvents: {
+        daily: row.tier_daily_event,
+        pro: row.tier_pro_event,
       },
       paidActive: row.paid_active,
       activated: row.activated,

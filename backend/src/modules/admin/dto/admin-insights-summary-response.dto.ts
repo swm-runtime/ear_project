@@ -34,6 +34,8 @@ export class AdminInsightsSummaryResponseDto {
     onboarding_rate: number | null;
     trial_active: number;
     tiers: { light: number; daily: number; pro: number };
+    /** `tiers` 중 초대 코드 이벤트로 그 티어인 계정 수 — "Pro 30명 (이벤트 11명)"의 괄호 값 */
+    tier_events: { daily: number; pro: number };
     paid_active: number;
     /** `paid_active / current` */
     paid_rate: number | null;
@@ -129,6 +131,7 @@ export class AdminInsightsSummaryResponseDto {
         onboarding_rate: ratio(u.onboardingCompleted, u.current),
         trial_active: u.trialActive,
         tiers: u.tiers,
+        tier_events: u.tierEvents,
         paid_active: u.paidActive,
         paid_rate: ratio(u.paidActive, u.current),
         activated: u.activated,

@@ -189,6 +189,8 @@ export interface InsightsUserTotals {
   trialActive: number;
   /** `users.tier` 캐시 기준 분포 */
   tiers: { light: number; daily: number; pro: number };
+  /** `tiers` 중 초대 코드 이벤트로 그 티어인 계정 수(같은 티어 이상 결제 중이면 결제로 센다) */
+  tierEvents: { daily: number; pro: number };
   /** 실결제 구독이 유효한 사용자 수(`subscriptions` active·grace·cancelled(해지 예약, 만료일까지 유효) · production · 미만료) */
   paidActive: number;
   /** 재생을 한 번이라도 한 사용자 수 — 활성화(activation) */
