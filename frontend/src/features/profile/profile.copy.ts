@@ -183,8 +183,12 @@ export const PROFILE_COPY = {
     weeklyTitle: '주간 청취',
     dailyAverageTitle: '하루 평균',
     /** 하루 평균 줄 오른쪽 알약 — 그 주 청취 시간 전체 가입자 중 상위 %(PM 2026-10-10, 서버 판정 값 그대로) */
-    topPercent: (percent: number) => `상위 ${percent}%`,
-    topPercentA11y: (percent: number) => `이번 주 청취 시간 전체 상위 ${percent}퍼센트`,
+    /**
+     * "다른 사용자 대비" — 스크린 타임 "지난주 대비 8%" 와 같은 꼴(PM 2026-10-11 00:42 "타 사용자 대비 같은 문구"). "이번 주"는
+     * 넣지 않는다 — 카드가 이미 주를 보여 주고, 지난 주로 넘기면 틀린 말이 된다
+     */
+    topPercent: (percent: number) => `다른 사용자 대비 상위 ${percent}%`,
+    topPercentA11y: (percent: number) => `그 주 청취 시간, 다른 사용자 대비 상위 ${percent}퍼센트`,
     /** 주 범위 "N월 N일 – N월 N일". 경계 판정은 서버 몫, +6일은 표기 전용(profile.format.ts) */
     weekRange: (weekStart: string) => {
       const { start, end } = toWeekRangeParts(weekStart);
