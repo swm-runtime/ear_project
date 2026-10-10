@@ -10,7 +10,12 @@ import { Text } from '@/shared/ui/Typography';
 
 import type { WeeklyNavigation } from '../hooks/useWeeklyNavigation';
 import { PROFILE_COPY } from '../profile.copy';
-import { isWeekAllZero, toBarRatios, toDailyAverageSec } from '../profile.format';
+import {
+  isWeekAllZero,
+  toBarRatios,
+  toDailyAverageSec,
+  toListenedDayParts,
+} from '../profile.format';
 import type { WeeklyListening } from '../profile.types';
 
 interface WeeklyChartProps {
@@ -304,6 +309,9 @@ export default function WeeklyChart({ weekly, footer, onSwipingChange }: WeeklyC
   const targetAverageSec =
     displayed !== null && !weekly.isSwitching ? toWeekView(displayed).averageSec : null;
   const shownAverageSec = useCountTo(targetAverageSec);
+  /** 상위 % — 평균과 같이 전환 중엔 숨긴다(옆 주 값이 남아 있으면 엉뚱한 주의 순위로 읽힌다) */
+  const topPercent =
+    displayed !== null && !weekly.isSwitching ? displayed.listeningTopPercent : null;
   /*
    * 카드를 가로로 밀어 주를 넘긴다(PM 2026-09-28 01:40) — 애플 건강·스크린 타임과 같은 방향: 손가락을 **오른쪽으로 밀면
    * 이전 주**(왼쪽 < 와 같은 쪽), 왼쪽으로 밀면 다음 주. 화살표와 같은 판정(canGoPrev/Next · 전환 중 막힘)을 거친다.
@@ -584,11 +592,23 @@ export default function WeeklyChart({ weekly, footer, onSwipingChange }: WeeklyC
             accessible
             accessibilityLabel={PROFILE_COPY.stats.averageA11y(targetAverageSec ?? shownAverageSec)}
           >
-            {/* 점선 범례(─ ─)는 뺐다(PM 2026-09-28 00:23) — 라벨만 */}
-            <Text style={styles.summaryLabel}>{PROFILE_COPY.stats.dailyAverageTitle}</Text>
-            <Text style={styles.summaryValue}>
-              {PROFILE_COPY.stats.dayValue(Math.round(shownAverageSec))}
-            </Text>
+            {/*
+              점선 범례(─ ─)는 뺐다(PM 2026-09-28 00:23) — 라벨만. 상위 % 알약은 **라벨 줄 오른쪽**(PM 2026-10-10) — 큰 숫자
+              옆에 두면 "23시간 59분" 같은 긴 값과 부딪힌다. 큰 숫자는 폭을 혼자 쓴다
+            */}
+            <View style={styles.summaryHead}>
+              <Text style={styles.summaryLabel}>{PROFILE_COPY.stats.dailyAverageTitle}</Text>
+              {topPercent !== null ? (
+                <View
+                  style={styles.rankPill}
+                  accessible
+                  accessibilityLabel={PROFILE_COPY.stats.topPercentA11y(topPercent)}
+                >
+                  <Text style={styles.rankText}>{PROFILE_COPY.stats.topPercent(topPercent)}</Text>
+                </View>
+              ) : null}
+            </View>
+            <AverageValue sec={Math.round(shownAverageSec)} />
           </View>
         )}
         <View style={styles.chartStrip}>
@@ -665,6 +685,30 @@ export default function WeeklyChart({ weekly, footer, onSwipingChange }: WeeklyC
   );
 }
 
+/**
+ * 하루 평균 숫자 — **숫자는 크게, 단위는 작게**(애플 건강·스크린 타임, PM 2026-10-10 "시간이 많으면 넘칠 것 같다"). 단위가
+ * 숫자와 같은 34pt 면 "23시간 59분"이 카드 폭을 거의 다 쓴다. 그래도 넘치면 한 줄 안에서 글자를 줄인다
+ */
+function AverageValue({ sec }: { sec: number }) {
+  // 1분 미만은 숫자가 없는 문구 그대로(profile-uiux 4.6)
+  if (sec > 0 && sec < 60) {
+    return <Text style={styles.summaryValue}>{PROFILE_COPY.stats.dayValue(sec)}</Text>;
+  }
+  const { hours, minutes } = toListenedDayParts(sec);
+  return (
+    <Text style={styles.summaryValue} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>
+      {hours > 0 ? (
+        <>
+          {hours}
+          <Text style={styles.summaryUnit}>시간 </Text>
+        </>
+      ) : null}
+      {minutes}
+      <Text style={styles.summaryUnit}>분</Text>
+    </Text>
+  );
+}
+
 const styles = StyleSheet.create({
   container: { paddingHorizontal: theme.spacing.md, gap: theme.spacing.sm },
   card: {
@@ -723,6 +767,32 @@ const styles = StyleSheet.create({
     gap: theme.spacing.xs,
   },
   summaryLabel: { fontSize: theme.font.size.sm, color: theme.color.textSecondary, flexShrink: 1 },
+  summaryHead: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: theme.spacing.sm,
+  },
+  // 상위 % — 카드(surface) 위 흰 알약, 작은 굵은 글자. 강조색 없이 모노톤(design.md §1)
+  rankPill: {
+    paddingHorizontal: theme.spacing.sm,
+    paddingVertical: 3,
+    borderRadius: theme.radius.full,
+    borderCurve: 'continuous',
+    backgroundColor: theme.color.background,
+  },
+  rankText: {
+    fontSize: theme.font.size.xs,
+    fontWeight: '700',
+    fontVariant: ['tabular-nums'],
+    color: theme.color.textPrimary,
+  },
+  // 단위 — 숫자(34) 옆 20pt 회색. 숫자와 같은 줄 기준선에 앉는다(중첩 Text)
+  summaryUnit: {
+    fontSize: theme.font.size.lg,
+    fontWeight: '600',
+    color: theme.color.textSecondary,
+  },
   summaryValue: {
     fontSize: theme.font.size.xxl,
     fontWeight: '600',
