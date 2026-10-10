@@ -10,6 +10,7 @@ import {
   PlanService,
   toEntitlements,
 } from '@/modules/subscription/services/plan.service';
+import { InviteCodeService } from '@/modules/subscription/services/invite-code.service';
 import { PurchaseIntentService } from '@/modules/subscription/services/purchase-intent.service';
 import { SubscriptionService } from '@/modules/subscription/services/subscription.service';
 import {
@@ -75,6 +76,7 @@ export class BillingOrchestrator {
     private readonly playPurchaseService: PlayPurchaseService,
     private readonly dataSource: DataSource,
     private readonly billingAlertService: BillingAlertService,
+    private readonly inviteCodeService: InviteCodeService,
   ) {}
 
   /** 4.1 — 요금제 목록 + 그 사용자가 각 요금제에 할 수 있는 일 */
@@ -123,6 +125,45 @@ export class BillingOrchestrator {
    */
   async getSubscription(userId: string, now: Date): Promise<SubscriptionView> {
     await this.subscriptionReconcileService.reconcileUser(userId, now);
+
+    return this.buildView(userId, now);
+  }
+
+  /**
+   * 4.8 — 초대 코드 입력. 지급 행과 `users.tier` 캐시를 **한 트랜잭션**에서 고친다 — 따로 쓰면 "지급은 됐는데 한도는
+   * 무료"인 순간이 생긴다(결제 반영과 같은 규칙). 응답은 구독 조회와 같은 본문이라 앱이 다시 부르지 않는다.
+   */
+  async redeemInviteCode(
+    userId: string,
+    code: string,
+    now: Date,
+  ): Promise<SubscriptionView> {
+    const result = await this.dataSource.transaction(async (manager) => {
+      // 사용자 행을 먼저 잠근다 — 같은 계정이 다른 코드 두 개를 동시에 넣어도 "지급은 하나" 판정이 직렬로 돈다.
+      // 잠금 순서(사용자 → 코드)는 결제 반영(구독 → 사용자 → 지급)과 순환을 만들지 않는다
+      await this.userService.getByIdForUpdate(userId, manager);
+      const subscribedAtStart =
+        await this.subscriptionService.hasLiveSubscription(userId, manager);
+      const redeemed = await this.inviteCodeService.redeem(
+        userId,
+        code,
+        subscribedAtStart,
+        now,
+        manager,
+      );
+      await this.billingSyncService.syncUserTier(userId, manager, now);
+      return redeemed;
+    });
+
+    if (result.created) {
+      // 코드 값은 남기지 않는다 — 코드 id 로 충분하고, 값은 아직 쓸 수 있는 열쇠다
+      this.logger.log('invite code redeemed', {
+        user_id: userId,
+        invite_code_id: result.grant.redemption.inviteCodeId,
+        tier: result.grant.redemption.tier,
+        ends_at: result.grant.redemption.endsAt.toISOString(),
+      });
+    }
 
     return this.buildView(userId, now);
   }

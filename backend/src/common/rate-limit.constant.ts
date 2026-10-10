@@ -50,3 +50,9 @@ export const RATE_LIMIT_EMAIL_SEND_PER_MINUTE = 5;
  * **나눈다** — 정상 재생이 편당 1회라 워커당 15 도 넉넉하다.
  */
 export const RATE_LIMIT_AUDIO_URL_PER_MINUTE = perWorker(30);
+
+/**
+ * 초대 코드 입력 — 사용자. 정상 사용자는 한두 번 친다(오타 재입력 포함). 코드 추측 대입의 앞단 방어(`subscription-api.md` 4.8).
+ * **나누지 않는다** — 오타로 몇 번 다시 친 사용자가 워커 몫 한도에 걸리면 안 된다(위 주석).
+ */
+export const RATE_LIMIT_INVITE_CODE_PER_MINUTE = 10;
