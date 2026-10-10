@@ -904,6 +904,17 @@ export default function PlayerScreen() {
   // 시트는 열린 자리에 고정 크기로 두고 translateY 로 내린다(PM 2026-09-27 23:53) — 틀이 열린 자리부터 바닥까지를 자른다
   const queueSheetTravel = queueClosedTop - queueOpenTop;
 
+  /*
+   * **Android 는 아트워크 틀의 크기를 바꾸지 않는다 — FLIP**(PM 2026-10-10 22:56 "재생목록 열고 닫는 애니메이션 Android 에서
+   * 끊긴다" → "안드로이드만 바꿔봐"). 종전처럼 left·top·width·height 를 매 프레임 바꾸면 UI 스레드(Reanimated)여도 Android 는
+   * 프레임마다 레이아웃 재계산 → 네이티브 뷰 반영 → 사진·둥근 잘림 다시 그리기가 돈다(iOS 는 레이어를 늘려 보여 가볍다).
+   * 틀을 **재생 목록이 열린 크기(화면 폭 × 사진 높이)로 고정**해 두고, 지금 보여야 할 사각형으로 translate·scaleX·scaleY 만
+   * 준다. 안쪽 사진은 정사각 M(틀의 긴 변)으로 한 번만 그리고 반대 배율로 펴서 찌그러지지 않게 한다 — 정사각일 땐 커버
+   * 전체, 열리면 가운데를 잘라 낸 종전 모습과 같다. 대가: 움직이는 동안 모서리가 가로·세로로 살짝 다르게 둥글다(평균 배율로 보정)
+   */
+  const flipFrameWidth = contentWidth;
+  const flipFrameHeight = queueArtHeight + insetTop;
+  const flipImageSize = Math.max(flipFrameWidth, flipFrameHeight);
   const artFrameStyle = useAnimatedStyle(() => {
     const panel = panelProgress.get();
     const queue = queueProgress.get();
@@ -912,13 +923,68 @@ export default function PlayerScreen() {
     const artLeft = interpolate(panel, [0, 1], [collapsedArtLeft, 0]);
     const artRadius = interpolate(panel, [0, 1], [theme.radius.lg, theme.radius.md]);
     const scale = artScale.get();
+    const left = artLeft + heroX + queue * (0 - (heroX + collapsedArtLeft));
+    const top = artTop + heroY + queue * (-insetTop - (heroY + collapsedArtTop));
+    const width = artSize + queue * (contentWidth - artSizeCollapsed);
+    const height = artSize + queue * (queueArtHeight + insetTop - artSizeCollapsed);
+    const radius = artRadius + queue * (0 - theme.radius.lg);
+    const shownScale = scale + (1 - scale) * queue;
+    if (ARTWORK_FLIP) {
+      // 틀은 열린 자리(0, -insetTop)에 고정 — 이 넷은 실측이 바뀔 때만 달라져 애니메이션 중엔 보내지지 않는다
+      if (flipFrameWidth <= 0 || flipFrameHeight <= 0) {
+        return {
+          left: 0,
+          top: -insetTop,
+          width: flipFrameWidth,
+          height: flipFrameHeight,
+          borderRadius: 0,
+          transform: [{ translateX: 0 }, { translateY: 0 }, { scaleX: 1 }, { scaleY: 1 }],
+        };
+      }
+      const scaleX = (width * shownScale) / flipFrameWidth;
+      const scaleY = (height * shownScale) / flipFrameHeight;
+      return {
+        left: 0,
+        top: -insetTop,
+        width: flipFrameWidth,
+        height: flipFrameHeight,
+        borderRadius: (radius * shownScale) / Math.max((scaleX + scaleY) / 2, 0.01),
+        // 가운데 기준 배율 — 보여야 할 사각형의 가운데로 옮긴 뒤 줄인다
+        transform: [
+          { translateX: left + width / 2 - flipFrameWidth / 2 },
+          { translateY: top + height / 2 - (-insetTop + flipFrameHeight / 2) },
+          { scaleX },
+          { scaleY },
+        ],
+      };
+    }
     return {
-      left: artLeft + heroX + queue * (0 - (heroX + collapsedArtLeft)),
-      top: artTop + heroY + queue * (-insetTop - (heroY + collapsedArtTop)),
-      width: artSize + queue * (contentWidth - artSizeCollapsed),
-      height: artSize + queue * (queueArtHeight + insetTop - artSizeCollapsed),
-      borderRadius: artRadius + queue * (0 - theme.radius.lg),
-      transform: [{ scale: scale + (1 - scale) * queue }],
+      left,
+      top,
+      width,
+      height,
+      borderRadius: radius,
+      transform: [{ scale: shownScale }],
+    };
+  });
+  /** FLIP 의 안쪽 사진 — 틀의 가로·세로 배율을 되돌리고, 보이는 사각형의 긴 변을 덮는 크기로 맞춘다(커버) */
+  const artImageFlipStyle = useAnimatedStyle(() => {
+    if (!ARTWORK_FLIP || flipFrameWidth <= 0 || flipFrameHeight <= 0) return {};
+    const panel = panelProgress.get();
+    const queue = queueProgress.get();
+    const artSize = interpolate(panel, [0, 1], [artSizeCollapsed, COMPACT_ARTWORK_SIZE]);
+    const width = artSize + queue * (contentWidth - artSizeCollapsed);
+    const height = artSize + queue * (queueArtHeight + insetTop - artSizeCollapsed);
+    const scale = artScale.get();
+    const shownScale = scale + (1 - scale) * queue;
+    const scaleX = (width * shownScale) / flipFrameWidth;
+    const scaleY = (height * shownScale) / flipFrameHeight;
+    const cover = (Math.max(width, height) * shownScale) / flipImageSize;
+    return {
+      transform: [
+        { scaleX: cover / Math.max(scaleX, 0.001) },
+        { scaleY: cover / Math.max(scaleY, 0.001) },
+      ],
     };
   });
   const heroHeightStyle = useAnimatedStyle(() => {
@@ -940,12 +1006,12 @@ export default function PlayerScreen() {
   });
   const heroMetaStyle = useAnimatedStyle(() => {
     const panel = panelProgress.get();
-    return {
-      top:
-        interpolate(panel, [0, 1], [collapsedMetaTop, HERO_COMPACT_META_TOP]) +
-        queueProgress.get() * (queueMetaTop - collapsedMetaTop),
-      left: interpolate(panel, [0, 1], [0, compactMetaLeft]),
-    };
+    const queueShift = queueProgress.get() * (queueMetaTop - collapsedMetaTop);
+    const panelTop = interpolate(panel, [0, 1], [collapsedMetaTop, HERO_COMPACT_META_TOP]);
+    const left = interpolate(panel, [0, 1], [0, compactMetaLeft]);
+    // Android 는 재생 목록 몫을 위치(top)가 아니라 이동(translateY)으로 — 아트워크 FLIP 과 같은 이유
+    if (ARTWORK_FLIP) return { top: panelTop, left, transform: [{ translateY: queueShift }] };
+    return { top: panelTop + queueShift, left };
   });
   // 제목은 크기가 달라 두 겹을 교차 페이드한다 — 접힘 제목은 재생 목록이 열리면 사진 위 흰 제목에 자리를 내준다
   const titleCollapsedStyle = useAnimatedStyle(() => ({
@@ -1502,7 +1568,32 @@ export default function PlayerScreen() {
               style={[styles.heroArtwork, { borderCurve: 'continuous' }, artFrameStyle]}
               onLayout={onHeroArtLayout}
             >
-              {session.meta.thumbnailUrl ? (
+              {ARTWORK_FLIP ? (
+                // FLIP 의 안쪽 사진 — 틀(가로로 긴 고정 크기) 가운데 정사각 M, 틀 배율을 되돌린다(위 artFrameStyle)
+                <Reanimated.View
+                  style={[
+                    styles.artworkFlip,
+                    {
+                      left: (flipFrameWidth - flipImageSize) / 2,
+                      top: (flipFrameHeight - flipImageSize) / 2,
+                      width: flipImageSize,
+                      height: flipImageSize,
+                    },
+                    artImageFlipStyle,
+                  ]}
+                >
+                  {session.meta.thumbnailUrl ? (
+                    <RemoteImage
+                      key={session.meta.thumbnailUrl}
+                      uri={session.meta.thumbnailUrl}
+                      style={styles.artwork}
+                      isResized
+                    />
+                  ) : (
+                    <View style={[styles.artwork, styles.artworkPlaceholder]} />
+                  )}
+                </Reanimated.View>
+              ) : session.meta.thumbnailUrl ? (
                 <RemoteImage
                   // 잠긴 뷰는 주소가 바뀌어도 다시 불러오지 않는다 — 콘텐츠가 바뀌면 새로 만든다
                   key={session.meta.thumbnailUrl}
@@ -2267,6 +2358,11 @@ function FadeByProgress({
 
 /** 재생 목록의 히어로 축소를 transform 으로(hero 주석) — Android 만. iOS 는 종전 레이아웃 그대로 */
 const HERO_QUEUE_BY_TRANSFORM = Platform.OS === 'android';
+/**
+ * Android 아트워크·제목 블록의 재생 목록 모션을 크기·위치가 아니라 transform 으로(FLIP, PM 2026-10-10 22:56). iOS 는 종전 그대로 —
+ * 레이어를 늘려 보여 크기 애니메이션이 가볍고, 모서리 곡률(연속)이 배율에 찌그러지지 않는다
+ */
+const ARTWORK_FLIP = Platform.OS === 'android';
 /** Android 줌 전환(아래 AndroidZoomStage) — iOS 는 종전 갈래 그대로(시스템 줌·JS 모핑) */
 const ANDROID_ZOOM = Platform.OS === 'android';
 /** 줌이 거의 다 커졌을 때의 모서리 — 기기 화면 모서리 느낌으로 둥글다가 마지막에 0 */
@@ -2538,6 +2634,10 @@ const styles = StyleSheet.create({
   artwork: {
     flex: 1,
     backgroundColor: playerColor.surface,
+  },
+  // FLIP 사진 상자 — 위치·크기는 렌더 값, 배율은 artImageFlipStyle
+  artworkFlip: {
+    position: 'absolute',
   },
   artworkPlaceholder: {
     backgroundColor: playerColor.surface,
