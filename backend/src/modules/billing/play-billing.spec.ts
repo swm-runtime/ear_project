@@ -547,6 +547,23 @@ describe('Play — 실시간 알림(4.7)', () => {
     expect(play.acknowledged).toEqual(['token-1']);
   });
 
+  it('알림으로 결제가 먼저 반영돼도 알림 수신 시각으로 지급을 판정해, 그 시각에 살아 있던 이벤트를 끝낸다', async () => {
+    const { world, play, notify } = setup();
+    // 알림 수신 시각(NOW) 직후에 끝나는 지급 — 실제 시계로 판정하면 이미 끝난 것으로 보여 결제가 대체하지 않는다
+    const grant = world.grantInvite(USER, UserTier.DAILY, {
+      startsAt: new Date(NOW.getTime() - 86_400_000),
+      endsAt: new Date(NOW.getTime() + 1000),
+    });
+
+    world.addIntent(USER, INTENT_A);
+    play.put({ purchaseToken: 'token-1', accountToken: INTENT_A });
+    await notify('msg-1', { type: 4, purchaseToken: 'token-1' });
+
+    expect(grant.redemption.tierReleasedAt).toEqual(NOW);
+    expect(grant.redemption.endsAt).toEqual(NOW);
+    expect(world.users.get(USER)!.tier).toBe(UserTier.PRO);
+  });
+
   it('주인을 모르는 구매의 알림은 받아 두되 완료로 두지 않고, 그 구매를 확인하지도 않는다', async () => {
     const { world, play, submit, notify } = setup();
 

@@ -401,6 +401,7 @@ export class BillingSyncService {
    *
    * `now`는 지급 판정 시각이다. 응답을 바로 조립하는 요청(구매·복원·코드 입력)은 그 요청 시각을 넘긴다 — 판정 뒤에
    * 시각을 새로 재면 결제로 끝낸 지급의 종료 시각이 응답 조립 시각보다 늦어져, 방금 끝난 지급이 응답에 남는다.
+   * 스토어 알림(App Store S2S·Play RTDN)도 같은 트랜잭션에서 구독 상태를 판정한 수신 시각을 넘긴다.
    */
   async syncUserTier(
     userId: string,

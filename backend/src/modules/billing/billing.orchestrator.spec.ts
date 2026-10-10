@@ -1475,7 +1475,7 @@ describe('만료 보정의 상한 — 확인할 수 없는 구독(4.2 — 2026-1
 });
 
 describe('초대 코드 지급과 결제(subscription-api.md 4.8 — 2026-10-10)', () => {
-  /** 테스트 시각(NOW)과 실제 시각을 모두 덮는 지급 기간 — 결제 반영은 실제 시각으로 지급을 판정한다 */
+  /** 테스트 시각(NOW)을 덮는 지급 기간 — 결제·알림 반영은 넘겨받은 시각으로 지급을 판정한다(실제 시계를 읽지 않는다) */
   const GRANT_WINDOW = {
     startsAt: new Date('2026-10-08T00:00:00Z'),
     endsAt: new Date('2026-11-30T19:00:00Z'),
@@ -1486,7 +1486,7 @@ describe('초대 코드 지급과 결제(subscription-api.md 4.8 — 2026-10-10)
     world.grantInvite(USER, UserTier.PRO, GRANT_WINDOW);
 
     await world.dataSource.transaction((manager) =>
-      assembleBilling(world).sync.syncUserTier(USER, manager),
+      assembleBilling(world).sync.syncUserTier(USER, manager, NOW),
     );
     const view = await orchestrator.getSubscription(USER, NOW);
 
@@ -1515,8 +1515,6 @@ describe('초대 코드 지급과 결제(subscription-api.md 4.8 — 2026-10-10)
     // 결제 반영은 요청 시각 하나로 지급을 끝내고 응답도 조립한다 — 끝난 지급이 응답에 남지 않는다
     const view = await purchase(
       signTransaction({ ...THIS_PERIOD, accountToken: INTENT_A }),
-      USER,
-      new Date(),
     );
 
     expect(grant.redemption.tierReleasedAt).not.toBeNull();
@@ -1529,6 +1527,28 @@ describe('초대 코드 지급과 결제(subscription-api.md 4.8 — 2026-10-10)
       tier: UserTier.PRO,
       grant: null,
     });
+  });
+
+  it('스토어 알림으로 결제가 먼저 반영돼도 알림 수신 시각으로 지급을 판정해, 그 시각에 살아 있던 이벤트를 끝낸다', async () => {
+    const { world, notify } = setup();
+    // 알림 수신 시각(NOW) 직후에 끝나는 지급 — 실제 시계로 판정하면 이미 끝난 것으로 보여 결제가 대체하지 않는다
+    const grant = world.grantInvite(USER, UserTier.DAILY, {
+      startsAt: GRANT_WINDOW.startsAt,
+      endsAt: new Date(NOW.getTime() + 1000),
+    });
+
+    world.addIntent(USER, INTENT_A);
+    await notify({
+      id: 'n-grant',
+      type: 'SUBSCRIBED',
+      subtype: 'INITIAL_BUY',
+      transaction: { ...THIS_PERIOD, accountToken: INTENT_A },
+      renewal: { autoRenewProductId: PRODUCT_PRO },
+    });
+
+    expect(grant.redemption.tierReleasedAt).toEqual(NOW);
+    expect(grant.redemption.endsAt).toEqual(NOW);
+    expect(world.users.get(USER)!.tier).toBe(UserTier.PRO);
   });
 
   it('Pro 이벤트 중 Daily를 결제하면(확인은 앱 몫) 이벤트가 끝나고 Daily가 된다 — 결제가 지급을 대체한다', async () => {
@@ -1582,7 +1602,7 @@ describe('초대 코드 지급과 결제(subscription-api.md 4.8 — 2026-10-10)
     await purchase(signTransaction({ ...THIS_PERIOD, accountToken: INTENT_A }));
     world.subscriptions[0].status = SubscriptionStatus.EXPIRED;
     await world.dataSource.transaction((manager) =>
-      assembleBilling(world).sync.syncUserTier(USER, manager),
+      assembleBilling(world).sync.syncUserTier(USER, manager, NOW),
     );
     expect(world.users.get(USER)!.tier).toBe(UserTier.LIGHT);
     const grant = world.grantInvite(USER, UserTier.PRO, GRANT_WINDOW);
@@ -1595,8 +1615,6 @@ describe('초대 코드 지급과 결제(subscription-api.md 4.8 — 2026-10-10)
         productId: PRODUCT_DAILY,
         accountToken: INTENT_B,
       }),
-      USER,
-      new Date(),
     );
 
     expect(world.subscriptions).toHaveLength(1);
