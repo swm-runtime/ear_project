@@ -83,6 +83,10 @@ export default function CareerInfoScreen() {
       ) : (
         <>
           <ScrollView contentContainerStyle={styles.form}>
+            {/* 큰 제목 — 관심 주제 관리와 같은 머리말(PM 2026-10-10). 서버 응답과 무관해 로딩 중에도 그린다(uiux 4.1) */}
+            <Text style={styles.headline} accessibilityRole="header">
+              {CAREER_COPY.headline}
+            </Text>
             {screen.isLoading ? (
               screen.showSkeleton ? (
                 // form 의 세로 간격을 그대로 이어받는다 — 낭독·반짝임은 영역 하나로
@@ -341,8 +345,18 @@ const styles = StyleSheet.create({
   },
   form: {
     paddingHorizontal: theme.spacing.lg,
-    paddingVertical: theme.spacing.md,
+    // 위는 큰 제목이 앱바 밑 8 에서 시작하게(관심 주제 관리 머리말과 같은 자리)
+    paddingTop: theme.spacing.sm,
+    paddingBottom: theme.spacing.md,
     gap: theme.spacing.sm,
+  },
+  // 큰 제목 — 관심 주제 관리 headline 과 같은 값(28·700)
+  headline: {
+    fontSize: theme.font.size.xl,
+    fontWeight: '700',
+    letterSpacing: -0.6,
+    color: theme.color.textPrimary,
+    lineHeight: theme.font.size.xl * 1.25,
   },
   notice: {
     fontSize: theme.font.size.sm,

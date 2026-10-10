@@ -261,10 +261,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: theme.spacing.lg,
     gap: theme.spacing.sm,
   },
-  // 큰 제목 — 화면의 주인공이 버블이라 머리말은 크고 짧게(D안)
+  // 큰 제목 — 화면의 주인공이 버블이라 머리말은 크고 짧게(D안). 굵기는 다른 화면 큰 제목과 같은 700 — 800 은 Android
+  // Pretendard 에 파일이 없어 시스템 글꼴로 떨어졌다(PM 2026-10-10 "제목 굵기가 굵은 것 같다", design.md 굵기 표)
   headline: {
     fontSize: theme.font.size.xl,
-    fontWeight: '800',
+    fontWeight: '700',
     letterSpacing: -0.6,
     color: theme.color.textPrimary,
     lineHeight: theme.font.size.xl * 1.25,
