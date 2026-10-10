@@ -9,6 +9,10 @@ import { UserTier } from '@/modules/user/user.enum';
 
 import { Subscription } from '../entities/subscription.entity';
 import {
+  isHigherTier,
+  toInviteGrantLastDate,
+} from '../policies/invite-code.policy';
+import {
   SubscriptionDraft,
   SubscriptionRepository,
 } from '../repositories/subscription.repository';
@@ -18,11 +22,13 @@ import {
   SubscriptionStatus,
 } from '../subscription.enum';
 import {
+  InviteGrantView,
   PendingPlanView,
   PlanView,
   TrialContext,
   TrialView,
 } from '../subscription.types';
+import { InviteCodeService } from './invite-code.service';
 import { moreGenerousLimit, PlanService } from './plan.service';
 
 /**
@@ -36,6 +42,7 @@ export class SubscriptionService {
   constructor(
     private readonly subscriptionRepository: SubscriptionRepository,
     private readonly planService: PlanService,
+    private readonly inviteCodeService: InviteCodeService,
   ) {}
 
   /**
@@ -120,9 +127,51 @@ export class SubscriptionService {
         }
       : null;
 
-    const showsTrialPlan = trial !== null && status === PlanStatus.FREE;
-    const tier = showsTrialPlan ? UserTier.TRIAL : baseTier;
-    const plan = showsTrialPlan ? trialPlan : basePlan;
+    /**
+     * 초대 코드 지급(`subscription-api.md` 4.8). 체험처럼 **`status`는 건드리지 않고**, 지급 요금제가 구독보다 높을 때만
+     * `tier`·`planName`·한도가 지급 요금제가 된다 — `users.tier` 캐시(재생 한도·음질 판정)와 같은 규칙이다
+     * (`BillingSyncService.syncUserTier`). `entitlements`도 이 `tier`로 조립되므로 화면 분기와 판정이 어긋나지 않는다.
+     */
+    const activeGrant = await this.inviteCodeService.findActiveGrant(
+      userId,
+      now,
+      manager,
+    );
+    const grantPlan = activeGrant
+      ? await this.planService.findByTier(activeGrant.redemption.tier, manager)
+      : null;
+    const grant: InviteGrantView | null = activeGrant
+      ? {
+          name: activeGrant.codeName,
+          tier: activeGrant.redemption.tier,
+          planName: grantPlan?.name ?? activeGrant.redemption.tier,
+          endsAt: activeGrant.redemption.endsAt,
+          lastDate: toInviteGrantLastDate(activeGrant.redemption.endsAt),
+        }
+      : null;
+    const showsGrantPlan = grant !== null && isHigherTier(grant.tier, baseTier);
+
+    const showsTrialPlan =
+      !showsGrantPlan && trial !== null && status === PlanStatus.FREE;
+    const tier = showsGrantPlan
+      ? grant.tier
+      : showsTrialPlan
+        ? UserTier.TRIAL
+        : baseTier;
+    const plan = showsGrantPlan
+      ? grantPlan
+      : showsTrialPlan
+        ? trialPlan
+        : basePlan;
+    // `null`이 무제한이라 `??`로 고르면 안 된다 — 요금제 행이 없을 때만 구독 한도로 내려간다
+    const shownLimit =
+      showsGrantPlan && grantPlan ? grantPlan.dailyPlayLimit : baseLimit;
+
+    // 체험 뒤 한도 안내는 지급까지 반영한 값이어야 한다 — 지급 Pro 인데 "체험 뒤 하루 2편"이라고 하면 틀린 안내다
+    const shownTrial =
+      trial !== null && showsGrantPlan
+        ? { ...trial, dailyPlayLimitAfter: shownLimit }
+        : trial;
 
     return {
       status,
@@ -131,9 +180,10 @@ export class SubscriptionService {
       planName: plan?.name ?? tier,
       dailyPlayLimit:
         trial !== null && trialPlan
-          ? moreGenerousLimit(baseLimit, trialPlan.dailyPlayLimit)
-          : baseLimit,
-      trial,
+          ? moreGenerousLimit(shownLimit, trialPlan.dailyPlayLimit)
+          : shownLimit,
+      grant,
+      trial: shownTrial,
       renewsAt:
         status === PlanStatus.SUBSCRIBED ? subscription!.expiresAt : null,
       expiresAt:

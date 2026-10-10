@@ -59,6 +59,7 @@ CloudWatch(EC2 지표·`/ear/api`·`/ear/caddy` 로그)·Sentry·합성 헬스�
 | 04:30 | `retention-purge` | 보존 기한 지난 데이터 삭제(`domain.md` 12.1) | 로그 — 테이블 하나가 실패해도 나머지는 계속 지운다 |
 | 04:45 | `subscription-reconcile` | 구독 만료 보정(만료일이 지났는데 유효로 남은 구독을 스토어 상태로 맞춘다 — `subscription-api.md` 4.2) + 버려진 결제 의도 정리(30일, `domain.md` 8.3) (신설 2026-10-02) | 로그, 다음 날 재시도 — 스토어에 물을 수 없으면 저장된 상태를 그대로 둔다(추측으로 강등하지 않는다) |
 | 05:00 | `daily-drip-batch` | 드립 편성(`drip-scheduling.md`) | 로그 · `drip_batch_runs` 기록. 도중에 프로세스가 죽으면 재기동 시 이어받는다 |
+| 10분마다 | `invite-grant-expiry` | 끝난 초대 코드 지급의 `users.tier` 캐시 되돌리기(`domain.md` 8.6 — 신설 2026-10-10). 지급은 서비스 날짜 경계에 끝나므로 경계 뒤 최대 10분 | 로그, 10분 뒤 재시도 — 계정 하나가 실패해도 나머지는 진행 |
 | 10분마다 | `push-receipt-check` | 푸시 영수증(receipt) 회수 → 무효 토큰 정리. **마지막 활성 토큰이 죽은 iOS 사용자는 앱 삭제 추정으로 Slack**(3-5, 2026-10-06) | 로그 — 실패분은 다음 주기에 다시 묻는다 |
 | 17:00 | `daily-metrics` | 일일 지표 Slack 보고(GA4 + 서버 — 3-3) | 로그, 던지지 않음 |
 | 15분마다 | `store-review-poll` | App Store·Google Play 새 리뷰·수정 리뷰를 Slack 한 메시지로(KAN-133 VoC — `store_reviews`에 알린 것을 기록). 리뷰어 닉네임은 어디에도 싣지 않는다 | 로그, 다음 주기 재시도 — 보냈을 때만 기록하므로 웹훅이 죽은 주기의 리뷰는 다음 주기에 다시 고른다. **Play 는 최근 1주일치만 돌아와** 7일 넘게 멈추면 그 사이 리뷰는 복구되지 않는다 |

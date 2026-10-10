@@ -3,6 +3,7 @@ import {
   SubscriptionStore,
 } from '@/modules/subscription/subscription.enum';
 import { PendingPlanDto } from '@/modules/subscription/dto/pending-plan.dto';
+import { InviteGrantDto } from '@/modules/subscription/dto/invite-grant.dto';
 import { TrialDto } from '@/modules/subscription/dto/trial.dto';
 import { UserTier } from '@/modules/user/user.enum';
 
@@ -20,6 +21,8 @@ class SubscriptionPlanDto {
   readonly has_payment_issue: boolean;
   /** 가입 체험 중일 때만 값이 있다 — 종료일·이후 한도(`subscription.md` 4.8). 아니면 `null` */
   readonly trial: TrialDto | null;
+  /** 초대 코드로 받은 요금제 — 지급 중일 때만 값이 있다(`subscription-api.md` 4.8) */
+  readonly grant: InviteGrantDto | null;
 }
 
 /** subscription-api.md 4.2 — 영수증 제출(4.4)·복원(4.5)도 같은 본문을 돌려준다 */
@@ -40,6 +43,7 @@ export class SubscriptionResponseDto {
         expires_at: view.plan.expiresAt?.toISOString() ?? null,
         has_payment_issue: view.plan.hasPaymentIssue,
         trial: TrialDto.from(view.plan.trial),
+        grant: InviteGrantDto.from(view.plan.grant),
       },
       entitlements: EntitlementsDto.from(view.entitlements),
       store: view.store,

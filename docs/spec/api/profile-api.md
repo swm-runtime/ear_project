@@ -86,7 +86,8 @@
     "renews_at": "2026-09-01T00:00:00Z",
     "expires_at": null,
     "has_payment_issue": false,
-    "trial": null
+    "trial": null,
+    "grant": null
   },
   "interest_summary": {
     "count": 3,
@@ -172,6 +173,8 @@
 - `renews_at`과 `expires_at`은 **같은 `subscriptions.expires_at`에서 온 값이지만 의미가 달라 필드를 나눈다.** 자동 갱신이면 그 시각이 다음 결제일이고, 해지 예약이면 이용 종료일이다. 한 필드로 내려주면 화면이 `status`를 보고 라벨을 갈아 끼워야 한다.
 - `status = free`일 때 `tier = "light"` · `plan_name` · `daily_play_limit`(무료 한도)을 채워 내려준다. **"하루 N편"의 N은 `plans.daily_play_limit` 서버 값이다 — 2를 하드코딩하지 않는다**(`profile.md` 4.2 · `paywall.md` 5장과 같은 규칙).
 - `daily_play_limit`는 무료 카드의 문구 조립용이다. `null`은 무제한 티어(문구에 한도를 적지 않는다).
+
+**`plan.grant` — 초대 코드 지급**(2026-10-10). 지급 중이면 `{ "name", "tier", "plan_name", "ends_at", "last_date" }`, 아니면 `null`. 모양·판정은 `subscription-api.md` 4.8과 같다(같은 조립 함수). 지급 요금제가 구독보다 높으면 `tier`·`plan_name`·`daily_play_limit`이 지급 요금제의 값이고 `status`는 구독 상태 그대로다. 설정 응답의 `plan`도 같은 필드를 싣는다.
 
 **`plan.pending_plan` — 예약된 요금제 변경**(2026-10-08 PM — KAN-161). 다운그레이드 예약이면 `{ "tier": "daily", "plan_name": "Daily", "effective_at": "2026-11-08T03:00:00Z" }`, 없으면 `null`. 모양·판정은 `subscription-api.md` 4.2 의 `pending_plan` 과 같다(같은 값에서 조립). 화면은 "{plan_name} · N월 N일까지 이용 · 이후 {pending_plan.plan_name}"으로 그린다. 설정 응답의 `plan` 도 같은 조립 함수라 같은 필드를 싣는다.
 

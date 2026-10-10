@@ -1,5 +1,6 @@
 import { AudioQuality } from '@/modules/content/content.enum';
 import { PlanStatus } from '@/modules/subscription/subscription.enum';
+import { InviteGrantDto } from '@/modules/subscription/dto/invite-grant.dto';
 import { TrialDto } from '@/modules/subscription/dto/trial.dto';
 import { PendingPlanDto } from '@/modules/subscription/dto/pending-plan.dto';
 import { UserTier } from '@/modules/user/user.enum';
@@ -29,6 +30,8 @@ class SettingsPlanDto {
   readonly has_payment_issue: boolean;
   /** 가입 체험 중일 때만 값이 있다 — 종료일·이후 한도(`subscription.md` 4.8). 아니면 `null` */
   readonly trial: TrialDto | null;
+  /** 초대 코드로 받은 요금제 — 지급 중일 때만 값이 있다(`subscription-api.md` 4.8) */
+  readonly grant: InviteGrantDto | null;
   /** 다운그레이드 예약(KAN-161) — `{ tier, plan_name, effective_at }`, 없으면 `null`. 구독 조회의 `pending_plan` 과 같은 값 */
   readonly pending_plan: PendingPlanDto | null;
 }
@@ -110,6 +113,7 @@ export class GetSettingsResponseDto {
             expires_at: result.plan.expiresAt?.toISOString() ?? null,
             has_payment_issue: result.plan.hasPaymentIssue,
             trial: TrialDto.from(result.plan.trial),
+            grant: InviteGrantDto.from(result.plan.grant),
             pending_plan: PendingPlanDto.from(result.plan.pendingPlan),
           }
         : null,

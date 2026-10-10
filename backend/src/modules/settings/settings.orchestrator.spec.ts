@@ -66,6 +66,7 @@ function buildPlanView(): PlanView {
     hasPaymentIssue: false,
     trial: null,
     pendingPlan: null,
+    grant: null,
   };
 }
 

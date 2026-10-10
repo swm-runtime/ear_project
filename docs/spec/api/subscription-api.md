@@ -161,7 +161,7 @@
   "plan": {
     "status": "subscribed", "tier": "pro", "plan_name": "프로", "daily_play_limit": null,
     "renews_at": "2026-11-02T03:00:00Z", "expires_at": null, "has_payment_issue": false,
-    "trial": null
+    "trial": null, "grant": null
   },
   "entitlements": { "daily_play_limit": null, "daily_drip_count": 2, "drip_enabled": true, "ads_enabled": false },
   "store": "app_store",
@@ -174,6 +174,7 @@
 | `plan` | 구독 요약 — `profile-api.md` 4.1과 같은 모양(2장). 무료면 `status: "free"`, `tier: "light"`. 가입 체험 중인 무료 계정은 `tier: "trial"` + `trial` 객체(2장) |
 | `entitlements` | **현재 유효한** 티어의 권한(2장). 해지 예약·유예 중에는 유료 티어의 값이다 |
 | `store` | `app_store` \| `play_store` \| `null`(무료). [구독 해지]·[결제 수단 확인]을 어느 스토어로 보낼지의 근거 |
+| `plan.grant` | **초대 코드 지급** 중이면 `{ "name", "tier", "plan_name", "ends_at", "last_date" }`, 아니면 `null`(4.8 — 2026-10-10). 프로필·설정의 `plan.grant`와 같다 |
 | `pending_plan` | **다운그레이드 예약**이 있으면 `{ "tier", "plan_name", "effective_at" }`, 없으면 `null`. `effective_at`은 현재 결제 주기 만료 시각이다(`subscription.md` 4.4 — "언제부터 적용되는지" 표시) |
 
 - **`users.tier` 캐시가 아니라 `subscriptions`를 기준으로 조립한다**(`domain.md` 8.2). 프로필·설정과 같은 규칙이다.
@@ -414,6 +415,36 @@ Google Cloud Pub/Sub **push 구독**이 호출한다. 본문은 Pub/Sub 메시�
 - **만료 보정**(4.2)은 그 행의 `latest_receipt`로 같은 조회를 한다
 
 ---
+
+### 4.8 초대 코드 지급 — 규칙과 `plan.grant` (2026-10-10)
+
+규칙의 원본은 `subscription.md` 4.9, 저장은 `domain.md` 8.5·8.6이다.
+
+**`plan.grant`** — 구독 조회(4.2)·프로필(`profile-api.md` 4.1)·설정(`settings-api.md` 4.1)의 `plan`에 같은 모양으로 실린다(조립 함수 하나).
+
+```json
+"grant": {
+  "name": "산군 PoC",
+  "tier": "pro",
+  "plan_name": "Pro",
+  "ends_at": "2026-11-08T19:00:00Z",
+  "last_date": "2026-11-08"
+}
+```
+
+| 필드 | 의미 |
+|---|---|
+| `name` | 코드(캠페인) 이름. 화면에 쓸지는 클라이언트가 정한다 |
+| `tier` · `plan_name` | 지급 요금제 |
+| `ends_at` | 지급이 끝나는 시각(배타 경계 — 서비스 날짜 경계) |
+| `last_date` | 지급으로 쓸 수 있는 마지막 서비스 날짜(`YYYY-MM-DD`) — "N월 N일까지"는 이 값. 클라이언트가 04시 보정을 하지 않는다 |
+
+- **`plan.status`는 지급과 무관하다** — 구독 상태 그대로다(지급은 구독이 아니다). 지급 요금제가 구독보다 높으면 `plan.tier` · `plan_name` · `daily_play_limit`과 `entitlements`가 지급 요금제의 값이 된다. 낮으면 구독 표시 그대로이고 `grant`만 실린다.
+- 가입 체험과 겹치면 지급이 표시를 이긴다(`tier`는 지급 요금제). 한도는 둘 중 넉넉한 쪽이다.
+- **이벤트 중 결제** — 코드를 입력할 때 구독이 없던 계정에 지급 기간 중 살아 있는 구독이 반영되면(4.4·4.5·스토어 알림 — 재구독 포함) 서버가 지급을 끝낸다. 결제 응답의 `plan.grant`는 `null`이 된다. 결제 전에 "이벤트가 끝나요"를 알리거나 막는 것은 클라이언트가 `plan.grant.tier`와 고른 요금제로 정한다. 입력 때 이미 구독 중이었으면 그 구독의 갱신·변경은 지급을 끝내지 않는다.
+- 체험과 지급이 겹치면 `plan.trial.daily_play_limit_after`는 지급까지 반영한 한도다.
+- 요금제 목록(4.1)의 `action`은 **구독만 보고** 정한다 — 지급은 반영하지 않는다(구독이 없으면 무료가 `current`). 지급 중 표시는 `plan.grant`로 한다.
+- 지급이 끝나면 10분 안에 `users.tier`가 되돌아간다(`domain.md` 8.6 만료 배치). 그 사이 응답의 `plan`은 이미 지급 없이 조립된다.
 
 ## 5. 에러 코드 표
 
