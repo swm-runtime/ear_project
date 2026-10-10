@@ -1,4 +1,4 @@
-import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Image, Pressable, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { theme } from '@/shared/theme';
@@ -96,7 +96,8 @@ export default function InterestManagementScreen() {
             버블 밭(PM 2026-10-09 D안 — 종전 사진 알약 2열은 선택 여부가 보이지 않았다). 상한까지 고르면 남은 버블이
             흐려지고, 누르면 고르지 않고 상한 토스트가 뜬다(PM 2026-10-10 01:08 — 종전 "탭 허용·저장만 막음"(08-11)을 바꿨다)
           */}
-          <ScrollView style={styles.field} showsVerticalScrollIndicator={false}>
+          {/* 스크롤하지 않는다 — 버블은 남은 높이 안에서 물리로 뭉치고, 끌기는 밭이 받는다(runtime 33) */}
+          <View style={styles.field}>
             {screen.isLoading ? (
               screen.showSkeleton ? (
                 <InterestBubbleSkeleton />
@@ -108,7 +109,7 @@ export default function InterestManagementScreen() {
                 onToggle={screen.toggleTopic}
               />
             )}
-          </ScrollView>
+          </View>
 
           {/* 하단 고정 독 — 칩이 늘어 스크롤이 생겨도 [저장]이 묻히지 않는다(uiux 4.1) */}
           <View style={styles.dock}>
