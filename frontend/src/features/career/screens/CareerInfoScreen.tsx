@@ -368,15 +368,16 @@ const styles = StyleSheet.create({
     color: theme.color.textPrimary,
     marginTop: theme.spacing.md,
   },
-  // 면 입력칸 — 연차 트랙과 같은 surface, 테두리 없음. 높이는 연차 줄과 같은 44
+  // 면 입력칸 — 연차 트랙과 같은 surface, 테두리 없음. 높이는 연차 줄과 같은 44, 모양도 같은 **알약**(PM 2026-10-10
+  // "직무 텍스트박스도 알약으로" — 종전 md 12). 둥근 끝(22)에 글자가 붙지 않게 시작 여백을 lg 로
   field: {
     flexDirection: 'row',
     alignItems: 'center',
     minHeight: theme.touchTarget.minHeight,
-    borderRadius: theme.radius.md,
+    borderRadius: theme.radius.full,
     borderCurve: 'continuous',
     backgroundColor: theme.color.surface,
-    paddingLeft: theme.spacing.md,
+    paddingLeft: theme.spacing.lg,
   },
   // 입력 중 — 테두리 대신 면만 한 단계 짙게(지금 여기를 쓰고 있다)
   fieldFocused: {
