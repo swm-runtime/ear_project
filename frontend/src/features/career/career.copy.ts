@@ -8,7 +8,12 @@ import type { YearsOfExperienceRange } from './career.types';
 export const CAREER_COPY = {
   appBarTitle: '커리어 정보',
   backA11y: '뒤로가기',
-  reset: '초기화',
+  /** 폼 맨 아래 글자 버튼(종전 앱바 [초기화], 2026-10-10 A안) */
+  reset: '모두 지우기',
+  /** 앱바 왼쪽 — 뒤로가기와 같다(변경 있으면 이탈 확인) */
+  cancel: '취소',
+  /** 앱바 오른쪽 — 저장(종전 하단 [저장]). 저장 실패 뒤엔 다시 시도 */
+  done: '완료',
   /** "초기화"만 읽히면 무엇이 초기화되는지 알 수 없다(uiux 7장) */
   resetA11yLabel: '입력 초기화',
   resetA11yHint: '직군, 직무, 연차를 모두 비워요',
