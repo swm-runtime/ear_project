@@ -4,9 +4,12 @@ import { theme } from '@/shared/theme';
 import { pillButton } from '@/shared/ui/pill-button.styles';
 import { Text } from '@/shared/ui/Typography';
 
+import { jobCategoryImageSource } from '@/features/career';
+
 import type { CareerCardVM, SectionState } from '../hooks/useProfileScreen';
 import { PROFILE_COPY } from '../profile.copy';
 import ProfileCard from './ProfileCard';
+import ProfilePhotoStack from './ProfilePhotoStack';
 
 interface CareerCardProps {
   state: SectionState<CareerCardVM>;
@@ -41,6 +44,10 @@ export default function CareerCard({ state, onPress, onRetry, isRetrying }: Care
       hasError={hasError}
       onRetry={onRetry}
       isRetrying={isRetrying}
+      inline={vm !== null && !vm.isEmpty}
+      labelAccessory={
+        vm !== null && !vm.isEmpty ? <Text style={styles.line}>{line}</Text> : undefined
+      }
     >
       {vm !== null ? (
         vm.isEmpty ? (
@@ -50,9 +57,16 @@ export default function CareerCard({ state, onPress, onRetry, isRetrying }: Care
               <Text style={styles.emptyActionText}>{PROFILE_COPY.career.emptyAction}</Text>
             </View>
           </View>
-        ) : (
-          <Text style={styles.line}>{line}</Text>
-        )
+        ) : vm.career.jobCategory !== null ? (
+          <ProfilePhotoStack
+            photos={[
+              {
+                id: vm.career.jobCategory,
+                source: jobCategoryImageSource(vm.career.jobCategory),
+              },
+            ]}
+          />
+        ) : null
       ) : null}
     </ProfileCard>
   );
@@ -60,8 +74,8 @@ export default function CareerCard({ state, onPress, onRetry, isRetrying }: Care
 
 const styles = StyleSheet.create({
   line: {
-    fontSize: theme.font.size.md,
-    color: theme.color.textPrimary,
+    fontSize: theme.font.size.xs,
+    color: theme.color.textSecondary,
   },
   emptyRow: {
     flexDirection: 'row',
