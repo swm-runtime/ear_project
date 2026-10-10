@@ -191,7 +191,12 @@ export default function MainNavigator() {
         <MainStack.Screen name="NoticeDetail" component={NoticeDetailScreen} />
         {/* 회원 탈퇴(A7·A8) — 앱바(뒤로 + "회원 탈퇴")를 화면이 직접 그린다(auth-uiux.md 4.5).
           처리 중 이탈 차단(뒤로가기·스와이프)은 화면이 beforeRemove·gestureEnabled로 소유한다 */}
-        <MainStack.Screen name="Withdrawal" component={WithdrawalScreen} />
+        {/* 회원 탈퇴 — 설정과 같은 푸시 화면 상단(iOS 26 시스템 큰 제목, 2026-10-10 "회원탈퇴창 UI 수정") */}
+        <MainStack.Screen
+          name="Withdrawal"
+          component={WithdrawalScreen}
+          options={PUSHED_SCREEN_HEADER}
+        />
         <MainStack.Screen
           name="Admin"
           component={PlaceholderScreen}
