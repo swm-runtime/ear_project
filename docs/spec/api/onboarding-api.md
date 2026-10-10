@@ -167,7 +167,7 @@
 
 | 필드 | 타입 | 필수 | 비고 |
 |---|---|---|---|
-| `topic_ids` | string[] | 필수 | **최소 1개 · 최대 3개.** 중복 값은 거부한다 |
+| `topic_ids` | string[] | 필수 | **최소 1개 · 최대 3개.** 중복 값은 거부한다(400 `VALIDATION_FAILED`) |
 
 **Response 200**
 
@@ -241,6 +241,7 @@
 |---|---|---|
 | `VALIDATION_FAILED` | 400 | 길이 상한 초과 · `years_of_experience` enum 위반 |
 | `ONBOARDING_ALREADY_COMPLETED` | 409 | 완료된 계정의 호출 |
+| `CAREER_JOB_CATEGORY_UNAVAILABLE` | 400 | `job_category`가 직군 목록(`GET /job-categories`)에 없는 값. 커리어 화면(`career-api.md` 5장)과 같은 코드다 — 커리어 필드의 쓰기 경로가 하나라 온보딩도 같은 검증을 받는다(등재 2026-10-10, 구현 2026-09-09 `67664c48`) |
 
 ---
 
@@ -521,6 +522,7 @@
 | `ONBOARDING_INTERESTS_NOT_SET` | 409 | false | 1단계로 되돌림 |
 | `ONBOARDING_NOT_COMPLETED` | 409 | false | 폴링 중단. 완료 요청부터 다시 |
 | `ONBOARDING_ALREADY_COMPLETED` | 409 | false | 온보딩 스택 제거 후 라이브러리로 진입 |
+| `CAREER_JOB_CATEGORY_UNAVAILABLE` | 400 | false | 4.4 — 목록 밖 직군 값. 클라이언트 동작은 `common-error-handling.md` 9.9(커리어)를 따른다 |
 | `VALIDATION_FAILED` | 400 | false | 인라인 오류. 재시도를 권하지 않는다(`common-error-handling.md` 4.1) |
 | `CONTENT_NOT_FOUND` | — | false | **건별 결과**(4.6 `failed[]`). 해당 카드를 목록에서 제거 |
 | `CONTENT_WITHDRAWN` | — | false | **건별 결과**(4.6 `failed[]`). 토스트 "제공이 종료된 콘텐츠예요" |

@@ -410,7 +410,7 @@
 
 | 필드 | 타입 | 필수 | 비고 |
 |---|---|---|---|
-| query | string | 필수(**트림 후 2자 이상** — 개정 2026-08-23) | 제목·설명·저자·주제명 대상(`explore.md` 4.5-2) |
+| query | string | 필수(**트림 후 2자 이상** — 개정 2026-08-23, **100자 이하** — 서버 상한, 등재 2026-10-10) | 제목·설명·저자·주제명 대상(`explore.md` 4.5-2) |
 | topic_ids | string (uuid 콤마 구분) | 선택 | 검색 결과에 주제 필터를 겹칠 때 |
 | cursor | string(opaque) | 선택 | 직전 응답의 `next_cursor` |
 | limit | int | 선택(기본 `20`, 최대 `50`) | 페이지 단위 20건(`explore.md` 4.5-3). 상한을 서버가 강제한다(`architecture.md` 9.3) |
@@ -459,7 +459,7 @@
 | 코드 | HTTP | 상황 |
 |---|---|---|
 | `EXPLORE_CURSOR_INVALID` | 400 | 커서 형식 오류, 또는 발급 시점과 다른 `query`·`topic_ids` |
-| `VALIDATION_FAILED` | 400 | `query` 누락·트림 후 2자 미만·특수문자만, `limit` 범위 초과 |
+| `VALIDATION_FAILED` | 400 | `query` 누락·트림 후 2자 미만·100자 초과·특수문자만, `limit` 범위 초과 |
 
 ---
 

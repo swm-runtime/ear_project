@@ -284,7 +284,7 @@
 
 | 파트 | 규격 | 필수 |
 |---|---|---|
-| `audio` | 압축 음질 mp3 / m4a, ≤320MB — 4.6과 같다 | 선택 |
+| `audio` | 압축 음질 mp3 / m4a, ≤200MB — 4.6과 같다(정정 2026-10-10 — 320MB 상향은 되돌렸다) | 선택 |
 | `audio_aac` · `audio_lossless` | 4.6과 같다. **오디오를 바꾸는 재발행은 3종을 한 세트로 본다** — `audio`를 보내면서 안 보낸 음질의 행은 지운다(버전이 다른 음질이 섞이지 않게, `domain.md` 5.1-1). `audio` 없이 `audio_aac`·`audio_lossless`만 보내는 것은 400(`details.field = "audio"`) | 선택 (2026-10-06) |
 | `thumbnail` | jpg / png / webp, ≤5MB — 4.6 과 같이 서버가 WebP 768px 로 다시 쓴다 | 선택 |
 | `payload` | JSON 문자열 — 4.6 `payload`의 부분집합(`title` `description` `source_name` `topic_ids` `sources`). 넘긴 키만 바꾼다 | 선택 |

@@ -396,8 +396,8 @@
 
 | 코드 | HTTP | 상황 |
 |---|---|---|
-| `PLAY_LIMIT_EXCEEDED` | 403 | 무료(`light`) 티어 한도 소진 → 클라이언트는 **페이월 바텀시트**를 연다 |
-| `PLAY_LIMIT_REACHED` | 403 | 한도 있는 **유료** 티어의 한도 소진 → 페이월이 아니라 한도 안내(`paywall.md` 2장) |
+| `PLAY_LIMIT_EXCEEDED` | 403 | **최상위가 아닌** 한도 티어(무료 포함 — 예: `light`·`daily`)의 한도 소진 → 클라이언트는 **페이월 바텀시트**를 연다 |
+| `PLAY_LIMIT_REACHED` | 403 | **최상위** 티어의 한도 소진 → 페이월이 아니라 한도 안내(`paywall.md` 2장·4.1). 정정 2026-10-10 — 종전 "한도 있는 유료 티어"는 `paywall.md`·`player-api.md` 4.1·구현(`play-policy.service.ts` `isTopTier`)과 달랐다 |
 | `CONTENT_WITHDRAWN` | 403 | 파트너 회수 → "제공이 종료된 콘텐츠예요" 안내 후 목록에서 제거 |
 | `CONTENT_NOT_FOUND` | 404 | `content_id`가 없음 |
 
