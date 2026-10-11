@@ -1,4 +1,5 @@
 import {
+  DailyListeningHighlightView,
   ListeningHighlightView,
   TopicDistributionView,
   WeeklyListeningView,
@@ -17,6 +18,23 @@ function toListeningHighlightDto(
     return null;
   }
   return view.kind === 'more_than_previous'
+    ? { kind: view.kind, diff_sec: view.diffSec }
+    : view;
+}
+
+/** 주간 카드 요일별 한 줄(`profile-api.md` 4.1 `daily_listening_highlight`, KAN-171) */
+type DailyListeningHighlightDto =
+  | { kind: 'more_than_last_week'; diff_sec: number }
+  | { kind: 'best_day' }
+  | { kind: 'listened_contents'; count: number };
+
+function toDailyListeningHighlightDto(
+  view: DailyListeningHighlightView | null,
+): DailyListeningHighlightDto | null {
+  if (view === null) {
+    return null;
+  }
+  return view.kind === 'more_than_last_week'
     ? { kind: view.kind, diff_sec: view.diffSec }
     : view;
 }
@@ -61,6 +79,8 @@ export class WeeklyListeningResponseDto {
   readonly listening_top_percent: number | null;
   /** 주간 카드 한 줄 — 상위 % > 전주보다 더 > 들은 날 수 중 하나. 0초면 `null`(KAN-170) */
   readonly listening_highlight: ListeningHighlightDto | null;
+  /** 월~일 7개 고정 — 요일을 골랐을 때의 그날 한 줄. 지난주 같은 요일보다 더 > 가장 많이 들은 날 > 들은 편 수, 0초면 `null`(KAN-171) */
+  readonly daily_listening_highlight: (DailyListeningHighlightDto | null)[];
   /** `null`이면 이전 주가 없다(가입 주) → [◀] 비활성 */
   readonly previous_week_start: string | null;
   /** `null`이면 이번 주다 → [다음 주 ▶] 비활성 */
@@ -76,6 +96,9 @@ export class WeeklyListeningResponseDto {
       daily_listened_sec: view.dailyListenedSec,
       listening_top_percent: view.listeningTopPercent,
       listening_highlight: toListeningHighlightDto(view.listeningHighlight),
+      daily_listening_highlight: view.dailyListeningHighlight.map((day) =>
+        toDailyListeningHighlightDto(day),
+      ),
       previous_week_start: view.previousWeekStart,
       next_week_start: view.nextWeekStart,
       topic_distribution: TopicDistributionDto.from(view.topicDistribution),

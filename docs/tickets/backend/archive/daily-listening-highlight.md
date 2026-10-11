@@ -70,3 +70,11 @@
 - Given 가입 주(직전 주 없음), When 4.1 을 부르면, Then 어떤 칸도 `more_than_last_week` 가 아니다
 - Given 그날 0초(진행 중인 주의 아직 안 온 요일 포함), When 부르면, Then 그 칸이 `null` 이다
 - Given 계약 확정 후, When `docs/spec/api/profile-api.md` 4.1 `weekly_listening` 절을 읽으면, Then `daily_listening_highlight` 의 종류·우선순위·`null` 조건이 적혀 있다
+
+## 처리 기록
+
+- **2026-10-11 반영** — 위 "계약(제안)"대로 구현하고 `profile-api.md` 4.1·4.2·9장에 확정 계약을 적었다. 4.1 `weekly_listening`과 4.2 응답에 `daily_listening_highlight`(월~일 7칸 — `more_than_last_week`(`diff_sec`) · `best_day` · `listened_contents`(`count`) 또는 `null`).
+  - 판정은 순수 함수 `pickDailyListeningHighlights`, 그날 편 수는 `countDailyListenedContents`(`profile.stats.ts` — 청취 0초 행은 세지 않는다). 최소 차이는 KAN-170 과 같은 상수 `LISTENING_HIGHLIGHT_MIN_DIFF_SEC`(60).
+  - 직전 주는 요일별 7일을 **한 번만** 받아 주간 한 줄(앞 N일 합)과 요일별 한 줄(같은 요일 값)이 함께 쓴다. 그래서 KAN-170 때 "상위 %가 있으면 직전 주를 조회하지 않던" 생략은 없어졌다 — 이번 주에 들은 게 있고 직전 주가 있으면 조회 1회가 늘 붙는다(사용자·날짜 인덱스 조회 하나). 0초 주·가입 주는 여전히 조회하지 않는다.
+  - 테스트: 단위(우선순위 · 60초 경계 · 줄었지만 최고인 날 · 동률 · 하루만 들은 주 · 가입 주 · 0초 · 0초 행 제외) · 오케스트레이터(주간 한 줄이 상위 %여도 요일별은 따로 고른다, 0초 주는 7칸 모두 null) · E2E `test/profile-weekly-top-percent.e2e-spec.ts`(실제 DB — 직전 주 같은 요일 대비 100초 더, 하루만 들은 사람은 편 수 1).
+- **"착수 전에 PM과 맞출 것" 세 항목은 제안값 그대로 잠정 구현** — 최소 차이 60초, `best_day`의 "들은 날 2일 이상"·동률 모두, 진행 중인 주는 오늘까지 기준. 바뀌면 상수·조건만 고친다(필드 의미 불변). `profile-api.md` 9장 미결에 남겼다.

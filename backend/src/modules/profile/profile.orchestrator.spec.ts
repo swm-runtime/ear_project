@@ -272,6 +272,7 @@ describe('ProfileOrchestrator', () => {
         kind: 'more_than_previous',
         diffSec: 1320,
       });
+      // 직전 주는 요일별로 7일을 한 번에 받고, 주간 비교에는 앞 6일만 더한다(KAN-171 이 같은 배열을 쓴다)
       expect(playbackService.sumListenedSecByDates).toHaveBeenLastCalledWith(
         USER_ID,
         [
@@ -281,8 +282,10 @@ describe('ProfileOrchestrator', () => {
           '2026-07-30',
           '2026-07-31',
           '2026-08-01',
+          '2026-08-02',
         ],
       );
+      expect(playbackService.sumListenedSecByDates).toHaveBeenCalledTimes(2);
     });
 
     it('가입 주면 비교할 직전 주가 없어 "들은 날 수"를 싣고 직전 주를 조회하지 않는다', async () => {
@@ -314,10 +317,58 @@ describe('ProfileOrchestrator', () => {
       // then
       expect(result.weeklyListening?.listeningTopPercent).toBeNull();
       expect(result.weeklyListening?.listeningHighlight).toBeNull();
+      expect(result.weeklyListening?.dailyListeningHighlight).toEqual(
+        Array(7).fill(null),
+      );
       expect(
         playbackService.countUsersListenedMoreByDates,
       ).not.toHaveBeenCalled();
       expect(userService.countJoinedBefore).not.toHaveBeenCalled();
+    });
+
+    it('요일별 한 줄을 직전 주 같은 요일·그날 들은 편 수로 골라 싣는다(KAN-171)', async () => {
+      // given — NOW 는 2026-08-08(토). 이번 주 월 1320초(지난주 월 600초), 수 300초(콘텐츠 2편), 직전 주는 상위 % 로 끝난다
+      const recorded = new Map([
+        ['2026-07-27', 600],
+        ['2026-07-29', 900],
+        ['2026-08-03', 1320],
+        ['2026-08-05', 300],
+      ]);
+      playbackService.sumListenedSecByDates.mockImplementation(
+        (_userId: string, dates: string[]) =>
+          Promise.resolve(
+            new Map([...recorded].filter(([date]) => dates.includes(date))),
+          ),
+      );
+      playbackService.sumListenedSecByContentAndDates.mockResolvedValue([
+        { contentId: CONTENT_ID, playDate: '2026-08-03', listenedSec: 1320 },
+        { contentId: CONTENT_ID, playDate: '2026-08-05', listenedSec: 200 },
+        {
+          contentId: 'eeeeeeee-1111-4111-8111-111111111111',
+          playDate: '2026-08-05',
+          listenedSec: 100,
+        },
+      ]);
+      playbackService.countUsersListenedMoreByDates.mockResolvedValue(0);
+      userService.countJoinedBefore.mockResolvedValue(10);
+
+      // when
+      const result = await orchestrator.getSummary(USER_ID, NOW);
+
+      // then — 월: 720초 더. 수: 지난주(900)보다 줄었고 최고도 아니라 2편. 주간 한 줄이 상위 % 여도 요일별은 따로 고른다
+      expect(result.weeklyListening?.listeningHighlight).toEqual({
+        kind: 'top_percent',
+        percent: 10,
+      });
+      expect(result.weeklyListening?.dailyListeningHighlight).toEqual([
+        { kind: 'more_than_last_week', diffSec: 720 },
+        null,
+        { kind: 'listened_contents', count: 2 },
+        null,
+        null,
+        null,
+        null,
+      ]);
     });
 
     it('이번 주 그래프에 그 주·요일별 주제 분포를 함께 싣는다', async () => {
