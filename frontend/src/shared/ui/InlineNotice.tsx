@@ -10,6 +10,11 @@ interface InlineNoticeProps {
   tone?: 'info' | 'warning' | 'error';
   offline?: boolean;
   action?: { label: string; onPress: () => void; busy?: boolean };
+  /**
+   * stacked — 문구를 가운데에 두고 버튼을 다음 줄 가운데에(검색 실패, PM 2026-10-11 19:43 "라이브러리처럼 가운데, 다시 시도는
+   * 다음 줄"). 기본은 한 줄(문구 + 오른쪽 버튼)
+   */
+  layout?: 'inline' | 'stacked';
 }
 
 /** 관련 필드·설정 바로 아래 놓는 안내. 별도의 카드나 배경을 만들지 않는다. */
@@ -18,7 +23,9 @@ export default function InlineNotice({
   tone = 'info',
   offline = false,
   action,
+  layout = 'inline',
 }: InlineNoticeProps) {
+  const stacked = layout === 'stacked';
   const color =
     tone === 'error'
       ? theme.color.danger
@@ -27,7 +34,7 @@ export default function InlineNotice({
         : theme.color.textSecondary;
   return (
     <View
-      style={styles.row}
+      style={stacked ? styles.stacked : styles.row}
       accessibilityLiveRegion="polite"
       accessibilityRole={tone === 'warning' ? 'alert' : undefined}
     >
@@ -37,7 +44,9 @@ export default function InlineNotice({
             <StatusIcon kind={offline ? 'offline' : 'warning'} color={color} />
           </View>
         ) : null}
-        <Text style={[styles.message, { color }]}>{message}</Text>
+        <Text style={[styles.message, stacked && styles.messageCentered, { color }]}>
+          {message}
+        </Text>
       </View>
       {action ? (
         <Pressable
@@ -61,6 +70,9 @@ export default function InlineNotice({
 
 const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', gap: theme.spacing.sm, flexWrap: 'wrap' },
+  // 버튼의 44pt 터치 높이가 줄 간격을 이미 벌려 두어 gap 은 두지 않는다
+  stacked: { alignItems: 'center' },
+  messageCentered: { textAlign: 'center' },
   messageRow: {
     flexDirection: 'row',
     alignItems: 'flex-start',
