@@ -25,7 +25,6 @@ import ColorModeSection from '../components/ColorModeSection';
 import DevDiagnosticsRows from '../components/DevDiagnosticsRows';
 import DevPushTokenRow from '../components/DevPushTokenRow';
 import EmailRow from '../components/EmailRow';
-import NotificationBanner from '../components/NotificationBanner';
 import PlanSummaryCard from '../components/PlanSummaryCard';
 import PlaybackRateSheet from '../components/PlaybackRateSheet';
 import SettingsDialog from '../components/SettingsDialog';
@@ -197,7 +196,11 @@ export default function SettingsScreen() {
 
           <SettingsSection title={SETTINGS_COPY.sections.notification}>
             {screen.isNotificationBannerVisible ? (
-              <NotificationBanner onPress={screen.openPrePrompt} />
+              <SettingsRow
+                label={SETTINGS_COPY.notification.banner}
+                onPress={screen.openPrePrompt}
+                a11yLabel={SETTINGS_COPY.notification.bannerA11y}
+              />
             ) : null}
             <SettingsToggleRow
               label={SETTINGS_COPY.notification.dripToggle}

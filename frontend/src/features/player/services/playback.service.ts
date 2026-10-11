@@ -475,7 +475,8 @@ class PlaybackService {
     // 시크 직후 — 플레이어가 아직 옛 위치를 보고하는 동안은 위치를 목표에 묶어 둔다(위 pendingSeek)
     const pending = this.pendingSeek;
     if (pending !== null) {
-      const isSettled = Math.abs(status.currentTime - pending.targetSec) <= SEEK_SETTLE_TOLERANCE_SEC;
+      const isSettled =
+        Math.abs(status.currentTime - pending.targetSec) <= SEEK_SETTLE_TOLERANCE_SEC;
       if (isSettled || Date.now() >= pending.until) this.pendingSeek = null;
     }
     const isStaleAfterSeek = this.pendingSeek !== null;
@@ -536,7 +537,9 @@ class PlaybackService {
     if (session.state !== 'ready' || ctx.isEnded || this.streamError) return;
     this.streamError = { wasPlaying: session.isPlaying };
     this.player?.pause();
-    store.getState().patchSession({ isPlaying: false, isBuffering: false, banner: 'refresh_failed' });
+    store
+      .getState()
+      .patchSession({ isPlaying: false, isBuffering: false, banner: 'refresh_failed' });
     this.flushProgress('error');
   }
 
@@ -640,7 +643,9 @@ class PlaybackService {
       return;
     }
     const session = store.getState().session;
-    if (session?.state === 'ready' && !session.isPlaying) this.player?.play();
+    if (session?.state === 'ready' && (!session.isPlaying || session.banner === 'network')) {
+      this.player?.play();
+    }
   }
 
   togglePlayPause(): void {
@@ -749,7 +754,9 @@ class PlaybackService {
     ctx.isEnded = true;
     track('play_complete', {
       content_id: ctx.contentId,
-      listen_sec: Math.round(ctx.durationSec > 0 ? ctx.durationSec : (store.getState().session?.positionSec ?? 0)),
+      listen_sec: Math.round(
+        ctx.durationSec > 0 ? ctx.durationSec : (store.getState().session?.positionSec ?? 0),
+      ),
     });
     this.player?.pause();
     store.getState().patchSession({

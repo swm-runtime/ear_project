@@ -1,8 +1,12 @@
 import { BottomTabBarHeightContext } from '@react-navigation/bottom-tabs';
-import { useContext } from 'react';
+import { useIsFocused } from '@react-navigation/native';
+import { useContext, useEffect, useId } from 'react';
+import { useWindowDimensions } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { create } from 'zustand';
 
 import { HAS_NATIVE_TAB_BAR } from '@/shared/ui/GlassSurface';
+import { floatingNoticeBottom, useNoticeDockStore } from '@/shared/ui/notice-dock.store';
 
 /** 캡슐 탭 바 · 미니플레이어 카드 · 목록 사이의 간격(MiniPlayer 의 DOCK_GAP 과 같다) */
 const DOCK_GAP = 8;
@@ -48,6 +52,18 @@ export const useMiniPlayerInset = (): number =>
 export const useBottomDockInset = (): number => {
   const tabBarHeight = useContext(BottomTabBarHeightContext) ?? 0;
   const miniHeight = useMiniPlayerInset();
+  const miniTop = useMiniPlayerLayoutStore((s) => s.layout?.y ?? null);
+  const { height } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
+  const focused = useIsFocused();
+  const owner = useId();
+  const noticeBottom = floatingNoticeBottom(height, miniTop, tabBarHeight, insets.bottom);
+  useEffect(() => {
+    // 포커스된 화면의 실측 독 높이를 전역 임시 안내와 동기화한다.
+    if (!focused) return;
+    useNoticeDockStore.getState().set(owner, noticeBottom);
+    return () => useNoticeDockStore.getState().set(owner, null);
+  }, [focused, owner, noticeBottom]);
   // 시스템 탭 바(iOS 26)는 탭 바·액세서리(미니플레이어)를 안전영역에 넣어 준다 — 스크롤 뷰가
   // `contentInsetAdjustmentBehavior="automatic"`(DOCK_SCROLL_PROPS)으로 그만큼 비우므로 여기선 간격만 남긴다
   if (HAS_NATIVE_TAB_BAR) return DOCK_GAP;

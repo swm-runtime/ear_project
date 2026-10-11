@@ -3,6 +3,7 @@ import type { ReactNode } from 'react';
 import { Text as RNText } from 'react-native';
 
 import type { SubscriptionStatusVM } from '../hooks/subscription-status';
+import { scheduledChangeNotice } from '../hooks/subscription-status';
 import { SUBSCRIPTION_COPY } from '../subscription.copy';
 import CurrentSubscriptionDetail from './CurrentSubscriptionDetail';
 
@@ -63,17 +64,23 @@ describe('CurrentSubscriptionDetail — 이용 중 카드 안 구독 정보(KAN-
     act(() => renderer.unmount());
   });
 
-  it('해지 예약이면 카드 안에 그릴 것이 없다 — 날짜는 알림 섹션, 다시 시작은 목록 아래 버튼(KAN-160)', () => {
+  it('해지 예약 날짜와 변경 내용을 현재 요금제에 표시하고 관리 버튼은 추가하지 않는다', () => {
     // given · when
-    const renderer = renderDetail({
+    const status: SubscriptionStatusVM = {
       kind: 'cancelScheduled',
       planName: 'Pro',
       expiresAt: '2026-11-01T03:00:00.000Z',
       otherStore: null,
-    });
+    };
+    const notice = scheduledChangeNotice(status, 'Light');
+    const renderer = render(
+      <CurrentSubscriptionDetail status={status} isError={false} scheduledChange={notice} />,
+    );
 
     // then
-    expect(renderer.toJSON()).toBeNull();
+    expect(allText(renderer)).toContain(notice!.title);
+    expect(allText(renderer)).toContain(notice!.detail);
+    expect(pressables(renderer)).toHaveLength(0);
     act(() => renderer.unmount());
   });
 
@@ -82,7 +89,7 @@ describe('CurrentSubscriptionDetail — 이용 중 카드 안 구독 정보(KAN-
     const renderer = renderDetail({ kind: 'grace', planName: 'Pro', otherStore: null });
 
     // then
-    expect(allText(renderer)).toContain(SUBSCRIPTION_COPY.status.paymentIssueTitle);
+    expect(allText(renderer).join(' ')).toContain(SUBSCRIPTION_COPY.status.paymentIssueTitle);
     expect(pressables(renderer)).toHaveLength(0);
     act(() => renderer.unmount());
   });

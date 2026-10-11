@@ -112,7 +112,9 @@ export const usePlayerScreen = () => {
         isCountedToday: false,
       });
     } else {
-      useLimitNoticeStore.getState().show(blockedState.message ?? PLAYER_COPY.paidLimitReachedToast);
+      useLimitNoticeStore
+        .getState()
+        .show(blockedState.message ?? PLAYER_COPY.paidLimitReachedToast);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- blocked 전이 1회에만 반응한다
   }, [blockedState]);
@@ -306,6 +308,7 @@ export const usePlayerScreen = () => {
     openSourceLink,
     retryLoad: () => playbackService.retryLoad(),
     retryUrlRefresh: () => playbackService.retryUrlRefresh(),
+    retryNetwork: () => playbackService.playWhenReady(),
     closeWithdrawn,
     // 배속 시트
     isRateSheetVisible,

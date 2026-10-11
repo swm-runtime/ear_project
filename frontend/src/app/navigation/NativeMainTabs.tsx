@@ -11,6 +11,7 @@ import { MiniPlayer, useIsMiniPlayerVisible } from '@/features/player';
 import { ProfileScreen } from '@/features/profile';
 
 import { rememberTab, takePrimedTab, type RestorableTab } from './last-tab';
+import NativeNoticeDock from './NativeNoticeDock';
 import type { MainTabParamList } from './types';
 
 const NativeTab = createNativeBottomTabNavigator<MainTabParamList>();
@@ -51,6 +52,12 @@ export default function NativeMainTabs() {
 
   return (
     <NativeTab.Navigator
+      screenLayout={({ children }) => (
+        <>
+          {children}
+          <NativeNoticeDock />
+        </>
+      )}
       initialRouteName={justCompletedOnboarding ? 'Explore' : (restoredTab ?? 'Library')}
       screenListeners={{
         state: (e) => {
