@@ -266,6 +266,9 @@ export default function WithdrawalScreen() {
 /** 앱바 뒤로 셰브론 — 글자 `‹` 는 폰트마다 굵기·세로 위치가 달라 도형으로 그린다(design.md §5). 유리 원(40) 안쪽 값 */
 const BACK_ICON_SIZE = 20;
 
+/** 맨 위 물음 글자 크기 — 큰 제목(34)과 그룹 제목 사이 */
+const HEADLINE_SIZE = 24;
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -319,12 +322,15 @@ const styles = StyleSheet.create({
     paddingBottom: theme.spacing.lg,
     gap: theme.spacing.lg,
   },
-  /** 큰 제목 밑의 한 줄 물음 — 그룹 글자 선(16 + 16)에 맞춘다 */
+  /**
+   * 화면 맨 위 물음 — **그룹 카드 바깥 선(16)에 맞춘 큰 제목**(PM 2026-10-11 "앞에 공백하고 글자 크기 조정"). 종전엔 그룹 안쪽
+   * 글자 선(16 + 16)까지 들여 써서 제목이 카드 안 글처럼 떠 보였고, 20 semibold 라 아래 그룹 제목과 위계가 약했다 → 24 bold
+   */
   headline: {
     marginHorizontal: theme.spacing.md,
-    paddingHorizontal: theme.spacing.md,
-    fontSize: theme.font.size.lg,
-    fontWeight: '600',
+    fontSize: HEADLINE_SIZE,
+    lineHeight: Math.round(HEADLINE_SIZE * 1.3),
+    fontWeight: '700',
     color: theme.color.textPrimary,
   },
   /** 고지 행 — 탭할 수 없는 글자 행. 설정 행과 같은 여백, 높이는 글자가 정한다(최소 44) */
