@@ -1510,7 +1510,7 @@ archived_users
   id                        uuid            PK
   user_hash                 varchar         아카이브 테이블 간 조인 키
   user_hash_version         smallint        DEFAULT 1
-  email                     varchar   NOT NULL  ★거래 주체 식별 정보 (법 제6조 제2항)
+  email                     varchar   NULL  ★거래 주체 식별 정보 (법 제6조 제2항). 이메일 없이 결제 이력이 생긴 계정이면 NULL — 그때는 provider + provider_user_id 로 식별 (2026-10-11)
   provider                  enum            kakao | google | naver | apple
   provider_user_id          varchar         ★재가입 매칭·보조 식별 수단
   tier                      enum            탈퇴 시점 티어
@@ -1697,7 +1697,7 @@ idx_archived_subscriptions_archived_at
 
 - 탈퇴 처리는 **하나의 트랜잭션**에서 이관 + 파기를 수행한다. 이관만 되고 파기가 실패하면 개인정보가 두 곳에 남는다.
 - `users` 행은 **두 경우 모두 삭제한다.** `status = withdrawn`으로 남겨두지 않는다 — 남기면 제21조 제3항의 분리 저장 요건을 충족하지 못한다.
-- 아카이브 이관 시 `users.email IS NULL`이면 **트랜잭션을 실패시킨다**([11.3](#113-archived_users)). 결제 이력이 있는데 이메일이 없다는 것은 `auth.md` 4.4의 게이트가 뚫렸다는 뜻이다.
+- 아카이브 이관 시 `users.email IS NULL`이면 **이메일을 비우고 제공자 계정 ID(`provider` + `provider_user_id`)로 거래 주체를 식별해 보관한다**([11.3](#113-archived_users), 개정 2026-10-11). 이메일 게이트는 결제 의도(4.3)·복원(4.5)에 있지만, 탈퇴 후 이메일 없이 재가입한 계정에 해지 안 된 스토어 구독의 갱신 거래가 앱 제출(4.4)로 연결되는 경로는 막을 수 없다(막으면 돈은 나갔는데 구독이 연결되지 않는다). 종전 규칙(트랜잭션 실패)은 그런 계정의 탈퇴를 재시도해도 영구히 막아 파기 요구(제21조)를 들어줄 수 없었다.
 - 재가입 시에는 **신규 계정으로 온보딩부터 시작한다**(`auth.md` 7). 이전 계정은 복원되지 않는다.
 - 다만 **구독 권한은 복원된다.** 복원은 계정이 아니라 영수증의 `original_transaction_id`로 판정하므로, `archived_subscriptions`만 있으면 새 계정에 티어를 붙일 수 있다.
 - `purchase_intents`는 결제 멱등키일 뿐이고 결제 결과는 `subscriptions`에 남으므로 아카이브하지 않는다.
@@ -1828,7 +1828,7 @@ idx_archived_subscriptions_archived_at
 | `content_stats` 배치 소유 | **`playback` 모듈이 실행**, `content` Service에 기록 위임 | 2장 |
 | `notification_logs` 탈퇴 처리 | **즉시 파기** — 보존 근거가 없고, 중복 발송 방지 목적이 탈퇴자에게 성립하지 않는다 | 9.1, 12.3 |
 | `user_hash` 생성·키 관리 | **HMAC-SHA256 + 시크릿 매니저 pepper, 정기 로테이션 없음.** 유출 시에만 교체하고 `user_hash_version`으로 세대를 구분. `withdrawal_logs`는 **별도 pepper**로 연결을 차단 | 11.2 |
-| 아카이브 보존 범위 | **전자우편주소 + 제공자 계정 ID를 평문 보존.** 전자상거래법 제6조 제2항이 "거래의 주체를 식별할 수 있는 정보"를 보존 대상으로 명시한다. 닉네임·커리어·관심사는 제외 | 11.3, 12.2 |
+| 아카이브 보존 범위 | **전자우편주소 + 제공자 계정 ID를 평문 보존**(이메일이 없는 계정은 제공자 계정 ID만 — 2026-10-11). 전자상거래법 제6조 제2항이 "거래의 주체를 식별할 수 있는 정보"를 보존 대상으로 명시한다. 닉네임·커리어·관심사는 제외 | 11.3, 12.2 |
 | 무료 티어 정책 | **의도한 설계다.** 드립은 추천·자동 적립일 뿐이며, 탐색에서 직접 담은 콘텐츠도 재생 한도 안에서 들을 수 있다. 드립받은 것을 반드시 들어야 하는 구조가 아니다 | — |
 
 **2026-08-06 합의·개정 반영분**

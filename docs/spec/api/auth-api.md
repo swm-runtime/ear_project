@@ -407,7 +407,7 @@
 | --- | --- | --- |
 | `WITHDRAWAL_CONFIRM_REQUIRED` | 400 | `confirm != true` |
 | `WITHDRAWAL_SUBSCRIPTION_EXPIRY_NOT_AGREED` | 400 | 활성 구독이 있는데 만료 동의 없음 |
-| `WITHDRAWAL_ARCHIVE_IDENTITY_MISSING` | 500 | 결제 이력이 있는데 `users.email`이 없음. **탈퇴를 진행하지 않는다** — 데이터 정합성 문제이므로 알림 대상이다 |
+| ~~`WITHDRAWAL_ARCHIVE_IDENTITY_MISSING`~~ | 500 | **2026-10-11부터 서버가 내지 않는다.** 결제 이력이 있는데 `users.email`이 없으면 제공자 계정 ID로 보관하고 탈퇴를 진행한다(`domain.md` 11.3) — 종전엔 이 오류로 탈퇴가 영구히 막혔다. 코드는 FE 처리 정리 전까지 열거형에 남긴다 |
 - **스토어 구독은 탈퇴로 자동 해지되지 않는다.** 서버는 해지를 대행하지 않으며, 클라이언트는 안내를 **텍스트로만** 노출한다(스토어 이동 버튼·딥링크 금지 — `auth.md` 4.3).
 - 탈퇴 처리 중 앱이 종료돼도 서버 트랜잭션은 완료된다. 재실행 시 토큰 갱신이 실패해 시작 화면으로 간다.
 
@@ -636,7 +636,7 @@
 | `AUTH_REFRESH_TOKEN_REUSED` | 401 | false | 동일. 서버는 전 세션 무효화 |
 | `WITHDRAWAL_CONFIRM_REQUIRED` | 400 | false | 확인 체크박스 강조 |
 | `WITHDRAWAL_SUBSCRIPTION_EXPIRY_NOT_AGREED` | 400 | false | 구독 만료 동의 체크 강조 |
-| `WITHDRAWAL_ARCHIVE_IDENTITY_MISSING` | 500 | false | 공통 오류 화면. 탈퇴는 진행되지 않았음을 안내 |
+| `WITHDRAWAL_ARCHIVE_IDENTITY_MISSING` | 500 | false | 공통 오류 화면. 탈퇴는 진행되지 않았음을 안내. **2026-10-11부터 서버가 내지 않는다**(위 표) |
 | `EMAIL_FORMAT_INVALID` | 400 | false | 인라인 “이메일 형식을 확인해주세요” |
 | `EMAIL_ALREADY_REGISTERED` | 409 | false | 인라인 “이미 등록된 이메일이에요” |
 | `EMAIL_VERIFICATION_RESEND_COOLDOWN` | 429 | false | [재전송] 비활성 + 남은 초 표시 (30초) |
