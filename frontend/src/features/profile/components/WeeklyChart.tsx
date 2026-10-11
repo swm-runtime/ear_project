@@ -581,7 +581,7 @@ export default function WeeklyChart({ weekly, footer, onSwipingChange }: WeeklyC
               </View>
               {/*
                 요일을 고른 동안엔 순위를 숨긴다 — 하루 값에는 순위가 없다. **떼지 않고 투명하게** 둔다(PM 2026-10-11 03:54
-                "선택했을 때 그래프가 움직인다"): 두 줄 블록(15pt 줄 + 20pt 아이콘 줄 + 아래 6)이 큰 숫자 한 줄(34pt)보다 높아서,
+                "선택했을 때 그래프가 움직인다"): 두 줄 블록(16pt 줄 + 22pt 아이콘 줄 + 아래 6)이 큰 숫자 한 줄(34pt)보다 높아서,
                 블록을 떼면 요약 줄이 몇 pt 줄며 그래프가 올라온다. 자리를 그대로 두면 선택 전후 높이가 같다
               */}
               {highlight !== null ? (
@@ -711,10 +711,10 @@ function RankIcon({ glyph }: { glyph: 'up' | 'check' }) {
   );
 }
 
-const RANK_ICON_SIZE = 20;
+const RANK_ICON_SIZE = 22;
 /**
  * 요약 줄의 고정 치수(PM 2026-10-11 04:19 "요일 선택할 때 그래프가 위아래로 왔다갔다") — 라벨 14pt → 18, 큰 숫자 34pt → 44,
- * 순위 윗줄 15pt → 18, 순위 아랫줄 18pt(아이콘 20) → 22, 순위 블록을 숫자 밑변에 맞추는 들림 6. 글꼴 측정에 맡기지 않는다.
+ * 순위 윗줄 16pt → 20, 순위 아랫줄 20pt(아이콘 22) → 24, 순위 블록을 숫자 밑변에 맞추는 들림 6. 글꼴 측정에 맡기지 않는다.
  *
  * **줄 높이는 글꼴의 자연 줄 높이보다 커야 한다.** 34pt 의 자연 줄 높이는 40.57(Pretendard hhea 1950+494 / 2048 · SF 도
  * 비슷)인데 처음 40 으로 박았더니 **iOS 에서 숫자가 통째로 사라졌다**(PM 2026-10-11 12:48 "하루 평균 몇 분 들었는지 보여주는 게
@@ -724,8 +724,9 @@ const RANK_ICON_SIZE = 20;
  */
 const SUMMARY_LABEL_LINE_HEIGHT = 18;
 const SUMMARY_VALUE_LINE_HEIGHT = 44;
-const RANK_LEAD_LINE_HEIGHT = 18;
-const RANK_TEXT_LINE_HEIGHT = 22;
+// 16pt·20pt 의 자연 줄 높이 19.06·23.8 보다 크게(위 주석)
+const RANK_LEAD_LINE_HEIGHT = 20;
+const RANK_TEXT_LINE_HEIGHT = 24;
 const RANK_BASELINE_LIFT = 6;
 
 const styles = StyleSheet.create({
@@ -800,7 +801,7 @@ const styles = StyleSheet.create({
     flexShrink: 1,
   },
   // 큰 숫자 + 상위 % — 아래 변을 맞춘다(스크린 타임처럼 오른쪽 글자가 숫자 밑줄에 앉는다). 높이를 여기서 박지 않는다 —
-  // 숫자의 lineHeight(44)와 순위 블록(18 + 22 + 6 - 2 = 44)이 둘 다 44 라 줄은 늘 44 다. 고정 높이를 주면 Yoga 가 그 값을
+  // 숫자의 lineHeight(44)와 순위 블록(20 + 24 + 6 - 6 = 44)이 둘 다 44 라 줄은 늘 44 다. 고정 높이를 주면 Yoga 가 그 값을
   // 글자 측정의 상한으로 넘기고, adjustsFontSizeToFit 가 그 상한에 맞추려다 글자를 지운다(위 상수 주석)
   valueRow: {
     flexDirection: 'row',
@@ -815,7 +816,7 @@ const styles = StyleSheet.create({
     flexShrink: 1,
   },
   // 오른쪽 정렬 두 줄 — 숫자(34)의 글자 아래 여백만큼 올려 아랫줄 밑변을 숫자 밑변에 맞춘다.
-  // 두 줄(18 + 22)에 아래 6 을 더하면 46 으로 숫자 줄(44)보다 높다 — 위로 그만큼 빼서(음수 위 여백) 줄 높이와 같게
+  // 두 줄(20 + 24)에 아래 6 을 더하면 50 으로 숫자 줄(44)보다 높다 — 위로 그만큼 빼서(음수 위 여백) 줄 높이와 같게
   // 한다. 블록이 값 줄의 높이를 늘리지 않으니 있든 없든(순위 없는 계정) 값 줄은 44 다
   rankBlock: {
     alignItems: 'flex-end',
@@ -825,13 +826,13 @@ const styles = StyleSheet.create({
   /** 요일 선택 중 — 자리는 지키고 보이지만 않는다(요약 줄 높이 고정) */
   rankHidden: { opacity: 0 },
   // 윗줄 "다른 사용자 대비" — 라벨(하루 평균)과 같은 위계
-  // 한 단계 크게(PM 2026-10-11 "조금만 더 키우자") — 14 → 15
+  // 한 단계 크게(PM 2026-10-11 "조금만 더 키우자") — 14 → 15, 다시 16(PM 22:11 "크기 조금만 키우자")
   rankLead: {
-    fontSize: 15,
+    fontSize: 16,
     lineHeight: RANK_LEAD_LINE_HEIGHT,
     color: theme.color.textSecondary,
   },
-  // 아랫줄 아이콘 + "상위 N%" — 아이콘은 이 줄에만(설명 문구가 아니라 순위를 가리킨다). 줄 높이 고정(아이콘 20 < 22)
+  // 아랫줄 아이콘 + "상위 N%" — 아이콘은 이 줄에만(설명 문구가 아니라 순위를 가리킨다). 줄 높이 고정(아이콘 22 < 24)
   rankInline: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -839,9 +840,9 @@ const styles = StyleSheet.create({
     height: RANK_TEXT_LINE_HEIGHT,
   },
   // 회색 그대로 한 단계 크고 진하게 — 강조색 없이 굵기로만 위계(design.md §1)
-  // 16 → 18(PM 2026-10-11) — 아이콘도 18 → 20
+  // 16 → 18(PM 2026-10-11) — 아이콘도 18 → 20. 다시 20, 아이콘 22(PM 22:11 "크기 조금만 키우자")
   rankText: {
-    fontSize: 18,
+    fontSize: 20,
     lineHeight: RANK_TEXT_LINE_HEIGHT,
     fontWeight: '600',
     fontVariant: ['tabular-nums'],
