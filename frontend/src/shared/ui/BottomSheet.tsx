@@ -43,6 +43,8 @@ interface BottomSheetProps {
    * 시점이 아니라 **모달 언마운트 완료**에 걸어 둔다
    */
   onClosed?: () => void;
+  /** 퇴장 모션 후 Modal의 숨김 커밋 완료(양 플랫폼). iOS 네이티브 dismiss 대기는 onClosed를 쓴다. */
+  onHidden?: () => void;
   /** 시트 면 — 바탕색·모서리·패딩은 각 화면이 준다(플레이어 시트는 어두운 팔레트) */
   sheetStyle?: StyleProp<ViewStyle>;
   /** 딤 색 — 기본은 `color.overlay`. 플레이어 시트는 자기 팔레트의 딤을 넘긴다 */
@@ -70,6 +72,7 @@ export default function BottomSheet({
   isVisible,
   onRequestClose,
   onClosed,
+  onHidden,
   sheetStyle,
   dimColor = theme.color.overlay,
   children,
@@ -107,6 +110,14 @@ export default function BottomSheet({
   if (isVisible && !isMounted) setIsMounted(true);
   // 아직 표시되지 않은 모달은 닫힘 모션 없이 걷는다.
   if (!isVisible && isMounted && !isPresented) setIsMounted(false);
+
+  const wasMountedRef = useRef(isMounted);
+  useEffect(() => {
+    const didHide = wasMountedRef.current && !isMounted;
+    wasMountedRef.current = isMounted;
+    // Android Modal은 onDismiss를 제공하지 않는다. 숨김 커밋을 먼저 끝내고 다음 화면을 연다.
+    if (didHide) onHidden?.();
+  }, [isMounted, onHidden]);
 
   useEffect(() => {
     if (!isMounted) return;
