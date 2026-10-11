@@ -20,7 +20,10 @@ import { User } from '@/modules/user/entities/user.entity';
 import { UserService } from '@/modules/user/services/user.service';
 import { toYearsOfExperienceRange } from '@/modules/user/user.constant';
 
-import { TOP_TOPIC_LIMIT } from './profile.constant';
+import {
+  TOP_TOPIC_LIMIT,
+  WEEKLY_LISTENING_DAY_COUNT,
+} from './profile.constant';
 import { ProfileSection } from './profile.enum';
 import {
   buildTopicDistribution,
@@ -28,6 +31,7 @@ import {
   buildWeeklyBuckets,
   calculateListeningTopPercent,
   calculateStreakDays,
+  pickListeningHighlight,
 } from './profile.stats';
 import {
   ProfileCareerView,
@@ -228,18 +232,55 @@ export class ProfileOrchestrator {
       ),
     ]);
 
+    const hasPreviousWeek = previousWeekStart >= joinedWeekStart;
+    const listeningHighlight = pickListeningHighlight(
+      dailyListenedSec,
+      listeningTopPercent,
+      // 비교 대상은 상위 % 가 없고 들은 게 있을 때만 센다 — 앞 순위로 끝나면 조회할 필요가 없다
+      listeningTopPercent === null &&
+        hasPreviousWeek &&
+        dailyListenedSec.some((sec) => sec > 0)
+        ? await this.sumComparableListenedSec(
+            user.id,
+            previousWeekStart,
+            weekStart === currentWeekStart
+              ? weekDates.indexOf(toServiceDate(now)) + 1
+              : WEEKLY_LISTENING_DAY_COUNT,
+          )
+        : null,
+    );
+
     return {
       weekStart,
       dailyListenedSec,
       listeningTopPercent,
+      listeningHighlight,
       topicDistribution: topicDistributions.weekly,
       dailyTopicDistribution: topicDistributions.daily,
       // 가입 주보다 앞이면 이전 주가 없다 — 가입 전 주는 조회할 것도 없다
-      previousWeekStart:
-        previousWeekStart < joinedWeekStart ? null : previousWeekStart,
+      previousWeekStart: hasPreviousWeek ? previousWeekStart : null,
       // 이번 주를 넘어가는 주는 존재하지 않는다
       nextWeekStart: nextWeekStart > currentWeekStart ? null : nextWeekStart,
     };
+  }
+
+  /**
+   * "전주보다 더"의 비교 대상(KAN-170) — 직전 주의 **앞 `dayCount`일** 청취 합.
+   *
+   * 진행 중인 이번 주는 오늘 요일까지만 비교한다(`dayCount` = 오늘의 요일 순번). 주 초반에 지난주 전체와 비교하면
+   * 거의 항상 지는 비교가 된다. 끝난 주는 7일 전부다.
+   */
+  private async sumComparableListenedSec(
+    userId: string,
+    previousWeekStart: string,
+    dayCount: number,
+  ): Promise<number> {
+    const dates = toWeekDates(previousWeekStart).slice(0, dayCount);
+    const byDate = await this.playbackService.sumListenedSecByDates(
+      userId,
+      dates,
+    );
+    return [...byDate.values()].reduce((sum, sec) => sum + sec, 0);
   }
 
   /**
