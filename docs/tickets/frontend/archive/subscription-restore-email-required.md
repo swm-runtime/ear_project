@@ -26,7 +26,7 @@
 
 ## 문서에 옮겨 적을 것
 
-`changes/pending/subscription-restore-email-required.md` — `features/subscription.md` 4.6 · `spec/uiux/subscription-uiux.md` 복원 상태에 "이메일 인증 필요" 추가.
+`changes/archive/subscription-restore-email-required.md` — `features/subscription.md` 4.6 · `spec/uiux/subscription-uiux.md` 복원 상태에 "이메일 인증 필요" 추가.
 
 ## 완료 조건
 
@@ -36,4 +36,4 @@
 
 ## 처리 기록
 
-(없음)
+- 반영 날짜: 2026-10-11 — `purchase.service` 복원이 409 `EMAIL_REQUIRED_FOR_PURCHASE` 를 `emailRequired` 결과로 돌려주고(일반 실패 `unknown` 으로 떨어지지 않음), `usePurchaseFlow.restore` 가 토스트 "구독을 복원하려면 이메일 인증이 필요해요" → 페이월 시트 잠시 내림(`onEmailGate`) → 이메일 등록·인증 화면을 연다. 인증 후 돌아오면 페이월이 다시 열리고(종전 결제 흐름의 reopen) [구매 복원]을 다시 누른다 — 복원은 이어서 할 요금제가 없어 자동 재시도하지 않는다. 버튼을 이메일 상태로 미리 막지 않는다(빈 복원은 200). 단위 테스트 추가(`purchase.service.test.ts`). 문서: `features/subscription.md` 4.6·상태 표, `subscription-uiux.md` 결과 안내 표

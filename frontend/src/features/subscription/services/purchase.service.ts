@@ -82,6 +82,11 @@ export type PurchaseOutcome =
 export type RestoreOutcome =
   | { kind: 'restored'; subscription: MySubscription }
   | { kind: 'nothingToRestore'; subscription: MySubscription }
+  /**
+   * 보낼 거래가 있는데 인증된 이메일이 없다 — 결제와 같은 관문(subscription-api.md 4.5, KAN-169). 이메일 등록·인증 화면을
+   * 먼저 연다. 복원할 거래가 없으면 서버가 이메일 없이도 200(nothingToRestore)을 준다
+   */
+  | { kind: 'emailRequired' }
   | { kind: 'failed'; reason: PurchaseFailure }
   | { kind: 'busy' };
 
@@ -510,6 +515,9 @@ export const createPurchaseService = (deps: PurchaseServiceDeps) => {
             ? { kind: 'restored', subscription: result.subscription }
             : { kind: 'nothingToRestore', subscription: result.subscription };
         } catch (error) {
+          if (isApiError(error) && error.errorCode === ERROR_CODES.EMAIL_REQUIRED_FOR_PURCHASE) {
+            return { kind: 'emailRequired' };
+          }
           return {
             kind: 'failed',
             reason: isRetryable(error) && !isApiError(error) ? 'network' : toFailure(error),

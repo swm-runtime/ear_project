@@ -3,7 +3,7 @@
 | 항목 | 값 |
 |---|---|
 | 대상 문서 | `features/subscription.md` 4.6(구매 복원) · 화면 상태 표 · `spec/uiux/subscription-uiux.md`(복원 결과 상태·카피) |
-| 요청 파트 | 백엔드(규칙) · 프론트엔드(화면 — `tickets/frontend/pending/subscription-restore-email-required.md`) |
+| 요청 파트 | 백엔드(규칙) · 프론트엔드(화면 — `tickets/frontend/archive/subscription-restore-email-required.md`) |
 | 발행 날짜 | 2026-10-11 |
 | 시작 날짜 | 2026-10-11 |
 | 기한 | 2026-10-16 (Low) |
@@ -23,3 +23,7 @@
 
 - Given 문서 반영 후, When `features/subscription.md` 4.6 을 읽으면, Then 복원의 이메일 인증 관문과 빈 복원 예외가 적혀 있다
 - Given 문서 반영 후, When `subscription-uiux.md` 복원 상태를 읽으면, Then "이메일 인증 필요" 상태의 카피·이동이 적혀 있다
+
+## 처리 기록
+
+- 반영 날짜: 2026-10-11 — `features/subscription.md` 4.6 에 복원 이메일 관문·빈 복원 예외, 화면 상태 표에 "복원 — 이메일 인증 필요" 행. `spec/uiux/subscription-uiux.md` 4.3 결과 안내 표에 같은 상태의 카피("구독을 복원하려면 이메일 인증이 필요해요")·이동. FE 티켓(KAN-169)과 같은 PR
