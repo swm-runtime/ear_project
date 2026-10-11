@@ -4,23 +4,26 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { theme } from '@/shared/theme';
 import ChevronIcon from '@/shared/ui/ChevronIcon';
 import { SkeletonBlock, SkeletonGroup } from '@/shared/ui/Skeleton';
-import { Text, TextInput } from '@/shared/ui/Typography';
+import { Text } from '@/shared/ui/Typography';
+
+import { JOB_CHIP_HEIGHT, JOB_CHIP_RADIUS, JobCategoryChips, JobTitleField, YearsSegment } from '@/features/career';
 
 import { useCareerScreen } from '../hooks/useCareerScreen';
 import { ONBOARDING_COPY } from '../onboarding.copy';
 import type { YearsOfExperience } from '../onboarding.types';
 
 const YEARS_OPTIONS: YearsOfExperience[] = ['0-1', '2-3', '4-6', '7+'];
-/** 직군 칩 스켈레톤 — 서로 다른 폭의 알약 몇 개. 실제 직군 이름 길이처럼 들쭉날쭉해야 칩으로 읽힌다 */
-const JOB_CATEGORY_SKELETON_WIDTHS = [72, 96, 64, 88, 104, 76] as const;
+/** 직군 칩 스켈레톤 — 실제 칩과 같은 2열 같은 크기 상자 두 줄(직군 7종이면 네 줄이지만, 자리만 잡으면 된다) */
+const JOB_CATEGORY_SKELETON_COUNT = 4;
 
 /**
  * O4 커리어 정보(2/2 — 담기 단계를 뺀 2026-10-11 뒤 마지막 입력 단계). 전부 선택 항목 — 미입력 필드에 에러 표시를 하지 않고
  * [다음]은 입력값과 무관하게 항상 활성이다(onboarding-uiux.md 4.3).
- * 시각은 O1과 같은 컨셉(2026-09-03): 가운데 타이틀 툴바(+뒤로가기) · "2/2 단계" ·
- * 큰 회색 헤드라인 · 면(面) 칩 · 우하단 원형 [다음] + 왼쪽 [건너뛰기] 텍스트 버튼.
+ * 상단은 O1과 같은 컨셉(2026-09-03): 가운데 타이틀 툴바(+뒤로가기 · 우상단 [건너뛰기]) · "2/2 단계" · 큰 회색 헤드라인.
+ * **입력 폼은 설정의 커리어 정보 화면과 같은 부품**이다(PM 2026-10-11 "온보딩 2/2 는 설정의 커리어 정보에서 입력하는 거
+ * 가져오자") — 직군 사진 칩 2열 · 직무 면 알약 입력칸 · 연차 세그먼트(`@/features/career`). 하단은 우하단 원형 [>] 그대로.
  * [건너뛰기]는 보조 스타일이되 숨기거나 작게 만들지 않는다(4.3).
- * 문서 반영 요청: changes/pending/onboarding-o1-visual-refresh.md
+ * 문서 반영 요청: changes/pending/onboarding-o1-visual-refresh.md · changes/pending/onboarding-career-form-reuse.md
  */
 export default function CareerScreen() {
   const insets = useSafeAreaInsets();
@@ -51,8 +54,8 @@ export default function CareerScreen() {
       // 0.3초 전에는 칩 한 줄 높이만 비워 둔다 — 로드되는 순간 아래 필드가 밀리지 않게
       return showJobCategoriesSkeleton ? (
         <SkeletonGroup style={styles.chipRow}>
-          {JOB_CATEGORY_SKELETON_WIDTHS.map((width, index) => (
-            <SkeletonBlock key={index} width={width} radius="full" style={styles.chipSkeleton} />
+          {Array.from({ length: JOB_CATEGORY_SKELETON_COUNT }, (_, index) => (
+            <SkeletonBlock key={index} style={styles.chipSkeleton} />
           ))}
         </SkeletonGroup>
       ) : (
@@ -77,25 +80,12 @@ export default function CareerScreen() {
       );
     }
     return (
-      <View style={styles.chipRow}>
-        {jobCategoryOptions.map((option) => {
-          const isSelected = jobCategory === option;
-          return (
-            <Pressable
-              key={option}
-              style={[styles.optionChip, isSelected && styles.optionChipSelected]}
-              onPress={() => setJobCategory(isSelected ? null : option)}
-              accessibilityRole="checkbox"
-              accessibilityState={{ checked: isSelected }}
-              accessibilityLabel={option}
-            >
-              <Text style={[styles.optionLabel, isSelected && styles.optionLabelSelected]}>
-                {option}
-              </Text>
-            </Pressable>
-          );
-        })}
-      </View>
+      <JobCategoryChips
+        categories={jobCategoryOptions}
+        value={jobCategory}
+        onToggle={(name) => setJobCategory(jobCategory === name ? null : name)}
+        disabled={isSubmitting}
+      />
     );
   };
 
@@ -144,36 +134,24 @@ export default function CareerScreen() {
         {renderJobCategoryField()}
 
         <Text style={styles.fieldLabel}>{ONBOARDING_COPY.career.jobTitleLabel}</Text>
-        <TextInput
-          style={styles.input}
+        <JobTitleField
           value={jobTitle}
           onChangeText={setJobTitle}
           placeholder={ONBOARDING_COPY.career.jobTitlePlaceholder}
-          placeholderTextColor={theme.color.textSecondary}
-          maxLength={100}
           accessibilityLabel={ONBOARDING_COPY.career.jobTitleLabel}
+          clearAccessibilityLabel={ONBOARDING_COPY.career.jobTitleClearA11y}
+          disabled={isSubmitting}
         />
 
         <Text style={styles.fieldLabel}>{ONBOARDING_COPY.career.yearsLabel}</Text>
-        <View style={styles.chipRow}>
-          {YEARS_OPTIONS.map((option) => {
-            const isSelected = yearsOfExperience === option;
-            return (
-              <Pressable
-                key={option}
-                style={[styles.optionChip, isSelected && styles.optionChipSelected]}
-                onPress={() => setYearsOfExperience(isSelected ? null : option)}
-                accessibilityRole="checkbox"
-                accessibilityState={{ checked: isSelected }}
-                accessibilityLabel={ONBOARDING_COPY.career.yearsOption[option]}
-              >
-                <Text style={[styles.optionLabel, isSelected && styles.optionLabelSelected]}>
-                  {ONBOARDING_COPY.career.yearsOption[option]}
-                </Text>
-              </Pressable>
-            );
-          })}
-        </View>
+        {/* 연차 — 커리어 정보와 같은 한 줄 구간 선택. 선택한 칸을 다시 누르면 해제 */}
+        <YearsSegment
+          options={YEARS_OPTIONS}
+          labels={ONBOARDING_COPY.career.yearsOption}
+          value={yearsOfExperience}
+          onToggle={(option) => setYearsOfExperience(yearsOfExperience === option ? null : option)}
+          disabled={isSubmitting}
+        />
       </ScrollView>
 
       <View style={styles.dock}>
@@ -251,12 +229,12 @@ const styles = StyleSheet.create({
     paddingVertical: theme.spacing.lg,
     gap: theme.spacing.sm,
   },
+  // 커리어 정보 화면의 필드 라벨과 같은 값(sm·600·위 md) — 폼이 같은 부품이니 라벨도 같은 결로
   fieldLabel: {
-    fontSize: theme.font.size.md,
+    fontSize: theme.font.size.sm,
     fontWeight: '600',
     color: theme.color.textPrimary,
-    // 필드 사이 호흡 — 섹션 경계가 분명해야 폼이 세 질문으로 읽힌다
-    marginTop: theme.spacing.xl,
+    marginTop: theme.spacing.md,
   },
   chipRow: {
     flexDirection: 'row',
@@ -264,12 +242,14 @@ const styles = StyleSheet.create({
     gap: theme.spacing.sm,
   },
   chipRowLoading: {
-    // 칩과 같은 높이여야 로드되는 순간 아래 필드가 밀리지 않는다
-    minHeight: theme.touchTarget.minHeight + theme.spacing.sm,
+    // 칩 한 줄과 같은 높이여야 로드되는 순간 아래 필드가 밀리지 않는다
+    minHeight: JOB_CHIP_HEIGHT,
   },
-  // 칩(optionChip)과 같은 높이
+  // 실제 직군 칩과 같은 크기·모서리(2열 반폭)
   chipSkeleton: {
-    height: theme.touchTarget.minHeight + theme.spacing.sm,
+    width: '48%',
+    height: JOB_CHIP_HEIGHT,
+    borderRadius: JOB_CHIP_RADIUS,
   },
   chipRowError: {
     flexDirection: 'row',
@@ -289,39 +269,6 @@ const styles = StyleSheet.create({
     fontSize: theme.font.size.sm,
     fontWeight: '600',
     color: theme.color.primary,
-  },
-  // O1 알약과 같은 "면" 문법 — 테두리 대신 은은한 면, 선택은 primary 채움
-  optionChip: {
-    minHeight: theme.touchTarget.minHeight + theme.spacing.sm,
-    paddingHorizontal: theme.spacing.md,
-    borderRadius: theme.radius.full,
-    borderCurve: 'continuous',
-    backgroundColor: theme.color.surface,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  optionChipSelected: {
-    backgroundColor: theme.color.primary,
-  },
-  optionLabel: {
-    fontSize: theme.font.size.md,
-    // 선택 여부와 무관하게 굵기를 고정한다 — 선택 시 굵어지면 글자 폭이 변해
-    // flexWrap 줄의 뒤 칩들이 밀린다(주제 칩과 같은 규칙 — onboarding-uiux.md 7장)
-    fontWeight: '600',
-    color: theme.color.textPrimary,
-  },
-  optionLabelSelected: {
-    color: theme.color.onPrimary,
-  },
-  input: {
-    // 칩과 같은 높이·같은 면 문법 — 한 폼 안에서 요소 결이 다르면 줄이 어긋나 보인다
-    minHeight: theme.touchTarget.minHeight + theme.spacing.sm,
-    backgroundColor: theme.color.surface,
-    borderRadius: theme.radius.md,
-    borderCurve: 'continuous',
-    paddingHorizontal: theme.spacing.md,
-    fontSize: theme.font.size.md,
-    color: theme.color.textPrimary,
   },
   dock: {
     alignItems: 'flex-end',
