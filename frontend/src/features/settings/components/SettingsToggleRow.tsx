@@ -44,7 +44,9 @@ export default function SettingsToggleRow({
         onValueChange={handlePress}
         disabled={disabled}
         trackColor={{ false: theme.color.border, true: theme.color.primary }}
-        thumbColor={theme.color.onPhoto}
+        // 켜짐 손잡이는 주 동작 면 위 글자색(onPrimary) — 다크에선 켜짐 트랙이 흰색(primary)이라 흰 손잡이가 묻혀
+        // 켜짐·꺼짐이 안 보였다(PM 2026-10-11). 라이트 검정 트랙 + 흰 손잡이 · 다크 흰 트랙 + 검정 손잡이, 꺼짐은 두 모드 흰 손잡이
+        thumbColor={value ? theme.color.onPrimary : theme.color.onPhoto}
         ios_backgroundColor={theme.color.border}
         style={[styles.switch, isDimmed && styles.switchDimmed]}
         // 행 전체가 하나의 스위치로 읽힌다 — 스위치 자체는 보조 표면이 아니다
