@@ -162,6 +162,8 @@ export const SUBSCRIPTION_COPY = {
     pending: '결제 승인을 기다리고 있어요. 승인되면 자동으로 반영돼요',
     alreadyOwned: '이미 구독 중이에요. [구매 복원]을 눌러 이 계정에 연결해주세요',
     emailRequired: '구독하려면 이메일 인증이 필요해요',
+    /** 복원할 구독은 있는데 인증된 이메일이 없다 — 토스트 후 인증 화면(KAN-169) */
+    restoreEmailRequired: '구독을 복원하려면 이메일 인증이 필요해요',
     /** 다운그레이드 예약 성공 — 서버에 예약 날짜가 아직 없을 때(RTDN 대기) 날짜 없이 */
     downgradeScheduled: '다음 결제일부터 바꾼 요금제가 적용돼요',
     /** 이미 다음 결제일 변경이 예약돼 있다(Play "existing deferred replacement") — 실패가 아니라 안내 */

@@ -737,6 +737,17 @@ describe('PurchaseService', () => {
       expect(outcome).toEqual({ kind: 'failed', reason: 'ownedByAnotherAccount' });
     });
 
+    it('인증된 이메일이 없으면(409 EMAIL_REQUIRED_FOR_PURCHASE) 일반 실패가 아니라 emailRequired 다', async () => {
+      // given
+      h.api.restore.mockRejectedValue(apiError(ERROR_CODES.EMAIL_REQUIRED_FOR_PURCHASE));
+
+      // when
+      const outcome = await h.service.restore();
+
+      // then
+      expect(outcome).toEqual({ kind: 'emailRequired' });
+    });
+
     it('복원 요청은 최대 10건만 보낸다', async () => {
       // given
       h.adapter.getActiveForRestore.mockResolvedValue(
