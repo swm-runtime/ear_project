@@ -303,9 +303,17 @@ export default function WeeklyChart({ weekly, footer, onSwipingChange }: WeeklyC
   const targetAverageSec =
     displayed !== null && !weekly.isSwitching ? toWeekView(displayed).averageSec : null;
   const shownAverageSec = useCountTo(targetAverageSec);
-  /** 상위 % — 평균과 같이 전환 중엔 숨긴다(옆 주 값이 남아 있으면 엉뚱한 주의 순위로 읽힌다) */
-  const topPercent =
-    displayed !== null && !weekly.isSwitching ? displayed.listeningTopPercent : null;
+  /** 주간 한 줄(KAN-170) — 평균과 같이 전환 중엔 숨긴다(옆 주 값이 남아 있으면 엉뚱한 주의 값으로 읽힌다) */
+  const highlight =
+    displayed !== null && !weekly.isSwitching && displayed.listeningHighlight !== null
+      ? {
+          kind: displayed.listeningHighlight.kind,
+          ...PROFILE_COPY.stats.highlight(
+            displayed.listeningHighlight,
+            displayed.nextWeekStart === null,
+          ),
+        }
+      : null;
   // 막대를 고른 요일의 청취 시간 — 있으면 요약 줄이 그 요일로 바뀐다(스크린 타임)
   const selectedDaySec =
     selectedIndex !== null && displayed !== null
@@ -544,13 +552,13 @@ export default function WeeklyChart({ weekly, footer, onSwipingChange }: WeeklyC
           <View
             style={styles.summary}
             accessible
-            // 요약 줄은 한 덩어리로 읽힌다 — 상위 % 도 같은 낭독에 잇는다
+            // 요약 줄은 한 덩어리로 읽힌다 — 주간 한 줄도 같은 낭독에 잇는다
             accessibilityLabel={
               selectedDaySec !== null && selectedIndex !== null
                 ? PROFILE_COPY.stats.dayBarA11y(selectedIndex, selectedDaySec)
                 : [
                     PROFILE_COPY.stats.averageA11y(targetAverageSec ?? shownAverageSec),
-                    topPercent !== null ? PROFILE_COPY.stats.topPercentA11y(topPercent) : null,
+                    highlight !== null ? highlight.a11y : null,
                   ]
                     .filter(Boolean)
                     .join(', ')
@@ -576,7 +584,7 @@ export default function WeeklyChart({ weekly, footer, onSwipingChange }: WeeklyC
                 "선택했을 때 그래프가 움직인다"): 두 줄 블록(15pt 줄 + 20pt 아이콘 줄 + 아래 6)이 큰 숫자 한 줄(34pt)보다 높아서,
                 블록을 떼면 요약 줄이 몇 pt 줄며 그래프가 올라온다. 자리를 그대로 두면 선택 전후 높이가 같다
               */}
-              {topPercent !== null ? (
+              {highlight !== null ? (
                 // 두 줄 고정(PM 2026-10-11 02:05) — 평균 길이와 무관하게 모양이 같고, 두 줄 높이가 큰 숫자 높이를 채운다
                 <View
                   style={[styles.rankBlock, selectedDaySec !== null && styles.rankHidden]}
@@ -585,12 +593,12 @@ export default function WeeklyChart({ weekly, footer, onSwipingChange }: WeeklyC
                   importantForAccessibility={selectedDaySec !== null ? 'no-hide-descendants' : 'auto'}
                 >
                   <Text style={styles.rankLead} numberOfLines={1}>
-                    {PROFILE_COPY.stats.topPercentLead}
+                    {highlight.lead}
                   </Text>
                   <View style={styles.rankInline}>
-                    <RankUpIcon />
+                    <RankIcon glyph={highlight.kind === 'listenedDays' ? 'check' : 'up'} />
                     <Text style={styles.rankText} numberOfLines={1}>
-                      {PROFILE_COPY.stats.topPercent(topPercent)}
+                      {highlight.main}
                     </Text>
                   </View>
                 </View>
@@ -681,15 +689,18 @@ function AverageValue({ sec }: { sec: number }) {
   );
 }
 
-/** 원 안 위 화살표 — 스크린 타임의 arrow.down.circle.fill 문법(채운 회색 원 + 카드 색 화살표) */
-function RankUpIcon() {
+/**
+ * 원 안 기호 — 스크린 타임의 arrow.down.circle.fill 문법(채운 회색 원 + 카드 색 기호). 오름(상위 % · 전주보다 더)은 위 화살표,
+ * 들은 날 수는 체크(늘었다는 말이 아니다)
+ */
+function RankIcon({ glyph }: { glyph: 'up' | 'check' }) {
   // SVG 는 문자열 색만 받는다 — 지금 모드의 값(다크 모드)
   const palette = useThemePalette();
   return (
     <Svg width={RANK_ICON_SIZE} height={RANK_ICON_SIZE} viewBox="0 0 24 24">
       <Circle cx={12} cy={12} r={12} fill={palette.textSecondary} />
       <Path
-        d="M12 18V7M7 11.5l5-5 5 5"
+        d={glyph === 'up' ? 'M12 18V7M7 11.5l5-5 5 5' : 'M7 12.5l3.5 3.5L17 9'}
         stroke={palette.surface}
         strokeWidth={2.6}
         strokeLinecap="round"

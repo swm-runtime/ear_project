@@ -81,6 +81,16 @@ const toWeeklyDtoAt = (index: number): WeeklyListeningResponseDto => {
     listening_top_percent: week.daily.every((sec) => sec === 0)
       ? null
       : ([12, 34, null, null, 3][index] ?? null),
+    // 주간 한 줄(KAN-170) — 상위 % · 전주보다 더 · 들은 날 수가 주마다 하나씩 보이게. 빈 주는 null
+    listening_highlight: week.daily.every((sec) => sec === 0)
+      ? null
+      : ([
+          { kind: 'top_percent', percent: 12 },
+          { kind: 'more_than_previous', diff_sec: 4260 },
+          { kind: 'listened_days', days: 5 },
+          null,
+          { kind: 'listened_days', days: 2 },
+        ] as const)[index] ?? null,
     // 주별 주제 분포(BE 요청 중인 필드) — 주마다 순위가 바뀌어 스와이프 시 막대 재생장을 확인할 수 있게. 빈 주는 빈 분포
     topic_distribution: week.daily.every((sec) => sec === 0)
       ? { topics: [], others_ratio: 0 }
