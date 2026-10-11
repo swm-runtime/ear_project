@@ -1,7 +1,12 @@
 import { beforeEach, describe, expect, it, jest } from '@jest/globals';
 
 import { PROFILE_COPY } from '../profile.copy';
-import { fetchSignupTrial, toListeningHighlight, toPlanTrial } from './profile.api';
+import {
+  fetchSignupTrial,
+  toDailyListeningHighlights,
+  toListeningHighlight,
+  toPlanTrial,
+} from './profile.api';
 import type { ProfilePlanDto, ProfileSummaryResponseDto, WeeklyListeningDto } from './profile.dto';
 
 // 테스트 환경은 __DEV__ 라 mock 경로를 탄다 — 응답 DTO 만 바꿔 끼워 변환을 검증한다
@@ -167,5 +172,91 @@ describe('PROFILE_COPY.stats.highlight', () => {
       lead: '다른 사용자 대비',
       main: '상위 3%',
     });
+  });
+});
+
+describe('profile.api 요일 한 줄 변환(KAN-171)', () => {
+  const week = (extra: Partial<WeeklyListeningDto>): WeeklyListeningDto => ({
+    week_start: '2026-10-05',
+    daily_listened_sec: [600, 300, 0, 0, 0, 0, 0],
+    previous_week_start: null,
+    next_week_start: null,
+    ...extra,
+  });
+
+  it('칸마다 서버가 고른 종류를 옮기고 null 칸은 null 로 둔다', () => {
+    // given
+    const dto = week({
+      daily_listening_highlight: [
+        { kind: 'more_than_last_week', diff_sec: 720 },
+        { kind: 'best_day' },
+        { kind: 'listened_contents', count: 2 },
+        null,
+        null,
+        null,
+        null,
+      ],
+    });
+
+    // when
+    const result = toDailyListeningHighlights(dto);
+
+    // then
+    expect(result).toEqual([
+      { kind: 'moreThanLastWeek', diffSec: 720 },
+      { kind: 'bestDay' },
+      { kind: 'listenedContents', count: 2 },
+      null,
+      null,
+      null,
+      null,
+    ]);
+  });
+
+  it('필드가 없거나 7칸이 아니면 통째로 그리지 않는다', () => {
+    expect(toDailyListeningHighlights(week({}))).toBeNull();
+    expect(toDailyListeningHighlights(week({ daily_listening_highlight: null }))).toBeNull();
+    expect(
+      toDailyListeningHighlights(week({ daily_listening_highlight: [{ kind: 'best_day' }] })),
+    ).toBeNull();
+  });
+
+  it('모르는 kind 칸은 그날만 비운다', () => {
+    // given — 서버가 종류를 늘려도 엉뚱한 문구를 내지 않는다
+    const unknown = { kind: 'longest_session', sec: 900 } as unknown as { kind: 'best_day' };
+    const dto = week({
+      daily_listening_highlight: [unknown, { kind: 'best_day' }, null, null, null, null, null],
+    });
+
+    // when
+    const result = toDailyListeningHighlights(dto);
+
+    // then
+    expect(result?.[0]).toBeNull();
+    expect(result?.[1]).toEqual({ kind: 'bestDay' });
+  });
+});
+
+describe('PROFILE_COPY.stats.dayHighlight', () => {
+  it('지난주 같은 요일 비교는 요일 이름을 붙이고, 지난 주 화면에선 "전주"라고 쓴다', () => {
+    const highlight = { kind: 'moreThanLastWeek', diffSec: 720 } as const;
+
+    expect(PROFILE_COPY.stats.dayHighlight(highlight, 2, true)).toMatchObject({
+      lead: '지난주 수요일보다',
+      main: '12분 더',
+    });
+    expect(PROFILE_COPY.stats.dayHighlight(highlight, 2, false)).toMatchObject({
+      lead: '전주 수요일보다',
+    });
+  });
+
+  it('최고의 날·들은 편 수 문구', () => {
+    expect(PROFILE_COPY.stats.dayHighlight({ kind: 'bestDay' }, 0, false)).toMatchObject({
+      lead: '그 주',
+      main: '가장 많이 들은 날',
+    });
+    expect(
+      PROFILE_COPY.stats.dayHighlight({ kind: 'listenedContents', count: 2 }, 4, true),
+    ).toMatchObject({ lead: '그날', main: '2편 들었어요' });
   });
 });

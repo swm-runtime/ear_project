@@ -107,7 +107,17 @@ export interface WeeklyListeningDto {
    * 그 주 0초면 null, 반영 전 서버면 없다(그땐 listening_top_percent 로 대신 그린다)
    */
   listening_highlight?: ListeningHighlightDto | null;
+  /**
+   * 요일별 한 줄(KAN-171, profile-api.md 4.1) — 월~일 7칸, 칸마다 서버가 우선순위(지난주 같은 요일보다 더 > 그 주 최고의 날 >
+   * 들은 편 수)로 하나 또는 null. 반영 전 서버면 없다(요일을 골라도 비워 둔다)
+   */
+  daily_listening_highlight?: (DailyListeningHighlightDto | null)[] | null;
 }
+
+export type DailyListeningHighlightDto =
+  | { kind: 'more_than_last_week'; diff_sec: number }
+  | { kind: 'best_day' }
+  | { kind: 'listened_contents'; count: number };
 
 export type ListeningHighlightDto =
   | { kind: 'top_percent'; percent: number }

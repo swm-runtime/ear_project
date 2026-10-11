@@ -17,7 +17,7 @@ import {
   toDailyAverageSec,
   toListenedDayParts,
 } from '../profile.format';
-import type { WeeklyListening } from '../profile.types';
+import type { DailyListeningHighlight, WeeklyListening } from '../profile.types';
 
 interface WeeklyChartProps {
   weekly: WeeklyNavigation;
@@ -304,10 +304,10 @@ export default function WeeklyChart({ weekly, footer, onSwipingChange }: WeeklyC
     displayed !== null && !weekly.isSwitching ? toWeekView(displayed).averageSec : null;
   const shownAverageSec = useCountTo(targetAverageSec);
   /** 주간 한 줄(KAN-170) — 평균과 같이 전환 중엔 숨긴다(옆 주 값이 남아 있으면 엉뚱한 주의 값으로 읽힌다) */
-  const highlight =
+  const highlight: HighlightLine | null =
     displayed !== null && !weekly.isSwitching && displayed.listeningHighlight !== null
       ? {
-          kind: displayed.listeningHighlight.kind,
+          glyph: displayed.listeningHighlight.kind === 'listenedDays' ? 'check' : 'up',
           ...PROFILE_COPY.stats.highlight(
             displayed.listeningHighlight,
             displayed.nextWeekStart === null,
@@ -319,6 +319,26 @@ export default function WeeklyChart({ weekly, footer, onSwipingChange }: WeeklyC
     selectedIndex !== null && displayed !== null
       ? (displayed.dailyListenedSec[selectedIndex] ?? null)
       : null;
+  /** 요일 한 줄(KAN-171) — 고른 요일의 칸. 서버가 null 이면(0초인 날 · 반영 전 서버) 그 자리는 비운다 */
+  const dayHighlightValue =
+    selectedIndex !== null && displayed !== null && !weekly.isSwitching
+      ? (displayed.dailyListeningHighlights?.[selectedIndex] ?? null)
+      : null;
+  const dayHighlight: HighlightLine | null =
+    dayHighlightValue !== null && selectedIndex !== null && displayed !== null
+      ? {
+          glyph: DAY_HIGHLIGHT_GLYPH[dayHighlightValue.kind],
+          ...PROFILE_COPY.stats.dayHighlight(
+            dayHighlightValue,
+            selectedIndex,
+            displayed.nextWeekStart === null,
+          ),
+        }
+      : null;
+  /** 오른쪽 두 줄에 지금 보일 것 — 요일을 골랐으면 그날 것, 아니면 주간 것 */
+  const shownHighlight = selectedDaySec !== null ? dayHighlight : highlight;
+  /** 자리 지킴용 — 보일 게 없어도 주간 줄이 있으면 투명하게 남겨 둔다(아래 주석) */
+  const rankLine = shownHighlight ?? highlight;
   /*
    * 카드를 가로로 밀어 주를 넘긴다(PM 2026-09-28 01:40) — 애플 건강·스크린 타임과 같은 방향: 손가락을 **오른쪽으로 밀면
    * 이전 주**(왼쪽 < 와 같은 쪽), 왼쪽으로 밀면 다음 주. 화살표와 같은 판정(canGoPrev/Next · 전환 중 막힘)을 거친다.
@@ -581,7 +601,12 @@ export default function WeeklyChart({ weekly, footer, onSwipingChange }: WeeklyC
             // 요약 줄은 한 덩어리로 읽힌다 — 주간 한 줄도 같은 낭독에 잇는다
             accessibilityLabel={
               selectedDaySec !== null && selectedIndex !== null
-                ? PROFILE_COPY.stats.dayBarA11y(selectedIndex, selectedDaySec)
+                ? [
+                    PROFILE_COPY.stats.dayBarA11y(selectedIndex, selectedDaySec),
+                    dayHighlight !== null ? dayHighlight.a11y : null,
+                  ]
+                    .filter(Boolean)
+                    .join(', ')
                 : [
                     PROFILE_COPY.stats.averageA11y(targetAverageSec ?? shownAverageSec),
                     highlight !== null ? highlight.a11y : null,
@@ -606,25 +631,26 @@ export default function WeeklyChart({ weekly, footer, onSwipingChange }: WeeklyC
                 <AverageValue sec={selectedDaySec ?? Math.round(shownAverageSec)} />
               </View>
               {/*
-                요일을 고른 동안엔 순위를 숨긴다 — 하루 값에는 순위가 없다. **떼지 않고 투명하게** 둔다(PM 2026-10-11 03:54
+                요일을 고른 동안엔 그날 한 줄(KAN-171)로 바꾸고, 그날 칸이 비면 숨긴다. 숨길 때 **떼지 않고 투명하게** 둔다(PM 2026-10-11 03:54
                 "선택했을 때 그래프가 움직인다"): 두 줄 블록(16pt 줄 + 22pt 아이콘 줄 + 아래 6)이 큰 숫자 한 줄(34pt)보다 높아서,
                 블록을 떼면 요약 줄이 몇 pt 줄며 그래프가 올라온다. 자리를 그대로 두면 선택 전후 높이가 같다
               */}
-              {highlight !== null ? (
-                // 두 줄 고정(PM 2026-10-11 02:05) — 평균 길이와 무관하게 모양이 같고, 두 줄 높이가 큰 숫자 높이를 채운다
+              {rankLine !== null ? (
+                // 두 줄 고정(PM 2026-10-11 02:05) — 평균 길이와 무관하게 모양이 같고, 두 줄 높이가 큰 숫자 높이를 채운다.
+                // 낭독은 요약 줄 라벨이 맡는다 — 여기는 늘 낭독에서 뺀다
                 <View
-                  style={[styles.rankBlock, selectedDaySec !== null && styles.rankHidden]}
+                  style={[styles.rankBlock, shownHighlight === null && styles.rankHidden]}
                   pointerEvents="none"
-                  accessibilityElementsHidden={selectedDaySec !== null}
-                  importantForAccessibility={selectedDaySec !== null ? 'no-hide-descendants' : 'auto'}
+                  accessibilityElementsHidden
+                  importantForAccessibility="no-hide-descendants"
                 >
                   <Text style={styles.rankLead} numberOfLines={1}>
-                    {highlight.lead}
+                    {rankLine.lead}
                   </Text>
                   <View style={styles.rankInline}>
-                    <RankIcon glyph={highlight.kind === 'listenedDays' ? 'check' : 'up'} />
+                    <RankIcon glyph={rankLine.glyph} />
                     <Text style={styles.rankText} numberOfLines={1}>
-                      {highlight.main}
+                      {rankLine.main}
                     </Text>
                   </View>
                 </View>
@@ -715,25 +741,56 @@ function AverageValue({ sec }: { sec: number }) {
  * 원 안 기호 — 스크린 타임의 arrow.down.circle.fill 문법(채운 회색 원 + 카드 색 기호). 오름(상위 % · 전주보다 더)은 위 화살표,
  * 들은 날 수는 체크(늘었다는 말이 아니다)
  */
-function RankIcon({ glyph }: { glyph: 'up' | 'check' }) {
+function RankIcon({ glyph }: { glyph: RankGlyph }) {
   // SVG 는 문자열 색만 받는다 — 지금 모드의 값(다크 모드)
   const palette = useThemePalette();
   return (
     <Svg width={RANK_ICON_SIZE} height={RANK_ICON_SIZE} viewBox="0 0 24 24">
       <Circle cx={12} cy={12} r={12} fill={palette.textSecondary} />
-      <Path
-        d={glyph === 'up' ? 'M12 18V7M7 11.5l5-5 5 5' : 'M7 12.5l3.5 3.5L17 9'}
-        stroke={palette.surface}
-        strokeWidth={2.6}
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        fill="none"
-      />
+      {glyph === 'star' ? (
+        // 최고의 날 — 채운 별(선 대신 면). 둥근 이음으로 끝을 살짝 무디게
+        <Path
+          d={STAR_PATH}
+          fill={palette.surface}
+          stroke={palette.surface}
+          strokeWidth={1}
+          strokeLinejoin="round"
+        />
+      ) : (
+        <Path
+          d={glyph === 'up' ? 'M12 18V7M7 11.5l5-5 5 5' : 'M7 12.5l3.5 3.5L17 9'}
+          stroke={palette.surface}
+          strokeWidth={2.6}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          fill="none"
+        />
+      )}
     </Svg>
   );
 }
 
 const RANK_ICON_SIZE = 22;
+/** 원 안 오각별(바깥 반지름 6.6 · 안 2.8, 시각 중심을 맞추려 0.6 내림) */
+const STAR_PATH =
+  'M12.00 6.00L13.65 10.33L18.28 10.56L14.66 13.47L15.88 17.94L12.00 15.40L8.12 17.94L9.34 13.47L5.72 10.56L10.35 10.33Z';
+
+type RankGlyph = 'up' | 'check' | 'star';
+
+/** 오른쪽 두 줄 한 벌 — 주간(KAN-170)·요일(KAN-171) 공용 */
+interface HighlightLine {
+  glyph: RankGlyph;
+  lead: string;
+  main: string;
+  a11y: string;
+}
+
+/** 요일 한 줄의 아이콘 — 늘어난 날은 위 화살표, 최고의 날은 별, 들은 편 수는 체크(주간 "N일 들었어요"와 같은 문법) */
+const DAY_HIGHLIGHT_GLYPH: Record<DailyListeningHighlight['kind'], RankGlyph> = {
+  moreThanLastWeek: 'up',
+  bestDay: 'star',
+  listenedContents: 'check',
+};
 /**
  * 요약 줄의 고정 치수(PM 2026-10-11 04:19 "요일 선택할 때 그래프가 위아래로 왔다갔다") — 라벨 14pt → 18, 큰 숫자 34pt → 44,
  * 순위 윗줄 16pt → 20, 순위 아랫줄 20pt(아이콘 22) → 24, 순위 블록을 숫자 밑변에 맞추는 들림 6. 글꼴 측정에 맡기지 않는다.
