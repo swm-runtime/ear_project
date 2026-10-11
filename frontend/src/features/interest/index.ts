@@ -23,8 +23,8 @@ export type { TopicItem, TopicList } from './interest.types';
 export { registerInterestSavedListener } from './services/interest-saved-listener';
 /**
  * dev mock 전용 — 관심사 상태의 mock 원본은 이 feature 하나다(실서버의 user_interests처럼).
- * INTEREST_MOCK_TOPICS는 온보딩 mock의 추천 생성이, getInterestMockSummary는 프로필·설정
- * mock의 interest_summary가, seedInterestMockFromOnboarding은 온보딩 1단계 저장이 쓴다.
+ * INTEREST_MOCK_TOPICS 는 주제 목록 fixture(온보딩 추천 mock 이 쓰던 조인은 담기 단계와 함께 사라졌다, 2026-10-11),
+ * getInterestMockSummary는 프로필·설정 mock의 interest_summary가, seedInterestMockFromOnboarding은 온보딩 1단계 저장이 쓴다.
  */
 export {
   INTEREST_MOCK_TOPICS,

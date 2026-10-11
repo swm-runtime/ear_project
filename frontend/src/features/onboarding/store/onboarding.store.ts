@@ -3,7 +3,7 @@ import { create } from 'zustand';
 import type { OnboardingCompleteResult } from '../onboarding.types';
 
 /**
- * 완료 요청은 3단계 종료 시점에 나가고 화면(O13·O9)은 그 뒤에 뜬다(onboarding-uiux.md 4.6).
+ * 완료 요청은 완료 대기 화면(O13)이 뜨며 나가고 결과는 O9 가 읽는다(onboarding-uiux.md 4.6).
  * 요청과 화면의 수명이 달라 mutation 훅 대신 store로 상태를 공유한다 —
  * 쓰기는 completion service만 수행하고 화면은 selector로 구독만 한다.
  */

@@ -2,12 +2,7 @@
  * DTO — onboarding-api.md 계약 그대로 snake_case로 선언한다(convention.md 1.6).
  * mock(onboarding.mock.ts)도 같은 DTO를 반환해 실서버 전환 시 변환 계층이 그대로 검증되게 한다.
  */
-import type {
-  FirstDripStatus,
-  OnboardingStep,
-  RecommendationSectionType,
-  YearsOfExperience,
-} from '../onboarding.types';
+import type { FirstDripStatus, OnboardingStep, YearsOfExperience } from '../onboarding.types';
 
 export interface CareerDto {
   job_category: string | null;
@@ -49,37 +44,7 @@ export interface SaveCareerResponseDto {
   onboarding_step: OnboardingStep;
 }
 
-/** onboarding-api.md 4.5 */
-export interface RecommendedContentDto {
-  content_id: string;
-  title: string;
-  author_name: string;
-  source_name: string;
-  thumbnail_url: string;
-  duration_sec: number;
-  topics: { topic_id: string; name: string }[];
-}
-
-export interface RecommendationSectionDto {
-  section_type: RecommendationSectionType;
-  title: string;
-  items: RecommendedContentDto[];
-}
-
-export interface RecommendationsResponseDto {
-  sections: RecommendationSectionDto[];
-}
-
-/** onboarding-api.md 4.6 */
-export interface SavePicksRequestDto {
-  content_ids: string[];
-}
-
-export interface SavePicksResponseDto {
-  saved_content_ids: string[];
-  failed: { content_id: string; error_code: string }[];
-  picked_count: number;
-}
+// 4.5 추천 조회 · 4.6 담기 DTO 는 담기 단계와 함께 뺐다(2026-10-11) — 계약은 onboarding-api.md 에 남아 있다
 
 /** onboarding-api.md 4.7 */
 export interface CompleteResponseDto {

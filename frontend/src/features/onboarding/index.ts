@@ -4,7 +4,6 @@
  */
 export { default as TopicSelectScreen } from './screens/TopicSelectScreen';
 export { default as CareerScreen } from './screens/CareerScreen';
-export { default as PickScreen } from './screens/PickScreen';
 export { default as FirstDripWaitingScreen } from './screens/FirstDripWaitingScreen';
 export { default as CompleteScreen } from './screens/CompleteScreen';
 export { default as TopicSelectSkeleton } from './components/TopicSelectSkeleton';

@@ -22,32 +22,6 @@ export interface OnboardingState {
   pickedCount: number;
 }
 
-/** 두 번째 섹션의 모드는 title 문자열이 아니라 이 값으로 판정한다(onboarding-api.md 4.5) */
-export type RecommendationSectionType = 'interest' | 'monthly_popular' | 'topic_discovery';
-
-export interface RecommendedContent {
-  contentId: string;
-  title: string;
-  authorName: string;
-  sourceName: string;
-  thumbnailUrl: string;
-  durationSec: number;
-  topics: { topicId: string; name: string }[];
-}
-
-export interface RecommendationSection {
-  sectionType: RecommendationSectionType;
-  /** 화면에 그대로 노출한다 — 서버가 내려주는 제목(onboarding-api.md 4.5) */
-  title: string;
-  items: RecommendedContent[];
-}
-
-export interface PickResult {
-  savedContentIds: string[];
-  failed: { contentId: string; errorCode: string }[];
-  pickedCount: number;
-}
-
 export type FirstDripStatus = 'pending' | 'completed' | 'no_candidates' | 'queued';
 
 export interface FirstDripState {
@@ -75,8 +49,7 @@ export interface OnboardingCompleteResult {
 export type OnboardingStackParamList = {
   Topic: undefined;
   Career: undefined;
-  Pick: undefined;
-  /** 0건 담기 경로 전용(O13). 폴링 파라미터는 완료 응답(store)에서 읽는다 */
+  /** 2단계 종료 뒤 완료 대기(O13) — 담기 단계를 뺀 뒤(2026-10-11) 모든 경로가 지난다. 폴링 파라미터는 완료 응답(store)에서 읽는다 */
   FirstDripWaiting: undefined;
   Complete: undefined;
 };

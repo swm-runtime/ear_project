@@ -13,19 +13,16 @@
  * - drip-queued 첫 드립이 서버 재시도 소진으로 queued 종료
  */
 import { seedCareerMockFromOnboarding } from '@/features/career';
-import { INTEREST_MOCK_TOPICS, seedInterestMockFromOnboarding } from '@/features/interest';
+import { seedInterestMockFromOnboarding } from '@/features/interest';
 
 import type {
   CareerDto,
   CompleteResponseDto,
   FirstDripResponseDto,
   OnboardingStateDto,
-  RecommendationSectionDto,
-  RecommendationsResponseDto,
   SaveCareerRequestDto,
   SaveCareerResponseDto,
   SaveInterestsResponseDto,
-  SavePicksResponseDto,
 } from './onboarding.dto';
 import type { OnboardingStep } from '../onboarding.types';
 
@@ -38,16 +35,11 @@ const FIRST_DRIP_PENDING_POLLS = 2;
 
 const delay = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
 
-// 주제 fixture는 interest mock이 소유한다 — 1단계에서 고른 topic_id가 추천 생성에서
-// 이름을 잃지 않도록 같은 목록을 조인한다(주제 목록 조회 자체도 interest feature 몫이다)
-const MOCK_TOPICS = INTEREST_MOCK_TOPICS;
-
 interface MockServerState {
   step: OnboardingStep;
   completed: boolean;
   selectedTopicIds: string[];
   career: CareerDto;
-  pickedContentIds: string[];
   firstDripPollCount: number;
 }
 
@@ -56,7 +48,6 @@ const initialState = (): MockServerState => ({
   completed: false,
   selectedTopicIds: [],
   career: { job_category: null, job_title: null, years_of_experience: null },
-  pickedContentIds: [],
   firstDripPollCount: 0,
 });
 
@@ -66,23 +57,6 @@ export const resetOnboardingMock = (): void => {
   state = initialState();
 };
 
-const topicName = (topicId: string): string =>
-  MOCK_TOPICS.find((t) => t.topic_id === topicId)?.name ?? '주제';
-
-const makeContent = (
-  seq: number,
-  topicId: string,
-  title: string,
-): RecommendationSectionDto['items'][number] => ({
-  content_id: `content-${String(seq).padStart(2, '0')}`,
-  title,
-  author_name: `김이어 ${seq}`,
-  source_name: '이어 스튜디오',
-  thumbnail_url: `https://picsum.photos/seed/ear-${seq}/200/200`,
-  duration_sec: 480 + seq * 37,
-  topics: [{ topic_id: topicId, name: topicName(topicId) }],
-});
-
 export const mockFetchState = async (): Promise<OnboardingStateDto> => {
   await delay(RESPONSE_DELAY_MS);
   return {
@@ -90,7 +64,7 @@ export const mockFetchState = async (): Promise<OnboardingStateDto> => {
     onboarding_step: state.step,
     selected_topic_ids: state.selectedTopicIds,
     career: state.career,
-    picked_count: state.pickedContentIds.length,
+    picked_count: 0,
   };
 };
 
@@ -119,58 +93,18 @@ export const mockSaveCareer = async (body: SaveCareerRequestDto): Promise<SaveCa
   return { career: state.career, onboarding_step: 'pick' };
 };
 
-export const mockFetchRecommendations = async (): Promise<RecommendationsResponseDto> => {
-  await delay(RESPONSE_DELAY_MS);
-  if (SCENARIO === 'empty') {
-    return { sections: [] };
-  }
-
-  // 관심 주제 6건 — 선택 주제에 고르게 배분한다(onboarding.md 4 [3])
-  const selected = state.selectedTopicIds.length > 0 ? state.selectedTopicIds : ['topic-economy'];
-  const interestItems = Array.from({ length: 6 }, (_, i) => {
-    const topicId = selected[i % selected.length];
-    return makeContent(i + 1, topicId, `${topicName(topicId)} 이야기 ${i + 1}`);
-  });
-
-  // 두 번째 섹션 3건 — 관심 주제 밖에서 뽑는다
-  const outsideTopics = MOCK_TOPICS.filter((t) => !selected.includes(t.topic_id)).slice(0, 3);
-  const isDiscovery = SCENARIO === 'discovery';
-  const secondItems = outsideTopics.map((topic, i) =>
-    makeContent(7 + i, topic.topic_id, `${topic.name} 입문 ${i + 1}`),
-  );
-
-  return {
-    sections: [
-      { section_type: 'interest', title: '관심 주제 추천', items: interestItems },
-      isDiscovery
-        ? { section_type: 'topic_discovery', title: '이런 주제는 어때요?', items: secondItems }
-        : { section_type: 'monthly_popular', title: '이번 달 인기', items: secondItems },
-    ],
-  };
-};
-
-export const mockSavePicks = async (contentIds: string[]): Promise<SavePicksResponseDto> => {
-  await delay(RESPONSE_DELAY_MS);
-  const unique = [...new Set(contentIds)];
-  state.pickedContentIds = [...new Set([...state.pickedContentIds, ...unique])];
-  return {
-    saved_content_ids: unique,
-    failed: [],
-    picked_count: state.pickedContentIds.length,
-  };
-};
-
 export const mockComplete = async (): Promise<CompleteResponseDto> => {
   await delay(RESPONSE_DELAY_MS);
   state.completed = true;
   state.step = 'done';
   state.firstDripPollCount = 0;
-  const awaitsFirstDrip = state.pickedContentIds.length === 0;
+  // 담기 단계가 없어 적립 0건 — 늘 첫 드립을 기다린다(2026-10-11)
+  const awaitsFirstDrip = true;
   return {
     onboarding_completed: true,
     onboarding_step: 'done',
     onboarding_completed_at: new Date().toISOString(),
-    picked_count: state.pickedContentIds.length,
+    picked_count: 0,
     awaits_first_drip: awaitsFirstDrip,
     first_drip: awaitsFirstDrip
       ? { status: 'pending', poll_interval_sec: 1, max_wait_sec: 15 }

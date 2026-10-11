@@ -62,19 +62,7 @@ export const ONBOARDING_COPY = {
     retry: '다시 시도',
   },
   /** O7·O8 추천 콘텐츠 담기(onboarding-uiux.md 4.4). 섹션 제목은 서버가 내려준다 */
-  pick: {
-    /* TODO(카피 미확정): 상단 툴바 타이틀 — O1·O4와 같은 컨셉 */
-    toolbarTitle: '콘텐츠 담기',
-    title: '먼저 들어볼 콘텐츠를 골라보세요',
-    subtitle: '지금 고르지 않아도 괜찮아요',
-    submit: (count: number) => `${count}개 담기`,
-    skip: '건너뛰기',
-    /** 건별 실패 토스트 — CONTENT_WITHDRAWN(onboarding-api.md 5장) */
-    withdrawnToast: '제공이 종료된 콘텐츠예요',
-    /* TODO(카피 미확정): 담기 부분 실패 안내 */
-    partialFailToast: (count: number) => `${count}건은 담지 못했어요`,
-  },
-  /** O13 완료 대기(onboarding-uiux.md 4.5) — 로딩 문구는 이 한 줄뿐이다 */
+  /** O13 완료 대기(onboarding-uiux.md 4.5) — 2단계 종료 뒤 모든 경로가 지난다. 로딩 문구는 이 한 줄뿐이다 */
   firstDripWaiting: {
     message: '첫 콘텐츠를 준비하고 있어요',
     /* 완료 요청이 재시도 소진으로 실패한 경우의 전체 화면 에러(onboarding-api.md 5장 INTERNAL_ERROR).

@@ -15,9 +15,9 @@ const YEARS_OPTIONS: YearsOfExperience[] = ['0-1', '2-3', '4-6', '7+'];
 const JOB_CATEGORY_SKELETON_WIDTHS = [72, 96, 64, 88, 104, 76] as const;
 
 /**
- * O4 커리어 정보(2/3). 전부 선택 항목 — 미입력 필드에 에러 표시를 하지 않고
+ * O4 커리어 정보(2/2 — 담기 단계를 뺀 2026-10-11 뒤 마지막 입력 단계). 전부 선택 항목 — 미입력 필드에 에러 표시를 하지 않고
  * [다음]은 입력값과 무관하게 항상 활성이다(onboarding-uiux.md 4.3).
- * 시각은 O1과 같은 컨셉(2026-09-03): 가운데 타이틀 툴바(+뒤로가기) · "2/3 단계" ·
+ * 시각은 O1과 같은 컨셉(2026-09-03): 가운데 타이틀 툴바(+뒤로가기) · "2/2 단계" ·
  * 큰 회색 헤드라인 · 면(面) 칩 · 우하단 원형 [다음] + 왼쪽 [건너뛰기] 텍스트 버튼.
  * [건너뛰기]는 보조 스타일이되 숨기거나 작게 만들지 않는다(4.3).
  * 문서 반영 요청: changes/pending/onboarding-o1-visual-refresh.md
@@ -131,8 +131,8 @@ export default function CareerScreen() {
             )}
           </Pressable>
         </View>
-        <Text style={styles.stepLabel} accessibilityLabel="3단계 중 2단계">
-          2/3 단계
+        <Text style={styles.stepLabel} accessibilityLabel="2단계 중 2단계">
+          2/2 단계
         </Text>
         <Text style={styles.title}>{ONBOARDING_COPY.career.title}</Text>
         {/* 손해가 없다는 사실을 상시 노출한다 — 이 문구가 [건너뛰기] 버튼보다 중요하다(onboarding-uiux.md 4.3) */}

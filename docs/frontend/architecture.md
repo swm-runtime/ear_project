@@ -276,7 +276,7 @@ feature가 늘어나면 아래 표를 갱신한다. 표에 없는 의존이 코�
 | subscription | (없음) | 결제·요금제 관리·페이월 요금제 비교. 이메일 인증 화면 열기·다른 feature 캐시 무효화·로그인 전이는 `app/bootstrap` 이 주입한다(`registerEmailVerificationOpener` · `registerSubscriptionChangedListener` · `resumeSubscriptionSync`/`stopSubscriptionSync`) |
 | profile | interest, subscription, auth, career | 관심사·플랜 카드 / 이메일 인증 진입 / 커리어 카드(dev mock 요약 원본 `getCareerMockSummary`). 가입 체험 안내 팝업(`SignupTrialNotice`, P11)은 profile 이 소유하고 app(MainNavigator)이 그린다 — 계정 id 는 auth 의 `useSessionStore`, 앞서 뜨는 안내·팝업(알림 사전 안내·권장 업데이트·푸시 재생 확인·한도 안내 — 첫 사용 튜토리얼은 2026-10-11 뺐다)이 없는지는 app 이 `isReady` 로 묶어 넘긴다(`app/navigation/launch-dialog-gate.ts` — profile → notification·app-update·player 의존 없음, 2026-10-05 KAN-119 · KAN-121). 관심사·커리어 저장 후 요약 invalidate는 각 feature가 노출한 `registerInterestSavedListener` · `registerCareerSavedListener`에 bootstrap이 주입한다(역방향 import 없음 — player ↔ library 브리지와 같은 방식) |
 | settings | auth, subscription, notification, interest | 각 도메인 진입점 허브. 요약 invalidate 배선은 profile 행과 동일(`registerInterestSavedListener`) |
-| onboarding | interest, library, notification, auth, career | 주제 목록 조회(`useTopicsQuery` — 같은 계약·같은 캐시 `interestKeys.topics()`) · `TopicChip` 공용 · 저장 시 interest mock 원본 갱신 / 커리어 단계 저장 시 career mock 원본 갱신(`seedCareerMockFromOnboarding`). 직군 목록 공용(`useJobCategoriesQuery` · `careerKeys.jobCategories()`) 완료 — 2026-08-26, 티켓 `onboarding-job-categories-server-list` / 첫 담기 / 알림 권한 / 종료 시 세션 상태 갱신(라이브러리 진입 전환) |
+| onboarding | interest, library, notification, auth, career | 주제 목록 조회(`useTopicsQuery` — 같은 계약·같은 캐시 `interestKeys.topics()`) · `TopicChip` 공용 · 저장 시 interest mock 원본 갱신 / 커리어 단계 저장 시 career mock 원본 갱신(`seedCareerMockFromOnboarding`). 직군 목록 공용(`useJobCategoriesQuery` · `careerKeys.jobCategories()`) 완료 — 2026-08-26, 티켓 `onboarding-job-categories-server-list` / 알림 권한 / 종료 시 세션 상태 갱신(라이브러리 진입 전환) |
 | notification | player | 푸시 딥링크 → 재생 게이트 |
 | share | (없음) | 링크 수신 게이트는 관문을 직접 판정하지 않는다 — RootNavigator 가 루트 분기(`app/navigation/root-route.ts`)에서 뽑은 관문 상태(`pending`·`open`·`closed`)를 넘긴다(2026-10-05, 종전엔 `useSessionStore` 스냅샷을 읽어 auth 에 의존했다). 순환 없음 — share는 네 진입점 feature를 import하지 않는다 |
 | splash | auth, onboarding | 진입 분기 판정 |
@@ -390,7 +390,7 @@ startPlayback(contentId, origin)
 RootStack
 ├── SplashGate                    # 진입 판정 (버전 → 인증 → 온보딩)
 ├── AuthStack                     # 시작 화면·약관 동의
-├── OnboardingStack               # 주제 → 커리어 → 담기 → 완료 → 알림
+├── OnboardingStack               # 주제 → 커리어 → 완료 대기 → 완료(담기 단계는 2026-10-11 뺐다)
 ├── MainTab                       # 하단 탭 3개
 │   ├── LibraryStack
 │   ├── ExploreStack
