@@ -136,7 +136,7 @@ const toWeekView = (week: WeeklyListening) => {
 interface WeekBodyProps {
   week: WeeklyListening;
   annotationHeight: number;
-  /** 가운데 주만 — 이웃 주는 탭·말풍선이 없다(끌리는 동안 보이는 그림일 뿐이다) */
+  /** 고른 요일 — 이웃 주도 받는다(끄는 동안 옆 주의 같은 요일이 미리 칠해져 있다). 탭은 가운데 주만 */
   selectedIndex?: number | null;
   onToggleBar?: (dayIndex: number) => void;
   onChartLayout?: (width: number) => void;
@@ -492,7 +492,12 @@ export default function WeeklyChart({ weekly, footer, onSwipingChange }: WeeklyC
   // 이웃 칸 — 있는 쪽만. 아직 받는 중이면 스켈레톤, 갈 수 없는 쪽은 비운다(끌어도 고무줄이라 거의 안 보인다)
   const renderNeighbor = (week: WeeklyListening | null, exists: boolean) =>
     week !== null ? (
-      <WeekBody week={week} annotationHeight={annotationHeight} />
+      <WeekBody
+        week={week}
+        annotationHeight={annotationHeight}
+        // 고른 요일을 옆 주에도 칠한다 — 놓으면 그 요일이 그대로 이어진다(빈 주면 WeekBody 가 빈 상태라 무관)
+        selectedIndex={selectedIndex}
+      />
     ) : exists ? (
       skeleton
     ) : null;

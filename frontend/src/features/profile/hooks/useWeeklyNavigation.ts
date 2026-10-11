@@ -25,9 +25,9 @@ export interface WeeklyNavigation {
   goPrev: () => void;
   goNext: () => void;
   /**
-   * 막대 탭 말풍선(changes/pending profile-uiux-weekly-bar-tooltip) — 표시 중인 주의 선택
-   * 요일. 재탭·주 이동·그래프 밖 탭에서 해제된다. 해제 지점이 화면(그래프 밖 탭)과 그래프
-   * (막대·화살표)에 걸쳐 있어 상태를 이 훅이 소유한다
+   * 막대 탭 — 표시 중인 주의 선택 요일. 재탭·그래프 밖 탭에서 해제된다. **주를 넘겨도 요일은 남는다**(PM 2026-10-11
+   * 22:56 "요일 선택하고 스와이프하면 그 주 요일로") — 수요일을 고른 채 넘기면 그 주 수요일이 보인다. 빈 주에선 고른
+   * 요일을 그리지 않는다(빈 상태 문구뿐이다). 해제 지점이 화면(그래프 밖 탭)과 그래프(막대)에 걸쳐 있어 상태를 이 훅이 소유한다
    */
   selectedBarIndex: number | null;
   toggleBar: (dayIndex: number) => void;
@@ -56,10 +56,8 @@ export const useWeeklyNavigation = (summaryWeekly: WeeklyListening | null): Week
   /** 인플라이트 가드 — 값이 있는 동안 화살표 연타를 무시한다 */
   const [pendingWeekStart, setPendingWeekStart] = useState<string | null>(null);
   const [failedWeekStart, setFailedWeekStart] = useState<string | null>(null);
-  /** 말풍선 선택 — 주 기준으로 저장해 주가 다르면 파생 판정에서 무시된다(effect 없이 해제) */
-  const [selectedBar, setSelectedBar] = useState<{ weekStart: string; dayIndex: number } | null>(
-    null,
-  );
+  /** 고른 요일(월 0 ~ 일 6) — 주와 무관하게 저장한다. 주를 넘기면 새 주의 같은 요일로 읽힌다 */
+  const [selectedDay, setSelectedDay] = useState<number | null>(null);
 
   // 확정된 과거 주만 구독한다 — staleTime Infinity라 fetchQuery가 채운 캐시를 그대로 읽는다.
   // 빈 문자열 키는 enabled 가드로 조회되지 않는다(이번 주 표시 중의 자리 값)
@@ -97,7 +95,7 @@ export const useWeeklyNavigation = (summaryWeekly: WeeklyListening | null): Week
       setDisplayedWeekStart(null);
       setPendingWeekStart(null);
       setFailedWeekStart(null);
-      setSelectedBar(null);
+      setSelectedDay(null);
       queryClient.removeQueries({ queryKey: profileKeys.weeklyAll() });
     });
     return unsubscribe;
@@ -105,8 +103,7 @@ export const useWeeklyNavigation = (summaryWeekly: WeeklyListening | null): Week
 
   const moveToWeek = (weekStart: string | null): void => {
     if (weekStart === null || pendingWeekStart !== null) return;
-    // 주를 이동하면 말풍선을 해제한다 — 같은 주로 되돌아와도 다시 나타나지 않는다
-    setSelectedBar(null);
+    // 고른 요일은 그대로 둔다 — 새 주의 같은 요일로 이어진다
     setFailedWeekStart(null);
     // 미리 받아 둔 주는 조회 없이 **같은 렌더에서** 옮긴다 — 스와이프가 옆 주를 끌어다 놓는 순간 스켈레톤이 한 프레임
     // 끼면 이어진 느낌이 깨진다
@@ -149,7 +146,6 @@ export const useWeeklyNavigation = (summaryWeekly: WeeklyListening | null): Week
     if (summaryWeekly !== null && token === summaryWeekly.weekStart) {
       setDisplayedWeekStart(null);
       setFailedWeekStart(null);
-      setSelectedBar(null);
       AccessibilityInfo.announceForAccessibility(PROFILE_COPY.stats.weeklyA11y(token));
       return;
     }
@@ -160,20 +156,19 @@ export const useWeeklyNavigation = (summaryWeekly: WeeklyListening | null): Week
     moveToWeek(failedWeekStart);
   };
 
+  // 빈 주(그래프 대신 빈 상태 문구)에선 요일을 그리지 않는다 — 고른 값은 남아 있다가 들은 주로 넘기면 다시 보인다
   const selectedBarIndex =
-    selectedBar !== null && displayed !== null && selectedBar.weekStart === displayed.weekStart
-      ? selectedBar.dayIndex
+    selectedDay !== null && displayed !== null && displayed.dailyListenedSec.some((sec) => sec > 0)
+      ? selectedDay
       : null;
 
   const toggleBar = (dayIndex: number): void => {
     if (displayed === null) return;
-    setSelectedBar(
-      selectedBarIndex === dayIndex ? null : { weekStart: displayed.weekStart, dayIndex },
-    );
+    setSelectedDay(selectedBarIndex === dayIndex ? null : dayIndex);
   };
 
   const clearBarTooltip = (): void => {
-    setSelectedBar(null);
+    setSelectedDay(null);
   };
 
   return {
