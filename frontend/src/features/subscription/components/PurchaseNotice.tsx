@@ -27,5 +27,5 @@ export default function PurchaseNotice({
         ? { message: SUBSCRIPTION_COPY.result.delayed, tone: 'info' as const }
         : null);
   if (shown === null) return null;
-  return <InlineNotice message={shown.message} tone={shown.tone} />;
+  return <InlineNotice message={shown.message} tone={shown.tone} layout="stacked" />;
 }
