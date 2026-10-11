@@ -769,10 +769,11 @@ const styles = StyleSheet.create({
   },
   pressed: { opacity: 0.5 },
   // 헤더 줄 바로 밑 — 화살표를 28 로 줄인 뒤 lg(24)가 헤더와 떨어져 보였다(PM 2026-09-28 00:59 "하루평균 위에 공백이 너무 많다")
+  // 라벨과 숫자 사이 간격은 두지 않는다 — 숫자 줄(44) 안에서 34pt 글자는 아래에 앉아 위에 ≈10 의 빈 띠가 있고, 라벨 줄
+  // 아래 여백까지 더하면 간격 없이도 보이는 공백이 충분하다(PM 2026-10-11 13:08 "하루 평균하고 N분 사이 간격이 너무 크다")
   summary: {
     paddingHorizontal: theme.spacing.md,
     paddingTop: theme.spacing.sm,
-    gap: theme.spacing.xs,
   },
   /*
    * 요약 줄(라벨·큰 숫자·상위 %)은 **글자마다 줄 높이를 박고 값 줄은 고정 높이**다(PM 2026-10-11 04:19 "아직도 요일
@@ -795,6 +796,8 @@ const styles = StyleSheet.create({
     alignItems: 'flex-end',
     justifyContent: 'space-between',
     gap: theme.spacing.sm,
+    // 숫자 줄을 라벨 쪽으로 4 당긴다 — 겹치는 건 라벨의 글자 밑 여백과 숫자 줄의 빈 윗띠뿐이라 글자는 닿지 않는다
+    marginTop: -theme.spacing.xs,
   },
   // 숫자 쪽만 줄어든다 — 오른쪽 상위 % 는 제 폭을 지킨다
   valueBox: {
