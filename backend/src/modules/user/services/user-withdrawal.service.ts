@@ -153,14 +153,14 @@ export class UserWithdrawalService {
     now: Date,
     manager: EntityManager,
   ): Promise<void> {
-    // 결제 이력이 있는데 이메일이 없다는 것은 결제 전 이메일 게이트가 뚫렸다는 뜻이다.
-    // 조용히 NULL을 넣지 않고 트랜잭션을 실패시킨다 (domain.md 11.3)
+    // 결제 이력이 있는데 이메일이 없을 수 있다 — 결제 의도(4.3)를 거치지 않고 구독 행이 생기는 경로가 있다(탈퇴 후
+    // 이메일 없이 재가입 → 해지 안 된 스토어 구독의 갱신 거래를 앱이 제출, domain.md 11.3). 종전엔 여기서 500 으로
+    // 탈퇴를 막았는데 재시도해도 같아 **파기 요구(제21조)를 영영 들어줄 수 없었다**(2026-10-11 감사). 거래 주체는
+    // 제공자 계정 ID(`provider` + `provider_user_id`)로 식별해 보관하고 탈퇴를 진행한다. 값 없이 사실만 남긴다
     if (!user.email) {
-      throw new BusinessException({
-        status: HttpStatus.INTERNAL_SERVER_ERROR,
-        errorCode: ErrorCode.WITHDRAWAL_ARCHIVE_IDENTITY_MISSING,
-        message: '탈퇴를 처리하지 못했어요. 잠시 후 다시 시도해주세요',
-        logLevel: 'error',
+      this.logger.warn('archive without email — identified by provider id', {
+        user_id: user.id,
+        provider: user.provider,
       });
     }
 
@@ -170,7 +170,7 @@ export class UserWithdrawalService {
       this.archiveRepository.createUser({
         userHash,
         userHashVersion: USER_HASH_VERSION,
-        email: user.email,
+        email: user.email ?? null,
         provider: user.provider,
         providerUserId: user.providerUserId,
         tier: user.tier,
