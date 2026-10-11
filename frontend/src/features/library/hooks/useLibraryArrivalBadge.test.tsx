@@ -7,6 +7,19 @@ import { useLibraryItemsQuery } from './useLibraryItemsQuery';
 import { useLibraryArrivalStore } from '../store/library-arrival.store';
 
 const mockInvalidate = jest.fn();
+const mockStorage = new Map<string, string>();
+jest.mock('@/features/auth', () => ({
+  useSessionStore: (selector: (state: { user: { id: string } }) => unknown) =>
+    selector({ user: { id: 'a' } }),
+}));
+jest.mock('@/shared/storage/secure-storage', () => ({
+  secureStorage: {
+    get: jest.fn(async (key: string) => mockStorage.get(key) ?? null),
+    set: jest.fn(async (key: string, value: string) => {
+      mockStorage.set(key, value);
+    }),
+  },
+}));
 jest.mock('@tanstack/react-query', () => ({
   useQueryClient: () => ({ invalidateQueries: mockInvalidate }),
 }));
@@ -34,9 +47,12 @@ const response = (items: unknown[], dataUpdatedAt: number) => {
   >);
 };
 
-beforeEach(() => {
+beforeEach(async () => {
+  await useLibraryArrivalStore.getState().activate('drain');
   jest.clearAllMocks();
+  mockStorage.clear();
   useLibraryArrivalStore.getState().reset();
+  await useLibraryArrivalStore.getState().activate('a');
 });
 afterEach(() => {
   jest.restoreAllMocks();
@@ -96,6 +112,27 @@ describe('라이브러리 화면 밖의 탭 배지 관측', () => {
     });
     expect(badge.value).toBe('99+');
     expect(badge.accessibilityLabel).toContain('100편');
+    await act(async () => {
+      renderer.unmount();
+    });
+  });
+
+  it('콜드 스타트의 첫 응답을 저장한 기준값 복원 뒤 비교한다', async () => {
+    mockStorage.set('library.arrival.a', JSON.stringify({ baseline: old.addedAt, count: 0 }));
+    useLibraryArrivalStore.getState().reset();
+    response(
+      [
+        { source: 'drip', addedAt: '2026-10-11T01:00:00Z' },
+        { source: 'discovery', addedAt: '2026-10-11T01:01:00Z' },
+        old,
+      ],
+      1,
+    );
+    let renderer!: ReturnType<typeof create>;
+    await act(async () => {
+      renderer = create(<Probe />);
+    });
+    expect(badge.value).toBe(2);
     await act(async () => {
       renderer.unmount();
     });

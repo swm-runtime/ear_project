@@ -4,6 +4,8 @@ import { AppState } from 'react-native';
 
 import { track } from '@/shared/analytics';
 
+import { useSessionStore } from '@/features/auth';
+
 import { libraryKeys } from '../api/library.api';
 import { LIBRARY_COPY } from '../library.copy';
 import { hoursSinceArrival } from '../library.new-arrival';
@@ -16,10 +18,17 @@ import { useLibraryArrivalStore } from '../store/library-arrival.store';
  */
 export const useLibraryArrivalBadge = () => {
   const queryClient = useQueryClient();
+  const userId = useSessionStore((state) => state.user?.id ?? null);
   const query = useLibraryItemsQuery('all', [], null);
   const count = useLibraryArrivalStore((state) => state.count);
+  const ready = useLibraryArrivalStore((state) => state.ready && state.userId === userId);
 
   useEffect(() => {
+    if (userId) void useLibraryArrivalStore.getState().activate(userId);
+  }, [userId]);
+
+  useEffect(() => {
+    if (!ready) return;
     const firstPage = query.data?.pages[0];
     if (!firstPage) return;
     const { baseline, newCount } = useLibraryArrivalStore.getState().observe(firstPage.items);
@@ -29,7 +38,7 @@ export const useLibraryArrivalBadge = () => {
         hours_since_arrival: hoursSinceArrival(baseline),
       });
     }
-  }, [query.data, query.dataUpdatedAt]);
+  }, [query.data, query.dataUpdatedAt, ready]);
 
   useEffect(() => {
     const subscription = AppState.addEventListener('change', (state) => {
@@ -40,16 +49,17 @@ export const useLibraryArrivalBadge = () => {
 
   const acknowledge = useCallback(() => {
     const store = useLibraryArrivalStore.getState();
-    if (store.count === 0) return;
+    if (!ready || store.userId !== userId || store.count === 0) return;
     store.acknowledge();
     // 기존 포그라운드 알림 탭 이벤트 이름은 분석 호환을 위해 유지한다.
     track('push_foreground_banner', { action: 'tap' });
     void queryClient.invalidateQueries({ queryKey: libraryKeys.all });
-  }, [queryClient]);
+  }, [queryClient, ready, userId]);
 
   return {
-    value: count > 0 ? (count > 99 ? '99+' : count) : undefined,
-    accessibilityLabel: count > 0 ? LIBRARY_COPY.arrivalBadge.a11y(count) : LIBRARY_COPY.tabTitle,
+    value: ready && count > 0 ? (count > 99 ? '99+' : count) : undefined,
+    accessibilityLabel:
+      ready && count > 0 ? LIBRARY_COPY.arrivalBadge.a11y(count) : LIBRARY_COPY.tabTitle,
     acknowledge,
   };
 };

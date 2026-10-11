@@ -32,6 +32,8 @@ export const STORAGE_KEYS = {
    * (기기마다 마지막으로 본 탭이 다른 것이 자연스럽다). 로그아웃 시 지운다.
    */
   LAST_TAB: 'nav.last_tab',
+  /** 새 도착 기준값·미확인 편수. 계정 id를 접미사로 붙여 다른 계정과 분리한다. */
+  LIBRARY_ARRIVAL: 'library.arrival',
   /**
    * 재생 목록의 사용자 지정 순서 — `library_items.id` 의 나열(JSON). 기기 로컬 전용이다: 재생 목록의 원천이
    * 라이브러리 첫 페이지라 서버에 순서를 둘 자리가 없다(player/services/queue-order.ts). 판정이 아니라
