@@ -176,14 +176,7 @@ export class BillingOrchestrator {
     const user = await this.userService.getById(userId);
 
     // 1. 이메일 인증(FR-39) — 결제만 되고 연락처가 없는 상태를 만들지 않는다
-    if (!hasVerifiedEmail(user)) {
-      throw new BusinessException({
-        status: HttpStatus.CONFLICT,
-        errorCode: ErrorCode.EMAIL_REQUIRED_FOR_PURCHASE,
-        message: '구독하려면 이메일 인증이 필요해요',
-        logLevel: 'info',
-      });
-    }
+    assertEmailVerified(user);
 
     // 2. 요금제 — 판매 중인 유료 요금제이고 그 플랫폼에서 살 수 있어야 한다.
     //    검증 구성이 없는 플랫폼도 여기서 막는다(결제부터 시키고 검증을 못 하는 상태를 만들지 않는다)
@@ -306,6 +299,17 @@ export class BillingOrchestrator {
     command: RestorePurchasesCommand,
   ): Promise<RestoreResult> {
     const { userId, now } = command;
+
+    // 이메일 인증(FR-39) — 결제 의도(4.3)와 같은 관문. 복원은 의도 없이 구독 행을 만들 수 있어(탈퇴 후 재가입 복원),
+    // 여기서 막지 않으면 이메일 없는 계정이 결제 이력을 갖게 되고 탈퇴 아카이브(domain.md 11.3 — 이메일 필수)가
+    // 영구히 500 이 된다(2026-10-11 감사). 복원할 것이 없는 요청은 행을 만들지 않으므로 막지 않는다
+    const submittedCount =
+      command.platform === DevicePlatform.ANDROID
+        ? command.purchaseTokens.length
+        : command.signedTransactions.length;
+    if (submittedCount > 0) {
+      assertEmailVerified(await this.userService.getById(userId));
+    }
 
     if (command.platform === DevicePlatform.ANDROID) {
       if (!this.isStoreEnabled(command.platform)) {
@@ -640,6 +644,20 @@ function hasVerifiedEmail(user: {
   isEmailVerified: boolean;
 }): boolean {
   return user.email !== null && user.isEmailVerified;
+}
+
+function assertEmailVerified(user: {
+  email: string | null;
+  isEmailVerified: boolean;
+}): void {
+  if (!hasVerifiedEmail(user)) {
+    throw new BusinessException({
+      status: HttpStatus.CONFLICT,
+      errorCode: ErrorCode.EMAIL_REQUIRED_FOR_PURCHASE,
+      message: '구독하려면 이메일 인증이 필요해요',
+      logLevel: 'info',
+    });
+  }
 }
 
 /**

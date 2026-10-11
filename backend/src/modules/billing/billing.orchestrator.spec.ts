@@ -547,6 +547,22 @@ describe('BillingOrchestrator — 구매 복원(4.5)', () => {
     expect(result.subscription.plan.status).toBe(PlanStatus.FREE);
   });
 
+  it('인증된 이메일이 없는 계정의 복원은 409 로 막고 구독 행을 만들지 않는다 — 탈퇴 아카이브가 이메일을 요구한다(domain.md 11.3)', async () => {
+    const { world, orchestrator } = setup();
+    world.addUser(USER, { email: null, isEmailVerified: false });
+
+    await expectBusinessError(
+      restore(orchestrator, [signTransaction(THIS_PERIOD)]),
+      ErrorCode.EMAIL_REQUIRED_FOR_PURCHASE,
+      HttpStatus.CONFLICT,
+    );
+
+    expect(world.subscriptions).toHaveLength(0);
+    expect(world.users.get(USER)!.tier).toBe(UserTier.LIGHT);
+    // 복원할 것이 없는 요청은 행을 만들지 않으므로 막지 않는다
+    expect((await restore(orchestrator, [])).restored).toBe(false);
+  });
+
   it('유효한 거래를 연결하고 티어를 반영한다', async () => {
     const { world, orchestrator } = setup();
 

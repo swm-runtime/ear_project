@@ -391,6 +391,21 @@ describe('Play — 구매 복원(4.5)', () => {
     expect(play.acknowledged).toEqual(['token-1']);
   });
 
+  it('인증된 이메일이 없는 계정의 복원은 409 로 막고 연결·확인하지 않는다', async () => {
+    const { world, play, restore } = setup();
+    world.addUser(USER, { email: null, isEmailVerified: false });
+    play.put({ purchaseToken: 'token-1', productId: PLAY_PRODUCT_DAILY });
+
+    await expectBusinessError(
+      restore(['token-1']),
+      ErrorCode.EMAIL_REQUIRED_FOR_PURCHASE,
+      HttpStatus.CONFLICT,
+    );
+
+    expect(world.subscriptions).toHaveLength(0);
+    expect(play.acknowledged).toHaveLength(0);
+  });
+
   it('만료·보류된 구매는 오류가 아니라 무시한다', async () => {
     const { world, play, restore } = setup();
 
