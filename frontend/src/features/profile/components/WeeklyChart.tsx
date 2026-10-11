@@ -263,34 +263,40 @@ function WeekBody({
 
 /**
  * 값이 바뀌면 이전 값에서 새 값까지 **숫자가 굴러가듯** 바뀐다(PM 2026-09-28 03:22 "분은 가만히 있고 숫자만 자연스럽게").
- * 0.45초 ease-out — 끝으로 갈수록 느려져 새 값에 내려앉는다. 처음 값은 굴리지 않는다
+ * 0.45초 ease-out — 끝으로 갈수록 느려져 새 값에 내려앉는다. 처음 값은 굴리지 않는다.
+ *
+ * `mode` 가 바뀌면(하루 평균 ↔ 고른 요일) 굴리지 않고 **같은 렌더에** 새 값으로 바꾼다 — 라벨은 "수요일"인데 숫자가
+ * 평균에서 굴러 내려오면 엉뚱한 값이 지나간다. 같은 모드 안에서 바뀔 때만 굴린다: 주를 넘길 때(평균이든 고른 요일이든 —
+ * PM 2026-10-11 23:20 "요일도 하루 평균처럼 숫자 바뀌는 애니메이션"), 다른 요일을 누를 때
  */
 const COUNT_DURATION_MS = 450;
-function useCountTo(target: number | null): number | null {
-  const [shown, setShown] = useState(target);
-  const shownRef = useRef(target);
+function useCountTo(target: number | null, mode: string): number | null {
+  const [shown, setShown] = useState({ value: target, mode });
+  const shownRef = useRef({ value: target, mode });
   useEffect(() => {
     if (target === null) return undefined;
     const from = shownRef.current;
-    if (from === null || from === target) {
-      shownRef.current = target;
-      const frame = requestAnimationFrame(() => setShown(target));
+    if (from.value === null || from.mode !== mode || from.value === target) {
+      shownRef.current = { value: target, mode };
+      const frame = requestAnimationFrame(() => setShown({ value: target, mode }));
       return () => cancelAnimationFrame(frame);
     }
+    const fromValue = from.value;
     const startedAt = Date.now();
     let frame = 0;
     const tick = () => {
       const t = Math.min(1, (Date.now() - startedAt) / COUNT_DURATION_MS);
       const eased = 1 - (1 - t) ** 3;
-      const value = from + (target - from) * eased;
-      shownRef.current = value;
-      setShown(value);
+      const value = fromValue + (target - fromValue) * eased;
+      shownRef.current = { value, mode };
+      setShown({ value, mode });
       if (t < 1) frame = requestAnimationFrame(tick);
     };
     frame = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(frame);
-  }, [target]);
-  return shown;
+  }, [target, mode]);
+  // 모드가 막 바뀐 렌더 — 직전 모드의 값을 한 프레임도 보이지 않는다(전환 중이라 새 값이 아직 없으면 직전 값을 붙든다)
+  return shown.mode === mode || target === null ? shown.value : target;
 }
 
 /** P8/P9: 서버 주 경계·상대 높이를 유지하고 탭한 요일의 값을 보여준다. */
@@ -302,7 +308,16 @@ export default function WeeklyChart({ weekly, footer, onSwipingChange }: WeeklyC
    */
   const targetAverageSec =
     displayed !== null && !weekly.isSwitching ? toWeekView(displayed).averageSec : null;
-  const shownAverageSec = useCountTo(targetAverageSec);
+  // 막대를 고른 요일의 청취 시간 — 있으면 요약 줄이 그 요일로 바뀐다(스크린 타임)
+  const selectedDaySec =
+    selectedIndex !== null && displayed !== null
+      ? (displayed.dailyListenedSec[selectedIndex] ?? null)
+      : null;
+  // 큰 숫자 하나 — 평균이든 고른 요일이든 같은 카운터로 굴린다(모드가 바뀔 땐 바로 바꾼다 — useCountTo)
+  const shownValueSec = useCountTo(
+    targetAverageSec === null ? null : (selectedDaySec ?? targetAverageSec),
+    selectedDaySec !== null ? 'day' : 'average',
+  );
   /** 주간 한 줄(KAN-170) — 평균과 같이 전환 중엔 숨긴다(옆 주 값이 남아 있으면 엉뚱한 주의 값으로 읽힌다) */
   const highlight: HighlightLine | null =
     displayed !== null && !weekly.isSwitching && displayed.listeningHighlight !== null
@@ -313,11 +328,6 @@ export default function WeeklyChart({ weekly, footer, onSwipingChange }: WeeklyC
             displayed.nextWeekStart === null,
           ),
         }
-      : null;
-  // 막대를 고른 요일의 청취 시간 — 있으면 요약 줄이 그 요일로 바뀐다(스크린 타임)
-  const selectedDaySec =
-    selectedIndex !== null && displayed !== null
-      ? (displayed.dailyListenedSec[selectedIndex] ?? null)
       : null;
   /** 요일 한 줄(KAN-171) — 고른 요일의 칸. 서버가 null 이면(0초인 날 · 반영 전 서버) 그 자리는 비운다 */
   const dayHighlightValue =
@@ -590,7 +600,7 @@ export default function WeeklyChart({ weekly, footer, onSwipingChange }: WeeklyC
             />
           </View>
         </View>
-        {shownAverageSec === null ? (
+        {shownValueSec === null ? (
           <SkeletonGroup style={styles.summary} color={theme.color.border}>
             <SkeletonBlock style={styles.skeletonValue} />
           </SkeletonGroup>
@@ -608,7 +618,7 @@ export default function WeeklyChart({ weekly, footer, onSwipingChange }: WeeklyC
                     .filter(Boolean)
                     .join(', ')
                 : [
-                    PROFILE_COPY.stats.averageA11y(targetAverageSec ?? shownAverageSec),
+                    PROFILE_COPY.stats.averageA11y(targetAverageSec ?? shownValueSec),
                     highlight !== null ? highlight.a11y : null,
                   ]
                     .filter(Boolean)
@@ -628,7 +638,7 @@ export default function WeeklyChart({ weekly, footer, onSwipingChange }: WeeklyC
             */}
             <View style={styles.valueRow}>
               <View style={styles.valueBox}>
-                <AverageValue sec={selectedDaySec ?? Math.round(shownAverageSec)} />
+                <AverageValue sec={Math.round(shownValueSec)} />
               </View>
               {/*
                 요일을 고른 동안엔 그날 한 줄(KAN-171)로 바꾸고, 그날 칸이 비면 숨긴다. 숨길 때 **떼지 않고 투명하게** 둔다(PM 2026-10-11 03:54
