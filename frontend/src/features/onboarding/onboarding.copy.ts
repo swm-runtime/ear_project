@@ -47,6 +47,8 @@ export const ONBOARDING_COPY = {
     jobCategoryLabel: '직군',
     jobTitleLabel: '직무',
     jobTitlePlaceholder: '예: 백엔드 엔지니어',
+    /** 직무 입력칸 오른쪽 지우기 버튼 낭독 — 커리어 정보 화면과 같은 부품(2026-10-11) */
+    jobTitleClearA11y: '직무 지우기',
     yearsLabel: '연차',
     /* 연차 구간 표시 라벨 — 확정(2026-08-12): 커리어 정보 화면과 같은 표기다(career.md 3장 — 같은 값 체계·같은 표기) */
     yearsOption: {
