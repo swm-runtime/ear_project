@@ -1507,6 +1507,27 @@ describe('초대 코드 지급과 결제(subscription-api.md 4.8 — 2026-10-10)
     expect(view.entitlements.dailyPlayLimit).toBeNull();
   });
 
+  it('해지 예약 중인 구독자가 코드를 넣어도 지급은 끝나지 않는다 — 해지 예약도 입력 때 살아 있던 구독이다(domain.md 8.6)', async () => {
+    const { world, orchestrator, purchase, notify } = setup();
+    await purchase(signTransaction(THIS_PERIOD));
+    await notify({
+      id: 'n-cancel',
+      type: 'DID_CHANGE_RENEWAL_STATUS',
+      subtype: 'AUTO_RENEW_DISABLED',
+      transaction: THIS_PERIOD,
+      renewal: { isAutoRenew: false },
+    });
+    expect(world.subscriptions[0].status).toBe(SubscriptionStatus.CANCELLED);
+
+    await orchestrator.redeemInviteCode(USER, 'SANGUN-POC', NOW);
+
+    // 종전엔 입력 판정이 해지 예약을 "구독 없음"으로 봐서, 같은 트랜잭션의 동기화가 지급을 "결제로 대체"해 바로 끝냈다
+    const [grant] = world.inviteGrants;
+    expect(grant.redemption.subscribedAtStart).toBe(true);
+    expect(grant.redemption.tierReleasedAt).toBeNull();
+    expect(grant.redemption.endsAt.getTime()).toBeGreaterThan(NOW.getTime());
+  });
+
   it('Daily 이벤트 중 Pro를 결제하면 이벤트가 끝나고 Pro 구독이 된다', async () => {
     const { world, purchase } = setup();
     const grant = world.grantInvite(USER, UserTier.DAILY, GRANT_WINDOW);

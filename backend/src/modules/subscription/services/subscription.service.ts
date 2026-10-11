@@ -245,6 +245,25 @@ export class SubscriptionService {
     return selectCurrentSubscription(rows);
   }
 
+  /**
+   * **권한이 살아 있는** 현재 구독 — 해지 예약(`cancelled`)도 만료일까지 유효하므로 포함한다(domain.md 8.2).
+   * 끝난 구독뿐이면 `null`.
+   *
+   * 티어 캐시 동기화와 초대 코드 입력의 "구독 중인가" 판정이 **같은 술어**를 써야 한다 — 입력은
+   * `hasLiveSubscription`(결제가 살아 있는가 — 탈퇴 동의용, `cancelled` 제외)으로, 동기화는 이쪽으로
+   * 판정했을 때 해지 예약 구독자의 지급이 입력 직후 "결제로 대체"돼 끝났다(2026-10-11 감사).
+   */
+  async findEntitled(
+    userId: string,
+    manager?: EntityManager,
+  ): Promise<Subscription | null> {
+    const current = await this.findCurrent(userId, manager);
+    return current !== null &&
+      NON_TERMINAL_SUBSCRIPTION_STATUSES.includes(current.status)
+      ? current
+      : null;
+  }
+
   /** 스토어 구독의 자연 키로 찾는다(잠그지 않는다 — 주인 확인 등 읽기용) */
   async findByOriginalTransactionId(
     originalTransactionId: string,
