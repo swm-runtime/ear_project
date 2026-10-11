@@ -23,7 +23,7 @@ const SPEED_SCALES = [1, 0.9, 1.05, 1.1] as const;
 const PHASES = [40, 122, 96, 10] as const;
 
 /**
- * O1–O3 관심 주제 선택(1/3). 이 화면에는 [건너뛰기]가 없다 —
+ * O1–O3 관심 주제 선택(1/2). 이 화면에는 [건너뛰기]가 없다 —
  * 주제는 드립 편성의 유일한 필수 신호다(onboarding-uiux.md 4.1).
  * 시각 개편(2026-09-03): 큰 회색 헤드라인 + 사진 알약 마퀴 4줄(줄마다 반대 방향으로
  * 자동 흐름·무한 루프) + 상단 선택 요약 칩(✕로 해제) + 원형 [다음] 버튼.
@@ -60,8 +60,8 @@ export default function TopicSelectScreen() {
             {ONBOARDING_COPY.topic.toolbarTitle}
           </Text>
         </View>
-        <Text style={styles.stepLabel} accessibilityLabel="3단계 중 1단계">
-          1/3 단계
+        <Text style={styles.stepLabel} accessibilityLabel="2단계 중 1단계">
+          1/2 단계
         </Text>
         <Text style={styles.title}>{ONBOARDING_COPY.topic.title(maxSelectable)}</Text>
         {/*

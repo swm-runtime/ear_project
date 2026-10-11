@@ -68,7 +68,9 @@ export const useCareerScreen = () => {
       onSuccess: () => {
         track('onboarding_step', { step: 'career', action });
         onboardingCompletionService.noteCareer(action === 'next' && Object.keys(input).length > 0);
-        navigation.navigate('Pick');
+        // 담기 단계가 없다(2026-10-11) — 2단계가 마지막 입력이라 바로 완료 대기로. 완료 요청은 그 화면이 쏜다.
+        // 완료 이후 구간은 뒤로 올 수 없다(reset)
+        navigation.reset({ index: 0, routes: [{ name: 'FirstDripWaiting' }] });
       },
       onError: (error) => {
         showToast(isApiError(error) ? error.message : '저장하지 못했어요. 다시 시도해주세요');
