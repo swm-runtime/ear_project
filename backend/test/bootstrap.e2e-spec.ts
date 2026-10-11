@@ -1,10 +1,12 @@
 import { Body, Controller, HttpStatus, Post, Req } from '@nestjs/common';
+import { APP_FILTER } from '@nestjs/core';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import type { NestExpressApplication } from '@nestjs/platform-express';
 import { Test } from '@nestjs/testing';
 import type { Request } from 'express';
 import request from 'supertest';
 
+import { AllExceptionsFilter } from '@/common/filters/all-exceptions.filter';
 import { NEST_APP_OPTIONS, configureApp } from '@/main';
 
 /**
@@ -42,6 +44,8 @@ describe('부팅 스모크 — main.ts 의 configureApp 으로 조립한 앱', (
     const moduleRef = await Test.createTestingModule({
       imports: [ConfigModule.forRoot({ isGlobal: true, ignoreEnvFile: true })],
       controllers: [EchoController, SentryPathController],
+      // 운영과 같은 전역 예외 필터 — 파서 오류 응답의 trace_id 를 본다
+      providers: [{ provide: APP_FILTER, useClass: AllExceptionsFilter }],
     }).compile();
 
     app =
@@ -123,6 +127,27 @@ describe('부팅 스모크 — main.ts 의 configureApp 으로 조립한 앱', (
     } finally {
       if (original === undefined) delete process.env[key];
       else process.env[key] = original;
+    }
+  });
+
+  it('본문 파서가 실패한 응답에도 추적 ID·보안 헤더가 붙는다 — 파서보다 먼저 등록한다(2026-10-11)', async () => {
+    const broken = await request(app.getHttpServer())
+      .post('/api/v1/t/echo')
+      .set('Content-Type', 'application/json')
+      .send('{bad');
+    const tooLarge = await request(app.getHttpServer())
+      .post('/api/v1/t/echo')
+      .send({ pad: 'x'.repeat(200_000) });
+
+    for (const [response, status] of [
+      [broken, HttpStatus.BAD_REQUEST],
+      [tooLarge, HttpStatus.PAYLOAD_TOO_LARGE],
+    ] as const) {
+      expect(response.status).toBe(status);
+      const traceId = (response.body as { trace_id: string | null }).trace_id;
+      expect(traceId).toEqual(expect.any(String));
+      expect(response.headers['x-trace-id']).toBe(traceId);
+      expect(response.headers['x-content-type-options']).toBe('nosniff');
     }
   });
 

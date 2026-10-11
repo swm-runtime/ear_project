@@ -19,6 +19,11 @@ import { renderVerificationMail } from './verification-mail.template';
  *   같은 기준. 실패 사유도 SES 에러 이름까지만. **본문(HTML·text)도 로그에 남기지 않는다** —
  *   코드가 그 안에 있다.
  */
+/** SES 연결 수립 상한 */
+const SES_CONNECTION_TIMEOUT_MS = 3_000;
+/** SES 응답 대기 상한(한 번의 시도) */
+const SES_REQUEST_TIMEOUT_MS = 10_000;
+
 @Injectable()
 export class SesMailClient extends MailClient {
   private readonly logger = new Logger(SesMailClient.name);
@@ -29,6 +34,12 @@ export class SesMailClient extends MailClient {
     super();
     this.ses = new SESv2Client({
       region: configService.get('AWS_REGION', { infer: true }),
+      // SDK 기본은 무제한 대기다. SES 가 응답 없이 멈추면 멱등 리스(60초)가 먼저 풀려 재시도 요청이 두 번째 메일을
+      // 보낼 수 있었다(2026-10-11 감사). 재시도(SDK 기본 3회)를 합쳐도 리스 안에 끝나도록 한 번에 10초로 끊는다
+      requestHandler: {
+        connectionTimeout: SES_CONNECTION_TIMEOUT_MS,
+        requestTimeout: SES_REQUEST_TIMEOUT_MS,
+      },
     });
     this.fromAddress = configService.get('MAIL_FROM_ADDRESS', { infer: true });
   }
