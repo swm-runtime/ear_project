@@ -258,7 +258,8 @@ const styles = StyleSheet.create({
     minHeight: theme.touchTarget.minHeight,
     justifyContent: 'center',
     paddingHorizontal: theme.spacing.md,
-    borderRadius: theme.radius.xl,
+    // 알약 — 공용 알약(pillButton)과 같은 full. xl(24)은 높이 44 에선 반원이지만 큰 글자로 48 을 넘으면 둥근 사각이 됐다(2026-10-11)
+    borderRadius: theme.radius.full,
     borderCurve: 'continuous',
     borderWidth: 1,
     borderColor: theme.color.border,
@@ -284,7 +285,8 @@ const styles = StyleSheet.create({
     minHeight: theme.touchTarget.minHeight,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: theme.radius.xl,
+    // 위 chip 과 같은 알약 반지름(full)
+    borderRadius: theme.radius.full,
     borderCurve: 'continuous',
     overflow: 'hidden',
   },
