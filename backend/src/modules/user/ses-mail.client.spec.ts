@@ -49,7 +49,11 @@ describe('SesMailClient', () => {
 
     expect(clientConfigs[0]).toMatchObject({
       region: 'ap-northeast-2',
-      requestHandler: { connectionTimeout: 3_000, requestTimeout: 10_000 },
+      requestHandler: {
+        connectionTimeout: 3_000,
+        requestTimeout: 10_000,
+        throwOnRequestTimeout: true,
+      },
     });
   });
 
