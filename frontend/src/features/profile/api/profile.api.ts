@@ -4,6 +4,7 @@ import { apiClient } from '@/shared/api/api-client';
 
 import { IS_PROFILE_API_MOCKED } from '../profile.constants';
 import type {
+  DailyListeningHighlight,
   ListeningHighlight,
   PlanTrial,
   ProfileSummary,
@@ -11,6 +12,7 @@ import type {
   WeeklyListening,
 } from '../profile.types';
 import type {
+  DailyListeningHighlightDto,
   ProfilePlanTrialDto,
   ProfileSummaryResponseDto,
   TopicDistributionDto,
@@ -65,6 +67,30 @@ export const toListeningHighlight = (dto: WeeklyListeningDto): ListeningHighligh
   }
 };
 
+const toDailyListeningHighlight = (
+  dto: DailyListeningHighlightDto | null,
+): DailyListeningHighlight | null => {
+  if (dto === null) return null;
+  switch (dto.kind) {
+    case 'more_than_last_week':
+      return { kind: 'moreThanLastWeek', diffSec: dto.diff_sec };
+    case 'best_day':
+      return { kind: 'bestDay' };
+    case 'listened_contents':
+      return { kind: 'listenedContents', count: dto.count };
+    default:
+      return null;
+  }
+};
+
+/** 요일별 한 줄(KAN-171) — 7칸이 아니면(반영 전·결함) 통째로 그리지 않는다. 모르는 kind 칸은 그날만 비운다 */
+export const toDailyListeningHighlights = (
+  dto: WeeklyListeningDto,
+): (DailyListeningHighlight | null)[] | null =>
+  dto.daily_listening_highlight?.length === 7
+    ? dto.daily_listening_highlight.map(toDailyListeningHighlight)
+    : null;
+
 const toWeeklyListening = (dto: WeeklyListeningDto): WeeklyListening => ({
   weekStart: dto.week_start,
   dailyListenedSec: dto.daily_listened_sec,
@@ -72,6 +98,7 @@ const toWeeklyListening = (dto: WeeklyListeningDto): WeeklyListening => ({
   nextWeekStart: dto.next_week_start,
   listeningTopPercent: dto.listening_top_percent ?? null,
   listeningHighlight: toListeningHighlight(dto),
+  dailyListeningHighlights: toDailyListeningHighlights(dto),
   ...(dto.topic_distribution
     ? { topicDistribution: toTopicDistribution(dto.topic_distribution) }
     : {}),

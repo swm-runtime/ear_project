@@ -91,6 +91,16 @@ const toWeeklyDtoAt = (index: number): WeeklyListeningResponseDto => {
           null,
           { kind: 'listened_days', days: 2 },
         ] as const)[index] ?? null,
+    // 요일별 한 줄(KAN-171) — 세 종류가 한 주 안에 다 보이게 돌려 쓴다. 0초인 날은 null
+    daily_listening_highlight: week.daily.map((sec, dayIndex) => {
+      if (sec === 0) return null;
+      const kinds = [
+        { kind: 'more_than_last_week', diff_sec: 720 },
+        { kind: 'best_day' },
+        { kind: 'listened_contents', count: (dayIndex % 3) + 1 },
+      ] as const;
+      return kinds[dayIndex % 3];
+    }),
     // 주별 주제 분포(BE 요청 중인 필드) — 주마다 순위가 바뀌어 스와이프 시 막대 재생장을 확인할 수 있게. 빈 주는 빈 분포
     topic_distribution: week.daily.every((sec) => sec === 0)
       ? { topics: [], others_ratio: 0 }

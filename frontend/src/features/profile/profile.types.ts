@@ -100,6 +100,8 @@ export interface WeeklyListening {
   listeningTopPercent: number | null;
   /** 주간 카드 한 줄(서버가 고른 하나, KAN-170). null 이면 그리지 않는다 */
   listeningHighlight: ListeningHighlight | null;
+  /** 요일별 한 줄(KAN-171) — 월~일 7칸, 칸이 null 이면 그날은 비워 둔다. 반영 전 서버면 null */
+  dailyListeningHighlights: (DailyListeningHighlight | null)[] | null;
 }
 
 /** 서버가 고른 주간 한 줄 — 종류 판정은 서버 몫, 앱은 종류대로 문구만 고른다 */
@@ -107,6 +109,12 @@ export type ListeningHighlight =
   | { kind: 'topPercent'; percent: number }
   | { kind: 'moreThanPrevious'; diffSec: number }
   | { kind: 'listenedDays'; days: number };
+
+/** 서버가 고른 요일 한 줄(KAN-171) — 그날 순위는 없다(하루 순위는 출렁인다). 나와의 비교만 */
+export type DailyListeningHighlight =
+  | { kind: 'moreThanLastWeek'; diffSec: number }
+  | { kind: 'bestDay' }
+  | { kind: 'listenedContents'; count: number };
 
 export interface TopicShare {
   topicId: string;
