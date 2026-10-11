@@ -38,6 +38,7 @@ import { motion, theme, useThemePalette } from '@/shared/theme';
 import ChevronIcon from '@/shared/ui/ChevronIcon';
 import MarqueeText from '@/shared/ui/MarqueeText';
 import RemoteImage from '@/shared/ui/RemoteImage';
+import Snackbar from '@/shared/ui/Snackbar';
 import { Text, AnimatedText } from '@/shared/ui/Typography';
 
 import { useTopicsQuery } from '@/features/interest';
@@ -332,8 +333,8 @@ export default function PlayerScreen() {
    * 종전엔 영역 전체를 재고 여백을 빼서 썼는데, 여백이 그 높이로 정해져 서로를 다시 불렀고, Android(비정수 배율)에선
    * 반올림이 매번 달라 여백이 1dp 씩 오가며 제목·구간 카드·재생바가 덜덜 떨렸다(PM 2026-10-09). 조각은 여백이 바뀌어도 그대로다
    */
-  const [controlParts, setControlParts] = useState({ seek: 0, row: 0, banner: 0 });
-  const measureControlPart = (part: 'seek' | 'row' | 'banner') => (event: LayoutChangeEvent) => {
+  const [controlParts, setControlParts] = useState({ seek: 0, row: 0 });
+  const measureControlPart = (part: 'seek' | 'row') => (event: LayoutChangeEvent) => {
     const height = Math.round(event.nativeEvent.layout.height);
     setControlParts((prev) => (prev[part] === height ? prev : { ...prev, [part]: height }));
   };
@@ -445,7 +446,7 @@ export default function PlayerScreen() {
   const areaBottomFull = isAndroidButtonBar ? 0 : theme.spacing.sm;
   const controlsBaseHeight =
     controlParts.seek > 0 && controlParts.row > 0
-      ? currentSectionHeight + controlParts.seek + controlParts.row + controlParts.banner
+      ? currentSectionHeight + controlParts.seek + controlParts.row
       : 0;
   const coverShortfall =
     contentSize.height > 0 && controlsBaseHeight > 0
@@ -901,7 +902,6 @@ export default function PlayerScreen() {
    * 걷힌 만큼 재생바도 끌어올린다(KAN-127). 시트가 서는 선도 그만큼 올린다(queueOpenTop)
    */
   const controlRowLift = -controlRowPaddingFold - currentSectionHeight;
-  const belowControlRowLift = -controlRowPaddingFold * 2 - currentSectionHeight;
   const sectionLift = -currentSectionHeight;
   // 시트는 열린 자리에 고정 크기로 두고 translateY 로 내린다(PM 2026-09-27 23:53) — 틀이 열린 자리부터 바닥까지를 자른다
   const queueSheetTravel = queueClosedTop - queueOpenTop;
@@ -1037,9 +1037,6 @@ export default function PlayerScreen() {
   }));
   const controlRowStyle = useAnimatedStyle(() => ({
     transform: [{ translateY: queueProgress.get() * controlRowLift }],
-  }));
-  const belowControlRowStyle = useAnimatedStyle(() => ({
-    transform: [{ translateY: queueProgress.get() * belowControlRowLift }],
   }));
   const queueSheetStyle = useAnimatedStyle(() => ({
     transform: [{ translateY: (1 - queueProgress.get()) * queueSheetTravel }],
@@ -1415,7 +1412,12 @@ export default function PlayerScreen() {
 
   const isRetryingLoad = session.state === 'loading' && retryContentId === session.contentId;
   const hasLoadFailure = session.state === 'load_failed' || isRetryingLoad;
-  const hasPlaybackError = hasLoadFailure || session.banner === 'refresh_failed';
+  const hasNetworkInterruption =
+    session.state === 'ready' &&
+    session.banner === 'network' &&
+    (session.isBuffering || !session.isPlaying);
+  const hasPlaybackError =
+    hasLoadFailure || session.banner === 'refresh_failed' || hasNetworkInterruption;
 
   /* ── PL9 회수 — 오류 톤·[다시 시도] 없이 사실만 말한다(uiux 4.10) ── */
   if (session.state === 'withdrawn') {
@@ -1457,20 +1459,6 @@ export default function PlayerScreen() {
     : session.isPlaying
       ? PLAYER_COPY.screen.pauseA11y
       : PLAYER_COPY.screen.playA11y;
-
-  const renderBannerArea = () => {
-    // 배너는 컨트롤 아래 한 곳 — 레이아웃을 밀지 않는다(uiux 5장)
-    if (session.banner === 'network') {
-      return (
-        <View style={styles.banner} accessibilityLiveRegion="polite">
-          <Text style={styles.bannerDescription}>{PLAYER_COPY.networkBanner}</Text>
-        </View>
-      );
-    }
-    // 배너가 없을 땐 자리를 비워 두지 않는다(2026-09-16) — 접힘·펼침 양쪽에서 똑같이 없으므로 컨트롤 위치가
-    // 흔들리지 않고, 그만큼 아트워크(접힘)·스크립트(펼침)가 커진다. 배너가 뜨는 순간의 밀림은 예외 상태의 몫이다
-    return null;
-  };
 
   return (
     <View style={[containerStyle, !isShellVisible && styles.shellHidden]}>
@@ -1870,7 +1858,11 @@ export default function PlayerScreen() {
               <View style={styles.controlRow} onLayout={measureControlPart('row')}>
                 {hasPlaybackError ? (
                   <View style={styles.playbackError} accessibilityLiveRegion="polite">
-                    <Text style={styles.playbackErrorTitle}>{PLAYER_COPY.loadFailed.title}</Text>
+                    <Text style={styles.playbackErrorTitle}>
+                      {hasNetworkInterruption
+                        ? PLAYER_COPY.networkBanner
+                        : PLAYER_COPY.loadFailed.title}
+                    </Text>
                     <Pressable
                       style={styles.bannerAction}
                       disabled={isRetryingLoad}
@@ -1885,6 +1877,8 @@ export default function PlayerScreen() {
                         if (hasLoadFailure) {
                           setRetryContentId(session.contentId);
                           screen.retryLoad();
+                        } else if (hasNetworkInterruption) {
+                          screen.retryNetwork();
                         } else {
                           screen.retryUrlRefresh();
                         }
@@ -2007,10 +2001,6 @@ export default function PlayerScreen() {
                   </>
                 )}
               </View>
-            </Reanimated.View>
-
-            <Reanimated.View style={belowControlRowStyle} onLayout={measureControlPart('banner')}>
-              {renderBannerArea()}
             </Reanimated.View>
           </Reanimated.View>
 
@@ -2202,16 +2192,16 @@ export default function PlayerScreen() {
 
       {/* 삭제 스낵바 — 플레이어 화면·재생은 유지된다(확정 2026-08-10) */}
       {screen.pendingDeleteItemId !== null ? (
-        <View style={styles.snackbar}>
-          <Text style={styles.snackbarMessage}>{PLAYER_COPY.deleteSnackbar.message}</Text>
-          <Pressable
-            onPress={screen.undoDelete}
-            accessibilityRole="button"
-            accessibilityLabel={PLAYER_COPY.deleteSnackbar.undo}
-            style={styles.snackbarAction}
-          >
-            <Text style={styles.snackbarActionLabel}>{PLAYER_COPY.deleteSnackbar.undo}</Text>
-          </Pressable>
+        <View
+          style={[styles.snackbar, { bottom: insets.bottom + theme.spacing.md }]}
+          pointerEvents="box-none"
+        >
+          <Snackbar
+            message={PLAYER_COPY.deleteSnackbar.message}
+            action={{ label: PLAYER_COPY.deleteSnackbar.undo, onPress: screen.undoDelete }}
+            backgroundColor={playerColor.textPrimary}
+            color={playerColor.onPrimary}
+          />
         </View>
       ) : null}
 
@@ -2791,17 +2781,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: playerColor.textSecondary,
   },
-  banner: {
-    minHeight: 64,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: theme.spacing.xs,
-    paddingVertical: theme.spacing.sm,
-  },
-  bannerDescription: {
-    fontSize: theme.font.size.xs,
-    color: playerColor.textSecondary,
-  },
   bannerAction: {
     minHeight: theme.touchTarget.minHeight,
     justifyContent: 'center',
@@ -2851,29 +2830,6 @@ const styles = StyleSheet.create({
     position: 'absolute',
     left: theme.spacing.md,
     right: theme.spacing.md,
-    bottom: theme.spacing.xl,
-    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    borderRadius: theme.radius.md,
-    borderCurve: 'continuous',
-    backgroundColor: playerColor.textPrimary,
-    paddingHorizontal: theme.spacing.md,
-    paddingVertical: theme.spacing.sm,
-  },
-  snackbarMessage: {
-    fontSize: theme.font.size.sm,
-    color: playerColor.onPrimary,
-  },
-  snackbarAction: {
-    minHeight: theme.touchTarget.minHeight,
-    justifyContent: 'center',
-    paddingHorizontal: theme.spacing.sm,
-  },
-  snackbarActionLabel: {
-    fontSize: theme.font.size.sm,
-    fontWeight: '700',
-    // 스낵바 면이 흰색(textPrimary)이라 그 위 글자는 onPrimary(검정)
-    color: playerColor.onPrimary,
   },
 });

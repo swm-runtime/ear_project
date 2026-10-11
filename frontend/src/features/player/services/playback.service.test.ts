@@ -101,7 +101,12 @@ jest.mock('../api/player.api', () => ({
 jest.mock('@/shared/analytics', () => ({ track: () => undefined }));
 
 jest.mock('@/shared/lib/logger', () => ({
-  logger: { debug: () => undefined, info: () => undefined, warn: () => undefined, error: () => undefined },
+  logger: {
+    debug: () => undefined,
+    info: () => undefined,
+    warn: () => undefined,
+    error: () => undefined,
+  },
 }));
 
 jest.mock('./player-library.bridge', () => ({ getPlayerLibraryBridge: () => null }));
@@ -157,6 +162,24 @@ afterEach(() => {
 });
 
 describe('서명 URL 갱신 — 고정 스트림(패치된 빌드)', () => {
+  it('네트워크 중단의 수동 재개는 현재 음원을 이어 재생하고 발급·위치를 초기화하지 않는다', async () => {
+    mockIssue.mockResolvedValue(issueOf('https://example.com/audio'));
+    const player = await startPlaying(playbackService);
+    usePlaybackStore
+      .getState()
+      .patchSession({ banner: 'network', isPlaying: false, positionSec: 120 });
+    player.play.mockClear();
+    playbackService.playWhenReady();
+    expect(player.play).toHaveBeenCalledTimes(1);
+    expect(player.replace).not.toHaveBeenCalled();
+    expect(mockIssue).toHaveBeenCalledTimes(1);
+    expect(usePlaybackStore.getState().session?.positionSec).toBe(120);
+    // 버퍼링 중 playing=true로 보고된 경우도 일시정지로 토글하지 않고 재생을 요청한다.
+    usePlaybackStore.getState().patchSession({ isPlaying: true, isBuffering: true });
+    playbackService.playWhenReady();
+    expect(player.play).toHaveBeenCalledTimes(2);
+    expect(player.pause).not.toHaveBeenCalled();
+  });
   beforeEach(() => {
     mockNative.current = { setStreamUrl: jest.fn(), clearStreamUrl: jest.fn() };
   });

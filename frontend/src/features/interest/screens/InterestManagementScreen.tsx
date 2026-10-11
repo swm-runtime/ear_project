@@ -8,6 +8,7 @@ import { HEADER_CONTROL_HEIGHT } from '@/shared/ui/GlassCapsule';
 import GlassIconButton from '@/shared/ui/GlassIconButton';
 import { pillButton } from '@/shared/ui/pill-button.styles';
 import { SkeletonBlock, SkeletonGroup } from '@/shared/ui/Skeleton';
+import StatusIcon from '@/shared/ui/StatusIcon';
 import { Text } from '@/shared/ui/Typography';
 
 import { InterestBubbleField, InterestBubbleSkeleton } from '../components/InterestBubbleField';
@@ -77,6 +78,7 @@ export default function InterestManagementScreen() {
                 accessibilityLiveRegion="polite"
                 accessibilityLabel={countA11yLabel}
               >
+                {screen.overLimitCount > 0 ? <StatusIcon color={theme.color.warning} /> : null}
                 <Text style={styles.countLabel}>
                   {INTEREST_COPY.countLabel(screen.selectedCount, screen.maxSelectable)}
                 </Text>
@@ -84,11 +86,9 @@ export default function InterestManagementScreen() {
             )}
             {/* IM6 — 초과 보유자 안내. "5/3 선택"을 거짓 클램프하지 않는다(uiux 4.5) */}
             {screen.overLimitCount > 0 ? (
-              <View style={styles.overLimitBanner} accessibilityLiveRegion="polite">
-                <Text style={styles.overLimitText}>
-                  {INTEREST_COPY.overLimitBanner(screen.overLimitCount, screen.maxSelectable)}
-                </Text>
-              </View>
+              <Text style={styles.overLimitText} accessibilityLiveRegion="polite">
+                {INTEREST_COPY.overLimitBanner(screen.overLimitCount, screen.maxSelectable)}
+              </Text>
             ) : null}
           </View>
 
@@ -283,15 +283,9 @@ const styles = StyleSheet.create({
     fontSize: theme.font.size.sm,
     color: theme.color.textSecondary,
   },
-  overLimitBanner: {
-    borderRadius: theme.radius.md,
-    borderCurve: 'continuous',
-    backgroundColor: theme.color.surface,
-    padding: theme.spacing.md,
-  },
   overLimitText: {
     fontSize: theme.font.size.sm,
-    color: theme.color.textPrimary,
+    color: theme.color.textSecondary,
     lineHeight: theme.font.size.sm * 1.5,
   },
   skeletonCount: {

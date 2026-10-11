@@ -1,7 +1,7 @@
-import { StyleSheet } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 import { theme } from '@/shared/theme';
-import { Text } from '@/shared/ui/Typography';
+import InlineNotice from '@/shared/ui/InlineNotice';
 
 import { LIBRARY_COPY } from '../library.copy';
 
@@ -15,9 +15,9 @@ interface LibraryBannerProps {
 export default function LibraryBanner({ banner }: LibraryBannerProps) {
   if (banner.type === 'offline') {
     return (
-      <Text style={[styles.banner, styles.offline]} accessibilityLiveRegion="polite">
-        {LIBRARY_COPY.banner.offline}
-      </Text>
+      <View style={styles.banner}>
+        <InlineNotice message={LIBRARY_COPY.banner.offline} offline />
+      </View>
     );
   }
 
@@ -26,14 +26,7 @@ export default function LibraryBanner({ banner }: LibraryBannerProps) {
 
 const styles = StyleSheet.create({
   banner: {
-    textAlign: 'center',
     paddingVertical: theme.spacing.sm,
     paddingHorizontal: theme.spacing.md,
-    fontSize: theme.font.size.sm,
-    overflow: 'hidden',
-  },
-  offline: {
-    backgroundColor: theme.color.surface,
-    color: theme.color.textSecondary,
   },
 });

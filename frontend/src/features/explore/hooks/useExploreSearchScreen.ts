@@ -491,6 +491,8 @@ export const useExploreSearchScreen = (embedding?: ExploreSearchEmbedding) => {
     fallbackItems,
     openTopicList,
     errorBanner,
+    retrySearch: () => void searchQuery.refetch(),
+    isRetryingSearch: searchQuery.isFetching,
     // 추가 로딩
     loadMore,
     isFetchingNextPage: searchQuery.isFetchingNextPage,

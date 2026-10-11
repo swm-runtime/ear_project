@@ -6,8 +6,6 @@
  */
 import { toDateOnlyMonthDay } from '@/shared/lib/date-only';
 
-import { NOTIFICATION_COPY } from '@/features/notification';
-
 import { toMonthDayParts } from './settings.format';
 
 const monthDay = (iso: string): string => {
@@ -118,9 +116,9 @@ export const SETTINGS_COPY = {
     /** "PICK"은 전부 대문자다(합의 2026-08-06, notification.md 4.2) */
     dripToggle: '이어 PICK 알림',
     marketingToggle: '마케팅 수신 동의',
-    /** 유도 배너 — 사전 안내의 헤드라인 그대로(settings-uiux.md 4.3) */
-    banner: NOTIFICATION_COPY.prePrompt.title,
-    bannerA11y: `${NOTIFICATION_COPY.prePrompt.title}, 알림 설정 열기`,
+    /** 알림 섹션의 일반 메뉴 행. 사전 안내 모달의 헤드라인은 별도로 유지한다. */
+    banner: '새 콘텐츠 알림 받기',
+    bannerA11y: '새 콘텐츠 알림 받기, 알림 설정 열기',
     /** S4 — OS 권한이 거부된 상태의 토글 ON 시도(settings-uiux.md 4.3) */
     permissionTitle: '기기 설정에서 알림을 허용해주세요',
     permissionOpen: '설정 열기',
