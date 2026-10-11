@@ -702,11 +702,17 @@ function RankUpIcon() {
 
 const RANK_ICON_SIZE = 20;
 /**
- * 요약 줄의 고정 치수(PM 2026-10-11 04:19 "요일 선택할 때 그래프가 위아래로 왔다갔다") — 라벨 14pt → 18, 큰 숫자 34pt → 40,
- * 순위 윗줄 15pt → 18, 순위 아랫줄 18pt(아이콘 20) → 22, 순위 블록을 숫자 밑변에 맞추는 들림 6. 글꼴 측정에 맡기지 않는다
+ * 요약 줄의 고정 치수(PM 2026-10-11 04:19 "요일 선택할 때 그래프가 위아래로 왔다갔다") — 라벨 14pt → 18, 큰 숫자 34pt → 44,
+ * 순위 윗줄 15pt → 18, 순위 아랫줄 18pt(아이콘 20) → 22, 순위 블록을 숫자 밑변에 맞추는 들림 6. 글꼴 측정에 맡기지 않는다.
+ *
+ * **줄 높이는 글꼴의 자연 줄 높이보다 커야 한다.** 34pt 의 자연 줄 높이는 40.57(Pretendard hhea 1950+494 / 2048 · SF 도
+ * 비슷)인데 처음 40 으로 박았더니 **iOS 에서 숫자가 통째로 사라졌다**(PM 2026-10-11 12:48 "하루 평균 몇 분 들었는지 보여주는 게
+ * 사라짐", OTA 01a12749). RN iOS 는 lineHeight 가 글꼴보다 작으면 기준선 보정을 포기하고(RCTApplyBaselineOffset), 40 으로 고정된
+ * 값 줄 안에서 adjustsFontSizeToFit 가 "안 맞는다"는 판정만 받아 글자를 최소까지 줄인 뒤에도 한 줄을 놓을 자리가 없어 아무것도
+ * 그리지 않는다. 그래서 44 — 자연 높이보다 크게 두고, 값 줄에는 고정 높이를 주지 않는다(줄 높이가 곧 높이다)
  */
 const SUMMARY_LABEL_LINE_HEIGHT = 18;
-const SUMMARY_VALUE_LINE_HEIGHT = 40;
+const SUMMARY_VALUE_LINE_HEIGHT = 44;
 const RANK_LEAD_LINE_HEIGHT = 18;
 const RANK_TEXT_LINE_HEIGHT = 22;
 const RANK_BASELINE_LIFT = 6;
@@ -772,7 +778,8 @@ const styles = StyleSheet.create({
    * 요약 줄(라벨·큰 숫자·상위 %)은 **글자마다 줄 높이를 박고 값 줄은 고정 높이**다(PM 2026-10-11 04:19 "아직도 요일
    * 선택할 때 그래프가 위아래로 왔다갔다"). 요일을 고르면 라벨·숫자·단위·순위 블록의 내용이 한꺼번에 바뀌는데, 줄 높이를
    * 글꼴 측정에 맡기면(특히 34pt 숫자 안에 20pt 단위가 섞인 줄 · adjustsFontSizeToFit 로 줄어드는 숫자) 문장마다 몇 pt
-   * 달라져 밑의 그래프가 따라 움직인다. 높이가 내용에 좌우되지 않아야 그래프가 제자리에 있다
+   * 달라져 밑의 그래프가 따라 움직인다. 높이가 내용에 좌우되지 않아야 그래프가 제자리에 있다. 단 줄 높이는 **글꼴 자연
+   * 높이 이상**이어야 한다(SUMMARY_VALUE_LINE_HEIGHT 주석 — 작게 박으면 iOS 가 숫자를 지운다)
    */
   summaryLabel: {
     fontSize: theme.font.size.sm,
@@ -780,21 +787,22 @@ const styles = StyleSheet.create({
     color: theme.color.textSecondary,
     flexShrink: 1,
   },
-  // 큰 숫자 + 상위 % — 아래 변을 맞춘다(스크린 타임처럼 오른쪽 글자가 숫자 밑줄에 앉는다). 높이는 숫자 줄 높이로 고정
+  // 큰 숫자 + 상위 % — 아래 변을 맞춘다(스크린 타임처럼 오른쪽 글자가 숫자 밑줄에 앉는다). 높이를 여기서 박지 않는다 —
+  // 숫자의 lineHeight(44)와 순위 블록(18 + 22 + 6 - 2 = 44)이 둘 다 44 라 줄은 늘 44 다. 고정 높이를 주면 Yoga 가 그 값을
+  // 글자 측정의 상한으로 넘기고, adjustsFontSizeToFit 가 그 상한에 맞추려다 글자를 지운다(위 상수 주석)
   valueRow: {
     flexDirection: 'row',
     alignItems: 'flex-end',
     justifyContent: 'space-between',
     gap: theme.spacing.sm,
-    height: SUMMARY_VALUE_LINE_HEIGHT,
   },
   // 숫자 쪽만 줄어든다 — 오른쪽 상위 % 는 제 폭을 지킨다
   valueBox: {
     flexShrink: 1,
   },
   // 오른쪽 정렬 두 줄 — 숫자(34)의 글자 아래 여백만큼 올려 아랫줄 밑변을 숫자 밑변에 맞춘다.
-  // 두 줄(18 + 22)에 아래 6 을 더하면 46 으로 숫자 줄(40)보다 높다 — 위로 그만큼 빼서(음수 위 여백) 줄 높이 안에 들어오게
-  // 한다. 블록이 값 줄의 높이를 정하지 않으니 있든 없든(순위 없는 계정) 값 줄은 40 이다
+  // 두 줄(18 + 22)에 아래 6 을 더하면 46 으로 숫자 줄(44)보다 높다 — 위로 그만큼 빼서(음수 위 여백) 줄 높이와 같게
+  // 한다. 블록이 값 줄의 높이를 늘리지 않으니 있든 없든(순위 없는 계정) 값 줄은 44 다
   rankBlock: {
     alignItems: 'flex-end',
     marginBottom: RANK_BASELINE_LIFT,
