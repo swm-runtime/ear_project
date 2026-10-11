@@ -314,10 +314,25 @@ export default function WeeklyChart({ weekly, footer, onSwipingChange }: WeeklyC
       ? (displayed.dailyListenedSec[selectedIndex] ?? null)
       : null;
   // 큰 숫자 하나 — 평균이든 고른 요일이든 같은 카운터로 굴린다(모드가 바뀔 땐 바로 바꾼다 — useCountTo)
-  const shownValueSec = useCountTo(
-    targetAverageSec === null ? null : (selectedDaySec ?? targetAverageSec),
+  const targetValueSec = targetAverageSec === null ? null : (selectedDaySec ?? targetAverageSec);
+  const countedValueSec = useCountTo(
+    targetValueSec,
     selectedDaySec !== null ? 'day' : 'average',
   );
+  /*
+   * 굴러가는 중의 1분 아래 값은 "1분 미만"으로 그리지 않는다(PM 2026-10-11 23:32 "애니메이션 나올 때 1분 미만이 떴다가
+   * 사라져서 부자연스럽다") — 0분 ↔ N분을 지나며 숫자 대신 문구가 한순간 끼었다. 굴러가는 중엔 0분으로 두고, 도착 값이
+   * 1분 미만이면 그 문구로 미리 내려앉는다(0분이 끼었다가 문구로 바뀌지 않게). 멈춘 값은 그대로다
+   */
+  const shownValueSec =
+    countedValueSec !== null &&
+    targetValueSec !== null &&
+    Math.round(countedValueSec) !== targetValueSec &&
+    countedValueSec < 60
+      ? targetValueSec < 60
+        ? targetValueSec
+        : 0
+      : countedValueSec;
   /** 주간 한 줄(KAN-170) — 평균과 같이 전환 중엔 숨긴다(옆 주 값이 남아 있으면 엉뚱한 주의 값으로 읽힌다) */
   const highlight: HighlightLine | null =
     displayed !== null && !weekly.isSwitching && displayed.listeningHighlight !== null
