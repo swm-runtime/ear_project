@@ -274,7 +274,7 @@
 
 **Android의 검증은 iOS와 다르다** — 구매 토큰은 서명된 사실이 아니라 열쇠다. 서버가 그 토큰으로 Google에 **현재 상태를 조회해** 그대로 반영한다(4.7). 그래서 유효성도 Google의 상태로 판정한다: `ACTIVE`·`IN_GRACE_PERIOD`·만료 전 `CANCELED`만 받고, 결제 대기(`PENDING`)·보류(`ON_HOLD`)·만료는 `SUBSCRIPTION_RECEIPT_INVALID`다(복원에서는 무시). Google이 그 토큰을 모르면(400·404·410) 위조로 본다.
 
-- **한 계정에 살아 있는 Play 구독은 하나다**(2026-10-07, KAN-130). Apple은 구독 그룹이 "하나만"을 보장하지만 Google은 Pro·Daily가 독립 정기 결제라 둘 다 살 수 있다. 정상 경로는 요금제를 바꿀 때 앱이 **이전 구매 토큰을 넘겨 교체**하는 것이고, 그러면 Google이 새 토큰에 `linkedPurchaseToken`을 붙여 서버가 같은 구독 행에 이어 붙인다(4.7 "구독 행의 키"). 그 밖의 경우 — 요청자에게 **같은 스토어의 살아 있는 구독 행이 이미 있고 이 구매가 그 행에 이어지지 않으면**(`original_transaction_id`가 다름) — 두 번째 구독이다. 영수증 제출은 `SUBSCRIPTION_ALREADY_SUBSCRIBED`(409)로 거부하고 **구매를 확인(acknowledge)하지 않는다** — 확인되지 않은 구매는 Google이 3일 안에 자동 환불한다. Slack 결제 알림에 올린다(3-6). 복원(4.5)은 거부하지 않는다 — 이미 두 개를 산 사람의 연결을 막아도 돈이 돌아오지 않는다. iOS는 Apple이 막아 주므로 해당 없다
+- **한 계정에 살아 있는 Play 구독은 하나다**(2026-10-07, KAN-130). Apple은 구독 그룹이 "하나만"을 보장하지만 Google은 Pro·Daily가 독립 정기 결제라 둘 다 살 수 있다. 정상 경로는 요금제를 바꿀 때 앱이 **이전 구매 토큰을 넘겨 교체**하는 것이고, 그러면 Google이 새 토큰에 `linkedPurchaseToken`을 붙여 서버가 같은 구독 행에 이어 붙인다(4.7 "구독 행의 키"). 그 밖의 경우 — 요청자에게 **같은 스토어의 살아 있는 구독 행이 이미 있고 이 구매가 그 행에 이어지지 않으면**(`original_transaction_id`가 다름) — 두 번째 구독이다. 영수증 제출은 `SUBSCRIPTION_ALREADY_SUBSCRIBED`(409)로 거부하고 **구매를 확인(acknowledge)하지 않는다** — 확인되지 않은 구매는 Google이 3일 안에 자동 환불한다. Slack 결제 알림에 올린다(3-6). 복원(4.5)은 **이미 확인된** 두 번째 구독만 연결한다 — 막아도 돈이 돌아오지 않기 때문이다. **아직 확인되지 않은** 두 번째 구독(영수증 제출이 409 로 거부한 것)은 복원에서도 연결·확인하지 않고 건너뛴다 — 확인하면 자동 환불이 사라져 이중 결제가 굳고, 살아 있는 Play 행이 둘이 돼 두 구독의 알림이 모두 무시된다(개정 2026-10-11 — 감사. 종전 "복원은 거부하지 않는다"는 확인 전 구매의 자동 환불을 놓쳤다). iOS는 Apple이 막아 주므로 해당 없다
 
 - **같은 거래의 재전송은 같은 결과다**(멱등). 업그레이드처럼 같은 `original_transaction_id`에 새 거래가 오면 그 행을 갱신한다.
 - **업그레이드는 즉시 반영된다.** 다운그레이드는 스토어가 "다음 갱신부터"로 예약하므로, 제출된 거래의 티어는 그대로이고 `pending_plan`이 채워진다(S2S 알림으로도 들어온다 — 4.6).
@@ -399,7 +399,7 @@ Google Cloud Pub/Sub **push 구독**이 호출한다. 본문은 Pub/Sub 메시�
 | `SUBSCRIPTION_STATE_IN_GRACE_PERIOD` | `grace` — 종료일은 Google이 준 만료 시각(유예 종료) |
 | `SUBSCRIPTION_STATE_ON_HOLD` · `PAUSED` · `EXPIRED` · `PENDING_PURCHASE_CANCELED` | `expired` → `users.tier = light` |
 | `SUBSCRIPTION_STATE_PENDING` | 반영하지 않는다 — 결제 대기라 아직 구독이 아니다 |
-| 철회 알림(`subscriptionNotification.notificationType = 12`) · 구독 환불 통지(`voidedPurchaseNotification`, `productType = 1`) | `refunded` → 즉시 `light`. **구독 상태만으로는 만료와 구분되지 않아** 알림이 알려 줄 때만 환불로 본다. **환불로 내린 구독은 같은 구매 토큰·같은 결제 주기로는 되살리지 않는다**(2026-10-06) — 아래 "환불의 고정" |
+| 철회 알림(`subscriptionNotification.notificationType = 12`) · 구독 환불 통지(`voidedPurchaseNotification`, `productType = 1`) | `refunded` → 즉시 `light`. **구독 상태만으로는 만료와 구분되지 않아** 알림이 알려 줄 때만 환불로 본다. **환불로 내린 구독은 같은 구매 토큰·같은 결제 주기로는 되살리지 않는다**(2026-10-06) — 아래 "환불의 고정". **환불 통지의 주문 ID(`orderId`)가 지금 주기의 주문(`latestOrderId`)과 다르면 지난 주기 결제분의 환불이라 무시한다**(2026-10-11 — App Store 의 지난 주기 환불 무시와 같은 판단). 주문 ID 를 알 수 없으면 지금 주기의 환불로 본다 |
 | 다운그레이드 예약(`lineItems[].deferredItemReplacement`) | 티어 유지, `pending_tier` = 다음 갱신 티어 |
 | `testNotification` · 그 밖 | 적재만 하고 상태를 바꾸지 않는다 |
 

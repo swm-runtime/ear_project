@@ -72,7 +72,11 @@ interface DeveloperNotification {
     notificationType?: number;
     purchaseToken?: string;
   };
-  voidedPurchaseNotification?: { purchaseToken?: string; productType?: number };
+  voidedPurchaseNotification?: {
+    purchaseToken?: string;
+    orderId?: string;
+    productType?: number;
+  };
   testNotification?: object;
 }
 
@@ -492,6 +496,7 @@ function toPlayNotification(
       kind: 'subscription',
       type: subscription.notificationType ?? null,
       purchaseToken: subscription.purchaseToken,
+      orderId: null,
       eventAt,
     };
   }
@@ -505,6 +510,7 @@ function toPlayNotification(
       kind: 'voided',
       type: null,
       purchaseToken: voided.purchaseToken,
+      orderId: voided.orderId ?? null,
       eventAt,
     };
   }
@@ -514,6 +520,7 @@ function toPlayNotification(
     kind: notification.testNotification !== undefined ? 'test' : 'other',
     type: null,
     purchaseToken: null,
+    orderId: null,
     eventAt,
   };
 }

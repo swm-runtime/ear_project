@@ -214,6 +214,7 @@ export class FakePlayStoreGateway extends PlayStoreGateway {
       kind: parsed.kind ?? 'subscription',
       type: parsed.type ?? null,
       purchaseToken: parsed.purchaseToken ?? null,
+      orderId: parsed.orderId ?? null,
       eventAt: new Date(parsed.eventAt ?? Date.now()),
     });
   }

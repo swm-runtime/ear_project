@@ -797,6 +797,44 @@ describe('Play — 한 계정에 살아 있는 구독은 하나(4.4 — 2026-10-
     );
   });
 
+  it('거부된(확인 전) 두 번째 구독을 복원해도 연결·확인하지 않는다 — 자동 환불을 지키고 티어도 그대로다(2026-10-11)', async () => {
+    const { world, play, submit, restore } = setup();
+
+    play.put({ purchaseToken: 'token-pro', productId: PLAY_PRODUCT_PRO });
+    await submit('token-pro');
+    play.put({ purchaseToken: 'token-daily', productId: PLAY_PRODUCT_DAILY });
+    await expectBusinessError(
+      submit('token-daily'),
+      ErrorCode.SUBSCRIPTION_ALREADY_SUBSCRIBED,
+      HttpStatus.CONFLICT,
+    );
+
+    // 사용자가 "반영이 안 됐다"며 [구매 복원] — 앱은 스토어에 있는 구매를 전부 보낸다
+    const result = await restore(['token-pro', 'token-daily']);
+
+    // 종전엔 Daily 행을 만들고 확인해 이중 결제가 굳고, 만료가 늦은 Daily 가 현재 구독이 돼 Pro → Daily 로 내려갔다
+    expect(result.restored).toBe(true);
+    expect(world.subscriptions).toHaveLength(1);
+    expect(play.acknowledged).toEqual(['token-pro']);
+    expect(world.users.get(USER)!.tier).toBe(UserTier.PRO);
+  });
+
+  it('이미 확인된 두 번째 구독은 복원이 종전대로 연결한다 — 막아도 돈이 돌아오지 않는다', async () => {
+    const { world, play, submit, restore } = setup();
+
+    play.put({ purchaseToken: 'token-pro', productId: PLAY_PRODUCT_PRO });
+    await submit('token-pro');
+    const daily = play.put({
+      purchaseToken: 'token-daily',
+      productId: PLAY_PRODUCT_DAILY,
+    });
+    daily.needsAcknowledge = false;
+
+    await restore(['token-pro', 'token-daily']);
+
+    expect(world.subscriptions).toHaveLength(2);
+  });
+
   it('그 구매의 알림이 와도 행을 만들지 않고 확인하지 않는다 — 처리 완료로는 둔다', async () => {
     const { world, play, submit, notify } = setup();
 
@@ -1033,6 +1071,41 @@ describe('Play — 환불로 끝난 구독은 같은 구매로 되살아나지 �
       latestOrderId: 'GPA.1-0..1',
     });
     expect(world.users.get(USER)!.tier).toBe(UserTier.PRO);
+  });
+
+  it('지난 주기 주문의 환불 통지는 지금 주기 구독을 회수하지 않는다 — 주문 ID 가 다르면 무시(2026-10-11)', async () => {
+    const { world, play, submit, notify } = setup();
+
+    const purchase = play.put({ purchaseToken: 'token-1', orderId: 'GPA.3-0' });
+    await submit('token-1');
+    // 갱신 — 이번 주기의 주문은 ..0 의 다음 주문이다
+    purchase.orderId = 'GPA.3-0..1';
+    purchase.expiresAt = NEXT_EXPIRES_AT;
+    await notify('msg-renewed', { type: 2, purchaseToken: 'token-1' });
+
+    // 지난달 주문(GPA.3-0)만 환불됐다
+    await notify('msg-voided-old', {
+      kind: 'voided',
+      type: null,
+      purchaseToken: 'token-1',
+      orderId: 'GPA.3-0',
+    });
+
+    expect(world.subscriptions[0]).toMatchObject({
+      status: SubscriptionStatus.ACTIVE,
+      latestOrderId: 'GPA.3-0..1',
+    });
+    expect(world.users.get(USER)!.tier).toBe(UserTier.PRO);
+
+    // 이번 주기 주문의 환불은 종전대로 회수한다
+    await notify('msg-voided-now', {
+      kind: 'voided',
+      type: null,
+      purchaseToken: 'token-1',
+      orderId: 'GPA.3-0..1',
+    });
+    expect(world.subscriptions[0].status).toBe(SubscriptionStatus.REFUNDED);
+    expect(world.users.get(USER)!.tier).toBe(UserTier.LIGHT);
   });
 
   it('같은 주문의 알림이 다시 와도 환불은 그대로다(주문 ID 기준)', async () => {

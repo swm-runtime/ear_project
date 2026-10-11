@@ -149,6 +149,17 @@ export class PlayPurchaseService {
           continue;
         }
 
+        // 두 번째 구독(4.4)이 **아직 확인되지 않았으면** 연결도 확인도 하지 않는다 — 영수증 제출이 409 로 거부하고
+        // 확인하지 않은 구매라 3일 안에 Google 이 자동 환불한다. 여기서 확인하면 그 환불이 사라져 이중 결제가 굳고,
+        // 살아 있는 Play 행이 둘이 돼 이후 두 구독의 알림이 모두 무시된다(2026-10-11 감사). 이미 확인된 두 번째
+        // 구독은 막아도 돈이 돌아오지 않으므로 종전대로 연결한다
+        if (
+          purchase.needsAcknowledge &&
+          (await this.duplicateCheck(userId, snapshot, manager)) === 'duplicate'
+        ) {
+          continue;
+        }
+
         const outcome = await this.applyFor(userId, snapshot, now, manager);
 
         // 환불로 끝난 구매(같은 토큰)는 연결된 것이 아니다 — 세지도 확인하지도 않는다(4.7)
@@ -186,6 +197,21 @@ export class PlayPurchaseService {
     // Google이 그 토큰을 모른다(오래돼 지워졌다) — 반영할 상태가 없다
     if (purchase === null) {
       return { kind: 'ignored', reason: 'no_transaction' };
+    }
+
+    // 지난 주기 결제분의 환불 통지 — 지금 주기(`latestOrderId`)는 결제돼 있으니 회수하지 않는다. App Store 의
+    // `isOlderPeriod`와 같은 판단이다. 종전엔 주문 ID 를 버려 지난달분 환불이 이번 달 구독까지 회수했다(2026-10-11 감사).
+    // 주문 ID 를 모르면(알림·조회 어느 쪽이든) 종전대로 지금 주기의 환불로 본다
+    if (
+      notification.kind === 'voided' &&
+      notification.orderId !== null &&
+      purchase.orderId !== null &&
+      notification.orderId !== purchase.orderId
+    ) {
+      this.logger.log('play voided older order ignored', {
+        notification_id: notification.id,
+      });
+      return { kind: 'ignored', reason: 'older_transaction' };
     }
 
     const isRevoked =
