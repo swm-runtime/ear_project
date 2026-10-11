@@ -312,10 +312,13 @@ describe('EmailVerificationService', () => {
       await service.sendCode(USER_ID, EMAIL, NOW).catch(() => undefined);
 
       // then
-      expect(errorLog).toHaveBeenCalledWith('verification mail send failed', {
-        user_id: USER_ID,
-        error_name: 'MessageRejected',
-      });
+      expect(errorLog).toHaveBeenCalledWith(
+        'verification mail send failed: MessageRejected',
+        {
+          user_id: USER_ID,
+          error_name: 'MessageRejected',
+        },
+      );
       expect(JSON.stringify(errorLog.mock.calls)).not.toContain(EMAIL);
       errorLog.mockRestore();
     });
