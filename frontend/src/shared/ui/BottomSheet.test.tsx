@@ -32,10 +32,11 @@ const animations: {
 }[] = [];
 let renderer: Renderer;
 const onClose = jest.fn();
+const onHidden = jest.fn();
 // Animated의 공개 타입에 없는 읽기 API는 테스트에서만 사용한다.
 const read = (node: unknown) => (node as { __getValue(): number }).__getValue();
 const sheet = (visible: boolean) => (
-  <BottomSheet isVisible={visible} onRequestClose={onClose}>
+  <BottomSheet isVisible={visible} onRequestClose={onClose} onHidden={onHidden}>
     {null}
   </BottomSheet>
 );
@@ -59,6 +60,7 @@ const finish = (index: number) =>
 beforeEach(() => {
   animations.length = 0;
   onClose.mockClear();
+  onHidden.mockClear();
   const animate = (value: Animated.Value, config: { toValue: number }) => {
     const animation = {
       value,
@@ -126,6 +128,20 @@ describe('BottomSheet — 모달 표시와 모션 시작 순서', () => {
     expect(animations[1].stop).toHaveBeenCalledTimes(1);
     expect(host('onShow').props.visible).toBe(true);
     expect(animations[2].target).toBe(1);
+    expect(onHidden).not.toHaveBeenCalled();
+  });
+
+  it('퇴장 완료 전에는 후속 동작을 부르지 않고 숨김 커밋 뒤 한 번 호출한다', () => {
+    measure();
+    show();
+    finish(0);
+    expect(onHidden).not.toHaveBeenCalled();
+    update(false);
+    expect(onHidden).not.toHaveBeenCalled();
+    finish(1);
+    expect(onHidden).toHaveBeenCalledTimes(1);
+    update(false);
+    expect(onHidden).toHaveBeenCalledTimes(1);
   });
 
   it('표시 준비 전에 닫힌 메뉴는 애니메이션 없이 숨긴다', () => {
