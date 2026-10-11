@@ -16,7 +16,7 @@ import { User } from '@/modules/user/entities/user.entity';
 import { SocialProvider, UserRole } from '@/modules/user/user.enum';
 
 /**
- * 주간 청취 상위 %·한 줄 E2E(`profile-api.md` 4.2 `listening_top_percent` · `listening_highlight`, KAN-168·170) — 실제 DB 위에서
+ * 주간 청취 상위 %·한 줄 E2E(`profile-api.md` 4.2 `listening_top_percent` · `listening_highlight` · `daily_listening_highlight`, KAN-168·170·171) — 실제 DB 위에서
  * "나보다 많이 들은 사람 수" 집계 SQL 과 모집단(그 주 끝 전 가입자) 집계를 본다.
  *
  * 공유 로컬 DB 의 다른 행과 섞이지 않게 **2020년 1월 둘째 주**를 쓴다 — 그 주에 가입·청취한 행은 이 테스트가
@@ -87,6 +87,15 @@ describe('주간 청취 상위 % E2E', () => {
     expect(await weekOf(top.auth)).toEqual({
       listening_top_percent: 17,
       listening_highlight: { kind: 'top_percent', percent: 17 },
+      daily_listening_highlight: [
+        { kind: 'more_than_last_week', diff_sec: 3000 },
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+      ],
     });
     // 동점 둘 다 2등(나보다 많이 들은 사람 1명): 2/6 → 34%
     expect((await weekOf(tiedA.auth)).listening_top_percent).toBe(34);
@@ -95,16 +104,37 @@ describe('주간 청취 상위 % E2E', () => {
     expect(await weekOf(grower.auth)).toEqual({
       listening_top_percent: null,
       listening_highlight: { kind: 'more_than_previous', diff_sec: 70 },
+      // 요일별(KAN-171): 목요일 100초 — 직전 주 목요일(01-02) 0초라 100초 더
+      daily_listening_highlight: [
+        null,
+        null,
+        null,
+        { kind: 'more_than_last_week', diff_sec: 100 },
+        null,
+        null,
+        null,
+      ],
     });
     // 5등 → 하위권, 직전 주보다 줄었다 — 줄어든 쪽은 내려주지 않고 들은 날 수(1일)
     expect(await weekOf(shrinker.auth)).toEqual({
       listening_top_percent: null,
       listening_highlight: { kind: 'listened_days', days: 1 },
+      // 요일별: 금요일 50초 — 직전 주 금요일보다 60초 미만, 하루만 들어 최고도 아니라 편 수
+      daily_listening_highlight: [
+        null,
+        null,
+        null,
+        null,
+        { kind: 'listened_contents', count: 1 },
+        null,
+        null,
+      ],
     });
     // 그 주 0초(다음 주 기록만 있음) → 둘 다 null
     expect(await weekOf(silent.auth)).toEqual({
       listening_top_percent: null,
       listening_highlight: null,
+      daily_listening_highlight: Array(7).fill(null),
     });
 
     // 4.1 의 이번 주 카드에도 같은 필드가 실린다 — 이번 주엔 듣지 않아 null
@@ -117,11 +147,16 @@ describe('주간 청취 상위 % E2E', () => {
     ).weekly_listening;
     expect(weekly).toHaveProperty('listening_top_percent', null);
     expect(weekly).toHaveProperty('listening_highlight', null);
+    expect(weekly).toHaveProperty(
+      'daily_listening_highlight',
+      Array(7).fill(null),
+    );
   });
 
   async function weekOf(auth: string): Promise<{
     listening_top_percent: number | null;
     listening_highlight: Record<string, unknown> | null;
+    daily_listening_highlight: (Record<string, unknown> | null)[];
   }> {
     const response = await request(app.getHttpServer())
       .get(path('/users/me/profile/weekly-listening'))
@@ -131,10 +166,12 @@ describe('주간 청취 상위 % E2E', () => {
     const body = response.body as {
       listening_top_percent: number | null;
       listening_highlight: Record<string, unknown> | null;
+      daily_listening_highlight: (Record<string, unknown> | null)[];
     };
     return {
       listening_top_percent: body.listening_top_percent,
       listening_highlight: body.listening_highlight,
+      daily_listening_highlight: body.daily_listening_highlight,
     };
   }
 

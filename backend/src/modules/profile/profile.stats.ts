@@ -13,6 +13,7 @@ import {
   WEEKLY_LISTENING_DAY_COUNT,
 } from './profile.constant';
 import {
+  DailyListeningHighlightView,
   ListeningHighlightView,
   TopicDistributionItemView,
   TopicDistributionView,
@@ -307,4 +308,67 @@ export function pickListeningHighlight(
     kind: 'listened_days',
     days: dailyListenedSec.filter((sec) => sec > 0).length,
   };
+}
+
+/**
+ * 주간 카드의 **요일별** 한 줄(`profile-api.md` 4.1 `daily_listening_highlight`, KAN-171) — 요일 막대를 고르면
+ * 주간 한 줄 자리에 그린다. 칸마다 **첫 번째로 해당하는 하나**만 고른다.
+ *
+ * 1. 지난주 같은 요일보다 더 — 그날이 직전 주 같은 요일보다 `LISTENING_HIGHLIGHT_MIN_DIFF_SEC` 이상 많으면.
+ *    **줄어든 날은 내려주지 않는다**. 직전 주가 없으면(가입 주) 건너뛴다
+ * 2. 가장 많이 들은 날 — 그 주 최댓값인 날(동률이면 모두). **그 주 들은 날이 2일 이상일 때만** — 하루만 들은 주의
+ *    "가장 많이 들은 날"은 의미가 없다
+ * 3. 들은 편 수 — 그날 들은 게 있으면 그날 청취 > 0 인 콘텐츠 수
+ *
+ * 그날 0초(진행 중인 주의 아직 안 온 요일 포함)면 `null`이다. 하루 순위(상위 %)는 넣지 않는다 — 사용자 수가 적어
+ * 하루 순위는 크게 출렁인다(PM 2026-10-11).
+ *
+ * @param dailyListenedSec 그 주 월~일 7개
+ * @param dailyContentCount 그 주 월~일 7개 — 그날 청취 > 0 인 콘텐츠 수
+ * @param previousDailyListenedSec 직전 주 월~일 7개. 직전 주가 없으면 `null`
+ */
+export function pickDailyListeningHighlights(
+  dailyListenedSec: readonly number[],
+  dailyContentCount: readonly number[],
+  previousDailyListenedSec: readonly number[] | null,
+): (DailyListeningHighlightView | null)[] {
+  const listenedDayCount = dailyListenedSec.filter((sec) => sec > 0).length;
+  const bestSec = Math.max(...dailyListenedSec);
+
+  return dailyListenedSec.map((sec, index) => {
+    if (sec <= 0) {
+      return null;
+    }
+
+    const diffSec =
+      previousDailyListenedSec === null
+        ? null
+        : sec - previousDailyListenedSec[index];
+    if (diffSec !== null && diffSec >= LISTENING_HIGHLIGHT_MIN_DIFF_SEC) {
+      return { kind: 'more_than_last_week', diffSec };
+    }
+
+    if (listenedDayCount >= 2 && sec === bestSec) {
+      return { kind: 'best_day' };
+    }
+
+    return { kind: 'listened_contents', count: dailyContentCount[index] };
+  });
+}
+
+/**
+ * 요일별 들은 콘텐츠 수(KAN-171 `listened_contents`) — 월~일 7개. 청취 0초 행(재생 시작만 하고 바로 끈 기록)은 세지 않는다.
+ */
+export function countDailyListenedContents(
+  weekDates: readonly string[],
+  listenedByContentAndDate: readonly ContentDailyListenedSecView[],
+): number[] {
+  return weekDates.map(
+    (date) =>
+      new Set(
+        listenedByContentAndDate
+          .filter((row) => row.playDate === date && row.listenedSec > 0)
+          .map((row) => row.contentId),
+      ).size,
+  );
 }
