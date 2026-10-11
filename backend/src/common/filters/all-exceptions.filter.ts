@@ -203,8 +203,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
       return;
     }
 
-    const message =
-      exception instanceof Error ? exception.message : 'request failed';
+    const message = warnMessageOf(exception);
 
     if (mapped.logLevel === 'info') {
       this.logger.log(message, fields);
@@ -235,6 +234,43 @@ export class AllExceptionsFilter implements ExceptionFilter {
     });
   }
 }
+
+/**
+ * warn·info 줄의 메시지 — 예외 메시지를 그대로 쓰되, **요청에서 온 값이 섞이는 두 경우만 바꾼다**(convention.md 8.4).
+ *
+ * - body-parser 파싱 실패(`entity.parse.failed`): `JSON.parse` 의 SyntaxError 는 본문 일부를 메시지에 싣는다
+ *   (`Unexpected token 'e', "email=user"... is not valid JSON`) — 요청 바디를 로그에 남기는 것과 같다.
+ *   오류 `type` 으로 바꾼다. 그 밖의 body-parser 문구(`request aborted` 등)는 고정 문자열이라 그대로 둔다.
+ * - 라우터 404(`Cannot GET <원래 URL>`): Nest 가 `request.originalUrl` 을 **쿼리째** 싣는다 — `path` 필드를
+ *   가려도 메시지로 서명·이메일·Sentry 웹훅 토큰 주소가 샌다. URL 부분만 같은 규칙으로 가린다.
+ */
+function warnMessageOf(exception: unknown): string {
+  if (!(exception instanceof Error)) {
+    return 'request failed';
+  }
+
+  const { type } = exception as Error & { type?: unknown };
+  if (type === BODY_PARSE_FAILED_TYPE) {
+    return BODY_PARSE_FAILED_TYPE;
+  }
+
+  const routeMiss = ROUTE_NOT_FOUND_MESSAGE.exec(exception.message);
+  if (
+    routeMiss &&
+    exception instanceof HttpException &&
+    !(exception instanceof BusinessException)
+  ) {
+    return `Cannot ${routeMiss[1]} ${redactSensitiveQuery(routeMiss[2])}`;
+  }
+
+  return exception.message;
+}
+
+/** body-parser 가 본문 파싱 실패에 붙이는 `type` — 메시지에 본문 조각이 실린다 */
+const BODY_PARSE_FAILED_TYPE = 'entity.parse.failed';
+
+/** `@nestjs/core` routes-resolver 의 미등록 경로 404 문구 — `Cannot ${method} ${originalUrl}` */
+const ROUTE_NOT_FOUND_MESSAGE = /^Cannot (\S+) (.*)$/s;
 
 /** raw-body 가 클라이언트 전송 중단에 붙이는 `type` — `createError(400, 'request aborted', { type: 'request.aborted' })` */
 const REQUEST_ABORTED_TYPE = 'request.aborted';

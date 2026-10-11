@@ -83,3 +83,51 @@ describe('scrubEvent — Sentry 로 나가기 전 세탁', () => {
     expect(() => scrubEvent({} as ErrorEvent)).not.toThrow();
   });
 });
+
+describe('scrubEvent — 바깥 HTTP 호출 breadcrumb', () => {
+  function crumbs(...data: Record<string, unknown>[]): ErrorEvent {
+    return {
+      breadcrumbs: data.map((d) => ({
+        category: 'http',
+        type: 'http',
+        data: d,
+      })),
+    } as ErrorEvent;
+  }
+
+  it('Slack 웹훅 주소는 경로째 비밀이라 호스트까지만 남긴다', () => {
+    const scrubbed = scrubEvent(
+      crumbs({
+        url: 'https://hooks.slack.com/services/T000/B000/WEBHOOKSECRET',
+        'http.method': 'POST',
+        status_code: 200,
+      }),
+    );
+
+    expect(scrubbed.breadcrumbs?.[0].data).toEqual({
+      url: 'https://hooks.slack.com',
+      'http.method': 'POST',
+      status_code: 200,
+    });
+  });
+
+  it('Google Play 조회 주소의 구매 토큰과 쿼리·프래그먼트를 지운다', () => {
+    const scrubbed = scrubEvent(
+      crumbs({
+        url: 'https://androidpublisher.googleapis.com/androidpublisher/v3/applications/kr.earcast/purchases/subscriptionsv2/tokens/PURCHASE_TOKEN',
+        'http.query': '?access_token=ACCESS',
+        'http.fragment': '#frag',
+      }),
+    );
+
+    const data = scrubbed.breadcrumbs?.[0].data;
+    expect(data?.url).toBe('https://androidpublisher.googleapis.com');
+    expect(JSON.stringify(data)).not.toMatch(/PURCHASE_TOKEN|ACCESS|frag/);
+  });
+
+  it('해석할 수 없는 주소는 원문 대신 가림 표시를 남긴다', () => {
+    const scrubbed = scrubEvent(crumbs({ url: '/relative/SECRET' }));
+
+    expect(scrubbed.breadcrumbs?.[0].data?.url).toBe('[redacted]');
+  });
+});
