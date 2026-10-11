@@ -332,7 +332,7 @@ export default function WeeklyChart({ weekly, footer, onSwipingChange }: WeeklyC
    * **페이지처럼 이어진다**(PM 2026-09-28 03:11 "전 주가 완전히 이어진 것처럼") — 차트 구획에 [이전 주 | 이 주 | 다음 주]
    * 세 칸을 카드 폭으로 나란히 두고, 끄는 만큼 줄 전체가 따라온다. 옆 칸은 미리 받아 둔 이웃 주(아직 없으면 스켈레톤)라
    * 끌면 그 주가 실제로 딸려 들어온다. 놓으면 넘기는 쪽 칸이 가운데에 설 때까지 스프링(손가락 속도 이어받음)이 밀고,
-   * 도착하면 표시 주를 바꾸면서 줄을 가운데로 되돌린다(같은 그림이라 이음새가 안 보인다). 헤더·주제 구획은 고정.
+   * 도착하면 표시 주와 페이지 번호를 한 커밋에서 바꾼다 — 줄은 되돌리지 않는다(아래 pageIndex). 헤더·주제 구획은 고정.
    * 전부 transform 이라 네이티브 드라이버다
    */
   const [pageWidth, setPageWidth] = useState(0);
@@ -340,8 +340,27 @@ export default function WeeklyChart({ weekly, footer, onSwipingChange }: WeeklyC
   useEffect(() => {
     pageWidthRef.current = pageWidth;
   });
+  /*
+   * **줄은 되돌리지 않고 페이지 번호를 쌓는다**(PM 2026-10-11 23:07 "전주 조회 누르면 깜빡했다가 뜨는 버그"). 종전엔 넘기는
+   * 스프링이 끝나면 표시 주를 바꾸면서 줄(translateX)을 0 으로 되돌렸는데, 표시 주는 React 커밋이고 되돌리기는 네이티브
+   * 드라이버의 값 갱신이라 **다른 프레임에 떨어진다** — 새 주가 가운데 칸에 그려진 뒤 한 프레임 동안 줄이 아직 옆으로 밀려
+   * 있어, 그 전 주 자리(아직 안 받아 스켈레톤)가 비치고 나서야 제자리로 튄다(useLayoutEffect 로도 못 막는다 — 커밋과 같은
+   * 틱에 보내도 적용 프레임이 다르다).
+   *
+   * 그래서 칸을 **번호(pageIndex)로 절대 배치**한다: 가운데 주는 `pageIndex * 폭`, 이웃 주는 `(pageIndex ± 1) * 폭` 에 놓고
+   * 줄의 쉼 위치는 `-pageIndex * 폭` 이다. 넘기면 스프링이 `-(pageIndex ± 1) * 폭` 까지 밀고, 도착하면 표시 주와 pageIndex 를
+   * **같은 React 커밋**에서 바꾼다 — 새 주는 방금까지 이웃 칸이 있던 바로 그 자리에 그려지고 줄은 움직이지 않으니 바뀌는
+   * 프레임이 없다. 번호는 순수한 배치 좌표다(주의 의미가 아니다). 이동 실패·화면 이탈 리셋 뒤에도 가운데 칸은 늘 pageIndex 다
+   */
+  const [pageIndex, setPageIndex] = useState(0);
+  const pageIndexRef = useRef(0);
   const swipeX = useAnimatedValue(0);
-  const pagerX = useMemo(() => Animated.add(swipeX, -pageWidth), [swipeX, pageWidth]);
+  /** 줄의 쉼 위치 — 끌기·되돌림·넘김 스프링의 기준 */
+  const restX = () => -pageIndexRef.current * pageWidthRef.current;
+  // 폭이 다시 재어지면(회전) 쉼 위치도 그 폭으로 — 첫 측정은 pageIndex 0 이라 값이 변하지 않는다
+  useLayoutEffect(() => {
+    swipeX.setValue(-pageIndexRef.current * pageWidth);
+  }, [pageWidth, swipeX]);
   /*
    * 오른쪽 축(최대·평균·0)은 **넘김 구획 밖 고정 칸**이다(PM 2026-09-28 03:36 "도표가 이어져 있는 것처럼, 평균·0 은 나중에
    * 생기게") — 주마다 축 칸이 붙어 있으면 옆 주 사이에 틈이 생겼다. 끌기 시작하면 사라지고, 새 주(또는 제자리)에
@@ -361,19 +380,17 @@ export default function WeeklyChart({ weekly, footer, onSwipingChange }: WeeklyC
       delay: motion.duration.fast,
       useNativeDriver: true,
     }).start();
-  // 표시 주(라벨)가 바뀌면 — 스와이프 도착 · 화살표 · 이동 실패 모두 — 줄을 가운데로. 그리기 전에 해야 한 프레임도 안 튄다.
-  // 조회 중이면 축을 숨겨 두고, 자리 잡으면(조회 끝 포함) 늦게 나타낸다
+  // 표시 주(라벨)가 바뀌면 — 스와이프 도착 · 화살표 · 이동 실패 모두 — 조회 중이면 축을 숨겨 두고, 자리 잡으면(조회 끝 포함)
+  // 늦게 나타낸다. 줄은 건드리지 않는다(위 pageIndex 설명)
   useLayoutEffect(() => {
-    swipeX.stopAnimation();
-    swipeX.setValue(0);
     if (weekly.isSwitching) axisFade.setValue(0);
     else showAxis();
     // showAxis 는 매 렌더 새로 만들어지지만 값(axisFade)만 쓴다
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [weekLabelStart, weekly.isSwitching, swipeX, axisFade]);
+  }, [weekLabelStart, weekly.isSwitching, axisFade]);
   const settleSwipe = (velocity = 0) =>
     Animated.spring(swipeX, {
-      toValue: 0,
+      toValue: restX(),
       velocity,
       ...motion.spring.snappy,
       useNativeDriver: true,
@@ -382,8 +399,12 @@ export default function WeeklyChart({ weekly, footer, onSwipingChange }: WeeklyC
     });
   const turnWeek = (direction: 'prev' | 'next', velocity = 0) => {
     const width = pageWidthRef.current;
+    const nextIndex = pageIndexRef.current + (direction === 'prev' ? -1 : 1);
+    // 표시 주와 페이지 번호를 **같은 틱**에 바꾼다 — React 가 한 커밋으로 묶어 그린다(둘 다 setState)
     const go = () => {
       const current = weeklyRef.current;
+      pageIndexRef.current = nextIndex;
+      setPageIndex(nextIndex);
       if (direction === 'prev') current.goPrev();
       else current.goNext();
     };
@@ -393,7 +414,7 @@ export default function WeeklyChart({ weekly, footer, onSwipingChange }: WeeklyC
     }
     hideAxis();
     Animated.spring(swipeX, {
-      toValue: direction === 'prev' ? width : -width,
+      toValue: -nextIndex * width,
       velocity,
       ...motion.spring.smooth,
       overshootClamping: true,
@@ -436,7 +457,7 @@ export default function WeeklyChart({ weekly, footer, onSwipingChange }: WeeklyC
           const current = weeklyRef.current;
           const canFollow =
             !current.isSwitching && (gesture.dx > 0 ? current.canGoPrev : current.canGoNext);
-          swipeX.setValue(canFollow ? gesture.dx : gesture.dx * SWIPE_RUBBER);
+          swipeX.setValue(restX() + (canFollow ? gesture.dx : gesture.dx * SWIPE_RUBBER));
         },
         onPanResponderRelease: (_, gesture) => {
           const current = weeklyRef.current;
@@ -619,22 +640,18 @@ export default function WeeklyChart({ weekly, footer, onSwipingChange }: WeeklyC
             {pageWidth === 0 ? (
               current
             ) : (
-              <Animated.View
-                style={[
-                  styles.pagerRow,
-                  { width: pageWidth * 3, transform: [{ translateX: pagerX }] },
-                ]}
-              >
+              <Animated.View style={[styles.pagerRow, { transform: [{ translateX: swipeX }] }]}>
+                {/* 이웃 칸은 번호 자리에 절대 배치, 가운데 칸만 흐름에 두어 줄의 높이를 준다(음수 여백은 Yoga 가 받는다) */}
                 <View
-                  style={{ width: pageWidth }}
+                  style={[styles.pagerSlot, { left: (pageIndex - 1) * pageWidth, width: pageWidth }]}
                   accessibilityElementsHidden
                   importantForAccessibility="no-hide-descendants"
                 >
                   {renderNeighbor(weekly.prevWeek, weekly.canGoPrev)}
                 </View>
-                <View style={{ width: pageWidth }}>{current}</View>
+                <View style={{ marginLeft: pageIndex * pageWidth, width: pageWidth }}>{current}</View>
                 <View
-                  style={{ width: pageWidth }}
+                  style={[styles.pagerSlot, { left: (pageIndex + 1) * pageWidth, width: pageWidth }]}
                   accessibilityElementsHidden
                   importantForAccessibility="no-hide-descendants"
                 >
@@ -924,7 +941,8 @@ const styles = StyleSheet.create({
   // (PM 2026-10-11 03:29 "하루 평균 아래 공백 줄였으면"). 말풍선은 없어졌다(막대 탭 → 요약 줄이 그 요일로, 2026-10-11)
   chartStrip: { flexDirection: 'row', paddingLeft: theme.spacing.md, marginTop: -theme.spacing.xs },
   pager: { flex: 1, overflow: 'hidden' },
-  pagerRow: { flexDirection: 'row', alignItems: 'flex-start' },
+  pagerRow: { alignItems: 'flex-start' },
+  pagerSlot: { position: 'absolute', top: 0 },
   axis: {
     width: AXIS_WIDTH,
     paddingRight: theme.spacing.md,
