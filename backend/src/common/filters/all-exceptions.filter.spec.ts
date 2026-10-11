@@ -1,4 +1,9 @@
-import { ArgumentsHost, HttpException, HttpStatus } from '@nestjs/common';
+import {
+  ArgumentsHost,
+  HttpException,
+  HttpStatus,
+  NotFoundException,
+} from '@nestjs/common';
 import * as Sentry from '@sentry/nestjs';
 
 import { BusinessException } from '@/common/exceptions/business.exception';
@@ -220,5 +225,71 @@ describe('AllExceptionsFilter — Sentry 보고 경계', () => {
 
     expect(Sentry.captureException).not.toHaveBeenCalled();
     expect(response.status).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * convention.md 8.4 — 요청 바디·서명·이메일·비밀 주소는 로그에 남기지 않는다.
+ * `path` 필드만 가리고 **메시지**로 같은 값이 새는 경로를 막는다.
+ */
+describe('AllExceptionsFilter — warn 메시지에 요청 값이 섞이지 않는다', () => {
+  let filter: AllExceptionsFilter;
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    filter = new AllExceptionsFilter();
+    jest.spyOn(filter['logger'], 'error').mockImplementation(() => undefined);
+    jest.spyOn(filter['logger'], 'warn').mockImplementation(() => undefined);
+    jest.spyOn(filter['logger'], 'log').mockImplementation(() => undefined);
+  });
+
+  function warnedMessage(): string {
+    const calls = (filter['logger'].warn as jest.Mock).mock.calls as [
+      string,
+      unknown,
+    ][];
+    expect(calls).toHaveLength(1);
+    return calls[0][0];
+  }
+
+  it('JSON 파싱 실패는 본문 조각이 담긴 SyntaxError 문구 대신 오류 type 만 남긴다', () => {
+    // body-parser 가 JSON.parse 의 메시지를 그대로 옮긴다 — V8 은 본문 앞부분을 메시지에 싣는다
+    const body = 'email=user@example.com&code=123456';
+    let parseError = new Error('unreachable');
+    try {
+      JSON.parse(body);
+    } catch (error) {
+      parseError = error as Error;
+    }
+    expect(parseError.message).toContain('email=user');
+    const error = Object.assign(parseError, {
+      type: 'entity.parse.failed',
+      status: 400,
+      body,
+    });
+
+    filter.catch(error, host().host);
+
+    expect(warnedMessage()).toBe('entity.parse.failed');
+  });
+
+  it('라우터 404 문구의 URL 은 서명·이메일 쿼리와 Sentry 웹훅 토큰 경로를 가린다', () => {
+    // `@nestjs/core` routes-resolver 가 `Cannot ${method} ${originalUrl}` 로 던진다
+    filter.catch(
+      new NotFoundException(
+        'Cannot GET /api/v1/webhooks/sentry/HOOK_TOKEN?email=user@example.com&signature=SIG',
+      ),
+      host().host,
+    );
+
+    expect(warnedMessage()).toBe(
+      'Cannot GET /api/v1/webhooks/sentry/[redacted]?email=[redacted]&signature=[redacted]',
+    );
+  });
+
+  it('그 밖의 프레임워크 4xx 문구는 그대로 남긴다', () => {
+    filter.catch(new NotFoundException(), host().host);
+
+    expect(warnedMessage()).toBe('Not Found');
   });
 });
