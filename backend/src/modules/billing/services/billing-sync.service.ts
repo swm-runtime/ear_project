@@ -409,12 +409,7 @@ export class BillingSyncService {
     now: Date = new Date(),
   ): Promise<void> {
     await this.userService.getByIdForUpdate(userId, manager);
-    const current = await this.subscriptionService.findCurrent(userId, manager);
-    const live =
-      current !== null &&
-      NON_TERMINAL_SUBSCRIPTION_STATUSES.includes(current.status)
-        ? current
-        : null;
+    const live = await this.subscriptionService.findEntitled(userId, manager);
     const subscriptionTier = live?.tier ?? UserTier.LIGHT;
 
     let grant = await this.inviteCodeService.findActiveGrant(

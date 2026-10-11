@@ -142,8 +142,9 @@ export class BillingOrchestrator {
       // 사용자 행을 먼저 잠근다 — 같은 계정이 다른 코드 두 개를 동시에 넣어도 "지급은 하나" 판정이 직렬로 돈다.
       // 잠금 순서(사용자 → 코드)는 결제 반영(구독 → 사용자 → 지급)과 순환을 만들지 않는다
       await this.userService.getByIdForUpdate(userId, manager);
+      // "입력 때 살아 있던 구독"은 티어 동기화와 같은 술어로 본다 — 해지 예약도 구독 중이다(domain.md 8.6)
       const subscribedAtStart =
-        await this.subscriptionService.hasLiveSubscription(userId, manager);
+        (await this.subscriptionService.findEntitled(userId, manager)) !== null;
       const redeemed = await this.inviteCodeService.redeem(
         userId,
         code,

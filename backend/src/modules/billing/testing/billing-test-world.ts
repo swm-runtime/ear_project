@@ -478,6 +478,21 @@ export class BillingTestWorld {
       grant.redemption.tierReleasedAt = now;
       return Promise.resolve();
     },
+    /** 코드 입력 — 코드 규칙 없이 지금부터 30일짜리 Pro 지급만 만든다(입력 때 구독 여부는 넘겨받은 값 그대로) */
+    redeem: (
+      userId: string,
+      _code: string,
+      subscribedAtStart: boolean,
+      now: Date,
+    ) =>
+      Promise.resolve({
+        created: true,
+        grant: this.grantInvite(userId, UserTier.PRO, {
+          startsAt: now,
+          endsAt: new Date(now.getTime() + 30 * 86_400_000),
+          subscribedAtStart,
+        }),
+      }),
   } as unknown as InviteCodeService;
 
   /** 지급을 하나 넣는다 — 기본은 하루 전에 시작해 30일 뒤에 끝나는 지급 */
@@ -515,6 +530,12 @@ export class BillingTestWorld {
         selectCurrentSubscription(
           this.subscriptions.filter((row) => row.userId === userId),
         ),
+      ),
+    findEntitled: (userId: string, manager?: EntityManager) =>
+      SubscriptionService.prototype.findEntitled.call(
+        this.subscriptionService,
+        userId,
+        manager,
       ),
     findByOriginalTransactionId: (originalTransactionId: string) =>
       Promise.resolve(this.findSubscription(originalTransactionId)),
