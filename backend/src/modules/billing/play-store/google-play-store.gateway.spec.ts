@@ -453,6 +453,7 @@ describe('GooglePlayStoreGateway', () => {
         kind: 'subscription',
         type: 3,
         purchaseToken: 'token-1',
+        orderId: null,
         eventAt: new Date(1790000000000),
       });
       expect(verified).toEqual([
@@ -475,7 +476,12 @@ describe('GooglePlayStoreGateway', () => {
             },
           }),
         ),
-      ).toMatchObject({ kind: 'voided', purchaseToken: 'token-1' });
+      ).toMatchObject({
+        kind: 'voided',
+        purchaseToken: 'token-1',
+        // 지난 주기 결제분 환불을 가려내는 데 쓴다(2026-10-11)
+        orderId: 'GPA.1',
+      });
       // 일회성 상품의 환불(productType 2)은 구독이 아니다
       expect(
         await gateway.verifyNotification(
