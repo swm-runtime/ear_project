@@ -7,7 +7,7 @@
  */
 
 type ProgressPercent = 25 | 50 | 75;
-type OnboardingStep = 'topic' | 'career' | 'pick' | 'tutorial' | 'notification';
+type OnboardingStep = 'topic' | 'career' | 'pick' | 'notification';
 type StepAction = 'next' | 'skip';
 type PermissionResult = 'granted' | 'denied';
 type PushTarget = 'library' | 'content';

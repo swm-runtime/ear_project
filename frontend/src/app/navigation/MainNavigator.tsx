@@ -7,7 +7,6 @@ import { PUSHED_SCREEN_HEADER } from '@/shared/navigation/pushed-screen-header';
 import { selectTab } from '@/shared/navigation/tab-selection.store';
 import { USE_NATIVE_PLAYER_ZOOM } from '@/shared/navigation/zoom-transition';
 import { HAS_NATIVE_TAB_BAR } from '@/shared/ui/GlassSurface';
-import { useWalkthroughStore } from '@/shared/ui/walkthrough.store';
 
 import { useAppUpdateStore } from '@/features/app-update';
 import { EmailVerificationScreen, useSessionStore, WithdrawalScreen } from '@/features/auth';
@@ -23,7 +22,6 @@ import {
   usePushLinkGate,
   useNotificationStore,
 } from '@/features/notification';
-import { FirstRunTutorial } from '@/features/onboarding';
 import { PlayConfirmDialog, PlayerScreen, useLimitNoticeStore } from '@/features/player';
 import { ProfileScreen, SignupTrialNotice } from '@/features/profile';
 import { SettingsScreen } from '@/features/settings';
@@ -108,8 +106,7 @@ function MainTabs() {
 export default function MainNavigator() {
   const clearPrePromptPending = useNotificationStore((s) => s.clearPrePromptPending);
   const isPrePromptPending = useNotificationStore((s) => s.isPrePromptPending);
-  const isWalkthroughPending = useWalkthroughStore((s) => s.pending);
-  // 코치마크가 끝난 뒤에야 열린다 — 동시에 뜨면 모달이 코치마크를 덮는다(usePrePromptGate)
+  // 착지 뒤 한 박자 쉬고 열린다(usePrePromptGate) — 화면 전환 직후 바로 튀면 같은 팝업의 연속으로 읽힌다
   const isPrePromptVisible = usePrePromptGate();
   // 탭된 알림의 목적지로 보낸다 — Main 이 떴다는 것이 관문 통과다(notification.md 4.4)
   const pushGate = usePushLinkGate();
@@ -119,7 +116,6 @@ export default function MainNavigator() {
   const isUpdateRecommendVisible = useAppUpdateStore((s) => s.isRecommendVisible);
   const isLimitNoticeVisible = useLimitNoticeStore((s) => s.isVisible);
   const isSignupTrialReady = isSignupTrialNoticeReady({
-    isWalkthroughPending,
     isPrePromptPending,
     isUpdateRecommendVisible,
     isPushPlayConfirmVisible: pushGate.confirmState !== null,
@@ -211,11 +207,8 @@ export default function MainNavigator() {
         온보딩 직후 한 번 뜨는 알림 사전 안내(2026-09-02 — 온보딩 마지막 화면이던 O10을 옮겼다).
         착지 탭이 라이브러리일 수도 탐색일 수도 있어 **탭이 아니라 여기서** 그린다 —
         화면마다 두면 어느 탭으로 들어왔느냐에 따라 떴다 안 떴다 한다.
-        여는 시점은 코치마크가 끝난 뒤다(2026-09-04) — 권한은 가치를 보여준 다음에 묻는다
+        첫 사용 튜토리얼(코치마크)은 뺐다(PM 2026-10-11) — 착지 뒤 한 박자 쉬고 바로 이 안내가 뜬다
       */}
-      {/* 첫 사용 튜토리얼 — 예시 화면으로 흐름을 보여준다. 알림 안내보다 먼저다 */}
-      <FirstRunTutorial />
-
       <NotificationPrePromptModal
         isVisible={isPrePromptVisible}
         syncOnDismiss

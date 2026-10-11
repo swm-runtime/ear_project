@@ -3,7 +3,6 @@ import { describe, expect, it } from '@jest/globals';
 import { isSignupTrialNoticeReady } from './launch-dialog-gate';
 
 const IDLE = {
-  isWalkthroughPending: false,
   isPrePromptPending: false,
   isUpdateRecommendVisible: false,
   isPushPlayConfirmVisible: false,
@@ -15,11 +14,7 @@ describe('isSignupTrialNoticeReady — P11 이 열려도 되는 자리', () => {
     expect(isSignupTrialNoticeReady(IDLE)).toBe(true);
   });
 
-  it('신규 가입 직후 튜토리얼이 남아 있으면 기다린다', () => {
-    expect(isSignupTrialNoticeReady({ ...IDLE, isWalkthroughPending: true })).toBe(false);
-  });
-
-  it('튜토리얼이 끝나도 알림 사전 안내가 남아 있으면 기다린다 — 순서는 튜토리얼 → 알림 안내 → P11', () => {
+  it('신규 가입 직후 알림 사전 안내가 남아 있으면 기다린다 — 순서는 알림 안내 → P11', () => {
     expect(isSignupTrialNoticeReady({ ...IDLE, isPrePromptPending: true })).toBe(false);
   });
 

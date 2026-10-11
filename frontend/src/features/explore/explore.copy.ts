@@ -5,13 +5,6 @@
 export const EXPLORE_COPY = {
   /** iOS 26 큰 제목 바의 제목 — 탭 라벨과 같은 말(NativeMainTabs, 2026-09-25) */
   tabTitle: '탐색',
-  /** 첫 사용 코치마크(온보딩 직후 착지) — TODO(카피 미확정) */
-  walkthrough: {
-    searchStep: '궁금한 주제를\n여기서 찾아 담아보세요',
-    limitStep: '오늘 남은\n재생 횟수예요',
-    libraryStep: '담은 콘텐츠와 매일 아침\n도착하는 2편은 여기에',
-    done: '시작하기',
-  },
   /** E6·E7 검색(explore.md 4.5 — MVP 포함 격상, 합의 2026-08-23) */
   search: {
     /** 검색 탭(iOS 26)의 큰 제목 — 앱스토어·뮤직 검색 탭과 같은 한 단어 */
