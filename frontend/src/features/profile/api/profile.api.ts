@@ -4,6 +4,7 @@ import { apiClient } from '@/shared/api/api-client';
 
 import { IS_PROFILE_API_MOCKED } from '../profile.constants';
 import type {
+  ListeningHighlight,
   PlanTrial,
   ProfileSummary,
   TopicDistribution,
@@ -41,12 +42,36 @@ const toTopicDistribution = (dto: TopicDistributionDto): TopicDistribution => ({
   othersRatio: dto.others_ratio,
 });
 
+/**
+ * 주간 한 줄(KAN-170). 필드가 없는 서버(반영 전)는 상위 % 만 있던 때처럼 그린다. 모르는 kind 는 그리지 않는다 —
+ * 서버가 종류를 늘려도 앱이 엉뚱한 문구를 내지 않는다
+ */
+export const toListeningHighlight = (dto: WeeklyListeningDto): ListeningHighlight | null => {
+  const highlight = dto.listening_highlight;
+  if (highlight === undefined) {
+    const percent = dto.listening_top_percent ?? null;
+    return percent === null ? null : { kind: 'topPercent', percent };
+  }
+  if (highlight === null) return null;
+  switch (highlight.kind) {
+    case 'top_percent':
+      return { kind: 'topPercent', percent: highlight.percent };
+    case 'more_than_previous':
+      return { kind: 'moreThanPrevious', diffSec: highlight.diff_sec };
+    case 'listened_days':
+      return { kind: 'listenedDays', days: highlight.days };
+    default:
+      return null;
+  }
+};
+
 const toWeeklyListening = (dto: WeeklyListeningDto): WeeklyListening => ({
   weekStart: dto.week_start,
   dailyListenedSec: dto.daily_listened_sec,
   previousWeekStart: dto.previous_week_start,
   nextWeekStart: dto.next_week_start,
   listeningTopPercent: dto.listening_top_percent ?? null,
+  listeningHighlight: toListeningHighlight(dto),
   ...(dto.topic_distribution
     ? { topicDistribution: toTopicDistribution(dto.topic_distribution) }
     : {}),

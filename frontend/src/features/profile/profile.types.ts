@@ -98,7 +98,15 @@ export interface WeeklyListening {
   dailyTopicDistributions?: TopicDistribution[];
   /** 그 주 청취 시간 전체 가입자 중 상위 %(서버 판정). null 이면 표시하지 않는다 — 클라이언트가 다시 거르지 않는다 */
   listeningTopPercent: number | null;
+  /** 주간 카드 한 줄(서버가 고른 하나, KAN-170). null 이면 그리지 않는다 */
+  listeningHighlight: ListeningHighlight | null;
 }
+
+/** 서버가 고른 주간 한 줄 — 종류 판정은 서버 몫, 앱은 종류대로 문구만 고른다 */
+export type ListeningHighlight =
+  | { kind: 'topPercent'; percent: number }
+  | { kind: 'moreThanPrevious'; diffSec: number }
+  | { kind: 'listenedDays'; days: number };
 
 export interface TopicShare {
   topicId: string;
