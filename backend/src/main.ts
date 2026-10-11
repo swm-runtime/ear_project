@@ -40,7 +40,13 @@ export function configureApp(
    *    그대로의 본문으로 해야 하므로 `rawBody` 를 보관한다(`modules/alert/sentry-webhook.controller.ts`). 여기서
    *    파싱되면 아래 전역 파서는 `req.body` 가 이미 있어 건너뛴다.
    * 2. 그 밖의 모든 경로 — Nest 기본과 같은 json(100kb)·urlencoded.
+   *
+   * **보안 헤더·추적 ID 는 파서보다 먼저 붙인다**(2026-10-11 감사). 파서가 실패하면(깨진 JSON·413·전송 중단) 그 뒤
+   * 미들웨어를 건너뛰고 예외 필터로 가서, 종전엔 그 응답만 `trace_id: null` · `X-Trace-Id` 없음 · 보안 헤더 없음이었다.
+   * architecture.md 9.5 — 보안 헤더 전역 적용
    */
+  app.use(helmet());
+  app.use(traceIdMiddleware);
   app.use(
     '/api/v1/webhooks/sentry',
     json({
@@ -71,9 +77,7 @@ export function configureApp(
     app.set('trust proxy', trustProxyHops);
   }
 
-  // architecture.md 9.5 — 보안 헤더 전역 적용, CORS 허용 오리진 명시(`*` 금지)
-  app.use(helmet());
-  app.use(traceIdMiddleware);
+  // architecture.md 9.5 — CORS 허용 오리진 명시(`*` 금지). 보안 헤더·추적 ID 는 맨 앞(파서보다 먼저)에 붙였다
   app.enableCors({
     origin: parseCsvList(configService.get('CORS_ORIGINS', { infer: true })),
     credentials: true,
