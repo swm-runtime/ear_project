@@ -24,6 +24,7 @@ function purchase(overrides: Partial<PlayPurchase> = {}): PlayPurchase {
     accountToken: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
     environment: SubscriptionEnvironment.PRODUCTION,
     needsAcknowledge: false,
+    orderId: 'GPA.0000-0000-0000-00000',
     ...overrides,
   };
 }
@@ -43,6 +44,7 @@ describe('toPlaySnapshot — Google Play 상태 → 우리 의미', () => {
         revokedAt: null,
         accountToken: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
         receipt: 'token-1',
+        orderId: 'GPA.0000-0000-0000-00000',
       },
       renewal: {
         isAutoRenew: true,

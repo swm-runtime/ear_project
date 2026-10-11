@@ -45,6 +45,7 @@ export default async function EpisodesPage() {
                       <Link href={`/episodes/${e.id}`} className="font-mono text-brand-ink">{e.id}</Link>
                       <span>·</span><span>{k?.mid_topic}</span>
                       <span>·</span><span>{e.prompt_version}</span>
+                      {k?.status === "rejected" && <Badge value="rejected" />}
                       {e.regression && <Badge tone="held">{e.regression_kind === "planted" ? "회귀·심은 오류" : e.regression_kind === "anchor_low" ? "회귀·저품질 앵커" : "회귀 세트"}</Badge>}
                       {edits > 0 && <Badge tone="approved">수정 {edits}</Badge>}
                     </div>

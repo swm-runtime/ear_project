@@ -8,6 +8,7 @@ import {
   buildTopicDistribution,
   buildWeeklyBuckets,
   buildWeeklyTopicDistributions,
+  calculateListeningTopPercent,
   calculateStreakDays,
 } from './profile.stats';
 
@@ -353,6 +354,38 @@ describe('profile.stats', () => {
       expect(weekly).toEqual({ topics: [], othersRatio: 0 });
       expect(daily).toHaveLength(7);
       expect(daily.every((day) => day.topics.length === 0)).toBe(true);
+    });
+  });
+
+  describe('calculateListeningTopPercent', () => {
+    it('나보다 많이 들은 사람 수로 순위를 매기고 모집단 대비 올림한 %를 돌려준다', () => {
+      // 11명이 더 들었다 → 12등 / 100명 → 상위 12%
+      expect(calculateListeningTopPercent(1820, 11, 100)).toBe(12);
+      // 0명이 더 들었다 → 1등 / 40명 → 2.5 → 올림 3%
+      expect(calculateListeningTopPercent(3600, 0, 40)).toBe(3);
+    });
+
+    it('1등은 모집단이 아무리 커도 0%가 아니라 1%다', () => {
+      expect(calculateListeningTopPercent(60, 0, 100_000)).toBe(1);
+    });
+
+    it('동점은 같은 순위(좋은 쪽)다 — 나와 같은 시간은 "더 들은 사람"에 들어가지 않는다', () => {
+      // 나보다 많이 들은 사람만 센 값이 들어온다 → 동점자가 몇이든 결과는 같다
+      expect(calculateListeningTopPercent(600, 4, 10)).toBe(50);
+    });
+
+    it('그 주 청취가 0초면 null이다', () => {
+      expect(calculateListeningTopPercent(0, 0, 100)).toBeNull();
+    });
+
+    it('상위 50%는 내려주고, 50%를 넘으면(하위권) null이다', () => {
+      expect(calculateListeningTopPercent(100, 49, 100)).toBe(50);
+      expect(calculateListeningTopPercent(100, 50, 100)).toBeNull();
+    });
+
+    it('모집단이 0이면 null이고, 순위가 모집단을 넘어도 100%를 넘기지 않는다(그 경우 null)', () => {
+      expect(calculateListeningTopPercent(100, 0, 0)).toBeNull();
+      expect(calculateListeningTopPercent(100, 5, 1)).toBeNull();
     });
   });
 });

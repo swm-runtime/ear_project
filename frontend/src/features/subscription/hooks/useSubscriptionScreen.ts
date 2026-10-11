@@ -56,8 +56,6 @@ export const useSubscriptionScreen = () => {
 
   return {
     isStatusError: meQuery.isError,
-    retryStatus: () => void meQuery.refetch(),
-    isStatusRetrying: meQuery.isFetching,
     status,
     catalog,
     flow,

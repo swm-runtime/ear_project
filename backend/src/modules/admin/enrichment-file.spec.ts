@@ -161,6 +161,49 @@ describe('parseEnrichmentFile', () => {
     expect(badYears.rejectedReason).toContain('years_of_experience');
   });
 
+  it('schema_version 3의 tags를 저장 입력에 담는다 — 생략하면 키가 없어 기존 태그를 유지한다', async () => {
+    const withTags = await parseEnrichmentFile(
+      buildJsonFile({
+        schema_version: 3,
+        difficulty: 'beginner',
+        tags: ['ISA', '비과세', '절세'],
+      }),
+    );
+    const withoutTags = await parseEnrichmentFile(
+      buildJsonFile({ schema_version: 3, difficulty: 'beginner' }),
+    );
+
+    expect(withTags.rejectedReason).toBeNull();
+    expect(withTags.data).toEqual({
+      schemaVersion: 3,
+      difficulty: 'beginner',
+      tags: ['ISA', '비과세', '절세'],
+    });
+    expect(withoutTags.data).not.toHaveProperty('tags');
+  });
+
+  it.each([
+    ['1개', ['절세']],
+    ['5개', ['가나', '다라', '마바', '사아', '자차']],
+    ['띄어쓰기', ['비과세 한도', '절세']],
+    ["'#' 포함", ['#절세', '비과세']],
+    ['1자', ['세', '비과세']],
+    ['11자', ['가나다라마바사아자차카', '비과세']],
+    ['대소문자만 다른 중복', ['ISA', 'isa']],
+    ['문자열 아님', [1, '비과세']],
+    ['배열 아님', '절세'],
+  ])(
+    'tags가 규칙 밖(%s)이면 파일을 거부한다 — 화면에 그대로 보이는 값이다',
+    async (_label, tags) => {
+      const result = await parseEnrichmentFile(
+        buildJsonFile({ schema_version: 3, difficulty: 'beginner', tags }),
+      );
+
+      expect(result.data).toBeNull();
+      expect(result.rejectedReason).toContain('tags');
+    },
+  );
+
   it('현재 형식보다 높은 schema_version은 거부한다 — 서버가 모르는 키가 결손으로 둔갑한다', async () => {
     const result = await parseEnrichmentFile(
       buildJsonFile({ schema_version: 99, difficulty: 'beginner' }),

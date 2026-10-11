@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { EntityManager, LessThan, Like, Not, Repository } from 'typeorm';
+import { EntityManager, LessThan, Not, Repository } from 'typeorm';
 
 import { isUniqueViolation } from '@/common/utils/unique-violation.util';
 
@@ -94,13 +94,5 @@ export class IdempotencyRepository {
     });
 
     return result.affected ?? 0;
-  }
-
-  /** 특정 사용자 스코프만 지우기 위한 접두사 조회 (탈퇴 파기) */
-  async countByOwnerKeyPrefix(
-    prefix: string,
-    manager?: EntityManager,
-  ): Promise<number> {
-    return this.scoped(manager).countBy({ ownerKey: Like(`${prefix}%`) });
   }
 }

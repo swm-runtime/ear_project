@@ -27,7 +27,6 @@ describe('PlaybackService', () => {
     progressRepository = {
       findByUserIdAndContentId: jest.fn().mockResolvedValue(null),
       findAllByUserIdAndContentIds: jest.fn().mockResolvedValue([]),
-      findAllStartedContentIdsByUserId: jest.fn().mockResolvedValue([]),
     } as unknown as jest.Mocked<PlaybackProgressRepository>;
 
     playRecordRepository = {

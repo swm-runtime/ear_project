@@ -77,6 +77,10 @@ const toWeeklyDtoAt = (index: number): WeeklyListeningResponseDto => {
     previous_week_start:
       previous === null && SCENARIO === 'weekly-out-of-range' ? '2026-06-29' : previous,
     next_week_start: weeks[index - 1]?.weekStart ?? null,
+    // 상위 %(BE 요청 중) — 빈 주와 상위 50% 밖(셋째 주)은 서버가 null 로 보낸다
+    listening_top_percent: week.daily.every((sec) => sec === 0)
+      ? null
+      : ([12, 34, null, null, 3][index] ?? null),
     // 주별 주제 분포(BE 요청 중인 필드) — 주마다 순위가 바뀌어 스와이프 시 막대 재생장을 확인할 수 있게. 빈 주는 빈 분포
     topic_distribution: week.daily.every((sec) => sec === 0)
       ? { topics: [], others_ratio: 0 }

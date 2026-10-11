@@ -6,6 +6,7 @@ import {
 } from '@/modules/playback/playback.types';
 
 import {
+  LISTENING_TOP_PERCENT_MAX,
   TOPIC_DISTRIBUTION_TOP_LIMIT,
   TOPIC_DISTRIBUTION_TOTAL_RATIO,
   WEEKLY_LISTENING_DAY_COUNT,
@@ -235,4 +236,31 @@ function adjustToTotalRatio(
     topics: [{ ...largest, ratio: largest.ratio + gap }, ...others],
     othersRatio: distribution.othersRatio,
   };
+}
+
+/**
+ * 그 주 청취 시간 전체 상위 %(`profile-api.md` 4.1 `listening_top_percent`, KAN-168).
+ *
+ * - `순위 = 1 + 나보다 많이 들은 사용자 수` — 동점은 같은 순위(좋은 쪽)다.
+ * - `상위 % = ceil(순위 / 모집단 × 100)` — 1등도 0%가 아니라 최소 1%다.
+ * - 그 주 청취가 0초이거나 상한(`LISTENING_TOP_PERCENT_MAX`)보다 뒤면 `null` — 화면은 알약을 그리지 않는다.
+ *
+ * @param listenedSec 그 주 내 청취 시간 합(초)
+ * @param listenedMoreCount 그 주 청취 시간 합이 나보다 많은 사용자 수
+ * @param population 모집단 — 그 주가 끝나기 전에 가입한 전체 계정 수(0초 사용자 포함)
+ */
+export function calculateListeningTopPercent(
+  listenedSec: number,
+  listenedMoreCount: number,
+  population: number,
+): number | null {
+  if (listenedSec <= 0 || population <= 0) {
+    return null;
+  }
+
+  const rank = listenedMoreCount + 1;
+  // 집계 사이에 가입·청취가 끼면 순위가 모집단을 넘을 수 있다 — 100%를 넘기지 않는다
+  const percent = Math.min(Math.ceil((rank / population) * 100), 100);
+
+  return percent > LISTENING_TOP_PERCENT_MAX ? null : percent;
 }

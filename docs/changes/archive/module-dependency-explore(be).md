@@ -103,7 +103,7 @@
 
 ## 함께 확인할 것
 
-- ~~**`LibraryScreen` 행의 `Subscription` · `User`는 나중에 뺄 수 있다.**~~ → **확정(2026-08-07): 통일하기로 했다.** 잔여 표시값 조립을 `PlaybackService.buildQuotaForUser` 한 곳으로 모아 `LibraryScreen`의 두 의존이 사라졌다. **같은 표의 다른 행을 고치는 일이라 별도 문서로 분리했다** — `changes/pending/library-screen-quota-assembly(be).md`. 두 문서가 `architecture.md` 4.5의 서로 다른 행을 건드리므로 **함께 반영해야 표가 한 번에 맞는다.**
+- ~~**`LibraryScreen` 행의 `Subscription` · `User`는 나중에 뺄 수 있다.**~~ → **확정(2026-08-07): 통일하기로 했다.** 잔여 표시값 조립을 `PlaybackService.buildQuotaForUser` 한 곳으로 모아 `LibraryScreen`의 두 의존이 사라졌다. **같은 표의 다른 행을 고치는 일이라 별도 문서로 분리했다** — `changes/archive/library-screen-quota-assembly(be).md`. 두 문서가 `architecture.md` 4.5의 서로 다른 행을 건드리므로 **함께 반영해야 표가 한 번에 맞는다.**
 
 ## 완료 조건
 

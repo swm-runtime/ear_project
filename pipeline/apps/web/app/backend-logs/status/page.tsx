@@ -1,18 +1,6 @@
-import { PageHeader } from "@/components/ui";
-import { BackendStatus } from "@/components/backend-status";
+import { redirect } from "next/navigation";
 
-export const dynamic = "force-dynamic";
-
-// 서버 상태 — "지금 살아 있고, 에러가 나고 있는가"를 한 화면에서 본다.
+/** 서버 상태 탭은 2026-10-08 대시보드에 합쳤다 — 북마크·문서 링크를 위해 경로만 남겨 돌려보낸다 */
 export default function BackendStatusPage() {
-  return (
-    <div>
-      <PageHeader
-        title="서버 상태"
-        breadcrumb={["백엔드 로그", "상태"]}
-        desc="제품 API 서버의 health 응답, 로그 파이프 생존(마지막 이벤트 시각), 최근 1시간 ERROR 수, 서버 자원(CPU·메모리)과 DB 부하(연결·캐시 적중률·진행 중 쿼리). 전부 읽기 전용 조회다."
-      />
-      <BackendStatus />
-    </div>
-  );
+  redirect("/backend-logs/dashboard");
 }

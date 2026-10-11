@@ -39,4 +39,20 @@ describe('redactSensitiveQuery — 민감 쿼리 값만 가린다', () => {
       '/x?user_email_hint=1&emails=2',
     );
   });
+
+  it('Sentry 중계의 경로 토큰을 가린다 — 경로에 든 비밀은 쿼리 목록으로는 잡히지 않는다(2026-10-07)', () => {
+    expect(
+      redactSensitiveQuery('/api/v1/webhooks/sentry/abcdefghijklmnop0123'),
+    ).toBe('/api/v1/webhooks/sentry/[redacted]');
+    expect(
+      redactSensitiveQuery('/api/v1/webhooks/sentry/abcdefghijklmnop0123?x=1'),
+    ).toBe('/api/v1/webhooks/sentry/[redacted]?x=1');
+    // 토큰 없는 서명 주소는 가릴 것이 없다
+    expect(redactSensitiveQuery('/api/v1/webhooks/sentry')).toBe(
+      '/api/v1/webhooks/sentry',
+    );
+    expect(redactSensitiveQuery('/api/v1/webhooks/app-store')).toBe(
+      '/api/v1/webhooks/app-store',
+    );
+  });
 });

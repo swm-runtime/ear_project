@@ -246,6 +246,23 @@ describe('validateEnv', () => {
     }
   });
 
+  it('SENTRY_WEBHOOK_TOKEN 은 비우거나 URL 경로에 안전한 16자 이상 — 짧은 토큰은 기동을 실패시킨다', () => {
+    for (const value of [
+      'short',
+      'has space in it xxxx',
+      'slash/inside/xxxxxxxxxxxx',
+    ]) {
+      expect(() =>
+        validateEnv({ ...validEnv, SENTRY_WEBHOOK_TOKEN: value }),
+      ).toThrow(/SENTRY_WEBHOOK_TOKEN/);
+    }
+    for (const value of ['', 'abcdefghijklmnop', 'A-Z_09'.repeat(4)]) {
+      expect(() =>
+        validateEnv({ ...validEnv, SENTRY_WEBHOOK_TOKEN: value }),
+      ).not.toThrow();
+    }
+  });
+
   it('SERVICE_DAY_BOUNDARY_05_FROM 은 ISO 시각이고 KST 04시대는 거부한다 — 그 구간 전환은 날짜가 거꾸로 간다(KAN-149)', () => {
     for (const value of [
       'not-a-date',

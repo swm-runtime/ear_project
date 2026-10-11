@@ -43,4 +43,4 @@
 - **구글은 ID 토큰 방식으로 확정**했다("남은 결정 항목" 해소). FE 구현을 그대로 받는다 — 서명·`aud`만으로 검증이 끝나 제공자 API 왕복이 없고, 애플과 같은 경로라 코드가 한 형태로 모인다. `google.client.ts`를 userinfo 호출에서 JWKS 검증으로 교체했다.
 - **카카오 `app_id` 대조를 함께 구현**했다. 문서에는 요청의 "비고"에만 있었으나 **검증 공백이라 계약으로 올렸다** — 액세스 토큰에는 대상 앱 정보가 없어, 대조가 없으면 다른 카카오 앱에서 발급된 토큰으로도 우리 계정에 로그인할 수 있다. 카카오 앱 ID `1533429`.
 - 검증 식별자의 실제 값은 계약이 아니라 배포 설정이므로 **`.env.example`에 둔다**(`GOOGLE_WEB_CLIENT_ID` · `KAKAO_APP_ID`). spec에는 "웹 클라이언트 ID와 대조한다"까지만 쓴다.
-- **애플 nonce 인코딩(소문자 hex) 부기도 반영**했다. 다만 **서버 구현은 base64url이라 문서와 어긋난 상태다** — 코드 수정은 `tickets/backend/pending/apple-nonce-hash-encoding-mismatch.md`로 발행했다. 문서를 먼저 맞추고 코드를 따라오게 하는 순서다(CLAUDE.md).
+- **애플 nonce 인코딩(소문자 hex) 부기도 반영**했다. 다만 **서버 구현은 base64url이라 문서와 어긋난 상태다** — 코드 수정은 `tickets/backend/archive/apple-nonce-hash-encoding-mismatch.md`로 발행했다. 문서를 먼저 맞추고 코드를 따라오게 하는 순서다(CLAUDE.md).

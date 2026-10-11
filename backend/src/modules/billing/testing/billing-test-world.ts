@@ -5,7 +5,12 @@ import { PurchaseIntent } from '@/modules/subscription/entities/purchase-intent.
 import { Subscription } from '@/modules/subscription/entities/subscription.entity';
 import { SubscriptionDraft } from '@/modules/subscription/repositories/subscription.repository';
 import { PlanService } from '@/modules/subscription/services/plan.service';
-import { TrialContext } from '@/modules/subscription/subscription.types';
+import { InviteCodeRedemption } from '@/modules/subscription/entities/invite-code-redemption.entity';
+import { InviteCodeService } from '@/modules/subscription/services/invite-code.service';
+import {
+  ActiveInviteGrant,
+  TrialContext,
+} from '@/modules/subscription/subscription.types';
 import { PurchaseIntentService } from '@/modules/subscription/services/purchase-intent.service';
 import { StoreNotificationLogService } from '@/modules/subscription/services/store-notification-log.service';
 import { StoreNotificationLog } from '@/modules/subscription/entities/store-notification-log.entity';
@@ -143,6 +148,7 @@ export class FakePlayStoreGateway extends PlayStoreGateway {
       accountToken: null,
       environment: SubscriptionEnvironment.SANDBOX,
       needsAcknowledge: true,
+      orderId: null,
       ...overrides,
     };
 
@@ -208,6 +214,7 @@ export class FakePlayStoreGateway extends PlayStoreGateway {
       kind: parsed.kind ?? 'subscription',
       type: parsed.type ?? null,
       purchaseToken: parsed.purchaseToken ?? null,
+      orderId: parsed.orderId ?? null,
       eventAt: new Date(parsed.eventAt ?? Date.now()),
     });
   }
@@ -331,6 +338,8 @@ export class BillingTestWorld {
   readonly subscriptions: Subscription[] = [];
   readonly intents: PurchaseIntent[] = [];
   readonly users = new Map<string, User>();
+  /** 초대 코드 지급(domain.md 8.6) — 행과 코드 이름. `grantInvite`로 넣는다 */
+  readonly inviteGrants: ActiveInviteGrant[] = [];
   readonly gateway = new FakeAppStoreGateway();
   readonly playGateway = new FakePlayStoreGateway();
 
@@ -454,6 +463,68 @@ export class BillingTestWorld {
       PlanService.prototype.getEntitlements.call(this.planService, tier),
   } as unknown as PlanService;
 
+  /** 초대 코드 지급의 메모리 대역 — 지급 중 판정·종료만(입력 규칙은 `InviteCodeService` 단위 테스트가 본다) */
+  readonly inviteCodeService = {
+    findActiveGrant: (userId: string, now: Date) =>
+      Promise.resolve(
+        this.inviteGrants.find(
+          (grant) =>
+            grant.redemption.userId === userId &&
+            grant.redemption.startsAt <= now &&
+            now < grant.redemption.endsAt,
+        ) ?? null,
+      ),
+    endGrant: (grant: ActiveInviteGrant, now: Date) => {
+      grant.redemption.endsAt = now;
+      grant.redemption.tierReleasedAt = now;
+      return Promise.resolve();
+    },
+    /** 코드 입력 — 코드 규칙 없이 지금부터 30일짜리 Pro 지급만 만든다(입력 때 구독 여부는 넘겨받은 값 그대로) */
+    redeem: (
+      userId: string,
+      _code: string,
+      subscribedAtStart: boolean,
+      now: Date,
+    ) =>
+      Promise.resolve({
+        created: true,
+        grant: this.grantInvite(userId, UserTier.PRO, {
+          startsAt: now,
+          endsAt: new Date(now.getTime() + 30 * 86_400_000),
+          subscribedAtStart,
+        }),
+      }),
+  } as unknown as InviteCodeService;
+
+  /** 지급을 하나 넣는다 — 기본은 하루 전에 시작해 30일 뒤에 끝나는 지급 */
+  grantInvite(
+    userId: string,
+    tier: UserTier,
+    options: {
+      startsAt?: Date;
+      endsAt?: Date;
+      name?: string;
+      subscribedAtStart?: boolean;
+    } = {},
+  ): ActiveInviteGrant {
+    const startsAt = options.startsAt ?? new Date(Date.now() - 86_400_000);
+    const grant: ActiveInviteGrant = {
+      redemption: {
+        id: `redemption-${this.inviteGrants.length + 1}`,
+        inviteCodeId: 'invite-code-1',
+        userId,
+        tier,
+        startsAt,
+        endsAt: options.endsAt ?? new Date(Date.now() + 30 * 86_400_000),
+        tierReleasedAt: null,
+        subscribedAtStart: options.subscribedAtStart ?? false,
+      } as InviteCodeRedemption,
+      codeName: options.name ?? '테스트 PoC',
+    };
+    this.inviteGrants.push(grant);
+    return grant;
+  }
+
   readonly subscriptionService = {
     findCurrent: (userId: string) =>
       Promise.resolve(
@@ -461,8 +532,18 @@ export class BillingTestWorld {
           this.subscriptions.filter((row) => row.userId === userId),
         ),
       ),
+    findEntitled: (userId: string, manager?: EntityManager) =>
+      SubscriptionService.prototype.findEntitled.call(
+        this.subscriptionService,
+        userId,
+        manager,
+      ),
     findByOriginalTransactionId: (originalTransactionId: string) =>
       Promise.resolve(this.findSubscription(originalTransactionId)),
+    findAllByUserId: (userId: string) =>
+      Promise.resolve(
+        this.subscriptions.filter((row) => row.userId === userId),
+      ),
     findByLatestReceipt: (store: SubscriptionStore, latestReceipt: string) =>
       Promise.resolve(
         this.subscriptions.find(
@@ -505,6 +586,7 @@ export class BillingTestWorld {
               ),
           },
           planService: this.planService,
+          inviteCodeService: this.inviteCodeService,
           logger: { warn: () => undefined },
         }) as SubscriptionService,
         userId,
@@ -539,6 +621,13 @@ export class BillingTestWorld {
 
   readonly userService = {
     getById: (id: string) => {
+      const user = this.users.get(id);
+
+      return user
+        ? Promise.resolve(user)
+        : Promise.reject(new Error(`no user ${id}`));
+    },
+    getByIdForUpdate: (id: string) => {
       const user = this.users.get(id);
 
       return user

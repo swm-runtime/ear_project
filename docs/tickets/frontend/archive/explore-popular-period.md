@@ -18,7 +18,7 @@
 > ⑥ mock: 세 구간이 서로 다른 목록(month·all은 20건 초과로 커서 검증 가능) + `EXPO_PUBLIC_EXPLORE_MOCK_SCENARIO=popular-error` 전환 실패 시나리오
 > 행은 `ExploreContentRow` 재사용, 잔여 표시값은 인기 응답으로도 갱신. 남은 것: mock 화면에서 완료 조건 확인 후 이 티켓을 archive로 옮긴다(수정을 담은 PR에서 함께).
 
-> **짝 티켓** — `tickets/backend/pending/explore-popular-period.md`. **서버가 먼저 나가야 실서버 전환으로 확인할 수 있다.** 그 전까지는 mock으로 화면을 완성해 두면 된다(탐색 FE가 이미 그렇게 동작한다).
+> **짝 티켓** — `tickets/backend/archive/explore-popular-period.md`. **서버가 먼저 나가야 실서버 전환으로 확인할 수 있다.** 그 전까지는 mock으로 화면을 완성해 두면 된다(탐색 FE가 이미 그렇게 동작한다).
 >
 > **mock을 없애지 않는다.** 탐색도 다른 화면과 같이 `EXPO_PUBLIC_EXPLORE_API=real`로 실서버 전환을 켜고 끄며(`IS_EXPLORE_API_MOCKED`), **mock은 개발·테스트 경로로 그대로 남는다.**
 

@@ -1,6 +1,8 @@
 import { UserTier } from '@/modules/user/user.enum';
 import { AudioQuality } from '@/modules/content/content.enum';
 
+import { InviteCodeRedemption } from './entities/invite-code-redemption.entity';
+
 import {
   PlanStatus,
   SubscriptionEnvironment,
@@ -43,6 +45,51 @@ export interface PlanView {
   hasPaymentIssue: boolean;
   /** 가입 체험 중일 때만 값이 있다(`subscription.md` 4.8). 체험이 없거나 끝났으면 `null` */
   trial: TrialView | null;
+  /**
+   * 다운그레이드 예약 — "언제부터 어느 요금제"(`subscription-api.md` 4.2 · `profile-api.md` 4.1, KAN-161).
+   * 예약이 없거나 구독이 없으면 `null`. 프로필·설정·구독 조회가 **이 값 하나**를 내보낸다 — 화면마다 따로
+   * 판정하면 한쪽만 예약을 보이는 어긋남이 생긴다
+   */
+  pendingPlan: PendingPlanView | null;
+  /** 초대 코드로 받은 요금제가 지급 중일 때만 값이 있다(`subscription-api.md` 4.8) */
+  grant: InviteGrantView | null;
+}
+
+/** 지금 지급 중인 초대 코드 — 행과 코드 이름(`subscription-api.md` 4.8) */
+export interface ActiveInviteGrant {
+  redemption: InviteCodeRedemption;
+  codeName: string;
+}
+
+/**
+ * 초대 코드로 받은 요금제(`subscription-api.md` 4.8) — 플랜 요약의 `grant`. 이벤트 중 결제 팝업(Daily 이벤트 → Pro 결제,
+ * Pro 이벤트 → Daily 결제)의 분기를 클라이언트가 이 값으로 한다. 날짜 라벨은 서버가 만든다(04시 경계).
+ */
+export interface InviteGrantView {
+  /** 코드(캠페인) 이름 — 화면에 쓸지는 클라이언트가 정한다 */
+  name: string;
+  tier: UserTier;
+  planName: string;
+  /** 지급이 끝나는 시각(배타 경계) */
+  endsAt: Date;
+  /** 지급으로 쓸 수 있는 마지막 서비스 날짜(`YYYY-MM-DD`) */
+  lastDate: string;
+}
+
+/** 관리자 코드 수정 — 앞으로의 입력에 관한 값만(`InviteCodeService.update`). `undefined`는 그대로 */
+export interface UpdateInviteCodeCommand {
+  name?: string;
+  isActive?: boolean;
+  maxRedemptions?: number | null;
+  redeemableFrom?: Date | null;
+  redeemableUntil?: Date | null;
+}
+
+/** 다운그레이드 예약 — 적용 시각은 지금 결제 주기가 끝나는 시각(`expires_at`)이다 */
+export interface PendingPlanView {
+  tier: UserTier;
+  planName: string;
+  effectiveAt: Date;
 }
 
 /**
@@ -99,6 +146,11 @@ export interface StoreTransaction {
   accountToken: string | null;
   /** `latest_receipt`에 둘 원문(iOS JWS · Android 구매 토큰). 로그에 남기지 않는다 */
   receipt: string;
+  /**
+   * 이 결제 주기의 주문 ID(Play `latestOrderId` — 갱신마다 바뀐다). `latest_order_id`에 둔다 — 환불 고정의 결제
+   * 주기 식별자(`subscription-api.md` 4.7). App Store 거래에는 없다(거래 ID가 그 역할을 한다)
+   */
+  orderId?: string | null;
 }
 
 /** 스토어가 알려 준 "다음 갱신" 정보 */

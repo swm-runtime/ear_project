@@ -192,7 +192,7 @@ d) **script.md** — 대본. 규격:
    - **발화 줄 형식 (TTS 파서 계약 — 정확히 지킬 것)**: 번호 턴은 \`[윤아] E1 · 문장\` / \`[이음] Y1 · 문장\` — 화자 라벨이 먼저, 번호 뒤 구분자는 **가운뎃점(·)**. \`Y1.\`(마침표)·\`E1 [윤아]\`(번호 선행) 같은 변형 금지 — 파싱이 실패해 합성이 중단된다.
 ${templateBlock(i)}
    - 도입 (규칙 13, v5.1 개정 — **주제를 먼저 소개하고 시작한다**. 에둘러 들어가지 말 것): 주제 선언 뒤 첫 해설 턴 사이에 짧은 진입 구간(두세 턴)을 둔다. 주제는 인트로가 이미 말했으므로 **다시 발견하는 척("그 질문이 오늘 주제랑 닿아 있어요" 류) 금지**. 그 진입 방식 (이 에피소드 전용 지정): **${i.introStyle.label}** — ${i.introStyle.hint} 골드의 [도입]은 구 규칙 판이라 자리표기로 비워 두었다 — 형태를 참조할 것이 없으니 규칙 13 문장대로 쓴다. 인트로 골격은 고정이지만 질문의 재료는 매번 새로.
-   - 분량: **공백·기호 제외 4,500자 이상 목표, 5,000자 내외 이상적** (350자/분 기준 약 13~15분). 채우기용 잡담·같은 말 반복 금지.
+   - 분량: **공백·기호 제외 4,500자 이상 목표, 5,000자 내외 이상적** (341자/분 기준 약 13~15분). 채우기용 잡담·같은 말 반복 금지.
 ${COMMON_RULES}
 
 ## 4. 마무리 자기 점검 (필수)
@@ -208,7 +208,7 @@ export const DRAFT_SCHEMA = {
   properties: {
     turns: { type: "integer", description: "본편 발화 턴 수 (템플릿 제외)" },
     chars: { type: "integer", description: "공백·기호 제외 글자 수" },
-    minutes: { type: "number", description: "350자/분 환산 분량" },
+    minutes: { type: "number", description: "341자/분 환산 분량" },
     sources_used: { type: "array", items: { type: "string" }, description: "사용한 소스 URL" },
     sources_excluded: { type: "array", items: { type: "object", additionalProperties: false, required: ["url", "reason"], properties: { url: { type: "string" }, reason: { type: "string" } } } },
     self_check_fixes: { type: "array", items: { type: "string" }, description: "자기 점검에서 발견·수정한 발췌 밖 주장" },
@@ -672,7 +672,7 @@ ${sources}
 - 전환 장치는 구간마다 다르게 — 같은 장치 연속 금지.
 - 청취자 일상 사례 왕복은 에피소드 전체에 최소 2회.
 - **진행자 질문·설계 메모에 발췌 밖 수치·환산을 쓰지 않는다** — "1960년대"를 "60년 된"으로 바꾸는 식의 경과 연수 환산, 발췌에 없는 비교 축은 대사로 옮겨지면 QA 실패다. 구간 소제목은 TTS 가 읽지 않는 구조 표시라 QA 대상이 아니다 (2026-09-21 — 들리지 않는 한 줄로 QA 회차를 쓰지 않는다).
-- **분량 규칙** (2026-09-08 확정): 한 편은 **13분(공백·기호 제외 약 4,000자) 이상이 필수**, 15분이 평균 목표, 상한은 없다. 재료 총량으로 예상 분량을 적는다. 재료가 13분에 못 미치면 구성안을 만들지 말고 완료 보고에 사유를 적는다(반려 대상). 재료가 26분 이상이면 각 편이 13분 이상이 되는 분할안을 완료 보고 \`split_proposal\`에 적되, 구성안은 한 편 기준으로 그대로 만든다 (분할은 사람이 결정).
+- **분량 규칙** (2026-09-08 확정): 한 편은 **13분(공백·기호 제외 약 4,300자) 이상이 필수**, 15분이 평균 목표, 상한은 없다. 재료 총량으로 예상 분량을 적는다. 재료가 13분에 못 미치면 구성안을 만들지 말고 완료 보고에 사유를 적는다(반려 대상). 재료가 26분 이상이면 각 편이 13분 이상이 되는 분할안을 완료 보고 \`split_proposal\`에 적되, 구성안은 한 편 기준으로 그대로 만든다 (분할은 사람이 결정).
 
 ### d) pronunciations.json — 대본에 등장할 모든 비한글 표기(영문 용어·인명·기관·매체) → 한글 발음. \`{"표기": "발음"}\` 객체 하나. 없으면 \`{}\`.
 
@@ -792,7 +792,7 @@ ${WRITE_FACT_RULES}
 - 턴 길이 규격: 해설 1턴 2~5문장(에피소드 평균), **한 턴 최대 6문장** — 7문장 이상 턴은 L0가 잡아 재생성한다. 진행 1턴 1~2문장.
 
 ## 3. 자기 점검 (출력 전에, 머릿속에서 끝까지)
-- 구간 헤더의 순서·개수가 구성안과 같은가. 4,000자 이상인가. 해설 턴 평균 문장 수가 5 이하인가.
+- 구간 헤더의 순서·개수가 구성안과 같은가. 4,300자 이상인가. 해설 턴 평균 문장 수가 5 이하인가.
 - **해설 턴의 사실 문장마다** 대응하는 claims 행이 있는가, 헤지·귀속 주체가 같은가, 발췌보다 구체적이지 않은가. 어긋난 문장은 삭제하거나 claims 범위로 축소한 뒤 self_check_fixes 에 적는다. 결과를 turn_claims(턴별 사용 claims ID)로 보고한다.
 - 진행 턴에 사실 주장이 없는가 — **수치·배수·비율("시간도 두 배로 들고")도 사실 주장이다**, 발췌에 없으면 진행 턴에 쓰지 않는다. 지시어·콜백("아까 그 ~")이 가리키는 대상이 대본 안에 있는가.
 - **표기 (규칙 14)**: 인명은 원문 표기(Hemingway, E. Ashby Plant — 한글 음차 "헤밍웨이"는 QA 항목 6 이 거부한다), 기관·지명·매체는 한국어 관용 표기(플로리다 주립대, 뉴욕 연준)로 적었는가.
@@ -817,7 +817,7 @@ ${WRITE_FACT_RULES}
 - 제목은 구성안의 축에 맞게 새로 지어도 된다 (클릭베이트 금지).
 ${templateBlock({ templates: i.templates, majorTopic: i.majorTopic, signoffSeed: i.signoffSeed } as DraftInput)}
 - 도입 (규칙 13): 주제 선언 뒤 첫 해설 턴 사이에 청취자가 "대화에 앉는" 두세 턴. 주제를 다시 발견하는 척 금지. 이 에피소드의 진입 방식: **${i.introStyle.label}** — ${i.introStyle.hint}${isHistoryTopic(i.candidate.mid_topic) ? "\n" + HISTORY_WRITE_RULE : ""}
-- **이 에피소드의 목표: 약 ${i.estimatedMinutes ?? 15}분 = 공백·기호 제외 약 ${Math.round((i.estimatedMinutes ?? 15) * 350)}자 (±15%)** — 구성안의 "예상 분량"이다 (350자/분). 하한 13분(약 4,000자)은 필수이고 상한을 규칙으로 두지는 않지만, **예상 분량은 설계가 재료 총량으로 이미 정한 크기다** — 그보다 크게 쓰는 것은 재료가 많아서가 아니라 풀어 쓰기가 길어진 것이다.
+- **이 에피소드의 목표: 약 ${i.estimatedMinutes ?? 15}분 = 공백·기호 제외 약 ${Math.round((i.estimatedMinutes ?? 15) * 341)}자 (±15%)** — 구성안의 "예상 분량"이다 (341자/분). 하한 13분(약 4,300자)은 필수이고 상한을 규칙으로 두지는 않지만, **예상 분량은 설계가 재료 총량으로 이미 정한 크기다** — 그보다 크게 쓰는 것은 재료가 많아서가 아니라 풀어 쓰기가 길어진 것이다.
 
 ## 이 에피소드의 재료
 ### 구성안 — outline.md (계약: 구간 순서·목적·재료·진행자 질문·전환 장치를 그대로 실행한다)
@@ -1077,7 +1077,7 @@ ${fence(explainer === "이음" ? i.goldFullEum : i.goldFullYuna)}` : `### 1.3 �
 - 착지 구간을 반드시 지정하고, 그 구간의 재료가 실제로 축을 증명하는지 스스로 확인한다.
 - 전환 장치는 구간마다 다르게 — 같은 장치 연속 금지. 청취자 일상 사례 왕복은 에피소드 전체에 최소 2회.
 - **진행자 질문·설계 메모에 발췌 밖 수치·환산을 쓰지 않는다** — "1960년대"를 "60년 된"으로 바꾸는 식의 환산, 발췌에 없는 비교 축은 대사로 옮겨지면 QA 실패다. 구간 소제목은 읽히지 않는 구조 표시라 QA 대상이 아니다.
-- **분량 규칙** (2026-09-08 확정): 한 편은 **13분(공백·기호 제외 약 4,000자) 이상이 필수**, 15분이 평균 목표, 상한은 없다. 재료 총량으로 예상 분량을 적는다 — 이 숫자가 대본 단계의 목표가 되므로 실제 재료량대로 적는다(부풀리지 않는다). 재료가 13분에 못 미치면 구성안을 만들지 말고 notes 에 사유를 적는다(반려 대상). 26분 이상이면 각 편이 13분 이상이 되는 분할안을 split_proposal 에 적되, 구성안은 한 편 기준으로 그대로 만든다 (분할은 사람이 결정).
+- **분량 규칙** (2026-09-08 확정): 한 편은 **13분(공백·기호 제외 약 4,300자) 이상이 필수**, 15분이 평균 목표, 상한은 없다. 재료 총량으로 예상 분량을 적는다 — 이 숫자가 대본 단계의 목표가 되므로 실제 재료량대로 적는다(부풀리지 않는다). 재료가 13분에 못 미치면 구성안을 만들지 말고 notes 에 사유를 적는다(반려 대상). 26분 이상이면 각 편이 13분 이상이 되는 분할안을 split_proposal 에 적되, 구성안은 한 편 기준으로 그대로 만든다 (분할은 사람이 결정).
 - 구성안의 재료(C##)는 전부 claims 에 있어야 한다.
 
 ### d) pronunciations — 대본에 등장할 모든 비한글 표기(영문 용어·인명·기관·매체) → 한글 발음. 없으면 빈 배열.
@@ -1408,6 +1408,10 @@ export const REINFORCE_SEARCH_SCHEMA = {
 // 값 집합은 backend domain.md 5.1 · user.constant.ts JOB_CATEGORIES 와 글자 단위로 같아야 한다 — 어긋나면 업로드 검증이 거부한다.
 // ═══════════════════════════════════════════════════════════════════════════════════════════════
 export const ENRICHMENT_SCHEMA_VERSION = 2;
+/** 화면 해시태그 `tags`(KAN-139, 2026-10-08)를 싣는 형식 — 서버가 3을 받기 전까지 워커 스위치(ENRICH_TAGS)로 끈다. 서버는 자기가 아는 최신보다 높은 형식·모르는 키를 파일째 거부한다(admin-api 4.6) */
+export const ENRICHMENT_SCHEMA_VERSION_TAGS = 3;
+/** 태그 한 개 — 띄어쓰기 없는 2~10자, 한글·영문·숫자. '#'은 화면이 붙인다 */
+export const ENRICH_TAG_RE = /^[가-힣A-Za-z0-9]{2,10}$/;
 export const ENRICH_DIFFICULTY = ["beginner", "intermediate", "advanced"] as const;
 export const ENRICH_FORMAT = ["news_analysis", "howto", "interview", "opinion", "case_study", "overview"] as const;
 export const ENRICH_YEARS = ["0-1", "2-3", "4-6", "7+"] as const;
@@ -1424,7 +1428,7 @@ export interface EnrichInput {
 }
 export function buildEnrichPrompt(i: EnrichInput): string {
   const fence = (s: string) => "````\n" + s.trim() + "\n````";
-  return `당신은 오디오 콘텐츠 서비스 "이어(ear)"의 **추천 메타 판정 담당**이다. 대본을 근거로 메타 5종을 판정한다. 이 실행에는 도구가 없다 — 아래 입력만 본다.
+  return `당신은 오디오 콘텐츠 서비스 "이어(ear)"의 **추천 메타 판정 담당**이다. 대본을 근거로 메타 5종과 화면 해시태그(tags)를 판정한다. 이 실행에는 도구가 없다 — 아래 입력만 본다.
 
 ## 원칙
 - **판정은 대본 근거로만.** 대본 밖 지식으로 값을 보강하지 않는다. 대본에 없는 개념은 키워드에 넣지 않는다.
@@ -1450,7 +1454,7 @@ ${fence(i.script)}` : `
 ## 대본 없음 — 폴백(명세 4.5)
 제목·설명만으로 판정한다. keywords 는 제목+설명에서 뽑고 source 는 "title_description" 으로 적는다. difficulty·format 은 얕은 근거로 판정하지 말고 불능이면 생략한다. is_evergreen 은 판정 가능하면 적는다.`}
 
-## 완료 보고 — 반드시 요청된 JSON 스키마 형식으로만 출력한다. 판정 불능 키는 넣지 않는다. keywords 는 대본에 실제로 다뤄진 세부 개념의 명사구 3~8개(3개 미만이면 나온 만큼만, 0개면 생략). target_audiences 는 1~8세트, 직군·연차 무관한 범용 대본이면 생략.`;
+## 완료 보고 — 반드시 요청된 JSON 스키마 형식으로만 출력한다. 판정 불능 키는 넣지 않는다. keywords 는 대본에 실제로 다뤄진 세부 개념의 명사구 3~8개(3개 미만이면 나온 만큼만, 0개면 생략). target_audiences 는 1~8세트, 직군·연차 무관한 범용 대본이면 생략. tags 는 2~4개 — 꼭 맞는 것만, 개수를 채우려고 덜 맞는 태그를 넣지 않는다.`;
 }
 export const ENRICH_SCHEMA = {
   type: "object", additionalProperties: false, required: ["evidence"],
@@ -1459,9 +1463,10 @@ export const ENRICH_SCHEMA = {
     format: { type: "string", enum: ENRICH_FORMAT },
     is_evergreen: { type: "boolean" },
     keywords: { type: "array", items: { type: "string" }, maxItems: 8 },
+    tags: { type: "array", items: { type: "string" }, maxItems: 4 },
     target_audiences: { type: "array", maxItems: 8, items: { type: "object", additionalProperties: false, required: ["job_category", "years_of_experience"], properties: { job_category: { type: "string" }, years_of_experience: { type: "string", enum: ENRICH_YEARS } } } },
     source: { type: "string", enum: ["title_description"] },
-    evidence: { type: "object", additionalProperties: false, properties: { difficulty: { type: "string" }, format: { type: "string" }, is_evergreen: { type: "string" }, keywords: { type: "string" }, target_audiences: { type: "string" } } },
+    evidence: { type: "object", additionalProperties: false, properties: { difficulty: { type: "string" }, format: { type: "string" }, is_evergreen: { type: "string" }, keywords: { type: "string" }, tags: { type: "string" }, target_audiences: { type: "string" } } },
   },
 } as const;
 /** 대본 임베딩 (metadata-pipeline 4.3 Phase B) — AI 서버 `POST /embeddings` 응답. BE 가 `content_embeddings` 에 upsert (admin-api 4.6). 벡터는 1536차원·model 은 현재 모델과 일치해야 한다 */
@@ -1499,11 +1504,12 @@ export async function fetchEmbedding(text: string, opts: { url: string; token: s
   } finally { clearTimeout(t); }
 }
 
-export interface EnrichmentFile { schema_version: number; difficulty?: string; format?: string; is_evergreen?: boolean; keywords?: string[]; embedding?: EnrichmentEmbedding; target_audiences?: { job_category: string; years_of_experience: string }[]; source?: "title_description" }
-/** finalize.py 와 같은 규칙: 키워드 NFC 정규화·공백 정리·중복 제거·주제명 반복 제거·상한 8, enum 글자 일치 검증. 실패면 errors 를 돌려주고 파일을 만들지 않는다 */
-export function normalizeEnrichment(raw: Record<string, unknown>, topicNames: string[], jobCategories: string[]): { file: EnrichmentFile | null; errors: string[]; warnings: string[] } {
+export interface EnrichmentFile { schema_version: number; difficulty?: string; format?: string; is_evergreen?: boolean; keywords?: string[]; tags?: string[]; embedding?: EnrichmentEmbedding; target_audiences?: { job_category: string; years_of_experience: string }[]; source?: "title_description" }
+/** finalize.py 와 같은 규칙: 키워드 NFC 정규화·공백 정리·중복 제거·주제명 반복 제거·상한 8, enum 글자 일치 검증. 실패면 errors 를 돌려주고 파일을 만들지 않는다.
+ *  tags(KAN-139)는 늘 정규화해 돌려주고(리포트용), opts.tags 일 때만 파일에 싣고 형식을 3으로 올린다. 규칙 밖 태그는 그 태그만 빼고, 2개 미만이면 키를 뺀다 — 태그 때문에 파일 전체를 버리지 않는다 */
+export function normalizeEnrichment(raw: Record<string, unknown>, topicNames: string[], jobCategories: string[], opts: { tags?: boolean } = {}): { file: EnrichmentFile | null; errors: string[]; warnings: string[]; tags: string[] } {
   const errors: string[] = [], warnings: string[] = [];
-  const file: EnrichmentFile = { schema_version: ENRICHMENT_SCHEMA_VERSION };
+  const file: EnrichmentFile = { schema_version: opts.tags ? ENRICHMENT_SCHEMA_VERSION_TAGS : ENRICHMENT_SCHEMA_VERSION };
   if (raw.difficulty != null) { if ((ENRICH_DIFFICULTY as readonly string[]).includes(String(raw.difficulty))) file.difficulty = String(raw.difficulty); else errors.push(`difficulty enum 불일치: ${String(raw.difficulty)}`); }
   if (raw.format != null) { if ((ENRICH_FORMAT as readonly string[]).includes(String(raw.format))) file.format = String(raw.format); else errors.push(`format enum 불일치: ${String(raw.format)}`); }
   if (raw.is_evergreen != null) { if (typeof raw.is_evergreen === "boolean") file.is_evergreen = raw.is_evergreen; else errors.push("is_evergreen 이 boolean 이 아님"); }
@@ -1534,9 +1540,24 @@ export function normalizeEnrichment(raw: Record<string, unknown>, topicNames: st
     if (out.length > 8) { warnings.push(`청자 세트 ${out.length} → 8`); out.length = 8; }
     if (out.length) file.target_audiences = out;
   }
-  const missing = ["difficulty", "format", "is_evergreen", "keywords", "target_audiences"].filter((k) => !(k in file));
+  const tags: string[] = [];
+  if (Array.isArray(raw.tags)) {
+    const topics = new Set(topicNames.map((t) => t.normalize("NFC").replace(/\s+/g, "").toLowerCase()));
+    for (const t of raw.tags) {
+      if (typeof t !== "string") continue;
+      const n = t.normalize("NFC").trim().replace(/^#+/, "");
+      if (!ENRICH_TAG_RE.test(n)) { warnings.push(`태그 규칙 밖 제외: ${n}`); continue; }
+      if (topics.has(n.toLowerCase())) { warnings.push(`주제명 반복 태그 제외: ${n}`); continue; }
+      if (tags.some((x) => x.toLowerCase() === n.toLowerCase())) continue;
+      tags.push(n);
+    }
+    if (tags.length > 4) { warnings.push(`태그 ${tags.length}개 → 4개로 자름`); tags.length = 4; }
+    if (tags.length === 1) { warnings.push(`태그 1개 — 2개 미만이라 뺌: ${tags[0]}`); tags.length = 0; }
+    if (opts.tags && tags.length) file.tags = [...tags];
+  }
+  const missing = ["difficulty", "format", "is_evergreen", "keywords", "target_audiences", ...(opts.tags ? ["tags"] : [])].filter((k) => !(k in file));
   if (missing.length) warnings.push(`생략된 키: ${missing.join(", ")} (partial)`);
-  return { file: errors.length ? null : file, errors, warnings };
+  return { file: errors.length ? null : file, errors, warnings, tags };
 }
 
 export const CLUSTER_SCHEMA_V2 = {

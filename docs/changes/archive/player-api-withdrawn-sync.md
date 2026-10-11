@@ -4,7 +4,7 @@
 |---|---|
 | 대상 문서 | `docs/spec/api/player-api.md`(등재 위치 제안 — 아래) · `docs/features/partner-control.md` 4.3 |
 | 발행 날짜 | 2026-09-08 |
-| 발견 시점 | `tickets/backend/pending/withdrawn-sync-stops-playback.md` 구현 — 계약이 `partner-control.md` 본문 언급뿐이라 확정 등재가 필요하고, 재생 중단 신호 채널이 새로 정해졌다 |
+| 발견 시점 | `tickets/backend/archive/withdrawn-sync-stops-playback.md` 구현 — 계약이 `partner-control.md` 본문 언급뿐이라 확정 등재가 필요하고, 재생 중단 신호 채널이 새로 정해졌다 |
 | 요청 파트 | 백엔드 |
 
 ## 수정 내용

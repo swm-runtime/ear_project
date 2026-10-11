@@ -2,7 +2,8 @@ import { cfg } from "../config.js";
 import { ApiLimit, log, sleep } from "../util.js";
 
 /**
- * ElevenLabs 클라이언트 (spec/06) — 다중화자 1콜(Text to Dialogue, eleven_v3) 확정 (2026-09-02 박수헌).
+ * ElevenLabs 클라이언트 (spec/06) — 다중화자 1콜(Text to Dialogue) 확정 (2026-09-02 박수헌). 모델 eleven_v4 (2026-10-08, 이전 eleven_v3).
+ * 설정은 `settings: {stability, similarity}` 만 받는다(대화 API — 단일 TTS 의 similarity_boost 와 이름이 다르다). 값은 cfg.ttsStability·ttsSimilarity.
  * 요청당 권장 총 2,000자 · 분할은 턴 경계(chunkTurns) · seed 고정으로 재현성을 시도한다.
  * 출력 포맷은 사다리로 시도한다: 무손실 44.1kHz(Pro+) → mp3 192k → mp3 128k(전 티어). 2026-10-06 Pro 전환(KAN-142) — 그 전 원본은 mp3 128k 였다.
  * 구독 제한을 만나면 한 단계 내려가 그 작업이 끝날 때까지 고정한다 — 한 에피소드 안에서 포맷을 섞지 않는다. 다음 작업은 resetFormat() 으로 맨 위부터 다시 시도한다.
@@ -19,6 +20,7 @@ let fmtIdx = 0;
 export function resetFormat(): void { fmtIdx = 0; }
 
 export interface DialogueInput { text: string; voice_id: string }
+const dialogueSettings = () => ({ stability: cfg.ttsStability, similarity: cfg.ttsSimilarity });
 export interface SynthResult { data: Buffer; format: AudioFormat }
 
 /**
@@ -73,7 +75,7 @@ const isTierError = (status: number, body: string) =>
 export async function synthDialogue(inputs: DialogueInput[], seed: number, opts: { onRetry?: (msg: string) => void } = {}): Promise<SynthResult> {
   for (let retry = 0; ; ) {
     const format = FORMATS[fmtIdx];
-    const res = await call(`/text-to-dialogue?output_format=${format}`, { model_id: cfg.ttsModel, inputs, seed, settings: { stability: 0.5 } });
+    const res = await call(`/text-to-dialogue?output_format=${format}`, { model_id: cfg.ttsModel, inputs, seed, settings: dialogueSettings() });
     if (res.ok) return { data: Buffer.from(await res.arrayBuffer()), format };
     const body = (await res.text()).slice(0, 400);
     throwIfLimit(res.status, body, false); // 크레딧 소진은 재시도해도 같다 — 바로 멈춤
@@ -99,6 +101,7 @@ export interface TimestampedSynth { audio: Buffer; format: AudioFormat; chars: s
 /**
  * 단일 화자 합성 + 문자 타임스탬프. 콜드오픈 발췌 절단용이었으나 콜드오픈 폐지(2026-09-07)로 **현재 사용처 없음** —
  * 부분 재합성·구간 절단이 다시 필요할 때를 위해 남겨 둔다. 포맷은 TS_FORMATS 사다리.
+ * 주의(2026-10-08): eleven_v4 는 문서상 Text to Dialogue 전용이라 이 경로(Text to Speech)에서는 모델을 따로 확인해야 한다.
  */
 export async function synthTurnWithTimestamps(voiceId: string, text: string, seed: number): Promise<TimestampedSynth> {
   for (let retry = 0; ; ) {
@@ -130,7 +133,7 @@ export async function synthTurnWithTimestamps(voiceId: string, text: string, see
 export async function synthDialogueWithTimestamps(inputs: DialogueInput[], seed: number, opts: { onRetry?: (msg: string) => void } = {}): Promise<TimestampedSynth> {
   for (let retry = 0; ; ) {
     const format = TS_FORMATS[fmtIdx];
-    const res = await call(`/text-to-dialogue/with-timestamps?output_format=${format}`, { model_id: cfg.ttsModel, inputs, seed, settings: { stability: 0.5 } });
+    const res = await call(`/text-to-dialogue/with-timestamps?output_format=${format}`, { model_id: cfg.ttsModel, inputs, seed, settings: dialogueSettings() });
     if (res.ok) {
       const d = (await res.json()) as { audio_base64: string; alignment?: { characters: string[]; character_start_times_seconds: number[]; character_end_times_seconds: number[] } };
       const a = d.alignment;

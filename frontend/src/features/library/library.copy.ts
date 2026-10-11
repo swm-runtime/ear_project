@@ -92,10 +92,13 @@ export const LIBRARY_COPY = {
     },
   },
 
-  /** 상단 배너 — 한 번에 하나, 우선순위는 오프라인 > 드립 준비 중 > 새 콘텐츠 도착 */
+  arrivalBadge: {
+    a11y: (count: number) => `라이브러리, 새 콘텐츠 ${count}편 도착`,
+  },
+
+  /** 상단 배너 — 오프라인·드립 준비 안내. 새 도착은 하단 탭 배지로 표시한다. */
   banner: {
     offline: '오프라인 상태예요',
-    newArrivals: (count: number) => `새 콘텐츠 ${count}개 도착`,
     dripPreparing: '콘텐츠를 준비하고 있어요',
     addInterest: '관심 주제 추가하기',
   },

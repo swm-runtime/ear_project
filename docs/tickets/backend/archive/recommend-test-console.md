@@ -12,7 +12,7 @@
 | Jira | [KAN-115](https://runtime364.atlassian.net/browse/KAN-115) (담당: 박준현) |
 | 중요도 | Medium — 배포 전 추천 평가(KAN-108) 의 실험 도구. 마감이 안 맞으면 등급을 내리지 말고 사유를 적는다 |
 | 상태 | **완료** — 2026-09-30 archive (반영 날짜 2026-09-30) |
-| 관련 | `tickets/backend/pending/pre-release-recommendation-evaluation.md`(KAN-108) — 이 콘솔이 그 평가의 수동 실험 면이다 · `changes/archive/admin-api-recommend-test.md`(문서 반영) |
+| 관련 | `tickets/backend/archive/pre-release-recommendation-evaluation.md`(KAN-108) — 이 콘솔이 그 평가의 수동 실험 면이다 · `changes/archive/admin-api-recommend-test.md`(문서 반영) |
 
 ## 요청
 

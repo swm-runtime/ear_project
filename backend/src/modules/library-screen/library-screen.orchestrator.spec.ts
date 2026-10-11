@@ -115,7 +115,6 @@ describe('LibraryScreenOrchestrator', () => {
     playbackService = {
       findProgress: jest.fn().mockResolvedValue(null),
       findProgresses: jest.fn().mockResolvedValue([]),
-      findStartedContentIds: jest.fn().mockResolvedValue([]),
       findCountedContentIds: jest.fn().mockResolvedValue(new Set<string>()),
       buildQuotaForUser: jest.fn().mockResolvedValue(QUOTA),
       recordSignal: jest.fn(),
@@ -326,7 +325,6 @@ describe('LibraryScreenOrchestrator', () => {
         USER_ID,
         NOW,
       );
-      expect(playbackService.findStartedContentIds).not.toHaveBeenCalled();
     });
   });
 

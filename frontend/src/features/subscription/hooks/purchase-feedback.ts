@@ -1,3 +1,5 @@
+import { IS_DEV_API } from '@/shared/lib/app-version';
+
 import type {
   PurchaseFailure,
   PurchaseOutcome,
@@ -31,6 +33,16 @@ export const failureMessage = (reason: PurchaseFailure): string => {
       return SUBSCRIPTION_COPY.error.receiptInvalid;
     case 'ownedByAnotherAccount':
       return SUBSCRIPTION_COPY.error.ownedByAnotherAccount;
+    case 'alreadySubscribed':
+      return SUBSCRIPTION_COPY.error.alreadySubscribed;
+    case 'replaceSourceMissing':
+      return SUBSCRIPTION_COPY.error.replaceSourceMissing;
+    case 'downgradeNeedsUpdate':
+      return SUBSCRIPTION_COPY.error.downgradeNeedsUpdate;
+    case 'changeRejected':
+      return SUBSCRIPTION_COPY.error.changeRejected;
+    case 'downgradeAlreadyScheduled':
+      return SUBSCRIPTION_COPY.result.downgradeAlreadyScheduled;
     case 'storeUnavailable':
       return SUBSCRIPTION_COPY.error.storeUnavailable;
     case 'network':
@@ -54,6 +66,14 @@ export const toPurchaseFeedback = (
           toast: SUBSCRIPTION_COPY.status.pendingPlan(pending.effectiveAt, pending.planName),
         };
       }
+      // iOS [유지] — 지금 요금제를 다시 사서 예약된 변경을 취소했다
+      if (action === 'current') {
+        return { ...NONE, toast: SUBSCRIPTION_COPY.result.keptCurrent };
+      }
+      // 예약이 서버에 아직 안 보이면(RTDN 대기) 날짜 없이 알린다 — "구독했어요"로 잘못 말하지 않는다
+      if (action === 'downgrade') {
+        return { ...NONE, toast: SUBSCRIPTION_COPY.result.downgradeScheduled };
+      }
       return {
         ...NONE,
         toast:
@@ -74,9 +94,20 @@ export const toPurchaseFeedback = (
     case 'delayed':
       return { ...NONE, notice: { message: SUBSCRIPTION_COPY.result.delayed, tone: 'info' } };
     case 'failed':
+      // 이미 예약돼 있음은 실패가 아니다 — 안내 톤, 원문을 붙이지 않는다
+      if (outcome.reason === 'downgradeAlreadyScheduled') {
+        return { ...NONE, notice: { message: failureMessage(outcome.reason), tone: 'info' } };
+      }
       return {
         toast: null,
-        notice: { message: failureMessage(outcome.reason), tone: 'error' },
+        notice: {
+          // 개발계 앱에는 스토어 실패 원문을 덧붙인다 — 테스트하는 사람이 로그 없이 원인을 본다(KAN-158)
+          message:
+            IS_DEV_API && outcome.detail
+              ? `${failureMessage(outcome.reason)}\n(${outcome.detail})`
+              : failureMessage(outcome.reason),
+          tone: 'error',
+        },
         shouldRefetchPlans: outcome.reason === 'planUnavailable',
       };
   }

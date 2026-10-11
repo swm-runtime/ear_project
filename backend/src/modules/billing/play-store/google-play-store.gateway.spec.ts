@@ -240,6 +240,7 @@ describe('GooglePlayStoreGateway', () => {
         accountToken: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
         environment: SubscriptionEnvironment.PRODUCTION,
         needsAcknowledge: true,
+        orderId: 'GPA.1234-5678-9012-34567',
       });
       // 토큰은 경로에 들어가므로 인코딩한다 — `/`·`+`가 그대로 나가면 다른 경로가 된다
       expect(requests).toEqual([
@@ -291,6 +292,51 @@ describe('GooglePlayStoreGateway', () => {
         needsAcknowledge: false,
         accountToken: null,
         isAutoRenew: false,
+        pendingProductId: 'ear_daily_monthly',
+      });
+    });
+
+    it('예약 줄에 autoRenewingPlan 이 아예 없어도 자동 갱신이다', async () => {
+      const { gateway } = buildGateway(FULL_ENV, {
+        respond: () =>
+          googlePurchase({
+            lineItems: [
+              {
+                productId: 'ear_pro_monthly',
+                expiryTime: '2026-11-01T00:00:00Z',
+                deferredItemReplacement: { productId: 'ear_daily_monthly' },
+              },
+            ],
+          }),
+      });
+
+      expect((await gateway.fetchPurchase('t'))?.isAutoRenew).toBe(true);
+    });
+
+    it('다운그레이드 예약 중인 줄은 autoRenewingPlan 이 없어도 자동 갱신이다 — 다음 갱신이 예약 상품으로 이어진다(2026-10-08 실측 응답)', async () => {
+      const { gateway } = buildGateway(FULL_ENV, {
+        respond: () =>
+          googlePurchase({
+            lineItems: [
+              // 실측: 예약된 상품의 자리표시 줄(만료 없음)과 지금 상품의 줄이 함께 온다
+              {
+                productId: 'ear_daily_monthly',
+                autoRenewingPlan: {},
+              },
+              {
+                productId: 'ear_pro_monthly',
+                expiryTime: '2026-11-01T00:00:00Z',
+                // 실측: autoRenewEnabled 가 없는 빈 객체
+                autoRenewingPlan: {},
+                deferredItemReplacement: { productId: 'ear_daily_monthly' },
+              },
+            ],
+          }),
+      });
+
+      expect(await gateway.fetchPurchase('t')).toMatchObject({
+        productId: 'ear_pro_monthly',
+        isAutoRenew: true,
         pendingProductId: 'ear_daily_monthly',
       });
     });
@@ -357,6 +403,18 @@ describe('GooglePlayStoreGateway', () => {
       ]);
     });
 
+    it('이미 확인된 구매(409)는 성공이다 — 영수증 제출과 알림이 같은 순간 와서 다른 경로가 먼저 확인했다', async () => {
+      const { gateway } = buildGateway(FULL_ENV, {
+        respond: () => {
+          throw new GoogleHttpError(409);
+        },
+      });
+
+      await expect(
+        gateway.acknowledge('ear_pro_monthly', 't'),
+      ).resolves.toBeUndefined();
+    });
+
     it('실패하면 재시도 대상으로 올린다 — 확인하지 못한 구매는 3일 뒤 환불된다', async () => {
       const { gateway } = buildGateway(FULL_ENV, {
         respond: () => {
@@ -395,6 +453,7 @@ describe('GooglePlayStoreGateway', () => {
         kind: 'subscription',
         type: 3,
         purchaseToken: 'token-1',
+        orderId: null,
         eventAt: new Date(1790000000000),
       });
       expect(verified).toEqual([
@@ -417,7 +476,12 @@ describe('GooglePlayStoreGateway', () => {
             },
           }),
         ),
-      ).toMatchObject({ kind: 'voided', purchaseToken: 'token-1' });
+      ).toMatchObject({
+        kind: 'voided',
+        purchaseToken: 'token-1',
+        // 지난 주기 결제분 환불을 가려내는 데 쓴다(2026-10-11)
+        orderId: 'GPA.1',
+      });
       // 일회성 상품의 환불(productType 2)은 구독이 아니다
       expect(
         await gateway.verifyNotification(

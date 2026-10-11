@@ -33,6 +33,7 @@ import { User } from '@/modules/user/entities/user.entity';
 ])
 @Index('idx_play_records_user_id_play_date', ['userId', 'playDate'])
 @Index('idx_play_records_content_id_play_date', ['contentId', 'playDate'])
+@Index('idx_play_records_play_date_user_id', ['playDate', 'userId'])
 export class PlayRecord extends BaseEntity {
   @PrimaryGeneratedColumn('increment', { type: 'bigint' })
   id: string;

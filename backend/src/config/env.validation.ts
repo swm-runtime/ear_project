@@ -154,6 +154,39 @@ export class EnvironmentVariables {
   SLACK_SIGNUP_WEBHOOK_URL?: string;
 
   /**
+   * Sentry 레거시 웹훅 → Slack 릴레이의 주소 토큰(`modules/alert/sentry-webhook.*`, 2026-10-07) — **선택.**
+   * 비우면 `POST /webhooks/sentry/:token` 이 전부 404 로 꺼진다. 넣으면 Sentry Internal Integration(Alert Rule Action)의
+   * Webhook URL 에 `https://<api>/api/v1/webhooks/sentry/<이 값>` 을 등록한다. 서명 헤더가 없는 연동이라 토큰이 유일한
+   * 인증이다 — 16자 이상, URL 에 그대로 들어가므로 영숫자·`-`·`_` 만.
+   */
+  @ValidateIf((env: EnvironmentVariables) =>
+    Boolean(env.SENTRY_WEBHOOK_TOKEN?.trim()),
+  )
+  @Matches(/^[A-Za-z0-9_-]{16,128}$/, {
+    message:
+      'SENTRY_WEBHOOK_TOKEN must be 16-128 chars of [A-Za-z0-9_-] (URL path safe)',
+  })
+  SENTRY_WEBHOOK_TOKEN?: string;
+
+  /**
+   * Sentry Internal Integration 의 **Client Secret**(2026-10-07) — Sentry 가 웹훅마다 보내는 `Sentry-Hook-Signature`
+   * (본문의 HMAC-SHA256)를 이것으로 검증한다. 있으면 토큰 없는 주소 `POST /webhooks/sentry` 가 열린다.
+   * 경로 토큰 방식(`SENTRY_WEBHOOK_TOKEN`)은 비밀이 요청 로그에 남으므로 이쪽을 권한다 — 둘 다 있으면 어느 하나가
+   * 맞으면 받는다(주소 교체 기간). 둘 다 비면 중계가 꺼진다
+   */
+  @IsOptional()
+  @IsString()
+  SENTRY_WEBHOOK_SECRET?: string;
+
+  /**
+   * 같은 Internal Integration 의 **API 토큰**(2026-10-07, 권한 Issue & Event: Read) — 중계 문구에 State · First Seen ·
+   * 건수를 붙이려고 `GET /api/0/issues/{id}/` 를 한 번 부른다. 비우면 조회 없이 이벤트 정보만으로 보낸다
+   */
+  @IsOptional()
+  @IsString()
+  SENTRY_API_TOKEN?: string;
+
+  /**
    * 추천 테스트 콘솔(admin 웹 "추천 테스트" 탭)이 대신 행동하는 테스트 계정의 이메일 — **개발계 전용**.
    * 비우면 콘솔 엔드포인트가 409 로 꺼지고, `SENTRY_ENVIRONMENT=production` 이면 값이 있어도 꺼진다.
    * 행동 버튼은 실제 신호·라이브러리를 쓰므로 운영 DB 에는 절대 붙이지 않는다(`features/admin.md` 4.7).

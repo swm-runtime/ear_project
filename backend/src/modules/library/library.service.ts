@@ -441,20 +441,6 @@ export class LibraryService {
     );
   }
 
-  /**
-   * 드립 후보에서 제외할 콘텐츠 — **`deleted_at` 여부와 무관하다**
-   * (`drip-scheduling.md` 4.2). 삭제한 콘텐츠도 재적립하지 않는다(FR-16).
-   */
-  async findAllContentIds(
-    userId: string,
-    manager?: EntityManager,
-  ): Promise<string[]> {
-    return this.libraryItemRepository.findAllContentIdsByUserId(
-      userId,
-      manager,
-    );
-  }
-
   async purgeByUserId(userId: string, manager?: EntityManager): Promise<void> {
     await this.libraryItemRepository.deleteByUserId(userId, manager);
   }

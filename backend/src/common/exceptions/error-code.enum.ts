@@ -181,8 +181,24 @@ export enum ErrorCode {
   SUBSCRIPTION_RECEIPT_INVALID = 'SUBSCRIPTION_RECEIPT_INVALID',
   /** 그 스토어 구독이 다른 계정에 연결돼 있다 */
   SUBSCRIPTION_OWNED_BY_ANOTHER_ACCOUNT = 'SUBSCRIPTION_OWNED_BY_ANOTHER_ACCOUNT',
+  /** 같은 스토어에 살아 있는 구독이 이미 있는데 교체가 아닌 두 번째 구독을 샀다(Play — `subscription-api.md` 4.4) */
+  SUBSCRIPTION_ALREADY_SUBSCRIBED = 'SUBSCRIPTION_ALREADY_SUBSCRIBED',
   /** 스토어 검증·조회의 일시 실패 — 거래를 끝내지 않고 재시도한다(retryable) */
   SUBSCRIPTION_STORE_UNAVAILABLE = 'SUBSCRIPTION_STORE_UNAVAILABLE',
+
+  // --- 초대 코드 (subscription-api.md 4.8 · admin-api.md 4.23, 2026-10-10) ---
+  /** 없는 코드이거나 운영자가 끈 코드다 */
+  INVITE_CODE_NOT_FOUND = 'INVITE_CODE_NOT_FOUND',
+  /** 입력 기간 밖이거나(시작 전·마감 뒤) 지급 마지막 날이 이미 지났다 */
+  INVITE_CODE_EXPIRED = 'INVITE_CODE_EXPIRED',
+  /** 사용 한도(계정 수)를 다 썼다 */
+  INVITE_CODE_EXHAUSTED = 'INVITE_CODE_EXHAUSTED',
+  /** 이 계정이 이미 쓴 코드다(지급 기간이 끝났거나 결제로 대체됐다) */
+  INVITE_CODE_ALREADY_USED = 'INVITE_CODE_ALREADY_USED',
+  /** 다른 코드로 받은 지급 기간이 아직 남아 있다 — 한 계정에 지급은 동시에 하나 */
+  INVITE_GRANT_ALREADY_ACTIVE = 'INVITE_GRANT_ALREADY_ACTIVE',
+  /** 관리자 — 같은 값의 코드가 이미 있다 */
+  INVITE_CODE_DUPLICATE = 'INVITE_CODE_DUPLICATE',
 
   // --- 콘텐츠 (공용 — common-error-handling.md 4.1) ---
   /** 담기 등에서 **건별 결과**로도 전달된다 (onboarding-api.md 4.6 `failed[]`) */

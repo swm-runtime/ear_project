@@ -48,5 +48,5 @@
 - 요청 본문 상한(`MAX_QUEUE_ORDER_SIZE`=200)은 뒤에 붙는 항목 수에 적용하지 않는다 — 상한은 본문 크기다.
 - 단위 테스트(`library.service.spec.ts`): 미지정 항목이 기존 순서 항목 뒤에 최신순으로 붙는 것(완료 조건 1), 저장 시점에 없던 항목은 건드리지 않아 `NULL`이 "마지막 저장 뒤 담긴 것"만 뜻하는 것(완료 조건 2). lint·build·전체 단위 테스트 통과. 로컬 DB 실측은 하지 않았다(이 환경에서 Docker 사용 불가).
 - 문서: `library-api.md` 4.8 서버 처리 4 개정(완료 조건 3), `domain.md` 6.1·`player.md` 4.7-1 정합 — `changes/archive/library-api-queue-order-unseen-items.md`.
-- FE: 바꿀 것 없다. 상한(50개)까지 받아 보내는 완화는 그대로 둬도 된다 — `tickets/frontend/pending/queue-order-api-migration.md` 처리 기록에 적었다.
+- FE: 바꿀 것 없다. 상한(50개)까지 받아 보내는 완화는 그대로 둬도 된다 — `tickets/frontend/archive/queue-order-api-migration.md` 처리 기록에 적었다.
 - 반영 날짜: 2026-09-19. Jira KAN-75는 PR 머지 시 완료로 넘긴다.

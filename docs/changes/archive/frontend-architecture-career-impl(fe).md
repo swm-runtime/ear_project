@@ -30,7 +30,7 @@ mock도 원본을 career mock 하나로 통합했다 — 프로필 mock의 `care
 갱신한다 — 온보딩에서 입력한 값이 프로필 카드·커리어 정보 화면에 이어진다
 (`seedInterestMockFromOnboarding`과 같은 패턴). 직군 목록(`GET /job-categories` —
 `career-api.md` 4.3 소유, 온보딩과 공용)의 온보딩 쪽 교체는 백엔드 발행 티켓
-`tickets/frontend/pending/onboarding-job-categories-server-list.md`가 소유하며, 반영 시
+`tickets/frontend/archive/onboarding-job-categories-server-list.md`가 소유하며, 반영 시
 이 의존(`useJobCategoriesQuery` · `careerKeys.jobCategories()` 공용)이 코드로 실현된다.
 
 ### 3. 저장 성공 시 프로필 요약 invalidate — 브리지 주입(표 방향 유지)

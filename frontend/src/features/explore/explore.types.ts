@@ -14,6 +14,8 @@ export interface ExploreContent {
   /** 재발행 판정용(domain.md 5.1) */
   contentVersion: number;
   topicIds: string[];
+  /** 콘텐츠 해시태그('#' 없이) — 주제(분류)와 별개인 내용 표시. 없으면 빈 배열(KAN-163) */
+  tags: string[];
 }
 
 /**

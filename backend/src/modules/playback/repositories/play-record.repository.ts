@@ -199,6 +199,39 @@ export class PlayRecordRepository {
   }
 
   /**
+   * 지정한 서비스 날짜들에 **청취 시간 합이 `listenedSec`보다 많은 사용자 수** — 주간 청취 상위 %의
+   * 원천(`profile-api.md` 4.1 `listening_top_percent`, KAN-168).
+   *
+   * 사용자 목록이 아니라 수만 센다 — 순위에는 "나보다 많은 사람 수"만 필요하다. 탈퇴자의 기록은
+   * `users` FK CASCADE로 함께 지워져 따로 거를 것이 없다.
+   */
+  async countUsersListenedMoreInPlayDates(
+    playDates: string[],
+    listenedSec: number,
+    manager?: EntityManager,
+  ): Promise<number> {
+    if (playDates.length === 0) {
+      return 0;
+    }
+
+    // 저장소의 `createQueryBuilder()`는 엔티티를 FROM 에 깔아 아래 서브쿼리와 교차 조인된다 — 매니저에서 빈 빌더로 시작한다
+    const row = await this.scoped(manager)
+      .manager.createQueryBuilder()
+      .select('COUNT(*)', 'count')
+      .from((subQuery) => {
+        return subQuery
+          .select('record.user_id', 'user_id')
+          .from(PlayRecord, 'record')
+          .where('record.play_date IN (:...playDates)', { playDates })
+          .groupBy('record.user_id')
+          .having('SUM(record.listened_sec) > :listenedSec', { listenedSec });
+      }, 'listener')
+      .getRawOne<{ count: string }>();
+
+    return Number(row?.count ?? 0);
+  }
+
+  /**
    * 콘텐츠별 누적 청취 시간 — 주제 분포 집계의 원천(`profile.md` 4.7).
    *
    * 주제까지 한 쿼리로 조인하지 않는 이유는 `content_topics`가 **content 모듈 소유**이기

@@ -21,6 +21,11 @@ export interface ExploreContentDto {
   thumbnail_url: string;
   content_version: number;
   topic_ids: string[];
+  /**
+   * 화면 해시태그('#' 없이, 2~4개 — explore-api.md 4.1 `content.tags`, KAN-162). 없으면 빈 배열.
+   * 선택 필드 — 아직 안 보내는 서버에서는 없고, 그때는 빈 배열로 읽는다
+   */
+  tags?: string[];
 }
 
 export interface ExploreLibraryStateDto {
@@ -53,7 +58,7 @@ export interface ExploreFeedResponseDto extends PlayLimitFieldsDto {
 
 /** GET /explore/contents (explore-api.md 4.2) */
 export interface ExploreContentsRequestDto {
-  /** uuid 콤마 구분, 1개 이상 필수. 다중 선택은 OR 조합 */
+  /** uuid 콤마 구분, 1개 이상 필수. 다중이면 OR 조합 — 앱은 2026-10-09 부터 하나만 보낸다(칩 단일 선택) */
   topic_ids: string;
   cursor?: string;
   limit?: number;

@@ -17,7 +17,8 @@ export interface PlanDto {
   price_krw: number;
   store_product_id: string | null;
   entitlements: EntitlementsDto;
-  action: 'purchase' | 'current' | 'upgrade' | 'downgrade' | 'none';
+  /** `cancel`(2026-10-08 — KAN-159): 유료 구독자의 무료 요금제. 고르면 스토어 구독 관리(해지)로 보낸다 */
+  action: 'purchase' | 'current' | 'upgrade' | 'downgrade' | 'cancel' | 'none';
 }
 
 /** 4.1 GET /plans?platform= */

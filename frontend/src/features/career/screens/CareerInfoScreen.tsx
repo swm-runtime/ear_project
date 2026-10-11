@@ -1,8 +1,10 @@
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { useState } from 'react';
+import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { theme } from '@/shared/theme';
 import ChevronIcon from '@/shared/ui/ChevronIcon';
+import CloseIcon from '@/shared/ui/CloseIcon';
 import FullScreenError from '@/shared/ui/FullScreenError';
 import GlassCapsule, { HEADER_CONTROL_HEIGHT } from '@/shared/ui/GlassCapsule';
 import GlassIconButton from '@/shared/ui/GlassIconButton';
@@ -12,8 +14,10 @@ import { Text, TextInput } from '@/shared/ui/Typography';
 
 import { JOB_TITLE_MAX_LENGTH } from '../career.constants';
 import { CAREER_COPY } from '../career.copy';
+import { jobCategoryImageSource } from '../career.images';
 import type { YearsOfExperienceRange } from '../career.types';
 import CareerDialog from '../components/CareerDialog';
+import YearsSegment from '../components/YearsSegment';
 import { useCareerInfoScreen } from '../hooks/useCareerInfoScreen';
 
 const YEARS_OPTIONS: YearsOfExperienceRange[] = ['0-1', '2-3', '4-6', '7+'];
@@ -25,6 +29,13 @@ const YEARS_OPTIONS: YearsOfExperienceRange[] = ['0-1', '2-3', '4-6', '7+'];
  */
 export default function CareerInfoScreen() {
   const screen = useCareerInfoScreen();
+  const [isJobTitleFocused, setIsJobTitleFocused] = useState(false);
+  /**
+   * 직군 칩은 **2열 같은 크기**다(PM 2026-10-10 18:09 "알약에 들어갈 때 사진이 잘린다") — 이름 길이대로 폭이 달라지면
+   * 같은 사진이 칩마다 다르게 잘렸다. 줄 폭을 재서 반씩 나누고, 높이를 고정해 비율(≈3:1)을 사진(3:1로 미리 자름)과 맞춘다
+   */
+  const [chipRowWidth, setChipRowWidth] = useState(0);
+  const chipWidth = chipRowWidth > 0 ? (chipRowWidth - theme.spacing.sm) / 2 : undefined;
 
   return (
     <SafeAreaView style={styles.container}>
@@ -73,6 +84,10 @@ export default function CareerInfoScreen() {
       ) : (
         <>
           <ScrollView contentContainerStyle={styles.form}>
+            {/* 큰 제목 — 관심 주제 관리와 같은 머리말(PM 2026-10-10). 서버 응답과 무관해 로딩 중에도 그린다(uiux 4.1) */}
+            <Text style={styles.headline} accessibilityRole="header">
+              {CAREER_COPY.headline}
+            </Text>
             {screen.isLoading ? (
               screen.showSkeleton ? (
                 // form 의 세로 간격을 그대로 이어받는다 — 낭독·반짝임은 영역 하나로
@@ -93,19 +108,36 @@ export default function CareerInfoScreen() {
                 <Text style={styles.fieldLabel}>{CAREER_COPY.jobCategoryLabel}</Text>
                 {/* 온보딩 O4와 같은 칩 선택형(변경 2026-08-12 — 바텀시트에서 통일). 선택지는
                     서버 목록을 받은 순서대로 그린다. 재탭 해제가 값을 비우는 경로다 */}
-                <View style={styles.chipRow}>
+                <View
+                  style={styles.chipRow}
+                  onLayout={(event) => setChipRowWidth(event.nativeEvent.layout.width)}
+                >
                   {screen.jobCategories.map((category) => {
                     const isSelected = screen.jobCategory === category.name;
                     return (
                       <Pressable
                         key={category.name}
-                        style={[styles.chip, isSelected && styles.chipSelected]}
+                        style={[
+                          styles.chip,
+                          { width: chipWidth },
+                          isSelected && styles.chipSelected,
+                        ]}
                         disabled={screen.isSaving}
                         onPress={() => screen.toggleJobCategory(category.name)}
                         accessibilityRole="checkbox"
                         accessibilityState={{ checked: isSelected, disabled: screen.isSaving }}
                         accessibilityLabel={category.name}
                       >
+                        {/* 배경 사진 + 막 — 고른 칩은 사진이 짙게 살아나고 흰 글자, 나머지는 흰 막에 물러난다(PM 2026-10-10 17:47) */}
+                        <Image
+                          source={jobCategoryImageSource(category.name)}
+                          resizeMode="cover"
+                          style={styles.chipPhoto}
+                        />
+                        <View
+                          style={[styles.chipScrim, isSelected && styles.chipScrimSelected]}
+                          pointerEvents="none"
+                        />
                         <Text style={[styles.chipLabel, isSelected && styles.chipLabelSelected]}>
                           {category.name}
                         </Text>
@@ -116,38 +148,54 @@ export default function CareerInfoScreen() {
 
                 <Text style={styles.fieldLabel}>{CAREER_COPY.jobTitleLabel}</Text>
                 {/* 상한에서 추가 입력을 받지 않는다. 카운터·에러 문구는 두지 않는다(uiux 4.4) */}
-                <TextInput
-                  style={styles.input}
-                  value={screen.jobTitle}
-                  onChangeText={screen.changeJobTitle}
-                  editable={!screen.isSaving}
-                  placeholder={CAREER_COPY.jobTitlePlaceholder}
-                  placeholderTextColor={theme.color.textSecondary}
-                  maxLength={JOB_TITLE_MAX_LENGTH}
-                  accessibilityLabel={CAREER_COPY.jobTitleLabel}
-                />
+                {/*
+                  **테두리 없는 면 입력칸**(PM 2026-10-10) — 검색창·연차 트랙과 같은 연회색 면. 종전 1.5 테두리 상자는 이 화면과
+                  앱의 다른 입력칸(면)과 재질이 달랐다. 입력 중엔 면을 살짝 짙게, 글자가 있으면 오른쪽 지우기(iOS 기본 동작 —
+                  Android 엔 기본 지우기가 없어 직접 그린다)
+                */}
+                <View style={[styles.field, isJobTitleFocused && styles.fieldFocused]}>
+                  <TextInput
+                    style={styles.input}
+                    value={screen.jobTitle}
+                    onChangeText={screen.changeJobTitle}
+                    onFocus={() => setIsJobTitleFocused(true)}
+                    onBlur={() => setIsJobTitleFocused(false)}
+                    editable={!screen.isSaving}
+                    placeholder={CAREER_COPY.jobTitlePlaceholder}
+                    placeholderTextColor={theme.color.textSecondary}
+                    maxLength={JOB_TITLE_MAX_LENGTH}
+                    returnKeyType="done"
+                    clearButtonMode="never"
+                    accessibilityLabel={CAREER_COPY.jobTitleLabel}
+                  />
+                  {screen.jobTitle.length > 0 && !screen.isSaving ? (
+                    <Pressable
+                      style={styles.clearButton}
+                      onPress={() => screen.changeJobTitle('')}
+                      accessibilityRole="button"
+                      accessibilityLabel={CAREER_COPY.jobTitleClearA11y}
+                    >
+                      <View style={styles.clearDisc}>
+                        <CloseIcon
+                          size={CLEAR_ICON_SIZE}
+                          color={theme.color.onPrimary}
+                          strokeWidth={2.6}
+                        />
+                      </View>
+                    </Pressable>
+                  ) : null}
+                </View>
 
                 <Text style={styles.fieldLabel}>{CAREER_COPY.yearsLabel}</Text>
-                <View style={styles.chipRow}>
-                  {YEARS_OPTIONS.map((option) => {
-                    const isSelected = screen.yearsOfExperience === option;
-                    return (
-                      <Pressable
-                        key={option}
-                        style={[styles.chip, isSelected && styles.chipSelected]}
-                        disabled={screen.isSaving}
-                        onPress={() => screen.toggleYears(option)}
-                        accessibilityRole="checkbox"
-                        accessibilityState={{ checked: isSelected, disabled: screen.isSaving }}
-                        accessibilityLabel={CAREER_COPY.yearsChip[option]}
-                      >
-                        <Text style={[styles.chipLabel, isSelected && styles.chipLabelSelected]}>
-                          {CAREER_COPY.yearsChip[option]}
-                        </Text>
-                      </Pressable>
-                    );
-                  })}
-                </View>
+                {/* 연차 — 칸이 고정된 4택이라 **한 줄 구간 선택**(세그먼트, PM 2026-10-10). 줄바꿈 칩보다 같은 질문의 답으로
+                    읽힌다. 선택한 칸을 다시 누르면 해제(빈 값 저장 경로 — uiux 4.4)는 그대로다 */}
+                <YearsSegment
+                  options={YEARS_OPTIONS}
+                  labels={CAREER_COPY.yearsChip}
+                  value={screen.yearsOfExperience}
+                  onToggle={screen.toggleYears}
+                  disabled={screen.isSaving}
+                />
               </>
             )}
           </ScrollView>
@@ -222,6 +270,13 @@ const BACK_ICON_SIZE = 20;
 /** 보이는 40 을 터치 44 로 채운다(design.md §6) */
 const RESET_HIT_SLOP = 2;
 
+/** 지우기 원 · 그 안 × 크기 */
+const CLEAR_DISC_SIZE = 18;
+const CLEAR_ICON_SIZE = 9;
+
+/** 직군 칩 높이 — 2열 칩 폭(≈168pt)과 사진 비율 3:1 이 맞는 값 */
+const JOB_CHIP_HEIGHT = 56;
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -272,8 +327,18 @@ const styles = StyleSheet.create({
   },
   form: {
     paddingHorizontal: theme.spacing.lg,
-    paddingVertical: theme.spacing.md,
+    // 위는 큰 제목이 앱바 밑 8 에서 시작하게(관심 주제 관리 머리말과 같은 자리)
+    paddingTop: theme.spacing.sm,
+    paddingBottom: theme.spacing.md,
     gap: theme.spacing.sm,
+  },
+  // 큰 제목 — 관심 주제 관리 headline 과 같은 값(28·700)
+  headline: {
+    fontSize: theme.font.size.xl,
+    fontWeight: '700',
+    letterSpacing: -0.6,
+    color: theme.color.textPrimary,
+    lineHeight: theme.font.size.xl * 1.25,
   },
   notice: {
     fontSize: theme.font.size.sm,
@@ -285,36 +350,87 @@ const styles = StyleSheet.create({
     color: theme.color.textPrimary,
     marginTop: theme.spacing.md,
   },
-  input: {
+  // 면 입력칸 — 연차 트랙과 같은 surface, 테두리 없음. 높이는 연차 줄과 같은 44, 모양도 같은 **알약**(PM 2026-10-10
+  // "직무 텍스트박스도 알약으로" — 종전 md 12). 둥근 끝(22)에 글자가 붙지 않게 시작 여백을 lg 로
+  field: {
+    flexDirection: 'row',
+    alignItems: 'center',
     minHeight: theme.touchTarget.minHeight,
-    borderWidth: 1.5,
-    borderColor: theme.color.border,
-    borderRadius: theme.radius.md,
+    borderRadius: theme.radius.full,
     borderCurve: 'continuous',
-    paddingHorizontal: theme.spacing.md,
+    backgroundColor: theme.color.surface,
+    paddingLeft: theme.spacing.lg,
+  },
+  // 입력 중 — 테두리 대신 면만 한 단계 짙게(지금 여기를 쓰고 있다)
+  fieldFocused: {
+    backgroundColor: theme.color.border,
+  },
+  input: {
+    flex: 1,
+    minHeight: theme.touchTarget.minHeight,
+    paddingRight: theme.spacing.md,
     fontSize: theme.font.size.md,
     color: theme.color.textPrimary,
+  },
+  clearButton: {
+    minWidth: theme.touchTarget.minWidth,
+    minHeight: theme.touchTarget.minHeight,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  // iOS 기본 지우기와 같은 회색 원 + 흰 ×
+  clearDisc: {
+    width: CLEAR_DISC_SIZE,
+    height: CLEAR_DISC_SIZE,
+    borderRadius: CLEAR_DISC_SIZE / 2,
+    backgroundColor: theme.color.textSecondary,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   chipRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: theme.spacing.sm,
   },
+  // 사진 알약 — 테두리 없이 배경 사진(PM 2026-10-10 17:47). 사진·막 클리핑은 칩이 한 번만 한다
   chip: {
-    minHeight: theme.touchTarget.minHeight,
-    paddingHorizontal: theme.spacing.md,
+    height: JOB_CHIP_HEIGHT,
+    /*
+     * **칩에 패딩을 두지 않는다**(PM 2026-10-10 18:35 "사진 비율이 안 맞잖아") — 배경 사진의 width/height '100%' 가
+     * 패딩을 뺀 콘텐츠 박스로 풀려 사진이 칩보다 좁게 그려졌다(TopicChip 이 iOS 에서 겪은 것과 같다). 좌우 여백은 글자가 갖는다
+     */
     borderRadius: theme.radius.lg + theme.radius.sm,
     borderCurve: 'continuous',
-    borderWidth: 1.5,
-    borderColor: theme.color.border,
+    overflow: 'hidden',
     alignItems: 'center',
     justifyContent: 'center',
+    backgroundColor: theme.color.surface,
   },
-  chipSelected: {
-    borderColor: theme.color.primary,
-    backgroundColor: theme.color.primary,
+  chipSelected: {},
+  /** inset 과 퍼센트 크기를 함께 준다 — 웹에서 inset 만으로는 원본 크기가 남는다(TopicChip 과 같은 규칙) */
+  chipPhoto: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    width: '100%',
+    height: '100%',
+  },
+  // 고르지 않은 칩은 흰 막으로 물러나 글자가 검정으로 읽힌다 — 고른 칩과 밝기로 크게 갈려 색만이 아니라 대비로 구분된다
+  chipScrim: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: theme.color.backgroundWash,
+  },
+  chipScrimSelected: {
+    backgroundColor: 'rgba(0, 0, 0, 0.42)',
   },
   chipLabel: {
+    paddingHorizontal: theme.spacing.md,
     fontSize: theme.font.size.sm,
     // 선택 여부와 무관하게 굵기를 고정한다 — 선택 시 굵어지면 글자 폭이 변해
     // flexWrap 줄의 뒤 칩들이 밀린다(주제 칩과 같은 규칙 — onboarding-uiux.md 7장)
@@ -322,8 +438,12 @@ const styles = StyleSheet.create({
     color: theme.color.textPrimary,
   },
   chipLabelSelected: {
-    color: theme.color.onPrimary,
+    color: theme.color.onPhoto,
+    textShadowColor: theme.color.photoTextShadow,
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 4,
   },
+  // 연차 한 줄 구간 선택 — 옅은 트랙 위에 고른 칸만 검정(직군 칩의 선택과 같은 색)
   skeletonArea: {
     gap: theme.spacing.sm,
   },

@@ -9,6 +9,10 @@ import { UserTier } from '@/modules/user/user.enum';
 
 import { Subscription } from '../entities/subscription.entity';
 import {
+  isHigherTier,
+  toInviteGrantLastDate,
+} from '../policies/invite-code.policy';
+import {
   SubscriptionDraft,
   SubscriptionRepository,
 } from '../repositories/subscription.repository';
@@ -17,7 +21,14 @@ import {
   PlanStatus,
   SubscriptionStatus,
 } from '../subscription.enum';
-import { PlanView, TrialContext, TrialView } from '../subscription.types';
+import {
+  InviteGrantView,
+  PendingPlanView,
+  PlanView,
+  TrialContext,
+  TrialView,
+} from '../subscription.types';
+import { InviteCodeService } from './invite-code.service';
 import { moreGenerousLimit, PlanService } from './plan.service';
 
 /**
@@ -31,6 +42,7 @@ export class SubscriptionService {
   constructor(
     private readonly subscriptionRepository: SubscriptionRepository,
     private readonly planService: PlanService,
+    private readonly inviteCodeService: InviteCodeService,
   ) {}
 
   /**
@@ -100,9 +112,66 @@ export class SubscriptionService {
             dailyPlayLimitAfter: baseLimit,
           }
         : null;
-    const showsTrialPlan = trial !== null && status === PlanStatus.FREE;
-    const tier = showsTrialPlan ? UserTier.TRIAL : baseTier;
-    const plan = showsTrialPlan ? trialPlan : basePlan;
+    // 다운그레이드 예약(KAN-161) — 살아 있는 구독에만 있다. 결제 반영 정책이 종결 때 `pending_tier`를 비우지만,
+    // 무료로 그리는 상태에서는 값이 남아 있어도 보이지 않게 한 번 더 막는다
+    const pendingTier =
+      status !== PlanStatus.FREE ? (subscription?.pendingTier ?? null) : null;
+    const pendingPlanRow = pendingTier
+      ? await this.planService.findByTier(pendingTier, manager)
+      : null;
+    const pendingPlan: PendingPlanView | null = pendingTier
+      ? {
+          tier: pendingTier,
+          planName: pendingPlanRow?.name ?? pendingTier,
+          effectiveAt: subscription!.expiresAt,
+        }
+      : null;
+
+    /**
+     * 초대 코드 지급(`subscription-api.md` 4.8). 체험처럼 **`status`는 건드리지 않고**, 지급 요금제가 구독보다 높을 때만
+     * `tier`·`planName`·한도가 지급 요금제가 된다 — `users.tier` 캐시(재생 한도·음질 판정)와 같은 규칙이다
+     * (`BillingSyncService.syncUserTier`). `entitlements`도 이 `tier`로 조립되므로 화면 분기와 판정이 어긋나지 않는다.
+     */
+    const activeGrant = await this.inviteCodeService.findActiveGrant(
+      userId,
+      now,
+      manager,
+    );
+    const grantPlan = activeGrant
+      ? await this.planService.findByTier(activeGrant.redemption.tier, manager)
+      : null;
+    const grant: InviteGrantView | null = activeGrant
+      ? {
+          name: activeGrant.codeName,
+          tier: activeGrant.redemption.tier,
+          planName: grantPlan?.name ?? activeGrant.redemption.tier,
+          endsAt: activeGrant.redemption.endsAt,
+          lastDate: toInviteGrantLastDate(activeGrant.redemption.endsAt),
+        }
+      : null;
+    const showsGrantPlan = grant !== null && isHigherTier(grant.tier, baseTier);
+
+    const showsTrialPlan =
+      !showsGrantPlan && trial !== null && status === PlanStatus.FREE;
+    const tier = showsGrantPlan
+      ? grant.tier
+      : showsTrialPlan
+        ? UserTier.TRIAL
+        : baseTier;
+    const plan = showsGrantPlan
+      ? grantPlan
+      : showsTrialPlan
+        ? trialPlan
+        : basePlan;
+    // `null`이 무제한이라 `??`로 고르면 안 된다 — 요금제 행이 없을 때만 구독 한도로 내려간다
+    const shownLimit =
+      showsGrantPlan && grantPlan ? grantPlan.dailyPlayLimit : baseLimit;
+
+    // 체험 뒤 한도 안내는 지급까지 반영한 값이어야 한다 — 지급 Pro 인데 "체험 뒤 하루 2편"이라고 하면 틀린 안내다
+    const shownTrial =
+      trial !== null && showsGrantPlan
+        ? { ...trial, dailyPlayLimitAfter: shownLimit }
+        : trial;
 
     return {
       status,
@@ -111,9 +180,10 @@ export class SubscriptionService {
       planName: plan?.name ?? tier,
       dailyPlayLimit:
         trial !== null && trialPlan
-          ? moreGenerousLimit(baseLimit, trialPlan.dailyPlayLimit)
-          : baseLimit,
-      trial,
+          ? moreGenerousLimit(shownLimit, trialPlan.dailyPlayLimit)
+          : shownLimit,
+      grant,
+      trial: shownTrial,
       renewsAt:
         status === PlanStatus.SUBSCRIBED ? subscription!.expiresAt : null,
       expiresAt:
@@ -121,6 +191,7 @@ export class SubscriptionService {
           ? subscription!.expiresAt
           : null,
       hasPaymentIssue: status === PlanStatus.GRACE,
+      pendingPlan,
     };
   }
 
@@ -172,6 +243,25 @@ export class SubscriptionService {
       manager,
     );
     return selectCurrentSubscription(rows);
+  }
+
+  /**
+   * **권한이 살아 있는** 현재 구독 — 해지 예약(`cancelled`)도 만료일까지 유효하므로 포함한다(domain.md 8.2).
+   * 끝난 구독뿐이면 `null`.
+   *
+   * 티어 캐시 동기화와 초대 코드 입력의 "구독 중인가" 판정이 **같은 술어**를 써야 한다 — 입력은
+   * `hasLiveSubscription`(결제가 살아 있는가 — 탈퇴 동의용, `cancelled` 제외)으로, 동기화는 이쪽으로
+   * 판정했을 때 해지 예약 구독자의 지급이 입력 직후 "결제로 대체"돼 끝났다(2026-10-11 감사).
+   */
+  async findEntitled(
+    userId: string,
+    manager?: EntityManager,
+  ): Promise<Subscription | null> {
+    const current = await this.findCurrent(userId, manager);
+    return current !== null &&
+      NON_TERMINAL_SUBSCRIPTION_STATUSES.includes(current.status)
+      ? current
+      : null;
   }
 
   /** 스토어 구독의 자연 키로 찾는다(잠그지 않는다 — 주인 확인 등 읽기용) */

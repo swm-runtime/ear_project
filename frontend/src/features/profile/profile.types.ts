@@ -42,6 +42,8 @@ export interface ProfilePlan {
   hasPaymentIssue: boolean;
   /** 가입 체험(subscription.md 4.8). null이면 체험 중이 아니다 — 체험 여부는 tier가 아니라 이 값으로 본다 */
   trial: PlanTrial | null;
+  /** 예약된 요금제 변경(다운그레이드) — 다음 요금제 이름과 적용 시각. 없으면 null */
+  pendingPlan: { planName: string; effectiveAt: string } | null;
 }
 
 /** 가입 체험 — 서버가 판정한 날짜·한도를 그대로 싣는다(05시 경계 판정은 서버 몫) */
@@ -94,6 +96,8 @@ export interface WeeklyListening {
   topicDistribution?: TopicDistribution;
   /** 요일별(월~일 7개) 주제 분포 — 서버가 아직 안 보내면 undefined */
   dailyTopicDistributions?: TopicDistribution[];
+  /** 그 주 청취 시간 전체 가입자 중 상위 %(서버 판정). null 이면 표시하지 않는다 — 클라이언트가 다시 거르지 않는다 */
+  listeningTopPercent: number | null;
 }
 
 export interface TopicShare {

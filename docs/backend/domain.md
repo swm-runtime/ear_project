@@ -186,7 +186,7 @@ users
   nickname                  varchar         NULL 허용 (가입 시 미정 · 온보딩에서 입력)
   profile_image_url         varchar(2048)   NULL 허용 — 제공자 프로필 사진 URL. 파일이 아니라 제공자 CDN 주소만 보관하며 로그인마다 제공자 값으로 덮어쓴다(auth.md 4.1). 애플은 항상 NULL (도입 2026-09-16 — profile.md 미결 확정)
   role                      enum            user | admin          DEFAULT 'user'
-  tier                      enum            light | daily | pro   DEFAULT 'light'   ★캐시
+  tier                      enum            light | daily | pro   DEFAULT 'light'   ★캐시 — 구독(8.2)과 초대 코드 지급(8.6) 중 높은 쪽(2026-10-10)
   trial_ends_at             timestamptz     NULL   가입 체험이 끝나는 시각. 한 번만 쓴다(가입 시, 또는 도입 전 가입자가 처음 앱을 열 때). NULL = 체험을 받지 않은 계정 (도입 2026-10-03 — `subscription.md` 4.8)
   status                    enum            active | withdrawn    DEFAULT 'active'   ※ 아래 주석
   onboarding_completed      boolean         DEFAULT false
@@ -269,12 +269,22 @@ sessions
   issued_at                 timestamptz
   expires_at                timestamptz
   revoked_at                timestamptz     NULL
+  revoked_reason            enum            NULL   rotated | logout | reuse_detected   ★폐기 사유 (2026-10-10, KAN-167)
 
 idx_sessions_user_id
 idx_sessions_refresh_token_hash
+idx_sessions_expires_at           ★파기 배치용 (2026-10-10)
+idx_sessions_revoked_at           ★파기 배치용 (2026-10-10)
 ```
 
 - 다중 기기 동시 로그인을 허용한다. 로그아웃은 해당 기기 세션만 폐기한다(`auth.md` 7).
+- **`revoked_reason`은 폐기 때 `revoked_at`과 함께 쓴다**(2026-10-10, KAN-167). 갱신이 폐기된 토큰을 받았을 때 **탈취로 볼지의 근거**다 — 계약은 "이미 **회전된** 토큰의 재제출"만 탈취 의심(`auth-api.md` 4.3 `AUTH_REFRESH_TOKEN_REUSED`)이다.
+  - `rotated` — 갱신으로 회전됨. 이 토큰이 다시 오면 REUSED + 사용자 세션 전체 폐기.
+  - `logout` — 그 기기의 로그아웃. 이 토큰이 다시 오면 `AUTH_REFRESH_TOKEN_INVALID`만 — 로그아웃 204 직후 로컬 삭제 전에 자동 갱신이 실어 보낼 수 있는 정상 경합이라 다른 기기를 건드리지 않는다.
+  - `reuse_detected` — 재사용 감지로 함께 끊긴 세션. 회전된 토큰이 아니므로 다시 와도 INVALID다(이미 전부 끊겼다).
+  - **NULL** — 활성 세션, 또는 이 컬럼 도입 전에 폐기된 행(사유 모름). 폐기된 NULL 행은 **종전대로 회전으로 보고** REUSED로 판정한다 — 마이그레이션이 옛 행의 판정을 바꾸지 않게 한다. 폐기 행은 30일 뒤 지워지므로([12.1](#121-운영-중-삭제-정책)) 저절로 사라진다.
+  - 회원 탈퇴는 폐기가 아니라 행 삭제(`users` FK CASCADE)라 사유 값이 없다.
+  - 물리 컬럼은 `varchar(20)` + TypeScript enum `SessionRevokedReason`(`convention.md` 4.2). 대안으로 "같은 사용자·기기의 더 새 세션이 있으면 회전"이라는 추론(컬럼 없음)을 검토했으나, 회전 직후 새 세션까지 로그아웃된 경우 판정이 흐려져 사유를 직접 남겼다.
 - **원문 토큰을 저장하지 않는다.** 해시만 저장한다.
 
 ### 3.4 `withdrawal_logs`
@@ -506,8 +516,9 @@ contents
   format                    enum            NULL 허용 — news_analysis | howto | interview | opinion | case_study | overview ★추천 메타
   is_evergreen              boolean         NULL 허용 — true: 에버그린 / false: 시의성 ★추천 메타
   keywords                  jsonb           NULL 허용 — ["세부 키워드", ...] ★추천 메타
+  tags                      jsonb           NULL 허용 — ["ISA", "비과세", ...] 화면 해시태그 2~4개('#' 없이, 띄어쓰기 없는 한글·영문·숫자 2~10자). **추천 입력이 아니다** — 탐색 카드·상세 화면 표시용(신설 2026-10-08, KAN-162). NULL = 받은 적 없음(응답은 빈 배열)
   target_audiences          jsonb           NULL 허용 — [{ "jobCategory": "개발", "yearsOfExperience": "2-3" }, ...] ★추천 메타 5종째 (신설 2026-09-11) — 값 집합은 3.1의 커리어 입력과 동일(직군 목록 · 연차 구간 0-1|2-3|4-6|7+), 최대 8세트. 파일(`enrichment.json`)은 snake_case, 컬럼은 엔티티 필드명(camelCase)으로 저장한다
-  enrichment_schema_version int             NULL 허용 — 마지막으로 적용된 enrichment.json의 형식 버전(1: 메타 4종 / 2: target_audiences 추가). NULL = 메타 파일을 받은 적 없음 (신설 2026-09-11)
+  enrichment_schema_version int             NULL 허용 — 마지막으로 적용된 enrichment.json의 형식 버전(1: 메타 4종 / 2: target_audiences 추가 / 3: tags 추가 — 2026-10-08). NULL = 메타 파일을 받은 적 없음 (신설 2026-09-11)
   enriched_at               timestamptz     NULL 허용 — 마지막 메타 파일 적용 시각 (신설 2026-09-11)
   content_version           int             DEFAULT 1
   license_expires_at        timestamptz     NULL
@@ -607,7 +618,7 @@ content_scripts
   id                        uuid            PK
   content_id                uuid            FK → contents (ON DELETE CASCADE)
   segments                  jsonb           [{ start_sec, end_sec, speaker, text }]   ★speaker 추가 (2026-09-19, KAN-71)
-  sections                  jsonb           [{ start_sec, title }]   기본 '[]'   ★구간 제목 (2026-10-06, KAN-144)
+  sections                  jsonb           [{ start_sec, title, kind?, summary? }]   기본 '[]'   ★구간 제목 (2026-10-06, KAN-144) · kind(intro|lead|body|outro)·summary(≤40자) 선택 (2026-10-07, KAN-151)
   created_at · updated_at   timestamptz
 
 uq_content_scripts_content_id (content_id)
@@ -618,7 +629,7 @@ uq_content_scripts_content_id (content_id)
 - **`speaker`는 화자 표시명**("윤아"·"이음" — 대본이 2인 대화체, `ai/PIPELINE.md`)이며 1인 낭독·파트너 콘텐츠는 `null`. 시각은 초(소수 허용), **최종 배포본 기준**. `start_sec` 오름차순·겹침 없음은 적재 시 검증한다(admin-api.md 4.6 `script_file`).
 - 콘텐츠당 1행. 재발행으로 오디오가 바뀌면 시각도 바뀌므로 부분 갱신 없이 통째로 교체한다. **오디오가 바뀌는데 유효한 대본이 함께 오지 않으면 행을 삭제한다**(행 없음 = 자막 없음 — 2026-09-26, `admin-api.md` 4.10 "대본 삭제"). 옛 세그먼트를 남기면 새 오디오와 시각이 어긋난 자막이 내려간다.
 - **접근 통제는 오디오와 같다**(architecture.md 9.4) — 조회(`player-api.md` 4.7)는 재생 발급과 같은 판정을 거친다.
-- **`sections`는 구간 제목**(2026-10-06, KAN-144 — `tickets/backend/archive/content-script-sections.md`). 대본의 `### #n 제목` 구간 그대로이고 앞뒤에 인트로·도입·마무리가 붙어 한 편에 7~11개(0~30개로 제한). `start_sec`은 세그먼트와 같은 배포본 기준이라 **자막과 운명이 같다** — 같은 파일(`script_file` 객체 형식)로 같은 트랜잭션에서 통째로 교체되고, 행이 지워지면 함께 사라진다. 그래서 별도 테이블이 아니라 같은 행이다. 끝 시각은 없다 — 다음 구간의 시작이 끝이고, 현재 구간은 `start_sec ≤ 재생 위치`인 마지막 항목(`player-api.md` 4.1). `start_sec` **엄격한** 오름차순(같은 값 금지)·마지막 구간 < 오디오 길이·`title` ≤60자는 적재 시 검증한다(admin-api.md 4.6). 배열 형식 파일로 적재된 행·기존 행은 `[]`(구간 없음)이다 — 지금 나가 있는 오디오와 맞는 구간 시각은 소급해 만들 수 없어 재발행에서 함께 실린다.
+- **`sections`는 구간 제목**(2026-10-06, KAN-144 — `tickets/backend/archive/content-script-sections.md`). 대본의 `### #n 제목` 구간 그대로이고 앞뒤에 인트로·도입·마무리가 붙어 한 편에 7~11개(0~30개로 제한). `start_sec`은 세그먼트와 같은 배포본 기준이라 **자막과 운명이 같다** — 같은 파일(`script_file` 객체 형식)로 같은 트랜잭션에서 통째로 교체되고, 행이 지워지면 함께 사라진다. 그래서 별도 테이블이 아니라 같은 행이다. 끝 시각은 없다 — 다음 구간의 시작이 끝이고, 현재 구간은 `start_sec ≤ 재생 위치`인 마지막 항목(`player-api.md` 4.1). `start_sec` **엄격한** 오름차순(같은 값 금지)·마지막 구간 < 오디오 길이·`title` ≤60자는 적재 시 검증한다(admin-api.md 4.6). **`kind`·`summary`는 선택 키**(2026-10-07, KAN-151): `kind`는 구역(`intro` 인트로 · `lead` 도입 · `body` 본문 단락 · `outro` 마무리 — 플레이어 카드의 "개요 · 본론 · 결론" 라벨 근거), `summary`는 카드 아래 한 줄(≤40자). 없으면 항목에 키가 없다 — 종전 발행분은 그대로이고, 소급은 파이프라인 재발행(KAN-152)이 한다. 배열 형식 파일로 적재된 행·기존 행은 `[]`(구간 없음)이다 — 지금 나가 있는 오디오와 맞는 구간 시각은 소급해 만들 수 없어 재발행에서 함께 실린다.
 
 ### 5.4 `content_stats`
 
@@ -874,6 +885,7 @@ play_records
 uq_play_records_user_id_content_id_play_date (user_id, content_id, play_date)
 idx_play_records_user_id_play_date (user_id, play_date)
 idx_play_records_content_id_play_date (content_id, play_date)
+idx_play_records_play_date_user_id (play_date, user_id)   ★주간 청취 상위 %(KAN-168) — 날짜로 먼저 좁힌다 (2026-10-11)
 ```
 
 - **페이월 카운트의 유일한 근거다** (A-2). `daily_play_count`는 컬럼이 아니라 이 테이블의 집계다.
@@ -1190,6 +1202,7 @@ subscriptions
   pending_tier              enum            NULL   ★다운그레이드 예약 — 다음 갱신 때 바뀔 티어 (2026-10-02, `subscription-api.md` 4.2)
   environment               enum            production | sandbox   DEFAULT production   ★실결제와 스토어 시험 결제의 구분 (2026-10-02)
   last_notified_at          timestamptz     NULL   ★마지막으로 반영한 스토어 알림의 서명 시각 — 알림 순서 판정 (2026-10-02)
+  latest_order_id           text            NULL   ★마지막으로 반영한 Play 주문 ID(`latestOrderId`) — 환불 고정의 결제 주기 식별 (2026-10-07). App Store는 NULL
 
 uq_subscriptions_original_transaction_id (original_transaction_id)
 idx_subscriptions_user_id_status (user_id, status)
@@ -1202,6 +1215,7 @@ idx_subscriptions_user_id_status (user_id, status)
 - **Play에는 `original_transaction_id`가 없다 — 그 구독의 최초 구매 토큰을 이 컬럼에 쓴다.** 업·다운그레이드로 새 토큰이 발급되면 스토어 응답의 `linkedPurchaseToken`으로 기존 행을 찾아 같은 행을 갱신한다 — 이전 토큰은 최초 토큰(`original_transaction_id`)일 수도, 중간에 바뀐 토큰(`latest_receipt`)일 수도 있어 둘 다로 찾는다(`subscription-api.md` 4.7). **Play 구매 토큰은 수백 자라 컬럼 길이는 2048이다**(2026-10-03 — 종전 255. App Store ID는 십수 자리 숫자라 문제가 없었다). 탈퇴 시 이 값을 옮겨 담는 `archived_subscriptions.original_transaction_id`([11.5](#115-archived_subscriptions))도 같은 길이다 — 한쪽만 넓으면 Play 구독자의 탈퇴가 아카이브에서 실패한다.
 - `latest_receipt`에는 마지막으로 반영한 **서명된 거래(iOS JWS) 또는 구매 토큰(Android)** 을 둔다 — 만료 보정 때 스토어에 다시 묻는 열쇠다. 로그에는 남기지 않는다. **Play에서는 환불의 고정에도 쓴다**(2026-10-06) — `refunded`인 행은 이 값과 같은 구매 토큰의 조회 결과로 되살리지 않는다(`subscription-api.md` 4.7).
 - **`user_id`는 한 경우에만 바뀐다**(2026-10-06) — 이미 끝난 구독(`expired`·`refunded`)을 **다른 계정이 자기 결제 의도로 다시 결제**해 그 반영이 구독을 되살릴 때, 행을 결제한 계정으로 넘긴다(`subscription-api.md` 7장). 살아 있는 구독의 주인은 바뀌지 않는다.
+- **`latest_order_id`** 는 Play의 결제 주기 식별자다(2026-10-07, `subscription-api.md` 4.7 "환불의 고정"). Google은 갱신마다 새 주문 ID를 발급하므로, 환불로 끝난 행과 **같은 구매 토큰·같은 주문 ID**의 조회 결과는 되살리지 않고, 주문 ID가 바뀌었으면(그 뒤에 결제가 됐다) 되살린다. 종전의 만료 시각 비교는 유예로 밀린 만료 시각 때문에 유예 길이가 결제 주기와 비슷하면 정당한 재결제를 막았다. App Store는 거래 ID가 그 역할을 해 비워 둔다.
 - **`status = expired`가 스토어의 답이 아닐 수 있다**(2026-10-06) — 만료 보정이 스토어에 확인하지 못한 채 `expires_at`이 7일을 넘기면 서버가 만료로 내린다(`subscription-api.md` 4.2). 이때는 `last_notified_at`을 갱신하지 않아, 뒤늦게 온 갱신 알림·거래가 되살릴 수 있다.
 - **`environment`** 는 그 구독이 실결제인지 스토어의 시험 결제인지다(2026-10-02). **운영 서버도 샌드박스 거래를 받는다** — App Store 심사와 TestFlight는 운영 빌드로 샌드박스 결제를 한다(`subscription-api.md` 7장). 구분을 남기지 않으면 시험 결제가 매출·구독자 수에 섞인다. 권한 판정에는 쓰지 않는다 — 샌드박스 구독도 유효하면 유료 티어다(그래야 심사·시험이 된다). 집계가 `environment = 'production'`으로 거른다.
 - **`last_notified_at`** 은 스토어 서버 알림의 순서 뒤바뀜을 막는다(2026-10-02, `subscription-api.md` 4.6). 알림은 보낸 순서대로 도착한다는 보장이 없어, 이 시각보다 먼저 서명된 알림은 상태를 덮지 않는다. 만료 보정(스토어에 직접 조회)도 이 값을 조회 시각으로 갱신한다. **환불·만료로 종결된 구독을, 종결 이전에 시작된 거래로 되살릴 수 없게 하는 기준 시각이기도 하다** — 환불받은 사용자가 환불 전에 받아 둔 서명 거래를 다시 제출해도 반영하지 않는다.
@@ -1261,6 +1275,57 @@ uq_store_notification_logs_store_notification_id (store, notification_id)
 - 유니크 제약이 **같은 알림의 중복 처리를 막는다.** 스토어는 같은 알림을 여러 번 보낼 수 있다.
 - **`processed_at`이 "중복"의 기준이다**(2026-10-02). 적재는 처리보다 먼저, 처리 트랜잭션 밖에서 한다 — 처리가 실패해 롤백돼도 받았다는 기록은 남는다. 그래서 같은 `notification_id`가 다시 왔을 때 `processed_at`이 있으면 끝난 알림의 재전송이라 그대로 200이고, 없으면 받기만 하고 처리에 실패했던 것이라 다시 처리한다. 어느 계정의 구독인지 알 수 없던 알림(구독 행도 계정 토큰도 없음)도 `processed_at`이 비어 있다 — 이후 영수증 제출·복원이 그 구독을 연결한다.
 - **`payload`에는 검증을 마친 뒤 풀어낸 값만 둔다** — 알림 유형, 서명 시각, 환경, 거래(스토어 구독 ID·상품·기간·환불 시각·계정 토큰 유무), 갱신 설정. 계정 토큰 값은 싣지 않는다 — 결제 의도의 `id`라 살아 있는 계정을 가리키는데, 이 표는 탈퇴 뒤에도 남는다(12.3). **서명 원문(JWS)은 넣지 않는다.** `type`은 App Store의 `notificationType`에 `subtype`이 있으면 `:`로 이은 값이다(`DID_CHANGE_RENEWAL_STATUS:AUTO_RENEW_DISABLED`). **Play 알림**(2026-10-03)은 `notification_id`가 Pub/Sub `messageId`, `type`이 `SUBSCRIPTION:<유형 번호>` · `VOIDED_PURCHASE` · `TEST` · `OTHER`이고, `payload`에는 종류·유형·발생 시각과 **구매 토큰의 SHA-256**만 둔다 — 토큰 원문은 그것만으로 Google에 그 구매를 조회할 수 있는 열쇠라 넣지 않는다. Play 알림의 `processed_at`은 구매 확인(acknowledge)까지 끝난 뒤에 찍힌다.
+
+### 8.5 `invite_codes` — 초대 코드 (2026-10-10)
+
+> **구현 상태(2026-10-10)** — `InviteCodeService`(subscription 모듈). 규칙은 `subscription.md` 4.9, 계약은 `subscription-api.md` 4.8 · `admin-api.md` 4.23.
+
+```
+invite_codes
+  id                        uuid            PK
+  code                      varchar(32)     UNIQUE — 사용자가 입력하는 값. 대문자로 정규화해 저장(A-Z 0-9 -, 4~32자)
+  name                      varchar(100)    캠페인 이름(예: "산군 PoC") — 응답에도 실린다
+  tier                      enum            daily | pro   지급 요금제 (CHECK)
+  grant_days                int             NULL — 입력한 서비스 날짜를 1일째로 센 지급 일수(≥1)
+  grant_until_date          date            NULL — 지급 마지막 서비스 날짜(그날까지 포함)
+  max_redemptions           int             NULL — 사용 한도(계정 수, ≥1). NULL = 제한 없음
+  redeemed_count            int             DEFAULT 0 — 지금까지 사용한 계정 수(탈퇴해도 줄지 않는다)
+  redeemable_from           timestamptz     NULL — 입력 시작. NULL = 만든 즉시
+  redeemable_until          timestamptz     NULL — 입력 마감(배타). NULL = 기한 없음
+  is_active                 boolean         DEFAULT true — 끄면 새 입력만 막는다
+
+uq_invite_codes_code (code)
+ck_invite_codes_grant_period — grant_days 와 grant_until_date 중 정확히 하나
+```
+
+- **코드 하나가 캠페인 하나다.** 제휴·PoC가 여럿이라 코드도 여럿이고 코드마다 지급 요금제·기간·한도가 다르다.
+- `redeemed_count`를 두는 이유: 한도 판정을 **코드 행 잠금 하나**로 끝내려고 — 같은 코드에 동시에 들어온 입력이 한도를 넘지 않는다.
+- 만든 뒤 바꿀 수 있는 것은 이름·켜기/끄기·한도·입력 기간뿐이다. 코드 값·지급 요금제·기간은 바꾸지 않는다(이미 받은 사람과 조건이 갈린다).
+
+### 8.6 `invite_code_redemptions` — 초대 코드 사용·지급 기간 (2026-10-10)
+
+> **구현 상태(2026-10-10)** — `users.tier` 캐시는 결제 반영(`BillingSyncService.syncUserTier`)이 **구독과 이 표 중 높은 쪽**으로 맞춘다. 끝난 지급은 `invite-grant-expiry` 배치(10분 간격)가 캐시를 되돌리고 `tier_released_at`을 찍는다. `user_id`는 ON DELETE CASCADE라 12.3 즉시 파기는 DB 제약이 수행한다.
+
+```
+invite_code_redemptions
+  id                        uuid            PK
+  invite_code_id            uuid            FK → invite_codes (RESTRICT)
+  user_id                   uuid            FK → users (CASCADE)
+  tier                      enum            daily | pro — 입력 시점 코드 값의 사본
+  starts_at                 timestamptz     지급 시작(입력 시각)
+  ends_at                   timestamptz     지급 끝(배타 경계 — 서비스 날짜 경계). 결제로 대체되면 그 시각으로 당긴다
+  tier_released_at          timestamptz     NULL — 끝난 뒤 캐시를 되돌린 시각
+  subscribed_at_start       boolean         DEFAULT false — 입력 때 살아 있는 유료 구독이 있었는가
+
+uq_invite_code_redemptions_code_user (invite_code_id, user_id)     같은 코드는 계정당 한 번
+idx_invite_code_redemptions_user_id_ends_at (user_id, ends_at)
+idx_invite_code_redemptions_unreleased_ends_at (ends_at) WHERE tier_released_at IS NULL   만료 배치
+```
+
+- **한 계정에 지급은 동시에 하나**다(입력이 막는다 — `INVITE_GRANT_ALREADY_ACTIVE`).
+- **지급 기간 중 결제**: 입력 때 구독이 없던 지급(`subscribed_at_start = false`)인데 살아 있는 구독이 생기면 결제 반영이 지급을 끝낸다(`ends_at`·`tier_released_at` = 그 시각). 구독 행의 생성 시각으로 판정하지 않는다 — App Store 재구독·끝난 구독의 계정 이전은 옛 행을 되살려 생성 시각이 지급보다 앞선다. 입력 때 이미 구독 중이었으면 그 구독의 갱신·변경은 지급을 끝내지 않는다(그 구독이 끝난 뒤 다시 결제해도 끝내지 않는다 — 알려진 한계).
+- **잠금 순서**: 구독 행 → 사용자 행 → 지급·코드 행. 캐시를 맞추는 함수(`syncUserTier`)가 사용자 행을 먼저 잠그고 읽고, 코드 입력도 사용자 행을 먼저 잠근다(같은 계정의 동시 입력 두 건이 "지급은 하나"를 둘 다 통과하지 않게).
+- 지급 끝 시각은 **입력 시점의 경계 규칙**으로 저장한다 — 서비스 날짜 경계를 05:00으로 옮기면 그 전에 받은 지급은 마지막 날 04:00에 끝난다(가입 체험과 같다).
 
 ---
 
@@ -1519,7 +1584,7 @@ idx_archived_subscriptions_archived_at
   - 단독 유니크는 **탈퇴 → 재가입(구독 복원) → 재탈퇴** 경로에서 같은 값을 두 번 넣게 만들어 위반을 냈고, 예외가 탈퇴 트랜잭션 안에서 터져 **그 사용자가 구조적으로 탈퇴할 수 없었다.** 파기 의무(개인정보보호법 제21조 제1항)를 제품이 이행하지 못하는 상태다.
   - **"하나의 스토어 구독 = 하나의 계정"은 그대로다.** 그 보장의 집행자는 [8.2](#82-subscriptions)의 `uq_subscriptions_original_transaction_id`이며, 살아 있는 계정끼리 같은 구독을 가질 수 없다.
   - 아카이브는 권한 테이블이 아니라 **보존 기록**이다. 보존 의무는 계정별 거래에 성립하므로 계정마다 한 줄이 남는 편이 맞다.
-  - **탈퇴한 계정의 `original_transaction_id`는 `subscriptions`에서 풀린다.** 그것을 다른 계정이 가져가는 것을 막는 자리는 **영수증 검증 시점**이다 — 스토어가 그 구매의 소유자를 인증하므로 그 지점이 옳다(`tickets/backend/pending/subscription-receipt-verification.md`).
+  - **탈퇴한 계정의 `original_transaction_id`는 `subscriptions`에서 풀린다.** 그것을 다른 계정이 가져가는 것을 막는 자리는 **영수증 검증 시점**이다 — 스토어가 그 구매의 소유자를 인증하므로 그 지점이 옳다(`tickets/backend/archive/subscription-receipt-verification.md`).
 - 보존 기간 **5년** — 전자상거래법 시행령 제6조(대금결제 및 재화 등의 공급에 관한 기록 5년, 계약 또는 청약철회 등에 관한 기록 5년).
 
 ---

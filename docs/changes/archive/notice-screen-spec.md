@@ -3,7 +3,7 @@
 | 항목 | 값 |
 |---|---|
 | 대상 문서 | `features/settings.md` 4.1(정보 행)·미결 / `spec/uiux/settings-uiux.md` 2·3·4.6·9장 / `spec/api/settings-api.md` 3·4·9장 / `backend/domain.md` 2장(소유권)·신설 절 / `features/admin.md` 4장(공지 관리) / `spec/api/admin-api.md` 3·4장 |
-| 요청 파트 | 문서 · **백엔드**(조회 2건 + 관리자 4건 — 티켓 `tickets/backend/pending/notice-api.md`) · 프론트엔드(FE는 `feat(fe)/notice-screen`에서 mock 으로 선반영) |
+| 요청 파트 | 문서 · **백엔드**(조회 2건 + 관리자 4건 — 티켓 `tickets/backend/archive/notice-api.md`) · 프론트엔드(FE는 `feat(fe)/notice-screen`에서 mock 으로 선반영) |
 | 발행 날짜 | 2026-09-17 |
 | 발견 시점 | PM 결정 "공지사항 페이지도 우리가 만들자"(2026-09-17). 2026-08-06 합의로 **인앱 화면**은 확정됐으나 화면 명세·목록 API 는 "추후 작성"으로 남아 있었다(설정 문서 3곳 미결) |
 | 심각도 | 중 — 설정의 [공지사항] 행이 플레이스홀더 화면으로 열린다. 운영 공지 수단이 없다 |

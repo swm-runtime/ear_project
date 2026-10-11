@@ -1,6 +1,15 @@
 import { afterEach, describe, expect, it, jest } from '@jest/globals';
 import type { ReactNode } from 'react';
-import { ActivityIndicator, Animated, BackHandler, Keyboard, Platform } from 'react-native';
+import {
+  ActivityIndicator,
+  Animated,
+  BackHandler,
+  FlatList,
+  Keyboard,
+  Platform,
+} from 'react-native';
+
+import InlineNotice from '@/shared/ui/InlineNotice';
 
 import { MiniPlayer } from '@/features/player';
 
@@ -57,6 +66,33 @@ afterEach(() => {
 });
 
 describe('Android 탐색 제자리 검색', () => {
+  it('검색 실패 안내에서 재시도해도 받아 둔 결과를 그대로 표시한다', async () => {
+    jest.replaceProperty(Platform, 'OS', 'android');
+    const retrySearch = jest.fn();
+    const results = [{ content: { id: 'existing-result' } }];
+    jest.mocked(useExploreSearchScreen).mockReturnValue({
+      inputText: '경제',
+      isInitialMode: false,
+      results,
+      errorBanner: '인터넷 연결을 확인해주세요',
+      retrySearch,
+      isRetryingSearch: false,
+      playConfirm: null,
+    } as unknown as ReturnType<typeof useExploreSearchScreen>);
+    let renderer!: Renderer;
+    await act(async () => {
+      renderer = create(<ExploreSearchScreen />);
+    });
+    const notice = renderer.root.findByType(InlineNotice).props;
+    await act(async () => {
+      (notice.action as { onPress: () => void }).onPress();
+    });
+    expect(retrySearch).toHaveBeenCalledTimes(1);
+    expect((renderer.root.findByType(FlatList).props.data as unknown[])[0]).toBe(results[0]);
+    await act(async () => {
+      renderer.unmount();
+    });
+  });
   it('채움 검색창·닫기 캡슐을 표시하고 미니플레이어를 중복 생성하지 않는다', async () => {
     jest.replaceProperty(Platform, 'OS', 'android');
     jest.mocked(useExploreSearchScreen).mockReturnValue({

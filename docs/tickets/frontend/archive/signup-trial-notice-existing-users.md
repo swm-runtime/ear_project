@@ -58,7 +58,7 @@ KAN-119로 만든 팝업(P11)은 **온보딩을 막 끝낸 진입에서만** 열
   - **순서(FE 결정)**: 신규 가입은 튜토리얼 → 알림 사전 안내 → P11 그대로. 기존 가입자는 앱 시작에 먼저 뜰 수 있는 것 — **권장 업데이트 안내 · 푸시 재생 확인 팝업 · 한도 안내 시트** — 이 모두 없을 때 400ms 뒤 연다. 신호 묶기는 `app/navigation/launch-dialog-gate.ts`(app 층 — profile은 `isReady`만 받는다).
   - **문구(FE 결정 — 한 벌)**: 본문 첫 문장 "가입을 환영하는 선물이에요" → **"작은 선물을 준비했어요"**. 제목 "N월 N일까지 무제한으로 들을 수 있어요"·`daily_play_limit_after === null` 분기("이후에도 지금처럼 제한 없이 들을 수 있어요.")는 그대로. 진입별로 가르지 않은 이유: 한 문장으로 둘 다 자연스럽고, 가르면 팝업이 어느 진입에서 열렸는지 알아야 한다.
   - **재설치·새 기기(FE 결정)**: 막지 않는다 — 기기 기록이 없으면 체험 기간 안에 한 번 더 뜬다(같은 날짜를 다시 알릴 뿐). 기기는 마지막으로 본 계정 하나만 기억한다.
-  - 문서: `profile-uiux.md` 2장·4.11·6장, `onboarding-uiux.md` 4.6, `frontend/architecture.md` 4.4 profile 행. `features/subscription.md` 4.8 "안내"의 "앱은 아직 가입 직후에만 띄운다" 문장은 `changes/pending/signup-trial-notice-existing-users(fe).md`로 요청.
+  - 문서: `profile-uiux.md` 2장·4.11·6장, `onboarding-uiux.md` 4.6, `frontend/architecture.md` 4.4 profile 행. `features/subscription.md` 4.8 "안내"의 "앱은 아직 가입 직후에만 띄운다" 문장은 `changes/archive/signup-trial-notice-existing-users(fe).md`로 요청.
 - **완료 조건 확인**
   - 기존 계정이 앱을 열면 날짜·이후 한도 팝업 1회: 판정 테스트(`signup-trial-notice.service.test.ts` "체험 도입 전 가입자" — 저장소가 빈 계정 + trial 있음 → 띄움) + 순서 테스트(`launch-dialog-gate.test.ts` — 앞 팝업이 없으면 열림) + 카피 테스트(`profile.copy.test.ts`). 훅에서 온보딩 직후 조건이 빠진 것은 코드 확인. **스위치·경계 날짜를 켠 개발계 실기기 확인은 사람 손으로 남는다.**
   - 닫은 계정은 다시 안 뜸: 판정 테스트(같은 계정 id면 안 띄움 · KAN-119 때 기록된 id 왕복) — 닫기(확인·딤·뒤로가기)가 계정 id를 기록하는 경로는 KAN-119 그대로.

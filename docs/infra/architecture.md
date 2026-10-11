@@ -4,7 +4,7 @@
 |---|---|
 | 작성 | 2026-08-31 (구축 2026-08-25 설계 · 2026-08-30 실배포) |
 | 상태 | 가동 중 — 리소스 실체는 [`inventory.md`](inventory.md), 절차는 [`runbook.md`](runbook.md) |
-| 근거 문서 | `backend/architecture.md` 9.4(오디오 서명) · `backend/domain.md` 5.1(`audio_path` 비노출) · `tickets/backend/pending/api-server-deployment.md`(요구사항 원천) |
+| 근거 문서 | `backend/architecture.md` 9.4(오디오 서명) · `backend/domain.md` 5.1(`audio_path` 비노출) · `tickets/backend/archive/api-server-deployment.md`(요구사항 원천) |
 
 ## 1. 목표와 제약
 

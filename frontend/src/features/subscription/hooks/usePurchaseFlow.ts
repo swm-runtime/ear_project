@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { Alert, Platform } from 'react-native';
 
 import { useToastStore } from '@/shared/ui/toast.store';
 
@@ -81,10 +82,38 @@ export const usePurchaseFlow = (options: PurchaseFlowOptions) => {
         goToEmailVerification(plan);
         return;
       }
+      // 다운그레이드는 결제 시트 전에 한 번 묻는다 — 지금 요금제는 기간 끝까지, 그 뒤 자동 변경(PM 2026-10-08 KAN-158).
+      // 예약을 못 하는 빌드(Android 교체 모듈 없음)는 묻지 않고 서비스가 업데이트 안내로 끝낸다
+      if (plan.action === 'downgrade' && purchaseService.supportsDeferredDowngrade) {
+        const confirmed = await new Promise<boolean>((resolve) => {
+          Alert.alert(
+            SUBSCRIPTION_COPY.plans.downgradeConfirmTitle(plan.name),
+            Platform.OS === 'android'
+              ? SUBSCRIPTION_COPY.plans.downgradeConfirmMessageAndroid
+              : SUBSCRIPTION_COPY.plans.downgradeConfirmMessage,
+            [
+              {
+                text: SUBSCRIPTION_COPY.plans.downgradeConfirmCancel,
+                style: 'cancel',
+                onPress: () => resolve(false),
+              },
+              { text: SUBSCRIPTION_COPY.plans.downgradeConfirmOk, onPress: () => resolve(true) },
+            ],
+            { cancelable: true, onDismiss: () => resolve(false) },
+          );
+        });
+        if (!confirmed) return;
+      }
+      // 서버의 지금 구독 상품(이용 중 카드) — Android 교체 대상을 기기 구매 중에서 고를 때 쓴다
+      const currentProductId =
+        state.kind === 'ready'
+          ? (state.cards.find((card) => card.plan.action === 'current')?.plan.storeProductId ??
+            null)
+          : null;
       setPurchasingPlanId(plan.planId);
       let outcome: PurchaseOutcome;
       try {
-        outcome = await purchaseService.purchase(plan, entryPoint);
+        outcome = await purchaseService.purchase(plan, entryPoint, currentProductId);
       } finally {
         setPurchasingPlanId(null);
       }

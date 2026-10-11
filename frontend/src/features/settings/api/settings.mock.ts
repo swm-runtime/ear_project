@@ -64,6 +64,7 @@ const settingsState: UserSettingsDto = {
   default_playback_rate: 1.0,
   is_auto_expand_enabled: true,
   is_drip_notification_enabled: true,
+  preferred_audio_quality: 'compressed',
 };
 
 let marketingConsentState: MarketingConsentDto =
@@ -182,7 +183,14 @@ export const mockFetchSettingsSummary = async (
     plan: partialFailed ? null : planForScenario(),
     // 관심사 원본은 interest mock 하나다 — 설정의 요약 행과 편집 화면이 같은 상태를 읽는다
     interest_summary: partialFailed ? null : getInterestMockSummary(),
-    settings: { ...settingsState },
+    settings: {
+      ...settingsState,
+      // 허용 여부는 서버가 plans.max_audio_quality 로 판정한다 — 대역은 플랜 시나리오로 흉내 낸다(settings-api.md 4.1)
+      audio_qualities: [
+        { quality: 'compressed', allowed: true },
+        { quality: 'lossless', allowed: planForScenario().tier === 'pro' },
+      ],
+    },
     marketing_consent: { ...marketingConsentState },
     version: versionForScenario(platform),
     failed_sections: partialFailed ? ['account', 'plan', 'interest_summary'] : [],

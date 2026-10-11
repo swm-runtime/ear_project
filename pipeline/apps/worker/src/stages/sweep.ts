@@ -2,7 +2,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { XMLParser } from "fast-xml-parser";
 import { cfg, executedBy } from "../config.js";
-import { appendDomainNote, enqueue, insertRun, majorOfMidTopic, sweepDomains, upsertSource, type Job } from "../db.js";
+import { appendDomainNote, enqueue, insertRun, majorOfMidTopic, sweepClusterState, sweepDomains, upsertSource, type Job } from "../db.js";
 import { log, sleep, stripHtml } from "../util.js";
 import { todayKst } from "@ear/pipeline";
 import { workerRev } from "../assets.js";
@@ -16,6 +16,7 @@ interface Item { title: string; url: string; summary: string; author: string; pu
  * 모드 A 스윕 (spec/02): 풀 도메인의 피드를 도메인당 1회 요청, 메타데이터만 적재. 본문 요청 없음.
  * 원본 아카이브는 S3 `sweeps/`(180일 만료)에 올린다 — 조회는 sources 테이블이 담당 (spec/08 1장).
  * 끝나면 군집화(cluster) 작업을 자동 생성한다 — v2(축 먼저), 콘솔의 [군집화 v2] 버튼과 같은 페이로드(중분류가 속한 대분류 풀). 2026-09-18 까지 v1 으로 남아 있었다.
+ * 같은 대분류의 마지막 스윕만 건다(2026-10-09 — 아래 clusterAfterSweep).
  */
 export async function runSweep(job: Job) {
   const midTopic = String(job.payload.mid_topic ?? "");
@@ -68,8 +69,25 @@ export async function runSweep(job: Job) {
   });
 
   const majorTopic = await majorOfMidTopic(midTopic);
+  const decision = majorTopic ? clusterAfterSweep(await sweepClusterState(job.id, majorTopic)) : { enqueue: true, reason: "대분류 없음 — 중분류 풀" };
+  if (!decision.enqueue) {
+    log(`  sweep ${midTopic}: 군집화 건너뜀 — ${decision.reason}`);
+    return { mid_topic: midTopic, feeds_ok: ok, feeds_total: domains.length, items: total, failures, archive: s3Key(relArchive), next: { cluster: `건너뜀 — ${decision.reason}` } };
+  }
   const clusterJobId = await enqueue({ type: "cluster", requires_ai: true, payload: { mid_topic: midTopic, cluster_version: "v2", ...(majorTopic ? { major_topic: majorTopic } : {}), sweep_job_id: job.id, sources_count: total }, parent_job_id: job.id });
   return { mid_topic: midTopic, feeds_ok: ok, feeds_total: domains.length, items: total, failures, archive: s3Key(relArchive), next: { cluster_job_id: clusterJobId } };
+}
+
+/**
+ * 스윕 뒤 군집화 중복 건너뛰기 (2026-10-09 박수헌) — 스윕은 중분류 단위인데 군집화 v2 는 대분류 풀을 본다. 종전에는 스윕마다 군집화를 걸어
+ * 한 대분류의 중분류 여럿을 스윕하면 같은 풀이 그 수만큼 군집화됐다(9/26 인문·교양 3회). 같은 대분류의 마지막 스윕만 건다.
+ * ① 같은 대분류의 다른 스윕이 아직 끝나지 않았다 → 그 스윕이 끝날 때 건다 ② 대분류 군집화가 이미 대기 중이다 → 그 작업이 시작할 때 이 스윕의 소스까지 본다.
+ * 실행 중인 군집화는 막지 않는다 — 이미 풀을 읽었으므로 이 스윕의 새 소스를 보지 못한다.
+ */
+export function clusterAfterSweep(s: { otherSweeps: number; queuedClusters: number }): { enqueue: boolean; reason: string } {
+  if (s.otherSweeps > 0) return { enqueue: false, reason: `같은 대분류의 스윕 ${s.otherSweeps}건이 남아 있어 마지막 스윕이 건다` };
+  if (s.queuedClusters > 0) return { enqueue: false, reason: "같은 대분류 군집화가 이미 대기 중 — 그 작업이 이 스윕의 소스까지 본다" };
+  return { enqueue: true, reason: "대분류의 마지막 스윕" };
 }
 
 async function fetchFeed(url: string): Promise<Item[]> {

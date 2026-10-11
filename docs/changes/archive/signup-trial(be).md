@@ -6,7 +6,7 @@
 | 요청 파트 | 백엔드 |
 | 요청자 | 박준현(백엔드) |
 | 발행 날짜 | 2026-10-03 |
-| 관련 티켓 | `tickets/frontend/pending/signup-trial-notice.md`([KAN-119](https://runtime364.atlassian.net/browse/KAN-119)) |
+| 관련 티켓 | `tickets/frontend/archive/signup-trial-notice.md`([KAN-119](https://runtime364.atlassian.net/browse/KAN-119)) |
 
 ## 수정 내용
 

@@ -10,6 +10,7 @@
 export { default as CareerInfoScreen } from './screens/CareerInfoScreen';
 export { careerKeys } from './api/career.api';
 export { useJobCategoriesQuery } from './hooks/useJobCategoriesQuery';
+export { jobCategoryImageSource } from './career.images';
 export type { CareerInfo, JobCategory, YearsOfExperienceRange } from './career.types';
 /**
  * 저장 성공 통지 구독 — 프로필 요약 invalidate는 app/bootstrap이 이걸로 주입한다

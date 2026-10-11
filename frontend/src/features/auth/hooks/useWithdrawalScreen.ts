@@ -187,9 +187,10 @@ export const useWithdrawalScreen = () => {
   }, [isSubmitting]);
 
   // native-stack의 스와이프 백은 네이티브에서 확정돼 beforeRemove로 막을 수 없다 —
-  // 처리 중에는 제스처 자체를 끈다(커리어 화면과 같은 처리)
+  // 처리 중에는 제스처 자체를 끈다(커리어 화면과 같은 처리). iOS 26 시스템 바의 뒤로 버튼도 같은 구간에 숨긴다
+  // (PUSHED_SCREEN_HEADER — 돌아갈 수단이 없는 화면에 돌아가기 버튼이 보이면 안 된다). 바가 없는 갈래에선 무해하다
   useEffect(() => {
-    navigation.setOptions({ gestureEnabled: !isSubmitting });
+    navigation.setOptions({ gestureEnabled: !isSubmitting, headerBackVisible: !isSubmitting });
   }, [navigation, isSubmitting]);
 
   useEffect(() => {

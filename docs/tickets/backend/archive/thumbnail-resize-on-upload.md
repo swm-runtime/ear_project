@@ -37,7 +37,7 @@
 
 ## 범위 밖
 
-- 앱의 이미지 컴포넌트(expo-image 교체) — FE 티켓 `tickets/frontend/pending/thumbnail-expo-image.md`(KAN-78). 재방문 시 재다운로드 방지가 목적이고 이 티켓 없이도 첫 다운로드는 해결된다.
+- 앱의 이미지 컴포넌트(expo-image 교체) — FE 티켓 `tickets/frontend/archive/thumbnail-expo-image.md`(KAN-78). 재방문 시 재다운로드 방지가 목적이고 이 티켓 없이도 첫 다운로드는 해결된다.
 - 파이프라인 생성 크기 축소 — 하지 않는다. 품질만 떨어지고 BE에서 한 번 줄이면 된다.
 
 ## 완료 조건

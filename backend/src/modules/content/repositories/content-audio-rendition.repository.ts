@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { EntityManager, In, Repository } from 'typeorm';
+import { EntityManager, Repository } from 'typeorm';
 
 import { ContentAudioRendition } from '../entities/content-audio-rendition.entity';
 
@@ -22,14 +22,6 @@ export class ContentAudioRenditionRepository {
     manager?: EntityManager,
   ): Promise<ContentAudioRendition[]> {
     return this.scoped(manager).find({ where: { contentId } });
-  }
-
-  async findByContentIds(
-    contentIds: string[],
-    manager?: EntityManager,
-  ): Promise<ContentAudioRendition[]> {
-    if (contentIds.length === 0) return [];
-    return this.scoped(manager).find({ where: { contentId: In(contentIds) } });
   }
 
   /** 콘텐츠의 음질 행을 **통째로** 바꾼다 — 재발행은 3종을 한 세트로 본다(domain.md 5.1-1) */

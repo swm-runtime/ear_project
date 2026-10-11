@@ -32,6 +32,11 @@ export interface ProfilePlanDto {
    * 선택 필드로 둔다 — 필드를 아직 안 보내는 서버(운영 반영 전)에서는 없을 수 있고, 그때는 null로 읽는다
    */
   trial?: ProfilePlanTrialDto | null;
+  /**
+   * 예약된 요금제 변경(profile-api.md 4.1 "`plan.pending_plan`", 2026-10-08 KAN-161) — 다운그레이드 예약이면 다음 요금제와
+   * 적용 시각, 없으면 null. 선택 필드 — 아직 안 보내는 서버에서는 없고, 그때는 null 로 읽는다
+   */
+  pending_plan?: { tier: string; plan_name: string; effective_at: string } | null;
 }
 
 export interface ProfilePlanTrialDto {
@@ -92,6 +97,11 @@ export interface WeeklyListeningDto {
    * 없으면 막대를 탭해도 주 분포가 그대로다
    */
   daily_topic_distribution?: TopicDistributionDto[];
+  /**
+   * 그 주 청취 시간의 **전체 가입자 중 상위 %**(정수 1~50) — BE 요청 중(KAN-168, tickets/backend/pending/weekly-listening-top-percent.md).
+   * 서버가 보이지 않기로 판정하면(그 주 0초 · 상위 50% 밖) null, 아직 안 보내면 없다 → 둘 다 표시하지 않는다
+   */
+  listening_top_percent?: number | null;
 }
 
 /** GET /users/me/profile 응답(profile-api.md 4.1) — 섹션 null + failed_sections로 부분 실패 표현 */

@@ -19,7 +19,7 @@
 >
 > **새로 생긴 미결 2건** — 완청 체크 마킹과 밝은 썸네일의 대비(딤/테두리), 출처 칩의 재탭 해제를 어떻게 알릴지. 둘 다 시안 검증 대상으로 남겼다.
 >
-> **서버 코드는 이 문서로 고치지 않았다** — `tickets/backend/pending/library-source-filter-not-implemented.md`로 발행했다.
+> **서버 코드는 이 문서로 고치지 않았다** — `tickets/backend/archive/library-source-filter-not-implemented.md`로 발행했다.
 
 ## 왜 필요한가
 

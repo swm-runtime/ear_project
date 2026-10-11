@@ -84,10 +84,15 @@ export const PROFILE_COPY = {
     /** N은 서버 daily_play_limit — 2를 하드코딩하지 않는다(paywall.md 5장). null은 무제한 */
     free: (dailyPlayLimit: number | null) =>
       dailyPlayLimit === null ? '무료 이용 중' : `무료 이용 중 · 하루 ${dailyPlayLimit}편`,
-    freeAction: '구독 알아보기',
     renewsAt: (iso: string) => `다음 결제일 ${monthDay(iso)}`,
-    /** 해지 예약 — 중립 톤. 사용자가 스스로 내린 결정이지 장애가 아니다(profile-uiux.md 4.4) */
-    cancelScheduled: (iso: string) => `${monthDay(iso)}까지 이용 가능`,
+    /**
+     * 해지 예약 — 중립 톤. 사용자가 스스로 내린 결정이지 장애가 아니다(profile-uiux.md 4.4). 다운그레이드 예약과 같은 꼴로
+     * 그 뒤를 말한다(PM 2026-10-09). 무료 상태를 이 요약은 "무료"라 부른다(`free` 문구) — 티어명을 쓰지 않는다
+     */
+    cancelScheduled: (iso: string) => `${monthDay(iso)}까지 이용 · 이후 무료`,
+    /** 다운그레이드 예약 — 지금 요금제는 적용일까지, 그 뒤 다음 요금제(PM 2026-10-08). 설정 요약과 같은 문자열 */
+    pendingPlan: (iso: string, nextPlanName: string) =>
+      `${monthDay(iso)}까지 이용 · 이후 ${nextPlanName}`,
     /** 결제 문제 — 경고색을 쓰는 유일한 플랜 상태 */
     paymentIssue: '결제에 문제가 있어요',
     /**
@@ -158,6 +163,19 @@ export const PROFILE_COPY = {
       ]
         .filter((part): part is string => part !== null)
         .join(' · '),
+    /**
+     * 행에 보이는 짧은 줄 — 직군은 오른쪽 사진이 보여 주니 빼고 "서비스 기획 · 4-6년"(PM 2026-10-11 03:35). 낭독은 위 line 전체
+     */
+    visibleLine: (parts: {
+      jobTitle: string | null;
+      yearsOfExperience: YearsOfExperience | null;
+    }) =>
+      [
+        parts.jobTitle,
+        parts.yearsOfExperience === null ? null : YEARS_LABELS[parts.yearsOfExperience],
+      ]
+        .filter((part): part is string => part !== null)
+        .join(' · '),
     emptyPrompt: '입력하면 추천이 정확해져요',
     emptyAction: '입력하기',
   },
@@ -177,6 +195,18 @@ export const PROFILE_COPY = {
 
     weeklyTitle: '주간 청취',
     dailyAverageTitle: '하루 평균',
+    /** 막대를 고른 동안 요약 줄 라벨 — "수요일"(스크린 타임처럼 요약 줄이 그 요일로 바뀐다, 2026-10-11) */
+    selectedDayTitle: (dayIndex: number) =>
+      ['월요일', '화요일', '수요일', '목요일', '금요일', '토요일', '일요일'][dayIndex] ?? '',
+    /** 하루 평균 줄 오른쪽 알약 — 그 주 청취 시간 전체 가입자 중 상위 %(PM 2026-10-10, 서버 판정 값 그대로) */
+    /**
+     * "다른 사용자 대비" — 스크린 타임 "지난주 대비 8%" 와 같은 꼴(PM 2026-10-11 00:42 "타 사용자 대비 같은 문구"). "이번 주"는
+     * 넣지 않는다 — 카드가 이미 주를 보여 주고, 지난 주로 넘기면 틀린 말이 된다
+     */
+    topPercentLead: '다른 사용자 대비',
+    /** 두 줄 고정(PM 2026-10-11 02:05) — 윗줄 topPercentLead 작은 회색, 아랫줄 이 값만 진하게 */
+    topPercent: (percent: number) => `상위 ${percent}%`,
+    topPercentA11y: (percent: number) => `그 주 청취 시간, 다른 사용자 대비 상위 ${percent}퍼센트`,
     /** 주 범위 "N월 N일 – N월 N일". 경계 판정은 서버 몫, +6일은 표기 전용(profile.format.ts) */
     weekRange: (weekStart: string) => {
       const { start, end } = toWeekRangeParts(weekStart);

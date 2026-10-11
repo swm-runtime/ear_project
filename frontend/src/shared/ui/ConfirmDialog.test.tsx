@@ -5,6 +5,7 @@ import { StyleSheet } from 'react-native';
 import { theme } from '@/shared/theme';
 
 import ConfirmDialog from './ConfirmDialog';
+import { HAS_LIQUID_GLASS } from './GlassSurface';
 
 // 렌더러는 jest-expo의 의존성이다. 검증에 필요한 공개 API만 선언한다(Skeleton.test.tsx 와 같은 방식)
 interface TestNode {
@@ -61,7 +62,10 @@ describe('ConfirmDialog — 공용 알약 버튼(KAN-146)', () => {
     expect(primary.backgroundColor).toBe(theme.color.primary);
     expect(secondary.borderRadius).toBe(theme.radius.full);
     expect(secondary.borderCurve).toBe('continuous');
-    expect(secondary.backgroundColor).toBe(theme.color.surface);
+    // 보조 동작 면 — iOS 26 글라스 위에선 시스템 알림 버튼 같은 반투명 회색, 그 밑은 surface
+    expect(secondary.backgroundColor).toBe(
+      HAS_LIQUID_GLASS ? 'rgba(120, 120, 128, 0.16)' : theme.color.surface,
+    );
     act(() => renderer.unmount());
   });
 

@@ -115,6 +115,20 @@ export class UserRepository {
   }
 
   /**
+   * `before` 이전에 가입한 계정 수 — 주간 청취 상위 %의 모집단(KAN-168). 탈퇴자는 행이 삭제되므로
+   * 조건이 필요 없다.
+   */
+  async countCreatedBefore(
+    before: Date,
+    manager?: EntityManager,
+  ): Promise<number> {
+    return this.scoped(manager)
+      .createQueryBuilder('user')
+      .where('user.created_at < :before', { before })
+      .getCount();
+  }
+
+  /**
    * 체험을 받은 적 없는 계정에만 종료 시각을 적는다 — 적었으면 `true`.
    *
    * **조건을 UPDATE에 싣는다.** 읽고 나서 쓰면 앱 시작 요청 둘이 동시에 들어왔을 때 둘 다 "비어 있다"를

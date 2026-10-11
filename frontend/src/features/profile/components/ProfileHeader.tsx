@@ -4,8 +4,8 @@ import { Image, Pressable, StyleSheet, View } from 'react-native';
 
 import { IS_SUBSCRIPTION_UI_ENABLED } from '@/shared/lib/feature-flags';
 import { theme } from '@/shared/theme';
+import ChevronIcon from '@/shared/ui/ChevronIcon';
 import PersonIcon from '@/shared/ui/PersonIcon';
-import { pillButton } from '@/shared/ui/pill-button.styles';
 import { Text } from '@/shared/ui/Typography';
 
 import { ProviderIcon } from '@/features/auth';
@@ -76,7 +76,7 @@ const AVATAR_ICON_SIZE = 36;
  * 진입점이다 — 프로필의 이메일 등록·인증 진입은 profile.md 4.3이 소유한다.
  */
 /** 상태별 문구 — 서버가 정규화한 4분기를 그대로 그린다(재판정 금지) */
-const planText = (vm: PlanCardVM): string => {
+export const planText = (vm: PlanCardVM): string => {
   switch (vm.kind) {
     case 'free':
       // 체험 여부는 서버의 plan.trial로만 본다 — tier === 'trial' 분기 금지(profile-api.md 4.1)
@@ -84,6 +84,9 @@ const planText = (vm: PlanCardVM): string => {
         ? PROFILE_COPY.plan.free(vm.dailyPlayLimit)
         : PROFILE_COPY.plan.trial(vm.trialLastFreeDate);
     case 'subscribed':
+      if (vm.pendingPlan !== null) {
+        return `${vm.planName} · ${PROFILE_COPY.plan.pendingPlan(vm.pendingPlan.effectiveAt, vm.pendingPlan.planName)}`;
+      }
       return vm.renewsAt === null
         ? vm.planName
         : `${vm.planName} · ${PROFILE_COPY.plan.renewsAt(vm.renewsAt)}`;
@@ -234,16 +237,26 @@ export default function ProfileHeader({
           <Text style={[styles.planText, plan.data.kind === 'grace' && styles.planDanger]}>
             {planText(plan.data)}
           </Text>
-          {plan.data.kind === 'free' ? (
-            <View style={[pillButton.base, pillButton.primary, styles.planCta]}>
-              <Text style={styles.planCtaText}>{PROFILE_COPY.plan.freeAction}</Text>
-            </View>
-          ) : null}
+          {/* 구독 화면으로 가는 줄 — 상태와 무관하게 [>] 하나(PM 2026-10-09, 무료의 [구독 알아보기] 알약을 대신한다) */}
+          <View
+            style={styles.planChevron}
+            accessibilityElementsHidden
+            importantForAccessibility="no"
+          >
+            <ChevronIcon
+              direction="right"
+              size={PLAN_CHEVRON_SIZE}
+              color={theme.color.textSecondary}
+            />
+          </View>
         </Pressable>
       )}
     </View>
   );
 }
+
+/** 플랜 줄 [>] — 아래 프로필 카드의 [>] 와 같은 크기(ProfileCard CHEVRON_SIZE) */
+const PLAN_CHEVRON_SIZE = 18;
 
 const styles = StyleSheet.create({
   identityRow: {
@@ -277,15 +290,11 @@ const styles = StyleSheet.create({
   planDanger: {
     color: theme.color.danger,
   },
-  // 크기만 — 모양·색은 공용 알약(pillButton)
-  planCta: {
-    paddingHorizontal: theme.spacing.sm + theme.spacing.xs,
-    paddingVertical: theme.spacing.xs,
-  },
-  planCtaText: {
-    fontSize: theme.font.size.xs,
-    fontWeight: '700',
-    color: theme.color.onPrimary,
+  // 줄 오른쪽 끝 — 글자가 짧아도 [>] 는 오른쪽에 붙는다. 아래 카드(ProfileCard)의 [>] 와 같은 세로선에 둔다(PM 2026-10-09
+  // "너무 오른쪽") — 카드 바깥 여백 + 안쪽 여백만큼 들인다
+  planChevron: {
+    marginLeft: 'auto',
+    marginRight: theme.spacing.md,
   },
   avatarWrap: {
     // 배지가 아바타 밖으로 나가므로 줄어들지 않게 고정한다

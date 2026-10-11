@@ -48,12 +48,16 @@ function buildPlanView(): PlanView {
     expiresAt: null,
     hasPaymentIssue: false,
     trial: null,
+    pendingPlan: null,
+    grant: null,
   };
 }
 
 describe('ProfileOrchestrator', () => {
   let orchestrator: ProfileOrchestrator;
-  let userService: jest.Mocked<Pick<UserService, 'getById'>>;
+  let userService: jest.Mocked<
+    Pick<UserService, 'getById' | 'countJoinedBefore'>
+  >;
   let subscriptionService: jest.Mocked<
     Pick<SubscriptionService, 'buildPlanView'>
   >;
@@ -71,12 +75,16 @@ describe('ProfileOrchestrator', () => {
       | 'sumListenedSecByDates'
       | 'sumListenedSecByContent'
       | 'sumListenedSecByContentAndDates'
+      | 'countUsersListenedMoreByDates'
     >
   >;
   let contentService: jest.Mocked<Pick<ContentService, 'findTopicViews'>>;
 
   beforeEach(() => {
-    userService = { getById: jest.fn().mockResolvedValue(buildUser()) };
+    userService = {
+      getById: jest.fn().mockResolvedValue(buildUser()),
+      countJoinedBefore: jest.fn().mockResolvedValue(0),
+    };
     subscriptionService = {
       buildPlanView: jest.fn().mockResolvedValue(buildPlanView()),
     };
@@ -90,6 +98,7 @@ describe('ProfileOrchestrator', () => {
       sumListenedSecByDates: jest.fn().mockResolvedValue(new Map()),
       sumListenedSecByContent: jest.fn().mockResolvedValue([]),
       sumListenedSecByContentAndDates: jest.fn().mockResolvedValue([]),
+      countUsersListenedMoreByDates: jest.fn().mockResolvedValue(0),
     };
     contentService = { findTopicViews: jest.fn().mockResolvedValue([]) };
 
@@ -116,6 +125,8 @@ describe('ProfileOrchestrator', () => {
         expiresAt: null,
         hasPaymentIssue: false,
         trial: null,
+        pendingPlan: null,
+        grant: null,
       };
       subscriptionService.buildPlanView.mockResolvedValue(planView);
 
@@ -194,6 +205,53 @@ describe('ProfileOrchestrator', () => {
         previousWeekStart: '2026-07-27',
         nextWeekStart: null,
       });
+    });
+
+    it('이번 주 청취 시간 전체 상위 %를 그 주 날짜·주 끝 시각 기준으로 계산해 싣는다(KAN-168)', async () => {
+      // given — 이번 주 1220+600초, 나보다 많이 들은 사람 11명, 그 주 끝까지 가입자 100명 → 12등 → 상위 12%
+      playbackService.sumListenedSecByDates.mockResolvedValue(
+        new Map([
+          ['2026-08-03', 1220],
+          ['2026-08-05', 600],
+        ]),
+      );
+      playbackService.countUsersListenedMoreByDates.mockResolvedValue(11);
+      userService.countJoinedBefore.mockResolvedValue(100);
+
+      // when
+      const result = await orchestrator.getSummary(USER_ID, NOW);
+
+      // then — 모집단은 다음 주 월요일 04:00 KST(= 일요일 19:00 UTC) 전 가입자다
+      expect(result.weeklyListening?.listeningTopPercent).toBe(12);
+      expect(
+        playbackService.countUsersListenedMoreByDates,
+      ).toHaveBeenCalledWith(
+        [
+          '2026-08-03',
+          '2026-08-04',
+          '2026-08-05',
+          '2026-08-06',
+          '2026-08-07',
+          '2026-08-08',
+          '2026-08-09',
+        ],
+        1820,
+      );
+      expect(userService.countJoinedBefore).toHaveBeenCalledWith(
+        new Date('2026-08-09T19:00:00.000Z'),
+      );
+    });
+
+    it('이번 주에 듣지 않았으면 상위 %는 null이고 순위를 세지 않는다', async () => {
+      // when
+      const result = await orchestrator.getSummary(USER_ID, NOW);
+
+      // then
+      expect(result.weeklyListening?.listeningTopPercent).toBeNull();
+      expect(
+        playbackService.countUsersListenedMoreByDates,
+      ).not.toHaveBeenCalled();
+      expect(userService.countJoinedBefore).not.toHaveBeenCalled();
     });
 
     it('이번 주 그래프에 그 주·요일별 주제 분포를 함께 싣는다', async () => {
@@ -330,6 +388,38 @@ describe('ProfileOrchestrator', () => {
         dailyListenedSec: [0, 3600, 0, 0, 0, 0, 0],
         nextWeekStart: '2026-08-03',
       });
+    });
+
+    it('지난 주의 상위 %는 그 주 날짜와 그 주 끝 시각까지의 가입자로 계산한다', async () => {
+      // given — 3600초, 나보다 많이 들은 사람 0명, 그 주 끝까지 가입자 40명 → 1등 → 상위 3%(ceil 2.5)
+      playbackService.sumListenedSecByDates.mockResolvedValue(
+        new Map([['2026-07-28', 3600]]),
+      );
+      userService.countJoinedBefore.mockResolvedValue(40);
+
+      // when
+      const result = await orchestrator.getWeeklyListening(
+        USER_ID,
+        '2026-07-27',
+        NOW,
+      );
+
+      // then
+      expect(result.listeningTopPercent).toBe(3);
+      expect(
+        playbackService.countUsersListenedMoreByDates.mock.calls[0][0],
+      ).toEqual([
+        '2026-07-27',
+        '2026-07-28',
+        '2026-07-29',
+        '2026-07-30',
+        '2026-07-31',
+        '2026-08-01',
+        '2026-08-02',
+      ]);
+      expect(userService.countJoinedBefore).toHaveBeenCalledWith(
+        new Date('2026-08-02T19:00:00.000Z'),
+      );
     });
 
     it('월요일이 아닌 라벨은 형식 오류로 거절한다', async () => {

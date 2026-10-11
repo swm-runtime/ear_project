@@ -10,7 +10,7 @@
 | 중요도 | **Medium**(3일 안) — 이게 없으면 FE·AI 쪽 작업이 끝나도 기능을 열 수 없다(세 티켓의 병목) |
 | 상태 | **완료** — 구현·계약 등재 (2026-09-19) |
 | Jira | KAN-71 |
-| 짝 티켓 | `tickets/ai/pending/script-timed-segments.md`(데이터 생산) · `tickets/frontend/pending/script-real-api.md`(연동) |
+| 짝 티켓 | `tickets/ai/archive/script-timed-segments.md`(데이터 생산) · `tickets/frontend/archive/script-real-api.md`(연동) |
 
 ## 배경
 

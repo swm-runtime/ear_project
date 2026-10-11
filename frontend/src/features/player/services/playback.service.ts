@@ -22,6 +22,8 @@ import { ERROR_CODES } from '@/shared/api/error-codes';
 import { generateId } from '@/shared/lib/generate-id';
 import { logger } from '@/shared/lib/logger';
 
+import type { AudioQuality } from '@/features/settings';
+
 import {
   issueAudioUrls,
   savePlaybackProgress,
@@ -128,6 +130,8 @@ interface SessionContext {
   entryPoint: PlayEntryPoint;
   callbacks: PlaybackCallbacks;
   contentVersion: number;
+  /** 처음 발급에서 받은 음질 — 재생 중 갱신에 그대로 싣는다(설정을 바꿔도 이 편은 끝까지 같은 파일). 옛 서버면 null */
+  audioQuality: AudioQuality | null;
   /** 서버가 내려준 길이. 0이면 미상 — 완청은 폴백 경로(library-api.md 4.5)다 */
   durationSec: number;
   libraryItemId: string | null;
@@ -164,6 +168,7 @@ const initialSession = (request: StartPlaybackRequest): PlaybackSession => ({
   },
   libraryItem: null,
   hasScript: false,
+  sections: [],
   isPlaying: false,
   isBuffering: false,
   positionSec: 0,
@@ -269,6 +274,7 @@ class PlaybackService {
       entryPoint: request.entryPoint,
       callbacks: request.callbacks ?? {},
       contentVersion: 1,
+      audioQuality: null,
       durationSec: request.meta?.durationSec ?? 0,
       libraryItemId: null,
       tracking: createTrackingState(0),
@@ -293,6 +299,7 @@ class PlaybackService {
       if (generation !== this.generation || !this.ctx) return;
 
       this.ctx.contentVersion = issue.content.contentVersion;
+      this.ctx.audioQuality = issue.audio.quality;
       this.ctx.durationSec = issue.content.durationSec;
       this.ctx.libraryItemId = issue.libraryItem?.id ?? null;
 
@@ -318,6 +325,7 @@ class PlaybackService {
         },
         libraryItem: issue.libraryItem,
         hasScript: issue.hasScript,
+        sections: issue.sections,
         durationSec: issue.content.durationSec,
         positionSec: startPositionSec,
       });
@@ -467,7 +475,8 @@ class PlaybackService {
     // 시크 직후 — 플레이어가 아직 옛 위치를 보고하는 동안은 위치를 목표에 묶어 둔다(위 pendingSeek)
     const pending = this.pendingSeek;
     if (pending !== null) {
-      const isSettled = Math.abs(status.currentTime - pending.targetSec) <= SEEK_SETTLE_TOLERANCE_SEC;
+      const isSettled =
+        Math.abs(status.currentTime - pending.targetSec) <= SEEK_SETTLE_TOLERANCE_SEC;
       if (isSettled || Date.now() >= pending.until) this.pendingSeek = null;
     }
     const isStaleAfterSeek = this.pendingSeek !== null;
@@ -528,7 +537,9 @@ class PlaybackService {
     if (session.state !== 'ready' || ctx.isEnded || this.streamError) return;
     this.streamError = { wasPlaying: session.isPlaying };
     this.player?.pause();
-    store.getState().patchSession({ isPlaying: false, isBuffering: false, banner: 'refresh_failed' });
+    store
+      .getState()
+      .patchSession({ isPlaying: false, isBuffering: false, banner: 'refresh_failed' });
     this.flushProgress('error');
   }
 
@@ -632,7 +643,9 @@ class PlaybackService {
       return;
     }
     const session = store.getState().session;
-    if (session?.state === 'ready' && !session.isPlaying) this.player?.play();
+    if (session?.state === 'ready' && (!session.isPlaying || session.banner === 'network')) {
+      this.player?.play();
+    }
   }
 
   togglePlayPause(): void {
@@ -741,7 +754,9 @@ class PlaybackService {
     ctx.isEnded = true;
     track('play_complete', {
       content_id: ctx.contentId,
-      listen_sec: Math.round(ctx.durationSec > 0 ? ctx.durationSec : (store.getState().session?.positionSec ?? 0)),
+      listen_sec: Math.round(
+        ctx.durationSec > 0 ? ctx.durationSec : (store.getState().session?.positionSec ?? 0),
+      ),
     });
     this.player?.pause();
     store.getState().patchSession({
@@ -892,7 +907,8 @@ class PlaybackService {
     const generation = this.generation;
 
     try {
-      const issue = await issueAudioUrls({ contentId: ctx.contentId });
+      // 바꾼 음질은 다음 편부터 — 재생 중 갱신은 처음 받은 음질을 그대로 실어 같은 파일을 받는다(settings.md 4.6)
+      const issue = await issueAudioUrls({ contentId: ctx.contentId, quality: ctx.audioQuality });
       if (generation !== this.generation || !this.ctx) return;
 
       const session = store.getState().session;

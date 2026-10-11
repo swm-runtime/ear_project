@@ -7,7 +7,7 @@
 | 발행 날짜 | 2026-09-19 |
 | Jira | [KAN-76](https://runtime364.atlassian.net/browse/KAN-76) |
 | 발견 시점 | KAN-65(A안) 운영 중 — 개발계 앱과 운영 앱의 번들 ID 가 같아 한 폰에 하나만 깔리고, iOS 는 ad-hoc 기기 등록에서 멈춰 팀 배포가 안 됐다 |
-| 근거 문서 | `docs/tickets/frontend/pending/dev-api-test-method.md`(KAN-65 — "번들 ID 분리는 필요해지면 별도 티켓") · `docs/frontend/architecture.md` 2.1 |
+| 근거 문서 | `docs/tickets/frontend/archive/dev-api-test-method.md`(KAN-65 — "번들 ID 분리는 필요해지면 별도 티켓") · `docs/frontend/architecture.md` 2.1 |
 | 중요도 | **Medium** — 3일 안 |
 | 상태 | **완료**(2026-09-20) — 카카오 로그인은 KAN-80·KAN-82 가 이어서 갖는다 |
 
@@ -37,7 +37,7 @@
 | 3 | 구글 클라우드(프로젝트 475643832949) | OAuth 클라이언트 2개 생성 — **iOS**(번들 `dev.runtime.ear`) · **Android**(패키지 `dev.runtime.ear` + 처리 기록의 SHA-1). iOS 클라이언트 ID 는 `app.config.js` 의 `DEV_SOCIAL_AUTH.googleIosClientId` 에 넣는다(네이티브 값이라 iOS 재빌드 필요 — **1번보다 먼저 하면 빌드 한 번으로 끝난다**) | 개발계 앱 구글 로그인 실패 |
 | 4 | 카카오 개발자 콘솔 | 플랫폼에 iOS 번들 ID·Android 패키지 `dev.runtime.ear` + 처리 기록의 키 해시 추가 | 개발계 앱 카카오 로그인 실패 |
 | 5 | 네이버 개발자 센터 | Android 패키지 `dev.runtime.ear` · iOS 번들 추가(URL 스킴은 그대로 `earnaverlogin`) | 개발계 앱 네이버 로그인 실패 |
-| 6 | 개발계 서버 env | `APPLE_CLIENT_ID=dev.runtime.ear` — `docs/tickets/infra/pending/dev-server-apple-client-id.md` | 개발계 iOS 앱 애플 로그인이 `aud` 불일치로 거부된다 |
+| 6 | 개발계 서버 env | `APPLE_CLIENT_ID=dev.runtime.ear` — `docs/tickets/infra/archive/dev-server-apple-client-id.md` | 개발계 iOS 앱 애플 로그인이 `aud` 불일치로 거부된다 |
 
 ## 알려진 한계
 
@@ -92,4 +92,4 @@
 - **반영 날짜: 2026-09-20.** PM 이 완료를 확인했다(Jira KAN-76 을 직접 닫음 — 원본을 같은 상태로 맞춘다).
 - 개발계 앱은 양 플랫폼에 배포돼 팀이 쓰고 있다: iOS TestFlight "이어 - preview" 1.0.0 (5), 내부 그룹 SWM-Team 자동 배포 · Android APK 는 Actions `dev-app-build` 아티팩트 `ear-preview-apk`. 운영 앱과 한 기기에 같이 깔리고 각자 자기 환경(개발계·운영 API)만 본다. 팀 공지는 #dev-fullstack(2026-09-20, KAN-65).
 - 콘솔 등록("사람 손")은 끝났다 — 구글 iOS·네이버 Android 로그인이 개발계 앱에서 성공했다(2026-09-20 실기기). 애플은 KAN-77 로 서버 값이 맞춰졌다.
-- **여기서 갈라져 나가 아직 열려 있는 것**: 카카오 로그인 — 앱 키 분리는 KAN-80(`preview-app-social-keys.md`), 개발계 서버의 `KAKAO_APP_ID` 는 KAN-82(`tickets/infra/pending/dev-server-kakao-app-id.md`). 이 티켓의 범위(앱 분리) 밖이라 그쪽에서 닫는다.
+- **여기서 갈라져 나가 아직 열려 있는 것**: 카카오 로그인 — 앱 키 분리는 KAN-80(`preview-app-social-keys.md`), 개발계 서버의 `KAKAO_APP_ID` 는 KAN-82(`tickets/infra/archive/dev-server-kakao-app-id.md`). 이 티켓의 범위(앱 분리) 밖이라 그쪽에서 닫는다.

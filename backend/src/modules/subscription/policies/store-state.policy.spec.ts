@@ -375,6 +375,20 @@ describe('resolveFromAppStoreNotification — 서버 알림 → 상태', () => {
     });
   });
 
+  it('DID_FAIL_TO_RENEW — 지난 주기의 결제 실패 알림이 늦게 오면 이미 갱신된 지금 주기를 건드리지 않는다(2026-10-07)', () => {
+    expect(
+      resolveFromAppStoreNotification(
+        stored({ expiresAt: NEXT_PERIOD_END }),
+        notification({
+          type: 'DID_FAIL_TO_RENEW',
+          subtype: null,
+          transaction: transaction({ expiresAt: PERIOD_END }),
+        }),
+        NOW,
+      ),
+    ).toEqual({ kind: 'ignore', reason: 'older_transaction' });
+  });
+
   it('DID_FAIL_TO_RENEW(유예 없음) — 만료로 내린다', () => {
     const state = applied(
       resolveFromAppStoreNotification(
@@ -824,6 +838,117 @@ describe('resolveFromAppStoreNotification — 유예 중인 구독(2026-10-06)',
   });
 });
 
+describe('resolveFromStoreStatus — 요금제 변경으로 교체된 옛 토큰(4.7, 2026-10-08)', () => {
+  /** 업그레이드 뒤의 행 — 새 토큰(Pro)으로 살아 있고 만료일은 새 주기 */
+  const upgraded = stored({
+    tier: UserTier.PRO,
+    status: SubscriptionStatus.ACTIVE,
+    expiresAt: NEXT_PERIOD_END,
+    latestReceipt: 'token-pro',
+  });
+  const play = (overrides: Partial<StoreTransaction>) =>
+    transaction({ store: SubscriptionStore.PLAY_STORE, ...overrides });
+
+  it('교체된 옛 토큰(Daily)의 EXPIRED 는 무시한다 — 행은 새 토큰으로 살아 있다(개발계 실측: 업그레이드 3초 뒤 light 로 떨어지던 원인)', () => {
+    const decision = resolveFromStoreStatus(upgraded, {
+      status: 'expired',
+      transaction: play({ receipt: 'token-daily', expiresAt: PERIOD_END }),
+      renewal: null,
+      tier: UserTier.DAILY,
+      renewalTier: null,
+      checkedAt: NOW,
+    });
+
+    expect(decision).toEqual({ kind: 'ignore', reason: 'replaced_token' });
+  });
+
+  it('옛 토큰의 환불·결제 재시도도 새 구독을 끝내지 않는다', () => {
+    for (const status of ['revoked', 'billing_retry'] as const) {
+      expect(
+        resolveFromStoreStatus(upgraded, {
+          status,
+          transaction: play({ receipt: 'token-daily', expiresAt: PERIOD_END }),
+          renewal: null,
+          tier: UserTier.DAILY,
+          renewalTier: null,
+          checkedAt: NOW,
+        }),
+      ).toEqual({ kind: 'ignore', reason: 'replaced_token' });
+    }
+  });
+
+  it('지금 토큰(Pro)의 EXPIRED 는 그대로 만료다 — 같은 토큰이면 교체가 아니다', () => {
+    const state = applied(
+      resolveFromStoreStatus(upgraded, {
+        status: 'expired',
+        transaction: play({ receipt: 'token-pro', expiresAt: NEXT_PERIOD_END }),
+        renewal: null,
+        tier: UserTier.PRO,
+        renewalTier: null,
+        checkedAt: NOW,
+      }),
+    );
+
+    expect(state.status).toBe(SubscriptionStatus.EXPIRED);
+  });
+
+  it('다른 토큰이라도 더 늦게 끝나는 것이면 옛 토큰이 아니다 — 종전대로 반영한다', () => {
+    const state = applied(
+      resolveFromStoreStatus(upgraded, {
+        status: 'expired',
+        transaction: play({
+          receipt: 'token-newer',
+          expiresAt: new Date('2027-01-01T00:00:00.000Z'),
+        }),
+        renewal: null,
+        tier: UserTier.PRO,
+        renewalTier: null,
+        checkedAt: NOW,
+      }),
+    );
+
+    expect(state.status).toBe(SubscriptionStatus.EXPIRED);
+  });
+
+  it('행이 이미 끝났으면 옛 토큰의 EXPIRED 는 같은 상태다(되살리지도, 바꾸지도 않는다)', () => {
+    const ended = stored({
+      status: SubscriptionStatus.EXPIRED,
+      isAutoRenew: false,
+      expiresAt: PERIOD_END,
+      latestReceipt: 'token-pro',
+    });
+
+    expect(
+      resolveFromStoreStatus(ended, {
+        status: 'expired',
+        transaction: play({ receipt: 'token-daily', expiresAt: PERIOD_START }),
+        renewal: null,
+        tier: UserTier.DAILY,
+        renewalTier: null,
+        checkedAt: NOW,
+      }),
+    ).toEqual({ kind: 'unchanged' });
+  });
+
+  it('App Store 에는 적용하지 않는다 — 같은 구독 그룹은 originalTransactionId 가 고정이라 토큰 사슬이 없다', () => {
+    const state = applied(
+      resolveFromStoreStatus(upgraded, {
+        status: 'expired',
+        transaction: transaction({
+          receipt: 'other-jws',
+          expiresAt: PERIOD_END,
+        }),
+        renewal: null,
+        tier: UserTier.PRO,
+        renewalTier: null,
+        checkedAt: NOW,
+      }),
+    );
+
+    expect(state.status).toBe(SubscriptionStatus.EXPIRED);
+  });
+});
+
 describe('resolveFromStoreStatus — 환불로 끝난 Play 구독(4.7, 2026-10-06)', () => {
   const playTransaction = (overrides: Partial<StoreTransaction> = {}) =>
     transaction({
@@ -889,6 +1014,56 @@ describe('resolveFromStoreStatus — 환불로 끝난 Play 구독(4.7, 2026-10-0
         ),
       ).status,
     ).toBe(SubscriptionStatus.ACTIVE);
+  });
+
+  describe('주문 ID를 아는 행(2026-10-07) — 결제 주기는 주문 ID로 가른다', () => {
+    const refundedWithOrder = stored({
+      ...refunded,
+      latestOrderId: 'GPA.1111-0',
+      // 유예 중 환불 — 만료일은 유예 종료일로 밀려 있다
+      expiresAt: NEXT_PERIOD_END,
+    });
+
+    it('같은 주문의 active 는 만료일이 어떻든 되살리지 않는다', () => {
+      expect(
+        resolveFromStoreStatus(
+          refundedWithOrder,
+          input(
+            'active',
+            playTransaction({
+              orderId: 'GPA.1111-0',
+              expiresAt: new Date('2026-12-15T00:00:00.000Z'),
+            }),
+          ),
+        ),
+      ).toEqual({ kind: 'ignore', reason: 'terminated' });
+    });
+
+    it('주문 ID가 바뀌면(재청구 성공·갱신) 새 만료일이 저장값보다 뒤가 아니어도 되살린다 — 유예 길이 ≈ 결제 주기', () => {
+      expect(
+        applied(
+          resolveFromStoreStatus(
+            refundedWithOrder,
+            input(
+              'active',
+              playTransaction({
+                orderId: 'GPA.1111-0..1',
+                expiresAt: NEXT_PERIOD_END,
+              }),
+            ),
+          ),
+        ).status,
+      ).toBe(SubscriptionStatus.ACTIVE);
+    });
+
+    it('조회 결과에 주문 ID가 없으면 종전 규칙(만료일 비교)으로 돌아간다', () => {
+      expect(
+        resolveFromStoreStatus(
+          refundedWithOrder,
+          input('active', playTransaction({ orderId: null })),
+        ),
+      ).toEqual({ kind: 'ignore', reason: 'terminated' });
+    });
   });
 
   it('환불 통지의 재전송은 같은 상태다', () => {

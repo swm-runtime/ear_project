@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 
-import type { PushArrival, PushTarget } from '../notification.types';
+import type { PushTarget } from '../notification.types';
 
 /**
  * 알림 사전 안내를 **라이브러리 진입 시** 띄워야 하는지를 들고 있는 신호.
@@ -23,10 +23,6 @@ interface NotificationStore {
   pendingPushTarget: PushTarget | null;
   setPendingPushTarget: (target: PushTarget) => void;
   clearPendingPushTarget: () => void;
-  /** 포그라운드 수신 — OS 배너 대신 그리는 인앱 배너(notification.md 4.5) */
-  foregroundArrival: PushArrival | null;
-  showForegroundArrival: (arrival: PushArrival) => void;
-  hideForegroundArrival: () => void;
 }
 
 export const useNotificationStore = create<NotificationStore>((set) => ({
@@ -36,7 +32,4 @@ export const useNotificationStore = create<NotificationStore>((set) => ({
   pendingPushTarget: null,
   setPendingPushTarget: (target) => set({ pendingPushTarget: target }),
   clearPendingPushTarget: () => set({ pendingPushTarget: null }),
-  foregroundArrival: null,
-  showForegroundArrival: (arrival) => set({ foregroundArrival: arrival }),
-  hideForegroundArrival: () => set({ foregroundArrival: null }),
 }));

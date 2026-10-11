@@ -95,6 +95,7 @@
       { "id": "uuid", "name": "커리어" },
       { "id": "uuid", "name": "심리학" }
     ],
+    "tags": ["협상", "앵커링"],
     "series": { "series_id": "uuid", "episode_no": 2, "total_episodes": 5 },
     "origin": "partner",
     "author_name": "김서연",
@@ -142,6 +143,7 @@
 | `content.published_at` | 발행일. 표기 형식은 uiux 소관 |
 | `content.content_version` | 재발행 판정용 — 목록 행·발급 응답과 같은 재료(`library-api.md` 4.1 · `player-api.md` 4.1). 클라이언트 보관값보다 크면 저장 위치·오프라인 파일을 폐기한다 |
 | `content.topics[]` | `content_topics` 조인 결과 — 헤더의 주제 태그. **배열 순서대로 그린다**(재배열 금지 — 기존 원칙) |
+| `content.tags` | 화면 해시태그('#' 없이 — **'#'은 화면이 붙인다**). 2~4개, 받은 적 없는 콘텐츠는 **빈 배열**. 주제(`topics[]` — 분류)와 별개인 표시용 값이고 탭 동작은 없다(추가 2026-10-08, KAN-162 — `domain.md` 5.1 `contents.tags`) |
 | `content.series` | **단일 콘텐츠는 `null`이다**(`domain.md` 5.1 — `series_id` · `episode_no` · `total_episodes` 셋 다 `null`). 값이 있으면 "N부작 중 M화" 줄을 그리고, `null`이면 줄을 통째로 생략한다 — **클라이언트가 별도 조건을 계산하지 않는다**(`content-detail.md` 4.3-1). 세 필드를 한 객체로 묶어 null 판정이 하나가 되게 한다 |
 | `content.origin` | `partner` / `ai_generated` — 출처 영역 분기(`content-detail.md` 4.3) |
 | `content.author_name` · `source_name` · `source_url` | `partner`는 셋 다 항상 값이 있다(`chk_contents_partner_disclosure` — `domain.md` 5.1). 저자·제공·[원문 보기]를 그린다. `ai_generated`는 `author_name` · `source_url`이 `null`일 수 있고, `source_name`은 고지 문구용 표기 문자열이라 **상세의 출처 영역에는 쓰지 않는다**(소스 나열은 `sources`가 담당) |

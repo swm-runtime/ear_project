@@ -149,7 +149,7 @@ describe('parseScriptFile — 객체 형식과 구간 제목(admin-api.md 4.6 `s
       [[SECTIONS[1], SECTIONS[0]], '엄격한 오름차순'],
       [[{ start_sec: 0, title: '  ' }], 'title이 비어'],
       [[{ start_sec: 0, title: '가'.repeat(61) }], '너무 길어요'],
-      [[{ start_sec: 0, title: '인트로', summary: '요약' }], '모르는 키'],
+      [[{ start_sec: 0, title: '인트로', chapter: 1 }], '모르는 키'],
       [[{ start_sec: -1, title: '인트로' }], 'start_sec'],
       ['구간', 'sections가 구간 배열'],
     ];
@@ -198,6 +198,81 @@ describe('parseScriptFile — 객체 형식과 구간 제목(admin-api.md 4.6 `s
       (await parseScriptFile(buildScriptFile({ segments: 'x', sections: [] })))
         .rejectedReason,
     ).toContain('segments가 세그먼트 배열');
+  });
+});
+
+describe('parseScriptFile — 구간의 kind·summary(KAN-151)', () => {
+  it('kind 와 summary 는 선택이다 — 있으면 그대로, 없으면 키 자체가 없다', async () => {
+    const result = await parseScriptFile(
+      buildScriptFile({
+        segments: VALID,
+        sections: [
+          { start_sec: 0, title: '인트로', kind: 'intro' },
+          {
+            start_sec: 12.4,
+            title: '도입',
+            kind: 'lead',
+            summary: '오늘 다룰 질문 하나',
+          },
+          { start_sec: 27.95, title: '본문 단락' },
+        ],
+      }),
+    );
+
+    expect(result.rejectedReason).toBeNull();
+    expect(result.data?.sections).toEqual([
+      { start_sec: 0, title: '인트로', kind: 'intro' },
+      {
+        start_sec: 12.4,
+        title: '도입',
+        kind: 'lead',
+        summary: '오늘 다룰 질문 하나',
+      },
+      { start_sec: 27.95, title: '본문 단락' },
+    ]);
+    expect('kind' in result.data!.sections[2]).toBe(false);
+  });
+
+  it('모르는 kind·빈 summary·41자 summary 는 파일을 통째로 거부한다', async () => {
+    const cases: [Record<string, unknown>, string][] = [
+      [
+        { start_sec: 0, title: '인트로', kind: 'chapter' },
+        'kind는 intro | lead | body | outro',
+      ],
+      [{ start_sec: 0, title: '인트로', kind: 1 }, 'kind는'],
+      [{ start_sec: 0, title: '인트로', summary: '  ' }, 'summary가 비어'],
+      [
+        { start_sec: 0, title: '인트로', summary: '가'.repeat(41) },
+        'summary가 너무 길어요',
+      ],
+    ];
+
+    for (const [section, reason] of cases) {
+      const result = await parseScriptFile(
+        buildScriptFile({ segments: VALID, sections: [section] }),
+      );
+
+      expect(result.data).toBeNull();
+      expect(result.rejectedReason).toContain(reason);
+    }
+  });
+
+  it('summary 40자는 받는다', async () => {
+    const result = await parseScriptFile(
+      buildScriptFile({
+        segments: VALID,
+        sections: [
+          {
+            start_sec: 0,
+            title: '인트로',
+            kind: 'body',
+            summary: '가'.repeat(40),
+          },
+        ],
+      }),
+    );
+
+    expect(result.rejectedReason).toBeNull();
   });
 });
 

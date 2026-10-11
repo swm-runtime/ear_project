@@ -62,7 +62,11 @@ export type StoreStateIgnoreReason =
   /** 상품이 어느 요금제인지 모른다 */
   | 'unknown_product'
   /** 상태를 바꾸지 않는 알림 유형(TEST·PRICE_INCREASE 등) */
-  | 'unhandled_type';
+  | 'unhandled_type'
+  /** 같은 스토어에 살아 있는 구독이 따로 있는 사용자의, 그 행에 이어지지 않는 두 번째 구독(Play — 4.4) */
+  | 'duplicate_subscription'
+  /** 요금제 변경으로 교체된 **옛** 구매 토큰의 종결 상태 — 행은 이미 새 토큰으로 살아 있다(Play — 4.7) */
+  | 'replaced_token';
 
 /** 기존 상태 + 마지막 알림 시각. 행이 없으면 `null` */
 export type StoredSubscriptionState = SubscriptionState & {
@@ -72,6 +76,8 @@ export type StoredSubscriptionState = SubscriptionState & {
    * **같은 구매 토큰**으로 되살리지 않는 판정에만 쓴다(`resolveFromStoreStatus`). 모르면 비운다
    */
   latestReceipt?: string | null;
+  /** 그 행에 마지막으로 반영한 Play 주문 ID(`subscriptions.latest_order_id`). 환불 고정의 결제 주기 식별자. 모르면 비운다 */
+  latestOrderId?: string | null;
 };
 
 function freshState(
@@ -318,6 +324,11 @@ export function resolveFromAppStoreNotification(
         return { kind: 'ignore', reason: 'terminated' };
       }
 
+      // 지난 주기의 결제 실패 알림이 늦게 왔다 — 이미 갱신된 지금 주기를 건드리지 않는다(7장, 2026-10-07)
+      if (isOlderPeriod) {
+        return { kind: 'ignore', reason: 'older_transaction' };
+      }
+
       if (subtype === 'GRACE_PERIOD') {
         return decide(existing, {
           ...base,
@@ -407,6 +418,25 @@ const HANDLED_APP_STORE_TYPES: ReadonlySet<string> = new Set([
   'RENEWAL_EXTENDED',
 ]);
 
+/**
+ * 환불로 끝난 Play 행과 지금 조회 결과가 **같은 결제 주기**인가(= 되살리지 않는다). 주문 ID를 둘 다 알면 그것으로,
+ * 모르면 "`active`이고 만료일이 뒤로 갔다"가 아닐 때 같은 주기로 본다.
+ */
+function isSameBillingPeriod(
+  existing: StoredSubscriptionState,
+  transaction: StoreTransaction,
+  status: StoreSubscriptionStatus,
+): boolean {
+  if (existing.latestOrderId != null && transaction.orderId != null) {
+    return existing.latestOrderId === transaction.orderId;
+  }
+
+  return !(
+    status === 'active' &&
+    transaction.expiresAt.getTime() > existing.expiresAt.getTime()
+  );
+}
+
 /** 스토어에 직접 물어 얻은 "그 구독의 지금 상태" — 만료 보정이 쓴다 */
 export type StoreSubscriptionStatus =
   | 'active'
@@ -452,8 +482,10 @@ export function resolveFromStoreStatus(
    * 그대로 따르면 뒤따르는 다른 알림·복원·재제출이 환불을 지운다(`refunded` → `active`).
    *
    * 되살아나는 것은 **돈이 다시 들어왔을 때**뿐이다: 새 구매 토큰(재구독·요금제 변경)이거나, 같은 토큰이라도
-   * 만료일이 환불 당시보다 뒤로 간 `active`(그 뒤에 갱신 결제가 됐다). 유예로 만료일만 밀린 것은 결제가 아니다.
-   * App Store는 상태 조회가 환불을 `revoked`로 직접 답하므로 이 규칙이 필요 없다.
+   * **주문 ID가 바뀐** 경우(Google은 갱신·재청구 성공마다 새 `latestOrderId`를 발급한다 — 2026-10-07 개정).
+   * 주문 ID를 모르는 행(개정 전 기록)은 종전 규칙 — 만료일이 환불 당시보다 뒤로 간 `active` — 로 본다. 종전 규칙만
+   * 쓰면 유예 중 환불 뒤 재청구가 성공해도 새 만료일이 유예 종료일(환불 당시 저장값)을 넘지 못해 되살아나지 않는
+   * 경우가 있다(유예 길이 ≈ 결제 주기). App Store는 상태 조회가 환불을 `revoked`로 직접 답하므로 이 규칙이 필요 없다.
    */
   if (
     existing !== null &&
@@ -461,12 +493,32 @@ export function resolveFromStoreStatus(
     status !== 'revoked' &&
     transaction.store === SubscriptionStore.PLAY_STORE &&
     existing.latestReceipt === transaction.receipt &&
-    !(
-      status === 'active' &&
-      transaction.expiresAt.getTime() > existing.expiresAt.getTime()
-    )
+    isSameBillingPeriod(existing, transaction, status)
   ) {
     return { kind: 'ignore', reason: 'terminated' };
+  }
+
+  /**
+   * **교체된 옛 토큰의 종결 상태는 구독의 상태가 아니다**(`subscription-api.md` 4.7 "구독 행의 키" — 2026-10-08 개발계
+   * 실측). Play 요금제 변경(업·다운그레이드)은 새 구매 토큰을 발급하고 옛 토큰을 곧 만료시키며, 두 토큰은
+   * `linkedPurchaseToken` 사슬로 **같은 행**에 이어진다. 그래서 교체 직후 Google 이 옛 토큰에 보내는 EXPIRED 알림
+   * (RTDN 13)이 같은 행으로 들어오는데, "지금 상태"로 그대로 반영하면 방금 산 새 구독이 3초 만에 만료된다
+   * (Daily→Pro 업그레이드 뒤 티어가 light 로 떨어졌다). 행이 이미 **다른 토큰**으로 살아 있고 들어온 토큰이 그보다
+   * 먼저(또는 같이) 끝나는 것이면, 그 종결은 옛 토큰의 것이다 — 무시한다. 환불(`revoked`)도 같다: 교체된 옛 결제분의
+   * 환불은 새 구독을 끝내지 않는다. 행이 끝난 뒤의 옛 토큰 조회는 종전대로 `decide`가 "같은 상태"로 거른다.
+   */
+  if (
+    existing !== null &&
+    transaction.store === SubscriptionStore.PLAY_STORE &&
+    (status === 'expired' ||
+      status === 'billing_retry' ||
+      status === 'revoked') &&
+    !isTerminalStatus(existing.status) &&
+    existing.latestReceipt != null &&
+    existing.latestReceipt !== transaction.receipt &&
+    transaction.expiresAt.getTime() <= existing.expiresAt.getTime()
+  ) {
+    return { kind: 'ignore', reason: 'replaced_token' };
   }
 
   const base: SubscriptionState =

@@ -122,6 +122,11 @@ export class SubscriptionReconcileService {
           environment: subscription.environment,
           expires_at: subscription.expiresAt.toISOString(),
         });
+        this.billingAlertService.forcedExpiry(
+          subscription.store,
+          subscription.environment,
+          now,
+        );
       }
 
       return expired;

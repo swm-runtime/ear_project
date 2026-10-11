@@ -3,7 +3,7 @@
 | 항목 | 값 |
 |---|---|
 | 대상 문서 | `features/notification.md` 3·4.3·7·8 · `frontend/architecture.md` 2(기술 스택 표 "푸시" 행)·미결 사항 · `spec/api/onboarding-api.md` 4.9(`push_token` 예시·비고) · `legal/privacy-policy-draft.md` 6(처리 위탁)·6.1(국외 이전 신설) · `legal/review-2026-09-04.md` 4 |
-| 요청 파트 | 문서 — 구현은 `tickets/backend/pending/push-drip-arrival-sender.md`(KAN-68) · `tickets/frontend/pending/push-sdk-integration.md`(KAN-69) |
+| 요청 파트 | 문서 — 구현은 `tickets/backend/archive/push-drip-arrival-sender.md`(KAN-68) · `tickets/frontend/archive/push-sdk-integration.md`(KAN-69) |
 | 발행 날짜 | 2026-09-17 |
 | 반영 날짜 | 2026-09-17 (발행 당일 반영 — 사용자 요청: 티켓 착수 전 문서 선반영) |
 | 발견 시점 | 2026-09-17 푸시 미구현 티켓 발행 중 사용자 결정 |

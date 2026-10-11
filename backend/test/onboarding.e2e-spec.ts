@@ -386,6 +386,37 @@ describe('온보딩 E2E', () => {
     expect(response.body).toMatchObject({ error_code: ErrorCode.UNAUTHORIZED });
   }, 60_000);
 
+  it('멱등키가 255자를 넘거나 본문이 한도를 넘으면 500이 아니라 4xx 에러 규격으로 답한다', async () => {
+    // given — 2026-09-26 감사 하 #6(키 길이 → 22001 → 500)·#7(본문 413)
+    const { auth } = await createUser('oversize');
+
+    // when — 300자 키
+    const longKey = await post('/onboarding/picks', auth, {
+      content_ids: [MISSING_CONTENT_ID],
+    }).set('Idempotency-Key', 'k'.repeat(300));
+
+    // then
+    expect(longKey.status).toBe(HttpStatus.BAD_REQUEST);
+    expect(longKey.body).toMatchObject({
+      error_code: ErrorCode.VALIDATION_FAILED,
+      retryable: false,
+    });
+
+    // when — 기본 한도(100kb)를 넘는 JSON 본문
+    const tooLarge = await post('/onboarding/picks', auth, {
+      content_ids: [MISSING_CONTENT_ID],
+      pad: 'x'.repeat(200_000),
+    }).set('Idempotency-Key', `e2e-oversize-${Date.now()}`);
+
+    // then
+    expect(tooLarge.status).toBe(HttpStatus.PAYLOAD_TOO_LARGE);
+    expect(tooLarge.body).toMatchObject({
+      error_code: ErrorCode.VALIDATION_FAILED,
+      message: '요청이 너무 커요',
+      retryable: false,
+    });
+  }, 60_000);
+
   // --- 헬퍼 ---
 
   interface SectionsBody {

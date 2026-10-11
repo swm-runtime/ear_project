@@ -1,7 +1,4 @@
-import { StyleSheet, View } from 'react-native';
-
-import { theme } from '@/shared/theme';
-import { Text } from '@/shared/ui/Typography';
+import InlineNotice from '@/shared/ui/InlineNotice';
 
 import type { PurchaseFeedback } from '../hooks/purchase-feedback';
 import { SUBSCRIPTION_COPY } from '../subscription.copy';
@@ -30,34 +27,5 @@ export default function PurchaseNotice({
         ? { message: SUBSCRIPTION_COPY.result.delayed, tone: 'info' as const }
         : null);
   if (shown === null) return null;
-  return (
-    <View
-      style={[styles.box, shown.tone === 'error' ? styles.boxError : null]}
-      accessibilityLiveRegion="polite"
-    >
-      <Text style={[styles.text, shown.tone === 'error' ? styles.textError : null]}>
-        {shown.message}
-      </Text>
-    </View>
-  );
+  return <InlineNotice message={shown.message} tone={shown.tone} />;
 }
-
-const styles = StyleSheet.create({
-  box: {
-    padding: theme.spacing.sm,
-    borderRadius: theme.radius.md,
-    borderCurve: 'continuous',
-    backgroundColor: theme.color.surface,
-  },
-  boxError: {
-    backgroundColor: theme.color.dangerSurface,
-  },
-  text: {
-    fontSize: theme.font.size.sm,
-    color: theme.color.textSecondary,
-    textAlign: 'center',
-  },
-  textError: {
-    color: theme.color.danger,
-  },
-});

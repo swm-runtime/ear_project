@@ -9,7 +9,18 @@ import { displayText, type ScriptSegment } from "./segments.js";
  * - 턴↔세그먼트는 순서대로 대조한다. 긴 턴은 세그먼트가 문장 묶음으로 쪼개져 있어(segments.ts splitLong) 1:1 이 아니다.
  *   대조가 한 곳이라도 어긋나면 구간을 내지 않는다 — 틀린 시각보다 없는 편이 낫다(자막과 같은 규칙, spec/06 7장).
  */
-export interface ScriptSection { start_sec: number; title: string }
+/**
+ * 구간 (KAN-144) + 구역·요약 (KAN-152, 2026-10-07 — 서버 KAN-151). kind = 구간을 연 턴의 대본 구역 — 앱 카드 위 줄 "개요(intro·lead) · 본론(body) · 결론(outro)".
+ * summary = 그 구간 대사의 한 줄 요약(공백 포함 20자 이내) — 텍스트 모델이 쓴다(section-summary.ts). 둘 다 선택 키라 없으면 항목에 키가 없다
+ */
+export type SectionKind = "intro" | "lead" | "body" | "outro";
+export interface ScriptSection { start_sec: number; title: string; kind?: SectionKind; summary?: string }
+
+/** 대본 구역 → kind. `## [본문]`의 단락과 단락 제목 없는 옛 편의 "본문" 덩어리, 그 밖의 구역은 body */
+export function sectionKind(section: string): SectionKind {
+  const z = section.trim();
+  return z === "인트로" ? "intro" : z === "도입" ? "lead" : z === "마무리" ? "outro" : "body";
+}
 
 /** 서버 검증 상한(KAN-144: title ≤ 60자, 0~30개) — 제목이 넘으면 말줄임으로 자르고, 개수가 넘으면 구간을 내지 않는다 */
 export const SECTION_TITLE_MAX = 60;
@@ -28,7 +39,8 @@ export const MISSING_TURNS_MAX = 3;
 type Turn = Pick<ScriptTurn, "speaker" | "id" | "text" | "section" | "topic">;
 const opens = (t: Turn | undefined, s: ScriptSegment | undefined) => !!t && !!s && s.speaker === t.speaker && norm(t.text).startsWith(norm(s.text));
 
-export function buildSections(turns: Turn[], segments: ScriptSegment[]): { sections: ScriptSection[]; reason?: string; missingTurns?: string[] } {
+/** texts: 구간마다 그 구간의 대사("[화자] 문장" 줄) — 요약 입력. sections 와 같은 길이·순서 */
+export function buildSections(turns: Turn[], segments: ScriptSegment[]): { sections: ScriptSection[]; texts?: string[]; reason?: string; missingTurns?: string[] } {
   if (!turns.length || !segments.length) return { sections: [], reason: "턴 또는 자막 세그먼트 없음" };
   // 1) 턴마다 첫 세그먼트의 시작 시각
   const turnStart: number[] = [];
@@ -56,6 +68,7 @@ export function buildSections(turns: Turn[], segments: ScriptSegment[]): { secti
   if (cur !== segments.length) return { sections: [], reason: `대조 뒤 세그먼트 ${segments.length - cur}건이 남음` };
   // 2) 구역·단락이 바뀌는 턴마다 구간 시작
   const sections: ScriptSection[] = [];
+  const firstTurn: number[] = []; // 구간을 연 턴 — 다음 구간을 연 턴 앞까지가 그 구간의 대사다
   let prevKey: string | null = null;
   turns.forEach((t, i) => {
     const key = `${t.section}\u0000${t.topic ?? ""}`;
@@ -64,11 +77,13 @@ export function buildSections(turns: Turn[], segments: ScriptSegment[]): { secti
     const title = sectionTitle(t);
     if (!title) return;
     if (sections.length && sections[sections.length - 1].title === title) return; // 같은 이름이 이어지면 하나로
-    sections.push({ start_sec: sections.length ? turnStart[i] : 0, title });
+    sections.push({ start_sec: sections.length ? turnStart[i] : 0, title, kind: sectionKind(t.section) });
+    firstTurn.push(i);
   });
+  const texts = firstTurn.map((from, k) => turns.slice(from, firstTurn[k + 1] ?? turns.length).map((t) => `[${t.speaker}] ${t.text}`).join("\n"));
   for (let k = 1; k < sections.length; k++) {
     if (!(sections[k].start_sec > sections[k - 1].start_sec)) return { sections: [], reason: `구간 "${sections[k].title}" 시작이 앞 구간보다 늦지 않음` };
   }
   if (sections.length > SECTIONS_MAX) return { sections: [], reason: `구간 ${sections.length}개 — 상한 ${SECTIONS_MAX}개 초과` };
-  return missing.length ? { sections, missingTurns: missing } : { sections };
+  return missing.length ? { sections, texts, missingTurns: missing } : { sections, texts };
 }

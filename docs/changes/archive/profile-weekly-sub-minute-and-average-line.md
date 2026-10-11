@@ -5,7 +5,7 @@
 | 대상 문서 | `spec/uiux/profile-uiux.md` 4.6(막대 값 표기 · 평균 기준선) · 7장(스크린리더 값) |
 | 요청 파트 | 프론트엔드 |
 | 발행 날짜 | 2026-09-28 |
-| 선행 | `changes/pending/profile-topic-distribution-bars.md` · `changes/pending/profile-weekly-topics-merge.md` — **같은 4.6 절이라 함께 반영한다** |
+| 선행 | `changes/archive/profile-topic-distribution-bars.md` · `changes/archive/profile-weekly-topics-merge.md` — **같은 4.6 절이라 함께 반영한다** |
 | 근거 | KAN-114(`tickets/frontend/archive/weekly-chart-sub-minute-bar-and-average-line.md`) — 박준현 개발계 실기기 확인 |
 | 중요도 | Low — 코드는 반영됐고 문서만 뒤따른다 |
 

@@ -10,6 +10,7 @@ import {
   PlanService,
   toEntitlements,
 } from '@/modules/subscription/services/plan.service';
+import { InviteCodeService } from '@/modules/subscription/services/invite-code.service';
 import { PurchaseIntentService } from '@/modules/subscription/services/purchase-intent.service';
 import { SubscriptionService } from '@/modules/subscription/services/subscription.service';
 import {
@@ -75,6 +76,7 @@ export class BillingOrchestrator {
     private readonly playPurchaseService: PlayPurchaseService,
     private readonly dataSource: DataSource,
     private readonly billingAlertService: BillingAlertService,
+    private readonly inviteCodeService: InviteCodeService,
   ) {}
 
   /** 4.1 — 요금제 목록 + 그 사용자가 각 요금제에 할 수 있는 일 */
@@ -127,6 +129,46 @@ export class BillingOrchestrator {
     return this.buildView(userId, now);
   }
 
+  /**
+   * 4.8 — 초대 코드 입력. 지급 행과 `users.tier` 캐시를 **한 트랜잭션**에서 고친다 — 따로 쓰면 "지급은 됐는데 한도는
+   * 무료"인 순간이 생긴다(결제 반영과 같은 규칙). 응답은 구독 조회와 같은 본문이라 앱이 다시 부르지 않는다.
+   */
+  async redeemInviteCode(
+    userId: string,
+    code: string,
+    now: Date,
+  ): Promise<SubscriptionView> {
+    const result = await this.dataSource.transaction(async (manager) => {
+      // 사용자 행을 먼저 잠근다 — 같은 계정이 다른 코드 두 개를 동시에 넣어도 "지급은 하나" 판정이 직렬로 돈다.
+      // 잠금 순서(사용자 → 코드)는 결제 반영(구독 → 사용자 → 지급)과 순환을 만들지 않는다
+      await this.userService.getByIdForUpdate(userId, manager);
+      // "입력 때 살아 있던 구독"은 티어 동기화와 같은 술어로 본다 — 해지 예약도 구독 중이다(domain.md 8.6)
+      const subscribedAtStart =
+        (await this.subscriptionService.findEntitled(userId, manager)) !== null;
+      const redeemed = await this.inviteCodeService.redeem(
+        userId,
+        code,
+        subscribedAtStart,
+        now,
+        manager,
+      );
+      await this.billingSyncService.syncUserTier(userId, manager, now);
+      return redeemed;
+    });
+
+    if (result.created) {
+      // 코드 값은 남기지 않는다 — 코드 id 로 충분하고, 값은 아직 쓸 수 있는 열쇠다
+      this.logger.log('invite code redeemed', {
+        user_id: userId,
+        invite_code_id: result.grant.redemption.inviteCodeId,
+        tier: result.grant.redemption.tier,
+        ends_at: result.grant.redemption.endsAt.toISOString(),
+      });
+    }
+
+    return this.buildView(userId, now);
+  }
+
   /** 4.3 — 결제 시트를 열기 직전의 서버 관문. 통과하면 계정 결속 토큰(의도 `id`)을 발급한다 */
   async createPurchaseIntent(
     command: CreatePurchaseIntentCommand,
@@ -135,14 +177,7 @@ export class BillingOrchestrator {
     const user = await this.userService.getById(userId);
 
     // 1. 이메일 인증(FR-39) — 결제만 되고 연락처가 없는 상태를 만들지 않는다
-    if (!hasVerifiedEmail(user)) {
-      throw new BusinessException({
-        status: HttpStatus.CONFLICT,
-        errorCode: ErrorCode.EMAIL_REQUIRED_FOR_PURCHASE,
-        message: '구독하려면 이메일 인증이 필요해요',
-        logLevel: 'info',
-      });
-    }
+    assertEmailVerified(user);
 
     // 2. 요금제 — 판매 중인 유료 요금제이고 그 플랫폼에서 살 수 있어야 한다.
     //    검증 구성이 없는 플랫폼도 여기서 막는다(결제부터 시키고 검증을 못 하는 상태를 만들지 않는다)
@@ -243,7 +278,7 @@ export class BillingOrchestrator {
         throw this.receiptInvalid(outcome.reason);
       }
 
-      await this.billingSyncService.syncUserTier(userId, manager);
+      await this.billingSyncService.syncUserTier(userId, manager, now);
 
       this.logger.log('purchase applied', {
         user_id: userId,
@@ -265,6 +300,17 @@ export class BillingOrchestrator {
     command: RestorePurchasesCommand,
   ): Promise<RestoreResult> {
     const { userId, now } = command;
+
+    // 이메일 인증(FR-39) — 결제 의도(4.3)와 같은 관문. 복원은 의도 없이 구독 행을 만들 수 있어(탈퇴 후 재가입 복원),
+    // 여기서 막지 않으면 이메일 없는 계정이 결제 이력을 갖게 되고 탈퇴 아카이브(domain.md 11.3 — 이메일 필수)가
+    // 영구히 500 이 된다(2026-10-11 감사). 복원할 것이 없는 요청은 행을 만들지 않으므로 막지 않는다
+    const submittedCount =
+      command.platform === DevicePlatform.ANDROID
+        ? command.purchaseTokens.length
+        : command.signedTransactions.length;
+    if (submittedCount > 0) {
+      assertEmailVerified(await this.userService.getById(userId));
+    }
 
     if (command.platform === DevicePlatform.ANDROID) {
       if (!this.isStoreEnabled(command.platform)) {
@@ -354,7 +400,7 @@ export class BillingOrchestrator {
         }
       }
 
-      await this.billingSyncService.syncUserTier(userId, manager);
+      await this.billingSyncService.syncUserTier(userId, manager, now);
 
       return linked;
     });
@@ -439,6 +485,20 @@ export class BillingOrchestrator {
       return null;
     }
 
+    // 주인 확인은 제출된 거래의 계정 토큰으로 했다 — Apple 답의 거래가 다른 토큰(또는 없음)이면 그 답으로 반영하지
+    // 않고 제출된 거래로 판정한다(2026-10-07). 확인한 거래와 반영하는 거래가 달라지면 주인 확인이 무의미해진다
+    if (
+      status !== null &&
+      status.transaction.accountToken !== transaction.accountToken
+    ) {
+      this.logger.warn('store status carries a different account token', {
+        original_transaction_id: transaction.originalTransactionId,
+        environment: transaction.environment,
+      });
+
+      return null;
+    }
+
     return status;
   }
 
@@ -486,26 +546,15 @@ export class BillingOrchestrator {
       }),
       this.findLiveSubscription(userId),
     ]);
-    const [entitlements, pendingPlan] = await Promise.all([
-      this.planService.getEntitlements(plan.tier),
-      current?.pendingTier
-        ? this.planService.findByTier(current.pendingTier)
-        : null,
-    ]);
+    const entitlements = await this.planService.getEntitlements(plan.tier);
 
     return {
       plan,
       // 한도는 플랜 요약과 같은 값을 싣는다 — 가입 체험 중인 구독자는 요금제 한도보다 넉넉하다(subscription.md 4.8)
       entitlements: { ...entitlements, dailyPlayLimit: plan.dailyPlayLimit },
       store: current?.store ?? null,
-      pendingPlan:
-        current === null || current.pendingTier === null
-          ? null
-          : {
-              tier: current.pendingTier,
-              planName: pendingPlan?.name ?? current.pendingTier,
-              effectiveAt: current.expiresAt,
-            },
+      // 예약은 플랜 요약과 같은 판정이다 — 프로필·설정이 내보내는 값과 어긋나지 않게(KAN-161)
+      pendingPlan: plan.pendingPlan,
     };
   }
 
@@ -598,17 +647,36 @@ function hasVerifiedEmail(user: {
   return user.email !== null && user.isEmailVerified;
 }
 
+function assertEmailVerified(user: {
+  email: string | null;
+  isEmailVerified: boolean;
+}): void {
+  if (!hasVerifiedEmail(user)) {
+    throw new BusinessException({
+      status: HttpStatus.CONFLICT,
+      errorCode: ErrorCode.EMAIL_REQUIRED_FOR_PURCHASE,
+      message: '구독하려면 이메일 인증이 필요해요',
+      logLevel: 'info',
+    });
+  }
+}
+
 /**
  * `action` 판정(`subscription-api.md` 4.1). 티어의 높낮이는 `display_order`로 본다 — 티어명을 비교하지 않는다.
  *
  * **무료 요금제는 유효한 구독이 없는 사용자에게 `current`다**(2026-10-06, KAN-147) — 요금제 화면이 "현재 구독"
- * 섹션 없이 목록의 `current`로 "이용 중"을 그린다. 유료 구독자에게 무료는 종전처럼 `none`(유료 → 무료는 해지).
+ * 섹션 없이 목록의 `current`로 "이용 중"을 그린다.
+ *
+ * **유료 구독자에게 무료는 해지다**(2026-10-08, KAN-159) — `cancel`(고를 수 있다 → 스토어 구독 관리로 이동).
+ * **이미 해지 예약이어도 `cancel`이다**(2026-10-08 팀 결정 — 박준현·이주호): 해지 예약 중 무료 카드가 막혀 있으면
+ * "언제 무료가 되는지"를 알 길이 없었다. 스토어 구독 관리로 가면 "언제 끝나는지"가 거기 보인다. 되돌리기는 여전히
+ * 이용 중 카드의 [구독 다시 시작]이 맡는다. "구독 중이니 무료는 해지"를 앱이 스스로 판정하지 않도록 서버가 값으로 준다.
  */
 export function resolvePlanAction(input: {
   plan: Plan;
   /** 그 플랫폼에서 지금 살 수 있는가(상품 ID가 있고 서버가 검증할 수 있다) */
   hasProduct: boolean;
-  current: Pick<Subscription, 'tier'> | null;
+  current: Pick<Subscription, 'tier' | 'isAutoRenew'> | null;
   currentPlan: Pick<Plan, 'displayOrder'> | null;
   isOtherStore: boolean;
 }): PlanAction {
@@ -624,8 +692,15 @@ export function resolvePlanAction(input: {
     return PlanAction.CURRENT;
   }
 
-  // 무료로 가는 것은 구매가 아니라 해지다(스토어로 이동). 다른 스토어 구독자는 여기서 바꿀 수 없다
-  if (plan.priceKrw <= 0 || !hasProduct || isOtherStore) {
+  // 무료로 가는 것은 구매가 아니라 해지다(스토어로 이동). 다른 스토어 구독자는 여기서 바꿀 수 없다.
+  // 해지 예약 중이어도 고를 수 있다 — 스토어에서 종료일을 확인하는 경로다(2026-10-08 팀 결정)
+  if (plan.priceKrw <= 0) {
+    return !isOtherStore && current !== null
+      ? PlanAction.CANCEL
+      : PlanAction.NONE;
+  }
+
+  if (!hasProduct || isOtherStore) {
     return PlanAction.NONE;
   }
 

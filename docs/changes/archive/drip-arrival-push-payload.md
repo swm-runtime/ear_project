@@ -3,7 +3,7 @@
 | 항목 | 값 |
 |---|---|
 | 대상 문서 | `features/notification.md` 3장(발송 페이로드) · `backend/architecture.md` 4.5(의존 방향 표 — Notification 신설 · DripBatch · Auth) |
-| 요청 파트 | 백엔드(KAN-68 구현 중 확정) — 앱 쪽 소비는 KAN-69(`tickets/frontend/pending/push-sdk-integration.md`) |
+| 요청 파트 | 백엔드(KAN-68 구현 중 확정) — 앱 쪽 소비는 KAN-69(`tickets/frontend/archive/push-sdk-integration.md`) |
 | 발행 날짜 | 2026-09-17 |
 | 반영 날짜 | 2026-09-17 (KAN-68 PR에서 함께 반영) |
 | 발견 시점 | KAN-68 구현 — `notification.md` 3장이 `deep_link`를 "라이브러리 또는 특정 콘텐츠"로만 적어 서버가 무엇을 보낼지, 앱이 어디서 읽을지 정해져 있지 않았다 |

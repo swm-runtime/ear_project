@@ -17,16 +17,33 @@ const SKELETON_CARD_HEIGHT = 112;
 /** 라디오 원 — iOS 선택 목록 크기. 안 점은 선택일 때만 */
 const RADIO_SIZE = 22;
 const RADIO_DOT_SIZE = 10;
-/** 라디오 칸과 이름 사이. 고를 수 없는 카드도 라디오 칸만큼 비워 이름·설명 시작점을 세 카드에서 맞춘다 */
+/** 라디오 칸과 이름 사이 */
 const RADIO_GAP = 10;
 /** 선택 테두리 — 고르지 않은 카드·이용 중 카드에도 투명으로 깔아 안쪽 시작점이 선택에 따라 움직이지 않게 한다 */
 const SELECTED_BORDER_WIDTH = 2;
 
-type PurchaseAction = Exclude<PlanAction, 'none' | 'current'>;
+type SelectableAction = Exclude<PlanAction, 'none' | 'current'>;
+/**
+ * 목록 아래 버튼이 하는 일 — 서버 action 에 더해 `current`: 이용 중 카드를 고르면 화면이 준 일(해지 예약이면 "구독 다시 시작",
+ * 결제 문제면 "결제 수단 확인" — 스토어 구독 관리). 카드 안에는 버튼을 두지 않는다(PM 2026-10-08)
+ */
+type CtaKind = SelectableAction | 'current';
 
-/** 고를 수 있는 카드 — action 은 서버 판정이다. 클라이언트가 티어 순서를 비교하지 않는다(subscription-api.md 4.1) */
-const isPurchaseAction = (action: PlanAction): action is PurchaseAction =>
-  action === 'purchase' || action === 'upgrade' || action === 'downgrade';
+/** 이용 중 카드를 골랐을 때 아래 버튼 — 화면이 서버 구독 상태로 정한다 */
+export interface CurrentPlanCta {
+  label: string;
+  onPress: () => void;
+}
+
+/**
+ * 고를 수 있는 카드 — action 은 서버 판정이다. 클라이언트가 티어 순서를 비교하지 않는다(subscription-api.md 4.1).
+ * `cancel`(유료 구독자의 무료 요금제)은 해지 경로를 받은 화면(요금제 관리)에서만 고를 수 있다 — 페이월에서는 고를 수 없다
+ */
+const isSelectableAction = (action: PlanAction, canCancel: boolean): action is SelectableAction =>
+  action === 'purchase' ||
+  action === 'upgrade' ||
+  action === 'downgrade' ||
+  (action === 'cancel' && canCancel);
 
 const priceText = (card: PlanCardVM): string | null => {
   if (card.priceLabel === null) return null;
@@ -37,15 +54,27 @@ const priceText = (card: PlanCardVM): string | null => {
 
 interface PlanCardProps {
   card: PlanCardVM;
-  /** 고를 수 있는 카드에만 — 없으면 라디오 없이 칸만 비운다(이용 중 · 서버가 none 을 준 카드) */
+  /**
+   * 고를 수 있는 카드에만. 없어도 라디오는 그린다 — 흐린 빈 원(누를 수 없음). 칸만 비우면 그 카드만 라디오가 "사라진" 것처럼
+   * 보였다(PM 2026-10-08)
+   */
   onSelect?: () => void;
   isSelected: boolean;
   disabled: boolean;
-  /** 이용 중 카드에만 — 현재 구독 정보·스토어 버튼(CurrentSubscriptionDetail) */
+  /** 이용 중 카드에만 — 현재 구독 정보(CurrentSubscriptionDetail) */
   currentDetail?: ReactNode;
+  /** 다음 결제일부터 바뀌도록 예약된 요금제 — 이름 옆 [예약됨] 배지, 고를 수 없다 */
+  isScheduled?: boolean;
 }
 
-function PlanCard({ card, onSelect, isSelected, disabled, currentDetail }: PlanCardProps) {
+function PlanCard({
+  card,
+  onSelect,
+  isSelected,
+  disabled,
+  currentDetail,
+  isScheduled = false,
+}: PlanCardProps) {
   const { plan } = card;
   const price = priceText(card);
   const isCurrent = plan.action === 'current';
@@ -55,20 +84,30 @@ function PlanCard({ card, onSelect, isSelected, disabled, currentDetail }: PlanC
     price ?? '',
     plan.description,
     isCurrent,
+    isScheduled,
   );
 
   const summary = (
     <>
       <View style={styles.cardHeader}>
         <View style={styles.radioSlot}>
-          {isSelectable ? (
-            <View style={[styles.radio, isSelected ? styles.radioSelected : null]}>
-              {isSelected ? <View style={styles.radioDot} /> : null}
-            </View>
-          ) : null}
+          <View
+            style={[
+              styles.radio,
+              isSelected ? styles.radioSelected : null,
+              isSelectable ? null : styles.radioDisabled,
+            ]}
+          >
+            {isSelected ? <View style={styles.radioDot} /> : null}
+          </View>
         </View>
         <View style={styles.nameGroup}>
           <Text style={[styles.planName, isCurrent ? styles.textMuted : null]}>{plan.name}</Text>
+          {isScheduled ? (
+            <View style={styles.currentBadge}>
+              <Text style={styles.currentBadgeLabel}>{SUBSCRIPTION_COPY.plans.scheduled}</Text>
+            </View>
+          ) : null}
           {isCurrent ? (
             // "이용 중"은 버튼이 아니라 상태 표시다 — 이름 옆 작은 배지. 색만이 아니라 글자로 밝힌다
             <View style={styles.currentBadge}>
@@ -122,40 +161,76 @@ interface PlanCardsProps {
   isBusy: boolean;
   purchasingPlanId: string | null;
   onPurchase: (plan: Plan) => void;
+  onCancel?: () => void;
+  cancelHint?: string | null;
+  currentCta?: CurrentPlanCta;
+  scheduledTier?: string | null;
   currentDetail?: ReactNode;
 }
 
-function PlanCards({ cards, isBusy, purchasingPlanId, onPurchase, currentDetail }: PlanCardsProps) {
+function PlanCards({
+  cards,
+  isBusy,
+  purchasingPlanId,
+  onPurchase,
+  onCancel,
+  cancelHint = null,
+  currentCta,
+  scheduledTier = null,
+  currentDetail,
+}: PlanCardsProps) {
   const [selectedPlanId, setSelectedPlanId] = useState<string | null>(null);
-  const purchasable = cards.filter((card) => isPurchaseAction(card.plan.action));
-  // 기본은 고를 수 있는 첫 카드(서버 순서) — 티어명으로 고르지 않는다. 고른 카드가 목록에서 빠지면(결제 후 이용 중으로
-  // 바뀜 등) 다시 첫 카드로 돌아간다
+  const canCancel = onCancel !== undefined;
+  const ctaOf = (card: PlanCardVM): CtaKind | null => {
+    // 이미 다음 결제일부터 바뀌도록 예약된 요금제는 다시 고를 수 없다 — 누르면 Play 가 "existing deferred replacement"로
+    // 거절했다(EAR-APP-D). 예약 대상은 서버 pending_plan.tier 다
+    if (scheduledTier !== null && card.plan.tier === scheduledTier) return null;
+    if (isSelectableAction(card.plan.action, canCancel)) return card.plan.action;
+    if (card.plan.action === 'current' && currentCta !== undefined) return 'current';
+    return null;
+  };
+  const selectable = cards.filter((card) => ctaOf(card) !== null);
+  // 기본 선택 — 이용 중 카드에 할 일이 있으면(해지 예약·결제 문제) 그 카드, 아니면 고를 수 있는 첫 유료 카드(서버 순서).
+  // 해지(무료로 바꾸기)는 사용자가 직접 골라야만 선택된다. 티어명으로 고르지 않는다. 고른 카드가 목록에서 빠지면 기본으로 돌아간다
   const selected =
-    purchasable.find((card) => card.plan.planId === selectedPlanId) ?? purchasable[0] ?? null;
-  const selectedAction =
-    selected !== null && isPurchaseAction(selected.plan.action) ? selected.plan.action : null;
-  const isDowngrade = selectedAction === 'downgrade';
+    selectable.find((card) => card.plan.planId === selectedPlanId) ??
+    selectable.find((card) => ctaOf(card) === 'current') ??
+    selectable.find((card) => card.plan.action !== 'cancel') ??
+    selectable[0] ??
+    null;
+  const selectedAction = selected !== null ? ctaOf(selected) : null;
+  // 변경(다운그레이드)·해지는 보조 버튼 — 주 버튼(검정)은 구독·업그레이드·다시 시작
+  const isSecondary = selectedAction === 'downgrade' || selectedAction === 'cancel';
+  const ctaLabel =
+    selected === null || selectedAction === null
+      ? ''
+      : selectedAction === 'current'
+        ? (currentCta?.label ?? '')
+        : SUBSCRIPTION_COPY.plans.cta(selected.plan.name, selectedAction);
+  const hint =
+    selectedAction === 'downgrade'
+      ? SUBSCRIPTION_COPY.plans.downgradeHint
+      : selectedAction === 'cancel'
+        ? cancelHint
+        : null;
   const isPurchasing = selected !== null && purchasingPlanId === selected.plan.planId;
 
   return (
     <View style={styles.list}>
       <View
         style={styles.list}
-        accessibilityRole={purchasable.length > 0 ? 'radiogroup' : undefined}
-        accessibilityLabel={purchasable.length > 0 ? SUBSCRIPTION_COPY.plans.groupA11y : undefined}
+        accessibilityRole={selectable.length > 0 ? 'radiogroup' : undefined}
+        accessibilityLabel={selectable.length > 0 ? SUBSCRIPTION_COPY.plans.groupA11y : undefined}
       >
         {cards.map((card) => (
           <PlanCard
             key={card.plan.planId}
             card={card}
-            onSelect={
-              isPurchaseAction(card.plan.action)
-                ? () => setSelectedPlanId(card.plan.planId)
-                : undefined
-            }
+            onSelect={ctaOf(card) !== null ? () => setSelectedPlanId(card.plan.planId) : undefined}
             isSelected={selected !== null && card.plan.planId === selected.plan.planId}
             disabled={isBusy}
             currentDetail={currentDetail}
+            isScheduled={scheduledTier !== null && card.plan.tier === scheduledTier}
           />
         ))}
       </View>
@@ -165,30 +240,35 @@ function PlanCards({ cards, isBusy, purchasingPlanId, onPurchase, currentDetail 
           <Pressable
             style={({ pressed }) => [
               pillButton.base,
-              isDowngrade ? styles.buttonSecondary : pillButton.primary,
+              isSecondary ? styles.buttonSecondary : pillButton.primary,
               styles.button,
               pressed ? styles.buttonPressed : null,
               isBusy ? styles.buttonDisabled : null,
             ]}
-            onPress={() => onPurchase(selected.plan)}
+            // 해지·다시 시작은 스토어 구독 관리로 보낸다(해지 API 없음 — subscription.md 4.5). 나머지는 결제 흐름
+            onPress={() =>
+              selectedAction === 'cancel'
+                ? onCancel?.()
+                : selectedAction === 'current'
+                  ? currentCta?.onPress()
+                  : onPurchase(selected.plan)
+            }
             disabled={isBusy}
             accessibilityRole="button"
-            accessibilityLabel={SUBSCRIPTION_COPY.plans.cta(selected.plan.name, selectedAction)}
+            accessibilityLabel={ctaLabel}
             accessibilityState={{ disabled: isBusy, busy: isPurchasing }}
           >
             {isPurchasing ? (
               <ActivityIndicator
-                color={isDowngrade ? theme.color.textPrimary : theme.color.onPrimary}
+                color={isSecondary ? theme.color.textPrimary : theme.color.onPrimary}
               />
             ) : (
-              <Text style={isDowngrade ? pillButton.secondaryLabel : pillButton.primaryLabel}>
-                {SUBSCRIPTION_COPY.plans.cta(selected.plan.name, selectedAction)}
+              <Text style={isSecondary ? pillButton.secondaryLabel : pillButton.primaryLabel}>
+                {ctaLabel}
               </Text>
             )}
           </Pressable>
-          {isDowngrade ? (
-            <Text style={styles.hint}>{SUBSCRIPTION_COPY.plans.downgradeHint}</Text>
-          ) : null}
+          {hint !== null ? <Text style={styles.hint}>{hint}</Text> : null}
         </>
       ) : null}
     </View>
@@ -202,6 +282,20 @@ interface PlanListProps {
   /** 결제 시트를 연 요금제 — 그 요금제를 고른 상태면 버튼에 스피너를 둔다 */
   purchasingPlanId: string | null;
   onPurchase: (plan: Plan) => void;
+  /**
+   * 해지 경로(요금제 관리 화면만) — 서버가 `cancel` 을 준 카드(유료 구독자의 무료 요금제)를 고를 수 있게 하고, 버튼
+   * "{이름}로 변경"이 이걸 부른다. 페이월은 넘기지 않는다 — 그때 `cancel` 카드는 `none` 처럼 고를 수 없다
+   */
+  onCancel?: () => void;
+  /** `cancel` 카드를 골랐을 때 버튼 밑 안내("지금 요금제는 N월 N일까지…") — 날짜를 모르면 null */
+  cancelHint?: string | null;
+  /**
+   * 이용 중 카드에 할 일이 있을 때만(요금제 관리 화면 — 해지 예약 "구독 다시 시작" · 결제 문제 "결제 수단 확인") 그 카드를
+   * 고를 수 있게 하고 아래 버튼이 이걸 부른다. 카드 안 버튼을 대신한다(PM 2026-10-08 — 조작은 "카드 고르기 + 아래 버튼 하나")
+   */
+  currentCta?: CurrentPlanCta;
+  /** 다음 결제일부터 바뀌도록 예약된 요금제의 티어(서버 `pending_plan.tier`) — 그 카드는 [예약됨]·고를 수 없음 */
+  scheduledTier?: string | null;
   onRetry: () => void;
   isRetrying: boolean;
   /**
@@ -222,6 +316,10 @@ export default function PlanList({
   isBusy,
   purchasingPlanId,
   onPurchase,
+  onCancel,
+  cancelHint,
+  currentCta,
+  scheduledTier,
   onRetry,
   isRetrying,
   currentDetail,
@@ -257,10 +355,17 @@ export default function PlanList({
 
   return (
     <PlanCards
+      // 서버 상태가 바뀌면(해지·다시 시작·변경 예약) 선택을 처음부터 다시 정한다 — 해지하러 스토어에 갔다 돌아오면
+      // 종전 선택(Light)이 남아 "Light로 변경"이 그대로 떠 있었다(PM 2026-10-08)
+      key={`${state.cards.map((card) => card.plan.action).join(',')}|${currentCta?.label ?? ''}|${scheduledTier ?? ''}`}
       cards={state.cards}
       isBusy={isBusy}
       purchasingPlanId={purchasingPlanId}
       onPurchase={onPurchase}
+      onCancel={onCancel}
+      cancelHint={cancelHint}
+      currentCta={currentCta}
+      scheduledTier={scheduledTier}
       currentDetail={currentDetail}
     />
   );
@@ -302,6 +407,10 @@ const styles = StyleSheet.create({
     borderColor: theme.color.textMutedSecondary,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  // 지금 고를 수 없는 카드 — 원은 그리되 흐리게(누를 수 없음)
+  radioDisabled: {
+    borderColor: theme.color.border,
   },
   radioSelected: {
     borderColor: theme.color.primary,
@@ -363,7 +472,7 @@ const styles = StyleSheet.create({
     marginTop: theme.spacing.sm,
     minHeight: theme.touchTarget.minHeight,
   },
-  // 변경(다운그레이드) — 보조 버튼. 주 버튼(검정)과 위계를 가른다
+  // 변경(다운그레이드·무료로 바꾸기) — 보조 버튼. 주 버튼(검정)과 위계를 가른다
   buttonSecondary: {
     backgroundColor: theme.color.background,
     borderWidth: StyleSheet.hairlineWidth,

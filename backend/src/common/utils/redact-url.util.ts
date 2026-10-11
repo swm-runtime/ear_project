@@ -25,6 +25,34 @@ const REDACTED_VALUE = '[redacted]';
  * 문자열 치환으로 처리한다 — 마스킹이 실패해서 원문이 새는 경로를 만들지 않는다.
  */
 export function redactSensitiveQuery(url: string): string {
+  return redactQuery(redactPath(url));
+}
+
+/**
+ * 비밀이 **경로**에 들어가는 요청 — Sentry 중계의 종전 토큰 주소(`/webhooks/sentry/<토큰>`, 2026-10-07).
+ * 쿼리가 아니라 경로라 위 목록으로는 가려지지 않는다. 접두 다음 한 토막을 통째로 가린다 — 토큰이 그 주소의
+ * 유일한 인증이라 로그에 남으면 그 주소로 Slack 에 글을 쓸 수 있다(`modules/alert/sentry-webhook.service.ts`).
+ */
+const REDACTED_PATH_PREFIXES = ['/api/v1/webhooks/sentry/'] as const;
+
+function redactPath(url: string): string {
+  for (const prefix of REDACTED_PATH_PREFIXES) {
+    if (!url.startsWith(prefix)) {
+      continue;
+    }
+
+    const rest = url.slice(prefix.length);
+    const end = rest.search(/[/?#]/);
+
+    return end === -1
+      ? `${prefix}${REDACTED_VALUE}`
+      : `${prefix}${REDACTED_VALUE}${rest.slice(end)}`;
+  }
+
+  return url;
+}
+
+function redactQuery(url: string): string {
   const queryStart = url.indexOf('?');
 
   if (queryStart === -1) {

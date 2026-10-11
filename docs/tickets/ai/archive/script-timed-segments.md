@@ -10,7 +10,7 @@
 | 중요도 | **Medium**(3일 안) — 데이터가 없으면 API·화면이 있어도 보여줄 것이 없다 |
 | 상태 | 완료 (2026-09-20) |
 | Jira | KAN-72 |
-| 짝 티켓 | `tickets/backend/pending/script-api.md`(조회·적재) · `tickets/frontend/pending/script-real-api.md`(연동) |
+| 짝 티켓 | `tickets/backend/archive/script-api.md`(조회·적재) · `tickets/frontend/archive/script-real-api.md`(연동) |
 
 ## 배경
 

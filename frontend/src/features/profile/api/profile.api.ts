@@ -46,6 +46,7 @@ const toWeeklyListening = (dto: WeeklyListeningDto): WeeklyListening => ({
   dailyListenedSec: dto.daily_listened_sec,
   previousWeekStart: dto.previous_week_start,
   nextWeekStart: dto.next_week_start,
+  listeningTopPercent: dto.listening_top_percent ?? null,
   ...(dto.topic_distribution
     ? { topicDistribution: toTopicDistribution(dto.topic_distribution) }
     : {}),
@@ -84,6 +85,12 @@ const toProfileSummary = (dto: ProfileSummaryResponseDto): ProfileSummary => ({
           expiresAt: dto.plan.expires_at,
           hasPaymentIssue: dto.plan.has_payment_issue,
           trial: toPlanTrial(dto.plan.trial),
+          pendingPlan: dto.plan.pending_plan
+            ? {
+                planName: dto.plan.pending_plan.plan_name,
+                effectiveAt: dto.plan.pending_plan.effective_at,
+              }
+            : null,
         },
   interestSummary:
     dto.interest_summary === null

@@ -1,10 +1,13 @@
+import type { ColorValue } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
+
+import { useResolvedColor } from '@/shared/theme';
 
 interface ChevronIconProps {
   /** 'right' 이동 가능 표시 · 'left' 뒤로 가기 · 'down' 내려서 닫기 */
   direction: 'left' | 'right' | 'down';
   size: number;
-  color: string;
+  color: ColorValue;
 }
 
 const PATHS = {
@@ -27,7 +30,9 @@ export const chevronTrailingGutter = (size: number): number => (size * 7) / 24;
  *
  * 장식이므로 이 컴포넌트를 쓰는 쪽(카드·버튼)이 낭독 라벨을 갖는다.
  */
-export default function ChevronIcon({ direction, size, color }: ChevronIconProps) {
+export default function ChevronIcon({ direction, size, color: colorValue }: ChevronIconProps) {
+  // 토큰(iOS 동적 색)을 지금 모드의 문자열로 — SVG·기호는 문자열 색만 받는다(다크 모드, 2026-10-10)
+  const color = useResolvedColor(colorValue);
   return (
     <Svg width={size} height={size} viewBox="0 0 24 24">
       <Path

@@ -26,6 +26,9 @@ interface SettingsRowProps {
    */
   isDestructive?: boolean;
   a11yLabel?: string;
+  /** 체크 목록의 한 줄(음질) — 버튼이 아니라 라디오로 읽힌다. 선택 상태는 `isChecked` */
+  role?: 'radio';
+  isChecked?: boolean;
 }
 
 /** 섹션 리스트의 항목 한 줄 — 항목 전체가 탭 영역이다(settings-uiux.md 5장, 44pt) */
@@ -39,6 +42,8 @@ export default function SettingsRow({
   isSubdued = false,
   isDestructive = false,
   a11yLabel,
+  role,
+  isChecked = false,
 }: SettingsRowProps) {
   return (
     <Pressable
@@ -47,9 +52,9 @@ export default function SettingsRow({
       // 값만 표시하는 행도 우측 업데이트 버튼은 조작할 수 있어야 한다.
       disabled={disabled}
       focusable={onPress !== undefined && !disabled}
-      accessibilityRole={onPress === undefined ? undefined : 'button'}
+      accessibilityRole={role ?? (onPress === undefined ? undefined : 'button')}
       accessibilityLabel={a11yLabel ?? label}
-      accessibilityState={{ disabled }}
+      accessibilityState={role === 'radio' ? { disabled, checked: isChecked } : { disabled }}
     >
       <Text
         style={[

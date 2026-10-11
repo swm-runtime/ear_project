@@ -32,4 +32,4 @@
 - 개발계 서버(`54.116.155.248`)의 `/opt/ear/backend/.env.prod` 에서 `APPLE_CLIENT_ID` 를 `com.runtime.ear` → **`dev.runtime.ear`** 로 바꾸고 api 컨테이너를 같은 이미지로 재생성했다(`docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --no-build api`). 백업은 `.env.prod.bak-20260920-apple` 로 남겼고, diff 는 이 한 줄뿐이다.
 - 확인: 컨테이너 안 `APPLE_CLIENT_ID=dev.runtime.ear`, `APPLE_SERVICES_ID` 는 종전 그대로, 헬스 200.
 - **운영 서버는 건드리지 않았다.**
-- 실기기 확인은 preview 앱 재빌드 뒤에 한다 — 지금 TestFlight 에 있는 빌드도 번들이 `dev.runtime.ear` 라 이 변경만으로 애플 로그인이 풀린다(카카오·구글과 달리 앱에 심는 값이 없다). 재빌드 사유는 `tickets/frontend/pending/preview-app-social-keys.md` 쪽이다.
+- 실기기 확인은 preview 앱 재빌드 뒤에 한다 — 지금 TestFlight 에 있는 빌드도 번들이 `dev.runtime.ear` 라 이 변경만으로 애플 로그인이 풀린다(카카오·구글과 달리 앱에 심는 값이 없다). 재빌드 사유는 `tickets/frontend/archive/preview-app-social-keys.md` 쪽이다.

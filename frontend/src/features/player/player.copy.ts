@@ -79,6 +79,12 @@ export const PLAYER_COPY = {
     bufferingA11y: '재생 준비 중',
     /** 시크바 aria-valuetext — "09:12"가 "영 구 콜론 일 이"로 읽히지 않게 한다(uiux 7장) */
     seekBarA11yValue: (position: string, duration: string) => `${duration} 중 ${position}`,
+    /** 시크바 위 지금 듣는 구간 카드(KAN-127) — 위 작은 라벨 + 아래 구간 제목 최대 2줄(PM 2026-10-07) */
+    currentSectionLabel: '지금 듣는 구간',
+    /** 구역 라벨(PM 2026-10-07) — 인트로·도입은 개요, 본문 단락은 본론, 마무리는 결론 */
+    sectionKindLabel: { intro: '개요', lead: '개요', body: '본론', outro: '결론' },
+    currentSectionA11y: (title: string) => `지금 듣는 구간, ${title}`,
+    currentSectionLoadingA11y: '지금 듣는 구간 불러오는 중',
   },
 
   /** PL6 스크립트 시트 — 현재 구간 하이라이트·문단 탭 seek(player-uiux.md 4.6). P1이라 지금은 dev mock만 채운다 */
@@ -149,11 +155,12 @@ export const PLAYER_COPY = {
     failedToast: '삭제하지 못했어요. 다시 시도해주세요',
   },
 
-  /** PL8 로드 실패 — 화면 유지 + 인라인. 이 시점에는 차감되지 않았다(paywall.md 4.3) */
+  /** PL8 로드 실패 — 재생 컨트롤 줄 대신 재시도 안내. 이 시점에는 차감되지 않았다(paywall.md 4.3) */
   loadFailed: {
     title: '재생할 수 없어요',
     description: '잠시 후 다시 시도해주세요',
     retry: '다시 시도',
+    retrying: '재생을 다시 준비하는 중',
   },
 
   /** PL9 회수 — 오류 톤·[다시 시도]를 붙이지 않는다 */

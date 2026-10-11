@@ -1,24 +1,44 @@
 -- 주간 지표(runbook.md 4-1 "주간 지표" — KAN-132). 매주 월요일, 지난주 월~일(KST) 기준.
 -- 집계만 낸다 — 이름·이메일·user_id 를 출력하지 않는다(CLAUDE.md 2026-10-04).
+-- 하루 경계는 KST 자정이다 — 일일 지표(Slack 보고, 서비스 날짜 04:00/05:00 경계)와 하루 경계가 다르므로 두 숫자를
+-- 직접 대조하지 않는다(2026-10-07 검증). 주간 합계는 경계 차이가 하루 양끝 몇 시간에만 걸려 작다.
 --
 -- 서버에서(월요일 날짜가 아니라 **지난주 월요일**을 넣는다):
 --   cd /opt/ear/backend && docker compose -f docker-compose.prod.yml --env-file .env.prod \
 --     exec -T postgres psql -U ear -d ear -At -v week_start=2026-09-29 -f - < deploy/weekly-metrics.sql
 --
--- 테스트 계정 제외 규칙은 runbook 4-1 과 같다: role = 'admin' 또는 수동 pro(tier = 'pro' 인데 subscriptions 행이 없음).
+-- 테스트 계정 제외 규칙(runbook 4-1, 2026-10-07 분석으로 확정) — 두 묶음을 뺀다:
+--   ① 확실: role = 'admin' · 수동 pro(tier = 'pro' 인데 subscriptions 행 없음) · 팀 소유 이메일 · 이메일/닉네임에 test·테스트·example
+--   ② 정황: 출시 마케팅 전(2026-09-29 이전) 가입이면서 같은 기기(sessions.device_id)에 다른 계정도 로그인한 계정
+--      — 출시 전 팀·지인이 여러 계정으로 돌려 본 흔적. 출시 후의 기기 공유는 실사용(가족 기기)으로 두고 빼지 않는다.
+-- 식별 값(이메일·닉네임)은 조건에만 쓰고 출력하지 않는다.
 
 
 with bounds as (
   select (:'week_start'::date)::timestamp at time zone 'Asia/Seoul' as start_at,
          (:'week_start'::date + 7)::timestamp at time zone 'Asia/Seoul' as end_at
 ),
+shared_devices as (
+  select device_id from sessions group by device_id having count(distinct user_id) >= 2
+),
+test_users as (
+  select u.id
+    from users u
+   where u.role = 'admin'
+      or (u.tier = 'pro' and not exists (select 1 from subscriptions s where s.user_id = u.id))
+      or u.email in ('runtime364@gmail.com', 'githubbruny@gmail.com')
+      or u.email ilike '%test%' or u.nickname ilike '%test%' or u.nickname ilike '%테스트%' or u.email ilike '%example.%'
+      or ((u.created_at at time zone 'Asia/Seoul')::date < date '2026-09-29'
+          and exists (select 1 from sessions s join shared_devices d on d.device_id = s.device_id where s.user_id = u.id))
+),
 real_users as (
   select u.id, u.created_at
     from users u
-   where u.role <> 'admin'
-     and not (u.tier = 'pro' and not exists (select 1 from subscriptions s where s.user_id = u.id))
+   where not exists (select 1 from test_users t where t.id = u.id)
 )
 select '기간', :'week_start' || ' ~ ' || (:'week_start'::date + 6)::text
+union all
+select '테스트 계정 제외(전체 누적)', count(*)::text from test_users
 union all
 select '가입(주간)', count(*)::text from real_users, bounds where created_at >= start_at and created_at < end_at
 union all

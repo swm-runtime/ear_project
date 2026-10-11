@@ -743,6 +743,7 @@ export class ExploreOrchestrator {
           thumbnailUrl: content.thumbnailUrl,
           contentVersion: content.contentVersion,
           topicIds: topicIdsByContentId.get(content.id) ?? [],
+          tags: content.tags ?? [],
         },
         library: libraryItem
           ? {

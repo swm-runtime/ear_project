@@ -5,7 +5,7 @@
 | 대상 문서 | `docs/infra/inventory.md` 2장(DNS 레코드 표) · 3장(외부 서비스 표) |
 | 요청 파트 | 문서(인프라) |
 | 발행 날짜 | 2026-09-09 |
-| 발견 시점 | `tickets/backend/pending/email-spf-dmarc-records.md`(KAN-31)가 "부수 사실"로 지적해 둔 것을 확인 — 그 티켓이 `changes/`로 올리라고 명시했는데 누락돼 있었다 |
+| 발견 시점 | `tickets/backend/archive/email-spf-dmarc-records.md`(KAN-31)가 "부수 사실"로 지적해 둔 것을 확인 — 그 티켓이 `changes/`로 올리라고 명시했는데 누락돼 있었다 |
 | 심각도 | **하** — 동작에 영향 없다. 다만 **읽는 사람이 SES가 아직 못 쓰는 상태로 오해한다** |
 
 ## 문제

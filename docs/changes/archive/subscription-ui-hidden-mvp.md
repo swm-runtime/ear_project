@@ -3,7 +3,7 @@
 | 항목 | 값 |
 |---|---|
 | 대상 문서 | `spec/uiux/settings-uiux.md` 4.1(구독 섹션·플랜 카드) · `spec/uiux/profile-uiux.md` 4.1·7장(헤더 플랜 줄·[구독 알아보기]·낭독 문구) · `spec/uiux/library-uiux.md` 7장(잔여 표시 소진 낭독 "구독 안내 열기") · `features/paywall.md` 4.5(페이월 진입점) · `spec/uiux/auth-uiux.md` 4.5(탈퇴 사유 선택지) |
-| 요청 파트 | 문서(FE 구현은 `fix(fe)/hide-subscription-ui`에서 선반영 — 티켓 `tickets/frontend/pending/ios-hide-subscription-references.md`, KAN-66) |
+| 요청 파트 | 문서(FE 구현은 `fix(fe)/hide-subscription-ui`에서 선반영 — 티켓 `tickets/frontend/archive/ios-hide-subscription-references.md`, KAN-66) |
 | 발행 날짜 | 2026-09-17 |
 | 발견 시점 | App Store 심사 반려 2.1(b) — "구독을 언급하지만 인앱 결제 상품이 제출되지 않았다"(Submission 5e689f1a…, 1.0.0 (5)) |
 | 심각도 | 상 — 스토어 심사가 이 건으로 멈춰 있다 |

@@ -18,7 +18,7 @@ import { Text } from '@/shared/ui/Typography';
 
 import { APP_UPDATE_COPY } from '../app-update.copy';
 
-const LOGO = require('../../../../assets/logo.png');
+const LOGO = require('../../../../assets/logo-mark.png');
 const LOGO_SIZE = 120;
 
 /**
@@ -83,6 +83,8 @@ const styles = StyleSheet.create({
   logo: {
     width: LOGO_SIZE,
     height: LOGO_SIZE,
+    // 로고는 투명 바탕 검정 한 색 — tintColor 로 모드에 맞춘다(라이트 검정 · 다크 흰색, 2026-10-11)
+    tintColor: theme.color.textPrimary,
     marginBottom: theme.spacing.md,
   },
   title: {

@@ -1,6 +1,7 @@
 import { setAnalyticsUser, setAnalyticsUserProperties } from '@/shared/analytics';
 import { registerTokenProvider } from '@/shared/api/api-client';
 import { setSentryUser } from '@/shared/monitoring';
+import { setColorModeReloadGuard, startColorModeSync } from '@/shared/theme';
 import { prefetchRemoteImages } from '@/shared/ui/RemoteImage';
 
 import { startAppVersionRecheck } from '@/features/app-update';
@@ -15,6 +16,7 @@ import {
   prefetchLibraryFirstPage,
   restoreLibraryItem,
   saveQueueOrder,
+  useLibraryArrivalStore,
 } from '@/features/library';
 import {
   clearPushState,
@@ -29,6 +31,7 @@ import {
   stopPlaybackForSignOut,
   syncWithdrawnContents,
   useLimitNoticeStore,
+  usePlaybackStore,
 } from '@/features/player';
 import { profileKeys } from '@/features/profile';
 import { settingsKeys } from '@/features/settings';
@@ -59,6 +62,10 @@ const QUEUE_PAGE_LIMIT = 50;
  */
 export const bootstrapApp = (): void => {
   registerTokenProvider(sessionService);
+  // 화면 모드(다크 모드, 2026-10-10) — Android 는 시스템 모드가 바뀌면 앱이 앞으로 돌아올 때 다시 칠한다(JS 다시 부르기).
+  // 재생 중이면 미룬다 — 듣던 것이 끊기면 안 된다. shared(theme)는 player 를 모르므로 여기서 잇는다
+  setColorModeReloadGuard(() => usePlaybackStore.getState().session?.isPlaying === true);
+  startColorModeSync();
   // 백그라운드 30분 뒤 복귀 시 버전 관문만 재수행(splash.md 2장 · KAN-99). 콜드 스타트 판정은 RootNavigator 가 건다
   startAppVersionRecheck();
 
@@ -226,8 +233,9 @@ export const bootstrapApp = (): void => {
      */
     if (previous.status === 'authenticated' && state.status !== 'authenticated') {
       stopPlaybackForSignOut();
-      // 앞 사용자가 탭한 알림의 목적지·배너를 다음 사용자에게 넘기지 않는다
+      // 앞 사용자의 알림 목적지·새 도착 배지를 다음 사용자에게 넘기지 않는다
       clearPushState();
+      useLibraryArrivalStore.getState().reset();
       resetDeviceSync();
       // 반영이 미뤄진 거래의 재시도를 멈춘다 — 다음 계정의 세션으로 앞 사용자의 거래를 제출하지 않는다
       stopSubscriptionSync();

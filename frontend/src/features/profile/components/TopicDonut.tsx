@@ -2,7 +2,7 @@ import { useEffect } from 'react';
 import { Animated, StyleSheet, View } from 'react-native';
 
 import { useAnimatedValue } from '@/shared/hooks/useAnimatedValue';
-import { motion, theme } from '@/shared/theme';
+import { motion, theme, useThemePalette } from '@/shared/theme';
 import { Text } from '@/shared/ui/Typography';
 
 import { PROFILE_COPY } from '../profile.copy';
@@ -30,8 +30,12 @@ interface LegendEntry {
 }
 
 /** 서버 응답 순서 그대로다 — 재정렬·재계산하지 않는다(profile-uiux.md 4.6). "기타"는 항상 마지막 */
-const toLegendEntries = (distribution: TopicDistribution): LegendEntry[] => {
-  const palette = theme.color.chart;
+/** `chart` — 지금 모드의 차트 색(문자열). SVG 조각·범례 점이 쓴다(다크 모드, 2026-10-10) */
+const toLegendEntries = (
+  distribution: TopicDistribution,
+  chart: readonly string[],
+): LegendEntry[] => {
+  const palette = chart;
   const othersColor = palette[palette.length - 1];
   return [
     ...distribution.topics.map((topic, index) => ({
@@ -71,7 +75,7 @@ export default function TopicDonut({
   embedded = false,
   label = PROFILE_COPY.stats.topTopicLabel,
 }: TopicDonutProps) {
-  const entries = toLegendEntries(distribution);
+  const entries = toLegendEntries(distribution, useThemePalette().chart);
   const grow = useAnimatedValue(0);
   // 분포가 바뀌면(주 이동 — PM 2026-09-28 04:15 "주마다") 막대가 0 에서 다시 자란다. 같은 분포면 다시 그리지 않는다
   const signature = entries.map((entry) => `${entry.key}:${entry.ratio}`).join('|');
@@ -209,7 +213,7 @@ const styles = StyleSheet.create({
   rowTrack: {
     height: ROW_BAR_HEIGHT,
     borderRadius: ROW_BAR_HEIGHT / 2,
-    backgroundColor: 'rgba(118, 118, 128, 0.12)',
+    backgroundColor: theme.color.fillTertiary,
     overflow: 'hidden',
   },
   rowBar: {

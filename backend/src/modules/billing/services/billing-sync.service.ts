@@ -15,6 +15,8 @@ import {
   resolveFromStoreStatus,
   resolveFromTransaction,
 } from '@/modules/subscription/policies/store-state.policy';
+import { higherTier } from '@/modules/subscription/policies/invite-code.policy';
+import { InviteCodeService } from '@/modules/subscription/services/invite-code.service';
 import { PlanService } from '@/modules/subscription/services/plan.service';
 import { PurchaseIntentService } from '@/modules/subscription/services/purchase-intent.service';
 import { SubscriptionService } from '@/modules/subscription/services/subscription.service';
@@ -62,6 +64,7 @@ export class BillingSyncService {
     private readonly planService: PlanService,
     private readonly purchaseIntentService: PurchaseIntentService,
     private readonly userService: UserService,
+    private readonly inviteCodeService: InviteCodeService,
   ) {}
 
   /**
@@ -157,12 +160,13 @@ export class BillingSyncService {
       manager,
     );
     // 끝난 구독을 다른 계정이 자기 결제 의도로 다시 결제했다면 그 계정의 구독이다(`assertOwnedBy`의 예외와 같은
-    // 규칙) — 행 주인에게 그대로 반영하면 결제하지 않은 예전 계정이 유료가 된다
+    // 규칙) — 행 주인에게 그대로 반영하면 결제하지 않은 예전 계정이 유료가 된다. 토큰은 있는데 의도가 없으면
+    // (탈퇴로 파기) 끝난 행의 주인에게도 반영하지 않는다 — 결제한 계정은 떠났고 예전 주인은 결제하지 않았다(7장)
     const userId =
-      existing !== null &&
-      isTerminalStatus(existing.status) &&
-      tokenOwnerId !== null
-        ? tokenOwnerId
+      existing !== null && isTerminalStatus(existing.status)
+        ? transaction.accountToken !== null
+          ? tokenOwnerId
+          : existing.userId
         : (existing?.userId ?? tokenOwnerId);
 
     if (userId === null) {
@@ -192,8 +196,10 @@ export class BillingSyncService {
       input.signedAt,
     );
 
+    // 반영된 것이 없으면(끝난 구독의 넘겨받기 거절 등) 의도도 확인된 것이 아니다(2026-10-07)
     if (
       transaction.accountToken !== null &&
+      outcome.kind !== 'ignored' &&
       (existing === null || existing.userId !== userId)
     ) {
       await this.markIntentVerified(userId, transaction.accountToken, manager);
@@ -339,6 +345,31 @@ export class BillingSyncService {
     return this.findOwnerByToken(accountToken, manager);
   }
 
+  /**
+   * 그 사용자가 **같은 스토어에 따로 가진 살아 있는 구독 행** — 있으면 지금 구매는 두 번째 구독이다(`subscription-api.md`
+   * 4.4, Play). 같은 `originalTransactionId`(= 교체로 이어진 구매)는 세지 않는다. 없으면 `null`
+   */
+  async findOtherLiveSubscription(
+    userId: string,
+    store: SubscriptionStore,
+    originalTransactionId: string,
+    manager?: EntityManager,
+  ): Promise<Subscription | null> {
+    const rows = await this.subscriptionService.findAllByUserId(
+      userId,
+      manager,
+    );
+
+    return (
+      rows.find(
+        (row) =>
+          row.store === store &&
+          row.originalTransactionId !== originalTransactionId &&
+          NON_TERMINAL_SUBSCRIPTION_STATUSES.includes(row.status),
+      ) ?? null
+    );
+  }
+
   /** 그 스토어 구독이 연결된 사용자 — 없으면 `null` */
   async findSubscriptionOwner(
     originalTransactionId: string,
@@ -354,26 +385,67 @@ export class BillingSyncService {
   }
 
   /**
-   * `users.tier` 캐시를 `subscriptions`에 맞춘다 — **이 값을 쓰는 유일한 경로다**(domain.md 3.1).
+   * `users.tier` 캐시를 `subscriptions`와 초대 코드 지급(domain.md 8.6)에 맞춘다 — **이 값을 쓰는 유일한 경로다**(domain.md 3.1).
    *
    * 방금 고친 행 하나가 아니라 그 사용자의 구독 전체에서 다시 고른다 — 한 사용자가 구독 행을 여럿 가질 수 있고
    * (스토어 구독 그룹이 다르거나 스토어가 다르다), 하나가 만료돼도 다른 하나가 살아 있으면 유료다.
+   *
+   * **사용자 행을 먼저 잠그고 읽는다**(2026-10-10 검토) — 잠그기 전에 구독·지급을 읽으면 동시에 커밋된 결제를 못 보고
+   * 옛 값으로 캐시를 덮는다(만료 배치·코드 입력이 구독 행 잠금 없이 이 함수를 부른다). 잠금 순서는 구독 행 → 사용자 행 →
+   * 지급 행으로 모든 경로가 같다.
+   *
+   * **구독과 지급 중 높은 쪽**을 쓴다. 단, 입력 때 유료 구독이 없던 지급(`subscribed_at_start = false`)인데 지금 살아 있는
+   * 구독이 있으면 **지급 기간 중에 결제한 것**이라 지급을 여기서 끝낸다 — 결제가 지급을 대체한다(`subscription-api.md` 4.8: Daily 이벤트 중 Pro 결제 → 이벤트 종료·Pro,
+   * Pro 이벤트 중 Daily 결제 → 이벤트 종료·Daily. 결제 전 확인 팝업은 클라이언트 몫이다). 입력 때 이미 구독 중이었으면
+   * 그 구독의 갱신·변경은 지급을 끝내지 않는다.
+   *
+   * `now`는 지급 판정 시각이다. 응답을 바로 조립하는 요청(구매·복원·코드 입력)은 그 요청 시각을 넘긴다 — 판정 뒤에
+   * 시각을 새로 재면 결제로 끝낸 지급의 종료 시각이 응답 조립 시각보다 늦어져, 방금 끝난 지급이 응답에 남는다.
+   * 스토어 알림(App Store S2S·Play RTDN)도 같은 트랜잭션에서 구독 상태를 판정한 수신 시각을 넘긴다.
    */
-  async syncUserTier(userId: string, manager: EntityManager): Promise<void> {
-    const current = await this.subscriptionService.findCurrent(userId, manager);
+  async syncUserTier(
+    userId: string,
+    manager: EntityManager,
+    now: Date = new Date(),
+  ): Promise<void> {
+    await this.userService.getByIdForUpdate(userId, manager);
+    const live = await this.subscriptionService.findEntitled(userId, manager);
+    const subscriptionTier = live?.tier ?? UserTier.LIGHT;
+
+    let grant = await this.inviteCodeService.findActiveGrant(
+      userId,
+      now,
+      manager,
+    );
+    if (
+      grant !== null &&
+      live !== null &&
+      !grant.redemption.subscribedAtStart
+    ) {
+      await this.inviteCodeService.endGrant(grant, now, manager);
+      this.logger.log('invite grant ended by purchase', {
+        user_id: userId,
+        redemption_id: grant.redemption.id,
+        grant_tier: grant.redemption.tier,
+        subscription_id: live.id,
+        subscription_tier: live.tier,
+      });
+      grant = null;
+    }
+
     const tier =
-      current !== null &&
-      NON_TERMINAL_SUBSCRIPTION_STATUSES.includes(current.status)
-        ? current.tier
-        : UserTier.LIGHT;
+      grant === null
+        ? subscriptionTier
+        : higherTier(subscriptionTier, grant.redemption.tier);
 
     const changed = await this.userService.updateTier(userId, tier, manager);
 
     if (changed) {
-      this.logger.log('user tier synced from subscription', {
+      this.logger.log('user tier synced', {
         user_id: userId,
         tier,
-        subscription_id: current?.id ?? null,
+        subscription_id: live?.id ?? null,
+        invite_redemption_id: grant?.redemption.id ?? null,
       });
     }
   }
@@ -410,6 +482,7 @@ export class BillingSyncService {
           environment: transaction.environment,
           originalTransactionId: transaction.originalTransactionId,
           latestReceipt: transaction.receipt,
+          latestOrderId: transaction.orderId ?? null,
           ...decision.state,
           startedAt: transaction.originalPurchasedAt,
           lastNotifiedAt: notifiedAt,
@@ -466,6 +539,10 @@ export class BillingSyncService {
     if (decision.kind === 'apply') {
       assignState(subscription, decision.state);
       subscription.latestReceipt = transaction.receipt;
+      // Play만 값이 있다 — App Store 거래(undefined)는 건드리지 않는다
+      if (transaction.orderId !== undefined) {
+        subscription.latestOrderId = transaction.orderId;
+      }
       subscription.environment = transaction.environment;
     }
 
@@ -544,6 +621,7 @@ function toStoredState(subscription: Subscription): StoredSubscriptionState {
     pendingTier: subscription.pendingTier,
     lastNotifiedAt: subscription.lastNotifiedAt,
     latestReceipt: subscription.latestReceipt,
+    latestOrderId: subscription.latestOrderId,
   };
 }
 

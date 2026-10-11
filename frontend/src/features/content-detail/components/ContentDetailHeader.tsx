@@ -59,6 +59,13 @@ export default function ContentDetailHeader({
               </View>
             ))}
           </View>
+          {/*
+            콘텐츠 해시태그(KAN-163) — 주제 칩(사진 알약 = 분류)과 구분되게 배경 없는 '#' 글자 한 줄. 표시만, 탭 없음.
+            없으면 줄을 그리지 않는다
+          */}
+          {content.tags.length > 0 ? (
+            <Text style={styles.hashtags}>{content.tags.map((tag) => `#${tag}`).join('  ')}</Text>
+          ) : null}
         </View>
       </View>
 
@@ -141,6 +148,12 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     gap: theme.spacing.xs,
   },
+  // 해시태그 — 보조색 글자만(칩 모양을 쓰지 않는다 — 주제 칩과 섞이면 분류인지 내용인지 안 읽힌다)
+  hashtags: {
+    fontSize: theme.font.size.sm,
+    fontWeight: '600',
+    color: theme.color.textSecondary,
+  },
   /*
    * 프로필의 관심 주제 카드 칩과 같은 값(높이 30 · 라벨 여백 md) — xs 라벨의 작은 사진 알약은 그쪽에서 검증됐다.
    * 클리핑은 알약이 한 번만 하고, **칩에 패딩을 주지 않는다**(사진의 `100%` 가 콘텐츠 박스로 풀려 가장자리에
@@ -180,7 +193,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: theme.spacing.md,
     fontSize: theme.font.size.xs,
     fontWeight: '700',
-    color: theme.color.onPrimary,
+    color: theme.color.onPhoto,
     textShadowColor: theme.color.photoTextShadow,
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 4,

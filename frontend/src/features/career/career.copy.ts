@@ -7,6 +7,8 @@ import type { YearsOfExperienceRange } from './career.types';
  */
 export const CAREER_COPY = {
   appBarTitle: '커리어 정보',
+  /** 본문 첫 줄 큰 제목 — 관심 주제 관리의 "어떤 이야기가 궁금하세요?"와 같은 문법(PM 2026-10-10) */
+  headline: '어떤 일을 하고 계세요?',
   backA11y: '뒤로가기',
   reset: '초기화',
   /** "초기화"만 읽히면 무엇이 초기화되는지 알 수 없다(uiux 7장) */
@@ -22,6 +24,8 @@ export const CAREER_COPY = {
   jobTitleLabel: '직무',
   /** 온보딩 O4와 같은 문자열(uiux 4.3) */
   jobTitlePlaceholder: '예) 서비스 기획자',
+  /** 직무 입력칸 오른쪽 지우기 버튼(2026-10-10) */
+  jobTitleClearA11y: '직무 지우기',
   yearsLabel: '연차',
   /**
    * enum(0-1/2-3/4-6/7+)의 화면 표기 — 온보딩 O4와 같은 표기를 쓴다(career.md 3장).

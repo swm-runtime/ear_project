@@ -46,12 +46,27 @@ test("구간 — 첫 구간은 0초, 나머지는 그 구간 첫 턴의 세그�
   const { sections, reason } = buildSections(parseScriptForTts(MD).turns, SEGS);
   assert.equal(reason, undefined);
   assert.deepEqual(sections, [
-    { start_sec: 0, title: "인트로" },
-    { start_sec: 9, title: "도입" },
-    { start_sec: 13, title: "깬 직후의 멍함" },
-    { start_sec: 28, title: "술이 밤의 후반을 무너뜨린다" },
-    { start_sec: 35, title: "마무리" },
+    { start_sec: 0, title: "인트로", kind: "intro" },
+    { start_sec: 9, title: "도입", kind: "lead" },
+    { start_sec: 13, title: "깬 직후의 멍함", kind: "body" },
+    { start_sec: 28, title: "술이 밤의 후반을 무너뜨린다", kind: "body" },
+    { start_sec: 35, title: "마무리", kind: "outro" },
   ]);
+});
+
+// 2026-10-07 KAN-152: 구간마다 구역(kind)과 그 구간의 대사(요약 입력)
+test("구간 — texts 는 구간마다 그 구간을 연 턴부터 다음 구간 앞까지의 대사", () => {
+  const { sections, texts } = buildSections(parseScriptForTts(MD).turns, SEGS);
+  assert.equal(texts?.length, sections.length);
+  assert.equal(texts?.[1], "[이음] 오늘은 잠 이야기예요.\n[윤아] 좋아요.");
+  assert.equal(texts?.[2], "[이음] 첫 문장이에요. 둘째 문장이에요.\n[윤아] 그렇군요.");
+  assert.equal(texts?.[4], "[윤아] 감사합니다.");
+});
+
+test("구간 — 단락 제목 없는 옛 편의 '본문' 덩어리는 body", () => {
+  const md = MD.replace("### #1 깬 직후의 멍함\n", "").replace("### #2 술이 밤의 후반을 무너뜨린다\n", "");
+  const { sections } = buildSections(parseScriptForTts(md).turns, SEGS);
+  assert.deepEqual(sections.map((s) => [s.title, s.kind]), [["인트로", "intro"], ["도입", "lead"], ["본문", "body"], ["마무리", "outro"]]);
 });
 
 test("구간 — 대조가 어긋나거나 세그먼트가 남으면 내지 않는다 (틀린 시각보다 없는 편)", () => {

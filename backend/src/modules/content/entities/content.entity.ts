@@ -98,6 +98,13 @@ export class Content extends BaseEntity {
   @Column({ name: 'keywords', type: 'jsonb', nullable: true })
   keywords: string[] | null;
 
+  /**
+   * 화면 해시태그 — 탐색 카드·상세 화면에 "#태그"로 보인다(KAN-162). 추천 입력이 아니다(`keywords`와 별개).
+   * null: 받은 적 없음 — 응답에서는 빈 배열이다
+   */
+  @Column({ name: 'tags', type: 'jsonb', nullable: true })
+  tags: string[] | null;
+
   /** 맞는 청자 (직군·연차 구간) 세트 — 커리어 적합도의 입력. null: 미부여(항목 제외) */
   @Column({ name: 'target_audiences', type: 'jsonb', nullable: true })
   targetAudiences: TargetAudience[] | null;

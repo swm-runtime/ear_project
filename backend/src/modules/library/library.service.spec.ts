@@ -85,7 +85,6 @@ describe('LibraryService', () => {
       findByUserIdAndContentIdWithDeleted: jest.fn().mockResolvedValue(null),
       findAllActiveByUserIdAndContentIds: jest.fn().mockResolvedValue([]),
       findAllByUserIdAndContentIds: jest.fn().mockResolvedValue([]),
-      findAllContentIdsByUserId: jest.fn().mockResolvedValue([]),
       countByUserIdAndSource: jest.fn(),
       deleteByUserId: jest.fn(),
       findActiveIdsByUserIdAndIds: jest.fn().mockResolvedValue([]),

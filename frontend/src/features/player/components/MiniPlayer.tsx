@@ -35,7 +35,7 @@ import {
   MINI_PLAYER_OPEN_START_DISTANCE,
 } from '../player.constants';
 import { PLAYER_COPY } from '../player.copy';
-import { PauseIcon, PlayIcon } from './PlayerIcons';
+import PlayPauseSymbol from './PlayPauseSymbol';
 import { playbackService } from '../services/playback.service';
 import { miniDropProgress, miniDropStyle, MINI_DROP_TRAVEL } from '../store/mini-drop-motion';
 import { useMiniPlayerLayoutStore } from '../store/mini-player-layout.store';
@@ -43,8 +43,13 @@ import { useMiniPlayerResumeStore } from '../store/mini-player-resume.store';
 import { usePlaybackStore } from '../store/playback.store';
 import { usePlayerOpenGestureStore } from '../store/player-open-gesture.store';
 
-/** 미니플레이어 재생 버튼 아이콘 — 전체 플레이어보다 작게 */
-const MINI_PLAY_ICON_SIZE = 20;
+/**
+ * 미니플레이어 재생 버튼 아이콘 — 전체 플레이어보다 작게. iOS 는 SF Symbols 라 값이 글자 크기다 — 20 에서 삼각형이 약 16pt 로
+ * 제목 글자(약 13pt)보다 1.3배 커 줄에서 가장 무거웠다 → 17(약 14pt, PM 2026-10-09). Android 는 둥근 SVG(24 격자)라 값이 상자
+ * 크기다 — 20 에서 삼각형이 약 10dp(12.4/24 칸)로 iOS 보다 30% 작았다 → 27(약 14dp, PM 같은 날).
+ * 플레이어 열림·닫힘 모션 레이어도 이 값을 쓴다(PlayerScreen)
+ */
+export const MINI_PLAY_ICON_SIZE = Platform.OS === 'ios' ? 17 : 27;
 /**
  * 카드 모서리 — Android 는 높이의 절반을 반지름으로 쓰는 완전한 캡슐이다.
  */
@@ -482,11 +487,11 @@ export default function MiniPlayer({
             view.isPlaying ? PLAYER_COPY.miniPlayer.pauseA11y : PLAYER_COPY.miniPlayer.playA11y
           }
         >
-          {view.isPlaying ? (
-            <PauseIcon size={MINI_PLAY_ICON_SIZE} color={theme.color.textPrimary} />
-          ) : (
-            <PlayIcon size={MINI_PLAY_ICON_SIZE} color={theme.color.textPrimary} />
-          )}
+          <PlayPauseSymbol
+            kind={view.isPlaying ? 'pause' : 'play'}
+            size={MINI_PLAY_ICON_SIZE}
+            color={theme.color.textPrimary}
+          />
         </Pressable>
       </View>
       {/* 진행바는 **아래 변**(2026-09-25 PM) — 유리 위 림의 흰 하이라이트 밑에 검정 선을 두면 테두리가 두 겹으로 읽혔다.
@@ -566,14 +571,14 @@ const styles = StyleSheet.create({
     borderRadius: MINI_CARD_RADIUS,
     borderCurve: 'continuous',
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(0, 0, 0, 0.10)',
+    borderColor: theme.color.hairline,
   },
   // Android 독 카드 — 흰 불투명 면 + 윤곽(탭 바 capsuleSolidPlate 와 같은 재질)
   solidCard: {
     borderRadius: MINI_CARD_RADIUS,
     backgroundColor: theme.color.background,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(0, 0, 0, 0.10)',
+    borderColor: theme.color.hairline,
   },
   progressTrackSolid: {
     marginHorizontal: PROGRESS_INSET,

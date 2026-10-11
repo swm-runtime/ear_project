@@ -6,10 +6,10 @@
 | 요청 파트 | 백엔드 (인프라) |
 | 발행 날짜 | 2026-09-07 |
 | 발견 시점 | 2026-09-07 SES 실발송 성공 후 발신 도메인 인증 상태를 조회하다가 — 메일은 도착하는데 도메인에 SPF·DMARC가 한 줄도 없었다 |
-| 근거 문서 | `tickets/frontend/pending/prod-build-env-and-eas.md`(SES 검증 기록) · `infra/inventory.md` 3장(SES 항목) · `features/auth.md`(이메일 인증) |
+| 근거 문서 | `tickets/frontend/archive/prod-build-env-and-eas.md`(SES 검증 기록) · `infra/inventory.md` 3장(SES 항목) · `features/auth.md`(이메일 인증) |
 | 심각도 | **중** — 아래 "심각도 판단" 참조. 지금 당장 메일이 막히지는 않는다(DKIM 정렬로 최소 요건 충족, 수신함 도착 확인). 도메인 스푸핑 무방비 + 발송량 증가 시 하드 실패 |
 | 상태 | **레코드 반영됨**(2026-09-07) — 완료 조건 1·2 충족. 헤더 확인·2주 관찰·MX 결정 남음 |
-| 연관 | `tickets/frontend/pending/prod-build-env-and-eas.md` — 이 티켓은 그 티켓의 "SES 발송 점검(2026-09-07)" 기록에서 파생됐다 |
+| 연관 | `tickets/frontend/archive/prod-build-env-and-eas.md` — 이 티켓은 그 티켓의 "SES 발송 점검(2026-09-07)" 기록에서 파생됐다 |
 
 ## 문제
 

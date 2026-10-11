@@ -1,10 +1,13 @@
 import { readFile } from 'node:fs/promises';
 
 import {
+  CONTENT_TAG_PATTERN,
   CURRENT_ENRICHMENT_SCHEMA_VERSION,
   EMBEDDING_DIM,
   EMBEDDING_MODEL_ID,
+  MAX_CONTENT_TAGS,
   MAX_TARGET_AUDIENCES,
+  MIN_CONTENT_TAGS,
 } from '@/modules/content/content.constant';
 import {
   ContentDifficulty,
@@ -41,6 +44,7 @@ const KNOWN_TOP_LEVEL_KEYS = new Set([
   'is_evergreen',
   'keywords',
   'target_audiences',
+  'tags',
   'embedding',
   'source',
 ]);
@@ -146,6 +150,14 @@ export async function parseEnrichmentFile(
     data.targetAudiences = audiences;
   }
 
+  if (raw.tags !== undefined) {
+    const tags = parseTags(raw.tags);
+    if (typeof tags === 'string') {
+      return reject(tags);
+    }
+    data.tags = tags;
+  }
+
   if (raw.embedding !== undefined) {
     const embedding = parseEmbedding(raw.embedding);
     if (typeof embedding === 'string') {
@@ -210,6 +222,34 @@ function parseTargetAudiences(raw: unknown): TargetAudience[] | string {
   }
 
   return audiences;
+}
+
+/**
+ * tags 검증(형식 3) — 화면에 그대로 "#태그"로 보이므로 다른 키와 달리 **고치지 않고 거부한다**:
+ * 개수(2~4)·모양(띄어쓰기·'#' 없는 2~10자)·대소문자 무시 중복. 통과하면 값, 실패하면 사유.
+ */
+function parseTags(raw: unknown): string[] | string {
+  if (
+    !Array.isArray(raw) ||
+    raw.length < MIN_CONTENT_TAGS ||
+    raw.length > MAX_CONTENT_TAGS
+  ) {
+    return `tags는 ${MIN_CONTENT_TAGS}~${MAX_CONTENT_TAGS}개 문자열 배열이어야 해요: ${describeValue(raw)}`;
+  }
+
+  const seen = new Set<string>();
+  for (const tag of raw) {
+    if (typeof tag !== 'string' || !CONTENT_TAG_PATTERN.test(tag)) {
+      return `tags 항목은 띄어쓰기·'#' 없는 한글·영문·숫자 2~10자여야 해요: ${describeValue(tag)}`;
+    }
+    const key = tag.toLowerCase();
+    if (seen.has(key)) {
+      return `tags에 같은 태그가 두 번 있어요: ${tag}`;
+    }
+    seen.add(key);
+  }
+
+  return raw as string[];
 }
 
 /** embedding 키 검증 — 통과하면 값, 실패하면 사유 문자열 */

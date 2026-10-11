@@ -86,6 +86,14 @@ export function computeStages(ep: EpisodeRow, bl: BacklogRow | undefined, jobs: 
   else if (status === "packaged") { stages.push({ key: "publish", label: "발행", state: "pending", note: "게이트 2 대기" }); setProblem({ stage: "발행", text: "패키지 완료 — 검수 후 제품 발행", tone: "info", href: `/publish/upload?episode=${ep.id}`, action: "제품 발행" }); }
   else stages.push({ key: "publish", label: "발행", state: "skip" });
 
+  // 반려된 후보의 편 (2026-10-09 — 10월 이전 미발행분 일괄 반려): 더 진행하지 않으므로 남은 단계를 대기로 그리지 않고, 판정·발행 안내 대신 반려를 알린다
+  if (status === "rejected") {
+    return {
+      stages: stages.map((s) => (s.state === "pending" ? { ...s, state: "skip" as const, note: undefined } : s)),
+      problem: { stage: "반려", text: "후보가 반려됨 — 더 진행하지 않는다 (산출물·판정은 보존)", tone: "info", href: "/backlog", action: "백로그" },
+    };
+  }
+
   // 막힌 곳이 없으면 진행 중인 단계를 안내
   if (!problem) {
     const running = stages.find((s) => s.state === "running");

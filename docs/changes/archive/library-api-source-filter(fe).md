@@ -16,7 +16,7 @@
 >
 > 반영한 문서는 `spec/api/library-api.md` 4.1(Request 표 · `source_filter` 조건 표 · 커서 조건 · 3장 엔드포인트 설명 · 1장 범위)과 9장 미결 2건이다. `source = 'onboarding'` 취급 미결도 **`save`에 포함**으로 닫혔다.
 >
-> **서버 구현은 아직 없다** — `tickets/backend/pending/library-source-filter-not-implemented.md`로 발행했다. FE의 `library.dto.ts` TODO 주석은 그 티켓이 닫힐 때 함께 지운다.
+> **서버 구현은 아직 없다** — `tickets/backend/archive/library-source-filter-not-implemented.md`로 발행했다. FE의 `library.dto.ts` TODO 주석은 그 티켓이 닫힐 때 함께 지운다.
 
 ## 왜 필요한가
 

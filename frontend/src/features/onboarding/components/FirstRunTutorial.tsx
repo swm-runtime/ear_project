@@ -15,6 +15,7 @@ import Svg, { Path } from 'react-native-svg';
 import { track } from '@/shared/analytics';
 import { theme } from '@/shared/theme';
 import TabBarIcon from '@/shared/ui/TabBarIcon';
+import TabIconBadge from '@/shared/ui/TabIconBadge';
 import { Text } from '@/shared/ui/Typography';
 import { useWalkthroughStore } from '@/shared/ui/walkthrough.store';
 
@@ -29,7 +30,6 @@ import {
   type ExploreTopic,
 } from '@/features/explore';
 import {
-  LibraryBanner,
   LibraryItemTile,
   LibrarySearchBarRow,
   LibraryToolbar,
@@ -93,6 +93,7 @@ const content = (i: number) => ({
   thumbnailUrl: THUMBS[i % THUMBS.length],
   contentVersion: 1,
   topicIds: [],
+  tags: [],
 });
 
 const exploreItem = (i: number): ExploreItem => ({
@@ -151,6 +152,9 @@ interface Rect {
  * 세우고 여기서 소비한다.
  * 문서 반영 요청: changes/pending/onboarding-o1-visual-refresh.md
  */
+/** 가려막 위 안내 화살표 색 */
+const TUTORIAL_ARROW_COLOR = '#FFFFFF';
+
 export default function FirstRunTutorial() {
   const pending = useWalkthroughStore((s) => s.pending);
   const clear = useWalkthroughStore((s) => s.clear);
@@ -218,7 +222,7 @@ export default function FirstRunTutorial() {
 
   const current = steps[step];
   const isExplore = current.stage === 'explore';
-  const target = current.stage === 'library' ? libraryTab : markRect;
+  const target = current.stage === 'explore' ? markRect : libraryTab;
 
   /** 둥근 사각형 한 조각 — 바깥 사각형과 함께 evenodd로 채우면 이 자리가 뚫린다 */
   const holePath = (r: Rect): string => {
@@ -365,16 +369,6 @@ export default function FirstRunTutorial() {
                 />
               }
             />
-            {/*
-              드립 도착은 실제 화면과 **같은 컴포넌트·같은 문구·같은 자리**로 그린다 —
-              탭 아래 전체 폭 배너다(LibraryScreen: 검색줄 → 탭 → 배너 → 목록).
-              직접 알약을 그리면 배너 카피가 바뀔 때 튜토리얼만 옛 문구로 남는다.
-            */}
-            {current.stage === 'drip' ? (
-              <View ref={targetRef} onLayout={measure()}>
-                <LibraryBanner banner={{ type: 'newArrivals', count: 2 }} onPress={noop} />
-              </View>
-            ) : null}
             <ScrollView scrollEnabled={false} contentContainerStyle={styles.list}>
               {/* 라이브러리 단계가 가리키는 것은 타일이 아니라 탭바다(libraryTab) — 여기는 재지 않는다.
                   실제 화면과 같은 두 칸 격자(LibraryScreen gridRow) */}
@@ -396,12 +390,17 @@ export default function FirstRunTutorial() {
           const focused = tab.label === (isExplore ? '탐색' : '라이브러리');
           return (
             <View key={tab.label} style={styles.tab}>
-              <TabBarIcon
-                name={tab.name}
-                focused={focused}
-                size={28}
-                color={focused ? theme.color.textPrimary : theme.color.textSecondary}
-              />
+              <View style={styles.tabGlyph}>
+                <TabBarIcon
+                  name={tab.name}
+                  focused={focused}
+                  size={28}
+                  color={focused ? theme.color.textPrimary : theme.color.textSecondary}
+                />
+                <TabIconBadge
+                  value={current.stage === 'drip' && tab.name === 'library' ? 2 : undefined}
+                />
+              </View>
               <Text style={[styles.tabLabel, focused && styles.tabOn]}>{tab.label}</Text>
             </View>
           );
@@ -418,7 +417,8 @@ export default function FirstRunTutorial() {
         {arrow ? (
           <Path
             d={arrow}
-            stroke={theme.color.onPrimary}
+            // 가려막(어두운 막) 위 화살표 — 화면 모드와 무관하게 흰색(다크 모드에서 onPrimary 는 검정이 된다)
+            stroke={TUTORIAL_ARROW_COLOR}
             strokeWidth={2}
             strokeDasharray="5 6"
             strokeLinecap="round"
@@ -526,6 +526,10 @@ const styles = StyleSheet.create({
     borderTopColor: theme.color.border,
     backgroundColor: theme.color.background,
   },
+  tabGlyph: {
+    width: 28,
+    height: 28,
+  },
   tab: {
     flex: 1,
     alignItems: 'center',
@@ -553,7 +557,7 @@ const styles = StyleSheet.create({
   title: {
     fontSize: theme.font.size.xl,
     fontWeight: '700',
-    color: theme.color.onPrimary,
+    color: theme.color.onPhoto,
     lineHeight: theme.font.size.xl * 1.3,
     textShadowColor: 'rgba(0,0,0,0.9)',
     textShadowOffset: { width: 0, height: 2 },
@@ -575,7 +579,7 @@ const styles = StyleSheet.create({
   },
   skipLabel: {
     fontSize: theme.font.size.sm,
-    color: theme.color.onPrimary,
+    color: theme.color.onPhoto,
     textDecorationLine: 'underline',
   },
   dots: {
@@ -591,6 +595,6 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.38)',
   },
   dotActive: {
-    backgroundColor: theme.color.onPrimary,
+    backgroundColor: theme.color.onPhoto,
   },
 });

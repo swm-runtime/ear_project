@@ -8,7 +8,7 @@ import { exists, hostOf, log, RetryLater } from "../util.js";
 import { prepareAssets, workerRev } from "../assets.js";
 import { listPrefix, pullPrefix, pushPrefix, s3Key } from "../storage.js";
 import { parseScriptForTts } from "../tts/script.js";
-import { runTwoStageDraft, twoStageViolations } from "./draft-two-stage.js";
+import { l0Next, runTwoStageDraft, twoStageViolations } from "./draft-two-stage.js";
 import { runRevisionSingle } from "./revision-single.js";
 
 interface DraftOut { turns: number; chars: number; minutes: number; sources_used: string[]; sources_excluded: { url: string; reason: string }[]; self_check_fixes: string[]; notes: string }
@@ -174,17 +174,26 @@ export async function runDraft(job: Job, ex: Executor) {
   let pronunciations: Record<string, string> | undefined;
   try { pronunciations = JSON.parse(await fs.readFile(pronFile, "utf8")) as Record<string, string>; } catch { pronunciations = undefined; }
   const violations = [...formatViolations(scriptMd), ...((await exists(outlineFile)) ? twoStageViolations(scriptMd, await fs.readFile(outlineFile, "utf8"), { signoffHeads, claimsMd, sourcesMd, notesMd, pronunciations }) : [])];
-  if (violations.length) {
-    // L0 수정은 QA 회차와 별도로 센다 (2026-09-09): 같은 카운터를 쓰니 시점 표현 1건 고치는 데 QA 회차 하나가 사라졌고, QA 수정본이 통계 용어로 L0 에 걸리자 attempt 3 한도에 막혀 검토 대기로 빠졌다(T260909-009)
-    const l0Fixes = Number(job.payload.l0_fixes ?? 0);
-    if (l0Fixes >= 2) throw new Error(`대본 형식 위반이 L0 수정 ${l0Fixes}회 뒤에도 남음 — 웹 턴 수정으로 처리 필요: ${violations.join(" / ")}`);
+  // L0 수정은 QA 회차와 별도로 센다 (2026-09-09): 같은 카운터를 쓰니 시점 표현 1건 고치는 데 QA 회차 하나가 사라졌고, QA 수정본이 통계 용어로 L0 에 걸리자 attempt 3 한도에 막혀 검토 대기로 빠졌다(T260909-009)
+  // 한도 3회 · 한도 뒤 비율 위반만 남으면 QA 로 넘긴다 (2026-10-07 — v9.7 이후 최종 실패 12편 중 7편, 남은 위반이 턴 한두 개짜리 비율·이름 소개였다)
+  const l0Fixes = Number(job.payload.l0_fixes ?? 0);
+  const l0 = l0Next(violations, l0Fixes);
+  if (l0?.action === "fail") {
+    const ratioN = violations.length - l0.hard.length;
+    throw new Error(`대본 형식 위반이 L0 수정 ${l0Fixes}회 뒤에도 남음 — 웹 턴 수정으로 처리 필요: ${l0.hard.join(" / ")}${ratioN ? ` (그 밖에 비율 위반 ${ratioN}건 — 넘겨도 되는 항목)` : ""}`);
+  }
+  const l0Residual = l0?.action === "pass" ? l0.residual : [];
+  if (l0?.action === "fix") {
     const fixes = violations.map((v) => ({ location: "대본 전체", item: "L0 형식 계약 (spec/04 4장 줄 문법)", reason: v }));
     await insertRun({ backlog_id: backlogId, phase: "draft", attempt, result: `${summary} — L0 형식 위반 ${violations.length}건, QA 생략하고 수정 재생성: ${violations.join(" / ").slice(0, 300)}`, prompt_version: `${promptVersion} (worker)`, artifacts, executed_by: executedBy, model, cost_usd: costUsd, tokens, worker_rev: workerRev() });
     const fixJobId = await enqueue({ type: "draft", requires_ai: true, payload: { episode_id: episodeId, backlog_id: backlogId, attempt: attempt + 1, qa_failures: fixes, l0_fixes: l0Fixes + 1, qa_round: job.payload.qa_round ?? 0 }, parent_job_id: job.id, attempt: attempt + 1 });
     log(`  draft ${episodeId}: L0 형식 위반 ${violations.length}건 — 수정 재생성 연쇄 (attempt ${attempt + 1}, L0 수정 ${l0Fixes + 1}회째)`);
     return { episode_id: episodeId, attempt, summary, model, l0_violations: violations, next: { draft_fix_job_id: fixJobId } };
   }
-  await insertRun({ backlog_id: backlogId, phase: "draft", attempt, result: summary, prompt_version: `${promptVersion} (worker)`, artifacts, executed_by: executedBy, model, cost_usd: costUsd, tokens, worker_rev: workerRev() });
+  // 비율 위반만 남은 채 QA 로 넘기는 편은 실행 기록에 남겨 검수(게이트 2)에서 그 턴을 본다
+  const residualNote = l0Residual.length ? ` — L0 수정 ${l0Fixes}회 뒤 비율 위반 ${l0Residual.length}건 남김, QA 로 넘김(검수 때 해당 턴 확인): ${l0Residual.join(" / ").slice(0, 300)}` : "";
+  await insertRun({ backlog_id: backlogId, phase: "draft", attempt, result: summary + residualNote, prompt_version: `${promptVersion} (worker)`, artifacts, executed_by: executedBy, model, cost_usd: costUsd, tokens, worker_rev: workerRev() });
+  if (l0Residual.length) log(`  draft ${episodeId}: L0 수정 ${l0Fixes}회 뒤 비율 위반 ${l0Residual.length}건만 남음 — QA 로 넘김`);
   // 회차 2+: 이전 QA 실패와 작성 측 수정 내역(바뀐 자리만)을 QA 에 넘긴다 — 해소 확인 + 바뀌지 않은 문장의 판정 안정성 (spec/05 5장, 2026-09-08)
   const carry = qaCarry(attempt, (job.payload.qa_failures ?? []) as { item?: string }[], (out as RevisionOut).fixes ?? []);
   const qaRound = Number(job.payload.qa_round ?? 0) + 1; // QA 회차 = 실제 QA 실행 횟수 (L0 수정은 세지 않는다)
