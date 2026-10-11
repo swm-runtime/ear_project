@@ -885,6 +885,7 @@ play_records
 uq_play_records_user_id_content_id_play_date (user_id, content_id, play_date)
 idx_play_records_user_id_play_date (user_id, play_date)
 idx_play_records_content_id_play_date (content_id, play_date)
+idx_play_records_play_date_user_id (play_date, user_id)   ★주간 청취 상위 %(KAN-168) — 날짜로 먼저 좁힌다 (2026-10-11)
 ```
 
 - **페이월 카운트의 유일한 근거다** (A-2). `daily_play_count`는 컬럼이 아니라 이 테이블의 집계다.
