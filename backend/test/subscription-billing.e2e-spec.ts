@@ -316,6 +316,8 @@ describe('구독·인앱 결제 E2E', () => {
 
     // 다른 계정이 같은 스토어 구독을 내면 받지 않는다
     const other = await createUser('buy-other');
+    // 소유권 판정까지 가려면 이메일 관문(4.5)을 먼저 넘어야 한다
+    await setEmail(other.userId, true);
     await expectError(
       post('/users/me/subscription/purchases', other.auth, {
         platform: 'ios',
@@ -605,6 +607,25 @@ describe('구독·인앱 결제 E2E', () => {
     ).body as RestoreBody;
     expect(empty.restored).toBe(false);
     expect(empty.subscription.plan.status).toBe('free');
+
+    // 보낼 거래가 있는데 인증된 이메일이 없다 → 409, 구독 행을 만들지 않는다(4.5 — 2026-10-11)
+    await setEmail(userId, false);
+    await expectError(
+      post('/users/me/subscription/restore', auth, {
+        platform: 'ios',
+        signed_transactions: [
+          signTransaction({
+            ...thisPeriod,
+            originalTransactionId: otx,
+            productId: PRODUCT_DAILY,
+          }),
+        ],
+      }),
+      HttpStatus.CONFLICT,
+      ErrorCode.EMAIL_REQUIRED_FOR_PURCHASE,
+    );
+    expect(await subscriptionRows(otx)).toHaveLength(0);
+    await setEmail(userId, true);
 
     // 만료된 거래는 무시한다
     const expiredOnly = (
