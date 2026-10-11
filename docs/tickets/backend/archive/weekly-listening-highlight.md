@@ -11,6 +11,7 @@
 | 시작 날짜 | 2026-10-11 |
 | 기한 | 2026-10-14 (Medium — 3일 안) |
 | 선행 | 없음 — `tickets/backend/archive/weekly-listening-top-percent.md`(KAN-168)는 완료됨, 그 계산을 그대로 재사용한다 |
+| 반영 날짜 | 2026-10-11 |
 | 중요도 | Medium — PM 이 중요도를 따로 정하지 않아 기본값. 마감이 안 맞으면 등급을 내리지 말고 사유를 적는다 |
 
 ## 배경
@@ -66,3 +67,11 @@ KAN-168 로 주간 카드에 "다른 사용자 대비 상위 N%"를 띄웠다. �
 - Given 가입 주(직전 주 없음)이고 상위 50% 밖인 사용자, When 4.1 을 부르면, Then 순위 2 를 건너뛰고 `listened_days` 다
 - Given 그 주 청취 0초인 사용자, When 4.1·4.2 를 부르면, Then `listening_highlight` 가 `null` 이다
 - Given 계약 확정 후, When `docs/spec/api/profile-api.md` 4.1 `weekly_listening` 절을 읽으면, Then `listening_highlight` 의 종류·우선순위·`null` 조건이 적혀 있다
+
+## 처리 기록
+
+- **2026-10-11 반영** — 위 "계약(제안)"대로 구현하고 `profile-api.md` 4.1·4.2·9장에 확정 계약을 적었다. 4.1 `weekly_listening`과 4.2 응답에 `listening_highlight`(`top_percent` · `more_than_previous`(`diff_sec`) · `listened_days` 또는 `null`).
+  - 판정은 순수 함수 `pickListeningHighlight`(`profile.stats.ts`), 최소 차이는 상수 `LISTENING_HIGHLIGHT_MIN_DIFF_SEC`(60). 비교 대상은 오케스트레이터가 직전 주의 앞 N일(이번 주면 오늘 요일 순번, 끝난 주면 7)을 합산 — 상위 %가 있거나 0초면 조회하지 않는다.
+  - 테스트: 단위(우선순위·60초 경계·줄어든 경우·가입 주·0초) · 오케스트레이터(이번 주 토요일 → 직전 주 월~토만 합산, 가입 주는 직전 주 조회 안 함) · E2E `test/profile-weekly-top-percent.e2e-spec.ts`(실제 DB — 하위권 늘어난 사람 `more_than_previous` 70초, 줄어든 사람 `listened_days` 1일).
+- **"착수 전에 PM과 맞출 것" 세 항목은 제안값 그대로 잠정 구현** — 우선순위, 최소 차이 60초, "같은 요일까지" 비교. 바뀌면 상수·조건만 고친다(필드 의미 불변). `profile-api.md` 9장 미결에 남겼다.
+- `listening_top_percent`는 유지(배포된 앱이 읽는다).

@@ -27,3 +27,9 @@ export const WEEKLY_LISTENING_DAY_COUNT = 7;
  * PM 확정 전이다(2026-10-10).
  */
 export const LISTENING_TOP_PERCENT_MAX = 50;
+
+/**
+ * 주간 카드 "전주보다 N분 더"를 내려주는 **최소 차이**(초, KAN-170). 1분 미만이면 화면이 "0분 더"가 된다.
+ * 티켓 제안값이며 PM 확정 전이다(2026-10-11).
+ */
+export const LISTENING_HIGHLIGHT_MIN_DIFF_SEC = 60;

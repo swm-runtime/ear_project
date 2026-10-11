@@ -6,12 +6,14 @@ import {
 } from '@/modules/playback/playback.types';
 
 import {
+  LISTENING_HIGHLIGHT_MIN_DIFF_SEC,
   LISTENING_TOP_PERCENT_MAX,
   TOPIC_DISTRIBUTION_TOP_LIMIT,
   TOPIC_DISTRIBUTION_TOTAL_RATIO,
   WEEKLY_LISTENING_DAY_COUNT,
 } from './profile.constant';
 import {
+  ListeningHighlightView,
   TopicDistributionItemView,
   TopicDistributionView,
 } from './profile.types';
@@ -263,4 +265,46 @@ export function calculateListeningTopPercent(
   const percent = Math.min(Math.ceil((rank / population) * 100), 100);
 
   return percent > LISTENING_TOP_PERCENT_MAX ? null : percent;
+}
+
+/**
+ * 주간 카드의 한 줄(`profile-api.md` 4.1 `listening_highlight`, KAN-170) — **첫 번째로 해당하는 하나**만 고른다.
+ *
+ * 1. 상위 % — `listening_top_percent`가 있으면(KAN-168 규칙 그대로)
+ * 2. 전주보다 더 — 그 주 합이 비교 대상보다 `LISTENING_HIGHLIGHT_MIN_DIFF_SEC` 이상 많으면. **줄어든 쪽은 내려주지
+ *    않는다**("N분 덜"은 기를 꺾는다). 비교 대상이 없으면(가입 주) 건너뛴다
+ * 3. 들은 날 수 — 그 주 들은 날이 하루라도 있으면
+ *
+ * 그 주 0초면 `null`이다.
+ *
+ * @param dailyListenedSec 그 주 월~일 7개
+ * @param topPercent `calculateListeningTopPercent`의 결과
+ * @param previousSec 비교 대상 청취 합(초). 비교할 직전 주가 없으면 `null`
+ */
+export function pickListeningHighlight(
+  dailyListenedSec: readonly number[],
+  topPercent: number | null,
+  previousSec: number | null,
+): ListeningHighlightView | null {
+  const weekSec = dailyListenedSec.reduce((sum, sec) => sum + sec, 0);
+
+  if (weekSec <= 0) {
+    return null;
+  }
+
+  if (topPercent !== null) {
+    return { kind: 'top_percent', percent: topPercent };
+  }
+
+  if (
+    previousSec !== null &&
+    weekSec - previousSec >= LISTENING_HIGHLIGHT_MIN_DIFF_SEC
+  ) {
+    return { kind: 'more_than_previous', diffSec: weekSec - previousSec };
+  }
+
+  return {
+    kind: 'listened_days',
+    days: dailyListenedSec.filter((sec) => sec > 0).length,
+  };
 }
