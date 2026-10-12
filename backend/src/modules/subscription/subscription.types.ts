@@ -63,7 +63,7 @@ export interface ActiveInviteGrant {
 
 /**
  * 초대 코드로 받은 요금제(`subscription-api.md` 4.8) — 플랜 요약의 `grant`. 이벤트 중 결제 팝업(Daily 이벤트 → Pro 결제,
- * Pro 이벤트 → Daily 결제)의 분기를 클라이언트가 이 값으로 한다. 날짜 라벨은 서버가 만든다(04시 경계).
+ * Pro 이벤트 → Daily 결제)의 분기를 클라이언트가 이 값으로 한다. 날짜 라벨은 서버가 만든다(서비스 날짜 경계).
  */
 export interface InviteGrantView {
   /** 코드(캠페인) 이름 — 화면에 쓸지는 클라이언트가 정한다 */

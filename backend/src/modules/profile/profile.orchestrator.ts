@@ -20,7 +20,10 @@ import { User } from '@/modules/user/entities/user.entity';
 import { UserService } from '@/modules/user/services/user.service';
 import { toYearsOfExperienceRange } from '@/modules/user/user.constant';
 
-import { TOP_TOPIC_LIMIT } from './profile.constant';
+import {
+  TOP_TOPIC_LIMIT,
+  WEEKLY_LISTENING_DAY_COUNT,
+} from './profile.constant';
 import { ProfileSection } from './profile.enum';
 import {
   buildTopicDistribution,
@@ -28,6 +31,9 @@ import {
   buildWeeklyBuckets,
   calculateListeningTopPercent,
   calculateStreakDays,
+  countDailyListenedContents,
+  pickDailyListeningHighlights,
+  pickListeningHighlight,
 } from './profile.stats';
 import {
   ProfileCareerView,
@@ -228,18 +234,61 @@ export class ProfileOrchestrator {
       ),
     ]);
 
+    const hasPreviousWeek = previousWeekStart >= joinedWeekStart;
+    // 직전 주는 요일별로 한 번만 받는다 — 주간 한 줄(같은 요일까지 합)과 요일별 한 줄(같은 요일 값)이 함께 쓴다.
+    // 이번 주에 들은 게 없으면 두 한 줄 모두 null 이라 조회할 필요가 없다
+    const previousDailyListenedSec =
+      hasPreviousWeek && dailyListenedSec.some((sec) => sec > 0)
+        ? await this.buildPreviousDailyListenedSec(user.id, previousWeekStart)
+        : null;
+    const comparableDayCount =
+      weekStart === currentWeekStart
+        ? weekDates.indexOf(toServiceDate(now)) + 1
+        : WEEKLY_LISTENING_DAY_COUNT;
+    const listeningHighlight = pickListeningHighlight(
+      dailyListenedSec,
+      listeningTopPercent,
+      previousDailyListenedSec === null
+        ? null
+        : previousDailyListenedSec
+            .slice(0, comparableDayCount)
+            .reduce((sum, sec) => sum + sec, 0),
+    );
+    const dailyListeningHighlight = pickDailyListeningHighlights(
+      dailyListenedSec,
+      countDailyListenedContents(weekDates, listenedByContentAndDate),
+      previousDailyListenedSec,
+    );
+
     return {
       weekStart,
       dailyListenedSec,
       listeningTopPercent,
+      listeningHighlight,
+      dailyListeningHighlight,
       topicDistribution: topicDistributions.weekly,
       dailyTopicDistribution: topicDistributions.daily,
       // 가입 주보다 앞이면 이전 주가 없다 — 가입 전 주는 조회할 것도 없다
-      previousWeekStart:
-        previousWeekStart < joinedWeekStart ? null : previousWeekStart,
+      previousWeekStart: hasPreviousWeek ? previousWeekStart : null,
       // 이번 주를 넘어가는 주는 존재하지 않는다
       nextWeekStart: nextWeekStart > currentWeekStart ? null : nextWeekStart,
     };
+  }
+
+  /**
+   * 직전 주 월~일 청취(KAN-170·171). "전주보다 더"는 이 배열의 **앞 N일 합**과 비교한다 — 진행 중인 이번 주는 오늘 요일까지만
+   * 비교한다(주 초반에 지난주 전체와 비교하면 거의 항상 지는 비교가 된다). 끝난 주는 7일 전부다.
+   */
+  private async buildPreviousDailyListenedSec(
+    userId: string,
+    previousWeekStart: string,
+  ): Promise<number[]> {
+    const dates = toWeekDates(previousWeekStart);
+    const byDate = await this.playbackService.sumListenedSecByDates(
+      userId,
+      dates,
+    );
+    return buildWeeklyBuckets(dates, byDate);
   }
 
   /**

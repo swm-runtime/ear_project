@@ -35,6 +35,18 @@ export interface ProfileStatsSummaryView {
   streakDays: number;
 }
 
+/** 주간 카드 한 줄의 종류(KAN-170) — 우선순위는 `pickListeningHighlight`(`profile.stats.ts`)가 정한다 */
+export type ListeningHighlightView =
+  | { kind: 'top_percent'; percent: number }
+  | { kind: 'more_than_previous'; diffSec: number }
+  | { kind: 'listened_days'; days: number };
+
+/** 주간 카드 요일별 한 줄의 종류(KAN-171) — 우선순위는 `pickDailyListeningHighlights`(`profile.stats.ts`)가 정한다 */
+export type DailyListeningHighlightView =
+  | { kind: 'more_than_last_week'; diffSec: number }
+  | { kind: 'best_day' }
+  | { kind: 'listened_contents'; count: number };
+
 /** 주간 그래프 한 주(`profile.md` 4.6). 4.1과 4.2가 **같은 모양**을 쓴다 */
 export interface WeeklyListeningView {
   /** 그 주 월요일의 `YYYY-MM-DD` 라벨 */
@@ -46,6 +58,16 @@ export interface WeeklyListeningView {
    * 화면이 알약을 그리지 않는다
    */
   listeningTopPercent: number | null;
+  /**
+   * 주간 카드의 한 줄 — 상위 % > 전주보다 더 > 들은 날 수 중 첫 번째로 해당하는 하나(KAN-170).
+   * 그 주 0초면 `null`. 상위 50% 밖 사용자에게도 "나와의 비교"를 보여 주려는 값이다
+   */
+  listeningHighlight: ListeningHighlightView | null;
+  /**
+   * 월~일 **7개 고정 배열** — 요일을 골랐을 때 주간 한 줄 자리에 그리는 그날의 한 줄(KAN-171). 지난주 같은 요일보다
+   * 더 > 가장 많이 들은 날 > 들은 편 수 중 첫 번째로 해당하는 하나. 그날 0초면 `null`
+   */
+  dailyListeningHighlight: (DailyListeningHighlightView | null)[];
   /** `null`이면 이전 주가 없다(가입 주) → 화면이 [◀]를 비활성화한다 */
   previousWeekStart: string | null;
   /** `null`이면 이번 주다 → [다음 주 ▶] 비활성 */

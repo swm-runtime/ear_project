@@ -217,7 +217,7 @@ NetworkState  { reachable, connection_type }                        // 클라이
 | `AUTH_REFRESH_TOKEN_REUSED` | 401 | false | 동일. 서버는 전 세션 무효화 |
 | `WITHDRAWAL_CONFIRM_REQUIRED` | 400 | false | 확인 체크박스 강조 |
 | `WITHDRAWAL_SUBSCRIPTION_EXPIRY_NOT_AGREED` | 400 | false | 구독 만료 동의 체크 강조 |
-| `WITHDRAWAL_ARCHIVE_IDENTITY_MISSING` | 500 | false | 공통 오류 화면. **탈퇴는 진행되지 않았음을 안내** |
+| `WITHDRAWAL_ARCHIVE_IDENTITY_MISSING` | 500 | false | 공통 오류 화면. **탈퇴는 진행되지 않았음을 안내**. **2026-10-11부터 서버가 내지 않는다** — 이메일 없는 결제 이력 계정도 제공자 계정 ID로 보관하고 탈퇴를 진행한다(`domain.md` 11.3) |
 | `EMAIL_FORMAT_INVALID` | 400 | false | 인라인 "이메일 형식을 확인해주세요" |
 | `EMAIL_ALREADY_REGISTERED` | 409 | false | 인라인 "이미 등록된 이메일이에요" |
 | `EMAIL_VERIFICATION_RESEND_COOLDOWN` | 429 | false | [재전송] 비활성 + 남은 초 표시(30초) |

@@ -8,7 +8,7 @@ import { useFirstDripWaitingScreen } from '../hooks/useFirstDripWaitingScreen';
 import { ONBOARDING_COPY } from '../onboarding.copy';
 
 /**
- * O13 완료 대기 — 0건 담기 경로 전용 전체 화면 로딩(onboarding-uiux.md 4.5).
+ * O13 완료 대기 — 2단계 종료 뒤 전체 화면 로딩(onboarding-uiux.md 4.5). 담기 단계를 뺀 뒤(2026-10-11) 모든 경로가 지난다.
  * - 인디케이터·취소 버튼 없음, 뒤로가기 차단. 상한(서버 값)이 사용자 대신 빠져나가 준다.
  * - 진행률·남은 시간·재시도 중 안내를 표시하지 않는다 — 사용자가 할 수 있는 일이 없다.
  */

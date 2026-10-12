@@ -232,21 +232,26 @@ describe('UserWithdrawalService', () => {
       expect(userService.deleteById).toHaveBeenCalledWith(USER_ID, {});
     });
 
-    it('결제 이력이 있는데 이메일이 없으면 탈퇴를 실패시킨다', async () => {
-      // given
+    it('결제 이력이 있는데 이메일이 없어도 제공자 계정 ID 로 보관하고 탈퇴를 진행한다 — 파기 요구를 막지 않는다(2026-10-11)', async () => {
+      // given — 이메일 없이 재가입한 계정에 스토어 갱신 거래가 연결된 경우
       subscriptionService.hasPaymentHistory.mockResolvedValue(true);
       userService.getByIdForUpdate.mockResolvedValue(
         buildUser({ email: null }),
       );
 
       // when
-      const withdrawing = service.withdraw(command, NOW);
+      await service.withdraw(command, NOW);
 
-      // then
-      await expect(withdrawing).rejects.toMatchObject({
-        errorCode: ErrorCode.WITHDRAWAL_ARCHIVE_IDENTITY_MISSING,
-      });
-      expect(userService.deleteById).not.toHaveBeenCalled();
+      // then — 아카이브는 이메일 null + 제공자 계정 ID 로 남고, 원본은 파기된다
+      expect(archiveRepository.createUser).toHaveBeenCalledWith(
+        expect.objectContaining({
+          email: null,
+          provider: 'kakao',
+          providerUserId: 'kakao-1',
+        }),
+      );
+      expect(archiveRepository.saveUser).toHaveBeenCalledTimes(1);
+      expect(userService.deleteById).toHaveBeenCalledWith(USER_ID, {});
     });
 
     it('탈퇴하면 결제 이력과 무관하게 탈퇴 로그를 남긴다', async () => {

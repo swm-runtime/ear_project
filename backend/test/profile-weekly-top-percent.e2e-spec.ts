@@ -16,7 +16,7 @@ import { User } from '@/modules/user/entities/user.entity';
 import { SocialProvider, UserRole } from '@/modules/user/user.enum';
 
 /**
- * 주간 청취 상위 % E2E(`profile-api.md` 4.2 `listening_top_percent`, KAN-168) — 실제 DB 위에서
+ * 주간 청취 상위 %·한 줄 E2E(`profile-api.md` 4.2 `listening_top_percent` · `listening_highlight` · `daily_listening_highlight`, KAN-168·170·171) — 실제 DB 위에서
  * "나보다 많이 들은 사람 수" 집계 SQL 과 모집단(그 주 끝 전 가입자) 집계를 본다.
  *
  * 공유 로컬 DB 의 다른 행과 섞이지 않게 **2020년 1월 둘째 주**를 쓴다 — 그 주에 가입·청취한 행은 이 테스트가
@@ -63,47 +63,116 @@ describe('주간 청취 상위 % E2E', () => {
     await app.close();
   }, 60_000);
 
-  it('그 주 청취 합으로 순위를 매기고(동점은 좋은 쪽), 0초 사용자도 모집단에 넣으며, 하위권·0초는 null 이다', async () => {
-    // given — 그 주 전에 가입한 4명. 1등 3000초, 동점 2·3등 1000초(이틀에 나눠 들음), 0초 1명.
-    // 다른 주의 기록은 순위에 끼지 않는다
+  it('그 주 청취 합으로 순위를 매기고(동점은 좋은 쪽), 0초 사용자도 모집단에 넣으며, 하위권·0초는 상위 % 가 null 이고 대신 한 줄(나와의 비교)이 실린다', async () => {
+    // given — 그 주 전에 가입한 6명. 1등 3000초, 동점 2·3등 1000초(이틀에 나눠 들음), 늘어난 사람 100초(직전 주 30초),
+    // 줄어든 사람 50초(직전 주 500초), 0초 1명. 다른 주의 기록은 순위에 끼지 않는다
     const contentId = await seedContent();
     const top = await createUser('top');
     const tiedA = await createUser('tied-a');
     const tiedB = await createUser('tied-b');
+    const grower = await createUser('grower');
+    const shrinker = await createUser('shrinker');
     const silent = await createUser('silent');
     await seedPlay(top.id, contentId, '2020-01-06', 3000);
     await seedPlay(tiedA.id, contentId, '2020-01-07', 600);
     await seedPlay(tiedA.id, contentId, '2020-01-12', 400);
     await seedPlay(tiedB.id, contentId, '2020-01-08', 1000);
+    await seedPlay(grower.id, contentId, '2019-12-31', 30);
+    await seedPlay(grower.id, contentId, '2020-01-09', 100);
+    await seedPlay(shrinker.id, contentId, '2020-01-02', 500);
+    await seedPlay(shrinker.id, contentId, '2020-01-10', 50);
     await seedPlay(silent.id, contentId, '2020-01-13', 99_999);
 
-    // when / then — 1등: 1/4 → 25%
-    expect(await topPercentOf(top.auth)).toBe(25);
-    // 동점 둘 다 2등(나보다 많이 들은 사람 1명): 2/4 → 50%
-    expect(await topPercentOf(tiedA.auth)).toBe(50);
-    expect(await topPercentOf(tiedB.auth)).toBe(50);
-    // 그 주 0초(다음 주 기록만 있음) → null
-    expect(await topPercentOf(silent.auth)).toBeNull();
+    // when / then — 1등: 1/6 → 17%
+    expect(await weekOf(top.auth)).toEqual({
+      listening_top_percent: 17,
+      listening_highlight: { kind: 'top_percent', percent: 17 },
+      daily_listening_highlight: [
+        { kind: 'more_than_last_week', diff_sec: 3000 },
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+      ],
+    });
+    // 동점 둘 다 2등(나보다 많이 들은 사람 1명): 2/6 → 34%
+    expect((await weekOf(tiedA.auth)).listening_top_percent).toBe(34);
+    expect((await weekOf(tiedB.auth)).listening_top_percent).toBe(34);
+    // 4등 → 67% 로 하위권 — 상위 % 는 null 이고 직전 주(30초)보다 70초 더 들었다(KAN-170)
+    expect(await weekOf(grower.auth)).toEqual({
+      listening_top_percent: null,
+      listening_highlight: { kind: 'more_than_previous', diff_sec: 70 },
+      // 요일별(KAN-171): 목요일 100초 — 직전 주 목요일(01-02) 0초라 100초 더
+      daily_listening_highlight: [
+        null,
+        null,
+        null,
+        { kind: 'more_than_last_week', diff_sec: 100 },
+        null,
+        null,
+        null,
+      ],
+    });
+    // 5등 → 하위권, 직전 주보다 줄었다 — 줄어든 쪽은 내려주지 않고 들은 날 수(1일)
+    expect(await weekOf(shrinker.auth)).toEqual({
+      listening_top_percent: null,
+      listening_highlight: { kind: 'listened_days', days: 1 },
+      // 요일별: 금요일 50초 — 직전 주 금요일보다 60초 미만, 하루만 들어 최고도 아니라 편 수
+      daily_listening_highlight: [
+        null,
+        null,
+        null,
+        null,
+        { kind: 'listened_contents', count: 1 },
+        null,
+        null,
+      ],
+    });
+    // 그 주 0초(다음 주 기록만 있음) → 둘 다 null
+    expect(await weekOf(silent.auth)).toEqual({
+      listening_top_percent: null,
+      listening_highlight: null,
+      daily_listening_highlight: Array(7).fill(null),
+    });
 
     // 4.1 의 이번 주 카드에도 같은 필드가 실린다 — 이번 주엔 듣지 않아 null
     const summary = await request(app.getHttpServer())
       .get(path('/users/me/profile'))
       .set('Authorization', top.auth);
     expect(summary.status).toBe(HttpStatus.OK);
-    expect(
-      (summary.body as { weekly_listening: Record<string, unknown> })
-        .weekly_listening,
-    ).toHaveProperty('listening_top_percent', null);
+    const weekly = (
+      summary.body as { weekly_listening: Record<string, unknown> }
+    ).weekly_listening;
+    expect(weekly).toHaveProperty('listening_top_percent', null);
+    expect(weekly).toHaveProperty('listening_highlight', null);
+    expect(weekly).toHaveProperty(
+      'daily_listening_highlight',
+      Array(7).fill(null),
+    );
   });
 
-  async function topPercentOf(auth: string): Promise<number | null> {
+  async function weekOf(auth: string): Promise<{
+    listening_top_percent: number | null;
+    listening_highlight: Record<string, unknown> | null;
+    daily_listening_highlight: (Record<string, unknown> | null)[];
+  }> {
     const response = await request(app.getHttpServer())
       .get(path('/users/me/profile/weekly-listening'))
       .query({ week_start: WEEK_START })
       .set('Authorization', auth);
     expect(response.status).toBe(HttpStatus.OK);
-    return (response.body as { listening_top_percent: number | null })
-      .listening_top_percent;
+    const body = response.body as {
+      listening_top_percent: number | null;
+      listening_highlight: Record<string, unknown> | null;
+      daily_listening_highlight: (Record<string, unknown> | null)[];
+    };
+    return {
+      listening_top_percent: body.listening_top_percent,
+      listening_highlight: body.listening_highlight,
+      daily_listening_highlight: body.daily_listening_highlight,
+    };
   }
 
   async function createUser(

@@ -25,9 +25,12 @@ export class ArchivedUser extends BaseEntity {
   @Column({ name: 'user_hash_version', type: 'smallint', default: 1 })
   userHashVersion: number;
 
-  /** 거래 주체 식별 정보 (전자상거래법 제6조 제2항). NOT NULL — 없으면 이관을 실패시킨다 */
-  @Column({ name: 'email', type: 'varchar', length: 320 })
-  email: string;
+  /**
+   * 거래 주체 식별 정보 (전자상거래법 제6조 제2항). 이메일 없이 결제 이력이 생긴 계정(domain.md 11.3)은 `null` 이고,
+   * 그때는 `provider` + `provider_user_id`가 식별 수단이다(2026-10-11 — 종전 NOT NULL 은 탈퇴를 영구히 막았다)
+   */
+  @Column({ name: 'email', type: 'varchar', length: 320, nullable: true })
+  email: string | null;
 
   @Column({ name: 'provider', type: 'varchar', length: 20 })
   provider: SocialProvider;

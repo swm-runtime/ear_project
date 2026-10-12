@@ -102,7 +102,27 @@ export interface WeeklyListeningDto {
    * 서버가 보이지 않기로 판정하면(그 주 0초 · 상위 50% 밖) null, 아직 안 보내면 없다 → 둘 다 표시하지 않는다
    */
   listening_top_percent?: number | null;
+  /**
+   * 주간 카드의 한 줄(KAN-170, profile-api.md 4.1) — 서버가 우선순위(상위 % > 전주보다 더 > 들은 날 수)로 **하나만** 골라 보낸다.
+   * 그 주 0초면 null, 반영 전 서버면 없다(그땐 listening_top_percent 로 대신 그린다)
+   */
+  listening_highlight?: ListeningHighlightDto | null;
+  /**
+   * 요일별 한 줄(KAN-171, profile-api.md 4.1) — 월~일 7칸, 칸마다 서버가 우선순위(지난주 같은 요일보다 더 > 그 주 최고의 날 >
+   * 들은 편 수)로 하나 또는 null. 반영 전 서버면 없다(요일을 골라도 비워 둔다)
+   */
+  daily_listening_highlight?: (DailyListeningHighlightDto | null)[] | null;
 }
+
+export type DailyListeningHighlightDto =
+  | { kind: 'more_than_last_week'; diff_sec: number }
+  | { kind: 'best_day' }
+  | { kind: 'listened_contents'; count: number };
+
+export type ListeningHighlightDto =
+  | { kind: 'top_percent'; percent: number }
+  | { kind: 'more_than_previous'; diff_sec: number }
+  | { kind: 'listened_days'; days: number };
 
 /** GET /users/me/profile 응답(profile-api.md 4.1) — 섹션 null + failed_sections로 부분 실패 표현 */
 export interface ProfileSummaryResponseDto {

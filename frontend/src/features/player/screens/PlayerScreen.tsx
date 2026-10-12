@@ -2233,7 +2233,7 @@ export default function PlayerScreen() {
         onDeletePress={screen.requestDelete}
         onSharePress={screen.sharePress}
         onClose={screen.closeMoreSheet}
-        onDismissed={screen.handleSheetDismiss}
+        onDismissed={screen.handleMoreSheetDismiss}
       />
 
       {/* 재청취 창 밖 ▶의 확인 팝업 — 정의는 paywall 소유, 이 화면은 호스트만 맡는다 */}

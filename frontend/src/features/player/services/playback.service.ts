@@ -187,6 +187,15 @@ class PlaybackService {
   private generation = 0;
   private syncTimer: ReturnType<typeof setInterval> | null = null;
   private uiTickTimer: ReturnType<typeof setInterval> | null = null;
+  /**
+   * 앱이 화면에 없는 동안의 재생 위치 — **위치만 바뀐 틱은 스토어(=화면)에 올리지 않고 여기 둔다**(EAR-APP-H, 2026-10-12).
+   * 백그라운드 재생 중에도 0.5초마다 위치를 스토어에 올리면 화면 트리가 계속 다시 그려지고, 그때마다 네이티브 Animated
+   * 노드 생성 명령이 쌓인다. Android 는 액티비티가 내려가 있는 동안 그 명령을 비우지 못해(프레임이 돌지 않는다) 20분
+   * 백그라운드 재생 뒤 앱을 열자 한꺼번에 실행하다 자바 힙 256MB 를 넘겨 죽었다(OutOfMemoryError in
+   * NativeAnimatedNodesManager.createAnimatedNode). `base` 는 이 값을 둔 때의 세션 — 그 뒤 세션이 바뀌면(시크·종료·초기화)
+   * 이 값은 낡은 것이라 버린다
+   */
+  private deferredPosition: { sec: number; base: PlaybackSession } | null = null;
   private refreshTimer: ReturnType<typeof setTimeout> | null = null;
   private playReportRetryTimer: ReturnType<typeof setTimeout> | null = null;
   private appStateSubscription: NativeEventSubscription | null = null;
@@ -252,11 +261,28 @@ class PlaybackService {
    * GA4 `play_abandon` — 시작 기록이 있고 끝에 닿지 않은 세션이 내려갈 때 한 번. 서버 위치 저장과
    * 별개의 제품 분석 값이라 저장 성공 여부와 무관하게 보낸다(analytics.md 3.4).
    */
+  /** 지금 재생 위치 — 화면에 안 올린 백그라운드 위치(deferredPosition)가 살아 있으면 그 값 */
+  private currentPositionSec(): number {
+    const session = store.getState().session;
+    const deferred = this.deferredPosition;
+    if (deferred !== null && session === deferred.base) return deferred.sec;
+    return session?.positionSec ?? 0;
+  }
+
+  /** 화면에 돌아왔다 — 미뤄 둔 위치를 한 번에 올린다 */
+  private flushDeferredPosition(): void {
+    const deferred = this.deferredPosition;
+    this.deferredPosition = null;
+    if (deferred !== null && store.getState().session === deferred.base) {
+      store.getState().patchSession({ positionSec: deferred.sec });
+    }
+  }
+
   private trackAbandon(reason: 'switch' | 'background' | 'pause_timeout'): void {
     const ctx = this.ctx;
     if (!ctx || !ctx.hasReportedPlayStart || ctx.isEnded || ctx.hasReportedAbandon) return;
     ctx.hasReportedAbandon = true;
-    const position = store.getState().session?.positionSec ?? 0;
+    const position = this.currentPositionSec();
     const percent = ctx.durationSec > 0 ? Math.round((position / ctx.durationSec) * 100) : 0;
     track('play_abandon', { content_id: ctx.contentId, percent, reason });
   }
@@ -486,11 +512,18 @@ class PlaybackService {
     if (!(isPositionOnlyTick && Date.now() < this.holdPositionUntil)) {
       const reportedSec =
         durationSec > 0 ? Math.min(status.currentTime, durationSec) : status.currentTime;
-      store.getState().patchSession({
-        isPlaying: status.playing,
-        isBuffering: status.isBuffering,
-        positionSec: isStaleAfterSeek ? session.positionSec : reportedSec,
-      });
+      const nextPositionSec = isStaleAfterSeek ? this.currentPositionSec() : reportedSec;
+      if (isPositionOnlyTick && AppState.currentState !== 'active') {
+        // 화면에 없는 동안 위치만 바뀐 틱은 화면에 올리지 않는다(위 deferredPosition) — 재생·버퍼링 전이는 올린다
+        this.deferredPosition = { sec: nextPositionSec, base: session };
+      } else {
+        this.deferredPosition = null;
+        store.getState().patchSession({
+          isPlaying: status.playing,
+          isBuffering: status.isBuffering,
+          positionSec: nextPositionSec,
+        });
+      }
     }
 
     // 차감·재생 시작 기록은 소리가 실제로 난 시점 한 번뿐이다(paywall.md 4.3)
@@ -564,7 +597,7 @@ class PlaybackService {
       const result = await startPlay({ contentId: ctx.contentId, entryPoint: ctx.entryPoint });
       if (generation !== this.generation || !this.ctx) return;
       ctx.hasReportedPlayStart = true;
-      const startPositionSec = store.getState().session?.positionSec ?? 0;
+      const startPositionSec = this.currentPositionSec();
       track('play_start', {
         content_id: ctx.contentId,
         entry: ctx.entryPoint,
@@ -727,16 +760,15 @@ class PlaybackService {
     this.holdPositionUntil = Math.max(this.holdPositionUntil, Date.now() + durationMs);
   }
 
+  // 잠금화면 ±10초는 백그라운드에서 불린다 — 화면에 안 올린 위치(currentPositionSec)를 기준으로 한다
   seekBackward(): void {
-    const session = store.getState().session;
-    if (!session) return;
-    this.seekTo(Math.max(0, session.positionSec - SEEK_STEP_SEC));
+    if (!store.getState().session) return;
+    this.seekTo(Math.max(0, this.currentPositionSec() - SEEK_STEP_SEC));
   }
 
   seekForward(): void {
-    const session = store.getState().session;
-    if (!session) return;
-    this.seekTo(session.positionSec + SEEK_STEP_SEC);
+    if (!store.getState().session) return;
+    this.seekTo(this.currentPositionSec() + SEEK_STEP_SEC);
   }
 
   /** PL4 배속 — 현재 재생에 즉시 적용. 전역 저장(서버)은 화면 훅이 settings 계약으로 수행한다 */
@@ -754,9 +786,7 @@ class PlaybackService {
     ctx.isEnded = true;
     track('play_complete', {
       content_id: ctx.contentId,
-      listen_sec: Math.round(
-        ctx.durationSec > 0 ? ctx.durationSec : (store.getState().session?.positionSec ?? 0),
-      ),
+      listen_sec: Math.round(ctx.durationSec > 0 ? ctx.durationSec : this.currentPositionSec()),
     });
     this.player?.pause();
     store.getState().patchSession({
@@ -812,7 +842,7 @@ class PlaybackService {
     ctx.isSaving = true;
     const generation = this.generation;
     const listenedDelta = peekListenedDelta(ctx.tracking);
-    const positionSec = Math.round(session.positionSec);
+    const positionSec = Math.round(this.currentPositionSec());
     const maxReachedSec = Math.round(ctx.tracking.maxReachedSec);
 
     try {
@@ -922,7 +952,7 @@ class PlaybackService {
        * 새 버전으로 통과해 낡은 위치가 서버에 박힌다. 위치를 0으로 폐기하고 버전을 맞춘다.
        */
       const isRepublished = issue.content.contentVersion !== ctx.contentVersion;
-      const positionSec = isRepublished ? 0 : (session?.positionSec ?? 0);
+      const positionSec = isRepublished ? 0 : session ? this.currentPositionSec() : 0;
       if (isRepublished) {
         ctx.contentVersion = issue.content.contentVersion;
         ctx.durationSec = issue.content.durationSec;
@@ -1135,6 +1165,7 @@ class PlaybackService {
   private ensureAppStateListener(): void {
     if (this.appStateSubscription) return;
     this.appStateSubscription = AppState.addEventListener('change', (state) => {
+      if (state === 'active') this.flushDeferredPosition();
       // 백그라운드 진입은 즉시 저장 트리거다(player.md 4.3). 재생 자체는 유지된다
       if (state === 'background') {
         // 소리가 나는 채로 나간 건 이탈이 아니다 — 멈춘 채 앱을 떠난 것만 센다(analytics.md 3.4)

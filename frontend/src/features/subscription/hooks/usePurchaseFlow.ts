@@ -131,9 +131,17 @@ export const usePurchaseFlow = (options: PurchaseFlowOptions) => {
   const restore = useCallback(async (): Promise<void> => {
     setNotice(null);
     const outcome = await purchaseService.restore();
+    // 복원할 거래는 있는데 인증된 이메일이 없다 — 등록·인증 화면으로 보낸다(KAN-169). 결제와 달리 이어서 할 요금제가
+    // 없으니 돌아와 [구매 복원]을 다시 누르게 둔다. 버튼을 미리 막지 않는다 — 복원할 게 없으면 이메일 없이도 200 이다
+    if (outcome.kind === 'emailRequired') {
+      showToast(SUBSCRIPTION_COPY.result.restoreEmailRequired);
+      optionsRef.current.onEmailGate?.();
+      openEmailVerification();
+      return;
+    }
     apply(toRestoreFeedback(outcome));
     if (outcome.kind === 'restored') optionsRef.current.onEntitled?.(outcome.subscription);
-  }, [apply]);
+  }, [apply, showToast]);
 
   /* ── 이메일 인증을 마치고 돌아왔다 — 같은 요금제로 결제 흐름을 잇는다 ──
    * 동기화 대상: 인증 성공 통지(store.isVerified) + 다시 받은 요금제 목록(is_email_verified). 목록이 아직 옛 값이면 기다린다 */

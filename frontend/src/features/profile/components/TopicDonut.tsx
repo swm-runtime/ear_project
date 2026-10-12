@@ -220,10 +220,12 @@ const styles = StyleSheet.create({
     height: ROW_BAR_HEIGHT,
     borderRadius: ROW_BAR_HEIGHT / 2,
   },
-  // 주간 청취 카드 안의 구획 — 면·둥근 모서리는 부모 카드가 갖는다. 위 차트와는 여백으로만 가른다
+  // 주간 청취 카드 안의 구획 — 면·둥근 모서리는 부모 카드가 갖는다. 위 차트와는 여백으로만 가른다.
+  // 위 16 — 요일 원(32) 안 글자 밑에 이미 ≈8 의 빈 띠가 있어 32 를 더하면 눈에 40 가까이 벌어졌다(PM 2026-10-11 "요일
+  // 그래프 아래하고 가장 많이 들은 주제 사이 공백이 넓다"). 보이는 간격 ≈24 — 카드 안 다른 구획 사이와 비슷하다
   embeddedContainer: {
     paddingHorizontal: theme.spacing.md,
-    paddingTop: theme.spacing.xl,
+    paddingTop: theme.spacing.md,
   },
   embeddedBody: {
     gap: theme.spacing.md,

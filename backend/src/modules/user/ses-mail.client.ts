@@ -35,10 +35,15 @@ export class SesMailClient extends MailClient {
     this.ses = new SESv2Client({
       region: configService.get('AWS_REGION', { infer: true }),
       // SDK 기본은 무제한 대기다. SES 가 응답 없이 멈추면 멱등 리스(60초)가 먼저 풀려 재시도 요청이 두 번째 메일을
-      // 보낼 수 있었다(2026-10-11 감사). 재시도(SDK 기본 3회)를 합쳐도 리스 안에 끝나도록 한 번에 10초로 끊는다
+      // 보낼 수 있었다(2026-10-11 감사). 재시도(SDK 기본 3회)를 합쳐도 리스 안에 끝나도록 한 번에 10초로 끊는다.
+      // **`throwOnRequestTimeout` 이 있어야 실제로 끊긴다** — 설치된 @smithy/node-http-handler(4.x)는 이것 없이
+      // `requestTimeout` 을 넘기면 경고만 찍고 계속 기다린다(무응답 서버 실측: 없으면 45초 넘게 대기, 있으면 약 30초에
+      // TimeoutError — 3회 시도). 시간 초과도 SDK 가 재시도하므로 SES 가 늦게라도 보냈다면 같은 코드 메일이 몇 통 더 갈
+      // 수 있다 — 같은 코드라 해가 없다
       requestHandler: {
         connectionTimeout: SES_CONNECTION_TIMEOUT_MS,
         requestTimeout: SES_REQUEST_TIMEOUT_MS,
+        throwOnRequestTimeout: true,
       },
     });
     this.fromAddress = configService.get('MAIL_FROM_ADDRESS', { infer: true });

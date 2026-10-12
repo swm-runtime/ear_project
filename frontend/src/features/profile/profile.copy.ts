@@ -13,7 +13,11 @@ import {
   toMonthDayParts,
   toWeekRangeParts,
 } from './profile.format';
-import type { YearsOfExperience } from './profile.types';
+import type {
+  DailyListeningHighlight,
+  ListeningHighlight,
+  YearsOfExperience,
+} from './profile.types';
 
 /** 온보딩 커리어 단계와 같은 표기다(profile-uiux.md 4.5 — 라벨이 갈라지면 같은 값이 다른 말로 보인다) */
 const YEARS_LABELS: Record<YearsOfExperience, string> = {
@@ -50,6 +54,8 @@ const SECONDS_PER_MINUTE = 60;
  * **1~59초는 "1분 미만"** 이다(KAN-114, 박준현 개발계 확인). 버림하면 "0분"이 되는데 막대는 색이 있는 채로 서 있어
  * "들은 게 없는데 막대가 있다"로 읽혔다 — 들은 사실은 맞다(연속 청취 일수도 이 날을 "들은 날"로 센다). 0초는 종전대로 "0분".
  */
+const DAY_FULL_NAMES = ['월요일', '화요일', '수요일', '목요일', '금요일', '토요일', '일요일'];
+
 const listenedDayValue = (sec: number): string => {
   if (sec > 0 && sec < SECONDS_PER_MINUTE) return '1분 미만';
   const { hours, minutes } = toListenedDayParts(sec);
@@ -196,17 +202,64 @@ export const PROFILE_COPY = {
     weeklyTitle: '주간 청취',
     dailyAverageTitle: '하루 평균',
     /** 막대를 고른 동안 요약 줄 라벨 — "수요일"(스크린 타임처럼 요약 줄이 그 요일로 바뀐다, 2026-10-11) */
-    selectedDayTitle: (dayIndex: number) =>
-      ['월요일', '화요일', '수요일', '목요일', '금요일', '토요일', '일요일'][dayIndex] ?? '',
-    /** 하루 평균 줄 오른쪽 알약 — 그 주 청취 시간 전체 가입자 중 상위 %(PM 2026-10-10, 서버 판정 값 그대로) */
+    selectedDayTitle: (dayIndex: number) => DAY_FULL_NAMES[dayIndex] ?? '',
     /**
-     * "다른 사용자 대비" — 스크린 타임 "지난주 대비 8%" 와 같은 꼴(PM 2026-10-11 00:42 "타 사용자 대비 같은 문구"). "이번 주"는
-     * 넣지 않는다 — 카드가 이미 주를 보여 주고, 지난 주로 넘기면 틀린 말이 된다
+     * 하루 평균 줄 오른쪽 **두 줄**(PM 2026-10-11 02:05 — 윗줄 lead 작은 회색, 아랫줄 main 진하게). 무엇을 보일지는 서버가
+     * 고른다(KAN-170 — 상위 % > 전주보다 더 > 들은 날 수). 상위 50% 밖이어도 자기와의 비교가 보인다.
+     * - 상위 %: "다른 사용자 대비"(PM 00:42) — 주를 넘겨도 맞는 말
+     * - 전주보다 더 · 들은 날 수: 이번 주면 "지난주보다"·"이번 주", 지난 주를 보고 있으면 "전주보다"·"그 주" —
+     *   "이번 주"가 지난 주 화면에서 틀린 말이 되지 않게. 이번 주 여부는 서버 next_week_start === null
+     * - 줄어든 경우는 서버가 보내지 않는다("N분 덜"은 기를 꺾는다)
      */
-    topPercentLead: '다른 사용자 대비',
-    /** 두 줄 고정(PM 2026-10-11 02:05) — 윗줄 topPercentLead 작은 회색, 아랫줄 이 값만 진하게 */
-    topPercent: (percent: number) => `상위 ${percent}%`,
-    topPercentA11y: (percent: number) => `그 주 청취 시간, 다른 사용자 대비 상위 ${percent}퍼센트`,
+    highlight: (highlight: ListeningHighlight, isCurrentWeek: boolean) => {
+      switch (highlight.kind) {
+        case 'topPercent':
+          return {
+            lead: '다른 사용자 대비',
+            main: `상위 ${highlight.percent}%`,
+            a11y: `그 주 청취 시간, 다른 사용자 대비 상위 ${highlight.percent}퍼센트`,
+          };
+        case 'moreThanPrevious': {
+          const lead = isCurrentWeek ? '지난주보다' : '전주보다';
+          const amount = listenedDayValue(highlight.diffSec);
+          return { lead, main: `${amount} 더`, a11y: `${lead} ${amount} 더 들었어요` };
+        }
+        case 'listenedDays': {
+          const lead = isCurrentWeek ? '이번 주' : '그 주';
+          return {
+            lead,
+            main: `${highlight.days}일 들었어요`,
+            a11y: `${lead} ${highlight.days}일 들었어요`,
+          };
+        }
+      }
+    },
+    /**
+     * 요일을 고른 동안 같은 두 줄 자리(KAN-171, PM 2026-10-11 23:02) — 그날의 나와의 비교. 서버가 고른다
+     * (지난주 같은 요일보다 더 > 그 주 가장 많이 들은 날 > 그날 들은 편 수). 그날 순위는 없다.
+     * - 지난주 같은 요일: 이번 주면 "지난주 수요일보다", 지난 주를 보고 있으면 "전주 수요일보다"
+     * - 최고의 날: "이번 주" / "그 주"
+     */
+    dayHighlight: (highlight: DailyListeningHighlight, dayIndex: number, isCurrentWeek: boolean) => {
+      const dayFull = DAY_FULL_NAMES[dayIndex] ?? '';
+      switch (highlight.kind) {
+        case 'moreThanLastWeek': {
+          const lead = `${isCurrentWeek ? '지난주' : '전주'} ${dayFull}보다`;
+          const amount = listenedDayValue(highlight.diffSec);
+          return { lead, main: `${amount} 더`, a11y: `${lead} ${amount} 더 들었어요` };
+        }
+        case 'bestDay': {
+          const lead = isCurrentWeek ? '이번 주' : '그 주';
+          return { lead, main: '가장 많이 들은 날', a11y: `${lead} 가장 많이 들은 날` };
+        }
+        case 'listenedContents':
+          return {
+            lead: '그날',
+            main: `${highlight.count}편 들었어요`,
+            a11y: `그날 ${highlight.count}편 들었어요`,
+          };
+      }
+    },
     /** 주 범위 "N월 N일 – N월 N일". 경계 판정은 서버 몫, +6일은 표기 전용(profile.format.ts) */
     weekRange: (weekStart: string) => {
       const { start, end } = toWeekRangeParts(weekStart);
@@ -236,10 +289,7 @@ export const PROFILE_COPY = {
     averageA11y: (sec: number) => `하루 평균 ${listenedDayValue(sec)}`,
     /** 막대 개별 읽기 — "화요일, 32분", 60분 이상이면 "N시간 N분"(profile-uiux.md 7장) */
     dayBarA11y: (dayIndex: number, sec: number) => {
-      const dayFull = ['월요일', '화요일', '수요일', '목요일', '금요일', '토요일', '일요일'][
-        dayIndex
-      ];
-      return `${dayFull}, ${listenedDayValue(sec)}`;
+      return `${DAY_FULL_NAMES[dayIndex]}, ${listenedDayValue(sec)}`;
     },
 
     distributionTitle: '주로 듣는 주제',

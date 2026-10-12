@@ -119,7 +119,9 @@ export const toRestoreFeedback = (outcome: RestoreOutcome): PurchaseFeedback => 
       return { ...NONE, toast: SUBSCRIPTION_COPY.result.restored };
     case 'nothingToRestore':
       return { ...NONE, toast: SUBSCRIPTION_COPY.result.nothingToRestore };
+    // 이메일 인증 화면으로 보내는 일은 흐름(usePurchaseFlow)이 한다 — 여기선 남길 문구가 없다
     case 'busy':
+    case 'emailRequired':
       return NONE;
     case 'failed':
       return { ...NONE, notice: { message: failureMessage(outcome.reason), tone: 'error' } };

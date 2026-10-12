@@ -4,6 +4,7 @@
  * 네이티브(expo-audio 패치)는 여기서 돌릴 수 없어 `ExpoAudio` 모듈을 가짜로 끼운다.
  */
 import { afterEach, beforeEach, describe, expect, it, jest } from '@jest/globals';
+import { AppState } from 'react-native';
 
 import type { AudioIssueResult } from '../player.types';
 import { playbackService } from './playback.service';
@@ -311,5 +312,49 @@ describe('서명 URL 갱신 — 옛 빌드 폴백(runtime 31, 네이티브 표 �
     await runUrlRefresh();
 
     expect(player.replace).toHaveBeenCalledWith({ uri: 'https://cdn.example.com/a.mp3?sig=2' });
+  });
+});
+
+describe('백그라운드 재생 — 위치만 바뀐 틱은 화면에 올리지 않는다(EAR-APP-H)', () => {
+  let appState = 'active';
+
+  beforeEach(() => {
+    appState = 'active';
+    Object.defineProperty(AppState, 'currentState', { get: () => appState, configurable: true });
+  });
+
+  it('백그라운드에서는 스토어 위치가 그대로이고, ±10초는 실제 위치를 기준으로 하며, 돌아오면 다시 올린다', async () => {
+    // given — 재생 중, 화면에 30초가 올라가 있다
+    mockIssue.mockResolvedValue(issueOf('https://example.com/audio'));
+    const player = await startPlaying(playbackService);
+    player.currentTime = 30;
+    await jest.advanceTimersByTimeAsync(600);
+    expect(usePlaybackStore.getState().session?.positionSec).toBe(30);
+
+    // when — 앱이 내려간 채로 재생이 90초까지 간다
+    appState = 'background';
+    const sessionBefore = usePlaybackStore.getState().session;
+    player.currentTime = 90;
+    await jest.advanceTimersByTimeAsync(2_000);
+
+    // then — 스토어(화면)는 그대로다(다시 그리지 않는다)
+    expect(usePlaybackStore.getState().session).toBe(sessionBefore);
+
+    // when — 앱으로 돌아온 뒤 첫 틱
+    appState = 'active';
+    player.currentTime = 95;
+    await jest.advanceTimersByTimeAsync(600);
+
+    // then — 다시 위치가 올라간다
+    expect(usePlaybackStore.getState().session?.positionSec).toBe(95);
+
+    // when — 다시 내려가 150초까지 간 뒤 잠금화면 [10초 앞으로]
+    appState = 'background';
+    player.currentTime = 150;
+    await jest.advanceTimersByTimeAsync(600);
+    playbackService.seekForward();
+
+    // then — 화면에 남은 95초가 아니라 실제 위치 150초에서 10초 앞
+    expect(player.seekTo).toHaveBeenLastCalledWith(160);
   });
 });

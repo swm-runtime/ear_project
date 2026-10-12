@@ -306,6 +306,7 @@ export default function ExploreSearchScreen({ embedding }: ExploreSearchScreenPr
             <InlineNotice
               message={screen.errorBanner}
               tone="error"
+              layout="stacked"
               action={{
                 label: EXPLORE_COPY.error.retry,
                 onPress: screen.retrySearch,

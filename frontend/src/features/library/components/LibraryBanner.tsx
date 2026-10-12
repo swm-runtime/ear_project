@@ -26,6 +26,7 @@ export default function LibraryBanner({ banner }: LibraryBannerProps) {
 
 const styles = StyleSheet.create({
   banner: {
+    alignItems: 'center',
     paddingVertical: theme.spacing.sm,
     paddingHorizontal: theme.spacing.md,
   },

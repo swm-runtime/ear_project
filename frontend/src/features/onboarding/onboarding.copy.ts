@@ -10,19 +10,6 @@ export const ONBOARDING_COPY = {
    * 갓 가입한 사용자의 라이브러리는 비어 있어서, 실제 화면 위에 설명을 얹으면
    * 정작 설명할 것이 화면에 없다. TODO(카피 미확정)
    */
-  tutorial: {
-    exploreTitle: '듣고 싶은 이야기를 담아요',
-    exploreBody: '탐색에서 마음에 드는 이야기를\n라이브러리에 담아둘 수 있어요',
-    libraryTitle: '담은 이야기는 여기에',
-    libraryBody: '라이브러리에서 언제든\n이어서 들을 수 있어요',
-    dripTitle: '매일 아침 2편이 도착해요',
-    dripBody: '고른 관심 주제에 맞춰\n직접 담지 않아도 채워집니다',
-    exploreNote: '더보기에서 담을 수 있어요',
-    libraryNote: '담은 것은 라이브러리 탭에 모여요',
-    dripNote: '직접 담지 않아도 채워집니다',
-    skip: '건너뛰기',
-    done: '시작하기',
-  },
   /** O1–O3 관심 주제 선택(onboarding-uiux.md 4.1) */
   topic: {
     /* TODO(카피 미확정): 상단 툴바 타이틀 — uiux 반영 요청은 changes/pending/onboarding-o1-visual-refresh.md */
@@ -60,6 +47,8 @@ export const ONBOARDING_COPY = {
     jobCategoryLabel: '직군',
     jobTitleLabel: '직무',
     jobTitlePlaceholder: '예: 백엔드 엔지니어',
+    /** 직무 입력칸 오른쪽 지우기 버튼 낭독 — 커리어 정보 화면과 같은 부품(2026-10-11) */
+    jobTitleClearA11y: '직무 지우기',
     yearsLabel: '연차',
     /* 연차 구간 표시 라벨 — 확정(2026-08-12): 커리어 정보 화면과 같은 표기다(career.md 3장 — 같은 값 체계·같은 표기) */
     yearsOption: {
@@ -75,19 +64,7 @@ export const ONBOARDING_COPY = {
     retry: '다시 시도',
   },
   /** O7·O8 추천 콘텐츠 담기(onboarding-uiux.md 4.4). 섹션 제목은 서버가 내려준다 */
-  pick: {
-    /* TODO(카피 미확정): 상단 툴바 타이틀 — O1·O4와 같은 컨셉 */
-    toolbarTitle: '콘텐츠 담기',
-    title: '먼저 들어볼 콘텐츠를 골라보세요',
-    subtitle: '지금 고르지 않아도 괜찮아요',
-    submit: (count: number) => `${count}개 담기`,
-    skip: '건너뛰기',
-    /** 건별 실패 토스트 — CONTENT_WITHDRAWN(onboarding-api.md 5장) */
-    withdrawnToast: '제공이 종료된 콘텐츠예요',
-    /* TODO(카피 미확정): 담기 부분 실패 안내 */
-    partialFailToast: (count: number) => `${count}건은 담지 못했어요`,
-  },
-  /** O13 완료 대기(onboarding-uiux.md 4.5) — 로딩 문구는 이 한 줄뿐이다 */
+  /** O13 완료 대기(onboarding-uiux.md 4.5) — 2단계 종료 뒤 모든 경로가 지난다. 로딩 문구는 이 한 줄뿐이다 */
   firstDripWaiting: {
     message: '첫 콘텐츠를 준비하고 있어요',
     /* 완료 요청이 재시도 소진으로 실패한 경우의 전체 화면 에러(onboarding-api.md 5장 INTERNAL_ERROR).
