@@ -39,7 +39,6 @@ iOS 1.2.0 (15)는 결제 화면을 끈 채(`EXPO_PUBLIC_SUBSCRIPTION_UI=off`) �
 ## 확인 필요(사람 손)
 
 - App Store Connect 구독 상품 2개 상태(메타데이터·가격·심사용 스크린샷 → "제출 준비 완료"), 유료 앱 계약·세금·은행 정보
-- 운영 앱 App Store 서버 알림 URL — Production·Sandbox 둘 다 `https://api.earcast.co.kr/api/v1/webhooks/app-store`(심사관·TestFlight 결제 알림은 Sandbox URL 로 온다)
 
 ## 완료 조건
 
