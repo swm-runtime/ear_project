@@ -11,7 +11,7 @@ import { freeGb } from "../disk.js";
 import { parseScriptForTts, chunkTurns, describeCuts, type ScriptTurn, type Speaker } from "../tts/script.js";
 import { normalizeForTts, residualIssues } from "../tts/normalize.js";
 import { synthDialogue, synthDialogueWithTimestamps, forcedAlignment, locateTurnSpans, resetFormat, resetUsage, usage, type TimestampedSynth, type TurnSpan } from "../tts/elevenlabs.js";
-import { assemble, fadeOutPcm, findPauseCut, findTailCut, probeDurationSec, retimePieces, writeBuf, type Segment } from "../tts/audio.js";
+import { assemble, fadeOutPcm, findGuardCut, findPauseCut, findTailCut, pcmTrailingBlip, probeDurationSec, retimePieces, writeBuf, type Segment } from "../tts/audio.js";
 import { alignmentGap, gapMid, pieceBounds } from "../tts/bounds.js";
 import { chunkSegments, contextExcerpt, DEFAULT_GAP_SEC, joinChunkSegments, validateSegments, type ScriptSegment } from "../tts/segments.js";
 import { buildSections } from "../tts/sections.js";
@@ -171,10 +171,13 @@ export async function runTts(job: Job) {
    * 뒤에 말이 있는 상태로 자연히 감쇠한다. 덧말은 버린다(약 8자 과금). 창은 강제 정렬의 [마지막 턴 마지막 글자 시작, 덧말 첫 글자 끝]에서 첫 쉼.
    * 쉼을 못 찾으면 덧말 시작(강제 정렬) 직전에서 자르고 길게 페이드한다.
    * 첫 판(#1081)은 dialogue 정렬로 창을 잡아 마지막 턴을 4.7초 만에 잘랐다(정렬이 실제보다 6.6초 앞섬) — #1083 로 끈 뒤 이 방식으로 고쳤다.
+   * 2026-10-08 박수헌 "마지막 인사 뒤 대본에 없는 '네~'": eleven_v4 는 마지막 말과 덧말 사이 쉼이 0.2초 안팎이라 첫 쉼(0.15초 이상) 찾기가 56편 중 38편에서
+   * 실패했고, 폴백(강제 정렬의 덧말 시작 직전)은 그 시각이 실제보다 늦어 "네" 앞부분을 남겼다. 이제 덧말을 "네." 한 마디로 줄이고(쉼표가 덩어리를 둘로 나눴다)
+   * 오디오 구조로 자른다(findGuardCut — 마지막 말소리 덩어리 = 덧말). 판정 불능일 때만 종전 방식이고, 어느 쪽이든 자른 결과를 덧말 검수(pcmTrailingBlip)로 확인해 기록한다.
    */
   const tailGuardOn = (cfg.ttsTailGuard || !!job.payload.tail_guard) && wantSpeed && !sampleTurns;
-  const TAIL_GUARD = "네, 감사합니다.";
-  let tailNote = "";
+  const TAIL_GUARD = "네.";
+  let tailNote = "", tailCheck = "";
   const synthChunk = async (n: number, withCtx: boolean, guardOnly = false): Promise<Synth> => {
     const chunk = chunks[n];
     const isTail = tailGuardOn && n === chunks.length - 1 && (withCtx || guardOnly);
@@ -224,10 +227,16 @@ export async function runTts(job: Job) {
     if (after.length) {
       const last = spans[m - 1], next = spansAll[b + m];
       if (isTail) {
-        // 창 [마지막 턴 마지막 글자 시작, 덧말 첫 글자 끝] — 덧말 첫 낱말 뒤 쉼표 쉼은 창 밖이다
-        const cut = await findTailCut(src, last.lastStart, next.firstEnd);
-        if (cut != null) { cutEnd = cut; fadeSec = 0.03; tailNote = `끝 꼬리 자연 감쇠(덧말 앞 쉼에서 절단, 덧말 시작 ${(next.start - cut).toFixed(2)}초 앞)`; }
-        else { cutEnd = Math.max(last.lastStart + 0.1, next.start - 0.02); fadeSec = 0.12; tailNote = "끝 꼬리 폴백(덧말 시작 직전 절단 + 페이드 0.12초)"; }
+        // 오디오 구조로: [마지막 글자 시작 −0.5초, 요청 끝] 의 마지막 말소리 덩어리가 덧말 — 그 앞 쉼에서 자른다
+        const g = await findGuardCut(src, last.lastStart - 0.5, audioSec, last.lastStart);
+        if (!("fail" in g)) { cutEnd = g.cut; fadeSec = 0.03; tailNote = `끝 꼬리 절단(덧말 앞 쉼 ${g.gap.toFixed(2)}초 · 덧말 ${(g.guardStart - g.cut).toFixed(2)}초 앞)`; }
+        else {
+          // 종전 방식 — 창 [마지막 턴 마지막 글자 시작, 덧말 첫 글자 끝]
+          const cut = await findTailCut(src, last.lastStart, next.firstEnd);
+          if (cut != null) { cutEnd = cut; fadeSec = 0.03; tailNote = `끝 꼬리 자연 감쇠(덧말 앞 쉼에서 절단, 덧말 시작 ${(next.start - cut).toFixed(2)}초 앞)`; }
+          else { cutEnd = Math.max(last.lastStart + 0.1, next.start - 0.02); fadeSec = 0.12; tailNote = "끝 꼬리 폴백(덧말 시작 직전 절단 + 페이드 0.12초)"; }
+          tailNote += ` · 구조 판정 불능(${g.fail})`;
+        }
       } else {
         const cut = (await findPauseCut(src, last.lastStart, next.firstEnd, Infinity)) ?? gapMid(last.end, next.start);
         if (cut == null) throw new Error(`본문과 뒤 문맥이 겹침 (${last.end.toFixed(2)}→${next.start.toFixed(2)})`);
@@ -239,6 +248,10 @@ export async function runTts(job: Job) {
     const pieces = chunk.map((t, i) => ({ start: i === 0 ? cutStart : bounds[i], end: i < m - 1 ? bounds[i + 1] : cutEnd, tempo: speedOf(t.speaker) }));
     const retimed = await retimePieces(src, pieces, path.join(audioDir, ".tmp"));
     const data = fadeSec ? fadeOutPcm(retimed, fadeSec) : retimed;
+    if (isTail) { // 덧말 검수 — 자른 결과의 끝 1.5초에 마지막 낱말과 떨어진 짧은 말소리가 남았는가 (쉼 뒤 짧은 낱말로 끝나는 대본은 오탐일 수 있어 경고만)
+      const b = pcmTrailingBlip(data);
+      tailCheck = b ? `⚠️ 끝 덧말 의심(마지막 낱말 뒤 ${b.gap.toFixed(2)}초에 ${(b.end - b.start).toFixed(2)}초짜리 소리 — 청취 확인)` : "끝 덧말 검수 통과";
+    }
     await fs.rm(src, { force: true });
     const durSec = data.length / (44100 * 2); // s16le mono 44.1kHz — 배속 후 실측 길이
     // 자막 시각은 잘라낸 오디오의 0 기준 — 강제 정렬 시각을 앞 절단점만큼 당긴다
@@ -331,16 +344,16 @@ export async function runTts(job: Job) {
     await upsertEpisode({ id: episodeId, backlog_id: backlogId, prompt_version: ep.prompt_version, audio_master_key: s3Key(`${rel}/audio/master.wav`), audio_dist_key: s3Key(`${rel}/audio/dist.m4a`) });
   }
   const artifacts = sampleTurns ? [s3Key(`${rel}/audio/sample.mp3`)] : [s3Key(`${rel}/audio/master.wav`), s3Key(`${rel}/audio/dist.m4a`), s3Key(`${rel}/audio/lossless.flac`), ...(segCount ? [s3Key(`${rel}/script-segments.json`)] : []), ...(secCount ? [s3Key(`${rel}/script-sections.json`)] : [])];
-  const result = `${sampleTurns ? `TTS 샘플 ${turns.length}턴` : "TTS 완료"} — eleven_v3 다중화자 1콜 · 분할 ${chunks.length}요청(경계 ${cutSummary} · 세그먼트 포맷 ${fmt} · ElevenLabs 원본 ${srcFmt}${sampleTurns ? "" : " · 배포본 AAC 192k m4a + FLAC"}) · ${totalChars}자 → ${min}분 ${sec}초 (${jingle.introFile || jingle.outroFile ? "징글 포함" : "앞뒤 무음 2초 포함"}) ${useCtx ? ` · 문맥 겹침 ${ctxOk}/${ctxBoundaries.length}경계(+${ctxChars}자)` : chunks.length > 1 && wantSpeed ? " · 문맥 겹침 꺼짐(경계 무음 0.9초)" : ""}${ctxOk < ctxBoundaries.length ? ` · 폴백 경계 무음 ${DEFAULT_GAP_SEC}초${fallbackAt.length ? ` @${fallbackAt.join("·")}` : ""}${ctxFails.length ? ` (사유: ${ctxFails.join(" / ").slice(0, 300)})` : ""}` : ""}${wantSpeed ? ` · 배속 윤아 ${cfg.ttsSpeedYuna}× 이음 ${cfg.ttsSpeedEum}×${speedFallbacks ? ` (원속 폴백 ${speedFallbacks}요청 — 청취 확인)` : ""} · 강제 정렬 ${alignCalls - alignFails}/${alignCalls}요청` : ""}${parsed.coldOpen ? " · 구 [콜드오픈] 구역 무시(폐지)" : ""}${sampleTurns ? "" : segCount ? ` · 자막 세그먼트 ${segCount}건(배포본 시각)` : ` · 자막 세그먼트 없음(${segFail})`}${secNote} · 사전 ${dictVersion}${Object.keys(epMap).length ? `+발음 맵 ${Object.keys(epMap).length}건` : ""} · 보이스 윤아=${cfg.ttsVoiceYuna.slice(0, 6)}… 이음=${cfg.ttsVoiceEum.slice(0, 6)}… · 사람 청취 확인 대기 (spec/06 8장)`;
+  const result = `${sampleTurns ? `TTS 샘플 ${turns.length}턴` : "TTS 완료"} — ${cfg.ttsModel} 다중화자 1콜(stability ${cfg.ttsStability} · similarity ${cfg.ttsSimilarity}) · 분할 ${chunks.length}요청(경계 ${cutSummary} · 세그먼트 포맷 ${fmt} · ElevenLabs 원본 ${srcFmt}${sampleTurns ? "" : " · 배포본 AAC 192k m4a + FLAC"}) · ${totalChars}자 → ${min}분 ${sec}초 (${jingle.introFile || jingle.outroFile ? "징글 포함" : "앞뒤 무음 2초 포함"}) ${useCtx ? ` · 문맥 겹침 ${ctxOk}/${ctxBoundaries.length}경계(+${ctxChars}자)` : chunks.length > 1 && wantSpeed ? " · 문맥 겹침 꺼짐(경계 무음 0.9초)" : ""}${ctxOk < ctxBoundaries.length ? ` · 폴백 경계 무음 ${DEFAULT_GAP_SEC}초${fallbackAt.length ? ` @${fallbackAt.join("·")}` : ""}${ctxFails.length ? ` (사유: ${ctxFails.join(" / ").slice(0, 300)})` : ""}` : ""}${wantSpeed ? ` · 배속 윤아 ${cfg.ttsSpeedYuna}× 이음 ${cfg.ttsSpeedEum}×${speedFallbacks ? ` (원속 폴백 ${speedFallbacks}요청 — 청취 확인)` : ""} · 강제 정렬 ${alignCalls - alignFails}/${alignCalls}요청` : ""}${parsed.coldOpen ? " · 구 [콜드오픈] 구역 무시(폐지)" : ""}${sampleTurns ? "" : segCount ? ` · 자막 세그먼트 ${segCount}건(배포본 시각)` : ` · 자막 세그먼트 없음(${segFail})`}${secNote} · 사전 ${dictVersion}${Object.keys(epMap).length ? `+발음 맵 ${Object.keys(epMap).length}건` : ""} · 보이스 윤아=${cfg.ttsVoiceYuna.slice(0, 6)}… 이음=${cfg.ttsVoiceEum.slice(0, 6)}… · 사람 청취 확인 대기 (spec/06 8장)`;
   // 계측 (2026-10-01): 실제 차감 크레딧은 응답 헤더 character-cost 의 합(재시도·폴백·정렬 호출 포함). 헤더가 있으면 그 값으로 비용을 환산하고, 없으면 글자 수 추정(참고값)
   const u = usage();
   const metered = u.credits > 0;
   const ttsCost = metered ? (u.credits / 1000) * cfg.ttsUsdPer1kCredits : cfg.ttsUsdPer1kChars != null ? ((totalChars + ctxChars) / 1000) * cfg.ttsUsdPer1kChars : undefined;
   const jingleNote = (jingle.introFile || jingle.outroFile ? ` · 징글 ${jingle.introFile ? `인트로 ${asm.introSec}초` : "인트로 없음"} / ${jingle.outroFile ? "아웃트로" : "아웃트로 없음"} (파일 앞뒤 무음 1초, 본편에 바로 붙임 · 스테레오 그대로)` : "") + ((jingle as { missing?: string }).missing ? ` · ⚠️ 징글 받기 실패: ${(jingle as { missing?: string }).missing}` : "");
-  // 정규화 기록 (KAN-122): 본편만 2패스 linear. 피크 여유가 없어 목표를 낮췄거나 선형이 성립하지 않았으면 표시한다
+  // 정규화 기록 (KAN-122): 본편만 2패스 linear. 피크 리미터를 썼거나(2026-10-08) 목표를 낮췄거나 선형이 성립하지 않았으면 표시한다
   const ln = asm.loudness;
-  const normNote = ` · 정규화 본편만 2패스 ${ln.type === "linear" ? "linear" : `⚠️ ${ln.type}`} ${ln.targetI} LUFS${ln.targetI < ln.requestedI ? `(피크 여유로 ${ln.requestedI}에서 낮춤)` : ""} — 측정 ${ln.measuredI}·TP ${ln.measuredTp} → 출력 ${ln.outputI}·TP ${ln.outputTp} · 스테레오`;
-  const usageNote = `${tailNote ? ` · ${tailNote}` : tailGuardOn ? " · ⚠️ 끝 꼬리 가드 미적용(원속 폴백)" : ""}${jingleNote}${normNote} · 실제 차감 ${metered ? `${u.credits.toLocaleString()}크레딧` : "미계측"} (${u.requests}요청${u.unmetered ? `, 헤더 없음 ${u.unmetered}` : ""}${alignCalls ? ` · 그중 강제 정렬 ${alignCredits.toLocaleString()}크레딧` : ""})`;
+  const normNote = ` · 정규화 본편만 2패스 ${ln.type === "linear" ? "linear" : `⚠️ ${ln.type}`} ${ln.targetI} LUFS${ln.limitedDb ? ` · 피크 리미터 최대 ${ln.limitedDb}dB` : ""}${ln.targetI < ln.requestedI - 0.05 ? `(피크 여유로 ${ln.requestedI}에서 낮춤)` : ""} — 측정 ${ln.measuredI}·TP ${ln.measuredTp} → 출력 ${ln.outputI}·TP ${ln.outputTp} · 스테레오`;
+  const usageNote = `${tailNote ? ` · ${tailNote}${tailCheck ? ` · ${tailCheck}` : ""}` : tailGuardOn ? " · ⚠️ 끝 꼬리 가드 미적용(원속 폴백)" : ""}${jingleNote}${normNote} · 실제 차감 ${metered ? `${u.credits.toLocaleString()}크레딧` : "미계측"} (${u.requests}요청${u.unmetered ? `, 헤더 없음 ${u.unmetered}` : ""}${alignCalls ? ` · 그중 강제 정렬 ${alignCredits.toLocaleString()}크레딧` : ""})`;
   await insertRun({ backlog_id: backlogId, phase: "tts", result: result + usageNote, prompt_version: "tts-v1 (worker)", artifacts, executed_by: executedBy, model: cfg.ttsModel, cost_usd: ttsCost, tokens: { characters: totalChars, context_characters: ctxChars, chunks: chunks.length, duration_sec: Math.round(durationSec), credits: metered ? u.credits : null, requests: u.requests, unmetered: u.unmetered, align_calls: alignCalls, align_fails: alignFails, align_credits: alignCredits }, worker_rev: workerRev() });
   // 샘플은 발행 경로가 아니다 — 연쇄를 잇지 않는다
   const next = sampleTurns ? null : await advanceChain(job);

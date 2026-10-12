@@ -125,6 +125,21 @@ describe('AudioUrlService — 음질(KAN-141)', () => {
     expect(result.sections).toEqual([]);
   });
 
+  it('압축 음질은 compressed 행이 어긋나도 contents.audio_path 로 서명한다 — 2026-10-07 개발계 동기화 누락 재발 방지', async () => {
+    contentService.findAudioRenditions.mockResolvedValue([
+      { quality: AudioQuality.COMPRESSED, path: 'audio/stale.mp3' },
+      { quality: AudioQuality.LOSSLESS, path: 'audio/l.flac' },
+    ] as never);
+
+    const result = await issue();
+
+    expect(result.audio.quality).toBe(AudioQuality.COMPRESSED);
+    expect(issuer.sign).toHaveBeenCalledWith(
+      expect.objectContaining({ audioPath: 'audio/c.mp3' }),
+      NOW,
+    );
+  });
+
   it('요청이 없으면 설정의 선택값으로 판정한다', async () => {
     const result = await issue();
 

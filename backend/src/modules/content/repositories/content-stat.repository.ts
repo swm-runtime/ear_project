@@ -16,26 +16,6 @@ export class ContentStatRepository {
     return manager ? manager.getRepository(ContentStat) : this.repository;
   }
 
-  /**
-   * 표본 충분 여부 판정용 재생 합계 (onboarding.md 4 [3]).
-   * **`is_final = true` 행만 읽는다** — 진행 중인 구간을 쓰면 순위가 매일 흔들린다.
-   */
-  async sumPlayCount(
-    periodType: StatsPeriodType,
-    periodStart: string,
-    manager?: EntityManager,
-  ): Promise<number> {
-    const row = await this.scoped(manager)
-      .createQueryBuilder('stat')
-      .select('COALESCE(SUM(stat.play_count), 0)', 'total')
-      .where('stat.period_type = :periodType', { periodType })
-      .andWhere('stat.period_start = :periodStart', { periodStart })
-      .andWhere('stat.is_final = true')
-      .getRawOne<{ total: string }>();
-
-    return Number(row?.total ?? 0);
-  }
-
   /** 직전 확정 구간의 순위 — 상위 `limit`건의 `content_id`를 재생 수 순으로 */
   async findTopContentIds(
     periodType: StatsPeriodType,

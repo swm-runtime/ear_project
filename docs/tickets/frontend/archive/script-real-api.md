@@ -10,7 +10,7 @@
 | 중요도 | **Medium** — 단, **BE 티켓이 끝나야 착수할 수 있다**. 마감은 BE 계약 확정일로부터 3일 |
 | 상태 | **완료**(2026-09-20) — PM 실기기 확인 |
 | Jira | KAN-73 |
-| 짝 티켓 | `tickets/backend/pending/script-api.md` · `tickets/ai/pending/script-timed-segments.md` |
+| 짝 티켓 | `tickets/backend/archive/script-api.md` · `tickets/ai/archive/script-timed-segments.md` |
 
 ## 배경
 
@@ -56,7 +56,7 @@
   - **남은 것**: 할 일 6(실기기 — 긴 대본 스크롤, 현재 문단 따라가기, 문단 탭 seek 정확도). **대본 데이터가 개발계에 하나도 없어 지금은 확인할 수 없다** — AI 티켓 KAN-72(타임스탬프 붙은 세그먼트 생산)와 관리자 업로드 적재가 선행이다. 데이터가 한 편이라도 들어오면 개발계 앱에서 바로 보인다(OTA 로 나간다, 재빌드 없음).
 - 2026-09-20 13:50 **재확인 — AI 티켓(KAN-72)이 닫혔지만 실기기 확인은 아직 불가능하다.** FE 코드는 고칠 것이 없다.
   - KAN-72 는 **파이프라인 코드** 반영이다(TTS 단계가 `script-segments.json` 생성 → 업로드 화면이 `script_file` 첨부). 그 처리 기록에 따르면 배포 뒤 새로 제작·발행한 편이 아직 없고 기존 85편은 소급 대상이 아니다 — **대본이 적재된 콘텐츠는 아직 0편이다.**
-  - **더 큰 걸림돌**: 운영 → 개발계 콘텐츠 동기화(`backend/deploy/sync-content-*.sh`)의 `TABLES` 에 `content_scripts` 가 없다. 운영에 대본이 발행돼도 개발계 앱에는 닿지 않는다 → 인프라 티켓 **KAN-83**(`tickets/infra/pending/content-sync-include-scripts.md`) 발행.
+  - **더 큰 걸림돌**: 운영 → 개발계 콘텐츠 동기화(`backend/deploy/sync-content-*.sh`)의 `TABLES` 에 `content_scripts` 가 없다. 운영에 대본이 발행돼도 개발계 앱에는 닿지 않는다 → 인프라 티켓 **KAN-83**(`tickets/infra/archive/content-sync-include-scripts.md`) 발행.
   - 개발계 서버 로그: 대본 조회(`/script`) 호출 0건. 모든 콘텐츠가 `has_script: false` 라 버튼이 안 뜨는 정상 동작이다.
   - **실기기 확인이 가능해지는 조건**: ① 대본이 실린 편이 운영에 한 편 발행된다 ② KAN-83 이 반영돼 개발계로 넘어온다. (운영 앱으로 보려면 runtime 4 운영 빌드가 먼저다.)
 - 2026-09-20 **완료 — archive 로 옮긴다. 반영 날짜: 2026-09-20.** KAN-83(동기화에 `content_scripts` 포함)이 반영돼 대본이 개발계로 넘어왔고, **PM 이 개발계 앱(iOS 1.0.0 (5), runtime 4)에서 할 일 6 의 세 항목을 모두 확인했다** — ① 긴 대본 스크롤 ② 재생 중 현재 문단 따라가기 ③ 문단 탭 → 그 구간으로 정확히 이동. 대본 버튼 노출·패널 표시(완료 조건 1·2)도 같은 자리에서 확인됐다.

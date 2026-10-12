@@ -15,7 +15,7 @@ const IAP_NATIVE_MODULE_NAME = 'ExpoIap';
 export interface SubscriptionUiInputs {
   /** `EXPO_PUBLIC_SUBSCRIPTION_UI === 'on'` — 결제가 붙은 빌드에서만 켠다 */
   buildFlag: boolean;
-  /** `EXPO_PUBLIC_SUBSCRIPTION_ANDROID === 'on'` — Play 상품 등록(KAN-130) 전까지 끈다 */
+  /** `EXPO_PUBLIC_SUBSCRIPTION_ANDROID === 'on'` — 개발계 on(2026-10-08), 운영은 Play 상품 등록(KAN-130) 전까지 off */
   androidFlag: boolean;
   platform: string;
   /** 결제 네이티브 모듈이 이 바이너리에 실려 있는가 */

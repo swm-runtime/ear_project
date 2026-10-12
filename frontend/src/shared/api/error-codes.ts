@@ -69,6 +69,8 @@ export const ERROR_CODES = {
   /** 거래를 끝내지 않는다. 재시도해도 결과가 같아 자동 재시도 대상이 아니다 */
   SUBSCRIPTION_RECEIPT_INVALID: 'SUBSCRIPTION_RECEIPT_INVALID',
   SUBSCRIPTION_OWNED_BY_ANOTHER_ACCOUNT: 'SUBSCRIPTION_OWNED_BY_ANOTHER_ACCOUNT',
+  /** 409 — Play 두 번째 구독(교체 없이 산 구매). 서버가 확인하지 않아 Google 이 자동 환불한다(subscription-api.md 4.4) */
+  SUBSCRIPTION_ALREADY_SUBSCRIBED: 'SUBSCRIPTION_ALREADY_SUBSCRIBED',
   /** 503 retryable — 거래를 끝내지 않고 다시 제출한다 */
   SUBSCRIPTION_STORE_UNAVAILABLE: 'SUBSCRIPTION_STORE_UNAVAILABLE',
 

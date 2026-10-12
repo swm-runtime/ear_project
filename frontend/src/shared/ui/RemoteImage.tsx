@@ -20,6 +20,11 @@ interface RemoteImageProps {
    * 불러오지 않는다. 잠근 뷰는 주소가 바뀌어도 새로 불러오지 않으므로 **호출부가 `key={uri}` 로 새로 만든다.**
    */
   isResized?: boolean;
+  /**
+   * 로드되면 이 시간(ms)만큼 페이드인한다 — 목록이 통째로 바뀌는 자리(탐색 주제 격자)에서 사진이 툭 튀어나오지 않게
+   * (2026-10-09). 기본은 없음 — 아래 주석의 플레이어 열림 모션처럼 첫 컷이 비면 안 되는 자리가 있다
+   */
+  fadeInMs?: number;
 }
 
 /**
@@ -43,6 +48,21 @@ export const prefetchRemoteImages = (uris: readonly string[]): void => {
   Image.prefetch(targets, 'disk').catch(() => undefined);
 };
 
+/**
+ * 곧 **바꿔 그릴** 이미지를 메모리까지 올려 두고, 다 되거나 `timeoutMs` 가 지나면 끝난다. 화면을 바꾸기 직전에 기다려
+ * 새 카드가 빈 칸으로 들어오지 않게 한다(탐색 인기 구간 전환 — 2026-10-09 흰 깜빡임). 실패·지연은 조용히 넘긴다
+ */
+export const warmRemoteImages = (uris: readonly string[], timeoutMs: number): Promise<void> => {
+  const targets = [...new Set(uris.filter((uri) => uri.length > 0))];
+  if (targets.length === 0) return Promise.resolve();
+  const loaded = Image.prefetch(targets, 'memory-disk').then(
+    () => undefined,
+    () => undefined,
+  );
+  const timeout = new Promise<void>((resolve) => setTimeout(resolve, timeoutMs));
+  return Promise.race([loaded, timeout]);
+};
+
 export default function RemoteImage({
   uri,
   style,
@@ -50,6 +70,7 @@ export default function RemoteImage({
   onLoad,
   onError,
   isResized = false,
+  fadeInMs,
 }: RemoteImageProps) {
   const imageRef = useRef<Image>(null);
   const handleLoad = useCallback(() => {
@@ -73,11 +94,14 @@ export default function RemoteImage({
       source={{ uri }}
       style={style}
       contentFit="cover"
-      cachePolicy="disk"
+      // 메모리에도 둔다 — 디스크만 두면 목록이 새로 그려질 때마다(탐색 칩 해제 · 인기 구간 전환) 다시 읽어 풀어서
+      // 그동안 칸이 비어 흰 화면이 깜빡였다(PM 2026-10-09). 썸네일은 표시 크기로 줄여 담아(allowDownscaling) 부담이 작다
+      cachePolicy="memory-disk"
       // 잠그는 자리는 원본 해상도로 풀어 둔다 — 작을 때(미니플레이어 자리·압축 헤더) 로드돼 그 크기로 줄여진 채
       // 잠기면 커졌을 때 흐리다. 플레이어 아트워크 한두 장이라 메모리 부담은 작다(768px WebP)
       allowDownscaling={!isResized}
       recyclingKey={recyclingKey}
+      transition={fadeInMs}
       onLoad={handleLoad}
       onError={onError}
     />

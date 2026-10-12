@@ -6,8 +6,8 @@
 | 요청 파트 | 백엔드 |
 | 발행 날짜 | 2026-08-26 |
 | 반영 날짜 | 2026-08-26 |
-| 발견 시점 | 2026-08-26 FE 소셜 로그인 병합분 대응 중 `changes/pending/auth-api-provider-token-format(fe).md`의 nonce 인코딩 부기와 서버 구현을 대조하다 발견 |
-| 근거 문서 | `spec/api/auth-api.md` 4.1(nonce 계약) · `changes/pending/auth-api-provider-token-format(fe).md`("클라이언트는 원본 nonce의 SHA-256 해시(**소문자 hex**)를 인가 요청에 싣는다") |
+| 발견 시점 | 2026-08-26 FE 소셜 로그인 병합분 대응 중 `changes/archive/auth-api-provider-token-format(fe).md`의 nonce 인코딩 부기와 서버 구현을 대조하다 발견 |
+| 근거 문서 | `spec/api/auth-api.md` 4.1(nonce 계약) · `changes/archive/auth-api-provider-token-format(fe).md`("클라이언트는 원본 nonce의 SHA-256 해시(**소문자 hex**)를 인가 요청에 싣는다") |
 | 심각도 | **높음** — **애플 로그인이 전 플랫폼에서 실패한다.** nonce 대조가 항상 어긋나 `AUTH_PROVIDER_TOKEN_INVALID`가 난다. 개발 환경은 `dev.client`가 가려 재현되지 않는다 |
 | 상태 | **완료** |
 
@@ -41,7 +41,7 @@ if (!rawNonce || base64UrlSha256(rawNonce) !== payload.nonce) {
 
 1. **`base64UrlSha256`을 소문자 hex로 바꾼다** — `digest('base64url')` → `digest('hex')`. 함수명도 실제 인코딩에 맞춘다.
 2. **`apple.client.spec.ts`의 nonce 픽스처를 하드코딩된 hex 기대값으로 바꾼다** — 서버 함수로 만든 값과 비교하면 같은 함정에 다시 빠진다. 알려진 문자열의 SHA-256 hex를 상수로 박는다.
-3. **`spec/api/auth-api.md` 4.1에 인코딩을 명시한다** — "해시(SHA-256)"만으로는 이 사고가 반복된다. **소문자 hex**로 못박는다(`changes/pending/auth-api-provider-token-format(fe).md` 처리 시 함께).
+3. **`spec/api/auth-api.md` 4.1에 인코딩을 명시한다** — "해시(SHA-256)"만으로는 이 사고가 반복된다. **소문자 hex**로 못박는다(`changes/archive/auth-api-provider-token-format(fe).md` 처리 시 함께).
 4. **범위 밖** — `aud` 허용값 확장(`apple-android-web-oauth-callback.md` 소유).
 
 ## 완료 조건
@@ -69,4 +69,4 @@ if (!rawNonce || base64UrlSha256(rawNonce) !== payload.nonce) {
 
 ### 남은 것 — iOS 실기기 확인
 
-이 티켓의 근거는 **코드 대조와 FE 구현 서술**이며, 실제 애플 토큰으로 확인한 것은 아니다. "실제 identity token으로 로그인이 성립한다"는 완료 조건은 **FE 스탠드얼론 빌드가 필요해 여기서 닫을 수 없다** — `tickets/frontend/pending/share-app-links-and-deep-link-routing.md`의 기기 검증과 함께 확인한다. **코드 수정은 이 티켓에서 끝났으므로 archive로 옮긴다.**
+이 티켓의 근거는 **코드 대조와 FE 구현 서술**이며, 실제 애플 토큰으로 확인한 것은 아니다. "실제 identity token으로 로그인이 성립한다"는 완료 조건은 **FE 스탠드얼론 빌드가 필요해 여기서 닫을 수 없다** — `tickets/frontend/archive/share-app-links-and-deep-link-routing.md`의 기기 검증과 함께 확인한다. **코드 수정은 이 티켓에서 끝났으므로 archive로 옮긴다.**

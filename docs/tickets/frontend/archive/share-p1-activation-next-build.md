@@ -17,7 +17,7 @@
 
 ## 배경 — 스위치 하나만 꺼져 있다
 
-공유는 **코드가 이미 다 있다.** `frontend/src/features/share/`에 진입점 4곳·링크 생성·수신 게이트·테스트까지 구현돼 있고, 오늘 `assetlinks.json` 배포로 **안드로이드 App Links 인프라도 살아났다**(구글 Digital Asset Links API 검증 통과 — `tickets/backend/pending/share-universal-links-hosting.md` 2026-09-03).
+공유는 **코드가 이미 다 있다.** `frontend/src/features/share/`에 진입점 4곳·링크 생성·수신 게이트·테스트까지 구현돼 있고, 오늘 `assetlinks.json` 배포로 **안드로이드 App Links 인프라도 살아났다**(구글 Digital Asset Links API 검증 통과 — `tickets/backend/archive/share-universal-links-hosting.md` 2026-09-03).
 
 막고 있는 것은 이 한 줄이다.
 
@@ -44,7 +44,7 @@ export const IS_SHARE_ENABLED = process.env.EXPO_PUBLIC_SHARE_ENABLED === 'true'
 3. **플래그를 켠다.** 둘 중 하나로 하되, 켜는 방식을 결정에 포함한다.
    - `share.constants.ts`의 기본값을 켜는 쪽 — 원 설계다(해당 파일 주석: *"P1 활성화 시 기본값을 켠다"*). env 없이도 켜져 프로필 누락 사고가 없다
    - `eas.json`의 `preview`·`production`에 `EXPO_PUBLIC_SHARE_ENABLED: "true"`를 넣는 쪽 — 프로필별로 갈 수 있으나 **넣는 것을 잊으면 조용히 꺼진 채 나간다**
-4. **스토어 링크 확정값을 확인한다.** 앱 미설치 수신자의 폴백 목적지다 — 랜딩의 `StoreRedirect` 상수가 아직 `null`이면 안내 문구만 뜬다(`tickets/backend/pending/share-universal-links-hosting.md` 요청 2). **보내기를 켜기 전에 이 경로가 실제 스토어로 가는지 확인한다** — 받는 사람 대부분이 미설치 상태다.
+4. **스토어 링크 확정값을 확인한다.** 앱 미설치 수신자의 폴백 목적지다 — 랜딩의 `StoreRedirect` 상수가 아직 `null`이면 안내 문구만 뜬다(`tickets/backend/archive/share-universal-links-hosting.md` 요청 2). **보내기를 켜기 전에 이 경로가 실제 스토어로 가는지 확인한다** — 받는 사람 대부분이 미설치 상태다.
 5. **범위 밖** — 공유 집계·유입 어트리뷰션은 도입하지 않는다(`share.md` 4.4 — `domain.md` 개정이 선행 사안이다).
 
 ## 완료 조건

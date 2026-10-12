@@ -1,6 +1,13 @@
 /** convention.md 5.5 — 중복 실행 부작용이 있는 POST에 필수 */
 export const IDEMPOTENCY_KEY_HEADER = 'Idempotency-Key';
 
+/**
+ * 키 최대 길이 — `idempotency_keys.idempotency_key varchar(255)`(domain.md 1.4)와 같다.
+ * 넘으면 INSERT가 Postgres 22001로 깨져 500이 되므로 인터셉터가 먼저 400으로 거절한다.
+ * 정상 클라이언트는 UUID(36자)를 보낸다.
+ */
+export const IDEMPOTENCY_KEY_MAX_LENGTH = 255;
+
 /** domain.md 1.4 — 재시도 창을 넘겨 보관하지 않는다 */
 export const IDEMPOTENCY_RETENTION_SEC = 24 * 60 * 60;
 

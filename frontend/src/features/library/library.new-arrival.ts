@@ -1,15 +1,22 @@
 import type { LibraryItem } from './library.types';
 
+/** 편성 도착부터의 분석용 경과 시간. 서비스 날짜·재생 정책 판정에는 쓰지 않는다. */
+export const hoursSinceArrival = (isoTime: string | null): number => {
+  if (isoTime === null) return 0;
+  const elapsedMs = Date.now() - new Date(isoTime).getTime();
+  return Number.isFinite(elapsedMs) && elapsedMs > 0 ? Math.round(elapsedMs / 360_000) / 10 : 0;
+};
+
 interface DripArrivalResult {
   /** 다음 비교에 쓸 기준값 — 드립의 최대 addedAt. 뒤로 물러나지 않는다 */
   baseline: string | null;
-  /** 배너에 쓸 새 드립 수 — 0이면 배너를 띄우지 않는다 */
+  /** 탭 배지에 더할 새 드립 수 — 0이면 숫자를 늘리지 않는다 */
   newCount: number;
 }
 
 /**
  * "새 콘텐츠 N개 도착" 판정(library-api.md 4.1 · library.md 4.6, 개정 2026-08-08).
- * 배너가 알리는 사건은 편성 도착 하나다:
+ * 탭 배지가 알리는 사건은 편성 도착 하나다:
  * - source IN (drip, discovery)만 센다 — 탐험 편도 "이어가 보내준 것"이다(개정 2026-08-27).
  *   담기(save)·온보딩 적립은 사용자가 스스로 한 조작이라 알리지 않는다
  * - 기준값은 목록 최상단이 아니라 편성분의 최대 addedAt — 정렬·방금 담은 항목과 무관해야 한다
@@ -29,7 +36,7 @@ export const evaluateDripArrivals = (
     drips[0].addedAt,
   );
 
-  // 첫 관측은 배너 없이 기준값만 기록한다(library-api.md 4.1 — 기준값이 없을 때)
+  // 첫 관측은 배지 없이 기준값만 기록한다(library-api.md 4.1 — 기준값이 없을 때)
   if (prevBaseline === null) return { baseline: maxAddedAt, newCount: 0 };
 
   return {

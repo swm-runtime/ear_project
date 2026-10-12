@@ -34,6 +34,11 @@ export interface PlayStartResponseDto extends PlayLimitFieldsDto {
 /** POST /contents/:content_id/audio-urls (player-api.md 4.1) */
 export interface AudioUrlsRequestDto {
   device_id: string;
+  /**
+   * 원하는 음질(4.1, KAN-141). 처음 발급은 비워 설정 선택값을 따르고, **재생 중 갱신은 처음 응답의 `audio.quality`를
+   * 그대로 싣는다** — 그 사이 설정을 바꿔도 파일이 바뀌지 않는다(위치 어긋남 방지)
+   */
+  quality?: 'compressed' | 'aac' | 'lossless';
 }
 
 export interface AudioUrlsResponseDto {
@@ -66,6 +71,8 @@ export interface AudioUrlsResponseDto {
     url: string;
     expires_at: string;
     expires_in_sec: number;
+    /** 실제로 내준 음질(4.1). 옛 서버 응답에는 없다 — 없으면 갱신에도 싣지 않는다 */
+    quality?: string;
   };
 }
 

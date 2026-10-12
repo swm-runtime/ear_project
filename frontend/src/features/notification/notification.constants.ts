@@ -33,6 +33,3 @@ export const ANDROID_DEFAULT_CHANNEL_ID = 'default';
 
 /** 서버 페이로드의 `data.type`(notification.md 3장) — MVP는 이 하나다 */
 export const PUSH_TYPE_DRIP_ARRIVAL = 'drip_arrival';
-
-/** 인앱 배너 노출 시간 — 토스트(3초)보다 길게 둔다: 탭해서 이동할 시간이 필요하다 */
-export const ARRIVAL_BANNER_DURATION_MS = 5000;

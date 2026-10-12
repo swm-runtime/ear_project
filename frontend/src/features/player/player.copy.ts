@@ -155,11 +155,12 @@ export const PLAYER_COPY = {
     failedToast: '삭제하지 못했어요. 다시 시도해주세요',
   },
 
-  /** PL8 로드 실패 — 화면 유지 + 인라인. 이 시점에는 차감되지 않았다(paywall.md 4.3) */
+  /** PL8 로드 실패 — 재생 컨트롤 줄 대신 재시도 안내. 이 시점에는 차감되지 않았다(paywall.md 4.3) */
   loadFailed: {
     title: '재생할 수 없어요',
     description: '잠시 후 다시 시도해주세요',
     retry: '다시 시도',
+    retrying: '재생을 다시 준비하는 중',
   },
 
   /** PL9 회수 — 오류 톤·[다시 시도]를 붙이지 않는다 */

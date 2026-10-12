@@ -11,7 +11,7 @@
 | 기한 | 2026-10-09 (Low — 이번 주 안) |
 | 선행 | 없음 |
 | Jira | [KAN-144](https://runtime364.atlassian.net/browse/KAN-144) |
-| 근거 문서 | `tickets/ai/pending/section-summary-generation.md`([KAN-137](https://runtime364.atlassian.net/browse/KAN-137)) · `tickets/frontend/pending/player-bar-section-summary.md`([KAN-127](https://runtime364.atlassian.net/browse/KAN-127)) · `backend/domain.md` 5.3 · `spec/api/admin-api.md` 4.6 · `spec/api/player-api.md` 4.1·4.7 |
+| 근거 문서 | `tickets/ai/archive/section-summary-generation.md`([KAN-137](https://runtime364.atlassian.net/browse/KAN-137)) · `tickets/frontend/archive/player-bar-section-summary.md`([KAN-127](https://runtime364.atlassian.net/browse/KAN-127)) · `backend/domain.md` 5.3 · `spec/api/admin-api.md` 4.6 · `spec/api/player-api.md` 4.1·4.7 |
 | 중요도 | Low — KAN-137·KAN-127과 같은 마감. FE 구현(KAN-127)이 이 티켓을 기다린다 |
 | 상태 | **완료** (2026-10-06) |
 

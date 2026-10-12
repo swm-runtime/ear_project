@@ -86,7 +86,8 @@
     "renews_at": "2026-09-01T00:00:00Z",
     "expires_at": null,
     "has_payment_issue": false,
-    "trial": null
+    "trial": null,
+    "grant": null
   },
   "interest_summary": {
     "count": 3,
@@ -109,6 +110,14 @@
   "weekly_listening": {
     "week_start": "2026-08-03",
     "daily_listened_sec": [1220, 0, 845, 0, 0, 0, 0],
+    "listening_top_percent": 12,
+    "listening_highlight": { "kind": "top_percent", "percent": 12 },
+    "daily_listening_highlight": [
+      { "kind": "more_than_last_week", "diff_sec": 720 },
+      null,
+      { "kind": "listened_contents", "count": 2 },
+      null, null, null, null
+    ],
     "previous_week_start": "2026-07-27",
     "next_week_start": null,
     "topic_distribution": {
@@ -172,6 +181,10 @@
 - `renews_at`과 `expires_at`은 **같은 `subscriptions.expires_at`에서 온 값이지만 의미가 달라 필드를 나눈다.** 자동 갱신이면 그 시각이 다음 결제일이고, 해지 예약이면 이용 종료일이다. 한 필드로 내려주면 화면이 `status`를 보고 라벨을 갈아 끼워야 한다.
 - `status = free`일 때 `tier = "light"` · `plan_name` · `daily_play_limit`(무료 한도)을 채워 내려준다. **"하루 N편"의 N은 `plans.daily_play_limit` 서버 값이다 — 2를 하드코딩하지 않는다**(`profile.md` 4.2 · `paywall.md` 5장과 같은 규칙).
 - `daily_play_limit`는 무료 카드의 문구 조립용이다. `null`은 무제한 티어(문구에 한도를 적지 않는다).
+
+**`plan.grant` — 초대 코드 지급**(2026-10-10). 지급 중이면 `{ "name", "tier", "plan_name", "ends_at", "last_date" }`, 아니면 `null`. 모양·판정은 `subscription-api.md` 4.8과 같다(같은 조립 함수). 지급 요금제가 구독보다 높으면 `tier`·`plan_name`·`daily_play_limit`이 지급 요금제의 값이고 `status`는 구독 상태 그대로다. 설정 응답의 `plan`도 같은 필드를 싣는다.
+
+**`plan.pending_plan` — 예약된 요금제 변경**(2026-10-08 PM — KAN-161). 다운그레이드 예약이면 `{ "tier": "daily", "plan_name": "Daily", "effective_at": "2026-11-08T03:00:00Z" }`, 없으면 `null`. 모양·판정은 `subscription-api.md` 4.2 의 `pending_plan` 과 같다(같은 값에서 조립). 화면은 "{plan_name} · N월 N일까지 이용 · 이후 {pending_plan.plan_name}"으로 그린다. 설정 응답의 `plan` 도 같은 조립 함수라 같은 필드를 싣는다.
 
 **`plan.trial` — 가입 체험**(`subscription.md` 4.8, 2026-10-03). 체험 중이 아니면 `null`이다.
 
@@ -238,6 +251,39 @@
 - `previous_week_start`: 이전 주의 `week_start`. **`null`이면 이전 주가 없다(가입 주)** → [◀] 비활성. 값이 있으면 **그대로 4.2의 요청 파라미터로 쓴다** — 클라이언트가 날짜 연산을 하지 않는다.
 - `next_week_start`: `null`이면 이번 주 → [다음 주 ▶] 비활성. **이 응답에서는 항상 `null`이다**(기본 표시가 이번 주이므로).
 - 한 주 전체가 0이면 빈 상태 문구는 클라이언트 표시 규칙이다 — 서버는 0 배열을 내려줄 뿐 "빈 주"를 따로 표현하지 않는다.
+- **`listening_top_percent` — 그 주 청취 시간 전체 상위 %**(신설 2026-10-10, KAN-168 — PM "전체에서 이번 주에 들은 거 상위 %"). 정수 `1`~`50` 또는 `null`. 화면은 값이 있으면 "상위 N%" 알약을 그리고, `null`·필드 없음이면 그리지 않는다 — 순위 판정은 서버가 한다.
+  - **측정값**: 그 주(`daily_listened_sec`와 같은 경계) 청취 시간 합 = `daily_listened_sec` 7개의 합.
+  - **모집단**: 그 주가 끝나는 시점(다음 월요일 서비스 날짜 시작) 전에 가입한 **전체 계정** — 그 주 0초인 사용자도 들어간다. 탈퇴자는 행이 지워져 빠진다.
+  - **계산**: `순위 = 1 + (그 주 청취 시간이 나보다 많은 사용자 수)` — 동점은 같은 순위(좋은 쪽). `상위 % = ceil(순위 / 모집단 × 100)` — 1등도 최소 `1`이다.
+  - **`null`**: ① 그 주 청취 0초 ② 상위 %가 **50 초과**(하위권 표시는 기를 꺾는다).
+  - 진행 중인 이번 주는 요청 시점 값이라 주 중에 바뀐다. 4.2의 지난 주는 그 주 기준으로 계산한다.
+  - 50% 기준선 · 운영·테스트 계정 제외 · 소규모 모집단 하한은 **PM 확정 전 잠정값**이다(현재: 50%, 제외 없음, 하한 없음).
+- **`listening_highlight` — 주간 카드의 한 줄**(신설 2026-10-11, KAN-170 — 상위 50% 밖 사용자에게도 "나와의 비교"를 보여 준다). 아래 **우선순위대로 첫 번째로 해당하는 하나**만 내려 준다. 화면은 `kind`대로 그리고 `null`이면 그리지 않는다.
+
+  | 순위 | `kind` | 조건 | 값 |
+  |---|---|---|---|
+  | 1 | `top_percent` | `listening_top_percent`가 `null`이 아님 | `percent` = 그 값 |
+  | 2 | `more_than_previous` | 그 주 청취 합이 **비교 대상**보다 **60초 이상** 많다 | `diff_sec` = 차이(초, 정수) |
+  | 3 | `listened_days` | 그 주 들은 날(`daily_listened_sec` > 0)이 1일 이상 | `days` = 들은 날 수(1~7) |
+  | — | `null` | 그 주 청취 0초 | — |
+
+  - **비교 대상**: 끝난 주는 직전 주 7일 합, **진행 중인 이번 주는 직전 주의 같은 요일까지**(오늘 서비스 날짜의 요일 포함) 합 — 주 초반에 지난주 전체와 비교하면 거의 항상 지는 비교가 된다. 직전 주가 없으면(가입 주, `previous_week_start = null`) 순위 2를 건너뛴다.
+  - **줄어든 쪽은 내려 주지 않는다**("N분 덜"은 기를 꺾는다) — 줄었으면 순위 3이다.
+  - `listening_top_percent`는 그대로 둔다(이미 배포된 앱이 읽는다). 앱이 이 필드로 옮긴 뒤 제거 여부를 따로 정한다.
+  - 우선순위 · 최소 차이 60초 · "같은 요일까지" 비교는 **PM 확정 전 잠정값**이다(티켓 제안대로 구현).
+- **`daily_listening_highlight` — 요일별 한 줄**(신설 2026-10-11, KAN-171 — 요일 막대를 고르면 주간 한 줄 자리에 그날의 "나와의 비교"를 보여 준다). **월~일 7개 고정 배열**(`daily_listened_sec`와 같은 순서)이고, 각 칸은 아래 **우선순위대로 첫 번째로 해당하는 하나** 또는 `null`이다. 화면은 `kind`대로 그리고 `null`이면 비워 둔다.
+
+  | 순위 | `kind` | 조건 | 값 |
+  |---|---|---|---|
+  | 1 | `more_than_last_week` | 그날 청취가 **직전 주 같은 요일**보다 **60초 이상** 많다 | `diff_sec` = 차이(초, 정수) |
+  | 2 | `best_day` | 그 주에서 가장 많이 들은 날(동률이면 모두). **그 주 들은 날이 2일 이상일 때만** | 없음 |
+  | 3 | `listened_contents` | 그날 청취 > 0 | `count` = 그날 청취 > 0 인 콘텐츠 수 |
+  | — | `null` | 그날 0초(진행 중인 주의 아직 안 온 요일 포함) | — |
+
+  - 직전 주가 없으면(가입 주, `previous_week_start = null`) 순위 1을 건너뛴다. **줄어든 날은 내려 주지 않는다** — 순위 2로 간다.
+  - **그날 상위 %는 넣지 않는다** — 사용자 수가 적어 하루 순위는 크게 출렁이고, 순위는 주간 한 줄이 이미 보여 준다(PM 2026-10-11).
+  - 진행 중인 이번 주는 요청 시점 값이다. `best_day`는 오늘까지 중 최고라 주 중에 바뀔 수 있다.
+  - 최소 차이 60초 · `best_day`의 "들은 날 2일 이상"과 동률 처리 · 진행 중인 주의 오늘까지 기준은 **PM 확정 전 잠정값**이다(티켓 제안대로 구현).
 - **`topic_distribution` — 그 주의 주제 분포**(신설 2026-09-28, KAN-113 — PM 결정 "주마다 · 비율만"). 모양은 아래 최상위 `topic_distribution`과 **같고**, 집계 기간만 **그 주**(월요일 04:00 ~ 다음 월요일 04:00, `daily_listened_sec`와 같은 경계)다. 상위 5 · 기타 · 합 100 · 비율만 · 다주제 콘텐츠 그대로 가산 · 숨김 주제 포함 규칙도 같다. 그 주 기록이 없으면 `topics: []` · `others_ratio: 0`. 주간 카드의 주제 구획은 이 값을 그린다.
 - **`daily_topic_distribution` — 요일별 주제 분포**(신설 2026-09-28, 같은 티켓). **월~일 7개 고정 배열**이고 각 원소는 `topic_distribution`과 같은 모양이며, 집계 기간은 그 서비스 날짜(04:00 ~ 다음 날 04:00)다. 기록 없는 요일·아직 오지 않은 요일도 `{ "topics": [], "others_ratio": 0 }`으로 자리를 지킨다(생략 없음) — 막대를 탭하면 그날의 분포를 보여주는 데 쓴다.
 
@@ -300,6 +346,16 @@
 {
   "week_start": "2026-07-27",
   "daily_listened_sec": [0, 3600, 0, 1800, 0, 0, 900],
+  "listening_top_percent": 30,
+  "listening_highlight": { "kind": "top_percent", "percent": 30 },
+  "daily_listening_highlight": [
+    null,
+    { "kind": "best_day" },
+    null,
+    { "kind": "more_than_last_week", "diff_sec": 600 },
+    null, null,
+    { "kind": "listened_contents", "count": 1 }
+  ],
   "previous_week_start": "2026-07-20",
   "next_week_start": "2026-08-03",
   "topic_distribution": {
@@ -318,7 +374,7 @@
 }
 ```
 
-- 4.1의 `weekly_listening` 오브젝트와 **같은 모양**이다. 두 응답이 다른 행 타입을 쓰면 그래프 렌더가 두 벌이 된다. `topic_distribution`(그 주) · `daily_topic_distribution`(요일별 7개)의 규칙도 4.1과 같다(신설 2026-09-28, KAN-113).
+- 4.1의 `weekly_listening` 오브젝트와 **같은 모양**이다. 두 응답이 다른 행 타입을 쓰면 그래프 렌더가 두 벌이 된다. `topic_distribution`(그 주) · `daily_topic_distribution`(요일별 7개)의 규칙도 4.1과 같다(신설 2026-09-28, KAN-113). `listening_top_percent`·`listening_highlight`·`daily_listening_highlight`도 4.1과 같은 규칙으로 **그 주 기준**으로 계산한다(2026-10-10 KAN-168 · 2026-10-11 KAN-170·171 — 끝난 주라 주간 비교 대상은 직전 주 7일 합, 요일별은 직전 주 같은 요일).
 - **가입 주면 `previous_week_start = null`** → [◀] 비활성(`profile.md` 4.6 — 가입 주까지 거슬러 갈 수 있다). "가입 주" 판정은 서버가 한다 — 클라이언트는 `null` 여부만 본다.
 - `next_week_start`는 한 주 뒤의 라벨이다(이번 주를 벗어나지 않는다). 이번 주 라벨을 이 엔드포인트로 다시 조회하는 것도 허용한다 — 다만 첫 진입 표시는 4.1이 담당한다.
 - 한 번 받은 주는 화면을 벗어나기 전까지 재조회하지 않는다(클라이언트 캐시 — `profile.md` 4.6). 미리 받은 이웃 주도 같은 캐시에 담긴다.
@@ -355,7 +411,7 @@
 ```
 프로필 탭 진입 ──> GET /users/me/profile ──> 헤더 + 4개 카드 + 통계 3영역 렌더
    ├─ [⚙ 설정]            → 설정 화면 (settings-api.md)
-   ├─ 플랜 카드            → 구독 관리 (subscription.md)
+   ├─ 플랜 카드            → 요금제 관리 (subscription.md)
    ├─ 이메일 카드          → 이메일 인증 화면 (auth-api.md 4.8~4.11)
    ├─ 관심 주제 관리 카드   → 관심사 관리 (interest-management.md)
    ├─ 커리어 정보 카드      → 커리어 정보 화면 (career.md)
@@ -399,7 +455,7 @@
 
 ## 9. 미결 사항
 
-- **`plan.status` 정규화 enum의 소유** — 이 4분기(`free` / `subscribed` / `cancel_scheduled` / `grace`)는 설정 화면의 구독 요약(`settings-api.md`)과 구독 관리 화면도 그대로 쓰게 된다. `subscription.md`의 API 명세가 작성될 때 그쪽으로 소유를 옮기고 이 문서는 참조로 바꾼다.
+- **`plan.status` 정규화 enum의 소유** — 이 4분기(`free` / `subscribed` / `cancel_scheduled` / `grace`)는 설정 화면의 구독 요약(`settings-api.md`)과 요금제 관리 화면도 그대로 쓰게 된다. `subscription.md`의 API 명세가 작성될 때 그쪽으로 소유를 옮기고 이 문서는 참조로 바꾼다.
 - **`renews_at`의 정확성** — 다음 결제일을 `subscriptions.expires_at`으로 표현했다. 스토어 유예 기간·플랜 변경 예약이 겹치면 실제 결제일과 어긋날 수 있어, 구독 API 설계 시 스토어 S2S 값과 대조가 필요하다.
 - ~~`top_topics` 정렬 기준~~ → **확정(합의 2026-08-06): 별도 선정 기준 없이 서버 응답 순서의 앞 3개**(4.1 · `profile.md` 4.4). **정렬은 `user_interests.created_at`(선택한 순서)이며 `explore-api.md` 4.2-2와 같은 규칙이다**(개정 2026-08-08 — 개정 전 `topics.display_order`는 아직 없는 관심사 관리 화면의 정렬을 추측한 것이었다).
 - ~~프로필 카드 구성(커리어 카드 제거 · `profile.md` 개정 필요)~~ → **확정(합의 2026-08-06): 4카드로 복원.** 커리어는 별도 카드·별도 화면(`career.md`)이다. `profile.md` 4.1·4.4 개정 완료 — 이 문서의 이전 판(커리어 미포함·3카드)은 폐기됐고, 응답에 `career` 요약이 복원됐다(4.1).
@@ -407,4 +463,7 @@
 - **`years_of_experience`의 전송 표현** — 이 계약은 구간 라벨(`"0-1" | "2-3" | "4-6" | "7+"`)을 쓴다(`career.md` 3장). `domain.md` 3.1은 `int`라 저장 매핑이 미결이다(`domain.md` 15.1 #4). 매핑이 확정돼도 이 응답은 라벨을 유지한다 — 저장 표현은 백엔드 소관.
 - **통계 수치 표기 형식** — 시간 단위 변환·반올림·`ratio` 소수 자릿수는 `spec/uiux/profile-uiux.md` 확정 대기. 서버는 초 단위 정수와 "합 100 조정"까지만 책임진다(4.1).
 - **집계 캐시** — 연속 일수·주제 분포의 매 조회 집계 비용 실측 후 캐시 테이블(구체화 뷰) 도입 여부를 백엔드가 판단한다(`domain.md` 15.1 #9). 도입돼도 이 계약·필드는 변하지 않는다.
+- **`daily_listening_highlight` 잠정값**(2026-10-11, KAN-171) — 최소 차이 60초 · `best_day`의 "들은 날 2일 이상"과 동률 처리 · 진행 중인 주의 오늘까지 기준을 PM과 확정해야 한다. 바뀌면 서버 상수·조건만 바뀐다.
+- **`listening_highlight` 잠정값**(2026-10-11, KAN-170) — 우선순위(상위 % > 전주보다 더 > 들은 날 수) · 최소 차이 60초 · 진행 중인 주의 "같은 요일까지" 비교를 PM과 확정해야 한다. 바뀌면 서버 상수·조건만 바뀐다.
+- **`listening_top_percent` 잠정값**(2026-10-10, KAN-168) — 50% 기준선 · 운영·테스트 계정 제외 여부 · 소규모 모집단(개발계 등) 하한을 PM과 확정해야 한다. 현재는 50% · 제외 없음 · 하한 없음으로 구현했다(4.1). 값이 바뀌어도 필드·`null` 의미는 같다 — 서버 상수만 바뀐다.
 - ~~커리어 편집 API(`career-api`)~~ → **해소(2026-08-10)** — `career-api.md` 작성됨(`GET`/`PUT /users/me/career` · `GET /job-categories`).

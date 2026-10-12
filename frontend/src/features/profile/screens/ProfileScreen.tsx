@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Pressable, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -6,6 +7,7 @@ import { useTabScrollToTop } from '@/shared/navigation/useTabScrollToTop';
 import { theme } from '@/shared/theme';
 import ConfirmDialog from '@/shared/ui/ConfirmDialog';
 import GlassCapsule, { HEADER_CONTROL_HEIGHT } from '@/shared/ui/GlassCapsule';
+import InsetGroup from '@/shared/ui/InsetGroup';
 import SettingsIcon from '@/shared/ui/SettingsIcon';
 import { Text } from '@/shared/ui/Typography';
 
@@ -36,11 +38,13 @@ const SETTINGS_HIT_SLOP = (theme.touchTarget.minHeight - SETTINGS_GLASS_SIZE) / 
  * 프로필 탭(P1~P10) — 화면은 뷰만 담당하고 로직은 useProfileScreen이 소유한다.
  * 하나의 세로 스크롤: 헤더 / 플랜 / 관심 주제 / 커리어 / 통계 3영역(profile-uiux.md 4.1).
  * 카드 순서는 바꾸지 않는다 — 위는 계정·결제, 아래 둘은 추천에 쓰이는 값이다.
- * 구분선은 두지 않는다 — 이메일 카드가 빠져 위가 한 장뿐이라, 1대 2를 가르는 선이 됐다.
+ * 관심 주제·커리어는 하나의 그룹 면 안에 두 행으로 두며, 편집 진입과 오류 상태는 각각 유지한다.
  */
 export default function ProfileScreen() {
   const screen = useProfileScreen();
   const scrollRef = useTabScrollToTop();
+  // 주간 그래프를 가로로 끄는 동안 세로 스크롤을 잠근다(PM 2026-10-09)
+  const [isChartSwiping, setIsChartSwiping] = useState(false);
   // 탭 바가 목록 위에 떠 있으므로 그 높이만큼 바닥 여백(2026-09-22)
   const dockInset = useBottomDockInset();
   // 0.3초 미만 로딩은 표시하지 않는다(common-error-handling.md 5장)
@@ -79,6 +83,7 @@ export default function ProfileScreen() {
         <ScrollView
           ref={scrollRef}
           {...DOCK_SCROLL_PROPS}
+          scrollEnabled={!isChartSwiping}
           contentContainerStyle={[
             styles.scrollContent,
             { paddingBottom: theme.spacing.xxl + dockInset },
@@ -115,21 +120,25 @@ export default function ProfileScreen() {
                 두 번 쓰면 어느 쪽이 최신인지 묻게 된다. 프로필 쪽 등록·인증·변경 진입은
                 헤더의 이메일 줄이 갖는다(profile.md 4.3 — 설정 경로와 같은 화면) */}
 
-            {screen.interestCard !== null ? (
-              <InterestCard
-                state={screen.interestCard}
-                onPress={screen.openInterests}
-                onRetry={screen.retry}
-                isRetrying={screen.isRetrying}
-              />
-            ) : null}
-            {screen.careerCard !== null ? (
-              <CareerCard
-                state={screen.careerCard}
-                onPress={screen.openCareer}
-                onRetry={screen.retry}
-                isRetrying={screen.isRetrying}
-              />
+            {screen.interestCard !== null || screen.careerCard !== null ? (
+              <InsetGroup>
+                {screen.interestCard !== null ? (
+                  <InterestCard
+                    state={screen.interestCard}
+                    onPress={screen.openInterests}
+                    onRetry={screen.retry}
+                    isRetrying={screen.isRetrying}
+                  />
+                ) : null}
+                {screen.careerCard !== null ? (
+                  <CareerCard
+                    state={screen.careerCard}
+                    onPress={screen.openCareer}
+                    onRetry={screen.retry}
+                    isRetrying={screen.isRetrying}
+                  />
+                ) : null}
+              </InsetGroup>
             ) : null}
 
             {screen.stats !== null ? (
@@ -156,6 +165,7 @@ export default function ProfileScreen() {
                   <StatsSummaryRow summary={screen.stats.data.summary} />
                   <WeeklyChart
                     weekly={screen.weekly}
+                    onSwipingChange={setIsChartSwiping}
                     footer={(() => {
                       /*
                        * 주제 구획의 기간 — 막대를 탭했으면 그날(PM 2026-09-28 04:26), 아니면 고른 주, 서버가 주·일 분포를 아직
@@ -212,6 +222,9 @@ export default function ProfileScreen() {
   );
 }
 
+/** 프로필 카드 사이 간격 */
+const CARD_GAP = theme.spacing.sm + theme.spacing.xs;
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -249,9 +262,11 @@ const styles = StyleSheet.create({
   content: {
     gap: theme.spacing.sm,
   },
+  // 카드 사이 12 — 묶음 카드 ↔ 통계(위 content gap 8 + 4) · 통계 ↔ 주간 청취 모두 같게. 종전 24 는 카드끼리 떨어져
+  // 보였다(PM 2026-10-11 "박스 사이 간격이 너무 넓다")
   statsArea: {
-    gap: theme.spacing.lg,
-    marginTop: theme.spacing.md,
+    gap: CARD_GAP,
+    marginTop: CARD_GAP - theme.spacing.sm,
   },
   statsErrorBlock: {
     marginTop: theme.spacing.md,

@@ -32,6 +32,11 @@ export interface ProfilePlanDto {
    * 선택 필드로 둔다 — 필드를 아직 안 보내는 서버(운영 반영 전)에서는 없을 수 있고, 그때는 null로 읽는다
    */
   trial?: ProfilePlanTrialDto | null;
+  /**
+   * 예약된 요금제 변경(profile-api.md 4.1 "`plan.pending_plan`", 2026-10-08 KAN-161) — 다운그레이드 예약이면 다음 요금제와
+   * 적용 시각, 없으면 null. 선택 필드 — 아직 안 보내는 서버에서는 없고, 그때는 null 로 읽는다
+   */
+  pending_plan?: { tier: string; plan_name: string; effective_at: string } | null;
 }
 
 export interface ProfilePlanTrialDto {
@@ -92,7 +97,32 @@ export interface WeeklyListeningDto {
    * 없으면 막대를 탭해도 주 분포가 그대로다
    */
   daily_topic_distribution?: TopicDistributionDto[];
+  /**
+   * 그 주 청취 시간의 **전체 가입자 중 상위 %**(정수 1~50) — BE 요청 중(KAN-168, tickets/backend/pending/weekly-listening-top-percent.md).
+   * 서버가 보이지 않기로 판정하면(그 주 0초 · 상위 50% 밖) null, 아직 안 보내면 없다 → 둘 다 표시하지 않는다
+   */
+  listening_top_percent?: number | null;
+  /**
+   * 주간 카드의 한 줄(KAN-170, profile-api.md 4.1) — 서버가 우선순위(상위 % > 전주보다 더 > 들은 날 수)로 **하나만** 골라 보낸다.
+   * 그 주 0초면 null, 반영 전 서버면 없다(그땐 listening_top_percent 로 대신 그린다)
+   */
+  listening_highlight?: ListeningHighlightDto | null;
+  /**
+   * 요일별 한 줄(KAN-171, profile-api.md 4.1) — 월~일 7칸, 칸마다 서버가 우선순위(지난주 같은 요일보다 더 > 그 주 최고의 날 >
+   * 들은 편 수)로 하나 또는 null. 반영 전 서버면 없다(요일을 골라도 비워 둔다)
+   */
+  daily_listening_highlight?: (DailyListeningHighlightDto | null)[] | null;
 }
+
+export type DailyListeningHighlightDto =
+  | { kind: 'more_than_last_week'; diff_sec: number }
+  | { kind: 'best_day' }
+  | { kind: 'listened_contents'; count: number };
+
+export type ListeningHighlightDto =
+  | { kind: 'top_percent'; percent: number }
+  | { kind: 'more_than_previous'; diff_sec: number }
+  | { kind: 'listened_days'; days: number };
 
 /** GET /users/me/profile 응답(profile-api.md 4.1) — 섹션 null + failed_sections로 부분 실패 표현 */
 export interface ProfileSummaryResponseDto {

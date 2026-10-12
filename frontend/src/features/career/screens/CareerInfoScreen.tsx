@@ -8,12 +8,14 @@ import GlassCapsule, { HEADER_CONTROL_HEIGHT } from '@/shared/ui/GlassCapsule';
 import GlassIconButton from '@/shared/ui/GlassIconButton';
 import { pillButton } from '@/shared/ui/pill-button.styles';
 import { SkeletonBlock, SkeletonGroup } from '@/shared/ui/Skeleton';
-import { Text, TextInput } from '@/shared/ui/Typography';
+import { Text } from '@/shared/ui/Typography';
 
-import { JOB_TITLE_MAX_LENGTH } from '../career.constants';
 import { CAREER_COPY } from '../career.copy';
 import type { YearsOfExperienceRange } from '../career.types';
 import CareerDialog from '../components/CareerDialog';
+import JobCategoryChips from '../components/JobCategoryChips';
+import JobTitleField from '../components/JobTitleField';
+import YearsSegment from '../components/YearsSegment';
 import { useCareerInfoScreen } from '../hooks/useCareerInfoScreen';
 
 const YEARS_OPTIONS: YearsOfExperienceRange[] = ['0-1', '2-3', '4-6', '7+'];
@@ -22,6 +24,7 @@ const YEARS_OPTIONS: YearsOfExperienceRange[] = ['0-1', '2-3', '4-6', '7+'];
  * CR1~CR5 커리어 정보 — 화면은 뷰만 담당하고 로직은 useCareerInfoScreen이 소유한다.
  * 진입 경로는 둘(프로필 카드·설정 콘텐츠)이지만 화면은 하나다(career-uiux.md 3장).
  * 앱바·타이틀은 서버 응답과 무관하므로 로딩 중에도 먼저 그린다(uiux 4.1).
+ * 직군 칩·직무 입력칸·연차 세그먼트는 온보딩 2/2(O4)와 **같은 부품**이다(components/, PM 2026-10-11).
  */
 export default function CareerInfoScreen() {
   const screen = useCareerInfoScreen();
@@ -73,6 +76,10 @@ export default function CareerInfoScreen() {
       ) : (
         <>
           <ScrollView contentContainerStyle={styles.form}>
+            {/* 큰 제목 — 관심 주제 관리와 같은 머리말(PM 2026-10-10). 서버 응답과 무관해 로딩 중에도 그린다(uiux 4.1) */}
+            <Text style={styles.headline} accessibilityRole="header">
+              {CAREER_COPY.headline}
+            </Text>
             {screen.isLoading ? (
               screen.showSkeleton ? (
                 // form 의 세로 간격을 그대로 이어받는다 — 낭독·반짝임은 영역 하나로
@@ -91,63 +98,35 @@ export default function CareerInfoScreen() {
                 </Text>
 
                 <Text style={styles.fieldLabel}>{CAREER_COPY.jobCategoryLabel}</Text>
-                {/* 온보딩 O4와 같은 칩 선택형(변경 2026-08-12 — 바텀시트에서 통일). 선택지는
-                    서버 목록을 받은 순서대로 그린다. 재탭 해제가 값을 비우는 경로다 */}
-                <View style={styles.chipRow}>
-                  {screen.jobCategories.map((category) => {
-                    const isSelected = screen.jobCategory === category.name;
-                    return (
-                      <Pressable
-                        key={category.name}
-                        style={[styles.chip, isSelected && styles.chipSelected]}
-                        disabled={screen.isSaving}
-                        onPress={() => screen.toggleJobCategory(category.name)}
-                        accessibilityRole="checkbox"
-                        accessibilityState={{ checked: isSelected, disabled: screen.isSaving }}
-                        accessibilityLabel={category.name}
-                      >
-                        <Text style={[styles.chipLabel, isSelected && styles.chipLabelSelected]}>
-                          {category.name}
-                        </Text>
-                      </Pressable>
-                    );
-                  })}
-                </View>
+                {/* 칩 선택형(변경 2026-08-12 — 바텀시트에서 통일). 선택지는 서버 목록을 받은 순서대로 그린다.
+                    재탭 해제가 값을 비우는 경로다 */}
+                <JobCategoryChips
+                  categories={screen.jobCategories.map((category) => category.name)}
+                  value={screen.jobCategory}
+                  onToggle={screen.toggleJobCategory}
+                  disabled={screen.isSaving}
+                />
 
                 <Text style={styles.fieldLabel}>{CAREER_COPY.jobTitleLabel}</Text>
-                {/* 상한에서 추가 입력을 받지 않는다. 카운터·에러 문구는 두지 않는다(uiux 4.4) */}
-                <TextInput
-                  style={styles.input}
+                <JobTitleField
                   value={screen.jobTitle}
                   onChangeText={screen.changeJobTitle}
-                  editable={!screen.isSaving}
                   placeholder={CAREER_COPY.jobTitlePlaceholder}
-                  placeholderTextColor={theme.color.textSecondary}
-                  maxLength={JOB_TITLE_MAX_LENGTH}
                   accessibilityLabel={CAREER_COPY.jobTitleLabel}
+                  clearAccessibilityLabel={CAREER_COPY.jobTitleClearA11y}
+                  disabled={screen.isSaving}
                 />
 
                 <Text style={styles.fieldLabel}>{CAREER_COPY.yearsLabel}</Text>
-                <View style={styles.chipRow}>
-                  {YEARS_OPTIONS.map((option) => {
-                    const isSelected = screen.yearsOfExperience === option;
-                    return (
-                      <Pressable
-                        key={option}
-                        style={[styles.chip, isSelected && styles.chipSelected]}
-                        disabled={screen.isSaving}
-                        onPress={() => screen.toggleYears(option)}
-                        accessibilityRole="checkbox"
-                        accessibilityState={{ checked: isSelected, disabled: screen.isSaving }}
-                        accessibilityLabel={CAREER_COPY.yearsChip[option]}
-                      >
-                        <Text style={[styles.chipLabel, isSelected && styles.chipLabelSelected]}>
-                          {CAREER_COPY.yearsChip[option]}
-                        </Text>
-                      </Pressable>
-                    );
-                  })}
-                </View>
+                {/* 연차 — 칸이 고정된 4택이라 **한 줄 구간 선택**(세그먼트, PM 2026-10-10). 줄바꿈 칩보다 같은 질문의 답으로
+                    읽힌다. 선택한 칸을 다시 누르면 해제(빈 값 저장 경로 — uiux 4.4)는 그대로다 */}
+                <YearsSegment
+                  options={YEARS_OPTIONS}
+                  labels={CAREER_COPY.yearsChip}
+                  value={screen.yearsOfExperience}
+                  onToggle={screen.toggleYears}
+                  disabled={screen.isSaving}
+                />
               </>
             )}
           </ScrollView>
@@ -272,8 +251,18 @@ const styles = StyleSheet.create({
   },
   form: {
     paddingHorizontal: theme.spacing.lg,
-    paddingVertical: theme.spacing.md,
+    // 위는 큰 제목이 앱바 밑 8 에서 시작하게(관심 주제 관리 머리말과 같은 자리)
+    paddingTop: theme.spacing.sm,
+    paddingBottom: theme.spacing.md,
     gap: theme.spacing.sm,
+  },
+  // 큰 제목 — 관심 주제 관리 headline 과 같은 값(28·700)
+  headline: {
+    fontSize: theme.font.size.xl,
+    fontWeight: '700',
+    letterSpacing: -0.6,
+    color: theme.color.textPrimary,
+    lineHeight: theme.font.size.xl * 1.25,
   },
   notice: {
     fontSize: theme.font.size.sm,
@@ -284,45 +273,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: theme.color.textPrimary,
     marginTop: theme.spacing.md,
-  },
-  input: {
-    minHeight: theme.touchTarget.minHeight,
-    borderWidth: 1.5,
-    borderColor: theme.color.border,
-    borderRadius: theme.radius.md,
-    borderCurve: 'continuous',
-    paddingHorizontal: theme.spacing.md,
-    fontSize: theme.font.size.md,
-    color: theme.color.textPrimary,
-  },
-  chipRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: theme.spacing.sm,
-  },
-  chip: {
-    minHeight: theme.touchTarget.minHeight,
-    paddingHorizontal: theme.spacing.md,
-    borderRadius: theme.radius.lg + theme.radius.sm,
-    borderCurve: 'continuous',
-    borderWidth: 1.5,
-    borderColor: theme.color.border,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  chipSelected: {
-    borderColor: theme.color.primary,
-    backgroundColor: theme.color.primary,
-  },
-  chipLabel: {
-    fontSize: theme.font.size.sm,
-    // 선택 여부와 무관하게 굵기를 고정한다 — 선택 시 굵어지면 글자 폭이 변해
-    // flexWrap 줄의 뒤 칩들이 밀린다(주제 칩과 같은 규칙 — onboarding-uiux.md 7장)
-    fontWeight: '600',
-    color: theme.color.textPrimary,
-  },
-  chipLabelSelected: {
-    color: theme.color.onPrimary,
   },
   skeletonArea: {
     gap: theme.spacing.sm,

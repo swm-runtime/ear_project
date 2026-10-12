@@ -31,6 +31,19 @@ export function receiptInvalid(): BusinessException {
   });
 }
 
+/**
+ * 같은 스토어에 살아 있는 구독이 있는데 교체가 아닌 두 번째 구독을 샀다(Play — `subscription-api.md` 4.4).
+ * 구매를 확인하지 않으므로 Google이 3일 안에 자동 환불한다. 요금제 변경은 교체로 해야 한다
+ */
+export function alreadySubscribed(): BusinessException {
+  return new BusinessException({
+    status: HttpStatus.CONFLICT,
+    errorCode: ErrorCode.SUBSCRIPTION_ALREADY_SUBSCRIBED,
+    message: '이미 구독 중이에요. 요금제는 변경으로 바꿔주세요',
+    logLevel: 'info',
+  });
+}
+
 /** 스토어 확인의 일시 실패 — 클라이언트는 거래를 끝내지 않고 재시도한다 */
 export function storeUnavailable(): BusinessException {
   return new BusinessException({

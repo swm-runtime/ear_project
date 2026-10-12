@@ -22,7 +22,7 @@
   방식에서는 불가능했던 동선이다.
 
 유지되는 규칙: 화면 자동 이탈 없음, 재청취의 `user_signals(replay)` 기록, 완청 콘텐츠 재청취의
-한도 게이트 경유(차감 여부는 `changes/pending/paywall-completed-replay-limit(fe).md`의 팀 결정
+한도 게이트 경유(차감 여부는 `changes/archive/paywall-completed-replay-limit(fe).md`의 팀 결정
 대기 — 이 변경과 독립).
 
 ## 기록할 내용 (반영 완료 2026-08-09)

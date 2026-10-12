@@ -3,7 +3,7 @@
 | 항목 | 값 |
 |---|---|
 | 대상 문서 | `features/admin.md` 4장(4.7 신설) · `spec/api/admin-api.md` 3장 목록·4장 상세·5장 에러 표 · `features/drip-scheduling.md` 4.3 |
-| 요청 파트 | 문서(구현은 `tickets/backend/pending/recommend-test-console.md` PR 에서 선반영) |
+| 요청 파트 | 문서(구현은 `tickets/backend/archive/recommend-test-console.md` PR 에서 선반영) |
 | 발행 날짜 | 2026-09-29 |
 | 발견 시점 | admin 콘솔 "추천 검증"에 **추천 테스트** 탭을 만들며 — 편성 미리보기(4.16)는 읽기 전용이라 "이 행동을 하면 추천이 어떻게 바뀌나"를 실험할 수 없었다. 폰으로 행동을 넣고 새로고침하는 방식은 한 번에 몇 분씩 걸리고, 운영 계정의 신호를 오염시킨다 |
 | 심각도 | 중 — 쓰기 있는 관리자 엔드포인트가 새로 생기고, "취향 캐시는 배치만 갱신한다"(drip-scheduling 4.3)에 명시적 예외가 붙는다 |

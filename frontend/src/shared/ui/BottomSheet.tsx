@@ -5,14 +5,19 @@ import {
   Dimensions,
   Modal,
   PanResponder,
+  Platform,
   Pressable,
   StyleSheet,
+  View,
   type LayoutChangeEvent,
   type StyleProp,
   type ViewStyle,
+  type ColorValue,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useAnimatedValue } from '@/shared/hooks/useAnimatedValue';
+import { androidNavigationModeOf } from '@/shared/lib/android-navigation';
 import { motion, theme } from '@/shared/theme';
 
 /**
@@ -38,10 +43,12 @@ interface BottomSheetProps {
    * 시점이 아니라 **모달 언마운트 완료**에 걸어 둔다
    */
   onClosed?: () => void;
+  /** 퇴장 모션 후 Modal의 숨김 커밋 완료(양 플랫폼). iOS 네이티브 dismiss 대기는 onClosed를 쓴다. */
+  onHidden?: () => void;
   /** 시트 면 — 바탕색·모서리·패딩은 각 화면이 준다(플레이어 시트는 어두운 팔레트) */
   sheetStyle?: StyleProp<ViewStyle>;
   /** 딤 색 — 기본은 `color.overlay`. 플레이어 시트는 자기 팔레트의 딤을 넘긴다 */
-  dimColor?: string;
+  dimColor?: ColorValue;
   children: ReactNode;
 }
 
@@ -55,7 +62,8 @@ interface BottomSheetProps {
  * - 들어올 때: 시트는 `spring.smooth`(SwiftUI `.smooth`)로 자기 높이만큼 올라오고, 딤은 같은 진행도로 페이드된다.
  * - 나갈 때: `duration.normal` + `easeInOut` 으로 되돌린 **뒤** 모달을 내린다 — `isVisible` 이 false 가 되는
  *   순간 언마운트하면 나가는 모션이 안 보인다. 그래서 내부에 `isMounted` 를 따로 둔다.
- * - 높이를 재기 전에는 화면 밖(창 높이)에 두고 시작한다 — 첫 프레임에 제자리로 찍히는 번쩍임을 막는다.
+ * - 모달 표시(onShow)와 높이 측정이 모두 끝난 뒤 시작한다 — 네이티브 표시 전에 모션이 진행하면
+ *   투명한 시작 구간이 잘리고 이미 어두워진 딤부터 나타난다. 다시 열 때도 새 표시 완료를 기다린다.
  * - **아래로 끌어 닫는다**(PM 2026-09-27 19:55) — 손가락을 따라 내려가고 딤도 같이 밝아진다(애플 시트). 임계를
  *   넘겨 놓으면 닫히고, 아니면 제자리로 돌아온다. 끌기는 `progress` 를 직접 움직이므로 놓는 순간의 값에서
  *   이어서 닫혀 튐이 없다.
@@ -64,12 +72,24 @@ export default function BottomSheet({
   isVisible,
   onRequestClose,
   onClosed,
+  onHidden,
   sheetStyle,
   dimColor = theme.color.overlay,
   children,
 }: BottomSheetProps) {
   const [isMounted, setIsMounted] = useState(isVisible);
+  const [isPresented, setIsPresented] = useState(false);
   const [height, setHeight] = useState(0);
+  /*
+   * Android **버튼 내비게이션 바**(3버튼·2버튼, ~48dp)는 시트 아래를 덮는다 — 시트마다 바닥 여백(xl 32)은 iOS 홈 인디케이터·
+   * Android 제스처 바(16~24dp)엔 맞지만 버튼 바엔 모자라 마지막 버튼이 가려졌다(PM 2026-10-10). 그 기기만 바 높이만큼 시트
+   * 면을 늘린다(면 색이 바 밑까지 이어진다). 제스처 바·iOS 는 그대로
+   */
+  const insets = useSafeAreaInsets();
+  const buttonBarInset =
+    Platform.OS === 'android' && androidNavigationModeOf(insets.bottom) === 'buttons'
+      ? insets.bottom
+      : 0;
   /** 0 = 닫힘(화면 밖·딤 투명) · 1 = 열림. 끌 때도 이 값을 직접 움직인다 */
   const progress = useAnimatedValue(0);
   /** 제스처 콜백이 최신 값을 읽게 하는 ref — 갱신은 렌더 밖(effect)에서 한다 */
@@ -88,43 +108,61 @@ export default function BottomSheet({
   // 열리는 순간 **렌더 중에** 붙인다(React 가 권하는 파생 상태 갱신) — effect 로 미루면 한 프레임 늦게 붙어
   // 첫 스프링이 잘린다. 닫는 쪽은 나가는 모션이 끝난 뒤라 아래 effect 가 맡는다
   if (isVisible && !isMounted) setIsMounted(true);
+  // 아직 표시되지 않은 모달은 닫힘 모션 없이 걷는다.
+  if (!isVisible && isMounted && !isPresented) setIsMounted(false);
+
+  const wasMountedRef = useRef(isMounted);
+  useEffect(() => {
+    const didHide = wasMountedRef.current && !isMounted;
+    wasMountedRef.current = isMounted;
+    // Android Modal은 onDismiss를 제공하지 않는다. 숨김 커밋을 먼저 끝내고 다음 화면을 연다.
+    if (didHide) onHidden?.();
+  }, [isMounted, onHidden]);
 
   useEffect(() => {
     if (!isMounted) return;
+    if (!isPresented) return;
     if (isVisible) {
       // 높이를 재기 전에는 시작하지 않는다 — 어디서 올라올지 모르는 상태로 스프링을 걸면 튄다
       if (height === 0) return;
-      Animated.spring(progress, {
+      const animation = Animated.spring(progress, {
         toValue: 1,
         useNativeDriver: true,
         ...motion.spring.smooth,
-      }).start();
-      return;
+      });
+      animation.start();
+      return () => animation.stop();
     }
     const settle = ({ finished }: { finished: boolean }) => {
       // 모션이 끝나면 모달을 내린다 — `onClosed` 는 그 뒤 `Modal onDismiss` 가 부른다(위 prop 주석)
-      if (finished) setIsMounted(false);
+      if (finished) {
+        setIsPresented(false);
+        setIsMounted(false);
+      }
     };
     const flickVelocity = closeVelocityRef.current;
     closeVelocityRef.current = 0;
     if (flickVelocity < 0) {
       // 끌어서 닫은 경우 — 손가락 속도를 그대로 이어 스프링으로 내린다(남은 거리도 짧다)
-      Animated.spring(progress, {
+      const animation = Animated.spring(progress, {
         toValue: 0,
         velocity: flickVelocity,
         useNativeDriver: true,
         ...motion.spring.smooth,
-      }).start(settle);
-      return;
+      });
+      animation.start(settle);
+      return () => animation.stop();
     }
     // 딤 탭·버튼으로 닫은 경우 — 제자리에서 시작하므로 곡선으로 충분하다
-    Animated.timing(progress, {
+    const animation = Animated.timing(progress, {
       toValue: 0,
       duration: motion.duration.normal,
       easing: motion.easing.easeInOut,
       useNativeDriver: true,
-    }).start(settle);
-  }, [isVisible, isMounted, height, progress]);
+    });
+    animation.start(settle);
+    return () => animation.stop();
+  }, [isVisible, isMounted, isPresented, height, progress]);
 
   const handleLayout = (event: LayoutChangeEvent) => {
     const measured = Math.ceil(event.nativeEvent.layout.height);
@@ -201,6 +239,12 @@ export default function BottomSheet({
     inputRange: [0, 1],
     // 재기 전엔 창 높이 — 어떤 시트보다 크므로 확실히 화면 밖이다
     outputRange: [height > 0 ? height : Dimensions.get('window').height, 0],
+    extrapolate: 'clamp',
+  });
+  const dimOpacity = progress.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, 1],
+    extrapolate: 'clamp',
   });
 
   return (
@@ -208,11 +252,14 @@ export default function BottomSheet({
       visible={isMounted}
       transparent
       animationType="none"
+      onShow={() => {
+        if (isVisible && isMounted) setIsPresented(true);
+      }}
       onRequestClose={onRequestClose}
       onDismiss={onClosed}
       statusBarTranslucent
     >
-      <Animated.View style={[styles.dim, { backgroundColor: dimColor, opacity: progress }]}>
+      <Animated.View style={[styles.dim, { backgroundColor: dimColor, opacity: dimOpacity }]}>
         {/* 딤 자체는 낭독 대상이 아니다(라벨 없는 버튼으로 읽히면 더 나쁘다) — 닫기는 시트 안의 동작·뒤로가기로 한다 */}
         <Pressable style={StyleSheet.absoluteFill} onPress={onRequestClose} accessible={false} />
       </Animated.View>
@@ -226,7 +273,10 @@ export default function BottomSheet({
         onLayout={handleLayout}
         {...pan.panHandlers}
       >
-        <Animated.View style={sheetStyle}>{children}</Animated.View>
+        <Animated.View style={sheetStyle}>
+          {children}
+          {buttonBarInset > 0 ? <View style={{ height: buttonBarInset }} /> : null}
+        </Animated.View>
       </Animated.View>
     </Modal>
   );

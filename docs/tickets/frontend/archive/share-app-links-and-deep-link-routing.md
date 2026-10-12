@@ -5,7 +5,7 @@
 | 대상 | `frontend/app.json`(iOS `associatedDomains` · Android `intentFilters`) · 딥링크 수신 라우팅(내비게이션 — `/contents/:id` → 콘텐츠 상세) · 앱 식별 값 4종의 BE 전달 |
 | 요청 파트 | 백엔드 (공유 설계 세션에서 발행) |
 | 발행 날짜 | 2026-08-25 |
-| 발견 시점 | 2026-08-25 공유 링크 인프라 반영(랜딩 Vercel에 `/contents/:id` 리다이렉트 배포 준비 완료 — `tickets/backend/pending/share-universal-links-hosting.md` 진행 기록) |
+| 발견 시점 | 2026-08-25 공유 링크 인프라 반영(랜딩 Vercel에 `/contents/:id` 리다이렉트 배포 준비 완료 — `tickets/backend/archive/share-universal-links-hosting.md` 진행 기록) |
 | 근거 문서 | `features/share.md` 4.2~4.3(링크·수신자 처리 규칙 소유) · `spec/uiux/share-uiux.md` 4.4(수신자 화면 표현 — CD 재사용, 복귀는 라이브러리) · `content-detail.md` 2(공유 링크 수신 진입) · README 결정 48 |
 | 심각도 | **하** — P1 전제 작업. 단 **요청 1(값 전달)은 짝 티켓(BE)의 `.well-known` 파일 작성을 막고 있는 선행 항목**이라, 나머지와 분리해 먼저 처리할 수 있다 |
 | 상태 | **완료** (2026-09-08 — 완료 조건 6개 전부 충족) |
@@ -16,7 +16,7 @@
 
 남은 것은 전부 앱 쪽이다 — **앱이 설치된 기기에서 이 URL이 브라우저 대신 앱을 열고, 앱이 해당 콘텐츠의 상세 화면으로 데려가는 것.** 이것이 되어야 OS 검증 파일(`.well-known` 2종, BE가 배포)도 의미를 갖는다.
 
-**짝 티켓** — `tickets/backend/pending/share-universal-links-hosting.md`(BE: 랜딩 배포·`.well-known` 파일 작성). 파일의 값은 이 티켓의 요청 1이 공급한다. 파일과 앱 설정이 어긋나면 링크 검증이 실패하므로, 값 변경 시 서로 통지한다.
+**짝 티켓** — `tickets/backend/archive/share-universal-links-hosting.md`(BE: 랜딩 배포·`.well-known` 파일 작성). 파일의 값은 이 티켓의 요청 1이 공급한다. 파일과 앱 설정이 어긋나면 링크 검증이 실패하므로, 값 변경 시 서로 통지한다.
 
 ## 요청 내용
 
@@ -49,7 +49,7 @@
 ## 진행 기록 (2026-08-25 — 브랜치 `feat(fe)/share`, pending 유지)
 
 - **요청 2 구현 완료** — `app.json`에 `ios.bundleIdentifier`/`android.package`(`com.runtime.ear`), `associatedDomains: ["applinks:earcast.co.kr"]`, `intentFilters`(autoVerify · https · earcast.co.kr · pathPrefix `/contents`) 등록.
-- **요청 3 구현 완료** — `features/share` feature의 `useShareLinkGate`(RootNavigator 배치)가 `/contents/:id` 파싱 → 온보딩 완료 사용자만 상세(entryPoint `share`)로, 아니면 목적지 폐기(share.md 4.3 — 디퍼드 금지). 공유 링크 진입 상세의 뒤로가기·회수 복귀는 라이브러리다(share-uiux.md 4.4). SplashGate 미구현 상태라 콜드 스타트 판정을 관문 뒤로 옮기는 TODO를 게이트에 남김. entry_point `share`는 가정 계약 — `changes/pending/play-entry-point-share-value(fe).md`.
+- **요청 3 구현 완료** — `features/share` feature의 `useShareLinkGate`(RootNavigator 배치)가 `/contents/:id` 파싱 → 온보딩 완료 사용자만 상세(entryPoint `share`)로, 아니면 목적지 폐기(share.md 4.3 — 디퍼드 금지). 공유 링크 진입 상세의 뒤로가기·회수 복귀는 라이브러리다(share-uiux.md 4.4). SplashGate 미구현 상태라 콜드 스타트 판정을 관문 뒤로 옮기는 TODO를 게이트에 남김. entry_point `share`는 가정 계약 — `changes/archive/play-entry-point-share-value(fe).md`.
 - **요청 1·4 미완으로 pending 유지** — ① 값 4종 중 Apple Team ID·배포 서명 SHA-256 미확보(애플 개발자 계정 등록 대기. 번들 ID·패키지명은 `com.runtime.ear` 확정), ④ 스탠드얼론 빌드 검증은 값 전달·`.well-known` 배포 후에 가능하다.
 
 ## 진행 기록 (2026-08-26 — iOS만 검증 가능해짐)
@@ -249,7 +249,7 @@ AASA는 2026-08-26에 애플 CDN 200까지 확인됐으므로 인프라는 준�
 버퍼 소진 시 중단"이 실효를 갖지 못한다. 회수 동기화(`GET /contents/withdrawn`)가 **미구현**이라
 클라이언트가 회수 사실을 알 방법이 없다.
 
-→ `tickets/backend/pending/withdrawn-sync-stops-playback.md`
+→ `tickets/backend/archive/withdrawn-sync-stops-playback.md`
 
 ### 이 티켓의 완료 조건은 아직 미확인
 
@@ -280,7 +280,7 @@ AASA는 2026-08-26에 애플 CDN 200까지 확인됐으므로 인프라는 준�
   랜딩에 [앱에서 열기]를 두고 파서가 커스텀 스킴을 받게 해서 해결
   (`archive/share-link-in-app-browser-escape.md`).
 - **재생 중 회수해도 안 멈춘다** — 회수 동기화 엔드포인트가 미구현이다
-  (`tickets/backend/pending/withdrawn-sync-stops-playback.md`). 이 티켓의 조건은 아니다.
+  (`tickets/backend/archive/withdrawn-sync-stops-playback.md`). 이 티켓의 조건은 아니다.
 
 ### 마지막으로 확인된 회수 동작 (회귀 기준선)
 

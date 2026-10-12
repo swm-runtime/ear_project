@@ -11,7 +11,7 @@
 | 시작 날짜 | 2026-10-06 |
 | 기한 | 2026-10-09 (Low — 이번 주 안) |
 | 선행 | 없음(티켓). 발행(3종 업로드)은 KAN-141(서버 3종 저장·업로드 확장)이 받을 수 있어야 한다 — 렌더까지는 먼저 해도 된다 |
-| 근거 문서 | `tickets/backend/pending/audio-quality-tiers.md`(KAN-141) · `tickets/ai/pending/jingle-mono-loudnorm-degradation.md`(KAN-122) · `ai/spec/06-audio.md` 7장 |
+| 근거 문서 | `tickets/backend/archive/audio-quality-tiers.md`(KAN-141) · `tickets/ai/archive/jingle-mono-loudnorm-degradation.md`(KAN-122) · `ai/spec/06-audio.md` 7장 |
 | 중요도 | Low — PM 발행(2026-10-06). 중요도 미지정이라 이번 주 마감으로 잡았다 — 바꾸려면 Jira·이 표를 함께 고친다 |
 | 상태 | **완료** (2026-10-06) — 1~7번 반영(3종이 아니라 확정안 2종: AAC m4a·FLAC). 음질별 재생 확인은 KAN-143(FE)으로 이관 |
 

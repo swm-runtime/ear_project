@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import { ActivityIndicator, Modal, Pressable, StyleSheet, View } from 'react-native';
 
 import { theme } from '@/shared/theme';
+import GlassSurface, { HAS_LIQUID_GLASS } from '@/shared/ui/GlassSurface';
 import { pillButton } from '@/shared/ui/pill-button.styles';
 import { Text } from '@/shared/ui/Typography';
 
@@ -57,8 +58,10 @@ export interface ConfirmDialogProps {
  * 그쪽엔 닿지 않았다(PM 09-27 03:02 "4,5,6 디자인을 1,2,3 에 맞춰"). 셋은 이제 이 컴포넌트의 얇은 껍데기다 —
  * 제목 생략·본문 슬롯·딤 탭 차단·버튼 비활성 등 각자 갖고 있던 차이는 prop 으로 흡수했다.
  *
- * 모양: xl 24 연속 곡률, 버튼은 공용 알약(`pill-button.styles` — design.md §2), 기본 동작 검정 채움 · 보조 동작
- * surface(테두리 없음). 주 액션은 오른쪽.
+ * 모양 — **iOS 26 시스템 알림과 같은 문법**(PM 2026-10-09, 알림 권한 팝업을 보고 "우리도 이렇게"): iOS 26 은 리퀴드
+ * 글라스 면(GlassView), 큰 연속 곡률(32), 왼쪽 정렬 제목 17 굵게 · 본문 15, 높이 48 캡슐 버튼 둘을 나란히. 보조 동작은
+ * 반투명 회색 캡슐(시스템 알림 버튼과 같은 결), 주 동작은 우리 앱 주 동작 그대로 검정 채움, 주 액션은 오른쪽.
+ * 그 밑 iOS · Android 는 같은 모양에 흰 면(글라스 없음).
  */
 export default function ConfirmDialog({
   isVisible,
@@ -84,64 +87,68 @@ export default function ConfirmDialog({
         accessible={false}
       >
         <Pressable accessible={false} style={styles.dialogWrap}>
-          <View style={[styles.dialog, centered && styles.dialogCentered]} accessibilityViewIsModal>
-            {icon !== undefined ? (
-              <View accessibilityElementsHidden importantForAccessibility="no">
-                {icon}
-              </View>
-            ) : null}
-            {title !== undefined ? (
-              <Text style={[styles.title, centered && styles.textCentered]}>{title}</Text>
-            ) : null}
-            {body !== undefined ? (
-              <Text style={[styles.body, centered && styles.textCentered]}>{body}</Text>
-            ) : null}
-            {children}
-            <View style={styles.actions}>
-              {secondaryAction === undefined ? null : (
+          <View style={styles.dialogFrame} accessibilityViewIsModal>
+            {HAS_LIQUID_GLASS ? <GlassSurface style={StyleSheet.absoluteFill} /> : null}
+            <View style={[styles.dialog, centered && styles.dialogCentered]}>
+              {icon !== undefined ? (
+                <View accessibilityElementsHidden importantForAccessibility="no">
+                  {icon}
+                </View>
+              ) : null}
+              {title !== undefined ? (
+                <Text style={[styles.title, centered && styles.textCentered]}>{title}</Text>
+              ) : null}
+              {body !== undefined ? (
+                <Text style={[styles.body, centered && styles.textCentered]}>{body}</Text>
+              ) : null}
+              {children}
+              <View style={styles.actions}>
+                {secondaryAction === undefined ? null : (
+                  <Pressable
+                    style={[
+                      pillButton.base,
+                      pillButton.secondary,
+                      styles.button,
+                      HAS_LIQUID_GLASS && styles.buttonOnGlass,
+                      secondaryDisabled && styles.buttonDisabled,
+                    ]}
+                    onPress={secondaryAction.onPress}
+                    disabled={secondaryDisabled}
+                    accessibilityRole="button"
+                    accessibilityLabel={secondaryAction.label}
+                    accessibilityState={{ disabled: secondaryDisabled }}
+                  >
+                    {secondaryAction.isBusy ? (
+                      <ActivityIndicator color={theme.color.textPrimary} />
+                    ) : (
+                      <Text style={pillButton.secondaryLabel}>{secondaryAction.label}</Text>
+                    )}
+                  </Pressable>
+                )}
                 <Pressable
                   style={[
                     pillButton.base,
-                    pillButton.secondary,
+                    isDestructive ? pillButton.destructive : pillButton.primary,
                     styles.button,
-                    secondaryDisabled && styles.buttonDisabled,
+                    primaryDisabled && styles.buttonDisabled,
                   ]}
-                  onPress={secondaryAction.onPress}
-                  disabled={secondaryDisabled}
+                  onPress={primaryAction.onPress}
+                  disabled={primaryDisabled}
                   accessibilityRole="button"
-                  accessibilityLabel={secondaryAction.label}
-                  accessibilityState={{ disabled: secondaryDisabled }}
+                  accessibilityLabel={primaryAction.label}
+                  accessibilityState={{ disabled: primaryDisabled }}
                 >
-                  {secondaryAction.isBusy ? (
-                    <ActivityIndicator color={theme.color.textPrimary} />
+                  {primaryAction.isBusy ? (
+                    <ActivityIndicator color={theme.color.onPrimary} />
                   ) : (
-                    <Text style={pillButton.secondaryLabel}>{secondaryAction.label}</Text>
+                    <Text
+                      style={isDestructive ? pillButton.destructiveLabel : pillButton.primaryLabel}
+                    >
+                      {primaryAction.label}
+                    </Text>
                   )}
                 </Pressable>
-              )}
-              <Pressable
-                style={[
-                  pillButton.base,
-                  isDestructive ? pillButton.destructive : pillButton.primary,
-                  styles.button,
-                  primaryDisabled && styles.buttonDisabled,
-                ]}
-                onPress={primaryAction.onPress}
-                disabled={primaryDisabled}
-                accessibilityRole="button"
-                accessibilityLabel={primaryAction.label}
-                accessibilityState={{ disabled: primaryDisabled }}
-              >
-                {primaryAction.isBusy ? (
-                  <ActivityIndicator color={theme.color.onPrimary} />
-                ) : (
-                  <Text
-                    style={isDestructive ? pillButton.destructiveLabel : pillButton.primaryLabel}
-                  >
-                    {primaryAction.label}
-                  </Text>
-                )}
-              </Pressable>
+              </View>
             </View>
           </View>
         </Pressable>
@@ -149,6 +156,11 @@ export default function ConfirmDialog({
     </Modal>
   );
 }
+
+/** 다이얼로그 면 곡률 — iOS 26 시스템 알림처럼 크게 */
+const DIALOG_RADIUS = 32;
+/** 버튼 높이 — 시스템 알림 캡슐 버튼과 같은 48 */
+const BUTTON_HEIGHT = 48;
 
 const styles = StyleSheet.create({
   backdrop: {
@@ -161,12 +173,17 @@ const styles = StyleSheet.create({
   dialogWrap: {
     alignSelf: 'stretch',
   },
-  dialog: {
-    // 다이얼로그·바텀시트는 xl 이다 — 면이 큰 표면일수록 곡률을 키워야 같은 부드러움으로 읽힌다
-    borderRadius: theme.radius.xl,
+  // 면 — iOS 26 은 글라스가 깔리고(투명 바탕), 그 밑은 흰 면. 곡률은 시스템 알림처럼 크게(32)
+  dialogFrame: {
+    borderRadius: DIALOG_RADIUS,
     borderCurve: 'continuous',
-    backgroundColor: theme.color.background,
-    padding: theme.spacing.lg,
+    overflow: 'hidden',
+    backgroundColor: HAS_LIQUID_GLASS ? 'transparent' : theme.color.background,
+  },
+  dialog: {
+    paddingHorizontal: theme.spacing.lg,
+    paddingTop: theme.spacing.lg,
+    paddingBottom: theme.spacing.md + theme.spacing.xs,
     gap: theme.spacing.sm,
   },
   dialogCentered: {
@@ -175,16 +192,17 @@ const styles = StyleSheet.create({
   textCentered: {
     textAlign: 'center',
   },
+  // 시스템 알림의 글자 — 제목 17 굵게, 본문 15
   title: {
-    fontSize: theme.font.size.md,
+    fontSize: 17,
     fontWeight: '700',
     color: theme.color.textPrimary,
-    lineHeight: theme.font.size.md * 1.4,
+    lineHeight: 17 * 1.35,
   },
   body: {
-    fontSize: theme.font.size.sm,
+    fontSize: 15,
     color: theme.color.textSecondary,
-    lineHeight: theme.font.size.sm * 1.5,
+    lineHeight: 15 * 1.45,
   },
   actions: {
     alignSelf: 'stretch',
@@ -196,7 +214,11 @@ const styles = StyleSheet.create({
   // "검정 버튼 옆에서 선으로 그린 상자는 낡아 보인다"), 파괴적 확인은 채운 빨강(위 isDestructive 주석)
   button: {
     flex: 1,
-    minHeight: theme.touchTarget.minHeight,
+    minHeight: BUTTON_HEIGHT,
+  },
+  // 글라스 위 보조 동작 — 시스템 알림 버튼처럼 반투명 회색(흰 surface 면은 유리 위에서 뜬다)
+  buttonOnGlass: {
+    backgroundColor: theme.color.fillSecondary,
   },
   buttonDisabled: {
     opacity: 0.5,

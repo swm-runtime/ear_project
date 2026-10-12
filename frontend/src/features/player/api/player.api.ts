@@ -1,6 +1,8 @@
 import { apiClient } from '@/shared/api/api-client';
 import { getDeviceId } from '@/shared/lib/device-id';
 
+import type { AudioQuality } from '@/features/settings';
+
 import { IS_PLAY_API_MOCKED, IS_PLAYER_API_MOCKED } from '../player.constants';
 import type {
   AudioIssueResult,
@@ -64,6 +66,11 @@ const SECTION_KINDS: readonly PlayerSectionKind[] = ['intro', 'lead', 'body', 'o
 const toSectionKind = (value: string | undefined): PlayerSectionKind | null =>
   SECTION_KINDS.find((kind) => kind === value) ?? null;
 
+const AUDIO_QUALITIES: readonly AudioQuality[] = ['compressed', 'aac', 'lossless'];
+
+const toAudioQuality = (value: string | undefined): AudioQuality | null =>
+  AUDIO_QUALITIES.find((quality) => quality === value) ?? null;
+
 const toAudioIssueResult = (dto: AudioUrlsResponseDto): AudioIssueResult => ({
   content: {
     id: dto.content.id,
@@ -91,6 +98,7 @@ const toAudioIssueResult = (dto: AudioUrlsResponseDto): AudioIssueResult => ({
     url: dto.audio.url,
     expiresAt: dto.audio.expires_at,
     expiresInSec: dto.audio.expires_in_sec,
+    quality: toAudioQuality(dto.audio.quality),
   },
 });
 
@@ -135,11 +143,16 @@ export const startPlay = async (input: {
  * 서명 URL 발급 + 진입 메타(player-api.md 4.1). 재생 중 갱신도 같은 호출이다.
  * 발급은 판정을 거치되 차감하지 않는다 — 403 분기는 재생 시작과 같은 코드로 처리한다.
  */
-export const issueAudioUrls = async (input: { contentId: string }): Promise<AudioIssueResult> => {
+export const issueAudioUrls = async (input: {
+  contentId: string;
+  /** 재생 중 갱신이면 처음 받은 음질 — 처음 발급은 비운다(설정 선택값을 서버가 읽는다) */
+  quality?: AudioQuality | null;
+}): Promise<AudioIssueResult> => {
   if (IS_PLAYER_API_MOCKED) {
     return toAudioIssueResult(await mockIssueAudioUrls(input.contentId));
   }
   const body: AudioUrlsRequestDto = { device_id: await getDeviceId() };
+  if (input.quality != null) body.quality = input.quality;
   const { data } = await apiClient.post<AudioUrlsResponseDto>(
     `/contents/${input.contentId}/audio-urls`,
     body,

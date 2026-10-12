@@ -59,7 +59,7 @@
 | `admin.earcast.co.kr` A | `54.116.31.183` (**AI 서버**) | 관리자 콘솔 = 파이프라인 웹(`/publish` 제품 발행·주제·회수 + 백엔드 로그 콘솔). 2026-09-03 통합(PR #86) — `pipeline.earcast.co.kr` 레코드는 삭제됨. 2026-09-15 실측 |
 | `<token>._domainkey` CNAME ×3 | SES DKIM — **검증 완료**(값은 SES 콘솔·memory 참조) | 이메일 인증 발송 |
 | `@` TXT | `v=spf1 include:amazonses.com ~all` (2026-09-07) | SPF |
-| `_dmarc` TXT | `v=DMARC1; p=none; rua=mailto:runtime364@gmail.com` (2026-09-07) | DMARC — **`p=none`은 관찰 단계 값**. 2주 리포트 확인 후 상향(`tickets/backend/pending/email-spf-dmarc-records.md`, KAN-31) |
+| `_dmarc` TXT | `v=DMARC1; p=none; rua=mailto:runtime364@gmail.com` (2026-09-07) | DMARC — **`p=none`은 관찰 단계 값**. 2주 리포트 확인 후 상향(`tickets/backend/archive/email-spf-dmarc-records.md`, KAN-31) |
 | `earcast.co.kr` (루트) | Vercel | 랜딩 — 이 문서 범위 밖 |
 
 > **TXT 저장 후 값을 `repr()`로 확인하라.** 2026-09-07 SPF 첫 저장이 **앞 공백 하나** 때문에 무효였다(RFC 7208 — 레코드는 `v=spf1`로 시작해야 한다). DNS 조회 결과를 눈으로 보면 공백이 안 보여 정상처럼 읽힌다.

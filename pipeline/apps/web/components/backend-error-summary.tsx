@@ -7,6 +7,10 @@ import { useCallback, useEffect, useState } from "react";
  *
  * 묶는 기준(시그니처): 메시지에서 매번 달라지는 부분(숫자·uuid·해시·따옴표 값)을 지운
  * 나머지 골격. 완벽한 분류가 아니라 "무슨 에러가 몇 번"을 한눈에 보기 위한 근사다.
+ *
+ * 서버는 창을 **최신부터** 조각내 모으고 상한(이벤트 3,000·왕복 40)에 걸리면 멈춘다
+ * (`lib/backend-error-collect.ts`). 그래서 응답의 `coveredFrom`·`exhausted` 로 "창 전체를 봤다" 또는
+ * "상한에 걸려 어느 시각 이후만 봤다"를 상단에 밝힌다 — 안 밝히면 잘린 창이 온전한 창으로 읽힌다.
  */
 
 const GROUPS = [
@@ -21,6 +25,8 @@ const RANGES = [
 ];
 
 type LogEvent = { t: number; message: string };
+/** 서버가 창을 어디까지 봤는가 — 상단 문구의 근거 */
+type Coverage = { coveredFrom: number; windowFrom: number; exhausted: boolean; pages: number };
 type ErrorGroup = {
   signature: string;
   level: "error" | "warn";
@@ -55,6 +61,7 @@ export function BackendErrorSummary() {
   const [withWarn, setWithWarn] = useState(false);
   const [groups, setGroups] = useState<ErrorGroup[]>([]);
   const [total, setTotal] = useState(0);
+  const [coverage, setCoverage] = useState<Coverage | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [openSig, setOpenSig] = useState<string | null>(null);
@@ -66,7 +73,7 @@ export function BackendErrorSummary() {
         `/api/backend-logs?mode=errors&group=${group}&minutes=${minutes}&warn=${withWarn ? "1" : "0"}`,
         { cache: "no-store" },
       );
-      const body = (await res.json()) as { events?: LogEvent[]; message?: string };
+      const body = (await res.json()) as Partial<Coverage> & { events?: LogEvent[]; message?: string };
       if (!res.ok) { setError(body.message ?? `조회 실패 (${res.status})`); return; }
 
       const bySig = new Map<string, ErrorGroup>();
@@ -83,6 +90,11 @@ export function BackendErrorSummary() {
       }
       setGroups([...bySig.values()].sort((a, b) => b.count - a.count || b.lastSeen - a.lastSeen));
       setTotal((body.events ?? []).length);
+      setCoverage(
+        body.windowFrom !== undefined && body.coveredFrom !== undefined
+          ? { coveredFrom: body.coveredFrom, windowFrom: body.windowFrom, exhausted: body.exhausted === true, pages: body.pages ?? 0 }
+          : null,
+      );
       setError(null);
     } catch {
       setError("네트워크 오류 — 잠시 후 다시 시도하세요");
@@ -91,6 +103,8 @@ export function BackendErrorSummary() {
     }
   }, [group, minutes, withWarn]);
 
+  // 열 때·조건이 바뀔 때 1회 불러온다 — load 가 먼저 "불러오는 중"을 켜서 규칙에 걸리지만 그게 목적이다
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { void load(); }, [load]);
 
   const chip = (active: boolean) =>
@@ -121,6 +135,19 @@ export function BackendErrorSummary() {
 
       {error && (
         <div className="mb-3 rounded border border-red-200 bg-red-50 px-3 py-2 text-[13px] text-red-700">{error}</div>
+      )}
+
+      {!loading && !error && coverage && (
+        coverage.exhausted ? (
+          <p className="mb-3 text-[12px] text-ink-soft">
+            창 전체({timeFmt.format(new Date(coverage.windowFrom))} 이후)를 다 봤습니다 · CloudWatch 조회 {coverage.pages}회
+          </p>
+        ) : (
+          <div className="mb-3 rounded border border-amber-200 bg-amber-50 px-3 py-2 text-[12px] text-amber-800">
+            수집 상한에 걸려 <b>{timeFmt.format(new Date(coverage.coveredFrom))} 이후</b>만 전부 봤습니다 — 그 이전은 일부만 들어
+            있습니다(조회 {coverage.pages}회). 기간을 줄이면 창 전체를 볼 수 있습니다.
+          </div>
+        )
       )}
 
       {!loading && !error && groups.length === 0 && (

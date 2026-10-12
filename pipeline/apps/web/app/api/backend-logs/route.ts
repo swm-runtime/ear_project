@@ -6,6 +6,7 @@ import {
 } from "@aws-sdk/client-cloudwatch-logs";
 import { currentUser } from "@/lib/supabase-server";
 import { collectRequestLogs, LogEvent } from "@/lib/backend-request-log";
+import { collectErrorLogs } from "@/lib/backend-error-collect";
 
 /**
  * 백엔드(제품 API EC2) 컨테이너 로그 조회 — CloudWatch Logs 경유 (Supabase 로그인 필수).
@@ -14,6 +15,13 @@ import { collectRequestLogs, LogEvent } from "@/lib/backend-request-log";
  * (`backend/docker-compose.prod.yml` · `backend/deploy/aws/README.md` "로그 → CloudWatch").
  * 여기서는 그 스트림의 꼬리(tail)를 읽는다 — 자격은 AI 서버 EC2 인스턴스 롤(logs:GetLogEvents)이며
  * 키를 env 에 두지 않는다(storage.ts 의 S3 와 같은 방식).
+ *
+ * 세 모드가 있고 응답 모양이 다르다:
+ * - `tail`(기본) — `GetLogEvents` 최신 `limit` 줄. `token` 을 주면 그 토큰부터 과거로 이어 읽는다
+ *   ([이전 로그 더 보기]). 응답 `{ events, nextToken, windowFrom, exhausted }`.
+ * - `errors` — `FilterLogEvents` 로 ERROR(·WARN)만. 창을 최신부터 조각내 끝까지 모은다
+ *   (`lib/backend-error-collect.ts`). 응답 `{ events, coveredFrom, windowFrom, exhausted, pages }`.
+ * - `requests` — 요청 로그를 건수 기준으로 모은다(`lib/backend-request-log.ts`).
  */
 const GROUPS: Record<string, { group: string; stream: string }> = {
   api: { group: process.env.BACKEND_LOG_GROUP_API ?? "/ear/api", stream: "api" },
@@ -23,7 +31,8 @@ const GROUPS: Record<string, { group: string; stream: string }> = {
  * GetLogEvents 의 이벤트 상한(=CloudWatch 상한). **줄 수이지 요청 수가 아니다** — Nest
  * ConsoleLogger 가 compact:false 로 요청 로그 객체를 8줄에 나눠 찍고 awslogs 가 줄마다
  * 이벤트를 만들어서, 1,000줄이면 대시보드·요청 통계가 요청 125건만 보고 그렸다.
- * 실시간 로그 뷰어는 여전히 기본 300줄만 당긴다(자기 limit 을 보낸다).
+ * 실시간 로그 뷰어는 기간 버튼이 줄 한도도 함께 정해 보낸다(15분 500 … 24시간 10,000).
+ * 한 번에 1MB 를 넘으면 CloudWatch 가 그보다 적게 주므로, 뷰어는 `nextToken` 으로 더 당긴다.
  */
 const MAX_LIMIT = 10_000;
 const MAX_MINUTES = 7 * 24 * 60; // 보관 7일 — 그보다 과거는 어차피 없다
@@ -37,6 +46,21 @@ const MAX_MINUTES = 7 * 24 * 60; // 보관 7일 — 그보다 과거는 어차�
 const REQUEST_TARGET_DEFAULT = 1_500;
 const REQUEST_TARGET_MAX = 5_000;
 const MAX_PAGES = 6;
+
+/**
+ * errors 모드의 상한. `FilterLogEvents` 는 창의 오래된 쪽부터 1MB 씩 읽고 끊어서, 한 번만 부르면
+ * "24시간 창"이 24시간 전부터 한두 시간치가 된다(2026-10-08 — 24시간 → 3일 → 24시간을 누르면
+ * 있던 에러가 사라지던 원인). 수집기가 창을 최신부터 조각내 끝까지 따라가되, 누적 이벤트·총 왕복을
+ * 여기서 막는다. 7일 창은 상한에 걸릴 수 있고 그때 화면이 `coveredFrom` 으로 어디까지 봤는지 밝힌다.
+ */
+const ERROR_EVENTS_MAX = 3_000;
+const ERROR_PAGES_MAX = 40;
+/** 조각 4개씩 병렬 + 8초 예산 — 순차로는 24시간 12회·7일 40회 왕복이 10~40초라 화면이 멈춘 듯 보였다(2026-10-08) */
+const ERROR_CONCURRENCY = 4;
+const ERROR_BUDGET_MS = 8_000;
+
+/** tail 한 페이지의 메시지 바이트가 이보다 작으면 1MB 상한에 잘린 것이 아니다(아래 `tailExhausted`) */
+const TAIL_FULL_PAGE_BYTES = 800_000;
 
 let client: CloudWatchLogsClient | undefined;
 const getClient = () =>
@@ -64,23 +88,46 @@ export async function GET(req: NextRequest) {
   // 개발 전용 스텁 — AWS 없이 화면을 확인한다. 운영 빌드(NODE_ENV=production)에서는 절대 켜지지 않는다
   if (process.env.NODE_ENV !== "production" && process.env.BACKEND_LOGS_STUB === "1") {
     const events = buildStubEvents(sp.get("group") ?? "api", mode, withWarn);
-    if (mode !== "requests") return NextResponse.json({ events });
-    return requestsResponse(async () => ({ events }), sp, minutes);
+    const windowFrom = Date.now() - minutes * 60_000;
+    if (mode === "errors")
+      return NextResponse.json({ events, coveredFrom: windowFrom, windowFrom, exhausted: true, pages: 1 });
+    if (mode === "requests") return requestsResponse(async () => ({ events }), sp, minutes);
+    // tail — 토큰은 "끝에서 몇 줄을 이미 줬는가". 더 보기 버튼을 스텁으로도 눌러볼 수 있게 페이지를 나눈다
+    const served = Number(sp.get("token")) || 0;
+    const end = Math.max(0, events.length - served);
+    const page = events.slice(Math.max(0, end - limit), end);
+    return NextResponse.json({
+      events: page,
+      nextToken: String(served + page.length),
+      windowFrom,
+      exhausted: end - page.length <= 0,
+    });
   }
 
   try {
     if (mode === "errors") {
-      const out = await getClient().send(
-        new FilterLogEventsCommand({
-          logGroupName: target.group,
-          logStreamNames: [target.stream],
-          startTime: Date.now() - minutes * 60_000,
-          filterPattern: withWarn ? "?ERROR ?FATAL ?WARN" : "?ERROR ?FATAL",
-          limit: Math.min(2000, limit * 4),
-        }),
+      const now = Date.now();
+      const windowFrom = now - minutes * 60_000;
+      const { events, coveredFrom, exhausted, pages } = await collectErrorLogs(
+        async (range, token) => {
+          const out = await getClient().send(
+            new FilterLogEventsCommand({
+              logGroupName: target.group,
+              logStreamNames: [target.stream],
+              startTime: range.startTime,
+              endTime: range.endTime,
+              filterPattern: withWarn ? "?ERROR ?FATAL ?WARN" : "?ERROR ?FATAL",
+              ...(token ? { nextToken: token } : {}),
+            }),
+          );
+          return {
+            events: (out.events ?? []).map((e) => ({ t: e.timestamp ?? 0, message: clean(e.message) })),
+            nextToken: out.nextToken,
+          };
+        },
+        { windowFrom, now, maxEvents: ERROR_EVENTS_MAX, maxPages: ERROR_PAGES_MAX, concurrency: ERROR_CONCURRENCY, budgetMs: ERROR_BUDGET_MS },
       );
-      const events = (out.events ?? []).map((e) => ({ t: e.timestamp ?? 0, message: clean(e.message) }));
-      return NextResponse.json({ events });
+      return NextResponse.json({ events, coveredFrom, windowFrom, exhausted, pages });
     }
 
     if (mode === "requests") {
@@ -103,17 +150,26 @@ export async function GET(req: NextRequest) {
       }, sp, minutes);
     }
 
+    // tail — 첫 호출은 최신 `limit` 줄, `token`(이전 응답의 nextToken)이 오면 거기서 과거로 이어 읽는다
+    const token = sp.get("token") || undefined;
+    const windowFrom = Date.now() - minutes * 60_000;
     const out = await getClient().send(
       new GetLogEventsCommand({
         logGroupName: target.group,
         logStreamName: target.stream,
-        startTime: Date.now() - minutes * 60_000,
+        startTime: windowFrom,
         limit,
-        startFromHead: false, // 최신부터 = tail
+        startFromHead: false, // 최신부터 = tail. nextBackwardToken 이 과거 방향이다
+        ...(token ? { nextToken: token } : {}),
       }),
     );
     const events = (out.events ?? []).map((e) => ({ t: e.timestamp ?? 0, message: clean(e.message) }));
-    return NextResponse.json({ events });
+    return NextResponse.json({
+      events,
+      nextToken: out.nextBackwardToken,
+      windowFrom,
+      exhausted: tailExhausted(events, limit, token, out.nextBackwardToken),
+    });
   } catch (error) {
     const name = error instanceof Error ? error.name : "";
     if (name === "ResourceNotFoundException")
@@ -131,6 +187,21 @@ export async function GET(req: NextRequest) {
       { status: 502 },
     );
   }
+}
+
+/**
+ * tail 페이지가 창의 시작에 닿았는가.
+ * - 이어 읽기(token 있음)에서 GetLogEvents 는 끝에 닿으면 **같은 토큰**을 돌려준다(빈 페이지).
+ * - 첫 페이지는 토큰으로 알 수 없다. `limit` 보다 적게 왔고 메시지 바이트도 1MB 근처가 아니면
+ *   줄 수가 모자라서 적게 온 것이지 1MB 에 잘린 것이 아니므로 창 안 전부다. 1MB 근처면 더 있을 수
+ *   있다고 보고 뷰어가 [더 보기]로 확인하게 둔다 — 여기서 한 번 더 부르면 폴링마다 왕복이 는다.
+ */
+function tailExhausted(events: LogEvent[], limit: number, token: string | undefined, next: string | undefined): boolean {
+  if (events.length === 0) return true;
+  if (token && next === token) return true;
+  if (events.length >= limit) return false;
+  const bytes = events.reduce((n, e) => n + e.message.length, 0);
+  return bytes < TAIL_FULL_PAGE_BYTES;
 }
 
 const wantedTarget = (sp: URLSearchParams) =>
@@ -207,9 +278,10 @@ function buildStubEvents(group: string, mode: "tail" | "errors" | "requests", wi
       .flatMap((message, i) => Array.from({ length: 8 }, (_, k) => ({ t: now - (8 - k) * 60_000 + i, message })));
   }
 
+  // 120건 × 9줄 ≈ 1,100줄 — 15분 버튼(500줄)에서 [이전 로그 더 보기]가 실제로 나오게 한다
   const events: LogEvent[] = [];
-  for (let i = 0; i < 60; i++) {
-    const t = now - (60 - i) * 20_000;
+  for (let i = 0; i < 120; i++) {
+    const t = now - (120 - i) * 10_000;
     events.push(...requestRecord(t, i));
     if (i % 7 === 0) events.push({ t: t + 12, message: noise[i % noise.length] });
   }

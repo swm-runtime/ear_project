@@ -7,7 +7,7 @@
 | 발행 날짜 | 2026-09-28 |
 | 시작 날짜 | 2026-09-28 |
 | 기한 | 2026-10-02 (Low — 이번 주 안) |
-| 선행 | `changes/pending/profile-topic-distribution-bars.md`(같은 4.6 절 — 함께 반영) · 2단계는 PM 결정 대기(아래 "남은 결정") |
+| 선행 | `changes/archive/profile-topic-distribution-bars.md`(같은 4.6 절 — 함께 반영) · 2단계는 PM 결정 대기(아래 "남은 결정") |
 | 중요도 | Low — 1단계는 배치만 바뀌고 데이터·비율 규칙은 그대로 |
 
 ## 배경

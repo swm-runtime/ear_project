@@ -137,23 +137,26 @@ export default function TopicFilterSheet({
           <View style={styles.chipWrap}>
             {topics.map((topic) => {
               const isSelected = selectedIds.includes(topic.id);
+              // 하나라도 골랐으면 안 고른 칩을 흐린다 — 고른 칩만 제 색(탐색 칩과 같다)
+              const isDimmed = selectedIds.length > 0 && !isSelected;
               return (
                 <Pressable
                   key={topic.id}
-                  style={styles.topicChip}
+                  style={[styles.topicChip, isDimmed && styles.topicChipDimmed]}
                   onPress={() => toggle(topic.id)}
                   accessibilityRole="checkbox"
                   accessibilityState={{ checked: isSelected }}
                   accessibilityLabel={topic.name}
                 >
                   {/* 주제 칩은 사진 알약이다(design.md 주제 칩 — 온보딩·탐색과 같은 문법, PM 2026-09-27 19:31).
-                      선택은 짙어진 막 — 상태·출처 칩은 주제가 아니라 사진이 없으므로 종전 테두리 알약 그대로다 */}
+                      선택 표시는 **안 고른 칩을 흐리는 것**(PM 2026-10-09 — 탐색 칩과 같이). 고른 칩의 막을 짙게 하던 방식은
+                      사진이 원래 어두운 칩(경제·IT·개발)에서 차이가 안 보였다. 상태·출처 칩은 사진이 없어 종전 테두리 알약 그대로다 */}
                   <Image
                     source={topicImageSource(topic.name)}
                     resizeMode="cover"
                     style={styles.topicPhoto}
                   />
-                  <View style={[styles.topicOverlay, isSelected && styles.topicOverlaySelected]} />
+                  <View style={styles.topicOverlay} />
                   <Text style={styles.topicChipLabel} numberOfLines={1}>
                     {topic.name}
                   </Text>
@@ -255,7 +258,8 @@ const styles = StyleSheet.create({
     minHeight: theme.touchTarget.minHeight,
     justifyContent: 'center',
     paddingHorizontal: theme.spacing.md,
-    borderRadius: theme.radius.xl,
+    // 알약 — 공용 알약(pillButton)과 같은 full. xl(24)은 높이 44 에선 반원이지만 큰 글자로 48 을 넘으면 둥근 사각이 됐다(2026-10-11)
+    borderRadius: theme.radius.full,
     borderCurve: 'continuous',
     borderWidth: 1,
     borderColor: theme.color.border,
@@ -281,9 +285,14 @@ const styles = StyleSheet.create({
     minHeight: theme.touchTarget.minHeight,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: theme.radius.xl,
+    // 위 chip 과 같은 알약 반지름(full)
+    borderRadius: theme.radius.full,
     borderCurve: 'continuous',
     overflow: 'hidden',
+  },
+  // 다른 주제를 골랐을 때 — 사진 밝기와 무관하게 고른 칩이 튄다(탐색 칩 UNSELECTED_OPACITY 와 같은 값)
+  topicChipDimmed: {
+    opacity: 0.4,
   },
   /** 사진 — inset 과 퍼센트 크기를 함께 준다(웹은 inset 만으로 원본 800×320 이 남는다) */
   topicPhoto: {
@@ -303,17 +312,13 @@ const styles = StyleSheet.create({
     bottom: 0,
     backgroundColor: 'rgba(0, 0, 0, 0.34)',
   },
-  /** 선택 — 막만 짙어진다(온보딩·탐색 칩과 같은 토큰) */
-  topicOverlaySelected: {
-    backgroundColor: theme.color.photoScrim,
-  },
   topicChipLabel: {
     // 칩이 아니라 라벨이 좌우 여백을 갖는다 — 위 topicChip 주석 참고
     paddingHorizontal: theme.spacing.md,
     fontSize: theme.font.size.sm,
     // 선택 여부와 무관하게 굵기를 고정한다 — 굵히면 칩 폭이 변해 뒤 칩들이 밀린다
     fontWeight: '700',
-    color: theme.color.onPrimary,
+    color: theme.color.onPhoto,
     textShadowColor: theme.color.photoTextShadow,
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 4,

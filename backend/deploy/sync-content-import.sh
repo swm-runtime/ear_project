@@ -22,7 +22,7 @@ set -euo pipefail
 # 크론과 SSH forced command 는 PATH 가 짧다 — aws CLI(/usr/local/bin)를 못 찾는 경우를 막는다
 export PATH="/usr/local/bin:/usr/bin:/bin:${PATH:-}"
 
-TABLES=(topics contents content_topics content_sources content_embeddings content_stats content_scripts)
+TABLES=(topics contents content_topics content_sources content_embeddings content_stats content_scripts content_audio_renditions)
 BUCKET="${CONTENT_SYNC_BUCKET:-earcast-backup-prod}"
 PREFIX="${CONTENT_SYNC_PREFIX:-content-sync}"
 LOCK=/tmp/ear-content-import.lock
@@ -82,7 +82,9 @@ BEGIN
       ('content_stats',      'content_id, period_type, period_start'),
       -- 콘텐츠당 1행(uq_content_scripts_content_id). **자체 id 가 아니라 content_id 로 충돌을 잡는다** —
       -- 대본 행의 id 는 운영과 개발계가 다를 수 있다(KAN-83)
-      ('content_scripts',    'content_id')
+      ('content_scripts',    'content_id'),
+      -- 콘텐츠 × 음질 1행(uq_content_audio_renditions_content_id_quality). id 가 아니라 (content_id, quality) 로 충돌을 잡는다(2026-10-07)
+      ('content_audio_renditions', 'content_id, quality')
     ) AS t(tbl, conflict_cols)
   LOOP
     SELECT string_agg(quote_ident(column_name), ', ' ORDER BY ordinal_position),
@@ -106,6 +108,11 @@ DELETE FROM public.content_topics ct
 DELETE FROM public.content_scripts cs
  WHERE cs.content_id IN (SELECT id FROM sync_stage.contents)
    AND NOT EXISTS (SELECT 1 FROM sync_stage.content_scripts s WHERE s.content_id = cs.content_id);
+-- 운영에서 사라진 음질 행(재발행으로 교체된 경로): 스테이지에 온 콘텐츠의 옛 행만 걷어낸다(2026-10-07) — 남겨 두면
+-- 발급이 지워진 S3 키로 서명 URL 을 만든다
+DELETE FROM public.content_audio_renditions r
+ WHERE r.content_id IN (SELECT id FROM sync_stage.contents)
+   AND NOT EXISTS (SELECT 1 FROM sync_stage.content_audio_renditions s WHERE s.content_id = r.content_id AND s.quality = r.quality);
 SQL
 
 # 3) 검증 — 운영이 센 행 수(매니페스트)만큼 개발계에도 들어왔는지 본다.

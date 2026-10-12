@@ -6,7 +6,7 @@
 | 요청 파트 | 백엔드 |
 | 요청자 | 박준현(백엔드) |
 | 발행 날짜 | 2026-10-05 |
-| 관련 티켓 | `tickets/frontend/pending/signup-trial-notice-existing-users.md`([KAN-121](https://runtime364.atlassian.net/browse/KAN-121)) — 팝업 조건이 함께 바뀐다. 원 팝업 티켓은 KAN-119(반영 완료, PR #1123) |
+| 관련 티켓 | `tickets/frontend/archive/signup-trial-notice-existing-users.md`([KAN-121](https://runtime364.atlassian.net/browse/KAN-121)) — 팝업 조건이 함께 바뀐다. 원 팝업 티켓은 KAN-119(반영 완료, PR #1123) |
 
 ## 수정 내용
 

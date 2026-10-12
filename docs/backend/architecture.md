@@ -335,6 +335,7 @@ class BusinessException extends HttpException {
 
 - `message`는 **사용자 노출용**이다. 내부 사유·스택·테이블명·쿼리를 절대 담지 않는다.
 - 예상하지 못한 5xx는 `error_code: "INTERNAL_ERROR"`, `message: "일시적인 오류가 발생했어요"`로 고정한다. 내부 정보 유출 방지.
+- **본문 파서(body-parser) 오류는 5xx가 아니다.** 파서가 Nest 파이프라인 밖에서 던지는 raw Error(`type` + 4xx `status`)는 그 상태로 답한다 — `entity.*`(413 본문 한도 초과·400 JSON 파싱 실패) · `request.aborted`(400, 전송 중단 — info·`retryable: true`) · `charset.unsupported`·`encoding.unsupported`(415) · `parameters.too.many`(413) · `request.size.invalid`·`querystring.parse.rangeError`(400). `error_code`는 상태별 매핑(없으면 `VALIDATION_FAILED`), 로그는 warn이고 Sentry로 보내지 않는다. `type`으로 먼저 거르므로 `status`를 가진 다른 Error(외부 HTTP 클라이언트 오류 등)는 종전대로 500이다(`common/filters/all-exceptions.filter.ts`, 2026-10-07·2026-10-10).
 - `trace_id`는 요청 단위로 생성해 응답 헤더(`X-Trace-Id`)와 모든 로그에 함께 남긴다. 클라이언트는 문의 대응용으로 화면에 작게 노출할 수 있다.
 
 **규격 밖 추가 필드** — 클라이언트가 화면을 그리는 데 값이 더 필요한 에러에 한해, 위 5개 필드 옆에 **평면(flat)으로 추가 필드를 실을 수 있다.**
@@ -438,7 +439,7 @@ async withdraw(userId: string) {
 | 동일 콘텐츠 중복 적립 (FR-16) | `(user_id, content_id)` unique 제약 + 위반 시 정상 흐름으로 흡수 |
 | 무료 하루 2편 재생 카운트 | 원자적 증가(`UPDATE ... SET count = count + 1 WHERE count < limit`)로 판정과 증가를 한 문장에 |
 | 결제·영수증 중복 검증 | 영수증 고유값 unique 제약 + 멱등 처리 |
-| 클라이언트 재시도로 인한 중복 생성 | `Idempotency-Key` 헤더 저장 테이블(키 unique). 같은 키 재요청은 **저장된 첫 응답을 그대로 반환** |
+| 클라이언트 재시도로 인한 중복 생성 | `Idempotency-Key` 헤더 저장 테이블(키 unique). 같은 키 재요청은 **저장된 첫 응답을 그대로 반환**. 키가 없거나 컬럼 길이(255자)를 넘으면 저장 전에 400 `VALIDATION_FAILED`(2026-10-10 — 넘긴 키가 22001로 500이 됐다) |
 | 구독 상태 동시 변경 | 낙관적 락(`@VersionColumn`) 또는 행 잠금(`SELECT ... FOR UPDATE`) |
 
 - **유니크 위반 예외를 도메인 흐름으로 흡수할 수 있는 경우 예외로 만들지 않는다.** 예: 중복 적립은 "이미 있음"으로 처리하고 200을 반환한다.
@@ -479,6 +480,8 @@ async withdraw(userId: string) {
 
 - **refresh token은 사용 시 회전(rotation)한다.** 이전 토큰은 즉시 무효화하고, 이미 쓰인 토큰이 재사용되면 해당 사용자의 세션 전체를 무효화한다(탈취 감지).
   - **회전은 원자적이어야 한다**(반영 2026-09-09). 조회 → 무효화 → 발급을 나눠 하면 완전 동시 요청 둘이 **모두 통과해 탐지를 우회**하고, 근소 직렬 요청은 **정상 사용자를 강제 로그아웃**시킨다. 실서버에서 두 사례 모두 발생했다. 무효화를 `revoked_at IS NULL` 조건부 갱신으로 두고 **그 성공 여부로 판정한다.**
+  - **폐기(UPDATE)와 새 세션 발급(INSERT)은 한 트랜잭션이다**(반영 2026-10-10). INSERT가 실패하면 폐기도 롤백돼 옛 토큰이 살아 있다 — 갈라지면 그 기기는 살아 있는 세션 없이 남아 재로그인해야 했다.
+  - **탈취로 보는 것은 "회전으로 폐기된" 토큰의 재제출뿐이다**(반영 2026-10-10, KAN-167). 폐기 때 사유(`sessions.revoked_reason` — domain.md 3.3)를 함께 남기고, 갱신은 사유가 `rotated`(또는 사유가 없는 컬럼 도입 전 행)일 때만 REUSED + 세션 전체 무효화를 한다. **로그아웃(`logout`)·재사용 감지로 함께 끊긴(`reuse_detected`) 세션의 토큰은 `AUTH_REFRESH_TOKEN_INVALID`만** 돌려주고 다른 세션을 건드리지 않는다 — 로그아웃 204 직후 로컬 삭제 전에 자동 갱신이 옛 토큰을 보내는 정상 경합이 다른 기기까지 로그아웃시키던 결함을 막는다.
   - **유예창(reuse interval)은 두지 않는다 — 다만 폐기가 아니라 보류다**(결정 2026-09-10). 회전 직후 짧은 창 안의 재사용을 탐지에서 빼는 방식(Auth0 등)을 검토했다. 위 원자화와 클라이언트의 single-flight 갱신으로 실측된 두 사례가 이미 닫히므로 **지금 도입할 이유가 없고**, 도입하려면 `sessions`에 회전 시각·후속 세션 참조가 필요해 스키마가 함께 움직인다(domain.md 3.3). 정상 경합이 다시 로그아웃으로 번지는 것이 관측되면 그때 인증 작업에 묶어 도입한다.
 - 로그아웃·회원 탈퇴 시 저장된 refresh token을 삭제한다.
 - 401 응답은 `common-error-handling.md` 4.1의 자동 갱신 흐름과 맞물린다. 갱신 실패는 재갱신 여지 없이 명확히 실패시킨다(무한 루프 방지).
@@ -532,6 +535,7 @@ PRD FR-33 / 비기능 "저작권·파트너 계약 준수"에 직접 대응한�
 | `/auth/social-login` · `/auth/sign-up` · `/auth/token/refresh` | IP (토큰이 있어도) | **분당 20회** | 정상 앱은 실행당 1~2회. 제공자 API 호출 비용·크리덴셜 스터핑 방어 |
 | `/users/me/email-verifications` (발송) | 사용자 | **분당 5회** | 앱 레벨 상한(주소당 5회·계정당 시간당 20회)의 앞단 방어 |
 | `/contents/:id/audio-urls` (서명 URL 발급) | 사용자 | **분당 30회** | 정상 재생은 5분마다 1회 갱신. 대량 다운로드 패턴 차단(9.4) — 이상 탐지 배치 전까지의 1차 방어 |
+| `/users/me/subscription/invite-codes` (초대 코드 입력) | 사용자 | **분당 10회** | 정상 입력은 오타 재입력 포함 한두 번. 코드 추측 대입의 앞단 방어(`subscription-api.md` 4.8-1, 2026-10-10) |
 | `/health` | — | 제외 | 헬스체크·모니터링 |
 | `GET /app/version` | IP (**인증 없는 공개 라우트**) | 전역 기본 한도(분당 300회) | 실행 관문이 로그인 전에 부른다(`settings-api.md` 4.6, 2026-09-26). 응답은 env 두 값의 비교뿐이라 DB를 읽지 않는다 |
 | `POST /auth/pipeline-login` | — | 전역 기본 한도만(라우트별 한도 없음) | HS256 비밀 32바이트·유효 2분이라 온라인 추측 불가. 일관성 위해 인증 한도 적용은 하 등급 코드 항목(2026-09-26) |

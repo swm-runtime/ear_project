@@ -6,20 +6,20 @@ import type { ExecRequest, ExecResult, Executor, Progress } from "./types.js";
  * OpenAI 실행기 (실험, 2026-09-19 박수헌: "API 전환 비용 절감 확인 + GPT 로 바꿨을 때 대본 차이 확인").
  * - `EXECUTOR=openai`. 키는 썸네일과 같은 OPENAI_API_KEY. Responses API 직접 호출(SDK 없음) + 구조화 출력(json_schema strict).
  * - **단발 호출만** 지원한다(tools: []). 설계·대본·수정·QA·비평·군집화 v2 가 전부 단발이라 전 단계를 덮고, 도구가 필요한 작업(보강 스윕 WebSearch)은 거절한다.
- * - 단계 env(DRAFT_WRITE_MODEL 등)가 claude 이름이면 동급 GPT 로 사상한다(아래 MODEL_MAP — 단가 기준 동급: opus-5 $5/$25 ↔ gpt-5.6-sol $4/$20,
- *   sonnet-5 ↔ gpt-5.6-terra $2/$12, fable-5-1 $10/$50 ↔ gpt-6-astra $10/$50, haiku ↔ gpt-5.6-luna). gpt- 로 시작하면 그대로 쓴다.
+ * - 단계 env(DRAFT_WRITE_MODEL 등)가 claude 이름이면 GPT 로 사상한다(아래 MODEL_MAP). 2026-10-09 박수헌: 전부 gpt-6.1-sol($2/$0.10/$10) 하나로 —
+ *   종전 opus ↔ gpt-5.6-sol · sonnet ↔ gpt-5.6-terra · fable ↔ gpt-6-astra · haiku ↔ gpt-5.6-luna. 이름 앞부분으로 고르므로 claude-opus-5-5 도 opus 로 간다. gpt- 로 시작하면 그대로 쓴다.
  * - 프롬프트 캐시는 OpenAI 가 자동(앞부분 동일 접두사) — 시스템 프롬프트(규칙·골드)를 첫 메시지로 보내 캐시가 걸리게 한다. 비용은 usage × 단가표(2026-09-19 docs 기준)로 환산해 runs.cost_usd 에 남긴다.
  * - raw.usage 는 claude 형식(cache_read_input_tokens · output_tokens_details.thinking_tokens)으로 맞춰 기존 비용 분석 스크립트가 그대로 읽게 한다.
  */
 const MODEL_MAP: Record<string, string> = {
-  "claude-opus-5": process.env.OPENAI_MODEL_OPUS || "gpt-5.6-sol",
-  "claude-sonnet-5": process.env.OPENAI_MODEL_SONNET || "gpt-5.6-terra",
-  "claude-fable-5-1": process.env.OPENAI_MODEL_FABLE || "gpt-6-astra",
-  "claude-haiku-4-5-20251001": process.env.OPENAI_MODEL_HAIKU || "gpt-5.6-luna",
+  "claude-opus-5": process.env.OPENAI_MODEL_OPUS || "gpt-6.1-sol",
+  "claude-sonnet-5": process.env.OPENAI_MODEL_SONNET || "gpt-6.1-sol",
+  "claude-fable-5-1": process.env.OPENAI_MODEL_FABLE || "gpt-6.1-sol",
+  "claude-haiku-4-5-20251001": process.env.OPENAI_MODEL_HAIKU || "gpt-6.1-sol",
 };
-/** $/M tokens — input · cached input · output (developers.openai.com/api/docs/pricing, 2026-09-19. sol 은 11/21 까지 프로모션가) */
+/** $/M tokens — input · cached input · output (developers.openai.com/api/docs/pricing, 2026-09-19 · GPT-6 계열 2026-10-09 추가. gpt-5.6-sol 은 11/21 까지 프로모션가) */
 const PRICE: Record<string, [number, number, number]> = {
-  "gpt-6-astra": [10, 1, 50], "gpt-5.6-sol": [4, 0.4, 20], "gpt-5.6-terra": [2, 0.2, 12], "gpt-5.6-luna": [0.2, 0.02, 1.2],
+  "gpt-6-astra": [10, 1, 50], "gpt-6.1-sol": [2, 0.1, 10], "gpt-6-sol": [2, 0.2, 10], "gpt-6-luna": [0.1, 0.01, 0.5], "gpt-5.6-sol": [4, 0.4, 20], "gpt-5.6-terra": [2, 0.2, 12], "gpt-5.6-luna": [0.2, 0.02, 1.2],
   "gpt-5.4": [2.5, 0.25, 15], "gpt-5.4-mini": [0.75, 0.075, 4.5], "gpt-5.4-nano": [0.2, 0.02, 1.25],
   "gpt-5.1": [1.25, 0.125, 10], "gpt-5": [1.25, 0.125, 10], "gpt-5-mini": [0.25, 0.025, 2], "gpt-5-nano": [0.05, 0.005, 0.4],
 };

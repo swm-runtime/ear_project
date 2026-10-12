@@ -9,7 +9,7 @@ import { useOnboardingStore } from '../store/onboarding.store';
 
 /**
  * 완료 요청 오케스트레이션(architecture.md 3.2 Domain Service).
- * - 요청은 [담기]/[건너뛰기] 시점에 나가고 결과는 store로 공유한다 — 화면 전환과 분리.
+ * - 요청은 완료 대기 화면(O13)이 뜰 때 나가고 결과는 store로 공유한다 — 화면 전환과 분리.
  * - 멱등키는 온보딩 세션당 1개를 재사용한다: 자동·수동 재시도가 편성을 중복 트리거하면 안 된다(onboarding-api.md 4.7).
  * - `onboarding_complete` 이벤트(analytics.md 3.4)의 재료(주제 수·커리어 입력 여부·시작 시각)는 각 단계가
  *   여기 적어 두고, 완료 응답이 오면 한 번에 보낸다 — 화면은 서로의 값을 모른다.

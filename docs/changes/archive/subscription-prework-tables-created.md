@@ -6,7 +6,7 @@
 | 요청 파트 | 백엔드 |
 | 요청자 | 박준현(백엔드) |
 | 발행 날짜 | 2026-09-26 |
-| 관련 티켓 | `tickets/backend/pending/subscription-receipt-verification.md`([KAN-40](https://runtime364.atlassian.net/browse/KAN-40)) |
+| 관련 티켓 | `tickets/backend/archive/subscription-receipt-verification.md`([KAN-40](https://runtime364.atlassian.net/browse/KAN-40)) |
 
 ## 수정 내용
 

@@ -7,7 +7,7 @@
 | 발행 날짜 | 2026-09-17 |
 | 발견 시점 | 2026-09-17 "앱에서 알림이 안 온다" 문의 조사 — 운영 빌드에서 권한·토큰 조회가 모두 스텁이었다 |
 | 근거 문서 | `features/notification.md`(FR-19, P1) 4.1·4.2·4.4·4.5·8 · `frontend/architecture.md` 포그라운드 복귀 동기화 표·딥링크 절 · **`changes/archive/push-expo-and-discovery-in-drip-alert.md`(Expo Push 결정 — 2026-09-17 문서 반영 완료)** · `spec/api/onboarding-api.md` 4.9 · `features/paywall.md` 4.2(딥링크 재생 게이트) |
-| 연관 | `tickets/backend/pending/push-drip-arrival-sender.md` — 서버 발송 코드도 아직 없다. **두 티켓이 모두 끝나야 알림이 간다** |
+| 연관 | `tickets/backend/archive/push-drip-arrival-sender.md` — 서버 발송 코드도 아직 없다. **두 티켓이 모두 끝나야 알림이 간다** |
 | 심각도 | **하** — P1 기능 미구현. 장애가 아니다 |
 | 우선순위 | Low(이번 주 안) |
 | 상태 | **완료**(2026-09-20) — 개발계 앱에서 완료 조건 7개 확인. 운영 빌드는 미출시 |

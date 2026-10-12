@@ -46,7 +46,7 @@
 ## 결정 필요 (infra 판단 요청)
 
 - **스킬(개발자 로컬)의 접근 경로** — 선택지: ① API 서버와 같은 망에 두고 개발자는 VPN/SSH 터널로 접근 ② 공개 리슨 + `INTERNAL_AUTH_TOKEN` + IP 제한. 임베딩은 대본이 오가는 경로라(파트너 저작물 — `architecture.md` 9.4) HTTPS 종단이 필요하면 ②에서도 TLS 프록시를 앞에 둔다.
-- **backend API 서버와의 배치 관계** — 추후 NestJS가 이 서버를 부르므로(`architecture.md` 1장) 같은 네트워크/VPC가 편하다. `tickets/backend/pending/api-server-deployment.md`(API 서버 배포)와 함께 보면 좋다.
+- **backend API 서버와의 배치 관계** — 추후 NestJS가 이 서버를 부르므로(`architecture.md` 1장) 같은 네트워크/VPC가 편하다. `tickets/backend/archive/api-server-deployment.md`(API 서버 배포)와 함께 보면 좋다.
 
 ## 완료 조건
 
@@ -58,7 +58,7 @@
 
 ## 진행 기록
 
-- 2026-09-01 — 발행. 코드·테스트는 `feat(ai)/embedding-server` 브랜치에서 완성(로컬 uvicorn 기동·계약 테스트 통과). 모델 확정 시 env 3종 교체 + 발행분 전량 재생성은 별도 티켓(`tickets/backend/pending/metadata-pipeline-after-script-quality.md`)이 다룬다.
+- 2026-09-01 — 발행. 코드·테스트는 `feat(ai)/embedding-server` 브랜치에서 완성(로컬 uvicorn 기동·계약 테스트 통과). 모델 확정 시 env 3종 교체 + 발행분 전량 재생성은 별도 티켓(`tickets/backend/archive/metadata-pipeline-after-script-quality.md`)이 다룬다.
 
 ## 처리 기록
 

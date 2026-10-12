@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 
-import { theme } from '@/shared/theme';
+import { useThemePalette } from '@/shared/theme';
 
 /** 페이드 높이 — 카드 한 장을 덮지 않을 만큼만 둔다 */
 const FADE_HEIGHT = 32;
@@ -23,6 +23,8 @@ export default function ScrollFade() {
    * 그려진다(2026-09-19 아이폰 실기기에서 같은 패턴의 플레이어 그라데이션으로 확인). 웹은 퍼센트로 동작한다
    */
   const [width, setWidth] = useState(0);
+  // 그라데이션 끝 색 — SVG 는 문자열 색만 받는다(다크 모드, 2026-10-10)
+  const background = useThemePalette().background;
   return (
     <View
       style={styles.fade}
@@ -34,8 +36,8 @@ export default function ScrollFade() {
       <Svg width={width} height={FADE_HEIGHT}>
         <Defs>
           <LinearGradient id="scrollFade" x1="0" y1="0" x2="0" y2="1">
-            <Stop offset="0" stopColor={theme.color.background} stopOpacity={0} />
-            <Stop offset="1" stopColor={theme.color.background} stopOpacity={1} />
+            <Stop offset="0" stopColor={background} stopOpacity={0} />
+            <Stop offset="1" stopColor={background} stopOpacity={1} />
           </LinearGradient>
         </Defs>
         <Rect x="0" y="0" width={width} height={FADE_HEIGHT} fill="url(#scrollFade)" />

@@ -4,7 +4,6 @@
  */
 export { default as TopicSelectScreen } from './screens/TopicSelectScreen';
 export { default as CareerScreen } from './screens/CareerScreen';
-export { default as PickScreen } from './screens/PickScreen';
 export { default as FirstDripWaitingScreen } from './screens/FirstDripWaitingScreen';
 export { default as CompleteScreen } from './screens/CompleteScreen';
 export { default as TopicSelectSkeleton } from './components/TopicSelectSkeleton';
@@ -15,4 +14,3 @@ export { ONBOARDING_COPY } from './onboarding.copy';
 export type { OnboardingStackParamList, OnboardingState, OnboardingStep } from './onboarding.types';
 // 연차 구간 enum — 커리어 값의 원 정의를 재사용한다(career.md 3장, profile 요약 표시가 쓴다)
 export type { YearsOfExperience } from './onboarding.types';
-export { default as FirstRunTutorial } from './components/FirstRunTutorial';

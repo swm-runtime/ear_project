@@ -1,6 +1,8 @@
-import { toServiceDate, toServiceDayRange } from './service-date.util';
-
-const DAY_MS = 24 * 60 * 60 * 1000;
+import {
+  serviceDateStart,
+  shiftServiceDate,
+  toServiceDate,
+} from './service-date.util';
 
 /**
  * 가입 체험(`subscription.md` 4.8 — 신규 가입자에게 일정 기간 무제한 청취)의 **시각 규칙을 이 파일에만 둔다.**
@@ -15,13 +17,15 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 /**
  * 가입 시각 → 체험 종료 시각(**배타 경계**).
  *
- * 가입한 서비스 날짜를 1일째로 세어 `days`일째의 서비스 날짜가 끝나는 04:00 KST다.
- * 10월 3일 15:00 가입·7일이면 10월 3일~9일이 체험이고 10월 10일 04:00에 끝난다.
+ * 가입한 서비스 날짜를 1일째로 세어 `days`일째의 서비스 날짜가 끝나는 경계(04:00 KST, 전환 뒤 05:00)다.
+ * 10월 3일 15:00 가입·7일이면 10월 3일~9일이 체험이고 10월 10일 경계에 끝난다.
+ *
+ * **라벨을 옮긴 뒤 그 라벨의 시작 시각을 쓴다** — `시작 + days × 24h`로 더하면 경계 전환일(04:00 시작 → 다음 날 05:00,
+ * 25시간)에 받은 체험이 D+days **04:00**에 끝나, 그 날 경계(05:00)까지 한 시간 동안 체험 중 재생이 한도에 잡힌다
+ * (2026-10-09 전체 검증 — `paywall.md` 4.1 "체험은 경계에 끝난다"). 전환이 없는 날에는 두 계산이 같다.
  */
 export function resolveSignupTrialEndsAt(signedUpAt: Date, days: number): Date {
-  const { start } = toServiceDayRange(signedUpAt);
-
-  return new Date(start.getTime() + days * DAY_MS);
+  return serviceDateStart(shiftServiceDate(toServiceDate(signedUpAt), days));
 }
 
 /**

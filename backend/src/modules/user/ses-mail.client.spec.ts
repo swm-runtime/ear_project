@@ -12,10 +12,14 @@ interface SentEmailInput {
 }
 
 const sendMock = jest.fn<Promise<unknown>, [{ input: SentEmailInput }]>();
+const clientConfigs: unknown[] = [];
 
 jest.mock('@aws-sdk/client-sesv2', () => ({
   SESv2Client: class {
     send = sendMock;
+    constructor(config: unknown) {
+      clientConfigs.push(config);
+    }
   },
   SendEmailCommand: class {
     constructor(readonly input: unknown) {}
@@ -36,6 +40,21 @@ describe('SesMailClient', () => {
   beforeEach(() => {
     sendMock.mockReset();
     sendMock.mockResolvedValue({});
+  });
+
+  it('SES 호출에 연결·응답 시간 상한을 둔다 — 무제한 대기면 멱등 리스(60초)가 먼저 풀려 메일이 두 번 갈 수 있다', () => {
+    clientConfigs.length = 0;
+
+    buildClient();
+
+    expect(clientConfigs[0]).toMatchObject({
+      region: 'ap-northeast-2',
+      requestHandler: {
+        connectionTimeout: 3_000,
+        requestTimeout: 10_000,
+        throwOnRequestTimeout: true,
+      },
+    });
   });
 
   describe('sendVerificationCode', () => {

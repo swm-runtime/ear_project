@@ -21,7 +21,7 @@
 1. 콘솔에서 **발행된 콘텐츠(제품 `contents`)를 대상으로** 메타 부여를 재실행할 수 있게 한다 — 입력은 그 에피소드의 대본(`script.md`)·제목·설명·주제명·origin, 산출은 `enrichment.json`(`schema_version: 2`).
 2. 산출물을 `PATCH /admin/contents/:id`에 **`enrichment_file`만** 첨부해 전송한다(다른 파트를 보내면 버전이 올라 전 사용자 재생 위치가 폐기된다 — 4.10).
 3. 응답의 `enrichment_applied` / `enrichment_rejected_reason`을 콘솔에 그대로 보여준다(거부 사유는 운영자용 문구).
-4. 여러 건 일괄 실행을 지원한다 — 대상 선정은 `tickets/ai/pending/enrichment-schema-version-indicator.md`의 표시와 연결.
+4. 여러 건 일괄 실행을 지원한다 — 대상 선정은 `tickets/ai/archive/enrichment-schema-version-indicator.md`의 표시와 연결.
 
 ## 완료 조건
 

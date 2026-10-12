@@ -12,7 +12,7 @@ export default function LoadingOverlay({ visible }: LoadingOverlayProps) {
 
   return (
     <View style={styles.overlay} accessibilityLabel="로딩 중">
-      <ActivityIndicator size="large" color={theme.color.onPrimary} />
+      <ActivityIndicator size="large" color={theme.color.onPhoto} />
     </View>
   );
 }

@@ -1,7 +1,12 @@
 import { describe, expect, it } from '@jest/globals';
 
 import { PLAYER_COPY } from './player.copy';
-import { chapterSegmentsOf, currentSectionOf, sectionDisplayOf } from './player.section';
+import {
+  chapterIndexOf,
+  chapterSegmentsOf,
+  currentSectionOf,
+  sectionDisplayOf,
+} from './player.section';
 
 const SECTIONS = [
   { startSec: 0, title: '인트로', kind: 'intro' as const, summary: null },
@@ -65,6 +70,19 @@ describe('sectionDisplayOf — 구역 이름 + 요약(PM 2026-10-07)', () => {
     expect(
       sectionDisplayOf({ startSec: 0, title: '본문', kind: null, summary: null }, copy),
     ).toEqual({ heading: '지금 듣는 구간', detail: '본문' });
+  });
+});
+
+describe('chapterIndexOf — 끄는 위치의 구간 번호(경계 진동)', () => {
+  it('0초가 아닌 시작 시각 중 위치 이하인 것을 센다', () => {
+    expect(chapterIndexOf([0, 20, 60], 0)).toBe(0);
+    expect(chapterIndexOf([0, 20, 60], 19.9)).toBe(0);
+    expect(chapterIndexOf([0, 20, 60], 20)).toBe(1);
+    expect(chapterIndexOf([0, 20, 60], 600)).toBe(2);
+  });
+
+  it('구간이 없으면 늘 0 — 진동하지 않는다', () => {
+    expect(chapterIndexOf([], 300)).toBe(0);
   });
 });
 

@@ -8,7 +8,7 @@
 | 발행 날짜 | 2026-09-16 |
 | Jira | [KAN-65](https://runtime364.atlassian.net/browse/KAN-65) |
 | 발견 시점 | 2026-09-16 23:00 KST 배포 흐름 전환(KAN-62) — 이후 **dev 머지는 개발계(`api-dev.earcast.co.kr`)에만 배포**되고 운영은 dev→main PR로만 반영된다. 앱 OTA(`eas-update.yml`)는 이번 전환에서 건드리지 않아 preview·production 채널 모두 계속 **운영 API**를 본다 → dev에 머지된 백엔드 변경을 폰의 앱으로는 확인할 수 없다(로컬 Metro로만 가능) |
-| 근거 문서 | `docs/tickets/infra/pending/dev-environment-and-main-deploy.md`(KAN-62 결정 6·미결 "앱 preview 빌드") · `docs/infra/runbook.md` 4장 · `docs/frontend/architecture.md`(환경변수 `EXPO_PUBLIC_API_BASE_URL`) |
+| 근거 문서 | `docs/tickets/infra/archive/dev-environment-and-main-deploy.md`(KAN-62 결정 6·미결 "앱 preview 빌드") · `docs/infra/runbook.md` 4장 · `docs/frontend/architecture.md`(환경변수 `EXPO_PUBLIC_API_BASE_URL`) |
 | 중요도 | **Medium** — 3일 안에 방법 결정. 서버 배포 전환은 이 결정과 무관하게 진행되며, 결정 전까지 개발계 확인은 로컬 실행으로 한다 |
 | 상태 | **완료**(2026-09-20) — A 선택 후 개발계 앱을 별도 번들로 분리(KAN-76) |
 

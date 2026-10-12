@@ -4,7 +4,7 @@
 |---|---|
 | 대상 문서 | `docs/features/partner-control.md` 4.1(사전 제외 지정) · "사용하는 것" 표의 `content_control_requests` 행 |
 | 발행 날짜 | 2026-09-10 |
-| 발견 시점 | `tickets/backend/pending/missing-domain-tables.md` 결정 — `content_control_requests` 테이블을 MVP에서 만들지 않기로 함(안 (b)). `domain.md` 10.2는 백엔드가 같은 날 개정했다 |
+| 발견 시점 | `tickets/backend/archive/missing-domain-tables.md` 결정 — `content_control_requests` 테이블을 MVP에서 만들지 않기로 함(안 (b)). `domain.md` 10.2는 백엔드가 같은 날 개정했다 |
 | 요청 파트 | 백엔드 |
 
 ## 왜 필요한가

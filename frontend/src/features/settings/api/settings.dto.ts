@@ -26,6 +26,8 @@ export interface SettingsPlanDto {
    * 선택 필드로 둔다 — 필드를 아직 안 보내는 서버(운영 반영 전)에서는 없을 수 있고, 그때는 null로 읽는다
    */
   trial?: SettingsPlanTrialDto | null;
+  /** 예약된 요금제 변경(profile-api.md 4.1 "`plan.pending_plan`" — 같은 조립 함수, 2026-10-08 KAN-161). 없거나 null 이면 예약 없음 */
+  pending_plan?: { tier: string; plan_name: string; effective_at: string } | null;
 }
 
 export interface SettingsPlanTrialDto {
@@ -45,10 +47,16 @@ export interface SettingsInterestSummaryDto {
   top_topics: SettingsTopicDto[];
 }
 
+export type AudioQualityDto = 'compressed' | 'aac' | 'lossless';
+
 export interface UserSettingsDto {
   default_playback_rate: number;
   is_auto_expand_enabled: boolean;
   is_drip_notification_enabled: boolean;
+  /** 적용 중인 음질(4.1·4.2, KAN-141). 옛 서버 응답에는 없다 */
+  preferred_audio_quality?: string;
+  /** 음질 선택지 — 조회(4.1)에만 있고 저장 응답(4.2)에는 없다 */
+  audio_qualities?: { quality: string; allowed: boolean }[];
 }
 
 export interface MarketingConsentDto {
@@ -78,6 +86,7 @@ export interface UpdateSettingsRequestDto {
   default_playback_rate?: number;
   is_auto_expand_enabled?: boolean;
   is_drip_notification_enabled?: boolean;
+  preferred_audio_quality?: AudioQualityDto;
   client_seq: number;
 }
 

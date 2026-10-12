@@ -3,6 +3,7 @@ import type { ReactNode } from 'react';
 import { Text as RNText } from 'react-native';
 
 import type { SubscriptionStatusVM } from '../hooks/subscription-status';
+import { scheduledChangeNotice } from '../hooks/subscription-status';
 import { SUBSCRIPTION_COPY } from '../subscription.copy';
 import CurrentSubscriptionDetail from './CurrentSubscriptionDetail';
 
@@ -35,73 +36,65 @@ const allText = (renderer: Renderer): string[] =>
     .findAll((node) => node.type === RNText && typeof node.props.children === 'string')
     .map((node) => node.props.children as string);
 
-/** 누를 수 있는 요소(Pressable — 함수 컴포넌트 쪽) */
-const buttonByLabel = (renderer: Renderer, label: string) =>
+/** 누를 수 있는 요소 — 카드 안에는 하나도 없어야 한다(PM 2026-10-08) */
+const pressables = (renderer: Renderer) =>
   renderer.root.findAll(
-    (node) =>
-      typeof node.type !== 'string' &&
-      node.props.accessibilityLabel === label &&
-      typeof node.props.onPress === 'function',
+    (node) => typeof node.type !== 'string' && typeof node.props.onPress === 'function',
   );
 
-const renderDetail = (status: SubscriptionStatusVM | null, onOpenStore = jest.fn()) =>
-  render(
-    <CurrentSubscriptionDetail
-      status={status}
-      isError={false}
-      onRetry={jest.fn()}
-      isRetrying={false}
-      onOpenStore={onOpenStore}
-    />,
-  );
+const renderDetail = (status: SubscriptionStatusVM | null, isError = false) =>
+  render(<CurrentSubscriptionDetail status={status} isError={isError} />);
 
-describe('CurrentSubscriptionDetail — 이용 중 카드 안 구독 정보(KAN-146)', () => {
-  it('유료 구독자면 다음 결제일과 누를 수 있는 [구독 해지]를 그린다', () => {
-    // given
-    const onOpenStore = jest.fn();
-    const renderer = renderDetail(
-      {
-        kind: 'subscribed',
-        planName: 'Daily',
-        renewsAt: '2026-11-01T03:00:00.000Z',
-        pendingPlan: null,
-        otherStore: null,
-      },
-      onOpenStore,
-    );
-
-    // when
-    const cancel = buttonByLabel(renderer, SUBSCRIPTION_COPY.manage.cancel);
-    act(() => (cancel[0].props.onPress as () => void)());
-
-    // then
-    expect(allText(renderer)).toContain(
-      SUBSCRIPTION_COPY.status.renewsAt('2026-11-01T03:00:00.000Z'),
-    );
-    expect(cancel.length).toBeGreaterThan(0);
-    expect(cancel[0].props.disabled).toBeFalsy();
-    expect(onOpenStore).toHaveBeenCalledTimes(1);
-    act(() => renderer.unmount());
-  });
-
-  it('해지 예약이면 "N월 N일까지 이용 가능해요"와 [구독 다시 시작]을 그린다', () => {
+describe('CurrentSubscriptionDetail — 이용 중 카드 안 구독 정보(KAN-146) · 버튼 없음(PM 2026-10-08)', () => {
+  it('유료 구독자면 다음 결제일만 글자로 그린다 — [구독 해지] 같은 버튼은 없다', () => {
     // given · when
     const renderer = renderDetail({
-      kind: 'cancelScheduled',
-      planName: 'Pro',
-      expiresAt: '2026-11-01T03:00:00.000Z',
+      kind: 'subscribed',
+      planName: 'Daily',
+      renewsAt: '2026-11-01T03:00:00.000Z',
+      pendingPlan: null,
       otherStore: null,
     });
 
     // then
     expect(allText(renderer)).toContain(
-      SUBSCRIPTION_COPY.status.cancelScheduled('2026-11-01T03:00:00.000Z'),
+      SUBSCRIPTION_COPY.status.renewsAt('2026-11-01T03:00:00.000Z'),
     );
-    expect(buttonByLabel(renderer, SUBSCRIPTION_COPY.manage.resume).length).toBeGreaterThan(0);
+    expect(pressables(renderer)).toHaveLength(0);
     act(() => renderer.unmount());
   });
 
-  it('다른 스토어 구독이면 안내만 두고 스토어 버튼을 그리지 않는다', () => {
+  it('해지 예약 날짜와 변경 내용을 현재 요금제에 표시하고 관리 버튼은 추가하지 않는다', () => {
+    // given · when
+    const status: SubscriptionStatusVM = {
+      kind: 'cancelScheduled',
+      planName: 'Pro',
+      expiresAt: '2026-11-01T03:00:00.000Z',
+      otherStore: null,
+    };
+    const notice = scheduledChangeNotice(status, 'Light');
+    const renderer = render(
+      <CurrentSubscriptionDetail status={status} isError={false} scheduledChange={notice} />,
+    );
+
+    // then
+    expect(allText(renderer)).toContain(notice!.title);
+    expect(allText(renderer)).toContain(notice!.detail);
+    expect(pressables(renderer)).toHaveLength(0);
+    act(() => renderer.unmount());
+  });
+
+  it('결제 문제면 경고 글자만 — [결제 수단 확인]은 목록 아래 버튼이 맡는다', () => {
+    // given · when
+    const renderer = renderDetail({ kind: 'grace', planName: 'Pro', otherStore: null });
+
+    // then
+    expect(allText(renderer).join(' ')).toContain(SUBSCRIPTION_COPY.status.paymentIssueTitle);
+    expect(pressables(renderer)).toHaveLength(0);
+    act(() => renderer.unmount());
+  });
+
+  it('다른 스토어 구독이면 안내 글자만 둔다', () => {
     // given · when
     const renderer = renderDetail({
       kind: 'subscribed',
@@ -113,7 +106,41 @@ describe('CurrentSubscriptionDetail — 이용 중 카드 안 구독 정보(KAN-
 
     // then
     expect(allText(renderer)).toContain(SUBSCRIPTION_COPY.status.otherStore('play_store'));
-    expect(buttonByLabel(renderer, SUBSCRIPTION_COPY.manage.cancel)).toHaveLength(0);
+    expect(pressables(renderer)).toHaveLength(0);
+    act(() => renderer.unmount());
+  });
+
+  it('조회 실패면 안내 글자만 — [다시 시도]를 두지 않는다(화면 복귀 때 다시 받는다)', () => {
+    // given · when
+    const renderer = renderDetail(null, true);
+
+    // then
+    expect(allText(renderer)).toContain(SUBSCRIPTION_COPY.status.loadError);
+    expect(pressables(renderer)).toHaveLength(0);
+    act(() => renderer.unmount());
+  });
+
+  it('Android 다운그레이드 예약 안내(note)는 글자 한 줄로 그린다 — 버튼 없음', () => {
+    // given · when
+    const note = SUBSCRIPTION_COPY.status.revertAfterChange('2026-11-08T03:00:00Z', 'Daily');
+    const renderer = render(
+      <CurrentSubscriptionDetail
+        status={{
+          kind: 'subscribed',
+          planName: 'Pro',
+          renewsAt: null,
+          pendingPlan: { tier: 'daily', planName: 'Daily', effectiveAt: '2026-11-08T03:00:00Z' },
+          otherStore: null,
+        }}
+        isError={false}
+        note={note}
+      />,
+    );
+
+    // then
+    expect(allText(renderer)).toContain(note);
+    expect(note).toContain('Daily로 바뀐 뒤 다시 올릴 수 있어요');
+    expect(pressables(renderer)).toHaveLength(0);
     act(() => renderer.unmount());
   });
 

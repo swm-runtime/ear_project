@@ -12,9 +12,8 @@ import { exitOnboarding } from '../services/onboarding-exit.service';
 import { useOnboardingStore } from '../store/onboarding.store';
 
 /**
- * O9 완료 — 완료 요청은 3단계 종료 시점에 이미 나갔다(onboarding-uiux.md 4.6).
- * 1건 이상 경로에서는 요청이 아직 인플라이트인 채로 이 화면이 떠 있을 수 있으므로
- * [시작하기]를 버튼 로딩 상태로 두고 중복 탭을 차단한다.
+ * O9 완료 — 완료 요청은 완료 대기 화면(O13)이 이미 쐈다(onboarding-uiux.md 4.6). 요청이 아직 인플라이트인 채로
+ * 이 화면이 떠 있을 수 있으므로 진행을 로딩 상태로 두고 중복을 차단한다.
  */
 export const useCompleteScreen = () => {
   const topicsQuery = useTopicsQuery();
@@ -23,7 +22,7 @@ export const useCompleteScreen = () => {
   const completionStatus = useOnboardingStore((s) => s.completionStatus);
   const [isRouting, setIsRouting] = useState(false);
 
-  // 뒤로가기로 3단계에 돌아가지 못한다(onboarding-uiux.md 4.6)
+  // 뒤로가기로 입력 단계에 돌아가지 못한다(onboarding-uiux.md 4.6)
   useFocusEffect(
     useCallback(() => {
       const subscription = BackHandler.addEventListener('hardwareBackPress', () => true);
@@ -41,7 +40,7 @@ export const useCompleteScreen = () => {
   const handleStartPress = async () => {
     if (isProcessing) return;
     // 완료 요청이 실패해 있으면 [시작하기]가 재시도를 겸한다 — 완료 처리 없이 진행하면
-    // 다음 실행에서 온보딩이 되살아난다(서버 재개 지점이 pick에 머문다)
+    // 다음 실행에서 온보딩이 되살아난다(서버 재개 지점이 pick 에 머문다 — 완료 대기로 다시 온다)
     if (completionStatus === 'error') {
       onboardingCompletionService.request();
       return;

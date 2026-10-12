@@ -10,7 +10,7 @@
 | 발행 날짜 | 2026-10-06 |
 | 시작 날짜 | 2026-10-06 |
 | 기한 | 2026-10-09 (Medium — 3일 안) |
-| 선행 | 없음(티켓). 짝 BE 티켓 KAN-147(`tickets/backend/pending/plan-display-names-free-current.md` — 이름·설명 변경, 무료 요금제 `action=current`)은 선행이 아니다 — 앱은 서버가 준 `action`·`name`을 그대로 그린다. 사람 손: 투명 배경 이어 로고 PNG(NAS `Run-Time/이어/이어_로고/이어_로고_투명_512.png` — 상태: 저장소 반입 대기) |
+| 선행 | 없음(티켓). 짝 BE 티켓 KAN-147(`tickets/backend/archive/plan-display-names-free-current.md` — 이름·설명 변경, 무료 요금제 `action=current`)은 선행이 아니다 — 앱은 서버가 준 `action`·`name`을 그대로 그린다. 사람 손: 투명 배경 이어 로고 PNG(NAS `Run-Time/이어/이어_로고/이어_로고_투명_512.png` — 상태: 저장소 반입 대기) |
 | 근거 문서 | `spec/uiux/subscription-uiux.md` · `frontend/design.md` §2(모서리·연속 곡률) · `spec/api/subscription-api.md`(`action`) · App Store 심사 3.1.1(구매 복원) |
 | 중요도 | Medium — 1.2.0 묶음 빌드(KAN-120 결제 화면 첫 공개) 전에 들어가야 한다. JS 만이라 OTA 로도 나간다 |
 | 상태 | 완료 |
@@ -100,7 +100,7 @@
 
 **3. 버그** — `UndoSnackbar` `undoLabel` `primary` → `onPrimary`
 
-**4. 문서** — `spec/uiux/subscription-uiux.md`(SB1 골격·이용 중 카드 안 구독 정보 표·SB2 카드·4.5 문구·글머리·링크 줄·4.6 페이월·접근성) · `settings-uiux.md`(항목 이름) · `profile-uiux.md`·`auth-uiux.md`(목적지 이름) · `frontend/design.md`(§1 회색 단계 토큰, §2 "텍스트 버튼 = 알약, 면 = 둥근 사각" + 공용 스타일 위치, §5 버튼 줄). `features/`·`spec/api/`·`wireframe/auth.html` 의 "구독 관리" 이름은 `changes/pending/plan-management-screen-rename(fe).md` 로 요청
+**4. 문서** — `spec/uiux/subscription-uiux.md`(SB1 골격·이용 중 카드 안 구독 정보 표·SB2 카드·4.5 문구·글머리·링크 줄·4.6 페이월·접근성) · `settings-uiux.md`(항목 이름) · `profile-uiux.md`·`auth-uiux.md`(목적지 이름) · `frontend/design.md`(§1 회색 단계 토큰, §2 "텍스트 버튼 = 알약, 면 = 둥근 사각" + 공용 스타일 위치, §5 버튼 줄). `features/`·`spec/api/`·`wireframe/auth.html` 의 "구독 관리" 이름은 `changes/archive/plan-management-screen-rename(fe).md` 로 요청
 
 **검증** — `npx tsc --noEmit` · `npx eslint src` · `npx jest`(350 통과). 새 테스트: `PlanList.test.tsx`(이용 중 회색·[이용 중]·검정 알약 [구독하기]·기능 줄/광고 없음·`current` 없으면 [이용 중]·구독 정보 없음) · `CurrentSubscriptionDetail.test.tsx`(구독자 다음 결제일 + 누를 수 있는 [구독 해지]·해지 예약·다른 스토어·무료) · `SubscriptionLegalNotice.test.tsx`(링크 줄 순서·[구매 복원] 동작·`·` 낭독 제외·진행 중 비활성) · `ConfirmDialog.test.tsx`(주·보조·파괴 알약) · `settings.copy.test.ts`. JS 만 — 네이티브·runtimeVersion 변경 없음(OTA), EAS 빌드 없음
 

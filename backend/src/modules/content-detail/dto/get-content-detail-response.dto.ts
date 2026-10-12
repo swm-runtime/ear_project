@@ -43,6 +43,8 @@ class ContentDetailContentDto {
   readonly thumbnail_url: string;
   readonly content_version: number;
   readonly topics: ContentDetailTopicDto[];
+  /** 화면 해시태그('#' 없이 — 붙이는 것은 화면). 없으면 빈 배열 (KAN-162) */
+  readonly tags: string[];
   readonly series: ContentDetailSeriesDto | null;
   readonly origin: ContentOrigin;
   readonly author_name: string | null;
@@ -81,6 +83,7 @@ export class GetContentDetailResponseDto {
           id: topic.id,
           name: topic.name,
         })),
+        tags: content.tags ?? [],
         // 단일 콘텐츠는 셋 다 null이다(domain.md 5.1) — 화면은 null 판정 하나로 줄을 생략한다
         series: content.seriesId
           ? {

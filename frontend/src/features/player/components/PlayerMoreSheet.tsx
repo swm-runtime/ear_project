@@ -1,4 +1,4 @@
-import { Pressable, StyleSheet, View } from 'react-native';
+import { Platform, Pressable, StyleSheet, View } from 'react-native';
 
 import { theme } from '@/shared/theme';
 import BottomSheet from '@/shared/ui/BottomSheet';
@@ -29,7 +29,7 @@ interface PlayerMoreSheetProps {
   onDeletePress: () => void;
   onSharePress: () => void;
   onClose: () => void;
-  /** 시트가 완전히 닫힌 뒤(iOS Modal onDismiss) — 보류된 공유 실행용(useDeferredSheetShare) */
+  /** iOS 네이티브 dismiss / Android 숨김 커밋 뒤 — 보류된 상세 이동·공유 실행 */
   onDismissed: () => void;
 }
 
@@ -57,7 +57,8 @@ export default function PlayerMoreSheet({
     <BottomSheet
       isVisible={isVisible}
       onRequestClose={onClose}
-      onClosed={onDismissed}
+      onClosed={Platform.OS === 'ios' ? onDismissed : undefined}
+      onHidden={Platform.OS !== 'ios' ? onDismissed : undefined}
       sheetStyle={styles.sheet}
       dimColor={playerColor.overlay}
     >

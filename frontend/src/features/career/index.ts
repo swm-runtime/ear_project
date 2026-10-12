@@ -10,6 +10,14 @@
 export { default as CareerInfoScreen } from './screens/CareerInfoScreen';
 export { careerKeys } from './api/career.api';
 export { useJobCategoriesQuery } from './hooks/useJobCategoriesQuery';
+export { jobCategoryImageSource } from './career.images';
+/**
+ * 커리어 폼 부품 — 커리어 정보 화면과 온보딩 2/2(O4)가 같은 부품을 쓴다(PM 2026-10-11 "온보딩 2/2 는 설정의 커리어 정보에서
+ * 입력하는 거 가져오자"). 모양·동작의 원본은 이 feature 하나다.
+ */
+export { default as JobCategoryChips, JOB_CHIP_HEIGHT, JOB_CHIP_RADIUS } from './components/JobCategoryChips';
+export { default as JobTitleField } from './components/JobTitleField';
+export { default as YearsSegment } from './components/YearsSegment';
 export type { CareerInfo, JobCategory, YearsOfExperienceRange } from './career.types';
 /**
  * 저장 성공 통지 구독 — 프로필 요약 invalidate는 app/bootstrap이 이걸로 주입한다

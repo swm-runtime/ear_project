@@ -114,7 +114,7 @@
 
 ## 미결 사항
 
-- **링크 기술 방식** — ~~유니버설 링크/App Links vs 커스텀 스킴 + 스토어 링크 병기~~ → **도메인 확보됨(`earcast.co.kr`, 확인 2026-08-25) — 유니버설 링크/App Links 방식으로 기울음**(미설치 폴백이 링크 하나로 성립, 텍스트에 링크 병기 불요). 남은 실행 항목: ① 도메인에 OS 검증 파일 2종 서빙(`/.well-known/apple-app-site-association` · `/.well-known/assetlinks.json`) ② `/contents/:id` 경로의 **스토어 리다이렉트 정적 페이지**(콘텐츠 미리보기가 있는 웹 랜딩이 아니다 — PRD 4.2 비범위와 충돌하지 않음, 백엔드 무변경). 호스팅 위치와 함께 P1 활성화 시점에 최종 확정한다. **실행은 BE 티켓으로 발행했다**(2026-08-25 — `tickets/backend/pending/share-universal-links-hosting.md`. `earcast.co.kr`의 운영 중 랜딩 Vercel 프로젝트를 백엔드 담당이 관리하고 있어 그 프로젝트에 경로를 추가한다. 검증 파일 값(번들 ID·서명 지문)·앱 설정·기기 검증은 FE 협조)
+- **링크 기술 방식** — ~~유니버설 링크/App Links vs 커스텀 스킴 + 스토어 링크 병기~~ → **도메인 확보됨(`earcast.co.kr`, 확인 2026-08-25) — 유니버설 링크/App Links 방식으로 기울음**(미설치 폴백이 링크 하나로 성립, 텍스트에 링크 병기 불요). 남은 실행 항목: ① 도메인에 OS 검증 파일 2종 서빙(`/.well-known/apple-app-site-association` · `/.well-known/assetlinks.json`) ② `/contents/:id` 경로의 **스토어 리다이렉트 정적 페이지**(콘텐츠 미리보기가 있는 웹 랜딩이 아니다 — PRD 4.2 비범위와 충돌하지 않음, 백엔드 무변경). 호스팅 위치와 함께 P1 활성화 시점에 최종 확정한다. **실행은 BE 티켓으로 발행했다**(2026-08-25 — `tickets/backend/archive/share-universal-links-hosting.md`. `earcast.co.kr`의 운영 중 랜딩 Vercel 프로젝트를 백엔드 담당이 관리하고 있어 그 프로젝트에 경로를 추가한다. 검증 파일 값(번들 ID·서명 지문)·앱 설정·기기 검증은 FE 협조)
 - **스토어 링크 확정값** — 스토어 등록 후 실제 URL로 확정한다
 - **공유 집계·유입 어트리뷰션** — 현재는 미기록 확정(4.4). 성장 단계에 필요해지면 `domain.md`(`user_signals` 또는 별도 테이블) 개정이 선행 사안이다
 - ~~**spec 작성**~~ → **uiux 작성 완료(2026-08-25)** — `spec/uiux/share-uiux.md`(SH1~SH3 정식 채택. 공유 텍스트 형식·아이콘 도형은 그쪽 미결이 관리). **`spec/api/`는 만들지 않는 것으로 확정** — 엔드포인트가 P1에도 없어 계약이 존재하지 않고, 경계 표기는 `explore-api.md` 1장이 유지한다

@@ -8,7 +8,11 @@ import {
   buildTopicDistribution,
   buildWeeklyBuckets,
   buildWeeklyTopicDistributions,
+  calculateListeningTopPercent,
   calculateStreakDays,
+  countDailyListenedContents,
+  pickDailyListeningHighlights,
+  pickListeningHighlight,
 } from './profile.stats';
 
 const CONTENT_A = 'aaaaaaaa-1111-4111-8111-111111111111';
@@ -353,6 +357,173 @@ describe('profile.stats', () => {
       expect(weekly).toEqual({ topics: [], othersRatio: 0 });
       expect(daily).toHaveLength(7);
       expect(daily.every((day) => day.topics.length === 0)).toBe(true);
+    });
+  });
+
+  describe('calculateListeningTopPercent', () => {
+    it('나보다 많이 들은 사람 수로 순위를 매기고 모집단 대비 올림한 %를 돌려준다', () => {
+      // 11명이 더 들었다 → 12등 / 100명 → 상위 12%
+      expect(calculateListeningTopPercent(1820, 11, 100)).toBe(12);
+      // 0명이 더 들었다 → 1등 / 40명 → 2.5 → 올림 3%
+      expect(calculateListeningTopPercent(3600, 0, 40)).toBe(3);
+    });
+
+    it('1등은 모집단이 아무리 커도 0%가 아니라 1%다', () => {
+      expect(calculateListeningTopPercent(60, 0, 100_000)).toBe(1);
+    });
+
+    it('동점은 같은 순위(좋은 쪽)다 — 나와 같은 시간은 "더 들은 사람"에 들어가지 않는다', () => {
+      // 나보다 많이 들은 사람만 센 값이 들어온다 → 동점자가 몇이든 결과는 같다
+      expect(calculateListeningTopPercent(600, 4, 10)).toBe(50);
+    });
+
+    it('그 주 청취가 0초면 null이다', () => {
+      expect(calculateListeningTopPercent(0, 0, 100)).toBeNull();
+    });
+
+    it('상위 50%는 내려주고, 50%를 넘으면(하위권) null이다', () => {
+      expect(calculateListeningTopPercent(100, 49, 100)).toBe(50);
+      expect(calculateListeningTopPercent(100, 50, 100)).toBeNull();
+    });
+
+    it('모집단이 0이면 null이고, 순위가 모집단을 넘어도 100%를 넘기지 않는다(그 경우 null)', () => {
+      expect(calculateListeningTopPercent(100, 0, 0)).toBeNull();
+      expect(calculateListeningTopPercent(100, 5, 1)).toBeNull();
+    });
+  });
+
+  describe('pickListeningHighlight', () => {
+    const WEEK = [600, 0, 300, 0, 0, 0, 0]; // 900초, 2일
+
+    it('상위 % 가 있으면 그것이 먼저다', () => {
+      expect(pickListeningHighlight(WEEK, 12, 0)).toEqual({
+        kind: 'top_percent',
+        percent: 12,
+      });
+    });
+
+    it('상위 % 가 없으면 비교 대상보다 60초 이상 많을 때 "전주보다 더"다', () => {
+      expect(pickListeningHighlight(WEEK, null, 180)).toEqual({
+        kind: 'more_than_previous',
+        diffSec: 720,
+      });
+      // 정확히 60초 차이도 내려준다
+      expect(pickListeningHighlight(WEEK, null, 840)).toEqual({
+        kind: 'more_than_previous',
+        diffSec: 60,
+      });
+    });
+
+    it('차이가 60초 미만이거나 줄었으면 "들은 날 수"로 간다 — 줄어든 쪽은 내려주지 않는다', () => {
+      const days = { kind: 'listened_days', days: 2 };
+      expect(pickListeningHighlight(WEEK, null, 841)).toEqual(days);
+      expect(pickListeningHighlight(WEEK, null, 5000)).toEqual(days);
+    });
+
+    it('비교할 직전 주가 없으면(가입 주) "전주보다 더"를 건너뛴다', () => {
+      expect(pickListeningHighlight(WEEK, null, null)).toEqual({
+        kind: 'listened_days',
+        days: 2,
+      });
+    });
+
+    it('그 주 0초면 null 이다', () => {
+      expect(pickListeningHighlight([0, 0, 0, 0, 0, 0, 0], null, 0)).toBeNull();
+    });
+  });
+
+  describe('pickDailyListeningHighlights', () => {
+    const COUNTS = [1, 2, 3, 1, 1, 1, 1];
+
+    it('지난주 같은 요일보다 60초 이상 많은 날은 "지난주보다 더"가 먼저다(가장 많이 들은 날이어도)', () => {
+      // given — 수요일 1320초, 지난주 수요일 600초 → 720초 더. 수요일은 그 주 최고이기도 하다
+      const week = [300, 0, 1320, 0, 0, 0, 0];
+      const previous = [400, 0, 600, 0, 0, 0, 0];
+
+      // when
+      const result = pickDailyListeningHighlights(week, COUNTS, previous);
+
+      // then — 월요일은 줄었고 최고도 아니라 편 수
+      expect(result).toEqual([
+        { kind: 'listened_contents', count: 1 },
+        null,
+        { kind: 'more_than_last_week', diffSec: 720 },
+        null,
+        null,
+        null,
+        null,
+      ]);
+    });
+
+    it('정확히 60초 차이도 내려주고, 59초면 다음 순위로 간다', () => {
+      const week = [660, 659, 0, 0, 0, 0, 0];
+      const previous = [600, 600, 0, 0, 0, 0, 0];
+
+      const result = pickDailyListeningHighlights(week, COUNTS, previous);
+
+      expect(result[0]).toEqual({ kind: 'more_than_last_week', diffSec: 60 });
+      expect(result[1]).toEqual({ kind: 'listened_contents', count: 2 });
+    });
+
+    it('지난주보다 줄었지만 그 주(들은 날 2일 이상) 최고인 날은 "가장 많이 들은 날"이고, 동률이면 모두다', () => {
+      const week = [900, 900, 300, 0, 0, 0, 0];
+      const previous = [5000, 5000, 5000, 0, 0, 0, 0];
+
+      const result = pickDailyListeningHighlights(week, COUNTS, previous);
+
+      expect(result.slice(0, 3)).toEqual([
+        { kind: 'best_day' },
+        { kind: 'best_day' },
+        { kind: 'listened_contents', count: 3 },
+      ]);
+    });
+
+    it('그 주 하루만 들었으면 "가장 많이 들은 날"이 아니라 편 수다', () => {
+      const week = [0, 0, 0, 500, 0, 0, 0];
+      const previous = [0, 0, 0, 800, 0, 0, 0];
+
+      const result = pickDailyListeningHighlights(week, COUNTS, previous);
+
+      expect(result[3]).toEqual({ kind: 'listened_contents', count: 1 });
+    });
+
+    it('직전 주가 없으면(가입 주) "지난주보다 더"를 건너뛴다', () => {
+      const week = [600, 0, 0, 0, 0, 0, 0];
+
+      const result = pickDailyListeningHighlights(week, COUNTS, null);
+
+      expect(result[0]).toEqual({ kind: 'listened_contents', count: 1 });
+      expect(
+        result.some(
+          (day) => day !== null && day.kind === 'more_than_last_week',
+        ),
+      ).toBe(false);
+    });
+
+    it('그날 0초면 null 이다', () => {
+      expect(
+        pickDailyListeningHighlights(
+          [0, 0, 0, 0, 0, 0, 0],
+          [0, 0, 0, 0, 0, 0, 0],
+          [600, 0, 0, 0, 0, 0, 0],
+        ),
+      ).toEqual([null, null, null, null, null, null, null]);
+    });
+  });
+
+  describe('countDailyListenedContents', () => {
+    it('요일별로 청취 > 0 인 콘텐츠만 센다', () => {
+      // given — 월요일 A·B, 화요일 A(0초 — 재생만 시작)
+      const rows = [
+        listenedOn(CONTENT_A, '2026-09-21', 300),
+        listenedOn(CONTENT_B, '2026-09-21', 10),
+        listenedOn(CONTENT_A, '2026-09-22', 0),
+      ];
+
+      // when / then
+      expect(countDailyListenedContents(WEEK_DATES, rows)).toEqual([
+        2, 0, 0, 0, 0, 0, 0,
+      ]);
     });
   });
 });

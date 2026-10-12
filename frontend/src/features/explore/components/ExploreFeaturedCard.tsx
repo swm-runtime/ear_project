@@ -1,4 +1,5 @@
-import { Image, Pressable, StyleSheet, useWindowDimensions, View } from 'react-native';
+import { Image as ExpoImage } from 'expo-image';
+import { Image, Platform, Pressable, StyleSheet, useWindowDimensions, View } from 'react-native';
 
 import { theme } from '@/shared/theme';
 import MoreIcon from '@/shared/ui/MoreIcon';
@@ -31,7 +32,7 @@ const toMinutes = (durationSec: number): number => Math.max(1, Math.round(durati
  */
 const WIDTH_RATIO = 0.72;
 const MAX_WIDTH = 312;
-/** 대표 카드 폭 — 인기 캐러셀 전환 모션(PeriodSwap)이 카드 두 장 거리를 셀 때도 쓴다 */
+/** 대표 카드 폭 — 화면 폭에서 정한다(카드 안 사진·제목 배치의 기준) */
 export const featuredCardWidth = (windowWidth: number): number =>
   Math.min(windowWidth * WIDTH_RATIO, MAX_WIDTH);
 /**
@@ -44,31 +45,6 @@ const BACKDROP_BLUR_RADIUS = 36;
 const BACKDROP_SCRIM = 'rgba(23, 23, 26, 0.45)';
 const ON_ART_TEXT = '#FFFFFF';
 const ON_ART_TEXT_SECONDARY = 'rgba(255, 255, 255, 0.72)';
-
-interface Rect {
-  x: number;
-  y: number;
-  w: number;
-  h: number;
-}
-
-/**
- * 측정된 카드 사각형에서 **썸네일 사각형만** 잘라낸다.
- *
- * 코치마크가 카드 전체를 뚫으면 구멍이 화면 높이의 8할을 차지해 설명을 둘 자리가 남지 않는다
- * (제목 두 줄 + 재생 알약까지 합친 높이다). 가리키려는 것은 "담을 수 있는 콘텐츠"이고 그건
- * 썸네일로 충분하다.
- *
- * **이 계산은 아래 `card`·`artworkFrame` 스타일에 묶여 있다** — 썸네일은 카드의 **위·양옆 변에 붙는**
- * 정사각형(카드 폭 그대로, 2026-09-22 PM — 위·양쪽 공백 제거)이다. 둘 중 하나를 바꾸면 여기도 바꾼다.
- * 그래서 카드를 쓰는 쪽이 짐작하지 않도록 이 파일이 함께 소유한다.
- */
-export const featuredCardArtworkRect = (card: Rect): Rect => ({
-  x: card.x,
-  y: card.y,
-  w: card.w,
-  h: card.w,
-});
 
 /**
  * 인기 섹션의 큰 카드 — 가로 캐러셀의 항목이다.
@@ -89,14 +65,35 @@ export default function ExploreFeaturedCard({
   return (
     <View style={[styles.card, { width: cardWidth }]}>
       {/* 흐린 커버 바탕 — 카드 전체. 위 정사각형은 아래 선명한 커버가 덮어 하단만 "이어진" 흐림으로 남는다 */}
-      <Image
-        source={{ uri: item.content.thumbnailUrl }}
-        style={styles.backdrop}
-        blurRadius={BACKDROP_BLUR_RADIUS}
-        resizeMode="cover"
-        accessibilityElementsHidden
-        importantForAccessibility="no"
-      />
+      {Platform.OS === 'android' ? (
+        /*
+         * Android 는 기본 Image — expo-image 의 Android 흐림(glide-transformations BlurTransformation)은 RenderScript 를 쓰고,
+         * 카드 여러 장이 동시에 흐림을 만들면 한쪽이 RS 컨텍스트를 닫은 사이 다른 쪽이 써서 앱이 죽었다
+         * (Sentry EAR-APP-F RSInvalidStateException, 2026-10-09 — 주제 칩을 여러 번 오가며). 기본 Image 의 흐림은 RS 를 안 쓴다.
+         * 플레이어 배경도 같은 이유로 기본 Image 다
+         */
+        <Image
+          source={{ uri: item.content.thumbnailUrl }}
+          style={styles.backdrop}
+          blurRadius={BACKDROP_BLUR_RADIUS}
+          resizeMode="cover"
+          accessibilityElementsHidden
+          importantForAccessibility="no"
+        />
+      ) : (
+        <ExpoImage
+          source={{ uri: item.content.thumbnailUrl }}
+          style={styles.backdrop}
+          blurRadius={BACKDROP_BLUR_RADIUS}
+          contentFit="cover"
+          // iOS 는 expo-image — 메모리 캐시로 구간 전환·피드 복귀 때 바로 뜬다(종전 RN Image 는 다시 그릴 때마다 받아 흐리게
+          // 다시 그려 그동안 카드 바탕이 비었다 — PM 2026-10-09 흰 깜빡임). iOS 흐림은 RenderScript 와 무관하다
+          cachePolicy="memory-disk"
+          recyclingKey={item.content.id}
+          accessibilityElementsHidden
+          importantForAccessibility="no"
+        />
+      )}
       <View style={styles.backdropScrim} pointerEvents="none" />
       <Pressable
         style={styles.body}
@@ -133,10 +130,16 @@ export default function ExploreFeaturedCard({
           거의 없었고, 작은 타일(ExploreTile)은 애초에 길이만 적어 대표 카드만 저자를 보여 주는 것도 어긋났다.
           주제는 탐색에서 고르는 축이라 같은 자리에 더 쓸모 있다
         */}
+        {/*
+          콘텐츠 해시태그가 있으면 그것을(KAN-163 — 타일과 같은 줄), 아직 없는 콘텐츠(소급 전)는 종전대로 주제 이름을 쓴다.
+          '#'이 둘을 가리키는 기간은 태그 소급이 끝나면 사라진다
+        */}
         <Text style={styles.meta} numberOfLines={1}>
-          {topicNames.length > 0
-            ? `${EXPLORE_COPY.row.hashtags(topicNames.slice(0, MAX_TOPIC_TAGS))} · ${EXPLORE_COPY.row.durationLabel(minutes)}`
-            : EXPLORE_COPY.row.durationLabel(minutes)}
+          {item.content.tags.length > 0
+            ? EXPLORE_COPY.row.metaWithTags(item.content.tags.slice(0, MAX_TOPIC_TAGS), minutes)
+            : topicNames.length > 0
+              ? `${EXPLORE_COPY.row.hashtags(topicNames.slice(0, MAX_TOPIC_TAGS))} · ${EXPLORE_COPY.row.durationLabel(minutes)}`
+              : EXPLORE_COPY.row.durationLabel(minutes)}
         </Text>
         <Pressable
           style={styles.moreButton}
@@ -193,7 +196,7 @@ const styles = StyleSheet.create({
   },
   artwork: {
     flex: 1,
-    backgroundColor: theme.color.background,
+    // 사진이 뜨기 전엔 비워 둔다 — 흰색이면 카드 위 정사각형이 하얗게 번쩍였다(PM 2026-10-09). 아래 흐린 바탕·막이 비친다
   },
   title: {
     marginHorizontal: theme.spacing.md,

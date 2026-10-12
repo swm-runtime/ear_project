@@ -9,7 +9,7 @@
 | 근거 문서 | `features/partner-control.md` 4.3(회수 — 노출면별 반영) · `features/admin.md` 4.4 |
 | 심각도 | **중** — 회수(재생 미중단)와 재발행(위치 되살아남) 두 사례가 확인됐다. 데이터 손상은 아니지만 "즉시 반영"이라는 계약이 지켜지지 않는다 |
 | 상태 | 대기 |
-| 연관 | `tickets/frontend/pending/share-app-links-and-deep-link-routing.md`(같은 확인에서 발견) |
+| 연관 | `tickets/frontend/archive/share-app-links-and-deep-link-routing.md`(같은 확인에서 발견) |
 
 ## 문제
 
@@ -121,7 +121,7 @@
 BE 담당 지시로 계약을 당일 반영했다 — `player-api.md` 4.6 신설·4.3 `content_status` 추가,
 `partner-control.md` 4.3 현행화(미결 "강제 중단 여부"도 확정 처리). 완료 조건 ①·④·⑤ 충족.
 **남은 것은 조건 ②(재생 중단)·③(낡은 위치 재저장 방지) — FE 연결이며
-`tickets/frontend/pending/withdrawn-republish-playback-sync.md`로 발행했다.** 그 티켓이 닫히고
+`tickets/frontend/archive/withdrawn-republish-playback-sync.md`로 발행했다.** 그 티켓이 닫히고
 실기기 재확인이 되면 이 티켓을 archive로 옮긴다.
 
 ## 처리 기록 (2026-09-08 — FE 연결 완료로 티켓 종료)

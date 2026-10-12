@@ -1,5 +1,4 @@
 import { apiClient } from '@/shared/api/api-client';
-import { generateId } from '@/shared/lib/generate-id';
 
 import { IS_ONBOARDING_API_MOCKED } from '../onboarding.constants';
 import type {
@@ -8,8 +7,6 @@ import type {
   OnboardingCompleteResult,
   OnboardingState,
   OnboardingStep,
-  PickResult,
-  RecommendationSection,
   YearsOfExperience,
 } from '../onboarding.types';
 import type {
@@ -17,23 +14,17 @@ import type {
   CompleteResponseDto,
   FirstDripResponseDto,
   OnboardingStateDto,
-  RecommendationSectionDto,
-  RecommendationsResponseDto,
   SaveCareerRequestDto,
   SaveCareerResponseDto,
   SaveInterestsRequestDto,
   SaveInterestsResponseDto,
-  SavePicksRequestDto,
-  SavePicksResponseDto,
 } from './onboarding.dto';
 import {
   mockComplete,
   mockFetchFirstDrip,
-  mockFetchRecommendations,
   mockFetchState,
   mockSaveCareer,
   mockSaveInterests,
-  mockSavePicks,
 } from './onboarding.mock';
 
 /* ── Query Key factory(convention.md 4.1) ── */
@@ -42,7 +33,6 @@ export const onboardingKeys = {
   all: ['onboarding'] as const,
   state: () => [...onboardingKeys.all, 'state'] as const,
   // 주제 목록 캐시는 interestKeys.topics()다 — 관심사 관리와 같은 목록·같은 캐시(architecture.md 4.4)
-  recommendations: () => [...onboardingKeys.all, 'recommendations'] as const,
   firstDrip: () => [...onboardingKeys.all, 'first-drip'] as const,
 };
 
@@ -59,26 +49,6 @@ const toOnboardingState = (dto: OnboardingStateDto): OnboardingState => ({
   onboardingStep: dto.onboarding_step,
   selectedTopicIds: dto.selected_topic_ids,
   career: toCareerInfo(dto.career),
-  pickedCount: dto.picked_count,
-});
-
-const toRecommendationSection = (dto: RecommendationSectionDto): RecommendationSection => ({
-  sectionType: dto.section_type,
-  title: dto.title,
-  items: dto.items.map((item) => ({
-    contentId: item.content_id,
-    title: item.title,
-    authorName: item.author_name,
-    sourceName: item.source_name,
-    thumbnailUrl: item.thumbnail_url,
-    durationSec: item.duration_sec,
-    topics: item.topics.map((t) => ({ topicId: t.topic_id, name: t.name })),
-  })),
-});
-
-const toPickResult = (dto: SavePicksResponseDto): PickResult => ({
-  savedContentIds: dto.saved_content_ids,
-  failed: dto.failed.map((f) => ({ contentId: f.content_id, errorCode: f.error_code })),
   pickedCount: dto.picked_count,
 });
 
@@ -141,26 +111,6 @@ export const saveCareer = async (input: {
     ? await mockSaveCareer(body)
     : (await apiClient.patch<SaveCareerResponseDto>('/onboarding/career', body)).data;
   return { career: toCareerInfo(data.career), onboardingStep: data.onboarding_step };
-};
-
-export const fetchRecommendations = async (): Promise<RecommendationSection[]> => {
-  const data = IS_ONBOARDING_API_MOCKED
-    ? await mockFetchRecommendations()
-    : (await apiClient.get<RecommendationsResponseDto>('/onboarding/recommendations')).data;
-  return data.sections.map(toRecommendationSection);
-};
-
-/** 3단계 담기 — 부분 실패를 200으로 받는다. 멱등키 필수(onboarding-api.md 4.6 ★) */
-export const savePicks = async (input: { contentIds: string[] }): Promise<PickResult> => {
-  const body: SavePicksRequestDto = { content_ids: input.contentIds };
-  const data = IS_ONBOARDING_API_MOCKED
-    ? await mockSavePicks(input.contentIds)
-    : (
-        await apiClient.post<SavePicksResponseDto>('/onboarding/picks', body, {
-          idempotencyKey: generateId(),
-        })
-      ).data;
-  return toPickResult(data);
 };
 
 /**

@@ -309,13 +309,15 @@ describe('구독·인앱 결제 E2E', () => {
     // 조회·요금제 목록도 같은 상태를 본다
     expect(await getSubscription(auth)).toEqual(purchased);
     expect((await listPlans(auth)).map((plan) => plan.action)).toEqual([
-      'none',
+      'cancel',
       'downgrade',
       'current',
     ]);
 
     // 다른 계정이 같은 스토어 구독을 내면 받지 않는다
     const other = await createUser('buy-other');
+    // 소유권 판정까지 가려면 이메일 관문(4.5)을 먼저 넘어야 한다
+    await setEmail(other.userId, true);
     await expectError(
       post('/users/me/subscription/purchases', other.auth, {
         platform: 'ios',
@@ -470,6 +472,18 @@ describe('구독·인앱 결제 E2E', () => {
       plan_name: 'Daily',
       effective_at: thisPeriod.expiresAt.toISOString(),
     });
+    // 프로필·설정의 plan 도 같은 예약을 싣는다 — 같은 조립 함수(KAN-161). 세 응답이 다른 판정을 내리지 않는다
+    for (const [suffix, query] of [
+      ['/users/me/profile', {}],
+      ['/users/me/settings', { app_version: '1.2.0', platform: 'ios' }],
+    ] as const) {
+      const body = (await get(suffix, auth).query(query).expect(HttpStatus.OK))
+        .body as {
+        plan: { tier: string; pending_plan: unknown };
+      };
+      expect(body.plan.tier).toBe('pro');
+      expect(body.plan.pending_plan).toEqual(pending.pending_plan);
+    }
 
     // 순서가 뒤바뀐 옛 알림은 덮지 않는다(예약보다 먼저 서명된 "예약 취소")
     await webhook({
@@ -593,6 +607,25 @@ describe('구독·인앱 결제 E2E', () => {
     ).body as RestoreBody;
     expect(empty.restored).toBe(false);
     expect(empty.subscription.plan.status).toBe('free');
+
+    // 보낼 거래가 있는데 인증된 이메일이 없다 → 409, 구독 행을 만들지 않는다(4.5 — 2026-10-11)
+    await setEmail(userId, false);
+    await expectError(
+      post('/users/me/subscription/restore', auth, {
+        platform: 'ios',
+        signed_transactions: [
+          signTransaction({
+            ...thisPeriod,
+            originalTransactionId: otx,
+            productId: PRODUCT_DAILY,
+          }),
+        ],
+      }),
+      HttpStatus.CONFLICT,
+      ErrorCode.EMAIL_REQUIRED_FOR_PURCHASE,
+    );
+    expect(await subscriptionRows(otx)).toHaveLength(0);
+    await setEmail(userId, true);
 
     // 만료된 거래는 무시한다
     const expiredOnly = (

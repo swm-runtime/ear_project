@@ -62,7 +62,11 @@ export type StoreStateIgnoreReason =
   /** 상품이 어느 요금제인지 모른다 */
   | 'unknown_product'
   /** 상태를 바꾸지 않는 알림 유형(TEST·PRICE_INCREASE 등) */
-  | 'unhandled_type';
+  | 'unhandled_type'
+  /** 같은 스토어에 살아 있는 구독이 따로 있는 사용자의, 그 행에 이어지지 않는 두 번째 구독(Play — 4.4) */
+  | 'duplicate_subscription'
+  /** 요금제 변경으로 교체된 **옛** 구매 토큰의 종결 상태 — 행은 이미 새 토큰으로 살아 있다(Play — 4.7) */
+  | 'replaced_token';
 
 /** 기존 상태 + 마지막 알림 시각. 행이 없으면 `null` */
 export type StoredSubscriptionState = SubscriptionState & {
@@ -492,6 +496,29 @@ export function resolveFromStoreStatus(
     isSameBillingPeriod(existing, transaction, status)
   ) {
     return { kind: 'ignore', reason: 'terminated' };
+  }
+
+  /**
+   * **교체된 옛 토큰의 종결 상태는 구독의 상태가 아니다**(`subscription-api.md` 4.7 "구독 행의 키" — 2026-10-08 개발계
+   * 실측). Play 요금제 변경(업·다운그레이드)은 새 구매 토큰을 발급하고 옛 토큰을 곧 만료시키며, 두 토큰은
+   * `linkedPurchaseToken` 사슬로 **같은 행**에 이어진다. 그래서 교체 직후 Google 이 옛 토큰에 보내는 EXPIRED 알림
+   * (RTDN 13)이 같은 행으로 들어오는데, "지금 상태"로 그대로 반영하면 방금 산 새 구독이 3초 만에 만료된다
+   * (Daily→Pro 업그레이드 뒤 티어가 light 로 떨어졌다). 행이 이미 **다른 토큰**으로 살아 있고 들어온 토큰이 그보다
+   * 먼저(또는 같이) 끝나는 것이면, 그 종결은 옛 토큰의 것이다 — 무시한다. 환불(`revoked`)도 같다: 교체된 옛 결제분의
+   * 환불은 새 구독을 끝내지 않는다. 행이 끝난 뒤의 옛 토큰 조회는 종전대로 `decide`가 "같은 상태"로 거른다.
+   */
+  if (
+    existing !== null &&
+    transaction.store === SubscriptionStore.PLAY_STORE &&
+    (status === 'expired' ||
+      status === 'billing_retry' ||
+      status === 'revoked') &&
+    !isTerminalStatus(existing.status) &&
+    existing.latestReceipt != null &&
+    existing.latestReceipt !== transaction.receipt &&
+    transaction.expiresAt.getTime() <= existing.expiresAt.getTime()
+  ) {
+    return { kind: 'ignore', reason: 'replaced_token' };
   }
 
   const base: SubscriptionState =

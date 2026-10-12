@@ -13,7 +13,9 @@ import { onboardingCompletionService } from '../services/onboarding-completion.s
 import { useOnboardingStore } from '../store/onboarding.store';
 
 /**
- * O13 완료 대기 — 0건 담기 경로 전용. 어느 갈래로 나가든 완료 화면에 도달한다(onboarding-api.md 6).
+ * O13 완료 대기 — 2단계(커리어) 종료 뒤 모든 경로가 지난다(담기 단계를 뺀 2026-10-11 전까지는 0건 담기 경로 전용).
+ * **완료 요청은 이 화면이 쏜다** — 2단계 [다음]·[건너뛰기] 직후와 재개 진입(onboarding_step = pick·done) 둘 다 여기로
+ * 오므로 한 곳에서 쏘는 편이 빠뜨리지 않는다. 어느 갈래로 나가든 완료 화면에 도달한다(onboarding-api.md 6).
  * 로딩 화면이 종점이 되는 경로는 없다: 종료 상태·대기 상한 초과 모두 완료 화면으로 진행한다.
  */
 export const useFirstDripWaitingScreen = () => {
@@ -23,7 +25,12 @@ export const useFirstDripWaitingScreen = () => {
   const completionResult = useOnboardingStore((s) => s.completionResult);
   const hasFinishedRef = useRef(false);
 
-  // 뒤로가기 차단 — 3단계로 되돌리면 이미 완료 처리된 온보딩을 다시 진행하는 모순 상태가 된다(onboarding.md 7)
+  // 완료 요청 발사 — 아직 안 쏜 상태(idle)일 때만. 진행 중·성공·실패(재시도 버튼이 맡는다)는 건드리지 않는다
+  useEffect(() => {
+    if (completionStatus === 'idle') onboardingCompletionService.request();
+  }, [completionStatus]);
+
+  // 뒤로가기 차단 — 2단계로 되돌리면 이미 완료 처리된 온보딩을 다시 진행하는 모순 상태가 된다(onboarding.md 7)
   useFocusEffect(
     useCallback(() => {
       const subscription = BackHandler.addEventListener('hardwareBackPress', () => true);
@@ -58,7 +65,7 @@ export const useFirstDripWaitingScreen = () => {
   useEffect(() => {
     if (completionStatus !== 'success') return;
 
-    // 1건 이상 담은 경로가 잘못 들어온 경우 포함 — 대기 없이 곧바로 완료 화면(onboarding-api.md 4.7)
+    // 서버가 기다릴 필요 없다고 하면(awaits_first_drip = false) 대기 없이 곧바로 완료 화면(onboarding-api.md 4.7)
     if (!awaitsFirstDrip) {
       goComplete();
       return;

@@ -32,6 +32,8 @@ export const STORAGE_KEYS = {
    * (기기마다 마지막으로 본 탭이 다른 것이 자연스럽다). 로그아웃 시 지운다.
    */
   LAST_TAB: 'nav.last_tab',
+  /** 새 도착 기준값·미확인 편수. 계정 id를 접미사로 붙여 다른 계정과 분리한다. */
+  LIBRARY_ARRIVAL: 'library.arrival',
   /**
    * 재생 목록의 사용자 지정 순서 — `library_items.id` 의 나열(JSON). 기기 로컬 전용이다: 재생 목록의 원천이
    * 라이브러리 첫 페이지라 서버에 순서를 둘 자리가 없다(player/services/queue-order.ts). 판정이 아니라
@@ -62,4 +64,9 @@ export const STORAGE_KEYS = {
    * 않는다. **이관 대상이 아니다** — 처음부터 새 접근성으로 쓰인다. 로그아웃과 무관하다(기기의 값)
    */
   KEYCHAIN_ACCESSIBILITY_VERSION: 'storage.keychain_accessibility_version',
+  /**
+   * 무손실 음질의 셀룰러 데이터 안내를 이 기기에서 이미 띄웠는가(`settings.md` 4.6 — 한 번만). 값은 `'1'`.
+   * 서버에는 기록하지 않는다(재생 확인 팝업 억제와 같은 기기 로컬 상태). 로그아웃과 무관하다
+   */
+  LOSSLESS_CELLULAR_NOTICE_SEEN: 'settings.lossless_cellular_notice_seen',
 } as const;

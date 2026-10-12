@@ -11,6 +11,7 @@
     "tts:reassemble": "tsx src/cli/reassemble.ts",
     "tts:sections": "tsx src/cli/sections.ts",
     "tts:encode": "tsx src/cli/encode.ts",
+    "tts:tailfix": "tsx src/cli/tail-fix.ts",
     "rev": "tsx src/cli/rev.ts",
     "typecheck": "tsc --noEmit",
     "test": "tsx --test src/**/*.test.ts"

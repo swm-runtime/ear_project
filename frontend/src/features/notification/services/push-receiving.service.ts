@@ -44,8 +44,6 @@ const handleResponse = (
     app_state: appState,
   });
   const store = useNotificationStore.getState();
-  // 탭해서 들어왔으면 같은 통지의 인앱 배너는 더 띄울 이유가 없다
-  store.hideForegroundArrival();
   store.setPendingPushTarget(arrival.target);
   /*
    * 처리한 탭은 OS 쪽 기록에서도 지운다. 남겨 두면 앱이 다시 뜰 때(`getLastNotificationResponse`)
@@ -64,10 +62,10 @@ export const startPushReceiving = (options: PushReceivingOptions): void => {
 
   /*
    * **앱이 확실히 앞에 있을 때만** OS 배너를 끈다. 이 핸들러는 앱이 `inactive`(앱 전환 화면·제어 센터·
-   * 알림 센터를 내린 상태)일 때도 불리는데, 그때 인앱 배너는 뜨지 않는다(`active` 전용) — 그대로 OS 배너까지
+   * 알림 센터를 내린 상태)일 때도 불리는데, 그때 인앱 표시는 갱신되지 않는다(`active` 전용) — 그대로 OS 배너까지
    * 끄면 **둘 다 안 뜬다**(2026-09-20 실기기 확인 중 발견).
    *
-   * 포그라운드의 드립 도착은 OS 배너를 띄우지 않는다 — 인앱 배너가 대신한다(4.5).
+   * 포그라운드의 드립 도착은 OS 배너를 띄우지 않는다 — 라이브러리 탭 배지가 대신한다(4.5).
    * 알림 센터에도 남기지 않는다: 이미 앱 안에서 본 통지가 나중에 또 보이면 새 도착으로 읽힌다.
    * 우리 것이 아닌 알림은 OS 기본대로 보여 준다.
    */
@@ -90,7 +88,6 @@ export const startPushReceiving = (options: PushReceivingOptions): void => {
     const arrival = parsePushData(notification.request.content.data);
     if (arrival === null) return;
     track('push_foreground_banner', { action: 'view' });
-    useNotificationStore.getState().showForegroundArrival(arrival);
     options.onForegroundArrival();
   });
 
@@ -105,9 +102,8 @@ export const startPushReceiving = (options: PushReceivingOptions): void => {
   }
 };
 
-/** 로그아웃·탈퇴·세션 만료 — 앞 사용자의 목적지·배너를 다음 사용자에게 넘기지 않는다 */
+/** 로그아웃·탈퇴·세션 만료 — 앞 사용자의 목적지를 다음 사용자에게 넘기지 않는다 */
 export const clearPushState = (): void => {
   const store = useNotificationStore.getState();
   store.clearPendingPushTarget();
-  store.hideForegroundArrival();
 };

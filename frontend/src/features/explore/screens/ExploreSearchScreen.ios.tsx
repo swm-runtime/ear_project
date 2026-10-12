@@ -16,6 +16,7 @@ import { useNativeHeaderInset } from '@/shared/navigation/useNativeHeaderInset';
 import { useTabScrollToTop } from '@/shared/navigation/useTabScrollToTop';
 import { motion, theme } from '@/shared/theme';
 import { HAS_NATIVE_TAB_BAR } from '@/shared/ui/GlassSurface';
+import InlineNotice from '@/shared/ui/InlineNotice';
 import LargeTitleRow from '@/shared/ui/LargeTitleRow';
 
 import {
@@ -301,8 +302,17 @@ export default function ExploreSearchScreen({ embedding }: ExploreSearchScreenPr
       <Animated.View style={bodyMotion}>
         {/* 검색 실패 — 이전 결과를 유지하고 상단 배너로 알린다(explore.md 7장). 한 번에 하나(uiux 5장) */}
         {screen.errorBanner ? (
-          <View style={styles.errorBanner} accessibilityLiveRegion="polite">
-            <Text style={styles.errorBannerText}>{screen.errorBanner}</Text>
+          <View style={styles.errorBanner}>
+            <InlineNotice
+              message={screen.errorBanner}
+              tone="error"
+              layout="stacked"
+              action={{
+                label: EXPLORE_COPY.error.retry,
+                onPress: screen.retrySearch,
+                busy: screen.isRetryingSearch,
+              }}
+            />
           </View>
         ) : null}
 
@@ -402,12 +412,6 @@ const styles = StyleSheet.create({
   errorBanner: {
     paddingHorizontal: theme.spacing.md,
     paddingVertical: theme.spacing.sm,
-    backgroundColor: theme.color.surface,
-  },
-  errorBannerText: {
-    fontSize: theme.font.size.xs,
-    color: theme.color.textSecondary,
-    textAlign: 'center',
   },
   // 카드가 자기 배경을 갖게 되어 구분선이 필요 없다 — 카드 사이 간격만 둔다
   // 검색 결과·결과 없음의 인기 콘텐츠 — 라이브러리와 같은 두 칸 썸네일 격자(2026-09-18 PM)

@@ -60,6 +60,14 @@ export const usePlayerScreen = () => {
   const [pendingDeleteItemId, setPendingDeleteItemId] = useState<string | null>(null);
   const deleteTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const rateSeqRef = useRef(0);
+  const pendingDetailRef = useRef<string | null>(null);
+
+  useEffect(
+    () => () => {
+      pendingDetailRef.current = null;
+    },
+    [contentId],
+  );
 
   const isActiveSession = session !== null && session.contentId === contentId;
 
@@ -82,6 +90,7 @@ export const usePlayerScreen = () => {
   /* ── 화면 이탈은 즉시 저장 트리거다(player.md 4.3). 재생은 유지된다(축소 ≠ 정지) ── */
   useEffect(() => {
     const unsubscribe = navigation.addListener('blur', () => {
+      pendingDetailRef.current = null;
       playbackService.flushProgress('screen_leave');
     });
     return unsubscribe;
@@ -112,7 +121,9 @@ export const usePlayerScreen = () => {
         isCountedToday: false,
       });
     } else {
-      useLimitNoticeStore.getState().show(blockedState.message ?? PLAYER_COPY.paidLimitReachedToast);
+      useLimitNoticeStore
+        .getState()
+        .show(blockedState.message ?? PLAYER_COPY.paidLimitReachedToast);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- blocked 전이 1회에만 반응한다
   }, [blockedState]);
@@ -228,11 +239,9 @@ export const usePlayerScreen = () => {
   /** PL7 [상세 정보] — 시트를 닫고 상세 화면으로 이동한다(player-uiux.md 4.7, 추가 2026-08-23).
       재생은 유지되고 뒤로가기로 플레이어에 복귀한다(content-detail.md 2장) */
   const openDetail = () => {
+    // 딤이 걷히는 동안 상세 push를 시작하면 서로 다른 전환이 겹친다. 실제 닫힘을 기다린다.
+    pendingDetailRef.current = contentId;
     setIsMoreSheetVisible(false);
-    navigation.navigate('Main', {
-      screen: 'ContentDetail',
-      params: { contentId, entryPoint: 'player' },
-    });
   };
 
   /** PL7 [공유](SH1, P1) — 시트를 닫고 OS 공유 시트를 연다. 재생은 유지된다(share.md 2).
@@ -242,6 +251,18 @@ export const usePlayerScreen = () => {
       공유는 시트가 닫힌 뒤 열린다 — iOS의
       Modal dismiss ↔ 시스템 시트 present 경합 우회(useDeferredSheetShare) */
   const { requestShare, handleSheetDismiss } = useDeferredSheetShare();
+  const handleMoreSheetDismiss = () => {
+    const detailContentId = pendingDetailRef.current;
+    pendingDetailRef.current = null;
+    if (detailContentId !== null) {
+      navigation.navigate('Main', {
+        screen: 'ContentDetail',
+        params: { contentId: detailContentId, entryPoint: 'player' },
+      });
+      return;
+    }
+    handleSheetDismiss();
+  };
   const sharePress = () => {
     const meta = session?.meta;
     if (!meta?.title) return;
@@ -306,6 +327,7 @@ export const usePlayerScreen = () => {
     openSourceLink,
     retryLoad: () => playbackService.retryLoad(),
     retryUrlRefresh: () => playbackService.retryUrlRefresh(),
+    retryNetwork: () => playbackService.playWhenReady(),
     closeWithdrawn,
     // 배속 시트
     isRateSheetVisible,
@@ -326,7 +348,7 @@ export const usePlayerScreen = () => {
     closeMoreSheet: () => setIsMoreSheetVisible(false),
     openDetail,
     sharePress,
-    handleSheetDismiss,
+    handleMoreSheetDismiss,
     requestDelete,
     pendingDeleteItemId,
     undoDelete,

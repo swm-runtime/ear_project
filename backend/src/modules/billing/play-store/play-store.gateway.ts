@@ -64,6 +64,11 @@ export interface PlayNotification {
   /** `subscriptionNotification.notificationType` 번호. 구독 알림이 아니면 `null` */
   type: number | null;
   purchaseToken: string | null;
+  /**
+   * 환불 통지(`voided`)가 가리키는 **주문 ID**. 구독은 갱신마다 주문이 새로 생기므로, 이 값이 지금 주기의 주문
+   * (`latestOrderId`)과 다르면 지난 주기 결제분의 환불이다. 다른 알림이거나 값이 없으면 `null`
+   */
+  orderId: string | null;
   eventAt: Date;
 }
 

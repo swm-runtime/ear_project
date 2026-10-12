@@ -20,10 +20,6 @@ export const NOTIFICATION_COPY = {
 
   /** 푸시 수신·탭(notification.md 4.4·4.5) */
   push: {
-    arrivalBanner: (count: number) => `새 콘텐츠 ${count}개 도착`,
-    /** 편수를 못 읽은 통지 — 틀린 숫자를 말하지 않는다 */
-    arrivalBannerNoCount: '새 콘텐츠 도착',
-    arrivalBannerHint: '라이브러리로 이동해요',
     /** 딥링크 대상이 회수·삭제된 경우의 폴백 안내(4.4-4) */
     contentUnavailableToast: '콘텐츠를 찾을 수 없어요',
   },

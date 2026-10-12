@@ -4,31 +4,27 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { theme } from '@/shared/theme';
 import { Text } from '@/shared/ui/Typography';
-import { useWalkthroughStore } from '@/shared/ui/walkthrough.store';
 
 import { useCompleteScreen } from '../hooks/useCompleteScreen';
 import { ONBOARDING_COPY } from '../onboarding.copy';
 
 /**
- * O9 — 별도 화면을 보여주지 않는 **자동 통과**(2026-09-04 개편).
- * 요약·튜토리얼 카드 대신, 착지한 실제 화면(탐색) 위의 코치마크가 안내를 대신한다 —
- * 여기서는 코치마크 신호만 세우고 바로 나간다. 완료 처리·알림 사전 안내 신호·뒤로가기
- * 차단 판정은 훅 그대로다. 완료 요청이 실패한 경우에만 재시도 UI를 그린다.
- * 문서 반영 요청: changes/pending/onboarding-o1-visual-refresh.md
+ * O9 — 별도 화면을 보여주지 않는 **자동 통과**(2026-09-04 개편). 완료되면 바로 착지 화면(탐색)으로
+ * 나간다. 완료 처리·알림 사전 안내 신호·뒤로가기 차단 판정은 훅 그대로다. 완료 요청이 실패한 경우에만
+ * 재시도 UI를 그린다. 착지 화면 위에 띄우던 첫 사용 튜토리얼(코치마크)은 뺐다(PM 2026-10-11).
+ * 문서 반영 요청: changes/pending/remove-first-run-tutorial.md
  */
 export default function CompleteScreen() {
   const { completionStatus, isProcessing, handleStartPress } = useCompleteScreen();
-  const markWalkthroughPending = useWalkthroughStore((s) => s.markPending);
   const firedRef = useRef(false);
 
-  // 무엇과 동기화하나: 완료 상태 → 성공(비대기·비실패) 시 1회 자동 진행 + 코치마크 신호
+  // 무엇과 동기화하나: 완료 상태 → 성공(비대기·비실패) 시 1회 자동 진행
   useEffect(() => {
     if (firedRef.current) return;
     if (completionStatus === 'pending' || completionStatus === 'error') return;
     firedRef.current = true;
-    markWalkthroughPending();
     void handleStartPress();
-  }, [completionStatus, handleStartPress, markWalkthroughPending]);
+  }, [completionStatus, handleStartPress]);
 
   if (completionStatus === 'error') {
     return (

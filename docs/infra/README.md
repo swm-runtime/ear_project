@@ -22,5 +22,5 @@
 
 ## 경계
 
-- 랜딩 페이지(Vercel, `earcast.co.kr`)는 이 문서 범위 밖이다 — `tickets/backend/pending/share-universal-links-hosting.md`가 다룬다.
+- 랜딩 페이지(Vercel, `earcast.co.kr`)는 이 문서 범위 밖이다 — `tickets/backend/archive/share-universal-links-hosting.md`가 다룬다.
 - 서버 애플리케이션 구조는 `backend/architecture.md`, 스키마는 `backend/domain.md`가 기준이다. 이 문서는 그 아래층(컴퓨트·스토리지·네트워크·전달)만 다룬다.

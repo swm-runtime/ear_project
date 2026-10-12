@@ -80,6 +80,6 @@ const styles = StyleSheet.create({
     bottom: 0,
     borderRadius: theme.radius.full,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(0, 0, 0, 0.10)',
+    borderColor: theme.color.hairline,
   },
 });

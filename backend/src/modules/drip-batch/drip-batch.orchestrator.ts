@@ -32,7 +32,6 @@ import {
   UserPreferenceWeights,
 } from '@/modules/drip/drip.types';
 import { DripBatchRunService } from '@/modules/drip/services/drip-batch-run.service';
-import { DripExclusionService } from '@/modules/drip/services/drip-exclusion.service';
 import { DripPlacementService } from '@/modules/drip/services/drip-placement.service';
 import { DripScoringService } from '@/modules/drip/services/drip-scoring.service';
 import { PreferenceVectorService } from '@/modules/drip/services/preference-vector.service';
@@ -127,7 +126,6 @@ export class DripBatchOrchestrator {
     private readonly preferenceVectorService: PreferenceVectorService,
     private readonly dripScoringService: DripScoringService,
     private readonly dripPlacementService: DripPlacementService,
-    private readonly dripExclusionService: DripExclusionService,
     private readonly dripBatchRunService: DripBatchRunService,
     private readonly dripArrivalNotificationService: DripArrivalNotificationService,
     private readonly topicService: TopicService,

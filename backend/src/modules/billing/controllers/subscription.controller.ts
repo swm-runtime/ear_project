@@ -8,14 +8,20 @@ import {
   Post,
   UseGuards,
 } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 
 import type { AuthenticatedUser } from '@/common/decorators/current-user.decorator';
 import { CurrentUser } from '@/common/decorators/current-user.decorator';
 import { JwtAuthGuard } from '@/common/guards/jwt-auth.guard';
+import {
+  RATE_LIMIT_INVITE_CODE_PER_MINUTE,
+  RATE_LIMIT_WINDOW_MS,
+} from '@/common/rate-limit.constant';
 
 import { BillingOrchestrator } from '../billing.orchestrator';
 import { CreatePurchaseIntentRequestDto } from '../dto/create-purchase-intent-request.dto';
 import { CreatePurchaseIntentResponseDto } from '../dto/create-purchase-intent-response.dto';
+import { RedeemInviteCodeRequestDto } from '../dto/redeem-invite-code-request.dto';
 import { RestorePurchasesRequestDto } from '../dto/restore-purchases-request.dto';
 import { RestorePurchasesResponseDto } from '../dto/restore-purchases-response.dto';
 import { SubmitPurchaseRequestDto } from '../dto/submit-purchase-request.dto';
@@ -101,6 +107,32 @@ export class SubscriptionController {
         ),
         now: new Date(),
       }),
+    );
+  }
+
+  /**
+   * 초대 코드 입력(4.8) — 지급하고 그 결과의 구독 상태를 돌려준다(`plan.grant`). 같은 계정이 같은 코드를 다시 보내면
+   * 지급 중인 한 같은 결과다(재전송 안전 — 멱등키를 쓰지 않는다). 사용자 단위 분당 10회(`architecture.md` 9.6).
+   */
+  @Post('invite-codes')
+  @HttpCode(HttpStatus.OK)
+  @Header('Cache-Control', 'no-store')
+  @Throttle({
+    default: {
+      limit: RATE_LIMIT_INVITE_CODE_PER_MINUTE,
+      ttl: RATE_LIMIT_WINDOW_MS,
+    },
+  })
+  async redeemInviteCode(
+    @CurrentUser() currentUser: AuthenticatedUser,
+    @Body() request: RedeemInviteCodeRequestDto,
+  ): Promise<SubscriptionResponseDto> {
+    return SubscriptionResponseDto.from(
+      await this.billingOrchestrator.redeemInviteCode(
+        currentUser.id,
+        request.code,
+        new Date(),
+      ),
     );
   }
 }

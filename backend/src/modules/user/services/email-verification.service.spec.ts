@@ -1,3 +1,4 @@
+import { Logger } from '@nestjs/common';
 import { DataSource, EntityManager } from 'typeorm';
 
 import { BusinessException } from '@/common/exceptions/business.exception';
@@ -290,6 +291,36 @@ describe('EmailVerificationService', () => {
         errorCode: ErrorCode.EMAIL_SEND_FAILED,
       });
       expect(repository.deleteById).toHaveBeenCalledWith('42');
+    });
+
+    it('발송 실패 로그에는 에러 이름만 남기고 메시지·스택(수신 주소가 실릴 수 있다)은 남기지 않는다', async () => {
+      // given — SES 샌드박스 거부처럼 메시지에 수신 주소가 실린 에러
+      repository.findLatestByUserIdAndEmailForUpdate.mockResolvedValue(null);
+      repository.saveIfNoActive.mockResolvedValue(
+        buildVerification({ id: '42' }),
+      );
+      const rejected = new Error(
+        `Email address is not verified. The following identities failed the check: ${EMAIL}`,
+      );
+      rejected.name = 'MessageRejected';
+      mailClient.sendVerificationCode.mockRejectedValue(rejected);
+      const errorLog = jest
+        .spyOn(Logger.prototype, 'error')
+        .mockImplementation(() => undefined);
+
+      // when
+      await service.sendCode(USER_ID, EMAIL, NOW).catch(() => undefined);
+
+      // then
+      expect(errorLog).toHaveBeenCalledWith(
+        'verification mail send failed: MessageRejected',
+        {
+          user_id: USER_ID,
+          error_name: 'MessageRejected',
+        },
+      );
+      expect(JSON.stringify(errorLog.mock.calls)).not.toContain(EMAIL);
+      errorLog.mockRestore();
     });
 
     it('동시 요청으로 활성 인증이 이미 있으면 쿨다운으로 흡수한다', async () => {

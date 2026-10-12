@@ -1,3 +1,5 @@
+import type { AudioQuality } from '@/features/settings';
+
 /**
  * 전환 분석용. 판정에 쓰이지 않는다(library-api.md 4.4). player는 완료 화면 ▶ 재청취 전용(paywall.md 4.2 예외).
  * share는 공유 링크 수신 상세의 [재생](share.md 4.3, P1) — library-api.md 4.4 enum에는 아직
@@ -93,6 +95,8 @@ export interface AudioIssueResult {
     expiresAt: string;
     /** 갱신 스케줄링용 상대값 — 기기 시각과 무관하게 수신 시점부터 센다 */
     expiresInSec: number;
+    /** 실제로 내준 음질 — 재생 중 갱신에 그대로 되돌려 보낸다. 옛 서버면 null */
+    quality: AudioQuality | null;
   };
 }
 

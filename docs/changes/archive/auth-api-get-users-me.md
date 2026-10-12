@@ -4,7 +4,7 @@
 |---|---|
 | 대상 문서 | `docs/spec/api/auth-api.md` |
 | 발행 날짜 | 2026-09-08 |
-| 발견 시점 | `tickets/backend/pending/session-restore-endpoint.md` 구현 — 계약 없는 엔드포인트를 만들 수 없어 구현과 동시에 계약 등재를 요청한다(코드 선반영 방침) |
+| 발견 시점 | `tickets/backend/archive/session-restore-endpoint.md` 구현 — 계약 없는 엔드포인트를 만들 수 없어 구현과 동시에 계약 등재를 요청한다(코드 선반영 방침) |
 | 요청 파트 | 백엔드 |
 
 ## 수정 내용 — 신설 절 (4.x)

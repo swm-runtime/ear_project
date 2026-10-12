@@ -39,6 +39,13 @@ export const sectionDisplayOf = (
   detail: section.summary ?? section.title,
 });
 
+/**
+ * 위치가 몇 번째 구간인가(0부터) — 0초가 아닌 시작 시각 중 위치 이하인 것의 개수. 끄는 동안 이 값이 바뀌면
+ * 구간 경계를 넘은 것이다(약한 진동, PM 2026-10-07)
+ */
+export const chapterIndexOf = (startsSec: readonly number[], positionSec: number): number =>
+  startsSec.filter((start) => start > 0 && start <= positionSec).length;
+
 /** 재생 바의 한 조각 — 전체 길이 중 몫(0~1)과 그 조각이 채워진 정도(0~1) */
 export interface ChapterSegment {
   share: number;

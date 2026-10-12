@@ -42,6 +42,8 @@ export interface ProfilePlan {
   hasPaymentIssue: boolean;
   /** 가입 체험(subscription.md 4.8). null이면 체험 중이 아니다 — 체험 여부는 tier가 아니라 이 값으로 본다 */
   trial: PlanTrial | null;
+  /** 예약된 요금제 변경(다운그레이드) — 다음 요금제 이름과 적용 시각. 없으면 null */
+  pendingPlan: { planName: string; effectiveAt: string } | null;
 }
 
 /** 가입 체험 — 서버가 판정한 날짜·한도를 그대로 싣는다(05시 경계 판정은 서버 몫) */
@@ -94,7 +96,25 @@ export interface WeeklyListening {
   topicDistribution?: TopicDistribution;
   /** 요일별(월~일 7개) 주제 분포 — 서버가 아직 안 보내면 undefined */
   dailyTopicDistributions?: TopicDistribution[];
+  /** 그 주 청취 시간 전체 가입자 중 상위 %(서버 판정). null 이면 표시하지 않는다 — 클라이언트가 다시 거르지 않는다 */
+  listeningTopPercent: number | null;
+  /** 주간 카드 한 줄(서버가 고른 하나, KAN-170). null 이면 그리지 않는다 */
+  listeningHighlight: ListeningHighlight | null;
+  /** 요일별 한 줄(KAN-171) — 월~일 7칸, 칸이 null 이면 그날은 비워 둔다. 반영 전 서버면 null */
+  dailyListeningHighlights: (DailyListeningHighlight | null)[] | null;
 }
+
+/** 서버가 고른 주간 한 줄 — 종류 판정은 서버 몫, 앱은 종류대로 문구만 고른다 */
+export type ListeningHighlight =
+  | { kind: 'topPercent'; percent: number }
+  | { kind: 'moreThanPrevious'; diffSec: number }
+  | { kind: 'listenedDays'; days: number };
+
+/** 서버가 고른 요일 한 줄(KAN-171) — 그날 순위는 없다(하루 순위는 출렁인다). 나와의 비교만 */
+export type DailyListeningHighlight =
+  | { kind: 'moreThanLastWeek'; diffSec: number }
+  | { kind: 'bestDay' }
+  | { kind: 'listenedContents'; count: number };
 
 export interface TopicShare {
   topicId: string;

@@ -10,7 +10,6 @@ describe('ContentStatService', () => {
 
   beforeEach(() => {
     repository = {
-      sumPlayCount: jest.fn(),
       findTopContentIds: jest.fn().mockResolvedValue([]),
       saveAll: jest.fn(),
       create: jest.fn(),

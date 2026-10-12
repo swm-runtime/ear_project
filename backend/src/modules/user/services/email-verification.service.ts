@@ -162,13 +162,14 @@ export class EmailVerificationService {
         await this.mailClient.sendVerificationCode(email, code);
       } catch (error) {
         await this.emailVerificationRepository.deleteById(verification.id);
-        this.logger.error(
-          'verification mail send failed',
-          error instanceof Error ? error.stack : undefined,
-          {
-            user_id: userId,
-          },
-        );
+        // 에러 이름까지만 남긴다(convention.md 8.4 · `ses-mail.client.ts`) — SES 의 `MessageRejected` 등은 메시지에
+        // 수신 주소를 싣는 경우가 있어(샌드박스 검증 실패 등) 메시지·스택을 그대로 남기면 이메일 원문이 로그에 남는다
+        const errorName = error instanceof Error ? error.name : 'unknown';
+        // 이름을 메시지에도 싣는다 — 필드 객체는 CloudWatch 에서 별도 줄(ERROR 없음)로 찍혀 Slack 경보에 원인이 빠진다
+        this.logger.error(`verification mail send failed: ${errorName}`, {
+          user_id: userId,
+          error_name: errorName,
+        });
 
         throw new BusinessException({
           status: HttpStatus.BAD_GATEWAY,

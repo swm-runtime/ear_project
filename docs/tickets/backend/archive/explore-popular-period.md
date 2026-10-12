@@ -22,7 +22,7 @@
 >
 > **인덱스는 손대지 않았다** — 티켓의 예상대로 `idx_content_stats_period_type_period_start_play_count`가 그대로 맞는다. `content_stats.replay_count` 누락도 이 티켓의 정렬(`play_count` · `complete_count`)과 무관해 남겨 뒀다.
 
-> **짝 티켓** — `tickets/frontend/pending/explore-popular-period.md`. **서버가 먼저 나가야 FE가 실서버 전환으로 확인할 수 있다**(`EXPO_PUBLIC_EXPLORE_API=real`). FE의 mock은 그대로 남는다.
+> **짝 티켓** — `tickets/frontend/archive/explore-popular-period.md`. **서버가 먼저 나가야 FE가 실서버 전환으로 확인할 수 있다**(`EXPO_PUBLIC_EXPLORE_API=real`). FE의 mock은 그대로 남는다.
 
 ## 증상
 

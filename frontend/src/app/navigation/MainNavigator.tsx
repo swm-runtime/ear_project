@@ -7,7 +7,6 @@ import { PUSHED_SCREEN_HEADER } from '@/shared/navigation/pushed-screen-header';
 import { selectTab } from '@/shared/navigation/tab-selection.store';
 import { USE_NATIVE_PLAYER_ZOOM } from '@/shared/navigation/zoom-transition';
 import { HAS_NATIVE_TAB_BAR } from '@/shared/ui/GlassSurface';
-import { useWalkthroughStore } from '@/shared/ui/walkthrough.store';
 
 import { useAppUpdateStore } from '@/features/app-update';
 import { EmailVerificationScreen, useSessionStore, WithdrawalScreen } from '@/features/auth';
@@ -15,16 +14,14 @@ import { CareerInfoScreen } from '@/features/career';
 import { ContentDetailScreen } from '@/features/content-detail';
 import { ExploreScreen, ExploreSearchScreen } from '@/features/explore';
 import { InterestManagementScreen } from '@/features/interest';
-import { LibraryScreen } from '@/features/library';
+import { LibraryScreen, useLibraryArrivalBadge } from '@/features/library';
 import { NoticeDetailScreen, NoticeListScreen } from '@/features/notice';
 import {
   NotificationPrePromptModal,
-  PushArrivalBanner,
   usePrePromptGate,
   usePushLinkGate,
   useNotificationStore,
 } from '@/features/notification';
-import { FirstRunTutorial } from '@/features/onboarding';
 import { PlayConfirmDialog, PlayerScreen, useLimitNoticeStore } from '@/features/player';
 import { ProfileScreen, SignupTrialNotice } from '@/features/profile';
 import { SettingsScreen } from '@/features/settings';
@@ -52,6 +49,7 @@ const MainStack = createNativeStackNavigator<MainStackParamList>();
  * 이전 기록보다 "고를 것이 많은 화면"이 먼저다.
  */
 function MainTabs() {
+  const arrivalBadge = useLibraryArrivalBadge();
   const justCompletedOnboarding = useSessionStore((s) => s.justCompletedOnboarding);
   // 마운트 시 한 번만 꺼낸다 — 리렌더마다 부르면 두 번째부터 null 이라 탭이 흔들린다
   const [restoredTab] = useState(takePrimedTab);
@@ -81,7 +79,10 @@ function MainTabs() {
         component={LibraryScreen}
         options={{
           tabBarLabel: '라이브러리',
+          tabBarBadge: arrivalBadge.value,
+          tabBarAccessibilityLabel: arrivalBadge.accessibilityLabel,
         }}
+        listeners={{ tabPress: arrivalBadge.acknowledge }}
       />
       <MainTab.Screen
         name="Explore"
@@ -105,8 +106,7 @@ function MainTabs() {
 export default function MainNavigator() {
   const clearPrePromptPending = useNotificationStore((s) => s.clearPrePromptPending);
   const isPrePromptPending = useNotificationStore((s) => s.isPrePromptPending);
-  const isWalkthroughPending = useWalkthroughStore((s) => s.pending);
-  // 코치마크가 끝난 뒤에야 열린다 — 동시에 뜨면 모달이 코치마크를 덮는다(usePrePromptGate)
+  // 착지 뒤 한 박자 쉬고 열린다(usePrePromptGate) — 화면 전환 직후 바로 튀면 같은 팝업의 연속으로 읽힌다
   const isPrePromptVisible = usePrePromptGate();
   // 탭된 알림의 목적지로 보낸다 — Main 이 떴다는 것이 관문 통과다(notification.md 4.4)
   const pushGate = usePushLinkGate();
@@ -116,7 +116,6 @@ export default function MainNavigator() {
   const isUpdateRecommendVisible = useAppUpdateStore((s) => s.isRecommendVisible);
   const isLimitNoticeVisible = useLimitNoticeStore((s) => s.isVisible);
   const isSignupTrialReady = isSignupTrialNoticeReady({
-    isWalkthroughPending,
     isPrePromptPending,
     isUpdateRecommendVisible,
     isPushPlayConfirmVisible: pushGate.confirmState !== null,
@@ -191,7 +190,12 @@ export default function MainNavigator() {
         <MainStack.Screen name="NoticeDetail" component={NoticeDetailScreen} />
         {/* 회원 탈퇴(A7·A8) — 앱바(뒤로 + "회원 탈퇴")를 화면이 직접 그린다(auth-uiux.md 4.5).
           처리 중 이탈 차단(뒤로가기·스와이프)은 화면이 beforeRemove·gestureEnabled로 소유한다 */}
-        <MainStack.Screen name="Withdrawal" component={WithdrawalScreen} />
+        {/* 회원 탈퇴 — 설정과 같은 푸시 화면 상단(iOS 26 시스템 큰 제목, 2026-10-10 "회원탈퇴창 UI 수정") */}
+        <MainStack.Screen
+          name="Withdrawal"
+          component={WithdrawalScreen}
+          options={PUSHED_SCREEN_HEADER}
+        />
         <MainStack.Screen
           name="Admin"
           component={PlaceholderScreen}
@@ -203,11 +207,8 @@ export default function MainNavigator() {
         온보딩 직후 한 번 뜨는 알림 사전 안내(2026-09-02 — 온보딩 마지막 화면이던 O10을 옮겼다).
         착지 탭이 라이브러리일 수도 탐색일 수도 있어 **탭이 아니라 여기서** 그린다 —
         화면마다 두면 어느 탭으로 들어왔느냐에 따라 떴다 안 떴다 한다.
-        여는 시점은 코치마크가 끝난 뒤다(2026-09-04) — 권한은 가치를 보여준 다음에 묻는다
+        첫 사용 튜토리얼(코치마크)은 뺐다(PM 2026-10-11) — 착지 뒤 한 박자 쉬고 바로 이 안내가 뜬다
       */}
-      {/* 첫 사용 튜토리얼 — 예시 화면으로 흐름을 보여준다. 알림 안내보다 먼저다 */}
-      <FirstRunTutorial />
-
       <NotificationPrePromptModal
         isVisible={isPrePromptVisible}
         syncOnDismiss
@@ -229,9 +230,6 @@ export default function MainNavigator() {
         onCancel={pushGate.cancelConfirm}
         onSuppressToday={pushGate.suppressAndPlay}
       />
-
-      {/* 포그라운드 수신 — OS 배너 대신 그린다(notification.md 4.5). 어느 화면 위에도 얹힌다 */}
-      <PushArrivalBanner />
     </>
   );
 }

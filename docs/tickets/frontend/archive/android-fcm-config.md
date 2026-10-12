@@ -7,7 +7,7 @@
 | 발행 날짜 | 2026-09-20 |
 | Jira | [KAN-81](https://runtime364.atlassian.net/browse/KAN-81) |
 | 발견 시점 | KAN-69 실기기 검증 준비 — EAS 자격 증명 조회에서 Android FCM 항목이 전부 비어 있고 저장소에 `google-services.json` 이 없었다 |
-| 근거 문서 | `docs/tickets/frontend/pending/push-sdk-integration.md`(KAN-69 — "Android 발송용 FCM V1 서비스 계정 키도 EAS 에 올려야 한다") · `docs/frontend/architecture.md` 2 푸시 행 |
+| 근거 문서 | `docs/tickets/frontend/archive/push-sdk-integration.md`(KAN-69 — "Android 발송용 FCM V1 서비스 계정 키도 EAS 에 올려야 한다") · `docs/frontend/architecture.md` 2 푸시 행 |
 | 중요도 | **Medium** — 3일 안. Android 첫 정식 빌드를 Play 에 올리기 전에 들어가야 재업로드를 피한다 |
 | 상태 | **완료**(2026-09-20) — Android 실기기에서 토큰 발급·발송 도착 확인 |
 

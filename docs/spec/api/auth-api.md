@@ -320,6 +320,7 @@
 - **`UPDATE`하지 않고 행을 추가한다.** 철회도 `is_agreed: false` 행 추가다(`domain.md` 3.2).
 - **필수 동의(`terms`·`privacy`·`age_confirmation`)는 철회할 수 없다.** `is_agreed: false`를 보내면 **400 `CONSENT_REQUIRED`**(가입 4.2와 같은 코드 — 반영 2026-09-15)다. 약관을 거부하는 경로는 탈퇴(4.7)다. 철회 행 추가는 마케팅 같은 선택 동의에만 해당한다.
 - 마케팅 동의만 바꿨는데 약관 동의 이력이 함께 갱신되면 안 된다.
+- **`version`이 `null`이 아니면 현재 약관 버전과 같아야 한다.** 다르면 **409 `CONSENT_VERSION_STALE`**(가입 4.2와 같은 코드 — 최신 약관을 다시 조회해 재동의). **같은 `consent_type`이 한 요청에 두 번 오면 400 `VALIDATION_FAILED`**(`details.field = "consents"`)다(등재 2026-10-10 — 구현 2026-09-09 `67664c48`).
 
 ---
 
@@ -406,7 +407,7 @@
 | --- | --- | --- |
 | `WITHDRAWAL_CONFIRM_REQUIRED` | 400 | `confirm != true` |
 | `WITHDRAWAL_SUBSCRIPTION_EXPIRY_NOT_AGREED` | 400 | 활성 구독이 있는데 만료 동의 없음 |
-| `WITHDRAWAL_ARCHIVE_IDENTITY_MISSING` | 500 | 결제 이력이 있는데 `users.email`이 없음. **탈퇴를 진행하지 않는다** — 데이터 정합성 문제이므로 알림 대상이다 |
+| ~~`WITHDRAWAL_ARCHIVE_IDENTITY_MISSING`~~ | 500 | **2026-10-11부터 서버가 내지 않는다.** 결제 이력이 있는데 `users.email`이 없으면 제공자 계정 ID로 보관하고 탈퇴를 진행한다(`domain.md` 11.3) — 종전엔 이 오류로 탈퇴가 영구히 막혔다. 코드는 FE 처리 정리 전까지 열거형에 남긴다 |
 - **스토어 구독은 탈퇴로 자동 해지되지 않는다.** 서버는 해지를 대행하지 않으며, 클라이언트는 안내를 **텍스트로만** 노출한다(스토어 이동 버튼·딥링크 금지 — `auth.md` 4.3).
 - 탈퇴 처리 중 앱이 종료돼도 서버 트랜잭션은 완료된다. 재실행 시 토큰 갱신이 실패해 시작 화면으로 간다.
 
@@ -531,6 +532,7 @@
 | `EMAIL_VERIFICATION_CODE_EXPIRED` | 400 | — | 3분 경과 |
 | `EMAIL_VERIFICATION_ATTEMPTS_EXCEEDED` | 400 | — | 검증 시도 5회 소진 → 코드 무효, 재발송 필요 |
 | `EMAIL_VERIFICATION_NOT_FOUND` | 404 | — | `:id`가 없거나, **재발송 또는 [메일 다시 입력]으로 무효화된** 이전 건 |
+| `EMAIL_ALREADY_REGISTERED` | 409 | — | 검증 시점에 계정이 **이미 인증을 마쳤다**(두 주소로 코드를 받아 하나를 먼저 인증했거나, 동시 제출에서 다른 요청이 먼저 성공). 이 인증 건은 무효화되고 인증된 주소를 덮지 않는다. 발송(4.8)과 같은 코드다(등재 2026-10-10, 구현 2026-09-09 `3d8be28d`) |
 - **“코드가 틀림”과 “코드가 만료됨”을 반드시 다른 코드로 내려준다.** 둘을 뭉뚱그리면 사용자가 재발송해야 하는지 다시 입력해야 하는지 알 수 없다(`auth.md` 4.5).
 - **응답 시간을 일정하게 유지한다**(타이밍 공격 방지).
 - 재발송으로 새 코드를 받은 뒤 이전 코드를 입력하면 실패한다. 유효한 코드는 항상 마지막 1개다.
@@ -587,7 +589,7 @@
 앱 재실행 시 **실행 관문(`splash.md` 4)의 2·3단계 판정 입력**이다. 기기에 refresh 토큰이
 남아 있으면 클라이언트는 갱신(4.3) 후 이 엔드포인트로 세션을 복원한다 — 사용자 객체를 받을
 곳이 없어 매 실행마다 로그인 화면으로 가던 문제를 닫는다
-(`tickets/backend/pending/session-restore-endpoint.md`).
+(`tickets/backend/archive/session-restore-endpoint.md`).
 
 ```jsonc
 // 200
@@ -634,7 +636,7 @@
 | `AUTH_REFRESH_TOKEN_REUSED` | 401 | false | 동일. 서버는 전 세션 무효화 |
 | `WITHDRAWAL_CONFIRM_REQUIRED` | 400 | false | 확인 체크박스 강조 |
 | `WITHDRAWAL_SUBSCRIPTION_EXPIRY_NOT_AGREED` | 400 | false | 구독 만료 동의 체크 강조 |
-| `WITHDRAWAL_ARCHIVE_IDENTITY_MISSING` | 500 | false | 공통 오류 화면. 탈퇴는 진행되지 않았음을 안내 |
+| `WITHDRAWAL_ARCHIVE_IDENTITY_MISSING` | 500 | false | 공통 오류 화면. 탈퇴는 진행되지 않았음을 안내. **2026-10-11부터 서버가 내지 않는다**(위 표) |
 | `EMAIL_FORMAT_INVALID` | 400 | false | 인라인 “이메일 형식을 확인해주세요” |
 | `EMAIL_ALREADY_REGISTERED` | 409 | false | 인라인 “이미 등록된 이메일이에요” |
 | `EMAIL_VERIFICATION_RESEND_COOLDOWN` | 429 | false | [재전송] 비활성 + 남은 초 표시 (30초) |
@@ -682,7 +684,7 @@ POST /users/me/withdraw             → 204, 서버가 판정을 다시 수행
 
 - **소셜 토큰은 서버가 제공자 API로 검증한다.** 클라이언트가 보낸 프로필을 신뢰하지 않는다.
 - **모든 조회·변경은 토큰에서 꺼낸 `user_id`로 스코프한다.** 경로에 `userId`를 받지 않고 `me`를 쓴다(IDOR 방지).
-- 인증 요청(로그인·토큰 갱신)은 **IP·계정 단위 레이트 리밋** 대상이다.
+- 인증 요청(`/auth/social-login` · `/auth/sign-up` · `/auth/token/refresh`)은 **IP 단위 레이트 리밋(분당 20회)** 대상이다 — access token을 들고 와도 IP로 센다(갱신 요청이 사용자 키로 IP 한도를 비켜 가지 않게). `/auth/pipeline-login`은 전역 기본 한도만 걸린다. 수치·키의 원본은 `architecture.md` 9.6(정정 2026-10-10 — 종전 "IP·계정 단위"는 구현과 달랐다).
 - **이메일 인증 코드는 해시로 저장하고 원문을 로그에 남기지 않는다.** 로그 마스킹 대상: 소셜 토큰, refresh token, 인증 코드, 이메일 주소.
 - 전역 `ValidationPipe`(`whitelist: true`, `forbidNonWhitelisted: true`) — DTO에 없는 필드는 잘라낸다.
 - 발송·검증 응답 시간을 일정하게 유지한다.
