@@ -17,7 +17,7 @@
 
 ## 배경
 
-iOS 1.2.0 (15)는 결제 화면을 끈 채(`EXPO_PUBLIC_SUBSCRIPTION_UI=off`) 심사에 올라갔고, 승인 뒤 OTA 로 관리자에게만 열 계획이었다(KAN-172). 그런데 **App Store 는 처음 내는 구독 상품을 앱 버전과 함께 심사하고, 심사관이 앱 안에서 그 상품을 찾아 결제해 볼 수 있어야 한다.**
+iOS 1.2.0 (15)는 결제 화면을 끈 채(`EXPO_PUBLIC_SUBSCRIPTION_UI=off`) 빌드돼 App Store Connect 에 올라가 있고(심사 제출 전), 승인 뒤 OTA 로 관리자에게만 열 계획이었다(KAN-172). 그런데 **App Store 는 처음 내는 구독 상품을 앱 버전과 함께 심사하고, 심사관이 앱 안에서 그 상품을 찾아 결제해 볼 수 있어야 한다.**
 
 - 화면이 꺼져 있으면 상품이 반려되거나 "개발자 조치 필요"로 남는다. **승인되지 않은 상품은 나중에 OTA 로 화면을 열어도 운영 App Store 가 내주지 않는다** — 페이월에 상품이 안 뜨거나 결제가 실패한다.
 - 숨긴 기능을 심사 뒤 OTA 로 켜는 것은 심사 지침 2.3.1(숨겨진 기능)·2.5.2 위반 소지도 있다.
@@ -25,12 +25,11 @@ iOS 1.2.0 (15)는 결제 화면을 끈 채(`EXPO_PUBLIC_SUBSCRIPTION_UI=off`) �
 
 ## 할 것
 
-1. 지금 심사 중인 1.2.0 (15) 제출을 **심사에서 제거**(개발자 거부)
-2. **운영 빌드·OTA env 의 결제 UI 를 on** — `eas.json` production 과 `eas-update.yml` main 채널의 `EXPO_PUBLIC_SUBSCRIPTION_UI` 를 `on`. **OTA 도 같이 켜야 한다** — 운영 runtime 34 OTA(`01a12f7c`)가 off 라, 새 빌드가 그걸 받으면 화면이 다시 꺼진다. Android 는 `EXPO_PUBLIC_SUBSCRIPTION_ANDROID=off` 그대로(KAN-130 운영 Play 상품 전)
-3. iOS 1.2.0 새 빌드(빌드 번호 16) → App Store Connect 업로드
-4. 버전 제출 화면 "인앱 구입 및 구독"에 `com.runtime.ear.subscription.daily.monthly` · `com.runtime.ear.subscription.pro.monthly` **첨부** — 상품 ID 는 운영 서버 `plans.store_product_id_ios`(마이그레이션 `1788300100000-SeedPaidPlans`)와 글자까지 같아야 한다
-5. 심사 메모에 구독 위치(설정 > 구독 · 무료 한도 소진 시 페이월)와 심사용 계정 안내
-6. 출시 방식은 **수동 출시** — 승인 후 공개 전에 TestFlight 로 팀 결제 테스트(KAN-177)를 하고 공개한다. TestFlight 결제는 Sandbox 이지만 운영 서버로 붙는다(운영 `APP_STORE_ENVIRONMENTS=Production,Sandbox` — 2026-10-12 확인)
+1. **운영 빌드·OTA env 의 결제 UI 를 on** — `eas.json` production 과 `eas-update.yml` main 채널의 `EXPO_PUBLIC_SUBSCRIPTION_UI` 를 `on`. **OTA 도 같이 켜야 한다** — 운영 runtime 34 OTA(`01a12f7c`)가 off 라, 새 빌드가 그걸 받으면 화면이 다시 꺼진다. Android 는 `EXPO_PUBLIC_SUBSCRIPTION_ANDROID=off` 그대로(KAN-130 운영 Play 상품 전)
+2. iOS 1.2.0 새 빌드(빌드 번호 16) → App Store Connect 업로드. **결제 화면이 꺼진 15 는 심사에 내지 않는다**
+3. 버전 제출 화면 "인앱 구입 및 구독"에 `com.runtime.ear.subscription.daily.monthly` · `com.runtime.ear.subscription.pro.monthly` **첨부** — 상품 ID 는 운영 서버 `plans.store_product_id_ios`(마이그레이션 `1788300100000-SeedPaidPlans`)와 글자까지 같아야 한다
+4. 심사 메모에 구독 위치(설정 > 구독 · 무료 한도 소진 시 페이월)와 심사용 계정 안내
+5. 출시 방식은 **수동 출시** — 승인 후 공개 전에 TestFlight 로 팀 결제 테스트(KAN-177)를 하고 공개한다. TestFlight 결제는 Sandbox 이지만 운영 서버로 붙는다(운영 `APP_STORE_ENVIRONMENTS=Production,Sandbox` — 2026-10-12 확인)
 
 ## KAN-172(관리자만 결제창)와의 관계
 
