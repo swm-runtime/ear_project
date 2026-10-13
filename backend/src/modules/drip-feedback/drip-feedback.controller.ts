@@ -55,7 +55,7 @@ export class DripFeedbackController {
     });
   }
 
-  /** 팝업 닫기(4.1) — 그 편성분은 다시 묻지 않는다. 절대값 저장이라 재전송이 무해하다 */
+  /** 팝업 닫기(4.3) — 그 편성분은 다시 묻지 않는다. 절대값 저장이라 재전송이 무해하다 */
   @Post('dismiss')
   @HttpCode(HttpStatus.NO_CONTENT)
   async dismiss(
@@ -68,7 +68,7 @@ export class DripFeedbackController {
     });
   }
 
-  /** [이번 주 그만 보기](4.3) — 다음 서비스 주 월요일까지 */
+  /** [이번 주 그만 보기](4.4) — 다음 서비스 주 월요일까지 */
   @Post('mute')
   @HttpCode(HttpStatus.OK)
   async mute(

@@ -321,7 +321,6 @@ export class AuthService {
     };
   }
 
-  /** 갱신 실패는 재갱신 여지 없이 명확히 실패시킨다 (architecture.md 9.1 — 무한 루프 방지) */
   /** 회전으로 폐기된 세션인가 — 사유가 없는(컬럼 도입 전) 행도 종전대로 회전으로 본다 */
   private isRotatedRevocation(session: Session): boolean {
     return (
@@ -330,6 +329,7 @@ export class AuthService {
     );
   }
 
+  /** 갱신 실패는 재갱신 여지 없이 명확히 실패시킨다 (architecture.md 9.1 — 무한 루프 방지) */
   private refreshTokenInvalid(): BusinessException {
     return new BusinessException({
       status: HttpStatus.UNAUTHORIZED,
