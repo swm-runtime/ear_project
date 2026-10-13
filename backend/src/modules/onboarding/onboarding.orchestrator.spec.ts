@@ -196,6 +196,39 @@ describe('OnboardingOrchestrator', () => {
       expect(sections[1].items).toHaveLength(3);
     });
 
+    it('월간 순위를 전역 상위가 아니라 후보 풀 안에서 매겨 그 순서로 고른다', async () => {
+      // given — 관심 주제 밖 후보 5건. 전역 상위 50이 전부 관심 주제여도 순위가 비지 않아야 한다
+      const pool = buildContents('pool', 5);
+      contentService.findCandidates
+        .mockResolvedValueOnce(buildContents('a', 2))
+        .mockResolvedValueOnce(buildContents('b', 2))
+        .mockResolvedValueOnce(buildContents('c', 2))
+        .mockResolvedValueOnce(pool);
+      contentStatService.findMonthlyPopularContentIds.mockResolvedValue([
+        pool[4].id,
+        pool[2].id,
+        pool[0].id,
+      ]);
+
+      // when
+      const sections = await orchestrator.getRecommendations(USER_ID, NOW);
+
+      // then
+      expect(
+        contentStatService.findMonthlyPopularContentIds,
+      ).toHaveBeenCalledWith(
+        NOW,
+        pool.length,
+        undefined,
+        pool.map((content) => content.id),
+      );
+      expect(sections[1].items.map((item) => item.contentId)).toEqual([
+        pool[4].id,
+        pool[2].id,
+        pool[0].id,
+      ]);
+    });
+
     it('관심 주제 재고가 부족하면 두 번째 섹션에서 끌어와 총 9건을 유지한다', async () => {
       // given — 두 섹션의 비율(6:3)보다 전체 건수를 우선한다
       contentService.findCandidates.mockImplementation((query) =>
