@@ -41,6 +41,7 @@ export class AdminInsightsService {
       INSIGHTS_RETENTION_DAYS,
       now,
     );
+    const topicSupply = await this.repository.topicSupply(since, now);
 
     return {
       since,
@@ -53,6 +54,7 @@ export class AdminInsightsService {
       topContents,
       withdrawalReasons,
       retention,
+      topicSupply,
     };
   }
 }

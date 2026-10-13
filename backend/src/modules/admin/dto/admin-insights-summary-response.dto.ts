@@ -101,6 +101,18 @@ export class AdminInsightsSummaryResponseDto {
     /** `returned / cohort_size` */
     rate: number | null;
   }[];
+  /** 주제별 수요·공급 — 관심 사용자 대비 남은 편수가 적은 순 */
+  readonly topic_supply: {
+    topic_id: string;
+    name: string;
+    is_visible: boolean;
+    published: number;
+    published_in_window: number;
+    interested_users: number;
+    median_remaining: number;
+    exhausted_users: number;
+    low_users: number;
+  }[];
 
   static from(
     summary: InsightsSummary,
@@ -195,6 +207,17 @@ export class AdminInsightsSummaryResponseDto {
         cohort_size: r.cohortSize,
         returned: r.returned,
         rate: ratio(r.returned, r.cohortSize),
+      })),
+      topic_supply: summary.topicSupply.map((t) => ({
+        topic_id: t.topicId,
+        name: t.name,
+        is_visible: t.isVisible,
+        published: t.published,
+        published_in_window: t.publishedInWindow,
+        interested_users: t.interestedUsers,
+        median_remaining: t.medianRemaining,
+        exhausted_users: t.exhaustedUsers,
+        low_users: t.lowUsers,
       })),
     };
   }

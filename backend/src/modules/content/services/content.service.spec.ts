@@ -237,3 +237,56 @@ describe('ContentService', () => {
     });
   });
 });
+
+describe('ContentService.republish — 임베딩 버전 승계', () => {
+  const manager = {} as never;
+  let contentRepository: jest.Mocked<ContentRepository>;
+  let contentEmbeddingRepository: jest.Mocked<ContentEmbeddingRepository>;
+  let service: ContentService;
+
+  beforeEach(() => {
+    contentRepository = {
+      saveAll: jest.fn((contents: Content[]) => Promise.resolve(contents)),
+    } as unknown as jest.Mocked<ContentRepository>;
+    contentEmbeddingRepository = {
+      carryVersionForward: jest.fn().mockResolvedValue(undefined),
+    } as unknown as jest.Mocked<ContentEmbeddingRepository>;
+
+    service = new ContentService(
+      contentRepository,
+      {} as ContentTopicRepository,
+      {} as ContentSourceRepository,
+      contentEmbeddingRepository,
+      {} as ContentScriptRepository,
+      {} as ContentAudioRenditionRepository,
+    );
+  });
+
+  it('오디오 없이 썸네일만 바꾸면 직전 버전의 임베딩을 새 버전으로 승계한다', async () => {
+    const saved = await service.republish(
+      buildContent({ contentVersion: 3 }),
+      { thumbnailUrl: 'https://cdn.example/thumb.png' },
+      manager,
+    );
+
+    expect(saved.contentVersion).toBe(4);
+    expect(contentEmbeddingRepository.carryVersionForward).toHaveBeenCalledWith(
+      CONTENT_ID,
+      3,
+      4,
+      manager,
+    );
+  });
+
+  it('오디오를 바꾸면 대본이 바뀌었을 수 있어 승계하지 않는다', async () => {
+    await service.republish(
+      buildContent({ contentVersion: 3 }),
+      { audioPath: 'contents/new.m4a', durationSec: 600 },
+      manager,
+    );
+
+    expect(
+      contentEmbeddingRepository.carryVersionForward,
+    ).not.toHaveBeenCalled();
+  });
+});

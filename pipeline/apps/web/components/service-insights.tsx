@@ -238,6 +238,24 @@ function InsightsView({ channel, days, onSwitchToDev }: { channel: EarChannel; d
           </Table>
         </Panel>
       </div>
+      {/* ── 주제별 수요·공급 ── */}
+      {data.topic_supply ? (
+        <Panel title={`주제별 수요·공급 — 관심 대비 콘텐츠가 부족한 순 (신규 발행은 ${winLabel})`} flush>
+          <Table head={["주제", "발행", "신규 발행", "관심 사용자", "남은 편수(중앙값)", "더 줄 것 없음", "2편 이하"]} empty="주제가 없다">
+            {data.topic_supply.map((t) => (
+              <Tr key={t.topic_id}>
+                <Td className="font-medium">{t.name}{t.is_visible ? null : <span className="ml-1 text-xs font-normal text-ink-soft">숨김</span>}</Td>
+                <Td className="tabular-nums">{fmtInt(t.published)}편</Td>
+                <Td className="tabular-nums text-ink-soft">{fmtInt(t.published_in_window)}편</Td>
+                <Td className="tabular-nums font-medium">{fmtInt(t.interested_users)}명</Td>
+                <Td className="tabular-nums">{t.median_remaining.toLocaleString("ko-KR", { maximumFractionDigits: 1 })}편</Td>
+                <Td className={`tabular-nums ${t.exhausted_users > 0 ? "font-medium text-rose-700" : "text-ink-soft"}`}>{fmtInt(t.exhausted_users)}명 <span className="text-ink-soft font-normal">({fmtPct(t.exhausted_users / Math.max(1, t.interested_users), 0)})</span></Td>
+                <Td className="tabular-nums text-ink-soft">{fmtInt(t.low_users)}명</Td>
+              </Tr>
+            ))}
+          </Table>
+        </Panel>
+      ) : null}
       <Panel title="읽는 법">
           <ul className="list-disc space-y-1 pl-4 text-xs text-ink-soft">
             <li><b>누적 가입(탈퇴 포함)</b>은 현재 계정 수 + 탈퇴 기록 수다. <b>유료</b>는 실결제 구독이 만료 전인 사람(해지 예약 포함)이다. 탈퇴하면 계정 행이 지워지므로(domain.md 12.3) 둘을 더해야 &quot;가입한 적 있는 사람&quot;이 된다.</li>
@@ -245,6 +263,7 @@ function InsightsView({ channel, days, onSwitchToDev }: { channel: EarChannel; d
             <li><b>활성 사용자(DAU/WAU/MAU)</b>는 앱을 써서 서버 토큰을 갱신한 사람이다 — 액세스 토큰이 30분짜리라 앱을 열면 거의 매번 갱신이 일어나므로 &quot;앱 실행&quot;에 가장 가까운 서버 신호다(30분 안의 재실행은 안 잡힌다). 그중 <b>재생</b>까지 간 사람을 함께 적어 켜고 안 듣는 비율을 본다. <b>완청</b>은 서버의 90% 판정 신호다.</li>
             <li><b>리텐션</b>은 가입한 지 N일이 지난 현재 계정 중 N일 뒤 이후 아무 때나 앱을 쓴(토큰 갱신 또는 재생) 사람의 비율(언바운디드)이다. 탈퇴자는 분모에 없어 실제보다 높게 나오고(생존 편향), 같은 이유로 <b>일별 가입</b>에서도 그날 가입했다가 탈퇴한 사람은 빠진다.</li>
             <li><b>날짜</b>는 KST 달력일이다(앱의 서비스 날짜 04/05시 경계가 아니다 — 운영자가 읽는 단위). 창 버튼은 추이·&quot;최근 N일&quot; 값에만 걸리고 누적·순위는 전 기간이다.</li>
+            <li><b>주제별 수요·공급</b>의 <b>남은 편수</b>는 그 주제를 관심으로 둔 온보딩 완료 사용자마다 &quot;아직 드립으로 받을 수 있는 편수&quot;다 — 라이브러리에 한 번이라도 들어왔거나(지운 것 포함) 드립으로 이미 받은 콘텐츠는 빠진다. <b>더 줄 것 없음</b>이 많은 주제가 제작 우선순위다. 시리즈 순서 게이트는 반영하지 않은 근사값이다.</li>
             <li>이름·이메일은 서버가 싣지 않는다 — 사용자 순위는 <code>user_id</code> 앞 8자다. 특정 사용자를 더 봐야 하면 목적을 적고 DB 를 직접 본다.</li>
           </ul>
       </Panel>

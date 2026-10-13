@@ -277,6 +277,30 @@ describe('DripScoringService', () => {
       );
     });
 
+    it('선호 난이도와 맞는 콘텐츠의 난이도 적합도는 1이다 — 비중을 그대로 쓰지 않는다', () => {
+      // beginner·intermediate를 반반 완청한 사용자 — 종전에는 beginner가 0.5를 받았다
+      const scored = service.scoreRegularCandidates(
+        [
+          buildCandidate('beginner', {
+            content: { difficulty: ContentDifficulty.BEGINNER },
+          }),
+          buildCandidate('advanced', {
+            content: { difficulty: ContentDifficulty.ADVANCED },
+          }),
+        ],
+        buildContext({
+          isColdStart: false,
+          difficultyAffinity: { beginner: 0.5, intermediate: 0.5 },
+        }),
+      );
+
+      const fitOf = (id: string) =>
+        scored.find((candidate) => candidate.content.id === id)?.breakdown
+          .metaItems.difficultyFit;
+      expect(fitOf('beginner')).toBe(1);
+      expect(fitOf('advanced')).toBe(0);
+    });
+
     it('완청한 시리즈의 다음 편에 강한 가점이 붙는다', () => {
       const continuation = buildCandidate('continuation', {
         content: { seriesId: 's1', episodeNo: 2 },

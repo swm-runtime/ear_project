@@ -95,6 +95,7 @@ describe('AdminInsightsService.summarize', () => {
     topContents: jest.fn().mockResolvedValue([]),
     withdrawalReasons: jest.fn().mockResolvedValue([]),
     retention: jest.fn().mockResolvedValue([]),
+    topicSupply: jest.fn().mockResolvedValue([]),
   });
 
   it('창은 now - days 이고, 전 기간(null)·창 두 번의 청취 합계를 부르며, 순위는 상수 길이로 부른다', async () => {

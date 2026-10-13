@@ -367,6 +367,8 @@ export interface EarInsightsSummary {
   top_contents: { content_id: string; title: string; duration_sec: number; listen_sec: number; plays: number; listeners: number; completes: number; complete_rate: number | null; saves: number }[];
   withdrawal_reasons: { reason_code: string | null; count: number }[];
   retention: { day: number; cohort_size: number; returned: number; rate: number | null }[];
+  /** 주제별 수요·공급 — 관심 사용자 대비 남은 편수가 적은 순(admin-api 4.22). 배포 전 서버면 없다 */
+  topic_supply?: { topic_id: string; name: string; is_visible: boolean; published: number; published_in_window: number; interested_users: number; median_remaining: number; exhausted_users: number; low_users: number }[];
 }
 /** 열 때 1회 + [새로고침] — 자동 폴링하지 않는다(backend-monitoring.md 3장). 서버도 no-store */
 export const getEarInsightsSummary = (ch: EarChannel, days: number) =>

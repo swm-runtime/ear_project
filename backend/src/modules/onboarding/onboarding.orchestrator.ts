@@ -465,10 +465,17 @@ export class OnboardingOrchestrator {
      * 순위가 비어 있으면 아래 정렬이 원래 후보 순서를 유지한다 — 인기 데이터가 쌓이기
      * 전에도 같은 기준으로 뽑고, 쌓이면 그대로 반영된다.
      */
+    /**
+     * **순위는 후보 풀 안에서 매긴다**(2026-10-13 추천 검증). 종전에는 전역 월간 상위 50건과
+     * 후보 풀(관심 주제 밖)의 교집합만 순위를 받았는데, 인기 주제를 고른 사용자는 전역 상위가
+     * 대부분 자기 관심 주제라 교집합이 비어 섹션이 사실상 "누적 인기"로 정렬됐다.
+     */
     const rankedIds =
       await this.contentStatService.findMonthlyPopularContentIds(
         now,
-        DISCOVERY_CANDIDATE_POOL_SIZE,
+        pool.length,
+        undefined,
+        pool.map((content) => content.id),
       );
     const rankByContentId = new Map(
       rankedIds.map((contentId, index) => [contentId, index]),
