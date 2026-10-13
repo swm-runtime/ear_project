@@ -1,3 +1,4 @@
+import { JWKS_UNKNOWN_KID_REFETCH_INTERVAL_MS } from './jwks-key-store';
 import { generateKeyPairSync, KeyObject } from 'node:crypto';
 
 import { sign, SignOptions } from 'jsonwebtoken';
@@ -233,8 +234,11 @@ describe('AppleClient', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
-  it('캐시에 없는 kid가 오면 키 교체로 보고 한 번 더 받아온다', async () => {
+  it('캐시에 없는 kid가 오면 키 교체로 보고 최소 간격 뒤 한 번 더 받아온다', async () => {
     await client.fetchProfile(buildIdentityToken(), { nonce: RAW_NONCE });
+    // 모르는 kid 재조회는 최소 간격(60초) 뒤에만 한다 — 엉뚱한 kid로 외부 호출을 증폭시키지 못하게
+    const later = Date.now() + JWKS_UNKNOWN_KID_REFETCH_INTERVAL_MS;
+    jest.spyOn(Date, 'now').mockReturnValue(later);
 
     const rotated = generateKeyPairSync('rsa', { modulusLength: 2048 });
     fetchMock.mockResolvedValue({

@@ -5,7 +5,10 @@ import { HttpStatus, Logger } from '@nestjs/common';
 import { BusinessException } from '@/common/exceptions/business.exception';
 import { ErrorCode } from '@/common/exceptions/error-code.enum';
 
-import { JwksKeyStore } from './jwks-key-store';
+import {
+  JWKS_UNKNOWN_KID_REFETCH_INTERVAL_MS,
+  JwksKeyStore,
+} from './jwks-key-store';
 
 const JWKS_URL = 'https://provider.test/jwks';
 const TTL_MS = 60 * 60 * 1000;
@@ -189,11 +192,12 @@ describe('JwksKeyStore', () => {
       expect(endpoint.calls).toBe(2);
     });
 
-    it('모르는 kid 가 오면 TTL 과 무관하게 즉시 다시 받아와 교체된 키를 찾는다', async () => {
+    it('모르는 kid 가 오면 TTL 안이라도 최소 간격 뒤에는 다시 받아와 교체된 키를 찾는다', async () => {
       // given — 캐시는 아직 유효하지만 제공자가 키를 kid-b 로 교체했다
-      const { endpoint, store } = setup();
+      const { endpoint, store, advance } = setup();
       endpoint.respondKeys([KEY_A]).respondKeys([KEY_B]);
       await store.resolve('kid-a');
+      advance(JWKS_UNKNOWN_KID_REFETCH_INTERVAL_MS);
 
       // when
       const pem = await store.resolve('kid-b');
@@ -201,6 +205,38 @@ describe('JwksKeyStore', () => {
       // then
       expect(pem).toContain('-----BEGIN PUBLIC KEY-----');
       expect(endpoint.calls).toBe(2);
+    });
+
+    it('최소 간격 안에 온 모르는 kid 는 제공자를 다시 부르지 않고 null 이다 — 아무 kid 로 외부 호출을 증폭시킬 수 없다', async () => {
+      // given
+      const { endpoint, store } = setup();
+      endpoint.respondKeys([KEY_A]);
+      await store.resolve('kid-a');
+
+      // when — 엉뚱한 kid 를 여러 번 보낸다
+      const results = await Promise.all(
+        ['x1', 'x2', 'x3'].map((kid) => store.resolve(kid)),
+      );
+
+      // then
+      expect(results).toEqual([null, null, null]);
+      expect(endpoint.calls).toBe(1);
+    });
+
+    it('캐시가 없을 때 동시에 온 요청은 한 번만 받아온다', async () => {
+      // given
+      const { endpoint, store } = setup();
+      endpoint.respondKeys([KEY_A]);
+
+      // when
+      const pems = await Promise.all([
+        store.resolve('kid-a'),
+        store.resolve('kid-a'),
+      ]);
+
+      // then
+      expect(pems.every((pem) => pem?.includes('BEGIN PUBLIC KEY'))).toBe(true);
+      expect(endpoint.calls).toBe(1);
     });
 
     it('다시 받아온 목록에도 없는 kid 면 null 을 돌려준다', async () => {
@@ -217,10 +253,12 @@ describe('JwksKeyStore', () => {
 
     it('교체로 빠진 키는 새 목록을 받은 뒤 캐시에 남지 않는다', async () => {
       // given — kid-a 가 캐시된 뒤 제공자가 kid-b 만 남겼다
-      const { endpoint, store } = setup();
+      const { endpoint, store, advance } = setup();
       endpoint.respondKeys([KEY_A]).respondKeys([KEY_B]).respondKeys([KEY_B]);
       await store.resolve('kid-a');
+      advance(JWKS_UNKNOWN_KID_REFETCH_INTERVAL_MS);
       await store.resolve('kid-b');
+      advance(JWKS_UNKNOWN_KID_REFETCH_INTERVAL_MS);
 
       // when
       const pem = await store.resolve('kid-a');
