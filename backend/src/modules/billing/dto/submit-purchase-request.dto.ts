@@ -16,7 +16,7 @@ import { MAX_SIGNED_PAYLOAD_LENGTH } from '../billing.constant';
  * subscription-api.md 4.4.
  *
  * **평문 필드로 티어를 바꾸지 않는다** — `intent_id`·`product_id`는 계약상 받기만 하고 서버 판정에 쓰지 않는다.
- * 의도·상품은 서명된 거래 안의 값(`appAccountToken`·`productId`)으로 찾고, 티어도 그것으로만 정한다(7장).
+ * 의도·상품은 서명된 거래 안의 값(계정 토큰 — iOS `appAccountToken` · Android `obfuscatedExternalAccountId`, 그리고 상품 ID)으로 찾고, 티어도 그것으로만 정한다(7장).
  */
 export class SubmitPurchaseRequestDto {
   @IsEnum(DevicePlatform)

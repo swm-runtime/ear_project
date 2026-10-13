@@ -61,8 +61,8 @@ const LIBRARY_LIST_LIMIT = 200;
  * 파생 상태 갱신(`DripBatchOrchestrator.refreshDerivedState` — 취향 캐시 재계산 + 자동 확장 슬롯 판정·적용)을
  * 앞당겨, 같은 캐시를 읽는 탐색 피드와 관심 주제가 바로 바뀌게 한다.
  *
- * **개발계 전용이다.** 행동은 실제 `user_signals`·`library_items`·`play_records`를 쓰므로 운영에서는
- * `SENTRY_ENVIRONMENT=production` 하나로 전부 잠근다 — 이메일이 있어도 열리지 않는다. 결과 표시(편성분·점수)는
+ * **개발계 전용이다.** 행동은 실제 `user_signals`·`library_items`·`play_records`를 쓰므로 환경(`SENTRY_ENVIRONMENT`,
+ * 비면 `NODE_ENV`)이 `development`일 때만 연다(실패 시 닫힘 — 2026-10-13) — 운영은 이메일이 있어도 열리지 않는다. 결과 표시(편성분·점수)는
  * 편성 미리보기(`GET /admin/drip/preview`)가 그대로 담당하고, 이 서비스는 행동·계정 상태·피드·초기화만 소유한다.
  */
 @Injectable()

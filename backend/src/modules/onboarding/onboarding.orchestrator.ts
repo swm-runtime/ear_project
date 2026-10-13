@@ -429,7 +429,7 @@ export class OnboardingOrchestrator {
    * 두 번째 섹션 — 관심 주제 밖 후보를 직전 확정 월의 인기 순으로 고른다(`monthly_popular`).
    * 표본이 부족할 때의 랜덤 폴백은 폐기됐다(README 결정 12 — 아래 본문 주석).
    *
-   * 후보 필터는 첫 섹션과 같다(발행 상태·라이선스 유효·관심 주제 밖·앞 6건과 중복 아님).
+   * 후보 필터: 발행 상태·라이선스 유효·관심 주제 밖·시리즈는 1편만·앞 6건과 중복 아님.
    */
   private async selectDiscoveryContents(
     userId: string,
