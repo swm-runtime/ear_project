@@ -55,7 +55,7 @@ import { EmailVerificationPurgeScheduler } from './email-verification-purge.sche
     // 탈퇴가 결제 이력을 판정하려면 subscription 모듈의 Service가 필요하다 (auth-api.md 8장)
     SubscriptionModule,
     IdempotencyModule,
-    // 탈퇴 알림(Slack) — 가입 알림과 같은 통로
+    // 탈퇴 알림(Slack) — 팀 알림 공용 통로
     AlertModule,
   ],
   controllers: [UserController, JobCategoryController],

@@ -9,9 +9,7 @@ import { SocialProvider } from '@/modules/user/user.enum';
 import { UserService } from '@/modules/user/services/user.service';
 
 import { AuthService } from './auth.service';
-import { SlackAlertService } from '@/modules/alert/slack-alert.service';
 
-import { SignupAlertService } from './signup-alert.service';
 import { SocialProviderClient } from '../providers/social-provider.client';
 import { SocialProviderRegistry } from '../providers/social-provider.registry';
 import { SessionRevokedReason } from '../auth.enum';
@@ -50,7 +48,6 @@ function buildSession(overrides: Partial<Session> = {}): Session {
 
 describe('AuthService', () => {
   let service: AuthService;
-  let signupAlertService: SignupAlertService;
   let userService: jest.Mocked<UserService>;
   let consentService: jest.Mocked<ConsentService>;
   let sessionRepository: jest.Mocked<SessionRepository>;
@@ -114,12 +111,6 @@ describe('AuthService', () => {
       { get: jest.fn() } as never,
     );
 
-    // 웹훅이 없으면 꺼진 상태 — spec 에서는 호출만 세고 실제로 나가지 않는다
-    signupAlertService = new SignupAlertService(
-      new SlackAlertService({ get: jest.fn(() => undefined) } as never),
-    );
-    jest.spyOn(signupAlertService, 'notify');
-
     transaction = jest.fn(
       (runInTransaction: (manager: EntityManager) => Promise<unknown>) =>
         runInTransaction(TX_MANAGER),
@@ -133,7 +124,6 @@ describe('AuthService', () => {
       tokenService,
       sessionRepository,
       deviceTokenService,
-      signupAlertService,
       dataSource,
     );
   });
@@ -262,34 +252,7 @@ describe('AuthService', () => {
       );
     });
 
-    it('계정이 새로 생기면 가입 알림을 부른다', async () => {
-      // given
-      userService.findByProvider.mockResolvedValue(null);
-      const login = await service.socialLogin(
-        {
-          provider: SocialProvider.KAKAO,
-          providerToken: 'token',
-          deviceId: 'device-1',
-        },
-        NOW,
-      );
-      if (login.status !== 'consent_required')
-        throw new Error('consent_required를 기대했다');
-
-      // when
-      await service.signUp(
-        { signupToken: login.signupToken, deviceId: 'device-1', consents: [] },
-        NOW,
-      );
-
-      // then
-      expect(signupAlertService.notify).toHaveBeenCalledWith(
-        SocialProvider.KAKAO,
-        NOW,
-      );
-    });
-
-    it('이미 계정이 있으면 알리지 않는다 — signup token 재호출은 가입이 아니다', async () => {
+    it('이미 계정이 있으면 새로 만들지 않는다 — signup token 재호출은 가입이 아니다', async () => {
       // given — 토큰을 받아둔 뒤, 계정이 이미 생긴 상태로 바꾼다
       userService.findByProvider.mockResolvedValue(null);
       const login = await service.socialLogin(
@@ -310,9 +273,8 @@ describe('AuthService', () => {
         NOW,
       );
 
-      // then — 계정을 만들지도, 알리지도 않는다
+      // then
       expect(userService.createUser).not.toHaveBeenCalled();
-      expect(signupAlertService.notify).not.toHaveBeenCalled();
     });
   });
 

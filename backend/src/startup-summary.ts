@@ -27,7 +27,6 @@ export type FeatureInputs = {
   scheduler: boolean;
   sentry: boolean;
   resourceAlert: boolean;
-  signupAlert: boolean;
   dailyMetrics: boolean;
   /** 스토어 리뷰 폴링(KAN-133) — 켜진 스토어가 하나라도 있고 웹훅이 있을 때 */
   vocReview: boolean;
@@ -55,7 +54,7 @@ export function summarizeFeatures(f: FeatureInputs): string {
   return (
     `features env=${f.environment || '-'} scheduler=${f.scheduler ? 'yes' : 'no'} ` +
     `sentry=${onOff(f.sentry)} resource-alert=${onOff(f.resourceAlert)} ` +
-    `signup-alert=${onOff(f.signupAlert)} daily-metrics=${onOff(f.dailyMetrics)} ` +
+    `daily-metrics=${onOff(f.dailyMetrics)} ` +
     `voc-review=${onOff(f.vocReview)} app-remove-alert=${onOff(f.appRemoveAlert)} ` +
     `sentry-relay=${onOff(f.sentryRelay)} ` +
     `service-day=${f.serviceDayBoundary} crons=${crons}`
@@ -86,7 +85,6 @@ export class StartupSummary implements OnApplicationBootstrap {
         scheduler: isSchedulerProcess(),
         sentry: has('SENTRY_DSN'),
         resourceAlert: errorHook,
-        signupAlert: anyHook,
         // 일일 보고는 스케줄러 프로세스에서만 실제로 돈다 — 다른 워커에서는 자격이 있어도 off 로 적는다
         dailyMetrics:
           isSchedulerProcess() &&

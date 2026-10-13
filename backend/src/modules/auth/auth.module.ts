@@ -2,12 +2,10 @@ import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
 import { IdempotencyModule } from '@/modules/idempotency/idempotency.module';
-import { AlertModule } from '@/modules/alert/alert.module';
 import { UserModule } from '@/modules/user/user.module';
 
 import { AuthController } from './auth.controller';
 import { AuthService } from './services/auth.service';
-import { SignupAlertService } from './services/signup-alert.service';
 import { AppleClient } from './providers/apple.client';
 import { DevClient } from './providers/dev.client';
 import { GoogleClient } from './providers/google.client';
@@ -21,16 +19,10 @@ import { TokenService } from './services/token.service';
 
 /** architecture.md 4.3 — Auth → User 단방향 */
 @Module({
-  imports: [
-    TypeOrmModule.forFeature([Session]),
-    UserModule,
-    IdempotencyModule,
-    AlertModule,
-  ],
+  imports: [TypeOrmModule.forFeature([Session]), UserModule, IdempotencyModule],
   controllers: [AuthController],
   providers: [
     AuthService,
-    SignupAlertService,
     TokenService,
     SessionRepository,
     SessionPurgeScheduler,
