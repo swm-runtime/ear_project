@@ -33,3 +33,6 @@ KAN-172(관리자만 결제창)와의 관계: 심사관은 관리자 계정이 �
 - Given Android 운영 앱, When 같은 화면을 열면, Then 결제 UI 는 여전히 꺼져 있다
 
 ## 처리 기록
+
+- 2026-10-12 — 할 것 1(플래그 OTA 풀기) 코드 반영: `eas.json` production `EXPO_PUBLIC_SUBSCRIPTION_UI` off→on(Android 는 off 유지), `.github/workflows/eas-update.yml` main 채널 `subscription_ui` off→on(android off 유지, 주석 갱신), `feature-flags.ts` 주석 갱신.
+- 2026-10-13 — PM 결정: OTA만으로는 심사관 첫 콜드런치가 임베디드(off) 번들을 봐서(`fallbackToCacheTimeout` 미설정=0) 결제창이 안 보이는 구멍이 있다. 심사관 첫 실행부터 보이도록 **빌드 번호 16을 UI=on 으로 구워** 제출하기로 함(할 것 2 실행). 운영 OTA 도 같은 값(on)으로 재발행해 빌드 16 이 2회차에 off OTA 로 덮이지 않게 한다.
