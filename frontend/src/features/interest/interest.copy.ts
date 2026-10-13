@@ -10,6 +10,11 @@ export const INTEREST_COPY = {
   countLabel: (count: number, max: number) => `${count}/${max} 선택`,
   /** "이 슬래시 삼"으로 읽히지 않게 낭독 라벨을 따로 둔다(uiux 7장) */
   countA11y: (count: number, max: number) => `${max}개 중 ${count}개 선택`,
+  /**
+   * 자동 확장으로 들어온 주제 — 버블에 빗금(애플식 "창문 블라인드") 오버레이로 구분하고,
+   * 낭독기에는 이 꼬리말을 이름 뒤에 붙인다(KAN-181 — "N/3" 집계에서는 뺀다, interest-management-api.md 4.2).
+   */
+  autoBadgeA11y: '자동 추가됨',
   changeBadge: (n: number) => `변경 사항 ${n}개`,
   /**
    * 상한 초과 사유 문구 — 탭을 막지 않고 저장만 막는다(변경 2026-08-11: 0개 사유와 같은

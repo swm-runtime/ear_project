@@ -11,9 +11,9 @@
 `interest-management.md`가 정의한 동작을 HTTP 계약으로 옮긴 문서다. 다루는 것은 다음 넷이다.
 
 - 주제 목록 조회 — **온보딩과 같은 목록**(`is_visible = true` · `display_order` 순). 기존 계약(`onboarding-api.md` 4.2)을 공용으로 참조한다
-- 현재 관심사 조회 — 선택 상태 복원 + `source` 원값("자동 추가됨" 배지는 P1)
+- 현재 관심사 조회 — 선택 상태 복원 + `source` 원값(`auto_expand`는 화면이 빗금으로 구분, KAN-181)
 - 관심사 일괄 저장 — **최종 목록 전체 전송**(델타 아님·멱등), 서버 diff, 최소 1·최대 3 검증, 초과 보유자 규칙, 캐시 무효화
-- 자동 확장 토글 즉시 저장(P1) — `settings-api.md` 4.2의 공용 PATCH를 참조한다
+- 자동 확장 토글 즉시 저장 — `settings-api.md` 4.2의 공용 PATCH를 참조한다. **토글 UI 는 설정 화면이 그린다**(KAN-181)
 
 **이 문서는 동작 규칙을 새로 정하지 않는다.** 규칙이 충돌하면 `interest-management.md`가 기준이며, 이 문서는 그것을 요청·응답으로 표현할 뿐이다. 스키마는 `domain.md`가 유일한 기준이다.
 
@@ -70,7 +70,7 @@
 | 1 | GET | `/onboarding/topics` | 주제 목록 — **온보딩과 공용**(같은 목록·같은 순서) | 필요 | `onboarding-api.md` 4.2 |
 | 2 | GET | `/users/me/interests` | 현재 관심사 조회(선택 상태 + `source` 원값) | 필요 | 이 문서 |
 | 3 | PUT | `/users/me/interests` | 일괄 저장 — 전체 교체 + 서버 diff + 캐시 무효화 | 필요 | 이 문서 |
-| 4 | PATCH | `/users/me/settings` | 자동 확장 토글 즉시 저장(P1) — **설정과 공용** | 필요 | `settings-api.md` 4.2 |
+| 4 | PATCH | `/users/me/settings` | 자동 확장 토글 즉시 저장 — **설정과 공용**(토글 UI 는 설정 화면, KAN-181) | 필요 | `settings-api.md` 4.2 |
 
 **설계 메모**
 
@@ -211,13 +211,13 @@
 
 ---
 
-### 4.4 `PATCH /users/me/settings` — 공용 참조 (P1)
+### 4.4 `PATCH /users/me/settings` — 공용 참조
 
-**정의는 [`settings-api.md` 4.2](settings-api.md)가 소유한다.** 자동 확장 토글(FR-06)은 이 화면에서도 **같은 계약으로 즉시 저장**한다 — `{ "is_auto_expand_enabled": false, "client_seq": n }`.
+**정의는 [`settings-api.md` 4.2](settings-api.md)가 소유한다.** 자동 확장 토글(FR-06)은 `{ "is_auto_expand_enabled": false, "client_seq": n }`로 즉시 저장한다.
 
-- **일괄 저장(4.3)과 무관하다.** 토글 조작 즉시 호출되며 [저장] 활성화에 관여하지 않는다(`interest-management.md` 3장). 낙관적 UI·실패 시 원복 + 토스트·오프라인 큐(마지막 상태만 유지)·`client_seq` 규칙 전부 `settings-api.md` 4.2를 그대로 따른다.
-- 저장소는 `user_settings.is_auto_expand_enabled`다(`domain.md` 3.5). **`user_interests`에 대응 컬럼이 없다.**
-- **MVP에서는 섹션 자체를 노출하지 않으므로**(`interest-management.md` 5장) 이 화면에서 호출이 발생하지 않는다. 값의 조회도 이 문서에 없다 — 화면이 P1에 그리게 되면 조회 경로(설정 조회 재사용 또는 4.2 응답 확장)를 그때 확정한다(9장).
+- **토글 UI 는 이 화면이 아니라 설정 화면이 그린다**(KAN-181, 결정 2026-10-14 — 관심사 화면은 버블밭이라 토글 자리가 애매하다). 이 문서는 "자동 추가 주제를 화면에 어떻게 비추고(빗금·`N/3` 제외) 해제가 일괄 저장으로 흐르는가"만 소유하고, 토글 저장은 설정 계약을 참조만 한다.
+- **일괄 저장(4.3)과 무관하다.** 토글 조작 즉시 호출되며 [저장] 활성화에 관여하지 않는다(`interest-management.md` 3장). 낙관적 UI·실패 시 원복 + 토스트·`client_seq` 규칙 전부 `settings-api.md` 4.2를 그대로 따른다. 저장소는 `user_settings.is_auto_expand_enabled`다(`domain.md` 3.5 — `user_interests`에 대응 컬럼이 없다).
+- 토글의 현재 값은 설정 화면이 `GET /users/me/settings`로 이미 받는다 — 관심사 화면은 토글을 그리지 않으므로 이 값을 조회하지 않는다.
 - 자동 확장으로 추가된 주제의 **해제**는 토글이 아니라 일괄 저장(4.3)의 해제분이다 — `is_user_removed = true`가 서면서 재추가가 영구히 막힌다.
 
 ---
@@ -259,7 +259,7 @@ PUT /users/me/interests
 - **팝업을 띄울지는 클라이언트가 정하고, 저장을 받아줄지는 서버가 정한다.** 팝업은 고지이지 판정이 아니다.
 - 뒤로가기(변경 있음)의 "저장하지 않고 나갈까요?" 팝업은 서버 호출이 없다 — [나가기]는 편집을 버릴 뿐이다.
 
-**자동 확장 토글 (P1)**
+**자동 확장 토글 (설정 화면 — KAN-181)**
 
 ```
 토글 조작 → 즉시 PATCH /users/me/settings { is_auto_expand_enabled, client_seq }   (settings-api 4.2)
@@ -297,6 +297,6 @@ PUT /users/me/interests
 
 - ~~주제 목록 공용 경로의 이름~~ → **해소(협의 2026-08-10): (a) 현행 유지.** `GET /onboarding/topics`를 그대로 쓴다 — 계약이 한 곳에 있고 배포 전 개명의 실익이 없다.
 - ~~숨겨진 주제를 diff·개수 판정에서 제외하는 규칙(4.2·4.3)~~ → **해소(2026-08-10): features에 명문화됨.** `interest-management.md` 7장(관리자 숨김 항목)에 "숨겨진 주제는 일괄 저장의 diff·개수 판정 범위에서 제외한다"가 추가됐다.
-- **자동 확장 토글 값의 조회 경로(P1)** — 저장은 `settings-api.md` 4.2로 확정했지만, 이 화면이 토글의 현재 값을 어디서 읽을지는 미정이다. 선택지: (a) `GET /users/me/settings` 재사용(응답에 이미 있음 — 다만 이 화면에는 과한 응답) / (b) 4.2 응답에 `is_auto_expand_enabled`를 얹는다(저장 경로와 갈라지는 대신 왕복 1회). P1 화면 작업 시 확정한다.
+- ~~**자동 확장 토글 값의 조회 경로(P1)**~~ → **해소(2026-10-14, KAN-181).** 토글을 설정 화면에 두기로 해 조회 경로 고민이 사라졌다 — 설정 화면이 `GET /users/me/settings`로 이미 값을 받는다. 관심사 화면은 토글을 그리지 않으므로 이 값을 읽지 않고, 자동 추가 주제는 `GET /users/me/interests`의 `source`로만 구분한다.
 - **`INTEREST_LIMIT_EXCEEDED`의 message와 초과 보유자** — 고정 문구 "관심 주제는 3개까지 선택할 수 있어요"는 초과 보유자의 실제 상한(기존 개수)과 다를 수 있다. 정상 클라이언트는 추가 자체가 막혀 이 코드에 도달하지 않으므로 고정 문구로 뒀다 — 우회 요청에 정확한 안내를 만들 이유가 없다.
 - ~~**자동 확장(FR-18) P1 도입 시 재확인** — 상한 3과의 충돌(3개 보유자에게 배치가 동작하지 않음)~~ → **해소(2026-09-30)**: 자동 슬롯 1개를 상한과 따로 센다(4.2·4.3). 남은 것: 서버 기본값 ON/OFF, "자동 추가됨" 배지 노출은 전부 features의 미결이다(`interest-management.md` 미결 사항). 이 계약에서는 `source` 원값 전달(4.2)까지만 준비해뒀다 — 배지가 확정돼도 응답은 바뀌지 않는다.

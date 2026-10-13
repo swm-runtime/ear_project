@@ -40,7 +40,7 @@ import { SETTINGS_COPY } from '../settings.copy';
  * 설정 화면(S1~S7) — 화면은 뷰만 담당하고 로직은 useSettingsScreen이 소유한다.
  * 설정은 허브다: 이 화면이 소유하는 조작은 토글·배속 시트뿐이고 나머지는 소유 화면으로
  * 보낸다(settings-uiux.md 1장). 진입점은 프로필 우상단 아이콘 하나다(탭이 아니다 — settings.md 2장).
- * 프로필로 되돌아가는 계정 카드·오프라인 저장 메뉴·자동 확장 토글(P1)은 두지 않는다(8장 금지).
+ * 프로필로 되돌아가는 계정 카드·오프라인 저장 메뉴는 두지 않는다(8장 금지). 자동 확장 토글은 콘텐츠 섹션에 있다(KAN-181).
  */
 export default function SettingsScreen() {
   const screen = useSettingsScreen();
@@ -165,7 +165,14 @@ export default function SettingsScreen() {
               onPress={screen.openInterests}
             />
             <SettingsRow label={SETTINGS_COPY.content.career} onPress={screen.openCareer} />
-            {/* 주제 자동 확장(FR-06)은 P1 미구현이라 항목을 그리지 않는다(settings-api.md 4.1) */}
+            {/* 주제 자동 확장 토글(FR-06, KAN-181) — 즉시 저장(settings-api.md 4.2). 조회 값이 기준이라 실패 시 비활성 */}
+            <SettingsToggleRow
+              label={SETTINGS_COPY.content.autoExpand}
+              description={SETTINGS_COPY.content.autoExpandDescription}
+              value={screen.controls?.isAutoExpandEnabled ?? false}
+              onToggle={screen.toggleAutoExpand}
+              disabled={!hasControls}
+            />
           </SettingsSection>
 
           <SettingsSection title={SETTINGS_COPY.sections.playback}>

@@ -82,16 +82,42 @@ export const useInterestManagementScreen = () => {
     [baseline, effectiveSelected],
   );
 
+  /*
+   * 자동 확장으로 들어온 주제(source=auto_expand)는 직접 고른 상한(3)과 **따로 센다** — 자동 슬롯 1개는
+   * 별개다(interest-management.md 4.3 · interest-management-api.md 4.3, 개정 2026-09-30). "N/3"·탭 캡·저장
+   * 게이트는 전부 **직접 고른 개수**(source≠auto_expand)로 판정한다. 넣으면 조작 없이 "4/3"이 보이고 자동
+   * 슬롯이 직접 고를 자리를 먹는다. diff(변경 사항·해제 확인)와 저장 본문은 자동 슬롯을 **포함한 전체 목록**이다 —
+   * 자동 주제를 해제하면 그것도 변경(해제)이다.
+   */
+  const autoExpandIds = useMemo(
+    () =>
+      new Set(
+        (interestsQuery.data ?? [])
+          .filter((interest) => interest.source === 'auto_expand')
+          .map((interest) => interest.topicId),
+      ),
+    [interestsQuery.data],
+  );
+  const directSelected = useMemo(
+    () => effectiveSelected.filter((id) => !autoExpandIds.has(id)),
+    [effectiveSelected, autoExpandIds],
+  );
+  const directBaselineCount = useMemo(
+    () => baseline.filter((id) => !autoExpandIds.has(id)).length,
+    [baseline, autoExpandIds],
+  );
+
   const maxSelectable = topicsQuery.data?.maxSelectable ?? 0;
-  const selectedCount = effectiveSelected.length;
+  /** "N/3"의 N — 직접 고른 주제만 센다(자동 슬롯 제외, interest-management-api.md 4.1) */
+  const selectedCount = directSelected.length;
   /**
    * 상한 초과는 탭이 아니라 저장을 막는다(변경 2026-08-11 — 0개 상태와 같은 패턴).
-   * 판정식은 서버와 같은 max(상한, 기존 보유 개수)라 초과 보유자의 해제·재저장(5→4)은 통과한다.
+   * 판정식은 서버와 같은 max(상한, 기존 직접 보유 개수)라 초과 보유자의 해제·재저장(5→4)은 통과한다.
    */
-  const isOverLimit = isOverSelectionCap(selectedCount, maxSelectable, baseline.length);
-  /** IM6 — 초과 보유자(기존 4개 이상) 안내 배너. N은 3을 초과한 개수, 3개 이하로 내려가면 제거 */
+  const isOverLimit = isOverSelectionCap(selectedCount, maxSelectable, directBaselineCount);
+  /** IM6 — 초과 보유자(기존 직접 4개 이상) 안내 배너. N은 상한을 초과한 개수, 상한 이하로 내려가면 제거 */
   const overLimitCount =
-    maxSelectable > 0 && baseline.length > maxSelectable
+    maxSelectable > 0 && directBaselineCount > maxSelectable
       ? Math.max(0, selectedCount - maxSelectable)
       : 0;
 
@@ -124,16 +150,22 @@ export const useInterestManagementScreen = () => {
    * 같은 규칙·같은 문구). 종전(변경 2026-08-11)엔 넘겨 고르게 두고 저장만 막았다. 상한을 이미 넘겨 보유한 사람(IM6)은
    * 해제만 할 수 있고, 저장 게이트(isOverLimit)는 그 경우를 위해 남는다
    */
-  const topics = (topicsQuery.data?.items ?? []).map((topic) => ({
-    ...topic,
-    isSelected: effectiveSelected.includes(topic.topicId),
-  }));
+  const topics = (topicsQuery.data?.items ?? []).map((topic) => {
+    const isSelected = effectiveSelected.includes(topic.topicId);
+    return {
+      ...topic,
+      isSelected,
+      // 자동 확장으로 들어와 **유지 중인** 주제에만 빗금 — 해제하면(미선택) 평범한 버블로 돌아간다
+      isAutoExpanded: isSelected && autoExpandIds.has(topic.topicId),
+    };
+  });
 
   const toggleTopic = (topicId: string) => {
     // 저장 인플라이트 동안 화면 조작을 차단한다 — 보낸 목록과 화면이 어긋나면 안 된다(uiux 4.3)
     if (isSaving || selectedIds === null) return;
     const isAdding = !effectiveSelected.includes(topicId);
-    if (isAdding && effectiveSelected.length >= maxSelectable) {
+    // 상한은 직접 고른 개수로만 본다 — 자동 슬롯은 세지 않으므로 자동 주제의 재선택은 캡에 걸리지 않는다(4.3)
+    if (isAdding && !autoExpandIds.has(topicId) && directSelected.length >= maxSelectable) {
       showToast(INTEREST_COPY.limitNotice(maxSelectable));
       return;
     }

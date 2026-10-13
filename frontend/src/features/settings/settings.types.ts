@@ -63,7 +63,7 @@ export interface SettingsInterestSummary {
 /** user_settings 원값(settings-api.md 4.1) — 마케팅 수신 동의는 여기 없다(저장소가 다르다) */
 export interface UserSettings {
   defaultPlaybackRate: PlaybackRate;
-  /** 주제 자동 확장(FR-06, P1) — 값은 오지만 미구현 동안 화면이 항목을 숨긴다 */
+  /** 주제 자동 확장(FR-06) — 설정 화면이 토글로 그린다(KAN-181). 행동 기반 확장이 이 값을 읽는다(drip-scheduling.md 4.5-1) */
   isAutoExpandEnabled: boolean;
   /** 이어 PICK 알림 앱 토글 — 필드명은 내부 용어를 유지한다(settings-api.md 4.1) */
   isDripNotificationEnabled: boolean;
