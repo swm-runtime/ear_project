@@ -13,7 +13,7 @@
 | 선행 | KAN-162(BE 형식 3 수용, `backend/archive/content-hashtags-enrichment-v3.md`) — dev 반영 완료, **운영 배포 대기**: dev → main 릴리즈 PR(작성자 외 1명 승인)이 사람 손이다. KAN-163(FE 표시) — 완료, 개발계 OTA `01a11c4a` |
 | 중요도 | **Medium**(3일 안) — PM 발행(2026-10-09). 중요도 미지정이라 운영 배포 선행을 감안해 3일로 잡았다 — 바꾸려면 Jira·이 표를 함께 고친다 |
 | 근거 문서 | `ai/metadata-pipeline.md` 107행(형식 3 · 스위치 · 소급 절차) · `spec/api/admin-api.md` 4.6(형식 거부 규칙) · `backend/deploy/sync-content-import.sh`(운영 → 개발계 콘텐츠 복사) |
-| 상태 | 대기 — 운영 배포 선행 |
+| 상태 | 진행 중 — 스위치 켬(2026-10-14), 소급 진행 |
 
 ## 왜 따로 떼는가
 
@@ -44,3 +44,5 @@ KAN-163으로 앱은 탐색 카드·상세에 태그를 그릴 준비가 끝났�
 ## 처리 기록
 
 - 2026-10-09 발행(마크다운 + Jira KAN-164, 링크 KAN-162 → KAN-164 → KAN-139. PM 요청 — "개발계에서 보이게 하는 티켓"). 조사: 앱은 KAN-163으로 준비 끝, 서버 dev는 형식 3 수용(KAN-162 #1304), 운영은 미배포(origin/main에 #1304 없음), 파이프라인 스위치 꺼짐. 개발계는 운영 복사본이라 운영 소급이 유일한 지속 경로.
+- 2026-10-13 #1485(콘솔 기준 3 + compose `ENRICH_TAGS` 전달) → 워커 스위치가 아직 꺼져 있어 콘솔 기준만 #1486 으로 2 로 되돌림(발행분 전부 "구형 v2"로 보이는데 다시 뽑아도 형식 2).
+- 2026-10-14 01:20 KST(이주호·효헌) 운영 배포 확인(origin/main 에 #1304) → AI 서버 `pipeline/deploy/env.prod` 에 `ENRICH_TAGS=1` 추가, `worker-io` 재생성(컨테이너 env 확인 `ENRICH_TAGS=1`) → 이 PR 로 콘솔 기준 3. 서버 워커(`ai-server-io`, 실행기 openai, ai·io)가 enrich 를 집으므로 노트북 워커 env 는 건드리지 않았다 — 노트북 Claude 워커가 enrich 를 집으면 그 셸에도 `ENRICH_TAGS=1` 이 필요하다. 소급(3번)과 개발계 복사(4번)는 머지 뒤 이어서.

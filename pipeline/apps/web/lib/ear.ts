@@ -144,8 +144,8 @@ export interface EarContent {
   /** 추천 스코어링에 쓰이는 임베딩이 있는가(admin-api 8장, 2026-10-13). false = 없거나 오디오 재발행 뒤 미갱신 — 메타 형식이 최신이어도 다시 뽑을 대상. 배포 전 서버면 없다 */
   has_current_embedding?: boolean;
 }
-/** 현재 추천 메타 형식 버전 — 원본은 서버 CURRENT_ENRICHMENT_SCHEMA_VERSION(admin-api 4.6). **3으로 올리는 것은 워커 ENRICH_TAGS=1 과 같은 시점에 한다**(KAN-164) — 콘솔만 먼저 올리면 발행분 전부가 "구형 v2"로 보이는데 다시 뽑아도 태그가 붙지 않는다(2026-10-13 먼저 올렸다가 되돌림) */
-export const ENRICHMENT_SCHEMA_VERSION_FALLBACK = 2;
+/** 현재 추천 메타 형식 버전 — 원본은 서버 CURRENT_ENRICHMENT_SCHEMA_VERSION(admin-api 4.6). 3 = 해시태그 포함(KAN-162 운영 배포 뒤 KAN-164). **워커 ENRICH_TAGS=1 과 같은 시점에 움직인다** — 콘솔만 먼저 올리면 발행분 전부가 "구형 v2"로 보이는데 다시 뽑아도 태그가 붙지 않는다(2026-10-13 먼저 올렸다가 되돌림 #1486). 2026-10-14 AI 서버 워커 env.prod 에 ENRICH_TAGS=1 을 넣고 재기동한 뒤 3으로 올렸다 */
+export const ENRICHMENT_SCHEMA_VERSION_FALLBACK = 3;
 export const listEarJobCategories = () => earFetch<{ items: { name: string }[] }>("/job-categories");
 
 export const listEarTopics = () => earFetch<{ items: EarTopic[] }>("/admin/topics");
