@@ -73,6 +73,7 @@ export class DripPreviewService {
       persistPreference: false,
       persistAutoExpand: false,
       stopAtSkip: false,
+      loadRecentDripTopics: true,
     });
 
     const [interests, removedTopicIds, todayPlacedIds] = await Promise.all([
