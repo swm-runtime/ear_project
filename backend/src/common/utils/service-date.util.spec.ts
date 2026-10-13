@@ -260,18 +260,33 @@ describe('serviceDateUtil', () => {
       expect(
         toPreviousFinalWeekStart(new Date('2026-10-18T19:30:00.000Z')),
       ).toBe('2026-10-05');
-      // 2026-10-19(월) 05:00 KST → 이번 주 10-19, 직전 확정 주 10-12
+      // 2026-10-19(월) 05:30 KST → 집계 확정 뒤라 직전 확정 주 10-12
       expect(
-        toPreviousFinalWeekStart(new Date('2026-10-18T20:00:00.000Z')),
+        toPreviousFinalWeekStart(new Date('2026-10-18T20:30:00.000Z')),
       ).toBe('2026-10-12');
       // 2026-11-01 04:30 KST → 아직 10월 → 직전 확정 월 9월
       expect(
         toPreviousFinalMonthStart(new Date('2026-10-31T19:30:00.000Z')),
       ).toBe('2026-09-01');
-      // 2026-11-01 05:00 KST → 11월 → 직전 확정 월 10월
+      // 2026-11-01 05:30 KST → 직전 확정 월 10월
+      expect(
+        toPreviousFinalMonthStart(new Date('2026-10-31T20:30:00.000Z')),
+      ).toBe('2026-10-01');
+    });
+
+    it('경계(05:00)부터 집계 확정(05:30) 전까지는 한 구간 앞의 확정값을 계속 가리킨다', () => {
+      process.env[key] = switchAt;
+
+      // 05:00~05:29 — 10-12 주·10월은 아직 is_final이 아니다
+      expect(
+        toPreviousFinalWeekStart(new Date('2026-10-18T20:00:00.000Z')),
+      ).toBe('2026-10-05');
+      expect(
+        toPreviousFinalWeekStart(new Date('2026-10-18T20:29:59.000Z')),
+      ).toBe('2026-10-05');
       expect(
         toPreviousFinalMonthStart(new Date('2026-10-31T20:00:00.000Z')),
-      ).toBe('2026-10-01');
+      ).toBe('2026-09-01');
     });
 
     it('파싱이 안 되는 값은 전환 없음으로 본다(기동 검증이 먼저 막는다)', () => {

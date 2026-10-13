@@ -24,6 +24,11 @@ const SERVICE_DAY_START_HOUR_FROM_SWITCH = 5;
 const MINUTE_MS = 60 * 1000;
 const DAY_MS = 24 * 60 * MINUTE_MS;
 const DAYS_IN_WEEK = 7;
+/**
+ * 05:00 경계에서 확정 집계가 실제로 쓰이는 시각까지의 지연 — 집계 배치가 05:30에 돈다
+ * (`content-stat-aggregation.scheduler.ts`). 04:00 경계 시절에는 배치가 경계 정각이라 0이었다.
+ */
+const FINAL_STATS_LAG_MS_FROM_SWITCH = 30 * 60 * 1000;
 
 export const SERVICE_DAY_BOUNDARY_SWITCH_ENV = 'SERVICE_DAY_BOUNDARY_05_FROM';
 
@@ -143,7 +148,7 @@ export function toServiceDate(date: Date): string {
  * (domain.md 5.4 — 직전 확정 구간의 값으로 순위를 보여준다).
  */
 export function toPreviousFinalWeekStart(date: Date): string {
-  const serviceDay = toServiceDay(date);
+  const serviceDay = toServiceDay(beforeFinalStatsLag(date));
   // getUTCDay는 일요일이 0이다. 월요일을 주의 시작으로 두려면 하루씩 당겨 센다
   const daysSinceMonday = (serviceDay.getUTCDay() + 6) % 7;
   const previousMonday = new Date(
@@ -259,11 +264,23 @@ export function toWeekDates(weekStart: string): string[] {
  * 그 5시간 동안 목록이 조용히 빈다.
  */
 export function toPreviousFinalMonthStart(date: Date): string {
-  const serviceDay = toServiceDay(date);
+  const serviceDay = toServiceDay(beforeFinalStatsLag(date));
   const year = serviceDay.getUTCFullYear();
   const month = serviceDay.getUTCMonth() + 1;
 
   return month === 1
     ? formatDate(year - 1, 12, 1)
     : formatDate(year, month - 1, 1);
+}
+
+/**
+ * "직전 확정" 판정은 **집계가 확정된 뒤에** 넘어가야 한다. 경계(05:00)에 바로 넘기면
+ * 05:30 집계 배치가 아직 `is_final`을 쓰지 않은 구간을 조회해, 매주 월요일·매월 1일
+ * 30분 동안 인기 순위가 전부 0으로 무너진다(2026-10-13 추천 검증). 그 30분은 한 구간
+ * 앞의(이미 확정된) 값을 계속 보여 준다.
+ */
+function beforeFinalStatsLag(date: Date): Date {
+  return serviceDayStartHour(date) === SERVICE_DAY_START_HOUR_FROM_SWITCH
+    ? new Date(date.getTime() - FINAL_STATS_LAG_MS_FROM_SWITCH)
+    : date;
 }
