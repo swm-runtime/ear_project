@@ -7,7 +7,7 @@ import { PlaybackRate } from '../user.enum';
 
 const USER_ID = '11111111-1111-4111-8111-111111111111';
 
-/** 엔티티 `@Column({ default })` — 마이그레이션이 만든 DB 기본값의 원본이다 */
+/** 엔티티 `@Column({ default })` — 마이그레이션은 엔티티에서 생성되므로 DB 기본값과 같은 근거다(마이그레이션 자체는 보지 않는다) */
 function columnDefault(propertyName: keyof UserSetting): unknown {
   const column = getMetadataArgsStorage().columns.find(
     (args) => args.target === UserSetting && args.propertyName === propertyName,
