@@ -78,7 +78,7 @@ CloudWatch(EC2 지표·`/ear/api`·`/ear/caddy` 로그)·Sentry·합성 헬스�
 | 오디오 CDN | `AUDIO_DELIVERY=cloudfront` + `CLOUDFRONT_KEY_PAIR_ID` · `CLOUDFRONT_PRIVATE_KEY_BASE64` · `AUDIO_BUCKET` · `AWS_REGION` (`AUDIO_URL_BASE_URL` · `AUDIO_URL_SIGNING_KEY` 는 항상 필수) | `cloudfront` 모드에서 값이 빠지면 기동 실패. 값이 틀리면 재생 URL 발급 불가 |
 | Sentry | `SENTRY_DSN` (+`SENTRY_ENVIRONMENT`) | 크래시 수집 안 됨 — 조용히 꺼짐 |
 | **Sentry → Slack 릴레이**(2026-10-07 — Sentry 무료 플랜은 Slack 공식 연동이 없어, 플랜 제한 없는 **Internal Integration 웹훅**(Alert Rule Action)을 `POST /webhooks/sentry/:token` 으로 받아 `SlackAlertService` 로 흘린다. 앱(ear-app)·서버(ear-api) 프로젝트가 같은 주소를 쓴다. 문구는 프로젝트·레벨·제목(200자)·환경·릴리스 + **위치(culprit)·기기/OS/앱 버전·울린 규칙·in-app 스택 3줄**(#1218) + **State · First Seen · 건수 · 영향 사용자 수**(이슈 단위 — `SENTRY_API_TOKEN`이 있으면 `GET /api/0/issues/{id}/` 를 한 번 더 물어 붙인다. 실패·3초 초과면 그 줄 없이 보낸다) + 이슈 링크. 사용자 식별값은 꺼내지 않는다) | `SENTRY_WEBHOOK_SECRET`(Internal Integration 의 **Client Secret** — Sentry 가 보내는 `Sentry-Hook-Signature`(본문의 HMAC-SHA256)를 이것으로 검증한다, 2026-10-07) · `SENTRY_API_TOKEN`(같은 통합의 **API 토큰**, 권한 Issue & Event: Read — 선택. 비우면 이슈 단위 줄만 빠진다) 또는 `SENTRY_WEBHOOK_TOKEN`(16자 이상, URL 경로 토큰 — 종전 방식. 경로의 비밀은 요청 로그에 남으므로 로그에서는 `[redacted]`로 가린다) + Slack 웹훅 | 둘 다 비우면 엔드포인트가 전부 404 — Sentry 이슈는 메일로만 온다. 둘 다 있으면 서명 또는 토큰 중 하나가 맞으면 받는다(주소 교체 기간). 기동 요약 `sentry-relay=` |
-| Slack 경보·가입 알림·**탈퇴 알림**(2026-10-06 — 사유 코드·직접 입력 사유·가입 N일차·결제 이력 여부, 신원 값 없음)·**스토어 리뷰**·**앱 삭제**(3-4 GA4 · 3-5 iOS 추정)·**결제 실패**(3-6) | `SLACK_ERROR_WEBHOOK_URL` (가입·탈퇴 알림·리뷰·일일 보고는 `SLACK_SIGNUP_WEBHOOK_URL` 우선) — 전송은 `modules/alert` 의 `SlackAlertService` 한 곳 | 조용히 꺼짐 |
+| Slack 경보·**탈퇴 알림**(2026-10-06 — 사유 코드·직접 입력 사유·가입 N일차·결제 이력 여부, 신원 값 없음)·**스토어 리뷰**·**앱 삭제**(3-4 GA4 · 3-5 iOS 추정)·**결제 실패**(3-6) | `SLACK_ERROR_WEBHOOK_URL` (탈퇴 알림·리뷰·일일 보고는 `SLACK_SIGNUP_WEBHOOK_URL` 우선. 건별 가입 알림은 2026-10-13 없앴다 — 가입은 3-3 일일 보고의 가입자 줄로 본다) — 전송은 `modules/alert` 의 `SlackAlertService` 한 곳 | 조용히 꺼짐 |
 | App Store Connect API(리뷰 조회 — KAN-133) | `APP_STORE_CONNECT_ISSUER_ID` · `APP_STORE_CONNECT_KEY_ID` · `APP_STORE_CONNECT_PRIVATE_KEY_BASE64`(**팀 키** — 결제용 In-App Purchase 키와 다르다) + `APP_STORE_APP_APPLE_ID` | 그 스토어만 조용히 꺼짐 |
 | Google Play Developer API(리뷰 조회 — KAN-133) | 결제용 `GOOGLE_PLAY_PACKAGE_NAME` · `GOOGLE_PLAY_SERVICE_ACCOUNT_BASE64` 재사용(Play Console 에서 서비스 계정에 리뷰 권한 추가) | 그 스토어만 조용히 꺼짐 |
 | GA4 일일 보고 · **앱 삭제 알림**(3-4, 2026-10-06) | `GA4_PROPERTY_ID` + `GA4_SERVICE_ACCOUNT_BASE64` (+ 위 웹훅) — 같은 자격을 두 기능이 쓴다 | 조용히 꺼짐 |
@@ -89,13 +89,13 @@ CloudWatch(EC2 지표·`/ear/api`·`/ear/caddy` 로그)·Sentry·합성 헬스�
 **규칙**: 켜짐/꺼짐의 **런타임 진실은 기동 로그의 `features …` 한 줄**이다(백엔드 `startup-summary.ts`). 문서 표는 "무엇이 있는가", 로그는 "지금 이 서버에 무엇이 켜졌는가"다. 배포 뒤 확인은 그 줄로 한다:
 
 ```
-[Startup] features env=production scheduler=yes sentry=on resource-alert=on signup-alert=on daily-metrics=on voc-review=on app-remove-alert=on service-day=04:00 crons=[content-license-expiry,content-stat-aggregation,content-stat-aggregation-0530,daily-drip-batch,daily-metrics,empty-topic-sweep,push-receipt-check,retention-purge]
+[Startup] features env=production scheduler=yes sentry=on resource-alert=on daily-metrics=on voc-review=on app-remove-alert=on service-day=04:00 crons=[content-license-expiry,content-stat-aggregation,content-stat-aggregation-0530,daily-drip-batch,daily-metrics,empty-topic-sweep,push-receipt-check,retention-purge]
 ```
 
 - 값은 찍지 않는다 — 있는지 없는지만 찍는다. `env` 는 `SENTRY_ENVIRONMENT` 값이다.
 - `service-day=` 는 서비스 날짜 경계 설정 상태다(KAN-149) — `04:00` 이거나, 전환 시각이 들어가 있으면 `05:00@<ISO 시각>`. 전환일 전에 넣어 두면 이 값이 먼저 바뀌고 경계는 그 시각에 바뀐다.
 - **프로세스마다 한 줄씩 나온다.** 스케줄러가 아닌 워커는 `scheduler=no … daily-metrics=off crons=[]` 로 찍힌다 — 고장이 아니다. `scheduler=yes` 인 줄이 정확히 하나 있는지를 본다.
-- `resource-alert` 는 `SLACK_ERROR_WEBHOOK_URL`, `signup-alert` 는 두 웹훅 중 하나, `daily-metrics` 는 스케줄러 워커 + 웹훅 + GA4 두 값이 모두 있을 때 `on` 이다.
+- `resource-alert` 는 `SLACK_ERROR_WEBHOOK_URL`, `daily-metrics` 는 스케줄러 워커 + 웹훅 + GA4 두 값이 모두 있을 때 `on` 이다.
 
 **판단**: 배치·연동 개수는 이 규모 제품에서 정상이다. 관리 가능 여부를 가르는 것은 개수가 아니라 **격리**(실패가 로그 한 줄로 끝나는가 — 이미 그렇다)와 **가시성**(이 절)이다. 트래픽이 늘면 다음 단계는 스케줄러를 별도 프로세스로 떼는 것이다 — 배치의 메모리·CPU 가 요청 응답과 한 프로세스에 있기 때문이다(2026-09-29 GA4 SDK +54MB 를 지연 로드로 피한 것이 첫 징후).
 
@@ -106,18 +106,20 @@ CloudWatch(EC2 지표·`/ear/api`·`/ear/caddy` 로그)·Sentry·합성 헬스�
 | 항목 | 규칙 |
 |---|---|
 | 시각·대상 | 매일 **17:00 KST**, **어제** 하루치(오늘은 안 끝났고 GA4 당일 처리는 늦다). **크론으로만 나간다** — 수동 발송 엔드포인트는 없앴다(2026-10-02, `admin-api.md` 4.20) |
-| 채널 | 가입 알림과 같은 웹훅(`SLACK_SIGNUP_WEBHOOK_URL` → 없으면 `SLACK_ERROR_WEBHOOK_URL`). **운영만 켠다** — GA4 자격을 운영에만 넣는다. 자격이나 웹훅이 비면 조용히 건너뛴다. 운영이 아닌 환경에서 켜면 문구 앞에 `[환경명]` 이 붙는다 |
-| 출처 | **GA4 운영 스트림**(`streamName` 이 `ear prod` 로 시작). 개발계 스트림은 걸러 테스트 트래픽이 섞이지 않는다. **서버 값은 가입 대조 하나뿐이다**(개정 2026-10-02 — 아래) |
+| 채널 | 탈퇴 알림과 같은 웹훅(`SLACK_SIGNUP_WEBHOOK_URL` → 없으면 `SLACK_ERROR_WEBHOOK_URL`). **운영만 켠다** — GA4 자격을 운영에만 넣는다. 자격이나 웹훅이 비면 조용히 건너뛴다. 운영이 아닌 환경에서 켜면 문구 앞에 `[환경명]` 이 붙는다 |
+| 출처 | **GA4 운영 스트림**(`streamName` 이 `ear prod` 로 시작). 개발계 스트림은 걸러 테스트 트래픽이 섞이지 않는다. **서버 값은 가입자 줄 하나뿐이다**(개정 2026-10-13 — 아래) |
+| 가입자 | **서버 값**(신설 2026-10-13 — 건별 가입 알림을 대신한다). **현재** = 보고 시각의 `users` 행 수(탈퇴는 행을 지워 빠진다 — `admin-api.md` 의 `current` 와 같은 정의) · **어제 가입** = 보고일 서비스 날짜(05시 경계)의 `users.created_at` 건수(그날 가입했다가 탈퇴한 사람은 빠진다). 한 쿼리로 센다 — `가입자   현재 351명  ·  어제 가입 3명` |
 | 사용자 | 활성·신규·세션·평균 세션 길이·7일 활성 — GA4 `activeUsers` `newUsers` `sessions` `averageSessionDuration`. 7일 활성은 보고일을 포함한 최근 7일 창의 `activeUsers`. 활성·신규의 ▲▼ 는 전일 대비 |
-| 획득 | **가입 = GA4** `sign_up`(온보딩을 끝내지 않은 사용자의 로그인 세션 시작 — `analytics.md` 3.4). 서버 `users.created_at`(서비스 날짜 04시 경계) 건수와 **다를 때만** 괄호로 함께 적는다 — `가입 11 (서버 10)` · 온보딩 완료 = GA4 `onboarding_complete` · 전환율 = 온보딩 완료 ÷ 가입(둘 다 GA4. 가입 0이면 적지 않는다) · 푸시 응답 = GA4 `push_permission` 건수(`result` 는 맞춤 측정기준 미등록이라 허용/거부 미분리) · **탈퇴 = GA4** `withdrawal`(서버는 행을 삭제해 흔적이 없다 — `domain.md` 12.3) |
+| 획득 | **가입 = GA4** `sign_up`(온보딩을 끝내지 않은 사용자의 로그인 세션 시작 — `analytics.md` 3.4). 서버 건수는 이 줄에 섞지 않고 가입자 줄에 따로 적는다(2026-10-13 — 종전에는 다를 때만 `가입 11 (서버 10)` 처럼 괄호로 붙였다) · 온보딩 완료 = GA4 `onboarding_complete` · 전환율 = 온보딩 완료 ÷ 가입(둘 다 GA4. 가입 0이면 적지 않는다) · 푸시 응답 = GA4 `push_permission` 건수(`result` 는 맞춤 측정기준 미등록이라 허용/거부 미분리) · **탈퇴 = GA4** `withdrawal`(서버는 행을 삭제해 흔적이 없다 — `domain.md` 12.3) |
 | 재생 | 시작(건·사용자) `play_start` · **완청 = GA4** `play_complete`(재생이 끝에 닿은 횟수 — 재청취도 세고, 서버의 90% 완청 판정과는 다른 값이다) · 중도 이탈 `play_abandon` · 드립 재생 `drip_play` · 담기 `content_save` |
 | 리텐션 | GA4 코호트(`firstSessionDate`). **D1** = `date-1` 에 처음 온 사용자 중 `date` 에 활성인 비율, **D7** = `date-7` 기준(`date` = 보고 대상일 — 둘 다 완결된 하루를 측정일로 둔다). 표본(코호트 크기)을 함께 적고, **코호트가 비면 `—`(표본 없음), 아무도 안 돌아오면 0%** — 다른 사실이다 |
-| 경계 | GA4 는 KST 달력일(00시). 괄호의 서버 가입 값만 서비스 날짜(04시)다 — 문구 각주로 밝힌다 |
+| 경계 | GA4 는 KST 달력일(00시). 가입자 줄의 서버 값만 서비스 날짜(05시)다 — 문구 각주로 밝힌다 |
 | 실패 | 던지지 않고 로그만 남긴다 — 던지면 스케줄러가 멈춰 다음 날도 오지 않는다. 그 회차 보고는 오지 않는다 — 다시 올리는 길은 없고 다음 날 보고를 기다린다(수동 발송 삭제 2026-10-02) |
 
-- 문구는 퍼널 순서 4묶음(사용자 → 획득 → 재생 → 리텐션)이다. 이벤트 이름은 `analytics.md` 3.4 를 그대로 쓴다.
+- 문구는 가입자 줄(서버) 뒤에 퍼널 순서 4묶음(사용자 → 획득 → 재생 → 리텐션)이다. 이벤트 이름은 `analytics.md` 3.4 를 그대로 쓴다.
 - **가입·완청도 GA4 값이다**(개정 2026-10-02). 종전에는 두 건수만 서버 값이었다 — GA4 이벤트가 그 이벤트가 실린 빌드(runtime 7 이후)에서만 들어와 스토어 1.0.0 사용자를 놓쳤기 때문이다. 운영 iOS 가 1.1.0 으로 넘어가 그 이유가 사라졌고, 서버 값을 섞으면 한 줄 안에서 모수와 날짜 경계가 갈려(시작·이탈은 GA4 00시, 완청은 서버 04시·첫 완청만) "시작 25인데 완청 7 + 이탈 14 = 21"처럼 읽을 수 없는 줄이 됐다.
-  - **가입만 서버 값과 대조한다.** GA4 `sign_up` 은 "가입"이 아니라 "온보딩 미완료 사용자의 로그인"이라, 가입 뒤 온보딩을 미루고 다시 로그인하면 또 센다. 서버 건수와 다르면 괄호로 드러내 숫자를 믿을 수 있는지 보이게 한다. 같으면 한 숫자만 적는다.
+  - **가입은 서버 값을 따로 적는다**(개정 2026-10-13 — 가입자 줄). GA4 `sign_up` 은 "가입"이 아니라 "온보딩 미완료 사용자의 로그인"이라, 가입 뒤 온보딩을 미루고 다시 로그인하면 또 센다. 서버 건수가 정확한 가입 수다. 종전에는 획득 줄에 다를 때만 괄호로 붙였는데, 가입자 줄이 생겨 같은 값을 두 번 적게 돼 뺐다 — 두 줄을 나란히 보면 어긋남이 그대로 보인다.
+  - **건마다 오던 가입 알림은 없앴다**(2026-10-13). 가입이 늘어 채널이 가입 줄로 덮였다 — 하루 한 번 이 줄로 본다.
   - 완청은 대조하지 않는다 — 정의가 달라(GA4 는 끝에 닿은 횟수, 서버는 90% 를 처음 넘긴 콘텐츠 수) 어긋나는 것이 정상이다.
 - GA4 SDK 는 **실행 시점에 지연 로드한다** — require 만으로 메모리가 54MB 늘어(2026-09-29 실측) 하루 한 번 도는 일에 모든 워커가 상시 내줄 비용이 아니다. 스케줄러 워커가 첫 실행 뒤에만 들고 있는다.
 

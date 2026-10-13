@@ -13,7 +13,7 @@ const SLACK_TIMEOUT_MS = 5_000;
 /**
  * 일일 지표 Slack 보고 (KAN-107 2단계) — **매일 17:00 KST**, 어제 하루치.
  *
- * GA4(운영 스트림) 값을 4묶음으로 적고, 가입만 서버 건수와 대조한다. `ScheduleModule` 은 스케줄러
+ * 서버 가입자 줄(현재 가입자·어제 가입) 뒤에 GA4(운영 스트림) 값을 4묶음으로 적는다. `ScheduleModule` 은 스케줄러
  * 프로세스에만 올라가므로(`app.module.ts` · `isSchedulerProcess`) 클러스터에서 한 번만 돈다.
  * GA4 자격이나 웹훅이 비면 조용히 건너뛴다 — 로컬·테스트·개발계 기본. 실패해도 던지지
  * 않는다: 던지면 스케줄러가 멈추고 다음 날도 안 온다.
@@ -33,7 +33,7 @@ export class DailyMetricsScheduler {
     private readonly db: DailyMetricsDbService,
     configService: ConfigService<EnvironmentVariables, true>,
   ) {
-    // 가입 알림과 같은 채널 — 전용 값이 있으면 그것, 없으면 기존 알림 채널
+    // 탈퇴 알림과 같은 채널 — 전용 값이 있으면 그것, 없으면 기존 알림 채널
     this.webhookUrl =
       configService.get('SLACK_SIGNUP_WEBHOOK_URL', { infer: true })?.trim() ||
       configService.get('SLACK_ERROR_WEBHOOK_URL', { infer: true })?.trim() ||
@@ -66,10 +66,10 @@ export class DailyMetricsScheduler {
       const text = formatDailyMetrics(
         {
           date,
+          members: { total: s.totalUsers, signUps: s.signUps },
           users: g.users,
           acquisition: {
             signUps: g.events.sign_up.count,
-            serverSignUps: s.signUps,
             onboardingCompletes: g.events.onboarding_complete.count,
             pushResponses: g.events.push_permission.count,
             withdrawals: g.events.withdrawal.count,

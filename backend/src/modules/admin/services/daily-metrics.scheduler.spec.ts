@@ -9,9 +9,9 @@ const GA4_OK = config({
   GA4_PROPERTY_ID: '123',
   GA4_SERVICE_ACCOUNT_BASE64: 'e30=',
 });
-const db = (signUps = 0) =>
+const db = (signUps = 0, totalUsers = 0) =>
   ({
-    fetchDaily: jest.fn().mockResolvedValue({ signUps }),
+    fetchDaily: jest.fn().mockResolvedValue({ signUps, totalUsers }),
   }) as unknown as DailyMetricsDbService;
 
 const ev = (count = 0, users = 0) => ({ count, users });
@@ -64,7 +64,7 @@ describe('DailyMetricsScheduler', () => {
     ).toBe(false);
   });
 
-  it('GA4 값으로 보낸다 — 가입·완청도 GA4 이고, 서버 가입 건수는 다를 때만 괄호로 붙는다', async () => {
+  it('서버 가입자 줄과 GA4 값을 함께 보낸다 — 획득의 가입·완청은 GA4 다', async () => {
     const ga4 = new Ga4Service(GA4_OK);
     jest.spyOn(ga4, 'fetchDaily').mockResolvedValue(sample);
     const fetchSpy = jest
@@ -72,8 +72,8 @@ describe('DailyMetricsScheduler', () => {
       .mockResolvedValue({ ok: true } as Response);
     const scheduler = new DailyMetricsScheduler(
       ga4,
-      // 서버 가입 2 — GA4 `sign_up` 3 과 다르다
-      db(2),
+      // 서버 가입 2 · 현재 가입자 351 — GA4 `sign_up` 3 과 다르다
+      db(2, 351),
       config({
         SLACK_ERROR_WEBHOOK_URL: 'https://hook',
         SENTRY_ENVIRONMENT: 'development',
@@ -89,7 +89,8 @@ describe('DailyMetricsScheduler', () => {
       (fetchSpy.mock.calls[0][1] as RequestInit).body as string,
     ) as { text: string };
     expect(body.text).toMatch(/^\[development\] /);
-    expect(body.text).toContain('가입 3 (서버 2) → 온보딩 완료 1 (33%)');
+    expect(body.text).toContain('현재 351명  ·  어제 가입 2명');
+    expect(body.text).toContain('가입 3 → 온보딩 완료 1 (33%)');
     expect(body.text).toContain('완청 5');
     expect(body.text).toContain('시작 4 (3명)');
     expect(body.text).toContain('활성 10 (▲2)');
