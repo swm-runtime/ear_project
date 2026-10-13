@@ -97,6 +97,12 @@ export interface AdminContentView {
   topics: { topicId: string; name: string }[];
   /** 대본 적재 여부 — 콘솔이 목록에서 "자막 있음"을 표시한다(KAN-71) */
   hasScript: boolean;
+  /**
+   * 스코어링에 쓰이는 임베딩이 있는가 — 현재 모델이고 `content_version`이 일치하는 행. false면 임베딩이 없거나
+   * 오디오 재발행 뒤 미갱신이라 추천의 임베딩 축에서 빠진다. 메타 형식 버전(`enrichment_schema_version`)과는
+   * 별개다 — 형식은 최신인데 임베딩만 낡을 수 있다(2026-10-13 운영 56편 전부)
+   */
+  hasCurrentEmbedding: boolean;
   enrichment?: EnrichmentOutcome;
   script?: ScriptOutcome;
 }

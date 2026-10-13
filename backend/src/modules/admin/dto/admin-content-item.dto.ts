@@ -32,6 +32,11 @@ export class AdminContentItemDto {
    */
   readonly enrichment_schema_version: number | null;
   readonly enriched_at: string | null;
+  /**
+   * 추천 스코어링에 쓰이는 임베딩이 있는가(현재 모델·`content_version` 일치). false면 메타를 다시 뽑아
+   * `enrichment_file` 단독 전송으로 갱신할 대상이다 — 메타 형식이 최신이어도 오디오 재발행 뒤에는 false가 된다
+   */
+  readonly has_current_embedding: boolean;
   /** 요청에 `enrichment_file`이 있었을 때만 — 거부여도 콘텐츠 처리 자체는 성공이다(admin.md 3.1) */
   readonly enrichment_applied?: boolean;
   /** 거부됐을 때만 — 콘솔이 그대로 노출하는 사유 */
@@ -69,6 +74,7 @@ export class AdminContentItemDto {
       })),
       enrichment_schema_version: content.enrichmentSchemaVersion,
       enriched_at: content.enrichedAt?.toISOString() ?? null,
+      has_current_embedding: view.hasCurrentEmbedding,
       has_script: view.hasScript,
       ...(view.script && {
         script_applied: view.script.applied,

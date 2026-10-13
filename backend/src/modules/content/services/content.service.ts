@@ -282,6 +282,20 @@ export class ContentService {
     );
   }
 
+  /** 스코어링에 쓸 수 있는 임베딩이 있는 콘텐츠 id — 관리자 콘솔의 "임베딩 미갱신" 판정용 */
+  async findScorableEmbeddingContentIds(
+    contentIds: string[],
+    manager?: EntityManager,
+  ): Promise<Set<string>> {
+    return new Set(
+      await this.contentEmbeddingRepository.findScorableContentIds(
+        contentIds,
+        EMBEDDING_MODEL_ID,
+        manager,
+      ),
+    );
+  }
+
   async findCandidates(
     query: ContentCandidateQuery,
     manager?: EntityManager,

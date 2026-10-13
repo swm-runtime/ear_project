@@ -699,9 +699,11 @@ duration_sec, thumbnail_url, content_version,
 license_expires_at, published_at, withdrawn_at,
 topics[{ topic_id, name }],
 enrichment_schema_version, enriched_at          // 마지막 적용 메타 파일의 형식 버전·시각. null = 받은 적 없음 (2026-09-11)
+has_current_embedding                            // 추천 스코어링에 쓰이는 임베딩이 있는가 (2026-10-13)
 ```
 
 - `enrichment_schema_version`이 현재 형식(목록 응답 최상위 `current_enrichment_schema_version` — 4.5, 지금 3 — 2026-10-08 KAN-162)보다 낮거나 null이면 **구형 메타**다. 콘솔이 그 콘텐츠를 골라 메타를 다시 뽑아 4.10의 `enrichment_file` 단독 전송으로 갱신한다(콘솔 기능은 `tickets/ai/pending` 참조).
+- `has_current_embedding`(추가 2026-10-13)은 현재 임베딩 모델이고 `content_embeddings.content_version`이 콘텐츠의 `content_version`과 일치하는 행이 있는가다(`drip-scheduling.md` 6장 — 스코어링이 읽는 조건과 같다). **메타 형식 버전과 별개다** — 오디오를 바꾸는 재발행은 대본이 바뀌었을 수 있어 임베딩을 미갱신으로 남기므로, 형식이 최신이어도 false가 된다(2026-10-13 운영 발행 56편 전부가 이 상태였다). false인 콘텐츠도 메타를 다시 뽑아 4.10의 `enrichment_file` 단독 전송으로 갱신할 대상이다. 오디오를 바꾸지 않는 재발행(썸네일·제목 등)은 서버가 임베딩을 새 버전으로 승계해 true가 유지된다.
 
 **`audio_path`는 싣지 않는다**(7장).
 
