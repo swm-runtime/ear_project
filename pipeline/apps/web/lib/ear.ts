@@ -298,6 +298,9 @@ export const putRecommendTestInterests = (topic_ids: string[]) =>
 export const putRecommendTestCareer = (body: { job_category: string | null; job_title: string | null; years_of_experience: string | null }) =>
   earFetch<void>("/admin/recommend-test/career", { method: "PUT", ...json(body) }, DEV);
 export const resetRecommendTest = () => earFetch<void>("/admin/recommend-test/reset", { method: "POST" }, DEV);
+/** 첫 드립 다시 실행(admin-api 4.17, 2026-10-13) — 초기화 뒤에 부르면 가입 직후의 첫 2편과 같다 */
+export const runRecommendTestFirstDrip = () =>
+  earFetch<{ status: string; item_count: number; completed_at: string | null }>("/admin/recommend-test/first-drip", { method: "POST" }, DEV);
 /** 콘텐츠·주제 목록은 기존 관리자 API 를 개발계 채널로 부른다 */
 export const listEarContentsOn = (ch: EarChannel, status: string, offset: number, limit = 50) =>
   earFetch<{ items: EarContent[]; total: number }>(`/admin/contents?offset=${offset}&limit=${limit}${status ? `&status=${status}` : ""}`, {}, ch);

@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 
 import { ContentModule } from '@/modules/content/content.module';
 import { DripBatchModule } from '@/modules/drip-batch/drip-batch.module';
+import { DripModule } from '@/modules/drip/drip.module';
 import { ExploreModule } from '@/modules/explore/explore.module';
 import { InterestModule } from '@/modules/interest/interest.module';
 import { LibraryScreenModule } from '@/modules/library-screen/library-screen.module';
@@ -29,6 +30,7 @@ import { RecommendTestService } from './recommend-test.service';
     ExploreModule,
     LibraryScreenModule,
     DripBatchModule,
+    DripModule,
   ],
   controllers: [RecommendTestController],
   providers: [RecommendTestService],

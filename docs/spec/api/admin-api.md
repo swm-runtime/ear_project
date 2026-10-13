@@ -68,6 +68,7 @@
 | PUT | `/admin/recommend-test/interests` | 추천 테스트 계정의 관심 주제 전체 교체 (4.17) |
 | PUT | `/admin/recommend-test/career` | 추천 테스트 계정의 커리어 교체 (4.17) |
 | POST | `/admin/recommend-test/reset` | 추천 테스트 계정의 소비 이력 전부 삭제 (4.17) |
+| POST | `/admin/recommend-test/first-drip` | 추천 테스트 계정의 첫 드립 다시 실행 (4.17, 2026-10-13) |
 | GET | `/admin/recommend-eval/snapshot` | 추천 평가 스냅샷 내보내기 — 발행 콘텐츠·익명 사용자 행동, 읽기 전용 (4.18) |
 | GET | `/admin/drip-feedback/versions` | 추천 알고리즘 버전별 별점 — 편성 수·평가 수·평균·분포, 버전 역순 (4.19) |
 | GET | `/admin/search-query-logs/summary` | 검색 질의 로그 요약 — 미스율·일별 추이·0건 질의·상위 질의, 읽기 전용 (4.21) |
@@ -441,6 +442,7 @@
 | PUT | `/admin/recommend-test/interests` | `{ topic_ids[] }` — `interest-management-api`의 전체 교체와 같은 본문 | 204 |
 | PUT | `/admin/recommend-test/career` | `{ job_category, job_title, years_of_experience }` — `career-api`와 같은 본문 | 204 |
 | POST | `/admin/recommend-test/reset` | 없음 | 204 — 소비 이력 전부 삭제 |
+| POST | `/admin/recommend-test/first-drip` | 없음 | 200 — `{ status, item_count, completed_at }` (추가 2026-10-13) |
 
 **`GET /admin/recommend-test/account` 응답 200**
 
@@ -468,6 +470,8 @@
   - `replay` — 완료 상태가 아니면 앱과 같이 무시된다(신호 없음, 200).
 - `effects[]`는 실제로 일어난 부수 효과를 사람이 읽는 문장으로 적은 것이다 — 콘솔이 행동 로그에 그대로 적는다. 기계 판독용 계약이 아니다.
 - **행동 직후 신호 파생 상태를 다시 계산해 저장한다**(`preference_rebuilt: true`) — 취향 캐시와 자동 확장 슬롯(`drip-scheduling.md` 4.3 예외 · 4.5-1). 자동 확장이 일어나면 `effects[]`에 `자동 확장 add (slot_free) — …` 같은 줄이 실린다. 그래서 직후의 `feed`·4.16 재조회가 바뀐 결과를 보인다.
+
+**`POST /admin/recommend-test/first-drip`**(추가 2026-10-13) — 온보딩 완료 직후의 **첫 드립**(`drip-scheduling.md` 4.4 콜드스타트 스코어링 + 4.2-3 다양성 선정)을 테스트 계정으로 다시 실행한다. 테스트 계정은 이미 온보딩을 마쳐 앱 경로로는 첫 드립을 다시 받을 수 없어서다. 이전 첫 드립 작업 행을 지우고 새로 만든 뒤 앱과 같은 편성 경로를 부른다 — 편성분은 계정 라이브러리에 `source = drip`으로 적립된다. 이미 본 콘텐츠 제외는 그대로이므로 **가입 직후와 같은 결과를 보려면 `reset` 뒤에 부른다**. `status`는 `completed` 또는 `no_candidates`(관심 주제·전체에서 후보 0편)다.
 
 **`POST /admin/recommend-test/reset`** — 신호·재생 기록(오늘 한도도 함께 풀린다)·재생 위치·오디오 발급 로그·원문 클릭·라이브러리(삭제분 포함)·취향 캐시·드립 영구 제외·첫 드립 작업·편성 별점(`drip_feedbacks`)·**자동 확장으로 붙은 관심 주제**(`source = auto_expand`)를 지운다. **직접 고른 관심 주제·커리어·계정은 남긴다.**
 

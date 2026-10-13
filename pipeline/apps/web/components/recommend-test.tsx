@@ -5,7 +5,7 @@ import { fmtTime } from "@/lib/format";
 import {
   EarApiError, type EarContent, type EarDripCandidate, type EarDripPreview, type EarExploreFeed, type EarTopic,
   type RecommendTestAccount, type RecommendTestAction, getEarDripPreview, getRecommendTestAccount, getRecommendTestFeed,
-  listEarContentsOn, listEarTopicsOn, postRecommendTestAction, putRecommendTestCareer, putRecommendTestInterests, resetRecommendTest,
+  listEarContentsOn, listEarTopicsOn, postRecommendTestAction, putRecommendTestCareer, putRecommendTestInterests, resetRecommendTest, runRecommendTestFirstDrip,
 } from "@/lib/ear";
 import { diffRanked, rankMark, type RankDiff } from "@/lib/recommend-test-diff";
 import { earErrMsg } from "@/app/publish/ear-connect";
@@ -128,6 +128,14 @@ export function RecommendTest() {
     if (!window.confirm("테스트 계정의 신호·재생 기록·라이브러리·취향 캐시·드립 제외를 전부 지웁니다. 관심 주제·커리어는 남습니다. 계속할까요?")) return;
     void run("초기화", "테스트 계정", async () => { await resetRecommendTest(); return ["소비 이력 전부 삭제 — 오늘 재생 한도도 풀림"]; });
   };
+  const firstDrip = () =>
+    run("첫 드립", "테스트 계정", async () => {
+      const r = await runRecommendTestFirstDrip();
+      return [
+        r.status === "completed" ? `첫 드립 ${r.item_count}편 적립 — 라이브러리의 drip 항목` : "후보 없음 — 관심 주제·전체에서 줄 콘텐츠가 0편",
+        "신규 사용자와 같은 결과를 보려면 초기화 뒤에 누른다(이미 본 콘텐츠는 제외된다)",
+      ];
+    });
   const refreshOnly = () => run("새로고침", "결과", async () => []);
 
   const libraryByContent = useMemo(() => new Map((account?.library ?? []).map((i) => [i.content_id, i])), [account]);
@@ -157,6 +165,7 @@ export function RecommendTest() {
         <span className="ml-auto flex items-center gap-2">
           {busy && <span className="text-xs text-ink-soft">{busy}…</span>}
           <button className={btnCls("ghost")} disabled={!!busy} onClick={() => void refreshOnly()}>결과 새로고침</button>
+          <button className={btnCls()} disabled={!!busy} onClick={firstDrip} title="온보딩 직후 받는 첫 2편(콜드스타트 점수 + 다양성)을 다시 받는다 — 초기화 뒤에 누르면 신규 가입자와 같다">첫 드립 받기</button>
           <button className={btnCls("danger")} disabled={!!busy} onClick={reset}>초기화</button>
         </span>
       </div>
@@ -426,7 +435,8 @@ function AutoExpandLine({ preview }: { preview: EarDripPreview }) {
   const a = preview.auto_expand;
   if (!a) return null;
   const REASON: Record<string, string> = {
-    no_candidate: "후보 없음 — 관심 밖 주제를 30일 안에 2편 이상 완청하면 후보가 된다",
+    no_candidate: "후보 없음 — 관심 밖 주제를 30일 안에 2편 이상 완청하면 후보가 된다(관심 주제에도 걸친 콘텐츠의 완청은 세지 않는다)",
+    slot_hidden: "슬롯 주제가 숨김 처리돼 비움",
     slot_free: "빈 슬롯에 추가",
     slot_kept: "슬롯 유지 — 후보가 교체 여유(1.2배)를 못 넘음",
     stronger_candidate: "더 강한 후보로 교체",

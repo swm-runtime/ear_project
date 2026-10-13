@@ -29,7 +29,12 @@ type Deps = {
   };
   libraryScreenOrchestrator: { deleteItem: jest.Mock; completeItem: jest.Mock };
   dripBatchOrchestrator: { refreshDerivedState: jest.Mock };
-  dataSource: { transaction: jest.Mock };
+  dataSource: { transaction: jest.Mock; getRepository: jest.Mock };
+  firstDripService: {
+    createJob: jest.Mock;
+    schedule: jest.Mock;
+    findState: jest.Mock;
+  };
 };
 
 function build(env: Record<string, string | undefined>) {
@@ -77,6 +82,16 @@ function build(env: Record<string, string | undefined>) {
       transaction: jest.fn(async (fn: (m: unknown) => Promise<void>) =>
         fn({ delete: jest.fn() }),
       ),
+      getRepository: jest.fn().mockReturnValue({ delete: jest.fn() }),
+    },
+    firstDripService: {
+      createJob: jest.fn().mockResolvedValue(undefined),
+      schedule: jest.fn().mockResolvedValue(undefined),
+      findState: jest.fn().mockResolvedValue({
+        status: 'completed',
+        itemCount: 2,
+        completedAt: new Date('2026-10-13T08:00:00.000Z'),
+      }),
     },
   };
   const service = new RecommendTestService(
@@ -94,6 +109,7 @@ function build(env: Record<string, string | undefined>) {
     deps.exploreOrchestrator as never,
     deps.libraryScreenOrchestrator as never,
     deps.dripBatchOrchestrator as never,
+    deps.firstDripService as never,
   );
 
   return { service, deps };
@@ -254,6 +270,35 @@ describe('RecommendTestService', () => {
         CONTENT_ID,
       );
       expect(result.effects[0]).toContain('무시');
+    });
+  });
+
+  describe('runFirstDrip', () => {
+    it('이전 첫 드립 작업을 지우고 새로 만든 뒤 앱과 같은 schedule 을 불러 결과를 돌려준다', async () => {
+      const { service, deps } = build(DEV);
+      const now = new Date('2026-10-13T08:00:00.000Z');
+
+      const state = await service.runFirstDrip(now);
+
+      expect(deps.dataSource.getRepository).toHaveBeenCalled();
+      expect(deps.firstDripService.createJob).toHaveBeenCalledWith(
+        USER_ID,
+        now,
+      );
+      expect(deps.firstDripService.schedule).toHaveBeenCalledWith(USER_ID, now);
+      expect(state).toMatchObject({ status: 'completed', itemCount: 2 });
+    });
+
+    it('운영 환경이면 첫 드립도 돌리지 않는다', async () => {
+      const { service, deps } = build({
+        RECOMMEND_TEST_EMAIL: EMAIL,
+        SENTRY_ENVIRONMENT: 'production',
+      });
+
+      await expect(service.runFirstDrip(new Date())).rejects.toMatchObject({
+        errorCode: 'ADMIN_RECOMMEND_TEST_DISABLED',
+      });
+      expect(deps.firstDripService.schedule).not.toHaveBeenCalled();
     });
   });
 
