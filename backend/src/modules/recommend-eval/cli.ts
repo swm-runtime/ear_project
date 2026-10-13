@@ -18,7 +18,7 @@ import { buildSyntheticSnapshot } from './synthetic-catalog';
  *   --baseline <파일>   비교할 이전 리포트(JSON). 없으면 지표는 판정하지 않는다
  *   --out <디렉토리>    리포트 저장 위치 (기본 eval/reports — gitignore)
  *   --days <n>          페르소나 시뮬레이션 일수 (기본 7)
- *   --no-auto-expand    자동 확장 스위치를 끈 것으로 평가
+ *   --no-auto-expand    자동 확장 스위치를 끈 것으로 평가(기본은 켬)
  *   --strict            판정이 실패면 종료 코드 1
  */
 function arg(name: string): string | undefined {
@@ -69,8 +69,8 @@ async function main(): Promise<void> {
   const report = await runEvaluation(snapshot, {
     ...DEFAULT_EVAL_OPTIONS,
     simulationDays: Number(arg('days') ?? DEFAULT_EVAL_OPTIONS.simulationDays),
-    // 기본은 운영과 같은 꺼짐 — 켠 결과는 --auto-expand 로 본다(--no-auto-expand 는 기본과 같아 받기만 한다)
-    autoExpandFeature: flag('auto-expand'),
+    // 기본은 켬 — 운영도 곧 켠다. 끈 조건은 --no-auto-expand(--auto-expand 는 기본과 같아 받기만 한다)
+    autoExpandFeature: !flag('no-auto-expand'),
     gitSha: gitSha(),
     baseline,
   });

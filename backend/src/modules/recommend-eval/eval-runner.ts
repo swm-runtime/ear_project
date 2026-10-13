@@ -42,8 +42,8 @@ export interface EvalOptions {
   /** 페르소나 시뮬레이션 일수 */
   simulationDays: number;
   /**
-   * 자동 확장 서버 스위치를 켠 것으로 평가할지. **기본은 운영과 같은 꺼짐**이다(2026-10-13) — 켠 채로 평가하면
-   * 자동 슬롯이 붙은 결과로 판정해 운영 사용자가 실제로 받는 편성과 달라진다. "켜면 어떻게 되는가"는 `--auto-expand`로 본다
+   * 자동 확장 서버 스위치를 켠 것으로 평가할지. **기본은 켬**이다 — 운영도 곧 켠다(KAN-181 앱 배포 뒤
+   * `AUTO_EXPAND_ENABLED=true`, runbook). 스위치를 끈 운영과 같은 조건은 `--no-auto-expand`로 본다
    */
   autoExpandFeature: boolean;
   gitSha: string | null;
@@ -52,7 +52,7 @@ export interface EvalOptions {
 
 export const DEFAULT_EVAL_OPTIONS: EvalOptions = {
   simulationDays: 7,
-  autoExpandFeature: false,
+  autoExpandFeature: true,
   gitSha: null,
   baseline: null,
 };
