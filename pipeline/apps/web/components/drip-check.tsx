@@ -44,7 +44,7 @@ const META_ROWS: [keyof EarDripCandidate["breakdown"]["meta_items"], string, str
   ["topic_match", "주제일치", "**온보딩에서 고른 관심 주제**와 겹치는 수 — 1개 0.6, 2개 0.8, 3개 이상 1. 신호 축의 \"주제\"(행동으로 학습된 것)와 출처가 다르다"],
   ["freshness", "신선도", "발행 후 경과일에 반감기 적용 — 시의성 30일, 미지정 90일, 에버그린은 항상 1"],
   ["popularity", "인기도", "0.7×스무딩 완청률(재생 20회 미만은 풀 평균으로 끌어당김) + 0.3×재생 수 로그"],
-  ["difficulty_fit", "난이도", "완청 이력의 난이도 분포와 대조. 콜드스타트는 beginner 1 · intermediate 0.5 · advanced 0.2"],
+  ["difficulty_fit", "난이도", "가장 많이 완청한 난이도를 1로 두고 나머지 난이도는 그 비율(완청 없으면 0). 콜드스타트는 beginner 1 · intermediate 0.5 · advanced 0.2"],
   ["career_fit", "커리어", "직군·연차 vs 콘텐츠 청자 세트 — 정확 1 · 이웃 연차 0.6 · 직군만 0.3 · 불일치 0"],
   ["series_continuity", "시리즈", "완청한 시리즈의 바로 다음 편이면 1(강한 가점), 아니면 항목 자체가 빠진다"],
   ["exposure_fatigue", "노출피로", "1 − (최근 14일 편성 주제와 겹치는 비율) — 같은 주제만 계속 가는 것을 막는다"],

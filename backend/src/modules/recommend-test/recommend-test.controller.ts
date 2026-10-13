@@ -14,6 +14,7 @@ import { AdminRoleGuard } from '@/common/guards/admin-role.guard';
 import { JwtAuthGuard } from '@/common/guards/jwt-auth.guard';
 import { GetExploreFeedResponseDto } from '@/modules/explore/dto/get-explore-feed-response.dto';
 
+import { RecommendTestFirstDripResponseDto } from './dto/recommend-test-first-drip-response.dto';
 import { RecommendTestAccountResponseDto } from './dto/recommend-test-account-response.dto';
 import { RecommendTestActionRequestDto } from './dto/recommend-test-action-request.dto';
 import { RecommendTestActionResponseDto } from './dto/recommend-test-action-response.dto';
@@ -85,6 +86,15 @@ export class RecommendTestController {
       jobTitle: request.job_title,
       yearsOfExperience: request.years_of_experience,
     });
+  }
+
+  /** 첫 드립 다시 실행 — 신규 사용자의 첫 2편을 본다. 초기화 뒤에 쓰면 가입 직후와 같다 */
+  @Post('first-drip')
+  @HttpCode(HttpStatus.OK)
+  async firstDrip(): Promise<RecommendTestFirstDripResponseDto> {
+    return RecommendTestFirstDripResponseDto.from(
+      await this.recommendTestService.runFirstDrip(new Date()),
+    );
   }
 
   /** 소비 이력 전부 삭제 — 관심 주제·커리어·계정은 남는다 */
