@@ -577,7 +577,8 @@
   "top_users":    [ { "user_id": "…", "listen_sec": 14953, "plays": 25, "completes": 6, "tier": "light", "signed_up_at": "…", "last_played_at": "…" } ],
   "top_contents": [ { "content_id": "…", "title": "…", "duration_sec": 812, "listen_sec": 9000, "plays": 40, "listeners": 31, "completes": 8, "complete_rate": 0.2, "saves": 5 } ],
   "withdrawal_reasons": [ { "reason_code": "low_usage", "count": 9 }, { "reason_code": null, "count": 3 } ],
-  "retention": [ { "day": 1, "cohort_size": 200, "returned": 50, "rate": 0.25 }, { "day": 7, "cohort_size": 150, "returned": 30, "rate": 0.2 }, { "day": 30, "cohort_size": 0, "returned": 0, "rate": null } ]
+  "retention": [ { "day": 1, "cohort_size": 200, "returned": 50, "rate": 0.25 }, { "day": 7, "cohort_size": 150, "returned": 30, "rate": 0.2 }, { "day": 30, "cohort_size": 0, "returned": 0, "rate": null } ],
+  "topic_supply": [ { "topic_id": "uuid", "name": "인문·교양", "is_visible": true, "published": 1, "published_in_window": 0, "interested_users": 101, "median_remaining": 0, "exhausted_users": 70, "low_users": 101 } ]
 }
 ```
 
@@ -592,6 +593,7 @@
 - `daily`는 `since`의 KST 날짜부터 오늘(KST)까지 **하루도 빠지지 않고**(기록 없는 날은 0), `hourly`는 0~23시 전부다. `daily.signups`는 `users.created_at`이라 그날 가입했다가 탈퇴한 사람은 빠진다(`withdrawal_logs`에는 가입일이 없다 — 생존 편향). 날짜는 **KST 달력일**이다(검색 로그 요약과 같은 기준 — 04/05시 서비스 날짜 경계를 쓰지 않는다. 정책 판정이 아니라 운영자가 읽는 단위).
 - `top_users`·`top_contents`는 전 기간 청취 시간 내림차순 각 최대 15. `top_contents.saves`는 그 콘텐츠를 직접 담은 수.
 - `retention`은 D1·D7·D30 — `cohort_size`는 가입한 지 `day`일이 지난 **현재 계정** 수, `returned`는 그중 가입 `day`일 뒤 이후 아무 때나 **앱을 쓴** 사람(토큰 갱신 `sessions.issued_at` 또는 재생 `play_records` — 세션 행은 30일만 보존되므로 영구 보존되는 재생을 합친다. 언바운디드). 탈퇴자는 분모에 없어 실제보다 높게 나온다(생존 편향). 하루만 보는(bounded) 방식은 수백 명 규모에서 표본이 너무 작아 쓰지 않는다.
+- `topic_supply`(추가 2026-10-13 — 추천 검증)는 주제별 수요·공급이다. `published`는 노출 중(발행·라이선스 유효) 콘텐츠 수, `published_in_window`는 그중 창 안에 발행된 수, `interested_users`는 그 주제를 활성 관심 주제로 둔 **온보딩 완료** 사용자 수다. `median_remaining`은 관심 사용자마다 "아직 드립으로 받을 수 있는 편수"(드립 후보 필터와 같은 기준 — 라이브러리에 한 번이라도 들어온 것·`drip_excluded_contents`를 뺀다, 시리즈 순서 게이트는 반영하지 않는 근사)의 중앙값, `exhausted_users`는 그 값이 0인 사람, `low_users`는 2 이하인 사람이다. 노출 중인 주제와, 숨김이어도 관심 사용자가 남은 주제를 싣고 `interested_users ÷ max(published, 1)` 내림차순으로 정렬한다 — 제작 우선순위의 근거다.
 - 인증은 다른 `/admin/*`와 같다(2장). 400 `VALIDATION_FAILED` — `days` 범위 밖. 응답은 `Cache-Control: no-store`.
 
 ### 4.23 `/admin/invite-codes` — 초대 코드 관리 (2026-10-10)

@@ -7,6 +7,7 @@ import {
   InsightsListeningTotals,
   InsightsRetention,
   InsightsTopContent,
+  InsightsTopicSupply,
   InsightsTopUser,
   InsightsUserTotals,
   InsightsWithdrawalReason,
@@ -82,6 +83,18 @@ interface ReasonRow {
   reason_code: string | null;
   count: number;
 }
+interface TopicSupplyRow {
+  topic_id: string;
+  name: string;
+  is_visible: boolean;
+  published: number;
+  published_in_window: number;
+  interested_users: number;
+  median_remaining: number;
+  exhausted_users: number;
+  low_users: number;
+}
+
 interface RetentionRow {
   day: number;
   cohort_size: number;
@@ -400,6 +413,85 @@ export class AdminInsightsRepository {
       day: r.day,
       cohortSize: r.cohort_size,
       returned: r.returned,
+    }));
+  }
+
+  /**
+   * 주제별 수요·공급. "남은 편수"는 드립 후보 필터(`drip-scheduling.md` 4.2-1)와 같은 기준이다 — 라이브러리에
+   * 한 번이라도 들어온 것(소프트 삭제분 포함)과 드립 영구 제외(`drip_excluded_contents`)를 뺀다. 시리즈 순서
+   * 게이트는 반영하지 않는 근사다(운영 시리즈 0편, 2026-10-13).
+   *
+   * 노출 중인 주제와, 숨김이어도 관심 사용자가 남아 있는 주제를 싣는다. 관심 대비 편수가 적은 순으로 정렬한다.
+   */
+  async topicSupply(since: Date, now: Date): Promise<InsightsTopicSupply[]> {
+    const rows = await this.dataSource.query<TopicSupplyRow[]>(
+      `with visible as (
+         select ct.topic_id, c.id as content_id, c.published_at
+           from content_topics ct
+           join contents c on c.id = ct.content_id
+          where c.status = 'published'
+            and (c.license_expires_at is null or c.license_expires_at > $2)
+       ),
+       demand as (
+         select ui.topic_id, ui.user_id
+           from user_interests ui
+           join users u on u.id = ui.user_id
+          where ui.is_active and u.onboarding_completed
+       ),
+       remaining as (
+         select d.topic_id, d.user_id,
+                count(v.content_id) filter (where
+                  not exists (select 1 from library_items li
+                               where li.user_id = d.user_id and li.content_id = v.content_id)
+                  and not exists (select 1 from drip_excluded_contents x
+                                   where x.user_id = d.user_id and x.content_id = v.content_id)
+                )::int as remaining
+           from demand d
+           left join visible v on v.topic_id = d.topic_id
+          group by d.topic_id, d.user_id
+       ),
+       supply as (
+         select topic_id,
+                count(*)::int as published,
+                count(*) filter (where published_at >= $1)::int as published_in_window
+           from visible
+          group by topic_id
+       ),
+       per_topic as (
+         select topic_id,
+                count(*)::int as interested_users,
+                percentile_cont(0.5) within group (order by remaining)::float8 as median_remaining,
+                count(*) filter (where remaining = 0)::int as exhausted_users,
+                count(*) filter (where remaining <= 2)::int as low_users
+           from remaining
+          group by topic_id
+       )
+       select t.id as topic_id, t.name, t.is_visible,
+              coalesce(s.published, 0)::int as published,
+              coalesce(s.published_in_window, 0)::int as published_in_window,
+              coalesce(p.interested_users, 0)::int as interested_users,
+              coalesce(p.median_remaining, 0)::float8 as median_remaining,
+              coalesce(p.exhausted_users, 0)::int as exhausted_users,
+              coalesce(p.low_users, 0)::int as low_users
+         from topics t
+         left join supply s on s.topic_id = t.id
+         left join per_topic p on p.topic_id = t.id
+        where t.is_visible or p.interested_users > 0
+        order by coalesce(p.interested_users, 0)::float8 / greatest(coalesce(s.published, 0), 1) desc,
+                 coalesce(p.interested_users, 0) desc,
+                 t.display_order`,
+      [since, now],
+    );
+    return rows.map((r) => ({
+      topicId: r.topic_id,
+      name: r.name,
+      isVisible: r.is_visible,
+      published: r.published,
+      publishedInWindow: r.published_in_window,
+      interestedUsers: r.interested_users,
+      medianRemaining: r.median_remaining,
+      exhaustedUsers: r.exhausted_users,
+      lowUsers: r.low_users,
     }));
   }
 }
