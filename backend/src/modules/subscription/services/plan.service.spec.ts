@@ -207,6 +207,58 @@ describe('PlanService', () => {
     });
   });
 
+  describe('getDailyDripCount · getDailyDiscoveryCount — 편성 편수 폴백(drip-scheduling 4.8 · domain.md 8.1)', () => {
+    it('티어 행이 있으면 그 행의 편수다', async () => {
+      repository.findByTier.mockResolvedValue(
+        buildPlan({
+          tier: UserTier.PRO,
+          dailyDripCount: 3,
+          dailyDiscoveryCount: 1,
+        }),
+      );
+
+      await expect(service.getDailyDripCount(UserTier.PRO)).resolves.toBe(3);
+      await expect(service.getDailyDiscoveryCount(UserTier.PRO)).resolves.toBe(
+        1,
+      );
+    });
+
+    it('드립이 꺼진 요금제면 정규·탐험 모두 0편이다', async () => {
+      repository.findByTier.mockResolvedValue(
+        buildPlan({ isDripEnabled: false, dailyDiscoveryCount: 1 }),
+      );
+
+      await expect(service.getDailyDripCount(UserTier.LIGHT)).resolves.toBe(0);
+      await expect(
+        service.getDailyDiscoveryCount(UserTier.LIGHT),
+      ).resolves.toBe(0);
+    });
+
+    it('티어 행이 없으면 light 행의 편수로 내린다 — 전 티어 편수가 같은 정책값이다', async () => {
+      repository.findByTier.mockImplementation((tier: UserTier) =>
+        Promise.resolve(
+          tier === UserTier.LIGHT
+            ? buildPlan({ dailyDripCount: 2, dailyDiscoveryCount: 1 })
+            : null,
+        ),
+      );
+
+      await expect(service.getDailyDripCount(UserTier.DAILY)).resolves.toBe(2);
+      await expect(
+        service.getDailyDiscoveryCount(UserTier.DAILY),
+      ).resolves.toBe(1);
+    });
+
+    it('light 행도 없으면 0편이다 — 편성하지 않는다', async () => {
+      repository.findByTier.mockResolvedValue(null);
+
+      await expect(service.getDailyDripCount(UserTier.PRO)).resolves.toBe(0);
+      await expect(service.getDailyDiscoveryCount(UserTier.PRO)).resolves.toBe(
+        0,
+      );
+    });
+  });
+
   describe('moreGenerousLimit', () => {
     it('null은 무제한이라 항상 이긴다', () => {
       expect(moreGenerousLimit(2, null)).toBeNull();
