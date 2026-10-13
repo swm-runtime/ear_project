@@ -17,7 +17,7 @@ export class DripBatchRun extends BaseEntity {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  /** 서비스 날짜(04시 경계 — domain.md 1.2) */
+  /** 서비스 날짜(05시 경계 — domain.md 1.2) */
   @Column({ name: 'run_date', type: 'date' })
   runDate: string;
 

@@ -86,7 +86,7 @@ export class LibraryItemListResponseDto {
   readonly daily_play_limit: number | null;
   /** `daily_play_limit`이 null이면 이 값도 null이다 */
   readonly daily_play_count: number | null;
-  /** 04:00 KST 경계로 계산한 날짜 라벨. UTC 타임스탬프가 아니다 */
+  /** 05:00 KST 경계로 계산한 날짜 라벨. UTC 타임스탬프가 아니다 */
   readonly service_date: string;
 
   static from(result: LibraryListResult): LibraryItemListResponseDto {

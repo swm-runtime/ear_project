@@ -49,9 +49,10 @@ jobs:
             echo "channel=production" >> "$GITHUB_OUTPUT"
             echo "api_base_url=https://api.earcast.co.kr/api/v1" >> "$GITHUB_OUTPUT"
             echo "app_variant=production" >> "$GITHUB_OUTPUT"
-            # 운영은 결제 화면을 끈다(PM 2026-10-07) — 스토어 상품·서버 결제 키·유료 앱 계약 전. 준비되면 'on'
-            echo "subscription_ui=off" >> "$GITHUB_OUTPUT"
-            # 운영 Play 상품이 아직 없다(KAN-130) — eas.json production 도 'off'
+            # 운영 결제 화면을 켠다(KAN-180, 2026-10-12) — 첫 iOS 구독 상품을 앱 버전과 함께 심사하므로
+            # 심사관이 앱 안에서 상품을 찾을 수 있어야 한다. iOS 는 이 값만으로 전원 노출된다.
+            echo "subscription_ui=on" >> "$GITHUB_OUTPUT"
+            # 운영 Play 상품이 아직 없다(KAN-130) — Android 는 여전히 'off'(eas.json production 과 같은 값)
             echo "subscription_android=off" >> "$GITHUB_OUTPUT"
           else
             echo "channel=preview" >> "$GITHUB_OUTPUT"

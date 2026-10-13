@@ -1,12 +1,15 @@
 import { DailyMetricsDbService } from './daily-metrics-db.service';
 
 describe('DailyMetricsDbService', () => {
-  it('서비스 날짜(04시 경계 — 전환 전) 하루 범위로 가입을 센다', async () => {
-    const query = jest.fn().mockResolvedValue([{ sign_ups: 3 }]);
+  it('서비스 날짜(04시 경계 — 전환 전) 하루 범위로 가입을 세고, 전체 가입자 수를 함께 센다', async () => {
+    const query = jest
+      .fn()
+      .mockResolvedValue([{ sign_ups: 3, total_users: 351 }]);
     const svc = new DailyMetricsDbService({ query } as never);
 
     await expect(svc.fetchDaily('2026-09-28')).resolves.toEqual({
       signUps: 3,
+      totalUsers: 351,
     });
 
     const [sql, params] = query.mock.calls[0] as [string, Date[]];
@@ -22,6 +25,7 @@ describe('DailyMetricsDbService', () => {
     } as never);
     await expect(svc.fetchDaily('2026-09-28')).resolves.toEqual({
       signUps: 0,
+      totalUsers: 0,
     });
   });
 });

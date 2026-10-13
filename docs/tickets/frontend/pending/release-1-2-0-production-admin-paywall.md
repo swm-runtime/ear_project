@@ -24,12 +24,12 @@
 
 - 운영 머지 PR #1235(main `795cf772`, 태그 `v1.2.0+5`) — 운영 API 배포·운영 OTA `01a12f7c` 성공
 - 운영 빌드 — iOS **1.2.0 (15)** App Store Connect 업로드 완료, Android **1.2.0 vc 18** aab 생성(Play 업로드 사람 손)
-- 결제 UI 는 운영에서 **모두에게 꺼져 있다** — 빌드 플래그 `EXPO_PUBLIC_SUBSCRIPTION_UI=off`(eas.json production · eas-update main 채널 둘 다). 결제 네이티브 모듈(expo-iap)은 바이너리에 들어 있다
+- 결제 UI 는 운영에서 **모두에게 꺼져 있었다** — 빌드 플래그 `EXPO_PUBLIC_SUBSCRIPTION_UI=off`(eas.json production · eas-update main 채널 둘 다). 결제 네이티브 모듈(expo-iap)은 바이너리에 들어 있다. **2026-10-12 KAN-180 으로 이 플래그를 `on` 으로 바꿨다** — iOS 심사관이 첫 구독 상품을 봐야 해서다. 아래 "할 것 2·3(관리자만 노출)"은 이로써 iOS 에는 적용하지 않는다(KAN-180 이 대체). Android 는 `SUBSCRIPTION_ANDROID=off` 라 여전히 전원 비노출
 
 ## 할 것
 
 1. iOS 심사 제출 · Android Play 업로드·출시(사람 손)
-2. **관리자만 여는 노출 조건 추가** — 지금 플래그는 번들에 박히는 값이라 계정별로 다르게 할 수 없다. 운영에서는 "빌드 플래그 on **그리고** 서버가 관리자라고 판정"일 때만 결제 UI 를 그리도록 한 겹을 더한다. 판정 값은 이미 있는 `account.is_admin`(settings-api — 서버 판정 boolean, 표시 전용)을 쓴다. 클라이언트가 `role` 을 해석하지 않는다
+2. ~~**관리자만 여는 노출 조건 추가**~~ — **2026-10-12 KAN-180 으로 방향 변경.** iOS 는 첫 구독 상품 심사 때문에 모두에게 열어야 해서 관리자 게이트를 적용하지 않는다. Android 는 `SUBSCRIPTION_ANDROID=off` 라 지금 전원 비노출이고, 관리자 한정 노출은 운영 Play 상품(KAN-130) 등록 후 Android 결제 테스트를 할 때 다시 본다 — 그때 `account.is_admin`(settings-api, 서버 판정 boolean) 기반으로 한 겹 더하는 것을 검토한다(클라이언트가 `role` 을 해석하지 않는다). 지금은 구현하지 않는다(켜질 자리가 없다)
 3. 운영 OTA env 를 관리자 모드로 바꿔 발행 → 관리자 계정으로 결제 UI 가 보이는지 확인
 4. 결제 테스트(박준현·박수헌 티켓) 통과 뒤 관리자 조건을 풀어 **모든 사용자에게 여는 OTA** 발행
 
@@ -47,3 +47,4 @@
 
 ## 처리 기록
 
+- 2026-10-12 — iOS 관리자 전용 노출(할 것 2·3)은 KAN-180(`ios-first-subscription-review-build.md`)으로 대체. iOS 는 전원 노출로 전환(심사용). Android 관리자 게이트는 KAN-130 후로 보류. 남은 것: iOS·Android 스토어 출시(사람 손), 결제 테스트 두 건(KAN-174·KAN-177) 통과 후 사용자 오픈 OTA(할 것 4) — iOS 는 이미 전원 오픈이라 사실상 Android 전용 단계가 된다.

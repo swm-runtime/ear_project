@@ -6,7 +6,8 @@
 | 요청 파트 | 프론트엔드(PM) |
 | 요청자 | 이주호(PM) |
 | 발행 날짜 | 2026-10-07 |
-| 관련 티켓 | `tickets/backend/pending/service-day-boundary-0500.md`(KAN-149, 서버 경계) · `tickets/frontend/archive/service-day-0500-copy.md`(KAN-150 완료, 앱 문구) · `tickets/frontend/archive/terms-amendment-service-day-0500.md`(KAN-148 완료, 약관·전환 시각) |
+| 반영 날짜 | 2026-10-13 |
+| 관련 티켓 | `tickets/backend/archive/service-day-boundary-0500.md`(KAN-149, 서버 경계) · `tickets/frontend/archive/service-day-0500-copy.md`(KAN-150 완료, 앱 문구) · `tickets/frontend/archive/terms-amendment-service-day-0500.md`(KAN-148 완료, 약관·전환 시각) |
 
 ## 수정 내용
 
@@ -25,3 +26,13 @@
 
 - Given `grep -rn "04:00\|04시\|03:59\|새벽 4시" docs` / When 결과를 본다 / Then 서비스 날짜 경계를 뜻하는 줄이 없다(백업 크론·점검 시각 등 무관한 것, 이력 기록 제외)
 - Given `backend/domain.md` 1.2 · `features/paywall.md` 9.1 / When 읽는다 / Then 경계가 05:00이고 드립·알림이 05:00으로 같다
+
+## 처리 기록
+
+### 2026-10-13 — 반영(PR #1187) — 박준현
+
+- 운영 전환(2026-10-12 05:00 KST, `SERVICE_DAY_BOUNDARY_05_FROM`) 뒤 PR #1187로 일괄 반영·머지. 규칙 소유 문서(`domain.md` 1.2 · `paywall.md` · `features/README.md` · `drip-scheduling.md` · `backend-monitoring.md` · `subscription.md` · PRD 9.1)와 인용 문서 전부, 백엔드 주석까지 05:00으로.
+- 남긴 "04시": 실제로 04시대에 도는 작업(백업 04:00 · 만료 04:10 · 주제 숨김 04:15 · 보존 삭제 04:30 · 구독 보정 04:45 · 옛 집계 슬롯 04:00), "종전 04:00" 같은 이력 문장, `domain-conflicts.md`(통합 히스토리 — 삭제 예정).
+- 완료 조건 확인: `grep -rn "새벽 4시\|03:59" docs`(archive·이력 제외)에 경계를 뜻하는 줄 없음 · `domain.md` 1.2·`paywall.md` 9.1 경계 05:00, 드립·알림 05:00.
+- 서버 쪽 처리는 `tickets/backend/archive/service-day-boundary-0500.md`(KAN-149).
+
