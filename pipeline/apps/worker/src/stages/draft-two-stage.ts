@@ -270,6 +270,7 @@ export function twoStageViolations(scriptMd: string, outlineMd: string, opts: { 
   v.push(...v94Violations(p.turns));
   v.push(...v98Violations(scriptMd, p.turns));
   v.push(...v99Violations(p.turns));
+  v.push(...v910Violations(p.turns));
   // full-v7 (2026-09-15): 귀속 표현 턴 비율 검사는 폐지 — 32~36% 인 편에서도 소스 순회(재식별 15건)가 있었다. 구조 검사로 대체
   v.push(...attributionViolations(scriptMd, p.turns, opts));
   return v;
@@ -287,7 +288,9 @@ export function twoStageViolations(scriptMd: string, outlineMd: string, opts: { 
  */
 export const RATIO_RULE_MARKS = ["셋 중 하나가 상한이다", "질문은 절반에서 3분의 2다", "같은 말끝은 질문의 5분의 2 이하다", "다체는 해설 문장의 30% 이하다",
   // v9.9.1 (2026-10-14): 문체 횟수 상한 둘도 한도 뒤엔 QA 로 넘긴다 — 사실·형식 위반이 아니라 말맛이라 초안을 멈출 사유가 아니다
-  "명사절 감싸기는 편에 넷까지다", "\"~적인·~적으로\"는 편에 일곱 번까지다"] as const;
+  "명사절 감싸기는 편에 넷까지다", "\"~적인·~적으로\"는 편에 일곱 번까지다",
+  // v9.10 (2026-10-14): 진행자의 추측을 맞장구 한마디로 받는 곳 — 주고받기 문체 규칙
+  "추측을 맞장구 한마디로 받는 곳은 편에 한 번까지다"] as const;
 export const isRatioViolation = (v: string): boolean => RATIO_RULE_MARKS.some((m) => v.includes(m));
 
 /** L0 수정 한도 (2026-10-07: 2 → 3) — QA 회차(qa.ts MAX_ATTEMPTS = QA 실행 3회, 실패 뒤 수정 2회)와 따로 센다 */
@@ -647,4 +650,26 @@ export function attributionStats(turns: { id: string | null; text: string }[]): 
   const e = turns.filter((t) => t.id?.startsWith("E"));
   const attributed = e.filter((t) => attributionRe.test(t.text)).length;
   return { eTurns: e.length, attributed, ratio: e.length ? attributed / e.length : 0 };
+}
+
+/**
+ * v9.10 주고받기 검사 (2026-10-14, 2인 대담 레퍼런스 대조 + 자동화 18편) — 진행자의 추측·자기 처지 대입을 해설이 받지 않는다.
+ * 추측으로 끝난 진행 턴 바로 뒤 해설 턴이 맞장구 한마디("맞아요."·"그렇죠."·"정확한 구분이에요.")로 시작하면 진행자의 말이 대화에 남지 않는다
+ * (규칙 4). 18편 중 7편이 두 번 이상(T261002-002 는 4/4) · 골드 0. 두 번부터 지목하고, 문체 규칙이라 한도 뒤엔 QA 로 넘긴다(RATIO_RULE_MARKS).
+ * "준비한 설명을 그대로 이어 읽기"는 문형으로 잡히지 않아 규칙과 critic 3.9 가 본다
+ */
+export function v910Violations(turns: ScriptTurn[]): string[] {
+  const v: string[] = [];
+  const body = turns.filter((t) => t.section !== "인트로" && t.section !== "마무리");
+  const guessRe = /(것 같아요|것 같은데요|것 같네요|겠어요|겠는데요|겠네요|제 생각엔|저라면|저 같으면)[.?!]?\s*$/;
+  const bareRe = /^(네|예|맞아요|맞습니다|그렇죠|그렇습니다|그럴 수 있어요|정확해요|정확합니다|좋은 질문이에요|바로 그거예요|그 말이 맞아요|정확한 [가-힣]+(이에요|예요|입니다))[.!]$/;
+  const hits: ScriptTurn[] = [];
+  for (let i = 0; i + 1 < body.length; i++) {
+    const y = body[i]; const e = body[i + 1];
+    if (!y.id?.startsWith("Y") || !e.id?.startsWith("E") || !guessRe.test(y.text.trim())) continue;
+    const first = e.text.trim().split(/(?<=[.?!])\s+/)[0] ?? "";
+    if (bareRe.test(first)) hits.push(e);
+  }
+  if (hits.length >= 2) v.push(`진행자의 추측 뒤 해설 턴 ${hits.length}개가 맞장구 한마디로 시작함 (${hits.slice(0, 10).map((t) => t.id ?? "?").join(", ")}) — ${RATIO_RULE_MARKS[6]}. 이 턴들의 첫 문장을 진행자 말의 어느 부분이 맞는지 내용으로 짚는 문장으로 바꾸거나, 빠진 조건을 더한다. 뒤 설명은 그 말에서 잇는다 (규칙 4)`);
+  return v;
 }
