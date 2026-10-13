@@ -64,6 +64,36 @@ describe('decideAutoExpand', () => {
     ]);
   });
 
+  it('관심 주제에도 걸친 콘텐츠의 완청은 관심 밖 주제의 트리거로 세지 않는다 — 정규 드립의 부수 태그다', () => {
+    // [IT, BRAIN] 두 편은 관심 주제 IT로 정규 드립을 받은 것이다
+    const decision = decideAutoExpand({
+      ...base,
+      topicIdsByContentId: new Map([
+        ['ib1', [IT, BRAIN]],
+        ['ib2', [IT, BRAIN]],
+      ]),
+      signals: [complete('ib1', 1), complete('ib2', 2)],
+      topicWeights: { [IT]: 2, [BRAIN]: 2 },
+      activeInterests: [declared(IT)],
+    });
+
+    expect(decision).toMatchObject({ action: 'none', reason: 'no_candidate' });
+    expect(decision.candidates).toEqual([]);
+  });
+
+  it('관심 밖 전용 콘텐츠 2편이면 같은 주제의 다중 태그 완청이 섞여 있어도 트리거다', () => {
+    const decision = decideAutoExpand({
+      ...base,
+      topicIdsByContentId: new Map([...topics, ['ib1', [IT, BRAIN]]]),
+      signals: [complete('ib1', 1), complete('b1', 2), complete('b2', 3)],
+      topicWeights: { [BRAIN]: 1.5 },
+      activeInterests: [declared(IT)],
+    });
+
+    expect(decision).toMatchObject({ action: 'add', addTopicId: BRAIN });
+    expect(decision.candidates[0].completes).toBe(2);
+  });
+
   it('1편 완청은 트리거가 아니다 — 같은 콘텐츠의 완청 신호가 두 번이어도 1편으로 센다', () => {
     const decision = decideAutoExpand({
       ...base,
