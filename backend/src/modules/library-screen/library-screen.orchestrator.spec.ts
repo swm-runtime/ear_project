@@ -435,8 +435,9 @@ describe('LibraryScreenOrchestrator', () => {
       expect(libraryService.restore).not.toHaveBeenCalled();
     });
 
-    it('복구해도 드립 영구 제외 행은 지우지 않는다', async () => {
-      // given — 지우면 이미 들은 콘텐츠가 드립으로 다시 온다
+    it('복구는 드립 영구 제외를 건드리지 않는다 — 새로 적재하지 않는다(푸는 경로는 DripExclusionService 에 아예 없다)', async () => {
+      // given — 제외가 풀리면 이미 들은 콘텐츠가 드립으로 다시 온다. 그 보장은 서비스에 해제 메서드가 없다는 구조이고,
+      // 이 테스트는 복구가 삭제 때처럼 제외를 한 번 더 적재하지 않는지만 본다
       libraryService.getOwnedItemWithDeleted.mockResolvedValue(
         buildItem({ deletedAt: NOW }),
       );

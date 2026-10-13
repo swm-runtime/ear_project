@@ -462,8 +462,7 @@ export class LibraryService {
     return { items: hasNext ? rows.slice(0, query.limit) : rows, hasNext };
   }
 
-  /** 주제 필터 팝업의 집계 대상 — 삭제되지 않고 회수되지 않은 항목의 `content_id` */
-  /** 주제 필터 팝업의 주제별 건수(library-api.md 4.2) — 집계는 SQL이 한다 */
+  /** 주제 필터 팝업의 주제별 건수(library-api.md 4.2) — 삭제되지 않고 회수되지 않은 항목만, 집계는 SQL이 한다 */
   async countByTopicForUser(
     userId: string,
     now: Date,
@@ -617,11 +616,11 @@ export class LibraryService {
   }
 
   /**
-   * 소프트 삭제(library-api.md 4.6). **이미 삭제된 항목에도 성공으로 응답한다** —
-   * 오프라인 큐가 같은 삭제를 다시 보낼 수 있고(`common-error-handling.md` 4.5),
-   * 실패시킬 이유가 없다.
+   * 소프트 삭제(library-api.md 4.6). 이미 삭제된 항목이면 아무것도 하지 않고 false 다 — 그래도 API는 성공으로
+   * 응답하는데(오프라인 큐의 재전송, `common-error-handling.md` 4.5), 그 판단은 호출자(orchestrator)가 한다.
+   *
+   * @returns 이번 요청이 실제로 지웠는지 — 동시 삭제에서 진 쪽은 false(신호를 남기지 않는다)
    */
-  /** @returns 이번 요청이 실제로 지웠는지 — 동시 삭제에서 진 쪽은 false(신호를 남기지 않는다) */
   async softDelete(
     item: LibraryItem,
     now: Date,
