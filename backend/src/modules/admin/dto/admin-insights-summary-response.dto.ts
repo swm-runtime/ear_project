@@ -101,7 +101,7 @@ export class AdminInsightsSummaryResponseDto {
     /** `returned / cohort_size` */
     rate: number | null;
   }[];
-  /** 주제별 수요·공급 — 관심 사용자 대비 남은 편수가 적은 순 */
+  /** 주제별 수요·공급 — 관심 사용자가 많은 순 */
   readonly topic_supply: {
     topic_id: string;
     name: string;
