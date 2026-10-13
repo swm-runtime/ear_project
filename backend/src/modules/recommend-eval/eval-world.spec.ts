@@ -172,3 +172,87 @@ describe('EvalWorld', () => {
     expect(world.contents.get(target.id)!.completeCount).toBe(before + 1);
   });
 });
+
+describe('자동 확장 토글 — 끄고 다시 켜도 자동 슬롯 주제가 그대로 남는다', () => {
+  const PSYCHOLOGY = 3;
+
+  it('자동 슬롯이 "심리학"인 사용자가 토글을 껐다 켜면 심리학이 auto_expand 그대로 선택돼 있다', async () => {
+    // given — 관심 주제 0번만 고른 사용자가 관심 밖 "심리학"(3번)을 2편 완청했다
+    const snapshot = buildSyntheticSnapshot(NOW);
+    const psychologyId = snapshot.topics[PSYCHOLOGY].id;
+    snapshot.topics[PSYCHOLOGY].name = '심리학';
+    snapshot.users.push({
+      key: 'u1',
+      tier: 'light',
+      job_category: null,
+      years_of_experience: null,
+      auto_expand_enabled: true,
+      interests: [
+        {
+          topic_id: snapshot.topics[0].id,
+          source: 'onboarding',
+          is_active: true,
+          is_user_removed: false,
+          updated_at: NOW.toISOString(),
+        },
+      ],
+      signals: [],
+      library: [],
+      excluded: [],
+    });
+    const world = EvalWorld.fromSnapshot(snapshot);
+    const psychologyContents = snapshot.contents
+      .filter((content) => content.topic_ids.length === 1)
+      .filter((content) => content.topic_ids[0] === psychologyId)
+      .slice(0, 2);
+    for (const content of psychologyContents) {
+      world.complete('u1', content.id, new Date(NOW.getTime() - DAY));
+    }
+    const options = { commit: true, autoExpandFeature: true };
+    const psychologySlot = () =>
+      world
+        .user('u1')
+        .interests.find((interest) => interest.topicId === psychologyId);
+
+    // 1일차 — 켜진 상태에서 심리학이 자동 슬롯으로 붙는다
+    const day1 = await world.plan('u1', NOW, options);
+    expect(day1.autoExpand?.action).toBe('add');
+    expect(psychologySlot()).toMatchObject({
+      source: 'auto_expand',
+      isActive: true,
+    });
+
+    // 2~4일차 — 끈 동안 배치가 돌아도 넣지도 빼지도 않는다
+    world.user('u1').autoExpandEnabled = false;
+    for (let day = 1; day <= 3; day += 1) {
+      const plan = await world.plan(
+        'u1',
+        new Date(NOW.getTime() + day * DAY),
+        options,
+      );
+      expect(plan.activeTopicIds).toContain(psychologyId);
+    }
+    expect(psychologySlot()).toMatchObject({
+      source: 'auto_expand',
+      isActive: true,
+      isUserRemoved: false,
+    });
+
+    // 5일차 — 다시 켜면 심리학이 그대로 자동 슬롯이고, 정규 편성 주제에 들어간다
+    world.user('u1').autoExpandEnabled = true;
+    const day5 = await world.plan(
+      'u1',
+      new Date(NOW.getTime() + 4 * DAY),
+      options,
+    );
+    expect(day5.autoExpand?.action).toBe('none');
+    expect(day5.activeTopicIds).toEqual(
+      expect.arrayContaining([snapshot.topics[0].id, psychologyId]),
+    );
+    expect(psychologySlot()).toMatchObject({
+      source: 'auto_expand',
+      isActive: true,
+      isUserRemoved: false,
+    });
+  });
+});

@@ -76,6 +76,19 @@ const summary = (): InsightsSummary => ({
     { day: 1, cohortSize: 200, returned: 50 },
     { day: 30, cohortSize: 0, returned: 0 },
   ],
+  topicSupply: [
+    {
+      topicId: 'topic-1',
+      name: '경제 상식',
+      isVisible: true,
+      published: 4,
+      publishedInWindow: 1,
+      interestedUsers: 177,
+      medianRemaining: 1.5,
+      exhaustedUsers: 20,
+      lowUsers: 90,
+    },
+  ],
 });
 
 describe('AdminInsightsSummaryResponseDto', () => {
@@ -115,6 +128,17 @@ describe('AdminInsightsSummaryResponseDto', () => {
     expect(dto.retention[0].rate).toBe(0.25);
     expect(dto.retention[1].rate).toBeNull();
     expect(dto.withdrawal_reasons[0]).toEqual({ reason_code: null, count: 3 });
+    expect(dto.topic_supply[0]).toEqual({
+      topic_id: 'topic-1',
+      name: '경제 상식',
+      is_visible: true,
+      published: 4,
+      published_in_window: 1,
+      interested_users: 177,
+      median_remaining: 1.5,
+      exhausted_users: 20,
+      low_users: 90,
+    });
   });
 
   it('개인 식별 정보 필드가 어디에도 없다 — 사용자 순위는 user_id·티어·날짜뿐', () => {

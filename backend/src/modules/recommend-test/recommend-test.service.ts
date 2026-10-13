@@ -9,6 +9,8 @@ import { ContentService } from '@/modules/content/services/content.service';
 import { DripBatchOrchestrator } from '@/modules/drip-batch/drip-batch.orchestrator';
 import { DripExcludedContent } from '@/modules/drip/entities/drip-excluded-content.entity';
 import { FirstDripJob } from '@/modules/drip/entities/first-drip-job.entity';
+import { FirstDripService } from '@/modules/drip/services/first-drip.service';
+import { FirstDripState } from '@/modules/drip/drip.types';
 import { DripFeedback } from '@/modules/drip-feedback/drip-feedback.entity';
 import { UserPreferenceVector } from '@/modules/drip/entities/user-preference-vector.entity';
 import { SaveReason } from '@/modules/explore/explore.enum';
@@ -84,6 +86,7 @@ export class RecommendTestService {
     private readonly exploreOrchestrator: ExploreOrchestrator,
     private readonly libraryScreenOrchestrator: LibraryScreenOrchestrator,
     private readonly dripBatchOrchestrator: DripBatchOrchestrator,
+    private readonly firstDripService: FirstDripService,
   ) {
     this.email =
       configService.get('RECOMMEND_TEST_EMAIL', { infer: true })?.trim() ?? '';
@@ -223,6 +226,36 @@ export class RecommendTestService {
     });
 
     this.logger.log('recommend test account reset', { user_id: user.id });
+  }
+
+  /**
+   * **첫 드립을 지금 다시 실행한다** — 온보딩 완료 직후 신규 사용자가 받는 2편(`drip-scheduling.md` 4.4 콜드스타트
+   * 스코어링 + 다양성 선정)을 테스트 계정으로 본다. 테스트 계정은 이미 온보딩을 마쳐 앱 경로로는 다시 받을 수 없다.
+   *
+   * 이전 작업 행을 지우고 새로 만든 뒤 앱과 같은 `FirstDripService.schedule`을 부른다. 이미 본 콘텐츠 제외는 그대로라
+   * **신규 사용자와 같은 결과를 보려면 먼저 초기화한다** — 초기화가 라이브러리·드립 제외·첫 드립 작업을 함께 지운다.
+   */
+  async runFirstDrip(now: Date): Promise<FirstDripState> {
+    const user = await this.getTestUser();
+
+    await this.dataSource
+      .getRepository(FirstDripJob)
+      .delete({ userId: user.id });
+    await this.firstDripService.createJob(user.id, now);
+    await this.firstDripService.schedule(user.id, now);
+
+    const state = await this.firstDripService.findState(user.id);
+    this.logger.log('recommend test first drip', {
+      user_id: user.id,
+      status: state?.status,
+      item_count: state?.itemCount,
+    });
+
+    if (!state) {
+      throw new Error('first drip job vanished after scheduling');
+    }
+
+    return state;
   }
 
   private async performAction(

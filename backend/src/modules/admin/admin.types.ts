@@ -97,6 +97,12 @@ export interface AdminContentView {
   topics: { topicId: string; name: string }[];
   /** 대본 적재 여부 — 콘솔이 목록에서 "자막 있음"을 표시한다(KAN-71) */
   hasScript: boolean;
+  /**
+   * 스코어링에 쓰이는 임베딩이 있는가 — 현재 모델이고 `content_version`이 일치하는 행. false면 임베딩이 없거나
+   * 오디오 재발행 뒤 미갱신이라 추천의 임베딩 축에서 빠진다. 메타 형식 버전(`enrichment_schema_version`)과는
+   * 별개다 — 형식은 최신인데 임베딩만 낡을 수 있다(2026-10-13 운영 56편 전부)
+   */
+  hasCurrentEmbedding: boolean;
   enrichment?: EnrichmentOutcome;
   script?: ScriptOutcome;
 }
@@ -274,6 +280,28 @@ export interface InsightsRetention {
   returned: number;
 }
 
+/**
+ * 주제별 수요·공급 — 관심 사용자 수 대비 아직 줄 수 있는 콘텐츠가 얼마나 남았는가(2026-10-13 추천 검증).
+ * 제작 우선순위의 근거다: 관심은 많은데 남은 편수가 적은 주제부터 만든다.
+ */
+export interface InsightsTopicSupply {
+  topicId: string;
+  name: string;
+  isVisible: boolean;
+  /** 노출 중(발행·라이선스 유효)인 콘텐츠 수 */
+  published: number;
+  /** 그중 창(`since`) 안에 발행된 수 */
+  publishedInWindow: number;
+  /** 이 주제를 활성 관심 주제로 둔 온보딩 완료 사용자 수 */
+  interestedUsers: number;
+  /** 관심 사용자별 "아직 받을 수 있는 편수"(라이브러리·드립 영구 제외에 없는 것)의 중앙값 */
+  medianRemaining: number;
+  /** 남은 편수 0편인 관심 사용자 수 — 이 주제로는 더 줄 것이 없다 */
+  exhaustedUsers: number;
+  /** 남은 편수 2편 이하인 관심 사용자 수 — 하루 정규 2편 기준 하루치 이하 */
+  lowUsers: number;
+}
+
 export interface InsightsDailyRows {
   signups: { date: string; count: number }[];
   withdrawals: { date: string; count: number }[];
@@ -300,4 +328,5 @@ export interface InsightsSummary {
   topContents: InsightsTopContent[];
   withdrawalReasons: InsightsWithdrawalReason[];
   retention: InsightsRetention[];
+  topicSupply: InsightsTopicSupply[];
 }

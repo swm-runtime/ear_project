@@ -31,6 +31,7 @@ describe('ContentStatService', () => {
         '2026-04-01',
         10,
         undefined,
+        undefined,
       );
     });
 

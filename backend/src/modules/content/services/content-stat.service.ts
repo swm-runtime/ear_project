@@ -43,12 +43,14 @@ export class ContentStatService {
     now: Date,
     limit: number,
     manager?: EntityManager,
+    amongContentIds?: string[],
   ): Promise<string[]> {
     return this.contentStatRepository.findTopContentIds(
       StatsPeriodType.MONTH,
       toPreviousFinalMonthStart(now),
       limit,
       manager,
+      amongContentIds,
     );
   }
 }

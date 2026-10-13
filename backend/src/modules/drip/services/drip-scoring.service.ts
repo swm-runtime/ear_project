@@ -735,7 +735,17 @@ export class DripScoringService {
       return null;
     }
 
-    return context.difficultyAffinity[content.difficulty] ?? 0;
+    /**
+     * **가장 많이 완청한 난이도를 1로 맞춘다.** 비중(합 1)을 그대로 쓰면 선호 난이도와 맞는
+     * 콘텐츠도 0.3~0.6에 그쳐, 난이도가 NULL이라 항목에서 빠진 콘텐츠(나머지 항목 평균)보다
+     * 불리해진다 — 메타가 있고 취향에 맞는 쪽이 지는 역전이다(2026-10-13 추천 검증).
+     */
+    const maxShare = Math.max(...Object.values(context.difficultyAffinity));
+    if (maxShare <= 0) {
+      return null;
+    }
+
+    return (context.difficultyAffinity[content.difficulty] ?? 0) / maxShare;
   }
 
   private keywordMatchScore(

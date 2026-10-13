@@ -16,19 +16,36 @@ export class ContentStatRepository {
     return manager ? manager.getRepository(ContentStat) : this.repository;
   }
 
-  /** 직전 확정 구간의 순위 — 상위 `limit`건의 `content_id`를 재생 수 순으로 */
+  /**
+   * 직전 확정 구간의 순위 — 상위 `limit`건의 `content_id`를 재생 수 순으로.
+   * `amongContentIds`를 주면 그 안에서만 순위를 매긴다(전역 상위 N과 후보 풀의 교집합이
+   * 비는 것을 막는다).
+   */
   async findTopContentIds(
     periodType: StatsPeriodType,
     periodStart: string,
     limit: number,
     manager?: EntityManager,
+    amongContentIds?: string[],
   ): Promise<string[]> {
-    const rows = await this.scoped(manager)
+    if (amongContentIds !== undefined && amongContentIds.length === 0) {
+      return [];
+    }
+
+    const builder = this.scoped(manager)
       .createQueryBuilder('stat')
       .select('stat.content_id', 'content_id')
       .where('stat.period_type = :periodType', { periodType })
       .andWhere('stat.period_start = :periodStart', { periodStart })
-      .andWhere('stat.is_final = true')
+      .andWhere('stat.is_final = true');
+
+    if (amongContentIds !== undefined) {
+      builder.andWhere('stat.content_id IN (:...amongContentIds)', {
+        amongContentIds,
+      });
+    }
+
+    const rows = await builder
       .orderBy('stat.play_count', 'DESC')
       // 동점 구간의 순서를 고정한다 — 재진입 시 같은 결과를 보장해야 한다
       .addOrderBy('stat.content_id', 'ASC')

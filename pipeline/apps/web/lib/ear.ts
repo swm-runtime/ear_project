@@ -298,6 +298,9 @@ export const putRecommendTestInterests = (topic_ids: string[]) =>
 export const putRecommendTestCareer = (body: { job_category: string | null; job_title: string | null; years_of_experience: string | null }) =>
   earFetch<void>("/admin/recommend-test/career", { method: "PUT", ...json(body) }, DEV);
 export const resetRecommendTest = () => earFetch<void>("/admin/recommend-test/reset", { method: "POST" }, DEV);
+/** 첫 드립 다시 실행(admin-api 4.17, 2026-10-13) — 초기화 뒤에 부르면 가입 직후의 첫 2편과 같다 */
+export const runRecommendTestFirstDrip = () =>
+  earFetch<{ status: string; item_count: number; completed_at: string | null }>("/admin/recommend-test/first-drip", { method: "POST" }, DEV);
 /** 콘텐츠·주제 목록은 기존 관리자 API 를 개발계 채널로 부른다 */
 export const listEarContentsOn = (ch: EarChannel, status: string, offset: number, limit = 50) =>
   earFetch<{ items: EarContent[]; total: number }>(`/admin/contents?offset=${offset}&limit=${limit}${status ? `&status=${status}` : ""}`, {}, ch);
@@ -367,6 +370,8 @@ export interface EarInsightsSummary {
   top_contents: { content_id: string; title: string; duration_sec: number; listen_sec: number; plays: number; listeners: number; completes: number; complete_rate: number | null; saves: number }[];
   withdrawal_reasons: { reason_code: string | null; count: number }[];
   retention: { day: number; cohort_size: number; returned: number; rate: number | null }[];
+  /** 주제별 수요·공급 — 관심 사용자 대비 남은 편수가 적은 순(admin-api 4.22). 배포 전 서버면 없다 */
+  topic_supply?: { topic_id: string; name: string; is_visible: boolean; published: number; published_in_window: number; interested_users: number; median_remaining: number; exhausted_users: number; low_users: number }[];
 }
 /** 열 때 1회 + [새로고침] — 자동 폴링하지 않는다(backend-monitoring.md 3장). 서버도 no-store */
 export const getEarInsightsSummary = (ch: EarChannel, days: number) =>

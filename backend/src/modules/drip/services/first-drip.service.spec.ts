@@ -1,6 +1,7 @@
 import { DataSource } from 'typeorm';
 
 import { Content } from '@/modules/content/entities/content.entity';
+import { ContentStatService } from '@/modules/content/services/content-stat.service';
 import { ContentService } from '@/modules/content/services/content.service';
 import { UserInterestService } from '@/modules/interest/services/user-interest.service';
 import { LibraryItemSource } from '@/modules/library/library.enum';
@@ -9,7 +10,9 @@ import { PlanService } from '@/modules/subscription/services/plan.service';
 import { UserService } from '@/modules/user/services/user.service';
 import { UserTier } from '@/modules/user/user.enum';
 
+import { DripScoringService } from './drip-scoring.service';
 import { FirstDripService } from './first-drip.service';
+import { SCORING_POOL_LIMIT } from '../drip.constant';
 import { DripExclusionReason, FirstDripJobStatus } from '../drip.enum';
 import { FirstDripJob } from '../entities/first-drip-job.entity';
 import { DripExcludedContentRepository } from '../repositories/drip-excluded-content.repository';
@@ -33,8 +36,15 @@ function buildJob(): FirstDripJob {
   } as FirstDripJob;
 }
 
-function buildContent(id: string): Content {
-  return { id } as Content;
+function buildContent(id: string, overrides: Partial<Content> = {}): Content {
+  return {
+    id,
+    authorName: null,
+    difficulty: null,
+    isEvergreen: true,
+    publishedAt: NOW,
+    ...overrides,
+  } as Content;
 }
 
 describe('FirstDripService', () => {
@@ -45,6 +55,7 @@ describe('FirstDripService', () => {
   let planService: jest.Mocked<PlanService>;
   let userInterestService: jest.Mocked<UserInterestService>;
   let contentService: jest.Mocked<ContentService>;
+  let contentStatService: jest.Mocked<ContentStatService>;
   let libraryService: jest.Mocked<LibraryService>;
   let job: FirstDripJob;
 
@@ -81,7 +92,13 @@ describe('FirstDripService', () => {
 
     contentService = {
       findCandidates: jest.fn().mockResolvedValue([]),
+      findTopicViews: jest.fn().mockResolvedValue([]),
+      findScorableEmbeddings: jest.fn().mockResolvedValue(new Map()),
     } as unknown as jest.Mocked<ContentService>;
+
+    contentStatService = {
+      findAllTimeCounts: jest.fn().mockResolvedValue(new Map()),
+    } as unknown as jest.Mocked<ContentStatService>;
 
     libraryService = {
       addItems: jest.fn().mockResolvedValue([]),
@@ -101,6 +118,8 @@ describe('FirstDripService', () => {
       planService,
       userInterestService,
       contentService,
+      contentStatService,
+      new DripScoringService(),
       libraryService,
       dataSource,
     );
@@ -196,6 +215,38 @@ describe('FirstDripService', () => {
         NOW,
         expect.anything(),
       );
+    });
+
+    it('재생 수 순서로 자르지 않고 콜드스타트 점수로 고른다 — 초급이 같은 인기의 고급보다 앞선다', async () => {
+      // given — 후보 조회는 재생 수 순이다. 종전에는 앞 2편을 그대로 줬다
+      contentService.findCandidates.mockResolvedValue([
+        buildContent('advanced-1', {
+          difficulty: 'advanced',
+        } as Partial<Content>),
+        buildContent('advanced-2', {
+          difficulty: 'advanced',
+        } as Partial<Content>),
+        buildContent('beginner-1', {
+          difficulty: 'beginner',
+        } as Partial<Content>),
+      ]);
+      contentService.findTopicViews.mockResolvedValue(
+        ['advanced-1', 'advanced-2', 'beginner-1'].map((contentId) => ({
+          contentId,
+          topicId: TOPIC_ID,
+        })) as never,
+      );
+
+      // when
+      await service.schedule(USER_ID, NOW);
+
+      // then — 풀은 배치와 같은 크기로 받고, 초급 편이 뽑힌다(4.4)
+      expect(contentService.findCandidates.mock.calls[0][0].limit).toBe(
+        SCORING_POOL_LIMIT,
+      );
+      const [, picked] = libraryService.addItems.mock.calls[0];
+      expect(picked).toHaveLength(2);
+      expect(picked).toContain('beginner-1');
     });
 
     it('이미 적립이 끝난 작업은 다시 편성하지 않는다', async () => {

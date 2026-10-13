@@ -40,6 +40,50 @@ export class ContentEmbeddingRepository {
       .getMany();
   }
 
+  /** `findAllScorableByContentIds`와 같은 조건의 id만 — 벡터를 싣지 않는 가벼운 판정용(관리자 목록) */
+  async findScorableContentIds(
+    contentIds: string[],
+    model: string,
+    manager?: EntityManager,
+  ): Promise<string[]> {
+    if (contentIds.length === 0) {
+      return [];
+    }
+
+    const rows = await this.scoped(manager)
+      .createQueryBuilder('embedding')
+      .select('embedding.content_id', 'content_id')
+      .innerJoin(
+        'embedding.content',
+        'content',
+        'content.content_version = embedding.content_version',
+      )
+      .where('embedding.content_id IN (:...contentIds)', { contentIds })
+      .andWhere('embedding.model = :model', { model })
+      .getRawMany<{ content_id: string }>();
+
+    return rows.map((row) => row.content_id);
+  }
+
+  /**
+   * 대본이 그대로인 재발행의 버전 승계 — 직전 버전과 일치하던 행만 새 버전으로 올린다.
+   * 이미 낡은 행(그 전 재발행에서 미갱신)은 건드리지 않는다 — 어느 대본 기준인지 모르게 된다.
+   */
+  async carryVersionForward(
+    contentId: string,
+    fromVersion: number,
+    toVersion: number,
+    manager?: EntityManager,
+  ): Promise<void> {
+    await this.scoped(manager)
+      .createQueryBuilder()
+      .update(ContentEmbedding)
+      .set({ contentVersion: toVersion })
+      .where('content_id = :contentId', { contentId })
+      .andWhere('content_version = :fromVersion', { fromVersion })
+      .execute();
+  }
+
   /**
    * 콘텐츠당 1행(`uq_content_embeddings_content_id`)의 전체 교체 upsert —
    * 재발행·모델 교체의 재생성이 같은 경로를 쓴다(domain.md 5.6).

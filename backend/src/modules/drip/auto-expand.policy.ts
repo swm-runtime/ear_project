@@ -118,9 +118,19 @@ export function decideAutoExpand(input: AutoExpandInput): AutoExpandDecision {
     }
 
     const at = signal.createdAt.getTime();
+    const contentTopicIds =
+      input.topicIdsByContentId.get(signal.contentId) ?? [];
+    /**
+     * **관심 주제에도 걸친 콘텐츠의 완청은 트리거에 세지 않는다.** `content_topics`는 다대다라, 관심 주제 A로
+     * 정규 드립을 받은 [A, B] 콘텐츠를 들으면 B를 "스스로 찾아 들은" 것처럼 세어졌다 — 4.5-1이 잡으려는
+     * 것은 관심 밖 주제를 찾아 듣는 행동이지 편성이 준 것의 부수 태그가 아니다(2026-10-13 추천 검증).
+     * 슬롯 생존(마지막 긍정 신호)은 그대로 모든 주제에 남긴다.
+     */
+    const countsAsOutsideListening = !contentTopicIds.some((topicId) =>
+      activeTopicIds.has(topicId),
+    );
 
-    for (const topicId of input.topicIdsByContentId.get(signal.contentId) ??
-      []) {
+    for (const topicId of contentTopicIds) {
       lastPositiveAt.set(
         topicId,
         Math.max(lastPositiveAt.get(topicId) ?? 0, at),
@@ -128,7 +138,8 @@ export function decideAutoExpand(input: AutoExpandInput): AutoExpandDecision {
 
       if (
         signal.action === PreferenceSignalAction.COMPLETE &&
-        at >= lookbackStart
+        at >= lookbackStart &&
+        countsAsOutsideListening
       ) {
         const contents = completedByTopic.get(topicId) ?? new Set<string>();
         contents.add(signal.contentId);

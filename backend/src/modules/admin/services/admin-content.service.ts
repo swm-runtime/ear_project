@@ -260,10 +260,14 @@ export class AdminContentService {
     this.logEnrichmentOutcome(content.id, enrichment);
     this.logScriptOutcome(content.id, script);
 
+    const embeddingContentIds =
+      await this.contentService.findScorableEmbeddingContentIds([content.id]);
+
     return {
       content,
       topics: topics.map((topic) => ({ topicId: topic.id, name: topic.name })),
       hasScript: script?.data != null,
+      hasCurrentEmbedding: embeddingContentIds.has(content.id),
       ...(enrichment && { enrichment: toEnrichmentOutcome(enrichment) }),
       ...(script && { script: toScriptOutcome(script) }),
     };
@@ -959,10 +963,12 @@ export class AdminContentService {
   }
 
   private async toView(content: Content): Promise<AdminContentView> {
-    const [topicViews, scriptContentIds] = await Promise.all([
-      this.contentService.findTopicViews([content.id]),
-      this.contentService.findScriptContentIds([content.id]),
-    ]);
+    const [topicViews, scriptContentIds, embeddingContentIds] =
+      await Promise.all([
+        this.contentService.findTopicViews([content.id]),
+        this.contentService.findScriptContentIds([content.id]),
+        this.contentService.findScorableEmbeddingContentIds([content.id]),
+      ]);
 
     return {
       content,
@@ -971,22 +977,25 @@ export class AdminContentService {
         name: view.name,
       })),
       hasScript: scriptContentIds.has(content.id),
+      hasCurrentEmbedding: embeddingContentIds.has(content.id),
     };
   }
 
   async findPage(query: AdminContentListQuery): Promise<AdminContentPage> {
     const { items, total } = await this.contentService.findAdminPage(query);
-    const [topicViews, scriptContentIds] = await Promise.all([
-      this.contentService.findTopicViews(items.map((content) => content.id)),
-      this.contentService.findScriptContentIds(
-        items.map((content) => content.id),
-      ),
-    ]);
+    const ids = items.map((content) => content.id);
+    const [topicViews, scriptContentIds, embeddingContentIds] =
+      await Promise.all([
+        this.contentService.findTopicViews(ids),
+        this.contentService.findScriptContentIds(ids),
+        this.contentService.findScorableEmbeddingContentIds(ids),
+      ]);
 
     return {
       items: items.map((content) => ({
         content,
         hasScript: scriptContentIds.has(content.id),
+        hasCurrentEmbedding: embeddingContentIds.has(content.id),
         topics: topicViews
           .filter((view) => view.contentId === content.id)
           .map((view) => ({ topicId: view.topicId, name: view.name })),

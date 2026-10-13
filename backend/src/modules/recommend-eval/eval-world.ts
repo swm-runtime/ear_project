@@ -735,12 +735,14 @@ export class EvalWorld {
 
   private playbackService() {
     return {
-      // `UserSignalRepository.findAllRecentByUserId` — 최신순, 상한
+      // `UserSignalRepository.findAllRecentByUserId` — 최신순, 상한, `play` 제외
       findRecentSignals: (key: string, since: Date, limit: number) =>
         Promise.resolve(
           this.user(key)
             .signals.filter(
-              (signal) => signal.createdAt.getTime() >= since.getTime(),
+              (signal) =>
+                signal.createdAt.getTime() >= since.getTime() &&
+                signal.action !== String(UserSignalAction.PLAY),
             )
             .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
             .slice(0, limit),
