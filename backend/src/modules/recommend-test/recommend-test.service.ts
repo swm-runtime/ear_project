@@ -90,13 +90,20 @@ export class RecommendTestService {
   ) {
     this.email =
       configService.get('RECOMMEND_TEST_EMAIL', { infer: true })?.trim() ?? '';
+    // Sentry 와 같은 규칙으로 환경을 정한다 — 비우면 NODE_ENV(운영·개발계 컨테이너는 production)
     this.environment =
-      configService.get('SENTRY_ENVIRONMENT', { infer: true }) ?? '';
+      configService.get('SENTRY_ENVIRONMENT', { infer: true })?.trim() ||
+      configService.get('NODE_ENV', { infer: true }) ||
+      '';
   }
 
-  /** 운영이면 이메일이 있어도 꺼진다 — 행동이 실제 신호를 쓰기 때문이다 */
+  /**
+   * **개발 환경이라고 명시된 곳에서만 켠다**(실패 시 닫힘, 2026-10-13 보안 점검). 행동·초기화가 실제 신호와
+   * 라이브러리를 쓰기 때문이다 — 종전 "production 이 아니면 켬"은 운영 `SENTRY_ENVIRONMENT`가 비거나 오타면
+   * 운영에서 열렸다. 개발계는 `SENTRY_ENVIRONMENT=development`, 로컬은 비워 두면 `NODE_ENV=development`로 켜진다.
+   */
   get enabled(): boolean {
-    return this.email !== '' && this.environment !== 'production';
+    return this.email !== '' && this.environment === 'development';
   }
 
   async getAccount(now: Date): Promise<RecommendTestAccountView> {
@@ -407,8 +414,8 @@ export class RecommendTestService {
         status: HttpStatus.CONFLICT,
         errorCode: ErrorCode.ADMIN_RECOMMEND_TEST_DISABLED,
         message:
-          this.environment === 'production'
-            ? '추천 테스트는 운영 서버에서 쓸 수 없어요 — 개발계에 연결하세요'
+          this.environment !== 'development'
+            ? '추천 테스트는 개발계에서만 쓸 수 있어요 — 개발계에 연결하세요'
             : '추천 테스트 계정(RECOMMEND_TEST_EMAIL)이 서버에 설정되지 않았어요',
       });
     }
