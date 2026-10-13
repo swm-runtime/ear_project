@@ -91,8 +91,24 @@ describe('formatDailyMetrics', () => {
 
   it('각주에 출처와 경계를 적는다 — 가입자 줄만 서버, 나머지는 GA4', () => {
     expect(formatDailyMetrics(base)).toContain(
-      '가입자 줄은 서버 값(05시 경계) · 나머지는 GA4 운영 스트림(00시 경계)',
+      '가입자 줄은 서버 값(04시 경계) · 나머지는 GA4 운영 스트림(00시 경계)',
     );
+  });
+
+  it('각주의 서버 경계는 보고 날짜에 적용되는 경계다 — 05:00 전환 뒤 날짜면 05시', () => {
+    const key = 'SERVICE_DAY_BOUNDARY_05_FROM';
+    const prev = process.env[key];
+    process.env[key] = '2026-10-12T05:00:00+09:00';
+    try {
+      expect(formatDailyMetrics({ ...base, date: '2026-10-12' })).toContain(
+        '가입자 줄은 서버 값(05시 경계)',
+      );
+      // 전환 전 날짜는 그대로 04시
+      expect(formatDailyMetrics(base)).toContain('서버 값(04시 경계)');
+    } finally {
+      if (prev === undefined) delete process.env[key];
+      else process.env[key] = prev;
+    }
   });
 
   it('완청 건수를 재생 줄에 넣는다', () => {

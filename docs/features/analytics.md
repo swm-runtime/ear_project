@@ -8,7 +8,7 @@
 
 - **수단은 Firebase Analytics다.** 모바일 앱의 GA4는 Firebase SDK를 통해서만 들어간다(웹 gtag는 앱에 쓸 수 없다). Firebase 프로젝트는 푸시와 같은 `ear-push`(KAN-81) — 2026-09-22에 Google Analytics를 켰고(GA 계정 `runtime364`), iOS 앱 `com.runtime.ear`·`dev.runtime.ear` 를 등록했다.
 - **`user_signals`와 역할을 분리한다.** 같은 사건(완청)을 둘 다 기록하지만 서로 참조하지 않는다. GA4 값으로 추천·집계를 만들지 않고, `user_signals`로 퍼널을 보지 않는다.
-- **일일 Slack 보고는 GA4 값을 그대로 옮긴다**(2026-09-29, KAN-107 — `backend-monitoring.md` 3-3). 가입(`sign_up`)·완청(`play_complete`)도 GA4 값이다(개정 2026-10-02 — 종전에는 이 둘만 서버 값이었다. GA4 가 runtime 7 이후 빌드에서만 들어와 스토어 1.0.0 사용자를 놓쳤기 때문인데, 운영 iOS 가 1.1.0 으로 넘어가 그 이유가 사라졌다). 서버 값은 **가입 대조 하나**만 남긴다 — `users.created_at` 건수가 GA4 `sign_up` 과 다를 때 괄호로 함께 적는다. 계수(count) 대조일 뿐이라 `user_signals`로 퍼널을 보지 않는다는 위 규칙과 충돌하지 않는다. GA4 는 KST 달력일(00시), 서버 대조 값은 서비스 날짜(04시) 경계다.
+- **일일 Slack 보고는 GA4 값을 그대로 옮긴다**(2026-09-29, KAN-107 — `backend-monitoring.md` 3-3). 가입(`sign_up`)·완청(`play_complete`)도 GA4 값이다(개정 2026-10-02 — 종전에는 이 둘만 서버 값이었다. GA4 가 runtime 7 이후 빌드에서만 들어와 스토어 1.0.0 사용자를 놓쳤기 때문인데, 운영 iOS 가 1.1.0 으로 넘어가 그 이유가 사라졌다). 서버 값은 **가입 대조 하나**만 남긴다 — `users.created_at` 건수가 GA4 `sign_up` 과 다를 때 괄호로 함께 적는다. 계수(count) 대조일 뿐이라 `user_signals`로 퍼널을 보지 않는다는 위 규칙과 충돌하지 않는다. GA4 는 KST 달력일(00시), 서버 대조 값은 서비스 날짜(05시 — 개정 2026-10-07 — 2026-10-12 05:00 KST 적용, KAN-149) 경계다.
 - **개발계 앱은 별도 스트림이다.** `dev.runtime.ear`(iOS·Android)는 GA4 속성 안에서 다른 데이터 스트림으로 잡히므로 테스트 데이터가 운영 지표에 섞이지 않는다. 대시보드는 운영 스트림만 본다.
 - Google Ads·AdMob 연동은 이 문서 범위 밖이다 — GA4 속성이 있어야 붙일 수 있으므로 **선행**이다.
 

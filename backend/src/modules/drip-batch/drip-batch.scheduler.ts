@@ -10,7 +10,7 @@ const DAILY_DRIP_CRON = '0 0 5 * * *';
 const DAILY_DRIP_TIMEZONE = 'Asia/Seoul';
 
 /**
- * 일일 편성 배치의 트리거. 서비스 날짜 경계(04시 — domain.md 1.2) 이후에 실행되도록
+ * 일일 편성 배치의 트리거. 서비스 날짜 경계(05:00 — domain.md 1.2)와 같은 시각(경계 정각이라 새 서비스 날짜로 편성된다. 2026-10-12 전환 전에는 경계 04:00 이후)에 실행되도록
  * 05:00 KST로 고정한다. 다중 인스턴스 동시 기동은 Orchestrator의 `run_date` 선점이 막는다.
  */
 @Injectable()

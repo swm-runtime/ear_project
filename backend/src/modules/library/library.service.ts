@@ -292,7 +292,7 @@ export class LibraryService {
   }
 
   /**
-   * 오늘 서비스 날짜(04:00 KST 경계)에 이미 편성된 항목 수 — 편성 배치 재실행의 `already_placed` 스킵 입력
+   * 오늘 서비스 날짜(05:00 KST 경계)에 이미 편성된 항목 수 — 편성 배치 재실행의 `already_placed` 스킵 입력
    * (`drip-scheduling.md` 4.6-5). 삭제분 포함.
    */
   async countPlacedToday(

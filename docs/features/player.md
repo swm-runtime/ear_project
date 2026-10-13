@@ -46,7 +46,7 @@
    - 목표: 탭 후 2초 내 재생 시작. 버퍼링이 2초를 넘으면 로딩 인디케이터 노출
 4. 재생이 실제로 시작된 시점에
    - `library_items.status`: `unplayed` → `in_progress`
-   - **무료 티어 재생 카운트 +1** — `play_records`에 오늘 서비스 날짜(04시 경계) 기준 행을 upsert (페이월 명세 4.3)
+   - **무료 티어 재생 카운트 +1** — `play_records`에 오늘 서비스 날짜(05시 경계 — 개정 2026-10-07 — 2026-10-12 05:00 KST 적용, KAN-149) 기준 행을 upsert (페이월 명세 4.3)
    - `user_signals(action = play)` 기록
    - `drip_excluded_contents(reason = played)` 적재 — 재생한 콘텐츠는 드립 후보에서 제외된다(FR-16)
 
