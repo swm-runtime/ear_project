@@ -136,6 +136,27 @@ describe('RecommendTestService', () => {
       expect(deps.exploreOrchestrator.saveContent).not.toHaveBeenCalled();
     });
 
+    it('환경 이름이 비었거나 development 가 아니면 꺼진다 — 운영 env 가 비거나 오타여도 열리지 않는다(실패 시 닫힘)', () => {
+      for (const env of [
+        { SENTRY_ENVIRONMENT: '', NODE_ENV: 'production' },
+        { SENTRY_ENVIRONMENT: undefined, NODE_ENV: 'production' },
+        { SENTRY_ENVIRONMENT: 'prod', NODE_ENV: 'production' },
+        { SENTRY_ENVIRONMENT: 'staging', NODE_ENV: 'production' },
+      ]) {
+        const { service } = build({ RECOMMEND_TEST_EMAIL: EMAIL, ...env });
+        expect(service.enabled).toBe(false);
+      }
+    });
+
+    it('SENTRY_ENVIRONMENT 를 비운 로컬은 NODE_ENV=development 로 켜진다', () => {
+      const { service } = build({
+        RECOMMEND_TEST_EMAIL: EMAIL,
+        NODE_ENV: 'development',
+      });
+
+      expect(service.enabled).toBe(true);
+    });
+
     it('이메일이 비어 있으면 꺼진다', async () => {
       const { service } = build({ SENTRY_ENVIRONMENT: 'development' });
 
