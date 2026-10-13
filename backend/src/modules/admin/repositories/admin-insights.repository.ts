@@ -421,7 +421,7 @@ export class AdminInsightsRepository {
    * 한 번이라도 들어온 것(소프트 삭제분 포함)과 드립 영구 제외(`drip_excluded_contents`)를 뺀다. 시리즈 순서
    * 게이트는 반영하지 않는 근사다(운영 시리즈 0편, 2026-10-13).
    *
-   * 노출 중인 주제와, 숨김이어도 관심 사용자가 남아 있는 주제를 싣는다. 관심 대비 편수가 적은 순으로 정렬한다.
+   * 노출 중인 주제와, 숨김이어도 관심 사용자가 남아 있는 주제를 싣는다. 관심 사용자가 많은 순으로 정렬한다(같으면 발행 편수가 적은 쪽 먼저 — 2026-10-13 사용자 요청).
    */
   async topicSupply(since: Date, now: Date): Promise<InsightsTopicSupply[]> {
     const rows = await this.dataSource.query<TopicSupplyRow[]>(
@@ -477,8 +477,8 @@ export class AdminInsightsRepository {
          left join supply s on s.topic_id = t.id
          left join per_topic p on p.topic_id = t.id
         where t.is_visible or p.interested_users > 0
-        order by coalesce(p.interested_users, 0)::float8 / greatest(coalesce(s.published, 0), 1) desc,
-                 coalesce(p.interested_users, 0) desc,
+        order by coalesce(p.interested_users, 0) desc,
+                 coalesce(s.published, 0),
                  t.display_order`,
       [since, now],
     );

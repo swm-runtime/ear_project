@@ -45,6 +45,9 @@ export function ServiceInsights() {
 /**
  * `onSwitchToDev` — 운영 채널일 때만 넘어온다. 엔드포인트가 404(미배포)면 [개발계로 보기]로 부모 채널을 바꾼다.
  */
+/** 주제별 수요·공급 표에 먼저 보이는 행 수 — 나머지는 [더보기]. 주제가 30개 가까워 화면을 다 덮는다 */
+const TOPIC_SUPPLY_PREVIEW = 10;
+
 function InsightsView({ channel, days, onSwitchToDev }: { channel: EarChannel; days: number; onSwitchToDev?: () => void }) {
   const [data, setData] = useState<EarInsightsSummary | null>(null);
   const [err, setErr] = useState<string | null>(null);
@@ -53,6 +56,7 @@ function InsightsView({ channel, days, onSwitchToDev }: { channel: EarChannel; d
   const [notDeployed, setNotDeployed] = useState(false);
   const [loading, setLoading] = useState(false);
   const [loadedAt, setLoadedAt] = useState<Date | null>(null);
+  const [showAllTopics, setShowAllTopics] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -240,9 +244,9 @@ function InsightsView({ channel, days, onSwitchToDev }: { channel: EarChannel; d
       </div>
       {/* ── 주제별 수요·공급 ── */}
       {data.topic_supply ? (
-        <Panel title={`주제별 수요·공급 — 관심 대비 콘텐츠가 부족한 순 (신규 발행은 ${winLabel})`} flush>
+        <Panel title={`주제별 수요·공급 — 관심 사용자 많은 순 (신규 발행은 ${winLabel})`} flush>
           <Table head={["주제", "발행", "신규 발행", "관심 사용자", "남은 편수(중앙값)", "더 줄 것 없음", "2편 이하"]} empty="주제가 없다">
-            {data.topic_supply.map((t) => (
+            {(showAllTopics ? data.topic_supply : data.topic_supply.slice(0, TOPIC_SUPPLY_PREVIEW)).map((t) => (
               <Tr key={t.topic_id}>
                 <Td className="font-medium">{t.name}{t.is_visible ? null : <span className="ml-1 text-xs font-normal text-ink-soft">숨김</span>}</Td>
                 <Td className="tabular-nums">{fmtInt(t.published)}편</Td>
@@ -254,6 +258,13 @@ function InsightsView({ channel, days, onSwitchToDev }: { channel: EarChannel; d
               </Tr>
             ))}
           </Table>
+          {data.topic_supply.length > TOPIC_SUPPLY_PREVIEW && (
+            <div className="border-t border-line px-3 py-2 text-center">
+              <button className="text-xs text-ink-soft hover:text-ink" onClick={() => setShowAllTopics((v) => !v)}>
+                {showAllTopics ? "접기" : `더보기 (${data.topic_supply.length - TOPIC_SUPPLY_PREVIEW}개 더)`}
+              </button>
+            </div>
+          )}
         </Panel>
       ) : null}
       <Panel title="읽는 법">
