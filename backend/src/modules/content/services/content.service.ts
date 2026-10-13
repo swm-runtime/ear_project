@@ -616,9 +616,26 @@ export class ContentService {
     if (command.thumbnailUrl !== undefined) {
       content.thumbnailUrl = command.thumbnailUrl;
     }
+    const previousVersion = content.contentVersion;
     content.contentVersion += 1;
 
     const [saved] = await this.contentRepository.saveAll([content], manager);
+
+    /**
+     * 오디오가 그대로면 대본도 그대로다 — 임베딩을 새 버전으로 승계한다. 승계하지 않으면
+     * 썸네일·제목만 바꿔도 임베딩이 "재발행 후 미갱신"으로 축에서 빠진다(2026-10-13 운영
+     * 실측: 발행 56편 전부 버전 불일치 → 임베딩 축·취향 벡터·MMR이 통째로 꺼져 있었다).
+     * 오디오를 바꾸면 대본이 바뀌었을 수 있으므로 종전대로 미갱신 처리하고, 같은 요청에
+     * 추천 메타 파일이 있으면 호출부의 `applyEnrichment`가 새 버전으로 덮어쓴다.
+     */
+    if (command.audioPath === undefined) {
+      await this.contentEmbeddingRepository.carryVersionForward(
+        saved.id,
+        previousVersion,
+        saved.contentVersion,
+        manager,
+      );
+    }
 
     // 넘어온 목록은 **전체 교체**다. 지우고 다시 넣어야 빠진 항목이 남지 않는다
     if (command.topicIds !== undefined) {
