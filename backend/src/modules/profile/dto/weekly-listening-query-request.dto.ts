@@ -1,4 +1,4 @@
-import { Matches, MaxLength } from 'class-validator';
+import { IsISO8601, Matches, MaxLength } from 'class-validator';
 
 /** `YYYY-MM-DD` — 서비스 날짜 라벨은 타임존 없는 고정 형식이다(`profile-api.md` 2장) */
 const DATE_LABEL_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
@@ -17,5 +17,7 @@ const DATE_LABEL_LENGTH = 10;
 export class WeeklyListeningQueryRequestDto {
   @Matches(DATE_LABEL_PATTERN)
   @MaxLength(DATE_LABEL_LENGTH)
+  // 형식은 위가 좁히고, 이것은 달력에 있는 날짜인지만 본다 — `2026-02-30`이 다음 달로 넘어가 통과하지 않게(2026-10-13)
+  @IsISO8601({ strict: true })
   readonly week_start: string;
 }

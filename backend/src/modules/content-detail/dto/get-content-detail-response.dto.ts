@@ -95,7 +95,7 @@ export class GetContentDetailResponseDto {
         origin: content.origin,
         author_name: content.authorName,
         source_name: content.sourceName,
-        source_url: content.sourceUrl,
+        source_url: content.sourceUrl || null, // 빈 문자열 = 원문 없음 — 발급 응답(audio-url)과 같은 규칙
         sources:
           view.sources?.map((source) => ({
             title: source.title,

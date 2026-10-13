@@ -360,6 +360,9 @@ export class ExploreOrchestrator {
       });
     }
 
+    // 빈 커서(`cursor=`)도 첫 페이지다 — 세 판정(디코드·검색 로그·대체 콘텐츠)이 같은 기준을 써야 한다(2026-10-13)
+    const isFirstPage = !query.cursor;
+
     const page = await this.contentService.findSearchPage({
       normalizedQuery,
       topicIds: query.topicIds,
@@ -372,7 +375,7 @@ export class ExploreOrchestrator {
 
     // 첫 페이지만 남긴다 — 커서 페이지는 같은 질의의 이어 읽기라 새 검색이 아니다(domain.md 5.7).
     // 디바운스 중간 입력은 서비스가 직전 행에 덮어쓰고, 적재 실패도 거기서 삼켜져 응답에는 영향이 없다
-    if (query.cursor === null) {
+    if (isFirstPage) {
       await this.searchQueryLogService.record(
         {
           userId,
@@ -393,10 +396,9 @@ export class ExploreOrchestrator {
         hasNext: false,
         // **첫 페이지의 빈 결과에만 대체 콘텐츠를 조립한다.** 커서 페이지의 빈 응답은
         // "결과 없음" 화면이 아니라 목록의 끝이다(explore-api.md 4.5)
-        fallback:
-          query.cursor === null
-            ? await this.buildSearchFallback(userId, normalizedQuery, now)
-            : null,
+        fallback: isFirstPage
+          ? await this.buildSearchFallback(userId, normalizedQuery, now)
+          : null,
       };
     }
 
