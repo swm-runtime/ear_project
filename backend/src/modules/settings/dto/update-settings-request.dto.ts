@@ -7,6 +7,7 @@ import {
   IsOptional,
   Max,
   Min,
+  ValidateIf,
 } from 'class-validator';
 
 import { PlaybackRate } from '@/modules/user/user.enum';
@@ -23,21 +24,29 @@ const MAX_CLIENT_SEQ = Number.MAX_SAFE_INTEGER;
  * **세 설정 필드 중 최소 하나는 있어야 한다.** 그 판정은 DTO가 아니라 Controller/Service가
  * 한다 — class-validator로 "필드 조합"을 검증하면 규칙이 데코레이터 안에 숨는다.
  */
+/**
+ * 보내지 않은 것(`undefined`)만 건너뛴다 — **`null`은 검증한다.** `@IsOptional`은 null 도 통과시켜 NOT NULL
+ * 컬럼(배속·자동 확장·알림)에 null 이 내려가 500이 났다(2026-10-13). 계약은 400 `VALIDATION_FAILED`다(settings-api 4.2).
+ * 음질은 null 이 정당한 값("자동")이라 `@IsOptional` 그대로다.
+ */
+const isSent = (_object: object, value: unknown): boolean =>
+  value !== undefined;
+
 export class UpdateSettingsRequestDto {
   /**
    * 허용값 밖이면 400. **서버가 검증한다**(7장) — 클라이언트를 우회해 임의 배속을 저장할 수
    * 없어야 한다.
    */
-  @IsOptional()
+  @ValidateIf(isSent)
   @Type(() => Number)
   @IsEnum(PlaybackRate)
   readonly default_playback_rate?: PlaybackRate;
 
-  @IsOptional()
+  @ValidateIf(isSent)
   @IsBoolean()
   readonly is_auto_expand_enabled?: boolean;
 
-  @IsOptional()
+  @ValidateIf(isSent)
   @IsBoolean()
   readonly is_drip_notification_enabled?: boolean;
 

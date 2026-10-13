@@ -1,4 +1,4 @@
-import { Type } from 'class-transformer';
+import { Transform } from 'class-transformer';
 import { IsInt, Max, Min } from 'class-validator';
 
 const MAX_CLIENT_SEQ = Number.MAX_SAFE_INTEGER;
@@ -10,7 +10,12 @@ const MAX_CLIENT_SEQ = Number.MAX_SAFE_INTEGER;
  * 쿼리 파라미터는 문자열로 오므로 숫자 변환이 필수다(convention.md 3.3).
  */
 export class UnsaveContentQueryRequestDto {
-  @Type(() => Number)
+  /** 빈 값·공백은 "안 보냄"이다 — `Number('')`가 0이 되어 필수값이 빈 채로 통과하지 않게 한다(2026-10-13) */
+  @Transform(({ value }: { value: unknown }) =>
+    typeof value === 'string' && value.trim() === ''
+      ? undefined
+      : Number(value),
+  )
   @IsInt()
   @Min(0)
   @Max(MAX_CLIENT_SEQ)
