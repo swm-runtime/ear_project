@@ -200,6 +200,7 @@ describe('DripPreviewService', () => {
         persistPreference: false,
         persistAutoExpand: false,
         stopAtSkip: false,
+        loadRecentDripTopics: true,
       },
     );
   });

@@ -441,6 +441,8 @@ export class EvalWorld {
         persistAutoExpand: options.commit,
         // 평가는 "무엇이 갔을까"를 본다 — 재고·이미 편성 스킵에서 멈추지 않는다
         stopAtSkip: false,
+        // 편성 미리보기 표시용 — 평가는 스코어링 결과만 본다
+        loadRecentDripTopics: false,
       },
     );
   }
