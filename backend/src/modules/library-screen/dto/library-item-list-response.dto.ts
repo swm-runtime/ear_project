@@ -53,7 +53,7 @@ export class LibraryItemDto {
         title: view.content.title,
         author_name: view.content.authorName,
         source_name: view.content.sourceName,
-        source_url: view.content.sourceUrl,
+        source_url: view.content.sourceUrl || null, // 빈 문자열 = 원문 없음 — 발급 응답(audio-url)과 같은 규칙
         duration_sec: view.content.durationSec,
         thumbnail_url: view.content.thumbnailUrl,
         content_version: view.content.contentVersion,

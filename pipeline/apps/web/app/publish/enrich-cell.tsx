@@ -7,13 +7,16 @@ import { fmtTime } from "@/lib/format";
 import { earErrMsg } from "./ear-connect";
 
 export type EnrichState = { status: string; error: string | null; at: string | null; ready: boolean };
-export const isStale = (c: EarContent) => c.enrichment_schema_version == null || c.enrichment_schema_version < ENRICHMENT_SCHEMA_VERSION_FALLBACK;
+/** 메타 형식이 낡았거나 없거나, 형식은 최신인데 임베딩만 미갱신(오디오 재발행 뒤 — 2026-10-13 운영 56편 전부)이면 다시 뽑을 대상 */
+export const isEmbeddingStale = (c: EarContent) => c.status === "published" && c.has_current_embedding === false;
+export const isStale = (c: EarContent) => c.enrichment_schema_version == null || c.enrichment_schema_version < ENRICHMENT_SCHEMA_VERSION_FALLBACK || isEmbeddingStale(c);
 
 /** 추천 메타 배지 — 없음(null) · 구형 vN · vN(현행). KAN-54 */
 export function EnrichBadge({ c }: { c: EarContent }) {
   const v = c.enrichment_schema_version;
   if (v == null) return <Badge tone="queued">메타 없음</Badge>;
   if (v < ENRICHMENT_SCHEMA_VERSION_FALLBACK) return <Badge tone="queued">구형 v{v}</Badge>;
+  if (isEmbeddingStale(c)) return <Badge tone="queued">임베딩 미갱신</Badge>;
   return <Badge tone="done">v{v}</Badge>;
 }
 

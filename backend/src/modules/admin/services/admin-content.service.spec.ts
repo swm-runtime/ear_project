@@ -817,6 +817,11 @@ describe('AdminContentService', () => {
       );
 
       // then
+      // 행 잠금으로 읽는다 — 재발행·파일 반영과 겹쳐 덮어쓰지 않게(audit-low #3)
+      expect(contentService.getByIdForUpdate).toHaveBeenCalledWith(
+        CONTENT_ID,
+        expect.anything(),
+      );
       expect(result.content.status).toBe(ContentStatus.WITHDRAWN);
       expect(contentService.withdraw).toHaveBeenCalledWith(
         expect.objectContaining({ id: CONTENT_ID }),
@@ -864,7 +869,7 @@ describe('AdminContentService', () => {
 
     it('이미 회수된 콘텐츠를 다시 회수하면 409로 거부한다', async () => {
       // given
-      contentService.getById.mockResolvedValue({
+      contentService.getByIdForUpdate.mockResolvedValue({
         id: CONTENT_ID,
         status: ContentStatus.WITHDRAWN,
       } as never);
@@ -955,13 +960,18 @@ describe('AdminContentService', () => {
   describe('restore', () => {
     it('회수된 콘텐츠를 복구하면 published로 돌아가고 감사 로그가 남는다', async () => {
       // given
-      contentService.getById.mockResolvedValue({
+      contentService.getByIdForUpdate.mockResolvedValue({
         id: CONTENT_ID,
         status: ContentStatus.WITHDRAWN,
       } as never);
 
       // when
       const result = await service.restore(ACTOR_ID, CONTENT_ID);
+      // 행 잠금으로 읽는다 — 재발행·파일 반영과 겹쳐 덮어쓰지 않게(audit-low #3)
+      expect(contentService.getByIdForUpdate).toHaveBeenCalledWith(
+        CONTENT_ID,
+        expect.anything(),
+      );
 
       // then
       expect(result.content.status).toBe(ContentStatus.PUBLISHED);
@@ -994,6 +1004,11 @@ describe('AdminContentService', () => {
       const result = await service.republish(command);
 
       // then
+      // 행 잠금으로 읽는다 — 재발행·파일 반영과 겹쳐 덮어쓰지 않게(audit-low #3)
+      expect(contentService.getByIdForUpdate).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.anything(),
+      );
       expect(contentService.republish).not.toHaveBeenCalled();
       expect(
         playbackService.deleteProgressesByContentId,

@@ -76,7 +76,7 @@ function ContentList() {
           <option value="expired">expired</option>
         </select>
         <Link href="/publish/topics" className={btnCls()}>제품 주제 관리</Link>
-        <label className="flex items-center gap-1 text-xs text-ink-soft"><input type="checkbox" checked={staleOnly} onChange={(e) => { setStaleOnly(e.target.checked); setOffset(0); }} />구형·없음 추천 메타만</label>
+        <label className="flex items-center gap-1 text-xs text-ink-soft"><input type="checkbox" checked={staleOnly} onChange={(e) => { setStaleOnly(e.target.checked); setOffset(0); }} />구형·없음·임베딩 미갱신 추천 메타만</label>
         {staleOnly && data && data.items.length > 0 && (
           <button className={btnCls()} disabled={busy} title="목록의 콘텐츠 전부에 메타 재부여 작업을 넣는다 (반영은 각 행의 [반영])" onClick={() => {
             if (!confirm(`${data.items.length}건의 추천 메타를 다시 뽑을까요? 워커가 순서대로 판정합니다 (편당 $0.1~0.3).`)) return;

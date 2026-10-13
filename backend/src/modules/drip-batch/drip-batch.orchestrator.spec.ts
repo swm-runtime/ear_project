@@ -431,6 +431,7 @@ describe('DripBatchOrchestrator', () => {
         persistPreference: false,
         persistAutoExpand: false,
         stopAtSkip: false,
+        loadRecentDripTopics: false,
       });
 
       expect(userInterestService.applyAutoExpand).not.toHaveBeenCalled();
@@ -452,6 +453,7 @@ describe('DripBatchOrchestrator', () => {
         persistPreference: true,
         persistAutoExpand: true,
         stopAtSkip: false,
+        loadRecentDripTopics: false,
       });
 
       expect(plan.autoExpand).toMatchObject({
@@ -490,6 +492,7 @@ describe('DripBatchOrchestrator', () => {
         persistPreference: true,
         persistAutoExpand: true,
         stopAtSkip: false,
+        loadRecentDripTopics: false,
       });
 
       expect(plan.autoExpand).toMatchObject({
@@ -511,6 +514,7 @@ describe('DripBatchOrchestrator', () => {
         persistPreference: true,
         persistAutoExpand: true,
         stopAtSkip: false,
+        loadRecentDripTopics: false,
       });
 
       expect(plan.autoExpand?.action).toBe('none');
@@ -530,6 +534,7 @@ describe('DripBatchOrchestrator', () => {
         persistPreference: true,
         persistAutoExpand: true,
         stopAtSkip: false,
+        loadRecentDripTopics: false,
       });
 
       // then
@@ -559,6 +564,7 @@ describe('DripBatchOrchestrator', () => {
         persistPreference: true,
         persistAutoExpand: true,
         stopAtSkip: false,
+        loadRecentDripTopics: false,
       });
 
       // then
@@ -595,6 +601,7 @@ describe('DripBatchOrchestrator', () => {
         persistPreference: true,
         persistAutoExpand: true,
         stopAtSkip: false,
+        loadRecentDripTopics: false,
       });
 
       expect(plan.activeTopicIds).toEqual([TOPIC_A]);
@@ -623,6 +630,7 @@ describe('DripBatchOrchestrator', () => {
         persistPreference: false,
         persistAutoExpand: false,
         stopAtSkip: true,
+        loadRecentDripTopics: false,
       });
 
       // when — 실제 배치를 돌린다
@@ -642,11 +650,31 @@ describe('DripBatchOrchestrator', () => {
       );
     });
 
+    it('최근 편성 주제(미리보기 표시용)는 미리보기에서만 조회하고 배치는 건너뛴다 — 스코어링 입력이 아니다', async () => {
+      // when — 배치
+      await orchestrator.run(NOW);
+
+      // then
+      expect(libraryService.findRecentDripContentIds).not.toHaveBeenCalled();
+
+      // when — 미리보기
+      await orchestrator.planForUser(buildUser(), NOW, new Map(), {
+        persistPreference: false,
+        persistAutoExpand: false,
+        stopAtSkip: false,
+        loadRecentDripTopics: true,
+      });
+
+      // then
+      expect(libraryService.findRecentDripContentIds).toHaveBeenCalledTimes(1);
+    });
+
     it('persistPreference가 꺼져 있으면 취향 캐시를 저장하지 않고 적립도 하지 않는다', async () => {
       await orchestrator.planForUser(buildUser(), NOW, new Map(), {
         persistPreference: false,
         persistAutoExpand: false,
         stopAtSkip: false,
+        loadRecentDripTopics: false,
       });
 
       expect(preferenceVectorService.rebuild).not.toHaveBeenCalled();
@@ -663,6 +691,7 @@ describe('DripBatchOrchestrator', () => {
         persistPreference: false,
         persistAutoExpand: false,
         stopAtSkip: false,
+        loadRecentDripTopics: false,
       });
 
       expect(plan.skipReason).toBe('unfinished_inventory');
@@ -676,6 +705,7 @@ describe('DripBatchOrchestrator', () => {
         persistPreference: false,
         persistAutoExpand: false,
         stopAtSkip: true,
+        loadRecentDripTopics: false,
       });
 
       expect(plan.regular?.poolSize).toBe(2);

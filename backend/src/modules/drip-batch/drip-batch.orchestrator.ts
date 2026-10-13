@@ -345,6 +345,7 @@ export class DripBatchOrchestrator {
       persistPreference: true,
       persistAutoExpand: true,
       stopAtSkip: true,
+      loadRecentDripTopics: false,
     });
 
     if (plan.skipReason !== null) {
@@ -557,6 +558,7 @@ export class DripBatchOrchestrator {
           yearsOfExperience: user.yearsOfExperience,
         },
         dripCount,
+        loadRecentDripTopics: options.loadRecentDripTopics,
         now,
       });
     }
@@ -871,6 +873,7 @@ export class DripBatchOrchestrator {
       isColdStart: boolean;
       career: UserCareer;
       dripCount: number;
+      loadRecentDripTopics: boolean;
       now: Date;
     },
   ): Promise<RegularPlan> {
@@ -905,10 +908,9 @@ export class DripBatchOrchestrator {
     }
 
     // 스코어링에는 쓰지 않는다(노출 피로 폐기 2026-09-25) — 편성 미리보기가 "최근 편성 주제"로 보여 주기만 한다
-    const recentDripTopicIds = await this.findRecentDripTopicIds(
-      userId,
-      input.now,
-    );
+    const recentDripTopicIds = input.loadRecentDripTopics
+      ? await this.findRecentDripTopicIds(userId, input.now)
+      : [];
 
     const scored = this.dripScoringService.scoreRegularCandidates(gated, {
       activeTopicIds: input.activeTopicIds,

@@ -1,4 +1,4 @@
-import { createHash, createPublicKey } from 'node:crypto';
+import { createHash } from 'node:crypto';
 
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -11,23 +11,10 @@ import {
   APPLE_ISSUER,
   APPLE_JWKS_CACHE_TTL_MS,
   APPLE_JWKS_URL,
-  PROVIDER_REQUEST_TIMEOUT_MS,
 } from '../auth.constant';
 import { ProviderAuthContext, SocialProfile } from '../auth.types';
+import { JwksKeyStore } from './jwks-key-store';
 import { SocialProviderClient } from './social-provider.client';
-
-/** 애플이 내려주는 공개키 하나. `kty`·`n`·`e`가 RSA 공개키를 이룬다 */
-interface AppleJwk {
-  kid?: string;
-  kty?: string;
-  alg?: string;
-  n?: string;
-  e?: string;
-}
-
-interface AppleJwksResponse {
-  keys?: AppleJwk[];
-}
 
 /**
  * identity token 페이로드 중 우리가 쓰는 클레임.
@@ -72,8 +59,12 @@ export class AppleClient extends SocialProviderClient {
    * `KeyObject`가 아니라 PEM 문자열로 담는다 — 검증 라이브러리가 받는 형식이 문자열이라,
    * 매 요청마다 `export()`를 다시 부르지 않기 위해서다.
    */
-  private keyCache = new Map<string, string>();
-  private keyCacheExpiresAt = 0;
+  /** 공개키 캐시 — 구글과 같은 저장소(TTL · 모르는 kid 재조회 최소 간격 · 동시 조회 1회) */
+  private readonly keyStore = new JwksKeyStore(
+    'apple',
+    APPLE_JWKS_URL,
+    APPLE_JWKS_CACHE_TTL_MS,
+  );
 
   /**
    * 서명 검증 전용 JwtService — **전역 인스턴스를 주입받지 않는다.**
@@ -182,84 +173,14 @@ export class AppleClient extends SocialProviderClient {
   }
 
   private async resolvePublicKey(kid: string): Promise<string> {
-    const cached = this.keyCache.get(kid);
+    const key = await this.keyStore.resolve(kid);
 
-    if (cached && Date.now() < this.keyCacheExpiresAt) {
-      return cached;
-    }
-
-    // 캐시에 없는 kid는 키 교체 직후일 수 있으므로 TTL과 무관하게 한 번 더 받아온다
-    await this.refreshKeys();
-
-    const refreshed = this.keyCache.get(kid);
-
-    if (!refreshed) {
+    if (!key) {
       this.logger.warn('apple public key not found for kid', { kid });
       throw this.tokenInvalid();
     }
 
-    return refreshed;
-  }
-
-  private async refreshKeys(): Promise<void> {
-    let response: Response;
-
-    try {
-      response = await fetch(APPLE_JWKS_URL, {
-        signal: AbortSignal.timeout(PROVIDER_REQUEST_TIMEOUT_MS),
-      });
-    } catch (error) {
-      this.logger.error(
-        'apple jwks request failed',
-        error instanceof Error ? error.stack : undefined,
-      );
-      throw this.providerUnavailable();
-    }
-
-    if (!response.ok) {
-      this.logger.error('apple jwks responded with error', undefined, {
-        status: response.status,
-      });
-      throw this.providerUnavailable();
-    }
-
-    let payload: AppleJwksResponse;
-
-    try {
-      payload = (await response.json()) as AppleJwksResponse;
-    } catch {
-      throw this.providerUnavailable();
-    }
-
-    const keys = new Map<string, string>();
-
-    for (const jwk of payload.keys ?? []) {
-      if (!jwk.kid || jwk.kty !== 'RSA' || !jwk.n || !jwk.e) {
-        continue;
-      }
-
-      try {
-        const pem = createPublicKey({
-          key: { kty: jwk.kty, n: jwk.n, e: jwk.e },
-          format: 'jwk',
-        })
-          .export({ type: 'spki', format: 'pem' })
-          .toString();
-
-        keys.set(jwk.kid, pem);
-      } catch {
-        this.logger.warn('apple jwk could not be parsed', { kid: jwk.kid });
-      }
-    }
-
-    if (keys.size === 0) {
-      this.logger.error('apple jwks contained no usable key');
-      throw this.providerUnavailable();
-    }
-
-    // 새 목록으로 통째로 갈아끼운다 — 폐기된 키가 캐시에 남지 않게 한다
-    this.keyCache = keys;
-    this.keyCacheExpiresAt = Date.now() + APPLE_JWKS_CACHE_TTL_MS;
+    return key;
   }
 
   /**

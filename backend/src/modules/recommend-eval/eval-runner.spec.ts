@@ -88,3 +88,48 @@ describe('추천 평가 — 합성 카탈로그 (CI 게이트)', () => {
     expect(off.verdict.passed).toBe(true);
   }, 60_000);
 });
+
+describe('판정 — 기준선과 옵션이 다르면 비교하지 않는다', () => {
+  it('자동 확장 ON 기준선과 OFF 실행은 지표 Δ를 내지 않고 불합격이다 — 옵션 차이가 변경 효과로 읽히지 않게', async () => {
+    const snapshot = buildSyntheticSnapshot(NOW);
+    const base = {
+      simulationDays: 3,
+      gitSha: null,
+    };
+    const baseline = await runEvaluation(snapshot, {
+      ...base,
+      autoExpandFeature: true,
+      baseline: null,
+    });
+
+    const report = await runEvaluation(snapshot, {
+      ...base,
+      autoExpandFeature: false,
+      baseline,
+    });
+
+    expect(report.verdict.passed).toBe(false);
+    expect(report.verdict.failures.join('\n')).toContain(
+      '기준선과 평가 옵션이 달라',
+    );
+  });
+
+  it('같은 옵션이면 기준선과 비교한다', async () => {
+    const snapshot = buildSyntheticSnapshot(NOW);
+    const options = {
+      simulationDays: 3,
+      gitSha: null,
+      autoExpandFeature: false,
+    };
+    const baseline = await runEvaluation(snapshot, {
+      ...options,
+      baseline: null,
+    });
+
+    const report = await runEvaluation(snapshot, { ...options, baseline });
+
+    expect(report.verdict.failures.join('\n')).not.toContain(
+      '기준선과 평가 옵션이 달라',
+    );
+  });
+});

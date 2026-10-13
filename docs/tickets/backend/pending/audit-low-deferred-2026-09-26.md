@@ -25,7 +25,6 @@
 |---|---|---|---|
 | 1 | ~~`sessions` 파기 쿼리(`revoked_at < ? OR expires_at < ?`, 매시간)에 인덱스가 없다~~ **→ 반영 2026-10-10** | `auth/session.repository.ts` `deleteInactiveBefore` · `session.entity.ts` | 사용자 수천 명(리프레시마다 행이 늘어 수백만 행) — `(expires_at)`·`(revoked_at)` 인덱스 마이그레이션 |
 | 2 | ~~리프레시 회전이 `revokeIfActive` UPDATE → `issueSession` INSERT로 트랜잭션 없이 이어진다~~ **→ 반영 2026-10-10** | `auth/services/auth.service.ts` ~196-208 | INSERT 실패 순간에만. 결과는 그 기기 재로그인 1회(FE가 재시도하지 않아 전 기기 로그아웃 연쇄는 없음). `SessionRepository`가 manager를 받으므로 `dataSource.transaction`으로 감싸면 끝 |
-| 3 | 파일만 반영(`applyFilesOnly`)·회수·복구가 `contents` 행을 잠그지 않고 저장한다 | `admin/services/admin-content.service.ts` ~515, ~706, ~773 | 관리자 1명이 같은 콘텐츠에 [반영]과 재발행을 같은 초에 눌러야 함. 세 경로에 `getByIdForUpdate` |
 | 4 | 주제 삭제가 잠금 없이 건수를 세어 동시 업로드와 겹치면 FK 위반 500 | `admin/services/admin-topic.service.ts` ~154-161 | 같은 조건. `FOR NO KEY UPDATE`로는 안 닫힘(FK 검사의 `FOR KEY SHARE`와 충돌 안 함) — `FOR UPDATE` 또는 23503 → 409 변환 |
 | 5 | 월 잠금(1일 04:00) 뒤 적산되는 `listened_sec`이 확정된 month 행에 반영되지 않아 `all` 합에서 빠진다 | `playback/repositories/play-record.repository.ts` ~83-106 · `content-stat-aggregation` `is_final` | 파트너 정산 시작 뒤. 경계를 걸친 세션의 초 단위. 전달 확정을 하루 늦추면 대부분 해소 |
 | 6 | ~~`Idempotency-Key` 길이 미검증 — 256자 초과가 Postgres 22001 → 500 `INTERNAL_ERROR`~~ **→ 반영 2026-10-10** | `idempotency/idempotency.interceptor.ts` ~93 | 정상 클라이언트(36자 UUID)는 못 만드는 요청. `MaxLength(255)` → 400 |
@@ -38,7 +37,6 @@
 |---|---|---|---|
 | 9 | 삭제 실행취소 뒤 `delete`(−0.6) 신호가 남고 7일 뒤 `ignore`(−0.3)가 다시 파생된다 | `library-screen.orchestrator.ts` ~220-236 · `library.service.ts` restore · `library-item.repository.ts` ignore 쿼리 | 5초 취소 창 + 7일 방치가 겹쳐야 하고 결과는 가중치 −0.3(스쿼시 뒤 미세). 원하면 restore 때 delete 신호 삭제 또는 ignore 쿼리에서 delete 신호 보유 콘텐츠 제외 |
 | 10 | 클러스터 프라이머리가 죽은 워커를 백오프·상한 없이 즉시 다시 띄운다 | `cluster.ts` ~48-65 | env 오류는 프라이머리가 import 시점에 먼저 죽어 Docker 재시작으로 감. DB 다운은 Nest 재시도 뒤 abort → 약 25초 주기 재포크, 자가 복구. 남는 건 깨진 빌드의 워커 전용 부팅 버그뿐인데 그건 CI 검증 job이 막는다. 원하면 연속 빠른 종료 N회면 프라이머리가 비정상 종료 |
-| 11 | 배치가 미리보기 표시용 `findRecentDripTopicIds` 쿼리 2개를 사용자마다 실행한다 | `drip-batch.orchestrator.ts` ~611-615 | 사용자당 수 ms. `PlanOptions` 플래그로 미리보기만 조회하게 하면 됨 |
 | 12 | `POST /auth/pipeline-login`에 인증 라우트 한도(`@Throttle(AUTH_THROTTLE)`)가 없다 | `auth/auth.controller.ts` ~70-81 | HS256 비밀 32바이트·유효 2분이라 온라인 추측이 불가능. 전역 한도(150/분/워커)는 받는다. 일관성 문제만 — architecture.md 9.6에 이미 "하 등급"으로 적혀 있다 |
 
 ## 완료 조건
@@ -58,3 +56,5 @@
   - #2 `AuthService.refresh`의 `revokeIfActive` → `issueSession`을 `dataSource.transaction`으로 묶고 manager를 넘긴다. KAN-167 사유 판정(rotated만 REUSED)·경합 패배 INVALID는 트랜잭션 앞/안에서 그대로. 유닛: 같은 manager로 UPDATE·INSERT, INSERT 실패가 콜백 밖으로 던져짐.
   - #6 `IdempotencyInterceptor`가 키 길이 > 255(`IDEMPOTENCY_KEY_MAX_LENGTH` = 컬럼 `varchar(255)`)면 저장 전에 400 `VALIDATION_FAILED`. 유닛(255 통과·256 거절) + e2e(`onboarding.e2e-spec.ts` — 300자 키로 `POST /onboarding/picks` → 400).
   - #7 `entity.too.large` 413은 2026-10-07(`ec3b7fac`)에 이미 처리돼 있었다. 남은 구멍인 `entity.*` 밖의 body-parser 클라이언트 오류(`charset.unsupported`·`encoding.unsupported` 415 · `parameters.too.many` 413 · `request.size.invalid`·`querystring.parse.rangeError` 400)를 같은 분기에 넣었다 — 종전엔 500 + Sentry. `type`으로 거르는 것은 유지(숫자 `status`만 보면 외부 HTTP 클라이언트 오류가 4xx로 둔갑). 새 error_code 없음(상태별 매핑, 없으면 `VALIDATION_FAILED`). e2e: 200kb 본문으로 `POST /onboarding/picks` → 413 `VALIDATION_FAILED`.
+- **2026-10-13 — #11 반영(`perf(be)/skip-preview-only-query-in-batch`).** `PlanOptions.loadRecentDripTopics`를 두고 배치·평가기는 끄고 편성 미리보기만 켠다 — 배치가 사용자마다 돌리던 `findRecentDripContentIds` + 주제 조회 2개가 빠진다. 미리보기 응답(`recent_drip_topics`)은 그대로다. 유닛: 배치에서는 조회가 없고 미리보기에서만 1회. 남은 7건(#3·#4·#5·#8·#9·#10·#12)은 종전대로 보류.
+- **2026-10-13 — #3 반영(`fix(be)/admin-content-row-locks`).** 파일만 반영(`applyFilesOnly`)·회수·복구가 `getByIdForUpdate`(`FOR NO KEY UPDATE`)로 행을 잠그고 읽는다 — 재발행과 같은 잠금이라 잠금 순서(contents → topics)도 같다. 스토리지 정리(`purgeStorage`)는 회수 상태 확인만 해서 그대로 둔다. 유닛: 세 경로가 트랜잭션 manager 로 잠금 조회. 남은 6건(#4·#5·#8·#9·#10·#12)은 종전대로 보류.
