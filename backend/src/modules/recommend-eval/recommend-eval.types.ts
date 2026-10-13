@@ -123,7 +123,10 @@ export interface ListMetrics {
   intraListDistance: number | null;
   /** 발행 14일 이내 콘텐츠의 비율 */
   freshShare: number;
-  /** 아직 아무에게도 편성된 적 없는 콘텐츠의 비율 */
+  /**
+   * **첫 노출 비율** — 편성분 중 그 시점까지 누구에게도 편성된 적 없던(노출 0) 편의 비율. 분모는 편성분이다.
+   * 카탈로그 중 한 번도 편성되지 않은 비율은 `1 − catalogCoverage`로 본다(필드 이름은 리포트 호환으로 유지)
+   */
   zeroExposureShare: number;
   /** 편성된 서로 다른 콘텐츠 수 / 발행 카탈로그 크기 */
   catalogCoverage: number;
