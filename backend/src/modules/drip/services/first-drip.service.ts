@@ -1,6 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { DataSource, EntityManager } from 'typeorm';
 
+import { Content } from '@/modules/content/entities/content.entity';
+import { ContentStatService } from '@/modules/content/services/content-stat.service';
 import { ContentService } from '@/modules/content/services/content.service';
 import { UserInterestService } from '@/modules/interest/services/user-interest.service';
 import { LibraryItemSource } from '@/modules/library/library.enum';
@@ -13,12 +15,14 @@ import {
   FIRST_DRIP_BACKOFF_MS,
   FIRST_DRIP_MAX_RETRY_COUNT,
   FIRST_DRIP_MAX_TOTAL_ATTEMPT_COUNT,
+  SCORING_POOL_LIMIT,
 } from '../drip.constant';
 import { DripExclusionReason, FirstDripJobStatus } from '../drip.enum';
-import { FirstDripState } from '../drip.types';
+import { FirstDripState, ScoringCandidate } from '../drip.types';
 import { FirstDripJob } from '../entities/first-drip-job.entity';
 import { DripExcludedContentRepository } from '../repositories/drip-excluded-content.repository';
 import { FirstDripJobRepository } from '../repositories/first-drip-job.repository';
+import { DripScoringService } from './drip-scoring.service';
 
 /**
  * 온보딩 완료 시점의 **첫 드립 편성**을 소유한다(`drip-scheduling.md` 2 — 온보딩 완료 트리거).
@@ -38,6 +42,8 @@ export class FirstDripService {
     private readonly planService: PlanService,
     private readonly userInterestService: UserInterestService,
     private readonly contentService: ContentService,
+    private readonly contentStatService: ContentStatService,
+    private readonly dripScoringService: DripScoringService,
     private readonly libraryService: LibraryService,
     private readonly dataSource: DataSource,
   ) {}
@@ -222,8 +228,12 @@ export class FirstDripService {
   /**
    * 후보 선정 — `drip-scheduling.md` 4.2의 필터를 그대로 적용한다.
    *
-   * 신규 사용자는 소비 신호가 없으므로 스코어링 대신 콜드스타트 규칙(인기·신선도)만 쓴다
-   * (FR-17). 관심 주제 안에서 편수를 채우지 못하면 **인기 콘텐츠로 대체 편성한다** —
+   * 신규 사용자는 소비 신호가 없으므로 **배치와 같은 콜드스타트 스코어링**(4.4 — 메타 축만:
+   * 인기·신선도·초급 우선·커리어 적합도)과 다양성 선정(4.2-3)을 쓴다. 종전에는 재생 수 상위
+   * 2편을 그대로 잘라 같은 주제를 고른 신규 가입자 전원이 같은 2편을 받았고, 운영 첫 드립
+   * 편성의 쏠림(지니 0.75, 한 편이 2주 124회)이 여기서 나왔다(2026-10-13 추천 검증).
+   *
+   * 관심 주제 안에서 편수를 채우지 못하면 **인기 콘텐츠로 대체 편성한다** —
    * 라이브러리가 비는 것보다 관련성이 조금 낮은 편이 낫다(`drip-scheduling.md` 7).
    */
   private async selectContentIds(userId: string, now: Date): Promise<string[]> {
@@ -241,15 +251,34 @@ export class FirstDripService {
       return [];
     }
 
-    const byInterest = await this.contentService.findCandidates({
+    const pool = await this.contentService.findCandidates({
       includeTopicIds: topicIds,
       excludeSeenByUserId: userId,
       seriesStartOnly: true,
-      limit: dripCount,
+      limit: SCORING_POOL_LIMIT,
       now,
     });
 
-    const selected = byInterest.map((content) => content.id);
+    const scored = this.dripScoringService.scoreRegularCandidates(
+      await this.buildScoringCandidates(pool),
+      {
+        activeTopicIds: topicIds,
+        preference: null,
+        difficultyAffinity: null,
+        completedEpisodesBySeries: new Map(),
+        isColdStart: true,
+        // 커리어 적합도(4.2 ③) — 온보딩 2단계에서 받은 프로필이라 신호 없이도 쓴다
+        career: {
+          jobCategory: user.jobCategory,
+          yearsOfExperience: user.yearsOfExperience,
+        },
+        now,
+      },
+    );
+
+    const selected = this.dripScoringService
+      .selectWithDiversity(scored, dripCount)
+      .map((pick) => pick.content.id);
 
     if (selected.length >= dripCount) {
       return selected;
@@ -269,6 +298,37 @@ export class FirstDripService {
     return [
       ...new Set([...selected, ...fallback.map((content) => content.id)]),
     ];
+  }
+
+  /** 배치(`DripBatchOrchestrator.buildScoringCandidates`)와 같은 입력 — 집계·주제·임베딩 */
+  private async buildScoringCandidates(
+    pool: Content[],
+  ): Promise<ScoringCandidate[]> {
+    if (pool.length === 0) {
+      return [];
+    }
+
+    const poolIds = pool.map((content) => content.id);
+    const [statsById, topicViews, embeddingsByContentId] = await Promise.all([
+      this.contentStatService.findAllTimeCounts(poolIds),
+      this.contentService.findTopicViews(poolIds),
+      this.contentService.findScorableEmbeddings(poolIds),
+    ]);
+
+    const topicIdsByContentId = new Map<string, string[]>();
+    for (const view of topicViews) {
+      const ids = topicIdsByContentId.get(view.contentId) ?? [];
+      ids.push(view.topicId);
+      topicIdsByContentId.set(view.contentId, ids);
+    }
+
+    return pool.map((content) => ({
+      content,
+      playCount: statsById.get(content.id)?.playCount ?? 0,
+      completeCount: statsById.get(content.id)?.completeCount ?? 0,
+      topicIds: topicIdsByContentId.get(content.id) ?? [],
+      embedding: embeddingsByContentId.get(content.id) ?? null,
+    }));
   }
 
   private async markAttemptStarted(userId: string, now: Date): Promise<void> {
