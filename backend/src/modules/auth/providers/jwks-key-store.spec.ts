@@ -320,6 +320,25 @@ describe('JwksKeyStore', () => {
       await expectUnavailable(store.resolve('kid-a'));
     });
 
+    it('제공자 장애로 재조회가 실패해도 최소 간격 안의 모르는 kid 는 다시 부르지 않는다 — 장애 중에도 증폭이 없다', async () => {
+      // given — kid-a 는 캐시돼 있고, 간격이 지난 뒤 모르는 kid 재조회가 실패했다
+      const { endpoint, store, advance } = setup();
+      endpoint.respondKeys([KEY_A]).respondStatus(503);
+      await store.resolve('kid-a');
+      advance(JWKS_UNKNOWN_KID_REFETCH_INTERVAL_MS);
+      await expectUnavailable(store.resolve('kid-x'));
+
+      // when — 장애 중에 엉뚱한 kid 가 또 온다
+      const pem = await store.resolve('kid-y');
+
+      // then — 제공자를 다시 부르지 않고, 아는 kid 는 캐시로 계속 된다
+      expect(pem).toBeNull();
+      expect(endpoint.calls).toBe(2);
+      await expect(store.resolve('kid-a')).resolves.toContain(
+        'BEGIN PUBLIC KEY',
+      );
+    });
+
     it('새로 받아오기에 실패하면 기존 캐시를 지우지 않아 다음 요청이 다시 시도된다', async () => {
       // given — kid-a 캐시 뒤 TTL 만료, 첫 재요청은 실패
       const { endpoint, store, advance } = setup();
