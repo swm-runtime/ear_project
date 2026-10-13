@@ -20,8 +20,9 @@ export interface TopicList {
 }
 
 /**
- * user_interests.source 원값(domain.md 4.2) — 배지 매핑은 화면이 한다.
- * auto_expand → "자동 추가됨" 배지는 P1이라 MVP 화면은 이 값을 읽지 않는다(interest-management-api.md 4.2).
+ * user_interests.source 원값(domain.md 4.2) — 구분 매핑은 화면이 한다(KAN-181).
+ * auto_expand → 버블에 빗금(애플식 "창문 블라인드") 오버레이로 구분하고, "N/3" 집계·저장 게이트에서
+ * 자동 슬롯을 뺀다(interest-management-api.md 4.2, drip-scheduling.md 4.5-1).
  */
 export type InterestSource = 'onboarding' | 'manual' | 'auto_expand';
 

@@ -26,6 +26,8 @@ interface BubbleTopic {
   topicId: string;
   name: string;
   isSelected: boolean;
+  /** 자동 확장으로 들어온 주제 — 빗금으로 구분한다(KAN-181) */
+  isAutoExpanded: boolean;
 }
 
 interface InterestBubbleFieldProps {
@@ -134,6 +136,7 @@ export function InterestBubbleField({ topics, isFull, onToggle }: InterestBubble
                 size={sizes[index] ?? base}
                 isSelected={topic.isSelected}
                 isDimmed={isFull && !topic.isSelected}
+                isAutoExpanded={topic.isAutoExpanded}
                 onPress={() => onToggle(topic.topicId)}
               />
             </PhysicsSlot>

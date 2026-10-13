@@ -1,4 +1,4 @@
-import { Pressable, StyleSheet, Switch } from 'react-native';
+import { Pressable, StyleSheet, Switch, View } from 'react-native';
 
 import { theme } from '@/shared/theme';
 import { Text } from '@/shared/ui/Typography';
@@ -8,6 +8,8 @@ interface SettingsToggleRowProps {
   value: boolean;
   /** 새 값(절대값)을 넘긴다 — 게이트 판정(OS 권한 등)은 호출부 몫이다 */
   onToggle: (next: boolean) => void;
+  /** 라벨 아래 보조 설명 한 줄(선택) — 낭독기에는 accessibilityHint 로 전달된다 */
+  description?: string;
   /** OS 권한이 없는 동안의 비활성 톤 — 조작은 가능하다(무반응 비활성 금지, settings-uiux.md 4.3) */
   isDimmed?: boolean;
   disabled?: boolean;
@@ -21,6 +23,7 @@ export default function SettingsToggleRow({
   label,
   value,
   onToggle,
+  description,
   isDimmed = false,
   disabled = false,
 }: SettingsToggleRowProps) {
@@ -36,9 +39,13 @@ export default function SettingsToggleRow({
       disabled={disabled}
       accessibilityRole="switch"
       accessibilityLabel={label}
+      accessibilityHint={description}
       accessibilityState={{ checked: value, disabled }}
     >
-      <Text style={[styles.label, disabled && styles.labelDimmed]}>{label}</Text>
+      <View style={styles.textColumn}>
+        <Text style={[styles.label, disabled && styles.labelDimmed]}>{label}</Text>
+        {description ? <Text style={styles.description}>{description}</Text> : null}
+      </View>
       <Switch
         value={value}
         onValueChange={handlePress}
@@ -71,13 +78,22 @@ const styles = StyleSheet.create({
   pressed: {
     backgroundColor: theme.color.border,
   },
+  // 라벨 + 설명을 한 열로 쌓고, 스위치는 오른쪽에 — 설명이 길어도 스위치를 밀지 않게 flexShrink
+  textColumn: {
+    flexShrink: 1,
+    gap: theme.spacing.xs,
+  },
   label: {
     fontSize: theme.font.size.md,
     color: theme.color.textPrimary,
-    flexShrink: 1,
   },
   labelDimmed: {
     color: theme.color.textSecondary,
+  },
+  description: {
+    fontSize: theme.font.size.sm,
+    color: theme.color.textSecondary,
+    lineHeight: theme.font.size.sm * 1.4,
   },
   /**
    * **RN 의 iOS Switch 는 `alignSelf: 'flex-start'` 를 스타일 밑에 깔고 나온다**(RN 0.86
