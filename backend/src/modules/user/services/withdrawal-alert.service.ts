@@ -8,7 +8,7 @@ import {
 import { WithdrawalReason } from '../user.enum';
 
 /**
- * 탈퇴 알림 — 계정이 지워지면 팀 알림 채널에 사유와 함께 한 줄 남긴다(2026-10-06, 가입 알림의 짝).
+ * 탈퇴 알림 — 계정이 지워지면 팀 알림 채널에 사유와 함께 한 줄 남긴다(2026-10-06).
  * 전송·웹훅 선택·환경 표시는 `SlackAlertService` 가 맡고, 여기는 문구만 만든다.
  *
  * **신원 값을 보내지 않는다** — 이메일·닉네임·user_id 는 싣지 않는다(CLAUDE.md 공통 원칙). 사유 코드·직접 입력
@@ -54,7 +54,7 @@ export interface WithdrawalAlertInput {
 /**
  * 알림 문구. 순수 함수라 서비스 없이 검증한다.
  *
- * 한 줄: `:door: 탈퇴 · <사유> · 가입 N일차 · (결제 이력 있음 ·) MM. DD. HH:mm`(가입 알림과 같은 KST 표기)
+ * 한 줄: `:door: 탈퇴 · <사유> · 가입 N일차 · (결제 이력 있음 ·) MM. DD. HH:mm`(KST)
  * 직접 입력 사유가 있으면 둘째 줄에 인용으로 붙인다. 모르는 사유 코드는 원값을 그대로 쓴다 — 조용히 비는 것보다 낫다.
  */
 export function formatWithdrawalText(

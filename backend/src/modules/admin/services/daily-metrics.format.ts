@@ -1,6 +1,6 @@
 /**
  * 일일 지표 Slack 문구 — **순수 함수만 둔다.** GA4·DB 조회는 각 서비스가 하고, 여기서는
- * 받은 숫자를 사람이 읽는 4줄로 바꾼다. 그래야 자격 없이도 검증된다.
+ * 받은 숫자를 사람이 읽는 5줄로 바꾼다. 그래야 자격 없이도 검증된다.
  */
 
 import { serviceDayStartHour } from '@/common/utils/service-date.util';
@@ -8,6 +8,14 @@ import { serviceDayStartHour } from '@/common/utils/service-date.util';
 export type DailyMetrics = {
   /** 보고 대상 날짜 (`YYYY-MM-DD`, KST) */
   date: string;
+  /**
+   * 가입자 — **서버 값**(2026-10-13 — 건마다 오던 가입 알림을 대신한다).
+   * `total` 은 보고 시각의 `users` 행 수(탈퇴는 행을 지워 빠진다), `signUps` 는 보고일 서비스 날짜의 가입 건수
+   */
+  members: {
+    total: number;
+    signUps: number;
+  };
   /** 사용자 — GA4 운영 스트림 */
   users: {
     active: number;
@@ -18,10 +26,9 @@ export type DailyMetrics = {
     avgSessionSec: number;
     active7d: number;
   };
-  /** 획득 — 전부 GA4. `serverSignUps` 만 서버 대조 값이다(GA4 `sign_up` 과 다를 때 괄호로 적는다) */
+  /** 획득 — 전부 GA4. 서버 가입 건수는 `members` 줄에 따로 적는다 */
   acquisition: {
     signUps: number;
-    serverSignUps: number;
     onboardingCompletes: number;
     pushResponses: number;
     withdrawals: number;
@@ -72,16 +79,8 @@ const ratio = (num: number, den: number): string =>
   den === 0 ? '' : ` (${Math.round((num / den) * 100)}%)`;
 
 /**
- * 가입 한 칸 — GA4 값을 적고, 서버 건수와 **다를 때만** 괄호로 함께 적는다(`가입 11 (서버 10)`).
- * GA4 `sign_up` 은 재로그인을 또 셀 수 있어, 어긋남이 보여야 숫자를 믿을 수 있다. 같으면 한 숫자만
- */
-export function formatSignUps(ga4: number, server: number): string {
-  return ga4 === server ? n(ga4) : `${n(ga4)} (서버 ${n(server)})`;
-}
-
-/**
- * 하루치 보고 — 퍼널 순서(사용자 → 획득 → 재생 → 리텐션)로 4줄.
- * 운영이 아니면 환경을 앞에 붙인다(가입 알림과 같은 규칙).
+ * 하루치 보고 — 가입자(서버) 한 줄 뒤에 퍼널 순서(사용자 → 획득 → 재생 → 리텐션)로 4줄.
+ * 운영이 아니면 환경을 앞에 붙인다(건별 Slack 알림과 같은 규칙).
  */
 export function formatDailyMetrics(
   m: DailyMetrics,
@@ -90,17 +89,19 @@ export function formatDailyMetrics(
   const prefix =
     environment && environment !== 'production' ? `[${environment}] ` : '';
   const day = WEEKDAY[new Date(`${m.date}T00:00:00Z`).getUTCDay()];
+  const mb = m.members;
   const u = m.users;
   const a = m.acquisition;
   const p = m.playback;
   return [
     `${prefix}:bar_chart: *${m.date} (${day}) 이어 일간 지표*  ·  운영 스트림`,
+    `*가입자*   현재 ${n(mb.total)}명  ·  어제 가입 ${n(mb.signUps)}명`,
     `*사용자*   활성 ${n(u.active)}${delta(u.active, u.activePrev)}  ·  신규 ${n(u.new)}${delta(u.new, u.newPrev)}  ·  세션 ${n(u.sessions)} (평균 ${formatDuration(u.avgSessionSec)})  ·  7일 활성 ${n(u.active7d)}`,
-    `*획득*     가입 ${formatSignUps(a.signUps, a.serverSignUps)} → 온보딩 완료 ${n(a.onboardingCompletes)}${ratio(a.onboardingCompletes, a.signUps)}  ·  푸시 응답 ${n(a.pushResponses)}  ·  탈퇴 ${n(a.withdrawals)}`,
+    `*획득*     가입 ${n(a.signUps)} → 온보딩 완료 ${n(a.onboardingCompletes)}${ratio(a.onboardingCompletes, a.signUps)}  ·  푸시 응답 ${n(a.pushResponses)}  ·  탈퇴 ${n(a.withdrawals)}`,
     `*재생*     시작 ${n(p.playStarts)} (${n(p.playStartUsers)}명)  ·  완청 ${n(p.completes)}  ·  중도 이탈 ${n(p.abandons)}  ·  드립 재생 ${n(p.dripPlays)}  ·  담기 ${n(p.saves)}`,
     `*리텐션*   D1 ${formatRetention(m.retention.d1)}  ·  D7 ${formatRetention(m.retention.d7)}`,
     // 서버 값의 하루 경계는 보고 날짜(정오)에 적용되는 경계로 적는다 — 05:00 전환(KAN-149) 전후를 가른다
-    `_▲▼ 전일 대비 · 전부 GA4 운영 스트림(00시 경계) · 가입의 괄호는 서버 값(${String(serviceDayStartHour(new Date(`${m.date}T12:00:00+09:00`))).padStart(2, '0')}시 경계)_`,
+    `_▲▼ 전일 대비 · 가입자 줄은 서버 값(${String(serviceDayStartHour(new Date(`${m.date}T12:00:00+09:00`))).padStart(2, '0')}시 경계) · 나머지는 GA4 운영 스트림(00시 경계)_`,
   ].join('\n');
 }
 

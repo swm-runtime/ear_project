@@ -9,7 +9,6 @@ describe('summarizeFeatures', () => {
     scheduler: true,
     sentry: true,
     resourceAlert: true,
-    signupAlert: true,
     dailyMetrics: true,
     vocReview: true,
     appRemoveAlert: true,
@@ -20,7 +19,7 @@ describe('summarizeFeatures', () => {
 
   it('한 줄에 전부 담고 크론 이름은 정렬한다 — 배포마다 비교하기 쉽게', () => {
     expect(summarizeFeatures(all)).toBe(
-      'features env=production scheduler=yes sentry=on resource-alert=on signup-alert=on daily-metrics=on voc-review=on app-remove-alert=on sentry-relay=on service-day=04:00 crons=[content-stat-aggregation,daily-metrics,push-receipt]',
+      'features env=production scheduler=yes sentry=on resource-alert=on daily-metrics=on voc-review=on app-remove-alert=on sentry-relay=on service-day=04:00 crons=[content-stat-aggregation,daily-metrics,push-receipt]',
     );
   });
 

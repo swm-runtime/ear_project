@@ -269,6 +269,7 @@ export function twoStageViolations(scriptMd: string, outlineMd: string, opts: { 
   // ── v9.4 (2026-09-29, 자동화 29편 실측 — 규칙은 있었는데 안 지켜진 정형 문제. 임계는 29편 분포에서 상위 절반이 걸리게 잡았다, .work/verdicts/v93) ──
   v.push(...v94Violations(p.turns));
   v.push(...v98Violations(scriptMd, p.turns));
+  v.push(...v99Violations(p.turns));
   // full-v7 (2026-09-15): 귀속 표현 턴 비율 검사는 폐지 — 32~36% 인 편에서도 소스 순회(재식별 15건)가 있었다. 구조 검사로 대체
   v.push(...attributionViolations(scriptMd, p.turns, opts));
   return v;
@@ -284,7 +285,7 @@ export function twoStageViolations(scriptMd: string, outlineMd: string, opts: { 
  * L0 수정 한도를 다 쓴 뒤 이것만 남으면 실패시키지 않고 QA 로 넘긴다. 메시지와 판별이 같은 문구를 쓰도록 상수로 둔다 — 문구를 바꾸면 판별도 함께 바뀐다
  * "편 전체 N회 이하" 같은 횟수 상한(대조 문장·한계 고지·조건절 질문)은 비율이 아니다 — 한도 뒤에 남으면 실패
  */
-export const RATIO_RULE_MARKS = ["셋 중 하나가 상한이다", "질문은 절반에서 3분의 2다", "같은 말끝은 질문의 5분의 2 이하다"] as const;
+export const RATIO_RULE_MARKS = ["셋 중 하나가 상한이다", "질문은 절반에서 3분의 2다", "같은 말끝은 질문의 5분의 2 이하다", "다체는 해설 문장의 30% 이하다"] as const;
 export const isRatioViolation = (v: string): boolean => RATIO_RULE_MARKS.some((m) => v.includes(m));
 
 /** L0 수정 한도 (2026-10-07: 2 → 3) — QA 회차(qa.ts MAX_ATTEMPTS = QA 실행 3회, 실패 뒤 수정 2회)와 따로 센다 */
@@ -437,6 +438,37 @@ export function v98Violations(scriptMd: string, turns: ScriptTurn[]): string[] {
   const condRe = /(다면|라면|이라면|한다면|된다면|으면|하면|되면|려면|으려면)\s?,[^?]*\?\s*$/;
   const condY = qY.filter((t) => condRe.test(t.text.trim()));
   if (condY.length > 3) v.push(`진행 질문 ${condY.length}개가 조건절로 시작해 물음 (${ids(condY, 10)}) — 편에 세 번 이하다. 이 가운데 ${condY.length - 3}개 이상을 조건 없이 직접 묻거나, 앞 해설에서 받은 한 문장 뒤에 묻는다 (규칙 25)`);
+  return v;
+}
+
+/**
+ * v9.9 구어체 검사 (2026-10-12, 자동화 18편 실측 T260929-001~T261007-003 vs 골드 3편) — PM "호흡이 길고 문장 단위가 복잡해서 구어체가 아니다".
+ * - 다체 비율: 해설 문장 끝이 "~니다·~니까" 인 비율. 골드 본편 0~11% · v9.3~9.7 평균 54% · v9.8.1 66~70%(규칙 19 의 "각각 30% 이상"이 다체 쪽으로 쏠렸다).
+ *   30% 이하로 둔다 — 넘친 만큼 다체가 많은 턴부터 지목한다. 비율 규칙이라 한도 뒤에 남으면 QA 로 넘긴다(RATIO_RULE_MARKS)
+ * - 명사절 감싸기: "~다는 것이·~다는 점에서·~다는 설명이·~다는 가능성을" — 문장을 명사절 안에 통째로 넣어 귀로는 끝까지 가야 풀린다.
+ *   골드 0·4편 · v9.8.1 8~11. 다섯 번부터 해당 턴을 전부 지목한다. 20어절 L0 를 통과한 17~19어절 문장이 대개 이 꼴이었다
+ */
+export function v99Violations(turns: ScriptTurn[]): string[] {
+  const v: string[] = [];
+  const E = turns.filter((t) => t.id?.startsWith("E"));
+  const sents = (t: string) => t.replace(/\.{3}|…/g, " ").split(/(?<=[.?!])\s+/).map((s) => s.trim()).filter(Boolean);
+  // 규칙 19: 다체 비율 — 요체·다체로 끝난 문장만 센다(인용 끝·명사 종결은 빼고)
+  const daRe = /(니다|니까)[.?!]?$/;
+  const yoRe = /(요|죠)[.?!]?$/;
+  const perTurn = E.map((t) => { const ss = sents(t.text); return { t, da: ss.filter((s) => daRe.test(s)).length, yo: ss.filter((s) => yoRe.test(s)).length }; });
+  const da = perTurn.reduce((n, x) => n + x.da, 0);
+  const total = da + perTurn.reduce((n, x) => n + x.yo, 0);
+  if (total >= 10 && da > total * 0.3) {
+    const need = da - Math.floor(total * 0.3);
+    const picks: ScriptTurn[] = []; let covered = 0;
+    for (const x of [...perTurn].filter((x) => x.da > 0).sort((a, b) => b.da - a.da)) { if (covered >= need) break; picks.push(x.t); covered += x.da; }
+    v.push(`해설 문장 ${total}개 중 ${da}개(${Math.round((da / total) * 100)}%)가 다체("~합니다")로 끝남 — ${RATIO_RULE_MARKS[3]}. 다음 턴들의 "~니다"를 해요체("~해요·~거든요·~죠·~는 거예요")로 바꾼다: ${picks.slice(0, 12).map((t) => t.id ?? "?").join(", ")}. 정리나 강한 단정 한두 문장만 다체로 남기고, 내용과 헤지는 그대로 둔다 (규칙 19)`);
+  }
+  // 규칙 16: 명사절 감싸기 — 편에 넷까지
+  const nomRe = /(다는|라는|냐는|자는)\s(것|점|설명|사실|가능성|뜻|의미|해석|얘기|말)(이|은|을|도|에서|으로|에|과|만)?(?=[\s,.?!]|$)/g;
+  const nom = E.map((t) => ({ t, n: (t.text.match(nomRe) ?? []).length })).filter((x) => x.n > 0);
+  const nomCount = nom.reduce((n, x) => n + x.n, 0);
+  if (nomCount >= 5) v.push(`해설 문장이 명사절로 감싸여 있음 ${nomCount}곳("~다는 것이·~다는 점에서·~다는 설명이·~다는 가능성을") (${nom.slice(0, 12).map((x) => x.t.id ?? "?").join(", ")}) — 편에 넷까지다. 안에 든 문장을 주어와 동사로 먼저 말하고, 그 뜻이나 평가는 다음 문장에 둔다. 내용과 헤지는 지우지 않는다 (규칙 16)`);
   return v;
 }
 

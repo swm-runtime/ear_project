@@ -9,6 +9,7 @@ import {
 
 const base: DailyMetrics = {
   date: '2026-09-28',
+  members: { total: 1351, signUps: 7 },
   users: {
     active: 1234,
     activePrev: 1200,
@@ -20,7 +21,6 @@ const base: DailyMetrics = {
   },
   acquisition: {
     signUps: 7,
-    serverSignUps: 7,
     onboardingCompletes: 5,
     pushResponses: 4,
     withdrawals: 1,
@@ -43,12 +43,19 @@ describe('formatDailyMetrics', () => {
     );
   });
 
-  it('퍼널 순서로 4묶음이다 — 사용자·획득·재생·리텐션', () => {
+  it('가입자 줄 뒤에 퍼널 순서로 4묶음이다 — 사용자·획득·재생·리텐션', () => {
     const lines = formatDailyMetrics(base).split('\n');
-    expect(lines[1]).toMatch(/^\*사용자\*/);
-    expect(lines[2]).toMatch(/^\*획득\*/);
-    expect(lines[3]).toMatch(/^\*재생\*/);
-    expect(lines[4]).toMatch(/^\*리텐션\*/);
+    expect(lines[1]).toMatch(/^\*가입자\*/);
+    expect(lines[2]).toMatch(/^\*사용자\*/);
+    expect(lines[3]).toMatch(/^\*획득\*/);
+    expect(lines[4]).toMatch(/^\*재생\*/);
+    expect(lines[5]).toMatch(/^\*리텐션\*/);
+  });
+
+  it('가입자 줄에 현재 가입자 수와 어제 가입 수(서버 값)를 적는다', () => {
+    expect(formatDailyMetrics(base)).toContain(
+      '*가입자*   현재 1,351명  ·  어제 가입 7명',
+    );
   });
 
   it('전일 대비 방향을 붙인다 — 오르면 ▲, 내리면 ▼', () => {
@@ -64,29 +71,44 @@ describe('formatDailyMetrics', () => {
       acquisition: {
         ...base.acquisition,
         signUps: 0,
-        serverSignUps: 0,
         onboardingCompletes: 0,
       },
     };
     expect(formatDailyMetrics(none)).toContain('가입 0 → 온보딩 완료 0  ·');
   });
 
-  it('가입은 GA4 값이고, 서버 건수와 다를 때만 괄호로 함께 적는다 — 전환율 분모는 GA4 다', () => {
+  it('획득 줄의 가입은 GA4 값만 적는다 — 서버 값은 가입자 줄에 있다', () => {
     const drift = {
       ...base,
-      acquisition: { ...base.acquisition, signUps: 10, serverSignUps: 7 },
+      members: { total: 1351, signUps: 7 },
+      acquisition: { ...base.acquisition, signUps: 10 },
     };
-    expect(formatDailyMetrics(drift)).toContain(
-      '가입 10 (서버 7) → 온보딩 완료 5 (50%)',
-    );
-    // 같으면 한 숫자만
-    expect(formatDailyMetrics(base)).not.toContain('(서버');
+    const text = formatDailyMetrics(drift);
+    expect(text).toContain('가입 10 → 온보딩 완료 5 (50%)');
+    expect(text).toContain('어제 가입 7명');
+    expect(text).not.toContain('(서버');
   });
 
-  it('각주에 출처와 경계를 적는다 — 전부 GA4, 괄호만 서버', () => {
+  it('각주에 출처와 경계를 적는다 — 가입자 줄만 서버, 나머지는 GA4', () => {
     expect(formatDailyMetrics(base)).toContain(
-      '전부 GA4 운영 스트림(00시 경계) · 가입의 괄호는 서버 값(04시 경계)',
+      '가입자 줄은 서버 값(04시 경계) · 나머지는 GA4 운영 스트림(00시 경계)',
     );
+  });
+
+  it('각주의 서버 경계는 보고 날짜에 적용되는 경계다 — 05:00 전환 뒤 날짜면 05시', () => {
+    const key = 'SERVICE_DAY_BOUNDARY_05_FROM';
+    const prev = process.env[key];
+    process.env[key] = '2026-10-12T05:00:00+09:00';
+    try {
+      expect(formatDailyMetrics({ ...base, date: '2026-10-12' })).toContain(
+        '가입자 줄은 서버 값(05시 경계)',
+      );
+      // 전환 전 날짜는 그대로 04시
+      expect(formatDailyMetrics(base)).toContain('서버 값(04시 경계)');
+    } finally {
+      if (prev === undefined) delete process.env[key];
+      else process.env[key] = prev;
+    }
   });
 
   it('완청 건수를 재생 줄에 넣는다', () => {
