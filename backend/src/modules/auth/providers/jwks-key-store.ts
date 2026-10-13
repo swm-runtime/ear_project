@@ -32,7 +32,8 @@ export const JWKS_UNKNOWN_KID_REFETCH_INTERVAL_MS = 60 * 1000;
  *
  * **제공자마다 URL만 다르고 절차는 같아** 여기로 모은다. 영구 캐시하면 제공자가 키를
  * 교체한 직후 전원이 로그인하지 못하고, 매 요청마다 받아오면 로그인 지연이 제공자 응답에
- * 묶인다 — TTL을 두되 **모르는 `kid`가 오면 TTL과 무관하게 한 번 더 받아온다**(교체 즉시 대응).
+ * 묶인다 — TTL을 두되 **모르는 `kid`가 오면 TTL 안에서도 다시 받아온다**(교체 대응). 다만 그 재조회는
+ * 최소 간격(`JWKS_UNKNOWN_KID_REFETCH_INTERVAL_MS`)에 한 번이다 — 아무 kid나 단 토큰으로 외부 호출을 증폭시키지 못하게.
  *
  * 예외는 두 갈래로만 나간다. 네트워크·응답 이상은 여기서 `AUTH_PROVIDER_UNAVAILABLE`로
  * 던지고, **"키를 못 찾았다"는 `null`로 돌려준다** — 그것을 토큰 문제로 볼지는 호출자가 정한다.
@@ -48,7 +49,8 @@ export class JwksKeyStore {
    */
   private keys = new Map<string, string>();
   private expiresAt = 0;
-  private fetchedAt = 0;
+  /** 마지막 조회 **시도** 시각 — 실패도 포함한다. 제공자 장애 중에도 모르는 kid 재조회가 간격을 지킨다 */
+  private attemptedAt = 0;
   /** 진행 중인 조회 — 동시에 온 요청은 같은 조회를 기다린다 */
   private inflight: Promise<void> | null = null;
 
@@ -93,7 +95,10 @@ export class JwksKeyStore {
     }
 
     // 캐시가 살아 있는데 모르는 kid — 최근에 받았으면 다시 받지 않는다(키 교체가 아니라 엉뚱한 kid일 가능성이 크다)
-    if (fresh && now - this.fetchedAt < JWKS_UNKNOWN_KID_REFETCH_INTERVAL_MS) {
+    if (
+      fresh &&
+      now - this.attemptedAt < JWKS_UNKNOWN_KID_REFETCH_INTERVAL_MS
+    ) {
       return null;
     }
 
@@ -113,6 +118,7 @@ export class JwksKeyStore {
   }
 
   private async refresh(): Promise<void> {
+    this.attemptedAt = Date.now();
     let response: Response;
 
     try {
@@ -170,8 +176,7 @@ export class JwksKeyStore {
 
     // 새 목록으로 통째로 갈아끼운다 — 폐기된 키가 캐시에 남지 않게 한다
     this.keys = keys;
-    this.fetchedAt = Date.now();
-    this.expiresAt = this.fetchedAt + this.cacheTtlMs;
+    this.expiresAt = Date.now() + this.cacheTtlMs;
   }
 
   private unavailable(): BusinessException {

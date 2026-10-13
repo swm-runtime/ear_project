@@ -53,12 +53,6 @@ const isTrue = (value: boolean | string | undefined): boolean =>
 export class AppleClient extends SocialProviderClient {
   readonly provider = SocialProvider.APPLE;
 
-  /**
-   * kid → PEM 공개키. 애플이 키를 교체하므로 TTL을 둔다.
-   *
-   * `KeyObject`가 아니라 PEM 문자열로 담는다 — 검증 라이브러리가 받는 형식이 문자열이라,
-   * 매 요청마다 `export()`를 다시 부르지 않기 위해서다.
-   */
   /** 공개키 캐시 — 구글과 같은 저장소(TTL · 모르는 kid 재조회 최소 간격 · 동시 조회 1회) */
   private readonly keyStore = new JwksKeyStore(
     'apple',
