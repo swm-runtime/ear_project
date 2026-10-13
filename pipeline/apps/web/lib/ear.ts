@@ -144,8 +144,8 @@ export interface EarContent {
   /** 추천 스코어링에 쓰이는 임베딩이 있는가(admin-api 8장, 2026-10-13). false = 없거나 오디오 재발행 뒤 미갱신 — 메타 형식이 최신이어도 다시 뽑을 대상. 배포 전 서버면 없다 */
   has_current_embedding?: boolean;
 }
-/** 현재 추천 메타 형식 버전 — 원본은 서버 CURRENT_ENRICHMENT_SCHEMA_VERSION(admin-api 4.6 "현재 형식 2"). 목록 응답이 현재 버전을 싣게 되면(BE 티켓) 그 값으로 바꾼다 */
-export const ENRICHMENT_SCHEMA_VERSION_FALLBACK = 2;
+/** 현재 추천 메타 형식 버전 — 원본은 서버 CURRENT_ENRICHMENT_SCHEMA_VERSION(admin-api 4.6). 3 = 해시태그 포함(KAN-162 운영 배포 뒤 KAN-164로 올림, 2026-10-13). 워커 ENRICH_TAGS=1 과 함께 움직인다 */
+export const ENRICHMENT_SCHEMA_VERSION_FALLBACK = 3;
 export const listEarJobCategories = () => earFetch<{ items: { name: string }[] }>("/job-categories");
 
 export const listEarTopics = () => earFetch<{ items: EarTopic[] }>("/admin/topics");
