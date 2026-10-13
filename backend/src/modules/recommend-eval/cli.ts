@@ -69,7 +69,8 @@ async function main(): Promise<void> {
   const report = await runEvaluation(snapshot, {
     ...DEFAULT_EVAL_OPTIONS,
     simulationDays: Number(arg('days') ?? DEFAULT_EVAL_OPTIONS.simulationDays),
-    autoExpandFeature: !flag('no-auto-expand'),
+    // 기본은 운영과 같은 꺼짐 — 켠 결과는 --auto-expand 로 본다(--no-auto-expand 는 기본과 같아 받기만 한다)
+    autoExpandFeature: flag('auto-expand'),
     gitSha: gitSha(),
     baseline,
   });

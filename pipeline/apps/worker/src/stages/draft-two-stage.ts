@@ -285,7 +285,9 @@ export function twoStageViolations(scriptMd: string, outlineMd: string, opts: { 
  * L0 수정 한도를 다 쓴 뒤 이것만 남으면 실패시키지 않고 QA 로 넘긴다. 메시지와 판별이 같은 문구를 쓰도록 상수로 둔다 — 문구를 바꾸면 판별도 함께 바뀐다
  * "편 전체 N회 이하" 같은 횟수 상한(대조 문장·한계 고지·조건절 질문)은 비율이 아니다 — 한도 뒤에 남으면 실패
  */
-export const RATIO_RULE_MARKS = ["셋 중 하나가 상한이다", "질문은 절반에서 3분의 2다", "같은 말끝은 질문의 5분의 2 이하다", "다체는 해설 문장의 30% 이하다"] as const;
+export const RATIO_RULE_MARKS = ["셋 중 하나가 상한이다", "질문은 절반에서 3분의 2다", "같은 말끝은 질문의 5분의 2 이하다", "다체는 해설 문장의 30% 이하다",
+  // v9.9.1 (2026-10-14): 문체 횟수 상한 둘도 한도 뒤엔 QA 로 넘긴다 — 사실·형식 위반이 아니라 말맛이라 초안을 멈출 사유가 아니다
+  "명사절 감싸기는 편에 넷까지다", "\"~적인·~적으로\"는 편에 일곱 번까지다"] as const;
 export const isRatioViolation = (v: string): boolean => RATIO_RULE_MARKS.some((m) => v.includes(m));
 
 /** L0 수정 한도 (2026-10-07: 2 → 3) — QA 회차(qa.ts MAX_ATTEMPTS = QA 실행 3회, 실패 뒤 수정 2회)와 따로 센다 */
@@ -464,11 +466,24 @@ export function v99Violations(turns: ScriptTurn[]): string[] {
     for (const x of [...perTurn].filter((x) => x.da > 0).sort((a, b) => b.da - a.da)) { if (covered >= need) break; picks.push(x.t); covered += x.da; }
     v.push(`해설 문장 ${total}개 중 ${da}개(${Math.round((da / total) * 100)}%)가 다체("~합니다")로 끝남 — ${RATIO_RULE_MARKS[3]}. 다음 턴들의 "~니다"를 해요체("~해요·~거든요·~죠·~는 거예요")로 바꾼다: ${picks.slice(0, 12).map((t) => t.id ?? "?").join(", ")}. 정리나 강한 단정 한두 문장만 다체로 남기고, 내용과 헤지는 그대로 둔다 (규칙 19)`);
   }
-  // 규칙 16: 명사절 감싸기 — 편에 넷까지
+  // 규칙 16: 명사절 감싸기 — 편에 넷까지. v9.9.1: 분열문("핵심은·답은 ~입니다", im-not-ai D-8)과 "~다는 것입니다" 결말(I-3)도 같은 계열로 센다
   const nomRe = /(다는|라는|냐는|자는)\s(것|점|설명|사실|가능성|뜻|의미|해석|얘기|말)(이|은|을|도|에서|으로|에|과|만)?(?=[\s,.?!]|$)/g;
-  const nom = E.map((t) => ({ t, n: (t.text.match(nomRe) ?? []).length })).filter((x) => x.n > 0);
+  const cleftRe = /(핵심|문제|관건|답|요점|중요한 것|필요한 것|중요한 건)(은|는)\s[^.?!]{2,60}(입니다|이에요|예요|이죠)[.?!]?$/;
+  const endNomRe = /(다는|라는) (것|뜻)(입니다|이에요|예요|이죠)[.?!]?$/;
+  const nomOf = (text: string) => (text.match(nomRe) ?? []).length + sents(text).filter((s) => cleftRe.test(s) || endNomRe.test(s)).length;
+  const nom = E.map((t) => ({ t, n: nomOf(t.text) })).filter((x) => x.n > 0);
   const nomCount = nom.reduce((n, x) => n + x.n, 0);
-  if (nomCount >= 5) v.push(`해설 문장이 명사절로 감싸여 있음 ${nomCount}곳("~다는 것이·~다는 점에서·~다는 설명이·~다는 가능성을") (${nom.slice(0, 12).map((x) => x.t.id ?? "?").join(", ")}) — 편에 넷까지다. 안에 든 문장을 주어와 동사로 먼저 말하고, 그 뜻이나 평가는 다음 문장에 둔다. 내용과 헤지는 지우지 않는다 (규칙 16)`);
+  if (nomCount >= 5) v.push(`해설 문장이 명사절로 감싸여 있음 ${nomCount}곳("~다는 것이·~다는 점에서·~다는 설명이"·"핵심은·답은 ~입니다"·"~다는 것입니다") (${nom.slice(0, 12).map((x) => x.t.id ?? "?").join(", ")}) — ${RATIO_RULE_MARKS[4]}. 안에 든 문장을 주어와 동사로 먼저 말하고, 그 뜻이나 평가는 다음 문장에 둔다. 내용과 헤지는 지우지 않는다 (규칙 16)`);
+  // 규칙 16 (v9.9.1, im-not-ai F-4·F-5): "~적인·~적으로" 추상 수식 — 18편 편당 2~18회 · 골드 157문장에 4회. 여덟 번부터 많은 턴부터 지목
+  const jeokRe = /적(인|으로)(?=\s)/g;
+  const jeok = E.map((t) => ({ t, n: (t.text.match(jeokRe) ?? []).length })).filter((x) => x.n > 0);
+  const jeokCount = jeok.reduce((n, x) => n + x.n, 0);
+  if (jeokCount >= 8) {
+    const picks = [...jeok].sort((a, b) => b.n - a.n);
+    const chosen: ScriptTurn[] = []; let cut = 0;
+    for (const x of picks) { if (cut >= jeokCount - 7) break; chosen.push(x.t); cut += x.n; }
+    v.push(`해설 턴의 "~적인·~적으로" ${jeokCount}회 — ${RATIO_RULE_MARKS[5]}. 다음 턴에서 추상 명사를 꾸미는 "~적인·~적으로"를 풀어 쓴다("구조적인 문제" → "구조가 만든 문제", "실질적으로" → "실제로"): ${chosen.slice(0, 12).map((t) => t.id ?? "?").join(", ")}. 뜻은 그대로 둔다 (규칙 16)`);
+  }
   return v;
 }
 

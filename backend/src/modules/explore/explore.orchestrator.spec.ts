@@ -977,6 +977,25 @@ describe('ExploreOrchestrator', () => {
       );
     });
 
+    it('빈 커서(cursor=)도 첫 페이지로 보고 검색 로그를 남긴다 — 디코드·로그·대체 콘텐츠가 같은 기준이다', async () => {
+      // given
+      contentService.findSearchPage.mockResolvedValue({
+        items: [],
+        hasNext: false,
+      });
+
+      // when
+      const result = await orchestrator.search(
+        USER_ID,
+        { query: '없는말', topicIds: [], cursor: '', limit: 20 },
+        NOW,
+      );
+
+      // then
+      expect(searchQueryLogService.record).toHaveBeenCalledTimes(1);
+      expect(result.fallback).not.toBeNull();
+    });
+
     it('커서 페이지는 로그를 남기지 않는다 — 같은 질의의 이어 읽기다', async () => {
       // given
       contentService.findSearchPage.mockResolvedValue({

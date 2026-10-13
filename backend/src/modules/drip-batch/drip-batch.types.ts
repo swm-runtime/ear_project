@@ -98,6 +98,11 @@ export interface PlanOptions {
    * "스킵이 아니었다면 무엇이 갔을지"도 보인다.
    */
   stopAtSkip: boolean;
+  /**
+   * 최근 편성분의 주제(`recentDripTopicIds`)를 조회할지. **미리보기 표시 전용**이라 스코어링 입력이 아니다(노출 피로
+   * 폐기 2026-09-25) — 배치는 끄고 미리보기만 켠다. 켜면 사용자마다 쿼리 2개가 더 돈다(audit-low #11).
+   */
+  loadRecentDripTopics: boolean;
 }
 
 // ── 편성 미리보기(admin "추천 검증") — 서비스 계층의 결과 형태. HTTP 형상은 DTO가 snake_case로 옮긴다 ──

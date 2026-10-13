@@ -86,7 +86,7 @@ export class SentryWebhookService {
     }
 
     // 이슈 단위 값(State · First Seen · 건수)은 Issue API 에만 있다 — 조회가 실패·지연해도 알림은 나간다(클라이언트 주석).
-    // 응답(200)은 이미 나갔으므로 여기서 기다려도 Sentry 재시도를 부르지 않는다
+    // 응답(204)은 이미 나갔으므로 여기서 기다려도 Sentry 재시도를 부르지 않는다
     void (
       notice.issueId
         ? this.sentryIssueClient.fetch(notice.issueId)

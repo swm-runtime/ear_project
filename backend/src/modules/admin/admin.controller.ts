@@ -386,7 +386,8 @@ export class AdminController {
         origin: payload.origin,
         authorName: payload.author_name ?? null,
         sourceName: payload.source_name,
-        sourceUrl: payload.source_url ?? null,
+        // 빈 문자열은 원문 없음이다 — `''`로 저장하면 응답 몇 곳에서 [원문 보기]가 빈 링크로 뜬다
+        sourceUrl: payload.source_url?.trim() || null,
         partnerId: payload.partner_id ?? null,
         licenseExpiresAt: payload.license_expires_at
           ? new Date(payload.license_expires_at)

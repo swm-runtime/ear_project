@@ -190,7 +190,7 @@ export class EnvironmentVariables {
 
   /**
    * 추천 테스트 콘솔(admin 웹 "추천 테스트" 탭)이 대신 행동하는 테스트 계정의 이메일 — **개발계 전용**.
-   * 비우면 콘솔 엔드포인트가 409 로 꺼지고, `SENTRY_ENVIRONMENT=production` 이면 값이 있어도 꺼진다.
+   * 비우면 콘솔 엔드포인트가 409 로 꺼지고, 환경(`SENTRY_ENVIRONMENT`, 비우면 `NODE_ENV`)이 `development`가 아니면 값이 있어도 꺼진다(실패 시 닫힘 — 2026-10-13).
    * 행동 버튼은 실제 신호·라이브러리를 쓰므로 운영 DB 에는 절대 붙이지 않는다(`features/admin.md` 4.7).
    */
   @IsOptional()

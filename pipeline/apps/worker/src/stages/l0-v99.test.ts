@@ -54,9 +54,34 @@ test("L0 v9.9 명사절 감싸기 — '~다는 것이·~다는 점에서'가 다
   ];
   const v = run(script([turnsOf(wrap)]));
   assert.ok(has(v, /명사절로 감싸여 있음 5곳.*\(E1, E2, E3, E4, E5\)/), v.join("\n"));
-  assert.ok(!v.some(isRatioViolation), "횟수 상한은 비율 규칙이 아니다");
+  // v9.9.1: 문체 규칙이라 한도 뒤엔 QA 로 넘긴다
+  assert.deepEqual(l0Next(v, L0_FIX_MAX), { action: "pass", residual: v });
   const four = run(script([turnsOf(wrap.slice(0, 4))]));
   assert.ok(!has(four, /명사절/), four.join("\n"));
+});
+
+test("L0 v9.9.1 명사절 감싸기 — 분열문 '핵심은·답은 ~입니다'와 '~다는 것입니다' 결말도 같은 계열로 센다", () => {
+  const v = run(script([turnsOf([
+    "기록이 남지 않았다는 점에서 단정하긴 어려워요.",
+    "처음이 아니라는 사실이 중요해요.",
+    "이 역사의 답은 먼저 남은 증거와 기억된 출발점이 다르다는 거예요.",
+    "결국 둘 다 맞았다는 것입니다.",
+    "핵심은 기계를 누구나 살 수 있었다는 점입니다.",
+  ])]));
+  assert.ok(has(v, /명사절로 감싸여 있음 5곳/), v.join("\n"));
+});
+
+test("L0 v9.9.1 '~적인·~적으로' — 여덟 번부터 많은 턴부터 넘친 만큼 지목하고, 일곱 번까지는 둔다", () => {
+  const v = run(script([turnsOf([
+    "구조적인 문제와 실질적인 비용과 사회적인 압력이 겹쳐요.",
+    "경제적으로 보면 일시적인 변화예요.",
+    "기술적인 이유도 있고 역사적인 배경도 있어요.",
+    "정치적인 이유도 있어요.",
+  ])]));
+  assert.ok(has(v, /"~적인·~적으로" 8회.*풀어 쓴다.*: E1\. 뜻은/), v.join("\n")); // 넘친 1회 — 가장 많은 E1(3회)만
+  assert.ok(v.every(isRatioViolation), "문체 규칙이라 한도 뒤엔 QA 로 넘긴다");
+  const seven = run(script([turnsOf(["구조적인 문제와 실질적인 비용과 사회적인 압력이 겹쳐요.", "경제적으로 보면 일시적인 변화예요.", "기술적인 이유도 있어요."])]));
+  assert.ok(!has(seven, /적인·~적으로/), seven.join("\n"));
 });
 
 test("L0 v9.9 명사절 감싸기 — 주어와 동사로 먼저 말한 문장은 세지 않는다", () => {

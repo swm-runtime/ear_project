@@ -279,6 +279,54 @@ describe('FirstDripService', () => {
     });
   });
 
+  describe('runWithRetries · runInBackground — 공통 재시도 규칙(common-error-handling 4.2)', () => {
+    beforeEach(() => {
+      jest.useFakeTimers();
+      // 지터를 없앤다 — 백오프가 정확히 1초 → 3초가 된다
+      jest.spyOn(Math, 'random').mockReturnValue(0.5);
+    });
+
+    afterEach(() => {
+      jest.useRealTimers();
+      jest.restoreAllMocks();
+    });
+
+    it('최대 3회 시도한 뒤 queued 로 넘긴다 — 재시도 스케줄러가 이어받는다', async () => {
+      contentService.findCandidates.mockRejectedValue(new Error('db down'));
+
+      const running = service.runWithRetries(USER_ID, NOW);
+      await jest.runAllTimersAsync();
+      await running;
+
+      expect(job.attemptCount).toBe(3);
+      expect(job.status).toBe(FirstDripJobStatus.QUEUED);
+      // 마지막 시도 시각 = 시작 + 1초 + 3초
+      expect(job.lastAttemptedAt).toEqual(new Date(NOW.getTime() + 4000));
+    });
+
+    it('두 번째 시도에 성공하면 거기서 멈추고 completed 다', async () => {
+      contentService.findCandidates
+        .mockRejectedValueOnce(new Error('db down'))
+        .mockResolvedValue([buildContent('content-1')]);
+
+      const running = service.runWithRetries(USER_ID, NOW);
+      await jest.runAllTimersAsync();
+      await running;
+
+      expect(job.attemptCount).toBe(2);
+      expect(job.status).toBe(FirstDripJobStatus.COMPLETED);
+    });
+
+    it('runInBackground 는 어떤 실패도 밖으로 던지지 않는다 — 이미 커밋된 온보딩 완료를 되돌리지 않는다', async () => {
+      jobRepository.findByUserId.mockRejectedValue(new Error('db down'));
+
+      const running = service.runInBackground(USER_ID, NOW);
+      await jest.runAllTimersAsync();
+
+      await expect(running).resolves.toBeUndefined();
+    });
+  });
+
   describe('runClaimed', () => {
     it('편성이 실패하면 큐로 되돌려 다음 주기에 다시 시도하게 한다', async () => {
       // given

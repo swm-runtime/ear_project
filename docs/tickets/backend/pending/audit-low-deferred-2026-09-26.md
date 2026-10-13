@@ -37,7 +37,6 @@
 |---|---|---|---|
 | 9 | 삭제 실행취소 뒤 `delete`(−0.6) 신호가 남고 7일 뒤 `ignore`(−0.3)가 다시 파생된다 | `library-screen.orchestrator.ts` ~220-236 · `library.service.ts` restore · `library-item.repository.ts` ignore 쿼리 | 5초 취소 창 + 7일 방치가 겹쳐야 하고 결과는 가중치 −0.3(스쿼시 뒤 미세). 원하면 restore 때 delete 신호 삭제 또는 ignore 쿼리에서 delete 신호 보유 콘텐츠 제외 |
 | 10 | 클러스터 프라이머리가 죽은 워커를 백오프·상한 없이 즉시 다시 띄운다 | `cluster.ts` ~48-65 | env 오류는 프라이머리가 import 시점에 먼저 죽어 Docker 재시작으로 감. DB 다운은 Nest 재시도 뒤 abort → 약 25초 주기 재포크, 자가 복구. 남는 건 깨진 빌드의 워커 전용 부팅 버그뿐인데 그건 CI 검증 job이 막는다. 원하면 연속 빠른 종료 N회면 프라이머리가 비정상 종료 |
-| 11 | 배치가 미리보기 표시용 `findRecentDripTopicIds` 쿼리 2개를 사용자마다 실행한다 | `drip-batch.orchestrator.ts` ~611-615 | 사용자당 수 ms. `PlanOptions` 플래그로 미리보기만 조회하게 하면 됨 |
 | 12 | `POST /auth/pipeline-login`에 인증 라우트 한도(`@Throttle(AUTH_THROTTLE)`)가 없다 | `auth/auth.controller.ts` ~70-81 | HS256 비밀 32바이트·유효 2분이라 온라인 추측이 불가능. 전역 한도(150/분/워커)는 받는다. 일관성 문제만 — architecture.md 9.6에 이미 "하 등급"으로 적혀 있다 |
 
 ## 완료 조건
@@ -57,4 +56,5 @@
   - #2 `AuthService.refresh`의 `revokeIfActive` → `issueSession`을 `dataSource.transaction`으로 묶고 manager를 넘긴다. KAN-167 사유 판정(rotated만 REUSED)·경합 패배 INVALID는 트랜잭션 앞/안에서 그대로. 유닛: 같은 manager로 UPDATE·INSERT, INSERT 실패가 콜백 밖으로 던져짐.
   - #6 `IdempotencyInterceptor`가 키 길이 > 255(`IDEMPOTENCY_KEY_MAX_LENGTH` = 컬럼 `varchar(255)`)면 저장 전에 400 `VALIDATION_FAILED`. 유닛(255 통과·256 거절) + e2e(`onboarding.e2e-spec.ts` — 300자 키로 `POST /onboarding/picks` → 400).
   - #7 `entity.too.large` 413은 2026-10-07(`ec3b7fac`)에 이미 처리돼 있었다. 남은 구멍인 `entity.*` 밖의 body-parser 클라이언트 오류(`charset.unsupported`·`encoding.unsupported` 415 · `parameters.too.many` 413 · `request.size.invalid`·`querystring.parse.rangeError` 400)를 같은 분기에 넣었다 — 종전엔 500 + Sentry. `type`으로 거르는 것은 유지(숫자 `status`만 보면 외부 HTTP 클라이언트 오류가 4xx로 둔갑). 새 error_code 없음(상태별 매핑, 없으면 `VALIDATION_FAILED`). e2e: 200kb 본문으로 `POST /onboarding/picks` → 413 `VALIDATION_FAILED`.
+- **2026-10-13 — #11 반영(`perf(be)/skip-preview-only-query-in-batch`).** `PlanOptions.loadRecentDripTopics`를 두고 배치·평가기는 끄고 편성 미리보기만 켠다 — 배치가 사용자마다 돌리던 `findRecentDripContentIds` + 주제 조회 2개가 빠진다. 미리보기 응답(`recent_drip_topics`)은 그대로다. 유닛: 배치에서는 조회가 없고 미리보기에서만 1회. 남은 7건(#3·#4·#5·#8·#9·#10·#12)은 종전대로 보류.
 - **2026-10-13 — #3 반영(`fix(be)/admin-content-row-locks`).** 파일만 반영(`applyFilesOnly`)·회수·복구가 `getByIdForUpdate`(`FOR NO KEY UPDATE`)로 행을 잠그고 읽는다 — 재발행과 같은 잠금이라 잠금 순서(contents → topics)도 같다. 스토리지 정리(`purgeStorage`)는 회수 상태 확인만 해서 그대로 둔다. 유닛: 세 경로가 트랜잭션 manager 로 잠금 조회. 남은 6건(#4·#5·#8·#9·#10·#12)은 종전대로 보류.

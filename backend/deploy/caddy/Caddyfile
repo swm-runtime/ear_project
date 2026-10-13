@@ -9,9 +9,20 @@
 		header_up X-Forwarded-Proto {scheme}
 	}
 
+	# 쿼리의 이메일·서명은 가린다 — Nest 로그는 redact-url.util 이 가리지만 이 접근 로그는 uri 를 쿼리째
+	# CloudWatch(/ear/caddy)로 보낸다(관리자 편성 미리보기 `?email=` — 2026-10-13 보안 점검). 헤더의
+	# Authorization·Cookie 는 Caddy 가 기본으로 가린다
 	log {
 		output stdout
-		format console
+		format filter {
+			wrap console
+			fields {
+				request>uri query {
+					replace email REDACTED
+					replace signature REDACTED
+				}
+			}
+		}
 	}
 }
 

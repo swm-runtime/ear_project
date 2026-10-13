@@ -21,6 +21,13 @@ interface JwksResponse {
 }
 
 /**
+ * 모르는 `kid` 때문에 다시 받아오는 최소 간격. TTL 안에서는 이 간격이 지나야 한 번 더 받는다 —
+ * 아무 `kid`나 단 토큰을 보내는 것만으로 요청마다 제공자 호출(최대 5초 대기)을 일으킬 수 없게 한다
+ * (2026-10-13 보안 점검). 제공자가 키를 교체한 직후에도 늦어야 이 간격만큼이다.
+ */
+export const JWKS_UNKNOWN_KID_REFETCH_INTERVAL_MS = 60 * 1000;
+
+/**
  * JWKS 공개키 조회·캐시 (`auth-api.md` 4.1 — `google`·`apple`은 토큰 자체로 검증이 끝난다).
  *
  * **제공자마다 URL만 다르고 절차는 같아** 여기로 모은다. 영구 캐시하면 제공자가 키를
@@ -41,6 +48,9 @@ export class JwksKeyStore {
    */
   private keys = new Map<string, string>();
   private expiresAt = 0;
+  private fetchedAt = 0;
+  /** 진행 중인 조회 — 동시에 온 요청은 같은 조회를 기다린다 */
+  private inflight: Promise<void> | null = null;
 
   constructor(
     name: string,
@@ -74,15 +84,32 @@ export class JwksKeyStore {
 
   /** 해당 `kid`의 PEM 공개키. 제공자가 그런 키를 갖고 있지 않으면 `null` */
   async resolve(kid: string): Promise<string | null> {
+    const now = Date.now();
     const cached = this.keys.get(kid);
+    const fresh = now < this.expiresAt;
 
-    if (cached && Date.now() < this.expiresAt) {
+    if (cached && fresh) {
       return cached;
     }
 
-    await this.refresh();
+    // 캐시가 살아 있는데 모르는 kid — 최근에 받았으면 다시 받지 않는다(키 교체가 아니라 엉뚱한 kid일 가능성이 크다)
+    if (fresh && now - this.fetchedAt < JWKS_UNKNOWN_KID_REFETCH_INTERVAL_MS) {
+      return null;
+    }
+
+    await this.refreshOnce();
 
     return this.keys.get(kid) ?? null;
+  }
+
+  private async refreshOnce(): Promise<void> {
+    if (!this.inflight) {
+      this.inflight = this.refresh().finally(() => {
+        this.inflight = null;
+      });
+    }
+
+    return this.inflight;
   }
 
   private async refresh(): Promise<void> {
@@ -143,7 +170,8 @@ export class JwksKeyStore {
 
     // 새 목록으로 통째로 갈아끼운다 — 폐기된 키가 캐시에 남지 않게 한다
     this.keys = keys;
-    this.expiresAt = Date.now() + this.cacheTtlMs;
+    this.fetchedAt = Date.now();
+    this.expiresAt = this.fetchedAt + this.cacheTtlMs;
   }
 
   private unavailable(): BusinessException {

@@ -77,6 +77,21 @@ export function buildVerdict(
     return { passed: failures.length === 0, failures, warnings };
   }
 
+  // 옵션이 다른 기준선과의 Δ는 변경의 효과가 아니라 옵션의 차이다 — 조용히 비교하지 않는다
+  const mismatched = [
+    baseline.options.autoExpandFeature !== report.options.autoExpandFeature &&
+      `자동 확장 ${baseline.options.autoExpandFeature ? 'ON' : 'OFF'} → ${report.options.autoExpandFeature ? 'ON' : 'OFF'}`,
+    baseline.options.simulationDays !== report.options.simulationDays &&
+      `시뮬레이션 ${baseline.options.simulationDays}일 → ${report.options.simulationDays}일`,
+  ].filter((line): line is string => typeof line === 'string');
+
+  if (mismatched.length > 0) {
+    failures.push(
+      `기준선과 평가 옵션이 달라 지표를 비교할 수 없다 — ${mismatched.join(' · ')}. 같은 옵션으로 다시 돌린다`,
+    );
+    return { passed: false, failures, warnings };
+  }
+
   if (
     backtest !== null &&
     baseline.backtest !== null &&
@@ -209,7 +224,7 @@ export function formatReport(
   lines.push('### 편성분 지표');
   lines.push('');
   lines.push(
-    '| 대상 | 계산 수 | 고갈률 | 주제 다양성 | 편성분 내 거리 | 신규(14일) | 미노출 | 커버리지 | 사용자 간 겹침 |',
+    '| 대상 | 계산 수 | 고갈률 | 주제 다양성 | 편성분 내 거리 | 신규(14일) | 첫 노출 | 커버리지 | 사용자 간 겹침 |',
   );
   lines.push('|---|---|---|---|---|---|---|---|---|');
 
