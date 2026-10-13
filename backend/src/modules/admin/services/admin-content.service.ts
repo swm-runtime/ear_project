@@ -570,7 +570,8 @@ export class AdminContentService {
     script: ScriptParseResult | null,
   ): Promise<AdminContentView> {
     const content = await this.dataSource.transaction(async (manager) => {
-      const current = await this.contentService.getById(
+      // 행을 잠근다 — 재발행(아래 republish)과 같은 초에 겹치면 서로의 저장을 덮어쓴다(audit-low #3)
+      const current = await this.contentService.getByIdForUpdate(
         command.contentId,
         manager,
       );
@@ -768,7 +769,11 @@ export class AdminContentService {
     now: Date,
   ): Promise<AdminContentView> {
     const content = await this.dataSource.transaction(async (manager) => {
-      const target = await this.contentService.getById(contentId, manager);
+      // 행을 잠근다 — 재발행·파일 반영과 겹쳐 서로의 상태 저장을 덮어쓰지 않게(audit-low #3)
+      const target = await this.contentService.getByIdForUpdate(
+        contentId,
+        manager,
+      );
 
       if (target.status === ContentStatus.WITHDRAWN) {
         throw new BusinessException({
@@ -835,7 +840,11 @@ export class AdminContentService {
     contentId: string,
   ): Promise<AdminContentView> {
     const content = await this.dataSource.transaction(async (manager) => {
-      const target = await this.contentService.getById(contentId, manager);
+      // 행을 잠근다 — 재발행·파일 반영과 겹쳐 서로의 상태 저장을 덮어쓰지 않게(audit-low #3)
+      const target = await this.contentService.getByIdForUpdate(
+        contentId,
+        manager,
+      );
 
       if (target.status !== ContentStatus.WITHDRAWN) {
         throw new BusinessException({
