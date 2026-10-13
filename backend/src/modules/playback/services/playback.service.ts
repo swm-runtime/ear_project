@@ -400,9 +400,9 @@ export class PlaybackService {
   /**
    * 콜드스타트 판정용(FR-17) — `drip-scheduling.md` 4.4의 기준은 **완청 3건**이다.
    *
-   * `user_preference_vectors.signal_count`를 읽지 않는 이유: 그 값은 편성 배치가 채우는
-   * 파생 캐시인데(domain.md 7.2) 배치가 아직 없어 전부 비어 있고, 탐색 랭킹은 **조회 시점에
-   * 즉시** 반영돼야 한다(FR-05). 원천을 직접 세면 캐시 유무와 무관하게 같은 답이 나온다.
+   * 편성 배치가 원천을 직접 센다 — 그 결과를 `user_preference_vectors.signal_count` 캐시에
+   * 쓰는 쪽이 배치이기 때문이다(domain.md 7.2). 탐색은 원천을 세지 않고 그 캐시를 읽는다
+   * (b83fcf94 이후 — 다음 배치부터 반영).
    */
   async countSignals(
     userId: string,

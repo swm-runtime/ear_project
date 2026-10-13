@@ -583,8 +583,10 @@ describe('ExploreOrchestrator', () => {
       ]);
     });
 
-    it('숨김 처리된 주제도 사용자의 관심 주제라면 포함한다', async () => {
-      // given — 걸러내면 자기가 고른 주제인데 필터를 걸 수 없다
+    it('관심 주제의 숨김 판정은 다시 하지 않는다 — findAllActive가 넘긴 주제는 그대로 칩이 된다', async () => {
+      // given — 숨김 주제는 보유 여부와 무관하게 칩에서 빠진다(팀 결정 2026-08-11). 그 판정은
+      // `UserInterestService.findAllActive`가 맡으므로 여기서 같은 필터를 두 번 걸지 않는다.
+      // 아래는 그 경계를 고정하는 목(mock) 상황이고, 실제로 숨김 주제가 넘어오는 일은 없다
       userInterestService.findAllActive.mockResolvedValue([
         { topicId: HIDDEN_TOPIC_ID },
       ] as UserInterest[]);
