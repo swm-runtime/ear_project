@@ -198,6 +198,7 @@ describe('AdminContentService', () => {
       findTopicViews: jest.fn().mockResolvedValue([]),
       applyEnrichment: jest.fn().mockResolvedValue(undefined),
       findScriptContentIds: jest.fn().mockResolvedValue(new Set()),
+      findScorableEmbeddingContentIds: jest.fn().mockResolvedValue(new Set()),
       saveScript: jest.fn().mockResolvedValue(undefined),
       deleteScript: jest.fn().mockResolvedValue(undefined),
     } as unknown as jest.Mocked<ContentService>;
@@ -780,6 +781,28 @@ describe('AdminContentService', () => {
 
       // then
       await expect(act).rejects.toBeInstanceOf(BusinessException);
+    });
+  });
+
+  describe('findPage — 임베딩 현재 여부', () => {
+    it('스코어링에 쓰이는 임베딩이 있는 콘텐츠만 hasCurrentEmbedding 이 true 다 — 오디오 재발행 뒤 미갱신은 false', async () => {
+      contentService.findAdminPage.mockResolvedValue({
+        items: [{ id: 'fresh' }, { id: 'stale' }] as never,
+        total: 2,
+      });
+      contentService.findTopicViews.mockResolvedValue([]);
+      contentService.findScorableEmbeddingContentIds.mockResolvedValue(
+        new Set(['fresh']),
+      );
+
+      const page = await service.findPage({} as never);
+
+      expect(
+        page.items.map((item) => [item.content.id, item.hasCurrentEmbedding]),
+      ).toEqual([
+        ['fresh', true],
+        ['stale', false],
+      ]);
     });
   });
 
