@@ -247,7 +247,9 @@
 
 ### 4.5 `GET /onboarding/recommendations`
 
-3단계에 노출할 **9건을 두 섹션으로 나눠** 반환한다(`onboarding.md` 4 [3]).
+> **클라이언트가 호출하지 않는다(2026-10-11).** 온보딩 3단계 "추천 콘텐츠 담기"가 제거돼(`changes/archive/remove-onboarding-pick-step.md`) 앱은 이 엔드포인트를 부르지 않는다. 엔드포인트와 아래 계약은 BE 소유라 그대로 둔다.
+
+구 3단계에 노출할 **9건을 두 섹션으로 나눠** 반환한다.
 
 **Response 200 — 정상(월간 인기)**
 
@@ -325,6 +327,8 @@
 
 ### 4.6 `POST /onboarding/picks`
 
+> **클라이언트가 호출하지 않는다(2026-10-11).** 온보딩 담기 단계 제거로 앱은 이 엔드포인트를 부르지 않는다 — `picked_count`는 늘 0이다(4.7). 엔드포인트와 아래 계약은 BE 소유라 그대로 둔다.
+
 **Request** — `Idempotency-Key` 필수
 
 ```json
@@ -399,7 +403,7 @@
 
 | 필드 | 의미 |
 |---|---|
-| `picked_count` | 3단계에서 적립된 건수. **서버가 `library_items`에서 센 값이다** |
+| `picked_count` | 구 3단계에서 적립된 건수. **서버가 `library_items`에서 센 값이다.** 담기 단계 제거(2026-10-11) 뒤 클라이언트가 4.6을 호출하지 않으므로 **0 고정**이다 — 따라서 `awaits_first_drip`은 늘 `true`로 판정되고 모든 경로가 완료 대기를 거친다 |
 | `awaits_first_drip` | `true`면 클라이언트는 완료 화면 대신 로딩 화면을 띄우고 4.8을 폴링한다 |
 | `first_drip.status` | 4.8과 같은 enum. 완료 시점에 이미 끝났으면 `completed`가 담길 수 있다 |
 | `first_drip.poll_interval_sec` | 폴링 간격(초) |

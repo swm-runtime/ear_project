@@ -6,6 +6,7 @@
 | 발행자 | BE (박준현 — 2026-10-13 보안 점검 후속) |
 | 반영 대상 | `features/admin.md` 4.7(추천 테스트 — "운영에서는 꺼진다" 항목) |
 | 코드 반영 | PR #1489 `fix(be): open recommend test console only in development` (dev 머지됨) · `spec/api/admin-api.md` 4.17·에러 표는 BE 후속 PR에서 함께 고침 |
+| 반영 날짜 | 2026-10-14 |
 
 ## 수정 내용
 
@@ -20,3 +21,7 @@
 ## 완료 조건
 
 - Given `features/admin.md` 4.7 / When "운영에서는 꺼진다"를 찾는다 / Then "개발 환경에서만 켜진다"와 환경 판정(`SENTRY_ENVIRONMENT` → `NODE_ENV`)이 적혀 있다
+
+## 처리 기록
+
+- 2026-10-14 반영 — `features/admin.md` 4.7 — "운영에서는 꺼진다" → "개발 환경에서만 켜진다"(`SENTRY_ENVIRONMENT` → `NODE_ENV` 판정, 실패 시 닫힘 사유).

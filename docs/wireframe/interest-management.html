@@ -5,6 +5,27 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>이어 — 관심사 관리 화면 시안</title>
 <link rel="stylesheet" href="style.css">
+<style>
+  /* 관심 주제 관리 전용 — 버블밭·요약 바 (개편 2026-10-09, changes/interest-management-bubbles) */
+  .bubbles{display:flex; flex-wrap:wrap; justify-content:center; align-items:center; gap:4px 6px; padding:10px 0 6px}
+  .bub{width:62px; height:62px; border-radius:50%; display:flex; align-items:center; justify-content:center; text-align:center;
+       font-size:10.5px; line-height:1.2; padding:6px; color:#fff; position:relative; overflow:hidden; margin:3px;
+       background:radial-gradient(circle at 30% 25%, #a08b74, #5a4a3c 70%, #3a3028); box-shadow:0 2px 6px rgba(0,0,0,.18)}
+  .bub.on{transform:scale(1.2); box-shadow:0 10px 20px rgba(0,0,0,.34); margin:9px 7px; z-index:1}
+  .bub.dim{transform:scale(.88); box-shadow:none; color:#2a2522}
+  .bub.dim::after{content:""; position:absolute; inset:0; border-radius:50%; background:rgba(255,255,255,.62)}
+  .bub.dim > *{position:relative; z-index:1}
+  .bub.sk{background:var(--surface-2); box-shadow:none}
+  .sumbar{display:flex; align-items:center; gap:10px; width:100%}
+  .sumbar .avs{display:flex; flex:none}
+  .sumbar .avs span{width:28px; height:28px; border-radius:50%; border:2px solid var(--surface); margin-left:-9px;
+       background:radial-gradient(circle at 30% 25%, #a08b74, #5a4a3c)}
+  .sumbar .avs span:first-child{margin-left:0}
+  .sumbar .avs span.empty{background:var(--surface-2)}
+  .sumbar .nm{flex:1; font-size:12px; color:var(--ink); overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+  .sumbar .nm.reason{color:var(--ink-3)}
+  .sumbar .btn{flex:none; padding:9px 16px; margin:0}
+</style>
 </head>
 <body>
 <div class="wrap">
@@ -52,10 +73,10 @@
   <div class="section-head">
     <p class="sid">IM1 – IM4</p>
     <h2>편집과 선택 규칙</h2>
-    <p>주제 목록·상한(최소 1 · 최대 3)·칩 동작은 <b>온보딩 1단계와 같은 규칙</b>을 씁니다. 다른 점은 저장 방식 하나 — 온보딩은 [다음]으로 전진하고, 여기는 <b>변경이 있을 때만 [저장]이 활성</b>됩니다.</p>
+    <p>주제 목록·상한(최소 1 · 최대 3)은 <b>온보딩 1단계와 같은 규칙</b>을 씁니다. 표현은 다릅니다 — 이 화면은 <b>원형 사진 버블</b>(벌집 자리, UI 스레드 물리, 개편 2026-10-09)이고 온보딩 O1은 사진 알약 그대로입니다. 온보딩은 [다음]으로 전진하고, 여기는 <b>변경이 있을 때만 [저장]이 활성</b>됩니다. 상한을 채우면 새 선택은 막히고 토스트가 뜹니다(개정 2026-10-10 — 온보딩과 같은 동작).</p>
     <div class="flowbar">
       <span>프로필 · 설정 · 드립 배너</span><span class="ar">→</span>
-      <span>칩 편집 (N/3)</span><span class="ar">→</span>
+      <span>버블 편집 (N/3)</span><span class="ar">→</span>
       <span class="hi">해제 포함이면 확인 팝업</span><span class="ar">→</span>
       <span>[저장] = 전체 목록 전송</span><span class="ar">→</span>
       <span class="hi">다음 편성부터 반영</span>
@@ -68,7 +89,7 @@
     <article class="shot">
       <div class="shot-head">
         <span class="shot-id">IM1</span><h3>정상 — 변경 없음</h3>
-        <p class="cap">현재 선택 강조 · "N/3 선택" · [저장] 비활성</p>
+        <p class="cap">선택 버블 1.2배 + 깊은 그림자 · "N/3 선택" · 하단 요약 바의 [저장] 비활성</p>
       </div>
       <div class="device">
         <div class="island"></div>
@@ -84,18 +105,24 @@
               <p class="h-lg" style="margin:0">어떤 이야기가<br>궁금하세요?</p>
               <p class="t-sm" style="margin:0"><b class="em">2/3 선택</b><span class="mk">2</span></p>
             </div>
-            <div class="chips" style="margin-top:4px">
-              <span class="chip on">커리어 전환</span><span class="chip">협업·소통</span>
-              <span class="chip on">생산성</span><span class="chip">리더십</span>
-              <span class="chip">돈·재테크</span><span class="chip">글쓰기</span>
-              <span class="chip">데이터 리터러시</span><span class="chip">브랜딩</span>
-              <span class="chip">심리</span><span class="chip">과학 교양</span>
-              <span class="chip">스타트업</span><span class="chip">디자인</span>
+            <div class="bubbles">
+              <span class="bub on"><span>커리어 전환</span></span>
+              <span class="bub"><span>협업·소통</span></span>
+              <span class="bub on"><span>생산성</span></span>
+              <span class="bub"><span>리더십</span></span>
+              <span class="bub"><span>돈·재테크</span></span>
+              <span class="bub"><span>글쓰기</span></span>
+              <span class="bub"><span>데이터 리터러시</span></span>
+              <span class="bub"><span>브랜딩</span></span>
+              <span class="bub"><span>심리</span></span>
+              <span class="bub"><span>과학 교양</span></span>
+              <span class="bub"><span>스타트업</span></span>
+              <span class="bub"><span>디자인</span></span>
             </div>
             <div class="grow"></div>
           </div>
           <div class="dock line">
-            <div class="btn off">저장<span class="mk">3</span></div>
+            <div class="sumbar"><span class="avs"><span></span><span></span></span><span class="nm">커리어 전환 · 생산성</span><div class="btn off">저장<span class="mk">3</span></div></div>
           </div>
           <div class="homebar"></div>
         </div>
@@ -111,7 +138,7 @@
     <article class="shot">
       <div class="shot-head">
         <span class="shot-id">IM2</span><h3>3/3 선택 · 4번째 시도</h3>
-        <p class="cap">미선택 칩 비활성 + 이유를 말하는 토스트</p>
+        <p class="cap">남은 버블 0.88배 흐림(흰 막 62%) · 눌러도 선택되지 않고 토스트</p>
       </div>
       <div class="device">
         <div class="island"></div>
@@ -127,26 +154,32 @@
               <p class="h-lg" style="margin:0">어떤 이야기가<br>궁금하세요?</p>
               <p class="t-sm" style="margin:0"><b class="em">3/3 선택</b></p>
             </div>
-            <div class="chips" style="margin-top:4px">
-              <span class="chip on">커리어 전환</span><span class="chip" style="opacity:.4">협업·소통</span>
-              <span class="chip on">생산성</span><span class="chip" style="opacity:.4">리더십</span>
-              <span class="chip" style="opacity:.4">돈·재테크</span><span class="chip" style="opacity:.4">글쓰기<span class="mk">4</span></span>
-              <span class="chip" style="opacity:.4">데이터 리터러시</span><span class="chip" style="opacity:.4">브랜딩</span>
-              <span class="chip on">심리</span><span class="chip" style="opacity:.4">과학 교양</span>
-              <span class="chip" style="opacity:.4">스타트업</span><span class="chip" style="opacity:.4">디자인</span>
+            <div class="bubbles">
+              <span class="bub on"><span>커리어 전환</span></span>
+              <span class="bub dim"><span>협업·소통</span></span>
+              <span class="bub on"><span>생산성</span></span>
+              <span class="bub dim"><span>리더십</span></span>
+              <span class="bub dim"><span>돈·재테크</span></span>
+              <span class="bub dim"><span>글쓰기<span class="mk">4</span></span></span>
+              <span class="bub dim"><span>데이터 리터러시</span></span>
+              <span class="bub dim"><span>브랜딩</span></span>
+              <span class="bub on"><span>심리</span></span>
+              <span class="bub dim"><span>과학 교양</span></span>
+              <span class="bub dim"><span>스타트업</span></span>
+              <span class="bub dim"><span>디자인</span></span>
             </div>
             <div class="grow"></div>
           </div>
           <div class="toast">관심 주제는 3개까지 선택할 수 있어요<span class="mk">5</span></div>
           <div class="dock line">
-            <div class="btn off">저장</div>
+            <div class="sumbar"><span class="avs"><span></span><span></span><span></span></span><span class="nm">커리어 전환 · 생산성 · 심리</span><div class="btn off">저장</div></div>
           </div>
           <div class="homebar"></div>
         </div>
       </div>
       <ul class="notes">
-        <li><span class="n">4</span><span>3개를 채우면 <b>미선택 칩을 비활성 처리</b>한다. 선택된 칩은 계속 누를 수 있다 — 바꾸려면 기존 선택을 해제하면 된다. <span class="ref">interest-management 4.1</span></span></li>
-        <li><span class="n">5</span><span>비활성 칩을 탭하면 <b>무반응 대신 이유를 말한다</b>(비활성 무반응은 오류로 읽힌다). 문구는 온보딩과 같다. 서버도 상한을 방어적으로 재검증한다 — 우회해서 4개를 보내면 저장이 거부된다. <span class="ref">interest-management 3 · 4.1 · 4.2 · 8</span></span></li>
+        <li><span class="n">4</span><span>3개를 채우면 <b>남은 버블이 0.88배로 작아지며 흐려지고, 눌러도 선택되지 않는다</b>(개정 2026-10-10 — 종전 "탭은 받고 저장만 막는다" 폐기). 고른 버블의 해제는 언제나 된다 — 바꾸려면 기존 선택을 해제하면 된다. <span class="ref">interest-management 4.1 · uiux 4.2</span></span></li>
+        <li><span class="n">5</span><span>흐린 버블을 탭하면 <b>무반응 대신 토스트로 이유를 말한다</b>(무반응은 오류로 읽힌다). 문구는 온보딩 상한 토스트와 같은 문자열이다. 저장 게이트(max(3, 기존 보유))는 초과 보유자(IM6)를 위해 남는다. 서버도 상한을 방어적으로 재검증한다 — 우회해서 4개를 보내면 저장이 거부된다. <span class="ref">interest-management 3 · 4.1 · 4.2 · 8</span></span></li>
       </ul>
     </article>
 
@@ -154,7 +187,7 @@
     <article class="shot">
       <div class="shot-head">
         <span class="shot-id">IM3</span><h3>변경 있음</h3>
-        <p class="cap">"변경 사항 N개" + [저장] 활성</p>
+        <p class="cap">변경 있음 — 요약 바 [저장] 활성(변경 배지는 뺐다, 2026-10-10)</p>
       </div>
       <div class="device">
         <div class="island"></div>
@@ -168,29 +201,32 @@
           <div class="body">
             <div class="stack" style="gap:6px">
               <p class="h-lg" style="margin:0">어떤 이야기가<br>궁금하세요?</p>
-              <div style="display:flex; align-items:center; gap:8px">
-                <p class="t-sm" style="margin:0"><b class="em">3/3 선택</b></p>
-                <span class="tagpill">변경 사항 2개<span class="mk">6</span></span>
-              </div>
+              <p class="t-sm" style="margin:0"><b class="em">3/3 선택</b><span class="mk">6</span></p>
             </div>
-            <div class="chips" style="margin-top:4px">
-              <span class="chip on">커리어 전환</span><span class="chip" style="opacity:.4">협업·소통</span>
-              <span class="chip" style="opacity:.4">생산성</span><span class="chip" style="opacity:.4">리더십</span>
-              <span class="chip on">돈·재테크</span><span class="chip" style="opacity:.4">글쓰기</span>
-              <span class="chip" style="opacity:.4">데이터 리터러시</span><span class="chip" style="opacity:.4">브랜딩</span>
-              <span class="chip on">심리</span><span class="chip" style="opacity:.4">과학 교양</span>
-              <span class="chip" style="opacity:.4">스타트업</span><span class="chip" style="opacity:.4">디자인</span>
+            <div class="bubbles">
+              <span class="bub on"><span>커리어 전환</span></span>
+              <span class="bub dim"><span>협업·소통</span></span>
+              <span class="bub dim"><span>생산성</span></span>
+              <span class="bub dim"><span>리더십</span></span>
+              <span class="bub on"><span>돈·재테크</span></span>
+              <span class="bub dim"><span>글쓰기</span></span>
+              <span class="bub dim"><span>데이터 리터러시</span></span>
+              <span class="bub dim"><span>브랜딩</span></span>
+              <span class="bub on"><span>심리</span></span>
+              <span class="bub dim"><span>과학 교양</span></span>
+              <span class="bub dim"><span>스타트업</span></span>
+              <span class="bub dim"><span>디자인</span></span>
             </div>
             <div class="grow"></div>
           </div>
           <div class="dock line">
-            <div class="btn primary">저장<span class="mk">7</span></div>
+            <div class="sumbar"><span class="avs"><span></span><span></span><span></span></span><span class="nm">커리어 전환 · 돈·재테크 · 심리</span><div class="btn primary">저장<span class="mk">7</span></div></div>
           </div>
           <div class="homebar"></div>
         </div>
       </div>
       <ul class="notes">
-        <li><span class="n">6</span><span>"생산성"을 해제하고 "돈·재테크"를 추가한 상태 — 변경 2개. 해제와 추가가 한 편집에 섞일 수 있고, <b>해제가 포함됐으므로 저장 시 확인 팝업(IM4)이 뜬다.</b> 추가만 있으면 팝업 없이 바로 저장된다. <span class="ref">interest-management 4.2 · 5 · 7</span></span></li>
+        <li><span class="n">6</span><span>"생산성"을 해제하고 "돈·재테크"를 추가한 상태 — 변경 있음(종전 "변경 사항 N개" 배지·진행 막대는 뺐다, 2026-10-10. 하단 요약 바가 고른 주제 사진·이름을 보여 준다). 해제와 추가가 한 편집에 섞일 수 있고, <b>해제가 포함됐으므로 저장 시 확인 팝업(IM4)이 뜬다.</b> 추가만 있으면 팝업 없이 바로 저장된다. <span class="ref">interest-management 4.2 · 5 · 7</span></span></li>
         <li><span class="n">7</span><span>[저장]은 <b>델타가 아니라 최종 목록 전체</b>를 보낸다(멱등 — 여러 기기 동시 편집은 last-write-wins). 서버가 diff를 계산해 추가분 <code>source = manual</code>, 해제분 <code>is_active = false · is_user_removed = true</code>로 갱신하고 추천·편성 캐시를 무효화한다. 저장 중에는 버튼 로딩 + 조작 차단. <span class="ref">interest-management 4.4 · 7</span></span></li>
       </ul>
     </article>
@@ -207,8 +243,10 @@
           <div class="statusbar"><span class="t">8:32</span><span class="i"><svg width="17" height="11" viewBox="0 0 17 11" fill="currentColor"><rect x="0" y="7" width="3" height="4" rx="1"/><rect x="4.5" y="5" width="3" height="6" rx="1"/><rect x="9" y="2.5" width="3" height="8.5" rx="1"/><rect x="13.5" y="0" width="3" height="11" rx="1"/></svg></span></div>
           <div class="body" style="opacity:.35; gap:12px; padding-top:20px">
             <p class="h-lg" style="margin:0">어떤 이야기가<br>궁금하세요?</p>
-            <div class="chips">
-              <span class="chip on">커리어 전환</span><span class="chip on">돈·재테크</span><span class="chip on">심리</span>
+            <div class="bubbles">
+              <span class="bub on"><span>커리어 전환</span></span>
+              <span class="bub on"><span>돈·재테크</span></span>
+              <span class="bub on"><span>심리</span></span>
             </div>
           </div>
           <div class="veil"></div>
@@ -262,22 +300,24 @@
               <p class="h-lg" style="margin:0">어떤 이야기가<br>궁금하세요?</p>
               <p class="t-sm" style="margin:0"><b class="em">0/3 선택</b></p>
             </div>
-            <div class="chips" style="margin-top:4px">
-              <span class="chip">커리어 전환<span class="mk">9</span></span><span class="chip">협업·소통</span>
-              <span class="chip">생산성</span><span class="chip">리더십</span>
-              <span class="chip">돈·재테크</span><span class="chip">글쓰기</span>
+            <div class="bubbles">
+              <span class="bub"><span>커리어 전환<span class="mk">9</span></span></span>
+              <span class="bub"><span>협업·소통</span></span>
+              <span class="bub"><span>생산성</span></span>
+              <span class="bub"><span>리더십</span></span>
+              <span class="bub"><span>돈·재테크</span></span>
+              <span class="bub"><span>글쓰기</span></span>
             </div>
             <div class="grow"></div>
           </div>
           <div class="dock line">
-            <p class="t-xs" style="text-align:center; margin:0">관심 주제를 1개 이상 선택해주세요</p>
-            <div class="btn off">저장</div>
+            <div class="sumbar"><span class="avs"><span class="empty"></span></span><span class="nm reason">관심 주제를 1개 이상 선택해주세요</span><div class="btn off">저장</div></div>
           </div>
           <div class="homebar"></div>
         </div>
       </div>
       <ul class="notes">
-        <li><span class="n">9</span><span><b>마지막 1개도 해제할 수 있다 — 편집 중 0개 상태를 허용한다.</b> 현재 선택을 전부 갈아엎고 새로 고르는 동선을 막지 않기 위해서다. 대신 <b>0개로는 저장이 성립하지 않는다</b> — [저장] 비활성 + dock에 사유 문구(온보딩 O1과 같은 패턴·같은 문구). "최소 1개" 제약의 판정 지점을 탭이 아니라 저장에 둔 것으로, 드립 편성이 최소 1개 주제를 전제한다는 규칙 자체는 그대로다(서버 검증도 동일). 이 상호작용은 문서에 반영됐다(4.2·5장·8장 개정 2026-08-09) — 검증 V5. <span class="ref">interest-management 3 · 4.2 · 5 · onboarding-uiux 4.1</span></span></li>
+        <li><span class="n">9</span><span><b>마지막 1개도 해제할 수 있다 — 편집 중 0개 상태를 허용한다.</b> 현재 선택을 전부 갈아엎고 새로 고르는 동선을 막지 않기 위해서다. 대신 <b>0개로는 저장이 성립하지 않는다</b> — [저장] 비활성 + 요약 바 안 [저장] 바로 왼쪽에 보조색 사유 문구(온보딩 O1과 같은 문자열 — 위치 PM 2026-10-09). "최소 1개" 제약의 판정 지점을 탭이 아니라 저장에 둔 것으로, 드립 편성이 최소 1개 주제를 전제한다는 규칙 자체는 그대로다(서버 검증도 동일). 이 상호작용은 문서에 반영됐다(4.2·5장·8장 개정 2026-08-09) — 검증 V5. <span class="ref">interest-management 3 · 4.2 · 5 · onboarding-uiux 4.1</span></span></li>
       </ul>
     </article>
 
@@ -304,22 +344,26 @@
             <div class="banner calm" style="font-size:12px">
               <span>관심 주제는 3개까지예요. 2개를 해제하면 다시 추가할 수 있어요</span>
             </div>
-            <div class="chips" style="margin-top:2px">
-              <span class="chip on">커리어 전환</span><span class="chip on">협업·소통</span>
-              <span class="chip on">생산성</span><span class="chip on">리더십</span>
-              <span class="chip on">돈·재테크</span><span class="chip" style="opacity:.4">글쓰기</span>
-              <span class="chip" style="opacity:.4">데이터 리터러시</span><span class="chip" style="opacity:.4">브랜딩</span>
+            <div class="bubbles">
+              <span class="bub on"><span>커리어 전환</span></span>
+              <span class="bub on"><span>협업·소통</span></span>
+              <span class="bub on"><span>생산성</span></span>
+              <span class="bub on"><span>리더십</span></span>
+              <span class="bub on"><span>돈·재테크</span></span>
+              <span class="bub dim"><span>글쓰기</span></span>
+              <span class="bub dim"><span>데이터 리터러시</span></span>
+              <span class="bub dim"><span>브랜딩</span></span>
             </div>
             <div class="grow"></div>
           </div>
           <div class="dock line">
-            <div class="btn off">저장</div>
+            <div class="sumbar"><span class="avs"><span></span><span></span><span></span></span><span class="nm">커리어 전환 · 협업·소통 · 생산성 외 2</span><div class="btn off">저장</div></div>
           </div>
           <div class="homebar"></div>
         </div>
       </div>
       <ul class="notes">
-        <li><span class="n">10</span><span>상한 도입 이전 가입자·자동 확장으로 초과한 계정. 현재 목록을 그대로 노출하고 <b>추가만 막는다</b> — 해제·저장은 자유. 3개 이하로 내려간 뒤부터 상한이 정상 적용된다. 서버 검증도 "기존 개수보다 늘어나지 않으면 통과"라 초과 상태 그대로의 재저장도 허용된다. 상한은 앞으로의 선택을 제한하는 규칙이지 기존 상태를 되돌리는 규칙이 아니다. <span class="ref">interest-management 5 · 7 · 8</span></span></li>
+        <li><span class="n">10</span><span>상한 도입 이전 가입자·자동 확장으로 초과한 계정. 현재 목록을 그대로 노출하고 <b>해제만 할 수 있다</b>(남은 버블은 상한 흐림 — 눌러도 선택되지 않고 토스트). 해제·저장은 자유. 3개 이하로 내려간 뒤부터 상한이 정상 적용된다. 서버 검증도 "기존 개수보다 늘어나지 않으면 통과"라 초과 상태 그대로의 재저장도 허용된다. 상한은 앞으로의 선택을 제한하는 규칙이지 기존 상태를 되돌리는 규칙이 아니다. <span class="ref">interest-management 5 · 7 · 8</span></span></li>
       </ul>
     </article>
 
@@ -335,8 +379,10 @@
           <div class="statusbar"><span class="t">8:35</span><span class="i"><svg width="17" height="11" viewBox="0 0 17 11" fill="currentColor"><rect x="0" y="7" width="3" height="4" rx="1"/><rect x="4.5" y="5" width="3" height="6" rx="1"/><rect x="9" y="2.5" width="3" height="8.5" rx="1"/><rect x="13.5" y="0" width="3" height="11" rx="1"/></svg></span></div>
           <div class="body" style="opacity:.35; gap:12px; padding-top:20px">
             <p class="h-lg" style="margin:0">어떤 이야기가<br>궁금하세요?</p>
-            <div class="chips">
-              <span class="chip on">커리어 전환</span><span class="chip on">돈·재테크</span><span class="chip on">심리</span>
+            <div class="bubbles">
+              <span class="bub on"><span>커리어 전환</span></span>
+              <span class="bub on"><span>돈·재테크</span></span>
+              <span class="bub on"><span>심리</span></span>
             </div>
           </div>
           <div class="veil"></div>
@@ -377,13 +423,15 @@
               <p class="h-lg" style="margin:0">어떤 이야기가<br>궁금하세요?</p>
               <div style="display:flex; align-items:center; gap:8px">
                 <p class="t-sm" style="margin:0"><b class="em">3/3 선택</b></p>
-                <span class="tagpill">변경 사항 2개</span>
               </div>
             </div>
-            <div class="chips" style="margin-top:4px">
-              <span class="chip on">커리어 전환</span><span class="chip" style="opacity:.4">협업·소통</span>
-              <span class="chip on">돈·재테크</span><span class="chip" style="opacity:.4">리더십</span>
-              <span class="chip on">심리</span><span class="chip" style="opacity:.4">글쓰기</span>
+            <div class="bubbles">
+              <span class="bub on"><span>커리어 전환</span></span>
+              <span class="bub dim"><span>협업·소통</span></span>
+              <span class="bub on"><span>돈·재테크</span></span>
+              <span class="bub dim"><span>리더십</span></span>
+              <span class="bub on"><span>심리</span></span>
+              <span class="bub dim"><span>글쓰기</span></span>
             </div>
             <div class="grow"></div>
             <div class="banner warn">
@@ -391,7 +439,7 @@
             </div>
           </div>
           <div class="dock line">
-            <div class="btn primary">다시 시도</div>
+            <div class="sumbar"><span class="avs"><span></span><span></span><span></span></span><span class="nm">커리어 전환 · 돈·재테크 · 심리</span><div class="btn primary">다시 시도</div></div>
           </div>
           <div class="homebar"></div>
         </div>
@@ -405,7 +453,7 @@
     <article class="shot">
       <div class="shot-head">
         <span class="shot-id">IM9</span><h3>로딩 · 조회 실패</h3>
-        <p class="cap">칩 스켈레톤 / 에러 + [다시 시도]</p>
+        <p class="cap">같은 벌집 자리의 회색 원 8개 / 에러 + [다시 시도]</p>
       </div>
       <div class="device">
         <div class="island"></div>
@@ -421,13 +469,8 @@
               <p class="h-lg" style="margin:0">어떤 이야기가<br>궁금하세요?</p>
               <div class="sk l w30"></div>
             </div>
-            <div class="chips" style="margin-top:4px">
-              <span class="sk" style="width:92px; height:34px; border-radius:99px"></span>
-              <span class="sk" style="width:76px; height:34px; border-radius:99px"></span>
-              <span class="sk" style="width:66px; height:34px; border-radius:99px"></span>
-              <span class="sk" style="width:84px; height:34px; border-radius:99px"></span>
-              <span class="sk" style="width:70px; height:34px; border-radius:99px"></span>
-              <span class="sk" style="width:96px; height:34px; border-radius:99px"></span>
+            <div class="bubbles">
+              <span class="bub sk"></span><span class="bub sk"></span><span class="bub sk"></span><span class="bub sk"></span><span class="bub sk"></span><span class="bub sk"></span><span class="bub sk"></span><span class="bub sk"></span>
             </div>
             <div class="sp"></div>
             <p class="t-label" style="margin:6px 2px 0">변형 — 조회 실패</p>
@@ -444,7 +487,7 @@
         </div>
       </div>
       <ul class="notes">
-        <li><span class="n">13</span><span>로딩은 칩 스켈레톤(0.3초 미만이면 미표시), 실패는 에러 + [다시 시도]다. 두 상태를 한 프레임에 병기한 것은 비교용이며 실제로는 한 형태만 나타난다. 현재 선택 없이 목록만 실패한 상태에서는 [저장]이 성립하지 않으므로 비활성이다. <span class="ref">interest-management 5 · common-error-handling 5</span></span></li>
+        <li><span class="n">13</span><span>로딩은 같은 벌집 자리에 회색 원 8개(0.3초 미만이면 미표시), 실패는 에러 + [다시 시도]다. 두 상태를 한 프레임에 병기한 것은 비교용이며 실제로는 한 형태만 나타난다. 현재 선택 없이 목록만 실패한 상태에서는 [저장]이 성립하지 않으므로 비활성이다. <span class="ref">interest-management 5 · common-error-handling 5</span></span></li>
       </ul>
     </article>
 
@@ -496,7 +539,7 @@
 
     <div class="vitem soft">
       <h3><span class="vid">V3</span>"변경 사항 N개" 표기의 위치 — <b>해소: 현행 유지 (검토 결정 2026-08-10)</b></h3>
-      <p>화면 상태 표의 "상단에 변경 사항 N개 표시"를 개수 라벨 옆 배지로 그렸고, <b>이 위치 그대로 확정했다.</b> N은 추가·해제 각각을 1개로 센 합계로 해석했다(해제 후 재선택은 0개 — 4.2의 "변경 없음" 규칙).</p>
+      <p><b>후속(2026-10-10): 배지 자체를 뺐다</b> — 버블 개편 때 PM이 "변경 사항 N개" 배지와 진행 막대를 제거했고, 하단 요약 바가 고른 주제를 보여 준다(<code>changes/interest-management-bubbles</code>). 아래는 당시 기록. 화면 상태 표의 "상단에 변경 사항 N개 표시"를 개수 라벨 옆 배지로 그렸고, 이 위치 그대로 확정했다. N은 추가·해제 각각을 1개로 센 합계로 해석했다(해제 후 재선택은 0개 — 4.2의 "변경 없음" 규칙).</p>
       <p class="where">interest-management 5 · 7 / 화면 IM3 · IM8</p>
     </div>
   </div>

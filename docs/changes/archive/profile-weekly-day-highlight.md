@@ -9,6 +9,7 @@
 | 기한 | 2026-10-16 (Low — 이번 주 안) |
 | 선행 | `tickets/backend/archive/daily-listening-highlight.md`(KAN-171) — 완료 |
 | 중요도 | Low — 문서 반영만 남았다 |
+| 반영 날짜 | 2026-10-14 |
 
 ## 배경
 
@@ -39,3 +40,7 @@ PM 2026-10-11 23:02 "이것도 ㄱㄱ"(요일 리텐션). 종전엔 요일을 �
 
 - Given 문서 반영 후, When profile-uiux.md 4.6 을 읽으면, Then 요일 선택 시 오른쪽 두 줄이 서버 `daily_listening_highlight` 3종으로 바뀌고 null 이면 숨긴다고 적혀 있다
 - Given 문서 반영 후, When 6장을 읽으면, Then 3종 카피와 이번 주/지난 주 앞말 차이가 적혀 있다
+
+## 처리 기록
+
+- 2026-10-14 반영 — `spec/uiux/profile-uiux.md` 4.6(요일 선택 시 `daily_listening_highlight` 3종 표, null 숨김·자리 유지) · 6장(요일 한 줄 카피 3종) · 7장(요일 낭독에 그날 한 줄). `profile-api.md` 는 KAN-171 로 이미 반영돼 있어 변경 없음.

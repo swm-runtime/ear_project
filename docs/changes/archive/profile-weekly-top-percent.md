@@ -9,6 +9,7 @@
 | 기한 | 2026-10-17 (Low — 다음 주 안) |
 | 선행 | `tickets/backend/archive/weekly-listening-top-percent.md`(KAN-168) — 계약 확정 |
 | 중요도 | Low — FE 는 필드가 없으면 그리지 않아 서버 반영 전에도 깨지지 않는다 |
+| 반영 날짜 | 2026-10-14 |
 
 ## 배경
 
@@ -40,3 +41,7 @@ PM 2026-10-10 23:36 "리텐션 상위 몇 % — 하루 평균 오른쪽에 애�
 
 - Given 문서 반영 후, When profile-api.md 4.1 `weekly_listening` 을 읽으면, Then `listening_top_percent` 와 `null` 조건이 적혀 있다
 - Given 문서 반영 후, When profile-uiux.md 주간 카드 요약 줄을 읽으면, Then 상위 % 알약 위치·카피·낭독과 숫자/단위 크기가 적혀 있다
+
+## 처리 기록
+
+- 2026-10-14 반영 — `spec/api/profile-api.md` 4.1(`listening_top_percent`·`listening_highlight` 는 BE 티켓으로 이미 반영돼 있어 "상위 N% 알약" 서술만 두 줄 표현으로 정리) · `features/profile.md` 4.6(요약 줄 옆 서버 판정 비교 한 줄, null 이면 없음) · `spec/uiux/profile-uiux.md` 4.6(하루 평균 34/20pt, 주간 한 줄 3종 표·앞말 규칙·낭독)·5·6·7장.
