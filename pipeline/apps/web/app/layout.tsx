@@ -1,10 +1,14 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import { Sidebar } from "@/components/sidebar";
+import { pipelineLocale } from "@/lib/locale";
 import { Topbar } from "@/components/topbar";
 import { currentUser, supabaseServer } from "@/lib/supabase-server";
 
-export const metadata: Metadata = { title: "ear 파이프라인", description: "이어 콘텐츠 파이프라인 관리" };
+/** 탭 제목으로도 두 인스턴스를 가른다 — 한국판·글로벌판 콘솔을 나란히 열어 둘 때 */
+export async function generateMetadata(): Promise<Metadata> {
+  return { title: pipelineLocale() === "en" ? "ear GLOBAL 파이프라인" : "ear 파이프라인", description: "이어 콘텐츠 파이프라인 관리" };
+}
 export const dynamic = "force-dynamic";
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
@@ -32,7 +36,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       <body className="min-h-screen">
         {user ? (
           <>
-            <Sidebar pending={pending} />
+            <Sidebar pending={pending} locale={pipelineLocale()} />
             <div className="pl-[188px]">
               <Topbar email={user.email ?? null} workers={workers} queuedAi={queuedAi} />
               <main className="px-6 py-6">{children}</main>

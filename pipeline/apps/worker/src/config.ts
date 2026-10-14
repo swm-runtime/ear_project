@@ -2,6 +2,7 @@ import "dotenv/config";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { pipelineLocale } from "@ear/pipeline";
 
 export type ExecutorKind = "claude-cli" | "api" | "openai" | "none";
 export type Capability = "ai" | "io";
@@ -34,7 +35,8 @@ const webUrl = (process.env.PIPELINE_WEB_URL || "").replace(/\/+$/, "");
 export const cfg = {
   databaseUrl: must("DATABASE_URL"),
   /** 자산 원본 루트 — 기본: 레포의 docs/ai. 규칙 자산 7개의 진실은 DB(prompt_assets)이고, 여기서는 spec/03·04·05 와 시딩 원본(assets:import)만 읽는다 (spec/10 3.2) */
-  assetSourceRoot: process.env.ASSET_ROOT || path.resolve(here, "..", "..", "..", "..", "docs", "ai"),
+  /** 명세 장(spec/03·04·05) 원본 — 한국판 docs/ai, 글로벌판(PIPELINE_LOCALE=en) docs/ai/global (같은 파일 이름 · 글로벌 명세 4.1). ASSET_ROOT 가 있으면 그것 */
+  assetSourceRoot: process.env.ASSET_ROOT || path.resolve(here, "..", "..", "..", "..", "docs", "ai", ...(pipelineLocale() === "en" ? ["global"] : [])),
   /** 산출물 작업 루트 — S3 의 로컬 캐시 (episodes/·sweeps/·assets/). `claude -p` 의 cwd 이기도 하다: 레포 안이면 루트 CLAUDE.md·.claude/ 가
    *  생성 컨텍스트에 섞이므로 레포 밖(기본 pipeline/.work, gitignore)에 둔다. 원본은 S3 (storage.ts) — 지워도 다음 단계가 다시 내려받는다. 구 REPO_ROOT 는 호환용 */
   workRoot: process.env.WORK_ROOT || process.env.REPO_ROOT || path.resolve(here, "..", "..", "..", ".work"),
@@ -134,6 +136,11 @@ export const cfg = {
   ttsTailGuard: process.env.TTS_TAIL_GUARD !== "0",
   ttsSpeedYuna: process.env.TTS_SPEED_YUNA ? Number(process.env.TTS_SPEED_YUNA) : 1.1, // 2026-09-07 박수헌: 윤아 보이스가 느려 1.2 → 2026-09-12 1.1 로 완화
   ttsSpeedEum: process.env.TTS_SPEED_EUM ? Number(process.env.TTS_SPEED_EUM) : 1,
+  /** 글로벌판(PIPELINE_LOCALE=en) 보이스·배속 — 진행자 순서(PIPELINE_SPEAKERS "해설,진행")대로 A·B. 보이스는 기본값 없음(페르소나·보이스 결정 대기, 글로벌 명세 6.7) — 비어 있으면 합성을 멈춘다 */
+  ttsVoiceA: process.env.TTS_VOICE_A ?? "",
+  ttsVoiceB: process.env.TTS_VOICE_B ?? "",
+  ttsSpeedA: process.env.TTS_SPEED_A ? Number(process.env.TTS_SPEED_A) : 1,
+  ttsSpeedB: process.env.TTS_SPEED_B ? Number(process.env.TTS_SPEED_B) : 1,
   /** TTS 비용 환산용 1천 자당 USD — 응답 헤더로 실제 크레딧을 못 받았을 때의 추정값. 2026-10-01 실측: 659,868자 ↔ 236,950크레딧(약 0.36크레딧/자) × Pro 추가 크레딧 $0.17/1,000 ≈ $0.061/1천 자.
    *  (구 기본값 $0.10 은 1자=1크레딧 가정이었다.) 요금제가 바뀌면 TTS_USD_PER_1K_CHARS 로 덮는다 */
   ttsUsdPer1kChars: process.env.TTS_USD_PER_1K_CHARS ? Number(process.env.TTS_USD_PER_1K_CHARS) : 0.061,

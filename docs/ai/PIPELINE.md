@@ -2,6 +2,7 @@
 
 > 갱신: 2026-08-23 · 이 문서가 파이프라인 명세의 **인덱스이자 기준**이다.
 > 단계별 세부 규칙은 [spec/](spec/) 문서에, 실행 현황은 [PIPELINE-STATUS.md](PIPELINE-STATUS.md)에 둔다.
+> 해외(영어) K-컬처 트랙은 별도 명세 [global/PIPELINE.md](global/PIPELINE.md)를 따른다 — 같은 코드를 `PIPELINE_LOCALE=en` 인스턴스로 띄운다(2026-10-14). 이 문서는 한국판 기준이다.
 > 2026-08 이전의 제안·검토 문서(archive/)는 레포 밖 작업 폴더에 보존한다 (수정하지 않음, 미커밋 — README "커밋하지 않는 것").
 
 ## 1. 개요

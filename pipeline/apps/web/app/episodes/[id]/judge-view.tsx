@@ -129,7 +129,7 @@ export function JudgeView({ episodeId, backlogId, turns, flags, stars, scores, t
                 className={`rounded px-2 py-1 ${t.kind === "Y" ? "pl-8" : ""} ${isOpen ? "bg-amber-50/70 ring-1 ring-amber-200" : marked ? "cursor-pointer hover:bg-[#f7f9fb]" : id ? "cursor-pointer hover:bg-[#fafbfc]" : ""}`}
                 onClick={() => id && !isOpen && setOpen(id)}>
                 <div className="flex gap-3">
-                  <span className={`h-fit shrink-0 whitespace-nowrap rounded px-1.5 py-0.5 text-[11px] font-medium ring-1 ring-inset ${t.speaker === "윤아" ? "bg-rose-50 text-rose-700 ring-rose-200" : "bg-sky-50 text-sky-700 ring-sky-200"}`}>
+                  <span className={`h-fit shrink-0 whitespace-nowrap rounded px-1.5 py-0.5 text-[11px] font-medium ring-1 ring-inset ${t.lead ? "bg-rose-50 text-rose-700 ring-rose-200" : "bg-sky-50 text-sky-700 ring-sky-200"}`}>
                     {id ?? t.section ?? "발췌"} {t.speaker}{id && editedTurns.has(id) ? " ✎" : ""}
                   </span>
                   <div className="min-w-0 flex-1">

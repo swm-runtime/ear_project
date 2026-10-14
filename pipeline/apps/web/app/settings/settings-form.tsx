@@ -6,8 +6,8 @@ import { Panel, btnCls } from "@/components/ui";
 
 const inp = "rounded border border-line px-2.5 py-1.5 text-[13px] outline-none focus:border-brand";
 
-export function SettingsForm({ tts, worker, templates, thumbnail, anchor, automation, aiPaused, ttsPaused, meta }: { tts: any; worker: any; templates: any; thumbnail: any; anchor: any; automation: { auto_approve?: boolean; auto_publish_prep?: boolean; rule?: string; server_ai_claim?: boolean } | null; aiPaused: { paused?: boolean; reason?: string; at?: string; job?: string } | null; ttsPaused: { paused?: boolean; reason?: string; at?: string; job?: string } | null; meta: any }) {
-  const [t, setT] = useState({ voices: { 윤아: "", 이음: "" }, speed: { 윤아: 1, 이음: 1 }, mode: "per-turn", model: "eleven_v3", ...tts });
+export function SettingsForm({ tts, worker, templates, thumbnail, anchor, automation, aiPaused, ttsPaused, meta, speakers, locale }: { speakers: readonly [string, string]; locale: "ko" | "en"; tts: any; worker: any; templates: any; thumbnail: any; anchor: any; automation: { auto_approve?: boolean; auto_publish_prep?: boolean; rule?: string; server_ai_claim?: boolean } | null; aiPaused: { paused?: boolean; reason?: string; at?: string; job?: string } | null; ttsPaused: { paused?: boolean; reason?: string; at?: string; job?: string } | null; meta: any }) {
+  const [t, setT] = useState({ voices: { [speakers[0]]: "", [speakers[1]]: "" }, speed: { [speakers[0]]: 1, [speakers[1]]: 1 }, mode: "per-turn", model: "eleven_v3", ...tts });
   const [w, setW] = useState({ default_model: "", ...worker });
   const [tpl, setTpl] = useState({ version: "tpl-v1", intro: "", closing: "", closing_signoff: "", major_lines: {} as Record<string, string>, ...templates });
   // 썸네일 대분류 띠 색(KAN-50 3-2) — 비우면 워커의 thumb-v1 기본값이 쓰인다
@@ -26,10 +26,12 @@ export function SettingsForm({ tts, worker, templates, thumbnail, anchor, automa
           군집화까지는 사람+Claude, 그 뒤는 워커가 잇는다. 끄면 그 지점부터 종전대로 사람이 누른다 — 진행 중인 작업은 끝까지 간다.
           하루 상한은 두지 않는다(API 쪽 hard limit 이 상한). 알림은 편마다가 아니라 큐가 다 비었을 때 한 번 — 검수 대기·검토 필요·초안 실패·연쇄 실패를 Slack 요약으로 보낸다.
         </p>
-        <label className="mb-2 flex items-start gap-2">
+        {locale === "en" ? (
+          <p className="mb-2 text-ink-soft"><b>후보 자동 승인 없음</b> — 글로벌판은 소스가 풀 밖에서 오므로 게이트 1을 사람만 승인한다(글로벌 명세 5장 원칙 6). 워커도 이 인스턴스에서는 자동 승인하지 않는다.</p>
+        ) : <label className="mb-2 flex items-start gap-2">
           <input type="checkbox" className="mt-0.5" checked={!!auto.auto_approve} onChange={(e) => setAuto({ ...auto, auto_approve: e.target.checked })} />
           <span><b>후보 자동 승인</b> (규칙 {auto.rule}) — 군집화 v2 · 빈 역할 없음 · 소스 겹침 경고 없음이면 <code>approved_by = auto:{auto.rule}</code> 로 승인하고 초안을 건다. 조건 밖 후보와 초안 실패로 돌아온 후보는 사람이 본다.</span>
-        </label>
+        </label>}
         <label className="mb-2 flex items-start gap-2">
           <input type="checkbox" className="mt-0.5" checked={!!auto.auto_publish_prep} onChange={(e) => setAuto({ ...auto, auto_publish_prep: e.target.checked })} />
           <span><b>비평 뒤 발행 준비 자동</b> — 비평이 끝나면 TTS → 썸네일 → 패키지를 바로 잇는다(ElevenLabs·OpenAI 과금). 추천 메타·검수·발행은 업로드 화면에서 사람이 한다.</span>
@@ -95,9 +97,9 @@ export function SettingsForm({ tts, worker, templates, thumbnail, anchor, automa
       </Panel>
       <Panel title="TTS (ElevenLabs, spec/06)" className="text-[13px]">
         <p className="mb-3 text-xs text-ink-soft">보이스 ID는 채널 아이덴티티 — 확정 후 고정한다 (미결 #8). 변환은 에피소드 화면의 [발행 준비] 또는 자동화(비평 뒤 자동)가 건다.</p>
-        {(["윤아", "이음"] as const).map((sp) => (
+        {speakers.map((sp) => (
           <div key={sp} className="mb-2 grid grid-cols-[3rem_1fr_5rem] items-center gap-2">
-            <span className={sp === "윤아" ? "text-rose-700" : "text-sky-700"}>{sp}</span>
+            <span className={sp === speakers[0] ? "text-rose-700" : "text-sky-700"}>{sp}</span>
             <input className={inp} placeholder="voice_id" value={t.voices?.[sp] ?? ""} onChange={(e) => setT({ ...t, voices: { ...t.voices, [sp]: e.target.value } })} />
             <input className={inp} type="number" step="0.05" min="0.7" max="1.2" value={t.speed?.[sp] ?? 1} onChange={(e) => setT({ ...t, speed: { ...t.speed, [sp]: Number(e.target.value) } })} />
           </div>

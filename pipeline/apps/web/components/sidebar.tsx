@@ -66,8 +66,11 @@ const NAV: (NavItem | typeof DIVIDER)[] = [
   DIVIDER,
   { href: "/guide", label: "가이드", icon: Book, note: "RUNBOOK" },
 ];
+/** 글로벌판(PIPELINE_LOCALE=en) 메뉴 — 입구가 주제 기획 하나라 스윕·군집화를 뺀다(글로벌 명세 3장·6.1) */
+const NAV_EN: (NavItem | typeof DIVIDER)[] = NAV.map((n) => ("href" in n && n.href === "/sweep" ? { href: "/sweep/topic", label: "주제 기획", icon: Radar } : n));
 
-export function Sidebar({ pending }: { pending?: { backlog?: number; review?: number } }) {
+/** locale 은 서버(layout)가 lib/locale.ts 로 읽어 넘긴다 — 브라우저는 env 를 못 읽는다 */
+export function Sidebar({ pending, locale = "ko" }: { pending?: { backlog?: number; review?: number }; locale?: "ko" | "en" }) {
   const path = usePathname();
   const on = (href: string, exact?: boolean) => (exact ? path === href : path.startsWith(href));
   const [consoleOpen, setConsoleOpen] = useState(false);
@@ -75,11 +78,12 @@ export function Sidebar({ pending }: { pending?: { backlog?: number; review?: nu
   const isLogsConsole = path.startsWith("/backend-logs");
   const isDripConsole = path.startsWith("/drip-check");
   const activeConsole = isLogsConsole ? CONSOLES[1] : isDripConsole ? CONSOLES[2] : CONSOLES[0];
-  const nav: (NavItem | typeof DIVIDER)[] = isLogsConsole ? LOG_NAV : isDripConsole ? DRIP_NAV : NAV;
+  const nav: (NavItem | typeof DIVIDER)[] = isLogsConsole ? LOG_NAV : isDripConsole ? DRIP_NAV : locale === "en" ? NAV_EN : NAV;
   return (
     <aside className="fixed inset-y-0 left-0 z-20 flex w-[188px] flex-col bg-side text-side-ink">
       <div className="relative flex h-14 items-center gap-2 px-5">
         <span className="grid h-7 w-7 place-items-center rounded bg-brand text-[13px] font-bold text-white">ear</span>
+        {locale === "en" && <span className="rounded bg-amber-400 px-1.5 py-0.5 text-[10px] font-bold tracking-wide text-black" title="글로벌판 인스턴스 — 한국판과 다른 DB·버킷">GLOBAL</span>}
         <button
           type="button"
           onClick={() => setConsoleOpen((v) => !v)}
