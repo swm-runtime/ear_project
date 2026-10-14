@@ -1,6 +1,8 @@
 import type { Executor, ExecRequest, ExecResult, Progress } from "./types.js";
 import { ClaudeCliExecutor } from "./claude-cli.js";
 import { OpenAiExecutor } from "./openai-api.js";
+import { OpenAiSearchExecutor } from "./openai-search.js";
+import { pipelineLocale } from "@ear/pipeline";
 import type { ExecutorKind } from "../config.js";
 
 class NoneExecutor implements Executor {
@@ -39,7 +41,7 @@ export function makeExecutor(kind: ExecutorKind, model?: string): Executor {
   switch (kind) {
     case "claude-cli": return new RoutedExecutor(new ClaudeCliExecutor(model));
     case "api": return new ApiExecutor();
-    case "openai": return new OpenAiExecutor(model); // 실험 (2026-09-19): GPT 로 같은 후보를 재생성해 비용·품질 비교. 단발 호출만
+    case "openai": return pipelineLocale() === "en" ? new OpenAiSearchExecutor(model) : new OpenAiExecutor(model); // 실험 (2026-09-19): GPT 로 같은 후보를 재생성해 비용·품질 비교. 단발 호출만 · en 인스턴스만 웹 검색(2026-10-15 KAN-209 — 한국판은 그대로 거절)
     default: return new NoneExecutor();
   }
 }

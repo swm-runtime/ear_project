@@ -362,6 +362,11 @@ export async function blockedTierHosts(): Promise<Set<string>> {
   const r = await pool.query("select domain from public.domains where tier = 'blocked'");
   return new Set(r.rows.map((x) => String(x.domain).replace(/^www\./, "")));
 }
+/** 검색 제외 호스트 — 차단·보류·자동 제외(fetch_blocked_at). 글로벌판 OpenAI 웹 검색의 blocked_domains 로 보낸다(글로벌 명세 4.4). 경로가 붙은 공유 호스트 행은 호스트 단위 제외가 과해 뺀다 */
+export async function searchExcludedHosts(): Promise<string[]> {
+  const r = await pool.query("select domain from public.domains where (tier in ('blocked','hold') or fetch_blocked_at is not null) and position('/' in domain) = 0 order by tier, domain");
+  return r.rows.map((x) => String(x.domain).replace(/^www\./, ""));
+}
 export async function domainTierByHost(): Promise<Map<string, string>> {
   const r = await pool.query("select domain, tier from public.domains");
   return new Map(r.rows.map((x) => [x.domain as string, x.tier as string]));

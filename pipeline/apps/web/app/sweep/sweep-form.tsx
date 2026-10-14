@@ -1,6 +1,6 @@
 "use client";
 import { useState, useTransition } from "react";
-import { enqueueJob } from "../actions";
+import { enqueueJob, requestGlobalTopicPlan } from "../actions";
 import { btnCls } from "@/components/ui";
 
 const sel = "rounded border border-line px-2.5 py-1.5 outline-none focus:border-brand";
@@ -66,6 +66,54 @@ export function TopicSeedForm({ mids }: { mids: string[] }) {
         <button className={btnCls("primary")} disabled={pending || !ok}
           onClick={() => start(async () => { try { const id = await enqueueJob("sweep", { mode: "B2", mid_topic: mid, topic: topic.trim(), ...(hint.trim() ? { hint: hint.trim() } : {}) }); setMsg(`주제 기획 요청됨 (${id.slice(0, 8)}) — 노트북 Claude 워커가 집으면 백로그에 🔎 후보가 보류로 생기고, 판정이 끝나면 승인 대기로 올라갑니다`); setTopic(""); setHint(""); } catch (e: any) { setMsg(e.message); } })}>소스 찾아 후보 만들기</button>
         {msg && <span className="text-xs text-ink-soft">{msg}</span>}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * 글로벌판 주제 기획 (명세 6.1, 2026-10-15 KAN-209) — 주제 1~2개(첫째가 대표). 입력하면 웹 서버가 배제 주제(2.1)를 먼저 판정하고,
+ * 해당하면 작업을 만들지 않고 사유를 보인다. 통과하면 서버 워커(OpenAI 웹 검색)가 집는다.
+ */
+export function GlobalTopicSeedForm({ topics }: { topics: readonly string[] }) {
+  const [main, setMain] = useState(topics[0] ?? "");
+  const [sub, setSub] = useState("");
+  const [title, setTitle] = useState("");
+  const [hint, setHint] = useState("");
+  const [pending, start] = useTransition();
+  const [msg, setMsg] = useState<{ text: string; bad: boolean } | null>(null);
+  const ok = main && title.trim().length >= 4 && sub !== main;
+  return (
+    <div className="space-y-3 rounded-md border border-line bg-panel p-4 text-[13px] shadow-[0_1px_2px_rgba(38,49,61,0.04)]">
+      <div className="flex flex-wrap items-center gap-2">
+        <label>대표 주제 *</label>
+        <select className={sel} value={main} onChange={(e) => setMain(e.target.value)}>{topics.map((t) => <option key={t}>{t}</option>)}</select>
+        <label className="ml-2">보조 주제</label>
+        <select className={sel} value={sub} onChange={(e) => setSub(e.target.value)}>
+          <option value="">없음</option>
+          {topics.filter((t) => t !== main).map((t) => <option key={t}>{t}</option>)}
+        </select>
+        <span className="text-[11px] text-ink-soft">보조 주제는 그 주제 관심 사용자가 들어도 납득할 만큼 축이 걸칠 때만</span>
+      </div>
+      <label className="block">
+        <span className="mb-1 block text-xs font-semibold text-ink-soft">제목안 (답할 질문 또는 주장 한 줄) *</span>
+        <input className={`${sel} w-full`} maxLength={160} placeholder="예: Why are Korean holiday foods so oily?" value={title} onChange={(e) => setTitle(e.target.value)} />
+      </label>
+      <label className="block">
+        <span className="mb-1 block text-xs font-semibold text-ink-soft">메모 (선택 — 각도, 꼭 다룰 것, 피할 것, 참고 링크)</span>
+        <textarea className={`${sel} w-full`} rows={2} maxLength={400} value={hint} onChange={(e) => setHint(e.target.value)} />
+      </label>
+      <div className="flex items-center gap-2">
+        <button className={btnCls("primary")} disabled={pending || !ok}
+          onClick={() => start(async () => {
+            setMsg(null);
+            try {
+              const r = await requestGlobalTopicPlan({ topics: [main, sub].filter(Boolean), title, hint });
+              if (!r.ok) { setMsg({ text: `접수하지 않음 — ${r.reason}`, bad: true }); return; }
+              setMsg({ text: `주제 기획 요청됨 (${r.jobId.slice(0, 8)}) — 서버 워커가 집으면 백로그에 🔎 후보가 보류로 생기고, 판정이 끝나면 승인 대기로 올라갑니다`, bad: false }); setTitle(""); setHint("");
+            } catch (e: any) { setMsg({ text: e.message, bad: true }); }
+          })}>{pending ? "배제 주제 확인 중…" : "소스 찾아 후보 만들기"}</button>
+        {msg && <span className={`text-xs ${msg.bad ? "text-red-700" : "text-ink-soft"}`}>{msg.text}</span>}
       </div>
     </div>
   );

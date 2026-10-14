@@ -3,6 +3,10 @@ import { supabaseServer } from "@/lib/supabase-server";
 import { Badge, PageHeader, Panel, Table, Td } from "@/components/ui";
 import { fmtTime } from "@/lib/format";
 import { GateButtons } from "./gate-buttons";
+import { ConfirmWarningsButton, SubTopicSelect } from "./global-gate1";
+import { pipelineLocale } from "@/lib/locale";
+import { majorTopicsFor } from "@/lib/taxonomy";
+import { gate1Check, type Gate1Domain } from "@/lib/gate1";
 
 const GROUPS: [string, string[], string][] = [
   ["에피소드 승인 대기", ["proposed", "held"], "사람이 주제+소스 묶음을 승인한다. 승인하면 워커가 대본 생성을 시작한다"],
@@ -27,11 +31,15 @@ export default async function BacklogPage({ searchParams }: { searchParams: Prom
     return `/backlog${qs ? `?${qs}` : ""}#g${i}`;
   };
   const sb = await supabaseServer();
-  const [{ data: rows }, { data: eps }, { data: rjobs }] = await Promise.all([
-    sb.from("backlog").select("id,mid_topic,title,target_fit,angle,sources,status,dedup_note,approved_by,approved_at,axis,axis_type,gaps,cluster_version,reinforced_at,reinforce_note,created_at").order("created_at", { ascending: false }),
+  // 글로벌판(KAN-209)만 0028 칸(sub_topic·gate1_checks)과 도메인 판정을 읽어 게이트 1 조건을 보인다 — 한국판 쿼리는 종전 그대로
+  const en = pipelineLocale() === "en";
+  const [{ data: rows }, { data: eps }, { data: rjobs }, { data: domains }] = await Promise.all([
+    sb.from("backlog").select(`id,mid_topic,title,target_fit,angle,sources,status,dedup_note,approved_by,approved_at,axis,axis_type,gaps,cluster_version,reinforced_at,reinforce_note,created_at${en ? ",sub_topic,gate1_checks" : ""}` as "*").order("created_at", { ascending: false }),
     sb.from("episodes").select("id,backlog_id,regression_kind"),
     sb.from("jobs").select("payload").eq("type", "sweep").in("status", ["queued", "claimed", "running"]).eq("payload->>mode", "B"), // 보강 스윕 진행 중 (0019)
+    en ? sb.from("domains").select("id,domain,tier") : Promise.resolve({ data: null }),
   ]);
+  const gate1 = (r: any) => (en && (r.status === "proposed" || r.status === "held") ? gate1Check(r, (domains ?? []) as Gate1Domain[]) : null);
   const reinforcing = new Set((rjobs ?? []).map((j) => String((j.payload as { backlog_id?: string } | null)?.backlog_id ?? "")));
   const epOf = new Map((eps ?? []).map((e) => [e.backlog_id, e.id]));
   // 회귀 세트 실험용(심은 오류본·저품질 앵커)의 백로그 행은 게이트 1 대상이 아니다 — 비평 워커가 요구하는 제목·중분류 자리일 뿐. 여기서는 숨기고 에피소드 목록의 회귀 배지로만 본다 (2026-09-07)
@@ -76,6 +84,13 @@ export default async function BacklogPage({ searchParams }: { searchParams: Prom
                       {r.angle && <p className="mt-0.5 line-clamp-2 max-w-2xl text-xs leading-relaxed text-ink-soft" title={r.angle}>{r.angle}</p>}
                       {r.target_fit && <p className="mt-0.5 text-[11px] text-ink-soft">타깃: {r.target_fit}</p>}
                       {r.dedup_note?.includes("⚠️") && <p className="mt-1 text-[11px] text-amber-700">{r.dedup_note.split(" | ")[0]}</p>}
+                      {(() => { const g = gate1(r); if (!g) return null; return (
+                        <div className={`mt-1 rounded border px-2 py-1 text-[11px] ${g.ok ? "border-emerald-200 bg-emerald-50 text-emerald-800" : "border-amber-200 bg-amber-50 text-amber-800"}`}>
+                          <span className="font-semibold">게이트 1 {g.ok ? "조건 충족" : "조건 미충족"}</span>{g.blockers.length ? ` — ${g.blockers.join(" · ")}` : ""}
+                          {g.pendingDomains.length > 0 && <div className="mt-0.5">판정 대기: {g.pendingDomains.map((d, i) => <span key={d.domain}>{i ? " · " : ""}{d.id ? <Link className="underline" href={`/domains/${d.id}`}>{d.domain}</Link> : <span title="도메인 표에 없음 — 소스 풀에서 추가">{d.domain}(미등록)</span>}</span>)}</div>}
+                          {g.needsWarningConfirm && !r.gate1_checks?.warnings_confirmed && <div className="mt-1"><ConfirmWarningsButton id={r.id} /></div>}
+                        </div>
+                      ); })()}
                       <details className="mt-1">
                         <summary className="cursor-pointer text-[11px] text-ink-soft">소스 목록</summary>
                         <ul className="mt-1 space-y-0.5">
@@ -91,7 +106,7 @@ export default async function BacklogPage({ searchParams }: { searchParams: Prom
                         </ul>
                       </details>
                     </Td>
-                    <Td className="whitespace-nowrap text-xs text-ink-soft">{r.mid_topic}</Td>
+                    <Td className="whitespace-nowrap text-xs text-ink-soft">{r.mid_topic}{en && (r.status === "proposed" || r.status === "held" ? <div><SubTopicSelect id={r.id} main={r.mid_topic} sub={r.sub_topic ?? null} topics={majorTopicsFor("en")} /></div> : r.sub_topic ? <div>+ {r.sub_topic}</div> : null)}</Td>
                     <Td className="text-center tabular-nums">{Array.isArray(r.sources) ? r.sources.length : 0}</Td>
                     <Td>
                       <Badge value={r.status} />
@@ -99,7 +114,7 @@ export default async function BacklogPage({ searchParams }: { searchParams: Prom
                     </Td>
                     <Td className="whitespace-nowrap">
                       <div className="flex flex-col items-start gap-1">
-                        <GateButtons id={r.id} status={r.status} reinforce={{ eligible: (r.status === "held" || r.status === "proposed") && !r.reinforced_at, running: reinforcing.has(r.id) }} />
+                        <GateButtons id={r.id} status={r.status} reinforce={{ eligible: (r.status === "held" || r.status === "proposed") && !r.reinforced_at, running: reinforcing.has(r.id) }} approveBlocked={(() => { const g = gate1(r); return g && !g.ok ? `게이트 1 조건 미충족: ${g.blockers.join(" · ")}` : null; })()} />
                         {epOf.get(r.id) && <Link href={`/episodes/${epOf.get(r.id)}`} className="whitespace-nowrap text-[11px] underline">{epOf.get(r.id)} →</Link>}
                       </div>
                     </Td>

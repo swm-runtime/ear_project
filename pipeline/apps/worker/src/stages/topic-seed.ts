@@ -35,6 +35,8 @@ export async function runTopicSeed(job: Job, ex: Executor) {
 
   // ── 0. 후보 행 (held)
   const id = await insertBacklogAlloc({ mid_topic: midTopic, title: topic, summary: hint ?? "", target_fit: "", angle: "", sources: [], status: "held", dedup_note: `${TOPIC_SEED_MARK} 검색 진행 중 (${todayKst()}, 입력: "${topic.slice(0, 60)}")`, cluster_version: "v2", gaps: [] });
+  // 글로벌판 기획 입력만 싣는 값(2026-10-15 KAN-209 — 보조 주제·배제 주제 판정). 한국판 payload 에는 없어 이 줄을 타지 않는다
+  if (job.payload.sub_topic || job.payload.screen) await setBacklogStatus(id, "held", { ...(job.payload.sub_topic ? { sub_topic: String(job.payload.sub_topic) } : {}), ...(job.payload.screen ? { gate1_checks: JSON.stringify({ screen: job.payload.screen }) } : {}) });
   log(`  topic-seed ${id}: "${topic}" (${midTopic}) — 검색 시작`);
   try {
     // ── 1. 검색
