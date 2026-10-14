@@ -23,10 +23,16 @@ interface InterestBubbleProps {
   onPress: () => void;
 }
 
-/** 빗금 — 흰 선, 반투명(어두운 스크림 위 "창문 블라인드"). 간격·굵기는 버블 지름과 무관하게 일정하게 */
+/**
+ * 빗금 — 흰 선(블라인드 살), 반투명. 간격·굵기는 버블 지름과 무관하게 일정하게.
+ * 밝은 사진(IT·개발 같은 코드 이미지) 위에서도 또렷하게: 아래 옅은 어두운 판(블라인드 사이 그늘)을
+ * 깔고 그 위에 흰 살을 얹는다 — 흰 선만으로는 밝은 사진에 묻힌다(2026-10-14 실기기 확인, juho).
+ */
 const HATCH_GAP = 7;
-const HATCH_STROKE = 1.5;
-const HATCH_OPACITY = 0.4;
+const HATCH_STROKE = 2;
+const HATCH_OPACITY = 0.55;
+/** 블라인드 사이 그늘 — 흰 살이 어떤 사진 위에서도 뜨게 하는 옅은 어두운 판 */
+const HATCH_SCRIM_OPACITY = 0.22;
 
 /** 선택되면 커지고 상한 뒤 남은 주제는 물러난다 — 물리가 이 배율로 이웃을 밀어낸다(Magnetic 은 4/3) */
 export const SCALE_SELECTED = 1.2;
@@ -90,7 +96,9 @@ export default function InterestBubble({
       {/* 자동 확장 주제 — 사진 위 빗금("창문 블라인드"). 이름은 위에 그대로 올라 읽힌다(빗금은 label 아래) */}
       {isAutoExpanded ? (
         <View style={[styles.hatchClip, { borderRadius: radius }]} pointerEvents="none">
-          <Svg width="100%" height="100%">
+          {/* 퍼센트 대신 숫자 지름 — react-native-svg 는 absoluteFill 안에서 width="100%" 를 못 잡아
+              SVG 가 0 으로 안 그려지는 함정이 있다(2026-10-14 실기기 빗금 미표시, juho) */}
+          <Svg width={size} height={size}>
             <Defs>
               <Pattern
                 id={hatchId}
@@ -110,7 +118,9 @@ export default function InterestBubble({
                 />
               </Pattern>
             </Defs>
-            <Rect x={0} y={0} width="100%" height="100%" fill={`url(#${hatchId})`} />
+            {/* 블라인드 사이 그늘 — 밝은 사진 위에서도 흰 살이 떠 보이게 옅은 어두운 판을 먼저 깐다 */}
+            <Rect x={0} y={0} width={size} height={size} fill="#000000" fillOpacity={HATCH_SCRIM_OPACITY} />
+            <Rect x={0} y={0} width={size} height={size} fill={`url(#${hatchId})`} />
           </Svg>
         </View>
       ) : null}
