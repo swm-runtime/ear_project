@@ -7,6 +7,8 @@ import { DataSource } from 'typeorm';
 
 import { AppModule } from '@/app.module';
 import { toServiceDayRange } from '@/common/utils/service-date.util';
+import { ContentOrigin, ContentStatus } from '@/modules/content/content.enum';
+import { Content } from '@/modules/content/entities/content.entity';
 import { DripBatchOrchestrator } from '@/modules/drip-batch/drip-batch.orchestrator';
 import { NotificationLog } from '@/modules/notification/entities/notification-log.entity';
 import { NotificationStatus } from '@/modules/notification/notification.enum';
@@ -50,6 +52,7 @@ describe('드립 도착 알림 07:00 E2E', () => {
   const BATCH_END_OFFSET = 10_000;
 
   const userIds: string[] = [];
+  const contentIds: string[] = [];
 
   beforeAll(async () => {
     const moduleRef = await Test.createTestingModule({ imports: [AppModule] })
@@ -79,16 +82,15 @@ describe('드립 도착 알림 07:00 E2E', () => {
       ]);
       await dataSource.query(`DELETE FROM users WHERE id = $1`, [userId]);
     }
+    for (const contentId of contentIds) {
+      await dataSource.query(`DELETE FROM contents WHERE id = $1`, [contentId]);
+    }
     await app.close();
   }, 60_000);
 
   it('배치가 적립한 편만 사용자당 1건으로 보낸다 — 지운 편·배치 뒤 적립·미완료 배치는 빠진다', async () => {
-    const [c1, c2, c3] = await dataSource.query<
-      { id: string; title: string }[]
-    >(
-      `SELECT id, title FROM contents WHERE status = 'published' ORDER BY id LIMIT 3`,
-    );
-    expect(c3).toBeDefined();
+    // CI DB 는 비어 있다 — 콘텐츠를 직접 심는다
+    const [c1, c2, c3] = await seedContents(3);
 
     const placed = await createUser('placed');
     const late = await createUser('late');
@@ -133,6 +135,40 @@ describe('드립 도착 알림 07:00 E2E', () => {
   });
 
   // --- 헬퍼 ---
+
+  async function seedContents(count: number): Promise<Content[]> {
+    const repository = dataSource.getRepository(Content);
+    const contents: Content[] = [];
+
+    for (let index = 0; index < count; index += 1) {
+      const content = await repository.save(
+        repository.create({
+          title: `E2E 07시 알림 콘텐츠 ${index}`,
+          description: 'e2e 전용',
+          authorName: '테스트',
+          sourceName: 'E2E',
+          sourceUrl: null,
+          origin: ContentOrigin.AI_GENERATED,
+          partnerId: null,
+          seriesId: null,
+          episodeNo: null,
+          totalEpisodes: null,
+          audioPath: `e2e-push0700/${index}.mp3`,
+          durationSec: 600,
+          thumbnailUrl: 'https://example.com/e2e.png',
+          contentVersion: 1,
+          licenseExpiresAt: null,
+          status: ContentStatus.PUBLISHED,
+          publishedAt: new Date('2029-12-01T00:00:00.000Z'),
+          withdrawnAt: null,
+        }),
+      );
+      contentIds.push(content.id);
+      contents.push(content);
+    }
+
+    return contents;
+  }
 
   async function createUser(label: string): Promise<string> {
     const repository = dataSource.getRepository(User);
