@@ -24,7 +24,7 @@
 - KR 07:00 KST 알림 분리(PR #1532)를 그룹 단위로 넓힌다: `notifyTodayArrivals(now, group)`이 그 그룹의 `drip_batch_runs` 행을 찾고 그 그룹 사용자 적립분만 읽는다. 늦게 끝난 배치의 즉시 발송 판정(`isAfterArrivalPushTime`)도 그룹 현지 07:00 기준. 푸시 `ttl`은 그룹의 다음 배치까지. 그룹 알림 시각이 KST 서비스 날짜(05:00 경계)를 넘으면 하루 1건 판정이 어긋나고 발송이 빠지는 구간이 생기므로, 그룹 경계(미결 #3)를 정할 때 함께 확인한다.
 - `drip_batch_runs`에 `group`(DEFAULT `asia`), 유니크 `(run_date) → (run_date, group)`. `claim`·`reclaimUnfinished`·`already_placed` 판정은 그룹 안에서 종전과 같다.
 - 서비스 날짜 경계는 전 시장 **05:00 KST 단일 유지** — 재생 한도·체험·주간 창은 손대지 않는다.
-- 푸시 제목·본문과 인증 메일을 `users.language_code`(ko/en)로 템플릿 선택. en 템플릿 신설.
+- 푸시 제목·본문과 인증 메일을 `users.market`(KR → ko · GLOBAL → en)으로 템플릿 선택. en 템플릿 신설(2026-10-14 — 기기 언어가 아니라 시장으로 고른다, `global-api.md` 2.3).
 - `features/drip-scheduling.md` 개정 요청(changes/pending).
 
 ## 범위 밖
@@ -37,7 +37,7 @@
 - Given 같은 그룹 / When 그 그룹의 현지 07:00 UTC 시각 / Then 그 그룹 적립분만 영어 푸시로 사용자당 1건. 다른 그룹 사용자에게는 가지 않는다
 - Given KR 사용자 / Then 05:00 KST 편성·07:00 KST 알림이 종전과 동일(회귀)
 - Given 같은 `run_date`에 그룹 3개 실행 / Then `drip_batch_runs` 3행, 중복 편성 0건
-- Given `language_code = en-US` 계정의 인증 메일 / Then 영어 템플릿
+- Given GLOBAL 계정의 인증 메일 / Then 영어 템플릿. KR 계정은 기기 언어가 영어여도 한국어
 
 ## 처리 기록
 - 2026-10-14 발행(마크다운 + Jira). 묶음 티켓 분할.

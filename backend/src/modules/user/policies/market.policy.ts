@@ -1,4 +1,4 @@
-import { PreferredLanguage, UserMarket } from '../user.enum';
+import { MessageLanguage, PreferredLanguage, UserMarket } from '../user.enum';
 import { LocaleInput, NormalizedLocale } from '../user.types';
 
 /**
@@ -29,6 +29,15 @@ export function resolveMarket(input: {
     market: primary === 'ko' ? UserMarket.KR : UserMarket.GLOBAL,
     source: 'device',
   };
+}
+
+/**
+ * 서버 문구(푸시·인증 메일)의 언어 — **시장으로 고른다**(1단계, `global-api.md` 2.3). 시장마다 콘텐츠 언어가 하나라
+ * (KR = 한국어 · GLOBAL = 영어) 문구도 그 언어를 따른다. 기기 언어(`language_code`)로 고르면 영어 기기를 쓰는 KR
+ * 사용자가 한국어 콘텐츠를 영어 알림으로 받는다. 시장 안에 언어가 둘 이상이 되면(2단계) `language_code`로 넓힌다.
+ */
+export function messageLanguageOf(market: UserMarket): MessageLanguage {
+  return market === UserMarket.GLOBAL ? MessageLanguage.EN : MessageLanguage.KO;
 }
 
 /** 토큰 클레임(문자열)을 enum으로 — 모르는 값은 `kr`(옛 토큰·위조 불가한 서명값이라 정상 경로에선 항상 enum 값이다) */

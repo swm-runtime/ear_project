@@ -87,6 +87,12 @@ export enum UserMarket {
   GLOBAL = 'global',
 }
 
+/** 서버가 고르는 문구(푸시·인증 메일)의 언어 — `global-api.md` 2.3 */
+export enum MessageLanguage {
+  KO = 'ko',
+  EN = 'en',
+}
+
 /** 가입 화면에서 사용자가 고른 콘텐츠 언어(`global-api.md` 4.1 `locale.preferred_language`) — 시장 판정의 입력 */
 export enum PreferredLanguage {
   KO = 'ko',

@@ -5,6 +5,7 @@ import { ConfigService } from '@nestjs/config';
 import { EnvironmentVariables } from '@/config/env.validation';
 
 import { MailClient } from './mail.client';
+import { MessageLanguage } from './user.enum';
 import { renderVerificationMail } from './verification-mail.template';
 
 /**
@@ -49,8 +50,12 @@ export class SesMailClient extends MailClient {
     this.fromAddress = configService.get('MAIL_FROM_ADDRESS', { infer: true });
   }
 
-  async sendVerificationCode(email: string, code: string): Promise<void> {
-    const { subject, html, text } = renderVerificationMail(code);
+  async sendVerificationCode(
+    email: string,
+    code: string,
+    language: MessageLanguage,
+  ): Promise<void> {
+    const { subject, html, text } = renderVerificationMail(code, language);
 
     await this.ses.send(
       new SendEmailCommand({

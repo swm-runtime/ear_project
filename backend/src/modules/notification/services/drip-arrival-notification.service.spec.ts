@@ -2,7 +2,9 @@ import { Logger } from '@nestjs/common';
 
 import { DeviceToken } from '@/modules/user/entities/device-token.entity';
 import { DeviceTokenService } from '@/modules/user/services/device-token.service';
+import { UserService } from '@/modules/user/services/user.service';
 import { UserSettingService } from '@/modules/user/services/user-setting.service';
+import { MessageLanguage } from '@/modules/user/user.enum';
 
 import { NotificationLog } from '../entities/notification-log.entity';
 import {
@@ -51,6 +53,7 @@ describe('DripArrivalNotificationService', () => {
   let userSettingService: jest.Mocked<UserSettingService>;
   let pushClient: jest.Mocked<PushClient>;
   let pushReceiptService: jest.Mocked<PushReceiptService>;
+  let userService: jest.Mocked<UserService>;
   let uninstallAlertService: jest.Mocked<UninstallAlertService>;
 
   const insertedLogs = (): Partial<NotificationLog>[] =>
@@ -86,6 +89,10 @@ describe('DripArrivalNotificationService', () => {
         .mockResolvedValue(new Set()),
     } as unknown as jest.Mocked<UserSettingService>;
 
+    userService = {
+      findMessageLanguagesByIds: jest.fn().mockResolvedValue(new Map()),
+    } as unknown as jest.Mocked<UserService>;
+
     pushClient = {
       send: jest.fn().mockImplementation((messages: PushMessage[]) =>
         Promise.resolve(
@@ -110,10 +117,56 @@ describe('DripArrivalNotificationService', () => {
       notificationLogRepository,
       deviceTokenService,
       userSettingService,
+      userService,
       pushClient,
       pushReceiptService,
       uninstallAlertService,
     );
+  });
+
+  it('GLOBAL 사용자에게는 영어 제목으로 보낸다 — 본문은 콘텐츠 제목 그대로다(global-api 2.3)', async () => {
+    // given
+    userService.findMessageLanguagesByIds.mockResolvedValue(
+      new Map([[USER_ID, MessageLanguage.EN]]),
+    );
+
+    // when
+    await service.notify([buildArrival()], NOW);
+
+    // then
+    expect(sentMessages()[0]).toMatchObject({
+      title: 'Your 3 episodes for today are here',
+      body: '연봉 협상의 기술',
+    });
+  });
+
+  it('GLOBAL 사용자에게 1편이면 단수 영어 제목으로 보낸다', async () => {
+    // given
+    userService.findMessageLanguagesByIds.mockResolvedValue(
+      new Map([[USER_ID, MessageLanguage.EN]]),
+    );
+
+    // when
+    await service.notify(
+      [
+        buildArrival({
+          regular: [{ contentId: 'r1', title: 'Negotiating a raise' }],
+          discovery: [],
+        }),
+      ],
+      NOW,
+    );
+
+    // then
+    expect(sentMessages()[0].title).toBe('Your episode for today is here');
+  });
+
+  it('언어를 모르는 사용자(조회 결과에 없음)는 종전처럼 한국어로 보낸다', async () => {
+    // when — 기본 mock 은 빈 Map 이다
+    await service.notify([buildArrival()], NOW);
+
+    // then
+    expect(sentMessages()[0].title).toBe('오늘의 콘텐츠 3편이 도착했어요');
   });
 
   it('정규 2편과 탐험 1편이 적립되면 "3편 도착" 알림 1건을 보내고 sent 로 기록한다', async () => {

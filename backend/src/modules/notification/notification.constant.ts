@@ -1,3 +1,5 @@
+import { MessageLanguage } from '@/modules/user/user.enum';
+
 /** Expo Push API — https://docs.expo.dev/push-notifications/sending-notifications/ */
 export const EXPO_PUSH_SEND_URL = 'https://exp.host/--/api/v2/push/send';
 export const EXPO_PUSH_RECEIPTS_URL =
@@ -62,6 +64,16 @@ export const DEEP_LINK_LIBRARY = 'ear://library';
 export const buildContentDeepLink = (contentId: string): string =>
   `ear://contents/${contentId}`;
 
-/** `notification.md` 4.3 문구 */
-export const buildDripArrivalTitle = (count: number): string =>
-  `오늘의 콘텐츠 ${count}편이 도착했어요`;
+/** `notification.md` 4.3 문구. 언어는 시장으로 고른다(`global-api.md` 2.3) — 영어는 GLOBAL 사용자 몫이다 */
+export const buildDripArrivalTitle = (
+  count: number,
+  language: MessageLanguage,
+): string => {
+  if (language === MessageLanguage.EN) {
+    return count === 1
+      ? 'Your episode for today is here'
+      : `Your ${count} episodes for today are here`;
+  }
+
+  return `오늘의 콘텐츠 ${count}편이 도착했어요`;
+};

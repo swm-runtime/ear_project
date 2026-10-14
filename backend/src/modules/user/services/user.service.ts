@@ -11,6 +11,7 @@ import { EnvironmentVariables } from '@/config/env.validation';
 import { ConsentService } from './consent.service';
 import { User } from '../entities/user.entity';
 import {
+  messageLanguageOf,
   normalizeLanguageCode,
   normalizeLocale,
   resolveMarket,
@@ -24,6 +25,7 @@ import {
   CURRENT_CONSENT_VERSIONS,
 } from '../user.constant';
 import {
+  MessageLanguage,
   OnboardingStep,
   SocialProvider,
   UserRole,
@@ -63,6 +65,15 @@ export class UserService {
     manager?: EntityManager,
   ): Promise<User[]> {
     return this.userRepository.findDripTargetsPage(afterId, limit, manager);
+  }
+
+  /** 사용자별 서버 문구 언어(`global-api.md` 2.3 — 시장으로 고른다). 없는 사용자는 결과에 없다 */
+  async findMessageLanguagesByIds(
+    ids: string[],
+  ): Promise<Map<string, MessageLanguage>> {
+    const rows = await this.userRepository.findMarketsByIds(ids);
+
+    return new Map(rows.map((row) => [row.id, messageLanguageOf(row.market)]));
   }
 
   /** 편성 미리보기(admin) — 이메일로 대상 사용자 한 명. 역할 무관, 없으면 null */
