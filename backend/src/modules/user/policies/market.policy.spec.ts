@@ -1,5 +1,5 @@
 import { PreferredLanguage, UserMarket } from '../user.enum';
-import { normalizeLocale, resolveMarket } from './market.policy';
+import { normalizeLocale, resolveMarket, toUserMarket } from './market.policy';
 
 describe('resolveMarket', () => {
   it('사용자가 고른 콘텐츠 언어가 있으면 그것이 유일한 입력이다 — 영어 기기여도 한국어를 고르면 kr', () => {
@@ -80,5 +80,14 @@ describe('normalizeLocale', () => {
 
   it('UTC는 유효한 시간대다', () => {
     expect(normalizeLocale({ timezone: 'UTC' }).timezone).toBe('UTC');
+  });
+});
+
+describe('toUserMarket', () => {
+  it('토큰 클레임이 global이면 GLOBAL, 그 밖(없음·모르는 값)은 KR이다 — 옛 토큰이 KR로 동작한다', () => {
+    expect(toUserMarket('global')).toBe(UserMarket.GLOBAL);
+    expect(toUserMarket('kr')).toBe(UserMarket.KR);
+    expect(toUserMarket(undefined)).toBe(UserMarket.KR);
+    expect(toUserMarket('mars')).toBe(UserMarket.KR);
   });
 });

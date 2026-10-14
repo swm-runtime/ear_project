@@ -15,7 +15,11 @@ interface AccessTokenPayload {
   sub: string;
   role: string;
   typ: string;
+  /** 시장 클레임 — 배포 전 발급된 토큰에는 없다 */
+  market?: string;
 }
+
+const DEFAULT_MARKET = 'kr';
 
 const ACCESS_TOKEN_TYPE = 'access';
 
@@ -43,7 +47,11 @@ export class JwtAuthGuard implements CanActivate {
       throw this.unauthorized();
     }
 
-    request.user = { id: payload.sub, role: payload.role };
+    request.user = {
+      id: payload.sub,
+      role: payload.role,
+      market: payload.market ?? DEFAULT_MARKET,
+    };
     return true;
   }
 

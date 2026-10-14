@@ -17,6 +17,7 @@ import {
 } from '../interest.types';
 import { TopicRepository } from '../repositories/topic.repository';
 import { UserInterestRepository } from '../repositories/user-interest.repository';
+import { UserMarket } from '@/modules/user/user.enum';
 
 /**
  * `topics`는 interest 모듈 소유다(domain.md 2장).
@@ -46,8 +47,11 @@ export class TopicService {
    * 빈 목록을 내려주면 클라이언트는 조회 실패 상태(O6)를 그리고 재시도할 수 있다.
    * 운영이 `is_visible`을 켜는 순간 같은 재시도가 통과한다.
    */
-  async getSelectableTopics(manager?: EntityManager): Promise<TopicListResult> {
-    const visible = await this.topicRepository.findAllVisible(manager);
+  async getSelectableTopics(
+    market: UserMarket,
+    manager?: EntityManager,
+  ): Promise<TopicListResult> {
+    const visible = await this.topicRepository.findAllVisible(market, manager);
 
     if (visible.length === 0) {
       // 운영 알림 — `is_visible` 설정과 콘텐츠 풀을 점검해야 한다 (onboarding.md 7)
@@ -94,8 +98,16 @@ export class TopicService {
    * 것이 없으면 피드도 비어 화면이 칩 줄 자체를 숨기므로(`explore-uiux.md` 4.7), 빈 목록이
    * 그 자체로 이상 상태는 아니다.
    */
-  async findAllVisible(manager?: EntityManager): Promise<Topic[]> {
-    return this.topicRepository.findAllVisible(manager);
+  async findAllVisible(
+    market: UserMarket,
+    manager?: EntityManager,
+  ): Promise<Topic[]> {
+    return this.topicRepository.findAllVisible(market, manager);
+  }
+
+  /** 모든 시장의 노출 주제 — 운영 배치용(`TopicExposureService`). 사용자 노출면에서는 쓰지 않는다 */
+  async findAllVisibleAcrossMarkets(manager?: EntityManager): Promise<Topic[]> {
+    return this.topicRepository.findAllVisibleAcrossMarkets(manager);
   }
 
   /**
@@ -105,12 +117,14 @@ export class TopicService {
   async findVisibleRelatedByName(
     normalizedQuery: string,
     limit: number,
+    market: UserMarket,
     manager?: EntityManager,
   ): Promise<Topic[]> {
     return this.topicRepository.findVisibleRelatedByName(
       normalizedQuery,
       RELATED_TOPIC_SIMILARITY_THRESHOLD,
       limit,
+      market,
       manager,
     );
   }

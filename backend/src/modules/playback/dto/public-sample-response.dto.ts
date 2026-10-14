@@ -1,4 +1,5 @@
 import { PublicSampleView } from '../services/public-sample.service';
+import { ContentLanguage } from '@/modules/content/content.enum';
 
 export class PublicSampleContentDto {
   readonly title: string;
@@ -6,6 +7,8 @@ export class PublicSampleContentDto {
   readonly source_name: string;
   readonly duration_sec: number;
   readonly thumbnail_url: string;
+  /** 콘텐츠 언어(`global-api.md` 4.7) — 표시 전용. 시장 필터는 서버가 한다 */
+  readonly language: ContentLanguage;
 }
 
 export class PublicSampleAudioDto {
@@ -32,6 +35,7 @@ export class PublicSampleResponseDto {
         source_name: view.content.sourceName,
         duration_sec: view.content.durationSec,
         thumbnail_url: view.content.thumbnailUrl,
+        language: view.content.language,
       },
       audio: {
         url: view.audio.url,

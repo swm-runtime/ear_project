@@ -6,6 +6,7 @@ import { ErrorCode } from '@/common/exceptions/error-code.enum';
 import { Notice } from './entities/notice.entity';
 import { NoticeRepository } from './notice.repository';
 import { NoticeService } from './notice.service';
+import { UserMarket } from '@/modules/user/user.enum';
 
 const NOW = new Date('2026-10-10T06:00:00Z');
 const MANAGER = {} as EntityManager;
@@ -113,7 +114,7 @@ describe('NoticeService', () => {
       );
 
       // when
-      const page = await service.findPublishedPage(NOW, null, 2);
+      const page = await service.findPublishedPage(NOW, null, 2, UserMarket.KR);
 
       // then
       expect(repository.requestedLimits).toEqual([3]);
@@ -127,7 +128,7 @@ describe('NoticeService', () => {
       repository.notices.push(notice({ id: ID_1 }), notice({ id: ID_2 }));
 
       // when
-      const page = await service.findPublishedPage(NOW, null, 2);
+      const page = await service.findPublishedPage(NOW, null, 2, UserMarket.KR);
 
       // then
       expect(page.items).toHaveLength(2);
@@ -161,7 +162,7 @@ describe('NoticeService', () => {
       repository.notices.push(notice());
 
       // when
-      const found = await service.getPublished(ID_1, NOW);
+      const found = await service.getPublished(ID_1, NOW, UserMarket.KR);
 
       // then
       expect(found.id).toBe(ID_1);
@@ -173,7 +174,9 @@ describe('NoticeService', () => {
       repository.notices.push(notice({ publishedAt: null }));
 
       // when / then
-      await expectNoticeNotFound(service.getPublished(ID_1, NOW));
+      await expectNoticeNotFound(
+        service.getPublished(ID_1, NOW, UserMarket.KR),
+      );
     });
 
     it('예약(발행 시각이 미래)이면 404 NOTICE_NOT_FOUND 다', async () => {
@@ -184,7 +187,9 @@ describe('NoticeService', () => {
       );
 
       // when / then
-      await expectNoticeNotFound(service.getPublished(ID_1, NOW));
+      await expectNoticeNotFound(
+        service.getPublished(ID_1, NOW, UserMarket.KR),
+      );
     });
 
     it('삭제된 공지면 404 NOTICE_NOT_FOUND 다', async () => {
@@ -193,7 +198,9 @@ describe('NoticeService', () => {
       repository.notices.push(notice({ deletedAt: NOW }));
 
       // when / then
-      await expectNoticeNotFound(service.getPublished(ID_1, NOW));
+      await expectNoticeNotFound(
+        service.getPublished(ID_1, NOW, UserMarket.KR),
+      );
     });
 
     it('uuid 가 아닌 id 면 저장소를 거치지 않고 404 NOTICE_NOT_FOUND 다', async () => {
@@ -201,7 +208,9 @@ describe('NoticeService', () => {
       const { repository, service } = setup();
 
       // when / then
-      await expectNoticeNotFound(service.getPublished('not-a-uuid', NOW));
+      await expectNoticeNotFound(
+        service.getPublished('not-a-uuid', NOW, UserMarket.KR),
+      );
       expect(repository.lookedUpIds).toHaveLength(0);
     });
   });

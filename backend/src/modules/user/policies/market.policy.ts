@@ -31,6 +31,11 @@ export function resolveMarket(input: {
   };
 }
 
+/** 토큰 클레임(문자열)을 enum으로 — 모르는 값은 `kr`(옛 토큰·위조 불가한 서명값이라 정상 경로에선 항상 enum 값이다) */
+export function toUserMarket(value: string | undefined | null): UserMarket {
+  return value === UserMarket.GLOBAL ? UserMarket.GLOBAL : UserMarket.KR;
+}
+
 // BCP 47 language tag — primary subtag + 선택 subtag들. 형식만 본다(값의 실존은 보지 않는다)
 const LANGUAGE_TAG = /^[A-Za-z]{2,3}(-[A-Za-z0-9]{2,8})*$/;
 const REGION_CODE = /^[A-Za-z]{2}$/;

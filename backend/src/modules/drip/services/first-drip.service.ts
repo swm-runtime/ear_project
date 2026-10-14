@@ -252,6 +252,7 @@ export class FirstDripService {
     }
 
     const pool = await this.contentService.findCandidates({
+      market: user.market,
       includeTopicIds: topicIds,
       excludeSeenByUserId: userId,
       seriesStartOnly: true,
@@ -285,6 +286,7 @@ export class FirstDripService {
     }
 
     const fallback = await this.contentService.findCandidates({
+      market: user.market,
       excludeSeenByUserId: userId,
       // 방금 뽑은 것만 넘긴다 — 누적 이력은 위와 같은 NOT EXISTS가 본다
       excludeContentIds: selected,

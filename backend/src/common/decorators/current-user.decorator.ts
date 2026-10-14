@@ -8,6 +8,11 @@ import { Request } from 'express';
 export interface AuthenticatedUser {
   id: string;
   role: string;
+  /**
+   * 시장(`global-api.md` 2.1) — 가입 시 1회 정해져 바뀌지 않으므로 access token 클레임으로 싣는다. 콘텐츠·주제·공지
+   * 조회의 필터 입력이다. 클레임이 없는 옛 토큰은 `kr`로 본다(토큰 수명이 짧아 배포 뒤 곧 사라진다)
+   */
+  market: string;
 }
 
 export interface AuthenticatedRequest extends Request {

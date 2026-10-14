@@ -33,6 +33,7 @@ import { AudioUrlService } from '../services/audio-url.service';
 import { PlaybackSignalService } from '../services/playback-signal.service';
 import { PlayService } from '../services/play.service';
 import { ScriptService } from '../services/script.service';
+import { toUserMarket } from '@/modules/user/policies/market.policy';
 
 /**
  * 콘텐츠 축의 재생 계열 엔드포인트(`player-api.md` 3장).
@@ -71,6 +72,7 @@ export class PlayController {
       await this.scriptService.get({
         userId: currentUser.id,
         contentId,
+        market: toUserMarket(currentUser.market),
         now: new Date(),
       }),
     );
@@ -105,6 +107,7 @@ export class PlayController {
       await this.audioUrlService.issue({
         userId: currentUser.id,
         contentId,
+        market: toUserMarket(currentUser.market),
         deviceId: request.device_id,
         ip,
         now: new Date(),
@@ -130,6 +133,7 @@ export class PlayController {
       await this.playService.startPlay({
         userId: currentUser.id,
         contentId,
+        market: toUserMarket(currentUser.market),
         entryPoint: request.entry_point,
         now: new Date(),
       }),

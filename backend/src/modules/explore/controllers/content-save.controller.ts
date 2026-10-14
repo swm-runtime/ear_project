@@ -23,6 +23,7 @@ import { UnsaveContentQueryRequestDto } from '../dto/unsave-content-query-reques
 import { UnsaveContentResponseDto } from '../dto/unsave-content-response.dto';
 import { SaveReason } from '../explore.enum';
 import { ExploreOrchestrator } from '../explore.orchestrator';
+import { toUserMarket } from '@/modules/user/policies/market.policy';
 
 /**
  * explore-api.md 3장 — 담기·해제를 **`/contents/:content_id/save`에 둔다.**
@@ -60,6 +61,7 @@ export class ContentSaveController {
     @Res({ passthrough: true }) response: Response,
   ): Promise<SaveContentResponseDto> {
     const result = await this.exploreOrchestrator.saveContent({
+      market: toUserMarket(currentUser.market),
       userId: currentUser.id,
       contentId,
       // 기본값은 Controller가 아니라 이 자리에서 한 번만 정한다(convention.md 3.3)

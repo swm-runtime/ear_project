@@ -14,6 +14,7 @@ import { LibraryService } from '@/modules/library/library.service';
 import { PlaybackService } from '@/modules/playback/services/playback.service';
 
 import { ContentDetailOrchestrator } from './content-detail.orchestrator';
+import { UserMarket } from '@/modules/user/user.enum';
 
 const NOW = new Date('2026-08-24T09:00:00.000Z');
 const USER_ID = '11111111-1111-4111-8111-111111111111';
@@ -114,6 +115,7 @@ describe('ContentDetailOrchestrator', () => {
         USER_ID,
         CONTENT_ID,
         NOW,
+        UserMarket.KR,
       );
 
       // then
@@ -134,6 +136,7 @@ describe('ContentDetailOrchestrator', () => {
         USER_ID,
         CONTENT_ID,
         NOW,
+        UserMarket.KR,
       );
 
       // then
@@ -149,6 +152,7 @@ describe('ContentDetailOrchestrator', () => {
         USER_ID,
         CONTENT_ID,
         NOW,
+        UserMarket.KR,
       );
 
       // then
@@ -165,6 +169,7 @@ describe('ContentDetailOrchestrator', () => {
         USER_ID,
         CONTENT_ID,
         NOW,
+        UserMarket.KR,
       );
 
       // then
@@ -185,6 +190,7 @@ describe('ContentDetailOrchestrator', () => {
         USER_ID,
         CONTENT_ID,
         NOW,
+        UserMarket.KR,
       );
 
       // then
@@ -202,6 +208,7 @@ describe('ContentDetailOrchestrator', () => {
         USER_ID,
         CONTENT_ID,
         NOW,
+        UserMarket.KR,
       );
 
       // then
@@ -219,7 +226,7 @@ describe('ContentDetailOrchestrator', () => {
 
       // when
       const error = await catchError(
-        orchestrator.getContentDetail(USER_ID, CONTENT_ID, NOW),
+        orchestrator.getContentDetail(USER_ID, CONTENT_ID, NOW, UserMarket.KR),
       );
 
       // then

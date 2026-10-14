@@ -24,6 +24,7 @@ import {
   LibraryListResult,
   LibraryResumeResult,
 } from './library-screen.types';
+import { UserMarket } from '@/modules/user/user.enum';
 
 /**
  * architecture.md 3.3 — 여러 도메인 Service를 조합하는 유스케이스라 Orchestrator를 둔다.
@@ -63,6 +64,7 @@ export class LibraryScreenOrchestrator {
     userId: string,
     query: LibraryListQuery,
     now: Date,
+    market: UserMarket,
   ): Promise<LibraryListResult> {
     const conditions = {
       filter: query.filter,
@@ -74,6 +76,7 @@ export class LibraryScreenOrchestrator {
     const page = await this.libraryService.findPage(
       {
         userId,
+        market,
         ...conditions,
         cursor: query.cursor
           ? decodeLibraryCursor(query.cursor, conditions)
@@ -146,9 +149,10 @@ export class LibraryScreenOrchestrator {
   async getResumeTarget(
     userId: string,
     now: Date,
+    market: UserMarket,
   ): Promise<LibraryResumeResult> {
     const [item, quota] = await Promise.all([
-      this.libraryService.findResumeTarget(userId, now),
+      this.libraryService.findResumeTarget(userId, now, market),
       this.playbackService.buildQuotaForUser(userId, now),
     ]);
 
@@ -322,6 +326,7 @@ export class LibraryScreenOrchestrator {
         sourceUrl: item.content.sourceUrl,
         durationSec: item.content.durationSec,
         thumbnailUrl: item.content.thumbnailUrl,
+        language: item.content.language,
         contentVersion: item.content.contentVersion,
         topicIds: topicIdsByContentId.get(item.contentId) ?? [],
       },

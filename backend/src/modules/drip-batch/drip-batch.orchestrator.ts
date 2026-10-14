@@ -60,6 +60,7 @@ import {
   RegularPlan,
   UserDripPlan,
 } from './drip-batch.types';
+import { UserMarket } from '@/modules/user/user.enum';
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
@@ -547,6 +548,7 @@ export class DripBatchOrchestrator {
 
     if (dripCount > 0) {
       plan.regular = await this.planRegular(user.id, {
+        market: user.market,
         activeTopicIds: plan.activeTopicIds,
         completedEpisodesBySeries: plan.completedEpisodesBySeries,
         preference: plan.preference,
@@ -569,6 +571,7 @@ export class DripBatchOrchestrator {
         const regularPicks = plan.regular?.picks ?? [];
 
         plan.discovery = await this.planDiscovery(user.id, {
+          market: user.market,
           activeTopicIds: plan.activeTopicIds,
           // 방금 뽑은 정규 편성분만 넘긴다 — 누적 이력은 SQL의 NOT EXISTS가 본다
           alreadyPickedIds: regularPicks.map((pick) => pick.content.id),
@@ -875,9 +878,11 @@ export class DripBatchOrchestrator {
       dripCount: number;
       loadRecentDripTopics: boolean;
       now: Date;
+      market: UserMarket;
     },
   ): Promise<RegularPlan> {
     const pool = await this.contentService.findCandidates({
+      market: input.market,
       includeTopicIds: input.activeTopicIds,
       excludeSeenByUserId: userId,
       // 시리즈 순서는 아래 filterEpisodeOrder가 판정한다 — 완청한 다음 편은 허용해야 한다
@@ -947,9 +952,11 @@ export class DripBatchOrchestrator {
       pickedEmbeddings: number[][];
       discoveryCount: number;
       now: Date;
+      market: UserMarket;
     },
   ): Promise<DiscoveryPlan> {
     const pool = await this.contentService.findCandidates({
+      market: input.market,
       excludeSeenByUserId: userId,
       excludeContentIds: input.alreadyPickedIds,
       // 탐험 편은 시리즈 도입부만 — 처음 보는 주제를 3편부터 줄 이유가 없다

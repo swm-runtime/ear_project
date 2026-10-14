@@ -4,6 +4,7 @@ import {
 } from '@/modules/library/library.enum';
 
 import { ExploreItemView } from '../explore.types';
+import { ContentLanguage } from '@/modules/content/content.enum';
 
 class ExploreContentDto {
   readonly id: string;
@@ -15,6 +16,8 @@ class ExploreContentDto {
   readonly source_url: string | null;
   readonly duration_sec: number;
   readonly thumbnail_url: string;
+  /** 콘텐츠 언어(`global-api.md` 4.7) — 표시 전용. 시장 필터는 서버가 한다 */
+  readonly language: ContentLanguage;
   /** 올라갔으면 클라이언트가 저장한 위치·오프라인 파일을 폐기한다 */
   readonly content_version: number;
   readonly topic_ids: string[];
@@ -55,6 +58,7 @@ export class ExploreItemDto {
         source_url: view.content.sourceUrl || null, // 빈 문자열 = 원문 없음 — 발급 응답(audio-url)과 같은 규칙
         duration_sec: view.content.durationSec,
         thumbnail_url: view.content.thumbnailUrl,
+        language: view.content.language,
         content_version: view.content.contentVersion,
         topic_ids: view.content.topicIds,
         tags: view.content.tags,

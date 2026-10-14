@@ -61,6 +61,7 @@ import {
   SaveContentCommand,
   SaveContentResult,
 } from './explore.types';
+import { UserMarket } from '@/modules/user/user.enum';
 
 /**
  * architecture.md 3.3 — 여러 도메인 Service를 조합하는 유스케이스라 Orchestrator를 둔다.
@@ -98,7 +99,11 @@ export class ExploreOrchestrator {
    * **잔여 재생 표시값을 같은 응답에 얹는다**(`explore.md` 3장). 피드를 여는 시점이 곧 그
    * 값을 갱신해야 하는 시점이라, 호출을 나누면 화면과 숫자가 어긋나는 구간이 생긴다.
    */
-  async getFeed(userId: string, now: Date): Promise<ExploreFeedResult> {
+  async getFeed(
+    userId: string,
+    now: Date,
+    market: UserMarket,
+  ): Promise<ExploreFeedResult> {
     // 취향은 **읽기만 한다** — 신호 재집계는 편성 배치가 하루 한 번 수행하고 피드는 그
     // 결과(`user_preference_vectors`)를 읽는다(domain.md 7.2). 콜드스타트 판정에 쓰는
     // 완청 수도 같은 행에서 온다 — 판정과 가중치가 같은 스냅샷이어야 "콜드스타트는 벗어났는데
@@ -113,17 +118,24 @@ export class ExploreOrchestrator {
 
     const [interestContents, recentContents, popularPage, topicGroups] =
       await Promise.all([
-        this.findInterestContents(activeTopicIds, preference, isColdStart, now),
-        this.contentService.findRecent(EXPLORE_SECTION_ITEM_COUNT, now),
+        this.findInterestContents(
+          activeTopicIds,
+          preference,
+          isColdStart,
+          now,
+          market,
+        ),
+        this.contentService.findRecent(EXPLORE_SECTION_ITEM_COUNT, now, market),
         // 피드는 **기본 구간**으로만 만든다. 구간을 바꾸면 피드를 다시 부르지 않고
         // `getPopular`가 그 섹션만 갈아끼운다(`explore.md` 4.1-1)
         this.contentService.findPopularPage({
+          market,
           periodType: DEFAULT_POPULAR_PERIOD,
           cursor: null,
           limit: EXPLORE_SECTION_ITEM_COUNT,
           now,
         }),
-        this.findTopicGroupDrafts(activeTopicIds, now),
+        this.findTopicGroupDrafts(activeTopicIds, now, market),
       ]);
 
     const interest: ExploreSectionDraft = {
@@ -186,8 +198,10 @@ export class ExploreOrchestrator {
     userId: string,
     query: ExploreContentListQuery,
     now: Date,
+    market: UserMarket,
   ): Promise<ExploreContentListResult> {
     const page = await this.contentService.findExplorePage({
+      market,
       topicIds: query.topicIds,
       cursor: query.cursor
         ? decodeExploreCursor(query.cursor, query.topicIds)
@@ -239,8 +253,10 @@ export class ExploreOrchestrator {
     userId: string,
     query: ExplorePopularListQuery,
     now: Date,
+    market: UserMarket,
   ): Promise<ExplorePopularListResult> {
     const page = await this.contentService.findPopularPage({
+      market,
       periodType: query.period,
       cursor: query.cursor
         ? decodePopularCursor(query.cursor, query.period)
@@ -293,14 +309,17 @@ export class ExploreOrchestrator {
    *
    * 두 목록을 합쳐 정렬하는 것은 **탐색 화면의 규칙**이라 `interest` 모듈이 아니라 여기서 한다.
    */
-  async getTopicChips(userId: string): Promise<ExploreTopicChipView[]> {
+  async getTopicChips(
+    userId: string,
+    market: UserMarket,
+  ): Promise<ExploreTopicChipView[]> {
     // `findAllActive`가 이미 `created_at` 오름차순이라 이 순서가 곧 사용자가 고른 순서다
     const interests = await this.userInterestService.findAllActive(userId);
     const interestTopicIds = interests.map((interest) => interest.topicId);
 
     const [interestTopics, visibleTopics] = await Promise.all([
       this.topicService.findAllByIds(interestTopicIds),
-      this.topicService.findAllVisible(),
+      this.topicService.findAllVisible(market),
     ]);
 
     const interestTopicById = new Map(
@@ -345,6 +364,7 @@ export class ExploreOrchestrator {
     userId: string,
     query: ExploreSearchQuery,
     now: Date,
+    market: UserMarket,
   ): Promise<ExploreSearchResult> {
     const normalizedQuery = normalizeSearchText(query.query);
 
@@ -364,6 +384,7 @@ export class ExploreOrchestrator {
     const isFirstPage = !query.cursor;
 
     const page = await this.contentService.findSearchPage({
+      market,
       normalizedQuery,
       topicIds: query.topicIds,
       cursor: query.cursor
@@ -397,7 +418,7 @@ export class ExploreOrchestrator {
         // **첫 페이지의 빈 결과에만 대체 콘텐츠를 조립한다.** 커서 페이지의 빈 응답은
         // "결과 없음" 화면이 아니라 목록의 끝이다(explore-api.md 4.5)
         fallback: isFirstPage
-          ? await this.buildSearchFallback(userId, normalizedQuery, now)
+          ? await this.buildSearchFallback(userId, normalizedQuery, now, market)
           : null,
       };
     }
@@ -439,13 +460,16 @@ export class ExploreOrchestrator {
     userId: string,
     normalizedQuery: string,
     now: Date,
+    market: UserMarket,
   ): Promise<ExploreSearchFallback> {
     const [relatedTopics, popularPage] = await Promise.all([
       this.topicService.findVisibleRelatedByName(
         normalizedQuery,
         SEARCH_FALLBACK_RELATED_TOPIC_COUNT,
+        market,
       ),
       this.contentService.findPopularPage({
+        market,
         periodType: DEFAULT_POPULAR_PERIOD,
         cursor: null,
         limit: SEARCH_FALLBACK_POPULAR_COUNT,
@@ -479,6 +503,7 @@ export class ExploreOrchestrator {
         command.contentId,
         manager,
         command.now,
+        command.market,
       );
 
       const saved = await this.libraryService.save(
@@ -576,12 +601,14 @@ export class ExploreOrchestrator {
     preference: UserPreferenceWeights | null,
     isColdStart: boolean,
     now: Date,
+    market: UserMarket,
   ): Promise<Content[]> {
     if (activeTopicIds.length === 0) {
       return [];
     }
 
     const pool = await this.contentService.findCandidates({
+      market,
       includeTopicIds: activeTopicIds,
       limit: EXPLORE_RANKING_POOL_SIZE,
       now,
@@ -630,6 +657,7 @@ export class ExploreOrchestrator {
   private async findTopicGroupDrafts(
     activeTopicIds: string[],
     now: Date,
+    market: UserMarket,
   ): Promise<ExploreSectionDraft[]> {
     if (activeTopicIds.length === 0) {
       return [];
@@ -648,6 +676,7 @@ export class ExploreOrchestrator {
           }
 
           const contents = await this.contentService.findCandidates({
+            market,
             includeTopicIds: [topicId],
             limit: EXPLORE_SECTION_ITEM_COUNT,
             now,
@@ -743,6 +772,7 @@ export class ExploreOrchestrator {
           sourceUrl: content.sourceUrl,
           durationSec: content.durationSec,
           thumbnailUrl: content.thumbnailUrl,
+          language: content.language,
           contentVersion: content.contentVersion,
           topicIds: topicIdsByContentId.get(content.id) ?? [],
           tags: content.tags ?? [],

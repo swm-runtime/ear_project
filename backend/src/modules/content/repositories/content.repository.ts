@@ -5,8 +5,8 @@ import { EntityManager, In, Repository, SelectQueryBuilder } from 'typeorm';
 import { escapeLikePattern } from '@/common/utils/search-text.util';
 
 import {
-  CONTENT_VISIBILITY_CONDITION,
-  contentVisibilityParameters,
+  CONTENT_SCOPE_CONDITION,
+  contentScopeParameters,
 } from '../content.visibility';
 import {
   SEARCH_WEIGHT_AUTHOR,
@@ -30,6 +30,7 @@ import {
   SearchPageQuery,
 } from '../content.types';
 import { Content } from '../entities/content.entity';
+import { UserMarket } from '@/modules/user/user.enum';
 
 /** 커서에 담기는 랭킹 값. `content_stats` 조인 결과이지 `contents`의 컬럼이 아니다 */
 const RANKING_PLAY_COUNT = 'COALESCE(stat.play_count, 0)';
@@ -104,10 +105,11 @@ export class ContentRepository {
   private applyVisibility(
     builder: SelectQueryBuilder<Content>,
     now: Date,
+    market: UserMarket,
   ): SelectQueryBuilder<Content> {
     return builder.where(
-      CONTENT_VISIBILITY_CONDITION,
-      contentVisibilityParameters(now),
+      CONTENT_SCOPE_CONDITION,
+      contentScopeParameters(now, market),
     );
   }
 
@@ -242,6 +244,7 @@ export class ContentRepository {
           },
         ),
       query.now,
+      query.market,
     );
 
     if (query.seriesStartOnly) {
@@ -336,12 +339,14 @@ export class ContentRepository {
   async findRecent(
     limit: number,
     now: Date,
+    market: UserMarket,
     manager?: EntityManager,
   ): Promise<Content[]> {
     return (
       this.applyVisibility(
         this.scoped(manager).createQueryBuilder('content'),
         now,
+        market,
       )
         .orderBy('content.published_at', 'DESC')
         // 같은 배치로 업로드된 콘텐츠는 `published_at`이 동일할 수 있다
@@ -391,6 +396,7 @@ export class ContentRepository {
         .addSelect(RANKING_PLAY_COUNT, RANKING_PLAY_COUNT_ALIAS)
         .addSelect(RANKING_COMPLETE_COUNT, RANKING_COMPLETE_COUNT_ALIAS),
       query.now,
+      query.market,
     );
 
     if (query.cursor) {
@@ -451,6 +457,7 @@ export class ContentRepository {
         )
         .addSelect(RANKING_PLAY_COUNT, RANKING_PLAY_COUNT_ALIAS),
       query.now,
+      query.market,
     );
 
     this.applyTopicFilter(builder, query.topicIds);
@@ -513,6 +520,7 @@ export class ContentRepository {
         .addSelect(SEARCH_TITLE_SIMILARITY, SEARCH_TITLE_SIMILARITY_ALIAS)
         .addSelect(RANKING_PLAY_COUNT, RANKING_PLAY_COUNT_ALIAS),
       query.now,
+      query.market,
     ).andWhere(
       `(${SEARCH_MATCH_TITLE} OR ${SEARCH_MATCH_AUTHOR} OR ${SEARCH_MATCH_TOPIC} OR ${SEARCH_MATCH_DESCRIPTION})`,
     );

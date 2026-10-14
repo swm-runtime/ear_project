@@ -1,5 +1,6 @@
 import { ContentStatus } from './content.enum';
 import { Content } from './entities/content.entity';
+import { UserMarket } from '@/modules/user/user.enum';
 
 /**
  * 콘텐츠 **노출 조건** — `published`이면서 라이선스가 살아 있는 것(domain.md 5.1 — "두 조건을 한 곳에서만
@@ -19,6 +20,31 @@ export function contentVisibilityParameters(now: Date): {
   now: Date;
 } {
   return { publishedStatus: ContentStatus.PUBLISHED, now };
+}
+
+/**
+ * 시장 격리(`global-api.md` 4.7·7장) — 노출 조건에 **항상 함께** 붙는다. 사용자 시장이 아닌 콘텐츠는 어떤 응답에도
+ * 나오지 않는다. 데이터가 전부 `kr`인 동안은 결과를 바꾸지 않는다(KR 불변).
+ */
+export const CONTENT_MARKET_CONDITION = 'content.market = :market';
+
+export function contentMarketParameters(market: UserMarket): {
+  market: UserMarket;
+} {
+  return { market };
+}
+
+/** 노출 + 시장 — 콘텐츠 alias `content`인 조회가 한 번에 붙이는 조건 */
+export const CONTENT_SCOPE_CONDITION = `(${CONTENT_VISIBILITY_CONDITION} AND ${CONTENT_MARKET_CONDITION})`;
+
+export function contentScopeParameters(
+  now: Date,
+  market: UserMarket,
+): { publishedStatus: ContentStatus; now: Date; market: UserMarket } {
+  return {
+    ...contentVisibilityParameters(now),
+    ...contentMarketParameters(market),
+  };
 }
 
 /** 위 SQL 조건의 애플리케이션 판정판 — 단건을 이미 읽어 둔 곳에서 쓴다 */

@@ -46,7 +46,13 @@ export class TokenService {
   /** access token은 저장하지 않고 stateless로 검증한다 (architecture.md 9.1) */
   issueAccessToken(user: User, now: Date): IssuedToken {
     const token = this.jwtService.sign(
-      { sub: user.id, role: user.role, typ: ACCESS_TOKEN_TYPE },
+      // market은 가입 시 1회 정해져 불변이라 클레임으로 싣는다(global-api.md 2.1) — 요청마다 users를 읽지 않는다
+      {
+        sub: user.id,
+        role: user.role,
+        market: user.market,
+        typ: ACCESS_TOKEN_TYPE,
+      },
       { expiresIn: ACCESS_TOKEN_TTL_SEC },
     );
 

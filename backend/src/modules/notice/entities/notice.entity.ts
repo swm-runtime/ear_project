@@ -7,6 +7,7 @@ import {
 } from 'typeorm';
 
 import { BaseEntity } from '@/database/base.entity';
+import { UserMarket } from '@/modules/user/user.enum';
 
 /**
  * 공지사항 — 운영 공지 게시판(`changes/pending/notice-screen-spec.md` D, KAN-67).
@@ -38,6 +39,15 @@ export class Notice extends BaseEntity {
 
   @Column({ name: 'published_at', type: 'timestamptz', nullable: true })
   publishedAt: Date | null;
+
+  /** 시장(`global-api.md` 4.8) — 공지는 시장별로 따로 쓴다. 사용자 시장의 공지만 보인다 */
+  @Column({
+    name: 'market',
+    type: 'varchar',
+    length: 20,
+    default: UserMarket.KR,
+  })
+  market: UserMarket;
 
   @DeleteDateColumn({ name: 'deleted_at', type: 'timestamptz', nullable: true })
   deletedAt: Date | null;

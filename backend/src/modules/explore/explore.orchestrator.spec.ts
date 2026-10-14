@@ -34,6 +34,7 @@ import {
 } from './explore.cursor';
 import { ExploreSectionKey, SaveReason } from './explore.enum';
 import { ExploreOrchestrator } from './explore.orchestrator';
+import { UserMarket } from '@/modules/user/user.enum';
 
 const NOW = new Date('2026-08-05T09:00:00.000Z');
 const USER_ID = '11111111-1111-4111-8111-111111111111';
@@ -216,7 +217,7 @@ describe('ExploreOrchestrator', () => {
       ]);
 
       // when
-      const result = await orchestrator.getFeed(USER_ID, NOW);
+      const result = await orchestrator.getFeed(USER_ID, NOW, UserMarket.KR);
 
       // then
       expect(result.sections[0].key).toBe(ExploreSectionKey.INTEREST);
@@ -241,7 +242,7 @@ describe('ExploreOrchestrator', () => {
       ]);
 
       // when
-      const result = await orchestrator.getFeed(USER_ID, NOW);
+      const result = await orchestrator.getFeed(USER_ID, NOW, UserMarket.KR);
 
       // then
       expect(result.sections.map((section) => section.key).slice(0, 2)).toEqual(
@@ -260,7 +261,7 @@ describe('ExploreOrchestrator', () => {
       ]);
 
       // when
-      await orchestrator.getFeed(USER_ID, NOW);
+      await orchestrator.getFeed(USER_ID, NOW, UserMarket.KR);
 
       // then
       expect(playbackService.findRecentSignals).not.toHaveBeenCalled();
@@ -292,7 +293,7 @@ describe('ExploreOrchestrator', () => {
       );
 
       // when
-      const result = await orchestrator.getFeed(USER_ID, NOW);
+      const result = await orchestrator.getFeed(USER_ID, NOW, UserMarket.KR);
 
       // then — 종전(주제 가중치만)이면 인기순 그대로 CONTENT_ID가 먼저였다
       const interest = result.sections.find(
@@ -324,7 +325,7 @@ describe('ExploreOrchestrator', () => {
       ] as never);
 
       // when
-      const result = await orchestrator.getFeed(USER_ID, NOW);
+      const result = await orchestrator.getFeed(USER_ID, NOW, UserMarket.KR);
 
       // then
       const interest = result.sections.find(
@@ -352,7 +353,7 @@ describe('ExploreOrchestrator', () => {
       ]);
 
       // when
-      const result = await orchestrator.getFeed(USER_ID, NOW);
+      const result = await orchestrator.getFeed(USER_ID, NOW, UserMarket.KR);
 
       // then
       expect(result.sections.map((section) => section.key).slice(0, 2)).toEqual(
@@ -366,7 +367,7 @@ describe('ExploreOrchestrator', () => {
       libraryService.findActiveItems.mockResolvedValue([buildLibraryItem()]);
 
       // when
-      const result = await orchestrator.getFeed(USER_ID, NOW);
+      const result = await orchestrator.getFeed(USER_ID, NOW, UserMarket.KR);
 
       // then
       const [item] = result.sections[0].items;
@@ -383,7 +384,7 @@ describe('ExploreOrchestrator', () => {
       contentService.findRecent.mockResolvedValue([buildContent(CONTENT_ID)]);
 
       // when
-      const result = await orchestrator.getFeed(USER_ID, NOW);
+      const result = await orchestrator.getFeed(USER_ID, NOW, UserMarket.KR);
 
       // then
       expect(result.sections).toHaveLength(1);
@@ -394,7 +395,7 @@ describe('ExploreOrchestrator', () => {
       // given — 빈 피드는 정상 상태다. 404가 아니다
 
       // when
-      const result = await orchestrator.getFeed(USER_ID, NOW);
+      const result = await orchestrator.getFeed(USER_ID, NOW, UserMarket.KR);
 
       // then
       expect(result.sections).toEqual([]);
@@ -404,7 +405,7 @@ describe('ExploreOrchestrator', () => {
       // given — 피드를 여는 시점이 곧 이 값을 갱신하는 시점이다
 
       // when
-      const result = await orchestrator.getFeed(USER_ID, NOW);
+      const result = await orchestrator.getFeed(USER_ID, NOW, UserMarket.KR);
 
       // then
       expect(result.quota).toEqual(QUOTA);
@@ -414,7 +415,7 @@ describe('ExploreOrchestrator', () => {
       // given — 주간은 초기에 표본이 너무 적고, 온보딩 추천도 직전 확정 월을 쓴다
 
       // when
-      await orchestrator.getFeed(USER_ID, NOW);
+      await orchestrator.getFeed(USER_ID, NOW, UserMarket.KR);
 
       // then
       expect(contentService.findPopularPage).toHaveBeenCalledWith(
@@ -432,7 +433,7 @@ describe('ExploreOrchestrator', () => {
       contentService.findRecent.mockResolvedValue([buildContent(CONTENT_ID)]);
 
       // when
-      const result = await orchestrator.getFeed(USER_ID, NOW);
+      const result = await orchestrator.getFeed(USER_ID, NOW, UserMarket.KR);
       const popular = result.sections.find(
         (section) => section.key === ExploreSectionKey.POPULAR,
       );
@@ -456,7 +457,7 @@ describe('ExploreOrchestrator', () => {
       ]);
 
       // when
-      const result = await orchestrator.getFeed(USER_ID, NOW);
+      const result = await orchestrator.getFeed(USER_ID, NOW, UserMarket.KR);
       const topicGroup = result.sections.find(
         (section) => section.key === ExploreSectionKey.TOPIC_GROUP,
       );
@@ -478,7 +479,12 @@ describe('ExploreOrchestrator', () => {
       // given — 클라이언트는 이 값으로 토글의 선택 상태를 그린다
 
       // when
-      const result = await orchestrator.getPopular(USER_ID, POPULAR_QUERY, NOW);
+      const result = await orchestrator.getPopular(
+        USER_ID,
+        POPULAR_QUERY,
+        NOW,
+        UserMarket.KR,
+      );
 
       // then
       expect(contentService.findPopularPage).toHaveBeenCalledWith(
@@ -499,7 +505,12 @@ describe('ExploreOrchestrator', () => {
       });
 
       // when
-      const result = await orchestrator.getPopular(USER_ID, POPULAR_QUERY, NOW);
+      const result = await orchestrator.getPopular(
+        USER_ID,
+        POPULAR_QUERY,
+        NOW,
+        UserMarket.KR,
+      );
 
       // then
       expect(
@@ -530,6 +541,7 @@ describe('ExploreOrchestrator', () => {
           USER_ID,
           { ...POPULAR_QUERY, period: StatsPeriodType.MONTH, cursor },
           NOW,
+          UserMarket.KR,
         ),
       );
 
@@ -541,7 +553,12 @@ describe('ExploreOrchestrator', () => {
       // given — 이 응답이 최신값 갱신 시점이 된다
 
       // when
-      const result = await orchestrator.getPopular(USER_ID, POPULAR_QUERY, NOW);
+      const result = await orchestrator.getPopular(
+        USER_ID,
+        POPULAR_QUERY,
+        NOW,
+        UserMarket.KR,
+      );
 
       // then
       expect(result.quota).toEqual(QUOTA);
@@ -573,7 +590,7 @@ describe('ExploreOrchestrator', () => {
       ]);
 
       // when
-      const chips = await orchestrator.getTopicChips(USER_ID);
+      const chips = await orchestrator.getTopicChips(USER_ID, UserMarket.KR);
 
       // then
       expect(chips).toEqual([
@@ -598,7 +615,7 @@ describe('ExploreOrchestrator', () => {
       ]);
 
       // when
-      const chips = await orchestrator.getTopicChips(USER_ID);
+      const chips = await orchestrator.getTopicChips(USER_ID, UserMarket.KR);
 
       // then
       expect(chips[0]).toEqual({
@@ -615,7 +632,7 @@ describe('ExploreOrchestrator', () => {
       ]);
 
       // when
-      const chips = await orchestrator.getTopicChips(USER_ID);
+      const chips = await orchestrator.getTopicChips(USER_ID, UserMarket.KR);
 
       // then
       expect(chips.map((chip) => chip.id)).toEqual([TOPIC_ID]);
@@ -629,7 +646,7 @@ describe('ExploreOrchestrator', () => {
       ]);
 
       // when
-      const chips = await orchestrator.getTopicChips(USER_ID);
+      const chips = await orchestrator.getTopicChips(USER_ID, UserMarket.KR);
 
       // then
       expect(chips.every((chip) => !chip.isInterest)).toBe(true);
@@ -654,6 +671,7 @@ describe('ExploreOrchestrator', () => {
         USER_ID,
         { topicIds: [TOPIC_ID], cursor: null, limit: 20 },
         NOW,
+        UserMarket.KR,
       );
 
       // then
@@ -676,6 +694,7 @@ describe('ExploreOrchestrator', () => {
         USER_ID,
         { topicIds: [TOPIC_ID], cursor: null, limit: 20 },
         NOW,
+        UserMarket.KR,
       );
 
       // then
@@ -690,6 +709,7 @@ describe('ExploreOrchestrator', () => {
         USER_ID,
         { topicIds: [TOPIC_ID], cursor: null, limit: 20 },
         NOW,
+        UserMarket.KR,
       );
 
       // then
@@ -703,6 +723,7 @@ describe('ExploreOrchestrator', () => {
 
       // when
       await orchestrator.saveContent({
+        market: UserMarket.KR,
         userId: USER_ID,
         contentId: CONTENT_ID,
         reason: SaveReason.USER_SAVE,
@@ -729,6 +750,7 @@ describe('ExploreOrchestrator', () => {
 
       // when
       await orchestrator.saveContent({
+        market: UserMarket.KR,
         userId: USER_ID,
         contentId: CONTENT_ID,
         reason: SaveReason.USER_SAVE,
@@ -749,6 +771,7 @@ describe('ExploreOrchestrator', () => {
 
       // when
       await orchestrator.saveContent({
+        market: UserMarket.KR,
         userId: USER_ID,
         contentId: CONTENT_ID,
         reason: SaveReason.USER_SAVE,
@@ -769,6 +792,7 @@ describe('ExploreOrchestrator', () => {
 
       // when
       await orchestrator.saveContent({
+        market: UserMarket.KR,
         userId: USER_ID,
         contentId: CONTENT_ID,
         reason: SaveReason.AUTO_PLAY,
@@ -793,6 +817,7 @@ describe('ExploreOrchestrator', () => {
       // when
       const error = await catchError(
         orchestrator.saveContent({
+          market: UserMarket.KR,
           userId: USER_ID,
           contentId: CONTENT_ID,
           reason: SaveReason.USER_SAVE,
@@ -810,6 +835,7 @@ describe('ExploreOrchestrator', () => {
 
       // when
       const result = await orchestrator.saveContent({
+        market: UserMarket.KR,
         userId: USER_ID,
         contentId: CONTENT_ID,
         reason: SaveReason.USER_SAVE,
@@ -886,6 +912,7 @@ describe('ExploreOrchestrator', () => {
         USER_ID,
         { query: nfd, topicIds: [], cursor: null, limit: 20 },
         NOW,
+        UserMarket.KR,
       );
 
       // then
@@ -904,6 +931,7 @@ describe('ExploreOrchestrator', () => {
           USER_ID,
           { query: nfd, topicIds: [], cursor: null, limit: 20 },
           NOW,
+          UserMarket.KR,
         ),
       );
 
@@ -920,6 +948,7 @@ describe('ExploreOrchestrator', () => {
           USER_ID,
           { query: '!!??', topicIds: [], cursor: null, limit: 20 },
           NOW,
+          UserMarket.KR,
         ),
       );
 
@@ -940,6 +969,7 @@ describe('ExploreOrchestrator', () => {
         USER_ID,
         { query: ' 커리어 ', topicIds: [TOPIC_ID], cursor: null, limit: 1 },
         NOW,
+        UserMarket.KR,
       );
 
       // then
@@ -968,6 +998,7 @@ describe('ExploreOrchestrator', () => {
         USER_ID,
         { query: '없는말', topicIds: [], cursor: null, limit: 20 },
         NOW,
+        UserMarket.KR,
       );
 
       // then
@@ -989,6 +1020,7 @@ describe('ExploreOrchestrator', () => {
         USER_ID,
         { query: '없는말', topicIds: [], cursor: '', limit: 20 },
         NOW,
+        UserMarket.KR,
       );
 
       // then
@@ -1019,6 +1051,7 @@ describe('ExploreOrchestrator', () => {
         USER_ID,
         { query: '커리어', topicIds: [], cursor, limit: 20 },
         NOW,
+        UserMarket.KR,
       );
 
       // then
@@ -1037,6 +1070,7 @@ describe('ExploreOrchestrator', () => {
         USER_ID,
         { query: '커리어', topicIds: [], cursor: null, limit: 20 },
         NOW,
+        UserMarket.KR,
       );
 
       // then
@@ -1057,6 +1091,7 @@ describe('ExploreOrchestrator', () => {
         USER_ID,
         { query: '커리어', topicIds: [], cursor: null, limit: 1 },
         NOW,
+        UserMarket.KR,
       );
 
       // then
@@ -1087,6 +1122,7 @@ describe('ExploreOrchestrator', () => {
         USER_ID,
         { query: '없는검색어', topicIds: [], cursor: null, limit: 20 },
         NOW,
+        UserMarket.KR,
       );
 
       // then
@@ -1108,6 +1144,7 @@ describe('ExploreOrchestrator', () => {
           USER_ID,
           { query: '커리어', topicIds: [], cursor: null, limit: 1 },
           NOW,
+          UserMarket.KR,
         );
         return first.nextCursor as string;
       })();
@@ -1117,6 +1154,7 @@ describe('ExploreOrchestrator', () => {
         USER_ID,
         { query: '커리어', topicIds: [], cursor, limit: 1 },
         NOW,
+        UserMarket.KR,
       );
 
       // then

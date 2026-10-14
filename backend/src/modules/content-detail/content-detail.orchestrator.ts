@@ -6,6 +6,7 @@ import { LibraryService } from '@/modules/library/library.service';
 import { PlaybackService } from '@/modules/playback/services/playback.service';
 
 import { ContentDetailView } from './content-detail.types';
+import { UserMarket } from '@/modules/user/user.enum';
 
 /**
  * architecture.md 3.3 — **Entity를 소유하지 않는 유스케이스 모듈이다**(`library-screen` ·
@@ -39,11 +40,13 @@ export class ContentDetailOrchestrator {
     userId: string,
     contentId: string,
     now: Date,
+    market: UserMarket,
   ): Promise<ContentDetailView> {
     const content = await this.contentService.getPublishedById(
       contentId,
       undefined,
       now,
+      market,
     );
 
     const [topicViews, libraryItems, countedContentIds, sources] =
