@@ -43,7 +43,7 @@
 | 항목 | 값 |
 |---|---|
 | 시장 | `market` enum — `kr` · `global` |
-| 판정 | **가입 시 1회**, 서버가 한다. 앱이 보낸 `language_code`가 `ko`로 시작하면 `kr`, 그 밖은 `global`. 값이 없으면 `kr`(기존 사용자 호환) |
+| 판정 | **가입 시 1회**, 서버가 한다. 입력은 **사용자가 가입 때 고른 콘텐츠 언어** `locale.preferred_language`(`ko` → `kr`, `en` → `global`). 앱은 모든 신규 가입자에게 한 화면으로 한 번 묻고, 기기 언어는 그 화면의 **기본 선택값**으로만 쓴다. 값이 없으면(구 앱) 기기 `language_code`가 `ko`로 시작하면 `kr`, 그 밖은 `global`, 그것도 없으면 `kr`. **(2026-10-14 결정 — 기기 언어 자동 판정은 영어 설정 한국 사용자를 GLOBAL로 보내고 되돌릴 길이 없어서. 모호한 사용자만 묻는 방식 등은 추후 필요하면 다시 논의)** |
 | 저장 | `users.market`. **요청마다 헤더로 판정하지 않는다** — 헤더는 로그·통계용 |
 | 전환 | ⚪ 기본은 **불허**(가입 시 확정. 표시 언어를 바꿔도 시장은 그대로) |
 | 결제 | 시장과 무관하게 **스토어 국가**를 따른다(`storefront`). 가격 표시는 스토어 현지가만 |
@@ -78,7 +78,7 @@
 
 | # | 메서드·경로 | 원 문서 | 변경 | 이유(없으면 무엇이 깨지나) | 상태 |
 |---|---|---|---|---|---|
-| 1 | `POST /auth/social-login` · `POST /auth/sign-up` | auth-api 4.1·4.2 | 요청 `locale` 객체 추가, 응답 `user.market`·`user.language_code` | 시장을 정할 입력(기기 언어)이 가입 요청에 없다. 헤더로만 받으면 "요청마다 판정"이 되어 사용자가 언어를 바꾸면 피드가 통째로 바뀐다 → 가입 시 1회 저장할 값을 본문으로 받는다 | ✅ |
+| 1 | `POST /auth/social-login` · `POST /auth/sign-up` | auth-api 4.1·4.2 | 요청 `locale` 객체 추가(사용자가 고른 `preferred_language` 포함), 응답 `user.market`·`user.language_code` | 시장을 정할 입력이 가입 요청에 없다. 기기 언어로 자동 판정하면 영어 설정 한국 사용자가 GLOBAL로 가고 되돌릴 수 없다 → 가입 때 사용자에게 1회 묻고 그 값을 본문으로 받아 저장한다. 헤더로만 받으면 "요청마다 판정"이 되어 언어를 바꾸면 피드가 통째로 바뀐다 | ✅ |
 | 2 | `GET /users/me` | auth-api 4.13 | `user.market`·`user.language_code`·`user.timezone` | 클라이언트가 제공자 목록·온보딩 단계·결제 상품을 가르는 기준이 필요하다. 언어로 추측하면 영어 설정 한국 사용자가 GLOBAL로 보인다 → 서버 판정값을 그대로 노출 | ✅ |
 | 3 | `PUT /users/me/devices/:device_id` | onboarding-api 4.9 | 요청 `language_code`·`timezone` | 기존 가입자의 `language_code`·`timezone`은 비어 있다. 매 실행 호출되는 이 API에 실어야 재가입 없이 채워진다 | ✅ |
 | 4 | `GET /users/me/settings` · `PATCH` | settings-api 4.1·4.2 | 응답 `market`(읽기 전용)·`language_code`·`timezone`, PATCH로 `language_code` 변경 | 표시 언어를 사용자가 바꿀 길이 없다(기기 언어 = 가입 시 1회). 푸시·메일 언어의 원천이 필요하다 | 🟡 |
@@ -95,7 +95,7 @@
 
 ### 4.1 `POST /auth/social-login` · `POST /auth/sign-up` — `locale` ✅
 
-**왜**: 시장 판정의 입력이 필요하다. 헤더(`Accept-Language`)만 쓰면 요청마다 판정이 되어 사용자가 기기 언어를 바꾸는 순간 주제·피드·요금제가 통째로 바뀌고, 저장된 관심 주제와 어긋난다. 그래서 **가입 요청 본문**으로 받아 1회 저장한다. 기존 필드는 그대로이고 `locale`은 선택이라 구 앱도 그대로 가입된다(→ `kr`).
+**왜**: 시장 판정의 입력이 필요하다. 기기 언어로 자동 판정하면 **영어 설정을 쓰는 한국 사용자**가 GLOBAL로 가고(시장 전환 불허라 되돌릴 수 없다), 지역·시간대로 보정해도 한국 거주 외국인·해외 거주 한국인 어느 한쪽은 틀린다. 그래서 **가입 때 사용자에게 콘텐츠 언어를 한 번 묻고** 그 값을 본문으로 받아 1회 저장한다. 헤더(`Accept-Language`)만 쓰면 요청마다 판정이 되어 언어를 바꾸는 순간 주제·피드·요금제가 통째로 바뀐다. 기존 필드는 그대로이고 `locale`은 선택이라 구 앱도 그대로 가입된다(→ 기기 언어 규칙, 없으면 `kr`).
 
 **Request**(기존 필드에 추가)
 
@@ -104,17 +104,19 @@
   "provider": "google",
   "provider_token": "...",
   "device_id": "...",
-  "locale": { "language_code": "en-US", "region_code": "US", "timezone": "America/New_York" }
+  "locale": { "preferred_language": "en", "language_code": "en-US", "region_code": "US", "timezone": "America/New_York" }
 }
 ```
 
 | 필드 | 타입 | 필수 | 비고 |
 |---|---|---|---|
-| `locale.language_code` | BCP 47 | 선택 | 기기 언어(`expo-localization` `getLocales()[0].languageTag`). **시장 판정의 유일한 입력**. 없으면 `kr` |
+| `locale.preferred_language` | `ko` · `en` | 선택(신규 앱은 항상 보낸다) | **사용자가 가입 화면에서 고른 콘텐츠 언어 — 시장 판정의 입력**(`ko` → `kr`, `en` → `global`). 앱은 모든 신규 가입자에게 한 번 묻고 기기 언어를 기본 선택값으로 둔다. 없으면 `language_code` 규칙으로 폴백 |
+| `locale.language_code` | BCP 47 | 선택 | 기기 언어(`expo-localization` `getLocales()[0].languageTag`). 표시 언어·푸시 언어의 초깃값. `preferred_language`가 없을 때만 판정 폴백(`ko*` → `kr`, 그 밖 `global`, 없으면 `kr`) |
 | `locale.region_code` | ISO 3166-1 alpha-2 | 선택 | 통계용 |
 | `locale.timezone` | IANA | 선택 | 드립 발송 그룹. 없으면 `Asia/Seoul` |
 
-- 시장은 **계정 생성(sign-up) 시점에만** 정한다. 기존 계정의 로그인에 다른 `locale`이 와도 `market`은 바뀌지 않고 `language_code`·`timezone`만 갱신한다.
+- 시장은 **계정 생성(sign-up) 시점에만** 정한다. 기존 계정의 로그인에 다른 `locale`이 와도 `market`은 바뀌지 않고 `language_code`·`timezone`만 갱신한다(`preferred_language`는 무시).
+- 가입 화면의 질문은 시장 하나당 선택지 하나다(한국어 / English). 시장이 늘면 선택지가 는다. 화면에는 "선택한 언어에 따라 보여 주는 콘텐츠가 달라진다"는 설명과 해외 거주자에게 English를 권하는 안내, 가입 뒤 변경 불가 안내를 함께 둔다(카피는 FE `spec/uiux`). 앱 실행 직후의 **표시 언어**는 서버 호출 전이라 클라이언트가 기기 `locale`로 1차 판단한다 — 시장 판정과 별개다. 질문을 모호한 사용자에게만 보이는 방식 등은 **추후 필요하면 다시 논의**한다(2026-10-14).
 - GLOBAL 시장에서 `provider`가 `kakao`·`naver`인 요청은 거부하지 않는다(서버는 제공자별 독립). **노출을 막는 것은 클라이언트 몫**(4.2 응답의 `market`으로 분기).
 - 연령 동의(`age_confirmation`)의 기준 연령은 시장별이다(2.1 — GLOBAL 16 · KR 18). `pending_consents[].version`에 시장 네임스페이스가 들어간다 — 예 `terms_global_v1` 🟡.
 
@@ -228,9 +230,9 @@
 
 ```
 [가입 — 영어 기기]
-앱: getLocales()[0] → locale{en-US, US, America/New_York}
-   → POST /auth/sign-up {provider: google, locale}
-서버: language_code 'en-US' → market = global 확정 · 저장
+앱: getLocales()[0] → 가입 화면 "어떤 언어로 들을까요?" 기본 선택 English → 사용자가 고름
+   → POST /auth/sign-up {provider: google, locale{preferred_language: en, en-US, US, America/New_York}}
+서버: preferred_language 'en' → market = global 확정 · 저장 (영어 기기라도 '한국어'를 고르면 kr)
    → user{market: global, language_code: en-US}
 앱: market === 'global' → 제공자 목록 Google/Apple · 온보딩 steps=[topic, pick]
    → GET /onboarding/topics → GLOBAL 주제(영어, slug)
@@ -250,7 +252,7 @@ upload-meta{market: global, language: en} → 콘솔 payload → POST /admin/con
 
 ## 7. 보안·검증 규칙
 
-- `market`은 클라이언트가 보내지 않는다(서버 판정값). 요청에 들어와도 무시한다.
+- `market`은 클라이언트가 보내지 않는다(서버 판정값). 요청에 들어와도 무시한다. 클라이언트가 보내는 것은 사용자가 고른 `preferred_language`이고, 그것을 시장으로 바꾸는 규칙은 서버에 있다.
 - `locale.*`·헤더 값은 저장 전 형식 검증(BCP 47·ISO 3166·IANA 목록). 모르는 값은 버리고 기본값.
 - 시장 격리 누락은 **데이터 유출**로 본다(한국어 콘텐츠가 해외 피드에, 또는 그 반대). 콘텐츠를 반환하는 모든 레포지토리 메서드가 같은 가시성 조건(`CONTENT_VISIBILITY_CONDITION` + market)을 쓰고, e2e가 교차 접근 0건을 검사한다.
 - 로그에 `Accept-Language`·`timezone`은 남겨도 되지만 `region_code`와 IP를 묶어 저장하지 않는다(위치 추정 금지 — 개인정보 원칙).
