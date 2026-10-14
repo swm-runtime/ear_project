@@ -126,6 +126,7 @@ services:
     env_file: env.global # SUPABASE_URL · SUPABASE_ANON_KEY · PIPELINE_BUCKET · PIPELINE_SPEAKERS · PIPELINE_WORKER_TOKEN
     environment:
       PIPELINE_LOCALE: en
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-} # 주제 기획 배제 주제 판정 (KAN-209)
       AWS_REGION: ${AWS_REGION:-ap-northeast-2}
       EAR_API_BASE_URL: ${EAR_API_BASE_URL:-https://api.earcast.co.kr/api/v1} # 발행처는 한국판과 같은 제품 서버 (market=global)
       EAR_SSO_SECRET: ${EAR_SSO_SECRET:-}
