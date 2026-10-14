@@ -38,16 +38,10 @@ describe('추천 평가 — 합성 카탈로그 (CI 게이트)', () => {
     expect(report.verdict.passed).toBe(true);
   });
 
-  it('합성 카탈로그는 페르소나 7종을 전부 돌릴 재료를 갖는다', () => {
-    expect(report.personas.map((persona) => persona.skipped)).toEqual([
-      null,
-      null,
-      null,
-      null,
-      null,
-      null,
-      null,
-    ]);
+  it('합성 카탈로그는 페르소나 8종(GLOBAL 포함)을 전부 돌릴 재료를 갖는다', () => {
+    expect(report.personas.map((persona) => persona.skipped)).toEqual(
+      Array.from({ length: 8 }, () => null),
+    );
     expect(report.personas.every((persona) => persona.days === 5)).toBe(true);
   });
 
@@ -57,7 +51,7 @@ describe('추천 평가 — 합성 카탈로그 (CI 게이트)', () => {
   });
 
   it('지표가 리포트에 남는다 — 커버리지·다양성·고갈률', () => {
-    expect(report.simulation.plans).toBe(7 * 5);
+    expect(report.simulation.plans).toBe(8 * 5);
     expect(report.simulation.catalogCoverage).toBeGreaterThan(0);
     expect(report.simulation.intraListDistance).not.toBeNull();
     expect(report.backtest).toBeNull();
