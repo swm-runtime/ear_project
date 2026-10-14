@@ -6,6 +6,7 @@
 | 발행자 | FE (이주호 지시 2026-10-11 18:54 "튜토리얼 화면 없애자") |
 | 반영 대상 | `spec/uiux/onboarding-uiux.md` 4.6 · `features/notification.md` 4.x(사전 안내 여는 시점)·완료 조건 · `spec/uiux/profile-uiux.md` 4.11 · `spec/uiux/library-uiux.md` 134행 · `features/analytics.md` 3.4 `onboarding_step` |
 | 코드 반영 | PR(refactor(fe): remove first-run tutorial) — `FirstRunTutorial`·`walkthrough.store` 삭제, `usePrePromptGate`·`launch-dialog-gate` 신호 제거 |
+| 반영 날짜 | 2026-10-14 |
 
 ## 수정 내용
 
@@ -25,3 +26,7 @@ PM 결정(2026-10-11). 튜토리얼이 가리키던 흐름(담기 → 라이브�
 
 - Given 위 문서들 / When "튜토리얼"·"코치마크"·`walkthrough` 를 검색한다 / Then 온보딩 직후 흐름 서술에 남아 있지 않다(이 요청 문서와 archive 는 제외).
 - Given `onboarding-uiux.md` 4.6 / When 신규 가입 안내 순서를 읽는다 / Then "알림 사전 안내(O10) → 가입 체험 안내(P11)" 두 단계다.
+
+## 처리 기록
+
+- 2026-10-14 반영 — `spec/uiux/onboarding-uiux.md` 4.6(튜토리얼 표·규칙 삭제, 알림 사전 안내 착지 뒤 400ms, O10 → P11)·9장 · `features/notification.md` 4.1·8장 완료 조건 3건 · `spec/uiux/profile-uiux.md` 2장·4.11 · `spec/uiux/library-uiux.md`(튜토리얼 머리 줄 문장 삭제) · `features/analytics.md` 3.4(`tutorial` 삭제, 주석 정리).

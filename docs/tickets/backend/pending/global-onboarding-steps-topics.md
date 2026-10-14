@@ -16,7 +16,7 @@
 | 중요도 | Medium |
 | 상태 | 대기 |
 
-> 2026-10-14 발행한 묶음 티켓(BE KAN-185 · FE KAN-183 · AI KAN-184)을 처리 단위로 나눈 것. 결정 사항(같은 앱·기기 언어로 가입 시 1회 시장 판정·한국 트랙 불변·에러 번역은 클라이언트·가격은 스토어·영어 진행자 새 2인·K-컬처 주제 신설)과 결정 대기(시장 전환 불허·GLOBAL 16세)는 `spec/api/global-api.md` 2.1·9장이 원본이다.
+> 2026-10-14 발행한 묶음 티켓(BE KAN-185 · FE KAN-183 · AI KAN-184)을 처리 단위로 나눈 것. 결정 사항(같은 앱·기기 언어로 가입 시 1회 시장 판정·한국 트랙 불변·에러 번역은 클라이언트·가격은 스토어·영어 진행자 새 2인·K-컬처 주제 신설·GLOBAL 연령 16세)과 결정 대기(시장 전환 불허)는 `spec/api/global-api.md` 2.1·9장이 원본이다.
 
 ## 무엇을 한다
 
@@ -24,7 +24,7 @@
 - `topics.slug`(UNIQUE `(market, slug)`) 추가, KR 주제에도 slug 채움(예 `career`·`productivity`). 주제 응답 `items[].slug`.
 - AI가 제안한 K-컬처 주제 트리(대분류 4~5 × 중분류)를 `topics(market=global)`로 적재(시드 마이그레이션). 이름·대분류는 영어.
 - 다른 시장 `topic_id`가 섞인 관심 주제 저장은 409 `MARKET_MISMATCH`, 부분 저장 없음. 자동 확장도 같은 시장 안에서만.
-- 약관 버전을 시장 네임스페이스로(`terms_global_v1` 등), `pending_consents`가 시장별 버전을 낸다. 연령 기준 시장별(KR 18 · GLOBAL 16 자기 선언 — 미결 #2 기본값).
+- 약관 버전을 시장 네임스페이스로(`terms_global_v1` 등), `pending_consents`가 시장별 버전을 낸다. 연령 기준 시장별(KR 18 · GLOBAL 16 자기 선언 — 2026-10-14 확정, FE KAN-206).
 - `MARKET_MISMATCH`를 `common-error-handling.md` 9장에 등재(changes/pending).
 
 ## 범위 밖
