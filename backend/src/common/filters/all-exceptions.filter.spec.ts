@@ -25,8 +25,17 @@ const scopeMock = { setTag: jest.fn(), setContext: jest.fn() };
  * 앱 크래시 대신 갉아먹는다. 판정은 `BusinessException.logLevel` 이 하고 필터는 그 결과를
  * 따른다 — 이 경계가 조용히 넓어지는 것을 테스트로 막는다.
  */
-function host(traceId = 'trace-1', headersSent = false) {
-  const request = { method: 'GET', url: '/api/v1/x?signature=SECRET', traceId };
+function host(
+  traceId = 'trace-1',
+  headersSent = false,
+  user?: { id: string; role: string; market: string },
+) {
+  const request = {
+    method: 'GET',
+    url: '/api/v1/x?signature=SECRET',
+    traceId,
+    user,
+  };
   const response = {
     headersSent,
     status: jest.fn().mockReturnThis(),
@@ -67,6 +76,34 @@ describe('AllExceptionsFilter — Sentry 보고 경계', () => {
     );
     expect(scopeMock.setTag).toHaveBeenCalledWith('http_status', '500');
     expect(response.status).toHaveBeenCalledWith(500);
+  });
+
+  it('로그인한 요청의 오류에는 market 태그를 단다 — 시장별 오류율(KAN-193)', () => {
+    // given
+    const { host: h } = host('trace-1', false, {
+      id: 'user-1',
+      role: 'user',
+      market: 'global',
+    });
+
+    // when
+    filter.catch(new Error('boom'), h);
+
+    // then
+    expect(scopeMock.setTag).toHaveBeenCalledWith('market', 'global');
+  });
+
+  it('시장을 모르는 요청(비로그인)에는 market 태그를 달지 않는다', () => {
+    // given — 기본 host 는 user 가 없다(비로그인)
+
+    // when
+    filter.catch(new Error('boom'), host().host);
+
+    // then
+    expect(scopeMock.setTag).not.toHaveBeenCalledWith(
+      'market',
+      expect.anything(),
+    );
   });
 
   it('context 의 경로는 로그와 같은 규칙으로 서명을 가린다', () => {
