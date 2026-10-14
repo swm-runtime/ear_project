@@ -1,4 +1,4 @@
-# [FE] 글로벌 2 — 가입·기기 등록에 `locale` 전송·`user.market` 분기(제공자·연령·온보딩 `steps[]`)·주제 `slug` 이미지·설정 표시 언어
+# [FE] 글로벌 2 — 가입·기기 등록에 `locale` 전송·`user.market` 분기(제공자·온보딩 `steps[]`)·주제 `slug` 이미지·설정 표시 언어
 
 | 항목 | 값 |
 |---|---|
@@ -21,22 +21,23 @@
 ## 무엇을 한다
 
 - 가입·로그인 요청에 `locale { language_code, region_code, timezone }`(`getLocales()[0]`·`getCalendars()[0].timeZone`). 기기 등록에 `language_code`·`timezone`.
-- **분기 기준은 응답 `user.market`**(언어로 추측 금지): GLOBAL이면 제공자 Google/Apple만, 연령 체크 16세 문구(미결 #2 기본값), 구독 법적 고지 GLOBAL 문구.
+- **분기 기준은 응답 `user.market`**(언어로 추측 금지): GLOBAL이면 제공자 Google/Apple만, 구독 법적 고지 GLOBAL 문구. (연령 16세 문구·차단 흐름은 [KAN-206](https://runtime364.atlassian.net/browse/KAN-206) `global-age-consent-16.md`로 이관)
 - 온보딩은 `GET /onboarding/state`의 `steps[]`대로 화면을 잇는다 — 단계를 하드코딩하지 않는다. `career`가 없으면 커리어 화면을 띄우지 않는다.
 - 주제 이미지·아이콘 매핑 키를 **`items[].slug`**로 전환(한국어 이름 키 폐기). GLOBAL 주제 이미지 자산은 AI/PM에서 수령.
 - 설정에 "언어" 항목 — `PATCH /users/me/settings { language_code }`로 표시 언어 변경, 시장은 표시만(변경 불가).
 
 ## 범위 밖
 
-연령 기준 자체(결정 대기) · 주제 트리 내용(AI)
+연령 동의 화면(KAN-206) · 주제 트리 내용(AI)
 
 ## 완료 조건
 
 - Given 영어 기기 가입 / When 요청 캡처 / Then `locale` 세 필드가 기기 값과 같다
-- Given 응답 `market = global` / Then 시작 화면 제공자 Google/Apple만, 연령 16세 문구
+- Given 응답 `market = global` / Then 시작 화면 제공자 Google/Apple만
 - Given `steps = ["topic","pick"]` / Then 커리어 화면이 뜨지 않는다; `["topic","career","pick"]`이면 종전과 같다
 - Given 주제 응답에 slug / Then 이미지가 slug로 붙고 한국어 이름 키 참조 0건
 - Given 설정에서 언어를 en→ko / Then 문구가 바뀌고 `market` 표시는 그대로
 
 ## 처리 기록
 - 2026-10-14 발행(마크다운 + Jira). 묶음 티켓 분할.
+- 2026-10-14 연령 16세 문구 항목을 KAN-206으로 이관.
