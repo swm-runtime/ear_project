@@ -17,6 +17,8 @@ export interface EvalSnapshotTopic {
   id: string;
   name: string;
   is_visible: boolean;
+  /** 시장(`global-api.md` 2.1, 2026-10-14). 그 전에 뽑은 스냅샷에는 없다 — 읽을 때 `kr`로 본다 */
+  market?: string;
 }
 
 export interface EvalSnapshotContent {
@@ -40,6 +42,8 @@ export interface EvalSnapshotContent {
   complete_count: number;
   /** 현재 모델·현재 버전의 대본 임베딩. 없으면 null(임베딩 축 제외) */
   embedding: number[] | null;
+  /** 시장(`global-api.md` 2.1, 2026-10-14). 그 전에 뽑은 스냅샷에는 없다 — 읽을 때 `kr`로 본다 */
+  market?: string;
 }
 
 export interface EvalSnapshotInterest {
@@ -68,6 +72,8 @@ export interface EvalSnapshotLibraryItem {
 export interface EvalSnapshotUser {
   key: string;
   tier: string;
+  /** 시장(`global-api.md` 2.1, 2026-10-14). 그 전에 뽑은 스냅샷에는 없다 — 읽을 때 `kr`로 본다 */
+  market?: string;
   job_category: string | null;
   years_of_experience: number | null;
   auto_expand_enabled: boolean;

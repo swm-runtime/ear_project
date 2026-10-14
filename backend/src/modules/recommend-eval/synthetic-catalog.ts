@@ -9,6 +9,9 @@ import {
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 const TOPIC_COUNT = 6;
 const CONTENTS_PER_TOPIC = 14;
+/** GLOBAL 시장 — 주제 3 × 콘텐츠 8(`global-api.md` 2.1). 시장 격리 불변식과 GLOBAL 페르소나의 재료다 */
+const GLOBAL_TOPIC_COUNT = 3;
+const GLOBAL_CONTENTS_PER_TOPIC = 8;
 const EMBEDDING_DIM = 16;
 const DIFFICULTIES = ['beginner', 'intermediate', 'advanced'];
 const FORMATS = ['howto', 'interview', 'case_study'];
@@ -31,7 +34,8 @@ const uuid = (kind: number, index: number) =>
 export const syntheticTopicId = (index: number) => uuid(0xa, index);
 
 /**
- * **합성 카탈로그** — 실데이터 없이 평가기를 돌리기 위한 고정 세계(주제 6 × 콘텐츠 14, 3부작 시리즈 하나).
+ * **합성 카탈로그** — 실데이터 없이 평가기를 돌리기 위한 고정 세계(KR 주제 6 × 콘텐츠 14, 3부작 시리즈 하나 +
+ * GLOBAL 주제 3 × 콘텐츠 8). GLOBAL 몫은 KR 몫 **뒤에** 만들어 KR 카탈로그는 GLOBAL 추가 전과 같은 값이다.
  *
  * CI가 PR마다 이 위에서 페르소나를 돌려 **불변식**(관심 밖 콘텐츠가 정규에 섞이지 않는다, 본 것을 다시 주지
  * 않는다, 시리즈 순서 …)을 본다. 숫자 지표의 절대값은 의미가 없다 — 실사용자 스냅샷으로 재는 것과 다른 목적이다
@@ -83,6 +87,42 @@ export function buildSyntheticSnapshot(now: Date): EvalSnapshot {
         play_count: playCount,
         complete_count: Math.floor(playCount * (0.3 + random() * 0.5)),
         embedding,
+        market: 'kr',
+      });
+    }
+  }
+
+  for (let global = 0; global < GLOBAL_TOPIC_COUNT; global += 1) {
+    const topic = TOPIC_COUNT + global;
+
+    for (let index = 0; index < GLOBAL_CONTENTS_PER_TOPIC; index += 1) {
+      const playCount = Math.floor(random() * 60);
+
+      contents.push({
+        id: uuid(0xc, topic * CONTENTS_PER_TOPIC + index),
+        title: `Synthetic ${global}-${index}`,
+        author_name: `Author ${global}`,
+        source_name: 'Synthetic',
+        duration_sec: 420 + Math.floor(random() * 600),
+        published_at: new Date(
+          now.getTime() - Math.floor(random() * 60) * MS_PER_DAY - MS_PER_DAY,
+        ).toISOString(),
+        difficulty: DIFFICULTIES[index % DIFFICULTIES.length],
+        format: FORMATS[index % FORMATS.length],
+        is_evergreen: index % 4 === 0,
+        keywords: [`topic${global}`],
+        target_audiences: null,
+        series_id: null,
+        episode_no: null,
+        status: 'published',
+        license_expires_at: null,
+        topic_ids: [syntheticTopicId(topic)],
+        play_count: playCount,
+        complete_count: Math.floor(playCount * 0.5),
+        embedding: Array.from({ length: EMBEDDING_DIM }, (_, dim) =>
+          dim === topic ? 1 : (random() - 0.5) * 0.35,
+        ),
+        market: 'global',
       });
     }
   }
@@ -96,11 +136,20 @@ export function buildSyntheticSnapshot(now: Date): EvalSnapshot {
       { tier: 'light', daily_drip_count: 2, daily_discovery_count: 1 },
       { tier: 'pro', daily_drip_count: 2, daily_discovery_count: 1 },
     ],
-    topics: Array.from({ length: TOPIC_COUNT }, (_, index) => ({
-      id: syntheticTopicId(index),
-      name: `합성 주제 ${index}`,
-      is_visible: true,
-    })),
+    topics: [
+      ...Array.from({ length: TOPIC_COUNT }, (_, index) => ({
+        id: syntheticTopicId(index),
+        name: `합성 주제 ${index}`,
+        is_visible: true,
+        market: 'kr',
+      })),
+      ...Array.from({ length: GLOBAL_TOPIC_COUNT }, (_, index) => ({
+        id: syntheticTopicId(TOPIC_COUNT + index),
+        name: `Synthetic topic ${index}`,
+        is_visible: true,
+        market: 'global',
+      })),
+    ],
     contents,
     users: [],
   };
