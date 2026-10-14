@@ -17,6 +17,13 @@
 | 🟡 가안 | 모양은 정했으나 값·세부가 바뀔 수 있음. **바뀌면 이 문서를 먼저 고치고** 구현을 맞춘다 |
 | ⚪ 미결 | 결정 대기. 9장에 목록 |
 
+### 0.1 원칙 — 기존 계약은 유지하고, 바꾸는 것은 이유를 적는다
+
+- **기존 엔드포인트·필드·에러 코드를 쓸 수 있으면 그대로 쓴다.** 글로벌 전용 엔드포인트(`/global/...`, `/v2/...`)를 만들지 않는다. 같은 화면이 같은 API를 부르고, 서버가 `users.market`으로 응답 내용만 가른다. 이유: 클라이언트 분기 지점이 늘어나면 KR·GLOBAL 두 코드 경로를 영원히 따로 유지해야 하고, 한쪽만 고치는 버그가 생긴다.
+- **기존 필드는 빼지 않고 이름을 바꾸지 않는다.** 추가만 한다. 지금 스토어에 나가 있는 앱(3.1.x)이 새 서버에 그대로 붙어야 한다. 빼야 할 필드(예 `price_krw`)는 `null`로 내리고 다음 메이저에서 뺀다.
+- **변경에는 이유가 붙는다.** 3장 표의 "이유" 열과 4장 각 절의 **왜** 줄. 이유가 "글로벌이니까"로만 설명되는 변경은 하지 않는다 — 그 변경이 없으면 무엇이 깨지는지가 적혀야 한다.
+- 변경이 **필요 없는** 것도 적는다(3장 12번처럼). "확인하고 안 바꿨다"와 "아직 안 봤다"를 구분하기 위해서다.
+
 기존 화면 계약(`auth-api.md` 등)은 그대로 유효하다. 이 문서는 **그 계약들에 덧붙는 필드·필터·규칙만** 적는다. 충돌하면 이 문서가 글로벌 트랙에 한해 우선한다.
 
 ## 1. 범위
@@ -49,6 +56,8 @@
 | `Accept-Language` | BCP 47, 예 `en-US` · `ko-KR` | 모든 요청. 서버는 **로그·통계에만** 쓴다. 판정은 `users.market`·`users.language_code` |
 | `X-Timezone` | IANA, 예 `America/New_York` | 모든 요청. 기기 등록(4.2)이 저장의 원천이고 헤더는 보조 |
 
+**왜 헤더까지 받나**: 판정은 저장값으로 하지만, 요청 로그에 언어·시간대가 있어야 "어느 시장 트래픽이 느린가 · 어느 시간대에 몰리나"를 CloudWatch Insights로 바로 셀 수 있다. DB 조인 없이 로그만으로 보기 위한 것이고, 없어도 동작은 같다(그래서 🟡).
+
 ### 2.3 언어 — 문자열의 소유자 ✅
 
 | 문자열 | 소유자 | 규칙 |
@@ -67,24 +76,26 @@
 
 ## 3. 변경되는 엔드포인트 목록
 
-| # | 메서드·경로 | 원 문서 | 변경 | 상태 |
-|---|---|---|---|---|
-| 1 | `POST /auth/social-login` · `POST /auth/sign-up` | auth-api 4.1·4.2 | 요청 `locale` 객체 추가, 응답 `user.market`·`user.language_code` | ✅ |
-| 2 | `GET /users/me` | auth-api 4.13 | `user.market`·`user.language_code`·`user.timezone` | ✅ |
-| 3 | `PUT /users/me/devices/:device_id` | onboarding-api 4.9 | 요청 `language_code`·`timezone` | ✅ |
-| 4 | `GET /users/me/settings` · `PATCH` | settings-api 4.1·4.2 | 응답 `market`(읽기 전용)·`language_code`·`timezone`, PATCH로 `language_code` 변경 | 🟡 |
-| 5 | `GET /onboarding/state` | onboarding-api 4.1 | `steps[]` 추가 — GLOBAL은 `career` 없음 | 🟡 |
-| 6 | `GET /onboarding/topics` · `GET /users/me/interests` · `PUT …` | onboarding-api 4.2·4.3, interest-management-api | 사용자 시장의 주제만, `items[].slug` 추가, 다른 시장 주제 저장은 409 | ✅ |
-| 7 | `GET /plans` | subscription-api 4.1 | 사용자 시장의 요금제만, GLOBAL은 `price_krw: null` | ✅ |
-| 8 | 탐색·라이브러리·상세·플레이어·검색·재개 — 콘텐츠를 담는 모든 응답 | explore·library·content-detail·player-api | `language` 필드 추가, 서버가 시장 필터 | ✅ |
-| 9 | `GET /notices` · `GET /notices/:id` | settings-api 4.4·4.5 | 시장 필터(필드 변화 없음) | ✅ |
-| 10 | `POST /admin/contents` · `POST /admin/contents/:id/republish` | admin-api 4.6·4.10 | payload `market`·`language` 필수, `enrichment.json` `language`·태그 규칙·`target_audiences` 생략 | ✅ |
-| 11 | `GET /admin/contents` · `POST /admin/topics` · `GET /admin/insights/summary` | admin-api | `market` 필터·필드 | 🟡 |
-| 12 | `POST /users/me/subscription/invite-codes` 및 구독 조회 | subscription-api 4.8 | 변경 없음(코드는 시장 무관). `plan.grant` 그대로 | ✅ |
+| # | 메서드·경로 | 원 문서 | 변경 | 이유(없으면 무엇이 깨지나) | 상태 |
+|---|---|---|---|---|---|
+| 1 | `POST /auth/social-login` · `POST /auth/sign-up` | auth-api 4.1·4.2 | 요청 `locale` 객체 추가, 응답 `user.market`·`user.language_code` | 시장을 정할 입력(기기 언어)이 가입 요청에 없다. 헤더로만 받으면 "요청마다 판정"이 되어 사용자가 언어를 바꾸면 피드가 통째로 바뀐다 → 가입 시 1회 저장할 값을 본문으로 받는다 | ✅ |
+| 2 | `GET /users/me` | auth-api 4.13 | `user.market`·`user.language_code`·`user.timezone` | 클라이언트가 제공자 목록·온보딩 단계·결제 상품을 가르는 기준이 필요하다. 언어로 추측하면 영어 설정 한국 사용자가 GLOBAL로 보인다 → 서버 판정값을 그대로 노출 | ✅ |
+| 3 | `PUT /users/me/devices/:device_id` | onboarding-api 4.9 | 요청 `language_code`·`timezone` | 기존 가입자의 `language_code`·`timezone`은 비어 있다. 매 실행 호출되는 이 API에 실어야 재가입 없이 채워진다 | ✅ |
+| 4 | `GET /users/me/settings` · `PATCH` | settings-api 4.1·4.2 | 응답 `market`(읽기 전용)·`language_code`·`timezone`, PATCH로 `language_code` 변경 | 표시 언어를 사용자가 바꿀 길이 없다(기기 언어 = 가입 시 1회). 푸시·메일 언어의 원천이 필요하다 | 🟡 |
+| 5 | `GET /onboarding/state` | onboarding-api 4.1 | `steps[]` 추가 — GLOBAL은 `career` 없음 | 커리어 단계는 한국 직군 분류다. GLOBAL에 보이면 선택할 값이 없다. 클라이언트가 `market`으로 단계를 하드코딩하면 단계가 바뀔 때마다 앱 빌드가 필요해 서버가 배열로 준다 | 🟡 |
+| 6 | `GET /onboarding/topics` · `GET /users/me/interests` · `PUT …` | onboarding-api 4.2·4.3, interest-management-api | 사용자 시장의 주제만, `items[].slug` 추가, 다른 시장 주제 저장은 409 | 주제는 시장별 별도 행이라 거르지 않으면 한국어 주제가 영어 피드에 섞인다. `slug`는 클라이언트 주제 이미지 키가 한국어 이름이어서 영어 주제에 이미지가 안 붙는 문제 | ✅ |
+| 7 | `GET /plans` | subscription-api 4.1 | 사용자 시장의 요금제만, GLOBAL은 `price_krw: null` | GLOBAL 요금제는 별도 스토어 상품(ID 다름). KR 행이 보이면 결제가 KR 상품으로 간다. `price_krw`는 해외 사용자에게 원화를 보여 주는 셈이라 `null` | ✅ |
+| 8 | 탐색·라이브러리·상세·플레이어·검색·재개 — 콘텐츠를 담는 모든 응답 | explore·library·content-detail·player-api | `language` 필드 추가, 서버가 시장 필터 | 시장 필터가 없으면 한국어 콘텐츠가 해외 피드·검색·드립에 나온다(유출). `language`는 자막 폰트·낭독 언어 등 표시용 | ✅ |
+| 9 | `GET /notices` · `GET /notices/:id` | settings-api 4.4·4.5 | 시장 필터(필드 변화 없음) | 공지도 시장별로 따로 쓴다. 필터만 추가, 필드는 그대로 쓸 수 있어 바꾸지 않는다 | ✅ |
+| 10 | `POST /admin/contents` · `POST /admin/contents/:id/republish` | admin-api 4.6·4.10 | payload `market`·`language` 필수, `enrichment.json` `language`·태그 규칙·`target_audiences` 생략 | 파이프라인이 두 트랙을 만들기 시작하면 서버가 어느 시장 콘텐츠인지 알 길이 payload밖에 없다. 태그 규칙은 현행이 공백 금지여서 "Stray Kids"가 400 — 영어 고유명사 대부분이 막힌다. `target_audiences`는 KR 직군 enum | ✅ |
+| 11 | `GET /admin/contents` · `POST /admin/topics` · `GET /admin/insights/summary` | admin-api | `market` 필터·필드 | 운영 집계가 시장 섞여 나오면 PoC 성과(GLOBAL 가입·청취)를 읽을 수 없다 | 🟡 |
+| 12 | `POST /users/me/subscription/invite-codes` 및 구독 조회 | subscription-api 4.8 | 변경 없음(코드는 시장 무관). `plan.grant` 그대로 | 초대 코드는 시장과 무관한 부여 기능. 확인 결과 바꿀 것이 없다 | ✅ |
 
 ## 4. 엔드포인트 상세
 
 ### 4.1 `POST /auth/social-login` · `POST /auth/sign-up` — `locale` ✅
+
+**왜**: 시장 판정의 입력이 필요하다. 헤더(`Accept-Language`)만 쓰면 요청마다 판정이 되어 사용자가 기기 언어를 바꾸는 순간 주제·피드·요금제가 통째로 바뀌고, 저장된 관심 주제와 어긋난다. 그래서 **가입 요청 본문**으로 받아 1회 저장한다. 기존 필드는 그대로이고 `locale`은 선택이라 구 앱도 그대로 가입된다(→ `kr`).
 
 **Request**(기존 필드에 추가)
 
@@ -115,14 +126,20 @@
 
 ### 4.2 `PUT /users/me/devices/:device_id` — 로케일 갱신 ✅
 
+**왜**: 기존 가입자와 구 앱은 `locale`을 보낸 적이 없다. 재가입 없이 채우려면 **이미 매 실행마다 호출되는** 이 API에 싣는 것이 가장 싸다. 새 엔드포인트를 만들지 않는다.
+
 기존 요청에 `language_code`·`timezone`(둘 다 선택)을 더한다. 앱 실행·포그라운드 복귀마다 보내는 이 호출이 **`users.language_code`·`users.timezone`의 갱신 경로**다. 기존 가입자도 다음 실행에서 채워진다. `market`은 건드리지 않는다.
 
 ### 4.3 `GET /users/me/settings` · `PATCH /users/me/settings` 🟡
+
+**왜**: 기기 언어는 가입 시 1회만 보므로 사용자가 표시 언어를 바꿀 길이 설정밖에 없다. 서버가 만드는 문자열(푸시·메일)의 언어 원천이 이 값이다. 기존 설정 API에 필드만 더한다.
 
 - 응답에 `market`(읽기 전용) · `language_code` · `timezone` 추가.
 - `PATCH { "language_code": "en-US", "client_seq": n }` — **표시 언어 변경**. 시장은 바뀌지 않는다(⚪ 전환 불허 기본). 푸시·메일 언어가 이 값을 따른다.
 
 ### 4.4 `GET /onboarding/state` — 단계 목록 🟡
+
+**왜**: 커리어는 한국 직군 분류여서 GLOBAL에는 고를 값이 없다. 클라이언트가 `market === 'global'`로 단계를 빼는 방식도 가능하지만, 그러면 단계 구성이 바뀔 때마다 **스토어 빌드**가 필요하다(이번 PoC가 그 비용을 이미 치르고 있다). 서버가 배열로 주면 서버 배포로 끝난다.
 
 ```json
 { "onboarding_completed": false, "onboarding_step": "topic", "steps": ["topic", "pick"], "selected_topic_ids": [], "career": null, "picked_count": 0 }
@@ -132,6 +149,8 @@
 - GLOBAL 계정에 `PATCH /onboarding/career`가 오면 409 `MARKET_MISMATCH`(5장).
 
 ### 4.5 주제 — `GET /onboarding/topics` · `GET /users/me/interests` · `PUT /users/me/interests` ✅
+
+**왜**: 주제는 번역 테이블이 아니라 시장별 **별도 행**이다(2.3). 거르지 않으면 한국어 주제가 영어 피드에 섞이고, 사용자가 다른 시장 주제를 저장하면 그 주제의 콘텐츠(한국어)가 추천에 들어온다. `slug`는 클라이언트의 주제 이미지 매핑 키가 **한국어 이름**이어서 영어 주제에 이미지가 하나도 안 붙는 문제를 푼다 — 이름이 아닌 안정 키로 바꾸는 것은 KR에도 이득이다.
 
 ```json
 { "items": [ { "topic_id": "uuid-k1", "slug": "k-pop", "name": "K-Pop", "parent_category": "Entertainment" } ], "max_selectable": 3, "is_fallback": false }
@@ -144,12 +163,16 @@
 
 ### 4.6 `GET /plans` ✅
 
+**왜**: GLOBAL 요금제는 스토어 상품 ID가 다르다(현지가 책정·세금 처리가 상품 단위). KR 행이 응답에 섞이면 결제가 KR 상품으로 간다. `price_krw`는 해외 사용자에게 원화를 보이는 값이어서 `null`로 내리되 **필드는 유지**한다 — 지금 스토어의 3.1.x 앱이 이 필드를 읽는다.
+
 - `plans[]`는 **사용자 시장의 요금제 행만**(`plans.market`). GLOBAL 요금제는 별도 행·별도 `store_product_id_*`(예 `com.runtime.ear.global.pro.monthly` 🟡).
 - `price_krw`: KR은 종전대로 참고값, **GLOBAL은 `null`**. 클라이언트는 어느 시장이든 스토어 SDK의 현지가(`displayPrice`)만 그린다. 다음 메이저에서 필드 자체를 뺀다.
 - `name`·`description`은 시장별 행의 값(GLOBAL은 영어).
 - `action` 판정은 종전과 같다(`subscription-api.md` 4.1). 구독 행은 시장을 가지지 않는다 — 결제는 스토어 국가 기준이고, GLOBAL 사용자가 KR 상품 ID로 결제하는 경로는 앱에 없다.
 
 ### 4.7 콘텐츠를 담는 모든 응답 — `language` ✅
+
+**왜**: 가시성 조건에 시장이 없으면 한국어 콘텐츠가 해외 피드·검색·드립·재개 목록에 그대로 나온다. 이것은 "안 어울리는 콘텐츠"가 아니라 **격리 실패**다. `language`는 클라이언트 표시용(폰트·낭독·자막)으로만 더한다 — 거르는 책임을 클라이언트에 주지 않기 위해 명시한다.
 
 탐색 피드·검색·콘텐츠 상세·라이브러리 목록·재개 대상·플레이어 메타·온보딩 추천(`/onboarding/recommendations`)의 콘텐츠 객체에 `language`(BCP 47 primary, `ko` · `en`)를 더한다.
 
@@ -162,9 +185,13 @@
 
 ### 4.8 공지 ✅
 
+**왜**: 공지는 시장별로 따로 쓴다. 필드는 그대로 쓸 수 있어 바꾸지 않고 필터만 더한다.
+
 `GET /notices`·`GET /notices/:id`는 `notices.market`으로 거른다. 필드 변화 없음. 공지는 시장별로 따로 쓴다.
 
 ### 4.9 파이프라인 → 서버 발행 — `POST /admin/contents` · `republish` ✅
+
+**왜**: 두 트랙을 만들기 시작하면 서버가 콘텐츠의 시장을 알 길은 payload밖에 없다(주제로 추론하면 주제 없는 콘텐츠·다중 주제에서 깨진다). 태그 규칙은 현행이 **공백 금지**여서 "Stray Kids"·"Squid Game"이 400으로 막히고, 영어 고유명사 대부분이 그렇다. `target_audiences`는 KR 직군 enum이라 GLOBAL에는 채울 값이 없다. 나머지(`title`·`sources`·`script_file`·`enrichment_file`)는 **그대로 쓴다**.
 
 `payload`(JSON 문자열)에 두 필드를 **필수**로 더한다.
 
@@ -183,6 +210,8 @@
 - 주제 생성 `POST /admin/topics`에 `market`·`slug` 필수 🟡. GLOBAL 주제 트리는 KAN-184가 제안하고 BE가 반영한다.
 
 ### 4.10 어드민 조회 🟡
+
+**왜**: PoC 성과를 읽어야 한다. 시장이 섞인 가입·청취 수는 어느 트랙이 움직였는지 말해 주지 않는다.
 
 `GET /admin/contents?market=` 필터, `GET /admin/insights/summary`에 `by_market` 블록(가입·활성·청취·결제의 시장별 집계). 모양은 BE가 구현하며 확정.
 
