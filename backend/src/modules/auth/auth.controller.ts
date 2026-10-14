@@ -18,6 +18,8 @@ import {
   RATE_LIMIT_WINDOW_MS,
 } from '@/common/rate-limit.constant';
 
+import { toLocaleInput } from '@/modules/user/dto/locale-input.dto';
+
 import { AuthService } from './services/auth.service';
 import { LogoutRequestDto } from './dto/logout-request.dto';
 import { PipelineLoginRequestDto } from './dto/pipeline-login-request.dto';
@@ -60,6 +62,7 @@ export class AuthController {
         providerToken: request.provider_token,
         deviceId: request.device_id,
         nonce: request.nonce,
+        locale: toLocaleInput(request.locale),
       },
       now,
     );
@@ -106,6 +109,7 @@ export class AuthController {
           version: consent.version ?? null,
           isAgreed: consent.is_agreed,
         })),
+        locale: toLocaleInput(request.locale),
       },
       now,
     );

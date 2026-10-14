@@ -4,6 +4,7 @@ import {
   ConsentType,
   OnboardingStep,
   SocialProvider,
+  UserMarket,
   UserRole,
   UserTier,
 } from '../user.enum';
@@ -32,6 +33,9 @@ class MeUserDto {
   readonly role: UserRole;
   readonly onboarding_completed: boolean;
   readonly onboarding_step: OnboardingStep;
+  readonly market: UserMarket;
+  readonly language_code: string | null;
+  readonly timezone: string | null;
 }
 
 class MePendingConsentDto {
@@ -62,6 +66,9 @@ export class GetMeResponseDto {
         role: user.role,
         onboarding_completed: user.onboardingCompleted,
         onboarding_step: user.onboardingStep,
+        market: user.market,
+        language_code: user.languageCode,
+        timezone: user.timezone,
       },
       pending_consents: pendingConsents.map((consent) => ({
         consent_type: consent.consentType,

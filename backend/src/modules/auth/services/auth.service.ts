@@ -96,9 +96,11 @@ export class AuthService {
       existing,
       profile.profileImageUrl,
     );
+    // 기기 언어·시간대는 로그인마다 갱신하되 `market`은 가입 때 정한 값 그대로다(global-api.md 4.1)
+    const localized = await this.userService.syncLocale(synced, command.locale);
     // 로그아웃·재설치 뒤 돌아온 기존 가입자 — 로그인 응답의 `user.tier`에 체험이 바로 실리게 여기서 준다
     // (세션 복원 `GET /users/me`와 같은 지급. subscription.md 4.8)
-    const user = await this.userService.grantExistingUserTrial(synced, now);
+    const user = await this.userService.grantExistingUserTrial(localized, now);
 
     const tokens = await this.issueSession(user, command.deviceId, now);
     this.logger.log('social login succeeded', {
@@ -139,6 +141,7 @@ export class AuthService {
           nickname: payload.nickname,
           profileImageUrl: payload.profileImageUrl,
           consents: command.consents,
+          locale: command.locale,
         },
         now,
       ));

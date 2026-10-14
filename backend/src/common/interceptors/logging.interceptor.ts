@@ -60,6 +60,18 @@ export class LoggingInterceptor implements NestInterceptor {
       path: redactSensitiveQuery(request.url),
       status,
       duration_ms: Math.round(durationMs),
+      // 로케일은 로그·통계용이다(global-api.md 2.2) — 판정은 `users.market`. 값은 짧게 잘라 남긴다
+      accept_language: headerValue(request, 'accept-language'),
+      timezone: headerValue(request, 'x-timezone'),
     });
   }
+}
+
+const HEADER_LOG_LENGTH = 32;
+
+function headerValue(request: Request, name: string): string | null {
+  const raw = request.headers[name];
+  const value = Array.isArray(raw) ? raw[0] : raw;
+
+  return value ? value.slice(0, HEADER_LOG_LENGTH) : null;
 }

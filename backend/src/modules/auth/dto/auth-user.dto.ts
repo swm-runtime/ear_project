@@ -3,6 +3,7 @@ import { resolveEffectiveTier } from '@/modules/user/policies/effective-tier.pol
 import {
   OnboardingStep,
   SocialProvider,
+  UserMarket,
   UserRole,
   UserTier,
 } from '@/modules/user/user.enum';
@@ -29,6 +30,12 @@ export class AuthUserDto {
   readonly role: UserRole;
   readonly onboarding_completed: boolean;
   readonly onboarding_step: OnboardingStep;
+  /** 시장(`global-api.md` 4.1) — 제공자 목록·온보딩 단계·요금제 분기의 기준. 클라이언트는 언어로 추측하지 않는다 */
+  readonly market: UserMarket;
+  /** 저장된 기기 언어(BCP 47). 구 앱은 null */
+  readonly language_code: string | null;
+  /** 저장된 기기 시간대(IANA). 구 앱은 null */
+  readonly timezone: string | null;
 
   /** `now`는 가입 체험 판정용 — `tier`는 그 시각의 유효 티어다(`resolveEffectiveTier`) */
   static from(user: User, now: Date): AuthUserDto {
@@ -43,6 +50,9 @@ export class AuthUserDto {
       role: user.role,
       onboarding_completed: user.onboardingCompleted,
       onboarding_step: user.onboardingStep,
+      market: user.market,
+      language_code: user.languageCode,
+      timezone: user.timezone,
     };
   }
 }

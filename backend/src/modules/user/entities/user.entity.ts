@@ -5,6 +5,7 @@ import { BaseEntity } from '@/database/base.entity';
 import {
   OnboardingStep,
   SocialProvider,
+  UserMarket,
   UserRole,
   UserStatus,
   UserTier,
@@ -116,4 +117,36 @@ export class User extends BaseEntity {
 
   @Column({ name: 'withdrawn_at', type: 'timestamptz', nullable: true })
   withdrawnAt: Date | null;
+
+  /**
+   * 시장(`global-api.md` 2.1). **계정 생성 시 1회** `market.policy.ts`가 정하고 이후 바꾸지 않는다 —
+   * 로그인·기기 등록이 다른 로케일을 보내도 그대로다. 기존 가입자는 마이그레이션 기본값 `kr`.
+   */
+  @Column({
+    name: 'market',
+    type: 'varchar',
+    length: 20,
+    default: UserMarket.KR,
+  })
+  market: UserMarket;
+
+  /**
+   * 기기 언어(BCP 47, 예 `en-US`). 표시 언어·푸시·메일 언어의 원천. 가입·로그인·기기 등록마다 갱신한다.
+   * null = 구 앱(보낸 적 없음)
+   */
+  @Column({
+    name: 'language_code',
+    type: 'varchar',
+    length: 16,
+    nullable: true,
+  })
+  languageCode: string | null;
+
+  /** 기기 지역(ISO 3166-1 alpha-2, 대문자). 통계용 — 판정에 쓰지 않는다 */
+  @Column({ name: 'region_code', type: 'varchar', length: 2, nullable: true })
+  regionCode: string | null;
+
+  /** 기기 시간대(IANA, 예 `America/New_York`). 드립 발송 그룹에만 쓴다 — 서비스 날짜 경계는 바꾸지 않는다 */
+  @Column({ name: 'timezone', type: 'varchar', length: 64, nullable: true })
+  timezone: string | null;
 }

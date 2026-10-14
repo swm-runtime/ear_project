@@ -3,10 +3,13 @@ import {
   ArrayMaxSize,
   ArrayNotEmpty,
   IsArray,
+  IsOptional,
   IsString,
   MaxLength,
   ValidateNested,
 } from 'class-validator';
+
+import { LocaleInputDto } from '@/modules/user/dto/locale-input.dto';
 
 import { ConsentInputDto } from '@/modules/user/dto/consent-input.dto';
 
@@ -26,4 +29,10 @@ export class SignUpRequestDto {
   @ValidateNested({ each: true })
   @Type(() => ConsentInputDto)
   readonly consents: ConsentInputDto[];
+
+  /** `global-api.md` 4.1 — 가입 화면에서 고른 콘텐츠 언어 + 기기 로케일. 없으면 시장은 기기 언어 → `kr` 폴백 */
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => LocaleInputDto)
+  readonly locale?: LocaleInputDto;
 }
