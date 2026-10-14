@@ -4,9 +4,15 @@ import {
   IsInt,
   IsOptional,
   IsString,
+  Matches,
   MaxLength,
   Min,
 } from 'class-validator';
+
+import {
+  TOPIC_SLUG_MAX_LENGTH,
+  TOPIC_SLUG_PATTERN,
+} from '@/modules/interest/interest.constant';
 import { UserMarket } from '@/modules/user/user.enum';
 
 /** admin.md 3.2 — `is_visible`은 받지 않는다. 새 주제는 항상 숨김으로 시작한다(4.5) */
@@ -29,4 +35,11 @@ export class CreateTopicRequestDto {
   @IsOptional()
   @IsEnum(UserMarket)
   readonly market?: UserMarket;
+
+  /** `global-api.md` 4.5 — 주제 이미지 매핑 키. 선택. 소문자·숫자·하이픈(예 `k-pop`), 시장 안에서 유일 */
+  @IsOptional()
+  @IsString()
+  @MaxLength(TOPIC_SLUG_MAX_LENGTH)
+  @Matches(TOPIC_SLUG_PATTERN)
+  readonly slug?: string;
 }

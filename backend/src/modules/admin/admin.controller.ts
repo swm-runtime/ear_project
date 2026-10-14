@@ -161,6 +161,7 @@ export class AdminController {
         parentCategory: request.parent_category,
         displayOrder: request.display_order ?? null,
         market: request.market ?? UserMarket.KR,
+        slug: request.slug ?? null,
       }),
     );
   }
@@ -180,6 +181,7 @@ export class AdminController {
           parentCategory: request.parent_category,
           isVisible: request.is_visible,
           displayOrder: request.display_order,
+          slug: request.slug,
         },
         new Date(),
       ),

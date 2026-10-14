@@ -1,9 +1,11 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { EntityManager } from 'typeorm';
 
+import { BusinessConflictException } from '@/common/exceptions/business-conflict.exception';
 import { BusinessNotFoundException } from '@/common/exceptions/business-not-found.exception';
 import { ErrorCode } from '@/common/exceptions/error-code.enum';
 import { normalizeStoredText } from '@/common/utils/search-text.util';
+import { isUniqueViolation } from '@/common/utils/unique-violation.util';
 
 import { Topic } from '../entities/topic.entity';
 import {
@@ -200,10 +202,10 @@ export class TopicService {
       isVisible: false,
       displayOrder,
       market: command.market,
+      slug: command.slug,
     });
-    const [saved] = await this.topicRepository.saveAll([topic], manager);
 
-    return saved;
+    return this.save(topic, manager);
   }
 
   async update(
@@ -223,9 +225,30 @@ export class TopicService {
     if (command.displayOrder !== undefined) {
       topic.displayOrder = command.displayOrder;
     }
+    if (command.slug !== undefined) {
+      topic.slug = command.slug;
+    }
 
-    const [saved] = await this.topicRepository.saveAll([topic], manager);
-    return saved;
+    return this.save(topic, manager);
+  }
+
+  /**
+   * 같은 시장에 같은 `slug`가 있으면 `uq_topics_market_slug`가 막는다 — 500 이 아니라 409 로 돌려준다.
+   * `topics`의 유니크는 이것 하나뿐이라 위반을 slug 중복으로 읽는다 — 유니크를 더하면 여기 문구도 가른다
+   */
+  private async save(topic: Topic, manager?: EntityManager): Promise<Topic> {
+    try {
+      const [saved] = await this.topicRepository.saveAll([topic], manager);
+      return saved;
+    } catch (error) {
+      if (isUniqueViolation(error)) {
+        throw new BusinessConflictException({
+          errorCode: ErrorCode.CONFLICT,
+          message: '같은 시장에 같은 slug 의 주제가 이미 있어요',
+        });
+      }
+      throw error;
+    }
   }
 
   /**

@@ -194,6 +194,7 @@ function snapshot(topic: Topic): Record<string, unknown> {
   return {
     name: topic.name,
     parent_category: topic.parentCategory,
+    slug: topic.slug,
     is_visible: topic.isVisible,
     display_order: topic.displayOrder,
   };
