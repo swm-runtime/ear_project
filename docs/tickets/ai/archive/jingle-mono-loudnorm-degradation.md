@@ -12,7 +12,7 @@
 | 기한 | 2026-10-08 (Medium — 3일 안) |
 | 선행 | 없음 |
 | 중요도 | Medium — 재생·발행은 정상이고, 전 에피소드의 첫인상(인트로)과 목소리 결을 좌우한다 |
-| 근거 문서 | `ai/spec/06-audio.md` 7장(후처리·파일 규격 · 징글) · `tickets/ai/pending/intro-outro-sound.md`(KAN-111) |
+| 근거 문서 | `ai/spec/06-audio.md` 7장(후처리·파일 규격 · 징글) · `tickets/ai/archive/intro-outro-sound.md`(KAN-111) |
 | 상태 | 완료 — 반영 2026-10-05 (PR #1130) |
 
 ## 무엇이 문제인가
