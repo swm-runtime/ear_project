@@ -20,10 +20,10 @@
 
 ## 무엇을 한다
 
-- 업로드·재발행 payload에 `market`·`language` **필수**. `topic_ids` 시장 불일치·`market/language` 조합 불일치(kr↔ko, global↔en)는 400 `VALIDATION_FAILED`.
-- 태그 규칙 `^[가-힣A-Za-z0-9]{2,10}$` → `^[가-힣A-Za-z0-9 ]{2,20}$`(공백 허용·앞뒤 공백 없음). KR 기존 태그는 전부 통과(회귀 테스트).
+- 업로드·재발행 payload에 `market`·`language` — **1단계 선택**(없으면 kr·ko), AI KAN-204가 보내기 시작한 뒤 **필수**(2단계). `topic_ids` 시장 불일치·`market/language` 조합 불일치(kr↔ko, global↔en)는 400 `VALIDATION_FAILED`.
+- 태그 규칙 `^[가-힣A-Za-z0-9]{2,10}$` → `^[가-힣A-Za-z0-9][가-힣A-Za-z0-9 ]{0,18}[가-힣A-Za-z0-9]$`(2~20자·안쪽 공백 허용·앞뒤 공백 없음 — `CONTENT_TAG_PATTERN`). KR 기존 태그는 전부 통과(회귀 테스트).
 - `target_audiences`: `market=global`이면 생략 허용, 있으면 400. `enrichment.json` `language` 키(선택, 없으면 payload 값).
-- `POST /admin/topics`에 `market`·`slug` 필수.
+- `POST /admin/topics`에 `market`(1단계 선택)·`slug`(입력은 KAN-189 남은 일) — 필수 전환은 2단계와 함께.
 - `GET /admin/contents?market=` 필터 · `GET /admin/insights/summary`에 `by_market`(가입·활성·청취·결제 시장별 집계 — 모양은 구현 시 확정해 `global-api.md` 4.10 갱신).
 - 콘솔(`pipeline/`)이 플래그로 켜는 시점을 알 수 있게 **배포 후 AI 담당에게 알린다**(처리 기록에 날짜).
 

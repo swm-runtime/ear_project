@@ -2,7 +2,7 @@
 
 # 글로벌(해외 전용 K-컬처) 트랙 API 명세서
 
-> 기준 문서: 글로벌 트랙 에픽 [KAN-186](https://runtime364.atlassian.net/browse/KAN-186) — 자식 티켓 `docs/tickets/<파트>/pending/global-*.md`(BE 7 · FE 6 · AI 5, 2026-10-14 결정. 처음 발행한 묶음 티켓 KAN-183/184/185는 분할 후 닫음)
+> 기준 문서: 글로벌 트랙 에픽 [KAN-186](https://runtime364.atlassian.net/browse/KAN-186) — 자식 티켓 `docs/tickets/<파트>/pending/global-*.md`(BE 8 — KAN-187~193·207 · FE · AI는 에픽 목록 참조, 2026-10-14 결정. 처음 발행한 묶음 티켓 KAN-183/184/185는 분할 후 닫음)
 > 규약: [`docs/backend/convention.md`](../../backend/convention.md) 5장 · [`docs/backend/architecture.md`](../../backend/architecture.md) 7·9장
 > 스키마: [`docs/backend/domain.md`](../../backend/domain.md) — 이 문서의 8장이 개정 요청의 원본이다(`changes/pending` 경유)
 > 작성: 2026-10-14 (박준현). **글로벌 트랙 `features/` 문서는 아직 없다** — 이 문서가 그 자리를 임시로 맡고, 동작 규칙은 각 티켓의 "결정" 절이 기준이다. FR은 다음 통합 때 PRD에 추가한다.
@@ -72,6 +72,7 @@
 
 - 서버는 `users.timezone`(IANA)을 저장하고 **드립 배치·푸시 발송 그룹**에만 쓴다. 1단계에서 서비스 날짜 경계는 전 시장 **05:00 KST 단일**이다(재생 한도·체험 종료·주간 창 포함).
 - 발송 그룹은 서버 설정이다(예: `asia` = UTC+5~+11 · `europe` = UTC−1~+4 · `americas` = UTC−10~−2). 그룹의 "현지 05:00"에 해당하는 UTC 시각에 그 그룹의 사용자만 배치한다. 그룹 정의는 9장 미결.
+- **도착 알림은 편성과 떼어 "현지 07:00"에 보낸다**(2026-10-14 확정 — KR은 07:00 KST, PR #1532). 새벽 5시 알림은 잠금화면에 묻혀 청취로 이어지지 않는다. 그룹 알림은 그 그룹 배치가 적립한 것만 다시 읽어 사용자당 1건(정규 + 탐험)이고, 배치가 현지 07:00까지 안 끝났으면 끝나는 즉시 보낸다. 하루 1건 판정은 서비스 날짜(05:00 KST) 기준 그대로다 — 그룹 시각이 KST 서비스 날짜를 넘지 않게 경계를 정한다(9장 미결 #3).
 - 응답의 시각은 종전대로 **ISO 8601 UTC**다. 날짜 라벨(`service_date` 등)은 서버 서비스 날짜(KST 기준) 그대로 — 클라이언트는 기기 시각으로 재계산하지 않는다.
 
 ## 3. 변경되는 엔드포인트 목록
@@ -185,7 +186,7 @@
 ```
 
 - **시장 필터는 서버가 한다.** 사용자 시장이 아닌 콘텐츠는 어떤 응답에도 나오지 않는다(상세 URL로 직접 접근해도 404). 클라이언트는 `language`로 거르지 않는다 — 표시 전용(예: 자막 폰트·낭독 언어).
-- 드립 편성·탐험·인기·검색 후보도 같은 필터를 탄다. 이 격리는 서버 e2e(KAN-185)가 보장한다.
+- 드립 편성·탐험·인기·검색 후보도 같은 필터를 탄다. 이 격리는 서버 e2e(KAN-188 — `test/global-catalog-isolation.e2e-spec.ts`)가 보장한다.
 
 ### 4.8 공지 ✅
 
@@ -197,7 +198,7 @@
 
 **왜**: 두 트랙을 만들기 시작하면 서버가 콘텐츠의 시장을 알 길은 payload밖에 없다(주제로 추론하면 주제 없는 콘텐츠·다중 주제에서 깨진다). 태그 규칙은 현행이 **공백 금지**여서 "Stray Kids"·"Squid Game"이 400으로 막히고, 영어 고유명사 대부분이 그렇다. `target_audiences`는 KR 직군 enum이라 GLOBAL에는 채울 값이 없다. 나머지(`title`·`sources`·`script_file`·`enrichment_file`)는 **그대로 쓴다**.
 
-`payload`(JSON 문자열)에 두 필드를 **필수**로 더한다.
+`payload`(JSON 문자열)에 두 필드를 더한다. **1단계는 선택**(없으면 `kr`·`ko` — 구 콘솔·KR 파이프라인 무중단), **파이프라인이 보내기 시작한 뒤(AI KAN-204) 필수로 올린다**(KAN-190 2단계).
 
 ```json
 { "title": "...", "description": "...", "origin": "ai_generated", "market": "global", "language": "en", "topic_ids": ["uuid-k1"], "sources": [ ... ] }
@@ -209,9 +210,9 @@
 | `language` | `ko` · `en` | `market = kr`는 `ko`만, `global`은 `en`(1단계). 아니면 400 |
 
 - 기존 콘텐츠·기존 업로드는 `market = kr`, `language = ko`로 간주한다(마이그레이션 기본값). **파이프라인은 한국어 트랙에도 두 필드를 명시해 보낸다**(콘솔의 `SEND_*` 플래그 패턴 — 서버 배포 전에는 400이 나므로 서버 반영 뒤 켠다).
-- `enrichment.json`(`ai/metadata-pipeline.md` 4.4)에 `language` 키 추가(선택, 없으면 payload 값). `tags` 규칙 완화: **공백 허용, 2~20자, 한글·영문·숫자·공백**(`^[가-힣A-Za-z0-9 ]{2,20}$`, 앞뒤 공백 없음) — "Stray Kids"·"BLACKPINK"가 통과한다. `target_audiences`는 **`market = global`이면 생략 허용**(있으면 무시하지 않고 400 — 직군 enum이 KR 전용).
+- `enrichment.json`(`ai/metadata-pipeline.md` 4.4)에 `language` 키 추가(선택, 없으면 payload 값). `tags` 규칙 완화: **공백 허용, 2~20자, 한글·영문·숫자·공백, 앞뒤 공백 없음**(`^[가-힣A-Za-z0-9][가-힣A-Za-z0-9 ]{0,18}[가-힣A-Za-z0-9]$` — `content.constant.ts` `CONTENT_TAG_PATTERN`) — "Stray Kids"·"BLACKPINK"가 통과한다. `target_audiences`는 **`market = global`이면 생략 허용**(있으면 무시하지 않고 400 — 직군 enum이 KR 전용).
 - `upload-meta.json`(파이프라인 패키지)에 같은 `market`·`language`를 기록해 콘솔이 payload로 옮긴다.
-- 주제 생성 `POST /admin/topics`에 `market`·`slug` 필수 🟡. GLOBAL 주제 트리는 KAN-184가 제안하고 BE가 반영한다.
+- 주제 생성 `POST /admin/topics`에 `market`(1단계 선택 — 없으면 `kr`)·`slug` 🟡. `slug` 입력은 아직 받지 않는다(KAN-189 남은 일 — KR 주제 slug 채우기와 함께). 두 필드의 필수 전환은 발행 계약 필수 전환(KAN-190 2단계)과 같은 때 한다. GLOBAL 주제 8개는 마이그레이션으로 시드됐다(1790100000000).
 
 ### 4.10 어드민 조회 🟡
 
@@ -242,7 +243,8 @@
    → PUT /users/me/devices/:id {push_token, language_code, timezone}
 
 [드립]
-서버: 발송 그룹(americas) 현지 05:00 = UTC 10:00 → 그 그룹 사용자만 배치 → 영어 푸시(users.language_code)
+서버: 발송 그룹(americas) 현지 05:00 = UTC 10:00 → 그 그룹 사용자만 배치
+서버: 같은 그룹 현지 07:00 = UTC 12:00 → 그 그룹 적립분만 다시 읽어 영어 푸시(users.language_code)
 
 [결제]
 앱: GET /plans → GLOBAL 요금제(price_krw null) → StoreKit/Billing 현지가 표시 → 영수증 제출(종전 계약)

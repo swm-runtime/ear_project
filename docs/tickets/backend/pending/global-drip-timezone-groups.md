@@ -20,7 +20,8 @@
 
 ## 무엇을 한다
 
-- `users.timezone`을 발송 그룹으로 묶는 서버 설정(기본 `asia`·`europe`·`americas`, 오프셋 경계는 미결 #3 기본값). 그룹마다 "현지 05:00"에 해당하는 UTC 크론.
+- `users.timezone`을 발송 그룹으로 묶는 서버 설정(기본 `asia`·`europe`·`americas`, 오프셋 경계는 미결 #3 기본값). 그룹마다 "현지 05:00"(편성)·**"현지 07:00"(도착 알림)**에 해당하는 UTC 크론(2026-10-14 확정 — `global-api.md` 2.4).
+- KR 07:00 KST 알림 분리(PR #1532)를 그룹 단위로 넓힌다: `notifyTodayArrivals(now, group)`이 그 그룹의 `drip_batch_runs` 행을 찾고 그 그룹 사용자 적립분만 읽는다. 늦게 끝난 배치의 즉시 발송 판정(`isAfterArrivalPushTime`)도 그룹 현지 07:00 기준. 푸시 `ttl`은 그룹의 다음 배치까지. 그룹 알림 시각이 KST 서비스 날짜(05:00 경계)를 넘으면 하루 1건 판정이 어긋나고 발송이 빠지는 구간이 생기므로, 그룹 경계(미결 #3)를 정할 때 함께 확인한다.
 - `drip_batch_runs`에 `group`(DEFAULT `asia`), 유니크 `(run_date) → (run_date, group)`. `claim`·`reclaimUnfinished`·`already_placed` 판정은 그룹 안에서 종전과 같다.
 - 서비스 날짜 경계는 전 시장 **05:00 KST 단일 유지** — 재생 한도·체험·주간 창은 손대지 않는다.
 - 푸시 제목·본문과 인증 메일을 `users.language_code`(ko/en)로 템플릿 선택. en 템플릿 신설.
@@ -32,10 +33,12 @@
 
 ## 완료 조건
 
-- Given `americas` 그룹 GLOBAL 사용자 / When 그 그룹의 현지 05:00 UTC 시각 / Then 그 그룹만 편성되고 영어 푸시가 간다. 다른 그룹은 0건
-- Given KR 사용자 / Then 05:00 KST 배치가 종전과 동일(회귀)
+- Given `americas` 그룹 GLOBAL 사용자 / When 그 그룹의 현지 05:00 UTC 시각 / Then 그 그룹만 편성되고 알림은 없다. 다른 그룹은 0건
+- Given 같은 그룹 / When 그 그룹의 현지 07:00 UTC 시각 / Then 그 그룹 적립분만 영어 푸시로 사용자당 1건. 다른 그룹 사용자에게는 가지 않는다
+- Given KR 사용자 / Then 05:00 KST 편성·07:00 KST 알림이 종전과 동일(회귀)
 - Given 같은 `run_date`에 그룹 3개 실행 / Then `drip_batch_runs` 3행, 중복 편성 0건
 - Given `language_code = en-US` 계정의 인증 메일 / Then 영어 템플릿
 
 ## 처리 기록
 - 2026-10-14 발행(마크다운 + Jira). 묶음 티켓 분할.
+- 2026-10-14 결정: 그룹도 **현지 05:00 편성 · 현지 07:00 알림**(KR 07:00 KST 알림 분리 PR #1532와 같은 이유). 무엇을 한다·완료 조건·`global-api.md` 2.4·6장 반영.
