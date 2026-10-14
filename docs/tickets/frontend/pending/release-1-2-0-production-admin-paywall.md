@@ -14,7 +14,7 @@
 | 관련 | 이 티켓이 운영 결제 마지막 테스트 두 건을 막는다 — 백엔드 `production-payment-test-android.md`(KAN-174, 박준현) · ai `production-payment-test-ios.md`(KAN-177, 박수헌). `ios-1-2-0-native-build-payment-test.md`(KAN-155) · `google-play-production-release.md`(KAN-101) |
 | 근거 문서 | `features/paywall.md` 4.5 · `features/subscription.md` · `spec/api/settings-api.md`(`account.is_admin`) · `frontend/architecture.md` 2.1 |
 | 중요도 | Medium — PM 이 중요도를 따로 정하지 않아 기본값. 마감이 안 맞으면 등급을 내리지 말고 사유를 적는다 |
-| 상태 | 진행 중 — 운영 머지·빌드 완료, 스토어 제출·관리자 전용 노출 남음 |
+| 상태 | 진행 중 — 운영 머지·빌드 완료, 결제 UI 는 iOS(10-13)·Android(10-14) 모두 운영 on, 스토어 출시 남음 |
 
 ## 요청
 
@@ -48,3 +48,4 @@
 ## 처리 기록
 
 - 2026-10-12 — iOS 관리자 전용 노출(할 것 2·3)은 KAN-180(`ios-first-subscription-review-build.md`)으로 대체. iOS 는 전원 노출로 전환(심사용). Android 관리자 게이트는 KAN-130 후로 보류. 남은 것: iOS·Android 스토어 출시(사람 손), 결제 테스트 두 건(KAN-174·KAN-177) 통과 후 사용자 오픈 OTA(할 것 4) — iOS 는 이미 전원 오픈이라 사실상 Android 전용 단계가 된다.
+- 2026-10-14 — **Android 운영 결제 UI on**(`EXPO_PUBLIC_SUBSCRIPTION_ANDROID=on` — eas.json production · eas-update main 채널 둘 다). KAN-174(박준현) 2026-10-12 코멘트: 운영 Play 정기 결제 2개(`com.runtime.ear.sub.daily.monthly` · `.pro.monthly`) 생성·활성, 운영 `plans.store_product_id_android` 등록 완료 → "③ 앱 Android 결제 UI on → 라이선스 테스터로 종단 테스트" 요청. 관리자 게이트(할 것 2)는 넣지 않고 전원 노출로 연다 — iOS 와 같은 상태. 결제 모듈이 없는 옛 바이너리(rt 31 이하)는 런타임 감지로 여전히 꺼진다. 이로써 할 것 4(사용자 오픈 OTA)는 iOS·Android 모두 끝났고 남은 것은 스토어 출시(1번)와 결제 테스트 결과(KAN-174·KAN-177).
