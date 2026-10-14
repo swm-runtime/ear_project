@@ -13,7 +13,7 @@
 | 근거 문서 | `features/auth.md` 67·150행 · `spec/api/auth-api.md` 4.7(383행) · `spec/uiux/auth-uiux.md` A7(181·191행) |
 | 심각도 | 중 |
 | 중요도 | Medium(3일 안) — PM이 중요도를 정하지 않아 기본값으로 잡았다. 바꾸려면 Jira와 이 표를 함께 고친다 |
-| 상태 | 대기 |
+| 상태 | **완료**(2026-10-15) |
 
 ## 문제
 
@@ -45,3 +45,7 @@
 ## 처리 기록
 
 - 2026-10-14 발행(PM 요청).
+- **2026-10-15 완료 — archive 로 옮긴다. 반영 날짜: 2026-10-15.** PR #1544(`fix(fe)/withdrawal-reason-required`).
+  - 코드: `useWithdrawalScreen` 의 `canSubmit` 에 `reasonCode !== null` 을 더했고, `toggleReason` 은 다시 탭해도 풀리지 않는 단일 선택으로 바꿨다. `reason.label` 에서 "(선택)" 을 뺐고 화면·행 컴포넌트의 "선택 입력" 주석을 고쳤다. [기타] 자유 입력은 그대로 선택이다. 서버는 손대지 않았다.
+  - 테스트: `useWithdrawalScreen.test.tsx` — 사유 미선택이면 비활성·요청 안 보냄, 사유+확인 체크면 활성, 활성 구독은 만료 동의까지 필요, 요청 본문 `reasonCode` 가 고른 값, 다시 탭해도 유지, A→B 전환(완료 조건 1~4).
+  - 문서: `spec/uiux/auth-uiux.md` 4.5(A7-a·A7-b "탈퇴 사유(필수)" + 버튼 활성 조건) · `spec/api/auth-api.md` 4.7(`reason_code` 클라이언트는 항상 보냄) · `features/auth.md` 3장 탈퇴 표·4.3-3 — `features/auth.md` 는 PM 이 같은 PR 에서 고치도록 승인했다(요청 4의 확인 항목).

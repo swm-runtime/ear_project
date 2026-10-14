@@ -380,7 +380,7 @@
 
 | 필드 | 필수 | 비고 |
 | --- | --- | --- |
-| reason_code | 선택 | 선택형 사유 |
+| reason_code | 선택 | 선택형 사유. **클라이언트는 항상 보낸다**(서버는 구버전 앱 호환을 위해 null도 받는다 — 2026-10-15 KAN-205, `auth-uiux.md` 4.5) |
 | reason_text | 선택 | 자유 입력 |
 | confirm | **필수** | 안내 확인 체크. `true`가 아니면 거부 |
 | agreed_subscription_expiry | 조건부 필수 | **활성 구독이 있을 때만** 필수 |

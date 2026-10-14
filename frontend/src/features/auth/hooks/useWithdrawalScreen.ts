@@ -63,8 +63,13 @@ export const useWithdrawalScreen = () => {
 
   /** 활성 구독이 있으면 만료 동의 없이는 [탈퇴하기]를 활성화하지 않는다(auth.md 4.3-2) */
   const isExpiryAgreementRequired = preview?.subscriptionExpiryAgreementRequired ?? false;
+  /**
+   * 사유는 필수다 — 고르기 전에는 [탈퇴하기]를 켜지 않는다(KAN-205, auth-uiux.md 4.5).
+   * 서버는 구버전 앱 호환으로 null도 받지만 이 클라이언트는 항상 보낸다(auth-api.md 4.7)
+   */
   const canSubmit =
     preview !== null &&
+    reasonCode !== null &&
     isConfirmed &&
     (!isExpiryAgreementRequired || isSubscriptionExpiryAgreed) &&
     !isSubmitting;
@@ -77,11 +82,14 @@ export const useWithdrawalScreen = () => {
     setHighlightedCheck(null);
   };
 
-  /** 사유는 선택이다. 선택된 항목을 다시 탭하면 해제된다(커리어 칩과 같은 문법) */
+  /**
+   * 사유는 단일 선택(라디오)이다 — 다른 사유를 탭하면 그 사유로 바뀌고, 고른 사유를 다시 탭해도
+   * 풀리지 않는다. 필수 입력이라 "미선택"으로 되돌아가는 길을 두지 않는다(KAN-205)
+   */
   const toggleReason = (code: WithdrawalReasonCode): void => {
     if (isSubmitting) return;
     beginEdit();
-    setReasonCode((current) => (current === code ? null : code));
+    setReasonCode(code);
   };
 
   const changeReasonText = (text: string): void => {
