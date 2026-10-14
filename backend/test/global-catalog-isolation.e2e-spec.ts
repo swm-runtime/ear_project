@@ -97,6 +97,10 @@ describe('글로벌 카탈로그 격리 E2E', () => {
     await dataSource.query(`DELETE FROM contents WHERE id = ANY($1)`, [
       contentIds,
     ]);
+    await dataSource.query(
+      `DELETE FROM user_interests WHERE user_id = ANY($1)`,
+      [userIds],
+    );
     await dataSource.query(`DELETE FROM topics WHERE id = ANY($1)`, [topicIds]);
     await dataSource.query(`DELETE FROM users WHERE id = ANY($1)`, [userIds]);
     await app.close();
@@ -166,6 +170,31 @@ describe('글로벌 카탈로그 격리 E2E', () => {
       .get(path(`/notices/${krNotice.id}`))
       .set('Authorization', globalAuth)
       .expect(HttpStatus.NOT_FOUND);
+  }, 60_000);
+
+  it('관심사 저장에 다른 시장 주제가 섞이면 409 MARKET_MISMATCH 이고 아무것도 저장하지 않는다', async () => {
+    const mismatch = await request(app.getHttpServer())
+      .put(path('/users/me/interests'))
+      .set('Authorization', globalAuth)
+      .send({ topic_ids: [globalTopic.id, krTopic.id] })
+      .expect(HttpStatus.CONFLICT);
+    expect((mismatch.body as { error_code: string }).error_code).toBe(
+      'MARKET_MISMATCH',
+    );
+
+    const saved = await dataSource.query<{ count: string }[]>(
+      `SELECT COUNT(*) AS count FROM user_interests WHERE user_id = ANY($1)`,
+      [userIds],
+    );
+    expect(Number(saved[0].count)).toBe(0);
+  }, 60_000);
+
+  it('관심사 저장은 같은 시장 주제면 그대로 저장된다', async () => {
+    await request(app.getHttpServer())
+      .put(path('/users/me/interests'))
+      .set('Authorization', globalAuth)
+      .send({ topic_ids: [globalTopic.id] })
+      .expect(HttpStatus.OK);
   }, 60_000);
 
   it('market 클레임이 없는 옛 토큰은 KR로 동작한다', async () => {
