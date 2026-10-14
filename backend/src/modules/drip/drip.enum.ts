@@ -64,3 +64,13 @@ export const RETRYABLE_FIRST_DRIP_STATUSES: readonly FirstDripJobStatus[] = [
   FirstDripJobStatus.PENDING,
   FirstDripJobStatus.QUEUED,
 ];
+
+/**
+ * domain.md 7.3 — 드립 발송 그룹(`global-api.md` 2.4, KAN-191). 그룹마다 **현지 05:00 편성 · 현지 07:00 알림**이고
+ * `drip_batch_runs`가 그룹마다 하루 1행이다. KR 시장은 전원 `asia`다 — 그룹은 GLOBAL 시장만 가른다.
+ */
+export enum DripGroup {
+  ASIA = 'asia',
+  EUROPE = 'europe',
+  AMERICAS = 'americas',
+}

@@ -1,0 +1,111 @@
+import { toServiceDate } from '@/common/utils/service-date.util';
+import { UserMarket } from '@/modules/user/user.enum';
+
+import {
+  DRIP_ARRIVAL_PUSH_LOCAL_HOUR,
+  DRIP_BATCH_LOCAL_HOUR,
+  DRIP_GROUP_SCHEDULES,
+  dripGroupOf,
+  isAfterArrivalPushTime,
+  utcOffsetMinutes,
+} from './drip-group.policy';
+import { DripGroup } from './drip.enum';
+
+/** 2026-01-15 12:00 UTC — 북반구 겨울(서머타임 없음) */
+const WINTER = new Date('2026-01-15T12:00:00.000Z');
+/** 2026-07-15 12:00 UTC — 북반구 여름(서머타임) */
+const SUMMER = new Date('2026-07-15T12:00:00.000Z');
+
+describe('dripGroupOf — 발송 그룹 판정', () => {
+  const global = (timezone: string | null) => ({
+    market: UserMarket.GLOBAL,
+    timezone,
+  });
+
+  it.each([
+    ['Asia/Kolkata', DripGroup.ASIA], // +5:30
+    ['Asia/Tokyo', DripGroup.ASIA],
+    ['Pacific/Auckland', DripGroup.ASIA], // +13 — 그룹 하한만 보므로 동쪽 끝도 asia
+    ['Asia/Dubai', DripGroup.EUROPE], // +4
+    ['Europe/London', DripGroup.EUROPE], // 0
+    ['Atlantic/Azores', DripGroup.EUROPE], // −1
+    ['America/Noronha', DripGroup.AMERICAS], // −2
+    ['America/New_York', DripGroup.AMERICAS],
+    ['Pacific/Honolulu', DripGroup.AMERICAS], // −10
+    ['UTC', DripGroup.EUROPE],
+  ])('GLOBAL %s → %s', (timezone, expected) => {
+    expect(dripGroupOf(global(timezone), WINTER)).toBe(expected);
+  });
+
+  it('KR 시장은 시간대와 무관하게 기본 그룹이다', () => {
+    // given
+    const user = { market: UserMarket.KR, timezone: 'America/New_York' };
+
+    // when / then
+    expect(dripGroupOf(user, WINTER)).toBe(DripGroup.ASIA);
+  });
+
+  it.each([null, 'Mars/Olympus'])(
+    'GLOBAL 이어도 시간대가 %s 이면 기본 그룹이다(없음·모르는 값)',
+    (timezone) => {
+      expect(dripGroupOf(global(timezone), WINTER)).toBe(DripGroup.ASIA);
+    },
+  );
+});
+
+describe('utcOffsetMinutes', () => {
+  it.each([
+    ['Asia/Seoul', WINTER, 540],
+    ['Asia/Kolkata', WINTER, 330],
+    ['UTC', WINTER, 0],
+    ['America/New_York', WINTER, -300],
+    ['America/New_York', SUMMER, -240],
+  ])('%s @ %s → %s', (timeZone, at, expected) => {
+    expect(utcOffsetMinutes(timeZone, at)).toBe(expected);
+  });
+});
+
+describe('isAfterArrivalPushTime — 그룹 현지 07:00', () => {
+  it.each([
+    ['2026-08-26T20:00:00.000Z', DripGroup.ASIA, false], // 05:00 KST
+    ['2026-08-26T21:59:59.000Z', DripGroup.ASIA, false], // 06:59:59 KST
+    ['2026-08-26T22:00:00.000Z', DripGroup.ASIA, true], // 07:00 KST
+    ['2026-08-27T14:00:00.000Z', DripGroup.ASIA, true], // 23:00 KST
+    ['2026-08-27T05:59:00.000Z', DripGroup.EUROPE, false], // 06:59 BST
+    ['2026-08-27T06:00:00.000Z', DripGroup.EUROPE, true], // 07:00 BST
+    ['2026-01-15T12:59:00.000Z', DripGroup.AMERICAS, false], // 06:59 CST
+    ['2026-01-15T13:00:00.000Z', DripGroup.AMERICAS, true], // 07:00 CST
+  ])('%s %s → %s', (iso, group, expected) => {
+    expect(isAfterArrivalPushTime(new Date(iso), group)).toBe(expected);
+  });
+});
+
+/**
+ * 그룹 시각이 KST 서비스 날짜를 넘으면 하루 1건 알림 판정과 `already_placed`가 어긋난다(`global-api.md` 2.4) —
+ * 기준 시간대를 바꿀 때 이 테스트가 막는다. 서머타임 양쪽에서 본다.
+ */
+describe('DRIP_GROUP_SCHEDULES — 현지 05:00 편성과 07:00 알림이 같은 KST 서비스 날짜 안에 있다', () => {
+  const localDate = (timeZone: string, at: Date) =>
+    new Intl.DateTimeFormat('en-CA', { timeZone }).format(at);
+
+  /** 그 시간대의 현지 날짜 `date`의 `hour`시 정각 순간 */
+  function localTime(timeZone: string, date: string, hour: number): Date {
+    const guess = new Date(`${date}T${String(hour).padStart(2, '0')}:00:00Z`);
+    const offset = utcOffsetMinutes(timeZone, guess) as number;
+    return new Date(guess.getTime() - offset * 60 * 1000);
+  }
+
+  it.each(
+    Object.values(DripGroup).flatMap((group) =>
+      ['2026-01-15', '2026-07-15'].map((date) => [group, date] as const),
+    ),
+  )('%s · %s', (group, date) => {
+    const { timeZone } = DRIP_GROUP_SCHEDULES[group];
+    const batchAt = localTime(timeZone, date, DRIP_BATCH_LOCAL_HOUR);
+    const pushAt = localTime(timeZone, date, DRIP_ARRIVAL_PUSH_LOCAL_HOUR);
+
+    expect(localDate(timeZone, batchAt)).toBe(date);
+    expect(toServiceDate(batchAt)).toBe(date);
+    expect(toServiceDate(pushAt)).toBe(date);
+  });
+});

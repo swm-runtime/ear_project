@@ -1,4 +1,3 @@
-import { toServiceDayRange } from '@/common/utils/service-date.util';
 import { Content } from '@/modules/content/entities/content.entity';
 import { ContentService } from '@/modules/content/services/content.service';
 import { ContentStatService } from '@/modules/content/services/content-stat.service';
@@ -7,6 +6,7 @@ import { DripBatchRunService } from '@/modules/drip/services/drip-batch-run.serv
 import { DripPlacementService } from '@/modules/drip/services/drip-placement.service';
 import { DripScoringService } from '@/modules/drip/services/drip-scoring.service';
 import { PreferenceVectorService } from '@/modules/drip/services/preference-vector.service';
+import { DripGroup } from '@/modules/drip/drip.enum';
 import { DripBatchRun } from '@/modules/drip/entities/drip-batch-run.entity';
 import { UserInterest } from '@/modules/interest/entities/user-interest.entity';
 import { UserInterestSource } from '@/modules/interest/interest.enum';
@@ -21,12 +21,9 @@ import { PlanService } from '@/modules/subscription/services/plan.service';
 import { User } from '@/modules/user/entities/user.entity';
 import { UserSettingService } from '@/modules/user/services/user-setting.service';
 import { UserService } from '@/modules/user/services/user.service';
-import { UserTier } from '@/modules/user/user.enum';
+import { UserMarket, UserTier } from '@/modules/user/user.enum';
 
-import {
-  DripBatchOrchestrator,
-  isAfterArrivalPushTime,
-} from './drip-batch.orchestrator';
+import { DripBatchOrchestrator } from './drip-batch.orchestrator';
 
 const NOW = new Date('2026-08-27T05:00:00.000Z');
 const USER_ID = '11111111-1111-4111-8111-111111111111';
@@ -84,7 +81,13 @@ describe('DripBatchOrchestrator', () => {
   const discoveryPool = [buildContent('d1')];
 
   beforeEach(() => {
-    run = { id: 'run-1', runDate: '2026-08-27' } as DripBatchRun;
+    run = {
+      id: 'run-1',
+      runDate: '2026-08-27',
+      group: DripGroup.ASIA,
+      // 2026-08-27 05:00:00.050 KST — 05:00 크론이 행을 만든 시각
+      createdAt: new Date('2026-08-26T20:00:00.050Z'),
+    } as DripBatchRun;
 
     userService = {
       findDripTargetsPage: jest
@@ -193,7 +196,9 @@ describe('DripBatchOrchestrator', () => {
     dripBatchRunService = {
       claim: jest.fn().mockResolvedValue(run),
       finish: jest.fn().mockResolvedValue(undefined),
-      findByRunDate: jest.fn().mockResolvedValue({ ...run, finishedAt: NOW }),
+      findByRunDateAndGroup: jest
+        .fn()
+        .mockResolvedValue({ ...run, finishedAt: NOW }),
     } as unknown as jest.Mocked<DripBatchRunService>;
 
     dripArrivalNotificationService = {
@@ -205,7 +210,14 @@ describe('DripBatchOrchestrator', () => {
       }),
     } as unknown as jest.Mocked<DripArrivalNotificationService>;
 
-    orchestrator = new DripBatchOrchestrator(
+    // 스위치는 `true` 명시일 때만 켜진다(2026-10-14) — 자동 확장 테스트는 켜진 상태를 기본으로 본다
+    orchestrator = createOrchestrator({ AUTO_EXPAND_ENABLED: 'true' });
+  });
+
+  function createOrchestrator(
+    env: Record<string, string>,
+  ): DripBatchOrchestrator {
+    return new DripBatchOrchestrator(
       userService,
       userInterestService,
       planService,
@@ -220,14 +232,9 @@ describe('DripBatchOrchestrator', () => {
       dripArrivalNotificationService,
       topicService,
       userSettingService,
-      {
-        // 스위치는 `true` 명시일 때만 켜진다(2026-10-14) — 자동 확장 테스트는 켜진 상태를 기본으로 본다
-        get: jest.fn((key: string) =>
-          key === 'AUTO_EXPAND_ENABLED' ? 'true' : undefined,
-        ),
-      } as never,
+      { get: jest.fn((key: string) => env[key]) } as never,
     );
-  });
+  }
 
   it('같은 서비스 날짜에 이미 선점된 배치는 다시 실행되지 않는다', async () => {
     dripBatchRunService.claim.mockResolvedValue(null);
@@ -822,6 +829,7 @@ describe('DripBatchOrchestrator', () => {
 
     expect(dripBatchRunService.claim).toHaveBeenCalledWith(
       expect.any(String),
+      DripGroup.ASIA,
       NOW,
       { reclaimUnfinished: true },
     );
@@ -834,6 +842,7 @@ describe('DripBatchOrchestrator', () => {
 
     expect(dripBatchRunService.claim).toHaveBeenCalledWith(
       expect.any(String),
+      DripGroup.ASIA,
       NOW,
       { reclaimUnfinished: false },
     );
@@ -906,10 +915,10 @@ describe('DripBatchOrchestrator', () => {
       // when
       await orchestrator.notifyTodayArrivals(AT_0700);
 
-      // then — 범위는 서비스 날짜 시작(경계 시각 — 전환 뒤 05:00)부터 배치 종료까지
+      // then — 범위는 그 그룹 실행 기록이 생긴 시각부터 배치 종료까지
       const [start, end] =
         libraryService.findPlacementsAddedBetween.mock.calls[0];
-      expect(start).toEqual(toServiceDayRange(AT_0700).start);
+      expect(start).toEqual(run.createdAt);
       expect(end.getTime()).toBe(NOW.getTime() + 1);
       expect(dripArrivalNotificationService.notify).toHaveBeenCalledTimes(1);
       const [arrivals, at] =
@@ -933,7 +942,7 @@ describe('DripBatchOrchestrator', () => {
     });
 
     it('오늘 배치가 아직 끝나지 않았으면 보내지 않는다 — 끝날 때 배치가 이어서 보낸다', async () => {
-      dripBatchRunService.findByRunDate.mockResolvedValue({
+      dripBatchRunService.findByRunDateAndGroup.mockResolvedValue({
         ...run,
         finishedAt: null,
       });
@@ -995,14 +1004,106 @@ describe('DripBatchOrchestrator', () => {
     });
   });
 
-  describe('isAfterArrivalPushTime', () => {
-    it.each([
-      ['2026-08-26T20:00:00.000Z', false], // 05:00 KST
-      ['2026-08-26T21:59:59.000Z', false], // 06:59:59 KST
-      ['2026-08-26T22:00:00.000Z', true], // 07:00 KST
-      ['2026-08-27T14:00:00.000Z', true], // 23:00 KST
-    ])('%s → %s', (iso, expected) => {
-      expect(isAfterArrivalPushTime(new Date(iso))).toBe(expected);
+  describe('시간대 그룹(global-api 2.4, KAN-191)', () => {
+    /** 2026-08-27 05:00 BST(London) = 13:00 KST — europe 그룹 배치 시각 */
+    const LONDON_0500 = new Date('2026-08-27T04:00:00.000Z');
+    /** 2026-08-27 07:00 BST = 15:00 KST */
+    const LONDON_0700 = new Date('2026-08-27T06:00:00.000Z');
+    const KR_USER = buildUser('kr');
+    const LONDON_USER = {
+      ...buildUser('london'),
+      market: UserMarket.GLOBAL,
+      timezone: 'Europe/London',
+    } as User;
+
+    beforeEach(() => {
+      userService.findDripTargetsPage
+        .mockReset()
+        .mockResolvedValueOnce([KR_USER, LONDON_USER])
+        .mockResolvedValue([]);
+    });
+
+    const placedUserIds = () =>
+      dripPlacementService.placeItems.mock.calls.map(([userId]) => userId);
+
+    it('스위치가 꺼져 있으면 기본 그룹 크론만 돈다', () => {
+      // when / then — 기본 orchestrator 는 스위치가 꺼져 있다
+      expect(orchestrator.isGroupActive(DripGroup.ASIA)).toBe(true);
+      expect(orchestrator.isGroupActive(DripGroup.EUROPE)).toBe(false);
+      expect(orchestrator.isGroupActive(DripGroup.AMERICAS)).toBe(false);
+    });
+
+    it('스위치가 꺼져 있으면 GLOBAL 사용자도 05:00 KST 배치에서 편성된다(종전 그대로)', async () => {
+      // when
+      await orchestrator.run(NOW);
+
+      // then
+      expect(new Set(placedUserIds())).toEqual(new Set(['kr', 'london']));
+    });
+
+    it('스위치가 켜져 있으면 기본 그룹 배치는 시간대가 다른 GLOBAL 사용자를 대상에서 뺀다', async () => {
+      // given
+      orchestrator = createOrchestrator({
+        DRIP_TIMEZONE_GROUPS_ENABLED: 'true',
+      });
+
+      // when
+      await orchestrator.run(NOW);
+
+      // then
+      expect(new Set(placedUserIds())).toEqual(new Set(['kr']));
+      expect(dripBatchRunService.finish).toHaveBeenCalledWith(
+        run,
+        expect.objectContaining({ targetCount: 1 }),
+        expect.any(Date),
+      );
+    });
+
+    it('그룹 배치는 그 그룹 실행권을 집고 그 그룹 사용자만 편성한다 — 알림은 현지 07:00 전이라 보내지 않는다', async () => {
+      // given
+      orchestrator = createOrchestrator({
+        DRIP_TIMEZONE_GROUPS_ENABLED: 'true',
+      });
+
+      // when
+      await orchestrator.run(LONDON_0500, 'scheduled', DripGroup.EUROPE);
+
+      // then
+      expect(dripBatchRunService.claim).toHaveBeenCalledWith(
+        '2026-08-27',
+        DripGroup.EUROPE,
+        LONDON_0500,
+        { reclaimUnfinished: false },
+      );
+      expect(new Set(placedUserIds())).toEqual(new Set(['london']));
+      expect(dripArrivalNotificationService.notify).not.toHaveBeenCalled();
+    });
+
+    it('그룹 알림은 그 그룹 실행 기록을 찾는다', async () => {
+      // when
+      await orchestrator.notifyTodayArrivals(LONDON_0700, DripGroup.EUROPE);
+
+      // then
+      expect(dripBatchRunService.findByRunDateAndGroup).toHaveBeenCalledWith(
+        '2026-08-27',
+        DripGroup.EUROPE,
+      );
+    });
+
+    it('현지 07:00 이 지나 시작된 그룹 배치는 끝나자마자 그 그룹 알림을 보낸다', async () => {
+      // given
+      orchestrator = createOrchestrator({
+        DRIP_TIMEZONE_GROUPS_ENABLED: 'true',
+      });
+
+      // when
+      await orchestrator.run(LONDON_0700, 'resume', DripGroup.EUROPE);
+
+      // then — 알림은 배치가 끝난 시각(실제 지금)으로 부른다
+      expect(dripBatchRunService.findByRunDateAndGroup).toHaveBeenCalledWith(
+        expect.any(String),
+        DripGroup.EUROPE,
+      );
     });
   });
 });

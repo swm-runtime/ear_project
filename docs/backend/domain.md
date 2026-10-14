@@ -1081,6 +1081,7 @@ uq_user_preference_vectors_user_id (user_id)
 drip_batch_runs
   id                        uuid            PK
   run_date                  date
+  group                     varchar(16)     DEFAULT 'asia'  -- 2026-10-14 신설(KAN-191) — 발송 그룹
   target_count              int             DEFAULT 0
   success_count             int             DEFAULT 0
   skipped_count             int             DEFAULT 0
@@ -1089,10 +1090,11 @@ drip_batch_runs
   started_at                timestamptz
   finished_at               timestamptz     NULL
 
-uq_drip_batch_runs_run_date (run_date)
+uq_drip_batch_runs_run_date_group (run_date, group)
 ```
 
-- `uq_drip_batch_runs_run_date`가 **배치 중복 실행을 막는다** (A-5). 사용자 단위 중복은 편성 배치의 **`already_placed` 스킵**(오늘 서비스 날짜에 편성분이 있으면 건너뜀 — `drip-scheduling.md` 4.6-5)이 막는다(정정 2026-09-26 — 종전 "`library_items` 유니크가 막는다"는 틀렸다. 유니크는 같은 콘텐츠의 중복만 막는다).
+- `uq_drip_batch_runs_run_date_group`이 **배치 중복 실행을 막는다** (A-5). 종전 `(run_date)`에서 2026-10-14 그룹 축을 더했다(KAN-191).
+- **`group`은 발송 그룹이다**(`asia`·`europe`·`americas` — `spec/api/global-api.md` 2.4). 그룹마다 현지 05:00에 그 그룹 사용자만 편성하므로 하루에 그룹 수만큼 행이 생긴다. 시간대 그룹 스위치(`DRIP_TIMEZONE_GROUPS_ENABLED`)가 꺼져 있으면 언제나 `asia` 한 행이다. 기존 행은 전부 `asia`다. 사용자 단위 중복은 편성 배치의 **`already_placed` 스킵**(오늘 서비스 날짜에 편성분이 있으면 건너뜀 — `drip-scheduling.md` 4.6-5)이 막는다(정정 2026-09-26 — 종전 "`library_items` 유니크가 막는다"는 틀렸다. 유니크는 같은 콘텐츠의 중복만 막는다).
 - **`finished_at` NULL은 "진행 중 또는 중단됨"이다**(명시 2026-09-26). 루프가 끝까지 돌았을 때만 닫는다 — 프로세스가 죽었거나 사용자 페이지 조회가 끝내 실패한 실행은 NULL로 남고, **다음 재시작 때 재개되어 닫힌다**(`drip-scheduling.md` 7장). **카운트는 마지막 패스 기준이다** — 재개 패스가 덮어쓰며, 먼저 받은 사용자는 그 패스에서 `skipped`로 집계된다.
 - 운영 콘솔 조회용으로 DB에 유지한다 (B-8).
 - **네 카운트의 합이 `target_count`다.** `success`(1편 이상 적립) · `skipped`(관심 주제 0 · 오늘 이미 편성(`already_placed`) · 미청취 재고 ≥ 5 · 플랜 0으로 애초에 편성하지 않음 — `drip-scheduling.md` 4.1) · `exhausted`(편성 대상이었으나 **후보 고갈**로 0편 — 4.6-3 "대체 없음") · `failed`(예외).

@@ -209,6 +209,15 @@ export class EnvironmentVariables {
   AUTO_EXPAND_ENABLED?: string;
 
   /**
+   * 드립 시간대 그룹(`global-api.md` 2.4, KAN-191)의 서버 스위치. `true`/`false`.
+   * **`true`를 명시했을 때만 켜진다.** 꺼져 있으면 전원이 기본 그룹(05:00 KST 편성 · 07:00 KST 알림)으로 종전과 같다.
+   * 켜면 GLOBAL 시장 사용자를 시간대로 europe·americas 그룹에 나눠 각 그룹의 현지 05:00에 편성한다. KR은 그대로다.
+   */
+  @IsOptional()
+  @IsIn(['true', 'false', ''])
+  DRIP_TIMEZONE_GROUPS_ENABLED?: string;
+
+  /**
    * 가입 체험(`subscription.md` 4.8)의 서버 스위치. `true`일 때만 **새로 가입하는 계정**에 체험을 준다.
    * 비우거나 `false`면 주지 않는다(환경과 무관하게 명시적으로 켜야 한다).
    *

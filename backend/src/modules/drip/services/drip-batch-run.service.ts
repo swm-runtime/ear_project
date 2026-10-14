@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 
 import { DRIP_BATCH_STALE_MS } from '../drip.constant';
+import { DripGroup } from '../drip.enum';
 import { DripBatchRun } from '../entities/drip-batch-run.entity';
 import { DripBatchRunRepository } from '../repositories/drip-batch-run.repository';
 
@@ -24,11 +25,12 @@ export class DripBatchRunService {
   ) {}
 
   /**
-   * 같은 서비스 날짜의 실행을 선점한다. `null`이면 이미 실행됐거나 실행 중이다 —
+   * 같은 서비스 날짜·같은 발송 그룹의 실행을 선점한다. `null`이면 이미 실행됐거나 실행 중이다 —
    * 호출부는 배치를 시작하지 않는다(`drip-scheduling.md` 4.6-5 멱등 규칙).
    */
   async claim(
     runDate: string,
+    group: DripGroup,
     startedAt: Date,
     options: { reclaimUnfinished?: boolean } = {},
   ): Promise<DripBatchRun | null> {
@@ -40,19 +42,27 @@ export class DripBatchRunService {
      * 먼저 돌았다(2026-10-09). 05:00 정규 경로는 종전대로 `DRIP_BATCH_STALE_MS`가 지난 행만 다시 집는다.
      */
     if (options.reclaimUnfinished) {
-      return this.dripBatchRunRepository.reclaimUnfinished(runDate, startedAt);
+      return this.dripBatchRunRepository.reclaimUnfinished(
+        runDate,
+        group,
+        startedAt,
+      );
     }
 
     return this.dripBatchRunRepository.claim(
       runDate,
+      group,
       startedAt,
       new Date(startedAt.getTime() - DRIP_BATCH_STALE_MS),
     );
   }
 
-  /** 그 서비스 날짜의 실행 — 없으면 `null` */
-  async findByRunDate(runDate: string): Promise<DripBatchRun | null> {
-    return this.dripBatchRunRepository.findByRunDate(runDate);
+  /** 그 서비스 날짜·그룹의 실행 — 없으면 `null` */
+  async findByRunDateAndGroup(
+    runDate: string,
+    group: DripGroup,
+  ): Promise<DripBatchRun | null> {
+    return this.dripBatchRunRepository.findByRunDateAndGroup(runDate, group);
   }
 
   async finish(
