@@ -87,3 +87,14 @@ bash pipeline/deploy/push.sh
 - **함정**: 배포 실패 시 이전 컨테이너가 그대로 살아 있다(compose 빌드 실패는 무중단). 러너 IP 잔존이 의심되면 `aws ec2 describe-security-groups --group-ids <SG>` 로 22 목록 확인
 
 - **2026-09-12 추가**: 트리거 경로에 `docs/ai/**`. `push.sh` 가 `docs/ai` 도 rsync 하고(컨테이너 `/srv/docs/ai` 마운트, `ASSET_ROOT`), compose up 뒤에 `assets:import --force`(규칙 자산 활성화)와 `rev publish`(워커 최소 버전 = 이 커밋 시각)를 worker-io 컨테이너에서 실행한다. 둘 다 실패해도 배포는 성립하며 다음 머지에서 재시도된다.
+
+## 9. 글로벌판 인스턴스 (KAN-208, 2026-10-14)
+
+같은 EC2·같은 이미지에 `web-global`·`worker-global`을 `PIPELINE_LOCALE=en`으로 더 띄운다(`docs/ai/global/PIPELINE.md` 4.2·8장). DB·버킷·진행자 이름만 다르다.
+
+- **켜는 조건**: 서버 `deploy/env.global`이 비어 있지 않으면 `push.sh`가 `--profile global`로 함께 띄운다. 비어 있으면(기본) 한국판만 — 종전 그대로. 키 목록은 `env.global.example`.
+- **콘솔 주소**: `admin-global.earcast.co.kr` — Caddy 두 번째 사이트 블록 → `web-global:3000`. 가비아 A 레코드를 먼저 건다(7장 함정 — 레코드 전 발급 시도는 최대 20분 물러남).
+- **Supabase 접속값**은 이미지에 박지 않고 실행 시점 env(`SUPABASE_URL`·`SUPABASE_ANON_KEY`)로 읽는다 — 한국판 `web`은 이 env가 없어 빌드에 박힌 `NEXT_PUBLIC_*`를 그대로 쓴다.
+- **워커**: 서버 API 실행기(`EXECUTOR=openai`, `ai,io`)만. 명세 장은 `/srv/docs/ai/global`. 알림은 같은 웹훅에 `[GLOBAL]` 머리, 백엔드 로그 감시는 돌지 않는다(한국판 워커 몫).
+- **버킷**: `earcast-pipeline-global` + 정책 `ear-pipeline-global-bucket-rw`(ear-ai-ec2 역할에 부착) — `aws/setup-pipeline-bucket.sh`를 이름만 바꿔 돌린다.
+- **DB 구축**: 새 Supabase 프로젝트에 `schema.sql` 기본부(0002 표시 앞) → `migrations/0002~` 순서로 적용한다. 0002·0011의 한국판 데이터 백필은 빼고, 적용 뒤 `settings.automation`의 자동 승인·발행 준비 연쇄를 끈다.

@@ -16,6 +16,8 @@ create table if not exists public.publish_log (
   at          timestamptz not null default now()
 );
 create index if not exists publish_log_content_idx on public.publish_log (content_id, at desc);
+-- 표가 schema.sql 기본부로 먼저 생긴 DB(새로 구축)에서는 위 create 가 건너뛰어 기본값이 빠진다 — 따로 건다. 이미 있으면 그대로(멱등, 2026-10-14)
+alter table public.publish_log alter column actor set default public.current_actor();
 comment on table public.publish_log is '제품 콘텐츠 발행·재발행 이력 (파이프라인 콘솔을 거친 사건만 — 제품 audit_logs 와 별개)';
 
 alter table public.publish_log enable row level security;

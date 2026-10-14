@@ -13,3 +13,18 @@
 		format console
 	}
 }
+
+# 글로벌판 콘솔 (KAN-208) — web-global 은 서버에 deploy/env.global 이 있을 때만 뜬다. 뜨기 전에는 이 주소가 502.
+# A 레코드(admin-global)를 먼저 걸어야 한다 — 레코드 전에 발급을 시도하면 Caddy 가 최대 20분 물러난다(deploy/README 함정).
+{$PIPELINE_GLOBAL_DOMAIN:admin-global.earcast.co.kr} {
+	encode gzip
+
+	reverse_proxy web-global:3000 {
+		header_up X-Forwarded-Proto {scheme}
+	}
+
+	log {
+		output stdout
+		format console
+	}
+}

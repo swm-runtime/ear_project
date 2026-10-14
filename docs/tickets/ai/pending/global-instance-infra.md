@@ -15,7 +15,7 @@
 | 근거 문서 | **`docs/ai/global/PIPELINE.md` 4.1·4.4·8장·9장 G1** |
 | 심각도 | 중 |
 | 중요도 | Medium |
-| 상태 | 대기 |
+| 상태 | 진행 중 — DB 구축 완료, 서버 구성 코드 PR, 버킷·DNS·env.global 은 사람 손 |
 
 ## 문제
 
@@ -46,3 +46,7 @@
 - 2026-10-14 발행 — 묶음 티켓 분할(KAN-200~204)에서 빠진 명세 G1 작업을 따로 뗐다.
 - 2026-10-14 콘솔 주소 확정: `admin-global.earcast.co.kr`(하위 도메인 방식, 경로 방식은 쓰지 않음).
 - 2026-10-14 사람 손 확인 완료: Supabase Free 플랜 활성 프로젝트는 한국판 하나뿐 → 두 번째 무료 프로젝트 가능(한도 2, 비용 0). AI 서버(t4g.small) 실측 — 메모리 1.8GiB 중 가용 1.2GiB, 컨테이너 합계 약 200MiB, 스왑 2GiB, 디스크 12G 여유 → 같은 EC2에 둔다. 두 워커의 오디오 작업이 겹칠 때의 순간 메모리는 파일럿 중 지켜본다.
+- 2026-10-14 DB 구축: 글로벌 Supabase(서울, Free 두 번째 프로젝트)에 `schema.sql` 기본부 → 마이그레이션 0002~0027 적용(0002·0011 한국판 데이터 백필 제외), 자동 승인·발행 준비 연쇄 끔. 한국판과 구조 대조 — 테이블 10·컬럼 137·제약 31·트리거 7·정책 22·뷰 1·인덱스 20 동일(차이는 자동 RLS 함수 하나). 대조에서 나온 2건(`publish_log.actor` 기본값, 0018 옛 `claim_job`)은 글로벌 DB에서 맞추고, 새로 구축해도 같아지게 0014·0025 마이그레이션에 멱등 문장을 더했다(한국판 무영향).
+- 2026-10-14 서버 구성 코드(브랜치 `feat(ai)/global-instance-infra`): compose `web-global`·`worker-global`(profile `global` — 서버 `deploy/env.global` 이 비어 있지 않을 때만 push.sh 가 띄움) · Caddy `admin-global` 사이트 블록 · push.sh 가 env.global 보호 · 콘솔 Supabase 접속값을 실행 시점 env(`SUPABASE_URL`·`SUPABASE_ANON_KEY`)로 — 이미지 하나를 두 인스턴스가 쓴다(한국판은 env 가 없어 빌드 값 그대로) · 글로벌 워커는 백엔드 로그 감시를 돌지 않고 알림에 `[GLOBAL]` · `env.global.example` · deploy README 9장.
+- 2026-10-14 버킷 `earcast-pipeline-global` 생성(비공개·버저닝·SSE·TLS 강제), 정책 `ear-pipeline-global-bucket-rw` 을 `ear-ai-ec2` 에 부착. `docs/infra/inventory.md` 등재.
+- 남은 사람 손: 가비아 A 레코드 `admin-global` → 54.116.31.183 · 머지 뒤 `make-env-global.mts` → `upload-env-global.sh` · GCP 승인된 JavaScript 원본에 `https://admin-global.earcast.co.kr`(발행 화면 구글 로그인) · 팀원 초대(콘솔이 뜬 뒤). 진행자 이름은 임시 `HostA,HostB` — 페르소나 확정 후 교체.
