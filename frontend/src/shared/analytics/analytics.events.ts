@@ -71,7 +71,10 @@ export interface AnalyticsEvents {
   sign_up: { method: AuthMethod };
   logout: Record<string, never>;
   withdrawal: { reason: string };
-  settings_toggle: { key: 'drip_notification' | 'marketing_consent'; value: boolean };
+  settings_toggle: {
+    key: 'drip_notification' | 'marketing_consent' | 'auto_expand';
+    value: boolean;
+  };
 }
 
 export type AnalyticsEventName = keyof AnalyticsEvents;
