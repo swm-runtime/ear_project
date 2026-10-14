@@ -9,6 +9,7 @@ import {
 import * as Sentry from '@sentry/nestjs';
 import { Request, Response } from 'express';
 
+import { AuthenticatedRequest } from '@/common/decorators/current-user.decorator';
 import {
   BusinessException,
   ErrorLogLevel,
@@ -190,6 +191,8 @@ export class AllExceptionsFilter implements ExceptionFilter {
       path: redactSensitiveQuery(request.url),
       status: mapped.status,
       error_code: mapped.body.error_code,
+      // 비로그인 요청·가드 전 실패는 null
+      market: (request as AuthenticatedRequest).user?.market ?? null,
     };
 
     if (mapped.logLevel === 'error') {
@@ -229,6 +232,10 @@ export class AllExceptionsFilter implements ExceptionFilter {
     Sentry.withScope((scope) => {
       scope.setTag('error_code', String(fields.error_code));
       scope.setTag('http_status', String(fields.status));
+      // 시장별 오류율(KAN-193) — 값이 둘뿐이라 태그로 둔다. 시장을 모르는 요청은 태그를 달지 않는다
+      if (typeof fields.market === 'string') {
+        scope.setTag('market', fields.market);
+      }
       scope.setContext('request', fields);
       Sentry.captureException(exception);
     });

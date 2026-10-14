@@ -5,7 +5,7 @@ import { LoggingInterceptor } from './logging.interceptor';
 
 function buildContext(
   url: string,
-  user?: { id: string; role: string },
+  user?: { id: string; role: string; market: string },
 ): ExecutionContext {
   return {
     switchToHttp: () => ({
@@ -41,7 +41,11 @@ describe('LoggingInterceptor', () => {
 
   it('인증된 요청은 계정 UUID를 남긴다 — 신원 값이 아니라 내부 식별자다', (done) => {
     // given
-    const user = { id: '11111111-1111-4111-8111-111111111111', role: 'user' };
+    const user = {
+      id: '11111111-1111-4111-8111-111111111111',
+      role: 'user',
+      market: 'kr',
+    };
 
     // when
     interceptor
@@ -55,12 +59,29 @@ describe('LoggingInterceptor', () => {
       });
   });
 
+  it('인증된 요청은 시장을 남긴다 — 시장별 요청·오류율(KAN-193)', (done) => {
+    // given
+    const user = { id: 'user-1', role: 'user', market: 'global' };
+
+    // when
+    interceptor
+      .intercept(buildContext('/api/v1/library', user), NEXT)
+      .subscribe({
+        complete: () => {
+          // then
+          expect(logged[0].market).toBe('global');
+          done();
+        },
+      });
+  });
+
   it('비로그인 요청의 user_id는 null이다', (done) => {
     // when
     interceptor.intercept(buildContext('/api/v1/health'), NEXT).subscribe({
       complete: () => {
         // then
         expect(logged[0].user_id).toBeNull();
+        expect(logged[0].market).toBeNull();
         done();
       },
     });
