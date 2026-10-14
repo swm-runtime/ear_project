@@ -1,12 +1,11 @@
 "use client";
-import { MAJOR_TOPICS } from "@/lib/taxonomy";
 import { useState, useTransition } from "react";
 import { saveSetting } from "../actions";
 import { Panel, btnCls } from "@/components/ui";
 
 const inp = "rounded border border-line px-2.5 py-1.5 text-[13px] outline-none focus:border-brand";
 
-export function SettingsForm({ tts, worker, templates, thumbnail, anchor, automation, aiPaused, ttsPaused, meta, speakers, locale }: { speakers: readonly [string, string]; locale: "ko" | "en"; tts: any; worker: any; templates: any; thumbnail: any; anchor: any; automation: { auto_approve?: boolean; auto_publish_prep?: boolean; rule?: string; server_ai_claim?: boolean } | null; aiPaused: { paused?: boolean; reason?: string; at?: string; job?: string } | null; ttsPaused: { paused?: boolean; reason?: string; at?: string; job?: string } | null; meta: any }) {
+export function SettingsForm({ tts, worker, templates, thumbnail, anchor, automation, aiPaused, ttsPaused, meta, speakers, locale, majors }: { speakers: readonly [string, string]; locale: "ko" | "en"; majors: readonly string[]; tts: any; worker: any; templates: any; thumbnail: any; anchor: any; automation: { auto_approve?: boolean; auto_publish_prep?: boolean; rule?: string; server_ai_claim?: boolean } | null; aiPaused: { paused?: boolean; reason?: string; at?: string; job?: string } | null; ttsPaused: { paused?: boolean; reason?: string; at?: string; job?: string } | null; meta: any }) {
   const [t, setT] = useState({ voices: { [speakers[0]]: "", [speakers[1]]: "" }, speed: { [speakers[0]]: 1, [speakers[1]]: 1 }, mode: "per-turn", model: "eleven_v3", ...tts });
   const [w, setW] = useState({ default_model: "", ...worker });
   const [tpl, setTpl] = useState({ version: "tpl-v1", intro: "", closing: "", closing_signoff: "", major_lines: {} as Record<string, string>, ...templates });
@@ -77,7 +76,7 @@ export function SettingsForm({ tts, worker, templates, thumbnail, anchor, automa
           이름 없이 HEX 만 주면 모델이 색을 덜 정확히 맞춘다. <b>비우면 워커의 기본값</b>(thumb-v1 표)이 쓰인다.
           44pt 에서 띠는 작은 점 크기라 명도·색상이 모두 달라야 구분된다.
         </p>
-        {MAJOR_TOPICS.map((m) => (
+        {majors.map((m) => (
           <div key={m} className="mb-2 grid grid-cols-[7rem_1fr_1.75rem] items-center gap-2">
             <span className="text-ink-soft">{m}</span>
             <input className={inp} placeholder="딥 그린 (#2F6B4F)" value={th[m] ?? ""} onChange={(e) => setTh({ ...th, [m]: e.target.value })} />
@@ -145,7 +144,7 @@ export function SettingsForm({ tts, worker, templates, thumbnail, anchor, automa
           </div>
         </div>
         <label className="mt-3 block text-xs text-ink-soft">대분류별 한 줄 ({"{대주제 한 줄}"}) — 채널 아이덴티티. 비우면 AI가 에피소드마다 새로 짓는다</label>
-        {MAJOR_TOPICS.map((mj) => (
+        {majors.map((mj) => (
           <div key={mj} className="mt-1.5 grid grid-cols-[5rem_1fr] items-center gap-2">
             <span className="text-xs">{mj}</span>
             <input className={inp} placeholder="(미확정 — AI 생성)" value={tpl.major_lines?.[mj] ?? ""} onChange={(e) => setTpl({ ...tpl, major_lines: { ...tpl.major_lines, [mj]: e.target.value } })} />

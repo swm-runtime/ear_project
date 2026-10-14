@@ -2,10 +2,10 @@
 import { revalidatePath } from "next/cache";
 import { supabaseServer } from "@/lib/supabase-server";
 import { loadArtifact, replaceTurn, writeArtifact } from "@/lib/artifacts";
-import { speakerNames } from "@/lib/locale";
+import { pipelineLocale, speakerNames } from "@/lib/locale";
 import { deletePrefix, getBytes, getText, putBytes, putText } from "@/lib/storage";
 import { readScriptFileBody } from "@/lib/script-file";
-import { majorOrder } from "@/lib/taxonomy";
+import { majorOrder, majorTopicsFor } from "@/lib/taxonomy";
 import { ensureEmbedding } from "@/lib/embedding";
 
 /** 음차 사전·발음 맵 공통 형식 검증 — {"표기": "발음"} 객체, 값은 비어 있지 않은 문자열 (spec/06 6장) */
@@ -175,7 +175,7 @@ export async function listPipelineTopicsForSync(): Promise<{ major: string; mid:
   const { data, error } = await sb.from("topics").select("major,mid,active,created_at").eq("active", true).order("created_at");
   if (error) throw new Error(error.message);
   return [...(data ?? [])]
-    .sort((a, b) => majorOrder(a.major) - majorOrder(b.major))
+    .sort((a, b) => majorOrder(a.major, majorTopicsFor(pipelineLocale())) - majorOrder(b.major, majorTopicsFor(pipelineLocale())))
     .map((t, i) => ({ major: t.major, mid: t.mid, display_order: i + 1 }));
 }
 
