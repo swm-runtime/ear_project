@@ -572,6 +572,8 @@ export class ContentService {
       status: ContentStatus.PUBLISHED,
       publishedAt: now,
       withdrawnAt: null,
+      market: command.market,
+      language: command.language,
     });
     const [saved] = await this.contentRepository.saveAll([content], manager);
 

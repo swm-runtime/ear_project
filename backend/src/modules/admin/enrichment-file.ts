@@ -240,7 +240,7 @@ function parseTags(raw: unknown): string[] | string {
   const seen = new Set<string>();
   for (const tag of raw) {
     if (typeof tag !== 'string' || !CONTENT_TAG_PATTERN.test(tag)) {
-      return `tags 항목은 띄어쓰기·'#' 없는 한글·영문·숫자 2~10자여야 해요: ${describeValue(tag)}`;
+      return `tags 항목은 '#' 없는 한글·영문·숫자 2~20자(앞뒤 공백 없음)여야 해요: ${describeValue(tag)}`;
     }
     const key = tag.toLowerCase();
     if (seen.has(key)) {

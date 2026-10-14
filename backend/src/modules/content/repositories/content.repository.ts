@@ -581,7 +581,10 @@ export class ContentRepository {
       .take(query.limit);
 
     if (query.status) {
-      builder.where('content.status = :status', { status: query.status });
+      builder.andWhere('content.status = :status', { status: query.status });
+    }
+    if (query.market) {
+      builder.andWhere('content.market = :market', { market: query.market });
     }
 
     const [items, total] = await builder.getManyAndCount();

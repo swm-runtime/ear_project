@@ -1,6 +1,11 @@
-import { ContentOrigin, ContentStatus } from '@/modules/content/content.enum';
+import {
+  ContentLanguage,
+  ContentOrigin,
+  ContentStatus,
+} from '@/modules/content/content.enum';
 import { Content } from '@/modules/content/entities/content.entity';
 import { Topic } from '@/modules/interest/entities/topic.entity';
+import { UserMarket } from '@/modules/user/user.enum';
 
 /** 업로드된 파일 — multer 버퍼에서 필요한 것만 */
 /**
@@ -38,6 +43,9 @@ export interface UploadContentCommand {
   topicIds: string[];
   sources: SourceInput[];
   reviewConfirmed: boolean;
+  /** 시장·언어(`global-api.md` 4.9). 컨트롤러가 기본값(kr·ko)을 채워 넘긴다 */
+  market: UserMarket;
+  language: ContentLanguage;
   /** 압축 음질(`compressed`) — 필수 */
   audio: UploadedFileInput;
   /** 고음질(`aac`) · 무손실(`lossless`) — 선택(admin-api.md 4.6, KAN-141). 길이가 `audio`와 ±1초 안이어야 한다 */
@@ -114,6 +122,8 @@ export interface AdminContentPage {
 
 export interface AdminContentListQuery {
   status?: ContentStatus;
+  /** 시장 필터(`global-api.md` 4.10). 없으면 전 시장 */
+  market?: UserMarket;
   offset: number;
   limit: number;
 }

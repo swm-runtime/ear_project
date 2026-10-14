@@ -2,6 +2,7 @@ import { TopicService } from './topic.service';
 import { Topic } from '../entities/topic.entity';
 import { TopicRepository } from '../repositories/topic.repository';
 import { UserInterestRepository } from '../repositories/user-interest.repository';
+import { UserMarket } from '@/modules/user/user.enum';
 
 /** '한'을 자모로 풀어 쓴 NFD 표기 — macOS 파일명·일부 입력기에서 이렇게 들어온다 */
 const NFD_HAN = '한';
@@ -46,6 +47,7 @@ describe('TopicService', () => {
       name: NFD_HAN,
       parentCategory: '커리어',
       displayOrder: null,
+      market: UserMarket.KR,
     });
 
     // then
