@@ -2,6 +2,7 @@
  * 서버 계약 그대로의 DTO(snake_case) — settings-api.md 4장과 1:1이다.
  * 변환(to*)은 settings.api.ts 안에서만 일어난다(convention.md 5.2).
  */
+import type { PlanGrantDto } from '@/features/subscription';
 
 export type PlanStatusDto = 'free' | 'subscribed' | 'cancel_scheduled' | 'grace';
 export type SettingsFailedSectionDto = 'account' | 'plan' | 'interest_summary';
@@ -28,6 +29,8 @@ export interface SettingsPlanDto {
   trial?: SettingsPlanTrialDto | null;
   /** 예약된 요금제 변경(profile-api.md 4.1 "`plan.pending_plan`" — 같은 조립 함수, 2026-10-08 KAN-161). 없거나 null 이면 예약 없음 */
   pending_plan?: { tier: string; plan_name: string; effective_at: string } | null;
+  /** 초대 코드 지급(subscription-api.md 4.8 — 같은 조립 함수, KAN-182). 없거나 null 이면 지급 중 아님 */
+  grant?: PlanGrantDto | null;
 }
 
 export interface SettingsPlanTrialDto {

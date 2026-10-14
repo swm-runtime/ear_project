@@ -6,11 +6,28 @@ import { getDevicePlatform } from '@/shared/lib/device-platform';
 import { IS_SUBSCRIPTION_UI_ENABLED } from '@/shared/lib/feature-flags';
 
 import { fetchMySubscription, subscriptionKeys } from '../api/subscription.api';
+import { formatPlanGrantLine } from '../plan-grant';
 import { openStoreSubscriptionManagement } from '../services/subscription-sync';
+import { SUBSCRIPTION_COPY } from '../subscription.copy';
 import type { MySubscription, SubscriptionStore } from '../subscription.types';
 import { toSubscriptionStatusVM } from './subscription-status';
 import { usePlanCatalog } from './usePlanCatalog';
 import { usePurchaseFlow } from './usePurchaseFlow';
+
+/** 지급 중일 때만 알림 문구 — 없으면 null(섹션 없음) */
+export const toEventNotice = (
+  subscription: MySubscription | null,
+): { title: string; detail: string } | null => {
+  const title = formatPlanGrantLine(subscription?.plan.grant ?? null);
+  if (subscription === null || title === null) return null;
+  return {
+    title,
+    detail:
+      subscription.plan.status === 'free'
+        ? SUBSCRIPTION_COPY.grant.noticeDetailFree
+        : SUBSCRIPTION_COPY.grant.noticeDetailSubscribed,
+  };
+};
 
 const STORE_OF_PLATFORM: Record<'ios' | 'android', SubscriptionStore> = {
   ios: 'app_store',
@@ -59,6 +76,11 @@ export const useSubscriptionScreen = () => {
     status,
     catalog,
     flow,
+    /**
+     * 초대 코드 지급 알림(KAN-182) — 지급 중일 때만 값. 첫 줄은 프로필·설정과 같은 이벤트 줄, 둘째 줄은 결제와의 관계
+     * (구독 없이 지급 중이면 "구독을 시작하면 이벤트가 끝나요", 구독 중이면 "구독은 그대로") — 판정이 아니라 안내다
+     */
+    eventNotice: toEventNotice(subscription),
     /** [구독 해지]·[구독 다시 시작]·[결제 수단 확인] — 해지 API 는 없다. 스토어로 보낸다(subscription.md 4.5) */
     openStoreManagement: () =>
       openStoreSubscriptionManagement(subscription?.store ?? null, currentProductId),

@@ -6,14 +6,17 @@ import type {
   MySubscription,
   Plan,
   PlanCatalog,
+  PlanGrant,
   PurchaseEntryPoint,
   PurchaseIntent,
   PurchasePlatform,
 } from '../subscription.types';
 import type {
   EntitlementsDto,
+  InviteCodeRequestDto,
   MySubscriptionResponseDto,
   PlanDto,
+  PlanGrantDto,
   PlansResponseDto,
   PurchaseIntentRequestDto,
   PurchaseIntentResponseDto,
@@ -26,6 +29,7 @@ import {
   mockFetchMySubscription,
   mockFetchPlans,
   mockRestore,
+  mockSubmitInviteCode,
   mockSubmitPurchase,
 } from './subscription.mock';
 
@@ -66,6 +70,20 @@ export const toPlanCatalog = (dto: PlansResponseDto): PlanCatalog => ({
   isEmailVerified: dto.is_email_verified,
 });
 
+/**
+ * 4.8 `plan.grant` — 구독 조회·프로필·설정이 같은 변환을 쓴다(서버도 조립 함수 하나). 필드가 없는 응답(지급 배포 전)은 null
+ */
+export const toPlanGrant = (dto: PlanGrantDto | null | undefined): PlanGrant | null =>
+  dto === null || dto === undefined
+    ? null
+    : {
+        name: dto.name,
+        tier: dto.tier,
+        planName: dto.plan_name,
+        endsAt: dto.ends_at,
+        lastDate: dto.last_date,
+      };
+
 export const toMySubscription = (dto: MySubscriptionResponseDto): MySubscription => ({
   plan: {
     status: dto.plan.status,
@@ -75,6 +93,7 @@ export const toMySubscription = (dto: MySubscriptionResponseDto): MySubscription
     renewsAt: dto.plan.renews_at,
     expiresAt: dto.plan.expires_at,
     hasPaymentIssue: dto.plan.has_payment_issue,
+    grant: toPlanGrant(dto.plan.grant),
   },
   entitlements: toEntitlements(dto.entitlements),
   store: dto.store,
@@ -103,6 +122,20 @@ export const fetchMySubscription = async (): Promise<MySubscription> => {
   const data = IS_SUBSCRIPTION_API_MOCKED
     ? await mockFetchMySubscription()
     : (await apiClient.get<MySubscriptionResponseDto>('/users/me/subscription')).data;
+  return toMySubscription(data);
+};
+
+/**
+ * 4.8-1 초대(이벤트) 코드 입력 — 200 이면 4.2 와 같은 본문(`plan.grant` 에 지급 내용). 앱은 4.2 를 다시 부르지 않는다.
+ * 대소문자·앞뒤 공백은 서버가 정규화한다 — 앱은 손대지 않는다. 같은 코드 재전송은 지급 중이면 200(중복 지급 없음)이라
+ * 응답 유실 뒤 다시 보내도 안전하다. **결제 UI 플래그와 무관하게** 부른다(KAN-182 — 지급은 스토어 결제가 아니다)
+ */
+export const submitInviteCode = async (code: string): Promise<MySubscription> => {
+  const body: InviteCodeRequestDto = { code };
+  const data = IS_SUBSCRIPTION_API_MOCKED
+    ? await mockSubmitInviteCode(body)
+    : (await apiClient.post<MySubscriptionResponseDto>('/users/me/subscription/invite-codes', body))
+        .data;
   return toMySubscription(data);
 };
 

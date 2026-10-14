@@ -140,6 +140,7 @@ Frontend는 다음 5가지를 책임진다.
   | `7` | 2026-09-23 | `@react-native-firebase/app`·`analytics` 추가(GA4 — KAN-90, `analytics.md`) |
   | `8` | 2026-09-24 | `react-native-fbsdk-next` 추가(Meta 광고 측정 — KAN-94, `analytics.md` 3.5) |
   | `32` | 2026-10-07 | `expo-iap` 추가(KAN-120) + KAN-118(Android 광고 ID 네이티브 기본값)·KAN-124·KAN-103 묶음 빌드 |
+  | `35` | 2026-10-15 | **네이티브 변경 없음** — 이벤트(초대) 코드 입력(KAN-182)을 **심사 받은 새 빌드(1.2.1)로만** 내려고 올린다. JS 만으로도 OTA 는 되지만 "앱 밖 코드로 유료 기능 해제"는 Apple 3.1.1 로 읽힐 수 있어 심사를 거치지 않은 OTA 로 1.2.0(34) 에 닿지 않게 한다. 이 값 이후 OTA 는 1.2.1 빌드에만 닿는다 |
 
   사이의 값은 각 PR의 `app.json` 이력을 따른다.
 - **OTA 번들의 env는 `eas.json`과 같은 값을 유지해야 한다.** 워크플로가 `EXPO_PUBLIC_API_BASE_URL`을 번들에 박으므로, `eas.json`의 `preview`·`production` env와 어긋나면 **OTA 번들만 다른 서버를 본다.** mock 플래그들은 `__DEV__` 가드라 릴리스 번들에서는 무관하다.

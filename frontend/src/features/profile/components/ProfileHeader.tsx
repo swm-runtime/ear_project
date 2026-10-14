@@ -11,7 +11,7 @@ import { Text } from '@/shared/ui/Typography';
 import { ProviderIcon } from '@/features/auth';
 import type { SocialProvider } from '@/features/auth';
 
-import type { PlanCardVM, SectionState } from '../hooks/useProfileScreen';
+import type { PlanCardStatusVM, PlanCardVM, SectionState } from '../hooks/useProfileScreen';
 import { PROFILE_COPY } from '../profile.copy';
 
 interface ProfileHeaderProps {
@@ -75,8 +75,17 @@ const AVATAR_ICON_SIZE = 36;
  * 닉네임·아바타는 표시만 한다(닉네임 편집·계정 통합은 MVP 비범위). 이메일 줄만
  * 진입점이다 — 프로필의 이메일 등록·인증 진입은 profile.md 4.3이 소유한다.
  */
+/**
+ * 플랜 줄들 — 초대 코드 지급 중이면 이벤트 줄을 더한다(KAN-182). 구독 없이(무료) 지급 중이면 이벤트 줄 하나만
+ * ("무료 이용 중"과 "Pro 이벤트 이용 중"이 함께 보이면 어긋난다). 설정 요약 카드(planLines)와 같은 규칙이다
+ */
+export const planLines = (vm: PlanCardVM): string[] => {
+  if (vm.eventLine === null) return [planText(vm)];
+  return vm.kind === 'free' ? [vm.eventLine] : [planText(vm), vm.eventLine];
+};
+
 /** 상태별 문구 — 서버가 정규화한 4분기를 그대로 그린다(재판정 금지) */
-export const planText = (vm: PlanCardVM): string => {
+export const planText = (vm: PlanCardStatusVM): string => {
   switch (vm.kind) {
     case 'free':
       // 체험 여부는 서버의 plan.trial로만 본다 — tier === 'trial' 분기 금지(profile-api.md 4.1)
@@ -217,11 +226,10 @@ export default function ProfileHeader({
         // 결제 구현 전 MVP 바이너리(KAN-66) — 플랜은 정보로만 보이고, 구독 화면 진입·유도 칩을 두지 않는다
         <View
           style={styles.planRow}
-          accessibilityLabel={`${PROFILE_COPY.cardLabels.plan}, ${planText(plan.data)}`}
+          accessible
+          accessibilityLabel={`${PROFILE_COPY.cardLabels.plan}, ${planLines(plan.data).join(', ')}`}
         >
-          <Text style={[styles.planText, plan.data.kind === 'grace' && styles.planDanger]}>
-            {planText(plan.data)}
-          </Text>
+          <PlanLines vm={plan.data} />
         </View>
       ) : (
         <Pressable
@@ -230,13 +238,11 @@ export default function ProfileHeader({
           accessibilityRole="button"
           accessibilityLabel={PROFILE_COPY.cardA11y(
             PROFILE_COPY.cardLabels.plan,
-            planText(plan.data),
+            planLines(plan.data).join(', '),
             PROFILE_COPY.destinations.plan,
           )}
         >
-          <Text style={[styles.planText, plan.data.kind === 'grace' && styles.planDanger]}>
-            {planText(plan.data)}
-          </Text>
+          <PlanLines vm={plan.data} />
           {/* 구독 화면으로 가는 줄 — 상태와 무관하게 [>] 하나(PM 2026-10-09, 무료의 [구독 알아보기] 알약을 대신한다) */}
           <View
             style={styles.planChevron}
@@ -251,6 +257,22 @@ export default function ProfileHeader({
           </View>
         </Pressable>
       )}
+    </View>
+  );
+}
+
+/** 플랜 줄 글자 — 첫 줄이 상태, 둘째 줄이 이벤트(있을 때). 결제 문제만 경고색 */
+function PlanLines({ vm }: { vm: PlanCardVM }) {
+  return (
+    <View style={styles.planLines}>
+      {planLines(vm).map((line, index) => (
+        <Text
+          key={line}
+          style={[styles.planText, index === 0 && vm.kind === 'grace' && styles.planDanger]}
+        >
+          {line}
+        </Text>
+      ))}
     </View>
   );
 }
@@ -276,6 +298,11 @@ const styles = StyleSheet.create({
     paddingLeft: theme.spacing.md + AVATAR_SIZE + theme.spacing.md,
     paddingRight: theme.spacing.md,
     paddingBottom: theme.spacing.sm,
+  },
+  /** 상태 줄 + 이벤트 줄(KAN-182) — [>] 와 나란히 남은 폭을 쓴다 */
+  planLines: {
+    flexShrink: 1,
+    gap: 2,
   },
   planText: {
     flexShrink: 1,

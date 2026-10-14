@@ -14,6 +14,7 @@ import { useToastStore } from '@/shared/ui/toast.store';
 
 import { sessionService } from '@/features/auth';
 import { getOsPermissionStatus, type OsPermissionStatus } from '@/features/notification';
+import { formatPlanGrantLine } from '@/features/subscription';
 
 import { settingsKeys, submitMarketingConsent, updateUserSettings } from '../api/settings.api';
 import { visibleAudioQualityOptions } from '../settings.audio-quality';
@@ -41,7 +42,7 @@ import { useSettingsQuery } from './useSettingsQuery';
 export type SectionState<T> = { kind: 'data'; data: T } | { kind: 'error' };
 
 /** 구독 요약 VM — 서버가 정규화한 status 4분기를 그대로 실어 나른다(settings-api.md 4.1) */
-export type PlanRowVM =
+export type PlanRowStatusVM =
   /**
    * trialLastFreeDate — 가입 체험 중이면 마지막 무제한 날(YYYY-MM-DD), 아니면 null(subscription.md 4.8).
    * **무료 상태에만 싣는다** — 구독자가 체험 중이어도 줄은 구독 문구 그대로다(profile-uiux.md 4.2)
@@ -56,6 +57,12 @@ export type PlanRowVM =
     }
   | { kind: 'cancelScheduled'; planName: string; expiresAt: string | null }
   | { kind: 'grace'; planName: string };
+
+/**
+ * eventLine — 초대 코드 지급 중이면 "{이름} 이벤트 이용 중 · {요금제} · N월 N일까지"(KAN-182), 아니면 null.
+ * 프로필 플랜 줄·요금제 관리와 **같은 함수**(subscription 공개 API `formatPlanGrantLine`)로 만든다
+ */
+export type PlanRowVM = PlanRowStatusVM & { eventLine: string | null };
 
 export interface EmailRowVM {
   status: EmailStatus;
@@ -76,7 +83,12 @@ export interface AudioQualityVM {
   options: AudioQualityOption[];
 }
 
-const toPlanRowVM = (plan: SettingsPlan): PlanRowVM => {
+const toPlanRowVM = (plan: SettingsPlan): PlanRowVM => ({
+  ...toPlanRowStatusVM(plan),
+  eventLine: formatPlanGrantLine(plan.grant),
+});
+
+const toPlanRowStatusVM = (plan: SettingsPlan): PlanRowStatusVM => {
   switch (plan.status) {
     case 'free':
       return {
@@ -101,6 +113,7 @@ const toPlanRowVM = (plan: SettingsPlan): PlanRowVM => {
 /** 메뉴 항목의 목적지 — 전부 MainStack 위에 얹히는 화면들이다(일부는 아직 placeholder) */
 type SettingsDestination =
   | 'Subscription'
+  | 'InviteCode'
   | 'EmailVerification'
   | 'InterestManagement'
   | 'Career'
@@ -446,8 +459,7 @@ export const useSettingsScreen = () => {
   const controls: SettingsControlsVM | null = summary
     ? {
         playbackRate: overlay.defaultPlaybackRate ?? summary.settings.defaultPlaybackRate,
-        isAutoExpandEnabled:
-          overlay.isAutoExpandEnabled ?? summary.settings.isAutoExpandEnabled,
+        isAutoExpandEnabled: overlay.isAutoExpandEnabled ?? summary.settings.isAutoExpandEnabled,
         isDripNotificationEnabled:
           overlay.isDripNotificationEnabled ?? summary.settings.isDripNotificationEnabled,
         isMarketingAgreed: overlay.isMarketingAgreed ?? summary.marketingConsent.isAgreed,
@@ -545,6 +557,8 @@ export const useSettingsScreen = () => {
 
     goBack: () => navigation.goBack(),
     openPlan: () => openDestination('Subscription'),
+    /** 이벤트 코드 입력(KAN-182) — 결제 UI 플래그와 무관하게 항상 있는 행 */
+    openInviteCode: () => openDestination('InviteCode'),
     // A10의 "현재 이메일" 표시 값을 실어 보낸다 — 인증 화면이 요약을 재조회하지 않게 한다.
     // 인증이 끝난 주소는 앱에서 바꿀 수 없으므로 인증 화면으로 보내지 않고 안내만 한다(auth.md 4.4)
     openEmail: () => {
