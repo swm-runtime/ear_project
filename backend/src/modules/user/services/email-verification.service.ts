@@ -14,6 +14,7 @@ import { equalsInConstantTime, sha256Hex } from '@/common/utils/hash.util';
 import { EmailVerificationRepository } from '../repositories/email-verification.repository';
 import { EmailVerification } from '../entities/email-verification.entity';
 import { MailClient } from '../mail.client';
+import { messageLanguageOf } from '../policies/market.policy';
 import {
   EMAIL_VERIFICATION_ACCOUNT_DAILY_SEND_LIMIT,
   EMAIL_VERIFICATION_ACCOUNT_DAILY_WINDOW_SEC,
@@ -159,7 +160,11 @@ export class EmailVerificationService {
       // 외부 호출은 트랜잭션 밖에서 한다 (architecture.md 8.3).
       // 발송에 실패하면 행을 남기지 않는다 — 인프라 장애로 5회를 소진시키지 않기 위해서다(domain.md 3.7)
       try {
-        await this.mailClient.sendVerificationCode(email, code);
+        await this.mailClient.sendVerificationCode(
+          email,
+          code,
+          messageLanguageOf(user.market),
+        );
       } catch (error) {
         await this.emailVerificationRepository.deleteById(verification.id);
         // 에러 이름까지만 남긴다(convention.md 8.4 · `ses-mail.client.ts`) — SES 의 `MessageRejected` 등은 메시지에

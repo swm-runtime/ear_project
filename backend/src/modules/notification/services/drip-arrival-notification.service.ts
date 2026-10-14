@@ -4,6 +4,8 @@ import { toServiceDayRange } from '@/common/utils/service-date.util';
 import { DeviceToken } from '@/modules/user/entities/device-token.entity';
 import { DeviceTokenService } from '@/modules/user/services/device-token.service';
 import { UserSettingService } from '@/modules/user/services/user-setting.service';
+import { UserService } from '@/modules/user/services/user.service';
+import { MessageLanguage } from '@/modules/user/user.enum';
 
 import { NotificationLog } from '../entities/notification-log.entity';
 import {
@@ -66,6 +68,7 @@ export class DripArrivalNotificationService {
     private readonly notificationLogRepository: NotificationLogRepository,
     private readonly deviceTokenService: DeviceTokenService,
     private readonly userSettingService: UserSettingService,
+    private readonly userService: UserService,
     private readonly pushClient: PushClient,
     private readonly pushReceiptService: PushReceiptService,
     private readonly uninstallAlertService: UninstallAlertService,
@@ -91,7 +94,7 @@ export class DripArrivalNotificationService {
 
     const userIds = targets.map((arrival) => arrival.userId);
     const { start, end } = toServiceDayRange(now);
-    const [alreadySent, disabled] = await Promise.all([
+    const [alreadySent, disabled, languages] = await Promise.all([
       this.notificationLogRepository
         .findUserIdsWithStatusBetween(
           userIds,
@@ -102,6 +105,7 @@ export class DripArrivalNotificationService {
         )
         .then((ids) => new Set(ids)),
       this.userSettingService.findDripNotificationDisabledUserIds(userIds),
+      this.userService.findMessageLanguagesByIds(userIds),
     ]);
     const devicesByUserId = groupByUserId(
       await this.deviceTokenService.findDeliverableByUserIds(
@@ -130,7 +134,12 @@ export class DripArrivalNotificationService {
       }
 
       deepLinkByUserId.set(arrival.userId, deepLink);
-      const message = buildMessage(arrival, deepLink, now);
+      const message = buildMessage(
+        arrival,
+        deepLink,
+        now,
+        languages.get(arrival.userId) ?? MessageLanguage.KO,
+      );
       const sentTokens = new Set<string>();
 
       for (const device of devicesByUserId.get(arrival.userId) ?? []) {
@@ -295,11 +304,12 @@ function buildMessage(
   arrival: DripArrival,
   deepLink: string,
   now: Date,
+  language: MessageLanguage,
 ): Omit<PushMessage, 'to'> {
   const contents = [...arrival.regular, ...arrival.discovery];
 
   return {
-    title: buildDripArrivalTitle(contents.length),
+    title: buildDripArrivalTitle(contents.length, language),
     body: contents[0].title,
     // 다음 배치가 새 알림을 보낸다 — 그 뒤까지 보관하면 며칠치 "오늘"이 한꺼번에 뜬다(`notification.md` 4.3)
     ttl: ttlUntilNextDripBatchSec(now),

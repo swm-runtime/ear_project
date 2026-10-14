@@ -1,9 +1,9 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { EntityManager, IsNull, Repository } from 'typeorm';
+import { EntityManager, In, IsNull, Repository } from 'typeorm';
 
 import { User } from '../entities/user.entity';
-import { SocialProvider, UserRole } from '../user.enum';
+import { SocialProvider, UserMarket, UserRole } from '../user.enum';
 
 @Injectable()
 export class UserRepository {
@@ -89,6 +89,20 @@ export class UserRepository {
       .orderBy('user.created_at', 'ASC')
       .addOrderBy('user.id', 'ASC')
       .getOne();
+  }
+
+  /** 여러 사용자의 시장 — 알림 문구 언어를 한 번에 고르는 데 쓴다. 없는 id 는 결과에서 빠진다 */
+  async findMarketsByIds(
+    ids: string[],
+  ): Promise<{ id: string; market: UserMarket }[]> {
+    if (ids.length === 0) {
+      return [];
+    }
+
+    return this.repository.find({
+      select: { id: true, market: true },
+      where: { id: In(ids) },
+    });
   }
 
   /**

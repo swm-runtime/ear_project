@@ -1,5 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 
+import { MessageLanguage } from './user.enum';
+
 /**
  * 이메일 발송 경계.
  *
@@ -8,7 +10,11 @@ import { Injectable, Logger } from '@nestjs/common';
  * 제공자가 정해지면 이 인터페이스를 구현한 클라이언트로 교체한다.
  */
 export abstract class MailClient {
-  abstract sendVerificationCode(email: string, code: string): Promise<void>;
+  abstract sendVerificationCode(
+    email: string,
+    code: string,
+    language: MessageLanguage,
+  ): Promise<void>;
 }
 
 /**
@@ -21,10 +27,15 @@ export abstract class MailClient {
 export class LoggingMailClient extends MailClient {
   private readonly logger = new Logger(LoggingMailClient.name);
 
-  sendVerificationCode(email: string): Promise<void> {
+  sendVerificationCode(
+    email: string,
+    _code: string,
+    language: MessageLanguage,
+  ): Promise<void> {
     this.logger.log('verification mail dispatched', {
       // 주소 원문 대신 도메인만 남긴다
       email_domain: email.slice(email.indexOf('@') + 1),
+      language,
     });
 
     return Promise.resolve();

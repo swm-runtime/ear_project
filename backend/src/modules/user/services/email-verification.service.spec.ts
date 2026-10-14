@@ -11,6 +11,7 @@ import { EmailVerification } from '../entities/email-verification.entity';
 import { User } from '../entities/user.entity';
 import { MailClient } from '../mail.client';
 import { UserService } from './user.service';
+import { MessageLanguage, UserMarket } from '../user.enum';
 
 const USER_ID = '11111111-1111-4111-8111-111111111111';
 const EMAIL = 'user@example.com';
@@ -80,6 +81,7 @@ describe('EmailVerificationService', () => {
         id: USER_ID,
         email: null,
         isEmailVerified: false,
+        market: UserMarket.KR,
       } as User);
 
     userService = {
@@ -115,6 +117,42 @@ describe('EmailVerificationService', () => {
       // then
       expect(view.sendCountUsed).toBe(1);
       expect(mailClient.sendVerificationCode).toHaveBeenCalledTimes(1);
+    });
+
+    it('GLOBAL 계정에는 영어 메일을 보낸다(global-api 2.3)', async () => {
+      // given
+      repository.findLatestByUserIdAndEmailForUpdate.mockResolvedValue(null);
+      userService.getById.mockResolvedValue({
+        id: USER_ID,
+        email: null,
+        isEmailVerified: false,
+        market: UserMarket.GLOBAL,
+      } as User);
+
+      // when
+      await service.sendCode(USER_ID, EMAIL, NOW);
+
+      // then
+      expect(mailClient.sendVerificationCode).toHaveBeenCalledWith(
+        EMAIL,
+        expect.any(String),
+        MessageLanguage.EN,
+      );
+    });
+
+    it('KR 계정에는 한국어 메일을 보낸다(global-api 2.3)', async () => {
+      // given
+      repository.findLatestByUserIdAndEmailForUpdate.mockResolvedValue(null);
+
+      // when
+      await service.sendCode(USER_ID, EMAIL, NOW);
+
+      // then
+      expect(mailClient.sendVerificationCode).toHaveBeenCalledWith(
+        EMAIL,
+        expect.any(String),
+        MessageLanguage.KO,
+      );
     });
 
     it('직전 발송으로부터 30초가 지나지 않았으면 쿨다운으로 거절한다', async () => {

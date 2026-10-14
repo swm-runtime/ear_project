@@ -1,13 +1,19 @@
+import { MessageLanguage } from './user.enum';
 import { renderVerificationMail } from './verification-mail.template';
 
 describe('renderVerificationMail', () => {
   it('숫자가 아닌 코드는 조립하지 않는다 — HTML 주입 경로를 원천 차단한다', () => {
-    expect(() => renderVerificationMail('<img src=x>')).toThrow();
+    expect(() =>
+      renderVerificationMail('<img src=x>', MessageLanguage.EN),
+    ).toThrow();
   });
 
   it('HTML과 텍스트 대체본에 코드와 유효 시간이 함께 들어간다', () => {
     // given / when
-    const { subject, html, text } = renderVerificationMail('123456');
+    const { subject, html, text } = renderVerificationMail(
+      '123456',
+      MessageLanguage.KO,
+    );
 
     // then
     expect(subject).toContain('123456');
@@ -24,5 +30,24 @@ describe('renderVerificationMail', () => {
         '본인이 요청하지 않았다면 이 메일을 무시해 주세요.',
       ].join('\n'),
     );
+  });
+
+  it('영어(GLOBAL)는 같은 마크업에 영어 문구만 바뀌고 한국어가 섞이지 않는다', () => {
+    // given / when
+    const { subject, html, text } = renderVerificationMail(
+      '123456',
+      MessageLanguage.EN,
+    );
+
+    // then
+    expect(subject).toContain('123456');
+    expect(html).toContain('<html lang="en">');
+    expect(html).toContain('3 minutes');
+    // 다크모드 보정 주석·스타일을 빼면 본문 어디에도 한글이 없다
+    const visible = html
+      .replace(/<style>[\s\S]*?<\/style>/, '')
+      .replace(/<!--[\s\S]*?-->/g, '');
+    expect(visible).not.toMatch(/[가-힣]/);
+    expect(text).not.toMatch(/[가-힣]/);
   });
 });

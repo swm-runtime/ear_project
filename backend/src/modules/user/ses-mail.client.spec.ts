@@ -1,3 +1,4 @@
+import { MessageLanguage } from './user.enum';
 import { SesMailClient } from './ses-mail.client';
 
 interface SentEmailInput {
@@ -63,7 +64,11 @@ describe('SesMailClient', () => {
       const client = buildClient();
 
       // when
-      await client.sendVerificationCode('user@example.com', '123456');
+      await client.sendVerificationCode(
+        'user@example.com',
+        '123456',
+        MessageLanguage.KO,
+      );
 
       // then
       const [command] = sendMock.mock.calls[0];
@@ -82,7 +87,11 @@ describe('SesMailClient', () => {
       const client = buildClient();
 
       // when
-      await client.sendVerificationCode('user@example.com', '123456');
+      await client.sendVerificationCode(
+        'user@example.com',
+        '123456',
+        MessageLanguage.KO,
+      );
 
       // then
       const [command] = sendMock.mock.calls[0];
@@ -97,7 +106,11 @@ describe('SesMailClient', () => {
       const client = buildClient();
 
       // when
-      await client.sendVerificationCode('user@example.com', '123456');
+      await client.sendVerificationCode(
+        'user@example.com',
+        '123456',
+        MessageLanguage.KO,
+      );
 
       // then
       const { Html, Text } =
@@ -112,7 +125,11 @@ describe('SesMailClient', () => {
       sendMock.mockRejectedValue(new Error('MessageRejected'));
 
       // when
-      const act = client.sendVerificationCode('user@example.com', '123456');
+      const act = client.sendVerificationCode(
+        'user@example.com',
+        '123456',
+        MessageLanguage.KO,
+      );
 
       // then
       await expect(act).rejects.toThrow('MessageRejected');
