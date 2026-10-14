@@ -17,6 +17,7 @@ import {
   DEFAULT_POPULAR_PERIOD,
 } from '../explore.constant';
 import { ExploreOrchestrator } from '../explore.orchestrator';
+import { toUserMarket } from '@/modules/user/policies/market.policy';
 
 /**
  * explore-api.md 3장 — 탐색 화면의 조회 엔드포인트.
@@ -41,7 +42,11 @@ export class ExploreController {
     @CurrentUser() currentUser: AuthenticatedUser,
   ): Promise<GetExploreFeedResponseDto> {
     return GetExploreFeedResponseDto.from(
-      await this.exploreOrchestrator.getFeed(currentUser.id, new Date()),
+      await this.exploreOrchestrator.getFeed(
+        currentUser.id,
+        new Date(),
+        toUserMarket(currentUser.market),
+      ),
     );
   }
 
@@ -64,6 +69,7 @@ export class ExploreController {
           limit: query.limit ?? DEFAULT_EXPLORE_PAGE_SIZE,
         },
         new Date(),
+        toUserMarket(currentUser.market),
       ),
     );
   }
@@ -74,7 +80,10 @@ export class ExploreController {
     @CurrentUser() currentUser: AuthenticatedUser,
   ): Promise<ExploreTopicListResponseDto> {
     return ExploreTopicListResponseDto.from(
-      await this.exploreOrchestrator.getTopicChips(currentUser.id),
+      await this.exploreOrchestrator.getTopicChips(
+        currentUser.id,
+        toUserMarket(currentUser.market),
+      ),
     );
   }
 
@@ -97,6 +106,7 @@ export class ExploreController {
           limit: query.limit ?? DEFAULT_EXPLORE_PAGE_SIZE,
         },
         new Date(),
+        toUserMarket(currentUser.market),
       ),
     );
   }
@@ -115,6 +125,7 @@ export class ExploreController {
           limit: query.limit ?? DEFAULT_EXPLORE_PAGE_SIZE,
         },
         new Date(),
+        toUserMarket(currentUser.market),
       ),
     );
   }

@@ -6,6 +6,7 @@ import {
   LibraryItemSort,
   LibraryItemSourceFilter,
 } from './library.enum';
+import { UserMarket } from '@/modules/user/user.enum';
 
 /**
  * 커서가 가리키는 위치. **`added_at`만으로는 부족하다** — 드립 배치는 한 사용자에게 2편을
@@ -24,6 +25,8 @@ export interface LibraryCursorPosition {
 
 export interface LibraryPageQuery {
   userId: string;
+  /** 사용자 시장 — 조인한 콘텐츠를 시장으로도 거른다(`global-api.md` 4.7) */
+  market: UserMarket;
   /** 상태 축 */
   filter: LibraryItemFilter;
   /** 출처 축. `null`이면 출처를 가리지 않는다. **상태·주제와는 AND다** */

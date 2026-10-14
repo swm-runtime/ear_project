@@ -3,6 +3,7 @@ import { LibraryItemSource } from '@/modules/library/library.enum';
 import { EvalWorld } from './eval-world';
 import { buildSyntheticSnapshot } from './synthetic-catalog';
 import { EvalSnapshot } from './recommend-eval.types';
+import { UserMarket } from '@/modules/user/user.enum';
 
 const NOW = new Date('2026-09-30T00:00:00.000Z');
 const DAY = 24 * 60 * 60 * 1000;
@@ -88,6 +89,7 @@ describe('EvalWorld', () => {
     world.remove('u1', c3.id, NOW);
 
     const pool = await world['contentService']().findCandidates({
+      market: UserMarket.KR,
       includeTopicIds: [topic],
       excludeSeenByUserId: 'u1',
       seriesStartOnly: true,

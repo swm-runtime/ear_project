@@ -47,6 +47,7 @@ import { ContentAudioRenditionRepository } from '../repositories/content-audio-r
 import { ContentScriptRepository } from '../repositories/content-script.repository';
 import { ContentSourceRepository } from '../repositories/content-source.repository';
 import { ContentTopicRepository } from '../repositories/content-topic.repository';
+import { UserMarket } from '@/modules/user/user.enum';
 
 /** 담기 대상 판정 결과 — 부분 실패를 표현한다 (onboarding-api.md 4.6) */
 export interface PickTargetResolution {
@@ -314,9 +315,10 @@ export class ContentService {
   async findRecent(
     limit: number,
     now: Date,
+    market: UserMarket,
     manager?: EntityManager,
   ): Promise<Content[]> {
-    return this.contentRepository.findRecent(limit, now, manager);
+    return this.contentRepository.findRecent(limit, now, market, manager);
   }
 
   /**
@@ -442,10 +444,12 @@ export class ContentService {
     contentId: string,
     manager?: EntityManager,
     now: Date = new Date(),
+    /** 사용자 시장(`global-api.md` 4.7) — 다른 시장 콘텐츠는 ID로 직접 와도 없는 것이다(404). 생략은 시장 무관 경로(공개 샘플) */
+    market?: UserMarket,
   ): Promise<Content> {
     const content = await this.contentRepository.findById(contentId, manager);
 
-    if (!content) {
+    if (!content || (market !== undefined && content.market !== market)) {
       throw new BusinessNotFoundException({
         errorCode: ErrorCode.CONTENT_NOT_FOUND,
         message: '콘텐츠를 찾을 수 없어요',

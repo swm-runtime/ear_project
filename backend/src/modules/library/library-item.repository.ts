@@ -13,7 +13,9 @@ import {
 } from 'typeorm';
 
 import {
+  CONTENT_SCOPE_CONDITION,
   CONTENT_VISIBILITY_CONDITION,
+  contentScopeParameters,
   contentVisibilityParameters,
 } from '@/modules/content/content.visibility';
 
@@ -26,6 +28,7 @@ import {
   LibraryItemStatus,
 } from './library.enum';
 import { LibraryPageQuery } from './library.types';
+import { UserMarket } from '@/modules/user/user.enum';
 
 /**
  * 출처 필터 한 값이 덮는 `library_items.source` 값들(library-api.md 4.1).
@@ -396,8 +399,8 @@ export class LibraryItemRepository {
       .innerJoinAndSelect(
         'item.content',
         'content',
-        CONTENT_VISIBILITY_CONDITION,
-        contentVisibilityParameters(now),
+        CONTENT_SCOPE_CONDITION,
+        contentScopeParameters(now, query.market),
       )
       .where('item.user_id = :userId', { userId: query.userId });
 
@@ -632,6 +635,7 @@ export class LibraryItemRepository {
   async findLatestResumable(
     userId: string,
     now: Date,
+    market: UserMarket,
     manager?: EntityManager,
   ): Promise<LibraryItem | null> {
     return this.scoped(manager)
@@ -639,8 +643,8 @@ export class LibraryItemRepository {
       .innerJoinAndSelect(
         'item.content',
         'content',
-        CONTENT_VISIBILITY_CONDITION,
-        contentVisibilityParameters(now),
+        CONTENT_SCOPE_CONDITION,
+        contentScopeParameters(now, market),
       )
       .where('item.user_id = :userId', { userId })
       .andWhere(

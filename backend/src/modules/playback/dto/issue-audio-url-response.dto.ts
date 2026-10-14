@@ -3,6 +3,7 @@ import type { ScriptSection } from '@/modules/content/content.types';
 
 import type { AudioQualityFallbackReason } from '../audio-quality.policy';
 import { AudioUrlResult } from '../playback.types';
+import { ContentLanguage } from '@/modules/content/content.enum';
 
 class AudioContentDto {
   readonly id: string;
@@ -14,6 +15,8 @@ class AudioContentDto {
   readonly source_url: string | null;
   readonly duration_sec: number;
   readonly thumbnail_url: string;
+  /** 콘텐츠 언어(`global-api.md` 4.7) — 표시 전용. 시장 필터는 서버가 한다 */
+  readonly language: ContentLanguage;
   /** 재발행 판정용. 보관한 값보다 크면 저장된 위치·오프라인 파일을 폐기한다 */
   readonly content_version: number;
   /** 플레이어 카테고리 줄 — 진입 경로와 무관하게 발급 응답이 원천이다(2026-09-19) */
@@ -78,6 +81,7 @@ export class IssueAudioUrlResponseDto {
         source_url: result.content.sourceUrl,
         duration_sec: result.content.durationSec,
         thumbnail_url: result.content.thumbnailUrl,
+        language: result.content.language,
         content_version: result.content.contentVersion,
         topics: result.content.topics,
       },

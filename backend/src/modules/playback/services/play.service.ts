@@ -45,6 +45,7 @@ export class PlayService {
         command.contentId,
         manager,
         command.now,
+        command.market,
       );
 
       // 2. 한도 판정 — 클라이언트가 보낸 잔여 횟수·티어·진입점은 쓰지 않는다.

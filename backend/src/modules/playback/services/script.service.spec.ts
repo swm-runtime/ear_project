@@ -4,6 +4,7 @@ import { ContentService } from '@/modules/content/services/content.service';
 
 import { PlayPolicyService } from './play-policy.service';
 import { ScriptService } from './script.service';
+import { UserMarket } from '@/modules/user/user.enum';
 
 const NOW = new Date('2026-09-19T09:00:00.000Z');
 const USER_ID = '11111111-1111-4111-8111-111111111111';
@@ -36,6 +37,7 @@ describe('ScriptService — 대본 조회(player-api.md 4.7)', () => {
 
   it('재생 발급과 같은 판정(회수 → 한도)을 거친 뒤 세그먼트를 그대로 돌려준다', async () => {
     const result = await service.get({
+      market: UserMarket.KR,
       userId: USER_ID,
       contentId: CONTENT_ID,
       now: NOW,
@@ -45,6 +47,7 @@ describe('ScriptService — 대본 조회(player-api.md 4.7)', () => {
       CONTENT_ID,
       undefined,
       NOW,
+      UserMarket.KR,
     );
     expect(playPolicyService.assertPlayable).toHaveBeenCalledWith(
       USER_ID,
@@ -58,6 +61,7 @@ describe('ScriptService — 대본 조회(player-api.md 4.7)', () => {
     contentService.findScriptSegments.mockResolvedValue([]);
 
     const result = await service.get({
+      market: UserMarket.KR,
       userId: USER_ID,
       contentId: CONTENT_ID,
       now: NOW,
@@ -75,7 +79,12 @@ describe('ScriptService — 대본 조회(player-api.md 4.7)', () => {
     );
 
     await expect(
-      service.get({ userId: USER_ID, contentId: CONTENT_ID, now: NOW }),
+      service.get({
+        userId: USER_ID,
+        contentId: CONTENT_ID,
+        now: NOW,
+        market: UserMarket.KR,
+      }),
     ).rejects.toBeInstanceOf(BusinessForbiddenException);
     expect(contentService.findScriptSegments).not.toHaveBeenCalled();
   });

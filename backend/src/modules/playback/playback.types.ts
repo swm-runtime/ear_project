@@ -5,6 +5,8 @@ import { ScriptSection } from '@/modules/content/content.types';
 
 import type { AudioQualityFallbackReason } from './audio-quality.policy';
 import { PlayEntryPoint, UserSignalAction } from './playback.enum';
+import { UserMarket } from '@/modules/user/user.enum';
+import { ContentLanguage } from '@/modules/content/content.enum';
 
 /**
  * 추천 랭킹에 쓰는 행동 이력 한 줄(domain.md 6.4).
@@ -60,6 +62,8 @@ export interface SignedAudioUrl {
 export interface IssueAudioUrlCommand {
   userId: string;
   contentId: string;
+  /** 사용자 시장 — 다른 시장 콘텐츠는 ID로 와도 404(`global-api.md` 4.7) */
+  market: UserMarket;
   deviceId: string;
   ip: string | null;
   now: Date;
@@ -83,6 +87,7 @@ export interface AudioUrlResult {
     sourceUrl: string | null;
     durationSec: number;
     thumbnailUrl: string;
+    language: ContentLanguage;
     contentVersion: number;
     /** 플레이어 카테고리 줄용(`player-api.md` 4.1, 2026-09-19) — 진입 경로마다 목록 응답에서 끼워 넣던 우회를 걷어낸다 */
     topics: { id: string; name: string }[];
@@ -177,6 +182,8 @@ export interface PlayPermission {
 export interface StartPlayCommand {
   userId: string;
   contentId: string;
+  /** 사용자 시장 — 다른 시장 콘텐츠는 ID로 와도 404(`global-api.md` 4.7) */
+  market: UserMarket;
   /** 전환 분석용. **판정에 쓰지 않는다** */
   entryPoint: PlayEntryPoint;
   now: Date;

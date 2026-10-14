@@ -133,7 +133,8 @@ export class TopicExposureService {
     now: Date,
     manager: EntityManager,
   ): Promise<Topic[]> {
-    const visible = await this.topicService.findAllVisible(manager);
+    const visible =
+      await this.topicService.findAllVisibleAcrossMarkets(manager);
 
     return this.hideEmptyTopics(
       {

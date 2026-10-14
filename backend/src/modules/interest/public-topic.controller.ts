@@ -2,6 +2,7 @@ import { Controller, Get, Header } from '@nestjs/common';
 
 import { PublicTopicListResponseDto } from './dto/public-topic-list-response.dto';
 import { TopicService } from './services/topic.service';
+import { UserMarket } from '@/modules/user/user.enum';
 
 /**
  * public-api.md — **로그인 없이** 부르는 공개 주제 목록. 랜딩 페이지가 빌드할 때 받아 "고를 수 있는 주제"
@@ -21,7 +22,8 @@ export class PublicTopicController {
   @Header('Cache-Control', 'public, max-age=300')
   async getTopics(): Promise<PublicTopicListResponseDto> {
     return PublicTopicListResponseDto.from(
-      await this.topicService.findAllVisible(),
+      // 비로그인 공개 목록(랜딩)이라 사용자 시장이 없다 — 한국 랜딩이므로 KR. 영어 랜딩은 FE 글로벌 6 뒤 별도 쿼리
+      await this.topicService.findAllVisible(UserMarket.KR),
     );
   }
 }

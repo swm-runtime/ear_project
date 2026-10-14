@@ -5,6 +5,7 @@ import {
 } from '@/modules/library/library.enum';
 
 import { ContentDetailView } from '../content-detail.types';
+import { ContentLanguage } from '@/modules/content/content.enum';
 
 class ContentDetailTopicDto {
   readonly id: string;
@@ -41,6 +42,8 @@ class ContentDetailContentDto {
   readonly duration_sec: number;
   readonly published_at: string;
   readonly thumbnail_url: string;
+  /** 콘텐츠 언어(`global-api.md` 4.7) — 표시 전용. 시장 필터는 서버가 한다 */
+  readonly language: ContentLanguage;
   readonly content_version: number;
   readonly topics: ContentDetailTopicDto[];
   /** 화면 해시태그('#' 없이 — 붙이는 것은 화면). 없으면 빈 배열 (KAN-162) */
@@ -78,6 +81,7 @@ export class GetContentDetailResponseDto {
         duration_sec: content.durationSec,
         published_at: content.publishedAt.toISOString(),
         thumbnail_url: content.thumbnailUrl,
+        language: content.language,
         content_version: content.contentVersion,
         topics: view.topics.map((topic) => ({
           id: topic.id,

@@ -3,6 +3,7 @@ import {
   LibraryItemStatus,
 } from '@/modules/library/library.enum';
 
+import { ContentLanguage } from '@/modules/content/content.enum';
 import { LibraryItemView, LibraryResumeResult } from '../library-screen.types';
 import { GetLibraryResumeResponseDto } from './get-library-resume-response.dto';
 
@@ -28,6 +29,7 @@ function view(topicIds: string[]): LibraryItemView {
       sourceUrl: null,
       durationSec: 620,
       thumbnailUrl: 'https://cdn.example/thumb.webp',
+      language: ContentLanguage.KO,
       contentVersion: 1,
       topicIds,
     },

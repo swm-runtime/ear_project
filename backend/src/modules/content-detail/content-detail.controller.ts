@@ -16,6 +16,7 @@ import { ContentDetailOrchestrator } from './content-detail.orchestrator';
 import { GetContentDetailResponseDto } from './dto/get-content-detail-response.dto';
 import { GetWithdrawnContentsQueryRequestDto } from './dto/get-withdrawn-contents-query-request.dto';
 import { GetWithdrawnContentsResponseDto } from './dto/get-withdrawn-contents-response.dto';
+import { toUserMarket } from '@/modules/user/policies/market.policy';
 
 /**
  * content-detail-api.md 3장 — 콘텐츠 단건 상세 조회.
@@ -62,6 +63,7 @@ export class ContentDetailController {
         currentUser.id,
         contentId,
         new Date(),
+        toUserMarket(currentUser.market),
       ),
     );
   }

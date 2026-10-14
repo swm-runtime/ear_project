@@ -11,9 +11,12 @@ import {
   AudioQuality,
 } from './content.enum';
 import { Content } from './entities/content.entity';
+import { UserMarket } from '@/modules/user/user.enum';
 
 /** 추천·편성 후보 조회 조건 */
 export interface ContentCandidateQuery {
+  /** 사용자 시장(`global-api.md` 4.7) — 다른 시장의 콘텐츠는 후보가 아니다 */
+  market: UserMarket;
   /** 이 주제 중 하나라도 걸리는 콘텐츠만. 비우면 주제 조건을 적용하지 않는다 */
   includeTopicIds?: string[];
   /** 이 주제에 걸리는 콘텐츠는 제외한다 (관심 주제 밖에서 뽑을 때) */
@@ -143,6 +146,8 @@ export interface ExploreCursorPosition {
 }
 
 export interface ExplorePageQuery {
+  /** 사용자 시장(`global-api.md` 4.7) — 다른 시장의 콘텐츠는 후보가 아니다 */
+  market: UserMarket;
   /** 비울 수 없다. 필터가 없는 상태는 피드(4.1)가 담당한다. **주제끼리는 OR다** */
   topicIds: string[];
   cursor: ExploreCursorPosition | null;
@@ -183,6 +188,8 @@ export interface PopularCursorPosition {
 }
 
 export interface PopularPageQuery {
+  /** 사용자 시장(`global-api.md` 4.7) — 다른 시장의 콘텐츠는 후보가 아니다 */
+  market: UserMarket;
   /** 사용자가 고른 집계 구간. `period_start`는 `ContentService`가 이 값으로 환산한다 */
   periodType: StatsPeriodType;
   cursor: PopularCursorPosition | null;
@@ -225,6 +232,8 @@ export interface SearchCursorPosition {
 }
 
 export interface SearchPageQuery {
+  /** 사용자 시장(`global-api.md` 4.7) — 다른 시장의 콘텐츠는 후보가 아니다 */
+  market: UserMarket;
   /** **이미 정규화된 질의다**(NFC + 소문자 + 트림 — `explore.md` 4.5-5). 호출부가 정규화한다 */
   normalizedQuery: string;
   /** 검색 결과에 주제 필터를 겹칠 때(explore-api.md 4.5). 비우면 조건을 적용하지 않는다 */

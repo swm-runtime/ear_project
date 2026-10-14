@@ -15,6 +15,7 @@ import {
   LibrarySaveResult,
 } from './library.types';
 import { toServiceDayRange } from '@/common/utils/service-date.util';
+import { UserMarket } from '@/modules/user/user.enum';
 
 /**
  * `library_items`는 library 모듈 소유다(domain.md 2장).
@@ -481,9 +482,15 @@ export class LibraryService {
   async findResumeTarget(
     userId: string,
     now: Date,
+    market: UserMarket,
     manager?: EntityManager,
   ): Promise<LibraryItem | null> {
-    return this.libraryItemRepository.findLatestResumable(userId, now, manager);
+    return this.libraryItemRepository.findLatestResumable(
+      userId,
+      now,
+      market,
+      manager,
+    );
   }
 
   /**

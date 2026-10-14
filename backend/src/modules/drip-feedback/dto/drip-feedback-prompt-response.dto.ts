@@ -1,4 +1,5 @@
 import { DripFeedbackPromptView } from '../drip-feedback.types';
+import { ContentLanguage } from '@/modules/content/content.enum';
 
 /** `GET /users/me/drip-feedback/prompt` (drip-feedback-api.md 4.1) */
 export class DripFeedbackPromptResponseDto {
@@ -9,6 +10,8 @@ export class DripFeedbackPromptResponseDto {
     content_id: string;
     title: string;
     thumbnail_url: string;
+    /** 콘텐츠 언어(`global-api.md` 4.7) — 표시 전용. 시장 필터는 서버가 한다 */
+    language: ContentLanguage;
     source: string;
     placed_date: string;
     library_status: string;
@@ -23,6 +26,7 @@ export class DripFeedbackPromptResponseDto {
         content_id: item.contentId,
         title: item.title,
         thumbnail_url: item.thumbnailUrl,
+        language: item.language,
         source: item.source,
         placed_date: item.placedDate,
         library_status: item.libraryStatus,

@@ -14,6 +14,7 @@ import {
   PublishedNoticeCursorPosition,
   UpdateNoticeCommand,
 } from './notice.types';
+import { UserMarket } from '@/modules/user/user.enum';
 
 /**
  * `notices`의 소유자(`changes/pending/notice-screen-spec.md` D). 사용자 조회와 관리자 쓰기가 같은
@@ -30,18 +31,28 @@ export class NoticeService {
     now: Date,
     cursor: PublishedNoticeCursorPosition | null,
     limit: number,
+    market: UserMarket,
   ): Promise<NoticePage<Notice>> {
     return toPage(
-      await this.noticeRepository.findPublishedPage(now, cursor, limit + 1),
+      await this.noticeRepository.findPublishedPage(
+        now,
+        cursor,
+        limit + 1,
+        market,
+      ),
       limit,
     );
   }
 
   /** 초안·예약·삭제·없음은 모두 같은 404다 — 존재 여부를 구분해 알려주지 않는다 */
-  async getPublished(id: string, now: Date): Promise<Notice> {
+  async getPublished(
+    id: string,
+    now: Date,
+    market: UserMarket,
+  ): Promise<Notice> {
     // uuid 가 아닌 id 는 없는 공지와 같다 — Postgres 에 닿으면 형식 오류 500 이 된다
     const notice = isUuid(id)
-      ? await this.noticeRepository.findPublishedById(id, now)
+      ? await this.noticeRepository.findPublishedById(id, now, market)
       : null;
 
     if (!notice) {
