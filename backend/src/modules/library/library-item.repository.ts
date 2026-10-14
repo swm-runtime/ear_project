@@ -192,6 +192,26 @@ export class LibraryItemRepository {
     });
   }
 
+  /**
+   * 기간 안에 적립된 편성분(정규·탐험) 전체 — 07:00 도착 알림이 05:00 배치 결과를 다시 읽는 경로다.
+   * 소프트 삭제된 항목은 빠진다(알림 전에 지운 편은 알리지 않는다). 사용자 → 적립 순.
+   */
+  async findAllWithContentBySourcesAddedBetween(
+    sources: LibraryItemSource[],
+    start: Date,
+    end: Date,
+    manager?: EntityManager,
+  ): Promise<LibraryItem[]> {
+    return this.scoped(manager).find({
+      where: {
+        source: In(sources),
+        addedAt: And(MoreThanOrEqual(start), LessThan(end)),
+      },
+      relations: { content: true },
+      order: { userId: 'ASC', addedAt: 'ASC', id: 'ASC' },
+    });
+  }
+
   async countByUserIdAndSource(
     userId: string,
     source: LibraryItemSource,

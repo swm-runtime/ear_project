@@ -50,6 +50,11 @@ export class DripBatchRunService {
     );
   }
 
+  /** 그 서비스 날짜의 실행 — 없으면 `null` */
+  async findByRunDate(runDate: string): Promise<DripBatchRun | null> {
+    return this.dripBatchRunRepository.findByRunDate(runDate);
+  }
+
   async finish(
     run: DripBatchRun,
     counts: DripBatchCounts,

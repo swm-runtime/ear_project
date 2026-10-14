@@ -83,6 +83,13 @@ export class DripBatchRunRepository {
     return this.scoped(manager).findOneBy({ runDate });
   }
 
+  async findByRunDate(
+    runDate: string,
+    manager?: EntityManager,
+  ): Promise<DripBatchRun | null> {
+    return this.scoped(manager).findOneBy({ runDate });
+  }
+
   async save(
     run: DripBatchRun,
     manager?: EntityManager,

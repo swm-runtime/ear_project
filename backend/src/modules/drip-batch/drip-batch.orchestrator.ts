@@ -3,7 +3,10 @@ import { ConfigService } from '@nestjs/config';
 
 import { EnvironmentVariables } from '@/config/env.validation';
 
-import { toServiceDate } from '@/common/utils/service-date.util';
+import {
+  toServiceDate,
+  toServiceDayRange,
+} from '@/common/utils/service-date.util';
 import { ContentService } from '@/modules/content/services/content.service';
 import { ContentStatService } from '@/modules/content/services/content-stat.service';
 import { Content } from '@/modules/content/entities/content.entity';
@@ -39,12 +42,10 @@ import { UserInterest } from '@/modules/interest/entities/user-interest.entity';
 import { UserInterestSource } from '@/modules/interest/interest.enum';
 import { TopicService } from '@/modules/interest/services/topic.service';
 import { UserInterestService } from '@/modules/interest/services/user-interest.service';
+import { LibraryItem } from '@/modules/library/library-item.entity';
 import { LibraryItemSource } from '@/modules/library/library.enum';
 import { LibraryService } from '@/modules/library/library.service';
-import {
-  ArrivedContent,
-  DripArrival,
-} from '@/modules/notification/notification.types';
+import { DripArrival } from '@/modules/notification/notification.types';
 import { DripArrivalNotificationService } from '@/modules/notification/services/drip-arrival-notification.service';
 import { UserSignalAction } from '@/modules/playback/playback.enum';
 import { PlaybackService } from '@/modules/playback/services/playback.service';
@@ -74,10 +75,9 @@ const MS_PER_DAY = 24 * 60 * 60 * 1000;
  */
 type UserOutcome = 'scheduled' | 'skipped' | 'exhausted';
 
-/** 편성 결과 + 알림에 넘길 그날 적립분(정규·탐험). 적립이 없으면 `arrival`은 null */
+/** 편성 결과. 도착 알림은 07:00 에 그날 적립분을 DB 에서 다시 읽어 보낸다(`notifyTodayArrivals`) */
 interface UserScheduleResult {
   outcome: UserOutcome;
-  arrival: DripArrival | null;
 }
 
 /** 티어별 편성 편수 — 실행 1회 안에서 한 번만 읽는다(아래 `PlanCountCache`) */
@@ -205,21 +205,15 @@ export class DripBatchOrchestrator {
           break;
         }
 
-        const arrivals: DripArrival[] = [];
-
         for (const user of users) {
           counts.targetCount += 1;
 
           try {
-            const { outcome, arrival } = await this.scheduleForUserWithRetry(
+            const { outcome } = await this.scheduleForUserWithRetry(
               user,
               now,
               planCounts,
             );
-
-            if (arrival) {
-              arrivals.push(arrival);
-            }
 
             if (outcome === 'scheduled') {
               counts.successCount += 1;
@@ -237,7 +231,6 @@ export class DripBatchOrchestrator {
           }
         }
 
-        await this.notifyArrivals(arrivals, now);
         afterId = users[users.length - 1].id;
       }
 
@@ -247,6 +240,11 @@ export class DripBatchOrchestrator {
         // 네 카운트 합 = targetCount (domain.md 7.3). exhausted는 2026-09-11부터 컬럼에 남는다 —
         // 그전엔 로그에만 있어 "대상 13 · 성공 3"의 나머지 10명이 표에서 사라졌다
         await this.dripBatchRunService.finish(run, counts, new Date());
+
+        // 실행 시작이 이미 알림 시각(07:00) 뒤면(재시작 뒤 재개 등) 07:00 크론을 놓쳤으니 끝나는 대로 보낸다
+        if (isAfterArrivalPushTime(now)) {
+          await this.notifyTodayArrivals(new Date());
+        }
       } else {
         this.logger.error(
           'drip batch aborted — run left open for the resume slot',
@@ -313,12 +311,43 @@ export class DripBatchOrchestrator {
   }
 
   /**
-   * 드립 도착 알림(`notification.md` 4.3). **페이지 단위로 모아 보낸다** — 사용자마다 부르면 발송 요청이
-   * 사용자 수만큼 나가고, 전체가 끝난 뒤에 몰아 보내면 앞 사용자의 알림이 배치 시간만큼 늦는다.
-   * 페이지 안의 사용자는 **탐험 편성까지 끝난 뒤**라 정규 + 탐험을 합친 1건이 된다.
+   * **드립 도착 알림 — 07:00 KST**(`notification.md` 4.3, 2026-10-14 변경). 편성은 05:00에 그대로 하고 알림만 늦춘다 —
+   * 새벽 5시 알림은 잠금화면에 묻혀 의미가 없었다. 그래서 배치는 알리지 않고, 이 경로가 **오늘 배치가 적립한 것을
+   * DB 에서 다시 읽어** 사용자당 1건(정규 + 탐험)으로 보낸다.
    *
-   * 알림 실패는 편성을 되돌리지 않고 배치도 멈추지 않는다 — 적립은 이미 커밋됐다.
+   * 범위는 오늘 서비스 날짜 시작(05:00)부터 배치 종료까지다 — 배치가 재개로 이어졌어도 앞 구간이 빠지지 않는다.
+   * 알림 전에 지운 편은 빠지고(소프트 삭제), 같은 날 두 번 보내지 않는 것은 알림 서비스의 하루 1건 판정이 막는다.
+   * 배치가 아직 끝나지 않았으면 보내지 않는다 — 끝날 때 07:00이 지났으면 배치가 이어서 부른다(`run`).
    */
+  async notifyTodayArrivals(now: Date): Promise<void> {
+    const runDate = toServiceDate(now);
+    const run = await this.dripBatchRunService.findByRunDate(runDate);
+
+    if (!run?.finishedAt) {
+      this.logger.warn('drip arrival push skipped — batch not finished', {
+        run_date: runDate,
+      });
+      return;
+    }
+
+    const items = await this.libraryService.findPlacementsAddedBetween(
+      toServiceDayRange(now).start,
+      // 배치 종료 직후 같은 ms 에 적립된 행까지 넣는다(LessThan)
+      new Date(run.finishedAt.getTime() + 1),
+    );
+    const arrivals = groupArrivals(items);
+
+    for (let i = 0; i < arrivals.length; i += ARRIVAL_PUSH_CHUNK) {
+      await this.notifyArrivals(arrivals.slice(i, i + ARRIVAL_PUSH_CHUNK), now);
+    }
+
+    this.logger.log('drip arrival push done', {
+      run_date: runDate,
+      user_count: arrivals.length,
+    });
+  }
+
+  /** 알림 실패는 편성을 되돌리지 않는다 — 적립은 이미 커밋됐다 */
   private async notifyArrivals(
     arrivals: DripArrival[],
     now: Date,
@@ -350,7 +379,7 @@ export class DripBatchOrchestrator {
     });
 
     if (plan.skipReason !== null) {
-      return { outcome: 'skipped', arrival: null };
+      return { outcome: 'skipped' };
     }
 
     const regularPicks = plan.regular?.picks ?? [];
@@ -371,8 +400,6 @@ export class DripBatchOrchestrator {
     }
 
     // 탐험 실패는 정규 편성을 되돌리지 않는다(4.8 — 부가 슬롯이 본편을 막으면 안 된다)
-    let discoveryPicks: ScoredCandidate[] = [];
-
     if (plan.discoveryError !== null) {
       this.logger.warn('discovery scheduling failed', {
         user_id: user.id,
@@ -387,7 +414,6 @@ export class DripBatchOrchestrator {
           LibraryItemSource.DISCOVERY,
           now,
         );
-        discoveryPicks = plan.discovery.picks;
       } catch (error) {
         this.logger.warn('discovery scheduling failed', {
           user_id: user.id,
@@ -398,18 +424,8 @@ export class DripBatchOrchestrator {
 
     // 정규 편성이 0편이면 후보가 마른 것이다(4.1의 스킵 조건은 위에서 이미 걸렀다).
     // 탐험 슬롯만 채워졌더라도 본편이 없으면 그날의 편성은 성공이 아니다
-    const arrival: DripArrival | null =
-      regularPicks.length + discoveryPicks.length > 0
-        ? {
-            userId: user.id,
-            regular: regularPicks.map(toArrivedContent),
-            discovery: discoveryPicks.map(toArrivedContent),
-          }
-        : null;
-
     return {
       outcome: regularPicks.length > 0 ? 'scheduled' : 'exhausted',
-      arrival,
     };
   }
 
@@ -1156,6 +1172,38 @@ function round(value: number | null): number | null {
   return value === null ? null : Math.round(value * 1000) / 1000;
 }
 
-function toArrivedContent(pick: ScoredCandidate): ArrivedContent {
-  return { contentId: pick.content.id, title: pick.content.title };
+/** 한 번에 알림 서비스로 넘기는 사용자 수 — 발송 요청을 이 크기로 나눈다 */
+const ARRIVAL_PUSH_CHUNK = 100;
+
+/** 드립 도착 알림 시각 — 07:00 KST(`DripBatchScheduler` 크론과 같은 값) */
+export const DRIP_ARRIVAL_PUSH_HOUR_KST = 7;
+
+/** 지금이 오늘 알림 시각(07:00 KST) 이후인가 — 서비스 날짜 경계(05:00) 뒤 같은 날 안에서만 참이다 */
+export function isAfterArrivalPushTime(now: Date): boolean {
+  const kstHour = new Date(now.getTime() + 9 * 60 * 60 * 1000).getUTCHours();
+  return kstHour >= DRIP_ARRIVAL_PUSH_HOUR_KST;
+}
+
+/** 적립 행 → 사용자별 도착 1건(정규·탐험) */
+function groupArrivals(items: LibraryItem[]): DripArrival[] {
+  const byUser = new Map<string, DripArrival>();
+
+  for (const item of items) {
+    const arrival: DripArrival = byUser.get(item.userId) ?? {
+      userId: item.userId,
+      regular: [],
+      discovery: [],
+    };
+    const arrived = { contentId: item.contentId, title: item.content.title };
+
+    if (item.source === LibraryItemSource.DISCOVERY) {
+      arrival.discovery.push(arrived);
+    } else {
+      arrival.regular.push(arrived);
+    }
+
+    byUser.set(item.userId, arrival);
+  }
+
+  return [...byUser.values()];
 }
