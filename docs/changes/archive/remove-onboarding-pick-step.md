@@ -6,6 +6,7 @@
 | 발행자 | FE (이주호 지시 2026-10-11 19:33 "온보딩에서 3번째 콘텐츠 담는 화면도 없애자") |
 | 반영 대상 | `features/onboarding.md` 3·4·5·6·7·8장·미결 · `spec/uiux/onboarding-uiux.md` 2·3·4.4·4.5·5·7·8·9장 · `wireframe/onboarding.html` O7·O8·O12 · `spec/api/onboarding-api.md` 4.5·4.6(FE 호출 없음 표기)·4.7 · `features/analytics.md` 3.4 · `prd/ear_root_prd.md`(온보딩 단계 수) |
 | 코드 반영 | PR(refactor(fe): remove onboarding pick step) — `PickScreen`·`ContentPickCard`·추천 조회·담기 요청·`StepIndicator` 삭제 |
+| 반영 날짜 | 2026-10-14 |
 
 ## 수정 내용
 
@@ -26,3 +27,7 @@ PM 결정(2026-10-11). 첫 사용 튜토리얼 제거(같은 날, `remove-first-
 
 - Given 위 문서들 / When "담기"·"O7"·"O8"·"O12"·"3/3"·"recommendations"·"picks" 를 검색한다 / Then 온보딩 진행 흐름 서술에 남아 있지 않다(api 문서의 엔드포인트 정의와 이 요청 문서, archive 는 제외).
 - Given `onboarding-uiux.md` 3장 흐름도 / When 읽는다 / Then O4 [다음]·[건너뛰기] → O13 → O9 로 이어진다.
+
+## 처리 기록
+
+- 2026-10-14 반영 — `features/onboarding.md` 3·4·5·6·7·8장·미결(담기 단계 제거, `1/2 · 2/2`, 완료 대기 모든 경로, 재개 → 완료 대기) · `spec/uiux/onboarding-uiux.md` 2·3·4.1~4.6·5·6·7·8·9장(O7-a·O7-b·O8·O12 삭제, 4.4 는 번호 보존을 위해 "삭제" 절로) · `wireframe/onboarding.html`(O7·O8 삭제, 스테퍼 텍스트) · `spec/api/onboarding-api.md` 4.5·4.6(클라이언트 호출 없음)·4.7(`picked_count` 0 고정) · `features/analytics.md` 3.4(`pick` 삭제, `picked_count` 0) · `prd/ear_root_prd.md` 5.1(2단계) · `features/notification.md` 4.1·8장의 "0건 담기 사용자" 서술을 모든 사용자 기준으로. 남긴 것: `onboarding-api.md` 3·6·9장의 BE 소유 서술과 `analytics.md` 완료 조건의 `onboarding_step` 건수(4~5건)는 요청 범위 밖이라 그대로.

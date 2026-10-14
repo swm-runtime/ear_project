@@ -9,6 +9,7 @@
 | 기한 | 2026-10-17 (Low — 이번 주 안) |
 | 선행 | `changes/pending/career-job-chip-photos.md`(커리어 정보 쪽 표현이 먼저 문서에 적혀야 "같다"고 가리킬 수 있다) · `changes/pending/remove-onboarding-pick-step.md`(2/3 → 2/2 표기) |
 | 중요도 | Low — 표현만 바뀌고 입력 값·저장 요청·단계 전이는 그대로 |
+| 반영 날짜 | 2026-10-14 |
 
 ## 배경
 
@@ -37,3 +38,7 @@ PM 2026-10-11 22:51 "온보딩 2/2 는 설정의 커리어 정보에서 입력�
 
 - Given 문서 반영 후 onboarding-uiux.md 4.3, When O4 구성과 칩·입력 표현을 읽으면, Then 직군 사진 칩 2열·직무 면 알약 입력칸·연차 세그먼트가 커리어 정보 화면과 같은 부품이라고 적혀 있고, 상단(툴바·단계 라벨·헤드라인)과 하단 원형 [다음]은 종전 그대로라고 적혀 있다
 - Given 문서 반영 후 onboarding-uiux.md 4.3, When 로딩 표현을 읽으면, Then 스켈레톤이 칩과 같은 크기의 2열 상자라고 적혀 있다
+
+## 처리 기록
+
+- 2026-10-14 반영 — `spec/uiux/onboarding-uiux.md` 4.3(구성 — 직군 사진 칩 2열·직무 면 알약 입력칸+지우기·연차 세그먼트는 `career-uiux.md` 와 같은 부품, 상단·하단 그대로, 스켈레톤 2열 상자) · `wireframe/onboarding.html` O4.

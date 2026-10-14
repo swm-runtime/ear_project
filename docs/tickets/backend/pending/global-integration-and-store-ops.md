@@ -16,13 +16,13 @@
 | 중요도 | Medium |
 | 상태 | 대기 |
 
-> 2026-10-14 발행한 묶음 티켓(BE KAN-185 · FE KAN-183 · AI KAN-184)을 처리 단위로 나눈 것. 결정 사항(같은 앱·기기 언어로 가입 시 1회 시장 판정·한국 트랙 불변·에러 번역은 클라이언트·가격은 스토어·영어 진행자 새 2인·K-컬처 주제 신설)과 결정 대기(시장 전환 불허·GLOBAL 16세)는 `spec/api/global-api.md` 2.1·9장이 원본이다.
+> 2026-10-14 발행한 묶음 티켓(BE KAN-185 · FE KAN-183 · AI KAN-184)을 처리 단위로 나눈 것. 결정 사항(같은 앱·기기 언어로 가입 시 1회 시장 판정·한국 트랙 불변·에러 번역은 클라이언트·가격은 스토어·영어 진행자 새 2인·K-컬처 주제 신설·GLOBAL 연령 16세)과 결정 대기(시장 전환 불허)는 `spec/api/global-api.md` 2.1·9장이 원본이다.
 
 ## 무엇을 한다
 
 - 개발계 실측: 영어 기기 가입 → GLOBAL 판정 → 영어 주제·요금제 → 드립 그룹 배치 → 영어 푸시 → 결제(샌드박스, storefront 저장). KR 계정은 변화 없음(회귀).
 - Sentry 환경 태그에 `market`(API 로그에도 필드 추가 — 시장별 오류율을 Insights로 셀 수 있게. 대시보드는 나누지 않는다).
-- **사람 손(박준현)**: 국가 배포 확장(iOS·Android), 영어 리스팅 자료 FE에서 수령, 구독 상품 현지화 확인, 연령 등급 재설문, Paid Apps·세금 양식 Active 확인, Android 운영 submit 프로필(EAS).
+- **사람 손(박준현)**: 국가 배포 확장(iOS·Android), 영어 리스팅 자료 FE에서 수령, 구독 상품 현지화 확인, Paid Apps·세금 양식 Active 확인, Android 운영 submit 프로필(EAS). 연령 등급·대상 연령 설정은 [KAN-207](https://runtime364.atlassian.net/browse/KAN-207) `global-store-age-settings.md`로 분리.
 - `changes/pending` 글로벌 묶음(`domain.md`·`auth-api.md`·`onboarding-api.md`·`subscription-api.md`·`admin-api.md`·`common-error-handling.md`·`drip-scheduling.md`·PRD FR)이 전부 있는지 점검 — 통합 때 반영.
 
 ## 범위 밖
@@ -39,3 +39,4 @@
 
 ## 처리 기록
 - 2026-10-14 발행(마크다운 + Jira). 묶음 티켓 분할.
+- 2026-10-14 연령 등급 재설문을 KAN-207으로 분리.

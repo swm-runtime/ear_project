@@ -10,6 +10,7 @@
 | 선행 | 없음 — 코드는 PR 로 먼저 반영(KAN-167), 통합 시 계약 문서에 옮겨 적는 요청 |
 | 중요도 | Low — 에러 코드·HTTP 상태는 기존 것 그대로이고, 어느 상황에 어느 코드가 나가는지의 서술만 정밀해진다 |
 | 관련 | 티켓 `tickets/backend/archive/auth-logout-session-refresh-not-reuse.md` (KAN-167) |
+| 반영 날짜 | 2026-10-14 |
 
 ## 배경
 
@@ -36,3 +37,7 @@
 ## 완료 조건
 
 - Given 문서 반영 후 `auth-api.md` 4.3, When 에러 표를 읽으면, Then `AUTH_REFRESH_TOKEN_INVALID` 상황에 "로그아웃으로 폐기된 토큰(다른 세션은 유지)"이 적혀 있고, `AUTH_REFRESH_TOKEN_REUSED`는 "이미 회전된 토큰"으로만 한정돼 있다
+
+## 처리 기록
+
+- 2026-10-14 반영 — `spec/api/auth-api.md` 4.3 에러 표 — `AUTH_REFRESH_TOKEN_INVALID` 상황에 로그아웃으로 폐기된 토큰(다른 세션 유지)·재사용 감지로 끊긴 세션 토큰을 적고, `AUTH_REFRESH_TOKEN_REUSED` 를 "이미 회전된 토큰"으로만 한정.
