@@ -6,6 +6,7 @@ import {
   ConsentType,
   OnboardingStep,
   SocialProvider,
+  UserMarket,
   UserRole,
   UserTier,
 } from '../user.enum';
@@ -20,6 +21,9 @@ const FIXTURE_USER = {
   role: UserRole.USER,
   onboardingCompleted: true,
   onboardingStep: OnboardingStep.DONE,
+  market: UserMarket.GLOBAL,
+  languageCode: 'en-US',
+  timezone: 'America/New_York',
 } as User;
 
 const NOW = new Date('2026-10-05T03:00:00.000Z');

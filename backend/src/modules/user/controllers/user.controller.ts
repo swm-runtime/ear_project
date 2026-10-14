@@ -111,6 +111,14 @@ export class UserController {
       },
       new Date(),
     );
+
+    // 로케일은 기기 행이 아니라 사용자 행에 둔다(global-api.md 4.2) — `market`은 건드리지 않는다
+    if (request.language_code !== undefined || request.timezone !== undefined) {
+      await this.userService.syncLocaleById(currentUser.id, {
+        languageCode: request.language_code ?? null,
+        timezone: request.timezone ?? null,
+      });
+    }
   }
 
   @Post('consents')

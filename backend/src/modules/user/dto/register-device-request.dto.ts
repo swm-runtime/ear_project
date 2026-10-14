@@ -31,4 +31,16 @@ export class RegisterDeviceRequestDto {
   @IsString()
   @MaxLength(20)
   readonly app_version: string;
+
+  /** `global-api.md` 4.2 — 기기 언어(BCP 47). 매 실행 호출되는 이 API가 기존 가입자의 로케일을 채우는 경로다 */
+  @IsOptional()
+  @IsString()
+  @MaxLength(16)
+  readonly language_code?: string;
+
+  /** `global-api.md` 4.2 — 기기 시간대(IANA) */
+  @IsOptional()
+  @IsString()
+  @MaxLength(64)
+  readonly timezone?: string;
 }

@@ -14,13 +14,13 @@
 | 관련 | 뒤 티켓 전부가 이 티켓에 막힌다(`users.market`이 모든 필터의 입력) |
 | 근거 문서 | **`spec/api/global-api.md` 2.1 · 4.1 · 4.2 · 4.3 · 8장 `users` 행** — 구현은 이 문서를 따르고, 계약이 바뀌면 티켓이 아니라 이 문서를 고친다 · 2026-10-14 글로벌화 조사 |
 | 중요도 | Medium |
-| 상태 | 대기 |
+| 상태 | 진행 중 (2026-10-14 구현 PR 올림 — 개발계 검증 대기) |
 
 > 2026-10-14 발행한 묶음 티켓(BE KAN-185 · FE KAN-183 · AI KAN-184)을 처리 단위로 나눈 것. 결정 사항(같은 앱·기기 언어로 가입 시 1회 시장 판정·한국 트랙 불변·에러 번역은 클라이언트·가격은 스토어·영어 진행자 새 2인·K-컬처 주제 신설)과 결정 대기(시장 전환 불허·GLOBAL 16세)는 `spec/api/global-api.md` 2.1·9장이 원본이다.
 
 ## 무엇을 한다
 
-- `users`·`archived_users`에 `market`(enum `kr|global`, NOT NULL, DEFAULT `kr`) · `language_code` · `region_code` · `timezone` 추가. 기존 행은 전부 `kr`.
+- `users`에 `market`(enum `kr|global`, NOT NULL, DEFAULT `kr`) · `language_code` · `region_code` · `timezone` 추가. 기존 행은 전부 `kr`.
 - 판정은 서버 한 곳 `market.policy.ts`: `language_code`가 `ko`로 시작하면 `kr`, 아니면 `global`, 없으면 `kr`. **계정 생성 시 1회**만 호출 — 로그인·기기 등록은 `language_code`·`timezone`만 갱신하고 `market`은 건드리지 않는다.
 - 가입·로그인 요청에 `locale { language_code, region_code, timezone }`(선택) 수용 — 형식 검증(BCP 47·ISO 3166·IANA), 모르는 값은 버리고 기본값.
 - `PUT /users/me/devices/:id`에 `language_code`·`timezone`(선택) 추가. 기존 가입자가 다음 실행에서 채워지는 경로.
@@ -42,3 +42,8 @@
 
 ## 처리 기록
 - 2026-10-14 발행(마크다운 + Jira). 묶음 티켓 분할.
+- 2026-10-14 구현 — PR `feat(be)/global-market-users`(dev 대상).
+  - 완료: `users.market/language_code/region_code/timezone` 컬럼(마이그레이션 `1789900000000`, 기본값 `kr`) · `market.policy.ts`(판정 + 로케일 정규화, 단위 테스트 8건) · 가입·로그인 `locale`(`preferred_language` 포함) 수용 · 기존 계정 로그인은 언어·시간대만 갱신 · `PUT /users/me/devices/:id`의 `language_code`·`timezone` → `users` 반영 · 로그인·`GET /users/me` 응답 `market`·`language_code`·`timezone` · 설정 GET `account.market/language_code/timezone` · 설정 PATCH `language_code` · 요청 로그 `accept_language`·`timezone` 필드 · e2e `test/global-market.e2e-spec.ts` 7건(가입 선택·영어 기기 한국어·구 앱·기기 언어 폴백·재로그인 불변·기기 등록 반영·형식 오류 무시).
+  - 정정: `archived_users`에는 넣지 않았다(domain.md 11.3 — 거래 주체 식별과 무관). `global-api.md` 8장 같이 고침.
+  - `changes/pending/global-users-market-locale.md`에 `domain.md`·`auth-api`·`onboarding-api`·`settings-api` 개정 요청 기록.
+  - 미완: e2e는 로컬 DB가 없어 CI(deploy-api `test:e2e`)에서 확인. 개발계 배포 후 실기기 가입 실측은 FE KAN-195 뒤.

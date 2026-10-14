@@ -1,6 +1,10 @@
 import { User } from '@/modules/user/entities/user.entity';
 import { SocialProvider } from '@/modules/user/user.enum';
-import { ConsentInput, PendingConsent } from '@/modules/user/user.types';
+import {
+  ConsentInput,
+  LocaleInput,
+  PendingConsent,
+} from '@/modules/user/user.types';
 
 /** 제공자 API로 검증한 프로필. 클라이언트가 보낸 값은 쓰지 않는다 (architecture.md 9.1) */
 export interface SocialProfile {
@@ -27,6 +31,8 @@ export interface SocialLoginCommand {
    * 다른 제공자는 쓰지 않는다.
    */
   nonce?: string;
+  /** 기기 로케일(`global-api.md` 4.1). 기존 계정의 `language_code`·`timezone` 갱신에만 쓴다 */
+  locale?: LocaleInput;
 }
 
 /** 토큰 검증에 토큰 외의 값이 필요한 제공자를 위한 통로. 지금은 애플의 nonce뿐이다 */
@@ -38,6 +44,8 @@ export interface SignUpCommand {
   signupToken: string;
   deviceId: string;
   consents: ConsentInput[];
+  /** 시장 판정 입력(`preferredLanguage`) + 로케일. 없으면 `kr`(구 앱) */
+  locale?: LocaleInput;
 }
 
 export interface RefreshTokenCommand {

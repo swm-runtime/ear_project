@@ -69,8 +69,11 @@ export class SettingsController {
   ): Promise<UpdateSettingsResponseDto> {
     const command = toUpdateCommand(request);
 
-    // 세 설정 필드 중 최소 하나는 있어야 한다(4.2). 형식이 아니라 조합의 문제라 DTO가 아니다
-    if (Object.keys(command).length === 0) {
+    // 설정 필드(또는 표시 언어) 중 최소 하나는 있어야 한다(4.2). 형식이 아니라 조합의 문제라 DTO가 아니다
+    if (
+      Object.keys(command).length === 0 &&
+      request.language_code === undefined
+    ) {
       throw new BusinessException({
         status: HttpStatus.BAD_REQUEST,
         errorCode: ErrorCode.VALIDATION_FAILED,
@@ -82,6 +85,7 @@ export class SettingsController {
     const updated = await this.settingsOrchestrator.updateSettings(
       currentUser.id,
       command,
+      request.language_code,
     );
 
     return UpdateSettingsResponseDto.from(

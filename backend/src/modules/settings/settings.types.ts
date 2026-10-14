@@ -1,3 +1,4 @@
+import { UserMarket } from '@/modules/user/user.enum';
 import { AudioQuality } from '@/modules/content/content.enum';
 import { InterestSummaryView } from '@/modules/interest/interest.types';
 import { PlanView } from '@/modules/subscription/subscription.types';
@@ -17,6 +18,11 @@ export interface SettingsAccountView {
   /** `null`이면 "등록되지 않음". 값이 있는데 미인증이면 "인증되지 않음" 배지다 */
   email: string | null;
   isEmailVerified: boolean;
+  /** 시장(읽기 전용 — `global-api.md` 4.3). 설정에서 바꿀 수 없다 */
+  market: UserMarket;
+  /** 표시 언어(BCP 47). `PATCH language_code`로 바뀐다 */
+  languageCode: string | null;
+  timezone: string | null;
   /**
    * `users.role = 'admin'` 판정 결과. **[관리자] 메뉴 노출 판단 전용이며 접근 통제가 아니다**
    * (`settings-api.md` 3장 — 관리자 API의 통제는 서버가 요청마다 role로 다시 판정한다).

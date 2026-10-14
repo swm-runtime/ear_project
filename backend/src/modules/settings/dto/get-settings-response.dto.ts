@@ -3,12 +3,17 @@ import { PlanStatus } from '@/modules/subscription/subscription.enum';
 import { InviteGrantDto } from '@/modules/subscription/dto/invite-grant.dto';
 import { TrialDto } from '@/modules/subscription/dto/trial.dto';
 import { PendingPlanDto } from '@/modules/subscription/dto/pending-plan.dto';
-import { UserTier } from '@/modules/user/user.enum';
+import { UserMarket, UserTier } from '@/modules/user/user.enum';
 
 import { SettingsSection } from '../settings.enum';
 import { SettingsSummaryResult } from '../settings.types';
 
 class SettingsAccountDto {
+  /** 시장(읽기 전용 — `global-api.md` 4.3). 화면은 표시만 한다 */
+  readonly market: UserMarket;
+  /** 표시 언어(BCP 47) — 4.2 `language_code`로 바꾼다. 구 앱은 `null` */
+  readonly language_code: string | null;
+  readonly timezone: string | null;
   /** `null`이면 "등록되지 않음" */
   readonly email: string | null;
   /** `email`과 **함께 내려준다** — 한쪽만으로는 미등록·미인증·인증됨 셋을 구분할 수 없다 */
@@ -98,6 +103,9 @@ export class GetSettingsResponseDto {
     return {
       account: result.account
         ? {
+            market: result.account.market,
+            language_code: result.account.languageCode,
+            timezone: result.account.timezone,
             email: result.account.email,
             is_email_verified: result.account.isEmailVerified,
             is_admin: result.account.isAdmin,

@@ -259,7 +259,7 @@ upload-meta{market: global, language: en} → 콘솔 payload → POST /admin/con
 
 | 테이블 | 추가 | 비고 |
 |---|---|---|
-| `users` · `archived_users` | `market` enum(kr/global, NOT NULL, DEFAULT kr) · `language_code` varchar(16) NULL · `region_code` char(2) NULL · `timezone` varchar(64) NULL | 판정은 가입 시 1회 |
+| `users` | `market` enum(kr/global, NOT NULL, DEFAULT kr) · `language_code` varchar(16) NULL · `region_code` varchar(2) NULL · `timezone` varchar(64) NULL | 판정은 가입 시 1회. **`archived_users`에는 넣지 않는다** — 거래 주체 식별과 무관해 보존 근거가 없다(domain.md 11.3, 2026-10-14 구현 시 정정) |
 | `contents` | `market` enum NOT NULL DEFAULT kr · `language` varchar(8) NOT NULL DEFAULT ko | 인덱스 `(market, status, published_at)` |
 | `topics` | `market` enum NOT NULL DEFAULT kr · `slug` varchar(64) UNIQUE(market, slug) | 이미지 키 |
 | `plans` | `market` enum NOT NULL DEFAULT kr | GLOBAL 행 2개(Daily/Pro) 신규, `price_krw` NULL 허용 |

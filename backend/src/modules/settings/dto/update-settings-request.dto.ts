@@ -5,7 +5,9 @@ import {
   IsEnum,
   IsInt,
   IsOptional,
+  IsString,
   Max,
+  MaxLength,
   Min,
   ValidateIf,
 } from 'class-validator';
@@ -57,6 +59,12 @@ export class UpdateSettingsRequestDto {
   @IsOptional()
   @IsEnum(AudioQuality)
   readonly preferred_audio_quality?: AudioQuality | null;
+
+  /** `global-api.md` 4.3 — 표시 언어(BCP 47). 시장은 바뀌지 않는다. 형식이 아니면 400 */
+  @IsOptional()
+  @IsString()
+  @MaxLength(16)
+  readonly language_code?: string;
 
   /**
    * 사용자별 설정 조작의 단조 증가 순번(`settings.md` 7장 — 마지막 상태가 최종).
