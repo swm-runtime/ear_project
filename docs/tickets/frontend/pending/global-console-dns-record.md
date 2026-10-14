@@ -9,7 +9,7 @@
 | 발행 날짜 | 2026-10-14 |
 | Jira | [KAN-210](https://runtime364.atlassian.net/browse/KAN-210) · 에픽 [KAN-186](https://runtime364.atlassian.net/browse/KAN-186) |
 | 시작 날짜 | 2026-10-14 |
-| 기한 | 2026-10-14 |
+| 기한 | 2026-10-15 (Jira 기준으로 맞춤 — 2026-10-15) |
 | 선행 | 없음 |
 | 관련 | 이 티켓이 [KAN-208](https://runtime364.atlassian.net/browse/KAN-208)(글로벌 인스턴스 인프라)을 막는다 — PR #1529 는 이 레코드가 조회된 뒤 머지한다 |
 | 근거 문서 | `docs/infra/inventory.md` 3장(도메인·DNS — 가비아) · `docs/ai/global/PIPELINE.md` 8장(콘솔 주소) · `pipeline/deploy/README.md` 9장 |
