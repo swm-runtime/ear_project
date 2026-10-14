@@ -3,10 +3,7 @@ import { ConfigService } from '@nestjs/config';
 
 import { EnvironmentVariables } from '@/config/env.validation';
 
-import {
-  toServiceDate,
-  toServiceDayRange,
-} from '@/common/utils/service-date.util';
+import { toServiceDate } from '@/common/utils/service-date.util';
 import { ContentService } from '@/modules/content/services/content.service';
 import { ContentStatService } from '@/modules/content/services/content-stat.service';
 import { Content } from '@/modules/content/entities/content.entity';
@@ -26,7 +23,12 @@ import {
   AutoExpandDecision,
   decideAutoExpand,
 } from '@/modules/drip/auto-expand.policy';
-import { PreferenceSignalAction } from '@/modules/drip/drip.enum';
+import {
+  DEFAULT_DRIP_GROUP,
+  dripGroupOf,
+  isAfterArrivalPushTime,
+} from '@/modules/drip/drip-group.policy';
+import { DripGroup, PreferenceSignalAction } from '@/modules/drip/drip.enum';
 import {
   PreferenceSignalInput,
   ScoredCandidate,
@@ -115,6 +117,8 @@ export class DripBatchOrchestrator {
   private readonly logger = new Logger(DripBatchOrchestrator.name);
   /** 자동 확장 서버 스위치 — 명시값이 없으면 운영에서만 꺼진다(`env.validation.ts` 주석) */
   private readonly autoExpandEnabled: boolean;
+  /** 시간대 그룹 스위치(`DRIP_TIMEZONE_GROUPS_ENABLED`) — 꺼져 있으면 전원이 기본 그룹(05:00 KST)이다 */
+  private readonly timezoneGroupsEnabled: boolean;
 
   constructor(
     private readonly userService: UserService,
@@ -139,24 +143,37 @@ export class DripBatchOrchestrator {
     this.autoExpandEnabled =
       configService.get('AUTO_EXPAND_ENABLED', { infer: true })?.trim() ===
       'true';
+    this.timezoneGroupsEnabled =
+      configService
+        .get('DRIP_TIMEZONE_GROUPS_ENABLED', { infer: true })
+        ?.trim() === 'true';
+  }
+
+  /** 그 그룹의 크론이 돌아야 하는가 — 스위치가 꺼져 있으면 기본 그룹만 돈다 */
+  isGroupActive(group: DripGroup): boolean {
+    return this.timezoneGroupsEnabled || group === DEFAULT_DRIP_GROUP;
   }
 
   /**
    * 배치 1회 실행. **같은 서비스 날짜에 두 번 적립되지 않는다** —
-   * `drip_batch_runs.run_date` 유니크 선점이 배치 단위를, `planForUser`의 `already_placed` 스킵이
+   * `drip_batch_runs (run_date, group)` 유니크 선점이 배치 단위를, `planForUser`의 `already_placed` 스킵이
    * 사용자 단위를 막는다(`drip-scheduling.md` 4.6-5 — `library_items` 유니크는 같은 콘텐츠만 막아
    * 사용자 단위 멱등의 근거가 아니다, 2026-09-26).
    *
    * `mode: 'resume'`은 **프로세스 재시작 직후의 재개**다(`DripBatchScheduler.onApplicationBootstrap`) —
    * 오늘 날짜의 미완료 실행(`finished_at` NULL)이 있으면 나이와 무관하게 이어받고, 정상 종료한 날은
    * 아무것도 하지 않는다. 배치가 중간에 죽는 원인이 곧 재시작이라, 재시작이 끝난 시점이 재개 시점이다.
+   *
+   * `group`은 발송 그룹(`global-api.md` 2.4)이다 — 그 그룹 사용자만 편성하고 실행 기록도 그룹마다 따로다.
+   * 서비스 날짜는 그룹과 무관하게 05:00 KST 경계 그대로다(그룹의 현지 05:00은 같은 서비스 날짜 안에 있다).
    */
   async run(
     now: Date,
     mode: 'scheduled' | 'resume' = 'scheduled',
+    group: DripGroup = DEFAULT_DRIP_GROUP,
   ): Promise<void> {
     const runDate = toServiceDate(now);
-    const run = await this.dripBatchRunService.claim(runDate, now, {
+    const run = await this.dripBatchRunService.claim(runDate, group, now, {
       reclaimUnfinished: mode === 'resume',
     });
 
@@ -165,7 +182,7 @@ export class DripBatchOrchestrator {
         mode === 'resume'
           ? 'drip batch has no unfinished run to resume'
           : 'drip batch already claimed for the date',
-        { run_date: runDate },
+        { run_date: runDate, group },
       );
       return;
     }
@@ -173,6 +190,7 @@ export class DripBatchOrchestrator {
     if (mode === 'resume') {
       this.logger.warn('drip batch resuming an unfinished run', {
         run_date: runDate,
+        group,
       });
     }
 
@@ -206,6 +224,11 @@ export class DripBatchOrchestrator {
         }
 
         for (const user of users) {
+          // 대상 조회는 그룹을 모른다 — 시간대 오프셋이 시각마다 달라 SQL 로 가르지 않고 여기서 거른다
+          if (this.groupOf(user, now) !== group) {
+            continue;
+          }
+
           counts.targetCount += 1;
 
           try {
@@ -241,15 +264,16 @@ export class DripBatchOrchestrator {
         // 그전엔 로그에만 있어 "대상 13 · 성공 3"의 나머지 10명이 표에서 사라졌다
         await this.dripBatchRunService.finish(run, counts, new Date());
 
-        // 실행 시작이 이미 알림 시각(07:00) 뒤면(재시작 뒤 재개 등) 07:00 크론을 놓쳤으니 끝나는 대로 보낸다
-        if (isAfterArrivalPushTime(now)) {
-          await this.notifyTodayArrivals(new Date());
+        // 실행 시작이 이미 알림 시각(현지 07:00) 뒤면(재시작 뒤 재개 등) 알림 크론을 놓쳤으니 끝나는 대로 보낸다
+        if (isAfterArrivalPushTime(now, group)) {
+          await this.notifyTodayArrivals(new Date(), group);
         }
       } else {
         this.logger.error(
           'drip batch aborted — run left open for the resume slot',
           {
             run_date: runDate,
+            group,
             processed_count: counts.targetCount,
           },
         );
@@ -259,12 +283,19 @@ export class DripBatchOrchestrator {
     // 건당 로그를 남기지 않고 실행 결과를 집계해 한 번 남긴다 (convention.md 8.3 — 드립 편성)
     this.logger.log('drip batch finished', {
       run_date: runDate,
+      group,
       target_count: counts.targetCount,
       success_count: counts.successCount,
       skipped_count: counts.skippedCount,
       exhausted_count: counts.exhaustedCount,
       failed_count: counts.failedCount,
     });
+  }
+
+  private groupOf(user: User, now: Date): DripGroup {
+    return this.timezoneGroupsEnabled
+      ? dripGroupOf(user, now)
+      : DEFAULT_DRIP_GROUP;
   }
 
   /** 페이지 조회 재시도(`DRIP_BATCH_PAGE_FETCH_RETRY_DELAYS_MS`) — 끝까지 실패하면 그대로 던진다 */
@@ -311,27 +342,35 @@ export class DripBatchOrchestrator {
   }
 
   /**
-   * **드립 도착 알림 — 07:00 KST**(`notification.md` 4.3, 2026-10-14 변경). 편성은 05:00에 그대로 하고 알림만 늦춘다 —
+   * **드립 도착 알림 — 그룹 현지 07:00**(KR은 07:00 KST — `notification.md` 4.3, 2026-10-14 변경 · 그룹 `global-api.md` 2.4). 편성은 05:00에 그대로 하고 알림만 늦춘다 —
    * 새벽 5시 알림은 잠금화면에 묻혀 의미가 없었다. 그래서 배치는 알리지 않고, 이 경로가 **오늘 배치가 적립한 것을
    * DB 에서 다시 읽어** 사용자당 1건(정규 + 탐험)으로 보낸다.
    *
-   * 범위는 오늘 서비스 날짜 시작(05:00)부터 배치 종료까지다 — 배치가 재개로 이어졌어도 앞 구간이 빠지지 않는다.
+   * 범위는 그 그룹 실행 기록이 처음 생긴 시각(`created_at`)부터 배치 종료까지다 — 배치가 재개로 이어졌어도
+   * (재개는 `started_at`만 바꾼다) 앞 구간이 빠지지 않고, 같은 날 먼저 돈 다른 그룹의 적립분은 들어오지 않는다.
    * 알림 전에 지운 편은 빠지고(소프트 삭제), 같은 날 두 번 보내지 않는 것은 알림 서비스의 하루 1건 판정이 막는다.
-   * 배치가 아직 끝나지 않았으면 보내지 않는다 — 끝날 때 07:00이 지났으면 배치가 이어서 부른다(`run`).
+   * 배치가 아직 끝나지 않았으면 보내지 않는다 — 끝날 때 현지 07:00이 지났으면 배치가 이어서 부른다(`run`).
    */
-  async notifyTodayArrivals(now: Date): Promise<void> {
+  async notifyTodayArrivals(
+    now: Date,
+    group: DripGroup = DEFAULT_DRIP_GROUP,
+  ): Promise<void> {
     const runDate = toServiceDate(now);
-    const run = await this.dripBatchRunService.findByRunDate(runDate);
+    const run = await this.dripBatchRunService.findByRunDateAndGroup(
+      runDate,
+      group,
+    );
 
     if (!run?.finishedAt) {
       this.logger.warn('drip arrival push skipped — batch not finished', {
         run_date: runDate,
+        group,
       });
       return;
     }
 
     const items = await this.libraryService.findPlacementsAddedBetween(
-      toServiceDayRange(now).start,
+      run.createdAt,
       // 배치 종료 직후 같은 ms 에 적립된 행까지 넣는다(LessThan)
       new Date(run.finishedAt.getTime() + 1),
     );
@@ -343,6 +382,7 @@ export class DripBatchOrchestrator {
 
     this.logger.log('drip arrival push done', {
       run_date: runDate,
+      group,
       user_count: arrivals.length,
     });
   }
@@ -1174,15 +1214,6 @@ function round(value: number | null): number | null {
 
 /** 한 번에 알림 서비스로 넘기는 사용자 수 — 발송 요청을 이 크기로 나눈다 */
 const ARRIVAL_PUSH_CHUNK = 100;
-
-/** 드립 도착 알림 시각 — 07:00 KST(`DripBatchScheduler` 크론과 같은 값) */
-export const DRIP_ARRIVAL_PUSH_HOUR_KST = 7;
-
-/** 지금이 오늘 알림 시각(07:00 KST) 이후인가 — 서비스 날짜 경계(05:00) 뒤 같은 날 안에서만 참이다 */
-export function isAfterArrivalPushTime(now: Date): boolean {
-  const kstHour = new Date(now.getTime() + 9 * 60 * 60 * 1000).getUTCHours();
-  return kstHour >= DRIP_ARRIVAL_PUSH_HOUR_KST;
-}
 
 /** 적립 행 → 사용자별 도착 1건(정규·탐험) */
 function groupArrivals(items: LibraryItem[]): DripArrival[] {

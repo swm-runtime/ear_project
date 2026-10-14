@@ -1,4 +1,5 @@
 import { DRIP_BATCH_STALE_MS } from '../drip.constant';
+import { DripGroup } from '../drip.enum';
 import { DripBatchRun } from '../entities/drip-batch-run.entity';
 import { DripBatchRunRepository } from '../repositories/drip-batch-run.repository';
 import { DripBatchRunService } from './drip-batch-run.service';
@@ -21,12 +22,15 @@ describe('DripBatchRunService — 실행 선점', () => {
   });
 
   it('정규 경로는 INSERT 선점이고, 오래된 미완료 행만 다시 집는다', async () => {
-    await expect(service.claim('2026-10-13', NOW)).resolves.toEqual({
+    await expect(
+      service.claim('2026-10-13', DripGroup.EUROPE, NOW),
+    ).resolves.toEqual({
       id: 'run-1',
     });
 
     expect(repository.claim).toHaveBeenCalledWith(
       '2026-10-13',
+      DripGroup.EUROPE,
       NOW,
       new Date(NOW.getTime() - DRIP_BATCH_STALE_MS),
     );
@@ -35,11 +39,14 @@ describe('DripBatchRunService — 실행 선점', () => {
 
   it('재개 경로는 행을 만들지 않는다 — 그날 미완료 행이 없으면 null, 배치가 예정보다 먼저 돌지 않는다', async () => {
     await expect(
-      service.claim('2026-10-13', NOW, { reclaimUnfinished: true }),
+      service.claim('2026-10-13', DripGroup.EUROPE, NOW, {
+        reclaimUnfinished: true,
+      }),
     ).resolves.toBeNull();
 
     expect(repository.reclaimUnfinished).toHaveBeenCalledWith(
       '2026-10-13',
+      DripGroup.EUROPE,
       NOW,
     );
     expect(repository.claim).not.toHaveBeenCalled();
@@ -51,7 +58,9 @@ describe('DripBatchRunService — 실행 선점', () => {
     } as DripBatchRun);
 
     await expect(
-      service.claim('2026-10-13', NOW, { reclaimUnfinished: true }),
+      service.claim('2026-10-13', DripGroup.EUROPE, NOW, {
+        reclaimUnfinished: true,
+      }),
     ).resolves.toEqual({ id: 'run-dead' });
   });
 });

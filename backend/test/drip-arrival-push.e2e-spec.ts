@@ -9,6 +9,8 @@ import { AppModule } from '@/app.module';
 import { toServiceDayRange } from '@/common/utils/service-date.util';
 import { ContentOrigin, ContentStatus } from '@/modules/content/content.enum';
 import { Content } from '@/modules/content/entities/content.entity';
+import { DripGroup } from '@/modules/drip/drip.enum';
+import { DripBatchRunService } from '@/modules/drip/services/drip-batch-run.service';
 import { DripBatchOrchestrator } from '@/modules/drip-batch/drip-batch.orchestrator';
 import { NotificationLog } from '@/modules/notification/entities/notification-log.entity';
 import { NotificationStatus } from '@/modules/notification/notification.enum';
@@ -23,7 +25,7 @@ import { DevicePlatform, SocialProvider } from '@/modules/user/user.enum';
 
 /**
  * 드립 도착 알림 07:00 분리(2026-10-14) — **그날 배치가 적립한 것을 DB 에서 다시 읽는 경로**가 실제 SQL 에서
- * 맞는지 본다: 범위(서비스 날짜 시작 ~ 배치 종료), 소프트 삭제 제외, 사용자당 1건(정규 + 탐험).
+ * 맞는지 본다: 범위(실행 기록 생성 ~ 배치 종료), 소프트 삭제 제외, 사용자당 1건(정규 + 탐험).
  *
  * 발송 수단만 가짜다. 날짜는 다른 테스트와 겹치지 않는 먼 날(2030-01-15)을 쓰고, 심은 행은 끝나면 지운다.
  */
@@ -97,18 +99,16 @@ describe('드립 도착 알림 07:00 E2E', () => {
     await registerDevice(placed, 'ExponentPushToken[placed]');
     await registerDevice(late, 'ExponentPushToken[late]');
 
-    // placed: 배치 안에서 정규 1 · 탐험 1 · 정규 1(알림 전에 지움)
-    await addItem(placed, c1.id, 'drip', at(1_000), null);
+    // placed: 배치 안에서 정규 1(배치 시작 시각 그대로 — 실제 배치는 선점 시각을 `added_at`으로 쓴다) · 탐험 1 ·
+    // 정규 1(알림 전에 지움)
+    await addItem(placed, c1.id, 'drip', at(0), null);
     await addItem(placed, c2.id, 'discovery', at(2_000), null);
     await addItem(placed, c3.id, 'drip', at(1_500), at(60 * 60 * 1000));
     // late: 배치가 끝난 뒤(06:30) 적립 — 배치 결과가 아니다
     await addItem(late, c1.id, 'drip', at(90 * 60 * 1000), null);
 
     // 배치가 아직 끝나지 않았으면 보내지 않는다
-    await dataSource.query(
-      `INSERT INTO drip_batch_runs (run_date, started_at) VALUES ($1, $2)`,
-      [RUN_DATE, at(0)],
-    );
+    await app.get(DripBatchRunService).claim(RUN_DATE, DripGroup.ASIA, at(0));
     await orchestrator.notifyTodayArrivals(AT_0700);
     expect(sent).toHaveLength(0);
 

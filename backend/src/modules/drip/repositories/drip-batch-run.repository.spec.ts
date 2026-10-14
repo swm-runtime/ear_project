@@ -1,6 +1,7 @@
 import { DripBatchRunRepository } from './drip-batch-run.repository';
 import { DripBatchRunService } from '../services/drip-batch-run.service';
 import { DRIP_BATCH_STALE_MS } from '../drip.constant';
+import { DripGroup } from '../drip.enum';
 
 const RUN_DATE = '2026-09-08';
 const NOW = new Date('2026-09-08T19:00:00.000Z');
@@ -22,11 +23,12 @@ describe('DripBatchRunService', () => {
     // given — 중간에 죽은 배치가 finished_at NULL로 남으면 그날 재실행이 막힌다
 
     // when
-    await service.claim(RUN_DATE, NOW);
+    await service.claim(RUN_DATE, DripGroup.ASIA, NOW);
 
     // then
     expect(repository.claim).toHaveBeenCalledWith(
       RUN_DATE,
+      DripGroup.ASIA,
       NOW,
       new Date(NOW.getTime() - DRIP_BATCH_STALE_MS),
     );
@@ -34,10 +36,10 @@ describe('DripBatchRunService', () => {
 
   it('기준 시각은 지금보다 과거다 — 방금 시작한 배치를 가로채지 않는다', async () => {
     // when
-    await service.claim(RUN_DATE, NOW);
+    await service.claim(RUN_DATE, DripGroup.ASIA, NOW);
 
     // then
-    const staleBefore = repository.claim.mock.calls[0][2];
+    const staleBefore = repository.claim.mock.calls[0][3];
     expect(staleBefore.getTime()).toBeLessThan(NOW.getTime());
   });
 });
