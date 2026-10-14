@@ -71,7 +71,7 @@ export default function SubscriptionScreen() {
         : status.kind === 'cancelScheduled' && catalogState.kind === 'ready'
           ? (catalogState.cards.find((card) => card.plan.priceKrw <= 0)?.plan.tier ?? null)
           : null;
-  /** 예약된 변경 — 현재 요금제 정보 아래에 함께 표시한다. */
+  /** 예약된 변경 — 있을 때만 제목 밑 알림 섹션(KAN-160) */
   const notice = scheduledChangeNotice(status, freePlanName);
   const cancelHint =
     status !== null && status.kind === 'subscribed' && status.renewsAt !== null
@@ -114,7 +114,6 @@ export default function SubscriptionScreen() {
       isError={screen.isStatusError}
       standalone={standalone}
       note={standalone ? null : currentNote}
-      scheduledChange={notice}
     />
   );
 
@@ -140,11 +139,25 @@ export default function SubscriptionScreen() {
           <Text style={styles.title} accessibilityRole="header">
             {SUBSCRIPTION_COPY.title}
           </Text>
-          {/* 예약된 변경은 현재 요금제 정보에서 안내한다. */}
+          {/* 예약된 변경이 없을 때만 일반 안내 — 있으면 아래 알림 섹션이 대신 말한다 */}
           {notice === null && hasDowngradeCard ? (
             <Text style={styles.subtitle}>{SUBSCRIPTION_COPY.downgradeNotice}</Text>
           ) : null}
         </View>
+
+        {/* 알림 섹션(KAN-160) — 다음 결제부터 무엇이 바뀌는지. 예약이 없으면 자리도 없다 */}
+        {notice !== null ? (
+          <View
+            style={styles.notice}
+            accessible
+            accessibilityRole="summary"
+            accessibilityLabel={`${notice.title}. ${notice.detail}`}
+            accessibilityLiveRegion="polite"
+          >
+            <Text style={styles.noticeTitle}>{notice.title}</Text>
+            <Text style={styles.noticeDetail}>{notice.detail}</Text>
+          </View>
+        ) : null}
 
         <PlanList
           state={catalogState}
@@ -224,6 +237,27 @@ const styles = StyleSheet.create({
   subtitle: {
     fontSize: theme.font.size.sm,
     color: theme.color.textSecondary,
+    textAlign: 'center',
+  },
+  // 알림 섹션 — 검정 면에 흰 글자(PM 2026-10-08). 회색 카드들 위에서 "바뀌는 것"이 먼저 읽힌다. 카드와 같은 모서리
+  notice: {
+    gap: 2,
+    paddingHorizontal: theme.spacing.md,
+    paddingVertical: theme.spacing.md - 2,
+    borderRadius: theme.radius.lg,
+    borderCurve: 'continuous',
+    backgroundColor: theme.color.primary,
+    marginBottom: theme.spacing.xs,
+  },
+  noticeTitle: {
+    fontSize: theme.font.size.sm,
+    fontWeight: '700',
+    color: theme.color.onPrimary,
+    textAlign: 'center',
+  },
+  noticeDetail: {
+    fontSize: theme.font.size.xs,
+    color: theme.color.onPrimarySecondary,
     textAlign: 'center',
   },
 });

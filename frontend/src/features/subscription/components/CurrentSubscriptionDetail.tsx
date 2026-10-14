@@ -18,7 +18,6 @@ export interface CurrentSubscriptionDetailProps {
   standalone?: boolean;
   /** 카드 안 한 줄 안내(글자만) — Android 다운그레이드 예약 중 "N월 N일 Daily로 바뀐 뒤 다시 올릴 수 있어요" */
   note?: string | null;
-  scheduledChange?: { title: string; detail: string } | null;
 }
 
 /**
@@ -26,7 +25,7 @@ export interface CurrentSubscriptionDetailProps {
  * **글자만 그린다 — 버튼을 두지 않는다**(PM 2026-10-08 "각 박스 안에 있는 버튼들 원초적으로 다 없애"). 해지·다시 시작·결제
  * 수단 확인은 전부 "카드 고르기 + 목록 아래 버튼 하나"가 맡는다(PlanList). 카드 안에 버튼이 있으면 결제 직후 상태가 바뀌는
  * 사이에 [구독 해지]가 잠깐 보였다 사라졌다.
- * 다운그레이드·해지 예약 안내도 현재 요금제 정보 아래에 함께 둔다.
+ * 다운그레이드·해지 예약 안내는 제목 밑 알림 섹션 몫이다(KAN-160).
  *
  * 무료 이용자는 그릴 것이 없다 — 이용 중 카드의 설명(서버 `description`)이 한도를 말한다. 판정은 전부 서버 값(status 4분기)이다.
  */
@@ -35,7 +34,6 @@ export default function CurrentSubscriptionDetail({
   isError,
   standalone = false,
   note = null,
-  scheduledChange = null,
 }: CurrentSubscriptionDetailProps) {
   if (status === null) {
     // 조회 실패 — 다시 받는 것은 화면 복귀(포커스) 때의 재조회가 한다. 카드 안에 [다시 시도]를 두지 않는다
@@ -53,7 +51,6 @@ export default function CurrentSubscriptionDetail({
     standalone ||
     renewsAt !== null ||
     note !== null ||
-    scheduledChange !== null ||
     status.kind === 'grace' ||
     status.otherStore !== null;
   if (!hasContent) return null;
@@ -65,12 +62,6 @@ export default function CurrentSubscriptionDetail({
         <Text style={styles.body}>{SUBSCRIPTION_COPY.status.renewsAt(renewsAt)}</Text>
       ) : null}
       {note !== null ? <Text style={styles.body}>{note}</Text> : null}
-      {scheduledChange !== null ? (
-        <View style={styles.scheduledChange} accessibilityLiveRegion="polite">
-          <Text style={styles.changeTitle}>{scheduledChange.title}</Text>
-          <Text style={styles.body}>{scheduledChange.detail}</Text>
-        </View>
-      ) : null}
       {status.kind === 'grace' ? (
         // 결제 문제 — 경고색을 쓰는 유일한 상태. 색만이 아니라 제목 글자로도 밝힌다
         <InlineNotice
@@ -108,15 +99,6 @@ const styles = StyleSheet.create({
   // 회색 카드 안이어도 구독 정보는 읽혀야 한다 — 회색 단계(textMuted)가 아니라 보조 글자색
   body: {
     fontSize: theme.font.size.sm,
-    color: theme.color.textSecondary,
-  },
-  scheduledChange: {
-    marginTop: theme.spacing.xs,
-    gap: theme.spacing.xs,
-  },
-  changeTitle: {
-    fontSize: theme.font.size.sm,
-    fontWeight: '600',
     color: theme.color.textSecondary,
   },
 });
