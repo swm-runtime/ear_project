@@ -40,6 +40,17 @@ interface SummaryBody {
     window: { listen_sec: number; plays: number; completes: number };
   };
   daily: { date: string; plays: number; listen_sec: number; signups: number }[];
+  by_market: {
+    market: string;
+    users: number;
+    signups_in_window: number;
+    onboarding_completed: number;
+    active_7d: number;
+    listeners_7d: number;
+    listen_sec: number;
+    plays: number;
+    paid_active: number;
+  }[];
   hourly: { hour: number; plays: number }[];
   top_users: {
     user_id: string;
@@ -231,6 +242,11 @@ describe('서비스 지표 요약 E2E', () => {
       body.listening.all_time.plays,
     );
 
+    // then — 이 테스트의 청취자(KR)가 KR 시장 칸에 들어 있다
+    expect(
+      body.by_market.find((m) => m.market === 'kr')?.listen_sec,
+    ).toBeGreaterThanOrEqual(9_000_000);
+
     // then — 순위에 이 사용자·콘텐츠가 그 수치 그대로 있고, 사용자 행은 user_id·티어뿐이다
     const topUser = body.top_users.find((u) => u.user_id === listenerId);
     expect(topUser).toEqual(
@@ -285,6 +301,29 @@ describe('서비스 지표 요약 E2E', () => {
     await request(app.getHttpServer())
       .get(path('/admin/insights/summary'))
       .expect(HttpStatus.UNAUTHORIZED);
+  }, 60_000);
+
+  it('시장별 집계는 계정이 없는 시장까지 시장마다 한 칸이고, 각 값은 그 시장 계정 수를 넘지 않는다(global-api 4.10)', async () => {
+    // given
+    const adminAuth = await createUser('admin-market', UserRole.ADMIN);
+
+    // when
+    const body = (
+      await request(app.getHttpServer())
+        .get(path('/admin/insights/summary'))
+        .set('Authorization', adminAuth)
+        .expect(HttpStatus.OK)
+    ).body as SummaryBody;
+
+    // then — 전역 합계는 병렬 스위트 때문에 비교하지 않는다(위 테스트 주석). 항등식·범위만 본다
+    expect(body.by_market.map((m) => m.market)).toEqual(['kr', 'global']);
+    for (const m of body.by_market) {
+      expect(m.signups_in_window).toBeLessThanOrEqual(m.users);
+      expect(m.onboarding_completed).toBeLessThanOrEqual(m.users);
+      expect(m.active_7d).toBeLessThanOrEqual(m.users);
+      expect(m.listeners_7d).toBeLessThanOrEqual(m.users);
+      expect(m.paid_active).toBeLessThanOrEqual(m.users);
+    }
   }, 60_000);
 
   async function createUserId(

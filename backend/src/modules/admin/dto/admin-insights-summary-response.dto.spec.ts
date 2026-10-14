@@ -1,3 +1,5 @@
+import { UserMarket } from '@/modules/user/user.enum';
+
 import { InsightsSummary } from '../admin.types';
 import {
   AdminInsightsSummaryResponseDto,
@@ -89,6 +91,19 @@ const summary = (): InsightsSummary => ({
       lowUsers: 90,
     },
   ],
+  byMarket: [
+    {
+      market: UserMarket.KR,
+      users: 225,
+      signupsInWindow: 30,
+      onboardingCompleted: 208,
+      active7d: 190,
+      listeners7d: 130,
+      listenSec: 70844,
+      plays: 233,
+      paidActive: 0,
+    },
+  ],
 });
 
 describe('AdminInsightsSummaryResponseDto', () => {
@@ -139,6 +154,26 @@ describe('AdminInsightsSummaryResponseDto', () => {
       exhausted_users: 20,
       low_users: 90,
     });
+  });
+
+  it('시장별 집계를 snake_case 로 시장마다 한 칸씩 내린다', () => {
+    // when
+    const dto = AdminInsightsSummaryResponseDto.from(summary(), 14);
+
+    // then
+    expect(dto.by_market).toEqual([
+      {
+        market: 'kr',
+        users: 225,
+        signups_in_window: 30,
+        onboarding_completed: 208,
+        active_7d: 190,
+        listeners_7d: 130,
+        listen_sec: 70844,
+        plays: 233,
+        paid_active: 0,
+      },
+    ]);
   });
 
   it('개인 식별 정보 필드가 어디에도 없다 — 사용자 순위는 user_id·티어·날짜뿐', () => {

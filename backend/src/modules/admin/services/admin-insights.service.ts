@@ -1,5 +1,7 @@
 import { Injectable } from '@nestjs/common';
 
+import { UserMarket } from '@/modules/user/user.enum';
+
 import {
   INSIGHTS_RANK_LIMIT,
   INSIGHTS_RETENTION_DAYS,
@@ -9,6 +11,7 @@ import {
   InsightsDaily,
   InsightsDailyRows,
   InsightsHourly,
+  InsightsMarketTotals,
   InsightsSummary,
 } from '../admin.types';
 import { AdminInsightsRepository } from '../repositories/admin-insights.repository';
@@ -42,6 +45,7 @@ export class AdminInsightsService {
       now,
     );
     const topicSupply = await this.repository.topicSupply(since, now);
+    const byMarket = await this.repository.marketTotals(since, now);
 
     return {
       since,
@@ -55,6 +59,7 @@ export class AdminInsightsService {
       withdrawalReasons,
       retention,
       topicSupply,
+      byMarket: fillMarkets(byMarket),
     };
   }
 }
@@ -97,6 +102,27 @@ export function fillDailySeries(
     if (date === last) break;
   }
   return series;
+}
+
+/** 시장마다 한 칸 — 계정이 없는 시장(출시 전 GLOBAL)도 0 으로 그려야 "0명"과 "집계 누락"이 구분된다 */
+export function fillMarkets(
+  rows: InsightsMarketTotals[],
+): InsightsMarketTotals[] {
+  const byMarket = new Map(rows.map((r) => [r.market, r]));
+  return Object.values(UserMarket).map(
+    (market) =>
+      byMarket.get(market) ?? {
+        market,
+        users: 0,
+        signupsInWindow: 0,
+        onboardingCompleted: 0,
+        active7d: 0,
+        listeners7d: 0,
+        listenSec: 0,
+        plays: 0,
+        paidActive: 0,
+      },
+  );
 }
 
 /** 0~23시 전부 — 재생이 없던 시간대도 0 으로 그린다 */

@@ -218,7 +218,13 @@
 
 **왜**: PoC 성과를 읽어야 한다. 시장이 섞인 가입·청취 수는 어느 트랙이 움직였는지 말해 주지 않는다.
 
-`GET /admin/contents?market=` 필터, `GET /admin/insights/summary`에 `by_market` 블록(가입·활성·청취·결제의 시장별 집계). 모양은 BE가 구현하며 확정.
+`GET /admin/contents?market=` 필터, `GET /admin/insights/summary`에 `by_market` 블록(가입·활성·청취·결제의 시장별 집계 — 2026-10-14 구현):
+
+```json
+"by_market": [ { "market": "kr", "users": 225, "signups_in_window": 30, "onboarding_completed": 208, "active_7d": 190, "listeners_7d": 130, "listen_sec": 70844, "plays": 233, "paid_active": 0 }, { "market": "global", "users": 0, "...": 0 } ]
+```
+
+- 시장마다 한 칸(계정이 없는 시장도 0으로). 각 값은 `users`·`listening.window`의 같은 이름 지표를 시장으로 나눈 것이다. **현재 계정 기준** — 탈퇴 기록에는 시장이 없어 탈퇴 수는 시장별로 나누지 않는다.
 
 ## 5. 에러 코드 표
 

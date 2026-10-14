@@ -1,10 +1,13 @@
 import { Injectable } from '@nestjs/common';
 import { DataSource } from 'typeorm';
 
+import { UserMarket } from '@/modules/user/user.enum';
+
 import {
   InsightsDailyRows,
   InsightsHourly,
   InsightsListeningTotals,
+  InsightsMarketTotals,
   InsightsRetention,
   InsightsTopContent,
   InsightsTopicSupply,
@@ -93,6 +96,18 @@ interface TopicSupplyRow {
   median_remaining: number;
   exhausted_users: number;
   low_users: number;
+}
+
+interface MarketTotalsRow {
+  market: UserMarket;
+  users: number;
+  signups_in_window: number;
+  onboarding_completed: number;
+  active_7d: number;
+  listeners_7d: number;
+  listen_sec: number;
+  plays: number;
+  paid_active: number;
 }
 
 interface RetentionRow {
@@ -194,6 +209,51 @@ export class AdminInsightsRepository {
         count: p.count,
       })),
     };
+  }
+
+  /**
+   * 시장별 가입·활성·청취·결제(`global-api.md` 4.10). 각 값은 `userTotals`·`listeningTotals`의 같은 이름 지표를 시장으로
+   * 나눈 것이다 — 사용자 행을 한 번 훑으며 사용자마다 존재 여부만 본다. 계정이 없는 시장은 행이 없다(Service 가 0 으로 채운다).
+   */
+  async marketTotals(since: Date, now: Date): Promise<InsightsMarketTotals[]> {
+    const rows = await this.dataSource.query<MarketTotalsRow[]>(
+      `select u.market,
+              count(*)::int as users,
+              count(*) filter (where u.created_at >= $2)::int as signups_in_window,
+              count(*) filter (where u.onboarding_completed)::int as onboarding_completed,
+              count(*) filter (where exists (
+                select 1 from sessions s
+                 where s.user_id = u.id and s.issued_at >= $1::timestamptz - interval '7 days'))::int as active_7d,
+              count(*) filter (where exists (
+                select 1 from play_records p
+                 where p.user_id = u.id and p.played_at >= $1::timestamptz - interval '7 days'))::int as listeners_7d,
+              coalesce(sum(w.listen_sec), 0)::float8 as listen_sec,
+              coalesce(sum(w.plays), 0)::int as plays,
+              count(*) filter (where exists (
+                select 1 from subscriptions s
+                 where s.user_id = u.id and s.status in ('active', 'grace', 'cancelled')
+                   and s.environment = 'production' and s.expires_at > $1))::int as paid_active
+         from users u
+         left join lateral (
+           select sum(p.listened_sec) as listen_sec, count(*) as plays
+             from play_records p
+            where p.user_id = u.id and p.played_at >= $2
+         ) w on true
+        group by u.market`,
+      [now, since],
+    );
+
+    return rows.map((r) => ({
+      market: r.market,
+      users: r.users,
+      signupsInWindow: r.signups_in_window,
+      onboardingCompleted: r.onboarding_completed,
+      active7d: r.active_7d,
+      listeners7d: r.listeners_7d,
+      listenSec: r.listen_sec,
+      plays: r.plays,
+      paidActive: r.paid_active,
+    }));
   }
 
   /** `since`가 null 이면 전 기간 */
