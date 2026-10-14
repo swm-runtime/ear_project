@@ -22,7 +22,11 @@ import { User } from '@/modules/user/entities/user.entity';
 import { SocialProvider, UserMarket, UserRole } from '@/modules/user/user.enum';
 
 interface IdList {
-  items: { id?: string; topic_id?: string; content_id?: string }[];
+  items: {
+    id?: string;
+    topic_id?: string;
+    content?: { id: string; language?: string };
+  }[];
 }
 
 /**
@@ -138,7 +142,10 @@ describe('글로벌 카탈로그 격리 E2E', () => {
       .get(path(`/contents/${globalContent.id}`))
       .set('Authorization', globalAuth)
       .expect(HttpStatus.OK);
-    expect((own.body as { language: string }).language).toBe('en');
+    // 상세는 `{ content, library_item, ... }`로 감싼다
+    expect(
+      (own.body as { content: { language: string } }).content.language,
+    ).toBe('en');
 
     await request(app.getHttpServer())
       .get(path(`/contents/${globalContent.id}`))
@@ -180,8 +187,9 @@ describe('글로벌 카탈로그 격리 E2E', () => {
   const idsOf = (body: IdList) => body.items.map((item) => item.id);
   const topicIdsOf = (body: IdList) =>
     body.items.map((item) => item.topic_id ?? item.id);
+  // 탐색 항목은 `{ content: { id } }`로 감싼다(explore-api.md 4.2)
   const contentIdsOf = (body: IdList) =>
-    body.items.map((item) => item.content_id ?? item.id);
+    body.items.map((item) => item.content?.id ?? item.id);
 
   async function createUser(
     label: string,
