@@ -40,7 +40,7 @@
 - Given 영어 기기에서 '한국어' 선택 / Then 응답 `market = kr`, 한국어 주제·요금제(서버 판정 — 클라이언트가 기기 언어로 덮어쓰지 않는다)
 - Given 영어 기기 가입 / When 요청 캡처 / Then `locale`의 기기 값 세 필드가 기기 값과 같다
 - Given 응답 `market = global` / Then 시작 화면 제공자 Google/Apple만
-- Given `steps = ["topic","pick"]` / Then 커리어 화면이 뜨지 않는다; `["topic","career","pick"]`이면 종전과 같다
+- Given `steps = ["topic"]`(GLOBAL) / Then 커리어 화면이 뜨지 않는다; `["topic","career"]`(KR)이면 종전과 같다 (2026-10-14 정정 — 담기 단계는 없다, `global-api.md` 4.4)
 - Given 주제 응답에 slug / Then 이미지가 slug로 붙고 한국어 이름 키 참조 0건
 - Given 설정에서 언어를 en→ko / Then 문구가 바뀌고 `market` 표시는 그대로
 

@@ -20,7 +20,7 @@
 
 ## 무엇을 한다
 
-- `GET /onboarding/state`에 `steps[]` — KR `["topic","career","pick"]`, GLOBAL `["topic","pick"]`. GLOBAL 계정의 커리어 저장은 409 `MARKET_MISMATCH`.
+- `GET /onboarding/state`에 `steps[]` — KR `["topic","career"]`, GLOBAL `["topic"]`(담기 단계는 2026-10-11에 없어졌다 — `global-api.md` 4.4가 원본, 2026-10-14 정정). GLOBAL 계정의 커리어 저장은 409 `MARKET_MISMATCH`.
 - `topics.slug`(UNIQUE `(market, slug)`) 추가, KR 주제에도 slug 채움(예 `career`·`productivity`). 주제 응답 `items[].slug`.
 - AI가 제안한 K-컬처 주제 트리(대분류 4~5 × 중분류)를 `topics(market=global)`로 적재(시드 마이그레이션). 이름·대분류는 영어.
 - 다른 시장 `topic_id`가 섞인 관심 주제 저장은 409 `MARKET_MISMATCH`, 부분 저장 없음. 자동 확장도 같은 시장 안에서만.
@@ -33,7 +33,7 @@
 
 ## 완료 조건
 
-- Given GLOBAL 계정 / When `GET /onboarding/state` / Then `steps = ["topic","pick"]`; `PATCH /onboarding/career` → 409 `MARKET_MISMATCH`
+- Given GLOBAL 계정 / When `GET /onboarding/state` / Then `steps = ["topic"]`; `PATCH /onboarding/career` → 409 `MARKET_MISMATCH`
 - Given GLOBAL 계정 / When 주제 목록 / Then 영어 K-컬처 주제만, 전부 `slug` 있음
 - Given KR 주제 ID를 GLOBAL 계정이 저장 / Then 409, DB 변화 0건
 - Given GLOBAL 가입 / Then `pending_consents[].version`이 `*_global_*`
