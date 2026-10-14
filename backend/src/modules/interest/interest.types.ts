@@ -1,3 +1,5 @@
+import { UserMarket } from '@/modules/user/user.enum';
+
 /** convention.md 3.2 — 모듈 밖으로 공개되는 타입만 둔다 */
 
 /** onboarding-api.md 4.2 — 주제 목록 조회 결과 */
@@ -47,6 +49,8 @@ export interface CreateTopicCommand {
   name: string;
   parentCategory: string;
   displayOrder: number | null;
+  /** 시장(`global-api.md` 4.5·4.9). 주제는 시장별 별도 행이다 */
+  market: UserMarket;
 }
 
 /** admin.md 4.5 — 주제 수정 입력. 담긴 키만 바꾼다 */

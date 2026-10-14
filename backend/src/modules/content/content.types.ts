@@ -3,12 +3,13 @@
 import { YearsOfExperienceRange } from '@/modules/user/user.enum';
 
 import {
+  AudioQuality,
   ContentDifficulty,
   ContentFormat,
+  ContentLanguage,
   ContentOrigin,
   ContentStatus,
   StatsPeriodType,
-  AudioQuality,
 } from './content.enum';
 import { Content } from './entities/content.entity';
 import { UserMarket } from '@/modules/user/user.enum';
@@ -258,6 +259,9 @@ export interface SearchPage {
 
 /** admin.md 3.1 — 업로드 입력 중 저장소 처리가 끝난 뒤 content 모듈이 받는 값 */
 export interface PublishContentCommand {
+  /** 시장·언어(`global-api.md` 4.9) — 노출 격리의 입력. 호출부(admin)가 검증을 끝내고 넘긴다 */
+  market: UserMarket;
+  language: ContentLanguage;
   title: string;
   description: string;
   origin: ContentOrigin;
@@ -299,6 +303,8 @@ export interface RepublishContentCommand {
 /** 관리자 콘텐츠 목록 조회 조건 (admin.md 5장) */
 export interface AdminContentPageQuery {
   status?: ContentStatus;
+  /** 시장 필터 — 없으면 전 시장(운영자는 두 시장을 다 본다) */
+  market?: UserMarket;
   offset: number;
   limit: number;
 }

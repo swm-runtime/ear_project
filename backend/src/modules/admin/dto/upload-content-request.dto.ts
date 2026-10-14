@@ -16,7 +16,8 @@ import {
   ValidateNested,
 } from 'class-validator';
 
-import { ContentOrigin } from '@/modules/content/content.enum';
+import { ContentLanguage, ContentOrigin } from '@/modules/content/content.enum';
+import { UserMarket } from '@/modules/user/user.enum';
 
 /** admin.md 3.1 `sources[]` — 소스마다 제목(필수) · 저자(선택) · 링크(선택) */
 export class ContentSourceInputDto {
@@ -107,6 +108,19 @@ export class UploadContentRequestDto {
   @IsBoolean()
   @Equals(true)
   readonly review_confirmed: boolean;
+
+  /**
+   * `global-api.md` 4.9 — 시장. **1단계는 선택**(없으면 `kr`): 파이프라인이 보내기 시작한 뒤 필수로 올린다. `topic_ids`가 전부
+   * 같은 시장이어야 하고, `language`와 조합(kr↔ko · global↔en)이 맞아야 한다 — 아니면 400
+   */
+  @IsOptional()
+  @IsEnum(UserMarket)
+  readonly market?: UserMarket;
+
+  /** `global-api.md` 4.9 — 콘텐츠 언어. 선택(없으면 `ko`). 시장과 조합이 맞아야 한다 */
+  @IsOptional()
+  @IsEnum(ContentLanguage)
+  readonly language?: ContentLanguage;
 }
 
 /** multipart 본문의 텍스트 필드. 파일은 여기 오지 않는다 */

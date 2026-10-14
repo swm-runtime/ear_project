@@ -185,10 +185,10 @@ describe('parseEnrichmentFile', () => {
   it.each([
     ['1개', ['절세']],
     ['5개', ['가나', '다라', '마바', '사아', '자차']],
-    ['띄어쓰기', ['비과세 한도', '절세']],
+    ['앞뒤 공백', [' 비과세', '절세']],
+    ['21자', ['가나다라마바사아자차카타파하가나다라마바사', '비과세']],
     ["'#' 포함", ['#절세', '비과세']],
     ['1자', ['세', '비과세']],
-    ['11자', ['가나다라마바사아자차카', '비과세']],
     ['대소문자만 다른 중복', ['ISA', 'isa']],
     ['문자열 아님', [1, '비과세']],
     ['배열 아님', '절세'],
@@ -203,6 +203,27 @@ describe('parseEnrichmentFile', () => {
       expect(result.rejectedReason).toContain('tags');
     },
   );
+
+  it('안쪽 공백이 있는 영어 고유명사와 20자 태그는 받는다 — 2026-10-14 완화(global-api.md 4.9)', async () => {
+    const result = await parseEnrichmentFile(
+      buildJsonFile({
+        schema_version: 3,
+        is_evergreen: true,
+        tags: [
+          'Stray Kids',
+          'Squid Game',
+          '가나다라마바사아자차카타파하가나다라마바',
+        ],
+      }),
+    );
+
+    expect(result.rejectedReason).toBeNull();
+    expect(result.data?.tags).toEqual([
+      'Stray Kids',
+      'Squid Game',
+      '가나다라마바사아자차카타파하가나다라마바',
+    ]);
+  });
 
   it('현재 형식보다 높은 schema_version은 거부한다 — 서버가 모르는 키가 결손으로 둔갑한다', async () => {
     const result = await parseEnrichmentFile(

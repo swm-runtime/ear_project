@@ -199,6 +199,7 @@ export class TopicService {
       parentCategory: command.parentCategory,
       isVisible: false,
       displayOrder,
+      market: command.market,
     });
     const [saved] = await this.topicRepository.saveAll([topic], manager);
 

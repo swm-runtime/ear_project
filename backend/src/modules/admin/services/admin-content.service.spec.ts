@@ -9,11 +9,13 @@ import { BusinessException } from '@/common/exceptions/business.exception';
 import { ErrorCode } from '@/common/exceptions/error-code.enum';
 import {
   AudioQuality,
+  ContentLanguage,
   ContentOrigin,
   ContentStatus,
 } from '@/modules/content/content.enum';
 import { ContentService } from '@/modules/content/services/content.service';
 import { Topic } from '@/modules/interest/entities/topic.entity';
+import { UserMarket } from '@/modules/user/user.enum';
 import { TopicService } from '@/modules/interest/services/topic.service';
 import { AuditLogService } from '@/modules/partner/audit-log.service';
 
@@ -126,6 +128,8 @@ function buildCommand(
     topicIds: [TOPIC_ID],
     sources: [{ title: '블로그 A', author: null, url: null }],
     reviewConfirmed: true,
+    market: UserMarket.KR,
+    language: ContentLanguage.KO,
     audio: buildFile('ep.mp3'),
     audioAac: null,
     audioLossless: null,
@@ -214,7 +218,9 @@ describe('AdminContentService', () => {
     topicService = {
       findAllByIds: jest
         .fn()
-        .mockResolvedValue([{ id: TOPIC_ID, name: '이직' } as Topic]),
+        .mockResolvedValue([
+          { id: TOPIC_ID, name: '이직', market: UserMarket.KR } as Topic,
+        ]),
     } as unknown as jest.Mocked<TopicService>;
 
     topicExposureService = {
@@ -679,6 +685,32 @@ describe('AdminContentService', () => {
       // then
       await expect(act).rejects.toMatchObject({
         errorCode: ErrorCode.ADMIN_TOPIC_NOT_FOUND,
+      });
+    });
+
+    it('GLOBAL 콘텐츠에 KR 주제가 섞이면 400 — 격리 실패는 데이터 유출이다(global-api.md 4.9)', async () => {
+      // given — 기본 픽스처 주제는 KR
+      const command = {
+        ...buildCommand(),
+        market: UserMarket.GLOBAL,
+        language: ContentLanguage.EN,
+      };
+
+      // when / then
+      await expect(service.upload(command, NOW)).rejects.toMatchObject({
+        errorCode: ErrorCode.VALIDATION_FAILED,
+        details: { field: 'topic_ids' },
+      });
+    });
+
+    it('시장과 언어 조합이 어긋나면 400 — kr은 ko, global은 en', async () => {
+      // given
+      const command = { ...buildCommand(), language: ContentLanguage.EN };
+
+      // when / then
+      await expect(service.upload(command, NOW)).rejects.toMatchObject({
+        errorCode: ErrorCode.VALIDATION_FAILED,
+        details: { field: 'language' },
       });
     });
 
