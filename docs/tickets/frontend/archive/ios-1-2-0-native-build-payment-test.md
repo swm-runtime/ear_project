@@ -14,8 +14,7 @@
 | 관련 | `subscription-purchase-screen.md`(KAN-120) · `audio-quality-selection-ui.md`(KAN-143) · 백엔드 `audio-quality-tiers.md`(KAN-141) · `audio-url-refresh-gapless.md`(KAN-124) |
 | 근거 문서 | `spec/api/subscription-api.md` 6장(흐름) · `features/subscription.md` 4.2~4.7 · `features/paywall.md` 4.5 · `frontend/architecture.md` 2.1(runtimeVersion) |
 | 중요도 | Medium — 결제 테스트와 1.2.0 출시가 전부 이 빌드에 걸려 있다 |
-| 상태 | 진행 중 — 빌드 완료(2026-10-07), 결제 테스트·Play 업로드 대기(사람 손) |
-
+| 상태 | 완료 (Jira KAN-155 2026-10-12) |
 ## 왜
 
 iOS 결제 화면(KAN-120)·음질 선택(KAN-143)·서명 URL 무교체 갱신(KAN-124) 코드는 전부 `dev`에 들어갔지만, **runtime 32 네이티브 빌드가 아직 하나도 없다.** 결제 모듈(expo-iap)·expo-network·expo-symbols는 OTA로 갈 수 없고, 옛 바이너리(rt 31)에서는 기능 감지로 꺼져 있다. 결제 테스트와 출시 모두 이 빌드가 선행이다.
@@ -65,3 +64,4 @@ iOS 결제 화면(KAN-120)·음질 선택(KAN-143)·서명 URL 무교체 갱신(
   - 개발계 **Android aab**: Actions run 37634944632 → Play 내부 테스트 자동 업로드.
   - 운영 **Android 1.2.0 vc 17**: EAS `5ab49257`. aab 는 받아 두었고 **Play Console 내부 테스트 업로드는 사람 손**이다(EAS 에 Google 서비스 계정 키 없음, 심사 제출 아님).
   - **남은 것(사람 손)**: 위 표 ①~⑧ 샌드박스 결제 테스트(iOS 44), 운영 aab 내부 테스트 업로드와 "정기 결제" 메뉴 열림 확인, 운영 TestFlight rt 32 빌드(아직 안 돌림 — PM 지시 대기).
+- 2026-10-12 반영 — Jira KAN-155 완료(2026-10-12) 기준. 마크다운은 그때 옮기지 않아 2026-10-15 Jira 대조에서 발견해 archive 로 옮김.

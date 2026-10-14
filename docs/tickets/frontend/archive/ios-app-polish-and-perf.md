@@ -11,8 +11,7 @@
 | 선행 | 없음 |
 | Jira | [KAN-103](https://runtime364.atlassian.net/browse/KAN-103) (담당: 이주호) |
 | 중요도 | Medium — PM 이 중요도를 따로 정하지 않아 기본값. 마감이 안 맞으면 등급을 내리지 말고 사유를 적는다 |
-| 상태 | 진단 코드 정리 반영 — 묶음 빌드 대기 (2026-10-06) |
-
+| 상태 | 완료 (Jira KAN-103 2026-09-28) |
 ## 요청
 
 iOS 앱의 자잘한 버그를 모아 없애고 최적화한다 — 플레이어 줌 닫기 잔상(설계 결정: 열기 줌·닫기 슬라이드), 진단용 코드(설정의 개발계 트레이스 행·RNS earNoteZoomDiagnostic) 정리, JS 스레드를 잡는 애니메이션 점검(상시 루프는 네이티브 드라이버), 불필요 의존성(masked-view 사용처 재확인) 정리.
@@ -45,3 +44,4 @@ iOS 앱의 자잘한 버그를 모아 없애고 최적화한다 — 플레이어
 - **runtimeVersion 은 31 유지** — JS 가 `getDiagnostics` 를 더 부르지 않아 31 빌드 위에서 깨지지 않는다. 네이티브 변경은 묶음 빌드(32, KAN-118·KAN-124·KAN-120 과 함께)에 실린다. `app.json` `_runtimeVersionNote` 에 기록했다.
 - 검증: `tsc --noEmit` · `eslint src` · jest 275개 통과. **iOS 네이티브(Obj-C++·Swift)는 Windows 에서 컴파일하지 못했다** — 지운 식별자(`earNoteZoomDiagnostic`·`noteDiagnostic`·`diagnosticsText`·`getDiagnostics`·`earSettleInteractiveDismissFrom`)를 패치 적용된 RNS 소스·`modules/` 전체에서 grep 해 남은 참조가 없음과 괄호 짝을 눈으로 확인했을 뿐이다. 묶음 빌드가 첫 컴파일이다.
 - 남은 완료 조건: 묶음 빌드 후 iOS 실기기에서 플레이어 여닫기·탭 전환·스크롤 반복(번쩍임·굳음·버벅임 없음). 그때까지 pending 유지.
+- 2026-09-28 반영 — Jira KAN-103 완료(2026-09-28) 기준. 마크다운은 그때 옮기지 않아 2026-10-15 Jira 대조에서 발견해 archive 로 옮김.

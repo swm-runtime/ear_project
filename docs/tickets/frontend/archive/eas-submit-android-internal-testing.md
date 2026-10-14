@@ -190,3 +190,5 @@ Play Console 내부 테스트 트랙 — **1.1.0 · 내부 테스터에게 제�
 - 운영 앱(`com.runtime.ear`) 제출 자동화는 **이 티켓 범위가 아니다.** 하려면 서비스 계정에 그 앱 권한을
   따로 주고 `submit.production` 에 android 를 더해야 한다 — 그때는 프로덕션 출시 권한이 필요하므로
   권한 범위를 다시 판단할 것.
+
+> 2026-10-15: 같은 KAN-85 를 다룬 다른 문서가 `eas-submit-android-internal-testing-2.md` 로 함께 보관돼 있다.

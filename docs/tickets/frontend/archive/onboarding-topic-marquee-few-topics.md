@@ -10,8 +10,7 @@
 | 심각도 | **중** — 지금 운영 노출 주제 36건에서는 증상 없음. 운영이 `is_visible`을 소수만 켜는 시점(신규 주제 공개 초기, 노출 조건 강화 이후)에 첫 화면에서 드러난다 |
 | 우선순위 | Medium(3일 안) |
 | Jira | [KAN-59](https://runtime364.atlassian.net/browse/KAN-59) |
-| 상태 | 대기 — 코드 선반영(2026-09-17), **실기기 확인 남음** |
-
+| 상태 | 완료 (Jira KAN-59 2026-09-27) |
 ## 잘 되는 것(변경 불필요)
 
 - **0건**: `isTopicListUnavailable`(`interest/services/topic-list-state.ts`)이 `items: []`를 잡아 전체 화면 "아직 준비 중이에요" + [다시 시도]를 그리고 하단 [다음]은 그리지 않는다. `onboarding-uiux.md` 4.2와 일치(`tickets/frontend/archive/onboarding-empty-topic-list-state.md` 처리 완료).
@@ -60,3 +59,4 @@
 - 최신 dev의 `topic-rows.test.ts` 10개 통과. 적은 주제 수의 줄 분배와 작은 한 벌 폭의 반복 벌 수 계산은 유지되고 있다.
 - KAN-103 성능 점검과 함께 iOS 마퀴의 반복 애니메이션에 `isInteraction: false`를 추가했다. 벌 수·줄 분배·Android 되감기 로직에는 변경이 없다.
 - 개발계 Android 내부 테스트 자동 제출은 2026-09-29 성공했다(KAN-85 처리 기록 참조). 따라서 2026-09-19 기록의 "검증용 앱 배포 전"은 최신 상태가 아니다. 남은 것은 Play 설치 기기와 iOS에서 주제 1·2·4·7·8개로 되감기를 직접 확인하는 일이다. 이 세션에서 실기기 검증은 수행하지 못했으므로 pending을 유지한다.
+- 2026-09-27 반영 — Jira KAN-59 완료(2026-09-27) 기준. 마크다운은 그때 옮기지 않아 2026-10-15 Jira 대조에서 발견해 archive 로 옮김.
