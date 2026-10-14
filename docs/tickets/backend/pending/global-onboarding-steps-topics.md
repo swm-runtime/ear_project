@@ -44,3 +44,4 @@
   - 완료: `GET /onboarding/state` `steps[]`(KR `[topic, career]` · GLOBAL `[topic]` — 담기 단계 제거 반영) · GLOBAL은 주제 저장 시 단계가 곧바로 `pick` · GLOBAL 커리어 저장 409 `MARKET_MISMATCH` · 온보딩 관심 주제에 다른 시장 주제가 섞이면 409(부분 저장 없음) · `topics.slug`(NULL 허용, 시장 안 유일) · 주제 응답 `items[].slug` · **GLOBAL 주제 8개 시드**(AI 확정 표 그대로, 숨김 상태 — 콘텐츠 들어온 뒤 운영이 켠다) · 에러 코드 `MARKET_MISMATCH` 신설.
   - 정정: AI 문서는 `parent_category`를 비워 두라고 했지만 컬럼이 NOT NULL이고 응답 계약을 바꾸지 않으려고 **주제 이름을 그대로** 넣었다(1단계 체계라 대분류 = 주제).
   - 남은 것: 관심사 관리(`PUT /users/me/interests`)의 시장 검사 · KR 주제 slug 채우기(운영 데이터) · 약관 시장 네임스페이스(`terms_global_v1` — 영어 약관 확정 뒤) · `common-error-handling.md` 9장에 `MARKET_MISMATCH` 등재(changes/pending).
+- 2026-10-14 관심사 관리 저장(`PUT /users/me/interests`)의 시장 검사 — PR `feat(be)/interest-market-check`. 다른 시장 주제가 섞이면 409 `MARKET_MISMATCH`, 부분 저장 없음(단위·e2e). 남은 것: KR 주제 slug 채우기(운영 데이터) · 약관 시장 네임스페이스 · `common-error-handling.md` 9장 등재(changes/pending).

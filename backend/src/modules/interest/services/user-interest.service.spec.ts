@@ -7,6 +7,7 @@ import { TopicService } from './topic.service';
 import { UserRepository } from '@/modules/user/repositories/user.repository';
 import { UserOnboardingService } from '@/modules/user/services/user-onboarding.service';
 import { UserService } from '@/modules/user/services/user.service';
+import { UserMarket } from '@/modules/user/user.enum';
 
 import { UserInterestService } from './user-interest.service';
 import { Topic } from '../entities/topic.entity';
@@ -46,8 +47,12 @@ async function expectErrorCode(
   await expect(run()).rejects.toBeInstanceOf(BusinessException);
 }
 
-function buildTopic(id: string, isVisible = true): Topic {
-  return { id, isVisible, name: `topic-${id.slice(0, 8)}` } as Topic;
+function buildTopic(
+  id: string,
+  isVisible = true,
+  market: UserMarket = UserMarket.KR,
+): Topic {
+  return { id, isVisible, market, name: `topic-${id.slice(0, 8)}` } as Topic;
 }
 
 describe('UserInterestService', () => {
@@ -86,12 +91,16 @@ describe('UserInterestService', () => {
     // 관심사 교체는 사용자 행을 잠가 동시 저장을 직렬화한다 — 잠금 자체는 검증 대상이 아니다.
     // 기본값은 온보딩을 마친 계정이다. 미완료 시나리오는 개별 테스트가 덮어쓴다
     userService = {
-      getById: jest
-        .fn()
-        .mockResolvedValue({ id: USER_ID, onboardingCompleted: true }),
-      getByIdForUpdate: jest
-        .fn()
-        .mockResolvedValue({ id: USER_ID, onboardingCompleted: true }),
+      getById: jest.fn().mockResolvedValue({
+        id: USER_ID,
+        onboardingCompleted: true,
+        market: UserMarket.KR,
+      }),
+      getByIdForUpdate: jest.fn().mockResolvedValue({
+        id: USER_ID,
+        onboardingCompleted: true,
+        market: UserMarket.KR,
+      }),
     } as unknown as jest.Mocked<UserService>;
 
     // 온보딩 완료 판정은 실제 구현을 쓴다 — 여기서 검증하는 것이 그 판정의 적용 여부다
@@ -110,6 +119,21 @@ describe('UserInterestService', () => {
   });
 
   describe('replaceOnboardingSelection', () => {
+    it('다른 시장의 주제가 섞이면 409 MARKET_MISMATCH 로 거부하고 아무것도 저장하지 않는다(global-api 4.5)', async () => {
+      // given — GLOBAL 계정이 KR 주제를 보낸다
+      userService.getById.mockResolvedValue({
+        id: USER_ID,
+        market: UserMarket.GLOBAL,
+      } as never);
+
+      // when / then
+      await expectErrorCode(
+        () => service.replaceOnboardingSelection(USER_ID, [TOPIC_A], NOW),
+        ErrorCode.MARKET_MISMATCH,
+      );
+      expect(repository.saveAll).not.toHaveBeenCalled();
+    });
+
     it('주제를 하나도 보내지 않으면 거부한다', async () => {
       // given / when / then — 1단계는 건너뛸 수 없다
       await expectErrorCode(
@@ -400,6 +424,28 @@ describe('UserInterestService', () => {
         () => service.replaceManagedSelection(USER_ID, [TOPIC_A, TOPIC_B], NOW),
         ErrorCode.INTEREST_TOPIC_UNAVAILABLE,
       );
+    });
+
+    it('다른 시장의 주제가 섞이면 409 MARKET_MISMATCH 로 거부하고 아무것도 저장하지 않는다(global-api 4.5)', async () => {
+      // given — KR 계정이 GLOBAL 주제 하나를 섞어 보낸다
+      topicService.findAllByIds.mockImplementation((ids: string[]) =>
+        Promise.resolve(
+          ids.map((id) =>
+            buildTopic(
+              id,
+              true,
+              id === TOPIC_B ? UserMarket.GLOBAL : UserMarket.KR,
+            ),
+          ),
+        ),
+      );
+
+      // when / then
+      await expectErrorCode(
+        () => service.replaceManagedSelection(USER_ID, [TOPIC_A, TOPIC_B], NOW),
+        ErrorCode.MARKET_MISMATCH,
+      );
+      expect(repository.saveAll).not.toHaveBeenCalled();
     });
 
     it('클라이언트를 우회해 주제 4개를 보내면 서버가 상한을 검증해 거부한다', async () => {

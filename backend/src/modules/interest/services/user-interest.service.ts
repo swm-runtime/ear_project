@@ -207,7 +207,8 @@ export class UserInterestService {
     manager?: EntityManager,
   ): Promise<string[]> {
     await this.assertSelectable(topicIds, manager);
-    await this.assertSameMarket(userId, topicIds, manager);
+    const user = await this.userService.getById(userId, manager);
+    await this.assertSameMarket(user.market, topicIds, manager);
 
     // 같은 사용자의 동시 저장을 직렬화한다 — 관리 경로(`replaceManagedSelection`)와 같은 이유다.
     // 잠그지 않으면 두 요청이 같은 스냅샷을 읽고 각자 INSERT해 유니크 위반(500)이 난다
@@ -338,9 +339,10 @@ export class UserInterestService {
       // 사유는 `findEditableSelection` 참고. 입력 검증보다 앞선 전제 조건이다
       this.userOnboardingService.assertCompleted(user);
 
-      // 검증 순서는 하한 → 주제 유효성 → 상한 (interest-management-api.md 4.3)
+      // 검증 순서는 하한 → 주제 유효성 → 시장 → 상한 (interest-management-api.md 4.3 · global-api.md 4.5)
       this.assertManagedShape(topicIds);
       await this.assertTopicsAvailable(topicIds, manager);
+      await this.assertSameMarket(user.market, topicIds, manager);
 
       const existing = await this.userInterestRepository.findAllByUserId(
         userId,
@@ -660,7 +662,7 @@ export class UserInterestService {
    * 죽고, 반대로 격리가 새는 경로가 된다. 409 `MARKET_MISMATCH`, 부분 저장 없음.
    */
   private async assertSameMarket(
-    userId: string,
+    userMarket: UserMarket,
     topicIds: string[],
     manager?: EntityManager,
   ): Promise<void> {
@@ -668,15 +670,9 @@ export class UserInterestService {
       return;
     }
 
-    const [user, topics] = await Promise.all([
-      this.userService.getById(userId, manager),
-      this.topicService.findAllByIds(topicIds, manager),
-    ]);
-    const userMarket = user.market ?? UserMarket.KR;
+    const topics = await this.topicService.findAllByIds(topicIds, manager);
 
-    if (
-      topics.some((topic) => (topic.market ?? UserMarket.KR) !== userMarket)
-    ) {
+    if (topics.some((topic) => topic.market !== userMarket)) {
       throw new BusinessException({
         status: HttpStatus.CONFLICT,
         errorCode: ErrorCode.MARKET_MISMATCH,
