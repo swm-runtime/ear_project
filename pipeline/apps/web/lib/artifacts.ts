@@ -40,11 +40,18 @@ function localPathOf(key: string): string | null {
   return p.startsWith(path.resolve(root)) ? p : null;
 }
 
-export interface Turn { kind: "E" | "Y" | "plain" | "meta" | "section"; n?: number; speaker?: string; text: string; section?: string }
+export interface Turn { kind: "E" | "Y" | "plain" | "meta" | "section"; n?: number; speaker?: string; text: string; section?: string; /** 첫째 진행자(한국판 윤아)인가 — 화면의 화자 색 구분용. 브라우저는 진행자 이름을 모른다 */ lead?: boolean }
 
-/** 대본 md → 턴 목록 (E/Y 라벨 규격, spec/04). 번호 없는 발화(인트로·클로징, 구 대본의 콜드오픈)는 구역 이름을 라벨로 쓴다. */
-export function parseScript(md: string): Turn[] {
+/** 화자 라벨 정규식 조각 — 캡처 그룹 하나 (진행자 이름은 서버가 lib/locale.ts speakerNames 로 읽어 넘긴다) */
+const speakerGroup = (speakers: readonly string[]) => `(${speakers.map((n) => n.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|")})`;
+
+/** 대본 md → 턴 목록 (E/Y 라벨 규격, spec/04). 번호 없는 발화(인트로·클로징, 구 대본의 콜드오픈)는 구역 이름을 라벨로 쓴다. speakers = 인스턴스의 진행자 이름 */
+export function parseScript(md: string, speakers: readonly string[]): Turn[] {
   const out: Turn[] = [];
+  const sp = speakerGroup(speakers);
+  const reA = new RegExp(`^\\[${sp}\\]\\s*([EY])(\\d+)\\s*·\\s*(.*)$`);
+  const reB = new RegExp(`^([EY])(\\d+)\\s+\\[${sp}\\]\\s*(.*)$`);
+  const rePlain = new RegExp(`^\\[${sp}\\]\\s*(.*)$`);
   let section = "";
   for (const raw of md.split("\n")) {
     const line = raw.trim();
@@ -56,13 +63,13 @@ export function parseScript(md: string): Turn[] {
       continue;
     }
     // A형(정규 형식, 2026-09-01 통일): [윤아] E12 · 본문
-    let m = line.match(/^\[(윤아|이음)\]\s*([EY])(\d+)\s*·\s*(.*)$/);
-    if (m) { out.push({ kind: m[2] as "E" | "Y", n: Number(m[3]), speaker: m[1], text: m[4], section }); continue; }
+    let m = line.match(reA);
+    if (m) { out.push({ kind: m[2] as "E" | "Y", n: Number(m[3]), speaker: m[1], lead: m[1] === speakers[0], text: m[4], section }); continue; }
     // B형(구형): E12 [윤아] 본문
-    m = line.match(/^([EY])(\d+)\s+\[(윤아|이음)\]\s*(.*)$/);
-    if (m) { out.push({ kind: m[1] as "E" | "Y", n: Number(m[2]), speaker: m[3], text: m[4], section }); continue; }
-    m = line.match(/^\[(윤아|이음)\]\s*(.*)$/);
-    if (m) { out.push({ kind: "plain", speaker: m[1], text: m[2], section: section || "발췌" }); continue; }
+    m = line.match(reB);
+    if (m) { out.push({ kind: m[1] as "E" | "Y", n: Number(m[2]), speaker: m[3], lead: m[3] === speakers[0], text: m[4], section }); continue; }
+    m = line.match(rePlain);
+    if (m) { out.push({ kind: "plain", speaker: m[1], lead: m[1] === speakers[0], text: m[2], section: section || "발췌" }); continue; }
     out.push({ kind: "meta", text: line });
   }
   return out;
@@ -117,10 +124,11 @@ export function parseCriticReport(md: string): { flags: CriticFlag[]; stars: Cri
 }
 
 /** 대본 파일에서 특정 턴(E12·Y7 등)의 본문만 교체한다. 원문 그대로의 라인 치환이라 나머지는 손대지 않는다. */
-export function replaceTurn(md: string, turn: string, after: string): { md: string; before: string } | null {
+export function replaceTurn(md: string, turn: string, after: string, speakers: readonly string[]): { md: string; before: string } | null {
   const lines = md.split("\n");
-  const reA = new RegExp(`^\\[(윤아|이음)\\]\\s*${turn}\\s*·\\s*(.*)$`); // A형 (정규)
-  const reB = new RegExp(`^${turn}\\s+\\[(윤아|이음)\\]\\s*(.*)$`);        // B형 (구형)
+  const sp = speakerGroup(speakers);
+  const reA = new RegExp(`^\\[${sp}\\]\\s*${turn}\\s*·\\s*(.*)$`); // A형 (정규)
+  const reB = new RegExp(`^${turn}\\s+\\[${sp}\\]\\s*(.*)$`);        // B형 (구형)
   for (let i = 0; i < lines.length; i++) {
     let m = lines[i].match(reA);
     if (m) { const before = m[2]; lines[i] = `[${m[1]}] ${turn} · ${after}`; return { md: lines.join("\n"), before }; }

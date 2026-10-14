@@ -3,7 +3,7 @@ import path from "node:path";
 import { cfg, executedBy } from "../config.js";
 import { claimApprovedBacklog, deleteEpisode, enqueue, getBacklog, getBacklogStatus, getEpisode, getSetting, insertRun, majorOfMidTopic, nextEpisodeId, setBacklogStatus, setJobProgress, updateJobPayload, upsertEpisode, pool, type Job } from "../db.js";
 import type { Executor } from "../executors/index.js";
-import { buildDraftPrompt, buildDraftRevisionPrompt, DRAFT_SCHEMA, DRAFT_REVISION_SCHEMA, episodeDatePrefix, pickIntroStyle, signoffVariants, type Templates } from "@ear/pipeline";
+import { buildDraftPrompt, buildDraftRevisionPrompt, DRAFT_SCHEMA, DRAFT_REVISION_SCHEMA, episodeDatePrefix, episodeIdLetter, pickIntroStyle, signoffVariants, speakerNames, type Templates } from "@ear/pipeline";
 import { exists, hostOf, log, RetryLater } from "../util.js";
 import { prepareAssets, workerRev } from "../assets.js";
 import { listPrefix, pullPrefix, pushPrefix, s3Key } from "../storage.js";
@@ -40,7 +40,7 @@ export async function runDraft(job: Job, ex: Executor) {
       }
     }
     // 재집기(워커 사망 후 회수) 시 같은 에피소드를 이어받도록 작업 payload 에 ID 를 고정한다
-    episodeId = String(job.payload.episode_id ?? "") || (await allocateEpisodeId(episodeDatePrefix("T"), backlogId));
+    episodeId = String(job.payload.episode_id ?? "") || (await allocateEpisodeId(episodeDatePrefix(episodeIdLetter()), backlogId));
     if (!job.payload.episode_id) await updateJobPayload(job.id, { episode_id: episodeId });
   } else {
     episodeId = String(job.payload.episode_id ?? "");
@@ -223,7 +223,7 @@ function revisionWhy(job: Job): string {
 function formatViolations(md: string): string[] {
   const p = parseScriptForTts(md);
   const v: string[] = [];
-  if (p.turns.length < 10) v.push(`파싱된 발화 턴이 ${p.turns.length}개 — 줄 문법("[윤아] E1 · 문장") 위반 가능성 (spec/04 4장)`);
+  if (p.turns.length < 10) v.push(`파싱된 발화 턴이 ${p.turns.length}개 — 줄 문법("[${speakerNames()[0]}] E1 · 문장") 위반 가능성 (spec/04 4장)`);
   else {
     const noId = p.turns.filter((t) => !t.id);
     if (noId.length > Math.ceil(p.turns.length * 0.3)) v.push(`턴 번호(E·Y) 없는 발화가 ${noId.length}/${p.turns.length}개 — 번호 턴은 "[화자] E1 · 문장" 형식 (spec/04 4장)`);

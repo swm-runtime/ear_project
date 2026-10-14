@@ -3,7 +3,7 @@ import path from "node:path";
 import { cfg } from "../config.js";
 import { setJobProgress, type Job } from "../db.js";
 import type { Executor } from "../executors/index.js";
-import { assetPaths, buildRevisionPromptInlineParts, REVISION_INLINE_SCHEMA } from "@ear/pipeline";
+import { assetPaths, buildRevisionPromptInlineParts, REVISION_INLINE_SCHEMA, speakerAlt, speakerGroup } from "@ear/pipeline";
 import { exists, log } from "../util.js";
 
 /**
@@ -58,9 +58,9 @@ export async function runRevisionSingle(a: { job: Job; ex: Executor; episodeId: 
   const unmatched: string[] = []; const applied: { location: string; before: string; after: string }[] = [];
   for (const f of o.fixes) {
     const id = f.turn.trim().toUpperCase().replace(/[^EY0-9]/g, "");
-    const idx = lines.findIndex((l) => new RegExp(`^\\[(윤아|이음)\\]\\s*${id}\\s*·`).test(l));
+    const idx = lines.findIndex((l) => new RegExp(`^\\[${speakerGroup()}\\]\\s*${id}\\s*·`).test(l));
     if (idx < 0) { unmatched.push(f.turn); continue; }
-    const m = lines[idx].match(/^(\[(?:윤아|이음)\]\s*[EY]\d+\s*·\s*)(.*)$/);
+    const m = lines[idx].match(new RegExp(`^(\\[${speakerAlt()}\\]\\s*[EY]\\d+\\s*·\\s*)(.*)$`));
     const before = m?.[2] ?? lines[idx];
     if (!f.after.trim()) lines.splice(idx, 1); else lines[idx] = `${m?.[1] ?? ""}${f.after.trim()}`;
     applied.push({ location: f.turn, ...changeWindow(before, f.after.trim()) });

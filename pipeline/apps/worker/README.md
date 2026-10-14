@@ -14,7 +14,7 @@ UI(또는 CLI)가 `jobs`에 넣은 작업을 집어서 실행한다. **어디서
 1. Node 20+ · Claude Code 설치 + 로그인(`claude`에서 `/login`) — 워커는 이 로그인을 그대로 쓴다
 2. `pipeline/` 에서 `npm install`
 2-1. **규칙 자산 시딩 (팀에서 최초 1회)** — Supabase SQL 에디터에서 `supabase/migrations/0009_prompt_assets.sql` 적용 → `npm run assets:import` (git `docs/ai/skills/` 7개를 DB 에 active 로). 자산이 없으면 워커는 AI 작업 시작 시 **기동 실패**한다(폴백 없음 — spec/10 3.2). 확인: `npm run assets:status`
-3. `apps/worker/.env` 작성 (`.env.example` 참조 — DATABASE_URL 비밀번호는 팀 비밀 채널로). `WORK_ROOT` 는 **레포 밖**, `ASSET_ROOT` 는 비우면 `docs/ai`
+3. `apps/worker/.env` 작성 (`.env.example` 참조 — DATABASE_URL 비밀번호는 팀 비밀 채널로). `WORK_ROOT` 는 **레포 밖**, `ASSET_ROOT` 는 비우면 `docs/ai` (글로벌판 `PIPELINE_LOCALE=en` 이면 `docs/ai/global` — 그 인스턴스는 `PIPELINE_SPEAKERS`("해설,진행")·`TTS_VOICE_A`·`TTS_VOICE_B` 도 필요하다, `docs/ai/global/PIPELINE.md` 4.3)
 4. **산출물 저장소** — 노트북은 `PIPELINE_WEB_URL`(웹 주소) + `PIPELINE_WORKER_TOKEN`(팀 비밀 채널)으로 web 모드. AWS 키를 받지 않는다. 워커는 기동 시 접근을 확인하고 실패하면 멈춘다 — 확인: `npm run storage:status`
 
 ## 실행

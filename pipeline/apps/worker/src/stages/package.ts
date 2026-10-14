@@ -1,11 +1,15 @@
 import fs from "node:fs/promises";
 import path from "node:path";
+import { otherSpeaker, pipelineLocale, speakerNames } from "@ear/pipeline";
 import { cfg, executedBy } from "../config.js";
 import { enqueue, getBacklog, getEpisode, insertRun, majorOfMidTopic, pool, setBacklogStatus, type Job } from "../db.js";
 import { workerRev } from "../assets.js";
 import { probeDurationSec } from "../tts/audio.js";
 import { exists, localPathOf, pullPrefix, pushPrefix, s3Key } from "../storage.js";
 import { log } from "../util.js";
+
+/** topics.explainer 가 비었을 때의 해설 — 한국판은 종전 그대로 이음, 글로벌판은 역할 고정이라 첫째 진행자(글로벌 명세 6.4) */
+const defaultExplainer = (): string => (pipelineLocale() === "en" ? speakerNames()[0] : "이음");
 
 /**
  * 패키지 단계 (spec/07 2장) — 발행 메타 upload-meta.json 산출 + 상태 packaged(사람 검수 대기) 전환.
@@ -35,7 +39,7 @@ export async function runPackage(job: Job) {
 
   const [major, explainer] = await Promise.all([
     majorOfMidTopic(cand.mid_topic),
-    pool.query("select explainer from public.topics where mid = $1", [cand.mid_topic]).then((x) => (x.rows[0]?.explainer as string) ?? "이음"),
+    pool.query("select explainer from public.topics where mid = $1", [cand.mid_topic]).then((x) => (x.rows[0]?.explainer as string) ?? defaultExplainer()),
   ]);
 
   // 분량: 오디오가 있으면 실측, 없으면 대본 글자수 환산 (341자/분 — eleven_v4 실측, spec/04)
@@ -58,7 +62,7 @@ export async function runPackage(job: Job) {
     major_topic: major,
     mid_topic: cand.mid_topic,
     explainer,
-    host: explainer === "윤아" ? "이음" : "윤아",
+    host: otherSpeaker(explainer),
     duration_min_estimate: durationMin,
     sources: cand.sources.map((s) => ({ publisher: s.publisher, title: s.title, url: s.url })), // 노출 표기 규격은 미결 #16
     // 업로드 화면이 썸네일을 미리 채울 때 쓴다(KAN-50 4번). 실제 바이트는 /api/publish 가 S3 에서 중계한다
