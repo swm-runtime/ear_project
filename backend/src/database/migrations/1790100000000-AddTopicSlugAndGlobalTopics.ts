@@ -34,8 +34,8 @@ export class AddTopicSlugAndGlobalTopics1790100000000 implements MigrationInterf
     for (const [index, [name, slug]] of GLOBAL_TOPICS.entries()) {
       await queryRunner.query(
         `INSERT INTO "topics" ("name", "parent_category", "is_visible", "display_order", "market", "slug")
-         SELECT $1, $1, false, $2, 'global', $3
-         WHERE NOT EXISTS (SELECT 1 FROM "topics" WHERE "market" = 'global' AND "slug" = $3)`,
+         SELECT $1::varchar, $1::varchar, false, $2::int, 'global', $3::varchar
+         WHERE NOT EXISTS (SELECT 1 FROM "topics" WHERE "market" = 'global' AND "slug" = $3::varchar)`,
         [name, index + 1, slug],
       );
     }
@@ -44,7 +44,7 @@ export class AddTopicSlugAndGlobalTopics1790100000000 implements MigrationInterf
   public async down(queryRunner: QueryRunner): Promise<void> {
     // 콘텐츠가 붙은 GLOBAL 주제는 FK 때문에 지워지지 않는다 — 그때는 되돌리기 전에 콘텐츠부터 정리해야 한다
     await queryRunner.query(
-      `DELETE FROM "topics" WHERE "market" = 'global' AND "slug" = ANY($1)`,
+      `DELETE FROM "topics" WHERE "market" = 'global' AND "slug" = ANY($1::varchar[])`,
       [GLOBAL_TOPICS.map(([, slug]) => slug)],
     );
     await queryRunner.query(`DROP INDEX "uq_topics_market_slug"`);
