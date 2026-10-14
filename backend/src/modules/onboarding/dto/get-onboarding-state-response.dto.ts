@@ -14,6 +14,11 @@ export class GetOnboardingStateResponseDto {
   readonly onboarding_completed: boolean;
   readonly onboarding_step: OnboardingStep;
   /**
+   * 이 사용자가 밟을 화면 단계(`global-api.md` 4.4) — KR `["topic","career"]`, GLOBAL `["topic"]`(한국 직군 분류가
+   * 해외 사용자에게 무의미). 클라이언트는 단계를 하드코딩하지 않고 이 배열대로 잇는다. 담기 단계는 2026-10-11에 없어졌다
+   */
+  readonly steps: OnboardingStep[];
+  /**
    * 1단계에서 **서버에 저장된** 선택. 로컬 임시 저장분과 다르면 이 값이 기준이다 —
    * 로컬만 믿으면 다른 기기에서 바꾼 선택이 조용히 덮인다.
    */
@@ -27,6 +32,7 @@ export class GetOnboardingStateResponseDto {
     return {
       onboarding_completed: state.onboardingCompleted,
       onboarding_step: state.onboardingStep,
+      steps: state.steps,
       selected_topic_ids: state.selectedTopicIds,
       career: {
         job_category: state.career.jobCategory,

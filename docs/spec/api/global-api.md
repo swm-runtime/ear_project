@@ -144,10 +144,10 @@
 **왜**: 커리어는 한국 직군 분류여서 GLOBAL에는 고를 값이 없다. 클라이언트가 `market === 'global'`로 단계를 빼는 방식도 가능하지만, 그러면 단계 구성이 바뀔 때마다 **스토어 빌드**가 필요하다(이번 PoC가 그 비용을 이미 치르고 있다). 서버가 배열로 주면 서버 배포로 끝난다.
 
 ```json
-{ "onboarding_completed": false, "onboarding_step": "topic", "steps": ["topic", "pick"], "selected_topic_ids": [], "career": null, "picked_count": 0 }
+{ "onboarding_completed": false, "onboarding_step": "topic", "steps": ["topic"], "selected_topic_ids": [], "career": null, "picked_count": 0 }
 ```
 
-- `steps[]`: 이 사용자가 밟을 단계. KR `["topic","career","pick"]`, GLOBAL `["topic","pick"]`(커리어 생략 — 해외 사용자에게 한국 직군 분류가 무의미). 클라이언트는 **이 배열대로** 화면을 잇고 단계를 하드코딩하지 않는다.
+- `steps[]`: 이 사용자가 밟을 화면 단계. KR `["topic","career"]`, GLOBAL `["topic"]`(커리어 생략 — 해외 사용자에게 한국 직군 분류가 무의미. 담기 단계는 2026-10-11에 없어졌다). GLOBAL은 주제 저장 시 `onboarding_step`이 곧바로 `pick`(완료 대기)으로 간다. 클라이언트는 **이 배열대로** 화면을 잇고 단계를 하드코딩하지 않는다.
 - GLOBAL 계정에 `PATCH /onboarding/career`가 오면 409 `MARKET_MISMATCH`(5장).
 
 ### 4.5 주제 — `GET /onboarding/topics` · `GET /users/me/interests` · `PUT /users/me/interests` ✅
@@ -234,7 +234,7 @@
    → POST /auth/sign-up {provider: google, locale{preferred_language: en, en-US, US, America/New_York}}
 서버: preferred_language 'en' → market = global 확정 · 저장 (영어 기기라도 '한국어'를 고르면 kr)
    → user{market: global, language_code: en-US}
-앱: market === 'global' → 제공자 목록 Google/Apple · 온보딩 steps=[topic, pick]
+앱: market === 'global' → 제공자 목록 Google/Apple · 온보딩 steps=[topic]
    → GET /onboarding/topics → GLOBAL 주제(영어, slug)
    → PUT /onboarding/interests → GET /onboarding/recommendations(GLOBAL 콘텐츠만)
    → PUT /users/me/devices/:id {push_token, language_code, timezone}

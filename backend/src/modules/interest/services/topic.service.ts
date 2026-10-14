@@ -273,5 +273,6 @@ function toTopicView(topic: Topic) {
     topicId: topic.id,
     name: topic.name,
     parentCategory: topic.parentCategory,
+    slug: topic.slug ?? null,
   };
 }

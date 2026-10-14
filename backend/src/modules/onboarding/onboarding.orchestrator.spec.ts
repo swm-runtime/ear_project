@@ -15,6 +15,8 @@ import { OnboardingStep } from '@/modules/user/user.enum';
 
 import { RecommendationSectionType } from './onboarding.enum';
 import { OnboardingOrchestrator } from './onboarding.orchestrator';
+import { onboardingStepsFor } from './onboarding.orchestrator';
+import { UserMarket } from '@/modules/user/user.enum';
 
 const NOW = new Date('2026-05-20T09:00:00.000Z');
 const USER_ID = '11111111-1111-4111-8111-111111111111';
@@ -415,5 +417,12 @@ describe('OnboardingOrchestrator', () => {
         NOW,
       );
     });
+  });
+});
+
+describe('onboardingStepsFor', () => {
+  it('KR은 주제·커리어, GLOBAL은 주제만이다 — 한국 직군 분류는 해외 사용자에게 고를 값이 없다(global-api.md 4.4)', () => {
+    expect(onboardingStepsFor(UserMarket.KR)).toEqual(['topic', 'career']);
+    expect(onboardingStepsFor(UserMarket.GLOBAL)).toEqual(['topic']);
   });
 });
