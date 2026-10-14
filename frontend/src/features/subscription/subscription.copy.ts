@@ -16,6 +16,12 @@ const toParticle = (word: string): '로' | '으로' => {
   return batchim === 0 || batchim === 8 ? '로' : '으로';
 };
 
+/** "YYYY-MM-DD" → "N월 N일" — 서비스 날짜 문자열을 그대로 읽는다(Date 로 바꾸지 않는다 — 기기 시간대가 날짜를 하루 밀 수 있다) */
+const serviceDate = (yyyyMmDd: string): string => {
+  const [, month, day] = yyyyMmDd.split('-');
+  return `${Number(month)}월 ${Number(day)}일`;
+};
+
 export const SUBSCRIPTION_COPY = {
   /** 화면 제목 — 설정의 진입 항목 이름과 같다(KAN-146, settings.copy sections.subscription) */
   title: '요금제 관리',
@@ -170,6 +176,53 @@ export const SUBSCRIPTION_COPY = {
     downgradeAlreadyScheduled: '이미 다음 결제일부터 요금제가 바뀌도록 예약돼 있어요',
     /** iOS [유지] 성공 — 예약된 변경이 취소됐다 */
     keptCurrent: '예약된 변경을 취소했어요',
+  },
+
+  /**
+   * 초대(이벤트) 코드 지급(KAN-182 — subscription-api.md 4.8). **요금제 관리·프로필·설정 세 곳이 같은 문자열**을 쓴다
+   * (settings-uiux.md · profile-uiux.md · subscription-uiux.md 에 등재). 날짜는 `grant.last_date` 그대로 — 경계 보정을 하지 않는다
+   */
+  grant: {
+    line: (name: string, planName: string, lastDate: string) =>
+      `${name} 이벤트 이용 중 · ${planName} · ${serviceDate(lastDate)}까지`,
+    /** 요금제 관리 알림 섹션의 둘째 줄 — 구독이 없을 때는 결제하면 이벤트가 끝난다는 것을 미리 알린다(4.8 "이벤트 중 결제") */
+    noticeDetailFree: '구독을 시작하면 이벤트 혜택은 그때 끝나요',
+    /** 구독이 있는 채로 받은 지급 — 구독은 그대로 이어진다(입력 전부터 있던 구독은 지급을 끝내지 않는다) */
+    noticeDetailSubscribed: '구독은 그대로 이어져요',
+    /**
+     * 이벤트 중 결제 확인(KAN-182 요청 3) — 구독 없이 지급 중일 때 어떤 요금제를 고르든 같은 팝업이다. 티어를 앱이 비교하지 않는다
+     * (Pro 이벤트 중 Daily 를 막는 대신 같은 확인을 거친다 — subscription-uiux.md 결정)
+     */
+    purchaseConfirmTitle: (name: string) => `${name} 이벤트가 끝나요`,
+    purchaseConfirmMessage: (planName: string) =>
+      `지금 구독하면 이벤트 혜택은 바로 끝나고 ${planName} 구독으로 바뀌어요`,
+    purchaseConfirmOk: '구독하기',
+    purchaseConfirmCancel: '취소',
+  },
+
+  /** 이벤트 코드 입력 화면(KAN-182) — 설정 > [이벤트 코드 입력]. 결제 UI 플래그와 무관하게 항상 있다 */
+  invite: {
+    title: '이벤트 코드 입력',
+    description: '받은 이벤트 코드를 입력하면 요금제 혜택이 바로 적용돼요',
+    placeholder: '코드 입력',
+    inputA11y: '이벤트 코드',
+    submit: '확인',
+    submitting: '확인하는 중',
+    /** 성공 토스트 — 응답의 grant 로 만든다 */
+    success: (name: string, planName: string, lastDate: string) =>
+      `${name} 이벤트가 시작됐어요 · ${planName} · ${serviceDate(lastDate)}까지`,
+    /** 200 인데 grant 가 없다(지급 요금제가 이미 쓰는 것과 같은 등 서버가 표시를 바꾸지 않은 경우) — 성공은 성공이다 */
+    successFallback: '이벤트 코드가 적용됐어요',
+    /** subscription-api.md 5장 문구 그대로 */
+    notFound: '사용할 수 없는 코드예요',
+    expired: '사용 기간이 지난 코드예요',
+    exhausted: '선착순이 마감된 코드예요',
+    alreadyUsed: '이미 사용한 코드예요',
+    grantAlreadyActive: '다른 코드의 혜택이 아직 남아 있어요',
+    rateLimited: '잠시 후 다시 시도해주세요',
+    network: '네트워크 연결을 확인해주세요',
+    unknown: '코드를 확인하지 못했어요. 잠시 후 다시 시도해주세요',
+    backA11y: '뒤로 가기',
   },
 
   /** 실패 — subscription-api.md 5장 문구 */

@@ -1,3 +1,5 @@
+import type { PlanGrant } from '@/features/subscription';
+
 /**
  * 설정 화면 모델(camelCase) — 계약(settings-api.md 4장)의 화면 표현이다.
  */
@@ -41,6 +43,8 @@ export interface SettingsPlan {
   renewsAt: string | null;
   expiresAt: string | null;
   hasPaymentIssue: boolean;
+  /** 초대 코드 지급(KAN-182) — 지급 중이 아니면 null. 판정은 서버, 표시는 "{이름} 이벤트 이용 중" 줄 하나 */
+  grant: PlanGrant | null;
   /**
    * 가입 체험의 마지막 무제한 날(YYYY-MM-DD) — `plan.trial.last_free_date`. null이면 체험 중이 아니다.
    * 요약 카드는 날짜만 그린다(이후 한도는 프로필·가입 직후 팝업 몫 — profile-uiux.md 4.2·4.11)

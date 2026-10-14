@@ -4,6 +4,7 @@
  */
 import type { SocialProvider } from '@/features/auth';
 import type { YearsOfExperience } from '@/features/onboarding';
+import type { PlanGrant } from '@/features/subscription';
 
 // 원 정의는 온보딩 커리어 단계(career.md 3장) — profile 내부 파일은 여기서 가져다 쓴다
 export type { YearsOfExperience };
@@ -44,6 +45,8 @@ export interface ProfilePlan {
   trial: PlanTrial | null;
   /** 예약된 요금제 변경(다운그레이드) — 다음 요금제 이름과 적용 시각. 없으면 null */
   pendingPlan: { planName: string; effectiveAt: string } | null;
+  /** 초대 코드 지급(KAN-182) — 지급 중이 아니면 null. 표시는 "{이름} 이벤트 이용 중" 줄 하나(설정·요금제 관리와 같은 문자열) */
+  grant: PlanGrant | null;
 }
 
 /** 가입 체험 — 서버가 판정한 날짜·한도를 그대로 싣는다(05시 경계 판정은 서버 몫) */

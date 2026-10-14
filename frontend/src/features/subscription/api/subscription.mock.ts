@@ -3,6 +3,7 @@
  * 계약 모양만 맞춘다. 결제 자체는 스토어 SDK 가 있어야 하므로 mock 으로 흉내 낼 수 없다.
  */
 import type {
+  InviteCodeRequestDto,
   MySubscriptionResponseDto,
   PlansResponseDto,
   PurchaseIntentRequestDto,
@@ -22,6 +23,7 @@ const FREE_SUBSCRIPTION: MySubscriptionResponseDto = {
     renews_at: null,
     expires_at: null,
     has_payment_issue: false,
+    grant: null,
   },
   entitlements: { daily_play_limit: 3, daily_drip_count: 2, drip_enabled: true, ads_enabled: true },
   store: null,
@@ -100,6 +102,35 @@ export const mockCreatePurchaseIntent = async (
 export const mockSubmitPurchase = async (): Promise<MySubscriptionResponseDto> => {
   await delay(300);
   return FREE_SUBSCRIPTION;
+};
+
+/** 4.8-1 — 판정을 흉내 내지 않는다. 화면 확인용으로 아무 코드나 Pro 지급으로 돌려준다 */
+export const mockSubmitInviteCode = async (
+  body: InviteCodeRequestDto,
+): Promise<MySubscriptionResponseDto> => {
+  await delay(300);
+  return {
+    ...FREE_SUBSCRIPTION,
+    plan: {
+      ...FREE_SUBSCRIPTION.plan,
+      tier: 'pro',
+      plan_name: 'Pro',
+      daily_play_limit: null,
+      grant: {
+        name: body.code.trim(),
+        tier: 'pro',
+        plan_name: 'Pro',
+        ends_at: '2026-12-10T20:00:00Z',
+        last_date: '2026-12-10',
+      },
+    },
+    entitlements: {
+      daily_play_limit: null,
+      daily_drip_count: 5,
+      drip_enabled: true,
+      ads_enabled: false,
+    },
+  };
 };
 
 export const mockRestore = async (): Promise<RestoreResponseDto> => {

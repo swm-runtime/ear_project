@@ -26,7 +26,7 @@ import { PlayConfirmDialog, PlayerScreen, useLimitNoticeStore } from '@/features
 import { ProfileScreen, SignupTrialNotice } from '@/features/profile';
 import { SettingsScreen } from '@/features/settings';
 import { useShareLinkLanding } from '@/features/share';
-import { SubscriptionScreen } from '@/features/subscription';
+import { InviteCodeScreen, SubscriptionScreen } from '@/features/subscription';
 
 import CapsuleTabBar from './CapsuleTabBar';
 import { rememberTab, takePrimedTab, type RestorableTab } from './last-tab';
@@ -175,6 +175,13 @@ export default function MainNavigator() {
             options={{ headerShown: true, headerTitle: '', headerBackTitle: '프로필' }}
           />
         )}
+        {/* 이벤트 코드 입력(KAN-182) — 결제 UI 플래그와 **무관하게** 등록한다(지급은 스토어 결제가 아니다).
+          설정 하위 화면이라 설정과 같은 푸시 화면 상단(iOS 26 시스템 큰 제목, 그 외는 화면이 앱바를 그린다) */}
+        <MainStack.Screen
+          name="InviteCode"
+          component={InviteCodeScreen}
+          options={PUSHED_SCREEN_HEADER}
+        />
         {/* 이메일 인증 — 앱바(뒤로 + 타이틀)를 화면이 직접 그린다(auth-uiux.md 4.7~4.10).
           설정·프로필 두 경로가 같은 화면이다(auth.md 4.5 — 발송 제한이 경로에 합산 적용) */}
         <MainStack.Screen name="EmailVerification" component={EmailVerificationScreen} />

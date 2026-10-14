@@ -28,6 +28,10 @@ export const registerSubscriptionChangedListener = (
   return () => changedListeners.delete(listener);
 };
 
+/** 서버가 구독 상태를 새로 줬다 — 결제·복원 말고도 초대 코드 지급(KAN-182)이 같은 배선으로 다른 feature 요약을 갱신한다 */
+export const notifySubscriptionChanged = (subscription: MySubscription): void =>
+  changedListeners.forEach((listener) => listener(subscription));
+
 const platform = getDevicePlatform();
 
 /** 결제 서비스 싱글턴 — 결제 모듈이 없는 바이너리에서는 start 하지 않으므로 네이티브를 건드리지 않는다 */
@@ -35,8 +39,7 @@ export const purchaseService = createPurchaseService({
   platform,
   adapter: createExpoIapAdapter(platform),
   api: { createIntent: createPurchaseIntent, submit: submitPurchase, restore: restorePurchases },
-  onSubscriptionChanged: (subscription) =>
-    changedListeners.forEach((listener) => listener(subscription)),
+  onSubscriptionChanged: notifySubscriptionChanged,
   onRecovered: () => useToastStore.getState().show(SUBSCRIPTION_COPY.result.recovered),
   setUiState: (patch) => useSubscriptionPurchaseStore.setState(patch),
   schedule: (callback, delayMs) => {

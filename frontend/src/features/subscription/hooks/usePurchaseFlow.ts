@@ -1,8 +1,11 @@
+import { useQuery } from '@tanstack/react-query';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert, Platform } from 'react-native';
 
+import { IS_SUBSCRIPTION_UI_ENABLED } from '@/shared/lib/feature-flags';
 import { useToastStore } from '@/shared/ui/toast.store';
 
+import { fetchMySubscription, subscriptionKeys } from '../api/subscription.api';
 import { openEmailVerification } from '../services/email-verification-opener';
 import type { PurchaseOutcome } from '../services/purchase.service';
 import { purchaseService } from '../services/subscription-sync';
@@ -40,6 +43,18 @@ export const usePurchaseFlow = (options: PurchaseFlowOptions) => {
   const [notice, setNotice] = useState<PurchaseFeedback['notice']>(null);
   /** 결제 시트를 연 요금제 — 그 버튼에만 스피너를 둔다 */
   const [purchasingPlanId, setPurchasingPlanId] = useState<string | null>(null);
+  /**
+   * 지금 구독(요금제 관리 화면과 같은 캐시) — 이벤트 중 결제 확인(KAN-182)에만 쓴다. 페이월에서 처음 열려도 한 번 받는다
+   */
+  const meQuery = useQuery<MySubscription>({
+    queryKey: subscriptionKeys.me(),
+    queryFn: fetchMySubscription,
+    enabled: IS_SUBSCRIPTION_UI_ENABLED,
+  });
+  const meRef = useRef(meQuery.data);
+  useEffect(() => {
+    meRef.current = meQuery.data;
+  });
 
   // 콜백은 매 렌더 바뀌어도 진행 중인 결제가 최신 것을 부르게 ref 로 든다
   const optionsRef = useRef(options);
@@ -98,6 +113,28 @@ export const usePurchaseFlow = (options: PurchaseFlowOptions) => {
                 onPress: () => resolve(false),
               },
               { text: SUBSCRIPTION_COPY.plans.downgradeConfirmOk, onPress: () => resolve(true) },
+            ],
+            { cancelable: true, onDismiss: () => resolve(false) },
+          );
+        });
+        if (!confirmed) return;
+      }
+      // 이벤트 중 결제(KAN-182 · subscription-api.md 4.8) — 구독 없이 초대 코드 지급 중이면 결제가 지급을 끝낸다. 결제 시트 전에 한 번 묻는다.
+      // "입력 때 구독이 있었나"는 앱이 모르므로 **지급 중 + 지금 status free** 일 때만 묻는다. 고른 요금제가 지급보다 높든 낮든
+      // 같은 확인이다 — 티어를 앱이 비교하지 않는다(Pro 이벤트 중 Daily 도 막지 않고 같은 확인을 거친다)
+      const grant = meRef.current?.plan.grant ?? null;
+      if (grant !== null && meRef.current?.plan.status === 'free') {
+        const confirmed = await new Promise<boolean>((resolve) => {
+          Alert.alert(
+            SUBSCRIPTION_COPY.grant.purchaseConfirmTitle(grant.name),
+            SUBSCRIPTION_COPY.grant.purchaseConfirmMessage(plan.name),
+            [
+              {
+                text: SUBSCRIPTION_COPY.grant.purchaseConfirmCancel,
+                style: 'cancel',
+                onPress: () => resolve(false),
+              },
+              { text: SUBSCRIPTION_COPY.grant.purchaseConfirmOk, onPress: () => resolve(true) },
             ],
             { cancelable: true, onDismiss: () => resolve(false) },
           );

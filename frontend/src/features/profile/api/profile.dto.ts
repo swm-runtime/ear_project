@@ -2,6 +2,7 @@
  * 서버 계약 그대로의 DTO(snake_case) — profile-api.md 4장과 1:1이다.
  * 변환(to*)은 profile.api.ts 안에서만 일어난다(convention.md 5.2).
  */
+import type { PlanGrantDto } from '@/features/subscription';
 
 export type ProfileProviderDto = 'kakao' | 'naver' | 'google';
 export type PlanStatusDto = 'free' | 'subscribed' | 'cancel_scheduled' | 'grace';
@@ -37,6 +38,8 @@ export interface ProfilePlanDto {
    * 적용 시각, 없으면 null. 선택 필드 — 아직 안 보내는 서버에서는 없고, 그때는 null 로 읽는다
    */
   pending_plan?: { tier: string; plan_name: string; effective_at: string } | null;
+  /** 초대 코드 지급(profile-api.md 4.1 "`plan.grant`" — subscription-api.md 4.8 과 같은 조립 함수, KAN-182). 없거나 null 이면 지급 중 아님 */
+  grant?: PlanGrantDto | null;
 }
 
 export interface ProfilePlanTrialDto {

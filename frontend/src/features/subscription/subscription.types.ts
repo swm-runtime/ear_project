@@ -46,6 +46,20 @@ export type SubscriptionStore = 'app_store' | 'play_store';
 /** 구독 요약 status 4분기(profile-api.md 4.1과 같은 조립 함수) */
 export type SubscriptionStatus = 'free' | 'subscribed' | 'cancel_scheduled' | 'grace';
 
+/**
+ * 초대(이벤트) 코드 지급(subscription-api.md 4.8 `plan.grant`) — 구독 조회·프로필·설정의 plan 에 같은 모양으로 실린다.
+ * 지급은 구독이 아니다 — `status` 는 구독 상태 그대로이고, 지급 요금제가 더 높으면 서버가 tier·planName 을 지급 값으로 준다
+ */
+export interface PlanGrant {
+  /** 코드(캠페인) 이름 — "{name} 이벤트 이용 중"에 그대로 쓴다(KAN-182) */
+  name: string;
+  tier: string;
+  planName: string;
+  endsAt: string;
+  /** 지급으로 쓸 수 있는 마지막 서비스 날짜(YYYY-MM-DD) — "N월 N일까지"는 이 값 그대로(경계 보정 없음) */
+  lastDate: string;
+}
+
 export interface SubscriptionPlanSummary {
   status: SubscriptionStatus;
   tier: string;
@@ -54,6 +68,8 @@ export interface SubscriptionPlanSummary {
   renewsAt: string | null;
   expiresAt: string | null;
   hasPaymentIssue: boolean;
+  /** 지급 중이 아니면 null */
+  grant: PlanGrant | null;
 }
 
 /** 다운그레이드 예약 — "N월 N일부터 데일리" 안내의 근거(subscription-api.md 4.2) */
