@@ -12,7 +12,7 @@
 | 기한 | 2026-10-17 (Medium — 1~3일차: 결정 확정·트랙 자산·첫 3편 실측). 전체 목표 **2026-10-24까지 영어 20~25편 검수 통과**(글로벌 빌드 심사 제출과 동시) |
 | 선행 | 없음(티켓). 사람 손: **영어 진행자 2인 페르소나·보이스 선정**(박수헌 제안 → PM 확정) · **영어 검수자** 배정(게이트 2는 대본 직접 열람) · 해외 매체·팬 커뮤니티 권리 판정(변호사 검토 #1 범위 확장) |
 | 관련 | BE `tickets/backend/pending/global-market-model.md`(발행 계약 `market/language` — **제품 발행은 이것 뒤**, 그 전엔 미발행 패키지 검수까지) · FE `tickets/frontend/pending/global-english-ui.md` |
-| 근거 문서 | 2026-10-14 글로벌화 조사(AI) · `docs/ai/PIPELINE.md` · `spec/01·03·04·05·06` · `skills/draft/guidelines.md` · `skills/critic/rubric-v2.md` |
+| 근거 문서 | **`spec/api/global-api.md`(글로벌 트랙 HTTP 계약 — 확정/가안/미결 표시. 구현은 이 문서를 따르고, 계약이 바뀌면 티켓이 아니라 이 문서를 고친다)** · 2026-10-14 글로벌화 조사(AI) · `docs/ai/PIPELINE.md` · `spec/01·03·04·05·06` · `skills/draft/guidelines.md` · `skills/critic/rubric-v2.md` |
 | 중요도 | Medium — 기한은 1~3일차. 10일 계획의 **진짜 임계 경로는 콘텐츠 물량**(주제 4~5개 × 5편) |
 | 상태 | 대기 |
 

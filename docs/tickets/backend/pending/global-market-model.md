@@ -12,7 +12,7 @@
 | 기한 | 2026-10-17 (Medium — 1~3일차 마일스톤: 시장 모델·노출 격리까지). 전체 목표: **2026-10-24 글로벌 빌드 심사 제출**(10일 계획) |
 | 선행 | 없음(티켓). 사람 손: **결정 2건 확정**(아래 "결정 대기") · K-컬처 주제 트리 초안(AI 티켓 `global-english-track.md`에서 박수헌이 제안, BE가 `topics`에 반영) |
 | 관련 | FE `tickets/frontend/pending/global-english-ui.md` · AI `tickets/ai/pending/global-english-track.md` — **이 티켓이 둘을 막는다**(시장 API·발행 계약) |
-| 근거 문서 | 2026-10-14 글로벌화 조사(BE·FE·AI 세 파트) · `backend/domain.md` · `features/drip-scheduling.md` · `spec/api/subscription-api.md` 4.1 · `common-error-handling.md` 9장 |
+| 근거 문서 | **`spec/api/global-api.md`(글로벌 트랙 HTTP 계약 — 확정/가안/미결 표시. 구현은 이 문서를 따르고, 계약이 바뀌면 티켓이 아니라 이 문서를 고친다)** · 2026-10-14 글로벌화 조사(BE·FE·AI 세 파트) · `backend/domain.md` · `features/drip-scheduling.md` · `spec/api/subscription-api.md` 4.1 · `common-error-handling.md` 9장 |
 | 중요도 | Medium — 기한은 1~3일차 산출물. 전체는 10일 계획이며 콘텐츠 물량·스토어 심사가 코드보다 늦다 |
 | 상태 | 대기 |
 

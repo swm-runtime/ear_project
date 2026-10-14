@@ -12,7 +12,7 @@
 | 기한 | 2026-10-17 (Medium — 1~3일차: i18n 기반·핵심 화면 영어·시장 분기). 전체 목표 **2026-10-24 글로벌 빌드 심사 제출** |
 | 선행 | BE `tickets/backend/pending/global-market-model.md`(KAN-185 — 시장 판정 API·요금제·주제 응답. 1일차 산출물부터 mock으로 병행 가능) · 사람 손: K-컬처 주제 트리·이미지(AI 티켓) |
 | 관련 | AI `tickets/ai/pending/global-english-track.md` · `tickets/frontend/pending/invite-code-event-ui.md`(KAN-182 — **같은 빌드에 묶어 심사 한 번**) |
-| 근거 문서 | 2026-10-14 글로벌화 조사(FE) · `frontend/architecture.md` · `common-error-handling.md` 9장 · `spec/uiux/*` |
+| 근거 문서 | **`spec/api/global-api.md`(글로벌 트랙 HTTP 계약 — 확정/가안/미결 표시. 구현은 이 문서를 따르고, 계약이 바뀌면 티켓이 아니라 이 문서를 고친다)** · 2026-10-14 글로벌화 조사(FE) · `frontend/architecture.md` · `common-error-handling.md` 9장 · `spec/uiux/*` |
 | 중요도 | Medium — 기한은 1~3일차. 10일 계획의 FE 임계 경로는 i18n 리소스 전환(L) |
 | 상태 | 대기 |
 
