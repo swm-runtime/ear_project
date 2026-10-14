@@ -336,6 +336,20 @@ export class LibraryService {
    * 한 구간에 적립된 편성분(드립·탐험)을 콘텐츠와 함께 — 추천 별점 팝업(`drip-feedback.md` 4.1)의 재료.
    * 삭제분은 뺀다: 사용자가 지운 편은 이미 반응한 것이라 다시 묻지 않는다.
    */
+  /** 기간 안의 편성분(정규·탐험) 전체 — 드립 도착 알림(07:00)이 그날 배치 결과를 읽는다 */
+  async findPlacementsAddedBetween(
+    start: Date,
+    end: Date,
+    manager?: EntityManager,
+  ): Promise<LibraryItem[]> {
+    return this.libraryItemRepository.findAllWithContentBySourcesAddedBetween(
+      [LibraryItemSource.DRIP, LibraryItemSource.DISCOVERY],
+      start,
+      end,
+      manager,
+    );
+  }
+
   async findPlacedBetween(
     userId: string,
     start: Date,

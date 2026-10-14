@@ -8,6 +8,11 @@ import { DripBatchOrchestrator } from './drip-batch.orchestrator';
 /** `drip-scheduling.md` 2 — 일일 편성 배치는 **매일 05:00 KST 확정**(합의 2026-08-06)이다 */
 const DAILY_DRIP_CRON = '0 0 5 * * *';
 const DAILY_DRIP_TIMEZONE = 'Asia/Seoul';
+/**
+ * 드립 도착 알림 — **07:00 KST**(2026-10-14). 편성(05:00)과 떼어 낸다 — 새벽 5시 알림은 잠금화면에 묻혔다.
+ * 시각을 바꾸면 `DRIP_ARRIVAL_PUSH_HOUR_KST`(배치가 늦게 끝났을 때의 즉시 발송 판정)도 같이 바꾼다
+ */
+const DRIP_ARRIVAL_PUSH_CRON = '0 0 7 * * *';
 
 /**
  * 일일 편성 배치의 트리거. 서비스 날짜 경계(05:00 — domain.md 1.2)와 같은 시각(경계 정각이라 새 서비스 날짜로 편성된다. 2026-10-12 전환 전에는 경계 04:00 이후)에 실행되도록
@@ -45,6 +50,21 @@ export class DripBatchScheduler implements OnApplicationBootstrap {
     } catch (error) {
       // 배치 전체 실패 — 사용자 단위 실패는 Orchestrator가 격리하므로 여기 오면 장애다
       this.logger.error('daily drip batch failed', {
+        error: error instanceof Error ? error.message : 'unknown error',
+      });
+    }
+  }
+
+  @Cron(DRIP_ARRIVAL_PUSH_CRON, {
+    name: 'drip-arrival-push',
+    timeZone: DAILY_DRIP_TIMEZONE,
+  })
+  async pushDripArrivals(): Promise<void> {
+    try {
+      await this.dripBatchOrchestrator.notifyTodayArrivals(new Date());
+    } catch (error) {
+      // 알림 실패는 편성에 영향이 없다 — 적립은 05:00에 이미 끝났다
+      this.logger.error('drip arrival push failed', {
         error: error instanceof Error ? error.message : 'unknown error',
       });
     }
