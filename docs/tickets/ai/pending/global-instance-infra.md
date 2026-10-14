@@ -26,16 +26,22 @@
 1. **DB** — 별도 Supabase 프로젝트에 한국판과 같은 스키마(`schema.sql` + 마이그레이션 전부)를 적용한다.
 2. **저장소** — 별도 S3 버킷. 한국판과 같은 계정·자격증명 모델(EC2 인스턴스 역할 · 웹 서명 URL), 버킷 정책만 추가한다.
 3. **시딩** — `topics` 8개(명세 2장 — 이름·slug), `settings.automation.auto_approve` 끔, 비평 뒤 발행 준비 연쇄 끔(명세 7장 파일럿).
-4. **글로벌 콘솔** — 별도 서브도메인으로 배포. 같은 EC2에 둘지는 메모리 여유를 보고 정한다.
+4. **글로벌 콘솔** — 주소 **`admin-global.earcast.co.kr`**(2026-10-14 확정). 같은 EC2에 둘지는 메모리 여유를 보고 정한다.
+   - DNS: `admin-global` A 레코드를 AI 서버 고정 IP로 추가(사용자 실행)
+   - 코드: Caddyfile에 글로벌 사이트 블록, compose에 글로벌 콘솔·워커 서비스, 서버에 글로벌 env 파일
+   - GCP: 구글 로그인 "승인된 JavaScript 원본"에 `https://admin-global.earcast.co.kr` 등록
+   - env: 알림 링크 기본 URL은 새 주소, 발행 SSO 키는 한국판과 같은 값(발행처가 같은 제품 서버)
+   - 화면 상단에 `GLOBAL` 표시(분기는 KAN-201)
 5. **서버 워커** — 글로벌 인스턴스 env로 두 번째 워커 프로세스를 띄운다(`PIPELINE_LOCALE=en` · `CAPABILITIES=ai,io` · OpenAI 실행기). 한 워커는 한 인스턴스만 본다. 노트북 워커는 두지 않는다(명세 4.4).
 6. 알림 — Slack `#dev-ai` 공유, 큐 비움 요약 머리에 `[GLOBAL]`.
 
 ## 완료 조건
 
-- Given 글로벌 콘솔 / When 로그인한다 / Then 한국판과 다른 DB의 빈 백로그와 주제 8개가 보인다
+- Given `https://admin-global.earcast.co.kr` / When 구글 로그인한다 / Then 한국판과 다른 DB의 빈 백로그와 주제 8개가 보이고, 상단에 `GLOBAL` 표시가 있다
 - Given 글로벌 서버 워커 기동 / When 저장소 접근 확인이 돈다 / Then 글로벌 버킷 읽기·쓰기가 통과하고 한국판 버킷에는 쓰지 않는다
 - Given 글로벌 `settings` / Then 자동 승인과 발행 준비 연쇄가 꺼져 있다
 - Given 한국판 콘솔·워커 / Then 글로벌 인스턴스를 띄운 뒤에도 동작이 같다
 
 ## 처리 기록
 - 2026-10-14 발행 — 묶음 티켓 분할(KAN-200~204)에서 빠진 명세 G1 작업을 따로 뗐다.
+- 2026-10-14 콘솔 주소 확정: `admin-global.earcast.co.kr`(하위 도메인 방식, 경로 방식은 쓰지 않음).
