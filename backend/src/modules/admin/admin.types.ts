@@ -324,6 +324,28 @@ export interface InsightsDailyRows {
   completes: { date: string; count: number }[];
 }
 
+/**
+ * 시장별 집계(`global-api.md` 4.10, KAN-190) — 가입·활성·청취·결제를 시장마다 나눠 본다. PoC 성과를 읽으려면 어느 트랙이
+ * 움직였는지가 보여야 한다. 전부 **현재 계정** 기준이다 — 탈퇴 기록(`withdrawal_logs`)에는 시장이 없다.
+ */
+export interface InsightsMarketTotals {
+  market: UserMarket;
+  /** 현재 계정 수 */
+  users: number;
+  /** 그중 창(`since`) 안에 가입한 수 */
+  signupsInWindow: number;
+  onboardingCompleted: number;
+  /** 앱 사용(토큰 갱신) 기준 WAU — `users.active_7d`와 같은 정의 */
+  active7d: number;
+  /** 재생 기준 7일 — `users.listeners_7d`와 같은 정의 */
+  listeners7d: number;
+  /** 창 안 청취 시간·재생 수 — `listening.window`와 같은 정의 */
+  listenSec: number;
+  plays: number;
+  /** 결제 중인 사용자 — `users.paid_active`와 같은 정의 */
+  paidActive: number;
+}
+
 export interface InsightsSummary {
   since: Date;
   generatedAt: Date;
@@ -339,4 +361,5 @@ export interface InsightsSummary {
   withdrawalReasons: InsightsWithdrawalReason[];
   retention: InsightsRetention[];
   topicSupply: InsightsTopicSupply[];
+  byMarket: InsightsMarketTotals[];
 }

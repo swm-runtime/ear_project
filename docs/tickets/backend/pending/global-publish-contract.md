@@ -46,3 +46,4 @@
   - **필수로 바꾸지 않은 이유**: 지금 필수로 하면 파이프라인의 KR 발행이 400으로 막힌다. AI 파트가 `SEND_*` 플래그로 두 필드를 보내기 시작한 뒤(KAN-204) 필수로 올린다 — 이 티켓의 남은 일.
   - 남은 것: 필수 전환 · `insights/summary` `by_market` · 배포 후 AI 담당 알림(처리 기록에 날짜).
   - 문서: `changes/pending/global-publish-contract.md`.
+- 2026-10-14 `insights/summary` `by_market` — PR `feat(be)/insights-by-market`. 모양은 `global-api.md` 4.10에 확정. 남은 것: 필수 전환 · 배포 후 AI 담당 알림.

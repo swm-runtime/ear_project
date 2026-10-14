@@ -1,3 +1,5 @@
+import { UserMarket } from '@/modules/user/user.enum';
+
 import {
   INSIGHTS_RANK_LIMIT,
   INSIGHTS_RETENTION_DAYS,
@@ -8,6 +10,7 @@ import {
   AdminInsightsService,
   fillDailySeries,
   fillHourly,
+  fillMarkets,
   kstDateLabel,
 } from './admin-insights.service';
 
@@ -77,6 +80,34 @@ describe('AdminInsightsService 순수 함수', () => {
     expect(hourly[0]).toEqual({ hour: 0, plays: 0, listenSec: 0 });
     expect(hourly[23].hour).toBe(23);
   });
+
+  it('fillMarkets — 계정이 없는 시장도 0 으로 한 칸 두고, 순서는 시장 enum 순서다', () => {
+    // given — GLOBAL 행만 있다
+    const global = {
+      market: UserMarket.GLOBAL,
+      users: 3,
+      signupsInWindow: 3,
+      onboardingCompleted: 2,
+      active7d: 2,
+      listeners7d: 1,
+      listenSec: 600,
+      plays: 2,
+      paidActive: 0,
+    };
+
+    // when
+    const filled = fillMarkets([global]);
+
+    // then
+    expect(filled.map((m) => m.market)).toEqual([
+      UserMarket.KR,
+      UserMarket.GLOBAL,
+    ]);
+    expect(filled[0]).toEqual(
+      expect.objectContaining({ users: 0, listenSec: 0, plays: 0 }),
+    );
+    expect(filled[1]).toBe(global);
+  });
 });
 
 describe('AdminInsightsService.summarize', () => {
@@ -96,6 +127,7 @@ describe('AdminInsightsService.summarize', () => {
     withdrawalReasons: jest.fn().mockResolvedValue([]),
     retention: jest.fn().mockResolvedValue([]),
     topicSupply: jest.fn().mockResolvedValue([]),
+    marketTotals: jest.fn().mockResolvedValue([]),
   });
 
   it('창은 now - days 이고, 전 기간(null)·창 두 번의 청취 합계를 부르며, 순위는 상수 길이로 부른다', async () => {
