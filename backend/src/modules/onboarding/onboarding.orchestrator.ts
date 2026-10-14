@@ -81,6 +81,7 @@ export class OnboardingOrchestrator {
     return {
       onboardingCompleted: user.onboardingCompleted,
       onboardingStep: user.onboardingStep,
+      steps: onboardingStepsFor(user.market),
       selectedTopicIds,
       career: {
         jobCategory: user.jobCategory,
@@ -120,9 +121,12 @@ export class OnboardingOrchestrator {
         manager,
       );
 
+      // GLOBAL은 커리어 단계가 없다 — 곧바로 완료 대기 단계로 간다(global-api.md 4.4, KR은 종전대로 career)
       const updated = await this.userOnboardingService.advanceStep(
         user,
-        OnboardingStep.CAREER,
+        user.market === UserMarket.GLOBAL
+          ? OnboardingStep.PICK
+          : OnboardingStep.CAREER,
         manager,
       );
 
@@ -156,6 +160,15 @@ export class OnboardingOrchestrator {
         manager,
       );
       this.userOnboardingService.assertNotCompleted(user);
+      // 커리어는 한국 직군 분류다 — GLOBAL 계정에는 고를 값이 없어 받지 않는다(global-api.md 4.4)
+      if (user.market === UserMarket.GLOBAL) {
+        throw new BusinessException({
+          status: HttpStatus.CONFLICT,
+          errorCode: ErrorCode.MARKET_MISMATCH,
+          message: '요청을 처리할 수 없어요',
+          logLevel: 'warn',
+        });
+      }
 
       const command: {
         jobCategory?: string | null;
@@ -546,4 +559,11 @@ export class OnboardingOrchestrator {
         })),
       }));
   }
+}
+
+/** 시장별 온보딩 화면 단계(`global-api.md` 4.4) — 담기 단계는 2026-10-11에 없어졌다(onboarding.md 3) */
+export function onboardingStepsFor(market: UserMarket): OnboardingStep[] {
+  return market === UserMarket.GLOBAL
+    ? [OnboardingStep.TOPIC]
+    : [OnboardingStep.TOPIC, OnboardingStep.CAREER];
 }

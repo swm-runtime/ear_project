@@ -81,6 +81,11 @@ export enum ErrorCode {
   INTEREST_LIMIT_EXCEEDED = 'INTEREST_LIMIT_EXCEEDED',
   /** 존재하지 않거나 숨겨진 주제 포함 — 두 경우를 구분하지 않는다(비노출 주제 탐침 방지) */
   INTEREST_TOPIC_UNAVAILABLE = 'INTEREST_TOPIC_UNAVAILABLE',
+  /**
+   * 사용자 시장과 다른 시장의 자원을 저장하려 했다(`global-api.md` 5장) — GLOBAL 계정의 커리어 저장, 다른 시장 주제를 관심사로
+   * 저장. 정상 UI에서는 나올 수 없는 상태라 클라이언트는 공통 문구로 처리한다. 409·재시도 불가
+   */
+  MARKET_MISMATCH = 'MARKET_MISMATCH',
 
   // --- 커리어 정보 (career-api.md 5장) ---
   /**

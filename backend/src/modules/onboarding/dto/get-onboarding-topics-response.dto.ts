@@ -4,6 +4,8 @@ class OnboardingTopicItemDto {
   readonly topic_id: string;
   readonly name: string;
   readonly parent_category: string;
+  /** 주제 이미지·아이콘 매핑 키(`global-api.md` 4.5). 아직 없는 KR 주제는 null — 클라이언트는 기본 이미지 */
+  readonly slug: string | null;
 }
 
 /** onboarding-api.md 4.2 */
@@ -23,6 +25,7 @@ export class GetOnboardingTopicsResponseDto {
         topic_id: topic.topicId,
         name: topic.name,
         parent_category: topic.parentCategory,
+        slug: topic.slug,
       })),
       max_selectable: result.maxSelectable,
       is_fallback: result.isFallback,

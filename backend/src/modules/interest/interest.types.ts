@@ -15,6 +15,8 @@ export interface TopicView {
   topicId: string;
   name: string;
   parentCategory: string;
+  /** 이미지 매핑 키(`global-api.md` 4.5). 아직 없는 KR 주제는 null */
+  slug: string | null;
 }
 
 /**

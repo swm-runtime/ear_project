@@ -37,6 +37,13 @@ export class Topic extends BaseEntity {
   @Column({ name: 'display_order', type: 'int' })
   displayOrder: number;
 
+  /**
+   * 안정 키(`global-api.md` 4.5) — 앱의 주제 이미지·아이콘 매핑 키. 이름이 아니라 이것으로 매핑한다(한국어 이름 키 폐기).
+   * 시장 안에서 유일. 기존 KR 주제는 운영이 채울 때까지 NULL(클라이언트는 NULL이면 기본 이미지)
+   */
+  @Column({ name: 'slug', type: 'varchar', length: 64, nullable: true })
+  slug: string | null;
+
   /** 시장(`global-api.md` 4.5) — 주제는 번역 테이블이 아니라 시장별 별도 행이다. 사용자 시장의 주제만 보인다 */
   @Column({
     name: 'market',

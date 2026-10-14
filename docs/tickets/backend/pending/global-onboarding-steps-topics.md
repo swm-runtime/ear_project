@@ -14,7 +14,7 @@
 | 관련 | FE [KAN-195](https://runtime364.atlassian.net/browse/KAN-195) 가입·온보딩 분기가 이 응답을 쓴다 |
 | 근거 문서 | **`spec/api/global-api.md` 4.4 · 4.5 · 5장 · 9장 미결 #5·#6** — 구현은 이 문서를 따르고, 계약이 바뀌면 티켓이 아니라 이 문서를 고친다 · 2026-10-14 글로벌화 조사 |
 | 중요도 | Medium |
-| 상태 | 대기 |
+| 상태 | 진행 중 (2026-10-14 구현 PR 올림) |
 
 > 2026-10-14 발행한 묶음 티켓(BE KAN-185 · FE KAN-183 · AI KAN-184)을 처리 단위로 나눈 것. 결정 사항(같은 앱·기기 언어로 가입 시 1회 시장 판정·한국 트랙 불변·에러 번역은 클라이언트·가격은 스토어·영어 진행자 새 2인·K-컬처 주제 신설·GLOBAL 연령 16세)과 결정 대기(시장 전환 불허)는 `spec/api/global-api.md` 2.1·9장이 원본이다.
 
@@ -40,3 +40,7 @@
 
 ## 처리 기록
 - 2026-10-14 발행(마크다운 + Jira). 묶음 티켓 분할.
+- 2026-10-14 구현 — PR `feat(be)/global-onboarding-topics`(dev 대상).
+  - 완료: `GET /onboarding/state` `steps[]`(KR `[topic, career]` · GLOBAL `[topic]` — 담기 단계 제거 반영) · GLOBAL은 주제 저장 시 단계가 곧바로 `pick` · GLOBAL 커리어 저장 409 `MARKET_MISMATCH` · 온보딩 관심 주제에 다른 시장 주제가 섞이면 409(부분 저장 없음) · `topics.slug`(NULL 허용, 시장 안 유일) · 주제 응답 `items[].slug` · **GLOBAL 주제 8개 시드**(AI 확정 표 그대로, 숨김 상태 — 콘텐츠 들어온 뒤 운영이 켠다) · 에러 코드 `MARKET_MISMATCH` 신설.
+  - 정정: AI 문서는 `parent_category`를 비워 두라고 했지만 컬럼이 NOT NULL이고 응답 계약을 바꾸지 않으려고 **주제 이름을 그대로** 넣었다(1단계 체계라 대분류 = 주제).
+  - 남은 것: 관심사 관리(`PUT /users/me/interests`)의 시장 검사 · KR 주제 slug 채우기(운영 데이터) · 약관 시장 네임스페이스(`terms_global_v1` — 영어 약관 확정 뒤) · `common-error-handling.md` 9장에 `MARKET_MISMATCH` 등재(changes/pending).

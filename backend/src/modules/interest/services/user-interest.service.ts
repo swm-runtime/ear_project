@@ -20,6 +20,7 @@ import {
   UserInterestSelectionView,
 } from '../interest.types';
 import { UserInterestRepository } from '../repositories/user-interest.repository';
+import { UserMarket } from '@/modules/user/user.enum';
 
 /**
  * `user_interests`는 interest 모듈 소유다(domain.md 2장).
@@ -206,6 +207,7 @@ export class UserInterestService {
     manager?: EntityManager,
   ): Promise<string[]> {
     await this.assertSelectable(topicIds, manager);
+    await this.assertSameMarket(userId, topicIds, manager);
 
     // 같은 사용자의 동시 저장을 직렬화한다 — 관리 경로(`replaceManagedSelection`)와 같은 이유다.
     // 잠그지 않으면 두 요청이 같은 스냅샷을 읽고 각자 INSERT해 유니크 위반(500)이 난다
@@ -649,6 +651,37 @@ export class UserInterestService {
         status: HttpStatus.BAD_REQUEST,
         errorCode: ErrorCode.ONBOARDING_TOPIC_UNAVAILABLE,
         message: '선택할 수 없는 주제가 포함돼 있어요',
+      });
+    }
+  }
+
+  /**
+   * 다른 시장의 주제는 저장하지 않는다(`global-api.md` 4.5) — 섞이면 그 주제의 콘텐츠가 추천 후보가 되지 못해 관심사가 조용히
+   * 죽고, 반대로 격리가 새는 경로가 된다. 409 `MARKET_MISMATCH`, 부분 저장 없음.
+   */
+  private async assertSameMarket(
+    userId: string,
+    topicIds: string[],
+    manager?: EntityManager,
+  ): Promise<void> {
+    if (topicIds.length === 0) {
+      return;
+    }
+
+    const [user, topics] = await Promise.all([
+      this.userService.getById(userId, manager),
+      this.topicService.findAllByIds(topicIds, manager),
+    ]);
+    const userMarket = user.market ?? UserMarket.KR;
+
+    if (
+      topics.some((topic) => (topic.market ?? UserMarket.KR) !== userMarket)
+    ) {
+      throw new BusinessException({
+        status: HttpStatus.CONFLICT,
+        errorCode: ErrorCode.MARKET_MISMATCH,
+        message: '요청을 처리할 수 없어요',
+        logLevel: 'warn',
       });
     }
   }

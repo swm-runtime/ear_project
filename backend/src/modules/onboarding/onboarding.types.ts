@@ -20,6 +20,8 @@ export interface OnboardingCareer {
 export interface OnboardingState {
   onboardingCompleted: boolean;
   onboardingStep: OnboardingStep;
+  /** 이 사용자가 밟을 화면 단계(`global-api.md` 4.4). 클라이언트는 이 배열대로 잇는다 */
+  steps: OnboardingStep[];
   selectedTopicIds: string[];
   career: OnboardingCareer;
   pickedCount: number;
