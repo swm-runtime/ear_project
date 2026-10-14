@@ -44,3 +44,10 @@
 
 ## 처리 기록
 - 2026-10-14 발행 — 묶음 티켓 분할(KAN-200~204)에서 빠진 명세 G2 작업을 따로 뗐다. 제공자 OpenAI는 사용자 결정(2026-10-14).
+- 2026-10-15 구현(브랜치 `feat(ai)/global-planning-search`) — **한국판 동작 무변경**이 조건(사용자 지시). 갈림은 전부 `PIPELINE_LOCALE=en` 한 곳에서 한다.
+  - 실행기: `executors/openai-search.ts`(`OpenAiSearchExecutor` — `OpenAiExecutor` 상속). `makeExecutor("openai")`가 en 에서만 만든다. 한국판은 종전 실행기라 도구 요청을 그대로 거절한다. 도구가 `WebSearch` 하나인 요청만 받고 `web_search` 도구 · `max_tool_calls` 8 · `filters.blocked_domains`(차단·보류·자동 제외, 최대 100) · `include: web_search_call.action.sources`. 응답의 검색 호출을 다시 세어 8회를 넘으면 실패, 출력 소스 중 도구가 실제로 본 URL 이 아닌 것은 버린다. 비용에 검색 1회 $0.01 을 더한다.
+  - 작업 집기: `claimJob` 의 도구 작업 허용이 `executor !== "openai" || en` — 한국판 값은 종전과 같다.
+  - 보조 주제·게이트 1 기록: 마이그레이션 0028(`backlog.sub_topic` · `backlog.gate1_checks`, 둘 다 NULL 허용). 한국판 코드는 두 칸을 읽지도 쓰지도 않는다(백로그 화면은 en 일 때만 select 에 더한다).
+  - 배제 주제: 콘솔 서버가 입력 때 OpenAI 단발 판정(`lib/topic-screen.ts`) — 해당하면 작업을 만들지 않고 사유를 보인다. 키가 없거나 실패하면 입력을 받지 않는다. 판정 결과는 payload → `gate1_checks.screen`.
+  - 게이트 1: `lib/gate1.ts` — 조건 4개를 승인 버튼(표시)과 승인 액션(재검사)이 같이 쓴다. 판정 대기 도메인은 `/domains/<id>` 링크.
+  - 남은 것: 실호출 확인(`.work/global-infra/smoke-web-search.mts`) · 0028 적용 · `web-global` 컨테이너에 `OPENAI_API_KEY`(PR #1529) · 검색·판정 프롬프트 문장은 영어 규칙 설계 때 새로 쓴다(지금은 한국판 B-② 프롬프트로 동작만 확인).

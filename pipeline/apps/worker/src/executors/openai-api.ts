@@ -18,7 +18,7 @@ const MODEL_MAP: Record<string, string> = {
   "claude-haiku-4-5-20251001": process.env.OPENAI_MODEL_HAIKU || "gpt-6.1-sol",
 };
 /** $/M tokens — input · cached input · output (developers.openai.com/api/docs/pricing, 2026-09-19 · GPT-6 계열 2026-10-09 추가. gpt-5.6-sol 은 11/21 까지 프로모션가) */
-const PRICE: Record<string, [number, number, number]> = {
+export const PRICE: Record<string, [number, number, number]> = {
   "gpt-6-astra": [10, 1, 50], "gpt-6.1-sol": [2, 0.1, 10], "gpt-6-sol": [2, 0.2, 10], "gpt-6-luna": [0.1, 0.01, 0.5], "gpt-5.6-sol": [4, 0.4, 20], "gpt-5.6-terra": [2, 0.2, 12], "gpt-5.6-luna": [0.2, 0.02, 1.2],
   "gpt-5.4": [2.5, 0.25, 15], "gpt-5.4-mini": [0.75, 0.075, 4.5], "gpt-5.4-nano": [0.2, 0.02, 1.25],
   "gpt-5.1": [1.25, 0.125, 10], "gpt-5": [1.25, 0.125, 10], "gpt-5-mini": [0.25, 0.025, 2], "gpt-5-nano": [0.05, 0.005, 0.4],
@@ -130,7 +130,7 @@ export class OpenAiExecutor implements Executor {
   }
 
   /** 429·5xx 는 최대 3회 지수 대기. 작업 취소·타임아웃은 AbortSignal 로 */
-  private async call(key: string, body: any, timeoutMs: number): Promise<{ status: number; text: string }> {
+  protected async call(key: string, body: any, timeoutMs: number): Promise<{ status: number; text: string }> {
     const base = (process.env.OPENAI_BASE_URL || "https://api.openai.com/v1").replace(/\/$/, "");
     let last: { status: number; text: string } = { status: 0, text: "" };
     for (let attempt = 1; attempt <= 3; attempt++) {

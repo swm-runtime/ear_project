@@ -7,6 +7,8 @@ import { deletePrefix, getBytes, getText, putBytes, putText } from "@/lib/storag
 import { readScriptFileBody } from "@/lib/script-file";
 import { majorOrder, majorTopicsFor } from "@/lib/taxonomy";
 import { ensureEmbedding } from "@/lib/embedding";
+import { gate1Check, type Gate1Domain, type Gate1Row } from "@/lib/gate1";
+import { screenGlobalTopic } from "@/lib/topic-screen";
 
 /** 음차 사전·발음 맵 공통 형식 검증 — {"표기": "발음"} 객체, 값은 비어 있지 않은 문자열 (spec/06 6장) */
 function assertPronunciationJson(content: string): Record<string, string> {
@@ -28,6 +30,10 @@ function assertPronunciationJson(content: string): Record<string, string> {
  */
 export async function setBacklogStatus(id: string, status: "approved" | "rejected" | "held" | "proposed" | "qa_passed" | "published") {
   const sb = await supabaseServer();
+  if (status === "approved" && pipelineLocale() === "en") { // 글로벌판 게이트 1 승인 조건(명세 6.3, KAN-209) — 화면이 버튼을 막고, 여기서 다시 검사한다. 한국판은 타지 않는다
+    const g = await loadGate1(id);
+    if (!g.ok) throw new Error(`게이트 1 조건 미충족: ${g.blockers.join(" · ")}`);
+  }
   const { error } = await sb.from("backlog").update({ status }).eq("id", id);
   if (error) throw new Error(error.message);
   if (status === "approved") {
@@ -38,6 +44,63 @@ export async function setBacklogStatus(id: string, status: "approved" | "rejecte
     }
   }
   revalidatePath("/backlog"); revalidatePath("/"); revalidatePath("/episodes");
+}
+
+/** 글로벌판 게이트 1 조건 검사 (lib/gate1.ts) — en 인스턴스에서만 부른다. 0028 칸(sub_topic·gate1_checks)은 en 쿼리에서만 읽는다 */
+export async function loadGate1(id: string) {
+  const sb = await supabaseServer();
+  const [{ data: row, error }, { data: domains }] = await Promise.all([
+    sb.from("backlog").select("sources,gaps,dedup_note,gate1_checks").eq("id", id).single(),
+    sb.from("domains").select("id,domain,tier"),
+  ]);
+  if (error || !row) throw new Error(`후보 ${id} 를 찾지 못했다`);
+  return gate1Check(row as Gate1Row, (domains ?? []) as Gate1Domain[]);
+}
+
+/** 글로벌판 게이트 1 조건 4 — 빈 역할·소스 겹침 경고를 사람이 확인했다는 기록. 기록자는 사용자 id(이메일은 남기지 않는다) */
+export async function confirmGate1Warnings(id: string) {
+  if (pipelineLocale() !== "en") throw new Error("글로벌판 전용 기능이다");
+  const sb = await supabaseServer();
+  const { data: { user } } = await sb.auth.getUser();
+  const { data: row, error } = await sb.from("backlog").select("gate1_checks").eq("id", id).single();
+  if (error || !row) throw new Error(`후보 ${id} 를 찾지 못했다`);
+  const checks = { ...((row.gate1_checks as Record<string, unknown> | null) ?? {}), warnings_confirmed: { at: new Date().toISOString(), by: user?.id ?? "unknown" } };
+  const { error: e2 } = await sb.from("backlog").update({ gate1_checks: checks }).eq("id", id);
+  if (e2) throw new Error(e2.message);
+  revalidatePath("/backlog");
+}
+
+/** 글로벌판 보조 주제 변경 — 후보 구성 뒤 더하거나 뺀다(명세 2장). 대표 주제(mid_topic)와 같으면 거부, 빈 값은 지움 */
+export async function setSubTopic(id: string, sub: string | null) {
+  if (pipelineLocale() !== "en") throw new Error("글로벌판 전용 기능이다");
+  const sb = await supabaseServer();
+  const names = majorTopicsFor("en");
+  if (sub && !names.includes(sub)) throw new Error(`모르는 주제: ${sub}`);
+  const { data: row } = await sb.from("backlog").select("mid_topic").eq("id", id).single();
+  if (sub && row?.mid_topic === sub) throw new Error("보조 주제가 대표 주제와 같다");
+  const { error } = await sb.from("backlog").update({ sub_topic: sub || null }).eq("id", id);
+  if (error) throw new Error(error.message);
+  revalidatePath("/backlog");
+}
+
+/**
+ * 글로벌판 주제 기획 입력 (명세 6.1, KAN-209) — 주제 1~2개(첫째가 대표)·제목안·메모. 배제 주제(2.1)면 작업을 만들지 않고 사유를 돌려준다.
+ * 거부는 throw 가 아니라 반환값으로 — 운영 빌드는 서버 액션 오류 문구를 가려 사유가 화면에 안 보인다.
+ */
+export async function requestGlobalTopicPlan(input: { topics: string[]; title: string; hint?: string }): Promise<{ ok: true; jobId: string } | { ok: false; reason: string }> {
+  if (pipelineLocale() !== "en") return { ok: false, reason: "글로벌판 전용 기능이다" };
+  const names = majorTopicsFor("en");
+  const topics = Array.from(new Set(input.topics.map((t) => t.trim()).filter(Boolean)));
+  if (topics.length < 1 || topics.length > 2) return { ok: false, reason: "주제는 1~2개다" };
+  const unknown = topics.filter((t) => !names.includes(t));
+  if (unknown.length) return { ok: false, reason: `모르는 주제: ${unknown.join(", ")}` };
+  const title = input.title.trim(); const hint = input.hint?.trim() || null;
+  if (title.length < 4) return { ok: false, reason: "제목안이 너무 짧다" };
+  let screen;
+  try { screen = await screenGlobalTopic({ topics, title, hint }); } catch (e: any) { return { ok: false, reason: String(e?.message ?? e) }; }
+  if (screen.excluded) return { ok: false, reason: `배제 주제(${({ person: "실존 인물 사안", politics: "진행 중 정치·군사 현안", promotion: "홍보성" } as Record<string, string>)[screen.category] ?? screen.category}) — ${screen.reason}` };
+  const jobId = await enqueueJob("sweep", { mode: "B2", mid_topic: topics[0], ...(topics[1] ? { sub_topic: topics[1] } : {}), topic: title, ...(hint ? { hint } : {}), screen });
+  return { ok: true, jobId };
 }
 
 /** 작업 요청 (사람 트리거): sweep · tts · thumbnail · package · cluster 재실행. requested_by 는 트리거가 찍는다. */
