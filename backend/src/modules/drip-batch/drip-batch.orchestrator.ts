@@ -132,12 +132,12 @@ export class DripBatchOrchestrator {
     private readonly userSettingService: UserSettingService,
     configService: ConfigService<EnvironmentVariables, true>,
   ) {
-    const explicit = configService.get('AUTO_EXPAND_ENABLED', { infer: true });
+    // **`true`를 명시했을 때만 켠다**(2026-10-14). 종전 "운영(SENTRY_ENVIRONMENT=production)만 기본 꺼짐"은 운영의
+    // 환경 이름이 비거나 오타면 자동 확장이 조용히 켜지는 구조였다 — 추천 테스트 콘솔과 같은 함정(2026-10-13 수정).
+    // 개발계는 `.env.prod`(Secrets `ear/dev/api`)에 `true`를 명시해 켠다. 운영은 KAN-181 앱이 전원에게 나간 뒤 `true`
     this.autoExpandEnabled =
-      explicit === 'true' ||
-      (explicit !== 'false' &&
-        configService.get('SENTRY_ENVIRONMENT', { infer: true }) !==
-          'production');
+      configService.get('AUTO_EXPAND_ENABLED', { infer: true })?.trim() ===
+      'true';
   }
 
   /**
