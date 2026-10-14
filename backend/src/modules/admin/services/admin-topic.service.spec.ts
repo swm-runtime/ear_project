@@ -103,6 +103,7 @@ describe('AdminTopicService', () => {
         parentCategory: '커리어',
         displayOrder: null,
         market: UserMarket.KR,
+        slug: null,
       });
 
       // then

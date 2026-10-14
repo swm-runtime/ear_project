@@ -53,6 +53,8 @@ export interface CreateTopicCommand {
   displayOrder: number | null;
   /** 시장(`global-api.md` 4.5·4.9). 주제는 시장별 별도 행이다 */
   market: UserMarket;
+  /** 이미지 매핑 키(`global-api.md` 4.5). 시장 안에서 유일, 없으면 `null` */
+  slug: string | null;
 }
 
 /** admin.md 4.5 — 주제 수정 입력. 담긴 키만 바꾼다 */
@@ -61,4 +63,6 @@ export interface UpdateTopicCommand {
   parentCategory?: string;
   isVisible?: boolean;
   displayOrder?: number;
+  /** `null`이면 비운다 */
+  slug?: string | null;
 }

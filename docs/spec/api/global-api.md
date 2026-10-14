@@ -212,7 +212,7 @@
 - 기존 콘텐츠·기존 업로드는 `market = kr`, `language = ko`로 간주한다(마이그레이션 기본값). **파이프라인은 한국어 트랙에도 두 필드를 명시해 보낸다**(콘솔의 `SEND_*` 플래그 패턴 — 서버 배포 전에는 400이 나므로 서버 반영 뒤 켠다).
 - `enrichment.json`(`ai/metadata-pipeline.md` 4.4)에 `language` 키 추가(선택, 없으면 payload 값). `tags` 규칙 완화: **공백 허용, 2~20자, 한글·영문·숫자·공백, 앞뒤 공백 없음**(`^[가-힣A-Za-z0-9][가-힣A-Za-z0-9 ]{0,18}[가-힣A-Za-z0-9]$` — `content.constant.ts` `CONTENT_TAG_PATTERN`) — "Stray Kids"·"BLACKPINK"가 통과한다. `target_audiences`는 **`market = global`이면 생략 허용**(있으면 무시하지 않고 400 — 직군 enum이 KR 전용).
 - `upload-meta.json`(파이프라인 패키지)에 같은 `market`·`language`를 기록해 콘솔이 payload로 옮긴다.
-- 주제 생성 `POST /admin/topics`에 `market`(1단계 선택 — 없으면 `kr`)·`slug` 🟡. `slug` 입력은 아직 받지 않는다(KAN-189 남은 일 — KR 주제 slug 채우기와 함께). 두 필드의 필수 전환은 발행 계약 필수 전환(KAN-190 2단계)과 같은 때 한다. GLOBAL 주제 8개는 마이그레이션으로 시드됐다(1790100000000).
+- 주제 생성 `POST /admin/topics`에 `market`(1단계 선택 — 없으면 `kr`)·`slug` 🟡. `slug`는 생성·수정(`PATCH /admin/topics/:id`)에서 선택 입력으로 받는다(2026-10-14 — 소문자·숫자·하이픈, 같은 시장에 같은 slug면 409 `CONFLICT`, 수정에서 `null`이면 비운다). 목록·응답 항목에 `slug`가 실린다. 두 필드의 필수 전환은 발행 계약 필수 전환(KAN-190 2단계)과 같은 때 한다. GLOBAL 주제 8개는 마이그레이션으로 시드됐다(1790100000000).
 
 ### 4.10 어드민 조회 🟡
 

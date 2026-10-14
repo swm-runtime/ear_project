@@ -260,6 +260,84 @@ describe('주제 노출 E2E', () => {
     expect(audits).toEqual([{ after: { removed_interest_count: 1 } }]);
   });
 
+  describe('주제 slug(global-api 4.5)', () => {
+    const slug = `e2e-slug-${Date.now()}`;
+    const createTopic = (body: object) =>
+      request(app.getHttpServer())
+        .post('/api/v1/admin/topics')
+        .set('Authorization', adminAuth)
+        .send({ parent_category: PARENT_CATEGORY, ...body });
+
+    beforeAll(async () => {
+      await createTopic({ name: 'slug 주제', slug }).expect(HttpStatus.CREATED);
+    });
+
+    it('생성에 담은 slug 가 목록 항목에 실린다', async () => {
+      // when
+      const created = await createTopic({
+        name: 'slug 다른 값',
+        slug: `${slug}-2`,
+      }).expect(HttpStatus.CREATED);
+
+      // then
+      const id = (created.body as { id: string }).id;
+      expect((await findAdminTopic(id))?.slug).toBe(`${slug}-2`);
+    });
+
+    it('같은 시장에 같은 slug 로 만들면 409 CONFLICT 다', async () => {
+      // when
+      const duplicate = await createTopic({ name: 'slug 중복', slug }).expect(
+        HttpStatus.CONFLICT,
+      );
+
+      // then
+      expect((duplicate.body as { error_code: string }).error_code).toBe(
+        'CONFLICT',
+      );
+    });
+
+    it('다른 시장이면 같은 slug 를 쓸 수 있다', async () => {
+      // when / then
+      await createTopic({
+        name: 'slug 글로벌',
+        slug,
+        market: 'global',
+      }).expect(HttpStatus.CREATED);
+    });
+
+    it('수정으로 같은 시장의 다른 주제와 같은 slug 를 넣으면 409 다', async () => {
+      // given
+      const other = await seedTopic('slug-patch-dup', false);
+
+      // when / then
+      await patchTopic(other.id, { slug }).expect(HttpStatus.CONFLICT);
+    });
+
+    it('slug 형식이 틀리면 400 이다', async () => {
+      // given
+      const other = await seedTopic('slug-patch-format', false);
+
+      // when / then
+      await patchTopic(other.id, { slug: 'Not A Slug' }).expect(
+        HttpStatus.BAD_REQUEST,
+      );
+    });
+
+    it('수정에 slug 를 null 로 보내면 비운다', async () => {
+      // given
+      const other = await seedTopic('slug-patch-clear', false);
+      await patchTopic(other.id, { slug: `${slug}-clear` }).expect(
+        HttpStatus.OK,
+      );
+
+      // when
+      await patchTopic(other.id, { slug: null }).expect(HttpStatus.OK);
+
+      // then
+      expect((await reloadTopic(other.id)).slug).toBeNull();
+    });
+  });
+
   // --- 헬퍼 ---
 
   const patchTopic = (topicId: string, body: object) =>
