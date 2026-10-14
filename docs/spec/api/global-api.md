@@ -47,7 +47,7 @@
 | 저장 | `users.market`. **요청마다 헤더로 판정하지 않는다** — 헤더는 로그·통계용 |
 | 전환 | ⚪ 기본은 **불허**(가입 시 확정. 표시 언어를 바꿔도 시장은 그대로) |
 | 결제 | 시장과 무관하게 **스토어 국가**를 따른다(`storefront`). 가격 표시는 스토어 현지가만 |
-| 연령 | ⚪ 기본은 GLOBAL **16세 이상 자기 선언**, KR 현행 18세 |
+| 연령 | ✅ GLOBAL **16세 이상 자기 선언**(2026-10-14 확정 — 법정대리인 동의 없이 본인 동의가 가능한 최저 연령이 GDPR 기본 16·영국 13·미국 COPPA 13·한국 14이므로 16이면 어느 공개 국가에서도 부모 동의 흐름이 필요 없다), KR 현행 18세 불변. 스토어 등급은 Apple 16+ · Play 16–17/18+로 맞춘다 |
 
 ### 2.2 요청 헤더 🟡
 
@@ -116,7 +116,7 @@
 
 - 시장은 **계정 생성(sign-up) 시점에만** 정한다. 기존 계정의 로그인에 다른 `locale`이 와도 `market`은 바뀌지 않고 `language_code`·`timezone`만 갱신한다.
 - GLOBAL 시장에서 `provider`가 `kakao`·`naver`인 요청은 거부하지 않는다(서버는 제공자별 독립). **노출을 막는 것은 클라이언트 몫**(4.2 응답의 `market`으로 분기).
-- 연령 동의(`age_confirmation`)의 기준 연령은 시장별이다(2.1). `pending_consents[].version`에 시장 네임스페이스가 들어간다 — 예 `terms_global_v1` 🟡.
+- 연령 동의(`age_confirmation`)의 기준 연령은 시장별이다(2.1 — GLOBAL 16 · KR 18). `pending_consents[].version`에 시장 네임스페이스가 들어간다 — 예 `terms_global_v1` 🟡.
 
 **Response**(`user` 객체, `GET /users/me`도 동일)
 
@@ -272,7 +272,6 @@ upload-meta{market: global, language: en} → 콘솔 payload → POST /admin/con
 | # | 항목 | 기본값(결정 전 구현 기준) | 결정자 |
 |---|---|---|---|
 | 1 | 같은 계정의 시장 전환 | 불허 | 박준현 |
-| 2 | GLOBAL 연령 기준 | 16세 자기 선언 | 박준현·법무 |
 | 3 | 발송 그룹 정의(경계 오프셋·그룹 수) | asia/europe/americas 3그룹 | BE |
 | 4 | GLOBAL 상품 ID·요금(USD) | `com.runtime.ear.global.{daily,pro}.monthly` | 박준현(스토어) |
 | 5 | 약관 네임스페이스(`terms_global_v1`)와 재동의 흐름 | 가입 시 1회, 재동의 없음 | BE·법무 |
