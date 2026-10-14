@@ -185,17 +185,26 @@ const delta = (now: number | null, before: number | null | undefined) => {
 /** PR 본문에 그대로 붙일 수 있는 마크다운 요약 */
 export function formatReport(
   report: EvalReport,
-  baseline: EvalReport | null,
+  givenBaseline: EvalReport | null,
 ): string {
   const lines: string[] = [];
   const verdict = report.verdict;
+  // 옵션이 다른 기준선이면 Δ를 찍지 않는다 — 판정(buildVerdict)이 비교를 거부한 것과 같은 이유로, 표에 남기면
+  // 옵션 차이가 변경 효과로 읽힌다(PR 본문에 그대로 붙는 요약이다)
+  const comparable =
+    givenBaseline !== null && sameOptions(givenBaseline, report);
+  const baseline = comparable ? givenBaseline : null;
 
   lines.push(`## 추천 평가 — ${verdict.passed ? '통과' : '**실패**'}`);
   lines.push('');
   lines.push(
     `스냅샷 ${report.snapshot.environment} · ${report.snapshot.exportedAt} · 콘텐츠 ${report.snapshot.contents} · 주제 ${report.snapshot.topics} · 사용자 ${report.snapshot.users}` +
       ` | 코드 ${report.gitSha ?? '?'} | 시뮬레이션 ${report.options.simulationDays}일 · 자동 확장 ${report.options.autoExpandFeature ? '켬' : '끔'}` +
-      (baseline ? ` | 기준선 ${baseline.gitSha ?? '?'}` : ' | 기준선 없음'),
+      (baseline
+        ? ` | 기준선 ${baseline.gitSha ?? '?'}`
+        : givenBaseline
+          ? ` | 기준선 ${givenBaseline.gitSha ?? '?'} — **옵션이 달라 Δ 생략**`
+          : ' | 기준선 없음'),
   );
 
   if (report.backtest !== null) {
@@ -303,4 +312,12 @@ export function formatReport(
   }
 
   return lines.join('\n');
+}
+
+/** 기준선과 비교해도 되는 옵션인가 — 자동 확장 스위치와 시뮬레이션 일수가 같아야 한다 */
+export function sameOptions(baseline: EvalReport, report: EvalReport): boolean {
+  return (
+    baseline.options.autoExpandFeature === report.options.autoExpandFeature &&
+    baseline.options.simulationDays === report.options.simulationDays
+  );
 }

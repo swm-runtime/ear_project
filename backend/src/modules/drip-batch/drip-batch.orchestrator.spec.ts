@@ -214,7 +214,12 @@ describe('DripBatchOrchestrator', () => {
       dripArrivalNotificationService,
       topicService,
       userSettingService,
-      { get: jest.fn().mockReturnValue(undefined) } as never,
+      {
+        // 스위치는 `true` 명시일 때만 켜진다(2026-10-14) — 자동 확장 테스트는 켜진 상태를 기본으로 본다
+        get: jest.fn((key: string) =>
+          key === 'AUTO_EXPAND_ENABLED' ? 'true' : undefined,
+        ),
+      } as never,
     );
   });
 
@@ -482,8 +487,9 @@ describe('DripBatchOrchestrator', () => {
         topicService,
         userSettingService,
         {
+          // 비어 있으면 환경이 development 여도 꺼진다 — `true` 명시만 켠다(2026-10-14)
           get: jest.fn((key: string) =>
-            key === 'SENTRY_ENVIRONMENT' ? 'production' : undefined,
+            key === 'SENTRY_ENVIRONMENT' ? 'development' : undefined,
           ),
         } as never,
       );

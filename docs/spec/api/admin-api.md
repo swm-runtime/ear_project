@@ -430,7 +430,7 @@
 추천에 영향을 주는 행동을 **테스트 계정 한 명**에 대신 수행하고, 직후 편성 미리보기(4.16)와 탐색 피드의 변화를 본다. 4.16과 달리 **쓰기가 있다** — 행동이 실제 `user_signals`·`library_items`·`play_records`·`content_stats`를 쓴다.
 
 - **대상 계정은 서버 env `RECOMMEND_TEST_EMAIL` 하나로 고정이다. 요청이 사용자를 고르지 않는다** — 이메일을 받으면 관리자가 임의 사용자의 라이브러리를 조작하는 도구가 된다.
-- **운영에서는 꺼진다.** `SENTRY_ENVIRONMENT=production`이면 이메일이 설정돼 있어도 여섯 경로 전부 409 `ADMIN_RECOMMEND_TEST_DISABLED`다.
+- **개발 환경에서만 켜진다.** 환경(`SENTRY_ENVIRONMENT`, 비어 있으면 `NODE_ENV`)이 `development`가 아니면 이메일이 설정돼 있어도 전 경로가 409 `ADMIN_RECOMMEND_TEST_DISABLED`다(실패 시 닫힘 — 2026-10-13. 종전 "`production`이면 꺼짐"은 운영 env 가 비거나 오타면 열렸다). 개발계는 `SENTRY_ENVIRONMENT=development`, 로컬은 비워 두면 `NODE_ENV=development`로 켜진다.
 - 인증은 다른 `/admin/*`와 같다(2장). 조회 응답(`account`·`feed`)은 `Cache-Control: no-store`.
 - **추천 결과(편성분·점수·신호·취향)는 새 엔드포인트가 아니라 4.16 `GET /admin/drip/preview?email=<테스트 계정>`을 개발계에 그대로 부른다.** 이 절의 경로는 행동·계정 상태·피드·초기화만 소유한다.
 
@@ -448,7 +448,7 @@
 
 | 필드 | 설명 |
 |---|---|
-| `environment` | 서버의 `SENTRY_ENVIRONMENT` — 콘솔이 "개발계" 배지를 그리는 근거 |
+| `environment` | 서버의 환경 이름(`SENTRY_ENVIRONMENT`, 비어 있으면 `NODE_ENV`) — 콘솔이 "개발계" 배지를 그리는 근거 |
 | `user` | `id` `email` `nickname` `tier` `onboarding_completed` `job_category` `job_title` `years_of_experience` |
 | `interests[]` | `topic_id` `name` `source` — 활성 관심 주제 |
 | `library[]` | `item_id` `content_id` `title` `source` `status` `added_at` `completed_at` — 담은 최신순, 삭제분 제외(앱 라이브러리가 보는 것과 같다) |
@@ -663,7 +663,7 @@ PoC·제휴 캠페인마다 코드를 만들고, 켜고 끄고, 사용 현황을
 | `NOTICE_CURSOR_INVALID` | 400 | false | 4.12 — 커서 형식 오류, 사용자 목록 커서를 넣음 |
 | `NOTICE_NOT_FOUND` | 404 | false | 4.14·4.15 — 없거나 삭제된 공지 |
 | `NOT_FOUND` | 404 | false | 4.16 — 그 이메일의 사용자 없음 / 4.17 — 테스트 계정이 이 서버에 가입돼 있지 않음 · `delete` 대상이 라이브러리에 없음 |
-| `ADMIN_RECOMMEND_TEST_DISABLED` | 409 | false | 4.17 — 운영 환경(`SENTRY_ENVIRONMENT=production`)이거나 `RECOMMEND_TEST_EMAIL` 미설정 |
+| `ADMIN_RECOMMEND_TEST_DISABLED` | 409 | false | 4.17 — 환경이 `development`가 아니거나(`SENTRY_ENVIRONMENT`, 비면 `NODE_ENV`) `RECOMMEND_TEST_EMAIL` 미설정 |
 | `INVITE_CODE_DUPLICATE` | 409 | false | 4.23 — 같은 값의 초대 코드가 이미 있다 |
 | `INVITE_CODE_NOT_FOUND` | 404 | false | 4.23 — 고치려는 초대 코드가 없다 |
 

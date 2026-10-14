@@ -52,8 +52,8 @@ jobs:
             # 운영 결제 화면을 켠다(KAN-180, 2026-10-12) — 첫 iOS 구독 상품을 앱 버전과 함께 심사하므로
             # 심사관이 앱 안에서 상품을 찾을 수 있어야 한다. iOS 는 이 값만으로 전원 노출된다.
             echo "subscription_ui=on" >> "$GITHUB_OUTPUT"
-            # 운영 Play 상품이 아직 없다(KAN-130) — Android 는 여전히 'off'(eas.json production 과 같은 값)
-            echo "subscription_android=off" >> "$GITHUB_OUTPUT"
+            # 운영 Android 결제 켬(KAN-174, 2026-10-14) — 운영 Play 정기 결제 2개 생성·서버 등록 완료(2026-10-12), 라이선스 테스터 종단 테스트를 위해 FE 가 연다. eas.json production 과 같은 값
+            echo "subscription_android=on" >> "$GITHUB_OUTPUT"
           else
             echo "channel=preview" >> "$GITHUB_OUTPUT"
             echo "api_base_url=https://api-dev.earcast.co.kr/api/v1" >> "$GITHUB_OUTPUT"
@@ -101,7 +101,7 @@ jobs:
           SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
           # 구독 UI(KAN-120) — 빌드 프로필 env 와 같은 값이어야 한다(preview 'on' · production 'off', 채널 결정 단계).
           # runtime 32 바이너리(expo-iap 포함)만 이 OTA 를 받고, 앱은 네이티브 모듈 유무도 다시 확인한다.
-          # Android 결제는 EXPO_PUBLIC_SUBSCRIPTION_ANDROID 로 따로 켠다 — preview 'on'(2026-10-08) · production 'off'(KAN-130 전)
+          # Android 결제는 EXPO_PUBLIC_SUBSCRIPTION_ANDROID 로 따로 켠다 — preview 'on'(2026-10-08) · production 'on'(2026-10-14, KAN-174)
           EXPO_PUBLIC_SUBSCRIPTION_UI: ${{ steps.channel.outputs.subscription_ui }}
           EXPO_PUBLIC_SUBSCRIPTION_ANDROID: ${{ steps.channel.outputs.subscription_android }}
           # 커밋 메시지를 셸에 직접 보간하지 않는다 — 따옴표·개행이 섞여도 안전하게 env 로 받는다

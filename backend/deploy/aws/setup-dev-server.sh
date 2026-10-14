@@ -193,6 +193,8 @@ say ".env.prod 초안 → $OUT/${SERVER_NAME}.env.prod"
 cat > "$OUT/${SERVER_NAME}.env.prod" <<ENV
 # 개발계 API(ear-dev) — setup-dev-server.sh 가 생성. 비밀 항목(*)은 배포마다 Secrets Manager $SECRET_ID 값으로 덮어쓴다(push.sh).
 NODE_ENV=production
+# 환경 이름 — Sentry 환경이자 추천 테스트 콘솔의 잠금 기준(development 일 때만 열린다 — 2026-10-13). 빠지면 콘솔이 409로 닫힌다
+SENTRY_ENVIRONMENT=development
 PORT=3000
 DB_HOST=postgres
 DB_PORT=5432

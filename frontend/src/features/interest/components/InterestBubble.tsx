@@ -1,9 +1,11 @@
-import { useEffect } from 'react';
+import { useEffect, useId } from 'react';
 import { Animated, Image, Pressable, StyleSheet, View } from 'react-native';
+import Svg, { Defs, Line, Pattern, Rect } from 'react-native-svg';
 
 import { useAnimatedValue } from '@/shared/hooks/useAnimatedValue';
 import { motion, theme } from '@/shared/theme';
 
+import { INTEREST_COPY } from '../interest.copy';
 import { topicImageSource } from './TopicChip';
 
 interface InterestBubbleProps {
@@ -13,8 +15,24 @@ interface InterestBubbleProps {
   isSelected: boolean;
   /** 상한까지 다 골랐을 때 남은 주제 — 흐려진다. 탭하면 선택되지 않고 상한 토스트가 뜬다(PM 2026-10-10 01:08) */
   isDimmed: boolean;
+  /**
+   * 자동 확장으로 들어온 주제(source=auto_expand, KAN-181) — 사진 위에 빗금(애플식 "창문 블라인드")을 덮어
+   * 직접 고른 주제와 구분한다. 링·체크 배지는 쓰지 않는다(PM 2026-10-09 22:55와 같은 결) — 빗금 한 겹이다.
+   */
+  isAutoExpanded: boolean;
   onPress: () => void;
 }
+
+/**
+ * 빗금 — 흰 선(블라인드 살), 반투명. 간격·굵기는 버블 지름과 무관하게 일정하게.
+ * 밝은 사진(IT·개발 같은 코드 이미지) 위에서도 또렷하게: 아래 옅은 어두운 판(블라인드 사이 그늘)을
+ * 깔고 그 위에 흰 살을 얹는다 — 흰 선만으로는 밝은 사진에 묻힌다(2026-10-14 실기기 확인, juho).
+ */
+const HATCH_GAP = 7;
+const HATCH_STROKE = 2;
+const HATCH_OPACITY = 0.55;
+/** 블라인드 사이 그늘 — 흰 살이 어떤 사진 위에서도 뜨게 하는 옅은 어두운 판 */
+const HATCH_SCRIM_OPACITY = 0.22;
 
 /** 선택되면 커지고 상한 뒤 남은 주제는 물러난다 — 물리가 이 배율로 이웃을 밀어낸다(Magnetic 은 4/3) */
 export const SCALE_SELECTED = 1.2;
@@ -37,9 +55,12 @@ export default function InterestBubble({
   size,
   isSelected,
   isDimmed,
+  isAutoExpanded,
   onPress,
 }: InterestBubbleProps) {
   const wash = useAnimatedValue(isDimmed ? DIMMED_WASH : 0);
+  // SVG 패턴 id — useId의 콜론은 웹 url(#…)에서 깨지므로 걷어낸다. 버블마다 고유해야 패턴이 섞이지 않는다
+  const hatchId = `hatch-${useId().replace(/:/g, '')}`;
 
   useEffect(() => {
     Animated.timing(wash, {
@@ -56,7 +77,7 @@ export default function InterestBubble({
       onPress={onPress}
       accessibilityRole="checkbox"
       accessibilityState={{ checked: isSelected }}
-      accessibilityLabel={name}
+      accessibilityLabel={isAutoExpanded ? `${name}, ${INTEREST_COPY.autoBadgeA11y}` : name}
       style={({ pressed }) => [{ width: size, height: size }, pressed && styles.pressed]}
     >
       <View
@@ -72,6 +93,37 @@ export default function InterestBubble({
           <View style={styles.scrim} />
         </View>
       </View>
+      {/* 자동 확장 주제 — 사진 위 빗금("창문 블라인드"). 이름은 위에 그대로 올라 읽힌다(빗금은 label 아래) */}
+      {isAutoExpanded ? (
+        <View style={[styles.hatchClip, { borderRadius: radius }]} pointerEvents="none">
+          {/* 퍼센트 대신 숫자 지름 — react-native-svg 는 absoluteFill 안에서 width="100%" 를 못 잡아
+              SVG 가 0 으로 안 그려지는 함정이 있다(2026-10-14 실기기 빗금 미표시, juho) */}
+          <Svg width={size} height={size}>
+            <Defs>
+              <Pattern
+                id={hatchId}
+                patternUnits="userSpaceOnUse"
+                width={HATCH_GAP}
+                height={HATCH_GAP}
+                patternTransform="rotate(45)"
+              >
+                <Line
+                  x1={0}
+                  y1={0}
+                  x2={0}
+                  y2={HATCH_GAP}
+                  stroke={theme.color.onPhoto}
+                  strokeWidth={HATCH_STROKE}
+                  strokeOpacity={HATCH_OPACITY}
+                />
+              </Pattern>
+            </Defs>
+            {/* 블라인드 사이 그늘 — 밝은 사진 위에서도 흰 살이 떠 보이게 옅은 어두운 판을 먼저 깐다 */}
+            <Rect x={0} y={0} width={size} height={size} fill="#000000" fillOpacity={HATCH_SCRIM_OPACITY} />
+            <Rect x={0} y={0} width={size} height={size} fill={`url(#${hatchId})`} />
+          </Svg>
+        </View>
+      ) : null}
       <View style={styles.labelBox} pointerEvents="none">
         <Animated.Text
           style={[styles.label, size >= 104 && styles.labelLarge]}
@@ -115,6 +167,11 @@ const styles = StyleSheet.create({
     elevation: 8,
   },
   photoClip: {
+    ...StyleSheet.absoluteFill,
+    overflow: 'hidden',
+  },
+  // 빗금 레이어 — 원 바깥으로 삐져나가지 않게 둥근 클립. 사진 위·이름 아래
+  hatchClip: {
     ...StyleSheet.absoluteFill,
     overflow: 'hidden',
   },

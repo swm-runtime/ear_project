@@ -1,3 +1,4 @@
+import { formatReport } from './eval-report';
 import { runEvaluation } from './eval-runner';
 import { EvalReport } from './recommend-eval.types';
 import { buildSyntheticSnapshot } from './synthetic-catalog';
@@ -131,5 +132,29 @@ describe('판정 — 기준선과 옵션이 다르면 비교하지 않는다', (
     expect(report.verdict.failures.join('\n')).not.toContain(
       '기준선과 평가 옵션이 달라',
     );
+  });
+});
+
+describe('요약 — 옵션이 다른 기준선이면 Δ를 찍지 않는다', () => {
+  it('자동 확장 ON 기준선과 OFF 실행의 요약에는 Δ 대신 "옵션이 달라 Δ 생략"이 나온다', async () => {
+    const snapshot = buildSyntheticSnapshot(NOW);
+    const baseline = await runEvaluation(snapshot, {
+      simulationDays: 3,
+      gitSha: null,
+      autoExpandFeature: true,
+      baseline: null,
+    });
+    const report = await runEvaluation(snapshot, {
+      simulationDays: 3,
+      gitSha: null,
+      autoExpandFeature: false,
+      baseline,
+    });
+
+    const summary = formatReport(report, baseline);
+
+    expect(summary).toContain('옵션이 달라 Δ 생략');
+    // Δ 표기(+0.000 / -0.000 꼴)가 표에 남지 않는다
+    expect(summary).not.toMatch(/ \((?:=|[+-]\d)/);
   });
 });

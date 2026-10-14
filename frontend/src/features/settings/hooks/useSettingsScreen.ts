@@ -65,6 +65,7 @@ export interface EmailRowVM {
 /** 토글·배속의 표시 값 — 조회 전·전체 실패에는 null(기준값 없는 낙관적 UI는 성립하지 않는다) */
 export interface SettingsControlsVM {
   playbackRate: PlaybackRate;
+  isAutoExpandEnabled: boolean;
   isDripNotificationEnabled: boolean;
   isMarketingAgreed: boolean;
 }
@@ -110,6 +111,7 @@ type SettingsDestination =
 /** 낙관적 표시값 덮개 — 저장 성공 시 캐시로 확정되고, 실패 시 걷어내면 서버 값으로 되돌아간다 */
 interface OptimisticOverlay {
   defaultPlaybackRate?: PlaybackRate;
+  isAutoExpandEnabled?: boolean;
   isDripNotificationEnabled?: boolean;
   isMarketingAgreed?: boolean;
   preferredAudioQuality?: AudioQuality;
@@ -220,6 +222,13 @@ export const useSettingsScreen = () => {
         },
       },
     );
+  };
+
+  /* ── 주제 자동 확장 토글(FR-06, KAN-181) — 즉시 저장. 끄면 서버는 넣지도 빼지도 않는다(interest-management.md 4.3) ── */
+
+  const toggleAutoExpand = (next: boolean): void => {
+    track('settings_toggle', { key: 'auto_expand', value: next });
+    saveSettingsField('is_auto_expand_enabled', 'isAutoExpandEnabled', next);
   };
 
   /* ── 이어 PICK 알림 토글 — OS 권한 게이트는 클라이언트가 서버 호출 없이 막는다(settings.md 4.3) ── */
@@ -437,6 +446,8 @@ export const useSettingsScreen = () => {
   const controls: SettingsControlsVM | null = summary
     ? {
         playbackRate: overlay.defaultPlaybackRate ?? summary.settings.defaultPlaybackRate,
+        isAutoExpandEnabled:
+          overlay.isAutoExpandEnabled ?? summary.settings.isAutoExpandEnabled,
         isDripNotificationEnabled:
           overlay.isDripNotificationEnabled ?? summary.settings.isDripNotificationEnabled,
         isMarketingAgreed: overlay.isMarketingAgreed ?? summary.marketingConsent.isAgreed,
@@ -474,6 +485,7 @@ export const useSettingsScreen = () => {
     isNotificationBannerVisible: osPermission === 'undetermined',
     /** 권한이 거부·미결정이면 켜기 전 안내가 필요하므로 토글을 비활성 톤으로 그린다(표시만, 조작은 가능) */
     isDripToggleDimmed: osPermission !== 'granted',
+    toggleAutoExpand,
     toggleDripNotification,
     toggleMarketingConsent,
 
