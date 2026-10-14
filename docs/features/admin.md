@@ -191,7 +191,7 @@ MVP는 자동 콘텐츠 파이프라인을 운영하지 않는다(PRD 4.2). 대�
 편성 미리보기(`admin-api.md` 4.16)는 읽기 전용이라 "이 행동을 하면 추천이 어떻게 바뀌나"를 실험할 수 없었다. 폰으로 행동을 넣고 새로고침하는 방식은 한 번에 몇 분씩 걸리고 운영 계정의 신호를 오염시킨다.
 
 - **대상 계정은 서버 env `RECOMMEND_TEST_EMAIL` 하나로 고정한다. 요청이 사용자를 고르지 않는다** — 이메일을 받으면 관리자가 임의 사용자의 라이브러리를 조작하는 도구가 된다.
-- **운영에서는 꺼진다.** `SENTRY_ENVIRONMENT=production`이면 이메일이 있어도 409(`ADMIN_RECOMMEND_TEST_DISABLED`)다. 행동이 실제 `user_signals`·`library_items`·`play_records`·`content_stats`를 쓰기 때문이다 — 편성 미리보기가 운영에 붙을 수 있었던 이유(읽기 전용)가 여기는 성립하지 않는다.
+- **개발 환경에서만 켜진다.** 환경(`SENTRY_ENVIRONMENT`, 비어 있으면 `NODE_ENV`)이 `development`가 아니면 이메일이 있어도 409(`ADMIN_RECOMMEND_TEST_DISABLED`)다. 행동이 실제 `user_signals`·`library_items`·`play_records`·`content_stats`를 쓰기 때문이다 — 편성 미리보기가 운영에 붙을 수 있었던 이유(읽기 전용)가 여기는 성립하지 않는다. 종전 규칙("`production`이면 꺼짐")은 운영 `SENTRY_ENVIRONMENT`가 비거나 오타면 운영에서 콘솔이 열렸다(실패 시 열림) — 테스트 계정은 실사용 계정일 수 있어 실패 시 닫히는 쪽으로 바꿨다(개정 2026-10-13 — PR #1489, 2026-10-13 개발계 라이브러리 초기화 사고 후속).
 - **각 행동은 앱이 부르는 것과 같은 서비스 경로를 탄다**(`PlayService.startPlay` · `PlaybackProgressService.saveProgress` · `ExploreOrchestrator.saveContent/unsaveContent` · `LibraryScreenOrchestrator.deleteItem` · `PlaybackSignalService.recordReplay` · `UserInterestService.replaceManagedSelection` · `UserCareerService.replaceCareer`). **신호를 직접 적재하는 지름길을 두지 않는다** — 두면 "이 행동을 하면 추천이 어떻게 바뀌나"에 앱과 다른 답을 낸다.
   - `play` — 라이브러리에 없으면 탐색 재생과 같이 `auto_play` 자동 적립 후 재생 시작. **오늘 한도가 차감된다**(테스트 계정 티어 기준). 한도에 막히면 그 에러가 그대로 보인다.
   - `complete` — `play` 후 위치를 길이 끝까지 저장 → 완청 판정(90%) → `complete` 신호. 길이 0 콘텐츠는 수동 완료 경로(`library-api.md` 4.5).
