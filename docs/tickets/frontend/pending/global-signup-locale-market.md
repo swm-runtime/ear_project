@@ -20,7 +20,8 @@
 
 ## 무엇을 한다
 
-- 가입·로그인 요청에 `locale { language_code, region_code, timezone }`(`getLocales()[0]`·`getCalendars()[0].timeZone`). 기기 등록에 `language_code`·`timezone`.
+- **가입 때 콘텐츠 언어 선택 화면 1장**(모든 신규 가입자): "어떤 언어로 들을까요? 한국어 / English". 기본 선택은 기기 언어. 선택값을 `locale.preferred_language`(`ko`|`en`)로 보낸다 — 시장은 이 값으로 서버가 정한다(2026-10-14 결정. 모호한 사용자에게만 묻는 방식 등은 추후 필요하면 재논의). 화면 ID·카피는 FE가 정하고 `spec/uiux`에 기록.
+- 가입·로그인 요청에 `locale { preferred_language, language_code, region_code, timezone }`(`getLocales()[0]`·`getCalendars()[0].timeZone`). 기기 등록에 `language_code`·`timezone`.
 - **분기 기준은 응답 `user.market`**(언어로 추측 금지): GLOBAL이면 제공자 Google/Apple만, 연령 체크 16세 문구(미결 #2 기본값), 구독 법적 고지 GLOBAL 문구.
 - 온보딩은 `GET /onboarding/state`의 `steps[]`대로 화면을 잇는다 — 단계를 하드코딩하지 않는다. `career`가 없으면 커리어 화면을 띄우지 않는다.
 - 주제 이미지·아이콘 매핑 키를 **`items[].slug`**로 전환(한국어 이름 키 폐기). GLOBAL 주제 이미지 자산은 AI/PM에서 수령.
@@ -32,7 +33,9 @@
 
 ## 완료 조건
 
-- Given 영어 기기 가입 / When 요청 캡처 / Then `locale` 세 필드가 기기 값과 같다
+- Given 신규 가입 / When 콘텐츠 언어 화면 / Then 기기 언어가 기본 선택이고, 고른 값이 `locale.preferred_language`로 전송된다
+- Given 영어 기기에서 '한국어' 선택 / Then 응답 `market = kr`, 한국어 주제·요금제(서버 판정 — 클라이언트가 기기 언어로 덮어쓰지 않는다)
+- Given 영어 기기 가입 / When 요청 캡처 / Then `locale`의 기기 값 세 필드가 기기 값과 같다
 - Given 응답 `market = global` / Then 시작 화면 제공자 Google/Apple만, 연령 16세 문구
 - Given `steps = ["topic","pick"]` / Then 커리어 화면이 뜨지 않는다; `["topic","career","pick"]`이면 종전과 같다
 - Given 주제 응답에 slug / Then 이미지가 slug로 붙고 한국어 이름 키 참조 0건
