@@ -8,10 +8,16 @@ import { ScrollReveal } from "@/components/ScrollReveal";
 import { routes } from "@/content/routes";
 import { site, SITE_URL } from "@/content/site";
 import { siteGraph } from "@/lib/schema";
-import "./globals.css";
+import "../globals.css";
 
 /**
- * 루트 레이아웃.
+ * 한국어 페이지의 루트 레이아웃.
+ *
+ * 루트 레이아웃이 둘이다(2026-10-15 — KAN-199): 한국어는 `(ko)` 라우트 그룹, 영어는 `en/layout.tsx`.
+ * `<html lang>`과 헤더·푸터 문구가 언어마다 달라야 하는데, 정적 내보내기에서는 레이아웃이 현재 경로를
+ * 알 수 없어 한 레이아웃으로 둘을 가를 수 없다. 그룹 이름 `(ko)`는 주소에 나오지 않으므로 기존 주소는 그대로다.
+ * 두 레이아웃 사이를 오가면 클라이언트 전환 대신 전체 새로고침이 일어난다(Next 라우트 그룹 문서의 제약) —
+ * 언어 전환 링크 한 곳뿐이라 감수한다.
  *
  * 여기에는 **모든 페이지에 공통인 것만** 둔다. 제목·설명·canonical·OG 이미지는
  * 페이지마다 달라야 하므로 각 page.tsx가 `lib/seo.ts`로 만들어 내보낸다.

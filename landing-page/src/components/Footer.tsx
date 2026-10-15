@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { LogoMark } from "./Logo";
+import { enRoutes } from "@/content/en/routes";
 import { footerGroups } from "@/content/routes";
 import { androidStoreUrl, iosStoreUrl, site } from "@/content/site";
 import s from "./Footer.module.css";
@@ -46,6 +47,12 @@ export function Footer() {
           <span aria-hidden="true"> · </span>
           <a href={androidStoreUrl} target="_blank" rel="noopener noreferrer">
             Google Play
+          </a>
+          {/* 영어판(소개·약관·개인정보·계정 삭제 — KAN-199)으로 가는 링크. 영어판은 루트 레이아웃이 달라
+              클라이언트 전환이 되지 않으므로 평범한 <a>를 쓴다. 이름은 관례대로 그 언어로 적는다 */}
+          <span aria-hidden="true"> · </span>
+          <a href={enRoutes.home.path} hrefLang="en" lang="en">
+            English
           </a>
         </p>
       </div>

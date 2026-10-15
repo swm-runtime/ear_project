@@ -35,3 +35,16 @@
 
 ## 처리 기록
 - 2026-10-14 발행(마크다운 + Jira). 묶음 티켓 분할.
+- 2026-10-15 구현(커밋 전 — 브랜치 `feat(fe)/landing-english-pages`, origin/dev 128d6ced 위). `npm run build`·`npm run lint` 통과.
+  - **`/en` 4페이지** — `/en/`(소개) · `/en/terms/` · `/en/privacy/` · `/en/account-deletion/`. 영어 루트 레이아웃(`src/app/en/layout.tsx`, `<html lang="en">`)과 영어 헤더·바닥글을 따로 두고, 한국어 페이지는 라우트 그룹 `src/app/(ko)/`로 옮겼다(주소·내용 불변 — dev의 현행 파일 그대로 이동). 맨 위 레이아웃이 없어져 404는 `src/app/global-not-found.tsx`(`experimental.globalNotFound`)가 한국어로 그린다.
+  - **약관·처리방침은 PR #1584(`src/content/legal-en.ts`)의 글로벌용 영어 문서**를 영어 레이아웃 안에 그린다 — 한국어 번역본이 아니라 동남아 개인정보법·CCPA/CPRA·Apple 3.1.2를 더해 따로 쓴 초안이다. 법무 검토 전이라 #1584 결정대로 **noindex·nofollow, 사이트맵 제외**(`content/en/routes.ts` `indexable: false`). 한국어 `/privacy/` 상단의 영어 링크(#1584)는 그대로 둔다.
+  - **소개** — 한국어 홈 번역이 아니라 두 시장에 공통으로 참인 것만(AI 생성·매일 적립·즉시 재생·이어듣기·원문 대조·출처·합성 음성 고지). 편수·길이·가격은 글로벌 미확정이라 뺐다. 영어 앱 이름은 임시값 `Ear`(KAN-198).
+  - **계정 삭제** — 한국어 원문 번역 + 앱 영어 메뉴명(Profile · Settings · Account · Delete account), "충돌 시 한국어판 우선" 안내와 한국어 원문 링크.
+  - **`hreflang`** — 4쌍 모두 양쪽 `<head>`에 ko · en · x-default(=ko). 사이트맵에는 색인 대상(`/en/`·`/en/account-deletion/`)만 같은 묶음으로 넣었다. 공유 이미지 `og/en.png`·`og/en-legal.png` 추가.
+  - **언어 전환 링크** — 한국어 바닥글에 "English"(→ `/en/`), 영어 바닥글에 "한국어"(→ 그 페이지의 한국어 짝).
+  - **점검** — `out/en/**`의 한글: `/en/`·`/en/account-deletion/`은 "한국어" 링크 이름뿐. **`/en/terms/`·`/en/privacy/`에 "이어"가 남는다** — `legal-en.ts` 51·292행이 `site.name`(한국어 브랜드 "이어")을 쓴다. 완료 조건 1을 닫으려면 그 두 곳을 영어 앱 이름(`Ear`)으로 바꿔야 한다(#1584 작성자 확인 후 반영).
+  - **남은 것**
+    - `legal-en.ts`의 `site.name` 2곳(위) 수정.
+    - 법무 검토 — 영어 약관·처리방침(#1584)·계정 삭제 번역. 검토가 끝나면 `indexable: true`로 색인·사이트맵에 넣는다.
+    - 운영 반영 — 랜딩 운영은 main을 따른다(dev → main PR). 그 뒤 완료 조건 2(영어 URL 200 응답) 확인.
+    - 사람 손 — 글로벌 스토어 리스팅의 지원 URL `https://earcast.co.kr/en/`, 개인정보 URL `https://earcast.co.kr/en/privacy/`, Google Play 계정 삭제 URL `https://earcast.co.kr/en/account-deletion/` 입력.

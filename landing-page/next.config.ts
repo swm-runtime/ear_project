@@ -14,6 +14,12 @@ const nextConfig: NextConfig = {
 
   // 응답 헤더로 서버 종류를 알리지 않는다.
   poweredByHeader: false,
+
+  // 루트 레이아웃이 한국어 `(ko)`·영어 `en/` 둘이라(KAN-199) 맨 위 레이아웃이 없다. 그러면 없는 주소의 404를
+  // 감쌀 레이아웃이 없어 Next 기본 404가 나가므로, 레이아웃 없이 스스로 <html>을 그리는 `app/global-not-found.tsx`를 켠다.
+  experimental: {
+    globalNotFound: true,
+  },
 };
 
 export default nextConfig;

@@ -91,11 +91,17 @@ export function siteGraph(): Node {
 
 /* ---------- 페이지별 ---------- */
 
-/** 홈을 제외한 모든 페이지에 붙인다. 검색 결과의 경로 표시가 URL 대신 이름으로 나온다. */
-export function breadcrumb(trail: { name: string; path: string }[]): Node {
+/**
+ * 홈을 제외한 모든 페이지에 붙인다. 검색 결과의 경로 표시가 URL 대신 이름으로 나온다.
+ * `home`은 첫 칸 — 영어 페이지(`/en/`)는 영어 홈을 넘긴다.
+ */
+export function breadcrumb(
+  trail: { name: string; path: string }[],
+  home: { name: string; path: string } = { name: "홈", path: routes.home.path },
+): Node {
   return {
     "@type": "BreadcrumbList",
-    itemListElement: [{ name: "홈", path: routes.home.path }, ...trail].map(
+    itemListElement: [home, ...trail].map(
       (item, i) => ({
         "@type": "ListItem",
         position: i + 1,
