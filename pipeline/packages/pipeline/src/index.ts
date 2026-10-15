@@ -8,6 +8,8 @@
 
 import { otherSpeaker, pipelineLocale, speakerNames } from "./locale.js";
 export * from "./locale.js";
+export * from "./global-prompts.js";
+import { INTRO_STYLES_EN } from "./global-prompts.js";
 
 export type MidTopic = string;
 
@@ -88,8 +90,12 @@ export const INTRO_STYLES = [
   { key: "thesis", label: "화두 선언형", hint: "주제 선언 직후 해설 담당이 청취자의 예상을 뒤집는 한 줄을 내용으로 바로 던지고, 진행 담당이 반발·되물음으로 두세 턴 앉는다. '결론부터 말하면'류 진입 선언이나 'X는 Y가 아니다' 구분 선언으로 시작하지 않는다 — 뒤집는 내용 자체를 첫 문장으로." },
 ] as const;
 
-export function pickIntroStyle(seed: number) {
-  return INTRO_STYLES[Math.abs(seed) % INTRO_STYLES.length];
+/** 도입 방식 한 종 — 한국판 INTRO_STYLES · 글로벌판 INTRO_STYLES_EN (global-prompts.ts) */
+export interface IntroStyle { key: string; label: string; hint: string }
+
+export function pickIntroStyle(seed: number): IntroStyle {
+  const styles: readonly IntroStyle[] = pipelineLocale() === "en" ? INTRO_STYLES_EN : INTRO_STYLES;
+  return styles[Math.abs(seed) % styles.length];
 }
 
 const COMMON_RULES = `   - 핵심 규칙 리마인드: 소스가 말한 것까지만 (비교 축 추가·연관의 방향 확정·귀속 범위 확장·연대 환산·문장 위치 주장 금지 — QA 최다 실패 유형), 복창 대신 번역, 질문에 기원 서사, 티키타카·호흡 교차 (**후반부까지** 유지 — 후반 리듬 균질화가 4편 연속 지적됨), 역질문 1~2회, '요'체·'다'체 혼용, 귀속 전언체, 비유는 새 이해를 줄 때만 + 에피소드 내 비유 계열 통일, AI체·번역투 금지 (소리 내 읽어 어색하면 다시), 날짜는 년-월까지, 소수점·정밀 수치는 자연스러운 범위 표현 (단 실제보다 크게 올림 금지), 가독 표기 (음차 금지 — 영문 고유명사·두문자는 원표기), 오디오 태그는 [curious] [surprised] [sighs] [exhales] [laughs] [whispers] [excited]만 턴당 최대 1개 수준. 소스 게재 매체를 언급할 때 "같은 매체" 같은 지시어는 직전 명명 매체로 해소되므로 매체가 바뀌면 반드시 재명명.`;
@@ -117,7 +123,7 @@ export interface DraftInput {
   workRoot: string;
   episodeId: string;
   candidate: BacklogCandidate;
-  introStyle: (typeof INTRO_STYLES)[number];
+  introStyle: IntroStyle;
   promptVersion: string;
   templates?: Templates | null;
   /** 클로징 인사 골격 선택 시드 (에피소드 수) — 여러 골격이면 돌아가며 */
@@ -716,7 +722,7 @@ export interface PromptParts { system: string; user: string }
 export interface WriteInput {
   episodeId: string;
   candidate: BacklogCandidate;
-  introStyle: (typeof INTRO_STYLES)[number];
+  introStyle: IntroStyle;
   promptVersion: string;
   templates?: Templates | null;
   /** 클로징 인사 골격 선택 시드 (에피소드 수) — 여러 골격이면 돌아가며 */
