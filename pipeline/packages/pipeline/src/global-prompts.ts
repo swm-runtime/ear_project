@@ -137,6 +137,7 @@ Closing line: what the listener understands at the end
 Planning rules:
 - The axis is a contrast ("A, yet B"), a paradox ("trying A leads to B"), or a redefinition ("A is really B")${history ? ", or, in history mode, an event" : ""}. "What is X" is not an axis.
 - Sections are steps of the axis, not the order of a source. Each source goes to one section only, except the axis_source. Drop a source that answers no sub-question of the axis.
+- A list topic keeps its list: sections may follow the items or groups of items, and each section still answers a sub-question of the axis. The count in the title matches the items the material supports.
 - Four to six Body sections. The Opening is not a section.
 - The Host question uses only what came before; it never contains the section's new case, number, or result. Never ask about methods, samples, or limits.
 - Estimated length comes from the material: 13 minutes is the floor, 15 minutes the average. Do not inflate it. If the material cannot reach 13 minutes, do not build an outline; say why in notes. If it is 26 minutes or more, put a split plan in split_proposal and still build one outline.
@@ -540,10 +541,10 @@ The worker recounts: at least 3 sources · at least 3 publishers · no publisher
 - At most ${i.maxSearches} searches. Use them all unless every role is filled with strong sources. Korean institutions and Korean-language sources often hold the best material on Korean culture; English sources show how it is explained to outsiders.
 ${QUERY_PLAN_EN}
 - Any publisher is fine if it fits. Prefer Korean public institutions and research bodies (national museums, heritage, language, and tourism agencies), universities, open-access journals, museums, and archives; then specialist and nonprofit media; then commercial news.${i.poolHosts.length ? `\n- Pool sites (known to be readable): ${i.poolHosts.slice(0, 40).join(", ")}` : "\n- The pool list is empty; do not use site:."}
-- If the topic is a list ("10 words", "5 dishes"), search for what the items have in common and why, not for a ranked list.
+- If the topic is a list ("10 words", "5 dishes"), find sources that explain the items one by one (dictionary entries, explainers on each item) and sources on what ties them together. Keep the list.
 ${SEARCH_EXCLUDE_EN}
 
-## Report — output only the requested JSON. sources: return 8 to 12 candidates that fit (the judge picks 5 to 7; meeting the minimum is not enough), each with url (the result's exact URL), title, publisher, published (YYYY-MM-DD or null), summary (two English sentences from the result), roles, why (one line on the role), in_pool (true if the site is in the pool list). queries: every query you used. notes: roles not filled and why.`;
+## Report — output only the requested JSON. sources: return 10 to 12 candidates that fit (the judge picks 5 to 7, and some may turn out unreadable; meeting the minimum is not enough), at most 3 from one publisher, each with url (the result's exact URL), title, publisher, published (YYYY-MM-DD or null), summary (two English sentences from the result), roles, why (one line on the role), in_pool (true if the site is in the pool list). queries: every query you used. notes: roles not filled and why.`;
 }
 
 /** 보강 검색 — 후보 하나의 빈 역할(없으면 발행처 다양화). 풀 밖 결과는 in_pool=false 로 돌려준다(워커가 도메인 후보로만 등록) */
@@ -570,7 +571,7 @@ ${QUERY_PLAN_EN}
 - Results from other sites are fine; return them with in_pool=false. The worker registers their domains for a person to judge and uses the sources.
 ${SEARCH_EXCLUDE_EN}
 
-## Report — output only the requested JSON. sources: at most 8, each with url (exact), title, publisher, published (YYYY-MM-DD or null), summary (two English sentences), roles, why (one line), in_pool. queries: every query you used.`;
+## Report — output only the requested JSON. sources: up to 10, at most 3 from one publisher, each with url (exact), title, publisher, published (YYYY-MM-DD or null), summary (two English sentences), roles, why (one line), in_pool. queries: every query you used.`;
 }
 
 export const REINFORCE_SEARCH_SCHEMA_EN = {
@@ -617,7 +618,8 @@ ${mode}
 ${i.specBacklogExcerpt.trim()}
 
 ## 2. Rules
-1. **The axis.** One sentence in one of three forms: contrast ("A, yet B"), paradox ("trying A leads to B"), redefinition ("A is really B"). Not an axis: "what is X", "everything about X", or one news event. A comeback, release, or award is not an axis; use it only as a case that opens an industry axis.${history ? `
+1. **The axis.** One sentence in one of three forms: contrast ("A, yet B"), paradox ("trying A leads to B"), redefinition ("A is really B"). Not an axis: "what is X", "everything about X", or one news event. A comeback, release, or award is not an axis; use it only as a case that opens an industry axis.
+   A list topic ("10 Korean words in K-dramas") keeps its list shape. The axis is what the items show together; the episode may walk through the items or groups of them. Set the count to what the sources support and say it in the title (7 instead of 10 if only 7 are supported). Do not replace the list with an abstract idea.${history ? `
    History mode: use axis_type "event" only for a past event in Korean History & Society; modern society topics use the three forms. An event axis asks how to read the event, not who was right. The anchor describes the event itself; an essay that uses the event as an example of another idea is not an anchor. Records from the time are cases. Counterpoint is optional.` : ` Do not use axis_type "event".`}
 2. **It works in English for this listener.** Build the tension inside the subject: two facts, goals, or views about the Korean practice that pull against each other. Do not build it on what outsiders, foreigners, or the West expect. Compare Korea with another country only if a listed source makes that comparison. The axis can be said in plain English with at most one Korean word. It does not rest on Korean wordplay or a pun that does not translate. It does not frame Korea as strange, rank cultures, or argue which country owns a custom.
 3. **Excluded.** No axis built around one person. Nothing about a real person's private life, relationships, rumors, controversies, incidents, or lawsuits. No current political issue and no inter-Korean military issue. No promotion of an agency, brand, or product.

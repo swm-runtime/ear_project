@@ -3,7 +3,10 @@
  * - OpenAI Responses API 단발 호출 + 구조화 출력. 키는 워커와 같은 OPENAI_API_KEY. **키가 없거나 호출이 실패하면 입력을 받지 않는다**(판정 없이 통과시키지 않는다).
  * - 판정 결과는 작업 payload.screen → 백로그 gate1_checks.screen 으로 이어져 게이트 1 조건 3 의 근거가 된다.
  */
-export interface TopicScreen { excluded: boolean; category: "none" | "person" | "politics" | "promotion"; reason: string; model: string; at: string }
+/** cost_usd: 이 판정 호출의 정가 환산(usage × lib/openai-price.ts 단가) — 기획 작업의 실행 기록 비용에 더해진다 (2026-10-15) */
+import { openAiCostUsd } from "./openai-price";
+
+export interface TopicScreen { excluded: boolean; category: "none" | "person" | "politics" | "promotion"; reason: string; model: string; at: string; cost_usd?: number }
 
 const RULE = [
   "글로벌 영어 팟캐스트(K-컬처)의 기획 입력을 심사한다. 아래 셋 중 하나에 해당하면 excluded=true.",
@@ -36,5 +39,7 @@ export async function screenGlobalTopic(input: { topics: string[]; title: string
   const part = msg?.content?.find((c: { type?: string }) => c.type === "output_text");
   if (!part) throw new Error("배제 주제 판정 응답에 결과가 없다");
   const out = JSON.parse(part.text) as Omit<TopicScreen, "model" | "at">;
-  return { excluded: !!out.excluded, category: out.category, reason: out.reason ?? "", model: String(data.model ?? model), at: new Date().toISOString() };
+  const usage = data.usage ?? {};
+  const costUsd = openAiCostUsd(String(data.model ?? model), Number(usage.input_tokens ?? 0), Number(usage.input_tokens_details?.cached_tokens ?? 0), Number(usage.output_tokens ?? 0));
+  return { excluded: !!out.excluded, category: out.category, reason: out.reason ?? "", model: String(data.model ?? model), at: new Date().toISOString(), ...(costUsd != null ? { cost_usd: costUsd } : {}) };
 }

@@ -5,6 +5,7 @@ import type { Executor } from "../executors/index.js";
 import { assetPaths, buildClusterPromptV2, buildReinforceSearchPrompt, buildReinforceSearchPromptEn, buildTopicJudgePromptEn, CLUSTER_SCHEMA_V2, CLUSTER_SCHEMA_V2_EN, judgeToInternal, pipelineLocale, REINFORCE_SEARCH_SCHEMA, REINFORCE_SEARCH_SCHEMA_EN, SOURCE_ROLES, todayKst } from "@ear/pipeline";
 import { hostOf, log } from "../util.js";
 import { robotsAllows } from "../sources/fetch.js";
+import { rememberRobotsBlocked } from "../sources/robots-memory.js";
 import { prepareAssets, workerRev } from "../assets.js";
 import { putFile, s3Key } from "../storage.js";
 import { checkCandidateSources } from "./candidate-check.js";
@@ -54,7 +55,12 @@ export async function runReinforce(job: Job, ex: Executor) {
     if (en && d?.tier === "hold") { outside.push(`${d.domain} (보류)`); continue; }
     if (en && !d) {
       let u: URL | null = null; try { u = new URL(s.url); } catch { u = null; }
-      if (!u || !(await robotsAllows(u).catch(() => true))) { outside.push(`${hostOf(s.url)} (robots)`); continue; }
+      if (!u) { outside.push(`${hostOf(s.url)} (URL 오류)`); continue; }
+      if (!(await robotsAllows(u).catch(() => true))) {
+        outside.push(`${hostOf(s.url)} (robots)`);
+        await rememberRobotsBlocked(u, s, cand.mid_topic, `보강 검색 발견 ${todayKst()} (${cand.id})`, sweptAt).catch(() => {}); // 다음 검색에서 빼게 기억 (robots-memory.ts)
+        continue;
+      }
       const host = u.hostname.replace(/^www\./, "");
       await insertCandidateDomain({ domain: host, publisher: s.publisher || host, topic_coverage: [cand.mid_topic], note: `보강 검색 발견 ${todayKst()} (${cand.id} "${cand.title.slice(0, 40)}"): ${s.url} — 글로벌판은 소스를 바로 적재(사후 판정). 판정 대기` });
       d = await findDomainForUrl(s.url);
