@@ -51,3 +51,4 @@
   - 배제 주제: 콘솔 서버가 입력 때 OpenAI 단발 판정(`lib/topic-screen.ts`) — 해당하면 작업을 만들지 않고 사유를 보인다. 키가 없거나 실패하면 입력을 받지 않는다. 판정 결과는 payload → `gate1_checks.screen`.
   - 게이트 1: `lib/gate1.ts` — 조건 4개를 승인 버튼(표시)과 승인 액션(재검사)이 같이 쓴다. 판정 대기 도메인은 `/domains/<id>` 링크.
   - 남은 것: 실호출 확인(`.work/global-infra/smoke-web-search.mts`) · 0028 적용 · `web-global` 컨테이너에 `OPENAI_API_KEY`(PR #1529) · 검색·판정 프롬프트 문장은 영어 규칙 설계 때 새로 쓴다(지금은 한국판 B-② 프롬프트로 동작만 확인).
+- 2026-10-15 완료 실행 전 발견(KAN-201 작업 중): 주제 기획 작업이 규칙 자산 묶음(`prepareAssets`)과 `spec/03`(§3·§6 발췌)을 읽는데, 글로벌 DB 에 자산이 0개이고 `docs/ai/global/spec/` 이 비어 있어 글로벌 인스턴스에서는 자산 준비 단계에서 멈췄을 것이다. `feat(ai)/global-rule-assets` 에서 영어 `spec/03`(§3 Candidate structure · §6 Gate 1)을 만들고 발췌 절 이름을 로케일로 고르게 했고, 글로벌판은 대본 규칙 외 자산이 없어도 묶음을 막지 않는다. 머지 뒤 글로벌 DB 에 guidelines·발음 사전을 시딩해야 완료 실행이 된다. 판정 프롬프트(`buildClusterPromptV2`)는 아직 한국어다 — 결과 후보 문구가 한국어로 나오면 영어 판정 프롬프트가 필요하다.

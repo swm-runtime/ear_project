@@ -59,3 +59,10 @@
   - 워커: 호출 지점(설계·축 심사·대본·수정)에서 로케일로 고른다. en 설계 산출물(sources.md·claims.md)은 영어 머리 + claims 발췌 언어 열(한글 발췌면 ko). 발음 등재(`addPronunciations`): en 은 힌트 없는 등재도 남기고 대소문자 무시·빈 값만 채운다 — 워커가 빈 힌트를 버려 발음 누락 검사가 그 단어를 못 보던 문제를 고쳤다.
   - 검증: 새 테스트 8건(지시문·스키마에 한글 없음, 구성안 표기 ↔ en L0, 산출물 형식, 발음 등재), 워커 테스트 161 통과. 한국판: 한국어 빌더는 손대지 않았고(호출 지점 분기만), 설계 단계 한국판 코드 변경은 들여쓰기뿐, 대본 45편 대조 바이트 동일.
   - 남은 것: 영어 명세 장 3개(`docs/ai/global/spec/03·04·05` — 워커 자산 준비가 이 파일을 요구한다) · 영어 템플릿 · 글로벌 DB 규칙 자산 등록(guidelines·QA·루브릭·발음 사전·구간 요약 등 — 골드 0편을 워커가 받아들이게) · QA·비평 영어 프롬프트 · L0 영어 문체 검사(guidelines 의 정규식 후보).
+- 2026-10-15 영어 규칙 자산·명세 장(브랜치 `feat(ai)/global-rule-assets`):
+  - `docs/ai/global/spec/03-backlog.md`·`04-script.md`·`05-qa.md` — 영어 명세 장(모델이 일부를 읽는다). 04 에 템플릿 tpl-en-v1(박수헌 확정: 인트로 질문 슬롯 없음, "welcome to ear podcast")·줄 문법·분량·표기·발음 맵, 05 에 QA 항목 1~11.
+  - `docs/ai/global/skills/draft/guidelines.gpt.md`(full-en-v0.1) + `CHANGELOG.md`(근거·출처·검토·결정), `skills/tts/pronunciation.json`(빈 사전).
+  - 워커: 버전 라벨 `full-en-vN` 허용 · 글로벌판 묶음은 골드를 빼고 대본 규칙 외 자산이 없어도 막지 않는다(그 자산을 읽는 단계에서 멈춘다) · en 은 골드 없이(noGold) · 자산 import 가 글로벌 미작성 키를 건너뛴다 · 주제 기획의 spec/03 발췌 절 이름을 로케일로. 영어 도입 방식은 인트로 질문 없이 [Opening] 첫 턴을 여는 방식으로.
+  - 검증: 워커 테스트 162 통과(자산 본문 한글 없음·규칙 49개·버전 라벨·템플릿 문서), 한국판 대본 45편 바이트 동일.
+  - 머지 뒤 할 일: 글로벌 DB 에 템플릿(`.work/global-infra/seed-templates.mts`)·자산(`assets-global.mts import` — 대상이 글로벌 DB 인지 주제로 확인하고 멈춘다) 시딩.
+  - 남은 것: QA·비평 영어 프롬프트와 자산(qa/prompt.md·rubric) · 썸네일·구간 요약 영어 자산 · 영어 문체 L0.

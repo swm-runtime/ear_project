@@ -102,3 +102,17 @@ test("발음 등재 추가 — 한국판 종전 그대로, 글로벌판은 빈 �
   assert.deepEqual(addPronunciations({ AI: "에이아이" }, [{ term: "AI", reading: "다른" }, { term: "GPT", reading: "" }, { term: "LLM", reading: "엘엘엠" }], "ko"), { AI: "에이아이", LLM: "엘엘엠" });
   assert.deepEqual(addPronunciations({ Hanbok: "", jeong: "jung" }, [{ term: "hanbok", reading: "hahn-bok" }, { term: "Jeong", reading: "WRONG" }, { term: " nunchi ", reading: "" }], "en"), { Hanbok: "hahn-bok", jeong: "jung", nunchi: "" });
 });
+
+test("글로벌 규칙 자산 — 버전 라벨 full-en-v0.1, 모델에 가는 본문에 한글이 없고 규칙 49개, 템플릿 문서와 같은 슬롯", async () => {
+  const { versionOf } = await import("../assets.js");
+  const root = path.resolve(import.meta.dirname, "../../../../../docs/ai/global");
+  const g = await fs.readFile(path.join(root, "skills/draft/guidelines.gpt.md"), "utf8");
+  assert.equal(versionOf("skills/draft/guidelines.gpt.md", g), "full-en-v0.1");
+  assert.equal(versionOf("skills/draft/guidelines.md", "# x\n\n> 현행 버전: **full-v9.10**"), "full-v9.10"); // 한국판 라벨 그대로
+  const body = P.promptBody(g);
+  assert.doesNotMatch(body, HANGUL);
+  assert.equal(body.match(/^\s*\d+\. \*\*/gm)?.length, 49);
+  const spec = await fs.readFile(path.join(root, "spec/04-script.md"), "utf8");
+  assert.match(spec, /Hi, and welcome to ear podcast\. \{topic_line\} Today we're talking about \{episode_line\}\.\n/);
+  assert.deepEqual(JSON.parse(await fs.readFile(path.join(root, "skills/tts/pronunciation.json"), "utf8")), {});
+});

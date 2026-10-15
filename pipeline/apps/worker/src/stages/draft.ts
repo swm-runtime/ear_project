@@ -51,7 +51,7 @@ export async function runDraft(job: Job, ex: Executor) {
   const { assetRoot, bundle } = await prepareAssets(prior?.asset_versions ?? null);
   // 실험 no-gold (2026-09-15): settings.experiments.no_gold_backlog_ids 에 든 후보는 골드 예시 없이 설계·대본을 쓴다 — 라벨 "+no-gold" 로 runs·episodes 에 남긴다
   const experiments = await getSetting<{ no_gold_backlog_ids?: string[] }>("experiments").catch(() => null);
-  const noGold = (experiments?.no_gold_backlog_ids ?? []).includes(backlogId);
+  const noGold = pipelineLocale() === "en" || (experiments?.no_gold_backlog_ids ?? []).includes(backlogId); // 글로벌판은 골드 0편에서 시작(명세 7장)
   const promptVersion = attempt === 1 && cfg.draftMode === "two-stage" ? `${bundle.labels.draft}+2stage${noGold ? "+no-gold" : ""}` : (prior?.prompt_version ?? bundle.labels.draft); // 2단계는 라벨에 표시 — 통과율·비용을 방식별로 집계한다
   if (noGold) log(`  draft ${episodeId}: 실험 no-gold — 골드 예시 없이 설계·대본`);
   if (!prior?.asset_versions) await upsertEpisode({ id: episodeId, backlog_id: backlogId, prompt_version: promptVersion, asset_versions: bundle.versions });
