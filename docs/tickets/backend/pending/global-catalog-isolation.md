@@ -14,7 +14,7 @@
 | 관련 | [KAN-190](https://runtime364.atlassian.net/browse/KAN-190) 발행 계약(`contents.market` 기록) · [KAN-189](https://runtime364.atlassian.net/browse/KAN-189) 온보딩 · AI [KAN-204](https://runtime364.atlassian.net/browse/KAN-204) 발행 |
 | 근거 문서 | **`spec/api/global-api.md` 4.5(필터) · 4.7 · 4.8 · 7장 · 8장 `contents`·`topics`·`notices` 행** — 구현은 이 문서를 따르고, 계약이 바뀌면 티켓이 아니라 이 문서를 고친다 · 2026-10-14 글로벌화 조사 |
 | 중요도 | Medium |
-| 상태 | 진행 중 (2026-10-14 구현 PR 올림 — KAN-187 PR 머지 뒤 리베이스·개발계 검증 대기) |
+| 상태 | 진행 중 (2026-10-14 dev 머지·개발계 배포 — 남은 것: 검색 로그·주간 지표 시장 축) |
 
 > 2026-10-14 발행한 묶음 티켓(BE KAN-185 · FE KAN-183 · AI KAN-184)을 처리 단위로 나눈 것. 결정 사항(같은 앱·기기 언어로 가입 시 1회 시장 판정·한국 트랙 불변·에러 번역은 클라이언트·가격은 스토어·영어 진행자 새 2인·K-컬처 주제 신설·GLOBAL 연령 16세)과 결정 대기(시장 전환 불허)는 `spec/api/global-api.md` 2.1·9장이 원본이다.
 
