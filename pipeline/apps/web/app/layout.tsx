@@ -32,7 +32,8 @@ export default async function RootLayout({ children }: { children: React.ReactNo
     pending = { backlog: (bl ?? []).filter((b) => b.status === "proposed").length, review: (bl ?? []).filter((b) => b.status === "review_required").length };
   }
   return (
-    <html lang="ko" suppressHydrationWarning>
+    // data-market: 브라우저 코드(제품 API 호출)가 이 인스턴스의 시장을 읽는 자리 — lib/ear.ts consoleMarket (2026-10-15)
+    <html lang="ko" data-market={pipelineLocale() === "en" ? "global" : "kr"} suppressHydrationWarning>
       <body className="min-h-screen">
         {user ? (
           <>
