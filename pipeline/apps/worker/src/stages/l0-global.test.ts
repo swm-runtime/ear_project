@@ -16,28 +16,35 @@ const en = () => { process.env.PIPELINE_LOCALE = "en"; process.env.PIPELINE_SPEA
 
 const SIGNOFF = "That's all for today on ear";
 const OUTLINE = ["# outline", "Estimated length: 15 min", "", "Section #1 — Where kimchi starts", "Section #2 — Chili arrives", "Section #3 — Kimjang as a shared job"].join("\n");
-// 본문 해설 턴 — 분량을 채우는 데 쓴다. 한 턴 8문장: 한국판 L0 라면 "해설 턴 7문장 이상"으로 걸린다
-const LONG_E = "Kimjang is the late-autumn job of making a winter's worth of kimchi in one go. Families split the work by hand. One group salts the cabbage overnight. Another grinds the seasoning paste. Neighbors trade labor, so each house gets help in turn. The cabbage is packed into jars by the afternoon. Some of it is shared with relatives who could not come. UNESCO listed the practice in 2013 as intangible heritage.";
+// 본문 턴 — 분량을 채우는 데 쓴다. 첫마디가 턴마다 다르고(문체 L0 첫마디 반복), 해설은 6문장(문장 수 상한), 진행은 질문 60%(질문 비율 절반~3분의 2)
+const NOUNS = ["Cabbage", "Salt", "Neighbors", "Grandmothers", "Jars", "Radish", "Garlic", "Pepper", "Courtyards", "Rubber gloves", "Basins", "Fish sauce", "Ginger", "Scallions", "Buckets", "Children", "Aprons", "Rice flour", "Shrimp", "Pears", "Onions", "Mats", "Ladles", "Lids", "Cousins", "Kitchens", "Rooftops", "Cellars", "Knives", "Towels"];
+const HOST = ["Who decides", "Where does", "Which part", "When do", "Does everyone", "Is there", "Can a family", "What happens", "Would a", "Why would", "Was that", "Could one", "Do they", "How long", "Are the"];
+const REACT = ["I can picture", "That would tire", "I'd guess", "My hunch is", "I'd find", "It sounds"];
+const LONG_E = (noun: string) => `${noun} matter a lot in this part of the work. Families split the job by hand over two days. One group salts the cabbage overnight in large tubs. Another group grinds the seasoning paste in the morning. Neighbors trade labor, so each house gets help in turn. By the afternoon the jars are packed and shared with relatives.`;
 function script(o: { zones?: string[]; sections?: number[]; bodyTurns?: number; lastTurn?: string } = {}) {
   const z = o.zones ?? ["Intro", "Opening", "Body", "Closing"];
   const sections = o.sections ?? [1, 2, 3];
-  const per = Math.ceil((o.bodyTurns ?? 27) / sections.length);
+  const per = Math.ceil((o.bodyTurns ?? 30) / sections.length);
   let e = 1, y = 1;
   const E = (t: string) => `[Mina] E${e++} · ${t}`;
   const Y = (t: string) => `[Alex] Y${y++} · ${t}`;
-  const lines = ["Kimchi before chili — a 15-minute look at kimjang", "", `## [${z[0]}]`, Y("Welcome to ear. Today we're looking at kimjang, the big kimchi-making day."), E("Hi, I'm Mina. I grew up helping with it every November.")];
+  const lines = ["Kimchi before chili — a 15-minute look at kimjang", "", `## [${z[0]}]`, Y("Welcome to ear. Today we're looking at kimjang, the big kimchi-making day."), E("Hi, I'm Mina. I helped with it every November.")];
   lines.push("", `## [${z[1]}]`, Y("So what is kimjang, exactly?"), E("It's the day a household makes its winter kimchi, all at once."));
   lines.push("", `## [${z[2]}]`);
+  let k = 0;
   for (const n of sections) {
     lines.push(`### #${n} Part ${n}`);
-    for (let i = 0; i < per; i++) { lines.push(Y("How did that work in practice?"), E(LONG_E)); }
+    for (let i = 0; i < per; i++, k++) {
+      const host = k % 5 < 3 ? `${HOST[k % HOST.length]} the ${NOUNS[(k + 3) % NOUNS.length].toLowerCase()} come first in that order?` : `${REACT[k % REACT.length]} that taking most of a weekend.`;
+      lines.push(Y(host), E(LONG_E(NOUNS[k % NOUNS.length])));
+    }
   }
   lines.push("", `## [${z[3]}]`, E("Kimjang turns a hard seasonal job into a shared one. The work is split. The food is shared. That is why it lasted."));
   lines.push(o.lastTurn ?? Y(`${SIGNOFF}. Thanks for listening, and see you next time.`));
   return lines.join("\n");
 }
 
-test("형식 계약을 지킨 영어 대본은 위반이 없고, 한국어 문체 검사(해설 턴 7문장 이상 등)는 돌지 않는다", () => {
+test("형식 계약·문체를 지킨 영어 대본은 위반이 없고, 한국어 문체·귀속 검사는 돌지 않는다", () => {
   en();
   const md = script();
   assert.ok(scriptStats(md).words! >= MIN_WORDS_EN, `표본 분량 ${scriptStats(md).words}단어`);
@@ -97,4 +104,60 @@ test("구역 → 카드 구분 — 글로벌판 [Intro]·[Opening]·[Body]·[Clo
   assert.deepEqual(["Intro", "Opening", "Body", "Closing", "마무리"].map(sectionKind), ["intro", "lead", "body", "outro", "body"]);
   delete process.env.PIPELINE_LOCALE;
   assert.deepEqual(["인트로", "도입", "본문", "마무리", "Closing"].map(sectionKind), ["intro", "lead", "body", "outro", "body"]);
+});
+
+// ── 문체 L0 (2026-10-15 — guidelines full-en 규칙 9·13·14·21~33·36·45·46) ──
+const { enStyleViolations, EN_STYLE_MARK, isRatioViolation } = await import("./draft-two-stage.js");
+const T = (id: string, text: string, section = "Body") => ({ speaker: id.startsWith("E") ? "Mina" : "Alex", id, text, section });
+
+test("계약 위반 — 대본 ID·제작 용어·군말과 지문·상대 시점·긴 해설 턴·턴당 수치 과다는 문체 표지 없이(한도 뒤 실패)", () => {
+  en();
+  const v = enStyleViolations([
+    T("Y1", "Welcome. Today we're talking about kimjang.", "Intro"),
+    T("E1", "Families share the work C03. In the next section we look at salt."),
+    T("Y2", "Um, that sounds hard [laughs]."),
+    T("E2", "Kimjang is still common these days."),
+    T("E3", "One. Two. Three. Four. Five. Six. Seven."),
+    T("E4", "In 2013, 2014, 2015, 2016, and 2017 the numbers rose."),
+    T("Y3", "That's all for today on ear podcast.", "Closing"),
+  ]);
+  const hard = v.filter((x) => !x.startsWith(EN_STYLE_MARK));
+  assert.match(hard.join("\n"), /Claim or excerpt IDs in spoken lines \(E1 "C03"\)/);
+  assert.match(hard.join("\n"), /Production words in spoken lines \(E1 "next section"\)/);
+  assert.match(hard.join("\n"), /Fillers, sound tags, or stage directions \(Y2 "Um"\)/);
+  assert.match(hard.join("\n"), /Relative time words outside the templates \(E2 "these days"\)/); // Y1·마지막 턴의 "Today" 는 템플릿이라 뺀다
+  assert.match(hard.join("\n"), /Explainer turns over six sentences \(E3 \(7\)\)/);
+  assert.match(hard.join("\n"), /five or more numbers \(E4 \(5\)\)/);
+});
+
+test("문체 위반 — 문장부호·AI 어휘·관광 안내문·과장 동사·상투 반응·예고·자문자답·교훈·대조 과다는 문체 표지(한도 뒤 QA 로)", () => {
+  en();
+  const v = enStyleViolations([
+    T("E1", "Kimchi is crucial — it serves as a testament to a vibrant culture, highlighting change."),
+    T("Y1", "Exactly! Great question, by the way."),
+    T("E2", "Let's dive in. Why? Because the jars were shared. It reminds us of something."),
+    T("E3", "It's not food, it's labor. Not just salt but time. Work rather than rest."),
+  ]);
+  const soft = v.filter((x) => x.startsWith(EN_STYLE_MARK));
+  for (const re of [/dashes, semicolons/, /AI vocabulary \(E1 "crucial"\)/, /brochure language \(E1 "vibrant"\)/, /inflated verbs or a comment tail \(E1 "serves as"\)/, /stock reactions or praise \(Y1 "Exactly"\)/, /signposting .* \(E2 "Let's dive"\)/, /self-answered questions in explainer turns \(E2 "Why\? B"\)/, /morals or slogans \(E2 "It reminds us"\)/, /contrast frames .* used 3 times/]) assert.match(soft.join("\n"), re);
+  assert.ok(soft.every(isRatioViolation)); // 한도 뒤 남아도 QA 로 넘긴다
+  assert.deepEqual(l0Next(soft, L0_FIX_MAX), { action: "pass", residual: soft });
+});
+
+test("첫마디 반복·So 첫마디·본문 진행 턴 질문 비율", () => {
+  en();
+  const body = Array.from({ length: 8 }, (_, i) => T(`Y${i + 2}`, i < 7 ? `So why does it matter ${i}?` : "Fair enough."));
+  const v = enStyleViolations([T("Y1", "Welcome.", "Intro"), ...body, T("Y10", "Bye.", "Closing")]).join("\n");
+  assert.match(v, /the same turn opener more than three times: "so why" ×7/);
+  assert.match(v, /7 turns open with "So" or "Okay, so"/);
+  assert.match(v, /7 of 8 Body host turns are questions \(88%\)/);
+});
+
+test("평범한 영어 문장은 걸리지 않는다 — 흔한 단어·시각 콜론·하이픈 단어·숫자 셋", () => {
+  en();
+  assert.deepEqual(enStyleViolations([
+    T("E1", "The market opens at 9:30, and the well-known stalls sell out by noon. Prices rose about 3 percent in 2019 and 2020."),
+    T("Y1", "I'd guess the early buyers are older people who live nearby."),
+    T("E2", "Some are, and many are students who grew up in the area. They come back for the same soup."),
+  ]), []);
 });
