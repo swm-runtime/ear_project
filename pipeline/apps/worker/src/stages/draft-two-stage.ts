@@ -6,11 +6,12 @@ import { executedBy } from "../config.js";
 import { workerRev } from "../assets.js";
 import { ApiLimit, RetryLater } from "../util.js";
 import type { Executor } from "../executors/index.js";
-import { assetPaths, buildDesignPrompt, buildWritePromptParts, DESIGN_SCHEMA, outlineMarks, pipelineLocale, scriptZones, WRITE_SCHEMA, type BacklogCandidate, type INTRO_STYLES, type Templates } from "@ear/pipeline";
+import { assetPaths, buildDesignPrompt, buildWritePromptParts, DESIGN_SCHEMA, buildWritePromptPartsEn, outlineMarks, pipelineLocale, scriptZones, WRITE_SCHEMA, WRITE_SCHEMA_EN, type BacklogCandidate, type IntroStyle, type Templates } from "@ear/pipeline";
 import { exists, hostOf, log } from "../util.js";
 import { parseScriptForTts, type ScriptTurn } from "../tts/script.js";
 import { runDesignSingle } from "./design-single.js";
 import { countWords, MIN_WORDS_EN, WORDS_PER_MIN_EN } from "../script-length.js";
+import { addPronunciations } from "../tts/normalize.js";
 
 /**
  * 초안 2단계 (2026-09-08 — "축이 이끄는 파이프라인" ③, spec/04 2장).
@@ -26,7 +27,7 @@ export interface WriteOut { title: string; one_liner?: string; script: string; s
 export interface TwoStageArgs {
   job: Job; ex: Executor; episodeId: string; candidate: BacklogCandidate; dir: string; rel: string;
   assetRoot: string; promptVersion: string; templates: Templates | null; majorTopic?: string;
-  introStyle: (typeof INTRO_STYLES)[number]; fileTools: string[];
+  introStyle: IntroStyle; fileTools: string[];
   signoffSeed?: number;
   /** 실험 no-gold (2026-09-15): 설계·대본 프롬프트에서 골드 예시를 뺀다 — settings.experiments.no_gold_backlog_ids 에 든 후보만 */
   noGold?: boolean;
@@ -86,8 +87,9 @@ export async function runTwoStageDraft(a: TwoStageArgs): Promise<TwoStageResult>
   ]);
   const pronFile = path.join(dir, "pronunciations.json");
   const pronunciationsJson = (await exists(pronFile)) ? await read(pronFile) : "{}";
-  const estimatedMinutes = design?.estimated_minutes || Number(outlineMd.match(/^예상 분량:\s*(\d+(?:\.\d+)?)\s*분/m)?.[1]) || 15; // 설계 이어받기면 outline.md 에서 읽는다
-  const parts = buildWritePromptParts({ episodeId, candidate: cand, introStyle: a.introStyle, promptVersion: a.promptVersion, templates: a.templates, majorTopic: a.majorTopic, signoffSeed: a.signoffSeed, estimatedMinutes, guidelines, specScript, goldFullEum, goldFullYuna, sourcesMd, claimsMd, outlineMd, pronunciationsJson });
+  const estimatedMinutes = design?.estimated_minutes || Number(outlineMd.match(outlineMarks().estimate)?.[1]) || 15; // 설계 이어받기면 outline.md 에서 읽는다
+  const en = pipelineLocale() === "en"; // 글로벌판: 영어 대본 프롬프트·스키마 (global-prompts.ts)
+  const parts = (en ? buildWritePromptPartsEn : buildWritePromptParts)({ episodeId, candidate: cand, introStyle: a.introStyle, promptVersion: a.promptVersion, templates: a.templates, majorTopic: a.majorTopic, signoffSeed: a.signoffSeed, estimatedMinutes, guidelines, specScript, goldFullEum, goldFullYuna, sourcesMd, claimsMd, outlineMd, pronunciationsJson });
   log(`  draft ${episodeId} · 2/2 대본 (단발, 공유 ${Math.round(parts.system.length / 1000)}K + 편별 ${Math.round(parts.user.length / 1000)}K자)`);
   let w: Awaited<ReturnType<typeof ex.run<WriteOut>>>;
   try {
@@ -106,7 +108,7 @@ export async function runTwoStageDraft(a: TwoStageArgs): Promise<TwoStageResult>
     throw e;
   }
   async function runWrite() { return ex.run<WriteOut>({
-    prompt: parts.user, systemPrompt: parts.system, schema: WRITE_SCHEMA,
+    prompt: parts.user, systemPrompt: parts.system, schema: en ? WRITE_SCHEMA_EN : WRITE_SCHEMA,
     tools: [], allowedTools: [], cwd: cfg.workRoot, timeoutMs: 60 * 60_000, model: cfg.draftWriteModel, maxThinkingTokens: cfg.thinkingWrite, effort: cfg.effortWrite, // 60분 — opus 대본 실측 30분+ (2026-09-09)
     onProgress: (pr) => setJobProgress(job.id, { ...pr, phase: "대본 2/2 — 단발 작성", detail: pr.turns > 0 ? "대본 작성 중 (도구 없음)" : pr.detail }).catch(() => {}),
   }); }
@@ -133,7 +135,7 @@ export async function runTwoStageDraft(a: TwoStageArgs): Promise<TwoStageResult>
   if (o.pronunciations_added.length) {
     let cur: Record<string, string> = {};
     try { cur = JSON.parse(pronunciationsJson); } catch { cur = {}; }
-    for (const p of o.pronunciations_added) if (p.term.trim() && p.reading.trim() && !(p.term in cur)) cur[p.term] = p.reading;
+    addPronunciations(cur, o.pronunciations_added); // 글로벌판은 힌트 없는 등재도 남긴다(명세 6.7)
     await fs.writeFile(pronFile, JSON.stringify(cur, null, 2) + "\n", "utf8");
   }
 

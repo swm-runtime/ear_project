@@ -117,3 +117,23 @@ export function missingPronunciations(epMap: Record<string, string>, globalDict:
   const known = new Set(Object.entries(globalDict).filter(([, v]) => v.trim()).map(([k]) => k.toLowerCase()));
   return Object.entries(epMap).filter(([k, v]) => !v.trim() && !known.has(k.toLowerCase())).map(([k]) => k);
 }
+
+/**
+ * 발음 등재 추가 (설계·대본·수정 단계가 낸 pronunciations / pronunciations_added → 에피소드 발음 맵).
+ * 한국판은 종전 그대로: 힌트가 있고 아직 없는 표기만 더한다. 글로벌판(글로벌 명세 6.7): 힌트가 비어도 등재한다(발음 누락 검사가 보게),
+ * 이미 있는 표기는 대소문자를 무시하고 찾으며, 기존 값이 비어 있을 때만 새 힌트로 채운다
+ */
+export function addPronunciations(cur: Record<string, string>, added: { term: string; reading: string }[], locale: PipelineLocale = pipelineLocale()): Record<string, string> {
+  if (locale !== "en") {
+    for (const p of added) if (p.term.trim() && p.reading.trim() && !(p.term in cur)) cur[p.term] = p.reading;
+    return cur;
+  }
+  for (const p of added) {
+    const term = p.term.trim(), reading = p.reading.trim();
+    if (!term) continue;
+    const key = Object.keys(cur).find((k) => k.toLowerCase() === term.toLowerCase());
+    if (key === undefined) cur[term] = reading;
+    else if (!cur[key].trim() && reading) cur[key] = reading;
+  }
+  return cur;
+}
