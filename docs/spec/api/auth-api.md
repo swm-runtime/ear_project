@@ -93,7 +93,8 @@
   "provider": "kakao",
   "provider_token": "<제공자별 형식 — 아래 표>",
   "device_id": "<기기 식별자>",
-  "nonce": "<애플 전용 — 인가 요청에 실은 원본 nonce>"
+  "nonce": "<애플 전용 — 인가 요청에 실은 원본 nonce>",
+  "locale": { "preferred_language": "en", "language_code": "en-US", "region_code": "US", "timezone": "America/New_York" }
 }
 ```
 
@@ -103,6 +104,22 @@
 | provider_token | string | 필수 | **제공자마다 형식과 검증 수단이 다르다** — 아래 "provider_token — 제공자별 형식" 참조. 어느 쪽이든 서버가 **반드시 검증**한다 |
 | device_id | string | 필수 | 푸시 토큰 매핑용 |
 | nonce | string | **`apple`만 필수** | 클라이언트가 애플 인가 요청에 실은 **원본** nonce. 다른 제공자는 무시한다 |
+| locale | object | 선택 | 기기 로케일 — 아래 "`locale` — 시장 판정·로케일" 참조(추가 2026-10-14 — KAN-187) |
+
+**`locale` — 시장 판정·로케일** (추가 2026-10-14 — KAN-187, 확정 계약 `global-api.md` 2.1·4.1)
+
+4.1·4.2 공통 선택 객체다. 전부 선택이라 `locale`을 보내지 않는 구 앱도 그대로 가입·로그인된다.
+
+| 필드 | 타입 | 필수 | 비고 |
+| --- | --- | --- | --- |
+| `locale.preferred_language` | `ko` · `en` | 선택 | 사용자가 가입 화면에서 고른 콘텐츠 언어 — **시장 판정의 입력**(`ko` → `kr`, `en` → `global`). **4.2(계정 생성)에서만 쓰이고** 4.1의 기존 계정 로그인에서는 무시한다 |
+| `locale.language_code` | BCP 47 (≤16자) | 선택 | 기기 언어(예 `en-US`). `preferred_language`가 없을 때만 시장 판정 폴백(`ko*` → `kr`, 그 밖 `global`, 그것도 없으면 `kr`). 가입·로그인마다 갱신 |
+| `locale.region_code` | ISO 3166-1 alpha-2 (2자) | 선택 | 기기 지역. 통계용 — 판정에 쓰지 않는다. 가입·로그인마다 갱신 |
+| `locale.timezone` | IANA (≤64자) | 선택 | 기기 시간대. 드립 발송 그룹에만 쓴다(서비스 날짜 경계는 바꾸지 않는다). 가입·로그인마다 갱신 |
+
+- **시장(`market`)은 계정 생성(4.2) 때 1회만 정하고 이후 바뀌지 않는다.** 기존 계정 로그인에 다른 `locale`이 와도 `language_code`·`region_code`·`timezone`만 갱신한다.
+- **길이·열거 범위 안에서 형식이 맞지 않는 값은 버리고 가입·로그인을 막지 않는다**(로케일은 자격 조건이 아니다) — 버린 필드는 저장값을 덮어쓰지 않는다. 다만 DTO 검증에 걸리는 값은 400 `VALIDATION_FAILED`다 — `preferred_language`가 `ko`·`en` 밖 · `language_code` 16자 초과 · `region_code`가 정확히 2자가 아님 · `timezone` 64자 초과 · 문자열이 아닌 값.
+- **서버 문구(푸시·인증 메일) 언어는 `language_code`가 아니라 `market`으로 고른다**(KR → ko · GLOBAL → en — `global-api.md` 2.3).
 
 **`provider_token` — 제공자별 형식**
 
@@ -167,7 +184,10 @@
     "tier": "light",
     "role": "user",
     "onboarding_completed": true,
-    "onboarding_step": "done"
+    "onboarding_step": "done",
+    "market": "kr",
+    "language_code": "ko-KR",
+    "timezone": "Asia/Seoul"
   }
 }
 ```
@@ -193,6 +213,8 @@
 - **동의 화면에 보여줄 현행 버전을 서버가 내려준다.** 클라이언트에 버전을 하드코딩하지 않는다.
 
 **`user.tier`** — `light` \| `daily` \| `pro` \| `trial`. **`trial`은 가입 체험 중인 무료 계정**이다(`subscription.md` 4.8, 2026-10-03 — `/auth/sign-up` 응답과 `GET /users/me`도 같다). 표시용이며 판정에 쓰지 않는다 — 언제까지인지·이후 한도는 `plan.trial`(`profile-api.md` 4.1)이 준다.
+
+**`user.market` · `user.language_code` · `user.timezone`** (추가 2026-10-14 — KAN-187) — `market`은 `kr` \| `global`(가입 시 1회 판정, 불변). `language_code`·`timezone`은 저장된 기기 로케일이며 구 앱 계정은 `null`이다. 클라이언트의 제공자 목록·온보딩 단계·요금제 분기는 **`market`으로** 한다 — 언어로 추측하지 않는다(4.2 응답·4.13도 같다).
 
 **`pending_consents`** — 기존 계정이라도 약관이 개정됐으면 재동의가 필요한 항목이 담긴다. 판정은 **서버가 `consents`의 최신 버전과 현행 버전을 비교해서** 한다. 클라이언트가 보낸 버전을 신뢰하지 않는다(`auth.md` 7). 재동의는 `/users/me/consents`로 처리한다.
 
@@ -244,9 +266,12 @@
     { "consent_type": "privacy",          "version": "1.1", "is_agreed": true },
     { "consent_type": "age_confirmation", "version": null,  "is_agreed": true },
     { "consent_type": "marketing",        "version": null,  "is_agreed": false }
-  ]
+  ],
+  "locale": { "preferred_language": "en", "language_code": "en-US", "region_code": "US", "timezone": "America/New_York" }
 }
 ```
+
+- **`locale`**(선택, 추가 2026-10-14 — KAN-187) — 4.1과 같은 객체다. 이 요청이 계정을 만들므로 **`preferred_language`가 여기서 시장을 정한다**(없으면 `language_code` 폴백, 그것도 없으면 `kr`). 같은 `signup_token`의 재시도로 기존 계정이 돌아오는 경우 시장은 다시 판정하지 않는다.
 
 - **동의 4종(필수 3 + 마케팅)을 각각 별개 행으로 기록한다.** 개정 시점이 서로 다르므로 한 행에 묶지 않는다(`domain.md` 3.2 — append-only).
 - 필수 3종(`terms`·`privacy`·`age_confirmation`)이 `is_agreed: true`가 아니면 계정을 만들지 않는다(`CONSENT_REQUIRED`).
@@ -597,7 +622,8 @@
   "user": {
     "id": "uuid", "nickname": null, "profile_image_url": null, "email": null, "is_email_verified": false,
     "provider": "kakao", "tier": "light", "role": "user",
-    "onboarding_completed": false, "onboarding_step": "topic"
+    "onboarding_completed": false, "onboarding_step": "topic",
+    "market": "kr", "language_code": null, "timezone": null
   },
   "pending_consents": [
     { "consent_type": "age_confirmation", "version": null, "is_required": true }

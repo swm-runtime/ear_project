@@ -19,3 +19,4 @@
 ## 처리 기록
 - 2026-10-14 발행. 코드는 KAN-189 PR에 반영.
 - 2026-10-14 관심사 관리 저장(`PUT /users/me/interests`)의 시장 검사 코드 반영(PR `feat(be)/interest-market-check`) — `interest-management-api.md` 4.3 항목 추가.
+- 2026-10-15 반영 — `common-error-handling.md` 9.2-1(`MARKET_MISMATCH` 신설 절) · `onboarding-api` 4.1~4.4·5장 · `interest-management-api` 4.2·4.3·5장 · `backend/domain.md` 4.1(`slug`·GLOBAL 주제 8개 숨김 시드). 반영 전 코드와 대조함.

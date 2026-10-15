@@ -98,6 +98,8 @@
 
 화면 진입 시 현재 선택 상태를 받아온다. 주제 목록(4.1)과 **병렬로 호출**한다.
 
+- 다른 시장 주제는 실리지 않는다(2026-10-14 — `global-api.md` 4.5). 조회가 시장으로 거르는 것이 아니라, 저장(4.3·온보딩 4.3)이 다른 시장 주제를 409로 막아 행이 생기지 않기 때문이다.
+
 **Response 200**
 
 ```json
@@ -160,6 +162,7 @@
 | 하한 | `topic_ids`가 1개 미만 | `INTEREST_REQUIRED` |
 | 상한 | **직접 고른 개수** > **max(3, 저장 전 직접 고른 개수)** — `topic_ids` 중 *저장 전에 `auto_expand`로 활성이던 주제*(유지분)를 뺀 개수로 센다(개정 2026-09-30) | `INTEREST_LIMIT_EXCEEDED` |
 | 주제 유효성 | 존재하지 않거나 `is_visible = false`인 `topic_id` 포함 | `INTEREST_TOPIC_UNAVAILABLE` |
+| 시장 | 사용자 시장(`users.market`)과 다른 시장의 `topic_id` 포함(추가 2026-10-14 — KAN-189, `global-api.md` 4.5) | `MARKET_MISMATCH` |
 
 - **자동 슬롯 주제는 상한에 세지 않는다**(`interest-management.md` 4.3). 직접 3개 + 자동 1개 보유자의 4개 재저장은 통과한다. 자동 슬롯을 빼고 그 자리에 새 주제를 넣으면 그 주제는 `manual`이라 직접 고른 것이 4개가 되어 거부된다 — 자동 슬롯은 직접 고를 수 있는 자리를 늘려 주지 않는다.
 - **상한을 상수 3이 아니라 "기존 개수보다 늘어나지 않으면 통과"로 판정한다**(`interest-management.md` 7장). 상한 도입 이전에 직접 고른 주제를 3개 넘게 보유한 사용자에게 강제 축소를 요구하지 않기 위해서다 — 5개 보유자의 5개 재저장(해제 없이 다른 변경만)도, 5개 → 4개 저장도 통과하고, 5개 → 6개는 거부된다. 3개 이하로 내려간 뒤부터는 상수 3이 그대로 상한이 된다.
@@ -170,7 +173,7 @@
 
 **서버 처리** — 하나의 트랜잭션에서 수행한다(`architecture.md` 8.1). 부분 반영이 없어야 한다(`interest-management.md` 7장 — 저장 도중 앱 종료).
 
-1. 검증(위 표) — 순서는 하한 → 주제 유효성 → 상한
+1. 검증(위 표) — 순서는 하한 → 주제 유효성 → **시장** → 상한(시장 추가 2026-10-14)
 2. 현재 활성 관심사(노출 주제 한정)와 `topic_ids`의 **diff 계산**
 3. **추가분**: `user_interests` upsert — `is_active = true`, `source = manual`, `is_user_removed = false`, `deactivated_at = null`. 해제했던 주제의 재선택은 기존 행 복원이다(`uq_user_interests_user_id_topic_id` — 행을 새로 만들지 않는다)
 4. **해제분**: `is_active = false`, `is_user_removed = true`, `deactivated_at` 기록. **행을 물리 삭제하지 않는다** — 재선택 이력 추적 + 자동 확장 재추가 금지(`domain.md` 4.2)
@@ -207,6 +210,7 @@
 | `INTEREST_REQUIRED` | 400 | `topic_ids`가 비었음(0개 저장 시도) |
 | `INTEREST_LIMIT_EXCEEDED` | 400 | 저장 전 활성 개수보다 늘면서 3개 초과 |
 | `INTEREST_TOPIC_UNAVAILABLE` | 400 | 존재하지 않거나 숨겨진 `topic_id` 포함 |
+| `MARKET_MISMATCH` | 409 | 다른 시장의 `topic_id`가 섞임. **부분 저장 없음** — 아무것도 저장하지 않는다. 섞이면 그 주제의 콘텐츠가 추천 후보가 되지 못해 관심사가 조용히 죽고, 반대로 격리가 새는 경로가 된다. 정상 UI에서는 나오지 않는다(추가 2026-10-14 — KAN-189) |
 | `ONBOARDING_NOT_COMPLETED` | 409 | 온보딩을 마치지 않은 계정(반영 2026-09-15). 관리 화면 진입 전이라 정상 클라이언트는 도달하지 않는다 |
 
 ---
@@ -231,6 +235,7 @@
 | `INTEREST_REQUIRED` | 400 | false | [저장] 비활성 유지 + "관심 주제를 1개 이상 선택해주세요". 정상 클라이언트에서는 도달하지 않는다(저장 비활성이 선행) |
 | `INTEREST_LIMIT_EXCEEDED` | 400 | false | 토스트 "관심 주제는 3개까지 선택할 수 있어요" + 관심사 재조회(4.2)로 선택 상태 재동기화 |
 | `INTEREST_TOPIC_UNAVAILABLE` | 400 | false | 주제 목록(4.1)·관심사(4.2) 재조회 후 편집 상태 재구성. 사라진 주제의 선택만 걷어낸다 |
+| `MARKET_MISMATCH` | 409 | false | 4.3 다른 시장 주제. 정상 UI에서는 나오지 않는다 — 공통 문구(`common-error-handling.md` 9장, 추가 2026-10-14) |
 
 - 401·429·5xx는 `common-error-handling.md` 4.1~4.2의 공통 규칙을 따른다. 이 문서가 따로 정의하지 않는다.
 - **온보딩의 `ONBOARDING_INTEREST_*` 코드를 재사용하지 않는다.** 문구는 같지만 **상한 판정 규칙이 다르다** — 온보딩은 상수 3, 여기는 "기존 개수보다 늘지 않으면 통과"라, 같은 코드가 화면에 따라 다른 조건에서 나오면 코드의 의미가 갈라진다(`architecture.md` 7.5 — 배포된 코드의 의미를 바꾸지 않는다). `ONBOARDING_` 접두 코드에는 온보딩 스택 정리 같은 화면 동작이 이미 묶여 있기도 하다(9.4).

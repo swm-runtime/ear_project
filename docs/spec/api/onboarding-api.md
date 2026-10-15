@@ -93,6 +93,7 @@
 {
   "onboarding_completed": false,
   "onboarding_step": "pick",
+  "steps": ["topic", "career"],
   "selected_topic_ids": ["uuid-a", "uuid-b"],
   "career": {
     "job_category": "개발",
@@ -107,6 +108,7 @@
 |---|---|
 | `onboarding_completed` | `true`면 온보딩 화면을 띄우지 않는다. 클라이언트는 즉시 라이브러리로 보낸다 |
 | `onboarding_step` | 재개 지점. `topic \| career \| pick \| done` (`domain.md` 3.1) |
+| `steps` | 이 사용자가 밟을 화면 단계 목록(추가 2026-10-14 — KAN-189). 시장별로 KR `["topic","career"]`, GLOBAL `["topic"]`(커리어는 한국 직군 분류라 GLOBAL에는 없다). **클라이언트는 이 배열대로 화면을 잇고 단계를 하드코딩하지 않는다** — `market`으로 단계를 빼면 단계 구성이 바뀔 때마다 스토어 빌드가 필요하다(`global-api.md` 4.4) |
 | `selected_topic_ids` | 1단계에서 **서버에 저장된** 선택. 로컬 임시 저장분과 다르면 이 값이 기준이다 |
 | `career` | 미입력 필드는 `null`. 세 필드가 모두 `null`이면 건너뛴 사용자다 |
 | `picked_count` | 3단계에서 담은 건수. 재진입 시 [담기]/[건너뛰기] 버튼 분기에 쓴다 |
@@ -127,9 +129,9 @@
 ```json
 {
   "items": [
-    { "topic_id": "uuid-a", "name": "커리어", "parent_category": "일" },
-    { "topic_id": "uuid-b", "name": "생산성", "parent_category": "일" },
-    { "topic_id": "uuid-c", "name": "심리학", "parent_category": "심리·마음" }
+    { "topic_id": "uuid-a", "name": "커리어", "parent_category": "일", "slug": "career" },
+    { "topic_id": "uuid-b", "name": "생산성", "parent_category": "일", "slug": "productivity" },
+    { "topic_id": "uuid-c", "name": "심리학", "parent_category": "심리·마음", "slug": null }
   ],
   "max_selectable": 3,
   "is_fallback": false
@@ -138,7 +140,8 @@
 
 | 필드 | 의미 |
 |---|---|
-| `items` | `topics.is_visible = true`만, `display_order` 오름차순 (`domain.md` 4.1) |
+| `items` | **사용자 시장의 주제만**(`topics.market = users.market` — 추가 2026-10-14, KAN-188) · `topics.is_visible = true`만, `display_order` 오름차순 (`domain.md` 4.1). 주제는 번역 행이 아니라 시장별 별도 행이라 GLOBAL 주제의 `name`·`parent_category`는 영어로 저장된 값 그대로다 |
+| `items[].slug` | string \| null (추가 2026-10-14 — KAN-189). 주제 이미지·아이콘 매핑 키 — 클라이언트는 한국어 이름이 아니라 **`slug`로** 매핑한다. 아직 slug가 없는 주제는 `null`이고 클라이언트는 기본 이미지를 쓴다 |
 | `max_selectable` | 선택 상한. **클라이언트에 상수로 두지 않는다** |
 | `is_fallback` | **레거시**(개정 2026-09-09). 서버가 폴백 세트를 만들지 않으므로 항상 `false`다. 계약 호환을 위해 필드만 남는다 |
 
@@ -157,7 +160,7 @@
 
 ### 4.3 `PUT /onboarding/interests`
 
-1단계 [다음] 시점에 호출한다. 선택한 주제 집합을 **전체 교체**하고 `onboarding_step`을 `career`로 전진시킨다.
+1단계 [다음] 시점에 호출한다. 선택한 주제 집합을 **전체 교체**하고 `onboarding_step`을 `career`로 전진시킨다. **GLOBAL 계정은 커리어 단계가 없어 곧바로 `pick`(완료 대기)으로 전진한다**(추가 2026-10-14 — KAN-189, 4.1 `steps`).
 
 **Request**
 
@@ -191,6 +194,7 @@
 | `ONBOARDING_INTEREST_REQUIRED` | 400 | `topic_ids`가 비었음. 1단계는 건너뛸 수 없다 |
 | `ONBOARDING_INTEREST_LIMIT_EXCEEDED` | 400 | 4개 이상을 보냄 |
 | `ONBOARDING_TOPIC_UNAVAILABLE` | 400 | 존재하지 않거나 `is_visible = false`인 `topic_id`가 섞여 있음 |
+| `MARKET_MISMATCH` | 409 | 사용자 시장과 다른 시장의 `topic_id`가 섞여 있음. **아무것도 저장하지 않는다**(부분 저장 없음). 주제 유효성 검사 뒤에 판정한다(추가 2026-10-14 — KAN-189) |
 | `ONBOARDING_ALREADY_COMPLETED` | 409 | `onboarding_completed = true`인 계정의 호출 |
 
 - **"없는 주제"와 "숨겨진 주제"를 다른 코드로 구분하지 않는다.** 구분해 주면 임의의 UUID를 던져 비노출 주제의 존재 여부를 탐침할 수 있다. 클라이언트도 두 경우에 같은 동작(목록 재조회)을 한다.
@@ -241,6 +245,7 @@
 |---|---|---|
 | `VALIDATION_FAILED` | 400 | 길이 상한 초과 · `years_of_experience` enum 위반 |
 | `ONBOARDING_ALREADY_COMPLETED` | 409 | 완료된 계정의 호출 |
+| `MARKET_MISMATCH` | 409 | **GLOBAL 계정의 호출**([건너뛰기]의 빈 본문 포함). 커리어는 한국 직군 분류라 GLOBAL에는 고를 값이 없고 단계도 없다(4.1 `steps`). 정상 UI에서는 나오지 않는다(추가 2026-10-14 — KAN-189) |
 | `CAREER_JOB_CATEGORY_UNAVAILABLE` | 400 | `job_category`가 직군 목록(`GET /job-categories`)에 없는 값. 커리어 화면(`career-api.md` 5장)과 같은 코드다 — 커리어 필드의 쓰기 경로가 하나라 온보딩도 같은 검증을 받는다(등재 2026-10-10, 구현 2026-09-09 `67664c48`) |
 
 ---
@@ -266,6 +271,7 @@
           "author_name": "김OO",
           "source_name": "OO미디어",
           "thumbnail_url": "https://...",
+          "language": "ko",
           "duration_sec": 612,
           "topics": [{ "topic_id": "uuid-a", "name": "커리어" }]
         }
@@ -296,6 +302,7 @@
 | `section_type` | `interest` (관심 주제 6건) · `monthly_popular` (월간 인기 3건) · `topic_discovery` (표본 부족 시 랜덤 3건) |
 | `title` | 화면에 그대로 노출할 섹션 제목 |
 | `items[].topics` | 콘텐츠의 주제. 클라이언트가 주제 배지를 그리는 데 쓴다 |
+| `items[].language` | `ko` \| `en` — 콘텐츠 언어(추가 2026-10-14 — KAN-188). **표시 전용**이며 클라이언트는 이 값으로 거르지 않는다. 후보는 서버가 이미 사용자 시장(`contents.market = users.market`)으로 거른다 |
 
 **구성 규칙**
 
@@ -493,7 +500,9 @@
   "push_token": "ExponentPushToken[xxxxxxxxxxxxxxxxxxxxxx]",
   "platform": "ios",
   "is_os_permission_granted": true,
-  "app_version": "1.0.0"
+  "app_version": "1.0.0",
+  "language_code": "en-US",
+  "timezone": "America/New_York"
 }
 ```
 
@@ -503,6 +512,8 @@
 | `platform` | enum `ios` / `android` | 필수 | |
 | `is_os_permission_granted` | boolean | 필수 | **device 단위 값이다**(`domain.md` 3.6) |
 | `app_version` | string | 필수 | |
+| `language_code` | string (BCP 47, ≤16자) | 선택 | 기기 언어(추가 2026-10-14 — KAN-187) |
+| `timezone` | string (IANA, ≤64자) | 선택 | 기기 시간대(추가 2026-10-14 — KAN-187) |
 
 **Response 204**
 
@@ -511,6 +522,7 @@
 - **권한 상태는 `user_settings`가 아니라 `device_tokens`에 저장한다.** 사용자 단위가 아니라 기기 단위 값이다(`domain.md` 3.5·3.6).
 - **재고 팝업의 노출 이력은 서버에 저장하지 않는다.** "온보딩 전체에서 1회"는 온보딩 세션 안에서만 의미가 있고(`onboarding.md` 4 [알림]), 서버에 두면 이 화면 하나 때문에 계정 단위 상태가 하나 늘어난다. 클라이언트 로컬에서 관리한다.
 - **알림 허용·거부는 온보딩 진행을 가르지 않는다.** 결과와 무관하게 라이브러리로 진입한다.
+- **`language_code`·`timezone`은 기존 가입자의 로케일이 채워지는 경로다**(추가 2026-10-14 — KAN-187, `global-api.md` 4.2). 매 실행 호출되므로 재가입 없이 채워진다. 값은 기기 행이 아니라 **`users` 행**(`users.language_code`·`users.timezone`)에 저장하고 **`market`은 바꾸지 않는다.** 형식이 아닌 값은 버리고(저장값을 덮어쓰지 않는다) 요청은 204로 끝낸다.
 
 ---
 
@@ -526,6 +538,7 @@
 | `ONBOARDING_INTERESTS_NOT_SET` | 409 | false | 1단계로 되돌림 |
 | `ONBOARDING_NOT_COMPLETED` | 409 | false | 폴링 중단. 완료 요청부터 다시 |
 | `ONBOARDING_ALREADY_COMPLETED` | 409 | false | 온보딩 스택 제거 후 라이브러리로 진입 |
+| `MARKET_MISMATCH` | 409 | false | 4.3 다른 시장 주제 · 4.4 GLOBAL 계정. 정상 UI에서는 나오지 않는다 — 공통 문구(`common-error-handling.md` 9장, 추가 2026-10-14) |
 | `CAREER_JOB_CATEGORY_UNAVAILABLE` | 400 | false | 4.4 — 목록 밖 직군 값. 클라이언트 동작은 `common-error-handling.md` 9.9(커리어)를 따른다 |
 | `VALIDATION_FAILED` | 400 | false | 인라인 오류. 재시도를 권하지 않는다(`common-error-handling.md` 4.1) |
 | `CONTENT_NOT_FOUND` | — | false | **건별 결과**(4.6 `failed[]`). 해당 카드를 목록에서 제거 |

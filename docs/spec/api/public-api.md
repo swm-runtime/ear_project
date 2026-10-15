@@ -53,7 +53,8 @@
     "author_name": "윤태경",
     "source_name": "이어 오리지널",
     "duration_sec": 780,
-    "thumbnail_url": "https://cdn.example/thumb/....webp"
+    "thumbnail_url": "https://cdn.example/thumb/....webp",
+    "language": "ko"
   },
   "audio": {
     "url": "https://cdn.example/audio/....mp3?Policy=...&Signature=...&Key-Pair-Id=...",

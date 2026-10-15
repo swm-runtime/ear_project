@@ -59,3 +59,4 @@ idx_topics_market_is_visible_display_order (market, is_visible, display_order)
 
 ## 처리 기록
 - 2026-10-14 발행. 코드는 KAN-188 PR에 반영 완료(계약은 `global-api.md`가 먼저 확정).
+- 2026-10-15 반영 — `backend/domain.md` 5.1·4.1·9.2 · `explore-api`·`library-api`·`player-api`(`language` 필드·시장 격리·다른 시장 ID 404 — 404는 상세·담기·재생 시작·서명 URL·대본에만 적용됨을 코드 기준으로 명시) · `onboarding-api` 4.2·4.5 · `settings-api` 4.4·4.5 · `features/explore`·`library`·`player` 6장 · `content-detail-api`(`language`·다른 시장 ID 404)·`drip-feedback-api`·`public-api`(`language`) — 검증 단계에서 응답에 `language`가 실리는 문서 3개를 더 찾아 함께 반영. 반영 전 코드와 대조함.

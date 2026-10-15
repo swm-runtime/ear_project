@@ -186,7 +186,8 @@
         "duration_sec": 620,
         "thumbnail_url": "https://...",
         "content_version": 1,
-        "topic_ids": ["uuid", "uuid"]
+        "topic_ids": ["uuid", "uuid"],
+        "language": "ko"
       },
       "progress": {
         "position_sec": 372,
@@ -209,6 +210,7 @@
 | `is_counted_today` | 이 콘텐츠가 **재청취 창 안**에 있는가 — 최근 15일(당일 포함) 내 차감 행(`play_records.is_counted = true`)이 있어, 재생해도 차감이 없는 상태(개정 2026-08-10 — `paywall.md` 4.3-1. 필드명은 유지하고 의미를 "오늘 카운트됨"에서 "창 안"으로 확장했다) |
 | `progress` | `playback_progresses` 조인 결과. **행이 없으면 `null`**(0으로 채우지 않는다) |
 | `content.content_version` | 재발행 판정용. 올라갔으면 클라이언트가 저장한 위치·오프라인 파일을 폐기한다(`domain.md` 5.1) |
+| `content.language` | 콘텐츠 언어 `ko` / `en`(추가 2026-10-14 — KAN-188, `global-api.md` 4.7). **표시 전용** — 클라이언트는 이 값으로 목록을 거르지 않는다(시장 필터는 서버가 한다). 4.3 `resume_target.content`에도 같은 필드가 실린다 |
 | `content.source_url` | **`null`이면 더보기 시트(L4)에 [원문 보기]를 노출하지 않는다**(개정 2026-08-24 — 세 화면 더보기 통일(2026-08-10)의 계약 반영. 발급 응답 `player-api.md` 4.1과 같은 규칙). `partner`는 항상 값이 있고(`chk_contents_partner_disclosure` — `domain.md` 5.1), `ai_generated`는 선택 필드라 `null`일 수 있다 |
 
 - **재생 위치를 `library_items`가 아니라 조인으로 가져온다.** 위치의 단독 소유자는 `playback_progresses`다(`domain.md` 6.2 — `resume_position_sec`은 폐기된 컬럼).
@@ -219,6 +221,7 @@
   - **이것도 힌트이지 판정이 아니다.** 차감 여부의 최종 판단은 재생 시작(4.4)이 하며, 이 값이 `true`여도 서버가 다시 판정한다(창 만료는 서비스 날짜 경계에서만 일어나고 차감 행은 지워지지 않으므로, 실제로는 안전한 방향으로만 틀린다).
 - **회수된 콘텐츠는 응답에서 제외한다** — `contents.status = 'published'`인 것만 내려준다(`domain.md` 5.1 · `library.md` 4.7).
   - `library_items` 행은 남긴다. 회수가 해제되면 다시 보여야 하고, 사용자의 삭제와 파트너의 회수는 다른 사건이다.
+- **사용자 시장이 아닌 콘텐츠(`contents.market != users.market`)도 응답에서 제외한다**(추가 2026-10-14 — KAN-188, `global-api.md` 4.7). 노출 조건(published + 라이선스 유효 + 시장 일치)은 `content.visibility.ts`의 `CONTENT_SCOPE_CONDITION` 하나로 조립한다 — 4.3 재개 대상도 같은 조건이다.
 - **삭제된 항목(`deleted_at IS NOT NULL`)은 제외한다.** 복구는 클라이언트가 들고 있는 id로 4.7을 호출해 수행하므로 목록에 남길 이유가 없다.
 
 **커서**
@@ -300,7 +303,8 @@
       "duration_sec": 620,
       "thumbnail_url": "https://...",
       "content_version": 1,
-      "topic_ids": ["uuid", "uuid"]
+      "topic_ids": ["uuid", "uuid"],
+      "language": "ko"
     },
     "progress": { "position_sec": 372, "max_reached_sec": 372 }
   },
@@ -323,6 +327,7 @@
 | `deleted_at IS NULL` | 삭제한 것을 이어들 자리는 없다 |
 | `status != 'completed'` | 이미 끝난 것을 이어들 자리는 없다(`library.md` 4.2) |
 | `contents.status = 'published'` | 회수된 콘텐츠는 미니플레이어에도 띄우지 않는다(`library.md` 7) |
+| `contents.market = users.market` | 다른 시장 콘텐츠는 어떤 응답에도 나오지 않는다(추가 2026-10-14 — KAN-188, `global-api.md` 4.7) |
 | `position_sec > 0` | 위치가 0이면 처음부터 듣는 것과 같다(`library.md` 7) |
 
 - **`content.topic_ids`는 목록 응답(4.1)과 같은 출처·같은 모양이다**(2026-09-22 추가 — KAN-91). 미니플레이어가 제목 아래 카테고리 줄을 그리는 데 쓴다. 주제가 없으면 **`null`이 아니라 `[]`** 다.
@@ -378,7 +383,7 @@
 
 **서버 처리** — 하나의 트랜잭션에서 수행한다(`architecture.md` 8.1).
 
-1. 콘텐츠 조회 → `status != 'published'`면 `CONTENT_WITHDRAWN`(403)
+1. 콘텐츠 조회 → 없거나 **사용자 시장이 아니면** `CONTENT_NOT_FOUND`(404 — 추가 2026-10-14, KAN-188), `status != 'published'`면 `CONTENT_WITHDRAWN`(403)
 2. `paywall.md` 4.1 판정 → `BLOCKED` / `LIMIT_REACHED`면 403으로 종료. **재청취 창(4.3-1) 내 콘텐츠는 한도 검사보다 먼저 허용된다**(개정 2026-08-10)
 3. `play_records`에 `(user_id, content_id, play_date)` upsert — 유니크 제약이 하루 단위 중복을 막는다(`domain.md` 6.3). **차감 재생이면 `is_counted = true`, 재청취 창 내 재생이면 `is_counted = false`**(청취 시간 적산용 행 — 개정 2026-08-10)
 4. 라이브러리 항목이 있고 `status = 'unplayed'`면 `in_progress`로 전환 + `last_played_at` 갱신
@@ -399,7 +404,7 @@
 | `PLAY_LIMIT_EXCEEDED` | 403 | **최상위가 아닌** 한도 티어(무료 포함 — 예: `light`·`daily`)의 한도 소진 → 클라이언트는 **페이월 바텀시트**를 연다 |
 | `PLAY_LIMIT_REACHED` | 403 | **최상위** 티어의 한도 소진 → 페이월이 아니라 한도 안내(`paywall.md` 2장·4.1). 정정 2026-10-10 — 종전 "한도 있는 유료 티어"는 `paywall.md`·`player-api.md` 4.1·구현(`play-policy.service.ts` `isTopTier`)과 달랐다 |
 | `CONTENT_WITHDRAWN` | 403 | 파트너 회수 → "제공이 종료된 콘텐츠예요" 안내 후 목록에서 제거 |
-| `CONTENT_NOT_FOUND` | 404 | `content_id`가 없음 |
+| `CONTENT_NOT_FOUND` | 404 | `content_id`가 없음, 또는 **사용자 시장이 아닌 콘텐츠**(추가 2026-10-14 — KAN-188. 존재 여부를 구분해 알려주지 않는다 — `global-api.md` 4.7) |
 
 - **두 한도 에러를 하나로 합치지 않는다.** 무료는 페이월(결제 유도), 유료는 안내다. 클라이언트가 다르게 동작해야 하므로 코드를 나눈다(`architecture.md` 7.5).
 - **회수를 404가 아니라 403으로 응답한다.** 클라이언트가 "찾을 수 없음"이 아니라 "제공 종료"로 안내하고 목록에서 제거해야 한다(`convention.md` 5.5).
@@ -604,6 +609,7 @@ POST /users/me/library-items/:id/complete
 - **커서에 `user_id`를 담지 않는다.** 담으면 남의 커서를 넣어 조회를 시도할 여지가 생긴다. 스코프는 언제나 토큰이 정한다.
 - **재생 한도는 서버에서만 판정한다.** 클라이언트가 보낸 잔여 횟수·티어·`entry_point`는 판정에 쓰지 않는다(`paywall.md` 4.1).
 - **회수 여부는 목록과 재생 양쪽에서 각각 확인한다.** 목록에서 걸러도 이미 화면에 떠 있는 항목이 탭될 수 있다(`library.md` 4.7).
+- **시장 격리 — 사용자 시장이 아닌 콘텐츠는 목록(4.1)·재개 대상(4.3)에 나오지 않고, 재생 시작(4.4)에 ID로 직접 와도 `CONTENT_NOT_FOUND`(404)다**(추가 2026-10-14 — KAN-188, `global-api.md` 4.7·7장). 사용자 시장은 access token 클레임 `market`으로 받는다. 격리 누락은 데이터 유출로 본다.
 - **목록 조회는 `limit` 상한(50)을 서버가 강제한다**(`architecture.md` 9.3).
 - 전역 `ValidationPipe`(`whitelist: true`, `forbidNonWhitelisted: true`) — DTO에 없는 필드는 잘라낸다. 억제 플래그 같은 클라이언트 로컬 값이 실려 와도 서버에 도달하지 않는다.
 

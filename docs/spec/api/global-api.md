@@ -53,7 +53,7 @@
 
 | 헤더 | 값 | 비고 |
 |---|---|---|
-| `Accept-Language` | BCP 47, 예 `en-US` · `ko-KR` | 모든 요청. 서버는 **로그·통계에만** 쓴다. 판정은 `users.market`·`users.language_code` |
+| `Accept-Language` | BCP 47, 예 `en-US` · `ko-KR` | 모든 요청. 서버는 **로그·통계에만** 쓴다. 판정은 `users.market` |
 | `X-Timezone` | IANA, 예 `America/New_York` | 모든 요청. 기기 등록(4.2)이 저장의 원천이고 헤더는 보조 |
 
 **왜 헤더까지 받나**: 판정은 저장값으로 하지만, 요청 로그에 언어·시간대가 있어야 "어느 시장 트래픽이 느린가 · 어느 시간대에 몰리나"를 CloudWatch Insights로 바로 셀 수 있다. DB 조인 없이 로그만으로 보기 위한 것이고, 없어도 동작은 같다(그래서 🟡).
@@ -82,7 +82,7 @@
 | 1 | `POST /auth/social-login` · `POST /auth/sign-up` | auth-api 4.1·4.2 | 요청 `locale` 객체 추가(사용자가 고른 `preferred_language` 포함), 응답 `user.market`·`user.language_code` | 시장을 정할 입력이 가입 요청에 없다. 기기 언어로 자동 판정하면 영어 설정 한국 사용자가 GLOBAL로 가고 되돌릴 수 없다 → 가입 때 사용자에게 1회 묻고 그 값을 본문으로 받아 저장한다. 헤더로만 받으면 "요청마다 판정"이 되어 언어를 바꾸면 피드가 통째로 바뀐다 | ✅ |
 | 2 | `GET /users/me` | auth-api 4.13 | `user.market`·`user.language_code`·`user.timezone` | 클라이언트가 제공자 목록·온보딩 단계·결제 상품을 가르는 기준이 필요하다. 언어로 추측하면 영어 설정 한국 사용자가 GLOBAL로 보인다 → 서버 판정값을 그대로 노출 | ✅ |
 | 3 | `PUT /users/me/devices/:device_id` | onboarding-api 4.9 | 요청 `language_code`·`timezone` | 기존 가입자의 `language_code`·`timezone`은 비어 있다. 매 실행 호출되는 이 API에 실어야 재가입 없이 채워진다 | ✅ |
-| 4 | `GET /users/me/settings` · `PATCH` | settings-api 4.1·4.2 | 응답 `market`(읽기 전용)·`language_code`·`timezone`, PATCH로 `language_code` 변경 | 표시 언어를 사용자가 바꿀 길이 없다(기기 언어 = 가입 시 1회). 푸시·메일 언어의 원천이 필요하다 | 🟡 |
+| 4 | `GET /users/me/settings` · `PATCH` | settings-api 4.1·4.2 | 응답 `market`(읽기 전용)·`language_code`·`timezone`, PATCH로 `language_code` 변경 | 표시 언어를 사용자가 바꿀 길이 없다(기기 언어 = 가입 시 1회). 서버 문구(푸시·메일) 언어는 이 값이 아니라 `users.market`으로 고른다(2.3) | 🟡 |
 | 5 | `GET /onboarding/state` | onboarding-api 4.1 | `steps[]` 추가 — GLOBAL은 `career` 없음 | 커리어 단계는 한국 직군 분류다. GLOBAL에 보이면 선택할 값이 없다. 클라이언트가 `market`으로 단계를 하드코딩하면 단계가 바뀔 때마다 앱 빌드가 필요해 서버가 배열로 준다 | 🟡 |
 | 6 | `GET /onboarding/topics` · `GET /users/me/interests` · `PUT …` | onboarding-api 4.2·4.3, interest-management-api | 사용자 시장의 주제만, `items[].slug` 추가, 다른 시장 주제 저장은 409 | 주제는 시장별 별도 행이라 거르지 않으면 한국어 주제가 영어 피드에 섞인다. `slug`는 클라이언트 주제 이미지 키가 한국어 이름이어서 영어 주제에 이미지가 안 붙는 문제 | ✅ |
 | 7 | `GET /plans` | subscription-api 4.1 | 사용자 시장의 요금제만, GLOBAL은 `price_krw: null` | GLOBAL 요금제는 별도 스토어 상품(ID 다름). KR 행이 보이면 결제가 KR 상품으로 간다. `price_krw`는 해외 사용자에게 원화를 보여 주는 셈이라 `null` | ✅ |
@@ -112,11 +112,11 @@
 | 필드 | 타입 | 필수 | 비고 |
 |---|---|---|---|
 | `locale.preferred_language` | `ko` · `en` | 선택(신규 앱은 항상 보낸다) | **사용자가 가입 화면에서 고른 콘텐츠 언어 — 시장 판정의 입력**(`ko` → `kr`, `en` → `global`). 앱은 모든 신규 가입자에게 한 번 묻고 기기 언어를 기본 선택값으로 둔다. 없으면 `language_code` 규칙으로 폴백 |
-| `locale.language_code` | BCP 47 | 선택 | 기기 언어(`expo-localization` `getLocales()[0].languageTag`). 표시 언어·푸시 언어의 초깃값. `preferred_language`가 없을 때만 판정 폴백(`ko*` → `kr`, 그 밖 `global`, 없으면 `kr`) |
+| `locale.language_code` | BCP 47 | 선택 | 기기 언어(`expo-localization` `getLocales()[0].languageTag`). 표시 언어의 초깃값(서버 문구 언어는 `users.market` — 2.3). `preferred_language`가 없을 때만 판정 폴백(`ko*` → `kr`, 그 밖 `global`, 없으면 `kr`) |
 | `locale.region_code` | ISO 3166-1 alpha-2 | 선택 | 통계용 |
 | `locale.timezone` | IANA | 선택 | 드립 발송 그룹. 없으면 `Asia/Seoul` |
 
-- 시장은 **계정 생성(sign-up) 시점에만** 정한다. 기존 계정의 로그인에 다른 `locale`이 와도 `market`은 바뀌지 않고 `language_code`·`timezone`만 갱신한다(`preferred_language`는 무시).
+- 시장은 **계정 생성(sign-up) 시점에만** 정한다. 기존 계정의 로그인에 다른 `locale`이 와도 `market`은 바뀌지 않고 `language_code`·`region_code`·`timezone`만 갱신한다(`preferred_language`는 무시).
 - 가입 화면의 질문은 시장 하나당 선택지 하나다(한국어 / English). 시장이 늘면 선택지가 는다. 화면에는 "선택한 언어에 따라 보여 주는 콘텐츠가 달라진다"는 설명과 해외 거주자에게 English를 권하는 안내, 가입 뒤 변경 불가 안내를 함께 둔다(카피는 FE `spec/uiux`). 앱 실행 직후의 **표시 언어**는 서버 호출 전이라 클라이언트가 기기 `locale`로 1차 판단한다 — 시장 판정과 별개다. 질문을 모호한 사용자에게만 보이는 방식 등은 **추후 필요하면 다시 논의**한다(2026-10-14).
 - GLOBAL 시장에서 `provider`가 `kakao`·`naver`인 요청은 거부하지 않는다(서버는 제공자별 독립). **노출을 막는 것은 클라이언트 몫**(4.2 응답의 `market`으로 분기).
 - 연령 동의(`age_confirmation`)의 기준 연령은 시장별이다(2.1 — GLOBAL 16 · KR 18). `pending_consents[].version`에 시장 네임스페이스가 들어간다 — 예 `terms_global_v1` 🟡.
@@ -135,10 +135,10 @@
 
 ### 4.3 `GET /users/me/settings` · `PATCH /users/me/settings` 🟡
 
-**왜**: 기기 언어는 가입 시 1회만 보므로 사용자가 표시 언어를 바꿀 길이 설정밖에 없다. 서버가 만드는 문자열(푸시·메일)의 언어 원천이 이 값이다. 기존 설정 API에 필드만 더한다.
+**왜**: 기기 언어는 가입 시 1회만 보므로 사용자가 표시 언어를 바꿀 길이 설정밖에 없다. 서버가 만드는 문자열(푸시·메일)의 언어는 이 값이 아니라 `users.market`으로 고른다(2.3). 기존 설정 API에 필드만 더한다.
 
 - 응답에 `market`(읽기 전용) · `language_code` · `timezone` 추가.
-- `PATCH { "language_code": "en-US", "client_seq": n }` — **표시 언어 변경**. 시장은 바뀌지 않는다(⚪ 전환 불허 기본). 푸시·메일 언어가 이 값을 따른다.
+- `PATCH { "language_code": "en-US", "client_seq": n }` — **표시 언어 변경**. 시장은 바뀌지 않는다(⚪ 전환 불허 기본). 서버 문구(푸시·메일) 언어는 이 값이 아니라 `users.market`으로 고른다(2.3, 2026-10-14 정정).
 
 ### 4.4 `GET /onboarding/state` — 단계 목록 🟡
 
@@ -160,7 +160,7 @@
 ```
 
 - `items`는 **사용자 시장의 주제만**(`topics.market = users.market`). GLOBAL 주제 이름·대분류는 영어로 저장된 값 그대로.
-- `slug` 추가(모든 시장). 클라이언트의 주제 이미지·아이콘 매핑은 **`slug` 키**로 한다(한국어 이름 키 폐기). KR 주제에도 slug를 채운다(예 `career`, `productivity`).
+- `slug` 추가(모든 시장). 클라이언트의 주제 이미지·아이콘 매핑은 **`slug` 키**로 한다(한국어 이름 키 폐기). KR 주제에도 slug를 채운다(예 `career`, `productivity`) — 채우기 전의 KR 주제는 `slug: null`이고 클라이언트는 기본 이미지를 쓴다(관리자 `POST`·`PATCH /admin/topics`로 입력 — admin-api 4.2·4.3).
 - `PUT /users/me/interests`·`PUT /onboarding/interests`에 다른 시장의 `topic_id`가 섞이면 409 `MARKET_MISMATCH`, 아무것도 저장하지 않는다.
 - 자동 확장(`source = auto_expand`)도 같은 시장 안에서만 일어난다.
 
@@ -225,6 +225,7 @@
 ```
 
 - 시장마다 한 칸(계정이 없는 시장도 0으로). 각 값은 `users`·`listening.window`의 같은 이름 지표를 시장으로 나눈 것이다. **현재 계정 기준** — 탈퇴 기록에는 시장이 없어 탈퇴 수는 시장별로 나누지 않는다.
+- `GET /admin/search-query-logs/summary?market=` — 검색 질의 로그 요약을 **검색한 사용자의 시장**(`users.market`)으로 거른다(2026-10-15 — KAN-188, `admin-api.md` 4.21). 생략하면 전 시장, `kr`·`global` 밖의 값은 400 `VALIDATION_FAILED`. 한국어·영어 질의가 한 순위·미스율에 섞이지 않게 하려는 것이고, 한국어 매칭 방식(`pg_trgm`)을 판단할 때는 `market=kr`로 본다.
 
 ## 5. 에러 코드 표
 
@@ -250,7 +251,7 @@
 
 [드립]
 서버: 발송 그룹(americas) 현지 05:00 = UTC 10:00 → 그 그룹 사용자만 배치
-서버: 같은 그룹 현지 07:00 = UTC 12:00 → 그 그룹 적립분만 다시 읽어 영어 푸시(users.language_code)
+서버: 같은 그룹 현지 07:00 = UTC 12:00 → 그 그룹 적립분만 다시 읽어 영어 푸시(users.market)
 
 [결제]
 앱: GET /plans → GLOBAL 요금제(price_krw null) → StoreKit/Billing 현지가 표시 → 영수증 제출(종전 계약)

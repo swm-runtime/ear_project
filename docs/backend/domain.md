@@ -196,6 +196,10 @@ users
   job_title                 varchar         NULL
   years_of_experience       int             NULL   구간 하한값 — 0(0-1년) · 2(2-3년) · 4(4-6년) · 7(7년+). 구간 enum ↔ 하한 환산은 `user.constant.ts`(`YEARS_OF_EXPERIENCE_LOWER_BOUND`) 한 곳 — 15.1 #4의 매핑 명시(2026-09-11)
   withdrawn_at              timestamptz     NULL
+  market                    enum            kr | global   DEFAULT 'kr'   ★가입 시 1회 판정, 이후 불변 (global-api.md 2.1, 2026-10-14 — KAN-187)
+  language_code             varchar(16)     NULL   기기 언어 BCP 47(예 en-US). 표시 언어의 원천(서버 문구 — 푸시·메일 — 언어는 `market`으로 고른다). 가입·로그인·기기 등록마다 갱신
+  region_code               varchar(2)      NULL   기기 지역 ISO 3166-1 alpha-2(대문자). 통계용 — 판정에 쓰지 않는다
+  timezone                  varchar(64)     NULL   기기 시간대 IANA. 드립 발송 그룹에만 쓴다 — 서비스 날짜 경계는 바꾸지 않는다
 
 uq_users_provider_provider_user_id (provider, provider_user_id)
 idx_users_status
@@ -209,6 +213,8 @@ idx_users_status
 - **`nickname`은 NULL을 허용한다.** 제공자가 닉네임을 주지 않는 경우가 있고, 값은 **온보딩의 닉네임 입력 단계에서 채운다.** 기본 문자열을 넣어 두면 "아직 정하지 않았다"와 "사용자가 그 값으로 정했다"가 구분되지 않는다. 온보딩 완료(`onboarding_completed = true`) 시점에는 값이 있어야 하며, 그 보장은 온보딩 처리에서 한다. *(온보딩 단계 enum에 닉네임 단계를 어떻게 넣을지는 화면 확정 후 갱신한다)*
 - `role = admin` 계정만 콘텐츠 업로드·주제 관리 API를 호출할 수 있다. 관리자도 동일한 소셜 로그인을 사용한다(자체 아이디/비밀번호를 만들지 않는다 — `auth.md` 4.1).
 - **동일 이메일 다른 제공자는 별개 계정**이다. 계정 통합은 MVP 비범위(`auth.md` 4.1).
+- **`market`은 계정 생성 시 `market.policy.ts`가 1회 정한다**(마이그레이션 `1789900000000-AddUserMarketAndLocale`, 2026-10-14 — KAN-187). 입력은 사용자가 가입 화면에서 고른 콘텐츠 언어(`locale.preferred_language` — `ko` → `kr`, `en` → `global`), 없으면 기기 `language_code`(`ko*` → `kr`, 그 밖 `global`), 그것도 없으면 `kr`. 로그인·기기 등록은 `language_code`·`region_code`·`timezone`만 갱신한다. 시장 전환은 불허(기본값 — 바뀌면 `global-api.md` 9장). 기존 가입자는 마이그레이션 기본값 `kr`.
+- **로케일 4컬럼은 `archived_users`(11.3)에 넣지 않는다.** 거래 주체 식별과 무관해 보존 근거가 없다(11.3이 닉네임·커리어를 담지 않는 것과 같은 이유).
 - **`status` · `withdrawn_at` · `idx_users_status`는 아무도 쓰지 않는다**(확인 2026-09-08). 탈퇴는 [12.3](#123-회원-탈퇴-처리)이 정한 대로 **행을 삭제**하므로 `status = withdrawn`으로 남는 사용자가 없다. 컬럼은 남겨 두되 **여기에 소프트 삭제를 구현하지 않는다** — 그러면 개인정보보호법 제21조 제3항의 분리 저장 요건이 깨진다. 정리 여부는 미결이며, 지우려면 마이그레이션이 필요하다.
 
 **`email`과 `is_email_verified`는 별개 값이다** (`auth.md` 4.1)
@@ -443,9 +449,16 @@ topics
   parent_category           varchar
   is_visible                boolean         DEFAULT false  ★켜기는 관리자만 (합의 2026-08-06) · 0건 자동 숨김 (2026-09-17)
   display_order             int
+  market                    enum            kr | global   DEFAULT 'kr'   ★주제는 번역 테이블이 아니라 시장별 별도 행 (global-api.md 4.5, 2026-10-14 — KAN-188)
+  slug                      varchar(64)     NULL   앱의 주제 이미지·아이콘 매핑 안정 키(이름으로 매핑하지 않는다). 시장 안에서 유일. 기존 KR 주제는 운영이 채울 때까지 NULL (2026-10-14 — KAN-189)
 
 idx_topics_is_visible_display_order (is_visible, display_order)
+idx_topics_market_is_visible_display_order (market, is_visible, display_order)
+uq_topics_market_slug (market, slug) WHERE slug IS NOT NULL
 ```
+
+- **시장 필터**(2026-10-14 — KAN-188): 온보딩 주제 목록·탐색 칩·검색 fallback 관련 주제는 사용자 시장의 노출 주제만 보인다. 운영 배치(0건 자동 숨김)만 모든 시장을 본다. 공개 주제(`GET /public/topics`, 랜딩)는 KR 고정 — 영어 랜딩은 FE 글로벌 6 뒤 별도.
+- **GLOBAL 주제 8개는 마이그레이션 `1790100000000-AddTopicSlugAndGlobalTopics`가 시드한다**(2026-10-14 — KAN-189). 중분류가 없는 1단계 체계라 `parent_category`는 주제 이름과 같다(컬럼 NOT NULL 유지). 아래 기본값 규칙대로 **숨김(`is_visible = false`)으로 넣는다** — 콘텐츠가 들어온 뒤 운영이 켠다.
 
 - **`content_count` 컬럼을 두지 않는다** (B-7). 관리자 화면에서 필요할 때 `content_topics` COUNT로 집계한다(삭제 판정은 원시 연결 건수, 노출 판정은 `contents`와 조인한 노출 가능 건수 — `admin.md` 4.5). 주제 수가 수십 개 수준이라 비용 문제가 없다.
 - **`is_visible`을 켜는 것은 관리자만 한다.** 시스템이 바꾸는 경우는 **노출 가능 콘텐츠(`published` + 라이선스 미만료)가 0건이 된 노출 주제를 `false`로 내리는 것 하나뿐이다**(개정 2026-09-17, KAN-58 — `admin.md` 4.5). 내리기 한 방향·한 규칙·한 서비스(`TopicExposureService`)로 제한해 갱신 주체를 고정한 목적(어긋남 방지)을 지킨다. 0건 주제를 켜는 요청은 서버가 거부한다.
@@ -516,7 +529,7 @@ contents
   format                    enum            NULL 허용 — news_analysis | howto | interview | opinion | case_study | overview ★추천 메타
   is_evergreen              boolean         NULL 허용 — true: 에버그린 / false: 시의성 ★추천 메타
   keywords                  jsonb           NULL 허용 — ["세부 키워드", ...] ★추천 메타
-  tags                      jsonb           NULL 허용 — ["ISA", "비과세", ...] 화면 해시태그 2~4개('#' 없이, 띄어쓰기 없는 한글·영문·숫자 2~10자). **추천 입력이 아니다** — 탐색 카드·상세 화면 표시용(신설 2026-10-08, KAN-162). NULL = 받은 적 없음(응답은 빈 배열)
+  tags                      jsonb           NULL 허용 — ["ISA", "비과세", ...] 화면 해시태그 2~4개('#' 없이, 한글·영문·숫자 2~20자 — 안쪽 공백 허용·앞뒤 공백 금지. 종전 "띄어쓰기 없는 2~10자"에서 영어 고유명사("Stray Kids")를 받기 위해 완화 2026-10-14, KAN-190). **추천 입력이 아니다** — 탐색 카드·상세 화면 표시용(신설 2026-10-08, KAN-162). NULL = 받은 적 없음(응답은 빈 배열)
   target_audiences          jsonb           NULL 허용 — [{ "jobCategory": "개발", "yearsOfExperience": "2-3" }, ...] ★추천 메타 5종째 (신설 2026-09-11) — 값 집합은 3.1의 커리어 입력과 동일(직군 목록 · 연차 구간 0-1|2-3|4-6|7+), 최대 8세트. 파일(`enrichment.json`)은 snake_case, 컬럼은 엔티티 필드명(camelCase)으로 저장한다
   enrichment_schema_version int             NULL 허용 — 마지막으로 적용된 enrichment.json의 형식 버전(1: 메타 4종 / 2: target_audiences 추가 / 3: tags 추가 — 2026-10-08). NULL = 메타 파일을 받은 적 없음 (신설 2026-09-11)
   enriched_at               timestamptz     NULL 허용 — 마지막 메타 파일 적용 시각 (신설 2026-09-11)
@@ -525,8 +538,11 @@ contents
   status                    enum            published | withdrawn | expired
   published_at              timestamptz
   withdrawn_at              timestamptz     NULL
+  market                    enum            kr | global   DEFAULT 'kr'   ★노출 쿼리 전부가 users.market과 대조 — 시장이 다른 콘텐츠는 어떤 응답에도 나오지 않는다 (global-api.md 4.7, 2026-10-14 — KAN-188)
+  language                  varchar(8)      DEFAULT 'ko'  콘텐츠 언어(ko | en). 표시용으로 응답에 싣는다. 필터는 market이 한다
 
 idx_contents_status_published_at (status, published_at DESC)
+idx_contents_market_status_published_at (market, status, published_at)
 idx_contents_series_id_episode_no (series_id, episode_no)
 idx_contents_partner_id
 idx_contents_title_trgm        GIN (title gin_trgm_ops)        ★검색 (FR-22)
@@ -548,6 +564,8 @@ chk_contents_partner_disclosure
   - **두 조건을 한 곳에서만 조립한다**(탐색·검색·드립 후보가 같은 헬퍼를 쓴다). 개별 쿼리에서 재작성하면
     한쪽만 고쳐지는 순간 만료 콘텐츠가 그 경로로 새어 나간다.
   - 배치가 도는 것과 무관하게 필터가 먼저 막으므로 **둘 중 하나가 빠져도 노출되지 않는다** — 의도된 이중 방어다.
+- **시장 격리 — 노출 조건의 세 번째 항 `market = users.market`**(2026-10-14 — KAN-188, 마이그레이션 `1790000000000-AddCatalogMarket`). 노출 조건은 "published + 라이선스 유효 + `market = users.market`" 세 조건을 한 곳(`content.visibility.ts` `CONTENT_SCOPE_CONDITION`)에서만 조립한다. 목록류(탐색·검색·인기·최신·드립 후보·온보딩 추천·라이브러리 목록·주제별 건수·복원)는 이 조건을 SQL에 싣고, ID 단건 경로(상세·재생 시작·서명 URL·대본·탐색 담기·온보딩 담기)는 `ContentService.getPublishedById(…, market)`의 같은 판정을 쓴다 — 다른 시장 ID는 404 `CONTENT_NOT_FOUND`. 격리 누락은 데이터 유출로 본다(`global-api.md` 7장). 기존 행은 전부 `kr`/`ko`.
+  - 사용자 시장은 요청마다 `users`를 읽지 않고 **access token 클레임 `market`** 으로 전달한다(가입 시 1회 정해져 불변이므로). 클레임이 없는 옛 토큰은 `kr`.
 - `series_id` / `episode_no` / `total_episodes`는 `Episode` 테이블을 폐기하면서 흡수했다. 드립 스코어링의 시리즈 연속성 가점과 편성 순서 판정이 Content 단위 조회를 요구한다(`drip-scheduling.md` 4.2, 7).
 - 분할되지 않은 단일 콘텐츠는 `series_id = NULL`, `episode_no = NULL`이다. 조회 코드는 이 분기를 처리해야 한다.
 - **`content_version`은 같은 행의 값을 증가시킨다.** 재발행 시 새 행을 만들지 않으므로 `content_id`가 바뀌지 않고, `library_items` · `playback_progresses` · `content_stats`의 참조가 그대로 유지된다.
@@ -1120,7 +1138,7 @@ idx_first_drip_jobs_status_last_attempted_at (status, last_attempted_at)
 
 **`drip_batch_runs`로 대신할 수 없는 이유** ([7.3](#73-drip_batch_runs))
 
-- `drip_batch_runs`는 `run_date` 유니크라 **하루 1행짜리 일일 배치 기록**이다. 온보딩 첫 드립은 가입 시점에 사용자별로 발생하므로 같은 날 여러 건이 생기고, 그 테이블에는 담을 자리가 없다.
+- `drip_batch_runs`는 `(run_date, group)` 유니크라 **하루·발송 그룹당 1행짜리 일일 배치 기록**이다. 온보딩 첫 드립은 가입 시점에 사용자별로 발생하므로 같은 날 여러 건이 생기고, 그 테이블에는 담을 자리가 없다.
 - **`library_items` 유무만으로는 상태를 구분할 수 없다.** 행이 없다는 사실 하나로 "아직 편성 중"인지 "후보가 고갈돼 만들 수 없었는지"를 가를 수 없어, 클라이언트가 영영 오지 않을 결과를 15초 내내 기다리게 된다.
 
 **상태값이 다섯인 이유**
@@ -1366,6 +1384,7 @@ notices
   body                      text            NOT NULL     줄바꿈 보존 plain text
   is_pinned                 boolean         DEFAULT false
   published_at              timestamptz     NULL         NULL = 초안, 미래 = 예약 발행
+  market                    enum            kr | global   DEFAULT 'kr'   공지는 시장별로 따로 쓴다 — 사용자 시장의 공지만 보인다 (global-api.md 4.8, 2026-10-14 — KAN-188)
   created_at / updated_at / deleted_at                   (1.1 공통, soft delete)
 
 idx_notices_list (is_pinned DESC, published_at DESC) WHERE deleted_at IS NULL
@@ -1821,7 +1840,7 @@ idx_archived_subscriptions_archived_at
 | 탈퇴 시 `subscriptions` | 구독 만료 동의 후 탈퇴, **5년 보존 후 파기** | `archived_subscriptions` (11.5), 12.3 |
 | 탈퇴 시 유저 데이터 | 별도 테이블로 **5년 보존 후 파기** — 단 결제 이력이 있는 사용자만 | `archived_users` (11.3), 12.3 |
 | **결제 이력 없는 탈퇴자** | **아카이브하지 않고 전량 즉시 파기.** 거래가 없으면 전자상거래법 시행령 제6조의 보존 대상이 성립하지 않으므로, 개인정보보호법 제21조 제1항의 원칙(지체 없는 파기)으로 돌아간다. 판정 기준은 `subscriptions` 행의 존재 여부 | 11.1, 12.2, 12.3 |
-| 온보딩 첫 드립 상태 저장소 | **`first_drip_jobs` 신설.** 0건 담기 사용자의 완료 대기 로딩이 폴링할 대상이다. `drip_batch_runs`는 `run_date` 유니크라 대신할 수 없고, `library_items` 유무만으로는 `pending`과 `no_candidates`를 구분할 수 없다 | 7.4 |
+| 온보딩 첫 드립 상태 저장소 | **`first_drip_jobs` 신설.** 0건 담기 사용자의 완료 대기 로딩이 폴링할 대상이다. `drip_batch_runs`는 `(run_date, group)` 유니크라 대신할 수 없고, `library_items` 유무만으로는 `pending`과 `no_candidates`를 구분할 수 없다 | 7.4 |
 | 라이브러리 목록 인덱스 | **커서 tie-break용 `id` 추가**(같은 트랜잭션에서 2편이 적립되므로 `added_at` 동률이 매일 발생), **미니플레이어 복원용 `last_played_at` 인덱스**, **회수 반영용 `content_id` 인덱스** 신설. 회수 필터·주제 필터는 기존 인덱스로 충분해 추가하지 않는다 | 6.1 |
 | 이메일 인증 저장소 | **`email_verifications` 신설.** 코드 해시·만료·검증 시도·마지막 시도 시각을 서버가 판정한다. 발송 5회 제한은 `(user_id, email)` 단위이며 `send_seq`로 창을 판정한다 | 3.7 |
 | 제공자 이메일 인증 여부 | **`users.is_email_verified`로 분리 저장.** 카카오는 `is_email_valid`·`is_email_verified`가 **둘 다 true일 때만** 인증으로 보고, `is_email_valid = false`(마스킹 주소)면 `email = NULL`로 둔다 | 3.1 |

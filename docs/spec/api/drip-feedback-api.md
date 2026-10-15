@@ -44,7 +44,7 @@
   "placed_date": "2026-09-29",
   "muted_until": null,
   "items": [
-    { "content_id": "uuid", "title": "관세는 외국이 내는 세금이 아니다", "thumbnail_url": "https://…", "source": "drip", "placed_date": "2026-09-29", "library_status": "unplayed" }
+    { "content_id": "uuid", "title": "관세는 외국이 내는 세금이 아니다", "thumbnail_url": "https://…", "language": "ko", "source": "drip", "placed_date": "2026-09-29", "library_status": "unplayed" }
   ]
 }
 ```
@@ -54,7 +54,7 @@
 | `show` | 팝업을 낼지. **클라이언트는 이 값만 본다** |
 | `placed_date` | 묻는 편성분의 서비스 날짜 라벨(보통 어제). **닫을 때 `dismiss`에 그대로 되돌린다.** 물을 편성분이 없으면 null |
 | `muted_until` | 그만 보기 중이면 종료 서비스 날짜, 아니면 null. `show=false`의 사유 표시용 |
-| `items[]` | 가장 최근 정규 편성분 중 미평가분, 최대 2편 — **한 팝업에 함께**. `show=false`면 빈 배열. `library_status`(`unplayed` \| `in_progress` \| `completed`)는 보조 표시용이지 판정이 아니다 |
+| `items[]` | 가장 최근 정규 편성분 중 미평가분, 최대 2편 — **한 팝업에 함께**. `show=false`면 빈 배열. `library_status`(`unplayed` \| `in_progress` \| `completed`)는 보조 표시용이지 판정이 아니다. `language`(`ko` \| `en`, 2026-10-14)는 표시 전용 |
 
 - 한 편성분은 **한 번만** 묻는다(`drip-feedback.md` 4.1). 별점을 보냈거나 닫은 뒤 새 편성이 없으면 `show=false`다.
 - **온보딩 직후의 첫 드립은 묻지 않는다**(알고리즘 버전이 없는 편성분 — 2026-10-02). **편성 뒤 7일(4.2의 접수 기간)이 지난 편성분도 묻지 않는다** — 둘 다 `show=false`다.
