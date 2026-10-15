@@ -196,9 +196,11 @@ describe('DripBatchOrchestrator', () => {
     dripBatchRunService = {
       claim: jest.fn().mockResolvedValue(run),
       finish: jest.fn().mockResolvedValue(undefined),
-      findByRunDateAndGroup: jest
-        .fn()
-        .mockResolvedValue({ ...run, finishedAt: NOW }),
+      // 정상 배치처럼 05:00:10 KST 에 끝난 실행 — 07:00 크론이 보내는 경우다
+      findByRunDateAndGroup: jest.fn().mockResolvedValue({
+        ...run,
+        finishedAt: new Date('2026-08-26T20:00:10.000Z'),
+      }),
     } as unknown as jest.Mocked<DripBatchRunService>;
 
     dripArrivalNotificationService = {
@@ -919,7 +921,9 @@ describe('DripBatchOrchestrator', () => {
       const [start, end] =
         libraryService.findPlacementsAddedBetween.mock.calls[0];
       expect(start).toEqual(run.createdAt);
-      expect(end.getTime()).toBe(NOW.getTime() + 1);
+      expect(end.getTime()).toBe(
+        new Date('2026-08-26T20:00:10.000Z').getTime() + 1,
+      );
       expect(dripArrivalNotificationService.notify).toHaveBeenCalledTimes(1);
       const [arrivals, at] =
         dripArrivalNotificationService.notify.mock.calls[0];
@@ -989,18 +993,81 @@ describe('DripBatchOrchestrator', () => {
       ).resolves.toBeUndefined();
     });
 
-    it('07:00 이 지나 시작된 배치(재시작 뒤 재개 등)는 끝나자마자 알림까지 보낸다 — 07:00 크론을 놓쳤다', async () => {
-      libraryService.findPlacementsAddedBetween.mockResolvedValue([
-        placement(USER_ID, 'r1', LibraryItemSource.DRIP),
-      ]);
+    describe('배치가 끝난 시각이 07:00 뒤면 끝나자마자 보낸다 — 07:00 크론은 미완료 실행을 건너뛴다', () => {
+      /** 실제 시계(`new Date()`)로 끝난 시각을 판정하므로 시계를 고정한다 */
+      const freezeClockAt = (at: Date) =>
+        jest
+          .useFakeTimers({ doNotFake: ['nextTick', 'setImmediate'] })
+          .setSystemTime(at);
 
-      await orchestrator.run(AT_0700);
+      beforeEach(() => {
+        libraryService.findPlacementsAddedBetween.mockResolvedValue([
+          placement(USER_ID, 'r1', LibraryItemSource.DRIP),
+        ]);
+      });
 
-      expect(dripBatchRunService.finish).toHaveBeenCalled();
-      expect(dripArrivalNotificationService.notify).toHaveBeenCalledTimes(1);
-      expect(
-        dripArrivalNotificationService.notify.mock.invocationCallOrder[0],
-      ).toBeGreaterThan(dripBatchRunService.finish.mock.invocationCallOrder[0]);
+      afterEach(() => {
+        jest.useRealTimers();
+      });
+
+      it('07:00 이 지나 시작된 배치(재시작 뒤 재개 등)는 끝나자마자 알림까지 보낸다', async () => {
+        // given
+        freezeClockAt(AT_0700);
+
+        // when
+        await orchestrator.run(AT_0700);
+
+        // then
+        expect(dripArrivalNotificationService.notify).toHaveBeenCalledTimes(1);
+        expect(
+          dripArrivalNotificationService.notify.mock.invocationCallOrder[0],
+        ).toBeGreaterThan(
+          dripBatchRunService.finish.mock.invocationCallOrder[0],
+        );
+      });
+
+      it('05:00 에 시작해 07:00 을 넘겨 끝난 배치도 끝나자마자 보낸다 — 시작 시각이 아니라 끝난 시각으로 본다', async () => {
+        // given — 대상 조회 중에 시계가 07:10 으로 넘어간다(오래 걸린 배치)
+        freezeClockAt(AT_0500);
+        userService.findDripTargetsPage
+          .mockReset()
+          .mockImplementationOnce(() => {
+            jest.setSystemTime(new Date(AT_0700.getTime() + 10 * 60_000));
+            return Promise.resolve([buildUser()]);
+          })
+          .mockResolvedValue([]);
+
+        // when
+        await orchestrator.run(AT_0500);
+
+        // then
+        expect(dripArrivalNotificationService.notify).toHaveBeenCalledTimes(1);
+      });
+
+      it('07:00 뒤에 끝난 실행은 07:00 크론이 건너뛴다 — 배치가 끝나면서 보내 정확히 한쪽만 보낸다', async () => {
+        // given — 07:10 KST 에 끝난 실행
+        dripBatchRunService.findByRunDateAndGroup.mockResolvedValue({
+          ...run,
+          finishedAt: new Date(AT_0700.getTime() + 10 * 60_000),
+        });
+
+        // when — 크론 경로
+        await orchestrator.notifyTodayArrivals(AT_0700);
+
+        // then
+        expect(dripArrivalNotificationService.notify).not.toHaveBeenCalled();
+      });
+
+      it('07:00 전에 끝난 배치는 보내지 않는다 — 07:00 크론이 보낸다', async () => {
+        // given
+        freezeClockAt(AT_0500);
+
+        // when
+        await orchestrator.run(AT_0500);
+
+        // then
+        expect(dripArrivalNotificationService.notify).not.toHaveBeenCalled();
+      });
     });
   });
 
@@ -1090,6 +1157,13 @@ describe('DripBatchOrchestrator', () => {
         } as never,
       ]);
 
+      dripBatchRunService.findByRunDateAndGroup.mockResolvedValue({
+        ...run,
+        group: DripGroup.EUROPE,
+        // 런던 05:00:10(BST)에 끝난 실행
+        finishedAt: new Date('2026-08-27T04:00:10.000Z'),
+      });
+
       // when — 런던 07:00(BST)
       await orchestrator.notifyTodayArrivals(LONDON_0700, DripGroup.EUROPE);
 
@@ -1110,20 +1184,35 @@ describe('DripBatchOrchestrator', () => {
       );
     });
 
-    it('현지 07:00 이 지나 시작된 그룹 배치는 끝나자마자 그 그룹 알림을 보낸다', async () => {
-      // given
+    it('현지 07:00 이 지나 끝난 그룹 배치는 끝나자마자 그 그룹 알림을 보낸다', async () => {
+      // given — 끝난 시각은 실제 시계로 판정하므로 런던 07:00 에 고정한다
+      jest
+        .useFakeTimers({ doNotFake: ['nextTick', 'setImmediate'] })
+        .setSystemTime(LONDON_0700);
       orchestrator = createOrchestrator({
         DRIP_TIMEZONE_GROUPS_ENABLED: 'true',
       });
+      libraryService.findPlacementsAddedBetween.mockResolvedValue([
+        {
+          userId: 'london',
+          contentId: 'r1',
+          source: LibraryItemSource.DRIP,
+          content: { title: 't' },
+        } as never,
+      ]);
 
-      // when
-      await orchestrator.run(LONDON_0700, 'resume', DripGroup.EUROPE);
+      try {
+        // when
+        await orchestrator.run(LONDON_0700, 'resume', DripGroup.EUROPE);
 
-      // then — 알림은 배치가 끝난 시각(실제 지금)으로 부른다
-      expect(dripBatchRunService.findByRunDateAndGroup).toHaveBeenCalledWith(
-        expect.any(String),
-        DripGroup.EUROPE,
-      );
+        // then — 다음 날 런던 05:00(BST) 까지 보관
+        expect(dripArrivalNotificationService.notify).toHaveBeenCalledTimes(1);
+        const [, , nextBatchAt] =
+          dripArrivalNotificationService.notify.mock.calls[0];
+        expect(nextBatchAt.toISOString()).toBe('2026-08-28T04:00:00.000Z');
+      } finally {
+        jest.useRealTimers();
+      }
     });
   });
 });

@@ -37,6 +37,7 @@ import {
   UserCareer,
   UserPreferenceWeights,
 } from '@/modules/drip/drip.types';
+import { DripBatchRun } from '@/modules/drip/entities/drip-batch-run.entity';
 import { DripBatchRunService } from '@/modules/drip/services/drip-batch-run.service';
 import { DripPlacementService } from '@/modules/drip/services/drip-placement.service';
 import { DripScoringService } from '@/modules/drip/services/drip-scoring.service';
@@ -263,11 +264,14 @@ export class DripBatchOrchestrator {
       if (completed) {
         // 네 카운트 합 = targetCount (domain.md 7.3). exhausted는 2026-09-11부터 컬럼에 남는다 —
         // 그전엔 로그에만 있어 "대상 13 · 성공 3"의 나머지 10명이 표에서 사라졌다
-        await this.dripBatchRunService.finish(run, counts, new Date());
+        const finishedAt = new Date();
+        await this.dripBatchRunService.finish(run, counts, finishedAt);
 
-        // 실행 시작이 이미 알림 시각(현지 07:00) 뒤면(재시작 뒤 재개 등) 알림 크론을 놓쳤으니 끝나는 대로 보낸다
-        if (isAfterArrivalPushTime(now, group)) {
-          await this.notifyTodayArrivals(new Date(), group);
+        // 끝난 시각이 알림 시각(현지 07:00) 뒤면 알림 크론은 이미 지나갔다 — 여기서 보낸다. **시작 시각이 아니라 끝난
+        // 시각으로 본다**(2026-10-15) — 05:00에 시작해 07:00을 넘겨 끝난 배치도, 07:00 전에 시작한 재개도 그날 알림이
+        // 빠지지 않게. 크론은 같은 기준(`finished_at`)으로 이 경우를 건너뛰어 정확히 한쪽만 보낸다(`notifyTodayArrivals`)
+        if (isAfterArrivalPushTime(finishedAt, group)) {
+          await this.sendArrivals(run, finishedAt, finishedAt, group);
         }
       } else {
         this.logger.error(
@@ -350,7 +354,10 @@ export class DripBatchOrchestrator {
    * 범위는 그 그룹 실행 기록이 처음 생긴 시각(`created_at`)부터 배치 종료까지다 — 배치가 재개로 이어졌어도
    * (재개는 `started_at`만 바꾼다) 앞 구간이 빠지지 않고, 같은 날 먼저 돈 다른 그룹의 적립분은 들어오지 않는다.
    * 알림 전에 지운 편은 빠지고(소프트 삭제), 같은 날 두 번 보내지 않는 것은 알림 서비스의 하루 1건 판정이 막는다.
-   * 배치가 아직 끝나지 않았으면 보내지 않는다 — 끝날 때 현지 07:00이 지났으면 배치가 이어서 부른다(`run`).
+   *
+   * **이 경로는 알림 크론이다.** 배치가 아직 끝나지 않았으면 보내지 않고, 현지 07:00 뒤에 끝난 실행도 건너뛴다 — 그
+   * 경우는 배치가 끝나면서 보낸다(`run`). 두 경로가 같은 `finished_at`으로 판정해 한 실행은 정확히 한쪽만 보낸다
+   * (하루 1건 판정은 조회 뒤 발송이라 동시에 불리면 둘 다 통과한다).
    */
   async notifyTodayArrivals(
     now: Date,
@@ -370,10 +377,31 @@ export class DripBatchOrchestrator {
       return;
     }
 
+    if (isAfterArrivalPushTime(run.finishedAt, group)) {
+      this.logger.log(
+        'drip arrival push left to the batch — it finished after push time',
+        {
+          run_date: runDate,
+          group,
+        },
+      );
+      return;
+    }
+
+    await this.sendArrivals(run, run.finishedAt, now, group);
+  }
+
+  /** 끝난 실행이 적립한 편을 다시 읽어 사용자당 1건으로 보낸다 — 크론·배치 두 경로가 함께 쓴다 */
+  private async sendArrivals(
+    run: DripBatchRun,
+    finishedAt: Date,
+    now: Date,
+    group: DripGroup,
+  ): Promise<void> {
     const items = await this.libraryService.findPlacementsAddedBetween(
       run.createdAt,
       // 배치 종료 직후 같은 ms 에 적립된 행까지 넣는다(LessThan)
-      new Date(run.finishedAt.getTime() + 1),
+      new Date(finishedAt.getTime() + 1),
     );
     const arrivals = groupArrivals(items);
     // 알림 보관 시한 — 그 그룹의 다음 배치까지(americas 알림이 다음 05:00 KST에 만료되지 않게)
@@ -388,7 +416,7 @@ export class DripBatchOrchestrator {
     }
 
     this.logger.log('drip arrival push done', {
-      run_date: runDate,
+      run_date: run.runDate,
       group,
       user_count: arrivals.length,
     });
