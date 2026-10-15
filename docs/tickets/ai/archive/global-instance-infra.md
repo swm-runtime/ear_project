@@ -15,7 +15,7 @@
 | 근거 문서 | **`docs/ai/global/PIPELINE.md` 4.1·4.4·8장·9장 G1** |
 | 심각도 | 중 |
 | 중요도 | Medium |
-| 상태 | 진행 중 — DB 구축 완료, 서버 구성 코드 PR, 버킷·DNS·env.global 은 사람 손 |
+| 상태 | 완료 (2026-10-15) |
 
 ## 문제
 
@@ -54,3 +54,9 @@
   - **정정**: 위 "GCP 승인된 JavaScript 원본" 단계는 필요 없다 — 콘솔 로그인은 Supabase 이메일(비밀번호·로그인 링크)이고 발행은 SSO 교환이라 구글 OAuth 를 쓰지 않는다. 대신 글로벌 Supabase 에서 팀원 추가(Authentication → Users), 로그인 링크용 URL Configuration(Site URL·Redirect URLs 에 admin-global), "Allow new users to sign up" 꺼짐을 확인한다.
   - 콘솔 구분(박수헌): 좌상단 GLOBAL 표시 제거, 글로벌판은 사이드바 색(짙은 자주)으로만. 백엔드 로그·추천 검증은 두 시장이 같이 쓰는 제품 서버 화면이라 글로벌 콘솔의 콘솔 전환에서 뺐다. 제품 발행 목록은 인스턴스 시장으로 거른다(`market=global`·`market=kr`, admin-api 4.5).
 - 2026-10-15 OpenAI 키 분리(박수헌): 글로벌 콘솔·워커는 글로벌 전용 OpenAI 프로젝트 키를 `env.global` 에서 받는다(compose `environment` 의 한국판 키 덮어쓰기 제거). 이유: 프로젝트별 예산 한도·사용량 분리, 한쪽 키 문제의 영향 차단. ElevenLabs 는 계정 한도가 묶여 키 분리로 나뉘지 않아 그대로 공유(TTS 시작 때 다시 본다). 순서: 키 발급 → 로컬 global.env `GLOBAL_OPENAI_API_KEY` → make-env-global → upload-env-global(사람) → 머지·배포.
+- **2026-10-15 완료 — 반영 날짜 2026-10-15** (PR #1529·#1570·#1574·#1596). 완료 조건 판정:
+  - ① 글로벌 콘솔 로그인 → 한국판과 다른 DB·주제 8개: 충족. 조건 문구의 "구글 로그인"·"상단 GLOBAL 표시"는 이후 결정으로 바뀌었다 — 로그인은 Supabase 이메일(구글 OAuth 미사용), 구분은 사이드바 색(박수헌 2026-10-15).
+  - ② 글로벌 버킷 읽기·쓰기, 한국판 버킷 미사용: 충족 — 워커 기동 로그 `storage=direct s3://earcast-pipeline-global`, 기획 결과 파일이 글로벌 버킷에 있다.
+  - ③ 자동 승인·발행 준비 연쇄 꺼짐: 충족 — 글로벌 `settings.automation` `{"auto_approve":false,"auto_publish_prep":false}` 확인.
+  - ④ 한국판 동작 무변화: 충족 — 배포 뒤 한국판 콘솔 정상(307), 머지 배포의 규칙 자산 활성화가 13개 전부 "git 사본과 동일".
+  - 남은 사람 손 없음. 팀원 추가는 글로벌 Supabase Authentication → Users 에서 필요할 때.
