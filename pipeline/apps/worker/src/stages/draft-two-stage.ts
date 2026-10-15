@@ -288,7 +288,7 @@ export function twoStageViolations(scriptMd: string, outlineMd: string, opts: { 
 /**
  * 글로벌판 L0 (글로벌 명세 6.5, KAN-203) — 형식 계약만 본다: 구역 헤더·구성안 구간 계약·분량 하한(단어)·과다 분량·마지막 턴과 클로징 머리 문구.
  * 한국어 문체·귀속 검사는 돌지 않는다. 영어 문체 검사는 영어 규칙 자산 v0 와 함께 정하고 파일럿 판정으로 늘린다.
- * 메시지는 영어다 — 수정 재생성 프롬프트가 그대로 읽는다(명세 4.5: 모델이 읽는 글은 영어). 비율 규칙이 없어 한도 뒤 남은 위반은 전부 실패다
+ * 메시지는 영어다 — 수정 재생성 프롬프트가 그대로 읽는다(명세 4.5: 모델이 읽는 글은 영어). 문체 검사(enStyleViolations)는 아래.
  */
 export function twoStageViolationsEn(scriptMd: string, outlineMd: string, opts: { signoffHeads?: string[] } = {}): string[] {
   const v: string[] = [];
@@ -314,6 +314,80 @@ export function twoStageViolationsEn(scriptMd: string, outlineMd: string, opts: 
     if (!last?.id?.startsWith("Y")) v.push(`The last turn is not a host (Y) turn (${last?.id ?? "none"}) — after the explainer's wrap-up, the host closes with one sign-off turn ("${heads[0]} …")`);
     else if (!heads.some((h) => text.includes(h))) v.push(`The last turn ${last.id} lacks the sign-off frame ("${heads[0]}"${heads.length > 1 ? ` or ${heads.length - 1} other${heads.length > 2 ? "s" : ""}` : ""}) — keep the template frame as is and fill only the {slots}`);
   }
+  v.push(...enStyleViolations(parseScriptForTts(scriptMd).turns));
+  return v;
+}
+
+/** 글로벌판 문체 위반 표지 — 이 머리로 시작하는 위반은 L0 한도 뒤 남아도 QA 로 넘긴다(한국판 비율 규칙과 같은 취급, RATIO_RULE_MARKS) */
+export const EN_STYLE_MARK = "Style limit:";
+
+/**
+ * 글로벌판 문체 L0 (guidelines full-en 규칙 9·13·14·21·22·23~33·36·45·46, 2026-10-15). 정규식으로 잡히는 것만 — 판단이 필요한 것은 QA·비평이 본다.
+ * 계약 위반(대본 ID·제작 용어·군말과 지문·상대 시점·긴 해설 턴·턴당 수치 과다)은 한도 뒤 남으면 실패, 문체 위반(EN_STYLE_MARK)은 QA 로 넘긴다.
+ * 임계값은 첫 판이다 — 파일럿 첫 3편의 위반 분포를 보고 조정한다(CHANGELOG full-en-v0.1). 지목한 턴을 메시지에 적는다(수정 호출은 지목한 턴을 고친다).
+ * 템플릿 턴(인트로 Y1·[Closing] 첫 턴·마지막 턴)은 상대 시점·첫마디 검사에서 뺀다 — 골격 문구("Today we're talking about")가 걸리지 않게
+ */
+export function enStyleViolations(turns: ScriptTurn[]): string[] {
+  const v: string[] = [];
+  const zones = scriptZones();
+  const closingFirst = turns.findIndex((t) => t.section === zones.outro);
+  const isTemplate = (i: number) => i === 0 || i === turns.length - 1 || i === closingFirst;
+  const label = (t: ScriptTurn) => t.id ?? t.section;
+  const list = (hits: string[]) => `${hits.slice(0, 8).join(", ")}${hits.length > 8 ? " …" : ""}`;
+  const find = (re: RegExp, pick: (t: ScriptTurn, i: number) => boolean = () => true) =>
+    turns.flatMap((t, i) => { if (!pick(t, i)) return []; const m = t.text.match(re); return m ? [`${label(t)} "${m[0].trim()}"`] : []; });
+  const expl = (t: ScriptTurn) => !!t.id?.startsWith("E");
+
+  // ── 계약 (한도 뒤 남으면 실패) ──
+  const ids = find(/\bC\d{2,3}\b|\bS\d+-\d{2}\b/);
+  if (ids.length) v.push(`Claim or excerpt IDs in spoken lines (${list(ids)}) — IDs go only in turn_claims; remove them from the script (rule 36)`);
+  const prod = find(/\b(?:axis|outline|excerpts?|gold examples?|claims? (?:table|IDs?))\b|\b(?:this|next|last|previous|earlier|that) (?:section|block)\b/i);
+  if (prod.length) v.push(`Production words in spoken lines (${list(prod)}) — say it in the speakers' own words; never name the axis, outline, sections, blocks, claims, or excerpts (rule 36)`);
+  const noise = find(/\b(?:um+|uh+|erm)\b|\b(?:ha){2,}\b|\[[A-Za-z][A-Za-z ]*\]|\*[A-Za-z][A-Za-z ]*\*|\((?:laughs?|sighs?|pause|chuckles?)[^)]*\)/i);
+  if (noise.length) v.push(`Fillers, sound tags, or stage directions (${list(noise)}) — remove them; naturalness comes from content and rhythm (rule 32)`);
+  const time = find(/\b(?:today|nowadays|these days|currently|recently|this year|last year|next year)\b/i, (_t, i) => !isTemplate(i));
+  if (time.length) v.push(`Relative time words outside the templates (${list(time)}) — use a year or timeless wording (rule 46)`);
+  const sentences = (t: string) => t.replace(/\.{2,}|…/g, " ").match(/[.!?](?:["'”’)]*)(?:\s|$)/g)?.length ?? 0;
+  const long = turns.filter((t) => expl(t) && sentences(t.text) > 6).map((t) => `${label(t)} (${sentences(t.text)})`);
+  if (long.length) v.push(`Explainer turns over six sentences (${list(long)}) — split with a host question or tighten; a turn has at most 6 sentences (rule 22)`);
+  const numRe = /\d{1,2}:\d{2}|\d[\d,.]*/g; // 시각 9:30 은 수 하나
+  const nums = turns.filter((t) => expl(t) && (t.text.match(numRe)?.length ?? 0) >= 5).map((t) => `${label(t)} (${t.text.match(numRe)!.length})`);
+  if (nums.length) v.push(`Explainer turns with five or more numbers (${list(nums)}) — keep at most three per turn; drop numbers the point does not need (rule 45)`);
+
+  // ── 문체 (한도 뒤 남으면 QA 로) ──
+  const punct = find(/—|\s[–-]\s|;|\(|\)|:(?!\d)/);
+  if (punct.length) v.push(`${EN_STYLE_MARK} dashes, semicolons, colons, or parentheses in spoken lines (${list(punct)}) — use periods and commas (rule 21)`);
+  const vocab = find(/\b(?:crucial|pivotal|vital|fascinating|remarkable|profound|intricate|delv(?:e|es|ed|ing)|tapestry|testament|realm|underscor(?:e|es|ed|ing)|showcas(?:e|es|ed|ing)|foster(?:s|ed|ing)?|leverag(?:e|es|ed|ing)|resonat(?:e|es|ed|ing)|unpack(?:s|ed|ing)?|multifaceted|nuanced|seamless(?:ly)?|robust|transformative|groundbreaking|game-changer|ever-evolving)\b/i);
+  if (vocab.length) v.push(`${EN_STYLE_MARK} rating words or AI vocabulary (${list(vocab)}) — state the fact and its effect in plain words (rules 23 and 24)`);
+  const brochure = find(/\b(?:vibrant|timeless|iconic|nestled|steeped in|deeply rooted|hidden gem|must-see|breathtaking|rich (?:culture|cultural|history|heritage|tradition)|tradition meets modernity|where old meets new|land of the morning calm)\b/i);
+  if (brochure.length) v.push(`${EN_STYLE_MARK} brochure language (${list(brochure)}) — describe the specific thing (rule 25)`);
+  const inflated = find(/\b(?:serves as|stands as|plays an? (?:key|crucial|vital|pivotal|important) role|boasts)\b|,\s(?:highlighting|underscoring|reflecting|showcasing|emphasizing|signaling|symbolizing|demonstrating)\b/i);
+  if (inflated.length) v.push(`${EN_STYLE_MARK} inflated verbs or a comment tail (${list(inflated)}) — use "is" or a direct verb; say the meaning in its own sentence or drop it (rules 26 and 27)`);
+  const stock = find(/^(?:exactly|absolutely|totally|definitely|100%)\b|(?:^|[.!?]\s+)(?:exactly|absolutely|totally)[.!]|\b(?:great (?:question|point)|i love that|you're absolutely right|that makes sense|that's fascinating|oh,? interesting|and that's the (?:key|thing)|think of it like|in other words|i never thought of it that way|what a great way)\b|\bwow\b/i);
+  if (stock.length) v.push(`${EN_STYLE_MARK} stock reactions or praise (${list(stock)}) — pick up the specific detail instead (rules 13, 14, and 29)`);
+  const sign = find(/\b(?:let's (?:dive|unpack|break (?:it|this) down)|deep dive|here's the (?:thing|kicker)|here's where it gets|it's worth noting|it's important to note|that being said|at its core|to recap|in a nutshell|the bottom line|generally speaking)\b/i);
+  if (sign.length) v.push(`${EN_STYLE_MARK} signposting or tone hedges (${list(sign)}) — go straight to the content (rules 29 and 33)`);
+  const selfQ = find(/\b(?:the answer|why|how|the reason|the result)\?\s+[A-Z]/i, (t) => expl(t));
+  if (selfQ.length) v.push(`${EN_STYLE_MARK} self-answered questions in explainer turns (${list(selfQ)}) — questions belong to the host (rule 30)`);
+  const moral = find(/\b(?:it reminds us|food for thought|the real lesson|at the end of the day|it goes to show)\b/i);
+  if (moral.length) v.push(`${EN_STYLE_MARK} morals or slogans (${list(moral)}) — end on what the block answered (rule 31)`);
+  const contrastRe = /\bnot (?:just|only) \w|\bit'?s not [^.?!]{1,40}, it'?s\b|\brather than\b|\bnot [^.?!,]{1,30}, but\b/gi;
+  const contrast = turns.flatMap((t) => (t.text.match(contrastRe) ? [label(t)] : []));
+  const contrastN = turns.reduce((n, t) => n + (t.text.match(contrastRe)?.length ?? 0), 0);
+  if (contrastN > 2) v.push(`${EN_STYLE_MARK} contrast frames ("not X, but Y", "rather than", "not just") used ${contrastN} times (${list(contrast)}) — at most two per episode, only to correct a stated view (rule 28)`);
+  const opener = (t: string) => t.toLowerCase().replace(/[^a-z' ]/g, " ").trim().split(/\s+/).slice(0, 2).join(" ");
+  const counts = new Map<string, string[]>();
+  turns.forEach((t, i) => { if (isTemplate(i)) return; const o = opener(t.text); if (o) counts.set(o, [...(counts.get(o) ?? []), label(t)]); });
+  const repeated = [...counts].filter(([, ids]) => ids.length > 3).map(([o, ids]) => `"${o}" ×${ids.length} (${ids.slice(0, 4).join(", ")})`);
+  if (repeated.length) v.push(`${EN_STYLE_MARK} the same turn opener more than three times: ${repeated.join("; ")} — vary how turns start (rule 13)`);
+  const soTurns = turns.filter((t, i) => !isTemplate(i) && /^(?:so|okay,? so)\b/i.test(t.text.trim())).map(label);
+  if (soTurns.length >= 3 && soTurns.length > turns.length / 10) v.push(`${EN_STYLE_MARK} ${soTurns.length} turns open with "So" or "Okay, so" (${list(soTurns)}) — at most one turn in ten (rule 13)`);
+  const bodyY = turns.filter((t) => t.section === zones.body && t.id?.startsWith("Y"));
+  if (bodyY.length >= 6) {
+    const q = bodyY.filter((t) => t.text.includes("?")).length;
+    const r = q / bodyY.length;
+    if (r < 0.5 || r > 2 / 3) v.push(`${EN_STYLE_MARK} ${q} of ${bodyY.length} Body host turns are questions (${Math.round(r * 100)}%) — between half and two-thirds are questions; the rest are guesses, doubts, or reactions (rule 9)`);
+  }
   return v;
 }
 
@@ -331,7 +405,9 @@ export const RATIO_RULE_MARKS = ["셋 중 하나가 상한이다", "질문은 �
   // v9.9.1 (2026-10-14): 문체 횟수 상한 둘도 한도 뒤엔 QA 로 넘긴다 — 사실·형식 위반이 아니라 말맛이라 초안을 멈출 사유가 아니다
   "명사절 감싸기는 편에 넷까지다", "\"~적인·~적으로\"는 편에 일곱 번까지다",
   // v9.10 (2026-10-14): 진행자의 추측을 맞장구 한마디로 받는 곳 — 주고받기 문체 규칙
-  "추측을 맞장구 한마디로 받는 곳은 편에 한 번까지다"] as const;
+  "추측을 맞장구 한마디로 받는 곳은 편에 한 번까지다",
+  // 글로벌판 문체 위반(enStyleViolations) — 한국판 메시지와 겹치지 않는 영어 머리
+  "Style limit:"] as const;
 export const isRatioViolation = (v: string): boolean => RATIO_RULE_MARKS.some((m) => v.includes(m));
 
 /** L0 수정 한도 (2026-10-07: 2 → 3) — QA 회차(qa.ts MAX_ATTEMPTS = QA 실행 3회, 실패 뒤 수정 2회)와 따로 센다 */

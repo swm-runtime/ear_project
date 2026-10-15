@@ -1,6 +1,6 @@
 # Critic rubric v2 (global)
 
-> Version: **critic-en-v0.1** (2026-10-15) · global pipeline · judges against the script rules (guidelines full-en). The global DB `prompt_assets` is the source of truth; this file is the seeding copy. Anchors are empty until people judge the first episodes.
+> Version: **critic-en-v0.2** (2026-10-15) · global pipeline · judges against the script rules (guidelines full-en). The global DB `prompt_assets` is the source of truth; this file is the seeding copy. Anchors are empty until people judge the first episodes.
 
 ## 1. Rules
 
@@ -74,7 +74,6 @@ Each flag names the turn, the item, the severity (violation = clear; suspect = p
 | F3 | Written sentence | A sentence a person would not say in one breath: two main clauses, stacked conditions, a dash, semicolon, or parenthesis; "not X, but Y" and three-item lists used more than the guidelines allow; synonyms cycled for one thing. |
 | F4 | Reaction mismatch | More than one strong surprise in a section, a general reaction instead of the specific detail, an emotion a listener would not feel, or weird, crazy, wild, or cute about a custom. Whether a reaction enlarges a claim is QA's. |
 | F5 | Metaphor misuse | A metaphor for something already clear, a relation between two ideas moved onto two unrelated objects, a host-made metaphor, a metaphor with no marker of what is being carried over, or a callback metaphor from another section. |
-| F6 | Mechanical | An explainer turn over six sentences; a production word in a line (section, axis, block, claim, source, outline); a filler (um, uh) or stage direction; more than three numbers in a turn. |
 
 Every F flag ends with a replacement: "…" → "…".
 
@@ -86,7 +85,7 @@ Every F flag ends with a replacement: "…" → "…".
 
 ### 2.2 Not flagged here
 
-Length (L0) · template frames and zones (QA 5) · relative time words and notation (QA 6) · facts, memories, and other countries' practices in host turns (QA 8) · reactions that enlarge a claim (QA 9) · real people, stereotypes, and rankings (QA 11). Their judgment parts are scored in section 3, not flagged.
+Length, explainer turns over six sentences, production words, fillers and stage directions, numbers per turn, banned vocabulary, dashes and semicolons, stock reactions, signposting, contrast counts, and the host question ratio (L0 — the script was fixed before you see it; judge what remains, do not re-count) · template frames and zones (QA 5) · relative time words and notation (QA 6) · facts, memories, and other countries' practices in host turns (QA 8) · reactions that enlarge a claim (QA 9) · real people, stereotypes, and rankings (QA 11). Their judgment parts are scored in section 3, not flagged.
 
 ## 3. Scores — 100
 
@@ -272,4 +271,5 @@ Flags n · violations n · suspects n · ⭐ n
 
 ## Change history
 
+- critic-en-v0.2 (2026-10-15) — F6 removed: the English L0 (enStyleViolations) now checks turn length, production words, fillers, numbers per turn, and the regex-level style items. Section 2.2 lists them. F1 to F3 stay for what regex cannot judge.
 - critic-en-v0.1 (2026-10-15) — first version. Keeps the Korean critic-v2 structure the worker and console depend on (12 sub-items and weights, flag codes letter + number, report sections 1 to 4) and rewrites every item and band for English dialogue and the global audience (guidelines full-en-v0.1). New: E group (culture and audience), A7 (host not heard), F1 to F3 for English AI style, stock reactions, and written sentences. Korean-only items (Korean naturalness, translationese, gold phrase copying) are dropped. No gold and no anchors yet. Reviewed by one agent before seeding: QA overlaps removed (A2, D3, E2, F4), F6 added until the English L0 covers turn length, production words, fillers, and numbers per turn; caps until anchors exist (3.6 ≤ 6, 3.10 ≤ 12, 3.1 retell check); full score table template for the console parser; every F flag ends with a replacement.

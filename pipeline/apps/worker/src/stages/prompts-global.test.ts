@@ -133,12 +133,12 @@ test("QA(en) — 영어 지시문·스키마, 자산 본문 한글 없음·버�
   assert.doesNotMatch(JSON.stringify(P.QA_INLINE_SCHEMA_EN), HANGUL);
 });
 
-test("비평(en) — 루브릭 critic-en-v0.1 본문 한글 없음, 하위 항목 12개·배점 합 100, 플래그 코드는 콘솔 형식(문자+숫자), 스키마 키는 한국판과 같다", async () => {
+test("비평(en) — 루브릭 critic-en 본문 한글 없음, 하위 항목 12개·배점 합 100, 플래그 코드는 콘솔 형식(문자+숫자), 스키마 키는 한국판과 같다", async () => {
   en();
   const { versionOf } = await import("../assets.js");
   const root = path.resolve(import.meta.dirname, "../../../../../docs/ai/global");
   const rb = await fs.readFile(path.join(root, "skills/critic/rubric-v2.md"), "utf8");
-  assert.equal(versionOf("skills/critic/rubric-v2.md", rb), "critic-en-v0.1");
+  assert.equal(versionOf("skills/critic/rubric-v2.md", rb), "critic-en-v0.2");
   const body = P.promptBody(rb, { dropSections: [/^## 0\./] });
   assert.doesNotMatch(body, HANGUL);
   assert.doesNotMatch(body, /Change history/);
