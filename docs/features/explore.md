@@ -242,6 +242,7 @@
 | `plans` — `daily_play_limit` | 8.1 |
 
 - `ExploreFeed`는 응답 DTO이고 `SearchHistory`는 클라이언트 로컬 전용이다. 테이블이 아니다(domain.md 13.1·13.2).
+- **시장 격리**(추가 2026-10-14 — KAN-188, `global-api.md` 4.5·4.7): 피드·필터 목록·인기·검색(fallback 포함)·주제 칩은 **사용자 시장의 콘텐츠·주제만** 내려준다(`contents.market`·`topics.market` = `users.market`). 다른 시장 콘텐츠를 ID로 담으려 하면 `CONTENT_NOT_FOUND`(404)다. 콘텐츠 객체에는 `language`(`ko` | `en`)가 실리지만 **표시 전용**이다 — 클라이언트는 이 값으로 거르지 않는다(필터는 서버).
 - **잔여 횟수 컬럼을 새로 만들지 않는다.** `play_records` 집계로 매번 구한다(`domain.md` 1.4 — 파생값을 컬럼으로 두지 않는다). `users.daily_play_count`는 이미 폐기된 개체다(`domain.md` 14장).
 - **[오늘은 그만 보기] 억제 플래그는 클라이언트 로컬 전용**이며 서버에 저장하지 않는다(`paywall.md` 4.2). 라이브러리와 **같은 로컬 키를 공유한다** — 화면별로 따로 두면 한 화면에서 억제해도 다른 화면에서 다시 뜬다.
 

@@ -19,6 +19,7 @@ services:
       - '443:443/udp'
     environment:
       PIPELINE_DOMAIN: ${PIPELINE_DOMAIN:?PIPELINE_DOMAIN required}
+      PIPELINE_GLOBAL_DOMAIN: ${PIPELINE_GLOBAL_DOMAIN:-admin-global.earcast.co.kr} # 글로벌판 콘솔 (KAN-208)
     volumes:
       - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy-data:/data
@@ -113,6 +114,60 @@ services:
       driver: json-file
       options: { max-size: '10m', max-file: '5' }
 
+  # ── 글로벌판 인스턴스 (KAN-208 · docs/ai/global/PIPELINE.md 4.2·8장) ─────────────────────────────
+  # 같은 이미지·같은 코드를 PIPELINE_LOCALE=en 으로 띄운다. DB·버킷·진행자 이름은 deploy/env.global(서버에만, 커밋 금지)에서 온다.
+  # profiles: push.sh 가 서버의 deploy/env.global 이 비어 있지 않을 때만 --profile global 로 띄운다 — 없으면 한국판만(종전 그대로).
+  # environment 는 env_file 보다 우선한다 — 한국판과 공유하는 값(API 키·발행 SSO·AI 서버)만 여기서 env.prod 로 채우고, 인스턴스 값은 env.global 에만 둔다.
+  web-global:
+    image: ear-pipeline:prod # web 이 빌드한 이미지를 그대로 — Supabase 접속값은 실행 시점 env(SUPABASE_URL·SUPABASE_ANON_KEY)로 받는다
+    pull_policy: never
+    profiles: ['global']
+    restart: unless-stopped
+    env_file: env.global # SUPABASE_URL · SUPABASE_ANON_KEY · PIPELINE_BUCKET · PIPELINE_SPEAKERS · PIPELINE_WORKER_TOKEN
+    environment:
+      PIPELINE_LOCALE: en
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-} # 주제 기획 배제 주제 판정 (KAN-209)
+      AWS_REGION: ${AWS_REGION:-ap-northeast-2}
+      EAR_API_BASE_URL: ${EAR_API_BASE_URL:-https://api.earcast.co.kr/api/v1} # 발행처는 한국판과 같은 제품 서버 (market=global)
+      EAR_SSO_SECRET: ${EAR_SSO_SECRET:-}
+      EAR_DEV_API_BASE_URL: ${EAR_DEV_API_BASE_URL:-https://api-dev.earcast.co.kr/api/v1}
+      EAR_DEV_SSO_SECRET: ${EAR_DEV_SSO_SECRET:-}
+      AI_SERVER_URL: ${AI_SERVER_URL:-http://ai-server:8000}
+      AI_SERVER_TOKEN: ${AI_SERVER_TOKEN:-}
+    expose:
+      - '3000'
+    logging:
+      driver: json-file
+      options: { max-size: '10m', max-file: '5' }
+
+  worker-global:
+    image: ear-pipeline:prod
+    pull_policy: never
+    profiles: ['global']
+    restart: unless-stopped
+    command: ['npm', 'run', 'worker']
+    env_file: env.global # DATABASE_URL(Session pooler) · PIPELINE_BUCKET · PIPELINE_SPEAKERS · TTS_VOICE_A · TTS_VOICE_B · PIPELINE_CONSOLE_URL
+    environment:
+      PIPELINE_LOCALE: en
+      EXECUTOR: openai # 글로벌판은 노트북 워커 없이 서버 API 실행기만 (글로벌 명세 4.4)
+      CAPABILITIES: ai,io
+      WORKER_NAME: ai-server-global
+      WORK_ROOT: /work
+      ASSET_ROOT: /srv/docs/ai/global # 명세 장 원본 — 글로벌 명세 4.1
+      AWS_REGION: ${AWS_REGION:-ap-northeast-2}
+      S3_MODE: direct
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      ELEVENLABS_API_KEY: ${ELEVENLABS_API_KEY:-} # 계정 공유 — 한도는 두 인스턴스 합산 (KAN-204)
+      AI_SERVER_URL: ${AI_SERVER_URL:-http://ai-server:8000}
+      AI_SERVER_TOKEN: ${AI_SERVER_TOKEN:-}
+      SLACK_ERROR_WEBHOOK_URL: ${SLACK_ERROR_WEBHOOK_URL:-} # 알림은 [GLOBAL] 머리로, 백엔드 로그 감시는 en 에서 돌지 않는다
+    volumes:
+      - worker-global-work:/work
+      - ../../docs/ai:/srv/docs/ai:ro
+    logging:
+      driver: json-file
+      options: { max-size: '10m', max-file: '5' }
+
   ai-server:
     build:
       context: ../../ai-server
@@ -128,3 +183,4 @@ volumes:
   caddy-data:
   caddy-config:
   worker-work:
+  worker-global-work:

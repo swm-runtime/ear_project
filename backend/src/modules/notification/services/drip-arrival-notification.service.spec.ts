@@ -2,7 +2,9 @@ import { Logger } from '@nestjs/common';
 
 import { DeviceToken } from '@/modules/user/entities/device-token.entity';
 import { DeviceTokenService } from '@/modules/user/services/device-token.service';
+import { UserService } from '@/modules/user/services/user.service';
 import { UserSettingService } from '@/modules/user/services/user-setting.service';
+import { MessageLanguage } from '@/modules/user/user.enum';
 
 import { NotificationLog } from '../entities/notification-log.entity';
 import {
@@ -15,10 +17,12 @@ import { PushClient } from '../push/push.client';
 import { NotificationLogRepository } from '../repositories/notification-log.repository';
 import { DripArrivalNotificationService } from './drip-arrival-notification.service';
 import { PushReceiptService } from './push-receipt.service';
-import { UninstallAlertService } from './uninstall-alert.service';
+import { UninstallEstimateService } from './uninstall-estimate.service';
 
 // 2026-09-17 05:00 KST
 const NOW = new Date('2026-09-16T20:00:00.000Z');
+/** 그룹의 다음 배치 — NOW 의 24시간 뒤(호출부가 정해 넘긴다) */
+const NEXT_BATCH_AT = new Date('2026-09-17T20:00:00.000Z');
 const USER_ID = '11111111-1111-4111-8111-111111111111';
 const OTHER_USER_ID = '22222222-2222-4222-8222-222222222222';
 const TOKEN_A = 'ExponentPushToken[aaaa]';
@@ -51,7 +55,8 @@ describe('DripArrivalNotificationService', () => {
   let userSettingService: jest.Mocked<UserSettingService>;
   let pushClient: jest.Mocked<PushClient>;
   let pushReceiptService: jest.Mocked<PushReceiptService>;
-  let uninstallAlertService: jest.Mocked<UninstallAlertService>;
+  let userService: jest.Mocked<UserService>;
+  let uninstallEstimateService: jest.Mocked<UninstallEstimateService>;
 
   const insertedLogs = (): Partial<NotificationLog>[] =>
     notificationLogRepository.insertAll.mock.calls[0][0];
@@ -86,6 +91,10 @@ describe('DripArrivalNotificationService', () => {
         .mockResolvedValue(new Set()),
     } as unknown as jest.Mocked<UserSettingService>;
 
+    userService = {
+      findMessageLanguagesByIds: jest.fn().mockResolvedValue(new Map()),
+    } as unknown as jest.Mocked<UserService>;
+
     pushClient = {
       send: jest.fn().mockImplementation((messages: PushMessage[]) =>
         Promise.resolve(
@@ -102,23 +111,70 @@ describe('DripArrivalNotificationService', () => {
       track: jest.fn(),
     } as unknown as jest.Mocked<PushReceiptService>;
 
-    uninstallAlertService = {
-      notifyIfLastToken: jest.fn().mockResolvedValue({}),
-    } as unknown as jest.Mocked<UninstallAlertService>;
+    uninstallEstimateService = {
+      recordIfLastToken: jest.fn().mockResolvedValue({}),
+    } as unknown as jest.Mocked<UninstallEstimateService>;
 
     service = new DripArrivalNotificationService(
       notificationLogRepository,
       deviceTokenService,
       userSettingService,
+      userService,
       pushClient,
       pushReceiptService,
-      uninstallAlertService,
+      uninstallEstimateService,
     );
+  });
+
+  it('GLOBAL 사용자에게는 영어 제목으로 보낸다 — 본문은 콘텐츠 제목 그대로다(global-api 2.3)', async () => {
+    // given
+    userService.findMessageLanguagesByIds.mockResolvedValue(
+      new Map([[USER_ID, MessageLanguage.EN]]),
+    );
+
+    // when
+    await service.notify([buildArrival()], NOW, NEXT_BATCH_AT);
+
+    // then
+    expect(sentMessages()[0]).toMatchObject({
+      title: 'Your 3 episodes for today are here',
+      body: '연봉 협상의 기술',
+    });
+  });
+
+  it('GLOBAL 사용자에게 1편이면 단수 영어 제목으로 보낸다', async () => {
+    // given
+    userService.findMessageLanguagesByIds.mockResolvedValue(
+      new Map([[USER_ID, MessageLanguage.EN]]),
+    );
+
+    // when
+    await service.notify(
+      [
+        buildArrival({
+          regular: [{ contentId: 'r1', title: 'Negotiating a raise' }],
+          discovery: [],
+        }),
+      ],
+      NOW,
+      NEXT_BATCH_AT,
+    );
+
+    // then
+    expect(sentMessages()[0].title).toBe('Your episode for today is here');
+  });
+
+  it('언어를 모르는 사용자(조회 결과에 없음)는 종전처럼 한국어로 보낸다', async () => {
+    // when — 기본 mock 은 빈 Map 이다
+    await service.notify([buildArrival()], NOW, NEXT_BATCH_AT);
+
+    // then
+    expect(sentMessages()[0].title).toBe('오늘의 콘텐츠 3편이 도착했어요');
   });
 
   it('정규 2편과 탐험 1편이 적립되면 "3편 도착" 알림 1건을 보내고 sent 로 기록한다', async () => {
     // when
-    const summary = await service.notify([buildArrival()], NOW);
+    const summary = await service.notify([buildArrival()], NOW, NEXT_BATCH_AT);
 
     // then — 대표 제목은 정규 첫 편, 2편 이상이라 라이브러리로 간다(notification.md 4.3)
     expect(sentMessages()).toEqual([
@@ -131,7 +187,7 @@ describe('DripArrivalNotificationService', () => {
           deep_link: 'ear://library',
           content_count: 3,
         },
-        // NOW = 05:00 KST 정각 → 다음 05:00 KST까지 24시간(notification.md 4.3 — 결정 2026-09-26)
+        // 다음 배치(NEXT_BATCH_AT)까지 24시간(notification.md 4.3 — 결정 2026-09-26)
         ttl: 24 * 60 * 60,
       },
     ]);
@@ -154,7 +210,7 @@ describe('DripArrivalNotificationService', () => {
     const arrival = buildArrival({ regular: [] });
 
     // when
-    await service.notify([arrival], NOW);
+    await service.notify([arrival], NOW, NEXT_BATCH_AT);
 
     // then
     expect(sentMessages()[0]).toMatchObject({
@@ -171,7 +227,7 @@ describe('DripArrivalNotificationService', () => {
     ]);
 
     // when
-    await service.notify([buildArrival()], NOW);
+    await service.notify([buildArrival()], NOW, NEXT_BATCH_AT);
 
     // then — 판정 창은 서비스 날짜(04:00 KST 경계)다
     expect(
@@ -199,7 +255,7 @@ describe('DripArrivalNotificationService', () => {
     );
 
     // when
-    await service.notify([buildArrival()], NOW);
+    await service.notify([buildArrival()], NOW, NEXT_BATCH_AT);
 
     // then
     expect(pushClient.send).not.toHaveBeenCalled();
@@ -214,7 +270,7 @@ describe('DripArrivalNotificationService', () => {
     deviceTokenService.findDeliverableByUserIds.mockResolvedValue([]);
 
     // when
-    await service.notify([buildArrival()], NOW);
+    await service.notify([buildArrival()], NOW, NEXT_BATCH_AT);
 
     // then
     expect(pushClient.send).not.toHaveBeenCalled();
@@ -231,7 +287,7 @@ describe('DripArrivalNotificationService', () => {
     ]);
 
     // when
-    await service.notify([buildArrival()], NOW);
+    await service.notify([buildArrival()], NOW, NEXT_BATCH_AT);
 
     // then
     expect(pushClient.send).not.toHaveBeenCalled();
@@ -250,6 +306,7 @@ describe('DripArrivalNotificationService', () => {
     await service.notify(
       [buildArrival(), buildArrival({ userId: OTHER_USER_ID })],
       NOW,
+      NEXT_BATCH_AT,
     );
 
     // then
@@ -266,7 +323,7 @@ describe('DripArrivalNotificationService', () => {
     ]);
 
     // when
-    await service.notify([buildArrival()], NOW);
+    await service.notify([buildArrival()], NOW, NEXT_BATCH_AT);
 
     // then
     expect(sentMessages().map((message) => message.to)).toEqual([
@@ -283,7 +340,7 @@ describe('DripArrivalNotificationService', () => {
     ]);
 
     // when
-    const summary = await service.notify([buildArrival()], NOW);
+    const summary = await service.notify([buildArrival()], NOW, NEXT_BATCH_AT);
 
     // then
     expect(
@@ -311,7 +368,7 @@ describe('DripArrivalNotificationService', () => {
     ]);
 
     // when
-    await service.notify([buildArrival()], NOW);
+    await service.notify([buildArrival()], NOW, NEXT_BATCH_AT);
 
     // then — 무효 토큰이 아닌 오류는 토큰을 건드리지 않는다
     expect(insertedLogs()[0]).toMatchObject({
@@ -327,7 +384,7 @@ describe('DripArrivalNotificationService', () => {
     pushClient.send.mockRejectedValue(new Error('network down'));
 
     // when
-    const summary = await service.notify([buildArrival()], NOW);
+    const summary = await service.notify([buildArrival()], NOW, NEXT_BATCH_AT);
 
     // then
     expect(insertedLogs()[0]).toMatchObject({
@@ -338,7 +395,7 @@ describe('DripArrivalNotificationService', () => {
 
   it('접수된 ticket 은 receipt 확인 대기에 올린다', async () => {
     // when
-    await service.notify([buildArrival()], NOW);
+    await service.notify([buildArrival()], NOW, NEXT_BATCH_AT);
 
     // then
     expect(pushReceiptService.track).toHaveBeenCalledWith(
@@ -355,7 +412,7 @@ describe('DripArrivalNotificationService', () => {
     ]);
 
     // when
-    await service.notify([buildArrival()], NOW);
+    await service.notify([buildArrival()], NOW, NEXT_BATCH_AT);
 
     // then
     expect(sentMessages()).toHaveLength(1);
@@ -371,7 +428,7 @@ describe('DripArrivalNotificationService', () => {
     );
 
     // when
-    const act = service.notify([buildArrival()], NOW);
+    const act = service.notify([buildArrival()], NOW, NEXT_BATCH_AT);
 
     // then
     await expect(act).resolves.toBeDefined();
@@ -387,7 +444,7 @@ describe('DripArrivalNotificationService', () => {
     );
 
     // when
-    await service.notify([buildArrival()], NOW);
+    await service.notify([buildArrival()], NOW, NEXT_BATCH_AT);
 
     // then
     expect(
@@ -397,7 +454,11 @@ describe('DripArrivalNotificationService', () => {
 
   it('적립이 없는 입력은 아무것도 조회하지 않는다', async () => {
     // when
-    await service.notify([buildArrival({ regular: [], discovery: [] })], NOW);
+    await service.notify(
+      [buildArrival({ regular: [], discovery: [] })],
+      NOW,
+      NEXT_BATCH_AT,
+    );
 
     // then
     expect(
@@ -417,7 +478,7 @@ describe('DripArrivalNotificationService', () => {
 
     try {
       // when
-      await service.notify([buildArrival()], NOW);
+      await service.notify([buildArrival()], NOW, NEXT_BATCH_AT);
 
       // then
       expect(errorSpy).toHaveBeenCalledWith(

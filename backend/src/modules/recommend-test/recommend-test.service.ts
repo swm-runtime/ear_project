@@ -113,6 +113,7 @@ export class RecommendTestService {
       this.libraryService.findPage(
         {
           userId: user.id,
+          market: user.market,
           filter: LibraryItemFilter.ALL,
           sourceFilter: null,
           topicIds: [],
@@ -144,7 +145,7 @@ export class RecommendTestService {
   async getFeed(now: Date): Promise<ExploreFeedResult> {
     const user = await this.getTestUser();
 
-    return this.exploreOrchestrator.getFeed(user.id, now);
+    return this.exploreOrchestrator.getFeed(user.id, now, user.market);
   }
 
   async perform(
@@ -278,6 +279,7 @@ export class RecommendTestService {
         return this.complete(user, contentId, now);
       case RecommendTestAction.SAVE: {
         const result = await this.exploreOrchestrator.saveContent({
+          market: user.market,
           userId: user.id,
           contentId,
           reason: SaveReason.USER_SAVE,
@@ -330,6 +332,7 @@ export class RecommendTestService {
 
     if (!existing) {
       await this.exploreOrchestrator.saveContent({
+        market: user.market,
         userId: user.id,
         contentId,
         reason: SaveReason.AUTO_PLAY,
@@ -341,6 +344,7 @@ export class RecommendTestService {
     const started = await this.playService.startPlay({
       userId: user.id,
       contentId,
+      market: user.market,
       entryPoint: PlayEntryPoint.EXPLORE,
       now,
     });

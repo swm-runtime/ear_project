@@ -14,6 +14,7 @@ import {
 } from '@/modules/library/library.enum';
 import { UserSignalAction } from '@/modules/playback/playback.enum';
 import { User } from '@/modules/user/entities/user.entity';
+import { UserMarket } from '@/modules/user/user.enum';
 
 import { EvalSnapshot } from './recommend-eval.types';
 
@@ -43,6 +44,7 @@ export interface WorldLibraryItem {
 export interface WorldUser {
   key: string;
   tier: string;
+  market: UserMarket;
   jobCategory: string | null;
   yearsOfExperience: number | null;
   autoExpandEnabled: boolean;
@@ -64,7 +66,12 @@ export interface WorldTopic {
   id: string;
   name: string;
   isVisible: boolean;
+  market: UserMarket;
 }
+
+/** 스냅샷의 시장 문자열 — 없으면(시장 도입 전 스냅샷) `kr` */
+const toMarket = (value: string | undefined): UserMarket =>
+  value === (UserMarket.GLOBAL as string) ? UserMarket.GLOBAL : UserMarket.KR;
 
 const DRIP_SOURCES: string[] = [
   LibraryItemSource.DRIP,
@@ -103,6 +110,7 @@ export class EvalWorld {
         id: topic.id,
         name: topic.name,
         isVisible: topic.is_visible,
+        market: toMarket(topic.market),
       });
     }
 
@@ -127,6 +135,7 @@ export class EvalWorld {
             ? new Date(row.license_expires_at)
             : null,
           contentVersion: 1,
+          market: toMarket(row.market),
         } as unknown as Content,
         topicIds: [...row.topic_ids],
         playCount: row.play_count,
@@ -139,6 +148,7 @@ export class EvalWorld {
       world.users.set(user.key, {
         key: user.key,
         tier: user.tier,
+        market: toMarket(user.market),
         jobCategory: user.job_category,
         yearsOfExperience: user.years_of_experience,
         autoExpandEnabled: user.auto_expand_enabled,
@@ -431,6 +441,7 @@ export class EvalWorld {
       {
         id: key,
         tier: user.tier,
+        market: user.market,
         jobCategory: user.jobCategory,
         yearsOfExperience: user.yearsOfExperience,
       } as unknown as User,
@@ -576,6 +587,7 @@ export class EvalWorld {
         const pool = this.visibleContents(query.now)
           .filter(
             ({ content, topicIds }) =>
+              content.market === query.market &&
               (!query.seriesStartOnly ||
                 content.episodeNo === null ||
                 content.episodeNo === 1) &&

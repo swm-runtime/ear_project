@@ -4,7 +4,7 @@ import { DeviceTokenService } from '@/modules/user/services/device-token.service
 
 import { PushClient } from '../push/push.client';
 import { PushReceiptService } from './push-receipt.service';
-import { UninstallAlertService } from './uninstall-alert.service';
+import { UninstallEstimateService } from './uninstall-estimate.service';
 
 const SENT_AT = new Date('2026-09-16T20:00:00.000Z');
 const minutesAfter = (minutes: number): Date =>
@@ -14,7 +14,7 @@ describe('PushReceiptService', () => {
   let service: PushReceiptService;
   let pushClient: jest.Mocked<PushClient>;
   let deviceTokenService: jest.Mocked<DeviceTokenService>;
-  let uninstallAlertService: jest.Mocked<UninstallAlertService>;
+  let uninstallEstimateService: jest.Mocked<UninstallEstimateService>;
 
   beforeEach(() => {
     pushClient = {
@@ -34,14 +34,14 @@ describe('PushReceiptService', () => {
           ),
         ),
     } as unknown as jest.Mocked<DeviceTokenService>;
-    uninstallAlertService = {
-      notifyIfLastToken: jest.fn().mockResolvedValue({}),
-    } as unknown as jest.Mocked<UninstallAlertService>;
+    uninstallEstimateService = {
+      recordIfLastToken: jest.fn().mockResolvedValue({}),
+    } as unknown as jest.Mocked<UninstallEstimateService>;
 
     service = new PushReceiptService(
       pushClient,
       deviceTokenService,
-      uninstallAlertService,
+      uninstallEstimateService,
     );
     service.track(
       [

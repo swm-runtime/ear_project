@@ -8,6 +8,7 @@ import {
 import { isSignupTrialActive } from '@/common/utils/signup-trial.util';
 import { PlanService } from '@/modules/subscription/services/plan.service';
 import { UserService } from '@/modules/user/services/user.service';
+import { UserMarket } from '@/modules/user/user.enum';
 
 import { PlaybackProgressRepository } from '../repositories/playback-progress.repository';
 import { PlayRecordRepository } from '../repositories/play-record.repository';
@@ -196,15 +197,17 @@ export class PlaybackService {
     );
   }
 
-  /** 지정한 서비스 날짜들에 청취 시간 합이 `listenedSec`보다 많은 사용자 수 — 주간 청취 상위 %(KAN-168) */
+  /** 지정한 서비스 날짜들에 청취 시간 합이 `listenedSec`보다 많은 그 시장 사용자 수 — 주간 청취 상위 %(KAN-168) */
   async countUsersListenedMoreByDates(
     playDates: string[],
     listenedSec: number,
+    market: UserMarket,
     manager?: EntityManager,
   ): Promise<number> {
     return this.playRecordRepository.countUsersListenedMoreInPlayDates(
       playDates,
       listenedSec,
+      market,
       manager,
     );
   }

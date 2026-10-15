@@ -5,10 +5,12 @@ import { BaseEntity } from '@/database/base.entity';
 import {
   ContentDifficulty,
   ContentFormat,
+  ContentLanguage,
   ContentOrigin,
   ContentStatus,
 } from '../content.enum';
 import { TargetAudience } from '../content.types';
+import { UserMarket } from '@/modules/user/user.enum';
 
 /**
  * domain.md 5.1 — 단일 표준 에피소드. 같은 콘텐츠는 전 사용자에게 동일하며 변형은 없다.
@@ -19,6 +21,11 @@ import { TargetAudience } from '../content.types';
  */
 @Entity('contents')
 @Index('idx_contents_status_published_at', ['status', 'publishedAt'])
+@Index('idx_contents_market_status_published_at', [
+  'market',
+  'status',
+  'publishedAt',
+])
 @Index('idx_contents_series_id_episode_no', ['seriesId', 'episodeNo'])
 @Index('idx_contents_partner_id', ['partnerId'])
 export class Content extends BaseEntity {
@@ -132,4 +139,25 @@ export class Content extends BaseEntity {
 
   @Column({ name: 'withdrawn_at', type: 'timestamptz', nullable: true })
   withdrawnAt: Date | null;
+
+  /**
+   * 시장(`global-api.md` 4.7·4.9). 노출 쿼리 전부가 `users.market`과 대조한다 — 시장이 다른 콘텐츠는 어떤 응답에도
+   * 나오지 않는다(격리 실패는 데이터 유출로 본다, 7장). 기존 행은 마이그레이션 기본값 `kr`
+   */
+  @Column({
+    name: 'market',
+    type: 'varchar',
+    length: 20,
+    default: UserMarket.KR,
+  })
+  market: UserMarket;
+
+  /** 콘텐츠 언어(BCP 47 primary — `ko`·`en`). 표시용으로 응답에 싣는다. 필터는 `market`이 한다 */
+  @Column({
+    name: 'language',
+    type: 'varchar',
+    length: 8,
+    default: ContentLanguage.KO,
+  })
+  language: ContentLanguage;
 }

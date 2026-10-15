@@ -4,6 +4,7 @@ import { claimJob, enqueue, failJob, finishJob, getSetting, hasActiveDraftJob, h
 import { workerRev, workerRevTime } from "./assets.js";
 import { probeStorage } from "./storage.js";
 import { makeExecutor, setJobAbort } from "./executors/index.js";
+import { pipelineLocale, speakerNames } from "@ear/pipeline";
 import { startLogWatch } from "./log-watch.js";
 import { runStage } from "./stages/index.js";
 import { log, sleep, ApiLimit, RetryLater } from "./util.js";
@@ -36,7 +37,7 @@ async function main() {
   const ex = makeExecutor(cfg.executor, cfg.claudeModel);
   await fs.mkdir(cfg.workRoot, { recursive: true }); // 실행기 cwd — 없으면 spawn 이 실패한다
   const storageInfo = await probeStorage(); // 산출물 저장소(S3) 접근 확인 — 못 쓰면 작업을 집기 전에 죽는다 (spec/10 3.3)
-  log(`워커 시작 — ${executedBy} · capabilities=${cfg.capabilities.join(",")} · AI=${canAi ? "on" : "off"} · TTS=${canTts ? "on" : "off(키 없음 — 서버가 집음)"} · 썸네일=${canThumbnail ? "on" : "off(키 없음 — 서버가 집음)"} · assets=DB(${cfg.assetProfile})+${cfg.assetSourceRoot} · work=${cfg.workRoot} · storage=${storageInfo} · rev=${workerRev()}`);
+  log(`워커 시작 — ${executedBy} · locale=${pipelineLocale()}(${speakerNames().join("·")}) · capabilities=${cfg.capabilities.join(",")} · AI=${canAi ? "on" : "off"} · TTS=${canTts ? "on" : "off(키 없음 — 서버가 집음)"} · 썸네일=${canThumbnail ? "on" : "off(키 없음 — 서버가 집음)"} · assets=DB(${cfg.assetProfile})+${cfg.assetSourceRoot} · work=${cfg.workRoot} · storage=${storageInfo} · rev=${workerRev()}`);
   // 백엔드 ERROR → Slack 감시 (log-watch.ts) — 자체 타이머·전부 try/catch·unref 로 작업 큐와 완전 분리. env 없으면 off
   log(`백엔드 ERROR 감시: ${startLogWatch()}`);
 
@@ -84,7 +85,8 @@ async function main() {
       const ttsNow = canTts && !ttsPause;
       if (aiNow) { await autoApprove().catch((e) => log(`자동 승인 오류 (계속 진행): ${e?.message ?? e}`)); await pickupApproved(); }
       // 0025: 도구(WebSearch)가 필요한 보강·주제 기획(sweep 모드 B·B2)은 Claude CLI 워커만 — API 실행기는 단발 호출뿐이라 집지 않는다
-      const job = await claimJob(cfg.workerName, aiNow, ttsNow, canThumbnail, (await serverClaimOff()) ? ["sweep"] : [], cfg.executor !== "openai"); // 스위치 꺼짐: 스윕도 노트북 몫
+      // 예외는 en 인스턴스(2026-10-15 KAN-209): 노트북 워커가 없고 OpenAI 실행기가 웹 검색을 붙인다(executors/openai-search.ts). 한국판은 값이 종전과 같다
+      const job = await claimJob(cfg.workerName, aiNow, ttsNow, canThumbnail, (await serverClaimOff()) ? ["sweep"] : [], cfg.executor !== "openai" || pipelineLocale() === "en"); // 스위치 꺼짐: 스윕도 노트북 몫
       if (!job) {
         if (once) { log("대기 중인 작업 없음"); break; }
         if (drain && (await listApprovedBacklog()).length === 0) { log("큐 비움 — drain 종료"); break; }

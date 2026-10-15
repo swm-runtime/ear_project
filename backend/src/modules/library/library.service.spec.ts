@@ -13,6 +13,7 @@ import {
   LibraryItemStatus,
 } from './library.enum';
 import { LibraryService } from './library.service';
+import { UserMarket } from '@/modules/user/user.enum';
 
 const NOW = new Date('2026-08-05T09:00:00.000Z');
 const ADDED_AT = new Date('2026-08-03T21:10:00.000Z');
@@ -42,6 +43,7 @@ function buildItem(overrides: Partial<LibraryItem> = {}): LibraryItem {
 function buildPageQuery(limit: number) {
   return {
     userId: USER_ID,
+    market: UserMarket.KR,
     filter: LibraryItemFilter.ALL,
     sourceFilter: null,
     topicIds: [],

@@ -1,3 +1,4 @@
+import { scriptZones } from "@ear/pipeline";
 import type { ScriptTurn } from "./script.js";
 import { displayText, type ScriptSegment } from "./segments.js";
 
@@ -16,10 +17,11 @@ import { displayText, type ScriptSegment } from "./segments.js";
 export type SectionKind = "intro" | "lead" | "body" | "outro";
 export interface ScriptSection { start_sec: number; title: string; kind?: SectionKind; summary?: string }
 
-/** 대본 구역 → kind. `## [본문]`의 단락과 단락 제목 없는 옛 편의 "본문" 덩어리, 그 밖의 구역은 body */
+/** 대본 구역 → kind. `## [본문]`의 단락과 단락 제목 없는 옛 편의 "본문" 덩어리, 그 밖의 구역은 body. 구역 이름은 인스턴스 로케일 것(글로벌판 [Intro]·[Opening]·[Closing], KAN-203) */
 export function sectionKind(section: string): SectionKind {
   const z = section.trim();
-  return z === "인트로" ? "intro" : z === "도입" ? "lead" : z === "마무리" ? "outro" : "body";
+  const n = scriptZones();
+  return z === n.intro ? "intro" : z === n.lead ? "lead" : z === n.outro ? "outro" : "body";
 }
 
 /** 서버 검증 상한(KAN-144: title ≤ 60자, 0~30개) — 제목이 넘으면 말줄임으로 자르고, 개수가 넘으면 구간을 내지 않는다 */

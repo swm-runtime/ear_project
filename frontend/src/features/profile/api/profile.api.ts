@@ -2,6 +2,8 @@ import { queryOptions } from '@tanstack/react-query';
 
 import { apiClient } from '@/shared/api/api-client';
 
+import { toPlanGrant } from '@/features/subscription';
+
 import { IS_PROFILE_API_MOCKED } from '../profile.constants';
 import type {
   DailyListeningHighlight,
@@ -137,6 +139,8 @@ const toProfileSummary = (dto: ProfileSummaryResponseDto): ProfileSummary => ({
           expiresAt: dto.plan.expires_at,
           hasPaymentIssue: dto.plan.has_payment_issue,
           trial: toPlanTrial(dto.plan.trial),
+          // 필드가 없으면(지급 배포 전 서버) 지급 없음 — 변환은 구독 조회와 같다(KAN-182)
+          grant: toPlanGrant(dto.plan.grant),
           pendingPlan: dto.plan.pending_plan
             ? {
                 planName: dto.plan.pending_plan.plan_name,

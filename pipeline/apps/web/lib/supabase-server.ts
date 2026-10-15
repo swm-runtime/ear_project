@@ -1,10 +1,12 @@
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
+import { supabaseConfig } from "./supabase-config";
 
 /** 서버 컴포넌트·서버 액션용 — 로그인 사용자의 세션(쿠키)으로 접근 → RLS 적용 */
 export async function supabaseServer() {
   const cookieStore = await cookies();
-  return createServerClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!, {
+  const c = supabaseConfig();
+  return createServerClient(c.url, c.anonKey, {
     cookies: {
       getAll: () => cookieStore.getAll(),
       setAll: (list) => {

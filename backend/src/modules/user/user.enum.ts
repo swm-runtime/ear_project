@@ -78,6 +78,27 @@ export enum WithdrawalReason {
   OTHER = 'other',
 }
 
+/**
+ * domain.md 3.1 `market` — 사용자가 속한 시장. **가입 시 1회** 서버가 정하고 바꾸지 않는다(`global-api.md` 2.1).
+ * KR 사용자의 응답은 글로벌 트랙으로 바뀌지 않는다 — 모든 시장 필터는 `kr` 행만 있을 때 결과가 같아야 한다.
+ */
+export enum UserMarket {
+  KR = 'kr',
+  GLOBAL = 'global',
+}
+
+/** 서버가 고르는 문구(푸시·인증 메일)의 언어 — `global-api.md` 2.3 */
+export enum MessageLanguage {
+  KO = 'ko',
+  EN = 'en',
+}
+
+/** 가입 화면에서 사용자가 고른 콘텐츠 언어(`global-api.md` 4.1 `locale.preferred_language`) — 시장 판정의 입력 */
+export enum PreferredLanguage {
+  KO = 'ko',
+  EN = 'en',
+}
+
 /** domain.md 3.6 — 기기 플랫폼 */
 export enum DevicePlatform {
   IOS = 'ios',

@@ -7,6 +7,7 @@ import { TopicService } from '@/modules/interest/services/topic.service';
 import { AuditLogService } from '@/modules/partner/audit-log.service';
 
 import { AdminTopicService } from './admin-topic.service';
+import { UserMarket } from '@/modules/user/user.enum';
 
 const ACTOR_ID = '11111111-1111-4111-8111-111111111111';
 const TOPIC_ID = '22222222-2222-4222-8222-222222222222';
@@ -101,6 +102,8 @@ describe('AdminTopicService', () => {
         name: '이직',
         parentCategory: '커리어',
         displayOrder: null,
+        market: UserMarket.KR,
+        slug: null,
       });
 
       // then

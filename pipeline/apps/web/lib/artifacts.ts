@@ -40,11 +40,18 @@ function localPathOf(key: string): string | null {
   return p.startsWith(path.resolve(root)) ? p : null;
 }
 
-export interface Turn { kind: "E" | "Y" | "plain" | "meta" | "section"; n?: number; speaker?: string; text: string; section?: string }
+export interface Turn { kind: "E" | "Y" | "plain" | "meta" | "section"; n?: number; speaker?: string; text: string; section?: string; /** 첫째 진행자(한국판 윤아)인가 — 화면의 화자 색 구분용. 브라우저는 진행자 이름을 모른다 */ lead?: boolean }
 
-/** 대본 md → 턴 목록 (E/Y 라벨 규격, spec/04). 번호 없는 발화(인트로·클로징, 구 대본의 콜드오픈)는 구역 이름을 라벨로 쓴다. */
-export function parseScript(md: string): Turn[] {
+/** 화자 라벨 정규식 조각 — 캡처 그룹 하나 (진행자 이름은 서버가 lib/locale.ts speakerNames 로 읽어 넘긴다) */
+const speakerGroup = (speakers: readonly string[]) => `(${speakers.map((n) => n.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|")})`;
+
+/** 대본 md → 턴 목록 (E/Y 라벨 규격, spec/04). 번호 없는 발화(인트로·클로징, 구 대본의 콜드오픈)는 구역 이름을 라벨로 쓴다. speakers = 인스턴스의 진행자 이름 */
+export function parseScript(md: string, speakers: readonly string[]): Turn[] {
   const out: Turn[] = [];
+  const sp = speakerGroup(speakers);
+  const reA = new RegExp(`^\\[${sp}\\]\\s*([EY])(\\d+)\\s*·\\s*(.*)$`);
+  const reB = new RegExp(`^([EY])(\\d+)\\s+\\[${sp}\\]\\s*(.*)$`);
+  const rePlain = new RegExp(`^\\[${sp}\\]\\s*(.*)$`);
   let section = "";
   for (const raw of md.split("\n")) {
     const line = raw.trim();
@@ -56,19 +63,21 @@ export function parseScript(md: string): Turn[] {
       continue;
     }
     // A형(정규 형식, 2026-09-01 통일): [윤아] E12 · 본문
-    let m = line.match(/^\[(윤아|이음)\]\s*([EY])(\d+)\s*·\s*(.*)$/);
-    if (m) { out.push({ kind: m[2] as "E" | "Y", n: Number(m[3]), speaker: m[1], text: m[4], section }); continue; }
+    let m = line.match(reA);
+    if (m) { out.push({ kind: m[2] as "E" | "Y", n: Number(m[3]), speaker: m[1], lead: m[1] === speakers[0], text: m[4], section }); continue; }
     // B형(구형): E12 [윤아] 본문
-    m = line.match(/^([EY])(\d+)\s+\[(윤아|이음)\]\s*(.*)$/);
-    if (m) { out.push({ kind: m[1] as "E" | "Y", n: Number(m[2]), speaker: m[3], text: m[4], section }); continue; }
-    m = line.match(/^\[(윤아|이음)\]\s*(.*)$/);
-    if (m) { out.push({ kind: "plain", speaker: m[1], text: m[2], section: section || "발췌" }); continue; }
+    m = line.match(reB);
+    if (m) { out.push({ kind: m[1] as "E" | "Y", n: Number(m[2]), speaker: m[3], lead: m[3] === speakers[0], text: m[4], section }); continue; }
+    m = line.match(rePlain);
+    if (m) { out.push({ kind: "plain", speaker: m[1], lead: m[1] === speakers[0], text: m[2], section: section || "발췌" }); continue; }
     out.push({ kind: "meta", text: line });
   }
   return out;
 }
 
 export interface CriticFlag { n: string; where: string; item: string; strength?: string; note: string }
+/** 강도 표기 — 영어 리포트(violation·suspect)를 화면의 한국어 표기(위반·의심)로. 한국어는 그대로 */
+const severityKo = (s: string) => (/^violation$/i.test(s.trim()) ? "위반" : /^suspect$/i.test(s.trim()) ? "의심" : s);
 
 /**
  * 비평 리포트의 플래그 표·⭐ 표를 파싱한다.
@@ -91,7 +100,7 @@ export function parseCriticReport(md: string): { flags: CriticFlag[]; stars: Cri
 
   for (const line of md.split("\n")) {
     if (line.startsWith("## ")) {
-      section = /플래그|문제 지점/.test(line) ? "flags" : /잘된 지점|⭐/.test(line) ? "stars" : null;
+      section = /플래그|문제 지점|Flags/.test(line) ? "flags" : /잘된 지점|⭐|Strengths/.test(line) ? "stars" : null; // 영어 머리: 글로벌판 critic-en 리포트(KAN-201)
       cols = [];
       continue;
     }
@@ -99,17 +108,17 @@ export function parseCriticReport(md: string): { flags: CriticFlag[]; stars: Cri
     const row = cells(line);
     if (row.length < 3) continue;
     if (/^-+$/.test(row[0].replace(/[-: ]/g, "-"))) continue;      // 구분선
-    if (row[0] === "#" || row.some((c) => c === "판정(사람)")) { cols = row; continue; }  // 헤더
+    if (row[0] === "#" || row.some((c) => c === "판정(사람)" || c === "Verdict (human)")) { cols = row; continue; }  // 헤더
     if (!cols.length) continue;
 
     const num = row[0].replace(/[⭐#\s]/g, "");
     if (!/^\d+$/.test(num)) continue;
     const item = {
       n: num,
-      where: pick(row, ["턴", "위치"]),
-      item: section === "flags" ? pick(row, ["항목"]) : "⭐",
-      strength: pick(row, ["강도"]) || undefined,
-      note: pick(row, ["지적", "무엇이 좋은가", "내용"]),
+      where: pick(row, ["턴", "위치", "Turn", "Location"]),
+      item: section === "flags" ? pick(row, ["항목", "Item"]) : "⭐",
+      strength: severityKo(pick(row, ["강도", "Severity"])) || undefined,
+      note: pick(row, ["지적", "무엇이 좋은가", "내용", "Note", "What works"]),
     };
     (section === "flags" ? flags : stars).push(item);
   }
@@ -117,10 +126,11 @@ export function parseCriticReport(md: string): { flags: CriticFlag[]; stars: Cri
 }
 
 /** 대본 파일에서 특정 턴(E12·Y7 등)의 본문만 교체한다. 원문 그대로의 라인 치환이라 나머지는 손대지 않는다. */
-export function replaceTurn(md: string, turn: string, after: string): { md: string; before: string } | null {
+export function replaceTurn(md: string, turn: string, after: string, speakers: readonly string[]): { md: string; before: string } | null {
   const lines = md.split("\n");
-  const reA = new RegExp(`^\\[(윤아|이음)\\]\\s*${turn}\\s*·\\s*(.*)$`); // A형 (정규)
-  const reB = new RegExp(`^${turn}\\s+\\[(윤아|이음)\\]\\s*(.*)$`);        // B형 (구형)
+  const sp = speakerGroup(speakers);
+  const reA = new RegExp(`^\\[${sp}\\]\\s*${turn}\\s*·\\s*(.*)$`); // A형 (정규)
+  const reB = new RegExp(`^${turn}\\s+\\[${sp}\\]\\s*(.*)$`);        // B형 (구형)
   for (let i = 0; i < lines.length; i++) {
     let m = lines[i].match(reA);
     if (m) { const before = m[2]; lines[i] = `[${m[1]}] ${turn} · ${after}`; return { md: lines.join("\n"), before }; }
@@ -140,10 +150,11 @@ export function parseCriticScores(md: string): { rows: ScoreRow[]; total: string
     if (/^##\s*[2-9]\./.test(line)) { if (inTable) break; continue; }
     if (!inTable || !line.startsWith("|")) continue;
     const cells = line.split("|").slice(1, -1).map((c) => c.trim());
-    if (cells.length < 3 || /^-+$/.test(cells[0]) || cells[0] === "축") continue;
-    if (/합계/.test(cells[0] + cells[1])) { total = cells[2].replace(/\*/g, "") || null; continue; }
+    if (cells.length < 3 || /^:?-+:?$/.test(cells[0]) || cells[0] === "축" || cells[0] === "Axis") continue; // 정렬 구분선(|:---|)도 건너뛴다
+    if (/합계|Total/.test(cells[0] + cells[1])) { total = cells[2].replace(/\*/g, "") || null; continue; }
     const sm = cells[2].replace(/\*/g, "").match(/(\d+)\s*\/\s*(\d+)/); // 점수 셀이 **9**/12 처럼 볼드라 * 를 먼저 지운다 (합계 행과 동일 처리)
-    rows.push({ key: cells[1].match(/^\d+\.\d+/)?.[0] ?? cells[1], axis: cells[0].replace(/\*/g, ""), item: cells[1].replace(/^\d+\.\d+\s*/, ""), ai: sm ? Number(sm[1]) : null, max: sm ? Number(sm[2]) : null, evidence: cells[3] ?? "" });
+    const itemCell = cells[1].replace(/\*/g, ""); // 항목 셀이 **3.1** 처럼 볼드여도 키를 읽는다
+    rows.push({ key: itemCell.match(/^\d+\.\d+/)?.[0] ?? itemCell, axis: cells[0].replace(/\*/g, ""), item: itemCell.replace(/^\d+\.\d+\s*/, ""), ai: sm ? Number(sm[1]) : null, max: sm ? Number(sm[2]) : null, evidence: cells[3] ?? "" });
   }
   return { rows, total };
 }

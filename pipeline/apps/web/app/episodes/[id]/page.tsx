@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { supabaseServer } from "@/lib/supabase-server";
 import { parseCriticReport, parseCriticScores, parseScript, readArtifact } from "@/lib/artifacts";
+import { speakerNames } from "@/lib/locale";
 import { fmtTime, fmtTokens, fmtUsd, label, jobRoundLabel } from "@/lib/format";
 import { JudgeView } from "./judge-view";
 import { VerdictForm } from "./verdict-form";
@@ -127,8 +128,8 @@ export default async function EpisodePage({ params, searchParams }: { params: Pr
       {tab === "outline" && content == null && <p className="rounded-md border border-line bg-panel p-6 text-center text-[13px] text-ink-soft">구성안이 없습니다 — 2단계 초안(설계→대본)으로 만든 에피소드에만 있습니다.</p>}
       {tab !== "runs" && tab !== "audio" && tab !== "meta" && tab !== "pron" && tab !== "outline" && content == null && <p className="rounded-md border border-line bg-panel p-6 text-center text-[13px] text-ink-soft">아직 산출물이 없습니다{keyOf[tab] ? ` (키: ${keyOf[tab]} — 서버에서 읽을 수 없음. s3: 키면 PIPELINE_BUCKET·AWS 자격증명(인스턴스 역할 / 로컬 AWS_PROFILE), local: 키면 WORK_ROOT 확인)` : ""}.</p>}
       {tab === "script" && content && (criticMd
-        ? (() => { const parsed = parseCriticReport(criticMd); const sc = parseCriticScores(criticMd); return <JudgeView episodeId={ep.id} backlogId={ep.backlog_id} turns={parseScript(content)} flags={parsed.flags} stars={parsed.stars} scores={sc.rows} total={sc.total} saved={ep.critic_verdicts} edits={ep.human_edits ?? []} />; })()
-        : <ScriptEditor episodeId={ep.id} backlogId={ep.backlog_id} turns={parseScript(content)} edits={ep.human_edits ?? []} editable />)}
+        ? (() => { const parsed = parseCriticReport(criticMd); const sc = parseCriticScores(criticMd); return <JudgeView episodeId={ep.id} backlogId={ep.backlog_id} turns={parseScript(content, speakerNames())} flags={parsed.flags} stars={parsed.stars} scores={sc.rows} total={sc.total} saved={ep.critic_verdicts} edits={ep.human_edits ?? []} />; })()
+        : <ScriptEditor episodeId={ep.id} backlogId={ep.backlog_id} turns={parseScript(content, speakerNames())} edits={ep.human_edits ?? []} editable />)}
       {(tab === "sources" || tab === "claims" || tab === "qa") && content && <Panel className="min-w-0"><pre className="whitespace-pre-wrap break-words font-mono text-[12px] leading-relaxed text-ink">{content}</pre></Panel>}
       {tab === "outline" && content && (
         <div className="grid gap-4 lg:grid-cols-2">

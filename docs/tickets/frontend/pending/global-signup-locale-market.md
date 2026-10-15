@@ -1,4 +1,4 @@
-# [FE] 글로벌 2 — 가입·기기 등록에 `locale` 전송·`user.market` 분기(제공자·연령·온보딩 `steps[]`)·주제 `slug` 이미지·설정 표시 언어
+# [FE] 글로벌 2 — 가입·기기 등록에 `locale` 전송·`user.market` 분기(제공자·온보딩 `steps[]`)·주제 `slug` 이미지·설정 표시 언어
 
 | 항목 | 값 |
 |---|---|
@@ -16,27 +16,34 @@
 | 중요도 | Medium |
 | 상태 | 대기 |
 
-> 2026-10-14 발행한 묶음 티켓(BE KAN-185 · FE KAN-183 · AI KAN-184)을 처리 단위로 나눈 것. 결정 사항(같은 앱·기기 언어로 가입 시 1회 시장 판정·한국 트랙 불변·에러 번역은 클라이언트·가격은 스토어·영어 진행자 새 2인·K-컬처 주제 신설)과 결정 대기(시장 전환 불허·GLOBAL 16세)는 `spec/api/global-api.md` 2.1·9장이 원본이다.
+> 2026-10-14 발행한 묶음 티켓(BE KAN-185 · FE KAN-183 · AI KAN-184)을 처리 단위로 나눈 것. 결정 사항(같은 앱·기기 언어로 가입 시 1회 시장 판정·한국 트랙 불변·에러 번역은 클라이언트·가격은 스토어·영어 진행자 새 2인·K-컬처 주제 신설·GLOBAL 연령 16세)과 결정 대기(시장 전환 불허)는 `spec/api/global-api.md` 2.1·9장이 원본이다.
 
 ## 무엇을 한다
 
-- 가입·로그인 요청에 `locale { language_code, region_code, timezone }`(`getLocales()[0]`·`getCalendars()[0].timeZone`). 기기 등록에 `language_code`·`timezone`.
-- **분기 기준은 응답 `user.market`**(언어로 추측 금지): GLOBAL이면 제공자 Google/Apple만, 연령 체크 16세 문구(미결 #2 기본값), 구독 법적 고지 GLOBAL 문구.
+- **앱을 켰을 때**는 기기 `locale`로 **표시 언어를 1차 판단**해 시작·로그인 화면을 그 언어로 그린다(서버 호출 전이라 클라이언트가 정한다 — 이것은 UI 언어이고 시장 판정이 아니다).
+- **가입 때 콘텐츠 언어 선택 화면 1장**(모든 신규 가입자): "어떤 언어로 들을까요? 한국어 / English". 기본 선택은 기기 언어. **선택한 언어에 따라 보여 주는 콘텐츠가 달라진다는 설명**과 **"해외에 거주하시면 English 선택을 추천해요"** 같은 안내 문구를 함께 둔다(가입 뒤 바꿀 수 없다는 점도 한 줄). 선택값을 `locale.preferred_language`(`ko`|`en`)로 보낸다 — 시장은 이 값으로 서버가 정한다(2026-10-14 결정. 모호한 사용자에게만 묻는 방식 등은 추후 필요하면 재논의). 화면 ID·확정 카피(ko/en)는 FE가 정하고 `spec/uiux`에 기록.
+- 가입·로그인 요청에 `locale { preferred_language, language_code, region_code, timezone }`(`getLocales()[0]`·`getCalendars()[0].timeZone`). 기기 등록에 `language_code`·`timezone`.
+- **분기 기준은 응답 `user.market`**(언어로 추측 금지): GLOBAL이면 제공자 Google/Apple만, 구독 법적 고지 GLOBAL 문구. (연령 16세 문구·차단 흐름은 [KAN-206](https://runtime364.atlassian.net/browse/KAN-206) `global-age-consent-16.md`로 이관)
 - 온보딩은 `GET /onboarding/state`의 `steps[]`대로 화면을 잇는다 — 단계를 하드코딩하지 않는다. `career`가 없으면 커리어 화면을 띄우지 않는다.
 - 주제 이미지·아이콘 매핑 키를 **`items[].slug`**로 전환(한국어 이름 키 폐기). GLOBAL 주제 이미지 자산은 AI/PM에서 수령.
 - 설정에 "언어" 항목 — `PATCH /users/me/settings { language_code }`로 표시 언어 변경, 시장은 표시만(변경 불가).
 
 ## 범위 밖
 
-연령 기준 자체(결정 대기) · 주제 트리 내용(AI)
+연령 동의 화면(KAN-206) · 주제 트리 내용(AI)
 
 ## 완료 조건
 
-- Given 영어 기기 가입 / When 요청 캡처 / Then `locale` 세 필드가 기기 값과 같다
-- Given 응답 `market = global` / Then 시작 화면 제공자 Google/Apple만, 연령 16세 문구
-- Given `steps = ["topic","pick"]` / Then 커리어 화면이 뜨지 않는다; `["topic","career","pick"]`이면 종전과 같다
+- Given 신규 가입 / When 콘텐츠 언어 화면 / Then 기기 언어가 기본 선택이고, 고른 값이 `locale.preferred_language`로 전송된다
+- Given 콘텐츠 언어 화면 / Then "선택한 언어에 따라 콘텐츠가 달라진다"는 설명과 해외 거주자 English 추천 문구, 가입 뒤 변경 불가 안내가 보인다(ko/en 리소스)
+- Given 영어 기기에서 앱 첫 실행 / Then 서버 호출 전 시작·로그인 화면이 영어로 그려진다
+- Given 영어 기기에서 '한국어' 선택 / Then 응답 `market = kr`, 한국어 주제·요금제(서버 판정 — 클라이언트가 기기 언어로 덮어쓰지 않는다)
+- Given 영어 기기 가입 / When 요청 캡처 / Then `locale`의 기기 값 세 필드가 기기 값과 같다
+- Given 응답 `market = global` / Then 시작 화면 제공자 Google/Apple만
+- Given `steps = ["topic"]`(GLOBAL) / Then 커리어 화면이 뜨지 않는다; `["topic","career"]`(KR)이면 종전과 같다 (2026-10-14 정정 — 담기 단계는 없다, `global-api.md` 4.4)
 - Given 주제 응답에 slug / Then 이미지가 slug로 붙고 한국어 이름 키 참조 0건
 - Given 설정에서 언어를 en→ko / Then 문구가 바뀌고 `market` 표시는 그대로
 
 ## 처리 기록
 - 2026-10-14 발행(마크다운 + Jira). 묶음 티켓 분할.
+- 2026-10-14 연령 16세 문구 항목을 KAN-206으로 이관.

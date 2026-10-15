@@ -169,14 +169,20 @@ export class SettingsOrchestrator {
   async updateSettings(
     userId: string,
     command: UpdateSettingsCommand,
+    /** 표시 언어(`global-api.md` 4.3) — `users` 행의 값이라 `user_settings`와 별도로 쓴다. 시장은 바뀌지 않는다 */
+    languageCode?: string,
   ): Promise<{
     settings: UserSettingView;
     effectiveAudioQuality: AudioQuality;
   }> {
-    const settings = await this.userSettingService.updateSettings(
-      userId,
-      command,
-    );
+    if (languageCode !== undefined) {
+      await this.userService.updateLanguageCode(userId, languageCode);
+    }
+
+    const settings =
+      Object.keys(command).length > 0
+        ? await this.userSettingService.updateSettings(userId, command)
+        : await this.userSettingService.getSettings(userId);
 
     return {
       settings,
@@ -242,6 +248,9 @@ export class SettingsOrchestrator {
       isEmailVerified: user.isEmailVerified,
       // 판정은 서버가 한다 — role enum을 그대로 내려 클라이언트가 해석하게 하지 않는다
       isAdmin: user.role === UserRole.ADMIN,
+      market: user.market,
+      languageCode: user.languageCode,
+      timezone: user.timezone,
     };
   }
 

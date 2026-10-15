@@ -119,6 +119,7 @@ export class DripFeedbackService {
         contentId: item.contentId,
         title: item.content.title,
         thumbnailUrl: item.content.thumbnailUrl,
+        language: item.content.language,
         source: item.source,
         placedDate,
         libraryStatus: item.status,

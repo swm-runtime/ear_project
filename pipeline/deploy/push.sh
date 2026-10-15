@@ -23,7 +23,7 @@ rsync -az --delete -e "$SSH" \
   --exclude='.git' --exclude=node_modules --exclude='.next' --exclude='.work' \
   --exclude='.env' --exclude='.env.*' --exclude='deploy/aws/out' \
   --exclude='*.mp3' --exclude='*.wav' --exclude='.DS_Store' \
-  --filter='P pipeline/deploy/env.prod' --filter='P pipeline/deploy/env.ai-server' \
+  --filter='P pipeline/deploy/env.prod' --filter='P pipeline/deploy/env.ai-server' --filter='P pipeline/deploy/env.global' \
   "$ROOT/pipeline" "$ROOT/ai-server" "ec2-user@$HOST:$DEST/"
 # docs/ai — 규칙 자산의 git 사본. 서버 컨테이너가 /srv/docs/ai 로 마운트해 머지마다 assets:import 를 돌린다 (활성화 자동화, 2026-09-12)
 rsync -az --delete -e "$SSH" --exclude='.DS_Store' "$ROOT/docs/ai" "ec2-user@$HOST:$DEST/docs/"
@@ -37,7 +37,11 @@ $SSH "ec2-user@$HOST" "
     echo '⚠ 최초 1회: deploy/env.prod 와 deploy/env.ai-server 의 비밀값을 채운 뒤 push.sh 를 다시 실행 (README 3장)'
     exit 2
   fi
-  WORKER_REV=$REV WORKER_REV_TS=$REV_TS docker compose -f deploy/docker-compose.prod.yml --env-file deploy/env.prod up -d --build
+  # 글로벌판(KAN-208): env.global 이 비어 있지 않을 때만 web-global·worker-global 을 함께 띄운다. 빈 파일은 compose 가 env_file 을 찾게 두는 자리
+  touch deploy/env.global
+  # PROFILE 은 서버 셸 변수다 — 이 블록은 큰따옴표라 \$ 로 막지 않으면 로컬(set -u)에서 먼저 풀려 죽는다 (2026-10-15 배포 실패)
+  PROFILE=''; [ -s deploy/env.global ] && PROFILE='--profile global'
+  WORKER_REV=$REV WORKER_REV_TS=$REV_TS docker compose -f deploy/docker-compose.prod.yml --env-file deploy/env.prod \$PROFILE up -d --build
   # 규칙 자산 활성화 + 워커 최소 버전 기록 — 사람이 assets:import 를 따로 돌리지 않아도 머지가 곧 활성화다 (RUNBOOK 7장).
   # import 는 본문이 같으면 건너뛰어 멱등이고, 실패해도 배포는 성립한다(다음 머지에서 재시도).
   WORKER_REV=$REV WORKER_REV_TS=$REV_TS docker compose -f deploy/docker-compose.prod.yml --env-file deploy/env.prod run --rm --no-deps worker-io npm run assets:import -- --force || echo '⚠ 규칙 자산 활성화 실패 — npm run assets:import -- --force 를 손으로'

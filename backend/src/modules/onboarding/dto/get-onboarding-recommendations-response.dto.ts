@@ -1,5 +1,6 @@
 import { RecommendationSectionType } from '../onboarding.enum';
 import { RecommendationSection } from '../onboarding.types';
+import { ContentLanguage } from '@/modules/content/content.enum';
 
 class RecommendationTopicDto {
   readonly topic_id: string;
@@ -13,6 +14,8 @@ class RecommendationItemDto {
   readonly author_name: string | null;
   readonly source_name: string;
   readonly thumbnail_url: string;
+  /** 콘텐츠 언어(`global-api.md` 4.7) — 표시 전용. 시장 필터는 서버가 한다 */
+  readonly language: ContentLanguage;
   readonly duration_sec: number;
   readonly topics: RecommendationTopicDto[];
 }
@@ -42,6 +45,7 @@ export class GetOnboardingRecommendationsResponseDto {
           author_name: item.authorName,
           source_name: item.sourceName,
           thumbnail_url: item.thumbnailUrl,
+          language: item.language,
           duration_sec: item.durationSec,
           topics: item.topics.map((topic) => ({
             topic_id: topic.topicId,

@@ -1,8 +1,11 @@
 /**
- * 대본 md → TTS 입력 구조 (spec/04 A형 규격: `[윤아] E12 · 본문`, 구역 헤더 `## [본문]` 등).
+ * 대본 md → TTS 입력 구조 (spec/04 A형 규격: `[윤아] E12 · 본문`, 구역 헤더 `## [본문]` 등). 화자 라벨은 인스턴스의 진행자 이름이다(@ear/pipeline speakerNames — 한국판 윤아·이음).
  * [콜드오픈] 구역은 2026-09-07 폐지됐다 — 구 대본 호환으로 분리만 해 두고(turns 에 섞이지 않게) 합성 단계는 버린다.
  */
-export type Speaker = "윤아" | "이음";
+import { speakerGroup } from "@ear/pipeline";
+
+/** 진행자 이름 — 인스턴스 설정(speakerNames)의 둘 중 하나 */
+export type Speaker = string;
 export interface ScriptTurn { speaker: Speaker; id: string | null; text: string; section: string; blockStart?: boolean; topic?: string } // blockStart: 헤더(구역·단락) 바로 다음 턴 — 분할 요청 경계 후보(chunkTurns) · topic: 속한 단락 제목(`### #1 제목`의 "제목", 구간 표시 KAN-137)
 export interface ParsedScript {
   meta: string;
@@ -14,11 +17,18 @@ export interface ParsedScript {
 const SECTION_RE = /^#{2,}\s*\[([^\]]+)\]\s*(.*)$/;
 // 규격은 `[윤아] E1 · 문장`(spec/04)이지만 생성 모델이 `E1.`(마침표)·`E1 [윤아]`(ID 선행) 등으로 이탈한 실측(2026-09-03 T260903-001/003)이 있어
 // 변형을 수용한다 — ID 를 못 떼면 "E일." 같은 찌꺼기가 합성 입력에 새고 잔존 검사가 전 구역에서 오탐한다
-const TURN_A = /^\[(윤아|이음)\]\s*([EY]\d{1,3})\s*(?:[·.:—-]\s*|\s+)(.+)$/;
-const TURN_B = /^([EY]\d{1,3})\s*[·.:]?\s*\[(윤아|이음)\]\s*(.+)$/;
-const TURN_PLAIN = /^\[(윤아|이음)\]\s*(.+)$/;
+// 화자 라벨은 env(PIPELINE_LOCALE·PIPELINE_SPEAKERS)에서 오므로 모듈 로드가 아니라 호출 때 만든다
+function turnRes() {
+  const sp = speakerGroup();
+  return {
+    TURN_A: new RegExp(`^\\[${sp}\\]\\s*([EY]\\d{1,3})\\s*(?:[·.:—-]\\s*|\\s+)(.+)$`),
+    TURN_B: new RegExp(`^([EY]\\d{1,3})\\s*[·.:]?\\s*\\[${sp}\\]\\s*(.+)$`),
+    TURN_PLAIN: new RegExp(`^\\[${sp}\\]\\s*(.+)$`),
+  };
+}
 
 export function parseScriptForTts(md: string): ParsedScript {
+  const { TURN_A, TURN_B, TURN_PLAIN } = turnRes();
   let section = "";
   let coldOpenSource: string | null = null;
   let coldOpen: ParsedScript["coldOpen"] = null;

@@ -112,7 +112,8 @@ describe('콘텐츠 해시태그 E2E', () => {
     });
     const spaced = await sendEnrichment(adminAuth, contentId, {
       schema_version: 3,
-      tags: ['비과세 한도', '절세'],
+      // 띄어쓰기는 2026-10-14부터 허용(영어 고유명사) — 규칙 밖 예시는 '#' 포함으로 든다
+      tags: ['#절세', '비과세'],
     });
     expect(tooFew.enrichment_applied).toBe(false);
     expect(tooFew.enrichment_rejected_reason).toContain('tags');

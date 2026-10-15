@@ -2,16 +2,26 @@ import { Injectable, Logger, OnApplicationBootstrap } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 
 import { isSchedulerProcess } from '@/common/cluster.util';
+import {
+  DRIP_ARRIVAL_PUSH_LOCAL_HOUR,
+  DRIP_BATCH_LOCAL_HOUR,
+  DRIP_GROUP_SCHEDULES,
+} from '@/modules/drip/drip-group.policy';
+import { DripGroup } from '@/modules/drip/drip.enum';
 
 import { DripBatchOrchestrator } from './drip-batch.orchestrator';
 
-/** `drip-scheduling.md` 2 — 일일 편성 배치는 **매일 05:00 KST 확정**(합의 2026-08-06)이다 */
-const DAILY_DRIP_CRON = '0 0 5 * * *';
-const DAILY_DRIP_TIMEZONE = 'Asia/Seoul';
+/** `drip-scheduling.md` 2 — 일일 편성 배치는 **매일 현지 05:00**이다(KR = 05:00 KST, 합의 2026-08-06) */
+const DAILY_DRIP_CRON = `0 0 ${DRIP_BATCH_LOCAL_HOUR} * * *`;
+/** 드립 도착 알림 — **현지 07:00**(2026-10-14). 편성(05:00)과 떼어 낸다 — 새벽 5시 알림은 잠금화면에 묻혔다 */
+const DRIP_ARRIVAL_PUSH_CRON = `0 0 ${DRIP_ARRIVAL_PUSH_LOCAL_HOUR} * * *`;
 
 /**
  * 일일 편성 배치의 트리거. 서비스 날짜 경계(05:00 — domain.md 1.2)와 같은 시각(경계 정각이라 새 서비스 날짜로 편성된다. 2026-10-12 전환 전에는 경계 04:00 이후)에 실행되도록
- * 05:00 KST로 고정한다. 다중 인스턴스 동시 기동은 Orchestrator의 `run_date` 선점이 막는다.
+ * 05:00 KST로 고정한다. 다중 인스턴스 동시 기동은 Orchestrator의 `(run_date, group)` 선점이 막는다.
+ *
+ * **발송 그룹**(`global-api.md` 2.4, KAN-191) — 그룹마다 기준 시간대(`DRIP_GROUP_SCHEDULES`)의 현지 시각으로 크론을
+ * 둔다. 크론은 항상 등록되고, 시간대 그룹 스위치가 꺼져 있으면 기본 그룹(`asia`) 밖의 크론은 아무것도 하지 않는다.
  */
 @Injectable()
 export class DripBatchScheduler implements OnApplicationBootstrap {
@@ -37,24 +47,97 @@ export class DripBatchScheduler implements OnApplicationBootstrap {
 
   @Cron(DAILY_DRIP_CRON, {
     name: 'daily-drip-batch',
-    timeZone: DAILY_DRIP_TIMEZONE,
+    timeZone: DRIP_GROUP_SCHEDULES[DripGroup.ASIA].timeZone,
   })
   async runDailyBatch(): Promise<void> {
+    await this.runGroupBatch(DripGroup.ASIA);
+  }
+
+  @Cron(DAILY_DRIP_CRON, {
+    name: 'daily-drip-batch-europe',
+    timeZone: DRIP_GROUP_SCHEDULES[DripGroup.EUROPE].timeZone,
+  })
+  async runEuropeBatch(): Promise<void> {
+    await this.runGroupBatch(DripGroup.EUROPE);
+  }
+
+  @Cron(DAILY_DRIP_CRON, {
+    name: 'daily-drip-batch-americas',
+    timeZone: DRIP_GROUP_SCHEDULES[DripGroup.AMERICAS].timeZone,
+  })
+  async runAmericasBatch(): Promise<void> {
+    await this.runGroupBatch(DripGroup.AMERICAS);
+  }
+
+  @Cron(DRIP_ARRIVAL_PUSH_CRON, {
+    name: 'drip-arrival-push',
+    timeZone: DRIP_GROUP_SCHEDULES[DripGroup.ASIA].timeZone,
+  })
+  async pushDripArrivals(): Promise<void> {
+    await this.pushGroupArrivals(DripGroup.ASIA);
+  }
+
+  @Cron(DRIP_ARRIVAL_PUSH_CRON, {
+    name: 'drip-arrival-push-europe',
+    timeZone: DRIP_GROUP_SCHEDULES[DripGroup.EUROPE].timeZone,
+  })
+  async pushEuropeArrivals(): Promise<void> {
+    await this.pushGroupArrivals(DripGroup.EUROPE);
+  }
+
+  @Cron(DRIP_ARRIVAL_PUSH_CRON, {
+    name: 'drip-arrival-push-americas',
+    timeZone: DRIP_GROUP_SCHEDULES[DripGroup.AMERICAS].timeZone,
+  })
+  async pushAmericasArrivals(): Promise<void> {
+    await this.pushGroupArrivals(DripGroup.AMERICAS);
+  }
+
+  /** 켜진 그룹마다 오늘 미완료 실행을 이어받는다 — 한 그룹의 실패가 다른 그룹의 재개를 막지 않는다 */
+  async resumeUnfinishedBatch(): Promise<void> {
+    for (const group of Object.values(DripGroup)) {
+      if (!this.dripBatchOrchestrator.isGroupActive(group)) {
+        continue;
+      }
+
+      try {
+        await this.dripBatchOrchestrator.run(new Date(), 'resume', group);
+      } catch (error) {
+        this.logger.error('daily drip batch resume failed', {
+          group,
+          error: error instanceof Error ? error.message : 'unknown error',
+        });
+      }
+    }
+  }
+
+  private async runGroupBatch(group: DripGroup): Promise<void> {
+    if (!this.dripBatchOrchestrator.isGroupActive(group)) {
+      return;
+    }
+
     try {
-      await this.dripBatchOrchestrator.run(new Date());
+      await this.dripBatchOrchestrator.run(new Date(), 'scheduled', group);
     } catch (error) {
       // 배치 전체 실패 — 사용자 단위 실패는 Orchestrator가 격리하므로 여기 오면 장애다
       this.logger.error('daily drip batch failed', {
+        group,
         error: error instanceof Error ? error.message : 'unknown error',
       });
     }
   }
 
-  async resumeUnfinishedBatch(): Promise<void> {
+  private async pushGroupArrivals(group: DripGroup): Promise<void> {
+    if (!this.dripBatchOrchestrator.isGroupActive(group)) {
+      return;
+    }
+
     try {
-      await this.dripBatchOrchestrator.run(new Date(), 'resume');
+      await this.dripBatchOrchestrator.notifyTodayArrivals(new Date(), group);
     } catch (error) {
-      this.logger.error('daily drip batch resume failed', {
+      // 알림 실패는 편성에 영향이 없다 — 적립은 05:00에 이미 끝났다
+      this.logger.error('drip arrival push failed', {
+        group,
         error: error instanceof Error ? error.message : 'unknown error',
       });
     }

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { LogoutButton } from "./logout-button";
+import { supabaseConfig } from "@/lib/supabase-config";
 import { ago } from "@/lib/format";
 
 /** 상단바 — 워커 상태(이 시스템의 핵심 신호)와 계정 */
@@ -21,7 +22,7 @@ export function Topbar({ email, workers, queuedAi }: { email: string | null; wor
       </div>
       <div className="ml-auto flex items-center gap-3 text-xs text-ink-soft">
         <Link href="/settings" className="hover:text-ink">{email}</Link>
-        <LogoutButton />
+        <LogoutButton supabase={supabaseConfig()} />
       </div>
     </header>
   );

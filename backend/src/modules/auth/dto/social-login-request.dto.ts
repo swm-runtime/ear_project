@@ -1,4 +1,13 @@
-import { IsEnum, IsOptional, IsString, MaxLength } from 'class-validator';
+import { Type } from 'class-transformer';
+import {
+  IsEnum,
+  IsOptional,
+  IsString,
+  MaxLength,
+  ValidateNested,
+} from 'class-validator';
+
+import { LocaleInputDto } from '@/modules/user/dto/locale-input.dto';
 
 import { SocialProvider } from '@/modules/user/user.enum';
 
@@ -26,4 +35,13 @@ export class SocialLoginRequestDto {
   @IsString()
   @MaxLength(512)
   readonly nonce?: string;
+
+  /**
+   * `global-api.md` 4.1 — 기기 로케일. 기존 계정은 `language_code`·`timezone`만 갱신하고 `market`은 바뀌지 않는다.
+   * 신규는 이 호출로 계정이 생기지 않으므로(4.2에서 생성) 여기의 `preferred_language`는 쓰이지 않는다.
+   */
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => LocaleInputDto)
+  readonly locale?: LocaleInputDto;
 }

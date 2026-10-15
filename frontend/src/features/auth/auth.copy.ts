@@ -170,10 +170,10 @@ export const AUTH_COPY = {
       agreement: '구독 혜택이 즉시 종료되는 것에 동의합니다',
     },
 
-    /* 사유는 선택 입력이다. **선택지 문구·reason_code 값 목록은 문서상 미확정이라**
+    /* 사유는 필수 입력이다(KAN-205 — [기타]의 자유 입력만 선택). **선택지 문구·reason_code 값 목록은 문서상 미확정이라**
        서버 enum(WithdrawalReason) 주석의 문구를 옮겨 둔 것이다 — TODO(카피 미확정) */
     reason: {
-      label: '탈퇴 이유를 알려주세요 (선택)',
+      label: '탈퇴 이유를 알려주세요',
       option: {
         content_quailty: '콘텐츠 품질이 기대에 못 미쳤어요',
         recommendation_mismatch: '제 관심사와 맞지 않는 콘텐츠가 왔어요',

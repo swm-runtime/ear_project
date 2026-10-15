@@ -3,7 +3,8 @@ import path from "node:path";
 import { cfg } from "../config.js";
 import { setJobProgress, type Job } from "../db.js";
 import type { Executor } from "../executors/index.js";
-import { assetPaths, buildRevisionPromptInlineParts, REVISION_INLINE_SCHEMA } from "@ear/pipeline";
+import { assetPaths, buildRevisionPromptInlineParts, buildRevisionPromptInlinePartsEn, pipelineLocale, REVISION_INLINE_SCHEMA, REVISION_INLINE_SCHEMA_EN, speakerAlt, speakerGroup } from "@ear/pipeline";
+import { addPronunciations } from "../tts/normalize.js";
 import { exists, log } from "../util.js";
 
 /**
@@ -44,11 +45,12 @@ export async function runRevisionSingle(a: { job: Job; ex: Executor; episodeId: 
   // 입력 축소 (2026-09-16 비용): 수정 재생성은 입력이 비용의 82% — 지적된 턴의 claims 와 그 발췌만 보낸다. 전체가 필요한 지적(분량·전역 규칙)이면 전부 보낸다
   const notesMd = (await exists(path.join(dir, "script-notes.md"))) ? await read(path.join(dir, "script-notes.md")) : "";
   const trimmed = trimMaterialsForFixes(a.qaFailures, scriptMd, claimsMd, sourcesMd, notesMd);
-  const parts = buildRevisionPromptInlineParts({ episodeId, attempt, qaFailures: a.qaFailures, guidelines, scriptMd, claimsMd: trimmed.claimsMd, sourcesMd: trimmed.sourcesMd, outlineMd, pronunciationsJson });
+  const en = pipelineLocale() === "en"; // 글로벌판: 영어 수정 프롬프트·스키마 (global-prompts.ts)
+  const parts = (en ? buildRevisionPromptInlinePartsEn : buildRevisionPromptInlineParts)({ episodeId, attempt, qaFailures: a.qaFailures, guidelines, scriptMd, claimsMd: trimmed.claimsMd, sourcesMd: trimmed.sourcesMd, outlineMd, pronunciationsJson });
   if (trimmed.note) log(`  draft(revision ${attempt}) ${episodeId}: ${trimmed.note}`);
   log(`  draft(revision ${attempt}) ${episodeId}: 지적 ${a.qaFailures.length}건 단발 수정 (공유 ${Math.round(parts.system.length / 1000)}K + 편별 ${Math.round(parts.user.length / 1000)}K자)`);
   const r = await ex.run<RevisionInlineOut>({
-    prompt: parts.user, systemPrompt: parts.system, schema: REVISION_INLINE_SCHEMA, tools: [], allowedTools: [], cwd: cfg.workRoot, timeoutMs: 20 * 60_000, model: cfg.revisionModel, maxThinkingTokens: cfg.thinkingRevision, effort: cfg.effortRevision,
+    prompt: parts.user, systemPrompt: parts.system, schema: en ? REVISION_INLINE_SCHEMA_EN : REVISION_INLINE_SCHEMA, tools: [], allowedTools: [], cwd: cfg.workRoot, timeoutMs: 20 * 60_000, model: cfg.revisionModel, maxThinkingTokens: cfg.thinkingRevision, effort: cfg.effortRevision,
     onProgress: (pr) => setJobProgress(job.id, { ...pr, phase: `대본 수정 (attempt ${attempt}, 단발)`, detail: pr.turns > 0 ? "지적 대조·수정 중 (도구 없음)" : pr.detail }).catch(() => {}),
   });
   const o = r.output;
@@ -58,9 +60,9 @@ export async function runRevisionSingle(a: { job: Job; ex: Executor; episodeId: 
   const unmatched: string[] = []; const applied: { location: string; before: string; after: string }[] = [];
   for (const f of o.fixes) {
     const id = f.turn.trim().toUpperCase().replace(/[^EY0-9]/g, "");
-    const idx = lines.findIndex((l) => new RegExp(`^\\[(윤아|이음)\\]\\s*${id}\\s*·`).test(l));
+    const idx = lines.findIndex((l) => new RegExp(`^\\[${speakerGroup()}\\]\\s*${id}\\s*·`).test(l));
     if (idx < 0) { unmatched.push(f.turn); continue; }
-    const m = lines[idx].match(/^(\[(?:윤아|이음)\]\s*[EY]\d+\s*·\s*)(.*)$/);
+    const m = lines[idx].match(new RegExp(`^(\\[${speakerAlt()}\\]\\s*[EY]\\d+\\s*·\\s*)(.*)$`));
     const before = m?.[2] ?? lines[idx];
     if (!f.after.trim()) lines.splice(idx, 1); else lines[idx] = `${m?.[1] ?? ""}${f.after.trim()}`;
     applied.push({ location: f.turn, ...changeWindow(before, f.after.trim()) });
@@ -69,10 +71,12 @@ export async function runRevisionSingle(a: { job: Job; ex: Executor; episodeId: 
   await fs.writeFile(path.join(dir, "script.md"), lines.join("\n"), "utf8");
   const notesFile = path.join(dir, "script-notes.md");
   if (await exists(notesFile)) await fs.writeFile(notesFile, updateNotesClaims(await read(notesFile), o.fixes.filter((f) => !unmatched.includes(f.turn))), "utf8");
-  if (o.claims_note.trim()) await fs.writeFile(path.join(dir, "claims.md"), `${claimsMd.trimEnd()}\n\n## QA attempt ${attempt - 1} 반영 (단발 수정)\n\n${o.claims_note.trim()}\n${unmatched.length ? `\n(대본에서 못 찾은 턴: ${unmatched.join(", ")})\n` : ""}`, "utf8");
+  if (o.claims_note.trim()) await fs.writeFile(path.join(dir, "claims.md"), en
+    ? `${claimsMd.trimEnd()}\n\n## QA attempt ${attempt - 1} changes (single-call fix)\n\n${o.claims_note.trim()}\n${unmatched.length ? `\n(turns not found in the script: ${unmatched.join(", ")})\n` : ""}`
+    : `${claimsMd.trimEnd()}\n\n## QA attempt ${attempt - 1} 반영 (단발 수정)\n\n${o.claims_note.trim()}\n${unmatched.length ? `\n(대본에서 못 찾은 턴: ${unmatched.join(", ")})\n` : ""}`, "utf8");
   if (o.pronunciations_added.length) {
     let cur: Record<string, string> = {}; try { cur = JSON.parse(pronunciationsJson); } catch { cur = {}; }
-    for (const p of o.pronunciations_added) if (p.term.trim() && p.reading.trim() && !(p.term in cur)) cur[p.term] = p.reading;
+    addPronunciations(cur, o.pronunciations_added); // 글로벌판은 힌트 없는 등재도 남긴다(명세 6.7)
     await fs.writeFile(pronFile, JSON.stringify(cur, null, 2) + "\n", "utf8");
   }
   return { output: { fixes: applied, notes: `${o.notes}${unmatched.length ? ` · 못 찾은 턴 ${unmatched.join(", ")}` : ""}` }, model: r.model, costUsd: r.listCostUsd ?? 0, tokens: (r.raw as { usage?: unknown } | undefined)?.usage, unmatched };

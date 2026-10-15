@@ -2,7 +2,6 @@ import { Module } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
-import { AlertModule } from '@/modules/alert/alert.module';
 import { IdempotencyModule } from '@/modules/idempotency/idempotency.module';
 import { SubscriptionModule } from '@/modules/subscription/subscription.module';
 
@@ -32,7 +31,6 @@ import { UserCareerService } from './services/user-career.service';
 import { UserRepository } from './repositories/user.repository';
 import { UserService } from './services/user.service';
 import { UserWithdrawalService } from './services/user-withdrawal.service';
-import { WithdrawalAlertService } from './services/withdrawal-alert.service';
 import { UserSetting } from './entities/user-setting.entity';
 import { UserSettingRepository } from './repositories/user-setting.repository';
 import { UserSettingService } from './services/user-setting.service';
@@ -55,8 +53,6 @@ import { EmailVerificationPurgeScheduler } from './email-verification-purge.sche
     // 탈퇴가 결제 이력을 판정하려면 subscription 모듈의 Service가 필요하다 (auth-api.md 8장)
     SubscriptionModule,
     IdempotencyModule,
-    // 탈퇴 알림(Slack) — 팀 알림 공용 통로
-    AlertModule,
   ],
   controllers: [UserController, JobCategoryController],
   providers: [
@@ -71,7 +67,6 @@ import { EmailVerificationPurgeScheduler } from './email-verification-purge.sche
     ConsentService,
     EmailVerificationService,
     UserWithdrawalService,
-    WithdrawalAlertService,
     UserOnboardingService,
     UserCareerService,
     DeviceTokenService,

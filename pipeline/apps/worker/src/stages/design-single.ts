@@ -4,9 +4,10 @@ import { cfg, executedBy } from "../config.js";
 import { blockedTierHosts, insertRun, priorEpisodesUsingUrls, recordFetchStatus, refreshDomainFetchBlock, setJobProgress, type Job } from "../db.js";
 import { getFile } from "../storage.js";
 import type { Executor } from "../executors/index.js";
-import { assetPaths, AXIS_CHECK_SCHEMA, buildAxisCheckPromptParts, buildDesignPromptInlineParts, DESIGN_INLINE_SCHEMA, type BacklogCandidate, type InlineSource } from "@ear/pipeline";
+import { assetPaths, AXIS_CHECK_SCHEMA, AXIS_CHECK_SCHEMA_EN, buildAxisCheckPromptParts, buildAxisCheckPromptPartsEn, buildDesignPromptInlineParts, buildDesignPromptInlinePartsEn, DESIGN_INLINE_SCHEMA, DESIGN_INLINE_SCHEMA_EN, designAxisRejectEn, designMissingQuestionsEn, isHistoryCandidateEn, pipelineLocale, type BacklogCandidate, type InlineSource } from "@ear/pipeline";
 import { fetchArticle, fetchStatusOf, type FetchedSource } from "../sources/fetch.js";
 import { log } from "../util.js";
+import { addPronunciations } from "../tts/normalize.js";
 import { workerRev } from "../assets.js";
 import type { DesignOut } from "./draft-two-stage.js";
 
@@ -38,7 +39,7 @@ export const sourceOfClaim = (c: { excerpt_ids: string[] }): number | null => {
  */
 export function deriveAttribution(claims: DesignInlineOut["claims"]): Map<string, Attribution> {
   const attribution = new Map<string, Attribution>();
-  for (const c of claims) attribution.set(c.id, c.type === "수치" || c.type === "인용" || c.opinion ? "귀속" : "없음");
+  for (const c of claims) attribution.set(c.id, c.type === "수치" || c.type === "인용" || c.type === "number" || c.type === "quote" || c.opinion ? "귀속" : "없음"); // number·quote: 글로벌판 유형 이름
   return attribution;
 }
 
@@ -50,6 +51,17 @@ export function normalizeOutline(md: string): string {
     let l = raw.replace(/^\s*(?:#{1,6}\s*|[-*>]\s+)?/, "").replace(/\*\*/g, "").replace(/^\s+/, "");
     if (!OUTLINE_KEYS.test(l)) return raw;
     l = l.replace(/^구간\s*#?\s*(\d+)\s*[—–\-:]?\s*/, (_m, n) => `구간 #${n} — `).replace(/^(축|축 해설|착지 구간|예상 분량|역할표|역할 없는 소스|연결·비유|마무리 한 줄|비율 합계)\s*[:：]\s*/, (_m, k) => `${k}: `);
+    return l.trimEnd();
+  }).join("\n");
+}
+
+/** 글로벌판 구성안 정규화 — 한국판과 같은 일을 영어 키로 (Axis:·Section #n·Estimated length:, global-prompts.ts 구성안 형식) */
+const OUTLINE_KEYS_EN = /^(Axis note|Axis|Landing section|Estimated length|Roles|Unused sources|Links and metaphors|Closing line|Section\s*#?\s*\d)/i;
+export function normalizeOutlineEn(md: string): string {
+  return md.split(/\r?\n/).map((raw) => {
+    let l = raw.replace(/^\s*(?:#{1,6}\s*|[-*>]\s+)?/, "").replace(/\*\*/g, "").replace(/^\s+/, "");
+    if (!OUTLINE_KEYS_EN.test(l)) return raw;
+    l = l.replace(/^Section\s*#?\s*(\d+)\s*[—–\-:]?\s*/i, (_m, n) => `Section #${n} — `).replace(/^(Axis note|Axis|Landing section|Estimated length|Roles|Unused sources|Links and metaphors|Closing line)\s*:\s*/i, (_m, k: string) => `${k[0].toUpperCase()}${k.slice(1).toLowerCase()}: `);
     return l.trimEnd();
   }).join("\n");
 }
@@ -116,14 +128,16 @@ export async function runDesignSingle(a: { job: Job; ex: Executor; episodeId: st
   const [guidelines, specScript, goldFullEum, goldFullYuna] = await Promise.all([read(ap.guidelines), read(ap.specScript), a.noGold ? Promise.resolve("") : read(ap.goldFullEum), a.noGold ? Promise.resolve("") : read(ap.goldFullYuna)]);
   const sources: InlineSource[] = fetched.map((f, i) => ({ n: f.n, url: f.url, publisher: cand.sources[i].publisher, title: cand.sources[i].title || f.title || "", published: cand.sources[i].published, backbone: cand.sources[i].backbone, ok: f.ok, byline: f.byline, note: f.note,
     blocks: f.blocks.filter((b) => !usedBlocks.has(b.id)), usedBlocks: f.blocks.filter((b) => usedBlocks.has(b.id)).map((b) => ({ id: b.id, by: usedBlocks.get(b.id)! })) }));
-  const parts = buildDesignPromptInlineParts({ episodeId, candidate: cand, promptVersion: a.promptVersion, guidelines, specScript, goldFullEum, goldFullYuna, sources });
+  const en = pipelineLocale() === "en"; // 글로벌판: 영어 설계 프롬프트·스키마·산출물 표기 (global-prompts.ts, KAN-201)
+  const parts = (en ? buildDesignPromptInlinePartsEn : buildDesignPromptInlineParts)({ episodeId, candidate: cand, promptVersion: a.promptVersion, guidelines, specScript, goldFullEum, goldFullYuna, sources });
+  const normOutline = en ? normalizeOutlineEn : normalizeOutline;
   log(`  design ${episodeId}: 단발 호출 (공유 ${Math.round(parts.system.length / 1000)}K + 편별 ${Math.round(parts.user.length / 1000)}K자)`);
   const runDesign = (userPrompt: string, phase: string) => ex.run<DesignInlineOut>({
-    prompt: userPrompt, systemPrompt: parts.system, schema: DESIGN_INLINE_SCHEMA, tools: [], allowedTools: [], cwd: cfg.workRoot, timeoutMs: 40 * 60_000, model: cfg.draftDesignModel, maxThinkingTokens: cfg.thinkingDesign, effort: cfg.effortDesign,
+    prompt: userPrompt, systemPrompt: parts.system, schema: en ? DESIGN_INLINE_SCHEMA_EN : DESIGN_INLINE_SCHEMA, tools: [], allowedTools: [], cwd: cfg.workRoot, timeoutMs: 40 * 60_000, model: cfg.draftDesignModel, maxThinkingTokens: cfg.thinkingDesign, effort: cfg.effortDesign,
     onProgress: (pr) => setJobProgress(job.id, { ...pr, phase, detail: pr.turns > 0 ? "설계 중 (도구 없음)" : pr.detail }).catch(() => {}),
   });
   let r = await runDesign(parts.user, "설계 1/2 — 발췌 선택·claims·구성안 (단발)");
-  let o = { ...r.output, outline_md: normalizeOutline(r.output.outline_md) };
+  let o = { ...r.output, outline_md: normOutline(r.output.outline_md) };
   // 축 심사 (full-v8.1, 2026-09-19): 구성안의 구간이 축의 하위 질문에 답하는지 값싼 단발 호출로 본다. fail 이면 반려 사유를 붙여 한 번 재설계하고,
   // 그래도 fail 이면 기록만 남기고 진행한다(설계를 막지 않는다 — 사람 판정 3.6 이 최종). T260918-003: #3~#5 가 "리뷰"에서 "통계의 함정"으로 번져 3.6 사람 4점
   let axisNote = "축 심사 끔";
@@ -131,9 +145,9 @@ export async function runDesignSingle(a: { job: Job; ex: Executor; episodeId: st
   let extraCost = 0; // 재설계 앞 실행의 비용 (full-v8.3)
   if (cfg.axisCheck) {
     const check = async (outlineMd: string) => {
-      const ap2 = buildAxisCheckPromptParts({ outlineMd, midTopic: cand.mid_topic });
+      const ap2 = en ? buildAxisCheckPromptPartsEn({ outlineMd, history: isHistoryCandidateEn(cand) }) : buildAxisCheckPromptParts({ outlineMd, midTopic: cand.mid_topic });
       const rc = await ex.run<{ axis: string; sections: { n: number; question: string; answers_axis: boolean; why: string }[]; verdict: "pass" | "fail"; note: string }>({
-        prompt: ap2.user, systemPrompt: ap2.system, schema: AXIS_CHECK_SCHEMA, tools: [], allowedTools: [], cwd: cfg.workRoot, timeoutMs: 5 * 60_000, model: cfg.axisCheckModel, effort: "low",
+        prompt: ap2.user, systemPrompt: ap2.system, schema: en ? AXIS_CHECK_SCHEMA_EN : AXIS_CHECK_SCHEMA, tools: [], allowedTools: [], cwd: cfg.workRoot, timeoutMs: 5 * 60_000, model: cfg.axisCheckModel, effort: "low",
         onProgress: (pr) => setJobProgress(job.id, { ...pr, phase: "설계 1/2 — 축 심사 (단발)", detail: "구간이 축의 하위 질문인지 대조 중" }).catch(() => {}),
       });
       axisCost += rc.listCostUsd ?? 0;
@@ -144,25 +158,27 @@ export async function runDesignSingle(a: { job: Job; ex: Executor; episodeId: st
     // 이탈 구간이 하나면 기록만(루브릭 C6 과 같은 기준: 하나 = 의심, 둘 이상 = 위반). 실측 2026-09-19: 사람 75점 편(001)도 착지 앞 구간 하나가 걸렸다 — 그걸로 $2 짜리 재설계를 부르지 않는다
     if (off1.length === 1) axisNote = `의심 #${off1[0].n} (재설계 없음)`;
     else if (c1.verdict === "fail" && off1.length >= 2) {
-      const reasons = off1.map((x) => `- 구간 #${x.n} "${x.question}": ${x.why}`).join("\n");
+      const reasons = off1.map((x) => `- ${en ? "Section" : "구간"} #${x.n} "${x.question}": ${x.why}`).join("\n");
       log(`  design ${episodeId}: 축 심사 반려 — 구간 ${off1.map((x) => `#${x.n}`).join("·")} 이탈. 재설계 1회`);
-      const feedback = `\n\n## 축 심사 결과 — 1차 구성안 반려 (full-v8.1)\n축: ${c1.axis}\n축의 질문에 답하지 않는 구간:\n${reasons}\n${c1.note}\n**이 구간들을 빼고**(그 재료 소스는 "역할 없는 소스"로 제외 — 소스 3건 하한만 지키면 된다) 남은 구간으로 다시 짜거나, 소스 전체가 답하는 질문으로 축을 다시 세운다. 뺀 뒤 분량이 13분 아래면 notes 에 사유를 적고 구성안을 내지 않는다.`;
+      const feedback = en ? designAxisRejectEn(c1.axis, reasons, c1.note) : `\n\n## 축 심사 결과 — 1차 구성안 반려 (full-v8.1)\n축: ${c1.axis}\n축의 질문에 답하지 않는 구간:\n${reasons}\n${c1.note}\n**이 구간들을 빼고**(그 재료 소스는 "역할 없는 소스"로 제외 — 소스 3건 하한만 지키면 된다) 남은 구간으로 다시 짜거나, 소스 전체가 답하는 질문으로 축을 다시 세운다. 뺀 뒤 분량이 13분 아래면 notes 에 사유를 적고 구성안을 내지 않는다.`;
       r = await runDesign(parts.user + feedback, "설계 1/2 — 축 심사 반려 → 재설계 (단발)");
-      o = { ...r.output, outline_md: normalizeOutline(r.output.outline_md) };
+      o = { ...r.output, outline_md: normOutline(r.output.outline_md) };
       const c2 = await check(o.outline_md);
       const off2 = c2.sections.filter((x) => !x.answers_axis);
       axisNote = off2.length ? `1차 반려(#${off1.map((x) => x.n).join(",#")}) → 재설계 뒤에도 #${off2.map((x) => x.n).join(",#")} 이탈 (기록만)` : `1차 반려(#${off1.map((x) => x.n).join(",#")}) → 재설계 통과`;
     } else axisNote = "통과";
   }
   // full-v8.3 (2026-09-20): 구성안 `질문:` 누락은 GPT 설계에서 반복됐다(C167 이틀 연속, 8구간 중 5개) — 실패 대신 지적을 붙여 한 번 재설계. 그래도 누락이면 아래 fail
-  const countQ = (md: string) => ({ heads: (md.match(/^구간 #\d+/gm) ?? []).length, qs: (md.match(/^\s*질문:\s*\S/gm) ?? []).length });
+  const countQ = (md: string) => en
+    ? { heads: (md.match(/^Section #\d+/gm) ?? []).length, qs: (md.match(/^\s*Question:\s*\S/gim) ?? []).length }
+    : { heads: (md.match(/^구간 #\d+/gm) ?? []).length, qs: (md.match(/^\s*질문:\s*\S/gm) ?? []).length };
   let q = countQ(o.outline_md);
   if (q.heads && q.qs < q.heads) {
     log(`  design ${episodeId}: 구성안 구간 ${q.heads}개 중 질문: ${q.qs}개 — 재설계 1회`);
-    const fb = `\n\n## 구성안 형식 반려 (full-v8.1 설계 계약)\n구간 ${q.heads}개 중 \`질문:\` 줄이 ${q.qs}개다. **모든 구간**에 그 구간이 답하는 축의 하위 질문을 \`질문:\` 줄로 적어 같은 구성안을 다시 낸다 — 축·구간 수·재료 배정·발췌·claims 는 그대로 유지한다.`;
+    const fb = en ? designMissingQuestionsEn(q.heads, q.qs) : `\n\n## 구성안 형식 반려 (full-v8.1 설계 계약)\n구간 ${q.heads}개 중 \`질문:\` 줄이 ${q.qs}개다. **모든 구간**에 그 구간이 답하는 축의 하위 질문을 \`질문:\` 줄로 적어 같은 구성안을 다시 낸다 — 축·구간 수·재료 배정·발췌·claims 는 그대로 유지한다.`;
     extraCost += r.listCostUsd ?? 0;
     r = await runDesign(parts.user + fb, "설계 1/2 — 질문 누락 → 재설계 (단발)");
-    o = { ...r.output, outline_md: normalizeOutline(r.output.outline_md) };
+    o = { ...r.output, outline_md: normOutline(r.output.outline_md) };
     q = countQ(o.outline_md);
   }
   // 검증 실패도 비용이 든 실행이다 — 원본 출력을 남기고 runs 에 기록한 뒤 실패시킨다 (재현·진단용. 이전엔 흔적 없이 버려졌다)
@@ -207,41 +223,44 @@ export async function runDesignSingle(a: { job: Job; ex: Executor; episodeId: st
   // full-v8.1: "사용 소스 ≤ 구간 + 1" 상한 폐지 — 소스를 소화하려고 구간이 생기는 것이 축 이탈의 원인이었다. 대신 구간마다 축의 하위 질문(`질문:`) 이 있어야 한다
   if (q.heads && q.qs < q.heads) await fail(`구성안 구간 ${q.heads}개 중 \`질문:\` 줄이 ${q.qs}개 — 재설계 뒤에도 누락. 구간마다 축의 하위 질문을 적는다 (full-v8.1)`);
   const attribution = deriveAttribution(o.claims);
-  if (!/^축:/m.test(o.outline_md) || !/^구간 #1/m.test(o.outline_md)) {
+  if (en ? !/^Axis:/m.test(o.outline_md) || !/^Section #1/m.test(o.outline_md) : !/^축:/m.test(o.outline_md) || !/^구간 #1/m.test(o.outline_md)) {
     // 2026-10-01 (T261001-003/C100): 설계가 "유효 소스 2건뿐 — 구성안 보류"를 outline 자리에 적었다. 소스 부족은 접근 실패와 같은 경로(자동 반려)로 보낸다 — onDraftFailed 가 이 메시지 꼴을 본다
     const used = (o.sources_used ?? []).length;
     if (used < 3 || /보류/.test(o.outline_md.slice(0, 200))) await fail(`소스 본문 ${used}건 — 3건 하한 미달 (설계 판단: ${(o.notes || o.outline_md).replace(/\s+/g, " ").slice(0, 200)})`);
-    await fail(`outline_md 형식 위반 — '축:' 또는 '구간 #1' 줄이 없음 (정규화 후). 앞부분: ${o.outline_md.replace(/\s+/g, " ").slice(0, 160)}`);
+    await fail(`outline_md 형식 위반 — ${en ? "'Axis:' 또는 'Section #1'" : "'축:' 또는 '구간 #1'"} 줄이 없음 (정규화 후). 앞부분: ${o.outline_md.replace(/\s+/g, " ").slice(0, 160)}`);
   }
   if (o.estimated_minutes && o.estimated_minutes < 13) await fail(`재료 부족 — 설계 예상 분량 ${o.estimated_minutes}분 < 하한 13분. ${o.notes.slice(0, 200)}`);
 
-  const lines: string[] = ["> 내부 증적 — 재배포 금지", "", `# 소스 발췌 — ${episodeId}`, "", `> 설계 단발 실행: 발췌는 코드가 가져온 원문 문단을 모델이 골라 그대로 옮긴 것 (${chosen.size}항목). 요지만 모델 작성.`, ...(priorNotes.length ? [`> 이미 다른 편이 쓴 문단은 제외했다: ${priorNotes.join(" · ")}`] : []), ""];
-  for (const f of fetched) {
-    const src = cand.sources[f.n - 1];
-    lines.push(`## S${f.n}. ${src.publisher} — "${src.title || f.title || ""}"`);
-    lines.push(`- URL: ${f.url}${src.published ? ` · 발행 ${String(src.published).slice(0, 10)}` : ""}${f.byline ? ` · 저자 ${f.byline}` : ""}`);
-    if (!f.ok) { lines.push(`- 본문 없음 (${f.status}${f.note ? ` — ${f.note}` : ""}) — 제외`, ""); continue; }
-    const g = o.gists.find((x) => x.s === f.n);
-    if (g) lines.push(`- 요지: ${g.lines.join(" / ")}`);
-    lines.push("");
-    for (const b of f.blocks) if (chosen.has(b.id)) lines.push(`- ${b.id}: "${b.text}"`);
-    lines.push("");
+  if (en) await writeDesignArtifactsEn({ dir, episodeId, cand, fetched, o, chosen, priorNotes, attribution, sectionsOf, axis });
+  else {
+    const lines: string[] = ["> 내부 증적 — 재배포 금지", "", `# 소스 발췌 — ${episodeId}`, "", `> 설계 단발 실행: 발췌는 코드가 가져온 원문 문단을 모델이 골라 그대로 옮긴 것 (${chosen.size}항목). 요지만 모델 작성.`, ...(priorNotes.length ? [`> 이미 다른 편이 쓴 문단은 제외했다: ${priorNotes.join(" · ")}`] : []), ""];
+    for (const f of fetched) {
+      const src = cand.sources[f.n - 1];
+      lines.push(`## S${f.n}. ${src.publisher} — "${src.title || f.title || ""}"`);
+      lines.push(`- URL: ${f.url}${src.published ? ` · 발행 ${String(src.published).slice(0, 10)}` : ""}${f.byline ? ` · 저자 ${f.byline}` : ""}`);
+      if (!f.ok) { lines.push(`- 본문 없음 (${f.status}${f.note ? ` — ${f.note}` : ""}) — 제외`, ""); continue; }
+      const g = o.gists.find((x) => x.s === f.n);
+      if (g) lines.push(`- 요지: ${g.lines.join(" / ")}`);
+      lines.push("");
+      for (const b of f.blocks) if (chosen.has(b.id)) lines.push(`- ${b.id}: "${b.text}"`);
+      lines.push("");
+    }
+    await fs.writeFile(path.join(dir, "sources.md"), lines.join("\n"), "utf8");
+    const grade = (g: Attribution) => o.claims.filter((c) => attribution.get(c.id) === g).length;
+    const blocks = new Map<number, Set<number>>();
+    for (const [s, secs] of sectionsOf) for (const sec of secs) { const set = blocks.get(sec) ?? new Set<number>(); set.add(s); blocks.set(sec, set); }
+    const blockNote = [...blocks].sort((a, b) => a[0] - b[0]).map(([sec, srcs]) => `#${sec} ${[...srcs].sort((a, b) => a - b).map((s) => `S${s}`).join("·")}`).join(" · ") || "없음";
+    const claimsMd = [`# claims — ${episodeId}`, "",
+      `> 귀속 열(guidelines 규칙 20, full-v7.1 — 주장 종류에서 워커가 도출): 귀속 ${grade("귀속")} · 없음 ${grade("없음")}. 귀속 주장만 블록 소스를 지시 귀속으로 표시하고, 없음 주장은 해설자의 말로 설명한다. 이름은 정보일 때만 선택(규칙 21).`,
+      `> 축 소스: ${axis ? `S${axis}` : "없음"} · 블록(구간별 소스): ${blockNote}`, "",
+      "| ID | 주장 | 발췌 ID | 유형 | 구간 | 저명 | 의견 | 귀속 |", "|---|---|---|---|---|---|---|---|",
+      ...o.claims.map((c) => `| ${c.id} | ${c.text.replace(/\|/g, "／")} | ${c.excerpt_ids.join(", ")} | ${c.type} | #${c.section} | ${c.notable ? "○" : ""} | ${c.opinion ? "○" : ""} | ${attribution.get(c.id)} |`), ""].join("\n");
+    await fs.writeFile(path.join(dir, "claims.md"), claimsMd, "utf8");
+    await fs.writeFile(path.join(dir, "outline.md"), o.outline_md.trim() + "\n", "utf8");
+    const pron: Record<string, string> = {};
+    for (const p of o.pronunciations) if (p.term.trim() && p.reading.trim()) pron[p.term.trim()] = p.reading.trim();
+    await fs.writeFile(path.join(dir, "pronunciations.json"), JSON.stringify(pron, null, 2) + "\n", "utf8");
   }
-  await fs.writeFile(path.join(dir, "sources.md"), lines.join("\n"), "utf8");
-  const grade = (g: Attribution) => o.claims.filter((c) => attribution.get(c.id) === g).length;
-  const blocks = new Map<number, Set<number>>();
-  for (const [s, secs] of sectionsOf) for (const sec of secs) { const set = blocks.get(sec) ?? new Set<number>(); set.add(s); blocks.set(sec, set); }
-  const blockNote = [...blocks].sort((a, b) => a[0] - b[0]).map(([sec, srcs]) => `#${sec} ${[...srcs].sort((a, b) => a - b).map((s) => `S${s}`).join("·")}`).join(" · ") || "없음";
-  const claimsMd = [`# claims — ${episodeId}`, "",
-    `> 귀속 열(guidelines 규칙 20, full-v7.1 — 주장 종류에서 워커가 도출): 귀속 ${grade("귀속")} · 없음 ${grade("없음")}. 귀속 주장만 블록 소스를 지시 귀속으로 표시하고, 없음 주장은 해설자의 말로 설명한다. 이름은 정보일 때만 선택(규칙 21).`,
-    `> 축 소스: ${axis ? `S${axis}` : "없음"} · 블록(구간별 소스): ${blockNote}`, "",
-    "| ID | 주장 | 발췌 ID | 유형 | 구간 | 저명 | 의견 | 귀속 |", "|---|---|---|---|---|---|---|---|",
-    ...o.claims.map((c) => `| ${c.id} | ${c.text.replace(/\|/g, "／")} | ${c.excerpt_ids.join(", ")} | ${c.type} | #${c.section} | ${c.notable ? "○" : ""} | ${c.opinion ? "○" : ""} | ${attribution.get(c.id)} |`), ""].join("\n");
-  await fs.writeFile(path.join(dir, "claims.md"), claimsMd, "utf8");
-  await fs.writeFile(path.join(dir, "outline.md"), o.outline_md.trim() + "\n", "utf8");
-  const pron: Record<string, string> = {};
-  for (const p of o.pronunciations) if (p.term.trim() && p.reading.trim()) pron[p.term.trim()] = p.reading.trim();
-  await fs.writeFile(path.join(dir, "pronunciations.json"), JSON.stringify(pron, null, 2) + "\n", "utf8");
 
   const design: DesignOut = {
     axis: o.axis, axis_type: o.axis_type, landing_section: o.landing_section, axis_source: axisRaw, sections: o.sections, excerpts: chosen.size, claims: o.claims.length,
@@ -252,6 +271,43 @@ export async function runDesignSingle(a: { job: Job; ex: Executor; episodeId: st
   return { design, model: r.model, costUsd: (r.listCostUsd ?? 0) + axisCost + extraCost, tokens: (r.raw as { usage?: unknown } | undefined)?.usage, fetched };
 }
 
+
+/**
+ * 글로벌판 설계 산출물 (KAN-201) — 다음 단계의 모델이 읽으므로 영어로 쓴다. 표 구조·줄머리(`## S{n}.`·`- URL:`·`- S{n}-NN: "…"`)는 한국판과 같다(parsePriorExcerpts 가 두 판을 다 읽는다).
+ * claims 표에 발췌 언어 열을 더한다(글로벌 명세 6.4 국문 소스 처리 — 한글 발췌에 근거한 주장은 QA 가 의미 변형을 본다). 발음 맵은 힌트가 빈 등재도 남긴다(명세 6.7 발음 누락 검사)
+ */
+export async function writeDesignArtifactsEn(x: { dir: string; episodeId: string; cand: BacklogCandidate; fetched: FetchedSource[]; o: DesignInlineOut; chosen: Set<string>; priorNotes: string[]; attribution: Map<string, Attribution>; sectionsOf: Map<number, Set<number>>; axis: number | null }) {
+  const { dir, episodeId, cand, fetched, o, chosen, priorNotes, attribution, sectionsOf, axis } = x;
+  const textOf = new Map<string, string>();
+  for (const f of fetched) for (const b of f.blocks) textOf.set(b.id, b.text);
+  const lines: string[] = ["> Internal record — do not redistribute", "", `# Source excerpts — ${episodeId}`, "", `> Excerpts are original paragraphs fetched by code and selected by the planner (${chosen.size} items). Only the gists are model-written.`, ...(priorNotes.length ? [`> Paragraphs already used by other episodes were excluded: ${priorNotes.join(" · ")}`] : []), ""];
+  for (const f of fetched) {
+    const src = cand.sources[f.n - 1];
+    lines.push(`## S${f.n}. ${src.publisher} — "${src.title || f.title || ""}"`);
+    lines.push(`- URL: ${f.url}${src.published ? ` · published ${String(src.published).slice(0, 10)}` : ""}${f.byline ? ` · author ${f.byline}` : ""}`);
+    if (!f.ok) { lines.push(`- No text (${f.status}${f.note ? ` — ${f.note}` : ""}) — excluded`, ""); continue; }
+    const g = o.gists.find((y) => y.s === f.n);
+    if (g) lines.push(`- Gist: ${g.lines.join(" / ")}`);
+    lines.push("");
+    for (const b of f.blocks) if (chosen.has(b.id)) lines.push(`- ${b.id}: "${b.text}"`);
+    lines.push("");
+  }
+  await fs.writeFile(path.join(dir, "sources.md"), lines.join("\n"), "utf8");
+  const blocks = new Map<number, Set<number>>();
+  for (const [src, secs] of sectionsOf) for (const sec of secs) { const set = blocks.get(sec) ?? new Set<number>(); set.add(src); blocks.set(sec, set); }
+  const blockNote = [...blocks].sort((p, q) => p[0] - q[0]).map(([sec, srcs]) => `#${sec} ${[...srcs].sort((p, q) => p - q).map((n) => `S${n}`).join(", ")}`).join(" · ") || "none";
+  const lang = (ids: string[]) => (ids.some((id) => /[가-힣]/.test(textOf.get(id) ?? "")) ? "ko" : "en");
+  const attributed = o.claims.filter((c) => attribution.get(c.id) === "귀속").length;
+  const claimsMd = [`# claims — ${episodeId}`, "",
+    `> Attribution (worker-derived from type and opinion): attributed ${attributed} · none ${o.claims.length - attributed}. Attributed claims are marked as the block source's view once; the rest the explainer says directly.`,
+    `> Axis source: ${axis ? `S${axis}` : "none"} · blocks (sources per section): ${blockNote}`,
+    `> Excerpt language "ko": the claim is an English restatement of a Korean excerpt. Keep its meaning exact.`, "",
+    "| ID | Claim | Excerpt IDs | Type | Section | Notable | Opinion | Attribution | Excerpt language |", "|---|---|---|---|---|---|---|---|---|",
+    ...o.claims.map((c) => `| ${c.id} | ${c.text.replace(/\|/g, "／")} | ${c.excerpt_ids.join(", ")} | ${c.type} | #${c.section} | ${c.notable ? "yes" : ""} | ${c.opinion ? "yes" : ""} | ${attribution.get(c.id) === "귀속" ? "attributed" : "none"} | ${lang(c.excerpt_ids)} |`), ""].join("\n");
+  await fs.writeFile(path.join(dir, "claims.md"), claimsMd, "utf8");
+  await fs.writeFile(path.join(dir, "outline.md"), o.outline_md.trim() + "\n", "utf8");
+  await fs.writeFile(path.join(dir, "pronunciations.json"), JSON.stringify(addPronunciations({}, o.pronunciations, "en"), null, 2) + "\n", "utf8");
+}
 
 /**
  * 축 소스 표기 관용 파서 (2026-09-19). GPT(gpt-5.6-sol) 가 스키마 설명("S3 형식")을 무시하고 소스 URL 을 그대로 적어 C161 설계가 실패했다 —

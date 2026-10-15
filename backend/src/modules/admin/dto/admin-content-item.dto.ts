@@ -1,4 +1,6 @@
 import { AdminContentView } from '../admin.types';
+import { ContentLanguage } from '@/modules/content/content.enum';
+import { UserMarket } from '@/modules/user/user.enum';
 
 export class AdminContentTopicDto {
   readonly topic_id: string;
@@ -21,6 +23,10 @@ export class AdminContentItemDto {
   readonly total_episodes: number | null;
   readonly duration_sec: number;
   readonly thumbnail_url: string;
+  /** 콘텐츠 언어(`global-api.md` 4.7) — 표시 전용. 시장 필터는 서버가 한다 */
+  readonly language: ContentLanguage;
+  /** 시장(`global-api.md` 4.10) */
+  readonly market: UserMarket;
   readonly content_version: number;
   readonly license_expires_at: string | null;
   readonly published_at: string;
@@ -64,6 +70,8 @@ export class AdminContentItemDto {
       total_episodes: content.totalEpisodes,
       duration_sec: content.durationSec,
       thumbnail_url: content.thumbnailUrl,
+      language: content.language,
+      market: content.market,
       content_version: content.contentVersion,
       license_expires_at: content.licenseExpiresAt?.toISOString() ?? null,
       published_at: content.publishedAt.toISOString(),

@@ -19,6 +19,7 @@ import { SubscriptionService } from '@/modules/subscription/services/subscriptio
 import { User } from '@/modules/user/entities/user.entity';
 import { UserService } from '@/modules/user/services/user.service';
 import { toYearsOfExperienceRange } from '@/modules/user/user.constant';
+import { UserMarket } from '@/modules/user/user.enum';
 
 import {
   TOP_TOPIC_LIMIT,
@@ -231,6 +232,7 @@ export class ProfileOrchestrator {
         weekDates,
         dailyListenedSec.reduce((sum, sec) => sum + sec, 0),
         serviceDateStart(nextWeekStart),
+        user.market,
       ),
     ]);
 
@@ -292,13 +294,15 @@ export class ProfileOrchestrator {
   }
 
   /**
-   * 그 주 청취 시간 전체 상위 %(KAN-168). 모집단은 **그 주가 끝나기 전에 가입한 전체 계정**이다 —
+   * 그 주 청취 시간 전체 상위 %(KAN-168). 모집단은 **그 주가 끝나기 전에 가입한 같은 시장의 전체 계정**이다 —
    * 그 주 0초인 사용자도 들어간다(PM "전체에서"). 내가 0초면 어차피 `null`이라 세지 않는다.
+   * 시장을 나누는 이유(2026-10-15): 시장마다 카탈로그·출시 시점이 달라, 섞으면 한쪽의 규모가 다른 쪽의 순위를 정한다.
    */
   private async buildListeningTopPercent(
     weekDates: string[],
     listenedSec: number,
     weekEnd: Date,
+    market: UserMarket,
   ): Promise<number | null> {
     if (listenedSec <= 0) {
       return null;
@@ -308,8 +312,9 @@ export class ProfileOrchestrator {
       this.playbackService.countUsersListenedMoreByDates(
         weekDates,
         listenedSec,
+        market,
       ),
-      this.userService.countJoinedBefore(weekEnd),
+      this.userService.countJoinedBefore(weekEnd, market),
     ]);
 
     return calculateListeningTopPercent(

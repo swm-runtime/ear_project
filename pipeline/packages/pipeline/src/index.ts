@@ -6,6 +6,11 @@
  * 2026-08-29 사이클 4에서 서브에이전트에 넘긴 프롬프트를 그대로 코드화한 것이다.
  */
 
+import { otherSpeaker, pipelineLocale, speakerNames } from "./locale.js";
+export * from "./locale.js";
+export * from "./global-prompts.js";
+import { INTRO_STYLES_EN } from "./global-prompts.js";
+
 export type MidTopic = string;
 
 export interface SourceRef {
@@ -67,7 +72,9 @@ export function assetPaths(assetRoot: string, workRoot: string = assetRoot) {
 }
 
 /** 해설 담당: topics.explainer 가 있으면 그것, 없으면 중분류 관할 규칙 (spec/04) */
-export function explainerFor(midTopic: MidTopic): "윤아" | "이음" {
+export function explainerFor(midTopic: MidTopic): string {
+  // 글로벌판(en)은 역할 고정 — 첫째 진행자가 항상 해설 (글로벌 명세 6.4)
+  if (pipelineLocale() === "en") return speakerNames()[0];
   // 2026-09-06 체계 개편: 심리·마음·인문·교양 대분류의 중분류 = 윤아, 나머지(돈·경제·비즈니스·과학·기술·자격증) = 이음. 구 이름(인문·교양·글쓰기)도 남긴다.
   return ["심리학", "뇌과학·인지", "습관·동기", "인간관계", "철학", "역사", "사회·문화", "예술", "한능검", "인문·교양", "글쓰기"].includes(midTopic) ? "윤아" : "이음";
 }
@@ -83,8 +90,12 @@ export const INTRO_STYLES = [
   { key: "thesis", label: "화두 선언형", hint: "주제 선언 직후 해설 담당이 청취자의 예상을 뒤집는 한 줄을 내용으로 바로 던지고, 진행 담당이 반발·되물음으로 두세 턴 앉는다. '결론부터 말하면'류 진입 선언이나 'X는 Y가 아니다' 구분 선언으로 시작하지 않는다 — 뒤집는 내용 자체를 첫 문장으로." },
 ] as const;
 
-export function pickIntroStyle(seed: number) {
-  return INTRO_STYLES[Math.abs(seed) % INTRO_STYLES.length];
+/** 도입 방식 한 종 — 한국판 INTRO_STYLES · 글로벌판 INTRO_STYLES_EN (global-prompts.ts) */
+export interface IntroStyle { key: string; label: string; hint: string }
+
+export function pickIntroStyle(seed: number): IntroStyle {
+  const styles: readonly IntroStyle[] = pipelineLocale() === "en" ? INTRO_STYLES_EN : INTRO_STYLES;
+  return styles[Math.abs(seed) % styles.length];
 }
 
 const COMMON_RULES = `   - 핵심 규칙 리마인드: 소스가 말한 것까지만 (비교 축 추가·연관의 방향 확정·귀속 범위 확장·연대 환산·문장 위치 주장 금지 — QA 최다 실패 유형), 복창 대신 번역, 질문에 기원 서사, 티키타카·호흡 교차 (**후반부까지** 유지 — 후반 리듬 균질화가 4편 연속 지적됨), 역질문 1~2회, '요'체·'다'체 혼용, 귀속 전언체, 비유는 새 이해를 줄 때만 + 에피소드 내 비유 계열 통일, AI체·번역투 금지 (소리 내 읽어 어색하면 다시), 날짜는 년-월까지, 소수점·정밀 수치는 자연스러운 범위 표현 (단 실제보다 크게 올림 금지), 가독 표기 (음차 금지 — 영문 고유명사·두문자는 원표기), 오디오 태그는 [curious] [surprised] [sighs] [exhales] [laughs] [whispers] [excited]만 턴당 최대 1개 수준. 소스 게재 매체를 언급할 때 "같은 매체" 같은 지시어는 직전 명명 매체로 해소되므로 매체가 바뀌면 반드시 재명명.`;
@@ -112,7 +123,7 @@ export interface DraftInput {
   workRoot: string;
   episodeId: string;
   candidate: BacklogCandidate;
-  introStyle: (typeof INTRO_STYLES)[number];
+  introStyle: IntroStyle;
   promptVersion: string;
   templates?: Templates | null;
   /** 클로징 인사 골격 선택 시드 (에피소드 수) — 여러 골격이면 돌아가며 */
@@ -158,7 +169,7 @@ ${pickSignoff(t, i.signoffSeed ?? 0)}
 export function buildDraftPrompt(i: DraftInput): string {
   const a = assetPaths(i.assetRoot, i.workRoot);
   const explainer = explainerFor(i.candidate.mid_topic);
-  const host = explainer === "윤아" ? "이음" : "윤아";
+  const host = otherSpeaker(explainer);
   const sources = i.candidate.sources
     .map((s, n) => `${n + 1}. ${s.publisher}, "${s.title}"${s.backbone ? " (뼈대 후보)" : ""} — ${s.url}${s.published ? ` (${String(s.published).slice(0, 7)})` : ""}`)
     .join("\n");
@@ -189,7 +200,7 @@ c) **pronunciations.json** — 대본에 등장하는 **모든 비한글 표기*
 d) **script.md** — 대본. 규격:
    - 첫 줄 메타: 에피소드 ID·제목·중분류·해설/진행·프롬프트 버전(${i.promptVersion})·사용 소스 수.
    - 구조: 인트로 → 도입 → 본문 (해설 턴 E1, E2, ... / 진행 턴 Y1, Y2, ... 표기) → 마무리. **콜드오픈 구역은 두지 않는다** (2026-09-07 폐지 — [콜드오픈] 헤더가 있으면 L0 형식 위반으로 재생성된다)
-   - **발화 줄 형식 (TTS 파서 계약 — 정확히 지킬 것)**: 번호 턴은 \`[윤아] E1 · 문장\` / \`[이음] Y1 · 문장\` — 화자 라벨이 먼저, 번호 뒤 구분자는 **가운뎃점(·)**. \`Y1.\`(마침표)·\`E1 [윤아]\`(번호 선행) 같은 변형 금지 — 파싱이 실패해 합성이 중단된다.
+   - **발화 줄 형식 (TTS 파서 계약 — 정확히 지킬 것)**: 번호 턴은 \`[${speakerNames()[0]}] E1 · 문장\` / \`[${speakerNames()[1]}] Y1 · 문장\` — 화자 라벨이 먼저, 번호 뒤 구분자는 **가운뎃점(·)**. \`Y1.\`(마침표)·\`E1 [${speakerNames()[0]}]\`(번호 선행) 같은 변형 금지 — 파싱이 실패해 합성이 중단된다.
 ${templateBlock(i)}
    - 도입 (규칙 13, v5.1 개정 — **주제를 먼저 소개하고 시작한다**. 에둘러 들어가지 말 것): 주제 선언 뒤 첫 해설 턴 사이에 짧은 진입 구간(두세 턴)을 둔다. 주제는 인트로가 이미 말했으므로 **다시 발견하는 척("그 질문이 오늘 주제랑 닿아 있어요" 류) 금지**. 그 진입 방식 (이 에피소드 전용 지정): **${i.introStyle.label}** — ${i.introStyle.hint} 골드의 [도입]은 구 규칙 판이라 자리표기로 비워 두었다 — 형태를 참조할 것이 없으니 규칙 13 문장대로 쓴다. 인트로 골격은 고정이지만 질문의 재료는 매번 새로.
    - 분량: **공백·기호 제외 4,500자 이상 목표, 5,000자 내외 이상적** (341자/분 기준 약 13~15분). 채우기용 잡담·같은 말 반복 금지.
@@ -331,7 +342,7 @@ export function buildCriticPrompt(i: CriticInput): string {
   const dir = a.episodeDir(i.episodeId);
   const script = i.scriptFile ?? `${dir}/script.md`;
   const explainer = explainerFor(i.midTopic);
-  const host = explainer === "윤아" ? "이음" : "윤아";
+  const host = otherSpeaker(explainer);
   return `당신은 오디오 콘텐츠 서비스 "이어(ear)"의 대본 비평가다. 스타일·구성 품질을 독립 평가한다. 생성 맥락·QA 결과는 일절 모른 채 평가하는 것이 원칙이다.
 
 ## 입력 (정확히 이 파일들만 읽는다 — 다른 프로젝트 파일 금지. 특히 같은 디렉토리의 qa-report, claims, sources 및 다른 에피소드 금지)
@@ -360,7 +371,7 @@ function buildCriticPromptV2(i: CriticInput): string {
   const script = i.scriptFile ?? `${dir}/script.md`;
   const report = i.reportFile ?? "critic-report-v2.md";
   const explainer = explainerFor(i.midTopic);
-  const host = explainer === "윤아" ? "이음" : "윤아";
+  const host = otherSpeaker(explainer);
   const pre = i.preTemplate
     ? `
 ## 이 대본은 tpl-v1 이전 세대다
@@ -405,7 +416,7 @@ export interface CriticInlineInput {
 export function buildCriticPromptInlineParts(i: CriticInlineInput): PromptParts {
   const fence = (s: string) => "````\n" + s.trim() + "\n````";
   const explainer = explainerFor(i.midTopic);
-  const host = explainer === "윤아" ? "이음" : "윤아";
+  const host = otherSpeaker(explainer);
   const system = `당신은 오디오 콘텐츠 서비스 "이어(ear)"의 대본 비평가다. 스타일·구성 품질을 독립 평가한다. 생성 맥락·QA 결과·기계 검사(L0) 결과는 일절 모른 채 평가하는 것이 원칙이다.
 
 이 실행에는 도구가 없다. 루브릭·규칙·골드는 아래에, 평가 대상 대본은 이어지는 메시지에 전부 들어 있다. 파일을 읽거나 쓰지 않고, 리포트 본문은 완료 보고의 report_md 에 넣는다.
@@ -588,7 +599,7 @@ export interface DesignInput {
 export function buildDesignPrompt(i: DesignInput): string {
   const a = assetPaths(i.assetRoot, i.workRoot);
   const explainer = explainerFor(i.candidate.mid_topic);
-  const host = explainer === "윤아" ? "이음" : "윤아";
+  const host = otherSpeaker(explainer);
   const dir = a.episodeDir(i.episodeId);
   const sources = i.candidate.sources
     .map((s, n) => `${n + 1}. ${s.publisher}, "${s.title}"${s.backbone ? " (뼈대 후보)" : ""} — ${s.url}${s.published ? ` (${String(s.published).slice(0, 7)})` : ""}`)
@@ -711,7 +722,7 @@ export interface PromptParts { system: string; user: string }
 export interface WriteInput {
   episodeId: string;
   candidate: BacklogCandidate;
-  introStyle: (typeof INTRO_STYLES)[number];
+  introStyle: IntroStyle;
   promptVersion: string;
   templates?: Templates | null;
   /** 클로징 인사 골격 선택 시드 (에피소드 수) — 여러 골격이면 돌아가며 */
@@ -756,7 +767,7 @@ export const WRITE_FACT_RULES = `- **사실 주장**(수치·인용·고유명�
 /** 2단계 — 대본 (단발 호출: 도구 없음, 모든 입력 인라인, 대본은 완료 보고 JSON 의 script 로 돌려준다) */
 export function buildWritePromptParts(i: WriteInput): PromptParts {
   const explainer = explainerFor(i.candidate.mid_topic);
-  const host = explainer === "윤아" ? "이음" : "윤아";
+  const host = otherSpeaker(explainer);
   const fence = (s: string) => "````\n" + s.trim() + "\n````";
   const system = `당신은 오디오 콘텐츠 서비스 "이어(ear)"의 **대본 작가**다. 청취자는 이 주제를 처음 듣는 일반 청취자다 (전문가 대상 표현 금지 — 특정 연령·직군으로 좁히지 않는다). 2인 대화 팟캐스트 대본을 쓴다.
 
@@ -781,7 +792,7 @@ ${fence(explainer === "이음" ? i.goldFullEum : i.goldFullYuna)}` : `### 1.3 �
 - [본문] 안의 구간 경계는 \`### #n 소제목\` 한 줄로 표시한다 (구성안의 구간 번호·순서 그대로. TTS는 이 줄을 읽지 않는다).
 
 ### 줄 문법 (TTS 파서 계약 — 정확히)
-- 번호 턴은 \`[윤아] E1 · 문장\` / \`[이음] Y1 · 문장\`. 화자 라벨이 먼저, 번호 뒤는 **가운뎃점(·)**. \`E1.\`·\`E1 [윤아]\` 변형 금지.
+- 번호 턴은 \`[${speakerNames()[0]}] E1 · 문장\` / \`[${speakerNames()[1]}] Y1 · 문장\`. 화자 라벨이 먼저, 번호 뒤는 **가운뎃점(·)**. \`E1.\`·\`E1 [${speakerNames()[0]}]\` 변형 금지.
 - 해설 턴 E, 진행 턴 Y, 각각 1부터 연번. 표·URL·괄호 주석 금지. 숫자·영문은 가독 표기 — 음차는 발음 맵이 맡는다.
 
 ### 사실과 연결의 구분
@@ -1000,7 +1011,7 @@ export interface DesignInlineInput {
 export function buildDesignPromptInlineParts(i: DesignInlineInput): PromptParts {
   const history = isHistoryTopic(i.candidate.mid_topic);
   const explainer = explainerFor(i.candidate.mid_topic);
-  const host = explainer === "윤아" ? "이음" : "윤아";
+  const host = otherSpeaker(explainer);
   const fence = (s: string) => "````\n" + s.trim() + "\n````";
   const srcBlocks = i.sources.map((s) => {
     const head = `### S${s.n}. ${s.publisher} — "${s.title}"${s.backbone ? " (뼈대 후보)" : ""}\n- URL: ${s.url}${s.published ? ` · 발행 ${String(s.published).slice(0, 10)}` : ""}${s.byline ? ` · 저자 ${s.byline}` : ""}`;
@@ -1178,7 +1189,7 @@ ${fence(i.guidelines)}
 ## 지적 사항 (전부 해소해야 한다)
 ${failures}
 
-## 대본 script.md (수정 대상 — 줄 문법: \`[윤아] E1 · 문장\` / \`[이음] Y1 · 문장\`)
+## 대본 script.md (수정 대상 — 줄 문법: \`[${speakerNames()[0]}] E1 · 문장\` / \`[${speakerNames()[1]}] Y1 · 문장\`)
 ${fence(i.scriptMd)}
 
 ## claims.md (쓸 수 있는 사실의 전부)
@@ -1414,6 +1425,9 @@ export const ENRICHMENT_SCHEMA_VERSION = 2;
 export const ENRICHMENT_SCHEMA_VERSION_TAGS = 3;
 /** 태그 한 개 — 띄어쓰기 없는 2~10자, 한글·영문·숫자. '#'은 화면이 붙인다 */
 export const ENRICH_TAG_RE = /^[가-힣A-Za-z0-9]{2,10}$/;
+/** 글로벌판 태그 — 공백 허용 2~20자, 앞뒤 공백 없음 ("Stray Kids"). 서버 CONTENT_TAG_PATTERN 과 같은 식 (global-api 4.9, 2026-10-15 KAN-202). 한국판은 위 규칙 그대로 */
+export const ENRICH_TAG_RE_GLOBAL = /^[가-힣A-Za-z0-9][가-힣A-Za-z0-9 ]{0,18}[가-힣A-Za-z0-9]$/;
+export const enrichTagRe = (locale: "ko" | "en" = "ko"): RegExp => (locale === "en" ? ENRICH_TAG_RE_GLOBAL : ENRICH_TAG_RE);
 export const ENRICH_DIFFICULTY = ["beginner", "intermediate", "advanced"] as const;
 export const ENRICH_FORMAT = ["news_analysis", "howto", "interview", "opinion", "case_study", "overview"] as const;
 export const ENRICH_YEARS = ["0-1", "2-3", "4-6", "7+"] as const;
@@ -1427,6 +1441,8 @@ export interface EnrichInput {
   jobCategories: string[]; yearsRanges: string[];
   /** judgment-criteria.md 본문 */
   criteria: string;
+  /** 글로벌판(en)은 target_audiences(KR 직군 enum)를 묻지 않고 태그 규칙이 다르다 — 미지정이면 한국판 그대로 (KAN-202) */
+  locale?: "ko" | "en";
 }
 export function buildEnrichPrompt(i: EnrichInput): string {
   const fence = (s: string) => "````\n" + s.trim() + "\n````";
@@ -1438,9 +1454,10 @@ export function buildEnrichPrompt(i: EnrichInput): string {
 - 값은 아래 집합 **안에서만**, 글자 단위로 같게. 밖의 값은 업로드 검증이 거부한다.
   - difficulty: ${ENRICH_DIFFICULTY.join(" | ")}
   - format: ${ENRICH_FORMAT.join(" | ")}
-  - target_audiences[].job_category: ${i.jobCategories.join(" | ")}
+${i.locale === "en" ? `  - tags: 한글·영문·숫자, 공백 허용 2~20자(앞뒤 공백 없음)
+` : `  - target_audiences[].job_category: ${i.jobCategories.join(" | ")}
   - target_audiences[].years_of_experience: ${i.yearsRanges.join(" | ")}
-- 각 판정에 **대본의 어느 대목이 근거인지** 한 줄씩 evidence 에 적는다. 근거를 못 대는 판정은 판정 불능이다.
+`}- 각 판정에 **대본의 어느 대목이 근거인지** 한 줄씩 evidence 에 적는다. 근거를 못 대는 판정은 판정 불능이다.
 
 ## 판정 기준
 ${fence(i.criteria)}
@@ -1456,7 +1473,7 @@ ${fence(i.script)}` : `
 ## 대본 없음 — 폴백(명세 4.5)
 제목·설명만으로 판정한다. keywords 는 제목+설명에서 뽑고 source 는 "title_description" 으로 적는다. difficulty·format 은 얕은 근거로 판정하지 말고 불능이면 생략한다. is_evergreen 은 판정 가능하면 적는다.`}
 
-## 완료 보고 — 반드시 요청된 JSON 스키마 형식으로만 출력한다. 판정 불능 키는 넣지 않는다. keywords 는 대본에 실제로 다뤄진 세부 개념의 명사구 3~8개(3개 미만이면 나온 만큼만, 0개면 생략). target_audiences 는 1~8세트, 직군·연차 무관한 범용 대본이면 생략. tags 는 2~4개 — 꼭 맞는 것만, 개수를 채우려고 덜 맞는 태그를 넣지 않는다.`;
+## 완료 보고 — 반드시 요청된 JSON 스키마 형식으로만 출력한다. 판정 불능 키는 넣지 않는다. keywords 는 대본에 실제로 다뤄진 세부 개념의 명사구 3~8개(3개 미만이면 나온 만큼만, 0개면 생략).${i.locale === "en" ? "" : " target_audiences 는 1~8세트, 직군·연차 무관한 범용 대본이면 생략."} tags 는 2~4개 — 꼭 맞는 것만, 개수를 채우려고 덜 맞는 태그를 넣지 않는다.`;
 }
 export const ENRICH_SCHEMA = {
   type: "object", additionalProperties: false, required: ["evidence"],
@@ -1471,6 +1488,13 @@ export const ENRICH_SCHEMA = {
     evidence: { type: "object", additionalProperties: false, properties: { difficulty: { type: "string" }, format: { type: "string" }, is_evergreen: { type: "string" }, keywords: { type: "string" }, tags: { type: "string" }, target_audiences: { type: "string" } } },
   },
 } as const;
+/** 글로벌판(en) 판정 스키마 — target_audiences 를 뺀다(KR 직군 enum, global-api 4.9: market=global 이면 있으면 400) */
+export const ENRICH_SCHEMA_GLOBAL = (() => {
+  const { target_audiences: _t, ...properties } = ENRICH_SCHEMA.properties;
+  const { target_audiences: _e, ...evidence } = ENRICH_SCHEMA.properties.evidence.properties;
+  return { ...ENRICH_SCHEMA, properties: { ...properties, evidence: { ...ENRICH_SCHEMA.properties.evidence, properties: evidence } } };
+})();
+export const enrichSchema = (locale: "ko" | "en" = "ko") => (locale === "en" ? ENRICH_SCHEMA_GLOBAL : ENRICH_SCHEMA);
 /** 대본 임베딩 (metadata-pipeline 4.3 Phase B) — AI 서버 `POST /embeddings` 응답. BE 가 `content_embeddings` 에 upsert (admin-api 4.6). 벡터는 1536차원·model 은 현재 모델과 일치해야 한다 */
 export interface EnrichmentEmbedding { model: string; dim?: number; vector: number[] }
 export const EMBEDDING_MODEL_EXPECTED = "text-embedding-3-small"; // domain.md 5.6 확정 — BE parseEmbedding 이 글자 단위로 대조, 다르면 enrichment 파일 전체 거부
@@ -1509,8 +1533,11 @@ export async function fetchEmbedding(text: string, opts: { url: string; token: s
 export interface EnrichmentFile { schema_version: number; difficulty?: string; format?: string; is_evergreen?: boolean; keywords?: string[]; tags?: string[]; embedding?: EnrichmentEmbedding; target_audiences?: { job_category: string; years_of_experience: string }[]; source?: "title_description" }
 /** finalize.py 와 같은 규칙: 키워드 NFC 정규화·공백 정리·중복 제거·주제명 반복 제거·상한 8, enum 글자 일치 검증. 실패면 errors 를 돌려주고 파일을 만들지 않는다.
  *  tags(KAN-139)는 늘 정규화해 돌려주고(리포트용), opts.tags 일 때만 파일에 싣고 형식을 3으로 올린다. 규칙 밖 태그는 그 태그만 빼고, 2개 미만이면 키를 뺀다 — 태그 때문에 파일 전체를 버리지 않는다 */
-export function normalizeEnrichment(raw: Record<string, unknown>, topicNames: string[], jobCategories: string[], opts: { tags?: boolean } = {}): { file: EnrichmentFile | null; errors: string[]; warnings: string[]; tags: string[] } {
+/** opts.locale = "en"(글로벌판, KAN-202): target_audiences 는 받아도 버리고(경고), 태그는 공백 허용 규칙. 미지정이면 한국판 그대로.
+ *  language 키는 싣지 않는다 — 명세상 선택(없으면 발행 payload 의 language)이고, 서버 파서가 아직 모르는 키라 넣으면 파일째 거부된다(2026-10-15 결정) */
+export function normalizeEnrichment(raw: Record<string, unknown>, topicNames: string[], jobCategories: string[], opts: { tags?: boolean; locale?: "ko" | "en" } = {}): { file: EnrichmentFile | null; errors: string[]; warnings: string[]; tags: string[] } {
   const errors: string[] = [], warnings: string[] = [];
+  const en = opts.locale === "en";
   const file: EnrichmentFile = { schema_version: opts.tags ? ENRICHMENT_SCHEMA_VERSION_TAGS : ENRICHMENT_SCHEMA_VERSION };
   if (raw.difficulty != null) { if ((ENRICH_DIFFICULTY as readonly string[]).includes(String(raw.difficulty))) file.difficulty = String(raw.difficulty); else errors.push(`difficulty enum 불일치: ${String(raw.difficulty)}`); }
   if (raw.format != null) { if ((ENRICH_FORMAT as readonly string[]).includes(String(raw.format))) file.format = String(raw.format); else errors.push(`format enum 불일치: ${String(raw.format)}`); }
@@ -1531,7 +1558,8 @@ export function normalizeEnrichment(raw: Record<string, unknown>, topicNames: st
     if (out.length && out.length < 3) warnings.push(`키워드 ${out.length}개 — 3개 미만(대본이 얇거나 단일 주제)`);
     if (out.length) file.keywords = out;
   }
-  if (Array.isArray(raw.target_audiences)) {
+  if (en && raw.target_audiences != null) warnings.push("target_audiences 제외 — 글로벌판은 싣지 않는다(global-api 4.9)");
+  if (!en && Array.isArray(raw.target_audiences)) {
     const out: { job_category: string; years_of_experience: string }[] = [];
     for (const t of raw.target_audiences as { job_category?: unknown; years_of_experience?: unknown }[]) {
       const jc = String(t?.job_category ?? "").normalize("NFC").trim(), yr = String(t?.years_of_experience ?? "").trim();
@@ -1547,8 +1575,8 @@ export function normalizeEnrichment(raw: Record<string, unknown>, topicNames: st
     const topics = new Set(topicNames.map((t) => t.normalize("NFC").replace(/\s+/g, "").toLowerCase()));
     for (const t of raw.tags) {
       if (typeof t !== "string") continue;
-      const n = t.normalize("NFC").trim().replace(/^#+/, "");
-      if (!ENRICH_TAG_RE.test(n)) { warnings.push(`태그 규칙 밖 제외: ${n}`); continue; }
+      const n = en ? t.normalize("NFC").replace(/^[\s#]+/, "").replace(/\s+/g, " ").trim() : t.normalize("NFC").trim().replace(/^#+/, "");
+      if (!enrichTagRe(opts.locale).test(n)) { warnings.push(`태그 규칙 밖 제외: ${n}`); continue; }
       if (topics.has(n.toLowerCase())) { warnings.push(`주제명 반복 태그 제외: ${n}`); continue; }
       if (tags.some((x) => x.toLowerCase() === n.toLowerCase())) continue;
       tags.push(n);
@@ -1557,7 +1585,7 @@ export function normalizeEnrichment(raw: Record<string, unknown>, topicNames: st
     if (tags.length === 1) { warnings.push(`태그 1개 — 2개 미만이라 뺌: ${tags[0]}`); tags.length = 0; }
     if (opts.tags && tags.length) file.tags = [...tags];
   }
-  const missing = ["difficulty", "format", "is_evergreen", "keywords", "target_audiences", ...(opts.tags ? ["tags"] : [])].filter((k) => !(k in file));
+  const missing = ["difficulty", "format", "is_evergreen", "keywords", ...(en ? [] : ["target_audiences"]), ...(opts.tags ? ["tags"] : [])].filter((k) => !(k in file));
   if (missing.length) warnings.push(`생략된 키: ${missing.join(", ")} (partial)`);
   return { file: errors.length ? null : file, errors, warnings, tags };
 }

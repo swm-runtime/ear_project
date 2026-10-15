@@ -106,4 +106,4 @@
 ### 2026-10-07 — 닫음 (반영 날짜 2026-10-07)
 
 - **PM 결정(23:11)**: "개발계에서 됐으면 운영계에도 되겠지" — 완료 조건 1·2 는 개발계 rt 32 빌드 확인(위)으로 갈음한다. 운영 rt 32 빌드에서의 재확인은 하지 않는다.
-- 완료 조건 3·4(11/1 이후 공개일 · 새 설치 첫 실행 이벤트)는 공개 이후에만 볼 수 있어 **`tickets/frontend/pending/android-ad-id-post-launch-check.md`([KAN-156](https://runtime364.atlassian.net/browse/KAN-156), Lowest)** 로 옮겼다.
+- 완료 조건 3·4(11/1 이후 공개일 · 새 설치 첫 실행 이벤트)는 공개 이후에만 볼 수 있어 **`tickets/frontend/archive/android-ad-id-post-launch-check.md`([KAN-156](https://runtime364.atlassian.net/browse/KAN-156), Lowest)** 로 옮겼다.

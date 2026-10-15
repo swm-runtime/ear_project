@@ -6,7 +6,7 @@ import { localPathOf, pullPrefix, pushPrefix, s3Key } from "../storage.js";
 import { workerRev } from "../assets.js";
 import { log } from "../util.js";
 import { parseScriptForTts } from "../tts/script.js";
-import { normalizeForTts } from "../tts/normalize.js";
+import { mergeTtsDict, normalizeForTts } from "../tts/normalize.js";
 import { loadTtsDict } from "../assets.js";
 import { readEpisodePronunciations } from "./tts.js";
 import { forcedAlignment, locateTurnStarts, type TimestampedSynth } from "../tts/elevenlabs.js";
@@ -44,7 +44,7 @@ export async function runScriptAlign(job: Job) {
   if (parsed.turns.length < 4) throw new Error(`턴이 ${parsed.turns.length}개 — 대본 파싱 실패 가능`);
   const { version: dictVersion, entries: globalDict } = await loadTtsDict();
   const epMap = await readEpisodePronunciations(path.join(cfg.workRoot, rel, "pronunciations.json"));
-  const dict = { ...epMap, ...globalDict };
+  const dict = mergeTtsDict(epMap, globalDict);
   const turns = parsed.turns.map((t) => ({ speaker: t.speaker as string, text: t.text, ttsText: normalizeForTts(t.text, dict), tempo: 1 }));
 
   await progress(`강제 정렬 요청 (ElevenLabs, ${turns.length}턴)`);

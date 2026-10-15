@@ -136,7 +136,9 @@ export default function SettingsScreen() {
                 ) : null}
               </SettingsSection>
 
-              {/* 구독 섹션 — 결제 구현 전 MVP 바이너리에서는 그리지 않는다(KAN-66, feature-flags.ts) */}
+              {/* 구독 섹션 — 결제 구현 전 MVP 바이너리에서는 그리지 않는다(KAN-66, feature-flags.ts).
+                  예외: 초대 코드 지급 중이면 그 바이너리에서도 이벤트 줄을 이동 없는 정보 카드로 보인다(KAN-182 — 세 곳 표시는
+                  결제 UI 플래그와 무관하다) */}
               {IS_SUBSCRIPTION_UI_ENABLED ? (
                 <SettingsSection title={SETTINGS_COPY.sections.subscription}>
                   {screen.planRow !== null ? (
@@ -147,6 +149,16 @@ export default function SettingsScreen() {
                       isRetrying={screen.isRetrying}
                     />
                   ) : null}
+                </SettingsSection>
+              ) : screen.planRow?.kind === 'data' && screen.planRow.data.eventLine !== null ? (
+                <SettingsSection title={SETTINGS_COPY.sections.subscription}>
+                  <PlanSummaryCard
+                    state={screen.planRow}
+                    onPress={screen.openPlan}
+                    onRetry={screen.retry}
+                    isRetrying={screen.isRetrying}
+                    isNavigable={false}
+                  />
                 </SettingsSection>
               ) : null}
             </>
@@ -165,6 +177,8 @@ export default function SettingsScreen() {
               onPress={screen.openInterests}
             />
             <SettingsRow label={SETTINGS_COPY.content.career} onPress={screen.openCareer} />
+            {/* 이벤트(초대) 코드 입력(KAN-182) — 결제 UI 플래그와 무관하게 항상 있다. 지급은 스토어 결제가 아니다 */}
+            <SettingsRow label={SETTINGS_COPY.content.inviteCode} onPress={screen.openInviteCode} />
             {/* 주제 자동 확장 토글(FR-06, KAN-181) — 즉시 저장(settings-api.md 4.2). 조회 값이 기준이라 실패 시 비활성 */}
             <SettingsToggleRow
               label={SETTINGS_COPY.content.autoExpand}

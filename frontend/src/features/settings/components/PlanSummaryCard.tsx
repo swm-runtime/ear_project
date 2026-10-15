@@ -4,7 +4,7 @@ import { theme } from '@/shared/theme';
 import ChevronIcon, { chevronTrailingGutter } from '@/shared/ui/ChevronIcon';
 import { Text } from '@/shared/ui/Typography';
 
-import type { PlanRowVM, SectionState } from '../hooks/useSettingsScreen';
+import type { PlanRowStatusVM, PlanRowVM, SectionState } from '../hooks/useSettingsScreen';
 import { SETTINGS_COPY } from '../settings.copy';
 
 const CHEVRON_SIZE = 16;
@@ -14,10 +14,24 @@ interface PlanSummaryCardProps {
   onPress: () => void;
   onRetry: () => void;
   isRetrying: boolean;
+  /**
+   * false 면 이동 없는 정보 카드다 — 결제 UI 가 꺼진 바이너리(KAN-66)에서 초대 코드 지급 줄만 보일 때(KAN-182).
+   * 요금제 관리 화면이 없으니 [>] 도 누름도 없다
+   */
+  isNavigable?: boolean;
 }
 
+/**
+ * 카드에 그릴 줄들 — 초대 코드 지급 중이면 이벤트 줄을 더한다(KAN-182). **구독 없이(무료) 지급 중이면 이벤트 줄 하나만**
+ * 그린다 — "무료 이용 중"과 "Pro 이벤트 이용 중"이 함께 보이면 서로 어긋난다. 구독 중이면 구독 줄 밑에 이벤트 줄
+ */
+export const planLines = (vm: PlanRowVM): string[] => {
+  if (vm.eventLine === null) return [valueText(vm)];
+  return vm.kind === 'free' ? [vm.eventLine] : [valueText(vm), vm.eventLine];
+};
+
 /** 상태별 본문 — 프로필 플랜 카드와 같은 문구·같은 톤을 쓴다(settings-uiux.md 4.1 표) */
-export const valueText = (vm: PlanRowVM): string => {
+export const valueText = (vm: PlanRowStatusVM): string => {
   switch (vm.kind) {
     case 'free':
       // 체험 여부는 서버의 plan.trial로만 본다 — tier === 'trial' 분기 금지(settings-api.md 4.1)
@@ -49,6 +63,7 @@ export default function PlanSummaryCard({
   onPress,
   onRetry,
   isRetrying,
+  isNavigable = true,
 }: PlanSummaryCardProps) {
   if (state.kind === 'error') {
     return (
@@ -69,14 +84,37 @@ export default function PlanSummaryCard({
   }
 
   const vm = state.data;
+  const lines = planLines(vm);
+  const body = (
+    <View style={styles.lines}>
+      {lines.map((line, index) => (
+        <Text
+          key={line}
+          style={[
+            index === 0 ? styles.value : styles.subValue,
+            index === 0 && vm.kind === 'grace' && styles.valueDanger,
+          ]}
+        >
+          {line}
+        </Text>
+      ))}
+    </View>
+  );
+  if (!isNavigable) {
+    return (
+      <View style={styles.card} accessible accessibilityLabel={lines.join(', ')}>
+        {body}
+      </View>
+    );
+  }
   return (
     <Pressable
       style={({ pressed }) => [styles.card, pressed && styles.pressed]}
       onPress={onPress}
       accessibilityRole="button"
-      accessibilityLabel={`${valueText(vm)}, ${SETTINGS_COPY.plan.a11y}`}
+      accessibilityLabel={`${lines.join(', ')}, ${SETTINGS_COPY.plan.a11y}`}
     >
-      <Text style={[styles.value, vm.kind === 'grace' && styles.valueDanger]}>{valueText(vm)}</Text>
+      {body}
       {/* 모든 상태가 같은 [>] — 무료의 [구독 알아보기] 알약은 뺐다(PM 2026-10-09 "> 이거로 퉁치자"). 카드 전체가 같은 목적지다 */}
       <View style={styles.chevron} accessibilityElementsHidden importantForAccessibility="no">
         <ChevronIcon direction="right" size={CHEVRON_SIZE} color={theme.color.textSecondary} />
@@ -124,10 +162,21 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: theme.color.primary,
   },
+  /** 줄 묶음 — [>] 와 나란히 남은 폭을 쓴다 */
+  lines: {
+    flexShrink: 1,
+    gap: 2,
+  },
   value: {
     fontSize: theme.font.size.md,
     fontWeight: '600',
     color: theme.color.textPrimary,
+    flexShrink: 1,
+  },
+  /** 이벤트 줄(KAN-182) — 구독 줄 밑의 보조 정보 */
+  subValue: {
+    fontSize: theme.font.size.sm,
+    color: theme.color.textSecondary,
     flexShrink: 1,
   },
   valueDanger: {

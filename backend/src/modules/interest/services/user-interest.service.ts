@@ -20,6 +20,7 @@ import {
   UserInterestSelectionView,
 } from '../interest.types';
 import { UserInterestRepository } from '../repositories/user-interest.repository';
+import { UserMarket } from '@/modules/user/user.enum';
 
 /**
  * `user_interests`는 interest 모듈 소유다(domain.md 2장).
@@ -206,6 +207,8 @@ export class UserInterestService {
     manager?: EntityManager,
   ): Promise<string[]> {
     await this.assertSelectable(topicIds, manager);
+    const user = await this.userService.getById(userId, manager);
+    await this.assertSameMarket(user.market, topicIds, manager);
 
     // 같은 사용자의 동시 저장을 직렬화한다 — 관리 경로(`replaceManagedSelection`)와 같은 이유다.
     // 잠그지 않으면 두 요청이 같은 스냅샷을 읽고 각자 INSERT해 유니크 위반(500)이 난다
@@ -336,9 +339,10 @@ export class UserInterestService {
       // 사유는 `findEditableSelection` 참고. 입력 검증보다 앞선 전제 조건이다
       this.userOnboardingService.assertCompleted(user);
 
-      // 검증 순서는 하한 → 주제 유효성 → 상한 (interest-management-api.md 4.3)
+      // 검증 순서는 하한 → 주제 유효성 → 시장 → 상한 (interest-management-api.md 4.3 · global-api.md 4.5)
       this.assertManagedShape(topicIds);
       await this.assertTopicsAvailable(topicIds, manager);
+      await this.assertSameMarket(user.market, topicIds, manager);
 
       const existing = await this.userInterestRepository.findAllByUserId(
         userId,
@@ -649,6 +653,31 @@ export class UserInterestService {
         status: HttpStatus.BAD_REQUEST,
         errorCode: ErrorCode.ONBOARDING_TOPIC_UNAVAILABLE,
         message: '선택할 수 없는 주제가 포함돼 있어요',
+      });
+    }
+  }
+
+  /**
+   * 다른 시장의 주제는 저장하지 않는다(`global-api.md` 4.5) — 섞이면 그 주제의 콘텐츠가 추천 후보가 되지 못해 관심사가 조용히
+   * 죽고, 반대로 격리가 새는 경로가 된다. 409 `MARKET_MISMATCH`, 부분 저장 없음.
+   */
+  private async assertSameMarket(
+    userMarket: UserMarket,
+    topicIds: string[],
+    manager?: EntityManager,
+  ): Promise<void> {
+    if (topicIds.length === 0) {
+      return;
+    }
+
+    const topics = await this.topicService.findAllByIds(topicIds, manager);
+
+    if (topics.some((topic) => topic.market !== userMarket)) {
+      throw new BusinessException({
+        status: HttpStatus.CONFLICT,
+        errorCode: ErrorCode.MARKET_MISMATCH,
+        message: '요청을 처리할 수 없어요',
+        logLevel: 'warn',
       });
     }
   }

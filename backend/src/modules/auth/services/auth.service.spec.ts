@@ -78,6 +78,7 @@ describe('AuthService', () => {
       getById: jest.fn(() => Promise.resolve(buildUser())),
       createUser: jest.fn(() => Promise.resolve(buildUser())),
       syncProfileImageUrl: jest.fn((user: User) => Promise.resolve(user)),
+      syncLocale: jest.fn((user: User) => Promise.resolve(user)),
       grantExistingUserTrial: jest.fn((user: User) => Promise.resolve(user)),
     } as unknown as jest.Mocked<UserService>;
 

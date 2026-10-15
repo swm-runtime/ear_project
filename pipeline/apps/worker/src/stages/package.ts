@@ -1,11 +1,17 @@
 import fs from "node:fs/promises";
 import path from "node:path";
+import { otherSpeaker, pipelineLocale, speakerNames } from "@ear/pipeline";
 import { cfg, executedBy } from "../config.js";
 import { enqueue, getBacklog, getEpisode, insertRun, majorOfMidTopic, pool, setBacklogStatus, type Job } from "../db.js";
 import { workerRev } from "../assets.js";
 import { probeDurationSec } from "../tts/audio.js";
 import { exists, localPathOf, pullPrefix, pushPrefix, s3Key } from "../storage.js";
 import { log } from "../util.js";
+import { countWords, WORDS_PER_MIN_EN } from "../script-length.js";
+import { parseScriptForTts } from "../tts/script.js";
+
+/** topics.explainer 가 비었을 때의 해설 — 한국판은 종전 그대로 이음, 글로벌판은 역할 고정이라 첫째 진행자(글로벌 명세 6.4) */
+const defaultExplainer = (): string => (pipelineLocale() === "en" ? speakerNames()[0] : "이음");
 
 /**
  * 패키지 단계 (spec/07 2장) — 발행 메타 upload-meta.json 산출 + 상태 packaged(사람 검수 대기) 전환.
@@ -33,9 +39,13 @@ export async function runPackage(job: Job) {
     throw new Error(`패키지는 qa_passed 이후에만 (현재: ${r.status}) — 불변 원칙 6`);
   }
 
+  // 글로벌판(KAN-202, global-api 4.9 · 글로벌 명세 6.9): 주제 1~2개(대표 먼저)와 market·language 를 싣는다 — 콘솔이 발행 payload 로 옮긴다. 한국판은 키를 더하지 않는다
+  const global = pipelineLocale() === "en"
+    ? { market: "global" as const, language: "en" as const, topics: [cand.mid_topic, ...(await pool.query("select sub_topic from public.backlog where id = $1", [backlogId]).then((x) => (x.rows[0]?.sub_topic as string | null) ?? null).then((v) => (v && v !== cand.mid_topic ? [v] : [])))] }
+    : null;
   const [major, explainer] = await Promise.all([
     majorOfMidTopic(cand.mid_topic),
-    pool.query("select explainer from public.topics where mid = $1", [cand.mid_topic]).then((x) => (x.rows[0]?.explainer as string) ?? "이음"),
+    pool.query("select explainer from public.topics where mid = $1", [cand.mid_topic]).then((x) => (x.rows[0]?.explainer as string) ?? defaultExplainer()),
   ]);
 
   // 분량: 오디오가 있으면 실측, 없으면 대본 글자수 환산 (341자/분 — eleven_v4 실측, spec/04)
@@ -44,7 +54,10 @@ export async function runPackage(job: Job) {
   if (distLocal && (await exists(distLocal))) durationMin = Math.round((await probeDurationSec(distLocal)) / 60);
   else if (localPathOf(ep.script_key) && (await exists(localPathOf(ep.script_key)!))) {
     const md = await fs.readFile(localPathOf(ep.script_key)!, "utf-8");
-    durationMin = Math.round(md.replace(/[^가-힣A-Za-z0-9]/g, "").length / 341);
+    // 글로벌판: 발화 턴 단어 수 ÷ 150 (잠정 — 파일럿 3편 실측 후 확정, script-length.ts · KAN-203)
+    durationMin = pipelineLocale() === "en"
+      ? Math.round(parseScriptForTts(md).turns.reduce((n, t) => n + countWords(t.text), 0) / WORDS_PER_MIN_EN)
+      : Math.round(md.replace(/[^가-힣A-Za-z0-9]/g, "").length / 341);
   }
 
   const meta = {
@@ -57,8 +70,9 @@ export async function runPackage(job: Job) {
     one_liner: (r.one_liner as string) ?? null,
     major_topic: major,
     mid_topic: cand.mid_topic,
+    ...(global ?? {}),
     explainer,
-    host: explainer === "윤아" ? "이음" : "윤아",
+    host: otherSpeaker(explainer),
     duration_min_estimate: durationMin,
     sources: cand.sources.map((s) => ({ publisher: s.publisher, title: s.title, url: s.url })), // 노출 표기 규격은 미결 #16
     // 업로드 화면이 썸네일을 미리 채울 때 쓴다(KAN-50 4번). 실제 바이트는 /api/publish 가 S3 에서 중계한다

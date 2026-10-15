@@ -21,6 +21,7 @@ import { approveBacklogAuto, enqueue, getSetting, hasActiveDraftJob, hasActiveJo
 import { executedBy } from "./config.js";
 import { workerRev } from "./assets.js";
 import { log } from "./util.js";
+import { pipelineLocale } from "@ear/pipeline";
 
 export interface AutomationSetting { auto_approve?: boolean; auto_publish_prep?: boolean; rule?: string; server_ai_claim?: boolean }
 export const AUTO_RULE = "v1";
@@ -47,6 +48,8 @@ export function autoApproveBlocker(row: AutoApproveRow): string | null {
 
 /** proposed 후보 중 규칙을 통과한 것을 승인하고 draft 작업을 건다. 루프마다 호출 — 승인할 것이 없으면 쿼리 1번 */
 export async function autoApprove(): Promise<number> {
+  // 글로벌판은 설정과 무관하게 자동 승인하지 않는다 — 소스가 풀 밖에서 와 게이트 1은 사람만(글로벌 명세 5장 원칙 6·6.3)
+  if (pipelineLocale() === "en") return 0;
   const s = await readAutomation();
   if (!s.auto_approve) return 0;
   let n = 0;

@@ -10,7 +10,7 @@ import {
   PUSH_RECEIPT_MAX_PENDING,
 } from '../notification.constant';
 import { PushClient } from '../push/push.client';
-import { UninstallAlertService } from './uninstall-alert.service';
+import { UninstallEstimateService } from './uninstall-estimate.service';
 
 interface PendingReceipt {
   ticketId: string;
@@ -37,7 +37,7 @@ export class PushReceiptService {
   constructor(
     private readonly pushClient: PushClient,
     private readonly deviceTokenService: DeviceTokenService,
-    private readonly uninstallAlertService: UninstallAlertService,
+    private readonly uninstallEstimateService: UninstallEstimateService,
   ) {}
 
   track(
@@ -129,8 +129,8 @@ export class PushReceiptService {
         now,
       );
     const invalidated = invalidatedRows.length;
-    // 마지막 활성 토큰이 죽은 사용자 → 앱 삭제 추정(iOS 만 Slack). 던지지 않는다
-    await this.uninstallAlertService.notifyIfLastToken(invalidatedRows, now);
+    // 마지막 활성 토큰이 죽은 사용자 → 앱 삭제 추정(로그만). 던지지 않는다
+    await this.uninstallEstimateService.recordIfLastToken(invalidatedRows);
 
     if (answered.size > 0) {
       this.logger.log('push receipts checked', {

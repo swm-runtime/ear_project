@@ -6,10 +6,12 @@ import { executedBy } from "../config.js";
 import { workerRev } from "../assets.js";
 import { ApiLimit, RetryLater } from "../util.js";
 import type { Executor } from "../executors/index.js";
-import { assetPaths, buildDesignPrompt, buildWritePromptParts, DESIGN_SCHEMA, WRITE_SCHEMA, type BacklogCandidate, type INTRO_STYLES, type Templates } from "@ear/pipeline";
+import { assetPaths, buildDesignPrompt, buildWritePromptParts, DESIGN_SCHEMA, buildWritePromptPartsEn, outlineMarks, pipelineLocale, scriptZones, WRITE_SCHEMA, WRITE_SCHEMA_EN, type BacklogCandidate, type IntroStyle, type Templates } from "@ear/pipeline";
 import { exists, hostOf, log } from "../util.js";
 import { parseScriptForTts, type ScriptTurn } from "../tts/script.js";
 import { runDesignSingle } from "./design-single.js";
+import { countWords, MIN_WORDS_EN, WORDS_PER_MIN_EN } from "../script-length.js";
+import { addPronunciations } from "../tts/normalize.js";
 
 /**
  * 초안 2단계 (2026-09-08 — "축이 이끄는 파이프라인" ③, spec/04 2장).
@@ -25,7 +27,7 @@ export interface WriteOut { title: string; one_liner?: string; script: string; s
 export interface TwoStageArgs {
   job: Job; ex: Executor; episodeId: string; candidate: BacklogCandidate; dir: string; rel: string;
   assetRoot: string; promptVersion: string; templates: Templates | null; majorTopic?: string;
-  introStyle: (typeof INTRO_STYLES)[number]; fileTools: string[];
+  introStyle: IntroStyle; fileTools: string[];
   signoffSeed?: number;
   /** 실험 no-gold (2026-09-15): 설계·대본 프롬프트에서 골드 예시를 뺀다 — settings.experiments.no_gold_backlog_ids 에 든 후보만 */
   noGold?: boolean;
@@ -85,8 +87,9 @@ export async function runTwoStageDraft(a: TwoStageArgs): Promise<TwoStageResult>
   ]);
   const pronFile = path.join(dir, "pronunciations.json");
   const pronunciationsJson = (await exists(pronFile)) ? await read(pronFile) : "{}";
-  const estimatedMinutes = design?.estimated_minutes || Number(outlineMd.match(/^예상 분량:\s*(\d+(?:\.\d+)?)\s*분/m)?.[1]) || 15; // 설계 이어받기면 outline.md 에서 읽는다
-  const parts = buildWritePromptParts({ episodeId, candidate: cand, introStyle: a.introStyle, promptVersion: a.promptVersion, templates: a.templates, majorTopic: a.majorTopic, signoffSeed: a.signoffSeed, estimatedMinutes, guidelines, specScript, goldFullEum, goldFullYuna, sourcesMd, claimsMd, outlineMd, pronunciationsJson });
+  const estimatedMinutes = design?.estimated_minutes || Number(outlineMd.match(outlineMarks().estimate)?.[1]) || 15; // 설계 이어받기면 outline.md 에서 읽는다
+  const en = pipelineLocale() === "en"; // 글로벌판: 영어 대본 프롬프트·스키마 (global-prompts.ts)
+  const parts = (en ? buildWritePromptPartsEn : buildWritePromptParts)({ episodeId, candidate: cand, introStyle: a.introStyle, promptVersion: a.promptVersion, templates: a.templates, majorTopic: a.majorTopic, signoffSeed: a.signoffSeed, estimatedMinutes, guidelines, specScript, goldFullEum, goldFullYuna, sourcesMd, claimsMd, outlineMd, pronunciationsJson });
   log(`  draft ${episodeId} · 2/2 대본 (단발, 공유 ${Math.round(parts.system.length / 1000)}K + 편별 ${Math.round(parts.user.length / 1000)}K자)`);
   let w: Awaited<ReturnType<typeof ex.run<WriteOut>>>;
   try {
@@ -105,12 +108,12 @@ export async function runTwoStageDraft(a: TwoStageArgs): Promise<TwoStageResult>
     throw e;
   }
   async function runWrite() { return ex.run<WriteOut>({
-    prompt: parts.user, systemPrompt: parts.system, schema: WRITE_SCHEMA,
+    prompt: parts.user, systemPrompt: parts.system, schema: en ? WRITE_SCHEMA_EN : WRITE_SCHEMA,
     tools: [], allowedTools: [], cwd: cfg.workRoot, timeoutMs: 60 * 60_000, model: cfg.draftWriteModel, maxThinkingTokens: cfg.thinkingWrite, effort: cfg.effortWrite, // 60분 — opus 대본 실측 30분+ (2026-09-09)
     onProgress: (pr) => setJobProgress(job.id, { ...pr, phase: "대본 2/2 — 단발 작성", detail: pr.turns > 0 ? "대본 작성 중 (도구 없음)" : pr.detail }).catch(() => {}),
   }); }
   const o = w.output;
-  if (!o.script || !/## \[인트로\]/.test(o.script)) throw new Error(`2단계 대본이 비었거나 구역 헤더가 없음 (script ${o.script?.length ?? 0}자). notes="${(o.notes ?? "").slice(0, 200)}"`);
+  if (!o.script || !o.script.includes(`## [${scriptZones().intro}]`)) throw new Error(`2단계 대본이 비었거나 구역 헤더가 없음 (script ${o.script?.length ?? 0}자). notes="${(o.notes ?? "").slice(0, 200)}"`);
 
   // 산출물은 워커가 쓴다 — 모델이 파일을 안 쓰는 사고(산출물 누락)가 구조적으로 사라진다
   await fs.writeFile(path.join(dir, "script.md"), o.script.trim() + "\n", "utf8");
@@ -132,13 +135,13 @@ export async function runTwoStageDraft(a: TwoStageArgs): Promise<TwoStageResult>
   if (o.pronunciations_added.length) {
     let cur: Record<string, string> = {};
     try { cur = JSON.parse(pronunciationsJson); } catch { cur = {}; }
-    for (const p of o.pronunciations_added) if (p.term.trim() && p.reading.trim() && !(p.term in cur)) cur[p.term] = p.reading;
+    addPronunciations(cur, o.pronunciations_added); // 글로벌판은 힌트 없는 등재도 남긴다(명세 6.7)
     await fs.writeFile(pronFile, JSON.stringify(cur, null, 2) + "\n", "utf8");
   }
 
   const stats = scriptStats(o.script);
   const writeCost = w.listCostUsd ?? 0;
-  const summary = `${episodeId} 초안 완료 (2단계 · ${ex.kind}, 도입 ${a.introStyle.label}, 템플릿 ${a.templates?.version ?? "미적용"}). ${designSummary}. 대본: "${o.title}" ${stats.turns}턴·${stats.chars}자·약 ${stats.minutes}분 · claims 대응 턴 ${o.turn_claims.length} · 새 연결 ${o.bridges.length} · 자기 점검 수정 ${o.self_check_fixes.length}건 · 구간 준수 ${o.sections_followed ? "예" : "아니오"}. 비용 설계 $${designCost.toFixed(2)} + 대본 $${writeCost.toFixed(2)} (effort ${cfg.effortDesign ?? "기본"}/${cfg.effortWrite ?? "기본"}). ${o.notes}`;
+  const summary = `${episodeId} 초안 완료 (2단계 · ${ex.kind}, 도입 ${a.introStyle.label}, 템플릿 ${a.templates?.version ?? "미적용"}). ${designSummary}. 대본: "${o.title}" ${stats.turns}턴·${stats.words !== undefined ? `${stats.words}단어` : `${stats.chars}자`}·약 ${stats.minutes}분 · claims 대응 턴 ${o.turn_claims.length} · 새 연결 ${o.bridges.length} · 자기 점검 수정 ${o.self_check_fixes.length}건 · 구간 준수 ${o.sections_followed ? "예" : "아니오"}. 비용 설계 $${designCost.toFixed(2)} + 대본 $${writeCost.toFixed(2)} (effort ${cfg.effortDesign ?? "기본"}/${cfg.effortWrite ?? "기본"}). ${o.notes}`;
   return {
     summary, model: w.model ?? designModel, costUsd: designCost + writeCost,
     tokens: { design: designTokens, write: (w.raw as { usage?: unknown } | undefined)?.usage, design_model: designModel, write_model: w.model },
@@ -146,10 +149,15 @@ export async function runTwoStageDraft(a: TwoStageArgs): Promise<TwoStageResult>
   };
 }
 
-/** 공백·기호 제외 글자 수·턴 수·분량 환산 (341자/분 — eleven_v4 실측, 2026-10-08) — 모델 자기보고 대신 워커가 센다 */
-export function scriptStats(md: string): { turns: number; chars: number; minutes: number } {
+/** 공백·기호 제외 글자 수·턴 수·분량 환산 (341자/분 — eleven_v4 실측, 2026-10-08) — 모델 자기보고 대신 워커가 센다.
+ *  글로벌판은 단어 수를 더하고 분량을 단어 ÷ 150 으로 낸다(script-length.ts, KAN-203). 한국판에는 words 키가 없다 */
+export function scriptStats(md: string): { turns: number; chars: number; minutes: number; words?: number } {
   const p = parseScriptForTts(md);
   const chars = p.turns.reduce((n, t) => n + (t.text.match(/[가-힣A-Za-z0-9]/g)?.length ?? 0), 0);
+  if (pipelineLocale() === "en") {
+    const words = p.turns.reduce((n, t) => n + countWords(t.text), 0);
+    return { turns: p.turns.length, chars, words, minutes: Math.round((words / WORDS_PER_MIN_EN) * 10) / 10 };
+  }
   return { turns: p.turns.length, chars, minutes: Math.round((chars / 341) * 10) / 10 };
 }
 
@@ -157,6 +165,7 @@ export function scriptStats(md: string): { turns: number; chars: number; minutes
 /** @param opts.signoffHeads 템플릿 클로징 인사 골격들의 고정 머리(첫 {슬롯} 앞 문구, tpl-v2). 있으면 마지막 턴이 진행(Y) 턴이고 그중 하나를 담아야 한다 */
 export interface L0AttributionInput { claimsMd?: string; sourcesMd?: string; notesMd?: string; pronunciations?: Record<string, string> }
 export function twoStageViolations(scriptMd: string, outlineMd: string, opts: { signoffHeads?: string[] } & L0AttributionInput = {}): string[] {
+  if (pipelineLocale() === "en") return twoStageViolationsEn(scriptMd, outlineMd, opts);
   const v: string[] = [];
   const planned = [...outlineMd.matchAll(/^구간 #(\d+)/gm)].map((m) => Number(m[1]));
   const written = [...scriptMd.matchAll(/^### #(\d+)/gm)].map((m) => Number(m[1]));
@@ -277,6 +286,112 @@ export function twoStageViolations(scriptMd: string, outlineMd: string, opts: { 
 }
 
 /**
+ * 글로벌판 L0 (글로벌 명세 6.5, KAN-203) — 형식 계약만 본다: 구역 헤더·구성안 구간 계약·분량 하한(단어)·과다 분량·마지막 턴과 클로징 머리 문구.
+ * 한국어 문체·귀속 검사는 돌지 않는다. 영어 문체 검사는 영어 규칙 자산 v0 와 함께 정하고 파일럿 판정으로 늘린다.
+ * 메시지는 영어다 — 수정 재생성 프롬프트가 그대로 읽는다(명세 4.5: 모델이 읽는 글은 영어). 문체 검사(enStyleViolations)는 아래.
+ */
+export function twoStageViolationsEn(scriptMd: string, outlineMd: string, opts: { signoffHeads?: string[] } = {}): string[] {
+  const v: string[] = [];
+  const z = scriptZones();
+  const order = [z.intro, z.lead, z.body, z.outro];
+  const zones = [...scriptMd.matchAll(/^#{2,}\s*\[([^\]]+)\]/gm)].map((m) => m[1].trim());
+  if (zones.join("\u0000") !== order.join("\u0000")) v.push(`Zone headers are ${zones.length ? zones.map((x) => `[${x}]`).join(" ") : "missing"} — the script has exactly four zones, in this order: ${order.map((x) => `## [${x}]`).join(" → ")}`);
+  const marks = outlineMarks();
+  const planned = [...outlineMd.matchAll(marks.section)].map((m) => Number(m[1]));
+  const written = [...scriptMd.matchAll(/^### #(\d+)/gm)].map((m) => Number(m[1]));
+  if (planned.length && written.length !== planned.length) v.push(`The outline has ${planned.length} sections but the script has ${written.length} "### #n" headers — write every outline section, in outline order`);
+  else if (planned.length && written.some((n, i) => n !== planned[i])) v.push(`Section order differs from the outline (outline ${planned.join(",")} / script ${written.join(",")})`);
+  const s = scriptStats(scriptMd);
+  const words = s.words ?? 0;
+  if (words < MIN_WORDS_EN) v.push(`Length ${words} words (about ${s.minutes} min) — below the 13-minute floor (${MIN_WORDS_EN} words). Use more of the outline's material (reserve material, background); do not pad`);
+  const est = Number(outlineMd.match(marks.estimate)?.[1]);
+  if (est && s.minutes > est * 1.6) v.push(`Length ${words} words (about ${s.minutes} min) — more than 1.6× the outline estimate of ${est} min. Keep the material; shorten long explainer turns to land within ±15% of the estimate`);
+  const heads = (opts.signoffHeads ?? []).map((h) => h.replace(/\s+/g, " ").trim()).filter(Boolean);
+  if (heads.length) {
+    const p = parseScriptForTts(scriptMd);
+    const last = p.turns[p.turns.length - 1];
+    const text = last?.text.replace(/\s+/g, " ") ?? "";
+    if (!last?.id?.startsWith("Y")) v.push(`The last turn is not a host (Y) turn (${last?.id ?? "none"}) — after the explainer's wrap-up, the host closes with one sign-off turn ("${heads[0]} …")`);
+    else if (!heads.some((h) => text.includes(h))) v.push(`The last turn ${last.id} lacks the sign-off frame ("${heads[0]}"${heads.length > 1 ? ` or ${heads.length - 1} other${heads.length > 2 ? "s" : ""}` : ""}) — keep the template frame as is and fill only the {slots}`);
+  }
+  v.push(...enStyleViolations(parseScriptForTts(scriptMd).turns));
+  return v;
+}
+
+/** 글로벌판 문체 위반 표지 — 이 머리로 시작하는 위반은 L0 한도 뒤 남아도 QA 로 넘긴다(한국판 비율 규칙과 같은 취급, RATIO_RULE_MARKS) */
+export const EN_STYLE_MARK = "Style limit:";
+
+/**
+ * 글로벌판 문체 L0 (guidelines full-en 규칙 9·13·14·21·22·23~33·36·45·46, 2026-10-15). 정규식으로 잡히는 것만 — 판단이 필요한 것은 QA·비평이 본다.
+ * 계약 위반(대본 ID·제작 용어·군말과 지문·상대 시점·긴 해설 턴·턴당 수치 과다)은 한도 뒤 남으면 실패, 문체 위반(EN_STYLE_MARK)은 QA 로 넘긴다.
+ * 임계값은 첫 판이다 — 파일럿 첫 3편의 위반 분포를 보고 조정한다(CHANGELOG full-en-v0.1). 지목한 턴을 메시지에 적는다(수정 호출은 지목한 턴을 고친다).
+ * 템플릿 턴(인트로 Y1·[Closing] 첫 턴·마지막 턴)은 상대 시점·첫마디 검사에서 뺀다 — 골격 문구("Today we're talking about")가 걸리지 않게
+ */
+export function enStyleViolations(turns: ScriptTurn[]): string[] {
+  const v: string[] = [];
+  const zones = scriptZones();
+  const closingFirst = turns.findIndex((t) => t.section === zones.outro);
+  const isTemplate = (i: number) => i === 0 || i === turns.length - 1 || i === closingFirst;
+  const label = (t: ScriptTurn) => t.id ?? t.section;
+  const list = (hits: string[]) => `${hits.slice(0, 8).join(", ")}${hits.length > 8 ? " …" : ""}`;
+  const find = (re: RegExp, pick: (t: ScriptTurn, i: number) => boolean = () => true) =>
+    turns.flatMap((t, i) => { if (!pick(t, i)) return []; const m = t.text.match(re); return m ? [`${label(t)} "${m[0].trim()}"`] : []; });
+  const expl = (t: ScriptTurn) => !!t.id?.startsWith("E");
+
+  // ── 계약 (한도 뒤 남으면 실패) ──
+  const ids = find(/\bC\d{2,3}\b|\bS\d+-\d{2}\b/);
+  if (ids.length) v.push(`Claim or excerpt IDs in spoken lines (${list(ids)}) — IDs go only in turn_claims; remove them from the script (rule 36)`);
+  const prod = find(/\b(?:axis|outline|excerpts?|gold examples?|claims? (?:table|IDs?))\b|\b(?:this|next|last|previous|earlier|that) (?:section|block)\b/i);
+  if (prod.length) v.push(`Production words in spoken lines (${list(prod)}) — say it in the speakers' own words; never name the axis, outline, sections, blocks, claims, or excerpts (rule 36)`);
+  const noise = find(/\b(?:um+|uh+|erm)\b|\b(?:ha){2,}\b|\[[A-Za-z][A-Za-z ]*\]|\*[A-Za-z][A-Za-z ]*\*|\((?:laughs?|sighs?|pause|chuckles?)[^)]*\)/i);
+  if (noise.length) v.push(`Fillers, sound tags, or stage directions (${list(noise)}) — remove them; naturalness comes from content and rhythm (rule 32)`);
+  const time = find(/\b(?:today|nowadays|these days|currently|recently|this year|last year|next year)\b/i, (_t, i) => !isTemplate(i));
+  if (time.length) v.push(`Relative time words outside the templates (${list(time)}) — use a year or timeless wording (rule 46)`);
+  const sentences = (t: string) => t.replace(/\.{2,}|…/g, " ").match(/[.!?](?:["'”’)]*)(?:\s|$)/g)?.length ?? 0;
+  const long = turns.filter((t) => expl(t) && sentences(t.text) > 6).map((t) => `${label(t)} (${sentences(t.text)})`);
+  if (long.length) v.push(`Explainer turns over six sentences (${list(long)}) — split with a host question or tighten; a turn has at most 6 sentences (rule 22)`);
+  const numRe = /\d{1,2}:\d{2}|\d[\d,.]*/g; // 시각 9:30 은 수 하나
+  const nums = turns.filter((t) => expl(t) && (t.text.match(numRe)?.length ?? 0) >= 5).map((t) => `${label(t)} (${t.text.match(numRe)!.length})`);
+  if (nums.length) v.push(`Explainer turns with five or more numbers (${list(nums)}) — keep at most three per turn; drop numbers the point does not need (rule 45)`);
+
+  // ── 문체 (한도 뒤 남으면 QA 로) ──
+  const punct = find(/—|\s[–-]\s|;|\(|\)|:(?!\d)/);
+  if (punct.length) v.push(`${EN_STYLE_MARK} dashes, semicolons, colons, or parentheses in spoken lines (${list(punct)}) — use periods and commas (rule 21)`);
+  const vocab = find(/\b(?:crucial|pivotal|vital|fascinating|remarkable|profound|intricate|delv(?:e|es|ed|ing)|tapestry|testament|realm|underscor(?:e|es|ed|ing)|showcas(?:e|es|ed|ing)|foster(?:s|ed|ing)?|leverag(?:e|es|ed|ing)|resonat(?:e|es|ed|ing)|unpack(?:s|ed|ing)?|multifaceted|nuanced|seamless(?:ly)?|robust|transformative|groundbreaking|game-changer|ever-evolving)\b/i);
+  if (vocab.length) v.push(`${EN_STYLE_MARK} rating words or AI vocabulary (${list(vocab)}) — state the fact and its effect in plain words (rules 23 and 24)`);
+  const brochure = find(/\b(?:vibrant|timeless|iconic|nestled|steeped in|deeply rooted|hidden gem|must-see|breathtaking|rich (?:culture|cultural|history|heritage|tradition)|tradition meets modernity|where old meets new|land of the morning calm)\b/i);
+  if (brochure.length) v.push(`${EN_STYLE_MARK} brochure language (${list(brochure)}) — describe the specific thing (rule 25)`);
+  const inflated = find(/\b(?:serves as|stands as|plays an? (?:key|crucial|vital|pivotal|important) role|boasts)\b|,\s(?:highlighting|underscoring|reflecting|showcasing|emphasizing|signaling|symbolizing|demonstrating)\b/i);
+  if (inflated.length) v.push(`${EN_STYLE_MARK} inflated verbs or a comment tail (${list(inflated)}) — use "is" or a direct verb; say the meaning in its own sentence or drop it (rules 26 and 27)`);
+  const stock = find(/^(?:exactly|absolutely|totally|definitely|100%)\b|(?:^|[.!?]\s+)(?:exactly|absolutely|totally)[.!]|\b(?:great (?:question|point)|i love that|you're absolutely right|that makes sense|that's fascinating|oh,? interesting|and that's the (?:key|thing)|think of it like|in other words|i never thought of it that way|what a great way)\b|\bwow\b/i);
+  if (stock.length) v.push(`${EN_STYLE_MARK} stock reactions or praise (${list(stock)}) — pick up the specific detail instead (rules 13, 14, and 29)`);
+  const sign = find(/\b(?:let's (?:dive|unpack|break (?:it|this) down)|deep dive|here's the (?:thing|kicker)|here's where it gets|it's worth noting|it's important to note|that being said|at its core|to recap|in a nutshell|the bottom line|generally speaking)\b/i);
+  if (sign.length) v.push(`${EN_STYLE_MARK} signposting or tone hedges (${list(sign)}) — go straight to the content (rules 29 and 33)`);
+  const selfQ = find(/\b(?:the answer|why|how|the reason|the result)\?\s+[A-Z]/i, (t) => expl(t));
+  if (selfQ.length) v.push(`${EN_STYLE_MARK} self-answered questions in explainer turns (${list(selfQ)}) — questions belong to the host (rule 30)`);
+  const moral = find(/\b(?:it reminds us|food for thought|the real lesson|at the end of the day|it goes to show)\b/i);
+  if (moral.length) v.push(`${EN_STYLE_MARK} morals or slogans (${list(moral)}) — end on what the block answered (rule 31)`);
+  const contrastRe = /\bnot (?:just|only) \w|\bit'?s not [^.?!]{1,40}, it'?s\b|\brather than\b|\bnot [^.?!,]{1,30}, but\b/gi;
+  const contrast = turns.flatMap((t) => (t.text.match(contrastRe) ? [label(t)] : []));
+  const contrastN = turns.reduce((n, t) => n + (t.text.match(contrastRe)?.length ?? 0), 0);
+  if (contrastN > 2) v.push(`${EN_STYLE_MARK} contrast frames ("not X, but Y", "rather than", "not just") used ${contrastN} times (${list(contrast)}) — at most two per episode, only to correct a stated view (rule 28)`);
+  const opener = (t: string) => t.toLowerCase().replace(/[^a-z' ]/g, " ").trim().split(/\s+/).slice(0, 2).join(" ");
+  const counts = new Map<string, string[]>();
+  turns.forEach((t, i) => { if (isTemplate(i)) return; const o = opener(t.text); if (o) counts.set(o, [...(counts.get(o) ?? []), label(t)]); });
+  const repeated = [...counts].filter(([, ids]) => ids.length > 3).map(([o, ids]) => `"${o}" ×${ids.length} (${ids.slice(0, 4).join(", ")})`);
+  if (repeated.length) v.push(`${EN_STYLE_MARK} the same turn opener more than three times: ${repeated.join("; ")} — vary how turns start (rule 13)`);
+  const soTurns = turns.filter((t, i) => !isTemplate(i) && /^(?:so|okay,? so)\b/i.test(t.text.trim())).map(label);
+  if (soTurns.length >= 3 && soTurns.length > turns.length / 10) v.push(`${EN_STYLE_MARK} ${soTurns.length} turns open with "So" or "Okay, so" (${list(soTurns)}) — at most one turn in ten (rule 13)`);
+  const bodyY = turns.filter((t) => t.section === zones.body && t.id?.startsWith("Y"));
+  if (bodyY.length >= 6) {
+    const q = bodyY.filter((t) => t.text.includes("?")).length;
+    const r = q / bodyY.length;
+    if (r < 0.5 || r > 2 / 3) v.push(`${EN_STYLE_MARK} ${q} of ${bodyY.length} Body host turns are questions (${Math.round(r * 100)}%) — between half and two-thirds are questions; the rest are guesses, doubts, or reactions (rule 9)`);
+  }
+  return v;
+}
+
+/**
  * v9.4 정형 검사 (2026-09-29) — 29편 실측에서 편마다 같은 틀로 나온 것들. 규칙 문구(1·3·5·13-1·16·22·24)는 v9.3 에도 대부분 있었으나 지켜지지 않았다.
  * 임계값 근거(29편): 정리형 진행 턴 평균 29%(최대 56%) · "아니라" 편당 12.5회 · 사전 문형 2.2회 · "잠깐" 26편 · "○○님이라면" 28편 · 클로징 다짐형 24편 · "결국"/"이해하게 됩니다" 각 6·12편.
  * 지목한 턴을 메시지에 적는다 — 수정 호출은 최소 수정 원칙이라 턴을 지목해야 고친다(v8.3 뜸 교훈).
@@ -290,7 +405,9 @@ export const RATIO_RULE_MARKS = ["셋 중 하나가 상한이다", "질문은 �
   // v9.9.1 (2026-10-14): 문체 횟수 상한 둘도 한도 뒤엔 QA 로 넘긴다 — 사실·형식 위반이 아니라 말맛이라 초안을 멈출 사유가 아니다
   "명사절 감싸기는 편에 넷까지다", "\"~적인·~적으로\"는 편에 일곱 번까지다",
   // v9.10 (2026-10-14): 진행자의 추측을 맞장구 한마디로 받는 곳 — 주고받기 문체 규칙
-  "추측을 맞장구 한마디로 받는 곳은 편에 한 번까지다"] as const;
+  "추측을 맞장구 한마디로 받는 곳은 편에 한 번까지다",
+  // 글로벌판 문체 위반(enStyleViolations) — 한국판 메시지와 겹치지 않는 영어 머리
+  "Style limit:"] as const;
 export const isRatioViolation = (v: string): boolean => RATIO_RULE_MARKS.some((m) => v.includes(m));
 
 /** L0 수정 한도 (2026-10-07: 2 → 3) — QA 회차(qa.ts MAX_ATTEMPTS = QA 실행 3회, 실패 뒤 수정 2회)와 따로 센다 */

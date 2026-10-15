@@ -7,6 +7,7 @@ import {
   AdminNoticeCursorPosition,
   PublishedNoticeCursorPosition,
 } from './notice.types';
+import { UserMarket } from '@/modules/user/user.enum';
 
 @Injectable()
 export class NoticeRepository {
@@ -28,10 +29,12 @@ export class NoticeRepository {
     now: Date,
     cursor: PublishedNoticeCursorPosition | null,
     take: number,
+    market: UserMarket,
   ): Promise<Notice[]> {
     const builder = this.repository
       .createQueryBuilder('notice')
-      .where('notice.published_at IS NOT NULL')
+      .where('notice.market = :market', { market })
+      .andWhere('notice.published_at IS NOT NULL')
       .andWhere('notice.published_at <= :now', { now })
       .orderBy('notice.is_pinned', 'DESC')
       .addOrderBy('notice.published_at', 'DESC')
@@ -53,10 +56,15 @@ export class NoticeRepository {
   }
 
   /** 발행된 공지 한 건. 초안·예약·삭제는 없는 것으로 본다 */
-  async findPublishedById(id: string, now: Date): Promise<Notice | null> {
+  async findPublishedById(
+    id: string,
+    now: Date,
+    market: UserMarket,
+  ): Promise<Notice | null> {
     return this.repository
       .createQueryBuilder('notice')
       .where('notice.id = :id', { id })
+      .andWhere('notice.market = :market', { market })
       .andWhere('notice.published_at IS NOT NULL')
       .andWhere('notice.published_at <= :now', { now })
       .getOne();
@@ -72,6 +80,7 @@ export class NoticeRepository {
   async findAdminPage(
     cursor: AdminNoticeCursorPosition | null,
     take: number,
+    market?: UserMarket,
   ): Promise<Notice[]> {
     const createdAt = "date_trunc('milliseconds', notice.created_at)";
     const builder = this.repository
@@ -81,10 +90,13 @@ export class NoticeRepository {
       .limit(take);
 
     if (cursor) {
-      builder.where(
+      builder.andWhere(
         `(${createdAt}, notice.id) < (:cursorCreatedAt, :cursorId)`,
         { cursorCreatedAt: cursor.createdAt, cursorId: cursor.id },
       );
+    }
+    if (market) {
+      builder.andWhere('notice.market = :market', { market });
     }
 
     return builder.getMany();

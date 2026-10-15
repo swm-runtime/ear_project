@@ -10,6 +10,7 @@ import {
 import { Request, Response } from 'express';
 import { Observable, tap } from 'rxjs';
 
+import { AuthenticatedRequest } from '@/common/decorators/current-user.decorator';
 import { getTraceId } from '@/common/middlewares/trace-id.middleware';
 import { redactSensitiveQuery } from '@/common/utils/redact-url.util';
 
@@ -51,15 +52,29 @@ export class LoggingInterceptor implements NestInterceptor {
     const durationMs = Number(process.hrtime.bigint() - startedAt) / 1_000_000;
     // 가드가 검증한 계정 UUID — 내부 식별자라 그 자체로는 누구인지 드러나지 않는다
     // (이메일·닉네임 같은 신원 값은 로그 금지 — convention.md 8.4). 비로그인 요청은 null
-    const user = (request as Request & { user?: { id?: string } }).user;
+    const user = (request as AuthenticatedRequest).user;
 
     this.logger.log('request completed', {
       trace_id: getTraceId(request),
       user_id: user?.id ?? null,
+      // 시장별 요청·오류율을 로그로 셀 수 있게(KAN-193) — 비로그인 요청은 null
+      market: user?.market ?? null,
       method: request.method,
       path: redactSensitiveQuery(request.url),
       status,
       duration_ms: Math.round(durationMs),
+      // 로케일은 로그·통계용이다(global-api.md 2.2) — 판정은 `users.market`. 값은 짧게 잘라 남긴다
+      accept_language: headerValue(request, 'accept-language'),
+      timezone: headerValue(request, 'x-timezone'),
     });
   }
+}
+
+const HEADER_LOG_LENGTH = 32;
+
+function headerValue(request: Request, name: string): string | null {
+  const raw = request.headers[name];
+  const value = Array.isArray(raw) ? raw[0] : raw;
+
+  return value ? value.slice(0, HEADER_LOG_LENGTH) : null;
 }

@@ -1,6 +1,7 @@
 import { CloudWatchClient, PutMetricDataCommand } from "@aws-sdk/client-cloudwatch";
 import { CloudWatchLogsClient, FilterLogEventsCommand } from "@aws-sdk/client-cloudwatch-logs";
 import { log } from "./util.js";
+import { pipelineLocale } from "@ear/pipeline";
 
 /**
  * 백엔드 ERROR 감시 → Slack 알림 (2026-09-04) — **워커 본 기능과 완전히 분리된 부가 모듈이다.**
@@ -40,6 +41,8 @@ let cursorTs = Date.now();
 /** 워커 기동 시 1회 호출 — 켜졌는지 여부만 돌려준다 */
 export function startLogWatch(): "on" | "off" {
   if (!WEBHOOK_URL) return "off";
+  // 백엔드 로그 감시는 한국판 서버 워커 하나만 — 글로벌판 워커가 같은 웹훅을 받아도 같은 오류를 두 번 올리지 않는다(KAN-208)
+  if (pipelineLocale() === "en") return "off";
 
   const timer = setInterval(() => void tick(), INTERVAL_MS);
   timer.unref(); // 이 타이머가 프로세스 종료(--once·--drain)를 붙잡지 않는다

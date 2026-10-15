@@ -29,6 +29,7 @@ import { ReplaceOnboardingInterestsResponseDto } from './dto/replace-onboarding-
 import { UpdateOnboardingCareerRequestDto } from './dto/update-onboarding-career-request.dto';
 import { UpdateOnboardingCareerResponseDto } from './dto/update-onboarding-career-response.dto';
 import { OnboardingOrchestrator } from './onboarding.orchestrator';
+import { toUserMarket } from '@/modules/user/policies/market.policy';
 
 /**
  * onboarding-api.md 3장 — 온보딩 API는 **전부 인증이 필요하다.**
@@ -56,9 +57,13 @@ export class OnboardingController {
   }
 
   @Get('topics')
-  async getTopics(): Promise<GetOnboardingTopicsResponseDto> {
+  async getTopics(
+    @CurrentUser() currentUser: AuthenticatedUser,
+  ): Promise<GetOnboardingTopicsResponseDto> {
     return GetOnboardingTopicsResponseDto.from(
-      await this.onboardingOrchestrator.getTopics(),
+      await this.onboardingOrchestrator.getTopics(
+        toUserMarket(currentUser.market),
+      ),
     );
   }
 

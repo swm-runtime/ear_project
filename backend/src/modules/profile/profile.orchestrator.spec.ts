@@ -9,7 +9,7 @@ import { PlanStatus } from '@/modules/subscription/subscription.enum';
 import { PlanView } from '@/modules/subscription/subscription.types';
 import { User } from '@/modules/user/entities/user.entity';
 import { UserService } from '@/modules/user/services/user.service';
-import { SocialProvider, UserTier } from '@/modules/user/user.enum';
+import { SocialProvider, UserMarket, UserTier } from '@/modules/user/user.enum';
 
 import { ProfileSection } from './profile.enum';
 import { ProfileOrchestrator } from './profile.orchestrator';
@@ -28,6 +28,7 @@ function buildUser(overrides: Partial<User> = {}): User {
     email: 'user@example.com',
     isEmailVerified: false,
     tier: UserTier.LIGHT,
+    market: UserMarket.KR,
     jobCategory: '기획',
     jobTitle: '서비스 기획',
     yearsOfExperience: 4,
@@ -240,9 +241,33 @@ describe('ProfileOrchestrator', () => {
           '2026-08-09',
         ],
         1820,
+        UserMarket.KR,
       );
       expect(userService.countJoinedBefore).toHaveBeenCalledWith(
         new Date('2026-08-09T19:00:00.000Z'),
+        UserMarket.KR,
+      );
+    });
+
+    it('상위 %는 같은 시장 사용자끼리 센다 — GLOBAL 사용자는 GLOBAL 모집단·순위로 계산한다', async () => {
+      // given
+      userService.getById.mockResolvedValue(
+        buildUser({ market: UserMarket.GLOBAL }),
+      );
+      playbackService.sumListenedSecByDates.mockResolvedValue(
+        new Map([['2026-08-03', 600]]),
+      );
+
+      // when
+      await orchestrator.getSummary(USER_ID, NOW);
+
+      // then
+      expect(
+        playbackService.countUsersListenedMoreByDates,
+      ).toHaveBeenCalledWith(expect.any(Array), 600, UserMarket.GLOBAL);
+      expect(userService.countJoinedBefore).toHaveBeenCalledWith(
+        expect.any(Date),
+        UserMarket.GLOBAL,
       );
     });
 
@@ -536,6 +561,7 @@ describe('ProfileOrchestrator', () => {
       ]);
       expect(userService.countJoinedBefore).toHaveBeenCalledWith(
         new Date('2026-08-02T19:00:00.000Z'),
+        UserMarket.KR,
       );
     });
 

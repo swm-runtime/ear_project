@@ -11,6 +11,7 @@ import {
   DailyPlayQuota,
   ProgressView,
 } from '@/modules/playback/playback.types';
+import { ContentLanguage } from '@/modules/content/content.enum';
 
 export interface LibraryContentView {
   id: string;
@@ -22,6 +23,7 @@ export interface LibraryContentView {
   sourceUrl: string | null;
   durationSec: number;
   thumbnailUrl: string;
+  language: ContentLanguage;
   /** 재발행 판정용. 올라갔으면 클라이언트가 저장한 위치·오프라인 파일을 폐기한다 */
   contentVersion: number;
   topicIds: string[];

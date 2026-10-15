@@ -13,8 +13,8 @@ import {
 } from 'typeorm';
 
 import {
-  CONTENT_VISIBILITY_CONDITION,
-  contentVisibilityParameters,
+  CONTENT_SCOPE_CONDITION,
+  contentScopeParameters,
 } from '@/modules/content/content.visibility';
 
 import { LibraryItem } from './library-item.entity';
@@ -26,6 +26,7 @@ import {
   LibraryItemStatus,
 } from './library.enum';
 import { LibraryPageQuery } from './library.types';
+import { UserMarket } from '@/modules/user/user.enum';
 
 /**
  * 출처 필터 한 값이 덮는 `library_items.source` 값들(library-api.md 4.1).
@@ -186,6 +187,26 @@ export class LibraryItemRepository {
       },
       relations: { content: true },
       order: { addedAt: 'ASC', id: 'ASC' },
+    });
+  }
+
+  /**
+   * 기간 안에 적립된 편성분(정규·탐험) 전체 — 07:00 도착 알림이 05:00 배치 결과를 다시 읽는 경로다.
+   * 소프트 삭제된 항목은 빠진다(알림 전에 지운 편은 알리지 않는다). 사용자 → 적립 순.
+   */
+  async findAllWithContentBySourcesAddedBetween(
+    sources: LibraryItemSource[],
+    start: Date,
+    end: Date,
+    manager?: EntityManager,
+  ): Promise<LibraryItem[]> {
+    return this.scoped(manager).find({
+      where: {
+        source: In(sources),
+        addedAt: And(MoreThanOrEqual(start), LessThan(end)),
+      },
+      relations: { content: true },
+      order: { userId: 'ASC', addedAt: 'ASC', id: 'ASC' },
     });
   }
 
@@ -396,8 +417,8 @@ export class LibraryItemRepository {
       .innerJoinAndSelect(
         'item.content',
         'content',
-        CONTENT_VISIBILITY_CONDITION,
-        contentVisibilityParameters(now),
+        CONTENT_SCOPE_CONDITION,
+        contentScopeParameters(now, query.market),
       )
       .where('item.user_id = :userId', { userId: query.userId });
 
@@ -583,10 +604,14 @@ export class LibraryItemRepository {
    * 만들어진다. `GROUP BY`가 하는 일을 두 번 왕복해서 대신하고 있었다.
    *
    * 정렬은 `topics.display_order`다 — 노출 순서를 응답 조립부가 다시 정하지 않는다.
+   *
+   * 조건은 목록(`findPage`)과 같은 `CONTENT_SCOPE_CONDITION`(노출 + 시장)이다 — 시장만 빠지면 팝업에 주제가
+   * 뜨는데 눌렀을 때 목록이 비는 어긋남이 생긴다(2026-10-15).
    */
   async countByTopicForUser(
     userId: string,
     now: Date,
+    market: UserMarket,
     manager?: EntityManager,
   ): Promise<{ topicId: string; name: string; itemCount: number }[]> {
     const rows = await this.scoped(manager)
@@ -594,8 +619,8 @@ export class LibraryItemRepository {
       .innerJoin(
         'item.content',
         'content',
-        CONTENT_VISIBILITY_CONDITION,
-        contentVisibilityParameters(now),
+        CONTENT_SCOPE_CONDITION,
+        contentScopeParameters(now, market),
       )
       .innerJoin(
         'content_topics',
@@ -632,6 +657,7 @@ export class LibraryItemRepository {
   async findLatestResumable(
     userId: string,
     now: Date,
+    market: UserMarket,
     manager?: EntityManager,
   ): Promise<LibraryItem | null> {
     return this.scoped(manager)
@@ -639,8 +665,8 @@ export class LibraryItemRepository {
       .innerJoinAndSelect(
         'item.content',
         'content',
-        CONTENT_VISIBILITY_CONDITION,
-        contentVisibilityParameters(now),
+        CONTENT_SCOPE_CONDITION,
+        contentScopeParameters(now, market),
       )
       .where('item.user_id = :userId', { userId })
       .andWhere(

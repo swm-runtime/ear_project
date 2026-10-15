@@ -2,6 +2,7 @@ import { UserDripPlan } from '@/modules/drip-batch/drip-batch.types';
 import { ScoredCandidate } from '@/modules/drip/drip.types';
 import { UserInterestSource } from '@/modules/interest/interest.enum';
 import { LibraryItemSource } from '@/modules/library/library.enum';
+import { UserMarket } from '@/modules/user/user.enum';
 
 import {
   HIT_KS,
@@ -412,12 +413,17 @@ function buildPersonaContext(world: EvalWorld, start: Date): PersonaContext {
     );
   }
 
+  const topicsOf = (market: UserMarket) =>
+    [...byTopic.entries()]
+      .filter(([topicId]) => world.topics.get(topicId)?.market === market)
+      .sort((a, b) => b[1].length - a[1].length || a[0].localeCompare(b[0]))
+      .map(([topicId]) => topicId);
+
   return {
     world,
     start,
-    topics: [...byTopic.entries()]
-      .sort((a, b) => b[1].length - a[1].length || a[0].localeCompare(b[0]))
-      .map(([topicId]) => topicId),
+    topics: topicsOf(UserMarket.KR),
+    globalTopics: topicsOf(UserMarket.GLOBAL),
     contentsOf: (topicId) => byTopic.get(topicId) ?? [],
   };
 }
@@ -449,6 +455,7 @@ const INVARIANTS = [
   'within-plan-counts',
   'discovery-respects-removed-topics',
   'auto-expand-keeps-declared-interests',
+  'same-market',
 ] as const;
 
 type InvariantName = (typeof INVARIANTS)[number];
@@ -466,6 +473,7 @@ const INVARIANT_LABEL: Record<InvariantName, string> = {
     '사용자가 직접 해제한 주제의 콘텐츠는 탐험 편으로 가지 않는다',
   'auto-expand-keeps-declared-interests':
     '자동 확장은 직접 고른 관심 주제를 빼지 않고 자동 슬롯은 1개를 넘지 않는다',
+  'same-market': '정규·탐험 편성분은 전부 사용자 시장의 콘텐츠다',
 };
 
 /**
@@ -504,6 +512,14 @@ class InvariantCollector {
     for (const pick of [...regular, ...discovery]) {
       if (seen.has(pick.content.id)) {
         fail('no-seen-content', pick.content.title);
+      }
+    }
+
+    // 시장 격리(`global-api.md` 4.5·4.7) — 편성 경로가 사용자 시장을 후보 조회에 넘기지 않거나 후보 조회를 거치지 않는
+    // 경로가 생기면 여기서 걸린다. SQL 조건 자체는 e2e(`global-catalog-isolation`)가 본다
+    for (const pick of [...regular, ...discovery]) {
+      if (pick.content.market !== user.market) {
+        fail('same-market', `${pick.content.title} (${pick.content.market})`);
       }
     }
 

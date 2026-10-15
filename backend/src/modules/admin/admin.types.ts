@@ -1,6 +1,11 @@
-import { ContentOrigin, ContentStatus } from '@/modules/content/content.enum';
+import {
+  ContentLanguage,
+  ContentOrigin,
+  ContentStatus,
+} from '@/modules/content/content.enum';
 import { Content } from '@/modules/content/entities/content.entity';
 import { Topic } from '@/modules/interest/entities/topic.entity';
+import { UserMarket } from '@/modules/user/user.enum';
 
 /** 업로드된 파일 — multer 버퍼에서 필요한 것만 */
 /**
@@ -38,6 +43,9 @@ export interface UploadContentCommand {
   topicIds: string[];
   sources: SourceInput[];
   reviewConfirmed: boolean;
+  /** 시장·언어(`global-api.md` 4.9). 컨트롤러가 기본값(kr·ko)을 채워 넘긴다 */
+  market: UserMarket;
+  language: ContentLanguage;
   /** 압축 음질(`compressed`) — 필수 */
   audio: UploadedFileInput;
   /** 고음질(`aac`) · 무손실(`lossless`) — 선택(admin-api.md 4.6, KAN-141). 길이가 `audio`와 ±1초 안이어야 한다 */
@@ -114,6 +122,8 @@ export interface AdminContentPage {
 
 export interface AdminContentListQuery {
   status?: ContentStatus;
+  /** 시장 필터(`global-api.md` 4.10). 없으면 전 시장 */
+  market?: UserMarket;
   offset: number;
   limit: number;
 }
@@ -314,6 +324,28 @@ export interface InsightsDailyRows {
   completes: { date: string; count: number }[];
 }
 
+/**
+ * 시장별 집계(`global-api.md` 4.10, KAN-190) — 가입·활성·청취·결제를 시장마다 나눠 본다. PoC 성과를 읽으려면 어느 트랙이
+ * 움직였는지가 보여야 한다. 전부 **현재 계정** 기준이다 — 탈퇴 기록(`withdrawal_logs`)에는 시장이 없다.
+ */
+export interface InsightsMarketTotals {
+  market: UserMarket;
+  /** 현재 계정 수 */
+  users: number;
+  /** 그중 창(`since`) 안에 가입한 수 */
+  signupsInWindow: number;
+  onboardingCompleted: number;
+  /** 앱 사용(토큰 갱신) 기준 WAU — `users.active_7d`와 같은 정의 */
+  active7d: number;
+  /** 재생 기준 7일 — `users.listeners_7d`와 같은 정의 */
+  listeners7d: number;
+  /** 창 안 청취 시간·재생 수 — `listening.window`와 같은 정의 */
+  listenSec: number;
+  plays: number;
+  /** 결제 중인 사용자 — `users.paid_active`와 같은 정의 */
+  paidActive: number;
+}
+
 export interface InsightsSummary {
   since: Date;
   generatedAt: Date;
@@ -329,4 +361,5 @@ export interface InsightsSummary {
   withdrawalReasons: InsightsWithdrawalReason[];
   retention: InsightsRetention[];
   topicSupply: InsightsTopicSupply[];
+  byMarket: InsightsMarketTotals[];
 }

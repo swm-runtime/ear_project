@@ -41,6 +41,7 @@ const SUBSCRIBED: MySubscription = {
     renewsAt: '2026-11-06T03:00:00Z',
     expiresAt: null,
     hasPaymentIssue: false,
+    grant: null,
   },
   entitlements: { dailyPlayLimit: null, dailyDripCount: 2, dripEnabled: true, adsEnabled: false },
   store: 'app_store',

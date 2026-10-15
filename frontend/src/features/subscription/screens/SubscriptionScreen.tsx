@@ -145,6 +145,19 @@ export default function SubscriptionScreen() {
           ) : null}
         </View>
 
+        {/* 이벤트 알림(KAN-182) — 초대 코드 지급 중일 때만. 예약 알림과 같은 검정 면이고, 둘 다 있으면 이벤트가 먼저다 */}
+        {screen.eventNotice !== null ? (
+          <View
+            style={styles.notice}
+            accessible
+            accessibilityRole="summary"
+            accessibilityLabel={`${screen.eventNotice.title}. ${screen.eventNotice.detail}`}
+          >
+            <Text style={styles.noticeTitle}>{screen.eventNotice.title}</Text>
+            <Text style={styles.noticeDetail}>{screen.eventNotice.detail}</Text>
+          </View>
+        ) : null}
+
         {/* 알림 섹션(KAN-160) — 다음 결제부터 무엇이 바뀌는지. 예약이 없으면 자리도 없다 */}
         {notice !== null ? (
           <View

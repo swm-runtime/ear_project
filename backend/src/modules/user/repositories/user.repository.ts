@@ -1,9 +1,9 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { EntityManager, IsNull, Repository } from 'typeorm';
+import { EntityManager, In, IsNull, Repository } from 'typeorm';
 
 import { User } from '../entities/user.entity';
-import { SocialProvider, UserRole } from '../user.enum';
+import { SocialProvider, UserMarket, UserRole } from '../user.enum';
 
 @Injectable()
 export class UserRepository {
@@ -91,6 +91,20 @@ export class UserRepository {
       .getOne();
   }
 
+  /** 여러 사용자의 시장 — 알림 문구 언어를 한 번에 고르는 데 쓴다. 없는 id 는 결과에서 빠진다 */
+  async findMarketsByIds(
+    ids: string[],
+  ): Promise<{ id: string; market: UserMarket }[]> {
+    if (ids.length === 0) {
+      return [];
+    }
+
+    return this.repository.find({
+      select: { id: true, market: true },
+      where: { id: In(ids) },
+    });
+  }
+
   /**
    * 편성 배치 대상 한 페이지 — **온보딩을 마친 사용자 전부**다(`drip-scheduling.md` 2 —
    * 전 티어 대상, 티어는 편수만 가른다). 탈퇴자는 행이 삭제되므로 조건이 필요 없다.
@@ -115,16 +129,18 @@ export class UserRepository {
   }
 
   /**
-   * `before` 이전에 가입한 계정 수 — 주간 청취 상위 %의 모집단(KAN-168). 탈퇴자는 행이 삭제되므로
-   * 조건이 필요 없다.
+   * `before` 이전에 가입한 그 시장 계정 수 — 주간 청취 상위 %의 모집단(KAN-168 · 시장 분리 2026-10-15).
+   * 탈퇴자는 행이 삭제되므로 조건이 필요 없다.
    */
   async countCreatedBefore(
     before: Date,
+    market: UserMarket,
     manager?: EntityManager,
   ): Promise<number> {
     return this.scoped(manager)
       .createQueryBuilder('user')
       .where('user.created_at < :before', { before })
+      .andWhere('user.market = :market', { market })
       .getCount();
   }
 

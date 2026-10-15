@@ -2,7 +2,7 @@ import fs from "node:fs/promises";
 import { cfg, executedBy } from "../config.js";
 import { domainTierByHost, existingBacklogTitles, findDomainForUrl, insertBacklogAlloc, insertCandidateDomain, insertRun, majorOfMidTopic, midsOfMajor, poolDomainsForTopics, recentSourcesForTopics, recordFetchStatus, setBacklogStatus, setJobProgress, upsertSource, type Job } from "../db.js";
 import type { Executor } from "../executors/index.js";
-import { assetPaths, buildClusterPromptV2, buildTopicSeedSearchPrompt, CLUSTER_SCHEMA_V2, REINFORCE_SEARCH_SCHEMA, todayKst } from "@ear/pipeline";
+import { assetPaths, buildClusterPromptV2, buildTopicSeedSearchPrompt, CLUSTER_SCHEMA_V2, REINFORCE_SEARCH_SCHEMA, todayKst, pipelineLocale } from "@ear/pipeline";
 import { hostOf, log } from "../util.js";
 import { prepareAssets, workerRev } from "../assets.js";
 import { putFile, s3Key } from "../storage.js";
@@ -35,6 +35,8 @@ export async function runTopicSeed(job: Job, ex: Executor) {
 
   // ── 0. 후보 행 (held)
   const id = await insertBacklogAlloc({ mid_topic: midTopic, title: topic, summary: hint ?? "", target_fit: "", angle: "", sources: [], status: "held", dedup_note: `${TOPIC_SEED_MARK} 검색 진행 중 (${todayKst()}, 입력: "${topic.slice(0, 60)}")`, cluster_version: "v2", gaps: [] });
+  // 글로벌판 기획 입력만 싣는 값(2026-10-15 KAN-209 — 보조 주제·배제 주제 판정). 한국판 payload 에는 없어 이 줄을 타지 않는다
+  if (job.payload.sub_topic || job.payload.screen) await setBacklogStatus(id, "held", { ...(job.payload.sub_topic ? { sub_topic: String(job.payload.sub_topic) } : {}), ...(job.payload.screen ? { gate1_checks: JSON.stringify({ screen: job.payload.screen }) } : {}) });
   log(`  topic-seed ${id}: "${topic}" (${midTopic}) — 검색 시작`);
   try {
     // ── 1. 검색
@@ -73,7 +75,7 @@ export async function runTopicSeed(job: Job, ex: Executor) {
     await setJobProgress(job.id, { phase: `기획 2/2 — 판정 (${id}, 소스 ${added.length}건)`, detail: "", toolCounts: {}, turns: 0, elapsedMs: 0 }).catch(() => {});
     const { assetRoot, bundle } = await prepareAssets(null);
     const specBacklog = await fs.readFile(assetPaths(assetRoot, cfg.workRoot).specBacklog, "utf8");
-    const excerpt = ["## 3. 후보의 구성", "## 6. 게이트 1"].map((h) => { const a = specBacklog.indexOf(h); if (a < 0) return ""; const b = specBacklog.indexOf("\n## ", a + 3); return specBacklog.slice(a, b < 0 ? undefined : b); }).join("\n\n");
+    const excerpt = (pipelineLocale() === "en" ? ["## 3. Candidate structure", "## 6. Gate 1"] : ["## 3. 후보의 구성", "## 6. 게이트 1"]).map((h) => { const a = specBacklog.indexOf(h); if (a < 0) return ""; const b = specBacklog.indexOf("\n## ", a + 3); return specBacklog.slice(a, b < 0 ? undefined : b); }).join("\n\n");
     const meta: { n: number; url: string; title: string; summary: string | null; publisher: string; domain: string; published: string | null }[] = [];
     const seen = new Set<string>();
     const push = (s: { url: string; title: string; summary: string | null; publisher: string; domain: string; published: string | null }) => { if (seen.has(s.url)) return; seen.add(s.url); meta.push({ n: meta.length + 1, ...s }); };

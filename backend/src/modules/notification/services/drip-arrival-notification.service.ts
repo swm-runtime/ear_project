@@ -4,6 +4,8 @@ import { toServiceDayRange } from '@/common/utils/service-date.util';
 import { DeviceToken } from '@/modules/user/entities/device-token.entity';
 import { DeviceTokenService } from '@/modules/user/services/device-token.service';
 import { UserSettingService } from '@/modules/user/services/user-setting.service';
+import { UserService } from '@/modules/user/services/user.service';
+import { MessageLanguage } from '@/modules/user/user.enum';
 
 import { NotificationLog } from '../entities/notification-log.entity';
 import {
@@ -29,7 +31,7 @@ import {
 import { NotificationLogRepository } from '../repositories/notification-log.repository';
 import { PushClient } from '../push/push.client';
 import { PushReceiptService } from './push-receipt.service';
-import { UninstallAlertService } from './uninstall-alert.service';
+import { UninstallEstimateService } from './uninstall-estimate.service';
 
 interface OutgoingMessage {
   userId: string;
@@ -66,14 +68,17 @@ export class DripArrivalNotificationService {
     private readonly notificationLogRepository: NotificationLogRepository,
     private readonly deviceTokenService: DeviceTokenService,
     private readonly userSettingService: UserSettingService,
+    private readonly userService: UserService,
     private readonly pushClient: PushClient,
     private readonly pushReceiptService: PushReceiptService,
-    private readonly uninstallAlertService: UninstallAlertService,
+    private readonly uninstallEstimateService: UninstallEstimateService,
   ) {}
 
+  /** `nextBatchAt` — 이 사용자들 그룹의 다음 편성 배치 시각. 알림 보관 시한(`ttl`)이 여기까지다 */
   async notify(
     arrivals: DripArrival[],
     now: Date,
+    nextBatchAt: Date,
   ): Promise<DripArrivalNotifySummary> {
     const summary: DripArrivalNotifySummary = {
       sentCount: 0,
@@ -90,8 +95,10 @@ export class DripArrivalNotificationService {
     }
 
     const userIds = targets.map((arrival) => arrival.userId);
+    // 다음 배치가 새 알림을 보낸다 — 그 뒤까지 보관하면 며칠치 "오늘"이 한꺼번에 뜬다(`notification.md` 4.3)
+    const ttl = ttlUntilNextDripBatchSec(nextBatchAt, now);
     const { start, end } = toServiceDayRange(now);
-    const [alreadySent, disabled] = await Promise.all([
+    const [alreadySent, disabled, languages] = await Promise.all([
       this.notificationLogRepository
         .findUserIdsWithStatusBetween(
           userIds,
@@ -102,6 +109,7 @@ export class DripArrivalNotificationService {
         )
         .then((ids) => new Set(ids)),
       this.userSettingService.findDripNotificationDisabledUserIds(userIds),
+      this.userService.findMessageLanguagesByIds(userIds),
     ]);
     const devicesByUserId = groupByUserId(
       await this.deviceTokenService.findDeliverableByUserIds(
@@ -130,7 +138,12 @@ export class DripArrivalNotificationService {
       }
 
       deepLinkByUserId.set(arrival.userId, deepLink);
-      const message = buildMessage(arrival, deepLink, now);
+      const message = buildMessage(
+        arrival,
+        deepLink,
+        ttl,
+        languages.get(arrival.userId) ?? MessageLanguage.KO,
+      );
       const sentTokens = new Set<string>();
 
       for (const device of devicesByUserId.get(arrival.userId) ?? []) {
@@ -177,8 +190,8 @@ export class DripArrivalNotificationService {
           now,
         );
       summary.invalidatedDeviceCount = invalidatedRows.length;
-      // ticket 단계에서 드러난 삭제 — 마지막 활성 토큰이면 앱 삭제 추정(iOS 만 Slack)
-      await this.uninstallAlertService.notifyIfLastToken(invalidatedRows, now);
+      // ticket 단계에서 드러난 삭제 — 마지막 활성 토큰이면 앱 삭제 추정(로그만)
+      await this.uninstallEstimateService.recordIfLastToken(invalidatedRows);
     } catch (error) {
       this.logger.warn('push token invalidation failed', {
         device_count: invalidTokens.length,
@@ -294,15 +307,15 @@ function resolveDeepLink(arrival: DripArrival): string {
 function buildMessage(
   arrival: DripArrival,
   deepLink: string,
-  now: Date,
+  ttl: number,
+  language: MessageLanguage,
 ): Omit<PushMessage, 'to'> {
   const contents = [...arrival.regular, ...arrival.discovery];
 
   return {
-    title: buildDripArrivalTitle(contents.length),
+    title: buildDripArrivalTitle(contents.length, language),
     body: contents[0].title,
-    // 다음 배치가 새 알림을 보낸다 — 그 뒤까지 보관하면 며칠치 "오늘"이 한꺼번에 뜬다(`notification.md` 4.3)
-    ttl: ttlUntilNextDripBatchSec(now),
+    ttl,
     data: {
       type: NotificationType.DRIP_ARRIVAL,
       deep_link: deepLink,

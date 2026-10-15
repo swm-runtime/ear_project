@@ -4,8 +4,11 @@ import { ScriptSegment } from '@/modules/content/content.types';
 import { ContentService } from '@/modules/content/services/content.service';
 
 import { PlayPolicyService } from './play-policy.service';
+import { UserMarket } from '@/modules/user/user.enum';
 
 export interface GetScriptCommand {
+  /** 사용자 시장 — 다른 시장 콘텐츠는 ID로 와도 404(`global-api.md` 4.7) */
+  market: UserMarket;
   userId: string;
   contentId: string;
   now: Date;
@@ -37,6 +40,7 @@ export class ScriptService {
       command.contentId,
       undefined,
       command.now,
+      command.market,
     );
     await this.playPolicyService.assertPlayable(
       command.userId,

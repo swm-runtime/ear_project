@@ -2,6 +2,7 @@ import { AudioQuality } from '@/modules/content/content.enum';
 import {
   ConsentType,
   DevicePlatform,
+  PreferredLanguage,
   SocialProvider,
   WithdrawalReason,
   YearsOfExperienceRange,
@@ -13,6 +14,24 @@ import {
  */
 
 /** 소셜 프로필에서 환산한 계정 생성 입력 (auth.md 4.1) */
+/**
+ * 클라이언트가 보낸 로케일(`global-api.md` 4.1 `locale`). 전부 선택이다 — 구 앱은 보내지 않는다.
+ * `preferredLanguage`는 **계정 생성 때만** 뜻이 있고(시장 판정), 나머지 셋은 가입·로그인·기기 등록마다 갱신한다.
+ */
+export interface LocaleInput {
+  preferredLanguage?: PreferredLanguage | null;
+  languageCode?: string | null;
+  regionCode?: string | null;
+  timezone?: string | null;
+}
+
+/** 형식 검증을 거친 저장값 — 모르는 값은 null(`market.policy.ts` normalizeLocale) */
+export interface NormalizedLocale {
+  languageCode: string | null;
+  regionCode: string | null;
+  timezone: string | null;
+}
+
 export interface CreateUserCommand {
   provider: SocialProvider;
   providerUserId: string;
@@ -24,6 +43,8 @@ export interface CreateUserCommand {
   /** null = 제공자가 주지 않음 (domain.md 3.1 `profile_image_url`) */
   profileImageUrl: string | null;
   consents: ConsentInput[];
+  /** 시장 판정 입력 + 로케일 저장값. 없으면 `kr`·로케일 비움(구 앱) */
+  locale?: LocaleInput;
 }
 
 export interface ConsentInput {

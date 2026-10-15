@@ -1,6 +1,8 @@
 import { apiClient } from '@/shared/api/api-client';
 import type { DevicePlatform } from '@/shared/lib/device-platform';
 
+import { toPlanGrant } from '@/features/subscription';
+
 import { IS_SETTINGS_API_MOCKED } from '../settings.constants';
 import type {
   AudioQuality,
@@ -79,6 +81,8 @@ const toSettingsSummary = (dto: SettingsSummaryResponseDto): SettingsSummary => 
           renewsAt: dto.plan.renews_at,
           expiresAt: dto.plan.expires_at,
           hasPaymentIssue: dto.plan.has_payment_issue,
+          // 필드가 없으면(지급 배포 전 서버) 지급 없음으로 읽는다 — 변환은 구독 조회와 같다(KAN-182)
+          grant: toPlanGrant(dto.plan.grant),
           // 필드가 없으면(운영 반영 전 서버) 체험 아님으로 읽는다
           trialLastFreeDate: dto.plan.trial?.last_free_date ?? null,
           // 필드가 없으면(운영 반영 전 서버) 예약 없음으로 읽는다

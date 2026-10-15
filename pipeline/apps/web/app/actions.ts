@@ -2,20 +2,24 @@
 import { revalidatePath } from "next/cache";
 import { supabaseServer } from "@/lib/supabase-server";
 import { loadArtifact, replaceTurn, writeArtifact } from "@/lib/artifacts";
+import { pipelineLocale, speakerNames } from "@/lib/locale";
 import { deletePrefix, getBytes, getText, putBytes, putText } from "@/lib/storage";
 import { readScriptFileBody } from "@/lib/script-file";
-import { majorOrder } from "@/lib/taxonomy";
+import { majorOrder, majorTopicsFor } from "@/lib/taxonomy";
 import { ensureEmbedding } from "@/lib/embedding";
+import { gate1Check, type Gate1Domain, type Gate1Row } from "@/lib/gate1";
+import { screenGlobalTopic } from "@/lib/topic-screen";
 
-/** 음차 사전·발음 맵 공통 형식 검증 — {"표기": "발음"} 객체, 값은 비어 있지 않은 문자열 (spec/06 6장) */
-function assertPronunciationJson(content: string): Record<string, string> {
+/** 음차 사전·발음 맵 공통 형식 검증 — {"표기": "발음"} 객체, 값은 비어 있지 않은 문자열 (spec/06 6장).
+ *  allowEmpty: 글로벌판 에피소드 발음 맵 — 빈 값은 "등재했지만 힌트 없음"이고 TTS 의 발음 누락 검사가 멈춘다(글로벌 명세 6.7, KAN-203). 전역 사전은 늘 비어 있으면 안 된다 */
+function assertPronunciationJson(content: string, allowEmpty = false): Record<string, string> {
   let parsed: unknown;
   try { parsed = JSON.parse(content); }
   catch { throw new Error('JSON 이 아닙니다 — {"표기": "발음"} 객체여야 합니다'); }
   if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) throw new Error('{"표기": "발음"} 객체여야 합니다 (배열·문자열 불가)');
   for (const [k, v] of Object.entries(parsed)) {
     if (!k.trim()) throw new Error("빈 표기 키가 있습니다");
-    if (typeof v !== "string" || !v.trim()) throw new Error(`"${k}" 의 발음이 비어 있거나 문자열이 아닙니다`);
+    if (typeof v !== "string" || (!allowEmpty && !v.trim())) throw new Error(`"${k}" 의 발음이 비어 있거나 문자열이 아닙니다`);
   }
   return parsed as Record<string, string>;
 }
@@ -27,6 +31,10 @@ function assertPronunciationJson(content: string): Record<string, string> {
  */
 export async function setBacklogStatus(id: string, status: "approved" | "rejected" | "held" | "proposed" | "qa_passed" | "published") {
   const sb = await supabaseServer();
+  if (status === "approved" && pipelineLocale() === "en") { // 글로벌판 게이트 1 승인 조건(명세 6.3, KAN-209) — 화면이 버튼을 막고, 여기서 다시 검사한다. 한국판은 타지 않는다
+    const g = await loadGate1(id);
+    if (!g.ok) throw new Error(`게이트 1 조건 미충족: ${g.blockers.join(" · ")}`);
+  }
   const { error } = await sb.from("backlog").update({ status }).eq("id", id);
   if (error) throw new Error(error.message);
   if (status === "approved") {
@@ -37,6 +45,63 @@ export async function setBacklogStatus(id: string, status: "approved" | "rejecte
     }
   }
   revalidatePath("/backlog"); revalidatePath("/"); revalidatePath("/episodes");
+}
+
+/** 글로벌판 게이트 1 조건 검사 (lib/gate1.ts) — en 인스턴스에서만 부른다. 0028 칸(sub_topic·gate1_checks)은 en 쿼리에서만 읽는다 */
+export async function loadGate1(id: string) {
+  const sb = await supabaseServer();
+  const [{ data: row, error }, { data: domains }] = await Promise.all([
+    sb.from("backlog").select("sources,gaps,dedup_note,gate1_checks").eq("id", id).single(),
+    sb.from("domains").select("id,domain,tier"),
+  ]);
+  if (error || !row) throw new Error(`후보 ${id} 를 찾지 못했다`);
+  return gate1Check(row as Gate1Row, (domains ?? []) as Gate1Domain[]);
+}
+
+/** 글로벌판 게이트 1 조건 4 — 빈 역할·소스 겹침 경고를 사람이 확인했다는 기록. 기록자는 사용자 id(이메일은 남기지 않는다) */
+export async function confirmGate1Warnings(id: string) {
+  if (pipelineLocale() !== "en") throw new Error("글로벌판 전용 기능이다");
+  const sb = await supabaseServer();
+  const { data: { user } } = await sb.auth.getUser();
+  const { data: row, error } = await sb.from("backlog").select("gate1_checks").eq("id", id).single();
+  if (error || !row) throw new Error(`후보 ${id} 를 찾지 못했다`);
+  const checks = { ...((row.gate1_checks as Record<string, unknown> | null) ?? {}), warnings_confirmed: { at: new Date().toISOString(), by: user?.id ?? "unknown" } };
+  const { error: e2 } = await sb.from("backlog").update({ gate1_checks: checks }).eq("id", id);
+  if (e2) throw new Error(e2.message);
+  revalidatePath("/backlog");
+}
+
+/** 글로벌판 보조 주제 변경 — 후보 구성 뒤 더하거나 뺀다(명세 2장). 대표 주제(mid_topic)와 같으면 거부, 빈 값은 지움 */
+export async function setSubTopic(id: string, sub: string | null) {
+  if (pipelineLocale() !== "en") throw new Error("글로벌판 전용 기능이다");
+  const sb = await supabaseServer();
+  const names = majorTopicsFor("en");
+  if (sub && !names.includes(sub)) throw new Error(`모르는 주제: ${sub}`);
+  const { data: row } = await sb.from("backlog").select("mid_topic").eq("id", id).single();
+  if (sub && row?.mid_topic === sub) throw new Error("보조 주제가 대표 주제와 같다");
+  const { error } = await sb.from("backlog").update({ sub_topic: sub || null }).eq("id", id);
+  if (error) throw new Error(error.message);
+  revalidatePath("/backlog");
+}
+
+/**
+ * 글로벌판 주제 기획 입력 (명세 6.1, KAN-209) — 주제 1~2개(첫째가 대표)·제목안·메모. 배제 주제(2.1)면 작업을 만들지 않고 사유를 돌려준다.
+ * 거부는 throw 가 아니라 반환값으로 — 운영 빌드는 서버 액션 오류 문구를 가려 사유가 화면에 안 보인다.
+ */
+export async function requestGlobalTopicPlan(input: { topics: string[]; title: string; hint?: string }): Promise<{ ok: true; jobId: string } | { ok: false; reason: string }> {
+  if (pipelineLocale() !== "en") return { ok: false, reason: "글로벌판 전용 기능이다" };
+  const names = majorTopicsFor("en");
+  const topics = Array.from(new Set(input.topics.map((t) => t.trim()).filter(Boolean)));
+  if (topics.length < 1 || topics.length > 2) return { ok: false, reason: "주제는 1~2개다" };
+  const unknown = topics.filter((t) => !names.includes(t));
+  if (unknown.length) return { ok: false, reason: `모르는 주제: ${unknown.join(", ")}` };
+  const title = input.title.trim(); const hint = input.hint?.trim() || null;
+  if (title.length < 4) return { ok: false, reason: "제목안이 너무 짧다" };
+  let screen;
+  try { screen = await screenGlobalTopic({ topics, title, hint }); } catch (e: any) { return { ok: false, reason: String(e?.message ?? e) }; }
+  if (screen.excluded) return { ok: false, reason: `배제 주제(${({ person: "실존 인물 사안", politics: "진행 중 정치·군사 현안", promotion: "홍보성" } as Record<string, string>)[screen.category] ?? screen.category}) — ${screen.reason}` };
+  const jobId = await enqueueJob("sweep", { mode: "B2", mid_topic: topics[0], ...(topics[1] ? { sub_topic: topics[1] } : {}), topic: title, ...(hint ? { hint } : {}), screen });
+  return { ok: true, jobId };
 }
 
 /** 작업 요청 (사람 트리거): sweep · tts · thumbnail · package · cluster 재실행. requested_by 는 트리거가 찍는다. */
@@ -174,7 +239,7 @@ export async function listPipelineTopicsForSync(): Promise<{ major: string; mid:
   const { data, error } = await sb.from("topics").select("major,mid,active,created_at").eq("active", true).order("created_at");
   if (error) throw new Error(error.message);
   return [...(data ?? [])]
-    .sort((a, b) => majorOrder(a.major) - majorOrder(b.major))
+    .sort((a, b) => majorOrder(a.major, majorTopicsFor(pipelineLocale())) - majorOrder(b.major, majorTopicsFor(pipelineLocale())))
     .map((t, i) => ({ major: t.major, mid: t.mid, display_order: i + 1 }));
 }
 
@@ -369,7 +434,7 @@ export async function editScriptTurn(episodeId: string, turn: string, after: str
   if (!ep?.script_key) throw new Error("대본 파일 키가 없습니다");
   const md = await loadArtifact(ep.script_key);
   if (md == null) throw new Error(`대본을 읽을 수 없습니다: ${ep.script_key} (PIPELINE_BUCKET·AWS 자격증명 확인)`);
-  const r = replaceTurn(md, turn, after.trim());
+  const r = replaceTurn(md, turn, after.trim(), speakerNames());
   if (!r) throw new Error(`대본에서 ${turn} 을 찾을 수 없습니다`);
   if (r.before.trim() === after.trim()) return { changed: false };
   await writeArtifact(ep.script_key, r.md);
@@ -439,7 +504,7 @@ export async function activateAsset(key: string, version: string, note: string) 
 
 /** 에피소드 발음 맵 저장 (spec/06 6장) — TTS 병합 사전의 에피소드 층. 워커는 합성 시작 때 S3 에서 다시 내려받으므로 저장본이 그대로 적용된다 */
 export async function savePronunciations(episodeId: string, content: string) {
-  const entries = assertPronunciationJson(content);
+  const entries = assertPronunciationJson(content, pipelineLocale() === "en");
   await putText(`episodes/${episodeId}/pronunciations.json`, JSON.stringify(entries, null, 2) + "\n");
   revalidatePath(`/episodes/${episodeId}`);
   return { count: Object.keys(entries).length };

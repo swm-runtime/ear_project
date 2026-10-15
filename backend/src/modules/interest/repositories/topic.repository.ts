@@ -5,6 +5,7 @@ import { EntityManager, In, Repository } from 'typeorm';
 import { escapeLikePattern } from '@/common/utils/search-text.util';
 
 import { Topic } from '../entities/topic.entity';
+import { UserMarket } from '@/modules/user/user.enum';
 
 @Injectable()
 export class TopicRepository {
@@ -18,7 +19,18 @@ export class TopicRepository {
   }
 
   /** onboarding-api.md 4.2 — `is_visible = true`만, `display_order` 오름차순 */
-  async findAllVisible(manager?: EntityManager): Promise<Topic[]> {
+  async findAllVisible(
+    market: UserMarket,
+    manager?: EntityManager,
+  ): Promise<Topic[]> {
+    return this.scoped(manager).find({
+      where: { isVisible: true, market },
+      order: { displayOrder: 'ASC' },
+    });
+  }
+
+  /** 모든 시장의 노출 주제 — 운영 배치(0건 자동 숨김)가 시장을 가리지 않고 본다 */
+  async findAllVisibleAcrossMarkets(manager?: EntityManager): Promise<Topic[]> {
     return this.scoped(manager).find({
       where: { isVisible: true },
       order: { displayOrder: 'ASC' },
@@ -50,11 +62,13 @@ export class TopicRepository {
     normalizedQuery: string,
     similarityThreshold: number,
     limit: number,
+    market: UserMarket,
     manager?: EntityManager,
   ): Promise<Topic[]> {
     return this.scoped(manager)
       .createQueryBuilder('topic')
       .where('topic.is_visible = true')
+      .andWhere('topic.market = :market', { market })
       .andWhere(
         `(topic.name ILIKE :pattern
           OR :query ILIKE '%' || topic.name || '%'

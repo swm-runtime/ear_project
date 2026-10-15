@@ -2,11 +2,13 @@ import {
   LibraryItemSource,
   LibraryItemStatus,
 } from '@/modules/library/library.enum';
+import { ContentLanguage } from '@/modules/content/content.enum';
 
 export interface DripFeedbackPromptItemView {
   contentId: string;
   title: string;
   thumbnailUrl: string;
+  language: ContentLanguage;
   source: LibraryItemSource;
   /** 편성된 서비스 날짜 라벨 */
   placedDate: string;

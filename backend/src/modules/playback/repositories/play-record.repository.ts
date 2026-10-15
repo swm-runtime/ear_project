@@ -2,6 +2,8 @@ import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { EntityManager, Repository } from 'typeorm';
 
+import { UserMarket } from '@/modules/user/user.enum';
+
 import { PlayRecord } from '../entities/play-record.entity';
 
 /**
@@ -199,8 +201,9 @@ export class PlayRecordRepository {
   }
 
   /**
-   * 지정한 서비스 날짜들에 **청취 시간 합이 `listenedSec`보다 많은 사용자 수** — 주간 청취 상위 %의
-   * 원천(`profile-api.md` 4.1 `listening_top_percent`, KAN-168).
+   * 지정한 서비스 날짜들에 **청취 시간 합이 `listenedSec`보다 많은 그 시장 사용자 수** — 주간 청취 상위 %의
+   * 원천(`profile-api.md` 4.1 `listening_top_percent`, KAN-168). 시장은 사용자 행에서 읽는다 — 다른 시장 사용자와
+   * 순위를 섞지 않는다(2026-10-15, `global-api.md` 2.1).
    *
    * 사용자 목록이 아니라 수만 센다 — 순위에는 "나보다 많은 사람 수"만 필요하다. 탈퇴자의 기록은
    * `users` FK CASCADE로 함께 지워져 따로 거를 것이 없다.
@@ -208,6 +211,7 @@ export class PlayRecordRepository {
   async countUsersListenedMoreInPlayDates(
     playDates: string[],
     listenedSec: number,
+    market: UserMarket,
     manager?: EntityManager,
   ): Promise<number> {
     if (playDates.length === 0) {
@@ -223,6 +227,10 @@ export class PlayRecordRepository {
           .select('record.user_id', 'user_id')
           .from(PlayRecord, 'record')
           .where('record.play_date IN (:...playDates)', { playDates })
+          .andWhere(
+            'EXISTS (SELECT 1 FROM users u WHERE u.id = record.user_id AND u.market = :market)',
+            { market },
+          )
           .groupBy('record.user_id')
           .having('SUM(record.listened_sec) > :listenedSec', { listenedSec });
       }, 'listener')

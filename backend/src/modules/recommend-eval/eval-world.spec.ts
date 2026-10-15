@@ -3,6 +3,7 @@ import { LibraryItemSource } from '@/modules/library/library.enum';
 import { EvalWorld } from './eval-world';
 import { buildSyntheticSnapshot } from './synthetic-catalog';
 import { EvalSnapshot } from './recommend-eval.types';
+import { UserMarket } from '@/modules/user/user.enum';
 
 const NOW = new Date('2026-09-30T00:00:00.000Z');
 const DAY = 24 * 60 * 60 * 1000;
@@ -88,6 +89,7 @@ describe('EvalWorld', () => {
     world.remove('u1', c3.id, NOW);
 
     const pool = await world['contentService']().findCandidates({
+      market: UserMarket.KR,
       includeTopicIds: [topic],
       excludeSeenByUserId: 'u1',
       seriesStartOnly: true,
@@ -148,6 +150,7 @@ describe('EvalWorld', () => {
     world.users.set('u', {
       key: 'u',
       tier: 'light',
+      market: UserMarket.KR,
       jobCategory: null,
       yearsOfExperience: null,
       autoExpandEnabled: true,
@@ -170,6 +173,66 @@ describe('EvalWorld', () => {
       'play',
     ]);
     expect(world.contents.get(target.id)!.completeCount).toBe(before + 1);
+  });
+});
+
+describe('EvalWorld — 시장 격리(global-api 4.5·4.7)', () => {
+  /** 합성 카탈로그의 주제 순서 — 0~5 는 KR, 6~8 은 GLOBAL */
+  const KR_TOPIC_INDEX = 0;
+  const GLOBAL_TOPIC_INDEX = 6;
+
+  const marketsOfPicks = async (
+    market: 'kr' | 'global',
+    topicIndex: number,
+  ) => {
+    const snapshot = buildSyntheticSnapshot(NOW);
+    snapshot.users.push({
+      key: 'u',
+      tier: 'light',
+      market,
+      job_category: null,
+      years_of_experience: null,
+      auto_expand_enabled: true,
+      interests: [
+        {
+          topic_id: snapshot.topics[topicIndex].id,
+          source: 'onboarding',
+          is_active: true,
+          is_user_removed: false,
+          updated_at: NOW.toISOString(),
+        },
+      ],
+      signals: [],
+      library: [],
+      excluded: [],
+    });
+    const plan = await EvalWorld.fromSnapshot(snapshot).plan('u', NOW, {
+      commit: false,
+      autoExpandFeature: true,
+    });
+
+    return [
+      ...(plan.regular?.picks ?? []),
+      ...(plan.discovery?.picks ?? []),
+    ].map((pick) => pick.content.market);
+  };
+
+  it('KR 사용자의 정규·탐험 편성에는 GLOBAL 콘텐츠가 없다', async () => {
+    // given / when — KR 주제 하나를 고른 KR 사용자의 하루 편성
+    const markets = await marketsOfPicks(UserMarket.KR, KR_TOPIC_INDEX);
+
+    // then
+    expect(markets.length).toBeGreaterThan(0);
+    expect(new Set(markets)).toEqual(new Set([UserMarket.KR]));
+  });
+
+  it('GLOBAL 사용자의 정규·탐험 편성에는 KR 콘텐츠가 없다', async () => {
+    // given / when — GLOBAL 주제 하나를 고른 GLOBAL 사용자의 하루 편성
+    const markets = await marketsOfPicks(UserMarket.GLOBAL, GLOBAL_TOPIC_INDEX);
+
+    // then
+    expect(markets.length).toBeGreaterThan(0);
+    expect(new Set(markets)).toEqual(new Set([UserMarket.GLOBAL]));
   });
 });
 

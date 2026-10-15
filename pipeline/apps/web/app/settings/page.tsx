@@ -1,5 +1,7 @@
 import { supabaseServer } from "@/lib/supabase-server";
 import { SettingsForm } from "./settings-form";
+import { pipelineLocale, speakerNames } from "@/lib/locale";
+import { majorTopicsFor } from "@/lib/taxonomy";
 import { PageHeader, Panel } from "@/components/ui";
 
 export default async function SettingsPage() {
@@ -9,7 +11,7 @@ export default async function SettingsPage() {
   return (
     <div className="space-y-4">
       <PageHeader title="설정" breadcrumb={["파이프라인", "설정"]} desc="자동화 스위치·TTS 보이스·시그니처 템플릿·썸네일 띠 색·워커 기본값. 규칙 자산(가이드라인·골드·루브릭·QA 프롬프트)은 규칙 자산 화면에서 버전 관리·활성화한다 (spec/10 3.2)." />
-      <SettingsForm tts={s.tts?.value ?? {}} worker={s.worker?.value ?? {}} templates={s.templates?.value ?? {}}
+      <SettingsForm speakers={speakerNames()} locale={pipelineLocale()} majors={majorTopicsFor(pipelineLocale())} tts={s.tts?.value ?? {}} worker={s.worker?.value ?? {}} templates={s.templates?.value ?? {}}
         thumbnail={s["thumbnail.colors"]?.value ?? {}} anchor={s["thumbnail.anchor"]?.value ?? null} automation={s.automation?.value ?? null} aiPaused={s["automation.ai_paused"]?.value ?? null} ttsPaused={s["automation.tts_paused"]?.value ?? null}
         meta={{ tts: s.tts, worker: s.worker, templates: s.templates, "thumbnail.colors": s["thumbnail.colors"], automation: s.automation }} />
       <Panel title="규칙 자산 (spec/10 3.2)">

@@ -18,6 +18,13 @@ export const MAX_SELECTABLE_TOPIC_COUNT = 3;
 export const MAX_AUTO_EXPAND_TOPIC_COUNT = 1;
 
 /**
+ * 주제 `slug` 형식(`global-api.md` 4.5) — 소문자·숫자를 하이픈으로 이은 것(예 `k-pop`). 클라이언트 이미지 매핑 키라
+ * 대소문자·공백이 섞이면 같은 주제가 다른 키가 된다. 길이 상한은 컬럼(varchar 64)과 같다.
+ */
+export const TOPIC_SLUG_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+export const TOPIC_SLUG_MAX_LENGTH = 64;
+
+/**
  * 검색 빈 결과 fallback의 "관련 주제" 판정 하한(explore-api.md 4.5 — `related_topics`).
  *
  * 부분 문자열 포함이면 무조건 관련로 보고, 아니면 `pg_trgm` `similarity`가 이 값 이상일

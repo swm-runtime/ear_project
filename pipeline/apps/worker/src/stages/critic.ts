@@ -3,7 +3,7 @@ import path from "node:path";
 import { cfg, executedBy } from "../config.js";
 import { getBacklog, getEpisode, insertRun, setJobProgress, upsertEpisode, type Job } from "../db.js";
 import type { Executor } from "../executors/index.js";
-import { assetPaths, buildCriticPrompt, buildCriticPromptInlineParts, CRITIC_INLINE_SCHEMA, CRITIC_SCHEMA, CRITIC_SCHEMA_V2 } from "@ear/pipeline";
+import { assetPaths, buildCriticPrompt, buildCriticPromptInlineParts, buildCriticPromptInlinePartsEn, CRITIC_INLINE_SCHEMA, CRITIC_INLINE_SCHEMA_EN, CRITIC_SCHEMA, CRITIC_SCHEMA_V2, pipelineLocale } from "@ear/pipeline";
 import { readFile } from "node:fs/promises";
 import { startPublishPrepIfEnabled } from "../automation.js";
 import { log } from "../util.js";
@@ -93,11 +93,13 @@ async function runCriticV2(job: Job, ex: Executor, e: { episodeId: string; backl
   if (mode === "single") {
     // 단발 (2026-09-16): 루브릭·규칙·골드는 시스템 블록(캐시), 대본은 사용자 메시지, 리포트는 report_md 로 받아 워커가 쓴다
     const ap = assetPaths(e.assetRoot, cfg.workRoot);
-    const [rubricV2Md, guidelines, goldFullEum, goldFullYuna] = await Promise.all([ap.criticRubricV2, ap.guidelines, ap.goldFullEum, ap.goldFullYuna].map((p) => readFile(p, "utf8")));
-    const parts = buildCriticPromptInlineParts({ episodeId: e.episodeId, title: e.title, midTopic: e.midTopic as never, rubricV2Md, guidelines, goldFullEum, goldFullYuna, scriptMd: scriptText, preTemplate });
+    const en = pipelineLocale() === "en"; // 글로벌판: 영어 루브릭·프롬프트, 골드 없음 (global-prompts.ts, 글로벌 명세 6.6)
+    if (en && !e.bundle.contents["skills/critic/rubric-v2.md"]) throw new Error("글로벌 DB 에 비평 루브릭(skills/critic/rubric-v2.md)이 없다 — assets-global import 로 시딩 (KAN-201)");
+    const [rubricV2Md, guidelines, goldFullEum, goldFullYuna] = await Promise.all([ap.criticRubricV2, ap.guidelines, ...(en ? [] : [ap.goldFullEum, ap.goldFullYuna])].map((p) => readFile(p, "utf8")));
+    const parts = en ? buildCriticPromptInlinePartsEn({ episodeId: e.episodeId, title: e.title, midTopic: e.midTopic, rubricV2Md, guidelines, scriptMd: scriptText }) : buildCriticPromptInlineParts({ episodeId: e.episodeId, title: e.title, midTopic: e.midTopic as never, rubricV2Md, guidelines, goldFullEum, goldFullYuna, scriptMd: scriptText, preTemplate });
     log(`  critic v2 ${e.episodeId} (단발, 공유 ${Math.round(parts.system.length / 1000)}K + 편별 ${Math.round(parts.user.length / 1000)}K자${preTemplate ? " · tpl 이전 세대" : ""}${e.measure ? ` · 측정 ${e.measure.rubricVersion}` : ""})`);
     r = await ex.run<CriticV2Out>({
-      prompt: parts.user, systemPrompt: parts.system, schema: CRITIC_INLINE_SCHEMA, tools: [], allowedTools: [], cwd: cfg.workRoot, timeoutMs: 45 * 60_000, model: cfg.criticModel, maxThinkingTokens: cfg.thinkingCritic, effort,
+      prompt: parts.user, systemPrompt: parts.system, schema: en ? CRITIC_INLINE_SCHEMA_EN : CRITIC_INLINE_SCHEMA, tools: [], allowedTools: [], cwd: cfg.workRoot, timeoutMs: 45 * 60_000, model: cfg.criticModel, maxThinkingTokens: cfg.thinkingCritic, effort,
       onProgress: (pr) => setJobProgress(job.id, { ...pr, phase: e.measure ? `비평 측정 ${e.measure.rubricVersion}` : "비평 v2 (단발, 100점 채점)", detail: pr.turns > 0 ? "채점·플래그 작성 중 (도구 없음)" : pr.detail }).catch(() => {}),
     });
     const md = String(r.output.report_md ?? "").trim();

@@ -200,7 +200,7 @@ ssh -i … ec2-user@<IP> 'cd /opt/ear/backend \
 
 | 주기 | 무엇을 | 어디서 | 기준 |
 |---|---|---|---|
-| **매일** 17:00 Slack 보고 받을 때 | 일일 지표(활성·신규·가입 대조·재생·리텐션) | Slack 일일 보고([`backend-monitoring.md`](../features/backend-monitoring.md) 3-3) | 가입 GA4 ↔ 서버 대조 차이 **10% 이내**, 활성 사용자 전일 대비 **-30% 이하**면 원인 확인(배포·장애 여부) |
+| **매일** 17:00 Slack 보고 받을 때 | 일일 지표(활성·신규·가입 대조·재생·리텐션)와 이탈(탈퇴 사유·Android 앱 삭제) | Slack 일일 보고 두 메시지([`backend-monitoring.md`](../features/backend-monitoring.md) 3-3 · 3-4) | 가입 GA4 ↔ 서버 대조 차이 **10% 이내**, 활성 사용자 전일 대비 **-30% 이하**면 원인 확인(배포·장애 여부) |
 | **매일** 아침 | 어젯밤 04~05시 배치 결과(통계 집계는 05:30) | `/ear/api` 로그 `[Startup]`·배치 완료 로그, Slack ERROR 없음 | 드립 편성 `daily-drip-batch` 완료 로그 1건, ERROR 0건 |
 | **매주** 월요일 | 6장 정기 점검 체크리스트 + **주간 지표 정리**(아래) | 6장 · 운영 DB 집계 | 전부 체크, 지표는 회고 문서에 |
 | **매주** 회고 | 주간 지표 표를 `retrospective/YYYY-Wn.md`에 붙인다 | 아래 "주간 지표" | 빠진 주가 없다 |
@@ -217,7 +217,7 @@ ssh -i … ec2-user@<IP> 'cd /opt/ear/backend \
 | 누적 가입자 | 운영 DB `users` | 주 마지막 날 기준 행 수(같은 제외) |
 | 활성 | 운영 DB `audio_access_logs` | 주간 **재생 URL 을 1회 이상 발급받은** distinct `user_id`(= 들으려 한 사람). GA4 활성과 정의가 달라 둘 다 적는다 |
 | 재생 | 운영 DB `play_records` | 주간 재생 시작 건수 · 완청(서버 90% 판정) 건수 |
-| 이탈 | 운영 DB `withdrawal_*`/탈퇴 알림 수 + Slack 앱 삭제 알림 합 | 탈퇴 N · 앱 삭제 N(Android 실측 + iOS 추정) |
+| 이탈 | 운영 DB `withdrawal_logs` + Slack 17:00 이탈 보고(`backend-monitoring.md` 3-4)의 앱 삭제 7일 합 | 탈퇴 N · 앱 삭제 N(Android GA4 `app_remove`. iOS 는 세지 않는다 — 2026-10-15 개정) |
 | 구독 | 운영 DB `subscriptions` | 활성 구독 수 · 신규 · 해지 예약 · 환불 |
 | 서비스 | 위 알림 표 | ERROR 알림 건수 · 합성 체크 가동률(Grafana 7d) · 배포 횟수(main 태그) |
 

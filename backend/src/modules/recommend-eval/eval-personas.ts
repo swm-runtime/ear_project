@@ -1,5 +1,6 @@
 import { UserInterestSource } from '@/modules/interest/interest.enum';
 import { LibraryItemSource } from '@/modules/library/library.enum';
+import { UserMarket } from '@/modules/user/user.enum';
 
 import { EvalWorld, WorldContent } from './eval-world';
 import { InvariantResult } from './recommend-eval.types';
@@ -38,8 +39,10 @@ export interface PersonaContext {
   world: EvalWorld;
   /** 시뮬레이션 첫날 — 과거 이력은 이보다 앞에 놓는다 */
   start: Date;
-  /** 발행 콘텐츠가 많은 순의 주제 id */
+  /** 발행 콘텐츠가 많은 순의 KR 주제 id — GLOBAL 페르소나 외에는 전부 KR 사용자다 */
   topics: string[];
+  /** 같은 순서의 GLOBAL 주제 id(`global-api.md` 2.1) */
+  globalTopics: string[];
   /** 주제의 발행 콘텐츠 — 재생 수 많은 순(결정적) */
   contentsOf: (topicId: string) => WorldContent[];
 }
@@ -70,11 +73,16 @@ function addUser(
   context: PersonaContext,
   key: string,
   interestTopicIds: string[],
-  overrides: { jobCategory?: string; yearsOfExperience?: number } = {},
+  overrides: {
+    jobCategory?: string;
+    yearsOfExperience?: number;
+    market?: UserMarket;
+  } = {},
 ): void {
   context.world.users.set(key, {
     key,
     tier: 'light',
+    market: overrides.market ?? UserMarket.KR,
     jobCategory: overrides.jobCategory ?? null,
     yearsOfExperience: overrides.yearsOfExperience ?? null,
     autoExpandEnabled: true,
@@ -464,6 +472,35 @@ export const PERSONAS: Persona[] = [
               day.discovery.every((pick) => !pick.topicIds.includes(removed)),
             ),
             '해제한 주제의 콘텐츠가 탐험 편으로 편성됐다',
+          ),
+        ],
+      };
+    },
+  },
+  {
+    name: 'global-listener',
+    description:
+      'GLOBAL 시장 신규 가입자. 영어 주제 2개를 고르고 받은 편은 다 듣는다 (KR 콘텐츠가 오지 않는 것은 불변식 same-market 이 본다)',
+    setup: (context) => {
+      // 관심 2개 + 탐험이 고를 관심 밖 주제 1개
+      if (context.globalTopics.length < 3) {
+        return 'GLOBAL 주제가 3개 미만';
+      }
+
+      const interests = context.globalTopics.slice(0, 2);
+      addUser(context, 'p-global-listener', interests, {
+        market: UserMarket.GLOBAL,
+      });
+
+      return {
+        key: 'p-global-listener',
+        likedTopicIds: interests,
+        react: () => 'complete',
+        check: (days) => [
+          ok(
+            'GLOBAL 신규 가입자도 첫날 정규 편성이 목표 편수를 채운다',
+            days[0].regular.length >= days[0].regularTarget,
+            `첫날 정규 ${days[0].regular.length}/${days[0].regularTarget}`,
           ),
         ],
       };

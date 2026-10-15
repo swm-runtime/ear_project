@@ -30,6 +30,7 @@ import { LibraryTopicListResponseDto } from './dto/library-topic-list-response.d
 import { QueueOrderRequestDto } from './dto/queue-order-request.dto';
 import { RestoreLibraryItemResponseDto } from './dto/restore-library-item-response.dto';
 import { LibraryScreenOrchestrator } from './library-screen.orchestrator';
+import { toUserMarket } from '@/modules/user/policies/market.policy';
 
 /**
  * library-api.md 3장 — 라이브러리 화면의 엔드포인트를 `/users/me/library-items` 아래에 모은다.
@@ -69,6 +70,7 @@ export class LibraryScreenController {
           limit: query.limit ?? DEFAULT_LIBRARY_PAGE_SIZE,
         },
         new Date(),
+        toUserMarket(currentUser.market),
       ),
     );
   }
@@ -81,6 +83,7 @@ export class LibraryScreenController {
       await this.libraryScreenOrchestrator.getTopics(
         currentUser.id,
         new Date(),
+        toUserMarket(currentUser.market),
       ),
     );
   }
@@ -93,6 +96,7 @@ export class LibraryScreenController {
       await this.libraryScreenOrchestrator.getResumeTarget(
         currentUser.id,
         new Date(),
+        toUserMarket(currentUser.market),
       ),
     );
   }

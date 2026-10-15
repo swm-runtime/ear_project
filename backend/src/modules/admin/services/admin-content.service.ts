@@ -6,7 +6,11 @@ import { DataSource } from 'typeorm';
 import { BusinessException } from '@/common/exceptions/business.exception';
 import { ErrorCode } from '@/common/exceptions/error-code.enum';
 import { ExternalServiceException } from '@/common/exceptions/external-service.exception';
-import { ContentOrigin, ContentStatus } from '@/modules/content/content.enum';
+import {
+  ContentLanguage,
+  ContentOrigin,
+  ContentStatus,
+} from '@/modules/content/content.enum';
 import { Content } from '@/modules/content/entities/content.entity';
 import { AudioQuality } from '@/modules/content/content.enum';
 import { AudioRenditionInput } from '@/modules/content/content.types';
@@ -53,6 +57,8 @@ import {
 import { AudioMetadata, AudioProbe } from '../audio-probe';
 import { ContentStorageClient } from '../content-storage.client';
 import { TopicExposureService } from './topic-exposure.service';
+import { UserMarket } from '@/modules/user/user.enum';
+import { Topic } from '@/modules/interest/entities/topic.entity';
 
 /**
  * admin.md 4.2 — 업로드 → 즉시 발행.
@@ -135,6 +141,19 @@ export class AdminContentService {
         details: { field: 'topic_ids' },
       });
     }
+    assertMarketConsistent(command.market, command.language, topics);
+    // GLOBAL에는 채울 값이 없는 KR 직군 enum이다 — 있으면 조용히 버리지 않고 거부한다(global-api.md 4.9)
+    if (
+      command.market === UserMarket.GLOBAL &&
+      enrichment?.data?.targetAudiences !== undefined
+    ) {
+      throw new BusinessException({
+        status: HttpStatus.BAD_REQUEST,
+        errorCode: ErrorCode.VALIDATION_FAILED,
+        message: '글로벌 콘텐츠에는 target_audiences를 넣지 않아요',
+        details: { field: 'target_audiences' },
+      });
+    }
 
     const probed = await this.probeRenditions(renditionFiles);
     const durationSec = probed[0].metadata.durationSec;
@@ -196,6 +215,8 @@ export class AdminContentService {
               command.origin === ContentOrigin.AI_GENERATED
                 ? command.sources
                 : [],
+            market: command.market,
+            language: command.language,
           },
           now,
           manager,
@@ -343,6 +364,8 @@ export class AdminContentService {
           details: { field: 'topic_ids' },
         });
       }
+      // 재발행은 시장을 바꾸지 않는다 — 바꾸려면 회수 후 새로 올린다. 주제만 같은 시장인지 본다
+      assertTopicsInMarket(target.market ?? UserMarket.KR, topics);
     }
 
     // 4.10 — 길이는 클라이언트 값을 받지 않는다. 새 파일에서 다시 뽑는다(4.6과 동일)
@@ -1276,4 +1299,38 @@ function toScriptOutcome(result: ScriptParseResult): ScriptOutcome {
     applied: result.data !== null,
     rejectedReason: result.rejectedReason,
   };
+}
+
+/** 시장 ↔ 언어 조합(kr↔ko · global↔en)과 주제의 시장 일치(`global-api.md` 4.9). 어긋나면 400 — 격리 실패는 데이터 유출이다 */
+function assertMarketConsistent(
+  market: UserMarket,
+  language: ContentLanguage,
+  topics: Pick<Topic, 'market'>[],
+): void {
+  const expectedLanguage =
+    market === UserMarket.GLOBAL ? ContentLanguage.EN : ContentLanguage.KO;
+  if (language !== expectedLanguage) {
+    throw new BusinessException({
+      status: HttpStatus.BAD_REQUEST,
+      errorCode: ErrorCode.VALIDATION_FAILED,
+      message: '시장과 언어 조합이 맞지 않아요',
+      details: { field: 'language' },
+    });
+  }
+  assertTopicsInMarket(market, topics);
+}
+
+/** 주제가 전부 그 시장의 행인지 — 재발행은 시장을 바꾸지 않으므로 이것만 본다 */
+function assertTopicsInMarket(
+  market: UserMarket,
+  topics: Pick<Topic, 'market'>[],
+): void {
+  if (topics.some((topic) => (topic.market ?? UserMarket.KR) !== market)) {
+    throw new BusinessException({
+      status: HttpStatus.BAD_REQUEST,
+      errorCode: ErrorCode.VALIDATION_FAILED,
+      message: '다른 시장의 주제가 섞여 있어요',
+      details: { field: 'topic_ids' },
+    });
+  }
 }

@@ -21,6 +21,7 @@ import { PlaybackService } from '@/modules/playback/services/playback.service';
 
 import { decodeLibraryCursor } from './library-screen.cursor';
 import { LibraryScreenOrchestrator } from './library-screen.orchestrator';
+import { UserMarket } from '@/modules/user/user.enum';
 
 const NOW = new Date('2026-08-05T09:00:00.000Z');
 const ADDED_AT = new Date('2026-08-03T21:10:00.000Z');
@@ -148,7 +149,12 @@ describe('LibraryScreenOrchestrator', () => {
       // given — 왕복이 두 번이면 목록과 잔여 표시의 시점이 어긋난다
 
       // when
-      const result = await orchestrator.getItems(USER_ID, LIST_QUERY, NOW);
+      const result = await orchestrator.getItems(
+        USER_ID,
+        LIST_QUERY,
+        NOW,
+        UserMarket.KR,
+      );
 
       // then
       expect(result.quota).toEqual(QUOTA);
@@ -162,7 +168,12 @@ describe('LibraryScreenOrchestrator', () => {
       });
 
       // when
-      const result = await orchestrator.getItems(USER_ID, LIST_QUERY, NOW);
+      const result = await orchestrator.getItems(
+        USER_ID,
+        LIST_QUERY,
+        NOW,
+        UserMarket.KR,
+      );
 
       // then
       expect(result.nextCursor).not.toBeNull();
@@ -188,6 +199,7 @@ describe('LibraryScreenOrchestrator', () => {
         USER_ID,
         { ...LIST_QUERY, sourceFilter: LibraryItemSourceFilter.DRIP },
         NOW,
+        UserMarket.KR,
       );
 
       // then
@@ -210,6 +222,7 @@ describe('LibraryScreenOrchestrator', () => {
         USER_ID,
         { ...LIST_QUERY, sourceFilter: LibraryItemSourceFilter.SAVE },
         NOW,
+        UserMarket.KR,
       );
 
       // then
@@ -229,7 +242,12 @@ describe('LibraryScreenOrchestrator', () => {
       });
 
       // when
-      const result = await orchestrator.getItems(USER_ID, LIST_QUERY, NOW);
+      const result = await orchestrator.getItems(
+        USER_ID,
+        LIST_QUERY,
+        NOW,
+        UserMarket.KR,
+      );
 
       // then
       expect(result.nextCursor).toBeNull();
@@ -246,7 +264,12 @@ describe('LibraryScreenOrchestrator', () => {
       );
 
       // when
-      const result = await orchestrator.getItems(USER_ID, LIST_QUERY, NOW);
+      const result = await orchestrator.getItems(
+        USER_ID,
+        LIST_QUERY,
+        NOW,
+        UserMarket.KR,
+      );
 
       // then
       expect(result.items[0].isCountedToday).toBe(true);
@@ -260,7 +283,12 @@ describe('LibraryScreenOrchestrator', () => {
       });
 
       // when
-      const result = await orchestrator.getItems(USER_ID, LIST_QUERY, NOW);
+      const result = await orchestrator.getItems(
+        USER_ID,
+        LIST_QUERY,
+        NOW,
+        UserMarket.KR,
+      );
 
       // then
       expect(result.items[0].progress).toBeNull();
@@ -277,12 +305,13 @@ describe('LibraryScreenOrchestrator', () => {
       ]);
 
       // when
-      const topics = await orchestrator.getTopics(USER_ID, NOW);
+      const topics = await orchestrator.getTopics(USER_ID, NOW, UserMarket.KR);
 
       // then
       expect(libraryService.countByTopicForUser).toHaveBeenCalledWith(
         USER_ID,
         NOW,
+        UserMarket.KR,
       );
       expect(topics).toEqual([
         { topicId: 'topic-1', name: '커리어', itemCount: 2 },
@@ -294,7 +323,7 @@ describe('LibraryScreenOrchestrator', () => {
       // given — 빈 라이브러리는 정상 상태다. 404가 아니다
 
       // when
-      const topics = await orchestrator.getTopics(USER_ID, NOW);
+      const topics = await orchestrator.getTopics(USER_ID, NOW, UserMarket.KR);
 
       // then
       expect(topics).toEqual([]);
@@ -306,7 +335,11 @@ describe('LibraryScreenOrchestrator', () => {
       // given
 
       // when
-      const result = await orchestrator.getResumeTarget(USER_ID, NOW);
+      const result = await orchestrator.getResumeTarget(
+        USER_ID,
+        NOW,
+        UserMarket.KR,
+      );
 
       // then
       expect(result.resumeTarget).toBeNull();
@@ -318,12 +351,13 @@ describe('LibraryScreenOrchestrator', () => {
       // 필요한 것은 "이어 들을 위치가 있는가" 하나뿐이다(위치 0은 처음부터 듣는 것과 같다)
 
       // when
-      await orchestrator.getResumeTarget(USER_ID, NOW);
+      await orchestrator.getResumeTarget(USER_ID, NOW, UserMarket.KR);
 
       // then
       expect(libraryService.findResumeTarget).toHaveBeenCalledWith(
         USER_ID,
         NOW,
+        UserMarket.KR,
       );
     });
   });

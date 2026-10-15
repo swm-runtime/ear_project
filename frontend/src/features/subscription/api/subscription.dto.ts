@@ -27,6 +27,15 @@ export interface PlansResponseDto {
   is_email_verified: boolean;
 }
 
+/** 4.8 초대 코드 지급 — 구독 조회·프로필·설정의 plan 에 같은 모양으로 실린다 */
+export interface PlanGrantDto {
+  name: string;
+  tier: string;
+  plan_name: string;
+  ends_at: string;
+  last_date: string;
+}
+
 export interface SubscriptionPlanSummaryDto {
   status: 'free' | 'subscribed' | 'cancel_scheduled' | 'grace';
   tier: string;
@@ -35,6 +44,8 @@ export interface SubscriptionPlanSummaryDto {
   renews_at: string | null;
   expires_at: string | null;
   has_payment_issue: boolean;
+  /** 지급 중이 아니면 null. 지급 배포 전 서버(2026-10-10 이전)는 필드가 없다 — 없으면 null 로 읽는다 */
+  grant?: PlanGrantDto | null;
 }
 
 /** 4.2 GET /users/me/subscription — 4.4 제출·4.5 복원(subscription)도 같은 본문이다 */
@@ -62,6 +73,11 @@ export interface PurchaseIntentResponseDto {
 export type SubmitPurchaseRequestDto =
   | { platform: 'ios'; intent_id?: string; signed_transaction: string }
   | { platform: 'android'; intent_id?: string; purchase_token: string; product_id: string };
+
+/** 4.8-1 POST /users/me/subscription/invite-codes — 응답은 4.2 와 같은 본문(MySubscriptionResponseDto) */
+export interface InviteCodeRequestDto {
+  code: string;
+}
 
 /** 4.5 POST /users/me/subscription/restore — 배열은 0~10건 */
 export type RestoreRequestDto =

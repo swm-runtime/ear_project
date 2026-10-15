@@ -145,10 +145,10 @@ export class EnvironmentVariables {
   SLACK_ERROR_WEBHOOK_URL?: string;
 
   /**
-   * 팀 알림 Slack 웹훅(KAN-107 1단계 — 탈퇴·리뷰·일일 보고) — **선택.** 비우면 위의
+   * 팀 알림 Slack 웹훅(KAN-107 1단계 — 리뷰·결제 실패·일일 보고) — **선택.** 비우면 위의
    * `SLACK_ERROR_WEBHOOK_URL`(기존 알림 채널)을 그대로 쓴다. 채널을 새로 만들지 않으려는
    * 결정이라(2026-09-29) 평소에는 비워 둔다. 이 알림들만 다른 채널로 빼고 싶을 때만 넣는다.
-   * 이름의 `SIGNUP` 은 건별 가입 알림 시절의 것이다 — 가입 알림은 없앴지만(2026-10-13, 일일 보고로 대신)
+   * 이름의 `SIGNUP` 은 건별 가입 알림 시절의 것이다 — 가입 알림은 없앴지만(2026-10-13, 일일 보고로 대신 — 탈퇴·앱 삭제도 2026-10-15 같은 길)
    * 운영·개발계 env 를 함께 바꿔야 해서 이름은 그대로 둔다.
    */
   @IsOptional()
@@ -207,6 +207,15 @@ export class EnvironmentVariables {
   @IsOptional()
   @IsIn(['true', 'false', ''])
   AUTO_EXPAND_ENABLED?: string;
+
+  /**
+   * 드립 시간대 그룹(`global-api.md` 2.4, KAN-191)의 서버 스위치. `true`/`false`.
+   * **`true`를 명시했을 때만 켜진다.** 꺼져 있으면 전원이 기본 그룹(05:00 KST 편성 · 07:00 KST 알림)으로 종전과 같다.
+   * 켜면 GLOBAL 시장 사용자를 시간대로 europe·americas 그룹에 나눠 각 그룹의 현지 05:00에 편성한다. KR은 그대로다.
+   */
+  @IsOptional()
+  @IsIn(['true', 'false', ''])
+  DRIP_TIMEZONE_GROUPS_ENABLED?: string;
 
   /**
    * 가입 체험(`subscription.md` 4.8)의 서버 스위치. `true`일 때만 **새로 가입하는 계정**에 체험을 준다.

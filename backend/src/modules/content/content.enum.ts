@@ -93,3 +93,9 @@ export function defaultAudioQualityFor(maxAllowed: AudioQuality): AudioQuality {
 
   return offered.at(-1) ?? AudioQuality.COMPRESSED;
 }
+
+/** 콘텐츠 언어(`global-api.md` 4.7·4.9) — 1단계는 두 값. `market = kr`는 `ko`, `global`은 `en`만 받는다 */
+export enum ContentLanguage {
+  KO = 'ko',
+  EN = 'en',
+}

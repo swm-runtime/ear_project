@@ -12,6 +12,7 @@ import { AudioAccessLogRepository } from '../repositories/audio-access-log.repos
 import { AudioUrlService } from './audio-url.service';
 import { PlaybackService } from './playback.service';
 import { PlayPolicyService } from './play-policy.service';
+import { UserMarket } from '@/modules/user/user.enum';
 
 const NOW = new Date('2026-10-06T03:00:00.000Z');
 const USER_ID = '11111111-1111-4111-8111-111111111111';
@@ -34,6 +35,7 @@ describe('AudioUrlService — 음질(KAN-141)', () => {
   const issue = (quality?: AudioQuality) =>
     service.issue({
       userId: USER_ID,
+      market: UserMarket.KR,
       contentId: CONTENT_ID,
       deviceId: 'device-1',
       ip: null,

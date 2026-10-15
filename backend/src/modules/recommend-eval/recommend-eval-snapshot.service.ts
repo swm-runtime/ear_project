@@ -75,7 +75,7 @@ export class RecommendEvalSnapshotService {
 
   private async loadTopics(): Promise<EvalSnapshot['topics']> {
     return this.dataSource.query<EvalSnapshot['topics']>(
-      `select id, name, is_visible from topics order by id`,
+      `select id, name, is_visible, market from topics order by id`,
     );
   }
 
@@ -88,7 +88,7 @@ export class RecommendEvalSnapshotService {
     >(
       `select c.id, c.title, c.author_name, c.source_name, c.duration_sec,
               c.published_at, c.difficulty, c.format, c.is_evergreen, c.keywords,
-              c.target_audiences, c.series_id, c.episode_no, c.status, c.license_expires_at,
+              c.target_audiences, c.series_id, c.episode_no, c.status, c.license_expires_at, c.market,
               coalesce((select array_agg(ct.topic_id order by ct.topic_id)
                           from content_topics ct where ct.content_id = c.id), '{}') as topic_ids,
               coalesce(s.play_count, 0)::int as play_count,
@@ -123,12 +123,13 @@ export class RecommendEvalSnapshotService {
       {
         id: string;
         tier: string;
+        market: string;
         job_category: string | null;
         years_of_experience: number | null;
         auto_expand_enabled: boolean | null;
       }[]
     >(
-      `select u.id, u.tier, u.job_category, u.years_of_experience,
+      `select u.id, u.tier, u.market, u.job_category, u.years_of_experience,
               st.is_auto_expand_enabled as auto_expand_enabled
          from users u
          left join user_settings st on st.user_id = u.id
@@ -215,6 +216,7 @@ export class RecommendEvalSnapshotService {
     return users.map((user, index) => ({
       key: `u${String(index + 1).padStart(3, '0')}`,
       tier: user.tier,
+      market: user.market,
       job_category: user.job_category,
       years_of_experience: user.years_of_experience,
       auto_expand_enabled: user.auto_expand_enabled ?? true,

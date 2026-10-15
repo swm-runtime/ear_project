@@ -1,6 +1,7 @@
 import {
   DailyMetrics,
   delta,
+  formatChurnReport,
   formatDailyMetrics,
   formatDuration,
   formatRetention,
@@ -23,7 +24,6 @@ const base: DailyMetrics = {
     signUps: 7,
     onboardingCompletes: 5,
     pushResponses: 4,
-    withdrawals: 1,
   },
   playback: {
     playStarts: 40,
@@ -155,5 +155,79 @@ describe('reportDate', () => {
   });
   it('UTC 로는 전날이어도 KST 기준으로 센다', () => {
     expect(reportDate(new Date('2026-09-28T15:30:00Z'))).toBe('2026-09-28');
+  });
+});
+
+describe('formatChurnReport', () => {
+  const churn = {
+    date: '2026-09-28',
+    withdrawals: [
+      { reasonCode: 'price', count: 1 },
+      { reasonCode: null, count: 1 },
+      { reasonCode: 'low_usage', count: 2 },
+      { reasonCode: 'content_quailty', count: 1 },
+    ],
+    appRemoves: 4,
+  };
+
+  it('제목·탈퇴 합계·앱 삭제(Android) 순서다 — 지표 보고와 같은 날짜·요일', () => {
+    const lines = formatChurnReport(churn).split('\n');
+    expect(lines[0]).toContain('*2026-09-28 (월) 이어 이탈*');
+    expect(lines[1]).toBe('*탈퇴*      5명');
+    expect(lines.at(-2)).toBe('*앱 삭제*  Android 4');
+  });
+
+  it('사유는 건수 많은 순, 같으면 화면 순서, 사유 미선택은 맨 뒤다', () => {
+    const lines = formatChurnReport(churn).split('\n').slice(2, 6);
+    expect(lines).toEqual([
+      '    · 들을 시간이 없거나 잘 안 쓰게 됐어요  2',
+      '    · 콘텐츠 품질이 기대에 못 미쳤어요  1',
+      '    · 구독 가격이 부담됐어요  1',
+      '    · 사유 미선택  1',
+    ]);
+  });
+
+  it('모르는 사유 코드는 원값을 쓴다 — 조용히 비는 것보다 낫다', () => {
+    expect(
+      formatChurnReport({
+        ...churn,
+        withdrawals: [{ reasonCode: 'new_reason', count: 1 }],
+      }),
+    ).toContain('· new_reason  1');
+  });
+
+  it('탈퇴가 없어도 보낸다 — 0명과 앱 삭제 줄만', () => {
+    const text = formatChurnReport({
+      ...churn,
+      withdrawals: [],
+      appRemoves: 0,
+    });
+    expect(text.split('\n')).toHaveLength(4);
+    expect(text).toContain('*탈퇴*      0명');
+    expect(text).toContain('Android 0');
+  });
+
+  it('각주에 출처와 경계를 적는다 — 탈퇴는 지표 보고의 가입자 줄과 같은 서버 경계', () => {
+    expect(formatChurnReport(churn)).toContain(
+      '탈퇴는 서버 값(04시 경계) · 앱 삭제는 GA4 app_remove 운영 스트림(00시 경계)',
+    );
+    const key = 'SERVICE_DAY_BOUNDARY_05_FROM';
+    const prev = process.env[key];
+    process.env[key] = '2026-10-12T05:00:00+09:00';
+    try {
+      expect(formatChurnReport({ ...churn, date: '2026-10-14' })).toContain(
+        '탈퇴는 서버 값(05시 경계)',
+      );
+    } finally {
+      if (prev === undefined) delete process.env[key];
+      else process.env[key] = prev;
+    }
+  });
+
+  it('운영이 아니면 환경을 앞에 붙인다', () => {
+    expect(formatChurnReport(churn, 'development')).toMatch(
+      /^\[development\] /,
+    );
+    expect(formatChurnReport(churn, 'production')).toMatch(/^:door:/);
   });
 });

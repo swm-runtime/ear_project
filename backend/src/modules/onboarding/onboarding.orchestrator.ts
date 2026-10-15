@@ -38,6 +38,7 @@ import {
   RecommendationItem,
   RecommendationSection,
 } from './onboarding.types';
+import { UserMarket } from '@/modules/user/user.enum';
 
 /**
  * architecture.md 3.3 — 여러 도메인 Service를 조합하는 다단계 유스케이스이므로 Orchestrator를 둔다.
@@ -80,6 +81,7 @@ export class OnboardingOrchestrator {
     return {
       onboardingCompleted: user.onboardingCompleted,
       onboardingStep: user.onboardingStep,
+      steps: onboardingStepsFor(user.market),
       selectedTopicIds,
       career: {
         jobCategory: user.jobCategory,
@@ -90,8 +92,8 @@ export class OnboardingOrchestrator {
     };
   }
 
-  async getTopics(): Promise<TopicListResult> {
-    return this.topicService.getSelectableTopics();
+  async getTopics(market: UserMarket): Promise<TopicListResult> {
+    return this.topicService.getSelectableTopics(market);
   }
 
   /**
@@ -119,9 +121,12 @@ export class OnboardingOrchestrator {
         manager,
       );
 
+      // GLOBAL은 커리어 단계가 없다 — 곧바로 완료 대기 단계로 간다(global-api.md 4.4, KR은 종전대로 career)
       const updated = await this.userOnboardingService.advanceStep(
         user,
-        OnboardingStep.CAREER,
+        user.market === UserMarket.GLOBAL
+          ? OnboardingStep.PICK
+          : OnboardingStep.CAREER,
         manager,
       );
 
@@ -155,6 +160,15 @@ export class OnboardingOrchestrator {
         manager,
       );
       this.userOnboardingService.assertNotCompleted(user);
+      // 커리어는 한국 직군 분류다 — GLOBAL 계정에는 고를 값이 없어 받지 않는다(global-api.md 4.4)
+      if (user.market === UserMarket.GLOBAL) {
+        throw new BusinessException({
+          status: HttpStatus.CONFLICT,
+          errorCode: ErrorCode.MARKET_MISMATCH,
+          message: '요청을 처리할 수 없어요',
+          logLevel: 'warn',
+        });
+      }
 
       const command: {
         jobCategory?: string | null;
@@ -220,7 +234,11 @@ export class OnboardingOrchestrator {
       });
     }
 
-    const interestContents = await this.selectInterestContents(topicIds, now);
+    const interestContents = await this.selectInterestContents(
+      topicIds,
+      now,
+      user.market,
+    );
     const discoverySize = RECOMMENDATION_TOTAL_SIZE - interestContents.length;
     const { contents: discoveryContents, sectionType } =
       await this.selectDiscoveryContents(
@@ -229,6 +247,7 @@ export class OnboardingOrchestrator {
         interestContents.map((content) => content.id),
         discoverySize,
         now,
+        user.market,
       );
 
     const sections = await this.toSections(
@@ -272,8 +291,8 @@ export class OnboardingOrchestrator {
 
     const { available, failed } = await this.contentService.resolvePickTargets(
       uniqueContentIds,
-      undefined,
       now,
+      user.market,
     );
 
     const savedContentIds = await this.libraryService.addItems(
@@ -386,6 +405,7 @@ export class OnboardingOrchestrator {
   private async selectInterestContents(
     topicIds: string[],
     now: Date,
+    market: UserMarket,
   ): Promise<Content[]> {
     const quotaPerTopic = Math.max(
       1,
@@ -399,6 +419,7 @@ export class OnboardingOrchestrator {
       }
 
       const contents = await this.contentService.findCandidates({
+        market,
         includeTopicIds: [topicId],
         excludeContentIds: selected.map((content) => content.id),
         // 1편을 듣지 않은 신규 사용자에게 시리즈 중간 편을 권하지 않는다
@@ -415,6 +436,7 @@ export class OnboardingOrchestrator {
     }
 
     const filler = await this.contentService.findCandidates({
+      market,
       includeTopicIds: topicIds,
       excludeContentIds: selected.map((content) => content.id),
       seriesStartOnly: true,
@@ -437,6 +459,7 @@ export class OnboardingOrchestrator {
     excludeContentIds: string[],
     size: number,
     now: Date,
+    market: UserMarket,
   ): Promise<{ contents: Content[]; sectionType: RecommendationSectionType }> {
     if (size <= 0) {
       return {
@@ -446,6 +469,7 @@ export class OnboardingOrchestrator {
     }
 
     const pool = await this.contentService.findCandidates({
+      market,
       excludeTopicIds: interestTopicIds,
       excludeContentIds,
       seriesStartOnly: true,
@@ -529,9 +553,17 @@ export class OnboardingOrchestrator {
           authorName: content.authorName,
           sourceName: content.sourceName,
           thumbnailUrl: content.thumbnailUrl,
+          language: content.language,
           durationSec: content.durationSec,
           topics: topicsByContentId.get(content.id) ?? [],
         })),
       }));
   }
+}
+
+/** 시장별 온보딩 화면 단계(`global-api.md` 4.4) — 담기 단계는 2026-10-11에 없어졌다(onboarding.md 3) */
+export function onboardingStepsFor(market: UserMarket): OnboardingStep[] {
+  return market === UserMarket.GLOBAL
+    ? [OnboardingStep.TOPIC]
+    : [OnboardingStep.TOPIC, OnboardingStep.CAREER];
 }

@@ -114,6 +114,19 @@ export class AdminInsightsSummaryResponseDto {
     low_users: number;
   }[];
 
+  /** 시장별 가입·활성·청취·결제(`global-api.md` 4.10) — 시장마다 한 칸, 현재 계정 기준 */
+  readonly by_market: {
+    market: string;
+    users: number;
+    signups_in_window: number;
+    onboarding_completed: number;
+    active_7d: number;
+    listeners_7d: number;
+    listen_sec: number;
+    plays: number;
+    paid_active: number;
+  }[];
+
   static from(
     summary: InsightsSummary,
     days: number,
@@ -218,6 +231,17 @@ export class AdminInsightsSummaryResponseDto {
         median_remaining: t.medianRemaining,
         exhausted_users: t.exhaustedUsers,
         low_users: t.lowUsers,
+      })),
+      by_market: summary.byMarket.map((m) => ({
+        market: m.market,
+        users: m.users,
+        signups_in_window: m.signupsInWindow,
+        onboarding_completed: m.onboardingCompleted,
+        active_7d: m.active7d,
+        listeners_7d: m.listeners7d,
+        listen_sec: m.listenSec,
+        plays: m.plays,
+        paid_active: m.paidActive,
       })),
     };
   }

@@ -1,4 +1,5 @@
 import { ErrorCode } from '@/common/exceptions/error-code.enum';
+import { UserMarket } from '@/modules/user/user.enum';
 
 import { ContentService } from './content.service';
 import { ContentStatus } from '../content.enum';
@@ -19,6 +20,7 @@ function buildContent(overrides: Partial<Content> = {}): Content {
     status: ContentStatus.PUBLISHED,
     licenseExpiresAt: null,
     contentVersion: 1,
+    market: UserMarket.KR,
     ...overrides,
   } as Content;
 }
@@ -120,8 +122,8 @@ describe('ContentService', () => {
       // when
       const resolution = await service.resolvePickTargets(
         [CONTENT_ID],
-        undefined,
         NOW,
+        UserMarket.KR,
       );
 
       // then — 다른 담기 경로(getPublishedById)와 같은 노출 조건이다
@@ -142,8 +144,8 @@ describe('ContentService', () => {
       // when
       const resolution = await service.resolvePickTargets(
         [CONTENT_ID],
-        undefined,
         NOW,
+        UserMarket.KR,
       );
 
       // then
@@ -151,6 +153,25 @@ describe('ContentService', () => {
         CONTENT_ID,
       ]);
       expect(resolution.failed).toEqual([]);
+    });
+    it('다른 시장의 콘텐츠는 없는 콘텐츠와 같은 코드로 빼고 담지 않는다', async () => {
+      // given — KR 콘텐츠를 GLOBAL 사용자가 담으려 한다
+      contentRepository.findAllByIds = jest
+        .fn()
+        .mockResolvedValue([buildContent({ market: UserMarket.KR })]);
+
+      // when
+      const resolution = await service.resolvePickTargets(
+        [CONTENT_ID],
+        NOW,
+        UserMarket.GLOBAL,
+      );
+
+      // then
+      expect(resolution.available).toEqual([]);
+      expect(resolution.failed).toEqual([
+        { contentId: CONTENT_ID, errorCode: ErrorCode.CONTENT_NOT_FOUND },
+      ]);
     });
   });
 

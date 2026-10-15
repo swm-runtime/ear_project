@@ -35,11 +35,14 @@ export const CURRENT_ENRICHMENT_SCHEMA_VERSION = 3;
 
 /**
  * 화면 해시태그(`tags`) 규칙 — metadata-pipeline.md 4.2. 탐색 카드·상세 화면에 "#태그"로 보이는 말이라
- * 개수와 모양을 서버가 막는다: 2~4개, 띄어쓰기·'#' 없는 한글·영문·숫자 2~10자, 대소문자 무시 중복 없음.
+ * 개수와 모양을 서버가 막는다: 2~4개, '#' 없는 한글·영문·숫자 2~20자(안쪽 공백 허용 — "Stray Kids"·"Squid Game" 같은 영어
+ * 고유명사를 받기 위해 2026-10-14 완화, `global-api.md` 4.9. 앞뒤 공백 금지), 대소문자 무시 중복 없음. 종전 규칙(공백 없는 2~10자)의 상위 집합이라
+ * 기존 KR 태그는 전부 통과한다.
  */
 export const MIN_CONTENT_TAGS = 2;
 export const MAX_CONTENT_TAGS = 4;
-export const CONTENT_TAG_PATTERN = /^[가-힣A-Za-z0-9]{2,10}$/;
+export const CONTENT_TAG_PATTERN =
+  /^[가-힣A-Za-z0-9][가-힣A-Za-z0-9 ]{0,18}[가-힣A-Za-z0-9]$/;
 
 /** 청자 세트 상한 — 직군 7 × 연차 4 = 28 조합 중 "이 콘텐츠가 맞는" 것만 고르게 한다 */
 export const MAX_TARGET_AUDIENCES = 8;

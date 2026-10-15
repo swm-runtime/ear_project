@@ -66,6 +66,7 @@ export class AudioUrlService {
       command.contentId,
       undefined,
       command.now,
+      command.market,
     );
 
     // 2. 목록에서 걸렀어도 다시 확인한다. 차감은 하지 않는다
@@ -155,6 +156,7 @@ export class AudioUrlService {
         sourceUrl: content.sourceUrl ? content.sourceUrl : null,
         durationSec: content.durationSec,
         thumbnailUrl: content.thumbnailUrl,
+        language: content.language,
         contentVersion: content.contentVersion,
         topics: topicViews.map((view) => ({
           id: view.topicId,

@@ -42,7 +42,7 @@ describe('TopicExposureService', () => {
           buildTopic(FILLED_TOPIC_ID, true),
           buildTopic(HIDDEN_TOPIC_ID, false),
         ]),
-      findAllVisible: jest
+      findAllVisibleAcrossMarkets: jest
         .fn()
         .mockResolvedValue([
           buildTopic(EMPTY_TOPIC_ID, true),

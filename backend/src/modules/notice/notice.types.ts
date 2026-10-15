@@ -1,3 +1,5 @@
+import { UserMarket } from '@/modules/user/user.enum';
+
 /** 사용자 목록의 keyset 위치 — 정렬 `is_pinned DESC, published_at DESC, id DESC` */
 export interface PublishedNoticeCursorPosition {
   isPinned: boolean;
@@ -21,6 +23,8 @@ export interface CreateNoticeCommand {
   body: string;
   isPinned: boolean;
   publishedAt: Date | null;
+  /** 공지의 시장(`global-api.md` 4.8). 생성 때만 정하고 수정하지 않는다 */
+  market: UserMarket;
 }
 
 /** 담긴 키만 바꾼다. `publishedAt: null`은 발행 취소(초안으로 되돌림)다 */

@@ -11,6 +11,7 @@ import { PlayEntryPoint, UserSignalAction } from '../playback.enum';
 import { PlayService } from './play.service';
 import { PlaybackService } from './playback.service';
 import { PlayPolicyService } from './play-policy.service';
+import { UserMarket } from '@/modules/user/user.enum';
 
 const NOW = new Date('2026-08-05T09:00:00.000Z');
 const USER_ID = '11111111-1111-4111-8111-111111111111';
@@ -21,6 +22,7 @@ const FREE_LIMIT = 2;
 function buildCommand() {
   return {
     userId: USER_ID,
+    market: UserMarket.KR,
     contentId: CONTENT_ID,
     entryPoint: PlayEntryPoint.LIBRARY,
     now: NOW,

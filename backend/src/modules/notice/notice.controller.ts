@@ -11,6 +11,9 @@ import {
   encodePublishedNoticeCursor,
 } from './notice.cursor';
 import { NoticeService } from './notice.service';
+import type { AuthenticatedUser } from '@/common/decorators/current-user.decorator';
+import { CurrentUser } from '@/common/decorators/current-user.decorator';
+import { toUserMarket } from '@/modules/user/policies/market.policy';
 
 /**
  * settings-api.md 4.4·4.5 — 설정 > 공지사항의 조회 두 건. 인증 필요.
@@ -25,12 +28,14 @@ export class NoticeController {
 
   @Get()
   async getNotices(
+    @CurrentUser() currentUser: AuthenticatedUser,
     @Query() query: GetNoticesQueryRequestDto,
   ): Promise<NoticeListResponseDto> {
     const page = await this.noticeService.findPublishedPage(
       new Date(),
       query.cursor ? decodePublishedNoticeCursor(query.cursor) : null,
       query.limit ?? NOTICE_LIST_DEFAULT_LIMIT,
+      toUserMarket(currentUser.market),
     );
     const last = page.items[page.items.length - 1];
 
@@ -48,11 +53,16 @@ export class NoticeController {
 
   @Get(':noticeId')
   async getNotice(
+    @CurrentUser() currentUser: AuthenticatedUser,
     // uuid 형식 검사를 파이프(400)에 맡기지 않는다 — 계약상 없는 공지는 404 다(Service 가 판정)
     @Param('noticeId') noticeId: string,
   ): Promise<NoticeDetailResponseDto> {
     return NoticeDetailResponseDto.from(
-      await this.noticeService.getPublished(noticeId, new Date()),
+      await this.noticeService.getPublished(
+        noticeId,
+        new Date(),
+        toUserMarket(currentUser.market),
+      ),
     );
   }
 }

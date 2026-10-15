@@ -62,6 +62,8 @@ describe('드립 도착 알림 E2E', () => {
   const userIds: string[] = [];
   // 2026-09-17 05:00 KST — 테스트끼리 날짜가 겹치지 않게 사용자를 나눈다
   const NOW = new Date('2026-09-16T20:00:00.000Z');
+  /** 보관 시한은 이 테스트가 보는 것이 아니다 — 충분히 뒤로 둔다 */
+  const NEXT_BATCH_AT = new Date('2026-09-20T20:00:00.000Z');
 
   beforeAll(async () => {
     const moduleRef = await Test.createTestingModule({
@@ -96,7 +98,7 @@ describe('드립 도착 알림 E2E', () => {
     await registerDevice(userId, 'device-1', 'ExponentPushToken[sent]', true);
 
     // when
-    await service.notify([arrival(userId)], NOW);
+    await service.notify([arrival(userId)], NOW, NEXT_BATCH_AT);
 
     // then
     expect(sent).toEqual([
@@ -119,13 +121,14 @@ describe('드립 도착 알림 E2E', () => {
     // given
     const userId = await createUser('cap');
     await registerDevice(userId, 'device-1', 'ExponentPushToken[cap]', true);
-    await service.notify([arrival(userId)], NOW);
+    await service.notify([arrival(userId)], NOW, NEXT_BATCH_AT);
     sent.length = 0;
 
     // when — 같은 날 03:59 KST 직전(다음 날 03:00 KST)은 아직 같은 서비스 날짜다
     await service.notify(
       [arrival(userId)],
       new Date('2026-09-17T18:00:00.000Z'),
+      NEXT_BATCH_AT,
     );
 
     // then
@@ -139,6 +142,7 @@ describe('드립 도착 알림 E2E', () => {
     await service.notify(
       [arrival(userId)],
       new Date('2026-09-17T19:00:00.000Z'),
+      NEXT_BATCH_AT,
     );
 
     // then
@@ -156,7 +160,11 @@ describe('드립 도착 알림 E2E', () => {
     await registerDevice(deniedUserId, 'device-1', null, false);
 
     // when
-    await service.notify([arrival(offUserId), arrival(deniedUserId)], NOW);
+    await service.notify(
+      [arrival(offUserId), arrival(deniedUserId)],
+      NOW,
+      NEXT_BATCH_AT,
+    );
 
     // then
     expect(sent).toEqual([]);
@@ -174,7 +182,7 @@ describe('드립 도착 알림 E2E', () => {
     await registerDevice(userId, 'device-1', 'ExponentPushToken[gone]', true);
 
     // when
-    await service.notify([arrival(userId)], NOW);
+    await service.notify([arrival(userId)], NOW, NEXT_BATCH_AT);
 
     // then
     expect((await findLogs(userId))[0].status).toBe(NotificationStatus.FAILED);

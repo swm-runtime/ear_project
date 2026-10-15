@@ -6,6 +6,7 @@ import { DripBatchRunService } from '@/modules/drip/services/drip-batch-run.serv
 import { DripPlacementService } from '@/modules/drip/services/drip-placement.service';
 import { DripScoringService } from '@/modules/drip/services/drip-scoring.service';
 import { PreferenceVectorService } from '@/modules/drip/services/preference-vector.service';
+import { DripGroup } from '@/modules/drip/drip.enum';
 import { DripBatchRun } from '@/modules/drip/entities/drip-batch-run.entity';
 import { UserInterest } from '@/modules/interest/entities/user-interest.entity';
 import { UserInterestSource } from '@/modules/interest/interest.enum';
@@ -20,7 +21,7 @@ import { PlanService } from '@/modules/subscription/services/plan.service';
 import { User } from '@/modules/user/entities/user.entity';
 import { UserSettingService } from '@/modules/user/services/user-setting.service';
 import { UserService } from '@/modules/user/services/user.service';
-import { UserTier } from '@/modules/user/user.enum';
+import { UserMarket, UserTier } from '@/modules/user/user.enum';
 
 import { DripBatchOrchestrator } from './drip-batch.orchestrator';
 
@@ -80,7 +81,13 @@ describe('DripBatchOrchestrator', () => {
   const discoveryPool = [buildContent('d1')];
 
   beforeEach(() => {
-    run = { id: 'run-1', runDate: '2026-08-27' } as DripBatchRun;
+    run = {
+      id: 'run-1',
+      runDate: '2026-08-27',
+      group: DripGroup.ASIA,
+      // 2026-08-27 05:00:00.050 KST — 05:00 크론이 행을 만든 시각
+      createdAt: new Date('2026-08-26T20:00:00.050Z'),
+    } as DripBatchRun;
 
     userService = {
       findDripTargetsPage: jest
@@ -158,6 +165,7 @@ describe('DripBatchOrchestrator', () => {
       countPlacedToday: jest.fn().mockResolvedValue(0),
       findCompletedSeriesMaxEpisodes: jest.fn().mockResolvedValue(new Map()),
       findRecentDripContentIds: jest.fn().mockResolvedValue([]),
+      findPlacementsAddedBetween: jest.fn().mockResolvedValue([]),
       findIgnoredDripItems: jest.fn().mockResolvedValue([]),
       countExposures: jest.fn().mockResolvedValue(new Map()),
     } as unknown as jest.Mocked<LibraryService>;
@@ -188,6 +196,11 @@ describe('DripBatchOrchestrator', () => {
     dripBatchRunService = {
       claim: jest.fn().mockResolvedValue(run),
       finish: jest.fn().mockResolvedValue(undefined),
+      // 정상 배치처럼 05:00:10 KST 에 끝난 실행 — 07:00 크론이 보내는 경우다
+      findByRunDateAndGroup: jest.fn().mockResolvedValue({
+        ...run,
+        finishedAt: new Date('2026-08-26T20:00:10.000Z'),
+      }),
     } as unknown as jest.Mocked<DripBatchRunService>;
 
     dripArrivalNotificationService = {
@@ -199,7 +212,14 @@ describe('DripBatchOrchestrator', () => {
       }),
     } as unknown as jest.Mocked<DripArrivalNotificationService>;
 
-    orchestrator = new DripBatchOrchestrator(
+    // 스위치는 `true` 명시일 때만 켜진다(2026-10-14) — 자동 확장 테스트는 켜진 상태를 기본으로 본다
+    orchestrator = createOrchestrator({ AUTO_EXPAND_ENABLED: 'true' });
+  });
+
+  function createOrchestrator(
+    env: Record<string, string>,
+  ): DripBatchOrchestrator {
+    return new DripBatchOrchestrator(
       userService,
       userInterestService,
       planService,
@@ -214,14 +234,9 @@ describe('DripBatchOrchestrator', () => {
       dripArrivalNotificationService,
       topicService,
       userSettingService,
-      {
-        // 스위치는 `true` 명시일 때만 켜진다(2026-10-14) — 자동 확장 테스트는 켜진 상태를 기본으로 본다
-        get: jest.fn((key: string) =>
-          key === 'AUTO_EXPAND_ENABLED' ? 'true' : undefined,
-        ),
-      } as never,
+      { get: jest.fn((key: string) => env[key]) } as never,
     );
-  });
+  }
 
   it('같은 서비스 날짜에 이미 선점된 배치는 다시 실행되지 않는다', async () => {
     dripBatchRunService.claim.mockResolvedValue(null);
@@ -816,6 +831,7 @@ describe('DripBatchOrchestrator', () => {
 
     expect(dripBatchRunService.claim).toHaveBeenCalledWith(
       expect.any(String),
+      DripGroup.ASIA,
       NOW,
       { reclaimUnfinished: true },
     );
@@ -828,6 +844,7 @@ describe('DripBatchOrchestrator', () => {
 
     expect(dripBatchRunService.claim).toHaveBeenCalledWith(
       expect.any(String),
+      DripGroup.ASIA,
       NOW,
       { reclaimUnfinished: false },
     );
@@ -864,113 +881,338 @@ describe('DripBatchOrchestrator', () => {
     }
   });
 
-  describe('드립 도착 알림', () => {
-    it('정규 편성과 탐험 편성이 끝난 뒤 두 적립분을 합쳐 알림에 넘긴다', async () => {
-      // when
-      await orchestrator.run(NOW);
+  describe('드립 도착 알림 — 07:00 KST(편성 05:00과 분리, 2026-10-14)', () => {
+    /** 2026-08-27 05:00 KST — 정규 배치 시각 */
+    const AT_0500 = new Date('2026-08-26T20:00:00.000Z');
+    /** 2026-08-27 07:00 KST — 알림 시각 */
+    const AT_0700 = new Date('2026-08-26T22:00:00.000Z');
+    const placement = (
+      userId: string,
+      contentId: string,
+      source: LibraryItemSource,
+    ) =>
+      ({
+        userId,
+        contentId,
+        source,
+        content: { title: `제목 ${contentId}` },
+      }) as never;
 
-      // then — 정규 + 탐험을 합친 하루 1건(notification.md 4.3)
-      expect(dripArrivalNotificationService.notify).toHaveBeenCalledTimes(1);
-      const [arrivals, at] =
-        dripArrivalNotificationService.notify.mock.calls[0];
-      expect(at).toBe(NOW);
-      expect(arrivals).toEqual([
-        {
-          userId: USER_ID,
-          regular: expect.arrayContaining([
-            { contentId: 'r1', title: '제목 r1' },
-            { contentId: 'r2', title: '제목 r2' },
-          ]) as unknown,
-          discovery: [{ contentId: 'd1', title: '제목 d1' }],
-        },
-      ]);
-      expect(
-        dripArrivalNotificationService.notify.mock.invocationCallOrder[0],
-      ).toBeGreaterThan(
-        Math.max(...dripPlacementService.placeItems.mock.invocationCallOrder),
-      );
-    });
+    it('05:00 배치는 편성만 하고 알림은 보내지 않는다', async () => {
+      await orchestrator.run(AT_0500);
 
-    it('탐험 편성이 실패하면 정규 적립분만 넘긴다', async () => {
-      // given
-      dripPlacementService.placeItems.mockImplementation(
-        (_userId, _contentIds, source) =>
-          source === LibraryItemSource.DISCOVERY
-            ? Promise.reject(new Error('discovery failed'))
-            : Promise.resolve(),
-      );
-
-      // when
-      await orchestrator.run(NOW);
-
-      // then
-      const [arrivals] = dripArrivalNotificationService.notify.mock.calls[0];
-      expect(arrivals[0].regular).toHaveLength(2);
-      expect(arrivals[0].discovery).toEqual([]);
-    });
-
-    it('정규 후보가 고갈돼 탐험 편만 적립돼도 알림에 넘긴다', async () => {
-      // given — 관심 주제 풀만 비었다
-      contentService.findCandidates.mockImplementation(
-        (query: ContentCandidateQuery) =>
-          Promise.resolve(query.includeTopicIds ? [] : discoveryPool),
-      );
-
-      // when
-      await orchestrator.run(NOW);
-
-      // then
-      const [arrivals] = dripArrivalNotificationService.notify.mock.calls[0];
-      expect(arrivals).toEqual([
-        {
-          userId: USER_ID,
-          regular: [],
-          discovery: [{ contentId: 'd1', title: '제목 d1' }],
-        },
-      ]);
-    });
-
-    it('적립이 없는 사용자는 알림에 넘기지 않는다', async () => {
-      // given — 미청취 재고로 건너뛴다
-      libraryService.countUnfinished.mockResolvedValue(5);
-
-      // when
-      await orchestrator.run(NOW);
-
-      // then
+      expect(dripPlacementService.placeItems).toHaveBeenCalled();
       expect(dripArrivalNotificationService.notify).not.toHaveBeenCalled();
     });
 
-    it('알림이 실패해도 배치는 끝까지 돌고 편성 집계는 그대로다', async () => {
-      // given — 적립은 이미 커밋됐다
+    it('07:00 에 그날 배치가 적립한 것을 사용자별로 정규·탐험 합쳐 1건씩 넘긴다', async () => {
+      // given
+      libraryService.findPlacementsAddedBetween.mockResolvedValue([
+        placement('u1', 'r1', LibraryItemSource.DRIP),
+        placement('u1', 'r2', LibraryItemSource.DRIP),
+        placement('u1', 'd1', LibraryItemSource.DISCOVERY),
+        placement('u2', 'd2', LibraryItemSource.DISCOVERY),
+      ]);
+
+      // when
+      await orchestrator.notifyTodayArrivals(AT_0700);
+
+      // then — 범위는 그 그룹 실행 기록이 생긴 시각부터 배치 종료까지
+      const [start, end] =
+        libraryService.findPlacementsAddedBetween.mock.calls[0];
+      expect(start).toEqual(run.createdAt);
+      expect(end.getTime()).toBe(
+        new Date('2026-08-26T20:00:10.000Z').getTime() + 1,
+      );
+      expect(dripArrivalNotificationService.notify).toHaveBeenCalledTimes(1);
+      const [arrivals, at] =
+        dripArrivalNotificationService.notify.mock.calls[0];
+      expect(at).toBe(AT_0700);
+      expect(arrivals).toEqual([
+        {
+          userId: 'u1',
+          regular: [
+            { contentId: 'r1', title: '제목 r1' },
+            { contentId: 'r2', title: '제목 r2' },
+          ],
+          discovery: [{ contentId: 'd1', title: '제목 d1' }],
+        },
+        {
+          userId: 'u2',
+          regular: [],
+          discovery: [{ contentId: 'd2', title: '제목 d2' }],
+        },
+      ]);
+    });
+
+    it('오늘 배치가 아직 끝나지 않았으면 보내지 않는다 — 끝날 때 배치가 이어서 보낸다', async () => {
+      dripBatchRunService.findByRunDateAndGroup.mockResolvedValue({
+        ...run,
+        finishedAt: null,
+      });
+
+      await orchestrator.notifyTodayArrivals(AT_0700);
+
+      expect(libraryService.findPlacementsAddedBetween).not.toHaveBeenCalled();
+      expect(dripArrivalNotificationService.notify).not.toHaveBeenCalled();
+    });
+
+    it('적립이 하나도 없으면 알림 서비스를 부르지 않는다', async () => {
+      await orchestrator.notifyTodayArrivals(AT_0700);
+
+      expect(dripArrivalNotificationService.notify).not.toHaveBeenCalled();
+    });
+
+    it('사용자 100명 단위로 나눠 넘긴다', async () => {
+      libraryService.findPlacementsAddedBetween.mockResolvedValue(
+        Array.from({ length: 150 }, (_, i) =>
+          placement(`u${i}`, `r${i}`, LibraryItemSource.DRIP),
+        ),
+      );
+
+      await orchestrator.notifyTodayArrivals(AT_0700);
+
+      expect(dripArrivalNotificationService.notify).toHaveBeenCalledTimes(2);
+      expect(
+        dripArrivalNotificationService.notify.mock.calls.map(
+          ([arrivals]) => arrivals.length,
+        ),
+      ).toEqual([100, 50]);
+    });
+
+    it('알림이 실패해도 던지지 않는다 — 적립은 이미 커밋됐다', async () => {
+      libraryService.findPlacementsAddedBetween.mockResolvedValue([
+        placement('u1', 'r1', LibraryItemSource.DRIP),
+      ]);
       dripArrivalNotificationService.notify.mockRejectedValue(
         new Error('push down'),
       );
 
+      await expect(
+        orchestrator.notifyTodayArrivals(AT_0700),
+      ).resolves.toBeUndefined();
+    });
+
+    describe('배치가 끝난 시각이 07:00 뒤면 끝나자마자 보낸다 — 07:00 크론은 미완료 실행을 건너뛴다', () => {
+      /** 실제 시계(`new Date()`)로 끝난 시각을 판정하므로 시계를 고정한다 */
+      const freezeClockAt = (at: Date) =>
+        jest
+          .useFakeTimers({ doNotFake: ['nextTick', 'setImmediate'] })
+          .setSystemTime(at);
+
+      beforeEach(() => {
+        libraryService.findPlacementsAddedBetween.mockResolvedValue([
+          placement(USER_ID, 'r1', LibraryItemSource.DRIP),
+        ]);
+      });
+
+      afterEach(() => {
+        jest.useRealTimers();
+      });
+
+      it('07:00 이 지나 시작된 배치(재시작 뒤 재개 등)는 끝나자마자 알림까지 보낸다', async () => {
+        // given
+        freezeClockAt(AT_0700);
+
+        // when
+        await orchestrator.run(AT_0700);
+
+        // then
+        expect(dripArrivalNotificationService.notify).toHaveBeenCalledTimes(1);
+        expect(
+          dripArrivalNotificationService.notify.mock.invocationCallOrder[0],
+        ).toBeGreaterThan(
+          dripBatchRunService.finish.mock.invocationCallOrder[0],
+        );
+      });
+
+      it('05:00 에 시작해 07:00 을 넘겨 끝난 배치도 끝나자마자 보낸다 — 시작 시각이 아니라 끝난 시각으로 본다', async () => {
+        // given — 대상 조회 중에 시계가 07:10 으로 넘어간다(오래 걸린 배치)
+        freezeClockAt(AT_0500);
+        userService.findDripTargetsPage
+          .mockReset()
+          .mockImplementationOnce(() => {
+            jest.setSystemTime(new Date(AT_0700.getTime() + 10 * 60_000));
+            return Promise.resolve([buildUser()]);
+          })
+          .mockResolvedValue([]);
+
+        // when
+        await orchestrator.run(AT_0500);
+
+        // then
+        expect(dripArrivalNotificationService.notify).toHaveBeenCalledTimes(1);
+      });
+
+      it('07:00 뒤에 끝난 실행은 07:00 크론이 건너뛴다 — 배치가 끝나면서 보내 정확히 한쪽만 보낸다', async () => {
+        // given — 07:10 KST 에 끝난 실행
+        dripBatchRunService.findByRunDateAndGroup.mockResolvedValue({
+          ...run,
+          finishedAt: new Date(AT_0700.getTime() + 10 * 60_000),
+        });
+
+        // when — 크론 경로
+        await orchestrator.notifyTodayArrivals(AT_0700);
+
+        // then
+        expect(dripArrivalNotificationService.notify).not.toHaveBeenCalled();
+      });
+
+      it('07:00 전에 끝난 배치는 보내지 않는다 — 07:00 크론이 보낸다', async () => {
+        // given
+        freezeClockAt(AT_0500);
+
+        // when
+        await orchestrator.run(AT_0500);
+
+        // then
+        expect(dripArrivalNotificationService.notify).not.toHaveBeenCalled();
+      });
+    });
+  });
+
+  describe('시간대 그룹(global-api 2.4, KAN-191)', () => {
+    /** 2026-08-27 05:00 BST(London) = 13:00 KST — europe 그룹 배치 시각 */
+    const LONDON_0500 = new Date('2026-08-27T04:00:00.000Z');
+    /** 2026-08-27 07:00 BST = 15:00 KST */
+    const LONDON_0700 = new Date('2026-08-27T06:00:00.000Z');
+    const KR_USER = buildUser('kr');
+    const LONDON_USER = {
+      ...buildUser('london'),
+      market: UserMarket.GLOBAL,
+      timezone: 'Europe/London',
+    } as User;
+
+    beforeEach(() => {
+      userService.findDripTargetsPage
+        .mockReset()
+        .mockResolvedValueOnce([KR_USER, LONDON_USER])
+        .mockResolvedValue([]);
+    });
+
+    const placedUserIds = () =>
+      dripPlacementService.placeItems.mock.calls.map(([userId]) => userId);
+
+    it('스위치가 꺼져 있으면 기본 그룹 크론만 돈다', () => {
+      // when / then — 기본 orchestrator 는 스위치가 꺼져 있다
+      expect(orchestrator.isGroupActive(DripGroup.ASIA)).toBe(true);
+      expect(orchestrator.isGroupActive(DripGroup.EUROPE)).toBe(false);
+      expect(orchestrator.isGroupActive(DripGroup.AMERICAS)).toBe(false);
+    });
+
+    it('스위치가 꺼져 있으면 GLOBAL 사용자도 05:00 KST 배치에서 편성된다(종전 그대로)', async () => {
       // when
       await orchestrator.run(NOW);
 
       // then
+      expect(new Set(placedUserIds())).toEqual(new Set(['kr', 'london']));
+    });
+
+    it('스위치가 켜져 있으면 기본 그룹 배치는 시간대가 다른 GLOBAL 사용자를 대상에서 뺀다', async () => {
+      // given
+      orchestrator = createOrchestrator({
+        DRIP_TIMEZONE_GROUPS_ENABLED: 'true',
+      });
+
+      // when
+      await orchestrator.run(NOW);
+
+      // then
+      expect(new Set(placedUserIds())).toEqual(new Set(['kr']));
       expect(dripBatchRunService.finish).toHaveBeenCalledWith(
         run,
-        expect.objectContaining({ successCount: 1, failedCount: 0 }),
+        expect.objectContaining({ targetCount: 1 }),
         expect.any(Date),
       );
     });
 
-    it('사용자 페이지마다 한 번씩 모아서 넘긴다', async () => {
-      // given — 페이지 두 개
-      userService.findDripTargetsPage
-        .mockReset()
-        .mockResolvedValueOnce([buildUser('u1')])
-        .mockResolvedValueOnce([buildUser('u2')])
-        .mockResolvedValue([]);
+    it('그룹 배치는 그 그룹 실행권을 집고 그 그룹 사용자만 편성한다 — 알림은 현지 07:00 전이라 보내지 않는다', async () => {
+      // given
+      orchestrator = createOrchestrator({
+        DRIP_TIMEZONE_GROUPS_ENABLED: 'true',
+      });
 
       // when
-      await orchestrator.run(NOW);
+      await orchestrator.run(LONDON_0500, 'scheduled', DripGroup.EUROPE);
 
       // then
-      expect(dripArrivalNotificationService.notify).toHaveBeenCalledTimes(2);
+      expect(dripBatchRunService.claim).toHaveBeenCalledWith(
+        '2026-08-27',
+        DripGroup.EUROPE,
+        LONDON_0500,
+        { reclaimUnfinished: false },
+      );
+      expect(new Set(placedUserIds())).toEqual(new Set(['london']));
+      expect(dripArrivalNotificationService.notify).not.toHaveBeenCalled();
+    });
+
+    it('그룹 알림의 보관 시한은 그 그룹의 다음 배치다 — 다음 05:00 KST 가 아니다', async () => {
+      // given
+      libraryService.findPlacementsAddedBetween.mockResolvedValue([
+        {
+          userId: 'u1',
+          contentId: 'r1',
+          source: LibraryItemSource.DRIP,
+          content: { title: 't' },
+        } as never,
+      ]);
+
+      dripBatchRunService.findByRunDateAndGroup.mockResolvedValue({
+        ...run,
+        group: DripGroup.EUROPE,
+        // 런던 05:00:10(BST)에 끝난 실행
+        finishedAt: new Date('2026-08-27T04:00:10.000Z'),
+      });
+
+      // when — 런던 07:00(BST)
+      await orchestrator.notifyTodayArrivals(LONDON_0700, DripGroup.EUROPE);
+
+      // then — 다음 날 런던 05:00(BST) = 04:00 UTC
+      const [, , nextBatchAt] =
+        dripArrivalNotificationService.notify.mock.calls[0];
+      expect(nextBatchAt.toISOString()).toBe('2026-08-28T04:00:00.000Z');
+    });
+
+    it('그룹 알림은 그 그룹 실행 기록을 찾는다', async () => {
+      // when
+      await orchestrator.notifyTodayArrivals(LONDON_0700, DripGroup.EUROPE);
+
+      // then
+      expect(dripBatchRunService.findByRunDateAndGroup).toHaveBeenCalledWith(
+        '2026-08-27',
+        DripGroup.EUROPE,
+      );
+    });
+
+    it('현지 07:00 이 지나 끝난 그룹 배치는 끝나자마자 그 그룹 알림을 보낸다', async () => {
+      // given — 끝난 시각은 실제 시계로 판정하므로 런던 07:00 에 고정한다
+      jest
+        .useFakeTimers({ doNotFake: ['nextTick', 'setImmediate'] })
+        .setSystemTime(LONDON_0700);
+      orchestrator = createOrchestrator({
+        DRIP_TIMEZONE_GROUPS_ENABLED: 'true',
+      });
+      libraryService.findPlacementsAddedBetween.mockResolvedValue([
+        {
+          userId: 'london',
+          contentId: 'r1',
+          source: LibraryItemSource.DRIP,
+          content: { title: 't' },
+        } as never,
+      ]);
+
+      try {
+        // when
+        await orchestrator.run(LONDON_0700, 'resume', DripGroup.EUROPE);
+
+        // then — 다음 날 런던 05:00(BST) 까지 보관
+        expect(dripArrivalNotificationService.notify).toHaveBeenCalledTimes(1);
+        const [, , nextBatchAt] =
+          dripArrivalNotificationService.notify.mock.calls[0];
+        expect(nextBatchAt.toISOString()).toBe('2026-08-28T04:00:00.000Z');
+      } finally {
+        jest.useRealTimers();
+      }
     });
   });
 });

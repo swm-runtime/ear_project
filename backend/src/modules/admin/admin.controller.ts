@@ -62,7 +62,6 @@ import {
   AdminNoticeListResponseDto,
 } from './dto/admin-notice-item.dto';
 import { AdminNoticeService } from './services/admin-notice.service';
-import { GetNoticesQueryRequestDto } from '@/modules/notice/dto/get-notices-query-request.dto';
 import { NOTICE_LIST_DEFAULT_LIMIT } from '@/modules/notice/notice.constant';
 import {
   decodeAdminNoticeCursor,
@@ -77,6 +76,9 @@ import { AdminContentService } from './services/admin-content.service';
 import { AdminSystemStatsService } from './services/admin-system-stats.service';
 import { ResourceAlertService } from './services/resource-alert.service';
 import { AdminTopicService } from './services/admin-topic.service';
+import { UserMarket } from '@/modules/user/user.enum';
+import { ContentLanguage } from '@/modules/content/content.enum';
+import { AdminNoticeQueryRequestDto } from './dto/admin-notice-query-request.dto';
 
 interface UploadFiles {
   audio?: Express.Multer.File[];
@@ -158,6 +160,8 @@ export class AdminController {
         name: request.name,
         parentCategory: request.parent_category,
         displayOrder: request.display_order ?? null,
+        market: request.market ?? UserMarket.KR,
+        slug: request.slug ?? null,
       }),
     );
   }
@@ -177,6 +181,7 @@ export class AdminController {
           parentCategory: request.parent_category,
           isVisible: request.is_visible,
           displayOrder: request.display_order,
+          slug: request.slug,
         },
         new Date(),
       ),
@@ -195,11 +200,12 @@ export class AdminController {
   /** admin-api.md 4.12 — 초안·예약 포함 전체, 작성 최신순 */
   @Get('notices')
   async listNotices(
-    @Query() query: GetNoticesQueryRequestDto,
+    @Query() query: AdminNoticeQueryRequestDto,
   ): Promise<AdminNoticeListResponseDto> {
     const page = await this.adminNoticeService.findPage(
       query.cursor ? decodeAdminNoticeCursor(query.cursor) : null,
       query.limit ?? NOTICE_LIST_DEFAULT_LIMIT,
+      query.market,
     );
     const last = page.items[page.items.length - 1];
 
@@ -225,6 +231,8 @@ export class AdminController {
         publishedAt: request.published_at
           ? new Date(request.published_at)
           : null,
+        // 선택 입력 — 없으면 kr(지금 콘솔은 보내지 않는다)
+        market: request.market ?? UserMarket.KR,
       }),
     );
   }
@@ -284,6 +292,7 @@ export class AdminController {
     return AdminContentListResponseDto.from(
       await this.adminContentService.findPage({
         status: query.status,
+        market: query.market,
         offset: query.offset ?? 0,
         limit: query.limit ?? ADMIN_LIST_DEFAULT_LIMIT,
       }),
@@ -402,6 +411,9 @@ export class AdminController {
           url: source.url ?? null,
         })),
         reviewConfirmed: payload.review_confirmed,
+        // 1단계 기본값 — 구 콘솔·KR 파이프라인은 아직 보내지 않는다(global-api.md 4.9)
+        market: payload.market ?? UserMarket.KR,
+        language: payload.language ?? ContentLanguage.KO,
         audio: toFileInput(audio),
         audioAac: files.audio_aac?.[0] ? toFileInput(files.audio_aac[0]) : null,
         audioLossless: files.audio_lossless?.[0]

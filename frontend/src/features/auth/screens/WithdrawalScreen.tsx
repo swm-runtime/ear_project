@@ -161,7 +161,9 @@ export default function WithdrawalScreen() {
                     동의 체크 없이는 [탈퇴하기]가 활성되지 않는다. 필요 여부 판정은 서버 응답이다(auth-api.md 4.6) */}
                 {preview.hasActiveSubscription || preview.subscriptionExpiryAgreementRequired ? (
                   <InsetGroup
-                    title={preview.hasActiveSubscription ? COPY.activeSubscription.title : undefined}
+                    title={
+                      preview.hasActiveSubscription ? COPY.activeSubscription.title : undefined
+                    }
                   >
                     {preview.hasActiveSubscription ? (
                       <View style={styles.noticeRow}>
@@ -180,7 +182,7 @@ export default function WithdrawalScreen() {
                   </InsetGroup>
                 ) : null}
 
-                {/* 5. 탈퇴 사유(선택) — 식별자 없이 해시로만 남는다(domain.md 3.4). 단일 선택 목록 */}
+                {/* 5. 탈퇴 사유(필수) — 식별자 없이 해시로만 남는다(domain.md 3.4). 단일 선택 목록 */}
                 <InsetGroup title={COPY.reason.label} bodyRole="radiogroup">
                   {WITHDRAWAL_REASON_CODES.filter(
                     // 결제 구현 전 MVP 바이너리(KAN-66) — 구독을 언급하는 사유는 고를 수 없다

@@ -6,6 +6,7 @@ import {
 } from '@/modules/user/user.enum';
 
 import { RecommendationSectionType } from './onboarding.enum';
+import { ContentLanguage } from '@/modules/content/content.enum';
 
 /** convention.md 3.2 — Controller ↔ Orchestrator 경계 밖의 내부 타입 */
 
@@ -19,6 +20,8 @@ export interface OnboardingCareer {
 export interface OnboardingState {
   onboardingCompleted: boolean;
   onboardingStep: OnboardingStep;
+  /** 이 사용자가 밟을 화면 단계(`global-api.md` 4.4). 클라이언트는 이 배열대로 잇는다 */
+  steps: OnboardingStep[];
   selectedTopicIds: string[];
   career: OnboardingCareer;
   pickedCount: number;
@@ -31,6 +34,7 @@ export interface RecommendationItem {
   authorName: string | null;
   sourceName: string;
   thumbnailUrl: string;
+  language: ContentLanguage;
   durationSec: number;
   topics: { topicId: string; name: string }[];
 }

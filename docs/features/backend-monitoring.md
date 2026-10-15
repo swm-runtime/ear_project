@@ -60,10 +60,9 @@ CloudWatch(EC2 지표·`/ear/api`·`/ear/caddy` 로그)·Sentry·합성 헬스�
 | 05:00 | `daily-drip-batch` | 드립 편성(`drip-scheduling.md`) | 로그 · `drip_batch_runs` 기록. 도중에 프로세스가 죽으면 재기동 시 이어받는다 |
 | 05:30 | `content-stat-aggregation-0530` | 콘텐츠 통계(`content_stats`) 재집계 — 경계 전환(2026-10-12 05:00 KST, KAN-149) 뒤 실행 등록. 04:00 `content-stat-aggregation` 등록도 함께 올라가지만 **경계가 04:00인 동안만 돌았고 전환 뒤에는 건너뛴다**(그 시각의 서비스 날짜 경계를 보고 한쪽만 돈다 — 건너뛴 쪽은 debug 로그 한 줄). 05:30인 이유 — 05:00 정각은 전날 마지막 재생이 아직 안 들어와 있을 수 있고 드립 편성과 DB 부하가 겹친다 | 로그, 다음 날 재시도(재집계라 안전) |
 | 10분마다 | `invite-grant-expiry` | 끝난 초대 코드 지급의 `users.tier` 캐시 되돌리기(`domain.md` 8.6 — 신설 2026-10-10). 지급은 서비스 날짜 경계에 끝나므로 경계 뒤 최대 10분 | 로그, 10분 뒤 재시도 — 계정 하나가 실패해도 나머지는 진행 |
-| 10분마다 | `push-receipt-check` | 푸시 영수증(receipt) 회수 → 무효 토큰 정리. **마지막 활성 토큰이 죽은 iOS 사용자는 앱 삭제 추정으로 Slack**(3-5, 2026-10-06) | 로그 — 실패분은 다음 주기에 다시 묻는다 |
-| 17:00 | `daily-metrics` | 일일 지표 Slack 보고(GA4 + 서버 — 3-3) | 로그, 던지지 않음 |
+| 10분마다 | `push-receipt-check` | 푸시 영수증(receipt) 회수 → 무효 토큰 정리. 마지막 활성 토큰이 죽은 사용자는 앱 삭제 추정으로 **로그에만** 남긴다(3-5 — Slack 은 2026-10-15 없앴다) | 로그 — 실패분은 다음 주기에 다시 묻는다 |
+| 17:00 | `daily-metrics` | 일일 Slack 보고 두 메시지 — 지표(GA4 + 서버 — 3-3)와 이탈(탈퇴 사유 분포 + Android 앱 삭제 — 3-4) | 로그, 던지지 않음 |
 | 15분마다 | `store-review-poll` | App Store·Google Play 새 리뷰·수정 리뷰를 Slack 한 메시지로(KAN-133 VoC — `store_reviews`에 알린 것을 기록). 리뷰어 닉네임은 어디에도 싣지 않는다 | 로그, 다음 주기 재시도 — 보냈을 때만 기록하므로 웹훅이 죽은 주기의 리뷰는 다음 주기에 다시 고른다. **Play 는 최근 1주일치만 돌아와** 7일 넘게 멈추면 그 사이 리뷰는 복구되지 않는다 |
-| 15분마다 | `app-remove-poll` | GA4 실시간 `app_remove`(Firebase 가 Android 에서 자동 수집하는 앱 삭제)를 읽어 새로 도착한 건수를 Slack 한 줄로(3-4). 운영 스트림만, 신원 값 없음 | 로그, 다음 주기 — "마지막으로 집계한 분"이 그대로라 30분 창 안이면 다시 본다. 재배포 뒤 첫 주기는 창을 전부 집계해 한 번 중복될 수 있다 |
 | 60초마다 | 자원 경보(`setInterval` — 크론 아님) | CPU·메모리 표본 + Slack 경보(5장) | 로그. 표본은 모든 워커가 쌓고 **경보 발송만** 스케줄러 워커가 한다 |
 
 - 새벽 배치의 순서(만료 → 주제 숨김 → 삭제 → 구독 보정 → 05:00 편성 → 05:30 집계)는 **통계는 경계 뒤, 드립은 누적값만 읽어 하루 늦은 집계를 감수한다**는 뜻이다(개정 2026-10-07 — 2026-10-12 05:00 KST 적용, KAN-149 — PM 확정 2026-10-07). 종전(경계 04:00)에는 집계가 04:00에 먼저 돌아 전날분을 확정하고 편성이 그 결과를 읽었는데, 경계가 05:00으로 옮겨지며 집계만 05:30으로 넘어갔고 나머지는 그대로다 — 만료·주제 숨김·삭제·구독 보정은 서비스 날짜를 계산하지 않는다.
@@ -78,10 +77,10 @@ CloudWatch(EC2 지표·`/ear/api`·`/ear/caddy` 로그)·Sentry·합성 헬스�
 | 오디오 CDN | `AUDIO_DELIVERY=cloudfront` + `CLOUDFRONT_KEY_PAIR_ID` · `CLOUDFRONT_PRIVATE_KEY_BASE64` · `AUDIO_BUCKET` · `AWS_REGION` (`AUDIO_URL_BASE_URL` · `AUDIO_URL_SIGNING_KEY` 는 항상 필수) | `cloudfront` 모드에서 값이 빠지면 기동 실패. 값이 틀리면 재생 URL 발급 불가 |
 | Sentry | `SENTRY_DSN` (+`SENTRY_ENVIRONMENT`) | 크래시 수집 안 됨 — 조용히 꺼짐 |
 | **Sentry → Slack 릴레이**(2026-10-07 — Sentry 무료 플랜은 Slack 공식 연동이 없어, 플랜 제한 없는 **Internal Integration 웹훅**(Alert Rule Action)을 `POST /webhooks/sentry/:token` 으로 받아 `SlackAlertService` 로 흘린다. 앱(ear-app)·서버(ear-api) 프로젝트가 같은 주소를 쓴다. 문구는 프로젝트·레벨·제목(200자)·환경·릴리스 + **위치(culprit)·기기/OS/앱 버전·울린 규칙·in-app 스택 3줄**(#1218) + **State · First Seen · 건수 · 영향 사용자 수**(이슈 단위 — `SENTRY_API_TOKEN`이 있으면 `GET /api/0/issues/{id}/` 를 한 번 더 물어 붙인다. 실패·3초 초과면 그 줄 없이 보낸다) + 이슈 링크. 사용자 식별값은 꺼내지 않는다) | `SENTRY_WEBHOOK_SECRET`(Internal Integration 의 **Client Secret** — Sentry 가 보내는 `Sentry-Hook-Signature`(본문의 HMAC-SHA256)를 이것으로 검증한다, 2026-10-07) · `SENTRY_API_TOKEN`(같은 통합의 **API 토큰**, 권한 Issue & Event: Read — 선택. 비우면 이슈 단위 줄만 빠진다) 또는 `SENTRY_WEBHOOK_TOKEN`(16자 이상, URL 경로 토큰 — 종전 방식. 경로의 비밀은 요청 로그에 남으므로 로그에서는 `[redacted]`로 가린다) + Slack 웹훅 | 둘 다 비우면 엔드포인트가 전부 404 — Sentry 이슈는 메일로만 온다. 둘 다 있으면 서명 또는 토큰 중 하나가 맞으면 받는다(주소 교체 기간). 기동 요약 `sentry-relay=` |
-| Slack 경보·**탈퇴 알림**(2026-10-06 — 사유 코드·직접 입력 사유·가입 N일차·결제 이력 여부, 신원 값 없음)·**스토어 리뷰**·**앱 삭제**(3-4 GA4 · 3-5 iOS 추정)·**결제 실패**(3-6) | `SLACK_ERROR_WEBHOOK_URL` (탈퇴 알림·리뷰·일일 보고는 `SLACK_SIGNUP_WEBHOOK_URL` 우선. 건별 가입 알림은 2026-10-13 없앴다 — 가입은 3-3 일일 보고의 가입자 줄로 본다) — 전송은 `modules/alert` 의 `SlackAlertService` 한 곳 | 조용히 꺼짐 |
+| Slack 경보·**스토어 리뷰**·**결제 실패**(3-6) | `SLACK_ERROR_WEBHOOK_URL` (리뷰·일일 보고는 `SLACK_SIGNUP_WEBHOOK_URL` 우선. 건별 가입 알림은 2026-10-13, 건별 탈퇴·앱 삭제 알림은 2026-10-15 없앴다 — 3-3 지표 보고의 가입자 줄과 3-4 이탈 보고로 본다) — 전송은 `modules/alert` 의 `SlackAlertService` 한 곳 | 조용히 꺼짐 |
 | App Store Connect API(리뷰 조회 — KAN-133) | `APP_STORE_CONNECT_ISSUER_ID` · `APP_STORE_CONNECT_KEY_ID` · `APP_STORE_CONNECT_PRIVATE_KEY_BASE64`(**팀 키** — 결제용 In-App Purchase 키와 다르다) + `APP_STORE_APP_APPLE_ID` | 그 스토어만 조용히 꺼짐 |
 | Google Play Developer API(리뷰 조회 — KAN-133) | 결제용 `GOOGLE_PLAY_PACKAGE_NAME` · `GOOGLE_PLAY_SERVICE_ACCOUNT_BASE64` 재사용(Play Console 에서 서비스 계정에 리뷰 권한 추가) | 그 스토어만 조용히 꺼짐 |
-| GA4 일일 보고 · **앱 삭제 알림**(3-4, 2026-10-06) | `GA4_PROPERTY_ID` + `GA4_SERVICE_ACCOUNT_BASE64` (+ 위 웹훅) — 같은 자격을 두 기능이 쓴다 | 조용히 꺼짐 |
+| GA4 일일 보고(3-3 지표 · 3-4 이탈) | `GA4_PROPERTY_ID` + `GA4_SERVICE_ACCOUNT_BASE64` (+ 위 웹훅) | 조용히 꺼짐 |
 
 - **조용히 꺼지는 것은 아래 셋(Sentry·Slack·GA4)이다** — "env 가 있으면 켜짐"이라 빠져도 서버는 정상 기동한다. 그래서 기동 요약이 이 셋의 켜짐/꺼짐을 찍는다. 위 둘(소셜 로그인·오디오)은 빠지면 서버가 뜨지 않으므로 기동했다는 사실이 곧 확인이다.
 - 푸시(Expo — `PUSH_DELIVERY=expo`)와 메일(SES — `MAIL_DELIVERY=ses`)은 발송 방식 값으로 켠다. 기본값은 로그만 남기는 쪽이고, 기동 요약에는 나오지 않는다.
@@ -106,11 +105,11 @@ CloudWatch(EC2 지표·`/ear/api`·`/ear/caddy` 로그)·Sentry·합성 헬스�
 | 항목 | 규칙 |
 |---|---|
 | 시각·대상 | 매일 **17:00 KST**, **어제** 하루치(오늘은 안 끝났고 GA4 당일 처리는 늦다). **크론으로만 나간다** — 수동 발송 엔드포인트는 없앴다(2026-10-02, `admin-api.md` 4.20) |
-| 채널 | 탈퇴 알림과 같은 웹훅(`SLACK_SIGNUP_WEBHOOK_URL` → 없으면 `SLACK_ERROR_WEBHOOK_URL`). **운영만 켠다** — GA4 자격을 운영에만 넣는다. 자격이나 웹훅이 비면 조용히 건너뛴다. 운영이 아닌 환경에서 켜면 문구 앞에 `[환경명]` 이 붙는다 |
-| 출처 | **GA4 운영 스트림**(`streamName` 이 `ear prod` 로 시작). 개발계 스트림은 걸러 테스트 트래픽이 섞이지 않는다. **서버 값은 가입자 줄 하나뿐이다**(개정 2026-10-13 — 아래) |
+| 채널 | 팀 알림 웹훅(`SLACK_SIGNUP_WEBHOOK_URL` → 없으면 `SLACK_ERROR_WEBHOOK_URL`). **운영만 켠다** — GA4 자격을 운영에만 넣는다. 자격이나 웹훅이 비면 조용히 건너뛴다. 운영이 아닌 환경에서 켜면 문구 앞에 `[환경명]` 이 붙는다 |
+| 출처 | **GA4 운영 스트림**(`streamName` 이 `ear prod` 로 시작). 개발계 스트림은 걸러 테스트 트래픽이 섞이지 않는다. **서버 값은 가입자 줄 하나뿐이다**(개정 2026-10-13 — 아래. 이탈 보고의 탈퇴도 서버 값이다 — 3-4) |
 | 가입자 | **서버 값**(신설 2026-10-13 — 건별 가입 알림을 대신한다). **현재** = 보고 시각의 `users` 행 수(탈퇴는 행을 지워 빠진다 — `admin-api.md` 의 `current` 와 같은 정의) · **어제 가입** = 보고일 서비스 날짜(05시 경계)의 `users.created_at` 건수(그날 가입했다가 탈퇴한 사람은 빠진다). 한 쿼리로 센다 — `가입자   현재 351명  ·  어제 가입 3명` |
 | 사용자 | 활성·신규·세션·평균 세션 길이·7일 활성 — GA4 `activeUsers` `newUsers` `sessions` `averageSessionDuration`. 7일 활성은 보고일을 포함한 최근 7일 창의 `activeUsers`. 활성·신규의 ▲▼ 는 전일 대비 |
-| 획득 | **가입 = GA4** `sign_up`(온보딩을 끝내지 않은 사용자의 로그인 세션 시작 — `analytics.md` 3.4). 서버 건수는 이 줄에 섞지 않고 가입자 줄에 따로 적는다(2026-10-13 — 종전에는 다를 때만 `가입 11 (서버 10)` 처럼 괄호로 붙였다) · 온보딩 완료 = GA4 `onboarding_complete` · 전환율 = 온보딩 완료 ÷ 가입(둘 다 GA4. 가입 0이면 적지 않는다) · 푸시 응답 = GA4 `push_permission` 건수(`result` 는 맞춤 측정기준 미등록이라 허용/거부 미분리) · **탈퇴 = GA4** `withdrawal`(서버는 행을 삭제해 흔적이 없다 — `domain.md` 12.3) |
+| 획득 | **가입 = GA4** `sign_up`(온보딩을 끝내지 않은 사용자의 로그인 세션 시작 — `analytics.md` 3.4). 서버 건수는 이 줄에 섞지 않고 가입자 줄에 따로 적는다(2026-10-13 — 종전에는 다를 때만 `가입 11 (서버 10)` 처럼 괄호로 붙였다) · 온보딩 완료 = GA4 `onboarding_complete` · 전환율 = 온보딩 완료 ÷ 가입(둘 다 GA4. 가입 0이면 적지 않는다) · 푸시 응답 = GA4 `push_permission` 건수(`result` 는 맞춤 측정기준 미등록이라 허용/거부 미분리). **탈퇴는 이 줄에 적지 않는다**(2026-10-15 — 종전 GA4 `withdrawal`. 3-4 이탈 보고의 서버 값과 겹친다) |
 | 재생 | 시작(건·사용자) `play_start` · **완청 = GA4** `play_complete`(재생이 끝에 닿은 횟수 — 재청취도 세고, 서버의 90% 완청 판정과는 다른 값이다) · 중도 이탈 `play_abandon` · 드립 재생 `drip_play` · 담기 `content_save` |
 | 리텐션 | GA4 코호트(`firstSessionDate`). **D1** = `date-1` 에 처음 온 사용자 중 `date` 에 활성인 비율, **D7** = `date-7` 기준(`date` = 보고 대상일 — 둘 다 완결된 하루를 측정일로 둔다). 표본(코호트 크기)을 함께 적고, **코호트가 비면 `—`(표본 없음), 아무도 안 돌아오면 0%** — 다른 사실이다 |
 | 경계 | GA4 는 KST 달력일(00시). 가입자 줄의 서버 값만 서비스 날짜(05시)다 — 문구 각주로 밝힌다 |
@@ -123,35 +122,36 @@ CloudWatch(EC2 지표·`/ear/api`·`/ear/caddy` 로그)·Sentry·합성 헬스�
   - 완청은 대조하지 않는다 — 정의가 달라(GA4 는 끝에 닿은 횟수, 서버는 90% 를 처음 넘긴 콘텐츠 수) 어긋나는 것이 정상이다.
 - GA4 SDK 는 **실행 시점에 지연 로드한다** — require 만으로 메모리가 54MB 늘어(2026-09-29 실측) 하루 한 번 도는 일에 모든 워커가 상시 내줄 비용이 아니다. 스케줄러 워커가 첫 실행 뒤에만 들고 있는다.
 
-### 3-4. 앱 삭제 알림 (신설 2026-10-06)
+### 3-4. 이탈 보고 (신설 2026-10-15 — 건별 탈퇴·앱 삭제 알림을 대신한다)
 
-탈퇴 버튼을 누르지 않고 앱만 지우는 **준탈퇴**를 그날 안에 본다. 가입·탈퇴 알림과 같은 채널에 한 줄로 온다.
-
-| 항목 | 규칙 |
-|---|---|
-| 출처 | **GA4 `app_remove`** — Firebase 가 **Android 에서 자동 수집**하는 삭제 이벤트(Play 서비스가 올린다. 우리가 심은 이벤트가 아니다). **iOS 는 없다** — Apple 이 삭제를 알려 주지 않는다. iOS 의 유일한 신호는 푸시 토큰 무효화(`device_tokens.invalidated_at` — `push-receipt-check`)다 |
-| 주기·창 | **15분마다** GA4 Data API **실시간 보고**(REST `runRealtimeReport`)로 최근 30분을 분 단위(`minutesAgo` × `platform`)로 읽는다. 일일 보고의 gRPC SDK 는 쓰지 않는다 — 54MB 를 상주시킬 일이 아니다. 인증은 같은 서비스 계정(`GA4_SERVICE_ACCOUNT_BASE64`)의 JWT |
-| 중복 방지 | 실시간 보고는 매번 30분을 통째로 주므로 **"마지막으로 집계한 분"**(epoch 분)을 메모리에 들고 그보다 새 분만 더한다. 막 도착한 분(3분 안)은 아직 채워지는 중일 수 있어 다음 주기로 미룬다. 재배포 뒤 첫 주기는 보이는 창을 전부 집계한다 — 직전 프로세스가 알린 분이 섞여 **한 번 중복될 수 있다**(놓치는 것보다 낫다) |
-| 문구 | `:wastebasket: 앱 삭제 N건 · Android · HH:mm~HH:mm KST (GA4 app_remove)` — 시각은 GA4 **도착** 분이다(삭제 시각이 아니다. Play 서비스가 올리기까지 늦을 수 있다). 플랫폼이 둘 이상이면 `Android 2 · iOS 1`. **누가 지웠는지는 싣지 않는다** — 실시간 보고에 사용자 식별자가 없고, 있어도 Slack 에는 신원 값을 쓰지 않는다 |
-| 켜짐 | GA4 자격(`GA4_PROPERTY_ID` · `GA4_SERVICE_ACCOUNT_BASE64`) + 웹훅이 있을 때, 스케줄러 프로세스에서만. 기동 로그 `app-remove-alert=on` |
-| 한계 | Play 서비스가 없는 기기·오프라인으로 지운 기기는 빠지거나 늦는다. 기기 기준이라 한 사람이 두 기기에서 지우면 2건이다. "누가"가 필요하면 GA4 탐색 분석에서 `app_remove` × `user_id`(앱이 로그인 시 해시를 설정한다 — `analytics.md`) 로 본다 |
-
-### 3-5. iOS 앱 삭제 추정 알림 (신설 2026-10-06)
-
-Apple 은 삭제 이벤트를 주지 않는다(3-4 는 Android 만). iOS 의 유일한 신호는 **푸시 토큰 무효화**다 — 앱을 지우면 APNs 가 그 토큰을 거부하고, 드립 알림 발송의 ticket(즉시) 또는 receipt(10분 뒤 회수)에 `DeviceNotRegistered`로 돌아와 `device_tokens.invalidated_at`이 찍힌다.
+탈퇴와 앱 삭제(준탈퇴)를 하루 한 번 모아 본다. 3-3 지표 보고 **바로 뒤에 별도 메시지로** 온다 — 지표 보고에 섞으면 퍼널 숫자 사이에 사유 목록이 끼어 둘 다 읽기 어렵다. 구현은 3-3 과 같은 파일들이다(`daily-metrics.scheduler.ts` · `daily-metrics-db.service.ts` · `ga4.service.ts` · `daily-metrics.format.ts` 의 `formatChurnReport`).
 
 | 항목 | 규칙 |
 |---|---|
-| 판정 | 토큰을 무효화한 직후, **그 사용자의 활성 기기(토큰 있음·무효화 안 됨)가 0이 되면** 앱 삭제로 **추정**한다. 다른 기기가 살아 있으면 기기 하나만 지운 것이라 알리지 않는다. 사용자당 한 번(같은 주기에 토큰 둘이 죽어도 1) |
+| 시각·대상·채널 | 3-3 과 같다 — 17:00 KST, **어제**, 같은 웹훅. 지표 메시지를 보낸 다음에 보낸다. 두 메시지는 **같은 조회 결과**로 만든다 — 하루 범위가 어긋나지 않는다 |
+| 탈퇴 | **서버 값** — `withdrawal_logs` 의 사유 코드별 건수. 범위는 3-3 가입자 줄과 같은 **서비스 날짜(05시 경계)**. 사유는 화면 선택지 문구(`auth-uiux.md`)로 적고, 건수 많은 순 · 같으면 화면 순서 · 사유 미선택은 맨 뒤 · 모르는 코드는 원값. **직접 입력 사유 원문은 싣지 않는다**(분포만 — 2026-10-15 결정). 가입 N일차·결제 이력은 `withdrawal_logs` 에 없어 싣지 않는다 |
+| 앱 삭제 | **GA4 `app_remove`** 일간 건수(운영 스트림, **00시 경계** — 3-3 의 다른 GA4 줄과 같다). Firebase 가 **Android 에서 자동 수집**하는 이벤트다(Play 서비스가 올린다. 우리가 심지 않았다). **iOS 는 없다** — Apple 이 삭제를 알려 주지 않는다. iOS 추정치(3-5)는 정확한 값 옆에 같은 무게로 읽히지 않게 싣지 않는다 |
+| 문구 | `:door: *YYYY-MM-DD (요일) 이어 이탈*` · `*탈퇴*  N명` 아래 사유별 `· <사유>  N` · `*앱 삭제*  Android N` · 각주(탈퇴는 서버 값 05시 경계, 앱 삭제는 GA4 00시 경계). **탈퇴 0명이어도 보낸다** — "없었다"도 보고다. 신원 값은 싣지 않는다 |
+| 실패 | 3-3 과 같다 — 던지지 않고 로그만. GA4 조회가 실패하면 두 메시지 모두 오지 않는다 |
+| 한계 | 앱 삭제: Play 서비스가 없는 기기·오프라인으로 지운 기기는 빠지거나 늦는다. 기기 기준이라 한 사람이 두 기기에서 지우면 2건이다. "누가"가 필요하면 GA4 탐색 분석에서 `app_remove` × `user_id` 로 본다 |
+
+- **종전(2026-10-06 ~ 10-15)**: 탈퇴할 때마다 사유·직접 입력 사유·가입 N일차·결제 이력을 Slack 한 줄로, Android 앱 삭제는 GA4 **실시간** 보고를 15분마다 읽어(`app-remove-poll`) 한 줄로 보냈다. 가입 알림(2026-10-13)과 같은 이유로 하루 한 번으로 모았다. 실시간 폴링과 그 REST 클라이언트는 함께 없앴다 — 기동 로그의 `app-remove-alert=` 항목도 빠졌다.
+
+### 3-5. iOS 앱 삭제 추정 (신설 2026-10-06 — 2026-10-15부터 로그만)
+
+Apple 은 삭제 이벤트를 주지 않는다(3-4 의 `app_remove` 는 Android 만). iOS 의 유일한 신호는 **푸시 토큰 무효화**다 — 앱을 지우면 APNs 가 그 토큰을 거부하고, 드립 알림 발송의 ticket(즉시) 또는 receipt(10분 뒤 회수)에 `DeviceNotRegistered`로 돌아와 `device_tokens.invalidated_at`이 찍힌다.
+
+| 항목 | 규칙 |
+|---|---|
+| 판정 | 토큰을 무효화한 직후, **그 사용자의 활성 기기(토큰 있음·무효화 안 됨)가 0이 되면** 앱 삭제로 **추정**한다. 다른 기기가 살아 있으면 기기 하나만 지운 것이라 세지 않는다. 사용자당 한 번(같은 주기에 토큰 둘이 죽어도 1) |
 | 왜 추정인가 | 기기 변경·초기화도 같은 신호다 — 새 기기로 다시 들어오면 토큰이 다시 등록된다. **알림 권한을 끈 사용자는 토큰이 없어 잡히지 않는다.** 전원을 잡으려면 권한 없이도 받는 무음 푸시가 필요한데, 그건 FE 가 권한 없이 토큰을 얻는지에 달렸다(미결) |
 | 시점 | 드립 알림을 보내는 05:00 직후(ticket 단계)와 그 뒤 10분 주기 영수증 회수에서 — 즉 **삭제 다음 날 아침**에 안다. 삭제 즉시가 아니다 |
-| 문구 | `:iphone: 앱 삭제 추정 N건 · iOS · 푸시 토큰 무효화(활성 기기 0) · MM. DD. HH:mm` — 가입·탈퇴 알림과 같은 채널. **Android 는 Slack 에 올리지 않는다**(3-4 GA4 `app_remove`가 삭제를 정확히 세고 있어 같은 삭제가 두 번 울린다) — 로그(`uninstall estimated from invalidated push tokens`)에만 플랫폼별 건수를 남긴다. 사용자 식별자는 싣지 않는다 |
-| 구현 | `notification/services/uninstall-alert.service.ts` — `DeviceTokenService.invalidateDeliveredTokensDetailed`(무효화한 행의 사용자·플랫폼, RETURNING) → `countActiveByUserIds` → Slack. 던지지 않는다 — 알림 실패가 발송·정리 흐름을 깨지 않는다 |
-| 추가 설정 | 없음 — 기존 웹훅이 있으면 켜진다 |
+| 기록 | **로그에만 남긴다**(`uninstall estimated from invalidated push tokens` — 플랫폼별 건수). 사용자 식별자는 싣지 않는다. 종전(2026-10-06 ~ 10-15)에는 iOS 건을 `:iphone: 앱 삭제 추정 N건 · iOS …` 한 줄로 Slack 에 보냈으나, 3-4 이탈 보고가 Android 만 세기로 해 없앴다(2026-10-15) |
+| 구현 | `notification/services/uninstall-estimate.service.ts` — `DeviceTokenService.invalidateDeliveredTokensDetailed`(무효화한 행의 사용자·플랫폼, RETURNING) → `countActiveByUserIds` → 로그. 던지지 않는다 — 추정 실패가 발송·정리 흐름을 깨지 않는다 |
 
 ### 3-6. 결제·스토어 알림 실패 Slack (신설 2026-10-06 — KAN-132)
 
-결제 경로의 실패는 전부 `warn` 로그라 ERROR 감시(`log-watch`)에 걸리지 않았다. 셋은 사람이 봐야 해서 `billing/services/billing-alert.service.ts`가 Slack 으로 올린다(가입·탈퇴 알림과 같은 채널).
+결제 경로의 실패는 전부 `warn` 로그라 ERROR 감시(`log-watch`)에 걸리지 않았다. 셋은 사람이 봐야 해서 `billing/services/billing-alert.service.ts`가 Slack 으로 올린다(팀 알림 채널).
 
 | 알림 | 언제 | 문구 |
 |---|---|---|

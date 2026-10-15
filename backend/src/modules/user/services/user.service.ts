@@ -11,6 +11,12 @@ import { EnvironmentVariables } from '@/config/env.validation';
 import { ConsentService } from './consent.service';
 import { User } from '../entities/user.entity';
 import {
+  messageLanguageOf,
+  normalizeLanguageCode,
+  normalizeLocale,
+  resolveMarket,
+} from '../policies/market.policy';
+import {
   resolveExistingUserTrialEndsAtFor,
   resolveSignupTrialEndsAtFor,
 } from '../policies/signup-trial.policy';
@@ -19,14 +25,16 @@ import {
   CURRENT_CONSENT_VERSIONS,
 } from '../user.constant';
 import {
+  MessageLanguage,
   OnboardingStep,
   SocialProvider,
+  UserMarket,
   UserRole,
   UserStatus,
   UserTier,
 } from '../user.enum';
 import { UserRepository } from '../repositories/user.repository';
-import { CreateUserCommand } from '../user.types';
+import { CreateUserCommand, LocaleInput } from '../user.types';
 
 @Injectable()
 export class UserService {
@@ -60,6 +68,15 @@ export class UserService {
     return this.userRepository.findDripTargetsPage(afterId, limit, manager);
   }
 
+  /** 사용자별 서버 문구 언어(`global-api.md` 2.3 — 시장으로 고른다). 없는 사용자는 결과에 없다 */
+  async findMessageLanguagesByIds(
+    ids: string[],
+  ): Promise<Map<string, MessageLanguage>> {
+    const rows = await this.userRepository.findMarketsByIds(ids);
+
+    return new Map(rows.map((row) => [row.id, messageLanguageOf(row.market)]));
+  }
+
   /** 편성 미리보기(admin) — 이메일로 대상 사용자 한 명. 역할 무관, 없으면 null */
   async findByEmail(email: string): Promise<User | null> {
     return this.userRepository.findByEmail(email);
@@ -87,12 +104,13 @@ export class UserService {
     return user;
   }
 
-  /** `before` 이전에 가입한 계정 수 — 주간 청취 상위 %의 모집단(`profile-api.md` 4.1, KAN-168) */
+  /** `before` 이전에 가입한 그 시장 계정 수 — 주간 청취 상위 %의 모집단(`profile-api.md` 4.1, KAN-168) */
   async countJoinedBefore(
     before: Date,
+    market: UserMarket,
     manager?: EntityManager,
   ): Promise<number> {
-    return this.userRepository.countCreatedBefore(before, manager);
+    return this.userRepository.countCreatedBefore(before, market, manager);
   }
 
   async getById(id: string, manager?: EntityManager): Promise<User> {
@@ -154,6 +172,12 @@ export class UserService {
     command: CreateUserCommand,
     now: Date,
   ): Promise<User> {
+    const locale = normalizeLocale(command.locale);
+    const resolved = resolveMarket({
+      preferredLanguage: command.locale?.preferredLanguage,
+      languageCode: locale.languageCode,
+    });
+
     return this.dataSource.transaction(async (manager) => {
       const user = this.userRepository.create({
         provider: command.provider,
@@ -169,9 +193,20 @@ export class UserService {
         status: UserStatus.ACTIVE,
         onboardingCompleted: false,
         onboardingStep: OnboardingStep.TOPIC,
+        // 시장은 여기서 1회 정한다(global-api.md 2.1). 로그인·기기 등록은 바꾸지 못한다
+        market: resolved.market,
+        languageCode: locale.languageCode,
+        regionCode: locale.regionCode,
+        timezone: locale.timezone,
       });
 
       const saved = await this.userRepository.save(user, manager);
+
+      this.logger.log('market resolved', {
+        user_id: saved.id,
+        market: resolved.market,
+        source: resolved.source,
+      });
 
       if (saved.trialEndsAt !== null) {
         this.logger.log('signup trial granted', {
@@ -241,6 +276,77 @@ export class UserService {
    * 제공자 CDN 주소는 사용자가 사진을 바꾸면 죽으므로 저장값을 오래 믿지 않는다.
    * 같은 값이면 쓰지 않는다 — 로그인마다 `users` 행을 갱신할 이유가 없다.
    */
+  /**
+   * 기기 로케일 갱신(`global-api.md` 4.1·4.2) — 로그인·기기 등록마다 부른다. **`market`은 건드리지 않는다.**
+   * 보낸 값만 갱신하고(없으면 그대로), 형식이 아닌 값은 버린다. 바뀐 것이 없으면 DB에 가지 않는다.
+   */
+  async syncLocale(user: User, input: LocaleInput | undefined): Promise<User> {
+    if (input === undefined) {
+      return user;
+    }
+
+    const normalized = normalizeLocale(input);
+    let changed = false;
+
+    if (
+      input.languageCode != null &&
+      normalized.languageCode !== null &&
+      user.languageCode !== normalized.languageCode
+    ) {
+      user.languageCode = normalized.languageCode;
+      changed = true;
+    }
+    if (
+      input.regionCode != null &&
+      normalized.regionCode !== null &&
+      user.regionCode !== normalized.regionCode
+    ) {
+      user.regionCode = normalized.regionCode;
+      changed = true;
+    }
+    if (
+      input.timezone != null &&
+      normalized.timezone !== null &&
+      user.timezone !== normalized.timezone
+    ) {
+      user.timezone = normalized.timezone;
+      changed = true;
+    }
+
+    return changed ? this.userRepository.save(user) : user;
+  }
+
+  async syncLocaleById(userId: string, input: LocaleInput): Promise<void> {
+    await this.syncLocale(await this.getById(userId), input);
+  }
+
+  /**
+   * 설정의 표시 언어 변경(`global-api.md` 4.3). 시장은 바뀌지 않는다. 형식이 아니면 400 — 사용자가 고른 값이라
+   * 조용히 버리면 "바꿨는데 안 바뀌는" 화면이 된다.
+   */
+  async updateLanguageCode(
+    userId: string,
+    languageCode: string,
+  ): Promise<User> {
+    const normalized = normalizeLanguageCode(languageCode);
+    if (normalized === null) {
+      throw new BusinessException({
+        status: HttpStatus.BAD_REQUEST,
+        errorCode: ErrorCode.VALIDATION_FAILED,
+        message: '요청을 처리할 수 없어요',
+        logLevel: 'warn',
+      });
+    }
+
+    const user = await this.getById(userId);
+    if (user.languageCode === normalized) {
+      return user;
+    }
+    user.languageCode = normalized;
+
+    return this.userRepository.save(user);
+  }
+
   async syncProfileImageUrl(
     user: User,
     profileImageUrl: string | null,

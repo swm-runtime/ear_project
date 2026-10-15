@@ -3,7 +3,7 @@ import path from "node:path";
 import { cfg, executedBy } from "../config.js";
 import { insertRun, setJobProgress, type Job } from "../db.js";
 import type { Executor } from "../executors/index.js";
-import { buildEnrichPrompt, embeddingRejectReason, ENRICH_JOB_CATEGORIES_DEFAULT, ENRICH_SCHEMA, ENRICH_YEARS, ENRICHMENT_SCHEMA_VERSION, fetchEmbedding, normalizeEnrichment } from "@ear/pipeline";
+import { buildEnrichPrompt, embeddingRejectReason, ENRICH_JOB_CATEGORIES_DEFAULT, ENRICH_YEARS, ENRICHMENT_SCHEMA_VERSION, enrichSchema, fetchEmbedding, normalizeEnrichment, pipelineLocale } from "@ear/pipeline";
 import { log } from "../util.js";
 import { workerRev } from "../assets.js";
 import { getFile, putFile, s3Key } from "../storage.js";
@@ -35,9 +35,10 @@ export async function runEnrich(job: Job, ex: Executor) {
   if (!contentId && episodeId) { // 에피소드 모드 — 패키지 산출물에서 입력을 읽는다
     const metaText = await getFile(`episodes/${episodeId}/upload-meta.json`);
     if (!metaText) throw new Error(`${episodeId}/upload-meta.json 없음 — 패키지 이후에`);
-    const m = JSON.parse(metaText) as { title?: string; description?: string; mid_topic?: string; major_topic?: string };
+    const m = JSON.parse(metaText) as { title?: string; description?: string; mid_topic?: string; major_topic?: string; topics?: string[] };
     title = title || String(m.title ?? ""); description = description || String(m.description ?? "");
-    if (!topicNames.length) topicNames = [m.mid_topic, m.major_topic].filter((x): x is string => !!x);
+    // 글로벌판 upload-meta 는 주제 1~2개(topics, 대표 먼저 — KAN-202). 한국판은 topics 가 없어 종전 그대로
+    if (!topicNames.length) topicNames = Array.isArray(m.topics) && m.topics.length ? m.topics.map(String) : [m.mid_topic, m.major_topic].filter((x): x is string => !!x);
   }
   const outKey = contentId ? ENRICH_KEY(contentId) : `episodes/${episodeId}/enrichment.json`;
   const reportKey = contentId ? `datasets/enrichment/${contentId}.report.json` : `episodes/${episodeId}/enrichment.report.json`;
@@ -54,15 +55,16 @@ export async function runEnrich(job: Job, ex: Executor) {
   // 판정 기준의 원본은 스킬의 reference 파일 — 레포 체크아웃(ASSET_ROOT = docs/ai 의 두 단계 위)에서 읽는다. 없으면 명세 4.2 요약으로 대신한다
   const repoRoot = path.resolve(cfg.assetSourceRoot, "..", "..");
   const criteria = await fs.readFile(path.join(repoRoot, ".claude/skills/metadata-enrichment/reference/judgment-criteria.md"), "utf8").catch(() => FALLBACK_CRITERIA);
-  const prompt = buildEnrichPrompt({ title, description, topicNames, origin, script, jobCategories, yearsRanges: [...ENRICH_YEARS], criteria });
+  const locale = pipelineLocale(); // en: language "en" · target_audiences 없음 · 태그 공백 허용 (global-api 4.9, KAN-202). ko 는 종전 그대로
+  const prompt = buildEnrichPrompt({ title, description, topicNames, origin, script, jobCategories, yearsRanges: [...ENRICH_YEARS], criteria, ...(locale === "en" ? { locale } : {}) });
   await setJobProgress(job.id, { phase: `메타 부여 — 판정 (${label})`, detail: `${script ? `대본 ${script.length}자` : "폴백"} · ${cfg.enrichModel}`, toolCounts: {}, turns: 0, elapsedMs: 0 }).catch(() => {});
-  const r = await ex.run<Record<string, unknown> & { evidence?: Record<string, string> }>({ prompt, schema: ENRICH_SCHEMA, tools: [], allowedTools: [], cwd: cfg.workRoot, timeoutMs: 10 * 60_000, model: cfg.enrichModel, effort: "medium",
+  const r = await ex.run<Record<string, unknown> & { evidence?: Record<string, string> }>({ prompt, schema: enrichSchema(locale), tools: [], allowedTools: [], cwd: cfg.workRoot, timeoutMs: 10 * 60_000, model: cfg.enrichModel, effort: "medium",
     onProgress: (pr) => setJobProgress(job.id, { ...pr, phase: `메타 부여 — 판정 (${label})` }).catch(() => {}) });
   const { evidence, ...raw } = r.output;
   // source 는 코드가 정한다 (2026-09-23): OpenAI 엄격 스키마는 선택 필드를 "값 또는 null" 로 바꾸는데, GPT 가 대본이 있어도 유일한 허용값
   // "title_description" 을 골라 넣어 정상 산출물이 폴백으로 표기됐다 (T260923-003). 대본을 읽었으면 지우고, 없을 때만 폴백 표시
   if (script) delete raw.source; else raw.source = "title_description";
-  const n = normalizeEnrichment(raw, topicNames, jobCategories, { tags: cfg.enrichTags });
+  const n = normalizeEnrichment(raw, topicNames, jobCategories, { tags: cfg.enrichTags, ...(locale === "en" ? { locale } : {}) });
   // 대본 임베딩 (Phase B, metadata-pipeline 4.3 · KAN-89): AI 서버가 설정된 워커만. 입력은 대본 전문, 없으면 제목+설명(4.5 폴백 — source 는 이미 title_description).
   // 실패·stub·검증 불일치는 메타 부여 실패가 아니다 — 키를 빼고 파일을 내며(partial) 리포트·요약에 사유를 남긴다. 잘못된 키 하나가 BE 에서 파일 전체 거부를 부른다
   let embeddingNote = "임베딩 없음(AI 서버 미설정 — 발행 시 웹이 채움)";

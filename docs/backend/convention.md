@@ -621,7 +621,7 @@ this.logger.warn(`user ${userId} blocked, count=${playCount}`);
 
 | 분류 | 이벤트 | 레벨 | 필수 필드 |
 |---|---|---|---|
-| **요청** | 모든 API 요청 시작·종료 (인터셉터에서 일괄) | info | method, path, status, duration_ms, user_id(계정 UUID — 비로그인 null), trace_id |
+| **요청** | 모든 API 요청 시작·종료 (인터셉터에서 일괄) | info | method, path, status, duration_ms, user_id(계정 UUID — 비로그인 null), market(시장 — 비로그인 null, 2026-10-14 KAN-193), trace_id |
 | **느린 쿼리** | 1초 초과 쿼리 (TypeORM maxQueryExecutionTime) | warn | duration_ms, query(SQL 문장만 — **바인딩 값 비기록**) |
 | **인증** | 로그인 성공/실패, 토큰 갱신 실패, 로그아웃, 회원 탈퇴 | info / warn | provider, reason |
 | **인증 이상** | refresh token 재사용 감지 → 세션 무효화 | error | user_id |

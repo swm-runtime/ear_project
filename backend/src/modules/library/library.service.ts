@@ -15,6 +15,7 @@ import {
   LibrarySaveResult,
 } from './library.types';
 import { toServiceDayRange } from '@/common/utils/service-date.util';
+import { UserMarket } from '@/modules/user/user.enum';
 
 /**
  * `library_items`는 library 모듈 소유다(domain.md 2장).
@@ -335,6 +336,20 @@ export class LibraryService {
    * 한 구간에 적립된 편성분(드립·탐험)을 콘텐츠와 함께 — 추천 별점 팝업(`drip-feedback.md` 4.1)의 재료.
    * 삭제분은 뺀다: 사용자가 지운 편은 이미 반응한 것이라 다시 묻지 않는다.
    */
+  /** 기간 안의 편성분(정규·탐험) 전체 — 드립 도착 알림(07:00)이 그날 배치 결과를 읽는다 */
+  async findPlacementsAddedBetween(
+    start: Date,
+    end: Date,
+    manager?: EntityManager,
+  ): Promise<LibraryItem[]> {
+    return this.libraryItemRepository.findAllWithContentBySourcesAddedBetween(
+      [LibraryItemSource.DRIP, LibraryItemSource.DISCOVERY],
+      start,
+      end,
+      manager,
+    );
+  }
+
   async findPlacedBetween(
     userId: string,
     start: Date,
@@ -462,13 +477,19 @@ export class LibraryService {
     return { items: hasNext ? rows.slice(0, query.limit) : rows, hasNext };
   }
 
-  /** 주제 필터 팝업의 주제별 건수(library-api.md 4.2) — 삭제되지 않고 회수되지 않은 항목만, 집계는 SQL이 한다 */
+  /** 주제 필터 팝업의 주제별 건수(library-api.md 4.2) — 목록과 같은 노출·시장 조건, 집계는 SQL이 한다 */
   async countByTopicForUser(
     userId: string,
     now: Date,
+    market: UserMarket,
     manager?: EntityManager,
   ): Promise<{ topicId: string; name: string; itemCount: number }[]> {
-    return this.libraryItemRepository.countByTopicForUser(userId, now, manager);
+    return this.libraryItemRepository.countByTopicForUser(
+      userId,
+      now,
+      market,
+      manager,
+    );
   }
 
   /**
@@ -481,9 +502,15 @@ export class LibraryService {
   async findResumeTarget(
     userId: string,
     now: Date,
+    market: UserMarket,
     manager?: EntityManager,
   ): Promise<LibraryItem | null> {
-    return this.libraryItemRepository.findLatestResumable(userId, now, manager);
+    return this.libraryItemRepository.findLatestResumable(
+      userId,
+      now,
+      market,
+      manager,
+    );
   }
 
   /**

@@ -1,7 +1,13 @@
+import { QueryFailedError } from 'typeorm';
+
+import { BusinessException } from '@/common/exceptions/business.exception';
+import { ErrorCode } from '@/common/exceptions/error-code.enum';
+
 import { TopicService } from './topic.service';
 import { Topic } from '../entities/topic.entity';
 import { TopicRepository } from '../repositories/topic.repository';
 import { UserInterestRepository } from '../repositories/user-interest.repository';
+import { UserMarket } from '@/modules/user/user.enum';
 
 /** '한'을 자모로 풀어 쓴 NFD 표기 — macOS 파일명·일부 입력기에서 이렇게 들어온다 */
 const NFD_HAN = '한';
@@ -46,6 +52,8 @@ describe('TopicService', () => {
       name: NFD_HAN,
       parentCategory: '커리어',
       displayOrder: null,
+      market: UserMarket.KR,
+      slug: null,
     });
 
     // then
@@ -61,5 +69,49 @@ describe('TopicService', () => {
 
     // then
     expect(saved.name).toBe('한');
+  });
+
+  it('같은 시장에 같은 slug 가 있으면 409 CONFLICT 로 돌려준다 — 500 이 아니다', async () => {
+    // given — `uq_topics_market_slug` 위반
+    repository.saveAll.mockRejectedValue(
+      new QueryFailedError('INSERT', [], { code: '23505' } as never),
+    );
+
+    // when
+    const result = service.create({
+      name: 'K-Pop',
+      parentCategory: 'K-Pop',
+      displayOrder: null,
+      market: UserMarket.GLOBAL,
+      slug: 'k-pop',
+    });
+
+    // then
+    await expect(result).rejects.toBeInstanceOf(BusinessException);
+    await expect(result).rejects.toMatchObject({
+      errorCode: ErrorCode.CONFLICT,
+    });
+  });
+
+  it('수정에 slug 가 담기면 그 값으로 바꾼다', async () => {
+    // given
+    const topic = { name: '커리어', slug: null } as Topic;
+
+    // when
+    const saved = await service.update(topic, { slug: 'career' });
+
+    // then
+    expect(saved.slug).toBe('career');
+  });
+
+  it('수정에 slug 가 null 로 담기면 비운다', async () => {
+    // given
+    const topic = { name: '커리어', slug: 'career' } as Topic;
+
+    // when
+    const saved = await service.update(topic, { slug: null });
+
+    // then
+    expect(saved.slug).toBeNull();
   });
 });

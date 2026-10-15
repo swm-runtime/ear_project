@@ -3,9 +3,11 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useCallback, useMemo, useRef, useState } from 'react';
 import { Linking } from 'react-native';
 
+
 import { logger } from '@/shared/lib/logger';
 
 import { KAKAO_CHANNEL_URL } from '@/features/settings';
+import { formatPlanGrantLine } from '@/features/subscription';
 
 import { profileKeys } from '../api/profile.api';
 import { isCareerEmpty, toInterestOverflowCount } from '../profile.format';
@@ -27,7 +29,7 @@ export type SectionState<T> = { kind: 'data'; data: T } | { kind: 'error' };
  * 플랜 카드 VM — 서버가 정규화한 status 4분기를 그대로 실어 나른다(profile-api.md 4.1).
  * 클라이언트가 expires_at과 기기 시각으로 재판정하지 않는다.
  */
-export type PlanCardVM =
+export type PlanCardStatusVM =
   /**
    * trialLastFreeDate — 가입 체험 중이면 마지막 무제한 날(YYYY-MM-DD), 아니면 null(subscription.md 4.8).
    * **무료 상태에만 싣는다** — 구독자가 체험 중이어도 줄은 구독 문구 그대로다(profile-uiux.md 4.2)
@@ -61,7 +63,18 @@ export interface StatsVM {
   distribution: TopicDistribution;
 }
 
-const toPlanCardVM = (plan: ProfilePlan): PlanCardVM => {
+/**
+ * eventLine — 초대 코드 지급 중이면 "{이름} 이벤트 이용 중 · {요금제} · N월 N일까지"(KAN-182), 아니면 null.
+ * 설정 요약·요금제 관리와 **같은 함수**(subscription 공개 API `formatPlanGrantLine`)로 만든다
+ */
+export type PlanCardVM = PlanCardStatusVM & { eventLine: string | null };
+
+const toPlanCardVM = (plan: ProfilePlan): PlanCardVM => ({
+  ...toPlanCardStatusVM(plan),
+  eventLine: formatPlanGrantLine(plan.grant),
+});
+
+const toPlanCardStatusVM = (plan: ProfilePlan): PlanCardStatusVM => {
   switch (plan.status) {
     case 'free':
       return {
