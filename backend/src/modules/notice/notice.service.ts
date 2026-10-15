@@ -65,9 +65,11 @@ export class NoticeService {
   async findAdminPage(
     cursor: AdminNoticeCursorPosition | null,
     limit: number,
+    /** 시장 필터 — 없으면 전 시장(운영자는 두 시장 공지를 다 본다) */
+    market?: UserMarket,
   ): Promise<NoticePage<Notice>> {
     return toPage(
-      await this.noticeRepository.findAdminPage(cursor, limit + 1),
+      await this.noticeRepository.findAdminPage(cursor, limit + 1, market),
       limit,
     );
   }
@@ -108,6 +110,7 @@ export class NoticeService {
         body: command.body,
         isPinned: command.isPinned,
         publishedAt: command.publishedAt,
+        market: command.market,
       }),
       manager,
     );

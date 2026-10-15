@@ -80,6 +80,7 @@ export class NoticeRepository {
   async findAdminPage(
     cursor: AdminNoticeCursorPosition | null,
     take: number,
+    market?: UserMarket,
   ): Promise<Notice[]> {
     const createdAt = "date_trunc('milliseconds', notice.created_at)";
     const builder = this.repository
@@ -89,10 +90,13 @@ export class NoticeRepository {
       .limit(take);
 
     if (cursor) {
-      builder.where(
+      builder.andWhere(
         `(${createdAt}, notice.id) < (:cursorCreatedAt, :cursorId)`,
         { cursorCreatedAt: cursor.createdAt, cursorId: cursor.id },
       );
+    }
+    if (market) {
+      builder.andWhere('notice.market = :market', { market });
     }
 
     return builder.getMany();

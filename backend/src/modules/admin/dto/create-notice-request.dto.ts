@@ -1,4 +1,10 @@
-import { IsBoolean, IsOptional, IsString, Matches } from 'class-validator';
+import {
+  IsBoolean,
+  IsEnum,
+  IsOptional,
+  IsString,
+  Matches,
+} from 'class-validator';
 
 import {
   NOTICE_BODY_MAX_LENGTH,
@@ -6,6 +12,7 @@ import {
 } from '@/modules/notice/notice.constant';
 
 import { IsNoticeTimestamp, MaxCodePoints } from './notice-field.validator';
+import { UserMarket } from '@/modules/user/user.enum';
 
 /** 공백만 있는 값은 1자로 세지 않는다 — 빈 제목·본문의 공지가 목록에 뜨는 것을 막는다 */
 const NOT_BLANK = /\S/;
@@ -32,4 +39,12 @@ export class CreateNoticeRequestDto {
   @IsOptional()
   @IsNoticeTimestamp()
   readonly published_at?: string;
+
+  /**
+   * 공지의 시장(`global-api.md` 4.8, KAN-211). 선택 — 없으면 `kr`(종전 콘솔 그대로). 생성 뒤 바꾸지 않는다 —
+   * 수정(`PATCH`)은 이 필드를 받지 않는다(모르는 필드는 400)
+   */
+  @IsOptional()
+  @IsEnum(UserMarket)
+  readonly market?: UserMarket;
 }

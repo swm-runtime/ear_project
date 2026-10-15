@@ -79,6 +79,7 @@ import { ResourceAlertService } from './services/resource-alert.service';
 import { AdminTopicService } from './services/admin-topic.service';
 import { UserMarket } from '@/modules/user/user.enum';
 import { ContentLanguage } from '@/modules/content/content.enum';
+import { AdminNoticeQueryRequestDto } from './dto/admin-notice-query-request.dto';
 
 interface UploadFiles {
   audio?: Express.Multer.File[];
@@ -200,11 +201,12 @@ export class AdminController {
   /** admin-api.md 4.12 — 초안·예약 포함 전체, 작성 최신순 */
   @Get('notices')
   async listNotices(
-    @Query() query: GetNoticesQueryRequestDto,
+    @Query() query: AdminNoticeQueryRequestDto,
   ): Promise<AdminNoticeListResponseDto> {
     const page = await this.adminNoticeService.findPage(
       query.cursor ? decodeAdminNoticeCursor(query.cursor) : null,
       query.limit ?? NOTICE_LIST_DEFAULT_LIMIT,
+      query.market,
     );
     const last = page.items[page.items.length - 1];
 
@@ -230,6 +232,8 @@ export class AdminController {
         publishedAt: request.published_at
           ? new Date(request.published_at)
           : null,
+        // 선택 입력 — 없으면 kr(지금 콘솔은 보내지 않는다)
+        market: request.market ?? UserMarket.KR,
       }),
     );
   }

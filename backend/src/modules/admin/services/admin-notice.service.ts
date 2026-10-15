@@ -16,6 +16,7 @@ import {
   AUDIT_ACTION_NOTICE_DELETE,
   AUDIT_ACTION_NOTICE_UPDATE,
 } from '../admin.constant';
+import { UserMarket } from '@/modules/user/user.enum';
 
 /**
  * admin-api.md 4.12~4.15 — 공지 관리(KAN-67). 쓰기와 감사 기록을 **한 트랜잭션**으로 묶는다 —
@@ -32,8 +33,9 @@ export class AdminNoticeService {
   async findPage(
     cursor: AdminNoticeCursorPosition | null,
     limit: number,
+    market?: UserMarket,
   ): Promise<NoticePage<Notice>> {
-    return this.noticeService.findAdminPage(cursor, limit);
+    return this.noticeService.findAdminPage(cursor, limit, market);
   }
 
   async create(

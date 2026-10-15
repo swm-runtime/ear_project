@@ -11,7 +11,7 @@ import { AppModule } from '@/app.module';
 import { ErrorCode } from '@/common/exceptions/error-code.enum';
 import { traceIdMiddleware } from '@/common/middlewares/trace-id.middleware';
 import { User } from '@/modules/user/entities/user.entity';
-import { SocialProvider, UserRole } from '@/modules/user/user.enum';
+import { SocialProvider, UserMarket, UserRole } from '@/modules/user/user.enum';
 
 interface ListBody {
   items: {
@@ -300,6 +300,56 @@ describe('공지사항 E2E', () => {
     );
   });
 
+  it('market: global 로 만든 공지는 GLOBAL 계정에만 보이고, 관리자 목록에 market 이 실린다(KAN-211)', async () => {
+    const globalAuth = await createUser(
+      'global',
+      UserRole.USER,
+      UserMarket.GLOBAL,
+    );
+    const globalId = await createNotice('global', {
+      published_at: hoursAgo(1),
+      market: 'global',
+    });
+    const krId = await createNotice('kr-default', {
+      published_at: hoursAgo(1),
+    });
+
+    const globalList = await get('/notices?limit=50', globalAuth).expect(
+      HttpStatus.OK,
+    );
+    const globalIds = (globalList.body as ListBody).items.map(
+      (item) => item.id,
+    );
+    expect(globalIds).toContain(globalId);
+    expect(globalIds).not.toContain(krId);
+    expect(await isListed(globalId)).toBe(false);
+    expect(await isListed(krId)).toBe(true);
+
+    const admin = await get(
+      '/admin/notices?limit=50&market=global',
+      adminAuth,
+    ).expect(HttpStatus.OK);
+    const adminItems = (
+      admin.body as { items: { id: string; market: string }[] }
+    ).items;
+    expect(adminItems.find((item) => item.id === globalId)?.market).toBe(
+      'global',
+    );
+    expect(adminItems.some((item) => item.id === krId)).toBe(false);
+  }, 60_000);
+
+  it('모르는 market 값은 400 이다', async () => {
+    await request(app.getHttpServer())
+      .post('/api/v1/admin/notices')
+      .set('Authorization', adminAuth)
+      .send({
+        title: `${TITLE_PREFIX}-bad-market`,
+        body: '본문',
+        market: 'mars',
+      })
+      .expect(HttpStatus.BAD_REQUEST);
+  });
+
   it('uuid 가 아닌 id 는 없는 공지와 같이 404 다', async () => {
     // when
     const response = await get('/notices/abc', userAuth).expect(
@@ -344,7 +394,7 @@ describe('공지사항 E2E', () => {
 
   async function createNotice(
     label: string,
-    fields: { published_at?: string; is_pinned?: boolean },
+    fields: { published_at?: string; is_pinned?: boolean; market?: string },
   ): Promise<string> {
     const response = await request(app.getHttpServer())
       .post('/api/v1/admin/notices')
@@ -384,7 +434,11 @@ describe('공지사항 E2E', () => {
     return (await listAll()).some((item) => item.id === id);
   }
 
-  async function createUser(label: string, role: UserRole): Promise<string> {
+  async function createUser(
+    label: string,
+    role: UserRole,
+    market: UserMarket = UserMarket.KR,
+  ): Promise<string> {
     const repository = dataSource.getRepository(User);
     const user = await repository.save(
       repository.create({
@@ -392,6 +446,7 @@ describe('공지사항 E2E', () => {
         providerUserId: `e2e-notice-${label}-${Date.now()}`,
         role,
         onboardingCompleted: true,
+        market,
       }),
     );
     userIds.push(user.id);
@@ -399,7 +454,7 @@ describe('공지사항 E2E', () => {
     const token = app
       .get(JwtService)
       .sign(
-        { sub: user.id, role: user.role, typ: 'access' },
+        { sub: user.id, role: user.role, typ: 'access', market },
         { expiresIn: 600 },
       );
 

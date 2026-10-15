@@ -5,6 +5,7 @@ import { NoticeService } from '@/modules/notice/notice.service';
 import { AuditLogService } from '@/modules/partner/audit-log.service';
 
 import { AdminNoticeService } from './admin-notice.service';
+import { UserMarket } from '@/modules/user/user.enum';
 
 const ACTOR_ID = '11111111-1111-4111-8111-111111111111';
 const NOTICE_ID = '22222222-2222-4222-8222-222222222222';
@@ -17,6 +18,7 @@ function buildNotice(overrides: Partial<Notice> = {}): Notice {
     body: '본문',
     isPinned: false,
     publishedAt: PUBLISHED_AT,
+    market: UserMarket.KR,
     ...overrides,
   } as Notice;
 }
@@ -66,6 +68,7 @@ describe('AdminNoticeService', () => {
       body: '본문',
       isPinned: false,
       publishedAt: PUBLISHED_AT,
+      market: UserMarket.KR,
     });
 
     // then
@@ -108,6 +111,7 @@ describe('AdminNoticeService', () => {
       body: '본문',
       isPinned: false,
       publishedAt: null,
+      market: UserMarket.KR,
     });
 
     // then
