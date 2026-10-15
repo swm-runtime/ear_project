@@ -1,3 +1,5 @@
+import { localized, type LocalizedCopy } from '@/shared/i18n/localized';
+
 /**
  * 사용자 노출 문구(convention.md 3.5). 확정 카피는 spec/uiux/subscription-uiux.md 와 1:1 대조한다.
  * 서버 오류 문구는 subscription-api.md 5장 그대로다. 내부 용어("티어"·"드립"·"영수증"·"유예")를 노출하지 않는다.
@@ -22,7 +24,7 @@ const serviceDate = (yyyyMmDd: string): string => {
   return `${Number(month)}월 ${Number(day)}일`;
 };
 
-export const SUBSCRIPTION_COPY = {
+const ko = {
   /** 화면 제목 — 설정의 진입 항목 이름과 같다(KAN-146, settings.copy sections.subscription) */
   title: '요금제 관리',
   /** 제목 밑 안내 — 낮출 수 있는 요금제가 있을 때만(PM 2026-10-08 KAN-158). 낮추기는 지금 기간이 끝난 뒤 적용된다 */
@@ -247,3 +249,195 @@ export const SUBSCRIPTION_COPY = {
     unknown: '결제를 완료하지 못했어요. 잠시 후 다시 시도해주세요',
   },
 } as const;
+
+const MONTHS_EN = [
+  'Jan',
+  'Feb',
+  'Mar',
+  'Apr',
+  'May',
+  'Jun',
+  'Jul',
+  'Aug',
+  'Sep',
+  'Oct',
+  'Nov',
+  'Dec',
+] as const;
+
+/** ko `monthDay` 와 같은 날짜(기기 시간대)를 "Oct 15" 로 */
+const monthDayEn = (iso: string): string => {
+  const date = new Date(iso);
+  return `${MONTHS_EN[date.getMonth()]} ${date.getDate()}`;
+};
+
+/** ko `serviceDate` 와 같이 문자열을 그대로 읽는다 — "YYYY-MM-DD" → "Oct 15" */
+const serviceDateEn = (yyyyMmDd: string): string => {
+  const [, month, day] = yyyyMmDd.split('-');
+  return `${MONTHS_EN[Number(month) - 1]} ${Number(day)}`;
+};
+
+const en: LocalizedCopy<typeof ko> = {
+  title: 'Manage plan',
+  downgradeNotice:
+    'If you switch to a lower plan, it changes automatically when your current plan period ends',
+  backA11y: 'Back',
+  loadingA11y: 'Loading plans',
+
+  status: {
+    loadError: 'Couldn’t load your subscription',
+    renewsAt: (iso: string) => `Renews ${monthDayEn(iso)}`,
+    cancelScheduled: (iso: string) => `Available until ${monthDayEn(iso)}`,
+    revertAfterChange: (iso: string, nextPlanName: string) =>
+      `You can upgrade again after it switches to ${nextPlanName} on ${monthDayEn(iso)}`,
+    cancelScheduledNotice: (iso: string, planName: string) =>
+      `You can use ${planName} until ${monthDayEn(iso)}`,
+    cancelScheduledNoticeDetail: (freePlanName: string | null) =>
+      `After that, you’ll switch to ${freePlanName ?? 'the free plan'}`,
+    pendingPlanNoticeDetail: (currentPlanName: string) =>
+      `Until then, you can keep using ${currentPlanName}`,
+    cancelUntil: (iso: string) => `You can use your current plan until ${monthDayEn(iso)}`,
+    paymentIssueTitle: 'There’s a problem with your payment',
+    paymentIssueBody: 'Your subscription may end if you don’t check your payment method',
+    pendingPlan: (iso: string, planName: string) => `${planName} starts on ${monthDayEn(iso)}`,
+    otherStore: (store: 'app_store' | 'play_store') =>
+      store === 'play_store'
+        ? 'You subscribed through Google Play. Make changes on the device you subscribed with'
+        : 'You subscribed through the App Store. Make changes on the device you subscribed with',
+  },
+
+  manage: {
+    resume: 'Resume subscription',
+    checkPayment: 'Check payment method',
+  },
+
+  plans: {
+    freePrice: 'Free',
+    perMonth: (displayPrice: string) => `${displayPrice}/month`,
+    purchase: 'Subscribe',
+    upgrade: 'Upgrade',
+    downgrade: 'Switch',
+    current: 'Current',
+    scheduled: 'Scheduled',
+    downgradeHint: 'Starts on your next billing date',
+    downgradeConfirmTitle: (name: string) => `Switch to ${name}?`,
+    downgradeConfirmMessage:
+      'You can keep using your current plan until your next billing date. After that, it changes automatically.',
+    downgradeConfirmMessageAndroid:
+      'You can keep using your current plan until your next billing date. After that, it changes automatically. This change can’t be undone, but you can upgrade again after it takes effect.',
+    keepCurrent: (name: string) => `Keep ${name}`,
+    downgradeConfirmCancel: 'Cancel',
+    downgradeConfirmOk: 'Switch',
+    cta: (name: string, action: 'purchase' | 'upgrade' | 'downgrade' | 'cancel') => {
+      if (action === 'purchase') return `Subscribe to ${name}`;
+      if (action === 'upgrade') return `Upgrade to ${name}`;
+      return `Switch to ${name}`;
+    },
+    groupA11y: 'Plans',
+    cardA11y: (
+      name: string,
+      price: string,
+      description: string,
+      isCurrent: boolean,
+      isScheduled = false,
+    ) =>
+      [name, price, description, isCurrent ? 'Current' : '', isScheduled ? 'Scheduled' : '']
+        .filter((part) => part !== '')
+        .join(', '),
+  },
+
+  restore: 'Restore purchases',
+
+  legal: {
+    ios: [
+      'Payment will be charged to your App Store account at confirmation of purchase. Your subscription renews automatically every month.',
+      'Unless canceled at least 24 hours before the end of the current period, your account will be charged the same amount for renewal within 24 hours prior to the end of the period.',
+      'You can cancel in your device’s Settings › Apple Account › Subscriptions.',
+    ],
+    android: [
+      'Payment will be charged to your Google Play account at confirmation of purchase. Your subscription renews automatically every month.',
+      'Unless you cancel before your next billing date, you’ll be charged the same amount again.',
+      'You can cancel in the Google Play Store › Payments & subscriptions › Subscriptions.',
+    ],
+    heading: 'Subscription details',
+    bullet: '•',
+    terms: 'Terms of Use',
+    privacy: 'Privacy Policy',
+    separator: '·',
+  },
+
+  progress: {
+    purchasingA11y: 'Processing payment',
+    verifying: 'Confirming your subscription',
+    restoringA11y: 'Restoring purchases',
+  },
+
+  result: {
+    purchased: 'Your subscription has started',
+    upgraded: 'Your plan has been changed',
+    restored: 'Your subscription has been restored',
+    nothingToRestore: 'No subscription to restore',
+    recovered: 'Your subscription is now active',
+    delayed: 'Confirming your subscription… It will update automatically in a moment',
+    pending: 'Waiting for payment approval. It will update automatically once approved',
+    alreadyOwned: 'You’re already subscribed. Tap [Restore purchases] to link it to this account',
+    emailRequired: 'Verify your email to subscribe',
+    restoreEmailRequired: 'Verify your email to restore your subscription',
+    downgradeScheduled: 'Your new plan starts on your next billing date',
+    downgradeAlreadyScheduled: 'A plan change is already scheduled for your next billing date',
+    keptCurrent: 'Scheduled change canceled',
+  },
+
+  grant: {
+    line: (name: string, planName: string, lastDate: string) =>
+      `${name} event · ${planName} · Until ${serviceDateEn(lastDate)}`,
+    noticeDetailFree: 'If you subscribe, your event benefits end at that time',
+    noticeDetailSubscribed: 'Your subscription continues as usual',
+    purchaseConfirmTitle: (name: string) => `Your ${name} event will end`,
+    purchaseConfirmMessage: (planName: string) =>
+      `If you subscribe now, your event benefits end right away and you’ll switch to a ${planName} subscription`,
+    purchaseConfirmOk: 'Subscribe',
+    purchaseConfirmCancel: 'Cancel',
+  },
+
+  invite: {
+    title: 'Enter event code',
+    description: 'Enter your event code to get plan benefits right away',
+    placeholder: 'Enter code',
+    inputA11y: 'Event code',
+    submit: 'Confirm',
+    submitting: 'Checking',
+    success: (name: string, planName: string, lastDate: string) =>
+      `${name} event started · ${planName} · Until ${serviceDateEn(lastDate)}`,
+    successFallback: 'Event code applied',
+    notFound: 'This code can’t be used',
+    expired: 'This code has expired',
+    exhausted: 'This code has reached its limit',
+    alreadyUsed: 'You’ve already used this code',
+    grantAlreadyActive: 'Benefits from another code are still active',
+    rateLimited: 'Please try again in a moment',
+    network: 'Check your network connection',
+    unknown: 'Couldn’t check the code. Please try again in a moment',
+    backA11y: 'Back',
+  },
+
+  error: {
+    catalog: 'Couldn’t load plans',
+    retry: 'Try again',
+    planUnavailable: 'This plan isn’t available right now',
+    storeMismatch:
+      'You subscribed through a different store. Make changes on the device you subscribed with',
+    receiptInvalid: 'We couldn’t confirm your subscription. Contact us and we’ll look into it',
+    ownedByAnotherAccount: 'This subscription is already in use by another account',
+    alreadySubscribed: 'You’re already subscribed. Use Switch to change your plan',
+    changeRejected: 'Your plan can’t be changed right now. Please try again in a moment',
+    downgradeNeedsUpdate: 'Update to the latest version of the app to switch to a lower plan',
+    replaceSourceMissing:
+      'Your current subscription wasn’t found on this device. Try again with the Google account you subscribed with',
+    storeUnavailable: 'Payment isn’t available right now. Please try again in a moment',
+    network: 'Check your network connection',
+    unknown: 'Couldn’t complete your payment. Please try again in a moment',
+  },
+};
+
+export const SUBSCRIPTION_COPY = localized({ ko, en });

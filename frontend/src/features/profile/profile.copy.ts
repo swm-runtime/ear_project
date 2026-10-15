@@ -3,6 +3,7 @@
  * 내부 용어("티어"·"라이트"·"완청"·"서비스 날짜" 등)를 노출하지 않는다 — 플랜은 plan_name 표시명만 쓴다.
  * 숫자·상태 판정은 profile.format.ts가 하고 여기는 문장 조립만 한다.
  */
+import { localized, type LocalizedCopy } from '@/shared/i18n/localized';
 import { toDateOnlyMonthDay } from '@/shared/lib/date-only';
 
 import type { SocialProvider } from '@/features/auth';
@@ -62,7 +63,7 @@ const listenedDayValue = (sec: number): string => {
   return hours > 0 ? `${hours}시간 ${minutes}분` : `${minutes}분`;
 };
 
-export const PROFILE_COPY = {
+const ko = {
   header: {
     settingsA11y: '설정 열기',
     /**
@@ -240,7 +241,11 @@ export const PROFILE_COPY = {
      * - 지난주 같은 요일: 이번 주면 "지난주 수요일보다", 지난 주를 보고 있으면 "전주 수요일보다"
      * - 최고의 날: "이번 주" / "그 주"
      */
-    dayHighlight: (highlight: DailyListeningHighlight, dayIndex: number, isCurrentWeek: boolean) => {
+    dayHighlight: (
+      highlight: DailyListeningHighlight,
+      dayIndex: number,
+      isCurrentWeek: boolean,
+    ) => {
       const dayFull = DAY_FULL_NAMES[dayIndex] ?? '';
       switch (highlight.kind) {
         case 'moreThanLastWeek': {
@@ -331,3 +336,278 @@ export const PROFILE_COPY = {
     career: '커리어 정보 열기',
   },
 } as const;
+
+const EN_YEARS_LABELS: Record<YearsOfExperience, string> = {
+  '0-1': '0-1 yrs',
+  '2-3': '2-3 yrs',
+  '4-6': '4-6 yrs',
+  '7+': '7+ yrs',
+};
+
+const EN_PROVIDER_NAMES: Record<SocialProvider, string> = {
+  kakao: 'Kakao',
+  naver: 'Naver',
+  google: 'Google',
+  apple: 'Apple',
+};
+
+const EN_MONTH_NAMES = [
+  'Jan',
+  'Feb',
+  'Mar',
+  'Apr',
+  'May',
+  'Jun',
+  'Jul',
+  'Aug',
+  'Sep',
+  'Oct',
+  'Nov',
+  'Dec',
+];
+
+/** 월·일 → "Oct 15" */
+const enMonthDayText = ({ month, day }: { month: number; day: number }): string =>
+  `${EN_MONTH_NAMES[month - 1] ?? ''} ${day}`;
+
+const enMonthDay = (iso: string): string => enMonthDayText(toMonthDayParts(iso));
+
+const enDateOnlyMonthDay = (date: string): string => enMonthDayText(toDateOnlyMonthDay(date));
+
+const EN_DAY_FULL_NAMES = [
+  'Monday',
+  'Tuesday',
+  'Wednesday',
+  'Thursday',
+  'Friday',
+  'Saturday',
+  'Sunday',
+];
+
+/** 영어 복수형 — 1이면 단수, 나머지는 복수 */
+const enCount = (count: number, one: string, many: string): string =>
+  `${count} ${count === 1 ? one : many}`;
+
+const enListenedDayValue = (sec: number): string => {
+  if (sec > 0 && sec < SECONDS_PER_MINUTE) return '<1 min';
+  const { hours, minutes } = toListenedDayParts(sec);
+  return hours > 0 ? `${hours} hr ${minutes} min` : `${minutes} min`;
+};
+
+const en: LocalizedCopy<typeof ko> = {
+  header: {
+    settingsA11y: 'Open settings',
+    noNickname: 'No name',
+    noEmail: 'No email added',
+    providerA11y: (provider: SocialProvider) => `Signed in with ${EN_PROVIDER_NAMES[provider]}`,
+    providerName: (provider: SocialProvider) => EN_PROVIDER_NAMES[provider],
+  },
+
+  cardLabels: {
+    plan: 'Current plan',
+    email: 'Email',
+    interest: 'Manage topics',
+    career: 'Career info',
+  },
+
+  plan: {
+    free: (dailyPlayLimit: number | null) =>
+      dailyPlayLimit === null
+        ? 'Free'
+        : `Free · ${enCount(dailyPlayLimit, 'episode', 'episodes')} a day`,
+    renewsAt: (iso: string) => `Renews ${enMonthDay(iso)}`,
+    cancelScheduled: (iso: string) => `Active until ${enMonthDay(iso)} · then Free`,
+    pendingPlan: (iso: string, nextPlanName: string) =>
+      `Active until ${enMonthDay(iso)} · then ${nextPlanName}`,
+    paymentIssue: "There's a problem with your payment",
+    trial: (lastFreeDate: string) =>
+      `Free trial · Unlimited until ${enDateOnlyMonthDay(lastFreeDate)}`,
+  },
+
+  signupTrialNotice: {
+    title: (lastFreeDate: string) =>
+      `Listen without limits until ${enDateOnlyMonthDay(lastFreeDate)}`,
+    body: (dailyPlayLimitAfter: number | null) =>
+      dailyPlayLimitAfter === null
+        ? "Here's a little gift from us. After that, you can keep listening without limits."
+        : `Here's a little gift from us. After that, you can listen to ${enCount(dailyPlayLimitAfter, 'episode', 'episodes')} a day.`,
+    confirm: 'OK',
+  },
+
+  email: {
+    unregistered: 'Not added',
+    unverifiedBadge: 'Email not verified',
+    unregisteredBadge: 'No email added',
+    helper: 'You need a verified email to make purchases',
+    register: 'Add',
+    verify: 'Verify',
+    change: 'Change',
+    unverifiedGlyph: '!',
+    lockedTitle: "Verified emails can't be changed",
+    lockedBody: 'This address is used to keep your payment records. To change it, contact us.',
+    lockedClose: 'Close',
+    lockedContact: 'Contact us',
+    unverifiedValueA11y: (email: string) => `${email}, not verified`,
+  },
+
+  interest: {
+    count: (count: number) => `${count} selected`,
+    overflow: (n: number) => `+${n}`,
+    overflowA11y: (n: number) => `and ${n} more`,
+  },
+
+  career: {
+    line: (parts: {
+      jobCategory: string | null;
+      jobTitle: string | null;
+      yearsOfExperience: YearsOfExperience | null;
+    }) =>
+      [
+        parts.jobCategory,
+        parts.jobTitle,
+        parts.yearsOfExperience === null ? null : EN_YEARS_LABELS[parts.yearsOfExperience],
+      ]
+        .filter((part): part is string => part !== null)
+        .join(' · '),
+    visibleLine: (parts: {
+      jobTitle: string | null;
+      yearsOfExperience: YearsOfExperience | null;
+    }) =>
+      [
+        parts.jobTitle,
+        parts.yearsOfExperience === null ? null : EN_YEARS_LABELS[parts.yearsOfExperience],
+      ]
+        .filter((part): part is string => part !== null)
+        .join(' · '),
+    emptyPrompt: 'Add it for better recommendations',
+    emptyAction: 'Add',
+  },
+
+  stats: {
+    labels: { completed: 'Episodes played', listened: 'Listening time', streak: 'Streak' },
+    completedValue: (count: number) => enCount(count, 'episode', 'episodes'),
+    listenedValue: (totalSec: number) => {
+      const parts = toListenedSummaryParts(totalSec);
+      return parts.unit === 'minutes' ? `${parts.value} min` : `${parts.value} hr`;
+    },
+    streakValue: (days: number) => enCount(days, 'day', 'days'),
+    tileA11y: (label: string, value: string) => `${label}, ${value}`,
+
+    weeklyTitle: 'Weekly listening',
+    dailyAverageTitle: 'Daily average',
+    selectedDayTitle: (dayIndex: number) => EN_DAY_FULL_NAMES[dayIndex] ?? '',
+    highlight: (highlight: ListeningHighlight, isCurrentWeek: boolean) => {
+      switch (highlight.kind) {
+        case 'topPercent':
+          return {
+            lead: 'Compared to others',
+            main: `Top ${highlight.percent}%`,
+            a11y: `Listening time that week, top ${highlight.percent} percent compared to others`,
+          };
+        case 'moreThanPrevious': {
+          const previous = isCurrentWeek ? 'last week' : 'the week before';
+          const amount = enListenedDayValue(highlight.diffSec);
+          return {
+            lead: `vs. ${previous}`,
+            main: `${amount} more`,
+            a11y: `You listened ${amount} more than ${previous}`,
+          };
+        }
+        case 'listenedDays': {
+          const lead = isCurrentWeek ? 'This week' : 'That week';
+          const days = enCount(highlight.days, 'day', 'days');
+          return {
+            lead,
+            main: `Listened ${days}`,
+            a11y: `You listened ${days} ${isCurrentWeek ? 'this week' : 'that week'}`,
+          };
+        }
+      }
+    },
+    dayHighlight: (
+      highlight: DailyListeningHighlight,
+      dayIndex: number,
+      isCurrentWeek: boolean,
+    ) => {
+      const dayFull = EN_DAY_FULL_NAMES[dayIndex] ?? '';
+      switch (highlight.kind) {
+        case 'moreThanLastWeek': {
+          const previous = isCurrentWeek ? `last ${dayFull}` : `${dayFull} the week before`;
+          const amount = enListenedDayValue(highlight.diffSec);
+          return {
+            lead: `vs. ${previous}`,
+            main: `${amount} more`,
+            a11y: `You listened ${amount} more than ${previous}`,
+          };
+        }
+        case 'bestDay': {
+          const lead = isCurrentWeek ? 'This week' : 'That week';
+          return {
+            lead,
+            main: 'Your top day',
+            a11y: `Your top listening day ${isCurrentWeek ? 'this week' : 'that week'}`,
+          };
+        }
+        case 'listenedContents': {
+          const episodes = enCount(highlight.count, 'episode', 'episodes');
+          return {
+            lead: 'That day',
+            main: `Listened to ${episodes}`,
+            a11y: `You listened to ${episodes} that day`,
+          };
+        }
+      }
+    },
+    weekRange: (weekStart: string) => {
+      const { start, end } = toWeekRangeParts(weekStart);
+      return `${enMonthDayText(start)} – ${enMonthDayText(end)}`;
+    },
+    weeklyA11y: (weekStart: string) => {
+      const { start, end } = toWeekRangeParts(weekStart);
+      return `Weekly listening, ${enMonthDayText(start)} to ${enMonthDayText(end)}`;
+    },
+    prevWeekA11y: 'Previous week',
+    nextWeekA11y: 'Next week',
+    dayNames: ['M', 'T', 'W', 'T', 'F', 'S', 'S'],
+    dayValue: enListenedDayValue,
+    averageLabel: (sec: number) => `Avg ${enListenedDayValue(sec)}`,
+    axisAverage: 'Avg',
+    axisMax: (sec: number) =>
+      sec > 0 && sec < SECONDS_PER_MINUTE
+        ? '<1 min'
+        : `${Math.floor(sec / SECONDS_PER_MINUTE)} min`,
+    axisZero: '0',
+    averageA11y: (sec: number) => `Daily average ${enListenedDayValue(sec)}`,
+    dayBarA11y: (dayIndex: number, sec: number) => {
+      return `${EN_DAY_FULL_NAMES[dayIndex]}, ${enListenedDayValue(sec)}`;
+    },
+
+    distributionTitle: 'Top topics',
+    topTopicLabel: 'Most played topic',
+    topTopicAllTimeLabel: 'Most played topic · All time',
+    topTopicDayLabel: (dayIndex: number) =>
+      `Most played topic · ${EN_DAY_FULL_NAMES[dayIndex] ?? ''}`,
+    othersLabel: 'Other',
+    ratioValue: (ratio: number) => `${ratio}%`,
+    legendA11y: (entries: { name: string; ratio: number }[]) =>
+      entries.map((entry) => `${entry.name} ${entry.ratio}%`).join(', '),
+
+    emptyState: 'No listening history yet',
+    errorTitle: 'Listening stats',
+    error: "Couldn't load stats",
+  },
+
+  cardError: "Couldn't load this info",
+  retry: 'Try again',
+
+  cardA11y: (label: string, value: string, destination: string) =>
+    `${label}, ${value}, ${destination}`,
+  destinations: {
+    plan: 'Open plan management',
+    email: 'Open email verification',
+    interest: 'Open topic management',
+    career: 'Open career info',
+  },
+};
+
+export const PROFILE_COPY = localized({ ko, en });

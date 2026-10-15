@@ -1,10 +1,11 @@
 import { Image, StyleSheet, View } from 'react-native';
 
+import { localized } from '@/shared/i18n/localized';
 import { theme } from '@/shared/theme';
 import { Text } from '@/shared/ui/Typography';
 
 /** 서비스명 — 화면마다 흩어 적지 않는다 */
-const BRAND_NAME = '이어';
+const BRAND_NAME = localized({ ko: '이어', en: 'Ear' });
 
 interface BrandMarkProps {
   /** 심볼 한 변의 길이. 옆 글자는 이 값에 맞춰 따라간다 */

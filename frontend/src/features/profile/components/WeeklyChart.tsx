@@ -3,6 +3,7 @@ import { Animated, PanResponder, Pressable, StyleSheet, View } from 'react-nativ
 import Svg, { Circle, Path } from 'react-native-svg';
 
 import { useAnimatedValue } from '@/shared/hooks/useAnimatedValue';
+import { localized, type LocalizedCopy } from '@/shared/i18n/localized';
 import { motion, theme, useThemePalette } from '@/shared/theme';
 import ChevronIcon from '@/shared/ui/ChevronIcon';
 import { pillButton } from '@/shared/ui/pill-button.styles';
@@ -18,6 +19,11 @@ import {
   toListenedDayParts,
 } from '../profile.format';
 import type { DailyListeningHighlight, WeeklyListening } from '../profile.types';
+
+/** 일평균 값 옆 단위(KAN-194) */
+const ko = { hourUnit: '시간 ', minuteUnit: '분' } as const;
+const en: LocalizedCopy<typeof ko> = { hourUnit: 'h ', minuteUnit: 'm' };
+const COPY = localized({ ko, en });
 
 interface WeeklyChartProps {
   weekly: WeeklyNavigation;
@@ -753,11 +759,11 @@ function AverageValue({ sec }: { sec: number }) {
       {hours > 0 ? (
         <>
           {hours}
-          <Text style={styles.summaryUnit}>시간 </Text>
+          <Text style={styles.summaryUnit}>{COPY.hourUnit}</Text>
         </>
       ) : null}
       {minutes}
-      <Text style={styles.summaryUnit}>분</Text>
+      <Text style={styles.summaryUnit}>{COPY.minuteUnit}</Text>
     </Text>
   );
 }

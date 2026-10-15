@@ -2,7 +2,22 @@ import { nativeApplicationVersion, nativeBuildVersion } from 'expo-application';
 import Constants, { ExecutionEnvironment } from 'expo-constants';
 import * as Updates from 'expo-updates';
 
+import { localized, type LocalizedCopy } from '@/shared/i18n/localized';
+
 import appConfig from '../../../app.json';
+
+/** 설정 버전 행의 표시 문구(KAN-194) */
+const ko = {
+  embedded: '내장',
+  build: (buildNumber: string) => ` · 빌드 ${buildNumber}`,
+  devApi: ' · 개발계',
+} as const;
+const en: LocalizedCopy<typeof ko> = {
+  embedded: 'Built-in',
+  build: (buildNumber: string) => ` · Build ${buildNumber}`,
+  devApi: ' · Dev',
+};
+const COPY = localized({ ko, en });
 
 /**
  * 앱 버전 문자열 — 기기 동기화(onboarding-api.md 4.9)·설정 조회(settings-api.md 4.1)가 함께 쓴다.
@@ -35,14 +50,19 @@ export const APP_VERSION =
  */
 const BUNDLE_LABEL_LENGTH = 8;
 
+/** 스토어 빌드에 내장된 번들의 표시값 — 표시 언어를 따르므로 판정은 이 상수와 비교한다(analytics.ts) */
+export const EMBEDDED_BUNDLE_LABEL: string = COPY.embedded;
+
 export const resolveBundleLabel = (): string => {
   try {
     // 웹·개발 빌드에선 모듈이 값을 주지 않는다 — 표시용이므로 조용히 비운다
-    if (Updates.isEmbeddedLaunch) return '내장';
+    if (Updates.isEmbeddedLaunch) return EMBEDDED_BUNDLE_LABEL;
     const updateId = Updates.updateId;
-    return updateId ? updateId.replace(/-/g, '').slice(0, BUNDLE_LABEL_LENGTH) : '내장';
+    return updateId
+      ? updateId.replace(/-/g, '').slice(0, BUNDLE_LABEL_LENGTH)
+      : EMBEDDED_BUNDLE_LABEL;
   } catch {
-    return '내장';
+    return EMBEDDED_BUNDLE_LABEL;
   }
 };
 
@@ -62,5 +82,5 @@ export const IS_DEV_API = (process.env.EXPO_PUBLIC_API_BASE_URL ?? '').includes(
  * (KAN-158 — 모듈이 든 빌드인지 가를 때 필요했다)
  */
 export const APP_VERSION_LABEL = `${APP_VERSION} (${resolveBundleLabel()})${
-  IS_DEV_API ? `${nativeBuildVersion ? ` · 빌드 ${nativeBuildVersion}` : ''} · 개발계` : ''
+  IS_DEV_API ? `${nativeBuildVersion ? COPY.build(nativeBuildVersion) : ''}${COPY.devApi}` : ''
 }`;

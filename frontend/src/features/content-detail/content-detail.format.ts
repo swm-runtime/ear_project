@@ -1,4 +1,36 @@
+import { localized, type LocalizedCopy } from '@/shared/i18n/localized';
+
 import type { ContentDetailSeries } from './content-detail.types';
+
+const EN_MONTHS = [
+  'Jan',
+  'Feb',
+  'Mar',
+  'Apr',
+  'May',
+  'Jun',
+  'Jul',
+  'Aug',
+  'Sep',
+  'Oct',
+  'Nov',
+  'Dec',
+] as const;
+
+/** 상세 화면의 길이·발행일·시리즈 표기(KAN-194) */
+const ko = {
+  duration: (minutes: number, seconds: number) =>
+    `${minutes}분 ${String(seconds).padStart(2, '0')}초`,
+  publishedDate: (year: number, month: number, day: number) => `${year}년 ${month}월 ${day}일`,
+  series: (totalEpisodes: number, episodeNo: number) => `${totalEpisodes}부작 중 ${episodeNo}화`,
+} as const;
+const en: LocalizedCopy<typeof ko> = {
+  duration: (minutes: number, seconds: number) => `${minutes} min ${seconds} sec`,
+  publishedDate: (year: number, month: number, day: number) =>
+    `${EN_MONTHS[month - 1]} ${day}, ${year}`,
+  series: (totalEpisodes: number, episodeNo: number) => `Episode ${episodeNo} of ${totalEpisodes}`,
+};
+const COPY = localized({ ko, en });
 
 /**
  * 오디오 길이 "N분 N초" — 초 단위까지 표기한다(content-detail.md 4.2, 확정 2026-08-23).
@@ -9,7 +41,7 @@ export const formatContentDuration = (durationSec: number): string => {
   const safeSec = Math.max(0, Math.floor(durationSec));
   const minutes = Math.floor(safeSec / 60);
   const seconds = safeSec % 60;
-  return `${minutes}분 ${String(seconds).padStart(2, '0')}초`;
+  return COPY.duration(minutes, seconds);
 };
 
 /**
@@ -18,9 +50,9 @@ export const formatContentDuration = (durationSec: number): string => {
  */
 export const formatPublishedDate = (publishedAt: string): string => {
   const date = new Date(publishedAt);
-  return `${date.getFullYear()}년 ${date.getMonth() + 1}월 ${date.getDate()}일`;
+  return COPY.publishedDate(date.getFullYear(), date.getMonth() + 1, date.getDate());
 };
 
 /** 시리즈 "N부작 중 M화"(content-detail.md 4.3-1 — 확정 카피) */
 export const formatSeriesLabel = (series: ContentDetailSeries): string =>
-  `${series.totalEpisodes}부작 중 ${series.episodeNo}화`;
+  COPY.series(series.totalEpisodes, series.episodeNo);

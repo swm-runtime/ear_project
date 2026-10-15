@@ -2,6 +2,7 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { useState } from 'react';
 
+import { localized, type LocalizedCopy } from '@/shared/i18n/localized';
 import { IS_SUBSCRIPTION_UI_ENABLED } from '@/shared/lib/feature-flags';
 import { PUSHED_SCREEN_HEADER } from '@/shared/navigation/pushed-screen-header';
 import { selectTab } from '@/shared/navigation/tab-selection.store';
@@ -37,6 +38,21 @@ import type { MainStackParamList, MainTabParamList } from './types';
 
 const MainTab = createBottomTabNavigator<MainTabParamList>();
 const MainStack = createNativeStackNavigator<MainStackParamList>();
+
+/** 탭 라벨·플레이스홀더 화면의 뒤로 버튼 제목(KAN-194) */
+const ko = {
+  library: '라이브러리',
+  explore: '탐색',
+  profile: '프로필',
+  settings: '설정',
+} as const;
+const en: LocalizedCopy<typeof ko> = {
+  library: 'Library',
+  explore: 'Explore',
+  profile: 'Profile',
+  settings: 'Settings',
+};
+const COPY = localized({ ko, en });
 
 /**
  * 하단 탭 3개 — 앱을 실행하면 라이브러리로 들어온다(library.md 2).
@@ -78,7 +94,7 @@ function MainTabs() {
         name="Library"
         component={LibraryScreen}
         options={{
-          tabBarLabel: '라이브러리',
+          tabBarLabel: COPY.library,
           tabBarBadge: arrivalBadge.value,
           tabBarAccessibilityLabel: arrivalBadge.accessibilityLabel,
         }}
@@ -88,14 +104,14 @@ function MainTabs() {
         name="Explore"
         component={ExploreScreen}
         options={{
-          tabBarLabel: '탐색',
+          tabBarLabel: COPY.explore,
         }}
       />
       <MainTab.Screen
         name="Profile"
         component={ProfileScreen}
         options={{
-          tabBarLabel: '프로필',
+          tabBarLabel: COPY.profile,
         }}
       />
     </MainTab.Navigator>
@@ -172,7 +188,7 @@ export default function MainNavigator() {
           <MainStack.Screen
             name="Subscription"
             component={PlaceholderScreen}
-            options={{ headerShown: true, headerTitle: '', headerBackTitle: '프로필' }}
+            options={{ headerShown: true, headerTitle: '', headerBackTitle: COPY.profile }}
           />
         )}
         {/* 이벤트 코드 입력(KAN-182) — 결제 UI 플래그와 **무관하게** 등록한다(지급은 스토어 결제가 아니다).
@@ -206,7 +222,7 @@ export default function MainNavigator() {
         <MainStack.Screen
           name="Admin"
           component={PlaceholderScreen}
-          options={{ headerShown: true, headerTitle: '', headerBackTitle: '설정' }}
+          options={{ headerShown: true, headerTitle: '', headerBackTitle: COPY.settings }}
         />
       </MainStack.Navigator>
 

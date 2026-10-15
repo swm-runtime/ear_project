@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, PanResponder, StyleSheet, View } from 'react-native';
 
 import { useAnimatedValue } from '@/shared/hooks/useAnimatedValue';
+import { localized, type LocalizedCopy } from '@/shared/i18n/localized';
 import { tickHaptic } from '@/shared/lib/haptics';
 import { motion, theme } from '@/shared/theme';
 import { Text } from '@/shared/ui/Typography';
@@ -11,6 +12,10 @@ import { PLAYER_COPY } from '../player.copy';
 import { formatPlaybackTime, formatPlaybackTimeA11y } from '../player.format';
 import { chapterIndexOf, chapterSegmentsOf } from '../player.section';
 import { playerColor } from '../player.theme';
+
+const ko = { seekBarA11y: '재생 위치' } as const;
+const en: LocalizedCopy<typeof ko> = { seekBarA11y: 'Playback position' };
+const COPY = localized({ ko, en });
 
 interface SeekBarProps {
   positionSec: number;
@@ -226,7 +231,7 @@ export default function SeekBar({
         {...panResponder.panHandlers}
         accessible
         accessibilityRole="adjustable"
-        accessibilityLabel="재생 위치"
+        accessibilityLabel={COPY.seekBarA11y}
         accessibilityValue={{
           text: PLAYER_COPY.screen.seekBarA11yValue(
             formatPlaybackTimeA11y(displaySec),

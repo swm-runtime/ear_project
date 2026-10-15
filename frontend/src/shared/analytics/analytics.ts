@@ -1,7 +1,7 @@
 import * as Crypto from 'expo-crypto';
 import { Platform } from 'react-native';
 
-import { IS_DEV_API, resolveBundleLabel } from '@/shared/lib/app-version';
+import { EMBEDDED_BUNDLE_LABEL, IS_DEV_API, resolveBundleLabel } from '@/shared/lib/app-version';
 import { logger } from '@/shared/lib/logger';
 
 import type {
@@ -52,7 +52,7 @@ const commonParams = (): Record<string, string> => {
   const label = resolveBundleLabel();
   return {
     app_variant: IS_DEV_API ? 'dev' : 'production',
-    bundle_label: label === '내장' ? 'embedded' : label,
+    bundle_label: label === EMBEDDED_BUNDLE_LABEL ? 'embedded' : label,
   };
 };
 

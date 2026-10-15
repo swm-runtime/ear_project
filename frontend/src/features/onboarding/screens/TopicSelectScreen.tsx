@@ -1,6 +1,7 @@
 import { ActivityIndicator, Image, Pressable, StyleSheet, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { localized, type LocalizedCopy } from '@/shared/i18n/localized';
 import { theme } from '@/shared/theme';
 import ChevronIcon from '@/shared/ui/ChevronIcon';
 import FullScreenError from '@/shared/ui/FullScreenError';
@@ -21,6 +22,18 @@ const BASE_SPEED = 18;
 const SPEED_SCALES = [1, 0.9, 1.05, 1.1] as const;
 /** 줄마다 다른 시작 위상 — 벽돌 어긋남 + 열이 겹쳐 보이지 않게 전부 다르다 */
 const PHASES = [40, 122, 96, 10] as const;
+
+const ko = {
+  stepA11y: '2단계 중 1단계',
+  step: '1/2 단계',
+  deselectA11y: (topicName: string) => `${topicName} 선택 해제`,
+} as const;
+const en: LocalizedCopy<typeof ko> = {
+  stepA11y: 'Step 1 of 2',
+  step: 'Step 1/2',
+  deselectA11y: (topicName: string) => `Deselect ${topicName}`,
+};
+const COPY = localized({ ko, en });
 
 /**
  * O1–O3 관심 주제 선택(1/2). 이 화면에는 [건너뛰기]가 없다 —
@@ -60,8 +73,8 @@ export default function TopicSelectScreen() {
             {ONBOARDING_COPY.topic.toolbarTitle}
           </Text>
         </View>
-        <Text style={styles.stepLabel} accessibilityLabel="2단계 중 1단계">
-          1/2 단계
+        <Text style={styles.stepLabel} accessibilityLabel={COPY.stepA11y}>
+          {COPY.step}
         </Text>
         <Text style={styles.title}>{ONBOARDING_COPY.topic.title(maxSelectable)}</Text>
         {/*
@@ -79,7 +92,7 @@ export default function TopicSelectScreen() {
                     style={styles.selectedChip}
                     onPress={() => toggleTopic(topic.topicId)}
                     accessibilityRole="button"
-                    accessibilityLabel={topic.name + ' 선택 해제'}
+                    accessibilityLabel={COPY.deselectA11y(topic.name)}
                   >
                     <Image
                       source={topicImageSource(topic.name)}

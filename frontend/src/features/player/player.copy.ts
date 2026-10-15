@@ -3,7 +3,9 @@
  * 공유하므로 player가 소유한다 — 확정 카피는 library-uiux.md 4.3·4.6, 플레이어 화면 카피는
  * player-uiux.md 6장과 1:1 대조한다.
  */
-export const PLAYER_COPY = {
+import { localized, type LocalizedCopy } from '@/shared/i18n/localized';
+
+const ko = {
   /** 잔여 재생 표시(library-uiux.md 4.3) — paywall.md 5장과 같은 한 문자열만 쓴다 */
   remaining: {
     /** 앞의 재생 아이콘이 "무엇의 횟수인지"를 말하므로 글자는 숫자만 남긴다(2026-09-02) */
@@ -188,3 +190,146 @@ export const PLAYER_COPY = {
     dismissA11y: '재생 종료',
   },
 } as const;
+
+const plural = (count: number, one: string, other: string): string =>
+  `${count} ${count === 1 ? one : other}`;
+
+const en: LocalizedCopy<typeof ko> = {
+  remaining: {
+    label: (remaining: number, limit: number) => `${remaining}/${limit}`,
+    a11yLabel: (remaining: number, limit: number) =>
+      `${remaining} of ${plural(limit, 'play', 'plays')} left today`,
+    a11yLabelExhausted: 'No plays left today',
+    a11yLabelExhaustedWithPaywall: 'No plays left today, view subscription options',
+  },
+
+  playConfirm: {
+    title: (remaining: number) => `${plural(remaining, 'play', 'plays')} left today`,
+    body: 'Playing will use 1 play.',
+    cancel: 'Cancel',
+    play: 'Play',
+    suppressToday: "Don't ask again today",
+  },
+
+  withdrawnToast: 'This content is no longer available',
+
+  paidLimitReachedToast: "You've reached today's listening limit",
+
+  paywallPlaceholderToast: "You've listened to everything available today",
+  limitNotice: {
+    title: "You've reached today's listening limit",
+    description: 'Your plays refill every day at 5:00 AM',
+    confirm: 'OK',
+    close: 'Close',
+  },
+
+  playFailedToast: 'Please try again in a moment',
+
+  screen: {
+    rateChip: (rate: number) => `${rate.toFixed(1)}×`,
+    rateChipA11y: (rate: number) => `Playback speed, ${rate.toFixed(1)}x`,
+    timerA11y: 'Sleep timer',
+    timerActiveA11y: (remaining: string) => `Sleep timer, ${remaining}`,
+    timerEndOfEpisodeA11y: 'Sleep timer, end of episode',
+    timerEndOfEpisodePill: 'End',
+    queueHandle: 'Up next',
+    queueHandleA11y: 'Open up next',
+    queueCollapseA11y: 'Close up next',
+    playA11y: 'Play',
+    pauseA11y: 'Pause',
+    replayA11y: 'Play from the beginning',
+    seekBackA11y: 'Back 10 seconds',
+    seekForwardA11y: 'Forward 10 seconds',
+    scriptOpenA11y: 'Show transcript',
+    scriptCloseA11y: 'Hide transcript',
+    collapseA11y: 'Minimize player',
+    moreA11y: 'More',
+    bufferingA11y: 'Loading',
+    seekBarA11yValue: (position: string, duration: string) => `${position} of ${duration}`,
+    currentSectionLabel: 'Now playing',
+    sectionKindLabel: { intro: 'Overview', lead: 'Overview', body: 'Main', outro: 'Wrap-up' },
+    currentSectionA11y: (title: string) => `Now playing, ${title}`,
+    currentSectionLoadingA11y: 'Loading current section',
+  },
+
+  queuePanel: {
+    title: 'Up next',
+    nowPlayingA11y: 'Now playing',
+    completedA11y: 'Finished',
+    empty: 'Your library is empty',
+    loadFailed: "Couldn't load the list",
+    retry: 'Try again',
+    itemA11y: (title: string, minutes: number, tags: string[]) =>
+      [title, plural(minutes, 'minute', 'minutes'), ...tags].join(', '),
+    reorderA11y: (title: string, position: number, total: number) =>
+      `Reorder ${title}, ${position} of ${total}`,
+    moveUpA11y: 'Move up',
+    moveDownA11y: 'Move down',
+  },
+
+  scriptSheet: {
+    title: 'Transcript',
+    loadFailed: "Couldn't load the transcript",
+    retry: 'Try again',
+    loadingA11y: 'Loading transcript',
+    segmentA11y: (time: string, speaker: string | null) =>
+      speaker ? `${time}, ${speaker}, play from here` : `${time}, play from here`,
+  },
+
+  sleepTimerSheet: {
+    title: 'Sleep timer',
+    minutes: (minutes: number) => `${minutes} min`,
+    endOfEpisode: 'End of episode',
+    off: 'Off',
+  },
+
+  rateSheet: {
+    title: 'Playback speed',
+    optionLabel: (rate: number) => `${rate.toFixed(1)}×`,
+    optionA11y: (rate: number) => `${rate.toFixed(1)}x`,
+  },
+
+  moreSheet: {
+    durationLabel: (minutes: number) => `${minutes} min`,
+    detail: 'Details',
+    sourceLink: 'View source',
+    delete: 'Remove from library',
+    close: 'Close',
+  },
+
+  deleteSnackbar: {
+    message: 'Removed',
+    undo: 'Undo',
+    failedToast: "Couldn't remove. Please try again",
+  },
+
+  loadFailed: {
+    title: "Can't play this",
+    description: 'Please try again in a moment',
+    retry: 'Try again',
+    retrying: 'Getting playback ready again',
+  },
+
+  withdrawn: {
+    title: 'This content is no longer available',
+    close: 'Close',
+  },
+
+  networkBanner: 'Check your network connection',
+
+  refreshFailedBanner: {
+    message: "Can't play this",
+    retry: 'Try again',
+  },
+
+  miniPlayer: {
+    playA11y: 'Play',
+    pauseA11y: 'Pause',
+    expandA11y: (title: string) => `${title}, open player`,
+    progressA11y: (totalMin: number, currentMin: number) =>
+      `${currentMin} of ${plural(totalMin, 'minute', 'minutes')} played`,
+    dismissA11y: 'Stop playback',
+  },
+};
+
+export const PLAYER_COPY = localized({ ko, en });

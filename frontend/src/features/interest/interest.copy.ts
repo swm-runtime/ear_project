@@ -1,8 +1,10 @@
+import { localized, type LocalizedCopy } from '@/shared/i18n/localized';
+
 /**
  * 사용자 노출 문구(convention.md 3.5) — interest-management-uiux.md 6장 확정 카피 전수와 1:1 대조.
  * 헤드라인·상한 토스트·0개 사유는 온보딩과 문자열까지 동일해야 한다(uiux 6장 — 변형 금지).
  */
-export const INTEREST_COPY = {
+const ko = {
   appBarTitle: '관심 주제 관리',
   backA11y: '뒤로가기',
   headline: '어떤 이야기가 궁금하세요?',
@@ -56,3 +58,37 @@ export const INTEREST_COPY = {
   emptyDescription: '주제를 준비하고 있어요.\n잠시 후 다시 시도해주세요',
   retry: '다시 시도',
 } as const;
+
+const en: LocalizedCopy<typeof ko> = {
+  appBarTitle: 'Manage interests',
+  backA11y: 'Back',
+  headline: 'What are you curious about?',
+  countLabel: (count: number, max: number) => `${count}/${max} selected`,
+  countA11y: (count: number, max: number) => `${count} of ${max} selected`,
+  autoBadgeA11y: 'Added automatically',
+  changeBadge: (n: number) => `${n} ${n === 1 ? 'change' : 'changes'}`,
+  limitNotice: (max: number) => `You can choose up to ${max} ${max === 1 ? 'topic' : 'topics'}`,
+  minRequired: 'Select at least 1 topic',
+  overLimitBanner: (n: number, max: number) =>
+    `You can have up to ${max} ${max === 1 ? 'topic' : 'topics'}. Deselect ${n} to add new ones.`,
+  removalConfirm: {
+    message:
+      "New episodes from deselected topics will no longer arrive in your Library. Episodes you've already received will stay.",
+    cancel: 'Cancel',
+    confirm: 'Change',
+  },
+  leaveConfirm: {
+    title: 'Leave without saving changes?',
+    stay: 'Keep editing',
+    leave: 'Leave',
+  },
+  save: 'Save',
+  saveSuccessToast: 'Interests updated',
+  saveFailed: "Couldn't save. Please try again.",
+  loadFailed: "Couldn't load topics",
+  emptyTitle: 'Coming soon',
+  emptyDescription: "We're getting topics ready.\nPlease try again later.",
+  retry: 'Try again',
+};
+
+export const INTEREST_COPY = localized({ ko, en });

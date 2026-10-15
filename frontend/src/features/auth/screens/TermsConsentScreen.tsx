@@ -2,6 +2,7 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { ActivityIndicator, Image, Pressable, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { localized, type LocalizedCopy } from '@/shared/i18n/localized';
 import { theme } from '@/shared/theme';
 import CheckIcon from '@/shared/ui/CheckIcon';
 import ChevronIcon from '@/shared/ui/ChevronIcon';
@@ -14,6 +15,10 @@ import ConsentItem from '../components/ConsentItem';
 import { useTermsConsentScreen } from '../hooks/useTermsConsentScreen';
 
 type TermsConsentScreenProps = NativeStackScreenProps<AuthStackParamList, 'TermsConsent'>;
+
+const ko = { backA11y: '뒤로가기', logoA11y: '이어' } as const;
+const en: LocalizedCopy<typeof ko> = { backA11y: 'Back', logoA11y: 'Ear' };
+const COPY = localized({ ko, en });
 
 /**
  * A4 약관 동의 — 신규 가입 시 별도 화면. [동의하고 시작하기]를 누른 시점에 계정이 생성된다.
@@ -41,7 +46,7 @@ export default function TermsConsentScreen({ route, navigation }: TermsConsentSc
         style={styles.back}
         onPress={() => navigation.goBack()}
         accessibilityRole="button"
-        accessibilityLabel="뒤로가기"
+        accessibilityLabel={COPY.backA11y}
       >
         <ChevronIcon direction="left" size={24} color={theme.color.textPrimary} />
       </Pressable>
@@ -52,7 +57,7 @@ export default function TermsConsentScreen({ route, navigation }: TermsConsentSc
           source={require('../../../../assets/logo-mark.png')}
           style={styles.logo}
           resizeMode="contain"
-          accessibilityLabel="이어"
+          accessibilityLabel={COPY.logoA11y}
         />
         <Text style={styles.greeting}>{AUTH_COPY.consent.greeting}</Text>
         <Text style={styles.title}>{AUTH_COPY.consent.title}</Text>
