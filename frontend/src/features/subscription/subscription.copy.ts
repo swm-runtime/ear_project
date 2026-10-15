@@ -179,40 +179,40 @@ export const SUBSCRIPTION_COPY = {
   },
 
   /**
-   * 초대(이벤트) 코드 지급(KAN-182 — subscription-api.md 4.8). **요금제 관리·프로필·설정 세 곳이 같은 문자열**을 쓴다
+   * 초대(프로모션) 코드 지급(KAN-182 — subscription-api.md 4.8). **요금제 관리·프로필·설정 세 곳이 같은 문자열**을 쓴다
    * (settings-uiux.md · profile-uiux.md · subscription-uiux.md 에 등재). 날짜는 `grant.last_date` 그대로 — 경계 보정을 하지 않는다
    */
   grant: {
     line: (name: string, planName: string, lastDate: string) =>
-      `${name} 이벤트 이용 중 · ${planName} · ${serviceDate(lastDate)}까지`,
-    /** 요금제 관리 알림 섹션의 둘째 줄 — 구독이 없을 때는 결제하면 이벤트가 끝난다는 것을 미리 알린다(4.8 "이벤트 중 결제") */
-    noticeDetailFree: '구독을 시작하면 이벤트 혜택은 그때 끝나요',
+      `${name} 프로모션 이용 중 · ${planName} · ${serviceDate(lastDate)}까지`,
+    /** 요금제 관리 알림 섹션의 둘째 줄 — 구독이 없을 때는 결제하면 프로모션이 끝난다는 것을 미리 알린다(4.8 "프로모션 중 결제") */
+    noticeDetailFree: '구독을 시작하면 프로모션 혜택은 그때 끝나요',
     /** 구독이 있는 채로 받은 지급 — 구독은 그대로 이어진다(입력 전부터 있던 구독은 지급을 끝내지 않는다) */
     noticeDetailSubscribed: '구독은 그대로 이어져요',
     /**
-     * 이벤트 중 결제 확인(KAN-182 요청 3) — 구독 없이 지급 중일 때 어떤 요금제를 고르든 같은 팝업이다. 티어를 앱이 비교하지 않는다
-     * (Pro 이벤트 중 Daily 를 막는 대신 같은 확인을 거친다 — subscription-uiux.md 결정)
+     * 프로모션 중 결제 확인(KAN-182 요청 3) — 구독 없이 지급 중일 때 어떤 요금제를 고르든 같은 팝업이다. 티어를 앱이 비교하지 않는다
+     * (Pro 프로모션 중 Daily 를 막는 대신 같은 확인을 거친다 — subscription-uiux.md 결정)
      */
-    purchaseConfirmTitle: (name: string) => `${name} 이벤트가 끝나요`,
+    purchaseConfirmTitle: (name: string) => `${name} 프로모션이 끝나요`,
     purchaseConfirmMessage: (planName: string) =>
-      `지금 구독하면 이벤트 혜택은 바로 끝나고 ${planName} 구독으로 바뀌어요`,
+      `지금 구독하면 프로모션 혜택은 바로 끝나고 ${planName} 구독으로 바뀌어요`,
     purchaseConfirmOk: '구독하기',
     purchaseConfirmCancel: '취소',
   },
 
-  /** 이벤트 코드 입력 화면(KAN-182) — 설정 > [이벤트 코드 입력]. 결제 UI 플래그와 무관하게 항상 있다 */
+  /** 프로모션 코드 입력 화면(KAN-182) — 설정 > [프로모션 코드 입력]. 결제 UI 플래그와 무관하게 항상 있다 */
   invite: {
-    title: '이벤트 코드 입력',
-    description: '받은 이벤트 코드를 입력하면 요금제 혜택이 바로 적용돼요',
+    title: '프로모션 코드 입력',
+    description: '받은 프로모션 코드를 입력하면 요금제 혜택이 바로 적용돼요',
     placeholder: '코드 입력',
-    inputA11y: '이벤트 코드',
+    inputA11y: '프로모션 코드',
     submit: '확인',
     submitting: '확인하는 중',
     /** 성공 토스트 — 응답의 grant 로 만든다 */
     success: (name: string, planName: string, lastDate: string) =>
-      `${name} 이벤트가 시작됐어요 · ${planName} · ${serviceDate(lastDate)}까지`,
+      `${name} 프로모션이 시작됐어요 · ${planName} · ${serviceDate(lastDate)}까지`,
     /** 200 인데 grant 가 없다(지급 요금제가 이미 쓰는 것과 같은 등 서버가 표시를 바꾸지 않은 경우) — 성공은 성공이다 */
-    successFallback: '이벤트 코드가 적용됐어요',
+    successFallback: '프로모션 코드가 적용됐어요',
     /** subscription-api.md 5장 문구 그대로 */
     notFound: '사용할 수 없는 코드예요',
     expired: '사용 기간이 지난 코드예요',
