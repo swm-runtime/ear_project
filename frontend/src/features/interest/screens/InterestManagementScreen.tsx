@@ -3,6 +3,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { theme } from '@/shared/theme';
 import ChevronIcon from '@/shared/ui/ChevronIcon';
+import ConfirmDialog from '@/shared/ui/ConfirmDialog';
 import FullScreenError from '@/shared/ui/FullScreenError';
 import { HEADER_CONTROL_HEIGHT } from '@/shared/ui/GlassCapsule';
 import GlassIconButton from '@/shared/ui/GlassIconButton';
@@ -13,6 +14,7 @@ import { Text } from '@/shared/ui/Typography';
 
 import { InterestBubbleField, InterestBubbleSkeleton } from '../components/InterestBubbleField';
 import InterestDialog from '../components/InterestDialog';
+import { useAutoExpandNotice } from '../hooks/useAutoExpandNotice';
 import { useInterestManagementScreen } from '../hooks/useInterestManagementScreen';
 import { INTEREST_COPY } from '../interest.copy';
 import { topicImageSource } from '../interest.images';
@@ -28,6 +30,9 @@ export default function InterestManagementScreen() {
   // 하단 독의 요약 — 고른 주제의 사진을 겹쳐 쌓고 이름을 잇는다(PM 2026-10-09 D안)
   const selectedTopics = screen.topics.filter((topic) => topic.isSelected);
   const isFull = screen.selectedCount >= screen.maxSelectable;
+  // 자동 추가 주제(빗금)가 하나라도 떠 있으면, 그게 무엇인지 1회 안내한다(KAN-181 · PM 2026-10-15)
+  const hasAutoExpand = screen.topics.some((topic) => topic.isAutoExpanded);
+  const autoNotice = useAutoExpandNotice(hasAutoExpand);
   // 진행 막대·"변경 사항 N개" 배지는 뺐다(PM 2026-10-10 00:57) — 개수는 "N/3 선택" 한 줄이 맡는다
   const countA11yLabel = INTEREST_COPY.countA11y(screen.selectedCount, screen.maxSelectable);
 
@@ -223,6 +228,18 @@ export default function InterestManagementScreen() {
           onPress: screen.leaveWithoutSaving,
         }}
         onCloseRequest={screen.stayEditing}
+      />
+
+      {/* 자동 추가 주제 안내(KAN-181) — 진입 시 1회, 안내뿐이라 버튼 하나. 편집 중 확인/이탈 팝업과는 겹치지 않는다
+          (진입 직후 뜨므로 실제로 부딪히지 않지만, 혹시 몰라 다른 팝업이 떠 있으면 미룬다 — uiux 3장 "겹쳐 쌓지 않는다") */}
+      <ConfirmDialog
+        isVisible={
+          autoNotice.isVisible && !screen.isConfirmVisible && !screen.isLeaveConfirmVisible
+        }
+        title={INTEREST_COPY.autoNotice.title}
+        body={INTEREST_COPY.autoNotice.body}
+        primaryAction={{ label: INTEREST_COPY.autoNotice.confirm, onPress: autoNotice.dismiss }}
+        onCloseRequest={autoNotice.dismiss}
       />
     </SafeAreaView>
   );

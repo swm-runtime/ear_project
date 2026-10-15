@@ -58,6 +58,16 @@ const ko = {
   emptyTitle: '아직 준비 중이에요',
   emptyDescription: '주제를 준비하고 있어요.\n잠시 후 다시 시도해주세요',
   retry: '다시 시도',
+  /*
+   * 자동 추가 안내 — 관심 주제가 자동으로 추가됐을 때 그 사실을 1회만 알린다(KAN-181 · PM 2026-10-15:
+   * 빗금만으로는 사용자가 알아채지 못한다). **내부 용어("자동 확장·편성") 노출 금지**(uiux 7장) — "자동으로 담았다"는
+   * 사용자 언어를 쓰고, 화면의 빗금 표시와 "눌러서 빼기"를 연결해 준다. 안내뿐이라 버튼 하나다(HIG Alerts).
+   */
+  autoNotice: {
+    title: '취향에 맞는 주제를 담아뒀어요',
+    body: '들으신 내용을 바탕으로 관심 가질 만한 주제를 자동으로 담았어요. 빗금으로 표시돼요 — 원치 않으면 그 주제를 눌러 빼면 돼요.',
+    confirm: '알겠어요',
+  },
 } as const;
 
 const en: LocalizedCopy<typeof ko> = {
@@ -91,6 +101,11 @@ const en: LocalizedCopy<typeof ko> = {
   emptyTitle: 'Coming soon',
   emptyDescription: "We're getting topics ready.\nPlease try again later.",
   retry: 'Try again',
+  autoNotice: {
+    title: 'We added a topic for you',
+    body: "Based on what you've been listening to, we added a topic you might like. It's marked with diagonal stripes — tap it to remove it if you'd rather not.",
+    confirm: 'Got it',
+  },
 };
 
 export const INTEREST_COPY = localized({ ko, en });
