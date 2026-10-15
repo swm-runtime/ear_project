@@ -1,6 +1,6 @@
 import fs from "node:fs/promises";
 import { cfg, executedBy } from "../config.js";
-import { blockedTierHosts, domainTierByHost, existingBacklogTitles, findDomainForUrl, getBacklogFull, insertCandidateDomain, insertRun, majorOfMidTopic, midsOfMajor, poolDomainsForTopics, recentSourcesForTopics, setBacklogStatus, setJobProgress, upsertSource, type Job } from "../db.js";
+import { blockedTierHosts, domainTierByHost, existingBacklogTitles, findDomainForUrl, getBacklogFull, insertCandidateDomain, insertRun, majorOfMidTopic, midsOfMajor, poolDomainsForTopics, recentSourcesForTopics, setBacklogStatus, setJobProgress, upsertSource, type Job, tierOfUrl } from "../db.js";
 import type { Executor } from "../executors/index.js";
 import { assetPaths, buildClusterPromptV2, buildReinforceSearchPrompt, buildReinforceSearchPromptEn, buildTopicJudgePromptEn, CLUSTER_SCHEMA_V2, CLUSTER_SCHEMA_V2_EN, judgeToInternal, pipelineLocale, REINFORCE_SEARCH_SCHEMA, REINFORCE_SEARCH_SCHEMA_EN, SOURCE_ROLES, todayKst } from "@ear/pipeline";
 import { hostOf, log } from "../util.js";
@@ -87,7 +87,7 @@ export async function runReinforce(job: Job, ex: Executor) {
   const meta: { n: number; url: string; title: string; summary: string | null; publisher: string; domain: string; published: string | null; tier?: string }[] = [];
   const seen = new Set<string>();
   const tiersPre = en ? await domainTierByHost() : null; // 글로벌판 판정자에게 도메인 등급을 보인다 — 근거 앵커는 1군만(게이트 1)
-  const push = (s: { url: string; title: string; summary: string | null; publisher: string; domain: string; published: string | null }) => { if (seen.has(s.url)) return; seen.add(s.url); meta.push({ n: meta.length + 1, ...s, ...(tiersPre ? { tier: tiersPre.get(hostOf(s.url)) ?? tiersPre.get(s.domain) ?? "candidate" } : {}) }); };
+  const push = (s: { url: string; title: string; summary: string | null; publisher: string; domain: string; published: string | null }) => { if (seen.has(s.url)) return; seen.add(s.url); meta.push({ n: meta.length + 1, ...s, ...(tiersPre ? { tier: tierOfUrl(tiersPre, s.url, s.domain) ?? "candidate" } : {}) }); };
   const blockedHosts = await blockedTierHosts();
   const isBlockedTier = (url: string) => { try { const u = new URL(url); const h = u.hostname.replace(/^www\./, ""); const seg = u.pathname.split("/").filter(Boolean)[0]; return blockedHosts.has(h) || (!!seg && blockedHosts.has(`${h}/${seg}`)); } catch { return false; } };
   const droppedBlocked = cand.sources.filter((s) => isBlockedTier(s.url)).map((s) => hostOf(s.url));
@@ -112,7 +112,7 @@ export async function runReinforce(job: Job, ex: Executor) {
   const filled = gaps.filter((g) => roleSet.has(g));
   const summary = `보강 1회 ${todayKst()}: 검색 ${r1.output.queries?.length ?? 0}회 · 새 소스 ${added.length}건(풀 밖 ${outside.length})${droppedBlocked.length ? ` · 차단 소스 ${droppedBlocked.length}건 제외` : ""} · 채운 역할 ${filled.join("·") || "없음"}${newGaps.length ? ` · 여전히 빈 역할 ${newGaps.join("·")}` : ""}${problems.length ? ` · ${problems.join(", ")}` : ""} → ${ok ? "성립" : "보류 유지"}`;
   await setBacklogStatus(cand.id, ok ? "proposed" : "held", {
-    sources: JSON.stringify(srcs.map((s) => ({ url: s.url, tier: tiers.get(hostOf(s.url)) ?? tiers.get(s.domain) ?? "candidate", title: s.title, backbone: s.roles.includes("근거 앵커"), published: s.published, publisher: s.publisher || s.domain, roles: s.roles, role_why: s.why }))),
+    sources: JSON.stringify(srcs.map((s) => ({ url: s.url, tier: tierOfUrl(tiers, s.url, s.domain) ?? "candidate", title: s.title, backbone: s.roles.includes("근거 앵커"), published: s.published, publisher: s.publisher || s.domain, roles: s.roles, role_why: s.why }))),
     gaps: ok ? [] : newGaps, reinforced_at: sweptAt, reinforce_note: summary,
     dedup_note: `${ok ? "성립" : `보강 필요 (${[...problems, ...(newGaps.length ? ["빈 역할 " + newGaps.join("·")] : [])].join(", ")})`} · 발행처 ${pubs.size}곳 · 최다 ${Math.round(maxShare * 100)}% · 역할 ${roleSet.size}종 · ${c.dedup_note} · ${summary} | ${(cand.dedup_note ?? "").replace(/^⚠️[^|]*\| /, "")}`,
   });
