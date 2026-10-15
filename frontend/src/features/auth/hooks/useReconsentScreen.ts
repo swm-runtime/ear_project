@@ -4,11 +4,11 @@ import { logger } from '@/shared/lib/logger';
 import { useToastStore } from '@/shared/ui/toast.store';
 
 import { submitConsents } from '../api/auth.api';
-import { AUTH_COPY } from '../auth.copy';
+import { AUTH_COPY, ageConfirmationLabel } from '../auth.copy';
 import type { ConsentType } from '../auth.types';
 import { openPolicyDocument } from '../services/policy-document.service';
 import { sessionService } from '../services/session.service';
-import { useSessionStore } from '../store/session.store';
+import { selectMarket, useSessionStore } from '../store/session.store';
 
 /**
  * A20 재동의(auth-uiux.md 4.3-1) — **A4와 규칙이 다르다.**
@@ -21,6 +21,8 @@ import { useSessionStore } from '../store/session.store';
 export const useReconsentScreen = () => {
   const pendingConsents = useSessionStore((s) => s.pendingConsents);
   const clearPendingConsents = useSessionStore((s) => s.clearPendingConsents);
+  /** 연령 확인 문구의 기준 연령 — 서버가 정한 세션 시장(KR 18 · GLOBAL 16, global-api.md 2.1) */
+  const market = useSessionStore(selectMarket);
   const showToast = useToastStore((s) => s.show);
 
   /** 기본값 전부 해제 — 재동의도 동의다(auth-uiux.md 8장 금지) */
@@ -31,7 +33,10 @@ export const useReconsentScreen = () => {
 
   const items = pendingConsents.map((consent) => ({
     ...consent,
-    label: AUTH_COPY.consent.label[consent.consentType],
+    label:
+      consent.consentType === 'age_confirmation'
+        ? ageConfirmationLabel(market)
+        : AUTH_COPY.consent.label[consent.consentType],
     description:
       consent.consentType === 'marketing' ? AUTH_COPY.consent.marketingDescription : null,
     isChecked: checkedMap[consent.consentType] ?? false,
@@ -60,7 +65,8 @@ export const useReconsentScreen = () => {
     if (!canSubmit || isSubmitting) return;
     setIsSubmitting(true);
     try {
-      // 화면이 그린 항목 그대로 보낸다. 선택 항목은 체크 여부가 그대로 is_agreed 다
+      // 화면이 그린 항목 그대로 보낸다. 선택 항목은 체크 여부가 그대로 is_agreed 다.
+      // version 은 pending_consents 의 값 그대로다(`terms_global_v1` 등 — 클라이언트 상수 금지)
       await submitConsents({
         consents: items.map((item) => ({
           consentType: item.consentType,

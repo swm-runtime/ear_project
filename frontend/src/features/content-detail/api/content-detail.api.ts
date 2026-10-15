@@ -25,6 +25,7 @@ const toContentDetail = (dto: ContentDetailResponseDto): ContentDetail => ({
     contentVersion: dto.content.content_version,
     topics: dto.content.topics.map((topic) => ({ id: topic.id, name: topic.name })),
     tags: dto.content.tags ?? [],
+    language: dto.content.language ?? null,
     series: dto.content.series
       ? {
           seriesId: dto.content.series.series_id,

@@ -275,7 +275,7 @@
 
 - **동의 4종(필수 3 + 마케팅)을 각각 별개 행으로 기록한다.** 개정 시점이 서로 다르므로 한 행에 묶지 않는다(`domain.md` 3.2 — append-only).
 - 필수 3종(`terms`·`privacy`·`age_confirmation`)이 `is_agreed: true`가 아니면 계정을 만들지 않는다(`CONSENT_REQUIRED`).
-- `age_confirmation`은 **만 18세 이상 자기 선언**이다(약관 제5조, 2026-09-06 반영). 열람할 문서가 없어 `version`이 항상 `null`이며, 이력이 없는 기존 사용자는 로그인 응답 `pending_consents`로 한 번 확인을 요구받는다.
+- `age_confirmation`은 **연령 자기 선언**이다 — KR **만 18세 이상**(약관 제5조, 2026-09-06 반영), GLOBAL **16세 이상**(`global-api.md` 2.1, 2026-10-14 확정). 열람할 문서가 없어 `version`이 항상 `null`이며, 이력이 없는 기존 사용자는 로그인 응답 `pending_consents`로 한 번 확인을 요구받는다.
 
 **Response 201** — `social-login`의 `authenticated` 응답과 같은 형태. `onboarding_completed: false`, `onboarding_step: "topic"`.
 

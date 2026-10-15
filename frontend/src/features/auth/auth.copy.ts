@@ -1,8 +1,10 @@
+import type { AppLanguage } from '@/shared/i18n/locale';
 import { localized, type LocalizedCopy } from '@/shared/i18n/localized';
 
 import type {
   ConsentType,
   ContentLanguage,
+  Market,
   SocialProvider,
   WithdrawalReasonCode,
 } from './auth.types';
@@ -63,11 +65,14 @@ const ko = {
       terms: '이용약관 동의',
       privacy: '개인정보 처리방침 동의',
       marketing: '마케팅 정보 수신 동의',
-      // 연령 확인의 표시 문구는 consent.ageConfirmation 이 갖는다. 이 표는 서버 유형과
-      // 1:1이어야 해서 자리를 비워둘 수 없다
+      // 연령 확인의 표시 문구는 시장별이라 ageConfirmationLabel(market) 이 갖는다. 이 표는 서버 유형과
+      // 1:1이어야 해서 자리를 비워둘 수 없다(값은 KR 문구)
       age_confirmation: '만 18세 이상입니다',
     } satisfies Record<ConsentType, string>,
-    /** 연령 확인 — 만 18세 미만 가입을 막는 자기 선언(Play 대상 연령대 18+ 선언과 같은 기준) */
+    /**
+     * 연령 확인 — KR 시장 문구(만 18세, Play 대상 연령대 18+ 선언과 같은 기준). 화면은 이 값을 직접 쓰지 않고
+     * 시장으로 고르는 `ageConfirmationLabel(market)` 을 쓴다(GLOBAL 16 — global-api.md 2.1)
+     */
     ageConfirmation: '만 18세 이상입니다',
     requiredTag: '(필수)',
     optionalTag: '(선택)',
@@ -414,3 +419,17 @@ const en: LocalizedCopy<typeof ko> = {
 };
 
 export const AUTH_COPY = localized({ ko, en });
+
+/**
+ * 연령 확인 문구 — **표시 언어가 아니라 시장으로** 기준 연령을 가른다(global-api.md 2.1 — GLOBAL 16 · KR 18, KAN-206).
+ * 영어로 쓰는 KR 사용자는 18, 한국어로 쓰는 GLOBAL 사용자는 16이다. KR 값은 종전 `consent.ageConfirmation` 그대로다.
+ * `AUTH_COPY` 밖에 두는 이유: 한국어 카피 회귀 스냅숏(`copy-ko.snapshot.test.ts`)의 모양을 바꾸지 않기 위해서다.
+ */
+const AGE_CONFIRMATION = {
+  ko: { kr: ko.consent.ageConfirmation, global: '만 16세 이상입니다' },
+  en: { kr: en.consent.ageConfirmation, global: 'I confirm that I am 16 or older' },
+} satisfies Record<AppLanguage, Record<Market, string>>;
+
+/** 시장의 연령 확인 문구(표시 언어로). `language` 는 테스트용 — 생략하면 지금 표시 언어 */
+export const ageConfirmationLabel = (market: Market, language?: AppLanguage): string =>
+  localized<Record<Market, string>>(AGE_CONFIRMATION, language)[market];

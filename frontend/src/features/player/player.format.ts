@@ -1,7 +1,9 @@
+import { formatEnCount } from '@/shared/i18n/format';
 import { localized, type LocalizedCopy } from '@/shared/i18n/localized';
 
-/** 영어 단위 — 1 이면 단수 */
-const enUnit = (count: number, unit: string): string => `${count} ${unit}${count === 1 ? '' : 's'}`;
+/** 영어 단위 — 단·복수는 `Intl.PluralRules`(KAN-197) */
+const enUnit = (count: number, unit: string): string =>
+  formatEnCount(count, { one: unit, other: `${unit}s` });
 
 /** 스크린리더용 시간 단위(KAN-194) */
 const ko = {

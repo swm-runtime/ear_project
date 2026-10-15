@@ -190,6 +190,8 @@ const styles = StyleSheet.create({
     borderColor: theme.color.primary,
   },
   agreeAllLabel: {
+    // 원 옆 남는 폭 안에서 접힌다 — 긴 영어 라벨이 화면 밖으로 밀리지 않게(KAN-197)
+    flexShrink: 1,
     fontSize: theme.font.size.md,
     fontWeight: '700',
     color: theme.color.textPrimary,

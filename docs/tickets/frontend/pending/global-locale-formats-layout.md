@@ -39,3 +39,27 @@ RTL
 
 ## 처리 기록
 - 2026-10-14 발행(마크다운 + Jira). 묶음 티켓 분할.
+- 2026-10-15 코드 반영(브랜치 `feat(fe)/global-formats-plans-age`, 미커밋). 상태는 **진행 중** — 영어 실기기 스크린샷 QA 가 남아 `pending/` 에 둔다.
+  - **날짜·복수형 → `Intl`**: 공용 `frontend/src/shared/i18n/format.ts`(+ 테스트 — en · en-GB · America/New_York 포함). 서버 날짜 라벨(`YYYY-MM-DD` — `last_free_date`·이벤트 `last_date`·`week_start`)은 문자열을 나눠 **UTC 로 포맷**해 시간대가 날짜를 밀지 않는다. ISO 순간(`renews_at`·`published_at`·공지)은 기기 시간대 날짜. **한국어는 종전 문자열을 그대로 조립**한다(기기 ICU 차이로 한 글자도 안 바뀌게 — `copy-ko.snapshot.test` 무변경 통과). 영어는 `Intl.DateTimeFormat`(기기 로캘 순서 — en-US "Oct 15" · en-GB "15 Oct"), 복수형은 `Intl.PluralRules` — **Hermes 는 `PluralRules` 가 없는 버전이 있어** 없으면 영어 규칙(1 = one)으로 폴백한다. 적용: `profile.copy.ts` · `content-detail.format.ts` · `player.format.ts` · `subscription.copy.ts`(날짜 함수만) · `settings.copy.ts` · `notice.format.ts`(영어는 "Oct 15, 2026") · 영어 복수형(`player.copy` · `sleep-timer` · `explore.copy` · `interest.copy` · `library.copy` · `onboarding.copy`). `shared/lib/date-only.ts` 는 `format.ts` 의 `parseDateLabel` 로 대체해 지웠다. 영어 회귀는 `frontend/src/app/copy-en-format.test.ts`.
+  - **`WeeklyChart` 기기 시각 보정 0건**: `SERVICE_DAY_OFFSET_MS`(기기 시각 −5h) 삭제. 이번 주 "오늘" 요일은 **서버가 준 오늘 서비스 날짜**(잔여 재생 표시값 `service_date` — 라이브러리·탐색·재생 응답, player `usePlayLimitStore`)와 `week_start` 라벨의 차이로 정한다(`profile.format.ts` `toServiceDayIndex`). 프로필 응답 자체에는 오늘 날짜가 없어서 고른 원천이다. 값이 없거나 그 주 밖이면 오늘 강조를 하지 않고 기록이 있는 마지막 요일까지를 지난 날로 센다. 문서: `docs/features/profile.md` 7장 "05시 경계 부근 진입" · `docs/frontend/architecture.md` 4.4 profile 행(player 의존 추가).
+  - **법적 링크 locale**: `frontend/src/shared/lib/legal-urls.ts` — 표시 언어 영어면 `https://earcast.co.kr/en/terms` · `/en/privacy`(env `EXPO_PUBLIC_TERMS_URL_EN` · `EXPO_PUBLIC_PRIVACY_POLICY_URL_EN` 로 덮을 수 있다), 한국어는 종전 env·주소 그대로. 앱에는 계정 삭제 링크가 없어(스토어 등록 정보에만) 손대지 않았고, `LICENSES_URL` 은 영어 페이지가 없어 한국어 그대로다. 인증 화면의 약관 링크(`auth.constants.ts`)는 auth 작업 몫.
+  - **고정 폭**: 아래 "고정 폭 체크리스트" 9곳.
+  - **남은 것**: ① 영어 기기(en-US · America/New_York) 실기기 스크린샷 QA — 프로필·상세·플레이어 날짜, 체크리스트 9곳 + 인증 화면, 버튼 2줄·Android 폰트 폴백. ② `Intl.DateTimeFormat`(timeZone `UTC`) 출력이 Hermes iOS·Android 에서 en-US "Oct 15" 로 나오는지 실기기 확인(폴백은 있으나 모양이 같은지). ③ 오늘 서비스 날짜를 프로필 응답이 직접 주면(BE `weekly_listening.service_date` 등) player 의존을 걷을 수 있다 — 필요하면 BE 요청.
+
+## 고정 폭 체크리스트 (2026-10-15)
+
+> 범위: `features/auth/**`(StartScreen·TermsConsentScreen — 다른 작업 몫)·`features/subscription/**` 제외. `width:` 숫자·상수를 전부 훑어 **글자를 담는 칸**만 골랐다. 썸네일·시트 손잡이·원형 아이콘 버튼·스켈레톤 블록(`CareerInfoScreen` 180 · `InterestManagementScreen` 96 · `WeeklyChart` 120)·`minWidth` 터치 타깃은 글자와 무관해 그대로 둔다. 탭 바 칸(`CapsuleTabBar` ITEM_WIDTH ≈110, 라벨 11pt 한 줄)·연차 토글(`YearsSegment`, flex)·주제 거품(`InterestBubble`, 두 줄 + 글자 줄임)은 이미 영어가 들어가 바꾸지 않았다. 아래 "확인"은 실기기 영어 스크린샷으로 볼 자리다.
+
+| # | 위치 | 영어에서 생길 문제 | 바꾼 것 | 한국어 |
+|---|---|---|---|---|
+| 1 | `frontend/src/features/profile/components/WeeklyChart.tsx:880` 주 범위 라벨 | 고정 폭 140 — 글자 크기 설정·로캘 순서("26 Oct – 1 Nov")에 따라 넘치면 말줄임 | `width: 140` 삭제, `minWidth: 140` 만(화살표가 주마다 뛰지 않는 목적은 유지) | 140 안이라 동일 |
+| 2 | `WeeklyChart.tsx:939` 하루 평균 오른쪽 두 줄(`rankBlock`) | "vs. Wednesday the week before"(16pt)가 큰 숫자를 밀어냄 | `maxWidth: '62%'`, 아랫줄 `rankText` `flexShrink: 1`(`:964`) — 줄 안 말줄임 | 상한 안이라 동일(숫자만 줄어드는 종전 규칙 유지) |
+| 3 | `WeeklyChart.tsx` 오른쪽 축(`AXIS_WIDTH` 48, 라벨 자리 28) | "180 min" 이 잘림 | 축 칸은 그대로, 영어 카피를 "180m"·"<1m" 로(`profile.copy.ts:557` `axisMax`) | 카피 불변 |
+| 4 | `frontend/src/features/explore/components/PopularPeriodToggle.tsx:24` 인기 구간 토글(시스템 UISegmentedControl) | 칸 52 × 3 — "Monthly"·"All time" 잘림 | 칸 폭 언어별: ko 52 · en 76 | 52 그대로 |
+| 5 | `PopularPeriodToggle.tsx:77` JS 토글(Android·옛 iOS 빌드) | iOS 옛 빌드는 기본 칸 48 | 영어면 같은 76 을 넘긴다 | 종전 그대로 |
+| 6 | `frontend/src/shared/ui/SegmentedControl.tsx:190·206` 칸 라벨 | 고정 칸에서 두 줄로 접혀 칸 밖으로 잘림 | `numberOfLines={1}`(말줄임) | 한 줄이라 동일 |
+| 7 | `frontend/src/features/onboarding/components/TopicSelectSkeleton.tsx:14` 온보딩 주제 마퀴 알약(`TOPIC_PILL_WIDTH`) | 156 고정 — "Personal Finance" 등 말줄임 | ko 156 · en 184(마퀴는 알약 폭이 같아야 해 언어별 고정값) | 156 그대로 |
+| 8 | `frontend/src/features/career/components/JobCategoryChips.tsx:58·112` 직군 사진 칩(2열 고정 폭·높이 56) | 긴 이름이 세 줄로 넘쳐 칩 밖으로 잘림 | `numberOfLines={2}` + 가운데 정렬 | 한 줄 이름이라 동일 |
+| 9 | `frontend/src/features/career/screens/CareerInfoScreen.tsx:44·231` 앱바 가운데 제목(줄 전체에 겹친 절대 배치) | 긴 제목이 [초기화]·뒤로 밑으로 겹침 | 좌우 104 비움(`APP_BAR_TITLE_INSET`) + `numberOfLines={1}` | 제목이 짧아 위치·모양 동일 |
+
+남은 확인(실기기 영어 스크린샷): 위 9곳 + 인증 화면(StartScreen·TermsConsentScreen — 다른 작업) + 버튼 2줄·Android 폰트 폴백. 실측에서 잘림이 나오면 이 표에 행을 더한다.

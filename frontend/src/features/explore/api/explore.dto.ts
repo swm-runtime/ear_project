@@ -26,6 +26,11 @@ export interface ExploreContentDto {
    * 선택 필드 — 아직 안 보내는 서버에서는 없고, 그때는 빈 배열로 읽는다
    */
   tags?: string[];
+  /**
+   * 콘텐츠 언어(BCP 47 primary — `ko` · `en`, global-api.md 4.7). **표시 전용** — 목록을 거르지 않는다(시장 필터는 서버 몫).
+   * 아직 안 보내는 서버에서는 없다 — 없으면 null 로 읽는다
+   */
+  language?: string | null;
 }
 
 export interface ExploreLibraryStateDto {

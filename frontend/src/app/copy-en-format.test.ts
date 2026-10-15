@@ -1,0 +1,53 @@
+/* eslint-disable no-restricted-imports -- 영어 날짜·복수형 회귀는 각 feature 의 카피·포맷을 직접 읽어야 한다(copy-ko.snapshot.test 와 같은 이유). 테스트 전용 */
+import { describe, expect, it, jest } from '@jest/globals';
+
+import { formatPublishedDate } from '@/features/content-detail/content-detail.format';
+import { formatNoticeDate } from '@/features/notice/notice.format';
+import { formatPlaybackTimeA11y } from '@/features/player/player.format';
+import { PROFILE_COPY } from '@/features/profile/profile.copy';
+import { SETTINGS_COPY } from '@/features/settings/settings.copy';
+
+// 표시 언어를 영어(en-US 기기)로 고정한다 — jest.setup.js 의 한국어 고정을 이 파일에서만 덮는다
+jest.mock('@/shared/i18n/locale', () => ({
+  ...jest.requireActual<Record<string, unknown>>('@/shared/i18n/locale'),
+  APP_LANGUAGE: 'en',
+  DISPLAY_LOCALE: 'en-US',
+}));
+
+/** 기기 시간대와 무관하게 같은 날짜가 나오도록 로컬 정오의 순간을 만든다 */
+const localNoon = (year: number, month: number, day: number) =>
+  new Date(year, month - 1, day, 12, 0, 0).toISOString();
+
+describe('영어 날짜·복수형(KAN-197) — Intl, en-US 기기', () => {
+  it('프로필 플랜 줄 — ISO 순간은 기기 시간대의 "Oct 15"', () => {
+    expect(PROFILE_COPY.plan.renewsAt(localNoon(2026, 10, 15))).toBe('Renews Oct 15');
+  });
+
+  it('서버 날짜 라벨(last_free_date)은 시간대를 거치지 않는다', () => {
+    expect(PROFILE_COPY.plan.trial('2026-10-05')).toBe('Free trial · Unlimited until Oct 5');
+    expect(SETTINGS_COPY.plan.trial('2026-10-05')).toBe('Free trial · Unlimited until Oct 5');
+  });
+
+  it('주 범위는 달을 넘어도 서버 week_start 라벨에서 +6일', () => {
+    expect(PROFILE_COPY.stats.weekRange('2026-10-26')).toBe('Oct 26 – Nov 1');
+  });
+
+  it('복수형 — 1 은 단수, 나머지는 복수', () => {
+    expect(PROFILE_COPY.stats.completedValue(1)).toBe('1 episode');
+    expect(PROFILE_COPY.stats.completedValue(12)).toBe('12 episodes');
+    expect(PROFILE_COPY.stats.streakValue(1)).toBe('1 day');
+    expect(SETTINGS_COPY.plan.free(1)).toBe('Free plan · 1 episode a day');
+    expect(formatPlaybackTimeA11y(61)).toBe('1 minute 1 second');
+    expect(formatPlaybackTimeA11y(3725)).toBe('1 hour 2 minutes 5 seconds');
+  });
+
+  it('주간 그래프 축 최대값은 좁은 축 칸에 맞게 "72m"', () => {
+    expect(PROFILE_COPY.stats.axisMax(72 * 60)).toBe('72m');
+    expect(PROFILE_COPY.stats.axisMax(30)).toBe('<1m');
+  });
+
+  it('발행일·공지 날짜는 "Aug 12, 2026"', () => {
+    expect(formatPublishedDate(localNoon(2026, 8, 12))).toBe('Aug 12, 2026');
+    expect(formatNoticeDate(localNoon(2026, 8, 12))).toBe('Aug 12, 2026');
+  });
+});

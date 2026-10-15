@@ -20,7 +20,6 @@ const PRO_PLAN: Plan = {
   tier: 'pro',
   name: '프로',
   description: '',
-  priceKrw: 9900,
   storeProductId: 'com.runtime.ear.subscription.pro.monthly',
   entitlements: { dailyPlayLimit: null, dailyDripCount: 2, dripEnabled: true, adsEnabled: false },
   action: 'purchase',

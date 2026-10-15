@@ -13,6 +13,7 @@ const content = (overrides: Partial<LibraryContent>): LibraryContent => ({
   thumbnailUrl: 'https://example.com/t.jpg',
   contentVersion: 1,
   topicIds: [],
+  language: null,
   ...overrides,
 });
 

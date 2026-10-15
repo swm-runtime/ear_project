@@ -88,7 +88,6 @@ describe('subscription.api 서버 계약(subscription-api.md)', () => {
           tier: 'pro',
           name: '프로',
           description: '…',
-          priceKrw: 9900,
           storeProductId: 'com.runtime.ear.subscription.pro.monthly',
           entitlements: {
             dailyPlayLimit: null,
@@ -100,6 +99,49 @@ describe('subscription.api 서버 계약(subscription-api.md)', () => {
         },
       ],
       isEmailVerified: false,
+    });
+  });
+
+  it('4.1 price_krw 가 null 이거나 없어도 깨지지 않고, 원화 값은 모델에 옮기지 않는다(KAN-196 · global-api.md 4.6)', async () => {
+    // given — GLOBAL 요금제(null)와 필드를 뺀 다음 메이저 응답(생략)
+    const base = {
+      tier: 'pro',
+      name: 'Pro',
+      description: 'Listen without limits',
+      store_product_id: 'com.runtime.ear.subscription.pro.monthly',
+      entitlements: SUBSCRIPTION_DTO.entitlements,
+      action: 'purchase' as const,
+    };
+    const dto: PlansResponseDto = {
+      plans: [
+        { ...base, plan_id: 'uuid-pro-null', price_krw: null },
+        { ...base, plan_id: 'uuid-pro-omitted' },
+      ],
+      is_email_verified: true,
+    };
+    mockGet.mockResolvedValue({ data: dto });
+
+    // when
+    const catalog = await fetchPlans('ios');
+
+    // then — 모양이 정확히 같다(toStrictEqual — 원화 값 키가 따라오지 않는다)
+    const expected = (planId: string) => ({
+      planId,
+      tier: 'pro',
+      name: 'Pro',
+      description: 'Listen without limits',
+      storeProductId: 'com.runtime.ear.subscription.pro.monthly',
+      entitlements: {
+        dailyPlayLimit: null,
+        dailyDripCount: 2,
+        dripEnabled: true,
+        adsEnabled: false,
+      },
+      action: 'purchase',
+    });
+    expect(catalog).toStrictEqual({
+      plans: [expected('uuid-pro-null'), expected('uuid-pro-omitted')],
+      isEmailVerified: true,
     });
   });
 

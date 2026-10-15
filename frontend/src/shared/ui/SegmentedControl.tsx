@@ -186,6 +186,8 @@ export default function SegmentedControl<T extends string>({
                 (isSystem || isIos26) && styles.labelSystem,
                 isModern && styles.labelModern,
               ]}
+              // 칸 폭이 고정이라 긴 라벨(영어)은 두 줄로 접혀 칸 밖으로 잘린다 — 한 줄 말줄임(KAN-197)
+              numberOfLines={1}
             >
               {option.label}
             </Text>
@@ -201,6 +203,7 @@ export default function SegmentedControl<T extends string>({
               ]}
               accessibilityElementsHidden
               importantForAccessibility="no"
+              numberOfLines={1}
             >
               {option.label}
             </AnimatedText>

@@ -1,3 +1,4 @@
+import { formatEnCount } from '@/shared/i18n/format';
 import { localized, type LocalizedCopy } from '@/shared/i18n/localized';
 
 import { NOTIFICATION_COPY } from '@/features/notification';
@@ -95,7 +96,8 @@ const en: LocalizedCopy<typeof ko> = {
         ? `What are you curious about?\nPick up to ${max}`
         : 'What are you curious about?\nPick your topics',
     countLabel: (count: number, max: number) => `${count}/${max} selected`,
-    limitToast: (max: number) => `You can choose up to ${max} ${max === 1 ? 'topic' : 'topics'}`,
+    limitToast: (max: number) =>
+      `You can choose up to ${formatEnCount(max, { one: 'topic', other: 'topics' })}`,
     next: 'Next',
     loadFailedTitle: "Couldn't load topics",
     loadFailedDescription: 'Please try again later.',

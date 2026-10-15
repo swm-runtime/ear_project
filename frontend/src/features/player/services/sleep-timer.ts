@@ -3,10 +3,12 @@
  * 선택지는 문서가 정한 다섯 개뿐이다: 5분 · 10분 · 15분 · 30분 · 이 에피소드 종료 시(+ 해제).
  */
 
+import { formatEnCount } from '@/shared/i18n/format';
 import { localized, type LocalizedCopy } from '@/shared/i18n/localized';
 
-/** 영어 단위 — 1 이면 단수 */
-const enUnit = (count: number, unit: string): string => `${count} ${unit}${count === 1 ? '' : 's'}`;
+/** 영어 단위 — 단·복수는 `Intl.PluralRules`(KAN-197) */
+const enUnit = (count: number, unit: string): string =>
+  formatEnCount(count, { one: unit, other: `${unit}s` });
 
 /** 낭독기용 남은 시간 문구(KAN-194) */
 const ko = {

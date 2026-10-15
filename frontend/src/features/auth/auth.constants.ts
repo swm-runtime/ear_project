@@ -1,4 +1,17 @@
-import type { SocialProvider, WithdrawalReasonCode } from './auth.types';
+import { PRIVACY_POLICY_URL, TERMS_URL } from '@/shared/lib/legal-urls';
+
+import type { ContentLanguage, Market, SocialProvider, WithdrawalReasonCode } from './auth.types';
+
+/**
+ * A21에서 고른 콘텐츠 언어가 가리키는 시장(global-api.md 2.1 — `ko` → `kr`, `en` → `global`).
+ *
+ * **시장 판정은 서버가 한다** — 이 표는 계정이 아직 없는 가입 화면(A4)에서 시장별 문구(연령 기준)를 미리 그리기 위한
+ * 표시용 대응이다. 계정이 생긴 뒤에는 응답의 `user.market` 만 쓴다(`selectMarket`).
+ */
+export const CONTENT_LANGUAGE_MARKET: Readonly<Record<ContentLanguage, Market>> = {
+  ko: 'kr',
+  en: 'global',
+};
 
 /**
  * 이메일 인증 API의 mock 전환(CLAUDE.local 개발 방식 — onboarding·career와 동일 패턴).
@@ -53,10 +66,11 @@ export const PROVIDER_BRAND: Record<
  * 스토어 배포를 기다려야 한다. 웹에 두면 랜딩 배포만으로 반영된다.
  *
  * 마케팅 동의는 열람 문서가 없다 — 한 줄 고지로 갈음한다(auth-uiux.md 4.3).
+ * 주소는 설정·구독 화면과 같은 원천(`shared/lib/legal-urls.ts`)이다 — 영어 표시면 랜딩 영어 본문(`/en/…`, KAN-197)
  */
 export const POLICY_DOCUMENT_URL = {
-  terms: 'https://earcast.co.kr/terms',
-  privacy: 'https://earcast.co.kr/privacy',
+  terms: TERMS_URL,
+  privacy: PRIVACY_POLICY_URL,
 } as const satisfies Record<'terms' | 'privacy', string>;
 
 export type PolicyDocument = keyof typeof POLICY_DOCUMENT_URL;

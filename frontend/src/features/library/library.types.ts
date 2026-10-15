@@ -39,6 +39,8 @@ export interface LibraryContent {
   /** 재발행 판정용 — 올라갔으면 저장한 위치·오프라인 파일을 폐기한다(domain.md 5.1) */
   contentVersion: number;
   topicIds: string[];
+  /** 콘텐츠 언어(BCP 47 primary — `ko` · `en`). 표시 전용 — 이 값으로 거르지 않는다(global-api.md 4.7). 모르면 null */
+  language: string | null;
 }
 
 export interface LibraryProgress {
@@ -87,6 +89,8 @@ export interface ResumeContent {
   thumbnailUrl: string;
   contentVersion: number;
   topicIds: string[];
+  /** 콘텐츠 언어(BCP 47 primary — `ko` · `en`). 표시 전용 — 이 값으로 거르지 않는다(global-api.md 4.7). 모르면 null */
+  language: string | null;
 }
 
 /** 미니플레이어 복원 대상(library-api.md 4.3). 항상 일시정지 상태로 표시만 한다 */

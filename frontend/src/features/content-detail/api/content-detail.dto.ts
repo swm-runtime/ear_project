@@ -37,6 +37,11 @@ export interface ContentDetailContentDto {
   topics: ContentDetailTopicDto[];
   /** 화면 해시태그('#' 없이, 2~4개 — content-detail-api.md 4.1, KAN-162). 없으면 빈 배열. 아직 안 보내는 서버면 없다 */
   tags?: string[];
+  /**
+   * 콘텐츠 언어(BCP 47 primary — `ko` · `en`, global-api.md 4.7). **표시 전용** — 목록을 거르지 않는다(시장 필터는 서버 몫).
+   * 아직 안 보내는 서버에서는 없다 — 없으면 null 로 읽는다
+   */
+  language?: string | null;
   series: ContentDetailSeriesDto | null;
   origin: 'partner' | 'ai_generated';
   author_name: string | null;

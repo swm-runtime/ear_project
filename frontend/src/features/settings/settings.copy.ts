@@ -4,21 +4,18 @@
  * 두 화면이 같은 값을 다른 말로 표시하면 어느 쪽이 맞는지 사용자가 판단하게 된다).
  * 내부 용어("드립"·"티어"·"유예"·"grace")를 노출하지 않는다.
  */
+import {
+  formatDateLabelMonthDay,
+  formatEnCount,
+  formatInstantMonthDay,
+} from '@/shared/i18n/format';
 import { localized, type LocalizedCopy } from '@/shared/i18n/localized';
-import { toDateOnlyMonthDay } from '@/shared/lib/date-only';
 
-import { toMonthDayParts } from './settings.format';
-
-const monthDay = (iso: string): string => {
-  const { month, day } = toMonthDayParts(iso);
-  return `${month}월 ${day}일`;
-};
+/** ISO UTC 시각 → 기기 시간대의 "N월 N일"(표기 전용 — 판정은 서버 몫) */
+const monthDay = (iso: string): string => formatInstantMonthDay(iso, 'ko');
 
 /** 서버가 판정한 날짜(YYYY-MM-DD) 그대로 "N월 N일" — 시간대를 거치지 않는다(가입 체험 last_free_date) */
-const dateOnlyMonthDay = (date: string): string => {
-  const { month, day } = toDateOnlyMonthDay(date);
-  return `${month}월 ${day}일`;
-};
+const dateOnlyMonthDay = (date: string): string => formatDateLabelMonthDay(date, 'ko');
 
 const ko = {
   title: '설정',
@@ -187,32 +184,11 @@ const ko = {
   retry: '다시 시도',
 } as const;
 
-const EN_MONTHS = [
-  'Jan',
-  'Feb',
-  'Mar',
-  'Apr',
-  'May',
-  'Jun',
-  'Jul',
-  'Aug',
-  'Sep',
-  'Oct',
-  'Nov',
-  'Dec',
-] as const;
+/** 기기 로캘 순서의 월·일(`Intl` — en-US "Oct 15" · en-GB "15 Oct", KAN-197). 기기 시간대 기준 */
+const enMonthDay = (iso: string): string => formatInstantMonthDay(iso, 'en');
 
-/** "Oct 15" — 한국어 `monthDay` 와 같은 월·일 조각에서 만든다 */
-const enMonthDay = (iso: string): string => {
-  const { month, day } = toMonthDayParts(iso);
-  return `${EN_MONTHS[month - 1]} ${day}`;
-};
-
-/** 서버 판정 날짜(YYYY-MM-DD) 그대로 "Oct 15" — 시간대를 거치지 않는다 */
-const enDateOnlyMonthDay = (date: string): string => {
-  const { month, day } = toDateOnlyMonthDay(date);
-  return `${EN_MONTHS[month - 1]} ${day}`;
-};
+/** 서버 판정 날짜(YYYY-MM-DD) 그대로 — 시간대를 거치지 않는다 */
+const enDateOnlyMonthDay = (date: string): string => formatDateLabelMonthDay(date, 'en');
 
 const en: LocalizedCopy<typeof ko> = {
   title: 'Settings',
@@ -254,7 +230,7 @@ const en: LocalizedCopy<typeof ko> = {
     free: (dailyPlayLimit: number | null) =>
       dailyPlayLimit === null
         ? 'Free plan'
-        : `Free plan · ${dailyPlayLimit} ${dailyPlayLimit === 1 ? 'episode' : 'episodes'} a day`,
+        : `Free plan · ${formatEnCount(dailyPlayLimit, { one: 'episode', other: 'episodes' })} a day`,
     renewsAt: (iso: string) => `Renews ${enMonthDay(iso)}`,
     cancelScheduled: (iso: string) => `Active until ${enMonthDay(iso)} · then Free`,
     pendingPlan: (iso: string, nextPlanName: string) =>

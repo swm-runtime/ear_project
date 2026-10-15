@@ -81,6 +81,7 @@ const toAudioIssueResult = (dto: AudioUrlsResponseDto): AudioIssueResult => ({
     durationSec: dto.content.duration_sec,
     thumbnailUrl: dto.content.thumbnail_url,
     contentVersion: dto.content.content_version,
+    language: dto.content.language ?? null,
   },
   topicIds: dto.content.topics ? dto.content.topics.map((topic) => topic.id) : null,
   hasScript: dto.has_script === true,

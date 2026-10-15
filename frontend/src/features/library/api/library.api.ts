@@ -67,6 +67,7 @@ const toLibraryItem = (dto: LibraryItemDto): LibraryItem => ({
     thumbnailUrl: dto.content.thumbnail_url,
     contentVersion: dto.content.content_version,
     topicIds: dto.content.topic_ids,
+    language: dto.content.language ?? null,
   },
   progress: toProgress(dto.progress),
 });
@@ -93,6 +94,7 @@ const toResumeResult = (dto: ResumeResponseDto): ResumeResult => ({
           contentVersion: dto.resume_target.content.content_version,
           // 옛 서버 응답(필드 이전)도 깨지지 않게 — 없으면 카테고리 줄만 비운다
           topicIds: dto.resume_target.content.topic_ids ?? [],
+          language: dto.resume_target.content.language ?? null,
         },
         progress: toProgress(dto.resume_target.progress),
       }
