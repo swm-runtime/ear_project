@@ -26,6 +26,8 @@
 - **분기 기준은 응답 `user.market`**(언어로 추측 금지): GLOBAL이면 제공자 Google/Apple만, 구독 법적 고지 GLOBAL 문구. (연령 16세 문구·차단 흐름은 [KAN-206](https://runtime364.atlassian.net/browse/KAN-206) `global-age-consent-16.md`로 이관)
 - 온보딩은 `GET /onboarding/state`의 `steps[]`대로 화면을 잇는다 — 단계를 하드코딩하지 않는다. `career`가 없으면 커리어 화면을 띄우지 않는다.
 - 주제 이미지·아이콘 매핑 키를 **`items[].slug`**로 전환(한국어 이름 키 폐기). GLOBAL 주제 이미지 자산은 AI/PM에서 수령.
+  - ⚠️ **KR 주제 slug는 BE KAN-212에 확정 표가 있다**(2026-10-15). 서버에 값이 들어가기 전에 이름 키를 지우면 KR 주제 이미지가 기본 이미지로 바뀐다 — slug가 null이면 이름 키로 폴백하거나, BE 입력 뒤 배포한다.
+  - ⚠️ **재테크·투자 파일명이 slug와 엇갈린다.** 재테크 이미지 = `topic-investing.jpg`(slug `personal-finance`), 투자 이미지 = `topic-invest.jpg`(slug `investing`). "slug → `topic-{slug}.jpg`"로 바꾸면 투자 칩에 재테크 이미지가 붙는다. 파일명을 slug에 맞춰 정리하거나(재테크 먼저 옮기고 투자) slug → 파일 표를 따로 둔다.
 - 설정에 "언어" 항목 — `PATCH /users/me/settings { language_code }`로 표시 언어 변경, 시장은 표시만(변경 불가).
 
 ## 범위 밖
@@ -42,6 +44,7 @@
 - Given 응답 `market = global` / Then 시작 화면 제공자 Google/Apple만
 - Given `steps = ["topic"]`(GLOBAL) / Then 커리어 화면이 뜨지 않는다; `["topic","career"]`(KR)이면 종전과 같다 (2026-10-14 정정 — 담기 단계는 없다, `global-api.md` 4.4)
 - Given 주제 응답에 slug / Then 이미지가 slug로 붙고 한국어 이름 키 참조 0건
+- Given slug 매핑 배포 / Then 재테크·투자를 포함한 KR 주제 칩 이미지가 1.2.0과 같다(스크린샷 대조)
 - Given 설정에서 언어를 en→ko / Then 문구가 바뀌고 `market` 표시는 그대로
 
 ## 처리 기록
