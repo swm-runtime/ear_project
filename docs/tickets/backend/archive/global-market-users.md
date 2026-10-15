@@ -14,7 +14,7 @@
 | 관련 | 뒤 티켓 전부가 이 티켓에 막힌다(`users.market`이 모든 필터의 입력) |
 | 근거 문서 | **`spec/api/global-api.md` 2.1 · 4.1 · 4.2 · 4.3 · 8장 `users` 행** — 구현은 이 문서를 따르고, 계약이 바뀌면 티켓이 아니라 이 문서를 고친다 · 2026-10-14 글로벌화 조사 |
 | 중요도 | Medium |
-| 상태 | 진행 중 (2026-10-14 dev 머지·개발계 배포 — 실기기 가입 실측은 FE KAN-195 뒤) |
+| 상태 | 완료 (2026-10-15) |
 
 > 2026-10-14 발행한 묶음 티켓(BE KAN-185 · FE KAN-183 · AI KAN-184)을 처리 단위로 나눈 것. 결정 사항(같은 앱·기기 언어로 가입 시 1회 시장 판정·한국 트랙 불변·에러 번역은 클라이언트·가격은 스토어·영어 진행자 새 2인·K-컬처 주제 신설·GLOBAL 연령 16세)과 결정 대기(시장 전환 불허)는 `spec/api/global-api.md` 2.1·9장이 원본이다.
 
@@ -50,3 +50,5 @@
   - 정정: `archived_users`에는 넣지 않았다(domain.md 11.3 — 거래 주체 식별과 무관). `global-api.md` 8장 같이 고침.
   - `changes/pending/global-users-market-locale.md`에 `domain.md`·`auth-api`·`onboarding-api`·`settings-api` 개정 요청 기록.
   - 미완: e2e는 로컬 DB가 없어 CI(deploy-api `test:e2e`)에서 확인. 개발계 배포 후 실기기 가입 실측은 FE KAN-195 뒤.
+- 2026-10-15 완료 조건 대조 — 서버 조건 6개는 e2e `test/global-market.e2e-spec.ts` 7건이 덮는다(가입 시 English → global · 영어 기기 + 한국어 선택 → kr · `locale` 없는 구 앱 → kr · 고른 값 없이 기기 언어만 → 폴백 · 재로그인 시 market 불변 · 기기 등록의 `language_code`·`timezone` 반영). 개발계 배포·로컬 e2e 통과. 마지막 조건(`domain.md` 3.1 개정 요청)은 같은 날 `changes/archive/global-users-market-locale.md`로 반영. 실기기 가입 실측은 FE KAN-195 몫(완료 조건 밖).
+- 2026-10-15 `archive/`로 이동, KAN-187 완료.

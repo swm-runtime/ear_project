@@ -203,6 +203,7 @@
 
 - `PlaybackSession`은 폐기됐다. 재생 위치·최대 도달 위치는 `playback_progresses` 하나가 갖는다(domain.md 14장).
 - `seek` · `rate_change`는 신호 테이블에 넣지 않는다. 추천 스코어링에 쓰이지 않는다.
+- **시장 격리**(추가 2026-10-14 — KAN-188, `global-api.md` 4.7): 사용자 시장이 아닌 콘텐츠(`contents.market != users.market`)는 서명 URL 발급·대본 조회에 ID로 직접 와도 `CONTENT_NOT_FOUND`(404)다(회수의 403과 다르다 — 존재 여부를 알리지 않는다). 발급 응답의 콘텐츠 객체에는 `language`(`ko` | `en`)가 실리며 **표시 전용**이다(자막 폰트·낭독 언어 등) — 클라이언트는 이 값으로 거르지 않는다.
 
 ## 7. 예외 상황
 

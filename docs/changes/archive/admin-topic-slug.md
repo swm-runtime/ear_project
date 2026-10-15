@@ -23,3 +23,7 @@
 ## 완료 조건
 
 - Given `admin-api.md` 4.1~4.3 / When 읽는다 / Then 위 항목이 적혀 있다
+
+## 처리 기록
+
+- 2026-10-15 반영 — `admin-api.md` 4.1·4.2·4.3 · `features/admin.md` 3.2 주제 필드 표(`market`·`slug`). 반영 전 코드와 대조함.

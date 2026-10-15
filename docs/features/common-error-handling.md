@@ -204,6 +204,17 @@ NetworkState  { reachable, connection_type }                        // 클라이
 
 - **HTTP 열이 두 값인 것은 오타가 아니다.** 재생·조회에서는 응답 상태로 오지만, 여러 건을 한 번에 담는 요청(`POST /onboarding/picks`)에서는 **요청 전체가 실패한 것이 아니므로** 200 응답 본문의 `failed[]` 항목으로 전달된다.
 
+### 9.2-1 공통 — 시장 (`global-api.md` 5장)
+
+**특정 화면에 속하지 않는다.** 온보딩·관심사 관리가 같은 코드를 쓰므로 여기 한 번만 등재한다.
+
+| error_code | HTTP | retryable | 클라이언트 동작 |
+|---|---|---|---|
+| `MARKET_MISMATCH` | 409 | false | **정상 UI에서는 나오지 않는다** — 공통 문구("다시 시도해 주세요" 류 일반 오류 안내). 화면 전용 분기를 두지 않는다 |
+
+- 신설 2026-10-14(KAN-189). 사용자 시장(`users.market`)과 다른 시장의 자원을 저장하려 할 때 낸다. 발생 지점: **GLOBAL 계정의 커리어 저장**(`onboarding-api.md` 4.4 — GLOBAL에는 커리어 단계가 없다) · **다른 시장 주제를 관심사로 저장**(`onboarding-api.md` 4.3 · `interest-management-api.md` 4.3 — 부분 저장 없음).
+- 다른 시장 **콘텐츠** ID로 직접 접근하는 경우는 이 코드가 아니라 404 `CONTENT_NOT_FOUND`(9.2)다 — 존재 여부를 구분해 알려주지 않는다(`global-api.md` 4.7).
+
 ### 9.3 인증·계정 (`auth-api.md` 5장)
 
 | error_code | HTTP | retryable | 클라이언트 동작 |
@@ -306,7 +317,7 @@ NetworkState  { reachable, connection_type }                        // 클라이
 | error_code | HTTP | retryable | 클라이언트 동작 |
 |---|---|---|---|
 | `NOTICE_CURSOR_INVALID` | 400 | false | 커서를 버리고 첫 페이지부터 조용히 재조회(사용자에게 노출하지 않음) |
-| `NOTICE_NOT_FOUND` | 404 | false | 앱: "삭제된 공지예요" 안내 후 목록으로 돌아가 재조회. 초안·예약·삭제·없음이 모두 이 코드다 / 콘솔: 목록 재조회 |
+| `NOTICE_NOT_FOUND` | 404 | false | 앱: "삭제된 공지예요" 안내 후 목록으로 돌아가 재조회. 초안·예약·삭제·없음·다른 시장 공지(2026-10-14)가 모두 이 코드다 / 콘솔: 목록 재조회 |
 
 - 신설 2026-09-17(KAN-67).
 

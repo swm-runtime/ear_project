@@ -59,3 +59,4 @@
 
 ## 처리 기록
 - 2026-10-14 발행. 코드는 KAN-187 PR에 반영 완료(계약은 `global-api.md`가 먼저 확정).
+- 2026-10-15 반영 — `backend/domain.md` 3.1 · `auth-api.md` 4.1·4.2·4.13 · `onboarding-api.md` 4.9 · `settings-api.md` 4.1·4.2. 코드 대조 결과 로그인 때 `region_code`도 갱신해 세 필드로 적었고, 서버 문구 언어는 `users.market` 기준으로 정정(`global-api.md` 4.1·4.3도 함께). 반영 전 코드와 대조함.

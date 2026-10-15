@@ -23,3 +23,7 @@
 
 - Given `profile-api.md` 4.1 / When `listening_top_percent`의 모집단·계산을 읽는다 / Then "같은 시장" 조건이 적혀 있다
 - Given `features/profile.md` 4.6 / When "나와의 비교" 줄을 읽는다 / Then 상위 %가 같은 시장 사용자 기준이라고 적혀 있다
+
+## 처리 기록
+
+- 2026-10-15 반영 — `profile-api.md` 4.1 `listening_top_percent`(같은 시장 모집단·순위) · `features/profile.md` 4.6. 반영 전 코드와 대조함.

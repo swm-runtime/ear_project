@@ -85,29 +85,35 @@
 ```jsonc
 // 200
 { "items": [
-  { "id": "...", "name": "생산성", "parent_category": "자기계발",
+  { "id": "...", "name": "생산성", "parent_category": "자기계발", "slug": "productivity",
     "is_visible": true, "display_order": 1, "content_count": 12, "visible_content_count": 10 }
 ] }
 ```
 
 - **`content_count`는 조회 시 집계한다.** `topics`에 컬럼을 두지 않는다 — 파생값이라 컬럼과 집계가 어긋날 수 있다(`admin.md` 4.5).
 - **`content_count`는 원시 연결 건수**(회수·만료 포함 — 4.4 삭제 판정), **`visible_content_count`는 노출 가능 건수**(`published` + 라이선스 미만료 — 4.3 노출 판정)다(추가 2026-09-17, KAN-58). 콘솔은 `is_visible = false`이고 `visible_content_count = 0`인 주제의 노출 켜기를 비활성으로 그린다.
+- **`slug`**(string | null)는 주제 이미지 매핑 키다(`global-api.md` 4.5). 아직 채우지 않은 주제는 `null`(추가 2026-10-14 — KAN-189). 항목에 `market`은 싣지 않는다.
 
 ### 4.2 `POST /admin/topics`
 
 ```jsonc
-{ "name": "생산성", "parent_category": "자기계발", "display_order": 1 }  // display_order 선택
+{ "name": "생산성", "parent_category": "자기계발", "display_order": 1, "market": "kr", "slug": "productivity" }  // display_order · market · slug 선택
 ```
 
 201로 4.1의 항목 한 건을 반환한다. **`is_visible`은 `false`로 고정 생성된다** — 요청으로 받지 않는다(`admin.md` 4.5 — 콘텐츠 수급 후 노출을 시작한다).
 
+- `market`(`kr` | `global`, 선택 — 없으면 `kr`)은 주제의 시장이다(`global-api.md` 4.9). **생성 후 바꾸지 않는다** — 4.3은 `market`을 받지 않는다. GLOBAL 주제는 영어 이름으로 만든다(추가 2026-10-14 — KAN-190).
+- `slug`(선택)는 소문자·숫자를 하이픈으로 이은 것(예 `k-pop`, `^[a-z0-9]+(-[a-z0-9]+)*$`), 최대 64자. 형식이 틀리면 400 `VALIDATION_FAILED`. **같은 시장에 같은 `slug`가 있으면 409 `CONFLICT`**(`uq_topics_market_slug`) — 시장이 다르면 같은 값을 쓸 수 있다(추가 2026-10-14 — KAN-189).
+
 ### 4.3 `PATCH /admin/topics/:topicId`
 
 ```jsonc
-{ "name": "...", "parent_category": "...", "is_visible": true, "display_order": 2 }  // 전부 선택
+{ "name": "...", "parent_category": "...", "is_visible": true, "display_order": 2, "slug": "k-pop" }  // 전부 선택
 ```
 
 200으로 갱신된 항목을 반환한다.
+
+- `slug` — 형식·409 `CONFLICT`는 4.2와 같다. **`slug: null`은 비운다.** 키가 없으면 바꾸지 않는다(추가 2026-10-14 — KAN-189).
 
 - 409 `ADMIN_TOPIC_HAS_NO_CONTENTS` — `is_visible` false → true 전이인데 **노출 가능 콘텐츠가 0건**이다. `content_count: 0`을 싣고 주제는 바뀌지 않는다. 이미 노출 중인 주제의 다른 필드 수정·끄기는 판정하지 않는다(`admin.md` 4.5 — 개정 2026-09-17, 종전 "서버가 거부하지 않는다"를 번복). 콘솔은 서버 `message`를 표시하고 목록을 재조회한다.
 - 노출 중인 주제가 0건이 되면 서버가 자동으로 숨긴다(회수 4.7 · 재발행 주제 교체 4.10 · 매일 04:15 일일 판정). 이 엔드포인트를 거치지 않으며 감사 로그 `topic.auto_hide`로 남는다.
@@ -123,6 +129,7 @@
 | 파라미터 | 규격 |
 |---|---|
 | `status` | 선택. `domain.md` 5.1의 3값 |
+| `market` | 선택. `kr` \| `global` — 없으면 전 시장. 그 밖의 값은 400 `VALIDATION_FAILED`(추가 2026-10-14 — KAN-190) |
 | `offset` | 선택, 기본 0 |
 | `limit` | 선택, **기본 20 · 최대 50** (`convention.md` 3.3) |
 
@@ -165,7 +172,9 @@
   "series_id": "...", "episode_no": 1, "total_episodes": 5,  // 선택 (series_id 있으면 나머지 필수)
   "topic_ids": ["..."],        // 필수, 최소 1개
   "sources": [{ "title": "...", "author": "...", "url": "..." }],  // ai_generated 필수, 최소 1개
-  "review_confirmed": true     // 필수, true여야 한다
+  "review_confirmed": true,    // 필수, true여야 한다
+  "market": "kr" | "global",   // 1단계 선택(없으면 kr) — 2026-10-14 KAN-190
+  "language": "ko" | "en"      // 1단계 선택(없으면 ko) — 2026-10-14 KAN-190
 }
 ```
 
@@ -174,6 +183,10 @@
 - `duration_sec`은 받지 않는다. **서버가 오디오에서 추출한다**(`admin.md` 3.1).
 - `review_confirmed`는 **저장 컬럼이 없다.** 미체크 업로드를 막는 게 목적이고 증적은 `audit_logs`가 담당한다(`domain.md` 5.1, 확정 2026-08-06).
 - `partner_id`는 **존재 검증을 하지 않는다.** `partners` 테이블이 아직 없어 uuid 형식만 본다 — 9장 미결.
+- **`market`·`language`**(추가 2026-10-14 — KAN-190, `global-api.md` 4.9). **1단계는 선택**(없으면 `kr`·`ko`) — 파이프라인이 보내기 시작하면 필수로 올린다(`global-api.md` 4.9의 "필수"가 최종 상태). 검증:
+  - 조합이 `kr↔ko` · `global↔en`이 아니면 400 `VALIDATION_FAILED`(`details.field = "language"`).
+  - `topic_ids`가 전부 같은 시장(`market`)의 주제가 아니면 400 `VALIDATION_FAILED`(`details.field = "topic_ids"`).
+  - `market = global`인데 `enrichment_file`에 `target_audiences`가 있으면 400 `VALIDATION_FAILED`(`details.field = "target_audiences"`).
 
 **`enrichment_file` — 추천 메타 파일** (`admin.md` 3.1의 계약 표현, 등재 2026-09-08)
 
@@ -184,8 +197,9 @@
   현재 형식은 **3**이다 — 서버가 아는 최신보다 높으면 파일을 거부한다(모르는 키가 결손으로 둔갑하는 것을 막는다).
 - `target_audiences`는 `[{ "job_category", "years_of_experience" }]` — 직군은 `GET /job-categories` 목록, 연차는
   `0-1 | 2-3 | 4-6 | 7+`(온보딩 입력과 같은 값 집합). 최대 8세트, 중복은 하나로 접고, 목록 밖 값은 파일 거부.
-- `tags`(형식 v3)는 화면 해시태그 문자열 배열 **2~4개** — 각 항목 `^[가-힣A-Za-z0-9]{2,10}$`(띄어쓰기·'#' 없음),
-  대소문자 무시 중복 없음. 화면에 그대로 보이는 값이라 **고치거나 접지 않고 파일을 거부한다.** 탐색 카드(`explore-api.md`)·
+- `tags`(형식 v3)는 화면 해시태그 문자열 배열 **2~4개** — 각 항목 `^[가-힣A-Za-z0-9][가-힣A-Za-z0-9 ]{0,18}[가-힣A-Za-z0-9]$`
+  ('#' 없는 한글·영문·숫자 2~20자, 안쪽 공백 허용·앞뒤 공백 금지 — 개정 2026-10-14 KAN-190, 종전 `{2,10}`·공백 불가의 상위 집합.
+  "Stray Kids" 같은 영어 고유명사가 공백 때문에 막혔다), 대소문자 무시 중복 없음. 화면에 그대로 보이는 값이라 **고치거나 접지 않고 파일을 거부한다.** 탐색 카드(`explore-api.md`)·
   상세(`content-detail-api.md` 4.1)의 `tags`로 나간다.
 - 검증: enum은 `domain.md` 5.1과 글자 일치, 벡터는 1536차원, `embedding.model`은 현재 모델
   (`text-embedding-3-small`)과 일치해야 한다. **모르는 최상위 키는 거부한다**(오타가 결손으로
@@ -296,7 +310,7 @@
 - **`content_version`은 파트가 무엇이든 1 증가**한다. 메타만 바뀌어도 올린다 — 클라이언트의 재발행 판정(`player-api.md` 4.1·4.2)이 버전 하나로 동작해야 한다. **예외는 `enrichment_file`·`script_file`만 보내는 전송이다**(2026-09-08 · 2026-09-19): 추천 메타·대본만 반영하고 **버전을 올리지 않으며** 아래 재생 위치 폐기도 일어나지 않는다 — 오디오가 그대로면 대본 시각도 그대로다. 대본 단독의 감사 로그는 `content.script`다 — 오디오가 그대로인데 버전이 오르면 전 사용자의 재생 위치가 헛되이 폐기된다. 기존 발행분 소급 부여가 이 경로를 쓰고, 감사 로그는 `content.enrich`로 남는다(`republish`와 구분).
 - `origin` · `partner_id` · `series_id` · `episode_no` · `total_episodes` · `license_expires_at`은 **바꾸지 않는다** — 발행 단위의 정체성이라 필요하면 회수 후 새로 올린다.
 - `status`가 `published`가 아니면 **409 `CONFLICT`** (회수·만료 상태에서는 재발행하지 않는다 — `admin.md` 4.6 "만료 상태에서는 재발행을 막는다").
-- `topic_ids`를 넘기면 전체 교체다(빈 배열 불가 — 최소 1개, 4.6과 동일).
+- `topic_ids`를 넘기면 전체 교체다(빈 배열 불가 — 최소 1개, 4.6과 동일). **대상 콘텐츠의 시장과 같은 시장의 주제만 받는다** — 아니면 400 `VALIDATION_FAILED`(`details.field = "topic_ids"`). **시장(`market`·`language`)은 재발행이 바꾸지 않는다** — 바꾸려면 회수 후 새로 올린다(추가 2026-10-14 — KAN-190).
 - **`sources`도 전체 교체이고, 비울 수 있는지는 `origin`이 정한다** — 4.6과 같은 공시 규칙이다(`admin.md` 3.1).
   `ai_generated`면 최소 1개(빈 배열은 400 `VALIDATION_FAILED`, `details.field = "sources"`),
   `partner`면 넣지 않는다(넣으면 같은 400). **`origin`은 재발행이 바꾸지 못하므로 기존 행의 값으로 판정한다.**
@@ -527,7 +541,10 @@
 
 > 추가: 2026-10-01 (`domain.md` 5.7 · `explore.md` 4.5-5). 로그 콘솔 "검색 로그" 탭(`backend-monitoring.md` 4장)이 읽는다 — 매칭 방식(`pg_trgm` 부분 일치)을 재검토할지 판단하는 근거.
 
-**Query** — `days` (선택, 정수 1~90, 기본 14): 집계 창. `now - days` 이후의 행만 센다.
+**Query**
+
+- `days` (선택, 정수 1~90, 기본 14): 집계 창. `now - days` 이후의 행만 센다.
+- `market` (선택, `kr` | `global`): **검색한 사용자의 시장**(`users.market`)으로 거른다. 생략하면 전 시장(종전과 같음), 그 밖의 값은 400 `VALIDATION_FAILED`(추가 2026-10-15 — KAN-188). 미스율로 한국어 매칭 방식(`pg_trgm`)을 판단할 때는 `market=kr`로 본다 — 한국어·영어 질의가 한 순위와 미스율에 섞이기 때문이다.
 
 **Response 200**
 
@@ -549,7 +566,7 @@
 - `short_queries`는 2자 질의 수(트라이그램 인덱스를 못 타는 길이 — `explore.md` 4.5-5), `filtered_searches`는 주제 필터가 걸린 검색 수.
 - `daily.date`는 **KST 달력일**이다(05시 서비스 날짜 경계를 쓰지 않는다 — 정책 판정이 아니라 운영자가 읽는 단위). 검색이 없던 날은 빠진다.
 - `missed`는 0건이 한 번이라도 있던 질의를 0건 수 내림차순으로, `top`은 검색 수 내림차순으로 각 최대 50개. `last_searched_at`은 그 질의의 마지막 요청 시각(`updated_at`).
-- 인증은 다른 `/admin/*`와 같다(2장). 400 `VALIDATION_FAILED` — `days` 범위 밖.
+- 인증은 다른 `/admin/*`와 같다(2장). 400 `VALIDATION_FAILED` — `days` 범위 밖, `market` 값 밖.
 
 ### 4.22 `GET /admin/insights/summary` — 서비스 지표 요약 (읽기 전용)
 
@@ -582,7 +599,11 @@
   "top_contents": [ { "content_id": "…", "title": "…", "duration_sec": 812, "listen_sec": 9000, "plays": 40, "listeners": 31, "completes": 8, "complete_rate": 0.2, "saves": 5 } ],
   "withdrawal_reasons": [ { "reason_code": "low_usage", "count": 9 }, { "reason_code": null, "count": 3 } ],
   "retention": [ { "day": 1, "cohort_size": 200, "returned": 50, "rate": 0.25 }, { "day": 7, "cohort_size": 150, "returned": 30, "rate": 0.2 }, { "day": 30, "cohort_size": 0, "returned": 0, "rate": null } ],
-  "topic_supply": [ { "topic_id": "uuid", "name": "인문·교양", "is_visible": true, "published": 1, "published_in_window": 0, "interested_users": 101, "median_remaining": 0, "exhausted_users": 70, "low_users": 101 } ]
+  "topic_supply": [ { "topic_id": "uuid", "name": "인문·교양", "is_visible": true, "published": 1, "published_in_window": 0, "interested_users": 101, "median_remaining": 0, "exhausted_users": 70, "low_users": 101 } ],
+  "by_market": [
+    { "market": "kr", "users": 225, "signups_in_window": 28, "onboarding_completed": 208, "active_7d": 190, "listeners_7d": 130, "listen_sec": 70844, "plays": 233, "paid_active": 0 },
+    { "market": "global", "users": 0, "signups_in_window": 0, "onboarding_completed": 0, "active_7d": 0, "listeners_7d": 0, "listen_sec": 0, "plays": 0, "paid_active": 0 }
+  ]
 }
 ```
 
@@ -598,6 +619,7 @@
 - `top_users`·`top_contents`는 전 기간 청취 시간 내림차순 각 최대 15. `top_contents.saves`는 그 콘텐츠를 직접 담은 수.
 - `retention`은 D1·D7·D30 — `cohort_size`는 가입한 지 `day`일이 지난 **현재 계정** 수, `returned`는 그중 가입 `day`일 뒤 이후 아무 때나 **앱을 쓴** 사람(토큰 갱신 `sessions.issued_at` 또는 재생 `play_records` — 세션 행은 30일만 보존되므로 영구 보존되는 재생을 합친다. 언바운디드). 탈퇴자는 분모에 없어 실제보다 높게 나온다(생존 편향). 하루만 보는(bounded) 방식은 수백 명 규모에서 표본이 너무 작아 쓰지 않는다.
 - `topic_supply`(추가 2026-10-13 — 추천 검증)는 주제별 수요·공급이다. `published`는 노출 중(발행·라이선스 유효) 콘텐츠 수, `published_in_window`는 그중 창 안에 발행된 수, `interested_users`는 그 주제를 활성 관심 주제로 둔 **온보딩 완료** 사용자 수다. `median_remaining`은 관심 사용자마다 "아직 드립으로 받을 수 있는 편수"(드립 후보 필터와 같은 기준 — 라이브러리에 한 번이라도 들어온 것·`drip_excluded_contents`를 뺀다, 시리즈 순서 게이트는 반영하지 않는 근사)의 중앙값, `exhausted_users`는 그 값이 0인 사람, `low_users`는 2 이하인 사람이다. 노출 중인 주제와, 숨김이어도 관심 사용자가 남은 주제를 싣고 `interested_users` 내림차순(같으면 `published`가 적은 쪽 먼저)으로 정렬한다 — 수요가 큰 주제부터 공급 상태를 본다. 콘솔은 상위 10개를 먼저 보이고 나머지는 [더보기]로 펼친다.
+- `by_market`(추가 2026-10-14 — KAN-190, `global-api.md` 4.10)은 시장별 가입·활성·청취·결제다. **시장마다 한 칸**이다(계정이 없는 시장도 0으로 싣는다). 각 값은 `users`·`listening.window`의 같은 이름 지표를 시장으로 나눈 것이다 — `users`는 현재 계정 수, `signups_in_window`는 창 안 가입, `onboarding_completed`·`active_7d`·`listeners_7d`·`paid_active`는 `users`의 같은 지표, `listen_sec`·`plays`는 창 안 청취(`listening.window`). 시장은 **현재 계정**의 `users.market`으로 나눈다 — 탈퇴 기록에는 시장이 없어 탈퇴자는 어느 칸에도 없다.
 - 인증은 다른 `/admin/*`와 같다(2장). 400 `VALIDATION_FAILED` — `days` 범위 밖. 응답은 `Cache-Control: no-store`.
 
 ### 4.23 `/admin/invite-codes` — 초대 코드 관리 (2026-10-10)
@@ -700,6 +722,7 @@ id, title, description, origin, status,
 author_name, source_name, source_url, partner_id,
 series_id, episode_no, total_episodes,
 duration_sec, thumbnail_url, content_version,
+market, language                                 // 시장(kr | global)·콘텐츠 언어(ko | en) (2026-10-14 KAN-190)
 license_expires_at, published_at, withdrawn_at,
 topics[{ topic_id, name }],
 enrichment_schema_version, enriched_at          // 마지막 적용 메타 파일의 형식 버전·시각. null = 받은 적 없음 (2026-09-11)

@@ -32,3 +32,7 @@
 - Given `features/notification.md` 4.3 / When 발송 시점을 읽는다 / Then "그룹 현지 07:00, 그 그룹 실행이 적립한 것만"이 적혀 있다
 - Given `features/drip-scheduling.md` 7장 / When 재시작 재개를 읽는다 / Then 그룹마다 이어받는다고 적혀 있다
 - Given `features/notification.md` 4.3 "보관 시한" 행 / When 읽는다 / Then "그 그룹의 다음 편성 배치까지"라고 적혀 있다
+
+## 처리 기록
+
+- 2026-10-15 반영 — `features/drip-scheduling.md` 2장·4.6-3(07:00 발송 주석)·4.6-5·7장·8장 · `features/notification.md` 4.3 "시점"·"보관 시한"(그룹의 다음 배치까지)·8장. 반영 전 코드와 대조함.

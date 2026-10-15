@@ -88,6 +88,7 @@
     "title": "출근길 30분, 협상의 심리학",
     "description": "연봉 협상 테이블에서 먼저 숫자를 말해야 할까? 앵커링의 심리학으로 풀어봅니다.",
     "duration_sec": 872,
+    "language": "ko",
     "published_at": "2026-08-20T05:00:00Z",
     "thumbnail_url": "https://...",
     "content_version": 1,
@@ -159,7 +160,7 @@
 
 **서버 처리**
 
-1. 콘텐츠 조회 → 없으면 `CONTENT_NOT_FOUND`(404)
+1. 콘텐츠 조회 → 없거나 **사용자 시장의 콘텐츠가 아니면** `CONTENT_NOT_FOUND`(404 — 다른 시장 ID도 같은 코드, `global-api.md` 4.7·2026-10-14). 응답 `content.language`(`ko`\|`en`)는 표시 전용이다 — 거르는 것은 서버다
 2. `status != 'published'`(회수·만료)면 `CONTENT_WITHDRAWN`(403)으로 종료 — 상세를 내려주지 않는다(`content-detail.md` 4.1 · 7장). 회수(`withdrawn`)와 라이선스 만료(`expired`)를 코드로 구분하지 않는다 — 노출 조건은 어디서나 `status = published` 단 하나다(`domain.md` 5.1)
 3. `content_topics ⨝ topics` 조인 → `topics[]`
 4. 요청자의 `library_items` 조회(토큰 `user_id` 스코프, `deleted_at IS NULL`) → `library_item` (없으면 `null`)
