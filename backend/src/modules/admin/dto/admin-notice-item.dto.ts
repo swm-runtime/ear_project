@@ -1,4 +1,5 @@
 import { Notice } from '@/modules/notice/entities/notice.entity';
+import { UserMarket } from '@/modules/user/user.enum';
 
 /**
  * admin-api.md 4.12 — 관리자 공지 항목. 사용자 목록과 달리 **본문과 초안까지 싣는다**(콘솔이 수정 화면을 바로 연다).
@@ -9,6 +10,8 @@ export class AdminNoticeItemDto {
   readonly title: string;
   readonly body: string;
   readonly is_pinned: boolean;
+  /** 공지의 시장(`global-api.md` 4.8) — 콘솔이 어느 시장 공지인지 표시한다 */
+  readonly market: UserMarket;
   readonly published_at: string | null;
   readonly created_at: string;
   readonly updated_at: string;
@@ -19,6 +22,7 @@ export class AdminNoticeItemDto {
       title: notice.title,
       body: notice.body,
       is_pinned: notice.isPinned,
+      market: notice.market,
       published_at: notice.publishedAt?.toISOString() ?? null,
       created_at: notice.createdAt.toISOString(),
       updated_at: notice.updatedAt.toISOString(),

@@ -14,7 +14,7 @@
 | 관련 | [KAN-188](https://runtime364.atlassian.net/browse/KAN-188) 카탈로그 격리(공지 조회의 시장 필터) · 콘솔 시장 선택 UI는 AI 파트(파이프라인 웹) 몫 |
 | 근거 문서 | `spec/api/global-api.md` 4.8 공지 · `backend/domain.md` 9.2 `notices.market` |
 | 중요도 | Medium |
-| 상태 | 대기 |
+| 상태 | 진행 중 (2026-10-15 구현 PR 올림) |
 
 ## 배경
 
@@ -40,3 +40,4 @@
 
 ## 처리 기록
 - 2026-10-15 발행(마크다운 + Jira KAN-211).
+- 2026-10-15 구현 — PR `feat(be)/admin-notice-market`(dev 대상). `POST /admin/notices` `market` 선택 입력(없으면 kr, 모르는 값 400) · `GET /admin/notices` 항목 `market` + `?market=` 필터 · 수정은 시장을 받지 않음(모르는 필드 400). 단위 1829건 통과, e2e 2건 추가(`notice.e2e-spec.ts` — GLOBAL 공지 격리·관리자 필터, 모르는 값 400)은 CI에서 확인. 문서 `changes/pending/admin-notice-market.md`.
