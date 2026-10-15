@@ -12,7 +12,7 @@ import path from "node:path";
 import crypto from "node:crypto";
 import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { promptBody } from "@ear/pipeline";
+import { pipelineLocale, promptBody } from "@ear/pipeline";
 import { cfg } from "./config.js";
 import { pool } from "./db.js";
 import { exists, log } from "./util.js";
@@ -103,7 +103,7 @@ export function versionOf(key: string, content: string): string {
     const d = head.match(/\d{4}-\d{2}-\d{2}/);
     return `gold@${d ? d[0] : new Date().toISOString().slice(0, 10)}`;
   }
-  const m = head.match(/(full|qa|critic|thumb|anchor|scene|summary)-v\d+(?:\.\d+)*/);
+  const m = head.match(/(full|qa|critic|thumb|anchor|scene|summary)(?:-en)?-v\d+(?:\.\d+)*/); // -en: 글로벌판 자산(full-en-v0.1 — 한국판 라벨과 섞여 읽히지 않게)
   if (!m) throw new Error(`${key}: 헤더에서 버전 라벨을 찾지 못했다 (full-vN · qa-vN · critic-vN · thumb-vN · anchor-vN · scene-vN · summary-vN)`);
   return m[0];
 }
@@ -142,7 +142,11 @@ type Row = { key: string; version: string; content: string };
 
 /** active 묶음(또는 고정 버전)을 읽는다. 고정 묶음에 없는 키(나중에 추가된 자산)는 active 로 보충한다 */
 export async function loadBundle(pinned?: Record<string, string> | null, profile: "default" | "gpt" = cfg.assetProfile): Promise<AssetBundle> {
-  const keys: string[] = [...DB_ASSET_KEYS];
+  // 글로벌판(KAN-201): 골드는 0편에서 시작한다(글로벌 명세 7장) — 번들에서 뺀다(대본 프롬프트도 골드를 쓰지 않는다). 대본 규칙 밖의 자산(QA·루브릭)은
+  // 단계별로 차례로 올리므로 없어도 번들을 막지 않는다 — 그 자산을 읽는 단계가 파일 없음으로 멈춘다. 한국판은 종전대로 전부 필수
+  const en = pipelineLocale() === "en";
+  const keys: string[] = en ? DB_ASSET_KEYS.filter((k) => !k.includes("/examples/")) : [...DB_ASSET_KEYS];
+  const optional = new Set(en ? keys.filter((k) => k !== "skills/draft/guidelines.md") : []);
   // 기본 키 → 실제로 읽을 DB 키: 고정된 프로파일 키 > 고정된 기본 키 > (profile=gpt) 프로파일 키 active > 기본 키 active
   const dbKeyOf: Record<string, string> = {};
   for (const k of keys) {
@@ -175,7 +179,9 @@ export async function loadBundle(pinned?: Record<string, string> | null, profile
       if (r.rows[0]) { versions[k] = r.rows[0].version; contents[k] = r.rows[0].content; dbKeyOf[k] = k; log(`  자산 프로파일 ${profile}: ${dk} 에 active 가 없어 ${k} 로 폴백`); }
     }
   }
-  const missing = keys.filter((k) => !(dbKeyOf[k] in versions));
+  const skipped = keys.filter((k) => optional.has(k) && !(dbKeyOf[k] in versions));
+  if (skipped.length) log(`  자산(글로벌판): active 없음 — ${skipped.join(", ")} (이 자산을 읽는 단계에서 멈춘다)`);
+  const missing = keys.filter((k) => !optional.has(k) && !(dbKeyOf[k] in versions));
   if (missing.length) {
     throw new Error(`prompt_assets 에 active 자산이 없다: ${missing.join(", ")} — 시딩(npm run assets:import) 또는 웹 /assets 에서 활성화 (폴백 없음, spec/10 3.2)`);
   }

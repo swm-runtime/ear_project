@@ -7,6 +7,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";
+import { pipelineLocale } from "@ear/pipeline";
 import { cfg } from "../config.js";
 import { pool } from "../db.js";
 import { DB_ASSET_KEYS, OPTIONAL_ASSET_KEYS, THUMBNAIL_ANCHOR_PROMPT_KEY, THUMBNAIL_PROMPT_KEY, THUMBNAIL_SCENE_PROMPT_KEY, SECTION_SUMMARY_PROMPT_KEY, TTS_DICT_KEY, versionOf, workerRev } from "../assets.js";
@@ -20,8 +21,9 @@ async function cmdImport(force: boolean, only?: string) {
   if (only && !ALL_ASSET_KEYS.includes(only as (typeof ALL_ASSET_KEYS)[number])) throw new Error(`--only ${only}: 모르는 자산 키 — ${ALL_ASSET_KEYS.join(", ")}`);
   for (const key of ALL_ASSET_KEYS) {
     if (only && key !== only) continue;
-    const content = await fs.readFile(path.join(cfg.assetSourceRoot, key), "utf8").catch((e) => { if (OPTIONAL_ASSET_KEYS.includes(key)) return null; throw e; });
-    if (content == null) { console.log(`- ${key}  (git 사본 없음 — 프로파일 키, 건너뜀)`); continue; }
+    // 글로벌판(docs/ai/global/skills)은 자산을 차례로 올린다 — 아직 git 사본이 없는 키는 건너뛴다(KAN-201). 한국판은 종전대로 프로파일 키만 선택
+    const content = await fs.readFile(path.join(cfg.assetSourceRoot, key), "utf8").catch((e) => { if (OPTIONAL_ASSET_KEYS.includes(key) || pipelineLocale() === "en") return null; throw e; });
+    if (content == null) { console.log(`- ${key}  (git 사본 없음 — ${pipelineLocale() === "en" ? "글로벌판 미작성" : "프로파일 키"}, 건너뜀)`); continue; }
     const version = versionOf(key, content);
     const cur = await pool.query<{ version: string; content: string }>("select version, content from public.prompt_assets where key = $1 and status = 'active'", [key]);
     const active = cur.rows[0];

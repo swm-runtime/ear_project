@@ -2,7 +2,7 @@ import fs from "node:fs/promises";
 import { cfg, executedBy } from "../config.js";
 import { domainTierByHost, existingBacklogTitles, findDomainForUrl, insertBacklogAlloc, insertCandidateDomain, insertRun, majorOfMidTopic, midsOfMajor, poolDomainsForTopics, recentSourcesForTopics, recordFetchStatus, setBacklogStatus, setJobProgress, upsertSource, type Job } from "../db.js";
 import type { Executor } from "../executors/index.js";
-import { assetPaths, buildClusterPromptV2, buildTopicSeedSearchPrompt, CLUSTER_SCHEMA_V2, REINFORCE_SEARCH_SCHEMA, todayKst } from "@ear/pipeline";
+import { assetPaths, buildClusterPromptV2, buildTopicSeedSearchPrompt, CLUSTER_SCHEMA_V2, REINFORCE_SEARCH_SCHEMA, todayKst, pipelineLocale } from "@ear/pipeline";
 import { hostOf, log } from "../util.js";
 import { prepareAssets, workerRev } from "../assets.js";
 import { putFile, s3Key } from "../storage.js";
@@ -75,7 +75,7 @@ export async function runTopicSeed(job: Job, ex: Executor) {
     await setJobProgress(job.id, { phase: `기획 2/2 — 판정 (${id}, 소스 ${added.length}건)`, detail: "", toolCounts: {}, turns: 0, elapsedMs: 0 }).catch(() => {});
     const { assetRoot, bundle } = await prepareAssets(null);
     const specBacklog = await fs.readFile(assetPaths(assetRoot, cfg.workRoot).specBacklog, "utf8");
-    const excerpt = ["## 3. 후보의 구성", "## 6. 게이트 1"].map((h) => { const a = specBacklog.indexOf(h); if (a < 0) return ""; const b = specBacklog.indexOf("\n## ", a + 3); return specBacklog.slice(a, b < 0 ? undefined : b); }).join("\n\n");
+    const excerpt = (pipelineLocale() === "en" ? ["## 3. Candidate structure", "## 6. Gate 1"] : ["## 3. 후보의 구성", "## 6. 게이트 1"]).map((h) => { const a = specBacklog.indexOf(h); if (a < 0) return ""; const b = specBacklog.indexOf("\n## ", a + 3); return specBacklog.slice(a, b < 0 ? undefined : b); }).join("\n\n");
     const meta: { n: number; url: string; title: string; summary: string | null; publisher: string; domain: string; published: string | null }[] = [];
     const seen = new Set<string>();
     const push = (s: { url: string; title: string; summary: string | null; publisher: string; domain: string; published: string | null }) => { if (seen.has(s.url)) return; seen.add(s.url); meta.push({ n: meta.length + 1, ...s }); };

@@ -20,12 +20,13 @@ export const HISTORY_TOPIC_EN = "Korean History & Society";
 export const isHistoryCandidateEn = (c: Pick<BacklogCandidate, "mid_topic" | "axis_type">): boolean =>
   c.mid_topic === HISTORY_TOPIC_EN && (c.axis_type === "사건" || c.axis_type === "event");
 
-/** 도입 방식 4종 — 기능만 적는다(문장을 적으면 대본에 복제된다, 한국판 v9.4 교훈) */
+/** 도입 방식 4종 — 인트로 템플릿 뒤 [Opening] 첫 턴을 어떻게 여는가. 기능만 적는다(문장을 적으면 대본에 복제된다, 한국판 v9.4 교훈).
+ *  글로벌판 인트로는 질문 없이 주제 선언으로 끝난다(tpl-en-v1, 박수헌 2026-10-15) — 한국판처럼 "인트로 질문을 받는" 형태가 아니다 */
 export const INTRO_STYLES_EN: readonly IntroStyle[] = [
-  { key: "experience", label: "everyday scene", hint: "The explainer answers the intro question with one ordinary situation anyone could meet, stated as hypothetical. Two or three short turns stay in that scene before the first explanation. Do not start it with the same words each time." },
-  { key: "object", label: "one object", hint: "The explainer answers the intro question with one concrete object and what it looks like. Two or three turns stay with it, and it becomes the first case of the topic." },
-  { key: "question", label: "question back", hint: "The explainer asks the host one short thing about why the question matters to them. The host's answer, a guess or feeling, opens the first explanation." },
-  { key: "thesis", label: "surprising claim", hint: "Right after the topic is named, the explainer states one claimed fact that runs against what a newcomer would expect. The host reacts or doubts for two or three turns. Start with the fact itself, not an announcement." },
+  { key: "experience", label: "everyday scene", hint: "The explainer opens the Opening with one ordinary situation anyone could meet, stated as hypothetical. Two or three short turns stay in that scene before the first explanation. Do not start it with the same words each time." },
+  { key: "object", label: "one object", hint: "The explainer opens the Opening with one concrete object and what it looks like. Two or three turns stay with it, and it becomes the first case of the topic." },
+  { key: "question", label: "question back", hint: "The host opens the Opening with the first question a newcomer would ask about the topic, built from the topic name alone and holding no fact. The explainer asks back one short thing about why it matters to the host, and the host's answer, a guess or feeling, opens the first explanation." },
+  { key: "thesis", label: "surprising claim", hint: "The explainer opens the Opening with one claimed fact that runs against what a newcomer would expect. The host reacts or doubts for two or three turns. Start with the fact itself, not an announcement." },
 ];
 
 const variants = (t: Templates | null | undefined) => (t?.closing_signoff ?? "").split(/\r?\n/).map((s) => s.trim()).filter(Boolean);
@@ -36,7 +37,7 @@ function templateBlockEn(t: Templates | null | undefined, topic: string | undefi
   const line = (topic && t.major_lines?.[topic]) || "";
   const v = variants(t);
   const signoff = v.length ? v[Math.abs(seed) % v.length] : null;
-  return `- **Intro template** (Y1, one turn by the host; keep the frame, fill only the {slots}, no braces may remain):
+  return `- **Intro template** (Y1, one turn by the host; keep the frame, fill only the {slots}, no braces may remain; the turn ends with the template — no question after it):
 ${fence(t.intro)}
   - {topic_line} = ${line ? `"${line}" (fixed text, use it word for word)` : `one plain sentence that introduces the topic "${topic ?? "-"}" to anyone`}
   - {episode_line} = this episode's axis in one line a listener catches by ear, not the title repeated
