@@ -39,13 +39,13 @@ const subscription = (
 const apiError = (code: string, retryAfterSec: number | null = null) =>
   new ApiError(code, code, false, retryAfterSec, null, 409);
 
-describe('formatPlanGrantLine — 세 곳 같은 이벤트 줄(KAN-182)', () => {
-  it('"{이름} 이벤트 이용 중 · {요금제} · N월 N일까지" — 날짜는 last_date 그대로다', () => {
+describe('formatPlanGrantLine — 세 곳 같은 프로모션 줄(KAN-182)', () => {
+  it('"{이름} 프로모션 이용 중 · {요금제} · N월 N일까지" — 날짜는 last_date 그대로다', () => {
     // when
     const line = formatPlanGrantLine(GRANT);
 
     // then
-    expect(line).toBe('산군 PoC 이벤트 이용 중 · Pro · 11월 8일까지');
+    expect(line).toBe('산군 PoC 프로모션 이용 중 · Pro · 11월 8일까지');
   });
 
   it('지급 중이 아니면 null — 줄을 그리지 않는다', () => {
@@ -78,9 +78,9 @@ describe('inviteErrorMessage — subscription-api.md 5장 문구 그대로', () 
 });
 
 describe('inviteSuccessMessage — 응답의 grant 로 만든 성공 안내', () => {
-  it('지급 내용이 실리면 "{이름} 이벤트가 시작됐어요 · {요금제} · N월 N일까지"', () => {
+  it('지급 내용이 실리면 "{이름} 프로모션이 시작됐어요 · {요금제} · N월 N일까지"', () => {
     expect(inviteSuccessMessage(subscription('free', GRANT))).toBe(
-      '산군 PoC 이벤트가 시작됐어요 · Pro · 11월 8일까지',
+      '산군 PoC 프로모션이 시작됐어요 · Pro · 11월 8일까지',
     );
   });
 
@@ -91,14 +91,14 @@ describe('inviteSuccessMessage — 응답의 grant 로 만든 성공 안내', ()
   });
 });
 
-describe('toEventNotice — 요금제 관리 이벤트 알림', () => {
-  it('구독 없이 지급 중이면 둘째 줄이 "구독을 시작하면 이벤트가 끝나요"', () => {
+describe('toEventNotice — 요금제 관리 프로모션 알림', () => {
+  it('구독 없이 지급 중이면 둘째 줄이 "구독을 시작하면 프로모션이 끝나요"', () => {
     // when
     const notice = toEventNotice(subscription('free', GRANT));
 
     // then
     expect(notice).toEqual({
-      title: '산군 PoC 이벤트 이용 중 · Pro · 11월 8일까지',
+      title: '산군 PoC 프로모션 이용 중 · Pro · 11월 8일까지',
       detail: SUBSCRIPTION_COPY.grant.noticeDetailFree,
     });
   });
