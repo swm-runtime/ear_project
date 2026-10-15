@@ -10,15 +10,16 @@ import { ensureEmbedding } from "@/lib/embedding";
 import { gate1Check, type Gate1Domain, type Gate1Row } from "@/lib/gate1";
 import { screenGlobalTopic } from "@/lib/topic-screen";
 
-/** 음차 사전·발음 맵 공통 형식 검증 — {"표기": "발음"} 객체, 값은 비어 있지 않은 문자열 (spec/06 6장) */
-function assertPronunciationJson(content: string): Record<string, string> {
+/** 음차 사전·발음 맵 공통 형식 검증 — {"표기": "발음"} 객체, 값은 비어 있지 않은 문자열 (spec/06 6장).
+ *  allowEmpty: 글로벌판 에피소드 발음 맵 — 빈 값은 "등재했지만 힌트 없음"이고 TTS 의 발음 누락 검사가 멈춘다(글로벌 명세 6.7, KAN-203). 전역 사전은 늘 비어 있으면 안 된다 */
+function assertPronunciationJson(content: string, allowEmpty = false): Record<string, string> {
   let parsed: unknown;
   try { parsed = JSON.parse(content); }
   catch { throw new Error('JSON 이 아닙니다 — {"표기": "발음"} 객체여야 합니다'); }
   if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) throw new Error('{"표기": "발음"} 객체여야 합니다 (배열·문자열 불가)');
   for (const [k, v] of Object.entries(parsed)) {
     if (!k.trim()) throw new Error("빈 표기 키가 있습니다");
-    if (typeof v !== "string" || !v.trim()) throw new Error(`"${k}" 의 발음이 비어 있거나 문자열이 아닙니다`);
+    if (typeof v !== "string" || (!allowEmpty && !v.trim())) throw new Error(`"${k}" 의 발음이 비어 있거나 문자열이 아닙니다`);
   }
   return parsed as Record<string, string>;
 }
@@ -503,7 +504,7 @@ export async function activateAsset(key: string, version: string, note: string) 
 
 /** 에피소드 발음 맵 저장 (spec/06 6장) — TTS 병합 사전의 에피소드 층. 워커는 합성 시작 때 S3 에서 다시 내려받으므로 저장본이 그대로 적용된다 */
 export async function savePronunciations(episodeId: string, content: string) {
-  const entries = assertPronunciationJson(content);
+  const entries = assertPronunciationJson(content, pipelineLocale() === "en");
   await putText(`episodes/${episodeId}/pronunciations.json`, JSON.stringify(entries, null, 2) + "\n");
   revalidatePath(`/episodes/${episodeId}`);
   return { count: Object.keys(entries).length };

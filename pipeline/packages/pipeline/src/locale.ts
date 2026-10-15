@@ -47,3 +47,21 @@ export function speakerAlt(): string {
 export function episodeIdLetter(): "T" | "G" {
   return pipelineLocale() === "en" ? "G" : "T";
 }
+
+/** 대본 4구역 이름 — 줄 문법 `## [인트로]` 의 괄호 안 (spec/04 4장 · 글로벌 명세 6.4). 앱 카드 구분(intro·lead·body·outro)도 이 이름으로 가른다 */
+export interface ScriptZones { intro: string; lead: string; body: string; outro: string }
+const KO_ZONES: ScriptZones = { intro: "인트로", lead: "도입", body: "본문", outro: "마무리" };
+const EN_ZONES: ScriptZones = { intro: "Intro", lead: "Opening", body: "Body", outro: "Closing" };
+export function scriptZones(): ScriptZones {
+  return pipelineLocale() === "en" ? EN_ZONES : KO_ZONES;
+}
+
+/**
+ * 구성안(outline.md) 표기 — L0 가 대본과 대조하는 머리. 한국판은 설계 프롬프트가 쓰는 그대로("구간 #1", "예상 분량: 15분").
+ * 글로벌판은 영어 설계 프롬프트가 이 표기로 쓰게 한다(KAN-203 — 영어 규칙 설계 때 프롬프트에 넣는다)
+ */
+export function outlineMarks(): { section: RegExp; estimate: RegExp } {
+  return pipelineLocale() === "en"
+    ? { section: /^Section #(\d+)/gm, estimate: /^Estimated length:\s*(\d+(?:\.\d+)?)\s*min/im }
+    : { section: /^구간 #(\d+)/gm, estimate: /^예상 분량:\s*(\d+(?:\.\d+)?)\s*분/m };
+}
