@@ -28,6 +28,7 @@ import {
   MessageLanguage,
   OnboardingStep,
   SocialProvider,
+  UserMarket,
   UserRole,
   UserStatus,
   UserTier,
@@ -103,12 +104,13 @@ export class UserService {
     return user;
   }
 
-  /** `before` 이전에 가입한 계정 수 — 주간 청취 상위 %의 모집단(`profile-api.md` 4.1, KAN-168) */
+  /** `before` 이전에 가입한 그 시장 계정 수 — 주간 청취 상위 %의 모집단(`profile-api.md` 4.1, KAN-168) */
   async countJoinedBefore(
     before: Date,
+    market: UserMarket,
     manager?: EntityManager,
   ): Promise<number> {
-    return this.userRepository.countCreatedBefore(before, manager);
+    return this.userRepository.countCreatedBefore(before, market, manager);
   }
 
   async getById(id: string, manager?: EntityManager): Promise<User> {

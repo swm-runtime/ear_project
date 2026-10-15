@@ -13,7 +13,7 @@ import { ContentOrigin, ContentStatus } from '@/modules/content/content.enum';
 import { Content } from '@/modules/content/entities/content.entity';
 import { PlayRecord } from '@/modules/playback/entities/play-record.entity';
 import { User } from '@/modules/user/entities/user.entity';
-import { SocialProvider, UserRole } from '@/modules/user/user.enum';
+import { SocialProvider, UserMarket, UserRole } from '@/modules/user/user.enum';
 
 /**
  * 주간 청취 상위 %·한 줄 E2E(`profile-api.md` 4.2 `listening_top_percent` · `listening_highlight` · `daily_listening_highlight`, KAN-168·170·171) — 실제 DB 위에서
@@ -153,14 +153,59 @@ describe('주간 청취 상위 % E2E', () => {
     );
   });
 
-  async function weekOf(auth: string): Promise<{
+  describe('시장 분리 — 다른 시장의 많이 들은 사람이 순위를 밀어내지 않는다', () => {
+    // 위 테스트 사용자(2020-01-01 가입)가 모집단에 들지 않는 더 이른 주(2019-06-03). 가입은 그 주 전.
+    // KR 2명(1000초·0초) · GLOBAL 3명(3000초·2000초·0초)
+    const week = '2019-06-03';
+    const joinedAt = new Date('2019-05-01T00:00:00.000Z');
+    let krListenerAuth: string;
+    let globalTopAuth: string;
+
+    beforeAll(async () => {
+      const contentId = await seedContent();
+      const kr = (label: string) => createUser(label, UserMarket.KR, joinedAt);
+      const global = (label: string) =>
+        createUser(label, UserMarket.GLOBAL, joinedAt);
+      const krListener = await kr('kr-listener');
+      await kr('kr-silent');
+      const globalTop = await global('global-top');
+      const globalSecond = await global('global-second');
+      await global('global-silent');
+      await seedPlay(krListener.id, contentId, '2019-06-04', 1000);
+      await seedPlay(globalTop.id, contentId, '2019-06-04', 3000);
+      await seedPlay(globalSecond.id, contentId, '2019-06-04', 2000);
+      krListenerAuth = krListener.auth;
+      globalTopAuth = globalTop.auth;
+    });
+
+    it('KR 사용자는 KR 사용자끼리 순위를 매긴다 — 1/2 → 50%(섞으면 3/5 → 하위권 null)', async () => {
+      // when
+      const result = await weekOf(krListenerAuth, week);
+
+      // then
+      expect(result.listening_top_percent).toBe(50);
+    });
+
+    it('GLOBAL 사용자는 GLOBAL 사용자끼리 순위를 매긴다 — 1/3 → 34%(섞으면 1/5 → 20%)', async () => {
+      // when
+      const result = await weekOf(globalTopAuth, week);
+
+      // then
+      expect(result.listening_top_percent).toBe(34);
+    });
+  });
+
+  async function weekOf(
+    auth: string,
+    weekStart: string = WEEK_START,
+  ): Promise<{
     listening_top_percent: number | null;
     listening_highlight: Record<string, unknown> | null;
     daily_listening_highlight: (Record<string, unknown> | null)[];
   }> {
     const response = await request(app.getHttpServer())
       .get(path('/users/me/profile/weekly-listening'))
-      .query({ week_start: WEEK_START })
+      .query({ week_start: weekStart })
       .set('Authorization', auth);
     expect(response.status).toBe(HttpStatus.OK);
     const body = response.body as {
@@ -177,6 +222,8 @@ describe('주간 청취 상위 % E2E', () => {
 
   async function createUser(
     label: string,
+    market: UserMarket = UserMarket.KR,
+    joinedAt: Date = JOINED_AT,
   ): Promise<{ id: string; auth: string }> {
     const repository = dataSource.getRepository(User);
     const user = await repository.save(
@@ -185,12 +232,13 @@ describe('주간 청취 상위 % E2E', () => {
         providerUserId: `${TOKEN}-${label}`,
         role: UserRole.USER,
         onboardingCompleted: true,
+        market,
       }),
     );
     userIds.push(user.id);
     // 가입 시각을 그 주 전으로 옮긴다 — 모집단(그 주 끝 전 가입자)과 조회 가능 범위(가입 주 이후)가 이 값을 본다
     await dataSource.query(`UPDATE users SET created_at = $1 WHERE id = $2`, [
-      JOINED_AT,
+      joinedAt,
       user.id,
     ]);
     const token = app

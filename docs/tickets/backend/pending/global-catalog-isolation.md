@@ -46,3 +46,4 @@
   - 미완(이 티켓 범위): `content_stats`·`search_query_logs`·주간 지표의 market 축 — 데이터가 생긴 뒤 별도 커밋(`recommend-eval` GLOBAL 페르소나는 아래 2026-10-14 처리). 관심 주제 저장의 시장 불일치 409는 KAN-189.
   - 문서: `changes/pending/global-catalog-market.md`.
 - 2026-10-14 `recommend-eval` GLOBAL 합성 카탈로그·페르소나 — PR `feat(be)/recommend-eval-global-persona`. 평가 세계 후보 조회에 시장 조건(제품 SQL과 같게), 스냅샷에 `market`(옛 파일은 `kr`), 불변식 8 "편성분은 전부 사용자 시장의 콘텐츠", 페르소나 `global-listener`. KR 페르소나 지표는 추가 전과 동일. 남은 것: `content_stats`·`search_query_logs`·주간 지표의 market 축.
+- 2026-10-15 "주간 지표 시장 축" 확인 — 시장이 섞이는 주간 지표는 프로필 `listening_top_percent`(모집단·순위가 전체 계정)뿐이었다. `content_stats`는 콘텐츠가 시장별 행이라 이미 나뉘어 있어 손대지 않는다. 같은 시장 사용자끼리 비교로 바꿈 — PR `feat(be)/weekly-top-percent-by-market`(시장 조건을 빼면 e2e가 실패하는 것까지 확인). 문서 `changes/pending/weekly-top-percent-by-market.md`.
