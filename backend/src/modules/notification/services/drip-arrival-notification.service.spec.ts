@@ -17,7 +17,7 @@ import { PushClient } from '../push/push.client';
 import { NotificationLogRepository } from '../repositories/notification-log.repository';
 import { DripArrivalNotificationService } from './drip-arrival-notification.service';
 import { PushReceiptService } from './push-receipt.service';
-import { UninstallAlertService } from './uninstall-alert.service';
+import { UninstallEstimateService } from './uninstall-estimate.service';
 
 // 2026-09-17 05:00 KST
 const NOW = new Date('2026-09-16T20:00:00.000Z');
@@ -56,7 +56,7 @@ describe('DripArrivalNotificationService', () => {
   let pushClient: jest.Mocked<PushClient>;
   let pushReceiptService: jest.Mocked<PushReceiptService>;
   let userService: jest.Mocked<UserService>;
-  let uninstallAlertService: jest.Mocked<UninstallAlertService>;
+  let uninstallEstimateService: jest.Mocked<UninstallEstimateService>;
 
   const insertedLogs = (): Partial<NotificationLog>[] =>
     notificationLogRepository.insertAll.mock.calls[0][0];
@@ -111,9 +111,9 @@ describe('DripArrivalNotificationService', () => {
       track: jest.fn(),
     } as unknown as jest.Mocked<PushReceiptService>;
 
-    uninstallAlertService = {
-      notifyIfLastToken: jest.fn().mockResolvedValue({}),
-    } as unknown as jest.Mocked<UninstallAlertService>;
+    uninstallEstimateService = {
+      recordIfLastToken: jest.fn().mockResolvedValue({}),
+    } as unknown as jest.Mocked<UninstallEstimateService>;
 
     service = new DripArrivalNotificationService(
       notificationLogRepository,
@@ -122,7 +122,7 @@ describe('DripArrivalNotificationService', () => {
       userService,
       pushClient,
       pushReceiptService,
-      uninstallAlertService,
+      uninstallEstimateService,
     );
   });
 

@@ -38,24 +38,25 @@ const prodStreamFilter = {
   },
 };
 
-/** 보고에 쓰는 이벤트 — `features/analytics.md` 3.4 의 이름 그대로 */
+/** 보고에 쓰는 이벤트 — `features/analytics.md` 3.4 의 이름 그대로(`app_remove` 만 자동 수집) */
 const REPORT_EVENTS = [
   'sign_up',
   'onboarding_complete',
   'push_permission',
-  'withdrawal',
   'play_start',
   'play_complete',
   'play_abandon',
   'drip_play',
   'content_save',
+  // 이탈 보고의 앱 삭제 — Firebase 가 Android 에서 자동 수집한다(우리가 심지 않았다). iOS 는 없다
+  'app_remove',
 ] as const;
 
 type Client = {
   runReport(request: object): Promise<[{ rows?: ReportRow[] | null }]>;
 };
 
-/** GA4 가 채우는 값 — 보고의 전부다. 서버는 가입 대조 하나만 낸다(`daily-metrics-db.service.ts`) */
+/** GA4 가 채우는 값 — 서버 값(가입자·탈퇴)은 `daily-metrics-db.service.ts` 가 낸다 */
 export type Ga4Daily = {
   users: {
     active: number;

@@ -110,7 +110,7 @@ export class DeviceTokenRepository {
    */
   /**
    * 실제로 무효화한 행의 사용자·플랫폼을 돌려준다(RETURNING) — 앱 삭제 추정 알림(`notification`
-   * `UninstallAlertService`)이 "이 사용자의 마지막 활성 토큰이었나"를 이어서 본다
+   * `UninstallEstimateService`)이 "이 사용자의 마지막 활성 토큰이었나"를 이어서 본다
    */
   async invalidateByIdAndToken(
     targets: { id: string; token: string }[],
