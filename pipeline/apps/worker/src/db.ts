@@ -376,6 +376,11 @@ export async function searchExcludedHosts(): Promise<string[]> {
   const r = await pool.query("select domain from public.domains where (tier in ('blocked','hold') or fetch_blocked_at is not null) and position('/' in domain) = 0 order by tier, domain");
   return r.rows.map((x) => String(x.domain).replace(/^www\./, ""));
 }
+/** 소스 URL 의 도메인 등급 — 도메인 행은 www. 없이 저장된다(insertCandidateDomain·도메인 등록 규칙). URL 호스트(www.korea.net)로만 찾으면 판정한 도메인도 미판정으로 보였다 (2026-10-15 글로벌 C2) */
+export function tierOfUrl(tiers: Map<string, string>, url: string, domain?: string): string | undefined {
+  let host = ""; try { host = new URL(url).hostname; } catch { host = ""; }
+  return tiers.get(host) ?? tiers.get(host.replace(/^www\./, "")) ?? (domain ? tiers.get(domain) ?? tiers.get(domain.replace(/^www\./, "")) : undefined);
+}
 export async function domainTierByHost(): Promise<Map<string, string>> {
   const r = await pool.query("select domain, tier from public.domains");
   return new Map(r.rows.map((x) => [x.domain as string, x.tier as string]));
