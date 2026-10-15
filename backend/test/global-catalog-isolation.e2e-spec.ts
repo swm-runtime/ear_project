@@ -91,6 +91,10 @@ describe('글로벌 카탈로그 격리 E2E', () => {
       noticeIds,
     ]);
     await dataSource.query(
+      `DELETE FROM library_items WHERE user_id = ANY($1)`,
+      [userIds],
+    );
+    await dataSource.query(
       `DELETE FROM content_topics WHERE content_id = ANY($1)`,
       [contentIds],
     );
@@ -195,6 +199,29 @@ describe('글로벌 카탈로그 격리 E2E', () => {
       .set('Authorization', globalAuth)
       .send({ topic_ids: [globalTopic.id] })
       .expect(HttpStatus.OK);
+  }, 60_000);
+
+  it('라이브러리 주제 필터의 주제별 건수는 사용자 시장의 콘텐츠만 센다 — 목록과 같은 조건', async () => {
+    // given — GLOBAL 사용자의 라이브러리에 GLOBAL 콘텐츠 1편과, 정상 경로로는 들어올 수 없는 KR 콘텐츠 1편이 있다
+    const auth = await createUser('library-topics', UserMarket.GLOBAL);
+    const userId = userIds[userIds.length - 1];
+    await dataSource.query(
+      `INSERT INTO library_items (user_id, content_id, source, added_at) VALUES ($1, $2, 'save', now()), ($1, $3, 'save', now())`,
+      [userId, globalContent.id, krContent.id],
+    );
+
+    // when
+    const response = await request(app.getHttpServer())
+      .get(path('/users/me/library-items/topics'))
+      .set('Authorization', auth)
+      .expect(HttpStatus.OK);
+
+    // then
+    const topicIds = (response.body as { topics: { id: string }[] }).topics.map(
+      (topic) => topic.id,
+    );
+    expect(topicIds).toContain(globalTopic.id);
+    expect(topicIds).not.toContain(krTopic.id);
   }, 60_000);
 
   it('market 클레임이 없는 옛 토큰은 KR로 동작한다', async () => {

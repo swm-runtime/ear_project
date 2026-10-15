@@ -130,10 +130,14 @@ export class LibraryScreenOrchestrator {
    * **탭 선택과 무관하게 라이브러리 전체를 기준으로 센다** — 탭을 옮길 때마다 팝업의 주제
    * 구성과 개수가 흔들리면 두 필터를 조합할 수 없다.
    */
-  async getTopics(userId: string, now: Date): Promise<LibraryTopicView[]> {
+  async getTopics(
+    userId: string,
+    now: Date,
+    market: UserMarket,
+  ): Promise<LibraryTopicView[]> {
     // 집계·정렬(`topics.display_order`)은 SQL이 끝낸다 — 여기서 다시 세지 않는다.
     // 담긴 항목이 하나도 없으면 빈 배열이다. **404가 아니다** — 빈 라이브러리는 정상 상태다
-    return this.libraryService.countByTopicForUser(userId, now);
+    return this.libraryService.countByTopicForUser(userId, now, market);
   }
 
   /**
