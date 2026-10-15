@@ -202,3 +202,16 @@ test("판정(en) — 도메인 등급 표시·앵커는 1군만, 보조 주제 �
   assert.match(search, /official English name/);
   assert.equal(P.judgeToInternal({ candidates: [{ axis_type: "contrast", verdict: "holds", gaps: [], sources: [], sub_topic: "Korean Culture" }] }).candidates?.[0].sub_topic, "Korean Culture");
 });
+
+test("기획 검색(en) — 검색어 계획, 풀이 비면 site: 금지, 후보 8~12건, 나열형 주제는 공통점으로", () => {
+  en();
+  const empty = P.buildTopicSeedSearchPromptEn({ id: "C1", topic: "10 Korean words", hint: null, midTopic: "Korean Language", poolHosts: [], maxSearches: 8 });
+  assert.match(empty, /Plan the queries before searching/);
+  assert.match(empty, /The pool list is empty; do not use site:/);
+  assert.match(empty, /return 8 to 12 candidates that fit/);
+  assert.match(empty, /If the topic is a list/);
+  assert.match(empty, /At most 8 searches/);
+  const pooled = P.buildTopicSeedSearchPromptEn({ id: "C1", topic: "x", hint: null, midTopic: "K-Food", poolHosts: ["korea.net"], maxSearches: 12 });
+  assert.match(pooled, /Pool sites \(known to be readable\): korea\.net/);
+  assert.doesNotMatch(empty + pooled, HANGUL);
+});

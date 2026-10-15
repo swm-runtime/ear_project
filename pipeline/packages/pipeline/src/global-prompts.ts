@@ -518,6 +518,10 @@ const SEARCH_EXCLUDE_EN = `- Exclude what the worker cannot read: paywalled data
 - One source may fill two roles. A source that only shares keywords is worse than none.
 - publisher is the organization's official English name, written the same way every time. Sites of one organization count as one publisher.`;
 
+/** 검색어 계획 (2026-10-15 — 첫 기획 C1: 8회 중 3회가 "site.host" 오기·따옴표 OR 묶음으로 낭비, 정확 구문 따옴표·연도 범위로 결과가 좁았다) */
+const QUERY_PLAN_EN = `- **Plan the queries before searching.** At least one query per role, and about half in English and half in Korean. Use plain keywords: 3 to 7 words, no quotation marks except around a fixed name, no year ranges. Vary the angle between queries (the practice itself, its history, how people see it, numbers about it); do not repeat one query with small changes.
+- Use site: only with a host from the pool list below, written exactly as site:host. Do not invent site: filters or combine them with OR.`;
+
 /** 기획 검색 — 도구는 웹 검색만(본문 안 읽음). 한국어·영어 소스 둘 다 — K-컬처는 국문 1차 자료가 많다 */
 export function buildTopicSeedSearchPromptEn(i: TopicSeedSearchInput): string {
   const history = false; // 주제 이름만으로는 사건형인지 모른다 — 아래 조건부 안내로 대신한다
@@ -533,12 +537,13 @@ A candidate holds with 5 to 7 sources that fill these roles:
 The worker recounts: at least 3 sources · at least 3 publishers · no publisher over half · at least 1 anchor · at least 1 case · at least 3 roles.
 
 ## Search rules
-- At most ${i.maxSearches} searches. Search in both English and Korean. Korean institutions and Korean-language sources often hold the best material on Korean culture; English sources show how it is explained to outsiders.
-- Any publisher is fine if it fits. Prefer Korean public institutions and research bodies (national museums, heritage, language, and tourism agencies), universities, open-access journals, museums, and archives; then specialist and nonprofit media; then commercial news. These pool sites are known to be readable; you may add site: to queries (optional):
-  ${i.poolHosts.slice(0, 40).join(", ")}
+- At most ${i.maxSearches} searches. Use them all unless every role is filled with strong sources. Korean institutions and Korean-language sources often hold the best material on Korean culture; English sources show how it is explained to outsiders.
+${QUERY_PLAN_EN}
+- Any publisher is fine if it fits. Prefer Korean public institutions and research bodies (national museums, heritage, language, and tourism agencies), universities, open-access journals, museums, and archives; then specialist and nonprofit media; then commercial news.${i.poolHosts.length ? `\n- Pool sites (known to be readable): ${i.poolHosts.slice(0, 40).join(", ")}` : "\n- The pool list is empty; do not use site:."}
+- If the topic is a list ("10 words", "5 dishes"), search for what the items have in common and why, not for a ranked list.
 ${SEARCH_EXCLUDE_EN}
 
-## Report — output only the requested JSON. sources: at most 10, each with url (the result's exact URL), title, publisher, published (YYYY-MM-DD or null), summary (two English sentences from the result), roles, why (one line on the role), in_pool (true if the site is in the pool list). queries: every query you used. notes: roles not filled and why.`;
+## Report — output only the requested JSON. sources: return 8 to 12 candidates that fit (the judge picks 5 to 7; meeting the minimum is not enough), each with url (the result's exact URL), title, publisher, published (YYYY-MM-DD or null), summary (two English sentences from the result), roles, why (one line on the role), in_pool (true if the site is in the pool list). queries: every query you used. notes: roles not filled and why.`;
 }
 
 /** 보강 검색 — 후보 하나의 빈 역할(없으면 발행처 다양화). 풀 밖 결과는 in_pool=false 로 돌려준다(워커가 도메인 후보로만 등록) */
@@ -560,8 +565,8 @@ The only tool is web search. Do not read pages. Return what the results show: ti
 
 ## Search rules
 - At most ${i.maxSearches} searches, in English and Korean.
-- **Pool sites first** (only results from these can be used right away). Put 2 to 3 of them per query with site::
-  ${i.poolHosts.join(", ")}
+${QUERY_PLAN_EN}
+- **Pool sites first** (only results from these can be used right away): ${i.poolHosts.join(", ") || "(none yet)"}
 - Do not drop results from other sites; return them with in_pool=false. The worker only registers their domains for a person to judge.
 ${SEARCH_EXCLUDE_EN}
 
