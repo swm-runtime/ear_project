@@ -4,7 +4,11 @@ import { Cron } from '@nestjs/schedule';
 
 import { EnvironmentVariables } from '@/config/env.validation';
 import { DailyMetricsDbService } from './daily-metrics-db.service';
-import { formatDailyMetrics, reportDate } from './daily-metrics.format';
+import {
+  formatChurnReport,
+  formatDailyMetrics,
+  reportDate,
+} from './daily-metrics.format';
 import { Ga4Service } from './ga4.service';
 
 /** Slack 응답 대기 상한 */
@@ -13,7 +17,9 @@ const SLACK_TIMEOUT_MS = 5_000;
 /**
  * 일일 지표 Slack 보고 (KAN-107 2단계) — **매일 17:00 KST**, 어제 하루치.
  *
- * 서버 가입자 줄(현재 가입자·어제 가입) 뒤에 GA4(운영 스트림) 값을 4묶음으로 적는다. `ScheduleModule` 은 스케줄러
+ * 메시지 두 개를 보낸다 — ① 지표: 서버 가입자 줄(현재 가입자·어제 가입) 뒤에 GA4(운영 스트림) 값 4묶음
+ * ② 이탈(2026-10-15): 탈퇴 사유 분포(서버)와 Android 앱 삭제(GA4 `app_remove`). 건마다 오던 탈퇴·앱 삭제 알림을
+ * 대신한다. 둘 다 같은 날짜(어제)·같은 조회 결과로 만든다 — 하루 범위가 어긋나지 않게. `ScheduleModule` 은 스케줄러
  * 프로세스에만 올라가므로(`app.module.ts` · `isSchedulerProcess`) 클러스터에서 한 번만 돈다.
  * GA4 자격이나 웹훅이 비면 조용히 건너뛴다 — 로컬·테스트·개발계 기본. 실패해도 던지지
  * 않는다: 던지면 스케줄러가 멈추고 다음 날도 안 온다.
@@ -33,7 +39,7 @@ export class DailyMetricsScheduler {
     private readonly db: DailyMetricsDbService,
     configService: ConfigService<EnvironmentVariables, true>,
   ) {
-    // 탈퇴 알림과 같은 채널 — 전용 값이 있으면 그것, 없으면 기존 알림 채널
+    // 팀 알림 채널 — 전용 값이 있으면 그것, 없으면 기존 알림 채널
     this.webhookUrl =
       configService.get('SLACK_SIGNUP_WEBHOOK_URL', { infer: true })?.trim() ||
       configService.get('SLACK_ERROR_WEBHOOK_URL', { infer: true })?.trim() ||
@@ -72,7 +78,6 @@ export class DailyMetricsScheduler {
             signUps: g.events.sign_up.count,
             onboardingCompletes: g.events.onboarding_complete.count,
             pushResponses: g.events.push_permission.count,
-            withdrawals: g.events.withdrawal.count,
           },
           playback: {
             playStarts: g.events.play_start.count,
@@ -88,6 +93,19 @@ export class DailyMetricsScheduler {
       );
       await this.post(text);
       this.logger.log('daily metrics posted', { date });
+
+      // 지표 다음에 보낸다 — Slack 은 도착 순으로 쌓이므로 채널에서 늘 같은 순서로 읽힌다
+      await this.post(
+        formatChurnReport(
+          {
+            date,
+            withdrawals: s.withdrawals,
+            appRemoves: g.events.app_remove.count,
+          },
+          this.environment,
+        ),
+      );
+      this.logger.log('churn report posted', { date });
     } catch (error) {
       this.logger.error(
         'daily metrics failed',

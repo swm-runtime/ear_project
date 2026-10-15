@@ -31,7 +31,7 @@ import {
 import { NotificationLogRepository } from '../repositories/notification-log.repository';
 import { PushClient } from '../push/push.client';
 import { PushReceiptService } from './push-receipt.service';
-import { UninstallAlertService } from './uninstall-alert.service';
+import { UninstallEstimateService } from './uninstall-estimate.service';
 
 interface OutgoingMessage {
   userId: string;
@@ -71,7 +71,7 @@ export class DripArrivalNotificationService {
     private readonly userService: UserService,
     private readonly pushClient: PushClient,
     private readonly pushReceiptService: PushReceiptService,
-    private readonly uninstallAlertService: UninstallAlertService,
+    private readonly uninstallEstimateService: UninstallEstimateService,
   ) {}
 
   /** `nextBatchAt` — 이 사용자들 그룹의 다음 편성 배치 시각. 알림 보관 시한(`ttl`)이 여기까지다 */
@@ -190,8 +190,8 @@ export class DripArrivalNotificationService {
           now,
         );
       summary.invalidatedDeviceCount = invalidatedRows.length;
-      // ticket 단계에서 드러난 삭제 — 마지막 활성 토큰이면 앱 삭제 추정(iOS 만 Slack)
-      await this.uninstallAlertService.notifyIfLastToken(invalidatedRows, now);
+      // ticket 단계에서 드러난 삭제 — 마지막 활성 토큰이면 앱 삭제 추정(로그만)
+      await this.uninstallEstimateService.recordIfLastToken(invalidatedRows);
     } catch (error) {
       this.logger.warn('push token invalidation failed', {
         device_count: invalidTokens.length,
