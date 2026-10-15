@@ -54,7 +54,10 @@ export default function JobCategoryChips({
             {/* 배경 사진 + 막 — 고른 칩은 사진이 짙게 살아나고 흰 글자, 나머지는 흰 막에 물러난다 */}
             <Image source={jobCategoryImageSource(name)} resizeMode="cover" style={styles.photo} />
             <View style={[styles.scrim, isSelected && styles.scrimSelected]} pointerEvents="none" />
-            <Text style={[styles.label, isSelected && styles.labelSelected]}>{name}</Text>
+            {/* 칩 높이가 고정(56)이라 긴 이름은 두 줄까지 — 세 줄째는 칩 밖으로 잘리는 대신 말줄임(KAN-197) */}
+            <Text style={[styles.label, isSelected && styles.labelSelected]} numberOfLines={2}>
+              {name}
+            </Text>
           </Pressable>
         );
       })}
@@ -106,6 +109,7 @@ const styles = StyleSheet.create({
   },
   label: {
     paddingHorizontal: theme.spacing.md,
+    textAlign: 'center',
     fontSize: theme.font.size.sm,
     // 선택 여부와 무관하게 굵기를 고정한다 — 선택 시 굵어지면 글자 폭이 변해
     // flexWrap 줄의 뒤 칩들이 밀린다(주제 칩과 같은 규칙 — onboarding-uiux.md 7장)

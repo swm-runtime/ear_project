@@ -1,3 +1,4 @@
+import { formatDateLabelMonthDay, formatInstantMonthDay } from '@/shared/i18n/format';
 import { localized, type LocalizedCopy } from '@/shared/i18n/localized';
 
 /**
@@ -5,10 +6,7 @@ import { localized, type LocalizedCopy } from '@/shared/i18n/localized';
  * 서버 오류 문구는 subscription-api.md 5장 그대로다. 내부 용어("티어"·"드립"·"영수증"·"유예")를 노출하지 않는다.
  * 가격 문자열은 스토어가 준 현지 표기를 그대로 받는다 — 여기서 통화·금액을 만들지 않는다.
  */
-const monthDay = (iso: string): string => {
-  const date = new Date(iso);
-  return `${date.getMonth() + 1}월 ${date.getDate()}일`;
-};
+const monthDay = (iso: string): string => formatInstantMonthDay(iso, 'ko');
 
 /** "로"/"으로" — 한글 마지막 글자에 받침이 있고 ㄹ 받침이 아니면 "으로". 영문·숫자는 "로"(Light·Daily·Pro 모두 "로") */
 const toParticle = (word: string): '로' | '으로' => {
@@ -131,7 +129,7 @@ const ko = {
     /**
      * 자동 갱신 고지 — App Store 3.1.2(구매 확인 시 청구·자동 갱신·24시간 규칙·해지 방법) · 전자상거래법 자동갱신 고지.
      * 가격·기간은 카드에 있다. PM 확정 2026-10-06(KAN-146) — 결제 주체 표기는 "App Store 결제"·"Google Play 결제".
-     * 한 줄씩 "·" 글머리 항목으로 그린다(SubscriptionLegalNotice)
+     * 한 줄씩 "·" 글머리 항목으로 그린다(SubscriptionLegalNotice). **KR 계정 문구다** — GLOBAL 은 아래 `global`(KAN-196)
      */
     ios: [
       '결제는 구매 확인 시 App Store 결제로 청구되며, 매월 자동 갱신돼요.',
@@ -143,6 +141,25 @@ const ko = {
       '다음 결제일 전까지 해지하지 않으면 같은 금액이 다시 청구돼요.',
       '해지는 Google Play 스토어 › 결제 및 정기 결제에서 할 수 있어요.',
     ],
+    /**
+     * GLOBAL 계정(`users.market = global`)의 자동 갱신 고지 — Apple(3.1.2)·Google Play 구독 정책의 표준 고지 항목
+     * (구매 확인 시 청구·자동 갱신 조건·갱신 청구 시점·관리와 자동 갱신 끄기). 위 `ios`·`android` 는 KR 계정 몫이다 —
+     * 국내 전자상거래법 고지를 겸한 PM 확정 문구라 시장으로 가른다(KAN-196). **시장으로 고르고 표시 언어로 고르지
+     * 않는다** — 언어는 문장의 언어만 정한다(GLOBAL 사용자가 앱을 한국어로 두면 이 한국어 문장을 본다)
+     */
+    global: {
+      ios: [
+        '결제는 구매 확인 시 Apple 계정으로 청구돼요.',
+        '현재 기간이 끝나기 최소 24시간 전에 자동 갱신을 끄지 않으면 구독이 매월 자동 갱신돼요.',
+        '갱신 요금은 현재 기간이 끝나기 전 24시간 안에 고른 요금제 가격으로 청구돼요.',
+        '구매 후 Apple 계정 설정에서 구독을 관리하고 자동 갱신을 끌 수 있어요.',
+      ],
+      android: [
+        '결제는 구매 확인 시 Google Play 계정으로 청구돼요.',
+        '다음 결제일 전에 해지하지 않으면 구독이 매월 고른 요금제 가격으로 자동 갱신돼요.',
+        '구독 관리와 해지는 언제든 Google Play 스토어 › 결제 및 정기 결제 › 정기 결제에서 할 수 있어요.',
+      ],
+    },
     heading: '구독 유의사항',
     bullet: '•',
     terms: '이용약관',
@@ -250,32 +267,11 @@ const ko = {
   },
 } as const;
 
-const MONTHS_EN = [
-  'Jan',
-  'Feb',
-  'Mar',
-  'Apr',
-  'May',
-  'Jun',
-  'Jul',
-  'Aug',
-  'Sep',
-  'Oct',
-  'Nov',
-  'Dec',
-] as const;
+/** ko `monthDay` 와 같은 날짜(기기 시간대)를 `Intl` 로 — en-US "Oct 15" · en-GB "15 Oct"(KAN-197) */
+const monthDayEn = (iso: string): string => formatInstantMonthDay(iso, 'en');
 
-/** ko `monthDay` 와 같은 날짜(기기 시간대)를 "Oct 15" 로 */
-const monthDayEn = (iso: string): string => {
-  const date = new Date(iso);
-  return `${MONTHS_EN[date.getMonth()]} ${date.getDate()}`;
-};
-
-/** ko `serviceDate` 와 같이 문자열을 그대로 읽는다 — "YYYY-MM-DD" → "Oct 15" */
-const serviceDateEn = (yyyyMmDd: string): string => {
-  const [, month, day] = yyyyMmDd.split('-');
-  return `${MONTHS_EN[Number(month) - 1]} ${Number(day)}`;
-};
+/** ko `serviceDate` 와 같이 문자열을 그대로 읽는다(시간대를 거치지 않는다) — "YYYY-MM-DD" → "Oct 15" */
+const serviceDateEn = (yyyyMmDd: string): string => formatDateLabelMonthDay(yyyyMmDd, 'en');
 
 const en: LocalizedCopy<typeof ko> = {
   title: 'Manage plan',
@@ -359,6 +355,19 @@ const en: LocalizedCopy<typeof ko> = {
       'Unless you cancel before your next billing date, you’ll be charged the same amount again.',
       'You can cancel in the Google Play Store › Payments & subscriptions › Subscriptions.',
     ],
+    global: {
+      ios: [
+        'Payment will be charged to your Apple Account at confirmation of purchase.',
+        'Your subscription automatically renews each month unless auto-renew is turned off at least 24 hours before the end of the current period.',
+        'Your account will be charged for renewal within 24 hours prior to the end of the current period, at the price of your selected plan.',
+        'You can manage your subscription and turn off auto-renewal in your Apple Account settings after purchase.',
+      ],
+      android: [
+        'Payment will be charged to your Google Play account at confirmation of purchase.',
+        'Your subscription automatically renews each month at the price of your selected plan unless you cancel before your next billing date.',
+        'You can manage or cancel your subscription anytime in the Google Play Store › Payments & subscriptions › Subscriptions.',
+      ],
+    },
     heading: 'Subscription details',
     bullet: '•',
     terms: 'Terms of Use',

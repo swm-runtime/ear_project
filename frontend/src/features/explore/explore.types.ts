@@ -16,6 +16,8 @@ export interface ExploreContent {
   topicIds: string[];
   /** 콘텐츠 해시태그('#' 없이) — 주제(분류)와 별개인 내용 표시. 없으면 빈 배열(KAN-163) */
   tags: string[];
+  /** 콘텐츠 언어(BCP 47 primary — `ko` · `en`). 표시 전용 — 이 값으로 거르지 않는다(global-api.md 4.7). 모르면 null */
+  language: string | null;
 }
 
 /**

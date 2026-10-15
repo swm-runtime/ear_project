@@ -1,3 +1,4 @@
+import { formatEnCount } from '@/shared/i18n/format';
 import { localized, type LocalizedCopy } from '@/shared/i18n/localized';
 
 /**
@@ -66,11 +67,12 @@ const en: LocalizedCopy<typeof ko> = {
   countLabel: (count: number, max: number) => `${count}/${max} selected`,
   countA11y: (count: number, max: number) => `${count} of ${max} selected`,
   autoBadgeA11y: 'Added automatically',
-  changeBadge: (n: number) => `${n} ${n === 1 ? 'change' : 'changes'}`,
-  limitNotice: (max: number) => `You can choose up to ${max} ${max === 1 ? 'topic' : 'topics'}`,
+  changeBadge: (n: number) => formatEnCount(n, { one: 'change', other: 'changes' }),
+  limitNotice: (max: number) =>
+    `You can choose up to ${formatEnCount(max, { one: 'topic', other: 'topics' })}`,
   minRequired: 'Select at least 1 topic',
   overLimitBanner: (n: number, max: number) =>
-    `You can have up to ${max} ${max === 1 ? 'topic' : 'topics'}. Deselect ${n} to add new ones.`,
+    `You can have up to ${formatEnCount(max, { one: 'topic', other: 'topics' })}. Deselect ${n} to add new ones.`,
   removalConfirm: {
     message:
       "New episodes from deselected topics will no longer arrive in your Library. Episodes you've already received will stay.",

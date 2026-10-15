@@ -7,7 +7,8 @@ import { ERROR_CODES } from '@/shared/api/error-codes';
 import { getDeviceId } from '@/shared/lib/device-id';
 import { useToastStore } from '@/shared/ui/toast.store';
 
-import { AUTH_COPY } from '../auth.copy';
+import { CONTENT_LANGUAGE_MARKET } from '../auth.constants';
+import { AUTH_COPY, ageConfirmationLabel } from '../auth.copy';
 import type { AuthStackParamList, ConsentType, RequiredConsent } from '../auth.types';
 import { useSignUpMutation } from './useSignUpMutation';
 import { getDeviceLocale } from '../services/device-locale';
@@ -31,7 +32,12 @@ export const useTermsConsentScreen = ({
    * 연령 확인 — **서버가 받는 정식 동의다**(consents.age_confirmation, PR #142).
    * 개인정보보호법 제22조의2 는 만 14세 미만 아동의 개인정보를 처리하려면 법정대리인
    * 동의를 받으라고 한다. 그 절차를 두지 않으므로 가입 시점에 스스로 밝히게 해서 수집
-   * 자체를 막는다. 기준이 18세인 이유는 Play 대상 연령대 선언과 어긋나지 않기 위해서다.
+   * 자체를 막는다. **기준 연령은 시장별이다**(global-api.md 2.1 — KR 18 · GLOBAL 16, KAN-206).
+   * KR 18은 Play 대상 연령대 선언과 어긋나지 않기 위해서고, GLOBAL 16은 어느 공개 국가에서도
+   * 법정대리인 동의 없이 본인이 동의할 수 있는 연령이다.
+   *
+   * 계정이 아직 없어 `user.market` 이 없다 — 시장은 A21에서 고른 콘텐츠 언어가 가리키는 값으로
+   * 미리 그린다(`ko` → `kr`, `en` → `global`). 판정 자체는 가입 요청을 받은 서버가 같은 값으로 한다.
    *
    * 서버 목록(`requiredConsents`)에 이미 있으면 그것을 쓰고, 아직 내려주지 않는 서버를
    * 만나면 여기서 채운다 — 빠뜨리면 서버가 CONSENT_REQUIRED 로 가입을 막는다.
@@ -43,10 +49,12 @@ export const useTermsConsentScreen = ({
     isRequired: true,
   };
 
+  const market = CONTENT_LANGUAGE_MARKET[preferredLanguage];
+
   const items = [
     {
       ...ageConsent,
-      label: AUTH_COPY.consent.ageConfirmation,
+      label: ageConfirmationLabel(market),
       description: null,
       isChecked: checkedMap.age_confirmation ?? false,
     },
@@ -91,7 +99,8 @@ export const useTermsConsentScreen = ({
       const session = await signUpMutation.mutateAsync({
         signupToken,
         deviceId,
-        // 화면이 그린 행 그대로 보낸다 — 연령 확인이 빠지면 서버가 CONSENT_REQUIRED 로 막는다
+        // 화면이 그린 행 그대로 보낸다 — 연령 확인이 빠지면 서버가 CONSENT_REQUIRED 로 막는다.
+        // version 은 서버가 준 값 그대로다(`terms_global_v1` 같은 시장 네임스페이스 포함 — 클라이언트 상수 금지)
         consents: items.map((item) => ({
           consentType: item.consentType,
           version: item.version,

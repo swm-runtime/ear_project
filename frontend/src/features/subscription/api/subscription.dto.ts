@@ -14,7 +14,11 @@ export interface PlanDto {
   tier: string;
   name: string;
   description: string;
-  price_krw: number;
+  /**
+   * 참고값 — **앱은 읽지 않는다**(KAN-196). 가격은 스토어 현지가(`displayPrice`)만 그리고, 무료 판정도 이 값으로 하지 않는다.
+   * GLOBAL 요금제는 `null` 이 올 수 있고(global-api.md 4.6) 다음 메이저에서 필드가 빠진다 — 선언만 남긴다
+   */
+  price_krw?: number | null;
   store_product_id: string | null;
   entitlements: EntitlementsDto;
   /** `cancel`(2026-10-08 — KAN-159): 유료 구독자의 무료 요금제. 고르면 스토어 구독 관리(해지)로 보낸다 */

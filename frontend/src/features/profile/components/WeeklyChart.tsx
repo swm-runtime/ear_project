@@ -17,6 +17,7 @@ import {
   toBarRatios,
   toDailyAverageSec,
   toListenedDayParts,
+  toServiceDayIndex,
 } from '../profile.format';
 import type { DailyListeningHighlight, WeeklyListening } from '../profile.types';
 
@@ -42,11 +43,6 @@ const BAR_RADIUS = 4;
 const DAYS_IN_WEEK = 7;
 /** 요일 원(선택 시 검은 원) 지름 */
 const DAY_BADGE_SIZE = theme.spacing.xl;
-/**
- * 서비스 날짜 경계 05시 — 표시용 오늘 요일을 서버와 같은 날로 맞춘다(toWeekView). 2026-10-12 05:00 에 04시 → 05시로
- * 바뀐다(KAN-149·150). 이 번들은 1.2.0 빌드부터 닿아 그 전환 뒤에 쓰인다 — 판정이 아니라 오늘 강조·평균의 표시용이다
- */
-const SERVICE_DAY_OFFSET_MS = 5 * 60 * 60 * 1000;
 /** 맨 위 막대와 카드 위쪽 사이 — 말풍선 자리 대신 남기는 여백 */
 const BAR_TOP_INSET = 8;
 const GRID_RATIOS = [0, 0.5, 1] as const;
@@ -105,21 +101,23 @@ function ArrowButton({
 }
 
 /** 한 주의 차트 몸통에 필요한 파생값 — 가운데 주와 이웃 주(끌 때 옆에 보이는 주)가 같은 계산을 쓴다 */
-const toWeekView = (week: WeeklyListening) => {
+const toWeekView = (week: WeeklyListening, serviceDate: string | null) => {
   /*
    * 오늘 요일 — 표시(오늘 강조 · 평균의 지난 날 수)에만 쓴다. 주 경계·이동은 서버 토큰으로 판정한다.
-   * **서비스 날짜는 05시에 넘어간다**(features/paywall.md) — 기기 자정 기준이면 0~5시에 오늘이 하루 앞서, 서버는 아직 지난주를
-   * 주는데 월요일로 읽어 평균을 1일로 나눴다(PM 2026-09-28 03:43 스샷: 주 합계가 그대로 하루 평균 · 평균선이 막대 위).
-   * 그래서 기기 시각에서 5시간을 빼 요일을 잡고, 기록이 있는 마지막 요일까지는 반드시 지난 날로 센다(데이터 하한)
+   * **오늘은 서버가 준 서비스 날짜(05:00 KST 경계)로 잡는다**(KAN-197 — `spec/api/global-api.md` 2.4 "클라이언트는 기기 시각으로
+   * 재계산하지 않는다"). 종전엔 기기 시각에서 5시간을 빼 요일을 잡았는데, KST 가 아닌 기기(뉴욕 등)에서는 요일이 통째로
+   * 어긋난다. 주 월요일 라벨과 서비스 날짜 라벨의 차이로 칸을 고른다(toServiceDayIndex — 라벨끼리의 셈이라 시간대 무관).
+   * 서비스 날짜를 아직 받지 못했거나 그 주 밖이면 오늘을 모른다 — 강조하지 않고, 기록이 있는 마지막 요일까지를 지난 날로
+   * 센다(데이터 하한. 이 하한은 종전에도 있었다 — PM 2026-09-28 03:43 "주 합계가 그대로 하루 평균")
    */
-  const serviceNow = new Date(Date.now() - SERVICE_DAY_OFFSET_MS);
-  const todayIndex = week.nextWeekStart === null ? (serviceNow.getDay() + 6) % 7 : null;
+  const todayIndex =
+    week.nextWeekStart === null ? toServiceDayIndex(week.weekStart, serviceDate) : null;
   const lastListenedIndex = week.dailyListenedSec.reduce(
     (last, sec, index) => (sec > 0 ? index : last),
     -1,
   );
   const elapsedDayCount =
-    todayIndex === null ? DAYS_IN_WEEK : Math.max(todayIndex, lastListenedIndex) + 1;
+    week.nextWeekStart !== null ? DAYS_IN_WEEK : Math.max(todayIndex ?? -1, lastListenedIndex) + 1;
   const averageSec = toDailyAverageSec(week.dailyListenedSec, elapsedDayCount);
   const maxSec = Math.max(...week.dailyListenedSec, 0);
   const averageRatio = maxSec === 0 ? 0 : Math.min(1, averageSec / maxSec);
@@ -141,6 +139,8 @@ const toWeekView = (week: WeeklyListening) => {
 
 interface WeekBodyProps {
   week: WeeklyListening;
+  /** 오늘의 서비스 날짜(서버 값) — 이번 주의 오늘 강조·평균 분모. 모르면 null */
+  serviceDate: string | null;
   annotationHeight: number;
   /** 고른 요일 — 이웃 주도 받는다(끄는 동안 옆 주의 같은 요일이 미리 칠해져 있다). 탭은 가운데 주만 */
   selectedIndex?: number | null;
@@ -157,13 +157,14 @@ interface WeekBodyProps {
 /** 하루 평균 + 막대 그래프(격자·오른쪽 축·요일) — 빈 주면 빈 상태 */
 function WeekBody({
   week,
+  serviceDate,
   annotationHeight,
   selectedIndex = null,
   onToggleBar,
   onChartLayout,
   averageAppear,
 }: WeekBodyProps) {
-  const view = toWeekView(week);
+  const view = toWeekView(week, serviceDate);
   if (view.isEmpty) {
     return (
       <View style={styles.stateBox}>
@@ -313,7 +314,9 @@ export default function WeeklyChart({ weekly, footer, onSwipingChange }: WeeklyC
    * 제자리에서 새 주 값으로 바뀐다. 전환 중(조회)에는 직전 값을 붙들고 있다가 도착하면 굴린다
    */
   const targetAverageSec =
-    displayed !== null && !weekly.isSwitching ? toWeekView(displayed).averageSec : null;
+    displayed !== null && !weekly.isSwitching
+      ? toWeekView(displayed, weekly.serviceDate).averageSec
+      : null;
   // 막대를 고른 요일의 청취 시간 — 있으면 요약 줄이 그 요일로 바뀐다(스크린 타임)
   const selectedDaySec =
     selectedIndex !== null && displayed !== null
@@ -537,7 +540,7 @@ export default function WeeklyChart({ weekly, footer, onSwipingChange }: WeeklyC
   // 축은 가운데 주가 그래프로 보일 때만 — 조회 중·실패·빈 주에는 비운다
   const axisView =
     displayed !== null && !weekly.isSwitching && !weekly.hasSwitchError
-      ? toWeekView(displayed)
+      ? toWeekView(displayed, weekly.serviceDate)
       : null;
   const axisLabels =
     axisView === null || axisView.isEmpty
@@ -566,6 +569,7 @@ export default function WeeklyChart({ weekly, footer, onSwipingChange }: WeeklyC
     week !== null ? (
       <WeekBody
         week={week}
+        serviceDate={weekly.serviceDate}
         annotationHeight={annotationHeight}
         // 고른 요일을 옆 주에도 칠한다 — 놓으면 그 요일이 그대로 이어진다(빈 주면 WeekBody 가 빈 상태라 무관)
         selectedIndex={selectedIndex}
@@ -591,6 +595,7 @@ export default function WeeklyChart({ weekly, footer, onSwipingChange }: WeeklyC
   ) : (
     <WeekBody
       week={displayed}
+      serviceDate={weekly.serviceDate}
       annotationHeight={annotationHeight}
       selectedIndex={selectedIndex}
       onToggleBar={weekly.toggleBar}
@@ -868,10 +873,10 @@ const styles = StyleSheet.create({
     flexShrink: 0,
     maxWidth: '100%',
   },
-  // 가장 긴 주("10월 26일 – 11월 1일")도 한 줄에 — 110 에서는 접혔다(PM 2026-09-28 00:14). 폭 고정은 주를 넘길 때
-  // 화살표가 좌우로 뛰지 않게 하려는 것
+  // 가장 긴 주("10월 26일 – 11월 1일")도 한 줄에 — 110 에서는 접혔다(PM 2026-09-28 00:14). 최소 폭은 주를 넘길 때
+  // 화살표가 좌우로 뛰지 않게 하려는 것. 고정 폭(140)이 아니라 최소 폭이다(KAN-197) — 로캘·글자 크기 설정으로 라벨이
+  // 140 을 넘으면 잘리지 않고 넓어진다(머리 줄은 flexWrap 이라 제목 아래로 내려간다). 한국어 라벨은 140 안이라 그대로다
   weekRange: {
-    width: 140,
     minWidth: 140,
     flexShrink: 1,
     fontVariant: ['tabular-nums'],
@@ -928,7 +933,10 @@ const styles = StyleSheet.create({
   // 오른쪽 정렬 두 줄 — 숫자(34)의 글자 아래 여백만큼 올려 아랫줄 밑변을 숫자 밑변에 맞춘다.
   // 두 줄(20 + 24)에 아래 6 을 더하면 50 으로 숫자 줄(44)보다 높다 — 위로 그만큼 빼서(음수 위 여백) 줄 높이와 같게
   // 한다. 블록이 값 줄의 높이를 늘리지 않으니 있든 없든(순위 없는 계정) 값 줄은 44 다
+  // 영어 장문("vs. Wednesday the week before")이 큰 숫자를 밀어내지 않게 폭 상한을 두고 줄 안에서 말줄임한다(KAN-197).
+  // 한국어 두 줄("지난주 수요일보다")은 상한 안이라 종전과 같다
   rankBlock: {
+    maxWidth: '62%',
     alignItems: 'flex-end',
     marginBottom: RANK_BASELINE_LIFT,
     marginTop: -(RANK_LEAD_LINE_HEIGHT + RANK_TEXT_LINE_HEIGHT + RANK_BASELINE_LIFT - SUMMARY_VALUE_LINE_HEIGHT),
@@ -952,6 +960,8 @@ const styles = StyleSheet.create({
   // 회색 그대로 한 단계 크고 진하게 — 강조색 없이 굵기로만 위계(design.md §1)
   // 16 → 18(PM 2026-10-11) — 아이콘도 18 → 20. 다시 20, 아이콘 22(PM 22:11 "크기 조금만 키우자")
   rankText: {
+    // 상한 안에서 말줄임 — 아이콘 옆 줄에서 글자만 줄어든다(KAN-197)
+    flexShrink: 1,
     fontSize: 20,
     lineHeight: RANK_TEXT_LINE_HEIGHT,
     fontWeight: '600',

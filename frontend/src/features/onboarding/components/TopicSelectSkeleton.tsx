@@ -1,13 +1,17 @@
 import { StyleSheet, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { APP_LANGUAGE } from '@/shared/i18n/locale';
 import { theme } from '@/shared/theme';
 import { SkeletonBlock, SkeletonCircle, SkeletonGroup, SkeletonLine } from '@/shared/ui/Skeleton';
 
 import { MAX_MARQUEE_ROWS } from '../services/topic-rows';
 
-/** 마퀴 알약 폭 — 주제 화면(TopicSelectScreen)의 실제 알약과 스켈레톤이 같은 값을 쓴다 */
-export const TOPIC_PILL_WIDTH = 156;
+/**
+ * 마퀴 알약 폭 — 주제 화면(TopicSelectScreen)의 실제 알약과 스켈레톤이 같은 값을 쓴다. 마퀴는 알약 폭이 같아야 한 바퀴
+ * 길이가 맞아 고정 폭이다. 영어 주제 이름("Personal Finance" 등)은 156 에서 말줄임돼 영어는 184(KAN-197)
+ */
+export const TOPIC_PILL_WIDTH = APP_LANGUAGE === 'ko' ? 156 : 184;
 const PILL_HEIGHT = theme.touchTarget.minHeight + theme.spacing.sm;
 const PILLS_PER_ROW = 3;
 /** 원형 [다음] 자리 — TopicSelectScreen `next` 와 같은 64 */

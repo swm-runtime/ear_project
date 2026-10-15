@@ -2,6 +2,7 @@
  * 사용자 노출 문구(convention.md 3.5). 확정 카피는 library-uiux.md와 1:1 대조한다.
  * TODO 표시 항목은 uiux 문서에 확정 카피가 없거나 미결로 남은 것 — 확정 시 교체한다.
  */
+import { selectPlural } from '@/shared/i18n/format';
 import { localized, type LocalizedCopy } from '@/shared/i18n/localized';
 
 import type { LibrarySourceFilter } from './library.types';
@@ -212,7 +213,8 @@ const en: LocalizedCopy<typeof ko> = {
   },
 
   arrivalBadge: {
-    a11y: (count: number) => `Library, ${count} new ${count === 1 ? 'episode' : 'episodes'}`,
+    a11y: (count: number) =>
+      `Library, ${count} new ${selectPlural(count) === 'one' ? 'episode' : 'episodes'}`,
   },
 
   banner: {

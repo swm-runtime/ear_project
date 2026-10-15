@@ -14,6 +14,7 @@ import CurrentSubscriptionDetail from '../components/CurrentSubscriptionDetail';
 import PlanList, { type CurrentPlanCta } from '../components/PlanList';
 import PurchaseNotice from '../components/PurchaseNotice';
 import SubscriptionLegalNotice from '../components/SubscriptionLegalNotice';
+import { isFreePlan } from '../hooks/plan-catalog';
 import { scheduledChangeNotice } from '../hooks/subscription-status';
 import { useSubscriptionScreen } from '../hooks/useSubscriptionScreen';
 import { SUBSCRIPTION_COPY } from '../subscription.copy';
@@ -54,22 +55,24 @@ export default function SubscriptionScreen() {
     catalogState.kind === 'ready' &&
     catalogState.cards.some((card) => card.plan.action === 'downgrade');
   const status = screen.status;
-  /** 무료 요금제의 서버 이름 — 해지 예약 알림의 "이후 {이름} 요금제로" */
-  const freePlanName =
+  /** 무료 요금제 카드 — 서버 필드(상품 ID·action)로 고른다. 원화 가격·티어명으로 고르지 않는다(KAN-196) */
+  const freePlan =
     catalogState.kind === 'ready'
-      ? (catalogState.cards.find((card) => card.plan.priceKrw <= 0)?.plan.name ?? null)
+      ? (catalogState.cards.find((card) => isFreePlan(card.plan))?.plan ?? null)
       : null;
+  /** 무료 요금제의 서버 이름 — 해지 예약 알림의 "이후 {이름} 요금제로" */
+  const freePlanName = freePlan?.name ?? null;
   /**
    * 다음 결제일부터 바뀌도록 예약된 요금제 — 그 카드를 잠그고 [예약됨]을 단다. 다운그레이드 예약은 서버 `pending_plan`,
-   * 해지 예약은 무료 요금제 카드(가격 0 — 티어명으로 고르지 않는다)다(PM 2026-10-09 — 해지 뒤 Light 에 표시가 없었다)
+   * 해지 예약은 무료 요금제 카드(isFreePlan — 티어명으로 고르지 않는다)다(PM 2026-10-09 — 해지 뒤 Light 에 표시가 없었다)
    */
   const scheduledTier =
     status === null
       ? null
       : status.kind === 'subscribed'
         ? (status.pendingPlan?.tier ?? null)
-        : status.kind === 'cancelScheduled' && catalogState.kind === 'ready'
-          ? (catalogState.cards.find((card) => card.plan.priceKrw <= 0)?.plan.tier ?? null)
+        : status.kind === 'cancelScheduled'
+          ? (freePlan?.tier ?? null)
           : null;
   /** 예약된 변경 — 있을 때만 제목 밑 알림 섹션(KAN-160) */
   const notice = scheduledChangeNotice(status, freePlanName);

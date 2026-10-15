@@ -1,3 +1,4 @@
+import { formatEnCount } from '@/shared/i18n/format';
 import { localized, type LocalizedCopy } from '@/shared/i18n/localized';
 
 /**
@@ -125,7 +126,7 @@ const en: LocalizedCopy<typeof ko> = {
     noResult: (query: string) => `No results for “${query}”`,
     popularTitle: 'Popular',
     resultCountA11y: (query: string, count: number) =>
-      `${count} ${count === 1 ? 'result' : 'results'} for “${query}”`,
+      `${formatEnCount(count, { one: 'result', other: 'results' })} for “${query}”`,
     recentItemA11y: (query: string) => `${query}, recent search, tap to search`,
     recentDeleteA11y: (query: string) => `Remove “${query}” from recent searches`,
     suggestedChipA11y: (name: string) => `${name}, suggested keyword, tap to search`,
@@ -187,7 +188,7 @@ const en: LocalizedCopy<typeof ko> = {
     toggleA11y: 'Popular episodes time range',
     switchFailed: "Couldn't load the list",
     switchedA11y: (periodLabel: string, count: number) =>
-      `${periodLabel} popular, ${count} ${count === 1 ? 'episode' : 'episodes'}`,
+      `${periodLabel} popular, ${formatEnCount(count, { one: 'episode', other: 'episodes' })}`,
   },
 };
 

@@ -5,6 +5,8 @@
  *
  * 여기 없는 것: streak·ratio 가공 — 서버 값을 그대로 그린다(재판정·재정규화 금지, profile-uiux.md 8장).
  */
+import { daysBetweenDateLabels, parseDateLabel, type CalendarDate } from '@/shared/i18n/format';
+
 import type { InterestSummary, ProfileCareer } from './profile.types';
 
 /** email × isEmailVerified → 세 상태(profile.md 4.3). 두 값은 항상 함께 온다(profile-api.md 4.1) */
@@ -34,27 +36,39 @@ export const toListenedDayParts = (sec: number): { hours: number; minutes: numbe
   minutes: Math.floor((sec % 3600) / 60),
 });
 
-/** ISO UTC 시각 → 기기 로캘의 월·일. 판정은 서버 몫이고 표기만 클라이언트가 한다(profile-uiux.md 6장) */
-export const toMonthDayParts = (iso: string): { month: number; day: number } => {
-  const date = new Date(iso);
-  return { month: date.getMonth() + 1, day: date.getDate() };
-};
-
 /**
  * 주 범위(월~일)의 양 끝 월·일. 주 경계 판정은 서버가 하고(week_start 라벨),
  * 여기의 +6일은 표기 전용 연산이다(profile-uiux.md 4.6 "N월 N일 – N월 N일"이 허용하는 유일한 날짜 연산).
- * new Date('YYYY-MM-DD')는 UTC 자정으로 파싱돼 로캘에 따라 하루 밀린다 — y/m/d 수동 파싱으로 로컬 생성.
+ * new Date('YYYY-MM-DD')는 UTC 자정으로 파싱돼 로캘에 따라 하루 밀린다 — y/m/d 수동 파싱 후 **UTC 달력으로만**
+ * 셈한다(기기 시간대·서머타임이 끼지 않는다, KAN-197).
  */
-export const toWeekRangeParts = (
-  weekStart: string,
-): { start: { month: number; day: number }; end: { month: number; day: number } } => {
-  const [year, month, day] = weekStart.split('-').map(Number);
-  const startDate = new Date(year, month - 1, day);
-  const endDate = new Date(year, month - 1, day + 6);
+export const toWeekRangeParts = (weekStart: string): { start: CalendarDate; end: CalendarDate } => {
+  const { year, month, day } = parseDateLabel(weekStart);
+  const startDate = new Date(Date.UTC(year, month - 1, day));
+  const endDate = new Date(Date.UTC(year, month - 1, day + 6));
   return {
-    start: { month: startDate.getMonth() + 1, day: startDate.getDate() },
-    end: { month: endDate.getMonth() + 1, day: endDate.getDate() },
+    start: {
+      year: startDate.getUTCFullYear(),
+      month: startDate.getUTCMonth() + 1,
+      day: startDate.getUTCDate(),
+    },
+    end: {
+      year: endDate.getUTCFullYear(),
+      month: endDate.getUTCMonth() + 1,
+      day: endDate.getUTCDate(),
+    },
   };
+};
+
+/**
+ * 오늘 서비스 날짜가 표시 주의 몇 번째 요일(0 = 월)인가 — **서버 날짜 라벨끼리의 셈**이다(KAN-197). 주 월요일 라벨
+ * (`week_start`)과 서버가 준 오늘 서비스 날짜(`service_date`)의 차이라 기기 시각·시간대가 끼지 않는다.
+ * 서비스 날짜가 없거나(아직 받지 못함) 그 주 밖이면(05시 경계를 지나 한쪽만 새로 받음) null — 오늘을 모른다
+ */
+export const toServiceDayIndex = (weekStart: string, serviceDate: string | null): number | null => {
+  if (serviceDate === null) return null;
+  const index = daysBetweenDateLabels(weekStart, serviceDate);
+  return index >= 0 && index < 7 ? index : null;
 };
 
 /**

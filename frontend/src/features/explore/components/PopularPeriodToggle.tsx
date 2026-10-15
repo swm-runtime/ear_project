@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Platform, StyleSheet, type NativeSyntheticEvent } from 'react-native';
 
+import { APP_LANGUAGE } from '@/shared/i18n/locale';
 import SegmentedControl from '@/shared/ui/SegmentedControl';
 
 import {
@@ -16,7 +17,11 @@ const FALLBACK_SEGMENT_HEIGHT = 26;
 /** 시스템 컨트롤 크기 — UISegmentedControl 은 Yoga 에 크기를 알리지 않는다. 높이 32 는 iOS 기본, 칸 52×3 */
 const IS_ANDROID = Platform.OS === 'android';
 const SYSTEM_HEIGHT = 32;
-const SYSTEM_SEGMENT_WIDTH = 52;
+/**
+ * 칸 폭 — 세 칸이 같아야 선택바가 크기 변화 없이 옮겨간다. 한국어("주간"·"월간"·"전체")는 52, 영어("Weekly"·"Monthly"·
+ * "All time")는 52 에서 잘려 76 이다(KAN-197). 시스템 컨트롤은 글자 폭으로 늘지 않아 언어별 값을 준다
+ */
+const SYSTEM_SEGMENT_WIDTH = APP_LANGUAGE === 'ko' ? 52 : 76;
 /**
  * Android 토글 외곽 높이는 32dp(칸 28 + 안쪽 2×2). 제목 행의 중앙 정렬 래퍼 안에 둔다.
  * 누르는 영역은 SegmentedControl 이 위아래 hitSlop 으로 44 를 채운다
@@ -68,7 +73,8 @@ export default function PopularPeriodToggle({
       accessibilityLabel={EXPLORE_COPY.popular.toggleA11y}
       appearance={IS_ANDROID ? 'ios26' : 'modern'}
       segmentHeight={IS_ANDROID ? IOS26_SEGMENT_HEIGHT : FALLBACK_SEGMENT_HEIGHT}
-      segmentWidth={IS_ANDROID ? IOS_SEGMENT_WIDTH : undefined}
+      // iOS 옛 빌드(모듈 없음)의 JS 토글은 기본 칸 폭(48)을 쓴다 — 영어는 그 폭에서 잘려 같은 값을 준다(KAN-197)
+      segmentWidth={IS_ANDROID || APP_LANGUAGE !== 'ko' ? IOS_SEGMENT_WIDTH : undefined}
     />
   );
 }

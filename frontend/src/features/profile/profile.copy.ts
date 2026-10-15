@@ -3,17 +3,18 @@
  * 내부 용어("티어"·"라이트"·"완청"·"서비스 날짜" 등)를 노출하지 않는다 — 플랜은 plan_name 표시명만 쓴다.
  * 숫자·상태 판정은 profile.format.ts가 하고 여기는 문장 조립만 한다.
  */
+import {
+  formatDateLabelMonthDay,
+  formatEnCount,
+  formatInstantMonthDay,
+  formatMonthDay,
+  type CalendarDate,
+} from '@/shared/i18n/format';
 import { localized, type LocalizedCopy } from '@/shared/i18n/localized';
-import { toDateOnlyMonthDay } from '@/shared/lib/date-only';
 
 import type { SocialProvider } from '@/features/auth';
 
-import {
-  toListenedDayParts,
-  toListenedSummaryParts,
-  toMonthDayParts,
-  toWeekRangeParts,
-} from './profile.format';
+import { toListenedDayParts, toListenedSummaryParts, toWeekRangeParts } from './profile.format';
 import type {
   DailyListeningHighlight,
   ListeningHighlight,
@@ -35,16 +36,11 @@ const PROVIDER_NAMES: Record<SocialProvider, string> = {
   apple: '애플',
 };
 
-const monthDay = (iso: string): string => {
-  const { month, day } = toMonthDayParts(iso);
-  return `${month}월 ${day}일`;
-};
+/** ISO UTC 시각 → 기기 시간대의 "N월 N일"(표기 전용 — 판정은 서버 몫, profile-uiux.md 6장) */
+const monthDay = (iso: string): string => formatInstantMonthDay(iso, 'ko');
 
 /** 서버가 판정한 날짜(YYYY-MM-DD) 그대로 "N월 N일" — 시간대를 거치지 않는다(가입 체험 last_free_date) */
-const dateOnlyMonthDay = (date: string): string => {
-  const { month, day } = toDateOnlyMonthDay(date);
-  return `${month}월 ${day}일`;
-};
+const dateOnlyMonthDay = (date: string): string => formatDateLabelMonthDay(date, 'ko');
 
 /** 1분 미만을 가르는 값 — 버림하면 0이 되는 구간이다 */
 const SECONDS_PER_MINUTE = 60;
@@ -351,28 +347,13 @@ const EN_PROVIDER_NAMES: Record<SocialProvider, string> = {
   apple: 'Apple',
 };
 
-const EN_MONTH_NAMES = [
-  'Jan',
-  'Feb',
-  'Mar',
-  'Apr',
-  'May',
-  'Jun',
-  'Jul',
-  'Aug',
-  'Sep',
-  'Oct',
-  'Nov',
-  'Dec',
-];
+/** 달력 날짜 → 기기 로캘 순서의 월·일(`Intl` — en-US "Oct 15" · en-GB "15 Oct", KAN-197) */
+const enMonthDayText = (date: CalendarDate): string => formatMonthDay(date, 'en');
 
-/** 월·일 → "Oct 15" */
-const enMonthDayText = ({ month, day }: { month: number; day: number }): string =>
-  `${EN_MONTH_NAMES[month - 1] ?? ''} ${day}`;
+const enMonthDay = (iso: string): string => formatInstantMonthDay(iso, 'en');
 
-const enMonthDay = (iso: string): string => enMonthDayText(toMonthDayParts(iso));
-
-const enDateOnlyMonthDay = (date: string): string => enMonthDayText(toDateOnlyMonthDay(date));
+/** 서버 날짜 라벨 그대로 — 시간대를 거치지 않는다 */
+const enDateOnlyMonthDay = (date: string): string => formatDateLabelMonthDay(date, 'en');
 
 const EN_DAY_FULL_NAMES = [
   'Monday',
@@ -384,9 +365,9 @@ const EN_DAY_FULL_NAMES = [
   'Sunday',
 ];
 
-/** 영어 복수형 — 1이면 단수, 나머지는 복수 */
-const enCount = (count: number, one: string, many: string): string =>
-  `${count} ${count === 1 ? one : many}`;
+/** 영어 복수형 — `Intl.PluralRules`(KAN-197) */
+const enCount = (count: number, one: string, other: string): string =>
+  formatEnCount(count, { one, other });
 
 const enListenedDayValue = (sec: number): string => {
   if (sec > 0 && sec < SECONDS_PER_MINUTE) return '<1 min';
@@ -572,10 +553,9 @@ const en: LocalizedCopy<typeof ko> = {
     dayValue: enListenedDayValue,
     averageLabel: (sec: number) => `Avg ${enListenedDayValue(sec)}`,
     axisAverage: 'Avg',
+    /** 축 칸은 고정 48(라벨 자리 28) — "180 min" 은 잘려 단위를 줄여 쓴다("180m", 큰 숫자 옆 단위 `m` 과 같다 — KAN-197) */
     axisMax: (sec: number) =>
-      sec > 0 && sec < SECONDS_PER_MINUTE
-        ? '<1 min'
-        : `${Math.floor(sec / SECONDS_PER_MINUTE)} min`,
+      sec > 0 && sec < SECONDS_PER_MINUTE ? '<1m' : `${Math.floor(sec / SECONDS_PER_MINUTE)}m`,
     axisZero: '0',
     averageA11y: (sec: number) => `Daily average ${enListenedDayValue(sec)}`,
     dayBarA11y: (dayIndex: number, sec: number) => {

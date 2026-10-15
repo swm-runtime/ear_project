@@ -62,6 +62,8 @@ export interface PlayerContentMeta {
    * (docs/tickets/backend/pending/republish-stale-playback-position.md)
    */
   contentVersion: number;
+  /** 콘텐츠 언어(BCP 47 primary — `ko` · `en`). 표시 전용 — 이 값으로 거르지 않는다(global-api.md 4.7). 모르면 null */
+  language: string | null;
 }
 
 /** 구간이 속한 대본 구역 — `## [인트로]` `## [도입]` `## [본문]` `## [마무리]`(ai/spec/04-script.md) */

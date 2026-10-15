@@ -27,6 +27,11 @@ export interface LibraryContentDto {
   thumbnail_url: string;
   content_version: number;
   topic_ids: string[];
+  /**
+   * 콘텐츠 언어(BCP 47 primary — `ko` · `en`, global-api.md 4.7). **표시 전용** — 목록을 거르지 않는다(시장 필터는 서버 몫).
+   * 아직 안 보내는 서버에서는 없다 — 없으면 null 로 읽는다
+   */
+  language?: string | null;
 }
 
 export interface LibraryProgressDto {
@@ -86,6 +91,11 @@ export interface ResumeContentDto {
   content_version: number;
   /** 목록 응답(4.1)과 같은 출처·모양(2026-09-22 KAN-91). 주제 없으면 `[]` — 미니플레이어 카테고리 줄 */
   topic_ids: string[];
+  /**
+   * 콘텐츠 언어(BCP 47 primary — `ko` · `en`, global-api.md 4.7). **표시 전용** — 목록을 거르지 않는다(시장 필터는 서버 몫).
+   * 아직 안 보내는 서버에서는 없다 — 없으면 null 로 읽는다
+   */
+  language?: string | null;
 }
 
 export interface ResumeTargetDto {

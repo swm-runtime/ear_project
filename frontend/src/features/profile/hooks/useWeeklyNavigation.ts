@@ -6,6 +6,8 @@ import { AccessibilityInfo } from 'react-native';
 import { isApiError } from '@/shared/api/api-error';
 import { ERROR_CODES } from '@/shared/api/error-codes';
 
+import { usePlayLimitStore } from '@/features/player';
+
 import { profileKeys, weeklyListeningQueryOptions } from '../api/profile.api';
 import { PROFILE_COPY } from '../profile.copy';
 import type { WeeklyListening } from '../profile.types';
@@ -38,6 +40,12 @@ export interface WeeklyNavigation {
    */
   prevWeek: WeeklyListening | null;
   nextWeek: WeeklyListening | null;
+  /**
+   * 오늘의 서비스 날짜(`YYYY-MM-DD`, 05:00 KST 경계) — **서버가 준 값**이다(KAN-197 — `spec/api/global-api.md` 2.4). 이번 주
+   * 그래프의 오늘 강조와 평균의 지난 날 수에만 쓴다. 프로필 응답에는 오늘 날짜가 없어 라이브러리·탐색·재생 응답이 주는
+   * 잔여 재생 표시값의 `service_date`(player 의 `usePlayLimitStore`)를 읽는다. 아직 받지 못했으면 null
+   */
+  serviceDate: string | null;
 }
 
 /**
@@ -50,6 +58,7 @@ export interface WeeklyNavigation {
 export const useWeeklyNavigation = (summaryWeekly: WeeklyListening | null): WeeklyNavigation => {
   const navigation = useNavigation();
   const queryClient = useQueryClient();
+  const serviceDate = usePlayLimitStore((s) => s.playLimit?.serviceDate ?? null);
 
   /** null = 이번 주(요약 응답 소유). 값이 있으면 그 주의 캐시를 구독한다 */
   const [displayedWeekStart, setDisplayedWeekStart] = useState<string | null>(null);
@@ -187,5 +196,6 @@ export const useWeeklyNavigation = (summaryWeekly: WeeklyListening | null): Week
     clearBarTooltip,
     prevWeek,
     nextWeek,
+    serviceDate,
   };
 };

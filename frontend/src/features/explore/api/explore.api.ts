@@ -66,6 +66,7 @@ const toExploreItem = (dto: ExploreItemDto): ExploreItem => ({
     contentVersion: dto.content.content_version,
     topicIds: dto.content.topic_ids,
     tags: dto.content.tags ?? [],
+    language: dto.content.language ?? null,
   },
   library: dto.library
     ? { itemId: dto.library.item_id, source: dto.library.source, status: dto.library.status }

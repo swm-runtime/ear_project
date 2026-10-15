@@ -99,12 +99,15 @@ const styles = StyleSheet.create({
   },
   tagline: {
     marginTop: theme.spacing.md,
+    // 영어 등 긴 문구가 두 줄로 접혀도 가운데 정렬을 유지한다(KAN-197)
+    textAlign: 'center',
     fontSize: theme.font.size.xl,
     fontWeight: '700',
     color: theme.color.textPrimary,
   },
   description: {
     marginTop: theme.spacing.sm,
+    textAlign: 'center',
     fontSize: theme.font.size.md,
     color: theme.color.textSecondary,
   },
@@ -126,6 +129,9 @@ const styles = StyleSheet.create({
     backgroundColor: theme.color.border,
   },
   dividerLabel: {
+    // 선은 고정 폭이고 줄어드는 쪽은 문구다 — 긴 영어 문구가 가로로 넘치지 않고 접힌다(KAN-197)
+    flexShrink: 1,
+    textAlign: 'center',
     fontSize: theme.font.size.xs,
     color: theme.color.textSecondary,
   },
@@ -138,6 +144,8 @@ const styles = StyleSheet.create({
   },
   links: {
     flexDirection: 'row',
+    // 좁은 기기에서 링크 둘이 한 줄에 안 들어가면 다음 줄로 내린다(KAN-197)
+    flexWrap: 'wrap',
     alignItems: 'center',
     justifyContent: 'center',
     gap: theme.spacing.sm,

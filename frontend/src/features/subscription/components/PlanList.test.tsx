@@ -56,7 +56,6 @@ const makeCard = (
     // 이름·설명은 서버 값 — 화면이 티어명을 만들지 않는다는 것을 보이려고 일부러 낯선 이름을 쓴다
     name: overrides.name ?? '서버이름',
     description: overrides.description ?? '서버 설명',
-    priceKrw: 0,
     storeProductId: overrides.storeProductId ?? null,
     entitlements: { dailyPlayLimit: 2, dailyDripCount: 2, dripEnabled: true, adsEnabled: true },
     action: overrides.action,

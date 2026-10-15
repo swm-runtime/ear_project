@@ -53,6 +53,11 @@ export interface AudioUrlsResponseDto {
     content_version: number;
     /** 카테고리 줄의 원천(4.1, 2026-09-19). 옛 서버 응답에는 없다 — 없으면 진입 목록이 넘긴 값을 쓴다 */
     topics?: { id: string; name: string }[];
+    /**
+     * 콘텐츠 언어(BCP 47 primary — `ko` · `en`, global-api.md 4.7). **표시 전용** — 목록을 거르지 않는다(시장 필터는 서버 몫).
+     * 아직 안 보내는 서버에서는 없다 — 없으면 null 로 읽는다
+     */
+    language?: string | null;
   };
   /** 대본 세그먼트 적재 여부(4.1, KAN-71). 옛 서버 응답에는 없다 — 없으면 false 로 본다 */
   has_script?: boolean;

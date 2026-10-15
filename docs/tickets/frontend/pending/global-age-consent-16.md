@@ -51,3 +51,12 @@ KR 연령 기준 변경 · 부모 동의 흐름 · OS 연령 신호(Declared Age
 
 ## 처리 기록
 - 2026-10-14 발행(마크다운 + Jira). 연령 기준 조사 후 16세 확정, `global-api.md` 2.1 ⚪ → ✅, 9장 미결 #2 삭제.
+- 2026-10-15 코드·문서 반영(브랜치 `feat(fe)/global-formats-plans-age`, 미커밋). **기기 확인 전이라 pending 유지.**
+  - 연령 문구 시장 분기 — `auth.copy.ts` `ageConfirmationLabel(market)`(KR 18: ko "만 18세 이상입니다"·en "I’m 18 or older" 종전 그대로 / GLOBAL 16: en "I confirm that I am 16 or older"·ko "만 16세 이상입니다"). 한국어 스냅숏 모양을 바꾸지 않으려고 `AUTH_COPY` 밖에 두었다(`copy-ko.snapshot.test.ts` 통과, 스냅숏 갱신 없음).
+  - 시장 출처 — A4(가입)는 계정이 없어 A21 선택값 대응(`auth.constants.ts` `CONTENT_LANGUAGE_MARKET`: ko→kr · en→global, 표시용), A20(재동의)은 세션 `selectMarket`(없으면 kr).
+  - 차단 화면 — A4에 "미충족" 선택지·차단 화면이 **원래 없다**(체크 안 하면 [동의하고 시작하기] 비활성 = 계정 미생성). 새 화면은 만들지 않았고, en 경로의 연령 행·접근성 라벨에 한국어 리터럴 0건(`auth.copy.test.ts`). 문서에 "별도 차단 화면 없음"으로 명시(auth-uiux 4.3 · auth.md).
+  - 약관 버전 — 클라이언트 상수 0건 확인(목업 `auth.mock.ts` 의 `'1.0'` 은 서버 대역). A4·A20 모두 서버 `version` 그대로 전송함을 테스트로 고정(`useTermsConsentScreen.test.tsx`·`useReconsentScreen.test.tsx` — `terms_global_v1`). 서버가 연령 행을 안 주면 채우는 `version: null` 은 계약값(auth-api 4.2)이라 유지.
+  - 접근성 — 연령 행 라벨이 시장 문구라 낭독도 기준 연령을 따른다(ConsentItem `${label} ${tag}`).
+  - 고정 폭(KAN-197 중 auth 파일분) — A1 `StartScreen`: 구분선 문구 `flexShrink: 1`+가운데 정렬, 태그라인·설명 `textAlign: 'center'`, 정책 링크 행 `flexWrap: 'wrap'`. A4 `TermsConsentScreen`: [전체 동의] 라벨 `flexShrink: 1`. A21 `ContentLanguageScreen`·`LanguageOptionCard`: 고정 폭 문구 상자 없음(이미 flex) — 변경 없음.
+  - 문서 — `spec/uiux/auth-uiux.md` 4.3(연령 행·시장별 확정 카피 표)·4.3-1·7장(고정 폭 금지), `features/auth.md` 4.1, `spec/api/auth-api.md` 4.2(연령 시장별).
+  - 남은 것: ① 실기기 확인 — en 기기 + English 선택 → A4 16세 문구, ko 기기 + 한국어 선택 → 18세(회귀), en 기기 + 한국어 선택 → "I’m 18 or older", VoiceOver/TalkBack 낭독, 작은 기기(SE급)·글자 크기 200%에서 A1·A4 영어 문구 잘림 없음. ② 스크린샷 QA 체크리스트에 연령 화면 추가 — 저장소에 해당 체크리스트 문서가 아직 없어 KAN-197/198 QA 문서가 생길 때 넣는다. ③ BE KAN-189 배포 뒤 실서버 `pending_consents` 의 `terms_global_v1` 로 A20 왕복 확인.

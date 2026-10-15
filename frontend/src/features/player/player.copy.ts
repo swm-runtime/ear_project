@@ -3,6 +3,7 @@
  * 공유하므로 player가 소유한다 — 확정 카피는 library-uiux.md 4.3·4.6, 플레이어 화면 카피는
  * player-uiux.md 6장과 1:1 대조한다.
  */
+import { formatEnCount } from '@/shared/i18n/format';
 import { localized, type LocalizedCopy } from '@/shared/i18n/localized';
 
 const ko = {
@@ -191,8 +192,9 @@ const ko = {
   },
 } as const;
 
+/** 영어 단·복수 — `Intl.PluralRules`(KAN-197) */
 const plural = (count: number, one: string, other: string): string =>
-  `${count} ${count === 1 ? one : other}`;
+  formatEnCount(count, { one, other });
 
 const en: LocalizedCopy<typeof ko> = {
   remaining: {

@@ -5,6 +5,9 @@ import { logger } from '@/shared/lib/logger';
 import { theme } from '@/shared/theme';
 import { Text } from '@/shared/ui/Typography';
 
+import type { Market } from '@/features/auth';
+import { selectMarket, useSessionStore } from '@/features/auth';
+
 import { SUBSCRIPTION_COPY } from '../subscription.copy';
 
 /** 안내 항목 글머리 칸의 폭 — 글자 크기(xs 12)의 "·" 하나 + 숨 */
@@ -21,6 +24,17 @@ export interface SubscriptionLegalNoticeProps {
   isRestoreDisabled: boolean;
   isRestoring: boolean;
 }
+
+/**
+ * 자동 갱신 고지 문장 — **시장(`users.market`)으로 고른다**(KAN-196). KR 계정은 전자상거래법 고지를 겸한 PM 확정 문구
+ * (`legal.ios`·`legal.android`), GLOBAL 계정은 Apple·Google 표준 고지(`legal.global`)다. 무엇을 고지하느냐는 계정이 속한
+ * 시장의 규칙이라 표시 언어로 가르지 않는다 — 표시 언어는 문장의 언어만 정한다. 그래서 **앱을 영어로 둔 KR 계정은 KR 고지의
+ * 영어 문장**을, 앱을 한국어로 둔 GLOBAL 계정은 표준 고지의 한국어 문장을 본다(고지 항목은 시장 기준 그대로 유지된다)
+ */
+const legalLines = (market: Market): readonly string[] => {
+  const legal = market === 'global' ? SUBSCRIPTION_COPY.legal.global : SUBSCRIPTION_COPY.legal;
+  return Platform.OS === 'android' ? legal.android : legal.ios;
+};
 
 /** 링크 사이 구분점 — 장식이라 낭독기에서 뺀다 */
 function Separator() {
@@ -47,8 +61,8 @@ export default function SubscriptionLegalNotice({
   isRestoreDisabled,
   isRestoring,
 }: SubscriptionLegalNoticeProps) {
-  const lines =
-    Platform.OS === 'android' ? SUBSCRIPTION_COPY.legal.android : SUBSCRIPTION_COPY.legal.ios;
+  const market = useSessionStore(selectMarket);
+  const lines = legalLines(market);
   return (
     <View style={styles.container}>
       <View style={styles.items}>
