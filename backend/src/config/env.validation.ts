@@ -209,6 +209,15 @@ export class EnvironmentVariables {
   AUTO_EXPAND_ENABLED?: string;
 
   /**
+   * 글로벌 가입(`global-api.md` 2.1)의 서버 스위치. `true`/`false`. **`true`를 명시했을 때만 열린다.**
+   * 닫혀 있으면 가입 때 English를 골라도(또는 영어 기기의 구 앱이어도) 서버가 `kr`로 판정한다 — 시장은 바꿀 수 없는데
+   * GLOBAL 카탈로그가 비어 있으면 그 계정은 온보딩 주제를 고를 수 없다(2026-10-15). 글로벌 출시 때 켠다.
+   */
+  @IsOptional()
+  @IsIn(['true', 'false', ''])
+  GLOBAL_SIGNUP_ENABLED?: string;
+
+  /**
    * 드립 시간대 그룹(`global-api.md` 2.4, KAN-191)의 서버 스위치. `true`/`false`.
    * **`true`를 명시했을 때만 켜진다.** 꺼져 있으면 전원이 기본 그룹(05:00 KST 편성 · 07:00 KST 알림)으로 종전과 같다.
    * 켜면 GLOBAL 시장 사용자를 시간대로 europe·americas 그룹에 나눠 각 그룹의 현지 05:00에 편성한다. KR은 그대로다.
