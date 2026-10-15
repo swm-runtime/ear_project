@@ -2,6 +2,8 @@ import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { EntityManager, Repository } from 'typeorm';
 
+import { UserMarket } from '@/modules/user/user.enum';
+
 import { SearchQueryLog } from '../entities/search-query-log.entity';
 import {
   SearchQueryDailyCount,
@@ -107,9 +109,12 @@ export class SearchQueryLogRepository {
    *
    * 일별 날짜는 **KST 달력일**이다(05시 서비스 날짜 경계를 적용하지 않는다 — 운영자가 "어제 검색"으로
    * 읽는 단위이고, 재생 한도·드립과 달리 정책 판정이 아니다).
+   *
+   * `market`이 있으면 **검색한 사용자의 시장**(`users.market`)이 그 값인 행만 센다 — `null`이면 전 시장.
    */
   async summarize(
     since: Date,
+    market: UserMarket | null,
     manager?: EntityManager,
   ): Promise<SearchQueryLogSummary> {
     const query = this.scoped(manager).manager;
@@ -130,7 +135,10 @@ export class SearchQueryLogRepository {
                    and i.added_at < l.updated_at + interval '${CLICK_WINDOW}'
               )) as clicked
         from search_query_logs l
-       where l.created_at >= $1`;
+       where l.created_at >= $1
+         -- 시장은 검색한 사용자의 것(admin-api.md 4.21) — 행에 시장을 따로 적지 않는다(사용자 시장은 바뀌지 않는다)
+         and ($2::varchar is null
+              or exists (select 1 from users u where u.id = l.user_id and u.market = $2))`;
 
     const [totals] = await query.query<TotalsRow[]>(
       `with scoped as (${scoped})
@@ -141,7 +149,7 @@ export class SearchQueryLogRepository {
               count(*) filter (where char_length(query) < 3)::int as short_queries,
               count(*) filter (where topic_filter_count > 0)::int as filtered_searches
          from scoped`,
-      [since],
+      [since, market],
     );
 
     const daily = await query.query<DailyRow[]>(
@@ -153,7 +161,7 @@ export class SearchQueryLogRepository {
          from scoped
         group by 1
         order by 1`,
-      [since],
+      [since, market],
     );
 
     const rank = `select query,
@@ -171,16 +179,16 @@ export class SearchQueryLogRepository {
        ${rank}
        having count(*) filter (where result_count = 0) > 0
         order by misses desc, searches desc, last_searched_at desc
-        limit $2`,
-      [since, RANK_LIMIT],
+        limit $3`,
+      [since, market, RANK_LIMIT],
     );
 
     const top = await query.query<RankRow[]>(
       `with scoped as (${scoped})
        ${rank}
         order by searches desc, last_searched_at desc
-        limit $2`,
-      [since, RANK_LIMIT],
+        limit $3`,
+      [since, market, RANK_LIMIT],
     );
 
     const toRank = (row: RankRow): SearchQueryRank => ({

@@ -241,11 +241,12 @@ describe('SearchQueryLogService', () => {
       });
 
       // when
-      await service.summarize(14, NOW);
+      await service.summarize(14, NOW, null);
 
       // then
       expect(repository.summarize).toHaveBeenCalledWith(
         new Date('2026-09-17T09:00:10.000Z'),
+        null,
       );
     });
 
@@ -267,11 +268,12 @@ describe('SearchQueryLogService', () => {
       });
 
       // when
-      await service.summarize(365, NOW);
+      await service.summarize(365, NOW, null);
 
       // then
       expect(repository.summarize).toHaveBeenCalledWith(
         new Date('2026-07-03T09:00:10.000Z'),
+        null,
       );
     });
   });
