@@ -1,0 +1,6 @@
+/* 영어 헤더에는 내비게이션이 없다. 한국어 헤더는 넓은 화면에서 내비(margin-left: auto)가 다운로드 버튼을 오른쪽으로 밀고
+   버튼 자신의 여백은 8px로 줄어드는데(Header.module.css), 내비가 없으면 버튼이 로고 옆에 붙는다 — 이 칸이 대신 민다. */
+.end {
+  display: flex;
+  margin-left: auto;
+}
