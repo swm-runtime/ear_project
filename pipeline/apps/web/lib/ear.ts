@@ -155,8 +155,12 @@ export const patchEarTopic = (id: string, fields: Partial<{ name: string; parent
   earFetch<EarTopic>(`/admin/topics/${id}`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify(fields) });
 export const deleteEarTopic = (id: string) => earFetch<void>(`/admin/topics/${id}`, { method: "DELETE" });
 
-export const listEarContents = (status: string, offset: number, limit = 20) =>
-  earFetch<{ items: EarContent[]; total: number }>(`/admin/contents?offset=${offset}&limit=${limit}${status ? `&status=${status}` : ""}`);
+/** 이 콘솔 인스턴스의 시장(kr·global) — 서버 레이아웃이 <html data-market> 에 적는다. 제품 서버 하나를 두 시장이 같이 쓰므로 목록은 시장으로 가른다(admin-api 4.5) */
+const consoleMarket = (): string | undefined => (typeof document !== "undefined" ? document.documentElement.dataset.market : undefined);
+export const listEarContents = (status: string, offset: number, limit = 20) => {
+  const market = consoleMarket();
+  return earFetch<{ items: EarContent[]; total: number }>(`/admin/contents?offset=${offset}&limit=${limit}${status ? `&status=${status}` : ""}${market ? `&market=${market}` : ""}`);
+};
 /** 단건 — admin-api 에 GET /admin/contents/:id 가 없어(3장) 목록을 넘기며 찾는다. 콘텐츠가 수백 건을 넘기 전까지는 충분하다 */
 export async function findEarContent(id: string): Promise<EarContent | null> {
   for (let off = 0; ; off += 50) {

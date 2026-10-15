@@ -78,12 +78,14 @@ export function Sidebar({ pending, locale = "ko" }: { pending?: { backlog?: numb
   const isLogsConsole = path.startsWith("/backend-logs");
   const isDripConsole = path.startsWith("/drip-check");
   const activeConsole = isLogsConsole ? CONSOLES[1] : isDripConsole ? CONSOLES[2] : CONSOLES[0];
+  // 백엔드 로그·추천 검증은 두 시장이 같이 쓰는 제품 서버 화면이라 한국판 콘솔에서만 연다 (2026-10-15 박수헌)
+  const consoles = locale === "en" ? CONSOLES.slice(0, 1) : CONSOLES;
   const nav: (NavItem | typeof DIVIDER)[] = isLogsConsole ? LOG_NAV : isDripConsole ? DRIP_NAV : locale === "en" ? NAV_EN : NAV;
   return (
-    <aside className="fixed inset-y-0 left-0 z-20 flex w-[188px] flex-col bg-side text-side-ink">
+    // 글로벌판은 사이드바 색으로만 구분한다(2026-10-15 박수헌 — 좌상단 GLOBAL 표시는 뺐다). 색은 globals.css 의 [data-locale="en"] 토큰
+    <aside data-locale={locale} className="fixed inset-y-0 left-0 z-20 flex w-[188px] flex-col bg-side text-side-ink">
       <div className="relative flex h-14 items-center gap-2 px-5">
         <span className="grid h-7 w-7 place-items-center rounded bg-brand text-[13px] font-bold text-white">ear</span>
-        {locale === "en" && <span className="rounded bg-amber-400 px-1.5 py-0.5 text-[10px] font-bold tracking-wide text-black" title="글로벌판 인스턴스 — 한국판과 다른 DB·버킷">GLOBAL</span>}
         <button
           type="button"
           onClick={() => setConsoleOpen((v) => !v)}
@@ -94,7 +96,7 @@ export function Sidebar({ pending, locale = "ko" }: { pending?: { backlog?: numb
         </button>
         {consoleOpen && (
           <div className="absolute left-4 right-4 top-12 z-30 overflow-hidden rounded border border-side-soft bg-side shadow-lg">
-            {CONSOLES.map((c) => (
+            {consoles.map((c) => (
               <Link
                 key={c.href}
                 href={c.href}
