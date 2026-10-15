@@ -291,7 +291,7 @@ export const WRITE_SCHEMA_EN = {
 // ── 수정 재생성 ────────────────────────────────────────────────────────────────
 
 export function buildRevisionPromptInlinePartsEn(i: RevisionInlineInput): PromptParts {
-  const failures = i.qaFailures.map((f, n) => `${n + 1}. [${f.location}] ${f.item}: ${f.reason}`).join("\n");
+  const failures = i.qaFailures.map((f, n) => `${n + 1}. [${f.location}] ${itemLabel(f.item)}: ${f.reason}`).join("\n");
   const explainer = explainerEn();
   const system = `You are the script writer for "ear", an audio service. QA (fact check) or the format check (L0) failed this script. Make the **smallest fix** that resolves every finding.
 
@@ -342,5 +342,70 @@ export const REVISION_INLINE_SCHEMA_EN = {
     pronunciations_added: { type: "array", items: { type: "object", additionalProperties: false, required: ["term", "reading"], properties: { term: { type: "string" }, reading: { type: "string", description: "English respelling, or empty if unknown" } } } },
     claims_note: { type: "string", description: "Text for a 'QA changes' note at the end of claims.md: which claims were narrowed or removed, and how" },
     notes: { type: "string" },
+  },
+} as const;
+
+// ── QA ────────────────────────────────────────────────────────────────
+
+export interface QaInlineInputEn { episodeId: string; attempt: number; qaPromptMd: string; specQaMd: string; scriptMd: string; claimsMd: string; sourcesMd: string; priorFailures?: { location: string; item: string; reason: string }[]; fixes?: { location: string; before: string; after: string }[]; humanRevision?: boolean }
+
+/** 실패 항목 표기 — QA 는 번호("8"), L0 는 이름("L0 format contract")을 낸다 */
+const itemLabel = (item: string) => (/^\d+$/.test(item.trim()) ? `check ${item.trim()}` : item);
+
+/** 글로벌판 QA (spec/05 global · 명세 6.5). 독립 실행 — 입력 3종 + QA 자산 + spec/05 만. 생성 맥락을 넣지 않는다 */
+export function buildQaPromptInlinePartsEn(i: QaInlineInputEn): PromptParts {
+  const prior = i.attempt > 1 && (i.priorFailures?.length || i.fixes?.length)
+    ? `
+## Previous round (attempt ${i.attempt - 1}) — stability rules
+These are the previous round's failures and the writer's changes. The writer's reasoning is not included; only what changed.
+### Previous failures
+${(i.priorFailures ?? []).map((f, n) => `${n + 1}. [${f.location}] ${itemLabel(f.item)}: ${f.reason}`).join("\n") || "- (none)"}
+### Writer's changes
+${(i.fixes ?? []).map((f, n) => `${n + 1}. ${f.location}\n   before: ${f.before}\n   after: ${f.after}`).join("\n") || "- (none recorded)"}
+
+Rules:
+1. First judge whether each previous failure is resolved: the new text is within the excerpts, and the change did not break a reference in another turn.
+2. A sentence that did not change passed last round. Fail it now only for a clear factual error (a number, date, or attribution that differs from the excerpt; a name, quote, or conclusion not in the excerpts). Record borderline differences in hedging or wording as notes, not failures.
+3. New or changed sentences get the same strictness as round 1.`
+    : "";
+  const human = i.humanRevision ? "\n(A person edited this script and asked for QA again. Human edits can add errors too; check everything with round-1 strictness.)" : "";
+  const system = `You are the QA checker for "ear", an audio service. You verify that the script says only what the sources say, and no more. You know nothing about how the script was made; that is the rule.
+
+There are no tools. Everything is below. Do not read files or open URLs. The excerpts are the final reference.
+
+## 1. QA procedure and checks (asset — follow its checks and rules exactly)
+${fence(i.qaPromptMd)}
+
+## 2. QA spec — spec/05
+${fence(i.specQaMd)}
+
+## 3. Report — output only the requested JSON. In report_md, write in markdown: "### Checks" (a table with 11 rows: #, check, verdict pass/fail/hold, one-line basis) · "### Failures" (a table: #, location as "Y7 · first words", check, reason; "none" if none) · "### Notes — borderline cases not failed" · "### Verdict". The failures array and the failures table hold the same items. No text before the JSON.`;
+  const user = `## Under check — ${i.episodeId} attempt ${i.attempt}${human}
+${prior}
+
+### Script — script.md
+${fence(i.scriptMd)}
+
+### Claims — claims.md (a map for checking, not the final reference)
+${fence(i.claimsMd)}
+
+### Excerpts — sources.md (the final reference)
+${fence(i.sourcesMd)}
+
+Check by the procedure above and output only the report JSON.`;
+  return { system, user };
+}
+
+export const QA_INLINE_SCHEMA_EN = {
+  type: "object",
+  additionalProperties: false,
+  required: ["verdict", "failures", "holds", "resolved_prior", "report_md", "summary"],
+  properties: {
+    verdict: { type: "string", enum: ["qa_passed", "failed"] },
+    failures: { type: "array", description: "Empty if and only if verdict is qa_passed", items: { type: "object", additionalProperties: false, required: ["location", "item", "reason"], properties: { location: { type: "string", description: "\"Y7 · first words\"" }, item: { type: "string", description: "Check number from spec/05, 1 to 11 only" }, reason: { type: "string", description: "Which expression differs from which excerpt, concretely" } } } },
+    holds: { type: "array", items: { type: "string" }, description: "Checks held by rule (7)" },
+    resolved_prior: { type: "array", items: { type: "object", additionalProperties: false, required: ["location", "resolved", "note"], properties: { location: { type: "string" }, resolved: { type: "boolean" }, note: { type: "string" } } }, description: "Whether each previous failure is resolved (round 2+). Empty in round 1" },
+    report_md: { type: "string", description: "This round's report body in markdown" },
+    summary: { type: "string" },
   },
 } as const;

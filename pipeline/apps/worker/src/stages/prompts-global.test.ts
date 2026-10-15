@@ -116,3 +116,19 @@ test("글로벌 규칙 자산 — 버전 라벨 full-en-v0.1, 모델에 가는 �
   assert.match(spec, /Hi, and welcome to ear podcast\. \{topic_line\} Today we're talking about \{episode_line\}\.\n/);
   assert.deepEqual(JSON.parse(await fs.readFile(path.join(root, "skills/tts/pronunciation.json"), "utf8")), {});
 });
+
+test("QA(en) — 영어 지시문·스키마, 자산 본문 한글 없음·버전 qa-en-v0.1, 이전 회차 실패는 check 번호로", async () => {
+  const { versionOf } = await import("../assets.js");
+  const root = path.resolve(import.meta.dirname, "../../../../../docs/ai/global");
+  const qa = await fs.readFile(path.join(root, "skills/qa/prompt.md"), "utf8");
+  assert.equal(versionOf("skills/qa/prompt.md", qa), "qa-en-v0.1");
+  const body = P.promptBody(qa);
+  assert.doesNotMatch(body, HANGUL);
+  assert.doesNotMatch(body, /Change history/); // --- 아래 이력은 모델에 가지 않는다
+  const spec = await fs.readFile(path.join(root, "spec/05-qa.md"), "utf8");
+  const p = P.buildQaPromptInlinePartsEn({ episodeId: "G1", attempt: 2, qaPromptMd: body, specQaMd: spec, scriptMd: "s", claimsMd: "c", sourcesMd: "김장은 …", priorFailures: [{ location: "Y4 · So the rice", item: "8", reason: "assumes E6" }], fixes: [{ location: "Y4", before: "a", after: "b" }] });
+  assert.doesNotMatch(p.system, HANGUL);
+  assert.match(p.system, /"### Checks" \(a table with 11 rows/);
+  assert.match(p.user, /1\. \[Y4 · So the rice\] check 8: assumes E6/);
+  assert.doesNotMatch(JSON.stringify(P.QA_INLINE_SCHEMA_EN), HANGUL);
+});

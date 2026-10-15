@@ -66,3 +66,4 @@
   - 검증: 워커 테스트 162 통과(자산 본문 한글 없음·규칙 49개·버전 라벨·템플릿 문서), 한국판 대본 45편 바이트 동일.
   - 머지 뒤 할 일: 글로벌 DB 에 템플릿(`.work/global-infra/seed-templates.mts`)·자산(`assets-global.mts import` — 대상이 글로벌 DB 인지 주제로 확인하고 멈춘다) 시딩.
   - 남은 것: QA·비평 영어 프롬프트와 자산(qa/prompt.md·rubric) · 썸네일·구간 요약 영어 자산 · 영어 문체 L0.
+- 2026-10-15 영어 QA(브랜치 `feat(ai)/global-qa`): `buildQaPromptInlinePartsEn`·`QA_INLINE_SCHEMA_EN`(독립 실행 — 입력 3종 + QA 자산 + spec/05), QA 자산 `docs/ai/global/skills/qa/prompt.md` qa-en-v0.1(항목 1~11 — 국문 발췌 재서술 의미 변형, tpl-en-v1 골격 전문, 항목 8 없는 전제, 항목 11 실존 인물·고정관념). 에이전트 1개 검토 10건 반영(클로징 인사 골격 전문 · 항목 8 범위 "뒤 해설 전부" · 항목 11 은 성격·능력 귀속과 취향 순위만 · 요지 줄·QA 수정 노트는 근거 아님 · 만·억 단위 · 반올림 · verdict 규칙). spec/05(global) 항목 7(길이)은 코드가 보고 QA 는 보류, 항목 10 역할 문구 정정, 상대 시점 목록을 guidelines 와 맞춤. 워커 테스트 163 통과, 한국판 대조 동일. 머지 뒤 글로벌 DB 에 QA 자산 시딩.
