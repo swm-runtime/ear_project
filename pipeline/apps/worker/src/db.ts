@@ -180,6 +180,11 @@ export async function insertBacklog(c: { id: string; mid_topic: string; title: s
   );
 }
 /** 대분류의 생성 대상 중분류 (topics.ai_generation) — 군집화 v2 는 대분류 풀에서 축을 찾는다 */
+/** 주제(중분류) 전부 — 글로벌판 판정의 보조 주제 후보 목록 (2026-10-15) */
+export async function allTopicMids(): Promise<string[]> {
+  const r = await pool.query("select mid from public.topics order by mid");
+  return r.rows.map((x) => String(x.mid));
+}
 export async function midsOfMajor(major: string): Promise<string[]> {
   const r = await pool.query("select mid from public.topics where major = $1 and ai_generation order by mid", [major]);
   return r.rows.map((x) => x.mid as string);

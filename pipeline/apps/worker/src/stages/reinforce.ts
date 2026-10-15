@@ -2,7 +2,7 @@ import fs from "node:fs/promises";
 import { cfg, executedBy } from "../config.js";
 import { blockedTierHosts, domainTierByHost, existingBacklogTitles, findDomainForUrl, getBacklogFull, insertCandidateDomain, insertRun, majorOfMidTopic, midsOfMajor, poolDomainsForTopics, recentSourcesForTopics, setBacklogStatus, setJobProgress, upsertSource, type Job } from "../db.js";
 import type { Executor } from "../executors/index.js";
-import { assetPaths, buildClusterPromptV2, buildReinforceSearchPrompt, CLUSTER_SCHEMA_V2, REINFORCE_SEARCH_SCHEMA, SOURCE_ROLES, todayKst } from "@ear/pipeline";
+import { assetPaths, buildClusterPromptV2, buildReinforceSearchPrompt, buildReinforceSearchPromptEn, buildTopicJudgePromptEn, CLUSTER_SCHEMA_V2, CLUSTER_SCHEMA_V2_EN, judgeToInternal, pipelineLocale, REINFORCE_SEARCH_SCHEMA, REINFORCE_SEARCH_SCHEMA_EN, SOURCE_ROLES, todayKst } from "@ear/pipeline";
 import { hostOf, log } from "../util.js";
 import { prepareAssets, workerRev } from "../assets.js";
 import { putFile, s3Key } from "../storage.js";
@@ -35,9 +35,10 @@ export async function runReinforce(job: Job, ex: Executor) {
   // ── 1. 검색
   await setJobProgress(job.id, { phase: `보강 1/2 — 검색 (${cand.id}, ${gaps.length ? `빈 역할 ${gaps.join("·")}` : "발행처 다양화"})`, detail: `풀 도메인 ${poolDomains.length}곳`, toolCounts: {}, turns: 0, elapsedMs: 0 }).catch(() => {});
   const maxSearches = Number(job.payload.max_searches ?? 8);
-  const searchPrompt = buildReinforceSearchPrompt({ candidate: { id: cand.id, title: cand.title, mid_topic: cand.mid_topic, axis: cand.axis ?? null, axis_type: cand.axis_type ?? null, gaps, sources: cand.sources.map((s) => ({ publisher: s.publisher, title: s.title })) }, poolHosts: poolDomains.map((d) => d.domain).slice(0, 80), maxSearches });
+  const en = pipelineLocale() === "en"; // 글로벌판: 영어 검색·재판정 프롬프트, 판정 결과는 내부 값으로 바꿔 저장 (global-prompts.ts)
+  const searchPrompt = (en ? buildReinforceSearchPromptEn : buildReinforceSearchPrompt)({ candidate: { id: cand.id, title: cand.title, mid_topic: cand.mid_topic, axis: cand.axis ?? null, axis_type: cand.axis_type ?? null, gaps, sources: cand.sources.map((s) => ({ publisher: s.publisher, title: s.title })) }, poolHosts: poolDomains.map((d) => d.domain).slice(0, 80), maxSearches });
   const r1 = await ex.run<SearchOut>({
-    prompt: searchPrompt, schema: REINFORCE_SEARCH_SCHEMA, allowedTools: ["WebSearch"], cwd: cfg.workRoot, timeoutMs: 20 * 60_000, model: cfg.clusterModel, effort: "medium",
+    prompt: searchPrompt, schema: en ? REINFORCE_SEARCH_SCHEMA_EN : REINFORCE_SEARCH_SCHEMA, allowedTools: ["WebSearch"], cwd: cfg.workRoot, timeoutMs: 20 * 60_000, model: cfg.clusterModel, effort: "medium",
     onProgress: (pr) => setJobProgress(job.id, { ...pr, phase: `보강 1/2 — 검색 (${cand.id})`, detail: pr.toolCounts?.WebSearch ? `검색 ${pr.toolCounts.WebSearch}회` : pr.detail }).catch(() => {}),
   });
   const found = r1.output.sources ?? [];
@@ -62,12 +63,13 @@ export async function runReinforce(job: Job, ex: Executor) {
   await setJobProgress(job.id, { phase: `보강 2/2 — 재판정 (${cand.id}, 새 소스 ${added.length}건)`, detail: "", toolCounts: {}, turns: 0, elapsedMs: 0 }).catch(() => {});
   const { assetRoot, bundle } = await prepareAssets(null);
   const specBacklog = await fs.readFile(assetPaths(assetRoot, cfg.workRoot).specBacklog, "utf8");
-  const excerpt = ["## 3. 후보의 구성", "## 6. 게이트 1"].map((h) => { const a = specBacklog.indexOf(h); if (a < 0) return ""; const b = specBacklog.indexOf("\n## ", a + 3); return specBacklog.slice(a, b < 0 ? undefined : b); }).join("\n");
+  const excerpt = (en ? ["## 2. Topics", "## 3. Candidate structure", "## 6. Gate 1"] : ["## 3. 후보의 구성", "## 6. 게이트 1"]).map((h) => { const a = specBacklog.indexOf(h); if (a < 0) return ""; const b = specBacklog.indexOf("\n## ", a + 3); return specBacklog.slice(a, b < 0 ? undefined : b); }).join("\n");
   // 소스 목록 = 현재 후보 소스 + 새 검색 소스 (+ 같은 중분류의 최근 소스 소량 — 검색이 빈 손이어도 풀에 이미 있던 소스로 채울 수 있게)
   const recent = await recentSourcesForTopics([cand.mid_topic], 60, 60);
-  const meta: { n: number; url: string; title: string; summary: string | null; publisher: string; domain: string; published: string | null }[] = [];
+  const meta: { n: number; url: string; title: string; summary: string | null; publisher: string; domain: string; published: string | null; tier?: string }[] = [];
   const seen = new Set<string>();
-  const push = (s: { url: string; title: string; summary: string | null; publisher: string; domain: string; published: string | null }) => { if (seen.has(s.url)) return; seen.add(s.url); meta.push({ n: meta.length + 1, ...s }); };
+  const tiersPre = en ? await domainTierByHost() : null; // 글로벌판 판정자에게 도메인 등급을 보인다 — 근거 앵커는 1군만(게이트 1)
+  const push = (s: { url: string; title: string; summary: string | null; publisher: string; domain: string; published: string | null }) => { if (seen.has(s.url)) return; seen.add(s.url); meta.push({ n: meta.length + 1, ...s, ...(tiersPre ? { tier: tiersPre.get(hostOf(s.url)) ?? tiersPre.get(s.domain) ?? "candidate" } : {}) }); };
   const blockedHosts = await blockedTierHosts();
   const isBlockedTier = (url: string) => { try { const u = new URL(url); const h = u.hostname.replace(/^www\./, ""); const seg = u.pathname.split("/").filter(Boolean)[0]; return blockedHosts.has(h) || (!!seg && blockedHosts.has(`${h}/${seg}`)); } catch { return false; } };
   const droppedBlocked = cand.sources.filter((s) => isBlockedTier(s.url)).map((s) => hostOf(s.url));
@@ -75,10 +77,11 @@ export async function runReinforce(job: Job, ex: Executor) {
   const currentM = meta.map((m) => `M${m.n}`);
   for (const s of found) if (added.includes(s.url)) push({ url: s.url, title: s.title, summary: s.summary, publisher: s.publisher, domain: hostOf(s.url), published: s.published });
   for (const s of recent) push({ url: s.url, title: s.title, summary: s.summary, publisher: s.publisher, domain: s.domain, published: s.published });
-  const judgePrompt = buildClusterPromptV2({ midTopics: mids, majorTopic: major, nextIdNumber: Number(cand.id.replace(/\D/g, "")) || 0, sources: meta, existingTitles: (await existingBacklogTitles()).filter((t) => !t.startsWith(`${cand.id} `)), specBacklogExcerpt: excerpt,
+  const judgePrompt = (en ? buildTopicJudgePromptEn : buildClusterPromptV2)({ midTopics: mids, majorTopic: major, nextIdNumber: Number(cand.id.replace(/\D/g, "")) || 0, sources: meta, existingTitles: (await existingBacklogTitles()).filter((t) => !t.startsWith(`${cand.id} `)), specBacklogExcerpt: excerpt,
     reinforce: { id: cand.id, title: cand.title, axis: cand.axis ?? "", axis_type: cand.axis_type ?? "", gaps, currentM }, reinforceMidTopic: cand.mid_topic });
-  const r2 = await ex.run<JudgeOut>({ prompt: judgePrompt, schema: CLUSTER_SCHEMA_V2, tools: [], allowedTools: [], cwd: cfg.workRoot, timeoutMs: 20 * 60_000, model: cfg.clusterModel, maxThinkingTokens: cfg.thinkingDesign,
+  const r2raw = await ex.run<JudgeOut>({ prompt: judgePrompt, schema: en ? CLUSTER_SCHEMA_V2_EN : CLUSTER_SCHEMA_V2, tools: [], allowedTools: [], cwd: cfg.workRoot, timeoutMs: 20 * 60_000, model: cfg.clusterModel, maxThinkingTokens: cfg.thinkingDesign,
     onProgress: (pr) => setJobProgress(job.id, { ...pr, phase: `보강 2/2 — 재판정 (${cand.id})`, detail: pr.turns > 0 ? "역할표 재구성 중" : pr.detail }).catch(() => {}) });
+  const r2 = en ? { ...r2raw, output: judgeToInternal(r2raw.output) } : r2raw;
   const c = r2.output.candidates?.[0];
   if (!c) throw new Error("재판정 결과에 후보가 없다");
   const byM = new Map(meta.map((s) => [`M${s.n}`, s]));

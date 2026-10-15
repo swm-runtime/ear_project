@@ -151,3 +151,54 @@ test("비평(en) — 루브릭 critic-en 본문 한글 없음, 하위 항목 12�
   assert.deepEqual([...P.CRITIC_INLINE_SCHEMA_EN.required].sort(), [...P.CRITIC_INLINE_SCHEMA.required].sort());
   assert.doesNotMatch(JSON.stringify(P.CRITIC_INLINE_SCHEMA_EN), HANGUL);
 });
+
+test("주제 기획·보강(en) — 검색·판정 프롬프트와 스키마에 한글이 없고, 판정 결과는 내부 값(성립·근거 앵커·대립)으로 바뀐다", () => {
+  en();
+  const s1 = P.buildTopicSeedSearchPromptEn({ id: "C1", topic: "Why kimjang is shared work", hint: null, midTopic: "K-Food", poolHosts: ["korea.net"], maxSearches: 8 });
+  const s2 = P.buildReinforceSearchPromptEn({ candidate: { id: "C1", title: "Kimjang", mid_topic: "K-Food", axis: "Kimjang looks like cooking, yet it is a labor exchange", axis_type: "대립", gaps: ["반론·한계"], sources: [{ publisher: "korea.net", title: "Kimjang" }] }, poolHosts: ["korea.net"], maxSearches: 8 });
+  assert.match(s2, /Axis \(contrast\)/);
+  assert.match(s2, /counterpoint — /);
+  const seedJudge = P.buildTopicJudgePromptEn({ midTopics: ["K-Food"], nextIdNumber: 1, sources: [{ n: 1, url: "u", title: "Kimjang", summary: "s", publisher: "korea.net", domain: "korea.net", published: null }], existingTitles: [], specBacklogExcerpt: "## 3. Candidate structure", seed: { id: "C1", topic: "Kimjang", hint: null, midTopic: "K-Food" } });
+  const reJudge = P.buildTopicJudgePromptEn({ midTopics: ["K-Food"], nextIdNumber: 1, sources: [], existingTitles: [], specBacklogExcerpt: "", reinforce: { id: "C1", title: "Kimjang", axis: "x", axis_type: "역설", gaps: ["사례"], currentM: [] }, reinforceMidTopic: "K-Food" });
+  for (const t of [s1, s2, seedJudge, reJudge]) assert.doesNotMatch(t, HANGUL);
+  assert.match(reJudge, /axis \(paradox\)/);
+  assert.match(reJudge, /Empty roles: case/);
+  assert.throws(() => P.buildTopicJudgePromptEn({ midTopics: ["K-Food"], nextIdNumber: 1, sources: [], existingTitles: [], specBacklogExcerpt: "" }), /seed/);
+  for (const sc of [P.REINFORCE_SEARCH_SCHEMA_EN, P.CLUSTER_SCHEMA_V2_EN]) assert.doesNotMatch(JSON.stringify(sc), HANGUL);
+  const out = P.judgeToInternal({ candidates: [{ axis_type: "contrast", verdict: "holds", gaps: ["counterpoint"], sources: [{ m: "M1", roles: ["anchor", "case"], why: "w" }], title: "T" }] });
+  assert.deepEqual(out.candidates?.[0], { axis_type: "대립", verdict: "성립", gaps: ["반론·한계"], sources: [{ m: "M1", roles: ["근거 앵커", "사례"], why: "w" }], title: "T" });
+  assert.equal(P.judgeToInternal({ candidates: [{ axis_type: "event", verdict: "needs reinforcement", gaps: [], sources: [] }] }).candidates?.[0].verdict, "보강 필요");
+});
+
+test("설계 프롬프트(en)는 백로그의 내부 값(역할·축 유형)을 영어로 보여 준다", () => {
+  en();
+  const c = { ...cand, axis_type: "대립", gaps: ["반론·한계"], sources: [{ ...cand.sources[0], roles: ["근거 앵커"] }] } as typeof cand;
+  const p = P.buildDesignPromptInlinePartsEn({ episodeId: "G1", candidate: c, promptVersion: "v", guidelines, specScript: "", goldFullEum: "", goldFullYuna: "", sources: [] });
+  assert.doesNotMatch(p.user, HANGUL);
+  assert.match(p.user, /\[contrast\] Kimjang looks like cooking/);
+  assert.match(p.user, /korea\.net: anchor/);
+  assert.match(p.user, /Empty roles: counterpoint/);
+});
+
+test("판정(en) — 도메인 등급 표시·앵커는 1군만, 보조 주제 후보, 사건형은 History & Society 만, 보강은 축 유지, 국문 개인 출판 제외", () => {
+  en();
+  const base = { midTopics: ["K-Food"], nextIdNumber: 1, existingTitles: [], specBacklogExcerpt: "" };
+  const src = [{ n: 1, url: "u1", title: "t", summary: null, publisher: "Korea.net", domain: "korea.net", published: null, tier: "allow_open" }, { n: 2, url: "u2", title: "t", summary: null, publisher: "Soompi", domain: "soompi.com", published: null, tier: "candidate" }];
+  const seed = P.buildTopicJudgePromptEn({ ...base, sources: src, seed: { id: "C1", topic: "Kimjang", hint: null, midTopic: "K-Food" }, subTopicOptions: ["Korean Culture", "Travel in Korea"] });
+  assert.match(seed, /\[M1\] Korea\.net · date unknown · tier 1/);
+  assert.match(seed, /\[M2\] Soompi · date unknown · domain not judged/);
+  assert.match(seed, /Give the anchor role only to sources marked tier 1/);
+  assert.match(seed, /sub_topic: one of "Korean Culture", "Travel in Korea" only when/);
+  assert.match(seed, /Do not use axis_type "event"/);
+  assert.doesNotMatch(seed, /History mode/);
+  const hist = P.buildTopicJudgePromptEn({ ...base, midTopics: ["Korean History & Society"], sources: src, seed: { id: "C2", topic: "The 1988 Olympics", hint: null, midTopic: "Korean History & Society" } });
+  assert.match(hist, /use axis_type "event" only for a past event in Korean History & Society/);
+  assert.match(hist, /sub_topic: null/);
+  const re = P.buildTopicJudgePromptEn({ ...base, sources: src, reinforce: { id: "C1", title: "Kimjang", axis: "x", axis_type: "대립", gaps: [], currentM: ["M1"] }, reinforceMidTopic: "K-Food" });
+  assert.match(re, /do not set a new axis\. Apply rules 2 to 6 below/);
+  const search = P.buildTopicSeedSearchPromptEn({ id: "C1", topic: "Kimjang", hint: null, midTopic: "K-Food", poolHosts: [], maxSearches: 8 });
+  assert.match(search, /Naver or Daum blogs and cafes, Tistory, Brunch/);
+  assert.match(search, /at least 1 case/);
+  assert.match(search, /official English name/);
+  assert.equal(P.judgeToInternal({ candidates: [{ axis_type: "contrast", verdict: "holds", gaps: [], sources: [], sub_topic: "Korean Culture" }] }).candidates?.[0].sub_topic, "Korean Culture");
+});
