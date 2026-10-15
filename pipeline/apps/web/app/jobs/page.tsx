@@ -4,6 +4,7 @@ import { AutoRefresh } from "@/components/auto-refresh";
 import { Badge, PageHeader, Panel, Table, Td } from "@/components/ui";
 import { fmtTime, fmtDuration, fmtTokens, fmtUsd, label, jobRoundLabel } from "@/lib/format";
 import { CancelButton } from "./cancel-button";
+import { jobBacklogId, jobRun, runKey, type RunInfo } from "@/lib/job-cost";
 
 const PAGE = 50;
 const TYPES = ["sweep", "cluster", "draft", "qa", "critic", "tts", "package"];
@@ -17,17 +18,17 @@ export default async function JobsPage({ searchParams }: { searchParams: Promise
   const sb = await supabaseServer();
 
   // 정렬은 마지막 활동 시각(0026 activity_at = 종료 > 시작 > 생성) — 생성 순이면 한꺼번에 승인돼 큐에 오래 있던 초안이 실행돼도 뒤 페이지에 묻힌다
-  let q = sb.from("jobs").select("id,type,status,attempt,requires_ai,payload,started_at,finished_at,heartbeat_at,created_at,claimed_by,error", { count: "exact" }).order("activity_at", { ascending: false }).range((page - 1) * PAGE, page * PAGE - 1);
+  let q = sb.from("jobs").select("id,type,status,attempt,requires_ai,payload,result,started_at,finished_at,heartbeat_at,created_at,claimed_by,error", { count: "exact" }).order("activity_at", { ascending: false }).range((page - 1) * PAGE, page * PAGE - 1);
   if (type && TYPES.includes(type)) q = q.eq("type", type);
   if (status && STATUSES.includes(status)) q = q.eq("status", status);
   const { data: jobs, count } = await q;
 
   // 이 페이지 job 들이 가리키는 backlog 의 runs 만 가져와 (backlog_id|phase|attempt) 로 맵핑
-  const backlogIds = Array.from(new Set((jobs ?? []).map((j) => j.payload?.backlog_id).filter(Boolean))) as string[];
-  const runMap = new Map<string, { cost_usd: number | null; tokens: any; model: string | null }>();
+  const backlogIds = Array.from(new Set((jobs ?? []).map((j) => jobBacklogId(j)).filter(Boolean))) as string[]; // 주제 기획은 후보 ID 가 결과에만 있다
+  const runMap = new Map<string, RunInfo>();
   if (backlogIds.length) {
     const { data: runs } = await sb.from("runs").select("backlog_id,phase,attempt,cost_usd,tokens,model,executed_at").in("backlog_id", backlogIds).order("executed_at");
-    for (const r of runs ?? []) runMap.set(`${r.backlog_id}|${r.phase}|${r.attempt}`, { cost_usd: r.cost_usd, tokens: r.tokens, model: r.model }); // 나중 실행이 앞을 덮어 최신치가 남는다
+    for (const r of runs ?? []) runMap.set(runKey(r.backlog_id, r.phase, r.attempt), { cost_usd: r.cost_usd, tokens: r.tokens, model: r.model }); // 나중 실행이 앞을 덮어 최신치가 남는다
   }
 
   const total = count ?? 0;
@@ -54,7 +55,7 @@ export default async function JobsPage({ searchParams }: { searchParams: Promise
       <Panel flush className="mb-3">
         <Table head={["상태", "작업", "대상", "소요", "모델", "토큰/글자", "비용", "시각", ""]} empty="해당 조건의 작업이 없습니다">
           {(jobs ?? []).map((j) => {
-            const run = runMap.get(`${j.payload?.backlog_id}|${j.type}|${j.attempt}`);
+            const run = jobRun(j, runMap) as (RunInfo & { tokens: any }) | undefined;
             const target = j.payload?.episode_id ?? j.payload?.backlog_id ?? j.payload?.mid_topic ?? "-";
             return (
               <tr key={j.id} className="align-top hover:bg-[#f7f9fb]">

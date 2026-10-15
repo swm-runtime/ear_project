@@ -219,6 +219,10 @@ export async function refreshDomainFetchBlock(urls: string[]) {
     [urls],
   );
 }
+/** 도메인째 접근 차단 표시 — robots.txt 가 사이트 루트("/")부터 막을 때(2026-10-15). 검색 제외 목록(searchExcludedHosts)에 들어간다. 계층(tier)은 건드리지 않는다 */
+export async function markDomainFetchBlocked(domainId: string) {
+  await pool.query("update public.domains set fetch_blocked_at = coalesce(fetch_blocked_at, now()) where id = $1", [domainId]);
+}
 /** 발행·제작된 편이 쓴 소스 URL — v2 는 후보당 1건까지만 재사용 */
 export async function usedSourceUrls(): Promise<Set<string>> {
   const r = await pool.query("select jsonb_array_elements(sources)->>'url' as url from public.backlog where status in ('drafted','qa_passed','packaged','published','review_required','claimed')");

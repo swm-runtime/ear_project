@@ -8,6 +8,7 @@ import { prepareAssets, workerRev } from "../assets.js";
 import { putFile, s3Key } from "../storage.js";
 import { robotsAllows } from "../sources/fetch.js";
 import { checkCandidateSources } from "./candidate-check.js";
+import { rememberRobotsBlocked } from "../sources/robots-memory.js";
 
 interface SearchOut { queries: string[]; sources: { url: string; title: string; publisher: string; published: string | null; summary: string; roles: string[]; why: string; in_pool: boolean }[]; notes: string }
 interface JudgeOut { candidates: { id: string; mid_topic: string; title: string; axis_type: string; axis: string; axis_note: string; verdict: "성립" | "보강 필요"; gaps: string[]; sources: { m: string; roles: string[]; why: string }[]; target_fit: string; landing: string; dedup_note: string }[] }
@@ -60,7 +61,11 @@ export async function runTopicSeed(job: Job, ex: Executor) {
       let d = await findDomainForUrl(s.url);
       if (d && (d.tier === "blocked" || d.tier === "hold" || d.fetch_blocked_at)) { dropped.push(`${d.domain} (${d.tier === "hold" ? "보류" : "차단"})`); continue; }
       // 접근 제한 사전 검사 — robots 가 막으면 설계 단계에서 어차피 못 읽는다
-      if (!(await robotsAllows(u).catch(() => true))) { dropped.push(`${hostOf(s.url)} (robots)`); await recordFetchStatus(s.url, "robots").catch(() => {}); continue; }
+      if (!(await robotsAllows(u).catch(() => true))) { // 막힌 사이트를 기억해 다음 검색에서 빼게 한다 (robots-memory.ts, 2026-10-15)
+        dropped.push(`${hostOf(s.url)} (robots)`);
+        await rememberRobotsBlocked(u, s, midTopic, `${TOPIC_SEED_MARK} 검색 발견 ${todayKst()} (${id})`, sweptAt).catch((e) => log(`  topic-seed ${id}: robots 차단 기록 실패 (${String(e?.message ?? e).slice(0, 80)})`));
+        continue;
+      }
       if (!d) {
         const host = u.hostname.replace(/^www\./, "");
         if (await insertCandidateDomain({ domain: host, publisher: s.publisher || host, topic_coverage: [midTopic], note: `${TOPIC_SEED_MARK} 검색 발견 ${todayKst()} (${id} "${topic.slice(0, 40)}"): ${s.url} — 피드 미확인, 소스는 이 모드에서 바로 적재(B-② 정책). 판정 대기` })) newDomains.push(host);
@@ -109,7 +114,9 @@ export async function runTopicSeed(job: Job, ex: Executor) {
     });
     const artifactKey = `sweeps/topic-seed/${todayKst()}-${id}-${job.id.slice(0, 8)}.json`;
     await putFile(artifactKey, JSON.stringify({ job_id: job.id, backlog_id: id, topic, hint, mid_topic: midTopic, search: r1.output, added: added.map((s) => s.url), dropped, new_domains: newDomains, judge: r2.output, result: summary }, null, 1)).catch((e) => log(`  topic-seed ${id}: 산출물 저장 실패 ${e?.message ?? e}`));
-    const cost = (r1.listCostUsd ?? 0) + (r2.listCostUsd ?? 0);
+    // 배제 주제 판정(콘솔이 작업 전에 부른 OpenAI 호출) 비용도 이 기획의 비용에 더한다 — 작업이 아니라 따로 남을 자리가 없다 (2026-10-15)
+    const screenCost = Number((job.payload.screen as { cost_usd?: number } | undefined)?.cost_usd ?? 0) || 0;
+    const cost = (r1.listCostUsd ?? 0) + (r2.listCostUsd ?? 0) + screenCost;
     await insertRun({ backlog_id: id, phase: "sweep", result: `모드 B-② 기획 검색 · ${id} · ${summary}${newDomains.length ? ` · 새 도메인 후보: ${newDomains.join(", ").slice(0, 200)}` : ""}${dropped.length ? ` · 제외: ${dropped.join(", ").slice(0, 200)}` : ""}`,
       prompt_version: `topic-seed-v1 (검색 ${maxSearches}회 상한 · 판정 cluster-v2 seed, spec ${bundle.specDigest})`, artifacts: [s3Key(artifactKey)], executed_by: executedBy, model: r2.model ?? r1.model, cost_usd: cost, worker_rev: workerRev() });
     log(`  topic-seed ${id}: ${summary} ($${cost.toFixed(2)})`);
