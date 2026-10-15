@@ -516,6 +516,8 @@ RootStack
 | 결제·영수증 검증·탈퇴 자동 재시도 금지 | ApiClient — 요청 옵션으로 명시 제외 |
 | `Idempotency-Key` 부착 | api 모듈이 요청 정의 시 선언, 발급·저장은 ApiClient |
 | 네트워크 없음 판정 | NetworkState store. 단 **OS 연결 상태만 믿지 않고 실제 응답으로 최종 판정**(캡티브 포털) |
+| 영어 표시의 에러 문구 — 서버 `message`(한국어 폴백) 대신 `error_code` 영어 표 | ApiClient `toApiError`(`shared/api/error-messages.ts` — 2026-10-15 KAN-194) |
+| `Accept-Language`·`X-Timezone` 요청 헤더(로그·통계용 — 판정은 서버 `users.market`) | ApiClient 요청 인터셉터(`shared/i18n/locale.ts` 의 기기 로캘·시간대, `global-api.md` 2.2) |
 | 화면별 표현(전체 화면/인라인/토스트/무음) | 화면·훅 — 아래 8.3 표에 따라 shared/ui 공통 컴포넌트 사용 |
 
 ### 8.3 표현 규칙 → 공통 컴포넌트
