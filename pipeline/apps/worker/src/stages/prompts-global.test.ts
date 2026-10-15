@@ -132,3 +132,22 @@ test("QA(en) — 영어 지시문·스키마, 자산 본문 한글 없음·버�
   assert.match(p.user, /1\. \[Y4 · So the rice\] check 8: assumes E6/);
   assert.doesNotMatch(JSON.stringify(P.QA_INLINE_SCHEMA_EN), HANGUL);
 });
+
+test("비평(en) — 루브릭 critic-en-v0.1 본문 한글 없음, 하위 항목 12개·배점 합 100, 플래그 코드는 콘솔 형식(문자+숫자), 스키마 키는 한국판과 같다", async () => {
+  en();
+  const { versionOf } = await import("../assets.js");
+  const root = path.resolve(import.meta.dirname, "../../../../../docs/ai/global");
+  const rb = await fs.readFile(path.join(root, "skills/critic/rubric-v2.md"), "utf8");
+  assert.equal(versionOf("skills/critic/rubric-v2.md", rb), "critic-en-v0.1");
+  const body = P.promptBody(rb, { dropSections: [/^## 0\./] });
+  assert.doesNotMatch(body, HANGUL);
+  assert.doesNotMatch(body, /Change history/);
+  const items = [...body.matchAll(/^\*\*3\.(\d+) [^(]+\((\d+)\)\*\*/gm)];
+  assert.equal(items.length, 12);
+  assert.equal(items.reduce((a, m) => a + Number(m[2]), 0), 100);
+  for (const m of body.matchAll(/^\| ([A-Z]\d+) \|/gm)) assert.match(m[1], /^[A-G]\d/);
+  const p = P.buildCriticPromptInlinePartsEn({ episodeId: "G1", title: "t", midTopic: "K-Food", rubricV2Md: body, guidelines: "g", scriptMd: "s" });
+  assert.doesNotMatch(p.system + p.user, HANGUL);
+  assert.deepEqual([...P.CRITIC_INLINE_SCHEMA_EN.required].sort(), [...P.CRITIC_INLINE_SCHEMA.required].sort());
+  assert.doesNotMatch(JSON.stringify(P.CRITIC_INLINE_SCHEMA_EN), HANGUL);
+});

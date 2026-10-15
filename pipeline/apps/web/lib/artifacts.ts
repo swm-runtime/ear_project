@@ -76,6 +76,8 @@ export function parseScript(md: string, speakers: readonly string[]): Turn[] {
 }
 
 export interface CriticFlag { n: string; where: string; item: string; strength?: string; note: string }
+/** 강도 표기 — 영어 리포트(violation·suspect)를 화면의 한국어 표기(위반·의심)로. 한국어는 그대로 */
+const severityKo = (s: string) => (/^violation$/i.test(s.trim()) ? "위반" : /^suspect$/i.test(s.trim()) ? "의심" : s);
 
 /**
  * 비평 리포트의 플래그 표·⭐ 표를 파싱한다.
@@ -98,7 +100,7 @@ export function parseCriticReport(md: string): { flags: CriticFlag[]; stars: Cri
 
   for (const line of md.split("\n")) {
     if (line.startsWith("## ")) {
-      section = /플래그|문제 지점/.test(line) ? "flags" : /잘된 지점|⭐/.test(line) ? "stars" : null;
+      section = /플래그|문제 지점|Flags/.test(line) ? "flags" : /잘된 지점|⭐|Strengths/.test(line) ? "stars" : null; // 영어 머리: 글로벌판 critic-en 리포트(KAN-201)
       cols = [];
       continue;
     }
@@ -106,17 +108,17 @@ export function parseCriticReport(md: string): { flags: CriticFlag[]; stars: Cri
     const row = cells(line);
     if (row.length < 3) continue;
     if (/^-+$/.test(row[0].replace(/[-: ]/g, "-"))) continue;      // 구분선
-    if (row[0] === "#" || row.some((c) => c === "판정(사람)")) { cols = row; continue; }  // 헤더
+    if (row[0] === "#" || row.some((c) => c === "판정(사람)" || c === "Verdict (human)")) { cols = row; continue; }  // 헤더
     if (!cols.length) continue;
 
     const num = row[0].replace(/[⭐#\s]/g, "");
     if (!/^\d+$/.test(num)) continue;
     const item = {
       n: num,
-      where: pick(row, ["턴", "위치"]),
-      item: section === "flags" ? pick(row, ["항목"]) : "⭐",
-      strength: pick(row, ["강도"]) || undefined,
-      note: pick(row, ["지적", "무엇이 좋은가", "내용"]),
+      where: pick(row, ["턴", "위치", "Turn", "Location"]),
+      item: section === "flags" ? pick(row, ["항목", "Item"]) : "⭐",
+      strength: severityKo(pick(row, ["강도", "Severity"])) || undefined,
+      note: pick(row, ["지적", "무엇이 좋은가", "내용", "Note", "What works"]),
     };
     (section === "flags" ? flags : stars).push(item);
   }
@@ -148,10 +150,11 @@ export function parseCriticScores(md: string): { rows: ScoreRow[]; total: string
     if (/^##\s*[2-9]\./.test(line)) { if (inTable) break; continue; }
     if (!inTable || !line.startsWith("|")) continue;
     const cells = line.split("|").slice(1, -1).map((c) => c.trim());
-    if (cells.length < 3 || /^-+$/.test(cells[0]) || cells[0] === "축") continue;
-    if (/합계/.test(cells[0] + cells[1])) { total = cells[2].replace(/\*/g, "") || null; continue; }
+    if (cells.length < 3 || /^:?-+:?$/.test(cells[0]) || cells[0] === "축" || cells[0] === "Axis") continue; // 정렬 구분선(|:---|)도 건너뛴다
+    if (/합계|Total/.test(cells[0] + cells[1])) { total = cells[2].replace(/\*/g, "") || null; continue; }
     const sm = cells[2].replace(/\*/g, "").match(/(\d+)\s*\/\s*(\d+)/); // 점수 셀이 **9**/12 처럼 볼드라 * 를 먼저 지운다 (합계 행과 동일 처리)
-    rows.push({ key: cells[1].match(/^\d+\.\d+/)?.[0] ?? cells[1], axis: cells[0].replace(/\*/g, ""), item: cells[1].replace(/^\d+\.\d+\s*/, ""), ai: sm ? Number(sm[1]) : null, max: sm ? Number(sm[2]) : null, evidence: cells[3] ?? "" });
+    const itemCell = cells[1].replace(/\*/g, ""); // 항목 셀이 **3.1** 처럼 볼드여도 키를 읽는다
+    rows.push({ key: itemCell.match(/^\d+\.\d+/)?.[0] ?? itemCell, axis: cells[0].replace(/\*/g, ""), item: itemCell.replace(/^\d+\.\d+\s*/, ""), ai: sm ? Number(sm[1]) : null, max: sm ? Number(sm[2]) : null, evidence: cells[3] ?? "" });
   }
   return { rows, total };
 }
