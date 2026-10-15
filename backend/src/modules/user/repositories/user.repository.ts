@@ -129,16 +129,18 @@ export class UserRepository {
   }
 
   /**
-   * `before` 이전에 가입한 계정 수 — 주간 청취 상위 %의 모집단(KAN-168). 탈퇴자는 행이 삭제되므로
-   * 조건이 필요 없다.
+   * `before` 이전에 가입한 그 시장 계정 수 — 주간 청취 상위 %의 모집단(KAN-168 · 시장 분리 2026-10-15).
+   * 탈퇴자는 행이 삭제되므로 조건이 필요 없다.
    */
   async countCreatedBefore(
     before: Date,
+    market: UserMarket,
     manager?: EntityManager,
   ): Promise<number> {
     return this.scoped(manager)
       .createQueryBuilder('user')
       .where('user.created_at < :before', { before })
+      .andWhere('user.market = :market', { market })
       .getCount();
   }
 
