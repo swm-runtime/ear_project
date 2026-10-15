@@ -409,3 +409,68 @@ export const QA_INLINE_SCHEMA_EN = {
     summary: { type: "string" },
   },
 } as const;
+
+// ── 비평 (critic-v2 구조, 글로벌 명세 6.6) ────────────────────────────────────
+
+export interface CriticInlineInputEn { episodeId: string; title: string; midTopic: string; rubricV2Md: string; guidelines: string; scriptMd: string }
+
+/** 글로벌판 비평 — 루브릭·규칙은 시스템 블록, 대본은 사용자 메시지. 골드·앵커는 아직 없다. 리포트 머리·열 이름은 콘솔 파서(apps/web lib/artifacts.ts)가 읽는 영어판 */
+export function buildCriticPromptInlinePartsEn(i: CriticInlineInputEn): PromptParts {
+  const explainer = explainerEn();
+  const system = `You are the script critic for "ear", an audio service. You judge style and structure independently. You know nothing about how the script was made, its QA result, or its code checks; that is the rule.
+
+There are no tools. The rubric and rules are below; the script is in the next message. Put the report in report_md.
+
+## 1. Critic rubric — follow its flag items (2.1), score bands (3), and report format (4)
+${fence(i.rubricV2Md)}
+
+## 2. Script rules — guidelines (the source of the criteria)
+${fence(i.guidelines)}
+
+## 3. Task
+Write the full report in report_md in the rubric's section 4 format, from the title line to "## 4. Tally", in markdown. The guidelines address the writer; use their rules only as criteria and ignore their output and self-check instructions. In order:
+1. **Scores (100)** — score the 12 sub-items one by one against their bands, each with a quote \`[E12] "…"\`. A score without a quote is invalid. The total is only the sum; do not adjust items to reach it. Score 3.10 as a whole. Anchor slots are empty in this run; use the band definitions alone. Leave the human columns empty.
+2. **Flags** — only the items in 2.1, at most 15, each with a quote. Do not flag the items in 2.2. Leave the human columns empty.
+3. **⭐ Strengths** — 3 to 5.
+4. **Tally** — counts only.
+
+## 4. Report JSON — output only the requested JSON. Each score and evidence entry matches report_md. No text before the JSON.`;
+  const user = `## Script to judge — ${i.episodeId} "${i.title}" (explainer ${explainer} / host ${otherSpeaker(explainer)}, ${i.midTopic})
+${fence(i.scriptMd)}
+
+Score, flag, and star by the rubric above, put the full report in report_md, and output only the report JSON.`;
+  return { system, user };
+}
+
+const intEn = { type: "integer" } as const;
+const strEn = { type: "string" } as const;
+/** 한국판 CRITIC_INLINE_SCHEMA 와 같은 키(워커가 합산·기록) — 설명만 영어 */
+export const CRITIC_INLINE_SCHEMA_EN = {
+  type: "object",
+  additionalProperties: false,
+  required: ["scores", "evidence", "total", "violations", "suspects", "stars", "summary", "report_md"],
+  properties: {
+    scores: {
+      type: "object", additionalProperties: false, required: ["content", "structure", "naturalness", "immersion", "persona"],
+      properties: {
+        content: { type: "object", additionalProperties: false, required: ["value", "argument", "perspective", "resonance"], properties: { value: intEn, argument: intEn, perspective: intEn, resonance: intEn }, description: "3.1 value /12 · 3.2 argument /8 · 3.3 views /8 · 3.4 resonance /7" },
+        structure: { type: "object", additionalProperties: false, required: ["opening", "flow", "ending"], properties: { opening: intEn, flow: intEn, ending: intEn }, description: "3.5 opening /6 · 3.6 flow /8 · 3.7 ending /6" },
+        naturalness: { type: "object", additionalProperties: false, required: ["spoken", "exchange"], properties: { spoken: intEn, exchange: intEn }, description: "3.8 spoken English /12 · 3.9 exchange /8" },
+        immersion: { ...intEn, description: "3.10 immersion /15, as a whole" },
+        persona: { type: "object", additionalProperties: false, required: ["voice", "listener"], properties: { voice: intEn, listener: intEn }, description: "3.11 voice and roles /5 · 3.12 listener's seat /5" },
+      },
+    },
+    evidence: {
+      type: "object", additionalProperties: false,
+      required: ["content_value", "content_argument", "content_perspective", "content_resonance", "structure_opening", "structure_flow", "structure_ending", "natural_spoken", "natural_exchange", "immersion", "persona_voice", "persona_listener"],
+      properties: { content_value: strEn, content_argument: strEn, content_perspective: strEn, content_resonance: strEn, structure_opening: strEn, structure_flow: strEn, structure_ending: strEn, natural_spoken: strEn, natural_exchange: strEn, immersion: strEn, persona_voice: strEn, persona_listener: strEn },
+      description: "Evidence per sub-item — [turn] quote",
+    },
+    total: { ...intEn, description: "Sum of the 12 sub-items /100" },
+    violations: intEn,
+    suspects: intEn,
+    stars: intEn,
+    summary: { type: "string", description: "Overall verdict, three sentences" },
+    report_md: { type: "string", description: "The full critic report in the rubric's section 4 format, markdown" },
+  },
+} as const;

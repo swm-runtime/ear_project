@@ -26,7 +26,7 @@ function turnRefs(where: string): string[] {
   while ((m = single.exec(where))) out.add(m[1] + m[2]);
   return [...out];
 }
-const shortItem = (item: string) => item.match(/^[A-G]\d/)?.[0] ?? item.slice(0, 3);
+const shortItem = (item: string) => item.match(/^[A-G]\d+/)?.[0] ?? item.slice(0, 3); // 두 자리 코드(A10)까지 — 한 자리만 읽어 A10 이 A1 로 보였다 (2026-10-15)
 const tone = (strength?: string) => strength === "위반" ? "bg-rose-50 text-rose-700 ring-rose-200" : "bg-amber-50 text-amber-800 ring-amber-200";
 const vTone = (v: V["verdict"]) => v === "동의" ? "text-emerald-700" : v === "부분동의" ? "text-amber-700" : v === "비동의" ? "text-rose-700" : "text-ink-soft";
 
