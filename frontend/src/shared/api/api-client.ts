@@ -1,10 +1,13 @@
 import axios, { AxiosError, type AxiosInstance, type InternalAxiosRequestConfig } from 'axios';
 import { Platform } from 'react-native';
 
+import { APP_LANGUAGE, DEVICE_LOCALE, DEVICE_TIMEZONE } from '@/shared/i18n/locale';
+import { localized, type LocalizedCopy } from '@/shared/i18n/localized';
 import { logger } from '@/shared/lib/logger';
 
 import { ApiError } from './api-error';
 import { ERROR_CODES } from './error-codes';
+import { errorMessageEn } from './error-messages';
 
 /** common-error-handling.md — 일반 요청 타임아웃 10초 */
 const REQUEST_TIMEOUT_MS = 10_000;
@@ -77,12 +80,27 @@ export const registerTokenProvider = (provider: TokenProvider): void => {
   tokenProvider = provider;
 };
 
+/** 서버가 메시지를 주지 않았을 때의 사용자 노출 문구(KAN-194) */
+const ko = {
+  requestFailed: '요청을 처리하지 못했어요. 다시 시도해주세요',
+  timeout: '요청 시간이 초과됐어요. 다시 시도해주세요',
+  network: '네트워크 연결을 확인해주세요',
+} as const;
+const en: LocalizedCopy<typeof ko> = {
+  requestFailed: 'Couldn’t complete your request. Please try again',
+  timeout: 'The request timed out. Please try again',
+  network: 'Check your network connection',
+};
+const COPY = localized({ ko, en });
+
 const toApiError = (error: AxiosError<ErrorResponseBody>): ApiError => {
   if (error.response) {
     const body = error.response.data;
+    const errorCode = body?.error_code ?? ERROR_CODES.UNKNOWN;
     return new ApiError(
-      body?.error_code ?? ERROR_CODES.UNKNOWN,
-      body?.message ?? '요청을 처리하지 못했어요. 다시 시도해주세요',
+      errorCode,
+      // 서버 message 는 한국어 폴백이다 — 영어 표시면 error_code 로 번역한다(global-api.md 2.3 · KAN-194)
+      APP_LANGUAGE === 'en' ? errorMessageEn(errorCode) : (body?.message ?? COPY.requestFailed),
       body?.retryable ?? false,
       body?.retry_after_sec ?? null,
       body?.trace_id ?? null,
@@ -90,23 +108,9 @@ const toApiError = (error: AxiosError<ErrorResponseBody>): ApiError => {
     );
   }
   if (error.code === 'ECONNABORTED') {
-    return new ApiError(
-      ERROR_CODES.TIMEOUT,
-      '요청 시간이 초과됐어요. 다시 시도해주세요',
-      true,
-      null,
-      null,
-      null,
-    );
+    return new ApiError(ERROR_CODES.TIMEOUT, COPY.timeout, true, null, null, null);
   }
-  return new ApiError(
-    ERROR_CODES.NETWORK_ERROR,
-    '네트워크 연결을 확인해주세요',
-    true,
-    null,
-    null,
-    null,
-  );
+  return new ApiError(ERROR_CODES.NETWORK_ERROR, COPY.network, true, null, null, null);
 };
 
 const delay = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
@@ -139,6 +143,9 @@ apiClient.interceptors.request.use(async (config) => {
   if (config.idempotencyKey) {
     config.headers.set('Idempotency-Key', config.idempotencyKey);
   }
+  // 기기 로캘·시간대 — 서버는 로그·통계에만 쓴다. 판정은 users.market(global-api.md 2.2 · KAN-194)
+  config.headers.set('Accept-Language', DEVICE_LOCALE);
+  config.headers.set('X-Timezone', DEVICE_TIMEZONE);
   if (!config.skipAuthRefresh && tokenProvider) {
     const accessToken = await tokenProvider.getAccessToken();
     if (accessToken) {

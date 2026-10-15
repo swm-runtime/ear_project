@@ -1,6 +1,11 @@
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
 
+import { localized, type LocalizedCopy } from '@/shared/i18n/localized';
 import { theme } from '@/shared/theme';
+
+const ko = { loadingA11y: '로딩 중' } as const;
+const en: LocalizedCopy<typeof ko> = { loadingA11y: 'Loading' };
+const COPY = localized({ ko, en });
 
 interface LoadingOverlayProps {
   visible: boolean;
@@ -11,7 +16,7 @@ export default function LoadingOverlay({ visible }: LoadingOverlayProps) {
   if (!visible) return null;
 
   return (
-    <View style={styles.overlay} accessibilityLabel="로딩 중">
+    <View style={styles.overlay} accessibilityLabel={COPY.loadingA11y}>
       <ActivityIndicator size="large" color={theme.color.onPhoto} />
     </View>
   );

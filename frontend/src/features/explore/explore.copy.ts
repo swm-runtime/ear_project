@@ -1,8 +1,10 @@
+import { localized, type LocalizedCopy } from '@/shared/i18n/localized';
+
 /**
  * 사용자 노출 문구(convention.md 3.5). 확정 카피는 explore-uiux.md 6장과 1:1 대조한다.
  * 잔여 표시·재생 확인 팝업·회수/한도 토스트는 player가 소유한다(PLAYER_COPY) — 여기 두지 않는다.
  */
-export const EXPLORE_COPY = {
+const ko = {
   /** iOS 26 큰 제목 바의 제목 — 탭 라벨과 같은 말(NativeMainTabs, 2026-09-25) */
   tabTitle: '탐색',
   /** E6·E7 검색(explore.md 4.5 — MVP 포함 격상, 합의 2026-08-23) */
@@ -108,3 +110,85 @@ export const EXPLORE_COPY = {
     switchedA11y: (periodLabel: string, count: number) => `${periodLabel} 인기 콘텐츠, ${count}개`,
   },
 } as const;
+
+const en: LocalizedCopy<typeof ko> = {
+  tabTitle: 'Explore',
+  search: {
+    tabTitle: 'Search',
+    placeholder: 'Search episodes',
+    clearA11y: 'Clear search',
+    cancel: 'Cancel',
+    emptyPrompt: 'Enter a search term',
+    recentTitle: 'Recent searches',
+    clearAll: 'Clear all',
+    suggestedTitle: 'Suggested',
+    noResult: (query: string) => `No results for “${query}”`,
+    popularTitle: 'Popular',
+    resultCountA11y: (query: string, count: number) =>
+      `${count} ${count === 1 ? 'result' : 'results'} for “${query}”`,
+    recentItemA11y: (query: string) => `${query}, recent search, tap to search`,
+    recentDeleteA11y: (query: string) => `Remove “${query}” from recent searches`,
+    suggestedChipA11y: (name: string) => `${name}, suggested keyword, tap to search`,
+  },
+
+  sheet: {
+    detail: 'Details',
+    sourceLink: 'View original',
+    save: 'Add to Library',
+    remove: 'Remove from Library',
+    close: 'Close',
+  },
+
+  saveToast: 'Added to Library',
+  saveToastAction: 'View',
+  saveFailedToast: "Couldn't add. Please try again.",
+  removeFailedToast: "Couldn't remove. Please try again.",
+
+  empty: {
+    feed: {
+      title: 'More episodes are coming soon',
+      action: 'Go to Library',
+    },
+    filtered: {
+      title: 'No episodes on this topic yet',
+      action: 'Clear filter',
+    },
+  },
+
+  error: {
+    networkTitle: 'Check your internet connection',
+    loadFailedTitle: 'Something went wrong',
+    loadFailedDescription: 'Please try again later.',
+    retry: 'Try again',
+    loadMoreFailed: "Couldn't load more",
+  },
+
+  row: {
+    durationLabel: (minutes: number) => `${minutes} min`,
+    hashtags: (names: string[]) => names.map((name) => `#${name}`).join(' '),
+    metaWithTags: (tags: string[], minutes: number) =>
+      tags.length > 0
+        ? `${tags.map((tag) => `#${tag}`).join(' ')} · ${minutes} min`
+        : `${minutes} min`,
+    moreA11y: 'More, add or remove',
+    completedA11y: 'Played',
+    a11yLabel: (parts: { title: string; minutes: number; completed: boolean }) =>
+      [parts.title, `${parts.minutes} min`, ...(parts.completed ? ['Played'] : []), 'Play'].join(
+        ', ',
+      ),
+  },
+
+  chips: {
+    a11yHint: 'Topic filter',
+  },
+
+  popular: {
+    periodLabels: { week: 'Weekly', month: 'Monthly', all: 'All time' },
+    toggleA11y: 'Popular episodes time range',
+    switchFailed: "Couldn't load the list",
+    switchedA11y: (periodLabel: string, count: number) =>
+      `${periodLabel} popular, ${count} ${count === 1 ? 'episode' : 'episodes'}`,
+  },
+};
+
+export const EXPLORE_COPY = localized({ ko, en });

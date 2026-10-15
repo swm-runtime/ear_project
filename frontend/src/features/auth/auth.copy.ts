@@ -1,10 +1,12 @@
+import { localized, type LocalizedCopy } from '@/shared/i18n/localized';
+
 import type { ConsentType, SocialProvider, WithdrawalReasonCode } from './auth.types';
 
 /**
  * 사용자 노출 문구(convention.md 3.5). 확정 카피는 auth-uiux.md와 1:1 대조한다.
  * TODO 표시 항목은 uiux 문서에 확정 카피가 없어 임시로 둔 것 — 확정 시 교체한다.
  */
-export const AUTH_COPY = {
+const ko = {
   start: {
     /* TODO(카피 미확정): 시작 화면 서비스 소개 문구 */
     /** 로고 이미지의 대체 텍스트 — 화면에 글자로는 보이지 않는다 */
@@ -214,3 +216,158 @@ export const AUTH_COPY = {
     },
   },
 } as const;
+
+const en: LocalizedCopy<typeof ko> = {
+  start: {
+    appName: 'Ear',
+    tagline: 'Lend us your ear',
+    description: 'Your own podcast, delivered for every commute',
+    termsLink: 'Terms of Use',
+    privacyLink: 'Privacy Policy',
+    provider: {
+      kakao: 'Continue with Kakao',
+      naver: 'Continue with Naver',
+      google: 'Continue with Google',
+      apple: 'Continue with Apple',
+    },
+    providerSectionLabel: 'Continue with a social account',
+  },
+  loginFailed: 'Couldn’t sign in. Please try again',
+  consent: {
+    greeting: 'Nice to meet you!',
+    title: 'Please agree to the following\nto use the service',
+    agreeAll: 'Agree to all',
+    label: {
+      terms: 'Agree to Terms of Use',
+      privacy: 'Agree to Privacy Policy',
+      marketing: 'Receive marketing updates',
+      age_confirmation: 'I’m 18 or older',
+    },
+    ageConfirmation: 'I’m 18 or older',
+    requiredTag: '(Required)',
+    optionalTag: '(Optional)',
+    marketingDescription: 'Get news about new content and events',
+    view: 'View',
+    submit: 'Agree and start',
+    signupExpired: 'Your sign-in has expired. Please sign in again',
+    consentStale: 'Our terms have been updated. Please sign in again to review them',
+  },
+  reconsent: {
+    title: 'We’ve updated our terms',
+    description: 'To keep using the service, please agree to the items below',
+    submit: 'Agree and continue',
+    logout: 'Sign out',
+    logoutConfirmTitle: 'You need to agree to keep using the service',
+    logoutConfirmBody: 'Sign out? Your account and saved content will stay as they are.',
+    logoutCancel: 'Cancel',
+    logoutConfirm: 'Sign out',
+    submitFailed: 'Couldn’t save your consent. Please try again in a moment',
+  },
+  email: {
+    appBarTitle: 'Verify email',
+    backA11y: 'Back',
+    loadFailed: 'Couldn’t load verification info',
+    verifyFailed: 'Couldn’t verify. Please try again',
+    currentLabel: 'Current email',
+    unregistered: 'Not registered',
+    inputLabel: 'Email address',
+    inputPlaceholder: 'example@email.com',
+    changeNotice: 'Changing your address uses the same verification steps',
+    send: 'Get verification code',
+    formatInvalid: 'Check your email format',
+    alreadyRegistered: 'This email is already registered',
+    sendFailedToast: 'Couldn’t send the verification email. Please try again',
+    retry: 'Try again',
+    codeGuide: (email: string) => `Enter the 6-digit code\nwe sent to ${email}`,
+    codeDigitA11y: (index: number) => `Verification code digit ${index}`,
+    resend: 'Resend',
+    resendCooldown: (sec: number) => `Resend in ${sec}s`,
+    reenterEmail: 'Re-enter email',
+    spamNotice: 'If you don’t see the email, check your spam folder',
+    codeMismatch: (attemptsRemaining: number | null) =>
+      attemptsRemaining === null
+        ? 'Incorrect verification code'
+        : `Incorrect verification code (${attemptsRemaining} ${attemptsRemaining === 1 ? 'attempt' : 'attempts'} left)`,
+    codeExpired: 'The code has expired. Please request a new one',
+    attemptsExceeded: 'Please request a new code',
+    sendLimit: (minutes: number) =>
+      `You can send up to 5 codes per hour to this address. Try again in about ${minutes} ${minutes === 1 ? 'minute' : 'minutes'}, or verify with a different email`,
+    successToast: 'Your email has been registered',
+    countdownA11y: (sec: number) => `${sec} ${sec === 1 ? 'second' : 'seconds'} left`,
+  },
+  withdrawal: {
+    appBarTitle: 'Delete account',
+    backA11y: 'Back',
+    headline: 'Are you sure you want to leave?',
+
+    loadFailed: 'Couldn’t load account deletion info',
+    retry: 'Try again',
+
+    deleted: {
+      title: 'Deleted right away',
+      items: [
+        'Content saved to your library',
+        'Your topics of interest and career info',
+        'Playback positions and listening history',
+        'Notification and playback settings',
+      ],
+    },
+
+    retained: {
+      title: (years: number) =>
+        `Kept for ${years} ${years === 1 ? 'year' : 'years'} as required by law`,
+      item: {
+        email: 'Email address (for transaction verification)',
+        subscription_history: 'Payment and subscription history',
+        consent_history: 'Consent history',
+      },
+      basis: 'Transaction records must be kept under Korea’s E-Commerce Act.',
+    },
+
+    immediateDeletionNotice: 'All your data will be deleted right away.',
+
+    activeSubscription: {
+      title: 'You have an active subscription',
+      description:
+        'Payments will continue unless you cancel your subscription in the store. You can cancel in Settings > Manage plan.',
+      agreement: 'I agree that my subscription benefits will end immediately',
+    },
+
+    reason: {
+      label: 'Tell us why you’re leaving',
+      option: {
+        content_quailty: 'The content quality didn’t meet my expectations',
+        recommendation_mismatch: 'The content didn’t match my interests',
+        low_usage: 'I don’t have time to listen or rarely use it',
+        price: 'The subscription is too expensive',
+        not_enough_content: 'Not enough content on topics I want',
+        app_issue: 'The app had bugs or was hard to use',
+        alternative: 'I’m switching to another service',
+        other: 'Other (please specify)',
+      },
+      textLabel: 'Anything else you’d like to share',
+      textPlaceholder: 'Write anything you like',
+    },
+
+    confirm: 'I’ve read all of the above',
+
+    submit: 'Delete account',
+    cancel: 'Cancel',
+
+    processing: {
+      title: 'Deleting your account',
+      description: 'This will only take a moment',
+    },
+
+    successToast: 'Your account has been deleted',
+
+    failed: 'Couldn’t delete your account. Please try again',
+    archiveIdentityMissing: {
+      title: 'Something went wrong',
+      description: 'Your account was not deleted. Please try again in a moment or contact support',
+      back: 'Go back',
+    },
+  },
+};
+
+export const AUTH_COPY = localized({ ko, en });

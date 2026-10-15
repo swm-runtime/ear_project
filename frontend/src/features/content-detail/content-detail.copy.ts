@@ -1,9 +1,11 @@
+import { localized, type LocalizedCopy } from '@/shared/i18n/localized';
+
 /**
  * 사용자 노출 문구(convention.md 3.5). 확정 카피는 content-detail-uiux.md 6장과 1:1 대조한다.
  * TODO 표시 항목은 uiux 6장의 "제안 문자열 — 카피 미확정" 표에 있는 값 — 확정 시 교체한다.
  * 재생 확인 팝업·페이월·잔여 표시 카피는 player가 소유한다(PLAYER_COPY) — 여기 두지 않는다.
  */
-export const CONTENT_DETAIL_COPY = {
+const ko = {
   /* TODO(카피 미확정 — uiux 9장): 더보기 시트 항목명을 그대로 쓴 시안 임시값 */
   appBarTitle: '상세 정보',
   backA11y: '뒤로가기',
@@ -59,3 +61,49 @@ export const CONTENT_DETAIL_COPY = {
     retry: '다시 시도',
   },
 } as const;
+
+const en: LocalizedCopy<typeof ko> = {
+  appBarTitle: 'Details',
+  backA11y: 'Back',
+
+  introLabel: 'About',
+  meta: {
+    duration: 'Length',
+    publishedAt: 'Published',
+    series: 'Series',
+  },
+
+  source: {
+    partnerLabel: 'Source',
+    aiLabel: 'References',
+    author: 'Author',
+    provider: 'Provided by',
+    sourceLink: 'View original',
+    linkA11yHint: 'Opens in browser',
+  },
+
+  actions: {
+    play: 'Play',
+    save: 'Save',
+    delete: 'Remove',
+    saveA11y: 'Add to Library',
+    deleteA11y: 'Remove from Library',
+  },
+
+  saveToast: 'Added to Library',
+  saveToastAction: 'View',
+  saveFailedToast: "Couldn't add. Please try again.",
+  deleteFailedToast: "Couldn't remove. Please try again.",
+  deletedA11yAnnounce: 'Removed from Library',
+
+  withdrawnToast: 'This episode is no longer available',
+
+  error: {
+    networkTitle: 'Check your internet connection',
+    loadFailedTitle: 'Something went wrong',
+    loadFailedDescription: 'Please try again later.',
+    retry: 'Try again',
+  },
+};
+
+export const CONTENT_DETAIL_COPY = localized({ ko, en });

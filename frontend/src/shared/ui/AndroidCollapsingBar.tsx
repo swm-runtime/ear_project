@@ -4,9 +4,14 @@ import { Animated, Pressable, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useAnimatedValue } from '@/shared/hooks/useAnimatedValue';
+import { localized, type LocalizedCopy } from '@/shared/i18n/localized';
 import { motion, theme, useActiveScheme } from '@/shared/theme';
 import { LARGE_TITLE_ROW_HEIGHT } from '@/shared/ui/LargeTitleRow';
 import { AnimatedText } from '@/shared/ui/Typography';
+
+const ko = { scrollToTopHint: '맨 위로 이동' } as const;
+const en: LocalizedCopy<typeof ko> = { scrollToTopHint: 'Scroll to top' };
+const COPY = localized({ ko, en });
 
 interface AndroidCollapsingBarProps {
   /** 가운데 작은 제목 — 콘텐츠 첫 줄의 큰 제목(LargeTitleRow)이 밀려 올라가면 나타난다 */
@@ -149,7 +154,7 @@ export default function AndroidCollapsingBar({
           pointerEvents={isTitleShown ? 'auto' : 'none'}
           accessibilityRole="button"
           accessibilityLabel={title}
-          accessibilityHint="맨 위로 이동"
+          accessibilityHint={COPY.scrollToTopHint}
           accessibilityElementsHidden={!isTitleShown}
           importantForAccessibility={isTitleShown ? 'yes' : 'no-hide-descendants'}
         />

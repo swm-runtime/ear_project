@@ -4,6 +4,7 @@
  * 두 화면이 같은 값을 다른 말로 표시하면 어느 쪽이 맞는지 사용자가 판단하게 된다).
  * 내부 용어("드립"·"티어"·"유예"·"grace")를 노출하지 않는다.
  */
+import { localized, type LocalizedCopy } from '@/shared/i18n/localized';
 import { toDateOnlyMonthDay } from '@/shared/lib/date-only';
 
 import { toMonthDayParts } from './settings.format';
@@ -19,7 +20,7 @@ const dateOnlyMonthDay = (date: string): string => {
   return `${month}월 ${day}일`;
 };
 
-export const SETTINGS_COPY = {
+const ko = {
   title: '설정',
   backA11y: '뒤로 가기',
 
@@ -171,3 +172,163 @@ export const SETTINGS_COPY = {
   summaryError: '정보를 불러올 수 없어요',
   retry: '다시 시도',
 } as const;
+
+const EN_MONTHS = [
+  'Jan',
+  'Feb',
+  'Mar',
+  'Apr',
+  'May',
+  'Jun',
+  'Jul',
+  'Aug',
+  'Sep',
+  'Oct',
+  'Nov',
+  'Dec',
+] as const;
+
+/** "Oct 15" — 한국어 `monthDay` 와 같은 월·일 조각에서 만든다 */
+const enMonthDay = (iso: string): string => {
+  const { month, day } = toMonthDayParts(iso);
+  return `${EN_MONTHS[month - 1]} ${day}`;
+};
+
+/** 서버 판정 날짜(YYYY-MM-DD) 그대로 "Oct 15" — 시간대를 거치지 않는다 */
+const enDateOnlyMonthDay = (date: string): string => {
+  const { month, day } = toDateOnlyMonthDay(date);
+  return `${EN_MONTHS[month - 1]} ${day}`;
+};
+
+const en: LocalizedCopy<typeof ko> = {
+  title: 'Settings',
+  backA11y: 'Back',
+
+  sections: {
+    account: 'Account',
+    subscription: 'Manage plan',
+    content: 'Content',
+    playback: 'Playback',
+    audioQuality: 'Audio quality',
+    colorMode: 'Appearance',
+    notification: 'Notifications',
+    info: 'About',
+    support: 'Support',
+    admin: 'Admin',
+    developer: 'Developer tools',
+  },
+
+  email: {
+    label: 'Email',
+    unregistered: 'Not added',
+    unverifiedGlyph: '!',
+    lockedTitle: "Verified emails can't be changed",
+    lockedBody:
+      'This address is used to keep your payment records. If you need to change it, contact us.',
+    lockedClose: 'Close',
+    lockedContact: 'Contact us',
+    unregisteredBadge: 'No email',
+    unverifiedBadge: 'Email not verified',
+    register: 'Add',
+    verify: 'Verify',
+    change: 'Change',
+    unverifiedValueA11y: (email: string) => `${email}, not verified`,
+  },
+
+  plan: {
+    free: (dailyPlayLimit: number | null) =>
+      dailyPlayLimit === null
+        ? 'Free plan'
+        : `Free plan · ${dailyPlayLimit} ${dailyPlayLimit === 1 ? 'episode' : 'episodes'} a day`,
+    renewsAt: (iso: string) => `Renews ${enMonthDay(iso)}`,
+    cancelScheduled: (iso: string) => `Active until ${enMonthDay(iso)} · then Free`,
+    pendingPlan: (iso: string, nextPlanName: string) =>
+      `Active until ${enMonthDay(iso)} · then ${nextPlanName}`,
+    paymentIssue: "There's a problem with your payment",
+    trial: (lastFreeDate: string) =>
+      `Free trial · Unlimited until ${enDateOnlyMonthDay(lastFreeDate)}`,
+    a11y: 'Open plan management',
+  },
+
+  content: {
+    interest: 'Manage topics',
+    interestCount: (count: number) => `${count} selected`,
+    career: 'Career info',
+    inviteCode: 'Enter event code',
+    autoExpand: 'Expand topics automatically',
+    autoExpandDescription: "We'll also find topics close to your interests",
+  },
+
+  playback: {
+    rate: 'Default speed',
+    rateValue: (rate: number) => `${rate}×`,
+    sheetTitle: 'Default speed',
+  },
+
+  audioQuality: {
+    label: { compressed: 'Compressed', aac: 'High quality', lossless: 'Lossless' },
+    footer:
+      'Lossless is the original, untouched audio. It uses more data than Compressed. Changes apply from the next episode.',
+    lockedA11y: (label: string) => `${label}, available with a subscription`,
+    cellularTitle: 'Uses more cellular data',
+    cellularMessage: 'Lossless files are larger than Compressed. We recommend listening on Wi-Fi.',
+    cellularCancel: 'Cancel',
+    cellularConfirm: 'Switch to Lossless',
+  },
+
+  colorMode: {
+    label: { system: 'System', light: 'Light', dark: 'Dark' },
+    footer: "Choose System to match your device's light or dark setting.",
+    footerAndroid:
+      "Choose System to match your device's light or dark setting. Changing this reloads the screen once.",
+  },
+
+  notification: {
+    dripToggle: 'Ear Picks notifications',
+    marketingToggle: 'Marketing notifications',
+    banner: 'Get notified about new content',
+    bannerA11y: 'Get notified about new content, open notification settings',
+    permissionTitle: 'Allow notifications in your device settings',
+    permissionOpen: 'Open Settings',
+    permissionClose: 'Close',
+  },
+
+  info: {
+    notice: 'Announcements',
+    terms: 'Terms of Service',
+    privacy: 'Privacy Policy',
+    licenses: 'Open source licenses',
+    version: 'App version',
+    updateBadge: 'Update available',
+    update: 'Update',
+    versionA11y: (version: string, hasUpdate: boolean) =>
+      hasUpdate ? `App version ${version}, update available` : `App version ${version}`,
+  },
+
+  support: {
+    contact: 'Contact us',
+    contactFallbackTitle: "Can't open the KakaoTalk channel",
+    contactCopy: 'Copy',
+    contactClose: 'Close',
+    copied: 'Link copied',
+  },
+
+  account: {
+    logout: 'Log out',
+    logoutConfirmTitle: 'Log out?',
+    logoutCancel: 'Cancel',
+    logoutConfirm: 'Log out',
+    withdraw: 'Delete account',
+  },
+
+  admin: {
+    menu: 'Admin',
+  },
+
+  saveError: "Couldn't save your settings",
+
+  summaryError: "Couldn't load this info",
+  retry: 'Try again',
+};
+
+export const SETTINGS_COPY = localized({ ko, en });

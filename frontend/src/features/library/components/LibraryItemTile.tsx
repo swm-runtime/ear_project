@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 
+import { localized, type LocalizedCopy } from '@/shared/i18n/localized';
 import { theme } from '@/shared/theme';
 import MoreIcon from '@/shared/ui/MoreIcon';
 import RemoteImage from '@/shared/ui/RemoteImage';
@@ -21,6 +22,10 @@ interface LibraryItemTileProps {
    */
   showDiscoveryBadge?: boolean;
 }
+
+const ko = { playHint: '재생' } as const;
+const en: LocalizedCopy<typeof ko> = { playHint: 'Play' };
+const COPY = localized({ ko, en });
 
 const formatDuration = (durationSec: number): string =>
   LIBRARY_COPY.card.durationLabel(Math.max(1, Math.round(durationSec / 60)));
@@ -65,7 +70,7 @@ export default function LibraryItemTile({
         ]
           .filter(Boolean)
           .join(', ')}
-        accessibilityHint="재생"
+        accessibilityHint={COPY.playHint}
       >
         <View
           style={styles.artwork}

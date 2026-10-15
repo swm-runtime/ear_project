@@ -2,7 +2,9 @@
  * 강제·권장 업데이트 문구 — uiux 에 확정값이 없어 티켓(KAN-99 할 일 2)의 값을 쓴다.
  * 서버 426 의 `message` 를 그대로 보여주지 않는다 — 문구는 클라이언트 카피 문서와 1:1 이어야 한다(CLAUDE.md spec/uiux)
  */
-export const APP_UPDATE_COPY = {
+import { localized, type LocalizedCopy } from '@/shared/i18n/localized';
+
+const ko = {
   force: {
     title: '새 버전으로 업데이트해 주세요',
     body: '이 버전은 더 이상 지원되지 않아요',
@@ -17,3 +19,20 @@ export const APP_UPDATE_COPY = {
     action: '업데이트',
   },
 } as const;
+
+const en: LocalizedCopy<typeof ko> = {
+  force: {
+    title: 'Please update to the latest version',
+    body: 'This version is no longer supported',
+    action: 'Update',
+    a11y: 'Please update to the latest version. This version is no longer supported. Tap Update to go to the store',
+  },
+  recommend: {
+    title: 'A new version is available',
+    body: 'Update to get the latest improvements to Ear',
+    later: 'Not now',
+    action: 'Update',
+  },
+};
+
+export const APP_UPDATE_COPY = localized({ ko, en });

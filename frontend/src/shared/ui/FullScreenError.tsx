@@ -1,8 +1,13 @@
 import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
 
+import { localized, type LocalizedCopy } from '@/shared/i18n/localized';
 import { theme } from '@/shared/theme';
 import { pillButton } from '@/shared/ui/pill-button.styles';
 import { Text } from '@/shared/ui/Typography';
+
+const ko = { retry: '다시 시도' } as const;
+const en: LocalizedCopy<typeof ko> = { retry: 'Try again' };
+const COPY = localized({ ko, en });
 
 interface FullScreenErrorProps {
   title: string;
@@ -17,7 +22,7 @@ interface FullScreenErrorProps {
 export default function FullScreenError({
   title,
   description,
-  retryLabel = '다시 시도',
+  retryLabel = COPY.retry,
   isRetrying = false,
   onRetry,
 }: FullScreenErrorProps) {

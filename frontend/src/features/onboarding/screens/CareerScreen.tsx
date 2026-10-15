@@ -1,6 +1,7 @@
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { localized, type LocalizedCopy } from '@/shared/i18n/localized';
 import { theme } from '@/shared/theme';
 import ChevronIcon from '@/shared/ui/ChevronIcon';
 import { SkeletonBlock, SkeletonGroup } from '@/shared/ui/Skeleton';
@@ -15,6 +16,14 @@ import type { YearsOfExperience } from '../onboarding.types';
 const YEARS_OPTIONS: YearsOfExperience[] = ['0-1', '2-3', '4-6', '7+'];
 /** 직군 칩 스켈레톤 — 실제 칩과 같은 2열 같은 크기 상자 두 줄(직군 7종이면 네 줄이지만, 자리만 잡으면 된다) */
 const JOB_CATEGORY_SKELETON_COUNT = 4;
+
+const ko = { backA11y: '이전 단계로', stepA11y: '2단계 중 2단계', step: '2/2 단계' } as const;
+const en: LocalizedCopy<typeof ko> = {
+  backA11y: 'Previous step',
+  stepA11y: 'Step 2 of 2',
+  step: 'Step 2/2',
+};
+const COPY = localized({ ko, en });
 
 /**
  * O4 커리어 정보(2/2 — 담기 단계를 뺀 2026-10-11 뒤 마지막 입력 단계). 전부 선택 항목 — 미입력 필드에 에러 표시를 하지 않고
@@ -98,7 +107,7 @@ export default function CareerScreen() {
             style={styles.back}
             onPress={handleBackPress}
             accessibilityRole="button"
-            accessibilityLabel="이전 단계로"
+            accessibilityLabel={COPY.backA11y}
           >
             <ChevronIcon direction="left" size={24} color={theme.color.textPrimary} />
           </Pressable>
@@ -121,8 +130,8 @@ export default function CareerScreen() {
             )}
           </Pressable>
         </View>
-        <Text style={styles.stepLabel} accessibilityLabel="2단계 중 2단계">
-          2/2 단계
+        <Text style={styles.stepLabel} accessibilityLabel={COPY.stepA11y}>
+          {COPY.step}
         </Text>
         <Text style={styles.title}>{ONBOARDING_COPY.career.title}</Text>
         {/* 손해가 없다는 사실을 상시 노출한다 — 이 문구가 [건너뛰기] 버튼보다 중요하다(onboarding-uiux.md 4.3) */}

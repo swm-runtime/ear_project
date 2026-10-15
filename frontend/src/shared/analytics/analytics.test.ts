@@ -17,6 +17,7 @@ jest.mock('expo-crypto', () => ({
 }));
 jest.mock('@/shared/lib/app-version', () => ({
   IS_DEV_API: true,
+  EMBEDDED_BUNDLE_LABEL: '내장',
   resolveBundleLabel: () => '내장',
 }));
 // Meta 전달(meta.ts)은 개발계(IS_DEV_API)에서 스텁이지만 모듈이 저장소를 import 한다 — 네이티브 SecureStore 대신 메모리

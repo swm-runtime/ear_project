@@ -6,6 +6,7 @@ import { BackHandler } from 'react-native';
 import { track } from '@/shared/analytics';
 import { isApiError } from '@/shared/api/api-error';
 import { useDelayedVisible } from '@/shared/hooks/useDelayedVisible';
+import { localized, type LocalizedCopy } from '@/shared/i18n/localized';
 import { useToastStore } from '@/shared/ui/toast.store';
 
 import { useJobCategoriesQuery } from '@/features/career';
@@ -15,6 +16,10 @@ import { useSaveCareerMutation } from './useSaveCareerMutation';
 import { onboardingCompletionService } from '../services/onboarding-completion.service';
 
 type PendingAction = 'next' | 'skip' | null;
+
+const ko = { saveFailed: '저장하지 못했어요. 다시 시도해주세요' } as const;
+const en: LocalizedCopy<typeof ko> = { saveFailed: 'Couldn’t save. Please try again' };
+const COPY = localized({ ko, en });
 
 export const useCareerScreen = () => {
   const navigation = useNavigation<NativeStackNavigationProp<OnboardingStackParamList, 'Career'>>();
@@ -73,7 +78,7 @@ export const useCareerScreen = () => {
         navigation.reset({ index: 0, routes: [{ name: 'FirstDripWaiting' }] });
       },
       onError: (error) => {
-        showToast(isApiError(error) ? error.message : '저장하지 못했어요. 다시 시도해주세요');
+        showToast(isApiError(error) ? error.message : COPY.saveFailed);
       },
       onSettled: () => setPendingAction(null),
     });

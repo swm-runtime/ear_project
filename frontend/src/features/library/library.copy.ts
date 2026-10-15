@@ -2,9 +2,11 @@
  * 사용자 노출 문구(convention.md 3.5). 확정 카피는 library-uiux.md와 1:1 대조한다.
  * TODO 표시 항목은 uiux 문서에 확정 카피가 없거나 미결로 남은 것 — 확정 시 교체한다.
  */
+import { localized, type LocalizedCopy } from '@/shared/i18n/localized';
+
 import type { LibrarySourceFilter } from './library.types';
 
-export const LIBRARY_COPY = {
+const ko = {
   /** iOS 26 큰 제목 바의 제목 — 탭 라벨과 같은 말(NativeMainTabs, 2026-09-26) */
   tabTitle: '라이브러리',
   /**
@@ -139,3 +141,108 @@ export const LIBRARY_COPY = {
 
   // 미니플레이어 카피는 컴포넌트 승격과 함께 player feature로 이관됐다(PLAYER_COPY.miniPlayer)
 } as const;
+
+const en: LocalizedCopy<typeof ko> = {
+  tabTitle: 'Library',
+  tab: {
+    all: 'All',
+    unplayed: 'Unplayed',
+    completed: 'Played',
+    drip: 'Ear Picks',
+  },
+
+  sourceFilter: {
+    sectionTitle: 'Source',
+    drip: 'Ear Picks',
+    save: 'Saved by you',
+  },
+
+  topicFilter: {
+    sheetTitle: 'Filter',
+    statusTitle: 'Status',
+    title: 'Topics',
+    helper: 'Only topics from episodes in your Library are shown',
+    reset: 'Reset',
+    apply: 'Apply',
+    a11yBadge: (count: number) => `Filter, ${count} applied`,
+    a11yNone: 'Filter',
+    summaryA11y: (conditions: string) => `Filters applied: ${conditions}. Double-tap to change`,
+  },
+
+  moreSheet: {
+    detail: 'Details',
+    sourceLink: 'View original',
+    delete: 'Remove from Library',
+    close: 'Close',
+  },
+
+  deleteSnackbar: {
+    message: 'Removed',
+    undo: 'Undo',
+    failedToast: "Couldn't remove. Please try again.",
+  },
+
+  search: {
+    placeholder: 'Search by title',
+    clearA11y: 'Clear search',
+    emptyTitle: 'No results',
+    emptyDescription: 'Try a different search.',
+    emptyAction: 'Clear search',
+  },
+
+  empty: {
+    newUser: {
+      title: 'Your first episode is on its way',
+      description: 'In the meantime, find something in Explore',
+      action: 'Browse Explore',
+    },
+    filtered: {
+      title: 'No episodes match these filters',
+      description: (conditions: string[]) => `No episodes match all of: ${conditions.join(' · ')}`,
+      action: 'Reset filters',
+    },
+    drip: {
+      title: 'No Ear Picks yet',
+    },
+    deletedAll: {
+      title: 'Your Library is empty',
+      description: 'Episodes you save in Explore will show up here',
+      action: 'Browse Explore',
+    },
+  },
+
+  arrivalBadge: {
+    a11y: (count: number) => `Library, ${count} new ${count === 1 ? 'episode' : 'episodes'}`,
+  },
+
+  banner: {
+    offline: "You're offline",
+    dripPreparing: 'Getting your episodes ready',
+    addInterest: 'Add topics',
+  },
+
+  cachedListNotice: 'Showing recent items only',
+
+  error: {
+    networkTitle: 'Check your internet connection',
+    loadFailedTitle: "Couldn't load your Library",
+    loadFailedDescription: 'Please try again later.',
+    retry: 'Try again',
+    loadMoreFailed: "Couldn't load more",
+    offlinePlayToast: 'Check your internet connection',
+  },
+
+  discovery: {
+    sectionTitle: 'How about these topics?',
+    badge: 'New topic',
+  },
+
+  card: {
+    completedA11y: 'Played',
+    progressA11y: (percent: number) => `${percent}% played`,
+    durationLabel: (minutes: number) => `${minutes} min`,
+    moreA11y: (title: string) => `More options for ${title}`,
+  },
+};
+
+export const LIBRARY_COPY = localized({ ko, en });
