@@ -7,6 +7,8 @@ import { workerRev } from "../assets.js";
 import { probeDurationSec } from "../tts/audio.js";
 import { exists, localPathOf, pullPrefix, pushPrefix, s3Key } from "../storage.js";
 import { log } from "../util.js";
+import { countWords, WORDS_PER_MIN_EN } from "../script-length.js";
+import { parseScriptForTts } from "../tts/script.js";
 
 /** topics.explainer 가 비었을 때의 해설 — 한국판은 종전 그대로 이음, 글로벌판은 역할 고정이라 첫째 진행자(글로벌 명세 6.4) */
 const defaultExplainer = (): string => (pipelineLocale() === "en" ? speakerNames()[0] : "이음");
@@ -52,7 +54,10 @@ export async function runPackage(job: Job) {
   if (distLocal && (await exists(distLocal))) durationMin = Math.round((await probeDurationSec(distLocal)) / 60);
   else if (localPathOf(ep.script_key) && (await exists(localPathOf(ep.script_key)!))) {
     const md = await fs.readFile(localPathOf(ep.script_key)!, "utf-8");
-    durationMin = Math.round(md.replace(/[^가-힣A-Za-z0-9]/g, "").length / 341);
+    // 글로벌판: 발화 턴 단어 수 ÷ 150 (잠정 — 파일럿 3편 실측 후 확정, script-length.ts · KAN-203)
+    durationMin = pipelineLocale() === "en"
+      ? Math.round(parseScriptForTts(md).turns.reduce((n, t) => n + countWords(t.text), 0) / WORDS_PER_MIN_EN)
+      : Math.round(md.replace(/[^가-힣A-Za-z0-9]/g, "").length / 341);
   }
 
   const meta = {

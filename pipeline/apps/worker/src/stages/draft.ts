@@ -3,7 +3,7 @@ import path from "node:path";
 import { cfg, executedBy } from "../config.js";
 import { claimApprovedBacklog, deleteEpisode, enqueue, getBacklog, getBacklogStatus, getEpisode, getSetting, insertRun, majorOfMidTopic, nextEpisodeId, setBacklogStatus, setJobProgress, updateJobPayload, upsertEpisode, pool, type Job } from "../db.js";
 import type { Executor } from "../executors/index.js";
-import { buildDraftPrompt, buildDraftRevisionPrompt, DRAFT_SCHEMA, DRAFT_REVISION_SCHEMA, episodeDatePrefix, episodeIdLetter, pickIntroStyle, signoffVariants, speakerNames, type Templates } from "@ear/pipeline";
+import { buildDraftPrompt, buildDraftRevisionPrompt, DRAFT_SCHEMA, DRAFT_REVISION_SCHEMA, episodeDatePrefix, episodeIdLetter, pickIntroStyle, pipelineLocale, signoffVariants, speakerNames, type Templates } from "@ear/pipeline";
 import { exists, hostOf, log, RetryLater } from "../util.js";
 import { prepareAssets, workerRev } from "../assets.js";
 import { listPrefix, pullPrefix, pushPrefix, s3Key } from "../storage.js";
@@ -184,7 +184,7 @@ export async function runDraft(job: Job, ex: Executor) {
   }
   const l0Residual = l0?.action === "pass" ? l0.residual : [];
   if (l0?.action === "fix") {
-    const fixes = violations.map((v) => ({ location: "대본 전체", item: "L0 형식 계약 (spec/04 4장 줄 문법)", reason: v }));
+    const fixes = violations.map((v) => (pipelineLocale() === "en" ? { location: "whole script", item: "L0 format contract", reason: v } : { location: "대본 전체", item: "L0 형식 계약 (spec/04 4장 줄 문법)", reason: v })); // item 머리 "L0 " 는 qaCarry 가 가른다
     await insertRun({ backlog_id: backlogId, phase: "draft", attempt, result: `${summary} — L0 형식 위반 ${violations.length}건, QA 생략하고 수정 재생성: ${violations.join(" / ").slice(0, 300)}`, prompt_version: `${promptVersion} (worker)`, artifacts, executed_by: executedBy, model, cost_usd: costUsd, tokens, worker_rev: workerRev() });
     const fixJobId = await enqueue({ type: "draft", requires_ai: true, payload: { episode_id: episodeId, backlog_id: backlogId, attempt: attempt + 1, qa_failures: fixes, l0_fixes: l0Fixes + 1, qa_round: job.payload.qa_round ?? 0 }, parent_job_id: job.id, attempt: attempt + 1 });
     log(`  draft ${episodeId}: L0 형식 위반 ${violations.length}건 — 수정 재생성 연쇄 (attempt ${attempt + 1}, L0 수정 ${l0Fixes + 1}회째)`);
@@ -220,9 +220,10 @@ function revisionWhy(job: Job): string {
 }
 
 /** L0 형식 검사 — spec/04 4장 줄 문법 위반을 기계로 검출한다. 파서가 변형을 일부 수용하므로, 여기서 걸리면 파서로도 못 살리는 수준의 이탈이다 */
-function formatViolations(md: string): string[] {
+export function formatViolations(md: string): string[] {
   const p = parseScriptForTts(md);
   const v: string[] = [];
+  if (pipelineLocale() === "en") return formatViolationsEn(p);
   if (p.turns.length < 10) v.push(`파싱된 발화 턴이 ${p.turns.length}개 — 줄 문법("[${speakerNames()[0]}] E1 · 문장") 위반 가능성 (spec/04 4장)`);
   else {
     const noId = p.turns.filter((t) => !t.id);
@@ -232,6 +233,18 @@ function formatViolations(md: string): string[] {
   // 시점 고정 표현 (spec/04 3장 금지 규칙 4 · QA 항목 6 의 코드 이관, 2026-09-08): 오디오는 발행 후에도 재생된다. 템플릿의 "오늘의 주제"·"지금까지"는 대상이 아니므로 상대 시점 어휘만 본다
   const tense = p.turns.filter((t) => /(요즘|최근에?|올해|작년|내년|지난\s?(주|달|해|번)|이번\s?(주|달)|며칠 전)/.test(t.text)).map((t) => t.id ?? "?");
   if (tense.length) v.push(`시점 고정 표현(요즘·최근·올해·지난주 등)이 ${tense.length}턴에 있음 (${tense.slice(0, 6).join(", ")}) — 절대 표기(년-월)나 무시점 표현으로 바꾼다 (spec/04 3장 규칙 4)`);
+  return v;
+}
+
+/** 글로벌판 줄 문법 검사 (글로벌 명세 6.5) — 턴 수·번호만. 시점 고정 표현은 영어 규칙 설계 몫이고 그때까지 QA 항목 6 이 본다. 메시지는 영어(수정 프롬프트가 읽는다) */
+function formatViolationsEn(p: ReturnType<typeof parseScriptForTts>): string[] {
+  const v: string[] = [];
+  const line = `"[${speakerNames()[0]}] E1 · sentence"`;
+  if (p.turns.length < 10) v.push(`Only ${p.turns.length} turns parsed — every spoken line follows ${line}`);
+  else {
+    const noId = p.turns.filter((t) => !t.id);
+    if (noId.length > Math.ceil(p.turns.length * 0.3)) v.push(`${noId.length}/${p.turns.length} turns have no E/Y number — numbered turns follow ${line}`);
+  }
   return v;
 }
 

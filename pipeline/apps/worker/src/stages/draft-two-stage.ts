@@ -6,10 +6,11 @@ import { executedBy } from "../config.js";
 import { workerRev } from "../assets.js";
 import { ApiLimit, RetryLater } from "../util.js";
 import type { Executor } from "../executors/index.js";
-import { assetPaths, buildDesignPrompt, buildWritePromptParts, DESIGN_SCHEMA, WRITE_SCHEMA, type BacklogCandidate, type INTRO_STYLES, type Templates } from "@ear/pipeline";
+import { assetPaths, buildDesignPrompt, buildWritePromptParts, DESIGN_SCHEMA, outlineMarks, pipelineLocale, scriptZones, WRITE_SCHEMA, type BacklogCandidate, type INTRO_STYLES, type Templates } from "@ear/pipeline";
 import { exists, hostOf, log } from "../util.js";
 import { parseScriptForTts, type ScriptTurn } from "../tts/script.js";
 import { runDesignSingle } from "./design-single.js";
+import { countWords, MIN_WORDS_EN, WORDS_PER_MIN_EN } from "../script-length.js";
 
 /**
  * 초안 2단계 (2026-09-08 — "축이 이끄는 파이프라인" ③, spec/04 2장).
@@ -110,7 +111,7 @@ export async function runTwoStageDraft(a: TwoStageArgs): Promise<TwoStageResult>
     onProgress: (pr) => setJobProgress(job.id, { ...pr, phase: "대본 2/2 — 단발 작성", detail: pr.turns > 0 ? "대본 작성 중 (도구 없음)" : pr.detail }).catch(() => {}),
   }); }
   const o = w.output;
-  if (!o.script || !/## \[인트로\]/.test(o.script)) throw new Error(`2단계 대본이 비었거나 구역 헤더가 없음 (script ${o.script?.length ?? 0}자). notes="${(o.notes ?? "").slice(0, 200)}"`);
+  if (!o.script || !o.script.includes(`## [${scriptZones().intro}]`)) throw new Error(`2단계 대본이 비었거나 구역 헤더가 없음 (script ${o.script?.length ?? 0}자). notes="${(o.notes ?? "").slice(0, 200)}"`);
 
   // 산출물은 워커가 쓴다 — 모델이 파일을 안 쓰는 사고(산출물 누락)가 구조적으로 사라진다
   await fs.writeFile(path.join(dir, "script.md"), o.script.trim() + "\n", "utf8");
@@ -138,7 +139,7 @@ export async function runTwoStageDraft(a: TwoStageArgs): Promise<TwoStageResult>
 
   const stats = scriptStats(o.script);
   const writeCost = w.listCostUsd ?? 0;
-  const summary = `${episodeId} 초안 완료 (2단계 · ${ex.kind}, 도입 ${a.introStyle.label}, 템플릿 ${a.templates?.version ?? "미적용"}). ${designSummary}. 대본: "${o.title}" ${stats.turns}턴·${stats.chars}자·약 ${stats.minutes}분 · claims 대응 턴 ${o.turn_claims.length} · 새 연결 ${o.bridges.length} · 자기 점검 수정 ${o.self_check_fixes.length}건 · 구간 준수 ${o.sections_followed ? "예" : "아니오"}. 비용 설계 $${designCost.toFixed(2)} + 대본 $${writeCost.toFixed(2)} (effort ${cfg.effortDesign ?? "기본"}/${cfg.effortWrite ?? "기본"}). ${o.notes}`;
+  const summary = `${episodeId} 초안 완료 (2단계 · ${ex.kind}, 도입 ${a.introStyle.label}, 템플릿 ${a.templates?.version ?? "미적용"}). ${designSummary}. 대본: "${o.title}" ${stats.turns}턴·${stats.words !== undefined ? `${stats.words}단어` : `${stats.chars}자`}·약 ${stats.minutes}분 · claims 대응 턴 ${o.turn_claims.length} · 새 연결 ${o.bridges.length} · 자기 점검 수정 ${o.self_check_fixes.length}건 · 구간 준수 ${o.sections_followed ? "예" : "아니오"}. 비용 설계 $${designCost.toFixed(2)} + 대본 $${writeCost.toFixed(2)} (effort ${cfg.effortDesign ?? "기본"}/${cfg.effortWrite ?? "기본"}). ${o.notes}`;
   return {
     summary, model: w.model ?? designModel, costUsd: designCost + writeCost,
     tokens: { design: designTokens, write: (w.raw as { usage?: unknown } | undefined)?.usage, design_model: designModel, write_model: w.model },
@@ -146,10 +147,15 @@ export async function runTwoStageDraft(a: TwoStageArgs): Promise<TwoStageResult>
   };
 }
 
-/** 공백·기호 제외 글자 수·턴 수·분량 환산 (341자/분 — eleven_v4 실측, 2026-10-08) — 모델 자기보고 대신 워커가 센다 */
-export function scriptStats(md: string): { turns: number; chars: number; minutes: number } {
+/** 공백·기호 제외 글자 수·턴 수·분량 환산 (341자/분 — eleven_v4 실측, 2026-10-08) — 모델 자기보고 대신 워커가 센다.
+ *  글로벌판은 단어 수를 더하고 분량을 단어 ÷ 150 으로 낸다(script-length.ts, KAN-203). 한국판에는 words 키가 없다 */
+export function scriptStats(md: string): { turns: number; chars: number; minutes: number; words?: number } {
   const p = parseScriptForTts(md);
   const chars = p.turns.reduce((n, t) => n + (t.text.match(/[가-힣A-Za-z0-9]/g)?.length ?? 0), 0);
+  if (pipelineLocale() === "en") {
+    const words = p.turns.reduce((n, t) => n + countWords(t.text), 0);
+    return { turns: p.turns.length, chars, words, minutes: Math.round((words / WORDS_PER_MIN_EN) * 10) / 10 };
+  }
   return { turns: p.turns.length, chars, minutes: Math.round((chars / 341) * 10) / 10 };
 }
 
@@ -157,6 +163,7 @@ export function scriptStats(md: string): { turns: number; chars: number; minutes
 /** @param opts.signoffHeads 템플릿 클로징 인사 골격들의 고정 머리(첫 {슬롯} 앞 문구, tpl-v2). 있으면 마지막 턴이 진행(Y) 턴이고 그중 하나를 담아야 한다 */
 export interface L0AttributionInput { claimsMd?: string; sourcesMd?: string; notesMd?: string; pronunciations?: Record<string, string> }
 export function twoStageViolations(scriptMd: string, outlineMd: string, opts: { signoffHeads?: string[] } & L0AttributionInput = {}): string[] {
+  if (pipelineLocale() === "en") return twoStageViolationsEn(scriptMd, outlineMd, opts);
   const v: string[] = [];
   const planned = [...outlineMd.matchAll(/^구간 #(\d+)/gm)].map((m) => Number(m[1]));
   const written = [...scriptMd.matchAll(/^### #(\d+)/gm)].map((m) => Number(m[1]));
@@ -273,6 +280,38 @@ export function twoStageViolations(scriptMd: string, outlineMd: string, opts: { 
   v.push(...v910Violations(p.turns));
   // full-v7 (2026-09-15): 귀속 표현 턴 비율 검사는 폐지 — 32~36% 인 편에서도 소스 순회(재식별 15건)가 있었다. 구조 검사로 대체
   v.push(...attributionViolations(scriptMd, p.turns, opts));
+  return v;
+}
+
+/**
+ * 글로벌판 L0 (글로벌 명세 6.5, KAN-203) — 형식 계약만 본다: 구역 헤더·구성안 구간 계약·분량 하한(단어)·과다 분량·마지막 턴과 클로징 머리 문구.
+ * 한국어 문체·귀속 검사는 돌지 않는다. 영어 문체 검사는 영어 규칙 자산 v0 와 함께 정하고 파일럿 판정으로 늘린다.
+ * 메시지는 영어다 — 수정 재생성 프롬프트가 그대로 읽는다(명세 4.5: 모델이 읽는 글은 영어). 비율 규칙이 없어 한도 뒤 남은 위반은 전부 실패다
+ */
+export function twoStageViolationsEn(scriptMd: string, outlineMd: string, opts: { signoffHeads?: string[] } = {}): string[] {
+  const v: string[] = [];
+  const z = scriptZones();
+  const order = [z.intro, z.lead, z.body, z.outro];
+  const zones = [...scriptMd.matchAll(/^#{2,}\s*\[([^\]]+)\]/gm)].map((m) => m[1].trim());
+  if (zones.join("\u0000") !== order.join("\u0000")) v.push(`Zone headers are ${zones.length ? zones.map((x) => `[${x}]`).join(" ") : "missing"} — the script has exactly four zones, in this order: ${order.map((x) => `## [${x}]`).join(" → ")}`);
+  const marks = outlineMarks();
+  const planned = [...outlineMd.matchAll(marks.section)].map((m) => Number(m[1]));
+  const written = [...scriptMd.matchAll(/^### #(\d+)/gm)].map((m) => Number(m[1]));
+  if (planned.length && written.length !== planned.length) v.push(`The outline has ${planned.length} sections but the script has ${written.length} "### #n" headers — write every outline section, in outline order`);
+  else if (planned.length && written.some((n, i) => n !== planned[i])) v.push(`Section order differs from the outline (outline ${planned.join(",")} / script ${written.join(",")})`);
+  const s = scriptStats(scriptMd);
+  const words = s.words ?? 0;
+  if (words < MIN_WORDS_EN) v.push(`Length ${words} words (about ${s.minutes} min) — below the 13-minute floor (${MIN_WORDS_EN} words). Use more of the outline's material (reserve material, background); do not pad`);
+  const est = Number(outlineMd.match(marks.estimate)?.[1]);
+  if (est && s.minutes > est * 1.6) v.push(`Length ${words} words (about ${s.minutes} min) — more than 1.6× the outline estimate of ${est} min. Keep the material; shorten long explainer turns to land within ±15% of the estimate`);
+  const heads = (opts.signoffHeads ?? []).map((h) => h.replace(/\s+/g, " ").trim()).filter(Boolean);
+  if (heads.length) {
+    const p = parseScriptForTts(scriptMd);
+    const last = p.turns[p.turns.length - 1];
+    const text = last?.text.replace(/\s+/g, " ") ?? "";
+    if (!last?.id?.startsWith("Y")) v.push(`The last turn is not a host (Y) turn (${last?.id ?? "none"}) — after the explainer's wrap-up, the host closes with one sign-off turn ("${heads[0]} …")`);
+    else if (!heads.some((h) => text.includes(h))) v.push(`The last turn ${last.id} lacks the sign-off frame ("${heads[0]}"${heads.length > 1 ? ` or ${heads.length - 1} other${heads.length > 2 ? "s" : ""}` : ""}) — keep the template frame as is and fill only the {slots}`);
+  }
   return v;
 }
 

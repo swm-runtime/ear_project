@@ -10,7 +10,7 @@ import { advanceChain } from "../chain.js";
 import { ApiLimit, log, RetryLater } from "../util.js";
 import { freeGb } from "../disk.js";
 import { parseScriptForTts, chunkTurns, describeCuts, type ScriptTurn, type Speaker } from "../tts/script.js";
-import { normalizeForTts, residualIssues } from "../tts/normalize.js";
+import { mergeTtsDict, missingPronunciations, normalizeForTts, residualIssues } from "../tts/normalize.js";
 import { synthDialogue, synthDialogueWithTimestamps, forcedAlignment, locateTurnSpans, resetFormat, resetUsage, usage, type TimestampedSynth, type TurnSpan } from "../tts/elevenlabs.js";
 import { assemble, fadeOutPcm, findGuardCut, findPauseCut, findTailCut, pcmTrailingBlip, probeDurationSec, retimePieces, writeBuf, type Segment } from "../tts/audio.js";
 import { alignmentGap, gapMid, pieceBounds } from "../tts/bounds.js";
@@ -111,7 +111,9 @@ export async function runTts(job: Job) {
   // 병합 음차 사전 (spec/06 6장): 전역(DB active — 에피소드 고정 없음) + 에피소드 발음 맵. 겹치면 전역이 이긴다
   const { version: dictVersion, entries: globalDict } = await loadTtsDict();
   const epMap = await readEpisodePronunciations(path.join(cfg.workRoot, rel, "pronunciations.json"));
-  const dict = { ...epMap, ...globalDict };
+  const missing = pipelineLocale() === "en" ? missingPronunciations(epMap, globalDict) : [];
+  if (missing.length) throw new Error(`발음 누락 — 대본의 한국어 단어 ${missing.length}개에 발음 힌트가 없다. 에피소드 "발음" 탭(발음 맵) 또는 /assets 의 TTS 발음 사전에 영어 TTS 가 맞게 읽을 철자를 채운 뒤 재시도 (글로벌 명세 6.7, 코드 배포 불필요): ${missing.slice(0, 30).join(", ")}`);
+  const dict = mergeTtsDict(epMap, globalDict);
   type TtsTurn = ScriptTurn & { orig: string }; // orig = 사람이 읽는 원문 (자막 세그먼트용) · text = 합성용 표기
   const turns: TtsTurn[] = (sampleTurns ? parsed.turns.filter((t) => !parsed.placeholders.some((p) => t.text.includes(p))).slice(0, sampleTurns) : parsed.turns)
     .map((t) => ({ ...t, orig: t.text, text: normalizeForTts(t.text, dict) }));
@@ -386,8 +388,9 @@ async function audioIsFresh(rel: string, scriptKey: string | null): Promise<bool
   return scriptAt === undefined || scriptAt <= audioAt;
 }
 
-/** 에피소드 발음 맵 (spec/04 8장) — 없으면 빈 맵 (구 에피소드 호환). 깨진 JSON 은 조용히 넘기지 않는다 — 웹 "발음" 탭에서 고친다 */
-export async function readEpisodePronunciations(file: string): Promise<Record<string, string>> {
+/** 에피소드 발음 맵 (spec/04 8장) — 없으면 빈 맵 (구 에피소드 호환). 깨진 JSON 은 조용히 넘기지 않는다 — 웹 "발음" 탭에서 고친다.
+ *  allowEmpty(글로벌판 기본): 빈 값은 "등재했지만 힌트 없음"이라 형식 오류가 아니다 — 발음 누락 검사가 따로 멈춘다(글로벌 명세 6.7) */
+export async function readEpisodePronunciations(file: string, allowEmpty = pipelineLocale() === "en"): Promise<Record<string, string>> {
   const raw = await fs.readFile(file, "utf-8").catch(() => null);
   if (raw == null || !raw.trim()) return {};
   let parsed: unknown;
@@ -396,7 +399,7 @@ export async function readEpisodePronunciations(file: string): Promise<Record<st
   if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) throw new Error(`pronunciations.json 은 {"표기": "발음"} 객체여야 한다 — 에피소드 "발음" 탭에서 수정`);
   const out: Record<string, string> = {};
   for (const [k, v] of Object.entries(parsed)) {
-    if (!k.trim() || typeof v !== "string" || !v.trim()) throw new Error(`pronunciations.json 항목이 잘못됐다 ("${k}": ${JSON.stringify(v)}) — 값은 비어 있지 않은 문자열`);
+    if (!k.trim() || typeof v !== "string" || (!allowEmpty && !v.trim())) throw new Error(`pronunciations.json 항목이 잘못됐다 ("${k}": ${JSON.stringify(v)}) — 값은 비어 있지 않은 문자열`);
     out[k] = v;
   }
   return out;
