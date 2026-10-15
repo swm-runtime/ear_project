@@ -1264,7 +1264,7 @@ export interface ClusterV2Input {
   midTopics: string[];
   majorTopic?: string | null;
   nextIdNumber: number;
-  sources: { n: number; url: string; title: string; summary: string | null; publisher: string; domain: string; published: string | null; midTopics?: string[]; used?: boolean }[];
+  sources: { n: number; url: string; title: string; summary: string | null; publisher: string; domain: string; published: string | null; midTopics?: string[]; used?: boolean; tier?: string }[]; // tier: 소스 풀 판정(allow_open…) — 글로벌판 판정자에게만 보인다(근거 앵커는 1군만, 게이트 1)
   existingTitles: string[];
   /** spec/03 3장(후보 구성)·6장(게이트 1) 등 인라인으로 넣을 규격 발췌 */
   specBacklogExcerpt: string;
@@ -1274,6 +1274,8 @@ export interface ClusterV2Input {
   seed?: { id: string; topic: string; hint: string | null; midTopic: string };
   /** 보강 재판정 후보의 중분류 (역사 모드 판별, 2026-10-01) */
   reinforceMidTopic?: string | null;
+  /** 글로벌판 판정의 보조 주제 후보(주제 8개 중 대표 주제 외) — 판정이 sub_topic 을 고를 수 있는 목록 (2026-10-15) */
+  subTopicOptions?: string[];
 }
 
 export function buildClusterPromptV2(i: ClusterV2Input): string {

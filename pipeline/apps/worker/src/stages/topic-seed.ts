@@ -1,8 +1,8 @@
 import fs from "node:fs/promises";
 import { cfg, executedBy } from "../config.js";
-import { domainTierByHost, existingBacklogTitles, findDomainForUrl, insertBacklogAlloc, insertCandidateDomain, insertRun, majorOfMidTopic, midsOfMajor, poolDomainsForTopics, recentSourcesForTopics, recordFetchStatus, setBacklogStatus, setJobProgress, upsertSource, type Job } from "../db.js";
+import { domainTierByHost, existingBacklogTitles, findDomainForUrl, insertBacklogAlloc, insertCandidateDomain, insertRun, majorOfMidTopic, midsOfMajor, poolDomainsForTopics, recentSourcesForTopics, recordFetchStatus, setBacklogStatus, setJobProgress, upsertSource, type Job, allTopicMids } from "../db.js";
 import type { Executor } from "../executors/index.js";
-import { assetPaths, buildClusterPromptV2, buildTopicSeedSearchPrompt, CLUSTER_SCHEMA_V2, REINFORCE_SEARCH_SCHEMA, todayKst, pipelineLocale } from "@ear/pipeline";
+import { assetPaths, buildClusterPromptV2, buildTopicJudgePromptEn, buildTopicSeedSearchPrompt, buildTopicSeedSearchPromptEn, CLUSTER_SCHEMA_V2, CLUSTER_SCHEMA_V2_EN, judgeToInternal, REINFORCE_SEARCH_SCHEMA, REINFORCE_SEARCH_SCHEMA_EN, todayKst, pipelineLocale } from "@ear/pipeline";
 import { hostOf, log } from "../util.js";
 import { prepareAssets, workerRev } from "../assets.js";
 import { putFile, s3Key } from "../storage.js";
@@ -43,8 +43,9 @@ export async function runTopicSeed(job: Job, ex: Executor) {
     const mids = await midsOfMajor(major);
     const poolDomains = await poolDomainsForTopics(mids.length ? mids : [midTopic]);
     await setJobProgress(job.id, { phase: `기획 1/2 — 검색 (${id})`, detail: `"${topic.slice(0, 40)}"`, toolCounts: {}, turns: 0, elapsedMs: 0 }).catch(() => {});
+    const en = pipelineLocale() === "en"; // 글로벌판: 영어 검색·판정 프롬프트, 판정 결과는 내부 값으로 바꿔 저장 (global-prompts.ts, KAN-209)
     const r1 = await ex.run<SearchOut>({
-      prompt: buildTopicSeedSearchPrompt({ id, topic, hint, midTopic, poolHosts: poolDomains.map((d) => d.domain), maxSearches }), schema: REINFORCE_SEARCH_SCHEMA,
+      prompt: (en ? buildTopicSeedSearchPromptEn : buildTopicSeedSearchPrompt)({ id, topic, hint, midTopic, poolHosts: poolDomains.map((d) => d.domain), maxSearches }), schema: en ? REINFORCE_SEARCH_SCHEMA_EN : REINFORCE_SEARCH_SCHEMA,
       allowedTools: ["WebSearch"], cwd: cfg.workRoot, timeoutMs: 20 * 60_000, model: cfg.clusterModel, effort: "medium",
       onProgress: (pr) => setJobProgress(job.id, { ...pr, phase: `기획 1/2 — 검색 (${id})`, detail: pr.toolCounts?.WebSearch ? `검색 ${pr.toolCounts.WebSearch}회` : pr.detail }).catch(() => {}),
     });
@@ -75,15 +76,17 @@ export async function runTopicSeed(job: Job, ex: Executor) {
     await setJobProgress(job.id, { phase: `기획 2/2 — 판정 (${id}, 소스 ${added.length}건)`, detail: "", toolCounts: {}, turns: 0, elapsedMs: 0 }).catch(() => {});
     const { assetRoot, bundle } = await prepareAssets(null);
     const specBacklog = await fs.readFile(assetPaths(assetRoot, cfg.workRoot).specBacklog, "utf8");
-    const excerpt = (pipelineLocale() === "en" ? ["## 3. Candidate structure", "## 6. Gate 1"] : ["## 3. 후보의 구성", "## 6. 게이트 1"]).map((h) => { const a = specBacklog.indexOf(h); if (a < 0) return ""; const b = specBacklog.indexOf("\n## ", a + 3); return specBacklog.slice(a, b < 0 ? undefined : b); }).join("\n\n");
-    const meta: { n: number; url: string; title: string; summary: string | null; publisher: string; domain: string; published: string | null }[] = [];
+    const excerpt = (en ? ["## 2. Topics", "## 3. Candidate structure", "## 6. Gate 1"] : ["## 3. 후보의 구성", "## 6. 게이트 1"]).map((h) => { const a = specBacklog.indexOf(h); if (a < 0) return ""; const b = specBacklog.indexOf("\n## ", a + 3); return specBacklog.slice(a, b < 0 ? undefined : b); }).join("\n\n");
+    const meta: { n: number; url: string; title: string; summary: string | null; publisher: string; domain: string; published: string | null; tier?: string }[] = [];
     const seen = new Set<string>();
-    const push = (s: { url: string; title: string; summary: string | null; publisher: string; domain: string; published: string | null }) => { if (seen.has(s.url)) return; seen.add(s.url); meta.push({ n: meta.length + 1, ...s }); };
+    const tiersPre = en ? await domainTierByHost() : null; // 글로벌판 판정자에게 도메인 등급을 보인다 — 근거 앵커는 1군만(게이트 1)
+    const push = (s: { url: string; title: string; summary: string | null; publisher: string; domain: string; published: string | null }) => { if (seen.has(s.url)) return; seen.add(s.url); meta.push({ n: meta.length + 1, ...s, ...(tiersPre ? { tier: tiersPre.get(hostOf(s.url)) ?? tiersPre.get(s.domain) ?? "candidate" } : {}) }); };
     for (const s of added) push({ url: s.url, title: s.title, summary: s.summary, publisher: s.publisher, domain: hostOf(s.url), published: s.published });
     for (const s of await recentSourcesForTopics([midTopic], 60, 30)) push({ url: s.url, title: s.title, summary: s.summary, publisher: s.publisher, domain: s.domain, published: s.published }); // 풀의 최근 소스 소량 — 검색이 빈 손이어도 채울 수 있게
-    const judgePrompt = buildClusterPromptV2({ midTopics: [midTopic], majorTopic: major, nextIdNumber: Number(id.replace(/\D/g, "")) || 0, sources: meta, existingTitles: (await existingBacklogTitles()).filter((t) => t !== topic), specBacklogExcerpt: excerpt, seed: { id, topic, hint, midTopic } });
-    const r2 = await ex.run<JudgeOut>({ prompt: judgePrompt, schema: CLUSTER_SCHEMA_V2, tools: [], allowedTools: [], cwd: cfg.workRoot, timeoutMs: 20 * 60_000, model: cfg.clusterModel, maxThinkingTokens: cfg.thinkingDesign,
+    const judgePrompt = (en ? buildTopicJudgePromptEn : buildClusterPromptV2)({ midTopics: [midTopic], majorTopic: major, nextIdNumber: Number(id.replace(/\D/g, "")) || 0, sources: meta, existingTitles: (await existingBacklogTitles()).filter((t) => t !== topic), specBacklogExcerpt: excerpt, seed: { id, topic, hint, midTopic }, ...(en ? { subTopicOptions: (await allTopicMids()).filter((t) => t !== midTopic) } : {}) });
+    const r2raw = await ex.run<JudgeOut>({ prompt: judgePrompt, schema: en ? CLUSTER_SCHEMA_V2_EN : CLUSTER_SCHEMA_V2, tools: [], allowedTools: [], cwd: cfg.workRoot, timeoutMs: 20 * 60_000, model: cfg.clusterModel, maxThinkingTokens: cfg.thinkingDesign,
       onProgress: (pr) => setJobProgress(job.id, { ...pr, phase: `기획 2/2 — 판정 (${id})`, detail: pr.turns > 0 ? "축·역할표 구성 중" : pr.detail }).catch(() => {}) });
+    const r2 = en ? { ...r2raw, output: judgeToInternal(r2raw.output) } : r2raw;
     const c = r2.output.candidates?.[0];
     if (!c) throw new Error("판정 결과에 후보가 없다");
     const byM = new Map(meta.map((s) => [`M${s.n}`, s]));
@@ -93,7 +96,11 @@ export async function runTopicSeed(job: Job, ex: Executor) {
     const gaps = Array.from(new Set([...c.gaps, ...missingCore]));
     const ok = c.verdict === "성립" && problems.length === 0;
     const summary = `${TOPIC_SEED_MARK} ${todayKst()}: 입력 "${topic.slice(0, 60)}" · 검색 ${r1.output.queries?.length ?? 0}회 → 소스 ${added.length}건 적재(새 도메인 ${newDomains.length}, 제외 ${dropped.length}) · 판정 ${ok ? "성립" : `보강 필요 (${[...problems, ...(gaps.length ? ["빈 역할 " + gaps.join("·")] : [])].join(", ")})`}`;
+    // 글로벌판 보조 주제: 사람이 고르지 않았을 때만 판정의 제안을 싣는다 — 사람이 고른 값은 바꾸지 않는다 (글로벌 명세 2장·6.1)
+    const judgedSub = en && !job.payload.sub_topic ? (c as { sub_topic?: string | null }).sub_topic ?? null : null;
+    const subOk = judgedSub && judgedSub !== midTopic && (await allTopicMids()).includes(judgedSub) ? judgedSub : null;
     await setBacklogStatus(id, ok ? "proposed" : "held", {
+      ...(subOk ? { sub_topic: subOk } : {}),
       title: c.title || topic, summary: c.axis_note, target_fit: c.target_fit, angle: c.landing, axis: c.axis, axis_type: c.axis_type,
       sources: JSON.stringify(srcs.map((s) => ({ url: s.url, tier: tiers.get(hostOf(s.url)) ?? tiers.get(s.domain) ?? "candidate", title: s.title, backbone: s.roles.includes("근거 앵커"), published: s.published, publisher: s.publisher, roles: s.roles, why: s.why }))),
       gaps: ok ? [] : gaps, reinforce_note: summary,

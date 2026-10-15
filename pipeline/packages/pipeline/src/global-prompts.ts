@@ -10,7 +10,7 @@
  * - 발음 맵: 대본의 한국어 단어 전부, 힌트 없으면 빈 문자열 (글로벌 명세 6.7 — TTS 발음 누락 검사)
  */
 import { otherSpeaker, scriptZones, speakerNames } from "./locale.js";
-import type { BacklogCandidate, DesignInlineInput, IntroStyle, PromptParts, RevisionInlineInput, Templates, WriteInput } from "./index.js";
+import type { BacklogCandidate, ClusterV2Input, DesignInlineInput, IntroStyle, PromptParts, ReinforceSearchInput, RevisionInlineInput, Templates, TopicSeedSearchInput, WriteInput } from "./index.js";
 
 const fence = (s: string) => "````\n" + s.trim() + "\n````";
 const explainerEn = () => speakerNames()[0];
@@ -57,10 +57,10 @@ const historyDesignEn = `## 0. History mode — this candidate's axis is an even
 
 function candidateAxisBlockEn(c: BacklogCandidate): string {
   if (!c.axis) return `- Backlog angle (reference only): ${c.angle ?? "(none)"}`;
-  const roles = c.sources.map((s, n) => `S${n + 1} ${s.publisher}: ${(s.roles ?? []).join(", ") || "no role"}`).join(" / ");
-  return `- **Backlog axis (starting point)**: [${c.axis_type}] ${c.axis}
+  const roles = c.sources.map((s, n) => `S${n + 1} ${s.publisher}: ${(s.roles ?? []).map(roleEn).join(", ") || "no role"}`).join(" / ");
+  return `- **Backlog axis (starting point)**: [${axisTypeEn(c.axis_type ?? "")}] ${c.axis}
 - Backlog roles: ${roles}${c.gaps?.length ? `
-- Empty roles: ${c.gaps.join(", ")} — fill them from the text if you can; otherwise write "none" in the outline's role table` : ""}
+- Empty roles: ${c.gaps.map(roleEn).join(", ")} — fill them from the text if you can; otherwise write "none" in the outline's role table` : ""}
 - If the axis does not hold after reading the sources, change it and write "axis changed: reason" in notes.`;
 }
 
@@ -474,3 +474,202 @@ export const CRITIC_INLINE_SCHEMA_EN = {
     report_md: { type: "string", description: "The full critic report in the rubric's section 4 format, markdown" },
   },
 } as const;
+
+
+// ── 주제 기획·보강 (모드 B-②·B-①, 글로벌 명세 6.1·6.3) ─────────────────────
+// 모델에게는 영어 값으로 묻고, 저장 직전에 내부 값(한국어 코드)으로 바꾼다 — 게이트 1(apps/web lib/gate1.ts)·후보 검사(candidate-check.ts)·콘솔이
+// 내부 값("근거 앵커"·"성립")을 읽기 때문이다. 화면에 보이는 역할 이름도 팀이 읽는 한국어 그대로다
+
+export const ROLE_EN_TO_KO = { anchor: "근거 앵커", case: "사례", counterpoint: "반론·한계", numbers: "수치·조사", context: "역사·맥락" } as const;
+export const AXIS_EN_TO_KO = { contrast: "대립", paradox: "역설", redefinition: "재정의", event: "사건" } as const;
+const ROLES_EN = Object.keys(ROLE_EN_TO_KO) as (keyof typeof ROLE_EN_TO_KO)[];
+const invert = (o: Record<string, string>) => Object.fromEntries(Object.entries(o).map(([k, v]) => [v, k])) as Record<string, string>;
+const ROLE_KO_TO_EN = invert(ROLE_EN_TO_KO);
+const AXIS_KO_TO_EN = invert(AXIS_EN_TO_KO);
+/** 내부 값 → 모델에게 보일 영어 (모르는 값은 그대로) */
+export const roleEn = (r: string) => ROLE_KO_TO_EN[r] ?? r;
+export const axisTypeEn = (a: string) => AXIS_KO_TO_EN[a] ?? a;
+const roleKo = (r: string) => (ROLE_EN_TO_KO as Record<string, string>)[r] ?? r;
+
+const ROLE_INTENT_EN: Record<string, string> = {
+  anchor: "research, an institution's explainer, or an expert account that directly supports the axis",
+  case: "a concrete story, report, interview, or scene a listener can picture",
+  counterpoint: "a view against the axis or its limits: criticism, a contrary study, cases where it does not hold",
+  numbers: "a survey, statistics, or an experiment with figures; official statistics",
+  context: "where the practice came from, how it changed, the background of the idea",
+};
+const ROLE_INTENT_HISTORY_EN: Record<string, string> = {
+  anchor: "an account of the event as a whole: a history reference, an overview, a summary of records, a research institute's explainer",
+  case: "a concrete scene, person, or record from the time: letters, diaries, court records, reports of the day",
+  counterpoint: "interpretations of the same event that disagree (good to have, not required)",
+  numbers: "figures recorded at the time: population, losses, costs, votes",
+  context: "the background and aftermath of the event",
+};
+const roleIntent = (history: boolean) => (history ? ROLE_INTENT_HISTORY_EN : ROLE_INTENT_EN);
+const historyTopic = (mid: string | null | undefined) => mid === HISTORY_TOPIC_EN;
+
+const SEARCH_EXCLUDE_EN = `- Exclude what the worker cannot read: paywalled databases and repositories (researchgate, ssrn, academia.edu, semanticscholar, paid sciencedirect, springer, or wiley pages, jstor, DBpia, KISS, RISS), login or subscription walls, PDF-only links, social media, YouTube, wikis (including namu.wiki), forums, fan communities, shopping pages, and short press releases.
+- Exclude Korean personal publishing: Naver or Daum blogs and cafes, Tistory, Brunch, Naver KnowledgeiN. For portal copies of news (n.news.naver.com, v.daum.net), return the original publisher's URL.
+- English entertainment sites (Soompi, allkpop, Koreaboo and similar) are case material only, never the anchor.
+- For Korean queries, write the Korean term in Hangul.
+- ear does not report news. A news story is case material only.
+- The two-year limit applies to numbers and to claims about current practice. Reference works, heritage explainers, and museum pages may be any age. A numbers source states the year its data describes.
+- Topic limits: nothing about real people's private life, rumors, or controversies; no promotional pages of agencies or brands; for food and travel, no price, store, or booking guides; for drama and film, no plot summary as the anchor.
+- One source may fill two roles. A source that only shares keywords is worse than none.
+- publisher is the organization's official English name, written the same way every time. Sites of one organization count as one publisher.`;
+
+/** 기획 검색 — 도구는 웹 검색만(본문 안 읽음). 한국어·영어 소스 둘 다 — K-컬처는 국문 1차 자료가 많다 */
+export function buildTopicSeedSearchPromptEn(i: TopicSeedSearchInput): string {
+  const history = false; // 주제 이름만으로는 사건형인지 모른다 — 아래 조건부 안내로 대신한다
+  return `You find sources for "ear", an audio service that makes 15-minute two-person English episodes about Korean culture for listeners mostly in Southeast Asia and Japan. A person chose one episode topic. Find sources for it by web search.
+The only tool is web search. Do not read pages; the planner reads them later. Return what the results show: title, summary, publisher, date.
+
+## Topic
+- ${i.id} "${i.topic}" · topic area ${i.midTopic}${i.hint ? `\n- Note from the person: ${i.hint}` : ""}
+
+## What to collect — roles
+A candidate holds with 5 to 7 sources that fill these roles:
+  · ${ROLES_EN.map((r) => `${r} — ${roleIntent(history)[r]}`).join("\n  · ")}${historyTopic(i.midTopic) ? "\nIf the topic is a past event: an account of the event as a whole is the anchor; an essay that uses the event as an example of another idea is not. Records from the time are cases. Older sources are fine." : ""}
+The worker recounts: at least 3 sources · at least 3 publishers · no publisher over half · at least 1 anchor · at least 1 case · at least 3 roles.
+
+## Search rules
+- At most ${i.maxSearches} searches. Search in both English and Korean. Korean institutions and Korean-language sources often hold the best material on Korean culture; English sources show how it is explained to outsiders.
+- Any publisher is fine if it fits. Prefer Korean public institutions and research bodies (national museums, heritage, language, and tourism agencies), universities, open-access journals, museums, and archives; then specialist and nonprofit media; then commercial news. These pool sites are known to be readable; you may add site: to queries (optional):
+  ${i.poolHosts.slice(0, 40).join(", ")}
+${SEARCH_EXCLUDE_EN}
+
+## Report — output only the requested JSON. sources: at most 10, each with url (the result's exact URL), title, publisher, published (YYYY-MM-DD or null), summary (two English sentences from the result), roles, why (one line on the role), in_pool (true if the site is in the pool list). queries: every query you used. notes: roles not filled and why.`;
+}
+
+/** 보강 검색 — 후보 하나의 빈 역할(없으면 발행처 다양화). 풀 밖 결과는 in_pool=false 로 돌려준다(워커가 도메인 후보로만 등록) */
+export function buildReinforceSearchPromptEn(i: ReinforceSearchInput): string {
+  const c = i.candidate;
+  const history = historyTopic(c.mid_topic) && (c.axis_type === "사건" || c.axis_type === "event");
+  const pubCount = new Map<string, number>(); for (const x of c.sources) pubCount.set(x.publisher, (pubCount.get(x.publisher) ?? 0) + 1);
+  const top = [...pubCount].sort((a, b) => b[1] - a[1])[0];
+  const diversify = !c.gaps.length && top ? `more publishers — ${top[0]} has ${top[1]} of ${c.sources.length} sources. Find 1 to 2 anchors and 1 case from publishers not already in the list.` : null;
+  const roles = (c.gaps.length ? c.gaps : ["근거 앵커", "사례"]).map(roleEn);
+  return `You reinforce sources for "ear", an audio service that makes 15-minute two-person English episodes about Korean culture. One candidate has an axis but empty roles. Find sources for those roles by web search.
+The only tool is web search. Do not read pages. Return what the results show: title, summary, publisher, date.
+
+## Candidate
+- ${c.id} "${c.title}" · topic area ${c.mid_topic}
+- Axis (${axisTypeEn(c.axis_type ?? "-")}): ${c.axis ?? "(none)"}
+- Sources already in it: ${c.sources.map((x) => `${x.publisher} "${x.title}"`).join(" / ") || "(none)"}
+- **Roles to fill**: ${roles.map((r) => `${r} — ${roleIntent(history)[r] ?? ""}`).join("\n  · ")}${diversify ? `\n- **Goal of this round**: ${diversify}` : ""}
+
+## Search rules
+- At most ${i.maxSearches} searches, in English and Korean.
+- **Pool sites first** (only results from these can be used right away). Put 2 to 3 of them per query with site::
+  ${i.poolHosts.join(", ")}
+- Do not drop results from other sites; return them with in_pool=false. The worker only registers their domains for a person to judge.
+${SEARCH_EXCLUDE_EN}
+
+## Report — output only the requested JSON. sources: at most 8, each with url (exact), title, publisher, published (YYYY-MM-DD or null), summary (two English sentences), roles, why (one line), in_pool. queries: every query you used.`;
+}
+
+export const REINFORCE_SEARCH_SCHEMA_EN = {
+  type: "object",
+  additionalProperties: false,
+  required: ["queries", "sources", "notes"],
+  properties: {
+    queries: { type: "array", items: { type: "string" } },
+    sources: { type: "array", items: { type: "object", additionalProperties: false, required: ["url", "title", "publisher", "published", "summary", "roles", "why", "in_pool"], properties: {
+      url: { type: "string" }, title: { type: "string" }, publisher: { type: "string" }, published: { type: ["string", "null"] }, summary: { type: "string" },
+      roles: { type: "array", items: { type: "string", enum: ROLES_EN } }, why: { type: "string" }, in_pool: { type: "boolean" } } } },
+    notes: { type: "string", description: "Roles not filled and why" },
+  },
+} as const;
+
+/**
+ * 기획·보강 판정 (군집화 v2 의 후보 하나 모드) — 글로벌판은 스윕·군집화가 없어 seed·reinforce 만 받는다.
+ * 기준에 "영어로, 한국 밖 청취자에게 성립하는가"를 더한다 — 한국어 말장난에 기대거나 한국을 낯선 것으로 놓는 축은 대본 규칙(guidelines full-en)에서도 무너진다
+ */
+export function buildTopicJudgePromptEn(i: ClusterV2Input): string {
+  if (!i.seed && !i.reinforce) throw new Error("글로벌판 판정은 주제 기획(seed) 또는 보강(reinforce) 후보 하나만 받는다");
+  const mid = i.seed?.midTopic ?? i.reinforceMidTopic ?? i.midTopics[0];
+  const history = historyTopic(mid);
+  const cur = new Set(i.reinforce?.currentM ?? []);
+  const tierLabel = (t?: string) => (t === "allow_open" ? "tier 1" : t === "allow_support" ? "tier 2" : "domain not judged");
+  const list = i.sources.map((x) => `[M${x.n}] ${x.publisher || x.domain} · ${x.published ?? "date unknown"} · ${tierLabel(x.tier)}${x.used ? " · (already used)" : ""}${cur.has(`M${x.n}`) ? " · (current candidate source)" : ""}\n   ${x.title}\n   ${(x.summary ?? "").replace(/\s+/g, " ").slice(0, 240)}`).join("\n");
+  const id = i.seed?.id ?? i.reinforce!.id;
+  const mode = i.seed
+    ? `## 0. Mode — one candidate from a person's topic
+- Topic (from a person): "${i.seed.topic}"${i.seed.hint ? `\n- Note: ${i.seed.hint}` : ""}
+- Topic area: ${i.seed.midTopic} (fixed)
+- The sources below came from a web search on this topic, plus a few recent pool sources. Set the axis that best carries the topic, in one of the forms below, and build its role table. Leave out sources that do not fit the topic.
+- candidates has exactly 1 item, id "${id}". You may polish the title but not change the topic. If the criteria are not met, give verdict "needs reinforcement" and list the empty roles in gaps; do not force it. If it overlaps an existing candidate, name it in dedup_note (still return the candidate; a person decides).`
+    : `## 0. Mode — re-judge one existing candidate
+- Candidate: "${i.reinforce!.title}" · axis (${axisTypeEn(i.reinforce!.axis_type)}): ${i.reinforce!.axis}
+- Empty roles: ${i.reinforce!.gaps.length ? i.reinforce!.gaps.map(roleEn).join(", ") : "(none — this round adds publishers; if a new source gives an anchor from another publisher, swap out one source of the dominant publisher)"}
+- The list mixes the current candidate sources (marked) and new search results. Add a new source only if it fits the axis and fills an empty role.
+- candidates has exactly 1 item, id "${id}". Keep the title and axis (wording may be polished); do not set a new axis. Apply rules 2 to 6 below. Put roles still empty in gaps.`;
+  return `You judge episode topics for "ear", an audio service that makes 15-minute two-person English episodes about Korean culture. Listeners are English speakers new to Korea, many with English as a second language; do not assume a country. You see source metadata only; there are no tools and no page access. Set the axis first, then fill its roles with sources.
+
+${mode}
+
+## 1. Spec (spec/03 excerpt)
+${i.specBacklogExcerpt.trim()}
+
+## 2. Rules
+1. **The axis.** One sentence in one of three forms: contrast ("A, yet B"), paradox ("trying A leads to B"), redefinition ("A is really B"). Not an axis: "what is X", "everything about X", or one news event. A comeback, release, or award is not an axis; use it only as a case that opens an industry axis.${history ? `
+   History mode: use axis_type "event" only for a past event in Korean History & Society; modern society topics use the three forms. An event axis asks how to read the event, not who was right. The anchor describes the event itself; an essay that uses the event as an example of another idea is not an anchor. Records from the time are cases. Counterpoint is optional.` : ` Do not use axis_type "event".`}
+2. **It works in English for this listener.** Build the tension inside the subject: two facts, goals, or views about the Korean practice that pull against each other. Do not build it on what outsiders, foreigners, or the West expect. Compare Korea with another country only if a listed source makes that comparison. The axis can be said in plain English with at most one Korean word. It does not rest on Korean wordplay or a pun that does not translate. It does not frame Korea as strange, rank cultures, or argue which country owns a custom.
+3. **Excluded.** No axis built around one person. Nothing about a real person's private life, relationships, rumors, controversies, incidents, or lawsuits. No current political issue and no inter-Korean military issue. No promotion of an agency, brand, or product.
+4. **Roles.** anchor (1 to 2 sources that support the axis) · case · counterpoint · numbers · context. Give the anchor role only to sources marked tier 1; if none fits, return "needs reinforcement" with anchor in gaps. One source may have two roles. A source with no role is left out. 5 to 7 sources.
+5. **Diversity.** At least 3 publishers (one organization is one publisher) · no publisher over half · at least 3 roles (anchor, case, and one more) · at most 1 "already used" source. The worker recounts; do not force sources in to meet it.
+6. **Verdict.** "holds" if every criterion is met. "needs reinforcement" if the axis is good but roles are empty; list them in gaps.
+
+## 3. Fields (candidates[])
+- title (English, plain, no clickbait) · mid_topic ("${mid}") · axis_type · axis (one English sentence) · axis_note (two lines: what question the axis leaves open, and why a newcomer would want it answered) · verdict · gaps
+- sub_topic: ${i.subTopicOptions?.length ? `one of ${i.subTopicOptions.map((t) => `"${t}"`).join(", ")} only when listeners of that topic would accept the axis as theirs; otherwise null` : "null"}
+- sources[]: { m: "M12", roles: ["anchor"], why: "one line" } — only M-IDs from the list
+- target_fit (one line: why it works for this listener in English) · landing (one line: where the axis will be proven) · dedup_note (one line: why it does not repeat an existing candidate)
+
+Existing candidate titles: ${i.existingTitles.length ? i.existingTitles.join(" / ") : "(none)"}
+
+## 4. Source metadata (${i.sources.length})
+${list}
+
+## 5. Check before output
+- The axis has one of the forms and passes rules 2 and 3. Every anchor is tier 1.
+- Count publishers, the largest share, and roles yourself. There is at least one anchor. Every M-ID is in the list.
+
+## 6. Report — output only the requested JSON.`;
+}
+
+export const CLUSTER_SCHEMA_V2_EN = {
+  type: "object",
+  additionalProperties: false,
+  properties: {
+    candidates: {
+      type: "array",
+      items: {
+        type: "object", additionalProperties: false,
+        required: ["id", "mid_topic", "sub_topic", "title", "axis_type", "axis", "axis_note", "verdict", "gaps", "sources", "target_fit", "landing", "dedup_note"],
+        properties: {
+          id: { type: "string" }, mid_topic: { type: "string" }, sub_topic: { type: ["string", "null"], description: "A second topic area from the list, or null" }, title: { type: "string" },
+          axis_type: { type: "string", enum: Object.keys(AXIS_EN_TO_KO) }, axis: { type: "string" }, axis_note: { type: "string" },
+          verdict: { type: "string", enum: ["holds", "needs reinforcement"] },
+          gaps: { type: "array", items: { type: "string", enum: ROLES_EN } },
+          sources: { type: "array", minItems: 3, items: { type: "object", additionalProperties: false, required: ["m", "roles", "why"], properties: { m: { type: "string" }, roles: { type: "array", minItems: 1, items: { type: "string", enum: ROLES_EN } }, why: { type: "string" } } } },
+          target_fit: { type: "string" }, landing: { type: "string" }, dedup_note: { type: "string" },
+        },
+      },
+    },
+  },
+} as const;
+
+/** 영어 판정 결과 → 내부 값(한국판과 같은 코드: 성립·보강 필요·근거 앵커·대립 …). 축·제목·이유 문장은 영어 그대로 둔다 */
+export function judgeToInternal<T extends { candidates?: { axis_type: string; verdict: string; gaps: string[]; sources: { roles: string[] }[] }[] }>(o: T): T {
+  return {
+    ...o,
+    candidates: o.candidates?.map((c) => ({
+      ...c,
+      axis_type: (AXIS_EN_TO_KO as Record<string, string>)[c.axis_type] ?? c.axis_type,
+      verdict: c.verdict === "holds" ? "성립" : c.verdict === "needs reinforcement" ? "보강 필요" : c.verdict,
+      gaps: c.gaps.map(roleKo),
+      sources: c.sources.map((x) => ({ ...x, roles: x.roles.map(roleKo) })),
+    })),
+  };
+}
