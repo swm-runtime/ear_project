@@ -247,6 +247,64 @@ describe('검색 질의 로그 E2E', () => {
       .set('Authorization', auth);
   }
 
+  describe('시장 필터(admin-api 4.21)', () => {
+    const query = `${TOKEN} global only`;
+    let adminAuth: string;
+
+    const queriesOf = async (market?: string) => {
+      const response = await request(app.getHttpServer())
+        .get(path('/admin/search-query-logs/summary'))
+        .query(market ? { days: 1, market } : { days: 1 })
+        .set('Authorization', adminAuth)
+        .expect(HttpStatus.OK);
+      return (response.body as SummaryBody).top.map((row) => row.query);
+    };
+
+    beforeAll(async () => {
+      // GLOBAL 사용자 한 명의 검색 — 시장은 사용자 행에서 읽는다
+      const globalUser = await createUser('market-global');
+      await dataSource.query(
+        `UPDATE users SET market = 'global' WHERE id = $1`,
+        [globalUser.userId],
+      );
+      await search(globalUser.auth, query).expect(HttpStatus.OK);
+      const admin = await createUser('market-admin');
+      await dataSource.query(`UPDATE users SET role = 'admin' WHERE id = $1`, [
+        admin.userId,
+      ]);
+      adminAuth = await reLogin(admin.providerToken);
+    });
+
+    it('시장을 주면 그 시장 사용자의 검색만 센다', async () => {
+      // when
+      const [globalQueries, krQueries] = await Promise.all([
+        queriesOf('global'),
+        queriesOf('kr'),
+      ]);
+
+      // then
+      expect(globalQueries).toContain(query);
+      expect(krQueries).not.toContain(query);
+    });
+
+    it('시장을 주지 않으면 전 시장을 센다 — 종전과 같다', async () => {
+      // when
+      const queries = await queriesOf();
+
+      // then
+      expect(queries).toContain(query);
+    });
+
+    it('모르는 시장 값은 400 이다', async () => {
+      // when / then
+      await request(app.getHttpServer())
+        .get(path('/admin/search-query-logs/summary'))
+        .query({ market: 'jp' })
+        .set('Authorization', adminAuth)
+        .expect(HttpStatus.BAD_REQUEST);
+    });
+  });
+
   async function createUser(
     label: string,
   ): Promise<{ userId: string; auth: string; providerToken: string }> {

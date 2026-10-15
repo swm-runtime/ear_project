@@ -23,7 +23,11 @@ export class SearchQueryLogAdminController {
     @Query() query: SearchQueryLogSummaryQueryRequestDto,
   ): Promise<SearchQueryLogSummaryResponseDto> {
     return SearchQueryLogSummaryResponseDto.from(
-      await this.searchQueryLogService.summarize(query.days, new Date()),
+      await this.searchQueryLogService.summarize(
+        query.days,
+        new Date(),
+        query.market ?? null,
+      ),
       query.days,
     );
   }

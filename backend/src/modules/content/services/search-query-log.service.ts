@@ -1,5 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 
+import { UserMarket } from '@/modules/user/user.enum';
+
 import {
   SEARCH_QUERY_LOG_MERGE_WINDOW_MS,
   SEARCH_QUERY_LOG_REFETCH_WINDOW_MS,
@@ -99,15 +101,22 @@ export class SearchQueryLogService {
     }
   }
 
-  /** 어드민 요약 — `days`는 호출부(DTO)가 1~상한으로 검증한다. 창의 시작은 `now - days` */
-  async summarize(days: number, now: Date): Promise<SearchQueryLogSummary> {
+  /**
+   * 어드민 요약 — `days`는 호출부(DTO)가 1~상한으로 검증한다. 창의 시작은 `now - days`.
+   * `market`이 있으면 그 시장 사용자의 검색만 센다(`null` = 전 시장)
+   */
+  async summarize(
+    days: number,
+    now: Date,
+    market: UserMarket | null,
+  ): Promise<SearchQueryLogSummary> {
     const clamped = Math.min(
       Math.max(1, days),
       SEARCH_QUERY_LOG_SUMMARY_MAX_DAYS,
     );
     const since = new Date(now.getTime() - clamped * DAY_MS);
 
-    return this.searchQueryLogRepository.summarize(since);
+    return this.searchQueryLogRepository.summarize(since, market);
   }
 }
 
