@@ -477,13 +477,19 @@ export class LibraryService {
     return { items: hasNext ? rows.slice(0, query.limit) : rows, hasNext };
   }
 
-  /** 주제 필터 팝업의 주제별 건수(library-api.md 4.2) — 삭제되지 않고 회수되지 않은 항목만, 집계는 SQL이 한다 */
+  /** 주제 필터 팝업의 주제별 건수(library-api.md 4.2) — 목록과 같은 노출·시장 조건, 집계는 SQL이 한다 */
   async countByTopicForUser(
     userId: string,
     now: Date,
+    market: UserMarket,
     manager?: EntityManager,
   ): Promise<{ topicId: string; name: string; itemCount: number }[]> {
-    return this.libraryItemRepository.countByTopicForUser(userId, now, manager);
+    return this.libraryItemRepository.countByTopicForUser(
+      userId,
+      now,
+      market,
+      manager,
+    );
   }
 
   /**

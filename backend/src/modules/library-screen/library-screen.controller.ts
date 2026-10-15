@@ -83,6 +83,7 @@ export class LibraryScreenController {
       await this.libraryScreenOrchestrator.getTopics(
         currentUser.id,
         new Date(),
+        toUserMarket(currentUser.market),
       ),
     );
   }

@@ -305,12 +305,13 @@ describe('LibraryScreenOrchestrator', () => {
       ]);
 
       // when
-      const topics = await orchestrator.getTopics(USER_ID, NOW);
+      const topics = await orchestrator.getTopics(USER_ID, NOW, UserMarket.KR);
 
       // then
       expect(libraryService.countByTopicForUser).toHaveBeenCalledWith(
         USER_ID,
         NOW,
+        UserMarket.KR,
       );
       expect(topics).toEqual([
         { topicId: 'topic-1', name: '커리어', itemCount: 2 },
@@ -322,7 +323,7 @@ describe('LibraryScreenOrchestrator', () => {
       // given — 빈 라이브러리는 정상 상태다. 404가 아니다
 
       // when
-      const topics = await orchestrator.getTopics(USER_ID, NOW);
+      const topics = await orchestrator.getTopics(USER_ID, NOW, UserMarket.KR);
 
       // then
       expect(topics).toEqual([]);

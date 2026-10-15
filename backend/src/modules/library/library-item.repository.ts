@@ -14,9 +14,7 @@ import {
 
 import {
   CONTENT_SCOPE_CONDITION,
-  CONTENT_VISIBILITY_CONDITION,
   contentScopeParameters,
-  contentVisibilityParameters,
 } from '@/modules/content/content.visibility';
 
 import { LibraryItem } from './library-item.entity';
@@ -606,10 +604,14 @@ export class LibraryItemRepository {
    * 만들어진다. `GROUP BY`가 하는 일을 두 번 왕복해서 대신하고 있었다.
    *
    * 정렬은 `topics.display_order`다 — 노출 순서를 응답 조립부가 다시 정하지 않는다.
+   *
+   * 조건은 목록(`findPage`)과 같은 `CONTENT_SCOPE_CONDITION`(노출 + 시장)이다 — 시장만 빠지면 팝업에 주제가
+   * 뜨는데 눌렀을 때 목록이 비는 어긋남이 생긴다(2026-10-15).
    */
   async countByTopicForUser(
     userId: string,
     now: Date,
+    market: UserMarket,
     manager?: EntityManager,
   ): Promise<{ topicId: string; name: string; itemCount: number }[]> {
     const rows = await this.scoped(manager)
@@ -617,8 +619,8 @@ export class LibraryItemRepository {
       .innerJoin(
         'item.content',
         'content',
-        CONTENT_VISIBILITY_CONDITION,
-        contentVisibilityParameters(now),
+        CONTENT_SCOPE_CONDITION,
+        contentScopeParameters(now, market),
       )
       .innerJoin(
         'content_topics',
