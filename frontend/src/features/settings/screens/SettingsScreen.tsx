@@ -25,6 +25,7 @@ import ColorModeSection from '../components/ColorModeSection';
 import DevDiagnosticsRows from '../components/DevDiagnosticsRows';
 import DevPushTokenRow from '../components/DevPushTokenRow';
 import EmailRow from '../components/EmailRow';
+import LanguageSection from '../components/LanguageSection';
 import PlanSummaryCard from '../components/PlanSummaryCard';
 import PlaybackRateSheet from '../components/PlaybackRateSheet';
 import SettingsDialog from '../components/SettingsDialog';
@@ -214,6 +215,10 @@ export default function SettingsScreen() {
 
           {/* 화면 모드(다크 모드, 2026-10-10) — 기기 표시 설정이라 서버 응답과 무관하게 늘 보인다 */}
           <ColorModeSection />
+          <LanguageSection
+            contentLanguage={screen.contentLanguage}
+            onSelect={screen.selectLanguage}
+          />
 
           <SettingsSection title={SETTINGS_COPY.sections.notification}>
             {screen.isNotificationBannerVisible ? (

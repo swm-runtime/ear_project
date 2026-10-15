@@ -9,6 +9,11 @@ import type { InterestSource } from '../interest.types';
 /** onboarding-api.md 4.2 — 온보딩 1단계와 공용 */
 export interface TopicItemDto {
   topic_id: string;
+  /**
+   * 추가 2026-10-14(KAN-189 — onboarding-api.md 4.2 · global-api.md 4.5). 주제 사진 매핑 키.
+   * 아직 slug 가 없는 주제는 `null`. 필드가 빠진 응답(배포 전 서버)도 받아 `null`로 옮긴다
+   */
+  slug?: string | null;
   name: string;
   parent_category: string;
 }

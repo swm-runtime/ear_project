@@ -1,6 +1,12 @@
 /** 서버 계약의 onboarding_step 값 그대로 쓴다(domain.md 3.1) */
 export type OnboardingStep = 'topic' | 'career' | 'pick' | 'done';
 
+/**
+ * 사용자가 밟는 **화면** 단계(global-api.md 4.4 `steps[]`) — 재개 지점(`OnboardingStep`) 중 입력 화면이 있는 것만.
+ * KR `["topic","career"]`, GLOBAL `["topic"]`. 순서·구성은 서버 배열이 정한다(services/onboarding-steps.ts)
+ */
+export type OnboardingScreenStep = Extract<OnboardingStep, 'topic' | 'career'>;
+
 // 주제 목록 타입(TopicItem·TopicList)은 interest feature가 소유한다(architecture.md 4.4 —
 // onboarding → interest). 1단계 화면은 '@/features/interest'의 useTopicsQuery로 조회한다.
 
@@ -17,6 +23,8 @@ export interface CareerInfo {
 export interface OnboardingState {
   onboardingCompleted: boolean;
   onboardingStep: OnboardingStep;
+  /** 이 사용자가 밟을 화면 단계 — 서버 배열을 정리한 값(모르는 이름 제외, 누락 시 종전 `["topic","career"]`) */
+  steps: OnboardingScreenStep[];
   selectedTopicIds: string[];
   career: CareerInfo;
   pickedCount: number;

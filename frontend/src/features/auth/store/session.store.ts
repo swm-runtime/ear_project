@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 
-import type { AuthUser, RequiredConsent } from '../auth.types';
+import type { AuthUser, Market, RequiredConsent } from '../auth.types';
 
 /**
  * `restoring` 은 **앱 시작 직후의 판정 전 상태**다(splash.md 4). 이게 없으면 저장된 토큰이
@@ -54,3 +54,10 @@ export const useSessionStore = create<SessionStore>((set) => ({
       pendingConsents: [],
     }),
 }));
+
+/**
+ * 세션 사용자의 시장(global-api.md 2.1) — 서버가 가입 때 정한 값을 그대로 읽는다.
+ * 미로그인이면 `kr`(종전 동작). 구 서버 응답의 누락은 `toAuthUser` 가 이미 `kr` 로 채웠다.
+ */
+export const selectMarket = (state: Pick<SessionStore, 'user'>): Market =>
+  state.user?.market ?? 'kr';

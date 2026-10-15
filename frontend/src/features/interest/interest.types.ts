@@ -1,6 +1,11 @@
 /** 주제 목록 항목 — 온보딩 1단계와 같은 계약이다(onboarding-api.md 4.2 공용 참조) */
 export interface TopicItem {
   topicId: string;
+  /**
+   * 시장 무관 안정 키 — 주제 사진 매핑 키다(global-api.md 4.5, KAN-195). KR 주제는 서버 입력(BE KAN-212) 전까지
+   * `null`이고 그동안 사진은 이름으로 찾는다(interest.images.ts)
+   */
+  slug: string | null;
   name: string;
   parentCategory: string;
 }

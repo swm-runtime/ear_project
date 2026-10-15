@@ -1,14 +1,18 @@
 import { Image, Pressable, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { APP_LANGUAGE } from '@/shared/i18n/locale';
 import { theme } from '@/shared/theme';
 import LoadingOverlay from '@/shared/ui/LoadingOverlay';
 import { Text } from '@/shared/ui/Typography';
 
-import { SOCIAL_PROVIDERS } from '../auth.constants';
 import { AUTH_COPY } from '../auth.copy';
 import ProviderButton from '../components/ProviderButton';
 import { useStartScreen } from '../hooks/useStartScreen';
+import { providersFor } from '../services/start-providers';
+
+/** 로그인 전이라 시장을 모른다 — 표시 언어로 거른다(영어면 Google·Apple만, auth-uiux.md 4.1) */
+const PROVIDERS = providersFor(APP_LANGUAGE);
 
 /**
  * A1 시작 화면 — 서비스 소개 + 제공자 버튼 3개 + 약관·개인정보 처리방침 링크.
@@ -42,7 +46,7 @@ export default function StartScreen() {
         </View>
 
         <View style={styles.providers}>
-          {SOCIAL_PROVIDERS.map((provider) => (
+          {PROVIDERS.map((provider) => (
             <ProviderButton
               key={provider}
               provider={provider}

@@ -48,7 +48,7 @@ export default function ContentDetailHeader({
               <View key={topic.id} style={styles.chip}>
                 {/* 주제 사진 알약 — 온보딩·탐색·필터와 같은 문법(design.md 주제 칩). 고를 수 없는 표시라 선택 상태는 없다 */}
                 <Image
-                  source={topicImageSource(topic.name)}
+                  source={topicImageSource({ name: topic.name })}
                   resizeMode="cover"
                   style={styles.chipPhoto}
                 />

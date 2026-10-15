@@ -11,17 +11,21 @@
  * - (기본)     신규 사용자 — social-login이 consent_required → 약관 동의 → sign-up이
  *              onboarding_step "topic" 세션 반환(auth-api.md 4.2) → 온보딩 진입
  * - returning  기존 사용자 — social-login이 바로 authenticated(온보딩 완료) → 라이브러리
+ *
+ * 시장(global-api.md 2.1): 가입은 `locale.preferred_language`(`en` → `global`)로, 그 밖은 마지막 가입의
+ * 시장을 돌려준다(처음엔 `kr`). 기존 계정 로그인은 서버처럼 `locale`로 시장을 바꾸지 않는다.
  */
 import type {
   AuthSessionDto,
   ConsentItemDto,
   RefreshTokenResponseDto,
+  SignUpRequestDto,
   SocialLoginRequestDto,
   SocialLoginResponseDto,
   UserDto,
   CurrentUserResponseDto,
 } from './auth.api';
-import type { SocialProvider } from '../auth.types';
+import type { Market, SocialProvider } from '../auth.types';
 
 const SCENARIO = process.env.EXPO_PUBLIC_AUTH_MOCK_SCENARIO ?? 'default';
 
@@ -43,6 +47,12 @@ const SIGNUP_TOKEN_TTL_MS = 10 * 60_000;
 let tokenSeq = 0;
 /** social-login에서 받은 제공자를 sign-up 응답의 user.provider로 되돌려준다 */
 let pendingProvider: SocialProvider = 'kakao';
+/** 가입 때 정한 시장과 마지막으로 받은 기기 로캘 — 이후 응답의 user 에 되돌려준다 */
+let accountMarket: Market = 'kr';
+let accountLocale: { language_code: string | null; timezone: string | null } = {
+  language_code: null,
+  timezone: null,
+};
 
 const issueTokens = (nowMs: number) => {
   tokenSeq += 1;
@@ -64,6 +74,9 @@ const buildUser = (provider: SocialProvider, onboardingCompleted: boolean): User
   role: 'user',
   onboarding_completed: onboardingCompleted,
   onboarding_step: onboardingCompleted ? 'done' : 'topic',
+  market: accountMarket,
+  language_code: accountLocale.language_code,
+  timezone: accountLocale.timezone,
 });
 
 export const mockSocialLogin = async (
@@ -72,6 +85,8 @@ export const mockSocialLogin = async (
   await delay(RESPONSE_DELAY_MS);
   const nowMs = Date.now();
   pendingProvider = body.provider;
+  // 기존 계정 로그인은 기기 값만 갱신한다 — 시장은 바뀌지 않는다(global-api.md 4.1)
+  accountLocale = { language_code: body.locale.language_code, timezone: body.locale.timezone };
 
   // 기존 사용자 — 바로 세션이 열린다(auth-api.md 4.1 authenticated)
   if (SCENARIO === 'returning') {
@@ -92,8 +107,16 @@ export const mockSocialLogin = async (
   };
 };
 
-export const mockSignUp = async (): Promise<AuthSessionDto> => {
+/** 시장은 가입 때 한 번 — 고른 언어가 우선, 없으면 기기 언어(`ko*` → kr, 그 밖 global)(global-api.md 2.1) */
+const decideMarket = (locale: SignUpRequestDto['locale']): Market => {
+  if (locale.preferred_language) return locale.preferred_language === 'en' ? 'global' : 'kr';
+  return locale.language_code.toLowerCase().startsWith('ko') ? 'kr' : 'global';
+};
+
+export const mockSignUp = async (body: SignUpRequestDto): Promise<AuthSessionDto> => {
   await delay(RESPONSE_DELAY_MS);
+  accountMarket = decideMarket(body.locale);
+  accountLocale = { language_code: body.locale.language_code, timezone: body.locale.timezone };
   // 가입 직후는 온보딩 전 상태다 — onboarding_step "topic"(auth-api.md 4.2)
   return {
     status: 'authenticated',

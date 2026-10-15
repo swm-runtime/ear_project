@@ -1,5 +1,4 @@
-import { useFocusEffect, useNavigation } from '@react-navigation/native';
-import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { useFocusEffect } from '@react-navigation/native';
 import { useCallback } from 'react';
 import { BackHandler } from 'react-native';
 
@@ -12,13 +11,14 @@ import { useToastStore } from '@/shared/ui/toast.store';
 import { isTopicListUnavailable, useTopicsQuery } from '@/features/interest';
 
 import { ONBOARDING_COPY } from '../onboarding.copy';
-import type { OnboardingStackParamList } from '../onboarding.types';
+import { useOnboardingStepFlow } from './useOnboardingStepFlow';
 import { useSaveInterestsMutation } from './useSaveInterestsMutation';
 import { onboardingCompletionService } from '../services/onboarding-completion.service';
 import { useOnboardingStore } from '../store/onboarding.store';
 
 export const useTopicSelectScreen = () => {
-  const navigation = useNavigation<NativeStackNavigationProp<OnboardingStackParamList, 'Topic'>>();
+  // 다음 화면은 서버 steps[]가 정한다 — KR 은 커리어, GLOBAL 은 곧바로 완료 대기(global-api.md 4.4)
+  const { position: stepPosition, goToNextStep } = useOnboardingStepFlow('topic');
   const showToast = useToastStore((s) => s.show);
   // 주제 목록은 관심사 관리와 같은 계약·같은 캐시다(interest-management-api.md 4.1)
   const topicsQuery = useTopicsQuery();
@@ -84,7 +84,7 @@ export const useTopicSelectScreen = () => {
         onSuccess: () => {
           track('onboarding_step', { step: 'topic', action: 'next' });
           onboardingCompletionService.noteTopics(selectedTopicIds.length);
-          navigation.navigate('Career');
+          goToNextStep();
         },
         onError: (error) => {
           if (isApiError(error)) {
@@ -105,6 +105,8 @@ export const useTopicSelectScreen = () => {
   };
 
   return {
+    /** 단계 표시 숫자 — 서버 steps[] 기준(KR 1/2 · GLOBAL 1/1) */
+    stepPosition,
     topics,
     selectedCount,
     maxSelectable,

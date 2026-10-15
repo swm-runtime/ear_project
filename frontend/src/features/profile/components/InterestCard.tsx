@@ -46,7 +46,7 @@ export default function InterestCard({ state, onPress, onRetry, isRetrying }: In
         <ProfilePhotoStack
           photos={state.data.topTopics.map((topic) => ({
             id: topic.id,
-            source: topicImageSource(topic.name),
+            source: topicImageSource({ name: topic.name }),
           }))}
         />
       ) : null}

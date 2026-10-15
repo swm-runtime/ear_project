@@ -7,4 +7,7 @@ export interface SyncDeviceRequestDto {
   platform: 'ios' | 'android';
   is_os_permission_granted: boolean;
   app_version: string;
+  /** 기기 언어(BCP 47)·시간대(IANA) — global-api.md 4.2(KAN-195). 서버는 users 에 반영하고 시장은 건드리지 않는다 */
+  language_code?: string;
+  timezone?: string;
 }

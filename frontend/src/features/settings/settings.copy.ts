@@ -34,6 +34,7 @@ const ko = {
     audioQuality: '음질',
     /** 화면 모드(다크 모드, 2026-10-10) */
     colorMode: '화면',
+    language: '언어',
     notification: '알림',
     info: '정보',
     support: '지원',
@@ -110,6 +111,19 @@ const ko = {
   },
 
   /** 화면 모드 — 시스템 / 라이트 / 다크(PM 2026-10-10) */
+  /**
+   * 표시 언어(KAN-195 — global-api.md 4.3). 언어 이름은 그 언어로 쓴다(어느 언어로 보고 있어도 자기 언어를 찾게).
+   * 콘텐츠 언어(시장)는 가입 때 정해져 바뀌지 않는다 — 섹션 아래에 알린다
+   */
+  language: {
+    label: { system: '기기 언어 따르기', ko: '한국어', en: 'English' },
+    footer: (contentLanguage: string | null) =>
+      contentLanguage === null
+        ? '화면에 보이는 언어만 바뀌어요. 바꾸면 앱을 한 번 다시 불러와요.'
+        : `화면에 보이는 언어만 바뀌어요. 콘텐츠는 가입 때 고른 ${contentLanguage}로 계속 나와요. 바꾸면 앱을 한 번 다시 불러와요.`,
+    contentLanguage: { kr: '한국어', global: '영어' },
+  },
+
   colorMode: {
     label: { system: '시스템 설정', light: '라이트', dark: '다크' },
     footer: '시스템 설정을 고르면 기기의 라이트·다크 설정을 따라가요.',
@@ -211,6 +225,7 @@ const en: LocalizedCopy<typeof ko> = {
     playback: 'Playback',
     audioQuality: 'Audio quality',
     colorMode: 'Appearance',
+    language: 'Language',
     notification: 'Notifications',
     info: 'About',
     support: 'Support',
@@ -274,6 +289,15 @@ const en: LocalizedCopy<typeof ko> = {
     cellularMessage: 'Lossless files are larger than Compressed. We recommend listening on Wi-Fi.',
     cellularCancel: 'Cancel',
     cellularConfirm: 'Switch to Lossless',
+  },
+
+  language: {
+    label: { system: 'Use device language', ko: '한국어', en: 'English' },
+    footer: (contentLanguage) =>
+      contentLanguage === null
+        ? 'This changes only the language you see in the app. The app reloads once when you change it.'
+        : `This changes only the language you see in the app. Episodes stay in ${contentLanguage}, the language you chose at sign-up. The app reloads once when you change it.`,
+    contentLanguage: { kr: 'Korean', global: 'English' },
   },
 
   colorMode: {

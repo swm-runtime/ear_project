@@ -11,6 +11,7 @@ import type { PolicyDocument } from '../auth.constants';
 import { AUTH_COPY } from '../auth.copy';
 import type { AuthStackParamList, SocialProvider } from '../auth.types';
 import { useSocialLoginMutation } from './useSocialLoginMutation';
+import { getDeviceLocale } from '../services/device-locale';
 import { openPolicyDocument } from '../services/policy-document.service';
 import { ProviderAuthCancelledError, authenticateWithProvider } from '../services/provider-auth.service';
 import { sessionService } from '../services/session.service';
@@ -62,10 +63,13 @@ export const useStartScreen = () => {
         providerToken,
         deviceId,
         nonce,
+        // 기기 값만 — 콘텐츠 언어(preferred_language)는 가입자에게 A21에서 물은 뒤 sign-up 에 싣는다
+        locale: getDeviceLocale(),
       });
 
       if (result.status === 'consent_required') {
-        navigation.navigate('TermsConsent', {
+        // 신규 가입자 — 콘텐츠 언어(A21)를 먼저 묻고 약관 동의(A4)로 간다(2026-10-15)
+        navigation.navigate('ContentLanguage', {
           signupToken: result.signupToken,
           requiredConsents: result.requiredConsents,
         });

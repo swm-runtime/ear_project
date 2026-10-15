@@ -4,6 +4,12 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { AccessibilityInfo, Alert, AppState, Linking, Platform } from 'react-native';
 
 import { track } from '@/shared/analytics';
+import {
+  DEVICE_LOCALE,
+  languageOf,
+  setLanguagePreference,
+  type LanguagePreference,
+} from '@/shared/i18n/locale';
 import { copyToClipboard } from '@/shared/lib/clipboard';
 import { IS_SUBSCRIPTION_UI_ENABLED } from '@/shared/lib/feature-flags';
 import { logger } from '@/shared/lib/logger';
@@ -416,6 +422,24 @@ export const useSettingsScreen = () => {
     Linking.openURL(STORE_URL).catch((error) => logger.warn('[settings] open store failed', error));
   };
 
+  /* ── 표시 언어(KAN-195 — global-api.md 4.3) — 서버에 알린 뒤 저장하고, 언어가 바뀌면 앱을 다시 부른다 ──
+   * 서버 저장이 실패해도 기기 선택은 적용한다(표시 언어는 기기 설정이고 서버 값은 통계용 — 문구 언어는 시장이 정한다).
+   * 다시 부르기 전에 요청을 끝낸다 — 먼저 다시 부르면 요청이 끊긴다 */
+  const selectLanguage = (next: LanguagePreference): void => {
+    const languageCode =
+      next === 'system' ? DEVICE_LOCALE : languageOf(next) === 'ko' ? 'ko-KR' : 'en-US';
+    const clientSeq = ++clientSeqRef.current;
+    updateUserSettings({ patch: { language_code: languageCode }, clientSeq })
+      .catch((error) => logger.warn('[settings] language save failed', error))
+      .finally(() => setLanguagePreference(next));
+  };
+
+  /** 콘텐츠 언어(시장) 표시 — 가입 때 정해져 바뀌지 않는다. 계정 조회 실패·옛 서버면 null */
+  const contentLanguage: string | null =
+    summary?.account?.market != null
+      ? SETTINGS_COPY.language.contentLanguage[summary.account.market]
+      : null;
+
   /* ── 내비게이션 ── */
 
   const openDestination = (destination: SettingsDestination): void => {
@@ -552,6 +576,8 @@ export const useSettingsScreen = () => {
 
     /** 관리자 섹션 — 서버 판정 boolean 하나. account 실패 시 노출하지 않는다(안전한 기본값) */
     isAdmin: summary?.account?.isAdmin ?? false,
+    contentLanguage,
+    selectLanguage,
     /** 서버 update_available 판정 결과 — 클라이언트가 버전을 비교하지 않는다 */
     isUpdateAvailable: summary?.version.updateAvailable ?? false,
 

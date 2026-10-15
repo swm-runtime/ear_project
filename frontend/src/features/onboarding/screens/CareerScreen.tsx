@@ -17,11 +17,16 @@ const YEARS_OPTIONS: YearsOfExperience[] = ['0-1', '2-3', '4-6', '7+'];
 /** 직군 칩 스켈레톤 — 실제 칩과 같은 2열 같은 크기 상자 두 줄(직군 7종이면 네 줄이지만, 자리만 잡으면 된다) */
 const JOB_CATEGORY_SKELETON_COUNT = 4;
 
-const ko = { backA11y: '이전 단계로', stepA11y: '2단계 중 2단계', step: '2/2 단계' } as const;
+/** 단계 표시 — 분모는 서버 steps[] 길이다(KR "2/2 단계", global-api.md 4.4). GLOBAL 은 이 화면을 밟지 않는다 */
+const ko = {
+  backA11y: '이전 단계로',
+  stepA11y: (current: number, total: number) => `${total}단계 중 ${current}단계`,
+  step: (current: number, total: number) => `${current}/${total} 단계`,
+} as const;
 const en: LocalizedCopy<typeof ko> = {
   backA11y: 'Previous step',
-  stepA11y: 'Step 2 of 2',
-  step: 'Step 2/2',
+  stepA11y: (current: number, total: number) => `Step ${current} of ${total}`,
+  step: (current: number, total: number) => `Step ${current}/${total}`,
 };
 const COPY = localized({ ko, en });
 
@@ -37,6 +42,7 @@ const COPY = localized({ ko, en });
 export default function CareerScreen() {
   const insets = useSafeAreaInsets();
   const {
+    stepPosition,
     jobCategory,
     jobTitle,
     yearsOfExperience,
@@ -130,8 +136,11 @@ export default function CareerScreen() {
             )}
           </Pressable>
         </View>
-        <Text style={styles.stepLabel} accessibilityLabel={COPY.stepA11y}>
-          {COPY.step}
+        <Text
+          style={styles.stepLabel}
+          accessibilityLabel={COPY.stepA11y(stepPosition.current, stepPosition.total)}
+        >
+          {COPY.step(stepPosition.current, stepPosition.total)}
         </Text>
         <Text style={styles.title}>{ONBOARDING_COPY.career.title}</Text>
         {/* 손해가 없다는 사실을 상시 노출한다 — 이 문구가 [건너뛰기] 버튼보다 중요하다(onboarding-uiux.md 4.3) */}

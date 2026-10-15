@@ -16,13 +16,27 @@ import type {
   AuthUser,
   ConsentSubmission,
   ConsentType,
+  ContentLanguage,
+  Market,
   RequiredConsent,
   RestoredSession,
   SocialLoginResult,
   SocialProvider,
 } from '../auth.types';
+import type { DeviceLocale } from '../services/device-locale';
 
 /* ── DTO — auth-api.md 계약 그대로 snake_case로 선언한다(convention.md 1.6) ── */
+
+/**
+ * 가입·로그인 요청의 `locale`(global-api.md 4.1). 전부 선택 필드라 구 서버도 그대로 받는다.
+ * `preferred_language`는 가입(sign-up)에만 싣는다 — 기존 계정 로그인에서는 서버가 무시한다.
+ */
+export interface LocaleRequestDto {
+  preferred_language?: ContentLanguage;
+  language_code: string;
+  region_code?: string;
+  timezone: string;
+}
 
 export interface SocialLoginRequestDto {
   provider: SocialProvider;
@@ -36,6 +50,8 @@ export interface SocialLoginRequestDto {
    * 다른 제공자는 보내지 않는다.
    */
   nonce?: string;
+  /** 기기 로캘(global-api.md 4.1). 로그인에는 `preferred_language`를 싣지 않는다 */
+  locale: LocaleRequestDto;
 }
 
 export interface ConsentItemDto {
@@ -60,6 +76,10 @@ export interface UserDto {
   role: string;
   onboarding_completed: boolean;
   onboarding_step: string;
+  /** global-api.md 4.1 — 구 서버 응답에는 없다(→ `kr`) */
+  market?: string;
+  language_code?: string | null;
+  timezone?: string | null;
 }
 
 /** auth-api.md 4.2 — sign-up 응답은 social-login의 authenticated 응답과 같은 형태다 */
@@ -87,10 +107,12 @@ interface ConsentSubmissionDto {
   is_agreed: boolean;
 }
 
-interface SignUpRequestDto {
+export interface SignUpRequestDto {
   signup_token: string;
   device_id: string;
   consents: ConsentSubmissionDto[];
+  /** 기기 로캘 + A21에서 고른 `preferred_language` — 시장 판정의 입력(global-api.md 2.1) */
+  locale: LocaleRequestDto;
 }
 
 interface RefreshTokenRequestDto {
@@ -116,6 +138,17 @@ const toRequiredConsent = (dto: ConsentItemDto): RequiredConsent => ({
   isRequired: dto.is_required,
 });
 
+const toLocaleRequestDto = (locale: DeviceLocale): LocaleRequestDto => ({
+  // 값이 없는 선택 필드는 키 자체를 싣지 않는다 — `undefined` 키가 본문에 남지 않게 한다
+  ...(locale.preferredLanguage !== undefined && { preferred_language: locale.preferredLanguage }),
+  language_code: locale.languageCode,
+  ...(locale.regionCode !== undefined && { region_code: locale.regionCode }),
+  timezone: locale.timezone,
+});
+
+/** 모르는 값·누락(구 서버)은 `kr` — 서버 폴백 규칙("없으면 `kr`", global-api.md 2.1)과 같다 */
+const toMarket = (value: string | undefined): Market => (value === 'global' ? 'global' : 'kr');
+
 const toAuthUser = (dto: UserDto): AuthUser => ({
   id: dto.id,
   nickname: dto.nickname,
@@ -126,6 +159,9 @@ const toAuthUser = (dto: UserDto): AuthUser => ({
   role: dto.role,
   onboardingCompleted: dto.onboarding_completed,
   onboardingStep: dto.onboarding_step,
+  market: toMarket(dto.market),
+  languageCode: dto.language_code ?? null,
+  timezone: dto.timezone ?? null,
 });
 
 const toAuthSession = (dto: AuthSessionDto): AuthSession => ({
@@ -152,6 +188,8 @@ export const socialLogin = async (input: {
   deviceId: string;
   /** 애플 인가에서 만든 원본 nonce. 다른 제공자는 넘기지 않는다 */
   nonce?: string;
+  /** 기기 로캘. `preferredLanguage`가 들어 있어도 로그인에는 싣지 않는다(가입 전용) */
+  locale: DeviceLocale;
 }): Promise<SocialLoginResult> => {
   const body: SocialLoginRequestDto = {
     provider: input.provider,
@@ -159,6 +197,7 @@ export const socialLogin = async (input: {
     device_id: input.deviceId,
     // 값이 없으면 키 자체를 싣지 않는다 — 다른 제공자 요청에 `nonce: undefined`가 남지 않게 한다
     ...(input.nonce !== undefined && { nonce: input.nonce }),
+    locale: toLocaleRequestDto({ ...input.locale, preferredLanguage: undefined }),
   };
   const data = IS_AUTH_API_MOCKED
     ? await mockSocialLogin(body)
@@ -184,14 +223,17 @@ export const signUp = async (input: {
   signupToken: string;
   deviceId: string;
   consents: ConsentSubmission[];
+  /** 기기 로캘 + A21에서 고른 `preferredLanguage`(신규 앱은 항상 싣는다 — global-api.md 4.1) */
+  locale: DeviceLocale & { preferredLanguage: ContentLanguage };
 }): Promise<AuthSession> => {
   const body: SignUpRequestDto = {
     signup_token: input.signupToken,
     device_id: input.deviceId,
     consents: input.consents.map(toConsentSubmissionDto),
+    locale: toLocaleRequestDto(input.locale),
   };
   const data = IS_AUTH_API_MOCKED
-    ? await mockSignUp()
+    ? await mockSignUp(body)
     : (
         await apiClient.post<AuthSessionDto>('/auth/sign-up', body, {
           skipAuthRefresh: true,

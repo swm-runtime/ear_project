@@ -14,7 +14,7 @@
 | 관련 | KAN-182 이벤트 코드 UI와 같은 빌드 |
 | 근거 문서 | **`spec/api/global-api.md` 4.1 · 4.2 · 4.3 · 4.4 · 4.5** — 구현은 이 문서를 따르고, 계약이 바뀌면 티켓이 아니라 이 문서를 고친다 · 2026-10-14 글로벌화 조사 |
 | 중요도 | Medium |
-| 상태 | 대기 |
+| 상태 | 코드 반영(2026-10-15) — 실기기 실측·KR slug 입력(KAN-212) 뒤 이미지 대조 남음 |
 
 > 2026-10-14 발행한 묶음 티켓(BE KAN-185 · FE KAN-183 · AI KAN-184)을 처리 단위로 나눈 것. 결정 사항(같은 앱·기기 언어로 가입 시 1회 시장 판정·한국 트랙 불변·에러 번역은 클라이언트·가격은 스토어·영어 진행자 새 2인·K-컬처 주제 신설·GLOBAL 연령 16세)과 결정 대기(시장 전환 불허)는 `spec/api/global-api.md` 2.1·9장이 원본이다.
 
@@ -50,3 +50,13 @@
 ## 처리 기록
 - 2026-10-14 발행(마크다운 + Jira). 묶음 티켓 분할.
 - 2026-10-14 연령 16세 문구 항목을 KAN-206으로 이관.
+- 2026-10-15 코드 반영(PR `feat(fe)/global-signup-locale-market`). 선행 KAN-187·189 완료 확인.
+  - **PM 결정(2026-10-15) — 콘텐츠 언어는 가입 단계에서 묻는다**: 시작 → 소셜 로그인 → (신규면) **A21 "어떤 언어로 들을까요?"**(기본 = 표시 언어) → 약관 A4 → 가입. 가입 요청에 `locale.preferred_language`. 카피(ko/en)·상태는 `auth-uiux.md` 4.2-1.
+  - **시작 화면 제공자**: 로그인 전엔 시장을 모르므로 **표시 언어로** 거른다 — 영어면 Google·Apple, 한국어면 4개(PM 결정, `auth-uiux.md` 4.1). 완료 조건의 "응답 `market = global` → 시작 화면 Google/Apple만"은 이 규칙으로 대신한다.
+  - 가입·로그인 `locale { language_code, region_code, timezone }`(로그인은 `preferred_language` 없음), 기기 등록 `language_code`·`timezone`. 기기 값은 `Intl`(expo-localization 은 KAN-198 빌드 때).
+  - 세션에 `market`·`languageCode`·`timezone`(없거나 모르는 시장은 `kr`), `selectMarket` 공개.
+  - **온보딩은 `steps[]` 대로**: 다음 단계가 없으면 완료 대기로. GLOBAL `["topic"]` → 커리어 화면 없음, 단계 표시 1/1. `steps` 없는 옛 서버는 `["topic","career"]`.
+  - **주제 이미지 slug 우선 + 한국어 이름 폴백**(`interest/interest.images.ts`) — slug→이미지 표를 따로 둬서 재테크(`personal-finance` → `topic-investing.jpg`)·투자(`investing` → `topic-invest.jpg`)가 엇갈리지 않는다. KAN-212 의 KR slug 36개가 이름 키와 같은 이미지를 가리키는 테스트. GLOBAL 8개는 이미지가 없어 기본 이미지. slug 를 주는 응답(`GET /onboarding/topics`)만 slug 를 넘기고 나머지 화면은 이름.
+  - **설정 "언어"**: 기기 언어 따르기 · 한국어 · English. 바꾸면 `PATCH language_code` → 기기 저장 → 앱 다시 부르기. 콘텐츠 언어(시장)는 섹션 아래에 "바뀌지 않음"으로 알린다(`settings-uiux.md`). 표시 언어는 시작 때 동기로 읽는다(`shared/i18n/locale.ts`, 화면 모드와 같은 방식).
+  - 검증: tsc 0 · jest 595 통과(실패 2 — `ConfirmDialog`·`ProfileHeader`, dev 와 같은 기존 실패). 한국어 카피 스냅숏은 **추가만**(기존 문구 무변화).
+  - **남은 것**: 실기기 실측(영어 기기 첫 실행·A21·GLOBAL 가입 → 커리어 없음·요청 캡처), KAN-212 KR slug 입력 뒤 KR 주제 칩 이미지 1.2.0 대조, GLOBAL 주제 이미지 자산(AI/PM).

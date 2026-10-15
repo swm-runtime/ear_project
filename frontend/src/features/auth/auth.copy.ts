@@ -1,6 +1,11 @@
 import { localized, type LocalizedCopy } from '@/shared/i18n/localized';
 
-import type { ConsentType, SocialProvider, WithdrawalReasonCode } from './auth.types';
+import type {
+  ConsentType,
+  ContentLanguage,
+  SocialProvider,
+  WithdrawalReasonCode,
+} from './auth.types';
 
 /**
  * 사용자 노출 문구(convention.md 3.5). 확정 카피는 auth-uiux.md와 1:1 대조한다.
@@ -26,6 +31,28 @@ const ko = {
   },
   /** auth-uiux.md 4.2 — 확정 카피 */
   loginFailed: '로그인에 실패했어요. 다시 시도해주세요',
+  /**
+   * A21 콘텐츠 언어 선택 — 신규 가입자만(auth-uiux.md 4.2-1, 2026-10-15). 고른 값이 시장을 정하므로
+   * "무엇이 달라지는지"와 "바꿀 수 없다"를 같은 화면에서 밝힌다(global-api.md 4.1).
+   */
+  contentLanguage: {
+    title: '어떤 언어로 들을까요?',
+    description: '고른 언어에 따라 받아 보는\n에피소드와 주제가 달라져요',
+    /** 선택지 이름은 **그 언어 자신의 표기**다 — 표시 언어를 못 읽는 사람도 자기 언어를 찾을 수 있게 */
+    option: {
+      ko: '한국어',
+      en: 'English',
+    } satisfies Record<ContentLanguage, string>,
+    /** 선택지 아래 한 줄 — 무엇을 받게 되는지(표시 언어로) */
+    optionDescription: {
+      ko: '한국어 에피소드와 주제',
+      en: '영어 에피소드와 주제',
+    } satisfies Record<ContentLanguage, string>,
+    recommendOverseas: '해외에 거주하시면 English 선택을 추천해요',
+    notChangeable: '가입한 뒤에는 바꿀 수 없어요',
+    next: '다음',
+    backA11y: '뒤로가기',
+  },
   consent: {
     /* TODO(카피 미확정): 인사 라인 — 시각 개편(changes/pending/auth-consent-visual-refresh.md) */
     greeting: '만나서 반가워요!',
@@ -233,6 +260,22 @@ const en: LocalizedCopy<typeof ko> = {
     providerSectionLabel: 'Continue with a social account',
   },
   loginFailed: 'Couldn’t sign in. Please try again',
+  contentLanguage: {
+    title: 'Which language do you want to listen in?',
+    description: 'The language you choose decides which episodes and topics you get.',
+    option: {
+      ko: '한국어',
+      en: 'English',
+    },
+    optionDescription: {
+      ko: 'Episodes and topics in Korean',
+      en: 'Episodes and topics in English',
+    },
+    recommendOverseas: 'If you live outside Korea, we recommend English.',
+    notChangeable: 'You can’t change this after signing up.',
+    next: 'Continue',
+    backA11y: 'Back',
+  },
   consent: {
     greeting: 'Nice to meet you!',
     title: 'Please agree to the following\nto use the service',

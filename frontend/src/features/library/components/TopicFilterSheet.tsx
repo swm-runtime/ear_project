@@ -152,7 +152,7 @@ export default function TopicFilterSheet({
                       선택 표시는 **안 고른 칩을 흐리는 것**(PM 2026-10-09 — 탐색 칩과 같이). 고른 칩의 막을 짙게 하던 방식은
                       사진이 원래 어두운 칩(경제·IT·개발)에서 차이가 안 보였다. 상태·출처 칩은 사진이 없어 종전 테두리 알약 그대로다 */}
                   <Image
-                    source={topicImageSource(topic.name)}
+                    source={topicImageSource({ name: topic.name })}
                     resizeMode="cover"
                     style={styles.topicPhoto}
                   />
