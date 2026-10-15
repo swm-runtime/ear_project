@@ -24,6 +24,7 @@ import {
 
 interface BubbleTopic {
   topicId: string;
+  slug: string | null;
   name: string;
   isSelected: boolean;
   /** 자동 확장으로 들어온 주제 — 빗금으로 구분한다(KAN-181) */
@@ -133,6 +134,7 @@ export function InterestBubbleField({ topics, isFull, onToggle }: InterestBubble
             >
               <InterestBubble
                 name={topic.name}
+                slug={topic.slug}
                 size={sizes[index] ?? base}
                 isSelected={topic.isSelected}
                 isDimmed={isFull && !topic.isSelected}

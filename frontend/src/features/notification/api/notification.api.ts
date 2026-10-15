@@ -1,4 +1,5 @@
 import { apiClient } from '@/shared/api/api-client';
+import { DEVICE_LOCALE, DEVICE_TIMEZONE } from '@/shared/i18n/locale';
 import { getDevicePlatform } from '@/shared/lib/device-platform';
 
 import { IS_NOTIFICATION_API_MOCKED } from '../notification.constants';
@@ -25,6 +26,10 @@ export const syncDevicePermission = async (input: {
     platform: getDevicePlatform(),
     is_os_permission_granted: input.isOsPermissionGranted,
     app_version: input.appVersion,
+    // 기기 언어·시간대 — 매 실행 이 호출이 users.language_code·timezone 의 갱신 경로다(global-api.md 4.2 · KAN-195).
+    // 시장은 바뀌지 않는다. 시간대는 드립 발송 그룹에 쓰인다
+    language_code: DEVICE_LOCALE,
+    timezone: DEVICE_TIMEZONE,
   };
   await apiClient.put(`/users/me/devices/${input.deviceId}`, body);
 };

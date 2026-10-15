@@ -23,20 +23,21 @@ const SPEED_SCALES = [1, 0.9, 1.05, 1.1] as const;
 /** 줄마다 다른 시작 위상 — 벽돌 어긋남 + 열이 겹쳐 보이지 않게 전부 다르다 */
 const PHASES = [40, 122, 96, 10] as const;
 
+/** 단계 표시 — 분모는 서버 steps[] 길이다(KR "1/2 단계" · GLOBAL "1/1 단계", global-api.md 4.4) */
 const ko = {
-  stepA11y: '2단계 중 1단계',
-  step: '1/2 단계',
+  stepA11y: (current: number, total: number) => `${total}단계 중 ${current}단계`,
+  step: (current: number, total: number) => `${current}/${total} 단계`,
   deselectA11y: (topicName: string) => `${topicName} 선택 해제`,
 } as const;
 const en: LocalizedCopy<typeof ko> = {
-  stepA11y: 'Step 1 of 2',
-  step: 'Step 1/2',
+  stepA11y: (current: number, total: number) => `Step ${current} of ${total}`,
+  step: (current: number, total: number) => `Step ${current}/${total}`,
   deselectA11y: (topicName: string) => `Deselect ${topicName}`,
 };
 const COPY = localized({ ko, en });
 
 /**
- * O1–O3 관심 주제 선택(1/2). 이 화면에는 [건너뛰기]가 없다 —
+ * O1–O3 관심 주제 선택(KR 1/2 · GLOBAL 1/1 — 서버 steps[]). 이 화면에는 [건너뛰기]가 없다 —
  * 주제는 드립 편성의 유일한 필수 신호다(onboarding-uiux.md 4.1).
  * 시각 개편(2026-09-03): 큰 회색 헤드라인 + 사진 알약 마퀴 4줄(줄마다 반대 방향으로
  * 자동 흐름·무한 루프) + 상단 선택 요약 칩(✕로 해제) + 원형 [다음] 버튼.
@@ -45,6 +46,7 @@ const COPY = localized({ ko, en });
 export default function TopicSelectScreen() {
   const insets = useSafeAreaInsets();
   const {
+    stepPosition,
     topics,
     maxSelectable,
     selectedCount,
@@ -73,8 +75,11 @@ export default function TopicSelectScreen() {
             {ONBOARDING_COPY.topic.toolbarTitle}
           </Text>
         </View>
-        <Text style={styles.stepLabel} accessibilityLabel={COPY.stepA11y}>
-          {COPY.step}
+        <Text
+          style={styles.stepLabel}
+          accessibilityLabel={COPY.stepA11y(stepPosition.current, stepPosition.total)}
+        >
+          {COPY.step(stepPosition.current, stepPosition.total)}
         </Text>
         <Text style={styles.title}>{ONBOARDING_COPY.topic.title(maxSelectable)}</Text>
         {/*
@@ -95,7 +100,7 @@ export default function TopicSelectScreen() {
                     accessibilityLabel={COPY.deselectA11y(topic.name)}
                   >
                     <Image
-                      source={topicImageSource(topic.name)}
+                      source={topicImageSource({ slug: topic.slug, name: topic.name })}
                       resizeMode="cover"
                       style={styles.selectedChipPhoto}
                     />

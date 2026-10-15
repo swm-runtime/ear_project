@@ -30,6 +30,8 @@ const SWIPE_SLOP = 8;
 
 export interface MarqueeTopic {
   topicId: string;
+  /** 칩 사진 키(KAN-195) — 없으면 이름으로 찾는다 */
+  slug: string | null;
   name: string;
   isSelected: boolean;
   isDimmed: boolean;
@@ -101,6 +103,7 @@ function MarqueeCopies({
             <TopicChip
               key={topic.topicId}
               topicId={topic.topicId}
+              slug={topic.slug}
               label={topic.name}
               isSelected={topic.isSelected}
               isDimmed={topic.isDimmed}

@@ -80,7 +80,7 @@ let marketingConsentState: MarketingConsentDto =
 // 같은 상태를 만들 수 있다 — 그쪽은 인증 화면과 상태가 이어진다)
 const accountForScenario = (): SettingsAccountDto => {
   const emailAccount = getEmailMockAccount();
-  const base: SettingsAccountDto = { ...emailAccount, is_admin: false };
+  const base: SettingsAccountDto = { ...emailAccount, is_admin: false, market: 'kr' };
   switch (SCENARIO) {
     case 'email-unregistered':
       return { ...base, email: null, is_email_verified: false };

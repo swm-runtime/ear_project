@@ -1,5 +1,14 @@
 export type SocialProvider = 'kakao' | 'naver' | 'google' | 'apple';
 
+/**
+ * 사용자의 시장(`users.market` — global-api.md 2.1). **가입 때 서버가 한 번 정하고 바꾸지 않는다.**
+ * 클라이언트는 응답 값을 그대로 쓰고 기기 언어로 추측하지 않는다(영어 설정 한국 사용자가 GLOBAL로 보인다).
+ */
+export type Market = 'kr' | 'global';
+
+/** 가입 화면(A21)에서 사용자가 고른 콘텐츠 언어 — 시장 판정의 입력(`ko` → `kr`, `en` → `global`) */
+export type ContentLanguage = 'ko' | 'en';
+
 /** 서버 계약의 consent_type 값 그대로 쓴다(convention.md 1.6) */
 /**
  * 서버가 받는 동의 유형(domain.md 3.2). `age_confirmation` 은 열람할 문서가 없는
@@ -28,6 +37,15 @@ export interface AuthUser {
   role: string;
   onboardingCompleted: boolean;
   onboardingStep: string;
+  /**
+   * 서버 판정 시장(global-api.md 4.1). 필드가 없는 응답(구 서버)은 `kr` 로 받는다 —
+   * 서버 폴백 규칙("없으면 `kr`")과 같은 값이다.
+   */
+  market: Market;
+  /** 서버에 저장된 기기 언어(BCP 47). 구 서버·미수집 계정은 null */
+  languageCode: string | null;
+  /** 서버에 저장된 시간대(IANA). 구 서버·미수집 계정은 null */
+  timezone: string | null;
 }
 
 export interface AuthTokens {
@@ -65,11 +83,19 @@ export type SocialLoginResult =
       requiredConsents: RequiredConsent[];
     };
 
+/** 신규 가입 흐름이 화면 사이로 넘기는 값 — social-login 의 consent_required 응답 */
+export interface SignUpParams {
+  signupToken: string;
+  requiredConsents: RequiredConsent[];
+}
+
 export type AuthStackParamList = {
   Start: undefined;
-  TermsConsent: {
-    signupToken: string;
-    requiredConsents: RequiredConsent[];
+  /** A21 콘텐츠 언어 선택 — 신규 가입자만 거친다(A1 → A21 → A4) */
+  ContentLanguage: SignUpParams;
+  TermsConsent: SignUpParams & {
+    /** A21에서 고른 값. 가입 요청의 `locale.preferred_language` 로 보낸다 */
+    preferredLanguage: ContentLanguage;
   };
 };
 

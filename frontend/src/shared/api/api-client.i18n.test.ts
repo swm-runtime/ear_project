@@ -11,6 +11,7 @@ import { isApiError } from './api-error';
 jest.mock('@/shared/i18n/locale', () => ({
   APP_LANGUAGE: 'en',
   DEVICE_LOCALE: 'en-US',
+  DISPLAY_LOCALE: 'en-US',
   DEVICE_TIMEZONE: 'America/New_York',
   toAppLanguage: () => 'en',
 }));

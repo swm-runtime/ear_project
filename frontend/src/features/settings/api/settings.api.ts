@@ -69,6 +69,7 @@ const toSettingsSummary = (dto: SettingsSummaryResponseDto): SettingsSummary => 
           email: dto.account.email,
           isEmailVerified: dto.account.is_email_verified,
           isAdmin: dto.account.is_admin,
+          market: dto.account.market ?? null,
         },
   plan:
     dto.plan === null

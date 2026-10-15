@@ -6,10 +6,12 @@ import { useAnimatedValue } from '@/shared/hooks/useAnimatedValue';
 import { motion, theme } from '@/shared/theme';
 
 import { INTEREST_COPY } from '../interest.copy';
-import { topicImageSource } from './TopicChip';
+import { topicImageSource } from '../interest.images';
 
 interface InterestBubbleProps {
   name: string;
+  /** 사진 키 — slug 먼저, 없으면 `name`으로 찾는다(interest.images.ts, KAN-195) */
+  slug: string | null;
   /** 기본 지름(pt) — 자리·배율은 부모(InterestBubbleField)의 물리가 transform 으로 준다 */
   size: number;
   isSelected: boolean;
@@ -56,6 +58,7 @@ const DIMMED_WASH = 0.62;
  */
 export default function InterestBubble({
   name,
+  slug,
   size,
   isSelected,
   isDimmed,
@@ -107,7 +110,7 @@ export default function InterestBubble({
         ]}
       >
         <View style={[styles.photoClip, { borderRadius: radius }]}>
-          <Image source={topicImageSource(name)} resizeMode="cover" style={styles.photo} />
+          <Image source={topicImageSource({ slug, name })} resizeMode="cover" style={styles.photo} />
           <View style={styles.scrim} />
         </View>
       </View>

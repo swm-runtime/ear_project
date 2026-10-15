@@ -23,6 +23,7 @@ export const interestKeys = {
 const toTopicList = (dto: TopicListResponseDto): TopicList => ({
   items: dto.items.map((item) => ({
     topicId: item.topic_id,
+    slug: item.slug ?? null,
     name: item.name,
     parentCategory: item.parent_category,
   })),

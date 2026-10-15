@@ -13,9 +13,9 @@ import { Text } from '@/shared/ui/Typography';
 
 import { InterestBubbleField, InterestBubbleSkeleton } from '../components/InterestBubbleField';
 import InterestDialog from '../components/InterestDialog';
-import { topicImageSource } from '../components/TopicChip';
 import { useInterestManagementScreen } from '../hooks/useInterestManagementScreen';
 import { INTEREST_COPY } from '../interest.copy';
+import { topicImageSource } from '../interest.images';
 
 /**
  * IM1~IM9 관심 주제 관리 — 화면은 뷰만 담당하고 로직은 useInterestManagementScreen이 소유한다.
@@ -136,7 +136,7 @@ export default function InterestManagementScreen() {
                     .map((topic, index) => (
                       <Image
                         key={topic.topicId}
-                        source={topicImageSource(topic.name)}
+                        source={topicImageSource({ slug: topic.slug, name: topic.name })}
                         style={[styles.avatar, index > 0 && styles.avatarOverlap]}
                       />
                     ))

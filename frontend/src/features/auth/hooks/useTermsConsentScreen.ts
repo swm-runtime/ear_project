@@ -10,15 +10,17 @@ import { useToastStore } from '@/shared/ui/toast.store';
 import { AUTH_COPY } from '../auth.copy';
 import type { AuthStackParamList, ConsentType, RequiredConsent } from '../auth.types';
 import { useSignUpMutation } from './useSignUpMutation';
+import { getDeviceLocale } from '../services/device-locale';
 import { openPolicyDocument } from '../services/policy-document.service';
 import { sessionService } from '../services/session.service';
 
-interface TermsConsentParams {
-  signupToken: string;
-  requiredConsents: RequiredConsent[];
-}
+type TermsConsentParams = AuthStackParamList['TermsConsent'];
 
-export const useTermsConsentScreen = ({ signupToken, requiredConsents }: TermsConsentParams) => {
+export const useTermsConsentScreen = ({
+  signupToken,
+  requiredConsents,
+  preferredLanguage,
+}: TermsConsentParams) => {
   const navigation = useNavigation<NativeStackNavigationProp<AuthStackParamList, 'TermsConsent'>>();
   const showToast = useToastStore((s) => s.show);
   const signUpMutation = useSignUpMutation();
@@ -95,6 +97,8 @@ export const useTermsConsentScreen = ({ signupToken, requiredConsents }: TermsCo
           version: item.version,
           isAgreed: item.isChecked,
         })),
+        // A21에서 고른 콘텐츠 언어 — 서버가 이 값으로 시장을 정한다(global-api.md 2.1)
+        locale: getDeviceLocale(preferredLanguage),
       });
       // 이 시점에 계정이 생성됐다. 화면 전환은 RootNavigator가 세션 상태로 분기한다(온보딩 첫 단계)
       await sessionService.startSession(session.tokens, session.user);

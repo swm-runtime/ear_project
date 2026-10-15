@@ -1,7 +1,7 @@
 import axios, { AxiosError, type AxiosInstance, type InternalAxiosRequestConfig } from 'axios';
 import { Platform } from 'react-native';
 
-import { APP_LANGUAGE, DEVICE_LOCALE, DEVICE_TIMEZONE } from '@/shared/i18n/locale';
+import { APP_LANGUAGE, DEVICE_TIMEZONE, DISPLAY_LOCALE } from '@/shared/i18n/locale';
 import { localized, type LocalizedCopy } from '@/shared/i18n/localized';
 import { logger } from '@/shared/lib/logger';
 
@@ -143,8 +143,8 @@ apiClient.interceptors.request.use(async (config) => {
   if (config.idempotencyKey) {
     config.headers.set('Idempotency-Key', config.idempotencyKey);
   }
-  // 기기 로캘·시간대 — 서버는 로그·통계에만 쓴다. 판정은 users.market(global-api.md 2.2 · KAN-194)
-  config.headers.set('Accept-Language', DEVICE_LOCALE);
+  // 표시 언어·기기 시간대 — 서버는 로그·통계에만 쓴다. 판정은 users.market(global-api.md 2.2 · KAN-194)
+  config.headers.set('Accept-Language', DISPLAY_LOCALE);
   config.headers.set('X-Timezone', DEVICE_TIMEZONE);
   if (!config.skipAuthRefresh && tokenProvider) {
     const accessToken = await tokenProvider.getAccessToken();
