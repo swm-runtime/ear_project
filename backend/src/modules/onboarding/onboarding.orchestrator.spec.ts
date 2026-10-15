@@ -27,6 +27,7 @@ const TOPIC_C = 'cccccccc-1111-4111-8111-111111111111';
 function buildUser(overrides: Partial<User> = {}): User {
   return {
     id: USER_ID,
+    market: UserMarket.KR,
     onboardingCompleted: false,
     onboardingStep: OnboardingStep.PICK,
     onboardingCompletedAt: null,
@@ -413,8 +414,8 @@ describe('OnboardingOrchestrator', () => {
       // then
       expect(contentService.resolvePickTargets).toHaveBeenCalledWith(
         ['content-1'],
-        undefined,
         NOW,
+        UserMarket.KR,
       );
     });
   });

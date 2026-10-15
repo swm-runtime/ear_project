@@ -161,6 +161,42 @@ describe('글로벌 카탈로그 격리 E2E', () => {
       .expect(HttpStatus.NOT_FOUND);
   }, 60_000);
 
+  it('온보딩 담기는 다른 시장 콘텐츠를 없는 콘텐츠로 빼고 적립하지 않는다', async () => {
+    // given — 담기 단계의 GLOBAL 사용자
+    const auth = await createUser('onboarding-picks', UserMarket.GLOBAL);
+    const userId = userIds[userIds.length - 1];
+    await dataSource.query(
+      `UPDATE users SET onboarding_completed = false, onboarding_step = 'pick' WHERE id = $1`,
+      [userId],
+    );
+
+    try {
+      // when
+      const response = await request(app.getHttpServer())
+        .post(path('/onboarding/picks'))
+        .set('Authorization', auth)
+        .set('Idempotency-Key', `${STAMP}-picks`)
+        .send({ content_ids: [globalContent.id, krContent.id] })
+        .expect(HttpStatus.OK);
+
+      // then
+      expect(response.body).toMatchObject({
+        saved_content_ids: [globalContent.id],
+        failed: [{ content_id: krContent.id, error_code: 'CONTENT_NOT_FOUND' }],
+      });
+      const saved = await dataSource.query<{ content_id: string }[]>(
+        `SELECT content_id FROM library_items WHERE user_id = $1`,
+        [userId],
+      );
+      expect(saved.map((row) => row.content_id)).toEqual([globalContent.id]);
+    } finally {
+      // 콘텐츠보다 먼저 지워야 afterAll 정리가 FK 에 걸리지 않는다 — 단언이 실패해도 돈다
+      await dataSource.query(`DELETE FROM library_items WHERE user_id = $1`, [
+        userId,
+      ]);
+    }
+  }, 60_000);
+
   it('공지는 시장별로만 보이고 다른 시장 공지는 404다', async () => {
     const kr = await get('/notices', krAuth);
     const global = await get('/notices', globalAuth);
