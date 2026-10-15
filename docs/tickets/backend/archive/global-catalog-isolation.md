@@ -13,8 +13,9 @@
 | 선행 | [KAN-187](https://runtime364.atlassian.net/browse/KAN-187) `global-market-users.md`(`users.market`) |
 | 관련 | [KAN-190](https://runtime364.atlassian.net/browse/KAN-190) 발행 계약(`contents.market` 기록) · [KAN-189](https://runtime364.atlassian.net/browse/KAN-189) 온보딩 · AI [KAN-204](https://runtime364.atlassian.net/browse/KAN-204) 발행 |
 | 근거 문서 | **`spec/api/global-api.md` 4.5(필터) · 4.7 · 4.8 · 7장 · 8장 `contents`·`topics`·`notices` 행** — 구현은 이 문서를 따르고, 계약이 바뀌면 티켓이 아니라 이 문서를 고친다 · 2026-10-14 글로벌화 조사 |
+| 반영 날짜 | 2026-10-15 |
 | 중요도 | Medium |
-| 상태 | 진행 중 (2026-10-14 dev 머지·개발계 배포 — 남은 것: 검색 로그·주간 지표 시장 축) |
+| 상태 | 완료 (2026-10-15) |
 
 > 2026-10-14 발행한 묶음 티켓(BE KAN-185 · FE KAN-183 · AI KAN-184)을 처리 단위로 나눈 것. 결정 사항(같은 앱·기기 언어로 가입 시 1회 시장 판정·한국 트랙 불변·에러 번역은 클라이언트·가격은 스토어·영어 진행자 새 2인·K-컬처 주제 신설·GLOBAL 연령 16세)과 결정 대기(시장 전환 불허)는 `spec/api/global-api.md` 2.1·9장이 원본이다.
 
@@ -47,3 +48,4 @@
   - 문서: `changes/pending/global-catalog-market.md`.
 - 2026-10-14 `recommend-eval` GLOBAL 합성 카탈로그·페르소나 — PR `feat(be)/recommend-eval-global-persona`. 평가 세계 후보 조회에 시장 조건(제품 SQL과 같게), 스냅샷에 `market`(옛 파일은 `kr`), 불변식 8 "편성분은 전부 사용자 시장의 콘텐츠", 페르소나 `global-listener`. KR 페르소나 지표는 추가 전과 동일. 남은 것: `content_stats`·`search_query_logs`·주간 지표의 market 축.
 - 2026-10-15 "주간 지표 시장 축" 확인 — 시장이 섞이는 주간 지표는 프로필 `listening_top_percent`(모집단·순위가 전체 계정)뿐이었다. `content_stats`는 콘텐츠가 시장별 행이라 이미 나뉘어 있어 손대지 않는다. 같은 시장 사용자끼리 비교로 바꿈 — PR `feat(be)/weekly-top-percent-by-market`(시장 조건을 빼면 e2e가 실패하는 것까지 확인). 문서 `changes/pending/weekly-top-percent-by-market.md`.
+- 2026-10-15 완료 — 완료 조건 4개 충족: e2e 교차 접근 0건·상세 404·KR 회귀(`global-catalog-isolation.e2e-spec.ts`, CI 통과), `eval:recommend` 두 시장 불변식 통과(#1540). 남겨 뒀던 시장 축(주간 상위 %·검색 로그·라이브러리 주제 수)도 #1551·#1552·#1557로 끝났다. 운영 배포(#1567) 뒤 5xx 0건. `archive/`로 이동.
