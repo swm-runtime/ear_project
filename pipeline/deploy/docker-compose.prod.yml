@@ -123,10 +123,9 @@ services:
     pull_policy: never
     profiles: ['global']
     restart: unless-stopped
-    env_file: env.global # SUPABASE_URL · SUPABASE_ANON_KEY · PIPELINE_BUCKET · PIPELINE_SPEAKERS · PIPELINE_WORKER_TOKEN
+    env_file: env.global # SUPABASE_URL · SUPABASE_ANON_KEY · PIPELINE_BUCKET · PIPELINE_SPEAKERS · PIPELINE_WORKER_TOKEN · OPENAI_API_KEY(글로벌 프로젝트 키 — 배제 주제 판정)
     environment:
       PIPELINE_LOCALE: en
-      OPENAI_API_KEY: ${OPENAI_API_KEY:-} # 주제 기획 배제 주제 판정 (KAN-209)
       AWS_REGION: ${AWS_REGION:-ap-northeast-2}
       EAR_API_BASE_URL: ${EAR_API_BASE_URL:-https://api.earcast.co.kr/api/v1} # 발행처는 한국판과 같은 제품 서버 (market=global)
       EAR_SSO_SECRET: ${EAR_SSO_SECRET:-}
@@ -146,7 +145,7 @@ services:
     profiles: ['global']
     restart: unless-stopped
     command: ['npm', 'run', 'worker']
-    env_file: env.global # DATABASE_URL(Session pooler) · PIPELINE_BUCKET · PIPELINE_SPEAKERS · TTS_VOICE_A · TTS_VOICE_B · PIPELINE_CONSOLE_URL
+    env_file: env.global # DATABASE_URL(Session pooler) · PIPELINE_BUCKET · PIPELINE_SPEAKERS · TTS_VOICE_A · TTS_VOICE_B · PIPELINE_CONSOLE_URL · OPENAI_API_KEY
     environment:
       PIPELINE_LOCALE: en
       EXECUTOR: openai # 글로벌판은 노트북 워커 없이 서버 API 실행기만 (글로벌 명세 4.4)
@@ -156,7 +155,7 @@ services:
       ASSET_ROOT: /srv/docs/ai/global # 명세 장 원본 — 글로벌 명세 4.1
       AWS_REGION: ${AWS_REGION:-ap-northeast-2}
       S3_MODE: direct
-      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      # OPENAI_API_KEY 는 env.global 에서 — 글로벌 전용 OpenAI 프로젝트 키(예산 한도·사용량을 한국판과 가른다, 2026-10-15 박수헌). environment 에 두면 env_file 보다 우선해 한국판 키가 덮는다
       ELEVENLABS_API_KEY: ${ELEVENLABS_API_KEY:-} # 계정 공유 — 한도는 두 인스턴스 합산 (KAN-204)
       AI_SERVER_URL: ${AI_SERVER_URL:-http://ai-server:8000}
       AI_SERVER_TOKEN: ${AI_SERVER_TOKEN:-}
