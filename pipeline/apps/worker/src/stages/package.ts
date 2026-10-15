@@ -37,6 +37,10 @@ export async function runPackage(job: Job) {
     throw new Error(`패키지는 qa_passed 이후에만 (현재: ${r.status}) — 불변 원칙 6`);
   }
 
+  // 글로벌판(KAN-202, global-api 4.9 · 글로벌 명세 6.9): 주제 1~2개(대표 먼저)와 market·language 를 싣는다 — 콘솔이 발행 payload 로 옮긴다. 한국판은 키를 더하지 않는다
+  const global = pipelineLocale() === "en"
+    ? { market: "global" as const, language: "en" as const, topics: [cand.mid_topic, ...(await pool.query("select sub_topic from public.backlog where id = $1", [backlogId]).then((x) => (x.rows[0]?.sub_topic as string | null) ?? null).then((v) => (v && v !== cand.mid_topic ? [v] : [])))] }
+    : null;
   const [major, explainer] = await Promise.all([
     majorOfMidTopic(cand.mid_topic),
     pool.query("select explainer from public.topics where mid = $1", [cand.mid_topic]).then((x) => (x.rows[0]?.explainer as string) ?? defaultExplainer()),
@@ -61,6 +65,7 @@ export async function runPackage(job: Job) {
     one_liner: (r.one_liner as string) ?? null,
     major_topic: major,
     mid_topic: cand.mid_topic,
+    ...(global ?? {}),
     explainer,
     host: otherSpeaker(explainer),
     duration_min_estimate: durationMin,

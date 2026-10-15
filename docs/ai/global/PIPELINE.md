@@ -346,7 +346,7 @@ proposed ─승인→ approved ─집기→ claimed → drafted → qa_passed �
 - `upload-meta.json` 필드(제목·설명·분량·참고 자료·진행자·산출물 경로) `승계` — 제목·설명은 영어, 클릭베이트 금지. 주제 칸은 대분류·중분류 대신 **주제 1~2개(대표 먼저)** `개정`. `market: global`·`language: en`을 기록해 콘솔이 payload로 옮긴다(`spec/api/global-api.md` 4.9) `신설`.
 - 게이트 2는 사람만 `승계`. 게이트 2 체크리스트에 **6.4 표기 · 2.1 배제 · 5장 원칙 8·9**를 더한다 `신설`.
 - **발행처** `확정` (2026-10-14, `spec/api/global-api.md`) — 한국판과 **같은 앱·같은 제품 서버**다. 콘텐츠는 `POST /admin/contents` payload의 `market: global`·`language: en`으로 갈리고, 서버가 GLOBAL 사용자에게만 노출한다. 서버가 4.9를 배포하기 전에는 400이 나므로 콘솔의 `SEND_*` 플래그로 배포 뒤 켠다. 그 전까지 파이프라인은 `packaged`에서 멈춘다.
-- 추천 메타(`enrichment.json`)는 생성 구조 `승계`. 글로벌판 규칙(global-api 4.9): `language: "en"` · **`target_audiences` 생략**(KR 직군 enum) · 태그는 완화 규칙 `^[가-힣A-Za-z0-9 ]{2,20}$`(공백 허용 — "Stray Kids"). 나머지 값(`difficulty`·`format` 등)의 영어 판정 기준은 10장 #9.
+- 추천 메타(`enrichment.json`)는 생성 구조 `승계`. 글로벌판 규칙(global-api 4.9): `language`는 **파일에 싣지 않는다** — 명세상 선택(없으면 발행 payload 값)이고, 서버 파서가 아직 모르는 키를 파일째 거부해서다(2026-10-15 결정, 서버가 받게 되면 다시 본다) · **`target_audiences` 생략**(KR 직군 enum) · 태그는 완화 규칙 `^[가-힣A-Za-z0-9 ]{2,20}$`(공백 허용 — "Stray Kids"). 나머지 값(`difficulty`·`format` 등)의 영어 판정 기준은 10장 #9.
 
 ## 7. 품질 사이클 — 한국판 spec/09 기반
 

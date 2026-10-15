@@ -1419,6 +1419,9 @@ export const ENRICHMENT_SCHEMA_VERSION = 2;
 export const ENRICHMENT_SCHEMA_VERSION_TAGS = 3;
 /** 태그 한 개 — 띄어쓰기 없는 2~10자, 한글·영문·숫자. '#'은 화면이 붙인다 */
 export const ENRICH_TAG_RE = /^[가-힣A-Za-z0-9]{2,10}$/;
+/** 글로벌판 태그 — 공백 허용 2~20자, 앞뒤 공백 없음 ("Stray Kids"). 서버 CONTENT_TAG_PATTERN 과 같은 식 (global-api 4.9, 2026-10-15 KAN-202). 한국판은 위 규칙 그대로 */
+export const ENRICH_TAG_RE_GLOBAL = /^[가-힣A-Za-z0-9][가-힣A-Za-z0-9 ]{0,18}[가-힣A-Za-z0-9]$/;
+export const enrichTagRe = (locale: "ko" | "en" = "ko"): RegExp => (locale === "en" ? ENRICH_TAG_RE_GLOBAL : ENRICH_TAG_RE);
 export const ENRICH_DIFFICULTY = ["beginner", "intermediate", "advanced"] as const;
 export const ENRICH_FORMAT = ["news_analysis", "howto", "interview", "opinion", "case_study", "overview"] as const;
 export const ENRICH_YEARS = ["0-1", "2-3", "4-6", "7+"] as const;
@@ -1432,6 +1435,8 @@ export interface EnrichInput {
   jobCategories: string[]; yearsRanges: string[];
   /** judgment-criteria.md 본문 */
   criteria: string;
+  /** 글로벌판(en)은 target_audiences(KR 직군 enum)를 묻지 않고 태그 규칙이 다르다 — 미지정이면 한국판 그대로 (KAN-202) */
+  locale?: "ko" | "en";
 }
 export function buildEnrichPrompt(i: EnrichInput): string {
   const fence = (s: string) => "````\n" + s.trim() + "\n````";
@@ -1443,9 +1448,10 @@ export function buildEnrichPrompt(i: EnrichInput): string {
 - 값은 아래 집합 **안에서만**, 글자 단위로 같게. 밖의 값은 업로드 검증이 거부한다.
   - difficulty: ${ENRICH_DIFFICULTY.join(" | ")}
   - format: ${ENRICH_FORMAT.join(" | ")}
-  - target_audiences[].job_category: ${i.jobCategories.join(" | ")}
+${i.locale === "en" ? `  - tags: 한글·영문·숫자, 공백 허용 2~20자(앞뒤 공백 없음)
+` : `  - target_audiences[].job_category: ${i.jobCategories.join(" | ")}
   - target_audiences[].years_of_experience: ${i.yearsRanges.join(" | ")}
-- 각 판정에 **대본의 어느 대목이 근거인지** 한 줄씩 evidence 에 적는다. 근거를 못 대는 판정은 판정 불능이다.
+`}- 각 판정에 **대본의 어느 대목이 근거인지** 한 줄씩 evidence 에 적는다. 근거를 못 대는 판정은 판정 불능이다.
 
 ## 판정 기준
 ${fence(i.criteria)}
@@ -1461,7 +1467,7 @@ ${fence(i.script)}` : `
 ## 대본 없음 — 폴백(명세 4.5)
 제목·설명만으로 판정한다. keywords 는 제목+설명에서 뽑고 source 는 "title_description" 으로 적는다. difficulty·format 은 얕은 근거로 판정하지 말고 불능이면 생략한다. is_evergreen 은 판정 가능하면 적는다.`}
 
-## 완료 보고 — 반드시 요청된 JSON 스키마 형식으로만 출력한다. 판정 불능 키는 넣지 않는다. keywords 는 대본에 실제로 다뤄진 세부 개념의 명사구 3~8개(3개 미만이면 나온 만큼만, 0개면 생략). target_audiences 는 1~8세트, 직군·연차 무관한 범용 대본이면 생략. tags 는 2~4개 — 꼭 맞는 것만, 개수를 채우려고 덜 맞는 태그를 넣지 않는다.`;
+## 완료 보고 — 반드시 요청된 JSON 스키마 형식으로만 출력한다. 판정 불능 키는 넣지 않는다. keywords 는 대본에 실제로 다뤄진 세부 개념의 명사구 3~8개(3개 미만이면 나온 만큼만, 0개면 생략).${i.locale === "en" ? "" : " target_audiences 는 1~8세트, 직군·연차 무관한 범용 대본이면 생략."} tags 는 2~4개 — 꼭 맞는 것만, 개수를 채우려고 덜 맞는 태그를 넣지 않는다.`;
 }
 export const ENRICH_SCHEMA = {
   type: "object", additionalProperties: false, required: ["evidence"],
@@ -1476,6 +1482,13 @@ export const ENRICH_SCHEMA = {
     evidence: { type: "object", additionalProperties: false, properties: { difficulty: { type: "string" }, format: { type: "string" }, is_evergreen: { type: "string" }, keywords: { type: "string" }, tags: { type: "string" }, target_audiences: { type: "string" } } },
   },
 } as const;
+/** 글로벌판(en) 판정 스키마 — target_audiences 를 뺀다(KR 직군 enum, global-api 4.9: market=global 이면 있으면 400) */
+export const ENRICH_SCHEMA_GLOBAL = (() => {
+  const { target_audiences: _t, ...properties } = ENRICH_SCHEMA.properties;
+  const { target_audiences: _e, ...evidence } = ENRICH_SCHEMA.properties.evidence.properties;
+  return { ...ENRICH_SCHEMA, properties: { ...properties, evidence: { ...ENRICH_SCHEMA.properties.evidence, properties: evidence } } };
+})();
+export const enrichSchema = (locale: "ko" | "en" = "ko") => (locale === "en" ? ENRICH_SCHEMA_GLOBAL : ENRICH_SCHEMA);
 /** 대본 임베딩 (metadata-pipeline 4.3 Phase B) — AI 서버 `POST /embeddings` 응답. BE 가 `content_embeddings` 에 upsert (admin-api 4.6). 벡터는 1536차원·model 은 현재 모델과 일치해야 한다 */
 export interface EnrichmentEmbedding { model: string; dim?: number; vector: number[] }
 export const EMBEDDING_MODEL_EXPECTED = "text-embedding-3-small"; // domain.md 5.6 확정 — BE parseEmbedding 이 글자 단위로 대조, 다르면 enrichment 파일 전체 거부
@@ -1514,8 +1527,11 @@ export async function fetchEmbedding(text: string, opts: { url: string; token: s
 export interface EnrichmentFile { schema_version: number; difficulty?: string; format?: string; is_evergreen?: boolean; keywords?: string[]; tags?: string[]; embedding?: EnrichmentEmbedding; target_audiences?: { job_category: string; years_of_experience: string }[]; source?: "title_description" }
 /** finalize.py 와 같은 규칙: 키워드 NFC 정규화·공백 정리·중복 제거·주제명 반복 제거·상한 8, enum 글자 일치 검증. 실패면 errors 를 돌려주고 파일을 만들지 않는다.
  *  tags(KAN-139)는 늘 정규화해 돌려주고(리포트용), opts.tags 일 때만 파일에 싣고 형식을 3으로 올린다. 규칙 밖 태그는 그 태그만 빼고, 2개 미만이면 키를 뺀다 — 태그 때문에 파일 전체를 버리지 않는다 */
-export function normalizeEnrichment(raw: Record<string, unknown>, topicNames: string[], jobCategories: string[], opts: { tags?: boolean } = {}): { file: EnrichmentFile | null; errors: string[]; warnings: string[]; tags: string[] } {
+/** opts.locale = "en"(글로벌판, KAN-202): target_audiences 는 받아도 버리고(경고), 태그는 공백 허용 규칙. 미지정이면 한국판 그대로.
+ *  language 키는 싣지 않는다 — 명세상 선택(없으면 발행 payload 의 language)이고, 서버 파서가 아직 모르는 키라 넣으면 파일째 거부된다(2026-10-15 결정) */
+export function normalizeEnrichment(raw: Record<string, unknown>, topicNames: string[], jobCategories: string[], opts: { tags?: boolean; locale?: "ko" | "en" } = {}): { file: EnrichmentFile | null; errors: string[]; warnings: string[]; tags: string[] } {
   const errors: string[] = [], warnings: string[] = [];
+  const en = opts.locale === "en";
   const file: EnrichmentFile = { schema_version: opts.tags ? ENRICHMENT_SCHEMA_VERSION_TAGS : ENRICHMENT_SCHEMA_VERSION };
   if (raw.difficulty != null) { if ((ENRICH_DIFFICULTY as readonly string[]).includes(String(raw.difficulty))) file.difficulty = String(raw.difficulty); else errors.push(`difficulty enum 불일치: ${String(raw.difficulty)}`); }
   if (raw.format != null) { if ((ENRICH_FORMAT as readonly string[]).includes(String(raw.format))) file.format = String(raw.format); else errors.push(`format enum 불일치: ${String(raw.format)}`); }
@@ -1536,7 +1552,8 @@ export function normalizeEnrichment(raw: Record<string, unknown>, topicNames: st
     if (out.length && out.length < 3) warnings.push(`키워드 ${out.length}개 — 3개 미만(대본이 얇거나 단일 주제)`);
     if (out.length) file.keywords = out;
   }
-  if (Array.isArray(raw.target_audiences)) {
+  if (en && raw.target_audiences != null) warnings.push("target_audiences 제외 — 글로벌판은 싣지 않는다(global-api 4.9)");
+  if (!en && Array.isArray(raw.target_audiences)) {
     const out: { job_category: string; years_of_experience: string }[] = [];
     for (const t of raw.target_audiences as { job_category?: unknown; years_of_experience?: unknown }[]) {
       const jc = String(t?.job_category ?? "").normalize("NFC").trim(), yr = String(t?.years_of_experience ?? "").trim();
@@ -1552,8 +1569,8 @@ export function normalizeEnrichment(raw: Record<string, unknown>, topicNames: st
     const topics = new Set(topicNames.map((t) => t.normalize("NFC").replace(/\s+/g, "").toLowerCase()));
     for (const t of raw.tags) {
       if (typeof t !== "string") continue;
-      const n = t.normalize("NFC").trim().replace(/^#+/, "");
-      if (!ENRICH_TAG_RE.test(n)) { warnings.push(`태그 규칙 밖 제외: ${n}`); continue; }
+      const n = en ? t.normalize("NFC").replace(/^[\s#]+/, "").replace(/\s+/g, " ").trim() : t.normalize("NFC").trim().replace(/^#+/, "");
+      if (!enrichTagRe(opts.locale).test(n)) { warnings.push(`태그 규칙 밖 제외: ${n}`); continue; }
       if (topics.has(n.toLowerCase())) { warnings.push(`주제명 반복 태그 제외: ${n}`); continue; }
       if (tags.some((x) => x.toLowerCase() === n.toLowerCase())) continue;
       tags.push(n);
@@ -1562,7 +1579,7 @@ export function normalizeEnrichment(raw: Record<string, unknown>, topicNames: st
     if (tags.length === 1) { warnings.push(`태그 1개 — 2개 미만이라 뺌: ${tags[0]}`); tags.length = 0; }
     if (opts.tags && tags.length) file.tags = [...tags];
   }
-  const missing = ["difficulty", "format", "is_evergreen", "keywords", "target_audiences", ...(opts.tags ? ["tags"] : [])].filter((k) => !(k in file));
+  const missing = ["difficulty", "format", "is_evergreen", "keywords", ...(en ? [] : ["target_audiences"]), ...(opts.tags ? ["tags"] : [])].filter((k) => !(k in file));
   if (missing.length) warnings.push(`생략된 키: ${missing.join(", ")} (partial)`);
   return { file: errors.length ? null : file, errors, warnings, tags };
 }
