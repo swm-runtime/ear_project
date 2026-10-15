@@ -176,6 +176,11 @@ export class UserService {
     const resolved = resolveMarket({
       preferredLanguage: command.locale?.preferredLanguage,
       languageCode: locale.languageCode,
+      // 글로벌 카탈로그가 준비될 때까지 닫아 둔다 — `true`를 명시했을 때만 연다(env.validation.ts)
+      globalSignupEnabled:
+        this.configService
+          .get('GLOBAL_SIGNUP_ENABLED', { infer: true })
+          ?.trim() === 'true',
     });
 
     return this.dataSource.transaction(async (manager) => {

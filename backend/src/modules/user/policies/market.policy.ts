@@ -7,8 +7,30 @@ import { LocaleInput, NormalizedLocale } from '../user.types';
  * 입력은 사용자가 가입 화면에서 고른 콘텐츠 언어다. 기기 언어로 자동 판정하면 영어 설정을 쓰는 한국 사용자가
  * GLOBAL로 가고 되돌릴 길이 없어서(시장 전환 불허) 사용자에게 묻는다(2026-10-14). 고른 값이 없으면(구 앱) 기기
  * 언어로 폴백하고, 그것도 없으면 `kr` — 지금 스토어에 있는 앱이 그대로 가입되는 이유다.
+ *
+ * **글로벌 가입이 닫혀 있으면(`globalSignupEnabled = false`) GLOBAL 판정도 `kr`로 만든다**(source `global_closed`,
+ * 2026-10-15). 시장은 한 번 정하면 바꿀 수 없는데, GLOBAL 카탈로그(주제·콘텐츠)가 비어 있는 동안 GLOBAL로 가입하면
+ * 온보딩 주제가 0개라 진행할 수 없다. 앱이 언어 선택을 먼저 내보내도 서버가 막는다.
  */
 export function resolveMarket(input: {
+  preferredLanguage?: PreferredLanguage | null;
+  languageCode?: string | null;
+  globalSignupEnabled: boolean;
+}): {
+  market: UserMarket;
+  source: 'preferred' | 'device' | 'default' | 'global_closed';
+} {
+  const resolved = resolveRequestedMarket(input);
+
+  if (resolved.market === UserMarket.GLOBAL && !input.globalSignupEnabled) {
+    return { market: UserMarket.KR, source: 'global_closed' };
+  }
+
+  return resolved;
+}
+
+/** 요청이 가리키는 시장 — 글로벌 가입 스위치를 보기 전의 판정 */
+function resolveRequestedMarket(input: {
   preferredLanguage?: PreferredLanguage | null;
   languageCode?: string | null;
 }): { market: UserMarket; source: 'preferred' | 'device' | 'default' } {

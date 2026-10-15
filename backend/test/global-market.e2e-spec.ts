@@ -1,6 +1,7 @@
 import 'dotenv/config';
 
 import { HttpStatus, INestApplication, ValidationPipe } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { Test } from '@nestjs/testing';
 import request from 'supertest';
 import { App } from 'supertest/types';
@@ -44,6 +45,8 @@ describe('글로벌 시장 모델 E2E', () => {
   const userIds: string[] = [];
   const path = (p: string) => `/api/v1${p}`;
 
+  let configService: ConfigService;
+
   beforeAll(async () => {
     const moduleRef = await Test.createTestingModule({
       imports: [AppModule],
@@ -60,6 +63,10 @@ describe('글로벌 시장 모델 E2E', () => {
     );
     await app.init();
     dataSource = app.get(DataSource);
+    // 이 파일은 글로벌 가입이 열린 상태(출시 뒤)의 판정을 본다 — 닫힌 상태는 마지막 테스트가 본다.
+    // `process.env`가 아니라 ConfigService 를 바꾼다 — 검증된 env 스냅샷을 먼저 읽어 로컬 `.env` 값에 흔들린다
+    configService = app.get(ConfigService);
+    configService.set('GLOBAL_SIGNUP_ENABLED', 'true');
   }, 60_000);
 
   afterAll(async () => {
@@ -183,6 +190,25 @@ describe('글로벌 시장 모델 E2E', () => {
       language_code: 'en',
       timezone: null,
     });
+  }, 60_000);
+
+  it('글로벌 가입이 닫혀 있으면 English 를 골라도 kr 이다 — GLOBAL 카탈로그가 비어 온보딩에 갇히지 않게', async () => {
+    // given — 글로벌 가입을 닫아 둔다(운영 기본값)
+    configService.set('GLOBAL_SIGNUP_ENABLED', 'false');
+
+    try {
+      // when
+      const { signUp } = await signUpWith('en-closed', {
+        preferred_language: 'en',
+        language_code: 'en-US',
+      });
+
+      // then
+      expect(signUp.user).toMatchObject({ market: 'kr' });
+      expect(await userRow(signUp.user!.id)).toMatchObject({ market: 'kr' });
+    } finally {
+      configService.set('GLOBAL_SIGNUP_ENABLED', 'true');
+    }
   }, 60_000);
 
   async function signUpWith(
