@@ -291,8 +291,8 @@ export class OnboardingOrchestrator {
 
     const { available, failed } = await this.contentService.resolvePickTargets(
       uniqueContentIds,
-      undefined,
       now,
+      user.market,
     );
 
     const savedContentIds = await this.libraryService.addItems(

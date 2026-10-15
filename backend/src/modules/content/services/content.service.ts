@@ -507,11 +507,15 @@ export class ContentService {
    * **노출 조건은 `status = published` 하나로 통일한다**(domain.md 5.1).
    * `withdrawn`과 `expired`를 클라이언트에게 구분해 주지 않는 이유는 두 경우의 화면 동작이
    * 같기 때문이다(카드 제거 + 안내 토스트).
+   *
+   * **다른 시장의 콘텐츠는 없는 것으로 본다**(`CONTENT_NOT_FOUND` — `getPublishedById`와 같은 판정, 2026-10-15).
+   * 빠지면 다른 시장 콘텐츠 ID가 라이브러리에 적립된다(목록은 시장으로 걸러 보이지 않지만 격리가 샌다).
    */
   async resolvePickTargets(
     contentIds: string[],
+    now: Date,
+    market: UserMarket,
     manager?: EntityManager,
-    now: Date = new Date(),
   ): Promise<PickTargetResolution> {
     const contents = await this.findAllByIds(contentIds, manager);
     const byId = new Map(contents.map((content) => [content.id, content]));
@@ -522,7 +526,7 @@ export class ContentService {
     for (const contentId of contentIds) {
       const content = byId.get(contentId);
 
-      if (!content) {
+      if (!content || content.market !== market) {
         failed.push({ contentId, errorCode: ErrorCode.CONTENT_NOT_FOUND });
         continue;
       }
