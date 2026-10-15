@@ -376,6 +376,11 @@ exports[`한국어 카피 회귀 — i18n 전환 전과 1:1 INTEREST_COPY 1`] = 
 {
   "appBarTitle": "관심 주제 관리",
   "autoBadgeA11y": "자동 추가됨",
+  "autoNotice": {
+    "body": "들으신 내용을 바탕으로 관심 가질 만한 주제를 자동으로 담았어요. 빗금으로 표시돼요 — 원치 않으면 그 주제를 눌러 빼면 돼요.",
+    "confirm": "알겠어요",
+    "title": "취향에 맞는 주제를 담아뒀어요",
+  },
   "backA11y": "뒤로가기",
   "changeBadge": [
     "변경 사항 3개",
@@ -1071,7 +1076,7 @@ exports[`한국어 카피 회귀 — i18n 전환 전과 1:1 SETTINGS_COPY 1`] = 
       "3개 선택",
       "가나다개 선택",
     ],
-    "inviteCode": "이벤트 코드 입력",
+    "inviteCode": "프로모션 코드 입력",
   },
   "email": {
     "change": "변경",
@@ -1216,29 +1221,29 @@ exports[`한국어 카피 회귀 — i18n 전환 전과 1:1 SUBSCRIPTION_COPY 1`
   "grant": {
     "line": [
       "[throws]",
-      "가나다 이벤트 이용 중 · 2026-10-15T00:00:00.000Z · NaN월 NaN일까지",
+      "가나다 프로모션 이용 중 · 2026-10-15T00:00:00.000Z · NaN월 NaN일까지",
     ],
-    "noticeDetailFree": "구독을 시작하면 이벤트 혜택은 그때 끝나요",
+    "noticeDetailFree": "구독을 시작하면 프로모션 혜택은 그때 끝나요",
     "noticeDetailSubscribed": "구독은 그대로 이어져요",
     "purchaseConfirmCancel": "취소",
     "purchaseConfirmMessage": [
-      "지금 구독하면 이벤트 혜택은 바로 끝나고 3 구독으로 바뀌어요",
-      "지금 구독하면 이벤트 혜택은 바로 끝나고 가나다 구독으로 바뀌어요",
+      "지금 구독하면 프로모션 혜택은 바로 끝나고 3 구독으로 바뀌어요",
+      "지금 구독하면 프로모션 혜택은 바로 끝나고 가나다 구독으로 바뀌어요",
     ],
     "purchaseConfirmOk": "구독하기",
     "purchaseConfirmTitle": [
-      "3 이벤트가 끝나요",
-      "가나다 이벤트가 끝나요",
+      "3 프로모션이 끝나요",
+      "가나다 프로모션이 끝나요",
     ],
   },
   "invite": {
     "alreadyUsed": "이미 사용한 코드예요",
     "backA11y": "뒤로 가기",
-    "description": "받은 이벤트 코드를 입력하면 요금제 혜택이 바로 적용돼요",
+    "description": "받은 프로모션 코드를 입력하면 요금제 혜택이 바로 적용돼요",
     "exhausted": "선착순이 마감된 코드예요",
     "expired": "사용 기간이 지난 코드예요",
     "grantAlreadyActive": "다른 코드의 혜택이 아직 남아 있어요",
-    "inputA11y": "이벤트 코드",
+    "inputA11y": "프로모션 코드",
     "network": "네트워크 연결을 확인해주세요",
     "notFound": "사용할 수 없는 코드예요",
     "placeholder": "코드 입력",
@@ -1247,10 +1252,10 @@ exports[`한국어 카피 회귀 — i18n 전환 전과 1:1 SUBSCRIPTION_COPY 1`
     "submitting": "확인하는 중",
     "success": [
       "[throws]",
-      "가나다 이벤트가 시작됐어요 · 2026-10-15T00:00:00.000Z · NaN월 NaN일까지",
+      "가나다 프로모션이 시작됐어요 · 2026-10-15T00:00:00.000Z · NaN월 NaN일까지",
     ],
-    "successFallback": "이벤트 코드가 적용됐어요",
-    "title": "이벤트 코드 입력",
+    "successFallback": "프로모션 코드가 적용됐어요",
+    "title": "프로모션 코드 입력",
     "unknown": "코드를 확인하지 못했어요. 잠시 후 다시 시도해주세요",
   },
   "legal": {

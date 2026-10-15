@@ -82,8 +82,8 @@ const ko = {
     interest: '관심 주제 관리',
     interestCount: (count: number) => `${count}개 선택`,
     career: '커리어 정보',
-    /** 이벤트(초대) 코드 입력 행(KAN-182) — 결제 UI 플래그와 무관하게 항상 있다 */
-    inviteCode: '이벤트 코드 입력',
+    /** 프로모션(초대) 코드 입력 행(KAN-182) — 결제 UI 플래그와 무관하게 항상 있다 */
+    inviteCode: '프로모션 코드 입력',
     // 주제 자동 확장 토글(FR-06, KAN-181) — 설명은 "드립"·"자동 확장 배치" 같은 내부 용어를 쓰지 않는다
     autoExpand: '주제 자동 확장',
     autoExpandDescription: '관심 주제와 가까운 주제도 자동으로 찾아드려요',
@@ -245,7 +245,7 @@ const en: LocalizedCopy<typeof ko> = {
     interest: 'Manage topics',
     interestCount: (count: number) => `${count} selected`,
     career: 'Career info',
-    inviteCode: 'Enter event code',
+    inviteCode: 'Enter promo code',
     autoExpand: 'Expand topics automatically',
     autoExpandDescription: "We'll also find topics close to your interests",
   },
