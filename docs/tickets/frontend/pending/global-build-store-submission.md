@@ -39,3 +39,4 @@
 
 ## 처리 기록
 - 2026-10-14 발행(마크다운 + Jira). 묶음 티켓 분할.
+- 2026-10-15 코드 반영(빌드 전): `frontend/locales/{ko,en}.json` + `app.json` `expo.locales` — 홈 화면 앱 이름 현지화(iOS `CFBundleDisplayName` · Android `app_name`, 영어는 PM 확정 전 임시값 **Ear**) · `ios.infoPlist.CFBundleLocalizations` ko/en. 개발계 변형(`APP_VARIANT=dev`)은 `locales` 를 빼 영어 기기에서도 "이어 - preview" 로 남긴다(`app.config.js`). `expo config` 로 운영·개발계 해석 결과 확인. **runtimeVersion 은 35 유지** — 네이티브 리소스 문자열뿐이고 JS 가 읽지 않아 옛 35 빌드에서 깨지지 않는다. 올리면 KAN-182 심사 빌드(35)에 OTA 가 끊긴다. `expo-localization` 교체는 하지 않았다(네이티브 모듈 — 지금 `Intl` 로 충분). 남은 것: 영문 앱 이름 PM 확정 · 네이티브 빌드("빌드 ㄱ" 지시 후) · 영어 기기 TestFlight 실측 · 영어 리스팅 자료(스크린샷은 실측 뒤) · 심사 제출(10-24). KAN-182 빌드는 이미 35 로 나가 있어 "같은 빌드에 묶어 심사 한 번"은 어긋났다 — 이 변경은 다음 빌드에 실린다
