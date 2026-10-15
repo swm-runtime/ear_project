@@ -35,13 +35,12 @@ export const EXPO_PUSH_RETRYABLE_NETWORK_CODES: ReadonlySet<string> = new Set([
 ]);
 
 /**
- * 드립 도착 알림의 보관 시한(Expo `ttl`, 초) — **다음 05:00 KST 편성 배치까지**(결정 2026-09-26,
+ * 드립 도착 알림의 보관 시한(Expo `ttl`, 초) — **그 그룹의 다음 편성 배치까지**(결정 2026-09-26,
  * `notification.md` 4.3). "오늘의 콘텐츠"는 당일성 문구라, 며칠 꺼져 있던 기기에 날짜별 알림이 한꺼번에
  * 쌓이면 하루 1건 규칙이 화면에서 무너진다. 다음 배치가 새 알림을 보내므로 그 뒤의 전달은 의미가 없다.
  * 하한은 배치 소요 시간 안에 만료되지 않게 둔다.
  */
 export const DRIP_ARRIVAL_PUSH_TTL_MIN_SEC = 60 * 60;
-export const DRIP_BATCH_HOUR_KST = 5;
 
 /** Expo 문서의 권고 — receipt는 발송 후 약 15분 뒤에 조회한다 */
 export const PUSH_RECEIPT_CHECK_DELAY_MS = 15 * 60 * 1000;

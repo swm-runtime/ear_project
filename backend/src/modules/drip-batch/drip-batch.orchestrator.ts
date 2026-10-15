@@ -27,6 +27,7 @@ import {
   DEFAULT_DRIP_GROUP,
   dripGroupOf,
   isAfterArrivalPushTime,
+  nextDripBatchAt,
 } from '@/modules/drip/drip-group.policy';
 import { DripGroup, PreferenceSignalAction } from '@/modules/drip/drip.enum';
 import {
@@ -375,9 +376,15 @@ export class DripBatchOrchestrator {
       new Date(run.finishedAt.getTime() + 1),
     );
     const arrivals = groupArrivals(items);
+    // 알림 보관 시한 — 그 그룹의 다음 배치까지(americas 알림이 다음 05:00 KST에 만료되지 않게)
+    const nextBatchAt = nextDripBatchAt(group, now);
 
     for (let i = 0; i < arrivals.length; i += ARRIVAL_PUSH_CHUNK) {
-      await this.notifyArrivals(arrivals.slice(i, i + ARRIVAL_PUSH_CHUNK), now);
+      await this.notifyArrivals(
+        arrivals.slice(i, i + ARRIVAL_PUSH_CHUNK),
+        now,
+        nextBatchAt,
+      );
     }
 
     this.logger.log('drip arrival push done', {
@@ -391,13 +398,18 @@ export class DripBatchOrchestrator {
   private async notifyArrivals(
     arrivals: DripArrival[],
     now: Date,
+    nextBatchAt: Date,
   ): Promise<void> {
     if (arrivals.length === 0) {
       return;
     }
 
     try {
-      await this.dripArrivalNotificationService.notify(arrivals, now);
+      await this.dripArrivalNotificationService.notify(
+        arrivals,
+        now,
+        nextBatchAt,
+      );
     } catch (error) {
       this.logger.warn('drip arrival notification failed', {
         user_count: arrivals.length,

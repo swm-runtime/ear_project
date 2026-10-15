@@ -7,6 +7,7 @@ import {
   DRIP_GROUP_SCHEDULES,
   dripGroupOf,
   isAfterArrivalPushTime,
+  nextDripBatchAt,
   utcOffsetMinutes,
 } from './drip-group.policy';
 import { DripGroup } from './drip.enum';
@@ -107,5 +108,34 @@ describe('DRIP_GROUP_SCHEDULES — 현지 05:00 편성과 07:00 알림이 같은
     expect(localDate(timeZone, batchAt)).toBe(date);
     expect(toServiceDate(batchAt)).toBe(date);
     expect(toServiceDate(pushAt)).toBe(date);
+  });
+});
+
+describe('nextDripBatchAt — 그룹의 다음 편성 배치(알림 보관 시한)', () => {
+  it.each([
+    // asia — 종전 "다음 05:00 KST"와 같다
+    ['2026-10-14T22:00:00.000Z', DripGroup.ASIA, '2026-10-15T20:00:00.000Z'], // 07:00 KST → 다음 날 05:00 KST
+    ['2026-10-14T19:30:00.000Z', DripGroup.ASIA, '2026-10-14T20:00:00.000Z'], // 04:30 KST → 같은 날 05:00 KST
+    // americas — 시카고 07:00(KST 21~22시)이면 다음 날 시카고 05:00. 종전엔 다음 05:00 KST(7~8시간 뒤)였다
+    [
+      '2026-01-15T13:00:00.000Z',
+      DripGroup.AMERICAS,
+      '2026-01-16T11:00:00.000Z',
+    ], // CST(UTC−6)
+    [
+      '2026-07-15T12:00:00.000Z',
+      DripGroup.AMERICAS,
+      '2026-07-16T10:00:00.000Z',
+    ], // CDT(UTC−5)
+    // europe — 런던 07:00 → 다음 날 런던 05:00
+    ['2026-07-15T06:00:00.000Z', DripGroup.EUROPE, '2026-07-16T04:00:00.000Z'], // BST(UTC+1)
+    // 서머타임 시작 주말(미국 2026-03-08) — 전날 07:00 CST 발송, 다음 배치는 05:00 CDT
+    [
+      '2026-03-07T13:00:00.000Z',
+      DripGroup.AMERICAS,
+      '2026-03-08T10:00:00.000Z',
+    ],
+  ])('%s %s → %s', (now, group, expected) => {
+    expect(nextDripBatchAt(group, new Date(now)).toISOString()).toBe(expected);
   });
 });
