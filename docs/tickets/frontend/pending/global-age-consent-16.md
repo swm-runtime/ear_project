@@ -14,7 +14,7 @@
 | 관련 | [KAN-195](https://runtime364.atlassian.net/browse/KAN-195)의 "연령 16세 문구" 항목을 이 티켓으로 이관 · 스토어 설정은 BE [KAN-207](https://runtime364.atlassian.net/browse/KAN-207) |
 | 근거 문서 | **`spec/api/global-api.md` 2.1(연령 행 ✅) · 4.1** — 구현은 이 문서를 따르고, 계약이 바뀌면 티켓이 아니라 이 문서를 고친다 |
 | 중요도 | Medium |
-| 상태 | 대기 |
+| 상태 | 진행 중 — GLOBAL 연령 숫자 보류(2026-10-15 박준현 재검토) |
 
 ## 확정 — GLOBAL 16세 (2026-10-14 박준현)
 
@@ -60,3 +60,4 @@ KR 연령 기준 변경 · 부모 동의 흐름 · OS 연령 신호(Declared Age
   - 고정 폭(KAN-197 중 auth 파일분) — A1 `StartScreen`: 구분선 문구 `flexShrink: 1`+가운데 정렬, 태그라인·설명 `textAlign: 'center'`, 정책 링크 행 `flexWrap: 'wrap'`. A4 `TermsConsentScreen`: [전체 동의] 라벨 `flexShrink: 1`. A21 `ContentLanguageScreen`·`LanguageOptionCard`: 고정 폭 문구 상자 없음(이미 flex) — 변경 없음.
   - 문서 — `spec/uiux/auth-uiux.md` 4.3(연령 행·시장별 확정 카피 표)·4.3-1·7장(고정 폭 금지), `features/auth.md` 4.1, `spec/api/auth-api.md` 4.2(연령 시장별).
   - 남은 것: ① 실기기 확인 — en 기기 + English 선택 → A4 16세 문구, ko 기기 + 한국어 선택 → 18세(회귀), en 기기 + 한국어 선택 → "I’m 18 or older", VoiceOver/TalkBack 낭독, 작은 기기(SE급)·글자 크기 200%에서 A1·A4 영어 문구 잘림 없음. ② 스크린샷 QA 체크리스트에 연령 화면 추가 — 저장소에 해당 체크리스트 문서가 아직 없어 KAN-197/198 QA 문서가 생길 때 넣는다. ③ BE KAN-189 배포 뒤 실서버 `pending_consents` 의 `terms_global_v1` 로 A20 왕복 확인.
+- 2026-10-15 **보류 — GLOBAL 연령 숫자 재검토**(Jira 댓글 19:29 박준현). 동남아 위주 공개로 16세를 다시 본다(인도네시아 18세 미만 부모 동의 · 태국 성년 20세 — 18로 올리면 KR과 같아진다). 이 댓글을 보기 전에 위 구현이 PR #1591로 dev에 머지됐다(개발계 OTA `01a13f4a`, 운영 main 미포함). **시장 분기 구조·서버 버전 그대로 전송은 숫자와 무관하게 유지**하고, 숫자만 결정을 따른다. 남은 결정: GLOBAL 연령 16 vs 18. 18로 정해지면 같은 날 ① `frontend/src/features/auth/auth.copy.ts` `ageConfirmationLabel` GLOBAL 문구 ② `spec/uiux/auth-uiux.md` 4.3 · `spec/api/auth-api.md` 4.2 · `spec/api/global-api.md` 2.1(changes 경유) ③ 랜딩 `landing-page/src/content/legal-en.ts` 약관 2조 · 처리방침 7조를 함께 고친다. dev → main 릴리즈 전에 확정한다.
