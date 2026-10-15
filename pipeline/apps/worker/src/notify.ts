@@ -6,6 +6,7 @@
  * 실패해도 작업 흐름에 영향을 주지 않는다 (전부 try/catch).
  */
 import { log } from "./util.js";
+import { pipelineLocale } from "@ear/pipeline";
 
 const WEBHOOK_URL = process.env.SLACK_ERROR_WEBHOOK_URL || "";
 const CONSOLE_URL = (process.env.PIPELINE_CONSOLE_URL || "https://admin.earcast.co.kr").replace(/\/$/, "");
@@ -16,7 +17,9 @@ export const hasWebhook = () => !!WEBHOOK_URL;
 export async function notifyOps(text: string): Promise<void> {
   if (!WEBHOOK_URL) return;
   try {
-    const res = await fetch(WEBHOOK_URL, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ text }) });
+    // 두 인스턴스가 같은 채널(#dev-ai)을 쓰므로 글로벌판 알림은 머리에 표시한다(글로벌 명세 8장)
+    const body = pipelineLocale() === "en" ? `[GLOBAL] ${text}` : text;
+    const res = await fetch(WEBHOOK_URL, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ text: body }) });
     if (!res.ok) log(`  알림 실패: Slack webhook ${res.status}`);
   } catch (e: any) {
     log(`  알림 실패: ${e?.message ?? e}`);

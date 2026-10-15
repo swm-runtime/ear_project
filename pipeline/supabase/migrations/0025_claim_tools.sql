@@ -1,6 +1,8 @@
 -- 0025 (2026-09-26): claim_job 에 p_can_tools — 도구(WebSearch)가 필요한 sweep 모드 B-①(보강)·B-②(주제 기획)은 도구를 쓸 수 있는 워커(Claude CLI, 노트북)만 집는다.
 -- API 실행기(서버, 단발 호출만)는 집었다가 실패시키므로 아예 걸러 낸다 (박수헌: "새 모드는 서버가 아니라 로컬 Claude 가 처리").
 drop function if exists public.claim_job(text, boolean, boolean, boolean, text[]);
+-- 0018 의 4인자판 — 운영 DB 에서는 이미 없다. 새로 구축한 DB(0018→0022~0024 가 오버로드를 남김)에서도 같은 상태가 되게 지운다(멱등, 2026-10-14)
+drop function if exists public.claim_job(text, boolean, boolean, boolean);
 create or replace function public.claim_job(
   p_worker text,
   p_can_ai boolean,

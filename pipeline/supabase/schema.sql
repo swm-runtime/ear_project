@@ -84,7 +84,7 @@ create table if not exists publish_log (
   version     int,                              -- 사건 후 제품 content_version
   parts       text[] not null default '{}',     -- audio · thumbnail · title · description · source_name · topic_ids
   note        text,
-  actor       text,                             -- 세션 이메일
+  actor       text,                             -- 세션 이메일. 기본값 current_actor() 는 0014 가 건다(함수가 0003 에서 생기므로 기본부에서는 못 건다 — 2026-10-14 글로벌 DB 구축 때 발견)
   at          timestamptz not null default now()
 );
 

@@ -1,10 +1,12 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import { supabaseConfig } from "@/lib/supabase-config";
 
 /** 세션 쿠키 갱신 + 미로그인 시 /login 으로 (팀 전용 화면). `/api/*` 는 제외 — 워커용 라우트는 자체 토큰 인증 (app/api/storage) */
 export async function proxy(req: NextRequest) {
   let res = NextResponse.next({ request: req });
-  const sb = createServerClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!, {
+  const c = supabaseConfig();
+  const sb = createServerClient(c.url, c.anonKey, {
     cookies: {
       getAll: () => req.cookies.getAll(),
       setAll: (list) => {

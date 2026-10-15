@@ -22,6 +22,7 @@
 | 보안그룹 | `sg-048aaaf95e4d12b2e` (`ear-prod-sg`) | 80·443/tcp·443/udp 공개. **22는 `/32` 3개**(2026-09-15 실측: `125.130.96.174` · `211.105.23.163`(준현 데스크톱) · `175.198.222.109`) + CI가 배포 중 러너 IP 임시 추가·회수. ⚠️ 나머지 두 IP의 소유자를 확인해 여기 적을 것 — 모르는 IP는 닫는다 |
 | 인스턴스 롤 | `ear-prod-ec2` | 인라인: `backup-put` · `content-upload`(S3 Put/Delete) · `ses-send` · 관리형 `CloudWatchAgentServerPolicy`(2026-09-11 — 아래 4장 에이전트) |
 | IAM 정책 (고객 관리형) | `ear-pipeline-bucket-rw` | **파이프라인** (2026-09-01 신설) — `earcast-pipeline-prod`의 `episodes/*`·`sweeps/*`·`datasets/*` Get/Put/List(삭제 없음). AI 서버 롤 `ear-ai-ec2`에 부착됨(2026-09-02). IAM 사용자·액세스 키는 만들지 않음. 생성: `pipeline/deploy/aws/setup-pipeline-bucket.sh` |
+| IAM 정책 (고객 관리형) | `ear-pipeline-global-bucket-rw` | **글로벌판 파이프라인** (2026-10-14 신설, KAN-208) — `earcast-pipeline-global`의 `episodes/*`·`sweeps/*`·`datasets/*` Get/Put/List(삭제 없음). AI 서버 롤 `ear-ai-ec2`에 부착됨(2026-10-14) |
 | AI 서버 롤 인라인 | `cw-put-ops-metric` | **2026-09-20 신설** — `cloudwatch:PutMetricData` 를 네임스페이스 `ear/ops` 로만 한정. 워커의 백엔드 ERROR 감시가 틱마다 생존 신호(`CronSuccess{Job=log-watch}`)를 찍는 데 쓴다. 이 감시가 죽으면 500 이 나도 Slack 이 조용해지는데 그 조용함이 정상과 구분되지 않아 별도 신호를 둔다 |
 | CI 배포 롤 | `ear-ci-deploy` | GitHub OIDC(`token.actions.githubusercontent.com`)로 신뢰. **신뢰 sub 8줄**(2026-09-16): `refs/heads/dev`·`refs/heads/main`·`environment:api-dev`·`environment:api-prod` × 평문 접두사 `repo:swm-runtime/ear_project` + 불변 주체 접두사 `repo:swm-runtime@310554093/ear_project@1315970250`(저장소 OIDC가 immutable subject 모드 — 실제 토큰은 후자다. 갱신은 `deploy/aws/setup-ci-envs.sh`). 인라인 정책 `sg-open-close`(AI SG)·`sg-open-close-api`(제품 SG + `/ear/api` 로그 읽기)·`sg-open-close-api-dev`(개발계 SG + `/ear-dev/*` 로그)·`ecr-push`(`ear/api`). 서버·버킷 접근 없음 — 배포 자체는 GitHub 시크릿의 CI 전용 SSH 키(`CI_SSH_KEY`·`CI_SSH_KEY_API`)로 한다. release 브랜치 배포를 만들려면 신뢰 조건에 그 브랜치를 추가해야 한다 |
 | **개발계** EC2 | `i-0a22112e947856a71` (`ear-dev`) | **사설 IP `172.31.14.86`**(운영이 콘텐츠 발행 알림을 보내는 주소 — `api-prod` 환경 변수 `DEV_PRIVATE_IP`, KAN-84. AI 서버 `172.31.15.36` 과 헷갈리지 말 것). **2026-09-15 신설**(`backend/deploy/aws/setup-dev-server.sh`) — t4g.small, AL2023 arm64, 2a 같은 서브넷, gp3 20GB(`vol-007fd6c7b6855cb4f`), user-data(docker·compose·cronie·python3·스왑 2G). compose 3컨테이너(caddy·api·postgres — 프로젝트명이 `ear-prod`라 컨테이너 이름도 `ear-prod-*`, 이름만 그렇다). **API 컨테이너는 ECR 이미지**(`push.sh`의 `API_IMAGE`). 크론 `30 19 * * *` 콘텐츠 들여오기(`sync-content-import.sh`) — **2026-09-20부터 안전망이다**: 운영이 발행 직후 SSH 로 이 스크립트를 부른다(알림 전용 키가 `authorized_keys` 에서 그 명령 하나로 묶여 있다, KAN-84). CloudWatch Agent CPU·메모리 2지표(2026-09-16). 사용자 데이터 없음(빈 DB + 운영 콘텐츠 사본) **콘텐츠 가져오기 크론(`30 19 * * *` `sync-content-import.sh`)도 2026-09-15부터 실행 권한 없이(644) 들어가 `Permission denied`로 돌지 않았을 가능성이 높다** — 운영의 export·EBS 스냅샷과 같은 원인. 개발계는 심장박동 알람이 없어 알림이 없었다. 2026-09-17 git 모드 수정분이 dev에 배포되면 풀린다 — 배포 뒤 `/var/log`의 import 로그로 확인할 것 |
@@ -31,7 +32,7 @@
 | **AI 서버** EC2 | `i-0c414b676584733da` | **파이프라인** (2026-09-02 신설, `pipeline/deploy/aws/setup-ai-server.sh`) — t4g.small, AL2023 arm64, 2a 같은 서브넷, gp3 20GB, IMDSv2 hop 2, user-data(docker·compose·buildx·git·스왑 2G). compose 4컨테이너(caddy·web·worker-io·ai-server) — `pipeline/deploy/README.md` |
 | AI 서버 Elastic IP | `54.116.31.183` (`eipalloc-01215fe9cc181f063`) | `admin.earcast.co.kr` A 레코드(2026-09-03 `pipeline.`에서 통합 — 3장). 사설 IP `172.31.15.36` — 제품 서버가 `/embeddings` 호출 시 이쪽 |
 | AI 서버 보안그룹 | `sg-0dfc05389c325b537` (`ear-ai-ec2`) | 80·443/tcp·443/udp 공개 · **22는 `/32` 4개**(2026-09-15 실측: `121.162.157.81` · `118.221.56.129` · `59.187.206.45` · `118.235.93.178` — 소유자 확인 필요) · **8000은 소스=제품 SG만**(공개 아님). 제품 SG 는 참조만 — 무변경 |
-| AI 서버 인스턴스 롤 | `ear-ai-ec2` | 부착: `ear-pipeline-bucket-rw` 뿐 (제품 롤 재사용 금지 원칙). 키페어 `ear-ai` — pem `pipeline/deploy/aws/out/ear-ai-isb.pem` (로컬 전용, 유일한 사본) |
+| AI 서버 인스턴스 롤 | `ear-ai-ec2` | 부착: `ear-pipeline-bucket-rw` · `ear-pipeline-global-bucket-rw`(2026-10-14 글로벌판) (제품 롤 재사용 금지 원칙). 키페어 `ear-ai` — pem `pipeline/deploy/aws/out/ear-ai-isb.pem` (로컬 전용, 유일한 사본) |
 | IMDS | v2 강제, hop limit **2** | 컨테이너가 롤 자격증명을 읽기 위해 2 필요 |
 | VPC | `vpc-07bfc7f134e639989` (기본 VPC `172.31.0.0/16` — 계정이 비어 있어 `create-default-vpc`로 생성) | **계정에 VPC는 이것 하나.** 서브넷 4개 전부 퍼블릭(2a `subnet-0343791d0f49bcaa8` 172.31.0.0/20 · 2b · 2c · 2d, 공인 IP 자동 부여 on), 라우트 테이블 1개 → IGW `igw-0b9572c00e25eeeca`. **NAT·프라이빗 서브넷·ALB·WAF 없음.** 두 EC2 모두 2a 서브넷(2026-09-15 실측) |
 
@@ -44,6 +45,7 @@
 | S3 오디오 | `earcast-audio-prod` | 비공개. `audio/*`(서명 재생)·`thumb/*`(공개 썸네일). 구명 `ear-audio-prod`는 글로벌 유니크 잠금 해제 대기(구계정 삭제 직후라 재사용 가능해졌지만 바꿀 이유 없음) |
 | S3 백업 | `earcast-backup-prod` | `pg/` 30일 라이프사이클 |
 | S3 파이프라인 | `earcast-pipeline-prod` | **파이프라인** (2026-09-01 신설, 제품과 분리) — 비공개·Block Public Access·버저닝 ON·SSE-S3·TLS 강제. `episodes/{id}/` 대본·발췌·리포트·audio, `sweeps/`(180일 만료), `datasets/`. 이전 버전 90일 정리. 제품 서빙 경로 아님 — 발행 mp3는 관리자 업로드로만 제품 버킷에. 계정 이관 시 `aws s3 sync` 대상 (`docs/ai/spec/08-infra.md` 2장) |
+| S3 파이프라인 (글로벌) | `earcast-pipeline-global` | **글로벌판 파이프라인** (2026-10-14 신설, KAN-208 — 한국판과 인스턴스 분리) — 설정은 `earcast-pipeline-prod`와 같음(`setup-pipeline-bucket.sh` 이름만 바꿔 실행): 비공개·버저닝·SSE-S3·TLS 강제·sweeps 180일·이전 버전 90일 |
 | CloudFront 배포 | `ETLYPIXXR2K7A` → `dp04jswjfphd3.cloudfront.net` | 기본 동작: **서명 필수, Function 없음**(키 직접 서명). `thumb/*` 동작: 무서명 |
 | 서명 공개키 | `K1IY9F02SJUF5I` (Key Group `ear-audio-keygroup`) | 개인키: `backend/deploy/aws/out/cf_private.pem` (로컬 전용) |
 | 서명 공개키 — **개발계** | `K3CJ80YUPY9I0V` (`ear-audio-key-dev`, 같은 Key Group에 추가 — 2026-09-15 `setup-dev-cdn-key.sh`) | 개인키 `out/cf_private_dev.pem` + 개발계 Secrets `CLOUDFRONT_PRIVATE_KEY_BASE64`. 개발계는 운영 CloudFront·오디오 버킷을 **읽기만** 공유하고 자기 키로 서명. 회수 = 키 그룹에서 이 키 제거 |
@@ -57,6 +59,7 @@
 |---|---|---|
 | `api.earcast.co.kr` A | `43.203.57.240` | API (Caddy가 LE 인증서 자동) |
 | `admin.earcast.co.kr` A | `54.116.31.183` (**AI 서버**) | 관리자 콘솔 = 파이프라인 웹(`/publish` 제품 발행·주제·회수 + 백엔드 로그 콘솔). 2026-09-03 통합(PR #86) — `pipeline.earcast.co.kr` 레코드는 삭제됨. 2026-09-15 실측 |
+| `admin-global.earcast.co.kr` A | `54.116.31.183` (**AI 서버**) | 글로벌판 파이프라인 콘솔 (2026-10-14, KAN-208) — 같은 서버의 Caddy 두 번째 사이트 → `web-global`. Supabase 는 별도 Free 프로젝트(서울) |
 | `<token>._domainkey` CNAME ×3 | SES DKIM — **검증 완료**(값은 SES 콘솔·memory 참조) | 이메일 인증 발송 |
 | `@` TXT | `v=spf1 include:amazonses.com ~all` (2026-09-07) | SPF |
 | `_dmarc` TXT | `v=DMARC1; p=none; rua=mailto:runtime364@gmail.com` (2026-09-07) | DMARC — **`p=none`은 관찰 단계 값**. 2주 리포트 확인 후 상향(`tickets/backend/archive/email-spf-dmarc-records.md`, KAN-31) |
