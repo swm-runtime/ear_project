@@ -190,6 +190,9 @@ test("판정(en) — 도메인 등급 표시·앵커는 1군만, 보조 주제 �
   assert.match(seed, /Give the anchor role only to sources marked tier 1/);
   assert.match(seed, /sub_topic: one of "Korean Culture", "Travel in Korea" only when/);
   assert.match(seed, /Do not use axis_type "event"/);
+  assert.match(seed, /Set the count to the items the sources support and put that count in the title\. List the counted items in landing\./);
+  assert.doesNotMatch(seed, /7 instead of 10/); // 규칙에 예시 숫자를 두지 않는다 — 그대로 복제된다
+  assert.match(seed, /A domain not yet judged is not a reason for "needs reinforcement"/);
   assert.doesNotMatch(seed, /History mode/);
   const hist = P.buildTopicJudgePromptEn({ ...base, midTopics: ["Korean History & Society"], sources: src, seed: { id: "C2", topic: "The 1988 Olympics", hint: null, midTopic: "Korean History & Society" } });
   assert.match(hist, /use axis_type "event" only for a past event in Korean History & Society/);
