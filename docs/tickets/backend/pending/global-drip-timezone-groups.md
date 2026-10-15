@@ -43,3 +43,4 @@
 - 2026-10-14 발행(마크다운 + Jira). 묶음 티켓 분할.
 - 2026-10-14 결정: 그룹도 **현지 05:00 편성 · 현지 07:00 알림**(KR 07:00 KST 알림 분리 PR #1532와 같은 이유). 무엇을 한다·완료 조건·`global-api.md` 2.4·6장 반영.
 - 2026-10-14 시간대 그룹 구현(PR `feat(be)/drip-timezone-groups`) — 스위치 `DRIP_TIMEZONE_GROUPS_ENABLED` 기본 꺼짐(KR·운영 동작 불변). 기준 시간대 asia `Asia/Seoul`·europe `Europe/London`·americas `America/Chicago`, 오프셋 하한으로 빈틈없이 판정. 알림 범위는 그 그룹 실행 기록 생성~종료. 남은 것: 푸시 `ttl` 그룹 기준화(지금은 다음 05:00 KST까지), 그룹 경계 확정(미결 #3). 문서 개정 요청 `changes/pending/drip-timezone-groups.md`.
+- 2026-10-15 알림 보관 시한(`ttl`)을 그 그룹의 다음 배치(현지 05:00)까지로 — americas 알림이 현지 오후 3시경 만료되던 문제. asia(KR)는 종전과 같은 값. 문서 `changes/pending/drip-timezone-groups.md`(notification.md 4.3 보관 시한). 남은 것: 그룹 경계 확정(미결 #3).

@@ -69,6 +69,40 @@ export function isAfterArrivalPushTime(now: Date, group: DripGroup): boolean {
   );
 }
 
+/**
+ * `now` 뒤 그 그룹의 **다음 편성 배치 시각**(기준 시간대 현지 05:00) — 도착 알림의 보관 시한이다. 서머타임은 기준
+ * 시간대를 따른다(전환은 새벽 1~3시라 05:00 자체가 비거나 겹치지 않는다).
+ */
+export function nextDripBatchAt(group: DripGroup, now: Date): Date {
+  const { timeZone } = DRIP_GROUP_SCHEDULES[group];
+  const [year, month, day] = new Intl.DateTimeFormat('en-CA', { timeZone })
+    .format(now)
+    .split('-')
+    .map(Number);
+  const today = localBatchTime(timeZone, year, month, day);
+
+  return today.getTime() > now.getTime()
+    ? today
+    : localBatchTime(timeZone, year, month, day + 1);
+}
+
+/** 그 시간대 현지 날짜의 `DRIP_BATCH_LOCAL_HOUR`시 정각 순간. 날짜 넘침(`day + 1`)은 `Date.UTC`가 접는다 */
+function localBatchTime(
+  timeZone: string,
+  year: number,
+  month: number,
+  day: number,
+): Date {
+  const asUtc = Date.UTC(year, month - 1, day, DRIP_BATCH_LOCAL_HOUR);
+  // 오프셋은 그 순간의 것이어야 한다 — 추정 시각으로 한 번 옮긴 뒤 그 지점의 오프셋으로 다시 맞춘다
+  const guess =
+    asUtc - (utcOffsetMinutes(timeZone, new Date(asUtc)) ?? 0) * 60_000;
+
+  return new Date(
+    asUtc - (utcOffsetMinutes(timeZone, new Date(guess)) ?? 0) * 60_000,
+  );
+}
+
 /** 그 시간대의 `at` 시점 UTC 오프셋(분). 모르는 시간대면 `null` */
 export function utcOffsetMinutes(timeZone: string, at: Date): number | null {
   let name: string | undefined;

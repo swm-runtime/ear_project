@@ -1079,6 +1079,26 @@ describe('DripBatchOrchestrator', () => {
       expect(dripArrivalNotificationService.notify).not.toHaveBeenCalled();
     });
 
+    it('그룹 알림의 보관 시한은 그 그룹의 다음 배치다 — 다음 05:00 KST 가 아니다', async () => {
+      // given
+      libraryService.findPlacementsAddedBetween.mockResolvedValue([
+        {
+          userId: 'u1',
+          contentId: 'r1',
+          source: LibraryItemSource.DRIP,
+          content: { title: 't' },
+        } as never,
+      ]);
+
+      // when — 런던 07:00(BST)
+      await orchestrator.notifyTodayArrivals(LONDON_0700, DripGroup.EUROPE);
+
+      // then — 다음 날 런던 05:00(BST) = 04:00 UTC
+      const [, , nextBatchAt] =
+        dripArrivalNotificationService.notify.mock.calls[0];
+      expect(nextBatchAt.toISOString()).toBe('2026-08-28T04:00:00.000Z');
+    });
+
     it('그룹 알림은 그 그룹 실행 기록을 찾는다', async () => {
       // when
       await orchestrator.notifyTodayArrivals(LONDON_0700, DripGroup.EUROPE);
