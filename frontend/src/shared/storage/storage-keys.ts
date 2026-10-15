@@ -69,4 +69,10 @@ export const STORAGE_KEYS = {
    * 서버에는 기록하지 않는다(재생 확인 팝업 억제와 같은 기기 로컬 상태). 로그아웃과 무관하다
    */
   LOSSLESS_CELLULAR_NOTICE_SEEN: 'settings.lossless_cellular_notice_seen',
+  /**
+   * 관심 주제가 자동으로 추가됐음을 알리는 1회 안내 팝업(KAN-181 — 빗금만으로는 사용자가 알아채지 못해 PM 2026-10-15)을
+   * 이미 본 계정의 id. 가입 체험 안내(`SIGNUP_TRIAL_NOTICE_SEEN`)와 같은 기기 로컬 상태다 — 서버에 "봤는지" 컬럼을 두지
+   * 않는다. 계정 id 로 비교하므로 다른 계정이 로그인하면 그 계정에는 다시 뜬다. 로그아웃 때 지우지 않는다
+   */
+  INTEREST_AUTO_EXPAND_NOTICE_SEEN: 'interest.auto_expand_notice_seen',
 } as const;
