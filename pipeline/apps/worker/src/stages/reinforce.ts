@@ -4,6 +4,7 @@ import { blockedTierHosts, domainTierByHost, existingBacklogTitles, findDomainFo
 import type { Executor } from "../executors/index.js";
 import { assetPaths, buildClusterPromptV2, buildReinforceSearchPrompt, buildReinforceSearchPromptEn, buildTopicJudgePromptEn, CLUSTER_SCHEMA_V2, CLUSTER_SCHEMA_V2_EN, judgeToInternal, pipelineLocale, REINFORCE_SEARCH_SCHEMA, REINFORCE_SEARCH_SCHEMA_EN, SOURCE_ROLES, todayKst } from "@ear/pipeline";
 import { hostOf, log } from "../util.js";
+import { robotsAllows } from "../sources/fetch.js";
 import { prepareAssets, workerRev } from "../assets.js";
 import { putFile, s3Key } from "../storage.js";
 import { checkCandidateSources } from "./candidate-check.js";
@@ -43,11 +44,22 @@ export async function runReinforce(job: Job, ex: Executor) {
   });
   const found = r1.output.sources ?? [];
   const sweptAt = new Date().toISOString();
-  const added: string[] = []; const outside: string[] = []; const dup: string[] = [];
+  const added: string[] = []; const outside: string[] = []; const dup: string[] = []; const newDomains: string[] = [];
   const existingUrls = new Set(cand.sources.map((s) => s.url));
   for (const s of found) {
     if (!/^https?:\/\//.test(s.url) || existingUrls.has(s.url)) { dup.push(s.url); continue; }
-    const d = await findDomainForUrl(s.url);
+    let d = await findDomainForUrl(s.url);
+    // 글로벌판(사후 판정, 글로벌 명세 6.2): 풀 밖 결과도 판정 대기 도메인으로 등록하고 소스로 바로 쓴다 — 주제 기획과 같은 정책.
+    // 판정된 풀이 비어 있으면 한국판 규칙(등록된 도메인만)으로는 보강이 소스를 더하지 못한다(2026-10-15 C1). 보류 도메인·robots 불허는 뺀다
+    if (en && d?.tier === "hold") { outside.push(`${d.domain} (보류)`); continue; }
+    if (en && !d) {
+      let u: URL | null = null; try { u = new URL(s.url); } catch { u = null; }
+      if (!u || !(await robotsAllows(u).catch(() => true))) { outside.push(`${hostOf(s.url)} (robots)`); continue; }
+      const host = u.hostname.replace(/^www\./, "");
+      await insertCandidateDomain({ domain: host, publisher: s.publisher || host, topic_coverage: [cand.mid_topic], note: `보강 검색 발견 ${todayKst()} (${cand.id} "${cand.title.slice(0, 40)}"): ${s.url} — 글로벌판은 소스를 바로 적재(사후 판정). 판정 대기` });
+      d = await findDomainForUrl(s.url);
+      if (d) newDomains.push(host);
+    }
     if (d && d.tier !== "blocked" && !d.fetch_blocked_at) {
       await upsertSource({ domain_id: d.id, url: s.url, title: s.title, summary: s.summary, author: "", published: s.published, swept_at: sweptAt, origin: "search" });
       added.push(s.url);
@@ -57,7 +69,7 @@ export async function runReinforce(job: Job, ex: Executor) {
       else outside.push(host + " (이미 후보)");
     } else outside.push(`${d.domain} (${d.tier === "blocked" ? "차단" : "접근 차단"})`);
   }
-  log(`  reinforce ${cand.id}: 검색 ${r1.output.queries?.length ?? 0}회 → 결과 ${found.length}건 · 풀 안 적재 ${added.length} · 풀 밖 ${outside.length} · 중복 ${dup.length}`);
+  log(`  reinforce ${cand.id}: 검색 ${r1.output.queries?.length ?? 0}회 → 결과 ${found.length}건 · 풀 안 적재 ${added.length} · 풀 밖 ${outside.length} · 중복 ${dup.length}${newDomains.length ? ` · 새 판정 대기 도메인 ${newDomains.length}(소스 적재)` : ""}`);
 
   // ── 2. 재판정 (군집화 v2, 후보 하나 · 축 고정)
   await setJobProgress(job.id, { phase: `보강 2/2 — 재판정 (${cand.id}, 새 소스 ${added.length}건)`, detail: "", toolCounts: {}, turns: 0, elapsedMs: 0 }).catch(() => {});
@@ -76,7 +88,8 @@ export async function runReinforce(job: Job, ex: Executor) {
   for (const s of cand.sources) if (!isBlockedTier(s.url)) push({ url: s.url, title: s.title, summary: null, publisher: s.publisher, domain: hostOf(s.url), published: s.published ?? null }); // 차단 도메인 소스는 재판정 목록에서 뺀다 — 보강이 차단 소스를 걷어내는 통로
   const currentM = meta.map((m) => `M${m.n}`);
   for (const s of found) if (added.includes(s.url)) push({ url: s.url, title: s.title, summary: s.summary, publisher: s.publisher, domain: hostOf(s.url), published: s.published });
-  for (const s of recent) push({ url: s.url, title: s.title, summary: s.summary, publisher: s.publisher, domain: s.domain, published: s.published });
+  // 같은 주제 영역의 최근 풀 소스는 한국판만 — 글로벌판은 이 후보의 소스와 이번 검색 결과만 (박수헌 2026-10-15)
+  if (!en) for (const s of recent) push({ url: s.url, title: s.title, summary: s.summary, publisher: s.publisher, domain: s.domain, published: s.published });
   const judgePrompt = (en ? buildTopicJudgePromptEn : buildClusterPromptV2)({ midTopics: mids, majorTopic: major, nextIdNumber: Number(cand.id.replace(/\D/g, "")) || 0, sources: meta, existingTitles: (await existingBacklogTitles()).filter((t) => !t.startsWith(`${cand.id} `)), specBacklogExcerpt: excerpt,
     reinforce: { id: cand.id, title: cand.title, axis: cand.axis ?? "", axis_type: cand.axis_type ?? "", gaps, currentM }, reinforceMidTopic: cand.mid_topic });
   const r2raw = await ex.run<JudgeOut>({ prompt: judgePrompt, schema: en ? CLUSTER_SCHEMA_V2_EN : CLUSTER_SCHEMA_V2, tools: [], allowedTools: [], cwd: cfg.workRoot, timeoutMs: 20 * 60_000, model: cfg.clusterModel, maxThinkingTokens: cfg.thinkingDesign,

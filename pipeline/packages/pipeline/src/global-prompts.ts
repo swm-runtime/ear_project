@@ -566,8 +566,8 @@ The only tool is web search. Do not read pages. Return what the results show: ti
 ## Search rules
 - At most ${i.maxSearches} searches, in English and Korean.
 ${QUERY_PLAN_EN}
-- **Pool sites first** (only results from these can be used right away): ${i.poolHosts.join(", ") || "(none yet)"}
-- Do not drop results from other sites; return them with in_pool=false. The worker only registers their domains for a person to judge.
+- Pool sites (known to be readable): ${i.poolHosts.join(", ") || "(none yet — do not use site:)"}
+- Results from other sites are fine; return them with in_pool=false. The worker registers their domains for a person to judge and uses the sources.
 ${SEARCH_EXCLUDE_EN}
 
 ## Report — output only the requested JSON. sources: at most 8, each with url (exact), title, publisher, published (YYYY-MM-DD or null), summary (two English sentences), roles, why (one line), in_pool. queries: every query you used.`;
