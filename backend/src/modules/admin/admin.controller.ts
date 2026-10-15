@@ -62,7 +62,6 @@ import {
   AdminNoticeListResponseDto,
 } from './dto/admin-notice-item.dto';
 import { AdminNoticeService } from './services/admin-notice.service';
-import { GetNoticesQueryRequestDto } from '@/modules/notice/dto/get-notices-query-request.dto';
 import { NOTICE_LIST_DEFAULT_LIMIT } from '@/modules/notice/notice.constant';
 import {
   decodeAdminNoticeCursor,
