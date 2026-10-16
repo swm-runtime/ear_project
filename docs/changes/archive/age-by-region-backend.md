@@ -5,7 +5,7 @@
 | 대상 문서 | `backend/domain.md` 3.1 `region_code` · 3.2 `age_confirmation` · `spec/api/auth-api.md` 4.1 · 4.2 · 4.5 · 4.13 · 재조회 절 · `spec/api/global-api.md` 2.1 |
 | 요청 파트 | 백엔드 — 박준현 |
 | 발행 날짜 | 2026-10-16 |
-| 관련 | BE [KAN-220](https://runtime364.atlassian.net/browse/KAN-220) `tickets/backend/archive/global-age-by-region.md` · FE 계약 제안 `changes/pending/auth-age-by-region.md`(KAN-206) |
+| 관련 | BE [KAN-220](https://runtime364.atlassian.net/browse/KAN-220) `tickets/backend/archive/global-age-by-region.md` · FE 계약 제안 `changes/archive/auth-age-by-region.md`(KAN-206) |
 
 ## 배경
 
@@ -45,3 +45,4 @@ PM이 GLOBAL 연령을 나라별로 정했다(2026-10-16, KAN-206). 계약 본�
 ## 처리 기록
 
 - 2026-10-16 발행(서버 구현 PR과 함께). 반영 전.
+- 2026-10-16 반영 — 반영 날짜 2026-10-16. auth-api.md 4.1 동의 항목 객체(min_age·version 규칙)·4.2·4.13 예시·pending 연령 규칙, global-api.md 2.1·4.1, domain.md 3.1 region_code·3.2 연령 확인 버전·재확인 규칙. `archive/`로 이동.

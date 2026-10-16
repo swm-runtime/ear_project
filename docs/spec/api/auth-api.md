@@ -69,6 +69,7 @@
 | 11 | DELETE | `/users/me/email-verifications/:id` | 진행 중인 인증 무효화 ([메일 다시 입력]) | 필요 |  |
 | 12 | POST | `/auth/pipeline-login` | 파이프라인 웹 SSO — 어서션 교환으로 **관리자** 세션 발급 | — |  |
 | 13 | GET | `/users/me` | 세션 복원 — 실행 관문 판정용 사용자·재동의 조회 | 필요 |  |
+| 14 | POST | `/auth/sign-up/consents` | 고른 콘텐츠 언어(시장)의 가입 동의 목록 재조회 — 계정 미생성 | — |  |
 
 **설계 메모**
 
@@ -200,9 +201,9 @@
   "signup_token": "<단기 토큰>",
   "signup_token_expires_at": "2026-08-03T09:10:00Z",
   "required_consents": [
-    { "consent_type": "terms",            "version": "1.2", "is_required": true },
-    { "consent_type": "privacy",          "version": "1.1", "is_required": true },
-    { "consent_type": "age_confirmation", "version": null,  "is_required": true },
+    { "consent_type": "terms",            "version": "0.1", "is_required": true },
+    { "consent_type": "privacy",          "version": "0.1", "is_required": true },
+    { "consent_type": "age_confirmation", "version": null,  "is_required": true, "min_age": 18 },
     { "consent_type": "marketing",        "version": null,  "is_required": false }
   ]
 }
@@ -211,12 +212,27 @@
 - **이 응답 시점에는 계정이 존재하지 않는다.** 계정은 `/auth/sign-up`에서 생성된다(`auth.md` 4.1 — “동의 버튼을 누른 시점에 계정이 생성된다”).
 - `signup_token`은 검증된 제공자 신원을 담은 **단기 토큰**이다. 클라이언트가 `provider_user_id`를 들고 다니게 하지 않는다.
 - **동의 화면에 보여줄 현행 버전을 서버가 내려준다.** 클라이언트에 버전을 하드코딩하지 않는다.
+- **목록은 시장별이다**(2026-10-16 — KAN-215·212·220). 이 응답 시점에는 사용자가 콘텐츠 언어를 아직 고르지 않았으므로 **로그인 요청의 `locale`로 4.2와 같은 규칙으로 정한 목록**이다(언어 선택 전이라 보통 `language_code` 폴백, 연령 기준은 `region_code`). 앱은 콘텐츠 언어(A21)를 고른 뒤 **4.14로 다시 받아 덮는다.** 글로벌 가입이 닫혀 있으면(`GLOBAL_SIGNUP_ENABLED`) 항상 KR 목록이다.
+
+**동의 항목 객체** — `required_consents[]`·`pending_consents[]`(4.1·4.2·4.13·4.14)가 같은 모양이다.
+
+| 필드 | 타입 | 설명 |
+| --- | --- | --- |
+| `consent_type` | `terms` \| `privacy` \| `age_confirmation` \| `cross_border_transfer` \| `marketing` | 동의 종류 |
+| `version` | string \| null | 서버의 현행 버전. 앱은 받은 값을 그대로 돌려보낸다. 약관·처리방침은 **시장별**(KR `0.1` · GLOBAL `global-0.1`), 연령 확인은 GLOBAL `age-16`·`age-18` · KR `null`, 국외 이전·마케팅은 `null` |
+| `is_required` | boolean | 필수 동의 여부 |
+| `min_age` | integer | **`age_confirmation` 항목에만** — 이 사용자가 확인할 기준 연령(`global-api.md` 2.1 판정 표). 앱은 문구에 끼우기만 하고, 없으면 18로 그린다 |
+
+**필수 동의는 시장별이다** — KR: `terms`·`privacy`·`age_confirmation`. GLOBAL: 거기에 **`cross_border_transfer`(국외 이전 동의)**를 더한다(KAN-215). 국외 이전은 KR에서 받지 않는다 — 한국어 처리방침의 국외 이전 고지로 갈음한다.
 
 **`user.tier`** — `light` \| `daily` \| `pro` \| `trial`. **`trial`은 가입 체험 중인 무료 계정**이다(`subscription.md` 4.8, 2026-10-03 — `/auth/sign-up` 응답과 `GET /users/me`도 같다). 표시용이며 판정에 쓰지 않는다 — 언제까지인지·이후 한도는 `plan.trial`(`profile-api.md` 4.1)이 준다.
 
 **`user.market` · `user.language_code` · `user.timezone`** (추가 2026-10-14 — KAN-187) — `market`은 `kr` \| `global`(가입 시 1회 판정, 불변). `language_code`·`timezone`은 저장된 기기 로케일이며 구 앱 계정은 `null`이다. 클라이언트의 제공자 목록·온보딩 단계·요금제 분기는 **`market`으로** 한다 — 언어로 추측하지 않는다(4.2 응답·4.13도 같다).
 
-**`pending_consents`** — 기존 계정이라도 약관이 개정됐으면 재동의가 필요한 항목이 담긴다. 판정은 **서버가 `consents`의 최신 버전과 현행 버전을 비교해서** 한다. 클라이언트가 보낸 버전을 신뢰하지 않는다(`auth.md` 7). 재동의는 `/users/me/consents`로 처리한다.
+**`pending_consents`** — 기존 계정이라도 약관이 개정됐으면 재동의가 필요한 항목이 담긴다. 판정은 **서버가 `consents`의 최신 버전과 그 사용자 시장의 현행 버전을 비교해서** 한다. 클라이언트가 보낸 버전을 신뢰하지 않는다(`auth.md` 7). 재동의는 `/users/me/consents`로 처리한다.
+
+- **연령 확인만은 버전 일치가 아니라 "확인받은 기준 연령 ≥ 지금 기준"으로 본다**(KAN-220). 기준은 로그인마다 갱신되는 기기 지역(`users.region_code`)을 따른다. 16세로 확인한 GLOBAL 사용자가 18세 지역으로 옮기면 한 번 다시 묻고, 반대 방향은 묻지 않는다. `version`이 null(KR 문구·도입 전 이력)이면 18로, 모르는 형식이면 0으로 본다(다시 묻는다).
+- 국외 이전 동의 기록이 없는 GLOBAL 기존 가입자는 한 번 요구받는다. KR은 목록이 그대로라 새 재동의가 없다.
 
 **이메일 처리** — 제공자가 이메일을 주면 **주소와 인증 여부를 함께 판정해** `users.email` · `users.is_email_verified`에 저장한다(`auth.md` 4.1).
 
@@ -262,8 +278,8 @@
   "signup_token": "<social-login이 내려준 단기 토큰>",
   "device_id": "<기기 식별자>",
   "consents": [
-    { "consent_type": "terms",            "version": "1.2", "is_agreed": true },
-    { "consent_type": "privacy",          "version": "1.1", "is_agreed": true },
+    { "consent_type": "terms",            "version": "0.1", "is_agreed": true },
+    { "consent_type": "privacy",          "version": "0.1", "is_agreed": true },
     { "consent_type": "age_confirmation", "version": null,  "is_agreed": true },
     { "consent_type": "marketing",        "version": null,  "is_agreed": false }
   ],
@@ -273,9 +289,11 @@
 
 - **`locale`**(선택, 추가 2026-10-14 — KAN-187) — 4.1과 같은 객체다. 이 요청이 계정을 만들므로 **`preferred_language`가 여기서 시장을 정한다**(없으면 `language_code` 폴백, 그것도 없으면 `kr`). 같은 `signup_token`의 재시도로 기존 계정이 돌아오는 경우 시장은 다시 판정하지 않는다.
 
-- **동의 4종(필수 3 + 마케팅)을 각각 별개 행으로 기록한다.** 개정 시점이 서로 다르므로 한 행에 묶지 않는다(`domain.md` 3.2 — append-only).
-- 필수 3종(`terms`·`privacy`·`age_confirmation`)이 `is_agreed: true`가 아니면 계정을 만들지 않는다(`CONSENT_REQUIRED`).
-- `age_confirmation`은 **연령 자기 선언**이다 — KR **만 18세 이상**(약관 제5조, 2026-09-06 반영), GLOBAL은 **기기 지역별 16 또는 18**(`global-api.md` 2.1, 2026-10-16 나라별로 개정 — 항목의 `min_age` 🟡 `changes/pending/auth-age-by-region.md`). 열람할 문서가 없어 `version`이 항상 `null`이며, 이력이 없는 기존 사용자는 로그인 응답 `pending_consents`로 한 번 확인을 요구받는다.
+- **동의 종류마다 별개 행으로 기록한다.** 개정 시점이 서로 다르므로 한 행에 묶지 않는다(`domain.md` 3.2 — append-only). `consents` 배열은 최대 5개(동의 종류 수)다.
+- **그 시장의 필수 동의**(4.1 "필수 동의는 시장별이다")가 `is_agreed: true`가 아니면 계정을 만들지 않는다(`CONSENT_REQUIRED`). GLOBAL은 `cross_border_transfer`가 빠져도 400이다.
+- 시장 판정은 4.14와 **같은 규칙**이다 — 같은 `locale`이면 4.14가 준 목록 그대로 보내 통과한다.
+- `age_confirmation`은 **연령 자기 선언**이다 — KR **만 18세 이상**(약관 제5조, 2026-09-06 반영), GLOBAL은 **기기 지역별 16 또는 18**(`global-api.md` 2.1, 2026-10-16 나라별 — 항목의 `min_age`). 기준은 요청 `locale.region_code`로 정한다. GLOBAL은 확인한 기준을 `version`(`age-16`·`age-18`)으로 기록하고, KR은 `null`이다.
+- 보낸 `version`이 null이 아니면 그 시장·기준의 현행 버전과 같아야 한다(null이면 서버가 현행값을 기록한다). 다른 시장의 약관 버전(예: GLOBAL 가입에 `0.1`)이나 다른 기준 연령(예: 말레이시아 기기가 `age-16`)을 보내면 409 `CONSENT_VERSION_STALE`이다 — 앱은 4.14로 다시 받아 그린다.
 
 **Response 201** — `social-login`의 `authenticated` 응답과 같은 형태. `onboarding_completed: false`, `onboarding_step: "topic"`.
 
@@ -285,7 +303,7 @@
 | --- | --- | --- |
 | `AUTH_SIGNUP_TOKEN_EXPIRED` | 401 | `signup_token` 만료·위조 → 제공자 인증부터 재시작 |
 | `CONSENT_REQUIRED` | 400 | 필수 동의 누락 |
-| `CONSENT_VERSION_STALE` | 409 | 동의한 버전이 현행 버전과 다름(동의 화면 체류 중 개정) → 최신 버전으로 다시 받는다 |
+| `CONSENT_VERSION_STALE` | 409 | 동의한 버전이 현행 버전과 다름(동의 화면 체류 중 개정·다른 시장 버전·다른 기준 연령) → 최신 목록을 다시 받는다 |
 - **동의 화면에서 이탈하면 계정이 생성되지 않는다.** 서버는 아무것도 남기지 않으며, 다시 로그인하면 약관 동의부터 재시작한다(`auth.md` 7).
 
 ---
@@ -343,9 +361,9 @@
 **Response 200** — 갱신 후 현재 동의 상태.
 
 - **`UPDATE`하지 않고 행을 추가한다.** 철회도 `is_agreed: false` 행 추가다(`domain.md` 3.2).
-- **필수 동의(`terms`·`privacy`·`age_confirmation`)는 철회할 수 없다.** `is_agreed: false`를 보내면 **400 `CONSENT_REQUIRED`**(가입 4.2와 같은 코드 — 반영 2026-09-15)다. 약관을 거부하는 경로는 탈퇴(4.7)다. 철회 행 추가는 마케팅 같은 선택 동의에만 해당한다.
+- **그 사용자 시장의 필수 동의(KR `terms`·`privacy`·`age_confirmation`, GLOBAL은 `cross_border_transfer`까지)는 철회할 수 없다.** `is_agreed: false`를 보내면 **400 `CONSENT_REQUIRED`**(가입 4.2와 같은 코드 — 반영 2026-09-15)다. 약관을 거부하는 경로는 탈퇴(4.7)다. 철회 행 추가는 마케팅 같은 선택 동의에만 해당한다.
 - 마케팅 동의만 바꿨는데 약관 동의 이력이 함께 갱신되면 안 된다.
-- **`version`이 `null`이 아니면 현재 약관 버전과 같아야 한다.** 다르면 **409 `CONSENT_VERSION_STALE`**(가입 4.2와 같은 코드 — 최신 약관을 다시 조회해 재동의). **같은 `consent_type`이 한 요청에 두 번 오면 400 `VALIDATION_FAILED`**(`details.field = "consents"`)다(등재 2026-10-10 — 구현 2026-09-09 `67664c48`).
+- `consents` 배열은 최대 5개다. **`version`이 `null`이 아니면 그 사용자 시장(연령 확인은 기기 지역 기준까지)의 현재 버전과 같아야 한다.** 다르면 **409 `CONSENT_VERSION_STALE`**(가입 4.2와 같은 코드 — 최신 약관을 다시 조회해 재동의). **같은 `consent_type`이 한 요청에 두 번 오면 400 `VALIDATION_FAILED`**(`details.field = "consents"`)다(등재 2026-10-10 — 구현 2026-09-09 `67664c48`).
 
 ---
 
@@ -626,7 +644,7 @@
     "market": "kr", "language_code": null, "timezone": null
   },
   "pending_consents": [
-    { "consent_type": "age_confirmation", "version": null, "is_required": true }
+    { "consent_type": "age_confirmation", "version": null, "is_required": true, "min_age": 18 }
   ]
 }
 ```
@@ -645,6 +663,50 @@
   실패해도 응답은 정상이다(체험 없이 응답하고 다음 호출에서 다시 시도한다) — 프로모션 지급이
   세션 복원을 막지 않는다. 기존 계정 로그인(4.1)도 같은 지급을 거친 `user`를 돌려준다.
 
+### 4.14 `POST /auth/sign-up/consents` — 가입 동의 목록 재조회 (등재 2026-10-16 — KAN-215·216, 구현 #1609)
+
+가입 흐름은 **로그인 → 콘텐츠 언어 선택(A21) → 이 재조회 → 약관 동의(A4)**다. 4.1의 목록은 언어를 고르기 전의 것이라, 앱은 고른 뒤 이 목록으로 A4를 그린다.
+
+**Request**
+
+```json
+{
+  "signup_token": "<4.1이 내려준 단기 토큰>",
+  "locale": { "preferred_language": "en", "language_code": "en-US", "region_code": "SG", "timezone": "Asia/Singapore" }
+}
+```
+
+- `locale`은 **4.2 sign-up과 같은 객체**다. 서버는 sign-up과 **같은 규칙**으로 시장을 판정한다(`preferred_language` 우선 → `language_code` 폴백 → `kr`, 글로벌 가입이 닫혀 있으면 `kr`). 연령 기준은 `region_code`로 정한다.
+- **조회다.** 계정·동의를 만들지 않고, `signup_token`을 소비하지 않는다(만료 시각도 그대로). 이 요청 뒤 같은 토큰으로 sign-up을 한다. 토큰은 검증한다 — 가입 흐름 밖에서 판정 결과를 캐내지 못하게 한다.
+- 레이트 리밋은 4.1·4.2와 같은 인증 묶음(IP 기준)이다. 멱등키는 받지 않는다.
+
+**Response 200**
+
+```json
+{
+  "required_consents": [
+    { "consent_type": "terms",                 "version": "global-0.1", "is_required": true },
+    { "consent_type": "privacy",               "version": "global-0.1", "is_required": true },
+    { "consent_type": "age_confirmation",      "version": "age-16",     "is_required": true, "min_age": 16 },
+    { "consent_type": "cross_border_transfer", "version": null,         "is_required": true },
+    { "consent_type": "marketing",             "version": null,         "is_required": false }
+  ],
+  "market": "global"
+}
+```
+
+- `required_consents`는 4.1과 같은 모양이다(동의 항목 객체). KR이면 국외 이전 항목이 없다.
+- **`market`** — 이 `locale`로 가입하면 정해질 시장. 글로벌 가입이 닫혀 있으면 `en`을 골라도 `kr`이다. 앱은 A21 선택이 아니라 **이 값으로** A4(연령 문구·약관 링크)를 그린다.
+
+**에러**
+
+| 코드 | HTTP | 상황 |
+| --- | --- | --- |
+| `AUTH_SIGNUP_TOKEN_EXPIRED` | 401 | `signup_token` 만료·위조 → 4.2와 같다(제공자 인증부터 재시작) |
+| `VALIDATION_FAILED` | 400 | `signup_token` 누락·4096자 초과 · `locale` 형식 오류(`region_code` 2자 아님 등) |
+
+- 구 서버(이 경로가 없음 — 404)에서는 앱이 4.1의 목록으로 A4를 그린다. 빠진 필수 항목은 sign-up이 `CONSENT_REQUIRED`로 막으므로 동의 없이 계정이 생기지 않는다.
+
 ## 5. 에러 코드 표
 
 **이 표는 `common-error-handling.md` 9장 중앙 표의 인증·계정 발췌(9.3)다** — 두 곳이 어긋나면 9장이 기준이다. 추가·변경 시 `architecture.md` 7.5에 따라 enum 한 곳에서 관리하고 **9장 표를 먼저 갱신한 뒤** 이 표를 맞춘다. 이미 배포된 코드의 의미를 바꾸지 않는다.
@@ -655,9 +717,9 @@
 | --- | --- | --- | --- |
 | `AUTH_PROVIDER_TOKEN_INVALID` | 401 | false | 토스트 후 시작 화면 유지 |
 | `AUTH_PROVIDER_UNAVAILABLE` | 502 | **true** | [다시 시도] — 제공자 인증부터 재수행 |
-| `AUTH_SIGNUP_TOKEN_EXPIRED` | 401 | false | 시작 화면으로, 로그인부터 재시작 |
+| `AUTH_SIGNUP_TOKEN_EXPIRED` | 401 | false | 시작 화면으로, 로그인부터 재시작(4.2 · 4.14) |
 | `CONSENT_REQUIRED` | 400 | false | 필수 동의 체크 유도. 4.5에서 필수 동의 철회(`is_agreed: false`)를 시도해도 같은 코드(정상 클라이언트는 도달하지 않음) |
-| `CONSENT_VERSION_STALE` | 409 | false | 최신 약관 다시 조회 후 재동의 |
+| `CONSENT_VERSION_STALE` | 409 | false | 최신 약관 다시 조회 후 재동의. 가입 중이면 4.14로 목록을 다시 받는다(다른 시장 버전·다른 기준 연령 포함) |
 | `AUTH_REFRESH_TOKEN_INVALID` | 401 | false | 로컬 세션 정리 → 시작 화면 |
 | `AUTH_REFRESH_TOKEN_REUSED` | 401 | false | 동일. 서버는 전 세션 무효화 |
 | `WITHDRAWAL_CONFIRM_REQUIRED` | 400 | false | 확인 체크박스 강조 |

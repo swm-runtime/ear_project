@@ -34,12 +34,12 @@
 
 ## 처리 기록
 - 2026-10-15 발행(마크다운 + Jira).
-- 2026-10-16 선행 해소 — FE가 순서를 로그인 → A21 → **동의 목록 재조회** → A4로 확정하고 `POST /auth/sign-up/consents`를 요청(KAN-215·216 Jira 댓글, FE 제안 `changes/pending/auth-signup-consents-refetch.md`).
+- 2026-10-16 선행 해소 — FE가 순서를 로그인 → A21 → **동의 목록 재조회** → A4로 확정하고 `POST /auth/sign-up/consents`를 요청(KAN-215·216 Jira 댓글, FE 제안 `changes/archive/auth-signup-consents-refetch.md`).
 - 2026-10-16 구현 — PR `feat(be)/signup-consents-market`(dev 대상).
   - `ConsentType.CROSS_BORDER_TRANSFER`(버전 null), 필수 동의 `REQUIRED_CONSENT_TYPES_BY_MARKET`(KR 3종 · GLOBAL 4종). 가입 거절·재동의(`findPendingConsents`)·철회 불가(`recordConsents`)가 사용자 시장 기준이다.
   - `consent_type` varchar 20 → 32(마이그레이션 `1790300000000-WidenConsentType`, `consents`·`archive.archived_consents`). 새 값이 21자다.
   - `POST /auth/sign-up/consents` — `signup_token` 검증(401), 기록 없음, 응답 `required_consents`·`market`. 시장 판정은 가입과 같은 `UserService.resolveSignupMarket`(글로벌 가입 스위치 반영). 로그인 응답 목록도 같은 경로다.
   - 동의 배열 최대 4 → 5(동의 종류 수). 종전 4라면 GLOBAL 가입(필수 4 + 마케팅)이 400이었다.
-  - 문서 `changes/pending/global-cross-border-consent-backend.md`(FE 제안 "정할 것" 4개에 대한 답 포함).
+  - 문서 `changes/archive/global-cross-border-consent-backend.md`(FE 제안 "정할 것" 4개에 대한 답 포함).
   - 테스트: 단위 1828 · e2e 124 통과(새 `signup-consents.e2e-spec.ts` 6건, 리뷰 반영으로 로그인 목록·재조회 토큰 검증 단위 테스트 추가). GLOBAL 필수 목록에서 국외 이전을 빼면 단위 4·e2e 3건이 실패함을 확인.
 - 2026-10-16 완료 — 반영 날짜 2026-10-16. PR #1609 dev 머지·CI(lint·build·단위·e2e) 통과, 개발계 배포 확인(마이그레이션 `WidenConsentType1790300000000` 적용·`consent_type` 32자, `POST /auth/sign-up/consents` 위조 토큰 401). 완료 조건은 e2e `signup-consents.e2e-spec.ts`로 확인했다(GLOBAL 필수 국외 이전·누락 400·KR 목록 불변·재조회·스위치 닫힘·기존 GLOBAL 재동의). 운영은 글로벌 가입 스위치가 닫혀 있어 동작 변화가 없다. `archive/`로 이동, Jira 완료.

@@ -6,7 +6,7 @@
 | 요청 파트 | 프론트엔드 (백엔드 협의 필요 — 문서·서버 모두 BE 소유) |
 | 발행 날짜 | 2026-10-16 |
 | 발견 시점 | KAN-216(글로벌 동의 화면) 구현 — 국외 이전 동의(KAN-215)는 GLOBAL 목록에만 오는데, 가입 동의 목록을 받는 로그인 응답 시점엔 시장이 정해지지 않았다 |
-| 관련 | FE [KAN-216](https://runtime364.atlassian.net/browse/KAN-216) `tickets/frontend/pending/global-consent-screen-legal.md` · BE [KAN-215](https://runtime364.atlassian.net/browse/KAN-215) `tickets/backend/pending/global-cross-border-consent.md` · [KAN-212](https://runtime364.atlassian.net/browse/KAN-212)(GLOBAL 약관 버전 — 같은 질문) |
+| 관련 | FE [KAN-216](https://runtime364.atlassian.net/browse/KAN-216) `tickets/frontend/pending/global-consent-screen-legal.md` · BE [KAN-215](https://runtime364.atlassian.net/browse/KAN-215) `tickets/backend/archive/global-cross-border-consent.md` · [KAN-212](https://runtime364.atlassian.net/browse/KAN-212)(GLOBAL 약관 버전 — 같은 질문) |
 
 ## 배경
 
@@ -88,3 +88,4 @@ Response 200
 ## 처리 기록
 
 - 2026-10-16 발행(FE — KAN-216 구현과 함께). 앱은 이 계약대로 구현했고 서버가 생기기 전까지 404 폴백으로 동작한다. 반영 전.
+- 2026-10-16 반영 — 반영 날짜 2026-10-16. auth-api.md 3장 표 #14 · 새 절 4.14(요청·응답·market·에러·404 폴백) · 5장 적용 범위, auth-uiux.md 화면 순서 절의 계약 위치를 확정본으로. `archive/`로 이동.

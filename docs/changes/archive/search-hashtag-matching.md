@@ -39,3 +39,4 @@
 ## 처리 기록
 
 - 2026-10-16 발행(서버 구현 PR과 함께). 반영 전.
+- 2026-10-16 반영 — 반영 날짜 2026-10-16. features/explore.md 4.5-2·4.5-5, explore-api.md 4.1 tags 행·4.5(query·정렬·에러), content-detail-api.md tags 행, domain.md 5.1(tags 인덱스 없음 결정)·5.7(# 남김). `archive/`로 이동.
