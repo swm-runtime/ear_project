@@ -74,6 +74,17 @@ export interface PendingConsent {
   consentType: ConsentType;
   version: string | null;
   isRequired: boolean;
+  /** 연령 확인 항목에만 — 이 사용자가 확인할 기준 연령(KAN-220). 다른 종류에는 없다 */
+  minAge?: number;
+}
+
+/**
+ * 동의 판정의 대상 — 무엇이 필수인지·현행 버전은 시장이, 연령 확인의 기준 연령은 시장과 기기 지역이 정한다.
+ * 가입 전에는 요청 `locale`에서, 가입 후에는 `users` 행(`User`가 그대로 들어간다)에서 온다.
+ */
+export interface ConsentAudience {
+  market: UserMarket;
+  regionCode: string | null;
 }
 
 /** 가입 시장 판정 결과 — `source`는 로그 근거다(`resolveMarket`) */

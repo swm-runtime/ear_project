@@ -20,10 +20,8 @@ import {
   resolveExistingUserTrialEndsAtFor,
   resolveSignupTrialEndsAtFor,
 } from '../policies/signup-trial.policy';
-import {
-  REQUIRED_CONSENT_TYPES_BY_MARKET,
-  CURRENT_CONSENT_VERSIONS_BY_MARKET,
-} from '../user.constant';
+import { currentConsentVersionOf } from '../policies/consent.policy';
+import { REQUIRED_CONSENT_TYPES_BY_MARKET } from '../user.constant';
 import {
   MessageLanguage,
   OnboardingStep,
@@ -35,6 +33,7 @@ import {
 } from '../user.enum';
 import { UserRepository } from '../repositories/user.repository';
 import {
+  ConsentAudience,
   CreateUserCommand,
   LocaleInput,
   SignUpConsents,
@@ -138,7 +137,10 @@ export class UserService {
   async createUser(command: CreateUserCommand, now: Date): Promise<User> {
     // 시장을 한 번 정해 검증과 저장에 같이 쓴다 — 둘이 따로 판정하면 받은 동의와 저장된 시장이 어긋날 수 있다
     const signupMarket = this.resolveSignUpMarket(command.locale);
-    this.assertRequiredConsents(command, signupMarket.market);
+    this.assertRequiredConsents(
+      command,
+      this.signUpAudienceOf(command.locale, signupMarket),
+    );
 
     try {
       return await this.insertUser(command, signupMarket, now);
@@ -196,11 +198,28 @@ export class UserService {
    * (auth-api.md 4.1 `required_consents` · `POST /auth/sign-up/consents`, KAN-215). 아무것도 기록하지 않는다.
    */
   findSignUpConsents(locale: LocaleInput | undefined): SignUpConsents {
-    const { market } = this.resolveSignUpMarket(locale);
+    const audience = this.signUpAudienceOf(
+      locale,
+      this.resolveSignUpMarket(locale),
+    );
 
     return {
-      market,
-      requiredConsents: this.consentService.buildSignUpConsents(market),
+      market: audience.market,
+      requiredConsents: this.consentService.buildSignUpConsents(audience),
+    };
+  }
+
+  /**
+   * 가입 전 동의 판정 대상 — 시장은 가입 판정, 연령 확인의 기준 연령은 기기 지역이다(KAN-220). 가입 검증과 가입 동의
+   * 목록이 이 한 곳으로 대상을 만든다 — 저장되는 `users.region_code`도 같은 `normalizeLocale` 값이다.
+   */
+  private signUpAudienceOf(
+    locale: LocaleInput | undefined,
+    signupMarket: SignUpMarket,
+  ): ConsentAudience {
+    return {
+      market: signupMarket.market,
+      regionCode: normalizeLocale(locale).regionCode,
     };
   }
 
@@ -251,7 +270,7 @@ export class UserService {
 
       await this.consentService.recordConsents(
         saved.id,
-        saved.market,
+        saved,
         command.consents,
         now,
         manager,
@@ -448,7 +467,7 @@ export class UserService {
   /** 그 시장의 필수 동의(약관·개인정보·연령 확인, GLOBAL은 국외 이전까지)가 빠지면 계정을 만들지 않는다 (auth-api.md 4.2) */
   private assertRequiredConsents(
     command: CreateUserCommand,
-    market: UserMarket,
+    audience: ConsentAudience,
   ): void {
     const agreedTypes = new Set(
       command.consents
@@ -456,7 +475,7 @@ export class UserService {
         .map((c) => c.consentType),
     );
 
-    const missing = REQUIRED_CONSENT_TYPES_BY_MARKET[market].filter(
+    const missing = REQUIRED_CONSENT_TYPES_BY_MARKET[audience.market].filter(
       (type) => !agreedTypes.has(type),
     );
     if (missing.length > 0) {
@@ -467,10 +486,11 @@ export class UserService {
       });
     }
 
-    // 동의 화면 체류 중 약관이 개정됐거나 다른 시장의 버전을 보낸 경우 — 그 시장의 최신 버전으로 다시 받는다
-    const currentVersions = CURRENT_CONSENT_VERSIONS_BY_MARKET[market];
+    // 동의 화면 체류 중 약관이 개정됐거나, 다른 시장의 버전·다른 기준 연령을 보낸 경우 — 지금 기준으로 다시 받는다
     const stale = command.consents.some(
-      (consent) => consent.version !== currentVersions[consent.consentType],
+      (consent) =>
+        consent.version !==
+        currentConsentVersionOf(audience, consent.consentType),
     );
     if (stale) {
       throw new BusinessException({

@@ -15,6 +15,7 @@ interface ConsentItem {
   consent_type: string;
   version: string | null;
   is_required: boolean;
+  min_age?: number;
 }
 
 interface ConsentsBody {
@@ -31,6 +32,7 @@ interface SocialLoginBody {
 interface LocaleInput {
   preferred_language?: string;
   language_code?: string;
+  region_code?: string;
 }
 
 /**
@@ -228,6 +230,98 @@ describe('가입 동의 목록 재조회 E2E', () => {
       },
     ]);
   }, 60_000);
+
+  describe('연령 확인 기준 연령(KAN-220)', () => {
+    const ageItem = (body: ConsentsBody) =>
+      body.required_consents.find(
+        (consent) => consent.consent_type === 'age_confirmation',
+      );
+
+    it('GLOBAL·싱가포르 기기면 min_age 16, 말레이시아·지역 없음이면 18이다', async () => {
+      // given
+      const login = await socialLogin('age-regions');
+
+      // when
+      const sg = await refetch(login.signup_token, {
+        ...ENGLISH,
+        region_code: 'SG',
+      });
+      const my = await refetch(login.signup_token, {
+        ...ENGLISH,
+        region_code: 'MY',
+      });
+      const unknown = await refetch(login.signup_token, ENGLISH);
+
+      // then
+      expect(ageItem(sg)).toMatchObject({ min_age: 16, version: 'age-16' });
+      expect(ageItem(my)).toMatchObject({ min_age: 18, version: 'age-18' });
+      expect(ageItem(unknown)).toMatchObject({ min_age: 18 });
+    }, 60_000);
+
+    it('KR 시장은 지역과 무관하게 18이고 연령 버전은 종전처럼 null이다', async () => {
+      // given
+      const login = await socialLogin('age-kr', KOREAN);
+
+      // when
+      const consents = await refetch(login.signup_token, {
+        ...KOREAN,
+        region_code: 'SG',
+      });
+
+      // then
+      expect(ageItem(consents)).toEqual({
+        consent_type: 'age_confirmation',
+        version: null,
+        is_required: true,
+        min_age: 18,
+      });
+    }, 60_000);
+
+    it('싱가포르 기기로 가입하면 16세 기준 확인이 기록되고, 18세 지역으로 옮기면 세션 복원이 18세 확인을 요구한다', async () => {
+      // given — 싱가포르 기기로 재조회한 목록 그대로 가입한다
+      const locale = { ...ENGLISH, region_code: 'SG' };
+      const login = await socialLogin('age-moved');
+      const consents = await refetch(login.signup_token, locale);
+      const created = await signUp(
+        login.signup_token,
+        'age-moved',
+        consents,
+        locale,
+      ).expect(HttpStatus.CREATED);
+      const body = created.body as {
+        user: { id: string };
+        access_token: string;
+      };
+      userIds.push(body.user.id);
+      const rows = await dataSource.query<{ version: string | null }[]>(
+        `SELECT version FROM consents WHERE user_id = $1 AND consent_type = 'age_confirmation'`,
+        [body.user.id],
+      );
+      expect(rows).toEqual([{ version: 'age-16' }]);
+
+      // when — 로그인마다 갱신되는 기기 지역이 말레이시아가 됐다
+      await dataSource.query(
+        `UPDATE users SET region_code = 'MY' WHERE id = $1`,
+        [body.user.id],
+      );
+      const me = await request(app.getHttpServer())
+        .get(path('/users/me'))
+        .set('Authorization', `Bearer ${body.access_token}`)
+        .expect(HttpStatus.OK);
+
+      // then
+      expect(
+        (me.body as { pending_consents: ConsentItem[] }).pending_consents,
+      ).toEqual([
+        {
+          consent_type: 'age_confirmation',
+          version: 'age-18',
+          is_required: true,
+          min_age: 18,
+        },
+      ]);
+    }, 60_000);
+  });
 
   const runId = `${Date.now()}-${Math.floor(Math.random() * 1_000_000)}`;
 

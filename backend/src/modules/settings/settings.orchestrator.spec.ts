@@ -46,6 +46,8 @@ const APP_VERSIONS: Record<string, string> = {
 function buildUser(overrides: Partial<User> = {}): User {
   return {
     id: USER_ID,
+    market: UserMarket.KR,
+    regionCode: null,
     provider: SocialProvider.KAKAO,
     nickname: '수현',
     email: 'user@example.com',
@@ -613,7 +615,6 @@ describe('SettingsOrchestrator', () => {
       // when
       const result = await orchestrator.recordMarketingConsent(
         USER_ID,
-        UserMarket.KR,
         false,
         NOW,
       );
@@ -621,7 +622,7 @@ describe('SettingsOrchestrator', () => {
       // then
       expect(consentService.recordConsents).toHaveBeenCalledWith(
         USER_ID,
-        UserMarket.KR,
+        expect.objectContaining({ id: USER_ID }),
         [
           {
             consentType: ConsentType.MARKETING,
@@ -646,12 +647,7 @@ describe('SettingsOrchestrator', () => {
       ]);
 
       // when
-      await orchestrator.recordMarketingConsent(
-        USER_ID,
-        UserMarket.KR,
-        true,
-        NOW,
-      );
+      await orchestrator.recordMarketingConsent(USER_ID, true, NOW);
 
       // then
       expect(consentService.recordConsents).toHaveBeenCalledTimes(1);

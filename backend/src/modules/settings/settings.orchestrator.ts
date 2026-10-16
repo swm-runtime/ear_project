@@ -17,9 +17,9 @@ import { SubscriptionService } from '@/modules/subscription/services/subscriptio
 import { PlanView } from '@/modules/subscription/subscription.types';
 import { ConsentService } from '@/modules/user/services/consent.service';
 import { UserService } from '@/modules/user/services/user.service';
-import { UserMarket, UserTier } from '@/modules/user/user.enum';
+import { UserTier } from '@/modules/user/user.enum';
 import { UserSettingService } from '@/modules/user/services/user-setting.service';
-import { CURRENT_CONSENT_VERSIONS_BY_MARKET } from '@/modules/user/user.constant';
+import { currentConsentVersionOf } from '@/modules/user/policies/consent.policy';
 import {
   ConsentType,
   DevicePlatform,
@@ -206,19 +206,19 @@ export class SettingsOrchestrator {
    */
   async recordMarketingConsent(
     userId: string,
-    market: UserMarket,
     isAgreed: boolean,
     now: Date,
   ): Promise<MarketingConsentView> {
+    // 동의 판정 대상(시장·기기 지역)은 사용자 행에서 읽는다 — 마케팅은 둘에 매이지 않지만 같은 경로를 탄다
+    const user = await this.userService.getById(userId);
     await this.consentService.recordConsents(
       userId,
-      market,
+      user,
       [
         {
           consentType: ConsentType.MARKETING,
-          // 마케팅 동의는 버전이 없다(domain.md 3.2) — 상수를 그대로 따른다
-          version:
-            CURRENT_CONSENT_VERSIONS_BY_MARKET[market][ConsentType.MARKETING],
+          // 마케팅 동의는 버전이 없다(domain.md 3.2) — 현행 버전 판정을 그대로 따른다
+          version: currentConsentVersionOf(user, ConsentType.MARKETING),
           isAgreed,
         },
       ],

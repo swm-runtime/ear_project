@@ -38,14 +38,14 @@ function buildConfigService(
   } as unknown as ConfigService<EnvironmentVariables, true>;
 }
 
-/** GLOBAL 정상 가입 입력 — 영어판 약관·처리방침 버전 + 국외 이전 동의 (KAN-212·215) */
+/** GLOBAL 정상 가입 입력 — 영어판 약관·처리방침 버전 + 지역 모름의 연령 기준 18 + 국외 이전 동의 (KAN-212·215·220) */
 function buildGlobalConsents(): ConsentInput[] {
   return [
     { consentType: ConsentType.TERMS, version: 'global-0.1', isAgreed: true },
     { consentType: ConsentType.PRIVACY, version: 'global-0.1', isAgreed: true },
     {
       consentType: ConsentType.AGE_CONFIRMATION,
-      version: null,
+      version: 'age-18',
       isAgreed: true,
     },
     {
@@ -119,7 +119,7 @@ describe('UserService.createUser — 필수 동의 판정', () => {
     expect(userRepository.save).toHaveBeenCalled();
     expect(consentService.recordConsents).toHaveBeenCalledWith(
       'user-1',
-      UserMarket.KR,
+      expect.objectContaining({ market: UserMarket.KR }),
       consents,
       NOW,
       expect.anything(),
@@ -229,7 +229,7 @@ describe('UserService.createUser — 필수 동의 판정', () => {
       // then
       expect(consentService.recordConsents).toHaveBeenCalledWith(
         'user-1',
-        UserMarket.GLOBAL,
+        expect.objectContaining({ market: UserMarket.GLOBAL }),
         consents,
         NOW,
         expect.anything(),
@@ -271,6 +271,62 @@ describe('UserService.createUser — 필수 동의 판정', () => {
       expect(userRepository.save).not.toHaveBeenCalled();
     });
 
+    it('싱가포르 기기의 GLOBAL 가입은 16세 기준으로 확인받고 그 기준을 기록한다(KAN-220)', async () => {
+      // given
+      openGlobalSignup();
+      const consents = buildGlobalConsents().map((consent) =>
+        consent.consentType === ConsentType.AGE_CONFIRMATION
+          ? { ...consent, version: 'age-16' }
+          : consent,
+      );
+
+      // when
+      await service.createUser(
+        {
+          ...buildCommand(consents),
+          locale: { ...englishLocale, regionCode: 'SG' },
+        },
+        NOW,
+      );
+
+      // then — 저장할 사용자 행의 지역이 판정과 같은 값이다
+      expect(consentService.recordConsents).toHaveBeenCalledWith(
+        'user-1',
+        expect.objectContaining({
+          market: UserMarket.GLOBAL,
+          regionCode: 'SG',
+        }),
+        consents,
+        NOW,
+        expect.anything(),
+      );
+    });
+
+    it('말레이시아 기기의 GLOBAL 가입이 16세 기준을 보내면 CONSENT_VERSION_STALE이다 — 기준은 서버가 정한다', async () => {
+      // given
+      openGlobalSignup();
+      const consents = buildGlobalConsents().map((consent) =>
+        consent.consentType === ConsentType.AGE_CONFIRMATION
+          ? { ...consent, version: 'age-16' }
+          : consent,
+      );
+
+      // when
+      const creating = service.createUser(
+        {
+          ...buildCommand(consents),
+          locale: { ...englishLocale, regionCode: 'MY' },
+        },
+        NOW,
+      );
+
+      // then
+      await expect(creating).rejects.toMatchObject<Partial<BusinessException>>({
+        errorCode: ErrorCode.CONSENT_VERSION_STALE,
+      });
+      expect(userRepository.save).not.toHaveBeenCalled();
+    });
+
     it('글로벌 가입이 닫혀 있으면 English를 골라도 KR 목록이다 — 국외 이전 동의 없이 가입된다', async () => {
       // when — 기본 대역은 스위치가 닫혀 있다
       await service.createUser(
@@ -281,7 +337,7 @@ describe('UserService.createUser — 필수 동의 판정', () => {
       // then
       expect(consentService.recordConsents).toHaveBeenCalledWith(
         'user-1',
-        UserMarket.KR,
+        expect.objectContaining({ market: UserMarket.KR }),
         buildConsents(),
         NOW,
         expect.anything(),
@@ -297,9 +353,10 @@ describe('UserService.createUser — 필수 동의 판정', () => {
 
       // then
       expect(opened.market).toBe(UserMarket.GLOBAL);
-      expect(consentService.buildSignUpConsents).toHaveBeenCalledWith(
-        UserMarket.GLOBAL,
-      );
+      expect(consentService.buildSignUpConsents).toHaveBeenCalledWith({
+        market: UserMarket.GLOBAL,
+        regionCode: null,
+      });
     });
   });
 
