@@ -13,7 +13,7 @@
 | 선행 | 없음. 후행: FE `hashtag-tap-to-search.md`([KAN-219](https://runtime364.atlassian.net/browse/KAN-219)) — FE는 mock으로 선행 개발 가능 |
 | 근거 문서 | `features/explore.md` 4.5-2(검색 대상)·4.5-5(매칭·랭킹) · `spec/api/explore-api.md` 4.5 · `domain.md` 5.1 `contents.tags`·5.7 `search_query_logs` · BE `archive/content-hashtags-enrichment-v3.md`(KAN-162) |
 | 중요도 | Medium |
-| 상태 | 진행 중 — 서버 구현 PR 리뷰 |
+| 상태 | 완료 (2026-10-16) |
 
 ## 배경
 
@@ -53,3 +53,4 @@
   - 인덱스는 두지 않는다(운영 71편·태그 4개 이하) — 결정과 다시 볼 조건을 `changes/archive/search-hashtag-matching.md`에 적었다.
   - 리뷰 반영(필수 0 · 권장 3): 태그 전용 커서 e2e, 불필요한 `normalize` 제거·근거 주석, 로그 정규형.
   - 테스트: 단위 1860 · e2e 133 통과(새 `search-hashtag.e2e-spec.ts` 6건 — 태그 전용 커서 이어 읽기·다른 모드 커서 400 포함 — 태그 부분 일치·순서 A→B→C·`#` 정확 일치(뒤 공백·대소문자)·`#`/`#a` 400·빈 결과 대체·로그 `#`). 태그 가중을 저자 아래(3)로 내리면 순서 e2e가 실패함을 확인.
+- 2026-10-16 완료 — 반영 날짜 2026-10-16. PR #1616 dev 머지·CI(lint·build·단위·e2e) 통과, 개발계 배포 확인(배포 성공·컨테이너에 태그 매칭 코드·에러 0건). 완료 조건 6개(코드)는 e2e `search-hashtag.e2e-spec.ts`로, 문서 조건은 #1619(changes 반영 — `explore.md`·`explore-api.md`·`content-detail-api.md`·`domain.md`)로 충족. 태그 탭 → 검색은 후행 FE KAN-219. `archive/`로 이동, Jira 완료.
