@@ -103,7 +103,7 @@ export class AuthService {
       user,
       pendingConsents: await this.consentService.findPendingConsents(
         user.id,
-        user.market,
+        user,
       ),
     };
   }
@@ -150,7 +150,7 @@ export class AuthService {
       user,
       pendingConsents: await this.consentService.findPendingConsents(
         user.id,
-        user.market,
+        user,
       ),
     };
   }

@@ -14,7 +14,7 @@
 | 관련 | FE [KAN-206](https://runtime364.atlassian.net/browse/KAN-206)(이 티켓이 막는다 — FE는 반영 완료, 서버 값이 없으면 18로 그린다) · [KAN-215](https://runtime364.atlassian.net/browse/KAN-215)(동의 재조회 — 같은 응답) · [KAN-207](https://runtime364.atlassian.net/browse/KAN-207)(스토어 연령 — 최저 16 유지) |
 | 근거 문서 | `changes/pending/auth-age-by-region.md` · `spec/api/global-api.md` 2.1 연령 행 |
 | 중요도 | Medium |
-| 상태 | 대기 |
+| 상태 | 진행 중 — 서버 구현 PR 리뷰 |
 
 ## 왜
 PM이 GLOBAL 연령을 **나라별(3안)**로 정했다(2026-10-16, KAN-206 — 박준현 선택지 정리 13:38). 일괄 16은 말레이시아·필리핀·인도네시아(18세 미만 법정대리인 동의)에서, 일괄 18은 16~17세 사용자를 놓친다. 그래서 기기 지역으로 나눈다.
@@ -33,3 +33,12 @@ PM이 GLOBAL 연령을 **나라별(3안)**로 정했다(2026-10-16, KAN-206 — 
 
 ## 처리 기록
 - 2026-10-16 발행(마크다운 + Jira).
+- 2026-10-16 구현 — PR `feat(be)/age-by-region`(KAN-212 PR #1610 위에 쌓음, dev 대상).
+  - 판정 `policies/age-confirmation.policy.ts`: KR 18 · GLOBAL `SG`·`HK`·`KR` 16, 그 밖·없음 18. 가입 전 요청 `locale.region_code`, 가입 후 `users.region_code`.
+  - `age_confirmation` 항목에 `min_age` — social-login `required_consents` · 가입 동의 재조회 · `pending_consents`(로그인·sign-up·`GET /users/me`).
+  - 이력: GLOBAL은 `version`에 `age-16`·`age-18`, KR은 null 그대로(기존 KR 재확인 없음). 다른 기준을 보내면 409 `CONSENT_VERSION_STALE`.
+  - 재확인은 "확인받은 기준 연령 ≥ 지금 기준"일 때 생략한다 — 16 → 18 지역 이동만 다시 묻는다. null은 18로 본다.
+  - 동의 판정 대상이 시장에서 `{ market, regionCode }`(사용자 행)로 넓어졌다. 동의 갱신(4.5)·마케팅 동의는 사용자 행을 읽는다.
+  - 문서 `changes/pending/age-by-region-backend.md`.
+  - 리뷰 반영(필수 0 · 권장 3): 모르는 버전 형식은 0으로 봐서 다시 묻는다, 연령 버전 상수 주석, 가입 대상 조립 한 곳(`signUpAudienceOf`), KR null 기록 테스트.
+  - 테스트: 단위 1854 · e2e 127 통과(정책 단위 9 · 서비스 단위 9 · e2e 3 추가). 재확인 규칙을 버전 무시로 바꾸면 단위 2건이 실패함을 확인.

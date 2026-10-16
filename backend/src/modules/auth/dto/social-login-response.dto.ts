@@ -12,6 +12,8 @@ export class ConsentRequirementDto {
   readonly consent_type: ConsentType;
   readonly version: string | null;
   readonly is_required: boolean;
+  /** `age_confirmation` 항목에만 — 이 사용자가 확인할 기준 연령(KAN-220). 앱은 없으면 18로 그린다 */
+  readonly min_age?: number;
 }
 
 /**
@@ -68,5 +70,6 @@ export function toConsentRequirementDto(
     consent_type: consent.consentType,
     version: consent.version,
     is_required: consent.isRequired,
+    ...(consent.minAge === undefined ? {} : { min_age: consent.minAge }),
   };
 }

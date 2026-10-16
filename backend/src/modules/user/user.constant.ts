@@ -24,8 +24,8 @@ const UNVERSIONED_CONSENTS = {
   /** 마케팅 동의는 버전이 없다 (domain.md 3.2) */
   [ConsentType.MARKETING]: null,
   /**
-   * 자기 선언이라 버전이 없다. 연령 기준이 바뀌면 그때 버전을 도입해 재확인을
-   * 트리거한다 — null인 동안은 한 번 확인하면 다시 묻지 않는다.
+   * 자기 선언이라 문서 버전이 없다. **현행 버전은 `currentConsentVersionOf`(policies/consent.policy)가 덮는다** —
+   * GLOBAL은 기준 연령을 담은 `age-16`·`age-18`, KR은 null(KAN-220). 이 값을 직접 읽지 않는다.
    */
   [ConsentType.AGE_CONFIRMATION]: null,
   /** 열람할 별도 문서가 없다 — 이전 내용은 처리방침이 고지한다(KAN-215) */
