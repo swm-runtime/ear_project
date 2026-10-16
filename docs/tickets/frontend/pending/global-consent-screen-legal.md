@@ -10,7 +10,7 @@
 | 발행 날짜 | 2026-10-15 |
 | 시작 날짜 | 2026-10-15 |
 | 기한 | 2026-10-18 (Medium) |
-| 선행 | BE [KAN-215](https://runtime364.atlassian.net/browse/KAN-215) `global-cross-border-consent.md` · 랜딩 영어 페이지 운영 배포(상태: PR 전) |
+| 선행 | BE [KAN-215](https://runtime364.atlassian.net/browse/KAN-215) `global-cross-border-consent.md` · 랜딩 영어 약관·처리방침 운영 배포(상태: 완료 — 2026-10-15 `/en/terms/`·`/en/privacy/` 200, 국외 이전 앵커 `/en/privacy/#s6`·`/privacy/#s6` 2026-10-16 확인) |
 | 관련 | [KAN-206](https://runtime364.atlassian.net/browse/KAN-206)(연령 동의 — 같은 화면) · [KAN-198](https://runtime364.atlassian.net/browse/KAN-198)(심사 제출 — 이 티켓이 막는다) · [KAN-197](https://runtime364.atlassian.net/browse/KAN-197)(`legal-urls.ts`) |
 | 중요도 | Medium |
 | 상태 | 진행 중 — BE 재조회 API·국외 이전 동의 대기 |
