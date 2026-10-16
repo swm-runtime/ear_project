@@ -22,11 +22,13 @@ import { PlayController } from './controllers/play.controller';
 import { PublicSampleController } from './controllers/public-sample.controller';
 import { AudioAccessLog } from './entities/audio-access-log.entity';
 import { PlaybackProgress } from './entities/playback-progress.entity';
+import { PlayDailyTotal } from './entities/play-daily-total.entity';
 import { PlayRecord } from './entities/play-record.entity';
 import { SourceLinkClick } from './entities/source-link-click.entity';
 import { UserSignal } from './entities/user-signal.entity';
 import { AudioAccessLogRepository } from './repositories/audio-access-log.repository';
 import { PlaybackProgressRepository } from './repositories/playback-progress.repository';
+import { PlayDailyTotalRepository } from './repositories/play-daily-total.repository';
 import { PlayRecordRepository } from './repositories/play-record.repository';
 import { SourceLinkClickRepository } from './repositories/source-link-click.repository';
 import { UserSignalRepository } from './repositories/user-signal.repository';
@@ -60,6 +62,7 @@ import { PlaybackService } from './services/playback.service';
     TypeOrmModule.forFeature([
       PlaybackProgress,
       PlayRecord,
+      PlayDailyTotal,
       UserSignal,
       AudioAccessLog,
       SourceLinkClick,
@@ -85,6 +88,7 @@ import { PlaybackService } from './services/playback.service';
     ContentStatAggregationScheduler,
     PlaybackProgressRepository,
     PlayRecordRepository,
+    PlayDailyTotalRepository,
     UserSignalRepository,
     AudioAccessLogRepository,
     SourceLinkClickRepository,

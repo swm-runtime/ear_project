@@ -129,8 +129,11 @@ const kstDateExpr = (column: string): string =>
  *
  * - 재생·청취 시간의 원천은 `play_records`(행 단위·즉시 반영)다. `content_stats`는 경계 직후(05:30) 배치가 모으는 집계라 하루
  *   뒤처지고, 대신 탈퇴자의 청취가 남는다 — 두 숫자는 다를 수 있고 이 화면은 전자를 쓴다.
+ * - **단, 전 기간 누적 재생 수·청취 시간·완청 수는 `play_daily_totals`를 읽는다**(2026-10-17). 완청 신호는 180일 보존 배치로도 지워진다. 재생 기록과 같은 트랜잭션에서 더해지고
+ *   탈퇴해도 지우지 않아 **줄지 않는다** — `play_records` 합계는 탈퇴하면 줄었다(운영 100시간 → 96시간).
  * - 탈퇴자는 `users`에서 지워진다(domain.md 12.3). 그래서 "가입한 적 있는 사람"은 `users` + `withdrawal_logs`이고,
- *   탈퇴자의 재생·라이브러리 행도 함께 지워져 청취 합계·리텐션은 **현재 계정 기준**이다(생존 편향 — 화면 각주가 적는다).
+ *   탈퇴자의 재생·라이브러리 행도 함께 지워져 창 안 청취·순위·일별 추이·리텐션은 **현재 계정 기준**이다(생존 편향 — 화면 각주가
+ *   적는다). 전 기간 재생 수·청취 시간·완청 수만 예외다(아래).
  * - 질의는 호출부가 **순차**로 부른다. 탭을 연 사람 한 명이 운영 DB 연결을 열 개씩 동시에 잡지 않게 — 테이블이 작아
  *   전부 합쳐도 수십 ms 다.
  * - 개인 식별 정보는 어떤 행에도 넣지 않는다 — 사용자 순위는 `user_id`·티어·가입일뿐이다.
@@ -256,7 +259,10 @@ export class AdminInsightsRepository {
     }));
   }
 
-  /** `since`가 null 이면 전 기간 */
+  /**
+   * `since`가 null 이면 전 기간. 전 기간의 재생 수·청취 시간·완청 수는 `play_daily_totals`(줄지 않는 누적)이고, 청취자 수·담기는
+   * 사람 단위 원천이라 현재 계정 기준이다(탈퇴하면 빠진다)
+   */
   async listeningTotals(since: Date | null): Promise<InsightsListeningTotals> {
     const [play] = await this.dataSource.query<ListeningRow[]>(
       `select coalesce(sum(listened_sec), 0)::float8 as listen_sec,
@@ -266,6 +272,20 @@ export class AdminInsightsRepository {
         where $1::timestamptz is null or played_at >= $1`,
       [since],
     );
+    let allTimeCompletes: number | null = null;
+    if (since === null) {
+      const [total] = await this.dataSource.query<
+        (Pick<ListeningRow, 'listen_sec' | 'plays'> & { completes: number })[]
+      >(
+        `select coalesce(sum(listen_sec), 0)::float8 as listen_sec,
+                coalesce(sum(play_count), 0)::int as plays,
+                coalesce(sum(complete_count), 0)::int as completes
+           from play_daily_totals`,
+      );
+      play.listen_sec = total.listen_sec;
+      play.plays = total.plays;
+      allTimeCompletes = total.completes;
+    }
     const [complete] = await this.dataSource.query<CountRow[]>(
       `select count(*)::int as count from user_signals
         where action = 'complete' and ($1::timestamptz is null or created_at >= $1)`,
@@ -280,7 +300,7 @@ export class AdminInsightsRepository {
     return {
       listenSec: play.listen_sec,
       plays: play.plays,
-      completes: complete.count,
+      completes: allTimeCompletes ?? complete.count,
       listeners: play.listeners,
       saves: save.count,
     };

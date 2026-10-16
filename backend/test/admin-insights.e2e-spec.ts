@@ -18,6 +18,7 @@ import { UserSignalAction } from '@/modules/playback/playback.enum';
 import { InviteCodeRedemption } from '@/modules/subscription/entities/invite-code-redemption.entity';
 import { InviteCode } from '@/modules/subscription/entities/invite-code.entity';
 import { User } from '@/modules/user/entities/user.entity';
+import { PlayDailyTotalRepository } from '@/modules/playback/repositories/play-daily-total.repository';
 import { WithdrawalLog } from '@/modules/user/entities/withdrawal-log.entity';
 import { SocialProvider, UserRole, UserTier } from '@/modules/user/user.enum';
 
@@ -80,6 +81,24 @@ describe('서비스 지표 요약 E2E', () => {
   const userIds: string[] = [];
   const contentIds: string[] = [];
   const withdrawalIds: string[] = [];
+  // 이 테스트가 누적에 더한 값 — afterAll 이 되돌린다(누적은 앱에서는 빼지 않지만 테스트가 심은 값은 치운다)
+  const seededTotals: [string, number][] = [];
+
+  async function addPlayDailyTotal(
+    playDate: string,
+    playCount: number,
+    listenSec: number,
+    completeCount: number,
+  ): Promise<void> {
+    await dataSource.query(
+      `INSERT INTO play_daily_totals (play_date, play_count, listen_sec, complete_count) VALUES ($1, $2, $3, $4)
+       ON CONFLICT (play_date) DO UPDATE
+          SET play_count = play_daily_totals.play_count + EXCLUDED.play_count,
+              listen_sec = play_daily_totals.listen_sec + EXCLUDED.listen_sec,
+              complete_count = play_daily_totals.complete_count + EXCLUDED.complete_count`,
+      [playDate, playCount, listenSec, completeCount],
+    );
+  }
   const inviteCodeIds: string[] = [];
   const TOKEN = `e2einsight${Date.now()}`;
   const path = (p: string) => `/api/v1${p}`;
@@ -121,6 +140,9 @@ describe('서비스 지표 요약 E2E', () => {
     for (const id of withdrawalIds) {
       await dataSource.query(`DELETE FROM withdrawal_logs WHERE id = $1`, [id]);
     }
+    for (const [playDate, listenSec] of seededTotals) {
+      await addPlayDailyTotal(playDate, -1, -listenSec, 0);
+    }
     await app.close();
   }, 60_000);
 
@@ -159,6 +181,14 @@ describe('서비스 지표 요약 E2E', () => {
         listenedSec: 4_000_000,
       }),
     ]);
+    // 전 기간 누적은 `play_daily_totals`를 읽는다 — 재생 경로(PlaybackService)를 거치지 않고 심었으니 누적도 같이 심는다
+    for (const [playDate, listenSec] of [
+      [toServiceDate(yesterday), 5_000_000],
+      [toServiceDate(now), 4_000_000],
+    ] as const) {
+      await addPlayDailyTotal(playDate, 1, listenSec, 0);
+      seededTotals.push([playDate, listenSec]);
+    }
     const signals = dataSource.getRepository(UserSignal);
     await signals.save(
       signals.create({
@@ -238,9 +268,9 @@ describe('서비스 지표 요약 E2E', () => {
       9_000_000,
     );
     expect(body.listening.window.listen_sec).toBeGreaterThanOrEqual(9_000_000);
-    expect(body.listening.window.plays).toBeLessThanOrEqual(
-      body.listening.all_time.plays,
-    );
+    // 창(window)은 `play_records`를, 전 기간은 줄지 않는 누적(`play_daily_totals`)을 읽어 원천이 다르다 — 병렬 스위트가 재생
+    // 기록만 직접 심으면 창이 전 기간을 넘을 수 있어 둘을 비교하지 않는다. 이 테스트가 심은 2회만 확인한다
+    expect(body.listening.all_time.plays).toBeGreaterThanOrEqual(2);
 
     // then — 이 테스트의 청취자(KR)가 KR 시장 칸에 들어 있다
     expect(
@@ -302,6 +332,35 @@ describe('서비스 지표 요약 E2E', () => {
       .get(path('/admin/insights/summary'))
       .expect(HttpStatus.UNAUTHORIZED);
   }, 60_000);
+
+  it('누적 표는 같은 날짜에 더하기만 한다 — 운영 SQL 그대로(재생 수·청취 시간·완청 수 각각)', async () => {
+    // 다른 스위트가 건드리지 않는 날짜로 정확히 본다(오늘·어제 행은 병렬 스위트가 함께 더한다)
+    const playDate = '2001-02-03';
+    const repository = app.get(PlayDailyTotalRepository);
+    try {
+      await repository.add(playDate, { playCount: 1, listenSec: 0 });
+      await repository.add(playDate, { playCount: 0, listenSec: 90 });
+      await repository.add(playDate, { playCount: 1, listenSec: 30 });
+      await repository.add(playDate, { completeCount: 1 });
+
+      const [row] = await dataSource.query<
+        { play_count: number; listen_sec: string; complete_count: number }[]
+      >(
+        `SELECT play_count, listen_sec, complete_count FROM play_daily_totals WHERE play_date = $1`,
+        [playDate],
+      );
+      expect(row).toEqual({
+        play_count: 2,
+        listen_sec: '120',
+        complete_count: 1,
+      });
+    } finally {
+      await dataSource.query(
+        `DELETE FROM play_daily_totals WHERE play_date = $1`,
+        [playDate],
+      );
+    }
+  });
 
   it('시장별 집계는 계정이 없는 시장까지 시장마다 한 칸이고, 각 값은 그 시장 계정 수를 넘지 않는다(global-api 4.10)', async () => {
     // given
