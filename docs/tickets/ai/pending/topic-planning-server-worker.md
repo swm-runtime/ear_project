@@ -46,3 +46,14 @@ PM(이주호) 요청 2026-10-16 14:26 Slack: "주제기획을 파이프라인 �
 ## 처리 기록
 
 - 2026-10-16 발행(마크다운 + Jira KAN-222). PM Slack 요청 → 박수헌 수락.
+- 2026-10-16 코드 반영(브랜치 `feat(ai)/kr-topic-planning-server`).
+  - **실행기**: `EXECUTOR=openai`이면 언어와 무관하게 `OpenAiSearchExecutor`를 쓴다. 단발 호출은 부모 경로 그대로다.
+  - **집기 조건**: `executorHandlesWebSearch(kind)`로 판정한다. claude-cli·openai는 집고, api·none은 집지 않는다. 종전 조건은 `executor !== "openai" || en`이었다.
+  - **B-① 보강도 같은 경로**: 둘 다 WebSearch만 쓰는 검색 단계라 나누지 않았다.
+  - **기록**: `runs.tokens`에 `web_search`(호출·검색 수·검색어·본 URL·보낸 차단 도메인 수·버린 URL)를 남긴다. `runs.result`의 "검색 N회"는 실행기가 실제로 친 검색어 수다.
+  - **전환 운영 방식(박수헌 결정)**: 운영은 서버 워커만 쓴다. 노트북 워커는 켜지 않고, 실험·측정할 때만 켠다.
+  - **`server_ai_claim` 스위치**: 비용 비상 정지용으로 남겼다. 끄면 노트북 없이는 AI 작업이 전부 멈춘다는 경고를 콘솔 설정에 붙였다.
+  - **한국어 검색 프롬프트**: 손대지 않았다. 실행기 중립 문구이고, 스키마가 글로벌판과 같은 모양(`queries`·`sources[].url`)이다. 실측 1건에서 문제가 보이면 그때 고치고 `prompt_version`을 올린다.
+  - **문서**: spec/02 6장, spec/10 2장·4장, PIPELINE.md 실행기 블록·미결 3(해소), deploy README·env.prod.example·compose 주석을 고쳤다.
+  - **테스트**: 워커 186, 웹 62. 실행기 선택 테스트를 새 동작으로 바꿨다. 한국판 바이트 대조 결과는 동일하다.
+  - **남은 것**: 배포 뒤 한국판 서버에서 주제 기획 1건·보강 1건을 완주한다(완료 조건 1·2·3·4). 확인되면 archive와 Jira 완료로 넘긴다.

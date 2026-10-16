@@ -5,7 +5,7 @@
 #
 # - AWS 자격증명은 인스턴스 역할 `ear-ai-ec2` (IMDSv2 hop limit 2 — 컨테이너가 역할을 읽는 조건)
 # - worker 는 기본 IO 전용(EXECUTOR=none) — 구독 토큰을 서버에 두지 않는다 (spec/10 2장). API 키 실행기로 AI 작업까지 집게 하려면
-#   env.prod 에 WORKER_EXECUTOR=openai WORKER_CAPABILITIES=ai,io (2026-09-19 API 전환 실험 — 그동안 노트북 워커는 끈다)
+#   env.prod 에 WORKER_EXECUTOR=openai WORKER_CAPABILITIES=ai,io (2026-09-19 API 전환 · 2026-10-16 KAN-222 부터 보강·주제 기획까지 전부 서버 — 노트북 워커는 실험용)
 # - ai-server(:8000)는 호스트 포트로만 열리고 SG 가 소스를 제품 SG 로 한정한다 — 공개 도메인 없음
 name: ear-ai
 

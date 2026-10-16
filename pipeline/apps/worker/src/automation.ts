@@ -5,7 +5,7 @@
  *
  * 스위치는 DB `settings.automation` — 콘솔 설정 화면에서 끄고 켠다 (워커 재시작 없음).
  *   { auto_approve: boolean, auto_publish_prep: boolean, rule: "v1", server_ai_claim: boolean }
- *   server_ai_claim (2026-09-26 박수헌): false 면 API 실행기(openai) 워커는 AI 작업을 집지 않는다 — 군집화·초안을 노트북 Claude 가 맡는 동안 서버는 스윕·TTS 만. 행에 없으면 true
+ *   server_ai_claim (2026-09-26 박수헌): false 면 API 실행기(openai) 워커는 AI 작업을 집지 않는다 — 서버는 발행 준비(io)만. 행에 없으면 true. 2026-10-16 KAN-222 부터 운영은 서버 워커만이라 끄면 노트북 워커 없이는 AI 작업이 멈춘다
  *
  * 자동 승인 규칙 v1 (`approved_by = "auto:v1"`):
  *   - 군집화 v2 후보 (`cluster_version = 'v2'`)
