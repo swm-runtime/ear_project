@@ -197,4 +197,25 @@ describe('auth.api — 가입 동의 목록 재조회(PM 2026-10-16 · KAN-216)'
 
     expect(market).toBe('kr');
   });
+
+  it('연령 행의 min_age 는 서버 판정 기준 연령으로 옮기고, 없으면 키를 싣지 않는다(KAN-206)', async () => {
+    mockPost.mockResolvedValue({
+      data: {
+        required_consents: [
+          { consent_type: 'age_confirmation', version: null, is_required: true, min_age: 16 },
+          { consent_type: 'terms', version: 'terms_global_v1', is_required: true },
+        ],
+      },
+    });
+
+    const { requiredConsents } = await fetchSignUpConsents({
+      signupToken: 't',
+      locale: { ...DEVICE, preferredLanguage: 'en' },
+    });
+
+    expect(requiredConsents).toEqual([
+      { consentType: 'age_confirmation', version: null, isRequired: true, minAge: 16 },
+      { consentType: 'terms', version: 'terms_global_v1', isRequired: true },
+    ]);
+  });
 });

@@ -114,7 +114,7 @@
 | --- | --- | --- | --- |
 | `locale.preferred_language` | `ko` · `en` | 선택 | 사용자가 가입 화면에서 고른 콘텐츠 언어 — **시장 판정의 입력**(`ko` → `kr`, `en` → `global`). **4.2(계정 생성)에서만 쓰이고** 4.1의 기존 계정 로그인에서는 무시한다. 서버 스위치 `GLOBAL_SIGNUP_ENABLED`가 닫혀 있으면(기본) `en`이어도 `kr`로 판정한다(`global-api.md` 2.1, 2026-10-15) |
 | `locale.language_code` | BCP 47 (≤16자) | 선택 | 기기 언어(예 `en-US`). `preferred_language`가 없을 때만 시장 판정 폴백(`ko*` → `kr`, 그 밖 `global`, 그것도 없으면 `kr`). 가입·로그인마다 갱신 |
-| `locale.region_code` | ISO 3166-1 alpha-2 (2자) | 선택 | 기기 지역. 통계용 — 판정에 쓰지 않는다. 가입·로그인마다 갱신 |
+| `locale.region_code` | ISO 3166-1 alpha-2 (2자) | 선택 | 기기 지역. 시장 판정에는 쓰지 않는다 — **GLOBAL 연령 확인의 기준 연령(16·18) 판정에만 쓴다**(`global-api.md` 2.1, 2026-10-16 🟡). 가입·로그인마다 갱신 |
 | `locale.timezone` | IANA (≤64자) | 선택 | 기기 시간대. 드립 발송 그룹에만 쓴다(서비스 날짜 경계는 바꾸지 않는다). 가입·로그인마다 갱신 |
 
 - **시장(`market`)은 계정 생성(4.2) 때 1회만 정하고 이후 바뀌지 않는다.** 기존 계정 로그인에 다른 `locale`이 와도 `language_code`·`region_code`·`timezone`만 갱신한다.
@@ -275,7 +275,7 @@
 
 - **동의 4종(필수 3 + 마케팅)을 각각 별개 행으로 기록한다.** 개정 시점이 서로 다르므로 한 행에 묶지 않는다(`domain.md` 3.2 — append-only).
 - 필수 3종(`terms`·`privacy`·`age_confirmation`)이 `is_agreed: true`가 아니면 계정을 만들지 않는다(`CONSENT_REQUIRED`).
-- `age_confirmation`은 **연령 자기 선언**이다 — KR **만 18세 이상**(약관 제5조, 2026-09-06 반영), GLOBAL **16세 이상**(`global-api.md` 2.1, 2026-10-14 확정). 열람할 문서가 없어 `version`이 항상 `null`이며, 이력이 없는 기존 사용자는 로그인 응답 `pending_consents`로 한 번 확인을 요구받는다.
+- `age_confirmation`은 **연령 자기 선언**이다 — KR **만 18세 이상**(약관 제5조, 2026-09-06 반영), GLOBAL은 **기기 지역별 16 또는 18**(`global-api.md` 2.1, 2026-10-16 나라별로 개정 — 항목의 `min_age` 🟡 `changes/pending/auth-age-by-region.md`). 열람할 문서가 없어 `version`이 항상 `null`이며, 이력이 없는 기존 사용자는 로그인 응답 `pending_consents`로 한 번 확인을 요구받는다.
 
 **Response 201** — `social-login`의 `authenticated` 응답과 같은 형태. `onboarding_completed: false`, `onboarding_step: "topic"`.
 

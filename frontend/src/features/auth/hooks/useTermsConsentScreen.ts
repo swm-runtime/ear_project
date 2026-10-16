@@ -7,7 +7,7 @@ import { ERROR_CODES } from '@/shared/api/error-codes';
 import { getDeviceId } from '@/shared/lib/device-id';
 import { useToastStore } from '@/shared/ui/toast.store';
 
-import { CONTENT_LANGUAGE_MARKET, hasPolicyDocument } from '../auth.constants';
+import { CONTENT_LANGUAGE_MARKET, hasPolicyDocument, resolveMinAge } from '../auth.constants';
 import { AUTH_COPY, ageConfirmationLabel } from '../auth.copy';
 import type { AuthStackParamList, ConsentType, RequiredConsent } from '../auth.types';
 import { useSignUpMutation } from './useSignUpMutation';
@@ -33,9 +33,9 @@ export const useTermsConsentScreen = ({
    * 연령 확인 — **서버가 받는 정식 동의다**(consents.age_confirmation, PR #142).
    * 개인정보보호법 제22조의2 는 만 14세 미만 아동의 개인정보를 처리하려면 법정대리인
    * 동의를 받으라고 한다. 그 절차를 두지 않으므로 가입 시점에 스스로 밝히게 해서 수집
-   * 자체를 막는다. **기준 연령은 시장별이다**(global-api.md 2.1 — KR 18 · GLOBAL 16, KAN-206).
-   * KR 18은 Play 대상 연령대 선언과 어긋나지 않기 위해서고, GLOBAL 16은 어느 공개 국가에서도
-   * 법정대리인 동의 없이 본인이 동의할 수 있는 연령이다.
+   * 자체를 막는다. **기준 연령은 나라별이고 서버가 판정한다**(KAN-206 3안, PM 2026-10-16 — global-api.md 2.1).
+   * KR 시장은 18, GLOBAL 은 기기 지역으로 16(본인 동의 연령이 16 이하인 나라) 또는 18. 서버가 연령 행에 `min_age` 를
+   * 실어 주면 그 숫자를 그리고, 없으면(구 서버) 시장의 보수값 18(`FALLBACK_MIN_AGE`)로 그린다.
    *
    * 계정이 아직 없어 `user.market` 이 없다 — 동의 목록 재조회에서 **서버가 판정한 시장**이 있으면 그것으로,
    * 없으면(구 서버·폴백) A21에서 고른 콘텐츠 언어가 가리키는 값으로 미리 그린다(`ko` → `kr`, `en` → `global`).
@@ -56,7 +56,7 @@ export const useTermsConsentScreen = ({
   const items = [
     {
       ...ageConsent,
-      label: ageConfirmationLabel(market),
+      label: ageConfirmationLabel(resolveMinAge(ageConsent, market)),
       description: null,
       isChecked: checkedMap.age_confirmation ?? false,
     },

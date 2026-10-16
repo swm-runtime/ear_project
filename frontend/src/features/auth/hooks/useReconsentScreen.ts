@@ -4,7 +4,7 @@ import { logger } from '@/shared/lib/logger';
 import { useToastStore } from '@/shared/ui/toast.store';
 
 import { submitConsents } from '../api/auth.api';
-import { hasPolicyDocument } from '../auth.constants';
+import { hasPolicyDocument, resolveMinAge } from '../auth.constants';
 import { AUTH_COPY, ageConfirmationLabel } from '../auth.copy';
 import type { ConsentType } from '../auth.types';
 import { openPolicyDocument } from '../services/policy-document.service';
@@ -22,7 +22,10 @@ import { selectMarket, useSessionStore } from '../store/session.store';
 export const useReconsentScreen = () => {
   const pendingConsents = useSessionStore((s) => s.pendingConsents);
   const clearPendingConsents = useSessionStore((s) => s.clearPendingConsents);
-  /** 연령 확인 문구의 기준 연령·[보기] 문서의 시장 — 서버가 정한 세션 시장(KR 18 · GLOBAL 16, global-api.md 2.1) */
+  /**
+   * [보기] 문서의 시장·연령 보수값의 기준 — 서버가 정한 세션 시장. 연령 숫자는 서버가 항목에 실은 `min_age`(나라별 16·18,
+   * KAN-206)이고, 없으면 시장 보수값 18이다(`resolveMinAge`)
+   */
   const market = useSessionStore(selectMarket);
   const showToast = useToastStore((s) => s.show);
 
@@ -36,7 +39,7 @@ export const useReconsentScreen = () => {
     ...consent,
     label:
       consent.consentType === 'age_confirmation'
-        ? ageConfirmationLabel(market)
+        ? ageConfirmationLabel(resolveMinAge(consent, market))
         : AUTH_COPY.consent.label[consent.consentType],
     description:
       consent.consentType === 'marketing' ? AUTH_COPY.consent.marketingDescription : null,

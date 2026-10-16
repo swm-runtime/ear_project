@@ -201,7 +201,7 @@ export const privacyBlocksEn: Block[] = [
   { type: "h2", text: "7. Children" },
   {
     type: "p",
-    text: "Ear is for people **aged 16 or older**. We ask you to confirm your age when you sign up and we do not knowingly collect information from anyone under 16. If we learn that we have, we delete it and close the account. If you believe a child has given us information, contact us.",
+    text: "Ear is for people **aged 18 or older**, or **16 or older** in Singapore, Hong Kong and the Republic of Korea. We ask you to confirm your age when you sign up and we do not knowingly collect information from anyone below the age that applies where they live. If we learn that we have, we delete it and close the account. If you believe a child has given us information, contact us.",
   },
 
   { type: "h2", text: "8. Your rights" },
@@ -297,7 +297,7 @@ export const termsBlocksEn: Block[] = [
   {
     type: "ol",
     items: [
-      "You must be **at least 16 years old**. We ask you to confirm this at sign-up and may close accounts we learn belong to younger users.",
+      "You must be **at least 18 years old**, or **at least 16** if you live in Singapore, Hong Kong or the Republic of Korea. We ask you to confirm this at sign-up and may close accounts we learn belong to younger users.",
       "You sign in with **Google or Apple**. We do not offer a separate username and password.",
       "Your account is identified by your sign-in provider and the identifier it issues — not by email. The same email used with two providers creates two separate accounts.",
       "At sign-up you choose your content language. **It decides which catalog you see (English or Korean) and cannot be changed later.**",

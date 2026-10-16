@@ -79,18 +79,26 @@ afterEach(() => {
 
 const ageRow = () => screen.items.find((item) => item.consentType === 'age_confirmation');
 
-describe('A4 연령 확인 — A21 선택이 가리키는 시장의 기준 연령(KAN-206)', () => {
-  it('English 를 고르면(GLOBAL) 16세 문구를 그린다', () => {
+describe('A4 연령 확인 — 서버가 판정한 나라별 기준 연령(KAN-206)', () => {
+  it('서버가 연령 행에 16을 실으면 16세 문구를 그린다(본인 동의 연령이 16 이하인 지역)', () => {
+    const consents = GLOBAL_CONSENTS.map((c) =>
+      c.consentType === 'age_confirmation' ? { ...c, minAge: 16 } : c,
+    );
+    render({ signupToken: 't', requiredConsents: consents, preferredLanguage: 'en' });
+
+    expect(ageRow()?.label).toBe(ageConfirmationLabel(16));
+  });
+
+  it('서버 값이 없으면 English(GLOBAL)라도 보수값 18세다 — 16은 서버가 지역으로만 준다', () => {
     render({ signupToken: 't', requiredConsents: GLOBAL_CONSENTS, preferredLanguage: 'en' });
 
-    expect(ageRow()?.label).toBe(ageConfirmationLabel('global'));
-    expect(ageRow()?.label).not.toBe(ageConfirmationLabel('kr'));
+    expect(ageRow()?.label).toBe(ageConfirmationLabel(18));
   });
 
   it('한국어를 고르면(KR) 종전 18세 문구 그대로다', () => {
     render({ signupToken: 't', requiredConsents: GLOBAL_CONSENTS, preferredLanguage: 'ko' });
 
-    expect(ageRow()?.label).toBe(ageConfirmationLabel('kr'));
+    expect(ageRow()?.label).toBe(ageConfirmationLabel(18));
   });
 
   it('연령 확인을 체크하지 않으면 가입 버튼이 비활성이다 — 미충족이면 계정을 만들지 않는다', () => {
@@ -175,7 +183,7 @@ describe('A4 국외 이전 동의 — 서버 목록대로 그린다(KAN-216)', (
     act(() => screen.handleViewPress('terms'));
 
     expect(mockOpenPolicyDocument).toHaveBeenCalledWith('terms', 'kr');
-    expect(ageRow()?.label).toBe(ageConfirmationLabel('kr'));
+    expect(ageRow()?.label).toBe(ageConfirmationLabel(18));
   });
 
   it('한국어를 고르면 KR 문서를 연다', () => {
