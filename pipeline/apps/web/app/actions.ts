@@ -2,7 +2,7 @@
 import { revalidatePath } from "next/cache";
 import { supabaseServer } from "@/lib/supabase-server";
 import { loadArtifact, replaceTurn, writeArtifact } from "@/lib/artifacts";
-import { pipelineLocale, speakerNames } from "@/lib/locale";
+import { allSpeakerNames, pipelineLocale } from "@/lib/locale";
 import { deletePrefix, getBytes, getText, putBytes, putText } from "@/lib/storage";
 import { readScriptFileBody } from "@/lib/script-file";
 import { majorOrder, majorTopicsFor } from "@/lib/taxonomy";
@@ -444,7 +444,7 @@ export async function editScriptTurn(episodeId: string, turn: string, after: str
   if (!ep?.script_key) throw new Error("대본 파일 키가 없습니다");
   const md = await loadArtifact(ep.script_key);
   if (md == null) throw new Error(`대본을 읽을 수 없습니다: ${ep.script_key} (PIPELINE_BUCKET·AWS 자격증명 확인)`);
-  const r = replaceTurn(md, turn, after.trim(), speakerNames());
+  const r = replaceTurn(md, turn, after.trim(), allSpeakerNames());
   if (!r) throw new Error(`대본에서 ${turn} 을 찾을 수 없습니다`);
   if (r.before.trim() === after.trim()) return { changed: false };
   await writeArtifact(ep.script_key, r.md);

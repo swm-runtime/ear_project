@@ -20,7 +20,7 @@ Turn an approved candidate into a two-person English dialogue script that QA can
 | Does | Every factual statement | Questions, guesses, reactions |
 | Fixed | Explains in every episode | Hosts in every episode |
 
-Speaker names come from `PIPELINE_SPEAKERS` ("explainer,host"). Persona details are pending (PIPELINE.md 10, #4).
+Speaker names come from the episode's team, chosen by the representative topic (PIPELINE.md 6.7 cast table): Yuna (explainer) and Owen (host), or Minsoo (explainer) and Grace (host). The prompt gives the two names; E turns use the explainer's name and Y turns the host's.
 
 ## 4. Structure and length
 
