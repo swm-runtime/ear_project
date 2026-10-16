@@ -17,6 +17,7 @@ import {
   DevicePlatform,
   PlaybackRate,
   SocialProvider,
+  UserMarket,
   UserRole,
   UserTier,
 } from '@/modules/user/user.enum';
@@ -612,6 +613,7 @@ describe('SettingsOrchestrator', () => {
       // when
       const result = await orchestrator.recordMarketingConsent(
         USER_ID,
+        UserMarket.KR,
         false,
         NOW,
       );
@@ -619,6 +621,7 @@ describe('SettingsOrchestrator', () => {
       // then
       expect(consentService.recordConsents).toHaveBeenCalledWith(
         USER_ID,
+        UserMarket.KR,
         [
           {
             consentType: ConsentType.MARKETING,
@@ -643,7 +646,12 @@ describe('SettingsOrchestrator', () => {
       ]);
 
       // when
-      await orchestrator.recordMarketingConsent(USER_ID, true, NOW);
+      await orchestrator.recordMarketingConsent(
+        USER_ID,
+        UserMarket.KR,
+        true,
+        NOW,
+      );
 
       // then
       expect(consentService.recordConsents).toHaveBeenCalledTimes(1);

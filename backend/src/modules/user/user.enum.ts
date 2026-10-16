@@ -117,6 +117,12 @@ export enum ConsentType {
    * (tickets/backend/pending/age-confirmation-consent.md).
    */
   AGE_CONFIRMATION = 'age_confirmation',
+  /**
+   * 국외 이전 동의 — **GLOBAL 시장만 가입 필수**(KAN-215). 해외 사용자 정보는 서울 서버와 해외 외부 서비스(미국)로
+   * 넘어가고, 싱가포르·인도네시아·태국은 이용자 동의가 가장 쉬운 근거다. 이전 내용은 영어 처리방침이 고지하고
+   * 별도 문서가 없어 버전이 없다. KR은 한국어 처리방침의 국외 이전 고지로 갈음해 받지 않는다.
+   */
+  CROSS_BORDER_TRANSFER = 'cross_border_transfer',
 }
 
 /**

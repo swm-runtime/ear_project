@@ -4,6 +4,7 @@ import {
   DevicePlatform,
   PreferredLanguage,
   SocialProvider,
+  UserMarket,
   WithdrawalReason,
   YearsOfExperienceRange,
 } from './user.enum';
@@ -73,6 +74,18 @@ export interface PendingConsent {
   consentType: ConsentType;
   version: string | null;
   isRequired: boolean;
+}
+
+/** 가입 시장 판정 결과 — `source`는 로그 근거다(`resolveMarket`) */
+export interface SignUpMarket {
+  market: UserMarket;
+  source: 'preferred' | 'device' | 'default' | 'global_closed';
+}
+
+/** 그 `locale`로 가입하면 정해질 시장과 그 시장의 가입 동의 목록 (KAN-215) */
+export interface SignUpConsents {
+  market: UserMarket;
+  requiredConsents: PendingConsent[];
 }
 
 /** 기기 토큰·OS 알림 권한 반영 (onboarding-api.md 4.9) */

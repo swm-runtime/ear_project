@@ -15,6 +15,7 @@ import { CurrentUser } from '@/common/decorators/current-user.decorator';
 import { BusinessException } from '@/common/exceptions/business.exception';
 import { ErrorCode } from '@/common/exceptions/error-code.enum';
 import { JwtAuthGuard } from '@/common/guards/jwt-auth.guard';
+import { toUserMarket } from '@/modules/user/policies/market.policy';
 
 import { GetSettingsQueryRequestDto } from './dto/get-settings-query-request.dto';
 import { GetSettingsResponseDto } from './dto/get-settings-response.dto';
@@ -114,6 +115,7 @@ export class SettingsController {
     return UpdateMarketingConsentResponseDto.from(
       await this.settingsOrchestrator.recordMarketingConsent(
         currentUser.id,
+        toUserMarket(currentUser.market),
         request.is_agreed,
         new Date(),
       ),

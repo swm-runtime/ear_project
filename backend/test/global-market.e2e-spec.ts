@@ -229,11 +229,8 @@ describe('글로벌 시장 모델 E2E', () => {
       .send({
         signup_token: first.signup_token,
         device_id: deviceId,
-        consents: [
-          { consent_type: 'terms', version: '0.1', is_agreed: true },
-          { consent_type: 'privacy', version: '0.1', is_agreed: true },
-          { consent_type: 'age_confirmation', version: null, is_agreed: true },
-        ],
+        // 앱처럼 그 시장의 필수 동의를 전부 동의한다 — GLOBAL은 국외 이전 동의까지다(KAN-215)
+        consents: await requiredConsentsFor(first.signup_token!, locale),
         ...(locale === undefined ? {} : { locale }),
       })
       .expect(HttpStatus.CREATED);
@@ -241,6 +238,37 @@ describe('글로벌 시장 모델 E2E', () => {
     userIds.push(signUp.user!.id);
 
     return { providerToken, signUp };
+  }
+
+  /** 가입 동의 목록 재조회(`POST /auth/sign-up/consents`)가 준 필수 항목을 전부 동의한 입력 */
+  async function requiredConsentsFor(
+    signupToken: string,
+    locale: LocaleInput | undefined,
+  ): Promise<
+    { consent_type: string; version: string | null; is_agreed: boolean }[]
+  > {
+    const response = await request(app.getHttpServer())
+      .post(path('/auth/sign-up/consents'))
+      .send({
+        signup_token: signupToken,
+        ...(locale === undefined ? {} : { locale }),
+      })
+      .expect(HttpStatus.OK);
+    const body = response.body as {
+      required_consents: {
+        consent_type: string;
+        version: string | null;
+        is_required: boolean;
+      }[];
+    };
+
+    return body.required_consents
+      .filter((consent) => consent.is_required)
+      .map((consent) => ({
+        consent_type: consent.consent_type,
+        version: consent.version,
+        is_agreed: true,
+      }));
   }
 
   async function socialLogin(

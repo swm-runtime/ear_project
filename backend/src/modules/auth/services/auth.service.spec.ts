@@ -5,7 +5,12 @@ import { sha256Hex } from '@/common/utils/hash.util';
 import { ConsentService } from '@/modules/user/services/consent.service';
 import { DeviceTokenService } from '@/modules/user/services/device-token.service';
 import { User } from '@/modules/user/entities/user.entity';
-import { SocialProvider } from '@/modules/user/user.enum';
+import {
+  ConsentType,
+  PreferredLanguage,
+  SocialProvider,
+  UserMarket,
+} from '@/modules/user/user.enum';
 import { UserService } from '@/modules/user/services/user.service';
 
 import { AuthService } from './auth.service';
@@ -54,6 +59,7 @@ describe('AuthService', () => {
   let deviceTokenService: jest.Mocked<DeviceTokenService>;
   let providerClient: jest.Mocked<SocialProviderClient>;
   let transaction: jest.Mock;
+  let jwtVerify: jest.Mock;
 
   beforeEach(() => {
     providerClient = {
@@ -80,6 +86,10 @@ describe('AuthService', () => {
       syncProfileImageUrl: jest.fn((user: User) => Promise.resolve(user)),
       syncLocale: jest.fn((user: User) => Promise.resolve(user)),
       grantExistingUserTrial: jest.fn((user: User) => Promise.resolve(user)),
+      findSignUpConsents: jest.fn(() => ({
+        market: UserMarket.KR,
+        requiredConsents: [],
+      })),
     } as unknown as jest.Mocked<UserService>;
 
     consentService = {
@@ -101,13 +111,14 @@ describe('AuthService', () => {
 
     // 서명한 페이로드를 그대로 돌려주는 목 — signup token 왕복(발급→검증)을 spec 안에서 닫는다
     let lastSignedPayload: unknown;
+    jwtVerify = jest.fn(() => lastSignedPayload);
     const tokenService = new TokenService(
       {
         sign: jest.fn((payload: unknown) => {
           lastSignedPayload = payload;
           return 'signed-token';
         }),
-        verify: jest.fn(() => lastSignedPayload),
+        verify: jwtVerify,
       } as never,
       { get: jest.fn() } as never,
     );
@@ -130,6 +141,40 @@ describe('AuthService', () => {
   });
 
   describe('socialLogin', () => {
+    it('신규 가입자의 동의 목록은 로그인 요청의 기기 로캘로 정한 시장의 목록이다(KAN-215)', async () => {
+      // given
+      const locale = { languageCode: 'en-US' };
+      const globalConsents = [
+        {
+          consentType: ConsentType.CROSS_BORDER_TRANSFER,
+          version: null,
+          isRequired: true,
+        },
+      ];
+      userService.findSignUpConsents.mockReturnValue({
+        market: UserMarket.GLOBAL,
+        requiredConsents: globalConsents,
+      });
+
+      // when
+      const result = await service.socialLogin(
+        {
+          provider: SocialProvider.KAKAO,
+          providerToken: 'token',
+          deviceId: 'device-1',
+          locale,
+        },
+        NOW,
+      );
+
+      // then
+      expect(userService.findSignUpConsents).toHaveBeenCalledWith(locale);
+      expect(result).toMatchObject({
+        status: 'consent_required',
+        requiredConsents: globalConsents,
+      });
+    });
+
     it('기존 계정이 없으면 계정을 만들지 않고 약관 동의를 요구한다', async () => {
       // given
       userService.findByProvider.mockResolvedValue(null);
@@ -521,6 +566,51 @@ describe('AuthService', () => {
       expect(
         deviceTokenService.invalidateByUserIdAndDeviceId,
       ).toHaveBeenCalledWith(USER_ID, 'device-1', NOW);
+    });
+  });
+
+  describe('findSignUpConsents', () => {
+    it('로그인이 준 signup token이면 고른 콘텐츠 언어로 목록을 다시 정한다 — 계정은 만들지 않는다', async () => {
+      // given
+      userService.findByProvider.mockResolvedValue(null);
+      const login = await service.socialLogin(
+        {
+          provider: SocialProvider.KAKAO,
+          providerToken: 'token',
+          deviceId: 'device-1',
+        },
+        NOW,
+      );
+      const locale = { preferredLanguage: PreferredLanguage.EN };
+      if (login.status !== 'consent_required') {
+        throw new Error('신규 가입자여야 한다');
+      }
+
+      // when
+      service.findSignUpConsents({ signupToken: login.signupToken, locale });
+
+      // then
+      expect(userService.findSignUpConsents).toHaveBeenLastCalledWith(locale);
+      expect(userService.createUser).not.toHaveBeenCalled();
+    });
+
+    it('signup token이 위조·만료면 AUTH_SIGNUP_TOKEN_EXPIRED이고 시장을 판정하지 않는다', () => {
+      // given
+      jwtVerify.mockImplementation(() => {
+        throw new Error('invalid signature');
+      });
+
+      // when
+      const finding = () =>
+        service.findSignUpConsents({ signupToken: 'forged', locale: {} });
+
+      // then
+      expect(finding).toThrow(
+        expect.objectContaining({
+          errorCode: ErrorCode.AUTH_SIGNUP_TOKEN_EXPIRED,
+        }) as Error,
+      );
+      expect(userService.findSignUpConsents).not.toHaveBeenCalled();
     });
   });
 });

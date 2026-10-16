@@ -25,6 +25,7 @@ import { IdempotencyInterceptor } from '@/modules/idempotency/idempotency.interc
 import { ConsentService } from '../services/consent.service';
 import { DeviceTokenService } from '../services/device-token.service';
 import { UserService } from '../services/user.service';
+import { toUserMarket } from '../policies/market.policy';
 import { GetCareerResponseDto } from '../dto/get-career-response.dto';
 import { GetMeResponseDto } from '../dto/get-me-response.dto';
 import { ReplaceCareerRequestDto } from '../dto/replace-career-request.dto';
@@ -80,7 +81,7 @@ export class UserController {
 
     return GetMeResponseDto.from(
       user,
-      await this.consentService.findPendingConsents(user.id),
+      await this.consentService.findPendingConsents(user.id, user.market),
       now,
     );
   }
@@ -129,6 +130,7 @@ export class UserController {
   ): Promise<UpdateConsentsResponseDto> {
     await this.consentService.recordConsents(
       currentUser.id,
+      toUserMarket(currentUser.market),
       request.consents.map((consent) => ({
         consentType: consent.consent_type,
         version: consent.version ?? null,

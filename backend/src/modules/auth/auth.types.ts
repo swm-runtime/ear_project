@@ -48,6 +48,12 @@ export interface SignUpCommand {
   locale?: LocaleInput;
 }
 
+/** 가입 동의 목록 재조회 — `locale`은 sign-up과 같은 객체다(같은 입력이면 같은 시장) */
+export interface SignUpConsentsCommand {
+  signupToken: string;
+  locale?: LocaleInput;
+}
+
 export interface RefreshTokenCommand {
   refreshToken: string;
   deviceId: string;

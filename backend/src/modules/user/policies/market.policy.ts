@@ -1,5 +1,5 @@
 import { MessageLanguage, PreferredLanguage, UserMarket } from '../user.enum';
-import { LocaleInput, NormalizedLocale } from '../user.types';
+import { LocaleInput, NormalizedLocale, SignUpMarket } from '../user.types';
 
 /**
  * 시장 판정(`global-api.md` 2.1) — **계정 생성 시 1회**만 부른다.
@@ -16,10 +16,7 @@ export function resolveMarket(input: {
   preferredLanguage?: PreferredLanguage | null;
   languageCode?: string | null;
   globalSignupEnabled: boolean;
-}): {
-  market: UserMarket;
-  source: 'preferred' | 'device' | 'default' | 'global_closed';
-} {
+}): SignUpMarket {
   const resolved = resolveRequestedMarket(input);
 
   if (resolved.market === UserMarket.GLOBAL && !input.globalSignupEnabled) {
