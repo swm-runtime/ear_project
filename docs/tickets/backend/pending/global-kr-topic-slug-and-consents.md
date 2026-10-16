@@ -14,7 +14,7 @@
 | 관련 | [KAN-189](https://runtime364.atlassian.net/browse/KAN-189)에서 분리(코드 완료로 닫음) · FE [KAN-195](https://runtime364.atlassian.net/browse/KAN-195)(주제 이미지 slug 매핑) · [KAN-193](https://runtime364.atlassian.net/browse/KAN-193)(약관 대체안) |
 | 근거 문서 | `spec/api/global-api.md` 4.1·4.5 · 9장 #5 |
 | 중요도 | Medium |
-| 상태 | 대기 |
+| 상태 | 진행 중 — 2번(GLOBAL 약관 버전) 완료 #1610(2026-10-16 dev 머지·개발계 배포), 1번(KR slug 운영 입력) 대기 |
 
 ## 1. KR 주제 slug 채우기 — 운영 데이터 (FE KAN-195 선행)
 
