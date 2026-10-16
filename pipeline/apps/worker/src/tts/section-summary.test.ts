@@ -45,3 +45,34 @@ test("자산 — 구간 요약 규칙은 summary-v2 로 읽힌다", async () => 
   const text = await fs.readFile(path.join(here, "../../../../../docs/ai", SECTION_SUMMARY_PROMPT_KEY), "utf8");
   assert.equal(versionOf(SECTION_SUMMARY_PROMPT_KEY, text), "summary-v2");
 });
+
+// 2026-10-16 글로벌판 구간 요약(summary-en-v1) — 같은 20자 규격, 영어 진행 서술 검사, 영어 입력 라벨·사유
+test("en: 영어 진행 서술은 다시 받고, 사유와 입력 라벨은 영어다. 한국판은 그대로", () => {
+  const prev = process.env.PIPELINE_LOCALE;
+  process.env.PIPELINE_LOCALE = "en";
+  try {
+    assert.equal(summaryProblem("Daebak means success"), null);
+    assert.match(summaryProblem("We look at oppa")!, /narrates/);
+    assert.match(summaryProblem("This section covers")!, /narrates/);
+    assert.match(summaryProblem("A word for a big hit, not one translation")!, /characters \(at most 20/);
+    assert.equal(summaryProblem(" "), "empty");
+    const p = buildSummaryPrompt("Seven Drama Words", [{ kind: "body", title: "#1 Daebak", text: "E1 …" }], [{ index: 0, problem: "empty", summary: "" }]);
+    assert.match(p, /^\[Episode\] Seven Drama Words\n\n### Section 0 · body · title: #1 Daebak/);
+    assert.match(p, /\[Rewrite these sections\]\n- section 0: "" — empty/);
+    assert.doesNotMatch(p, /[가-힣]/);
+  } finally { if (prev === undefined) delete process.env.PIPELINE_LOCALE; else process.env.PIPELINE_LOCALE = prev; }
+  assert.equal(summaryProblem(" "), "비어 있음");
+  assert.match(buildSummaryPrompt("t", [{ kind: "body", title: "x", text: "y" }]), /^\[에피소드\] t/);
+});
+
+test("글로벌 자산 — 썸네일·장면·구간 요약 영어 자산의 버전 라벨, 본문에 한글 없음, 썸네일 영어 칸 다섯 개", async () => {
+  const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../../../docs/ai/global/skills");
+  const { promptBody } = await import("@ear/pipeline");
+  const read = (f: string) => fs.readFile(path.join(root, f), "utf8");
+  const [tp, sc, sm] = await Promise.all([read("thumbnail/prompt.md"), read("thumbnail/scene.md"), read("tts/section-summary.md")]);
+  assert.equal(versionOf("skills/thumbnail/prompt.md", tp), "thumb-en-v1");
+  assert.equal(versionOf("skills/thumbnail/scene.md", sc), "scene-en-v1");
+  assert.equal(versionOf(SECTION_SUMMARY_PROMPT_KEY, sm), "summary-en-v1");
+  for (const x of [tp, sc, sm]) assert.doesNotMatch(promptBody(x), /[가-힣]/);
+  for (const slot of ["{title}", "{topic}", "{band color}", "{scene}", "{light}"]) assert.ok(promptBody(tp).includes(slot), slot);
+});

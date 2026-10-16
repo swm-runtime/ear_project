@@ -1,4 +1,6 @@
 import { execFile } from "node:child_process";
+import fs from "node:fs";
+import path from "node:path";
 import { promisify } from "node:util";
 
 /**
@@ -46,6 +48,42 @@ export function cornerFilter(rgb: [number, number, number]): string {
 
 export async function composeCorner(inFile: string, outFile: string, band: string): Promise<void> {
   await ffmpeg(["-i", inFile, "-vf", cornerFilter(bandRgb(band)), outFile]);
+}
+
+// ── 글로벌판 책갈피 (2026-10-16 박수헌) ──
+/**
+ * 글로벌판은 코너 삼각형 대신 **주제별 책갈피**를 얹는다 — 나전칠기풍 옻칠 패(주제 색) · 위아래 단청 띠 · 가운데 자개 문양(주제별 고정) · 매듭과 술.
+ * 책갈피는 썸네일마다 그리지 않고 고정 이미지 8장을 쓴다(`assets/thumbnail-bookmarks/<slug>.png`) — 모델이 그리면 편마다 모양·크기가 흔들린다(한국판 삼각형과 같은 이유).
+ * 8장은 갈색(Korean History & Society)을 틀로 이미지 편집해 만들어 모양·비율이 같다(gpt-image-1.5 · 투명 배경, 2026-10-16). 색은 thumbnail.ts DEFAULT_BAND_COLORS_EN 과 같다.
+ * 배치: 오른쪽 가장자리에서 5% 안쪽, 위 가장자리에서 3% 잘린 채 늘어진다 · 길이는 그림 높이의 41% · 왼쪽 아래로 옅은 그림자.
+ */
+export const BOOKMARK = { height: 0.41, right: 0.05, topCut: 0.03, shadowAlpha: 0.45, shadowSigma: 8 / 1024, shadowDx: -5 / 1024, shadowDy: 10 / 1024 } as const;
+export const BOOKMARK_DIR = path.resolve(import.meta.dirname, "../../assets/thumbnail-bookmarks");
+const BOOKMARK_SLUG: Record<string, string> = {
+  "Korean Language": "korean-language", "Korean Culture": "korean-culture", "K-Food": "k-food", "K-Pop": "k-pop",
+  "K-Drama & Film": "k-drama-film", "K-Beauty & Fashion": "k-beauty-fashion", "Travel in Korea": "travel-in-korea", "Korean History & Society": "korean-history-society",
+};
+/** 주제(대표 주제 이름)의 책갈피 파일 — 없는 주제면 null(호출 쪽이 삼각형으로 대신한다) */
+export function bookmarkFile(topic: string | null | undefined): string | null {
+  const slug = topic ? BOOKMARK_SLUG[topic] : undefined;
+  if (!slug) return null;
+  const f = path.join(BOOKMARK_DIR, `${slug}.png`);
+  return fs.existsSync(f) ? f : null;
+}
+/** ffmpeg 필터 — [0] 원본 그림, [1] 책갈피 PNG(투명). 책갈피를 그림 높이 기준으로 줄이고, 그림자(검정·알파 0.45·흐림)를 먼저 깔고 책갈피를 얹는다 */
+export function bookmarkFilter(): string {
+  const b = BOOKMARK;
+  const x = `W-w-W*${b.right}`, y = `-H*${b.topCut}`;
+  return [
+    `[1][0]scale2ref=h=ih*${b.height}:w=oh*mdar[bm][base]`,
+    `[bm]split[bm1][bm2]`,
+    `[bm2]format=rgba,colorchannelmixer=rr=0:rg=0:rb=0:gr=0:gg=0:gb=0:br=0:bg=0:bb=0:aa=${b.shadowAlpha},gblur=sigma=${(b.shadowSigma * 1024).toFixed(1)}[sh]`,
+    `[base][sh]overlay=x=${x}+W*${b.shadowDx.toFixed(5)}:y=${y}+W*${b.shadowDy.toFixed(5)}[b1]`,
+    `[b1][bm1]overlay=x=${x}:y=${y},format=rgb24`,
+  ].join(";");
+}
+export async function composeBookmark(inFile: string, outFile: string, bookmark: string): Promise<void> {
+  await ffmpeg(["-i", inFile, "-i", bookmark, "-filter_complex", bookmarkFilter(), "-frames:v", "1", outFile]);
 }
 
 // ── 대비 측정 — 빗변 바로 바깥 배경과 삼각형 색의 차이(ΔE76 중앙값). 20 미만이면 맞닿은 경계가 흐릿하다(시안 실측) ──

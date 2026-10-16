@@ -28,6 +28,16 @@ export function buildScenePrompt(ep: { title: string; mid: string; major: string
   ].join("\n\n");
 }
 
+/** 글로벌판(PIPELINE_LOCALE=en) 장면 입력 — 같은 구조를 영어 라벨로 엮는다. 규칙 자산(scene-en)이 영어라 라벨도 영어여야 한다 (글로벌 명세 4.5) */
+export function buildScenePromptEn(ep: { title: string; topic: string; oneLiner: string | null; script: string | null }, recent: ThumbnailScene[]): string {
+  const rec = recent.length ? recent.map((x, i) => `${i + 1}. (${x.has_people ? "people" : "no people"}) ${x.scene} · light: ${x.light}`).join("\n") : "none";
+  return [
+    `[Episode]\nTitle: ${ep.title}\nTopic: ${ep.topic}\nOne-line summary: ${ep.oneLiner ?? "none"}`,
+    `[Recent scenes]\n${rec}`,
+    `[Script]\n${ep.script ?? "(no script — decide from the title and summary only)"}`,
+  ].join("\n\n");
+}
+
 /** 최근 썸네일 실행의 장면 — 새 것부터, 이 에피소드는 뺀다. 파일이 없거나 깨진 기록은 건너뛴다(v3 이하 실행에는 장면 파일이 없다) */
 export async function recentScenes(excludeEpisodeId: string, limit = RECENT_SCENES): Promise<ThumbnailScene[]> {
   const r = await pool.query<{ artifacts: string[] | null }>(
