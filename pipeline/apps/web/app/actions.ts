@@ -8,6 +8,7 @@ import { readScriptFileBody } from "@/lib/script-file";
 import { majorOrder, majorTopicsFor } from "@/lib/taxonomy";
 import { ensureEmbedding } from "@/lib/embedding";
 import { gate1Check, type Gate1Domain, type Gate1Row } from "@/lib/gate1";
+import { agentGate } from "@/lib/agent-verdict";
 import { screenGlobalTopic } from "@/lib/topic-screen";
 
 /** 음차 사전·발음 맵 공통 형식 검증 — {"표기": "발음"} 객체, 값은 비어 있지 않은 문자열 (spec/06 6장).
@@ -107,6 +108,15 @@ export async function requestGlobalTopicPlan(input: { topics: string[]; title: s
 /** 작업 요청 (사람 트리거): sweep · tts · thumbnail · package · cluster 재실행. requested_by 는 트리거가 찍는다. */
 export async function enqueueJob(type: "sweep" | "cluster" | "tts" | "thumbnail" | "package" | "domain_check", payload: Record<string, unknown>) {
   const sb = await supabaseServer();
+  // 글로벌판(명세 6.10): 패키지로 이어지는 작업은 에이전트 판정이 발행 가능이고 필수 수정이 전부 반영된 편만 — 화면이 버튼을 막고, 여기서 다시 검사한다. 발행된 편의 재발행 준비는 막지 않는다. 한국판은 타지 않는다
+  const toPackage = type === "package" || (Array.isArray(payload.chain) && payload.chain.includes("package"));
+  if (toPackage && pipelineLocale() === "en" && typeof payload.episode_id === "string") {
+    const { data: ep, error: e0 } = await sb.from("episodes").select("critic_verdicts,backlog_id").eq("id", payload.episode_id).single();
+    if (e0) throw new Error(e0.message);
+    const { data: b } = await sb.from("backlog").select("status").eq("id", ep.backlog_id).single();
+    const g = agentGate(ep.critic_verdicts);
+    if (b?.status !== "published" && !g.ok) throw new Error(`발행 준비를 시작할 수 없습니다 — ${g.blockers.join(" · ")}`);
+  }
   const requires_ai = type === "cluster" || (type === "sweep" && (payload.mode === "B" || payload.mode === "B2")); // 보강 스윕(모드 B-①)·주제 기획(B-②)은 WebSearch 를 쓰는 AI 실행
   const { data, error } = await sb.from("jobs").insert({ type, requires_ai, payload, status: "queued" }).select("id").single();
   if (error) throw new Error(error.message);

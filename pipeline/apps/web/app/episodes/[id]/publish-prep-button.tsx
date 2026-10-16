@@ -14,12 +14,12 @@ import { btnCls } from "@/components/ui";
  * 개별 강제 재실행은 각 산출물 탭의 버튼이 담당한다.
  */
 export function PublishPrepButton({
-  episodeId, backlogId, enabled, pending,
-}: { episodeId: string; backlogId: string; enabled: boolean; pending: boolean }) {
+  episodeId, backlogId, enabled, pending, blockedReason,
+}: { episodeId: string; backlogId: string; enabled: boolean; pending: boolean; blockedReason?: string }) {
   const [busy, start] = useTransition();
   return (
     <button className={btnCls("primary")} disabled={!enabled || pending || busy}
-      title={enabled ? "TTS → 썸네일 → 패키지를 자동으로 이어서 실행 (이미 있는 산출물은 건너뜀)" : "QA 통과(qa_passed) 이후에만"}
+      title={enabled ? "TTS → 썸네일 → 패키지를 자동으로 이어서 실행 (이미 있는 산출물은 건너뜀)" : blockedReason ?? "QA 통과(qa_passed) 이후에만"}
       onClick={() => {
         if (!confirm(`${episodeId} 의 발행 준비를 시작합니다.\n\nTTS → 썸네일 → 패키지가 이어서 실행돼요. 이미 있는 산출물은 건너뜁니다.\n음원(ElevenLabs)과 썸네일(OpenAI)은 새로 만들 때만 과금됩니다.\n\n진행할까요?`)) return;
         start(async () => {
