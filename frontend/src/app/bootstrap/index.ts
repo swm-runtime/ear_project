@@ -1,4 +1,8 @@
-import { setAnalyticsUser, setAnalyticsUserProperties } from '@/shared/analytics';
+import {
+  setAnalyticsUser,
+  setAnalyticsUserProperties,
+  syncAdMeasurementPreference,
+} from '@/shared/analytics';
 import { registerTokenProvider } from '@/shared/api/api-client';
 import { setSentryUser } from '@/shared/monitoring';
 import { setColorModeReloadGuard, startColorModeSync } from '@/shared/theme';
@@ -62,6 +66,9 @@ const QUEUE_PAGE_LIMIT = 50;
  */
 export const bootstrapApp = (): void => {
   registerTokenProvider(sessionService);
+  // 설정 > 광고 측정 허용(KAN-217) — 저장 값을 읽어 Meta SDK 를 맞춘다. 끈 값은 SDK 가 네이티브에도 저장해 두므로
+  // 다음 실행부터는 JS 가 뜨기 전 자동 이벤트도 나가지 않는다(근거는 shared/analytics/meta.ts). 실패해도 켜짐으로 본다
+  void syncAdMeasurementPreference();
   // 화면 모드(다크 모드, 2026-10-10) — Android 는 시스템 모드가 바뀌면 앱이 앞으로 돌아올 때 다시 칠한다(JS 다시 부르기).
   // 재생 중이면 미룬다 — 듣던 것이 끊기면 안 된다. shared(theme)는 player 를 모르므로 여기서 잇는다
   setColorModeReloadGuard(() => usePlaybackStore.getState().session?.isPlaying === true);

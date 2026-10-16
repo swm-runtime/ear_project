@@ -18,6 +18,7 @@
 - 웹(`expo start --web`)·mock 실행에서는 **no-op**이다. 푸시 권한 스텁(`IS_OS_PERMISSION_STUBBED`)과 같은 기준.
 - 이벤트를 보내는 곳은 **`shared/analytics`의 `track()` 하나**다. 화면·훅·서비스가 Firebase를 직접 부르지 않는다 — SDK를 바꿀 때 한 곳만 고친다.
 - **Meta(광고 측정)도 `track()` 안에서만 나간다**(2026-09-24, KAN-94 — 3.5). 대상은 세 이벤트(`sign_up`·`onboarding_complete`·계정 첫 `play_start`)뿐이고, **개발계 앱·웹·mock 은 Meta 전송이 없다.**
+- **예외 — Meta 는 사용자가 끌 수 있다**(2026-10-16, KAN-217 — 3.5 "거부 경로"). 위 "옵트아웃 토글은 두지 않는다"는 GA4(앱 개선용 분석) 얘기다.
 
 ## 3. 입력값 — 이벤트 사전
 
@@ -126,6 +127,10 @@
 - IDFA 미수집(`advertiserIDCollectionEnabled: false`), ATT 설명문 없음 — 4장 그대로. iOS 성과 측정은 AEM·SKAdNetwork 로 한다.
 - Android 광고 ID(AAID/GAID)는 **네이티브 기본값부터 켠다**(KAN-118, 개정 2026-10-09 — `changes/archive/analytics-android-ad-id-native-default(fe).md`) — `app.json` 의 로컬 플러그인 `plugins/with-android-meta-advertiser-id.js` 가 매니페스트 meta-data `com.facebook.sdk.AdvertiserIDCollectionEnabled` 를 `true` 로 덮고(`react-native-fbsdk-next` 플러그인보다 **앞에** 둔다), JS 초기화(`meta.ts`)도 Android `true` 를 가리킨다. 운영 SDK 는 앱 시작 즉시 네이티브 값으로 첫 실행 이벤트를 보내므로, 설치 이벤트에 광고 ID 를 실으려면 네이티브 값이 `true` 여야 한다. **iOS 는 그대로** — 플러그인 옵션 `advertiserIDCollectionEnabled: false` 로 `Info.plist` 가 false, ATT 설명문 없음. 네이티브 값이라 OTA 가 아니라 스토어 빌드로만 바뀐다(묶음 네이티브 빌드 runtimeVersion 32, 2026-10-07 빌드). **운영 공개 시점**: Play Console 광고 ID·데이터 보안 신고는 완료. 개인정보처리방침은 2026-10-02 공지, 2026-11-01 적용 — 네이티브 값이 들어간 빌드의 운영 공개는 **적용일(2026-11-01) 이후**이고, 공개 뒤 확인은 `tickets/frontend/pending/android-ad-id-post-launch-check.md`(KAN-156). 개발계·웹·mock은 계속 SDK 호출을 건너뛴다.
 - 네이티브 모듈이라 runtimeVersion 7 → **8**(`frontend/architecture.md` 2.1).
+- **거부 경로 — 설정 › 개인정보 › 광고 측정 허용**(신설 2026-10-16, KAN-217 · `settings.md` 4.1). 기본 켜짐, 값은 기기에만(`analytics.meta_ad_measurement_allowed` — `'0'` 꺼짐, 없거나 못 읽으면 켜짐). 끄면 ① `forwardToMeta` 가 세 이벤트를 보내지 않고(`opted_out` — 첫 재생 기록도 남기지 않아 다시 켠 뒤의 첫 재생이 나간다) ② SDK 에 `setAutoLogAppEventsEnabled(false)`·`setAdvertiserIDCollectionEnabled(false)` 를 즉시 건다. 켜면 종전 값(자동 이벤트 true · 광고 ID Android true / iOS false). 앱 시작 때 `bootstrapApp` 이 저장 값을 읽어 SDK 를 한 번 맞추고, `forwardToMeta` 는 그 읽기를 기다린 뒤 판정한다. 화면은 `@/shared/analytics` 공개 API(`getAdMeasurementAllowed`·`setAdMeasurementAllowed`·`syncAdMeasurementPreference`)로만 닿는다.
+  - **재시작 직후(JS 전)도 꺼져 있다 — 네이티브 변경 없이(OTA).** 두 setter 는 SDK 가 기기에 영구 저장하고 다음 실행에서 Info.plist·매니페스트보다 먼저 읽는다: iOS `UserDefaults`(`FacebookAutoLogAppEventsEnabled`·`FacebookAdvertiserIDCollectionEnabled` — FBSDKCoreKit `Settings+PersistedProperties` · `Settings+AutoLogAppEvents`), Android SharedPreferences `com.facebook.sdk.USER_SETTINGS`(facebook-core `UserSettingsManager.initializeUserSetting` — 캐시가 비었을 때만 매니페스트). 2026-10-16 SDK 18.x 소스로 확인. 그래서 `app.json` 플러그인 값(`autoLogAppEventsEnabled`·`isAutoInitEnabled` true)은 그대로 둔다.
+  - 값을 바꾸는 순간 SDK 가 내부 진단 이벤트(`fb_sdk_settings_changed` — 설정 비트마스크)를 한 번 보낼 수 있다. 앱 사용 이벤트가 아니다. 실기기 확인(Meta 이벤트 관리자 0건)은 운영 앱에서만 된다 — 개발계 앱은 스텁이다(`IS_META_STUBBED`).
+  - 개발계 앱·웹·mock 은 토글 저장·표시만 하고 SDK 는 부르지 않는다.
 
 ## 4. 처리 로직
 

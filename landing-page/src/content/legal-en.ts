@@ -222,7 +222,7 @@ export const privacyBlocksEn: Block[] = [
   },
   {
     type: "p",
-    text: `Most of this you can do yourself in the app — change topics and email in Profile or Settings, turn notifications and marketing off in Settings, and delete your account in Settings › Delete account. For anything else, email ${site.privacyEmail}. We will respond within 30 days, or sooner if your local law requires and may need to verify your identity first. You may use an authorized agent; we will ask for proof that they act for you.`,
+    text: `Most of this you can do yourself in the app — change topics and email in Profile or Settings, turn notifications, marketing and ad measurement off in Settings, and delete your account in Settings › Delete account. For anything else, email ${site.privacyEmail}. We will respond within 30 days, or sooner if your local law requires and may need to verify your identity first. You may use an authorized agent; we will ask for proof that they act for you.`,
   },
   {
     type: "p",
@@ -241,6 +241,7 @@ export const privacyBlocksEn: Block[] = [
   {
     type: "ul",
     items: [
+      "**In the app** — turn off Settings › Privacy › Allow ad measurement. The app stops sending events (and, on Android, the advertising ID) to Meta, and it stays off when you restart the app until you turn it back on. Firebase Analytics, which we use to improve the app, is separate.",
       "**Android** — Settings › Privacy › Ads: delete or reset your advertising ID.",
       "**iOS** — we do not access the IDFA; you can also turn off Settings › Privacy & Security › Tracking › \"Allow Apps to Request to Track\".",
       `**Ask us** — email ${site.privacyEmail} with "Do Not Sell or Share" and we will stop sending your events to Meta and ask Meta to delete what it received from us.`,
