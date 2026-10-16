@@ -7,7 +7,9 @@ import {
 } from '@/common/utils/signup-trial.util';
 import { UserTier } from '@/modules/user/user.enum';
 
+import { Plan } from '../entities/plan.entity';
 import { Subscription } from '../entities/subscription.entity';
+import { planTextOf } from '../policies/plan-text.policy';
 import {
   isHigherTier,
   toInviteGrantLastDate,
@@ -25,7 +27,7 @@ import {
   InviteGrantView,
   PendingPlanView,
   PlanView,
-  TrialContext,
+  PlanViewContext,
   TrialView,
 } from '../subscription.types';
 import { InviteCodeService } from './invite-code.service';
@@ -78,7 +80,7 @@ export class SubscriptionService {
    */
   async buildPlanView(
     userId: string,
-    trialContext: TrialContext,
+    context: PlanViewContext,
     manager?: EntityManager,
   ): Promise<PlanView> {
     const subscription = await this.findCurrent(userId, manager);
@@ -96,7 +98,10 @@ export class SubscriptionService {
      * 얹히는 기간 한정 값이라, 값을 늘리면 옛 앱이 모르는 분기를 받는다. 무료 사용자만 `tier`·`planName`이
      * 체험 요금제로 바뀌고, 구독자는 구독 표시를 유지한 채 한도만 더 넉넉한 쪽이 된다.
      */
-    const { trialEndsAt, now } = trialContext;
+    const { trialEndsAt, now, market } = context;
+    // 요금제 이름은 사용자 시장의 언어다 — 행이 없으면 티어값을 그대로 보여준다(카드가 빈 채로 나가는 것보다 낫다)
+    const nameOf = (row: Plan | null, fallback: UserTier): string =>
+      row ? planTextOf(row, market).name : fallback;
     const activeTrialEndsAt = isSignupTrialActive(trialEndsAt, now)
       ? trialEndsAt
       : null;
@@ -122,7 +127,7 @@ export class SubscriptionService {
     const pendingPlan: PendingPlanView | null = pendingTier
       ? {
           tier: pendingTier,
-          planName: pendingPlanRow?.name ?? pendingTier,
+          planName: nameOf(pendingPlanRow, pendingTier),
           effectiveAt: subscription!.expiresAt,
         }
       : null;
@@ -144,7 +149,7 @@ export class SubscriptionService {
       ? {
           name: activeGrant.codeName,
           tier: activeGrant.redemption.tier,
-          planName: grantPlan?.name ?? activeGrant.redemption.tier,
+          planName: nameOf(grantPlan, activeGrant.redemption.tier),
           endsAt: activeGrant.redemption.endsAt,
           lastDate: toInviteGrantLastDate(activeGrant.redemption.endsAt),
         }
@@ -176,8 +181,7 @@ export class SubscriptionService {
     return {
       status,
       tier,
-      // 요금제 행이 없으면 티어값을 그대로 보여준다 — 카드가 빈 채로 나가는 것보다 낫다
-      planName: plan?.name ?? tier,
+      planName: nameOf(plan, tier),
       dailyPlayLimit:
         trial !== null && trialPlan
           ? moreGenerousLimit(shownLimit, trialPlan.dailyPlayLimit)

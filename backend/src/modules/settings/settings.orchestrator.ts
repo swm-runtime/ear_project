@@ -240,6 +240,7 @@ export class SettingsOrchestrator {
     return this.subscriptionService.buildPlanView(userId, {
       trialEndsAt: user.trialEndsAt,
       now,
+      market: user.market,
     });
   }
 
