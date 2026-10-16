@@ -161,3 +161,39 @@ test("평범한 영어 문장은 걸리지 않는다 — 흔한 단어·시각 �
     T("E2", "Some are, and many are students who grew up in the area. They come back for the same soup."),
   ]), []);
 });
+
+// ── full-en-v0.2 (2026-10-16 — G261015-001 에이전트 판정에서 L0 를 빠져나간 것) ──
+test("진행 턴 첫 단어 반복 — 첫 두 단어가 달라도 같은 첫 단어가 다섯 번이면 걸리고, 의문사로 여는 질문은 세지 않는다", () => {
+  en();
+  const host = ["I'd feel ready.", "I'd still prefer one.", "I'd guess older people.", "I'd want the sound.", "I'd say it's casual."].map((x, i) => T(`Y${i + 2}`, x));
+  const qs = ["What does it mean?", "What changes then?", "What about tone?", "What if it's rude?", "What comes next?"].map((x, i) => T(`Y${i + 7}`, x));
+  const v = enStyleViolations([T("Y1", "Welcome.", "Intro"), ...host, ...qs, T("Y20", "Bye.", "Closing")]).join("\n");
+  assert.match(v, /the same first word opens more than four host turns: "i'd" ×5/);
+  assert.doesNotMatch(v, /"what" ×/);
+});
+
+test("해설이 진행자의 말을 되받아 여는 턴이 넷 이상이면 문체 위반, 셋까지는 통과", () => {
+  en();
+  const e = (n: number) => [T("Y1", "Welcome.", "Intro"), ...Array.from({ length: n }, (_, i) => T(`E${i + 1}`, i % 2 ? "Your hesitation concerns the setting. The word is casual." : "The statement is the use you've chosen. Tone tells them apart.")), T("Y9", "Bye.", "Closing")]; // 첫·마지막 턴은 템플릿이라 뺀다
+  assert.match(enStyleViolations(e(4)).join("\n"), /4 explainer turns open by restating the host's words/);
+  assert.doesNotMatch(enStyleViolations(e(3)).join("\n"), /restating the host's words/);
+  assert.doesNotMatch(enStyleViolations([T("Y1", "Welcome.", "Intro"), ...[1, 2, 3, 4].map((n) => T(`E${n}`, "It is casual. Your question about tone comes up later.")), T("Y9", "Bye.", "Closing")]).join("\n"), /restating/); // 첫 문장만 본다
+});
+
+test("한 단락에서 소스가 문장 주어인 해설 문장이 셋 이상이면 문체 위반 — 소개 한 문장과 하나는 통과", () => {
+  en();
+  const B = (id: string, text: string, topic: string) => ({ ...T(id, text), topic });
+  const v = enStyleViolations([
+    B("E1", "A Korea.net report covers a new book. The compiler says it includes usage.", "Oppa"),
+    B("E2", "The compiler describes a need for materials. The report also lists a boyfriend.", "Oppa"),
+    B("E3", "The guide treats listening separately. Dramas help with listening.", "Reactions"),
+    B("E4", "The guide warns about strangers.", "Reactions"),
+  ]).join("\n");
+  assert.match(v, /the source is the subject of more than two sentences in a section: "Oppa" 3 \(E1, E2\)/);
+  assert.doesNotMatch(v, /"Reactions"/);
+});
+
+test("claims 작업 용어 attributed 는 제작 용어 계약 위반", () => {
+  en();
+  assert.match(enStyleViolations([T("E1", "A conversation gives us an attributed learner account.")]).join("\n"), /Production words in spoken lines \(E1 "attributed"\)/);
+});

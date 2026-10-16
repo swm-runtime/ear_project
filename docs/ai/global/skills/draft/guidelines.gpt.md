@@ -1,6 +1,6 @@
 # Script Writing Guidelines
 
-> Version: **full-en-v0.1** (2026-10-15) · GPT profile · global pipeline. Rationale and sources: [CHANGELOG.md](CHANGELOG.md).
+> Version: **full-en-v0.2** (2026-10-16) · GPT profile · global pipeline. Rationale and sources: [CHANGELOG.md](CHANGELOG.md).
 > Rule numbers are reference IDs for L0, QA and the critic. Do not reuse or renumber them.
 
 ## Principles
@@ -46,13 +46,13 @@
 
 9. **Host turns have one job, in varied forms.** A host turn does one thing: a question, a guess, a mild doubt, or how the point sounds from outside. Between half and two-thirds of host turns in the Body are questions. A host guess puts the host in the scene or says how it feels. A sentence that states the explanation's conclusion in advance is a small explanation; do not give it to the host. Do not turn the explanation back into a question ("So you're saying…?"). Do not echo the explainer's last phrase. The host does not ask about sample sizes, methods, statistics, or limitations. Do not ask negative questions ("Isn't it…?").
 
-10. **The explainer answers the host, not the script.** When the host guesses or doubts, the explainer's next turn starts with the specific part that is right or wrong, then builds from it or corrects it. It does not start with a one-word acknowledgment. At least twice per episode, the host's turn changes the direction of the next explanation.
+10. **The explainer answers the host, not the script.** The explainer's first sentence answers what the host just asked or said. It does not restate, name, or paraphrase the host's question, guess, preference, or feeling. When the host guesses or doubts, say which part holds or fails in new words, then build from it or correct it. It does not start with a one-word acknowledgment. At least twice per episode, the host's turn changes the direction of the next explanation.
 
 11. **Not everything resolves.** At least once and at most twice per episode, the host stays partly unconvinced, or the explainer grants that the host's point holds in some cases.
 
 12. **Reactions are calm and specific.** Most host reactions are calm. At most one strong surprise per section. A reaction picks up the specific detail that caught the host, not a general feeling. Reactions do not make a claim bigger, broader, or more certain. Do not react to a custom with weird, crazy, wild, insane, bizarre, mind-blowing, obsessed, or cute.
 
-13. **Agreement and openers.** This applies to both speakers. Do not reply with "Exactly", "Absolutely", "Totally", "Definitely", or "100%". No turn consists only of agreement. The same turn opener appears at most three times in the script. At most one turn in ten opens with "So" or "Okay, so".
+13. **Agreement and openers.** This applies to both speakers. Do not reply with "Exactly", "Absolutely", "Totally", "Definitely", or "100%". No turn consists only of agreement. The same turn opener appears at most three times in the script. The same first word opens at most four host turns, not counting question words. At most one turn in ten opens with "So" or "Okay, so".
 
 14. **No praise between speakers.** Do not compliment questions or explanations ("Great question", "That's a great point", "I love that", "You're absolutely right").
 
@@ -92,7 +92,7 @@
 
 30. **No self-answered questions.** The explainer does not ask a question and answer it. Questions belong to the host, except rule 15.
 
-31. **No morals or recaps.** Do not end a turn, block, or episode on a pseudo-profound line, a universal truth, a lesson, or a summary sentence. A block ends on what it adds to the axis question or on a concrete detail.
+31. **No morals or recaps.** Do not end a turn, block, or episode on a pseudo-profound line, a universal truth, a lesson, or a summary sentence. An explainer turn ends on its newest point, not on a sentence that restates what the turn already said. A block ends on what it adds to the axis question or on a concrete detail.
 
 32. **No scripted noise.** No um, uh, or "like" as a filler. No scripted interruptions, overlapping speech, laughter, stage directions, sound tags, or "haha".
 
@@ -111,7 +111,7 @@
 
 35. **Four zones and the line format.** Zones are `## [Intro]`, `## [Opening]`, `## [Body]`, `## [Closing]`, once each, in this order. Body sections use `### #n Title` headers with the outline's numbers and order. Turns are `[Name] E1 · text` for the explainer and `[Name] Y1 · text` for the host, each numbered from 1. Use the exact speaker names the prompt gives. The first line follows the meta format the prompt gives.
 
-36. **Nothing outside speech in lines.** No URLs, tables, lists, markdown, emoji, citations, source lists, or AI disclosure in spoken lines. No claim or excerpt IDs (C##, S#-##) anywhere in the script. Do not say production terms: section, axis, block, claim, excerpt, outline, source, gold, Body, Closing.
+36. **Nothing outside speech in lines.** No URLs, tables, lists, markdown, emoji, citations, source lists, or AI disclosure in spoken lines. No claim or excerpt IDs (C##, S#-##) anywhere in the script. Do not say production terms: section, axis, block, claim, excerpt, outline, source, gold, Body, Closing. Do not carry the claims' labels into lines: attributed, account, or use as a noun for a sense of a word.
 
 37. **Intro and Opening.** The injected intro template is Y1, one turn. Keep its frame and fill only its slots; no braces may remain. After the topic is named, use two or three Opening turns to raise the question a newcomer would ask. Do not introduce studies or sources in the Opening.
 
@@ -123,9 +123,9 @@
 
 ## Facts and sources
 
-41. **Facts come only from the claims.** Every number, quote, name, cause, definition, and date comes from a claims row, appears only in explainer turns, and stays within what the excerpt supports. Do not raise the strength, scope, or certainty of a claim. For claims based on Korean-language excerpts, keep the meaning exact when rephrasing in English. List the claim IDs each explainer turn uses in turn_claims.
+41. **Facts come only from the claims.** Every number, quote, name, cause, definition, and date comes from a claims row, appears only in explainer turns, and stays within what the excerpt supports. Do not raise the strength, scope, or certainty of a claim. Keep every condition the claim states: who says it, to whom, where, and which of its meanings it covers. Do not widen a named set into a general category. For claims based on Korean-language excerpts, keep the meaning exact when rephrasing in English. List the claim IDs each explainer turn uses in turn_claims.
 
-42. **Introduce a source once, then explain.** When one source leads three or more explainer turns, introduce it once in the first turn: what kind of source it is and what it covers. After that, explain the content directly. Do not make the article, study, author, or researchers the subject of sentences. Do not use vague authority ("experts say", "studies show", "many people believe").
+42. **Introduce a source once, then explain.** When one source leads three or more explainer turns, introduce it once in the first turn: what kind of source it is and what it covers. After that, explain the content directly. Do not make the article, study, guide, author, compiler, participant, or researchers the subject of sentences; at most two sentences per section have the source as their subject, the introduction included. Do not use vague authority ("experts say", "studies show", "many people believe").
 
 43. **Sources stay in place.** Use each source only in its assigned section. Introduce no new source in the last Body section. Do not describe reading a source, preview later material, or mention that something is missing from the materials.
 
@@ -137,11 +137,13 @@
 
 ## Korean words
 
-47. **Spelling.** Use the spelling in the pronunciation map, then the spelling in the claims or excerpts. Otherwise use the official English spelling for names of people, groups, companies, and works; romanization followed by the meaning for places and heritage sites; and Revised Romanization for other words. Keep one spelling per word. Write Korean personal names family name first. Use the Korean names Dokdo and East Sea.
+47. **Spelling.** Use the spelling in the pronunciation map, then the spelling in the claims or excerpts. Otherwise use the official English spelling for names of people, groups, companies, and works; romanization followed by the meaning for places and heritage sites; and Revised Romanization for other words, even when a claim or excerpt spells the word another way. Keep one spelling per word. Write Korean personal names family name first. Use the Korean names Dokdo and East Sea.
 
-48. **Explain on first use.** When a Korean word first appears, give its meaning with a comma or in the next short sentence. Explain meaning, not word origin, unless a claim gives the origin. Introduce at most two new Korean words per turn and about twelve per episode, except in Korean Language episodes. If a Korean word returns after two or more sections, re-explain it in a few words. Do not say "which means" more than twice per section. Use the English word when it says the same thing. Use fan terms such as oppa or unnie only as terms, explained, never as forms of address.
+48. **Explain on first use.** When a Korean word first appears, give its meaning with a comma or in the next short sentence. Explain meaning, not word origin, unless a claim gives the origin. Introduce at most two new Korean words per turn and about twelve per episode, except in Korean Language episodes. If a Korean word returns after two or more sections, re-explain it in a few words. Do not say "which means" more than twice per section. Use the English word when it says the same thing. Use fan terms such as oppa or unnie only as terms, explained, never as forms of address. When the claims say a word is casual or polite, or who uses it, say so in the turn that explains the word.
 
 49. **Register every Korean word.** Write only the romanized spelling in lines, never the pronunciation respelling. Do not add English endings to Korean words. Report every Korean word or name in the script that is not in the pronunciation map in pronunciations_added. The reading is an English respelling in plain letters and hyphens. Leave the reading empty when you cannot give one. Do not register a word that is also a common English word. Record each Korean word and term in terms with its first turn and where it is explained.
+
+50. **Korean Language episodes: let each word be heard.** In a Korean Language episode, each featured word is heard in use at least once. The explainer says a phrase from the claims that uses the word, romanized, gives its meaning, and says who would say it to whom. The phrase is an example from the claims, never a line quoted from a drama, song, or show. Describe the moment in a drama or a day where the phrase is said, as a hypothetical scene of two sentences at most.
 
 ## Before output
 
@@ -152,6 +154,7 @@
   4. Rules 4 to 7: default viewpoint, stereotypes, history, people, beliefs, topic limits.
   5. Word count against the plan. Fill short sections from assigned material.
   6. Host turns: one job each, question ratio, varied forms, calm reactions, openers, praise, echoes, at least one unresolved point.
-  7. Rules 23 to 33: rating words, AI vocabulary, brochure language, inflated verbs and meaning, contrast and triads, stock phrases, self-answered questions, morals, fillers, extra hedges, production terms.
-  8. Read every explainer turn as if aloud for a second-language listener. Split long sentences, replace rare words, idioms, and phrasal verbs, and remove dashes and semicolons. Record fixes in self_check_fixes.
+  7. Rules 23 to 33: rating words, AI vocabulary, brochure language, inflated verbs and meaning, contrast and triads, stock phrases, self-answered questions, morals, fillers, extra hedges, production terms. Rule 10 and 31: explainer turns that restate the host or end on a recap. Rule 42: sentences with the source as subject.
+  8. Korean words: conditions kept, speech level said, spelling, and for Korean Language episodes a phrase heard in use (rules 41, 47, 48, 50).
+  9. Read every explainer turn as if aloud for a second-language listener. Split long sentences, replace rare words, idioms, and phrasal verbs, and remove dashes and semicolons. Record fixes in self_check_fixes.
 - Keep the report schema's field names and formats. Put the script in script once, from the meta line to the last turn. Keep turn_claims, bridges, terms, pronunciations_added, and self_check_fixes consistent with the final script.
