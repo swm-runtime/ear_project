@@ -235,8 +235,13 @@ export interface SearchCursorPosition {
 export interface SearchPageQuery {
   /** 사용자 시장(`global-api.md` 4.7) — 다른 시장의 콘텐츠는 후보가 아니다 */
   market: UserMarket;
-  /** **이미 정규화된 질의다**(NFC + 소문자 + 트림 — `explore.md` 4.5-5). 호출부가 정규화한다 */
+  /**
+   * **이미 정규화된 검색어다**(NFC + 소문자 + 트림 — `explore.md` 4.5-5). 호출부가 정규화하고,
+   * 태그 전용 검색이면 앞의 `#`을 뗀 값이다(`parseSearchQuery`)
+   */
   normalizedQuery: string;
+  /** `#`으로 시작한 질의 — 태그 정확 일치만 결과로 낸다(KAN-218) */
+  tagOnly: boolean;
   /** 검색 결과에 주제 필터를 겹칠 때(explore-api.md 4.5). 비우면 조건을 적용하지 않는다 */
   topicIds: string[];
   cursor: SearchCursorPosition | null;

@@ -11,6 +11,7 @@ import {
 import {
   SEARCH_WEIGHT_AUTHOR,
   SEARCH_WEIGHT_DESCRIPTION,
+  SEARCH_WEIGHT_TAG,
   SEARCH_WEIGHT_TITLE,
   SEARCH_WEIGHT_TOPIC,
 } from '../content.constant';
@@ -62,16 +63,44 @@ const SEARCH_MATCH_TOPIC = `EXISTS (
 )`;
 
 /**
- * 랭킹 1순위 — 매칭 필드 가중 합산(제목 > 저자 > 주제명 > 설명). 가중치가 2의 거듭제곱이라
+ * 해시태그 매칭(KAN-218) — `contents.tags`(jsonb 문자열 배열)의 항목 하나라도 맞으면 된다. 태그가 NULL이면
+ * `jsonb_array_elements_text`가 행을 내지 않아 EXISTS가 거짓이다.
+ *
+ * 저장된 태그는 정규화하지 않고 비교한다 — 적재 검증(`CONTENT_TAG_PATTERN`)이 완성형 한글·ASCII 영숫자·공백만
+ * 받아 NFC가 보장되고, 그 문자 범위에서는 SQL `lower()`와 질의 쪽 `toLowerCase()`가 같다. **태그 문자 범위를
+ * 넓히면 이 두 가정을 다시 본다.** 인덱스는 두지 않는다: 태그는 콘텐츠당 4개 이하이고 초기 풀이 작아 순차 탐색
+ * 비용이 무시할 만하다(domain.md 5.1 — 2자 질의 순차 탐색과 같은 논리, 2026-10-16 운영 콘텐츠 71편).
+ */
+const SEARCH_MATCH_TAG = `EXISTS (
+  SELECT 1 FROM jsonb_array_elements_text(content.tags) AS matched_tag(tag)
+  WHERE matched_tag.tag ILIKE :searchPattern
+)`;
+
+/** 태그 전용 검색(`#태그`) — 태그 항목과 **정확히 같아야** 한다(소문자 통일. 안쪽 공백은 그대로) */
+const SEARCH_MATCH_TAG_EXACT = `EXISTS (
+  SELECT 1 FROM jsonb_array_elements_text(content.tags) AS matched_tag(tag)
+  WHERE lower(matched_tag.tag) = :searchQuery
+)`;
+
+/**
+ * 랭킹 1순위 — 매칭 필드 가중 합산(제목 > 태그 > 저자 > 주제명 > 설명). 가중치가 2의 거듭제곱이라
  * 이 합산이 곧 문서의 필드 우선순위다(`content.constant.ts` 참조).
  */
 const SEARCH_SCORE = `(
   (CASE WHEN ${SEARCH_MATCH_TITLE} THEN ${SEARCH_WEIGHT_TITLE} ELSE 0 END)
+  + (CASE WHEN ${SEARCH_MATCH_TAG} THEN ${SEARCH_WEIGHT_TAG} ELSE 0 END)
   + (CASE WHEN ${SEARCH_MATCH_AUTHOR} THEN ${SEARCH_WEIGHT_AUTHOR} ELSE 0 END)
   + (CASE WHEN ${SEARCH_MATCH_TOPIC} THEN ${SEARCH_WEIGHT_TOPIC} ELSE 0 END)
   + (CASE WHEN ${SEARCH_MATCH_DESCRIPTION} THEN ${SEARCH_WEIGHT_DESCRIPTION} ELSE 0 END)
 )`;
 const SEARCH_SCORE_ALIAS = 'search_score';
+
+/**
+ * 태그 전용 검색의 1순위 — 매칭이 곧 정확 일치라 필드 가중이 의미가 없다. 상수로 두고 동점 해소 체인
+ * (제목 유사도 → 인기 → 신선도)만 쓴다. 커서 모양은 부분 일치와 같게 유지한다.
+ */
+// 맨 정수 리터럴은 ORDER BY에서 "선택 목록의 0번째 열"로 읽혀 오류가 난다 — 캐스트해 식으로 만든다
+const TAG_ONLY_SEARCH_SCORE = '0::integer';
 
 /**
  * 동점 해소 1키 — 제목 `word_similarity`(`explore.md` 4.5-5).
@@ -488,7 +517,8 @@ export class ContentRepository {
   }
 
   /**
-   * 키워드 검색 한 페이지(explore-api.md 4.5) — **관련도 순**의 커서 페이지.
+   * 키워드 검색 한 페이지(explore-api.md 4.5) — **관련도 순**의 커서 페이지. `tagOnly`(`#태그`)면 태그 정확
+   * 일치만 찾고 1순위 가중 합산 대신 상수를 쓴다(KAN-218).
    *
    * 정렬은 매칭 필드 가중 합(`SEARCH_SCORE`) → 제목 유사도 → 직전 확정 월 재생 수 →
    * 신선도 순이며(`explore.md` 4.5-5의 우선순위·동점 해소 체인 그대로), **전부
@@ -504,6 +534,7 @@ export class ContentRepository {
     monthPeriodStart: string,
     manager?: EntityManager,
   ): Promise<RankedSearchContent[]> {
+    const score = query.tagOnly ? TAG_ONLY_SEARCH_SCORE : SEARCH_SCORE;
     const builder = this.applyVisibility(
       this.scoped(manager)
         .createQueryBuilder('content')
@@ -516,13 +547,15 @@ export class ContentRepository {
              AND stat.is_final = true`,
           { monthPeriod: StatsPeriodType.MONTH, monthPeriodStart },
         )
-        .addSelect(SEARCH_SCORE, SEARCH_SCORE_ALIAS)
+        .addSelect(score, SEARCH_SCORE_ALIAS)
         .addSelect(SEARCH_TITLE_SIMILARITY, SEARCH_TITLE_SIMILARITY_ALIAS)
         .addSelect(RANKING_PLAY_COUNT, RANKING_PLAY_COUNT_ALIAS),
       query.now,
       query.market,
     ).andWhere(
-      `(${SEARCH_MATCH_TITLE} OR ${SEARCH_MATCH_AUTHOR} OR ${SEARCH_MATCH_TOPIC} OR ${SEARCH_MATCH_DESCRIPTION})`,
+      query.tagOnly
+        ? SEARCH_MATCH_TAG_EXACT
+        : `(${SEARCH_MATCH_TITLE} OR ${SEARCH_MATCH_TAG} OR ${SEARCH_MATCH_AUTHOR} OR ${SEARCH_MATCH_TOPIC} OR ${SEARCH_MATCH_DESCRIPTION})`,
     );
 
     builder.setParameters({
@@ -537,7 +570,7 @@ export class ContentRepository {
     if (query.cursor) {
       // Postgres 행 비교 — 다섯 정렬 키의 tie-break를 한 조건으로 표현한다
       builder.andWhere(
-        `(${SEARCH_SCORE}, ${SEARCH_TITLE_SIMILARITY}, ${RANKING_PLAY_COUNT}, content.published_at, content.id) < (:cursorScore, :cursorTitleSimilarity, :cursorPlayCount, :cursorPublishedAt, :cursorId)`,
+        `(${score}, ${SEARCH_TITLE_SIMILARITY}, ${RANKING_PLAY_COUNT}, content.published_at, content.id) < (:cursorScore, :cursorTitleSimilarity, :cursorPlayCount, :cursorPublishedAt, :cursorId)`,
         {
           cursorScore: query.cursor.score,
           cursorTitleSimilarity: query.cursor.titleSimilarity,
@@ -549,7 +582,7 @@ export class ContentRepository {
     }
 
     const { entities, raw } = await builder
-      .orderBy(SEARCH_SCORE, 'DESC')
+      .orderBy(score, 'DESC')
       .addOrderBy(SEARCH_TITLE_SIMILARITY, 'DESC')
       .addOrderBy(RANKING_PLAY_COUNT, 'DESC')
       .addOrderBy('content.published_at', 'DESC')

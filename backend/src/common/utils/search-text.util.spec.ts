@@ -2,6 +2,7 @@ import {
   escapeLikePattern,
   hasSearchableCharacter,
   normalizeSearchText,
+  parseSearchQuery,
 } from './search-text.util';
 
 describe('normalizeSearchText', () => {
@@ -58,5 +59,42 @@ describe('hasSearchableCharacter', () => {
     // given
     // when / then
     expect(hasSearchableCharacter('이직 2년차!')).toBe(true);
+  });
+});
+
+describe('parseSearchQuery', () => {
+  it('#으로 시작하면 태그 전용이고, 앞의 # 하나를 떼고 다시 트림한다 — 정규화 질의는 # + 검색어다', () => {
+    // given
+    // when
+    const parsed = parseSearchQuery('  #  뱅크런 ');
+
+    // then
+    expect(parsed).toEqual({
+      normalizedQuery: '#뱅크런',
+      term: '뱅크런',
+      tagOnly: true,
+    });
+  });
+
+  it('#이 없으면 정규화한 질의가 곧 검색어다', () => {
+    // given
+    // when
+    const parsed = parseSearchQuery('Bank Run');
+
+    // then
+    expect(parsed).toEqual({
+      normalizedQuery: 'bank run',
+      term: 'bank run',
+      tagOnly: false,
+    });
+  });
+
+  it('앞의 # 하나만 뗀다 — ##태그의 남은 #은 검색어에 남는다', () => {
+    // given
+    // when
+    const parsed = parseSearchQuery('##태그');
+
+    // then
+    expect(parsed.term).toBe('#태그');
   });
 });
