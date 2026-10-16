@@ -30,9 +30,9 @@ test("en 이면 PIPELINE_SPEAKERS 순서대로 — 첫째가 항상 해설, ID �
   assert.equal(otherSpeaker("Mina"), "Alex");
 });
 
-test("en 인데 진행자 이름이 두 개가 아니거나 같으면 멈춘다 — 이름 없이 대본·TTS 를 돌리지 않는다", () => {
+test("en 인데 PIPELINE_SPEAKERS 가 잘못되면 멈추고, 비어 있으면 출연진 첫 팀으로 돈다 (2026-10-17 출연진 4명)", () => {
   en("");
-  assert.throws(() => speakerNames(), /PIPELINE_SPEAKERS/);
+  assert.deepEqual(speakerNames(), ["Yuna", "Owen"]);
   en("Mina,Mina");
   assert.throws(() => speakerNames(), /PIPELINE_SPEAKERS/);
   en("Mi[na],Alex");

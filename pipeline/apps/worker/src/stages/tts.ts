@@ -1,7 +1,7 @@
 import crypto from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
-import { otherSpeaker, pipelineLocale, speakerNames } from "@ear/pipeline";
+import { castVoiceOf, otherSpeaker, pipelineLocale, speakerNames } from "@ear/pipeline";
 import { cfg, executedBy } from "../config.js";
 import { getBacklog, getEpisode, insertRun, pool, setJobProgress, upsertEpisode, type Job } from "../db.js";
 import { loadTtsDict, workerRev } from "../assets.js";
@@ -37,7 +37,8 @@ const speakerIndex = (speaker: Speaker): number => {
   return i;
 };
 const voiceOf = (speaker: Speaker): string => {
-  const v = (pipelineLocale() === "en" ? [cfg.ttsVoiceA, cfg.ttsVoiceB] : [cfg.ttsVoiceYuna, cfg.ttsVoiceEum])[speakerIndex(speaker)];
+  // 글로벌판: 출연진 표(@ear/pipeline GLOBAL_TEAMS, 2026-10-17)의 보이스 — 표에 없는 이름(옛 편 HostA·HostB)만 env TTS_VOICE_A·B
+  const v = (pipelineLocale() === "en" ? castVoiceOf(speaker) ?? [cfg.ttsVoiceA, cfg.ttsVoiceB][speakerIndex(speaker)] : [cfg.ttsVoiceYuna, cfg.ttsVoiceEum][speakerIndex(speaker)]);
   if (!v) throw new Error(`${speaker} 의 보이스가 설정되지 않았다 (TTS_VOICE_A·TTS_VOICE_B — 글로벌판 보이스 결정 대기)`);
   return v;
 };
@@ -357,7 +358,7 @@ export async function runTts(job: Job) {
     await upsertEpisode({ id: episodeId, backlog_id: backlogId, prompt_version: ep.prompt_version, audio_master_key: s3Key(`${rel}/audio/master.wav`), audio_dist_key: s3Key(`${rel}/audio/dist.m4a`) });
   }
   const artifacts = sampleTurns ? [s3Key(`${rel}/audio/sample.mp3`)] : [s3Key(`${rel}/audio/master.wav`), s3Key(`${rel}/audio/dist.m4a`), s3Key(`${rel}/audio/lossless.flac`), ...(segCount ? [s3Key(`${rel}/script-segments.json`)] : []), ...(secCount ? [s3Key(`${rel}/script-sections.json`)] : [])];
-  const result = `${sampleTurns ? `TTS 샘플 ${turns.length}턴` : "TTS 완료"} — ${cfg.ttsModel} 다중화자 1콜(stability ${cfg.ttsStability} · similarity ${cfg.ttsSimilarity}) · 분할 ${chunks.length}요청(경계 ${cutSummary} · 세그먼트 포맷 ${fmt} · ElevenLabs 원본 ${srcFmt}${sampleTurns ? "" : " · 배포본 AAC 192k m4a + FLAC"}) · ${totalChars}자 → ${min}분 ${sec}초 (${jingle.introFile || jingle.outroFile ? "징글 포함" : "앞뒤 무음 2초 포함"}) ${useCtx ? ` · 문맥 겹침 ${ctxOk}/${ctxBoundaries.length}경계(+${ctxChars}자)` : chunks.length > 1 && wantSpeed ? " · 문맥 겹침 꺼짐(경계 무음 0.9초)" : ""}${ctxOk < ctxBoundaries.length ? ` · 폴백 경계 무음 ${DEFAULT_GAP_SEC}초${fallbackAt.length ? ` @${fallbackAt.join("·")}` : ""}${ctxFails.length ? ` (사유: ${ctxFails.join(" / ").slice(0, 300)})` : ""}` : ""}${wantSpeed ? ` · 배속 ${speakerNames().map((n, i) => `${n} ${speedsOf()[i]}×`).join(" ")}${speedFallbacks ? ` (원속 폴백 ${speedFallbacks}요청 — 청취 확인)` : ""} · 강제 정렬 ${alignCalls - alignFails}/${alignCalls}요청` : ""}${parsed.coldOpen ? " · 구 [콜드오픈] 구역 무시(폐지)" : ""}${sampleTurns ? "" : segCount ? ` · 자막 세그먼트 ${segCount}건(배포본 시각)` : ` · 자막 세그먼트 없음(${segFail})`}${secNote} · 사전 ${dictVersion}${Object.keys(epMap).length ? `+발음 맵 ${Object.keys(epMap).length}건` : ""} · 보이스 윤아=${cfg.ttsVoiceYuna.slice(0, 6)}… 이음=${cfg.ttsVoiceEum.slice(0, 6)}… · 사람 청취 확인 대기 (spec/06 8장)`;
+  const result = `${sampleTurns ? `TTS 샘플 ${turns.length}턴` : "TTS 완료"} — ${cfg.ttsModel} 다중화자 1콜(stability ${cfg.ttsStability} · similarity ${cfg.ttsSimilarity}) · 분할 ${chunks.length}요청(경계 ${cutSummary} · 세그먼트 포맷 ${fmt} · ElevenLabs 원본 ${srcFmt}${sampleTurns ? "" : " · 배포본 AAC 192k m4a + FLAC"}) · ${totalChars}자 → ${min}분 ${sec}초 (${jingle.introFile || jingle.outroFile ? "징글 포함" : "앞뒤 무음 2초 포함"}) ${useCtx ? ` · 문맥 겹침 ${ctxOk}/${ctxBoundaries.length}경계(+${ctxChars}자)` : chunks.length > 1 && wantSpeed ? " · 문맥 겹침 꺼짐(경계 무음 0.9초)" : ""}${ctxOk < ctxBoundaries.length ? ` · 폴백 경계 무음 ${DEFAULT_GAP_SEC}초${fallbackAt.length ? ` @${fallbackAt.join("·")}` : ""}${ctxFails.length ? ` (사유: ${ctxFails.join(" / ").slice(0, 300)})` : ""}` : ""}${wantSpeed ? ` · 배속 ${speakerNames().map((n, i) => `${n} ${speedsOf()[i]}×`).join(" ")}${speedFallbacks ? ` (원속 폴백 ${speedFallbacks}요청 — 청취 확인)` : ""} · 강제 정렬 ${alignCalls - alignFails}/${alignCalls}요청` : ""}${parsed.coldOpen ? " · 구 [콜드오픈] 구역 무시(폐지)" : ""}${sampleTurns ? "" : segCount ? ` · 자막 세그먼트 ${segCount}건(배포본 시각)` : ` · 자막 세그먼트 없음(${segFail})`}${secNote} · 사전 ${dictVersion}${Object.keys(epMap).length ? `+발음 맵 ${Object.keys(epMap).length}건` : ""} · 보이스 ${pipelineLocale() === "en" ? speakerNames().map((n) => `${n}=${voiceOf(n).slice(0, 6)}…`).join(" ") : `윤아=${cfg.ttsVoiceYuna.slice(0, 6)}… 이음=${cfg.ttsVoiceEum.slice(0, 6)}…`} · 사람 청취 확인 대기 (spec/06 8장)`;
   // 계측 (2026-10-01): 실제 차감 크레딧은 응답 헤더 character-cost 의 합(재시도·폴백·정렬 호출 포함). 헤더가 있으면 그 값으로 비용을 환산하고, 없으면 글자 수 추정(참고값)
   const u = usage();
   const metered = u.credits > 0;

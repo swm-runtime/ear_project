@@ -1,10 +1,10 @@
 import fs from "node:fs/promises";
 import { cfg, canAi, canTts, canThumbnail, executedBy } from "./config.js";
-import { claimJob, enqueue, failJob, finishJob, getSetting, hasActiveDraftJob, heartbeat, listApprovedBacklog, pool, requeueJob, startJob } from "./db.js";
+import { claimJob, enqueue, failJob, getBacklog, finishJob, getSetting, hasActiveDraftJob, heartbeat, listApprovedBacklog, pool, requeueJob, startJob } from "./db.js";
 import { workerRev, workerRevTime } from "./assets.js";
 import { probeStorage } from "./storage.js";
 import { executorHandlesWebSearch, makeExecutor, setJobAbort } from "./executors/index.js";
-import { pipelineLocale, speakerNames } from "@ear/pipeline";
+import { allSpeakerNames, pipelineLocale, speakersForTopic, withSpeakers } from "@ear/pipeline";
 import { startLogWatch } from "./log-watch.js";
 import { runStage } from "./stages/index.js";
 import { log, sleep, ApiLimit, RetryLater } from "./util.js";
@@ -37,7 +37,7 @@ async function main() {
   const ex = makeExecutor(cfg.executor, cfg.claudeModel);
   await fs.mkdir(cfg.workRoot, { recursive: true }); // 실행기 cwd — 없으면 spawn 이 실패한다
   const storageInfo = await probeStorage(); // 산출물 저장소(S3) 접근 확인 — 못 쓰면 작업을 집기 전에 죽는다 (spec/10 3.3)
-  log(`워커 시작 — ${executedBy} · locale=${pipelineLocale()}(${speakerNames().join("·")}) · capabilities=${cfg.capabilities.join(",")} · AI=${canAi ? "on" : "off"} · TTS=${canTts ? "on" : "off(키 없음 — 서버가 집음)"} · 썸네일=${canThumbnail ? "on" : "off(키 없음 — 서버가 집음)"} · assets=DB(${cfg.assetProfile})+${cfg.assetSourceRoot} · work=${cfg.workRoot} · storage=${storageInfo} · rev=${workerRev()}`);
+  log(`워커 시작 — ${executedBy} · locale=${pipelineLocale()}(${allSpeakerNames().join("·")}) · capabilities=${cfg.capabilities.join(",")} · AI=${canAi ? "on" : "off"} · TTS=${canTts ? "on" : "off(키 없음 — 서버가 집음)"} · 썸네일=${canThumbnail ? "on" : "off(키 없음 — 서버가 집음)"} · assets=DB(${cfg.assetProfile})+${cfg.assetSourceRoot} · work=${cfg.workRoot} · storage=${storageInfo} · rev=${workerRev()}`);
   // 백엔드 ERROR → Slack 감시 (log-watch.ts) — 자체 타이머·전부 try/catch·unref 로 작업 큐와 완전 분리. env 없으면 off
   log(`백엔드 ERROR 감시: ${startLogWatch()}`);
 
@@ -101,7 +101,7 @@ async function main() {
       const ac = new AbortController(); setJobAbort(ac);
       const hb = setInterval(() => heartbeat(job.id).then((st) => { if (st === "cancelled" && !ac.signal.aborted) { log(`⏹ ${job.type} ${job.id.slice(0, 8)} 콘솔에서 취소됨 — 중단`); ac.abort(); } }).catch(() => {}), 15_000);
       try {
-        const result = await runStage(job, ex);
+        const result = await withJobSpeakers(job, () => runStage(job, ex));
         await finishJob(job.id, result);
         if (ac.signal.aborted) log(`⏹ ${job.type} ${job.id.slice(0, 8)} 취소됨 (단계는 끝났으나 결과는 버림)`); else log(`✔ ${job.type} ${job.id.slice(0, 8)} 완료`);
       } catch (e: any) {
@@ -149,3 +149,14 @@ async function pickupApproved() {
 }
 
 main().catch((e) => { console.error(e); process.exit(1); });
+
+/**
+ * 글로벌판: 작업 하나가 도는 동안의 2인조를 그 편의 대표 주제로 정한다(글로벌 명세 6.7 · @ear/pipeline GLOBAL_TEAMS, 2026-10-17).
+ * 프롬프트·L0·TTS·패키지가 speakerNames() 로 같은 값을 읽는다. 후보를 모르는 작업(스윕 등)과 한국판은 그대로 돈다
+ */
+async function withJobSpeakers<T>(job: { payload: Record<string, unknown> }, fn: () => Promise<T>): Promise<T> {
+  if (pipelineLocale() !== "en") return fn();
+  const backlogId = typeof job.payload?.backlog_id === "string" ? job.payload.backlog_id : null;
+  const cand = backlogId ? await getBacklog(backlogId).catch(() => null) : null;
+  return cand ? withSpeakers(speakersForTopic(cand.mid_topic), fn) : fn();
+}

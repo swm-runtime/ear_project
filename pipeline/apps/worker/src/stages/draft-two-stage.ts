@@ -6,7 +6,7 @@ import { executedBy } from "../config.js";
 import { workerRev } from "../assets.js";
 import { ApiLimit, RetryLater } from "../util.js";
 import type { Executor } from "../executors/index.js";
-import { assetPaths, buildDesignPrompt, buildWritePromptParts, DESIGN_SCHEMA, buildWritePromptPartsEn, outlineMarks, pipelineLocale, scriptZones, WRITE_SCHEMA, WRITE_SCHEMA_EN, type BacklogCandidate, type IntroStyle, type Templates } from "@ear/pipeline";
+import { assetPaths, buildDesignPrompt, buildWritePromptParts, DESIGN_SCHEMA, buildWritePromptPartsEn, outlineMarks, pipelineLocale, scriptZones, WRITE_SCHEMA, WRITE_SCHEMA_EN, type BacklogCandidate, type IntroStyle, type Templates, speakerNames } from "@ear/pipeline";
 import { exists, hostOf, log } from "../util.js";
 import { parseScriptForTts, type ScriptTurn } from "../tts/script.js";
 import { runDesignSingle } from "./design-single.js";
@@ -314,6 +314,10 @@ export function twoStageViolationsEn(scriptMd: string, outlineMd: string, opts: 
     if (!last?.id?.startsWith("Y")) v.push(`The last turn is not a host (Y) turn (${last?.id ?? "none"}) — after the explainer's wrap-up, the host closes with one sign-off turn ("${heads[0]} …")`);
     else if (!heads.some((h) => text.includes(h))) v.push(`The last turn ${last.id} lacks the sign-off frame ("${heads[0]}"${heads.length > 1 ? ` or ${heads.length - 1} other${heads.length > 2 ? "s" : ""}` : ""}) — keep the template frame as is and fill only the {slots}`);
   }
+  // 화자 라벨 (2026-10-17 출연진 4명): 이 편의 2인조와 맞아야 한다 — 파서는 네 이름을 다 받으므로 다른 팀 이름이 섞여도 여기서 잡는다
+  const [explainer, host] = speakerNames();
+  const wrong = parseScriptForTts(scriptMd).turns.filter((t) => t.id && (t.id.startsWith("E") ? t.speaker !== explainer : t.speaker !== host)).map((t) => `${t.id} [${t.speaker}]`);
+  if (wrong.length) v.push(`Speaker labels do not match this episode's pair (${wrong.slice(0, 6).join(", ")}${wrong.length > 6 ? " …" : ""}) — E turns are [${explainer}], Y turns are [${host}]`);
   v.push(...enStyleViolations(parseScriptForTts(scriptMd).turns));
   return v;
 }

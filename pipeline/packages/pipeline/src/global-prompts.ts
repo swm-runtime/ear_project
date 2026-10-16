@@ -387,6 +387,7 @@ ${fence(i.specQaMd)}
 
 ## 3. Report — output only the requested JSON. In report_md, write in markdown: "### Checks" (a table with 11 rows: #, check, verdict pass/fail/hold, one-line basis) · "### Failures" (a table: #, location as "Y7 · first words", check, reason; "none" if none) · "### Notes — borderline cases not failed" · "### Verdict". The failures array and the failures table hold the same items. No text before the JSON.`;
   const user = `## Under check — ${i.episodeId} attempt ${i.attempt}${human}
+Speakers (check 10): explainer ${explainerEn()} (E turns), host ${otherSpeaker(explainerEn())} (Y turns).
 ${prior}
 
 ### Script — script.md

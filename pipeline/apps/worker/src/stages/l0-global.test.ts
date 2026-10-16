@@ -197,3 +197,14 @@ test("claims 작업 용어 attributed 는 제작 용어 계약 위반", () => {
   en();
   assert.match(enStyleViolations([T("E1", "A conversation gives us an attributed learner account.")]).join("\n"), /Production words in spoken lines \(E1 "attributed"\)/);
 });
+
+// 2026-10-17 출연진 4명 — 파서는 네 이름을 다 받으므로 이 편의 2인조와 다른 이름이 섞이면 L0 가 계약 위반으로 잡는다
+test("화자 라벨이 이 편의 2인조와 다르면 계약 위반", async () => {
+  en();
+  delete process.env.PIPELINE_SPEAKERS;
+  const { withSpeakers } = await import("@ear/pipeline");
+  const { twoStageViolationsEn } = await import("./draft-two-stage.js");
+  const md = ["## [Intro]", "[Owen] Y1 · Hi.", "## [Opening]", "[Yuna] E1 · A.", "[Grace] Y2 · B?", "## [Body]", "### #1 x", "[Minsoo] E2 · C."].join("\n");
+  const v = withSpeakers(["Yuna", "Owen"], () => twoStageViolationsEn(md, "")).join("\n");
+  assert.match(v, /Speaker labels do not match this episode's pair \(Y2 \[Grace\], E2 \[Minsoo\]\) — E turns are \[Yuna\], Y turns are \[Owen\]/);
+});
