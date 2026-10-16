@@ -44,7 +44,7 @@ Speaker names come from `PIPELINE_SPEAKERS` ("explainer,host"). Persona details 
 - The meta line is `Episode ID · Title · Topic · explainer/host · prompt version · sources used`.
 - No source list, no AI disclosure, no URLs, tables, or markdown in lines.
 
-### Templates (settings `templates`, tpl-en-v2)
+### Templates (settings `templates`, tpl-en-v3)
 
 ```
 [Intro — host, Y1, one turn]
@@ -55,14 +55,14 @@ We've been talking about {episode_line}. {host_remark}
 (the explainer's wrap-up turn follows)
 
 [Sign-off — host, the last turn; variants rotate per episode]
-That's all for this episode of Earcast. {host_line} Thanks for listening.
-Thanks for spending this time with us on Earcast. {host_line}
-That's our story for this episode. {host_line} See you next time on Earcast.
+That's all for this episode of Earcast. {host_line} Thanks for listening, and gamsahamnida!
+Thanks for spending this time with us on Earcast. {host_line} Gamsahamnida!
+That's our story for this episode. {host_line} See you next time on Earcast. Gamsahamnida!
 ```
 
 - `{topic_line}` is the topic's fixed line (`templates.major_lines`). `{episode_line}` is the same words in the intro and the closing lead.
 - `{host_remark}` and `{host_line}` are written new each episode.
-- The intro greeting is written in romanization (`annyeonghaseyo`). The global pronunciation dictionary maps it to Hangul, so the voice says it in Korean (tpl-en-v2, 2026-10-16).
+- The intro greeting (`annyeonghaseyo`) and the sign-off thanks (`gamsahamnida`) are written in romanization. The global pronunciation dictionary maps them to Hangul, so the voice says them in Korean (tpl-en-v2 and v3, 2026-10-16).
 - L0 checks that the last turn is a host turn containing a sign-off head (the text before its first `{`).
 
 ### Length
