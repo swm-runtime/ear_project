@@ -18,7 +18,8 @@ export class ArchivedConsent extends BaseEntity {
   @Column({ name: 'user_hash_version', type: 'smallint', default: 1 })
   userHashVersion: number;
 
-  @Column({ name: 'consent_type', type: 'varchar', length: 20 })
+  /** 32 — `cross_border_transfer`(21자)가 종전 20자에 들어가지 않아 넓혔다(KAN-215) */
+  @Column({ name: 'consent_type', type: 'varchar', length: 32 })
   consentType: ConsentType;
 
   @Column({ name: 'version', type: 'varchar', length: 20, nullable: true })

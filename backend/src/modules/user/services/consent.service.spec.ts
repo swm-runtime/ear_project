@@ -4,7 +4,7 @@ import { ConsentService } from './consent.service';
 import { Consent } from '../entities/consent.entity';
 import { ConsentRepository } from '../repositories/consent.repository';
 import { CURRENT_CONSENT_VERSIONS } from '../user.constant';
-import { ConsentType } from '../user.enum';
+import { ConsentType, UserMarket } from '../user.enum';
 
 const USER_ID = '11111111-1111-4111-8111-111111111111';
 const NOW = new Date('2026-09-09T05:00:00.000Z');
@@ -17,6 +17,7 @@ describe('ConsentService', () => {
     repository = {
       create: jest.fn((value: Partial<Consent>) => value as Consent),
       saveAll: jest.fn((values: Consent[]) => Promise.resolve(values)),
+      findAllByUserId: jest.fn().mockResolvedValue([]),
     } as unknown as jest.Mocked<ConsentRepository>;
 
     service = new ConsentService(repository);
@@ -27,6 +28,7 @@ describe('ConsentService', () => {
       // given — 버전을 비워 보낸 마케팅 동의와 현행 버전의 약관 동의
       const saved = await service.recordConsents(
         USER_ID,
+        UserMarket.KR,
         [
           { consentType: ConsentType.MARKETING, version: null, isAgreed: true },
           {
@@ -49,6 +51,7 @@ describe('ConsentService', () => {
       // when
       const recording = service.recordConsents(
         USER_ID,
+        UserMarket.KR,
         [{ consentType: ConsentType.TERMS, version: '0.0', isAgreed: true }],
         NOW,
       );
@@ -64,6 +67,7 @@ describe('ConsentService', () => {
       // when
       const recording = service.recordConsents(
         USER_ID,
+        UserMarket.KR,
         [
           { consentType: ConsentType.MARKETING, version: null, isAgreed: true },
           {
@@ -87,6 +91,7 @@ describe('ConsentService', () => {
       // when
       const recording = service.recordConsents(
         USER_ID,
+        UserMarket.KR,
         [
           {
             consentType: ConsentType.TERMS,
@@ -108,6 +113,7 @@ describe('ConsentService', () => {
       // when
       const saved = await service.recordConsents(
         USER_ID,
+        UserMarket.KR,
         [
           {
             consentType: ConsentType.MARKETING,
@@ -124,6 +130,109 @@ describe('ConsentService', () => {
         consentType: ConsentType.MARKETING,
         isAgreed: false,
       });
+    });
+
+    it('GLOBAL 사용자는 국외 이전 동의를 철회할 수 없다 — 그 시장의 필수 동의다(KAN-215)', async () => {
+      // when
+      const recording = service.recordConsents(
+        USER_ID,
+        UserMarket.GLOBAL,
+        [
+          {
+            consentType: ConsentType.CROSS_BORDER_TRANSFER,
+            version: null,
+            isAgreed: false,
+          },
+        ],
+        NOW,
+      );
+
+      // then
+      await expect(recording).rejects.toMatchObject({
+        errorCode: ErrorCode.CONSENT_REQUIRED,
+      });
+      expect(repository.saveAll).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('findPendingConsents', () => {
+    /** 약관·개인정보·연령 확인을 현행 버전으로 동의한 이력 — 국외 이전 동의 도입 전 가입자 */
+    const agreedBeforeCrossBorder = [
+      ConsentType.TERMS,
+      ConsentType.PRIVACY,
+      ConsentType.AGE_CONFIRMATION,
+    ].map(
+      (consentType) =>
+        ({
+          consentType,
+          version: CURRENT_CONSENT_VERSIONS[consentType],
+          isAgreed: true,
+          agreedAt: NOW,
+        }) as Consent,
+    );
+
+    it('GLOBAL 기존 가입자는 국외 이전 동의를 한 번 요구받는다', async () => {
+      // given
+      repository.findAllByUserId.mockResolvedValue(agreedBeforeCrossBorder);
+
+      // when
+      const pending = await service.findPendingConsents(
+        USER_ID,
+        UserMarket.GLOBAL,
+      );
+
+      // then
+      expect(pending).toEqual([
+        {
+          consentType: ConsentType.CROSS_BORDER_TRANSFER,
+          version: null,
+          isRequired: true,
+        },
+      ]);
+    });
+
+    it('KR 기존 가입자는 같은 이력이어도 재동의가 없다 — 국외 이전 동의는 KR 필수가 아니다', async () => {
+      // given
+      repository.findAllByUserId.mockResolvedValue(agreedBeforeCrossBorder);
+
+      // when
+      const pending = await service.findPendingConsents(USER_ID, UserMarket.KR);
+
+      // then
+      expect(pending).toEqual([]);
+    });
+  });
+
+  describe('buildSignUpConsents', () => {
+    it('KR 가입 목록은 종전과 같다 — 필수 3종 + 선택 마케팅', () => {
+      // when
+      const requirements = service.buildSignUpConsents(UserMarket.KR);
+
+      // then
+      expect(
+        requirements.map(({ consentType, isRequired }) => [
+          consentType,
+          isRequired,
+        ]),
+      ).toEqual([
+        [ConsentType.TERMS, true],
+        [ConsentType.PRIVACY, true],
+        [ConsentType.AGE_CONFIRMATION, true],
+        [ConsentType.MARKETING, false],
+      ]);
+    });
+
+    it('GLOBAL 가입 목록에는 국외 이전 동의가 필수로 있다', () => {
+      // when
+      const requirements = service.buildSignUpConsents(UserMarket.GLOBAL);
+
+      // then
+      expect(requirements).toContainEqual({
+        consentType: ConsentType.CROSS_BORDER_TRANSFER,
+        version: null,
+        isRequired: true,
+      });
+      expect(requirements.filter((r) => r.isRequired)).toHaveLength(4);
     });
   });
 });

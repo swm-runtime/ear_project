@@ -8,9 +8,9 @@ import { ConsentRepository } from '../repositories/consent.repository';
 import { Consent } from '../entities/consent.entity';
 import {
   CURRENT_CONSENT_VERSIONS,
-  REQUIRED_CONSENT_TYPES,
+  REQUIRED_CONSENT_TYPES_BY_MARKET,
 } from '../user.constant';
-import { ConsentType } from '../user.enum';
+import { ConsentType, UserMarket } from '../user.enum';
 import { ConsentInput, ConsentState, PendingConsent } from '../user.types';
 
 @Injectable()
@@ -25,13 +25,17 @@ export class ConsentService {
    * `CONSENT_VERSION_STALE`), 비웠으면 현행 버전을 채운다. 같은 요청에 같은 종류가 두 번
    * 있으면 `agreed_at`이 동률이 되어 현재 상태 판정(아래 findCurrentStates)이 비결정이 되므로
    * 거부한다(2026-09-09 감사 — 종전엔 4.5 경로가 클라이언트 값을 그대로 기록했다).
+   *
+   * `market`은 그 사용자의 시장이다 — 무엇이 필수(철회 불가)인지가 시장마다 다르다(KAN-215).
    */
   async recordConsents(
     userId: string,
+    market: UserMarket,
     inputs: ConsentInput[],
     agreedAt: Date,
     manager?: EntityManager,
   ): Promise<Consent[]> {
+    const requiredTypes = REQUIRED_CONSENT_TYPES_BY_MARKET[market];
     const seenTypes = new Set<ConsentType>();
     for (const input of inputs) {
       if (seenTypes.has(input.consentType)) {
@@ -46,10 +50,7 @@ export class ConsentService {
 
       // 필수 동의는 철회 행을 받지 않는다 — 약관을 버리는 정식 경로는 탈퇴다(auth-api.md 4.5는
       // 이 API의 용도를 재동의·마케팅 변경으로 둔다). 가입(UserService)과 같은 코드로 거부한다
-      if (
-        REQUIRED_CONSENT_TYPES.includes(input.consentType) &&
-        !input.isAgreed
-      ) {
+      if (requiredTypes.includes(input.consentType) && !input.isAgreed) {
         throw new BusinessException({
           status: HttpStatus.BAD_REQUEST,
           errorCode: ErrorCode.CONSENT_REQUIRED,
@@ -108,10 +109,11 @@ export class ConsentService {
 
   /**
    * auth-api.md 4.1 — 재동의 판정은 서버가 `consents` 최신 버전과 현행 버전을 비교해서 한다.
-   * 클라이언트가 보낸 버전을 신뢰하지 않는다.
+   * 클라이언트가 보낸 버전을 신뢰하지 않는다. 필수 목록은 그 사용자의 시장 기준이다(KAN-215).
    */
   async findPendingConsents(
     userId: string,
+    market: UserMarket,
     manager?: EntityManager,
   ): Promise<PendingConsent[]> {
     const states = await this.findCurrentStates(userId, manager);
@@ -119,17 +121,39 @@ export class ConsentService {
       states.map((state) => [state.consentType, state]),
     );
 
-    return REQUIRED_CONSENT_TYPES.filter((consentType) => {
-      const state = stateByType.get(consentType);
-      return (
-        !state?.isAgreed ||
-        state.version !== CURRENT_CONSENT_VERSIONS[consentType]
-      );
-    }).map((consentType) => ({
-      consentType,
-      version: CURRENT_CONSENT_VERSIONS[consentType],
-      isRequired: true,
-    }));
+    return REQUIRED_CONSENT_TYPES_BY_MARKET[market]
+      .filter((consentType) => {
+        const state = stateByType.get(consentType);
+        return (
+          !state?.isAgreed ||
+          state.version !== CURRENT_CONSENT_VERSIONS[consentType]
+        );
+      })
+      .map((consentType) => ({
+        consentType,
+        version: CURRENT_CONSENT_VERSIONS[consentType],
+        isRequired: true,
+      }));
+  }
+
+  /**
+   * 가입 동의 목록 — 그 시장의 필수 동의 + 선택(마케팅). 계정이 없는 시점의 목록이라 저장소를 보지 않는다.
+   * 로그인 응답(auth-api.md 4.1 `required_consents`)과 재조회(`POST /auth/sign-up/consents`)가 이 한 곳을 쓰고,
+   * 가입 검증(`UserService.createUser`)도 같은 상수를 본다 — 그려 준 목록대로 보내면 가입이 통과한다.
+   */
+  buildSignUpConsents(market: UserMarket): PendingConsent[] {
+    return [
+      ...REQUIRED_CONSENT_TYPES_BY_MARKET[market].map((consentType) => ({
+        consentType,
+        version: CURRENT_CONSENT_VERSIONS[consentType],
+        isRequired: true,
+      })),
+      {
+        consentType: ConsentType.MARKETING,
+        version: CURRENT_CONSENT_VERSIONS[ConsentType.MARKETING],
+        isRequired: false,
+      },
+    ];
   }
 
   async findAllByUserId(

@@ -21,7 +21,7 @@ import {
   resolveSignupTrialEndsAtFor,
 } from '../policies/signup-trial.policy';
 import {
-  REQUIRED_CONSENT_TYPES,
+  REQUIRED_CONSENT_TYPES_BY_MARKET,
   CURRENT_CONSENT_VERSIONS,
 } from '../user.constant';
 import {
@@ -34,7 +34,12 @@ import {
   UserTier,
 } from '../user.enum';
 import { UserRepository } from '../repositories/user.repository';
-import { CreateUserCommand, LocaleInput } from '../user.types';
+import {
+  CreateUserCommand,
+  LocaleInput,
+  SignUpConsents,
+  SignUpMarket,
+} from '../user.types';
 
 @Injectable()
 export class UserService {
@@ -131,10 +136,12 @@ export class UserService {
    * 계정과 동의 이력을 하나의 트랜잭션에서 만든다 — 동의 없는 계정이 남으면 안 된다.
    */
   async createUser(command: CreateUserCommand, now: Date): Promise<User> {
-    this.assertRequiredConsents(command);
+    // 시장을 한 번 정해 검증과 저장에 같이 쓴다 — 둘이 따로 판정하면 받은 동의와 저장된 시장이 어긋날 수 있다
+    const signupMarket = this.resolveSignUpMarket(command.locale);
+    this.assertRequiredConsents(command, signupMarket.market);
 
     try {
-      return await this.insertUser(command, now);
+      return await this.insertUser(command, signupMarket, now);
     } catch (error) {
       if (!isUniqueViolation(error)) {
         throw error;
@@ -168,20 +175,41 @@ export class UserService {
     }
   }
 
-  private async insertUser(
-    command: CreateUserCommand,
-    now: Date,
-  ): Promise<User> {
-    const locale = normalizeLocale(command.locale);
-    const resolved = resolveMarket({
-      preferredLanguage: command.locale?.preferredLanguage,
-      languageCode: locale.languageCode,
+  /**
+   * 가입 시장 판정(`global-api.md` 2.1) — 가입(`createUser`)과 가입 동의 목록(`findSignUpConsents`)이 이 한 곳을 쓴다.
+   * 같은 `locale`이면 같은 시장이 나와야, 동의 화면이 그린 목록대로 보낸 가입이 통과한다.
+   */
+  resolveSignUpMarket(locale: LocaleInput | undefined): SignUpMarket {
+    return resolveMarket({
+      preferredLanguage: locale?.preferredLanguage,
+      languageCode: normalizeLocale(locale).languageCode,
       // 글로벌 카탈로그가 준비될 때까지 닫아 둔다 — `true`를 명시했을 때만 연다(env.validation.ts)
       globalSignupEnabled:
         this.configService
           .get('GLOBAL_SIGNUP_ENABLED', { infer: true })
           ?.trim() === 'true',
     });
+  }
+
+  /**
+   * 계정이 생기기 전 동의 화면에 그릴 목록 — 그 `locale`로 가입하면 정해질 시장의 필수·선택 동의
+   * (auth-api.md 4.1 `required_consents` · `POST /auth/sign-up/consents`, KAN-215). 아무것도 기록하지 않는다.
+   */
+  findSignUpConsents(locale: LocaleInput | undefined): SignUpConsents {
+    const { market } = this.resolveSignUpMarket(locale);
+
+    return {
+      market,
+      requiredConsents: this.consentService.buildSignUpConsents(market),
+    };
+  }
+
+  private async insertUser(
+    command: CreateUserCommand,
+    resolved: SignUpMarket,
+    now: Date,
+  ): Promise<User> {
+    const locale = normalizeLocale(command.locale);
 
     return this.dataSource.transaction(async (manager) => {
       const user = this.userRepository.create({
@@ -223,6 +251,7 @@ export class UserService {
 
       await this.consentService.recordConsents(
         saved.id,
+        saved.market,
         command.consents,
         now,
         manager,
@@ -416,15 +445,18 @@ export class UserService {
     await this.userRepository.deleteById(userId, manager);
   }
 
-  /** 필수 동의(약관·개인정보·연령 확인)가 빠지면 계정을 만들지 않는다 (auth-api.md 4.2) */
-  private assertRequiredConsents(command: CreateUserCommand): void {
+  /** 그 시장의 필수 동의(약관·개인정보·연령 확인, GLOBAL은 국외 이전까지)가 빠지면 계정을 만들지 않는다 (auth-api.md 4.2) */
+  private assertRequiredConsents(
+    command: CreateUserCommand,
+    market: UserMarket,
+  ): void {
     const agreedTypes = new Set(
       command.consents
         .filter((consent) => consent.isAgreed)
         .map((c) => c.consentType),
     );
 
-    const missing = REQUIRED_CONSENT_TYPES.filter(
+    const missing = REQUIRED_CONSENT_TYPES_BY_MARKET[market].filter(
       (type) => !agreedTypes.has(type),
     );
     if (missing.length > 0) {

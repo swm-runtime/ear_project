@@ -9,7 +9,12 @@ import { ConsentService } from './consent.service';
 import { User } from '../entities/user.entity';
 import { UserRepository } from '../repositories/user.repository';
 import { UserService } from './user.service';
-import { ConsentType, SocialProvider } from '../user.enum';
+import {
+  ConsentType,
+  PreferredLanguage,
+  SocialProvider,
+  UserMarket,
+} from '../user.enum';
 import { ConsentInput, CreateUserCommand } from '../user.types';
 
 const NOW = new Date('2026-09-06T09:00:00.000Z');
@@ -18,12 +23,13 @@ type TrialEnv = Partial<
   Record<
     | 'SIGNUP_TRIAL_ENABLED'
     | 'SIGNUP_TRIAL_DAYS'
-    | 'SIGNUP_TRIAL_EXISTING_USERS_BEFORE',
+    | 'SIGNUP_TRIAL_EXISTING_USERS_BEFORE'
+    | 'GLOBAL_SIGNUP_ENABLED',
     string
   >
 >;
 
-/** 가입 체험 스위치(`SIGNUP_TRIAL_*`)만 읽는 ConfigService 대역 — 기본은 꺼짐 */
+/** 가입 체험(`SIGNUP_TRIAL_*`)·글로벌 가입(`GLOBAL_SIGNUP_ENABLED`) 스위치만 읽는 ConfigService 대역 — 기본은 꺼짐 */
 function buildConfigService(
   env: TrialEnv = {},
 ): ConfigService<EnvironmentVariables, true> {
@@ -71,6 +77,7 @@ describe('UserService.createUser — 필수 동의 판정', () => {
     } as unknown as jest.Mocked<UserRepository>;
     consentService = {
       recordConsents: jest.fn(() => Promise.resolve([])),
+      buildSignUpConsents: jest.fn(() => []),
     } as unknown as jest.Mocked<ConsentService>;
     dataSource = {
       transaction: jest.fn((run: (manager: EntityManager) => unknown) =>
@@ -94,6 +101,7 @@ describe('UserService.createUser — 필수 동의 판정', () => {
     expect(userRepository.save).toHaveBeenCalled();
     expect(consentService.recordConsents).toHaveBeenCalledWith(
       'user-1',
+      UserMarket.KR,
       consents,
       NOW,
       expect.anything(),
@@ -145,6 +153,93 @@ describe('UserService.createUser — 필수 동의 판정', () => {
     await expect(
       service.createUser(buildCommand(buildConsents()), NOW),
     ).resolves.toBeDefined();
+  });
+
+  describe('시장별 필수 동의(KAN-215)', () => {
+    const englishLocale = { preferredLanguage: PreferredLanguage.EN };
+    const crossBorder: ConsentInput = {
+      consentType: ConsentType.CROSS_BORDER_TRANSFER,
+      version: null,
+      isAgreed: true,
+    };
+
+    function openGlobalSignup(): void {
+      service = new UserService(
+        userRepository,
+        consentService,
+        dataSource,
+        buildConfigService({ GLOBAL_SIGNUP_ENABLED: 'true' }),
+      );
+    }
+
+    it('GLOBAL 가입에 국외 이전 동의가 빠지면 CONSENT_REQUIRED로 거절하고 계정을 만들지 않는다', async () => {
+      // given
+      openGlobalSignup();
+
+      // when
+      const creating = service.createUser(
+        { ...buildCommand(buildConsents()), locale: englishLocale },
+        NOW,
+      );
+
+      // then
+      await expect(creating).rejects.toMatchObject<Partial<BusinessException>>({
+        errorCode: ErrorCode.CONSENT_REQUIRED,
+      });
+      expect(userRepository.save).not.toHaveBeenCalled();
+    });
+
+    it('GLOBAL 가입은 국외 이전 동의까지 받으면 GLOBAL 시장으로 기록한다', async () => {
+      // given
+      openGlobalSignup();
+      const consents = [...buildConsents(), crossBorder];
+
+      // when
+      await service.createUser(
+        { ...buildCommand(consents), locale: englishLocale },
+        NOW,
+      );
+
+      // then
+      expect(consentService.recordConsents).toHaveBeenCalledWith(
+        'user-1',
+        UserMarket.GLOBAL,
+        consents,
+        NOW,
+        expect.anything(),
+      );
+    });
+
+    it('글로벌 가입이 닫혀 있으면 English를 골라도 KR 목록이다 — 국외 이전 동의 없이 가입된다', async () => {
+      // when — 기본 대역은 스위치가 닫혀 있다
+      await service.createUser(
+        { ...buildCommand(buildConsents()), locale: englishLocale },
+        NOW,
+      );
+
+      // then
+      expect(consentService.recordConsents).toHaveBeenCalledWith(
+        'user-1',
+        UserMarket.KR,
+        buildConsents(),
+        NOW,
+        expect.anything(),
+      );
+    });
+
+    it('가입 동의 목록은 가입이 정할 시장과 같은 판정이다 — 그려 준 목록대로 보내면 통과한다', () => {
+      // given
+      openGlobalSignup();
+
+      // when
+      const opened = service.findSignUpConsents(englishLocale);
+
+      // then
+      expect(opened.market).toBe(UserMarket.GLOBAL);
+      expect(consentService.buildSignUpConsents).toHaveBeenCalledWith(
+        UserMarket.GLOBAL,
+      );
+    });
   });
 
   describe('가입 체험(subscription.md 4.8)', () => {

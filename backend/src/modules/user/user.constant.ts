@@ -1,6 +1,7 @@
 import {
   ConsentType,
   OnboardingStep,
+  UserMarket,
   YearsOfExperienceRange,
 } from './user.enum';
 
@@ -34,19 +35,34 @@ export const CURRENT_CONSENT_VERSIONS: Readonly<
    * 도입해 재확인을 트리거한다 — null인 동안은 한 번 확인하면 다시 묻지 않는다.
    */
   [ConsentType.AGE_CONFIRMATION]: null,
+  /** 열람할 별도 문서가 없다 — 이전 내용은 처리방침이 고지한다(KAN-215) */
+  [ConsentType.CROSS_BORDER_TRANSFER]: null,
 };
 
 /**
- * 계정 생성에 반드시 필요한 동의 (auth.md 4.1).
- * 연령 확인 포함 — 여기 든 값은 가입 거절 판정과 기존 사용자 재동의 판정
- * (`findPendingConsents`)에 함께 쓰이므로, 추가하면 기록이 없는 기존 사용자는
- * 다음 로그인에서 한 번 확인을 요구받는다.
+ * 계정 생성에 반드시 필요한 동의 — **시장별**(auth.md 4.1 · KAN-215).
+ * 여기 든 값은 가입 거절 판정, 가입 동의 목록(로그인 응답·`POST /auth/sign-up/consents`),
+ * 기존 사용자 재동의 판정(`findPendingConsents`)에 함께 쓰이므로, 추가하면 그 시장에서 기록이 없는
+ * 기존 사용자는 다음 로그인에서 한 번 확인을 요구받는다.
+ *
+ * 국외 이전 동의는 GLOBAL만 받는다. KR은 한국어 처리방침의 국외 이전 고지로 갈음하고, 기존 KR 사용자에게
+ * 재동의를 띄우지 않는다.
  */
-export const REQUIRED_CONSENT_TYPES: readonly ConsentType[] = [
-  ConsentType.TERMS,
-  ConsentType.PRIVACY,
-  ConsentType.AGE_CONFIRMATION,
-];
+export const REQUIRED_CONSENT_TYPES_BY_MARKET: Readonly<
+  Record<UserMarket, readonly ConsentType[]>
+> = {
+  [UserMarket.KR]: [
+    ConsentType.TERMS,
+    ConsentType.PRIVACY,
+    ConsentType.AGE_CONFIRMATION,
+  ],
+  [UserMarket.GLOBAL]: [
+    ConsentType.TERMS,
+    ConsentType.PRIVACY,
+    ConsentType.AGE_CONFIRMATION,
+    ConsentType.CROSS_BORDER_TRANSFER,
+  ],
+};
 
 // --- 이메일 인증 코드 규칙 (auth.md 4.5) ---
 

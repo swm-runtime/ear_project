@@ -17,7 +17,7 @@ import { SubscriptionService } from '@/modules/subscription/services/subscriptio
 import { PlanView } from '@/modules/subscription/subscription.types';
 import { ConsentService } from '@/modules/user/services/consent.service';
 import { UserService } from '@/modules/user/services/user.service';
-import { UserTier } from '@/modules/user/user.enum';
+import { UserMarket, UserTier } from '@/modules/user/user.enum';
 import { UserSettingService } from '@/modules/user/services/user-setting.service';
 import { CURRENT_CONSENT_VERSIONS } from '@/modules/user/user.constant';
 import {
@@ -206,11 +206,13 @@ export class SettingsOrchestrator {
    */
   async recordMarketingConsent(
     userId: string,
+    market: UserMarket,
     isAgreed: boolean,
     now: Date,
   ): Promise<MarketingConsentView> {
     await this.consentService.recordConsents(
       userId,
+      market,
       [
         {
           consentType: ConsentType.MARKETING,
