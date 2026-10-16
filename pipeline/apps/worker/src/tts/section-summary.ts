@@ -3,7 +3,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { cfg } from "../config.js";
 import { pool } from "../db.js";
-import { promptBody } from "@ear/pipeline";
+import { pipelineLocale, promptBody } from "@ear/pipeline";
 import { SECTION_SUMMARY_PROMPT_KEY } from "../assets.js";
 import { makeExecutor } from "../executors/index.js";
 import type { ScriptSection, SectionKind } from "./sections.js";
@@ -37,12 +37,17 @@ const SCHEMA = {
  */
 export const NARRATION_RE = /(다룬다|다뤘다|살폈다|살펴본다|살펴봤다|마친다|마쳤다|이야기한다|이야기했다|이야기다|알아본다|알아봤다|정리한다|정리했다|소개한다|소개했다|짚는다|짚었다)[.!]?$|이야기$/; // "설명한다"는 뺀다 — "가설이 현상을 설명한다"처럼 내용 문장에도 쓴다
 
-/** 요약 한 줄이 규격 밖이면 사유, 맞으면 null */
+/** 글로벌판 진행 서술 — "We look at…", "This section covers…", "Exploring…" 처럼 구간이 한 일만 말하는 영어 요약 (summary-en-v1, 2026-10-16) */
+export const NARRATION_RE_EN = /^(?:we (?:look|talk|discuss|explore|cover|learn|wrap)|this (?:section|part|episode|segment)|(?:a )?look at|exploring|discussing|introducing|introduction to|wrapping up|wrap-up|closing (?:thoughts|remarks)|summary of|overview of)\b/i;
+
+/** 요약 한 줄이 규격 밖이면 사유, 맞으면 null. 사유는 다시 쓰기 프롬프트에 들어가므로 글로벌판은 영어로 낸다 */
 export function summaryProblem(s: string | null | undefined): string | null {
-  if (!s || !s.trim()) return "비어 있음";
-  if (/[\r\n]/.test(s)) return "줄바꿈";
+  const en = pipelineLocale() === "en";
+  if (!s || !s.trim()) return en ? "empty" : "비어 있음";
+  if (/[\r\n]/.test(s)) return en ? "line break" : "줄바꿈";
   const n = [...s.trim()].length;
-  if (n > SUMMARY_MAX) return `${n}자 (공백 포함 ${SUMMARY_MAX}자 이내)`;
+  if (n > SUMMARY_MAX) return en ? `${n} characters (at most ${SUMMARY_MAX}, spaces included)` : `${n}자 (공백 포함 ${SUMMARY_MAX}자 이내)`;
+  if (en) return NARRATION_RE_EN.test(s.trim()) ? "narrates what the section does — state what it says" : null;
   return NARRATION_RE.test(s.trim()) ? "진행 서술 — 구간이 말한 내용을 쓴다" : null;
 }
 
@@ -51,6 +56,11 @@ export function summaryCacheKey(version: string, item: SummaryItem): string {
 }
 
 export function buildSummaryPrompt(episodeTitle: string, items: SummaryItem[], fix?: { index: number; problem: string; summary: string }[]): string {
+  if (pipelineLocale() === "en") { // 글로벌판 — 규칙 자산(summary-en)이 영어라 입력 라벨도 영어 (글로벌 명세 4.5)
+    const bodyEn = items.map((x, i) => `### Section ${i} · ${x.kind} · title: ${x.title}\n${x.text}`).join("\n\n");
+    const againEn = fix?.length ? `\n\n[Rewrite these sections]\n${fix.map((f) => `- section ${f.index}: "${f.summary}" — ${f.problem}`).join("\n")}\nRewrite only these sections by the rules. Return the other sections unchanged.` : "";
+    return `[Episode] ${episodeTitle}\n\n${bodyEn}${againEn}`;
+  }
   const body = items.map((x, i) => `### 구간 ${i} · ${x.kind} · 제목: ${x.title}\n${x.text}`).join("\n\n");
   const again = fix?.length ? `\n\n[다시 쓸 구간]\n${fix.map((f) => `- 구간 ${f.index}: "${f.summary}" — ${f.problem}`).join("\n")}\n위 구간만 규칙에 맞게 다시 쓴다. 나머지 구간은 그대로 낸다.` : "";
   return `[에피소드] ${episodeTitle}\n\n${body}${again}`;

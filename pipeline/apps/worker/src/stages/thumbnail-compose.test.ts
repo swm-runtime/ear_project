@@ -44,3 +44,26 @@ test("composeCorner — 삼각형 안은 대분류 색, 빗변 바로 바깥은 
   // 원본 대비 — 회색과 딥 그린
   assert.ok((await cornerContrast(src, "#2F6B4F")) > 20);
 });
+
+// 2026-10-16 글로벌판 — 코너 삼각형 대신 주제별 책갈피(고정 이미지 8장)를 얹는다
+const { bookmarkFile, composeBookmark, BOOKMARK } = await import("./thumbnail-compose.js");
+
+test("bookmarkFile — 글로벌 주제 8개는 책갈피가 있고, 모르는 주제·한국판 대분류는 null(삼각형으로 대신)", () => {
+  for (const t of ["Korean Language", "Korean Culture", "K-Food", "K-Pop", "K-Drama & Film", "K-Beauty & Fashion", "Travel in Korea", "Korean History & Society"]) assert.ok(bookmarkFile(t), t);
+  assert.equal(bookmarkFile("돈·경제"), null);
+  assert.equal(bookmarkFile(null), null);
+});
+
+test("composeBookmark — 오른쪽 위에 책갈피가 얹히고, 그 밖은 원본 그대로", async () => {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), "thumb-")); const n = 1024;
+  const src = path.join(dir, "src.png"), out = path.join(dir, "out.png");
+  await run("ffmpeg", ["-v", "error", "-f", "lavfi", "-i", `color=c=0x808080:s=${n}x${n}`, "-frames:v", "1", src]);
+  await composeBookmark(src, out, bookmarkFile("K-Food")!);
+  const raw = await rgbAt(out, n);
+  // 책갈피 본체(오른쪽 끝에서 5% + 반 폭 안쪽, 위에서 10%) — 감 주황 계열이라 회색이 아니다
+  const body = px(raw, n, Math.round(n * (1 - BOOKMARK.right) - n * 0.04), Math.round(n * 0.1));
+  assert.ok(body[0] - body[2] > 60, `본체 ${body}`);
+  // 책갈피 아래(높이 41% 밖)와 왼쪽 아래 먼 곳은 원본 그대로
+  assert.deepEqual(px(raw, n, Math.round(n * 0.9), Math.round(n * 0.6)), [128, 128, 128]);
+  assert.deepEqual(px(raw, n, 100, 900), [128, 128, 128]);
+});
