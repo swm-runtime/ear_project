@@ -75,3 +75,8 @@
 ## 처리 기록
 - 2026-10-15 발행(마크다운 + Jira). KAN-189의 남은 일 두 가지를 옮겨 왔다.
 - 2026-10-15 KR 주제 slug 확정(36개). 재테크·투자 이미지 파일명 엇갈림 주의를 이 문서·FE 티켓·Jira(KAN-212·KAN-195)에 남겼다.
+- 2026-10-16 2번 구현 — PR `feat(be)/global-consent-versions`(KAN-215 PR #1609 위에 쌓음, dev 대상).
+  - 현행 버전을 시장별로 나눴다(`CURRENT_CONSENT_VERSIONS_BY_MARKET`) — KR `0.1` 그대로, GLOBAL `terms`·`privacy` `global-0.1`(영어판 문서 0.1). 열린 설계 질문은 FE 결정(로그인 → A21 → 동의 목록 재조회 → A4)으로 해소됐다.
+  - 가입·재동의·`POST /users/me/consents`가 그 사용자 시장 버전과 비교한다. GLOBAL 가입이 KR 버전을 보내면 409 `CONSENT_VERSION_STALE`.
+  - 문서 `changes/pending/global-consent-version-namespace.md`(`global-api.md` 9장 #5 결정 포함).
+  - 1번(KR slug 운영 입력)은 그대로 대기 — 이 티켓은 1번이 끝날 때 archive로 옮긴다.

@@ -38,6 +38,24 @@ function buildConfigService(
   } as unknown as ConfigService<EnvironmentVariables, true>;
 }
 
+/** GLOBAL 정상 가입 입력 — 영어판 약관·처리방침 버전 + 국외 이전 동의 (KAN-212·215) */
+function buildGlobalConsents(): ConsentInput[] {
+  return [
+    { consentType: ConsentType.TERMS, version: 'global-0.1', isAgreed: true },
+    { consentType: ConsentType.PRIVACY, version: 'global-0.1', isAgreed: true },
+    {
+      consentType: ConsentType.AGE_CONFIRMATION,
+      version: null,
+      isAgreed: true,
+    },
+    {
+      consentType: ConsentType.CROSS_BORDER_TRANSFER,
+      version: null,
+      isAgreed: true,
+    },
+  ];
+}
+
 /** 필수 3종 + 마케팅 거부 — 정상 가입 입력 (auth-api.md 4.2) */
 function buildConsents(): ConsentInput[] {
   return [
@@ -178,7 +196,15 @@ describe('UserService.createUser — 필수 동의 판정', () => {
 
       // when
       const creating = service.createUser(
-        { ...buildCommand(buildConsents()), locale: englishLocale },
+        {
+          ...buildCommand(
+            buildGlobalConsents().filter(
+              (consent) =>
+                consent.consentType !== ConsentType.CROSS_BORDER_TRANSFER,
+            ),
+          ),
+          locale: englishLocale,
+        },
         NOW,
       );
 
@@ -192,7 +218,7 @@ describe('UserService.createUser — 필수 동의 판정', () => {
     it('GLOBAL 가입은 국외 이전 동의까지 받으면 GLOBAL 시장으로 기록한다', async () => {
       // given
       openGlobalSignup();
-      const consents = [...buildConsents(), crossBorder];
+      const consents = buildGlobalConsents();
 
       // when
       await service.createUser(
@@ -208,6 +234,41 @@ describe('UserService.createUser — 필수 동의 판정', () => {
         NOW,
         expect.anything(),
       );
+    });
+
+    it('KR 가입에 GLOBAL 약관 버전을 보내면 CONSENT_VERSION_STALE이다 — 판정은 양방향이다', async () => {
+      // given — 기본 대역은 글로벌 가입이 닫혀 있어 KR로 판정된다
+      const consents = buildConsents().map((consent) =>
+        consent.consentType === ConsentType.TERMS
+          ? { ...consent, version: 'global-0.1' }
+          : consent,
+      );
+
+      // when
+      const creating = service.createUser(buildCommand(consents), NOW);
+
+      // then
+      await expect(creating).rejects.toMatchObject<Partial<BusinessException>>({
+        errorCode: ErrorCode.CONSENT_VERSION_STALE,
+      });
+    });
+
+    it('GLOBAL 가입에 KR 약관 버전을 보내면 CONSENT_VERSION_STALE이다 — 그 시장 문서에 동의해야 한다(KAN-212)', async () => {
+      // given
+      openGlobalSignup();
+      const consents = [...buildConsents(), crossBorder];
+
+      // when
+      const creating = service.createUser(
+        { ...buildCommand(consents), locale: englishLocale },
+        NOW,
+      );
+
+      // then
+      await expect(creating).rejects.toMatchObject<Partial<BusinessException>>({
+        errorCode: ErrorCode.CONSENT_VERSION_STALE,
+      });
+      expect(userRepository.save).not.toHaveBeenCalled();
     });
 
     it('글로벌 가입이 닫혀 있으면 English를 골라도 KR 목록이다 — 국외 이전 동의 없이 가입된다', async () => {

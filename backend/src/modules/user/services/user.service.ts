@@ -22,7 +22,7 @@ import {
 } from '../policies/signup-trial.policy';
 import {
   REQUIRED_CONSENT_TYPES_BY_MARKET,
-  CURRENT_CONSENT_VERSIONS,
+  CURRENT_CONSENT_VERSIONS_BY_MARKET,
 } from '../user.constant';
 import {
   MessageLanguage,
@@ -467,10 +467,10 @@ export class UserService {
       });
     }
 
-    // 동의 화면 체류 중 약관이 개정된 경우 — 최신 버전으로 다시 받는다
+    // 동의 화면 체류 중 약관이 개정됐거나 다른 시장의 버전을 보낸 경우 — 그 시장의 최신 버전으로 다시 받는다
+    const currentVersions = CURRENT_CONSENT_VERSIONS_BY_MARKET[market];
     const stale = command.consents.some(
-      (consent) =>
-        consent.version !== CURRENT_CONSENT_VERSIONS[consent.consentType],
+      (consent) => consent.version !== currentVersions[consent.consentType],
     );
     if (stale) {
       throw new BusinessException({

@@ -106,6 +106,12 @@ describe('가입 동의 목록 재조회 E2E', () => {
       version: null,
       is_required: true,
     });
+    // 영어판 약관·처리방침의 버전이다(KAN-212) — KR 버전과 섞이지 않는다
+    expect(consents.required_consents).toContainEqual({
+      consent_type: 'terms',
+      version: 'global-0.1',
+      is_required: true,
+    });
     expect(user.market).toBe('global');
     // 21자 종류값이 그대로 저장된다(varchar 20 → 32 마이그레이션)
     const rows = await dataSource.query<{ consent_type: string }[]>(
