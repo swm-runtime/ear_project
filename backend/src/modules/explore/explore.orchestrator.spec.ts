@@ -940,6 +940,64 @@ describe('ExploreOrchestrator', () => {
       expect(contentService.findSearchPage).not.toHaveBeenCalled();
     });
 
+    it('#으로 시작하면 #을 뗀 검색어로 태그 전용 조회를 하고, 로그에는 #을 남긴다(KAN-218)', async () => {
+      // when
+      await orchestrator.search(
+        USER_ID,
+        { query: '#뱅크런', topicIds: [], cursor: null, limit: 20 },
+        NOW,
+        UserMarket.KR,
+      );
+
+      // then
+      expect(contentService.findSearchPage).toHaveBeenCalledWith(
+        expect.objectContaining({ normalizedQuery: '뱅크런', tagOnly: true }),
+      );
+      expect(searchQueryLogService.record).toHaveBeenCalledWith(
+        expect.objectContaining({ normalizedQuery: '#뱅크런' }),
+        NOW,
+      );
+    });
+
+    it('#을 뗀 뒤 2자 미만이면 조회 없이 거절한다 — #a', async () => {
+      // when
+      const error = await catchError(
+        orchestrator.search(
+          USER_ID,
+          { query: '#a', topicIds: [], cursor: null, limit: 20 },
+          NOW,
+          UserMarket.KR,
+        ),
+      );
+
+      // then
+      expect(error.errorCode).toBe(ErrorCode.VALIDATION_FAILED);
+      expect(contentService.findSearchPage).not.toHaveBeenCalled();
+    });
+
+    it('태그 전용 검색의 빈 결과는 #을 뗀 검색어로 관련 주제를 찾는다', async () => {
+      // given
+      contentService.findSearchPage.mockResolvedValue({
+        items: [],
+        hasNext: false,
+      });
+
+      // when
+      await orchestrator.search(
+        USER_ID,
+        { query: '#커리어', topicIds: [], cursor: null, limit: 20 },
+        NOW,
+        UserMarket.KR,
+      );
+
+      // then
+      expect(topicService.findVisibleRelatedByName).toHaveBeenCalledWith(
+        '커리어',
+        expect.any(Number),
+        UserMarket.KR,
+      );
+    });
+
     it('특수문자만인 질의는 조회 없이 거절한다', async () => {
       // given
       // when

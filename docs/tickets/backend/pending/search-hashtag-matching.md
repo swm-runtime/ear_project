@@ -13,7 +13,7 @@
 | 선행 | 없음. 후행: FE `hashtag-tap-to-search.md`([KAN-219](https://runtime364.atlassian.net/browse/KAN-219)) — FE는 mock으로 선행 개발 가능 |
 | 근거 문서 | `features/explore.md` 4.5-2(검색 대상)·4.5-5(매칭·랭킹) · `spec/api/explore-api.md` 4.5 · `domain.md` 5.1 `contents.tags`·5.7 `search_query_logs` · BE `archive/content-hashtags-enrichment-v3.md`(KAN-162) |
 | 중요도 | Medium |
-| 상태 | 대기 |
+| 상태 | 진행 중 — 서버 구현 PR 리뷰 |
 
 ## 배경
 
@@ -45,3 +45,11 @@
 ## 처리 기록
 
 - 2026-10-16 발행(마크다운 + Jira KAN-218). 후행 FE KAN-219에 `blocks` 링크.
+- 2026-10-16 구현 — PR `feat(be)/search-hashtag-matching`(dev 대상).
+  - 질의 해석 `parseSearchQuery`(`common/utils/search-text.util.ts`): 앞의 `#` 하나를 떼고 다시 트림. 2자 규칙은 뗀 값에 적용(`#`·`#a` → 400).
+  - 부분 일치: 종전 4필드 + 태그(`jsonb_array_elements_text` + `ILIKE`). 저장 태그는 적재 검증(`CONTENT_TAG_PATTERN`)이 완성형·ASCII만 받아 NFC가 보장돼 정규화하지 않는다. 가중 16·8·4·2·1(제목 > 태그 > 저자 > 주제명 > 설명).
+  - 태그 전용(`#태그`): 태그 정확 일치(`lower(tag) =`)만, 1순위 상수(`0::integer` — 맨 리터럴은 ORDER BY 열 번호로 읽혀 500이 났다)·동점 규칙만.
+  - 커서 지문·검색 로그는 `#` + 검색어(`#  뱅크런` → `#뱅크런`), 매칭·관련 주제는 뗀 값. 다른 모드의 커서는 400 `EXPLORE_CURSOR_INVALID`.
+  - 인덱스는 두지 않는다(운영 71편·태그 4개 이하) — 결정과 다시 볼 조건을 `changes/pending/search-hashtag-matching.md`에 적었다.
+  - 리뷰 반영(필수 0 · 권장 3): 태그 전용 커서 e2e, 불필요한 `normalize` 제거·근거 주석, 로그 정규형.
+  - 테스트: 단위 1860 · e2e 133 통과(새 `search-hashtag.e2e-spec.ts` 6건 — 태그 전용 커서 이어 읽기·다른 모드 커서 400 포함 — 태그 부분 일치·순서 A→B→C·`#` 정확 일치(뒤 공백·대소문자)·`#`/`#a` 400·빈 결과 대체·로그 `#`). 태그 가중을 저자 아래(3)로 내리면 순서 e2e가 실패함을 확인.

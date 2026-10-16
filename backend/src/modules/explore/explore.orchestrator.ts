@@ -5,7 +5,7 @@ import { BusinessException } from '@/common/exceptions/business.exception';
 import { ErrorCode } from '@/common/exceptions/error-code.enum';
 import {
   hasSearchableCharacter,
-  normalizeSearchText,
+  parseSearchQuery,
 } from '@/common/utils/search-text.util';
 import { ContentTopicView } from '@/modules/content/content.types';
 import { Content } from '@/modules/content/entities/content.entity';
@@ -359,6 +359,10 @@ export class ExploreOrchestrator {
    * **정규화 후 길이를 재검증한다.** DTO는 원문 기준 2자를 걸렀지만 NFD 분해형("커" =
    * ㅋ+ㅓ 2 코드포인트)은 NFC 합성 후 1자가 된다 — 클라이언트 필터는 UX이고 판정은
    * 서버 방어선이다(explore-api.md 4.5).
+   *
+   * **`#`으로 시작하면 태그 전용 검색이다**(KAN-218). 앞의 `#` 하나를 뗀 검색어로 2자 규칙을 다시 재고(`#a`는 400),
+   * 매칭·관련 주제는 뗀 값으로, 커서 지문·검색 로그는 `#`을 남긴 원문으로 한다 — 태그 검색과 부분 일치 검색의 커서가
+   * 섞이지 않고, 로그로 태그 검색 비율을 셀 수 있다.
    */
   async search(
     userId: string,
@@ -366,11 +370,11 @@ export class ExploreOrchestrator {
     now: Date,
     market: UserMarket,
   ): Promise<ExploreSearchResult> {
-    const normalizedQuery = normalizeSearchText(query.query);
+    const { normalizedQuery, term, tagOnly } = parseSearchQuery(query.query);
 
     if (
-      normalizedQuery.length < MIN_SEARCH_QUERY_LENGTH ||
-      !hasSearchableCharacter(normalizedQuery)
+      term.length < MIN_SEARCH_QUERY_LENGTH ||
+      !hasSearchableCharacter(term)
     ) {
       throw new BusinessException({
         status: HttpStatus.BAD_REQUEST,
@@ -385,7 +389,8 @@ export class ExploreOrchestrator {
 
     const page = await this.contentService.findSearchPage({
       market,
-      normalizedQuery,
+      normalizedQuery: term,
+      tagOnly,
       topicIds: query.topicIds,
       cursor: query.cursor
         ? decodeSearchCursor(query.cursor, normalizedQuery, query.topicIds)
@@ -418,7 +423,7 @@ export class ExploreOrchestrator {
         // **첫 페이지의 빈 결과에만 대체 콘텐츠를 조립한다.** 커서 페이지의 빈 응답은
         // "결과 없음" 화면이 아니라 목록의 끝이다(explore-api.md 4.5)
         fallback: isFirstPage
-          ? await this.buildSearchFallback(userId, normalizedQuery, now, market)
+          ? await this.buildSearchFallback(userId, term, now, market)
           : null,
       };
     }
