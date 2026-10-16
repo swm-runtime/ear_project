@@ -35,8 +35,12 @@ FINGERPRINT_FILE=/opt/ear/backend/.content-sync-fingerprint
 NOTIFY_KEY="${CONTENT_SYNC_NOTIFY_KEY:-/opt/ear/backend/deploy/keys/content-sync}"
 NOTIFY_TIMEOUT_SEC=20
 FILE=""
+MANIFEST=""
+# **EXIT 트랩은 이 하나만 둔다.** 뒤에서 `trap … EXIT`를 다시 걸면 이 함수가 덮여 덤프가 지워지지 않는다 — 실제로
+# 그랬다(2026-10-16 발견: 성공한 덤프가 /tmp 에 41개·44MB 쌓임. /tmp 는 tmpfs 라 그만큼 메모리를 쓴다).
 cleanup() {
   local code=$?
+  [ -n "$MANIFEST" ] && rm -f "$MANIFEST"
   if [ "$code" -eq 0 ]; then [ -n "$FILE" ] && rm -f "$FILE"; exit 0; fi
   echo "content export FAILED: exit ${code}${FILE:+ (파일 보존: $FILE)}"
   exit "$code"
@@ -53,7 +57,8 @@ NOTIFY_HOST="${CONTENT_SYNC_NOTIFY_HOST:-$(env_of CONTENT_SYNC_NOTIFY_HOST)}"
 PREFIX="${CONTENT_SYNC_PREFIX:-content-sync}"
 
 exec 9>"$LOCK"; flock -n 9 || { echo "이전 내보내기가 아직 돌고 있다 — 건너뜀"; exit 1; }
-find /tmp -maxdepth 1 -name 'ear-content-*.sql.gz' -mtime +3 -delete 2>/dev/null || true
+# 실패해 남긴 덤프(원인 확인용)도 6시간이 지나면 지운다 — /tmp 는 tmpfs 라 디스크가 아니라 메모리를 쓴다
+find /tmp -maxdepth 1 \( -name 'ear-content-*.sql.gz' -o -name 'ear-content-manifest.*' \) -mmin +360 -delete 2>/dev/null || true
 
 PSQL=(docker compose -f docker-compose.prod.yml --env-file .env.prod exec -T postgres
       psql -U "$DB_USERNAME" -d "$DB_NAME" -tA -v ON_ERROR_STOP=1 -q)
@@ -100,7 +105,7 @@ fi
 SIZE=$(stat -c %s "$FILE")
 
 # 표별 행 수를 함께 올린다 — 개발계가 받은 뒤 "빠진 행이 없는지" 이 값과 대조한다(검증은 받는 쪽에서)
-MANIFEST=$(mktemp /tmp/ear-content-manifest.XXXXXX.txt); trap 'rm -f "$MANIFEST"' EXIT
+MANIFEST=$(mktemp /tmp/ear-content-manifest.XXXXXX.txt)  # 지우는 건 cleanup 이 한다 — 여기서 트랩을 다시 걸지 않는다
 {
   echo "stamp=${STAMP}"
   for t in "${TABLES[@]}"; do
