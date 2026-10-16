@@ -5,7 +5,7 @@
 | 대상 문서 | `features/explore.md` 4.5-2 · 4.5-5 · `spec/api/explore-api.md` 4.1(`content.tags` 행) · 4.5 · `spec/api/content-detail-api.md`(`content.tags` 행) · `backend/domain.md` 5.1 |
 | 요청 파트 | 백엔드 — 박준현 |
 | 발행 날짜 | 2026-10-16 |
-| 관련 | BE [KAN-218](https://runtime364.atlassian.net/browse/KAN-218) `tickets/backend/pending/search-hashtag-matching.md` · FE [KAN-219](https://runtime364.atlassian.net/browse/KAN-219) `tickets/frontend/pending/hashtag-tap-to-search.md` |
+| 관련 | BE [KAN-218](https://runtime364.atlassian.net/browse/KAN-218) `tickets/backend/archive/search-hashtag-matching.md` · FE [KAN-219](https://runtime364.atlassian.net/browse/KAN-219) `tickets/frontend/pending/hashtag-tap-to-search.md` |
 
 ## 수정 내용
 

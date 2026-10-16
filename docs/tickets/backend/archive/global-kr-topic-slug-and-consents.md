@@ -14,7 +14,7 @@
 | 관련 | [KAN-189](https://runtime364.atlassian.net/browse/KAN-189)에서 분리(코드 완료로 닫음) · FE [KAN-195](https://runtime364.atlassian.net/browse/KAN-195)(주제 이미지 slug 매핑) · [KAN-193](https://runtime364.atlassian.net/browse/KAN-193)(약관 대체안) |
 | 근거 문서 | `spec/api/global-api.md` 4.1·4.5 · 9장 #5 |
 | 중요도 | Medium |
-| 상태 | 진행 중 — 2번(GLOBAL 약관 버전) 완료 #1610(2026-10-16 dev 머지·개발계 배포), 1번(KR slug 운영 입력) 대기 |
+| 상태 | 완료 (2026-10-16 — BE 범위. 재테크·투자 이미지 스크린샷 대조는 FE KAN-195 배포 때) |
 
 ## 1. KR 주제 slug 채우기 — 운영 데이터 (FE KAN-195 선행)
 
@@ -80,3 +80,8 @@
   - 가입·재동의·`POST /users/me/consents`가 그 사용자 시장 버전과 비교한다. GLOBAL 가입이 KR 버전을 보내면 409 `CONSENT_VERSION_STALE`.
   - 문서 `changes/archive/global-consent-version-namespace.md`(`global-api.md` 9장 #5 결정 포함).
   - 1번(KR slug 운영 입력)은 그대로 대기 — 이 티켓은 1번이 끝날 때 archive로 옮긴다.
+- 2026-10-16 1번 완료 — 운영 KR 주제 36개에 slug 입력(SQL 한 트랜잭션, 36행이 아니면 되돌림 — 결과 `OK 36`, 36/36·중복 없음). 운영 DB에는 표의 "세계사"가 없고 "TOPCIT"이 있어 규칙대로 `topcit`을 넣었다. 개발계는 운영 → 개발계 동기화로 들어왔다(이 과정에서 10-15부터 막혀 있던 동기화를 발견·복구 — GLOBAL 주제 ID 불일치, #1618).
+- 2026-10-16 완료 — 반영 날짜 2026-10-16. 완료 조건 확인:
+  - KR slug ↔ FE 사진 표(`interest.images.ts` `TOPIC_IMAGE_BY_SLUG`): 36개 중 35개 정확히 일치, 재테크 `personal-finance` → `topic-investing`·투자 `investing` → `topic-invest`로 1.2.0과 같은 사진. `topcit`은 FE slug 표에 없지만 이름 폴백("TOPCIT")으로 같은 사진이다(FE가 slug 행을 더하면 폴백이 필요 없다).
+  - GLOBAL 동의 버전 `global-0.1`(#1610, e2e로 확인).
+  - 남은 것은 FE 쪽 확인뿐이다 — FE slug 매핑이 운영에 나갈 때 재테크·투자 칩 스크린샷 대조(FE KAN-195). `archive/`로 이동, Jira 완료.
