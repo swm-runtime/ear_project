@@ -79,7 +79,7 @@ That's our story for this episode. {host_line} See you next time on ear podcast.
 
 ## 6. Pronunciation map
 
-- The planner registers every Korean word and name the script will use in `pronunciations.json`, with an English respelling as the reading, or an empty reading when it cannot give one. The writer and the fix call add new ones the same way.
+- The planner registers every Korean word and name the script will use in `pronunciations.json`, with the word in Hangul as the reading (the voice reads Hangul in Korean), or an empty reading when it cannot give one. Lines keep the romanized spelling; only the TTS input gets the Hangul. Names that listeners abroad already say in English (a place, company, group, or work with an established English name, or a person known abroad by an English form) are not registered, so the voice reads them in English. Other names, including people's names, are registered in Hangul. The writer and the fix call add new ones the same way.
 - The global dictionary (asset `skills/tts/pronunciation.json`) and the episode map are merged; the global entry wins; matching ignores case.
 - TTS stops if any registered word has no reading in either. A person fills it in the episode's pronunciation tab.
 

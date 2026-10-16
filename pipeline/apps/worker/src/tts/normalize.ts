@@ -3,7 +3,7 @@
  * 음차 사전은 이 파일에 없다: 전역 사전(DB prompt_assets skills/tts/pronunciation.json, assets.ts loadTtsDict)과
  * 에피소드 발음 맵(episodes/{id}/pronunciations.json)을 병합해 인자로 받는다 — 겹치면 전역이 이긴다 (spec/06 6장).
  * 치환 후에도 영문·URL 이 남으면 사전 누락이므로 합성을 중단한다 (잔존 검사) — 웹에서 사전·맵 추가 후 재시도.
- * 글로벌판(PIPELINE_LOCALE=en, 글로벌 명세 6.7·KAN-203)은 사전이 "한국어 로마자 표기 → 영어 TTS 가 맞게 읽는 철자"이고, 숫자·기호는 ElevenLabs 가 영어로 읽게 둔다.
+ * 글로벌판(PIPELINE_LOCALE=en, 글로벌 명세 6.7·KAN-203)은 사전이 "한국어 로마자 표기 → 한글"이고(2026-10-16 — 영어 보이스가 문장 속 한글을 한국어로 읽는다. 종전 값은 영어식 철자), 숫자·기호는 ElevenLabs 가 영어로 읽게 둔다.
  * 영문 잔존 검사 대신 발음 누락 검사(missingPronunciations)로 멈춘다.
  */
 import { pipelineLocale, type PipelineLocale } from "@ear/pipeline";
@@ -85,7 +85,7 @@ export function residualIssues(text: string, locale: PipelineLocale = pipelineLo
 
 /**
  * 글로벌판 정규화 — 발음 사전 치환(한 번에, 대소문자 무시) · 원화 금액 · 공백. 오디오 태그는 보존한다.
- * 한 번에 치환하는 이유: 영어 철자 힌트("tteok-bok-ki")가 다시 다른 표제어에 걸리지 않게(한국판은 값이 한글이라 겹칠 일이 없다)
+ * 한 번에 치환하는 이유: 바꾼 값이 다시 다른 표제어에 걸리지 않게(값이 한글이면 걸릴 일이 없지만, 사람이 영어식 철자를 넣어 둔 항목도 같은 경로를 탄다)
  */
 function normalizeEn(text: string, dict: Record<string, string>): string {
   const tags: string[] = [];

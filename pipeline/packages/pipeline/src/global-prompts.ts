@@ -149,8 +149,9 @@ Planning rules:
 - Topic limits (guidelines rule 7) apply to the plan: no section built on prices, opening hours, transport, product recommendations, or plot summary.
 
 ### d) pronunciations
-- Every Korean word and Korean name the script will use, as romanized in the claims. reading = an English respelling a TTS voice reads correctly, in plain letters and hyphens. Leave reading empty when you cannot give one; a person fills it before audio.
+- Every Korean word and Korean name the script will use, as romanized in the claims. reading = the same word written in Hangul, exactly as Koreans write it. The voice reads the Hangul in Korean. For a name, give the Korean name in Hangul. Leave reading empty when you cannot give one; a person fills it before audio.
 - Do not list English words or a romanized word that is also a common English word.
+- Do not list a name that listeners abroad already say in English: a place, company, group, or work with an established English name, or a person known abroad by an English form of the name. The voice reads these in English. List every other name, including people's names, in Hangul.
 
 ## 3. Report — output only the requested JSON. No text before it.`;
   const user = `${history ? historyDesignEn + "\n\n" : ""}## Episode (backlog ${i.candidate.id}, gate 1 approved)
@@ -182,7 +183,7 @@ export const DESIGN_INLINE_SCHEMA_EN = {
     gists: { type: "array", items: { type: "object", additionalProperties: false, required: ["s", "lines"], properties: { s: { type: "integer" }, lines: strArr } }, description: "Three English lines per source" },
     claims: { type: "array", items: { type: "object", additionalProperties: false, required: ["id", "text", "excerpt_ids", "type", "section", "notable", "opinion"], properties: { id: { type: "string" }, text: { type: "string", description: "One English sentence, no more specific than the excerpt" }, excerpt_ids: strArr, type: { type: "string", enum: ["number", "quote", "name", "cause", "definition", "practice"] }, section: { type: "integer", description: "Body section that uses this claim. All claims of one source share one section, except axis_source" }, notable: { type: "boolean", description: "True only if a general listener knows the person or institution by name" }, opinion: { type: "boolean", description: "A person's opinion, interpretation, or forecast, or a contested or interested claim" } } } },
     outline_md: { type: "string", description: "The full outline.md" },
-    pronunciations: { type: "array", items: { type: "object", additionalProperties: false, required: ["term", "reading"], properties: { term: { type: "string", description: "Korean word or name, romanized as in the script" }, reading: { type: "string", description: "English respelling in plain letters and hyphens, or empty if unknown" } } } },
+    pronunciations: { type: "array", items: { type: "object", additionalProperties: false, required: ["term", "reading"], properties: { term: { type: "string", description: "Korean word or name, romanized as in the script" }, reading: { type: "string", description: "The word in Hangul as Koreans write it, or empty if unknown" } } } },
     estimated_minutes: { type: "number" },
     split_proposal: { type: "string", description: "Split plan when 26 minutes or more, else empty" },
     sources_used: strArr,
@@ -287,7 +288,7 @@ export const WRITE_SCHEMA_EN = {
     turn_claims: { type: "array", items: { type: "object", additionalProperties: false, required: ["turn", "claims"], properties: { turn: { type: "string" }, claims: { type: "array", items: { type: "string" } } } }, description: "Claim IDs used in each explainer turn. IDs appear only here, never in the script" },
     bridges: { type: "array", items: { type: "object", additionalProperties: false, required: ["turn", "note"], properties: { turn: { type: "string" }, note: { type: "string", description: "What was carried over to what · based on C##" } } }, description: "Every new link, metaphor, or hypothetical scene not in the outline" },
     terms: { type: "array", description: "Every Korean word and specialist term, with its first turn and how it is explained", items: { type: "object", additionalProperties: false, required: ["term", "turn", "explained_by"], properties: { term: { type: "string" }, turn: { type: "string", description: "First turn id (E7)" }, explained_by: { type: "string", description: "The explaining sentence, or the host turn id that asks (Y8)" } } } },
-    pronunciations_added: { type: "array", description: "Korean words or names in the script that are not in the pronunciation map", items: { type: "object", additionalProperties: false, required: ["term", "reading"], properties: { term: { type: "string" }, reading: { type: "string", description: "English respelling, or empty if unknown" } } } },
+    pronunciations_added: { type: "array", description: "Korean words or names in the script that are not in the pronunciation map", items: { type: "object", additionalProperties: false, required: ["term", "reading"], properties: { term: { type: "string" }, reading: { type: "string", description: "The word in Hangul as Koreans write it, or empty if unknown" } } } },
     self_check_fixes: { type: "array", items: { type: "string" } },
     notes: { type: "string", description: "Up to three sentences: where the explainer asks the host, the metaphors used, length judgment, any material shortfall" },
   },
@@ -344,7 +345,7 @@ export const REVISION_INLINE_SCHEMA_EN = {
   required: ["fixes", "pronunciations_added", "claims_note", "notes"],
   properties: {
     fixes: { type: "array", items: { type: "object", additionalProperties: false, required: ["turn", "before", "after", "why", "claims"], properties: { turn: { type: "string" }, before: { type: "string" }, after: { type: "string" }, why: { type: "string" }, claims: { type: "array", items: { type: "string" }, description: "Every claim ID the turn still uses after the fix (C01). Empty if deleted or none" } } } },
-    pronunciations_added: { type: "array", items: { type: "object", additionalProperties: false, required: ["term", "reading"], properties: { term: { type: "string" }, reading: { type: "string", description: "English respelling, or empty if unknown" } } } },
+    pronunciations_added: { type: "array", items: { type: "object", additionalProperties: false, required: ["term", "reading"], properties: { term: { type: "string" }, reading: { type: "string", description: "The word in Hangul as Koreans write it, or empty if unknown" } } } },
     claims_note: { type: "string", description: "Text for a 'QA changes' note at the end of claims.md: which claims were narrowed or removed, and how" },
     notes: { type: "string" },
   },

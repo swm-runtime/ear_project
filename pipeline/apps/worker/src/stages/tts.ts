@@ -112,7 +112,7 @@ export async function runTts(job: Job) {
   const { version: dictVersion, entries: globalDict } = await loadTtsDict();
   const epMap = await readEpisodePronunciations(path.join(cfg.workRoot, rel, "pronunciations.json"));
   const missing = pipelineLocale() === "en" ? missingPronunciations(epMap, globalDict) : [];
-  if (missing.length) throw new Error(`발음 누락 — 대본의 한국어 단어 ${missing.length}개에 발음 힌트가 없다. 에피소드 "발음" 탭(발음 맵) 또는 /assets 의 TTS 발음 사전에 영어 TTS 가 맞게 읽을 철자를 채운 뒤 재시도 (글로벌 명세 6.7, 코드 배포 불필요): ${missing.slice(0, 30).join(", ")}`);
+  if (missing.length) throw new Error(`발음 누락 — 대본의 한국어 단어 ${missing.length}개에 발음 힌트가 없다. 에피소드 "발음" 탭(발음 맵) 또는 /assets 의 TTS 발음 사전에 그 단어의 한글을 채운 뒤 재시도 (글로벌 명세 6.7, 코드 배포 불필요): ${missing.slice(0, 30).join(", ")}`);
   const dict = mergeTtsDict(epMap, globalDict);
   type TtsTurn = ScriptTurn & { orig: string }; // orig = 사람이 읽는 원문 (자막 세그먼트용) · text = 합성용 표기
   const turns: TtsTurn[] = (sampleTurns ? parsed.turns.filter((t) => !parsed.placeholders.some((p) => t.text.includes(p))).slice(0, sampleTurns) : parsed.turns)

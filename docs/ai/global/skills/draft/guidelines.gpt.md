@@ -1,6 +1,6 @@
 # Script Writing Guidelines
 
-> Version: **full-en-v0.2** (2026-10-16) · GPT profile · global pipeline. Rationale and sources: [CHANGELOG.md](CHANGELOG.md).
+> Version: **full-en-v0.3** (2026-10-16) · GPT profile · global pipeline. Rationale and sources: [CHANGELOG.md](CHANGELOG.md).
 > Rule numbers are reference IDs for L0, QA and the critic. Do not reuse or renumber them.
 
 ## Principles
@@ -141,7 +141,7 @@
 
 48. **Explain on first use.** When a Korean word first appears, give its meaning with a comma or in the next short sentence. Explain meaning, not word origin, unless a claim gives the origin. Introduce at most two new Korean words per turn and about twelve per episode, except in Korean Language episodes. If a Korean word returns after two or more sections, re-explain it in a few words. Do not say "which means" more than twice per section. Use the English word when it says the same thing. Use fan terms such as oppa or unnie only as terms, explained, never as forms of address. When the claims say a word is casual or polite, or who uses it, say so in the turn that explains the word.
 
-49. **Register every Korean word.** Write only the romanized spelling in lines, never the pronunciation respelling. Do not add English endings to Korean words. Report every Korean word or name in the script that is not in the pronunciation map in pronunciations_added. The reading is an English respelling in plain letters and hyphens. Leave the reading empty when you cannot give one. Do not register a word that is also a common English word. Record each Korean word and term in terms with its first turn and where it is explained.
+49. **Register every Korean word.** Write only the romanized spelling in lines, never Hangul. Do not add English endings to Korean words. Report every Korean word or name in the script that is not in the pronunciation map in pronunciations_added. The reading is the same word in Hangul, exactly as Koreans write it. Leave the reading empty when you cannot give one. Do not register a word that is also a common English word. Do not register a name that listeners abroad already say in English: a place, company, group, or work with an established English name, or a person known abroad by an English form of the name. Register every other name, including people's names, in Hangul. Record each Korean word and term in terms with its first turn and where it is explained.
 
 50. **Korean Language episodes: let each word be heard.** In a Korean Language episode, each featured word is heard in use at least once. The explainer says a phrase from the claims that uses the word, romanized, gives its meaning, and says who would say it to whom. The phrase is an example from the claims, never a line quoted from a drama, song, or show. Describe the moment in a drama or a day where the phrase is said, as a hypothetical scene of two sentences at most.
 
