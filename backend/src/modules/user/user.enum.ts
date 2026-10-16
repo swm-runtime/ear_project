@@ -111,10 +111,10 @@ export enum ConsentType {
   PRIVACY = 'privacy',
   MARKETING = 'marketing',
   /**
-   * 만 18세 이상 자기 선언 (개인정보 보호법 22조의2 대응 — 약관 5조).
-   * 열람할 문서가 없는 선언이라 버전이 없다. 화면 게이트만으로는 그 사용자가
-   * 확인했다는 증거가 남지 않아 이력으로 기록한다
-   * (tickets/backend/pending/age-confirmation-consent.md).
+   * 연령 자기 선언 (개인정보 보호법 22조의2 대응 — 약관 5조). 기준 연령은 나라별이다 — KR 시장 18, GLOBAL은 기기
+   * 지역에 따라 16·18(KAN-220, `policies/age-confirmation.policy.ts`). 열람할 문서가 없는 선언이라 문서 버전은 없고,
+   * GLOBAL은 확인한 기준 연령을 버전(`age-16`·`age-18`)으로 남긴다(KR은 null). 화면 게이트만으로는 그 사용자가
+   * 확인했다는 증거가 남지 않아 이력으로 기록한다(tickets/backend/archive/age-confirmation-consent.md).
    */
   AGE_CONFIRMATION = 'age_confirmation',
   /**
