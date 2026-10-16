@@ -3,7 +3,12 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { AccessibilityInfo, Alert, AppState, Linking, Platform } from 'react-native';
 
-import { track } from '@/shared/analytics';
+import {
+  getAdMeasurementAllowed,
+  setAdMeasurementAllowed,
+  syncAdMeasurementPreference,
+  track,
+} from '@/shared/analytics';
 import {
   DEVICE_LOCALE,
   languageOf,
@@ -311,6 +316,36 @@ export const useSettingsScreen = () => {
     );
   };
 
+  /* ── 광고 측정 허용(KAN-217) — 기기에만 저장한다(서버 호출 없음 · settings.md 4.1). 낙관적 전환, 저장 실패는
+   * 다른 토글과 같이 원복 + 안내(settings-uiux.md 4.5). 서버 조회와 무관해 조회 실패에도 동작한다 ── */
+
+  const [isAdMeasurementAllowed, setIsAdMeasurementAllowedState] =
+    useState(getAdMeasurementAllowed);
+  /** 조작 순번 — 연타에서 늦게 끝난 앞 조작의 결과가 마지막 조작을 덮지 않게 한다 */
+  const adMeasurementSeqRef = useRef(0);
+
+  // 시작 때 읽은 값을 기다린다 — 화면이 그보다 먼저 열렸을 때만 의미가 있다. 사용자가 이미 만졌으면 덮지 않는다
+  useEffect(() => {
+    let isActive = true;
+    void syncAdMeasurementPreference().then((allowed) => {
+      if (isActive && adMeasurementSeqRef.current === 0) setIsAdMeasurementAllowedState(allowed);
+    });
+    return () => {
+      isActive = false;
+    };
+  }, []);
+
+  const toggleAdMeasurement = (next: boolean): void => {
+    const seq = ++adMeasurementSeqRef.current;
+    setIsAdMeasurementAllowedState(next);
+    void setAdMeasurementAllowed(next).then((isSaved) => {
+      if (isSaved || adMeasurementSeqRef.current !== seq) return;
+      setIsAdMeasurementAllowedState(getAdMeasurementAllowed());
+      showToast(SETTINGS_COPY.saveError);
+      AccessibilityInfo.announceForAccessibility(SETTINGS_COPY.saveError);
+    });
+  };
+
   /* ── 기본 배속 시트 — 선택 즉시 저장하고 닫는다. [저장] 버튼을 두지 않는다(settings.md 4.2) ── */
 
   const [isRateSheetVisible, setIsRateSheetVisible] = useState(false);
@@ -524,6 +559,8 @@ export const useSettingsScreen = () => {
     toggleAutoExpand,
     toggleDripNotification,
     toggleMarketingConsent,
+    isAdMeasurementAllowed,
+    toggleAdMeasurement,
 
     isPermissionDialogVisible,
     closePermissionDialog: () => setIsPermissionDialogVisible(false),

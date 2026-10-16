@@ -46,6 +46,12 @@ export const STORAGE_KEYS = {
    */
   META_FIRST_PLAY_SENT: 'analytics.meta_first_play_sent',
   /**
+   * 설정 > 광고 측정 허용(KAN-217) — 끄면 `'0'`, 켜면 `'1'`. **값이 없거나 읽지 못하면 켜짐**(기본값). 기기 로컬 전용 —
+   * 측정이 기기 단위라 서버에 두지 않는다(KR·GLOBAL 공통). 로그아웃과 무관하다(계정이 아니라 기기의 값). 앱 시작 때
+   * `shared/analytics/meta.ts` 가 읽어 Meta SDK 설정을 맞춘다
+   */
+  META_AD_MEASUREMENT_ALLOWED: 'analytics.meta_ad_measurement_allowed',
+  /**
    * 스플래시 버전 관문의 마지막 **성공** 판정(`splash.md` 7장 · KAN-99) — `{ appVersion, platform, verdict, … }` JSON.
    * 조회가 실패하면(망·5xx·타임아웃) 이 값으로 판정하고, 없으면 통과(fail-open — README 결정 39).
    * 앱 버전이 다르면 무시한다(옛 버전의 판정을 새 버전에 쓰지 않는다). 로그아웃과 무관 — 계정이 아니라 빌드의 값

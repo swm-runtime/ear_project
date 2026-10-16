@@ -33,6 +33,8 @@ const ko = {
     colorMode: '화면',
     language: '언어',
     notification: '알림',
+    /** 광고 측정 허용 토글의 자리(KAN-217) — 기기의 데이터 전송 설정이라 알림·정보와 따로 묶는다 */
+    privacy: '개인정보',
     info: '정보',
     support: '지원',
     admin: '관리자',
@@ -142,6 +144,16 @@ const ko = {
     permissionClose: '닫기',
   },
 
+  /**
+   * 광고 측정 허용(KAN-217) — 끄면 Meta 광고 성과 측정용 전송이 멈춘다. 앱 개선용 분석(GA4)은 별개임을 같이 말한다 —
+   * "분석이 다 꺼진다"로 읽히면 안 된다. 처리방침(한국어 7.3 · 영어 9장)과 같은 말을 쓴다
+   */
+  privacy: {
+    adMeasurement: '광고 측정 허용',
+    adMeasurementDescription:
+      '끄면 Meta 광고 성과 측정용 정보를 보내지 않아요. 앱 개선을 위한 분석과는 별개예요.',
+  },
+
   info: {
     notice: '공지사항',
     terms: '이용약관',
@@ -203,6 +215,7 @@ const en: LocalizedCopy<typeof ko> = {
     colorMode: 'Appearance',
     language: 'Language',
     notification: 'Notifications',
+    privacy: 'Privacy',
     info: 'About',
     support: 'Support',
     admin: 'Admin',
@@ -291,6 +304,12 @@ const en: LocalizedCopy<typeof ko> = {
     permissionTitle: 'Allow notifications in your device settings',
     permissionOpen: 'Open Settings',
     permissionClose: 'Close',
+  },
+
+  privacy: {
+    adMeasurement: 'Allow ad measurement',
+    adMeasurementDescription:
+      "When off, we stop sending info to Meta for measuring ad performance. This doesn't affect the analytics we use to improve the app.",
   },
 
   info: {

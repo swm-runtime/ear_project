@@ -243,6 +243,17 @@ export default function SettingsScreen() {
             />
           </SettingsSection>
 
+          {/* 개인정보 — 광고 측정 허용(KAN-217). 기기 저장이라 서버 조회와 무관하게 늘 동작한다(비활성 없음).
+              끄면 Meta 광고 성과 측정 전송만 멈춘다 — 앱 개선용 분석(GA4)은 별개다(settings-uiux.md 4.1) */}
+          <SettingsSection title={SETTINGS_COPY.sections.privacy}>
+            <SettingsToggleRow
+              label={SETTINGS_COPY.privacy.adMeasurement}
+              description={SETTINGS_COPY.privacy.adMeasurementDescription}
+              value={screen.isAdMeasurementAllowed}
+              onToggle={screen.toggleAdMeasurement}
+            />
+          </SettingsSection>
+
           <SettingsSection title={SETTINGS_COPY.sections.info}>
             <SettingsRow label={SETTINGS_COPY.info.notice} onPress={screen.openNotice} />
             <SettingsRow label={SETTINGS_COPY.info.terms} onPress={screen.openTerms} />
