@@ -112,7 +112,7 @@
 
 | 필드 | 타입 | 필수 | 비고 |
 | --- | --- | --- | --- |
-| `locale.preferred_language` | `ko` · `en` | 선택 | 사용자가 가입 화면에서 고른 콘텐츠 언어 — **시장 판정의 입력**(`ko` → `kr`, `en` → `global`). **4.2(계정 생성)에서만 쓰이고** 4.1의 기존 계정 로그인에서는 무시한다 |
+| `locale.preferred_language` | `ko` · `en` | 선택 | 사용자가 가입 화면에서 고른 콘텐츠 언어 — **시장 판정의 입력**(`ko` → `kr`, `en` → `global`). **4.2(계정 생성)에서만 쓰이고** 4.1의 기존 계정 로그인에서는 무시한다. 서버 스위치 `GLOBAL_SIGNUP_ENABLED`가 닫혀 있으면(기본) `en`이어도 `kr`로 판정한다(`global-api.md` 2.1, 2026-10-15) |
 | `locale.language_code` | BCP 47 (≤16자) | 선택 | 기기 언어(예 `en-US`). `preferred_language`가 없을 때만 시장 판정 폴백(`ko*` → `kr`, 그 밖 `global`, 그것도 없으면 `kr`). 가입·로그인마다 갱신 |
 | `locale.region_code` | ISO 3166-1 alpha-2 (2자) | 선택 | 기기 지역. 통계용 — 판정에 쓰지 않는다. 가입·로그인마다 갱신 |
 | `locale.timezone` | IANA (≤64자) | 선택 | 기기 시간대. 드립 발송 그룹에만 쓴다(서비스 날짜 경계는 바꾸지 않는다). 가입·로그인마다 갱신 |

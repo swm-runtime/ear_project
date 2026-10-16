@@ -345,12 +345,12 @@
 
 ### 4.12 `GET /admin/notices` — 공지 목록
 
-신설 2026-09-17(`changes/archive/notice-screen-spec.md` C, KAN-67). 쿼리는 `settings-api.md` 4.4와 같다(`cursor` · `limit` 기본 20·최대 50).
+신설 2026-09-17(`changes/archive/notice-screen-spec.md` C, KAN-67). 쿼리는 `settings-api.md` 4.4와 같다(`cursor` · `limit` 기본 20·최대 50). 여기에 `market`(`kr` \| `global`, 선택 — 없으면 전 시장, 모르는 값 400)을 더한다(2026-10-15 — KAN-211).
 
 ```jsonc
 { "items": [
   { "id": "...", "title": "...", "body": "...", "is_pinned": false,
-    "published_at": null, "created_at": "...", "updated_at": "..." }   // published_at null = 초안
+    "published_at": null, "market": "kr", "created_at": "...", "updated_at": "..." }   // published_at null = 초안
 ], "next_cursor": null }
 ```
 
@@ -360,7 +360,7 @@
 ### 4.13 `POST /admin/notices` — 공지 작성
 
 ```jsonc
-{ "title": "9월 업데이트 안내", "body": "줄바꿈은\n그대로", "is_pinned": false, "published_at": "2026-09-17T09:00:00Z" }  // is_pinned·published_at 선택
+{ "title": "9월 업데이트 안내", "body": "줄바꿈은\n그대로", "is_pinned": false, "published_at": "2026-09-17T09:00:00Z", "market": "kr" }  // is_pinned·published_at·market 선택
 ```
 
 201로 4.12의 항목 한 건을 반환한다.
@@ -368,6 +368,7 @@
 - 검증(위반은 400 `VALIDATION_FAILED`):
   - `title` 1~100자 · `body` 1~5000자 — **공백만은 불가**, 글자 수는 **코드 포인트**로 센다(DB `varchar`와 같은 단위 — 조합 이모지는 2자 이상)
   - `published_at` — **날짜·시각·오프셋(`Z` 또는 `±hh:mm`)이 모두 있는 ISO 8601**, 2000~2100년. 오프셋 없는 시각은 서버 시간대에 따라 해석이 달라져 받지 않는다
+  - `market` — `kr` \| `global`, 없으면 `kr`(2026-10-15 — KAN-211). 그 시장 사용자에게만 보인다(`global-api.md` 4.8). **생성 뒤 바꾸지 않는다**
 - **`published_at`을 빼면 초안**이다. 미래 시각이면 예약 발행 — 그 시각부터 사용자 목록에 보인다(조회 시점의 서버 시각으로 판정).
 - `audit_logs`에 `notice.create`로 기록한다 — `notices`에 작성자 컬럼이 없어 누가 게시했는지는 이 기록만 안다. 본문 원문은 남기지 않고 길이만 남긴다.
 
@@ -379,7 +380,7 @@
 
 200으로 갱신된 항목을 반환한다.
 
-- **담긴 키만 바꾼다.** `published_at: null`은 **발행 취소**(초안으로 되돌림), 키를 빼면 그대로다. `title`·`body`·`is_pinned`에 `null`은 400이다.
+- **담긴 키만 바꾼다.** `published_at: null`은 **발행 취소**(초안으로 되돌림), 키를 빼면 그대로다. `title`·`body`·`is_pinned`에 `null`은 400이다. **`market`은 받지 않는다**(생성 뒤 시장 불변 — 모르는 필드라 400).
 - 바꿀 키가 하나도 없으면 400 `VALIDATION_FAILED`. 검증은 4.13과 같다.
 - 수정·삭제는 행을 잠그고 한다 — 감사 로그 `before`가 동시 수정으로 낡지 않는다.
 - 없거나 삭제된 공지는 404 `NOTICE_NOT_FOUND`. `audit_logs`에 `notice.update`(before/after).

@@ -371,7 +371,7 @@
 
 | 코드 | 상황 |
 |---|---|
-| `CONTENT_NOT_FOUND` | 존재하지 않는 `content_id` |
+| `CONTENT_NOT_FOUND` | 존재하지 않거나 **사용자 시장의 콘텐츠가 아닌** `content_id`(2026-10-15 — 상세·재생·탐색 담기와 같은 판정) |
 | `CONTENT_WITHDRAWN` | 회수·만료된 콘텐츠(`status != published`) |
 
 **에러**

@@ -19,3 +19,7 @@
 ## 완료 조건
 
 - Given `onboarding-api.md` 4.6 / When `failed[]` 사유 표를 읽는다 / Then `CONTENT_NOT_FOUND`에 다른 시장 콘텐츠가 포함된다고 적혀 있다
+
+## 처리 기록
+
+- 2026-10-16 반영 — `onboarding-api.md` 4.6 `failed[]` 사유 표 `CONTENT_NOT_FOUND` 행. 코드(`content.service.ts` `resolvePickTargets`)와 대조함.

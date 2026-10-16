@@ -21,3 +21,7 @@ FE `subscription.copy.ts`·`settings.copy.ts`에서 다음과 같이 바꿨다(k
 - Given `spec/uiux/settings-uiux.md`를 연다 / When "이벤트 코드"를 찾는다 / Then 한 건도 없고 전부 "프로모션 코드"다
 - Given `spec/uiux/subscription-uiux.md`의 초대/지급 화면 카피 / When 확인한다 / Then FE `subscription.copy.ts`의 `invite`·`grant` 값과 문자열이 1:1로 같다("프로모션")
 - Given Jira KAN-182 / When 본다 / Then 명칭 변경(이벤트→프로모션)이 코멘트로 남아 있다
+
+## 처리 기록
+
+- 2026-10-16 반영 — `spec/uiux/settings-uiux.md` S12·4.8·6장("이벤트" 0건) · `spec/uiux/subscription-uiux.md` 프로모션 안내·프로모션 중 결제 확인 · `spec/api/subscription-api.md` 4.8 "프로모션 중 결제". FE `subscription.copy.ts`·`settings.copy.ts`(dev)의 `invite`·`grant` 문자열과 1:1 대조함. KAN-182 명칭 변경 코멘트 확인(2026-10-15).

@@ -21,3 +21,7 @@
 
 - Given `global-api.md` 2.1 / When 판정 행을 읽는다 / Then 스위치(기본 닫힘)와 닫혔을 때 `kr` 판정이 적혀 있다
 - Given `runbook.md` / When 글로벌 출시 절차를 읽는다 / Then "GLOBAL 주제 노출·콘텐츠 발행 → `GLOBAL_SIGNUP_ENABLED=true`" 순서가 있다
+
+## 처리 기록
+
+- 2026-10-16 반영 — `global-api.md` 2.1 판정 행 · `auth-api.md` 4.1 `locale.preferred_language` 행 · `infra/runbook.md` 4장 스위치 목록(켜는 순서: 주제 노출 → 콘텐츠 발행 → 스위치). 코드(`market.policy.ts`·`user.service.ts`)와 대조함.

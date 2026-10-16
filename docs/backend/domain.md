@@ -1384,7 +1384,7 @@ notices
   body                      text            NOT NULL     줄바꿈 보존 plain text
   is_pinned                 boolean         DEFAULT false
   published_at              timestamptz     NULL         NULL = 초안, 미래 = 예약 발행
-  market                    enum            kr | global   DEFAULT 'kr'   공지는 시장별로 따로 쓴다 — 사용자 시장의 공지만 보인다 (global-api.md 4.8, 2026-10-14 — KAN-188)
+  market                    enum            kr | global   DEFAULT 'kr'   공지는 시장별로 따로 쓴다 — 사용자 시장의 공지만 보인다 (global-api.md 4.8, 2026-10-14 — KAN-188). 관리자 작성(`POST /admin/notices` `market`, 없으면 kr) 때 정하고 이후 바꾸지 않는다 (2026-10-15 — KAN-211)
   created_at / updated_at / deleted_at                   (1.1 공통, soft delete)
 
 idx_notices_list (is_pinned DESC, published_at DESC) WHERE deleted_at IS NULL
