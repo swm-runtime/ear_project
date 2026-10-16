@@ -23,7 +23,7 @@ export const TOPIC_SEED_MARK = "🔎 기획";
  *   1. 검색 — WebSearch 만(본문 안 읽음). **풀에 가두지 않는다**: 어느 발행처든 좋되, 차단·보류 도메인·robots 불허·유료 DB 는 뺀다.
  *      풀 밖 도메인은 candidate 행을 만들고 **소스도 적재한다**(B-① 과 다른 점 — 이 모드 한정, PIPELINE.md 불변 원칙 2 조건부 개정).
  *   2. 판정 — 군집화 v2 를 "주제 고정·축은 소스에서" 모드로 이 후보 하나에 돌린다. 성립이면 proposed, 아니면 held(빈 역할 기록 — [보강] 1회 가능).
- * 도구(WebSearch)가 필요해 B-① 처럼 Claude CLI 워커(노트북)만 집는다.
+ * 검색 단계는 WebSearch 만 쓰는 요청이라 웹 검색을 처리하는 실행기만 집는다 — 서버 워커(OpenAI 웹 검색, executors/openai-search.ts)가 운영 경로이고 노트북 Claude CLI 도 집을 수 있다(2026-10-16 KAN-222).
  */
 export async function runTopicSeed(job: Job, ex: Executor) {
   const midTopic = String(job.payload.mid_topic ?? "").trim();
@@ -118,7 +118,8 @@ export async function runTopicSeed(job: Job, ex: Executor) {
     const screenCost = Number((job.payload.screen as { cost_usd?: number } | undefined)?.cost_usd ?? 0) || 0;
     const cost = (r1.listCostUsd ?? 0) + (r2.listCostUsd ?? 0) + screenCost;
     await insertRun({ backlog_id: id, phase: "sweep", result: `모드 B-② 기획 검색 · ${id} · ${summary}${newDomains.length ? ` · 새 도메인 후보: ${newDomains.join(", ").slice(0, 200)}` : ""}${dropped.length ? ` · 제외: ${dropped.join(", ").slice(0, 200)}` : ""}`,
-      prompt_version: `topic-seed-v1 (검색 ${maxSearches}회 상한 · 판정 cluster-v2 seed, spec ${bundle.specDigest})`, artifacts: [s3Key(artifactKey)], executed_by: executedBy, model: r2.model ?? r1.model, cost_usd: cost, worker_rev: workerRev() });
+      prompt_version: `topic-seed-v1.1 (검색 ${maxSearches}회 상한 · 판정 cluster-v2 seed, spec ${bundle.specDigest})`, artifacts: [s3Key(artifactKey)], executed_by: executedBy, model: r2.model ?? r1.model, cost_usd: cost,
+      tokens: { search: (r1.raw as { usage?: unknown } | undefined)?.usage, web_search: (r1.raw as { web_search?: unknown } | undefined)?.web_search, judge: (r2.raw as { usage?: unknown } | undefined)?.usage }, worker_rev: workerRev() }); // web_search: 호출·검색 수·검색어·본 URL (OpenAI 실행기만 — KAN-222)
     log(`  topic-seed ${id}: ${summary} ($${cost.toFixed(2)})`);
     return { backlog_id: id, status: ok ? "proposed" : "held", added: added.length, dropped, new_domains: newDomains, gaps: ok ? [] : gaps, list_cost_usd: cost };
   } catch (e: any) {

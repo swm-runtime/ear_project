@@ -3,7 +3,7 @@ import { cfg, canAi, canTts, canThumbnail, executedBy } from "./config.js";
 import { claimJob, enqueue, failJob, finishJob, getSetting, hasActiveDraftJob, heartbeat, listApprovedBacklog, pool, requeueJob, startJob } from "./db.js";
 import { workerRev, workerRevTime } from "./assets.js";
 import { probeStorage } from "./storage.js";
-import { makeExecutor, setJobAbort } from "./executors/index.js";
+import { executorHandlesWebSearch, makeExecutor, setJobAbort } from "./executors/index.js";
 import { pipelineLocale, speakerNames } from "@ear/pipeline";
 import { startLogWatch } from "./log-watch.js";
 import { runStage } from "./stages/index.js";
@@ -84,9 +84,9 @@ async function main() {
       ttsPausedLogged = !!ttsPause;
       const ttsNow = canTts && !ttsPause;
       if (aiNow) { await autoApprove().catch((e) => log(`자동 승인 오류 (계속 진행): ${e?.message ?? e}`)); await pickupApproved(); }
-      // 0025: 도구(WebSearch)가 필요한 보강·주제 기획(sweep 모드 B·B2)은 Claude CLI 워커만 — API 실행기는 단발 호출뿐이라 집지 않는다
-      // 예외는 en 인스턴스(2026-10-15 KAN-209): 노트북 워커가 없고 OpenAI 실행기가 웹 검색을 붙인다(executors/openai-search.ts). 한국판은 값이 종전과 같다
-      const job = await claimJob(cfg.workerName, aiNow, ttsNow, canThumbnail, (await serverClaimOff()) ? ["sweep"] : [], cfg.executor !== "openai" || pipelineLocale() === "en"); // 스위치 꺼짐: 스윕도 노트북 몫
+      // 0025: 도구(WebSearch)가 필요한 보강·주제 기획(sweep 모드 B·B2)은 웹 검색을 처리하는 실행기만 집는다 — Claude CLI(WebSearch)·OpenAI(웹 검색, executors/openai-search.ts).
+      // 2026-10-16 KAN-222: 한국판 서버 워커(openai)도 집는다. 종전엔 en 인스턴스만이라 노트북이 꺼지면 한국판 보강·기획이 대기만 했다
+      const job = await claimJob(cfg.workerName, aiNow, ttsNow, canThumbnail, (await serverClaimOff()) ? ["sweep"] : [], executorHandlesWebSearch(cfg.executor)); // 스위치 꺼짐: 스윕도 노트북 몫
       if (!job) {
         if (once) { log("대기 중인 작업 없음"); break; }
         if (drain && (await listApprovedBacklog()).length === 0) { log("큐 비움 — drain 종료"); break; }
