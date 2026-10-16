@@ -118,7 +118,7 @@ export async function runTopicSeed(job: Job, ex: Executor) {
     const screenCost = Number((job.payload.screen as { cost_usd?: number } | undefined)?.cost_usd ?? 0) || 0;
     const cost = (r1.listCostUsd ?? 0) + (r2.listCostUsd ?? 0) + screenCost;
     await insertRun({ backlog_id: id, phase: "sweep", result: `모드 B-② 기획 검색 · ${id} · ${summary}${newDomains.length ? ` · 새 도메인 후보: ${newDomains.join(", ").slice(0, 200)}` : ""}${dropped.length ? ` · 제외: ${dropped.join(", ").slice(0, 200)}` : ""}`,
-      prompt_version: `topic-seed-v1 (검색 ${maxSearches}회 상한 · 판정 cluster-v2 seed, spec ${bundle.specDigest})`, artifacts: [s3Key(artifactKey)], executed_by: executedBy, model: r2.model ?? r1.model, cost_usd: cost,
+      prompt_version: `topic-seed-v1.1 (검색 ${maxSearches}회 상한 · 판정 cluster-v2 seed, spec ${bundle.specDigest})`, artifacts: [s3Key(artifactKey)], executed_by: executedBy, model: r2.model ?? r1.model, cost_usd: cost,
       tokens: { search: (r1.raw as { usage?: unknown } | undefined)?.usage, web_search: (r1.raw as { web_search?: unknown } | undefined)?.web_search, judge: (r2.raw as { usage?: unknown } | undefined)?.usage }, worker_rev: workerRev() }); // web_search: 호출·검색 수·검색어·본 URL (OpenAI 실행기만 — KAN-222)
     log(`  topic-seed ${id}: ${summary} ($${cost.toFixed(2)})`);
     return { backlog_id: id, status: ok ? "proposed" : "held", added: added.length, dropped, new_domains: newDomains, gaps: ok ? [] : gaps, list_cost_usd: cost };

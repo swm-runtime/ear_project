@@ -103,6 +103,15 @@ async function fetchFeed(url: string): Promise<Item[]> {
   return parseFeed(body);
 }
 
+/**
+ * 피드 링크의 XML 엔티티를 푼다 (2026-10-16) — 파서가 processEntities=false 라 `&amp;` 가 URL 에 그대로 남아 열리지 않는 링크가 적재됐다
+ * (InfoQ·Google 비즈니스 블로그 피드의 utm 쿼리 67건). 본문 텍스트는 stripHtml 이 따로 푼다.
+ */
+export function decodeXmlEntities(s: string): string {
+  return s.replace(/&(?:#(\d+)|#x([0-9a-f]+)|(amp|lt|gt|quot|apos));/gi, (m, dec, hex, name) =>
+    dec ? String.fromCodePoint(Number(dec)) : hex ? String.fromCodePoint(parseInt(hex, 16)) : ({ amp: "&", lt: "<", gt: ">", quot: '"', apos: "'" } as Record<string, string>)[String(name).toLowerCase()] ?? m);
+}
+
 export function parseFeed(xml: string): Item[] {
   // processEntities=false: 대형 피드(The Conversation 등)가 엔티티 확장 한도에 걸린다. 텍스트는 stripHtml 이 기본 엔티티를 푼다.
   const parser = new XMLParser({ ignoreAttributes: false, attributeNamePrefix: "@_", cdataPropName: "__cdata", textNodeName: "#text", trimValues: true, processEntities: false });
@@ -120,7 +129,7 @@ export function parseFeed(xml: string): Item[] {
   const channel = doc?.rss?.channel ?? doc?.["rdf:RDF"];
   if (channel) {
     for (const it of arr(channel.item)) {
-      const url = text(it.link).trim() || text(it.guid).trim();
+      const url = decodeXmlEntities(text(it.link).trim() || text(it.guid).trim());
       if (!url.startsWith("http")) continue;
       items.push({ title: stripHtml(text(it.title), 400), url, summary: stripHtml(text(it.description) || text(it["content:encoded"])), author: stripHtml(text(it["dc:creator"]) || text(it.author), 120), published: toIso(text(it.pubDate) || text(it["dc:date"])) });
     }
@@ -131,7 +140,7 @@ export function parseFeed(xml: string): Item[] {
     for (const e of arr(feed.entry)) {
       const links = arr(e.link);
       const alt = links.find((l: any) => !l?.["@_rel"] || l["@_rel"] === "alternate") ?? links[0];
-      const url = (alt?.["@_href"] ?? text(alt)).trim();
+      const url = decodeXmlEntities((alt?.["@_href"] ?? text(alt)).trim());
       if (!url.startsWith("http")) continue;
       items.push({ title: stripHtml(text(e.title), 400), url, summary: stripHtml(text(e.summary) || text(e.content)), author: stripHtml(text(e.author?.name) || text(e.author), 120), published: toIso(text(e.published) || text(e.updated)) });
     }
