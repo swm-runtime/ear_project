@@ -49,6 +49,7 @@ describe('DripFeedbackService', () => {
     findPlacedItems: jest.Mock;
   };
   let userSettingService: { getSettings: jest.Mock; updateSettings: jest.Mock };
+  let userService: { getById: jest.Mock };
 
   beforeEach(() => {
     repository = {
@@ -68,10 +69,17 @@ describe('DripFeedbackService', () => {
       }),
       updateSettings: jest.fn().mockResolvedValue({}),
     };
+    userService = {
+      // 한 달 전 가입 — 가입 4일째 조건을 넘는다
+      getById: jest
+        .fn()
+        .mockResolvedValue({ createdAt: new Date('2026-08-30T03:00:00.000Z') }),
+    };
     service = new DripFeedbackService(
       repository as never,
       libraryService as never,
       userSettingService as never,
+      userService as never,
     );
   });
 
@@ -129,16 +137,74 @@ describe('DripFeedbackService', () => {
       expect(libraryService.findPlacedBetween).not.toHaveBeenCalled();
     });
 
-    it('마지막으로 물은 것보다 새 편성분이 생겼으면 다시 묻는다', async () => {
+    it('지난번에 물은 편성분에서 7일이 지난 편성분이면 다시 묻는다 — 09-22 → 09-29', async () => {
       userSettingService.getSettings.mockResolvedValue({
         dripFeedbackMutedUntil: null,
-        dripFeedbackLastPromptedDate: '2026-09-27',
+        dripFeedbackLastPromptedDate: '2026-09-22',
       });
 
       const view = await service.getPrompt(USER_ID, NOW);
 
       expect(view.show).toBe(true);
       expect(view.placedDate).toBe('2026-09-29');
+    });
+
+    it('7일에 한 번 — 지난번에 물은 편성분에서 6일째 편성분은 새것이어도 묻지 않는다(닫았어도 같다)', async () => {
+      // given — 09-23 편성분을 물었고(별점·닫음 모두 같은 기록), 어제(09-29) 새 편성분이 있다
+      userSettingService.getSettings.mockResolvedValue({
+        dripFeedbackMutedUntil: null,
+        dripFeedbackLastPromptedDate: '2026-09-23',
+      });
+
+      const view = await service.getPrompt(USER_ID, NOW);
+
+      expect(view).toEqual({
+        show: false,
+        items: [],
+        placedDate: '2026-09-29',
+        mutedUntil: null,
+      });
+      expect(libraryService.findPlacedBetween).not.toHaveBeenCalled();
+    });
+
+    it('가입 3일째까지는 묻지 않는다 — 가입일이 1일째(09-28 가입 → 09-30은 3일째)', async () => {
+      // 09-28 10:00 KST 가입
+      userService.getById.mockResolvedValue({
+        createdAt: new Date('2026-09-28T01:00:00.000Z'),
+      });
+
+      const view = await service.getPrompt(USER_ID, NOW);
+
+      expect(view).toEqual({
+        show: false,
+        items: [],
+        placedDate: null,
+        mutedUntil: null,
+      });
+      expect(libraryService.findLatestDripPlacedBefore).not.toHaveBeenCalled();
+    });
+
+    it('가입 4일째부터 묻는다 — 09-27 가입 → 09-30은 4일째', async () => {
+      // 09-27 23:00 KST 가입 — 서비스 날짜로 09-27이다
+      userService.getById.mockResolvedValue({
+        createdAt: new Date('2026-09-27T14:00:00.000Z'),
+      });
+
+      const view = await service.getPrompt(USER_ID, NOW);
+
+      expect(view.show).toBe(true);
+    });
+
+    it('듣지 않은 편도 묻는다 — 묻는 것은 추천이 마음에 드는가이지 콘텐츠 품질이 아니다', async () => {
+      libraryService.findPlacedBetween.mockResolvedValue([
+        item(C1, { status: LibraryItemStatus.UNPLAYED }),
+        item(C2, { status: LibraryItemStatus.COMPLETED }),
+      ]);
+
+      const view = await service.getPrompt(USER_ID, NOW);
+
+      expect(view.show).toBe(true);
+      expect(view.items.map((i) => i.contentId)).toEqual([C1, C2]);
     });
 
     it('편성분이 한 번도 없으면 묻지 않는다', async () => {
