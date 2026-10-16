@@ -14,7 +14,7 @@
 | 관련 | KAN-149(05:00 경계)와 같은 크론 영역 — 서비스 날짜 경계는 이 티켓에서 바꾸지 않는다 |
 | 근거 문서 | **`spec/api/global-api.md` 2.3 푸시·메일 행 · 2.4 · 8장 `drip_batch_runs` 행 · 9장 미결 #3** — 구현은 이 문서를 따르고, 계약이 바뀌면 티켓이 아니라 이 문서를 고친다 · 2026-10-14 글로벌화 조사 |
 | 중요도 | Medium |
-| 상태 | 진행 중 (2026-10-14 #1534·#1535 dev 머지·개발계 배포 — 시간대 그룹은 스위치 꺼짐) |
+| 상태 | 검토 중 (2026-10-16 — 구현 완료 #1534·#1535·#1558. 남은 것은 `DRIP_TIMEZONE_GROUPS_ENABLED`를 켠 개발계에서 GLOBAL 계정으로 실측) |
 
 > 2026-10-14 발행한 묶음 티켓(BE KAN-185 · FE KAN-183 · AI KAN-184)을 처리 단위로 나눈 것. 결정 사항(같은 앱·기기 언어로 가입 시 1회 시장 판정·한국 트랙 불변·에러 번역은 클라이언트·가격은 스토어·영어 진행자 새 2인·K-컬처 주제 신설·GLOBAL 연령 16세)과 결정 대기(시장 전환 불허)는 `spec/api/global-api.md` 2.1·9장이 원본이다.
 
@@ -44,3 +44,4 @@
 - 2026-10-14 결정: 그룹도 **현지 05:00 편성 · 현지 07:00 알림**(KR 07:00 KST 알림 분리 PR #1532와 같은 이유). 무엇을 한다·완료 조건·`global-api.md` 2.4·6장 반영.
 - 2026-10-14 시간대 그룹 구현(PR `feat(be)/drip-timezone-groups`) — 스위치 `DRIP_TIMEZONE_GROUPS_ENABLED` 기본 꺼짐(KR·운영 동작 불변). 기준 시간대 asia `Asia/Seoul`·europe `Europe/London`·americas `America/Chicago`, 오프셋 하한으로 빈틈없이 판정. 알림 범위는 그 그룹 실행 기록 생성~종료. 남은 것: 푸시 `ttl` 그룹 기준화(지금은 다음 05:00 KST까지), 그룹 경계 확정(미결 #3). 문서 개정 요청 `changes/pending/drip-timezone-groups.md`.
 - 2026-10-15 알림 보관 시한(`ttl`)을 그 그룹의 다음 배치(현지 05:00)까지로 — americas 알림이 현지 오후 3시경 만료되던 문제. asia(KR)는 종전과 같은 값. 문서 `changes/pending/drip-timezone-groups.md`(notification.md 4.3 보관 시한). 남은 것: 그룹 경계 확정(미결 #3).
+- 2026-10-16 상태 정리 — 진행 중 → 검토 중. BE 구현은 끝났다(그룹별 편성·알림 #1534, 편성 직후 알림 누락 #1535, 알림 보관 시한·cron/배치 이중 발송 방지 #1558 — 모두 dev 머지·개발계 배포). 완료 조건 5개는 스위치가 꺼져 있고 GLOBAL 사용자가 없어 아직 실측하지 못했다. 개발계 Secrets `ear/dev/api`에 `DRIP_TIMEZONE_GROUPS_ENABLED=true`·`GLOBAL_SIGNUP_ENABLED=true`를 넣은 뒤 GLOBAL 계정(americas 시간대)으로 05:00·07:00 현지 시각 편성·알림과 KR 회귀를 확인하고 `archive/`로 옮긴다.
