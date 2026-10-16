@@ -7,7 +7,7 @@ import { ERROR_CODES } from '@/shared/api/error-codes';
 import { getDeviceId } from '@/shared/lib/device-id';
 import { useToastStore } from '@/shared/ui/toast.store';
 
-import { CONTENT_LANGUAGE_MARKET } from '../auth.constants';
+import { CONTENT_LANGUAGE_MARKET, hasPolicyDocument } from '../auth.constants';
 import { AUTH_COPY, ageConfirmationLabel } from '../auth.copy';
 import type { AuthStackParamList, ConsentType, RequiredConsent } from '../auth.types';
 import { useSignUpMutation } from './useSignUpMutation';
@@ -21,6 +21,7 @@ export const useTermsConsentScreen = ({
   signupToken,
   requiredConsents,
   preferredLanguage,
+  market: serverMarket,
 }: TermsConsentParams) => {
   const navigation = useNavigation<NativeStackNavigationProp<AuthStackParamList, 'TermsConsent'>>();
   const showToast = useToastStore((s) => s.show);
@@ -36,8 +37,9 @@ export const useTermsConsentScreen = ({
    * KR 18은 Play 대상 연령대 선언과 어긋나지 않기 위해서고, GLOBAL 16은 어느 공개 국가에서도
    * 법정대리인 동의 없이 본인이 동의할 수 있는 연령이다.
    *
-   * 계정이 아직 없어 `user.market` 이 없다 — 시장은 A21에서 고른 콘텐츠 언어가 가리키는 값으로
-   * 미리 그린다(`ko` → `kr`, `en` → `global`). 판정 자체는 가입 요청을 받은 서버가 같은 값으로 한다.
+   * 계정이 아직 없어 `user.market` 이 없다 — 동의 목록 재조회에서 **서버가 판정한 시장**이 있으면 그것으로,
+   * 없으면(구 서버·폴백) A21에서 고른 콘텐츠 언어가 가리키는 값으로 미리 그린다(`ko` → `kr`, `en` → `global`).
+   * 판정 자체는 가입 요청을 받은 서버가 같은 값으로 한다.
    *
    * 서버 목록(`requiredConsents`)에 이미 있으면 그것을 쓰고, 아직 내려주지 않는 서버를
    * 만나면 여기서 채운다 — 빠뜨리면 서버가 CONSENT_REQUIRED 로 가입을 막는다.
@@ -49,7 +51,7 @@ export const useTermsConsentScreen = ({
     isRequired: true,
   };
 
-  const market = CONTENT_LANGUAGE_MARKET[preferredLanguage];
+  const market = serverMarket ?? CONTENT_LANGUAGE_MARKET[preferredLanguage];
 
   const items = [
     {
@@ -85,11 +87,14 @@ export const useTermsConsentScreen = ({
     });
   };
 
-  /** [보기] — 랜딩에 게시된 본문을 인앱 브라우저로 연다. **열람은 동의가 아니다**(auth-uiux.md 4.3) */
+  /**
+   * [보기] — 랜딩에 게시된 본문을 인앱 브라우저로 연다. **열람은 동의가 아니다**(auth-uiux.md 4.3).
+   * 문서는 A21 선택이 가리키는 시장의 것이다(GLOBAL → 영어 본문, KAN-216). 국외 이전 동의는 처리방침의 국외 이전 절을 연다
+   */
   const handleViewPress = (consentType: ConsentType) => {
     // 마케팅·연령 확인은 열람 문서가 없어 화면이 [보기]를 그리지 않는다 — 방어적으로 한 번 더 막는다
-    if (consentType !== 'terms' && consentType !== 'privacy') return;
-    void openPolicyDocument(consentType);
+    if (!hasPolicyDocument(consentType)) return;
+    void openPolicyDocument(consentType, market);
   };
 
   const handleSubmit = async () => {

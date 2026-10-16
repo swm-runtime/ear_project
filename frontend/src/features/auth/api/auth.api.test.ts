@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, jest } from '@jest/globals';
 
-import { getCurrentUser, signUp, socialLogin } from './auth.api';
+import { fetchSignUpConsents, getCurrentUser, signUp, socialLogin } from './auth.api';
 import type { AuthSessionDto, UserDto } from './auth.api';
 
 // 실서버 경로의 계약을 본다 — 테스트 환경은 __DEV__ 라 mock 플래그를 끈다
@@ -139,5 +139,62 @@ describe('auth.api — user.market', () => {
     });
 
     expect(session.user).toMatchObject({ market: 'kr', languageCode: null, timezone: null });
+  });
+});
+
+describe('auth.api — 가입 동의 목록 재조회(PM 2026-10-16 · KAN-216)', () => {
+  it('고른 콘텐츠 언어를 sign-up 과 같은 locale 로 보내고 인증 갱신을 타지 않는다', async () => {
+    mockPost.mockResolvedValue({ data: { required_consents: [] } });
+
+    await fetchSignUpConsents({ signupToken: 't', locale: { ...DEVICE, preferredLanguage: 'en' } });
+
+    expect(mockPost).toHaveBeenCalledWith(
+      '/auth/sign-up/consents',
+      {
+        signup_token: 't',
+        locale: {
+          preferred_language: 'en',
+          language_code: 'en-US',
+          region_code: 'US',
+          timezone: 'America/New_York',
+        },
+      },
+      { skipAuthRefresh: true },
+    );
+  });
+
+  it('서버 목록을 그대로 옮긴다 — 국외 이전 동의의 필수 여부·버전도 서버 값이다(market 이 없으면 null)', async () => {
+    mockPost.mockResolvedValue({
+      data: {
+        required_consents: [
+          { consent_type: 'terms', version: 'terms_global_v1', is_required: true },
+          { consent_type: 'cross_border_transfer', version: null, is_required: true },
+        ],
+      },
+    });
+
+    const consents = await fetchSignUpConsents({
+      signupToken: 't',
+      locale: { ...DEVICE, preferredLanguage: 'en' },
+    });
+
+    expect(consents).toEqual({
+      requiredConsents: [
+        { consentType: 'terms', version: 'terms_global_v1', isRequired: true },
+        { consentType: 'cross_border_transfer', version: null, isRequired: true },
+      ],
+      market: null,
+    });
+  });
+
+  it('응답에 market 이 있으면 서버 판정 시장으로 옮긴다', async () => {
+    mockPost.mockResolvedValue({ data: { required_consents: [], market: 'kr' } });
+
+    const { market } = await fetchSignUpConsents({
+      signupToken: 't',
+      locale: { ...DEVICE, preferredLanguage: 'en' },
+    });
+
+    expect(market).toBe('kr');
   });
 });

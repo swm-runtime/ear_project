@@ -13,8 +13,11 @@ export type ContentLanguage = 'ko' | 'en';
 /**
  * 서버가 받는 동의 유형(domain.md 3.2). `age_confirmation` 은 열람할 문서가 없는
  * 자기 선언이라 `version` 이 항상 null 이다 — 마케팅과 같다.
+ * `cross_border_transfer`(국외 이전 동의, KAN-215·216)는 **서버가 GLOBAL 목록에만 싣는다** — 클라이언트는 시장으로
+ * 넣거나 빼지 않고 서버 목록대로 그린다.
  */
-export type ConsentType = 'terms' | 'privacy' | 'marketing' | 'age_confirmation';
+export type ConsentType =
+  'terms' | 'privacy' | 'marketing' | 'age_confirmation' | 'cross_border_transfer';
 
 /**
  * `GET /users/me`(auth-api.md 4.13) — 실행 관문의 세션 복원 입력.
@@ -93,9 +96,17 @@ export type AuthStackParamList = {
   Start: undefined;
   /** A21 콘텐츠 언어 선택 — 신규 가입자만 거친다(A1 → A21 → A4) */
   ContentLanguage: SignUpParams;
+  /**
+   * `requiredConsents` 는 A21에서 언어를 고른 뒤 **다시 받은 목록**이다(`POST /auth/sign-up/consents`, PM 2026-10-16).
+   * 구 서버(엔드포인트 없음)면 로그인 응답의 목록 그대로다.
+   */
   TermsConsent: SignUpParams & {
     /** A21에서 고른 값. 가입 요청의 `locale.preferred_language` 로 보낸다 */
     preferredLanguage: ContentLanguage;
+    /**
+     * 재조회에서 서버가 판정한 시장 — 연령 문구·문서 링크의 기준. 없으면(구 서버·폴백) A21 선택이 가리키는 시장으로 그린다
+     */
+    market?: Market;
   };
 };
 

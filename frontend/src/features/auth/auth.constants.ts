@@ -1,6 +1,12 @@
-import { PRIVACY_POLICY_URL, TERMS_URL } from '@/shared/lib/legal-urls';
+import type { LegalUrls } from '@/shared/lib/legal-urls';
 
-import type { ContentLanguage, Market, SocialProvider, WithdrawalReasonCode } from './auth.types';
+import type {
+  ConsentType,
+  ContentLanguage,
+  Market,
+  SocialProvider,
+  WithdrawalReasonCode,
+} from './auth.types';
 
 /**
  * A21에서 고른 콘텐츠 언어가 가리키는 시장(global-api.md 2.1 — `ko` → `kr`, `en` → `global`).
@@ -61,19 +67,25 @@ export const PROVIDER_BRAND: Record<
 };
 
 /**
- * 약관 문서 URL — 랜딩(`earcast.co.kr`)에 게시된 본문을 인앱 브라우저로 연다.
- * 앱에 본문을 넣지 않는 이유: 약관은 개정되면 즉시 바뀐 본문이 보여야 하는데, 앱에 넣으면
+ * 열람 문서가 있는 동의 유형 → 문서 주소 키(`shared/lib/legal-urls.ts`). 랜딩(`earcast.co.kr`)에 게시된 본문을
+ * 인앱 브라우저로 연다. 앱에 본문을 넣지 않는 이유: 약관은 개정되면 즉시 바뀐 본문이 보여야 하는데, 앱에 넣으면
  * 스토어 배포를 기다려야 한다. 웹에 두면 랜딩 배포만으로 반영된다.
  *
- * 마케팅 동의는 열람 문서가 없다 — 한 줄 고지로 갈음한다(auth-uiux.md 4.3).
- * 주소는 설정·구독 화면과 같은 원천(`shared/lib/legal-urls.ts`)이다 — 영어 표시면 랜딩 영어 본문(`/en/…`, KAN-197)
+ * 마케팅 동의는 열람 문서가 없다 — 한 줄 고지로 갈음한다(auth-uiux.md 4.3). 연령 확인은 자기 선언이라 없다.
+ * 국외 이전 동의는 처리방침의 국외 이전 절을 연다(KAN-216). 주소는 설정·구독 화면과 같은 원천이고 **시장별**이다 —
+ * 시장은 여는 쪽이 넘긴다(A4는 A21 선택의 시장, A20은 세션 `user.market`).
  */
-export const POLICY_DOCUMENT_URL = {
-  terms: TERMS_URL,
-  privacy: PRIVACY_POLICY_URL,
-} as const satisfies Record<'terms' | 'privacy', string>;
+export const POLICY_DOCUMENT_KEY = {
+  terms: 'terms',
+  privacy: 'privacy',
+  cross_border_transfer: 'crossBorderTransfer',
+} as const satisfies Partial<Record<ConsentType, keyof LegalUrls>>;
 
-export type PolicyDocument = keyof typeof POLICY_DOCUMENT_URL;
+export type PolicyDocument = keyof typeof POLICY_DOCUMENT_KEY;
+
+/** [보기] 셰브론을 그릴 항목인가 — 열람 문서가 있는 동의 유형만 */
+export const hasPolicyDocument = (consentType: ConsentType): consentType is PolicyDocument =>
+  consentType in POLICY_DOCUMENT_KEY;
 
 /**
  * 탈퇴 API(withdrawal-preview·withdraw)의 mock 전환 — 계정을 실제로 지우지 않고 A7·A8을

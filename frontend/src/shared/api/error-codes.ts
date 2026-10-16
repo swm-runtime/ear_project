@@ -82,6 +82,8 @@ export const ERROR_CODES = {
 
   // 공용 코드(common-error-handling.md 4.1)
   VALIDATION_FAILED: 'VALIDATION_FAILED',
+  /** 9.1 기반 404 — 라우터에 없는 경로(구 서버의 미구현 엔드포인트)도 이 코드다 */
+  NOT_FOUND: 'NOT_FOUND',
   CONTENT_NOT_FOUND: 'CONTENT_NOT_FOUND',
   CONTENT_WITHDRAWN: 'CONTENT_WITHDRAWN',
   INTERNAL_ERROR: 'INTERNAL_ERROR',

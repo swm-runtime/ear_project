@@ -7,6 +7,7 @@ import {
   mockRequestLogout,
   mockSubmitConsents,
   mockSignUp,
+  mockSignUpConsents,
   mockSocialLogin,
 } from './auth.mock';
 import { IS_AUTH_API_MOCKED } from '../auth.constants';
@@ -113,6 +114,26 @@ export interface SignUpRequestDto {
   consents: ConsentSubmissionDto[];
   /** 기기 로캘 + A21에서 고른 `preferred_language` — 시장 판정의 입력(global-api.md 2.1) */
   locale: LocaleRequestDto;
+}
+
+/**
+ * `POST /auth/sign-up/consents` — A21에서 고른 콘텐츠 언어로 가입 동의 목록을 다시 받는다(PM 2026-10-16).
+ * **BE 제안 계약이다**(`docs/changes/pending/auth-signup-consents-refetch.md` — auth-api.md 4.x 추가 요청). `locale` 은
+ * sign-up 과 같은 객체다.
+ */
+export interface SignUpConsentsRequestDto {
+  signup_token: string;
+  locale: LocaleRequestDto;
+}
+
+/** 응답 — social-login `consent_required` 의 `required_consents` 와 같은 모양 */
+export interface SignUpConsentsResponseDto {
+  required_consents: ConsentItemDto[];
+  /**
+   * 서버가 이 `locale` 로 판정한 시장(제안 — 선택 필드). `GLOBAL_SIGNUP_ENABLED` 가 닫혀 있으면 `en` 도 `kr` 이 된다
+   * (global-api.md 2.1) — A4의 연령 문구·문서 링크를 가입될 시장과 맞추려고 받는다. 없으면 null 로 받는다
+   */
+  market?: string;
 }
 
 interface RefreshTokenRequestDto {
@@ -241,6 +262,36 @@ export const signUp = async (input: {
         })
       ).data;
   return toAuthSession(data);
+};
+
+/**
+ * 가입 동의 목록 재조회 — A21 → A4 사이(PM 2026-10-16). 로그인 응답의 `required_consents` 는 콘텐츠 언어를 모르고
+ * 정해진 것이라, 고른 언어(= 시장)의 목록을 **서버가 다시 판정해** 준다. 클라이언트는 시장으로 항목을 넣거나 빼지 않는다.
+ *
+ * 계정이 없는 요청이라 토큰 갱신을 타지 않는다. 조회라 부작용은 없지만 POST 라 자동 재시도 대상이 아니다 — 실패하면
+ * 화면이 [다음]으로 다시 시도하게 둔다(구 서버 404 폴백과 함께 `useContentLanguageScreen` 이 처리한다).
+ */
+export const fetchSignUpConsents = async (input: {
+  signupToken: string;
+  /** sign-up 과 같은 로캘 — 고른 콘텐츠 언어(`preferredLanguage`)가 시장 판정의 입력이다 */
+  locale: DeviceLocale & { preferredLanguage: ContentLanguage };
+}): Promise<{ requiredConsents: RequiredConsent[]; market: Market | null }> => {
+  const body: SignUpConsentsRequestDto = {
+    signup_token: input.signupToken,
+    locale: toLocaleRequestDto(input.locale),
+  };
+  const data = IS_AUTH_API_MOCKED
+    ? await mockSignUpConsents(body)
+    : (
+        await apiClient.post<SignUpConsentsResponseDto>('/auth/sign-up/consents', body, {
+          skipAuthRefresh: true,
+        })
+      ).data;
+  return {
+    requiredConsents: data.required_consents.map(toRequiredConsent),
+    // 없는 응답은 "모름"이다 — `toMarket` 의 `kr` 폴백(구 서버 user)과 달리 화면이 A21 선택으로 대신한다
+    market: data.market === undefined ? null : toMarket(data.market),
+  };
 };
 
 /** 토큰 갱신(회전). 401 갱신 플로우를 다시 타면 안 된다 */

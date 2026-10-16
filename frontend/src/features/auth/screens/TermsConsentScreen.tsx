@@ -9,6 +9,7 @@ import ChevronIcon from '@/shared/ui/ChevronIcon';
 import { pillButton } from '@/shared/ui/pill-button.styles';
 import { Text } from '@/shared/ui/Typography';
 
+import { hasPolicyDocument } from '../auth.constants';
 import { AUTH_COPY } from '../auth.copy';
 import type { AuthStackParamList } from '../auth.types';
 import ConsentItem from '../components/ConsentItem';
@@ -87,9 +88,9 @@ export default function TermsConsentScreen({ route, navigation }: TermsConsentSc
               description={item.description}
               onToggle={() => toggleConsent(item.consentType)}
               // 열람 문서가 있는 항목만 [보기] 셰브론을 그린다 — 마케팅은 한 줄 고지로,
-              // 연령 확인은 자기 선언이라 열 문서가 없다
+              // 연령 확인은 자기 선언이라 열 문서가 없다. 국외 이전은 처리방침의 국외 이전 절을 연다
               onViewPress={
-                item.consentType === 'terms' || item.consentType === 'privacy'
+                hasPolicyDocument(item.consentType)
                   ? () => handleViewPress(item.consentType)
                   : undefined
               }

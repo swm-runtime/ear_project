@@ -12,25 +12,20 @@ import {
 } from '@/shared/i18n/locale';
 import { copyToClipboard } from '@/shared/lib/clipboard';
 import { IS_SUBSCRIPTION_UI_ENABLED } from '@/shared/lib/feature-flags';
+import { legalUrlsFor } from '@/shared/lib/legal-urls';
 import { logger } from '@/shared/lib/logger';
 import { isOnCellular } from '@/shared/lib/network-type';
 import { secureStorage } from '@/shared/storage/secure-storage';
 import { STORAGE_KEYS } from '@/shared/storage/storage-keys';
 import { useToastStore } from '@/shared/ui/toast.store';
 
-import { sessionService } from '@/features/auth';
+import { selectMarket, sessionService, useSessionStore } from '@/features/auth';
 import { getOsPermissionStatus, type OsPermissionStatus } from '@/features/notification';
 import { formatPlanGrantLine } from '@/features/subscription';
 
 import { settingsKeys, submitMarketingConsent, updateUserSettings } from '../api/settings.api';
 import { visibleAudioQualityOptions } from '../settings.audio-quality';
-import {
-  KAKAO_CHANNEL_URL,
-  PRIVACY_POLICY_URL,
-  LICENSES_URL,
-  STORE_URL,
-  TERMS_URL,
-} from '../settings.constants';
+import { KAKAO_CHANNEL_URL, LICENSES_URL, STORE_URL } from '../settings.constants';
 import { SETTINGS_COPY } from '../settings.copy';
 import { deriveEmailStatus } from '../settings.format';
 import type {
@@ -141,6 +136,8 @@ export const useSettingsScreen = () => {
   const queryClient = useQueryClient();
   const query = useSettingsQuery();
   const showToast = useToastStore((s) => s.show);
+  /** 약관·처리방침 링크의 시장 — 서버가 정한 세션 `user.market`(KAN-216) */
+  const market = useSessionStore(selectMarket);
 
   /* ── OS 알림 권한 — 판정 입력은 기기만 안다. 서버 필드가 없다(settings-api.md 3장 설계 메모) ── */
 
@@ -405,11 +402,14 @@ export const useSettingsScreen = () => {
   };
 
   // TODO: expo-web-browser 도입 시 인앱 브라우저로 교체한다(settings.md 4.1 — 약관은 인앱 브라우저)
+  // 문서는 계정 시장의 것이다 — GLOBAL 은 영어 본문(KAN-216). 표시 언어로 고르지 않는다
   const openTerms = (): void => {
-    Linking.openURL(TERMS_URL).catch((error) => logger.warn('[settings] open terms failed', error));
+    Linking.openURL(legalUrlsFor(market).terms).catch((error) =>
+      logger.warn('[settings] open terms failed', error),
+    );
   };
   const openPrivacyPolicy = (): void => {
-    Linking.openURL(PRIVACY_POLICY_URL).catch((error) =>
+    Linking.openURL(legalUrlsFor(market).privacy).catch((error) =>
       logger.warn('[settings] open privacy failed', error),
     );
   };
