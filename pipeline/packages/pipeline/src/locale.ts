@@ -26,7 +26,7 @@ export interface CastTeam { explainer: CastMember; host: CastMember; topics: rea
 export const GLOBAL_TEAMS: readonly CastTeam[] = [
   { explainer: { name: "Yuna", voice: "MClEFoImJXBTgLwdLI5n" }, host: { name: "Owen", voice: "gPPH6SLdL8XSX6GNJ40G" },
     topics: ["Korean Language", "Korean Culture", "Korean History & Society", "K-Beauty & Fashion"] },
-  { explainer: { name: "Minsoo", voice: "DMyrgzQFny3JI1Y1paM5" }, host: { name: "Grace", voice: "kdmDKE6EkgrWrrykO9Qt" },
+  { explainer: { name: "E-um", voice: "DMyrgzQFny3JI1Y1paM5" }, host: { name: "Grace", voice: "kdmDKE6EkgrWrrykO9Qt" },
     topics: ["K-Food", "K-Pop", "K-Drama & Film", "Travel in Korea"] },
 ];
 

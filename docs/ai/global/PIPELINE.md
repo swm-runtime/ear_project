@@ -338,7 +338,7 @@ proposed ─승인→ approved ─집기→ claimed → drafted → qa_passed �
   | 팀 | 해설자 (한국 내부자) | 진행자 (외부자) | 주제 |
   |---|---|---|---|
   | 1 | **Yuna** · 여 · `MClEFoImJXBTgLwdLI5n` | **Owen** · 남 · `gPPH6SLdL8XSX6GNJ40G` | Korean Language · Korean Culture · Korean History & Society · K-Beauty & Fashion |
-  | 2 | **Minsoo** · 남 · `DMyrgzQFny3JI1Y1paM5` | **Grace** · 여 · `kdmDKE6EkgrWrrykO9Qt` | K-Food · K-Pop · K-Drama & Film · Travel in Korea |
+  | 2 | **E-um** · 남 · `DMyrgzQFny3JI1Y1paM5` | **Grace** · 여 · `kdmDKE6EkgrWrrykO9Qt` | K-Food · K-Pop · K-Drama & Film · Travel in Korea |
 
   이름·보이스는 사용자가 골랐고(ElevenLabs 라이브러리 영어 보이스 — 한국어 앵커 음성에 영어를 읽히지 않는다), 팀·주제 배정은 제안안을 그대로 썼다. 표의 원본은 코드(`GLOBAL_TEAMS`)이고 콘솔(`apps/web/lib/locale.ts`)이 같은 이름을 쓴다. L0 가 E턴은 그 편의 해설자, Y턴은 진행자 이름인지 본다.
 - **보이스** `신설` — 위 출연진 표의 보이스. 선정 기준: 영어 네이티브 수준의 발화 · **한글로 넣은 한국어 단어를 자연스럽게 발음** · 함께 나오는 두 화자의 톤 대비. 한국어 앵커 음성에 영어를 읽히지 않는다 — 영어 발화의 명료함이 먼저다. 보이스 변경은 리브랜딩급 결정 `승계`.

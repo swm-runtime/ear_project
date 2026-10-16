@@ -6,7 +6,7 @@
  * 글로벌판(PIPELINE_LOCALE=en, 글로벌 명세 6.7·KAN-203)은 사전이 "한국어 로마자 표기 → 한글"이고(2026-10-16 — 영어 보이스가 문장 속 한글을 한국어로 읽는다. 종전 값은 영어식 철자), 숫자·기호는 ElevenLabs 가 영어로 읽게 둔다.
  * 영문 잔존 검사 대신 발음 누락 검사(missingPronunciations)로 멈춘다.
  */
-import { pipelineLocale, type PipelineLocale } from "@ear/pipeline";
+import { allSpeakerNames, pipelineLocale, type PipelineLocale } from "@ear/pipeline";
 
 /** ElevenLabs 오디오 태그 (spec/06 5장) — 정규화·잔존 검사에서 건드리지 않는다 */
 const AUDIO_TAG = /\[(curious|surprised|sighs|exhales|laughs|whispers|excited|chuckles)\]/g;
@@ -104,8 +104,10 @@ function normalizeEn(text: string, dict: Record<string, string>): string {
 /** 병합 사전 (spec/06 6장) — 겹치면 전역이 이긴다. 글로벌판은 표기 대소문자를 무시하고(Hanbok = hanbok) 힌트가 빈 항목을 뺀다 */
 export function mergeTtsDict(epMap: Record<string, string>, globalDict: Record<string, string>, locale: PipelineLocale = pipelineLocale()): Record<string, string> {
   if (locale !== "en") return { ...epMap, ...globalDict };
+  // 출연진 이름(Yuna·Owen·E-um·Grace)은 치환하지 않는다 — 보이스가 영어로 읽는다(박수헌 2026-10-17, 규칙 49). 모델이 등록해도 여기서 뺀다
+  const cast = new Set(allSpeakerNames().map((n) => n.toLowerCase()));
   const out = new Map<string, [string, string]>();
-  for (const src of [epMap, globalDict]) for (const [k, v] of Object.entries(src)) if (k.trim() && v.trim()) out.set(k.toLowerCase(), [k, v]);
+  for (const src of [epMap, globalDict]) for (const [k, v] of Object.entries(src)) if (k.trim() && v.trim() && !cast.has(k.trim().toLowerCase())) out.set(k.toLowerCase(), [k, v]);
   return Object.fromEntries(out.values());
 }
 
