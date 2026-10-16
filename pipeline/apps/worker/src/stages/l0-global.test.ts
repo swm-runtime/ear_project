@@ -119,7 +119,7 @@ test("계약 위반 — 대본 ID·제작 용어·군말과 지문·상대 시�
     T("E2", "Kimjang is still common these days."),
     T("E3", "One. Two. Three. Four. Five. Six. Seven."),
     T("E4", "In 2013, 2014, 2015, 2016, and 2017 the numbers rose."),
-    T("Y3", "That's all for today on ear podcast.", "Closing"),
+    T("Y3", "That's all for today on Earcast.", "Closing"),
   ]);
   const hard = v.filter((x) => !x.startsWith(EN_STYLE_MARK));
   assert.match(hard.join("\n"), /Claim or excerpt IDs in spoken lines \(E1 "C03"\)/);
