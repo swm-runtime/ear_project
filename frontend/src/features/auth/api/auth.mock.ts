@@ -133,6 +133,21 @@ const decideMarket = (locale: SignUpRequestDto['locale']): Market => {
   return locale.language_code.toLowerCase().startsWith('ko') ? 'kr' : 'global';
 };
 
+/**
+ * 연령 확인 행 — 서버의 나라별 판정 흉내(KAN-206 3안, `changes/pending/auth-age-by-region.md`). KR 시장 18, GLOBAL 은
+ * 본인 동의 연령이 16 이하인 지역(SG·HK·KR)만 16이고 나머지·모름은 18
+ */
+const AGE_16_REGIONS = new Set(['SG', 'HK', 'KR']);
+const ageConsentFor = (market: Market, regionCode: string | undefined): ConsentItemDto => ({
+  consent_type: 'age_confirmation',
+  version: null,
+  is_required: true,
+  min_age:
+    market === 'global' && regionCode !== undefined && AGE_16_REGIONS.has(regionCode.toUpperCase())
+      ? 16
+      : 18,
+});
+
 /** A21 → A4 사이 동의 목록 재조회 — 고른 언어가 가리키는 시장의 목록(서버 판정 흉내) */
 export const mockSignUpConsents = async (
   body: SignUpConsentsRequestDto,
@@ -144,8 +159,10 @@ export const mockSignUpConsents = async (
   }
   const market = decideMarket(body.locale);
   return {
-    required_consents:
-      market === 'global' ? [...REQUIRED_CONSENTS, CROSS_BORDER_CONSENT] : REQUIRED_CONSENTS,
+    required_consents: [
+      ageConsentFor(market, body.locale.region_code),
+      ...(market === 'global' ? [...REQUIRED_CONSENTS, CROSS_BORDER_CONSENT] : REQUIRED_CONSENTS),
+    ],
     market,
   };
 };

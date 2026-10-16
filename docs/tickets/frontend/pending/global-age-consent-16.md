@@ -14,7 +14,7 @@
 | 관련 | [KAN-195](https://runtime364.atlassian.net/browse/KAN-195)의 "연령 16세 문구" 항목을 이 티켓으로 이관 · 스토어 설정은 BE [KAN-207](https://runtime364.atlassian.net/browse/KAN-207) |
 | 근거 문서 | **`spec/api/global-api.md` 2.1(연령 행 ✅) · 4.1** — 구현은 이 문서를 따르고, 계약이 바뀌면 티켓이 아니라 이 문서를 고친다 |
 | 중요도 | Medium |
-| 상태 | 진행 중 — GLOBAL 연령 숫자 보류(2026-10-15 박준현 재검토) |
+| 상태 | 진행 중 — 나라별 연령(3안, 2026-10-16 PM 결정) FE 반영, BE `min_age` 판정 대기([KAN-220](https://runtime364.atlassian.net/browse/KAN-220) `global-age-by-region.md`) |
 
 ## 확정 — GLOBAL 16세 (2026-10-14 박준현)
 
@@ -61,3 +61,7 @@ KR 연령 기준 변경 · 부모 동의 흐름 · OS 연령 신호(Declared Age
   - 문서 — `spec/uiux/auth-uiux.md` 4.3(연령 행·시장별 확정 카피 표)·4.3-1·7장(고정 폭 금지), `features/auth.md` 4.1, `spec/api/auth-api.md` 4.2(연령 시장별).
   - 남은 것: ① 실기기 확인 — en 기기 + English 선택 → A4 16세 문구, ko 기기 + 한국어 선택 → 18세(회귀), en 기기 + 한국어 선택 → "I’m 18 or older", VoiceOver/TalkBack 낭독, 작은 기기(SE급)·글자 크기 200%에서 A1·A4 영어 문구 잘림 없음. ② 스크린샷 QA 체크리스트에 연령 화면 추가 — 저장소에 해당 체크리스트 문서가 아직 없어 KAN-197/198 QA 문서가 생길 때 넣는다. ③ BE KAN-189 배포 뒤 실서버 `pending_consents` 의 `terms_global_v1` 로 A20 왕복 확인.
 - 2026-10-15 **보류 — GLOBAL 연령 숫자 재검토**(Jira 댓글 19:29 박준현). 동남아 위주 공개로 16세를 다시 본다(인도네시아 18세 미만 부모 동의 · 태국 성년 20세 — 18로 올리면 KR과 같아진다). 이 댓글을 보기 전에 위 구현이 PR #1591로 dev에 머지됐다(개발계 OTA `01a13f4a`, 운영 main 미포함). **시장 분기 구조·서버 버전 그대로 전송은 숫자와 무관하게 유지**하고, 숫자만 결정을 따른다. 남은 결정: GLOBAL 연령 16 vs 18. 18로 정해지면 같은 날 ① `frontend/src/features/auth/auth.copy.ts` `ageConfirmationLabel` GLOBAL 문구 ② `spec/uiux/auth-uiux.md` 4.3 · `spec/api/auth-api.md` 4.2 · `spec/api/global-api.md` 2.1(changes 경유) ③ 랜딩 `landing-page/src/content/legal-en.ts` 약관 2조 · 처리방침 7조를 함께 고친다. dev → main 릴리즈 전에 확정한다.
+- 2026-10-16 **결정 — 나라별(3안, PM 이주호)**. 박준현이 정리한 선택지 3개(18 일괄 · 16 일괄 · 나라별, Jira 댓글 2026-10-16 13:38) 중 나라별로 정했다. 규칙: KR 시장 18(불변) · GLOBAL은 기기 지역(`locale.region_code`)으로 싱가포르·홍콩·한국 **16**, 말레이시아·필리핀·인도네시아·태국·지역 모름 **18**. **판정은 서버**가 하고 `age_confirmation` 항목의 `min_age`로 내려준다(제안 계약 `changes/pending/auth-age-by-region.md`, BE 티켓 `tickets/backend/pending/global-age-by-region.md`).
+  - FE 반영(브랜치 `feat(fe)/age-by-region`): `RequiredConsent.minAge`(DTO `min_age`) 추가 · `ageConfirmationLabel(minAge)` 숫자 끼우기(ko "만 {n}세 이상입니다" · en "I confirm that I am {n} or older" — 영어 KR 문구도 이 형식으로 통일) · `resolveMinAge` — 서버 값이 없으면 **시장과 무관하게 18**(`FALLBACK_MIN_AGE`, 보수값). 그래서 BE 배포 전에는 GLOBAL도 18로 보이고, 16은 서버가 지역을 보고서만 준다. A4·A20 둘 다. mock 은 sign-up 동의 재조회에서 지역으로 16/18 연령 행을 돌려준다.
+  - 문서: `auth-uiux.md` 4.3 · `auth-api.md` 4.1(`region_code` 용도)·4.2 · `global-api.md` 2.1·4.1 · `features/auth.md` 4장. 랜딩 `legal-en.ts` 약관 2조 · 처리방침 7조를 "18, 싱가포르·홍콩·한국은 16"으로.
+  - 남은 것: BE `min_age` 판정 구현 → 실서버에서 지역별(SG 16 · MY 18 · 지역 없음 18) 확인. 태국 18~19세(성년 20)는 법률 멘토 미팅(KAN-126) 질문으로 넘긴다. 스토어 등급(KAN-207, Apple 16+ · Play 16–17/18+)은 최저 16이 남아 그대로 맞다.

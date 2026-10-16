@@ -78,17 +78,26 @@ afterEach(() => {
 
 const ageRow = () => screen.items.find((item) => item.consentType === 'age_confirmation');
 
-describe('A20 재동의 연령 확인 — 세션 시장의 기준 연령(KAN-206)', () => {
-  it('GLOBAL 사용자는 16세 문구를 본다', () => {
+describe('A20 재동의 연령 확인 — 서버가 실은 나라별 기준 연령(KAN-206)', () => {
+  it('서버가 16을 실으면 GLOBAL 사용자는 16세 문구를 본다', () => {
+    renderWith(
+      'global',
+      PENDING.map((c) => (c.consentType === 'age_confirmation' ? { ...c, minAge: 16 } : c)),
+    );
+
+    expect(ageRow()?.label).toBe(ageConfirmationLabel(16));
+  });
+
+  it('서버 값이 없으면 GLOBAL 도 보수값 18세다', () => {
     renderWith('global');
 
-    expect(ageRow()?.label).toBe(ageConfirmationLabel('global'));
+    expect(ageRow()?.label).toBe(ageConfirmationLabel(18));
   });
 
   it('KR 사용자는 종전 18세 문구 그대로다', () => {
     renderWith('kr');
 
-    expect(ageRow()?.label).toBe(ageConfirmationLabel('kr'));
+    expect(ageRow()?.label).toBe(ageConfirmationLabel(18));
   });
 });
 

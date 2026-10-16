@@ -4,6 +4,7 @@ import type {
   ConsentType,
   ContentLanguage,
   Market,
+  RequiredConsent,
   SocialProvider,
   WithdrawalReasonCode,
 } from './auth.types';
@@ -18,6 +19,22 @@ export const CONTENT_LANGUAGE_MARKET: Readonly<Record<ContentLanguage, Market>> 
   ko: 'kr',
   en: 'global',
 };
+
+/**
+ * 연령 확인의 기준 연령 — **나라별이고 판정은 서버가 한다**(KAN-206, PM 2026-10-16 3안). 서버가 `age_confirmation` 항목에
+ * `min_age` 를 실어 보내면 그 값을 그린다(GLOBAL 은 기기 지역 `region_code` 로 16 또는 18, KR 은 18).
+ *
+ * 이 표는 `min_age` 를 아직 주지 않는 서버를 만났을 때의 **보수값**이다 — 어느 공개 국가에서도 법정대리인 동의가 필요 없는
+ * 18로 둔다. 16을 보여줄 수 있는 나라인지는 서버만 안다(클라이언트가 지역으로 판정하지 않는다)
+ */
+export const FALLBACK_MIN_AGE: Readonly<Record<Market, number>> = {
+  kr: 18,
+  global: 18,
+};
+
+/** 연령 확인 행의 기준 연령 — 서버 값이 있으면 그것, 없으면 시장의 보수값 */
+export const resolveMinAge = (consent: RequiredConsent | undefined, market: Market): number =>
+  consent?.minAge ?? FALLBACK_MIN_AGE[market];
 
 /**
  * 이메일 인증 API의 mock 전환(CLAUDE.local 개발 방식 — onboarding·career와 동일 패턴).

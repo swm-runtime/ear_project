@@ -59,6 +59,8 @@ export interface ConsentItemDto {
   consent_type: ConsentType;
   version: string | null;
   is_required: boolean;
+  /** `age_confirmation` 만 — 서버가 판정한 기준 연령(KAN-206, 제안 계약 `changes/pending/auth-age-by-region.md`). 구 서버에는 없다 */
+  min_age?: number;
 }
 
 /** `GET /users/me` 응답(auth-api.md 4.13) — 로그인 응답과 같은 조각 둘로 이뤄진다 */
@@ -157,6 +159,7 @@ const toRequiredConsent = (dto: ConsentItemDto): RequiredConsent => ({
   consentType: dto.consent_type,
   version: dto.version,
   isRequired: dto.is_required,
+  ...(typeof dto.min_age === 'number' && { minAge: dto.min_age }),
 });
 
 const toLocaleRequestDto = (locale: DeviceLocale): LocaleRequestDto => ({

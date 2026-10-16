@@ -62,6 +62,11 @@ export interface RequiredConsent {
   consentType: ConsentType;
   version: string | null;
   isRequired: boolean;
+  /**
+   * 연령 확인(`age_confirmation`)의 기준 연령 — **서버가 시장·기기 지역으로 판정해 내려준다**(KAN-206 나라별 결정,
+   * PM 2026-10-16). 다른 유형·구 서버 응답에는 없다 → 화면이 `FALLBACK_MIN_AGE`(시장별 보수값)로 그린다
+   */
+  minAge?: number;
 }
 
 export interface ConsentSubmission {
