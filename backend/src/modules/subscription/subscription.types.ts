@@ -1,4 +1,4 @@
-import { UserTier } from '@/modules/user/user.enum';
+import { UserMarket, UserTier } from '@/modules/user/user.enum';
 import { AudioQuality } from '@/modules/content/content.enum';
 
 import { InviteCodeRedemption } from './entities/invite-code-redemption.entity';
@@ -105,11 +105,13 @@ export interface TrialView {
   dailyPlayLimitAfter: number | null;
 }
 
-/** `buildPlanView`가 사용자 쪽에서 받아야 하는 값 — subscription 모듈은 `users`를 모른다 */
-export interface TrialContext {
+/** 요금제 카드 조립에 필요한 사용자 값 — `subscription` 모듈은 `users`를 모르므로 호출부가 넘긴다 */
+export interface PlanViewContext {
   /** `users.trial_ends_at` */
   trialEndsAt: Date | null | undefined;
   now: Date;
+  /** `users.market` — 요금제 이름의 언어를 고른다(`planTextOf`) */
+  market: UserMarket;
 }
 
 /**

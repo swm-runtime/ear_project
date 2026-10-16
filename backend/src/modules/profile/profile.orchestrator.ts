@@ -85,7 +85,11 @@ export class ProfileOrchestrator {
 
     const [plan, interestSummary, stats] = await Promise.all([
       this.subscriptionService
-        .buildPlanView(userId, { trialEndsAt: user.trialEndsAt, now })
+        .buildPlanView(userId, {
+          trialEndsAt: user.trialEndsAt,
+          now,
+          market: user.market,
+        })
         .catch((error: unknown) => {
           this.logSectionFailure(ProfileSection.PLAN, userId, error);
           failedSections.push(ProfileSection.PLAN);

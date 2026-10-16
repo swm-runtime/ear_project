@@ -53,3 +53,8 @@
 - 해외 사용자 화면에 서버의 `plans.name`이 한국어로 보이는 문제가 FE 리소스로 해결되지 않을 때.
 
 - 2026-10-14 보류. Jira KAN-192 같은 날 보류 댓글.
+- 2026-10-16 **재개 조건 3번에 해당하는 부분만 처리** — 보류할 때의 가정("요금제 이름·설명은 FE가 영어 리소스로")이 틀렸다. 앱(`PlanList.tsx`)은 서버 `plans.name`·`description`을 그대로 그려 GLOBAL 사용자에게 한국어 설명·"무료 체험"이 보였다. PR `feat(be)/plan-text-by-market`:
+  - `plans.name_en`·`description_en` 추가(마이그레이션 `1790400000000`, 현행 4개 티어 영어 문구 채움).
+  - `planTextOf(plan, market)` — 시장의 언어로 고른다(GLOBAL 영어, KR 종전). `GET /plans`와 요금제 카드(`buildPlanView` — 설정·프로필·구독 상태의 현재·예약·지급 요금제 이름)가 이 한 곳을 쓴다. 앱 변경 없음.
+  - 문서 `changes/pending/plan-text-by-market.md`.
+  - 나머지(GLOBAL 전용 가격·상품, 결제 국가·통화 저장)는 보류 그대로다. 스토어 상품 이름의 영어 현지화는 콘솔 작업(박준현)이다.

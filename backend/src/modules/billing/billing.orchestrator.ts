@@ -5,6 +5,7 @@ import { BusinessException } from '@/common/exceptions/business.exception';
 import { ErrorCode } from '@/common/exceptions/error-code.enum';
 import { Plan } from '@/modules/subscription/entities/plan.entity';
 import { Subscription } from '@/modules/subscription/entities/subscription.entity';
+import { planTextOf } from '@/modules/subscription/policies/plan-text.policy';
 import { classifyTransaction } from '@/modules/subscription/policies/store-state.policy';
 import {
   PlanService,
@@ -97,12 +98,14 @@ export class BillingOrchestrator {
 
     const offers = plans.map((plan): PlanOffer => {
       const storeProductId = productIdOf(plan, platform);
+      // 이름·설명은 사용자 시장의 언어다 — 앱은 받은 문구를 그대로 그린다(KAN-192 일부)
+      const text = planTextOf(plan, user.market);
 
       return {
         planId: plan.id,
         tier: plan.tier,
-        name: plan.name,
-        description: plan.description,
+        name: text.name,
+        description: text.description,
         priceKrw: plan.priceKrw,
         storeProductId,
         entitlements: toEntitlements(plan),
@@ -543,6 +546,7 @@ export class BillingOrchestrator {
       this.subscriptionService.buildPlanView(userId, {
         trialEndsAt: user.trialEndsAt,
         now,
+        market: user.market,
       }),
       this.findLiveSubscription(userId),
     ]);

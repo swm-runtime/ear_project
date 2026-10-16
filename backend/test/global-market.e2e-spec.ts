@@ -192,6 +192,40 @@ describe('글로벌 시장 모델 E2E', () => {
     });
   }, 60_000);
 
+  it('요금제 이름·설명은 시장의 언어다 — GLOBAL은 영어, KR은 종전 한국어(KAN-192 일부)', async () => {
+    // given
+    const { signUp: globalUser } = await signUpWith('plans-en', {
+      preferred_language: 'en',
+      language_code: 'en-US',
+    });
+    const { signUp: krUser } = await signUpWith('plans-ko', {
+      preferred_language: 'ko',
+      language_code: 'ko-KR',
+    });
+
+    // when
+    const plansOf = async (token: string) =>
+      (
+        (
+          await request(app.getHttpServer())
+            .get(path('/plans'))
+            .query({ platform: 'ios' })
+            .set('Authorization', `Bearer ${token}`)
+            .expect(HttpStatus.OK)
+        ).body as { plans: { tier: string; description: string }[] }
+      ).plans;
+    const globalPlans = await plansOf(globalUser.access_token);
+    const krPlans = await plansOf(krUser.access_token);
+
+    // then
+    expect(globalPlans.find((plan) => plan.tier === 'daily')).toMatchObject({
+      description: 'Listen to up to 5 episodes a day',
+    });
+    expect(krPlans.find((plan) => plan.tier === 'daily')).toMatchObject({
+      description: '하루 5편까지 들을 수 있어요',
+    });
+  }, 60_000);
+
   it('글로벌 가입이 닫혀 있으면 English 를 골라도 kr 이다 — GLOBAL 카탈로그가 비어 온보딩에 갇히지 않게', async () => {
     // given — 글로벌 가입을 닫아 둔다(운영 기본값)
     configService.set('GLOBAL_SIGNUP_ENABLED', 'false');

@@ -9,7 +9,7 @@ import {
   SubscriptionStatus,
   SubscriptionStore,
 } from '@/modules/subscription/subscription.enum';
-import { DevicePlatform, UserTier } from '@/modules/user/user.enum';
+import { DevicePlatform, UserMarket, UserTier } from '@/modules/user/user.enum';
 
 import { AppStoreVerificationError } from './app-store/app-store.gateway';
 import { PlanAction } from './billing.enum';
@@ -121,6 +121,31 @@ describe('BillingOrchestrator — 요금제 목록(4.1)', () => {
       entitlements: { dailyPlayLimit: null, adsEnabled: false },
     });
     expect(catalog.isEmailVerified).toBe(true);
+  });
+
+  it('GLOBAL 사용자에게는 요금제 이름·설명을 영어로 준다 — KR 사용자는 종전 한국어 그대로다(KAN-192 일부)', async () => {
+    // given
+    const { world, orchestrator } = setup();
+    world.addUser('global-user', { market: UserMarket.GLOBAL });
+
+    // when
+    const globalCatalog = await orchestrator.listPlans(
+      'global-user',
+      DevicePlatform.IOS,
+    );
+    const krCatalog = await orchestrator.listPlans(USER, DevicePlatform.IOS);
+
+    // then
+    expect(globalCatalog.plans.map((plan) => plan.description)).toEqual([
+      'Free',
+      '5 a day',
+      'Unlimited',
+    ]);
+    expect(krCatalog.plans.map((plan) => plan.description)).toEqual([
+      '무료',
+      '하루 5편',
+      '무제한',
+    ]);
   });
 
   it('데일리 구독자에게 프로는 업그레이드, 프로 구독자에게 데일리는 변경(다운그레이드)이고 무료는 해지(cancel)다', async () => {

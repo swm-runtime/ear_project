@@ -154,6 +154,7 @@ describe('ProfileOrchestrator', () => {
       expect(subscriptionService.buildPlanView).toHaveBeenCalledWith(USER_ID, {
         trialEndsAt,
         now: NOW,
+        market: UserMarket.KR,
       });
     });
   });
