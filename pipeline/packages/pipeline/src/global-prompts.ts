@@ -99,6 +99,10 @@ ${fence(i.guidelines)}
 ### b) claims
 - Each claim: id (C01…) · text (one English sentence) · excerpt_ids · type (number, quote, name, cause, definition, practice) · section (the Body section that uses it; all claims from one source share one section, except the axis_source, which may use two) · notable (true only for people or institutions a general listener knows by name) · opinion (true for a person's opinion, interpretation, or forecast, or a contested or interested claim).
 - A claim is never more specific than its excerpt. Keep the excerpt's hedges and the subject it attributes to. For a Korean excerpt, translate the meaning exactly; do not add or soften.
+- Keep every condition the excerpt attaches: who says it, to whom, where, and which meanings it covers. When one condition covers several meanings, say so in each claim that states a meaning. Keep a named set as named; do not widen it into a general category.
+- For a Korean word, keep in the claims whether the excerpt calls it casual or polite and who uses it.
+- In a Korean Language episode, keep one example phrase per featured word from the excerpts as a claim of type quote: the phrase romanized, its meaning, and who says it to whom. An example sentence from a dictionary or learning guide is allowed; a line from a drama, song, or show is not.
+- Romanize Korean words with Revised Romanization, even when an excerpt spells them another way. Names of people, groups, companies, and works keep their official English spelling.
 - A real person appears only through verifiable public facts. Do not make a claim from rumor, private life, or controversy.
 - Links between sources are not claims; put them in the outline's links list.
 

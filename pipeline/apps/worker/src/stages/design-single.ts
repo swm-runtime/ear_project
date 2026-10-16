@@ -276,6 +276,14 @@ export async function runDesignSingle(a: { job: Job; ex: Executor; episodeId: st
  * 글로벌판 설계 산출물 (KAN-201) — 다음 단계의 모델이 읽으므로 영어로 쓴다. 표 구조·줄머리(`## S{n}.`·`- URL:`·`- S{n}-NN: "…"`)는 한국판과 같다(parsePriorExcerpts 가 두 판을 다 읽는다).
  * claims 표에 발췌 언어 열을 더한다(글로벌 명세 6.4 국문 소스 처리 — 한글 발췌에 근거한 주장은 QA 가 의미 변형을 본다). 발음 맵은 힌트가 빈 등재도 남긴다(명세 6.7 발음 누락 검사)
  */
+/**
+ * claims 의 "발췌 언어" (글로벌판) — 발췌 중 하나라도 한국어 문단이면 ko. 한국어 문단 = 글자 중 한글이 절반 이상.
+ * 2026-10-16: 한글이 한 글자라도 있으면 ko 로 봐서, 한국어 예문을 담은 영어 학습 기사(G261015-001 S2)가 "Korean excerpt" 로 표시됐다 — 대본·QA 가 영어 원문을 번역 재서술로 다뤘다.
+ */
+export function excerptLang(texts: string[]): "ko" | "en" {
+  return texts.some((t) => { const ko = t.match(/[가-힣]/g)?.length ?? 0; const en = t.match(/[A-Za-z]/g)?.length ?? 0; return ko > 0 && ko >= en; }) ? "ko" : "en";
+}
+
 export async function writeDesignArtifactsEn(x: { dir: string; episodeId: string; cand: BacklogCandidate; fetched: FetchedSource[]; o: DesignInlineOut; chosen: Set<string>; priorNotes: string[]; attribution: Map<string, Attribution>; sectionsOf: Map<number, Set<number>>; axis: number | null }) {
   const { dir, episodeId, cand, fetched, o, chosen, priorNotes, attribution, sectionsOf, axis } = x;
   const textOf = new Map<string, string>();
@@ -296,7 +304,7 @@ export async function writeDesignArtifactsEn(x: { dir: string; episodeId: string
   const blocks = new Map<number, Set<number>>();
   for (const [src, secs] of sectionsOf) for (const sec of secs) { const set = blocks.get(sec) ?? new Set<number>(); set.add(src); blocks.set(sec, set); }
   const blockNote = [...blocks].sort((p, q) => p[0] - q[0]).map(([sec, srcs]) => `#${sec} ${[...srcs].sort((p, q) => p - q).map((n) => `S${n}`).join(", ")}`).join(" · ") || "none";
-  const lang = (ids: string[]) => (ids.some((id) => /[가-힣]/.test(textOf.get(id) ?? "")) ? "ko" : "en");
+  const lang = (ids: string[]) => excerptLang(ids.map((id) => textOf.get(id) ?? ""));
   const attributed = o.claims.filter((c) => attribution.get(c.id) === "귀속").length;
   const claimsMd = [`# claims — ${episodeId}`, "",
     `> Attribution (worker-derived from type and opinion): attributed ${attributed} · none ${o.claims.length - attributed}. Attributed claims are marked as the block source's view once; the rest the explainer says directly.`,

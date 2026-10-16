@@ -341,8 +341,8 @@ export function enStyleViolations(turns: ScriptTurn[]): string[] {
   // ── 계약 (한도 뒤 남으면 실패) ──
   const ids = find(/\bC\d{2,3}\b|\bS\d+-\d{2}\b/);
   if (ids.length) v.push(`Claim or excerpt IDs in spoken lines (${list(ids)}) — IDs go only in turn_claims; remove them from the script (rule 36)`);
-  const prod = find(/\b(?:axis|outline|excerpts?|gold examples?|claims? (?:table|IDs?))\b|\b(?:this|next|last|previous|earlier|that) (?:section|block)\b/i);
-  if (prod.length) v.push(`Production words in spoken lines (${list(prod)}) — say it in the speakers' own words; never name the axis, outline, sections, blocks, claims, or excerpts (rule 36)`);
+  const prod = find(/\b(?:axis|outline|excerpts?|gold examples?|claims? (?:table|IDs?)|attributed)\b|\b(?:this|next|last|previous|earlier|that) (?:section|block)\b/i);
+  if (prod.length) v.push(`Production words in spoken lines (${list(prod)}) — say it in the speakers' own words; never name the axis, outline, sections, blocks, claims, excerpts, or attribution (rule 36)`);
   const noise = find(/\b(?:um+|uh+|erm)\b|\b(?:ha){2,}\b|\[[A-Za-z][A-Za-z ]*\]|\*[A-Za-z][A-Za-z ]*\*|\((?:laughs?|sighs?|pause|chuckles?)[^)]*\)/i);
   if (noise.length) v.push(`Fillers, sound tags, or stage directions (${list(noise)}) — remove them; naturalness comes from content and rhythm (rule 32)`);
   const time = find(/\b(?:today|nowadays|these days|currently|recently|this year|last year|next year)\b/i, (_t, i) => !isTemplate(i));
@@ -382,6 +382,27 @@ export function enStyleViolations(turns: ScriptTurn[]): string[] {
   if (repeated.length) v.push(`${EN_STYLE_MARK} the same turn opener more than three times: ${repeated.join("; ")} — vary how turns start (rule 13)`);
   const soTurns = turns.filter((t, i) => !isTemplate(i) && /^(?:so|okay,? so)\b/i.test(t.text.trim())).map(label);
   if (soTurns.length >= 3 && soTurns.length > turns.length / 10) v.push(`${EN_STYLE_MARK} ${soTurns.length} turns open with "So" or "Okay, so" (${list(soTurns)}) — at most one turn in ten (rule 13)`);
+  // full-en-v0.2 (2026-10-16, G261015-001 에이전트 판정): 첫 두 단어로 세면 "I'd feel"·"I'd still" 이 갈려 진행 턴 9개가 "I'd" 로 시작해도 빠져나갔다 — 진행 턴은 첫 단어로 따로 센다. 의문사·조동사로 여는 질문은 뺀다
+  const QUESTION_HEAD = new Set(["what", "how", "why", "when", "where", "which", "who", "whose", "does", "do", "did", "is", "are", "was", "were", "can", "could", "would", "will", "should", "has", "have"]);
+  const hostHead = new Map<string, string[]>();
+  turns.forEach((t, i) => { if (isTemplate(i) || !t.id?.startsWith("Y")) return; const w = t.text.trim().split(/\s+/)[0]?.toLowerCase().replace(/[^a-z']/g, "").replace(/’/g, "'"); if (w && !QUESTION_HEAD.has(w)) hostHead.set(w, [...(hostHead.get(w) ?? []), label(t)]); });
+  const hostRepeated = [...hostHead].filter(([, ids]) => ids.length > 4).map(([w, ids]) => `"${w}" ×${ids.length} (${ids.slice(0, 6).join(", ")})`);
+  if (hostRepeated.length) v.push(`${EN_STYLE_MARK} the same first word opens more than four host turns: ${hostRepeated.join("; ")} — vary the host's forms: a question, a guess, a doubt, how it sounds from outside (rules 9 and 13)`);
+  // 해설이 진행자의 말을 되받아 시작한다 (규칙 10) — 첫 문장이 진행자의 질문·추측·망설임을 이름 붙여 다시 말하는 턴
+  const firstSentence = (t: string) => t.trim().split(/(?<=[.!?])\s+/)[0] ?? "";
+  const echoRe = /\b(?:your|that|this|the) (?:hesitation|preference|doubt|guess|question|choice|concern|worry|point|reaction|instinct|feeling|uncertainty)\b|\byou(?:'ve| have)? (?:chose|chosen|picked|said|mentioned|asked|described|noticed)\b/i;
+  const echo = turns.filter((t, i) => !isTemplate(i) && expl(t) && echoRe.test(firstSentence(t.text))).map(label);
+  if (echo.length > 3) v.push(`${EN_STYLE_MARK} ${echo.length} explainer turns open by restating the host's words (${list(echo)}) — answer in the first sentence; do not name or paraphrase the host's question, guess, or feeling (rule 10)`);
+  // 소스가 문장 주어 (규칙 42) — 단락마다 소스 명사 + 전달 동사로 시작하는 해설 문장. 소개 한 문장 + 하나까지
+  const srcSubj = /^(?:the|this|that|one|another) (?:guide|compiler|report|study|article|author|authors|researchers?|participant|participants|dictionary|entry|survey|book|writer|reporter|museum|encyclopedia|page|source|conversation|interview)\b[^.?!]{0,40}?\b(?:says|said|describes|described|lists|listed|gives|gave|reports|reported|notes|noted|explains|explained|connects|connected|calls|called|treats|treated|warns|warned|includes|included|mentions|mentioned|adds|added|suggests|suggested|argues|argued|shows|showed|writes|wrote|uses|used|puts|links|separates|pairs)\b/i;
+  const perSection = new Map<string, string[]>();
+  for (const t of turns) {
+    if (!expl(t) || t.section !== zones.body) continue;
+    const n = t.text.split(/(?<=[.!?])\s+/).filter((x) => srcSubj.test(x.trim())).length;
+    for (let k = 0; k < n; k++) perSection.set(t.topic ?? t.section, [...(perSection.get(t.topic ?? t.section) ?? []), label(t)]);
+  }
+  const srcLoops = [...perSection].filter(([, ids]) => ids.length > 2).map(([sec, ids]) => `"${sec}" ${ids.length} (${[...new Set(ids)].join(", ")})`);
+  if (srcLoops.length) v.push(`${EN_STYLE_MARK} the source is the subject of more than two sentences in a section: ${srcLoops.join("; ")} — introduce the source once, then explain the content directly (rule 42)`);
   const bodyY = turns.filter((t) => t.section === zones.body && t.id?.startsWith("Y"));
   if (bodyY.length >= 6) {
     const q = bodyY.filter((t) => t.text.includes("?")).length;

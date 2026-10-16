@@ -1,6 +1,6 @@
 # Critic rubric v2 (global)
 
-> Version: **critic-en-v0.2** (2026-10-15) · global pipeline · judges against the script rules (guidelines full-en). The global DB `prompt_assets` is the source of truth; this file is the seeding copy. Anchors are empty until people judge the first episodes.
+> Version: **critic-en-v0.3** (2026-10-16) · global pipeline · judges against the script rules (guidelines full-en). The global DB `prompt_assets` is the source of truth; this file is the seeding copy. Anchors are empty until people judge the first episodes.
 
 ## 1. Rules
 
@@ -9,7 +9,7 @@
 - Judge by ear: as heard by a listener who speaks English as a second language, not as read.
 - Be conservative. Mark a flag "suspect" when unsure. At most 15 flags per episode. Give 3 to 5 ⭐.
 - ⭐ only for things made from the episode's own material: a metaphor built from the previous explanation, a callback that returns to the axis, a host line that changes the explanation. A metaphor that brings in new material is not a ⭐ (check F5).
-- The guidelines address the writer. Use their rules 1 to 49 as criteria only; ignore their output and self-check instructions.
+- The guidelines address the writer. Use their rules 1 to 50 as criteria only; ignore their output and self-check instructions.
 - Scoring:
   1. Every sub-item score carries a quote from the script in the form `[E12] "…"`. A score without a quote is invalid.
   2. No generous scoring. An ordinary episode gets an ordinary score. The top band needs a clear reason in the quote.
@@ -85,7 +85,7 @@ Every F flag ends with a replacement: "…" → "…".
 
 ### 2.2 Not flagged here
 
-Length, explainer turns over six sentences, production words, fillers and stage directions, numbers per turn, banned vocabulary, dashes and semicolons, stock reactions, signposting, contrast counts, and the host question ratio (L0 — the script was fixed before you see it; judge what remains, do not re-count) · template frames and zones (QA 5) · relative time words and notation (QA 6) · facts, memories, and other countries' practices in host turns (QA 8) · reactions that enlarge a claim (QA 9) · real people, stereotypes, and rankings (QA 11). Their judgment parts are scored in section 3, not flagged.
+Length, explainer turns over six sentences, production words, fillers and stage directions, numbers per turn, banned vocabulary, dashes and semicolons, stock reactions, signposting, contrast counts, the host question ratio, the same first word in host turns, explainer turns that open by restating the host, and source-subject sentences per section (L0 — the script was fixed before you see it; judge what remains, do not re-count) · template frames and zones (QA 5) · relative time words and notation (QA 6) · facts, memories, and other countries' practices in host turns (QA 8) · reactions that enlarge a claim (QA 9) · real people, stereotypes, and rankings (QA 11). Their judgment parts are scored in section 3, not flagged.
 
 ## 3. Scores — 100
 
@@ -271,5 +271,6 @@ Flags n · violations n · suspects n · ⭐ n
 
 ## Change history
 
+- critic-en-v0.3 (2026-10-16) — follows guidelines full-en-v0.2: rules 1 to 50, and section 2.2 lists the three new L0 counts (first word in host turns, explainer turns that restate the host, source-subject sentences per section). Judge what the counts miss: a restatement in other words, a recap at the end of a turn, a source loop below the count.
 - critic-en-v0.2 (2026-10-15) — F6 removed: the English L0 (enStyleViolations) now checks turn length, production words, fillers, numbers per turn, and the regex-level style items. Section 2.2 lists them. F1 to F3 stay for what regex cannot judge.
 - critic-en-v0.1 (2026-10-15) — first version. Keeps the Korean critic-v2 structure the worker and console depend on (12 sub-items and weights, flag codes letter + number, report sections 1 to 4) and rewrites every item and band for English dialogue and the global audience (guidelines full-en-v0.1). New: E group (culture and audience), A7 (host not heard), F1 to F3 for English AI style, stock reactions, and written sentences. Korean-only items (Korean naturalness, translationese, gold phrase copying) are dropped. No gold and no anchors yet. Reviewed by one agent before seeding: QA overlaps removed (A2, D3, E2, F4), F6 added until the English L0 covers turn length, production words, fillers, and numbers per turn; caps until anchors exist (3.6 ≤ 6, 3.10 ≤ 12, 3.1 retell check); full score table template for the console parser; every F flag ends with a replacement.
