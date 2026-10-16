@@ -3,8 +3,8 @@ import { classifyLimit, dropNulls, mapOpenAiModel, OpenAiExecutor, PRICE, toStri
 import type { ExecRequest, ExecResult, Progress } from "./types.js";
 
 /**
- * 글로벌판 전용 OpenAI 실행기 — 단발 호출 + OpenAI 웹 검색 도구 (2026-10-15 KAN-209, 글로벌 명세 4.4).
- * - `PIPELINE_LOCALE=en` 인스턴스에서만 만들어진다(executors/index.ts). 한국판은 종전 OpenAiExecutor 그대로라 도구 요청을 계속 거절한다.
+ * OpenAI 실행기 — 단발 호출 + OpenAI 웹 검색 도구 (2026-10-15 KAN-209 글로벌판, 2026-10-16 KAN-222 한국판도 — 글로벌 명세 4.4 · spec/02 6장).
+ * - `EXECUTOR=openai` 이면 언어와 무관하게 이 실행기다(executors/index.ts). 보강·주제 기획을 서버 워커가 집는다.
  * - 도구가 `WebSearch` 하나인 요청(주제 기획 B-②·보강 B-① 의 검색 단계)만 이 경로로 받는다. 그 밖의 도구 요청은 부모가 거절하고, 단발 호출은 부모가 처리한다.
  * - **검색 상한은 실행기가 센다** — `max_tool_calls`(내장 도구 호출 합계)로 묶고, 응답의 `web_search_call` 을 다시 세어 넘으면 실패로 본다.
  * - 차단·보류·자동 제외 도메인은 `filters.blocked_domains`(최대 100)로 보내되 그것만 믿지 않는다 — 단계 코드가 적재 전에 다시 거른다(topic-seed·reinforce).

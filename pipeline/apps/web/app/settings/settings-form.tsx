@@ -37,7 +37,7 @@ export function SettingsForm({ tts, worker, templates, thumbnail, anchor, automa
         </label>
         <label className="mb-2 flex items-start gap-2">
           <input type="checkbox" className="mt-0.5" checked={auto.server_ai_claim !== false} onChange={(e) => setAuto({ ...auto, server_ai_claim: e.target.checked })} />
-          <span><b>서버 워커가 AI 작업·스윕을 집는다</b> — 끄면 서버(GPT)는 발행 준비(TTS·썸네일·패키지·자막 정렬)만 하고, 스윕·군집화·초안·QA·비평은 노트북 Claude 워커만 집는다. 큐에 있는 작업은 사라지지 않고 기다린다. 스윕·군집화를 로컬에서 돌릴 때 끈다.</span>
+          <span><b>서버 워커가 AI 작업·스윕을 집는다</b> — 운영은 서버 워커만 쓴다(2026-10-16). 끄면 서버(GPT)는 발행 준비(TTS·썸네일·패키지·자막 정렬)만 하고, 스윕·주제 기획·보강·군집화·초안·QA·비평은 노트북 Claude 워커만 집는다. <b className="text-rose-700">노트북 워커가 켜져 있지 않으면 이 작업들이 전부 멈춘다.</b> 큐에 있는 작업은 사라지지 않고 기다린다. OpenAI 비용을 급히 멈추거나 로컬에서 실험할 때만 끈다.</span>
         </label>
         <div className="mt-3 flex items-center gap-2">
           <button className={btnCls("primary")} disabled={pending} onClick={() => save("automation", auto, "자동화 설정")}>저장</button>
