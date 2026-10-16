@@ -7,7 +7,7 @@ import { ErrorCode } from '@/common/exceptions/error-code.enum';
 import { ConsentRepository } from '../repositories/consent.repository';
 import { Consent } from '../entities/consent.entity';
 import {
-  CURRENT_CONSENT_VERSIONS,
+  CURRENT_CONSENT_VERSIONS_BY_MARKET,
   REQUIRED_CONSENT_TYPES_BY_MARKET,
 } from '../user.constant';
 import { ConsentType, UserMarket } from '../user.enum';
@@ -20,13 +20,13 @@ export class ConsentService {
   /**
    * domain.md 3.2 — UPDATE 하지 않고 행을 추가한다. 철회도 `is_agreed: false` 행 추가다.
    *
-   * 동의 이력은 법적 입증 자료라 **기록되는 버전은 서버가 정한다**(`CURRENT_CONSENT_VERSIONS`).
+   * 동의 이력은 법적 입증 자료라 **기록되는 버전은 서버가 정한다**(`CURRENT_CONSENT_VERSIONS_BY_MARKET`).
    * 클라이언트가 보낸 버전은 현행과 대조해 낡았으면 거부하고(가입 경로와 같은
    * `CONSENT_VERSION_STALE`), 비웠으면 현행 버전을 채운다. 같은 요청에 같은 종류가 두 번
    * 있으면 `agreed_at`이 동률이 되어 현재 상태 판정(아래 findCurrentStates)이 비결정이 되므로
    * 거부한다(2026-09-09 감사 — 종전엔 4.5 경로가 클라이언트 값을 그대로 기록했다).
    *
-   * `market`은 그 사용자의 시장이다 — 무엇이 필수(철회 불가)인지가 시장마다 다르다(KAN-215).
+   * `market`은 그 사용자의 시장이다 — 무엇이 필수(철회 불가)인지와 현행 버전이 시장마다 다르다(KAN-215·212).
    */
   async recordConsents(
     userId: string,
@@ -36,6 +36,7 @@ export class ConsentService {
     manager?: EntityManager,
   ): Promise<Consent[]> {
     const requiredTypes = REQUIRED_CONSENT_TYPES_BY_MARKET[market];
+    const currentVersions = CURRENT_CONSENT_VERSIONS_BY_MARKET[market];
     const seenTypes = new Set<ConsentType>();
     for (const input of inputs) {
       if (seenTypes.has(input.consentType)) {
@@ -58,7 +59,7 @@ export class ConsentService {
         });
       }
 
-      const currentVersion = CURRENT_CONSENT_VERSIONS[input.consentType];
+      const currentVersion = currentVersions[input.consentType];
       if (input.version !== null && input.version !== currentVersion) {
         throw new BusinessException({
           status: HttpStatus.CONFLICT,
@@ -72,7 +73,7 @@ export class ConsentService {
       this.consentRepository.create({
         userId,
         consentType: input.consentType,
-        version: CURRENT_CONSENT_VERSIONS[input.consentType],
+        version: currentVersions[input.consentType],
         isAgreed: input.isAgreed,
         agreedAt,
       }),
@@ -109,7 +110,7 @@ export class ConsentService {
 
   /**
    * auth-api.md 4.1 — 재동의 판정은 서버가 `consents` 최신 버전과 현행 버전을 비교해서 한다.
-   * 클라이언트가 보낸 버전을 신뢰하지 않는다. 필수 목록은 그 사용자의 시장 기준이다(KAN-215).
+   * 클라이언트가 보낸 버전을 신뢰하지 않는다. 필수 목록과 현행 버전은 그 사용자의 시장 기준이다(KAN-215·212).
    */
   async findPendingConsents(
     userId: string,
@@ -120,18 +121,18 @@ export class ConsentService {
     const stateByType = new Map(
       states.map((state) => [state.consentType, state]),
     );
+    const currentVersions = CURRENT_CONSENT_VERSIONS_BY_MARKET[market];
 
     return REQUIRED_CONSENT_TYPES_BY_MARKET[market]
       .filter((consentType) => {
         const state = stateByType.get(consentType);
         return (
-          !state?.isAgreed ||
-          state.version !== CURRENT_CONSENT_VERSIONS[consentType]
+          !state?.isAgreed || state.version !== currentVersions[consentType]
         );
       })
       .map((consentType) => ({
         consentType,
-        version: CURRENT_CONSENT_VERSIONS[consentType],
+        version: currentVersions[consentType],
         isRequired: true,
       }));
   }
@@ -142,15 +143,17 @@ export class ConsentService {
    * 가입 검증(`UserService.createUser`)도 같은 상수를 본다 — 그려 준 목록대로 보내면 가입이 통과한다.
    */
   buildSignUpConsents(market: UserMarket): PendingConsent[] {
+    const currentVersions = CURRENT_CONSENT_VERSIONS_BY_MARKET[market];
+
     return [
       ...REQUIRED_CONSENT_TYPES_BY_MARKET[market].map((consentType) => ({
         consentType,
-        version: CURRENT_CONSENT_VERSIONS[consentType],
+        version: currentVersions[consentType],
         isRequired: true,
       })),
       {
         consentType: ConsentType.MARKETING,
-        version: CURRENT_CONSENT_VERSIONS[ConsentType.MARKETING],
+        version: currentVersions[ConsentType.MARKETING],
         isRequired: false,
       },
     ];

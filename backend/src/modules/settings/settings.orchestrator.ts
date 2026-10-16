@@ -19,7 +19,7 @@ import { ConsentService } from '@/modules/user/services/consent.service';
 import { UserService } from '@/modules/user/services/user.service';
 import { UserMarket, UserTier } from '@/modules/user/user.enum';
 import { UserSettingService } from '@/modules/user/services/user-setting.service';
-import { CURRENT_CONSENT_VERSIONS } from '@/modules/user/user.constant';
+import { CURRENT_CONSENT_VERSIONS_BY_MARKET } from '@/modules/user/user.constant';
 import {
   ConsentType,
   DevicePlatform,
@@ -217,7 +217,8 @@ export class SettingsOrchestrator {
         {
           consentType: ConsentType.MARKETING,
           // 마케팅 동의는 버전이 없다(domain.md 3.2) — 상수를 그대로 따른다
-          version: CURRENT_CONSENT_VERSIONS[ConsentType.MARKETING],
+          version:
+            CURRENT_CONSENT_VERSIONS_BY_MARKET[market][ConsentType.MARKETING],
           isAgreed,
         },
       ],
