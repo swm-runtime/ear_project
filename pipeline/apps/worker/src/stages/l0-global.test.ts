@@ -204,7 +204,7 @@ test("화자 라벨이 이 편의 2인조와 다르면 계약 위반", async () 
   delete process.env.PIPELINE_SPEAKERS;
   const { withSpeakers } = await import("@ear/pipeline");
   const { twoStageViolationsEn } = await import("./draft-two-stage.js");
-  const md = ["## [Intro]", "[Owen] Y1 · Hi.", "## [Opening]", "[Yuna] E1 · A.", "[Grace] Y2 · B?", "## [Body]", "### #1 x", "[Minsoo] E2 · C."].join("\n");
+  const md = ["## [Intro]", "[Owen] Y1 · Hi.", "## [Opening]", "[Yuna] E1 · A.", "[Grace] Y2 · B?", "## [Body]", "### #1 x", "[E-um] E2 · C."].join("\n");
   const v = withSpeakers(["Yuna", "Owen"], () => twoStageViolationsEn(md, "")).join("\n");
-  assert.match(v, /Speaker labels do not match this episode's pair \(Y2 \[Grace\], E2 \[Minsoo\]\) — E turns are \[Yuna\], Y turns are \[Owen\]/);
+  assert.match(v, /Speaker labels do not match this episode's pair \(Y2 \[Grace\], E2 \[E-um\]\) — E turns are \[Yuna\], Y turns are \[Owen\]/);
 });

@@ -151,7 +151,7 @@ Planning rules:
 ### d) pronunciations
 - Every Korean word and Korean name the script will use, as romanized in the claims. reading = the same word written in Hangul, exactly as Koreans write it. The voice reads the Hangul in Korean. For a name, give the Korean name in Hangul. Leave reading empty when you cannot give one; a person fills it before audio.
 - Do not list English words or a romanized word that is also a common English word.
-- Do not list a name that listeners abroad already say in English: a place, company, group, or work with an established English name, or a person known abroad by an English form of the name. The voice reads these in English. List every other name, including people's names, in Hangul.
+- Do not list a name that listeners abroad already say in English: a place, company, group, or work with an established English name, or a person known abroad by an English form of the name. The voice reads these in English. List every other name, including people's names, in Hangul. Never list the speakers' names.
 
 ## 3. Report — output only the requested JSON. No text before it.`;
   const user = `${history ? historyDesignEn + "\n\n" : ""}## Episode (backlog ${i.candidate.id}, gate 1 approved)

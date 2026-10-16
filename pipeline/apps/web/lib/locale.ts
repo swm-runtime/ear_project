@@ -16,7 +16,7 @@ export function pipelineLocale(): PipelineLocale {
  * 글로벌판 출연진 4명 (워커 @ear/pipeline GLOBAL_TEAMS 와 같은 이름 — 바꾸면 둘 다, 2026-10-17). 편마다 대표 주제로 2인조가 정해지므로
  * 콘솔은 대본을 읽고 고칠 때 네 이름을 다 화자로 받는다(allSpeakerNames)
  */
-export const GLOBAL_CAST_NAMES = ["Yuna", "Owen", "Minsoo", "Grace"] as const;
+export const GLOBAL_CAST_NAMES = ["Yuna", "Owen", "E-um", "Grace"] as const;
 
 /** 대본에 나올 수 있는 화자 이름 전부 — ko 윤아·이음, en 은 출연진 4명 + PIPELINE_SPEAKERS(2026-10-17 이전 편의 임시 이름) */
 export function allSpeakerNames(): string[] {
