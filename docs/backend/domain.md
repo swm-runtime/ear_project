@@ -198,7 +198,7 @@ users
   withdrawn_at              timestamptz     NULL
   market                    enum            kr | global   DEFAULT 'kr'   ★가입 시 1회 판정, 이후 불변 (global-api.md 2.1, 2026-10-14 — KAN-187)
   language_code             varchar(16)     NULL   기기 언어 BCP 47(예 en-US). 표시 언어의 원천(서버 문구 — 푸시·메일 — 언어는 `market`으로 고른다). 가입·로그인·기기 등록마다 갱신
-  region_code               varchar(2)      NULL   기기 지역 ISO 3166-1 alpha-2(대문자). 통계용 — 판정에 쓰지 않는다
+  region_code               varchar(2)      NULL   기기 지역 ISO 3166-1 alpha-2(대문자). 통계용 + **GLOBAL 연령 확인의 기준 연령(16·18) 판정**(KAN-220 — global-api.md 2.1). 가입·로그인마다 갱신
   timezone                  varchar(64)     NULL   기기 시간대 IANA. 드립 발송 그룹에만 쓴다 — 서비스 날짜 경계는 바꾸지 않는다
 
 uq_users_provider_provider_user_id (provider, provider_user_id)
@@ -240,8 +240,8 @@ idx_users_status
 consents
   id                        uuid            PK
   user_id                   uuid            FK → users
-  consent_type              enum            terms | privacy | marketing | age_confirmation
-  version                   varchar         NULL 허용 (marketing · age_confirmation)
+  consent_type              enum            terms | privacy | marketing | age_confirmation | cross_border_transfer   varchar(32)
+  version                   varchar         NULL 허용 (marketing · KR age_confirmation · cross_border_transfer). 약관·처리방침은 **시장별** — KR `0.1` · GLOBAL `global-<문서 버전>`
   is_agreed                 boolean         철회는 false 행을 추가
   agreed_at                 timestamptz
 
@@ -250,7 +250,13 @@ idx_consents_user_id_consent_type_agreed_at (user_id, consent_type, agreed_at DE
 
 - **append-only.** 동의·재동의·철회가 발생할 때마다 새 행을 추가한다. `UPDATE`하지 않는다 — 갱신하는 순간 이력 테이블이 아니게 된다.
 - 현재 동의 상태 = `consent_type`별 `agreed_at` 최신 1건.
-- `age_confirmation` — **만 18세 이상 자기 선언**(약관 제5조 · 개인정보 보호법 제22조의2, 2026-09-06 `tickets/backend/age-confirmation-consent` 반영). 열람할 문서가 없는 선언이라 `version`은 항상 NULL이며, 가입 필수 동의에 포함된다. 화면 게이트만으로는 그 사용자가 확인했다는 사실을 입증할 수 없어 이력으로 남긴다. 연령 기준이 바뀌면 그때 버전을 도입해 재확인을 트리거한다.
+- `age_confirmation` — **연령 자기 선언**(약관 제5조 · 개인정보 보호법 제22조의2, 2026-09-06 `tickets/backend/age-confirmation-consent` 반영). 가입 필수 동의에 포함된다. 화면 게이트만으로는 그 사용자가 확인했다는 사실을 입증할 수 없어 이력으로 남긴다.
+  - 기준 연령은 **나라별**이다(2026-10-16 — KAN-220): KR 시장 18, GLOBAL은 `users.region_code`가 SG·HK·KR이면 16, 그 밖·모름 18(`global-api.md` 2.1).
+  - **`version`** — KR은 NULL(문구가 처음부터 18 하나라 값을 바꾸면 기존 사용자 전원에게 재확인이 뜬다). GLOBAL은 확인한 기준을 `age-16`·`age-18`로 남긴다 — 지역마다 문구의 숫자가 달라, 숫자가 없으면 무엇을 확인했는지 입증할 수 없다.
+  - **재확인 판정은 버전 일치가 아니라 "확인받은 기준 연령 ≥ 지금 기준"**이다. 16으로 확인한 사용자가 18 지역으로 옮기면 한 번 다시 묻고, 반대는 묻지 않는다. NULL은 18로, 모르는 형식은 0으로 본다(다시 묻는다) — 그래서 연령 확인의 재확인은 버전을 올리는 대신 기준 연령이나 버전 형식을 바꿔 트리거한다.
+- `cross_border_transfer` — **국외 이전 동의**(2026-10-16 — KAN-215). **GLOBAL 시장만 가입 필수**다. 해외 사용자 정보가 서울 서버와 해외 외부 서비스(미국)로 넘어간다. 이전 내용은 영어 처리방침이 고지하고 별도 문서가 없어 `version`은 NULL이다. KR은 한국어 처리방침의 국외 이전 고지로 갈음해 받지 않는다. 값이 21자라 `consent_type`을 varchar(32)로 넓혔다(`1790300000000-WidenConsentType`, `archived_consents`도 같이).
+- **필수 동의 목록은 시장별이다** — KR `terms`·`privacy`·`age_confirmation`, GLOBAL은 거기에 `cross_border_transfer`. 이 목록 하나를 가입 거절 판정·가입 동의 목록(`auth-api.md` 4.1·4.14)·재동의 판정(`pending_consents`)·철회 불가 판정이 함께 쓴다.
+- **약관·처리방침의 `version`은 시장별이다**(2026-10-16 — KAN-212). KR `0.1` · GLOBAL `global-<문서 버전>`(현행 `global-0.1`). 두 시장 문서가 각자 0.1에서 시작해서 접두가 없으면 겹친다. `archived_consents`에는 시장 컬럼이 없어, 버전 값만으로 어느 시장 문서인지 구분된다.
 - **동의 종류를 축으로 쪼갠다.** 이용약관과 개인정보처리방침은 개정 시점이 다르고, 마케팅 동의는 수시로 철회된다. 한 행에 3종을 묶으면 마케팅 토글만 껐는데 약관 버전이 딸려 들어간 행이 생기고, 그 행이 "약관에 다시 동의했다"로 읽힌다.
 - 컬럼이 아니라 이력 테이블인 이유:
   - **동의 획득 사실의 입증 책임이 사업자에게** 있는데, 컬럼은 덮어쓰면 과거 근거가 소멸한다.
@@ -548,6 +554,7 @@ idx_contents_partner_id
 idx_contents_title_trgm        GIN (title gin_trgm_ops)        ★검색 (FR-22)
 idx_contents_description_trgm  GIN (description gin_trgm_ops)  ★검색 (FR-22)
 idx_contents_author_name_trgm  GIN (author_name gin_trgm_ops)  ★검색 (FR-22)
+(tags 인덱스 없음 — 아래 "해시태그 검색" 참조)
 
 chk_contents_partner_disclosure
   origin <> 'partner'
@@ -555,6 +562,7 @@ chk_contents_partner_disclosure
       AND partner_id IS NOT NULL AND license_expires_at IS NOT NULL)
 ```
 
+- **해시태그 검색에 인덱스를 두지 않는다**(2026-10-16 — KAN-218). 검색은 `tags`의 항목 하나라도 부분 일치(`#` 없는 질의)하거나 정확 일치(`#태그`)하면 매칭한다(`explore.md` 4.5-5). 태그는 콘텐츠당 4개 이하이고 운영 콘텐츠가 71편이라, jsonb 배열 펼침 비교의 순차 탐색 비용이 무시할 만하다(2자 질의 순차 탐색과 같은 논리). 콘텐츠가 수천 편으로 늘면 정규화 컬럼 + `gin_trgm_ops`(부분 일치)와 jsonb 포함 인덱스(정확 일치)를 다시 본다. 저장된 태그는 정규화하지 않고 비교한다 — 적재 검증(`CONTENT_TAG_PATTERN`)이 완성형 한글·ASCII 영숫자·공백만 받아 NFC가 보장되고, 그 범위에서 SQL `lower()`와 앱의 소문자 변환이 같다. 태그 문자 범위를 넓히면 이 가정을 다시 본다.
 - **`audio_url`이 아니라 `audio_path`다** (B-5). 재생 URL은 매 요청 서명 발급이므로 컬럼이 아니라 응답 DTO 필드다. 서명 URL을 DB에 저장하면 그 자체가 유출 경로가 된다.
 - **`audio_path`는 응답 본문·목록 어디에도 실리지 않는다. 단 재생용 서명 URL의 경로에는 실린다**(개정 2026-08-31). 원 규칙은 "어떤 응답에도 실리지 않는다"였으나, CloudFront KeyValueStore 데이터 플레인이 조직 SCP로 막혀 `/play/<contentId>` 재작성이 성립하지 않아 서버가 저장 경로를 직접 서명하는 방식으로 바뀌었다(`architecture.md` 9.4). **원 규칙의 목적은 그대로 달성된다** — 키가 무작위 hex 32자라 제목·순서 같은 의미가 새지 않고, URL 자체가 단기 만료 서명이라 재사용도 막힌다.
 - `status`는 **3값만** 갖는다 (A-6). 파이프라인 상태(`draft` / `partner_review` / `qa_failed` 등)는 존재하지 않는다. 업로드 = 발행이다.
@@ -600,7 +608,7 @@ chk_contents_partner_disclosure
 
 - 매칭·랭킹 규칙(필드 가중·동점 해소·미지원 범위)은 `explore.md` 4.5-5가 소유한다. 이 문서는 그것을 지탱하는 인덱스만 정의한다.
 - **확장 `pg_trgm`이 필요하다** — 마이그레이션에서 `CREATE EXTENSION IF NOT EXISTS pg_trgm`. tsvector는 한국어 사전이 없어 폐기했다.
-- 검색 대상 4필드(제목·설명·저자·주제명) 중 **`topics.name`에는 인덱스를 두지 않는다.** 주제 수가 수십 개 수준이라 순차 스캔으로 충분하다([4.1](#41-topics)이 `content_count` 컬럼을 두지 않은 것과 같은 규모 근거).
+- 검색 대상 5필드(제목·설명·저자·주제명·해시태그) 중 **`topics.name`에는 인덱스를 두지 않는다**(해시태그도 인덱스 없음 — 위 "해시태그 검색"). 주제 수가 수십 개 수준이라 순차 스캔으로 충분하다([4.1](#41-topics)이 `content_count` 컬럼을 두지 않은 것과 같은 규모 근거).
 - 2자 질의는 트라이그램(3자)을 추출하지 못해 이 인덱스를 타지 못한다 — 초기 콘텐츠 풀 규모에서는 허용하며, 대응 방침은 `explore.md` 4.5-5가 정한다(최소 길이 상향 금지).
 - NFC 정규화·소문자 통일은 **적재·질의 양쪽에서 애플리케이션 계층이 한다.** 정규화 사본 컬럼을 두지 않는다 — 파생값이다([1.5](#15-파생값을-컬럼으로-두지-않는다)).
 
@@ -765,7 +773,7 @@ uq_content_embeddings_content_id (content_id)
 search_query_logs
   id                        bigserial       PK
   user_id                   uuid            FK → users (CASCADE)
-  query                     varchar(100)    정규화된 질의(NFC·소문자·트림) — 조회가 본 그 문자열
+  query                     varchar(100)    정규화된 질의(NFC·소문자·트림) — 조회가 본 그 문자열. 태그 전용 검색은 `#`을 남겨 `#` + 검색어로 맞춘다(`#  뱅크런` → `#뱅크런`, KAN-218) — 태그 검색 비율을 셀 수 있게
   result_count              smallint        첫 페이지에 실린 건수(0 ~ 페이지 크기). CHECK >= 0
   has_next                  boolean         첫 페이지 뒤에 더 있었는가
   topic_filter_count        smallint        함께 걸린 주제 필터 수. CHECK >= 0
@@ -1565,7 +1573,7 @@ archived_consents
   id                        uuid            PK
   user_hash                 varchar
   user_hash_version         smallint        DEFAULT 1
-  consent_type              enum            terms | privacy | marketing | age_confirmation
+  consent_type              enum            terms | privacy | marketing | age_confirmation | cross_border_transfer   varchar(32)
   version                   varchar         NULL
   is_agreed                 boolean
   agreed_at                 timestamptz

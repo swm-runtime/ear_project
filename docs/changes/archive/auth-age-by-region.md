@@ -2,11 +2,11 @@
 
 | 항목 | 값 |
 |---|---|
-| 대상 문서 | `docs/spec/api/auth-api.md` — 동의 항목 객체(`required_consents[]`·`pending_consents[]`)를 쓰는 4.1 social-login · 4.13 `GET /users/me` · 가입 동의 재조회(`changes/pending/auth-signup-consents-refetch.md`) · `docs/spec/api/global-api.md` 2.1 연령 행 |
+| 대상 문서 | `docs/spec/api/auth-api.md` — 동의 항목 객체(`required_consents[]`·`pending_consents[]`)를 쓰는 4.1 social-login · 4.13 `GET /users/me` · 가입 동의 재조회(`changes/archive/auth-signup-consents-refetch.md`) · `docs/spec/api/global-api.md` 2.1 연령 행 |
 | 요청 파트 | 프론트엔드 (백엔드 협의 필요 — 판정·응답은 BE 소유) |
 | 발행 날짜 | 2026-10-16 |
 | 발견 시점 | KAN-206 GLOBAL 연령 결정 — PM이 나라별(3안)을 골랐다(2026-10-16, Jira KAN-206 댓글 13:38 박준현 선택지 정리) |
-| 관련 | FE [KAN-206](https://runtime364.atlassian.net/browse/KAN-206) `tickets/frontend/pending/global-age-consent-16.md` · BE [KAN-220](https://runtime364.atlassian.net/browse/KAN-220) `tickets/backend/pending/global-age-by-region.md` · [KAN-215](https://runtime364.atlassian.net/browse/KAN-215)(동의 재조회 — 같은 응답) · [KAN-207](https://runtime364.atlassian.net/browse/KAN-207)(스토어 연령 설정) |
+| 관련 | FE [KAN-206](https://runtime364.atlassian.net/browse/KAN-206) `tickets/frontend/pending/global-age-consent-16.md` · BE [KAN-220](https://runtime364.atlassian.net/browse/KAN-220) `tickets/backend/archive/global-age-by-region.md` · [KAN-215](https://runtime364.atlassian.net/browse/KAN-215)(동의 재조회 — 같은 응답) · [KAN-207](https://runtime364.atlassian.net/browse/KAN-207)(스토어 연령 설정) |
 
 ## 배경
 
@@ -40,3 +40,4 @@ GLOBAL 연령을 일괄 16(2026-10-14)에서 **나라별**로 바꿨다. 본인 
 - Given GLOBAL·지역 MY 또는 지역 없음 / Then 18
 - Given KR 시장 / Then 지역과 무관하게 18
 - Given `auth-api.md`·`global-api.md` / When 이 요청 반영 후 / Then 동의 항목 표에 `min_age`가 있고 2.1 연령 행에 판정 표가 있다
+- 2026-10-16 반영 — 반영 날짜 2026-10-16. auth-api.md 4.1 동의 항목 객체에 min_age, global-api.md 2.1 연령 행 🟡→✅, auth-uiux.md 4.3 제안 필드 문구 정리(BE 답은 age-by-region-backend.md). `archive/`로 이동.

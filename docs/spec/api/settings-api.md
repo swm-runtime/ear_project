@@ -163,7 +163,7 @@
 **`marketing_consent`** — 현재 동의 상태. `consents`의 `consent_type = 'marketing'` **최신 행**이다(`domain.md` 3.2).
 
 - `settings`와 별도 필드로 두는 이유: 저장소가 다르고(이력 테이블), 변경 경로도 다르다(4.3). 계약에서 합쳐 두면 PATCH로 바꿀 수 있다는 오해가 생긴다.
-- `agreed_at`은 최신 행의 시각이다(동의든 철회든). 가입 시 동의 3종이 항상 기록되므로(`auth.md` 3장) 행이 없는 경우는 정상적으로 없지만, 방어적으로 행이 없으면 `is_agreed: false` · `agreed_at: null`로 내려준다.
+- `agreed_at`은 최신 행의 시각이다(동의든 철회든). 가입 시 동의가 종류별로 항상 기록되므로(`auth.md` 3장 — 마케팅은 거부도 행으로 남는다) 행이 없는 경우는 정상적으로 없지만, 방어적으로 행이 없으면 `is_agreed: false` · `agreed_at: null`로 내려준다.
 
 **`version`**
 

@@ -5,7 +5,7 @@
 | 대상 문서 | `backend/domain.md` 3.2(`version` 주석) · `spec/api/auth-api.md` 4.1 · 4.2 · 4.5 · `spec/api/global-api.md` 4.1 · 9장 미결 #5 |
 | 요청 파트 | 백엔드 — 박준현 |
 | 발행 날짜 | 2026-10-16 |
-| 관련 | BE [KAN-212](https://runtime364.atlassian.net/browse/KAN-212) 2번 `tickets/backend/pending/global-kr-topic-slug-and-consents.md` · `changes/pending/global-cross-border-consent-backend.md`(KAN-215 — 이 변경이 그 위에 쌓인다) |
+| 관련 | BE [KAN-212](https://runtime364.atlassian.net/browse/KAN-212) 2번 `tickets/backend/pending/global-kr-topic-slug-and-consents.md` · `changes/archive/global-cross-border-consent-backend.md`(KAN-215 — 이 변경이 그 위에 쌓인다) |
 
 ## 배경
 
@@ -49,3 +49,4 @@
 ## 처리 기록
 
 - 2026-10-16 발행(서버 구현 PR과 함께). 반영 전.
+- 2026-10-16 반영 — 반영 날짜 2026-10-16. domain.md 3.2 version 시장별, auth-api.md 4.1 동의 항목 객체·4.2·4.5·5장, global-api.md 4.1(🟡→✅)·9장 미결 #5 삭제. `archive/`로 이동.

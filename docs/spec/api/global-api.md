@@ -47,7 +47,7 @@
 | 저장 | `users.market`. **요청마다 헤더로 판정하지 않는다** — 헤더는 로그·통계용 |
 | 전환 | ⚪ 기본은 **불허**(가입 시 확정. 표시 언어를 바꿔도 시장은 그대로) |
 | 결제 | 시장과 무관하게 **스토어 국가**를 따른다(`storefront`). 가격 표시는 스토어 현지가만 |
-| 연령 | ✅ **나라별 자기 선언**(2026-10-16 PM 결정 3안 — KAN-206. 종전 2026-10-14 "GLOBAL 일괄 16"을 바꿨다): KR 시장 18(불변). GLOBAL은 기기 지역(`region_code`)으로 본인 동의 연령이 16 이하인 싱가포르·홍콩·한국 **16**, 18세 미만에 법정대리인 동의가 필요한 말레이시아·필리핀·인도네시아와 성년 20인 태국·**지역 모름은 18**. 판정은 서버가 하고 `age_confirmation` 항목의 `min_age`로 내려준다 🟡(`changes/pending/auth-age-by-region.md`). 기기 지역은 사용자가 바꿀 수 있는 자기 선언 수준의 근거다. 스토어 등급은 Apple 16+ · Play 16–17/18+로 맞춘다 |
+| 연령 | ✅ **나라별 자기 선언**(2026-10-16 PM 결정 3안 — KAN-206. 종전 2026-10-14 "GLOBAL 일괄 16"을 바꿨다): KR 시장 18(불변). GLOBAL은 기기 지역(`region_code`)으로 본인 동의 연령이 16 이하인 싱가포르·홍콩·한국 **16**, 18세 미만에 법정대리인 동의가 필요한 말레이시아·필리핀·인도네시아와 성년 20인 태국·**지역 모름은 18**. 판정은 서버가 하고 `age_confirmation` 항목의 `min_age`로 내려준다 ✅(구현 #1614 — `auth-api.md` 4.1 동의 항목 객체). 가입 전에는 요청 `locale.region_code`, 가입 후에는 로그인마다 갱신되는 `users.region_code`로 판정한다. GLOBAL은 확인한 기준을 동의 이력 `version`(`age-16`·`age-18`)으로 남기고, 16으로 확인한 사용자가 18 지역으로 옮기면 한 번 다시 묻는다. 기기 지역은 사용자가 바꿀 수 있는 자기 선언 수준의 근거다. 스토어 등급은 Apple 16+ · Play 16–17/18+로 맞춘다 |
 
 ### 2.2 요청 헤더 🟡
 
@@ -113,13 +113,16 @@
 |---|---|---|---|
 | `locale.preferred_language` | `ko` · `en` | 선택(신규 앱은 항상 보낸다) | **사용자가 가입 화면에서 고른 콘텐츠 언어 — 시장 판정의 입력**(`ko` → `kr`, `en` → `global`). 앱은 모든 신규 가입자에게 한 번 묻고 기기 언어를 기본 선택값으로 둔다. 없으면 `language_code` 규칙으로 폴백 |
 | `locale.language_code` | BCP 47 | 선택 | 기기 언어(`expo-localization` `getLocales()[0].languageTag`). 표시 언어의 초깃값(서버 문구 언어는 `users.market` — 2.3). `preferred_language`가 없을 때만 판정 폴백(`ko*` → `kr`, 그 밖 `global`, 없으면 `kr`) |
-| `locale.region_code` | ISO 3166-1 alpha-2 | 선택 | 통계용 + **GLOBAL 연령 확인 기준 연령(16·18) 판정**(2.1, 2026-10-16 🟡) |
+| `locale.region_code` | ISO 3166-1 alpha-2 | 선택 | 통계용 + **GLOBAL 연령 확인 기준 연령(16·18) 판정**(2.1, 2026-10-16 ✅) |
 | `locale.timezone` | IANA | 선택 | 드립 발송 그룹. 없으면 `Asia/Seoul` |
 
 - 시장은 **계정 생성(sign-up) 시점에만** 정한다. 기존 계정의 로그인에 다른 `locale`이 와도 `market`은 바뀌지 않고 `language_code`·`region_code`·`timezone`만 갱신한다(`preferred_language`는 무시).
 - 가입 화면의 질문은 시장 하나당 선택지 하나다(한국어 / English). 시장이 늘면 선택지가 는다. 화면에는 "선택한 언어에 따라 보여 주는 콘텐츠가 달라진다"는 설명과 해외 거주자에게 English를 권하는 안내, 가입 뒤 변경 불가 안내를 함께 둔다(카피는 FE `spec/uiux`). 앱 실행 직후의 **표시 언어**는 서버 호출 전이라 클라이언트가 기기 `locale`로 1차 판단한다 — 시장 판정과 별개다. 질문을 모호한 사용자에게만 보이는 방식 등은 **추후 필요하면 다시 논의**한다(2026-10-14).
 - GLOBAL 시장에서 `provider`가 `kakao`·`naver`인 요청은 거부하지 않는다(서버는 제공자별 독립). **노출을 막는 것은 클라이언트 몫**(4.2 응답의 `market`으로 분기).
-- 연령 동의(`age_confirmation`)의 기준 연령은 나라별이다(2.1 — KR 18 · GLOBAL 지역별 16/18, 항목의 `min_age` 🟡). `pending_consents[].version`에 시장 네임스페이스가 들어간다 — 예 `terms_global_v1` 🟡.
+- 연령 동의(`age_confirmation`)의 기준 연령은 나라별이다(2.1 — KR 18 · GLOBAL 지역별 16/18, 항목의 `min_age` ✅).
+- **약관·처리방침 동의 버전은 시장별이다** ✅(2026-10-16 — KAN-212, 구현 #1610). KR `0.1` · GLOBAL `global-<문서 버전>`(현행 `global-0.1`, 영어판 문서 0.1). 동의 이력만 보고도 어느 시장 문서에 동의했는지 구분된다. 다른 시장의 버전을 보내면 409 `CONSENT_VERSION_STALE`이다. 버전을 올리면 그 시장 사용자만 다음 로그인·세션 복원에서 다시 동의한다(KR과 같은 재동의 흐름 — 법무 확인 전, KAN-126).
+- **GLOBAL 가입 필수 동의에 국외 이전 동의(`cross_border_transfer`, 버전 없음)가 있다** ✅(2026-10-16 — KAN-215, 구현 #1609). 해외 사용자 정보가 서울 서버와 해외 외부 서비스로 넘어가서다. KR은 받지 않는다.
+- 가입 화면은 콘텐츠 언어를 고른 뒤 **`POST /auth/sign-up/consents`**(`auth-api.md` 4.14)로 그 시장의 목록과 `market`을 다시 받아 그린다.
 
 **Response**(`user` 객체, `GET /users/me`도 동일)
 
@@ -287,7 +290,6 @@ upload-meta{market: global, language: en} → 콘솔 payload → POST /admin/con
 | 1 | 같은 계정의 시장 전환 | 불허 | 박준현 |
 | 3 | 발송 그룹 정의(경계 오프셋·그룹 수) | asia/europe/americas 3그룹 | BE |
 | 4 | GLOBAL 상품 ID·요금(USD) | `com.runtime.ear.global.{daily,pro}.monthly` | 박준현(스토어) |
-| 5 | 약관 네임스페이스(`terms_global_v1`)와 재동의 흐름 | 가입 시 1회, 재동의 없음 | BE·법무 |
 | 6 | GLOBAL 주제 트리(대·중분류, slug) | KAN-184 제안 | 박수헌 → PM |
 | 7 | 어드민 시장별 집계 모양(4.10) | BE 구현 시 확정 | BE |
 | 8 | `MARKET_MISMATCH` 코드명·`common-error-handling.md` 등재 | 이 이름 | BE |

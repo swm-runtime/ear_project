@@ -5,7 +5,7 @@
 | 대상 문서 | `backend/domain.md` 3.2 · 11.4 · `spec/api/auth-api.md` 3장 · 4.1 · 4.2 · 4.5 · (새 절) 4.14 · `spec/api/global-api.md` 4.1 · `infra/runbook.md` 글로벌 가입 스위치 |
 | 요청 파트 | 백엔드 — 박준현 |
 | 발행 날짜 | 2026-10-16 |
-| 관련 | BE [KAN-215](https://runtime364.atlassian.net/browse/KAN-215) `tickets/backend/archive/global-cross-border-consent.md` · FE [KAN-216](https://runtime364.atlassian.net/browse/KAN-216) · FE 계약 제안 `changes/pending/auth-signup-consents-refetch.md`(PR #1606) |
+| 관련 | BE [KAN-215](https://runtime364.atlassian.net/browse/KAN-215) `tickets/backend/archive/global-cross-border-consent.md` · FE [KAN-216](https://runtime364.atlassian.net/browse/KAN-216) · FE 계약 제안 `changes/archive/auth-signup-consents-refetch.md`(PR #1606) |
 
 ## 배경
 
@@ -66,3 +66,4 @@
 ## 처리 기록
 
 - 2026-10-16 발행(서버 구현 PR과 함께). 반영 전.
+- 2026-10-16 반영 — 반영 날짜 2026-10-16. domain.md 3.2·11.4(cross_border_transfer·varchar 32·시장별 필수 목록), auth-api.md 3장·4.1·4.2·4.5·4.13·4.14, global-api.md 4.1, infra/runbook.md 글로벌 가입 스위치(KAN-216 앱 뒤에 연다). `archive/`로 이동.

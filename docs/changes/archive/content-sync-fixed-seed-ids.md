@@ -34,3 +34,4 @@
 ## 처리 기록
 
 - 2026-10-16 발행(스크립트 수정 PR과 함께). 반영 전.
+- 2026-10-16 반영 — 반영 날짜 2026-10-16. infra/runbook.md 콘텐츠 동기화 확인·문제 해결(upsert FAILED·유일 제약·ETag·DB 대조), backend/convention.md 4.5(동기화 대상 표 시드는 고정 ID). `archive/`로 이동.
