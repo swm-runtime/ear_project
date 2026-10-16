@@ -113,15 +113,15 @@ test("글로벌 규칙 자산 — 버전 라벨 full-en-v0.3, 모델에 가는 �
   assert.doesNotMatch(body, HANGUL);
   assert.equal(body.match(/^\s*\d+\. \*\*/gm)?.length, 50);
   const spec = await fs.readFile(path.join(root, "spec/04-script.md"), "utf8");
-  assert.match(spec, /Hi, and welcome to ear podcast\. \{topic_line\} Today we're talking about \{episode_line\}\.\n/);
-  assert.deepEqual(JSON.parse(await fs.readFile(path.join(root, "skills/tts/pronunciation.json"), "utf8")), {});
+  assert.match(spec, /Hi, and annyeonghaseyo! Welcome to Earcast, your K-podcast\. \{topic_line\} Today we're talking about \{episode_line\}\.\n/);
+  assert.deepEqual(JSON.parse(await fs.readFile(path.join(root, "skills/tts/pronunciation.json"), "utf8")), { annyeonghaseyo: "안녕하세요" }); // 인트로 인사(tpl-en-v2) — 한글로 읽힌다
 });
 
-test("QA(en) — 영어 지시문·스키마, 자산 본문 한글 없음·버전 qa-en-v0.2, 이전 회차 실패는 check 번호로", async () => {
+test("QA(en) — 영어 지시문·스키마, 자산 본문 한글 없음·버전 qa-en-v0.3, 이전 회차 실패는 check 번호로", async () => {
   const { versionOf } = await import("../assets.js");
   const root = path.resolve(import.meta.dirname, "../../../../../docs/ai/global");
   const qa = await fs.readFile(path.join(root, "skills/qa/prompt.md"), "utf8");
-  assert.equal(versionOf("skills/qa/prompt.md", qa), "qa-en-v0.2");
+  assert.equal(versionOf("skills/qa/prompt.md", qa), "qa-en-v0.3");
   const body = P.promptBody(qa);
   assert.doesNotMatch(body, HANGUL);
   assert.doesNotMatch(body, /Change history/); // --- 아래 이력은 모델에 가지 않는다
