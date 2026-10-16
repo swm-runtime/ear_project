@@ -14,7 +14,7 @@
 | 관련 | **BE [KAN-189](https://runtime364.atlassian.net/browse/KAN-189)(주제 적재)와 AI 2번이 이 티켓에 막힌다** — 주제는 결정됐으므로 KAN-189는 slug 확정 전달로 풀린다 |
 | 근거 문서 | **`docs/ai/global/PIPELINE.md`(파이프라인 결정의 원본)** · `spec/api/global-api.md` 4.5(주제 `slug`·영어 이름) · 9장 미결 #6 |
 | 중요도 | Medium |
-| 상태 | 진행 중 — 2~5 확정(2026-10-14), 1 보류(페르소나 결정 대기) |
+| 상태 | 완료 — 1~5 확정(2~5 2026-10-14 · 1 2026-10-17) |
 
 > 2026-10-14 발행한 묶음 티켓(BE KAN-185 · FE KAN-183 · AI KAN-184)을 처리 단위로 나눈 것. 앱·서버 결정(같은 앱·가입 시 1회 시장 판정·한국 트랙 불변 등)은 `spec/api/global-api.md`가, 파이프라인 결정은 `docs/ai/global/PIPELINE.md`가 원본이다. **티켓과 명세가 다르면 명세를 따른다.**
 
@@ -42,3 +42,15 @@
 - 2026-10-14 주제 8개 slug·영어 이름 표를 BE에 전달(KAN-189 코멘트). parent_category 는 NULL, 한 콘텐츠 주제 최대 2개.
 - 2026-10-14 주제 이름 정정: K-Drama → **K-Drama & Film**(slug `k-drama-film`) — 영화까지 다루는 범위를 이름에 드러낸다. Korean Culture 는 유지. BE에 정정 전달(KAN-189 코멘트).
 - 2026-10-16 기한 초과 기록 — 기한 안에 처리하지 못했다. 늦더라도 처리한다. 발행 때 기한을 짧게 잡았다(박수헌 2026-10-16). 중요도는 그대로 둔다. 1(페르소나·보이스)은 여전히 사용자 결정 대기다.
+- 2026-10-17 1(페르소나·보이스) 확정, 반영 완료(#1639·#1640). 반영 날짜 2026-10-17.
+  - **대화 형식**: 한국판과 같은 2인 대화다. 고정 역할은 해설자(한국 내부자)와 진행자(외부자)다. 분류별 1인/2인 분리는 하지 않는다(10-16).
+  - **출연진 4명, 2인조 두 팀을 대표 주제로 배정**:
+    - 팀 1: Yuna(해설·여) + Owen(진행·남) → Korean Language · Korean Culture · Korean History & Society · K-Beauty & Fashion
+    - 팀 2: E-um(해설·남) + Grace(진행·여) → K-Food · K-Pop · K-Drama & Film · Travel in Korea
+  - **보이스**(ElevenLabs 라이브러리 영어 보이스, 박수헌 선정): Yuna `MClEFoImJXBTgLwdLI5n` · Owen `gPPH6SLdL8XSX6GNJ40G` · E-um `DMyrgzQFny3JI1Y1paM5` · Grace `kdmDKE6EkgrWrrykO9Qt`
+    - 완료 조건 3은 "보이스 2개, env 이름과 함께"였는데 4개로 늘었다.
+    - 보이스 ID 는 라이브러리 공개 ID 라 비밀이 아니다. 그래서 env 가 아니라 코드의 출연진 표(`packages/pipeline/src/locale.ts` `GLOBAL_TEAMS`)에 두었다.
+  - **발음**: 한국어 단어는 TTS 입력에서만 한글로 바꿔 넣는다. 영어로 굳은 지명·기업·작품명과 출연진 이름은 영어 그대로 읽는다(#1632·#1640).
+  - **인트로·끝인사**: 인트로는 "Hi, and annyeonghaseyo! Welcome to Earcast, your K-podcast."이고, 끝인사는 "… gamsahamnida!"로 끝난다(#1633·#1634).
+  - **5번 분량**: 분당 150단어 실측은 KAN-203 에서 첫 합성 3편으로 한다.
+  - **명세**: 글로벌 명세 6.7 에 출연진 표를 넣었고, 10장 미결 #4 를 해소했다. Jira 완료.
