@@ -18,3 +18,4 @@
 
 ## 처리 기록
 - 2026-10-15 발행. 코드는 KAN-211 PR에 반영.
+- 2026-10-16 반영 — `admin-api.md` 4.12(쿼리 `market`·항목 `market`)·4.13(요청 `market` 선택, 생성 뒤 불변)·4.14(`market`은 받지 않음) · `backend/domain.md` 9.2. 코드(`create-notice-request.dto.ts`·`admin-notice-query-request.dto.ts`·`admin-notice-item.dto.ts`)와 대조함.
