@@ -1,6 +1,6 @@
 import { Linking, Platform, Pressable, StyleSheet, View } from 'react-native';
 
-import { PRIVACY_POLICY_URL, TERMS_URL } from '@/shared/lib/legal-urls';
+import { legalUrlsFor } from '@/shared/lib/legal-urls';
 import { logger } from '@/shared/lib/logger';
 import { theme } from '@/shared/theme';
 import { Text } from '@/shared/ui/Typography';
@@ -63,6 +63,8 @@ export default function SubscriptionLegalNotice({
 }: SubscriptionLegalNoticeProps) {
   const market = useSessionStore(selectMarket);
   const lines = legalLines(market);
+  // 약관·처리방침도 계정 시장의 문서다 — GLOBAL 은 영어 본문(KAN-216). 고지 문장과 같은 기준이다
+  const legalUrls = legalUrlsFor(market);
   return (
     <View style={styles.container}>
       <View style={styles.items}>
@@ -89,7 +91,7 @@ export default function SubscriptionLegalNotice({
       <View style={styles.links}>
         <Pressable
           style={styles.link}
-          onPress={() => openUrl(TERMS_URL)}
+          onPress={() => openUrl(legalUrls.terms)}
           accessibilityRole="link"
           accessibilityLabel={SUBSCRIPTION_COPY.legal.terms}
         >
@@ -98,7 +100,7 @@ export default function SubscriptionLegalNotice({
         <Separator />
         <Pressable
           style={styles.link}
-          onPress={() => openUrl(PRIVACY_POLICY_URL)}
+          onPress={() => openUrl(legalUrls.privacy)}
           accessibilityRole="link"
           accessibilityLabel={SUBSCRIPTION_COPY.legal.privacy}
         >

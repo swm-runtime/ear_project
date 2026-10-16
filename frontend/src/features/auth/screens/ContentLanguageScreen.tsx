@@ -1,5 +1,5 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { theme } from '@/shared/theme';
@@ -20,9 +20,12 @@ const COPY = AUTH_COPY.contentLanguage;
  * A21 콘텐츠 언어 선택 — **신규 가입자만** 거친다(A1 → A21 → A4, PM 2026-10-15). 고른 언어가 시장을 정하고
  * 가입 뒤에는 바꿀 수 없으므로(global-api.md 2.1) 무엇이 달라지는지·해외 거주자 안내·변경 불가를 한 화면에 둔다.
  * 계정은 아직 없다 — 뒤로 가면 시작 화면이다. 머리(뒤로가기)·하단 알약 버튼은 A4와 같은 결이다.
+ * [다음]은 고른 언어로 동의 목록을 다시 받는 동안 진행 중(스피너·비활성)이다(PM 2026-10-16).
  */
 export default function ContentLanguageScreen({ route }: ContentLanguageScreenProps) {
-  const { selected, select, handleNext, goBack } = useContentLanguageScreen(route.params);
+  const { selected, select, handleNext, isLoading, goBack } = useContentLanguageScreen(
+    route.params,
+  );
 
   return (
     <SafeAreaView style={styles.container}>
@@ -68,11 +71,17 @@ export default function ContentLanguageScreen({ route }: ContentLanguageScreenPr
           styles.submit,
           pressed && styles.pressed,
         ]}
-        onPress={handleNext}
+        disabled={isLoading}
+        onPress={() => void handleNext()}
         accessibilityRole="button"
         accessibilityLabel={COPY.next}
+        accessibilityState={{ disabled: isLoading, busy: isLoading }}
       >
-        <Text style={pillButton.primaryLabel}>{COPY.next}</Text>
+        {isLoading ? (
+          <ActivityIndicator color={theme.color.onPrimary} />
+        ) : (
+          <Text style={pillButton.primaryLabel}>{COPY.next}</Text>
+        )}
       </Pressable>
     </SafeAreaView>
   );

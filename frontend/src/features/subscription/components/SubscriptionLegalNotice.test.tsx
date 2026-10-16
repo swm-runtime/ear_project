@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, jest } from '@jest/globals';
 import type { ReactNode } from 'react';
-import { Text as RNText } from 'react-native';
+import { Linking, Text as RNText } from 'react-native';
 
 import { SUBSCRIPTION_COPY } from '../subscription.copy';
 import SubscriptionLegalNotice from './SubscriptionLegalNotice';
@@ -162,6 +162,41 @@ describe('SubscriptionLegalNotice — 시장별 자동 갱신 고지(KAN-196)', 
     const texts = legalItemTexts(renderer);
     expect(texts).toEqual([...SUBSCRIPTION_COPY.legal.global.ios]);
     expect(texts).not.toEqual([...SUBSCRIPTION_COPY.legal.ios]);
+    act(() => renderer.unmount());
+  });
+});
+
+describe('SubscriptionLegalNotice — 약관·처리방침은 계정 시장의 문서(KAN-216)', () => {
+  const pressLink = (renderer: Renderer, label: string) => {
+    const link = renderer.root.findAll(
+      (node) =>
+        typeof node.type !== 'string' &&
+        node.props.accessibilityLabel === label &&
+        typeof node.props.onPress === 'function',
+    );
+    act(() => (link[0].props.onPress as () => void)());
+  };
+
+  const CASES: ['kr' | 'global', string, string][] = [
+    ['global', 'https://earcast.co.kr/en/terms', 'https://earcast.co.kr/en/privacy'],
+    ['kr', 'https://earcast.co.kr/terms', 'https://earcast.co.kr/privacy'],
+  ];
+
+  it.each(CASES)('%s 계정은 그 시장의 본문을 연다', (market, termsUrl, privacyUrl) => {
+    // given
+    mockMarket = market;
+    const openURL = jest.spyOn(Linking, 'openURL').mockResolvedValue(true);
+    const renderer = render(
+      <SubscriptionLegalNotice onRestore={jest.fn()} isRestoreDisabled={false} isRestoring={false} />,
+    );
+
+    // when
+    pressLink(renderer, SUBSCRIPTION_COPY.legal.terms);
+    pressLink(renderer, SUBSCRIPTION_COPY.legal.privacy);
+
+    // then
+    expect(openURL.mock.calls).toEqual([[termsUrl], [privacyUrl]]);
+    openURL.mockRestore();
     act(() => renderer.unmount());
   });
 });

@@ -4,6 +4,7 @@ import { logger } from '@/shared/lib/logger';
 import { useToastStore } from '@/shared/ui/toast.store';
 
 import { submitConsents } from '../api/auth.api';
+import { hasPolicyDocument } from '../auth.constants';
 import { AUTH_COPY, ageConfirmationLabel } from '../auth.copy';
 import type { ConsentType } from '../auth.types';
 import { openPolicyDocument } from '../services/policy-document.service';
@@ -21,7 +22,7 @@ import { selectMarket, useSessionStore } from '../store/session.store';
 export const useReconsentScreen = () => {
   const pendingConsents = useSessionStore((s) => s.pendingConsents);
   const clearPendingConsents = useSessionStore((s) => s.clearPendingConsents);
-  /** 연령 확인 문구의 기준 연령 — 서버가 정한 세션 시장(KR 18 · GLOBAL 16, global-api.md 2.1) */
+  /** 연령 확인 문구의 기준 연령·[보기] 문서의 시장 — 서버가 정한 세션 시장(KR 18 · GLOBAL 16, global-api.md 2.1) */
   const market = useSessionStore(selectMarket);
   const showToast = useToastStore((s) => s.show);
 
@@ -55,10 +56,13 @@ export const useReconsentScreen = () => {
     setCheckedMap(Object.fromEntries(items.map((item) => [item.consentType, next])));
   };
 
-  /** [보기] — 열람은 동의가 아니다. 연령 확인·마케팅은 열 문서가 없어 화면이 셰브론을 그리지 않는다 */
+  /**
+   * [보기] — 열람은 동의가 아니다. 연령 확인·마케팅은 열 문서가 없어 화면이 셰브론을 그리지 않는다.
+   * 문서는 세션 시장의 것이다(GLOBAL → 영어 본문 — 기존 GLOBAL 가입자의 국외 이전 동의도 여기로 온다, KAN-216)
+   */
   const handleViewPress = (consentType: ConsentType) => {
-    if (consentType !== 'terms' && consentType !== 'privacy') return;
-    void openPolicyDocument(consentType);
+    if (!hasPolicyDocument(consentType)) return;
+    void openPolicyDocument(consentType, market);
   };
 
   const handleSubmit = async () => {

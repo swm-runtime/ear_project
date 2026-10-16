@@ -28,7 +28,11 @@ jest.mock('../services/device-locale', () => ({
     timezone: 'America/New_York',
   }),
 }));
-jest.mock('../services/policy-document.service', () => ({ openPolicyDocument: jest.fn() }));
+const mockOpenPolicyDocument = jest.fn<(document: string, market: string) => Promise<void>>();
+jest.mock('../services/policy-document.service', () => ({
+  openPolicyDocument: (document: string, market: string) =>
+    mockOpenPolicyDocument(document, market),
+}));
 jest.mock('../services/session.service', () => ({
   sessionService: { startSession: () => mockStartSession() },
 }));
@@ -119,5 +123,66 @@ describe('A4 동의 전송 — 버전은 서버 값 그대로(KAN-206)', () => {
     expect(versionOf('privacy')).toBe('privacy_global_v1');
     expect(versionOf('marketing')).toBe('marketing_global_v1');
     expect(versionOf('age_confirmation')).toBeNull();
+  });
+});
+
+describe('A4 국외 이전 동의 — 서버 목록대로 그린다(KAN-216)', () => {
+  /** 재조회로 받은 GLOBAL 목록 — 국외 이전 동의가 필수로 붙는다 */
+  const WITH_CROSS_BORDER: RequiredConsent[] = [
+    ...GLOBAL_CONSENTS,
+    { consentType: 'cross_border_transfer', version: null, isRequired: true },
+  ];
+  const crossBorderRow = () =>
+    screen.items.find((item) => item.consentType === 'cross_border_transfer');
+
+  it('서버가 실어 보내면 필수 항목으로 그리고, 체크 전에는 가입 버튼이 비활성이다', () => {
+    render({ signupToken: 't', requiredConsents: WITH_CROSS_BORDER, preferredLanguage: 'en' });
+
+    expect(crossBorderRow()).toMatchObject({ isRequired: true, isChecked: false });
+    act(() => screen.toggleConsent('terms'));
+    act(() => screen.toggleConsent('privacy'));
+    act(() => screen.toggleConsent('age_confirmation'));
+    expect(screen.canSubmit).toBe(false);
+
+    act(() => screen.toggleConsent('cross_border_transfer'));
+    expect(screen.canSubmit).toBe(true);
+  });
+
+  it('서버 목록에 없으면(KR) 그리지 않는다 — 클라이언트가 시장으로 넣지 않는다', () => {
+    render({ signupToken: 't', requiredConsents: GLOBAL_CONSENTS, preferredLanguage: 'en' });
+
+    expect(crossBorderRow()).toBeUndefined();
+  });
+
+  it('[보기]는 A21 선택이 가리키는 시장의 문서를 연다 — English 면 GLOBAL', () => {
+    render({ signupToken: 't', requiredConsents: WITH_CROSS_BORDER, preferredLanguage: 'en' });
+
+    act(() => screen.handleViewPress('cross_border_transfer'));
+    act(() => screen.handleViewPress('terms'));
+
+    expect(mockOpenPolicyDocument).toHaveBeenNthCalledWith(1, 'cross_border_transfer', 'global');
+    expect(mockOpenPolicyDocument).toHaveBeenNthCalledWith(2, 'terms', 'global');
+  });
+
+  it('서버 판정 시장이 오면 그것을 따른다 — 글로벌 가입이 닫혀 English 도 KR 이면 KR 문서·18세', () => {
+    render({
+      signupToken: 't',
+      requiredConsents: GLOBAL_CONSENTS,
+      preferredLanguage: 'en',
+      market: 'kr',
+    });
+
+    act(() => screen.handleViewPress('terms'));
+
+    expect(mockOpenPolicyDocument).toHaveBeenCalledWith('terms', 'kr');
+    expect(ageRow()?.label).toBe(ageConfirmationLabel('kr'));
+  });
+
+  it('한국어를 고르면 KR 문서를 연다', () => {
+    render({ signupToken: 't', requiredConsents: GLOBAL_CONSENTS, preferredLanguage: 'ko' });
+
+    act(() => screen.handleViewPress('privacy'));
+
+    expect(mockOpenPolicyDocument).toHaveBeenCalledWith('privacy', 'kr');
   });
 });

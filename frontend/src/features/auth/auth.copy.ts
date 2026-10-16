@@ -68,6 +68,12 @@ const ko = {
       // 연령 확인의 표시 문구는 시장별이라 ageConfirmationLabel(market) 이 갖는다. 이 표는 서버 유형과
       // 1:1이어야 해서 자리를 비워둘 수 없다(값은 KR 문구)
       age_confirmation: '만 18세 이상입니다',
+      /**
+       * 국외 이전 동의 — 서버가 GLOBAL 목록에만 싣는다(KAN-215·216). [보기]는 처리방침의 국외 이전 절.
+       * 확정 카피는 auth-uiux.md 4.3 "국외 이전 행"
+       */
+      cross_border_transfer:
+        '개인정보 처리방침에 안내된 대로, 내 정보가 대한민국으로 이전되어 처리되고 미국 등 다른 나라의 서비스 제공자도 처리하는 데 동의합니다',
     } satisfies Record<ConsentType, string>,
     /**
      * 연령 확인 — KR 시장 문구(만 18세, Play 대상 연령대 18+ 선언과 같은 기준). 화면은 이 값을 직접 쓰지 않고
@@ -290,6 +296,8 @@ const en: LocalizedCopy<typeof ko> = {
       privacy: 'Agree to Privacy Policy',
       marketing: 'Receive marketing updates',
       age_confirmation: 'I’m 18 or older',
+      cross_border_transfer:
+        'I agree that my information is transferred to and processed in the Republic of Korea, and by service providers in other countries such as the United States, as described in the Privacy Policy.',
     },
     ageConfirmation: 'I’m 18 or older',
     requiredTag: '(Required)',

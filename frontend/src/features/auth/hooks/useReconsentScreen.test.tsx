@@ -16,7 +16,11 @@ jest.mock('@/shared/ui/toast.store', () => ({
   useToastStore: (selector: (state: { show: () => void }) => unknown) =>
     selector({ show: jest.fn() }),
 }));
-jest.mock('../services/policy-document.service', () => ({ openPolicyDocument: jest.fn() }));
+const mockOpenPolicyDocument = jest.fn<(document: string, market: string) => Promise<void>>();
+jest.mock('../services/policy-document.service', () => ({
+  openPolicyDocument: (document: string, market: string) =>
+    mockOpenPolicyDocument(document, market),
+}));
 jest.mock('../services/session.service', () => ({ sessionService: { logout: jest.fn() } }));
 
 const { act, create } = jest.requireActual<{
@@ -55,8 +59,8 @@ const PENDING: RequiredConsent[] = [
   { consentType: 'age_confirmation', version: null, isRequired: true },
 ];
 
-const renderWith = (market: Market) => {
-  useSessionStore.getState().setSession(userOf(market), PENDING);
+const renderWith = (market: Market, pending: RequiredConsent[] = PENDING) => {
+  useSessionStore.getState().setSession(userOf(market), pending);
   act(() => {
     renderer = create(<Probe />);
   });
@@ -106,5 +110,40 @@ describe('A20 재동의 전송 — 버전은 pending_consents 값 그대로(KAN-
         { consentType: 'age_confirmation', version: null, isAgreed: true },
       ],
     });
+  });
+});
+
+describe('A20 국외 이전 동의 — 기존 GLOBAL 가입자(KAN-216)', () => {
+  const CROSS_BORDER_PENDING: RequiredConsent[] = [
+    { consentType: 'cross_border_transfer', version: null, isRequired: true },
+  ];
+
+  it('pending_consents 로 오면 필수 항목으로 그리고 체크해야 넘어간다', () => {
+    renderWith('global', CROSS_BORDER_PENDING);
+
+    expect(screen.items).toHaveLength(1);
+    expect(screen.items[0]).toMatchObject({
+      consentType: 'cross_border_transfer',
+      isRequired: true,
+    });
+    expect(screen.canSubmit).toBe(false);
+    act(() => screen.toggleConsent('cross_border_transfer'));
+    expect(screen.canSubmit).toBe(true);
+  });
+
+  it('[보기]는 세션 시장의 처리방침 국외 이전 절을 연다', () => {
+    renderWith('global', CROSS_BORDER_PENDING);
+
+    act(() => screen.handleViewPress('cross_border_transfer'));
+
+    expect(mockOpenPolicyDocument).toHaveBeenCalledWith('cross_border_transfer', 'global');
+  });
+
+  it('열람 문서가 없는 연령 확인은 열지 않는다', () => {
+    renderWith('global');
+
+    act(() => screen.handleViewPress('age_confirmation'));
+
+    expect(mockOpenPolicyDocument).not.toHaveBeenCalled();
   });
 });

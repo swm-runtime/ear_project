@@ -11,14 +11,24 @@
  * - (기본)     신규 사용자 — social-login이 consent_required → 약관 동의 → sign-up이
  *              onboarding_step "topic" 세션 반환(auth-api.md 4.2) → 온보딩 진입
  * - returning  기존 사용자 — social-login이 바로 authenticated(온보딩 완료) → 라이브러리
+ * - legacy-consents  신규 사용자 + 동의 목록 재조회(sign-up/consents)가 없는 구 서버 — 404 `NOT_FOUND` →
+ *              A4가 로그인 응답의 목록으로 그려진다(폴백 확인용)
+ *
+ * 동의 목록 재조회(sign-up/consents, PM 2026-10-16 — BE 제안 계약): `preferred_language` `en`(GLOBAL)이면
+ * 국외 이전 동의(`cross_border_transfer`)가 필수로 붙고, `ko`(KR)면 로그인 응답의 목록 그대로다(KAN-215).
  *
  * 시장(global-api.md 2.1): 가입은 `locale.preferred_language`(`en` → `global`)로, 그 밖은 마지막 가입의
  * 시장을 돌려준다(처음엔 `kr`). 기존 계정 로그인은 서버처럼 `locale`로 시장을 바꾸지 않는다.
  */
+import { ApiError } from '@/shared/api/api-error';
+import { ERROR_CODES } from '@/shared/api/error-codes';
+
 import type {
   AuthSessionDto,
   ConsentItemDto,
   RefreshTokenResponseDto,
+  SignUpConsentsRequestDto,
+  SignUpConsentsResponseDto,
   SignUpRequestDto,
   SocialLoginRequestDto,
   SocialLoginResponseDto,
@@ -40,6 +50,16 @@ const REQUIRED_CONSENTS: ConsentItemDto[] = [
   { consent_type: 'privacy', version: '1.0', is_required: true },
   { consent_type: 'marketing', version: '1.0', is_required: false },
 ];
+
+/**
+ * GLOBAL 시장에만 붙는 국외 이전 동의(KAN-215). 버전 유무는 BE 가 정한다 — 화면은 서버 값을 그대로 돌려보낸다.
+ * mock 은 처리방침 개정에 묶인다고 보고 버전을 둔다.
+ */
+const CROSS_BORDER_CONSENT: ConsentItemDto = {
+  consent_type: 'cross_border_transfer',
+  version: '1.0',
+  is_required: true,
+};
 
 const ACCESS_TOKEN_TTL_MS = 30 * 60_000;
 const SIGNUP_TOKEN_TTL_MS = 10 * 60_000;
@@ -111,6 +131,23 @@ export const mockSocialLogin = async (
 const decideMarket = (locale: SignUpRequestDto['locale']): Market => {
   if (locale.preferred_language) return locale.preferred_language === 'en' ? 'global' : 'kr';
   return locale.language_code.toLowerCase().startsWith('ko') ? 'kr' : 'global';
+};
+
+/** A21 → A4 사이 동의 목록 재조회 — 고른 언어가 가리키는 시장의 목록(서버 판정 흉내) */
+export const mockSignUpConsents = async (
+  body: SignUpConsentsRequestDto,
+): Promise<SignUpConsentsResponseDto> => {
+  await delay(RESPONSE_DELAY_MS);
+  if (SCENARIO === 'legacy-consents') {
+    // 라우터 404 — 서버 전역 필터가 `NOT_FOUND` 로 정규화한다(backend all-exceptions.filter)
+    throw new ApiError(ERROR_CODES.NOT_FOUND, '찾을 수 없어요', false, null, null, 404);
+  }
+  const market = decideMarket(body.locale);
+  return {
+    required_consents:
+      market === 'global' ? [...REQUIRED_CONSENTS, CROSS_BORDER_CONSENT] : REQUIRED_CONSENTS,
+    market,
+  };
 };
 
 export const mockSignUp = async (body: SignUpRequestDto): Promise<AuthSessionDto> => {

@@ -7,6 +7,7 @@ import ConfirmDialog from '@/shared/ui/ConfirmDialog';
 import { pillButton } from '@/shared/ui/pill-button.styles';
 import { Text } from '@/shared/ui/Typography';
 
+import { hasPolicyDocument } from '../auth.constants';
 import { AUTH_COPY } from '../auth.copy';
 import ConsentItem from '../components/ConsentItem';
 import { useReconsentScreen } from '../hooks/useReconsentScreen';
@@ -68,9 +69,9 @@ export default function ReconsentScreen() {
               description={item.description}
               onToggle={() => toggleConsent(item.consentType)}
               // 열람 문서가 있는 항목만 [보기]를 그린다 — 연령 확인은 version이 항상 null인
-              // 자기 선언이라 열 문서가 없다(auth-uiux.md 4.3-1)
+              // 자기 선언이라 열 문서가 없다(auth-uiux.md 4.3-1). 국외 이전은 처리방침의 국외 이전 절
               onViewPress={
-                item.consentType === 'terms' || item.consentType === 'privacy'
+                hasPolicyDocument(item.consentType)
                   ? () => handleViewPress(item.consentType)
                   : undefined
               }
