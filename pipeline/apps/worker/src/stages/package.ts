@@ -9,6 +9,7 @@ import { exists, localPathOf, pullPrefix, pushPrefix, s3Key } from "../storage.j
 import { log } from "../util.js";
 import { countWords, WORDS_PER_MIN_EN } from "../script-length.js";
 import { parseScriptForTts } from "../tts/script.js";
+import { agentGateBlockers } from "./agent-gate.js";
 
 /** topics.explainer 가 비었을 때의 해설 — 한국판은 종전 그대로 이음, 글로벌판은 역할 고정이라 첫째 진행자(글로벌 명세 6.4) */
 const defaultExplainer = (): string => (pipelineLocale() === "en" ? speakerNames()[0] : "이음");
@@ -30,13 +31,18 @@ export async function runPackage(job: Job) {
   const rel = `episodes/${episodeId}`;
   await pullPrefix(`${rel}/`);
   const row = await pool.query(
-    "select b.summary, b.status, e.one_liner, e.script_key, e.claims_key, e.sources_key, e.qa_report_key, e.critic_report_key, e.audio_master_key, e.audio_dist_key, e.thumbnail_key from public.backlog b join public.episodes e on e.backlog_id = b.id where b.id = $1 and e.id = $2",
+    "select b.summary, b.status, e.one_liner, e.script_key, e.claims_key, e.sources_key, e.qa_report_key, e.critic_report_key, e.audio_master_key, e.audio_dist_key, e.thumbnail_key, e.critic_verdicts from public.backlog b join public.episodes e on e.backlog_id = b.id where b.id = $1 and e.id = $2",
     [backlogId, episodeId],
   );
   const r = row.rows[0];
   if (!r) throw new Error(`백로그-에피소드 조인 실패: ${backlogId}/${episodeId}`);
   if (!["qa_passed", "packaged", "review_required"].includes(r.status) && r.status !== "published") {
     throw new Error(`패키지는 qa_passed 이후에만 (현재: ${r.status}) — 불변 원칙 6`);
+  }
+  // 글로벌판(명세 6.10): 에이전트 판정이 발행 가능이고 필수 수정이 전부 반영된 편만 패키지를 만든다. 이미 발행된 편의 재패키지(재발행)는 막지 않는다. 한국판은 타지 않는다
+  if (pipelineLocale() === "en" && r.status !== "published") {
+    const blockers = agentGateBlockers(r.critic_verdicts);
+    if (blockers.length) throw new Error(`패키지 중단 — ${blockers.join(" · ")} (글로벌 명세 6.10)`);
   }
 
   // 글로벌판(KAN-202, global-api 4.9 · 글로벌 명세 6.9): 주제 1~2개(대표 먼저)와 market·language 를 싣는다 — 콘솔이 발행 payload 로 옮긴다. 한국판은 키를 더하지 않는다
