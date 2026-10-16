@@ -14,7 +14,7 @@
 | 관련 | [KAN-216](https://runtime364.atlassian.net/browse/KAN-216)(FE 동의 화면 — 이 티켓이 막는다) · [KAN-212](https://runtime364.atlassian.net/browse/KAN-212)(GLOBAL 약관 버전) |
 | 근거 문서 | `spec/api/global-api.md` 2.1·4.1 · 랜딩 영어 처리방침 6장 |
 | 중요도 | Medium |
-| 상태 | 진행 중 — 서버 구현 PR 리뷰 |
+| 상태 | 완료 (2026-10-16) |
 
 ## 왜
 해외 사용자 정보는 서울 서버와 해외 외부 서비스(Expo·Sentry·Firebase·Meta 등, 미국)로 넘어간다. 싱가포르·인도네시아·태국은 국외 이전에 이용자 동의를 받는 것이 가장 쉬운 근거다(2026-10-15 조사). 베트남은 공개 국가에서 제외했다.
@@ -42,3 +42,4 @@
   - 동의 배열 최대 4 → 5(동의 종류 수). 종전 4라면 GLOBAL 가입(필수 4 + 마케팅)이 400이었다.
   - 문서 `changes/pending/global-cross-border-consent-backend.md`(FE 제안 "정할 것" 4개에 대한 답 포함).
   - 테스트: 단위 1828 · e2e 124 통과(새 `signup-consents.e2e-spec.ts` 6건, 리뷰 반영으로 로그인 목록·재조회 토큰 검증 단위 테스트 추가). GLOBAL 필수 목록에서 국외 이전을 빼면 단위 4·e2e 3건이 실패함을 확인.
+- 2026-10-16 완료 — 반영 날짜 2026-10-16. PR #1609 dev 머지·CI(lint·build·단위·e2e) 통과, 개발계 배포 확인(마이그레이션 `WidenConsentType1790300000000` 적용·`consent_type` 32자, `POST /auth/sign-up/consents` 위조 토큰 401). 완료 조건은 e2e `signup-consents.e2e-spec.ts`로 확인했다(GLOBAL 필수 국외 이전·누락 400·KR 목록 불변·재조회·스위치 닫힘·기존 GLOBAL 재동의). 운영은 글로벌 가입 스위치가 닫혀 있어 동작 변화가 없다. `archive/`로 이동, Jira 완료.
