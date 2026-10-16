@@ -10,7 +10,7 @@
 | 발행 날짜 | 2026-10-14 |
 | 시작 날짜 | 2026-10-14 |
 | 기한 | 2026-10-23 (Medium 환산은 발행+3일(10-17)이나 선행 티켓 뒤 착수라 10일 계획의 마일스톤 날짜로 적음) |
-| 선행 | [KAN-187](https://runtime364.atlassian.net/browse/KAN-187)~[KAN-192](https://runtime364.atlassian.net/browse/KAN-192) 전부 · FE [KAN-198](https://runtime364.atlassian.net/browse/KAN-198) 글로벌 빌드(개발계 TestFlight) · 사람 손: 법무 영어 약관·개인정보처리방침(10일 안에 없으면 Apple 표준 EULA + 영어 처리방침 초안) |
+| 선행 | [KAN-187](https://runtime364.atlassian.net/browse/KAN-187)~[KAN-192](https://runtime364.atlassian.net/browse/KAN-192) 전부 · FE [KAN-198](https://runtime364.atlassian.net/browse/KAN-198) 글로벌 빌드(개발계 TestFlight) · AI [KAN-204](https://runtime364.atlassian.net/browse/KAN-204) GLOBAL 콘텐츠 발행(대기 — 2026-10-16 추가) · 사람 손: 법무 영어 약관·개인정보처리방침(영어판 랜딩 게시 완료 2026-10-15) · 운영 GLOBAL 주제 노출(대기) · 개발계 Secrets `GLOBAL_SIGNUP_ENABLED`·`DRIP_TIMEZONE_GROUPS_ENABLED`=true(대기) |
 | 관련 | AI 발행(AI 5번)과 같은 날 개발계에서 교차 확인 |
 | 근거 문서 | **`spec/api/global-api.md` 6장 흐름 · 7장** — 구현은 이 문서를 따르고, 계약이 바뀌면 티켓이 아니라 이 문서를 고친다 · 2026-10-14 글로벌화 조사 |
 | 중요도 | Medium |
@@ -41,3 +41,4 @@
 - 2026-10-14 발행(마크다운 + Jira). 묶음 티켓 분할.
 - 2026-10-14 연령 등급 재설문을 KAN-207으로 분리.
 - 2026-10-14 Sentry `market` 태그 — PR `feat(be)/sentry-market-tag`. 로그인 요청의 error 등급 이벤트에 `market` 태그(비로그인은 태그 없음), 요청 종료 로그·예외 로그에 `market` 필드(`convention.md` 8.3 표 갱신). 대시보드는 나누지 않는다.
+- 2026-10-16 영어 기기 E2E 실측 시점 결정(박준현) — **GLOBAL 콘텐츠가 준비되면 한 번에** 한다. 지금은 개발계 GLOBAL 주제 8개가 전부 숨김이고 GLOBAL 콘텐츠가 0편이라, 스위치를 켜도 English 가입자는 온보딩(주제 0개)에서 멈춘다. 주제 노출은 운영 → 개발계 동기화를 따르므로 운영에서 바꿔야 한다. 실측 범위: 가입(A21 English) → 국외 이전 동의·나라별 연령(KAN-215·220) → 온보딩 → 피드·재생 → 영어 요금제 문구(#1629) → 시간대 그룹 드립·영어 푸시(KAN-191). 선행: AI KAN-204(GLOBAL 발행) · 운영 GLOBAL 주제 노출 · 개발계 Secrets `GLOBAL_SIGNUP_ENABLED=true`·`DRIP_TIMEZONE_GROUPS_ENABLED=true`(사람 손 — 대기).
