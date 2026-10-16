@@ -317,7 +317,7 @@ export class LibraryService {
    * 기준(`drip-feedback.md` 4.1). 탐험 편은 묻지 않으므로 보지 않는다. **삭제분도 포함해 찾는다** — 최근 편성분을
    * 전부 지웠으면 그 전 편성분으로 거슬러 올라가지 않고 묻지 않아야 한다(7장). 지운 편을 팝업에서 빼는 것은
    * `findPlacedBetween`의 몫이다. **알고리즘 버전이 찍힌 편성분만 본다** — 온보딩 직후의 첫 드립은 버전이 없고
-   * 별점을 묻지 않는다(4.1-2)
+   * 별점을 묻지 않는다(4.1-3)
    */
   async findLatestDripPlacedBefore(
     userId: string,

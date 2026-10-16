@@ -9,6 +9,7 @@ import { AppModule } from '@/app.module';
 import { ErrorCode } from '@/common/exceptions/error-code.enum';
 import { traceIdMiddleware } from '@/common/middlewares/trace-id.middleware';
 import {
+  shiftServiceDate,
   toServiceDate,
   toServiceDayRange,
 } from '@/common/utils/service-date.util';
@@ -174,7 +175,7 @@ describe('추천 별점 E2E', () => {
     );
   }, 60_000);
 
-  it('닫기는 그 편성분을 다시 묻지 않게 하고, 새 편성분이 생기면 다시 묻는다', async () => {
+  it('닫기는 그 편성분을 다시 묻지 않게 하고, 7일 안의 새 편성분도 묻지 않다가 7일이 지난 편성분이면 다시 묻는다', async () => {
     const { userId, auth } = await createUser('dismiss');
     await place(userId, [contentIds[0]], placedAt(2), 'e2e-v1');
 
@@ -192,8 +193,18 @@ describe('추천 별점 E2E', () => {
     ).body as PromptBody;
     expect(closed.show).toBe(false);
 
-    // 새 편성(어제)이 생기면 그것을 묻는다
+    // 새 편성(어제)이 생겨도 지난번에 물은 편성분에서 7일이 안 지났으면 묻지 않는다
     await place(userId, [contentIds[1]], placedAt(1), 'e2e-v1');
+    const tooSoon = (
+      await get('/users/me/drip-feedback/prompt', auth).expect(HttpStatus.OK)
+    ).body as PromptBody;
+    expect(tooSoon.show).toBe(false);
+
+    // 지난번에 물은 편성분이 어제보다 7일 전이었다면 어제 편성분을 묻는다
+    await dataSource.query(
+      `UPDATE user_settings SET drip_feedback_last_prompted_date = $2 WHERE user_id = $1`,
+      [userId, shiftServiceDate(toServiceDate(placedAt(1)), -7)],
+    );
     const again = (
       await get('/users/me/drip-feedback/prompt', auth).expect(HttpStatus.OK)
     ).body as PromptBody;
@@ -289,6 +300,18 @@ describe('추천 별점 E2E', () => {
     });
   }, 60_000);
 
+  it('가입 3일째까지는 묻지 않는다 — 가입일이 1일째', async () => {
+    const { userId, auth } = await createUser('fresh', 0);
+    await place(userId, [contentIds[0]], placedAt(1), 'e2e-v1');
+
+    const prompt = (
+      await get('/users/me/drip-feedback/prompt', auth).expect(HttpStatus.OK)
+    ).body as PromptBody;
+
+    expect(prompt.show).toBe(false);
+    expect(prompt.items).toEqual([]);
+  }, 60_000);
+
   it('편성분이 없는 사용자는 묻지 않는다', async () => {
     const { auth } = await createUser('none');
 
@@ -316,6 +339,8 @@ describe('추천 별점 E2E', () => {
 
   async function createUser(
     label: string,
+    // 가입 4일째부터 묻는다 — 기본은 한 달 전 가입으로 옮겨 그 조건을 넘긴다
+    signedUpDaysAgo = 30,
   ): Promise<{ userId: string; auth: string; providerToken: string }> {
     const providerToken = `e2e-df-${label}-${Date.now()}-${Math.floor(Math.random() * 1_000_000)}`;
     const deviceId = `e2e-df-device-${label}`;
@@ -343,6 +368,10 @@ describe('추천 별점 E2E', () => {
       .expect(HttpStatus.CREATED);
     const signUpBody = signUp.body as SignUpBody;
     userIds.push(signUpBody.user.id);
+    await dataSource.query(
+      `UPDATE users SET created_at = now() - make_interval(days => $2) WHERE id = $1`,
+      [signUpBody.user.id, signedUpDaysAgo],
+    );
 
     return {
       userId: signUpBody.user.id,
