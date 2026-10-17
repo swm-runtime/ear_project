@@ -103,11 +103,11 @@ test("발음 등재 추가 — 한국판 종전 그대로, 글로벌판은 빈 �
   assert.deepEqual(addPronunciations({ Hanbok: "", jeong: "jung" }, [{ term: "hanbok", reading: "hahn-bok" }, { term: "Jeong", reading: "WRONG" }, { term: " nunchi ", reading: "" }], "en"), { Hanbok: "hahn-bok", jeong: "jung", nunchi: "" });
 });
 
-test("글로벌 규칙 자산 — 버전 라벨 full-en-v0.10, 모델에 가는 본문에 한글이 없고 규칙 50개, 템플릿 문서와 같은 슬롯", async () => {
+test("글로벌 규칙 자산 — 버전 라벨 full-en-v0.11, 모델에 가는 본문에 한글이 없고 규칙 50개, 템플릿 문서와 같은 슬롯", async () => {
   const { versionOf } = await import("../assets.js");
   const root = path.resolve(import.meta.dirname, "../../../../../docs/ai/global");
   const g = await fs.readFile(path.join(root, "skills/draft/guidelines.gpt.md"), "utf8");
-  assert.equal(versionOf("skills/draft/guidelines.gpt.md", g), "full-en-v0.10");
+  assert.equal(versionOf("skills/draft/guidelines.gpt.md", g), "full-en-v0.11");
   assert.equal(versionOf("skills/draft/guidelines.md", "# x\n\n> 현행 버전: **full-v9.10**"), "full-v9.10"); // 한국판 라벨 그대로
   const body = P.promptBody(g);
   assert.doesNotMatch(body, HANGUL);
@@ -138,7 +138,7 @@ test("비평(en) — 루브릭 critic-en 본문 한글 없음, 하위 항목 12�
   const { versionOf } = await import("../assets.js");
   const root = path.resolve(import.meta.dirname, "../../../../../docs/ai/global");
   const rb = await fs.readFile(path.join(root, "skills/critic/rubric-v2.md"), "utf8");
-  assert.equal(versionOf("skills/critic/rubric-v2.md", rb), "critic-en-v0.7");
+  assert.equal(versionOf("skills/critic/rubric-v2.md", rb), "critic-en-v0.8");
   const body = P.promptBody(rb, { dropSections: [/^## 0\./] });
   assert.doesNotMatch(body, HANGUL);
   assert.doesNotMatch(body, /Change history/);
@@ -172,12 +172,28 @@ test("주제 기획·보강(en) — 검색·판정 프롬프트와 스키마에 
 
 test("설계 프롬프트(en)는 백로그의 내부 값(역할·축 유형)을 영어로 보여 준다", () => {
   en();
-  const c = { ...cand, axis_type: "대립", gaps: ["반론·한계"], sources: [{ ...cand.sources[0], roles: ["근거 앵커"] }] } as typeof cand;
+  const c = { ...cand, axis_type: "대립", gaps: ["생활 관행", "반론·한계"], sources: [{ ...cand.sources[0], roles: ["근거 앵커"] }] } as typeof cand;
   const p = P.buildDesignPromptInlinePartsEn({ episodeId: "G1", candidate: c, promptVersion: "v", guidelines, specScript: "", goldFullEum: "", goldFullYuna: "", sources: [] });
   assert.doesNotMatch(p.user, HANGUL);
   assert.match(p.user, /\[contrast\] Kimjang looks like cooking/);
   assert.match(p.user, /korea\.net: anchor/);
-  assert.match(p.user, /Empty roles: counterpoint/);
+  assert.match(p.user, /Empty roles: practice —/); // 선택 역할(반론·한계)은 빈 역할로 보이지 않는다
+});
+
+// 2026-10-17 소개형 전환 — 생활 관행 역할 · 질문형 축 · 반론·한계·수치·조사는 선택 역할
+test("글로벌 소개형: 질문형 축과 생활 관행은 내부 값으로 바뀌고, 선택 역할은 빈 역할이 되지 않는다", () => {
+  en();
+  const out = P.judgeToInternal({ candidates: [{ axis_type: "question", verdict: "holds", gaps: ["practice"], sources: [{ m: "M1", roles: ["anchor", "practice"], why: "w" }] }] });
+  assert.equal(out.candidates?.[0].axis_type, "질문");
+  assert.deepEqual(out.candidates?.[0].gaps, ["생활 관행"]);
+  assert.deepEqual(out.candidates?.[0].sources[0].roles, ["근거 앵커", "생활 관행"]);
+  assert.deepEqual(P.globalGaps(["반론·한계", "사례", "수치·조사", "생활 관행"]), ["사례", "생활 관행"]);
+  const gapsEnum = P.CLUSTER_SCHEMA_V2_EN.properties.candidates.items.properties.gaps.items.enum as readonly string[];
+  assert.deepEqual([...gapsEnum], ["anchor", "case", "practice", "context"]);
+  assert.ok((P.CLUSTER_SCHEMA_V2_EN.properties.candidates.items.properties.axis_type.enum as readonly string[]).includes("question"));
+  const judge = P.buildTopicJudgePromptEn({ midTopics: ["K-Food"], nextIdNumber: 1, sources: [], existingTitles: [], specBacklogExcerpt: "", seed: { id: "C1", topic: "Seaweed soup", hint: null, midTopic: "K-Food" } });
+  assert.match(judge, /four forms: question/);
+  assert.match(judge, /Never list counterpoint or numbers in gaps/);
 });
 
 test("판정(en) — 도메인 등급 표시·앵커는 1군만, 보조 주제 후보, 사건형은 History & Society 만, 보강은 축 유지, 국문 개인 출판 제외", () => {
