@@ -347,8 +347,16 @@ export class ContentService {
     now: Date,
     market: UserMarket,
     manager?: EntityManager,
+    /** 시리즈 카드 모드(KAN-134) — 시리즈마다 가장 최신 편 하나만 */
+    seriesAnchorsOnly = false,
   ): Promise<Content[]> {
-    return this.contentRepository.findRecent(limit, now, market, manager);
+    return this.contentRepository.findRecent(
+      limit,
+      now,
+      market,
+      manager,
+      seriesAnchorsOnly,
+    );
   }
 
   /**

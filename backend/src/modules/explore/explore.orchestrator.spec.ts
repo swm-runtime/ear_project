@@ -1,4 +1,7 @@
+import { ConfigService } from '@nestjs/config';
 import { DataSource } from 'typeorm';
+
+import { EnvironmentVariables } from '@/config/env.validation';
 
 import { BusinessException } from '@/common/exceptions/business.exception';
 import { ErrorCode } from '@/common/exceptions/error-code.enum';
@@ -35,6 +38,7 @@ import {
 } from './explore.cursor';
 import { ExploreSectionKey, SaveReason } from './explore.enum';
 import { ExploreOrchestrator } from './explore.orchestrator';
+import { ExploreItemView, ExploreListItemView } from './explore.types';
 import { UserMarket } from '@/modules/user/user.enum';
 
 const NOW = new Date('2026-08-05T09:00:00.000Z');
@@ -112,6 +116,24 @@ async function catchError(
   }
 
   throw new Error('예외가 발생하지 않았다');
+}
+
+/** 시리즈 카드 스위치만 읽는 ConfigService 대역 — 기본은 꺼짐(종전 응답) */
+function configWith(
+  seriesCards?: string,
+): ConfigService<EnvironmentVariables, true> {
+  return {
+    get: (key: string) =>
+      key === 'SERIES_EXPLORE_CARDS_ENABLED' ? seriesCards : undefined,
+  } as unknown as ConfigService<EnvironmentVariables, true>;
+}
+
+/** 콘텐츠 행으로 좁힌다 — 스위치가 꺼져 있으면 시리즈 카드는 나오지 않는다 */
+function asContent(item: ExploreListItemView): ExploreItemView {
+  if (item.type === 'series') {
+    throw new Error('시리즈 카드가 나왔다');
+  }
+  return item;
 }
 
 describe('ExploreOrchestrator', () => {
@@ -209,6 +231,7 @@ describe('ExploreOrchestrator', () => {
       dataSource,
       searchQueryLogService,
       seriesService,
+      configWith(),
     );
   });
 
@@ -306,10 +329,9 @@ describe('ExploreOrchestrator', () => {
       const interest = result.sections.find(
         (section) => section.key === ExploreSectionKey.INTEREST,
       );
-      expect(interest?.items.map((item) => item.content.id)).toEqual([
-        OTHER_CONTENT_ID,
-        CONTENT_ID,
-      ]);
+      expect(interest?.items.map((item) => asContent(item).content.id)).toEqual(
+        [OTHER_CONTENT_ID, CONTENT_ID],
+      );
     });
 
     it('임베딩·취향 벡터가 없으면 주제 가중치와 인기순으로 종전과 같이 정렬한다', async () => {
@@ -338,10 +360,9 @@ describe('ExploreOrchestrator', () => {
       const interest = result.sections.find(
         (section) => section.key === ExploreSectionKey.INTEREST,
       );
-      expect(interest?.items.map((item) => item.content.id)).toEqual([
-        OTHER_CONTENT_ID,
-        CONTENT_ID,
-      ]);
+      expect(interest?.items.map((item) => asContent(item).content.id)).toEqual(
+        [OTHER_CONTENT_ID, CONTENT_ID],
+      );
     });
 
     it('선호도 캐시가 없는 사용자는 콜드스타트로 그린다', async () => {
@@ -377,7 +398,7 @@ describe('ExploreOrchestrator', () => {
       const result = await orchestrator.getFeed(USER_ID, NOW, UserMarket.KR);
 
       // then
-      const [item] = result.sections[0].items;
+      const item = asContent(result.sections[0].items[0]);
       expect(item.content.id).toBe(CONTENT_ID);
       expect(item.library).toEqual({
         itemId: 'item-1',
@@ -688,10 +709,9 @@ describe('ExploreOrchestrator', () => {
       );
 
       // then
-      expect(result.items.map((item) => item.content.series)).toEqual([
-        ref,
-        null,
-      ]);
+      expect(
+        result.items.map((item) => asContent(item).content.series),
+      ).toEqual([ref, null]);
     });
 
     it('다음 페이지가 있으면 마지막 항목 위치로 커서를 발급한다', async () => {
@@ -1258,6 +1278,259 @@ describe('ExploreOrchestrator', () => {
       expect(result.items).toHaveLength(0);
       expect(result.fallback).toBeNull();
       expect(topicService.findVisibleRelatedByName).not.toHaveBeenCalled();
+    });
+  });
+  describe('시리즈 카드 스위치 켬(SERIES_EXPLORE_CARDS_ENABLED=true — KAN-134 확정 설계 4번)', () => {
+    const SERIES_ID = '77777777-7777-4777-8777-777777777777';
+    const E1 = 'e1111111-1111-4111-8111-111111111111';
+    const E2 = 'e2222222-2222-4222-8222-222222222222';
+    let cards: ExploreOrchestrator;
+    const episode = (id: string, episodeNo: number) =>
+      buildContent(id, { seriesId: SERIES_ID, episodeNo });
+    const card = {
+      series: {
+        id: SERIES_ID,
+        title: '시리즈',
+        description: '소개',
+        totalEpisodes: 3,
+        status: 'completed',
+      },
+      coverThumbnailUrl: 'https://cdn/1.webp',
+      episodeCount: 3,
+      topicIds: [TOPIC_ID],
+    };
+
+    beforeEach(() => {
+      seriesService.findCards = jest
+        .fn()
+        .mockResolvedValue(new Map([[SERIES_ID, card]]));
+      cards = new ExploreOrchestrator(
+        contentService,
+        libraryService,
+        playbackService,
+        userInterestService,
+        topicService,
+        dripExclusionService,
+        preferenceVectorService,
+        new DripScoringService(),
+        {} as DataSource,
+        searchQueryLogService,
+        seriesService,
+        configWith('true'),
+      );
+    });
+
+    it('주제 목록 — 시리즈 대표 편만 달라고 묻고, 대표 편은 카드로 · 나머지는 type: content 행으로 낸다', async () => {
+      // given — 저장소가 대표 편(2화)과 단일 콘텐츠만 돌려준다(SQL 윈도)
+      contentService.findExplorePage.mockResolvedValue({
+        items: [
+          { content: episode(E2, 2), playCount: 9 },
+          {
+            content: buildContent(CONTENT_ID, { seriesId: null }),
+            playCount: 5,
+          },
+        ],
+        hasNext: false,
+      });
+
+      // when
+      const result = await cards.getContents(
+        USER_ID,
+        { topicIds: [TOPIC_ID], cursor: null, limit: 20 },
+        NOW,
+        UserMarket.KR,
+      );
+
+      // then
+      expect(contentService.findExplorePage).toHaveBeenCalledWith(
+        expect.objectContaining({ seriesAnchorsOnly: true }),
+      );
+      expect(result.items.map((item) => item.type)).toEqual([
+        'series',
+        'content',
+      ]);
+      expect(result.items[0]).toEqual({ type: 'series', card });
+      expect(asContent(result.items[1]).content.id).toBe(CONTENT_ID);
+      expect(seriesService.findCards).toHaveBeenCalledWith(
+        [SERIES_ID],
+        NOW,
+        UserMarket.KR,
+      );
+    });
+
+    it('다음 커서는 꺼진 모드와 같은 모양이다 — 마지막 항목(대표 편)의 정렬 키뿐, 이미 낸 시리즈를 싣지 않는다', async () => {
+      // given
+      contentService.findExplorePage.mockResolvedValueOnce({
+        items: [{ content: episode(E2, 2), playCount: 9 }],
+        hasNext: true,
+      });
+
+      // when
+      const first = await cards.getContents(
+        USER_ID,
+        { topicIds: [TOPIC_ID], cursor: null, limit: 1 },
+        NOW,
+        UserMarket.KR,
+      );
+
+      // then
+      const payload = JSON.parse(
+        Buffer.from(first.nextCursor ?? '', 'base64url').toString('utf8'),
+      ) as Record<string, unknown>;
+      expect(Object.keys(payload).sort()).toEqual(['i', 'p', 'q', 't']);
+      expect(decodeExploreCursor(first.nextCursor ?? '', [TOPIC_ID])).toEqual({
+        playCount: 9,
+        publishedAt: episode(E2, 2).publishedAt,
+        id: E2,
+      });
+    });
+
+    it('검색은 시리즈 제목 일치와 대표 편만을 함께 묻는다', async () => {
+      // given
+      contentService.findSearchPage.mockResolvedValue({
+        items: [
+          {
+            content: episode(E1, 1),
+            score: 10,
+            titleSimilarity: 0.9,
+            playCount: 3,
+          },
+        ],
+        hasNext: false,
+      });
+
+      // when
+      const result = await cards.search(
+        USER_ID,
+        { query: '시리즈', topicIds: [], cursor: null, limit: 20 },
+        NOW,
+        UserMarket.KR,
+      );
+
+      // then
+      expect(contentService.findSearchPage).toHaveBeenCalledWith(
+        expect.objectContaining({
+          matchSeriesTitle: true,
+          seriesAnchorsOnly: true,
+        }),
+      );
+      expect(result.items).toEqual([{ type: 'series', card }]);
+      expect(result.fallback).toBeNull();
+    });
+
+    it('커서 페이지가 비면 대체 콘텐츠 없이 목록의 끝이다 — 대체 콘텐츠는 첫 페이지에만', async () => {
+      // given — 대표 편 기준 키셋이라 빈 커서 페이지는 진짜 끝일 때만 나온다
+      const cursor = encodeSearchCursor(
+        {
+          score: 10,
+          titleSimilarity: 0.9,
+          playCount: 3,
+          publishedAt: NOW,
+          id: E1,
+        },
+        '시리즈',
+        [],
+      );
+
+      // when
+      const result = await cards.search(
+        USER_ID,
+        { query: '시리즈', topicIds: [], cursor, limit: 20 },
+        NOW,
+        UserMarket.KR,
+      );
+
+      // then
+      expect(result).toMatchObject({
+        items: [],
+        hasNext: false,
+        fallback: null,
+      });
+    });
+
+    it('스위치가 꺼져 있으면 조회 입력에 시리즈 키가 없고 항목에 type 키가 없다', async () => {
+      // given
+      contentService.findSearchPage.mockResolvedValue({
+        items: [
+          {
+            content: episode(E1, 1),
+            score: 10,
+            titleSimilarity: 0.9,
+            playCount: 3,
+          },
+          {
+            content: episode(E2, 2),
+            score: 10,
+            titleSimilarity: 0.8,
+            playCount: 2,
+          },
+        ],
+        hasNext: false,
+      });
+
+      // when
+      const result = await orchestrator.search(
+        USER_ID,
+        { query: '시리즈', topicIds: [], cursor: null, limit: 20 },
+        NOW,
+        UserMarket.KR,
+      );
+
+      // then
+      expect(result.items).toHaveLength(2);
+      expect(result.items.every((item) => !('type' in item))).toBe(true);
+      const [searchQuery] = contentService.findSearchPage.mock.calls[0];
+      expect(searchQuery).not.toHaveProperty('matchSeriesTitle');
+      expect(searchQuery).not.toHaveProperty('seriesAnchorsOnly');
+    });
+
+    it('피드 — 인기·새로 나온 섹션은 SQL 대표 편으로 10건, 관심사·주제별은 넉넉히 읽어 접는다', async () => {
+      // given — 주제별 후보 30건 중 시리즈 편 12건(앞쪽) + 단일 18건
+      userInterestService.findActiveTopicIds.mockResolvedValue([TOPIC_ID]);
+      topicService.findAllByIds.mockResolvedValue([
+        { id: TOPIC_ID, name: '커리어' } as Topic,
+      ]);
+      const candidates = [
+        ...Array.from({ length: 12 }, (_, index) =>
+          episode(
+            `00000000-0000-4000-8000-0000000000${String(index).padStart(2, '0')}`,
+            index + 1,
+          ),
+        ),
+        ...Array.from({ length: 18 }, (_, index) =>
+          buildContent(
+            `10000000-0000-4000-8000-0000000000${String(index).padStart(2, '0')}`,
+            { seriesId: null },
+          ),
+        ),
+      ];
+      contentService.findCandidates.mockResolvedValue(candidates);
+
+      // when
+      const result = await cards.getFeed(USER_ID, NOW, UserMarket.KR);
+
+      // then
+      expect(contentService.findRecent).toHaveBeenCalledWith(
+        10,
+        NOW,
+        UserMarket.KR,
+        undefined,
+        true,
+      );
+      expect(contentService.findPopularPage).toHaveBeenCalledWith(
+        expect.objectContaining({ limit: 10, seriesAnchorsOnly: true }),
+      );
+      expect(contentService.findCandidates).toHaveBeenCalledWith(
+        expect.objectContaining({ includeTopicIds: [TOPIC_ID], limit: 30 }),
+      );
+      const section = result.sections.find(
+        (candidate) => candidate.key === ExploreSectionKey.TOPIC_GROUP,
+      );
+      expect(section?.items).toHaveLength(10);
+      expect(section?.items[0]).toEqual({ type: 'series', card });
+      expect(
+        section?.items.filter((item) => item.type === 'series'),
+      ).toHaveLength(1);
     });
   });
 });

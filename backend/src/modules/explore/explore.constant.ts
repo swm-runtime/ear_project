@@ -9,6 +9,12 @@ import { ExploreSectionKey } from './explore.enum';
 export const EXPLORE_SECTION_ITEM_COUNT = 10;
 
 /**
+ * 시리즈 카드 모드의 관심사·주제별 섹션 후보 배수 — 이 두 섹션은 메모리에서 다시 줄 세우거나(개인 적합도) 후보 조회를 그대로 써서
+ * SQL이 대표 편을 고를 수 없다. 접고도 `EXPLORE_SECTION_ITEM_COUNT`를 채우게 미리 넉넉히 읽는다
+ */
+export const SERIES_CARD_SECTION_OVERFETCH = 3;
+
+/**
  * 관심사 섹션을 다시 정렬하기 전에 읽어 오는 후보 수.
  *
  * 인기·신선도 순 상위 이만큼을 읽어 **선호도 캐시의 개인 적합도로 재정렬한다**
