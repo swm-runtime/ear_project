@@ -14,7 +14,7 @@ import { User } from '../entities/user.entity';
 import { UserService } from './user.service';
 import { UserWithdrawalService } from './user-withdrawal.service';
 import { WithdrawalLogRepository } from '../repositories/withdrawal-log.repository';
-import { WithdrawalReason } from '../user.enum';
+import { UserMarket, WithdrawalReason } from '../user.enum';
 import { WithdrawUserCommand } from '../user.types';
 
 const USER_ID = '22222222-2222-4222-8222-222222222222';
@@ -217,15 +217,28 @@ describe('UserWithdrawalService', () => {
       expect(userService.deleteById).toHaveBeenCalledWith(USER_ID, {});
     });
 
-    it('탈퇴하면 결제 이력과 무관하게 탈퇴 로그를 남긴다', async () => {
-      // given
+    it('탈퇴하면 결제 이력과 무관하게 탈퇴 로그를 남긴다 — 탈퇴 당시 시장과 함께', async () => {
+      // given — GLOBAL 사용자
       subscriptionService.hasPaymentHistory.mockResolvedValue(false);
+      userService.getByIdForUpdate.mockResolvedValue({
+        ...buildUser(),
+        market: UserMarket.GLOBAL,
+      });
 
       // when
       await service.withdraw(command, NOW);
 
-      // then
+      // then — 시장은 남기지만 사용자 id 는 남기지 않는다(해시만)
       expect(withdrawalLogRepository.save).toHaveBeenCalledTimes(1);
+      const [log] = withdrawalLogRepository.save.mock.calls[0] as unknown as [
+        Record<string, unknown>,
+      ];
+      expect(log).toMatchObject({
+        market: UserMarket.GLOBAL,
+        reasonCode: WithdrawalReason.LOW_USAGE,
+      });
+      expect(log).not.toHaveProperty('userId');
+      expect(JSON.stringify(log)).not.toContain(USER_ID);
     });
   });
 

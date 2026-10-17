@@ -11,8 +11,8 @@ import { UserMarket } from '@/modules/user/user.enum';
  *   가입은 `POST /auth/sign-up` 을 반드시 거치므로 서버 건수가 정확하다. 현재 가입자 수는 `users` 행 수다 —
  *   탈퇴는 행을 지우므로 필터가 필요 없다(`admin-api.md` 의 `current` 와 같은 정의).
  * - **시장별**(2026-10-17 — 글로벌 출시 대비) — 가입자를 `users.market`으로 나누고, 보고일의 **서버 청취**
- *   (`play_records` — 청취자·재생·청취 시간)를 시장별로 센다. GA4 이벤트에는 시장이 없어 서버 값으로만 가른다. 탈퇴는
- *   `withdrawal_logs`에 시장이 없어 나누지 않는다.
+ *   (`play_records` — 청취자·재생·청취 시간)를 시장별로 센다. GA4 이벤트에는 시장이 없어 서버 값으로만 가른다. 탈퇴도
+ *   `withdrawal_logs.market`(탈퇴 당시 시장)으로 나눈다.
  * - **탈퇴**(이탈 보고, 2026-10-15) — `withdrawal_logs` 의 사유 코드별 건수. 건마다 오던 탈퇴 알림을 대신한다.
  *   사용자 행은 지워져도 이 로그는 남는다(`domain.md` 3.4). 직접 입력 사유 원문은 가져오지 않는다 — 분포만 본다.
  *
@@ -44,7 +44,11 @@ export type MarketDaily = {
   listenSec: number;
 };
 
-export type WithdrawalCount = { reasonCode: string | null; count: number };
+export type WithdrawalCount = {
+  market: UserMarket;
+  reasonCode: string | null;
+  count: number;
+};
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -69,11 +73,13 @@ export class DailyMetricsDbService {
           group by market`,
         [start, end],
       ),
-      this.dataSource.query<{ reason_code: string | null; count: number }[]>(
-        `select reason_code, count(*)::int as count
+      this.dataSource.query<
+        { market: UserMarket; reason_code: string | null; count: number }[]
+      >(
+        `select market, reason_code, count(*)::int as count
            from withdrawal_logs
           where withdrawn_at >= $1 and withdrawn_at < $2
-          group by reason_code`,
+          group by market, reason_code`,
         [start, end],
       ),
       // 재생을 시작한 시각(`played_at` — 그 재생 행이 생긴 순간)으로 자른다. 청취 시간은 그 행에 쌓이므로, 자정을 넘겨
@@ -112,6 +118,7 @@ export class DailyMetricsDbService {
       totalUsers: markets.reduce((sum, m) => sum + m.totalUsers, 0),
       markets,
       withdrawals: withdrawals.map((r) => ({
+        market: r.market,
         reasonCode: r.reason_code,
         count: r.count,
       })),
