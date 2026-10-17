@@ -243,6 +243,8 @@ export interface SearchPageQuery {
   normalizedQuery: string;
   /** `#`으로 시작한 질의 — 태그 정확 일치만 결과로 낸다(KAN-218) */
   tagOnly: boolean;
+  /** 시리즈 제목 일치도 결과로 낸다 — 탐색 시리즈 카드 스위치가 켜졌을 때만(KAN-134). 생략·false면 종전 그대로 */
+  matchSeriesTitle?: boolean;
   /** 검색 결과에 주제 필터를 겹칠 때(explore-api.md 4.5). 비우면 조건을 적용하지 않는다 */
   topicIds: string[];
   cursor: SearchCursorPosition | null;

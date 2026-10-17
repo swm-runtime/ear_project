@@ -1,7 +1,9 @@
 import { HttpStatus, Injectable } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { DataSource, EntityManager } from 'typeorm';
 
 import { BusinessException } from '@/common/exceptions/business.exception';
+import { EnvironmentVariables } from '@/config/env.validation';
 import { ErrorCode } from '@/common/exceptions/error-code.enum';
 import {
   hasSearchableCharacter,
@@ -36,6 +38,7 @@ import {
   MIN_SEARCH_QUERY_LENGTH,
   SEARCH_FALLBACK_POPULAR_COUNT,
   SEARCH_FALLBACK_RELATED_TOPIC_COUNT,
+  SERIES_CARD_SECTION_OVERFETCH,
 } from './explore.constant';
 import {
   decodeExploreCursor,
@@ -44,13 +47,17 @@ import {
   encodeExploreCursor,
   encodePopularCursor,
   encodeSearchCursor,
+  attachSeenSeries,
+  readSeenSeries,
 } from './explore.cursor';
+import { collectGroupedPage, groupBySeries } from './explore.series-grouping';
 import { ExploreSectionKey, SaveReason } from './explore.enum';
 import {
   ExploreContentListQuery,
   ExploreContentListResult,
   ExploreFeedResult,
   ExploreItemView,
+  ExploreListItemView,
   ExplorePopularListQuery,
   ExplorePopularListResult,
   ExploreSearchFallback,
@@ -92,7 +99,18 @@ export class ExploreOrchestrator {
     private readonly dataSource: DataSource,
     private readonly searchQueryLogService: SearchQueryLogService,
     private readonly seriesService: SeriesService,
-  ) {}
+    configService: ConfigService<EnvironmentVariables, true>,
+  ) {
+    // **`true`를 명시했을 때만 켠다**(env.validation.ts) — 1.2.x 앱은 `type: "series"` 항목을 모른다. 꺼져 있으면 응답이 이 기능
+    // 전과 바이트 단위로 같다(분기는 전부 이 값 하나로 갈린다)
+    this.seriesCardsEnabled =
+      configService
+        .get('SERIES_EXPLORE_CARDS_ENABLED', { infer: true })
+        ?.trim() === 'true';
+  }
+
+  /** 탐색 시리즈 카드(KAN-134 확정 설계 4번) 스위치 */
+  private readonly seriesCardsEnabled: boolean;
 
   /**
    * explore-api.md 4.1 — 탐색 탭 진입·당겨서 새로고침·포그라운드 복귀·플레이어 복귀가
@@ -117,6 +135,10 @@ export class ExploreOrchestrator {
 
     const isColdStart =
       (preference?.signalCount ?? 0) < COLD_START_COMPLETE_THRESHOLD;
+    // 시리즈 카드 모드는 섹션을 접은 뒤 10칸을 채우려고 넉넉히 읽는다. 꺼져 있으면 종전 그대로 10건이다
+    const sectionLimit = this.seriesCardsEnabled
+      ? EXPLORE_SECTION_ITEM_COUNT * SERIES_CARD_SECTION_OVERFETCH
+      : EXPLORE_SECTION_ITEM_COUNT;
 
     const [interestContents, recentContents, popularPage, topicGroups] =
       await Promise.all([
@@ -126,18 +148,19 @@ export class ExploreOrchestrator {
           isColdStart,
           now,
           market,
+          sectionLimit,
         ),
-        this.contentService.findRecent(EXPLORE_SECTION_ITEM_COUNT, now, market),
+        this.contentService.findRecent(sectionLimit, now, market),
         // 피드는 **기본 구간**으로만 만든다. 구간을 바꾸면 피드를 다시 부르지 않고
         // `getPopular`가 그 섹션만 갈아끼운다(`explore.md` 4.1-1)
         this.contentService.findPopularPage({
           market,
           periodType: DEFAULT_POPULAR_PERIOD,
           cursor: null,
-          limit: EXPLORE_SECTION_ITEM_COUNT,
+          limit: sectionLimit,
           now,
         }),
-        this.findTopicGroupDrafts(activeTopicIds, now, market),
+        this.findTopicGroupDrafts(activeTopicIds, now, market, sectionLimit),
       ]);
 
     const interest: ExploreSectionDraft = {
@@ -167,9 +190,16 @@ export class ExploreOrchestrator {
     // 중간에 있으면 스크롤을 내려야 만난다. 신호가 부족한 신규 사용자는 그 다음에도
     // **신규 섹션 비중을 높인다**(콜드스타트 — FR-17).
     // 클라이언트는 내려온 순서대로 그릴 뿐이다
-    const drafts = isColdStart
+    const ordered = isColdStart
       ? [popular, recent, interest, ...topicGroups]
       : [popular, interest, recent, ...topicGroups];
+    // 섹션마다 같은 시리즈 편을 카드 하나로 접는다 — 섹션 사이에서는 접지 않는다(콘텐츠도 섹션마다 겹쳐 나온다)
+    const drafts = this.seriesCardsEnabled
+      ? ordered.map((draft) => ({
+          ...draft,
+          contents: groupBySeries(draft.contents, EXPLORE_SECTION_ITEM_COUNT),
+        }))
+      : ordered;
 
     const [sections, quota] = await Promise.all([
       // 비어 있는 섹션은 내려주지 않는다 — 제목만 있고 아무것도 없는 줄을 그리게 된다.
@@ -178,6 +208,7 @@ export class ExploreOrchestrator {
         userId,
         drafts.filter((draft) => draft.contents.length > 0),
         now,
+        market,
       ),
       this.playbackService.buildQuotaForUser(userId, now),
     ]);
@@ -202,6 +233,10 @@ export class ExploreOrchestrator {
     now: Date,
     market: UserMarket,
   ): Promise<ExploreContentListResult> {
+    if (this.seriesCardsEnabled) {
+      return this.getContentsGrouped(userId, query, now, market);
+    }
+
     const page = await this.contentService.findExplorePage({
       market,
       topicIds: query.topicIds,
@@ -257,6 +292,10 @@ export class ExploreOrchestrator {
     now: Date,
     market: UserMarket,
   ): Promise<ExplorePopularListResult> {
+    if (this.seriesCardsEnabled) {
+      return this.getPopularGrouped(userId, query, now, market);
+    }
+
     const page = await this.contentService.findPopularPage({
       market,
       periodType: query.period,
@@ -389,6 +428,16 @@ export class ExploreOrchestrator {
     // 빈 커서(`cursor=`)도 첫 페이지다 — 세 판정(디코드·검색 로그·대체 콘텐츠)이 같은 기준을 써야 한다(2026-10-13)
     const isFirstPage = !query.cursor;
 
+    if (this.seriesCardsEnabled) {
+      return this.searchGrouped(
+        userId,
+        query,
+        { normalizedQuery, term, tagOnly, isFirstPage },
+        now,
+        market,
+      );
+    }
+
     const page = await this.contentService.findSearchPage({
       market,
       normalizedQuery: term,
@@ -484,17 +533,299 @@ export class ExploreOrchestrator {
       }),
     ]);
 
+    const popularContents = popularPage.items.map((ranked) => ranked.content);
+
     return {
       relatedTopics: relatedTopics.map((topic) => ({
         id: topic.id,
         name: topic.name,
       })),
-      popularItems: await this.decorate(
-        userId,
-        popularPage.items.map((ranked) => ranked.content),
-        now,
-      ),
+      popularItems: this.seriesCardsEnabled
+        ? await this.decorateGrouped(
+            userId,
+            groupBySeries(popularContents, SEARCH_FALLBACK_POPULAR_COUNT),
+            now,
+            market,
+          )
+        : await this.decorate(userId, popularContents, now),
     };
+  }
+
+  // ── 탐색 시리즈 카드(KAN-134 확정 설계 4번 — `SERIES_EXPLORE_CARDS_ENABLED`) ──────────────────────────
+
+  /**
+   * 주제 필터 목록의 시리즈 카드 모드. 정렬·커서 위치는 종전과 같고(편 단위 키셋), 같은 시리즈 편은 처음 만난 자리에서
+   * 카드 하나로 접는다. 앞 페이지까지 낸 시리즈는 커서의 `g`가 들고 다닌다(`collectGroupedPage`)
+   */
+  private async getContentsGrouped(
+    userId: string,
+    query: ExploreContentListQuery,
+    now: Date,
+    market: UserMarket,
+  ): Promise<ExploreContentListResult> {
+    const start = query.cursor
+      ? decodeExploreCursor(query.cursor, query.topicIds)
+      : null;
+    const seen = new Set(query.cursor ? readSeenSeries(query.cursor) : []);
+    const page = await collectGroupedPage(
+      (cursor) =>
+        this.contentService.findExplorePage({
+          market,
+          topicIds: query.topicIds,
+          cursor,
+          limit: query.limit,
+          now,
+        }),
+      start,
+      query.limit,
+      seen,
+      (row) => ({
+        playCount: row.playCount,
+        publishedAt: row.content.publishedAt,
+        id: row.content.id,
+      }),
+    );
+
+    const [items, quota] = await Promise.all([
+      this.decorateGrouped(
+        userId,
+        page.emitted.map((row) => row.content),
+        now,
+        market,
+      ),
+      this.playbackService.buildQuotaForUser(userId, now),
+    ]);
+    const last = page.lastScanned;
+
+    return {
+      items,
+      nextCursor:
+        page.hasNext && last
+          ? attachSeenSeries(
+              encodeExploreCursor(
+                {
+                  playCount: last.playCount,
+                  publishedAt: last.content.publishedAt,
+                  id: last.content.id,
+                },
+                query.topicIds,
+              ),
+              [...seen],
+            )
+          : null,
+      hasNext: page.hasNext,
+      quota,
+    };
+  }
+
+  /** 인기 목록의 시리즈 카드 모드 — 접는 규칙은 `getContentsGrouped`와 같다 */
+  private async getPopularGrouped(
+    userId: string,
+    query: ExplorePopularListQuery,
+    now: Date,
+    market: UserMarket,
+  ): Promise<ExplorePopularListResult> {
+    const start = query.cursor
+      ? decodePopularCursor(query.cursor, query.period)
+      : null;
+    const seen = new Set(query.cursor ? readSeenSeries(query.cursor) : []);
+    const page = await collectGroupedPage(
+      (cursor) =>
+        this.contentService.findPopularPage({
+          market,
+          periodType: query.period,
+          cursor,
+          limit: query.limit,
+          now,
+        }),
+      start,
+      query.limit,
+      seen,
+      (row) => ({
+        playCount: row.playCount,
+        completeCount: row.completeCount,
+        publishedAt: row.content.publishedAt,
+        id: row.content.id,
+      }),
+    );
+
+    const [items, quota] = await Promise.all([
+      this.decorateGrouped(
+        userId,
+        page.emitted.map((row) => row.content),
+        now,
+        market,
+      ),
+      this.playbackService.buildQuotaForUser(userId, now),
+    ]);
+    const last = page.lastScanned;
+
+    return {
+      period: query.period,
+      items,
+      nextCursor:
+        page.hasNext && last
+          ? attachSeenSeries(
+              encodePopularCursor(
+                {
+                  playCount: last.playCount,
+                  completeCount: last.completeCount,
+                  publishedAt: last.content.publishedAt,
+                  id: last.content.id,
+                },
+                query.period,
+              ),
+              [...seen],
+            )
+          : null,
+      hasNext: page.hasNext,
+      quota,
+    };
+  }
+
+  /**
+   * 검색의 시리즈 카드 모드 — **시리즈 제목 일치도 결과에 든다**(편 제목이 아니라 시리즈 제목이 맞는 편, 제목과 같은 가중).
+   * 접는 규칙은 `getContentsGrouped`와 같고, 검색 로그는 낸 항목(카드는 그 자리의 편) 기준이다.
+   */
+  private async searchGrouped(
+    userId: string,
+    query: ExploreSearchQuery,
+    parsed: {
+      normalizedQuery: string;
+      term: string;
+      tagOnly: boolean;
+      isFirstPage: boolean;
+    },
+    now: Date,
+    market: UserMarket,
+  ): Promise<ExploreSearchResult> {
+    const { normalizedQuery, term, tagOnly, isFirstPage } = parsed;
+    const start = query.cursor
+      ? decodeSearchCursor(query.cursor, normalizedQuery, query.topicIds)
+      : null;
+    const seen = new Set(query.cursor ? readSeenSeries(query.cursor) : []);
+    const page = await collectGroupedPage(
+      (cursor) =>
+        this.contentService.findSearchPage({
+          market,
+          normalizedQuery: term,
+          tagOnly,
+          matchSeriesTitle: true,
+          topicIds: query.topicIds,
+          cursor,
+          limit: query.limit,
+          now,
+        }),
+      start,
+      query.limit,
+      seen,
+      (row) => ({
+        score: row.score,
+        titleSimilarity: row.titleSimilarity,
+        playCount: row.playCount,
+        publishedAt: row.content.publishedAt,
+        id: row.content.id,
+      }),
+    );
+
+    if (isFirstPage) {
+      await this.searchQueryLogService.record(
+        {
+          userId,
+          normalizedQuery,
+          resultCount: page.emitted.length,
+          hasNext: page.hasNext,
+          topicFilterCount: query.topicIds.length,
+          resultContentIds: page.emitted.map((row) => row.content.id),
+        },
+        now,
+      );
+    }
+
+    if (page.emitted.length === 0) {
+      return {
+        items: [],
+        nextCursor: null,
+        hasNext: false,
+        fallback: isFirstPage
+          ? await this.buildSearchFallback(userId, term, now, market)
+          : null,
+      };
+    }
+
+    const items = await this.decorateGrouped(
+      userId,
+      page.emitted.map((row) => row.content),
+      now,
+      market,
+    );
+    const last = page.lastScanned;
+
+    return {
+      items,
+      nextCursor:
+        page.hasNext && last
+          ? attachSeenSeries(
+              encodeSearchCursor(
+                {
+                  score: last.score,
+                  titleSimilarity: last.titleSimilarity,
+                  playCount: last.playCount,
+                  publishedAt: last.content.publishedAt,
+                  id: last.content.id,
+                },
+                normalizedQuery,
+                query.topicIds,
+              ),
+              [...seen],
+            )
+          : null,
+      hasNext: page.hasNext,
+      fallback: null,
+    };
+  }
+
+  /**
+   * 이미 접힌 목록(시리즈 편은 카드 자리 하나뿐)을 항목으로 만든다 — 시리즈 편은 카드(`type: "series"`), 나머지는 콘텐츠 행
+   * (`type: "content"`). 카드 재료(표지·편 수·주제)는 시리즈 단위로 한 번에 읽는다. 사용자 시장에 노출 편이 없어 카드를 못 만든
+   * 시리즈(정상 상태에서는 없다 — 그 편 자체가 노출 중이다)는 편 행으로 둔다
+   */
+  private async decorateGrouped(
+    userId: string,
+    contents: Content[],
+    now: Date,
+    market: UserMarket,
+  ): Promise<ExploreListItemView[]> {
+    const cards = await this.seriesService.findCards(
+      contents
+        .map((content) => content.seriesId)
+        .filter((seriesId) => typeof seriesId === 'string'),
+      now,
+      market,
+    );
+    const cardOf = (content: Content) =>
+      typeof content.seriesId === 'string'
+        ? cards.get(content.seriesId)
+        : undefined;
+    const isCard = (content: Content) => cardOf(content) !== undefined;
+    const decorated = await this.decorate(
+      userId,
+      contents.filter((content) => !isCard(content)),
+      now,
+    );
+    const viewById = new Map(decorated.map((view) => [view.content.id, view]));
+
+    // 입력과 1:1이다(`decorate`가 콘텐츠마다 한 행을 만든다) — 섹션 조립이 같은 자리로 되짚는다
+    return contents.map((content): ExploreListItemView => {
+      const card = cardOf(content);
+      if (card) {
+        return { type: 'series', card };
+      }
+      return {
+        ...(viewById.get(content.id) as ExploreItemView),
+        type: 'content',
+      };
+    });
   }
 
   /**
@@ -609,6 +940,7 @@ export class ExploreOrchestrator {
     isColdStart: boolean,
     now: Date,
     market: UserMarket,
+    sectionLimit: number,
   ): Promise<Content[]> {
     if (activeTopicIds.length === 0) {
       return [];
@@ -626,7 +958,7 @@ export class ExploreOrchestrator {
     // **캐시 행이 없는 사용자(가입 직후·첫 배치 이전)도 여기로 들어온다** —
     // `signalCount`를 0으로 읽으므로 별도 폴백이 필요 없다
     if (isColdStart || pool.length === 0) {
-      return pool.slice(0, EXPLORE_SECTION_ITEM_COUNT);
+      return pool.slice(0, sectionLimit);
     }
 
     /**
@@ -651,7 +983,7 @@ export class ExploreOrchestrator {
 
     return this.dripScoringService
       .rankByPersonalFit(candidates, preference, now)
-      .slice(0, EXPLORE_SECTION_ITEM_COUNT)
+      .slice(0, sectionLimit)
       .map((candidate) => candidate.content);
   }
 
@@ -665,6 +997,7 @@ export class ExploreOrchestrator {
     activeTopicIds: string[],
     now: Date,
     market: UserMarket,
+    sectionLimit: number,
   ): Promise<ExploreSectionDraft[]> {
     if (activeTopicIds.length === 0) {
       return [];
@@ -685,7 +1018,7 @@ export class ExploreOrchestrator {
           const contents = await this.contentService.findCandidates({
             market,
             includeTopicIds: [topicId],
-            limit: EXPLORE_SECTION_ITEM_COUNT,
+            limit: sectionLimit,
             now,
           });
 
@@ -715,12 +1048,39 @@ export class ExploreOrchestrator {
     userId: string,
     drafts: ExploreSectionDraft[],
     now: Date,
+    market: UserMarket,
   ): Promise<ExploreSectionView[]> {
     if (drafts.length === 0) {
       return [];
     }
 
     const contents = drafts.flatMap((draft) => draft.contents);
+
+    if (this.seriesCardsEnabled) {
+      // 섹션은 이미 접혀 있다(`groupBySeries`) — 시리즈 편은 섹션마다 카드 자리 하나다
+      const unique = [
+        ...new Map(contents.map((content) => [content.id, content])).values(),
+      ];
+      const decoratedGrouped = await this.decorateGrouped(
+        userId,
+        unique,
+        now,
+        market,
+      );
+      const groupedByContentId = new Map(
+        unique.map((content, index) => [content.id, decoratedGrouped[index]]),
+      );
+
+      return drafts.map((draft) => ({
+        key: draft.key,
+        title: draft.title,
+        topic: draft.topic,
+        period: draft.period,
+        items: draft.contents
+          .map((content) => groupedByContentId.get(content.id))
+          .filter((item): item is ExploreListItemView => item !== undefined),
+      }));
+    }
     const decorated = await this.decorate(userId, contents, now);
     const itemByContentId = new Map(
       decorated.map((item) => [item.content.id, item]),

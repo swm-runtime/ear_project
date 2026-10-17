@@ -97,6 +97,19 @@ const SEARCH_SCORE = `(
 const SEARCH_SCORE_ALIAS = 'search_score';
 
 /**
+ * 시리즈 제목 일치(KAN-134 확정 설계 4번 — 탐색 시리즈 카드가 켜졌을 때만). 편 제목이 아니라 그 편이 속한 시리즈의 제목이
+ * 맞으면 편도 결과에 든다 — 탐색이 그 편들을 시리즈 카드 하나로 접는다. 가중은 제목과 같다(시리즈 제목은 편의 제목 계열이다)
+ */
+const SEARCH_MATCH_SERIES_TITLE = `EXISTS (
+  SELECT 1 FROM series matched_series
+  WHERE matched_series.id = content.series_id
+    AND matched_series.title ILIKE :searchPattern
+)`;
+const SEARCH_SCORE_WITH_SERIES = `(${SEARCH_SCORE}
+  + (CASE WHEN ${SEARCH_MATCH_SERIES_TITLE} THEN ${SEARCH_WEIGHT_TITLE} ELSE 0 END)
+)`;
+
+/**
  * 태그 전용 검색의 1순위 — 매칭이 곧 정확 일치라 필드 가중이 의미가 없다. 상수로 두고 동점 해소 체인
  * (제목 유사도 → 인기 → 신선도)만 쓴다. 커서 모양은 부분 일치와 같게 유지한다.
  */
@@ -535,7 +548,11 @@ export class ContentRepository {
     monthPeriodStart: string,
     manager?: EntityManager,
   ): Promise<RankedSearchContent[]> {
-    const score = query.tagOnly ? TAG_ONLY_SEARCH_SCORE : SEARCH_SCORE;
+    const score = query.tagOnly
+      ? TAG_ONLY_SEARCH_SCORE
+      : query.matchSeriesTitle
+        ? SEARCH_SCORE_WITH_SERIES
+        : SEARCH_SCORE;
     const builder = this.applyVisibility(
       this.scoped(manager)
         .createQueryBuilder('content')
@@ -556,7 +573,9 @@ export class ContentRepository {
     ).andWhere(
       query.tagOnly
         ? SEARCH_MATCH_TAG_EXACT
-        : `(${SEARCH_MATCH_TITLE} OR ${SEARCH_MATCH_TAG} OR ${SEARCH_MATCH_AUTHOR} OR ${SEARCH_MATCH_TOPIC} OR ${SEARCH_MATCH_DESCRIPTION})`,
+        : `(${SEARCH_MATCH_TITLE} OR ${SEARCH_MATCH_TAG} OR ${SEARCH_MATCH_AUTHOR} OR ${SEARCH_MATCH_TOPIC} OR ${SEARCH_MATCH_DESCRIPTION}${
+            query.matchSeriesTitle ? ` OR ${SEARCH_MATCH_SERIES_TITLE}` : ''
+          })`,
     );
 
     builder.setParameters({
@@ -715,14 +734,29 @@ export class ContentRepository {
     market: UserMarket,
     manager?: EntityManager,
   ): Promise<Content[]> {
+    return this.findVisibleBySeriesIds([seriesId], now, market, manager);
+  }
+
+  /** 여러 시리즈의 노출 중인 편 — 시리즈 → 편 번호순. 탐색 시리즈 카드(표지·편 수·주제)의 재료를 한 번에 읽는다 */
+  async findVisibleBySeriesIds(
+    seriesIds: string[],
+    now: Date,
+    market: UserMarket,
+    manager?: EntityManager,
+  ): Promise<Content[]> {
+    if (seriesIds.length === 0) {
+      return [];
+    }
+
     return this.applyVisibility(
       this.scoped(manager).createQueryBuilder('content'),
       now,
       market,
     )
-      .andWhere('content.series_id = :seriesId', { seriesId })
+      .andWhere('content.series_id IN (:...seriesIds)', { seriesIds })
       .andWhere('content.episode_no IS NOT NULL')
-      .orderBy('content.episode_no', 'ASC')
+      .orderBy('content.series_id', 'ASC')
+      .addOrderBy('content.episode_no', 'ASC')
       .addOrderBy('content.published_at', 'ASC')
       .addOrderBy('content.id', 'ASC')
       .getMany();

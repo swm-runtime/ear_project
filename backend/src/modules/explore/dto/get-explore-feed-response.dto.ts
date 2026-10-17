@@ -2,7 +2,7 @@ import { StatsPeriodType } from '@/modules/content/content.enum';
 
 import { ExploreSectionKey } from '../explore.enum';
 import { ExploreFeedResult } from '../explore.types';
-import { ExploreItemDto } from './explore-item.dto';
+import { ExploreItemDto, ExploreListItemDto } from './explore-item.dto';
 
 class ExploreSectionTopicDto {
   readonly id: string;
@@ -18,7 +18,7 @@ class ExploreSectionDto {
   readonly topic: ExploreSectionTopicDto | null;
   /** **`popular` 섹션만 값이 있다** — 구간 토글의 선택 상태를 그리는 근거다 */
   readonly period: StatsPeriodType | null;
-  readonly items: ExploreItemDto[];
+  readonly items: ExploreListItemDto[];
 }
 
 /**

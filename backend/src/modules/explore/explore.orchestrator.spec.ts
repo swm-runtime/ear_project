@@ -1,4 +1,7 @@
+import { ConfigService } from '@nestjs/config';
 import { DataSource } from 'typeorm';
+
+import { EnvironmentVariables } from '@/config/env.validation';
 
 import { BusinessException } from '@/common/exceptions/business.exception';
 import { ErrorCode } from '@/common/exceptions/error-code.enum';
@@ -32,9 +35,11 @@ import {
   decodeSearchCursor,
   encodePopularCursor,
   encodeSearchCursor,
+  readSeenSeries,
 } from './explore.cursor';
 import { ExploreSectionKey, SaveReason } from './explore.enum';
 import { ExploreOrchestrator } from './explore.orchestrator';
+import { ExploreItemView, ExploreListItemView } from './explore.types';
 import { UserMarket } from '@/modules/user/user.enum';
 
 const NOW = new Date('2026-08-05T09:00:00.000Z');
@@ -112,6 +117,24 @@ async function catchError(
   }
 
   throw new Error('예외가 발생하지 않았다');
+}
+
+/** 시리즈 카드 스위치만 읽는 ConfigService 대역 — 기본은 꺼짐(종전 응답) */
+function configWith(
+  seriesCards?: string,
+): ConfigService<EnvironmentVariables, true> {
+  return {
+    get: (key: string) =>
+      key === 'SERIES_EXPLORE_CARDS_ENABLED' ? seriesCards : undefined,
+  } as unknown as ConfigService<EnvironmentVariables, true>;
+}
+
+/** 콘텐츠 행으로 좁힌다 — 스위치가 꺼져 있으면 시리즈 카드는 나오지 않는다 */
+function asContent(item: ExploreListItemView): ExploreItemView {
+  if (item.type === 'series') {
+    throw new Error('시리즈 카드가 나왔다');
+  }
+  return item;
 }
 
 describe('ExploreOrchestrator', () => {
@@ -209,6 +232,7 @@ describe('ExploreOrchestrator', () => {
       dataSource,
       searchQueryLogService,
       seriesService,
+      configWith(),
     );
   });
 
@@ -306,10 +330,9 @@ describe('ExploreOrchestrator', () => {
       const interest = result.sections.find(
         (section) => section.key === ExploreSectionKey.INTEREST,
       );
-      expect(interest?.items.map((item) => item.content.id)).toEqual([
-        OTHER_CONTENT_ID,
-        CONTENT_ID,
-      ]);
+      expect(interest?.items.map((item) => asContent(item).content.id)).toEqual(
+        [OTHER_CONTENT_ID, CONTENT_ID],
+      );
     });
 
     it('임베딩·취향 벡터가 없으면 주제 가중치와 인기순으로 종전과 같이 정렬한다', async () => {
@@ -338,10 +361,9 @@ describe('ExploreOrchestrator', () => {
       const interest = result.sections.find(
         (section) => section.key === ExploreSectionKey.INTEREST,
       );
-      expect(interest?.items.map((item) => item.content.id)).toEqual([
-        OTHER_CONTENT_ID,
-        CONTENT_ID,
-      ]);
+      expect(interest?.items.map((item) => asContent(item).content.id)).toEqual(
+        [OTHER_CONTENT_ID, CONTENT_ID],
+      );
     });
 
     it('선호도 캐시가 없는 사용자는 콜드스타트로 그린다', async () => {
@@ -377,7 +399,7 @@ describe('ExploreOrchestrator', () => {
       const result = await orchestrator.getFeed(USER_ID, NOW, UserMarket.KR);
 
       // then
-      const [item] = result.sections[0].items;
+      const item = asContent(result.sections[0].items[0]);
       expect(item.content.id).toBe(CONTENT_ID);
       expect(item.library).toEqual({
         itemId: 'item-1',
@@ -688,10 +710,9 @@ describe('ExploreOrchestrator', () => {
       );
 
       // then
-      expect(result.items.map((item) => item.content.series)).toEqual([
-        ref,
-        null,
-      ]);
+      expect(
+        result.items.map((item) => asContent(item).content.series),
+      ).toEqual([ref, null]);
     });
 
     it('다음 페이지가 있으면 마지막 항목 위치로 커서를 발급한다', async () => {
@@ -1258,6 +1279,249 @@ describe('ExploreOrchestrator', () => {
       expect(result.items).toHaveLength(0);
       expect(result.fallback).toBeNull();
       expect(topicService.findVisibleRelatedByName).not.toHaveBeenCalled();
+    });
+  });
+  describe('시리즈 카드 스위치 켬(SERIES_EXPLORE_CARDS_ENABLED=true — KAN-134 확정 설계 4번)', () => {
+    const SERIES_ID = '77777777-7777-4777-8777-777777777777';
+    const E1 = 'e1111111-1111-4111-8111-111111111111';
+    const E2 = 'e2222222-2222-4222-8222-222222222222';
+    const E3 = 'e3333333-3333-4333-8333-333333333333';
+    let cards: ExploreOrchestrator;
+    const episode = (id: string, episodeNo: number) =>
+      buildContent(id, { seriesId: SERIES_ID, episodeNo });
+    const card = {
+      series: {
+        id: SERIES_ID,
+        title: '시리즈',
+        description: '소개',
+        totalEpisodes: 3,
+        status: 'completed',
+      },
+      coverThumbnailUrl: 'https://cdn/1.webp',
+      episodeCount: 3,
+      topicIds: [TOPIC_ID],
+    };
+
+    beforeEach(() => {
+      seriesService.findCards = jest
+        .fn()
+        .mockResolvedValue(new Map([[SERIES_ID, card]]));
+      cards = new ExploreOrchestrator(
+        contentService,
+        libraryService,
+        playbackService,
+        userInterestService,
+        topicService,
+        dripExclusionService,
+        preferenceVectorService,
+        new DripScoringService(),
+        {} as DataSource,
+        searchQueryLogService,
+        seriesService,
+        configWith('true'),
+      );
+    });
+
+    it('주제 목록 — 시리즈 편들이 가장 높은 순위 편 자리의 카드 하나가 되고, 콘텐츠 행에는 type: content 가 붙는다', async () => {
+      // given — 순위: 2화 · 단일 · 1화 · 3화
+      contentService.findExplorePage.mockResolvedValue({
+        items: [
+          { content: episode(E2, 2), playCount: 9 },
+          {
+            content: buildContent(CONTENT_ID, { seriesId: null }),
+            playCount: 5,
+          },
+          { content: episode(E1, 1), playCount: 3 },
+          { content: episode(E3, 3), playCount: 1 },
+        ],
+        hasNext: false,
+      });
+
+      // when
+      const result = await cards.getContents(
+        USER_ID,
+        { topicIds: [TOPIC_ID], cursor: null, limit: 20 },
+        NOW,
+        UserMarket.KR,
+      );
+
+      // then
+      expect(result.items.map((item) => item.type)).toEqual([
+        'series',
+        'content',
+      ]);
+      expect(result.items[0]).toEqual({ type: 'series', card });
+      expect(asContent(result.items[1]).content.id).toBe(CONTENT_ID);
+      expect(seriesService.findCards).toHaveBeenCalledWith(
+        [SERIES_ID],
+        NOW,
+        UserMarket.KR,
+      );
+    });
+
+    it('다음 커서는 마지막으로 훑은 편 위치와 이미 낸 시리즈(g)를 담고, 다음 페이지는 그 시리즈 편을 건너뛴다', async () => {
+      // given — 1페이지(limit 1): 2화(카드)만 낸다
+      contentService.findExplorePage.mockResolvedValueOnce({
+        items: [{ content: episode(E2, 2), playCount: 9 }],
+        hasNext: true,
+      });
+
+      // when
+      const first = await cards.getContents(
+        USER_ID,
+        { topicIds: [TOPIC_ID], cursor: null, limit: 1 },
+        NOW,
+        UserMarket.KR,
+      );
+
+      // then
+      expect(first.hasNext).toBe(true);
+      expect(readSeenSeries(first.nextCursor ?? '')).toEqual([SERIES_ID]);
+      expect(decodeExploreCursor(first.nextCursor ?? '', [TOPIC_ID])).toEqual({
+        playCount: 9,
+        publishedAt: episode(E2, 2).publishedAt,
+        id: E2,
+      });
+
+      // given — 2페이지: 1화(건너뜀) · 단일
+      contentService.findExplorePage.mockResolvedValueOnce({
+        items: [
+          { content: episode(E1, 1), playCount: 3 },
+          {
+            content: buildContent(CONTENT_ID, { seriesId: null }),
+            playCount: 2,
+          },
+        ],
+        hasNext: false,
+      });
+
+      // when
+      const second = await cards.getContents(
+        USER_ID,
+        { topicIds: [TOPIC_ID], cursor: first.nextCursor, limit: 1 },
+        NOW,
+        UserMarket.KR,
+      );
+
+      // then — 시리즈는 다시 나오지 않는다
+      expect(second.items).toHaveLength(1);
+      expect(asContent(second.items[0]).content.id).toBe(CONTENT_ID);
+      expect(second.hasNext).toBe(false);
+      expect(second.nextCursor).toBeNull();
+    });
+
+    it('검색은 시리즈 제목 일치도 묻고 같은 규칙으로 접는다', async () => {
+      // given
+      contentService.findSearchPage.mockResolvedValue({
+        items: [
+          {
+            content: episode(E1, 1),
+            score: 10,
+            titleSimilarity: 0.9,
+            playCount: 3,
+          },
+          {
+            content: episode(E2, 2),
+            score: 10,
+            titleSimilarity: 0.8,
+            playCount: 2,
+          },
+        ],
+        hasNext: false,
+      });
+
+      // when
+      const result = await cards.search(
+        USER_ID,
+        { query: '시리즈', topicIds: [], cursor: null, limit: 20 },
+        NOW,
+        UserMarket.KR,
+      );
+
+      // then
+      expect(contentService.findSearchPage).toHaveBeenCalledWith(
+        expect.objectContaining({ matchSeriesTitle: true }),
+      );
+      expect(result.items).toEqual([{ type: 'series', card }]);
+      expect(searchQueryLogService.record).toHaveBeenCalledWith(
+        expect.objectContaining({ resultCount: 1, resultContentIds: [E1] }),
+        NOW,
+      );
+    });
+
+    it('스위치가 꺼져 있으면 같은 입력에 편마다 한 줄이고 type 키가 없으며 시리즈 제목 일치를 묻지 않는다', async () => {
+      // given
+      contentService.findSearchPage.mockResolvedValue({
+        items: [
+          {
+            content: episode(E1, 1),
+            score: 10,
+            titleSimilarity: 0.9,
+            playCount: 3,
+          },
+          {
+            content: episode(E2, 2),
+            score: 10,
+            titleSimilarity: 0.8,
+            playCount: 2,
+          },
+        ],
+        hasNext: false,
+      });
+
+      // when
+      const result = await orchestrator.search(
+        USER_ID,
+        { query: '시리즈', topicIds: [], cursor: null, limit: 20 },
+        NOW,
+        UserMarket.KR,
+      );
+
+      // then
+      expect(result.items).toHaveLength(2);
+      expect(result.items.every((item) => !('type' in item))).toBe(true);
+      expect(contentService.findSearchPage).toHaveBeenCalledWith(
+        expect.not.objectContaining({ matchSeriesTitle: true }),
+      );
+    });
+
+    it('피드 섹션 — 넉넉히 읽어 접은 뒤 10칸으로 자른다', async () => {
+      // given — 새로 나온 콘텐츠 30건 중 시리즈 편 12건(앞쪽) + 단일 18건
+      const recent = [
+        ...Array.from({ length: 12 }, (_, index) =>
+          episode(
+            `00000000-0000-4000-8000-0000000000${String(index).padStart(2, '0')}`,
+            index + 1,
+          ),
+        ),
+        ...Array.from({ length: 18 }, (_, index) =>
+          buildContent(
+            `10000000-0000-4000-8000-0000000000${String(index).padStart(2, '0')}`,
+            {
+              seriesId: null,
+            },
+          ),
+        ),
+      ];
+      contentService.findRecent.mockResolvedValue(recent);
+
+      // when
+      const result = await cards.getFeed(USER_ID, NOW, UserMarket.KR);
+
+      // then
+      expect(contentService.findRecent).toHaveBeenCalledWith(
+        30,
+        NOW,
+        UserMarket.KR,
+      );
+      const section = result.sections.find(
+        (candidate) => candidate.key === ExploreSectionKey.NEW,
+      );
+      expect(section?.items).toHaveLength(10);
+      expect(section?.items[0]).toEqual({ type: 'series', card });
+      expect(
+        section?.items.filter((item) => item.type === 'series'),
+      ).toHaveLength(1);
     });
   });
 });

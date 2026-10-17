@@ -17,12 +17,24 @@ import {
 import { Content } from '../entities/content.entity';
 import { Series } from '../entities/series.entity';
 import { ContentRepository } from '../repositories/content.repository';
+import { ContentTopicRepository } from '../repositories/content-topic.repository';
 import { SeriesRepository } from '../repositories/series.repository';
 
 /** 관리자 시리즈 목록의 한 행 */
 export interface SeriesWithCounts {
   series: Series;
   counts: SeriesEpisodeCounts;
+}
+
+/** 탐색 시리즈 카드(KAN-134 확정 설계 4번)의 재료 — 사용자 시장에 노출 중인 편 기준 */
+export interface SeriesCardView {
+  series: Series;
+  /** 표지 — 노출 중인 가장 앞 편(보통 1화)의 썸네일 */
+  coverThumbnailUrl: string;
+  /** 노출 중인 편 수 — 계획 편수(`series.totalEpisodes`)보다 적을 수 있다 */
+  episodeCount: number;
+  /** 노출 중인 편들의 주제 합집합(처음 나온 순서) */
+  topicIds: string[];
 }
 
 /** 시리즈 화면(`GET /series/:id`)의 재료 — 노출 중인 편만, 편 번호순 */
@@ -50,6 +62,7 @@ export class SeriesService {
   constructor(
     private readonly seriesRepository: SeriesRepository,
     private readonly contentRepository: ContentRepository,
+    private readonly contentTopicRepository: ContentTopicRepository,
   ) {}
 
   async create(
@@ -282,6 +295,61 @@ export class SeriesService {
     }
 
     return refs;
+  }
+
+  /**
+   * 탐색 시리즈 카드의 재료(시리즈 id → 카드). 노출 중인 편이 사용자 시장에 없는 시리즈는 맵에 없다 — 호출부는 그 시리즈를
+   * 카드로 접지 않는다. 시리즈·편·주제를 각각 한 번에 읽는다
+   */
+  async findCards(
+    seriesIds: string[],
+    now: Date,
+    market: UserMarket,
+    manager?: EntityManager,
+  ): Promise<Map<string, SeriesCardView>> {
+    const ids = [...new Set(seriesIds)];
+    const [allSeries, episodes] = await Promise.all([
+      this.seriesRepository.findAllByIds(ids, manager),
+      this.contentRepository.findVisibleBySeriesIds(ids, now, market, manager),
+    ]);
+    const topicViews = await this.contentTopicRepository.findViewsByContentIds(
+      episodes.map((episode) => episode.id),
+      manager,
+    );
+    const topicIdsByContentId = new Map<string, string[]>();
+    for (const view of topicViews) {
+      const topicIds = topicIdsByContentId.get(view.contentId) ?? [];
+      topicIds.push(view.topicId);
+      topicIdsByContentId.set(view.contentId, topicIds);
+    }
+    const seriesById = new Map(allSeries.map((series) => [series.id, series]));
+    const cards = new Map<string, SeriesCardView>();
+
+    for (const episode of episodes) {
+      const series =
+        episode.seriesId === null
+          ? undefined
+          : seriesById.get(episode.seriesId);
+      if (!series) {
+        continue;
+      }
+      const card = cards.get(series.id) ?? {
+        series,
+        // 편 번호순으로 읽었으므로 처음 만나는 편이 가장 앞 편이다
+        coverThumbnailUrl: episode.thumbnailUrl,
+        episodeCount: 0,
+        topicIds: [],
+      };
+      card.episodeCount += 1;
+      for (const topicId of topicIdsByContentId.get(episode.id) ?? []) {
+        if (!card.topicIds.includes(topicId)) {
+          card.topicIds.push(topicId);
+        }
+      }
+      cards.set(series.id, card);
+    }
+
+    return cards;
   }
 
   /**

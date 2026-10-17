@@ -308,6 +308,50 @@ function isCursorPayload(value: unknown): value is CursorPayload {
   );
 }
 
+/**
+ * 시리즈 카드 모드(KAN-134 확정 설계 4번 — `SERIES_EXPLORE_CARDS_ENABLED`)의 **이미 낸 시리즈** 목록을 커서에 덧붙인다(`g`).
+ * 카드는 그 시리즈 편 중 순위가 가장 높은 편의 자리에 한 번만 나오고, 뒤 페이지의 같은 시리즈 편은 건너뛴다 — 그 판정을 서버
+ * 상태 없이 하려면 앞 페이지까지 낸 시리즈를 커서가 들고 다녀야 한다. 정렬해 담아 같은 입력이면 같은 커서다.
+ *
+ * **스위치가 꺼져 있으면 부르지 않는다** — 커서가 이 기능 전과 바이트 단위로 같다.
+ */
+export function attachSeenSeries(cursor: string, seriesIds: string[]): string {
+  const payload = JSON.parse(
+    Buffer.from(cursor, 'base64url').toString('utf8'),
+  ) as Record<string, unknown>;
+
+  return Buffer.from(
+    JSON.stringify({ ...payload, g: [...seriesIds].sort() }),
+    'utf8',
+  ).toString('base64url');
+}
+
+/**
+ * 커서의 이미 낸 시리즈(`g`). 없으면(스위치가 꺼져 있을 때 발급된 커서) 빈 목록 — 그 경우 앞 페이지에서 편으로 나온 시리즈가
+ * 카드로 한 번 더 나올 수 있지만 전환 순간 한 번뿐이다. uuid가 아닌 값이 섞이면 위조로 보고 거절한다.
+ * 정렬 키·지문 검증은 각 `decode*Cursor`가 먼저 끝낸 뒤 부른다.
+ */
+export function readSeenSeries(cursor: string): string[] {
+  let decoded: unknown;
+
+  try {
+    decoded = JSON.parse(Buffer.from(cursor, 'base64url').toString('utf8'));
+  } catch {
+    throw invalidCursor();
+  }
+
+  const seen = (decoded as { g?: unknown } | null)?.g;
+
+  if (seen === undefined) {
+    return [];
+  }
+  if (!Array.isArray(seen) || !seen.every((value) => isUuid(value))) {
+    throw invalidCursor();
+  }
+
+  return seen;
+}
+
 /** 사용자에게 노출하지 않는다 — 클라이언트가 커서를 버리고 조용히 재조회한다 */
 function invalidCursor(): BusinessException {
   return new BusinessException({

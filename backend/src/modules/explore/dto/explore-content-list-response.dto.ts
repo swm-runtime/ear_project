@@ -1,5 +1,5 @@
 import { ExploreContentListResult } from '../explore.types';
-import { ExploreItemDto } from './explore-item.dto';
+import { ExploreItemDto, ExploreListItemDto } from './explore-item.dto';
 
 /**
  * explore-api.md 4.2.
@@ -13,7 +13,7 @@ import { ExploreItemDto } from './explore-item.dto';
  * 결과가 없으면 `items: []`다. 클라이언트는 "이 주제의 콘텐츠는 아직 없어요"를 그린다.
  */
 export class ExploreContentListResponseDto {
-  readonly items: ExploreItemDto[];
+  readonly items: ExploreListItemDto[];
   readonly next_cursor: string | null;
   readonly has_next: boolean;
   readonly daily_play_limit: number | null;

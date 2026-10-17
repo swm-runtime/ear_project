@@ -13,6 +13,7 @@ import { ExploreSectionKey, SaveReason } from './explore.enum';
 import { UserMarket } from '@/modules/user/user.enum';
 import { ContentLanguage } from '@/modules/content/content.enum';
 import { ContentSeriesRef } from '@/modules/content/content.types';
+import { SeriesCardView } from '@/modules/content/services/series.service';
 
 export interface ExploreContentView {
   id: string;
@@ -49,6 +50,11 @@ export interface ExploreLibraryView {
 }
 
 export interface ExploreItemView {
+  /**
+   * 항목 종류(KAN-134 탐색 시리즈 카드). **스위치(`SERIES_EXPLORE_CARDS_ENABLED`)가 켜졌을 때만 `content`로 채운다** —
+   * 꺼져 있으면 키 자체가 없어 응답이 이 기능 전과 같다
+   */
+  type?: 'content';
   content: ExploreContentView;
   library: ExploreLibraryView | null;
   /**
@@ -59,6 +65,18 @@ export interface ExploreItemView {
    */
   isCountedToday: boolean;
 }
+
+/**
+ * 시리즈 카드(KAN-134 확정 설계 4번) — 같은 시리즈의 편들을 대신하는 항목. 스위치가 켜졌을 때만 나온다.
+ * 위치는 그 시리즈 편 중 순위가 가장 높은 편의 자리다(= 편 점수의 최댓값)
+ */
+export interface ExploreSeriesCardView {
+  type: 'series';
+  card: SeriesCardView;
+}
+
+/** 탐색 목록의 항목 — 스위치가 꺼져 있으면 언제나 `ExploreItemView`(타입 키 없음)다 */
+export type ExploreListItemView = ExploreItemView | ExploreSeriesCardView;
 
 export interface ExploreSectionView {
   key: ExploreSectionKey;
@@ -73,7 +91,7 @@ export interface ExploreSectionView {
    * 두면 서버가 그것을 바꿀 때 토글만 옛 값에 머문다.
    */
   period: StatsPeriodType | null;
-  items: ExploreItemView[];
+  items: ExploreListItemView[];
 }
 
 export interface ExploreTopicView {
@@ -104,7 +122,7 @@ export interface ExplorePopularListQuery {
 export interface ExplorePopularListResult {
   /** **요청 구간을 그대로 되돌린다** — 토글의 선택 상태를 그리는 근거다 */
   period: StatsPeriodType;
-  items: ExploreItemView[];
+  items: ExploreListItemView[];
   nextCursor: string | null;
   hasNext: boolean;
   quota: DailyPlayQuota;
@@ -123,7 +141,7 @@ export interface ExploreTopicChipView {
 }
 
 export interface ExploreContentListResult {
-  items: ExploreItemView[];
+  items: ExploreListItemView[];
   /** `hasNext`가 false면 `null`이다 */
   nextCursor: string | null;
   hasNext: boolean;
@@ -145,11 +163,11 @@ export interface ExploreSearchQuery {
  */
 export interface ExploreSearchFallback {
   relatedTopics: ExploreTopicView[];
-  popularItems: ExploreItemView[];
+  popularItems: ExploreListItemView[];
 }
 
 export interface ExploreSearchResult {
-  items: ExploreItemView[];
+  items: ExploreListItemView[];
   /** `hasNext`가 false면 `null`이다 */
   nextCursor: string | null;
   hasNext: boolean;

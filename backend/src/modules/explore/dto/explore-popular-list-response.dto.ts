@@ -1,7 +1,7 @@
 import { StatsPeriodType } from '@/modules/content/content.enum';
 
 import { ExplorePopularListResult } from '../explore.types';
-import { ExploreItemDto } from './explore-item.dto';
+import { ExploreItemDto, ExploreListItemDto } from './explore-item.dto';
 
 /**
  * explore-api.md 4.2-1.
@@ -17,7 +17,7 @@ import { ExploreItemDto } from './explore-item.dto';
  */
 export class ExplorePopularListResponseDto {
   readonly period: StatsPeriodType;
-  readonly items: ExploreItemDto[];
+  readonly items: ExploreListItemDto[];
   readonly next_cursor: string | null;
   readonly has_next: boolean;
   readonly daily_play_limit: number | null;
