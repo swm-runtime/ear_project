@@ -1,6 +1,6 @@
 # Critic rubric v2 (global)
 
-> Version: **critic-en-v0.5** (2026-10-17) · global pipeline · judges against the script rules (guidelines full-en). The global DB `prompt_assets` is the source of truth; this file is the seeding copy. Anchors are empty until people judge the first episodes.
+> Version: **critic-en-v0.6** (2026-10-17) · global pipeline · judges against the script rules (guidelines full-en). The global DB `prompt_assets` is the source of truth; this file is the seeding copy. Anchors are empty until people judge the first episodes.
 
 ## 1. Rules
 
@@ -71,7 +71,7 @@ Each flag names the turn, the item, the severity (violation = clear; suspect = p
 |---|---|---|
 | F1 | AI style | Rating words, AI vocabulary, brochure language, inflated verbs ("serves as"), inflated meaning ("reflects broader…"), an -ing tail that comments on the sentence, signposting, a self-answered question, a moral or slogan, or an added hedge for tone. |
 | F2 | Stock reactions | "Exactly", "Absolutely", "Great question", "That makes sense", "Wow", "And that's the key", a tag "right?", the same opener three or more times, or praise between the speakers. |
-| F3 | Written sentence | A sentence a person would not say in one breath: two main clauses, stacked conditions, a dash, semicolon, or parenthesis; "not X, but Y" and three-item lists used more than the guidelines allow; synonyms cycled for one thing. A common English word a second-language listener would take in another sense in this context, or a phrase that sounds like the opposite of what is meant, is also F3. |
+| F3 | Written sentence | A sentence a person would not say in one breath: two main clauses, stacked conditions, a dash, semicolon, or parenthesis; "not X, but Y" and three-item lists used more than the guidelines allow; synonyms cycled for one thing. A common English word a second-language listener would take in another sense in this context, or a phrase that sounds like the opposite of what is meant, is also F3. So is planning or reading wording left in a line ("described here", a line copied from the plan). |
 | F4 | Reaction mismatch | More than one strong surprise in a section, a general reaction instead of the specific detail, an emotion a listener would not feel, or weird, crazy, wild, or cute about a custom. Whether a reaction enlarges a claim is QA's. |
 | F5 | Metaphor misuse | A metaphor for something already clear, a relation between two ideas moved onto two unrelated objects, a host-made metaphor, a metaphor with no marker of what is being carried over, or a callback metaphor from another section. |
 
@@ -136,7 +136,7 @@ Length, explainer turns over six sentences, production words, fillers and stage 
 |---|---|
 | 6–7 | A concrete scene carries the idea; a specific feeling arises; it touches a situation people share. |
 | 4–5 | Feeling is named rather than shown. |
-| 2–3 | Dry, manual-like. No concrete scene with a person, a place, and a moment anywhere in the episode: at most 3. |
+| 2–3 | Dry, manual-like. No concrete scene with a person, a place, and a moment anywhere in the episode: at most 3. A one-sentence "Imagine a …" line that only restates a rule is not a scene. |
 | 0–1 | Preachy or forced. |
 
 `{anchor 6–7: }` `{anchor 4–5: }` `{anchor 2–3: }`
@@ -271,6 +271,7 @@ Flags n · violations n · suspects n · ⭐ n
 
 ## Change history
 
+- critic-en-v0.6 (2026-10-17) — after three v0.8 episodes (G261017-004 to 006) the critic was still 10 to 15 points above the editor and counted one-sentence "Imagine a …" lines as scenes. 3.4 now says such a line is not a scene; F3 covers planning or reading wording left in a line.
 - critic-en-v0.5 (2026-10-17) — recalibration after four agent verdicts (G261015-001, G261017-001 to 003): the critic scored 14 to 20 points above the native editor every time, mainly on 3.4, 3.5, 3.8, 3.10, and 3.11, and missed most must-fix English problems. The bands now carry explicit caps for what the editor found each time: no scene (3.4 ≤ 3, 3.10 ≤ 8), an Opening that never names the familiar thing (3.5 ≤ 3), recap tails counted as F1 (3.8), no insider framing or one host reaction form (3.11 ≤ 3). F3 now covers a common word a second-language listener would take in another sense (platform, ground pepper, establishment) and a phrase that sounds like its opposite.
 - critic-en-v0.4 (2026-10-17) — follows guidelines full-en-v0.6: D3 says "imagined" (the script must not say "hypothetical"), and section 2.2 lists the new L0 counts (source naming per section, explainer questions, a Korean expression spoken of but not said).
 - critic-en-v0.3 (2026-10-16) — follows guidelines full-en-v0.2: rules 1 to 50, and section 2.2 lists the three new L0 counts (first word in host turns, explainer turns that restate the host, source-subject sentences per section). Judge what the counts miss: a restatement in other words, a recap at the end of a turn, a source loop below the count.

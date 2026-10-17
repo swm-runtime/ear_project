@@ -103,6 +103,8 @@ ${fence(i.guidelines)}
 - Keep every condition the excerpt attaches: who says it, to whom, where, and which meanings it covers. When one condition covers several meanings, say so in each claim that states a meaning. Keep a named set as named; do not widen it into a general category.
 - Keep each condition on the thing it describes. When an excerpt says one thing varies but another stays fixed, the claim keeps that contrast.
 - Keep the excerpt's quantifiers (some, many, most, a few) and the subject it gives a practice. A practice of one named person stays that person's; claims from one excerpt use the same subject.
+- When a Korean excerpt describes a whole place or group with a modifier, the claim keeps it describing the whole; do not turn it into a subset.
+- A definition claim keeps who uses the term and how widely. An event at a specific time keeps its time and the past tense.
 - For a Korean word, keep in the claims whether the excerpt calls it casual or polite and who uses it.
 - In a Korean Language episode, keep one example phrase per featured word from the excerpts as a claim of type quote: the phrase romanized, its meaning, and its speech level read from the Hangul ending (casual, polite with -yo, or formal with -seumnida). Say when the phrase is a dictionary form ending in -da. Add who says it to whom only when the excerpt says so; otherwise leave the relationship out of the claim. An example sentence from a dictionary or learning guide is allowed; a line from a drama, song, or show is not.
 - Romanize Korean words with Revised Romanization, even when an excerpt spells them another way. Names of people, groups, companies, and works keep their official English spelling.
@@ -116,6 +118,7 @@ ${fence(i.guidelines)}
 Axis: [contrast|paradox|redefinition${history ? "|event" : ""}] one sentence
 Axis note: why this axis creates tension for the listener, two lines
 Familiar picture: what a listener abroad already pictures or assumes about this topic, in plain words
+Terms: each place, object, or role the episode names often — the one plain English name the script uses for it
 Landing section: #n — where the axis is proven
 Estimated length: n min
 
@@ -133,8 +136,8 @@ Section #1 — Title
   Question: the sub-question of the axis this section answers
   Material: C01, C03 (S1) · C07 (S3)
   Host question: one question built only from earlier sections, or "the explainer opens"
-  Opens with: the scene, a detail, or the host's question — never the source's name
-  Scene: one concrete moment with a person, a place, and an action, from C##; or "none"
+  Opens with: the situation or question that opens the section — never its answer, never the source's name
+  Scene: one concrete moment with a person, a place, and an action, plus one detail from the claims (words said, an object, a sound), from C##; or "none"
   Insider detail: the Korean name people use for the thing, an everyday practice, or how people around them do it, from C##; or "none"
   Transition: one device, different from the previous section
   Ratio: n%
@@ -271,6 +274,7 @@ There are no gold examples yet. Follow the guidelines and the templates.
 - You may write a new title that fits the axis. No clickbait.
 ${templateBlockEn(i.templates, i.majorTopic ?? i.candidate.mid_topic, i.signoffSeed ?? 0, i.series?.introSentence)}
 - Opening style: **${i.introStyle.label}** — ${i.introStyle.hint}${isHistoryCandidateEn(i.candidate) ? "\n" + historyWriteEn : ""}
+- The outline's lines are instructions, not dialogue. Do not copy their wording into turns.
 - **Length target: about ${minutes} minutes = about ${Math.round(minutes * 146)} spoken words (within 10 percent).** The floor is 730 words. The outline's estimate already reflects the material; writing longer means the explanation got wordy.${seriesWriteBlock(i.series, true)}
 
 ## Material
