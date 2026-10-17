@@ -115,6 +115,7 @@ ${fence(i.guidelines)}
 
 Axis: [contrast|paradox|redefinition${history ? "|event" : ""}] one sentence
 Axis note: why this axis creates tension for the listener, two lines
+Familiar picture: what a listener abroad already pictures or assumes about this topic, in plain words
 Landing section: #n — where the axis is proven
 Estimated length: n min
 
@@ -132,6 +133,9 @@ Section #1 — Title
   Question: the sub-question of the axis this section answers
   Material: C01, C03 (S1) · C07 (S3)
   Host question: one question built only from earlier sections, or "the explainer opens"
+  Opens with: the scene, a detail, or the host's question — never the source's name
+  Scene: one concrete moment with a person, a place, and an action, from C##; or "none"
+  Insider detail: the Korean name people use for the thing, an everyday practice, or how people around them do it, from C##; or "none"
   Transition: one device, different from the previous section
   Ratio: n%
 Section #2 — …
@@ -145,7 +149,14 @@ Planning rules:
 - The axis is a contrast ("A, yet B"), a paradox ("trying A leads to B"), or a redefinition ("A is really B")${history ? ", or, in history mode, an event" : ""}. "What is X" is not an axis.
 - Sections are steps of the axis, not the order of a source. Each source goes to one section only, except the axis_source. Drop a source that answers no sub-question of the axis.
 - A list topic keeps its list: sections may follow the items or groups of items, and each section still answers a sub-question of the axis. The count in the title matches the items the material supports.
-- Four to six Body sections. The Opening is not a section.
+- Three to five Body sections. Fewer, fuller sections are better than many thin ones. The Opening is not a section.
+- Plan scenes. At least half of the Body sections carry a Scene built from claims: a person, a place, and a moment. Select excerpts with cases and practices so scenes are possible. An imagined scene is allowed only as a two-sentence frame that uses claim facts.
+- Plan the insider. The explainer is a calm Korean insider. Give each section an Insider detail when the material has one: the Korean name people use, an everyday practice, or how people around them do it. Take it from claims and add any Korean term to pronunciations.
+- Name the Familiar picture so the Opening can start from it. The episode then explains or changes that picture.
+- Do not let source order become the episode. If every section uses one source in the order the sources are listed, rebuild the order around the steps of the axis. A section opens on its scene, a detail, or the host's question; the source is named once, where its first fact is used.
+- A redefinition axis needs the members of the category heard: assign claims that name the kinds, forms, or examples, not only a single figure about one of them.
+- Plan each limitation once, in the section where it applies.
+- Write the axis, the questions, and the Closing line in plain spoken words a second-language listener knows. Avoid abstract nouns such as care, viewpoint, role, or preparation unless the section explains them; the script reuses these lines.
 - The Host question uses only what came before; it never contains the section's new case, number, or result. Never ask about methods, samples, or limits.
 - Estimated length comes from the material: 5 minutes is the floor, and there is no target length. Do not inflate it. If the material cannot reach 5 minutes, do not build an outline; say why in notes. If it is 20 minutes or more, put a split plan in split_proposal and still build one outline.
 - Every C## in the outline exists in claims.

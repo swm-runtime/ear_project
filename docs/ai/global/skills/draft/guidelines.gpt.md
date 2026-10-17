@@ -1,6 +1,6 @@
 # Script Writing Guidelines
 
-> Version: **full-en-v0.7** (2026-10-17) · GPT profile · global pipeline. Rationale and sources: [CHANGELOG.md](CHANGELOG.md).
+> Version: **full-en-v0.8** (2026-10-17) · GPT profile · global pipeline. Rationale and sources: [CHANGELOG.md](CHANGELOG.md).
 > Rule numbers are reference IDs for L0, QA and the critic. Do not reuse or renumber them.
 
 ## Principles
@@ -12,7 +12,7 @@
 
 ## Roles
 
-1. **The explainer is a Korean insider.** The insider role is framing: what a word means, how a custom is described, which question a newcomer misses. Every statement about how Koreans think, live, or behave comes from the claims. Describe practices in the general present tense. Do not use "we" or "us" for Koreans. Do not claim authority from being Korean. When people in Korea disagree about something, present it as a disagreement and say who holds each view.
+1. **The explainer is a Korean insider.** The insider role is framing: what a word means, how a custom is described, which question a newcomer misses. Use the Insider detail the outline gives each section: the Korean name people use, an everyday practice, or how people around them do it. Every statement about how Koreans think, live, or behave comes from the claims. Describe practices in the general present tense. Do not use "we" or "us" for Koreans. Do not claim authority from being Korean. When people in Korea disagree about something, present it as a disagreement and say who holds each view.
 
 2. **The host is the listener's stand-in.** The host is a curious non-Korean. The host asks what a newcomer would ask and says how a point sounds to them. The host makes no factual claims. The host does not describe practices in any country, including their own, and does not name a home country or speak for a group of listeners.
 
@@ -113,11 +113,11 @@
 
 36. **Nothing outside speech in lines.** No URLs, tables, lists, markdown, emoji, citations, source lists, or AI disclosure in spoken lines. No claim or excerpt IDs (C##, S#-##) anywhere in the script. Do not say production terms: section, axis, block, claim, excerpt, outline, source, gold, Body, Closing. Do not carry the claims' labels into lines: attributed, account, or use as a noun for a sense of a word.
 
-37. **Intro and Opening.** The injected intro template is Y1, one turn. Keep its frame and fill only its slots; no braces may remain. After the topic is named, use two or three Opening turns to raise the question a newcomer would ask. Do not introduce studies or sources in the Opening.
+37. **Intro and Opening.** The injected intro template is Y1, one turn. Keep its frame and fill only its slots; no braces may remain. After the topic is named, use two or three Opening turns to raise the question a newcomer would ask. Start from the outline's Familiar picture and name it. Do not introduce studies or sources in the Opening.
 
 38. **The axis leads.** Keep the outline's axis and each section's sub-question. Each Body section answers a question left by the one before. Do not add, remove, or reorder sections. If the prompt sets history mode, follow it: the event is the axis and its course is the Body.
 
-39. **Cases and metaphors, budgeted.** One case per section, four to five per episode, including cases from sources. Use a metaphor only where understanding stalls, at most three per episode. The host creates no metaphors or examples. Record every new link or metaphor in bridges.
+39. **Scenes, cases, and metaphors, budgeted.** Stage each Scene the outline plans: the explainer says who, where, and what happens, and the host reacts to it. One case per section, four to five per episode, including cases from sources. Use a metaphor only where understanding stalls, at most three per episode. The host creates no metaphors or examples. Record every new link or metaphor in bridges.
 
 40. **Closing.** The Closing is the host's closing lead, one explainer wrap-up turn, and the host's injected sign-off. The wrap-up has 3 to 6 sentences. It connects the sections' answers as one line of reasoning, merging sections when needed, and its last sentence states the axis. No new facts, names, numbers, or cases. Do not open it with "So, to sum up" or similar. Keep the sign-off frame and fill only its slots. The last slot is the host's own reaction to this episode. It is not advice, a command, a pledge, or a moral.
 
@@ -125,7 +125,7 @@
 
 41. **Facts come only from the claims.** Every number, quote, name, cause, definition, and date comes from a claims row, appears only in explainer turns, and stays within what the excerpt supports. Do not raise the strength, scope, or certainty of a claim. Keep every condition the claim states: who says it, to whom, where, and which of its meanings it covers. Keep each condition on the thing it describes; do not move it to another thing. Keep quantifiers such as some, many, and most. A practice the claim gives to one person stays that person's practice; do not make it a place's or a group's. Do not widen a named set into a general category. For claims based on Korean-language excerpts, keep the meaning exact when rephrasing in English. List the claim IDs each explainer turn uses in turn_claims.
 
-42. **Introduce a source once, then explain.** When one source leads three or more explainer turns, introduce it once in the first turn: what kind of source it is and what it covers. After that, explain the content directly. Do not make the article, study, guide, author, compiler, participant, or researchers the subject of sentences; at most two sentences per section name the source, the introduction included. This count includes the source as subject and phrases such as "According to" the source or "In" the source's account. Do not use vague authority ("experts say", "studies show", "many people believe").
+42. **Introduce a source once, then explain.** Do not open a section by naming its source; open on the outline's Opens with line. When one source leads three or more explainer turns, introduce it once, where its first fact is used: what kind of source it is and what it covers. After that, explain the content directly. Do not make the article, study, guide, author, compiler, participant, or researchers the subject of sentences; at most two sentences per section name the source, the introduction included. This count includes the source as subject and phrases such as "According to" the source or "In" the source's account. Do not use vague authority ("experts say", "studies show", "many people believe").
 
 43. **Sources stay in place.** Use each source only in its assigned section. Introduce no new source in the last Body section. Do not describe reading a source, preview later material, or mention that something is missing from the materials.
 
