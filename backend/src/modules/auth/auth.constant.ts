@@ -12,6 +12,12 @@ export const SESSION_RETENTION_MS = REFRESH_TOKEN_TTL_SEC * 1000;
 /** 세션 파기 배치 주기(ms). 하루 단위 보존이라 시간 단위면 충분하다 */
 export const SESSION_PURGE_INTERVAL_MS = 60 * 60 * 1000;
 
+/**
+ * 일별 접속자 배치가 매일 다시 세는 날 수 — 어제와 그제(`DailyActiveUserScheduler`). 그제는 자정을 걸친 늦은 쓰기와
+ * 하루 놓친 크론을 메운다. 세션 보존(30일)보다 한참 짧아 원천이 남아 있는 날만 센다.
+ */
+export const DAILY_ACTIVE_USERS_RECOUNT_DAYS = 2;
+
 /** auth-api.md 9 미결 사항 — 약관 동의 화면 체류 시간을 감안해 10분으로 확정 */
 export const SIGNUP_TOKEN_TTL_SEC = 10 * 60;
 
