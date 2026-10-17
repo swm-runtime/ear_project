@@ -45,7 +45,7 @@ export default async function SeriesPage({ params }: { params: Promise<{ id: str
               </tr>
             ))}
           </Table>
-          <p className="px-4 py-2 text-[11px] text-ink-soft">시리즈 편의 게이트 1 승인은 시리즈 대본 단계(spec/11 10장 4단계)가 들어간 뒤에 열린다. [시리즈 발행]은 서버 시리즈 API(BE KAN-134) 뒤에 붙는다.</p>
+          <p className="px-4 py-2 text-[11px] text-ink-soft">게이트 1은 편마다 백로그에서 승인한다. 승인해도 k화 초안은 k-1화 초안이 끝난 뒤에 시작한다(spec/11 5.3). [시리즈 발행]은 서버 시리즈 API(BE KAN-134) 뒤에 붙는다.</p>
         </Panel>
       )}
     </div>

@@ -2,7 +2,7 @@
  * 글로벌판(PIPELINE_LOCALE=en) 대본 프롬프트 — 설계·대본·수정·축 심사 (KAN-201 영어 규칙 · 글로벌 명세 4.5·6.4).
  * 한국판 빌더를 번역하지 않고 새로 썼다: 동작(입력·출력 계약·워커가 검사하는 표기)만 같고 지시문은 영어 규칙(guidelines en-v0.x)을 따른다.
  * 모델이 읽는 글이라 영어다. 워커는 호출 지점에서 로케일로 고른다 — 한국판 빌더는 손대지 않는다.
- * 런타임 import 는 locale.js 만 한다(index.ts 와의 순환을 피한다 — index 는 이 파일을 다시 내보낸다).
+ * 런타임 import 는 locale.js·series.js 만 한다(index.ts 와의 순환을 피한다 — index 는 이 파일을 다시 내보낸다. series.js 는 아무것도 import 하지 않는다).
  *
  * 워커가 대조하는 표기(바꾸면 워커도 같이 바꾼다):
  * - 구성안: `Axis:` · `Section #n — 제목` · `  Question:` · `Estimated length: N min` (locale.ts outlineMarks · design-single.ts)
@@ -10,6 +10,7 @@
  * - 발음 맵: 대본의 한국어 단어 전부, 힌트 없으면 빈 문자열 (글로벌 명세 6.7 — TTS 발음 누락 검사)
  */
 import { otherSpeaker, scriptZones, speakerNames } from "./locale.js";
+import { seriesDesignBlock, seriesWriteBlock } from "./series.js";
 import type { BacklogCandidate, ClusterV2Input, DesignInlineInput, IntroStyle, PromptParts, ReinforceSearchInput, RevisionInlineInput, Templates, TopicSeedSearchInput, WriteInput } from "./index.js";
 
 const fence = (s: string) => "````\n" + s.trim() + "\n````";
@@ -32,9 +33,9 @@ export const INTRO_STYLES_EN: readonly IntroStyle[] = [
 const variants = (t: Templates | null | undefined) => (t?.closing_signoff ?? "").split(/\r?\n/).map((s) => s.trim()).filter(Boolean);
 
 /** 템플릿 블록 — 슬롯 이름은 영어 템플릿의 계약: {topic_line}(주제별 고정 한 줄, major_lines) · {episode_line}(이 편의 축 한 줄). 그 밖의 {slot} 은 이 편의 내용으로 채운다 */
-function templateBlockEn(t: Templates | null | undefined, topic: string | undefined, seed: number): string {
+function templateBlockEn(t: Templates | null | undefined, topic: string | undefined, seed: number, seriesLine?: string): string {
   if (!t) return "- Templates are not set. Write a plain one-turn intro by the host and a plain one-turn sign-off by the host.";
-  const line = (topic && t.major_lines?.[topic]) || "";
+  const line = seriesLine || (topic && t.major_lines?.[topic]) || "";
   const v = variants(t);
   const signoff = v.length ? v[Math.abs(seed) % v.length] : null;
   return `- **Intro template** (Y1, one turn by the host; keep the frame, fill only the {slots}, no braces may remain; the turn ends with the template — no question after it):
@@ -159,7 +160,7 @@ Planning rules:
 - The first line of outline_md is exactly "# Outline — ${i.episodeId}".
 - Explainer: **${explainer}** / host: **${host}** — fixed roles.
 - Listener: a general listener new to this topic, often with English as a second language.
-${candidateAxisBlockEn(i.candidate)}
+${candidateAxisBlockEn(i.candidate)}${seriesDesignBlock(i.series, true)}
 
 ## Source text (${i.sources.length} sources — cite by paragraph ID)
 ${srcBlocks}
@@ -255,9 +256,9 @@ There are no gold examples yet. Follow the guidelines and the templates.
 - Episode ID: ${i.episodeId} · working title: "${i.candidate.title}" · topic: ${i.candidate.mid_topic}
 - Explainer: **${explainer}** / host: **${host}** — fixed roles.
 - You may write a new title that fits the axis. No clickbait.
-${templateBlockEn(i.templates, i.majorTopic ?? i.candidate.mid_topic, i.signoffSeed ?? 0)}
+${templateBlockEn(i.templates, i.majorTopic ?? i.candidate.mid_topic, i.signoffSeed ?? 0, i.series?.introSentence)}
 - Opening style: **${i.introStyle.label}** — ${i.introStyle.hint}${isHistoryCandidateEn(i.candidate) ? "\n" + historyWriteEn : ""}
-- **Length target: about ${minutes} minutes = about ${Math.round(minutes * 150)} spoken words (within 10 percent).** The floor is 750 words. The outline's estimate already reflects the material; writing longer means the explanation got wordy.
+- **Length target: about ${minutes} minutes = about ${Math.round(minutes * 150)} spoken words (within 10 percent).** The floor is 750 words. The outline's estimate already reflects the material; writing longer means the explanation got wordy.${seriesWriteBlock(i.series, true)}
 
 ## Material
 ### Outline — outline.md (the contract: section order, purpose, material, host question, transition)

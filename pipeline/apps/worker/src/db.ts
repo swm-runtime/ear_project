@@ -103,10 +103,10 @@ export async function sweepClusterState(jobId: string, major: string): Promise<{
   } catch (e) { await c.query("rollback").catch(() => {}); throw e; } finally { c.release(); }
 }
 export async function getBacklog(id: string): Promise<BacklogCandidate | null> {
-  const r = await pool.query("select id, mid_topic, title, target_fit, angle, sources, axis, axis_type, gaps from public.backlog where id = $1", [id]);
+  const r = await pool.query("select id, mid_topic, title, target_fit, angle, sources, axis, axis_type, gaps, series_id, series_no from public.backlog where id = $1", [id]);
   if (!r.rows[0]) return null;
   const row = r.rows[0];
-  return { id: row.id, mid_topic: row.mid_topic, title: row.title, target_fit: row.target_fit, angle: row.angle, sources: (row.sources ?? []) as SourceRef[], axis: row.axis, axis_type: row.axis_type, gaps: row.gaps ?? [] };
+  return { id: row.id, mid_topic: row.mid_topic, title: row.title, target_fit: row.target_fit, angle: row.angle, sources: (row.sources ?? []) as SourceRef[], axis: row.axis, axis_type: row.axis_type, gaps: row.gaps ?? [], series_id: row.series_id ?? null, series_no: row.series_no ?? null };
 }
 export async function setBacklogStatus(id: string, status: string, extra: Record<string, unknown> = {}) {
   const sets = ["status = $2", "updated_at = now()"];
@@ -401,4 +401,26 @@ export async function saveSeriesPlan(id: string, v: { name: string; intro_line: 
 export async function seriesSiblingIds(seriesId: string): Promise<string[]> {
   const r = await pool.query("select id from public.backlog where series_id = $1", [seriesId]);
   return r.rows.map((x) => x.id as string);
+}
+/** 앞 편(series_no)의 에피소드 ID — 대본이 만들어진(script_key 가 있는) 가장 최근 행 */
+export async function seriesPrevEpisodeId(seriesId: string, no: number): Promise<string | null> {
+  const r = await pool.query("select e.id from public.episodes e join public.backlog b on b.id = e.backlog_id where b.series_id = $1 and b.series_no = $2 and e.script_key is not null order by e.created_at desc limit 1", [seriesId, no]);
+  return r.rows[0]?.id ?? null;
+}
+/** 집기 순서 (spec/11 5.3) — k화 초안은 k-1화 구성안이 있을 때만. 앞 편이 초안을 마친 상태(drafted 이후)면 구성안이 있다. 일반 편·1화는 늘 참 */
+export const SERIES_PREV_READY = ["drafted", "qa_passed", "review_required", "packaged", "published"];
+export async function seriesPrevReady(backlogId: string): Promise<boolean> {
+  const r = await pool.query(
+    "select b.series_no, p.status from public.backlog b left join public.backlog p on p.series_id = b.series_id and p.series_no = b.series_no - 1 where b.id = $1",
+    [backlogId],
+  );
+  const row = r.rows[0];
+  if (!row || !row.series_no || row.series_no <= 1) return true;
+  return SERIES_PREV_READY.includes(row.status);
+}
+/** DB 가 진실인 프롬프트 자산의 active 본 (spec/10 3.2) — git 사본으로 폴백하지 않는다 */
+export async function activePromptAsset(key: string): Promise<{ version: string; content: string }> {
+  const r = await pool.query<{ version: string; content: string }>("select version, content from public.prompt_assets where status = 'active' and key = $1", [key]);
+  if (!r.rows[0]) throw new Error(`prompt_assets 에 active 자산이 없다: ${key} — 시딩(assets:import) 후 웹 /assets 에서 활성화`);
+  return r.rows[0];
 }
