@@ -64,10 +64,10 @@ test("구성안의 Section #n 과 대본의 ### #n 이 수·순서가 다르면 
   assert.match(twoStageViolations(script({ sections: [1, 3, 2] }), OUTLINE).join(), /order differs from the outline \(outline 1,2,3 \/ script 1,3,2\)/);
 });
 
-test("분량은 단어로 센다 — 13분 하한(1,950단어) 미달·구성안 예상의 1.6배 초과를 막는다", () => {
+test("분량은 단어로 센다 — 5분 하한(750단어) 미달·구성안 예상의 1.6배 초과를 막는다", () => {
   en();
   const short = script({ bodyTurns: 6 });
-  assert.match(twoStageViolations(short, OUTLINE).join(), new RegExp(`Length ${scriptStats(short).words} words .* below the 13-minute floor \\(1950 words\\)`));
+  assert.match(twoStageViolations(short, OUTLINE).join(), new RegExp(`Length ${scriptStats(short).words} words .* below the 5-minute floor \\(750 words\\)`));
   const long = script({ bodyTurns: 60 });
   assert.match(twoStageViolations(long, OUTLINE.replace("15 min", "8 min")).join(), /more than 1\.6× the outline estimate of 8 min/);
 });

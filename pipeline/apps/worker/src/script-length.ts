@@ -3,8 +3,10 @@
  * 글로벌판은 단어 수 ÷ 150 — 대화체 영어 일반 범위의 잠정값이다. 파일럿 합성 3편 이상 실측 후 확정한다(KAN-203).
  */
 export const WORDS_PER_MIN_EN = 150;
-/** 분량 하한 13분의 단어 수 (글로벌 명세 6.5 L0) */
-export const MIN_WORDS_EN = 13 * WORDS_PER_MIN_EN;
+/** 분량 하한 (글로벌 명세 1.3·6.5 L0) — 2026-10-17 박수헌: 출퇴근길 같은 청취 상황을 가정하지 않으므로 13분 → 5분. 평균 목표 없음 */
+export const MIN_MINUTES_EN = 5;
+/** 분량 하한의 단어 수 */
+export const MIN_WORDS_EN = MIN_MINUTES_EN * WORDS_PER_MIN_EN;
 
 /** 영어 단어 수 — 영숫자 덩어리. 아포스트로피·하이픈으로 이어진 것은 한 단어(don't · K-pop). "2,000" 은 둘로 센다 */
 export function countWords(text: string): number {

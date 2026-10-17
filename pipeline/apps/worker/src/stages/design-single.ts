@@ -8,6 +8,7 @@ import { assetPaths, AXIS_CHECK_SCHEMA, AXIS_CHECK_SCHEMA_EN, buildAxisCheckProm
 import { fetchArticle, fetchStatusOf, type FetchedSource } from "../sources/fetch.js";
 import { log } from "../util.js";
 import { addPronunciations } from "../tts/normalize.js";
+import { MIN_MINUTES_EN } from "../script-length.js";
 import { workerRev } from "../assets.js";
 import type { DesignOut } from "./draft-two-stage.js";
 
@@ -229,7 +230,8 @@ export async function runDesignSingle(a: { job: Job; ex: Executor; episodeId: st
     if (used < 3 || /보류/.test(o.outline_md.slice(0, 200))) await fail(`소스 본문 ${used}건 — 3건 하한 미달 (설계 판단: ${(o.notes || o.outline_md).replace(/\s+/g, " ").slice(0, 200)})`);
     await fail(`outline_md 형식 위반 — ${en ? "'Axis:' 또는 'Section #1'" : "'축:' 또는 '구간 #1'"} 줄이 없음 (정규화 후). 앞부분: ${o.outline_md.replace(/\s+/g, " ").slice(0, 160)}`);
   }
-  if (o.estimated_minutes && o.estimated_minutes < 13) await fail(`재료 부족 — 설계 예상 분량 ${o.estimated_minutes}분 < 하한 13분. ${o.notes.slice(0, 200)}`);
+  const floorMin = en ? MIN_MINUTES_EN : 13;
+  if (o.estimated_minutes && o.estimated_minutes < floorMin) await fail(`재료 부족 — 설계 예상 분량 ${o.estimated_minutes}분 < 하한 ${floorMin}분. ${o.notes.slice(0, 200)}`);
 
   if (en) await writeDesignArtifactsEn({ dir, episodeId, cand, fetched, o, chosen, priorNotes, attribution, sectionsOf, axis });
   else {

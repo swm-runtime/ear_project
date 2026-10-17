@@ -10,7 +10,7 @@ import { assetPaths, buildDesignPrompt, buildWritePromptParts, DESIGN_SCHEMA, bu
 import { exists, hostOf, log } from "../util.js";
 import { parseScriptForTts, type ScriptTurn } from "../tts/script.js";
 import { runDesignSingle } from "./design-single.js";
-import { countWords, MIN_WORDS_EN, WORDS_PER_MIN_EN } from "../script-length.js";
+import { countWords, MIN_MINUTES_EN, MIN_WORDS_EN, WORDS_PER_MIN_EN } from "../script-length.js";
 import { addPronunciations } from "../tts/normalize.js";
 
 /**
@@ -72,8 +72,9 @@ export async function runTwoStageDraft(a: TwoStageArgs): Promise<TwoStageResult>
     const missing: string[] = [];
     for (const f of DESIGN_FILES) if (!(await exists(path.join(dir, f)))) missing.push(f);
     if (missing.length) throw new Error(`설계 산출물 누락: ${missing.join(", ")} — 모델은 완료 보고를 냈으나 파일 없음 (turns=${r.numTurns ?? "?"}, notes="${design.notes.slice(0, 160)}")`);
-    if (design.estimated_minutes && design.estimated_minutes < 13) {
-      throw new Error(`재료 부족 — 설계 예상 분량 ${design.estimated_minutes}분 < 하한 13분. ${design.notes.slice(0, 200)}`);
+    const floorMin = pipelineLocale() === "en" ? MIN_MINUTES_EN : 13;
+    if (design.estimated_minutes && design.estimated_minutes < floorMin) {
+      throw new Error(`재료 부족 — 설계 예상 분량 ${design.estimated_minutes}분 < 하한 ${floorMin}분. ${design.notes.slice(0, 200)}`);
     }
     designSummary = `설계: 축 [${design.axis_type}] ${design.axis} · 구간 ${design.sections.length} (착지 #${design.landing_section}) · 발췌 ${design.excerpts}·claims ${design.claims} · 예상 ${design.estimated_minutes}분${design.gaps.length ? ` · 빈 역할 ${design.gaps.join("/")}` : ""}${design.sources_excluded.length ? ` · 제외 ${design.sources_excluded.map((x) => `${hostOf(x.url)} ${x.reason}`).join("; ").slice(0, 200)}` : ""}${design.split_proposal ? ` · ⚠ 분할 제안: ${design.split_proposal.slice(0, 200)}` : ""}`;
   }
@@ -303,7 +304,7 @@ export function twoStageViolationsEn(scriptMd: string, outlineMd: string, opts: 
   else if (planned.length && written.some((n, i) => n !== planned[i])) v.push(`Section order differs from the outline (outline ${planned.join(",")} / script ${written.join(",")})`);
   const s = scriptStats(scriptMd);
   const words = s.words ?? 0;
-  if (words < MIN_WORDS_EN) v.push(`Length ${words} words (about ${s.minutes} min) — below the 13-minute floor (${MIN_WORDS_EN} words). Use more of the outline's material (reserve material, background); do not pad`);
+  if (words < MIN_WORDS_EN) v.push(`Length ${words} words (about ${s.minutes} min) — below the ${MIN_MINUTES_EN}-minute floor (${MIN_WORDS_EN} words). Use more of the outline's material (reserve material, background); do not pad`);
   const est = Number(outlineMd.match(marks.estimate)?.[1]);
   if (est && s.minutes > est * 1.6) v.push(`Length ${words} words (about ${s.minutes} min) — more than 1.6× the outline estimate of ${est} min. Keep the material; shorten long explainer turns to land within ±15% of the estimate`);
   const heads = (opts.signoffHeads ?? []).map((h) => h.replace(/\s+/g, " ").trim()).filter(Boolean);

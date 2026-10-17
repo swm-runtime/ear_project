@@ -1,6 +1,6 @@
 # Script Writing Guidelines
 
-> Version: **full-en-v0.4** (2026-10-17) · GPT profile · global pipeline. Rationale and sources: [CHANGELOG.md](CHANGELOG.md).
+> Version: **full-en-v0.5** (2026-10-17) · GPT profile · global pipeline. Rationale and sources: [CHANGELOG.md](CHANGELOG.md).
 > Rule numbers are reference IDs for L0, QA and the critic. Do not reuse or renumber them.
 
 ## Principles
@@ -101,7 +101,7 @@
 ## Length
 
 34. **Plan the length first.** Count spoken words only.
-    - The floor is 1,950 words. The target is the outline's estimated minutes × 150 words, within 10 percent. A 15-minute estimate is about 2,250 words. Never plan below 1,950 words.
+    - The floor is 750 words. There is no target length beyond the material. The target is the outline's estimated minutes × 150 words, within 10 percent. Never plan below 750 words.
     - Spread words across each Body section: the evidence, the process needed to understand it, and what the result means.
     - If short, use unused claims, reserve material, or background from the outline. Do not invent causes, cases, or numbers.
     - Do not pad with echoes, exclamations, repeated limitations, or restated conclusions. If long, cut repetition and long turns first.

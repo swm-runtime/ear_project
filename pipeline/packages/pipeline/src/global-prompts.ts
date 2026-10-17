@@ -144,7 +144,7 @@ Planning rules:
 - A list topic keeps its list: sections may follow the items or groups of items, and each section still answers a sub-question of the axis. The count in the title matches the items the material supports.
 - Four to six Body sections. The Opening is not a section.
 - The Host question uses only what came before; it never contains the section's new case, number, or result. Never ask about methods, samples, or limits.
-- Estimated length comes from the material: 13 minutes is the floor, 15 minutes the average. Do not inflate it. If the material cannot reach 13 minutes, do not build an outline; say why in notes. If it is 26 minutes or more, put a split plan in split_proposal and still build one outline.
+- Estimated length comes from the material: 5 minutes is the floor, and there is no target length. Do not inflate it. If the material cannot reach 5 minutes, do not build an outline; say why in notes. If it is 20 minutes or more, put a split plan in split_proposal and still build one outline.
 - Every C## in the outline exists in claims.
 - Topic limits (guidelines rule 7) apply to the plan: no section built on prices, opening hours, transport, product recommendations, or plot summary.
 
@@ -158,7 +158,7 @@ Planning rules:
 - Episode ID: ${i.episodeId} · working title: "${i.candidate.title}" · topic: ${i.candidate.mid_topic}
 - The first line of outline_md is exactly "# Outline — ${i.episodeId}".
 - Explainer: **${explainer}** / host: **${host}** — fixed roles.
-- Listener: a general listener new to this topic, often with English as a second language. About 15 minutes.
+- Listener: a general listener new to this topic, often with English as a second language.
 ${candidateAxisBlockEn(i.candidate)}
 
 ## Source text (${i.sources.length} sources — cite by paragraph ID)
@@ -185,7 +185,7 @@ export const DESIGN_INLINE_SCHEMA_EN = {
     outline_md: { type: "string", description: "The full outline.md" },
     pronunciations: { type: "array", items: { type: "object", additionalProperties: false, required: ["term", "reading"], properties: { term: { type: "string", description: "Korean word or name, romanized as in the script" }, reading: { type: "string", description: "The word in Hangul as Koreans write it, or empty if unknown" } } } },
     estimated_minutes: { type: "number" },
-    split_proposal: { type: "string", description: "Split plan when 26 minutes or more, else empty" },
+    split_proposal: { type: "string", description: "Split plan when 20 minutes or more, else empty" },
     sources_used: strArr,
     sources_excluded: { type: "array", items: { type: "object", additionalProperties: false, required: ["url", "reason"], properties: { url: { type: "string" }, reason: { type: "string" } } } },
     gaps: { ...strArr, description: "Empty roles" },
@@ -203,7 +203,7 @@ export const designAxisRejectEn = (axis: string, reasons: string, note: string) 
 
 export function buildAxisCheckPromptPartsEn(i: { outlineMd: string; history?: boolean }): PromptParts {
   const system = `You review outlines for "ear", an audio service. You do not write scripts. Compare the outline's axis with each section's Question line and judge whether each section is a step toward the axis question.
-- The axis is the one question a listener holds for 15 minutes. Each section's question moves one step toward it.
+- The axis is the one question a listener holds for the whole episode. Each section's question moves one step toward it.
 - A section that drifts to a neighboring topic is false, even if it shares a broader idea.
 - A case or counterpoint section is true only if it stays inside the axis's subject. Check the section's material too: a case from a different setting that only shows the same principle is false.
 - The landing section's question is the axis question itself.
@@ -257,7 +257,7 @@ There are no gold examples yet. Follow the guidelines and the templates.
 - You may write a new title that fits the axis. No clickbait.
 ${templateBlockEn(i.templates, i.majorTopic ?? i.candidate.mid_topic, i.signoffSeed ?? 0)}
 - Opening style: **${i.introStyle.label}** — ${i.introStyle.hint}${isHistoryCandidateEn(i.candidate) ? "\n" + historyWriteEn : ""}
-- **Length target: about ${minutes} minutes = about ${Math.round(minutes * 150)} spoken words (within 10 percent).** The floor is 1,950 words. The outline's estimate already reflects the material; writing longer means the explanation got wordy.
+- **Length target: about ${minutes} minutes = about ${Math.round(minutes * 150)} spoken words (within 10 percent).** The floor is 750 words. The outline's estimate already reflects the material; writing longer means the explanation got wordy.
 
 ## Material
 ### Outline — outline.md (the contract: section order, purpose, material, host question, transition)
@@ -532,7 +532,7 @@ const QUERY_PLAN_EN = `- **Plan the queries before searching.** At least one que
 /** 기획 검색 — 도구는 웹 검색만(본문 안 읽음). 한국어·영어 소스 둘 다 — K-컬처는 국문 1차 자료가 많다 */
 export function buildTopicSeedSearchPromptEn(i: TopicSeedSearchInput): string {
   const history = false; // 주제 이름만으로는 사건형인지 모른다 — 아래 조건부 안내로 대신한다
-  return `You find sources for "ear", an audio service that makes 15-minute two-person English episodes about Korean culture for listeners mostly in Southeast Asia and Japan. A person chose one episode topic. Find sources for it by web search.
+  return `You find sources for "ear", an audio service that makes two-person English episodes about Korean culture for listeners mostly in Southeast Asia and Japan. A person chose one episode topic. Find sources for it by web search.
 The only tool is web search. Do not read pages; the planner reads them later. Return what the results show: title, summary, publisher, date.
 
 ## Topic
@@ -561,7 +561,7 @@ export function buildReinforceSearchPromptEn(i: ReinforceSearchInput): string {
   const top = [...pubCount].sort((a, b) => b[1] - a[1])[0];
   const diversify = !c.gaps.length && top ? `more publishers — ${top[0]} has ${top[1]} of ${c.sources.length} sources. Find 1 to 2 anchors and 1 case from publishers not already in the list.` : null;
   const roles = (c.gaps.length ? c.gaps : ["근거 앵커", "사례"]).map(roleEn);
-  return `You reinforce sources for "ear", an audio service that makes 15-minute two-person English episodes about Korean culture. One candidate has an axis but empty roles. Find sources for those roles by web search.
+  return `You reinforce sources for "ear", an audio service that makes two-person English episodes about Korean culture. One candidate has an axis but empty roles. Find sources for those roles by web search.
 The only tool is web search. Do not read pages. Return what the results show: title, summary, publisher, date.
 
 ## Candidate
@@ -616,7 +616,7 @@ export function buildTopicJudgePromptEn(i: ClusterV2Input): string {
 - Empty roles: ${i.reinforce!.gaps.length ? i.reinforce!.gaps.map(roleEn).join(", ") : "(none — this round adds publishers; if a new source gives an anchor from another publisher, swap out one source of the dominant publisher)"}
 - The list mixes the current candidate sources (marked) and new search results. Add a new source only if it fits the axis and fills an empty role.
 - candidates has exactly 1 item, id "${id}". Keep the title and axis (wording may be polished); do not set a new axis. Apply rules 2 to 6 below. Put roles still empty in gaps.`;
-  return `You judge episode topics for "ear", an audio service that makes 15-minute two-person English episodes about Korean culture. Listeners are English speakers new to Korea, many with English as a second language; do not assume a country. You see source metadata only; there are no tools and no page access. Set the axis first, then fill its roles with sources.
+  return `You judge episode topics for "ear", an audio service that makes two-person English episodes about Korean culture. Listeners are English speakers new to Korea, many with English as a second language; do not assume a country. You see source metadata only; there are no tools and no page access. Set the axis first, then fill its roles with sources.
 
 ${mode}
 
