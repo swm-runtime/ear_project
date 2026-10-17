@@ -9,6 +9,7 @@ import { DataSource } from 'typeorm';
 
 import { AppModule } from '@/app.module';
 import { traceIdMiddleware } from '@/common/middlewares/trace-id.middleware';
+import { AdminInsightsRepository } from '@/modules/admin/repositories/admin-insights.repository';
 import { DailyActiveUserRepository } from '@/modules/auth/daily-active-user.repository';
 import { Session } from '@/modules/auth/session.entity';
 import { toServiceDate } from '@/common/utils/service-date.util';
@@ -86,6 +87,17 @@ interface SummaryBody {
     completes: number;
   }[];
   retention: { day: number; cohort_size: number; returned: number }[];
+  retention_cohorts: Record<
+    'daily' | 'weekly',
+    {
+      offsets: number[];
+      rows: {
+        start: string;
+        users: number;
+        cells: ({ returned: number; rate: number | null } | null)[];
+      }[];
+    }
+  >;
 }
 
 /**
@@ -467,6 +479,148 @@ describe('서비스 지표 요약 E2E', () => {
       );
     }
   });
+
+  it('사람별 접속일 — 그날 세션이 있는 사람마다 한 행이고, 두 번 넣어도 같으며, 원천 세션이 지워져도 남는다', async () => {
+    // given — KST 2001-02-11 에 두 번 토큰 갱신한 1명, 그 앞날 KST 23:59 에 갱신한 1명(세지 않는다)
+    const activeDate = '2001-02-11';
+    const userId = await createUserId('active-date');
+    await seedSession(userId, new Date('2001-02-11T03:00:00.000Z'));
+    await seedSession(userId, new Date('2001-02-11T14:59:00.000Z'));
+    const otherId = await createUserId('active-date-other');
+    await seedSession(otherId, new Date('2001-02-10T14:59:00.000Z'));
+    const repository = app.get(DailyActiveUserRepository);
+    const read = () =>
+      dataSource.query<{ user_id: string }[]>(
+        `SELECT user_id FROM user_active_dates WHERE active_date = $1 AND user_id = ANY($2)`,
+        [activeDate, [userId, otherId]],
+      );
+
+    // when
+    await repository.recordActiveDates(activeDate);
+    await repository.recordActiveDates(activeDate);
+
+    // then
+    expect(await read()).toEqual([{ user_id: userId }]);
+
+    // when — 원천이 지워진 뒤 다시 넣어도 이미 남긴 행은 그대로
+    await dataSource.query(`DELETE FROM sessions WHERE user_id = $1`, [userId]);
+    await repository.recordActiveDates(activeDate);
+
+    // then
+    expect(await read()).toEqual([{ user_id: userId }]);
+  });
+
+  it('코호트 리텐션 — 가입일 기준 구간마다 접속 기록·남은 세션·재생 중 하나라도 있으면 돌아온 사람이다', async () => {
+    // given — 다른 스위트와 겹치지 않는 2001-03-05(월) KST 12:00 가입자 2명
+    const signedUpAt = new Date('2001-03-05T03:00:00.000Z');
+    const a = await createUserId('cohort-a');
+    const b = await createUserId('cohort-b');
+    await dataSource.query(
+      `UPDATE users SET created_at = $1 WHERE id = ANY($2)`,
+      [signedUpAt, [a, b]],
+    );
+    // A: D1 접속(세션은 지워지고 기록만 남은 경우) · W2(가입 14~20일 뒤) 재생
+    await dataSource.query(
+      `INSERT INTO user_active_dates (user_id, active_date) VALUES ($1, '2001-03-06')`,
+      [a],
+    );
+    const contentId = await seedContent();
+    const playedAt = new Date('2001-03-20T03:00:00.000Z');
+    const playRecords = dataSource.getRepository(PlayRecord);
+    await playRecords.save(
+      playRecords.create({
+        userId: a,
+        contentId,
+        playDate: toServiceDate(playedAt),
+        playedAt,
+        isCounted: true,
+        listenedSec: 60,
+      }),
+    );
+    // B: 가입 당일(d+0)·D2(d+2) 세션은 D1 이 아니다 · D7 = W1 첫날(03-12) 세션
+    await seedSession(b, new Date('2001-03-05T05:00:00.000Z'));
+    await seedSession(b, new Date('2001-03-07T03:00:00.000Z'));
+    await seedSession(b, new Date('2001-03-12T03:00:00.000Z'));
+    // C: 일요일 KST 23:59 가입(= UTC 14:59) — 그날(03-11) 묶음이고 그 주(03-05 주)에 든다.
+    //    가입 당일 활동은 세지 않고, 가입 14일 뒤(03-25) 재생은 W1 이 아니라 W2 다
+    const c = await createUserId('cohort-c');
+    await dataSource.query(`UPDATE users SET created_at = $1 WHERE id = $2`, [
+      new Date('2001-03-11T14:59:00.000Z'),
+      c,
+    ]);
+    await seedSession(c, new Date('2001-03-11T14:59:30.000Z'));
+    const playedAtC = new Date('2001-03-25T03:00:00.000Z');
+    await playRecords.save(
+      playRecords.create({
+        userId: c,
+        contentId,
+        playDate: toServiceDate(playedAtC),
+        playedAt: playedAtC,
+        isCounted: true,
+        listenedSec: 60,
+      }),
+    );
+    const repository = app.get(AdminInsightsRepository);
+
+    // when
+    const daily = await repository.cohortRetention(
+      '2001-03-05',
+      '2001-03-12',
+      1,
+      [1, 7],
+    );
+    const weekly = await repository.cohortRetention(
+      '2001-03-05',
+      '2001-03-12',
+      7,
+      [1, 2, 3, 4],
+    );
+
+    // then — 일별: 03-05 묶음 2명(D1 = A 만, D7 = B 만), 03-11 묶음 1명(C — 돌아온 칸 없음)
+    expect(
+      [...daily.sizes].sort((x, y) => x.start.localeCompare(y.start)),
+    ).toEqual([
+      { start: '2001-03-05', users: 2 },
+      { start: '2001-03-11', users: 1 },
+    ]);
+    expect([...daily.hits].sort((x, y) => x.offset - y.offset)).toEqual([
+      { start: '2001-03-05', offset: 1, returned: 1 },
+      { start: '2001-03-05', offset: 7, returned: 1 },
+    ]);
+    // 주별: 03-05 주 3명(일요일 23:59 가입자 포함). W1 = B, W2 = A(가입 15일 뒤)·C(가입 14일 뒤)
+    expect(weekly.sizes).toEqual([{ start: '2001-03-05', users: 3 }]);
+    expect([...weekly.hits].sort((x, y) => x.offset - y.offset)).toEqual([
+      { start: '2001-03-05', offset: 1, returned: 1 },
+      { start: '2001-03-05', offset: 2, returned: 2 },
+    ]);
+  });
+
+  it('요약 응답에 코호트 표 두 장(일별 14행 D1·D7 · 주별 8행 W1~W4)이 실린다', async () => {
+    // given
+    const adminAuth = await createUser('admin-cohort', UserRole.ADMIN);
+
+    // when
+    const body = (
+      await request(app.getHttpServer())
+        .get(path('/admin/insights/summary'))
+        .set('Authorization', adminAuth)
+        .expect(HttpStatus.OK)
+    ).body as SummaryBody;
+
+    // then
+    const { daily, weekly } = body.retention_cohorts;
+    expect(daily.offsets).toEqual([1, 7]);
+    expect(daily.rows).toHaveLength(14);
+    expect(weekly.offsets).toEqual([1, 2, 3, 4]);
+    expect(weekly.rows).toHaveLength(8);
+    // 어제 가입자의 D1 은 오늘이라 아직 끝나지 않았다
+    expect(daily.rows[0].cells[0]).toBeNull();
+    for (const row of [...daily.rows, ...weekly.rows]) {
+      for (const cell of row.cells) {
+        if (cell) expect(cell.returned).toBeLessThanOrEqual(row.users);
+      }
+    }
+  }, 60_000);
 
   it('시장별 집계는 계정이 없는 시장까지 시장마다 한 칸이고, 각 값은 그 시장 계정 수를 넘지 않는다(global-api 4.10)', async () => {
     // given

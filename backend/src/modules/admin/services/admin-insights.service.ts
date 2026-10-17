@@ -3,6 +3,8 @@ import { Injectable } from '@nestjs/common';
 import { UserMarket } from '@/modules/user/user.enum';
 
 import {
+  INSIGHTS_COHORT_DAILY,
+  INSIGHTS_COHORT_WEEKLY,
   INSIGHTS_LIVE_ACTIVE_DAYS,
   INSIGHTS_RANK_LIMIT,
   INSIGHTS_RETENTION_DAYS,
@@ -10,6 +12,8 @@ import {
   INSIGHTS_WEEKDAY_LABELS,
 } from '../admin.constant';
 import {
+  InsightsCohortCounts,
+  InsightsCohortTable,
   InsightsDaily,
   InsightsDailyRows,
   InsightsHourly,
@@ -55,6 +59,28 @@ export class AdminInsightsService {
     const topicSupply = await this.repository.topicSupply(since, now);
     const byMarket = await this.repository.marketTotals(since, now);
 
+    const today = kstDateLabel(now);
+    const activeUsersSince =
+      firstStored !== null && firstStored < liveFrom ? firstStored : liveFrom;
+    const cohortSince = cohortReliableSince(
+      await this.repository.activeDatesFirstRecordedAt(),
+      liveFrom,
+    );
+    const dailyStarts = cohortStarts(today, INSIGHTS_COHORT_DAILY);
+    const weeklyStarts = cohortStarts(today, INSIGHTS_COHORT_WEEKLY);
+    const dailyCohorts = await this.repository.cohortRetention(
+      dailyStarts[dailyStarts.length - 1],
+      today,
+      INSIGHTS_COHORT_DAILY.span,
+      INSIGHTS_COHORT_DAILY.offsets,
+    );
+    const weeklyCohorts = await this.repository.cohortRetention(
+      weeklyStarts[weeklyStarts.length - 1],
+      addDays(today, 1),
+      INSIGHTS_COHORT_WEEKLY.span,
+      INSIGHTS_COHORT_WEEKLY.offsets,
+    );
+
     const daily = fillDailySeries(since, now, dailyRows, liveFrom);
 
     return {
@@ -64,13 +90,28 @@ export class AdminInsightsService {
       listening: { allTime, window },
       daily,
       weekday: summarizeWeekdays(daily, since, now),
-      activeUsersSince:
-        firstStored !== null && firstStored < liveFrom ? firstStored : liveFrom,
+      activeUsersSince,
       hourly: fillHourly(hourly),
       topUsers,
       topContents,
       withdrawalReasons,
       retention,
+      retentionCohorts: {
+        daily: buildCohortTable(
+          dailyCohorts,
+          dailyStarts,
+          INSIGHTS_COHORT_DAILY,
+          today,
+          cohortSince,
+        ),
+        weekly: buildCohortTable(
+          weeklyCohorts,
+          weeklyStarts,
+          INSIGHTS_COHORT_WEEKLY,
+          today,
+          cohortSince,
+        ),
+      },
       topicSupply,
       byMarket: fillMarkets(byMarket),
     };
@@ -185,6 +226,84 @@ const average = (values: number[]): number | null =>
   values.length > 0
     ? values.reduce((sum, v) => sum + v, 0) / values.length
     : null;
+
+/** `YYYY-MM-DD` 달력일에 `n`일을 더한다 — 라벨 연산이라 시간대가 없다 */
+export function addDays(date: string, n: number): string {
+  return new Date(new Date(`${date}T00:00:00.000Z`).getTime() + n * DAY_MS)
+    .toISOString()
+    .slice(0, 10);
+}
+
+/**
+ * 코호트의 접속 기록을 믿을 수 있는 첫 날 — 사람별 접속일 표가 백필된 날(KST) - 29일(그때 세션이 온전히 남아 있던 범위,
+ * `INSIGHTS_LIVE_ACTIVE_DAYS`와 같은 경계). 표가 비었으면 세션으로 바로 셀 수 있는 첫 날(`liveFrom`)이다 — 질의가 남은 세션도
+ * 함께 읽으므로 그 날부터는 표 없이도 온전하다(같은 이유로 결과가 `liveFrom`보다 늦지 않게 자른다).
+ * 일별 접속자의 `activeUsersSince`(다른 표·다른 마이그레이션)를 쓰지 않는다 — 두 마이그레이션이 다른 날 돌면 어긋난다.
+ */
+export function cohortReliableSince(
+  firstRecordedAt: Date | null,
+  liveFrom: string,
+): string {
+  if (firstRecordedAt === null) return liveFrom;
+  const backfilled = addDays(
+    kstDateLabel(firstRecordedAt),
+    -INSIGHTS_LIVE_ACTIVE_DAYS,
+  );
+  return backfilled < liveFrom ? backfilled : liveFrom;
+}
+
+/**
+ * 코호트 묶음 시작일 — 최근 묶음 먼저 `count`개. 일별(`span` 1)은 어제부터(오늘 가입자는 D1 도 아직 없다), 주별(`span` 7)은
+ * 이번 주 월요일부터(이번 주 가입자도 묶음 크기는 보인다).
+ */
+export function cohortStarts(
+  today: string,
+  { count, span }: { count: number; span: number },
+): string[] {
+  const latest =
+    span === 7 ? addDays(today, 1 - isoWeekday(today)) : addDays(today, -1);
+  return Array.from({ length: count }, (_, i) => addDays(latest, -i * span));
+}
+
+/**
+ * 코호트 표 — 묶음마다 가입자 수와 `offsets` 구간별 칸. 빈 묶음(그 날·주 가입 0명)도 행을 둔다.
+ *
+ * - 칸이 `null`: 그 구간이 **묶음의 마지막 가입자 기준으로 아직 끝나지 않았다**(끝나는 날이 오늘 이후). 일부만 끝난 묶음의
+ *   값을 섞으면 최근 묶음이 낮아 보인다 — 끝난 칸만 숫자로 싣는다.
+ * - `partial`: 구간이 `reliableSince`(접속 기록을 믿을 수 있는 첫 날) 앞에서 시작한다 — 그 앞은 재생만 잡힌다.
+ */
+export function buildCohortTable(
+  counts: InsightsCohortCounts,
+  starts: string[],
+  { span, offsets }: { span: number; offsets: readonly number[] },
+  today: string,
+  reliableSince: string,
+): InsightsCohortTable {
+  const sizes = new Map(counts.sizes.map((r) => [r.start, r.users]));
+  const hits = new Map(
+    counts.hits.map((r) => [`${r.start}|${r.offset}`, r.returned]),
+  );
+  return {
+    span,
+    offsets: [...offsets],
+    reliableSince,
+    rows: starts.map((start) => {
+      const lastMember = addDays(start, span - 1);
+      return {
+        start,
+        users: sizes.get(start) ?? 0,
+        cells: offsets.map((offset) =>
+          addDays(lastMember, (offset + 1) * span) <= today
+            ? {
+                returned: hits.get(`${start}|${offset}`) ?? 0,
+                partial: addDays(start, offset * span) < reliableSince,
+              }
+            : null,
+        ),
+      };
+    }),
+  };
+}
 
 /** 시장마다 한 칸 — 계정이 없는 시장(출시 전 GLOBAL)도 0 으로 그려야 "0명"과 "집계 누락"이 구분된다 */
 export function fillMarkets(

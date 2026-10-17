@@ -118,6 +118,42 @@ const summary = (): InsightsSummary => ({
     { day: 1, cohortSize: 200, returned: 50 },
     { day: 30, cohortSize: 0, returned: 0 },
   ],
+  retentionCohorts: {
+    daily: {
+      span: 1,
+      offsets: [1, 7],
+      reliableSince: '2026-09-19',
+      rows: [
+        {
+          start: '2026-10-07',
+          users: 8,
+          cells: [{ returned: 2, partial: false }, null],
+        },
+        {
+          start: '2026-10-06',
+          users: 0,
+          cells: [{ returned: 0, partial: false }, null],
+        },
+      ],
+    },
+    weekly: {
+      span: 7,
+      offsets: [1, 2, 3, 4],
+      reliableSince: '2026-09-19',
+      rows: [
+        {
+          start: '2026-08-24',
+          users: 10,
+          cells: [
+            { returned: 4, partial: true },
+            { returned: 3, partial: false },
+            { returned: 3, partial: false },
+            { returned: 2, partial: false },
+          ],
+        },
+      ],
+    },
+  },
   topicSupply: [
     {
       topicId: 'topic-1',
@@ -193,6 +229,32 @@ describe('AdminInsightsSummaryResponseDto', () => {
       median_remaining: 1.5,
       exhausted_users: 20,
       low_users: 90,
+    });
+  });
+
+  it('코호트 칸마다 비율을 붙이고, 끝나지 않은 칸(null)과 가입 0명 묶음의 비율(null)을 그대로 둔다', () => {
+    // when
+    const dto = AdminInsightsSummaryResponseDto.from(summary(), 14);
+
+    // then
+    const daily = dto.retention_cohorts.daily;
+    expect(daily.span).toBe(1);
+    expect(daily.offsets).toEqual([1, 7]);
+    expect(daily.reliable_since).toBe('2026-09-19');
+    expect(daily.rows[0]).toEqual({
+      start: '2026-10-07',
+      users: 8,
+      cells: [{ returned: 2, rate: 0.25, partial: false }, null],
+    });
+    expect(daily.rows[1].cells[0]).toEqual({
+      returned: 0,
+      rate: null,
+      partial: false,
+    });
+    expect(dto.retention_cohorts.weekly.rows[0].cells[0]).toEqual({
+      returned: 4,
+      rate: 0.4,
+      partial: true,
     });
   });
 
