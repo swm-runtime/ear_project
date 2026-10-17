@@ -78,8 +78,8 @@ module.exports = ({ config }) => {
   // 선언하면 AASA·assetlinks 에 개발계 앱을 올려야 하고, 한 폰에서 두 앱이 같은 링크를 다툰다.
   const { associatedDomains: _associatedDomains, ...ios } = config.ios;
   const { intentFilters: _intentFilters, ...android } = config.android;
-  // 홈 화면 이름 현지화(KAN-198 — locales/*.json 의 이어·Ear)는 운영 앱 이름이다. 그대로 두면 개발계 앱도
-  // 영어 기기에서 "Ear" 로 떠 운영 앱과 구분되지 않는다 — 개발계는 아래 name 하나로 둔다
+  // 홈 화면 이름 현지화(KAN-198 — locales/*.json 의 이어·Earcast, 영어 이름 PM 확정 2026-10-18)는 운영 앱 이름이다.
+  // 그대로 두면 개발계 앱도 영어 기기에서 "Earcast" 로 떠 운영 앱과 구분되지 않는다 — 개발계는 아래 name 하나로 둔다
   const { locales: _locales, ...base } = config;
 
   return withDevBundleName({

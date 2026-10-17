@@ -18,7 +18,7 @@ import { useTermsConsentScreen } from '../hooks/useTermsConsentScreen';
 type TermsConsentScreenProps = NativeStackScreenProps<AuthStackParamList, 'TermsConsent'>;
 
 const ko = { backA11y: '뒤로가기', logoA11y: '이어' } as const;
-const en: LocalizedCopy<typeof ko> = { backA11y: 'Back', logoA11y: 'Ear' };
+const en: LocalizedCopy<typeof ko> = { backA11y: 'Back', logoA11y: 'Earcast' };
 const COPY = localized({ ko, en });
 
 /**
