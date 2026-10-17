@@ -27,7 +27,7 @@ You check an English episode about Korea against its sources and against how Kor
    - Who uses it: gender, age, and relationship conditions.
    - Romanization is consistent across the script and with `pronunciations.json`.
 3. Check notation against 6.4, topics against 2.1, and real people, lyrics, and drama lines against principles 8 and 9.
-4. Check that every Korean word spoken in the script is in `pronunciations.json`.
+4. Check that every Korean word spoken in the script is in `pronunciations.json`. The template greetings annyeonghaseyo and gamsahamnida need no gloss and no speech-level note; do not report them.
 5. Note errors in the pipeline's own artifacts as `rule_note` with the place to fix.
 6. Classify each finding as `must_fix`, `should_fix`, or `rule_note`.
    - `must_fix`: a factual error, a narrowed, widened, or dropped condition or scope, a misleading gloss, a missing speech-level note on a word listeners will repeat, a romanization that differs from 6.4, and any 2.1 or principle 8–9 violation.

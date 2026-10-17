@@ -101,6 +101,8 @@ ${fence(i.guidelines)}
 - Each claim: id (C01…) · text (one English sentence) · excerpt_ids · type (number, quote, name, cause, definition, practice) · section (the Body section that uses it; all claims from one source share one section, except the axis_source, which may use two) · notable (true only for people or institutions a general listener knows by name) · opinion (true for a person's opinion, interpretation, or forecast, or a contested or interested claim).
 - A claim is never more specific than its excerpt. Keep the excerpt's hedges and the subject it attributes to. For a Korean excerpt, translate the meaning exactly; do not add or soften.
 - Keep every condition the excerpt attaches: who says it, to whom, where, and which meanings it covers. When one condition covers several meanings, say so in each claim that states a meaning. Keep a named set as named; do not widen it into a general category.
+- Keep each condition on the thing it describes. When an excerpt says one thing varies but another stays fixed, the claim keeps that contrast.
+- Keep the excerpt's quantifiers (some, many, most, a few) and the subject it gives a practice. A practice of one named person stays that person's; claims from one excerpt use the same subject.
 - For a Korean word, keep in the claims whether the excerpt calls it casual or polite and who uses it.
 - In a Korean Language episode, keep one example phrase per featured word from the excerpts as a claim of type quote: the phrase romanized, its meaning, and its speech level read from the Hangul ending (casual, polite with -yo, or formal with -seumnida). Say when the phrase is a dictionary form ending in -da. Add who says it to whom only when the excerpt says so; otherwise leave the relationship out of the claim. An example sentence from a dictionary or learning guide is allowed; a line from a drama, song, or show is not.
 - Romanize Korean words with Revised Romanization, even when an excerpt spells them another way. Names of people, groups, companies, and works keep their official English spelling.
@@ -258,7 +260,7 @@ There are no gold examples yet. Follow the guidelines and the templates.
 - You may write a new title that fits the axis. No clickbait.
 ${templateBlockEn(i.templates, i.majorTopic ?? i.candidate.mid_topic, i.signoffSeed ?? 0, i.series?.introSentence)}
 - Opening style: **${i.introStyle.label}** — ${i.introStyle.hint}${isHistoryCandidateEn(i.candidate) ? "\n" + historyWriteEn : ""}
-- **Length target: about ${minutes} minutes = about ${Math.round(minutes * 150)} spoken words (within 10 percent).** The floor is 750 words. The outline's estimate already reflects the material; writing longer means the explanation got wordy.${seriesWriteBlock(i.series, true)}
+- **Length target: about ${minutes} minutes = about ${Math.round(minutes * 146)} spoken words (within 10 percent).** The floor is 730 words. The outline's estimate already reflects the material; writing longer means the explanation got wordy.${seriesWriteBlock(i.series, true)}
 
 ## Material
 ### Outline — outline.md (the contract: section order, purpose, material, host question, transition)
