@@ -54,17 +54,17 @@ Hi, and annyeonghaseyo! Welcome to Earcast, your K-podcast. {topic_line} Today w
 We've been talking about {episode_recap}. {host_remark}
 (the explainer's wrap-up turn follows)
 
-[Sign-off — host, the last turn; variants rotate per episode]
-That's all for this episode of Earcast. {host_line} Thanks for listening, and gamsahamnida!
-Thanks for spending this time with us on Earcast. {host_line} Gamsahamnida!
-That's our story for this episode. {host_line} See you next time on Earcast. Gamsahamnida!
+[Sign-off — host, the last turn, fixed text; variants rotate per episode]
+That's all for this episode of Earcast. Thanks for listening, and gamsahamnida!
+Thanks for spending this time with us on Earcast. Gamsahamnida!
+That's our story for this episode. See you next time on Earcast. Gamsahamnida!
 ```
 
 - `{topic_line}` is the topic's fixed line (`templates.major_lines`). `{episode_line}` is this episode's axis in one line, in the intro.
 - `{episode_recap}` is the same topic in one line, in different words from `{episode_line}`. It names the topic, not the answer; the wrap-up gives the answer.
 - `{host_remark}` is one question in the host's own words that asks the explainer to bring the episode together around the axis question. It is not a feeling or a reaction, and it does not repeat the intro. The explainer's wrap-up answers it.
-- `{host_line}` is the host's own reaction to this episode, in the sign-off only.
-- tpl-en-v4 (2026-10-18, 박수헌): the closing lead was "We've been talking about {episode_line}. {host_remark}" — the same slot repeated the intro line word for word, and {host_remark} had no definition, so the host gave a reaction twice (G261018-001~003). The frame stays; the slot is now {episode_recap}.
+- The sign-off has no slot. It is said word for word.
+- tpl-en-v4 (2026-10-18, 박수헌): the closing lead was "We've been talking about {episode_line}. {host_remark}" — the same slot repeated the intro line word for word, and {host_remark} had no definition, so the host gave a reaction twice (G261018-001~003). The frame stays; the slot is now {episode_recap}. The sign-off's {host_line} (the host's reaction) was dropped: after the host's closing question and the explainer's answer, the sign-off only says goodbye.
 - The intro greeting (`annyeonghaseyo`) and the sign-off thanks (`gamsahamnida`) are written in romanization. The global pronunciation dictionary maps them to Hangul, so the voice says them in Korean (tpl-en-v2 and v3, 2026-10-16).
 - L0 checks that the last turn is a host turn containing a sign-off head (the text before its first `{`).
 

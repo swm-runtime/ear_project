@@ -47,7 +47,7 @@ ${fence(t.closing)}
   - {episode_recap} = the same topic as {episode_line} in one line, in different words. Do not reuse the intro's wording. Name the topic, not the answer.
   - {host_remark} = one question in the host's own words that asks the explainer to bring the episode together around the axis question. Not a feeling or a reaction; do not repeat the intro's line.
   - After it, one explainer wrap-up turn that answers that question (guidelines, Closing rule).${signoff ? `
-- **Sign-off template** (the last turn of the script, by the host; keep the frame, fill only the {slots}):
+- **Sign-off template** (the last turn of the script, by the host; fixed text, say it word for word and add nothing):
 ${fence(signoff)}` : ""}`;
 }
 
