@@ -9,7 +9,7 @@
 | 기한 | 2026-10-23 (Low — 이번 주 안 · 통합 시 반영) |
 | 선행 | 없음 — 코드·uiux 는 FE KAN-219 PR 로 먼저 반영됐고, 통합 시 features·api 문서에 옮겨 적는 요청 |
 | 중요도 | Low — 동작은 이미 uiux 가 적었고, features·api 는 "KAN-219 에서 붙는다" 예고 문장만 남아 있다 |
-| 관련 | FE 티켓 `tickets/frontend/archive/hashtag-tap-to-search.md`(KAN-219) · BE `tickets/backend/archive/search-hashtag-matching.md`(KAN-218) |
+| 관련 | FE 티켓 `tickets/frontend/archive/hashtag-tap-to-search.md`(KAN-219 · PR #1659) · BE `tickets/backend/archive/search-hashtag-matching.md`(KAN-218) |
 
 ## 배경
 
