@@ -23,7 +23,7 @@ export const isHistoryCandidateEn = (c: Pick<BacklogCandidate, "mid_topic" | "ax
 /** 도입 방식 4종 — 인트로 템플릿 뒤 [Opening] 첫 턴을 어떻게 여는가. 기능만 적는다(문장을 적으면 대본에 복제된다, 한국판 v9.4 교훈).
  *  글로벌판 인트로는 질문 없이 주제 선언으로 끝난다(tpl-en-v1, 박수헌 2026-10-15) — 한국판처럼 "인트로 질문을 받는" 형태가 아니다 */
 export const INTRO_STYLES_EN: readonly IntroStyle[] = [
-  { key: "experience", label: "everyday scene", hint: "The explainer opens the Opening with one ordinary situation anyone could meet, stated as hypothetical. Two or three short turns stay in that scene before the first explanation. Do not start it with the same words each time." },
+  { key: "experience", label: "everyday scene", hint: "The explainer opens the Opening with one ordinary situation anyone could meet, marked as imagined in plain words. Two or three short turns stay in that scene before the first explanation. Do not start it with the same words each time." },
   { key: "object", label: "one object", hint: "The explainer opens the Opening with one concrete object and what it looks like. Two or three turns stay with it, and it becomes the first case of the topic." },
   { key: "question", label: "question back", hint: "The host opens the Opening with the first question a newcomer would ask about the topic, built from the topic name alone and holding no fact. The explainer asks back one short thing about why it matters to the host, and the host's answer, a guess or feeling, opens the first explanation." },
   { key: "thesis", label: "surprising claim", hint: "The explainer opens the Opening with one claimed fact that runs against what a newcomer would expect. The host reacts or doubts for two or three turns. Start with the fact itself, not an announcement." },
@@ -101,7 +101,7 @@ ${fence(i.guidelines)}
 - A claim is never more specific than its excerpt. Keep the excerpt's hedges and the subject it attributes to. For a Korean excerpt, translate the meaning exactly; do not add or soften.
 - Keep every condition the excerpt attaches: who says it, to whom, where, and which meanings it covers. When one condition covers several meanings, say so in each claim that states a meaning. Keep a named set as named; do not widen it into a general category.
 - For a Korean word, keep in the claims whether the excerpt calls it casual or polite and who uses it.
-- In a Korean Language episode, keep one example phrase per featured word from the excerpts as a claim of type quote: the phrase romanized, its meaning, and who says it to whom. An example sentence from a dictionary or learning guide is allowed; a line from a drama, song, or show is not.
+- In a Korean Language episode, keep one example phrase per featured word from the excerpts as a claim of type quote: the phrase romanized, its meaning, and its speech level read from the Hangul ending (casual, polite with -yo, or formal with -seumnida). Say when the phrase is a dictionary form ending in -da. Add who says it to whom only when the excerpt says so; otherwise leave the relationship out of the claim. An example sentence from a dictionary or learning guide is allowed; a line from a drama, song, or show is not.
 - Romanize Korean words with Revised Romanization, even when an excerpt spells them another way. Names of people, groups, companies, and works keep their official English spelling.
 - A real person appears only through verifiable public facts. Do not make a claim from rumor, private life, or controversy.
 - Links between sources are not claims; put them in the outline's links list.

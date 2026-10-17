@@ -2,6 +2,19 @@
 
 > 대상: `guidelines.gpt.md`(글로벌 DB `prompt_assets` 가 진실 — 이 폴더는 시딩·검토용 git 사본). 규칙 본문은 모델이 읽는 영어이고, 근거·출처·이전 판 문구는 이 파일에만 둔다(한국판 규칙 자산 원칙과 같음).
 
+## full-en-v0.6 (2026-10-17) — G261017-001 에이전트 판정 승격
+
+원천: 에이전트 판정(편집자 55점 · 한국어·사실 발행 가능 → 발행 불가, 필수 수정 9건). 원인이 분명하거나 이미 있는 규칙이 지켜지지 않은 것만 올렸다. 같은 날 QA qa-en-v0.5 · 비평 critic-en-v0.4 · L0 3종 · 설계 프롬프트.
+
+- 규칙 48 — 따라 말할 한국어 예문은 말 높임(반말·해요체·합쇼체)을 말한다. claims 가 사전형이라고 적은 표현은 말할 때 끝을 바꾼다고 말한다. 근거: E13 "Nunchi eopseoseo mianhaeyo"·E24 "Mot baeun ge hanieyo" 두 해요체 예문에 표시가 없었고 같은 편 E19 는 반말을 밝혔다(필수 수정 M8). 원인은 claims 에 말 높임 칸이 없던 것 — 설계 프롬프트가 quote claim 에 말 높임(한글 어미로 판단)과 사전형 여부를 적게 했다. QA 4번도 같은 항목을 본다.
+- 규칙 50 — "누가 누구에게 말하는가"는 claims 에 있을 때만 말하고, 없으면 관계를 말하지 않는다. 근거: 설계가 "relationship not specified"를 claim 에 적자 대본이 "The expression doesn't specify a particular relationship"(E13)·"without requiring a particular relationship"(E24, 범위 확대 M9)으로 말했다 — 구성안·claims 의 지시가 대사로 샜다. 설계 프롬프트도 관계를 모르면 claim 에서 뺀다.
+- 규칙 50 — 한국어 표현을 가리키는 턴은 그 표현을 말한다. 근거: E22·E29 가 "Neither expression…"·"Korean expressions distinguish…"라면서 jeongi deulda·jeong tteoreojida·hani maechida·haneul pulda 를 말하지 않았다(M7 일부). L0 가 등재 표제어 없이 "expression"을 말하는 해설 턴을 센다("English expression"·"an expression of" 는 뺀다).
+- 규칙 3·50 — 가상 장면은 쉬운 말로 표시하고 "hypothetical"이라는 단어를 대사에 쓰지 않는다. 근거: 규칙 50 의 "as a hypothetical scene"·도입 방식 "stated as hypothetical" 문구가 그대로 대사가 됐다(E9·E13·E17 "Imagine a hypothetical workplace situation…"). 도입 방식 문구도 고쳤다.
+- 규칙 15 — 도입의 되묻기도 해설자 질문으로 센다. 편 전체 두 번까지. 근거: 도입 방식 "question back"의 E1 + 본문 E5·E17 = 세 번. L0 가 센다.
+- 규칙 42 — 단락당 출처 이름은 두 문장까지이고 "According to …"·"In …'s account" 꼴도 센다. 근거: v0.2 가 주어 꼴만 세서 #4 에서 KEL 이 여덟 문장(E23·E25·E26·E27·E28)에 붙어도 L0 를 빠져나갔다(비평 플래그 1, 편집자·한국어 검토 모두 부분동의). 이 판정에서 한국어·사실 검토자는 "해석 귀속은 한 번은 남겨야 한다"고 했다 — 두 문장 한도가 그 자리를 남긴다. 대문자 약어 주어만 고유명사로 센다(첫 글자만 대문자인 주어는 한국어 표현과 갈리지 않는다).
+
+올리지 않은 것(다음 판정에서 반복되면): "concerns" 동사 7턴 · "doesn't require / without requiring" 부정 정의 틀 8턴 · "..."를 대시 대용 — 금지어 목록은 동의어 이동(과교정) 위험이 있어 한 편 근거로는 올리지 않는다. 턴 끝 요약(규칙 31)·진행자 말 되받기(규칙 10)는 두 편 연속이지만 이번 편은 말을 바꾼 요약·되받기라 정규식으로 못 잡는다 — 비평·에이전트 판정에 둔다. 비평 루브릭 보정(두 편 연속 +16~20점)은 3편 뒤.
+
 ## full-en-v0.5 (2026-10-17) — 분량 하한 13분 → 5분, 평균 목표 없음
 
 - 규칙 34: 하한 1,950단어(13분) → 750단어(5분). 평균 목표(15분 ≈ 2,250단어) 문구를 뺐다 — 길이는 구성안이 재료로 정한 예상 분량을 따른다. 목표 = 예상 분 × 150단어 ± 10%는 그대로.
