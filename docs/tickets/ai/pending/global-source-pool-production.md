@@ -46,3 +46,7 @@
   - `language`: **`enrichment.json` 에 싣지 않는다**(사용자 결정 A) — global-api 4.9 상 선택이고, 서버 `enrichment-file.ts` 가 모르는 키를 파일째 거부한다. 언어는 발행 payload 로 간다. 명세 6.9 를 같이 고쳤다.
   - `upload-meta.json`: en 에서 `market: "global"` · `language: "en"` · `topics`(대표 먼저, 보조 주제는 0028 `backlog.sub_topic`)를 더한다. 메타 부여는 `topics` 를 주제명으로 쓴다. 한국판 upload-meta 는 키를 더하지 않는다.
   - 남은 것: 콘솔이 upload-meta 의 `market`·`language`·`topics` 를 발행 payload 로 옮기는 일은 발행(KAN-204, BE 계약 뒤). 영어 판정 기준(`difficulty`·`format` 등, 명세 10장 #9)과 태그 문구는 영어 규칙 설계 때.
+- 2026-10-17 1편째(5편 단위 테스트와 별개로 파이프라인 끝까지 시험) — G261017-001 "Nunchi, Jeong, and Han in Everyday Situations"(Korean Language, Yuna·Owen).
+  - 주제 기획 C7 → 도메인 사후 판정(판정 대기 20개 일괄: 군집화 제외 4개 2군, 나머지 16개 1군 — 박수헌 지시) → 보강 1회(새 소스 0건, 빈 역할 수치·조사 그대로) → 경고 확인·게이트 1 승인 → 초안·QA·비평 → TTS·썸네일. 텍스트 비용 $0.577.
+  - 에이전트 판정: 편집자 55점(비평 75점) · 한국어·사실 발행 가능 → **발행 불가**, 필수 수정 9건(미반영, 대본 고도화는 미룸). 리포트 `episodes/G261017-001/agent-verdict.md`.
+  - 반영한 규칙 변경: full-en-v0.5(#1648 — 분량 하한 13분 → 5분, 평균 목표 없음, 분할 제안 20분 이상, 박수헌 결정) · full-en-v0.6·qa-en-v0.5·critic-en-v0.4·L0 3종(#1649 — 근거는 `docs/ai/global/skills/draft/CHANGELOG.md`). 같은 날 글로벌 DB 시딩.
