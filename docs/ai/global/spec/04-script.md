@@ -44,14 +44,14 @@ Speaker names come from the episode's team, chosen by the representative topic (
 - The meta line is `Episode ID · Title · Topic · explainer/host · prompt version · sources used`.
 - No source list, no AI disclosure, no URLs, tables, or markdown in lines.
 
-### Templates (settings `templates`, tpl-en-v3)
+### Templates (settings `templates`, tpl-en-v4)
 
 ```
 [Intro — host, Y1, one turn]
 Hi, and annyeonghaseyo! Welcome to Earcast, your K-podcast. {topic_line} Today we're talking about {episode_line}.
 
 [Closing lead — host]
-We've been talking about {episode_line}. {host_remark}
+One last thing before we finish. {host_remark}
 (the explainer's wrap-up turn follows)
 
 [Sign-off — host, the last turn; variants rotate per episode]
@@ -60,8 +60,10 @@ Thanks for spending this time with us on Earcast. {host_line} Gamsahamnida!
 That's our story for this episode. {host_line} See you next time on Earcast. Gamsahamnida!
 ```
 
-- `{topic_line}` is the topic's fixed line (`templates.major_lines`). `{episode_line}` is the same words in the intro and the closing lead.
-- `{host_remark}` and `{host_line}` are written new each episode.
+- `{topic_line}` is the topic's fixed line (`templates.major_lines`). `{episode_line}` is this episode's axis in one line, in the intro only.
+- `{host_remark}` is one question in the host's own words that asks the explainer to bring the episode together around the axis question. It is not a feeling or a reaction, and it does not repeat the intro. The explainer's wrap-up answers it.
+- `{host_line}` is the host's own reaction to this episode, in the sign-off only.
+- tpl-en-v4 (2026-10-18, 박수헌): the closing lead was "We've been talking about {episode_line}. {host_remark}" — it repeated the intro line word for word, and {host_remark} had no definition, so the host gave a reaction twice (G261018-001~003).
 - The intro greeting (`annyeonghaseyo`) and the sign-off thanks (`gamsahamnida`) are written in romanization. The global pronunciation dictionary maps them to Hangul, so the voice says them in Korean (tpl-en-v2 and v3, 2026-10-16).
 - L0 checks that the last turn is a host turn containing a sign-off head (the text before its first `{`).
 

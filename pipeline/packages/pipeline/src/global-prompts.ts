@@ -44,7 +44,8 @@ ${fence(t.intro)}
   - {episode_line} = this episode's axis in one line a listener catches by ear, not the title repeated
 - **Closing lead template** (the host; keep the frame):
 ${fence(t.closing)}
-  - After it, one explainer wrap-up turn (guidelines, Closing rule).${signoff ? `
+  - {host_remark} = one question in the host's own words that asks the explainer to bring the episode together around the axis question. Not a feeling or a reaction; do not repeat the intro's line.
+  - After it, one explainer wrap-up turn that answers that question (guidelines, Closing rule).${signoff ? `
 - **Sign-off template** (the last turn of the script, by the host; keep the frame, fill only the {slots}):
 ${fence(signoff)}` : ""}`;
 }

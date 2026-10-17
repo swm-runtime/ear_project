@@ -120,7 +120,7 @@
 
 39. **Scenes, cases, and metaphors, budgeted.** Stage each Scene the outline plans: the explainer says who, where, and what happens, and the host reacts to it. One case per section, four to five per episode, including cases from sources. Use a metaphor only where understanding stalls, at most three per episode. The host creates no metaphors or examples. Record every new link or metaphor in bridges.
 
-40. **Closing.** The Closing is the host's closing lead, one explainer wrap-up turn, and the host's injected sign-off. The wrap-up has 3 to 6 sentences. It connects the sections' answers as one line of reasoning, merging sections when needed, and its last sentence answers the axis question or states the axis. No new facts, names, numbers, or cases. Do not open it with "So, to sum up" or similar. Keep the sign-off frame and fill only its slots. The last slot is the host's own reaction to this episode. It is not advice, a command, a pledge, or a moral.
+40. **Closing.** The Closing is the host's closing lead with its closing question, one explainer wrap-up turn that answers it, and the host's injected sign-off. The wrap-up has 3 to 6 sentences. It connects the sections' answers as one line of reasoning, merging sections when needed, and its last sentence answers the axis question or states the axis. No new facts, names, numbers, or cases. Do not open it with "So, to sum up" or similar. Keep the sign-off frame and fill only its slots. The last slot is the host's own reaction to this episode. It is not advice, a command, a pledge, or a moral.
 
 ## Facts and sources
 
