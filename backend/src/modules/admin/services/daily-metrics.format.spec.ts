@@ -138,26 +138,10 @@ describe('formatDailyMetrics', () => {
     expect(text).not.toContain('(서버');
   });
 
-  it('각주에 출처와 경계를 적는다 — 가입자·시장별 청취 줄만 서버, 나머지는 GA4', () => {
+  it('각주에 하루 범위(전 줄 KST 00~24시)와 출처를 적는다 — 현재 가입자만 보고 시각 값', () => {
     expect(formatDailyMetrics(base)).toContain(
-      '가입자·시장별 청취 줄은 서버 값(04시 경계) · 나머지는 GA4 운영 스트림(00시 경계)',
+      '어제 = KST 00~24시(전 줄 같은 범위) · 현재 가입자는 보고 시각 값 · 가입자·시장별 청취 줄은 서버 값, 나머지는 GA4 운영 스트림',
     );
-  });
-
-  it('각주의 서버 경계는 보고 날짜에 적용되는 경계다 — 05:00 전환 뒤 날짜면 05시', () => {
-    const key = 'SERVICE_DAY_BOUNDARY_05_FROM';
-    const prev = process.env[key];
-    process.env[key] = '2026-10-12T05:00:00+09:00';
-    try {
-      expect(formatDailyMetrics({ ...base, date: '2026-10-12' })).toContain(
-        '가입자·시장별 청취 줄은 서버 값(05시 경계)',
-      );
-      // 전환 전 날짜는 그대로 04시
-      expect(formatDailyMetrics(base)).toContain('서버 값(04시 경계)');
-    } finally {
-      if (prev === undefined) delete process.env[key];
-      else process.env[key] = prev;
-    }
   });
 
   it('완청 건수를 재생 줄에 넣는다', () => {
@@ -256,21 +240,10 @@ describe('formatChurnReport', () => {
     expect(text).toContain('Android 0');
   });
 
-  it('각주에 출처와 경계를 적는다 — 탈퇴는 지표 보고의 가입자 줄과 같은 서버 경계', () => {
+  it('각주에 하루 범위와 출처를 적는다 — 탈퇴·앱 삭제 모두 KST 00~24시', () => {
     expect(formatChurnReport(churn)).toContain(
-      '탈퇴는 서버 값(04시 경계) · 앱 삭제는 GA4 app_remove 운영 스트림(00시 경계)',
+      '어제 = KST 00~24시 · 탈퇴는 서버 값 · 앱 삭제는 GA4 app_remove 운영 스트림',
     );
-    const key = 'SERVICE_DAY_BOUNDARY_05_FROM';
-    const prev = process.env[key];
-    process.env[key] = '2026-10-12T05:00:00+09:00';
-    try {
-      expect(formatChurnReport({ ...churn, date: '2026-10-14' })).toContain(
-        '탈퇴는 서버 값(05시 경계)',
-      );
-    } finally {
-      if (prev === undefined) delete process.env[key];
-      else process.env[key] = prev;
-    }
   });
 
   it('운영이 아니면 환경을 앞에 붙인다', () => {

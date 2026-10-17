@@ -6,7 +6,6 @@
  * 이탈을 지표에 섞으면 퍼널 숫자 사이에 사유 목록이 끼어 둘 다 읽기 어려워서 나눴다.
  */
 
-import { serviceDayStartHour } from '@/common/utils/service-date.util';
 import { UserMarket, WithdrawalReason } from '@/modules/user/user.enum';
 
 export type DailyMetrics = {
@@ -14,14 +13,14 @@ export type DailyMetrics = {
   date: string;
   /**
    * 가입자 — **서버 값**(2026-10-13 — 건마다 오던 가입 알림을 대신한다).
-   * `total` 은 보고 시각의 `users` 행 수(탈퇴는 행을 지워 빠진다), `signUps` 는 보고일 서비스 날짜의 가입 건수
+   * `total` 은 보고 시각의 `users` 행 수(탈퇴는 행을 지워 빠진다), `signUps` 는 보고일(KST 달력일)의 가입 건수
    */
   members: {
     total: number;
     signUps: number;
   };
   /**
-   * 시장별 — **서버 값**(2026-10-17). 가입자를 시장으로 나눈 값과 보고일 서비스 날짜의 서버 청취. GA4 이벤트에는 시장이
+   * 시장별 — **서버 값**(2026-10-17). 가입자를 시장으로 나눈 값과 보고일(KST 달력일)의 서버 청취. GA4 이벤트에는 시장이
    * 없다. 계정이 없는 시장도 0 으로 온다
    */
   markets: {
@@ -139,7 +138,7 @@ export function formatDailyMetrics(
     `*획득*     가입 ${n(a.signUps)} → 온보딩 완료 ${n(a.onboardingCompletes)}${ratio(a.onboardingCompletes, a.signUps)}  ·  푸시 응답 ${n(a.pushResponses)}`,
     `*재생*     시작 ${n(p.playStarts)} (${n(p.playStartUsers)}명)  ·  완청 ${n(p.completes)}  ·  중도 이탈 ${n(p.abandons)}  ·  드립 재생 ${n(p.dripPlays)}  ·  담기 ${n(p.saves)}`,
     `*리텐션*   D1 ${formatRetention(m.retention.d1)}  ·  D7 ${formatRetention(m.retention.d7)}`,
-    `_▲▼ 전일 대비 · 가입자·시장별 청취 줄은 서버 값(${serverBoundary(m.date)}시 경계) · 나머지는 GA4 운영 스트림(00시 경계)_`,
+    `_▲▼ 전일 대비 · 어제 = KST 00~24시(전 줄 같은 범위) · 현재 가입자는 보고 시각 값 · 가입자·시장별 청취 줄은 서버 값, 나머지는 GA4 운영 스트림_`,
   ].join('\n');
 }
 
@@ -149,13 +148,6 @@ const envPrefix = (environment?: string): string =>
 
 const weekday = (date: string): string =>
   WEEKDAY[new Date(`${date}T00:00:00Z`).getUTCDay()];
-
-/** 서버 값의 하루 경계 — 보고 날짜(정오)에 적용되는 경계로 적는다. 05:00 전환(KAN-149) 전후를 가른다 */
-const serverBoundary = (date: string): string =>
-  String(serviceDayStartHour(new Date(`${date}T12:00:00+09:00`))).padStart(
-    2,
-    '0',
-  );
 
 export type ChurnMetrics = {
   /** 보고 대상 날짜 — 지표 보고와 같은 값(어제) */
@@ -193,8 +185,7 @@ function reasonRank(code: string | null): number {
 }
 
 /**
- * 이탈 보고 — 탈퇴(서버, 사유 분포)와 앱 삭제(GA4, Android). 하루 범위는 지표 보고와 같다: 서버 값은
- * 서비스 날짜, GA4 는 00시. 탈퇴가 0이어도 보낸다 — "없었다"도 보고다.
+ * 이탈 보고 — 탈퇴(서버, 사유 분포)와 앱 삭제(GA4, Android). 하루 범위는 지표 보고와 같다: 둘 다 KST 달력일(00시). 탈퇴가 0이어도 보낸다 — "없었다"도 보고다.
  *
  * 사유는 건수 많은 순, 같으면 화면 순서. 직접 입력 사유 원문은 싣지 않는다(분포만 — 2026-10-15 결정).
  */
@@ -216,7 +207,7 @@ export function formatChurnReport(
     `*탈퇴*      ${n(total)}명`,
     ...reasons,
     `*앱 삭제*  Android ${n(m.appRemoves)}`,
-    `_탈퇴는 서버 값(${serverBoundary(m.date)}시 경계) · 앱 삭제는 GA4 app_remove 운영 스트림(00시 경계) — iOS 는 삭제 이벤트가 없어 세지 않는다_`,
+    `_어제 = KST 00~24시 · 탈퇴는 서버 값 · 앱 삭제는 GA4 app_remove 운영 스트림 — iOS 는 삭제 이벤트가 없어 세지 않는다_`,
   ].join('\n');
 }
 

@@ -1,7 +1,7 @@
 import { DailyMetricsDbService } from './daily-metrics-db.service';
 
 describe('DailyMetricsDbService', () => {
-  it('서비스 날짜(04시 경계 — 전환 전) 하루 범위로 가입·탈퇴를 세고, 가입자·청취를 시장별로 나눈다', async () => {
+  it('KST 달력일(00시) 하루 범위로 가입·탈퇴·청취를 세고, 가입자·청취를 시장별로 나눈다 — GA4 줄과 같은 하루', async () => {
     const query = jest
       .fn()
       .mockResolvedValueOnce([
@@ -47,17 +47,18 @@ describe('DailyMetricsDbService', () => {
 
     const [usersSql, usersParams] = query.mock.calls[0] as [string, Date[]];
     const [logsSql, logsParams] = query.mock.calls[1] as [string, Date[]];
-    const [playsSql, playsParams] = query.mock.calls[2] as [string, string[]];
+    const [playsSql, playsParams] = query.mock.calls[2] as [string, Date[]];
     expect(usersSql).toContain('from users');
     expect(usersSql).toContain('group by market');
     expect(logsSql).toContain('from withdrawal_logs');
-    // 청취는 재생 행의 서비스 날짜 라벨로 자른다
+    // 청취는 재생을 시작한 시각으로 같은 범위를 자른다
     expect(playsSql).toContain('from play_records');
-    expect(playsParams).toEqual(['2026-09-28']);
-    // 2026-09-28 서비스 날짜 = 09-28 04:00 KST ~ 09-29 04:00 KST — 가입과 탈퇴가 같은 범위다
-    expect(usersParams[0].toISOString()).toBe('2026-09-27T19:00:00.000Z');
-    expect(usersParams[1].toISOString()).toBe('2026-09-28T19:00:00.000Z');
+    expect(playsSql).toContain('played_at');
+    // 2026-09-28 = 09-28 00:00 KST ~ 09-29 00:00 KST — 가입·탈퇴·청취가 같은 범위다
+    expect(usersParams[0].toISOString()).toBe('2026-09-27T15:00:00.000Z');
+    expect(usersParams[1].toISOString()).toBe('2026-09-28T15:00:00.000Z');
     expect(logsParams).toEqual(usersParams);
+    expect(playsParams).toEqual(usersParams);
   });
 
   it('행이 없으면 0 — 던지지 않는다', async () => {
