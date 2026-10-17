@@ -1,7 +1,9 @@
 import { HttpStatus, Injectable } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { DataSource, EntityManager } from 'typeorm';
 
 import { BusinessException } from '@/common/exceptions/business.exception';
+import { EnvironmentVariables } from '@/config/env.validation';
 import { ErrorCode } from '@/common/exceptions/error-code.enum';
 import {
   hasSearchableCharacter,
@@ -36,6 +38,7 @@ import {
   MIN_SEARCH_QUERY_LENGTH,
   SEARCH_FALLBACK_POPULAR_COUNT,
   SEARCH_FALLBACK_RELATED_TOPIC_COUNT,
+  SERIES_CARD_SECTION_OVERFETCH,
 } from './explore.constant';
 import {
   decodeExploreCursor,
@@ -45,12 +48,14 @@ import {
   encodePopularCursor,
   encodeSearchCursor,
 } from './explore.cursor';
+import { groupBySeries } from './explore.series-grouping';
 import { ExploreSectionKey, SaveReason } from './explore.enum';
 import {
   ExploreContentListQuery,
   ExploreContentListResult,
   ExploreFeedResult,
   ExploreItemView,
+  ExploreListItemView,
   ExplorePopularListQuery,
   ExplorePopularListResult,
   ExploreSearchFallback,
@@ -92,7 +97,18 @@ export class ExploreOrchestrator {
     private readonly dataSource: DataSource,
     private readonly searchQueryLogService: SearchQueryLogService,
     private readonly seriesService: SeriesService,
-  ) {}
+    configService: ConfigService<EnvironmentVariables, true>,
+  ) {
+    // **`true`를 명시했을 때만 켠다**(env.validation.ts) — 1.2.x 앱은 `type: "series"` 항목을 모른다. 꺼져 있으면 응답이 이 기능
+    // 전과 바이트 단위로 같다(분기는 전부 이 값 하나로 갈린다)
+    this.seriesCardsEnabled =
+      configService
+        .get('SERIES_EXPLORE_CARDS_ENABLED', { infer: true })
+        ?.trim() === 'true';
+  }
+
+  /** 탐색 시리즈 카드(KAN-134 확정 설계 4번) 스위치 */
+  private readonly seriesCardsEnabled: boolean;
 
   /**
    * explore-api.md 4.1 — 탐색 탭 진입·당겨서 새로고침·포그라운드 복귀·플레이어 복귀가
@@ -117,6 +133,11 @@ export class ExploreOrchestrator {
 
     const isColdStart =
       (preference?.signalCount ?? 0) < COLD_START_COMPLETE_THRESHOLD;
+    // 관심사(개인 적합도로 다시 줄 세움)·주제별 섹션은 후보 조회가 대표 편을 고를 수 없어(재정렬이 SQL 밖이다) 시리즈 카드
+    // 모드면 넉넉히 읽어 메모리에서 접는다. 인기·새로 나온 섹션은 SQL이 접는다. 꺼져 있으면 종전 그대로 10건이다
+    const sectionLimit = this.seriesCardsEnabled
+      ? EXPLORE_SECTION_ITEM_COUNT * SERIES_CARD_SECTION_OVERFETCH
+      : EXPLORE_SECTION_ITEM_COUNT;
 
     const [interestContents, recentContents, popularPage, topicGroups] =
       await Promise.all([
@@ -126,8 +147,22 @@ export class ExploreOrchestrator {
           isColdStart,
           now,
           market,
+          sectionLimit,
         ),
-        this.contentService.findRecent(EXPLORE_SECTION_ITEM_COUNT, now, market),
+        // 시리즈 카드 모드는 SQL이 시리즈마다 대표 편 하나만 남긴다 — 접은 뒤에도 10칸이 찬다
+        this.seriesCardsEnabled
+          ? this.contentService.findRecent(
+              EXPLORE_SECTION_ITEM_COUNT,
+              now,
+              market,
+              undefined,
+              true,
+            )
+          : this.contentService.findRecent(
+              EXPLORE_SECTION_ITEM_COUNT,
+              now,
+              market,
+            ),
         // 피드는 **기본 구간**으로만 만든다. 구간을 바꾸면 피드를 다시 부르지 않고
         // `getPopular`가 그 섹션만 갈아끼운다(`explore.md` 4.1-1)
         this.contentService.findPopularPage({
@@ -136,8 +171,9 @@ export class ExploreOrchestrator {
           cursor: null,
           limit: EXPLORE_SECTION_ITEM_COUNT,
           now,
+          ...this.seriesAnchorsQuery(),
         }),
-        this.findTopicGroupDrafts(activeTopicIds, now, market),
+        this.findTopicGroupDrafts(activeTopicIds, now, market, sectionLimit),
       ]);
 
     const interest: ExploreSectionDraft = {
@@ -167,9 +203,16 @@ export class ExploreOrchestrator {
     // 중간에 있으면 스크롤을 내려야 만난다. 신호가 부족한 신규 사용자는 그 다음에도
     // **신규 섹션 비중을 높인다**(콜드스타트 — FR-17).
     // 클라이언트는 내려온 순서대로 그릴 뿐이다
-    const drafts = isColdStart
+    const ordered = isColdStart
       ? [popular, recent, interest, ...topicGroups]
       : [popular, interest, recent, ...topicGroups];
+    // 섹션마다 같은 시리즈 편을 카드 하나로 접는다 — 섹션 사이에서는 접지 않는다(콘텐츠도 섹션마다 겹쳐 나온다)
+    const drafts = this.seriesCardsEnabled
+      ? ordered.map((draft) => ({
+          ...draft,
+          contents: groupBySeries(draft.contents, EXPLORE_SECTION_ITEM_COUNT),
+        }))
+      : ordered;
 
     const [sections, quota] = await Promise.all([
       // 비어 있는 섹션은 내려주지 않는다 — 제목만 있고 아무것도 없는 줄을 그리게 된다.
@@ -178,6 +221,7 @@ export class ExploreOrchestrator {
         userId,
         drafts.filter((draft) => draft.contents.length > 0),
         now,
+        market,
       ),
       this.playbackService.buildQuotaForUser(userId, now),
     ]);
@@ -210,13 +254,15 @@ export class ExploreOrchestrator {
         : null,
       limit: query.limit,
       now,
+      ...this.seriesAnchorsQuery(),
     });
 
     const [items, quota] = await Promise.all([
-      this.decorate(
+      this.toListItems(
         userId,
         page.items.map((ranked) => ranked.content),
         now,
+        market,
       ),
       this.playbackService.buildQuotaForUser(userId, now),
     ]);
@@ -265,13 +311,15 @@ export class ExploreOrchestrator {
         : null,
       limit: query.limit,
       now,
+      ...this.seriesAnchorsQuery(),
     });
 
     const [items, quota] = await Promise.all([
-      this.decorate(
+      this.toListItems(
         userId,
         page.items.map((ranked) => ranked.content),
         now,
+        market,
       ),
       this.playbackService.buildQuotaForUser(userId, now),
     ]);
@@ -399,6 +447,9 @@ export class ExploreOrchestrator {
         : null,
       limit: query.limit,
       now,
+      // 시리즈 카드 모드는 시리즈 제목 일치도 묻는다(KAN-134 확정 설계 4번)
+      ...(this.seriesCardsEnabled && { matchSeriesTitle: true }),
+      ...this.seriesAnchorsQuery(),
     });
 
     // 첫 페이지만 남긴다 — 커서 페이지는 같은 질의의 이어 읽기라 새 검색이 아니다(domain.md 5.7).
@@ -430,10 +481,11 @@ export class ExploreOrchestrator {
       };
     }
 
-    const items = await this.decorate(
+    const items = await this.toListItems(
       userId,
       page.items.map((ranked) => ranked.content),
       now,
+      market,
     );
     const lastItem = page.items.at(-1);
 
@@ -481,6 +533,7 @@ export class ExploreOrchestrator {
         cursor: null,
         limit: SEARCH_FALLBACK_POPULAR_COUNT,
         now,
+        ...this.seriesAnchorsQuery(),
       }),
     ]);
 
@@ -489,12 +542,80 @@ export class ExploreOrchestrator {
         id: topic.id,
         name: topic.name,
       })),
-      popularItems: await this.decorate(
+      popularItems: await this.toListItems(
         userId,
         popularPage.items.map((ranked) => ranked.content),
         now,
+        market,
       ),
     };
+  }
+
+  // ── 탐색 시리즈 카드(KAN-134 확정 설계 4번 — `SERIES_EXPLORE_CARDS_ENABLED`) ──────────────────────────
+
+  /**
+   * 목록 조회에 얹는 "시리즈 대표 편만" 조건 — 꺼져 있으면 **아무 키도 더하지 않는다**(조회 입력이 종전과 같다).
+   * 대표 편 판정은 SQL 윈도가 한다(`ContentRepository.applySeriesAnchors`) — 페이지·커서는 종전 키셋 그대로다
+   */
+  private seriesAnchorsQuery(): { seriesAnchorsOnly?: true } {
+    return this.seriesCardsEnabled ? { seriesAnchorsOnly: true } : {};
+  }
+
+  /** 목록 항목 — 꺼져 있으면 종전 행(`decorate`), 켜져 있으면 대표 편을 카드로 바꾼다(`decorateGrouped`) */
+  private async toListItems(
+    userId: string,
+    contents: Content[],
+    now: Date,
+    market: UserMarket,
+  ): Promise<ExploreListItemView[]> {
+    return this.seriesCardsEnabled
+      ? this.decorateGrouped(userId, contents, now, market)
+      : this.decorate(userId, contents, now);
+  }
+
+  // ── 탐색 시리즈 카드(KAN-134 확정 설계 4번 — `SERIES_EXPLORE_CARDS_ENABLED`) ──────────────────────────
+
+  /**
+   * 이미 접힌 목록(시리즈 편은 카드 자리 하나뿐)을 항목으로 만든다 — 시리즈 편은 카드(`type: "series"`), 나머지는 콘텐츠 행
+   * (`type: "content"`). 카드 재료(표지·편 수·주제)는 시리즈 단위로 한 번에 읽는다. 사용자 시장에 노출 편이 없어 카드를 못 만든
+   * 시리즈(정상 상태에서는 없다 — 그 편 자체가 노출 중이다)는 편 행으로 둔다
+   */
+  private async decorateGrouped(
+    userId: string,
+    contents: Content[],
+    now: Date,
+    market: UserMarket,
+  ): Promise<ExploreListItemView[]> {
+    const cards = await this.seriesService.findCards(
+      contents
+        .map((content) => content.seriesId)
+        .filter((seriesId) => typeof seriesId === 'string'),
+      now,
+      market,
+    );
+    const cardOf = (content: Content) =>
+      typeof content.seriesId === 'string'
+        ? cards.get(content.seriesId)
+        : undefined;
+    const isCard = (content: Content) => cardOf(content) !== undefined;
+    const decorated = await this.decorate(
+      userId,
+      contents.filter((content) => !isCard(content)),
+      now,
+    );
+    const viewById = new Map(decorated.map((view) => [view.content.id, view]));
+
+    // 입력과 1:1이다(`decorate`가 콘텐츠마다 한 행을 만든다) — 섹션 조립이 같은 자리로 되짚는다
+    return contents.map((content): ExploreListItemView => {
+      const card = cardOf(content);
+      if (card) {
+        return { type: 'series', card };
+      }
+      return {
+        ...(viewById.get(content.id) as ExploreItemView),
+        type: 'content',
+      };
+    });
   }
 
   /**
@@ -609,6 +730,7 @@ export class ExploreOrchestrator {
     isColdStart: boolean,
     now: Date,
     market: UserMarket,
+    sectionLimit: number,
   ): Promise<Content[]> {
     if (activeTopicIds.length === 0) {
       return [];
@@ -626,7 +748,7 @@ export class ExploreOrchestrator {
     // **캐시 행이 없는 사용자(가입 직후·첫 배치 이전)도 여기로 들어온다** —
     // `signalCount`를 0으로 읽으므로 별도 폴백이 필요 없다
     if (isColdStart || pool.length === 0) {
-      return pool.slice(0, EXPLORE_SECTION_ITEM_COUNT);
+      return pool.slice(0, sectionLimit);
     }
 
     /**
@@ -651,7 +773,7 @@ export class ExploreOrchestrator {
 
     return this.dripScoringService
       .rankByPersonalFit(candidates, preference, now)
-      .slice(0, EXPLORE_SECTION_ITEM_COUNT)
+      .slice(0, sectionLimit)
       .map((candidate) => candidate.content);
   }
 
@@ -665,6 +787,7 @@ export class ExploreOrchestrator {
     activeTopicIds: string[],
     now: Date,
     market: UserMarket,
+    sectionLimit: number,
   ): Promise<ExploreSectionDraft[]> {
     if (activeTopicIds.length === 0) {
       return [];
@@ -685,7 +808,7 @@ export class ExploreOrchestrator {
           const contents = await this.contentService.findCandidates({
             market,
             includeTopicIds: [topicId],
-            limit: EXPLORE_SECTION_ITEM_COUNT,
+            limit: sectionLimit,
             now,
           });
 
@@ -715,12 +838,39 @@ export class ExploreOrchestrator {
     userId: string,
     drafts: ExploreSectionDraft[],
     now: Date,
+    market: UserMarket,
   ): Promise<ExploreSectionView[]> {
     if (drafts.length === 0) {
       return [];
     }
 
     const contents = drafts.flatMap((draft) => draft.contents);
+
+    if (this.seriesCardsEnabled) {
+      // 섹션은 이미 접혀 있다(`groupBySeries`) — 시리즈 편은 섹션마다 카드 자리 하나다
+      const unique = [
+        ...new Map(contents.map((content) => [content.id, content])).values(),
+      ];
+      const decoratedGrouped = await this.decorateGrouped(
+        userId,
+        unique,
+        now,
+        market,
+      );
+      const groupedByContentId = new Map(
+        unique.map((content, index) => [content.id, decoratedGrouped[index]]),
+      );
+
+      return drafts.map((draft) => ({
+        key: draft.key,
+        title: draft.title,
+        topic: draft.topic,
+        period: draft.period,
+        items: draft.contents
+          .map((content) => groupedByContentId.get(content.id))
+          .filter((item): item is ExploreListItemView => item !== undefined),
+      }));
+    }
     const decorated = await this.decorate(userId, contents, now);
     const itemByContentId = new Map(
       decorated.map((item) => [item.content.id, item]),

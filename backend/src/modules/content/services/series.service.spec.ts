@@ -7,6 +7,7 @@ import { SeriesStatus } from '../content.enum';
 import { Content } from '../entities/content.entity';
 import { Series } from '../entities/series.entity';
 import { ContentRepository } from '../repositories/content.repository';
+import { ContentTopicRepository } from '../repositories/content-topic.repository';
 import { SeriesRepository } from '../repositories/series.repository';
 import { SeriesService, assertTotalNotBelowPublished } from './series.service';
 
@@ -39,6 +40,7 @@ describe('SeriesService', () => {
   let service: SeriesService;
   let seriesRepository: jest.Mocked<SeriesRepository>;
   let contentRepository: jest.Mocked<ContentRepository>;
+  let contentTopicRepository: jest.Mocked<ContentTopicRepository>;
   const manager = {} as EntityManager;
 
   beforeEach(() => {
@@ -55,9 +57,18 @@ describe('SeriesService', () => {
       findMarketsBySeriesId: jest.fn().mockResolvedValue([]),
       countEpisodesBySeries: jest.fn().mockResolvedValue([]),
       findVisibleBySeriesId: jest.fn().mockResolvedValue([]),
+      findVisibleBySeriesIds: jest.fn().mockResolvedValue([]),
     } as unknown as jest.Mocked<ContentRepository>;
 
-    service = new SeriesService(seriesRepository, contentRepository);
+    contentTopicRepository = {
+      findViewsByContentIds: jest.fn().mockResolvedValue([]),
+    } as unknown as jest.Mocked<ContentTopicRepository>;
+
+    service = new SeriesService(
+      seriesRepository,
+      contentRepository,
+      contentTopicRepository,
+    );
   });
 
   describe('assertEpisodeUploadable — 업로드 검증(admin-api.md 4.6)', () => {
@@ -305,6 +316,42 @@ describe('SeriesService', () => {
 
       // then
       expect(refs.size).toBe(0);
+    });
+  });
+
+  describe('findCards — 탐색 시리즈 카드', () => {
+    it('표지는 노출 중인 가장 앞 편, 편 수는 노출 편 수, 주제는 편들의 합집합이다', async () => {
+      // given — 1화가 회수돼 2·3화만 노출 중
+      contentRepository.findVisibleBySeriesIds.mockResolvedValue([
+        { id: 'c2', seriesId: SERIES_ID, thumbnailUrl: 'https://cdn/2.webp' },
+        { id: 'c3', seriesId: SERIES_ID, thumbnailUrl: 'https://cdn/3.webp' },
+      ] as Content[]);
+      contentTopicRepository.findViewsByContentIds.mockResolvedValue([
+        { contentId: 'c2', topicId: 't1', name: 'a' },
+        { contentId: 'c3', topicId: 't1', name: 'a' },
+        { contentId: 'c3', topicId: 't2', name: 'b' },
+      ]);
+
+      // when
+      const cards = await service.findCards(
+        [SERIES_ID, SERIES_ID, OTHER_SERIES_ID],
+        NOW,
+        UserMarket.KR,
+      );
+
+      // then — 노출 편이 없는 시리즈는 맵에 없다
+      expect(cards.size).toBe(1);
+      expect(cards.get(SERIES_ID)).toMatchObject({
+        coverThumbnailUrl: 'https://cdn/2.webp',
+        episodeCount: 2,
+        topicIds: ['t1', 't2'],
+      });
+      expect(contentRepository.findVisibleBySeriesIds).toHaveBeenCalledWith(
+        [SERIES_ID, OTHER_SERIES_ID],
+        NOW,
+        UserMarket.KR,
+        undefined,
+      );
     });
   });
 
