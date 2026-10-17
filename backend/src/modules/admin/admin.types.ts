@@ -426,6 +426,10 @@ export interface InsightsSummary {
   hourly: InsightsHourly[];
   topUsers: InsightsTopUser[];
   topContents: InsightsTopContent[];
+  /** 최근 24시간 인기 콘텐츠 — 그 창 안의 재생·완청·담기만, 청취자 수 순 */
+  recentTopContents: InsightsTopContent[];
+  /** `recentTopContents`의 창 시작 시각 */
+  recentSince: Date;
   withdrawalReasons: InsightsWithdrawalReason[];
   retention: InsightsRetention[];
   /** 코호트 리텐션 — 가입일·가입 주로 묶은 D1·D7 · W1~W4 */

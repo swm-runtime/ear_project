@@ -2,6 +2,7 @@ import {
   InsightsCohortTable,
   InsightsListeningTotals,
   InsightsSummary,
+  InsightsTopContent,
 } from '../admin.types';
 
 /** 분모가 0 이면 null — 0% 와 "셀 수 없음"을 구분한다 */
@@ -46,6 +47,31 @@ const toCohortTable = (t: InsightsCohortTable): CohortTableItem => ({
           },
     ),
   })),
+});
+
+interface TopContentItem {
+  content_id: string;
+  title: string;
+  duration_sec: number;
+  listen_sec: number;
+  plays: number;
+  listeners: number;
+  completes: number;
+  /** `completes / plays` */
+  complete_rate: number | null;
+  saves: number;
+}
+
+const toTopContent = (c: InsightsTopContent): TopContentItem => ({
+  content_id: c.contentId,
+  title: c.title,
+  duration_sec: c.durationSec,
+  listen_sec: c.listenSec,
+  plays: c.plays,
+  listeners: c.listeners,
+  completes: c.completes,
+  complete_rate: ratio(c.completes, c.plays),
+  saves: c.saves,
 });
 
 interface ListeningTotalsItem {
@@ -138,18 +164,11 @@ export class AdminInsightsSummaryResponseDto {
     signed_up_at: string;
     last_played_at: string;
   }[];
-  readonly top_contents: {
-    content_id: string;
-    title: string;
-    duration_sec: number;
-    listen_sec: number;
-    plays: number;
-    listeners: number;
-    completes: number;
-    /** `completes / plays` */
-    complete_rate: number | null;
-    saves: number;
-  }[];
+  readonly top_contents: TopContentItem[];
+  /** 최근 24시간 인기 콘텐츠 — 창 안의 재생·완청·담기만, 청취자 수 순 */
+  readonly recent_top_contents: TopContentItem[];
+  /** `recent_top_contents`의 창 시작(ISO) — 지금 - 24시간 */
+  readonly recent_since: string;
   readonly withdrawal_reasons: { reason_code: string | null; count: number }[];
   readonly retention: {
     day: number;
@@ -272,17 +291,9 @@ export class AdminInsightsSummaryResponseDto {
         signed_up_at: t.signedUpAt.toISOString(),
         last_played_at: t.lastPlayedAt.toISOString(),
       })),
-      top_contents: summary.topContents.map((c) => ({
-        content_id: c.contentId,
-        title: c.title,
-        duration_sec: c.durationSec,
-        listen_sec: c.listenSec,
-        plays: c.plays,
-        listeners: c.listeners,
-        completes: c.completes,
-        complete_rate: ratio(c.completes, c.plays),
-        saves: c.saves,
-      })),
+      top_contents: summary.topContents.map(toTopContent),
+      recent_top_contents: summary.recentTopContents.map(toTopContent),
+      recent_since: summary.recentSince.toISOString(),
       withdrawal_reasons: summary.withdrawalReasons.map((r) => ({
         reason_code: r.reasonCode,
         count: r.count,

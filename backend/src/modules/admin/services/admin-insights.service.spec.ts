@@ -380,7 +380,18 @@ describe('AdminInsightsService.summarize', () => {
       summary.since,
     );
     expect(repository.topUsers).toHaveBeenCalledWith(INSIGHTS_RANK_LIMIT);
-    expect(repository.topContents).toHaveBeenCalledWith(INSIGHTS_RANK_LIMIT);
+    expect(repository.topContents).toHaveBeenNthCalledWith(
+      1,
+      INSIGHTS_RANK_LIMIT,
+    );
+    // 최근 하루 인기 — 지금 - 24시간부터, 청취자 수 순
+    expect(repository.topContents).toHaveBeenNthCalledWith(
+      2,
+      INSIGHTS_RANK_LIMIT,
+      new Date('2026-10-07T03:00:00.000Z'),
+      'listeners',
+    );
+    expect(summary.recentSince.toISOString()).toBe('2026-10-07T03:00:00.000Z');
     expect(repository.retention).toHaveBeenCalledWith(
       INSIGHTS_RETENTION_DAYS,
       now,
