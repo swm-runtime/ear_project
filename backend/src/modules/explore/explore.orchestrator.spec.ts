@@ -35,7 +35,6 @@ import {
   decodeSearchCursor,
   encodePopularCursor,
   encodeSearchCursor,
-  readSeenSeries,
 } from './explore.cursor';
 import { ExploreSectionKey, SaveReason } from './explore.enum';
 import { ExploreOrchestrator } from './explore.orchestrator';
@@ -1285,7 +1284,6 @@ describe('ExploreOrchestrator', () => {
     const SERIES_ID = '77777777-7777-4777-8777-777777777777';
     const E1 = 'e1111111-1111-4111-8111-111111111111';
     const E2 = 'e2222222-2222-4222-8222-222222222222';
-    const E3 = 'e3333333-3333-4333-8333-333333333333';
     let cards: ExploreOrchestrator;
     const episode = (id: string, episodeNo: number) =>
       buildContent(id, { seriesId: SERIES_ID, episodeNo });
@@ -1322,8 +1320,8 @@ describe('ExploreOrchestrator', () => {
       );
     });
 
-    it('주제 목록 — 시리즈 편들이 가장 높은 순위 편 자리의 카드 하나가 되고, 콘텐츠 행에는 type: content 가 붙는다', async () => {
-      // given — 순위: 2화 · 단일 · 1화 · 3화
+    it('주제 목록 — 시리즈 대표 편만 달라고 묻고, 대표 편은 카드로 · 나머지는 type: content 행으로 낸다', async () => {
+      // given — 저장소가 대표 편(2화)과 단일 콘텐츠만 돌려준다(SQL 윈도)
       contentService.findExplorePage.mockResolvedValue({
         items: [
           { content: episode(E2, 2), playCount: 9 },
@@ -1331,8 +1329,6 @@ describe('ExploreOrchestrator', () => {
             content: buildContent(CONTENT_ID, { seriesId: null }),
             playCount: 5,
           },
-          { content: episode(E1, 1), playCount: 3 },
-          { content: episode(E3, 3), playCount: 1 },
         ],
         hasNext: false,
       });
@@ -1346,6 +1342,9 @@ describe('ExploreOrchestrator', () => {
       );
 
       // then
+      expect(contentService.findExplorePage).toHaveBeenCalledWith(
+        expect.objectContaining({ seriesAnchorsOnly: true }),
+      );
       expect(result.items.map((item) => item.type)).toEqual([
         'series',
         'content',
@@ -1359,8 +1358,8 @@ describe('ExploreOrchestrator', () => {
       );
     });
 
-    it('다음 커서는 마지막으로 훑은 편 위치와 이미 낸 시리즈(g)를 담고, 다음 페이지는 그 시리즈 편을 건너뛴다', async () => {
-      // given — 1페이지(limit 1): 2화(카드)만 낸다
+    it('다음 커서는 꺼진 모드와 같은 모양이다 — 마지막 항목(대표 편)의 정렬 키뿐, 이미 낸 시리즈를 싣지 않는다', async () => {
+      // given
       contentService.findExplorePage.mockResolvedValueOnce({
         items: [{ content: episode(E2, 2), playCount: 9 }],
         hasNext: true,
@@ -1375,42 +1374,18 @@ describe('ExploreOrchestrator', () => {
       );
 
       // then
-      expect(first.hasNext).toBe(true);
-      expect(readSeenSeries(first.nextCursor ?? '')).toEqual([SERIES_ID]);
+      const payload = JSON.parse(
+        Buffer.from(first.nextCursor ?? '', 'base64url').toString('utf8'),
+      ) as Record<string, unknown>;
+      expect(Object.keys(payload).sort()).toEqual(['i', 'p', 'q', 't']);
       expect(decodeExploreCursor(first.nextCursor ?? '', [TOPIC_ID])).toEqual({
         playCount: 9,
         publishedAt: episode(E2, 2).publishedAt,
         id: E2,
       });
-
-      // given — 2페이지: 1화(건너뜀) · 단일
-      contentService.findExplorePage.mockResolvedValueOnce({
-        items: [
-          { content: episode(E1, 1), playCount: 3 },
-          {
-            content: buildContent(CONTENT_ID, { seriesId: null }),
-            playCount: 2,
-          },
-        ],
-        hasNext: false,
-      });
-
-      // when
-      const second = await cards.getContents(
-        USER_ID,
-        { topicIds: [TOPIC_ID], cursor: first.nextCursor, limit: 1 },
-        NOW,
-        UserMarket.KR,
-      );
-
-      // then — 시리즈는 다시 나오지 않는다
-      expect(second.items).toHaveLength(1);
-      expect(asContent(second.items[0]).content.id).toBe(CONTENT_ID);
-      expect(second.hasNext).toBe(false);
-      expect(second.nextCursor).toBeNull();
     });
 
-    it('검색은 시리즈 제목 일치도 묻고 같은 규칙으로 접는다', async () => {
+    it('검색은 시리즈 제목 일치와 대표 편만을 함께 묻는다', async () => {
       // given
       contentService.findSearchPage.mockResolvedValue({
         items: [
@@ -1419,12 +1394,6 @@ describe('ExploreOrchestrator', () => {
             score: 10,
             titleSimilarity: 0.9,
             playCount: 3,
-          },
-          {
-            content: episode(E2, 2),
-            score: 10,
-            titleSimilarity: 0.8,
-            playCount: 2,
           },
         ],
         hasNext: false,
@@ -1440,16 +1409,46 @@ describe('ExploreOrchestrator', () => {
 
       // then
       expect(contentService.findSearchPage).toHaveBeenCalledWith(
-        expect.objectContaining({ matchSeriesTitle: true }),
+        expect.objectContaining({
+          matchSeriesTitle: true,
+          seriesAnchorsOnly: true,
+        }),
       );
       expect(result.items).toEqual([{ type: 'series', card }]);
-      expect(searchQueryLogService.record).toHaveBeenCalledWith(
-        expect.objectContaining({ resultCount: 1, resultContentIds: [E1] }),
-        NOW,
-      );
+      expect(result.fallback).toBeNull();
     });
 
-    it('스위치가 꺼져 있으면 같은 입력에 편마다 한 줄이고 type 키가 없으며 시리즈 제목 일치를 묻지 않는다', async () => {
+    it('커서 페이지가 비면 대체 콘텐츠 없이 목록의 끝이다 — 대체 콘텐츠는 첫 페이지에만', async () => {
+      // given — 대표 편 기준 키셋이라 빈 커서 페이지는 진짜 끝일 때만 나온다
+      const cursor = encodeSearchCursor(
+        {
+          score: 10,
+          titleSimilarity: 0.9,
+          playCount: 3,
+          publishedAt: NOW,
+          id: E1,
+        },
+        '시리즈',
+        [],
+      );
+
+      // when
+      const result = await cards.search(
+        USER_ID,
+        { query: '시리즈', topicIds: [], cursor, limit: 20 },
+        NOW,
+        UserMarket.KR,
+      );
+
+      // then
+      expect(result).toMatchObject({
+        items: [],
+        hasNext: false,
+        fallback: null,
+      });
+    });
+
+    it('스위치가 꺼져 있으면 조회 입력에 시리즈 키가 없고 항목에 type 키가 없다', async () => {
       // given
       contentService.findSearchPage.mockResolvedValue({
         items: [
@@ -1480,14 +1479,18 @@ describe('ExploreOrchestrator', () => {
       // then
       expect(result.items).toHaveLength(2);
       expect(result.items.every((item) => !('type' in item))).toBe(true);
-      expect(contentService.findSearchPage).toHaveBeenCalledWith(
-        expect.not.objectContaining({ matchSeriesTitle: true }),
-      );
+      const [searchQuery] = contentService.findSearchPage.mock.calls[0];
+      expect(searchQuery).not.toHaveProperty('matchSeriesTitle');
+      expect(searchQuery).not.toHaveProperty('seriesAnchorsOnly');
     });
 
-    it('피드 섹션 — 넉넉히 읽어 접은 뒤 10칸으로 자른다', async () => {
-      // given — 새로 나온 콘텐츠 30건 중 시리즈 편 12건(앞쪽) + 단일 18건
-      const recent = [
+    it('피드 — 인기·새로 나온 섹션은 SQL 대표 편으로 10건, 관심사·주제별은 넉넉히 읽어 접는다', async () => {
+      // given — 주제별 후보 30건 중 시리즈 편 12건(앞쪽) + 단일 18건
+      userInterestService.findActiveTopicIds.mockResolvedValue([TOPIC_ID]);
+      topicService.findAllByIds.mockResolvedValue([
+        { id: TOPIC_ID, name: '커리어' } as Topic,
+      ]);
+      const candidates = [
         ...Array.from({ length: 12 }, (_, index) =>
           episode(
             `00000000-0000-4000-8000-0000000000${String(index).padStart(2, '0')}`,
@@ -1497,25 +1500,31 @@ describe('ExploreOrchestrator', () => {
         ...Array.from({ length: 18 }, (_, index) =>
           buildContent(
             `10000000-0000-4000-8000-0000000000${String(index).padStart(2, '0')}`,
-            {
-              seriesId: null,
-            },
+            { seriesId: null },
           ),
         ),
       ];
-      contentService.findRecent.mockResolvedValue(recent);
+      contentService.findCandidates.mockResolvedValue(candidates);
 
       // when
       const result = await cards.getFeed(USER_ID, NOW, UserMarket.KR);
 
       // then
       expect(contentService.findRecent).toHaveBeenCalledWith(
-        30,
+        10,
         NOW,
         UserMarket.KR,
+        undefined,
+        true,
+      );
+      expect(contentService.findPopularPage).toHaveBeenCalledWith(
+        expect.objectContaining({ limit: 10, seriesAnchorsOnly: true }),
+      );
+      expect(contentService.findCandidates).toHaveBeenCalledWith(
+        expect.objectContaining({ includeTopicIds: [TOPIC_ID], limit: 30 }),
       );
       const section = result.sections.find(
-        (candidate) => candidate.key === ExploreSectionKey.NEW,
+        (candidate) => candidate.key === ExploreSectionKey.TOPIC_GROUP,
       );
       expect(section?.items).toHaveLength(10);
       expect(section?.items[0]).toEqual({ type: 'series', card });

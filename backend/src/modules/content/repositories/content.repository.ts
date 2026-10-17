@@ -171,6 +171,41 @@ export class ContentRepository {
     );
   }
 
+  /**
+   * 시리즈 카드 모드(KAN-134 확정 설계 4번 — `SERIES_EXPLORE_CARDS_ENABLED`)의 **시리즈 대표 편만 남기기.** 같은 시리즈 편들 중
+   * 그 목록의 정렬 키로 가장 앞선 편 하나(= 편 점수의 최댓값 자리)와 단일 콘텐츠만 남긴다. 탐색이 대표 편을 카드로 바꾼다.
+   *
+   * `ranked`는 **같은 필터를 건 두 번째 빌더**다(노출·시장·주제·검색 일치 — 커서·정렬·limit 없이). 그 위에서
+   * `ROW_NUMBER() OVER (PARTITION BY series_id ORDER BY <정렬 키>) = 1`인 편을 대표로 고른다. 필터가 윈도 **앞**에 걸리므로 대표는
+   * "그 목록에 들어온 편 중 가장 앞 편"이다. 필터 조각은 alias `content`·`stat`을 그대로 쓰는데, 부분 질의 안의 같은 alias가
+   * 바깥을 가리므로 같은 문자열·같은 파라미터가 부분 질의 안에서 그대로 성립한다.
+   *
+   * 남은 행 위에서 바깥 질의가 종전 그대로 키셋 커서·정렬·limit을 건다 — 페이지 경계·커서 모양이 꺼진 모드와 같고, 한 시리즈는
+   * 목록 전체에서 한 번이며, 빈·짧은 페이지가 생기지 않는다. 대표 판정은 커서와 무관하다(부분 질의에 커서 조건이 없다).
+   */
+  private applySeriesAnchors(
+    builder: SelectQueryBuilder<Content>,
+    ranked: SelectQueryBuilder<Content>,
+    orderKeys: string[],
+  ): void {
+    const anchors = ranked
+      .select('content.id', 'anchor_id')
+      .addSelect(
+        `ROW_NUMBER() OVER (PARTITION BY content.series_id ORDER BY ${orderKeys.join(', ')})`,
+        'anchor_rank',
+      )
+      .andWhere('content.series_id IS NOT NULL');
+
+    builder
+      .andWhere(
+        `(content.series_id IS NULL OR content.id IN (
+           SELECT series_anchor.anchor_id FROM (${anchors.getQuery()}) series_anchor
+           WHERE series_anchor.anchor_rank = 1
+         ))`,
+      )
+      .setParameters(anchors.getParameters());
+  }
+
   async findById(id: string, manager?: EntityManager): Promise<Content | null> {
     return this.scoped(manager).findOneBy({ id });
   }
@@ -384,13 +419,26 @@ export class ContentRepository {
     now: Date,
     market: UserMarket,
     manager?: EntityManager,
+    /** 시리즈 카드 모드 — 시리즈마다 가장 최신 편 하나만(`applySeriesAnchors`) */
+    seriesAnchorsOnly = false,
   ): Promise<Content[]> {
-    return (
+    const base = () =>
       this.applyVisibility(
         this.scoped(manager).createQueryBuilder('content'),
         now,
         market,
-      )
+      );
+    const builder = base();
+
+    if (seriesAnchorsOnly) {
+      this.applySeriesAnchors(builder, base(), [
+        'content.published_at DESC',
+        'content.id DESC',
+      ]);
+    }
+
+    return (
+      builder
         .orderBy('content.published_at', 'DESC')
         // 같은 배치로 업로드된 콘텐츠는 `published_at`이 동일할 수 있다
         .addOrderBy('content.id', 'DESC')
@@ -425,22 +473,33 @@ export class ContentRepository {
         ? ''
         : ' AND stat.is_final = true';
 
-    const builder = this.applyVisibility(
-      this.scoped(manager)
-        .createQueryBuilder('content')
-        .leftJoin(
-          'content_stats',
-          'stat',
-          `stat.content_id = content.id
+    const base = () =>
+      this.applyVisibility(
+        this.scoped(manager)
+          .createQueryBuilder('content')
+          .leftJoin(
+            'content_stats',
+            'stat',
+            `stat.content_id = content.id
              AND stat.period_type = :periodType
              AND stat.period_start = :periodStart${isFinalCondition}`,
-          { periodType: query.periodType, periodStart },
-        )
-        .addSelect(RANKING_PLAY_COUNT, RANKING_PLAY_COUNT_ALIAS)
-        .addSelect(RANKING_COMPLETE_COUNT, RANKING_COMPLETE_COUNT_ALIAS),
-      query.now,
-      query.market,
-    );
+            { periodType: query.periodType, periodStart },
+          )
+          .addSelect(RANKING_PLAY_COUNT, RANKING_PLAY_COUNT_ALIAS)
+          .addSelect(RANKING_COMPLETE_COUNT, RANKING_COMPLETE_COUNT_ALIAS),
+        query.now,
+        query.market,
+      );
+    const builder = base();
+
+    if (query.seriesAnchorsOnly) {
+      this.applySeriesAnchors(builder, base(), [
+        `${RANKING_PLAY_COUNT} DESC`,
+        `${RANKING_COMPLETE_COUNT} DESC`,
+        'content.published_at DESC',
+        'content.id DESC',
+      ]);
+    }
 
     if (query.cursor) {
       builder.andWhere(
@@ -486,24 +545,35 @@ export class ContentRepository {
     query: ExplorePageQuery,
     manager?: EntityManager,
   ): Promise<RankedContent[]> {
-    const builder = this.applyVisibility(
-      this.scoped(manager)
-        .createQueryBuilder('content')
-        .leftJoin(
-          'content_stats',
-          'stat',
-          'stat.content_id = content.id AND stat.period_type = :allPeriod AND stat.period_start = :allPeriodStart',
-          {
-            allPeriod: StatsPeriodType.ALL,
-            allPeriodStart: ALL_TIME_PERIOD_START,
-          },
-        )
-        .addSelect(RANKING_PLAY_COUNT, RANKING_PLAY_COUNT_ALIAS),
-      query.now,
-      query.market,
-    );
+    const base = () => {
+      const filtered = this.applyVisibility(
+        this.scoped(manager)
+          .createQueryBuilder('content')
+          .leftJoin(
+            'content_stats',
+            'stat',
+            'stat.content_id = content.id AND stat.period_type = :allPeriod AND stat.period_start = :allPeriodStart',
+            {
+              allPeriod: StatsPeriodType.ALL,
+              allPeriodStart: ALL_TIME_PERIOD_START,
+            },
+          )
+          .addSelect(RANKING_PLAY_COUNT, RANKING_PLAY_COUNT_ALIAS),
+        query.now,
+        query.market,
+      );
+      this.applyTopicFilter(filtered, query.topicIds);
+      return filtered;
+    };
+    const builder = base();
 
-    this.applyTopicFilter(builder, query.topicIds);
+    if (query.seriesAnchorsOnly) {
+      this.applySeriesAnchors(builder, base(), [
+        `${RANKING_PLAY_COUNT} DESC`,
+        'content.published_at DESC',
+        'content.id DESC',
+      ]);
+    }
 
     if (query.cursor) {
       // Postgres 행 비교 — 세 정렬 키의 tie-break를 한 조건으로 표현한다
@@ -553,38 +623,53 @@ export class ContentRepository {
       : query.matchSeriesTitle
         ? SEARCH_SCORE_WITH_SERIES
         : SEARCH_SCORE;
-    const builder = this.applyVisibility(
-      this.scoped(manager)
-        .createQueryBuilder('content')
-        .leftJoin(
-          'content_stats',
-          'stat',
-          `stat.content_id = content.id
+    const base = () => {
+      const filtered = this.applyVisibility(
+        this.scoped(manager)
+          .createQueryBuilder('content')
+          .leftJoin(
+            'content_stats',
+            'stat',
+            `stat.content_id = content.id
              AND stat.period_type = :monthPeriod
              AND stat.period_start = :monthPeriodStart
              AND stat.is_final = true`,
-          { monthPeriod: StatsPeriodType.MONTH, monthPeriodStart },
-        )
-        .addSelect(score, SEARCH_SCORE_ALIAS)
-        .addSelect(SEARCH_TITLE_SIMILARITY, SEARCH_TITLE_SIMILARITY_ALIAS)
-        .addSelect(RANKING_PLAY_COUNT, RANKING_PLAY_COUNT_ALIAS),
-      query.now,
-      query.market,
-    ).andWhere(
-      query.tagOnly
-        ? SEARCH_MATCH_TAG_EXACT
-        : `(${SEARCH_MATCH_TITLE} OR ${SEARCH_MATCH_TAG} OR ${SEARCH_MATCH_AUTHOR} OR ${SEARCH_MATCH_TOPIC} OR ${SEARCH_MATCH_DESCRIPTION}${
-            query.matchSeriesTitle ? ` OR ${SEARCH_MATCH_SERIES_TITLE}` : ''
-          })`,
-    );
+            { monthPeriod: StatsPeriodType.MONTH, monthPeriodStart },
+          )
+          .addSelect(score, SEARCH_SCORE_ALIAS)
+          .addSelect(SEARCH_TITLE_SIMILARITY, SEARCH_TITLE_SIMILARITY_ALIAS)
+          .addSelect(RANKING_PLAY_COUNT, RANKING_PLAY_COUNT_ALIAS),
+        query.now,
+        query.market,
+      ).andWhere(
+        query.tagOnly
+          ? SEARCH_MATCH_TAG_EXACT
+          : `(${SEARCH_MATCH_TITLE} OR ${SEARCH_MATCH_TAG} OR ${SEARCH_MATCH_AUTHOR} OR ${SEARCH_MATCH_TOPIC} OR ${SEARCH_MATCH_DESCRIPTION}${
+              query.matchSeriesTitle ? ` OR ${SEARCH_MATCH_SERIES_TITLE}` : ''
+            })`,
+      );
 
-    builder.setParameters({
-      searchQuery: query.normalizedQuery,
-      searchPattern: `%${escapeLikePattern(query.normalizedQuery)}%`,
-    });
+      filtered.setParameters({
+        searchQuery: query.normalizedQuery,
+        searchPattern: `%${escapeLikePattern(query.normalizedQuery)}%`,
+      });
 
-    if (query.topicIds.length > 0) {
-      this.applyTopicFilter(builder, query.topicIds);
+      if (query.topicIds.length > 0) {
+        this.applyTopicFilter(filtered, query.topicIds);
+      }
+
+      return filtered;
+    };
+    const builder = base();
+
+    if (query.seriesAnchorsOnly) {
+      this.applySeriesAnchors(builder, base(), [
+        `${score} DESC`,
+        `${SEARCH_TITLE_SIMILARITY} DESC`,
+        `${RANKING_PLAY_COUNT} DESC`,
+        'content.published_at DESC',
+        'content.id DESC',
+      ]);
     }
 
     if (query.cursor) {

@@ -9,14 +9,8 @@ import { ExploreSectionKey } from './explore.enum';
 export const EXPLORE_SECTION_ITEM_COUNT = 10;
 
 /**
- * 시리즈 카드 모드(KAN-134 확정 설계 4번)에서 한 페이지를 채우려고 이어 읽는 최대 횟수. 같은 시리즈 편을 건너뛰면 한 번 읽은
- * 행으로 `limit`을 못 채울 수 있다. 상한을 넘으면 채운 만큼 내고 `has_next`를 유지한다 — 다음 페이지가 이어 읽는다
- */
-export const GROUPED_PAGE_MAX_ROUNDS = 5;
-
-/**
- * 시리즈 카드 모드의 피드 섹션 후보 배수 — 섹션은 커서가 없어 이어 읽지 않으므로, 접고도 `EXPLORE_SECTION_ITEM_COUNT`를 채우게
- * 미리 넉넉히 읽는다(16편 시리즈 하나가 섹션 10칸을 다 차지하던 경우에도 채워지게)
+ * 시리즈 카드 모드의 관심사·주제별 섹션 후보 배수 — 이 두 섹션은 메모리에서 다시 줄 세우거나(개인 적합도) 후보 조회를 그대로 써서
+ * SQL이 대표 편을 고를 수 없다. 접고도 `EXPLORE_SECTION_ITEM_COUNT`를 채우게 미리 넉넉히 읽는다
  */
 export const SERIES_CARD_SECTION_OVERFETCH = 3;
 

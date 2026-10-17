@@ -65,6 +65,11 @@ describe('탐색 시리즈 카드 E2E', () => {
   const contentIds: string[] = [];
   let topicId: string;
   let seriesId: string;
+  /** 커서 길이·빈 페이지 확인용 — 시리즈 10개짜리 별도 주제(위 시나리오의 개수 단언과 섞이지 않게) */
+  const BULK = `e2ebulk${Date.now().toString(36)}`;
+  let bulkTopicId: string;
+  let bulkSingleId: string;
+  const bulkSeriesIds: string[] = [];
   const episodeIds: string[] = [];
   const singleIds: string[] = [];
   let auth: string;
@@ -111,8 +116,12 @@ describe('탐색 시리즈 카드 E2E', () => {
     for (const id of contentIds) {
       await dataSource.query(`DELETE FROM contents WHERE id = $1`, [id]);
     }
-    await dataSource.query(`DELETE FROM series WHERE id = $1`, [seriesId]);
-    await dataSource.query(`DELETE FROM topics WHERE id = $1`, [topicId]);
+    await dataSource.query(`DELETE FROM series WHERE id = ANY($1::uuid[])`, [
+      [seriesId, ...bulkSeriesIds],
+    ]);
+    await dataSource.query(`DELETE FROM topics WHERE id = ANY($1::uuid[])`, [
+      [topicId, bulkTopicId],
+    ]);
     await offApp.close();
     await onApp.close();
   }, 60_000);
@@ -196,9 +205,14 @@ describe('탐색 시리즈 카드 E2E', () => {
     expect(contentItems.some((id) => episodeIds.includes(id))).toBe(false);
     // 카드 자리 = 가장 높은 순위 편 자리 — 재생 수가 같아 최신 발행(3화)이 가장 앞이고, 단일 콘텐츠보다 앞선다
     expect(list.items[0].type).toBe('series');
-    // 커서는 이미 낸 시리즈를 들고 다닌다
+    // 커서는 꺼진 모드와 같은 모양이다 — 이미 낸 시리즈를 싣지 않는다(대표 편 키셋)
     for (const cursor of list.cursors) {
-      expect(decodeCursor(cursor)).toHaveProperty('g');
+      expect(Object.keys(decodeCursor(cursor)).sort()).toEqual([
+        'i',
+        'p',
+        'q',
+        't',
+      ]);
     }
   }, 60_000);
 
@@ -256,6 +270,40 @@ describe('탐색 시리즈 카드 E2E', () => {
     }
   }, 60_000);
 
+  it('켬 — 검증 재현(검색어 + 주제 필터, limit=1): 시리즈가 많아도 커서가 자라지 않고 빈 페이지·끊김 없이 마지막 시리즈 카드까지 간다', async () => {
+    // given — 시리즈 10개(각 2편, 편들이 위쪽 순위) + 단일 1건(가장 아래)
+    const list = await pageAll(onApp, '/explore/search', {
+      query: BULK,
+      topic_ids: bulkTopicId,
+      limit: '1',
+    });
+
+    // then — 페이지마다 정확히 1건, 시리즈 카드 10 + 단일 1, 중복 없음
+    expect(list.pages.every((count) => count === 1)).toBe(true);
+    const cardIds = list.items
+      .filter((item) => item.type === 'series')
+      .map((item) => item.series?.id);
+    expect(cardIds).toHaveLength(10);
+    expect(new Set(cardIds).size).toBe(10);
+    expect(
+      list.items
+        .filter((item) => item.type === 'content')
+        .map((item) => item.content?.id),
+    ).toEqual([bulkSingleId]);
+    // 커서 길이는 시리즈 수와 무관하다(종전 g 방식은 7개쯤에서 512자를 넘었다)
+    const lengths = list.cursors.map((cursor) => cursor.length);
+    expect(Math.max(...lengths) - Math.min(...lengths)).toBeLessThan(8);
+    expect(Math.max(...lengths)).toBeLessThan(300);
+
+    // 주제별·인기도 같다
+    const topicList = await pageAll(onApp, '/explore/contents', {
+      topic_ids: bulkTopicId,
+      limit: '1',
+    });
+    expect(topicList.pages.every((count) => count === 1)).toBe(true);
+    expect(topicList.items).toHaveLength(11);
+  }, 90_000);
+
   // ── 도우미 ──
 
   function get(app: INestApplication<App>, path: string, query = {}) {
@@ -270,9 +318,10 @@ describe('탐색 시리즈 카드 E2E', () => {
     app: INestApplication<App>,
     path: string,
     query: Record<string, string>,
-  ): Promise<{ items: ItemBody[]; cursors: string[] }> {
+  ): Promise<{ items: ItemBody[]; cursors: string[]; pages: number[] }> {
     const items: ItemBody[] = [];
     const cursors: string[] = [];
+    const pages: number[] = [];
     let cursor: string | null = null;
 
     for (let guard = 0; guard < 100; guard += 1) {
@@ -282,6 +331,7 @@ describe('탐색 시리즈 카드 E2E', () => {
       });
       const body = response.body as ListBody;
       items.push(...body.items);
+      pages.push(body.items.length);
       if (!body.has_next || !body.next_cursor) {
         break;
       }
@@ -289,7 +339,7 @@ describe('탐색 시리즈 카드 E2E', () => {
       cursors.push(cursor);
     }
 
-    return { items, cursors };
+    return { items, cursors, pages };
   }
 
   /** 우리 시드의 콘텐츠·카드 id만 — 다른 테스트·시드 콘텐츠는 뺀다 */
@@ -333,21 +383,26 @@ describe('탐색 시리즈 카드 E2E', () => {
       label: string,
       index: number,
       episodeNo: number | null,
+      target: { prefix: string; topic: string; series: string } = {
+        prefix: STAMP,
+        topic: topicId,
+        series: seriesId,
+      },
     ): Promise<string> => {
       const repository = dataSource.getRepository(Content);
       const content = await repository.save(
         repository.create({
-          title: `${STAMP} ${label}`,
+          title: `${target.prefix} ${label}`,
           description: 'e2e 전용',
           authorName: null,
           sourceName: 'E2E',
           sourceUrl: null,
           origin: ContentOrigin.AI_GENERATED,
           partnerId: null,
-          seriesId: episodeNo === null ? null : seriesId,
+          seriesId: episodeNo === null ? null : target.series,
           episodeNo,
           totalEpisodes: episodeNo === null ? null : 3,
-          audioPath: `${STAMP}/${label}.mp3`,
+          audioPath: `${target.prefix}/${label}.mp3`,
           durationSec: 600,
           thumbnailUrl:
             episodeNo === 1
@@ -367,7 +422,7 @@ describe('탐색 시리즈 카드 E2E', () => {
         .save(
           dataSource
             .getRepository(ContentTopic)
-            .create({ contentId: content.id, topicId }),
+            .create({ contentId: content.id, topicId: target.topic }),
         );
       return content.id;
     };
@@ -377,6 +432,47 @@ describe('탐색 시리즈 카드 E2E', () => {
     episodeIds.push(await make('1화', 10, 1));
     episodeIds.push(await make('2화', 11, 2));
     episodeIds.push(await make('3화', 12, 3));
+
+    const bulkTopic = await dataSource.getRepository(Topic).save(
+      dataSource.getRepository(Topic).create({
+        name: BULK,
+        parentCategory: BULK,
+        isVisible: true,
+        displayOrder: 961,
+        market: UserMarket.KR,
+      }),
+    );
+    bulkTopicId = bulkTopic.id;
+    // 단일이 가장 오래돼 맨 아래 — 그 위를 시리즈 편 20개가 채운다
+    // 위 시나리오(피드의 새로 나온 섹션)를 밀어내지 않게 그보다 오래된 시각으로 둔다
+    bulkSingleId = await make('단일', -300, null, {
+      prefix: BULK,
+      topic: bulkTopicId,
+      series: '',
+    });
+    for (let n = 0; n < 10; n += 1) {
+      const bulkSeries = await dataSource.getRepository(Series).save(
+        dataSource.getRepository(Series).create({
+          title: `${BULK} 묶음 ${n}`,
+          description: '',
+          totalEpisodes: 3,
+          status: SeriesStatus.ONGOING,
+        }),
+      );
+      bulkSeriesIds.push(bulkSeries.id);
+      for (const episodeNo of [1, 2]) {
+        await make(
+          `묶음 ${n}-${episodeNo}`,
+          -200 + n * 2 + episodeNo,
+          episodeNo,
+          {
+            prefix: BULK,
+            topic: bulkTopicId,
+            series: bulkSeries.id,
+          },
+        );
+      }
+    }
 
     const userRepository = dataSource.getRepository(User);
     const user = await userRepository.save(
