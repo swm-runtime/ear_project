@@ -15,7 +15,13 @@ import { CareerInfoScreen } from '@/features/career';
 import { ContentDetailScreen } from '@/features/content-detail';
 import { ExploreScreen, ExploreSearchScreen } from '@/features/explore';
 import { InterestManagementScreen } from '@/features/interest';
-import { LibraryScreen, useLibraryArrivalBadge } from '@/features/library';
+import {
+  DripFeedbackPrompt,
+  LibraryScreen,
+  selectIsDripFeedbackVisible,
+  useDripFeedbackStore,
+  useLibraryArrivalBadge,
+} from '@/features/library';
 import { NoticeDetailScreen, NoticeListScreen } from '@/features/notice';
 import {
   NotificationPrePromptModal,
@@ -31,7 +37,7 @@ import { InviteCodeScreen, SubscriptionScreen } from '@/features/subscription';
 
 import CapsuleTabBar from './CapsuleTabBar';
 import { rememberTab, takePrimedTab, type RestorableTab } from './last-tab';
-import { isSignupTrialNoticeReady } from './launch-dialog-gate';
+import { isDripFeedbackPromptReady, isSignupTrialNoticeReady } from './launch-dialog-gate';
 import NativeMainTabs from './NativeMainTabs';
 import PlaceholderScreen from './PlaceholderScreen';
 import type { MainStackParamList, MainTabParamList } from './types';
@@ -131,11 +137,22 @@ export default function MainNavigator() {
   // 가입 체험 안내(P11)보다 먼저 뜨는 것들 — 하나라도 떠 있으면 P11 은 기다린다(launch-dialog-gate)
   const isUpdateRecommendVisible = useAppUpdateStore((s) => s.isRecommendVisible);
   const isLimitNoticeVisible = useLimitNoticeStore((s) => s.isVisible);
+  // 추천 별점 팝업(KAN-224)과 P11 은 서로 겹치지 않는다 — 먼저 뜬 쪽이 끝난 뒤다(launch-dialog-gate 의 비대칭 규칙)
+  const isDripFeedbackVisible = useDripFeedbackStore(selectIsDripFeedbackVisible);
+  const [isSignupTrialActive, setIsSignupTrialActive] = useState(false);
   const isSignupTrialReady = isSignupTrialNoticeReady({
     isPrePromptPending,
     isUpdateRecommendVisible,
     isPushPlayConfirmVisible: pushGate.confirmState !== null,
     isLimitNoticeVisible,
+    isDripFeedbackVisible,
+  });
+  const isDripFeedbackReady = isDripFeedbackPromptReady({
+    isPrePromptPending,
+    isUpdateRecommendVisible,
+    isPushPlayConfirmVisible: pushGate.confirmState !== null,
+    isLimitNoticeVisible,
+    isSignupTrialNoticeActive: isSignupTrialActive,
   });
 
   return (
@@ -243,7 +260,13 @@ export default function MainNavigator() {
         알림 안내는 "매일 아침 도착한다"를 튜토리얼이 막 말한 직후가 가장 설득력 있어(onboarding-uiux.md 4.6) 그 사이에 끼우지 않는다.
         기존 가입자는 앱 시작에 뜬다 — 권장 업데이트 안내·푸시 재생 확인·한도 안내가 떠 있으면 그 뒤다. 모달 둘이 겹치지 않게
       */}
-      <SignupTrialNotice isReady={isSignupTrialReady} />
+      <SignupTrialNotice isReady={isSignupTrialReady} onActiveChange={setIsSignupTrialActive} />
+
+      {/*
+        추천 별점 팝업(KAN-224 — drip-feedback.md 5장). 판정 조회는 라이브러리 진입 때 한 세션에 한 번 하고(show=true 일 때만 차례가 온다),
+        여기서는 다른 앱 시작 팝업이 없을 때 그린다 — 가입 체험 안내가 뜰 차례면 그 뒤다
+      */}
+      <DripFeedbackPrompt isReady={isDripFeedbackReady} />
 
       {/* 푸시 딥링크 재생의 확인 팝업 — 딥링크도 팝업 규칙의 예외가 아니다(paywall.md 4.2) */}
       <PlayConfirmDialog

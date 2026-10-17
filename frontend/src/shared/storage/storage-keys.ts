@@ -35,6 +35,13 @@ export const STORAGE_KEYS = {
   /** 새 도착 기준값·미확인 편수. 계정 id를 접미사로 붙여 다른 계정과 분리한다. */
   LIBRARY_ARRIVAL: 'library.arrival',
   /**
+   * 추천 별점 팝업(KAN-224)의 미전송 요청 — 망이 끊겨 못 보낸 별점·닫기·그만 보기(JSON 배열, 최대 몇 건).
+   * 계정 id를 접미사로 붙인다 — 다른 계정의 세션으로 앞 계정의 별점을 보내지 않는다. 다음 진입·포그라운드 복귀에
+   * 다시 보내고, 보내면 지운다. 서버 접수 기간(7일)이 지난 별점은 `DRIP_FEEDBACK_NOT_RATEABLE`로 와서 버린다
+   * (drip-feedback-api.md 6장). SQLite 오프라인 큐(architecture.md 5.4)가 생기면 그쪽으로 옮긴다
+   */
+  LIBRARY_DRIP_FEEDBACK_OUTBOX: 'library.drip_feedback_outbox',
+  /**
    * 재생 목록의 사용자 지정 순서 — `library_items.id` 의 나열(JSON). 기기 로컬 전용이다: 재생 목록의 원천이
    * 라이브러리 첫 페이지라 서버에 순서를 둘 자리가 없다(player/services/queue-order.ts). 판정이 아니라
    * 표시 순서다. 로그아웃 때 지우지 않는다 — 다른 계정의 목록에는 이 id 들이 없어 저절로 무시된다.

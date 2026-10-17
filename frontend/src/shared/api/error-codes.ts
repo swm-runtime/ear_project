@@ -80,6 +80,9 @@ export const ERROR_CODES = {
   INVITE_CODE_ALREADY_USED: 'INVITE_CODE_ALREADY_USED',
   INVITE_GRANT_ALREADY_ACTIVE: 'INVITE_GRANT_ALREADY_ACTIVE',
 
+  /** drip-feedback-api.md 4.2 — 내 편성분이 아니거나 접수 기간(7일)이 지난 별점. 조용히 버린다(common-error-handling.md 9장) */
+  DRIP_FEEDBACK_NOT_RATEABLE: 'DRIP_FEEDBACK_NOT_RATEABLE',
+
   // 공용 코드(common-error-handling.md 4.1)
   VALIDATION_FAILED: 'VALIDATION_FAILED',
   /** 9.1 기반 404 — 라우터에 없는 경로(구 서버의 미구현 엔드포인트)도 이 코드다 */

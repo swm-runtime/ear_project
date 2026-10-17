@@ -140,6 +140,25 @@ const ko = {
     moreA11y: (title: string) => `${title} 더보기`,
   },
 
+  /**
+   * 추천 별점 팝업(drip-feedback.md 5장 — KAN-224). 제목은 한 문구(2026-10-16 — "어제/지난"을 나누지 않는다,
+   * 어제인지를 기기 날짜로 판정할 수 없다). TODO(카피 미확정): 티켓의 안이다 — 확정 카피·화면 ID는 spec/uiux 개정 시.
+   * 별점이 다음 편성에 반영된다는 식의 문구는 쓰지 않는다(PM 결정 2026-09-30)
+   */
+  dripFeedback: {
+    title: '최근 추천 어떠셨나요?',
+    send: '보내기',
+    /** 전송 실패(인라인 에러) 뒤의 주 동작 — 같은 별점을 다시 보낸다 */
+    retry: '다시 시도',
+    close: '닫기',
+    muteThisWeek: '이번 주 그만 보기',
+    sendFailed: '보내지 못했어요. 다시 시도해주세요',
+    /** 별 버튼 낭독 — 몇 번째 별인지 */
+    starA11y: (stars: number) => `별 ${stars}개`,
+    /** 별 줄 낭독 — 어느 편의 별점인지 */
+    ratingGroupA11y: (title: string) => `${title} 별점`,
+  },
+
   // 미니플레이어 카피는 컴포넌트 승격과 함께 player feature로 이관됐다(PLAYER_COPY.miniPlayer)
 } as const;
 
@@ -244,6 +263,17 @@ const en: LocalizedCopy<typeof ko> = {
     progressA11y: (percent: number) => `${percent}% played`,
     durationLabel: (minutes: number) => `${minutes} min`,
     moreA11y: (title: string) => `More options for ${title}`,
+  },
+
+  dripFeedback: {
+    title: 'How were your recent picks?',
+    send: 'Send',
+    retry: 'Try again',
+    close: 'Close',
+    muteThisWeek: 'Not this week',
+    sendFailed: "Couldn't send. Please try again.",
+    starA11y: (stars: number) => (selectPlural(stars) === 'one' ? '1 star' : `${stars} stars`),
+    ratingGroupA11y: (title: string) => `Rating for ${title}`,
   },
 };
 

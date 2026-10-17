@@ -9,7 +9,9 @@
  * - **기존 가입자(앱 시작)**: 알림 안내는 없다. 실행 관문이 띄운 권장 업데이트 안내(splash.md 4.1)가 먼저이고,
  *   푸시를 눌러 들어온 재생 확인 팝업·한도 안내 시트가 떠 있으면 그것이 끝난 뒤다 — 사용자가 고른 동작이 우선이다.
  *
- * 신호들은 각 feature 소유라(app-update·player·notification) 묶는 일은 app 이 한다 —
+ * - **추천 별점 팝업(KAN-224)이 떠 있으면** 그것이 끝난 뒤다(아래 `isDripFeedbackPromptReady`의 비대칭 규칙).
+ *
+ * 신호들은 각 feature 소유라(app-update·player·notification·library) 묶는 일은 app 이 한다 —
  * profile 은 `isReady` 하나만 받는다(architecture.md 4.4 profile 행).
  */
 export const isSignupTrialNoticeReady = (signals: {
@@ -21,8 +23,34 @@ export const isSignupTrialNoticeReady = (signals: {
   isPushPlayConfirmVisible: boolean;
   /** 한도 안내 시트가 떠 있다 */
   isLimitNoticeVisible: boolean;
+  /** 추천 별점 팝업(KAN-224)이 떠 있다 — 먼저 뜬 쪽이 끝난 뒤에 연다 */
+  isDripFeedbackVisible: boolean;
 }): boolean =>
   !signals.isPrePromptPending &&
   !signals.isUpdateRecommendVisible &&
   !signals.isPushPlayConfirmVisible &&
-  !signals.isLimitNoticeVisible;
+  !signals.isLimitNoticeVisible &&
+  !signals.isDripFeedbackVisible;
+
+/**
+ * 추천 별점 팝업(KAN-224 — drip-feedback.md 5장)이 열려도 되는 자리인가. 라이브러리 진입 때 서버가 `show=true`를 준 뒤의
+ * "언제 보일지"다 — 띄울지는 서버가 이미 정했다.
+ *
+ * P11 과 같은 앞선 팝업들(알림 사전 안내·권장 업데이트·푸시 재생 확인·한도 안내)이 없어야 하고, **가입 체험 안내(P11)가
+ * 뜰 차례이거나 떠 있으면 그 뒤다** — 계정에 한 번뿐인 안내가 먼저다. 둘이 서로를 기다리지 않게 비대칭으로 둔다:
+ * 별점 팝업은 P11 이 "뜰 차례(active)"이기만 해도 기다리고, P11 은 별점 팝업이 "떠 있을(visible)" 때만 기다린다.
+ * 그래서 먼저 뜬 쪽이 끝날 때까지 다른 쪽이 기다리고, 둘이 동시에 뜨지 않는다.
+ */
+export const isDripFeedbackPromptReady = (signals: {
+  isPrePromptPending: boolean;
+  isUpdateRecommendVisible: boolean;
+  isPushPlayConfirmVisible: boolean;
+  isLimitNoticeVisible: boolean;
+  /** 가입 체험 안내(P11)가 뜰 차례이거나 떠 있다 */
+  isSignupTrialNoticeActive: boolean;
+}): boolean =>
+  !signals.isPrePromptPending &&
+  !signals.isUpdateRecommendVisible &&
+  !signals.isPushPlayConfirmVisible &&
+  !signals.isLimitNoticeVisible &&
+  !signals.isSignupTrialNoticeActive;

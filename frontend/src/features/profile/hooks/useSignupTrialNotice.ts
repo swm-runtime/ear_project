@@ -89,6 +89,8 @@ export const useSignupTrialNotice = (isReady: boolean) => {
   return {
     trial,
     isVisible: isReady && canShow && isRevealed,
+    /** 뜰 차례이거나 떠 있다 — 앱 시작의 다른 팝업(추천 별점)이 이 값을 보고 뒤로 선다(KAN-224) */
+    isActive: canShow,
     dismiss,
   };
 };
