@@ -9,8 +9,8 @@ describe('DailyMetricsDbService', () => {
         { market: 'global', sign_ups: 0, total_users: 1 },
       ])
       .mockResolvedValueOnce([
-        { reason_code: 'price', count: 2 },
-        { reason_code: null, count: 1 },
+        { market: 'kr', reason_code: 'price', count: 2 },
+        { market: 'global', reason_code: null, count: 1 },
       ])
       .mockResolvedValueOnce([
         { market: 'kr', listeners: 30, plays: 40, listen_sec: 45000 },
@@ -21,8 +21,8 @@ describe('DailyMetricsDbService', () => {
       signUps: 3,
       totalUsers: 351,
       withdrawals: [
-        { reasonCode: 'price', count: 2 },
-        { reasonCode: null, count: 1 },
+        { market: 'kr', reasonCode: 'price', count: 2 },
+        { market: 'global', reasonCode: null, count: 1 },
       ],
       // 재생이 없던 시장(GLOBAL)도 0 으로 한 칸
       markets: [
@@ -51,6 +51,7 @@ describe('DailyMetricsDbService', () => {
     expect(usersSql).toContain('from users');
     expect(usersSql).toContain('group by market');
     expect(logsSql).toContain('from withdrawal_logs');
+    expect(logsSql).toContain('group by market, reason_code');
     // 청취는 재생을 시작한 시각으로 같은 범위를 자른다
     expect(playsSql).toContain('from play_records');
     expect(playsSql).toContain('played_at');

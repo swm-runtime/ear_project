@@ -152,8 +152,12 @@ const weekday = (date: string): string =>
 export type ChurnMetrics = {
   /** 보고 대상 날짜 — 지표 보고와 같은 값(어제) */
   date: string;
-  /** 탈퇴 — **서버 값**(`withdrawal_logs`). 사유 코드별 건수, `null` 은 사유 미선택 */
-  withdrawals: { reasonCode: string | null; count: number }[];
+  /** 탈퇴 — **서버 값**(`withdrawal_logs`). 시장 × 사유 코드별 건수, `null` 은 사유 미선택 */
+  withdrawals: {
+    market: UserMarket;
+    reasonCode: string | null;
+    count: number;
+  }[];
   /** 앱 삭제 — GA4 `app_remove`(운영 스트림). Android 만 올라온다 */
   appRemoves: number;
 };
@@ -187,27 +191,38 @@ function reasonRank(code: string | null): number {
 /**
  * 이탈 보고 — 탈퇴(서버, 사유 분포)와 앱 삭제(GA4, Android). 하루 범위는 지표 보고와 같다: 둘 다 KST 달력일(00시). 탈퇴가 0이어도 보낸다 — "없었다"도 보고다.
  *
- * 사유는 건수 많은 순, 같으면 화면 순서. 직접 입력 사유 원문은 싣지 않는다(분포만 — 2026-10-15 결정).
+ * 탈퇴는 시장별 소제목 아래 사유를 적는다(2026-10-17 — 해외 전용 사유를 둘 수 있게). 사유는 건수 많은 순, 같으면 화면 순서. 직접 입력 사유 원문은 싣지 않는다(분포만 — 2026-10-15 결정).
  */
 export function formatChurnReport(
   m: ChurnMetrics,
   environment?: string,
 ): string {
   const total = m.withdrawals.reduce((sum, w) => sum + w.count, 0);
-  const reasons = [...m.withdrawals]
-    .filter((w) => w.count > 0)
-    .sort(
-      (a, b) =>
-        b.count - a.count ||
-        reasonRank(a.reasonCode) - reasonRank(b.reasonCode),
-    )
-    .map((w) => `    · ${reasonLabel(w.reasonCode)}  ${n(w.count)}`);
+  const markets = Object.values(UserMarket).map((market) => {
+    const rows = m.withdrawals.filter(
+      (w) => w.market === market && w.count > 0,
+    );
+    return { market, rows, count: rows.reduce((sum, w) => sum + w.count, 0) };
+  });
+  // 시장마다 소제목 아래 사유 — 탈퇴가 있던 시장만 적는다(합계 괄호에는 0 인 시장도 적는다)
+  const sections = markets
+    .filter((x) => x.count > 0)
+    .flatMap((x) => [
+      `  *${MARKET_LABEL[x.market]}*  ${n(x.count)}명`,
+      ...[...x.rows]
+        .sort(
+          (a, b) =>
+            b.count - a.count ||
+            reasonRank(a.reasonCode) - reasonRank(b.reasonCode),
+        )
+        .map((w) => `    · ${reasonLabel(w.reasonCode)}  ${n(w.count)}`),
+    ]);
   return [
     `${envPrefix(environment)}:door: *${m.date} (${weekday(m.date)}) 이어 이탈*  ·  운영 스트림`,
-    `*탈퇴*      ${n(total)}명`,
-    ...reasons,
+    `*탈퇴*      ${n(total)}명 (${markets.map((x) => `${MARKET_LABEL[x.market]} ${n(x.count)}`).join(' · ')})`,
+    ...sections,
     `*앱 삭제*  Android ${n(m.appRemoves)}`,
-    `_어제 = KST 00~24시 · 탈퇴는 서버 값 · 앱 삭제는 GA4 app_remove 운영 스트림 — iOS 는 삭제 이벤트가 없어 세지 않는다_`,
+    `_어제 = KST 00~24시 · 탈퇴는 서버 값(탈퇴 당시 시장) · 앱 삭제는 GA4 app_remove 운영 스트림 — iOS 는 삭제 이벤트가 없어 세지 않는다_`,
   ].join('\n');
 }
 

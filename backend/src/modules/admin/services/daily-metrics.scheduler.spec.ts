@@ -12,7 +12,11 @@ const GA4_OK = config({
 const db = (
   signUps = 0,
   totalUsers = 0,
-  withdrawals: { reasonCode: string | null; count: number }[] = [],
+  withdrawals: {
+    market: 'kr' | 'global';
+    reasonCode: string | null;
+    count: number;
+  }[] = [],
 ) =>
   ({
     fetchDaily: jest.fn().mockResolvedValue({
@@ -134,8 +138,8 @@ describe('DailyMetricsScheduler', () => {
     const scheduler = new DailyMetricsScheduler(
       ga4,
       db(2, 351, [
-        { reasonCode: 'price', count: 1 },
-        { reasonCode: 'low_usage', count: 2 },
+        { market: 'kr', reasonCode: 'price', count: 1 },
+        { market: 'kr', reasonCode: 'low_usage', count: 2 },
       ]),
       config({ SLACK_ERROR_WEBHOOK_URL: 'https://hook' }),
     );
