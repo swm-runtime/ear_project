@@ -382,7 +382,7 @@ function WeekdayTable({ rows }: { rows: EarInsightsWeekday[] }) {
           <Td className="tabular-nums text-ink-soft">{w.days}일{w.active_days < w.days ? <span className="ml-1 text-xs">(접속 {w.active_days}일)</span> : null}</Td>
           <Td className="tabular-nums font-medium">{fmtAvg(w.avg_active_users)}{w.avg_active_users != null ? "명" : ""}</Td>
           <Td className="tabular-nums">{fmtAvg(w.avg_listeners)}{w.avg_listeners != null ? "명" : ""}</Td>
-          <Td className="tabular-nums text-ink-soft">{w.avg_active_users && w.avg_listeners != null ? fmtPct(w.avg_listeners / w.avg_active_users, 0) : "-"}</Td>
+          <Td className="tabular-nums text-ink-soft">{w.avg_active_users && w.avg_listeners != null && w.active_days === w.days ? fmtPct(w.avg_listeners / w.avg_active_users, 0) : "-"}</Td>
           <Td className="w-[30%]">
             <div className="space-y-0.5">
               <div className="h-1.5 rounded-sm bg-ink-soft/40" style={{ width: `${((w.avg_active_users ?? 0) / max) * 100}%` }} />
