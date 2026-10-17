@@ -5,7 +5,12 @@ import { IS_SUBSCRIPTION_UI_ENABLED } from '@/shared/lib/feature-flags';
 import { logger } from '@/shared/lib/logger';
 import { useToastStore } from '@/shared/ui/toast.store';
 
-import { createPurchaseIntent, restorePurchases, submitPurchase } from '../api/subscription.api';
+import {
+  createPurchaseIntent,
+  fetchMySubscription,
+  restorePurchases,
+  submitPurchase,
+} from '../api/subscription.api';
 import { useSubscriptionPurchaseStore } from '../store/subscription-purchase.store';
 import { ANDROID_PACKAGE_NAME } from '../subscription.constants';
 import { SUBSCRIPTION_COPY } from '../subscription.copy';
@@ -38,7 +43,12 @@ const platform = getDevicePlatform();
 export const purchaseService = createPurchaseService({
   platform,
   adapter: createExpoIapAdapter(platform),
-  api: { createIntent: createPurchaseIntent, submit: submitPurchase, restore: restorePurchases },
+  api: {
+    createIntent: createPurchaseIntent,
+    submit: submitPurchase,
+    restore: restorePurchases,
+    fetchSubscription: fetchMySubscription,
+  },
   onSubscriptionChanged: notifySubscriptionChanged,
   onRecovered: () => useToastStore.getState().show(SUBSCRIPTION_COPY.result.recovered),
   setUiState: (patch) => useSubscriptionPurchaseStore.setState(patch),

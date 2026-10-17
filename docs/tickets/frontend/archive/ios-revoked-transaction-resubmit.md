@@ -13,7 +13,8 @@
 | 선행 | 없음 |
 | 근거 문서 | `features/subscription.md`(구매 제출·회복) · `spec/api/subscription-api.md` 4.4 |
 | 중요도 | Medium |
-| 상태 | 대기 |
+| 상태 | 완료 |
+| 반영 날짜 | 2026-10-17 |
 
 ## 배경
 
@@ -55,3 +56,11 @@
 ## 처리 기록
 
 - 2026-10-16 발행(마크다운 + Jira). 운영 로그 근거: 14:10:37 `store receipt rejected` `reason: not_valid_now`(10-15 이후 이 1건).
+- 2026-10-17 반영(PR `fix(fe)/kan-223-revoked-tx`). 요약:
+  - `iap-adapter.ts` `toStorePurchase`가 `StorePurchase.revokedAtMs`·`expiresAtMs`를 싣는다. 출처는 expo-iap 5.8.2(이 저장소는 react-native-iap 이 아니다)의 `PurchaseIOS.revocationDateIOS`·`expirationDateIOS` — openiap-apple 3.6.1 `StoreKitTypesBridge.purchaseIOS`가 StoreKit 2 `Transaction.revocationDate`·`expirationDate`를 `timeIntervalSince1970 * 1000`(epoch **ms**)으로 넣는다. iOS 전용 필드라 Android·교체 모듈 구매는 null. **iOS 의 `purchaseState`는 취소돼도 늘 `purchased`**다(같은 브리지가 고정) — 종전 `state !== 'purchased'` 거르기로는 못 걸렀다.
+  - `purchase.service.ts` `discardRevoked` — `revokedAtMs`가 있으면 제출하지 않고 `finish` → `GET /users/me/subscription`(`api.fetchSubscription`) → `onSubscriptionChanged`(다른 feature 요약까지 갱신). `recoverUnfinished`(여러 건이어도 재조회 1회)·`handlePurchaseUpdated`(결제 중 같은 상품의 옛 취소 거래가 와도 시도 결과로 삼지 않는다) 두 입구. 회복 토스트는 띄우지 않는다.
+  - **만료는 거르지 않는다**(결정): 만료 판정은 기기 시각 비교가 필요해 공통 원칙과 부딪히고, 시각이 앞선 기기에서 방금 결제한 거래를 제출 없이 닫는 위험이 있다. 만료 거래는 종전대로 제출 → 서버 판정. `expiresAtMs`는 건너뛴 거래의 로그에만 싣는다. 완료 조건 1은 환불 거래 기준으로 충족된다.
+  - 원인 경로 보정: openiap-apple 3.6.1 의 `Transaction.updates` 리스너는 취소·업그레이드·만료된 구독 거래를 스스로 `finish`하고 **내보내지 않는다**. 반면 `getPendingTransactionsIOS()`는 `Transaction.unfinished`를 거르지 않고 그대로 돌려준다 — 10-16 제출은 `handlePurchaseUpdated`보다 `recoverUnfinished`(로그인 직후 `start`) 경로였을 가능성이 높다. 두 입구 모두 막았다.
+  - 문서: `features/subscription.md` 4.2-8·4.3(예외와 근거) · `frontend/architecture.md` 5.4 영수증 검증 행. 티켓이 문서 반영을 직접 요구해 같은 PR 에 넣었다.
+  - 유닛 테스트(`purchase.service.test.ts`): 취소 거래 → 제출 없음 + finish + 재조회 / 섞인 목록 → 정상 거래만 제출·재조회 1회 / 만료 시각만 지난 거래 → 종전대로 제출 후 200 뒤 finish / finish·재조회 실패 / 리스너 중복 / 결제 중 옛 취소 거래.
+  - 미확인: 실기기 환불 거래 재현(Sandbox 환불 또는 StoreKit Configuration 의 Refund)으로 완료 조건 1·2·4 확인은 사람 손.

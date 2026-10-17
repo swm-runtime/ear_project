@@ -4,7 +4,8 @@
  *
  * 지키는 것(KAN-120 "반드시 지켜야 하는 것"):
  * 1. 결제에 account_token 을 싣는다 — iOS appAccountToken · Android obfuscatedAccountId(어댑터)
- * 2. **서버가 200 을 준 뒤에만 거래를 끝낸다**(iOS finish). 실패·503 이면 거래를 그대로 둔다
+ * 2. **서버가 200 을 준 뒤에만 거래를 끝낸다**(iOS finish). 실패·503 이면 거래를 그대로 둔다.
+ *    예외 하나 — **환불·취소된 iOS 거래**(`revokedAtMs`)는 제출하지 않고 끝낸 뒤 구독을 다시 읽는다(KAN-223 · `discardRevoked`)
  * 3. Android 의 구매 확인(acknowledge)은 하지 않는다 — 서버가 한다(어댑터의 finish 가 Android 에서 아무것도 안 한다)
  * 4. 시작·포그라운드 복귀 때 미완료 거래를 intent_id 없이 제출한다 — 결제 직후 앱이 죽은 경우의 회복 경로
  * 5. iOS 는 StoreKit 2 서명 거래(JWS)를 보낸다(어댑터의 token)
@@ -107,6 +108,8 @@ export interface PurchaseServiceDeps {
       platform: PurchasePlatform;
       transactions: SubmittedTransaction[];
     }): Promise<{ restored: boolean; subscription: MySubscription }>;
+    /** 4.2 현재 구독 — 취소된 거래를 건너뛴 뒤 화면을 서버 상태로 맞출 때만 부른다(KAN-223) */
+    fetchSubscription(): Promise<MySubscription>;
   };
   /** 서버가 확정한 구독 본문 — 캐시 갱신·다른 feature 통지(화면은 이 값으로 확정한다, 다시 조회하지 않는다) */
   onSubscriptionChanged(subscription: MySubscription): void;
@@ -284,6 +287,47 @@ export const createPurchaseService = (deps: PurchaseServiceDeps) => {
     return { kind: 'success', subscription };
   };
 
+  /**
+   * 환불·취소된 iOS 거래 — **서버에 내지 않고 끝낸다**(KAN-223). "서버 200 뒤에만 끝낸다"(머리 주석 2)의 유일한 예외다.
+   * - 그 규칙은 **구매로 반영할** 거래가 반영 전에 닫히지 않게 하려는 것이다. 취소된 거래는 반영할 수 없다 — 서버는
+   *   만료·환불 거래를 400 `SUBSCRIPTION_RECEIPT_INVALID` 로 거절하고(subscription-api.md 4.4 유효성), 환불은 이미 Apple 서버
+   *   알림(REFUND)으로 반영했다. 내 봐야 운영 결제 거부 알림만 울린다(2026-10-16 `not_valid_now`)
+   * - 끝내지 않으면 400 이라 미완료 큐에 남아 실행할 때마다 다시 올라온다
+   * - 앱은 권한을 판정하지 않는다 — 끝낸 뒤 구독을 서버에서 다시 읽어(호출부의 `refreshSubscription`) 화면을 맞출 뿐이다
+   * - 근거는 `revocationDate` 하나다. Apple 이 서명한 사실이라 기기 시각과 무관하다. **만료(`expiresAtMs`)로는 거르지 않는다** —
+   *   기기 시각과 비교해야 해서, 시각이 앞선 기기는 방금 결제한 거래를 제출 없이 닫는다(결제됐는데 티어가 안 붙는다).
+   *   만료된 거래는 종전대로 제출되고 서버가 판정한다
+   * @returns 끝냈으면 true. 이미 이 세션에서 처리한 거래면 false
+   */
+  const discardRevoked = async (purchase: StorePurchase): Promise<boolean> => {
+    if (settled.has(purchase.transactionId)) return false;
+    settled.add(purchase.transactionId);
+    cancelRetry(purchase.transactionId);
+    syncDelayedFlag();
+    logger.warn(
+      '[subscription] skip revoked transaction',
+      purchase.productId,
+      purchase.revokedAtMs,
+      purchase.expiresAtMs,
+    );
+    try {
+      await deps.adapter.finish(purchase);
+    } catch (error) {
+      // 못 끝냈으면 다음 실행에 다시 올라와 여기서 또 끝낸다 — 서버에는 여전히 내지 않는다
+      logger.warn('[subscription] finish revoked failed', error);
+    }
+    return true;
+  };
+
+  /** 구독을 서버에서 다시 읽어 캐시·다른 feature 요약을 맞춘다. 실패는 알리지 않는다 — 포그라운드 복귀 재조회가 다시 맞춘다 */
+  const refreshSubscription = async (): Promise<void> => {
+    try {
+      deps.onSubscriptionChanged(await deps.api.fetchSubscription());
+    } catch (error) {
+      logger.warn('[subscription] failed to refresh subscription', error);
+    }
+  };
+
   /** 서버 제출 — 같은 거래는 한 번만 보낸다. 결제 대기 거래는 아직 구독이 아니라 보내지 않는다 */
   const submit = (
     purchase: StorePurchase,
@@ -309,6 +353,13 @@ export const createPurchaseService = (deps: PurchaseServiceDeps) => {
 
   /** 스토어가 거래를 알려 왔다 — 지금 결제 중인 상품이면 그 시도의 결과로, 아니면 회복으로 처리한다 */
   const handlePurchaseUpdated = (purchase: StorePurchase): void => {
+    // 취소된 거래는 지금 결제의 결과가 아니다(옛 거래) — 시도를 확정하지 않고 끝내기만 한다. 결제 결과는 새 거래로 온다
+    if (purchase.revokedAtMs !== null) {
+      void discardRevoked(purchase).then((discarded) => {
+        if (discarded) return refreshSubscription();
+      });
+      return;
+    }
     const attempt = activeAttempt?.productId === purchase.productId ? activeAttempt : null;
     if (attempt) setPhase('verifying');
     void submit(purchase, attempt?.intentId ?? null).then((result) => {
@@ -333,11 +384,19 @@ export const createPurchaseService = (deps: PurchaseServiceDeps) => {
       logger.warn('[subscription] failed to read unfinished transactions', error);
       return;
     }
+    let hasDiscarded = false;
     for (const purchase of unfinished) {
+      // 취소 여부를 먼저 본다 — iOS 는 취소된 거래도 state 가 purchased 다(iap-adapter `revokedAtMs`)
+      if (purchase.revokedAtMs !== null) {
+        if (await discardRevoked(purchase)) hasDiscarded = true;
+        continue;
+      }
       if (purchase.state !== 'purchased') continue;
       const result = await submit(purchase, null);
       if (result.kind === 'success') deps.onRecovered(result.subscription);
     }
+    // 여러 건을 끝내도 한 번만 묻는다
+    if (hasDiscarded) await refreshSubscription();
   };
 
   return {

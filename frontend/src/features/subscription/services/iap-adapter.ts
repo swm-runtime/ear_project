@@ -49,6 +49,19 @@ export interface StorePurchase {
   obfuscatedAccountId: string | null;
   /** pending = 결제 대기(iOS 승인 요청·Android 결제 보류) — 아직 구독이 아니라 제출하지 않는다 */
   state: 'purchased' | 'pending' | 'unknown';
+  /**
+   * iOS — 환불·취소된 시각(epoch ms). StoreKit 2 `Transaction.revocationDate` 를 expo-iap 이 `revocationDateIOS` 로
+   * 준다(openiap-apple 3.6.1 `StoreKitTypesBridge` — `timeIntervalSince1970 * 1000`). 값이 있으면 Apple 이 서명한
+   * "이 거래는 취소됐다"는 사실이라 서버에 구매로 내지 않는다(KAN-223). Android·취소 안 됨이면 null.
+   * **주의 — iOS 의 `state` 는 취소돼도 늘 `purchased` 다**(openiap 이 iOS 거래를 전부 `.purchased` 로 싣는다)
+   */
+  revokedAtMs: number | null;
+  /**
+   * iOS — 구독 기간 끝 시각(epoch ms, `Transaction.expirationDate` → `expirationDateIOS`). **판정에 쓰지 않는다** —
+   * 지났는지 보려면 기기 시각과 비교해야 하고, 기기 시각이 앞서 있으면 방금 결제한 거래를 제출 없이 끝내 버린다
+   * (결제됐는데 티어가 안 붙는다). 만료는 서버가 판정한다. 건너뛴 거래의 로그에만 싣는다. Android·모르면 null
+   */
+  expiresAtMs: number | null;
   /** finish 에 원본을 되돌려 준다 — 서비스는 내용을 보지 않는다 */
   raw: unknown;
 }
@@ -124,7 +137,10 @@ export interface IapAdapter {
    */
   resolvesDirectly(replace: ReplaceSubscription): boolean;
   readonly supportsDeferredDowngrade: boolean;
-  /** iOS 거래 종료 — **서버가 200 을 준 뒤에만** 부른다. Android 에서는 부르지 않는다(확인은 서버 몫) */
+  /**
+   * iOS 거래 종료 — **서버가 200 을 준 뒤에만** 부른다. 예외는 취소된 거래(`revokedAtMs`) 하나 — 제출하지 않고 끝낸다
+   * (KAN-223 — purchase.service `discardRevoked`). Android 에서는 부르지 않는다(확인은 서버 몫)
+   */
   finish(purchase: StorePurchase): Promise<void>;
   /** 끝나지 않은 거래 — 앱 실행·포그라운드 복귀 때 서버에 제출한다 */
   getUnfinished(): Promise<StorePurchase[]>;
@@ -192,6 +208,8 @@ const toStorePurchase = (purchase: Purchase): StorePurchase => ({
   obfuscatedAccountId:
     'obfuscatedAccountIdAndroid' in purchase ? (purchase.obfuscatedAccountIdAndroid ?? null) : null,
   state: purchase.purchaseState,
+  revokedAtMs: 'revocationDateIOS' in purchase ? (purchase.revocationDateIOS ?? null) : null,
+  expiresAtMs: 'expirationDateIOS' in purchase ? (purchase.expirationDateIOS ?? null) : null,
   raw: purchase,
 });
 
@@ -211,6 +229,8 @@ const fromPlayChanged = (
   token: purchase.purchaseToken,
   obfuscatedAccountId: null,
   state: purchase.purchaseState,
+  revokedAtMs: null,
+  expiresAtMs: null,
   raw: purchase,
 });
 
