@@ -7,6 +7,7 @@ import { RankedPopularContent } from '@/modules/content/content.types';
 import { Content } from '@/modules/content/entities/content.entity';
 import { ContentService } from '@/modules/content/services/content.service';
 import { SearchQueryLogService } from '@/modules/content/services/search-query-log.service';
+import { SeriesService } from '@/modules/content/services/series.service';
 import { DripExclusionReason } from '@/modules/drip/drip.enum';
 import { UserPreferenceWeights } from '@/modules/drip/drip.types';
 import { DripExclusionService } from '@/modules/drip/services/drip-exclusion.service';
@@ -123,6 +124,7 @@ describe('ExploreOrchestrator', () => {
   let dripExclusionService: jest.Mocked<DripExclusionService>;
   let preferenceVectorService: jest.Mocked<PreferenceVectorService>;
   let searchQueryLogService: jest.Mocked<SearchQueryLogService>;
+  let seriesService: jest.Mocked<SeriesService>;
 
   beforeEach(() => {
     contentService = {
@@ -190,6 +192,10 @@ describe('ExploreOrchestrator', () => {
       record: jest.fn().mockResolvedValue(undefined),
     } as unknown as jest.Mocked<SearchQueryLogService>;
 
+    seriesService = {
+      findRefs: jest.fn().mockResolvedValue(new Map()),
+    } as unknown as jest.Mocked<SeriesService>;
+
     orchestrator = new ExploreOrchestrator(
       contentService,
       libraryService,
@@ -202,6 +208,7 @@ describe('ExploreOrchestrator', () => {
       new DripScoringService(),
       dataSource,
       searchQueryLogService,
+      seriesService,
     );
   });
 
@@ -655,6 +662,38 @@ describe('ExploreOrchestrator', () => {
   });
 
   describe('getContents', () => {
+    it('시리즈 편에는 series 객체를, 단일 콘텐츠에는 null을 싣는다(KAN-134)', async () => {
+      // given
+      contentService.findExplorePage.mockResolvedValue({
+        items: [
+          { content: buildContent(CONTENT_ID), playCount: 9 },
+          { content: buildContent(OTHER_CONTENT_ID), playCount: 3 },
+        ],
+        hasNext: false,
+      });
+      const ref = {
+        id: '77777777-7777-4777-8777-777777777777',
+        title: '시리즈',
+        episodeNo: 2,
+        totalEpisodes: 16,
+      };
+      seriesService.findRefs.mockResolvedValue(new Map([[CONTENT_ID, ref]]));
+
+      // when
+      const result = await orchestrator.getContents(
+        USER_ID,
+        { topicIds: [TOPIC_ID], cursor: null, limit: 20 },
+        NOW,
+        UserMarket.KR,
+      );
+
+      // then
+      expect(result.items.map((item) => item.content.series)).toEqual([
+        ref,
+        null,
+      ]);
+    });
+
     it('다음 페이지가 있으면 마지막 항목 위치로 커서를 발급한다', async () => {
       // given
       const lastContent = buildContent(OTHER_CONTENT_ID);

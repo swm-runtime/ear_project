@@ -5,6 +5,7 @@ import { ErrorCode } from '@/common/exceptions/error-code.enum';
 import { ContentStatus } from '@/modules/content/content.enum';
 import { Content } from '@/modules/content/entities/content.entity';
 import { ContentService } from '@/modules/content/services/content.service';
+import { SeriesService } from '@/modules/content/services/series.service';
 import { DripExclusionReason } from '@/modules/drip/drip.enum';
 import { DripExclusionService } from '@/modules/drip/services/drip-exclusion.service';
 import { LibraryItem } from '@/modules/library/library-item.entity';
@@ -95,6 +96,7 @@ describe('LibraryScreenOrchestrator', () => {
   let playbackService: jest.Mocked<PlaybackService>;
   let contentService: jest.Mocked<ContentService>;
   let dripExclusionService: jest.Mocked<DripExclusionService>;
+  let seriesService: jest.Mocked<SeriesService>;
 
   beforeEach(() => {
     libraryService = {
@@ -129,6 +131,10 @@ describe('LibraryScreenOrchestrator', () => {
       exclude: jest.fn(),
     } as unknown as jest.Mocked<DripExclusionService>;
 
+    seriesService = {
+      findRefs: jest.fn().mockResolvedValue(new Map()),
+    } as unknown as jest.Mocked<SeriesService>;
+
     const dataSource = {
       transaction: jest.fn((callback: (manager: unknown) => Promise<unknown>) =>
         callback({}),
@@ -141,6 +147,7 @@ describe('LibraryScreenOrchestrator', () => {
       contentService,
       dripExclusionService,
       dataSource,
+      seriesService,
     );
   });
 
@@ -158,6 +165,37 @@ describe('LibraryScreenOrchestrator', () => {
 
       // then
       expect(result.quota).toEqual(QUOTA);
+    });
+
+    it('시리즈 편 항목에 series 객체를 싣는다(KAN-134) — 없으면 null', async () => {
+      // given
+      const item = buildItem({ id: ITEM_ID_1 });
+      libraryService.findPage.mockResolvedValue({
+        items: [item, buildItem({ id: ITEM_ID_2 })],
+        hasNext: false,
+      });
+      const ref = {
+        id: '77777777-7777-4777-8777-777777777777',
+        title: '시리즈',
+        episodeNo: 1,
+        totalEpisodes: 3,
+      };
+      seriesService.findRefs.mockResolvedValue(new Map([[CONTENT_ID, ref]]));
+
+      // when
+      const result = await orchestrator.getItems(
+        USER_ID,
+        LIST_QUERY,
+        NOW,
+        UserMarket.KR,
+      );
+
+      // then — 시리즈 행은 항목의 콘텐츠 목록으로 한 번에 묻는다
+      expect(seriesService.findRefs).toHaveBeenCalledWith([
+        item.content,
+        expect.anything(),
+      ]);
+      expect(result.items[0].content.series).toEqual(ref);
     });
 
     it('다음 페이지가 있으면 마지막 항목 위치로 커서를 발급한다', async () => {

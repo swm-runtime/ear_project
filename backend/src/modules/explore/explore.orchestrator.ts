@@ -11,6 +11,7 @@ import { ContentTopicView } from '@/modules/content/content.types';
 import { Content } from '@/modules/content/entities/content.entity';
 import { ContentService } from '@/modules/content/services/content.service';
 import { SearchQueryLogService } from '@/modules/content/services/search-query-log.service';
+import { SeriesService } from '@/modules/content/services/series.service';
 import { COLD_START_COMPLETE_THRESHOLD } from '@/modules/drip/drip.constant';
 import { DripExclusionReason } from '@/modules/drip/drip.enum';
 import {
@@ -90,6 +91,7 @@ export class ExploreOrchestrator {
     private readonly dripScoringService: DripScoringService,
     private readonly dataSource: DataSource,
     private readonly searchQueryLogService: SearchQueryLogService,
+    private readonly seriesService: SeriesService,
   ) {}
 
   /**
@@ -754,11 +756,14 @@ export class ExploreOrchestrator {
     // 같은 콘텐츠가 여러 섹션에 걸쳐 있으므로 중복을 제거하고 조회한다
     const contentIds = [...new Set(contents.map((content) => content.id))];
 
-    const [topicViews, libraryItems, countedContentIds] = await Promise.all([
-      this.contentService.findTopicViews(contentIds, manager),
-      this.libraryService.findActiveItems(userId, contentIds, manager),
-      this.playbackService.findCountedContentIds(userId, now, manager),
-    ]);
+    const [topicViews, libraryItems, countedContentIds, seriesRefs] =
+      await Promise.all([
+        this.contentService.findTopicViews(contentIds, manager),
+        this.libraryService.findActiveItems(userId, contentIds, manager),
+        this.playbackService.findCountedContentIds(userId, now, manager),
+        // 카드의 시리즈 표시(KAN-134) — 시리즈 행을 한 번에 읽는다. 묶음 카드(type: series)는 아직 없다
+        this.seriesService.findRefs(contents, manager),
+      ]);
 
     const topicIdsByContentId = groupTopicIds(topicViews);
     const libraryItemByContentId = new Map<string, LibraryItem>(
@@ -781,6 +786,7 @@ export class ExploreOrchestrator {
           contentVersion: content.contentVersion,
           topicIds: topicIdsByContentId.get(content.id) ?? [],
           tags: content.tags ?? [],
+          series: seriesRefs.get(content.id) ?? null,
         },
         library: libraryItem
           ? {

@@ -5,6 +5,7 @@ import {
 
 import { ExploreItemView } from '../explore.types';
 import { ContentLanguage } from '@/modules/content/content.enum';
+import { ContentSeriesDto } from '@/modules/content/dto/content-series.dto';
 
 class ExploreContentDto {
   readonly id: string;
@@ -23,6 +24,8 @@ class ExploreContentDto {
   readonly topic_ids: string[];
   /** 화면 해시태그('#' 없이 — 붙이는 것은 화면). 없으면 빈 배열 (KAN-162) */
   readonly tags: string[];
+  /** 속한 시리즈 `{ id, title, episode_no, total_episodes }` — 단일 콘텐츠는 null (KAN-134, 추가 필드) */
+  readonly series: ContentSeriesDto | null;
 }
 
 /**
@@ -62,6 +65,7 @@ export class ExploreItemDto {
         content_version: view.content.contentVersion,
         topic_ids: view.content.topicIds,
         tags: view.content.tags,
+        series: ContentSeriesDto.from(view.content.series),
       },
       library: view.library
         ? {

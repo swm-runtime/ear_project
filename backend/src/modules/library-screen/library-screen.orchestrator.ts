@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { DataSource } from 'typeorm';
 
 import { ContentService } from '@/modules/content/services/content.service';
+import { SeriesService } from '@/modules/content/services/series.service';
 import { isContentVisibleAt } from '@/modules/content/content.visibility';
 import { BusinessForbiddenException } from '@/common/exceptions/business-forbidden.exception';
 import { ErrorCode } from '@/common/exceptions/error-code.enum';
@@ -51,6 +52,7 @@ export class LibraryScreenOrchestrator {
     private readonly contentService: ContentService,
     private readonly dripExclusionService: DripExclusionService,
     private readonly dataSource: DataSource,
+    private readonly seriesService: SeriesService,
   ) {}
 
   /**
@@ -297,11 +299,14 @@ export class LibraryScreenOrchestrator {
 
     const contentIds = items.map((item) => item.contentId);
 
-    const [topicViews, progresses, countedContentIds] = await Promise.all([
-      this.contentService.findTopicViews(contentIds),
-      this.playbackService.findProgresses(userId, contentIds),
-      this.playbackService.findCountedContentIds(userId, now),
-    ]);
+    const [topicViews, progresses, countedContentIds, seriesRefs] =
+      await Promise.all([
+        this.contentService.findTopicViews(contentIds),
+        this.playbackService.findProgresses(userId, contentIds),
+        this.playbackService.findCountedContentIds(userId, now),
+        // 항목의 시리즈 표시(KAN-134) — 묶어 보여 주기는 FE가 이 객체로 한다(라이브러리 "시리즈 항목" 종류는 두지 않는다)
+        this.seriesService.findRefs(items.map((item) => item.content)),
+      ]);
 
     const topicIdsByContentId = new Map<string, string[]>();
     for (const view of topicViews) {
@@ -333,6 +338,7 @@ export class LibraryScreenOrchestrator {
         language: item.content.language,
         contentVersion: item.content.contentVersion,
         topicIds: topicIdsByContentId.get(item.contentId) ?? [],
+        series: seriesRefs.get(item.contentId) ?? null,
       },
       progress: progressByContentId.get(item.contentId) ?? null,
     }));

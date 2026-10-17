@@ -12,6 +12,7 @@ import {
   ProgressView,
 } from '@/modules/playback/playback.types';
 import { ContentLanguage } from '@/modules/content/content.enum';
+import { ContentSeriesRef } from '@/modules/content/content.types';
 
 export interface LibraryContentView {
   id: string;
@@ -27,6 +28,8 @@ export interface LibraryContentView {
   /** 재발행 판정용. 올라갔으면 클라이언트가 저장한 위치·오프라인 파일을 폐기한다 */
   contentVersion: number;
   topicIds: string[];
+  /** 속한 시리즈(KAN-134). 단일 콘텐츠는 null */
+  series: ContentSeriesRef | null;
 }
 
 export interface LibraryItemView {

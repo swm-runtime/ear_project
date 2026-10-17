@@ -12,6 +12,7 @@ import { DailyPlayQuota } from '@/modules/playback/playback.types';
 import { ExploreSectionKey, SaveReason } from './explore.enum';
 import { UserMarket } from '@/modules/user/user.enum';
 import { ContentLanguage } from '@/modules/content/content.enum';
+import { ContentSeriesRef } from '@/modules/content/content.types';
 
 export interface ExploreContentView {
   id: string;
@@ -29,6 +30,8 @@ export interface ExploreContentView {
   topicIds: string[];
   /** 화면 해시태그('#' 없이). 받은 적 없는 콘텐츠는 빈 배열 (KAN-162) */
   tags: string[];
+  /** 속한 시리즈(KAN-134). 단일 콘텐츠는 null */
+  series: ContentSeriesRef | null;
 }
 
 /**

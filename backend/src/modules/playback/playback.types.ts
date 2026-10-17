@@ -1,7 +1,10 @@
 /** convention.md 3.2 — 모듈 밖으로 공개되는 타입만 둔다 */
 
 import { AudioQuality } from '@/modules/content/content.enum';
-import { ScriptSection } from '@/modules/content/content.types';
+import {
+  ContentSeriesRef,
+  ScriptSection,
+} from '@/modules/content/content.types';
 
 import type { AudioQualityFallbackReason } from './audio-quality.policy';
 import { PlayEntryPoint, UserSignalAction } from './playback.enum';
@@ -91,6 +94,8 @@ export interface AudioUrlResult {
     contentVersion: number;
     /** 플레이어 카테고리 줄용(`player-api.md` 4.1, 2026-09-19) — 진입 경로마다 목록 응답에서 끼워 넣던 우회를 걷어낸다 */
     topics: { id: string; name: string }[];
+    /** 속한 시리즈(KAN-134). 단일 콘텐츠는 null */
+    series: ContentSeriesRef | null;
   };
   /**
    * 대본 존재 여부(`player-api.md` 4.1, KAN-71) — 화면이 대본 버튼을 그릴지 **조회 전에** 정한다.
