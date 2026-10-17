@@ -1,6 +1,6 @@
 # Script Writing Guidelines
 
-> Version: **full-en-v0.6** (2026-10-17) · GPT profile · global pipeline. Rationale and sources: [CHANGELOG.md](CHANGELOG.md).
+> Version: **full-en-v0.7** (2026-10-17) · GPT profile · global pipeline. Rationale and sources: [CHANGELOG.md](CHANGELOG.md).
 > Rule numbers are reference IDs for L0, QA and the critic. Do not reuse or renumber them.
 
 ## Principles
@@ -70,7 +70,7 @@
 
 20. **Write how people speak.** Use contractions where a speaker would. Short fragments are fine for reactions and quick answers. "I mean" and "kind of" appear at most once per section each. Once or twice per episode, the explainer may correct a word mid-sentence. No turn ends mid-sentence or trails off.
 
-21. **Punctuation for the ear.** Spoken lines use periods, commas, and question marks. No em dashes, en dashes as breaks, semicolons, or parentheses. A colon is allowed only in a clock time. Use "..." only where a speaker pauses to choose a word or to correct themselves: in one of every three to six explainer turns, at most one per turn.
+21. **Punctuation for the ear.** Spoken lines use periods, commas, and question marks. No em dashes, en dashes as breaks, semicolons, or parentheses. A colon is allowed only in a clock time. Use "..." only where a speaker pauses to choose a word or to correct themselves: in one of every three to six explainer turns, at most one per turn. Never use "..." in place of a colon or dash before a list or an explanation.
 
 22. **Rhythm follows content.** Explainer turns average 2 to 5 sentences, with a maximum of 6. Host turns are usually 1 to 2 sentences. Use longer explainer turns for context and short exchanges for surprises and corrections. Vary the exchange: sometimes the explainer gives a one-line answer and stops; sometimes the host asks before the explanation is finished. Do not split one explanation into small turns.
 
@@ -92,7 +92,7 @@
 
 30. **No self-answered questions.** The explainer does not ask a question and answer it. Questions belong to the host, except rule 15.
 
-31. **No morals or recaps.** Do not end a turn, block, or episode on a pseudo-profound line, a universal truth, a lesson, or a summary sentence. An explainer turn ends on its newest point, not on a sentence that restates what the turn already said. A block ends on what it adds to the axis question or on a concrete detail.
+31. **No morals or recaps.** Do not end a turn, block, or episode on a pseudo-profound line, a universal truth, a lesson, or a summary sentence. An explainer turn ends on its newest point, not on a sentence that restates what the turn already said. Test the last sentence of each explainer turn: if the turn says the same without it, delete it. A block ends on what it adds to the axis question or on a concrete detail.
 
 32. **No scripted noise.** No um, uh, or "like" as a filler. No scripted interruptions, overlapping speech, laughter, stage directions, sound tags, or "haha".
 
@@ -101,7 +101,7 @@
 ## Length
 
 34. **Plan the length first.** Count spoken words only.
-    - The floor is 750 words. There is no target length beyond the material. The target is the outline's estimated minutes × 150 words, within 10 percent. Never plan below 750 words.
+    - The floor is 730 words. There is no target length beyond the material. The target is the outline's estimated minutes × 146 words, within 10 percent. Never plan below 730 words.
     - Spread words across each Body section: the evidence, the process needed to understand it, and what the result means.
     - If short, use unused claims, reserve material, or background from the outline. Do not invent causes, cases, or numbers.
     - Do not pad with echoes, exclamations, repeated limitations, or restated conclusions. If long, cut repetition and long turns first.
@@ -123,7 +123,7 @@
 
 ## Facts and sources
 
-41. **Facts come only from the claims.** Every number, quote, name, cause, definition, and date comes from a claims row, appears only in explainer turns, and stays within what the excerpt supports. Do not raise the strength, scope, or certainty of a claim. Keep every condition the claim states: who says it, to whom, where, and which of its meanings it covers. Do not widen a named set into a general category. For claims based on Korean-language excerpts, keep the meaning exact when rephrasing in English. List the claim IDs each explainer turn uses in turn_claims.
+41. **Facts come only from the claims.** Every number, quote, name, cause, definition, and date comes from a claims row, appears only in explainer turns, and stays within what the excerpt supports. Do not raise the strength, scope, or certainty of a claim. Keep every condition the claim states: who says it, to whom, where, and which of its meanings it covers. Keep each condition on the thing it describes; do not move it to another thing. Keep quantifiers such as some, many, and most. A practice the claim gives to one person stays that person's practice; do not make it a place's or a group's. Do not widen a named set into a general category. For claims based on Korean-language excerpts, keep the meaning exact when rephrasing in English. List the claim IDs each explainer turn uses in turn_claims.
 
 42. **Introduce a source once, then explain.** When one source leads three or more explainer turns, introduce it once in the first turn: what kind of source it is and what it covers. After that, explain the content directly. Do not make the article, study, guide, author, compiler, participant, or researchers the subject of sentences; at most two sentences per section name the source, the introduction included. This count includes the source as subject and phrases such as "According to" the source or "In" the source's account. Do not use vague authority ("experts say", "studies show", "many people believe").
 
@@ -139,7 +139,7 @@
 
 47. **Spelling.** Use the spelling in the pronunciation map, then the spelling in the claims or excerpts. Otherwise use the official English spelling for names of people, groups, companies, and works; romanization followed by the meaning for places and heritage sites; and Revised Romanization for other words, even when a claim or excerpt spells the word another way. Keep one spelling per word. Write Korean personal names family name first. Use the Korean names Dokdo and East Sea.
 
-48. **Explain on first use.** When a Korean word first appears, give its meaning with a comma or in the next short sentence. Explain meaning, not word origin, unless a claim gives the origin. Introduce at most two new Korean words per turn and about twelve per episode, except in Korean Language episodes. If a Korean word returns after two or more sections, re-explain it in a few words. Do not say "which means" more than twice per section. Use the English word when it says the same thing. Use fan terms such as oppa or unnie only as terms, explained, never as forms of address. When the claims say a word is casual or polite, or who uses it, say so in the turn that explains the word. Say the speech level of every Korean example sentence a listener may repeat: casual, polite, or formal, as the claims record it. When the claims mark a phrase as a dictionary form, say that people change its ending when they speak.
+48. **Explain on first use.** When a Korean word first appears, give its meaning with a comma or in the next short sentence. Explain meaning, not word origin, unless a claim gives the origin. Introduce at most two new Korean words per turn and about twelve per episode, except in Korean Language episodes. If a Korean word returns after two or more sections, re-explain it in a few words. Do not say "which means" more than twice per section. Use the English word when it says the same thing. Use fan terms such as oppa or unnie only as terms, explained, never as forms of address. When the claims say a word is casual or polite, or who uses it, say so in the turn that explains the word. The two template greetings, annyeonghaseyo and gamsahamnida, need no explanation. Say the speech level of every Korean example sentence a listener may repeat: casual, polite, or formal, as the claims record it. When the claims mark a phrase as a dictionary form, say that people change its ending when they speak.
 
 49. **Register every Korean word.** Write only the romanized spelling in lines, never Hangul. Do not add English endings to Korean words. Report every Korean word or name in the script that is not in the pronunciation map in pronunciations_added. The reading is the same word in Hangul, exactly as Koreans write it. Leave the reading empty when you cannot give one. Do not register a word that is also a common English word. Do not register a name that listeners abroad already say in English: a place, company, group, or work with an established English name, or a person known abroad by an English form of the name. Register every other name, including people's names, in Hangul. Never register the two speakers' names; the voice says them as written. Record each Korean word and term in terms with its first turn and where it is explained.
 

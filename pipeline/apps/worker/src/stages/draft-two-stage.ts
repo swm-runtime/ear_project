@@ -416,10 +416,11 @@ export function enStyleViolations(turns: ScriptTurn[]): string[] {
   const echo = turns.filter((t, i) => !isTemplate(i) && expl(t) && echoRe.test(firstSentence(t.text))).map(label);
   if (echo.length > 3) v.push(`${EN_STYLE_MARK} ${echo.length} explainer turns open by restating the host's words (${list(echo)}) — answer in the first sentence; do not name or paraphrase the host's question, guess, or feeling (rule 10)`);
   // 소스가 문장 주어 (규칙 42) — 단락마다 소스 명사 + 전달 동사로 시작하는 해설 문장. 소개 한 문장 + 하나까지
-  const srcSubj = /^(?:the|this|that|one|another) (?:guide|compiler|report|study|article|author|authors|researchers?|participant|participants|dictionary|entry|survey|book|writer|reporter|museum|encyclopedia|page|source|conversation|interview)\b[^.?!]{0,40}?\b(?:says|said|describes|described|lists|listed|gives|gave|reports|reported|notes|noted|explains|explained|connects|connected|calls|called|treats|treated|warns|warned|includes|included|mentions|mentioned|adds|added|suggests|suggested|argues|argued|shows|showed|writes|wrote|uses|used|puts|links|separates|pairs|allows|presents|advises|rejects|recommends)\b/i;
+  const srcSubj = /^(?:the|this|that|one|another|a|an) (?:(?:[a-z]+|[A-Z][\w-]*) ){0,3}(?:guide|compiler|report|study|article|author|authors|researchers?|participant|participants|dictionary|entry|survey|book|writer|reporter|museum|encyclopedia|page|source|conversation|interview|essay|column|columnist|union|records?|maker)\b[^.?!]{0,40}?\b(?:says|said|describes|described|lists|listed|gives|gave|reports|reported|notes|noted|explains|explained|connects|connected|calls|called|treats|treated|warns|warned|includes|included|mentions|mentioned|adds|added|suggests|suggested|argues|argued|shows|showed|writes|wrote|uses|used|puts|links|separates|pairs|allows|presents|advises|rejects|recommends)\b/i;
   // full-en-v0.6 (G261017-001): 주어 꼴만 세니 "According to KEL"·"In KEL's account"·"KEL presents" 처럼 이름을 붙인 문장이 #4 에서 여덟 번 나와도 빠져나갔다 — 이름 붙이기 꼴도 같이 센다.
   // 대문자 약어 주어(KEL)만 고유명사로 본다 — 첫 글자만 대문자인 주어는 한국어 표현("Jeongi deulda describes…")과 가를 수 없다
-  const srcRef = /^(?:[Aa]ccording to (?:the )?[A-Z]|[Ii]n (?:(?:the|this|that) )?(?:[A-Z][\w-]*|its|their|guide|article)(?:'s|’s)? (?:[a-z]+ )?(?:article|guide|account|description|view|guidance|report|explanation|example)\b|[A-Z]{2,}\b[^.?!]{0,20}?\b(?:says|advises|presents|describes|explains|warns|notes|argues|lists|gives|calls|treats|recommends|rejects|allows)\b)/;
+  // full-en-v0.7 (G261017-002·003): "In the essay's explanation"·"according to the report"·"Its warning…"·"It argues…" 처럼 일반 명사·대명사로 출처를 부르는 꼴도 센다
+  const srcRef = /^(?:[Aa]ccording to (?:the |this |that )?(?:[A-Z]|(?:essay|report|article|guide|column|study|survey|union|records?)\b)|[Ii]n (?:(?:the|this|that) )?(?:[A-Z][\w-]*|its|their|guide|article|essay|report|column|study|survey|union|records?)(?:'s|’s)? (?:[a-z]+ )?(?:article|guide|account|description|view|guidance|report|explanation|example|warning)\b|[A-Z]{2,}\b[^.?!]{0,20}?\b(?:says|advises|presents|describes|explains|warns|notes|argues|lists|gives|calls|treats|recommends|rejects|allows)\b|(?:It|She|He|They) (?:says|argues|points|describes|reports|connects|warns|dates|explains|notes|suggests|adds|lists|calls)\b|Its (?:explanation|warning|account|view|description|guidance|claim|argument)\b)/;
   const perSection = new Map<string, string[]>();
   for (const t of turns) {
     if (!expl(t) || t.section !== zones.body) continue;
@@ -428,6 +429,11 @@ export function enStyleViolations(turns: ScriptTurn[]): string[] {
   }
   const srcLoops = [...perSection].filter(([, ids]) => ids.length > 2).map(([sec, ids]) => `"${sec}" ${ids.length} (${[...new Set(ids)].join(", ")})`);
   if (srcLoops.length) v.push(`${EN_STYLE_MARK} the source is named in more than two sentences in a section: ${srcLoops.join("; ")} — introduce the source once, then explain the content directly; "According to" and "In … account" count too (rule 42)`);
+  // 턴 끝 요약 (규칙 31, full-en-v0.7 — G261015-001 · G261017-001·002·003 에이전트 판정에서 네 편 연속): 세 문장 이상인 해설 턴의 마지막 문장이
+  // So·This·That·These·Those·Both·Each 로 시작해 앞 내용을 묶으면 센다. 넷 이상이면 문체 위반(한도 뒤 QA 로). 마지막 문장 지우기 시험은 규칙 31 이 맡는다
+  const lastSentence = (t: string) => { const s = t.trim().split(/(?<=[.!?])\s+/).filter(Boolean); return s.length >= 3 ? s[s.length - 1] : ""; };
+  const tails = turns.filter((t, i) => !isTemplate(i) && expl(t) && /^(?:So|This|That|These|Those|Both|Each)\b[^?]*\.$/.test(lastSentence(t.text))).map(label);
+  if (tails.length > 3) v.push(`${EN_STYLE_MARK} ${tails.length} explainer turns end on a sentence that sums up the turn (${list(tails)}) — end on the newest point; delete a last sentence the turn does not need (rule 31)`);
   // 해설자 질문 (규칙 15) — Opening 의 되묻기를 포함해 편 전체 두 번까지 (full-en-v0.6, G261017-001: 도입 되묻기 E1 + 본문 E5·E17 = 세 번)
   const eQ = turns.filter((t, i) => !isTemplate(i) && expl(t) && t.text.includes("?")).map(label);
   if (eQ.length > 2) v.push(`${EN_STYLE_MARK} the explainer asks questions in ${eQ.length} turns (${list(eQ)}) — at most two per episode, the Opening's question back included (rule 15)`);

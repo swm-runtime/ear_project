@@ -64,10 +64,10 @@ test("구성안의 Section #n 과 대본의 ### #n 이 수·순서가 다르면 
   assert.match(twoStageViolations(script({ sections: [1, 3, 2] }), OUTLINE).join(), /order differs from the outline \(outline 1,2,3 \/ script 1,3,2\)/);
 });
 
-test("분량은 단어로 센다 — 5분 하한(750단어) 미달·구성안 예상의 1.6배 초과를 막는다", () => {
+test("분량은 단어로 센다 — 5분 하한(730단어) 미달·구성안 예상의 1.6배 초과를 막는다", () => {
   en();
   const short = script({ bodyTurns: 6 });
-  assert.match(twoStageViolations(short, OUTLINE).join(), new RegExp(`Length ${scriptStats(short).words} words .* below the 5-minute floor \\(750 words\\)`));
+  assert.match(twoStageViolations(short, OUTLINE).join(), new RegExp(`Length ${scriptStats(short).words} words .* below the 5-minute floor \\(730 words\\)`));
   const long = script({ bodyTurns: 60 });
   assert.match(twoStageViolations(long, OUTLINE.replace("15 min", "8 min")).join(), /more than 1\.6× the outline estimate of 8 min/);
 });
@@ -247,4 +247,24 @@ test("한국어 표현을 가리키면서 등재 표제어를 말하지 않는 �
   const v = withSpeakers(["Yuna", "Owen"], () => twoStageViolationsEn(md, "", { pronunciations: { "hani maechida": "한이 맺히다" } })).join("\n");
   assert.match(v, /explainer turns speak of a Korean expression without saying it \(E2\)/);
   assert.equal(withSpeakers(["Yuna", "Owen"], () => twoStageViolationsEn(md, "")).join("\n").includes("without saying it"), false);
+});
+
+// full-en-v0.7 (2026-10-17, G261015-001 · G261017-001~003 에이전트 판정)
+test("턴 끝 요약 — 세 문장 이상 해설 턴이 So·This·That·Both 등으로 묶으며 끝나는 곳이 넷 이상이면 문체 위반, 셋까지·질문·짧은 턴은 통과", () => {
+  en();
+  const tail = (id: string) => T(id, "A fact. Another fact. This changes the viewpoint.");
+  const three = [T("Y1", "Hi.", "Intro"), tail("E1"), tail("E2"), tail("E3"), T("E4", "One. Two. So what do you think?"), T("E5", "So short."), T("Y2", "Bye.", "Closing")];
+  assert.doesNotMatch(enStyleViolations(three).join("\n"), /sums up the turn/);
+  const four = [...three.slice(0, 4), tail("E6"), ...three.slice(4)];
+  assert.match(enStyleViolations(four).join("\n"), /4 explainer turns end on a sentence that sums up the turn \(E1, E2, E3, E6\)/);
+});
+
+test("출처 이름 계수 — 일반 명사·대문자 이름·대명사로 부르는 꼴도 센다(In the essay's explanation · A Korea JoongAng Daily report · It/She/Its)", () => {
+  en();
+  const S = (id: string, text: string) => ({ speaker: "Yuna", id, text, section: "Body", topic: "Kimjang" });
+  const v = enStyleViolations([
+    S("E1", "A Korea JoongAng Daily report describes regional kimchi. In the essay's explanation, drying lost flavor."),
+    S("E2", "It dates the refrigerator to 1992. She connects soft leaves with warm weather. Its warning covers rest."),
+  ]).join("\n");
+  assert.match(v, /the source is named in more than two sentences in a section: "Kimjang" 5 \(E1, E2\)/);
 });
