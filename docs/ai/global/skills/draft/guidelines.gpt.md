@@ -1,6 +1,6 @@
 # Script Writing Guidelines
 
-> Version: **full-en-v0.9** (2026-10-17) · GPT profile · global pipeline. Rationale and sources: [CHANGELOG.md](CHANGELOG.md).
+> Version: **full-en-v0.10** (2026-10-17) · GPT profile · global pipeline. Rationale and sources: [CHANGELOG.md](CHANGELOG.md).
 > Rule numbers are reference IDs for L0, QA and the critic. Do not reuse or renumber them.
 
 ## Principles
@@ -16,7 +16,7 @@
 
 2. **The host is the listener's stand-in.** The host is a curious non-Korean. The host asks what a newcomer would ask and says how a point sounds to them. The host makes no factual claims. The host does not describe practices in any country, including their own, and does not name a home country or speak for a group of listeners.
 
-3. **Opinions yes, memories no.** Both speakers may give present-tense feelings, guesses, and preferences. Neither speaker tells personal memories, trips, family stories, or past actions. A scene built from claim facts may run up to four sentences and carries one concrete detail from the claims: words people say, an object, or a sound. An imagined frame with no claim facts stays at two sentences, is marked as imagined in plain words, and is recorded in bridges. Never say the word "hypothetical" in a line. At most two scenes in an episode start with "Imagine".
+3. **Opinions yes, memories no.** Both speakers may give present-tense feelings, guesses, and preferences. Neither speaker tells personal memories, trips, family stories, or past actions. A scene built from claim facts may run up to four sentences and carries one concrete detail from the claims: words people say, an object, or a sound. An imagined frame with no claim facts stays at two sentences, is marked by its first words, and is recorded in bridges. Never say the words "hypothetical" or "imagined" in a line. At most two scenes in an episode start with "Imagine" or "Picture". Do not refer to an imagined person and a person from the claims with the same noun.
 
 4. **No stereotypes, rankings, or default viewpoint.**
    - Do not generalize about Koreans or any other group. Do not rank cultures, countries, artists, groups, or fandoms.
@@ -62,7 +62,7 @@
 
 ## Spoken English for international listeners
 
-17. **Plain words.** Use common words a B2-level English learner knows. Prefer common one-word verbs. Avoid phrasal verbs whose meaning is not literal. If a word needs explaining, use a simpler word instead. Explain only Korean words and terms that cannot be avoided. Keep the same word for the same thing; do not cycle through synonyms. Use the outline's Terms: one plain English name for each place or thing, every time. When a common word has a different everyday sense in this setting, explain it on first use or use another word.
+17. **Plain words.** Use common words a B2-level English learner knows. Prefer common one-word verbs. Avoid phrasal verbs whose meaning is not literal. If a word needs explaining, use a simpler word instead. Explain only Korean words and terms that cannot be avoided. Keep the same word for the same thing; do not cycle through synonyms. Use the outline's Terms: one plain English name for each place or thing, every time. When a common word has a different everyday sense in this setting, explain it on first use or use another word. Define a word with other words, never with the word itself. Do not give two opposing ideas names that sound alike.
 
 18. **Nothing that depends on native culture.** No idioms, slang, sports metaphors, sarcasm, irony, or wordplay. Do not refer to American or British TV, holidays, brands, or school life.
 
@@ -111,7 +111,7 @@
 
 35. **Four zones and the line format.** Zones are `## [Intro]`, `## [Opening]`, `## [Body]`, `## [Closing]`, once each, in this order. Body sections use `### #n Title` headers with the outline's numbers and order. Turns are `[Name] E1 · text` for the explainer and `[Name] Y1 · text` for the host, each numbered from 1. Use the exact speaker names the prompt gives. The first line follows the meta format the prompt gives.
 
-36. **Nothing outside speech in lines.** No URLs, tables, lists, markdown, emoji, citations, source lists, or AI disclosure in spoken lines. No claim or excerpt IDs (C##, S#-##) anywhere in the script. Do not say production terms: section, axis, block, claim, excerpt, outline, source, gold, Body, Closing. Do not carry the claims' labels into lines: attributed, account, or use as a noun for a sense of a word. The outline's lines are instructions, not dialogue: never copy their wording, and never say where something is described ("described here").
+36. **Nothing outside speech in lines.** No URLs, tables, lists, markdown, emoji, citations, source lists, or AI disclosure in spoken lines. No claim or excerpt IDs (C##, S#-##) anywhere in the script. Do not say production terms: section, axis, block, claim, excerpt, outline, source, gold, Body, Closing. Do not carry the claims' labels into lines: attributed, account, or use as a noun for a sense of a word. The outline's lines, its Terms line included, are instructions, not dialogue: never copy their wording, and never say where something is described ("described here"). Do not point to the materials ("in the reporting", "mentioned earlier") or to a picture or image the listener cannot see.
 
 37. **Intro and Opening.** The injected intro template is Y1, one turn. Keep its frame and fill only its slots; no braces may remain. After the topic is named, use two or three Opening turns to raise the question a newcomer would ask. Start from the outline's Familiar picture and name it. Do not introduce studies or sources in the Opening.
 
@@ -123,7 +123,7 @@
 
 ## Facts and sources
 
-41. **Facts come only from the claims.** Every number, quote, name, cause, definition, and date comes from a claims row, appears only in explainer turns, and stays within what the excerpt supports. Do not raise the strength, scope, or certainty of a claim. Keep every condition the claim states: who says it, to whom, where, and which of its meanings it covers. Keep each condition on the thing it describes; do not move it to another thing. Keep quantifiers such as some, many, and most. A practice the claim gives to one person stays that person's practice; do not make it a place's or a group's. Do not widen a named set into a general category. For claims based on Korean-language excerpts, keep the meaning exact when rephrasing in English. List the claim IDs each explainer turn uses in turn_claims.
+41. **Facts come only from the claims.** Every number, quote, name, cause, definition, and date comes from a claims row, appears only in explainer turns, and stays within what the excerpt supports. Do not raise the strength, scope, or certainty of a claim. Keep every condition the claim states: who says it, to whom, where, and which of its meanings it covers. Keep each condition on the thing it describes; do not move it to another thing. Keep quantifiers such as some, many, and most. A practice the claim gives to one person stays that person's practice; do not make it a place's or a group's. Do not widen a named set into a general category. A list the claim marks as partial stays partial. A practice reported for a year keeps that year. For claims based on Korean-language excerpts, keep the meaning exact when rephrasing in English. List the claim IDs each explainer turn uses in turn_claims.
 
 42. **Introduce a source once, then explain.** Do not open a section by naming its source; open on the outline's Opens with line. When one source leads three or more explainer turns, introduce it once, where its first fact is used: what kind of source it is and what it covers. After that, explain the content directly. Do not make the article, study, guide, author, compiler, participant, or researchers the subject of sentences; at most two sentences per section name the source, the introduction included. This count includes the source as subject and phrases such as "According to" the source or "In" the source's account. Do not use vague authority ("experts say", "studies show", "many people believe").
 
@@ -131,7 +131,7 @@
 
 44. **Sources are not footnotes read aloud.** Do not say sample sizes, survey counts, journal names, methods, funding, or citation relations. Describe a study by who it looked at and what it found, in one sentence. Paraphrase quotes. Read original wording only when the wording itself is the subject. For statistics about Korean society, say the year the data describes.
 
-45. **Numbers.** At most three numbers per explainer turn and six per section. Round unless precision is the point, and say "about" when you round. Keep the unit, the base, and what is compared. Write numbers as digits. Write Korean won as "KRW 15,000", with no "won" after it and no dollar conversion. Spell out units and "percent". Use metric units.
+45. **Numbers.** At most three numbers per explainer turn and six per section. Round unless precision is the point, and say "about" when you round. Keep a claim's "nearly" or "almost" true after rounding. Keep the unit, the base, and what is compared. Write numbers as digits. Write Korean won as "KRW 15,000", with no "won" after it and no dollar conversion. Spell out units and "percent". Use metric units.
 
 46. **No relative time.** Outside the injected templates, do not use now (for the present era), today, nowadays, these days, currently, recently, this year, last year, or next year. Use years or timeless wording.
 

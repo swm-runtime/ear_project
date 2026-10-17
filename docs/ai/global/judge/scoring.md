@@ -43,7 +43,7 @@ Score the script as it is. Score each item on its own. An ordinary episode gets 
 |---|---|
 | 6–7 | A concrete scene carries the idea. A specific feeling arises. It touches a situation people share. |
 | 4–5 | Feeling is named rather than shown. |
-| 2–3 | Dry, manual-like. No concrete scene with a person, a place, and a moment anywhere in the episode: at most 3. A one-sentence "imagine a …" line that only restates a rule is not a scene. |
+| 2–3 | Dry, manual-like. No concrete scene with a person, a place, and a moment anywhere in the episode: at most 3. A one-sentence "imagine a …" or "picture …" line that only restates a rule is not a scene. A person from a report given only by name, age, or place is not a scene; a scene has a moment with words said, an object, or a sound. |
 | 0–1 | Preachy or forced. |
 
 **3.5 Opening (6)** — Does the opening seat the listener after the topic is named?
