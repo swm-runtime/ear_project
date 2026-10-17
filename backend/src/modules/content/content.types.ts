@@ -9,6 +9,7 @@ import {
   ContentLanguage,
   ContentOrigin,
   ContentStatus,
+  SeriesStatus,
   StatsPeriodType,
 } from './content.enum';
 import { Content } from './entities/content.entity';
@@ -373,4 +374,48 @@ export interface AudioRenditionInput {
   sampleRateHz: number | null;
   byteSize: string | null;
   durationSec: number;
+}
+
+/**
+ * 편이 속한 시리즈의 표시값(KAN-134 확정 설계 3번) — 카드·라이브러리 항목·플레이어·상세 응답의 `series` 객체 재료.
+ * 단일 콘텐츠는 이 값이 없다(응답에서 `null`). 총 편수는 `series.total_episodes`가 기준이다(`contents.total_episodes`가 아니다)
+ */
+export interface ContentSeriesRef {
+  id: string;
+  title: string;
+  episodeNo: number;
+  totalEpisodes: number;
+}
+
+/** 시리즈 생성(`POST /admin/series`) 입력 */
+export interface CreateSeriesCommand {
+  title: string;
+  description: string;
+  totalEpisodes: number;
+  status: SeriesStatus;
+}
+
+/** 시리즈 수정(`PATCH /admin/series/:id`) — `undefined`는 "안 바꾼다" */
+export interface UpdateSeriesCommand {
+  title?: string;
+  description?: string;
+  totalEpisodes?: number;
+  status?: SeriesStatus;
+}
+
+/** 시리즈 하나의 편 현황 — 상태별 편 수와 발행 중인 가장 큰 편 번호(관리자 목록) */
+export interface SeriesEpisodeCounts {
+  published: number;
+  withdrawn: number;
+  expired: number;
+  /** 발행 중(`published`)인 편이 없으면 null */
+  maxPublishedEpisodeNo: number | null;
+}
+
+/** 업로드할 편의 시리즈 필드 — 업로드 검증(`SeriesService.assertEpisodeUploadable`) 입력 */
+export interface SeriesEpisodeUpload {
+  seriesId: string;
+  episodeNo: number;
+  totalEpisodes: number;
+  market: UserMarket;
 }

@@ -27,6 +27,15 @@ import { UserMarket } from '@/modules/user/user.enum';
   'publishedAt',
 ])
 @Index('idx_contents_series_id_episode_no', ['seriesId', 'episodeNo'])
+// 같은 시리즈에 같은 번호가 둘 발행되지 않는다(KAN-134). 회수·만료 편은 빠진다 — 마이그레이션 `AddSeries`가 소유
+@Index(
+  'uq_contents_series_id_episode_no_published',
+  ['seriesId', 'episodeNo'],
+  {
+    unique: true,
+    where: `"status" = 'published' AND "series_id" IS NOT NULL`,
+  },
+)
 @Index('idx_contents_partner_id', ['partnerId'])
 export class Content extends BaseEntity {
   @PrimaryGeneratedColumn('uuid')
@@ -63,7 +72,11 @@ export class Content extends BaseEntity {
   @Column({ name: 'partner_id', type: 'uuid', nullable: true })
   partnerId: string | null;
 
-  /** 분할되지 않은 단일 콘텐츠는 세 값이 모두 null이다 */
+  /**
+   * 분할되지 않은 단일 콘텐츠는 세 값이 모두 null이다. `series_id`는 `series.id`를 가리킨다(`fk_contents_series` —
+   * 마이그레이션 소유, 관계 객체는 두지 않는다). 총 편수의 기준은 `series.total_episodes`이고 `total_episodes`는 업로드
+   * 계약 호환으로 남은 사본이다(업로드 때 같아야 한다 — KAN-134)
+   */
   @Column({ name: 'series_id', type: 'uuid', nullable: true })
   seriesId: string | null;
 

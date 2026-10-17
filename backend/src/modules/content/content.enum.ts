@@ -9,6 +9,15 @@ export enum ContentStatus {
   EXPIRED = 'expired',
 }
 
+/**
+ * 시리즈 상태(KAN-134, 2026-10-17). 표시용 구분이다 — 업로드·노출을 막지 않는다.
+ * `ongoing`: 계획 편수를 아직 다 내지 않음(편수를 늘릴 수 있다) · `completed`: 완결
+ */
+export enum SeriesStatus {
+  ONGOING = 'ongoing',
+  COMPLETED = 'completed',
+}
+
 export enum ContentOrigin {
   PARTNER = 'partner',
   AI_GENERATED = 'ai_generated',
