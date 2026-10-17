@@ -65,8 +65,15 @@ iOS 1.2.0 (16)과 첫 구독 상품 2개가 심사를 통과했다(사용자 확
   | ④ 자동 갱신 끄기(해지 예약) | 통과 |
   | ⑤ 재설치 → 구매 복원 | 통과 |
   | ⑥ 계정 B 구매 복원 → 409 | 통과 |
-  | ⑦ 환불 | **대기** — 2026-10-15 Pro 건 환불 요청, Apple 결정 예정 2026-10-17. 승인되면 `REFUND` 알림 → `status = refunded` → 즉시 Light(`store-state.policy.ts` · `subscription.service.ts`) 를 앱·서버에서 확인한다 |
+  | ⑦ 환불 | **통과** (2026-10-17 확인) — 아래 처리 기록 |
 
   - Daily 3,900원은 업그레이드로 Apple 이 비례 환불한다. 신청 건이 아니라 reportaproblem 환불 목록에는 없다. 카드 명세와 Apple ID 구입 내역에서 며칠 안에 들어오는지 본다.
   - 남은 것: ⑦ 결과 · Daily 비례 환불 반영 확인 · 테스트 구독이 운영 매출·구독 통계에 잡히는 것을 백엔드에 알리기 · PM 에게 사용자 오픈 가능 여부 알리기(iOS 는 이미 전원 노출).
 - 2026-10-16 기한 초과 기록 — 기한 안에 처리하지 못했다. 늦더라도 처리한다. 발행 때 기한을 짧게 잡았다(박수헌 2026-10-16). 중요도는 그대로 둔다. ⑦ Apple 환불 결과는 10-17에 확인한다.
+- 2026-10-17 ⑦ 환불 통과 — Apple 이 Pro 건 환불을 승인했다. 운영 DB 읽기 전용 조회(이메일·이름 없이 user_id 앞 8자)와 앱 화면으로 확인했다.
+  - `store_notification_logs` #34 `REFUND`(production) — 서명 2026-10-15 23:16:57Z(KST 10-16 08:16), 1초 뒤 처리.
+  - `subscriptions`(app_store·production) Pro 행 `status = refunded` · `is_auto_renew = false` · `last_notified_at` = REFUND 서명 시각. 앱에서 Light 로 보인다(박수헌 확인).
+  - 그 전에 `CONSUMPTION_REQUEST` 3건(10-15, Apple 의 환불 심사용 사용량 요청)이 왔고 서버는 적재만 했다 — 응답 없이도 환불이 진행됐다. 응답 기능은 필수가 아니라 두었다.
+  - 운영 서버 알림 표에 샌드박스 알림 2건(#35 `SUBSCRIBED:INITIAL_BUY` · #36 `DID_CHANGE_RENEWAL_PREF:UPGRADE`, 10-16)이 있다. 운영 구독 행에는 반영되지 않았다(조회한 production 구독은 1행). App Store Connect 의 샌드박스 알림 URL 이 운영 서버를 가리키는지 백엔드가 확인할 것.
+  - 환불 금액은 아직 카드에 들어오지 않았다(승인 후 보통 5~10영업일). Daily 3,900원 비례 환불도 아직 확인 못 했다.
+  - 남은 것: Daily 비례 환불·Pro 환불 입금 확인 · 테스트 구독이 운영 매출·구독 통계에 잡히는 것과 샌드박스 알림 URL 을 백엔드에 알리기 · PM 에게 사용자 오픈 가능 여부 알리기(iOS 는 이미 전원 노출).
