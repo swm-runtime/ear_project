@@ -3,12 +3,12 @@ import { useTransition } from "react";
 import { requestReinforce, setBacklogStatus } from "../actions";
 import { btnCls } from "@/components/ui";
 
-export function GateButtons({ id, status, reinforce, approveBlocked }: { id: string; status: string; reinforce?: { eligible: boolean; running: boolean }; approveBlocked?: string | null }) {
+export function GateButtons({ id, status, reinforce }: { id: string; status: string; reinforce?: { eligible: boolean; running: boolean } }) {
   const [pending, start] = useTransition();
   const go = (s: Parameters<typeof setBacklogStatus>[1]) => start(async () => { try { await setBacklogStatus(id, s); } catch (e: any) { alert(e.message); } });
   if (status === "proposed" || status === "held") return (
     <div className="flex gap-1">
-      <button className={btnCls("primary")} disabled={pending || !!approveBlocked} title={approveBlocked ?? undefined} onClick={() => { if (confirm(`${id} 승인 — 워커가 대본 생성을 시작합니다.`)) go("approved"); }}>승인</button>
+      <button className={btnCls("primary")} disabled={pending} onClick={() => { if (confirm(`${id} 승인 — 워커가 대본 생성을 시작합니다.`)) go("approved"); }}>승인</button>
       {status === "proposed" && <button className={btnCls()} disabled={pending} onClick={() => go("held")}>보류</button>}
       {reinforce?.running && <span className="inline-flex items-center rounded bg-blue-50 px-2 py-1 text-[11px] font-medium text-blue-700 ring-1 ring-inset ring-blue-200">보강 중</span>}
       {reinforce?.eligible && !reinforce.running && (

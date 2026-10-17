@@ -7,7 +7,6 @@ import { deletePrefix, getBytes, getText, putBytes, putText } from "@/lib/storag
 import { readScriptFileBody } from "@/lib/script-file";
 import { majorOrder, majorTopicsFor } from "@/lib/taxonomy";
 import { ensureEmbedding } from "@/lib/embedding";
-import { gate1Check, type Gate1Domain, type Gate1Row } from "@/lib/gate1";
 import { agentGate } from "@/lib/agent-verdict";
 import { screenGlobalTopic } from "@/lib/topic-screen";
 
@@ -32,10 +31,6 @@ function assertPronunciationJson(content: string, allowEmpty = false): Record<st
  */
 export async function setBacklogStatus(id: string, status: "approved" | "rejected" | "held" | "proposed" | "qa_passed" | "published") {
   const sb = await supabaseServer();
-  if (status === "approved" && pipelineLocale() === "en") { // 글로벌판 게이트 1 승인 조건(명세 6.3, KAN-209) — 화면이 버튼을 막고, 여기서 다시 검사한다. 한국판은 타지 않는다
-    const g = await loadGate1(id);
-    if (!g.ok) throw new Error(`게이트 1 조건 미충족: ${g.blockers.join(" · ")}`);
-  }
   const { error } = await sb.from("backlog").update({ status }).eq("id", id);
   if (error) throw new Error(error.message);
   if (status === "approved") {
@@ -56,30 +51,6 @@ async function seriesPrevReadyWeb(id: string): Promise<boolean> {
   if (!b?.series_id || !b.series_no || b.series_no <= 1) return true;
   const { data: p } = await sb.from("backlog").select("status").eq("series_id", b.series_id).eq("series_no", b.series_no - 1).maybeSingle();
   return !!p && SERIES_PREV_READY.includes(p.status);
-}
-
-/** 글로벌판 게이트 1 조건 검사 (lib/gate1.ts) — en 인스턴스에서만 부른다. 0028 칸(sub_topic·gate1_checks)은 en 쿼리에서만 읽는다 */
-export async function loadGate1(id: string) {
-  const sb = await supabaseServer();
-  const [{ data: row, error }, { data: domains }] = await Promise.all([
-    sb.from("backlog").select("sources,gaps,dedup_note,gate1_checks").eq("id", id).single(),
-    sb.from("domains").select("id,domain,tier"),
-  ]);
-  if (error || !row) throw new Error(`후보 ${id} 를 찾지 못했다`);
-  return gate1Check(row as Gate1Row, (domains ?? []) as Gate1Domain[]);
-}
-
-/** 글로벌판 게이트 1 조건 4 — 빈 역할·소스 겹침 경고를 사람이 확인했다는 기록. 기록자는 사용자 id(이메일은 남기지 않는다) */
-export async function confirmGate1Warnings(id: string) {
-  if (pipelineLocale() !== "en") throw new Error("글로벌판 전용 기능이다");
-  const sb = await supabaseServer();
-  const { data: { user } } = await sb.auth.getUser();
-  const { data: row, error } = await sb.from("backlog").select("gate1_checks").eq("id", id).single();
-  if (error || !row) throw new Error(`후보 ${id} 를 찾지 못했다`);
-  const checks = { ...((row.gate1_checks as Record<string, unknown> | null) ?? {}), warnings_confirmed: { at: new Date().toISOString(), by: user?.id ?? "unknown" } };
-  const { error: e2 } = await sb.from("backlog").update({ gate1_checks: checks }).eq("id", id);
-  if (e2) throw new Error(e2.message);
-  revalidatePath("/backlog");
 }
 
 /** 글로벌판 보조 주제 변경 — 후보 구성 뒤 더하거나 뺀다(명세 2장). 대표 주제(mid_topic)와 같으면 거부, 빈 값은 지움 */
