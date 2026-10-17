@@ -1,7 +1,7 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
 import { Panel, Stat, Table, Td, Tr, btnCls } from "@/components/ui";
-import { EarApiError, type EarChannel, type EarInsightsSummary, type EarInsightsWeekday, earChannelLabel, getEarInsightsSummary } from "@/lib/ear";
+import { EarApiError, type EarChannel, type EarInsightsCohortTable, type EarInsightsSummary, type EarInsightsWeekday, earChannelLabel, getEarInsightsSummary } from "@/lib/ear";
 import { EarGate, EarSession, earErrMsg } from "@/app/publish/ear-connect";
 import {
   PROVIDER_LABEL, REASON_LABEL, TIER_LABEL,
@@ -258,6 +258,19 @@ function InsightsView({ channel, days, onSwitchToDev }: { channel: EarChannel; d
           </Table>
         </Panel>
       </div>
+      {data.retention_cohorts && (
+        <Panel title="코호트 리텐션 — 가입한 날·주로 묶어 그 뒤에도 앱을 쓴 사람 (명 · 비율)">
+          <div className="grid gap-4 lg:grid-cols-2">
+            <CohortTable table={data.retention_cohorts.daily} />
+            <CohortTable table={data.retention_cohorts.weekly} />
+          </div>
+          <p className="mt-2 text-xs text-ink-soft">
+            D1 = 가입 다음 날 하루, D7 = 가입 7일 뒤 하루. W1~W4 = 가입 7~13일 · 14~20일 · 21~27일 · 28~34일 뒤에 한 번이라도. 구간은 사람마다 자기 가입일 기준이다. 접속(토큰 갱신) 또는 재생이면 돌아온 것으로 센다.
+            {" "}<b>…</b> = 구간이 아직 끝나지 않음(묶음의 마지막 가입자 기준). <span className="text-ink-soft/70">흐린 칸*</span> = 접속 기록({fmtMonthDay(data.retention_cohorts.daily.reliable_since)}~) 이전 구간이라 재생만 잡혀 실제보다 낮다. 가입자 {SMALL_COHORT}명 미만 묶음은 비율이 크게 흔들린다.
+          </p>
+        </Panel>
+      )}
+
       {/* ── 주제별 수요·공급 ── */}
       {data.topic_supply ? (
         <Panel title={`주제별 수요·공급 — 관심 사용자 많은 순 (신규 발행은 ${winLabel})`} flush>
@@ -289,6 +302,7 @@ function InsightsView({ channel, days, onSwitchToDev }: { channel: EarChannel; d
             <li><b>누적 청취 시간·재생·완청</b>(전 기간 카드)은 줄지 않는 누적(<code>play_daily_totals</code>)이다 — 재생·완청이 기록될 때 함께 더해지고, 탈퇴하거나 완청 신호가 보존 기간(180일)으로 지워져도 남는다. <b>최근 N일 값·순위·일별 추이·시간대·시장별</b>은 재생 기록(<code>play_records</code>)을 바로 세므로 즉시 반영되지만 <b>현재 계정 기준</b>이다 — 탈퇴자의 몫은 빠진다. 그래서 순위·추이를 더한 값이 누적 카드보다 작을 수 있다.</li>
             <li><b>활성 사용자(DAU/WAU/MAU)</b>는 앱을 써서 서버 토큰을 갱신한 사람이다 — 액세스 토큰이 30분짜리라 앱을 열면 거의 매번 갱신이 일어나므로 &quot;앱 실행&quot;에 가장 가까운 서버 신호다(30분 안의 재실행은 안 잡힌다). 그중 <b>재생</b>까지 간 사람을 함께 적어 켜고 안 듣는 비율을 본다. <b>완청</b>은 서버의 90% 판정 신호다.</li>
             <li><b>접속자</b>는 그날(KST 달력일 0~24시) 앱을 열어 서버 토큰을 갱신한 사람이다 — 위 <b>활성 사용자</b>와 같은 신호를 하루 단위로 센 것이다. 지난날은 매일 00:10 에 저장한 값, 오늘은 지금까지 센 값이다. <b>요일별 평균</b>은 창 안의 온전한 날(첫날 부분일·오늘 제외)만 그 요일의 날 수로 나눈다 — 날 수가 1~2일이면 한 주의 사정이 그대로 드러나니 30·90일 창으로 본다.</li>
+            <li><b>코호트 리텐션</b>은 가입한 날(최근 14일)·주(최근 8주, 월요일 시작)로 묶어, 가입 뒤 그 구간에 앱을 쓴 사람을 <b>인원과 비율</b>로 적는다 — 위의 언바운디드 리텐션과 달리 <b>그 구간 안</b>만 본다(바운디드). 광고로 유입을 늘릴 때 최근 묶음의 D1·W1 이 떨어지면 들어온 사람이 새고 있는 것이다. 사람마다 접속한 날을 매일 00:10 에 따로 저장해(<code>user_active_dates</code>) 세션이 30일 뒤 지워져도 W4 를 셀 수 있다. 탈퇴자는 분모·분자 모두에서 빠진다.</li>
             <li><b>리텐션</b>은 가입한 지 N일이 지난 현재 계정 중 N일 뒤 이후 아무 때나 앱을 쓴(토큰 갱신 또는 재생) 사람의 비율(언바운디드)이다. 탈퇴자는 분모에 없어 실제보다 높게 나오고(생존 편향), 같은 이유로 <b>일별 가입</b>에서도 그날 가입했다가 탈퇴한 사람은 빠진다.</li>
             <li><b>날짜</b>는 KST 달력일이다(앱의 서비스 날짜 04/05시 경계가 아니다 — 운영자가 읽는 단위). 창 버튼은 추이·&quot;최근 N일&quot; 값에만 걸리고 누적·순위는 전 기간이다.</li>
             <li><b>주제별 수요·공급</b>의 <b>남은 편수</b>는 그 주제를 관심으로 둔 온보딩 완료 사용자마다 &quot;아직 드립으로 받을 수 있는 편수&quot;다 — 라이브러리에 한 번이라도 들어왔거나(지운 것 포함) 드립으로 이미 받은 콘텐츠는 빠진다. <b>더 줄 것 없음</b>이 많은 주제가 제작 우선순위다. 시리즈 순서 게이트는 반영하지 않은 근사값이다.</li>
@@ -389,6 +403,45 @@ function WeekdayTable({ rows }: { rows: EarInsightsWeekday[] }) {
               <div className="h-1.5 rounded-sm bg-brand/60" style={{ width: `${((w.avg_listeners ?? 0) / max) * 100}%` }} />
             </div>
           </Td>
+        </Tr>
+      ))}
+    </Table>
+  );
+}
+
+/** 이 인원 미만 묶음은 비율을 흐리게 — 한두 명으로 수십 %p 가 움직인다 */
+const SMALL_COHORT = 10;
+
+/**
+ * 코호트 표 한 장 — 행 = 묶음(최근 먼저), 칸 = "N명 · R%". 칸 배경은 비율만큼 진하게(브랜드색 `--brand` #16a394 — 같은 표 안에서 눈으로 비교).
+ * 끝나지 않은 칸은 `…`, 접속 기록 이전 구간은 흐리게 + `*`.
+ */
+function CohortTable({ table }: { table: EarInsightsCohortTable }) {
+  const weekly = table.span === 7;
+  const head = [weekly ? "가입 주" : "가입일", "가입자", ...table.offsets.map((o) => `${weekly ? "W" : "D"}${o}`)];
+  return (
+    <Table head={head} empty="-">
+      {table.rows.map((r) => (
+        <Tr key={r.start}>
+          <Td className="whitespace-nowrap font-medium tabular-nums">{shortDate(r.start)}{weekly ? " 주" : ""}</Td>
+          <Td className="tabular-nums text-ink-soft">{fmtInt(r.users)}명</Td>
+          {r.cells.map((c, i) => (
+            <Td key={table.offsets[i]} className="whitespace-nowrap tabular-nums">
+              {c === null ? (
+                <span className="text-ink-soft">…</span>
+              ) : r.users === 0 ? (
+                <span className="text-ink-soft">-</span>
+              ) : (
+                <span
+                  className={`inline-block rounded px-1.5 py-0.5 ${c.partial || r.users < SMALL_COHORT ? "text-ink-soft" : "text-ink"}`}
+                  style={{ backgroundColor: `rgba(22, 163, 148, ${Math.min(0.35, (c.rate ?? 0) * 0.5)})` }}
+                  title={c.partial ? "접속 기록 이전 구간 — 재생만 잡혀 실제보다 낮다" : undefined}
+                >
+                  {fmtInt(c.returned)}명 · {fmtPct(c.rate, 0)}{c.partial ? "*" : ""}
+                </span>
+              )}
+            </Td>
+          ))}
         </Tr>
       ))}
     </Table>

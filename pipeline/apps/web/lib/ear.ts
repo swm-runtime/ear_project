@@ -361,6 +361,18 @@ export interface EarInsightsWeekday {
   days: number; active_days: number;
   avg_active_users: number | null; avg_listeners: number | null;
 }
+/** 코호트 표 한 칸 — `null`은 구간이 아직 끝나지 않음. `partial`은 접속 기록 이전 구간(재생만 잡혀 낮게 나온다) */
+export type EarInsightsCohortCell = { returned: number; rate: number | null; partial: boolean } | null;
+export interface EarInsightsCohortTable {
+  /** 1 = 일별(D) · 7 = 주별(W) */
+  span: number;
+  /** 가입 뒤 몇 번째 구간 — 일별 [1, 7] · 주별 [1, 2, 3, 4] */
+  offsets: number[];
+  /** 접속 기록을 믿을 수 있는 첫 날(KST) — 이보다 앞에서 시작하는 칸이 `partial` */
+  reliable_since: string;
+  /** 최근 묶음 먼저. `start`는 일별 가입일 · 주별 가입 주 월요일(KST) */
+  rows: { start: string; users: number; cells: EarInsightsCohortCell[] }[];
+}
 export interface EarInsightsSummary {
   days: number; since: string; generated_at: string;
   users: {
@@ -388,6 +400,8 @@ export interface EarInsightsSummary {
   top_contents: { content_id: string; title: string; duration_sec: number; listen_sec: number; plays: number; listeners: number; completes: number; complete_rate: number | null; saves: number }[];
   withdrawal_reasons: { reason_code: string | null; count: number }[];
   retention: { day: number; cohort_size: number; returned: number; rate: number | null }[];
+  /** 코호트 리텐션 — 일별 D1·D7 · 주별 W1~W4. 배포 전 서버면 없다(2026-10-18 추가) */
+  retention_cohorts?: { daily: EarInsightsCohortTable; weekly: EarInsightsCohortTable };
   /** 주제별 수요·공급 — 관심 사용자가 많은 순(admin-api 4.22). 배포 전 서버면 없다 */
   topic_supply?: { topic_id: string; name: string; is_visible: boolean; published: number; published_in_window: number; interested_users: number; median_remaining: number; exhausted_users: number; low_users: number }[];
 }
