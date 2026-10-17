@@ -1,6 +1,9 @@
 import { toServiceDayRange } from '@/common/utils/service-date.util';
 import { ContentStatus } from '@/modules/content/content.enum';
-import { ContentCandidateQuery } from '@/modules/content/content.types';
+import {
+  ContentCandidateQuery,
+  SeriesEpisodeState,
+} from '@/modules/content/content.types';
 import { Content } from '@/modules/content/entities/content.entity';
 import { DripBatchOrchestrator } from '@/modules/drip-batch/drip-batch.orchestrator';
 import { UserDripPlan } from '@/modules/drip-batch/drip-batch.types';
@@ -618,30 +621,48 @@ export class EvalWorld {
             return entry ? [entry.content] : [];
           }),
         ),
-      // `ContentService.findVisibleEpisodeNumbers` — 노출 중(같은 시장)인 시리즈 편 번호, 오름차순
-      findVisibleEpisodeNumbers: (
+      // `ContentService.findSeriesEpisodeStates` — 노출 중(같은 시장)인 시리즈 편과 사용자 상태, 편 번호 오름차순
+      findSeriesEpisodeStates: (
         seriesIds: string[],
+        userKey: string,
         now: Date,
         market: string,
       ) => {
+        const user = this.user(userKey);
         const wanted = new Set(seriesIds);
-        const bySeries = new Map<string, number[]>();
+        const bySeries = new Map<string, SeriesEpisodeState[]>();
 
         for (const { content } of this.visibleContents(now)) {
           if (
-            content.seriesId !== null &&
-            content.episodeNo !== null &&
-            wanted.has(content.seriesId) &&
-            (content.market as string) === market
+            content.seriesId === null ||
+            content.episodeNo === null ||
+            !wanted.has(content.seriesId) ||
+            (content.market as string) !== market
           ) {
-            const episodes = bySeries.get(content.seriesId) ?? [];
-            episodes.push(content.episodeNo);
-            bySeries.set(content.seriesId, episodes);
+            continue;
           }
+
+          const items = user.library.filter(
+            (item) => item.contentId === content.id,
+          );
+          const episodes = bySeries.get(content.seriesId) ?? [];
+          episodes.push({
+            contentId: content.id,
+            episodeNo: content.episodeNo,
+            // 소프트 삭제분도 받은 것이다 — 후보 필터와 같은 원천
+            received: items.length > 0,
+            held: items.some(
+              (item) =>
+                item.deletedAt === null &&
+                item.status !== (LibraryItemStatus.COMPLETED as string),
+            ),
+            excluded: user.excluded.some((row) => row.contentId === content.id),
+          });
+          bySeries.set(content.seriesId, episodes);
         }
 
         for (const episodes of bySeries.values()) {
-          episodes.sort((a, b) => a - b);
+          episodes.sort((x, y) => x.episodeNo - y.episodeNo);
         }
 
         return Promise.resolve(bySeries);

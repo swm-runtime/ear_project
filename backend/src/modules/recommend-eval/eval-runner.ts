@@ -1,5 +1,7 @@
+import { SeriesEpisodeState } from '@/modules/content/content.types';
 import { UserDripPlan } from '@/modules/drip-batch/drip-batch.types';
 import { ScoredCandidate } from '@/modules/drip/drip.types';
+import { pickSeriesEpisode } from '@/modules/drip/services/drip-scoring.service';
 import { UserInterestSource } from '@/modules/interest/interest.enum';
 import { LibraryItemSource } from '@/modules/library/library.enum';
 import { UserMarket } from '@/modules/user/user.enum';
@@ -467,7 +469,7 @@ const INVARIANT_LABEL: Record<InvariantName, string> = {
     '라이브러리에 있었거나 영구 제외된 콘텐츠를 다시 편성하지 않는다',
   'no-duplicate-picks': '같은 날 같은 콘텐츠가 두 번 편성되지 않는다',
   'series-order':
-    '시리즈는 마지막 완청 편 다음의 노출 중인 가장 앞 편만 정규로 가고, 탐험은 1편(또는 단편)만 간다',
+    '시리즈는 규칙 ②′가 고른 편(마지막 완청 뒤 받지 않은 가장 앞 편 · 없으면 빈 편, 미완청 앞 편이 있으면 기다림) 하나만 정규로 가고, 탐험은 1편(또는 단편)만 간다',
   'within-plan-counts': '편성 편수가 플랜 편수를 넘지 않는다',
   'discovery-respects-removed-topics':
     '사용자가 직접 해제한 주제의 콘텐츠는 탐험 편으로 가지 않는다',
@@ -529,9 +531,12 @@ class InvariantCollector {
       fail('no-duplicate-picks', ids.join(','));
     }
 
-    // 다음 편 = 마지막 완청보다 큰 노출 중 가장 앞 편(KAN-134). 그 사이에 노출 중인 편이 있거나 이미 완청한 번호 이하면 위반이다
-    const visibleEpisodes =
-      plan.regular?.visibleEpisodesBySeries ?? new Map<string, number[]>();
+    // 시리즈 편은 규칙 ②′(`pickSeriesEpisode`)가 고른 편이어야 한다(KAN-134) — 편성이 쓴 카탈로그 상태로 다시 고른다.
+    // 같은 시리즈 두 편이 한 날 가거나, 받은·제외된 편, 미완청 앞 편을 두고 뒤 편이 가면 여기서 걸린다
+    const seriesStates =
+      plan.regular?.seriesEpisodesBySeries ??
+      new Map<string, SeriesEpisodeState[]>();
+    const pickedSeries = new Set<string>();
     for (const pick of regular) {
       const { seriesId, episodeNo } = pick.content;
 
@@ -539,14 +544,15 @@ class InvariantCollector {
         continue;
       }
 
-      const lastCompleted = plan.completedEpisodesBySeries.get(seriesId) ?? 0;
-      const skipped = (visibleEpisodes.get(seriesId) ?? []).some(
-        (visible) => visible > lastCompleted && visible < episodeNo,
+      const expected = pickSeriesEpisode(
+        plan.completedEpisodesBySeries.get(seriesId) ?? 0,
+        seriesStates.get(seriesId) ?? [],
       );
 
-      if (episodeNo <= lastCompleted || skipped) {
+      if (expected?.episodeNo !== episodeNo || pickedSeries.has(seriesId)) {
         fail('series-order', `${pick.content.title} (${episodeNo}편)`);
       }
+      pickedSeries.add(seriesId);
     }
 
     for (const pick of discovery) {

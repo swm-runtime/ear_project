@@ -412,6 +412,19 @@ export interface SeriesEpisodeCounts {
   maxPublishedEpisodeNo: number | null;
 }
 
+/**
+ * 드립 다음 편 판정(KAN-134, 규칙 ②′)의 편 하나 — 노출 중인 편과 그 편에 대한 사용자 상태.
+ * `received`: 라이브러리에 한 번이라도 들어온 적이 있다(소프트 삭제분 포함) · `held`: 지금 라이브러리에 있고(삭제 안 됨) 완청 전 ·
+ * `excluded`: 드립 영구 제외(`drip_excluded_contents`)
+ */
+export interface SeriesEpisodeState {
+  contentId: string;
+  episodeNo: number;
+  received: boolean;
+  held: boolean;
+  excluded: boolean;
+}
+
 /** 업로드할 편의 시리즈 필드 — 업로드 검증(`SeriesService.assertEpisodeUploadable`) 입력 */
 export interface SeriesEpisodeUpload {
   seriesId: string;

@@ -31,6 +31,7 @@ import {
   SearchPageQuery,
 } from '../content.types';
 import { Content } from '../entities/content.entity';
+import { LibraryItemStatus } from '@/modules/library/library.enum';
 import { UserMarket } from '@/modules/user/user.enum';
 
 /** 커서에 담기는 랭킹 값. `content_stats` 조인 결과이지 `contents`의 컬럼이 아니다 */
@@ -625,16 +626,29 @@ export class ContentRepository {
   }
 
   /**
-   * 시리즈별 **노출 중인** 편 번호(오름차순) — 드립 순서 필터의 "다음 편" 판정 입력(KAN-134 확정 설계 5번).
-   * 후보 풀이 아니라 카탈로그 전체에서 읽는다 — 풀은 상한(인기순 300건)으로 잘리고 이미 본 편을 빼므로,
-   * 풀만 보면 "그 사이 편이 발행 중인지"를 알 수 없다. 노출 조건은 후보 조회와 같다(시장 포함).
+   * 시리즈별 **노출 중인** 편과 그 편에 대한 이 사용자의 상태 — 드립 순서 필터의 "다음 편" 판정 입력(KAN-134, 규칙 ②′).
+   * 후보 풀이 아니라 카탈로그 전체에서 읽는다 — 풀은 상한(인기순 300건)으로 잘리고 이미 본 편을 빼므로, 풀만 보면 "사이에
+   * 노출 중인 편이 있는지·그 편을 이미 받았는지"를 알 수 없다. 노출 조건은 후보 조회와 같다(시장 포함).
+   *
+   * 사용자 상태는 후보 필터(`excludeSeenByUserId`)와 같은 원천을 원시 SQL로 본다 — `received`는 라이브러리에 한 번이라도
+   * 들어온 적(소프트 삭제분 포함), `held`는 지금 라이브러리에 있고(삭제 안 됨) 완청 전, `excluded`는 드립 영구 제외.
    */
-  async findVisibleEpisodeNumbersBySeries(
+  async findVisibleSeriesEpisodesForUser(
     seriesIds: string[],
+    userId: string,
     now: Date,
     market: UserMarket,
     manager?: EntityManager,
-  ): Promise<{ seriesId: string; episodeNo: number }[]> {
+  ): Promise<
+    {
+      seriesId: string;
+      contentId: string;
+      episodeNo: number;
+      received: boolean;
+      held: boolean;
+      excluded: boolean;
+    }[]
+  > {
     if (seriesIds.length === 0) {
       return [];
     }
@@ -645,16 +659,52 @@ export class ContentRepository {
       market,
     )
       .select('content.series_id', 'series_id')
+      .addSelect('content.id', 'content_id')
       .addSelect('content.episode_no', 'episode_no')
+      .addSelect(
+        `EXISTS (
+           SELECT 1 FROM library_items received
+           WHERE received.content_id = content.id AND received.user_id = :seriesUserId
+         )`,
+        'received',
+      )
+      .addSelect(
+        `EXISTS (
+           SELECT 1 FROM library_items held
+           WHERE held.content_id = content.id AND held.user_id = :seriesUserId
+             AND held.deleted_at IS NULL AND held.status <> :completedStatus
+         )`,
+        'held',
+      )
+      .addSelect(
+        `EXISTS (
+           SELECT 1 FROM drip_excluded_contents dripped
+           WHERE dripped.content_id = content.id AND dripped.user_id = :seriesUserId
+         )`,
+        'excluded',
+      )
       .andWhere('content.series_id IN (:...seriesIds)', { seriesIds })
       .andWhere('content.episode_no IS NOT NULL')
+      .setParameter('seriesUserId', userId)
+      .setParameter('completedStatus', LibraryItemStatus.COMPLETED)
       .orderBy('content.series_id', 'ASC')
       .addOrderBy('content.episode_no', 'ASC')
-      .getRawMany<{ series_id: string; episode_no: number }>();
+      .getRawMany<{
+        series_id: string;
+        content_id: string;
+        episode_no: number;
+        received: boolean;
+        held: boolean;
+        excluded: boolean;
+      }>();
 
     return rows.map((row) => ({
       seriesId: row.series_id,
+      contentId: row.content_id,
       episodeNo: Number(row.episode_no),
+      received: row.received === true,
+      held: row.held === true,
+      excluded: row.excluded === true,
     }));
   }
 

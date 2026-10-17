@@ -16,6 +16,7 @@ import { ThumbnailImage } from '@/modules/admin/thumbnail-image';
 import { UploadedFileInput } from '@/modules/admin/admin.types';
 import { ContentStatus } from '@/modules/content/content.enum';
 import { Content } from '@/modules/content/entities/content.entity';
+import { ContentService } from '@/modules/content/services/content.service';
 import { Topic } from '@/modules/interest/entities/topic.entity';
 import { LibraryItem } from '@/modules/library/library-item.entity';
 import {
@@ -347,6 +348,102 @@ describe('시리즈 E2E', () => {
     expect((restored.body as ErrorBody).error_code).toBe(ErrorCode.CONFLICT);
   }, 60_000);
 
+  it('드립 다음 편 판정 입력 — 편마다 받음(삭제 포함)·미완청·제외를 실제 SQL로 읽는다(규칙 ②′)', async () => {
+    const { auth: admin } = await createUser('admin-drip', UserRole.ADMIN);
+    const listener = await createUser('listener-drip', UserRole.USER);
+    const topic = await seedTopic(UserMarket.KR);
+    const series = await createSeriesId(admin, 5);
+    const ids: string[] = [];
+    for (const episodeNo of [1, 2, 3, 4, 5]) {
+      ids.push(await uploadId(admin, topic.id, series, episodeNo, 5));
+    }
+    // 1화 완청 · 2화 받았다 지움 · 3화 미완청 · 4화 드립 제외 · 5화 회수
+    const items = dataSource.getRepository(LibraryItem);
+    const base = { userId: listener.userId, source: LibraryItemSource.DRIP };
+    await items.save([
+      items.create({
+        ...base,
+        contentId: ids[0],
+        status: LibraryItemStatus.COMPLETED,
+        addedAt: new Date(),
+        completedAt: new Date(),
+      }),
+      items.create({
+        ...base,
+        contentId: ids[1],
+        status: LibraryItemStatus.UNPLAYED,
+        addedAt: new Date(),
+        deletedAt: new Date(),
+      }),
+      items.create({
+        ...base,
+        contentId: ids[2],
+        status: LibraryItemStatus.IN_PROGRESS,
+        addedAt: new Date(),
+      }),
+    ]);
+    await dataSource.query(
+      `INSERT INTO drip_excluded_contents (user_id, content_id, reason, excluded_at) VALUES ($1, $2, 'played', now())`,
+      [listener.userId, ids[3]],
+    );
+    await dataSource
+      .getRepository(Content)
+      .update({ id: ids[4] }, { status: ContentStatus.WITHDRAWN });
+
+    const states = await app
+      .get(ContentService)
+      .findSeriesEpisodeStates(
+        [series],
+        listener.userId,
+        new Date(),
+        UserMarket.KR,
+      );
+
+    expect(states.get(series)).toEqual([
+      {
+        contentId: ids[0],
+        episodeNo: 1,
+        received: true,
+        held: false,
+        excluded: false,
+      },
+      {
+        contentId: ids[1],
+        episodeNo: 2,
+        received: true,
+        held: false,
+        excluded: false,
+      },
+      {
+        contentId: ids[2],
+        episodeNo: 3,
+        received: true,
+        held: true,
+        excluded: false,
+      },
+      {
+        contentId: ids[3],
+        episodeNo: 4,
+        received: false,
+        held: false,
+        excluded: true,
+      },
+    ]);
+    // 다른 시장에는 노출 편이 없다
+    expect(
+      (
+        await app
+          .get(ContentService)
+          .findSeriesEpisodeStates(
+            [series],
+            listener.userId,
+            new Date(),
+            UserMarket.GLOBAL,
+          )
+      ).size,
+    ).toBe(0);
+  }, 60_000);
+
   it('시리즈 화면·라이브러리 항목·상세 — 편 번호순·내 상태·series 객체, 다른 시장은 404', async () => {
     const { auth: admin } = await createUser('admin-view', UserRole.ADMIN);
     const listener = await createUser('listener-view', UserRole.USER);
@@ -543,11 +640,12 @@ describe('시리즈 E2E', () => {
     topicId: string,
     seriesId: string,
     episodeNo: number,
+    totalEpisodes = 3,
   ): Promise<string> {
     const response = await upload(auth, topicId, {
       series_id: seriesId,
       episode_no: episodeNo,
-      total_episodes: 3,
+      total_episodes: totalEpisodes,
     }).expect(HttpStatus.CREATED);
     return (response.body as { id: string }).id;
   }

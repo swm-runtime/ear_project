@@ -4,7 +4,9 @@ import {
   ContentFormat,
 } from '@/modules/content/content.enum';
 
-import { DripScoringService, nextEpisodeNo } from './drip-scoring.service';
+import { SeriesEpisodeState } from '@/modules/content/content.types';
+
+import { DripScoringService, pickSeriesEpisode } from './drip-scoring.service';
 import {
   RegularScoringContext,
   ScoreBreakdown,
@@ -78,7 +80,7 @@ function buildContext(
     preference: null,
     difficultyAffinity: null,
     completedEpisodesBySeries: new Map(),
-    visibleEpisodesBySeries: new Map(),
+    seriesEpisodesBySeries: new Map(),
     isColdStart: true,
     career: null,
     now: NOW,
@@ -121,106 +123,173 @@ describe('DripScoringService', () => {
     service = new DripScoringService();
   });
 
-  describe('filterEpisodeOrder — 다음 편 = 마지막 완청보다 큰 노출 중 가장 앞 편(KAN-134)', () => {
+  /**
+   * 시리즈 상태 표 — `catalog(n, {...})`는 1..n화가 노출 중인 시리즈. 완청한 편은 받은 편이고(held 아님),
+   * `unplayed`는 라이브러리에 있는 미완청 편, `deleted`는 받았다가 지운 편, `excluded`는 드립 제외 편이다.
+   */
+  const catalog = (
+    count: number,
+    state: {
+      completed?: number[];
+      unplayed?: number[];
+      deleted?: number[];
+      excluded?: number[];
+      withdrawn?: number[];
+    } = {},
+  ): SeriesEpisodeState[] =>
+    Array.from({ length: count }, (_, index) => index + 1)
+      .filter((episodeNo) => !(state.withdrawn ?? []).includes(episodeNo))
+      .map((episodeNo) => ({
+        contentId: `c${episodeNo}`,
+        episodeNo,
+        received: [
+          ...(state.completed ?? []),
+          ...(state.unplayed ?? []),
+          ...(state.deleted ?? []),
+        ].includes(episodeNo),
+        held: (state.unplayed ?? []).includes(episodeNo),
+        excluded: (state.excluded ?? []).includes(episodeNo),
+      }));
+  const last = (completed: number[] = []) => Math.max(0, ...completed);
+
+  describe('pickSeriesEpisode — 규칙 ②′(KAN-134)', () => {
+    it.each([
+      ['이력 없음 → 1화', 16, {}, { episodeNo: 1, kind: 'next' }],
+      [
+        '7화 완청 → 8화',
+        16,
+        { completed: [7] },
+        { episodeNo: 8, kind: 'next' },
+      ],
+      [
+        '3·7화 완청 + 8화 미완청(8편 시리즈) → 앞으로 줄 편이 없어 빈 편 1화 — 뒤쪽 미완청은 앞쪽 메우기를 막지 않는다',
+        8,
+        { completed: [3, 7], unplayed: [8] },
+        { episodeNo: 1, kind: 'gap' },
+      ],
+      [
+        '3·7화 완청 + 8화 미완청(16편 시리즈) → 9화가 있지만 8화를 기다린다',
+        16,
+        { completed: [3, 7], unplayed: [8] },
+        null,
+      ],
+      [
+        '1~3화 완청 + 4화 삭제 → 5화',
+        16,
+        { completed: [1, 2, 3], deleted: [4] },
+        { episodeNo: 5, kind: 'next' },
+      ],
+      ['1화 미완청 → 기다린다', 16, { unplayed: [1] }, null],
+      [
+        '16화 완청 → 앞쪽 빈 편 1화',
+        16,
+        { completed: [16] },
+        { episodeNo: 1, kind: 'gap' },
+      ],
+      [
+        '5화 완청 + 6화 제외 → 7화',
+        16,
+        { completed: [5], excluded: [6] },
+        { episodeNo: 7, kind: 'next' },
+      ],
+      [
+        '2화 완청 + 3~5화 미완청 → 기다린다',
+        16,
+        { completed: [2], unplayed: [3, 4, 5] },
+        null,
+      ],
+      [
+        '설계 조건 — 1화 완청 + 2화 회수 → 3화',
+        3,
+        { completed: [1], withdrawn: [2] },
+        { episodeNo: 3, kind: 'next' },
+      ],
+      [
+        '설계 조건 — 탐색에서 3화를 완청 → 4화(2화는 건너뛴다)',
+        4,
+        { completed: [3] },
+        { episodeNo: 4, kind: 'next' },
+      ],
+      [
+        '전 편을 받았으면 그 시리즈는 주지 않는다',
+        3,
+        { completed: [1, 3], deleted: [2] },
+        null,
+      ],
+      [
+        '빈 편 메우기는 그 앞의 미완청 편에 막힌다 — 1화 미완청 + 3화 완청(3편) → 2화를 주지 않는다',
+        3,
+        { completed: [3], unplayed: [1] },
+        null,
+      ],
+      [
+        '마지막 완청 이하의 미완청 편은 앞으로 가는 길을 막지 않는다 — 2화 미완청 + 5화 완청 → 6화',
+        16,
+        { completed: [5], unplayed: [2] },
+        { episodeNo: 6, kind: 'next' },
+      ],
+    ])('%s', (_label, count, state, expected) => {
+      const s = state as { completed?: number[] };
+      expect(
+        pickSeriesEpisode(last(s.completed), catalog(count, state)),
+      ).toEqual(expected);
+    });
+
+    it('새 시리즈(받은 편 없음)에서는 설계 규칙 — 마지막 완청보다 큰 노출 중 가장 앞 편 — 과 같다', () => {
+      for (const withdrawn of [[], [1], [2], [1, 2]]) {
+        const episodes = catalog(5, { withdrawn });
+        expect(pickSeriesEpisode(0, episodes)?.episodeNo).toBe(
+          episodes[0].episodeNo,
+        );
+      }
+    });
+  });
+
+  describe('filterEpisodeOrder — 시리즈마다 고른 편 하나만 통과', () => {
     const episode = (id: string, episodeNo: number) =>
       buildCandidate(id, { content: { seriesId: 's1', episodeNo } });
     const ids = (candidates: ScoringCandidate[]) =>
       candidates.map((candidate) => candidate.content.id);
 
-    it('단일 콘텐츠와 시리즈 1편은 통과하고, 앞 편을 듣지 않은 중간 편은 제외한다', () => {
-      const single = buildCandidate('single');
-
+    it('단일 콘텐츠는 통과하고 시리즈는 고른 편만 남는다 — 같은 시리즈 두 편이 함께 가지 않는다', () => {
       const result = service.filterEpisodeOrder(
-        [single, episode('first', 1), episode('middle', 3)],
-        new Map(),
-        new Map([['s1', [1, 2, 3]]]),
-      );
-
-      expect(ids(result)).toEqual(['single', 'first']);
-    });
-
-    it('직전 편을 완청한 시리즈의 다음 편은 통과한다', () => {
-      const result = service.filterEpisodeOrder(
-        [episode('next', 2)],
-        new Map([['s1', 1]]),
-        new Map([['s1', [1, 2, 3]]]),
-      );
-
-      expect(ids(result)).toEqual(['next']);
-    });
-
-    it('1화를 완청했고 2화가 회수됐으면 3화가 통과한다 — 종전엔 아무에게도 편성되지 않았다', () => {
-      // given — 노출 중인 편은 1·3화(2화 회수)
-      const result = service.filterEpisodeOrder(
-        [episode('third', 3), episode('fourth', 4)],
-        new Map([['s1', 1]]),
-        new Map([['s1', [1, 3, 4]]]),
-      );
-
-      expect(ids(result)).toEqual(['third']);
-    });
-
-    it('탐색에서 앞 편을 건너뛰고 3화를 완청했으면 4화가 통과하고 2화는 빠진다', () => {
-      // given — 2화는 듣지 않았지만 마지막 완청은 3화다
-      const result = service.filterEpisodeOrder(
-        [episode('second', 2), episode('fourth', 4)],
+        [buildCandidate('single'), episode('e5', 5), episode('e6', 6)],
         new Map([['s1', 3]]),
-        new Map([['s1', [1, 2, 3, 4]]]),
+        new Map([['s1', catalog(6, { completed: [1, 2, 3], deleted: [4] })]]),
       );
 
-      expect(ids(result)).toEqual(['fourth']);
+      expect(ids(result)).toEqual(['single', 'e5']);
     });
 
-    it('1화가 회수돼 있으면 처음 듣는 사용자에게 2화가 첫 편이다', () => {
+    it('카탈로그에 받지 않은 앞 편이 있으면(풀에 없어도) 그 편이 골라져 뒤 편은 빠진다', () => {
+      // 2화는 인기순 풀 상한 밖이라 후보에 없지만 노출 중이고 받지 않았다
       const result = service.filterEpisodeOrder(
-        [episode('second', 2), episode('third', 3)],
-        new Map(),
-        new Map([['s1', [2, 3]]]),
-      );
-
-      expect(ids(result)).toEqual(['second']);
-    });
-
-    it('카탈로그에 노출 중인 앞 편이 있으면 풀에 없어도 뒤 편을 막는다', () => {
-      // given — 2화는 이미 라이브러리에 있어 풀에서 빠졌지만 발행 중이다(아직 완청 안 함)
-      const result = service.filterEpisodeOrder(
-        [episode('third', 3)],
+        [episode('e3', 3)],
         new Map([['s1', 1]]),
-        new Map([['s1', [1, 2, 3]]]),
+        new Map([['s1', catalog(3, { completed: [1] })]]),
       );
 
       expect(result).toHaveLength(0);
     });
 
-    it('카탈로그 맵에 시리즈가 없으면 후보 자신의 번호로 판정한다', () => {
+    it('카탈로그 맵에 시리즈가 없으면 후보 자신의 편으로 판정한다', () => {
       const result = service.filterEpisodeOrder(
-        [episode('first', 1), episode('second', 2)],
+        [episode('e1', 1), episode('e2', 2)],
         new Map(),
         new Map(),
       );
 
-      expect(ids(result)).toEqual(['first']);
+      expect(ids(result)).toEqual(['e1']);
     });
 
-    it('마지막 편까지 완청한 시리즈의 편은 통과하지 않는다', () => {
+    it('미완청 앞 편이 있으면 기다린다 — 2화 완청 + 3~5화 미완청 → 6화 없음', () => {
       const result = service.filterEpisodeOrder(
-        [episode('second', 2)],
-        new Map([['s1', 3]]),
-        new Map([['s1', [1, 2, 3]]]),
+        [episode('e6', 6)],
+        new Map([['s1', 2]]),
+        new Map([['s1', catalog(16, { completed: [2], unplayed: [3, 4, 5] })]]),
       );
 
       expect(result).toHaveLength(0);
-    });
-  });
-
-  describe('nextEpisodeNo', () => {
-    it('완청 이력이 없으면 노출 중인 가장 앞 편, 다 들었으면 null이다', () => {
-      const index = new Map([['s1', [2, 5, 9]]]);
-
-      expect(nextEpisodeNo('s1', new Map(), index)).toBe(2);
-      expect(nextEpisodeNo('s1', new Map([['s1', 5]]), index)).toBe(9);
-      expect(nextEpisodeNo('s1', new Map([['s1', 9]]), index)).toBeNull();
-      expect(nextEpisodeNo('unknown', new Map(), index)).toBeNull();
     });
   });
 
@@ -398,11 +467,31 @@ describe('DripScoringService', () => {
         [third],
         buildContext({
           completedEpisodesBySeries: new Map([['s1', 1]]),
-          visibleEpisodesBySeries: new Map([['s1', [1, 3]]]),
+          seriesEpisodesBySeries: new Map([
+            ['s1', catalog(3, { completed: [1], withdrawn: [2] })],
+          ]),
         }),
       );
 
       expect(scored.isSeriesContinuation).toBe(true);
+    });
+
+    it('앞쪽 빈 편 메우기(16화 완청 → 1화)는 연속 편이 아니다 — 우선 선정·가점 없음', () => {
+      const [scored] = service.scoreRegularCandidates(
+        [
+          buildCandidate('first', {
+            content: { seriesId: 's1', episodeNo: 1 },
+          }),
+        ],
+        buildContext({
+          completedEpisodesBySeries: new Map([['s1', 16]]),
+          seriesEpisodesBySeries: new Map([
+            ['s1', catalog(16, { completed: [16] })],
+          ]),
+        }),
+      );
+
+      expect(scored.isSeriesContinuation).toBe(false);
     });
 
     it('아무 편도 완청하지 않은 시리즈의 첫 편은 연속 편이 아니다', () => {
@@ -412,7 +501,7 @@ describe('DripScoringService', () => {
             content: { seriesId: 's1', episodeNo: 1 },
           }),
         ],
-        buildContext({ visibleEpisodesBySeries: new Map([['s1', [1, 2]]]) }),
+        buildContext({ seriesEpisodesBySeries: new Map([['s1', catalog(2)]]) }),
       );
 
       expect(scored.isSeriesContinuation).toBe(false);

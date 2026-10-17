@@ -136,7 +136,7 @@ describe('DripBatchOrchestrator', () => {
 
     contentService = {
       // 시리즈 다음 편 판정 입력(KAN-134) — 기본은 시리즈 편 없음
-      findVisibleEpisodeNumbers: jest.fn().mockResolvedValue(new Map()),
+      findSeriesEpisodeStates: jest.fn().mockResolvedValue(new Map()),
       // 관심 주제 필터가 있으면 정규 풀, 없으면 탐험 풀이다 (4.8 — 교집합 필터 우회)
       findCandidates: jest
         .fn()
@@ -742,7 +742,7 @@ describe('DripBatchOrchestrator', () => {
       ]);
     });
 
-    it('1화를 완청했고 2화가 회수됐으면 3화가 연속 편으로 우선 선정된다 — 노출 중 편 번호를 카탈로그에서 묻는다(KAN-134)', async () => {
+    it('1화를 완청했고 2화가 회수됐으면 3화가 연속 편으로 우선 선정된다 — 노출 중 편과 사용자 상태를 카탈로그에서 묻는다(KAN-134)', async () => {
       // given — 풀에는 3·4화와 단일 콘텐츠, 카탈로그에 노출 중인 편은 1·3·4화(2화 회수)
       const episode = (id: string, episodeNo: number) =>
         ({ ...buildContent(id), seriesId: 's1', episodeNo }) as Content;
@@ -754,8 +754,15 @@ describe('DripBatchOrchestrator', () => {
               : discoveryPool,
           ),
       );
-      contentService.findVisibleEpisodeNumbers.mockResolvedValue(
-        new Map([['s1', [1, 3, 4]]]),
+      const state = (episodeNo: number, received = false) => ({
+        contentId: `e${episodeNo}`,
+        episodeNo,
+        received,
+        held: false,
+        excluded: false,
+      });
+      contentService.findSeriesEpisodeStates.mockResolvedValue(
+        new Map([['s1', [state(1, true), state(3), state(4)]]]),
       );
       libraryService.findCompletedSeriesMaxEpisodes.mockResolvedValue(
         new Map([['s1', 1]]),
@@ -771,8 +778,9 @@ describe('DripBatchOrchestrator', () => {
       });
 
       // then
-      expect(contentService.findVisibleEpisodeNumbers).toHaveBeenCalledWith(
+      expect(contentService.findSeriesEpisodeStates).toHaveBeenCalledWith(
         ['s1', 's1'],
+        USER_ID,
         NOW,
         UserMarket.KR,
       );

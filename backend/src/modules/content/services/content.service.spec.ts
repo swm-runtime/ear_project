@@ -34,7 +34,7 @@ describe('ContentService', () => {
       findById: jest.fn(),
       expireLicensed: jest.fn().mockResolvedValue(0),
       findWithdrawnSince: jest.fn().mockResolvedValue([]),
-      findVisibleEpisodeNumbersBySeries: jest.fn().mockResolvedValue([]),
+      findVisibleSeriesEpisodesForUser: jest.fn().mockResolvedValue([]),
     } as unknown as jest.Mocked<ContentRepository>;
 
     service = new ContentService(
@@ -47,28 +47,65 @@ describe('ContentService', () => {
     );
   });
 
-  describe('findVisibleEpisodeNumbers — 드립 다음 편 판정 입력(KAN-134)', () => {
-    it('시리즈별 오름차순 번호 배열로 묶고 중복 id는 한 번만 묻는다', async () => {
+  describe('findSeriesEpisodeStates — 드립 다음 편 판정 입력(KAN-134 규칙 ②′)', () => {
+    it('시리즈별로 묶고 중복 id는 한 번만 묻는다 — 순서는 저장소의 편 번호순 그대로', async () => {
       // given
-      contentRepository.findVisibleEpisodeNumbersBySeries.mockResolvedValue([
-        { seriesId: 's1', episodeNo: 1 },
-        { seriesId: 's1', episodeNo: 3 },
-        { seriesId: 's2', episodeNo: 2 },
+      contentRepository.findVisibleSeriesEpisodesForUser.mockResolvedValue([
+        {
+          seriesId: 's1',
+          contentId: 'c1',
+          episodeNo: 1,
+          received: true,
+          held: false,
+          excluded: false,
+        },
+        {
+          seriesId: 's1',
+          contentId: 'c3',
+          episodeNo: 3,
+          received: false,
+          held: false,
+          excluded: true,
+        },
+        {
+          seriesId: 's2',
+          contentId: 'c2',
+          episodeNo: 2,
+          received: true,
+          held: true,
+          excluded: false,
+        },
       ]);
 
       // when
-      const result = await service.findVisibleEpisodeNumbers(
+      const result = await service.findSeriesEpisodeStates(
         ['s1', 's2', 's1'],
+        'u1',
         NOW,
         UserMarket.KR,
       );
 
       // then
       expect(
-        contentRepository.findVisibleEpisodeNumbersBySeries,
-      ).toHaveBeenCalledWith(['s1', 's2'], NOW, UserMarket.KR, undefined);
-      expect(result.get('s1')).toEqual([1, 3]);
-      expect(result.get('s2')).toEqual([2]);
+        contentRepository.findVisibleSeriesEpisodesForUser,
+      ).toHaveBeenCalledWith(['s1', 's2'], 'u1', NOW, UserMarket.KR, undefined);
+      expect(result.get('s1')).toEqual([
+        {
+          contentId: 'c1',
+          episodeNo: 1,
+          received: true,
+          held: false,
+          excluded: false,
+        },
+        {
+          contentId: 'c3',
+          episodeNo: 3,
+          received: false,
+          held: false,
+          excluded: true,
+        },
+      ]);
+      expect(result.get('s2')?.[0]).toMatchObject({ episodeNo: 2, held: true });
     });
   });
 

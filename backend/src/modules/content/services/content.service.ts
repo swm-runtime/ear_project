@@ -36,6 +36,7 @@ import {
   SearchPage,
   SearchPageQuery,
   AudioRenditionInput,
+  SeriesEpisodeState,
 } from '../content.types';
 import { EMBEDDING_MODEL_ID } from '../content.constant';
 import { ContentSource } from '../entities/content-source.entity';
@@ -305,27 +306,29 @@ export class ContentService {
   }
 
   /**
-   * 시리즈별 노출 중인 편 번호(오름차순, 중복 id는 한 번만 묻는다) — 드립 순서 필터(`DripScoringService.filterEpisodeOrder`)의
-   * "다음 편" 판정 입력(KAN-134). 노출 중인 편이 없는 시리즈는 맵에 없다
+   * 시리즈별 노출 중인 편과 사용자 상태(편 번호 오름차순, 중복 id는 한 번만 묻는다) — 드립 순서 필터
+   * (`DripScoringService.filterEpisodeOrder`)의 "다음 편" 판정 입력(KAN-134, 규칙 ②′). 노출 중인 편이 없는 시리즈는 맵에 없다
    */
-  async findVisibleEpisodeNumbers(
+  async findSeriesEpisodeStates(
     seriesIds: string[],
+    userId: string,
     now: Date,
     market: UserMarket,
     manager?: EntityManager,
-  ): Promise<Map<string, number[]>> {
-    const rows = await this.contentRepository.findVisibleEpisodeNumbersBySeries(
+  ): Promise<Map<string, SeriesEpisodeState[]>> {
+    const rows = await this.contentRepository.findVisibleSeriesEpisodesForUser(
       [...new Set(seriesIds)],
+      userId,
       now,
       market,
       manager,
     );
-    const bySeries = new Map<string, number[]>();
+    const bySeries = new Map<string, SeriesEpisodeState[]>();
 
-    for (const row of rows) {
-      const episodes = bySeries.get(row.seriesId) ?? [];
-      episodes.push(row.episodeNo);
-      bySeries.set(row.seriesId, episodes);
+    for (const { seriesId, ...state } of rows) {
+      const episodes = bySeries.get(seriesId) ?? [];
+      episodes.push(state);
+      bySeries.set(seriesId, episodes);
     }
 
     return bySeries;

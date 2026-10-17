@@ -102,7 +102,7 @@ function buildPlan(): UserDripPlan {
     regular: {
       poolSize: 2,
       gatedOut: [],
-      visibleEpisodesBySeries: new Map(),
+      seriesEpisodesBySeries: new Map(),
       recentDripTopicIds: [],
       scored: [r1, r2],
       picks: [r2, r1],
