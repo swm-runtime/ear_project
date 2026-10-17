@@ -1,5 +1,5 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { ActivityIndicator, Image, Pressable, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { localized, type LocalizedCopy } from '@/shared/i18n/localized';
@@ -52,7 +52,15 @@ export default function TermsConsentScreen({ route, navigation }: TermsConsentSc
         <ChevronIcon direction="left" size={24} color={theme.color.textPrimary} />
       </Pressable>
 
-      <View style={styles.body}>
+      {/* 본문은 스크롤된다 — 영어 국외 이전 동의(5줄)처럼 항목이 길면 리스트가 하단 버튼 밑으로 깔렸다(2026-10-18
+          영어 QA). 버튼은 스크롤 밖 형제라 본문 끝은 언제나 버튼 위에서 멈춘다. 짧으면 flexGrow 로 화면을 채워
+          리스트가 지금처럼 바닥에 붙는다 */}
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={styles.body}
+        alwaysBounceVertical={false}
+        showsVerticalScrollIndicator={false}
+      >
         {/* 브랜드 로고 + 환영 인사 — 이 화면의 주인공. 동의는 그 아래 조연이다 */}
         <Image
           source={require('../../../../assets/logo-mark.png')}
@@ -97,7 +105,7 @@ export default function TermsConsentScreen({ route, navigation }: TermsConsentSc
             />
           ))}
         </View>
-      </View>
+      </ScrollView>
 
       <Pressable
         style={[
@@ -136,8 +144,12 @@ const styles = StyleSheet.create({
     paddingLeft: theme.spacing.sm,
     marginTop: theme.spacing.sm,
   },
-  body: {
+  scroll: {
     flex: 1,
+  },
+  // 스크롤 내용 — 짧으면 flexGrow 로 화면을 채워 리스트(marginTop auto)가 종전처럼 바닥에 붙는다
+  body: {
+    flexGrow: 1,
     // 로고·인사를 한 뼘 아래로 — 상단 여백이 숨을 만든다
     paddingTop: theme.spacing.xl + theme.spacing.md,
   },

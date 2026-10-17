@@ -13,6 +13,7 @@ import {
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useAnimatedValue } from '@/shared/hooks/useAnimatedValue';
+import { APP_LANGUAGE } from '@/shared/i18n/locale';
 import { useNativeHeaderInset } from '@/shared/navigation/useNativeHeaderInset';
 import { useSystemLargeTitle } from '@/shared/navigation/useSystemLargeTitle';
 import { useTabScrollToTop } from '@/shared/navigation/useTabScrollToTop';
@@ -360,9 +361,19 @@ export default function ExploreScreen() {
     return (
       <View key={buildSectionListKey(section)} style={styles.section}>
         {section.period !== null ? (
-          <View style={[styles.sectionHeaderRow, headerStyle]}>
+          <View
+            style={[
+              styles.sectionHeaderRow,
+              IS_HEADER_WRAPPABLE && styles.sectionHeaderRowWrap,
+              headerStyle,
+            ]}
+          >
             <Text
-              style={[styles.sectionTitle, styles.sectionHeaderTitle]}
+              style={[
+                styles.sectionTitle,
+                styles.sectionHeaderTitle,
+                IS_HEADER_WRAPPABLE && styles.sectionHeaderTitleWrap,
+              ]}
               accessibilityRole="header"
             >
               {section.title}
@@ -631,6 +642,9 @@ const DIM_DELAY_MS = 300;
 /** 피드로 돌아올 때 먼저 그리는 섹션 수 — 첫 화면 몫 */
 const FEED_FIRST_SECTIONS = 2;
 
+/** 인기 섹션 제목 줄이 토글을 다음 줄로 내릴 수 있는가 — 영어만(아래 sectionHeaderRowWrap) */
+const IS_HEADER_WRAPPABLE = APP_LANGUAGE !== 'ko';
+
 const styles = StyleSheet.create({
   // 고정 제목 아래로 목록이 지나가도 글자가 겹치지 않도록 화면 바탕을 채운다.
   androidTitle: {
@@ -690,6 +704,20 @@ const styles = StyleSheet.create({
     // alignItems:center가 글자가 아니라 그 상자를 기준으로 맞춰 토글이 위로 뜬다
     paddingTop: theme.spacing.lg,
     paddingBottom: theme.spacing.sm,
+  },
+  /**
+   * 영어 — 제목이 토글 옆 한 줄에 안 들어가면 **토글을 제목 아래 줄로 내린다**(2026-10-18 영어 QA: 토글 76×3 옆에 제목 칸이
+   * 약 150 뿐이라 서버 제목이 두 줄로 접혔다). 말줄임은 쓰지 않는다 — 섹션 제목은 잘리면 안 된다(explore-uiux.md 7장).
+   * 줄바꿈 판정은 글자의 원래 폭이라 들어가면 종전처럼 한 줄이다. 좌우 여백을 제목 대신 행이 가져야 둘째 줄 토글이
+   * 화면 끝에 붙지 않는다(제목 왼쪽 16 · 제목↔토글 16 · 오른쪽 16 은 종전과 같다). 한국어는 바꾸지 않는다
+   */
+  sectionHeaderRowWrap: {
+    flexWrap: 'wrap',
+    paddingLeft: theme.spacing.md,
+    columnGap: theme.spacing.md,
+  },
+  sectionHeaderTitleWrap: {
+    paddingHorizontal: 0,
   },
   /** 첫 섹션 — 위가 주제 칩 줄이라 여백이 겹친다(위 headerStyle 주석). 32 → 24 */
   sectionHeaderFirst: {

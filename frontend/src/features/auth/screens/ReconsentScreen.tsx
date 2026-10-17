@@ -1,4 +1,4 @@
-import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { theme } from '@/shared/theme';
@@ -40,7 +40,14 @@ export default function ReconsentScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <View style={styles.body}>
+      {/* 본문은 스크롤된다 — A4 와 같은 구조라 긴 영어 동의 항목이 하단 버튼 밑으로 깔린다(2026-10-18 영어 QA).
+          버튼·로그아웃은 스크롤 밖 형제라 본문 끝은 언제나 그 위에서 멈춘다 */}
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={styles.body}
+        alwaysBounceVertical={false}
+        showsVerticalScrollIndicator={false}
+      >
         <Text style={styles.title}>{AUTH_COPY.reconsent.title}</Text>
         <Text style={styles.description}>{AUTH_COPY.reconsent.description}</Text>
 
@@ -78,7 +85,7 @@ export default function ReconsentScreen() {
             />
           ))}
         </View>
-      </View>
+      </ScrollView>
 
       <Pressable
         style={[
@@ -139,9 +146,14 @@ const styles = StyleSheet.create({
     backgroundColor: theme.color.background,
     paddingHorizontal: theme.spacing.lg,
   },
-  body: {
+  scroll: {
     flex: 1,
+  },
+  body: {
+    flexGrow: 1,
     paddingTop: theme.spacing.xxl,
+    // 마지막 항목과 하단 버튼 사이 숨 — 스크롤 끝에서 항목이 버튼에 붙지 않게
+    paddingBottom: theme.spacing.lg,
   },
   title: {
     fontSize: theme.font.size.xl,

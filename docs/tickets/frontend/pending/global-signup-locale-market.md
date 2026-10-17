@@ -60,3 +60,4 @@
   - **설정 "언어"**: 기기 언어 따르기 · 한국어 · English. 바꾸면 `PATCH language_code` → 기기 저장 → 앱 다시 부르기. 콘텐츠 언어(시장)는 섹션 아래에 "바뀌지 않음"으로 알린다(`settings-uiux.md`). 표시 언어는 시작 때 동기로 읽는다(`shared/i18n/locale.ts`, 화면 모드와 같은 방식).
   - 검증: tsc 0 · jest 595 통과(실패 2 — `ConfirmDialog`·`ProfileHeader`, dev 와 같은 기존 실패). 한국어 카피 스냅숏은 **추가만**(기존 문구 무변화).
   - **남은 것**: 실기기 실측(영어 기기 첫 실행·A21·GLOBAL 가입 → 커리어 없음·요청 캡처), KAN-212 KR slug 입력 뒤 KR 주제 칩 이미지 1.2.0 대조, GLOBAL 주제 이미지 자산(AI/PM).
+- 2026-10-18 영어 화면 QA 반영(PR `fix(fe)/global-en-layout-qa`) — 설정 mock 의 `account.market` 이 `'kr'` 고정이라 GLOBAL mock 세션에서 "Episodes stay in Korean" 이 나왔다. mock 이 세션 시장을 따르게 하고 `global` 시나리오를 더했다(실서버는 `users.market` 을 준다 — 코드 버그 아님 확인). GLOBAL 의 프로필·설정 "Career info" 행은 문서에 규칙이 없어 그대로 두고 PM 결정으로 넘겼다. pending 유지.

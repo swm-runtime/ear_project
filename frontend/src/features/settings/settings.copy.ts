@@ -314,7 +314,7 @@ const en: LocalizedCopy<typeof ko> = {
 
   info: {
     notice: 'Announcements',
-    terms: 'Terms of Service',
+    terms: 'Terms of Use',
     privacy: 'Privacy Policy',
     licenses: 'Open source licenses',
     version: 'App version',

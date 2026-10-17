@@ -49,3 +49,4 @@ RTL · 추가 언어 · 날짜 포맷(4번)
   - 문서: `common-error-handling.md` 4.6(영어 표시는 error_code 번역) · `frontend/convention.md` 3.5(카피 두 벌 규칙) · `frontend/architecture.md` 8.2(헤더·번역 위치).
   - 검증: tsc 0 · jest 505 통과(실패 2 — `ConfirmDialog`·`ProfileHeader` 는 dev 에서도 같은 실패, 이 PR 무관).
   - **남은 것(완료 조건 1)**: 영어 기기에서 우선 9화면(시작·약관·온보딩·라이브러리·플레이어·탐색·설정·페이월·프로필) 스크린샷으로 한국어 0건 확인. 영어 문구는 PM 검토 대상(영어 앱 이름 `Ear` 임시 · 법적 고지 문구 · "Ear Picks" 등).
+- 2026-10-18 영어 화면 QA(react-native-web + mock, en-US, 폭 375) 반영(PR `fix(fe)/global-en-layout-qa`) — A4·A20 본문 스크롤 · `ConfirmDialog` 긴 라벨 세로 쌓기 · 설정 "Terms of Service" → 랜딩과 같은 "Terms of Use" · 설정 mock 시장이 세션 시장을 따른다(+`global` 시나리오). 영어 문구 PM 검토 목록 추가: "Manage topics"↔"Manage interests" · 플레이어 구간 "Main" · "Ear Picks" · GLOBAL 의 "Career info" 행 노출(문서에 규칙 없음). 실기기 확인이 남아 pending 유지.
