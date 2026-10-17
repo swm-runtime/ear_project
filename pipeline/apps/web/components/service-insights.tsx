@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Panel, Stat, Table, Td, Tr, btnCls } from "@/components/ui";
 import { EarApiError, type EarChannel, type EarInsightsCohortTable, type EarInsightsSummary, type EarInsightsWeekday, earChannelLabel, getEarInsightsSummary } from "@/lib/ear";
 import { EarGate, EarSession, earErrMsg } from "@/app/publish/ear-connect";
+import { fmtTime } from "@/lib/format";
 import {
   PROVIDER_LABEL, REASON_LABEL, TIER_LABEL,
   fmtAvg, fmtInt, fmtKstDate, fmtListenSec, fmtMonthDay, fmtPct, isSmall, labelOf, maxOf, shortDate, shortId,
@@ -196,6 +197,26 @@ function InsightsView({ channel, days, onSwitchToDev }: { channel: EarChannel; d
         <p className="mt-2 text-xs text-ink-soft">재생이 시작된 시각의 분포 — 편성(04/05시)·푸시 발송 시각을 고를 때 본다.</p>
       </Panel>
 
+      {/* ── 최근 하루 인기 ── */}
+      {data.recent_top_contents && (
+        <Panel title={`최근 24시간 인기 콘텐츠 ${data.recent_top_contents.length}편 — 청취자 많은 순`} right={data.recent_since ? <span className="text-xs text-ink-soft">{fmtTime(data.recent_since)} 이후</span> : undefined} flush>
+          <Table head={["#", "콘텐츠", "길이", "청취자", "재생", "청취 시간", "완청률", "담기"]} empty="최근 24시간 재생 기록이 없다">
+            {data.recent_top_contents.map((c, i) => (
+              <Tr key={c.content_id}>
+                <Td className="tabular-nums text-ink-soft">{i + 1}</Td>
+                <Td className="max-w-[360px] truncate font-medium">{c.title}</Td>
+                <Td className="tabular-nums text-ink-soft">{fmtListenSec(c.duration_sec)}</Td>
+                <Td className="tabular-nums font-medium">{c.listeners}명</Td>
+                <Td className="tabular-nums">{c.plays}회</Td>
+                <Td className="tabular-nums">{fmtListenSec(c.listen_sec)}</Td>
+                <Td className="tabular-nums">{fmtPct(c.complete_rate, 0)} <span className="text-ink-soft">({c.completes})</span></Td>
+                <Td className="tabular-nums">{c.saves}</Td>
+              </Tr>
+            ))}
+          </Table>
+        </Panel>
+      )}
+
       {/* ── 순위 ── */}
       <div className="grid gap-3 lg:grid-cols-2">
         <Panel title={`가장 많이 들은 사용자 ${data.top_users.length}명 (전 기간)`} flush>
@@ -304,6 +325,7 @@ function InsightsView({ channel, days, onSwitchToDev }: { channel: EarChannel; d
             <li><b>접속자</b>는 그날(KST 달력일 0~24시) 앱을 열어 서버 토큰을 갱신한 사람이다 — 위 <b>활성 사용자</b>와 같은 신호를 하루 단위로 센 것이다. 지난날은 매일 00:10 에 저장한 값, 오늘은 지금까지 센 값이다. <b>요일별 평균</b>은 창 안의 온전한 날(첫날 부분일·오늘 제외)만 그 요일의 날 수로 나눈다 — 날 수가 1~2일이면 한 주의 사정이 그대로 드러나니 30·90일 창으로 본다.</li>
             <li><b>코호트 리텐션</b>은 가입한 날(최근 14일)·주(최근 8주, 월요일 시작)로 묶어, 가입 뒤 그 구간에 앱을 쓴 사람을 <b>인원과 비율</b>로 적는다 — 위의 언바운디드 리텐션과 달리 <b>그 구간 안</b>만 본다(바운디드). 광고로 유입을 늘릴 때 최근 묶음의 D1·W1 이 떨어지면 들어온 사람이 새고 있는 것이다. 사람마다 접속한 날을 매일 00:10 에 따로 저장해(<code>user_active_dates</code>) 세션이 30일 뒤 지워져도 W4 를 셀 수 있다. 탈퇴자는 분모·분자 모두에서 빠진다.</li>
             <li><b>리텐션</b>은 가입한 지 N일이 지난 현재 계정 중 N일 뒤 이후 아무 때나 앱을 쓴(토큰 갱신 또는 재생) 사람의 비율(언바운디드)이다. 탈퇴자는 분모에 없어 실제보다 높게 나오고(생존 편향), 같은 이유로 <b>일별 가입</b>에서도 그날 가입했다가 탈퇴한 사람은 빠진다.</li>
+            <li><b>최근 24시간 인기 콘텐츠</b>는 지금부터 24시간 전까지(달력일이 아니다) 시작된 재생을 콘텐츠별로 센다 — 청취자(서로 다른 사람) 수 순이라 한 사람이 오래 들은 편이 위로 오지 않는다. 완청·담기도 그 24시간 안에 생긴 것만이다(재생은 그날 첫 시작 시각, 완청은 완청한 시각 기준이라 서비스 날짜 경계를 걸친 편은 완청률이 드물게 높게 나온다).</li>
             <li><b>날짜</b>는 KST 달력일이다(앱의 서비스 날짜 04/05시 경계가 아니다 — 운영자가 읽는 단위). 창 버튼은 추이·&quot;최근 N일&quot; 값에만 걸리고 누적·순위는 전 기간이다.</li>
             <li><b>주제별 수요·공급</b>의 <b>남은 편수</b>는 그 주제를 관심으로 둔 온보딩 완료 사용자마다 &quot;아직 드립으로 받을 수 있는 편수&quot;다 — 라이브러리에 한 번이라도 들어왔거나(지운 것 포함) 드립으로 이미 받은 콘텐츠는 빠진다. <b>더 줄 것 없음</b>이 많은 주제가 제작 우선순위다. 시리즈 순서 게이트는 반영하지 않은 근사값이다.</li>
             <li>이름·이메일은 서버가 싣지 않는다 — 사용자 순위는 <code>user_id</code> 앞 8자다. 특정 사용자를 더 봐야 하면 목적을 적고 DB 를 직접 본다.</li>

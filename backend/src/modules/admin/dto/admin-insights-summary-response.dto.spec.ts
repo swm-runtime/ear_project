@@ -113,6 +113,19 @@ const summary = (): InsightsSummary => ({
       saves: 2,
     },
   ],
+  recentTopContents: [
+    {
+      contentId: 'c2',
+      title: 'R',
+      durationSec: 300,
+      listenSec: 900,
+      plays: 3,
+      listeners: 3,
+      completes: 0,
+      saves: 1,
+    },
+  ],
+  recentSince: new Date('2026-10-07T00:00:00.000Z'),
   withdrawalReasons: [{ reasonCode: null, count: 3 }],
   retention: [
     { day: 1, cohortSize: 200, returned: 50 },
@@ -216,6 +229,18 @@ describe('AdminInsightsSummaryResponseDto', () => {
       last_played_at: '2026-10-07T00:00:00.000Z',
     });
     expect(dto.top_contents[0].complete_rate).toBe(0.25);
+    expect(dto.recent_top_contents[0]).toEqual({
+      content_id: 'c2',
+      title: 'R',
+      duration_sec: 300,
+      listen_sec: 900,
+      plays: 3,
+      listeners: 3,
+      completes: 0,
+      complete_rate: 0,
+      saves: 1,
+    });
+    expect(dto.recent_since).toBe('2026-10-07T00:00:00.000Z');
     expect(dto.retention[0].rate).toBe(0.25);
     expect(dto.retention[1].rate).toBeNull();
     expect(dto.withdrawal_reasons[0]).toEqual({ reason_code: null, count: 3 });

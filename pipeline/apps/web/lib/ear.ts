@@ -373,6 +373,7 @@ export interface EarInsightsCohortTable {
   /** 최근 묶음 먼저. `start`는 일별 가입일 · 주별 가입 주 월요일(KST) */
   rows: { start: string; users: number; cells: EarInsightsCohortCell[] }[];
 }
+export interface EarInsightsTopContent { content_id: string; title: string; duration_sec: number; listen_sec: number; plays: number; listeners: number; completes: number; complete_rate: number | null; saves: number }
 export interface EarInsightsSummary {
   days: number; since: string; generated_at: string;
   users: {
@@ -397,7 +398,11 @@ export interface EarInsightsSummary {
   active_users_since?: string;
   hourly: { hour: number; plays: number; listen_sec: number }[];
   top_users: { user_id: string; listen_sec: number; plays: number; completes: number; tier: string; signed_up_at: string; last_played_at: string }[];
-  top_contents: { content_id: string; title: string; duration_sec: number; listen_sec: number; plays: number; listeners: number; completes: number; complete_rate: number | null; saves: number }[];
+  top_contents: EarInsightsTopContent[];
+  /** 최근 24시간 인기 콘텐츠 — 창 안의 재생·완청·담기만, 청취자 수 순. 배포 전 서버면 없다(2026-10-18 추가) */
+  recent_top_contents?: EarInsightsTopContent[];
+  /** `recent_top_contents`의 창 시작(ISO) — 지금 - 24시간 */
+  recent_since?: string;
   withdrawal_reasons: { reason_code: string | null; count: number }[];
   retention: { day: number; cohort_size: number; returned: number; rate: number | null }[];
   /** 코호트 리텐션 — 일별 D1·D7 · 주별 W1~W4. 배포 전 서버면 없다(2026-10-18 추가) */

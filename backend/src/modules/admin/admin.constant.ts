@@ -131,6 +131,11 @@ export const SYSTEM_AUDIT_ACTOR = 'system';
 export const INSIGHTS_SUMMARY_DEFAULT_DAYS = 14;
 export const INSIGHTS_SUMMARY_MAX_DAYS = 90;
 export const INSIGHTS_RANK_LIMIT = 15;
+/**
+ * "최근 하루 인기 콘텐츠" 창(시간) — 지금부터 24시간 전까지 굴러가는 창이다(달력일이 아니다). 자정 직후에 열어도 비지 않고,
+ * "어제 무엇이 잘 나갔나"를 언제 열든 같은 길이로 본다(2026-10-18 FE 요청 "최근 하루 어떤 콘텐츠가 인기 있었는지").
+ */
+export const INSIGHTS_RECENT_CONTENT_HOURS = 24;
 /** 리텐션을 재는 가입 뒤 일수 — D1·D7·D30(앱 업계 관행) */
 export const INSIGHTS_RETENTION_DAYS: readonly number[] = [1, 7, 30];
 /**

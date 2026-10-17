@@ -7,6 +7,7 @@ import {
   INSIGHTS_COHORT_WEEKLY,
   INSIGHTS_LIVE_ACTIVE_DAYS,
   INSIGHTS_RANK_LIMIT,
+  INSIGHTS_RECENT_CONTENT_HOURS,
   INSIGHTS_RETENTION_DAYS,
   INSIGHTS_SUMMARY_MAX_DAYS,
   INSIGHTS_WEEKDAY_LABELS,
@@ -51,6 +52,14 @@ export class AdminInsightsService {
     const hourly = await this.repository.hourly(since);
     const topUsers = await this.repository.topUsers(INSIGHTS_RANK_LIMIT);
     const topContents = await this.repository.topContents(INSIGHTS_RANK_LIMIT);
+    const recentSince = new Date(
+      now.getTime() - INSIGHTS_RECENT_CONTENT_HOURS * 60 * 60 * 1000,
+    );
+    const recentTopContents = await this.repository.topContents(
+      INSIGHTS_RANK_LIMIT,
+      recentSince,
+      'listeners',
+    );
     const withdrawalReasons = await this.repository.withdrawalReasons();
     const retention = await this.repository.retention(
       INSIGHTS_RETENTION_DAYS,
@@ -94,6 +103,8 @@ export class AdminInsightsService {
       hourly: fillHourly(hourly),
       topUsers,
       topContents,
+      recentTopContents,
+      recentSince,
       withdrawalReasons,
       retention,
       retentionCohorts: {

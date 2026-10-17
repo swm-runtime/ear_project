@@ -98,6 +98,14 @@ interface SummaryBody {
       }[];
     }
   >;
+  recent_since: string;
+  recent_top_contents: {
+    content_id: string;
+    plays: number;
+    listeners: number;
+    listen_sec: number;
+    completes: number;
+  }[];
 }
 
 /**
@@ -620,6 +628,75 @@ describe('서비스 지표 요약 E2E', () => {
         if (cell) expect(cell.returned).toBeLessThanOrEqual(row.users);
       }
     }
+  }, 60_000);
+
+  it('최근 하루 인기 콘텐츠 — 지금 - 24시간 이후 재생만 세고, 그 앞에만 재생된 콘텐츠는 없다', async () => {
+    // given — 지금 3명이 들은 콘텐츠(완청 1) · 이틀 전에만 3명이 들은 콘텐츠
+    const adminAuth = await createUser('admin-recent', UserRole.ADMIN);
+    const recentId = await seedContent();
+    const oldId = await seedContent();
+    const now = new Date();
+    const twoDaysAgo = new Date(now.getTime() - 2 * 86_400_000);
+    const playRecords = dataSource.getRepository(PlayRecord);
+    for (const label of ['r1', 'r2', 'r3']) {
+      const userId = await createUserId(`recent-${label}`);
+      await playRecords.save([
+        playRecords.create({
+          userId,
+          contentId: recentId,
+          playDate: toServiceDate(now),
+          playedAt: now,
+          isCounted: true,
+          listenedSec: 120,
+        }),
+        playRecords.create({
+          userId,
+          contentId: oldId,
+          playDate: toServiceDate(twoDaysAgo),
+          playedAt: twoDaysAgo,
+          isCounted: true,
+          listenedSec: 120,
+        }),
+      ]);
+      if (label === 'r1') {
+        await dataSource.getRepository(UserSignal).save({
+          userId,
+          contentId: recentId,
+          action: UserSignalAction.COMPLETE,
+          positionSec: 600,
+          maxReachedSec: 600,
+        });
+      }
+    }
+
+    // when
+    const body = (
+      await request(app.getHttpServer())
+        .get(path('/admin/insights/summary'))
+        .set('Authorization', adminAuth)
+        .expect(HttpStatus.OK)
+    ).body as SummaryBody;
+
+    // then
+    const sinceMs = new Date(body.recent_since).getTime();
+    expect(Math.abs(now.getTime() - 86_400_000 - sinceMs)).toBeLessThan(60_000);
+    const recent = body.recent_top_contents.find(
+      (c) => c.content_id === recentId,
+    );
+    expect(recent).toEqual(
+      expect.objectContaining({
+        plays: 3,
+        listeners: 3,
+        listen_sec: 360,
+        completes: 1,
+      }),
+    );
+    expect(body.recent_top_contents.some((c) => c.content_id === oldId)).toBe(
+      false,
+    );
+    // 청취자 수 순
+    const listeners = body.recent_top_contents.map((c) => c.listeners);
+    expect([...listeners].sort((a, b) => b - a)).toEqual(listeners);
   }, 60_000);
 
   it('시장별 집계는 계정이 없는 시장까지 시장마다 한 칸이고, 각 값은 그 시장 계정 수를 넘지 않는다(global-api 4.10)', async () => {

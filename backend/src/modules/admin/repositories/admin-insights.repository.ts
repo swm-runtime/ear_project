@@ -456,7 +456,23 @@ export class AdminInsightsRepository {
     }));
   }
 
-  async topContents(limit: number): Promise<InsightsTopContent[]> {
+  /**
+   * 콘텐츠 순위. `since`가 null 이면 전 기간(청취 시간 순), 있으면 그 시각 이후만 센다 — 재생·청취자는 그 뒤에 시작한 재생,
+   * 완청·담기도 그 뒤에 생긴 것만. `rankBy`가 `listeners`면 청취자 수 순이다(최근 하루 인기 — 한 사람이 오래 들은 편이
+   * 위로 오지 않게). 같으면 청취 시간·재생 수 순.
+   */
+  async topContents(
+    limit: number,
+    since: Date | null = null,
+    rankBy: 'listen_sec' | 'listeners' = 'listen_sec',
+  ): Promise<InsightsTopContent[]> {
+    // 안쪽(집계 열)과 바깥(`r.` 접두사) 두 번 쓴다 — 바깥 조인이 순서를 보장하지 않는다
+    const keys =
+      rankBy === 'listeners'
+        ? ['listeners', 'listen_sec', 'plays']
+        : ['listen_sec', 'plays'];
+    const order = (prefix: string) =>
+      keys.map((k) => `${prefix}${k} desc`).join(', ');
     const rows = await this.dataSource.query<TopContentRow[]>(
       `with ranked as (
          select p.content_id,
@@ -464,8 +480,9 @@ export class AdminInsightsRepository {
                 count(*)::int as plays,
                 count(distinct p.user_id)::int as listeners
            from play_records p
+          where $2::timestamptz is null or p.played_at >= $2
           group by p.content_id
-          order by listen_sec desc, plays desc
+          order by ${order('')}
           limit $1
        )
        select r.content_id,
@@ -481,13 +498,15 @@ export class AdminInsightsRepository {
          left join lateral (
            select count(*)::int as completes from user_signals s
             where s.content_id = r.content_id and s.action = 'complete'
+              and ($2::timestamptz is null or s.created_at >= $2)
          ) x on true
          left join lateral (
            select count(*)::int as saves from library_items i
             where i.content_id = r.content_id and i.source = 'save'
+              and ($2::timestamptz is null or i.added_at >= $2)
          ) v on true
-        order by r.listen_sec desc, r.plays desc`,
-      [limit],
+        order by ${order('r.')}`,
+      [limit, since],
     );
     return rows.map((r) => ({
       contentId: r.content_id,
