@@ -9,6 +9,7 @@
 import { otherSpeaker, pipelineLocale, speakerNames } from "./locale.js";
 export * from "./locale.js";
 export * from "./global-prompts.js";
+export * from "./series.js";
 import { INTRO_STYLES_EN } from "./global-prompts.js";
 
 export type MidTopic = string;

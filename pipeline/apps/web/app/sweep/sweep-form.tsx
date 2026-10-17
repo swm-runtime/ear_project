@@ -1,6 +1,8 @@
 "use client";
 import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { enqueueJob, requestGlobalTopicPlan } from "../actions";
+import { requestSeriesPlan } from "../series/actions";
 import { btnCls } from "@/components/ui";
 
 const sel = "rounded border border-line px-2.5 py-1.5 outline-none focus:border-brand";
@@ -64,7 +66,7 @@ export function TopicSeedForm({ mids }: { mids: string[] }) {
       </label>
       <div className="flex items-center gap-2">
         <button className={btnCls("primary")} disabled={pending || !ok}
-          onClick={() => start(async () => { try { const id = await enqueueJob("sweep", { mode: "B2", mid_topic: mid, topic: topic.trim(), ...(hint.trim() ? { hint: hint.trim() } : {}) }); setMsg(`주제 기획 요청됨 (${id.slice(0, 8)}) — 노트북 Claude 워커가 집으면 백로그에 🔎 후보가 보류로 생기고, 판정이 끝나면 승인 대기로 올라갑니다`); setTopic(""); setHint(""); } catch (e: any) { setMsg(e.message); } })}>소스 찾아 후보 만들기</button>
+          onClick={() => start(async () => { try { const id = await enqueueJob("sweep", { mode: "B2", mid_topic: mid, topic: topic.trim(), ...(hint.trim() ? { hint: hint.trim() } : {}) }); setMsg(`주제 기획 요청됨 (${id.slice(0, 8)}) — 서버 워커가 집으면 백로그에 🔎 후보가 보류로 생기고, 판정이 끝나면 승인 대기로 올라갑니다`); setTopic(""); setHint(""); } catch (e: any) { setMsg(e.message); } })}>소스 찾아 후보 만들기</button>
         {msg && <span className="text-xs text-ink-soft">{msg}</span>}
       </div>
     </div>
@@ -114,6 +116,44 @@ export function GlobalTopicSeedForm({ topics }: { topics: readonly string[] }) {
             } catch (e: any) { setMsg({ text: e.message, bad: true }); }
           })}>{pending ? "배제 주제 확인 중…" : "소스 찾아 후보 만들기"}</button>
         {msg && <span className={`text-xs ${msg.bad ? "text-red-700" : "text-ink-soft"}`}>{msg.text}</span>}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * 시리즈로 시작 (spec/11 1·3·9장 · 글로벌 명세 6.11, KAN-136) — 주제·이름안·범위·편수(선택, 상한 없음)를 주면 시리즈 행이 생기고 설계안 작업이 걸린다.
+ * 편 목록은 시리즈 화면에서 고쳐 [승인]한다. 글로벌판은 입력을 배제 주제로 먼저 판정한다
+ */
+export function SeriesPlanForm({ topics, en }: { topics: readonly string[]; en: boolean }) {
+  const router = useRouter();
+  const [mid, setMid] = useState(topics[0] ?? "");
+  const [name, setName] = useState("");
+  const [scope, setScope] = useState("");
+  const [count, setCount] = useState("");
+  const [pending, start] = useTransition();
+  const [msg, setMsg] = useState<string | null>(null);
+  const ok = mid && name.trim().length >= 2 && scope.trim().length >= 10;
+  return (
+    <div className="space-y-3 rounded-md border border-line bg-panel p-4 text-[13px] shadow-[0_1px_2px_rgba(38,49,61,0.04)]">
+      <div className="flex flex-wrap items-center gap-2">
+        <label>{en ? "대표 주제" : "중분류"}</label>
+        <select className={sel} value={mid} onChange={(e) => setMid(e.target.value)}>{topics.map((m) => <option key={m}>{m}</option>)}</select>
+        <label className="ml-3">편수 (선택)</label>
+        <input className={`${sel} w-20`} type="number" min={1} placeholder="자동" value={count} onChange={(e) => setCount(e.target.value)} />
+      </div>
+      <label className="block">
+        <span className="mb-1 block text-xs font-semibold text-ink-soft">시리즈 이름안 *</span>
+        <input className={`${sel} w-full`} maxLength={80} placeholder={en ? "e.g. Korean Honorifics Step by Step" : "예: 키워드로 빠르게 배우는 CS 지식"} value={name} onChange={(e) => setName(e.target.value)} />
+      </label>
+      <label className="block">
+        <span className="mb-1 block text-xs font-semibold text-ink-soft">다룰 범위·메모 * (편 목록의 재료 — 다룰 개념, 순서 힌트, 빼야 할 것)</span>
+        <textarea className={`${sel} w-full`} rows={4} maxLength={2000} value={scope} onChange={(e) => setScope(e.target.value)} />
+      </label>
+      <div className="flex items-center gap-2">
+        <button className={btnCls("primary")} disabled={pending || !ok}
+          onClick={() => start(async () => { const r = await requestSeriesPlan({ midTopic: mid, name: name.trim(), scope: scope.trim(), episodes: Number(count) || null }); if (r.ok) router.push(`/series/${r.id}`); else setMsg(r.reason); })}>시리즈 설계안 만들기</button>
+        {msg && <span className="text-xs text-rose-700">{msg}</span>}
       </div>
     </div>
   );

@@ -7,7 +7,7 @@ export const pool = new pg.Pool({ connectionString: cfg.databaseUrl, max: 3, idl
 // Supabase 풀러가 유휴 연결을 끊으면 풀이 'error' 를 낸다 — 받지 않으면 EventEmitter 규칙상 프로세스가 죽는다 (2026-08-31 워커 사망 원인 후보)
 pool.on("error", (e) => console.error(`[pg pool] 연결 오류 (무시하고 재연결): ${e.message}`));
 
-export type JobType = "sweep" | "cluster" | "draft" | "qa" | "critic" | "tts" | "package" | "domain_check" | "thumbnail" | "critic_measure" | "enrich" | "script_align";
+export type JobType = "sweep" | "cluster" | "draft" | "qa" | "critic" | "tts" | "package" | "domain_check" | "thumbnail" | "critic_measure" | "enrich" | "script_align" | "series_plan";
 export interface Job {
   id: string;
   type: JobType;
@@ -129,8 +129,8 @@ export async function hasActiveJob(types: JobType[], episodeId: string): Promise
   return (r.rowCount ?? 0) > 0;
 }
 /** 자동 승인 후보 (automation.ts 규칙 v1 의 입력) — proposed 전부를 돌려주고 판정은 순수 함수가 한다 */
-export async function listProposedForAutoApprove(): Promise<{ id: string; cluster_version: string | null; gaps: string[] | null; dedup_note: string | null }[]> {
-  const r = await pool.query("select id, cluster_version, gaps, dedup_note from public.backlog where status = 'proposed' order by id");
+export async function listProposedForAutoApprove(): Promise<{ id: string; cluster_version: string | null; gaps: string[] | null; dedup_note: string | null; series_id: string | null }[]> {
+  const r = await pool.query("select id, cluster_version, gaps, dedup_note, series_id from public.backlog where status = 'proposed' order by id");
   return r.rows;
 }
 /** 자동 승인 — proposed 일 때만 원자적으로 전환 (사람이 그 사이 반려·보류했으면 실패) */
@@ -384,4 +384,21 @@ export function tierOfUrl(tiers: Map<string, string>, url: string, domain?: stri
 export async function domainTierByHost(): Promise<Map<string, string>> {
   const r = await pool.query("select domain, tier from public.domains");
   return new Map(r.rows.map((x) => [x.domain as string, x.tier as string]));
+}
+
+// ── 기획 시리즈 (0029, spec/11 · 글로벌 명세 6.11) ──
+export interface SeriesRow { id: string; name: string; mid_topic: string; intro_line: string | null; scope_note: string | null; plan: unknown; total_episodes: number | null; status: string }
+export async function getSeries(id: string): Promise<SeriesRow | null> {
+  const r = await pool.query("select id, name, mid_topic, intro_line, scope_note, plan, total_episodes, status from public.series where id = $1", [id]);
+  return r.rows[0] ?? null;
+}
+/** 설계안 저장 — 기획 중(planning)일 때만. 사람이 그 사이 승인·중단했으면 덮어쓰지 않는다 */
+export async function saveSeriesPlan(id: string, v: { name: string; intro_line: string; plan: unknown }): Promise<boolean> {
+  const r = await pool.query("update public.series set name = $2, intro_line = $3, plan = $4::jsonb where id = $1 and status = 'planning'", [id, v.name, v.intro_line, JSON.stringify(v.plan)]);
+  return (r.rowCount ?? 0) > 0;
+}
+/** 같은 시리즈의 다른 편 후보 ID — 주제 판정에 "기존 후보"로 넣지 않는다(형제 편은 겹침이 아니라 설계된 이웃이다) */
+export async function seriesSiblingIds(seriesId: string): Promise<string[]> {
+  const r = await pool.query("select id from public.backlog where series_id = $1", [seriesId]);
+  return r.rows.map((x) => x.id as string);
 }
