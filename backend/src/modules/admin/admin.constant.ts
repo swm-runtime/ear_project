@@ -133,3 +133,20 @@ export const INSIGHTS_SUMMARY_MAX_DAYS = 90;
 export const INSIGHTS_RANK_LIMIT = 15;
 /** 리텐션을 재는 가입 뒤 일수 — D1·D7·D30(앱 업계 관행) */
 export const INSIGHTS_RETENTION_DAYS: readonly number[] = [1, 7, 30];
+/**
+ * 일별 접속자를 세션에서 바로 셀 수 있는 날 수 — 오늘 포함 최근 이 일수의 KST 달력일(오늘 - 29일 ~ 오늘).
+ * 세션 행은 만료·폐기 30일 뒤 지워지므로(`SessionPurgeScheduler`) "지금 - 30일" 이후 발급분은 모두 남아 있고, 그 시각이 걸친
+ * 날(오늘 - 30일)은 일부가 지워졌다. 저장 표(`daily_active_users`)에 없는 날 중 이 범위만 바로 세고, 그 앞은 `null`(기록 없음)이다.
+ * 마이그레이션 `1790800000000` 백필이 같은 경계(실행일 - 29일)를 쓴다.
+ */
+export const INSIGHTS_LIVE_ACTIVE_DAYS = 29;
+/** 요일 라벨 — ISO 요일(1 = 월 … 7 = 일) 순 */
+export const INSIGHTS_WEEKDAY_LABELS: readonly string[] = [
+  '월',
+  '화',
+  '수',
+  '목',
+  '금',
+  '토',
+  '일',
+];

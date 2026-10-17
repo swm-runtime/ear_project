@@ -245,6 +245,29 @@ export interface InsightsDaily {
   listeners: number;
   listenSec: number;
   completes: number;
+  /**
+   * 그날 접속자(그날 `sessions.issued_at`이 있는 사용자 수). 지난날은 저장 표(`daily_active_users`), 오늘과 표에 없는 최근 날은
+   * 세션에서 바로 센다. 원천이 지워져 셀 수 없는 날(첫 신뢰 날짜 앞)은 `null`
+   */
+  activeUsers: number | null;
+}
+
+/**
+ * 요일별 평균(KST) — 창 안의 **온전한 하루**만 센다. 첫날(`since`가 걸친 날)은 청취가 그 시각 뒤만 잡혀 있고, 오늘은 끝나지
+ * 않아 둘 다 뺀다. 평균은 그 요일의 실제 날짜 수로 나눈다.
+ */
+export interface InsightsWeekday {
+  /** ISO 요일 — 1 = 월 … 7 = 일 */
+  weekday: number;
+  label: string;
+  /** 창 안에 있는 그 요일의 온전한 날 수 */
+  days: number;
+  /** 그중 접속자 기록이 있는 날 수 — 첫 신뢰 날짜 앞은 빠진다 */
+  activeDays: number;
+  /** `activeDays`로 나눈 평균 접속자. 0일이면 null */
+  avgActiveUsers: number | null;
+  /** `days`로 나눈 평균 청취자. 0일이면 null */
+  avgListeners: number | null;
 }
 
 export interface InsightsHourly {
@@ -322,6 +345,10 @@ export interface InsightsDailyRows {
     listenSec: number;
   }[];
   completes: { date: string; count: number }[];
+  /** 저장 표(`daily_active_users`)의 날짜별 접속자(시장 합) */
+  activeUsersStored: { date: string; count: number }[];
+  /** 세션에서 바로 센 날짜별 접속자 — 오늘과, 최근 `INSIGHTS_LIVE_ACTIVE_DAYS` 안에서 표에 없는 날을 메운다 */
+  activeUsersLive: { date: string; count: number }[];
 }
 
 /**
@@ -355,6 +382,10 @@ export interface InsightsSummary {
     window: InsightsListeningTotals;
   };
   daily: InsightsDaily[];
+  /** 요일별 평균 — 월~일 7칸 */
+  weekday: InsightsWeekday[];
+  /** 접속자를 믿을 수 있는 첫 날(`YYYY-MM-DD`, KST) — 저장 표의 가장 이른 날과 세션으로 셀 수 있는 첫 날 중 이른 쪽 */
+  activeUsersSince: string;
   hourly: InsightsHourly[];
   topUsers: InsightsTopUser[];
   topContents: InsightsTopContent[];

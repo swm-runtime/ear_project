@@ -354,6 +354,13 @@ export interface EarInsightsListening {
   listen_sec: number; plays: number; completes: number; complete_rate: number | null; listeners: number; saves: number;
   avg_listen_sec_per_play: number | null; avg_listen_sec_per_listener: number | null;
 }
+export interface EarInsightsWeekday {
+  /** ISO 요일 — 1 = 월 … 7 = 일 */
+  weekday: number; label: string;
+  /** 창 안 그 요일의 온전한 날 수 · 그중 접속자 기록이 있는 날 수 */
+  days: number; active_days: number;
+  avg_active_users: number | null; avg_listeners: number | null;
+}
 export interface EarInsightsSummary {
   days: number; since: string; generated_at: string;
   users: {
@@ -370,7 +377,12 @@ export interface EarInsightsSummary {
     by_provider: { provider: string; count: number }[];
   };
   listening: { all_time: EarInsightsListening; window: EarInsightsListening };
-  daily: { date: string; signups: number; withdrawals: number; plays: number; listeners: number; listen_sec: number; completes: number }[];
+  /** `active_users` — 그날 접속자(토큰 갱신한 사람). 기록이 없는 날은 null, 배포 전 서버면 키가 없다(2026-10-18 추가) */
+  daily: { date: string; signups: number; withdrawals: number; plays: number; listeners: number; listen_sec: number; completes: number; active_users?: number | null }[];
+  /** 요일별 평균 — 월~일 7칸, 창 안의 온전한 하루만(첫날 부분일·오늘 제외). 배포 전 서버면 없다 */
+  weekday?: EarInsightsWeekday[];
+  /** 접속자를 믿을 수 있는 첫 날(KST `YYYY-MM-DD`). 배포 전 서버면 없다 */
+  active_users_since?: string;
   hourly: { hour: number; plays: number; listen_sec: number }[];
   top_users: { user_id: string; listen_sec: number; plays: number; completes: number; tier: string; signed_up_at: string; last_played_at: string }[];
   top_contents: { content_id: string; title: string; duration_sec: number; listen_sec: number; plays: number; listeners: number; completes: number; complete_rate: number | null; saves: number }[];

@@ -23,6 +23,16 @@ export function fmtPct(ratio: number | null | undefined, digits = 1): string {
 
 export const fmtInt = (n: number | null | undefined): string => (n == null ? "-" : n.toLocaleString("ko-KR"));
 
+/** 날짜 라벨 `YYYY-MM-DD` → `9월 19일` — 각주처럼 문장 안에 들어가는 날짜 */
+export function fmtMonthDay(date: string | null | undefined): string {
+  const m = /^\d{4}-(\d{2})-(\d{2})$/.exec(date ?? "");
+  return m ? `${Number(m[1])}월 ${Number(m[2])}일` : "-";
+}
+
+/** 평균 인원 — null(0일)은 `-`, 아니면 소수 한 자리까지(`12.5` · `12`) */
+export const fmtAvg = (n: number | null | undefined): string =>
+  n == null || Number.isNaN(n) ? "-" : n.toLocaleString("ko-KR", { maximumFractionDigits: 1 });
+
 /** 날짜 라벨 `YYYY-MM-DD` → `MM-DD` */
 export const shortDate = (date: string): string => date.slice(5);
 
