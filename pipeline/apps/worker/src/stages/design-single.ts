@@ -220,7 +220,8 @@ export async function runDesignSingle(a: { job: Job; ex: Executor; episodeId: st
     sectionsOf.set(s, set);
   }
   const spread = [...sectionsOf].filter(([s, secs]) => secs.size > (s === axis ? 2 : 1)).map(([s, secs]) => `S${s}→#${[...secs].sort((a, b) => a - b).join(",#")}`);
-  if (spread.length) await fail(`소스가 여러 구간에 배정됨: ${spread.join(" · ")} — 소스는 한 구간에만(축 소스 ${axis ? `S${axis}` : "없음"}만 둘). 한 구간으로 모으거나 소스를 제외한다 (규칙 22, full-v7)`);
+  // 글로벌판 full-en-v0.12 (2026-10-18): 구간당 소스 하나를 폐지했다 — 구간은 관행의 순서를 따르고 여러 소스를 섞는다. 한국판만 검사한다 (G261018-004 이 이 검사로 실패)
+  if (spread.length && !en) await fail(`소스가 여러 구간에 배정됨: ${spread.join(" · ")} — 소스는 한 구간에만(축 소스 ${axis ? `S${axis}` : "없음"}만 둘). 한 구간으로 모으거나 소스를 제외한다 (규칙 22, full-v7)`);
   // full-v8.1: "사용 소스 ≤ 구간 + 1" 상한 폐지 — 소스를 소화하려고 구간이 생기는 것이 축 이탈의 원인이었다. 대신 구간마다 축의 하위 질문(`질문:`) 이 있어야 한다
   if (q.heads && q.qs < q.heads) await fail(`구성안 구간 ${q.heads}개 중 \`질문:\` 줄이 ${q.qs}개 — 재설계 뒤에도 누락. 구간마다 축의 하위 질문을 적는다 (full-v8.1)`);
   const attribution = deriveAttribution(o.claims);
