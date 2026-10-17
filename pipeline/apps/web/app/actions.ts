@@ -32,6 +32,10 @@ function assertPronunciationJson(content: string, allowEmpty = false): Record<st
  */
 export async function setBacklogStatus(id: string, status: "approved" | "rejected" | "held" | "proposed" | "qa_passed" | "published") {
   const sb = await supabaseServer();
+  if (status === "approved") { // 시리즈 편(0029): 시리즈 대본(회상·예고·집기 순서 — spec/11 10장 4단계)이 들어가기 전까지는 초안을 만들지 않는다. 4단계에서 이 검사를 뺀다
+    const { data: b } = await sb.from("backlog").select("series_id").eq("id", id).single();
+    if (b?.series_id) throw new Error("시리즈 편은 시리즈 대본 단계(spec/11 10장 4단계)가 들어간 뒤에 승인할 수 있습니다");
+  }
   if (status === "approved" && pipelineLocale() === "en") { // 글로벌판 게이트 1 승인 조건(명세 6.3, KAN-209) — 화면이 버튼을 막고, 여기서 다시 검사한다. 한국판은 타지 않는다
     const g = await loadGate1(id);
     if (!g.ok) throw new Error(`게이트 1 조건 미충족: ${g.blockers.join(" · ")}`);
@@ -106,7 +110,7 @@ export async function requestGlobalTopicPlan(input: { topics: string[]; title: s
 }
 
 /** 작업 요청 (사람 트리거): sweep · tts · thumbnail · package · cluster 재실행. requested_by 는 트리거가 찍는다. */
-export async function enqueueJob(type: "sweep" | "cluster" | "tts" | "thumbnail" | "package" | "domain_check", payload: Record<string, unknown>) {
+export async function enqueueJob(type: "sweep" | "cluster" | "tts" | "thumbnail" | "package" | "domain_check" | "series_plan", payload: Record<string, unknown>) {
   const sb = await supabaseServer();
   // 글로벌판(명세 6.10): 패키지로 이어지는 작업은 에이전트 판정이 발행 가능이고 필수 수정이 전부 반영된 편만 — 화면이 버튼을 막고, 여기서 다시 검사한다. 발행된 편의 재발행 준비는 막지 않는다. 한국판은 타지 않는다
   const toPackage = type === "package" || (Array.isArray(payload.chain) && payload.chain.includes("package"));
@@ -117,7 +121,7 @@ export async function enqueueJob(type: "sweep" | "cluster" | "tts" | "thumbnail"
     const g = agentGate(ep.critic_verdicts);
     if (b?.status !== "published" && !g.ok) throw new Error(`발행 준비를 시작할 수 없습니다 — ${g.blockers.join(" · ")}`);
   }
-  const requires_ai = type === "cluster" || (type === "sweep" && (payload.mode === "B" || payload.mode === "B2")); // 보강 스윕(모드 B-①)·주제 기획(B-②)은 WebSearch 를 쓰는 AI 실행
+  const requires_ai = type === "cluster" || type === "series_plan" || (type === "sweep" && (payload.mode === "B" || payload.mode === "B2")); // series_plan: 시리즈 설계안(0029) — 단발 AI 호출 // 보강 스윕(모드 B-①)·주제 기획(B-②)은 WebSearch 를 쓰는 AI 실행
   const { data, error } = await sb.from("jobs").insert({ type, requires_ai, payload, status: "queued" }).select("id").single();
   if (error) throw new Error(error.message);
   revalidatePath("/"); revalidatePath("/sweep"); revalidatePath("/episodes");

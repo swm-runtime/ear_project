@@ -56,6 +56,7 @@ const NAV: (NavItem | typeof DIVIDER)[] = [
     { href: "/sweep/topic", label: "주제 기획" },
   ] },
   { href: "/backlog", label: "백로그", icon: Inbox, note: "게이트 1" },
+  { href: "/series", label: "시리즈", icon: List, note: "게이트 S" },
   { href: "/episodes", label: "에피소드", icon: Doc },
   DIVIDER,
   { href: "/domains", label: "소스 풀", icon: Globe },

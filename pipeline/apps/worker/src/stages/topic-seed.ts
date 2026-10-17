@@ -1,6 +1,6 @@
 import fs from "node:fs/promises";
 import { cfg, executedBy } from "../config.js";
-import { domainTierByHost, existingBacklogTitles, findDomainForUrl, insertBacklogAlloc, insertCandidateDomain, insertRun, majorOfMidTopic, midsOfMajor, poolDomainsForTopics, recentSourcesForTopics, recordFetchStatus, setBacklogStatus, setJobProgress, upsertSource, type Job, allTopicMids, tierOfUrl } from "../db.js";
+import { seriesSiblingIds, domainTierByHost, existingBacklogTitles, findDomainForUrl, insertBacklogAlloc, insertCandidateDomain, insertRun, majorOfMidTopic, midsOfMajor, poolDomainsForTopics, recentSourcesForTopics, recordFetchStatus, setBacklogStatus, setJobProgress, upsertSource, type Job, allTopicMids, tierOfUrl } from "../db.js";
 import type { Executor } from "../executors/index.js";
 import { assetPaths, buildClusterPromptV2, buildTopicJudgePromptEn, buildTopicSeedSearchPrompt, buildTopicSeedSearchPromptEn, CLUSTER_SCHEMA_V2, CLUSTER_SCHEMA_V2_EN, judgeToInternal, REINFORCE_SEARCH_SCHEMA, REINFORCE_SEARCH_SCHEMA_EN, todayKst, pipelineLocale } from "@ear/pipeline";
 import { hostOf, log } from "../util.js";
@@ -38,6 +38,9 @@ export async function runTopicSeed(job: Job, ex: Executor) {
   const id = await insertBacklogAlloc({ mid_topic: midTopic, title: topic, summary: hint ?? "", target_fit: "", angle: "", sources: [], status: "held", dedup_note: `${TOPIC_SEED_MARK} 검색 진행 중 (${todayKst()}, 입력: "${topic.slice(0, 60)}")`, cluster_version: "v2", gaps: [] });
   // 글로벌판 기획 입력만 싣는 값(2026-10-15 KAN-209 — 보조 주제·배제 주제 판정). 한국판 payload 에는 없어 이 줄을 타지 않는다
   if (job.payload.sub_topic || job.payload.screen) await setBacklogStatus(id, "held", { ...(job.payload.sub_topic ? { sub_topic: String(job.payload.sub_topic) } : {}), ...(job.payload.screen ? { gate1_checks: JSON.stringify({ screen: job.payload.screen }) } : {}) });
+  // 시리즈 편 (0029, spec/11 4장): 시리즈 승인이 편마다 건 작업 — 후보에 시리즈·화 번호를 단다
+  const seriesId = job.payload.series_id ? String(job.payload.series_id) : null;
+  if (seriesId) await setBacklogStatus(id, "held", { series_id: seriesId, series_no: Number(job.payload.series_no) });
   log(`  topic-seed ${id}: "${topic}" (${midTopic}) — 검색 시작`);
   try {
     // ── 1. 검색
@@ -89,7 +92,8 @@ export async function runTopicSeed(job: Job, ex: Executor) {
     for (const s of added) push({ url: s.url, title: s.title, summary: s.summary, publisher: s.publisher, domain: hostOf(s.url), published: s.published });
     // 한국판만: 풀의 최근 소스 소량 — 검색이 빈 손이어도 채울 수 있게. 글로벌판은 사람이 정한 주제로 찾은 소스만 쓴다 (박수헌 2026-10-15)
     if (!en) for (const s of await recentSourcesForTopics([midTopic], 60, 30)) push({ url: s.url, title: s.title, summary: s.summary, publisher: s.publisher, domain: s.domain, published: s.published }); // 풀의 최근 소스 소량 — 검색이 빈 손이어도 채울 수 있게
-    const judgePrompt = (en ? buildTopicJudgePromptEn : buildClusterPromptV2)({ midTopics: [midTopic], majorTopic: major, nextIdNumber: Number(id.replace(/\D/g, "")) || 0, sources: meta, existingTitles: (await existingBacklogTitles()).filter((t) => !t.startsWith(`${id} `)) /* 목록은 "C1 [주제] 제목" 형식 — 이 후보 자신을 ID 로 뺀다(제목 비교는 늘 어긋나 자기 자신과 겹친다고 적혔다, 2026-10-15) */, specBacklogExcerpt: excerpt, seed: { id, topic, hint, midTopic }, ...(en ? { subTopicOptions: (await allTopicMids()).filter((t) => t !== midTopic) } : {}) });
+    const siblings = seriesId ? await seriesSiblingIds(seriesId) : []; // 형제 편은 겹침 비교에서 뺀다 — 범위 구분은 hint 가 준다(spec/11 4장)
+    const judgePrompt = (en ? buildTopicJudgePromptEn : buildClusterPromptV2)({ midTopics: [midTopic], majorTopic: major, nextIdNumber: Number(id.replace(/\D/g, "")) || 0, sources: meta, existingTitles: (await existingBacklogTitles()).filter((t) => !t.startsWith(`${id} `) && !siblings.some((b) => t.startsWith(`${b} `))) /* 목록은 "C1 [주제] 제목" 형식 — 이 후보 자신을 ID 로 뺀다(제목 비교는 늘 어긋나 자기 자신과 겹친다고 적혔다, 2026-10-15) */, specBacklogExcerpt: excerpt, seed: { id, topic, hint, midTopic }, ...(en ? { subTopicOptions: (await allTopicMids()).filter((t) => t !== midTopic) } : {}) });
     const r2raw = await ex.run<JudgeOut>({ prompt: judgePrompt, schema: en ? CLUSTER_SCHEMA_V2_EN : CLUSTER_SCHEMA_V2, tools: [], allowedTools: [], cwd: cfg.workRoot, timeoutMs: 20 * 60_000, model: cfg.clusterModel, maxThinkingTokens: cfg.thinkingDesign,
       onProgress: (pr) => setJobProgress(job.id, { ...pr, phase: `기획 2/2 — 판정 (${id})`, detail: pr.turns > 0 ? "축·역할표 구성 중" : pr.detail }).catch(() => {}) });
     const r2 = en ? { ...r2raw, output: judgeToInternal(r2raw.output) } : r2raw;
