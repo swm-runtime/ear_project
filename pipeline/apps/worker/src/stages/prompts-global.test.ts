@@ -114,7 +114,7 @@ test("글로벌 규칙 자산 — 버전 라벨 full-en-v0.12, 모델에 가는 
   assert.equal(body.match(/^\s*\d+\. \*\*/gm)?.length, 50);
   const spec = await fs.readFile(path.join(root, "spec/04-script.md"), "utf8");
   assert.match(spec, /Hi, and annyeonghaseyo! Welcome to Earcast, your K-podcast\. \{topic_line\} Today we're talking about \{episode_line\}\.\n/);
-  assert.match(spec, /^One last thing before we finish\. \{host_remark\}$/m); // tpl-en-v4 — 클로징 도입에 {episode_line} 없음
+  assert.match(spec, /^We've been talking about \{episode_recap\}\. \{host_remark\}$/m); // tpl-en-v4 — 클로징 도입은 같은 주제를 다른 말로
   assert.deepEqual(JSON.parse(await fs.readFile(path.join(root, "skills/tts/pronunciation.json"), "utf8")), { annyeonghaseyo: "안녕하세요", gamsahamnida: "감사합니다" }); // 인트로 인사(tpl-en-v2)·끝인사(v3) — 한글로 읽힌다
 });
 

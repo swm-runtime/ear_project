@@ -323,6 +323,15 @@ export function twoStageViolationsEn(scriptMd: string, outlineMd: string, opts: 
     if (!last?.id?.startsWith("Y")) v.push(`The last turn is not a host (Y) turn (${last?.id ?? "none"}) — after the explainer's wrap-up, the host closes with one sign-off turn ("${heads[0]} …")`);
     else if (!heads.some((h) => text.includes(h))) v.push(`The last turn ${last.id} lacks the sign-off frame ("${heads[0]}"${heads.length > 1 ? ` or ${heads.length - 1} other${heads.length > 2 ? "s" : ""}` : ""}) — keep the template frame as is and fill only the {slots}`);
   }
+  // 클로징 도입 칸 (tpl-en-v4, 2026-10-18): {episode_recap} 은 인트로의 {episode_line} 과 같은 주제를 다른 말로 — 같은 단어면 인트로 되풀이다(G261018-001~003)
+  {
+    const tt = parseScriptForTts(scriptMd).turns;
+    const norm = (x: string) => x.toLowerCase().replace(/[’']/g, "'").replace(/[^a-z0-9' ]+/g, " ").replace(/\s+/g, " ").trim();
+    const introLine = tt[0]?.text.match(/Today we're talking about (.+?)\.(?:\s|$)/)?.[1];
+    const lead = tt.find((t) => t.section === z.outro);
+    const recap = lead?.text.match(/We've been talking about (.+?)\.(?:\s|$)/)?.[1];
+    if (introLine && recap && norm(introLine) === norm(recap)) v.push(`The closing lead ${lead!.id} repeats the intro's line ("${recap.slice(0, 80)}") — fill {episode_recap} with the same topic in different words`);
+  }
   // 화자 라벨 (2026-10-17 출연진 4명): 이 편의 2인조와 맞아야 한다 — 파서는 네 이름을 다 받으므로 다른 팀 이름이 섞여도 여기서 잡는다
   const [explainer, host] = speakerNames();
   const wrong = parseScriptForTts(scriptMd).turns.filter((t) => t.id && (t.id.startsWith("E") ? t.speaker !== explainer : t.speaker !== host)).map((t) => `${t.id} [${t.speaker}]`);

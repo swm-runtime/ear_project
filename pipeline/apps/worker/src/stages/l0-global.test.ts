@@ -321,3 +321,13 @@ test("구성안 Terms 줄과 8단어 이상 겹치는 턴도 문체 위반", asy
   const md = ["## [Intro]", "[Alex] Y1 · Welcome.", "## [Body]", "### #1 Forms", "[Mina] E2 · That is traditional hanbok, the traditional clothing forms being discussed in this episode.", "## [Closing]", "[Alex] Y3 · Bye."].join("\n");
   assert.match(outlineCopyViolations(md, outline)[0] ?? "", /turns copy the outline's instruction wording \(E2/);
 });
+
+// ── tpl-en-v4 (2026-10-18): 클로징 도입 칸은 인트로 칸과 다른 말로 ──
+test("클로징 도입의 {episode_recap} 이 인트로의 {episode_line} 과 같은 단어면 계약 위반, 다른 말이면 통과", async () => {
+  en();
+  const { twoStageViolationsEn } = await import("./draft-two-stage.js");
+  const md = (recap: string) => ["## [Intro]", "[Alex] Y1 · Hi. Today we're talking about how a temple day runs.", "## [Opening]", "[Alex] Y2 · Okay.", "## [Body]", "### #1 Day", "[Mina] E1 · The day starts early.", "## [Closing]", `[Alex] Y3 · We've been talking about ${recap}. How does it fit together?`, "[Mina] E2 · It fits.", "[Alex] Y4 · Bye."].join("\n");
+  assert.ok(twoStageViolationsEn(md("how a temple day runs"), "").some((x) => /repeats the intro's line/.test(x)));
+  assert.ok(!twoStageViolationsEn(md("the rhythm of a day at a temple"), "").some((x) => /repeats the intro's line/.test(x)));
+});
+
