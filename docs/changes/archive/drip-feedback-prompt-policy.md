@@ -5,6 +5,7 @@
 | 대상 문서 | `features/drip-feedback.md` 1장·2장·3장·4.1·4.2 마지막 항목·4.3·4.4·5장 · `spec/api/drip-feedback-api.md` 4.1·4.3(dismiss) · `backend/domain.md` `user_settings.drip_feedback_last_prompted_date` 설명(329·341행 부근) |
 | 요청 파트 | 백엔드 — 박준현 |
 | 발행 날짜 | 2026-10-16 |
+| 반영 날짜 | 2026-10-17 |
 | 관련 | KAN-116 `tickets/backend/archive/recommendation-online-rating.md`(최초 구현). FE 팝업 티켓은 미발행(2026-10-16 사용자 결정 — 서버만 먼저) |
 
 ## 배경
@@ -50,3 +51,4 @@
 ## 처리 기록
 
 - 2026-10-16 발행. 코드 반영: 브랜치 `feat(be)/drip-feedback-prompt-policy`.
+- 2026-10-17 반영 — `features/drip-feedback.md` 1장·2장·3장·4.1(신설 2번 가입 4일째, 4번 7일 간격, 번호 2~6 이동)·4.2 마지막 항목·4.3·4.4·5장(제목 "최근 추천 어떠셨나요?" 한 문구) · `spec/api/drip-feedback-api.md` 4.1·4.3 · `backend/domain.md` 3.5 `drip_feedback_last_prompted_date` 컬럼 주석·설명. 반영 전 코드(`DripFeedbackService.getPrompt` — 그만 보기 → 가입 4일째 → 최근 편성분 → 7일 간격·접수 기간 → 정규 편 → 미평가 2편, 상수 3·7)와 대조함 — 일치. 요청 범위 밖이지만 같은 규칙이라 함께 고친 것: `features/drip-feedback.md` 7장의 "4.1-n" 참조 새 번호로·"첫 드립"·"어제만 편성이 없었음" 서술, 8장 완료 조건(7일 안 재진입·가입 3일째 신설·첫 드립), `drip-feedback-api.md` 1장의 팝업 제목. `features/README.md` 인덱스의 "어제 추천 어떠셨나요?" 표기는 남겨 둠(대상 밖).

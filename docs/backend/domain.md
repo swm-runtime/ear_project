@@ -135,7 +135,7 @@ idx_idempotency_keys_expires_at
 | `interest` | `topics`, `user_interests`, `topic_adjacencies` |
 | `content` | `contents`, `content_topics`, `content_scripts`, `content_stats`, `content_sources`, `content_embeddings`, `search_query_logs` |
 | `library` | `library_items` |
-| `playback` | `playback_progresses`, `play_records`, `user_signals`, `audio_access_logs`, `source_link_clicks` |
+| `playback` | `playback_progresses`, `play_records`, `play_daily_totals`, `user_signals`, `audio_access_logs`, `source_link_clicks` |
 | `drip` | `drip_excluded_contents`, `user_preference_vectors`, `drip_batch_runs`, `first_drip_jobs` |
 | `subscription` | `plans`, `subscriptions`, `purchase_intents`, `store_notification_logs` |
 | `notification` | `notification_logs` |
@@ -309,9 +309,11 @@ withdrawal_logs
   reason_code               varchar         NULL
   reason_text               text            NULL
   withdrawn_at              timestamptz
+  market                    varchar(10)     NOT NULL DEFAULT 'kr'   ★탈퇴 당시 users.market (2026-10-17, `1790600000000-AddWithdrawalLogMarket`)
 ```
 
 - **`user_id` FK를 두지 않는다.** 탈퇴 사용자를 다시 식별할 수 있으면 탈퇴의 의미가 없다.
+- **`market`은 집계용이고 비식별이다**(2026-10-17 사용자 결정 — 일일 이탈 보고를 시장별로 나누고, 해외 전용 탈퇴 사유를 둘 수 있게. `backend-monitoring.md` 3-4). 값이 둘(`kr`·`global`)뿐이라 사람을 가리키지 않는다 — 위 원칙은 그대로다. 기존 행은 `kr`로 채웠다 — 운영은 GLOBAL 가입이 열린 적이 없어 지금까지의 탈퇴가 전부 KR이다(개발계의 GLOBAL 시험 탈퇴는 KR로 잘못 들어갈 수 있다 — 감수).
 - **`user_hash`는 `WITHDRAWAL_HASH_PEPPER`로 만든다** — 아카이브 스키마와 **다른 키다**([11.2](#112-user_hash-생성-규칙)). `archived_users`가 전자우편주소를 보존하므로, 같은 키를 쓰면 탈퇴 사유가 특정 개인과 연결된다. 탈퇴 사유는 집계 목적이라 그럴 필요가 없다.
 - 법령 대응 목적이므로 DB 테이블로 유지한다 (B-8).
 
@@ -326,7 +328,7 @@ user_settings
   is_auto_expand_enabled      boolean       DEFAULT true   (FR-06)
   is_drip_notification_enabled boolean      DEFAULT true   (FR-19)
   drip_feedback_muted_until   date          NULL           ★추천 별점 팝업 [이번 주 그만 보기] 종료 서비스 날짜 (2026-09-30, KAN-116)
-  drip_feedback_last_prompted_date date     NULL           ★마지막으로 별점을 물은 편성분의 서비스 날짜 — 이보다 새 편성이 없으면 다시 묻지 않는다 (2026-09-30)
+  drip_feedback_last_prompted_date date     NULL           ★마지막으로 별점을 물은 편성분의 서비스 날짜 — 이 날짜 + 7일 전의 편성분은 묻지 않는다(사람 단위 7일 간격) (2026-09-30, 개정 2026-10-16)
   preferred_audio_quality     enum          NULL           ★1.3-1 — 사용자가 고른 음질 (2026-10-06, KAN-141). **NULL = 고른 적 없음** → 티어가 허용하는 가장 높은 선택지로 판정(Pro 는 lossless). 종전 DEFAULT 'compressed' 는 "직접 압축을 고름"과 구분되지 않아 같은 날 NULL 로 바꿨다. 서버에 두는 이유: 기기 간 같은 선택을 보장하고, 발급 때 서버가 바로 읽는다
 
 uq_user_settings_user_id (user_id)
@@ -338,7 +340,7 @@ uq_user_settings_user_id (user_id)
 - 오프라인 저장 관련 설정(`network_policy`)은 **P1 이연**이므로 지금 두지 않는다.
 - **마케팅 수신 동의 토글 컬럼을 두지 않는다.** 그 상태의 소유자는 `consents`다([3.2](#32-consents) — 합의 2026-08-06). 설정 화면의 토글은 표시·철회 경로일 뿐 저장소가 아니다.
 - **방해금지(야간 발송 제한) 설정 컬럼은 없다 — 없음을 유지한다**(합의 2026-08-06 — `notification.md` 4.3, 방해금지 개념 자체 폐기). 드립 도착은 순수 정보성 알림이라 전역·사용자별 야간 제한을 두지 않는다.
-- `drip_feedback_last_prompted_date`는 별점을 보내거나 팝업을 닫을 때 그 편성분 날짜로 갱신되고 뒤로 가지 않는다(`drip-feedback.md` 4.1). 팝업은 편성분 단위로 한 번만 묻는다.
+- `drip_feedback_last_prompted_date`는 별점을 보내거나 팝업을 닫을 때 그 편성분 날짜로 갱신되고 뒤로 가지 않는다(`drip-feedback.md` 4.1). 이 날짜 + 7일 전의 편성분은 묻지 않는다(사람 단위 7일 간격 — 개정 2026-10-16).
 - `drip_feedback_muted_until`은 서비스 날짜 **라벨**이다(다음 주 월요일). 팝업 노출 판정(`drip-feedback.md` 4.1)이 오늘 서비스 날짜와 문자열 비교한다. 설정 화면 응답에는 싣지 않는다 — 사용자가 켜고 끄는 설정이 아니라 팝업의 억제 상태다.
 - `is_drip_notification_enabled`의 **사용자 노출 명칭은 "이어 PICK 알림"이다**(합의 2026-08-06 — `settings.md` 4.1). 화면 이름만 바뀐 것이므로 **컬럼명은 유지한다** — "드립"은 내부 용어라는 결정이지 데이터 의미가 바뀐 것이 아니다.
 - **`sleep_timer_last_choice`의 값 집합은 아직 정하지 않았다.** 수면 타이머가 P1이라(FR-25) 선택지가 확정되지 않았다. 위 표기 `enum`은 논리 타입이며 **물리 컬럼은 `varchar`다**(`convention.md` 4.2 — DB enum 타입을 쓰지 않는다). 값이 없으므로 TypeScript enum도 두지 않고 타입은 `string | null`이다. **값의 소유는 `player.md`이며**, 수면 타이머 구현 시 값을 정하고 타입을 좁힌다 — 그때 `varchar(20)`을 넘는 값이 나오면 길이도 함께 본다. **설정 API는 이 컬럼을 조회·변경 모두 하지 않는다**(`settings-api.md` 8장 — 플레이어 소관).
@@ -946,6 +948,27 @@ daily_play_count = COUNT(*) FROM play_records
 - 누적 청취 시간 = `listened_sec` 총합, 연속 청취 일수 = `play_date` 연속 구간(그 서비스 날짜에 행 1건 이상이면 "들은 날"), 주간 요일별 그래프 = `play_date`별 `listened_sec` 합, 주제 분포 = `listened_sec` × `content_topics` 조인 비율.
 - **전부 파생값이므로 사용자 테이블에 컬럼을 만들지 않는다**([1.5](#15-파생값을-컬럼으로-두지-않는다)). 사용자 단위 통계 집계 테이블(캐시)을 신설할지는 매 조회 집계 비용을 보고 정한다 — [15.1](#151-남아-있는-결정) 결정 항목.
 
+### 6.3-1 `play_daily_totals` *(신설 2026-10-17 — 탈퇴로 줄지 않는 서비스 누적)*
+
+```
+play_daily_totals
+  play_date                 date            PK   서비스 날짜(05:00 경계 — 재생 행의 play_date와 같다)
+  play_count                int   DEFAULT 0      그날 새로 생긴 play_records 행 수
+  listen_sec                bigint DEFAULT 0     그날 재생 행의 listened_sec에 더한 값의 합
+  complete_count            int   DEFAULT 0      그날 남은 완청 신호(user_signals.action = complete) 수
+  created_at · updated_at
+```
+
+서비스 지표의 누적 재생 수·청취 시간·완청 수(`admin-api.md` 4.22 `listening.all_time`)의 원천이다. 종전에는 `play_records`를 바로 더해 **탈퇴가 생기면 누적이 줄었다**(2026-10-16 운영 100시간 → 96시간 — 탈퇴는 재생 기록을 즉시 파기한다, [12.3](#123-회원-탈퇴-처리)). 사용자 결정(2026-10-17): 누적은 탈퇴해도 줄지 않는다. 탈퇴자 몫을 따로 모으지 않고 하나의 누적에 다 더한다. 마이그레이션 `1790500000000-AddPlayDailyTotals`.
+
+- **재생 기록을 쓸 때 같은 트랜잭션에서 함께 더한다.** 재생 시작에 `play_records` 행이 **새로 생기면** `play_count + 1`(같은 날 다시 눌러 행이 생기지 않으면 늘지 않는다). 위치 저장이 `listened_sec`에 더하면 그 재생 행의 `play_date`(재생 시작일)에 `listen_sec + delta`. 완청 신호를 남기면 그 서비스 날짜에 `complete_count + 1` — 완청 신호는 탈퇴에 더해 **180일 보존 배치**로도 지워져([12.1](#121-운영-중-삭제-정책)), 원천 합계는 서비스 180일째부터 매일 줄었을 것이다.
+- **더하기만 하고 빼지 않는다.** 동시 갱신이 겹치므로 읽어서 더한 값을 쓰지 않고 DB에서 더한다(`INSERT … ON CONFLICT (play_date) DO UPDATE SET x = x + EXCLUDED.x`).
+- 사용자·콘텐츠를 가리키는 열이 없는 비식별 집계다. **탈퇴해도 지우지 않는다**(12.3 "그대로 유지").
+- 도입 시점에 남아 있던 `play_records`·완청 신호로 채웠다. **이미 탈퇴한 사람의 몫은 기록이 지워져 되살리지 못한다.**
+- **규약 예외 두 가지.** ① PK가 `id`가 아니라 자연키 `play_date`다(`convention.md` 1.5·4.2 예외) — 날짜당 한 행이고 upsert 대상이다. ② [1.5](#15-파생값을-컬럼으로-두지-않는다) "파생값을 두지 않는다"의 예외다 — 탈퇴 뒤에는 원천에서 다시 계산할 수 없어 이 표가 곧 원천이다.
+- 추천 테스트 초기화(`recommend-test` reset)·부하 테스트 정리(`load-test/server/cleanup-users.js`)가 재생 기록을 지워도 누적은 줄지 않는다. 운영에서 부하 테스트를 돌리면 누적이 부풀므로, 돌린다면 그 몫을 빼는 절차를 runbook에 둔다.
+- 배포 순간(새 컨테이너 마이그레이션 백필 ~ 옛 컨테이너 종료) 사이에 옛 컨테이너가 받은 재생은 누적에서 빠질 수 있다(덜 세는 쪽). 배포 직후 `play_records` 합계와 한 번 대조한다.
+
 ### 6.4 `user_signals`
 
 ```
@@ -1176,6 +1199,8 @@ plans
   tier                      enum            light | daily | pro | trial
   name                      varchar
   description               text
+  name_en                   varchar(50)     NULL   영어 이름 ★신설 2026-10-16 (`1790400000000-AddPlanEnglishText`)
+  description_en            text            NULL   영어 설명 ★신설 2026-10-16
   daily_play_limit          int             NULL = 무제한
   daily_drip_count          int             일일 자동 적립 편수
   daily_discovery_count     int             DEFAULT 1   일일 탐험 편성 편수 ★신설 2026-08-27 (`drip-scheduling.md` 4.8)
@@ -1203,6 +1228,8 @@ uq_plans_tier (tier)
 **음질**(`max_audio_quality`, 2026-10-06 — KAN-141): `light` · `daily` · `trial` = **`aac`**, `pro` = **`lossless`**. 가입 체험은 재생 한도만 풀고 음질은 무료와 같다 — 체험 끝에 "무손실이 사라졌다"는 경험을 만들지 않는다. 값을 바꾸면 다음 발급부터 바로 적용된다(배포 없음).
 
 - **`trial` 행은 판매 요금제가 아니라 체험 기간의 한도·이름을 담는 정책 행이다**(2026-10-03, `1788400000000-AddSignupTrial`). `is_active = false` · `display_order = 0`이라 요금제 목록(`GET /plans`)·페이월에 나오지 않고 최상위 티어 판정에도 끼지 않는다. 이름은 "무료 체험", 광고는 무료 티어와 같다(`is_ads_enabled = true`). 체험 중 한도를 바꾸려면 이 행의 `daily_play_limit`만 고친다. 행이 없으면 체험은 적용되지 않는다(무료 한도로 판정).
+
+- **`name_en`·`description_en`은 영어 이름·설명이다. GLOBAL 사용자에게 내려준다**(2026-10-16, KAN-192 일부 — `planTextOf`). 언어는 기기 언어가 아니라 **시장**으로 고른다(푸시·메일과 같은 기준). NULL이면 한국어로 내려간다. 앱은 받은 문구를 그대로 그리므로 문구의 원천은 이 행 하나다 — **한도를 바꾸면 한국어·영어 설명을 함께 고친다.** 현행 값: `light` `Light`·"Listen to up to 2 episodes a day" · `daily` `Daily`·"Listen to up to 5 episodes a day" · `pro` `Pro`·"Listen as much as you like, with no daily limit" · `trial` `Free trial`·"Unlimited listening during your free trial"(체험 행은 `is_active = false`라 목록에는 나오지 않고 요금제 카드 이름에만 쓰인다). GLOBAL 전용 요금제 행·상품은 두지 않는다(같은 상품을 현지가로 판다).
 
 - **유료 티어 값이 확정됐다**(2026-10-02): 데일리 월 3,900원·하루 5편, 프로 월 9,900원·무제한. 둘 다 광고가 없다(`is_ads_enabled = false`). 행은 마이그레이션 `1788300100000-SeedPaidPlans`가 넣는다 — `store_product_id_ios`는 `com.runtime.ear.subscription.{daily,pro}.monthly`, `store_product_id_android`는 Play 구현 전이라 비어 있다. `name`·`description`은 표시 문구라 DB에서 고친다(마이그레이션이 기존 값을 덮지 않는다). 두 행은 `is_active = true`(판매 중)로 시작한다 — 시드 이전에 넣어 둔 행이 꺼져 있던 환경은 `1788300200000-ActivatePaidPlans`가 맞춘다.
 
@@ -1641,7 +1668,7 @@ idx_archived_subscriptions_archived_at
 | `search_query_logs` | **hard** — `created_at` 90일 후 배치 삭제 | 검색 미스율 분석은 최근 몇 주를 보면 되고, 질의 본문을 오래 들고 있을 이유가 없다 (신설 2026-10-01 — [5.7](#57-search_query_logs-신설-2026-10-01--검색-미스율-측정)) |
 | `audit_logs` | **삭제하지 않는다** | 관리자 행위의 증적이다. 파트너 계약 분쟁은 몇 년 뒤에도 제기될 수 있고, 그때 되짚을 수 있어야 한다 (확정 2026-09-10) |
 | `notices` | **soft** (`deleted_at`) — **삭제 30일 뒤 hard delete 대상**(배치 미구현) | 관리자 실수 삭제를 되짚을 창. 사용자 데이터가 아니라 법적 보존 근거는 없다 (확정 2026-09-17) |
-| `play_records` | **보류** — 기간을 정하지 않는다 | 프로필 통계가 **전 기간 청취 시간 합계**를 이 테이블에서 읽는다([6.3](#63-play_records)). 지금 지우면 사용자가 보던 숫자가 줄어든다. 비식별 누적 집계로 옮긴 뒤 정한다 (보류 2026-09-10) |
+| `play_records` | **보류** — 기간을 정하지 않는다 | 프로필 통계가 **전 기간 청취 시간 합계**를 이 테이블에서 읽는다([6.3](#63-play_records)). 지금 지우면 사용자가 보던 숫자가 줄어든다. 비식별 누적 집계로 옮긴 뒤 정한다 (보류 2026-09-10). 서비스 전체 누적은 `play_daily_totals`로 옮겼다([6.3-1](#63-1-play_daily_totals-신설-2026-10-17--탈퇴로-줄지-않는-서비스-누적), 2026-10-17). 프로필의 사용자별 전 기간 합계는 아직 `play_records`를 읽는다 |
 | 나머지 | hard | |
 
 **구현 상태(2026-09-26 기준) — 위 배치는 구현됐다.** `RetentionModule`(`user_signals`·`source_link_clicks`·`audio_access_logs`·`notification_logs`·`search_query_logs`, 04:30 KST) · `SessionPurgeScheduler`(`sessions`, 매시간) · `EmailVerificationPurgeScheduler` · `IdempotencyPurgeScheduler` · `FirstDripPurgeScheduler`(`first_drip_jobs` — 종착 상태 3종을 `updated_at` 기준으로 지운다). **`notices`의 삭제 30일 뒤 hard delete만 미구현**이다. ~~2026-09-10 기준 `idempotency_keys`만 돌았다.~~ 기간을 먼저 정의한 것은 **문서에 없는 삭제를 코드가 임의로 하지 않기 위해서**다. ~~`user_signals`·`audio_access_logs`에는 단독 인덱스가 없어 삭제 쿼리가 풀스캔이 된다~~ → 마이그레이션 `1787000000000-AddRetentionCreatedAtIndexes`로 `created_at` 인덱스를 추가해 해소했다.
@@ -1707,7 +1734,7 @@ idx_archived_subscriptions_archived_at
 |---|---|
 | **아카이브 후 파기** (5년) | `users` → `archived_users`, `consents` → `archived_consents`, `subscriptions` → `archived_subscriptions` |
 | **즉시 파기** | `library_items`, `playback_progresses`, `play_records`, `user_signals`, `audio_access_logs`, `source_link_clicks`, `search_query_logs`, `user_interests`, `user_settings`, `device_tokens`, `sessions`, `user_preference_vectors`, `drip_excluded_contents`, `drip_feedbacks`, `purchase_intents`, `notification_logs`, `email_verifications`, `first_drip_jobs`, `idempotency_keys`(해당 사용자 `owner_key`) |
-| **그대로 유지** | `withdrawal_logs`(원래 해시만), `store_notification_logs`(개인 식별자 없음), `content_stats`(집계값) |
+| **그대로 유지** | `withdrawal_logs`(원래 해시만), `store_notification_logs`(개인 식별자 없음), `content_stats`(집계값), `play_daily_totals`(집계값 — 2026-10-17) |
 
 **결제 이력이 없는 사용자 — 아카이브 없이 전량 즉시 파기**
 
@@ -1715,7 +1742,7 @@ idx_archived_subscriptions_archived_at
 |---|---|
 | **즉시 파기** | 위 즉시 파기 목록 **전부 + `users` + `consents`** |
 | **아카이브** | **없음.** `archived_users` · `archived_consents` · `archived_subscriptions` 어디에도 행을 만들지 않는다 |
-| **그대로 유지** | `withdrawal_logs`, `store_notification_logs`, `content_stats` |
+| **그대로 유지** | `withdrawal_logs`, `store_notification_logs`, `content_stats`, `play_daily_totals`(집계값 — 2026-10-17) |
 
 - 근거: **제21조 제1항의 원칙은 파기이며, 보존은 다른 법령에 근거가 있을 때만 허용되는 예외다**([12.2](#122-법적-근거)). 거래가 없으면 전자상거래법 시행령 제6조가 보존을 허용하는 대상이 존재하지 않으므로, 5년 보관은 그 자체가 제21조 제1항 위반이 된다.
 - `consents`도 함께 파기한다. 동의 이력의 보존 근거는 거래기록이 아니라 **동의 획득의 입증 책임**인데, 이는 법령상 보존 의무가 아니므로 제21조 제1항 단서에 해당하지 않는다.

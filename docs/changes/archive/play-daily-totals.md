@@ -5,6 +5,7 @@
 | 대상 문서 | `backend/domain.md` 6.3(신설 6.3-1 `play_daily_totals`) · 2장 모듈 소유 표(`playback`) · 12.1 `play_records` 행 · 12.3 "그대로 유지" 목록 · `spec/api/admin-api.md` 4.22 `listening.all_time` |
 | 요청 파트 | 백엔드 — 박준현 |
 | 발행 날짜 | 2026-10-17 |
+| 반영 날짜 | 2026-10-17 |
 | 관련 | 브랜치 `fix(be)/cumulative-play-totals` · 마이그레이션 `1790500000000-AddPlayDailyTotals` |
 
 ## 배경
@@ -52,3 +53,4 @@
 ## 처리 기록
 
 - 2026-10-17 발행. 로컬 검증: 재생 → 같은 날 재재생(늘지 않음) → 위치 저장 120초 → 탈퇴 뒤 재생 기록 0, 누적은 그대로(재생 1·120초). 백필 결과가 원천과 일치(701회·360,119초·완청 175건).
+- 2026-10-17 반영 — `backend/domain.md` 6.3-1 `play_daily_totals`(신설 — 표·쓰기 규칙·탈퇴 보존·규약 예외 둘·백필·운영 주의) · 2장 모듈 소유 표(`playback`) · 12.1 `play_records` 행 · 12.3 두 표의 "그대로 유지" · `spec/api/admin-api.md` 4.22(`listening.all_time` 누적 규칙). 반영 전 코드(`PlayDailyTotal` 엔티티·마이그레이션 `1790500000000`·`PlaybackService.recordPlay`·`addListenedSec`·`recordSignal`·`AdminInsightsRepository.listeningTotals`)와 대조함 — 일치(컬럼은 코드상 NOT NULL DEFAULT 0, 백필은 완청 신호까지 05:00 KST 경계로 채움). `domain.md` 부록의 도메인별 테이블 수 표("라이브러리·재생 6")는 이미 `drip_feedbacks` 등이 빠진 채라 이번 범위에서 손대지 않음.

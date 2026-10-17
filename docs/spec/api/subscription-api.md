@@ -146,6 +146,7 @@
 
 - **다른 스토어에서 결제한 구독자**(예: Android에서 구독하고 iOS로 접속): 유료 요금제 전부 `none`이다. 한 계정에 두 스토어 구독을 겹치지 않는다. 화면은 4.2의 `store`로 "Google Play에서 구독 중이에요"를 안내한다.
 - **표시 문구는 DB 값이다**(`plans.name`·`description` — `domain.md` 8.1). 2026-10-06 PM 결정으로 `Light` / `Daily` / `Pro`, 설명은 "하루 2편까지 들을 수 있어요" / "하루 5편까지 들을 수 있어요" / "제한 없이 마음껏 들을 수 있어요"(마이그레이션 `RenamePlanDisplayNames`). 화면은 이 값을 그대로 그린다 — 앱에 티어명을 두지 않는다.
+- **`name`·`description`은 사용자 시장의 언어다**(2026-10-16 — KAN-192 일부). KR은 한국어(`name`·`description`), GLOBAL은 영어(`name_en`·`description_en` — `domain.md` 8.1. 비어 있으면 한국어)다. 언어는 기기 언어가 아니라 `users.market`으로 고른다. 앱은 받은 문구를 그대로 그린다.
 - 비활성(`is_active = false`) 요금제는 목록에서 빠진다. 그 요금제의 기존 구독자는 만료까지 유지되며(`subscription.md` 7), 이때 응답에 `current`인 항목이 없을 수 있다 — 현재 구독 표시는 4.2가 한다.
 
 **에러** — `VALIDATION_FAILED`(400): `platform` 누락·오값.
@@ -179,6 +180,7 @@
 | `plan.grant` | **초대 코드 지급** 중이면 `{ "name", "tier", "plan_name", "ends_at", "last_date" }`, 아니면 `null`(4.8 — 2026-10-10). 프로필·설정의 `plan.grant`와 같다 |
 | `pending_plan` | **다운그레이드 예약**이 있으면 `{ "tier", "plan_name", "effective_at" }`, 없으면 `null`. `effective_at`은 현재 결제 주기 만료 시각이다(`subscription.md` 4.4 — "언제부터 적용되는지" 표시) |
 
+- **`plan.plan_name`·`plan.grant.plan_name`·`pending_plan.plan_name`(현재·지급·예약 요금제 이름)은 사용자 시장의 언어다**(2026-10-16) — 4.1 `name`과 같은 규칙이다(GLOBAL 체험 중이면 `Free trial`). 프로필·설정의 `plan_name`도 같다.
 - **`users.tier` 캐시가 아니라 `subscriptions`를 기준으로 조립한다**(`domain.md` 8.2). 프로필·설정과 같은 규칙이다.
 - **만료 보정** — 알림 유실 대비(`subscription.md` 7). 조회 시점에 비종결 행(`active`·`grace`·`cancelled`)의 `expires_at`이 **1시간 넘게 지나 있으면** 서버가 스토어에 그 구독의 현재 상태를 조회해 반영한 뒤 응답한다. 스토어 조회가 실패하면 **저장된 상태 그대로 응답한다** — 섣불리 추측으로 강등하지 않는다(유예·갱신 지연을 만료로 오판하면 결제한 사용자가 막힌다). 같은 보정을 하루 1회 배치도 돌린다.
   - **상한 — 7일**(2026-10-06). 스토어에 **확인할 수 없는 채로**(조회 키 미구성 · 스토어가 그 구독을 모름 · 조회 실패 지속 · 상품을 모름) `expires_at`이 **7일 넘게** 지난 비종결 행은 `expired`로 내리고 `users.tier`를 맞춘다. 상한이 없으면 그런 행은 영영 유료로 남고, 매 배치의 앞자리를 차지해 다른 행의 보정을 민다. 7일은 App Store가 실패한 알림을 다시 보내는 기간(1·12·24·48·72시간 뒤, 합 약 6.5일)을 넘긴 값이다 — 그 뒤에는 늦은 갱신 알림이 올 가능성이 없다. 유예 기간은 이미 `expires_at`에 들어 있다(4.6).

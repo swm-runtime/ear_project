@@ -145,6 +145,8 @@
 
 **`plan`** — `profile-api.md` 4.1의 `plan`과 **같은 모양, 같은 조립 함수**를 쓴다. 두 화면이 다른 로직으로 조립하면 프로필과 설정의 구독 표시가 어긋난다.
 
+- **`plan_name`은 사용자 시장의 언어다**(2026-10-16) — `profile-api.md` 4.1과 같은 규칙(GLOBAL 체험 중 `Free trial`).
+
 - **가입 체험 중이면 `plan.trial`이 채워진다**(`profile-api.md` 4.1 "`plan.trial`" — 같은 필드, 2026-10-03). 아니면 `null`.
 - **결제 실패 유예(`status = "grace"`)의 표시를 이 요약이 담당한다.** `has_payment_issue = true`면 구독 섹션에 경고색 + "결제에 문제가 있어요"를 그린다(`settings.md` 5장 — `profile.md` 4.2 · `subscription.md` 4.7과 동일).
 
