@@ -7,7 +7,7 @@
  */
 
 import { serviceDayStartHour } from '@/common/utils/service-date.util';
-import { WithdrawalReason } from '@/modules/user/user.enum';
+import { UserMarket, WithdrawalReason } from '@/modules/user/user.enum';
 
 export type DailyMetrics = {
   /** 보고 대상 날짜 (`YYYY-MM-DD`, KST) */
@@ -20,6 +20,18 @@ export type DailyMetrics = {
     total: number;
     signUps: number;
   };
+  /**
+   * 시장별 — **서버 값**(2026-10-17). 가입자를 시장으로 나눈 값과 보고일 서비스 날짜의 서버 청취. GA4 이벤트에는 시장이
+   * 없다. 계정이 없는 시장도 0 으로 온다
+   */
+  markets: {
+    market: UserMarket;
+    totalUsers: number;
+    signUps: number;
+    listeners: number;
+    plays: number;
+    listenSec: number;
+  }[];
   /** 사용자 — GA4 운영 스트림 */
   users: {
     active: number;
@@ -68,6 +80,24 @@ export function formatDuration(sec: number): string {
   return s < 60 ? `${s}초` : `${Math.floor(s / 60)}분 ${s % 60}초`;
 }
 
+/** 청취 시간 — 1시간 미만은 `42분`, 그 이상은 소수 한 자리 `12.5시간` */
+export function formatListenTime(sec: number): string {
+  if (sec < 3600) return `${Math.round(sec / 60)}분`;
+  return `${(Math.round((sec / 3600) * 10) / 10).toLocaleString('en-US')}시간`;
+}
+
+const MARKET_LABEL: Record<UserMarket, string> = {
+  [UserMarket.KR]: 'KR',
+  [UserMarket.GLOBAL]: 'GLOBAL',
+};
+
+/** 시장 나눔 괄호 — `(KR 1,350 · GLOBAL 1)` */
+const byMarket = (
+  markets: DailyMetrics['markets'],
+  pick: (m: DailyMetrics['markets'][number]) => number,
+): string =>
+  `(${markets.map((m) => `${MARKET_LABEL[m.market]} ${n(pick(m))}`).join(' · ')})`;
+
 /** 리텐션 한 칸 — 표본이 없으면 `—`, 있으면 `33% (3명 중 1)` */
 export function formatRetention(r: {
   rate: number | null;
@@ -82,7 +112,7 @@ const ratio = (num: number, den: number): string =>
   den === 0 ? '' : ` (${Math.round((num / den) * 100)}%)`;
 
 /**
- * 하루치 보고 — 가입자(서버) 한 줄 뒤에 퍼널 순서(사용자 → 획득 → 재생 → 리텐션)로 4줄.
+ * 하루치 보고 — 서버 값 두 줄(가입자 · 시장별 청취) 뒤에 퍼널 순서(사용자 → 획득 → 재생 → 리텐션)로 4줄.
  * 운영이 아니면 환경을 앞에 붙인다(건별 Slack 알림과 같은 규칙).
  */
 export function formatDailyMetrics(
@@ -97,12 +127,18 @@ export function formatDailyMetrics(
   const p = m.playback;
   return [
     `${prefix}:bar_chart: *${m.date} (${day}) 이어 일간 지표*  ·  운영 스트림`,
-    `*가입자*   현재 ${n(mb.total)}명  ·  어제 가입 ${n(mb.signUps)}명`,
+    `*가입자*   현재 ${n(mb.total)}명 ${byMarket(m.markets, (x) => x.totalUsers)}  ·  어제 가입 ${n(mb.signUps)}명 ${byMarket(m.markets, (x) => x.signUps)}`,
+    `*시장별 청취*  ${m.markets
+      .map(
+        (x) =>
+          `${MARKET_LABEL[x.market]} ${n(x.listeners)}명 · 재생 ${n(x.plays)} · ${formatListenTime(x.listenSec)}`,
+      )
+      .join('  ·  ')}`,
     `*사용자*   활성 ${n(u.active)}${delta(u.active, u.activePrev)}  ·  신규 ${n(u.new)}${delta(u.new, u.newPrev)}  ·  세션 ${n(u.sessions)} (평균 ${formatDuration(u.avgSessionSec)})  ·  7일 활성 ${n(u.active7d)}`,
     `*획득*     가입 ${n(a.signUps)} → 온보딩 완료 ${n(a.onboardingCompletes)}${ratio(a.onboardingCompletes, a.signUps)}  ·  푸시 응답 ${n(a.pushResponses)}`,
     `*재생*     시작 ${n(p.playStarts)} (${n(p.playStartUsers)}명)  ·  완청 ${n(p.completes)}  ·  중도 이탈 ${n(p.abandons)}  ·  드립 재생 ${n(p.dripPlays)}  ·  담기 ${n(p.saves)}`,
     `*리텐션*   D1 ${formatRetention(m.retention.d1)}  ·  D7 ${formatRetention(m.retention.d7)}`,
-    `_▲▼ 전일 대비 · 가입자 줄은 서버 값(${serverBoundary(m.date)}시 경계) · 나머지는 GA4 운영 스트림(00시 경계)_`,
+    `_▲▼ 전일 대비 · 가입자·시장별 청취 줄은 서버 값(${serverBoundary(m.date)}시 경계) · 나머지는 GA4 운영 스트림(00시 경계)_`,
   ].join('\n');
 }
 

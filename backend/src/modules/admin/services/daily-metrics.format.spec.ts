@@ -1,9 +1,12 @@
+import { UserMarket } from '@/modules/user/user.enum';
+
 import {
   DailyMetrics,
   delta,
   formatChurnReport,
   formatDailyMetrics,
   formatDuration,
+  formatListenTime,
   formatRetention,
   reportDate,
 } from './daily-metrics.format';
@@ -11,6 +14,24 @@ import {
 const base: DailyMetrics = {
   date: '2026-09-28',
   members: { total: 1351, signUps: 7 },
+  markets: [
+    {
+      market: UserMarket.KR,
+      totalUsers: 1350,
+      signUps: 7,
+      listeners: 30,
+      plays: 40,
+      listenSec: 45_000,
+    },
+    {
+      market: UserMarket.GLOBAL,
+      totalUsers: 1,
+      signUps: 0,
+      listeners: 0,
+      plays: 0,
+      listenSec: 0,
+    },
+  ],
   users: {
     active: 1234,
     activePrev: 1200,
@@ -36,6 +57,16 @@ const base: DailyMetrics = {
   retention: { d1: { rate: 0.412, size: 100 }, d7: { rate: 0.1875, size: 80 } },
 };
 
+describe('formatListenTime', () => {
+  it('1시간 미만은 분, 그 이상은 소수 한 자리 시간이다', () => {
+    expect(formatListenTime(0)).toBe('0분');
+    expect(formatListenTime(2_520)).toBe('42분');
+    expect(formatListenTime(3_600)).toBe('1시간');
+    expect(formatListenTime(45_000)).toBe('12.5시간');
+    expect(formatListenTime(36_000_000)).toBe('10,000시간');
+  });
+});
+
 describe('formatDailyMetrics', () => {
   it('제목에 날짜와 요일을 적는다 — 09-28 은 월요일이다', () => {
     expect(formatDailyMetrics(base)).toContain(
@@ -43,18 +74,25 @@ describe('formatDailyMetrics', () => {
     );
   });
 
-  it('가입자 줄 뒤에 퍼널 순서로 4묶음이다 — 사용자·획득·재생·리텐션', () => {
+  it('서버 값 두 줄(가입자·시장별 청취) 뒤에 퍼널 순서로 4묶음이다 — 사용자·획득·재생·리텐션', () => {
     const lines = formatDailyMetrics(base).split('\n');
     expect(lines[1]).toMatch(/^\*가입자\*/);
-    expect(lines[2]).toMatch(/^\*사용자\*/);
-    expect(lines[3]).toMatch(/^\*획득\*/);
-    expect(lines[4]).toMatch(/^\*재생\*/);
-    expect(lines[5]).toMatch(/^\*리텐션\*/);
+    expect(lines[2]).toMatch(/^\*시장별 청취\*/);
+    expect(lines[3]).toMatch(/^\*사용자\*/);
+    expect(lines[4]).toMatch(/^\*획득\*/);
+    expect(lines[5]).toMatch(/^\*재생\*/);
+    expect(lines[6]).toMatch(/^\*리텐션\*/);
   });
 
-  it('가입자 줄에 현재 가입자 수와 어제 가입 수(서버 값)를 적는다', () => {
+  it('가입자 줄에 현재 가입자 수와 어제 가입 수(서버 값)를 적고, 각각 시장별로 나눈다', () => {
     expect(formatDailyMetrics(base)).toContain(
-      '*가입자*   현재 1,351명  ·  어제 가입 7명',
+      '*가입자*   현재 1,351명 (KR 1,350 · GLOBAL 1)  ·  어제 가입 7명 (KR 7 · GLOBAL 0)',
+    );
+  });
+
+  it('시장별 청취 줄은 시장마다 청취자·재생·청취 시간이다 — 0 인 시장도 적는다', () => {
+    expect(formatDailyMetrics(base)).toContain(
+      '*시장별 청취*  KR 30명 · 재생 40 · 12.5시간  ·  GLOBAL 0명 · 재생 0 · 0분',
     );
   });
 
@@ -89,9 +127,9 @@ describe('formatDailyMetrics', () => {
     expect(text).not.toContain('(서버');
   });
 
-  it('각주에 출처와 경계를 적는다 — 가입자 줄만 서버, 나머지는 GA4', () => {
+  it('각주에 출처와 경계를 적는다 — 가입자·시장별 청취 줄만 서버, 나머지는 GA4', () => {
     expect(formatDailyMetrics(base)).toContain(
-      '가입자 줄은 서버 값(04시 경계) · 나머지는 GA4 운영 스트림(00시 경계)',
+      '가입자·시장별 청취 줄은 서버 값(04시 경계) · 나머지는 GA4 운영 스트림(00시 경계)',
     );
   });
 
@@ -101,7 +139,7 @@ describe('formatDailyMetrics', () => {
     process.env[key] = '2026-10-12T05:00:00+09:00';
     try {
       expect(formatDailyMetrics({ ...base, date: '2026-10-12' })).toContain(
-        '가입자 줄은 서버 값(05시 경계)',
+        '가입자·시장별 청취 줄은 서버 값(05시 경계)',
       );
       // 전환 전 날짜는 그대로 04시
       expect(formatDailyMetrics(base)).toContain('서버 값(04시 경계)');
