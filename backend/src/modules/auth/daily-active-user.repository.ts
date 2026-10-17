@@ -5,16 +5,19 @@ import { EntityManager, Repository } from 'typeorm';
 import { UserMarket } from '@/modules/user/user.enum';
 
 import { DailyActiveUser } from './daily-active-user.entity';
+import { UserActiveDate } from './user-active-date.entity';
 
 /**
- * 일별 접속자(`daily_active_users`). Raw SQL 이다(architecture.md 3.4) — 세션을 날짜 범위로 세어 한 문장으로 upsert 한다.
- * `users`는 시장(`market`)을 읽으려고 조인만 한다(쓰지 않는다).
+ * 일별 접속자(`daily_active_users`)와 사람별 접속일(`user_active_dates`). Raw SQL 이다(architecture.md 3.4) — 세션을 날짜
+ * 범위로 세어 한 문장으로 upsert 한다. `users`는 시장(`market`)을 읽으려고 조인만 한다(쓰지 않는다).
  */
 @Injectable()
 export class DailyActiveUserRepository {
   constructor(
     @InjectRepository(DailyActiveUser)
     private readonly repository: Repository<DailyActiveUser>,
+    @InjectRepository(UserActiveDate)
+    private readonly activeDates: Repository<UserActiveDate>,
   ) {}
 
   private scoped(manager?: EntityManager): Repository<DailyActiveUser> {
@@ -44,6 +47,27 @@ export class DailyActiveUserRepository {
           SET active_users = GREATEST(daily_active_users.active_users, EXCLUDED.active_users),
               updated_at = now()`,
       [activeDate, Object.values(UserMarket)],
+    );
+  }
+
+  /**
+   * `activeDate`(KST 달력일)에 세션이 생긴 사람마다 한 행을 넣는다 — 코호트 리텐션의 재료. **넣기만 한다**(`DO NOTHING`):
+   * 몇 번 다시 넣어도 같고, 그 사이 원천 세션이 지워져도 이미 남긴 행은 그대로다.
+   */
+  async recordActiveDates(
+    activeDate: string,
+    manager?: EntityManager,
+  ): Promise<void> {
+    await (
+      manager ? manager.getRepository(UserActiveDate) : this.activeDates
+    ).query(
+      `INSERT INTO user_active_dates (user_id, active_date)
+       SELECT DISTINCT s.user_id, $1::date
+         FROM sessions s
+        WHERE s.issued_at >= ($1::date)::timestamp AT TIME ZONE 'Asia/Seoul'
+          AND s.issued_at < ($1::date + 1)::timestamp AT TIME ZONE 'Asia/Seoul'
+       ON CONFLICT DO NOTHING`,
+      [activeDate],
     );
   }
 }

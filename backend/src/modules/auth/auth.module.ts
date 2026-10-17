@@ -9,6 +9,7 @@ import { AuthService } from './services/auth.service';
 import { DailyActiveUser } from './daily-active-user.entity';
 import { DailyActiveUserRepository } from './daily-active-user.repository';
 import { DailyActiveUserScheduler } from './daily-active-user.scheduler';
+import { UserActiveDate } from './user-active-date.entity';
 import { AppleClient } from './providers/apple.client';
 import { DevClient } from './providers/dev.client';
 import { GoogleClient } from './providers/google.client';
@@ -23,12 +24,12 @@ import { TokenService } from './services/token.service';
 /**
  * architecture.md 4.3 — Auth → User 단방향.
  *
- * 일별 접속자(`daily_active_users`)도 여기서 소유한다 — 원천이 이 모듈의 `sessions`이고, 표가 필요한 이유가 이 모듈의 세션 파기
+ * 일별 접속자(`daily_active_users`)·사람별 접속일(`user_active_dates`)도 여기서 소유한다 — 원천이 이 모듈의 `sessions`이고, 표가 필요한 이유가 이 모듈의 세션 파기
  * (`SessionPurgeScheduler`)다. 서비스 지표(admin)는 다른 집계 표(`play_daily_totals`)처럼 읽기만 한다.
  */
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Session, DailyActiveUser]),
+    TypeOrmModule.forFeature([Session, DailyActiveUser, UserActiveDate]),
     UserModule,
     IdempotencyModule,
   ],
