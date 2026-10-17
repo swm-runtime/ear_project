@@ -25,6 +25,7 @@ import { STORAGE_KEYS } from '@/shared/storage/storage-keys';
 import { useToastStore } from '@/shared/ui/toast.store';
 
 import { selectMarket, sessionService, useSessionStore } from '@/features/auth';
+import { isCareerEntryVisible } from '@/features/career';
 import { getOsPermissionStatus, type OsPermissionStatus } from '@/features/notification';
 import { formatPlanGrantLine } from '@/features/subscription';
 
@@ -642,6 +643,8 @@ export const useSettingsScreen = () => {
       openContact();
     },
     openInterests: () => openDestination('InterestManagement'),
+    /** [커리어 정보] 행 노출 — GLOBAL 시장 계정에는 두지 않는다(settings.md 3장, PM 확정 2026-10-18). 세션 시장 기준 */
+    isCareerVisible: isCareerEntryVisible(market),
     openCareer: () => openDestination('Career'),
     openNotice: () => openDestination('Notice'),
     openWithdrawal: () => openDestination('Withdrawal'),

@@ -387,7 +387,7 @@ const en: LocalizedCopy<typeof ko> = {
   cardLabels: {
     plan: 'Current plan',
     email: 'Email',
-    interest: 'Manage topics',
+    interest: 'Manage interests',
     career: 'Career info',
   },
 
@@ -586,7 +586,7 @@ const en: LocalizedCopy<typeof ko> = {
   destinations: {
     plan: 'Open plan management',
     email: 'Open email verification',
-    interest: 'Open topic management',
+    interest: 'Open interest management',
     career: 'Open career info',
   },
 };

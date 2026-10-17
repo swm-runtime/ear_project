@@ -255,7 +255,7 @@ const en: LocalizedCopy<typeof ko> = {
   },
 
   content: {
-    interest: 'Manage topics',
+    interest: 'Manage interests',
     interestCount: (count: number) => `${count} selected`,
     career: 'Career info',
     inviteCode: 'Enter promo code',
