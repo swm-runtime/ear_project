@@ -13,6 +13,7 @@ import { SubscriptionModule } from '@/modules/subscription/subscription.module';
 import { AdminController } from './admin.controller';
 import { AdminInviteCodeController } from './admin-invite-code.controller';
 import { AdminInsightsController } from './admin-insights.controller';
+import { AdminSeriesController } from './admin-series.controller';
 import { AudioProbe } from './audio-probe';
 import { ContentStorageClient } from './content-storage.client';
 import { LocalContentStorageClient } from './local-content-storage.client';
@@ -26,6 +27,7 @@ import { ResourceAlertService } from './services/resource-alert.service';
 import { AdminTopicService } from './services/admin-topic.service';
 import { AdminNoticeService } from './services/admin-notice.service';
 import { AdminInviteCodeService } from './services/admin-invite-code.service';
+import { AdminSeriesService } from './services/admin-series.service';
 import { TopicExposureService } from './services/topic-exposure.service';
 import { TopicExposureScheduler } from './topic-exposure.scheduler';
 import { DailyMetricsDbService } from './services/daily-metrics-db.service';
@@ -61,6 +63,8 @@ import { Ga4Service } from './services/ga4.service';
     AdminController,
     AdminInsightsController,
     AdminInviteCodeController,
+    // 시리즈 관리(KAN-134) — series 는 content 모듈 소유라 새 의존 방향이 없다
+    AdminSeriesController,
   ],
   providers: [
     AdminContentService,
@@ -70,6 +74,7 @@ import { Ga4Service } from './services/ga4.service';
     AdminTopicService,
     AdminNoticeService,
     AdminInviteCodeService,
+    AdminSeriesService,
     TopicExposureService,
     TopicExposureScheduler,
     ResourceAlertService,
