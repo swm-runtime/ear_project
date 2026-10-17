@@ -36,8 +36,8 @@ Each flag names the turn, the item, the severity (violation = clear; suspect = p
 | A5 | Explainer's question to the host | The question is a quiz with a right answer, or opens with "Want to guess" or "Can you guess". |
 | A6 | Awkward naming | A name is used mechanically or in the wrong place. Suspect at most. |
 | A7 | Host not heard | After a host guess or doubt, the explainer says "Right" or "Exactly" and continues a prepared explanation. The host's line changes nothing. |
-| A8 | Source framing | A source leads three or more explainer turns with no one-sentence introduction; a line leans on vague authority ("experts say", "studies show"); sample sizes, journal names, methods, or funding are read aloud. Not flagged: facts stated without attribution, an anonymous introduction, a source used in one or two turns. |
-| A9 | Source loops | A source is named again outside its block; a new block starts with a pronoun from the previous block; one name is repeated three or more times in a block; the study, author, or researchers are the subject of sentence after sentence after the introduction. |
+| A8 | Source framing | A line names a source (an article, study, guide, museum, website, author, publisher, or researcher) or makes it the subject of a sentence; a line leans on vague authority ("experts say", "studies show"); sample sizes, journal names, methods, or funding are read aloud. Not flagged: facts stated without attribution, an opinion marked as a view by the kind of person who holds it. |
+| A9 | Source loops | A new block starts with a pronoun from the previous block, or a block retells one source in order instead of answering its question. |
 | A10 | Reading report | The explainer talks about reading the source ("when I read this…"), about what the materials lack, or previews material from a later section. Saying "we don't know" in answer to a host question is fine. |
 
 **C. Structure**
@@ -108,13 +108,13 @@ Length, explainer turns over six sentences, production words, fillers and stage 
 
 `{anchor 10–12: }` `{anchor 7–9: }` `{anchor 4–6: }` `{anchor 0–3: }`
 
-**3.2 Argument and support (8)** — Is each claim carried by support (what a study did, a case, a number), introduced once and then told in the explainer's voice, with limits stated where the sources state them?
+**3.2 Argument and support (8)** — Is each claim carried by support (what a study did, a case, a number), told in the explainer's voice with no source names, with limits stated where the sources state them?
 
 | Band | Definition |
 |---|---|
-| 7–8 | Varied support; the leading source is introduced once and then explained directly; limits the sources state are said once, where they apply. Several sources meeting at one answer belongs in the Closing. |
-| 5–6 | Support of one kind, or an introduction that sounds mechanical, or attribution on almost every sentence after the introduction. |
-| 3–4 | Loose link between claims and support, or a leading source with no introduction. |
+| 7–8 | Varied support told directly with no source names; opinions are marked as views; limits the sources state are said once, where they apply. Several sources meeting at one answer belongs in the Closing. |
+| 5–6 | Support of one kind, or a source named in a line. |
+| 3–4 | Loose link between claims and support, or sources named in most sections. |
 | 0–2 | Bare assertion, logical jumps. |
 
 `{anchor 7–8: }` `{anchor 5–6: }` `{anchor 3–4: }`
@@ -271,6 +271,7 @@ Flags n · violations n · suspects n · ⭐ n
 
 ## Change history
 
+- critic-en-v0.9 (2026-10-18, same version) — no source names in lines (guidelines full-en-v0.12 rule 42; the app lists sources). A8 flags a named source; A9 keeps pronoun loops and blocks that retell one source; 3.2 bands no longer ask for a source introduction.
 - critic-en-v0.9 (2026-10-18) — after G261018-001 to 003 (first intro-format round) the critic gave 3.11 up to 5 while the explainer told every section through a source, and gave 3.3 the top band for differences said in one line. 3.11 now says that telling most sections through what a source says is not insider framing.
 - critic-en-v0.8 (2026-10-17) — the global channel introduces Korean culture (decision of the same day). 3.3 Range of views (8) becomes Variety in practice (4): how the practice differs by region, generation, family, or setting, or a disagreement when the sources hold one. 3.4 Emotional resonance (7) becomes Scenes and lived detail (11), with the no-scene cap at 4. 3.2 asks for limits only where the sources state them. 3.9 no longer caps an episode where the host never stays unconvinced. Keys and the 100-point total are unchanged; scores before this version are not comparable on 3.3 and 3.4.
 - critic-en-v0.7 (2026-10-17) — after G261017-009 to 011 the critic was 20 to 24 points above the blind editor and gave 3.4 four or five points to episodes with no scene: it counted a reported visitor given only by name and age, and "Picture …" frames, as scenes. 3.4 now defines a scene by a moment with words said, an object, or a sound.

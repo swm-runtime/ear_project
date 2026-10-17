@@ -25,11 +25,11 @@
    - Do not call a Korean thing "the Korean version of" something from another country.
    - Compare Korea with another country only when a claim supports it, and only in an explainer turn.
 
-5. **History and national feeling.** On the colonial period, wars, and disputes with Japan, China, or North Korea, state only claimed facts and attribute interpretations to their source. Do not blame present-day people. Do not argue which country a food, garment, or custom belongs to. Do not boast about Korea's global success and do not apologize for or defend Korea. Say "South Korea" when the difference from North Korea matters.
+5. **History and national feeling.** On the colonial period, wars, and disputes with Japan, China, or North Korea, state only claimed facts and mark interpretations as views. Do not blame present-day people. Do not argue which country a food, garment, or custom belongs to. Do not boast about Korea's global success and do not apologize for or defend Korea. Say "South Korea" when the difference from North Korea matters.
 
 6. **People, bodies, beliefs, food.**
    - Mention real people only through verifiable public facts from the claims. No private life, relationships, rumors, controversies, or legal cases.
-   - Do not comment on anyone's looks or body. When beauty standards come up, attribute them to the source and do not present them as desirable.
+   - Do not comment on anyone's looks or body. When beauty standards come up, present them as a view some people hold, not as desirable.
    - Describe religions and folk beliefs neutrally, never as superstition.
    - Do not assume the listener eats pork or drinks alcohol. Name ingredients plainly.
 
@@ -126,9 +126,9 @@
 
 41. **Facts come only from the claims.** Every number, quote, name, cause, definition, and date comes from a claims row, appears only in explainer turns, and stays within what the excerpt supports. Do not raise the strength, scope, or certainty of a claim. Keep every condition the claim states: who says it, to whom, where, and which of its meanings it covers. Keep each condition on the thing it describes; do not move it to another thing. Keep quantifiers such as some, many, and most. A practice the claim gives to one person stays that person's practice; do not make it a place's or a group's. Do not widen a named set into a general category. A list the claim marks as partial stays partial. A practice reported for a year keeps that year. For claims based on Korean-language excerpts, keep the meaning exact when rephrasing in English. List the claim IDs each explainer turn uses in turn_claims.
 
-42. **Introduce a source once, then explain.** Do not open a section by naming its source; open on the outline's Opens with line. Name each source at most once in the episode, where its first fact is used, and only when the kind of source matters: what kind of source it is and what it covers. Tell practices and facts directly, in the explainer's own voice, as an insider would. Opinions and interpretations keep their holder. Do not make the article, study, guide, author, compiler, participant, or researchers the subject of sentences; at most one sentence per section names a source, the introduction included. This count includes the source as subject and phrases such as "According to" the source or "In" the source's account. Do not use vague authority ("experts say", "studies show", "many people believe").
+42. **No source names in lines.** The app lists the sources. Do not name an article, study, guide, museum, website, author, publisher, or researcher in a line, and do not make a source the subject of a sentence; "According to" and "In … account" count. Tell facts and practices directly, in the explainer's own voice, as an insider would. Mark an opinion, interpretation, or forecast as a view and say whose kind of view it is without a name. Do not use vague authority ("experts say", "studies show", "many people believe").
 
-43. **Claims stay in place.** Use each claim in the section the outline gives it. A section may draw on several sources. Introduce no new source in the last Body section. Do not describe reading a source, preview later material, or mention that something is missing from the materials.
+43. **Claims stay in place.** Use each claim in the section the outline gives it. A section may draw on several sources. Do not describe reading a source, preview later material, or mention that something is missing from the materials.
 
 44. **Sources are not footnotes read aloud.** Do not say sample sizes, survey counts, journal names, methods, funding, or citation relations. Describe a study by who it looked at and what it found, in one sentence. Paraphrase quotes. Read original wording only when the wording itself is the subject. For statistics about Korean society, say the year the data describes.
 
@@ -151,7 +151,7 @@
 - Check internally in this order. Do not print the check.
   1. Zones, meta line, speaker names, turn numbers, roles, Body sections, templates, no braces, last turn.
   2. Each factual sentence against the claims and excerpts. Remove host facts, raised claims, invented memories, and "we" for Koreans.
-  3. Source introductions, assigned sections, vague authority, footnote details, numbers, relative time.
+  3. Source names, claims in their sections, vague authority, footnote details, numbers, relative time.
   4. Rules 4 to 7: default viewpoint, stereotypes, history, people, beliefs, topic limits.
   5. Word count against the plan. Fill short sections from assigned material.
   6. Host turns: one job each, question ratio, varied forms, calm reactions, openers, praise, echoes, doubt only where the claims hold it.

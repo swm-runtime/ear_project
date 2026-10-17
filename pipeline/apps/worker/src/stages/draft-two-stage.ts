@@ -451,9 +451,9 @@ export function enStyleViolations(turns: ScriptTurn[]): string[] {
     const n = t.text.split(/(?<=[.!?])\s+/).filter((x) => srcSubj.test(x.trim()) || srcRef.test(x.trim())).length;
     for (let k = 0; k < n; k++) perSection.set(t.topic ?? t.section, [...(perSection.get(t.topic ?? t.section) ?? []), label(t)]);
   }
-  // full-en-v0.12 (G261018-001~003): 구간마다 출처를 주어로 말해 해설자가 자료를 읽는 사람이 됐다 — 구간당 한 문장까지(소개 포함)
-  const srcLoops = [...perSection].filter(([, ids]) => ids.length > 1).map(([sec, ids]) => `"${sec}" ${ids.length} (${[...new Set(ids)].join(", ")})`);
-  if (srcLoops.length) v.push(`${EN_STYLE_MARK} the source is named in more than one sentence in a section: ${srcLoops.join("; ")} — name each source at most once in the episode, then tell the content directly as an insider; "According to" and "In … account" count too (rule 42)`);
+  // full-en-v0.12 (G261018-001~003, 박수헌 2026-10-18 "귀속 빼"): 출처는 앱이 보여 준다 — 대사에서 출처를 부르는 문장은 하나도 두지 않는다
+  const srcLoops = [...perSection].filter(([, ids]) => ids.length > 0).map(([sec, ids]) => `"${sec}" ${ids.length} (${[...new Set(ids)].join(", ")})`);
+  if (srcLoops.length) v.push(`${EN_STYLE_MARK} sources named in lines: ${srcLoops.join("; ")} — the app lists sources; do not name them, tell the content directly as an insider; "According to" and "In … account" count too (rule 42)`);
   // 턴 끝 요약 (규칙 31, full-en-v0.7 — G261015-001 · G261017-001·002·003 에이전트 판정에서 네 편 연속): 세 문장 이상인 해설 턴의 마지막 문장이
   // So·This·That·These·Those·Both·Each 로 시작해 앞 내용을 묶으면 센다. 넷 이상이면 문체 위반(한도 뒤 QA 로). 마지막 문장 지우기 시험은 규칙 31 이 맡는다
   const lastSentence = (t: string) => { const s = t.trim().split(/(?<=[.!?])\s+/).filter(Boolean); return s.length >= 3 ? s[s.length - 1] : ""; };
