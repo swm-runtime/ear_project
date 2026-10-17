@@ -291,7 +291,7 @@ export function twoStageViolations(scriptMd: string, outlineMd: string, opts: { 
  * 한국어 문체·귀속 검사는 돌지 않는다. 영어 문체 검사는 영어 규칙 자산 v0 와 함께 정하고 파일럿 판정으로 늘린다.
  * 메시지는 영어다 — 수정 재생성 프롬프트가 그대로 읽는다(명세 4.5: 모델이 읽는 글은 영어). 문체 검사(enStyleViolations)는 아래.
  */
-export function twoStageViolationsEn(scriptMd: string, outlineMd: string, opts: { signoffHeads?: string[] } = {}): string[] {
+export function twoStageViolationsEn(scriptMd: string, outlineMd: string, opts: { signoffHeads?: string[]; pronunciations?: Record<string, string> } = {}): string[] {
   const v: string[] = [];
   const z = scriptZones();
   const order = [z.intro, z.lead, z.body, z.outro];
@@ -320,6 +320,15 @@ export function twoStageViolationsEn(scriptMd: string, outlineMd: string, opts: 
   const wrong = parseScriptForTts(scriptMd).turns.filter((t) => t.id && (t.id.startsWith("E") ? t.speaker !== explainer : t.speaker !== host)).map((t) => `${t.id} [${t.speaker}]`);
   if (wrong.length) v.push(`Speaker labels do not match this episode's pair (${wrong.slice(0, 6).join(", ")}${wrong.length > 6 ? " …" : ""}) — E turns are [${explainer}], Y turns are [${host}]`);
   v.push(...enStyleViolations(parseScriptForTts(scriptMd).turns));
+  // 한국어 표현을 가리키면서 표현을 말하지 않는 해설 턴 (규칙 50, full-en-v0.6) — G261017-001 E22·E29: 설계가 등재한 동사형 표현 4개가 대본에서 빠지고 "Neither expression…"·"Korean expressions distinguish…" 만 남았다.
+  // 등재 표제어가 하나도 없는 턴만 잡는다 — 영어 표현을 가리키는 "English expression" 과 "an expression of regret" 같은 일반 명사 쓰임은 뺀다
+  const keys = Object.keys(opts.pronunciations ?? {}).map((k) => k.trim()).filter(Boolean);
+  if (keys.length) {
+    const alt = keys.map((k) => k.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|");
+    const keyRe = new RegExp(`(?<![A-Za-z0-9])(?:${alt})(?![A-Za-z0-9])`, "i");
+    const vague = parseScriptForTts(scriptMd).turns.filter((t) => t.id?.startsWith("E") && /(?<!English )\bexpressions?\b(?! of\b)/i.test(t.text) && !keyRe.test(t.text)).map((t) => t.id!);
+    if (vague.length) v.push(`${EN_STYLE_MARK} explainer turns speak of a Korean expression without saying it (${vague.join(", ")}) — say the romanized expression in that turn, with its meaning (rule 50)`);
+  }
   return v;
 }
 
@@ -399,15 +408,21 @@ export function enStyleViolations(turns: ScriptTurn[]): string[] {
   const echo = turns.filter((t, i) => !isTemplate(i) && expl(t) && echoRe.test(firstSentence(t.text))).map(label);
   if (echo.length > 3) v.push(`${EN_STYLE_MARK} ${echo.length} explainer turns open by restating the host's words (${list(echo)}) — answer in the first sentence; do not name or paraphrase the host's question, guess, or feeling (rule 10)`);
   // 소스가 문장 주어 (규칙 42) — 단락마다 소스 명사 + 전달 동사로 시작하는 해설 문장. 소개 한 문장 + 하나까지
-  const srcSubj = /^(?:the|this|that|one|another) (?:guide|compiler|report|study|article|author|authors|researchers?|participant|participants|dictionary|entry|survey|book|writer|reporter|museum|encyclopedia|page|source|conversation|interview)\b[^.?!]{0,40}?\b(?:says|said|describes|described|lists|listed|gives|gave|reports|reported|notes|noted|explains|explained|connects|connected|calls|called|treats|treated|warns|warned|includes|included|mentions|mentioned|adds|added|suggests|suggested|argues|argued|shows|showed|writes|wrote|uses|used|puts|links|separates|pairs)\b/i;
+  const srcSubj = /^(?:the|this|that|one|another) (?:guide|compiler|report|study|article|author|authors|researchers?|participant|participants|dictionary|entry|survey|book|writer|reporter|museum|encyclopedia|page|source|conversation|interview)\b[^.?!]{0,40}?\b(?:says|said|describes|described|lists|listed|gives|gave|reports|reported|notes|noted|explains|explained|connects|connected|calls|called|treats|treated|warns|warned|includes|included|mentions|mentioned|adds|added|suggests|suggested|argues|argued|shows|showed|writes|wrote|uses|used|puts|links|separates|pairs|allows|presents|advises|rejects|recommends)\b/i;
+  // full-en-v0.6 (G261017-001): 주어 꼴만 세니 "According to KEL"·"In KEL's account"·"KEL presents" 처럼 이름을 붙인 문장이 #4 에서 여덟 번 나와도 빠져나갔다 — 이름 붙이기 꼴도 같이 센다.
+  // 대문자 약어 주어(KEL)만 고유명사로 본다 — 첫 글자만 대문자인 주어는 한국어 표현("Jeongi deulda describes…")과 가를 수 없다
+  const srcRef = /^(?:[Aa]ccording to (?:the )?[A-Z]|[Ii]n (?:(?:the|this|that) )?(?:[A-Z][\w-]*|its|their|guide|article)(?:'s|’s)? (?:[a-z]+ )?(?:article|guide|account|description|view|guidance|report|explanation|example)\b|[A-Z]{2,}\b[^.?!]{0,20}?\b(?:says|advises|presents|describes|explains|warns|notes|argues|lists|gives|calls|treats|recommends|rejects|allows)\b)/;
   const perSection = new Map<string, string[]>();
   for (const t of turns) {
     if (!expl(t) || t.section !== zones.body) continue;
-    const n = t.text.split(/(?<=[.!?])\s+/).filter((x) => srcSubj.test(x.trim())).length;
+    const n = t.text.split(/(?<=[.!?])\s+/).filter((x) => srcSubj.test(x.trim()) || srcRef.test(x.trim())).length;
     for (let k = 0; k < n; k++) perSection.set(t.topic ?? t.section, [...(perSection.get(t.topic ?? t.section) ?? []), label(t)]);
   }
   const srcLoops = [...perSection].filter(([, ids]) => ids.length > 2).map(([sec, ids]) => `"${sec}" ${ids.length} (${[...new Set(ids)].join(", ")})`);
-  if (srcLoops.length) v.push(`${EN_STYLE_MARK} the source is the subject of more than two sentences in a section: ${srcLoops.join("; ")} — introduce the source once, then explain the content directly (rule 42)`);
+  if (srcLoops.length) v.push(`${EN_STYLE_MARK} the source is named in more than two sentences in a section: ${srcLoops.join("; ")} — introduce the source once, then explain the content directly; "According to" and "In … account" count too (rule 42)`);
+  // 해설자 질문 (규칙 15) — Opening 의 되묻기를 포함해 편 전체 두 번까지 (full-en-v0.6, G261017-001: 도입 되묻기 E1 + 본문 E5·E17 = 세 번)
+  const eQ = turns.filter((t, i) => !isTemplate(i) && expl(t) && t.text.includes("?")).map(label);
+  if (eQ.length > 2) v.push(`${EN_STYLE_MARK} the explainer asks questions in ${eQ.length} turns (${list(eQ)}) — at most two per episode, the Opening's question back included (rule 15)`);
   const bodyY = turns.filter((t) => t.section === zones.body && t.id?.startsWith("Y"));
   if (bodyY.length >= 6) {
     const q = bodyY.filter((t) => t.text.includes("?")).length;
