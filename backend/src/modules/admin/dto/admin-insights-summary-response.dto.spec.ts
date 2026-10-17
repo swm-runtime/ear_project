@@ -48,7 +48,47 @@ const summary = (): InsightsSummary => ({
     }),
     window: listening(),
   },
-  daily: [],
+  daily: [
+    {
+      date: '2026-10-07',
+      signups: 1,
+      withdrawals: 0,
+      plays: 3,
+      listeners: 2,
+      listenSec: 600,
+      completes: 1,
+      activeUsers: 5,
+    },
+    {
+      date: '2026-09-01',
+      signups: 0,
+      withdrawals: 0,
+      plays: 0,
+      listeners: 0,
+      listenSec: 0,
+      completes: 0,
+      activeUsers: null,
+    },
+  ],
+  weekday: [
+    {
+      weekday: 1,
+      label: '월',
+      days: 2,
+      activeDays: 1,
+      avgActiveUsers: 5,
+      avgListeners: 1.5,
+    },
+    {
+      weekday: 2,
+      label: '화',
+      days: 0,
+      activeDays: 0,
+      avgActiveUsers: null,
+      avgListeners: null,
+    },
+  ],
+  activeUsersSince: '2026-09-19',
   hourly: [],
   topUsers: [
     {
@@ -174,6 +214,33 @@ describe('AdminInsightsSummaryResponseDto', () => {
         paid_active: 0,
       },
     ]);
+  });
+
+  it('일별 접속자·요일별 평균·첫 신뢰 날짜를 snake_case 로 내리고, 모르는 값은 null 그대로 둔다', () => {
+    // when
+    const dto = AdminInsightsSummaryResponseDto.from(summary(), 14);
+
+    // then
+    expect(dto.daily.map((d) => d.active_users)).toEqual([5, null]);
+    expect(dto.weekday).toEqual([
+      {
+        weekday: 1,
+        label: '월',
+        days: 2,
+        active_days: 1,
+        avg_active_users: 5,
+        avg_listeners: 1.5,
+      },
+      {
+        weekday: 2,
+        label: '화',
+        days: 0,
+        active_days: 0,
+        avg_active_users: null,
+        avg_listeners: null,
+      },
+    ]);
+    expect(dto.active_users_since).toBe('2026-09-19');
   });
 
   it('개인 식별 정보 필드가 어디에도 없다 — 사용자 순위는 user_id·티어·날짜뿐', () => {

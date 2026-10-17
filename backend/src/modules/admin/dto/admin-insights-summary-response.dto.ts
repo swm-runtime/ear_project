@@ -70,7 +70,20 @@ export class AdminInsightsSummaryResponseDto {
     listeners: number;
     listen_sec: number;
     completes: number;
+    /** 그날 접속자(토큰 갱신한 사람 — `active_1d`와 같은 신호). 기록이 없는 날(첫 신뢰 날짜 앞)은 null */
+    active_users: number | null;
   }[];
+  /** 요일별 평균 — 월(1)~일(7) 7칸, 창 안의 온전한 하루만 */
+  readonly weekday: {
+    weekday: number;
+    label: string;
+    days: number;
+    active_days: number;
+    avg_active_users: number | null;
+    avg_listeners: number | null;
+  }[];
+  /** 접속자를 믿을 수 있는 첫 날(KST `YYYY-MM-DD`) — 화면 각주가 "M월 D일부터 집계"로 쓴다 */
+  readonly active_users_since: string;
   readonly hourly: { hour: number; plays: number; listen_sec: number }[];
   readonly top_users: {
     user_id: string;
@@ -185,7 +198,17 @@ export class AdminInsightsSummaryResponseDto {
         listeners: d.listeners,
         listen_sec: d.listenSec,
         completes: d.completes,
+        active_users: d.activeUsers,
       })),
+      weekday: summary.weekday.map((w) => ({
+        weekday: w.weekday,
+        label: w.label,
+        days: w.days,
+        active_days: w.activeDays,
+        avg_active_users: w.avgActiveUsers,
+        avg_listeners: w.avgListeners,
+      })),
+      active_users_since: summary.activeUsersSince,
       hourly: summary.hourly.map((h) => ({
         hour: h.hour,
         plays: h.plays,

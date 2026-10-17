@@ -9,6 +9,8 @@ import { DataSource } from 'typeorm';
 
 import { AppModule } from '@/app.module';
 import { traceIdMiddleware } from '@/common/middlewares/trace-id.middleware';
+import { DailyActiveUserRepository } from '@/modules/auth/daily-active-user.repository';
+import { Session } from '@/modules/auth/session.entity';
 import { toServiceDate } from '@/common/utils/service-date.util';
 import { ContentOrigin, ContentStatus } from '@/modules/content/content.enum';
 import { Content } from '@/modules/content/entities/content.entity';
@@ -40,7 +42,22 @@ interface SummaryBody {
     all_time: { listen_sec: number; plays: number; completes: number };
     window: { listen_sec: number; plays: number; completes: number };
   };
-  daily: { date: string; plays: number; listen_sec: number; signups: number }[];
+  daily: {
+    date: string;
+    plays: number;
+    listen_sec: number;
+    signups: number;
+    active_users: number | null;
+  }[];
+  weekday: {
+    weekday: number;
+    label: string;
+    days: number;
+    active_days: number;
+    avg_active_users: number | null;
+    avg_listeners: number | null;
+  }[];
+  active_users_since: string;
   by_market: {
     market: string;
     users: number;
@@ -362,6 +379,95 @@ describe('서비스 지표 요약 E2E', () => {
     }
   });
 
+  it('일별 접속자 — 오늘은 세션에서 바로 세어 들어 있고, 요일별 7칸과 첫 신뢰 날짜가 실린다', async () => {
+    // given — 지금 토큰을 갱신한 사용자 하나(세션 행)
+    const adminAuth = await createUser('admin-active', UserRole.ADMIN);
+    const activeId = await createUserId('active');
+    await seedSession(activeId, new Date());
+
+    // when
+    const body = (
+      await request(app.getHttpServer())
+        .get(path('/admin/insights/summary'))
+        .query({ days: 14 })
+        .set('Authorization', adminAuth)
+        .expect(HttpStatus.OK)
+    ).body as SummaryBody;
+
+    // then — 전역 합계는 병렬 스위트 때문에 정확히 비교하지 않는다. 오늘 칸에 이 테스트의 1명이 있는지만 본다
+    const today = body.daily[body.daily.length - 1];
+    expect(today.active_users).toBeGreaterThanOrEqual(1);
+    for (const d of body.daily) {
+      expect(
+        d.active_users === null || typeof d.active_users === 'number',
+      ).toBe(true);
+    }
+    expect(body.weekday.map((w) => w.label)).toEqual([
+      '월',
+      '화',
+      '수',
+      '목',
+      '금',
+      '토',
+      '일',
+    ]);
+    // 14일 창의 온전한 날은 13일(첫날 부분일·오늘 제외) — 요일마다 1~2일
+    expect(body.weekday.reduce((sum, w) => sum + w.days, 0)).toBe(13);
+    for (const w of body.weekday) {
+      expect(w.active_days).toBeLessThanOrEqual(w.days);
+      // 0일이면 평균은 0 이 아니라 null
+      if (w.days === 0) expect(w.avg_listeners).toBeNull();
+      if (w.active_days === 0) expect(w.avg_active_users).toBeNull();
+    }
+    expect(body.active_users_since).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    expect(body.active_users_since <= today.date).toBe(true);
+  }, 60_000);
+
+  it('일별 접속자 저장 — 같은 날을 두 번 다시 세도 값이 같고, 시장마다 한 행(접속자 없는 시장은 0)이다', async () => {
+    // 다른 스위트가 건드리지 않는 날짜로 정확히 본다(KST 2001-02-04 12:00 에 토큰 갱신 1명 — 같은 날 두 번 갱신해도 1명)
+    const activeDate = '2001-02-04';
+    const userId = await createUserId('active-past');
+    await seedSession(userId, new Date('2001-02-04T03:00:00.000Z'));
+    await seedSession(userId, new Date('2001-02-04T14:59:00.000Z'));
+    // 그 앞날 KST 23:59(= UTC 02-03 14:59)는 세지 않는다
+    const otherId = await createUserId('active-past-other');
+    await seedSession(otherId, new Date('2001-02-03T14:59:00.000Z'));
+    const repository = app.get(DailyActiveUserRepository);
+    const read = () =>
+      dataSource.query<{ market: string; active_users: number }[]>(
+        `SELECT market, active_users FROM daily_active_users WHERE active_date = $1 ORDER BY market`,
+        [activeDate],
+      );
+    try {
+      // when
+      await repository.recount(activeDate);
+      const first = await read();
+      await repository.recount(activeDate);
+      const second = await read();
+
+      // then
+      expect(first).toEqual([
+        { market: 'global', active_users: 0 },
+        { market: 'kr', active_users: 1 },
+      ]);
+      expect(second).toEqual(first);
+
+      // when — 원천(세션)이 지워진 뒤 다시 세도 기록은 줄지 않는다
+      await dataSource.query(`DELETE FROM sessions WHERE user_id = $1`, [
+        userId,
+      ]);
+      await repository.recount(activeDate);
+
+      // then
+      expect(await read()).toEqual(first);
+    } finally {
+      await dataSource.query(
+        `DELETE FROM daily_active_users WHERE active_date = $1`,
+        [activeDate],
+      );
+    }
+  });
+
   it('시장별 집계는 계정이 없는 시장까지 시장마다 한 칸이고, 각 값은 그 시장 계정 수를 넘지 않는다(global-api 4.10)', async () => {
     // given
     const adminAuth = await createUser('admin-market', UserRole.ADMIN);
@@ -400,6 +506,22 @@ describe('서비스 지표 요약 E2E', () => {
     );
     userIds.push(user.id);
     return user.id;
+  }
+
+  /** 토큰 갱신 1회 — 세션 행. 사용자를 지우면 CASCADE 로 함께 지워진다 */
+  async function seedSession(userId: string, issuedAt: Date): Promise<void> {
+    const repository = dataSource.getRepository(Session);
+    await repository.save(
+      repository.create({
+        userId,
+        refreshTokenHash: `${TOKEN}-${userId}-${issuedAt.getTime()}`,
+        deviceId: `${TOKEN}-device`,
+        issuedAt,
+        expiresAt: new Date(Date.now() + 86_400_000),
+        revokedAt: null,
+        revokedReason: null,
+      }),
+    );
   }
 
   async function createUser(label: string, role: UserRole): Promise<string> {

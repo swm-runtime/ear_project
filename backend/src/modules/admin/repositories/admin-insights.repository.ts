@@ -309,8 +309,12 @@ export class AdminInsightsRepository {
   /**
    * 일별 추이의 재료 — 날짜가 빈 칸은 Service 가 0 으로 채운다. 가입은 `users.created_at`이라 그날 가입했다가 탈퇴한
    * 사람은 빠진다(`withdrawal_logs`에는 가입일이 없다) — 일별 가입에도 생존 편향이 있다.
+   *
+   * 접속자는 두 갈래다 — 저장 표(`daily_active_users`, auth 모듈이 매일 쓰는 집계 — 여기서는 읽기만)는 `since`의 KST 날짜부터,
+   * 세션 바로 세기는 `liveFrom`(KST `YYYY-MM-DD`, 세션이 온전히 남아 있는 첫 날)부터다. 어느 쪽을 쓸지는 Service 가 고른다.
+   * 접속자는 시장을 나누지 않는다(한 사용자는 한 시장이라 시장 합 = 전체 distinct).
    */
-  async dailyRows(since: Date): Promise<InsightsDailyRows> {
+  async dailyRows(since: Date, liveFrom: string): Promise<InsightsDailyRows> {
     const signups = await this.dataSource.query<DateCountRow[]>(
       `select ${kstDateExpr('created_at')} as date, count(*)::int as count
          from users where created_at >= $1 group by 1 order by 1`,
@@ -335,9 +339,26 @@ export class AdminInsightsRepository {
       [since],
     );
 
+    const activeUsersStored = await this.dataSource.query<DateCountRow[]>(
+      `select to_char(active_date, 'YYYY-MM-DD') as date, sum(active_users)::int as count
+         from daily_active_users
+        where active_date >= ($1::timestamptz at time zone 'Asia/Seoul')::date
+        group by active_date order by active_date`,
+      [since],
+    );
+    const activeUsersLive = await this.dataSource.query<DateCountRow[]>(
+      `select ${kstDateExpr('issued_at')} as date, count(distinct user_id)::int as count
+         from sessions
+        where issued_at >= ($1::date)::timestamp at time zone 'Asia/Seoul'
+        group by 1 order by 1`,
+      [liveFrom],
+    );
+
     return {
       signups,
       withdrawals,
+      activeUsersStored,
+      activeUsersLive,
       plays: plays.map((p) => ({
         date: p.date,
         plays: p.plays,
@@ -346,6 +367,14 @@ export class AdminInsightsRepository {
       })),
       completes,
     };
+  }
+
+  /** 저장 표(`daily_active_users`)의 가장 이른 날(`YYYY-MM-DD`) — 표가 비었으면 null */
+  async activeUsersFirstDate(): Promise<string | null> {
+    const [row] = await this.dataSource.query<{ date: string | null }[]>(
+      `select to_char(min(active_date), 'YYYY-MM-DD') as date from daily_active_users`,
+    );
+    return row?.date ?? null;
   }
 
   /** 창 안 재생의 KST 시간대 분포 — 재생이 없던 시간대는 Service 가 0 으로 채운다 */
