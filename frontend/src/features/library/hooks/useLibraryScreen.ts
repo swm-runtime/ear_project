@@ -32,6 +32,7 @@ import type {
   LibraryTopic,
 } from '../library.types';
 import { useDeleteLibraryItemMutation } from './useDeleteLibraryItemMutation';
+import { useDripFeedbackEntry } from './useDripFeedbackEntry';
 import { useLibraryItemsQuery } from './useLibraryItemsQuery';
 import { useLibraryTopicsQuery } from './useLibraryTopicsQuery';
 import { useResumeTargetQuery } from './useResumeTargetQuery';
@@ -56,6 +57,9 @@ export const useLibraryScreen = () => {
   const showToast = useToastStore((s) => s.show);
   const applyPlayLimit = usePlayLimitStore((s) => s.applyPlayLimit);
   const storedPlayLimit = usePlayLimitStore((s) => s.playLimit);
+
+  // 추천 별점 팝업의 노출 판정 — 진입 시 한 세션에 한 번(KAN-224). 팝업은 MainNavigator 가 그리고, 실패는 조용하다
+  useDripFeedbackEntry();
 
   /* ── 필터 상태 — 앱을 종료하면 초기화된다(메모리 보관, library.md 7) ── */
   const [filter, setFilter] = useState<LibraryFilter>('all');

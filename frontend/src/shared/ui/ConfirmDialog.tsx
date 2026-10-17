@@ -35,6 +35,11 @@ export interface ConfirmDialogProps {
   /** 제목 위 아이콘(알림 사전 안내의 종). 있으면 제목·본문을 가운데 정렬한다 — 아이콘이 가운데인데 글이 왼쪽이면 어긋난다 */
   icon?: ReactNode;
   /**
+   * 제목 줄 오른쪽 위의 세 번째 선택지("이번 주 그만 보기" 류 — design.md §5). 버튼 줄에 세우지 않는다 — 세 번째 버튼처럼
+   * 읽혀 시선이 갈린다. 작은 회색 글자 버튼을 넘긴다(히트 44pt 는 그쪽 hitSlop). 제목과 함께 써야 하고 아이콘과는 같이 쓰지 않는다
+   */
+  titleAccessory?: ReactNode;
+  /**
    * 딤 영역 탭으로 닫히는가(기본 true). 커리어 이탈 확인(CR5)처럼 **파괴적 결과가 걸린 팝업은 false** —
    * 의도 없는 탭으로 닫히면 어느 쪽을 고른 것인지 알 수 없다(career-uiux.md 4.6). 뒤로가기는 언제나 `onCloseRequest`
    */
@@ -69,6 +74,7 @@ export default function ConfirmDialog({
   body,
   children,
   icon,
+  titleAccessory,
   dismissOnBackdrop = true,
   secondaryAction,
   primaryAction,
@@ -95,7 +101,12 @@ export default function ConfirmDialog({
                   {icon}
                 </View>
               ) : null}
-              {title !== undefined ? (
+              {title !== undefined && titleAccessory !== undefined ? (
+                <View style={styles.titleRow}>
+                  <Text style={[styles.title, styles.titleInRow]}>{title}</Text>
+                  {titleAccessory}
+                </View>
+              ) : title !== undefined ? (
                 <Text style={[styles.title, centered && styles.textCentered]}>{title}</Text>
               ) : null}
               {body !== undefined ? (
@@ -198,6 +209,16 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: theme.color.textPrimary,
     lineHeight: 17 * 1.35,
+  },
+  // 제목 + 오른쪽 위 작은 글자(titleAccessory) — 제목이 길면 줄바꿈하고 글자는 첫 줄 높이에 붙는다
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: theme.spacing.sm,
+  },
+  titleInRow: {
+    flex: 1,
   },
   body: {
     fontSize: 15,

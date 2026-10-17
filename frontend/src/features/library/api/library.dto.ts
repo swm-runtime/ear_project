@@ -126,3 +126,41 @@ export interface RestoreResponseDto {
   added_at: string;
   deleted_at: null;
 }
+
+/* ── 추천 별점(drip-feedback-api.md — KAN-224). 요청·응답 DTO를 공유하지 않는다(convention.md 5.2) ── */
+
+/** 4.1 `GET /users/me/drip-feedback/prompt` 응답의 한 편 */
+export interface DripFeedbackPromptItemDto {
+  content_id: string;
+  title: string;
+  thumbnail_url: string;
+  /** `ko` | `en` — 표시 전용(2026-10-14) */
+  language: 'ko' | 'en';
+  source: LibrarySource;
+  placed_date: string;
+  /** 보조 표시용이지 판정이 아니다 */
+  library_status: LibraryItemStatus;
+}
+
+/** 4.1 응답 — `show=false`면 `items`는 빈 배열, 물을 편성분이 없으면 `placed_date`는 null */
+export interface DripFeedbackPromptResponseDto {
+  show: boolean;
+  placed_date: string | null;
+  muted_until: string | null;
+  items: DripFeedbackPromptItemDto[];
+}
+
+/** 4.2 `POST /users/me/drip-feedback` 요청 — 1~10건, 같은 content_id 중복 없음. 응답 204 */
+export interface SubmitDripFeedbackRequestDto {
+  ratings: { content_id: string; stars: number }[];
+}
+
+/** 4.3 `POST /users/me/drip-feedback/dismiss` 요청 — 4.1 응답의 placed_date 그대로. 응답 204 */
+export interface DismissDripFeedbackRequestDto {
+  placed_date: string;
+}
+
+/** 4.4 `POST /users/me/drip-feedback/mute` 응답(본문 없는 요청) — 다음 서비스 주 월요일 라벨 */
+export interface MuteDripFeedbackResponseDto {
+  muted_until: string;
+}

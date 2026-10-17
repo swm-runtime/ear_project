@@ -13,7 +13,7 @@
 | 선행 | 없음 — 서버는 개발계 배포 완료(KAN-116 최초 구현 · PR #1636 노출 규칙 개정, 2026-10-16) |
 | 근거 문서 | `features/drip-feedback.md` 2장·4.1~4.3·5장 · `spec/api/drip-feedback-api.md` · `features/common-error-handling.md`(오프라인 큐) · 노출 규칙 개정 기록 `changes/pending/drip-feedback-prompt-policy.md` |
 | 중요도 | Medium |
-| 상태 | 대기 |
+| 상태 | 완료 (반영 2026-10-17) |
 
 ## 배경
 
@@ -62,3 +62,12 @@
 ## 처리 기록
 
 - 2026-10-16 발행. 서버 노출 규칙 PR #1636(개발계 배포 확인). 개발계에서 팝업 대상인 계정은 18명 중 3명이다(나머지는 안 들은 재고 5편 이상으로 배치 편성이 건너뛰어져 물을 편성분이 없거나, 마지막 편성분이 7일보다 오래됨, 가입 3일 이내).
+- 2026-10-17 반영(FE — KAN-224 PR). 바뀐 것:
+  - API 4종 — `features/library/api/drip-feedback.api.ts`(DTO는 `library.dto.ts`에 api 문서 그대로) · mock 두 응답(`drip-feedback.mock.ts` — 기본 `show=true` 2편, `EXPO_PUBLIC_DRIP_FEEDBACK_MOCK_SCENARIO=hidden`이면 `show=false`)
+  - 진입 조회 — 라이브러리 진입 시 `useDripFeedbackEntry` → `services/drip-feedback.service.ts`의 `requestDripFeedbackPrompt`. **한 세션(앱 실행 × 계정)에 한 번**, 실패는 조용히 끝(팝업 없음). 판정은 `show`만 본다 — 기기 시각 계산 없음
+  - 팝업 — `components/DripFeedbackPrompt`·`DripFeedbackDialog`(공용 `ConfirmDialog` + 목록, 별 `StarIcon`). 그리기는 MainNavigator — 가입 체험 안내(P11)와 비대칭 순서 규칙(`app/navigation/launch-dialog-gate.ts`)으로 겹치지 않는다. `ConfirmDialog`에 `titleAccessory`(제목 줄 오른쪽 위 [이번 주 그만 보기]) 추가
+  - 보내기 — 매긴 편만 `items` 순서로. 성공·`DRIP_FEEDBACK_NOT_RATEABLE`이면 닫음(토스트 없음), 오프라인이면 미전송 보관 후 닫음, 그 밖 실패는 인라인 에러 + [다시 시도]. 닫기 → `dismiss { placed_date }`(응답 값 그대로), 그만 보기 → `mute` — 둘 다 즉시 닫고 실패는 알리지 않는다(망·5xx면 보관)
+  - 오프라인 큐 — SQLite 큐가 아직 없어 SecureStore 계정별 보관함(`STORAGE_KEYS.LIBRARY_DRIP_FEEDBACK_OUTBOX`)으로 두고 다음 진입·포그라운드 복귀에 재전송(`startDripFeedbackOutboxSync` — bootstrap). NOT_RATEABLE은 버린다
+  - 카피 ko·en — `library.copy.ts` `dripFeedback`(티켓의 안 그대로). **확정 카피·화면 ID는 uiux 개정 대상** — `changes/pending/drip-feedback-popup-fe.md`에 기록
+  - 에러 코드 `DRIP_FEEDBACK_NOT_RATEABLE`을 `shared/api/error-codes.ts`에 추가
+- 완료 조건 대조: 1~7번째(두 편 목록·한 편만 전송·dismiss placed_date·mute 즉시 닫힘·show=false/실패 시 무영향·오프라인 재전송/NOT_RATEABLE 버림·영어 카피)는 jest로 확인(`DripFeedbackPrompt.test.tsx` · `drip-feedback.service.test.ts` · `drip-feedback.api.test.ts` · `library.copy.en.test.ts` · `launch-dialog-gate.test.ts`). **8번째(개발계 실제 계정으로 팝업이 뜨고 어드민 "추천 검증" 평가 수에 반영)는 미확인(사람 손)** — dev 머지 OTA를 받은 preview 앱에서 대상 계정(개발계 18명 중 3명)으로 확인이 필요하다. "재진입해도 뜨지 않는다(서버 show=false)"의 서버 쪽도 같은 실기기 확인에 포함된다.

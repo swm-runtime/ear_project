@@ -18,8 +18,10 @@ import {
   fetchLibraryItems,
   libraryKeys,
   prefetchLibraryFirstPage,
+  resetDripFeedbackSession,
   restoreLibraryItem,
   saveQueueOrder,
+  startDripFeedbackOutboxSync,
   useLibraryArrivalStore,
 } from '@/features/library';
 import {
@@ -185,6 +187,14 @@ export const bootstrapApp = (): void => {
   startDeviceSync(isSignedIn);
 
   /*
+   * 추천 별점 팝업의 미전송 보관함(KAN-224) — 포그라운드 복귀마다 다시 보낸다. 보관함이 계정별이라 지금 계정 id 를 주입한다
+   * (진입 때의 재전송은 라이브러리가 판정 조회 직전에 한다)
+   */
+  startDripFeedbackOutboxSync(() =>
+    isSignedIn() ? (useSessionStore.getState().user?.id ?? null) : null,
+  );
+
+  /*
    * 구독 동기화(subscription.md 4.3 · KAN-120) — 포그라운드 복귀마다 미완료 거래 제출 + 구독 상태 재조회.
    * 구독 UI 가 꺼진 바이너리(플래그·결제 모듈·플랫폼)에서는 아무것도 하지 않는다 — 결제 모듈을 부르지 않는다.
    */
@@ -243,6 +253,8 @@ export const bootstrapApp = (): void => {
       // 앞 사용자의 알림 목적지·새 도착 배지를 다음 사용자에게 넘기지 않는다
       clearPushState();
       useLibraryArrivalStore.getState().reset();
+      // 추천 별점 팝업은 계정마다 이번 세션에 한 번 — 다음 계정은 새로 묻는다
+      resetDripFeedbackSession();
       resetDeviceSync();
       // 반영이 미뤄진 거래의 재시도를 멈춘다 — 다음 계정의 세션으로 앞 사용자의 거래를 제출하지 않는다
       stopSubscriptionSync();

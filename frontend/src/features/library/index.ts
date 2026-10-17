@@ -16,6 +16,17 @@ export { libraryKeys } from './api/library.api';
 export { completeLibraryItem, deleteLibraryItem, restoreLibraryItem } from './api/library.api';
 /** 재생 목록 패널 — player가 브리지로 주입받는 목록의 원천(architecture.md 4.3 의존 역전) */
 export { fetchLibraryItems, saveQueueOrder } from './api/library.api';
+/**
+ * 추천 별점 팝업(KAN-224) — 조회는 라이브러리 진입 때 이 feature 가 하고, 그리기는 다른 앱 시작 팝업과 순서를 맞추려고
+ * MainNavigator 가 한다(가입 체험 안내와 같은 자리). 떠 있는지(`selectIsDripFeedbackVisible`)로 가입 체험 안내가 뒤로 선다.
+ * 미전송 보관함 재전송·세션 초기화는 app/bootstrap 이 포그라운드 복귀·로그아웃에 건다
+ */
+export { default as DripFeedbackPrompt } from './components/DripFeedbackPrompt';
+export { selectIsDripFeedbackVisible, useDripFeedbackStore } from './store/drip-feedback.store';
+export {
+  resetDripFeedbackSession,
+  startDripFeedbackOutboxSync,
+} from './services/drip-feedback.service';
 /** 스플래시 동안 첫 화면을 미리 받는다 — app/bootstrap이 로그인 완료 시점에 부른다 */
 export { prefetchLibraryFirstPage } from './hooks/useLibraryItemsQuery';
 export type { LibraryFilter, LibraryItem, LibraryItemStatus, LibrarySource } from './library.types';
