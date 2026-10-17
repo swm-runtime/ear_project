@@ -32,12 +32,13 @@ export type DailyMetrics = {
     plays: number;
     listenSec: number;
   }[];
-  /** 사용자 — GA4 운영 스트림 */
+  /**
+   * 사용자 — GA4 운영 스트림. **신규(`newUsers`)는 싣지 않는다**(2026-10-17) — 앱 첫 실행 수라 "몇 명이 가입했나"와 다르고,
+   * 가입은 가입자 줄(서버)이 정확히 센다. 두 숫자가 나란히 있으면 어느 쪽이 가입인지 헷갈렸다
+   */
   users: {
     active: number;
     activePrev: number;
-    new: number;
-    newPrev: number;
     sessions: number;
     avgSessionSec: number;
     active7d: number;
@@ -134,7 +135,7 @@ export function formatDailyMetrics(
           `${MARKET_LABEL[x.market]} ${n(x.listeners)}명 · 재생 ${n(x.plays)} · ${formatListenTime(x.listenSec)}`,
       )
       .join('  ·  ')}`,
-    `*사용자*   활성 ${n(u.active)}${delta(u.active, u.activePrev)}  ·  신규 ${n(u.new)}${delta(u.new, u.newPrev)}  ·  세션 ${n(u.sessions)} (평균 ${formatDuration(u.avgSessionSec)})  ·  7일 활성 ${n(u.active7d)}`,
+    `*사용자*   활성 ${n(u.active)}${delta(u.active, u.activePrev)}  ·  세션 ${n(u.sessions)} (평균 ${formatDuration(u.avgSessionSec)})  ·  7일 활성 ${n(u.active7d)}`,
     `*획득*     가입 ${n(a.signUps)} → 온보딩 완료 ${n(a.onboardingCompletes)}${ratio(a.onboardingCompletes, a.signUps)}  ·  푸시 응답 ${n(a.pushResponses)}`,
     `*재생*     시작 ${n(p.playStarts)} (${n(p.playStartUsers)}명)  ·  완청 ${n(p.completes)}  ·  중도 이탈 ${n(p.abandons)}  ·  드립 재생 ${n(p.dripPlays)}  ·  담기 ${n(p.saves)}`,
     `*리텐션*   D1 ${formatRetention(m.retention.d1)}  ·  D7 ${formatRetention(m.retention.d7)}`,

@@ -35,8 +35,6 @@ const base: DailyMetrics = {
   users: {
     active: 1234,
     activePrev: 1200,
-    new: 56,
-    newPrev: 60,
     sessions: 1500,
     avgSessionSec: 116.08,
     active7d: 4000,
@@ -97,9 +95,22 @@ describe('formatDailyMetrics', () => {
   });
 
   it('전일 대비 방향을 붙인다 — 오르면 ▲, 내리면 ▼', () => {
-    const text = formatDailyMetrics(base);
-    expect(text).toContain('활성 1,234 (▲34)');
-    expect(text).toContain('신규 56 (▼4)');
+    expect(formatDailyMetrics(base)).toContain('활성 1,234 (▲34)');
+    expect(
+      formatDailyMetrics({
+        ...base,
+        users: { ...base.users, active: 1100 },
+      }),
+    ).toContain('활성 1,100 (▼100)');
+  });
+
+  it('사용자 줄에 신규(GA4 첫 실행)를 싣지 않는다 — 가입은 가입자 줄(서버)이 센다', () => {
+    const line = formatDailyMetrics(base)
+      .split('\n')
+      .find((l) => l.startsWith('*사용자*'));
+    expect(line).toBe(
+      '*사용자*   활성 1,234 (▲34)  ·  세션 1,500 (평균 1분 56초)  ·  7일 활성 4,000',
+    );
   });
 
   it('가입 → 온보딩 완료 전환율을 적고, 가입이 0 이면 비율을 생략한다', () => {
