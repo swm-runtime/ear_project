@@ -192,39 +192,61 @@ describe('reportDate', () => {
 });
 
 describe('formatChurnReport', () => {
+  const KR = UserMarket.KR;
   const churn = {
     date: '2026-09-28',
     withdrawals: [
-      { reasonCode: 'price', count: 1 },
-      { reasonCode: null, count: 1 },
-      { reasonCode: 'low_usage', count: 2 },
-      { reasonCode: 'content_quailty', count: 1 },
+      { market: KR, reasonCode: 'price', count: 1 },
+      { market: KR, reasonCode: null, count: 1 },
+      { market: KR, reasonCode: 'low_usage', count: 2 },
+      { market: KR, reasonCode: 'content_quailty', count: 1 },
     ],
     appRemoves: 4,
   };
 
-  it('제목·탈퇴 합계·앱 삭제(Android) 순서다 — 지표 보고와 같은 날짜·요일', () => {
+  it('제목·탈퇴 합계(시장별 괄호)·앱 삭제(Android) 순서다 — 지표 보고와 같은 날짜·요일', () => {
     const lines = formatChurnReport(churn).split('\n');
     expect(lines[0]).toContain('*2026-09-28 (월) 이어 이탈*');
-    expect(lines[1]).toBe('*탈퇴*      5명');
+    expect(lines[1]).toBe('*탈퇴*      5명 (KR 5 · GLOBAL 0)');
     expect(lines.at(-2)).toBe('*앱 삭제*  Android 4');
   });
 
-  it('사유는 건수 많은 순, 같으면 화면 순서, 사유 미선택은 맨 뒤다', () => {
-    const lines = formatChurnReport(churn).split('\n').slice(2, 6);
+  it('시장 소제목 아래 사유는 건수 많은 순, 같으면 화면 순서, 사유 미선택은 맨 뒤다 — 탈퇴가 없던 시장은 소제목도 없다', () => {
+    const lines = formatChurnReport(churn).split('\n').slice(2, 7);
     expect(lines).toEqual([
+      '  *KR*  5명',
       '    · 들을 시간이 없거나 잘 안 쓰게 됐어요  2',
       '    · 콘텐츠 품질이 기대에 못 미쳤어요  1',
       '    · 구독 가격이 부담됐어요  1',
       '    · 사유 미선택  1',
     ]);
+    expect(formatChurnReport(churn)).not.toContain('*GLOBAL*');
   });
 
-  it('모르는 사유 코드는 원값을 쓴다 — 조용히 비는 것보다 낫다', () => {
+  it('두 시장 모두 탈퇴가 있으면 KR·GLOBAL 순으로 시장마다 사유를 따로 적는다', () => {
+    const lines = formatChurnReport({
+      ...churn,
+      withdrawals: [
+        { market: UserMarket.GLOBAL, reasonCode: 'price', count: 1 },
+        { market: KR, reasonCode: 'low_usage', count: 2 },
+      ],
+    }).split('\n');
+    expect(lines.slice(1, 6)).toEqual([
+      '*탈퇴*      3명 (KR 2 · GLOBAL 1)',
+      '  *KR*  2명',
+      '    · 들을 시간이 없거나 잘 안 쓰게 됐어요  2',
+      '  *GLOBAL*  1명',
+      '    · 구독 가격이 부담됐어요  1',
+    ]);
+  });
+
+  it('모르는 사유 코드는 원값을 쓴다 — 조용히 비는 것보다 낫다(해외 전용 사유가 문구표보다 먼저 생겨도)', () => {
     expect(
       formatChurnReport({
         ...churn,
-        withdrawals: [{ reasonCode: 'new_reason', count: 1 }],
+        withdrawals: [
+          { market: UserMarket.GLOBAL, reasonCode: 'new_reason', count: 1 },
+        ],
       }),
     ).toContain('· new_reason  1');
   });
@@ -236,13 +258,13 @@ describe('formatChurnReport', () => {
       appRemoves: 0,
     });
     expect(text.split('\n')).toHaveLength(4);
-    expect(text).toContain('*탈퇴*      0명');
+    expect(text).toContain('*탈퇴*      0명 (KR 0 · GLOBAL 0)');
     expect(text).toContain('Android 0');
   });
 
   it('각주에 하루 범위와 출처를 적는다 — 탈퇴·앱 삭제 모두 KST 00~24시', () => {
     expect(formatChurnReport(churn)).toContain(
-      '어제 = KST 00~24시 · 탈퇴는 서버 값 · 앱 삭제는 GA4 app_remove 운영 스트림',
+      '어제 = KST 00~24시 · 탈퇴는 서버 값(탈퇴 당시 시장) · 앱 삭제는 GA4 app_remove 운영 스트림',
     );
   });
 
