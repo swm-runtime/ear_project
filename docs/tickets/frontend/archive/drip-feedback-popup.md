@@ -62,7 +62,7 @@
 ## 처리 기록
 
 - 2026-10-16 발행. 서버 노출 규칙 PR #1636(개발계 배포 확인). 개발계에서 팝업 대상인 계정은 18명 중 3명이다(나머지는 안 들은 재고 5편 이상으로 배치 편성이 건너뛰어져 물을 편성분이 없거나, 마지막 편성분이 7일보다 오래됨, 가입 3일 이내).
-- 2026-10-17 반영(FE — KAN-224 PR). 바뀐 것:
+- 2026-10-17 반영(FE — PR #1660). 바뀐 것:
   - API 4종 — `features/library/api/drip-feedback.api.ts`(DTO는 `library.dto.ts`에 api 문서 그대로) · mock 두 응답(`drip-feedback.mock.ts` — 기본 `show=true` 2편, `EXPO_PUBLIC_DRIP_FEEDBACK_MOCK_SCENARIO=hidden`이면 `show=false`)
   - 진입 조회 — 라이브러리 진입 시 `useDripFeedbackEntry` → `services/drip-feedback.service.ts`의 `requestDripFeedbackPrompt`. **한 세션(앱 실행 × 계정)에 한 번**, 실패는 조용히 끝(팝업 없음). 판정은 `show`만 본다 — 기기 시각 계산 없음
   - 팝업 — `components/DripFeedbackPrompt`·`DripFeedbackDialog`(공용 `ConfirmDialog` + 목록, 별 `StarIcon`). 그리기는 MainNavigator — 가입 체험 안내(P11)와 비대칭 순서 규칙(`app/navigation/launch-dialog-gate.ts`)으로 겹치지 않는다. `ConfirmDialog`에 `titleAccessory`(제목 줄 오른쪽 위 [이번 주 그만 보기]) 추가
