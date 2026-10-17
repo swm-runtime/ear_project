@@ -1,5 +1,7 @@
 import type { NavigatorScreenParams } from '@react-navigation/native';
 
+import type { ExploreTabParams } from '@/shared/navigation/to-tab';
+
 import type { AuthStackParamList } from '@/features/auth';
 import type { ContentDetailEntryPoint } from '@/features/content-detail';
 import type { OnboardingStackParamList } from '@/features/onboarding';
@@ -18,8 +20,11 @@ export type ExploreStackParamList = {
 /** 하단 탭 3개 — 라이브러리가 기본이고 설정은 탭이 아니라 프로필 안이다(library.md 2) */
 export type MainTabParamList = {
   Library: undefined;
-  /** JS 탭 바 갈래는 화면 하나(applyTopicId 직접), iOS 26 갈래는 안에 스택(ExploreStackParamList) */
-  Explore: NavigatorScreenParams<ExploreStackParamList> | { applyTopicId?: string } | undefined;
+  /**
+   * JS 탭 바 갈래는 화면 하나(applyTopicId 직접), iOS 26 갈래는 안에 스택(ExploreStackParamList).
+   * searchQuery: 태그 탭 → 검색을 열고 그 질의로 즉시 검색한다(KAN-219, `toTab('Explore', { searchQuery })`)
+   */
+  Explore: NavigatorScreenParams<ExploreStackParamList> | ExploreTabParams | undefined;
   Profile: undefined;
 };
 
@@ -45,11 +50,12 @@ export type MainStackParamList = {
    */
   ContentDetail: { contentId: string; entryPoint: ContentDetailEntryPoint };
   /**
-   * 검색(E6·E7, explore.md 4.5 — MVP 포함 격상 2026-08-23) — 진입점은 탐색 검색창뿐이다.
+   * 검색(E6·E7, explore.md 4.5 — MVP 포함 격상 2026-08-23) — 진입점은 탐색 검색창과 태그 탭(KAN-219)이다.
    * 피드 상태(필터·구간·스크롤)는 스택 아래 Tabs가 유지하고, 검색 상태(검색어·결과)는
    * pop과 함께 버려진다(4.5-1) — 재진입은 검색 초기 화면부터다.
+   * initialQuery: 태그 탭이 넘긴 질의(`#태그`) — 디바운스 없이 즉시 검색하고 최근 검색어에 저장한다
    */
-  ExploreSearch: undefined;
+  ExploreSearch: { initialQuery?: string } | undefined;
   /** 설정(settings.md) — 진입점은 프로필 우상단 아이콘뿐이다 */
   Settings: undefined;
   /** 요금제 관리(subscription.md · KAN-120) — 설정 "요금제 관리" 카드·프로필 [구독 알아보기]의 목적지 */

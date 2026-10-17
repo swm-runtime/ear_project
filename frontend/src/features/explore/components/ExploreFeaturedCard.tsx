@@ -22,6 +22,11 @@ interface ExploreFeaturedCardProps {
   /** 카드 본문 탭 = 곧장 재생 판정. 상세 화면을 끼우지 않는다(explore-uiux.md 4.1) */
   onPress: (item: ExploreItem) => void;
   onMorePress: (item: ExploreItem) => void;
+  /**
+   * 하단 줄 해시태그 탭 → `#태그` 검색(KAN-219, explore-uiux.md 4.1). 태그 글자만 따로 눌린다 — 카드 본문(재생)과 겹치지
+   * 않는 하단 줄에 있다. 콘텐츠 태그가 없어 주제 이름으로 대신 적을 때는 태그가 아니라 눌리지 않는다
+   */
+  onTagPress?: (tag: string) => void;
 }
 
 const toMinutes = (durationSec: number): number => Math.max(1, Math.round(durationSec / 60));
@@ -45,6 +50,8 @@ const BACKDROP_BLUR_RADIUS = 36;
 const BACKDROP_SCRIM = 'rgba(23, 23, 26, 0.45)';
 const ON_ART_TEXT = '#FFFFFF';
 const ON_ART_TEXT_SECONDARY = 'rgba(255, 255, 255, 0.72)';
+/** 태그 글자를 누르는 동안 — iOS 시스템 글자 버튼의 눌림(옅어짐)과 같은 처리 */
+const TAG_PRESSED_OPACITY = 0.5;
 
 /**
  * 인기 섹션의 큰 카드 — 가로 캐러셀의 항목이다.
@@ -56,11 +63,13 @@ export default function ExploreFeaturedCard({
   topicNames = [],
   onPress,
   onMorePress,
+  onTagPress,
 }: ExploreFeaturedCardProps) {
   const { width } = useWindowDimensions();
   const cardWidth = featuredCardWidth(width);
   const isCompleted = item.library?.status === 'completed';
   const minutes = toMinutes(item.content.durationSec);
+  const tags = item.content.tags.slice(0, MAX_TOPIC_TAGS);
 
   return (
     <View style={[styles.card, { width: cardWidth }]}>
@@ -134,13 +143,39 @@ export default function ExploreFeaturedCard({
           콘텐츠 해시태그가 있으면 그것을(KAN-163 — 타일과 같은 줄), 아직 없는 콘텐츠(소급 전)는 종전대로 주제 이름을 쓴다.
           '#'이 둘을 가리키는 기간은 태그 소급이 끝나면 사라진다
         */}
-        <Text style={styles.meta} numberOfLines={1}>
-          {item.content.tags.length > 0
-            ? EXPLORE_COPY.row.metaWithTags(item.content.tags.slice(0, MAX_TOPIC_TAGS), minutes)
-            : topicNames.length > 0
-              ? `${EXPLORE_COPY.row.hashtags(topicNames.slice(0, MAX_TOPIC_TAGS))} · ${EXPLORE_COPY.row.durationLabel(minutes)}`
-              : EXPLORE_COPY.row.durationLabel(minutes)}
-        </Text>
+        {tags.length > 0 && onTagPress ? (
+          /*
+           * 태그는 글자마다 따로 눌리는 버튼이다(KAN-219) — 높이는 하단 줄(더보기 44)이, 폭은 최소 44 가 채운다. 버튼끼리 붙어
+           * 있어 히트 영역이 겹치지 않는다(hitSlop 을 쓰지 않는 이유). 글자가 자기 Pressable 안에만 있어 Android 의 Text
+           * pointerEvents 무시와 무관하다(형제 Pressable 위에 겹친 글자가 없다)
+           */
+          <View style={styles.metaRow}>
+            {tags.map((tag) => (
+              <Pressable
+                key={tag}
+                onPress={() => onTagPress(tag)}
+                style={({ pressed }) => [styles.tagButton, pressed ? styles.tagPressed : null]}
+                accessibilityRole="button"
+                accessibilityLabel={EXPLORE_COPY.row.hashtagSearchA11y(tag)}
+              >
+                <Text style={styles.metaText} numberOfLines={1}>
+                  {EXPLORE_COPY.row.hashtag(tag)}
+                </Text>
+              </Pressable>
+            ))}
+            <Text style={styles.durationText} numberOfLines={1}>
+              {EXPLORE_COPY.row.durationAfterTags(minutes)}
+            </Text>
+          </View>
+        ) : (
+          <Text style={styles.meta} numberOfLines={1}>
+            {tags.length > 0
+              ? EXPLORE_COPY.row.metaWithTags(tags, minutes)
+              : topicNames.length > 0
+                ? `${EXPLORE_COPY.row.hashtags(topicNames.slice(0, MAX_TOPIC_TAGS))} · ${EXPLORE_COPY.row.durationLabel(minutes)}`
+                : EXPLORE_COPY.row.durationLabel(minutes)}
+          </Text>
+        )}
         <Pressable
           style={styles.moreButton}
           onPress={() => onMorePress(item)}
@@ -218,6 +253,38 @@ const styles = StyleSheet.create({
   /** 저자 · 길이 — 정보지 버튼 성분이 아니라 보조 글자. 더보기 점을 오른쪽 끝으로 민다 */
   meta: {
     flex: 1,
+    fontSize: theme.font.size.sm,
+    color: ON_ART_TEXT_SECONDARY,
+  },
+  /** 태그 버튼 + 길이 — 더보기 점을 오른쪽 끝으로 민다. 넘치면 태그 글자가 말줄임으로 줄어든다 */
+  metaRow: {
+    flex: 1,
+    // 첫 태그 버튼의 왼쪽 여백만큼 당겨 글자 시작선을 제목 시작선에 맞춘다
+    marginLeft: -theme.spacing.xs,
+    flexDirection: 'row',
+    alignItems: 'center',
+    overflow: 'hidden',
+  },
+  /*
+   * 글자 버튼 — 터치 44×44(design.md §6). 보이는 글자는 그대로 두고 상자만 키운다. 좌우 여백 xs 가 태그 사이 간격이 된다
+   */
+  tagButton: {
+    flexShrink: 1,
+    minWidth: theme.touchTarget.minWidth,
+    minHeight: theme.touchTarget.minHeight,
+    paddingHorizontal: theme.spacing.xs,
+    justifyContent: 'center',
+  },
+  tagPressed: {
+    opacity: TAG_PRESSED_OPACITY,
+  },
+  metaText: {
+    fontSize: theme.font.size.sm,
+    color: ON_ART_TEXT_SECONDARY,
+  },
+  durationText: {
+    flexShrink: 0,
+    paddingLeft: theme.spacing.xs,
     fontSize: theme.font.size.sm,
     color: ON_ART_TEXT_SECONDARY,
   },

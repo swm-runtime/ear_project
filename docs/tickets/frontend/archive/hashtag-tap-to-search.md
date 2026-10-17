@@ -13,7 +13,8 @@
 | 선행 | BE `search-hashtag-matching.md`([KAN-218](https://runtime364.atlassian.net/browse/KAN-218) — 검색이 `tags`도 매칭, `#` 접두 = 태그 전용 모드). mock으로 선행 개발 가능, 실기기 확인은 BE 개발계 배포 뒤 |
 | 근거 문서 | `features/explore.md` 4.5-1(진입·이탈)·4.5-2(질의 규칙)·4.5-4(최근 검색어) · `spec/api/explore-api.md` 4.5 · FE `archive/content-hashtags-display.md`(KAN-163 — "탭 동작: 표시만… 필요하면 별도 티켓") |
 | 중요도 | Medium |
-| 상태 | 대기 |
+| 상태 | 완료 |
+| 반영 날짜 | 2026-10-17 |
 
 ## 배경
 
@@ -42,3 +43,11 @@ KAN-163(2026-10-09)에서 카드·상세 헤더의 `#태그`는 **표시만**으
 ## 처리 기록
 
 - 2026-10-16 발행(마크다운 + Jira KAN-219). 선행 BE KAN-218(`is blocked by`).
+- 2026-10-17 반영 — PR #__PR__(`feat(fe)/kan-219-hashtag-search` → dev). 선행 BE KAN-218 완료·개발계 배포 확인 후 처리. 착수·완료 전 Jira 댓글 재확인(없음).
+  - **태그 탭 → 검색**: 인기 대표 카드(콘텐츠 해시태그만 — 주제 이름 대체 표기는 태그가 아니라 제외)·콘텐츠 상세 헤더의 `#태그`를 글자마다 버튼(44×44, 눌림 옅어짐)으로. 탭하면 탐색 탭의 검색을 열고 `#태그`로 즉시 검색(디바운스 없음)·최근 검색어 저장. 진입 경로는 탭 파라미터 `toTab('Explore', { searchQuery })` → `useExploreSearchRequest` — 제자리 검색 갈래(iOS 26·Android)는 피드 위 검색 덮개에 요청을 넘기고(이미 열려 있으면 새 질의로 재검색), 스택 갈래는 `ExploreSearch { initialQuery }`. 상세는 `toTab` 의 `pop` 으로 걷히고 탐색 탭으로 전환된다.
+  - **검색창 `#` 입력**: `isSearchableQuery` 가 앞의 `#` 하나를 떼고 다시 트림한 값으로 2자·문자 규칙을 잰다(`#`·`#a` 요청 없음). 보내는 질의는 트림만(`#` 유지).
+  - **최근 검색어**: 진입 직후 읽기·저장이 겹쳐도 마지막 작업만 반영(늦은 읽기가 `#태그`를 덮지 않게).
+  - **mock**: `#` 질의 = 태그 정확 일치(NFC·소문자), 일반 질의 = 태그 부분 일치 포함(제목 > 태그 > 저자 > 주제명), `#`·`#a` → 400.
+  - **타일 결정(FE)**: 사각 타일(캐러셀·격자·검색 결과)의 태그는 **탭 동작 없음** — xs 글자 두 개 + 길이가 한 줄이라 44 히트 영역이 서로·제목·카드 탭과 겹치고, 오탭이 재생 판정으로 가는 쪽이 더 비싸다. 입구는 대표 카드·상세로 충분. 근거는 `explore-uiux.md` 4.1.
+  - **문서**: `explore-uiux.md`·`content-detail-uiux.md`·`frontend/design.md` 반영. features·api 의 예고 문장은 `changes/pending/hashtag-tap-to-search(fe).md` 로 기록(통합 시 반영).
+  - **실기기 미확인**: iOS 26 제자리 검색에서의 태그 탭 진입·Android 태그 버튼 탭 영역·라이브러리 탭 상세 → 탐색 전환은 OTA 뒤 실기기 확인 필요.

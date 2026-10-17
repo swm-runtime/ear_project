@@ -51,6 +51,7 @@ import { EXPLORE_COPY } from '../explore.copy';
 import { buildSectionListKey } from '../explore.section-key';
 import type { ExploreItem, ExploreSection } from '../explore.types';
 import { useExploreScreen } from '../hooks/useExploreScreen';
+import type { ExploreSearchRequest } from '../hooks/useExploreSearchRequest';
 
 /**
  * 탐색 탭(E1~E13) — 화면은 뷰만 담당하고 로직은 useExploreScreen이 소유한다.
@@ -62,7 +63,7 @@ import { useExploreScreen } from '../hooks/useExploreScreen';
  * - 그 외 — 떠 있는 유리 머리 줄(FloatingHeader: 검색창 + 링 + 칩)이 목록 위에 뜬다(2026-09-24).
  */
 export default function ExploreScreen() {
-  const screen = useExploreScreen();
+  const screen = useExploreScreen({ isInlineSearch: HAS_NATIVE_TAB_BAR || ANDROID_IOS_HEADER });
   const miniInset = useBottomDockInset();
   // 떠 있는 머리 줄(검색창·칩)의 높이 — 목록이 그만큼 위를 비운다(시스템 바 갈래에서는 0)
   const [headerHeight, setHeaderHeight] = useState(0);
@@ -115,6 +116,20 @@ export default function ExploreScreen() {
   const [isSearching, setIsSearching] = useState(false);
   // 제자리 검색 닫기 요청 — ✕ 는 시스템 바 캡슐에 있고, 덮개가 퇴장 애니메이션 끝에 onExit 로 isSearching 을 끈다
   const [isClosingSearch, setIsClosingSearch] = useState(false);
+  /*
+   * 질의를 넘긴 검색(KAN-219 — 태그 탭) — 새 요청이 오면 제자리 검색을 열고 그 질의를 덮개에 넘긴다. 이미 검색 중이면 덮개가
+   * 새 질의로 다시 검색한다. 렌더 중 상태 조정 패턴(effect 내 setState 금지). 검색창으로 연 검색·닫은 뒤에는 넘기지 않는다
+   */
+  const [inlineSearchRequest, setInlineSearchRequest] = useState<ExploreSearchRequest | null>(null);
+  const [handledSearchRequestId, setHandledSearchRequestId] = useState<number | string | null>(
+    null,
+  );
+  if (screen.searchRequest !== null && screen.searchRequest.id !== handledSearchRequestId) {
+    setHandledSearchRequestId(screen.searchRequest.id);
+    setInlineSearchRequest(screen.searchRequest);
+    setIsSearching(true);
+    setIsClosingSearch(false);
+  }
   // 탭 재선택과 같은 "맨 위로"를 Android 접힘 바 제목 탭도 부른다
   const scrollToTopRef = useRef<(() => void) | null>(null);
   const { solidness, scrollY, scrollProps } = useFloatingHeaderScroll();
@@ -125,6 +140,7 @@ export default function ExploreScreen() {
   });
   const openSearch = () => {
     if (HAS_NATIVE_TAB_BAR || ANDROID_IOS_HEADER) {
+      setInlineSearchRequest(null);
       setIsSearching(true);
     } else {
       screen.openSearch();
@@ -199,16 +215,19 @@ export default function ExploreScreen() {
             : null,
           onExhaustedPress: () => screen.openPaywall('explore'),
           isClosing: isClosingSearch,
+          searchRequest: inlineSearchRequest,
           onRequestClose: () => setIsClosingSearch(true),
           onExit: () => {
             setIsSearching(false);
             setIsClosingSearch(false);
+            setInlineSearchRequest(null);
           },
           onOpenTopic: (topicId) => {
             screen.clearTopicFilter();
             screen.toggleTopic(topicId);
             setIsSearching(false);
             setIsClosingSearch(false);
+            setInlineSearchRequest(null);
           },
         }}
       />
@@ -383,6 +402,7 @@ export default function ExploreScreen() {
                   topicNames={topicNamesOf(item.content.topicIds)}
                   onPress={screen.handleRowPress}
                   onMorePress={screen.openMoreSheet}
+                  onTagPress={screen.openTagSearch}
                 />
               ) : (
                 <ExploreTile

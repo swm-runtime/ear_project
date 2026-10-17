@@ -28,6 +28,11 @@ const ko = {
     deleteA11y: '라이브러리에서 삭제',
   },
 
+  /** 헤더 해시태그(KAN-163) — 글자마다 누르면 탐색 탭에서 `#태그` 검색이 열린다(KAN-219) */
+  hashtag: (tag: string) => `#${tag}`,
+  /** 해시태그 버튼 낭독 — 누르면 무엇을 하는지까지(uiux 7장) */
+  hashtagSearchA11y: (tag: string) => `#${tag} 검색`,
+
   /** 담기 완료 — explore와 같은 구성([보러가기] 포함, 확정 2026-08-23 — uiux 4.3) */
   saveToast: '라이브러리에 담았어요',
   saveToastAction: '보러가기',
@@ -67,6 +72,9 @@ const en: LocalizedCopy<typeof ko> = {
     saveA11y: 'Add to Library',
     deleteA11y: 'Remove from Library',
   },
+
+  hashtag: (tag: string) => `#${tag}`,
+  hashtagSearchA11y: (tag: string) => `Search #${tag}`,
 
   saveToast: 'Added to Library',
   saveToastAction: 'View',
