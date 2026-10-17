@@ -89,7 +89,8 @@ test("설계 산출물(en) — 영어 머리·발췌 언어 열·빈 힌트 등�
   await writeDesignArtifactsEn({ dir, episodeId: "G1", cand: { ...cand, sources: [{ ...cand.sources[0] }] } as never, fetched: fetched as never, o: o as never, chosen: new Set(["S1-01", "S1-02"]), priorNotes: [], attribution: deriveAttribution(o.claims), sectionsOf: new Map([[1, new Set([1])]]), axis: null });
   const claims = await fs.readFile(path.join(dir, "claims.md"), "utf8");
   assert.match(claims, /\| C01 \| Kimjang is making winter kimchi at once\. \| S1-01 \| definition \| #1 \|  \|  \| none \| ko \|/);
-  assert.match(claims, /\| C02 \| .* \| number \| #1 \|  \|  \| attributed \| en \|/);
+  assert.match(claims, /\| C02 \| .* \| number \| #1 \|  \|  \| none \| en \|/); // full-en-v0.12: 수치도 출처를 부르지 않는다 — 의견 claim 만 view
+  assert.match(claims, /Sources are never named in lines/);
   assert.doesNotMatch(claims.replace(/\| [^|]*[가-힣][^|]* \|/g, ""), HANGUL);
   const sources = await fs.readFile(path.join(dir, "sources.md"), "utf8");
   assert.match(sources, /^- Gist: a \/ b \/ c$/m);
@@ -118,11 +119,11 @@ test("글로벌 규칙 자산 — 버전 라벨 full-en-v0.12, 모델에 가는 
   assert.deepEqual(JSON.parse(await fs.readFile(path.join(root, "skills/tts/pronunciation.json"), "utf8")), { annyeonghaseyo: "안녕하세요", gamsahamnida: "감사합니다" }); // 인트로 인사(tpl-en-v2)·끝인사(v3) — 한글로 읽힌다
 });
 
-test("QA(en) — 영어 지시문·스키마, 자산 본문 한글 없음·버전 qa-en-v0.7, 이전 회차 실패는 check 번호로", async () => {
+test("QA(en) — 영어 지시문·스키마, 자산 본문 한글 없음·버전 qa-en-v0.8, 이전 회차 실패는 check 번호로", async () => {
   const { versionOf } = await import("../assets.js");
   const root = path.resolve(import.meta.dirname, "../../../../../docs/ai/global");
   const qa = await fs.readFile(path.join(root, "skills/qa/prompt.md"), "utf8");
-  assert.equal(versionOf("skills/qa/prompt.md", qa), "qa-en-v0.7");
+  assert.equal(versionOf("skills/qa/prompt.md", qa), "qa-en-v0.8");
   const body = P.promptBody(qa);
   assert.doesNotMatch(body, HANGUL);
   assert.doesNotMatch(body, /Change history/); // --- 아래 이력은 모델에 가지 않는다
@@ -139,7 +140,7 @@ test("비평(en) — 루브릭 critic-en 본문 한글 없음, 하위 항목 12�
   const { versionOf } = await import("../assets.js");
   const root = path.resolve(import.meta.dirname, "../../../../../docs/ai/global");
   const rb = await fs.readFile(path.join(root, "skills/critic/rubric-v2.md"), "utf8");
-  assert.equal(versionOf("skills/critic/rubric-v2.md", rb), "critic-en-v0.9");
+  assert.equal(versionOf("skills/critic/rubric-v2.md", rb), "critic-en-v0.10");
   const body = P.promptBody(rb, { dropSections: [/^## 0\./] });
   assert.doesNotMatch(body, HANGUL);
   assert.doesNotMatch(body, /Change history/);
