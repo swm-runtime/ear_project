@@ -37,13 +37,7 @@ const toContentDetail = (dto: ContentDetailResponseDto): ContentDetail => ({
     authorName: dto.content.author_name,
     sourceName: dto.content.source_name,
     sourceUrl: dto.content.source_url,
-    sources: dto.content.sources
-      ? dto.content.sources.map((source) => ({
-          title: source.title,
-          author: source.author,
-          url: source.url,
-        }))
-      : null,
+    // sources는 옮기지 않는다 — 상세가 출처를 그리지 않는다(KAN-221, content-detail.md 4.3)
   },
   libraryItem: dto.library_item
     ? {

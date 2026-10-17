@@ -17,8 +17,8 @@ export interface ContentDetailSeriesDto {
 }
 
 /**
- * ⚠️ 가정 계약 — 백엔드 티켓 미확정(tickets/backend/pending/content-sources-structured-list.md).
- * 티켓 확정 시 content-detail-api.md와 함께 이 DTO를 대조·갱신한다.
+ * 참고 소스 한 건(content-detail-api.md 4.1). 서버는 계속 보내지만 앱은 읽지 않는다 —
+ * 상세 화면에서 출처 영역을 뺐다(KAN-221, 2026-10-17). 응답 모양 기록용으로만 남긴다.
  */
 export interface ContentDetailSourceDto {
   title: string;
@@ -47,8 +47,11 @@ export interface ContentDetailContentDto {
   author_name: string | null;
   source_name: string;
   source_url: string | null;
-  /** ai_generated의 참고 소스 전수(⚠️ 가정 계약). partner는 null(api 9장 제안값) */
-  sources: ContentDetailSourceDto[] | null;
+  /**
+   * ai_generated의 참고 소스 전수. partner는 null(api 9장 제안값).
+   * **앱은 읽지 않는 선택 필드다**(KAN-221) — 서버가 빼거나 바꿔도 화면이 깨지지 않게 optional로 둔다
+   */
+  sources?: ContentDetailSourceDto[] | null;
 }
 
 /** GET /contents/:content_id (content-detail-api.md 4.1) */

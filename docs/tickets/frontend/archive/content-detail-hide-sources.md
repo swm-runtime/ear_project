@@ -13,7 +13,8 @@
 | 선행 | 없음 |
 | 근거 문서 | `features/content-detail.md` 4.2·4.3·4.3-1·완료 조건 · `spec/uiux/content-detail-uiux.md` 4.5·4.6·6장 카피 · `wireframe/content-detail.html` · PRD FR-12 |
 | 중요도 | Medium |
-| 상태 | 대기 |
+| 상태 | 완료 |
+| 반영 날짜 | 2026-10-17 |
 
 ## 문제
 
@@ -47,3 +48,9 @@
 ## 처리 기록
 
 - 2026-10-16 발행.
+- 2026-10-17 반영 — PR(feat(fe)/kan-221-hide-sources → dev). 착수 전 Jira 댓글 없음(티켓 내용 변경 없음).
+  - 코드: `ContentDetailSourceSection.tsx` 삭제, `ContentDetailScreen`에서 출처 영역·메타 아래 구분선 제거(헤더+소개 / 메타 두 영역), `useContentDetailScreen`의 `openSourceLink`·`openSourceItemLink`와 그 import(`Linking`·`sendSourceLinkClick`·`generateId`·`logger`) 제거, `CONTENT_DETAIL_COPY.source`(한국어·영어) 제거, 한국어 카피 스냅숏 갱신.
+  - 데이터: DTO `sources`는 지우지 않고 **읽지 않는 선택 필드**(`sources?:`)로 남겼다. 도메인 타입에서 `sources`·`ContentDetailSource`를 빼고 `toContentDetail`이 옮기지 않는다 — 응답에 있어도·없어도 화면이 같다. `origin`·`authorName`·`sourceName`·`sourceUrl`은 매핑 그대로(플레이어 진입 메타가 `authorName`·`sourceName`을 쓴다). mock은 서버 모양 재현용으로 `sources`를 계속 보낸다.
+  - 문서: `features/content-detail.md`(1장 FR-12 · 4.2 구성 · 4.3 "두지 않는다"로 교체 · 4.3-1 소스 행 삭제 · 5·6·7장 · 완료 조건 · 미결에 파트너 표시 의무 확인 추가), `spec/uiux/content-detail-uiux.md`(4.5·4.6 삭제 → 4.5 제거 기록, 2·3·4.1·5·6·7·8·9장 정리), `wireframe/content-detail.html`(CD1·CD2 출처 블록·주석 6·7·9·11·E 삭제, V4 추가).
+  - 범위 밖으로 남긴 교차 참조(`features/player.md` 103행 · `features/admin.md` 59행 · `backend/domain.md` 5.5 · `spec/api/content-detail-api.md` 4.1)는 `changes/pending/content-detail-sources-hidden-refs.md`로 발행했다.
+  - "확인할 것"(파트너 계약상 화면 표시 의무)은 `features/content-detail.md` 미결로 옮겼다 — 파트너편 유입 시 판단.
