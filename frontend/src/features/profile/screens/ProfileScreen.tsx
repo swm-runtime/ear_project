@@ -120,7 +120,8 @@ export default function ProfileScreen() {
                 두 번 쓰면 어느 쪽이 최신인지 묻게 된다. 프로필 쪽 등록·인증·변경 진입은
                 헤더의 이메일 줄이 갖는다(profile.md 4.3 — 설정 경로와 같은 화면) */}
 
-            {screen.interestCard !== null || screen.careerCard !== null ? (
+            {screen.interestCard !== null ||
+            (screen.isCareerVisible && screen.careerCard !== null) ? (
               <InsetGroup>
                 {screen.interestCard !== null ? (
                   <InterestCard
@@ -130,7 +131,8 @@ export default function ProfileScreen() {
                     isRetrying={screen.isRetrying}
                   />
                 ) : null}
-                {screen.careerCard !== null ? (
+                {/* GLOBAL 시장은 커리어 행을 두지 않는다 — 그룹에는 관심 주제 행 하나만 남는다(profile.md 4.4, PM 확정 2026-10-18) */}
+                {screen.isCareerVisible && screen.careerCard !== null ? (
                   <CareerCard
                     state={screen.careerCard}
                     onPress={screen.openCareer}

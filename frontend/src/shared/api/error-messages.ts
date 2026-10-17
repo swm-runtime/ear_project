@@ -18,7 +18,7 @@ export const ERROR_MESSAGES_EN: Readonly<Record<string, string>> = {
   TOO_MANY_REQUESTS: 'Too many requests. Please try again in a moment.',
   INTERNAL_ERROR: 'Something went wrong. Please try again.',
   EXTERNAL_SERVICE_ERROR: "We couldn't reach a connected service. Please try again.",
-  APP_UPDATE_REQUIRED: 'Please update Ear to the latest version.',
+  APP_UPDATE_REQUIRED: 'Please update Earcast to the latest version.',
   // 9.2 공통 — 콘텐츠 · 9.2-1 시장
   CONTENT_NOT_FOUND: "This episode isn't available.",
   CONTENT_WITHDRAWN: 'This episode is no longer available.',

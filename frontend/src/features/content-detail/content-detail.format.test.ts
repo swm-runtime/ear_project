@@ -21,8 +21,8 @@ describe('content-detail.format', () => {
       expect(formatContentDuration(908)).toBe('15분 08초');
     });
 
-    it('정각이면 "15분 00초"로 표기한다(uiux 9장 확정 전 시안 규칙)', () => {
-      expect(formatContentDuration(900)).toBe('15분 00초');
+    it('정각이면 초를 빼고 "15분"으로 표기한다(PM 확정 2026-10-18)', () => {
+      expect(formatContentDuration(900)).toBe('15분');
     });
 
     it('1분 미만이면 "0분 45초"로 표기한다(uiux 9장 확정 전 시안 규칙)', () => {

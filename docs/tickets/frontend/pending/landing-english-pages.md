@@ -48,3 +48,4 @@
     - 법무 검토 — 영어 약관·처리방침(#1584)·계정 삭제 번역. 검토가 끝나면 `indexable: true`로 색인·사이트맵에 넣는다.
     - 운영 반영 — 랜딩 운영은 main을 따른다(dev → main PR). 그 뒤 완료 조건 2(영어 URL 200 응답) 확인.
     - 사람 손 — 글로벌 스토어 리스팅의 지원 URL `https://earcast.co.kr/en/`, 개인정보 URL `https://earcast.co.kr/en/privacy/`, Google Play 계정 삭제 URL `https://earcast.co.kr/en/account-deletion/` 입력.
+- 2026-10-18 영어 앱 이름 **Earcast** 로 PM 확정(KAN-198 — 종전 임시값 `Ear`). 앱은 PR `feat(fe)/release-1-3-0` 에서 반영했고, **랜딩은 아직 `Ear` 다** — `src/content/en/site.ts` `enSite.name` · `routes.ts` 제목·설명 · `legal-en.ts` 본문의 "Ear" 별칭 · `scripts/og-pages.mjs` 영어 워드마크. 랜딩 릴리즈(dev→main)와 함께 바꾼다.

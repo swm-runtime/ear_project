@@ -5,15 +5,15 @@ import type { ContentDetailSeries } from './content-detail.types';
 
 /** 상세 화면의 길이·발행일·시리즈 표기(KAN-194) */
 const ko = {
+  // 초가 0 이면 "15분" — "15분 00초"로 적지 않는다(PM 확정 2026-10-18). 초가 있으면 두 자리 패딩 "12분 34초"·"15분 08초"
   duration: (minutes: number, seconds: number) =>
-    `${minutes}분 ${String(seconds).padStart(2, '0')}초`,
+    seconds === 0 ? `${minutes}분` : `${minutes}분 ${String(seconds).padStart(2, '0')}초`,
   publishedDate: (year: number, month: number, day: number) =>
     formatFullDate({ year, month, day }, 'ko'),
   series: (totalEpisodes: number, episodeNo: number) => `${totalEpisodes}부작 중 ${episodeNo}화`,
 } as const;
 const en: LocalizedCopy<typeof ko> = {
-  // 초가 0 이면 "5 min" — "5 min 0 sec" 는 영어로 어색하다(2026-10-18 영어 QA). 한국어 "M분 SS초"(정각 "15분 00초")는
-  // uiux 9장 시안 규칙이라 그대로 둔다
+  // 초가 0 이면 "5 min" — "5 min 0 sec" 는 영어로 어색하다(2026-10-18 영어 QA). 한국어도 같은 규칙이다(정각 "15분", PM 확정 2026-10-18)
   duration: (minutes: number, seconds: number) =>
     seconds === 0 ? `${minutes} min` : `${minutes} min ${seconds} sec`,
   /** `Intl` — 기기 로캘 순서(en-US "Oct 15, 2026" · en-GB "15 Oct 2026", KAN-197) */
@@ -25,8 +25,8 @@ const COPY = localized({ ko, en });
 
 /**
  * 오디오 길이 "N분 N초" — 초 단위까지 표기한다(content-detail.md 4.2, 확정 2026-08-23).
- * 목록 행의 분 단위와 달리 상세는 정확한 값을 보여주는 자리다. 초 자릿수·1분 미만·정각
- * 표기는 uiux 9장 미결 — 확정 전에는 시안(두 자리 패딩 "M분 SS초")을 따른다.
+ * 목록 행의 분 단위와 달리 상세는 정확한 값을 보여주는 자리다. 초는 두 자리 패딩("15분 08초"),
+ * **정각은 초를 빼고 "15분"**(PM 확정 2026-10-18 — content-detail-uiux.md 4.4). 1분 미만은 시안("0분 45초")을 따른다.
  */
 export const formatContentDuration = (durationSec: number): string => {
   const safeSec = Math.max(0, Math.floor(durationSec));

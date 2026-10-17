@@ -29,7 +29,7 @@ const en: LocalizedCopy<typeof ko> = {
   },
   recommend: {
     title: 'A new version is available',
-    body: 'Update to get the latest improvements to Ear',
+    body: 'Update to get the latest improvements to Earcast',
     later: 'Not now',
     action: 'Update',
   },

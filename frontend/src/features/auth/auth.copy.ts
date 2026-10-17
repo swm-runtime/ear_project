@@ -256,7 +256,7 @@ const ko = {
 
 const en: LocalizedCopy<typeof ko> = {
   start: {
-    appName: 'Ear',
+    appName: 'Earcast',
     tagline: 'Lend us your ear',
     description: 'Your own podcast, delivered for every commute',
     termsLink: 'Terms of Use',

@@ -177,7 +177,10 @@ export default function SettingsScreen() {
               }
               onPress={screen.openInterests}
             />
-            <SettingsRow label={SETTINGS_COPY.content.career} onPress={screen.openCareer} />
+            {/* GLOBAL 시장은 커리어 정보 행을 두지 않는다(settings.md 3장, PM 확정 2026-10-18) */}
+            {screen.isCareerVisible ? (
+              <SettingsRow label={SETTINGS_COPY.content.career} onPress={screen.openCareer} />
+            ) : null}
             {/* 이벤트(초대) 코드 입력(KAN-182) — 결제 UI 플래그와 무관하게 항상 있다. 지급은 스토어 결제가 아니다 */}
             <SettingsRow label={SETTINGS_COPY.content.inviteCode} onPress={screen.openInviteCode} />
             {/* 주제 자동 확장 토글(FR-06, KAN-181) — 즉시 저장(settings-api.md 4.2). 조회 값이 기준이라 실패 시 비활성 */}

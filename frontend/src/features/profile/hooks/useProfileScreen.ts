@@ -3,9 +3,10 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useCallback, useMemo, useRef, useState } from 'react';
 import { Linking } from 'react-native';
 
-
 import { logger } from '@/shared/lib/logger';
 
+import { selectMarket, useSessionStore } from '@/features/auth';
+import { isCareerEntryVisible } from '@/features/career';
 import { KAKAO_CHANNEL_URL } from '@/features/settings';
 import { formatPlanGrantLine } from '@/features/subscription';
 
@@ -131,6 +132,8 @@ export const useProfileScreen = () => {
 
   const summary = query.data;
   const isFullError = query.isError;
+  /** [커리어 정보] 행 노출 — GLOBAL 시장 계정에는 두지 않는다(profile.md 4.4, PM 확정 2026-10-18). 시장은 서버가 정한 세션 값 */
+  const isCareerVisible = isCareerEntryVisible(useSessionStore(selectMarket));
 
   const hasFailed = useCallback(
     (section: ProfileFailedSection): boolean => summary?.failedSections.includes(section) ?? false,
@@ -228,6 +231,7 @@ export const useProfileScreen = () => {
     planCard,
     interestCard,
     careerCard,
+    isCareerVisible,
     stats,
     weekly,
     retry,
