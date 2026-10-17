@@ -19,13 +19,13 @@ Score the script as it is. Score each item on its own. An ordinary episode gets 
 | 4–6 | One source summarized after another. Correct but empty, or facts about the topic that never answer its question. |
 | 0–3 | A list of what things are. No question holds it. |
 
-**3.2 Argument and support (8)** — Is each claim carried by support (what a study did, a case, a number), with the leading source introduced once and limits stated where the sources state them?
+**3.2 Argument and support (8)** — Is each claim carried by support (what a study did, a case, a number), told directly with no source names, and limits stated where the sources state them?
 
 | Band | Definition |
 |---|---|
-| 7–8 | Varied support. The leading source is introduced once and then explained directly. Limits the sources state are said once, where they apply. |
-| 5–6 | Support of one kind, or an introduction that sounds mechanical, or attribution on almost every sentence after the introduction. |
-| 3–4 | Loose link between claims and support, or a leading source with no introduction. |
+| 7–8 | Varied support told directly with no source names. Opinions are marked as views. Limits the sources state are said once, where they apply. |
+| 5–6 | Support of one kind, or a source named in a line. |
+| 3–4 | Loose link between claims and support, or sources named in most sections. |
 | 0–2 | Bare assertion, logical jumps. |
 
 **3.3 Variety in practice (4)** — Does the episode show that the practice is not one fixed picture: how it differs by region, generation, family, or setting, or where people in Korea disagree when the sources say so?
@@ -105,7 +105,7 @@ Score the script as it is. Score each item on its own. An ordinary episode gets 
 | Band | Definition |
 |---|---|
 | 5 | Two distinct people, no role crossing. |
-| 3–4 | Mostly kept; one or two turns blur. The explainer never speaks as an insider (an everyday practice, the Korean name people use, how people around them do it), or the host's non-question turns repeat one reaction form: at most 3. |
+| 3–4 | Mostly kept; one or two turns blur. The explainer never speaks as an insider (an everyday practice, the Korean name people use, how people around them do it), or the host's non-question turns repeat one reaction form: at most 3. An explainer who tells most sections through what a source says is not speaking as an insider. |
 | 1–2 | The two sound like one person. |
 | 0 | Roles collapse. |
 
