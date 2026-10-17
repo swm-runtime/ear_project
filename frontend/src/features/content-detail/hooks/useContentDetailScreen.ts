@@ -10,6 +10,7 @@ import { useDelayedVisible } from '@/shared/hooks/useDelayedVisible';
 import { toTab } from '@/shared/navigation/to-tab';
 import { useToastStore } from '@/shared/ui/toast.store';
 
+import { toTagQuery } from '@/features/explore';
 import { libraryKeys } from '@/features/library';
 import { usePlaybackStore, usePlayGate } from '@/features/player';
 import { shareContent } from '@/features/share';
@@ -67,6 +68,15 @@ export const useContentDetailScreen = () => {
 
   const goToLibrary = () => {
     navigation.navigate('Main', toTab('Library'));
+  };
+
+  /**
+   * 헤더 해시태그 탭 → 탐색 탭의 검색을 열고 `#태그`로 즉시 검색한다(KAN-219, content-detail-uiux.md 4.1). 이 화면이
+   * 어느 탭 위에 있든(라이브러리·탐색·플레이어에서 연 상세) toTab 이 상세를 걷고 탐색 탭으로 돌아간다 — 검색을 여는 것은
+   * 탐색 화면(파라미터 수신)이다. 피드 상태는 그대로다(explore.md 4.5-1)
+   */
+  const openTagSearch = (tag: string) => {
+    navigation.navigate('Main', toTab('Explore', { searchQuery: toTagQuery(tag) }));
   };
 
   /* ── 회수·404 — 상세를 그리지 않고 안내 후 원 화면 복귀(content-detail.md 4.1·7장, CD4) ── */
@@ -248,6 +258,8 @@ export const useContentDetailScreen = () => {
 
   return {
     detail,
+    // 헤더 해시태그 → 탐색 검색(KAN-219)
+    openTagSearch,
     // 로딩·오류(CD3) — 앱바는 화면이 먼저 그린다(uiux 4.7)
     isInitialLoading,
     showSkeleton,

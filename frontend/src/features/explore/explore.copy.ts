@@ -83,6 +83,12 @@ const ko = {
     /** 카드 하단 줄 — 해시태그가 있으면 `#태그 #태그 · N분`, 없으면 `N분` */
     metaWithTags: (tags: string[], minutes: number) =>
       tags.length > 0 ? `${tags.map((tag) => `#${tag}`).join(' ')} · ${minutes}분` : `${minutes}분`,
+    /** 해시태그 한 개 — 대표 카드에서는 이 글자가 검색 버튼이다(KAN-219) */
+    hashtag: (tag: string) => `#${tag}`,
+    /** 해시태그 버튼 낭독 — 누르면 무엇을 하는지까지(uiux 7) */
+    hashtagSearchA11y: (tag: string) => `#${tag} 검색`,
+    /** 대표 카드 하단 줄의 길이 — 태그 버튼 뒤에 붙는다 */
+    durationAfterTags: (minutes: number) => `· ${minutes}분`,
     moreA11y: '더보기, 담기·제거',
     /** 완청 체크는 색이 아니라 형태 단서 + 스크린리더 텍스트로 전달한다(library 카드와 동일) */
     completedA11y: '완청한 콘텐츠',
@@ -171,6 +177,9 @@ const en: LocalizedCopy<typeof ko> = {
       tags.length > 0
         ? `${tags.map((tag) => `#${tag}`).join(' ')} · ${minutes} min`
         : `${minutes} min`,
+    hashtag: (tag: string) => `#${tag}`,
+    hashtagSearchA11y: (tag: string) => `Search #${tag}`,
+    durationAfterTags: (minutes: number) => `· ${minutes} min`,
     moreA11y: 'More, add or remove',
     completedA11y: 'Played',
     a11yLabel: (parts: { title: string; minutes: number; completed: boolean }) =>

@@ -26,6 +26,7 @@ import { useDeferredSheetShare } from '@/features/share';
 
 import { exploreKeys } from '../api/explore.api';
 import { EXPLORE_COPY } from '../explore.copy';
+import { toTagQuery } from '../explore.search-query';
 import type {
   ExploreContentsPage,
   ExploreFeed,
@@ -37,6 +38,7 @@ import type {
 import { useExploreContentsQuery } from './useExploreContentsQuery';
 import { useExploreFeedQuery } from './useExploreFeedQuery';
 import { explorePopularQueryOptions, useExplorePopularQuery } from './useExplorePopularQuery';
+import { useExploreSearchRequest } from './useExploreSearchRequest';
 import { useExploreTopicsQuery } from './useExploreTopicsQuery';
 import { useSaveContentMutation } from './useSaveContentMutation';
 import { useUnsaveContentMutation } from './useUnsaveContentMutation';
@@ -66,7 +68,12 @@ const isNetworkError = (error: unknown): boolean =>
   isApiError(error) &&
   (error.errorCode === ERROR_CODES.NETWORK_ERROR || error.errorCode === ERROR_CODES.TIMEOUT);
 
-export const useExploreScreen = () => {
+export const useExploreScreen = ({
+  isInlineSearch,
+}: {
+  /** 제자리 검색 갈래(iOS 26·Android)인가 — 화면이 정한다. 질의를 넘긴 검색(태그 탭)을 어디서 열지 가른다 */
+  isInlineSearch: boolean;
+}) => {
   const navigation = useNavigation();
   const queryClient = useQueryClient();
   const showToast = useToastStore((s) => s.show);
@@ -93,6 +100,13 @@ export const useExploreScreen = () => {
     if (applyTopicId === undefined) return;
     tabNavigation.setParams({ applyTopicId: undefined });
   }, [applyTopicId, tabNavigation]);
+
+  /* ── 질의를 넘긴 검색(KAN-219 — 태그 탭 → `#태그` 즉시 검색). 다른 화면은 탭 파라미터, 이 화면은 openTagSearch ── */
+  const { request: searchRequest, requestSearch } = useExploreSearchRequest({
+    isInline: isInlineSearch,
+  });
+  /** 인기 대표 카드의 태그 탭 — 카드 재생 판정이 아니라 `#태그` 검색을 연다(explore-uiux.md 4.1) */
+  const openTagSearch = (tag: string) => requestSearch(toTagQuery(tag));
 
   /* ── 인기 구간 상태(E13) — 화면 상태이지 사용자 상태가 아니다. 서버에 저장하지 않는다(explore.md 4.1-1).
      null이면 사용자가 아직 고르지 않은 상태 — 선택 표시는 피드 응답의 period가 정한다.
@@ -620,8 +634,10 @@ export const useExploreScreen = () => {
     isFetchingPopularNextPage: popularQuery.isFetchingNextPage,
     isPopularLoadMoreFailed,
     retryPopularLoadMore: () => void popularQuery.fetchNextPage(),
-    // 검색 진입(E6)
+    // 검색 진입(E6) — 검색창 탭 · 태그 탭(질의를 넘긴 검색, 제자리 갈래는 searchRequest 로 화면이 연다)
     openSearch,
+    openTagSearch,
+    searchRequest,
     // 잔여 표시·페이월
     remainingDisplay,
     openPaywall: playGate.openPaywall,

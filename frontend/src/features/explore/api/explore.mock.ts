@@ -10,7 +10,8 @@
  * 시나리오 전환(EXPO_PUBLIC_EXPLORE_MOCK_SCENARIO):
  * - (기본)         섹션 4개(관심사·신규·인기·주제별) — 담김·회수·필터·페이지네이션 검증
  *                  검색(4.5)도 이 풀에서 매칭한다 — "이야기"(25건)로 커서 추가 로딩,
- *                  "없는말"로 빈 결과(E7 fallback), "저자 1"로 저자 매칭 검증
+ *                  "없는말"로 빈 결과(E7 fallback), "저자 1"로 저자 매칭 검증,
+ *                  "#뱅크런"으로 태그 전용 검색(정확 일치), "#뱅크"로 태그 전용 빈 결과, "뱅크"로 태그 부분 일치 검증(KAN-219)
  * - empty          콘텐츠 풀 0건 — E8(피드 비어 있음) 검증
  * - popular-error  인기 구간 전환 실패 — E13 인라인 에러 + [다시 시도] 검증(피드는 정상)
  * - search-error   검색 실패 — 직전 결과 유지 + 상단 배너 검증(피드·초기 화면은 정상)
@@ -278,14 +279,18 @@ const topicNamesOf = (content: ExploreContentDto): string[] =>
     .map((id) => [...INTEREST_TOPICS, ...OTHER_TOPICS].find((t) => t.id === id)?.name)
     .filter((name): name is string => name !== undefined);
 
+/** 태그 전용 검색의 접두(explore.md 4.5-2) — 서버 대역. 클라이언트 원본은 explore.search-query.ts */
+const TAG_PREFIX = '#';
+
 /**
- * 필드 가중 랭킹의 대역 — 우선순위는 제목 > 저자 > 주제명(explore.md 4.5-5. 설명 필드는
- * mock 풀에 없어 제외한다). 계수 값은 서버 구현 소유라 여기 숫자는 순위 재현용일 뿐이다.
- * 동점은 풀 순서 유지(안정 정렬) — 유사도·인기·최신순 해소는 서버 몫의 단순화다.
+ * 필드 가중 랭킹의 대역 — 우선순위는 제목 > 태그 > 저자 > 주제명(explore.md 4.5-5. 설명 필드는
+ * mock 풀에 없어 제외한다). 태그는 항목 하나라도 부분 일치하면 매칭이다(KAN-218). 계수 값은 서버 구현 소유라
+ * 여기 숫자는 순위 재현용일 뿐이다. 동점은 풀 순서 유지(안정 정렬) — 유사도·인기·최신순 해소는 서버 몫의 단순화다.
  */
 const searchScore = (content: ExploreContentDto, query: string): number => {
   let score = 0;
-  if (normalizeForSearch(content.title).includes(query)) score += 4;
+  if (normalizeForSearch(content.title).includes(query)) score += 8;
+  if ((content.tags ?? []).some((tag) => normalizeForSearch(tag).includes(query))) score += 4;
   if (normalizeForSearch(content.author_name).includes(query)) score += 2;
   if (topicNamesOf(content).some((name) => normalizeForSearch(name).includes(query))) score += 1;
   return score;
@@ -309,9 +314,12 @@ export const mockFetchSearch = async (params: {
     );
   }
 
-  // 서버 방어선(explore-api.md 4.5) — 클라이언트 필터(explore.search-query.ts)를 우회한 요청은 400이다
+  // 서버 방어선(explore-api.md 4.5) — 클라이언트 필터(explore.search-query.ts)를 우회한 요청은 400이다.
+  // `#` 질의는 앞의 `#` 하나를 떼고 다시 트림한 값으로 잰다(`#`·`#a` → 400 — KAN-218)
   const trimmed = params.query.trim();
-  if (trimmed.length < 2 || !/[\p{L}\p{N}]/u.test(trimmed)) {
+  const isTagMode = trimmed.startsWith(TAG_PREFIX);
+  const term = isTagMode ? trimmed.slice(TAG_PREFIX.length).trim() : trimmed;
+  if (term.length < 2 || !/[\p{L}\p{N}]/u.test(term)) {
     throw new ApiError(
       ERROR_CODES.VALIDATION_FAILED,
       '검색어를 확인해주세요',
@@ -322,14 +330,19 @@ export const mockFetchSearch = async (params: {
     );
   }
 
-  const query = normalizeForSearch(trimmed);
+  const query = normalizeForSearch(term);
   const pool =
     SCENARIO === 'empty'
       ? []
-      : CONTENT_POOL.map((content) => ({ content, score: searchScore(content, query) }))
-          .filter((entry) => entry.score > 0)
-          .sort((a, b) => b.score - a.score)
-          .map((entry) => entry.content);
+      : isTagMode
+        ? // 태그 전용 — 태그 항목과 정확히 같은 콘텐츠만(NFC + 소문자, 필드 가중 없음 — explore.md 4.5-5)
+          CONTENT_POOL.filter((content) =>
+            (content.tags ?? []).some((tag) => normalizeForSearch(tag) === query),
+          )
+        : CONTENT_POOL.map((content) => ({ content, score: searchScore(content, query) }))
+            .filter((entry) => entry.score > 0)
+            .sort((a, b) => b.score - a.score)
+            .map((entry) => entry.content);
 
   // 빈 결과 — 같은 응답에 fallback을 싣는다(explore-api.md 4.5). 관련 주제·인기 목록은 대역 값이다
   if (pool.length === 0) {

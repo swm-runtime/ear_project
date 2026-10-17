@@ -62,6 +62,7 @@ export default function ContentDetailScreen() {
           onPlayPress={screen.requestPlay}
           onSavePress={screen.requestSave}
           onDeletePress={screen.requestDelete}
+          onTagPress={screen.openTagSearch}
         />
 
         {/* 소개 — 전문 표시, 접기/펼치기를 두지 않는다(uiux 4.1) */}
