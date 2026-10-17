@@ -61,7 +61,7 @@ const POOL_TOPICS = [
 const isKnownContentSeq = (seq: number): boolean =>
   (seq >= 1 && seq <= 25) || (seq >= 101 && seq <= 118);
 
-/** CD2 검증용 소스 3건 — 저자만·링크만·둘 다(조건부 변형 전수 — uiux 4.6과 같은 구성) */
+/** 서버 응답 모양 재현용 소스 3건 — 앱은 sources를 읽지 않는다(KAN-221). 응답에 실려도 화면이 깨지지 않는지 본다 */
 const makeSources = (seq: number, topicName: string): ContentDetailSourceDto[] => [
   { title: '딥 워크', author: '칼 뉴포트', url: null },
   { title: `${topicName} 연구 노트 ${seq}`, author: null, url: `https://blog.example.com/notes/${seq}` },

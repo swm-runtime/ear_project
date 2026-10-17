@@ -18,19 +18,6 @@ const ko = {
     series: '시리즈',
   },
 
-  source: {
-    /* TODO(카피 미확정 — uiux 6장): 출처 영역 라벨. partner와 ai_generated를 갈라 쓴다 —
-       같은 말로 부르면 참고 소스가 원문으로 오독된다 */
-    partnerLabel: '출처',
-    aiLabel: '참고한 소스',
-    author: '저자',
-    provider: '제공',
-    /** 확정 — 더보기 시트와 같은 항목명(content-detail.md 4.3) */
-    sourceLink: '원문 보기',
-    /** 링크 항목의 낭독 힌트 — 외부 링크로 열림이 드러나야 한다(uiux 7장) */
-    linkA11yHint: '브라우저로 열기',
-  },
-
   /** 헤더 액션(content-detail.md 4.4 — 확정 카피) */
   actions: {
     play: '재생',
@@ -71,15 +58,6 @@ const en: LocalizedCopy<typeof ko> = {
     duration: 'Length',
     publishedAt: 'Published',
     series: 'Series',
-  },
-
-  source: {
-    partnerLabel: 'Source',
-    aiLabel: 'References',
-    author: 'Author',
-    provider: 'Provided by',
-    sourceLink: 'View original',
-    linkA11yHint: 'Opens in browser',
   },
 
   actions: {
