@@ -67,8 +67,8 @@ That's our story for this episode. {host_line} See you next time on Earcast. Gam
 
 ### Length
 
-- Floor 13 minutes, average target 15 minutes, no upper limit. Split only when every part is 13 minutes or more.
-- Provisional rate: 150 words per minute (spoken words in turns). L0 floor: 1,950 words. Writing target: the outline's estimated minutes × 150, within 10 percent. The rate is fixed after measuring the first three synthesized episodes.
+- Floor 5 minutes, no target length, no upper limit. Length comes from the material. Propose a split only when the material is 20 minutes or more.
+- Provisional rate: 150 words per minute (spoken words in turns). L0 floor: 750 words. Writing target: the outline's estimated minutes × 150, within 10 percent. The rate is fixed after measuring the first three synthesized episodes.
 
 ## 5. Notation
 

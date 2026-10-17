@@ -41,7 +41,7 @@ Content limits by topic:
 
 ## 5. Splitting
 
-An episode is at least 13 minutes. Split only when every part is at least 13 minutes (26 minutes or more). A person decides the split.
+An episode is at least 5 minutes. There is no target length. Propose a split only when the material is 20 minutes or more. A person decides the split.
 
 ## 6. Gate 1
 
