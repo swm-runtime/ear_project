@@ -2,6 +2,7 @@
 
 > 상위: [PIPELINE.md](../PIPELINE.md) · 경로: [spec/02](02-sweep.md) 6장 B-②(주제 기획) → [spec/03](03-backlog.md)(게이트 1) → [spec/04](04-script.md)(대본) → [spec/05](05-qa.md) → [spec/07](07-publish.md)(발행)
 > **상태: 설계 확정 · 구현 착수** (설계 2026-10-09, 착수 2026-10-17 — KAN-136). 범위는 박수헌이 확정했다(2026-10-17 — KAN-128을 기다리지 않는다). 서버 쪽 `series` 테이블·API·탐색 묶음은 우리가 정한 설계대로 BE KAN-134가 만든다 — [시리즈 발행](7장)은 그 `POST /admin/series` 뒤에 붙는다.
+> **글로벌판도 같은 구조로 도입한다**(2026-10-17) — 다른 점(편 분량·출연진·영어 자산·ID 접두사·에이전트 판정)은 [글로벌 명세 6.11](../global/PIPELINE.md).
 > **그 전에는 시리즈 필드를 실어 발행하지 않는다** — 서버 드립은 이미 `series_id`로 편성 순서를 바꾸고(`drip-scheduling.md` 4.2-3), 상세 화면은 "N부작 중 M화"를 그린다(`content-detail.md` 4.3-1).
 
 ## 1. 정의와 범위 (2026-10-09 박수헌 결정)
@@ -105,7 +106,7 @@
 - 썸네일·TTS·추천 메타는 편 단위로, 일반 편과 같다(`metadata-pipeline.md` — "편 단위로 각각 실행"). **시리즈 표지는 1화 썸네일이다**(2026-10-09 결정) — 따로 만들지 않는다.
 - **에피소드 ID**는 접두어 `S`를 쓴다(CS 선례 — 박수헌 정의 "시리즈 접두어"). 번호 규칙은 `T`와 같다.
 
-## 8. 데이터 — 파이프라인 Supabase (마이그레이션 1건)
+## 8. 데이터 — 파이프라인 Supabase (마이그레이션 0029 — 한국판·글로벌 DB 적용 2026-10-17)
 
 - **`series`**: `id uuid pk` · `name` · `mid_topic` · `intro_line` · `scope_note` · `plan jsonb`(편 목록) · `total_episodes int` ·
   `status`(`planning` · `approved` · `published` · `withdrawn` · `cancelled`) · `approved_by` · `approved_at` ·
