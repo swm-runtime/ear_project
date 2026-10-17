@@ -105,7 +105,7 @@ Score the script as it is. Score each item on its own. An ordinary episode gets 
 | Band | Definition |
 |---|---|
 | 5 | Two distinct people, no role crossing. |
-| 3–4 | Mostly kept; one or two turns blur. The explainer never speaks as an insider (an everyday practice, the Korean name people use, how people around them do it), or the host's non-question turns repeat one reaction form: at most 3. |
+| 3–4 | Mostly kept; one or two turns blur. The explainer never speaks as an insider (an everyday practice, the Korean name people use, how people around them do it), or the host's non-question turns repeat one reaction form: at most 3. An explainer who tells most sections through what a source says is not speaking as an insider. |
 | 1–2 | The two sound like one person. |
 | 0 | Roles collapse. |
 

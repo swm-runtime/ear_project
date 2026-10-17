@@ -180,16 +180,16 @@ test("해설이 진행자의 말을 되받아 여는 턴이 넷 이상이면 문
   assert.doesNotMatch(enStyleViolations([T("Y1", "Welcome.", "Intro"), ...[1, 2, 3, 4].map((n) => T(`E${n}`, "It is casual. Your question about tone comes up later.")), T("Y9", "Bye.", "Closing")]).join("\n"), /restating/); // 첫 문장만 본다
 });
 
-test("한 단락에서 소스가 문장 주어인 해설 문장이 셋 이상이면 문체 위반 — 소개 한 문장과 하나는 통과", () => {
+test("한 단락에서 소스가 문장 주어인 해설 문장이 둘 이상이면 문체 위반 — 소개 한 문장은 통과 (full-en-v0.12)", () => {
   en();
   const B = (id: string, text: string, topic: string) => ({ ...T(id, text), topic });
   const v = enStyleViolations([
     B("E1", "A Korea.net report covers a new book. The compiler says it includes usage.", "Oppa"),
     B("E2", "The compiler describes a need for materials. The report also lists a boyfriend.", "Oppa"),
     B("E3", "The guide treats listening separately. Dramas help with listening.", "Reactions"),
-    B("E4", "The guide warns about strangers.", "Reactions"),
+    B("E4", "People are careful with strangers.", "Reactions"),
   ]).join("\n");
-  assert.match(v, /the source is named in more than two sentences in a section: "Oppa" 3 \(E1, E2\)/);
+  assert.match(v, /the source is named in more than one sentence in a section: "Oppa" 3 \(E1, E2\)/);
   assert.doesNotMatch(v, /"Reactions"/);
 });
 
@@ -219,7 +219,7 @@ test("출처 이름 붙이기 — According to·In X's account·대문자 약어
     S("E3", "Jeongi deulda describes attachment taking hold. Hani maechida describes a grievance.", "Jeong"),
     S("E4", "In this guide's description, jeong grows slowly.", "Jeong"),
   ]).join("\n");
-  assert.match(v, /the source is named in more than two sentences in a section: "Han" 4 \(E1, E2\)/);
+  assert.match(v, /the source is named in more than one sentence in a section: "Han" 4 \(E1, E2\)/);
   assert.doesNotMatch(v, /"Jeong"/);
 });
 
@@ -266,7 +266,7 @@ test("출처 이름 계수 — 일반 명사·대문자 이름·대명사로 부
     S("E1", "A Korea JoongAng Daily report describes regional kimchi. In the essay's explanation, drying lost flavor."),
     S("E2", "It dates the refrigerator to 1992. She connects soft leaves with warm weather. Its warning covers rest."),
   ]).join("\n");
-  assert.match(v, /the source is named in more than two sentences in a section: "Kimjang" 5 \(E1, E2\)/);
+  assert.match(v, /the source is named in more than one sentence in a section: "Kimjang" 5 \(E1, E2\)/);
 });
 
 // ── full-en-v0.9 (2026-10-17 — G261017-004~006 에이전트 판정: 한 문장 Imagine 장면 · 구성안 문구 유출) ──

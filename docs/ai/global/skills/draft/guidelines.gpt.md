@@ -1,6 +1,6 @@
 # Script Writing Guidelines
 
-> Version: **full-en-v0.11** (2026-10-17) · GPT profile · global pipeline. Rationale and sources: [CHANGELOG.md](CHANGELOG.md).
+> Version: **full-en-v0.12** (2026-10-18) · GPT profile · global pipeline. Rationale and sources: [CHANGELOG.md](CHANGELOG.md).
 > Rule numbers are reference IDs for L0, QA and the critic. Do not reuse or renumber them.
 
 ## Principles
@@ -114,7 +114,7 @@
 
 36. **Nothing outside speech in lines.** No URLs, tables, lists, markdown, emoji, citations, source lists, or AI disclosure in spoken lines. No claim or excerpt IDs (C##, S#-##) anywhere in the script. Do not say production terms: section, axis, block, claim, excerpt, outline, source, gold, Body, Closing. Do not carry the claims' labels into lines: attributed, account, or use as a noun for a sense of a word. The outline's lines, its Terms line included, are instructions, not dialogue: never copy their wording, and never say where something is described ("described here"). Do not point to the materials ("in the reporting", "mentioned earlier") or to a picture or image the listener cannot see.
 
-37. **Intro and Opening.** The injected intro template is Y1, one turn. Keep its frame and fill only its slots; no braces may remain. After the topic is named, use two or three Opening turns to raise the question a newcomer would ask. Start from the outline's Familiar picture and name it. Do not introduce studies or sources in the Opening.
+37. **Intro and Opening.** The injected intro template is Y1, one turn. Keep its frame and fill only its slots; no braces may remain. After the topic is named, use two or three Opening turns to raise the question a newcomer would ask. Start from the outline's Familiar picture and name it in the first Opening turn, before any detail of the practice. Do not introduce studies or sources in the Opening.
 
 38. **The axis leads.** Keep the outline's axis and each section's sub-question. Each Body section answers a question left by the one before. Do not add, remove, or reorder sections. If the prompt sets history mode, follow it: the event is the axis and its course is the Body.
 
@@ -126,9 +126,9 @@
 
 41. **Facts come only from the claims.** Every number, quote, name, cause, definition, and date comes from a claims row, appears only in explainer turns, and stays within what the excerpt supports. Do not raise the strength, scope, or certainty of a claim. Keep every condition the claim states: who says it, to whom, where, and which of its meanings it covers. Keep each condition on the thing it describes; do not move it to another thing. Keep quantifiers such as some, many, and most. A practice the claim gives to one person stays that person's practice; do not make it a place's or a group's. Do not widen a named set into a general category. A list the claim marks as partial stays partial. A practice reported for a year keeps that year. For claims based on Korean-language excerpts, keep the meaning exact when rephrasing in English. List the claim IDs each explainer turn uses in turn_claims.
 
-42. **Introduce a source once, then explain.** Do not open a section by naming its source; open on the outline's Opens with line. When one source leads three or more explainer turns, introduce it once, where its first fact is used: what kind of source it is and what it covers. After that, explain the content directly. Do not make the article, study, guide, author, compiler, participant, or researchers the subject of sentences; at most two sentences per section name the source, the introduction included. This count includes the source as subject and phrases such as "According to" the source or "In" the source's account. Do not use vague authority ("experts say", "studies show", "many people believe").
+42. **Introduce a source once, then explain.** Do not open a section by naming its source; open on the outline's Opens with line. Name each source at most once in the episode, where its first fact is used, and only when the kind of source matters: what kind of source it is and what it covers. Tell practices and facts directly, in the explainer's own voice, as an insider would. Opinions and interpretations keep their holder. Do not make the article, study, guide, author, compiler, participant, or researchers the subject of sentences; at most one sentence per section names a source, the introduction included. This count includes the source as subject and phrases such as "According to" the source or "In" the source's account. Do not use vague authority ("experts say", "studies show", "many people believe").
 
-43. **Sources stay in place.** Use each source only in its assigned section. Introduce no new source in the last Body section. Do not describe reading a source, preview later material, or mention that something is missing from the materials.
+43. **Claims stay in place.** Use each claim in the section the outline gives it. A section may draw on several sources. Introduce no new source in the last Body section. Do not describe reading a source, preview later material, or mention that something is missing from the materials.
 
 44. **Sources are not footnotes read aloud.** Do not say sample sizes, survey counts, journal names, methods, funding, or citation relations. Describe a study by who it looked at and what it found, in one sentence. Paraphrase quotes. Read original wording only when the wording itself is the subject. For statistics about Korean society, say the year the data describes.
 

@@ -1,6 +1,6 @@
 # Critic rubric v2 (global)
 
-> Version: **critic-en-v0.8** (2026-10-17) · global pipeline · judges against the script rules (guidelines full-en). The global DB `prompt_assets` is the source of truth; this file is the seeding copy. Anchors are empty until people judge the first episodes.
+> Version: **critic-en-v0.9** (2026-10-18) · global pipeline · judges against the script rules (guidelines full-en). The global DB `prompt_assets` is the source of truth; this file is the seeding copy. Anchors are empty until people judge the first episodes.
 
 ## 1. Rules
 
@@ -212,7 +212,7 @@ Length, explainer turns over six sentences, production words, fillers and stage 
 | Band | Definition |
 |---|---|
 | 5 | Two distinct people, no role crossing. |
-| 3–4 | Mostly kept; one or two turns blur. The explainer never frames as an insider (an everyday practice, the Korean name people use, how people around them do it), or the host's non-question turns repeat one reaction form: at most 3. |
+| 3–4 | Mostly kept; one or two turns blur. The explainer never frames as an insider (an everyday practice, the Korean name people use, how people around them do it), or the host's non-question turns repeat one reaction form: at most 3. An explainer who tells most sections through what a source says is not framing as an insider. |
 | 1–2 | The two sound like one person. |
 | 0 | Roles collapse. |
 
@@ -271,6 +271,7 @@ Flags n · violations n · suspects n · ⭐ n
 
 ## Change history
 
+- critic-en-v0.9 (2026-10-18) — after G261018-001 to 003 (first intro-format round) the critic gave 3.11 up to 5 while the explainer told every section through a source, and gave 3.3 the top band for differences said in one line. 3.11 now says that telling most sections through what a source says is not insider framing.
 - critic-en-v0.8 (2026-10-17) — the global channel introduces Korean culture (decision of the same day). 3.3 Range of views (8) becomes Variety in practice (4): how the practice differs by region, generation, family, or setting, or a disagreement when the sources hold one. 3.4 Emotional resonance (7) becomes Scenes and lived detail (11), with the no-scene cap at 4. 3.2 asks for limits only where the sources state them. 3.9 no longer caps an episode where the host never stays unconvinced. Keys and the 100-point total are unchanged; scores before this version are not comparable on 3.3 and 3.4.
 - critic-en-v0.7 (2026-10-17) — after G261017-009 to 011 the critic was 20 to 24 points above the blind editor and gave 3.4 four or five points to episodes with no scene: it counted a reported visitor given only by name and age, and "Picture …" frames, as scenes. 3.4 now defines a scene by a moment with words said, an object, or a sound.
 - critic-en-v0.6 (2026-10-17) — after three v0.8 episodes (G261017-004 to 006) the critic was still 10 to 15 points above the editor and counted one-sentence "Imagine a …" lines as scenes. 3.4 now says such a line is not a scene; F3 covers planning or reading wording left in a line.

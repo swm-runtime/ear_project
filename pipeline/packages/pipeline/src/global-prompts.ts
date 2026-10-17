@@ -98,7 +98,7 @@ ${fence(i.guidelines)}
 - Exclude sources with no or too little text and give the reason in sources_excluded. Keep at least three sources. If fewer remain, do not build an outline; say so in notes.
 
 ### b) claims
-- Each claim: id (C01…) · text (one English sentence) · excerpt_ids · type (number, quote, name, cause, definition, practice) · section (the Body section that uses it; all claims from one source share one section, except the axis_source, which may use two) · notable (true only for people or institutions a general listener knows by name) · opinion (true for a person's opinion, interpretation, or forecast, or a contested or interested claim).
+- Each claim: id (C01…) · text (one English sentence) · excerpt_ids · type (number, quote, name, cause, definition, practice) · section (the Body section that uses it; claims from one source may go to different sections) · notable (true only for people or institutions a general listener knows by name) · opinion (true for a person's opinion, interpretation, or forecast, or a contested or interested claim).
 - A claim is never more specific than its excerpt. Keep the excerpt's hedges and the subject it attributes to. For a Korean excerpt, translate the meaning exactly; do not add or soften.
 - Keep every condition the excerpt attaches: who says it, to whom, where, and which meanings it covers. When one condition covers several meanings, say so in each claim that states a meaning. Keep a named set as named; do not widen it into a general category.
 - Keep each condition on the thing it describes. When an excerpt says one thing varies but another stays fixed, the claim keeps that contrast.
@@ -106,6 +106,7 @@ ${fence(i.guidelines)}
 - When a Korean excerpt describes a whole place or group with a modifier, the claim keeps it describing the whole; do not turn it into a subset.
 - A definition claim keeps who uses the term and how widely. An event at a specific time keeps its time and the past tense. A practice from a dated report keeps the report's year.
 - Keep the excerpt's evaluation of a number, such as a large or small change. A list the excerpt marks as partial stays partial in the claim.
+- Keep in the claims the Korean words, the scope, and the differences by region, age, family, or setting that the excerpts give. Do not drop them to save space.
 - Do not define a term the excerpts do not define. Leave its meaning out of the claims.
 - For a Korean word, keep in the claims whether the excerpt calls it casual or polite and who uses it.
 - In a Korean Language episode, keep one example phrase per featured word from the excerpts as a claim of type quote: the phrase romanized, its meaning, and its speech level read from the Hangul ending (casual, polite with -yo, or formal with -seumnida). Say when the phrase is a dictionary form ending in -da. Add who says it to whom only when the excerpt says so; otherwise leave the relationship out of the claim. An example sentence from a dictionary or learning guide is allowed; a line from a drama, song, or show is not.
@@ -120,12 +121,12 @@ ${fence(i.guidelines)}
 Axis: [question|contrast|paradox|redefinition${history ? "|event" : ""}] one sentence
 Axis note: why a newcomer wants this answered, two lines
 Familiar picture: what a listener abroad already pictures or assumes about this topic, in plain words
-Terms: each place, object, or role the episode names often — the one plain English name the script uses for it, as a short label, with no meaning the claims do not give
+Terms: each place, object, or role the episode names often — the one plain English name the script uses for it, as a name only, with no explanation
 Landing section: #n — where the axis is proven
 Estimated length: n min
 
 Roles
-- Axis source: S? (the one source that may appear in two sections, or "none")
+- Axis source: S? (the source the axis rests on most, or "none")
 - Section order: one line on why #1 to #n are steps toward the axis
 - Cases: S?
 - Practice: S?
@@ -141,7 +142,7 @@ Section #1 — Title
   Host question: one question built only from earlier sections, or "the explainer opens"
   Opens with: the situation or question that opens the section — never its answer, never the source's name
   Scene: one concrete moment from a claim that has a person, a place, and an action, plus one detail from the claims (words said, an object, a sound), from C##; or "none"
-  Insider detail: the Korean name people use for the thing, an everyday practice, or how people around them do it, from C##; or "none"
+  Insider detail: the Korean name people use for the thing, an everyday practice, or how people around them do it, from C##; never a source name; or "none"
   Transition: one device, different from the previous section
   Ratio: n%
 Section #2 — …
@@ -153,12 +154,12 @@ Closing line: what the listener understands at the end
 \`\`\`
 Planning rules:
 - The axis is a question a newcomer asks about the practice ("Why do people in Korea …?"), a contrast ("A, yet B"), a paradox ("trying A leads to B"), or a redefinition ("A is really B")${history ? ", or, in history mode, an event" : ""}. Keep the backlog's form. "What is X" is not an axis. ear introduces Korean culture: the episode shows how the practice works, who does it, and why.
-- Sections are steps of the axis, not the order of a source. Each source goes to one section only, except the axis_source. Drop a source that answers no sub-question of the axis.
+- Sections are steps of the axis, not the order of a source. For a practice, follow the order in which it happens or the steps a newcomer needs. Give each section the claims that answer its question, from any source; a section usually draws on two or more sources. Do not build a section from one source alone when another source has claims for its question. Drop a source that answers no sub-question of the axis.
 - A list topic keeps its list: sections may follow the items or groups of items, and each section still answers a sub-question of the axis. The count in the title matches the items the material supports.
 - Three to five Body sections. Fewer, fuller sections are better than many thin ones. The Opening is not a section.
 - Plan scenes. Select excerpts with cases and practices so scenes are possible, and aim for a Scene in at least half of the Body sections. Build a Scene only from a claim with a person, a place, and a moment that carries words said, an object, or a sound. A person named only by name, age, or place in a report is not a scene. When no claim has such a moment, write "none". Do not plan an imagined listener, viewer, visitor, or family as a scene.
 - Plan the insider. The explainer is a calm Korean insider. Give each section an Insider detail when the material has one: the Korean name people use, an everyday practice, or how people around them do it. Take it from claims and add any Korean term to pronunciations.
-- Name the Familiar picture so the Opening can start from it. The episode then explains or changes that picture.
+- Name the Familiar picture so the Opening can start from it: one thing any listener abroad already knows, in plain words, not a detail of the practice. The episode then explains or changes that picture.
 - Do not let source order become the episode. If every section uses one source in the order the sources are listed, rebuild the order around the steps of the axis. A section opens on its scene, a detail, or the host's question; the source is named once, where its first fact is used.
 - A redefinition axis needs the members of the category heard: assign claims that name the kinds, forms, or examples, not only a single figure about one of them.
 - Plan a limitation or a disagreement only when the claims state one, once, in the section where it applies. Do not add doubt the sources do not have.
@@ -198,11 +199,11 @@ export const DESIGN_INLINE_SCHEMA_EN = {
     axis: { type: "string" },
     axis_type: { type: "string", enum: ["question", "contrast", "paradox", "redefinition", "event"] },
     landing_section: { type: "integer" },
-    axis_source: { type: "string", description: "The one source that may span two sections, as \"S3\" only (no URL or title). Empty string if none" },
+    axis_source: { type: "string", description: "The source the axis rests on most, as \"S3\" only (no URL or title). Empty string if none" },
     sections: { type: "array", items: { type: "object", additionalProperties: false, required: ["n", "title", "sources", "ratio"], properties: { n: { type: "integer" }, title: { type: "string" }, sources: strArr, ratio: { type: "integer" } } } },
     excerpt_ids: { ...strArr, description: "Selected paragraph IDs (S1-03 …)" },
     gists: { type: "array", items: { type: "object", additionalProperties: false, required: ["s", "lines"], properties: { s: { type: "integer" }, lines: strArr } }, description: "Three English lines per source" },
-    claims: { type: "array", items: { type: "object", additionalProperties: false, required: ["id", "text", "excerpt_ids", "type", "section", "notable", "opinion"], properties: { id: { type: "string" }, text: { type: "string", description: "One English sentence, no more specific than the excerpt" }, excerpt_ids: strArr, type: { type: "string", enum: ["number", "quote", "name", "cause", "definition", "practice"] }, section: { type: "integer", description: "Body section that uses this claim. All claims of one source share one section, except axis_source" }, notable: { type: "boolean", description: "True only if a general listener knows the person or institution by name" }, opinion: { type: "boolean", description: "A person's opinion, interpretation, or forecast, or a contested or interested claim" } } } },
+    claims: { type: "array", items: { type: "object", additionalProperties: false, required: ["id", "text", "excerpt_ids", "type", "section", "notable", "opinion"], properties: { id: { type: "string" }, text: { type: "string", description: "One English sentence, no more specific than the excerpt" }, excerpt_ids: strArr, type: { type: "string", enum: ["number", "quote", "name", "cause", "definition", "practice"] }, section: { type: "integer", description: "Body section that uses this claim. Claims of one source may go to different sections" }, notable: { type: "boolean", description: "True only if a general listener knows the person or institution by name" }, opinion: { type: "boolean", description: "A person's opinion, interpretation, or forecast, or a contested or interested claim" } } } },
     outline_md: { type: "string", description: "The full outline.md" },
     pronunciations: { type: "array", items: { type: "object", additionalProperties: false, required: ["term", "reading"], properties: { term: { type: "string", description: "Korean word or name, romanized as in the script" }, reading: { type: "string", description: "The word in Hangul as Koreans write it, or empty if unknown" } } } },
     estimated_minutes: { type: "number" },
