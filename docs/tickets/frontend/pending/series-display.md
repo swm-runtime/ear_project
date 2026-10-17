@@ -69,4 +69,4 @@
 ## 처리 기록
 
 - 2026-10-17 발행.
-- 2026-10-17 BE 안내(박준현): 탐색 시리즈 카드는 **헤더 없이** 서버 스위치 `SERIES_EXPLORE_CARDS_ENABLED`(기본 꺼짐)로 켠다(앞서 안내한 `X-Client-Features` 헤더는 철회). 개발계는 이 화면이 준비되면 BE에 알려 켜고 같이 시험한다. 운영은 1.3.0 공개 → 최소 지원 버전 1.3.0 → 스위치 켬(KAN-198). 계약 `docs/changes/pending/series-explore-cards.md`. 주제·검색 필터는 편 단위로 걸려 한 편만 걸려도 카드가 나오고, 카드의 `episode_count`·`topic_ids`는 시리즈 전체 기준이다. 그 전에 쓸 수 있는 것: 카드·라이브러리·플레이어·상세의 `series` 칸, `GET /series/:id`(계약 `docs/changes/pending/series-backend-phase1.md`).
+- 2026-10-17 BE 안내(박준현): 탐색 시리즈 카드는 **헤더 없이** 서버 스위치 `SERIES_EXPLORE_CARDS_ENABLED`(기본 꺼짐)로 켠다(앞서 안내한 `X-Client-Features` 헤더는 철회). 개발계는 이 화면이 준비되면 BE에 알려 켜고 같이 시험한다. 운영은 1.3.0 공개 → 최소 지원 버전 1.3.0 → 스위치 켬(KAN-198). 계약 `docs/changes/archive/series-explore-cards.md`. 주제·검색 필터는 편 단위로 걸려 한 편만 걸려도 카드가 나오고, 카드의 `episode_count`·`topic_ids`는 시리즈 전체 기준이다. 그 전에 쓸 수 있는 것: 카드·라이브러리·플레이어·상세의 `series` 칸, `GET /series/:id`(계약 `docs/changes/archive/series-backend-phase1.md`).

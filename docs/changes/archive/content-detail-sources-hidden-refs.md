@@ -5,11 +5,12 @@
 | 대상 문서 | `features/player.md` 103행(출처 고지 담당 서술) · `features/admin.md` 3.1(59행 — 소스 구조화 입력의 이유) · `backend/domain.md` 5.5 도입부(725행)·606행 · `spec/api/content-detail-api.md` 4.1 필드 표(`content.origin`·`content.sources` 행) |
 | 요청 파트 | 프론트엔드 |
 | 발행 날짜 | 2026-10-17 |
+| 반영 날짜 | 2026-10-17 |
 | 시작 날짜 | 2026-10-17 |
 | 기한 | 2026-10-24 (Low — 이번 주 통합 때) |
 | 선행 | KAN-221 (`tickets/frontend/archive/content-detail-hide-sources.md`) — 완료 |
 | 중요도 | Low |
-| 상태 | 대기 |
+| 상태 | **반영 완료** (2026-10-17) |
 
 ## 배경
 
@@ -32,3 +33,5 @@ KAN-221로 콘텐츠 상세 화면의 출처 영역(ai_generated "참고한 소�
 ## 처리 기록
 
 - 2026-10-17 발행 — KAN-221 처리 중 교차 참조 점검에서 발견.
+- 2026-10-17 반영 — `features/player.md` 4.5 첫 항목(상세 화면 출처 표시 중단 · FR-12 담당 = 오디오 안의 축 소스 소개 한 번, `content-detail.md` 4.3과 같은 기준) · `features/admin.md` 3.1 59행(구조화 입력 이유 → 저장·추후 노출 대비, 입력 규칙 유지)과 같은 근거를 쓴 43·106행 괄호 · `backend/domain.md` 5.1 `content_sources` 승격 항목(606행)·5.5 도입부·5.5 "`source_name`을 대체하지 않는다" 항목 · `spec/api/content-detail-api.md` 1장 경계 표 [원문 보기] 행·4.1 `content.origin`·`author_name`/`source_name`/`source_url`·`content.sources[]` 비고·액션 표 [원문 보기]·소스 항목 탭 행(제거 표시). FE 코드(`content-detail.api.ts`·`content-detail.types.ts`·`content-detail.dto.ts`)와 대조함 — `sources`는 DTO 선택 필드이고 매핑하지 않는다(일치). `origin`은 DTO 필수 필드로 화면 모델에 옮기기만 하고 화면 분기에는 쓰지 않는다 — 그래서 "응답에서 빠져도 깨지지 않는다"는 `sources`에만 적었다.
+- 남은 것: FR-12 담당 문장은 AI 파트 확인 없이 `content-detail.md` 4.3 기준으로 맞췄다. `ai/spec/04` 4장은 아직 "출처 고지는 서비스 화면·메타데이터가 담당"이라고 적고 있어(124·130·184행) AI 파트 문서의 정리가 필요하다(`player.md` 4.5에 메모).

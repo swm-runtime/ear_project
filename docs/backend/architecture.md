@@ -195,6 +195,7 @@ src/
 | LibraryScreen | Library, Playback, Content, Drip | **Entity를 소유하지 않는 유스케이스 모듈**, 아래 참고 |
 | Explore | Content, Library, Playback, Interest, Drip | **Entity를 소유하지 않는 유스케이스 모듈**, 아래 참고 |
 | ContentDetail | Content, Library, Playback | **Entity를 소유하지 않는 유스케이스 모듈**, 아래 참고 |
+| SeriesDetail | Content, Library, Playback | **Entity를 소유하지 않는 유스케이스 모듈**(ContentDetail과 같은 형태), 아래 참고 — 신설 2026-10-17(KAN-134) |
 | Profile | User, Subscription, Interest, Library, Playback, Content | **Entity를 소유하지 않는 유스케이스 모듈**, 아래 참고 |
 | Settings | User, Subscription, Interest | **Entity를 소유하지 않는 유스케이스 모듈**, 아래 참고 |
 | Notification | User | `notification_logs` 소유(`domain.md` 2장). 발송 대상 판정에 기기 토큰(`device_tokens`)·알림 토글(`user_settings`)이 필요하다. `User`는 `Notification`을 모르므로 순환은 없다 — 신설 2026-09-17(KAN-68) |
@@ -231,6 +232,10 @@ src/
 - **`content` 모듈에 넣을 수 없다.** `library` · `playback`이 이미 `→ content` 방향을 갖고 있어 반대 방향을 더하면 순환이 된다.
 - **`user` · `subscription`을 의존하지 않는다.** 상세 응답에는 잔여 재생 표시값이 없다(`content-detail-api.md` 2장 — 상세 화면에 잔여 표시가 없고, [재생] 허용은 재생 시작 시점에 서버가 판정한다).
 - **쓰기 경로가 없다.** 상세 화면의 액션([재생]·[담기]/[삭제]·[원문 보기])은 전부 기존 계약의 재사용이라(`content-detail-api.md` 1장) 소유 모듈(playback·explore·library-screen)에 그대로 남는다.
+
+**SeriesDetail도 Entity를 갖지 않는다** (신설 2026-10-17 — KAN-134). 시리즈 화면 하나에 시리즈·편·주제(`content` 소유 — `series` · `contents` · `content_topics`), 편마다의 담김 상태(`library` 소유), 재생 위치·오늘 카운트 힌트(`playback` 소유)가 함께 나간다. ContentDetail과 같은 이유로 `content` 모듈에 넣을 수 없어(`library` · `playback`이 이미 `→ content`) 소유 모듈들 **위에서** Orchestrator가 조합한다(→ 3.3). `GET /series/:series_id` 하나가 여기에 속하고(`explore-api.md` 4.7), 쓰기 경로는 없다 — 편 단위 액션(재생·담기·삭제)은 기존 계약을 그대로 쓴다. 어떤 모듈도 이 모듈을 의존하지 않는다.
+
+- Admin·Explore·LibraryScreen·ContentDetail·Playback·DripBatch에는 시리즈로 새 의존 방향이 생기지 않았다 — 모두 이미 Content를 의존하고, `SeriesService`·`ContentService`를 더 부를 뿐이다.
 
 **Profile도 Entity를 갖지 않는다.** 프로필 응답에는 계정·커리어(`user` 소유), 구독 상태·요금제(`subscription` 소유), 관심 주제 요약(`interest` 소유), 완청 고유 콘텐츠 수(`library` 소유), 청취 시간·연속 일수·주간 그래프(`playback` 소유), 주제 분포의 주제 매핑(`content` 소유)이 함께 나간다. `profile.md` 6장이 **전용 테이블을 만들지 않는다**고 정하고 있어 조립할 자기 Entity가 애초에 없다. 소유 모듈들 **위에서** Orchestrator가 조합한다(→ 3.3). `/users/me/profile`과 `/users/me/profile/weekly-listening`이 여기에 속한다.
 

@@ -26,7 +26,7 @@
 | [재생] 후 미담김 콘텐츠의 라이브러리 자동 적립 | `explore-api.md` 4.6 (호출 순서) · 4.3 (`reason = auto_play`) | **동일한 흐름을 그대로 쓴다**(`content-detail.md` 4.4 — explore 4.4와 동일) |
 | [담기] | `explore-api.md` 4.3 (`POST /contents/:content_id/save`) | 재정의하지 않는다. 성공 시 버튼 전환 재료만 서술한다(4.2) |
 | [삭제] | `library-api.md` 4.6 (`DELETE /users/me/library-items/:id`) | 재정의하지 않는다. `:id`는 이 문서 4.1 응답의 `library_item.id`다 |
-| [원문 보기] 클릭 기록 (`partner`) | `player-api.md` 4.5 (`POST /contents/:content_id/source-link-clicks`) | **세 화면 공용 계약을 그대로 호출한다.** 상세 화면이 네 번째 진입점이 될 뿐이다 |
+| [원문 보기] 클릭 기록 (`partner`) | `player-api.md` 4.5 (`POST /contents/:content_id/source-link-clicks`) | **세 화면 공용 계약을 그대로 호출한다.** 상세 화면이 네 번째 진입점이었으나 2026-10-17 출처 영역 제거로 상세에서는 부르지 않는다(KAN-221) |
 | 재생 확인 팝업·페이월·[오늘은 그만 보기] 억제 | `paywall.md` 4.1~4.2·4.5 | 참조만 한다. 억제 플래그는 로컬 전용이다 |
 | 화면 ID·레이아웃·카피·접근성 | `spec/uiux/` | 정의하지 않는다 |
 | `ai_generated` 소스 목록의 **저장 구조** | 백엔드(`domain.md` 5.5 — `content_sources` 테이블, 확정 2026-08-24) | 응답의 **모양만** 표현한다(4.1 — 가정 계약이 그대로 확정됐다) |
@@ -97,7 +97,7 @@
       { "id": "uuid", "name": "심리학" }
     ],
     "tags": ["협상", "앵커링"],
-    "series": { "series_id": "uuid", "episode_no": 2, "total_episodes": 5 },
+    "series": { "series_id": "uuid", "id": "uuid", "title": "협상의 심리학", "episode_no": 2, "total_episodes": 5 },
     "origin": "partner",
     "author_name": "김서연",
     "source_name": "폴인",
@@ -144,11 +144,11 @@
 | `content.published_at` | 발행일. 표기 형식은 uiux 소관 |
 | `content.content_version` | 재발행 판정용 — 목록 행·발급 응답과 같은 재료(`library-api.md` 4.1 · `player-api.md` 4.1). 클라이언트 보관값보다 크면 저장 위치·오프라인 파일을 폐기한다 |
 | `content.topics[]` | `content_topics` 조인 결과 — 헤더의 주제 태그. **배열 순서대로 그린다**(재배열 금지 — 기존 원칙) |
-| `content.tags` | 화면 해시태그('#' 없이 — **'#'은 화면이 붙인다**). 2~4개, 받은 적 없는 콘텐츠는 **빈 배열**. 주제(`topics[]` — 분류)와 별개인 값이다. 검색(`explore-api.md` 4.5)이 매칭한다. 탭하면 `#태그`로 검색을 여는 동작은 FE KAN-219에서 붙는다 🟡(추가 2026-10-08 KAN-162, 검색 연결 2026-10-16 KAN-218 · `domain.md` 5.1 `contents.tags`) |
-| `content.series` | **단일 콘텐츠는 `null`이다**(`domain.md` 5.1 — `series_id` · `episode_no` · `total_episodes` 셋 다 `null`). 값이 있으면 "N부작 중 M화" 줄을 그리고, `null`이면 줄을 통째로 생략한다 — **클라이언트가 별도 조건을 계산하지 않는다**(`content-detail.md` 4.3-1). 세 필드를 한 객체로 묶어 null 판정이 하나가 되게 한다 |
-| `content.origin` | `partner` / `ai_generated` — 출처 영역 분기(`content-detail.md` 4.3) |
-| `content.author_name` · `source_name` · `source_url` | `partner`는 셋 다 항상 값이 있다(`chk_contents_partner_disclosure` — `domain.md` 5.1). 저자·제공·[원문 보기]를 그린다. `ai_generated`는 `author_name` · `source_url`이 `null`일 수 있고, `source_name`은 고지 문구용 표기 문자열이라 **상세의 출처 영역에는 쓰지 않는다**(소스 나열은 `sources`가 담당) |
-| `content.sources[]` | **확정 (2026-08-24 — `domain.md` 5.5 `content_sources`).** `ai_generated`의 참고 소스 **전수** — 소스마다 `title`(필수) · `author`(선택 — 없으면 `null`) · `url`(선택 — 없으면 `null`). 서버가 정한 순서(`content_sources.position`)대로 나열하고 "외 N건" 생략이 없다 — 클라이언트는 재배열하지 않는다. URL 문자열은 화면에 노출하지 않으며, `url`이 있는 항목만 탭 대상이다(`content-detail.md` 4.3). 소스 항목에 식별자(`id`)를 싣지 않는다 — 소스별 클릭 기록을 하지 않기 때문이다(4.2). **`partner`는 `null`이다** (확정 2026-08-24) |
+| `content.tags` | 화면 해시태그('#' 없이 — **'#'은 화면이 붙인다**). 2~4개, 받은 적 없는 콘텐츠는 **빈 배열**. 주제(`topics[]` — 분류)와 별개인 값이다. 검색(`explore-api.md` 4.5)이 매칭한다. 탭하면 탐색 탭의 `#태그` 검색을 연다(KAN-219 반영 2026-10-17 — `content-detail.md` 4.2)(추가 2026-10-08 KAN-162, 검색 연결 2026-10-16 KAN-218 · `domain.md` 5.1 `contents.tags`) |
+| `content.series` | **단일 콘텐츠는 `null`이다**(`domain.md` 5.1 — `series_id` · `episode_no` · `total_episodes` 셋 다 `null`). 값이 있으면 "N부작 중 M화" 줄을 그리고, `null`이면 줄을 통째로 생략한다 — **클라이언트가 별도 조건을 계산하지 않는다**(`content-detail.md` 4.3-1). 세 필드를 한 객체로 묶어 null 판정이 하나가 되게 한다. **개정 2026-10-17(KAN-134)** — 다른 응답과 같은 `{ id, title, episode_no, total_episodes }`(`explore-api.md` 4.1)에 **종전 `series_id`를 남긴 채** 붙는다: `{ series_id, id, title, episode_no, total_episodes }`. `series_id`는 `id`와 같은 값이고 설치된 앱(1.2.1) 호환으로만 남긴다(새 화면은 `id`를 쓴다). `total_episodes`는 이제 시리즈 표(`domain.md` 5.9 `series.total_episodes`)의 값이다 |
+| `content.origin` | `partner` / `ai_generated` — 종전 출처 영역 분기(`content-detail.md` 4.3). **비고(2026-10-17 — KAN-221)**: 상세 화면이 출처를 표시하지 않게 되어 FE는 이 값으로 화면을 가르지 않는다(값은 화면 모델에 옮겨 두기만 한다). 계약은 그대로다 |
+| `content.author_name` · `source_name` · `source_url` | `partner`는 셋 다 항상 값이 있다(`chk_contents_partner_disclosure` — `domain.md` 5.1). 종전 화면은 저자·제공·[원문 보기]를 그렸다 — **2026-10-17부터 상세 화면은 출처를 표시하지 않는다**(KAN-221 — `content-detail.md` 4.3, 값은 계속 실린다). `ai_generated`는 `author_name` · `source_url`이 `null`일 수 있고, `source_name`은 고지 문구용 표기 문자열이라 **상세의 출처 영역에는 쓰지 않는다**(소스 나열은 `sources`가 담당) |
+| `content.sources[]` | **비고(2026-10-17 — KAN-221)**: FE는 2026-10-17부터 이 필드를 읽지 않는다(상세 화면 출처 표시 중단 — `content-detail.md` 4.3). 응답에서 빠져도 FE는 깨지지 않는다(앱 DTO에서 선택 필드). 계약·데이터(`content_sources`)는 그대로다. **확정 (2026-08-24 — `domain.md` 5.5 `content_sources`).** `ai_generated`의 참고 소스 **전수** — 소스마다 `title`(필수) · `author`(선택 — 없으면 `null`) · `url`(선택 — 없으면 `null`). 서버가 정한 순서(`content_sources.position`)대로 나열하고 "외 N건" 생략이 없다 — 클라이언트는 재배열하지 않는다. URL 문자열은 화면에 노출하지 않으며, `url`이 있는 항목만 탭 대상이다(`content-detail.md` 4.3). 소스 항목에 식별자(`id`)를 싣지 않는다 — 소스별 클릭 기록을 하지 않기 때문이다(4.2). **`partner`는 `null`이다** (확정 2026-08-24) |
 | `library_item` | 요청자의 라이브러리 상태. **`null`이면 미담김**(살아 있는 행 없음 — 소프트 삭제된 행 포함)이라 버튼이 [담기], 값이 있으면 [삭제]다(`content-detail.md` 4.4). **별도 `is_saved` 불리언을 두지 않는다** — null 판정 하나로 분기한다(4.3-1과 같은 원칙). `id`는 [삭제](`library-api.md` 4.6) 호출에 쓴다. `source` · `status`는 `library_items` 원값(`player-api.md` 4.1과 같은 모양) |
 | `is_counted_today` | 이 콘텐츠가 **재청취 창 안**에 있는가 — 목록 행과 같은 필드·같은 정의(`library-api.md` 4.1 · `explore-api.md` 4.1 · `paywall.md` 4.3-1). [재생] 탭 시 확인 팝업을 **탭 즉시** 띄우기 위한 힌트이며, 판정이 아니다 |
 
@@ -189,8 +189,8 @@
 | [재생] 후 자동 적립 | `POST /contents/:content_id/save` `{ reason: "auto_play" }` — `explore-api.md` 4.3 · 호출 순서 4.6 | 재생이 실제로 시작됐고 play 응답의 `library_item == null`일 때만. 팝업 [취소]·페이월 차단 시 호출하지 않는다 |
 | **[담기]** (미담김) | `POST /contents/:content_id/save` `{ client_seq, reason: "user_save" }` — `explore-api.md` 4.3 | 성공 시 응답의 `library_item`으로 버튼을 [삭제]로 전환하고 그 `id`를 보관한다 |
 | **[삭제]** (담김) | `DELETE /users/me/library-items/:id` — `library-api.md` 4.6 | `:id`는 4.1 응답(또는 직전 담기 응답)의 `library_item.id`. 성공 시 버튼을 [담기]로 전환한다. `user_signals(delete)` · `reason = library_delete` 적재는 그 계약의 서버 처리 그대로다(`content-detail.md` 4.4 — library.md 4.5와 동일한 결과) |
-| **[원문 보기]** (`partner`) | `POST /contents/:content_id/source-link-clicks` — `player-api.md` 4.5 | 세 화면 공용 계약의 네 번째 진입점. 호출 + 인앱 브라우저 열기, 응답을 기다리지 않는다 |
-| 소스 항목 탭 (`ai_generated`, `url` 있음) | 인앱 브라우저 열기 (클라이언트 조작) | **클릭을 기록하지 않는다** (확정 2026-08-24 — `domain.md` 5.5·6.6, MVP). 기록 호출 없이 브라우저만 연다. 소스별 분석 요구가 생기면 P1에서 `source_link_clicks.source_id` 추가와 함께 재검토한다 |
+| ~~**[원문 보기]** (`partner`)~~ | `POST /contents/:content_id/source-link-clicks` — `player-api.md` 4.5 | **2026-10-17 제거(KAN-221)** — 상세 화면에 출처 영역이 없어 호출하지 않는다. 종전: 세 화면 공용 계약의 네 번째 진입점 |
+| ~~소스 항목 탭 (`ai_generated`, `url` 있음)~~ | 인앱 브라우저 열기 (클라이언트 조작) | **클릭을 기록하지 않는다** (확정 2026-08-24 — `domain.md` 5.5·6.6, MVP). 기록 호출 없이 브라우저만 연다. 소스별 분석 요구가 생기면 P1에서 `source_link_clicks.source_id` 추가와 함께 재검토한다 |
 
 - **[재생]의 `entry_point`는 상세 화면을 연 원 화면의 값을 그대로 보낸다**(제안 — 9장). 라이브러리 진입이면 `library`, 탐색 진입이면 `explore`다. 플레이어에서 진입한 상세는 현재 재생 중인 콘텐츠이므로 [재생]이 새 재생 없이 플레이어로 복귀한다(`content-detail.md` 4.4) — play 호출 자체가 없다. **공유 링크 수신으로 진입한 상세만 예외로 `share`를 보낸다**(신설 2026-08-25 — 원 화면이 없다. `library-api.md` 4.4 · `share.md` 4.3).
 - **[삭제]에 상세 화면용 실행 취소 스낵바를 새로 정의하지 않는다.** 스낵바 유예·즉시 호출 여부는 uiux가 정하되, 서버 계약은 어느 쪽이든 `library-api.md` 4.6 그대로다(이미 삭제된 항목에도 204 — 멱등).

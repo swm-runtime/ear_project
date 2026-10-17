@@ -5,6 +5,7 @@
 | 대상 문서 | `features/explore.md` 4.5-1(진입 경로) · 4.5-2(태그 탭 문장) · 4.5-4(저장 시점) · `features/content-detail.md` 4.2(헤더 해시태그) · `spec/api/explore-api.md` 4.1 `content.tags`(🟡 표기) |
 | 요청 파트 | 프론트엔드 |
 | 발행 날짜 | 2026-10-17 |
+| 반영 날짜 | 2026-10-17 |
 | 시작 날짜 | 2026-10-17 |
 | 기한 | 2026-10-23 (Low — 이번 주 안 · 통합 시 반영) |
 | 선행 | 없음 — 코드·uiux 는 FE KAN-219 PR 로 먼저 반영됐고, 통합 시 features·api 문서에 옮겨 적는 요청 |
@@ -38,3 +39,5 @@ KAN-219(2026-10-17)로 인기 대표 카드·콘텐츠 상세 헤더의 `#태그
 ## 처리 기록
 
 - 2026-10-17 발행 — FE KAN-219 PR 에서 코드·uiux 2종·design.md 반영과 함께 기록.
+- 2026-10-17 반영 — `features/explore.md` 4.5-1(태그 탭 진입 — 인기 대표 카드·상세 헤더, 탭 전환·갈래별 동작·타일 제외) · 4.5-2 마지막 문장(KAN-219 반영, 검색창 `#` 입력 그대로·클라이언트 검증) · 4.5-4 저장 시점(태그 탭으로 연 검색) · `features/content-detail.md` 4.2 표(콘텐츠 해시태그 행 신설) · `spec/api/explore-api.md` 4.1 `content.tags`(🟡 제거). FE 코드(`useContentDetailScreen` `toTab('Explore', { searchQuery })`·`useExploreSearchRequest`(제자리/스택 갈래·`initialQuery`)·`useExploreSearchScreen` `runSearchNow` 최근 검색어 저장)와 대조함 — 일치.
+- 대상 목록에는 없었지만 같은 예고 문장(🟡)이 남아 있던 `spec/api/content-detail-api.md` 4.1 `content.tags` 행도 함께 고쳤다(계약 변경 없음).

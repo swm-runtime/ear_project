@@ -133,7 +133,7 @@ idx_idempotency_keys_expires_at
 | `user` | `users`, `consents`, `withdrawal_logs`, `user_settings`, `device_tokens`, `email_verifications` |
 | `auth` | `sessions` |
 | `interest` | `topics`, `user_interests`, `topic_adjacencies` |
-| `content` | `contents`, `content_topics`, `content_scripts`, `content_stats`, `content_sources`, `content_embeddings`, `search_query_logs` |
+| `content` | `contents`, `content_topics`, `content_scripts`, `content_stats`, `content_sources`, `content_embeddings`, `search_query_logs`, `series`(2026-10-17 — `SeriesService`가 export, [5.9](#59-series-신설-2026-10-17--kan-134-시리즈)) |
 | `library` | `library_items` |
 | `playback` | `playback_progresses`, `play_records`, `play_daily_totals`, `user_signals`, `audio_access_logs`, `source_link_clicks` |
 | `drip` | `drip_excluded_contents`, `user_preference_vectors`, `drip_batch_runs`, `first_drip_jobs` |
@@ -527,9 +527,9 @@ contents
   source_url                varchar         NULL 허용 — origin 분기 (합의 2026-08-06, 아래)
   origin                    enum            partner | ai_generated
   partner_id                uuid            FK → partners, NULL 허용 (partner만 채운다)
-  series_id                 uuid            NULL   ← Episode 흡수 (B-5)
+  series_id                 uuid            FK → series, NULL 허용   ← Episode 흡수 (B-5). FK는 2026-10-17 — KAN-134 (5.9)
   episode_no                int             NULL
-  total_episodes            int             NULL
+  total_episodes            int             NULL   ★업로드 계약 호환으로 남은 사본 — 총 편수의 기준은 series.total_episodes (2026-10-17, 아래)
   audio_path                varchar         ★URL이 아니라 저장 경로 (B-5). **압축 음질(`compressed`) 파일의 경로**이며 5.8 `content_audio_renditions`의 같은 음질 행과 항상 같다(2026-10-06, KAN-141)
   duration_sec              int
   thumbnail_url             varchar
@@ -552,6 +552,7 @@ contents
 idx_contents_status_published_at (status, published_at DESC)
 idx_contents_market_status_published_at (market, status, published_at)
 idx_contents_series_id_episode_no (series_id, episode_no)
+uq_contents_series_id_episode_no_published  UNIQUE (series_id, episode_no) WHERE status = 'published' AND series_id IS NOT NULL   (2026-10-17 — KAN-134)
 idx_contents_partner_id
 idx_contents_title_trgm        GIN (title gin_trgm_ops)        ★검색 (FR-22)
 idx_contents_description_trgm  GIN (description gin_trgm_ops)  ★검색 (FR-22)
@@ -562,6 +563,8 @@ chk_contents_partner_disclosure
   origin <> 'partner'
   OR (author_name IS NOT NULL AND source_url IS NOT NULL
       AND partner_id IS NOT NULL AND license_expires_at IS NOT NULL)
+
+fk_contents_series  series_id → series.id  ON DELETE RESTRICT   (2026-10-17 — KAN-134)
 ```
 
 - **해시태그 검색에 인덱스를 두지 않는다**(2026-10-16 — KAN-218). 검색은 `tags`의 항목 하나라도 부분 일치(`#` 없는 질의)하거나 정확 일치(`#태그`)하면 매칭한다(`explore.md` 4.5-5). 태그는 콘텐츠당 4개 이하이고 운영 콘텐츠가 71편이라, jsonb 배열 펼침 비교의 순차 탐색 비용이 무시할 만하다(2자 질의 순차 탐색과 같은 논리). 콘텐츠가 수천 편으로 늘면 정규화 컬럼 + `gin_trgm_ops`(부분 일치)와 jsonb 포함 인덱스(정확 일치)를 다시 본다. 저장된 태그는 정규화하지 않고 비교한다 — 적재 검증(`CONTENT_TAG_PATTERN`)이 완성형 한글·ASCII 영숫자·공백만 받아 NFC가 보장되고, 그 범위에서 SQL `lower()`와 앱의 소문자 변환이 같다. 태그 문자 범위를 넓히면 이 가정을 다시 본다.
@@ -578,6 +581,10 @@ chk_contents_partner_disclosure
   - 사용자 시장은 요청마다 `users`를 읽지 않고 **access token 클레임 `market`** 으로 전달한다(가입 시 1회 정해져 불변이므로). 클레임이 없는 옛 토큰은 `kr`.
 - `series_id` / `episode_no` / `total_episodes`는 `Episode` 테이블을 폐기하면서 흡수했다. 드립 스코어링의 시리즈 연속성 가점과 편성 순서 판정이 Content 단위 조회를 요구한다(`drip-scheduling.md` 4.2, 7).
 - 분할되지 않은 단일 콘텐츠는 `series_id = NULL`, `episode_no = NULL`이다. 조회 코드는 이 분기를 처리해야 한다.
+- **`series_id`는 `series.id`를 가리킨다**(`fk_contents_series`, `ON DELETE RESTRICT` — 개정 2026-10-17, KAN-134, 마이그레이션 `1790700000000-AddSeries`). 종전에는 가리키는 테이블 없이 "같은 값을 공유한다"는 표시였다. 시리즈의 주인은 [5.9](#59-series-신설-2026-10-17--kan-134-시리즈)다.
+  - **발행 편 번호 유일성** — 부분 유니크 `uq_contents_series_id_episode_no_published`가 같은 시리즈에 같은 번호가 둘 발행되지 않게 한다. 회수·만료 편은 빠지므로 "회수 후 같은 번호로 다시 올리기"는 된다. (`series_id IS NOT NULL`은 단일 콘텐츠를 인덱스에서 빼는 것뿐 — 판정은 같다.)
+  - **`total_episodes`는 업로드 계약 호환으로 남은 사본이다.** 업로드 때 `series.total_episodes`와 같아야 하고(`admin-api.md` 4.6), 응답의 총 편수는 `series.total_episodes`에서 읽는다. 시리즈 편수를 고쳐도(`PATCH /admin/series/:id`) 편의 사본은 고치지 않는다.
+  - 마이그레이션의 기존 데이터 처리 — 고아 `series_id`(가리키는 시리즈가 없는 값 — 로컬·개발계 시드)는 **자리표시 시리즈 행**으로 메운 뒤 FK를 검증된 상태로 걸었다(제목 = 그 시리즈 가장 앞 편의 제목, 소개 `''`, 총 편수 = `max(total_episodes, episode_no, 1)`, `ongoing`). 운영은 시리즈 편이 0건이라 만들 행이 없다. 이미 발행 번호 중복이 있으면 마이그레이션이 이유를 밝히고 멈춘다(어느 편을 남길지는 사람이 정한다).
 - **`content_version`은 같은 행의 값을 증가시킨다.** 재발행 시 새 행을 만들지 않으므로 `content_id`가 바뀌지 않고, `library_items` · `playback_progresses` · `content_stats`의 참조가 그대로 유지된다.
   - 따라서 `status`에 `superseded`가 필요 없다. 이전 버전은 행에 남지 않는다.
   - 클라이언트는 `content_version`이 올라간 것을 보고 저장한 재생 위치·오프라인 파일을 폐기한다(`player.md` 7).
@@ -603,7 +610,7 @@ chk_contents_partner_disclosure
 
 - `origin = partner`의 `source_name`에는 **파트너명**이 들어간다 (B-5). `partners.name`의 비정규화 사본이며, 발행 시점 값을 고정한다(파트너명이 나중에 바뀌어도 발행된 콘텐츠의 고지 문구는 변하면 안 된다).
 - `origin = ai_generated`의 `source_name`에는 **"참고한 자료" 소스 표기**가 들어간다(복수 소스 가능). 근거 소스가 단일 원문·단일 저자가 아니므로 `author_name`·`source_url`은 선택이다(`admin.md` 3.1 — `content-pipeline.md` 4.3의 AI 생성 고지 멘트와 같은 기준).
-- **`ai_generated`의 소스 목록은 `content_sources`로 승격했다** (개정 2026-08-24 — [5.5](#55-content_sources)). 종전 결정은 "복수 소스를 별도 테이블·배열로 정규화하지 않는다"였다 — 당시 용도가 출처 고지 문구 표시(FR-12) 하나뿐이고 소스 단위 질의·조인·집계 요구가 없었기 때문이다. 콘텐츠 상세 화면(FR-40, `content-detail.md` 4.3)이 소스 단위 표시(제목·저자·링크 전수 나열)를 요구하면서 그 전제가 깨졌고, 예고해 둔 승격 경로대로 테이블로 올렸다. **`source_name`의 고지 문구 표기(복수 가능)는 그대로 유지한다** — 승격은 표시용 목록의 추가이지 고지 문구의 대체가 아니다. 정책 확인(적법 수집)의 **확인 기록**을 시스템 필드로 남길지는 여전히 미결이다([15.1](#151-남아-있는-결정) #8 — `admin.md` 4.2-1).
+- **`ai_generated`의 소스 목록은 `content_sources`로 승격했다** (개정 2026-08-24 — [5.5](#55-content_sources)). 종전 결정은 "복수 소스를 별도 테이블·배열로 정규화하지 않는다"였다 — 당시 용도가 출처 고지 문구 표시(FR-12) 하나뿐이고 소스 단위 질의·조인·집계 요구가 없었기 때문이다. 콘텐츠 상세 화면(FR-40, `content-detail.md` 4.3)이 소스 단위 표시(제목·저자·링크 전수 나열)를 요구하면서 그 전제가 깨졌고, 예고해 둔 승격 경로대로 테이블로 올렸다. **상세 화면의 소스 표시는 2026-10-17 중단했다**(KAN-221 — `content-detail.md` 4.3). 테이블과 상세 응답 `sources`는 그대로 유지한다(저장·추후 노출 대비). **`source_name`의 고지 문구 표기(복수 가능)는 그대로 유지한다** — 승격은 표시용 목록의 추가이지 고지 문구의 대체가 아니다. 정책 확인(적법 수집)의 **확인 기록**을 시스템 필드로 남길지는 여전히 미결이다([15.1](#151-남아-있는-결정) #8 — `admin.md` 4.2-1).
 - `chk_contents_partner_disclosure`가 파트너 콘텐츠의 필수 고지(FR-12 — 예외 없는 필수)를 DB에서 이중 방어한다([1.1](#11-모든-테이블에-공통으로-들어가는-것)). 업로드 검증이 뚫려도 고지 정보 없는 파트너 콘텐츠 행이 생기지 않는다.
 
 **검색(FR-22, MVP)은 `pg_trgm` 부분 일치다** (확정 2026-08-23 — `explore.md` 4.5-5)
@@ -722,7 +729,7 @@ idx_content_stats_period_type_period_start_play_count (period_type, period_start
 
 ### 5.5 `content_sources`
 
-`ai_generated` 콘텐츠의 참고 소스 목록이다 (확정 2026-08-24 — 콘텐츠 상세 화면 FR-40, `content-detail.md` 4.3). 상세 화면이 소스마다 제목·저자를 전수 나열하고, 링크 있는 항목의 탭이 인앱 브라우저를 열기 위한 표시용 데이터다.
+`ai_generated` 콘텐츠의 참고 소스 목록이다 (확정 2026-08-24 — 콘텐츠 상세 화면 FR-40, `content-detail.md` 4.3). 상세 화면이 소스마다 제목·저자를 전수 나열하고, 링크 있는 항목의 탭이 인앱 브라우저를 열기 위한 표시용 데이터였다. **화면 표시는 2026-10-17 중단했다**(KAN-221 — `content-detail.md` 4.3). 테이블·적재·상세 응답의 `sources`는 그대로 유지한다.
 
 ```
 content_sources
@@ -737,7 +744,7 @@ uq_content_sources_content_id_position (content_id, position)
 ```
 
 - **`partner` 콘텐츠는 행을 만들지 않는다.** partner의 출처는 기존 컬럼(`author_name` · `source_name` · `source_url`)이 담당한다([5.1](#51-contents)) — 상세 응답에서 partner의 `sources`는 `null`이다(`content-detail-api.md` 4.1).
-- **`source_name`을 대체하지 않는다.** 재생 멘트의 출처 고지 문구(FR-12)는 표기 문자열이 계속 필요하다 — 이 테이블은 상세 화면 표시용 목록의 추가다.
+- **`source_name`을 대체하지 않는다.** 재생 멘트의 출처 고지 문구(FR-12)는 표기 문자열이 계속 필요하다 — 이 테이블은 상세 화면 표시용 목록의 추가였다(화면 표시는 2026-10-17 중단 — 데이터는 유지).
 - **순서는 `position`이 소유한다.** 서버가 정해 내려주고 클라이언트는 재배열하지 않는다(`content-detail.md` 4.3 — 기존 원칙).
 - **`content_id` 단독 인덱스를 두지 않는다.** 유니크 `(content_id, position)`의 선두 컬럼이 콘텐츠 단위 조회를 이미 커버한다.
 - **소스 항목 탭의 클릭은 기록하지 않는다** (확정 2026-08-24 — MVP). `source_link_clicks`의 존재 이유는 파트너 정산·리포팅 지표이고([6.6](#66-source_link_clicks)), `ai_generated` 소스에는 그 요구가 없다. 따라서 상세 응답의 소스 항목에 식별자(`id`)를 싣지 않는다. 소스별 분석 요구가 생기면 P1에서 `source_link_clicks.source_id` 추가와 함께 재검토한다.
@@ -821,6 +828,31 @@ uq_content_audio_renditions_content_id_quality (content_id, quality)
 - **`compressed` 행은 항상 있다**(발행의 필수 파트). `aac` · `lossless`는 있을 때만 있다 — 2026-10-06 기준 발행분 40편은 `compressed`만 있고, 마이그레이션이 `contents.audio_path`에서 그 행을 만든다(코덱 `mp3`, 나머지 부속값 NULL).
 - 메타(코덱·비트레이트·채널·샘플레이트·크기)는 **업로드 때 서버가 파일에서 읽어 채운다**(`audio-probe`). 수동 입력을 받지 않는다 — `duration_sec`과 같은 이유다(불일치하면 판정이 깨진다).
 - 재생 URL 발급은 이 표에서 **허용·보유 음질 가운데 가장 높은 것**을 고른다(`player.md` 4.9). 어떤 응답에도 `path`는 실리지 않는다.
+
+### 5.9 `series` *(신설 2026-10-17 — KAN-134 시리즈)*
+
+시리즈의 주인. `contents.series_id`의 FK 대상이다([5.1](#51-contents)). 마이그레이션 `1790700000000-AddSeries`.
+
+```
+series
+  id              uuid          PK
+  title           varchar(255)  NOT NULL
+  description     text          NOT NULL   빈 문자열 허용(소개 없음)
+  total_episodes  int           NOT NULL   CHECK >= 1 — 계획 편수. 총 편수의 기준. 상한 없음
+  status          varchar(20)   NOT NULL   CHECK IN ('ongoing','completed')
+  created_at · updated_at
+
+ck_series_total_episodes  CHECK (total_episodes >= 1)
+ck_series_status          CHECK (status IN ('ongoing', 'completed'))
+```
+
+- **표지 칸이 없다** — 표지는 노출 중인 가장 앞 편(보통 1화)의 썸네일이다(결정 2026-10-09).
+- **시장 칸이 없다** — 시리즈는 편(`contents.market`)의 시장을 따른다. 한 시리즈에 시장이 섞이지 않게 업로드가 막는다(`admin-api.md` 4.6).
+- `status`는 표시용 구분이다 — 업로드·노출을 막지 않는다. `ongoing`이면 편수를 늘려 편을 더한다.
+- `total_episodes`는 발행 중인 가장 큰 편 번호보다 작게 줄일 수 없다(`admin-api.md` 4.24).
+- 삭제 API가 없다. 편이 FK로 가리킨다(`ON DELETE RESTRICT`).
+- 담기·재생 위치·완청·통계·페이월 차감은 편 단위 그대로다 — 그 테이블들은 `series`를 참조하지 않는다.
+- **CS 키워드 시리즈(데이터)** — 마이그레이션 `1790700100000-SeedCsKeywordSeries`가 시리즈 행 하나(id **`7de91e6e-2e96-4aea-9ddb-80fe99179c2e`** 고정, "키워드로 빠르게 배우는 CS 지식", 16편, `completed`)를 만들고 해당 16개 콘텐츠에 `series_id`·`episode_no`(1~16)·`total_episodes`(16)를 채웠다. `content_id`·`content_version`·제목·오디오는 그대로다. id를 고정한 이유는 운영 → 개발계 콘텐츠 동기화가 행을 id로 맞추기 때문이다(동기화 스크립트가 `series`를 `contents`보다 먼저 upsert한다).
 
 ## 6. 라이브러리 · 재생
 

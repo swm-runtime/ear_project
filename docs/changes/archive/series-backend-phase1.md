@@ -5,6 +5,7 @@
 | 대상 문서 | `backend/domain.md` 5.1(`contents.series_id` FK·부분 유니크) · 신설 5.9 `series` · 2장 모듈 소유 표(`content`) · `backend/architecture.md` 4.5 의존 표(신설 `SeriesDetail`) · `backend/recommendation-evaluation.md`(불변식 `series-order` 문구) · `spec/api/admin-api.md` 4.6(업로드 시리즈 검증) · 4.8(복구 409) · 신설 4.24 `/admin/series` · 8장 · `spec/api/explore-api.md` 4.1·4.2·4.2-1·4.5 항목의 `content.series` · 신설 4.7 `GET /series/:series_id` · `spec/api/library-api.md` 4.1·4.3 `content.series` · `spec/api/player-api.md` 4.1 `content.series` · `spec/api/content-detail-api.md` 4.1 `content.series` |
 | 요청 파트 | 백엔드 — 박준현 |
 | 발행 날짜 | 2026-10-17 |
+| 반영 날짜 | 2026-10-17 |
 | 관련 | [KAN-134](https://runtime364.atlassian.net/browse/KAN-134) (`tickets/backend/pending/series-backend.md` "확정 설계" 1·2·3·5·7번) · FE [KAN-225](https://runtime364.atlassian.net/browse/KAN-225)가 이 계약을 읽는다 · AI KAN-136(파이프라인 [시리즈 발행]이 `POST /admin/series`를 부른다) · 브랜치 `feat(be)/series-backend` · 마이그레이션 `1790700000000-AddSeries` · `1790700100000-SeedCsKeywordSeries` |
 
 ## 배경
@@ -252,3 +253,5 @@ KAN-134 확정 설계(2026-10-17, 박수헌)를 **설치된 앱(1.2.1)을 깨지
 ## 처리 기록
 
 - 2026-10-17 발행. 로컬 검증: 마이그레이션 run·revert·run 왕복, CS 마이그레이션 멱등(두 번 돌려도 행·`updated_at` 그대로, 없는 id 건너뜀), 단위·e2e(`test/series.e2e-spec.ts`) 통과.
+- 2026-10-17 반영 — `backend/domain.md` 2장 모듈 소유 표(`content`에 `series`) · 5.1(`series_id` FK·`fk_contents_series`·부분 유니크 `uq_contents_series_id_episode_no_published`·`total_episodes` 사본 규칙·마이그레이션 기존 데이터 처리) · 5.9 `series` 신설(표·CHECK·표지/시장 없음·CS 시리즈 데이터) · `backend/architecture.md` 4.5 의존 표(`SeriesDetail` 행 + 설명 단락) · `backend/recommendation-evaluation.md` 5.1 불변식 4(`series-order` — 규칙 ②′) · `spec/api/admin-api.md` 3장 목록·4.6 시리즈 필드 검증·4.8 복구 409·4.24 `/admin/series` 신설·5장 에러 표(`CONFLICT`·`NOT_FOUND`)·8장 · `spec/api/explore-api.md` 1장·3장 목록·4.1 `content.series`(예시·필드 표)·4.7 `GET /series/:series_id` 신설·5장 `NOT_FOUND`·8장 데이터 모델 · `spec/api/library-api.md` 4.1·4.3 `content.series` · `spec/api/player-api.md` 4.1 `content.series` · `spec/api/content-detail-api.md` 4.1 `content.series`(`series_id` 유지 + `id`·`title`). 반영 전 코드(`Series` 엔티티·마이그레이션 `1790700000000`·`1790700100000`·`SeriesService` 검증 메시지·`AdminSeriesController`·DTO 길이 상한 255/2000·`SeriesDetailModule` imports·`ContentSeriesDto`·상세 DTO의 `series_id`)와 대조함 — 일치.
+- 범위 밖이라 적어 둔 `features/drip-scheduling.md` 4.2·7의 규칙 ②′는 통합 지시에 따라 코드(`pickSeriesEpisode`·`filterEpisodeOrder`·`isSeriesContinuation`)를 기준으로 함께 반영했다 — 4.2 "시리즈 회차 순서 — 규칙 ②′" 신설(용어·1~3·세부 결정·상태 표), 4.2 ③ 시리즈 연속성 행, 7장 "시리즈 중간 편" 항목, 8장 완료 조건 2개 추가. 배포 메모의 동기화 순서는 `infra/runbook.md` 3.3-1에 옮겼다. `features/content-detail.md` 4.3-1("N부작 중 M화")은 화면 쪽 몫으로 남겨 손대지 않았다.

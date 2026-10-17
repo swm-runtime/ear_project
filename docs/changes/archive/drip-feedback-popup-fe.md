@@ -5,6 +5,7 @@
 | 대상 문서 | `spec/uiux/library-uiux.md`(또는 별도 uiux 문서) · `features/drip-feedback.md` 5장·미결 · `frontend/architecture.md` 4.4(library·profile 행)·5.4·7.2 · `frontend/design.md` §5 시트·다이얼로그 |
 | 요청 파트 | 프론트엔드 — 이주호 |
 | 발행 날짜 | 2026-10-17 |
+| 반영 날짜 | 2026-10-17 |
 | 시작 날짜 | 2026-10-17 |
 | 기한 | 없음 (통합 과정에서 반영) |
 | 선행 | 없음 — 코드는 KAN-224 PR에서 반영됨(`tickets/frontend/archive/drip-feedback-popup.md`) |
@@ -50,3 +51,5 @@ KAN-224(추천 별점 팝업)를 구현하면서 문서에 아직 없는 결정�
 ## 처리 기록
 
 - 2026-10-17 발행(KAN-224 FE 구현 PR #1660과 함께).
+- 2026-10-17 반영 — `spec/uiux/library-uiux.md` 2장(L16 행)·4.12 L16 추천 별점 팝업 신설(구성·상태 3종(표시·전송 중·인라인 에러)·반응·확정 카피 ko/en·낭독)·5장 다이얼로그 행 · `features/drip-feedback.md` 5장(제목 L16 연결·전송 실패 3갈래·"세션 내 1회" 행)·미결 "팝업 세션 내 1회 규칙" 해소 · `frontend/architecture.md` 4.4 library 행(`auth` 의존·팝업 소유)·profile 행(별점 ↔ P11 비대칭 순서)·5.4 추천 별점 행·7.2 SecureStore 임시 키 · `frontend/design.md` §5 `ConfirmDialog` `titleAccessory`. 코드(`library.copy.ts` `dripFeedback`·`drip-feedback.service.ts`·`useDripFeedbackDialog`·`launch-dialog-gate.ts`·`ConfirmDialog`)와 대조함 — 일치.
+- 요청과 다르게 적은 것(코드 기준): 닫기·그만 보기의 보관 조건은 망·타임아웃·`retryable`(5xx·429)이다(요청은 "망·5xx"). [보내기]는 `NETWORK_ERROR`·`TIMEOUT`만 보관하고 5xx는 인라인 에러다. 보관 상한 10건은 오래된 것부터 버린다. `frontend/architecture.md` 4.4 profile 행의 의존 목록에 코드상 `onboarding`·`settings` import가 빠져 있으나 이 요청 범위 밖이라 두었다.
