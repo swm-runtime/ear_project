@@ -616,8 +616,8 @@ export function buildTopicJudgePromptEn(i: ClusterV2Input): string {
   const mid = i.seed?.midTopic ?? i.reinforceMidTopic ?? i.midTopics[0];
   const history = historyTopic(mid);
   const cur = new Set(i.reinforce?.currentM ?? []);
-  const tierLabel = (t?: string) => (t === "allow_open" ? "tier 1" : t === "allow_support" ? "tier 2" : "domain not judged");
-  const list = i.sources.map((x) => `[M${x.n}] ${x.publisher || x.domain} · ${x.published ?? "date unknown"} · ${tierLabel(x.tier)}${x.used ? " · (already used)" : ""}${cur.has(`M${x.n}`) ? " · (current candidate source)" : ""}\n   ${x.title}\n   ${(x.summary ?? "").replace(/\s+/g, " ").slice(0, 240)}`).join("\n");
+  // 도메인 계층은 판정자에게 보이지 않는다(한국판 군집화 v2 와 같음, 2026-10-17) — 뼈대가 1군인지는 게이트 1이 검사한다(명세 6.3)
+  const list = i.sources.map((x) => `[M${x.n}] ${x.publisher || x.domain} · ${x.published ?? "date unknown"}${x.used ? " · (already used)" : ""}${cur.has(`M${x.n}`) ? " · (current candidate source)" : ""}\n   ${x.title}\n   ${(x.summary ?? "").replace(/\s+/g, " ").slice(0, 240)}`).join("\n");
   const id = i.seed?.id ?? i.reinforce!.id;
   const mode = i.seed
     ? `## 0. Mode — one candidate from a person's topic
@@ -643,7 +643,7 @@ ${i.specBacklogExcerpt.trim()}
    History mode: use axis_type "event" only for a past event in Korean History & Society; modern society topics use the three forms. An event axis asks how to read the event, not who was right. The anchor describes the event itself; an essay that uses the event as an example of another idea is not an anchor. Records from the time are cases. Counterpoint is optional.` : ` Do not use axis_type "event".`}
 2. **It works in English for this listener.** Build the tension inside the subject: two facts, goals, or views about the Korean practice that pull against each other. Do not build it on what outsiders, foreigners, or the West expect. Compare Korea with another country only if a listed source makes that comparison. The axis can be said in plain English with at most one Korean word. It does not rest on Korean wordplay or a pun that does not translate. It does not frame Korea as strange, rank cultures, or argue which country owns a custom.
 3. **Excluded.** No axis built around one person. Nothing about a real person's private life, relationships, rumors, controversies, incidents, or lawsuits. No current political issue and no inter-Korean military issue. No promotion of an agency, brand, or product.
-4. **Roles.** anchor (1 to 2 sources that support the axis) · case · counterpoint · numbers · context. Give the anchor role only to sources marked tier 1; if none fits, return "needs reinforcement" with anchor in gaps. One source may have two roles. A source with no role is left out. 5 to 7 sources.
+4. **Roles.** anchor (1 to 2 sources that support the axis) · case · counterpoint · numbers · context. One source may have two roles. A source with no role is left out. 5 to 7 sources.
 5. **Diversity.** At least 3 publishers (one organization is one publisher) · no publisher over half · at least 3 roles (anchor, case, and one more) · at most 1 "already used" source. The worker recounts; do not force sources in to meet it.
 6. **Verdict.** "holds" if every criterion is met. "needs reinforcement" if the axis is good but roles are empty; list them in gaps. A domain not yet judged is not a reason for "needs reinforcement"; a person judges domains at gate 1. Mention it in dedup_note instead.
 
@@ -659,7 +659,7 @@ Existing candidate titles: ${i.existingTitles.length ? i.existingTitles.join(" /
 ${list}
 
 ## 5. Check before output
-- The axis has one of the forms and passes rules 2 and 3. Every anchor is tier 1.
+- The axis has one of the forms and passes rules 2 and 3.
 - Count publishers, the largest share, and roles yourself. There is at least one anchor. Every M-ID is in the list.
 
 ## 6. Report — output only the requested JSON.`;
