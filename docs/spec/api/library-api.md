@@ -187,7 +187,8 @@
         "thumbnail_url": "https://...",
         "content_version": 1,
         "topic_ids": ["uuid", "uuid"],
-        "language": "ko"
+        "language": "ko",
+        "series": null
       },
       "progress": {
         "position_sec": 372,
@@ -211,6 +212,7 @@
 | `progress` | `playback_progresses` 조인 결과. **행이 없으면 `null`**(0으로 채우지 않는다) |
 | `content.content_version` | 재발행 판정용. 올라갔으면 클라이언트가 저장한 위치·오프라인 파일을 폐기한다(`domain.md` 5.1) |
 | `content.language` | 콘텐츠 언어 `ko` / `en`(추가 2026-10-14 — KAN-188, `global-api.md` 4.7). **표시 전용** — 클라이언트는 이 값으로 목록을 거르지 않는다(시장 필터는 서버가 한다). 4.3 `resume_target.content`에도 같은 필드가 실린다 |
+| `content.series` | **시리즈 편이면 `{ id, title, episode_no, total_episodes }`, 단일 콘텐츠면 `null`**(추가 2026-10-17 — KAN-134). 탐색(`explore-api.md` 4.1)·플레이어·상세와 같은 모양이고 `total_episodes`는 시리즈 표(`domain.md` 5.9)의 값이다. 목록은 시리즈 행을 한 번에 읽는다. 라이브러리는 시리즈로 묶지 않는다 — 편 단위 그대로다. 4.3 `resume_target.content`에도 같은 필드가 실린다 |
 | `content.source_url` | **`null`이면 더보기 시트(L4)에 [원문 보기]를 노출하지 않는다**(개정 2026-08-24 — 세 화면 더보기 통일(2026-08-10)의 계약 반영. 발급 응답 `player-api.md` 4.1과 같은 규칙). `partner`는 항상 값이 있고(`chk_contents_partner_disclosure` — `domain.md` 5.1), `ai_generated`는 선택 필드라 `null`일 수 있다 |
 
 - **재생 위치를 `library_items`가 아니라 조인으로 가져온다.** 위치의 단독 소유자는 `playback_progresses`다(`domain.md` 6.2 — `resume_position_sec`은 폐기된 컬럼).
@@ -304,7 +306,8 @@
       "thumbnail_url": "https://...",
       "content_version": 1,
       "topic_ids": ["uuid", "uuid"],
-      "language": "ko"
+      "language": "ko",
+      "series": null
     },
     "progress": { "position_sec": 372, "max_reached_sec": 372 }
   },
@@ -330,6 +333,7 @@
 | `contents.market = users.market` | 다른 시장 콘텐츠는 어떤 응답에도 나오지 않는다(추가 2026-10-14 — KAN-188, `global-api.md` 4.7) |
 | `position_sec > 0` | 위치가 0이면 처음부터 듣는 것과 같다(`library.md` 7) |
 
+- **`content.series`도 목록 응답(4.1)과 같은 모양이다**(추가 2026-10-17 — KAN-134 — 시리즈 편이면 객체, 단일 콘텐츠면 `null`).
 - **`content.topic_ids`는 목록 응답(4.1)과 같은 출처·같은 모양이다**(2026-09-22 추가 — KAN-91). 미니플레이어가 제목 아래 카테고리 줄을 그리는 데 쓴다. 주제가 없으면 **`null`이 아니라 `[]`** 다.
 - **대상 없음을 404로 응답하지 않는다.** 신규 사용자와 완청만 있는 사용자에게는 대상이 없는 것이 정상이며, 클라이언트는 같은 응답에서 잔여 재생 표시값까지 함께 받아야 한다.
 - **`position_sec > 0` 판정을 서버가 한다.** 클라이언트에 맡기면 규칙이 두 곳에 생기고, 조건이 바뀔 때 앱 배포 없이는 고칠 수 없다.

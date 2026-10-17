@@ -5,7 +5,8 @@
 | 대상 문서 | `spec/api/explore-api.md` 4.1 피드 · 4.2 주제별 · 4.2-1 인기 · 4.5 검색(항목 종류·시리즈 카드·커서·시리즈 제목 일치) · 5장 에러(변경 없음 확인) · `features/explore.md` 4.1·4.4·4.5-5(소유 파트 몫 — 아래 "범위 밖") · `infra/runbook.md`(스위치 켜는 순서) |
 | 요청 파트 | 백엔드 — 박준현 |
 | 발행 날짜 | 2026-10-17 |
-| 관련 | [KAN-134](https://runtime364.atlassian.net/browse/KAN-134) 확정 설계 4번 · FE [KAN-225](https://runtime364.atlassian.net/browse/KAN-225)(`tickets/frontend/pending/series-display.md`) · 1단계 계약 `changes/pending/series-backend-phase1.md` · 브랜치 `feat(be)/series-explore-cards`(1단계 `feat(be)/series-backend` 위) |
+| 반영 날짜 | 2026-10-17 |
+| 관련 | [KAN-134](https://runtime364.atlassian.net/browse/KAN-134) 확정 설계 4번 · FE [KAN-225](https://runtime364.atlassian.net/browse/KAN-225)(`tickets/frontend/pending/series-display.md`) · 1단계 계약 `changes/archive/series-backend-phase1.md` · 브랜치 `feat(be)/series-explore-cards`(1단계 `feat(be)/series-backend` 위) |
 
 ## 배경
 
@@ -117,3 +118,5 @@
 
 - 2026-10-17 발행. 단위(`explore.series-grouping.spec.ts`·`explore.orchestrator.spec.ts` 스위치 켬 블록·`series.service.spec.ts` findCards)와 e2e(`test/series-explore-cards.e2e-spec.ts` — 꺼짐/켬 두 앱) 통과.
 - 2026-10-17 개정 — 커서에 이미 낸 시리즈(`g`)를 싣고 이어 읽던 설계를 **SQL 대표 편(윈도) + 종전 키셋**으로 바꿨다. 검증에서 `g`가 시리즈마다 약 52자씩 자라 7개쯤에서 커서 상한(512자)을 넘어 400이 났고(주제별 5쪽·검색 4쪽·인기 16쪽), 이어 읽기 상한에 걸린 검색 빈 페이지가 `has_next: false`로 목록을 끊었다. 새 설계는 커서 모양이 꺼진 모드와 같고 빈·짧은 페이지가 없다(e2e: 시리즈 10개 · 검색어 + 주제 필터 · limit=1 — 페이지마다 1건, 커서 길이 일정). 켜는 순서를 바로잡았다(dev→main은 스위치 끈 채 먼저, 최소 지원 상향은 스토어 1.3.0 공개 뒤).
+- 2026-10-17 반영 — `spec/api/explore-api.md` 4.1-1 신설(스위치 켬에만 적용 명시·꺼짐 시 종전과 같음(`content.series` 추가뿐)·켜는 순서 4단계·항목 종류 두 JSON·카드 자리(대표 편)·커서(꺼진 모드와 같음)·피드 섹션 30건 과읽기·검색 시리즈 제목 일치·성능 메모) · 4.2·4.2-1·4.5에 스위치 켬 조건부 참조 · 5장 새 코드 없음 확인 · `features/explore.md` 4.1(시리즈 카드 — 스위치 켬만, 켜는 순서) · 4.4(카드 탭 = 시리즈 화면 예외) · 4.5-5(시리즈 제목 일치 — 스위치 켬만) · `infra/runbook.md` 4장 "탐색 시리즈 카드 스위치". 반영 전 코드(`explore.orchestrator.ts`의 `?.trim() === 'true'`·`ExploreSeriesCardDto`·`EXPLORE_SECTION_ITEM_COUNT` 10 × `SERIES_CARD_SECTION_OVERFETCH` 3·`content.repository.ts` 시리즈 제목 `ILIKE`·`push.sh` 선택 키·`.env.example`)와 대조함 — 일치.
+- 범위 밖으로 적어 둔 `features/explore.md` 4.1·4.4·4.5-5는 통합 지시에 따라 함께 반영했다(스위치 켬에만 적용된다고 명시). FE KAN-225 PR이 같은 절을 고치면 이 반영과 합친다.

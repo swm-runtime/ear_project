@@ -75,6 +75,8 @@
 | GET | `/admin/insights/summary` | 서비스 지표 요약 — 가입·탈퇴·활성 사용자·청취 시간·완청률·사용자/콘텐츠 순위·리텐션·탈퇴 사유, 읽기 전용 (4.22) |
 | GET · POST | `/admin/invite-codes` | 초대 코드 목록(사용 현황 포함)·만들기 (4.23, 2026-10-10) |
 | PATCH | `/admin/invite-codes/:inviteCodeId` | 초대 코드 고치기 — 이름·켜기/끄기·한도·입력 기간만 (4.23) |
+| GET · POST | `/admin/series` | 시리즈 목록(편 현황 포함)·만들기 (4.24, 2026-10-17 — KAN-134) |
+| PATCH | `/admin/series/:seriesId` | 시리즈 고치기 — 제목·소개·총 편수·상태 (4.24) |
 
 ## 4. 엔드포인트 상세
 
@@ -169,7 +171,7 @@
   "source_url": "...",         // partner 필수 / ai_generated 선택
   "partner_id": "uuid",        // partner 필수
   "license_expires_at": "2027-01-01T00:00:00Z",  // partner 필수
-  "series_id": "...", "episode_no": 1, "total_episodes": 5,  // 선택 (series_id 있으면 나머지 필수)
+  "series_id": "...", "episode_no": 1, "total_episodes": 5,  // 선택 (series_id 있으면 나머지 필수). series_id 는 4.24로 먼저 만든 시리즈의 id (2026-10-17)
   "topic_ids": ["..."],        // 필수, 최소 1개
   "sources": [{ "title": "...", "author": "...", "url": "..." }],  // ai_generated 필수, 최소 1개
   "review_confirmed": true,    // 필수, true여야 한다
@@ -187,6 +189,22 @@
   - 조합이 `kr↔ko` · `global↔en`이 아니면 400 `VALIDATION_FAILED`(`details.field = "language"`).
   - `topic_ids`가 전부 같은 시장(`market`)의 주제가 아니면 400 `VALIDATION_FAILED`(`details.field = "topic_ids"`).
   - `market = global`인데 `enrichment_file`에 `target_audiences`가 있으면 400 `VALIDATION_FAILED`(`details.field = "target_audiences"`).
+
+**시리즈 필드 검증** (추가 2026-10-17 — KAN-134, `domain.md` 5.1·5.9)
+
+`series_id`가 있으면(종전대로 `episode_no`·`total_episodes`도 필수) 다음을 본다. 전부 **400 `VALIDATION_FAILED`** 이고 `details.field`로 칸을 알린다(이 문서의 다른 필드 오류와 같은 표기 — 응답 본문에서는 `details`가 펼쳐져 최상위 `"field": "series_id"`로 온다). **저장소에 파일을 올리기 전에** 거절하고, 발행 트랜잭션 안에서 시리즈 행을 잠그고 한 번 더 본다.
+
+| 조건 | `details.field` | 메시지(예) |
+|---|---|---|
+| `series_id`인 시리즈가 없다 | `series_id` | 존재하지 않는 시리즈예요 |
+| `total_episodes` ≠ `series.total_episodes` | `total_episodes` | 총 편수가 시리즈의 편수(3편)와 달라요 |
+| `episode_no`가 1..`series.total_episodes` 밖 | `episode_no` | 편 번호는 1~3 사이여야 해요 |
+| 같은 `(series_id, episode_no)`로 발행 중인 편이 있다 | `episode_no` | 이 시리즈에 같은 번호로 발행된 편이 이미 있어요 |
+| 시리즈에 이미 올라간 편(상태 무관)과 `market`이 다르다 | `series_id` | 다른 시장의 편이 있는 시리즈예요 |
+
+- 종전 검사(시리즈인데 편 번호·총 편수가 없음 / 편 번호 > 총 편수 → `episode_no`)는 그대로다.
+- 동시 업로드가 같은 번호로 경합해 부분 유니크(`uq_contents_series_id_episode_no_published`)에 걸려도 500이 아니라 같은 400(`episode_no`)이다.
+- **시리즈는 먼저 `POST /admin/series`(4.24)로 만들고 그 `id`를 보낸다.** 기존 콘텐츠를 시리즈로 지정하는 API는 없다 — 4.10(업로드 뒤 시리즈 필드는 바꾸지 않는다)은 그대로다.
 
 **`enrichment_file` — 추천 메타 파일** (`admin.md` 3.1의 계약 표현, 등재 2026-09-08)
 
@@ -256,6 +274,7 @@
 본문 없다. 200으로 `AdminContentItem`을 반환한다.
 
 - 회수 상태가 아니면 **409 `CONFLICT`**.
+- **회수된 시리즈 편**을 되돌릴 때, 그 사이 같은 번호로 다른 편이 발행됐거나 시리즈 편수가 그 번호보다 작게 줄었으면 **409 `CONFLICT`** — "같은 번호로 발행된 편이 있어 되돌릴 수 없어요" / "시리즈 편수보다 큰 번호라 되돌릴 수 없어요"(추가 2026-10-17 — KAN-134).
 - **삭제된 `library_items`는 되살리지 않는다.** 복구는 콘텐츠를 다시 노출시킬 뿐 사용자 보관함의 과거 상태를 복원하지 않는다.
 
 ### 4.9 `GET /admin/system-stats`
@@ -670,6 +689,53 @@ PoC·제휴 캠페인마다 코드를 만들고, 켜고 끄고, 사용 현황을
 - **사용자 식별 정보는 싣지 않는다** — 누가 썼는지는 집계만 본다(CLAUDE.md 개인정보 원칙). PoC 사용 데이터 분석이 계정 단위로 필요해지면 그때 `user_id` 목록 API를 따로 정한다.
 - 같은 코드를 동시에 만들어도 409다(유니크 인덱스). 만들기·고치기는 `audit_logs`에 `invite_code.create` · `invite_code.update`로 남는다(전후 값 — 코드 테이블에 작성자 컬럼이 없다).
 
+### 4.24 `/admin/series` — 시리즈 관리 (2026-10-17 — KAN-134)
+
+시리즈 행(`domain.md` 5.9)을 만들고 고친다. 인증·인가는 다른 관리자 API와 같다(`JwtAuthGuard` + `AdminRoleGuard` — 일반 계정 403). 쓰기는 감사 로그와 한 트랜잭션이다(`series.create` · `series.update`, target `series:<id>`, 소개는 길이만 남긴다). **삭제는 없다.**
+
+**항목(`AdminSeriesItem`) — 세 엔드포인트 응답이 같은 모양**
+
+```jsonc
+{
+  "id": "uuid",
+  "title": "키워드로 빠르게 배우는 CS 지식",
+  "description": "…",
+  "total_episodes": 16,
+  "status": "ongoing" | "completed",
+  "episode_counts": { "published": 16, "withdrawn": 0, "expired": 0 },  // 이 시리즈의 편 수(상태별). published 는 상태 기준(라이선스 만료 전 포함)
+  "max_published_episode_no": 16,   // 발행 중인 가장 큰 편 번호. 없으면 null — total_episodes 를 줄일 수 있는 하한
+  "created_at": "2026-10-17T08:00:00.000Z",
+  "updated_at": "2026-10-17T08:00:00.000Z"
+}
+```
+
+**`GET /admin/series`** → 200 `{ "items": AdminSeriesItem[] }` — 만든 최신순, 페이지 없음(수십 단위). `Cache-Control: no-store`.
+
+**`POST /admin/series`** → 201 `AdminSeriesItem`
+
+```jsonc
+{
+  "title": "…",            // 필수, 공백만은 안 됨, ≤255자 (앞뒤 공백은 서버가 자른다)
+  "description": "…",      // 필수 키, 빈 문자열 허용, ≤2000자
+  "total_episodes": 3,     // 필수, 정수 ≥1 (상한 없음 — int 범위 밖만 400)
+  "status": "ongoing"      // 선택, 없으면 ongoing
+}
+```
+
+- 파이프라인 [시리즈 발행]은 이것을 먼저 부르고 받은 `id`를 업로드(4.6)의 `series_id`로 보낸다(`ai/spec/11-series.md` 7장). 시장을 받지 않는다 — 첫 편이 정한다.
+
+**`PATCH /admin/series/:seriesId`** → 200 `AdminSeriesItem`
+
+```jsonc
+{ "title": "…", "description": "…", "total_episodes": 20, "status": "completed" }   // 전부 선택, 담긴 키만 바꾼다
+```
+
+- `total_episodes`는 **`max_published_episode_no`보다 작게 줄일 수 없다** → 400 `VALIDATION_FAILED`(`details.field = "total_episodes"`, "이미 N화까지 발행돼 그보다 작게 줄일 수 없어요"). 같게 줄이거나 늘리는 것은 된다. 회수된 편 번호는 하한에 들지 않는다.
+- 편들의 `contents.total_episodes` 사본은 고치지 않는다(사용자 응답은 시리즈 표 값을 쓴다). 편수를 늘린 뒤 올리는 편은 새 편수로 보낸다.
+- 바꿀 키가 없으면 400 `VALIDATION_FAILED`("바꿀 항목이 없어요"). `null`·모르는 필드·모르는 `status` 값은 400. 없는 시리즈 404 `NOT_FOUND`. uuid가 아니면 400.
+
+**에러 코드**: 새 코드 없음 — `VALIDATION_FAILED`(400) · `NOT_FOUND`(404) · `CONFLICT`(409, 4.8 복구) · `UNAUTHORIZED`/`FORBIDDEN`.
+
 ## 5. 에러 코드 표
 
 | error_code | HTTP | retryable | 발생 지점 |
@@ -681,12 +747,12 @@ PoC·제휴 캠페인마다 코드를 만들고, 켜고 끄고, 사용 현황을
 | `FORBIDDEN` | 403 | false | 전 라우트 — `role != admin` |
 | `ADMIN_TOPIC_HAS_CONTENTS` | 409 | false | 4.4 — `details.content_count` |
 | `ADMIN_TOPIC_HAS_NO_CONTENTS` | 409 | false | 4.3 — 노출 가능 콘텐츠 0건인 주제의 노출 켜기. `details.content_count = 0` |
-| `CONFLICT` | 409 | false | 4.7 — 이미 회수됨 / 4.8 — 회수 상태가 아님 / 4.10 · 4.11 — `withdrawn`이 아님 |
+| `CONFLICT` | 409 | false | 4.7 — 이미 회수됨 / 4.8 — 회수 상태가 아님 · 시리즈 편 복구 시 같은 번호가 발행 중이거나 편수 밖(2026-10-17) / 4.10 · 4.11 — `withdrawn`이 아님 |
 | `VALIDATION_FAILED` | 400 | false | 4.10 — 파트가 하나도 없음(`details.field = "audio"`) / `sources` 교체가 `origin`의 공시 규칙에 어긋남(`details.field = "sources"`) |
 | `ADMIN_STORAGE_FAILED` | 502 | **true** | 4.6·4.10 — 저장소 실패 |
 | `NOTICE_CURSOR_INVALID` | 400 | false | 4.12 — 커서 형식 오류, 사용자 목록 커서를 넣음 |
 | `NOTICE_NOT_FOUND` | 404 | false | 4.14·4.15 — 없거나 삭제된 공지 |
-| `NOT_FOUND` | 404 | false | 4.16 — 그 이메일의 사용자 없음 / 4.17 — 테스트 계정이 이 서버에 가입돼 있지 않음 · `delete` 대상이 라이브러리에 없음 |
+| `NOT_FOUND` | 404 | false | 4.16 — 그 이메일의 사용자 없음 / 4.17 — 테스트 계정이 이 서버에 가입돼 있지 않음 · `delete` 대상이 라이브러리에 없음 / 4.24 — 없는 시리즈(2026-10-17) |
 | `ADMIN_RECOMMEND_TEST_DISABLED` | 409 | false | 4.17 — 환경이 `development`가 아니거나(`SENTRY_ENVIRONMENT`, 비면 `NODE_ENV`) `RECOMMEND_TEST_EMAIL` 미설정 |
 | `INVITE_CODE_DUPLICATE` | 409 | false | 4.23 — 같은 값의 초대 코드가 이미 있다 |
 | `INVITE_CODE_NOT_FOUND` | 404 | false | 4.23 — 고치려는 초대 코드가 없다 |
@@ -736,6 +802,7 @@ has_current_embedding                            // 추천 스코어링에 쓰�
 
 **`audio_path`는 싣지 않는다**(7장).
 
+- `series_id`·`episode_no`·`total_episodes`는 종전 그대로 편의 값이다(`total_episodes`는 업로드 때의 사본 — `domain.md` 5.1). 시리즈 제목·현황은 `GET /admin/series`(4.24)로 본다(2026-10-17).
 - `has_script`(boolean, 2026-09-19 KAN-71) — `content_scripts` 행 존재 여부. 콘솔이 목록에 "자막" 표시를 그린다. `script_applied` · `script_rejected_reason`은 요청에 `script_file`이 있었을 때만 실린다(4.6).
 
 ## 9. 미결 사항
