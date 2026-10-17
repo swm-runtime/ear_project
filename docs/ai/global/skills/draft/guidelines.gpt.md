@@ -1,6 +1,6 @@
 # Script Writing Guidelines
 
-> Version: **full-en-v0.8** (2026-10-17) · GPT profile · global pipeline. Rationale and sources: [CHANGELOG.md](CHANGELOG.md).
+> Version: **full-en-v0.9** (2026-10-17) · GPT profile · global pipeline. Rationale and sources: [CHANGELOG.md](CHANGELOG.md).
 > Rule numbers are reference IDs for L0, QA and the critic. Do not reuse or renumber them.
 
 ## Principles
@@ -12,11 +12,11 @@
 
 ## Roles
 
-1. **The explainer is a Korean insider.** The insider role is framing: what a word means, how a custom is described, which question a newcomer misses. Use the Insider detail the outline gives each section: the Korean name people use, an everyday practice, or how people around them do it. Every statement about how Koreans think, live, or behave comes from the claims. Describe practices in the general present tense. Do not use "we" or "us" for Koreans. Do not claim authority from being Korean. When people in Korea disagree about something, present it as a disagreement and say who holds each view.
+1. **The explainer is a Korean insider.** The insider role is framing: what a word means, how a custom is described, which question a newcomer misses. Use the Insider detail the outline gives each section: the Korean name people use, an everyday practice, or how people around them do it. Use it inside what people do or say, not only as a line that defines a term. Every statement about how Koreans think, live, or behave comes from the claims. Describe practices in the general present tense. An event at a specific time stays in the past tense with its time. Do not use "we" or "us" for Koreans. Do not claim authority from being Korean. When people in Korea disagree about something, present it as a disagreement and say who holds each view.
 
 2. **The host is the listener's stand-in.** The host is a curious non-Korean. The host asks what a newcomer would ask and says how a point sounds to them. The host makes no factual claims. The host does not describe practices in any country, including their own, and does not name a home country or speak for a group of listeners.
 
-3. **Opinions yes, memories no.** Both speakers may give present-tense feelings, guesses, and preferences. Neither speaker tells personal memories, trips, family stories, or past actions. An imagined scene is allowed only when the explainer marks it as imagined in plain words, in two sentences or fewer, and records it in bridges. Never say the word "hypothetical" in a line.
+3. **Opinions yes, memories no.** Both speakers may give present-tense feelings, guesses, and preferences. Neither speaker tells personal memories, trips, family stories, or past actions. A scene built from claim facts may run up to four sentences and carries one concrete detail from the claims: words people say, an object, or a sound. An imagined frame with no claim facts stays at two sentences, is marked as imagined in plain words, and is recorded in bridges. Never say the word "hypothetical" in a line. At most two scenes in an episode start with "Imagine".
 
 4. **No stereotypes, rankings, or default viewpoint.**
    - Do not generalize about Koreans or any other group. Do not rank cultures, countries, artists, groups, or fandoms.
@@ -62,7 +62,7 @@
 
 ## Spoken English for international listeners
 
-17. **Plain words.** Use common words a B2-level English learner knows. Prefer common one-word verbs. Avoid phrasal verbs whose meaning is not literal. If a word needs explaining, use a simpler word instead. Explain only Korean words and terms that cannot be avoided. Keep the same word for the same thing; do not cycle through synonyms.
+17. **Plain words.** Use common words a B2-level English learner knows. Prefer common one-word verbs. Avoid phrasal verbs whose meaning is not literal. If a word needs explaining, use a simpler word instead. Explain only Korean words and terms that cannot be avoided. Keep the same word for the same thing; do not cycle through synonyms. Use the outline's Terms: one plain English name for each place or thing, every time. When a common word has a different everyday sense in this setting, explain it on first use or use another word.
 
 18. **Nothing that depends on native culture.** No idioms, slang, sports metaphors, sarcasm, irony, or wordplay. Do not refer to American or British TV, holidays, brands, or school life.
 
@@ -111,7 +111,7 @@
 
 35. **Four zones and the line format.** Zones are `## [Intro]`, `## [Opening]`, `## [Body]`, `## [Closing]`, once each, in this order. Body sections use `### #n Title` headers with the outline's numbers and order. Turns are `[Name] E1 · text` for the explainer and `[Name] Y1 · text` for the host, each numbered from 1. Use the exact speaker names the prompt gives. The first line follows the meta format the prompt gives.
 
-36. **Nothing outside speech in lines.** No URLs, tables, lists, markdown, emoji, citations, source lists, or AI disclosure in spoken lines. No claim or excerpt IDs (C##, S#-##) anywhere in the script. Do not say production terms: section, axis, block, claim, excerpt, outline, source, gold, Body, Closing. Do not carry the claims' labels into lines: attributed, account, or use as a noun for a sense of a word.
+36. **Nothing outside speech in lines.** No URLs, tables, lists, markdown, emoji, citations, source lists, or AI disclosure in spoken lines. No claim or excerpt IDs (C##, S#-##) anywhere in the script. Do not say production terms: section, axis, block, claim, excerpt, outline, source, gold, Body, Closing. Do not carry the claims' labels into lines: attributed, account, or use as a noun for a sense of a word. The outline's lines are instructions, not dialogue: never copy their wording, and never say where something is described ("described here").
 
 37. **Intro and Opening.** The injected intro template is Y1, one turn. Keep its frame and fill only its slots; no braces may remain. After the topic is named, use two or three Opening turns to raise the question a newcomer would ask. Start from the outline's Familiar picture and name it. Do not introduce studies or sources in the Opening.
 

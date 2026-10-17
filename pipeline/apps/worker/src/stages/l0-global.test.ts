@@ -268,3 +268,32 @@ test("출처 이름 계수 — 일반 명사·대문자 이름·대명사로 부
   ]).join("\n");
   assert.match(v, /the source is named in more than two sentences in a section: "Kimjang" 5 \(E1, E2\)/);
 });
+
+// ── full-en-v0.9 (2026-10-17 — G261017-004~006 에이전트 판정: 한 문장 Imagine 장면 · 구성안 문구 유출) ──
+test("Imagine 으로 시작하는 해설 문장이 셋 이상이면 문체 위반, 둘까지는 통과(템플릿 턴은 뺀다)", () => {
+  en();
+  const im = (n: number) => [T("Y1", "Imagine this, welcome.", "Intro"), ...Array.from({ length: n }, (_, i) => T(`E${i + 1}`, `Imagine a stall at dawn ${i}. The owner says hello.`)), T("Y9", "Bye.", "Closing")];
+  assert.match(enStyleViolations(im(3)).join("\n"), /3 scenes start with "Imagine" \(E1, E2, E3\)/);
+  assert.doesNotMatch(enStyleViolations(im(2)).join("\n"), /start with "Imagine"/);
+});
+
+test("읽기·설계 흔적 문구(described here · reported connection · possible starting picture)는 문체 위반", () => {
+  en();
+  const v = enStyleViolations([T("E1", "A possible starting picture is a bathhouse."), T("E2", "The rest area described here has mats. That reported connection is loose.")]).join("\n");
+  assert.match(v, /planning or reading wording in lines \(E1 "possible starting picture", E2 "described here"\)/);
+  assert.ok(v.split("\n").every(isRatioViolation));
+});
+
+test("구성안 지시 줄과 8단어 이상 겹치는 턴은 문체 위반 — 축·클로징·Host question 줄은 대조하지 않는다", async () => {
+  en();
+  const { outlineCopyViolations } = await import("./draft-two-stage.js");
+  const outline = ["Axis: [contrast] the sauna is a place to sleep as well as to wash", "Familiar picture: a towel folded into a lamb shape on a heated floor", "Section #1 — Rest", "  Scene: some establishments allow overnight rest on heated floors near the baths", "  Host question: how does the rest part fit around the bath itself", "Closing line: the sauna is a place to sleep as well as to wash"].join("\n");
+  const md = (e2: string) => ["## [Intro]", "[Alex] Y1 · Welcome.", "## [Body]", "### #1 Rest", "[Alex] Y2 · How does the rest part fit around the bath itself?", `[Mina] E2 · ${e2}`, "## [Closing]", "[Alex] Y3 · So the sauna is a place to sleep as well as to wash. Bye."].join("\n");
+  const bad = outlineCopyViolations(md("Some establishments allow overnight rest on heated floors, so people stay."), outline);
+  assert.equal(bad.length, 1);
+  assert.match(bad[0], /^Style limit: turns copy the outline's instruction wording \(E2 "some establishments allow overnight rest on heated floors"\)/);
+  assert.doesNotMatch(bad[0], /Y2|Y3/);
+  assert.ok(isRatioViolation(bad[0]));
+  assert.deepEqual(outlineCopyViolations(md("Many places let you sleep on the warm floor until morning."), outline), []);
+  assert.deepEqual(outlineCopyViolations(md("x"), ""), []);
+});

@@ -328,6 +328,7 @@ export function twoStageViolationsEn(scriptMd: string, outlineMd: string, opts: 
   const wrong = parseScriptForTts(scriptMd).turns.filter((t) => t.id && (t.id.startsWith("E") ? t.speaker !== explainer : t.speaker !== host)).map((t) => `${t.id} [${t.speaker}]`);
   if (wrong.length) v.push(`Speaker labels do not match this episode's pair (${wrong.slice(0, 6).join(", ")}${wrong.length > 6 ? " …" : ""}) — E turns are [${explainer}], Y turns are [${host}]`);
   v.push(...enStyleViolations(parseScriptForTts(scriptMd).turns));
+  v.push(...outlineCopyViolations(scriptMd, outlineMd));
   // 한국어 표현을 가리키면서 표현을 말하지 않는 해설 턴 (규칙 50, full-en-v0.6) — G261017-001 E22·E29: 설계가 등재한 동사형 표현 4개가 대본에서 빠지고 "Neither expression…"·"Korean expressions distinguish…" 만 남았다.
   // 등재 표제어가 하나도 없는 턴만 잡는다 — 영어 표현을 가리키는 "English expression" 과 "an expression of regret" 같은 일반 명사 쓰임은 뺀다
   const keys = Object.keys(opts.pronunciations ?? {}).map((k) => k.trim()).filter(Boolean);
@@ -338,6 +339,28 @@ export function twoStageViolationsEn(scriptMd: string, outlineMd: string, opts: 
     if (vague.length) v.push(`${EN_STYLE_MARK} explainer turns speak of a Korean expression without saying it (${vague.join(", ")}) — say the romanized expression in that turn, with its meaning (rule 50)`);
   }
   return v;
+}
+
+/**
+ * 구성안 지시 문구의 대사 유출 (규칙 36, full-en-v0.9 — G261017-004~006: "A possible starting picture is …"·"That reported connection concerns …"·결론형 Opens with 가 그대로 대사가 됐다).
+ * 지시 줄(Familiar picture·Opens with·Scene·Insider detail·Purpose·Transition·Development·Interaction)과 대본 턴이 8단어 이상 그대로 겹치면 문체 위반.
+ * 축·클로징 문장은 대본이 축을 말해야 하므로(규칙 40), Host question·Question 은 진행자가 그대로 물어도 되므로 대조에서 뺀다
+ */
+export function outlineCopyViolations(scriptMd: string, outlineMd: string): string[] {
+  const N = 8;
+  const words = (t: string) => t.toLowerCase().replace(/[’']/g, "'").match(/[a-z0-9']+/g) ?? [];
+  const grams = new Set<string>();
+  for (const m of outlineMd.matchAll(/^\s*(?:Familiar picture|Opens with|Scene|Insider detail|Purpose|Transition|Development|Interaction):\s*(.+)$/gim)) {
+    const w = words(m[1]);
+    for (let k = 0; k + N <= w.length; k++) grams.add(w.slice(k, k + N).join(" "));
+  }
+  if (!grams.size) return [];
+  const hits: string[] = [];
+  for (const t of parseScriptForTts(scriptMd).turns) {
+    const w = words(t.text);
+    for (let k = 0; k + N <= w.length; k++) if (grams.has(w.slice(k, k + N).join(" "))) { hits.push(`${t.id ?? t.section} "${w.slice(k, k + N).join(" ")}"`); break; }
+  }
+  return hits.length ? [`${EN_STYLE_MARK} turns copy the outline's instruction wording (${hits.slice(0, 6).join(", ")}${hits.length > 6 ? " …" : ""}) — the outline's lines are instructions, not dialogue; say it in new words (rule 36)`] : [];
 }
 
 /** 글로벌판 문체 위반 표지 — 이 머리로 시작하는 위반은 L0 한도 뒤 남아도 QA 로 넘긴다(한국판 비율 규칙과 같은 취급, RATIO_RULE_MARKS) */
@@ -434,6 +457,12 @@ export function enStyleViolations(turns: ScriptTurn[]): string[] {
   const lastSentence = (t: string) => { const s = t.trim().split(/(?<=[.!?])\s+/).filter(Boolean); return s.length >= 3 ? s[s.length - 1] : ""; };
   const tails = turns.filter((t, i) => !isTemplate(i) && expl(t) && /^(?:So|This|That|These|Those|Both|Each)\b[^?]*\.$/.test(lastSentence(t.text))).map(label);
   if (tails.length > 3) v.push(`${EN_STYLE_MARK} ${tails.length} explainer turns end on a sentence that sums up the turn (${list(tails)}) — end on the newest point; delete a last sentence the turn does not need (rule 31)`);
+  // full-en-v0.9 (G261017-004~006): 장면이 "Imagine a …" 한 문장 틀로 굳었다 — 해설 턴에서 Imagine 으로 시작하는 문장이 셋 이상이면 문체 위반(규칙 3·39)
+  const imagine = turns.flatMap((t, i) => (!isTemplate(i) && expl(t) ? t.text.trim().split(/(?<=[.!?])\s+/).filter((x) => /^Imagine\b/.test(x.trim())).map(() => label(t)) : []));
+  if (imagine.length > 2) v.push(`${EN_STYLE_MARK} ${imagine.length} scenes start with "Imagine" (${list(imagine)}) — start scenes differently and give each one a detail from the claims: words said, an object, or a sound (rules 3 and 39)`);
+  // 읽기·설계 흔적 — 구성안·claims 를 옮겨 적은 말(규칙 36, G261017-005·006)
+  const meta = find(/\b(?:described here|described above|reported connection|possible starting picture|as the (?:outline|plan) says)\b/i);
+  if (meta.length) v.push(`${EN_STYLE_MARK} planning or reading wording in lines (${list(meta)}) — say it in the speakers' own words (rule 36)`);
   // 해설자 질문 (규칙 15) — Opening 의 되묻기를 포함해 편 전체 두 번까지 (full-en-v0.6, G261017-001: 도입 되묻기 E1 + 본문 E5·E17 = 세 번)
   const eQ = turns.filter((t, i) => !isTemplate(i) && expl(t) && t.text.includes("?")).map(label);
   if (eQ.length > 2) v.push(`${EN_STYLE_MARK} the explainer asks questions in ${eQ.length} turns (${list(eQ)}) — at most two per episode, the Opening's question back included (rule 15)`);
