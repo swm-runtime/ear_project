@@ -1,10 +1,12 @@
 import fs from "node:fs/promises";
 import path from "node:path";
-import { normalizeSeriesPlan, pipelineLocale, promptBody, seriesRecapMaterial, seriesSentences, type BacklogCandidate, type SeriesDraftContext, type SeriesPlanEpisode, type SeriesTemplates, type Templates } from "@ear/pipeline";
+import { buildSeriesOverlapPrompt, normalizeSeriesPlan, pipelineLocale, promptBody, SERIES_OVERLAP_SCHEMA, seriesOverlapMessages, type SeriesOverlapFinding, seriesRecapMaterial, seriesSentences, type BacklogCandidate, type SeriesDraftContext, type SeriesPlanEpisode, type SeriesTemplates, type Templates } from "@ear/pipeline";
 import { activePromptAsset, getSeries, seriesPrevEpisodeId } from "../db.js";
 import { getFile } from "../storage.js";
 import { parseScriptForTts } from "../tts/script.js";
 import { SERIES_PROMPT_KEY } from "../assets.js";
+import { cfg } from "../config.js";
+import type { Executor } from "../executors/index.js";
 
 /**
  * 시리즈 편 대본 (spec/11 5·6장 · 글로벌 명세 6.11, KAN-136 4단계).
@@ -13,7 +15,7 @@ import { SERIES_PROMPT_KEY } from "../assets.js";
  *   - series-links.json: 인트로 시리즈 줄·클로징 문장·회상 행 ID — L0 가 재생성 회차에서도 읽는다.
  */
 export const SERIES_LINKS_FILE = "series-links.json";
-export interface SeriesLinks { series_id: string; no: number; total: number; intro_sentence: string; closing_sentence: string; recap_claim_id: string | null; prev: SeriesDraftContext["prev"]; next_title: string | null }
+export interface SeriesLinks { series_id: string; no: number; total: number; intro_sentence: string; closing_sentence: string; recap_claim_id: string | null; prev: SeriesDraftContext["prev"]; next_title: string | null; name?: string; scope?: string; only_here?: string; elsewhere?: SeriesDraftContext["elsewhere"] }
 
 /** 구성안에서 축 한 줄과 구간 질문들을 읽는다 — 한국판 "축:"·"질문:", 글로벌판 "Axis:"·"Question:". 축 앞의 [유형] 표지는 뗀다 */
 export function outlineAxisQuestions(md: string): { axis: string; questions: string[] } {
@@ -74,7 +76,7 @@ export async function applySeriesMaterial(dir: string, seriesId: string, ctx: Se
     }
   }
   const out = { ...ctx, recapClaimId: recapId };
-  const links: SeriesLinks = { series_id: seriesId, no: ctx.no, total: ctx.total, intro_sentence: ctx.introSentence, closing_sentence: ctx.closingSentence, recap_claim_id: recapId, prev: ctx.prev, next_title: ctx.nextTitle };
+  const links: SeriesLinks = { series_id: seriesId, no: ctx.no, total: ctx.total, intro_sentence: ctx.introSentence, closing_sentence: ctx.closingSentence, recap_claim_id: recapId, prev: ctx.prev, next_title: ctx.nextTitle, name: ctx.name, scope: ctx.scope, only_here: ctx.onlyHere, elsewhere: ctx.elsewhere };
   await fs.writeFile(path.join(dir, SERIES_LINKS_FILE), JSON.stringify(links, null, 1));
   return out;
 }
@@ -111,4 +113,15 @@ export function seriesViolations(scriptMd: string, notesMd: string | undefined, 
     if (!target || !row || !row.includes(links.recap_claim_id)) v.push(en ? `Recap of episode ${links.no - 1} missing — the first explainer turn of the Opening (${target?.id ?? "none"}) starts with one or two sentences from claim ${links.recap_claim_id} and lists it in turn_claims` : `${links.no - 1}화 회상이 없다 — 도입의 첫 해설 턴(${target?.id ?? "없음"})은 claims ${links.recap_claim_id}로 한두 문장 회상하고 turn_claims 에 그 행을 넣는다`);
   }
   return v;
+}
+
+/** 시리즈 범위 검사 (spec/11 6장 L1 겹침 항목) — 다른 편이 자세히 다룰 개념을 풀어 쓴 곳. 단발·도구 없음. 형제 편이 없으면 돌지 않는다 */
+export async function seriesOverlapViolations(ex: Executor, scriptMd: string, links: SeriesLinks | null): Promise<{ violations: string[]; costUsd: number }> {
+  if (!links?.elsewhere?.length) return { violations: [], costUsd: 0 };
+  const en = pipelineLocale() === "en";
+  const r = await ex.run<{ findings: SeriesOverlapFinding[] }>({
+    prompt: buildSeriesOverlapPrompt({ name: links.name ?? "", no: links.no, scope: links.scope ?? "", onlyHere: links.only_here ?? "", elsewhere: links.elsewhere, scriptMd }, en),
+    schema: SERIES_OVERLAP_SCHEMA, tools: [], allowedTools: [], cwd: cfg.workRoot, timeoutMs: 5 * 60_000, model: cfg.qaModel, effort: "low",
+  });
+  return { violations: seriesOverlapMessages(r.output.findings ?? [], en), costUsd: r.listCostUsd ?? 0 };
 }

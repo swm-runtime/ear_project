@@ -9,7 +9,7 @@ import { prepareAssets, workerRev } from "../assets.js";
 import { listPrefix, pullPrefix, pushPrefix, s3Key } from "../storage.js";
 import { parseScriptForTts } from "../tts/script.js";
 import { l0Next, runTwoStageDraft, twoStageViolations } from "./draft-two-stage.js";
-import { buildSeriesContext, readSeriesLinks, seriesViolations } from "./series-draft.js";
+import { buildSeriesContext, readSeriesLinks, seriesOverlapViolations, seriesViolations } from "./series-draft.js";
 import { runRevisionSingle } from "./revision-single.js";
 
 interface DraftOut { turns: number; chars: number; minutes: number; sources_used: string[]; sources_excluded: { url: string; reason: string }[]; self_check_fixes: string[]; notes: string }
@@ -183,7 +183,10 @@ export async function runDraft(job: Job, ex: Executor) {
   const [claimsMd, sourcesMd, notesMd] = await Promise.all([readIf("claims.md"), readIf("sources.md"), readIf("script-notes.md")]);
   let pronunciations: Record<string, string> | undefined;
   try { pronunciations = JSON.parse(await fs.readFile(pronFile, "utf8")) as Record<string, string>; } catch { pronunciations = undefined; }
-  const violations = [...formatViolations(scriptMd), ...((await exists(outlineFile)) ? twoStageViolations(scriptMd, await fs.readFile(outlineFile, "utf8"), { signoffHeads, claimsMd, sourcesMd, notesMd, pronunciations }) : []), ...seriesViolations(scriptMd, notesMd, await readSeriesLinks(dir))]; // 시리즈 편 검사(spec/11 6장) — series-links.json 이 없으면 없음
+  const seriesLinks = await readSeriesLinks(dir); // 시리즈 편(spec/11 6장) — series-links.json 이 없으면 시리즈 검사 없음
+  const overlap = await seriesOverlapViolations(ex, scriptMd, seriesLinks); // 범위 검사(L1 겹침 항목) — 형제 편 몫을 풀어 쓴 곳. 한도 뒤엔 QA 로
+  if (overlap.costUsd) costUsd = (costUsd ?? 0) + overlap.costUsd;
+  const violations = [...formatViolations(scriptMd), ...((await exists(outlineFile)) ? twoStageViolations(scriptMd, await fs.readFile(outlineFile, "utf8"), { signoffHeads, claimsMd, sourcesMd, notesMd, pronunciations }) : []), ...seriesViolations(scriptMd, notesMd, seriesLinks), ...overlap.violations];
   // L0 수정은 QA 회차와 별도로 센다 (2026-09-09): 같은 카운터를 쓰니 시점 표현 1건 고치는 데 QA 회차 하나가 사라졌고, QA 수정본이 통계 용어로 L0 에 걸리자 attempt 3 한도에 막혀 검토 대기로 빠졌다(T260909-009)
   // 한도 3회 · 한도 뒤 비율 위반만 남으면 QA 로 넘긴다 (2026-10-07 — v9.7 이후 최종 실패 12편 중 7편, 남은 위반이 턴 한두 개짜리 비율·이름 소개였다)
   const l0Fixes = Number(job.payload.l0_fixes ?? 0);

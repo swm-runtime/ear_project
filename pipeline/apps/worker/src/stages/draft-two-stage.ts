@@ -456,7 +456,9 @@ export const RATIO_RULE_MARKS = ["셋 중 하나가 상한이다", "질문은 �
   // v9.10 (2026-10-14): 진행자의 추측을 맞장구 한마디로 받는 곳 — 주고받기 문체 규칙
   "추측을 맞장구 한마디로 받는 곳은 편에 한 번까지다",
   // 글로벌판 문체 위반(enStyleViolations) — 한국판 메시지와 겹치지 않는 영어 머리
-  "Style limit:"] as const;
+  "Style limit:",
+  // 시리즈 범위 검사(spec/11 6장, 2026-10-17) — 다른 편 몫을 풀어 쓴 곳. 판단 검사라 한도 뒤엔 QA 로
+  "시리즈 범위:", "Series scope:"] as const;
 export const isRatioViolation = (v: string): boolean => RATIO_RULE_MARKS.some((m) => v.includes(m));
 
 /** L0 수정 한도 (2026-10-07: 2 → 3) — QA 회차(qa.ts MAX_ATTEMPTS = QA 실행 3회, 실패 뒤 수정 2회)와 따로 센다 */

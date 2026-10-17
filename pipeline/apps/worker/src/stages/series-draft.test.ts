@@ -75,3 +75,24 @@ test("L0 시리즈 검사 — 인트로 시리즈 줄 · 클로징 문장 · 도
   assert.match(bad, /1화 회상이 없다 — 도입의 첫 해설 턴\(E1\)/);
   assert.deepEqual(seriesViolations(md("x", "y"), undefined, null), []);
 });
+
+test("범위 검사 — 형제 편이 없으면 호출하지 않고, 지적은 표지 달린 L0 메시지가 되며 한도 뒤엔 QA 로 넘어간다", async () => {
+  ko();
+  const { seriesOverlapViolations } = await import("./series-draft.js");
+  const { l0Next, isRatioViolation, L0_FIX_MAX } = await import("./draft-two-stage.js");
+  let calls = 0; let prompt = "";
+  const ex = { kind: "api" as const, run: async (req: { prompt: string }) => { calls++; prompt = req.prompt; return { output: { findings: [{ turn: "E4", concept: "정규화", episode: 3, quote: "정규화는 테이블을 나누는 일이에요" }] }, model: "m", durationMs: 1, listCostUsd: 0.01 }; } };
+  const base = { series_id: "s", no: 2, total: 3, intro_sentence: "a", closing_sentence: "b", recap_claim_id: null, prev: null, next_title: "c", name: "CS", scope: "SQL", only_here: "조인" };
+  assert.deepEqual(await seriesOverlapViolations(ex as never, "대본", null), { violations: [], costUsd: 0 });
+  assert.deepEqual(await seriesOverlapViolations(ex as never, "대본", { ...base, elsewhere: [] }), { violations: [], costUsd: 0 });
+  assert.equal(calls, 0);
+  const r = await seriesOverlapViolations(ex as never, "[이음] E4 · 정규화는…", { ...base, elsewhere: [{ no: 3, title: "트랜잭션", onlyHere: "정규화" }] });
+  assert.equal(calls, 1);
+  assert.match(prompt, /- 3화 트랜잭션: 정규화/);
+  assert.match(prompt, /이 편의 범위: SQL · 이 편에서만 자세히: 조인/);
+  assert.equal(r.costUsd, 0.01);
+  assert.match(r.violations[0], /^시리즈 범위: E4가 3화에서 자세히 다룰 "정규화"를 풀어 설명한다/);
+  assert.ok(isRatioViolation(r.violations[0]));
+  assert.deepEqual(l0Next(r.violations, L0_FIX_MAX), { action: "pass", residual: r.violations });
+  assert.match(P.seriesOverlapMessages([{ turn: "E2", concept: "jeong", episode: 1, quote: "q" }], true)[0], /^Series scope: E2 explains "jeong" in depth, which episode 1 covers/);
+});

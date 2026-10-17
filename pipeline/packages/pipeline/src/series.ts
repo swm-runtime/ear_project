@@ -207,3 +207,68 @@ export function seriesRecapMaterial(s: Pick<SeriesDraftContext, "name" | "no" | 
     ? { claim: `Episode ${s.no - 1} of the series, "${s.prev.title}", explained: ${s.prev.axis}`, section: `## Series link — episode ${s.no - 1} (pipeline record of the previous episode's outline, not a source)\n- Series: ${s.name}\n- Title: ${s.prev.title}\n- Axis: ${s.prev.axis}\n- Section questions:\n${q}` }
     : { claim: `시리즈 ${s.no - 1}화 "${s.prev.title}"는 이것을 다뤘다: ${s.prev.axis}`, section: `## 시리즈 연결 재료 — ${s.no - 1}화 (앞 편 구성안의 파이프라인 기록, 소스 아님)\n- 시리즈: ${s.name}\n- 제목: ${s.prev.title}\n- 축: ${s.prev.axis}\n- 구간 질문:\n${q}` };
 }
+
+// ── 시리즈 범위 검사 (spec/11 6장 "L1 겹침 항목", 2026-10-17) ──────────────────────
+// L1 지시 준수 층(spec/09 6.2)은 아직 코드가 없다 — 시리즈 편에만 도는 단발 검사로 둔다. 위반은 L0 수정 회차로 고치고,
+// 한도 뒤 남으면 실패가 아니라 QA 로 넘긴다(표지가 RATIO_RULE_MARKS 에 있다 — 말맛과 같은 취급, 사실 위반이 아니다)
+
+export const SERIES_SCOPE_MARK = { ko: "시리즈 범위:", en: "Series scope:" } as const;
+
+export interface SeriesOverlapFinding { turn: string; concept: string; episode: number; quote: string }
+export const SERIES_OVERLAP_SCHEMA = {
+  type: "object",
+  additionalProperties: false,
+  required: ["findings"],
+  properties: {
+    findings: {
+      type: "array",
+      items: {
+        type: "object",
+        additionalProperties: false,
+        required: ["turn", "concept", "episode", "quote"],
+        properties: { turn: { type: "string" }, concept: { type: "string" }, episode: { type: "integer" }, quote: { type: "string" } },
+      },
+    },
+  },
+} as const;
+
+export function buildSeriesOverlapPrompt(i: { name: string; no: number; scope: string; onlyHere: string; elsewhere: { no: number; title: string; onlyHere: string }[]; scriptMd: string }, en: boolean): string {
+  const list = i.elsewhere.filter((e) => e.onlyHere || e.title).map((e) => `- ${e.no}${en ? `. ${e.title}` : `화 ${e.title}`}${e.onlyHere ? `: ${e.onlyHere}` : ""}`).join("\n");
+  return en
+    ? `You check the scope of one episode script in a series. You do not edit the script.
+This is episode ${i.no} of the series "${i.name}". Its own scope: ${i.scope}${i.onlyHere ? `; in depth only here: ${i.onlyHere}` : ""}.
+Other episodes cover these in depth:
+${list}
+
+Find places where the script explains one of those concepts in depth.
+- In depth means a whole turn spent on that concept, or three or more sentences in a row on its definition, how it works, or its cases.
+- Naming it in one or two sentences, or pointing to another episode, is not a finding.
+- An explanation that belongs to this episode's own scope is not a finding.
+- Report only clear cases. If there are none, findings is empty.
+- turn is the turn ID (E3). episode is the number of the episode that covers the concept. quote is a short exact quote from the script.
+
+## Script
+${i.scriptMd}`
+    : `너는 시리즈 편 대본의 범위를 검사한다. 대본은 고치지 않는다.
+이 편은 시리즈 "${i.name}"의 ${i.no}화다. 이 편의 범위: ${i.scope}${i.onlyHere ? ` · 이 편에서만 자세히: ${i.onlyHere}` : ""}.
+다른 편이 자세히 다루는 개념:
+${list}
+
+대본에서 이 개념들을 자세히 푸는 곳을 찾는다.
+- 자세히 푼다는 것은 한 턴 전체를 그 개념에 쓰거나, 그 개념의 정의·작동 방식·사례를 세 문장 이상 이어서 설명하는 것이다.
+- 한두 문장으로 이름을 부르거나 다른 편으로 넘기는 것은 위반이 아니다.
+- 이 편의 범위에 속하는 설명은 위반이 아니다.
+- 확실한 곳만 적는다. 없으면 findings 는 빈 배열이다.
+- turn 은 턴 ID(E3), episode 는 그 개념을 다루는 편 번호, quote 는 대본에서 그대로 옮긴 짧은 인용이다.
+
+## 대본
+${i.scriptMd}`;
+}
+
+/** 검사 결과 → L0 위반 메시지(지목한 턴을 수정 호출이 고친다). 표지로 시작해 한도 뒤엔 QA 로 넘어간다 */
+export function seriesOverlapMessages(findings: SeriesOverlapFinding[], en: boolean): string[] {
+  const mark = en ? SERIES_SCOPE_MARK.en : SERIES_SCOPE_MARK.ko;
+  return findings.map((f) => en
+    ? `${mark} ${f.turn} explains "${f.concept}" in depth, which episode ${f.episode} covers ("${f.quote.slice(0, 80)}") — cut it to one sentence that names it, and use the turn for this episode's own scope`
+    : `${mark} ${f.turn}가 ${f.episode}화에서 자세히 다룰 "${f.concept}"를 풀어 설명한다("${f.quote.slice(0, 80)}") — 한 문장으로 이름만 부르고, 그 자리를 이 편의 범위로 채운다`);
+}
