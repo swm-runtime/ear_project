@@ -5,6 +5,7 @@
 | 대상 문서 | `features/backend-monitoring.md` 3-3(일일 지표 보고 — 표의 "출처"·"가입자" 행, 문구 예시, "경계" 행) · 3-4(이탈 보고) · `backend/domain.md` 3.4 `withdrawal_logs` · `spec/api/global-api.md`(운영 관측 — 해당 절이 있으면) |
 | 요청 파트 | 백엔드 — 박준현 |
 | 발행 날짜 | 2026-10-17 |
+| 반영 날짜 | 2026-10-17 |
 | 관련 | 글로벌 에픽 [KAN-186](https://runtime364.atlassian.net/browse/KAN-186) · 1차 공개 7개국 [KAN-214](https://runtime364.atlassian.net/browse/KAN-214) · 브랜치 `feat(be)/daily-report-by-market` |
 
 ## 배경
@@ -41,3 +42,4 @@
 ## 처리 기록
 
 - 2026-10-17 발행. 로컬 DB로 실제 SQL을 돌려 문구 확인(`KR 93 · GLOBAL 1`, `KR 11명 · 재생 34 · 4.5시간`).
+- 2026-10-17 반영 — `features/backend-monitoring.md` 3-3("출처"·"가입자" 행, "시장별 청취" 행 신설, "사용자" 행에서 신규 제거, "경계" 행 KST 달력일, 문구 순서 항목)·3-4("탈퇴" 행 시장 × 사유·KST 달력일, "문구" 행 시장 괄호·소제목·각주) · `backend/domain.md` 3.4 `withdrawal_logs.market` · `spec/api/global-api.md` 4.10(일일 Slack 보고 시장 나눔 항목, "탈퇴 기록에는 시장이 없어" 정정). 반영 전 코드(`daily-metrics.format.ts` `formatDailyMetrics`·`formatChurnReport`, `daily-metrics-db.service.ts` KST 00시 범위·`played_at`, 마이그레이션 `1790600000000`, `user-withdrawal.service.ts`의 `market` 기록)와 대조함 — 일치. 범위 밖이지만 같은 사실이라 고친 것: `spec/api/admin-api.md` 4.22 `by_market`의 "탈퇴 기록에는 시장이 없어" 문구(`by_market`은 여전히 탈퇴를 나누지 않음).

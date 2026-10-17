@@ -5,6 +5,7 @@
 | 대상 문서 | `backend/domain.md` 8.1 `plans` · `spec/api/subscription-api.md` 4.1(`plans[].name`·`description`) · 4.2 · `spec/api/settings-api.md`·`profile-api.md`의 `plan.plan_name` · `spec/api/global-api.md`(요금제 행) |
 | 요청 파트 | 백엔드 — 박준현 |
 | 발행 날짜 | 2026-10-16 |
+| 반영 날짜 | 2026-10-17 |
 | 관련 | BE [KAN-192](https://runtime364.atlassian.net/browse/KAN-192) `tickets/backend/pending/global-plans-storefront.md`(보류 중 — 재개 조건 3번에 해당하는 부분만 처리) |
 
 ## 배경
@@ -35,3 +36,4 @@ KAN-192를 보류할 때(2026-10-14) "요금제 이름·설명이 한국어인 �
 ## 처리 기록
 
 - 2026-10-16 발행(서버 구현 PR과 함께). 반영 전.
+- 2026-10-17 반영 — `backend/domain.md` 8.1(`name_en`·`description_en` 컬럼·설명 단락) · `spec/api/subscription-api.md` 4.1(`name`·`description` 시장 언어)·4.2(`plan_name` 규칙) · `spec/api/profile-api.md` 4.1 · `spec/api/settings-api.md` 4.1(`plan`) · `spec/api/global-api.md` 2.3(DB 저장 문자열 행 — 요금제 예외)·4.6(보류 안내에 이름·설명 시장 언어). 반영 전 코드(`planTextOf`·마이그레이션 `1790400000000`)와 대조함 — 일치.
