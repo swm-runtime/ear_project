@@ -1,9 +1,17 @@
 import { Image, Pressable, StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 
+import { APP_LANGUAGE } from '@/shared/i18n/locale';
 import { theme } from '@/shared/theme';
 import { Text } from '@/shared/ui/Typography';
 
 import { topicImageSource } from '../interest.images';
+
+/**
+ * 영어 라벨 — 주제 이름이 길어("Korean History & Society") 좌우 여백을 16 으로 줄이고, 그래도 넘치면 한 줄 안에서 글자를
+ * 조금 줄인다(말줄임 대신. 2026-10-18 영어 QA). 한국어 이름은 짧아 종전(여백 24 · 줄이지 않음) 그대로다
+ */
+const IS_COMPACT_LABEL = APP_LANGUAGE !== 'ko';
+const LABEL_MIN_FONT_SCALE = 0.85;
 
 interface TopicChipProps {
   label: string;
@@ -68,7 +76,16 @@ export default function TopicChip({
         ]}
       />
       {/* 선택 표시는 짙은 오버레이만 — 체크 글리프는 두지 않는다. 낭독은 accessibilityState가 한다 */}
-      <Text style={[styles.label, isDimmed && styles.labelDimmed]} numberOfLines={1}>
+      <Text
+        style={[
+          styles.label,
+          IS_COMPACT_LABEL && styles.labelCompact,
+          isDimmed && styles.labelDimmed,
+        ]}
+        numberOfLines={1}
+        adjustsFontSizeToFit={IS_COMPACT_LABEL}
+        minimumFontScale={IS_COMPACT_LABEL ? LABEL_MIN_FONT_SCALE : undefined}
+      >
         {label}
       </Text>
     </Pressable>
@@ -157,6 +174,9 @@ const styles = StyleSheet.create({
     textShadowColor: theme.color.photoTextShadow,
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 4,
+  },
+  labelCompact: {
+    paddingHorizontal: theme.spacing.md,
   },
   labelDimmed: {
     color: theme.color.textSecondary,

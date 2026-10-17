@@ -12,7 +12,10 @@ const ko = {
   series: (totalEpisodes: number, episodeNo: number) => `${totalEpisodes}부작 중 ${episodeNo}화`,
 } as const;
 const en: LocalizedCopy<typeof ko> = {
-  duration: (minutes: number, seconds: number) => `${minutes} min ${seconds} sec`,
+  // 초가 0 이면 "5 min" — "5 min 0 sec" 는 영어로 어색하다(2026-10-18 영어 QA). 한국어 "M분 SS초"(정각 "15분 00초")는
+  // uiux 9장 시안 규칙이라 그대로 둔다
+  duration: (minutes: number, seconds: number) =>
+    seconds === 0 ? `${minutes} min` : `${minutes} min ${seconds} sec`,
   /** `Intl` — 기기 로캘 순서(en-US "Oct 15, 2026" · en-GB "15 Oct 2026", KAN-197) */
   publishedDate: (year: number, month: number, day: number) =>
     formatFullDate({ year, month, day }, 'en'),

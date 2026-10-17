@@ -466,7 +466,8 @@ const en: LocalizedCopy<typeof ko> = {
 
   stats: {
     labels: { completed: 'Episodes played', listened: 'Listening time', streak: 'Streak' },
-    completedValue: (count: number) => enCount(count, 'episode', 'episodes'),
+    // 값은 숫자만 — 아래 라벨 "Episodes played" 가 단위를 말한다("12 episodes" 는 두 줄로 접히고 겹말, 2026-10-18 영어 QA)
+    completedValue: (count: number) => String(count),
     listenedValue: (totalSec: number) => {
       const parts = toListenedSummaryParts(totalSec);
       return parts.unit === 'minutes' ? `${parts.value} min` : `${parts.value} hr`;

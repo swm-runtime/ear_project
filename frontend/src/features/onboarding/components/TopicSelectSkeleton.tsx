@@ -9,9 +9,11 @@ import { MAX_MARQUEE_ROWS } from '../services/topic-rows';
 
 /**
  * 마퀴 알약 폭 — 주제 화면(TopicSelectScreen)의 실제 알약과 스켈레톤이 같은 값을 쓴다. 마퀴는 알약 폭이 같아야 한 바퀴
- * 길이가 맞아 고정 폭이다. 영어 주제 이름("Personal Finance" 등)은 156 에서 말줄임돼 영어는 184(KAN-197)
+ * 길이가 맞아 고정 폭이다. 영어 주제 이름("Personal Finance" 등)은 156 에서 말줄임돼 영어는 184(KAN-197), GLOBAL 주제의
+ * 가장 긴 이름 "Korean History & Society"·"K-Beauty & Fashion" 이 184 에서도 말줄임돼 216(2026-10-18 영어 QA — 라벨 좌우 여백도
+ * 영어는 16 으로 줄인다, TopicChip). 사진(2.50:1)은 세로가 조금 더 잘린다. 한국어는 그대로 156
  */
-export const TOPIC_PILL_WIDTH = APP_LANGUAGE === 'ko' ? 156 : 184;
+export const TOPIC_PILL_WIDTH = APP_LANGUAGE === 'ko' ? 156 : 216;
 const PILL_HEIGHT = theme.touchTarget.minHeight + theme.spacing.sm;
 const PILLS_PER_ROW = 3;
 /** 원형 [다음] 자리 — TopicSelectScreen `next` 와 같은 64 */

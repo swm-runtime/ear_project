@@ -46,6 +46,7 @@ RTL
     - **2026-10-16 기준 변경(KAN-216)**: 위 "표시 언어 영어면"은 **시장 기준**으로 바뀌었다 — `legalUrlsFor(market)`(GLOBAL → `/en/…`, KR → 종전). 가입 전(A4)은 A21에서 고른 언어의 시장, 가입 후(설정·구독 고지·재동의)는 세션 `user.market`. 상수 `TERMS_URL`·`PRIVACY_POLICY_URL` 은 없앴다. 근거·경위는 `global-consent-screen-legal.md` 처리 기록.
   - **고정 폭**: 아래 "고정 폭 체크리스트" 9곳.
   - **남은 것**: ① 영어 기기(en-US · America/New_York) 실기기 스크린샷 QA — 프로필·상세·플레이어 날짜, 체크리스트 9곳 + 인증 화면, 버튼 2줄·Android 폰트 폴백. ② `Intl.DateTimeFormat`(timeZone `UTC`) 출력이 Hermes iOS·Android 에서 en-US "Oct 15" 로 나오는지 실기기 확인(폴백은 있으나 모양이 같은지). ③ 오늘 서비스 날짜를 프로필 응답이 직접 주면(BE `weekly_listening.service_date` 등) player 의존을 걷을 수 있다 — 필요하면 BE 요청.
+- 2026-10-18 영어 화면 QA 반영(PR `fix(fe)/global-en-layout-qa`) — 아래 체크리스트 10~13행 추가: 탐색 인기 제목 줄(영어는 토글을 다음 줄로) · 온보딩 주제 알약 en 184 → 216(+라벨 여백 16·한 줄 축소) · 상세 메타 라벨 열(최대 라벨 폭 실측) · 프로필 누적 청취 값 숫자만. 상세 길이 영어는 초 0 이면 "5 min". 실기기 확인이 남아 pending 유지.
 
 ## 고정 폭 체크리스트 (2026-10-15)
 
@@ -62,5 +63,9 @@ RTL
 | 7 | `frontend/src/features/onboarding/components/TopicSelectSkeleton.tsx:14` 온보딩 주제 마퀴 알약(`TOPIC_PILL_WIDTH`) | 156 고정 — "Personal Finance" 등 말줄임 | ko 156 · en 184(마퀴는 알약 폭이 같아야 해 언어별 고정값) | 156 그대로 |
 | 8 | `frontend/src/features/career/components/JobCategoryChips.tsx:58·112` 직군 사진 칩(2열 고정 폭·높이 56) | 긴 이름이 세 줄로 넘쳐 칩 밖으로 잘림 | `numberOfLines={2}` + 가운데 정렬 | 한 줄 이름이라 동일 |
 | 9 | `frontend/src/features/career/screens/CareerInfoScreen.tsx:44·231` 앱바 가운데 제목(줄 전체에 겹친 절대 배치) | 긴 제목이 [초기화]·뒤로 밑으로 겹침 | 좌우 104 비움(`APP_BAR_TITLE_INSET`) + `numberOfLines={1}` | 제목이 짧아 위치·모양 동일 |
+| 10 | `frontend/src/features/explore/screens/ExploreScreen.tsx` 인기 섹션 제목 줄(제목 + 토글 76×3) | 제목 칸이 약 150 뿐이라 서버 제목이 두 줄로 접힘(2026-10-18 QA) | 영어만 행 `flexWrap` — 한 줄에 안 들어가면 토글을 제목 아래 줄로(말줄임 없음, explore-uiux 7장) | 바꾸지 않음 |
+| 11 | 7행 재조정 — `TopicSelectSkeleton.tsx` `TOPIC_PILL_WIDTH` · `interest/components/TopicChip.tsx` 라벨 | GLOBAL 주제 "Korean History & Society"·"K-Beauty & Fashion" 이 184 에서도 말줄임(10-18 QA) | en 184 → 216, 영어 라벨 좌우 여백 24 → 16 + 한 줄 축소(`adjustsFontSizeToFit` 0.85) | 156·여백 24 그대로 |
+| 12 | `frontend/src/features/content-detail/components/ContentDetailMeta.tsx` 메타 라벨 열(`minWidth: 56`) | "Published" 가 56 보다 길어 그 행만 값이 밀림(10-18 QA) | 라벨 실측 최대 폭을 모든 라벨의 최소 폭으로 | 라벨이 56 안이라 동일(글자 200% 에선 열이 함께 넓어진다) |
+| 13 | `frontend/src/features/profile/profile.copy.ts` 누적 청취 타일 값 | "12 episodes" 가 두 줄로 접히고 라벨 "Episodes played" 와 겹말(10-18 QA) | 영어 값은 숫자만 | 카피 불변("N편") |
 
-남은 확인(실기기 영어 스크린샷): 위 9곳 + 인증 화면(StartScreen·TermsConsentScreen — 다른 작업) + 버튼 2줄·Android 폰트 폴백. 실측에서 잘림이 나오면 이 표에 행을 더한다.
+남은 확인(실기기 영어 스크린샷): 위 13곳 + 인증 화면(StartScreen·TermsConsentScreen — 다른 작업) + 버튼 2줄·Android 폰트 폴백. 실측에서 잘림이 나오면 이 표에 행을 더한다.

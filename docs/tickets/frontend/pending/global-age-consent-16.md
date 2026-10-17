@@ -18,6 +18,8 @@
 
 ## 확정 — GLOBAL 16세 (2026-10-14 박준현)
 
+> **2026-10-16 나라별로 대체됨**(PM 이주호 — 아래 처리 기록). 이 절은 10-14 조사 기록으로 남긴다. 현행 규칙: KR 시장 18 · GLOBAL 중 싱가포르·홍콩·한국 16, 그 밖·지역 모름 18 · 판정은 서버 `min_age`.
+
 **법정대리인 동의 없이 본인이 동의할 수 있는 최저 연령**을 공개 후보 국가별로 확인한 결과, 16이면 어디서도 부모 동의 흐름이 필요 없다.
 
 | 관할 | 본인 동의 가능 연령 | 근거 |
@@ -33,7 +35,7 @@
 
 ## 무엇을 한다
 
-- 연령 동의 문구를 `user.market`으로 분기 — GLOBAL "I confirm that I am 16 or older", KR 종전 18세 문구. 언어가 아니라 **시장**으로 분기한다(영어 설정 KR 사용자는 18).
+- 연령 동의 문구를 `user.market`으로 분기 — GLOBAL "I confirm that I am 16 or older", KR 종전 18세 문구. 언어가 아니라 **시장**으로 분기한다(영어 설정 KR 사용자는 18). → **2026-10-16 대체**: 숫자는 서버가 동의 항목의 `min_age`로 준다(나라별 — 완료 조건 참조). 클라이언트는 그 숫자를 끼울 뿐 시장·지역으로 판정하지 않는다.
 - 연령 미충족 선택 시의 차단 화면·문구 영어 리소스(KAN-194 리소스 체계).
 - 약관 동의 전송은 서버가 `pending_consents[].version`으로 내려주는 시장별 버전을 그대로 쓴다(`terms_global_v1` 등, BE KAN-189). 클라이언트가 버전을 하드코딩하지 않는다.
 - 접근성 라벨·스크린샷 QA 체크리스트에 연령 화면 추가.
@@ -44,8 +46,12 @@ KR 연령 기준 변경 · 부모 동의 흐름 · OS 연령 신호(Declared Age
 
 ## 완료 조건
 
-- Given 응답 `user.market = global` / When 연령 동의 화면 / Then 16세 문구(en), 선택 시 가입 진행
+> 2026-10-18 갱신 — 종전 "GLOBAL이면 16" 두 줄을 10-16 PM 결정(나라별, 서버 `min_age` 판정)으로 바꿨다(처리 기록 10-18).
+
+- Given GLOBAL 가입 · 기기 지역 `SG`·`HK`·`KR` / When 서버가 연령 항목 `min_age = 16`을 준다 / Then 16세 문구("I confirm that I am 16 or older"), 선택 시 가입 진행
+- Given GLOBAL 가입 · 그 밖의 지역(`MY`·`PH`·`ID`·`TH` 등) 또는 지역 모름 / When 서버가 `min_age = 18`을 준다 / Then 18세 문구
 - Given `user.market = kr` / Then 18세 문구 종전과 동일(회귀) — 기기 언어가 en이어도 18
+- Given 서버가 `min_age`를 주지 않는다(BE 배포 전·옛 서버) / Then 시장과 무관하게 18(보수값) — 클라이언트가 시장·지역으로 16을 고르지 않는다
 - Given 서버 `pending_consents`의 버전 / When 동의 전송 / Then 그 버전 값 그대로, 클라이언트 상수 0건
 - Given 연령 미충족 선택 / Then 영어 차단 화면, 한국어 리터럴 0건
 
@@ -65,3 +71,4 @@ KR 연령 기준 변경 · 부모 동의 흐름 · OS 연령 신호(Declared Age
   - FE 반영(브랜치 `feat(fe)/age-by-region`): `RequiredConsent.minAge`(DTO `min_age`) 추가 · `ageConfirmationLabel(minAge)` 숫자 끼우기(ko "만 {n}세 이상입니다" · en "I confirm that I am {n} or older" — 영어 KR 문구도 이 형식으로 통일) · `resolveMinAge` — 서버 값이 없으면 **시장과 무관하게 18**(`FALLBACK_MIN_AGE`, 보수값). 그래서 BE 배포 전에는 GLOBAL도 18로 보이고, 16은 서버가 지역을 보고서만 준다. A4·A20 둘 다. mock 은 sign-up 동의 재조회에서 지역으로 16/18 연령 행을 돌려준다.
   - 문서: `auth-uiux.md` 4.3 · `auth-api.md` 4.1(`region_code` 용도)·4.2 · `global-api.md` 2.1·4.1 · `features/auth.md` 4장. 랜딩 `legal-en.ts` 약관 2조 · 처리방침 7조를 "18, 싱가포르·홍콩·한국은 16"으로.
   - 남은 것: BE `min_age` 판정 구현 → 실서버에서 지역별(SG 16 · MY 18 · 지역 없음 18) 확인. 태국 18~19세(성년 20)는 법률 멘토 미팅(KAN-126) 질문으로 넘긴다. 스토어 등급(KAN-207, Apple 16+ · Play 16–17/18+)은 최저 16이 남아 그대로 맞다.
+- 2026-10-18 **문서 갱신** — 완료 조건의 "GLOBAL이면 16" 두 줄을 10-16 결정(나라별: GLOBAL 중 SG·HK·KR 16 · 그 밖·지역 모름 18 · KR 시장 18 · 서버 `min_age` 판정, 값이 없으면 18)으로 바꾸고, "확정 — GLOBAL 16세" 절과 "무엇을 한다" 첫 줄에 대체 표시를 달았다(영어 화면 QA 반영 PR `fix(fe)/global-en-layout-qa`). 같은 PR에서 A4·A20 본문을 스크롤 가능하게 했다 — 영어 국외 이전 동의 행이 하단 버튼 밑에 깔렸다. 실기기 확인이 남아 pending 유지.
