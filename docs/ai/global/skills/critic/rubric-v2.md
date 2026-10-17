@@ -1,6 +1,6 @@
 # Critic rubric v2 (global)
 
-> Version: **critic-en-v0.9** (2026-10-18) · global pipeline · judges against the script rules (guidelines full-en). The global DB `prompt_assets` is the source of truth; this file is the seeding copy. Anchors are empty until people judge the first episodes.
+> Version: **critic-en-v0.10** (2026-10-18) · global pipeline · judges against the script rules (guidelines full-en). The global DB `prompt_assets` is the source of truth; this file is the seeding copy. Anchors are empty until people judge the first episodes.
 
 ## 1. Rules
 
@@ -85,7 +85,7 @@ Every F flag ends with a replacement: "…" → "…".
 
 ### 2.2 Not flagged here
 
-Length, explainer turns over six sentences, production words, fillers and stage directions, numbers per turn, banned vocabulary, dashes and semicolons, stock reactions, signposting, contrast counts, the host question ratio, the same first word in host turns, explainer turns that open by restating the host, sentences that name the source per section, explainer questions per episode, and turns that speak of a Korean expression without saying it (L0 — the script was fixed before you see it; judge what remains, do not re-count) · template frames and zones (QA 5) · relative time words and notation (QA 6) · facts, memories, and other countries' practices in host turns (QA 8) · reactions that enlarge a claim (QA 9) · real people, stereotypes, and rankings (QA 11). Their judgment parts are scored in section 3, not flagged.
+Length, explainer turns over six sentences, production words, fillers and stage directions, numbers per turn, banned vocabulary, dashes and semicolons, stock reactions, signposting, contrast counts, the host question ratio, the same first word in host turns, explainer turns that open by restating the host, sentences that name a source, explainer questions per episode, and turns that speak of a Korean expression without saying it (L0 — the script was fixed before you see it; judge what remains, do not re-count) · template frames and zones (QA 5) · relative time words and notation (QA 6) · facts, memories, and other countries' practices in host turns (QA 8) · reactions that enlarge a claim (QA 9) · real people, stereotypes, and rankings (QA 11). Their judgment parts are scored in section 3, not flagged.
 
 ## 3. Scores — 100
 
@@ -168,7 +168,7 @@ Length, explainer turns over six sentences, production words, fillers and stage 
 | Band | Definition |
 |---|---|
 | 5–6 | The wrap-up joins each section's answer as one line of reasoning to the axis sentence; no new facts or names; the last sentence stays with the listener. |
-| 3–4 | A summary that lists ("A, then B, then C") or ends flat. A sign-off slot that gives advice or a moral caps this at 4. |
+| 3–4 | A summary that lists ("A, then B, then C") or ends flat. A closing that gives advice or a moral caps this at 4. |
 | 1–2 | Rushed or weak. |
 | 0 | Cut off. |
 
@@ -271,6 +271,7 @@ Flags n · violations n · suspects n · ⭐ n
 
 ## Change history
 
+- critic-en-v0.10 (2026-10-18) — wording only: 3.7 caps "a closing" (the sign-off has no slot since tpl-en-v4), and 2.2 lists the L0 count of sentences that name a source (any, since full-en-v0.12).
 - critic-en-v0.9 (2026-10-18, same version) — no source names in lines (guidelines full-en-v0.12 rule 42; the app lists sources). A8 flags a named source; A9 keeps pronoun loops and blocks that retell one source; 3.2 bands no longer ask for a source introduction.
 - critic-en-v0.9 (2026-10-18) — after G261018-001 to 003 (first intro-format round) the critic gave 3.11 up to 5 while the explainer told every section through a source, and gave 3.3 the top band for differences said in one line. 3.11 now says that telling most sections through what a source says is not insider framing.
 - critic-en-v0.8 (2026-10-17) — the global channel introduces Korean culture (decision of the same day). 3.3 Range of views (8) becomes Variety in practice (4): how the practice differs by region, generation, family, or setting, or a disagreement when the sources hold one. 3.4 Emotional resonance (7) becomes Scenes and lived detail (11), with the no-scene cap at 4. 3.2 asks for limits only where the sources state them. 3.9 no longer caps an episode where the host never stays unconvinced. Keys and the 100-point total are unchanged; scores before this version are not comparable on 3.3 and 3.4.

@@ -308,13 +308,14 @@ export async function writeDesignArtifactsEn(x: { dir: string; episodeId: string
   for (const [src, secs] of sectionsOf) for (const sec of secs) { const set = blocks.get(sec) ?? new Set<number>(); set.add(src); blocks.set(sec, set); }
   const blockNote = [...blocks].sort((p, q) => p[0] - q[0]).map(([sec, srcs]) => `#${sec} ${[...srcs].sort((p, q) => p - q).map((n) => `S${n}`).join(", ")}`).join(" · ") || "none";
   const lang = (ids: string[]) => excerptLang(ids.map((id) => textOf.get(id) ?? ""));
-  const attributed = o.claims.filter((c) => attribution.get(c.id) === "귀속").length;
+  // full-en-v0.12 (2026-10-18 "귀속 빼"): 대사에서 출처를 부르지 않는다 — 표의 표시는 의견 claim 만 "view"(이름 없이 견해로 표시), 나머지는 "none"
+  const views = o.claims.filter((c) => c.opinion).length;
   const claimsMd = [`# claims — ${episodeId}`, "",
-    `> Attribution (worker-derived from type and opinion): attributed ${attributed} · none ${o.claims.length - attributed}. Attributed claims are marked as the block source's view once; the rest the explainer says directly.`,
+    `> Attribution: view ${views} · none ${o.claims.length - views}. Sources are never named in lines. A "view" claim is said as a view, with the kind of person who holds it and no name; the rest the explainer says directly.`,
     `> Axis source: ${axis ? `S${axis}` : "none"} · blocks (sources per section): ${blockNote}`,
     `> Excerpt language "ko": the claim is an English restatement of a Korean excerpt. Keep its meaning exact.`, "",
     "| ID | Claim | Excerpt IDs | Type | Section | Notable | Opinion | Attribution | Excerpt language |", "|---|---|---|---|---|---|---|---|---|",
-    ...o.claims.map((c) => `| ${c.id} | ${c.text.replace(/\|/g, "／")} | ${c.excerpt_ids.join(", ")} | ${c.type} | #${c.section} | ${c.notable ? "yes" : ""} | ${c.opinion ? "yes" : ""} | ${attribution.get(c.id) === "귀속" ? "attributed" : "none"} | ${lang(c.excerpt_ids)} |`), ""].join("\n");
+    ...o.claims.map((c) => `| ${c.id} | ${c.text.replace(/\|/g, "／")} | ${c.excerpt_ids.join(", ")} | ${c.type} | #${c.section} | ${c.notable ? "yes" : ""} | ${c.opinion ? "yes" : ""} | ${c.opinion ? "view" : "none"} | ${lang(c.excerpt_ids)} |`), ""].join("\n");
   await fs.writeFile(path.join(dir, "claims.md"), claimsMd, "utf8");
   await fs.writeFile(path.join(dir, "outline.md"), o.outline_md.trim() + "\n", "utf8");
   await fs.writeFile(path.join(dir, "pronunciations.json"), JSON.stringify(addPronunciations({}, o.pronunciations, "en"), null, 2) + "\n", "utf8");

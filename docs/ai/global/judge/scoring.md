@@ -69,7 +69,7 @@ Score the script as it is. Score each item on its own. An ordinary episode gets 
 | Band | Definition |
 |---|---|
 | 5–6 | Joins each section's answer as one line of reasoning. No new facts or names. The last sentence stays with the listener. |
-| 3–4 | A summary that lists ("A, then B, then C") or ends flat. A sign-off that gives advice or a moral caps this at 4. |
+| 3–4 | A summary that lists ("A, then B, then C") or ends flat. A closing that gives advice or a moral caps this at 4. |
 | 1–2 | Rushed or weak. |
 | 0 | Cut off. |
 
