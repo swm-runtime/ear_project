@@ -267,6 +267,8 @@ export class FirstDripService {
         preference: null,
         difficultyAffinity: null,
         completedEpisodesBySeries: new Map(),
+        // 첫 드립은 완청 이력이 없어 연속 편이 없다 — 후보도 시리즈 첫 편뿐이다(seriesStartOnly)
+        seriesEpisodesBySeries: new Map(),
         isColdStart: true,
         // 커리어 적합도(4.2 ③) — 온보딩 2단계에서 받은 프로필이라 신호 없이도 쓴다
         career: {

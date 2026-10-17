@@ -1,0 +1,47 @@
+import {
+  IsEnum,
+  IsInt,
+  IsOptional,
+  IsString,
+  Matches,
+  Max,
+  MaxLength,
+  Min,
+} from 'class-validator';
+
+import { SeriesStatus } from '@/modules/content/content.enum';
+
+/** 공백만 있는 제목은 1자로 세지 않는다 — 빈 제목의 시리즈가 화면에 뜨는 것을 막는다 */
+export const NOT_BLANK = /\S/;
+export const SERIES_TITLE_MAX_LENGTH = 255;
+export const SERIES_DESCRIPTION_MAX_LENGTH = 2000;
+/**
+ * `integer` 컬럼 범위 — **정책 상한이 아니다**(편수 상한은 없다, 2026-10-17 결정). 범위를 넘는 값이 DB 오류(500)로
+ * 나가지 않게 400으로 거절하려는 형식 검사다
+ */
+export const SERIES_TOTAL_EPISODES_MAX = 2_147_483_647;
+
+/**
+ * 시리즈 만들기(KAN-134). 파이프라인 [시리즈 발행]이 첫 편 업로드 전에 부르고(`ai/spec/11-series.md` 7장),
+ * 받은 `id`를 업로드(`admin-api.md` 4.6)의 `series_id`로 보낸다. `status`를 빼면 `ongoing`이다.
+ */
+export class CreateSeriesRequestDto {
+  @IsString()
+  @Matches(NOT_BLANK)
+  @MaxLength(SERIES_TITLE_MAX_LENGTH)
+  readonly title: string;
+
+  /** 빈 문자열은 허용한다(소개 없음). 키 자체는 필수 — 빠뜨린 것과 비운 것을 구분한다 */
+  @IsString()
+  @MaxLength(SERIES_DESCRIPTION_MAX_LENGTH)
+  readonly description: string;
+
+  @IsInt()
+  @Min(1)
+  @Max(SERIES_TOTAL_EPISODES_MAX)
+  readonly total_episodes: number;
+
+  @IsOptional()
+  @IsEnum(SeriesStatus)
+  readonly status?: SeriesStatus;
+}

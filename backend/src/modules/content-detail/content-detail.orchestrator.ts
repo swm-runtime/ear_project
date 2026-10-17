@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 
 import { ContentOrigin } from '@/modules/content/content.enum';
 import { ContentService } from '@/modules/content/services/content.service';
+import { SeriesService } from '@/modules/content/services/series.service';
 import { LibraryService } from '@/modules/library/library.service';
 import { PlaybackService } from '@/modules/playback/services/playback.service';
 
@@ -25,6 +26,7 @@ export class ContentDetailOrchestrator {
     private readonly contentService: ContentService,
     private readonly libraryService: LibraryService,
     private readonly playbackService: PlaybackService,
+    private readonly seriesService: SeriesService,
   ) {}
 
   /**
@@ -49,7 +51,7 @@ export class ContentDetailOrchestrator {
       market,
     );
 
-    const [topicViews, libraryItems, countedContentIds, sources] =
+    const [topicViews, libraryItems, countedContentIds, sources, seriesRefs] =
       await Promise.all([
         this.contentService.findTopicViews([contentId]),
         this.libraryService.findActiveItems(userId, [contentId]),
@@ -61,12 +63,15 @@ export class ContentDetailOrchestrator {
         content.origin === ContentOrigin.AI_GENERATED
           ? this.contentService.findSourcesByContentId(contentId)
           : Promise.resolve(null),
+        // "N부작 중 M화" 줄 — 총 편수는 시리즈 표가 기준이다(KAN-134)
+        this.seriesService.findRefs([content]),
       ]);
 
     return {
       content,
       topics: topicViews.map((view) => ({ id: view.topicId, name: view.name })),
       sources,
+      series: seriesRefs.get(content.id) ?? null,
       libraryItem: libraryItems[0] ?? null,
       isCountedToday: countedContentIds.has(contentId),
     };

@@ -1,3 +1,4 @@
+import { ContentSeriesRef } from '@/modules/content/content.types';
 import { ContentSource } from '@/modules/content/entities/content-source.entity';
 import { Content } from '@/modules/content/entities/content.entity';
 import { LibraryItem } from '@/modules/library/library-item.entity';
@@ -14,6 +15,8 @@ export interface ContentDetailView {
   topics: ContentDetailTopicView[];
   /** `ai_generated`만 배열이고 `partner`는 `null`이다 (확정 2026-08-24) */
   sources: ContentSource[] | null;
+  /** 속한 시리즈(KAN-134). 단일 콘텐츠는 null — 응답 `content.series`도 null이다 */
+  series: ContentSeriesRef | null;
   /** `null`이면 미담김 — 버튼이 [담기]다 (content-detail.md 4.4) */
   libraryItem: LibraryItem | null;
   isCountedToday: boolean;

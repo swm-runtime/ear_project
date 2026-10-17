@@ -25,6 +25,22 @@ import { validateEnv } from '@/config/env.validation';
  * `partners` 테이블이 아직 없어 FK 없는 고정 uuid로 채운다(partner 모듈 도입 시 대체).
  */
 const MOCK_PARTNER_ID = 'f0000000-0000-4000-8000-000000000001';
+
+/**
+ * 목 시리즈 — `contents.series_id`가 `series`를 FK로 가리키므로(`fk_contents_series`, KAN-134) 편보다 먼저 만든다.
+ * id를 고정해 다시 돌려도 같은 행이다(파트너 행과 같은 방식)
+ */
+const MOCK_SERIES: Record<
+  string,
+  { id: string; title: string; description: string; totalEpisodes: number }
+> = {
+  'time-management': {
+    id: 'f0000000-0000-4000-8000-000000000101',
+    title: '시간 관리의 재발견',
+    description: '우선순위·집중 블록·회고로 시간을 다시 설계하는 3부작',
+    totalEpisodes: 3,
+  },
+};
 const MOCK_LICENSE_EXPIRES_AT = new Date('2027-12-31T15:00:00.000Z');
 
 /**
@@ -114,6 +130,15 @@ async function seedContents(
     [MOCK_PARTNER_ID],
   );
 
+  for (const series of Object.values(MOCK_SERIES)) {
+    await manager.query(
+      `INSERT INTO series (id, title, description, total_episodes, status)
+       VALUES ($1, $2, $3, $4, 'completed')
+       ON CONFLICT (id) DO NOTHING`,
+      [series.id, series.title, series.description, series.totalEpisodes],
+    );
+  }
+
   const contentRepository = manager.getRepository(Content);
   const contentTopicRepository = manager.getRepository(ContentTopic);
   const contentStatRepository = manager.getRepository(ContentStat);
@@ -134,8 +159,10 @@ async function seedContents(
     ).map((content) => [content.title, content]),
   );
 
-  // 시리즈는 같은 `series_id`를 공유해야 한다 (domain.md 5.1)
-  const seriesIdByKey = new Map<string, string>();
+  // 시리즈는 같은 `series_id`를 공유해야 한다 (domain.md 5.1) — 위에서 만든 고정 id
+  const seriesIdByKey = new Map(
+    Object.entries(MOCK_SERIES).map(([key, series]) => [key, series.id]),
+  );
   let insertedContentCount = 0;
   let skippedContentCount = 0;
   let insertedSourceCount = 0;
@@ -158,10 +185,6 @@ async function seedContents(
       );
       skippedContentCount += 1;
       continue;
-    }
-
-    if (mock.seriesKey && !seriesIdByKey.has(mock.seriesKey)) {
-      seriesIdByKey.set(mock.seriesKey, crypto.randomUUID());
     }
 
     const isPartner = mock.sourceName === '퍼블리';

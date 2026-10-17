@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 
 import { ContentDifficulty } from '@/modules/content/content.enum';
+import { SeriesEpisodeState } from '@/modules/content/content.types';
 import { Content } from '@/modules/content/entities/content.entity';
 import { toYearsOfExperienceRange } from '@/modules/user/user.constant';
 import { YearsOfExperienceRange } from '@/modules/user/user.enum';
@@ -78,26 +79,30 @@ const YEARS_RANGE_ORDER: readonly YearsOfExperienceRange[] = [
 @Injectable()
 export class DripScoringService {
   /**
-   * 시리즈 회차 순서 필터(`drip-scheduling.md` 7 — "1편을 듣지 않은 사용자에게 3편을
-   * 적립하지 않는다"). 단일 콘텐츠·1편은 통과, 중간 편은 직전 편을 완청했을 때만 통과.
+   * 시리즈 회차 순서 필터(`drip-scheduling.md` 7 — "1편을 듣지 않은 사용자에게 3편을 적립하지 않는다"). 시리즈 편은
+   * **그 시리즈에서 지금 줄 편(`pickSeriesEpisode`) 하나만** 통과하고, 단일 콘텐츠는 늘 통과한다. 규칙은 `pickSeriesEpisode` 주석.
+   *
+   * `seriesEpisodesBySeries`는 카탈로그 전체의 노출 중인 편과 사용자 상태다 — 후보 풀은 상한으로 잘리고 이미 본 편을 빼므로
+   * 풀만 보면 "사이에 노출 중인 편이 있는지·이미 받았는지"를 알 수 없다. 맵에 없는 후보 편은 "받지 않은 노출 편"으로 합친다
+   * (후보 풀이 이미 받은 편·제외 편을 뺐다).
    */
   filterEpisodeOrder(
     candidates: ScoringCandidate[],
     completedEpisodesBySeries: Map<string, number>,
+    seriesEpisodesBySeries: Map<string, SeriesEpisodeState[]>,
   ): ScoringCandidate[] {
+    const picks = pickAllSeriesEpisodes(
+      candidates,
+      completedEpisodesBySeries,
+      seriesEpisodesBySeries,
+    );
+
     return candidates.filter(({ content }) => {
       if (content.seriesId === null || content.episodeNo === null) {
         return true;
       }
 
-      if (content.episodeNo === 1) {
-        return true;
-      }
-
-      return (
-        completedEpisodesBySeries.get(content.seriesId) ===
-        content.episodeNo - 1
-      );
+      return picks.get(content.seriesId)?.episodeNo === content.episodeNo;
     });
   }
 
@@ -131,6 +136,7 @@ export class DripScoringService {
       preference,
       difficultyAffinity: null,
       completedEpisodesBySeries: new Map(),
+      seriesEpisodesBySeries: new Map(),
       // 탐색은 임베딩·신호 두 축만 쓴다 — 커리어 적합도는 메타 축 항목이라 여기서는 읽지 않는다
       career: null,
       isColdStart: false,
@@ -167,12 +173,18 @@ export class DripScoringService {
     context: RegularScoringContext,
   ): ScoredCandidate[] {
     const poolAverageCompleteRate = this.poolAverageCompleteRate(candidates);
+    const seriesPicks = pickAllSeriesEpisodes(
+      candidates,
+      context.completedEpisodesBySeries,
+      context.seriesEpisodesBySeries,
+    );
 
     return candidates
       .map((candidate) => {
         const isSeriesContinuation = this.isSeriesContinuation(
           candidate.content,
           context.completedEpisodesBySeries,
+          seriesPicks,
         );
 
         const embedding = this.embeddingAxisScore(candidate, context);
@@ -795,14 +807,25 @@ export class DripScoringService {
     );
   }
 
+  /**
+   * 시리즈 연속 편 — **한 편 이상 완청한 시리즈에서 앞으로 나아가는 편**(`pickSeriesEpisode`의 `next`). 앞쪽 빈 편을
+   * 메우는 편(`gap` — 예: 16화 완청 뒤 1화)과, 아무 편도 완청하지 않은 시리즈의 첫 편은 연속 편이 아니다(우선 선정·가점 없음)
+   */
   private isSeriesContinuation(
     content: Content,
     completedEpisodesBySeries: Map<string, number>,
+    seriesPicks: Map<string, SeriesPick>,
   ): boolean {
+    if (content.seriesId === null || content.episodeNo === null) {
+      return false;
+    }
+
+    const pick = seriesPicks.get(content.seriesId);
+
     return (
-      content.seriesId !== null &&
-      content.episodeNo !== null &&
-      completedEpisodesBySeries.get(content.seriesId) === content.episodeNo - 1
+      completedEpisodesBySeries.has(content.seriesId) &&
+      pick?.kind === 'next' &&
+      pick.episodeNo === content.episodeNo
     );
   }
 
@@ -823,6 +846,109 @@ export class DripScoringService {
 
     return totalComplete / totalPlay;
   }
+}
+
+/** 시리즈에서 지금 줄 편 — `next`: 마지막 완청보다 뒤로 나아가는 편 · `gap`: 앞쪽 빈 편을 메우는 편 */
+export interface SeriesPick {
+  episodeNo: number;
+  kind: 'next' | 'gap';
+}
+
+/**
+ * 시리즈에서 이 사용자에게 지금 줄 편(KAN-134 규칙 ②′, 2026-10-17). `episodes`는 노출 중인 편(편 번호 오름차순)과 사용자 상태다.
+ * "줄 수 있는 편" = 받은 적 없고(`received` — 소프트 삭제분 포함) 드립 제외도 아닌 편.
+ *
+ * 1. **앞으로** — 마지막 완청 번호(`lastCompleted`, 없으면 0)보다 큰 편 중 줄 수 있는 가장 앞 편. 받았거나 제외된 편은 건너뛴다.
+ *    단 `lastCompleted`와 그 편 사이에 **라이브러리에 있는데 아직 완청 안 한 편**(`held`)이 있으면 기다린다(null) — 앞 편이
+ *    남아 있는데 뒤 편을 주지 않는다. `lastCompleted` 이하의 미완청 편은 앞으로 가는 길을 막지 않는다(이미 그 뒤를 완청했다).
+ * 2. **빈 편 메우기** — 1에서 줄 수 있는 편이 **하나도 없을 때만**(다 받았거나 다 제외) 줄 수 있는 가장 앞 편. 이때는 그 편보다
+ *    앞의 미완청 편 전부가 막는다. 1에서 줄 편이 있는데 미완청 편에 막힌 경우는 2로 넘어가지 않고 기다린다.
+ * 3. 둘 다 없으면 null — 그 시리즈는 오늘 주지 않는다.
+ *
+ * 처음 듣는 시리즈(받은 편 없음)는 설계 규칙(확정 설계 5번)과 정확히 같다 — 마지막 완청보다 큰 노출 중 가장 앞 편.
+ */
+export function pickSeriesEpisode(
+  lastCompleted: number,
+  episodes: SeriesEpisodeState[],
+): SeriesPick | null {
+  const available = (episode: SeriesEpisodeState) =>
+    !episode.received && !episode.excluded;
+  const forward = episodes.filter(
+    (episode) => episode.episodeNo > lastCompleted,
+  );
+  const next = forward.find(available);
+
+  if (next) {
+    const blocked = forward.some(
+      (episode) => episode.held && episode.episodeNo < next.episodeNo,
+    );
+
+    return blocked ? null : { episodeNo: next.episodeNo, kind: 'next' };
+  }
+
+  const gap = episodes.find(available);
+
+  if (!gap) {
+    return null;
+  }
+
+  const blocked = episodes.some(
+    (episode) => episode.held && episode.episodeNo < gap.episodeNo,
+  );
+
+  return blocked ? null : { episodeNo: gap.episodeNo, kind: 'gap' };
+}
+
+/**
+ * 후보에 나온 시리즈마다 줄 편을 고른다. 카탈로그 상태에 후보 자신의 편을 합친다 — 맵에 없는 후보 편은 후보 풀이 이미 받은 편·
+ * 제외 편을 뺐으므로 "받지 않은 노출 편"이다
+ */
+function pickAllSeriesEpisodes(
+  candidates: ScoringCandidate[],
+  completedEpisodesBySeries: Map<string, number>,
+  seriesEpisodesBySeries: Map<string, SeriesEpisodeState[]>,
+): Map<string, SeriesPick> {
+  const merged = new Map<string, Map<number, SeriesEpisodeState>>();
+
+  for (const { content } of candidates) {
+    if (content.seriesId === null || content.episodeNo === null) {
+      continue;
+    }
+
+    let byEpisode = merged.get(content.seriesId);
+    if (!byEpisode) {
+      byEpisode = new Map(
+        (seriesEpisodesBySeries.get(content.seriesId) ?? []).map((episode) => [
+          episode.episodeNo,
+          episode,
+        ]),
+      );
+      merged.set(content.seriesId, byEpisode);
+    }
+    if (!byEpisode.has(content.episodeNo)) {
+      byEpisode.set(content.episodeNo, {
+        contentId: content.id,
+        episodeNo: content.episodeNo,
+        received: false,
+        held: false,
+        excluded: false,
+      });
+    }
+  }
+
+  const picks = new Map<string, SeriesPick>();
+
+  for (const [seriesId, byEpisode] of merged) {
+    const pick = pickSeriesEpisode(
+      completedEpisodesBySeries.get(seriesId) ?? 0,
+      [...byEpisode.values()].sort((a, b) => a.episodeNo - b.episodeNo),
+    );
+    if (pick) {
+      picks.set(seriesId, pick);
+    }
+  }
+
+  return picks;
 }
 
 /**

@@ -1,3 +1,4 @@
+import { SeriesEpisodeState } from '@/modules/content/content.types';
 import { Content } from '@/modules/content/entities/content.entity';
 
 import { FirstDripJobStatus, PreferenceSignalAction } from './drip.enum';
@@ -107,6 +108,11 @@ export interface RegularScoringContext {
   difficultyAffinity: Record<string, number> | null;
   /** series_id → 완청 최대 episode_no */
   completedEpisodesBySeries: Map<string, number>;
+  /**
+   * series_id → 노출 중인 편과 사용자 상태(편 번호 오름차순, 카탈로그 전체 — 후보 풀이 아니다). "다음 편" 판정 입력(KAN-134 규칙 ②′).
+   * 시리즈 연속 편이 쓰이지 않는 문맥(첫 드립·탐색 랭킹)은 빈 맵이다 — 완청 이력이 없으면 연속 편도 없다
+   */
+  seriesEpisodesBySeries: Map<string, SeriesEpisodeState[]>;
   /** 완청 3건 미만(`drip-scheduling.md` 4.4) */
   isColdStart: boolean;
   /** 커리어 적합도 입력 — 프로필이라 콜드스타트에서도 살아 있는 항목이다 */

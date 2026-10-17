@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { DataSource, EntityManager } from 'typeorm';
+import { DataSource, EntityManager, QueryFailedError } from 'typeorm';
 
 import { BusinessException } from '@/common/exceptions/business.exception';
 import { ErrorCode } from '@/common/exceptions/error-code.enum';
@@ -14,6 +14,7 @@ import {
   ContentStatus,
 } from '@/modules/content/content.enum';
 import { ContentService } from '@/modules/content/services/content.service';
+import { SeriesService } from '@/modules/content/services/series.service';
 import { Topic } from '@/modules/interest/entities/topic.entity';
 import { UserMarket } from '@/modules/user/user.enum';
 import { TopicService } from '@/modules/interest/services/topic.service';
@@ -148,6 +149,7 @@ describe('AdminContentService', () => {
   let topicService: jest.Mocked<TopicService>;
   let topicExposureService: jest.Mocked<TopicExposureService>;
   let auditLogService: jest.Mocked<AuditLogService>;
+  let seriesService: jest.Mocked<SeriesService>;
   let storage: jest.Mocked<ContentStorageClient>;
   let audioProbe: jest.Mocked<AudioProbe>;
   let thumbnailImage: jest.Mocked<ThumbnailImage>;
@@ -206,6 +208,11 @@ describe('AdminContentService', () => {
       saveScript: jest.fn().mockResolvedValue(undefined),
       deleteScript: jest.fn().mockResolvedValue(undefined),
     } as unknown as jest.Mocked<ContentService>;
+
+    seriesService = {
+      assertEpisodeUploadable: jest.fn().mockResolvedValue({}),
+      assertRestorable: jest.fn().mockResolvedValue(undefined),
+    } as unknown as jest.Mocked<SeriesService>;
 
     libraryService = {
       removeAllByWithdrawnContent: jest.fn().mockResolvedValue(3),
@@ -275,6 +282,7 @@ describe('AdminContentService', () => {
     service = new AdminContentService(
       dataSource,
       contentService,
+      seriesService,
       libraryService,
       playbackService,
       topicService,
@@ -759,6 +767,94 @@ describe('AdminContentService', () => {
       });
     });
 
+    describe('시리즈 편(KAN-134)', () => {
+      const SERIES_ID = '55555555-5555-4555-8555-555555555555';
+      const seriesCommand = () =>
+        buildCommand({ seriesId: SERIES_ID, episodeNo: 2, totalEpisodes: 3 });
+
+      it('저장소에 올리기 전에 한 번, 발행 트랜잭션 안에서 잠그고 한 번 더 시리즈를 검증한다', async () => {
+        // when
+        await service.upload(seriesCommand(), NOW);
+
+        // then
+        const expected = {
+          seriesId: SERIES_ID,
+          episodeNo: 2,
+          totalEpisodes: 3,
+          market: UserMarket.KR,
+        };
+        expect(seriesService.assertEpisodeUploadable).toHaveBeenNthCalledWith(
+          1,
+          expected,
+        );
+        expect(seriesService.assertEpisodeUploadable).toHaveBeenNthCalledWith(
+          2,
+          expected,
+          manager,
+        );
+        expect(contentService.publish).toHaveBeenCalledWith(
+          containing({ seriesId: SERIES_ID, episodeNo: 2, totalEpisodes: 3 }),
+          NOW,
+          manager,
+        );
+      });
+
+      it('사전 검증이 거절하면 저장소에 아무것도 올리지 않는다', async () => {
+        // given
+        seriesService.assertEpisodeUploadable.mockRejectedValueOnce(
+          new BusinessException({
+            status: 400,
+            errorCode: ErrorCode.VALIDATION_FAILED,
+            message: '존재하지 않는 시리즈예요',
+            details: { field: 'series_id' },
+          }),
+        );
+
+        // when
+        const act = service.upload(seriesCommand(), NOW);
+
+        // then
+        await expect(act).rejects.toMatchObject({
+          errorCode: ErrorCode.VALIDATION_FAILED,
+          details: { field: 'series_id' },
+        });
+        expect(storage.putAudio).not.toHaveBeenCalled();
+        expect(contentService.publish).not.toHaveBeenCalled();
+      });
+
+      it('같은 번호 동시 발행이 부분 유니크에 걸리면 올린 파일을 지우고 400(episode_no)으로 바꾼다', async () => {
+        // given
+        const violation = Object.assign(
+          new QueryFailedError('INSERT', [], new Error('duplicate key')),
+          {
+            driverError: {
+              code: '23505',
+              constraint: 'uq_contents_series_id_episode_no_published',
+            },
+          },
+        );
+        contentService.publish.mockRejectedValueOnce(violation);
+
+        // when
+        const act = service.upload(seriesCommand(), NOW);
+
+        // then
+        await expect(act).rejects.toMatchObject({
+          errorCode: ErrorCode.VALIDATION_FAILED,
+          details: { field: 'episode_no' },
+        });
+        expect(storage.remove).toHaveBeenCalled();
+      });
+
+      it('단일 콘텐츠는 시리즈 검증을 부르지 않는다', async () => {
+        // when
+        await service.upload(buildCommand(), NOW);
+
+        // then
+        expect(seriesService.assertEpisodeUploadable).not.toHaveBeenCalled();
+      });
+    });
+
     it('썸네일은 원본이 아니라 저장 규격(WebP 768px)으로 변환된 파일을 올린다', async () => {
       // when
       await service.upload(buildCommand(), NOW);
@@ -1011,6 +1107,32 @@ describe('AdminContentService', () => {
         containing({ action: 'content.restore' }),
         manager,
       );
+    });
+
+    it('같은 번호의 시리즈 편이 그 사이 발행됐으면 복구하지 않는다', async () => {
+      // given
+      contentService.getByIdForUpdate.mockResolvedValue({
+        id: CONTENT_ID,
+        status: ContentStatus.WITHDRAWN,
+        seriesId: '55555555-5555-4555-8555-555555555555',
+        episodeNo: 2,
+      } as never);
+      seriesService.assertRestorable.mockRejectedValueOnce(
+        new BusinessException({
+          status: 409,
+          errorCode: ErrorCode.CONFLICT,
+          message: '같은 번호로 발행된 편이 있어 되돌릴 수 없어요',
+        }),
+      );
+
+      // when
+      const act = service.restore(ACTOR_ID, CONTENT_ID);
+
+      // then
+      await expect(act).rejects.toMatchObject({
+        errorCode: ErrorCode.CONFLICT,
+      });
+      expect(contentService.restoreWithdrawn).not.toHaveBeenCalled();
     });
 
     it('회수 상태가 아닌 콘텐츠의 복구는 409로 거부한다', async () => {

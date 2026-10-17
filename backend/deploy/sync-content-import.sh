@@ -22,7 +22,7 @@ set -euo pipefail
 # 크론과 SSH forced command 는 PATH 가 짧다 — aws CLI(/usr/local/bin)를 못 찾는 경우를 막는다
 export PATH="/usr/local/bin:/usr/bin:/bin:${PATH:-}"
 
-TABLES=(topics contents content_topics content_sources content_embeddings content_stats content_scripts content_audio_renditions)
+TABLES=(topics series contents content_topics content_sources content_embeddings content_stats content_scripts content_audio_renditions)
 BUCKET="${CONTENT_SYNC_BUCKET:-earcast-backup-prod}"
 PREFIX="${CONTENT_SYNC_PREFIX:-content-sync}"
 LOCK=/tmp/ear-content-import.lock
@@ -81,6 +81,10 @@ BEGIN
   FOR spec IN
     SELECT * FROM (VALUES
       ('topics',             'id'),
+      -- **contents 보다 먼저다**(2026-10-17 — KAN-134). public.contents.series_id 는 series 를 FK 로 가리켜, 새 시리즈의 편을
+      -- 시리즈보다 먼저 넣으면 FK 위반으로 회차 전체가 취소된다. 시리즈 id 는 환경마다 같다(CS 시리즈는 마이그레이션 고정 id,
+      -- 그 밖은 운영에서 만들어 이 동기화로만 들어온다)
+      ('series',             'id'),
       ('contents',           'id'),
       ('content_topics',     'content_id, topic_id'),
       ('content_sources',    'content_id, position'),

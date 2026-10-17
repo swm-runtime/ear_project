@@ -31,6 +31,7 @@ import {
   SearchPageQuery,
 } from '../content.types';
 import { Content } from '../entities/content.entity';
+import { LibraryItemStatus } from '@/modules/library/library.enum';
 import { UserMarket } from '@/modules/user/user.enum';
 
 /** 커서에 담기는 랭킹 값. `content_stats` 조인 결과이지 `contents`의 컬럼이 아니다 */
@@ -622,6 +623,211 @@ export class ContentRepository {
 
     const [items, total] = await builder.getManyAndCount();
     return { items, total };
+  }
+
+  /**
+   * 시리즈별 **노출 중인** 편과 그 편에 대한 이 사용자의 상태 — 드립 순서 필터의 "다음 편" 판정 입력(KAN-134, 규칙 ②′).
+   * 후보 풀이 아니라 카탈로그 전체에서 읽는다 — 풀은 상한(인기순 300건)으로 잘리고 이미 본 편을 빼므로, 풀만 보면 "사이에
+   * 노출 중인 편이 있는지·그 편을 이미 받았는지"를 알 수 없다. 노출 조건은 후보 조회와 같다(시장 포함).
+   *
+   * 사용자 상태는 후보 필터(`excludeSeenByUserId`)와 같은 원천을 원시 SQL로 본다 — `received`는 라이브러리에 한 번이라도
+   * 들어온 적(소프트 삭제분 포함), `held`는 지금 라이브러리에 있고(삭제 안 됨) 완청 전, `excluded`는 드립 영구 제외.
+   */
+  async findVisibleSeriesEpisodesForUser(
+    seriesIds: string[],
+    userId: string,
+    now: Date,
+    market: UserMarket,
+    manager?: EntityManager,
+  ): Promise<
+    {
+      seriesId: string;
+      contentId: string;
+      episodeNo: number;
+      received: boolean;
+      held: boolean;
+      excluded: boolean;
+    }[]
+  > {
+    if (seriesIds.length === 0) {
+      return [];
+    }
+
+    const rows = await this.applyVisibility(
+      this.scoped(manager).createQueryBuilder('content'),
+      now,
+      market,
+    )
+      .select('content.series_id', 'series_id')
+      .addSelect('content.id', 'content_id')
+      .addSelect('content.episode_no', 'episode_no')
+      .addSelect(
+        `EXISTS (
+           SELECT 1 FROM library_items received
+           WHERE received.content_id = content.id AND received.user_id = :seriesUserId
+         )`,
+        'received',
+      )
+      .addSelect(
+        `EXISTS (
+           SELECT 1 FROM library_items held
+           WHERE held.content_id = content.id AND held.user_id = :seriesUserId
+             AND held.deleted_at IS NULL AND held.status <> :completedStatus
+         )`,
+        'held',
+      )
+      .addSelect(
+        `EXISTS (
+           SELECT 1 FROM drip_excluded_contents dripped
+           WHERE dripped.content_id = content.id AND dripped.user_id = :seriesUserId
+         )`,
+        'excluded',
+      )
+      .andWhere('content.series_id IN (:...seriesIds)', { seriesIds })
+      .andWhere('content.episode_no IS NOT NULL')
+      .setParameter('seriesUserId', userId)
+      .setParameter('completedStatus', LibraryItemStatus.COMPLETED)
+      .orderBy('content.series_id', 'ASC')
+      .addOrderBy('content.episode_no', 'ASC')
+      .getRawMany<{
+        series_id: string;
+        content_id: string;
+        episode_no: number;
+        received: boolean;
+        held: boolean;
+        excluded: boolean;
+      }>();
+
+    return rows.map((row) => ({
+      seriesId: row.series_id,
+      contentId: row.content_id,
+      episodeNo: Number(row.episode_no),
+      received: row.received === true,
+      held: row.held === true,
+      excluded: row.excluded === true,
+    }));
+  }
+
+  /** 시리즈 화면(`GET /series/:id`)의 편 목록 — 노출 중인 편만, 편 번호순 */
+  async findVisibleBySeriesId(
+    seriesId: string,
+    now: Date,
+    market: UserMarket,
+    manager?: EntityManager,
+  ): Promise<Content[]> {
+    return this.applyVisibility(
+      this.scoped(manager).createQueryBuilder('content'),
+      now,
+      market,
+    )
+      .andWhere('content.series_id = :seriesId', { seriesId })
+      .andWhere('content.episode_no IS NOT NULL')
+      .orderBy('content.episode_no', 'ASC')
+      .addOrderBy('content.published_at', 'ASC')
+      .addOrderBy('content.id', 'ASC')
+      .getMany();
+  }
+
+  /**
+   * 관리자 시리즈 목록의 편 현황 — 시리즈 × 상태별 편 수와 발행 중 최대 편 번호. 상태 3값을 한 번에 센다
+   * (시리즈마다 따로 묻지 않는다 — architecture.md 3.4)
+   */
+  async countEpisodesBySeries(
+    seriesIds: string[],
+    manager?: EntityManager,
+  ): Promise<
+    {
+      seriesId: string;
+      published: number;
+      withdrawn: number;
+      expired: number;
+      maxPublishedEpisodeNo: number | null;
+    }[]
+  > {
+    if (seriesIds.length === 0) {
+      return [];
+    }
+
+    const rows = await this.scoped(manager)
+      .createQueryBuilder('content')
+      .select('content.series_id', 'series_id')
+      .addSelect(
+        'COUNT(*) FILTER (WHERE content.status = :published)',
+        'published',
+      )
+      .addSelect(
+        'COUNT(*) FILTER (WHERE content.status = :withdrawn)',
+        'withdrawn',
+      )
+      .addSelect('COUNT(*) FILTER (WHERE content.status = :expired)', 'expired')
+      .addSelect(
+        'MAX(content.episode_no) FILTER (WHERE content.status = :published)',
+        'max_published_episode_no',
+      )
+      .where('content.series_id IN (:...seriesIds)', { seriesIds })
+      .setParameters({
+        published: ContentStatus.PUBLISHED,
+        withdrawn: ContentStatus.WITHDRAWN,
+        expired: ContentStatus.EXPIRED,
+      })
+      .groupBy('content.series_id')
+      .getRawMany<{
+        series_id: string;
+        published: string;
+        withdrawn: string;
+        expired: string;
+        max_published_episode_no: number | null;
+      }>();
+
+    return rows.map((row) => ({
+      seriesId: row.series_id,
+      published: Number(row.published),
+      withdrawn: Number(row.withdrawn),
+      expired: Number(row.expired),
+      maxPublishedEpisodeNo:
+        row.max_published_episode_no === null
+          ? null
+          : Number(row.max_published_episode_no),
+    }));
+  }
+
+  /**
+   * 같은 시리즈·같은 번호로 **발행 중인** 편이 있는가 — 부분 유니크(`uq_contents_series_id_episode_no_published`)의
+   * 사전 확인. 라이선스 만료 전 `published`도 센다(인덱스와 같은 조건 — 노출 조건이 아니라 상태다)
+   */
+  async existsPublishedEpisode(
+    seriesId: string,
+    episodeNo: number,
+    excludeContentId: string | null,
+    manager?: EntityManager,
+  ): Promise<boolean> {
+    const builder = this.scoped(manager)
+      .createQueryBuilder('content')
+      .where('content.series_id = :seriesId', { seriesId })
+      .andWhere('content.episode_no = :episodeNo', { episodeNo })
+      .andWhere('content.status = :published', {
+        published: ContentStatus.PUBLISHED,
+      });
+
+    if (excludeContentId !== null) {
+      builder.andWhere('content.id <> :excludeContentId', { excludeContentId });
+    }
+
+    return builder.getExists();
+  }
+
+  /** 시리즈에 이미 올라간 편들의 시장(상태 무관) — 한 시리즈에 시장이 섞이지 않게 업로드가 본다 */
+  async findMarketsBySeriesId(
+    seriesId: string,
+    manager?: EntityManager,
+  ): Promise<UserMarket[]> {
+    const rows = await this.scoped(manager)
+      .createQueryBuilder('content')
+      .select('DISTINCT content.market', 'market')
+      .where('content.series_id = :seriesId', { seriesId })
+      .getRawMany<{ market: UserMarket }>();
+
+    return rows.map((row) => row.market);
   }
 
   async saveAll(

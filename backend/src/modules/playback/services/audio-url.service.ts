@@ -5,6 +5,7 @@ import {
   defaultAudioQualityFor,
 } from '@/modules/content/content.enum';
 import { ContentService } from '@/modules/content/services/content.service';
+import { SeriesService } from '@/modules/content/services/series.service';
 import { LibraryService } from '@/modules/library/library.service';
 import { PlanService } from '@/modules/subscription/services/plan.service';
 import { UserService } from '@/modules/user/services/user.service';
@@ -58,6 +59,7 @@ export class AudioUrlService {
     /** `AUDIO_DELIVERY`에 따라 로컬 HMAC 또는 CloudFront 서명기가 들어온다 */
     @Inject(AUDIO_URL_ISSUER)
     private readonly audioUrlIssuer: AudioUrlIssuer,
+    private readonly seriesService: SeriesService,
   ) {}
 
   async issue(command: IssueAudioUrlCommand): Promise<AudioUrlResult> {
@@ -76,19 +78,28 @@ export class AudioUrlService {
       command.now,
     );
 
-    const [libraryItem, progress, topicViews, script, renditions, decision] =
-      await Promise.all([
-        this.libraryService.findItemByContentId(
-          command.userId,
-          command.contentId,
-        ),
-        this.playbackService.findProgress(command.userId, command.contentId),
-        this.contentService.findTopicViews([command.contentId]),
-        // 세그먼트 본문은 읽지 않는다 — 대본은 4.7이 같은 판정을 거쳐 따로 내준다. 구간 제목만 싣는다(KAN-144)
-        this.contentService.findScriptSummary(command.contentId),
-        this.contentService.findAudioRenditions(command.contentId),
-        this.decideQuality(command),
-      ]);
+    const [
+      libraryItem,
+      progress,
+      topicViews,
+      script,
+      renditions,
+      decision,
+      seriesRefs,
+    ] = await Promise.all([
+      this.libraryService.findItemByContentId(
+        command.userId,
+        command.contentId,
+      ),
+      this.playbackService.findProgress(command.userId, command.contentId),
+      this.contentService.findTopicViews([command.contentId]),
+      // 세그먼트 본문은 읽지 않는다 — 대본은 4.7이 같은 판정을 거쳐 따로 내준다. 구간 제목만 싣는다(KAN-144)
+      this.contentService.findScriptSummary(command.contentId),
+      this.contentService.findAudioRenditions(command.contentId),
+      this.decideQuality(command),
+      // 플레이어의 시리즈 표시(KAN-134) — 카드·라이브러리 항목과 같은 객체
+      this.seriesService.findRefs([content]),
+    ]);
 
     // 3. 음질 판정(player.md 4.9) — 요청 → 티어 허용 최대 → 콘텐츠가 가진 것. 거절하지 않는다
     const available = sortAudioQualities(renditions.map((r) => r.quality));
@@ -162,6 +173,7 @@ export class AudioUrlService {
           id: view.topicId,
           name: view.name,
         })),
+        series: seriesRefs.get(content.id) ?? null,
       },
       hasScript: script.hasScript,
       sections: script.sections,

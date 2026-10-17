@@ -4,6 +4,7 @@ import type { ScriptSection } from '@/modules/content/content.types';
 import type { AudioQualityFallbackReason } from '../audio-quality.policy';
 import { AudioUrlResult } from '../playback.types';
 import { ContentLanguage } from '@/modules/content/content.enum';
+import { ContentSeriesDto } from '@/modules/content/dto/content-series.dto';
 
 class AudioContentDto {
   readonly id: string;
@@ -21,6 +22,8 @@ class AudioContentDto {
   readonly content_version: number;
   /** 플레이어 카테고리 줄 — 진입 경로와 무관하게 발급 응답이 원천이다(2026-09-19) */
   readonly topics: { id: string; name: string }[];
+  /** 속한 시리즈 `{ id, title, episode_no, total_episodes }` — 단일 콘텐츠는 null (KAN-134, 추가 필드) */
+  readonly series: ContentSeriesDto | null;
 }
 
 class AudioLibraryItemDto {
@@ -84,6 +87,7 @@ export class IssueAudioUrlResponseDto {
         language: result.content.language,
         content_version: result.content.contentVersion,
         topics: result.content.topics,
+        series: ContentSeriesDto.from(result.content.series),
       },
       has_script: result.hasScript,
       sections: result.sections,

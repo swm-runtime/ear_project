@@ -5,6 +5,7 @@ import {
 
 import { LibraryItemView, LibraryListResult } from '../library-screen.types';
 import { ContentLanguage } from '@/modules/content/content.enum';
+import { ContentSeriesDto } from '@/modules/content/dto/content-series.dto';
 
 class LibraryItemContentDto {
   readonly id: string;
@@ -21,6 +22,8 @@ class LibraryItemContentDto {
   /** 올라갔으면 클라이언트가 저장한 위치·오프라인 파일을 폐기한다 */
   readonly content_version: number;
   readonly topic_ids: string[];
+  /** 속한 시리즈 `{ id, title, episode_no, total_episodes }` — 단일 콘텐츠는 null (KAN-134, 추가 필드) */
+  readonly series: ContentSeriesDto | null;
 }
 
 class LibraryProgressDto {
@@ -62,6 +65,7 @@ export class LibraryItemDto {
         language: view.content.language,
         content_version: view.content.contentVersion,
         topic_ids: view.content.topicIds,
+        series: ContentSeriesDto.from(view.content.series),
       },
       progress: view.progress
         ? {
