@@ -47,12 +47,34 @@ const SUBSCRIBED: MySubscription = {
   pendingPlan: null,
 };
 
+/** 환불 뒤 서버 상태 — 무료(구독 행이 끝남) */
+const FREE: MySubscription = {
+  plan: {
+    status: 'free',
+    tier: 'light',
+    planName: '무료',
+    dailyPlayLimit: 2,
+    renewsAt: null,
+    expiresAt: null,
+    hasPaymentIssue: false,
+    grant: null,
+  },
+  entitlements: { dailyPlayLimit: 2, dailyDripCount: 2, dripEnabled: true, adsEnabled: true },
+  store: null,
+  pendingPlan: null,
+};
+
+/** 환불된 iOS 거래 — StoreKit 2 revocationDate(ms). iOS 는 취소돼도 state 가 purchased 다 */
+const REVOKED_AT_MS = Date.UTC(2026, 9, 15, 23, 16);
+
 const purchaseOf = (overrides: Partial<StorePurchase> = {}): StorePurchase => ({
   transactionId: 'tx-1',
   productId: INTENT.storeProductId,
   token: 'signed-jws',
   obfuscatedAccountId: null,
   state: 'purchased',
+  revokedAtMs: null,
+  expiresAtMs: null,
   raw: {},
   ...overrides,
 });
@@ -100,6 +122,9 @@ const createHarness = (platform: PurchasePlatform = 'ios', supportsDeferredDowng
     restore: jest
       .fn<PurchaseServiceDeps['api']['restore']>()
       .mockResolvedValue({ restored: true, subscription: SUBSCRIBED }),
+    fetchSubscription: jest
+      .fn<PurchaseServiceDeps['api']['fetchSubscription']>()
+      .mockResolvedValue(FREE),
   };
 
   const deps: PurchaseServiceDeps = {
@@ -653,6 +678,141 @@ describe('PurchaseService', () => {
 
       // then
       expect(h.api.submit).not.toHaveBeenCalled();
+    });
+
+    it('환불·취소된 거래(revokedAtMs)는 서버에 내지 않고 끝낸 뒤 구독을 다시 읽어 화면을 맞춘다(KAN-223)', async () => {
+      // given
+      h.adapter.getUnfinished.mockResolvedValue([
+        purchaseOf({ transactionId: 'tx-refunded', revokedAtMs: REVOKED_AT_MS }),
+      ]);
+
+      // when
+      await h.service.start();
+
+      // then
+      expect(h.api.submit).not.toHaveBeenCalled();
+      expect(h.adapter.finish).toHaveBeenCalledWith(
+        expect.objectContaining({ transactionId: 'tx-refunded' }),
+      );
+      expect(h.api.fetchSubscription).toHaveBeenCalledTimes(1);
+      expect(h.adapter.finish.mock.invocationCallOrder[0]).toBeLessThan(
+        h.api.fetchSubscription.mock.invocationCallOrder[0],
+      );
+      expect(h.deps.onSubscriptionChanged).toHaveBeenCalledWith(FREE);
+      // 회복이 아니다 — "구독이 반영됐어요" 토스트를 띄우지 않는다
+      expect(h.deps.onRecovered).not.toHaveBeenCalled();
+    });
+
+    it('취소 거래와 정상 미완료 거래가 섞여 있으면 정상 거래만 제출하고, 재조회는 한 번만 한다', async () => {
+      // given
+      h.adapter.getUnfinished.mockResolvedValue([
+        purchaseOf({ transactionId: 'tx-refunded-1', revokedAtMs: REVOKED_AT_MS }),
+        purchaseOf({ transactionId: 'tx-left', token: 'left-jws' }),
+        purchaseOf({ transactionId: 'tx-refunded-2', revokedAtMs: REVOKED_AT_MS }),
+      ]);
+
+      // when
+      await h.service.start();
+
+      // then
+      expect(h.api.submit).toHaveBeenCalledTimes(1);
+      expect(h.api.submit).toHaveBeenCalledWith({
+        transaction: { platform: 'ios', signedTransaction: 'left-jws' },
+        intentId: null,
+      });
+      expect(h.adapter.finish.mock.calls.map(([p]) => p.transactionId)).toEqual([
+        'tx-refunded-1',
+        'tx-left',
+        'tx-refunded-2',
+      ]);
+      expect(h.api.fetchSubscription).toHaveBeenCalledTimes(1);
+      expect(h.deps.onRecovered).toHaveBeenCalledWith(SUBSCRIBED);
+    });
+
+    it('만료 시각만 지난 거래는 앱이 거르지 않는다 — 종전대로 제출하고 200 뒤에 끝낸다(기기 시각으로 판정하지 않는다)', async () => {
+      // given
+      h.adapter.getUnfinished.mockResolvedValue([
+        purchaseOf({ transactionId: 'tx-old', expiresAtMs: Date.UTC(2020, 0, 1) }),
+      ]);
+
+      // when
+      await h.service.start();
+
+      // then
+      expect(h.api.submit).toHaveBeenCalledTimes(1);
+      expect(h.adapter.finish).toHaveBeenCalledTimes(1);
+      expect(h.api.submit.mock.invocationCallOrder[0]).toBeLessThan(
+        h.adapter.finish.mock.invocationCallOrder[0],
+      );
+      expect(h.api.fetchSubscription).not.toHaveBeenCalled();
+    });
+
+    it('취소 거래를 끝내지 못해도 서버에 내지 않고 재조회는 한다', async () => {
+      // given
+      h.adapter.finish.mockRejectedValueOnce(new Error('finish failed'));
+      h.adapter.getUnfinished.mockResolvedValue([purchaseOf({ revokedAtMs: REVOKED_AT_MS })]);
+
+      // when
+      await h.service.start();
+
+      // then
+      expect(h.api.submit).not.toHaveBeenCalled();
+      expect(h.api.fetchSubscription).toHaveBeenCalledTimes(1);
+    });
+
+    it('재조회가 실패해도 조용히 끝난다 — 포그라운드 복귀 재조회가 다시 맞춘다', async () => {
+      // given
+      h.api.fetchSubscription.mockRejectedValueOnce(apiError(ERROR_CODES.NETWORK_ERROR, true));
+      h.adapter.getUnfinished.mockResolvedValue([purchaseOf({ revokedAtMs: REVOKED_AT_MS })]);
+
+      // when
+      await h.service.start();
+
+      // then
+      expect(h.adapter.finish).toHaveBeenCalledTimes(1);
+      expect(h.deps.onSubscriptionChanged).not.toHaveBeenCalled();
+    });
+
+    it('리스너로 취소 거래가 오면 제출하지 않고 끝낸 뒤 재조회한다 — 같은 세션에 또 와도 한 번만', async () => {
+      // given
+      await h.service.start();
+      const revoked = purchaseOf({ transactionId: 'tx-refunded', revokedAtMs: REVOKED_AT_MS });
+
+      // when
+      h.emitUpdated(revoked);
+      await flush();
+      h.emitUpdated(revoked);
+      await flush();
+
+      // then
+      expect(h.api.submit).not.toHaveBeenCalled();
+      expect(h.adapter.finish).toHaveBeenCalledTimes(1);
+      expect(h.api.fetchSubscription).toHaveBeenCalledTimes(1);
+      expect(h.deps.onSubscriptionChanged).toHaveBeenCalledWith(FREE);
+      expect(h.deps.onRecovered).not.toHaveBeenCalled();
+    });
+
+    it('결제 중에 같은 상품의 취소된 옛 거래가 리스너로 와도 그 결제의 결과로 삼지 않는다', async () => {
+      // given — 결과는 리스너로만 온다. 옛 취소 거래가 먼저, 새 거래가 다음에 온다
+      await h.service.start();
+      h.adapter.requestSubscription.mockImplementation(async () => {
+        setTimeout(() => {
+          h.emitUpdated(purchaseOf({ transactionId: 'tx-refunded', revokedAtMs: REVOKED_AT_MS }));
+          h.emitUpdated(purchaseOf({ transactionId: 'tx-new', token: 'new-jws' }));
+        }, 0);
+        return [];
+      });
+
+      // when
+      const outcome = await h.service.purchase(PRO_PLAN, 'paywall');
+
+      // then
+      expect(outcome).toEqual({ kind: 'success', subscription: SUBSCRIBED });
+      expect(h.api.submit).toHaveBeenCalledTimes(1);
+      expect(h.api.submit).toHaveBeenCalledWith({
+        transaction: { platform: 'ios', signedTransaction: 'new-jws' },
+        intentId: 'intent-1',
+      });
     });
 
     it('스토어 연결이 실패하면 리스너를 걸지 않고 조용히 끝난다', async () => {
