@@ -1,11 +1,11 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
 import { Panel, Stat, Table, Td, Tr, btnCls } from "@/components/ui";
-import { EarApiError, type EarChannel, type EarInsightsSummary, earChannelLabel, getEarInsightsSummary } from "@/lib/ear";
+import { EarApiError, type EarChannel, type EarInsightsSummary, type EarInsightsWeekday, earChannelLabel, getEarInsightsSummary } from "@/lib/ear";
 import { EarGate, EarSession, earErrMsg } from "@/app/publish/ear-connect";
 import {
   PROVIDER_LABEL, REASON_LABEL, TIER_LABEL,
-  fmtInt, fmtKstDate, fmtListenSec, fmtPct, isSmall, labelOf, maxOf, shortDate, shortId,
+  fmtAvg, fmtInt, fmtKstDate, fmtListenSec, fmtMonthDay, fmtPct, isSmall, labelOf, maxOf, shortDate, shortId,
 } from "@/lib/insights-format";
 
 const DAY_OPTIONS = [7, 14, 30, 90] as const;
@@ -148,9 +148,14 @@ function InsightsView({ channel, days, onSwitchToDev }: { channel: EarChannel; d
             rows={data.daily}
             primary={(d) => d.listen_sec}
             height={(d, max) => Math.max(2, Math.round((d.listen_sec / max) * 80))}
-            title={(d) => `${d.date} · 청취 ${fmtListenSec(d.listen_sec)} · 재생 ${d.plays}회 · 청취자 ${d.listeners}명 · 완청 ${d.completes}회`}
-            legend="막대 = 청취 시간. 호버하면 재생·청취자·완청"
+            title={(d) => `${d.date} · 청취 ${fmtListenSec(d.listen_sec)} · 재생 ${d.plays}회 · 청취자 ${d.listeners}명${d.active_users !== undefined ? ` (접속자 ${d.active_users == null ? "기록 없음" : `${fmtInt(d.active_users)}명`})` : ""} · 완청 ${d.completes}회`}
+            legend="막대 = 청취 시간. 호버하면 재생·청취자·접속자·완청"
           />
+          {data.active_users_since && (
+            <p className="mt-1 text-xs text-ink-soft">
+              접속자 수는 {fmtMonthDay(data.active_users_since)}부터 집계돼요. 접속 기록(로그인 세션)을 30일만 보관해서, 이 기능을 넣기 전 기간은 남아 있던 최근 30일까지만 채울 수 있었어요. 이후로는 매일 저장돼 계속 쌓여요.
+            </p>
+          )}
         </Panel>
         <Panel title={`일별 가입·탈퇴 — ${winLabel} (KST 달력일)`}>
           <DailyBars
@@ -163,6 +168,17 @@ function InsightsView({ channel, days, onSwitchToDev }: { channel: EarChannel; d
           />
         </Panel>
       </div>
+
+      {data.weekday && (
+        <div className="grid gap-3 lg:grid-cols-2">
+          <Panel title={`일별 접속자 → 청취자 — ${winLabel} (KST 달력일)`}>
+            <ActiveListenerBars rows={data.daily} />
+          </Panel>
+          <Panel title={`요일별 평균 — ${winLabel} (온전한 날만)`} flush>
+            <WeekdayTable rows={data.weekday} />
+          </Panel>
+        </div>
+      )}
 
       <Panel title={`시간대별 재생 — ${winLabel} (KST)`}>
         <div className="flex items-end gap-1" style={{ height: 96 }}>
@@ -272,6 +288,7 @@ function InsightsView({ channel, days, onSwitchToDev }: { channel: EarChannel; d
             <li><b>누적 가입(탈퇴 포함)</b>은 현재 계정 수 + 탈퇴 기록 수다. <b>유료</b>는 실결제 구독이 만료 전인 사람(해지 예약 포함)이다. 탈퇴하면 계정 행이 지워지므로(domain.md 12.3) 둘을 더해야 &quot;가입한 적 있는 사람&quot;이 된다.</li>
             <li><b>누적 청취 시간·재생·완청</b>(전 기간 카드)은 줄지 않는 누적(<code>play_daily_totals</code>)이다 — 재생·완청이 기록될 때 함께 더해지고, 탈퇴하거나 완청 신호가 보존 기간(180일)으로 지워져도 남는다. <b>최근 N일 값·순위·일별 추이·시간대·시장별</b>은 재생 기록(<code>play_records</code>)을 바로 세므로 즉시 반영되지만 <b>현재 계정 기준</b>이다 — 탈퇴자의 몫은 빠진다. 그래서 순위·추이를 더한 값이 누적 카드보다 작을 수 있다.</li>
             <li><b>활성 사용자(DAU/WAU/MAU)</b>는 앱을 써서 서버 토큰을 갱신한 사람이다 — 액세스 토큰이 30분짜리라 앱을 열면 거의 매번 갱신이 일어나므로 &quot;앱 실행&quot;에 가장 가까운 서버 신호다(30분 안의 재실행은 안 잡힌다). 그중 <b>재생</b>까지 간 사람을 함께 적어 켜고 안 듣는 비율을 본다. <b>완청</b>은 서버의 90% 판정 신호다.</li>
+            <li><b>접속자</b>는 그날(KST 달력일 0~24시) 앱을 열어 서버 토큰을 갱신한 사람이다 — 위 <b>활성 사용자</b>와 같은 신호를 하루 단위로 센 것이다. 지난날은 매일 00:10 에 저장한 값, 오늘은 지금까지 센 값이다. <b>요일별 평균</b>은 창 안의 온전한 날(첫날 부분일·오늘 제외)만 그 요일의 날 수로 나눈다 — 날 수가 1~2일이면 한 주의 사정이 그대로 드러나니 30·90일 창으로 본다.</li>
             <li><b>리텐션</b>은 가입한 지 N일이 지난 현재 계정 중 N일 뒤 이후 아무 때나 앱을 쓴(토큰 갱신 또는 재생) 사람의 비율(언바운디드)이다. 탈퇴자는 분모에 없어 실제보다 높게 나오고(생존 편향), 같은 이유로 <b>일별 가입</b>에서도 그날 가입했다가 탈퇴한 사람은 빠진다.</li>
             <li><b>날짜</b>는 KST 달력일이다(앱의 서비스 날짜 04/05시 경계가 아니다 — 운영자가 읽는 단위). 창 버튼은 추이·&quot;최근 N일&quot; 값에만 걸리고 누적·순위는 전 기간이다.</li>
             <li><b>주제별 수요·공급</b>의 <b>남은 편수</b>는 그 주제를 관심으로 둔 온보딩 완료 사용자마다 &quot;아직 드립으로 받을 수 있는 편수&quot;다 — 라이브러리에 한 번이라도 들어왔거나(지운 것 포함) 드립으로 이미 받은 콘텐츠는 빠진다. <b>더 줄 것 없음</b>이 많은 주제가 제작 우선순위다. 시리즈 순서 게이트는 반영하지 않은 근사값이다.</li>
@@ -318,6 +335,63 @@ function DailyBars({ rows, primary, height, overlay, title, legend }: {
       </div>
       <p className="mt-2 text-xs text-ink-soft">{legend}</p>
     </div>
+  );
+}
+
+/**
+ * 일별 접속자·청취자 한 쌍 막대 — 회색 = 접속자, 파랑 = 그중 재생한 청취자(같은 축). 접속자를 모르는 날(첫 신뢰 날짜 앞)은
+ * 회색 막대 대신 점선 칸을 그린다 — 0명과 "기록 없음"이 섞이지 않게.
+ */
+function ActiveListenerBars({ rows }: { rows: DailyRow[] }) {
+  const max = maxOf(rows, (d) => Math.max(d.active_users ?? 0, d.listeners));
+  if (rows.length === 0) return <p className="text-[13px] text-ink-soft">이 창에는 기록이 없다.</p>;
+  const px = (n: number) => Math.max(2, Math.round((n / max) * 80));
+  return (
+    <div>
+      <div className="flex items-end gap-1 overflow-x-auto" style={{ height: 96 }}>
+        {rows.map((d) => (
+          <div key={d.date} className="flex min-w-[18px] flex-1 flex-col items-center justify-end gap-1" title={`${d.date} · 접속자 ${d.active_users == null ? "기록 없음" : `${fmtInt(d.active_users)}명`} · 청취자 ${fmtInt(d.listeners)}명${d.active_users ? ` (${fmtPct(d.listeners / d.active_users, 0)})` : ""}`}>
+            <div className="flex w-full items-end justify-center gap-px">
+              {d.active_users == null
+                ? <div className="w-1/2 rounded-t border border-dashed border-line" style={{ height: 8 }} />
+                : <div className="w-1/2 rounded-t bg-ink-soft/40" style={{ height: px(d.active_users) }} />}
+              <div className="w-1/2 rounded-t bg-brand/60" style={{ height: px(d.listeners) }} />
+            </div>
+            {/* 라벨 칸 높이 고정 — DailyBars 와 같은 규칙 */}
+            <span className="block h-3 shrink-0 whitespace-nowrap text-[10px] leading-3 tabular-nums text-ink-soft">{rows.length > 31 ? (d.date.endsWith("01") || d.date.endsWith("15") ? shortDate(d.date) : "") : shortDate(d.date)}</span>
+          </div>
+        ))}
+      </div>
+      <p className="mt-2 flex flex-wrap items-center gap-3 text-xs text-ink-soft">
+        <span className="flex items-center gap-1"><span className="inline-block h-2 w-2 rounded-sm bg-ink-soft/40" />접속자</span>
+        <span className="flex items-center gap-1"><span className="inline-block h-2 w-2 rounded-sm bg-brand/60" />청취자(그중 재생)</span>
+        <span>점선 = 접속 기록 없음. 호버하면 인원·청취 전환</span>
+      </p>
+    </div>
+  );
+}
+
+/** 요일별 평균 표 — 막대는 같은 축(회색 접속자 · 파랑 청취자). 날 수가 적은 요일은 한 주의 사정이 그대로라 날 수를 함께 적는다 */
+function WeekdayTable({ rows }: { rows: EarInsightsWeekday[] }) {
+  const max = maxOf(rows, (w) => Math.max(w.avg_active_users ?? 0, w.avg_listeners ?? 0));
+  return (
+    <Table head={["요일", "날 수", "평균 접속자", "평균 청취자", "청취 전환", ""]} empty="-">
+      {rows.map((w) => (
+        <Tr key={w.weekday}>
+          <Td className={`font-medium ${w.weekday >= 6 ? "text-brand-ink" : ""}`}>{w.label}</Td>
+          <Td className="tabular-nums text-ink-soft">{w.days}일{w.active_days < w.days ? <span className="ml-1 text-xs">(접속 {w.active_days}일)</span> : null}</Td>
+          <Td className="tabular-nums font-medium">{fmtAvg(w.avg_active_users)}{w.avg_active_users != null ? "명" : ""}</Td>
+          <Td className="tabular-nums">{fmtAvg(w.avg_listeners)}{w.avg_listeners != null ? "명" : ""}</Td>
+          <Td className="tabular-nums text-ink-soft">{w.avg_active_users && w.avg_listeners != null ? fmtPct(w.avg_listeners / w.avg_active_users, 0) : "-"}</Td>
+          <Td className="w-[30%]">
+            <div className="space-y-0.5">
+              <div className="h-1.5 rounded-sm bg-ink-soft/40" style={{ width: `${((w.avg_active_users ?? 0) / max) * 100}%` }} />
+              <div className="h-1.5 rounded-sm bg-brand/60" style={{ width: `${((w.avg_listeners ?? 0) / max) * 100}%` }} />
+            </div>
+          </Td>
+        </Tr>
+      ))}
+    </Table>
   );
 }
 
