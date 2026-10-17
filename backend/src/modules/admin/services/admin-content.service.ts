@@ -6,6 +6,7 @@ import { DataSource } from 'typeorm';
 import { BusinessException } from '@/common/exceptions/business.exception';
 import { ErrorCode } from '@/common/exceptions/error-code.enum';
 import { ExternalServiceException } from '@/common/exceptions/external-service.exception';
+import { isUniqueViolation } from '@/common/utils/unique-violation.util';
 import {
   ContentLanguage,
   ContentOrigin,
@@ -13,8 +14,12 @@ import {
 } from '@/modules/content/content.enum';
 import { Content } from '@/modules/content/entities/content.entity';
 import { AudioQuality } from '@/modules/content/content.enum';
-import { AudioRenditionInput } from '@/modules/content/content.types';
+import {
+  AudioRenditionInput,
+  SeriesEpisodeUpload,
+} from '@/modules/content/content.types';
 import { ContentService } from '@/modules/content/services/content.service';
+import { SeriesService } from '@/modules/content/services/series.service';
 import { LibraryService } from '@/modules/library/library.service';
 import { PlaybackService } from '@/modules/playback/services/playback.service';
 import { TopicService } from '@/modules/interest/services/topic.service';
@@ -101,6 +106,7 @@ export class AdminContentService {
   constructor(
     private readonly dataSource: DataSource,
     private readonly contentService: ContentService,
+    private readonly seriesService: SeriesService,
     private readonly libraryService: LibraryService,
     private readonly playbackService: PlaybackService,
     private readonly topicService: TopicService,
@@ -142,6 +148,12 @@ export class AdminContentService {
       });
     }
     assertMarketConsistent(command.market, command.language, topics);
+    // 시리즈 편이면 시리즈 존재·총 편수 일치·번호 범위·발행 번호 중복·시장을 먼저 본다(KAN-134) — 저장소에 올리기 전에
+    // 거절한다. 최종 판정은 발행 트랜잭션 안에서 시리즈 행을 잠그고 다시 한다
+    const seriesEpisode = toSeriesEpisodeUpload(command);
+    if (seriesEpisode) {
+      await this.seriesService.assertEpisodeUploadable(seriesEpisode);
+    }
     // GLOBAL에는 채울 값이 없는 KR 직군 enum이다 — 있으면 조용히 버리지 않고 거부한다(global-api.md 4.9)
     if (
       command.market === UserMarket.GLOBAL &&
@@ -193,6 +205,13 @@ export class AdminContentService {
     let content: Content;
     try {
       content = await this.dataSource.transaction(async (manager) => {
+        if (seriesEpisode) {
+          // 같은 시리즈의 동시 업로드·편수 수정과 직렬화한다 — 사전 확인 뒤 상태가 바뀌었을 수 있다
+          await this.seriesService.assertEpisodeUploadable(
+            seriesEpisode,
+            manager,
+          );
+        }
         const published = await this.contentService.publish(
           {
             title: command.title,
@@ -271,6 +290,13 @@ export class AdminContentService {
       });
     } catch (error) {
       await this.storage.remove(uploadedKeys);
+      // 잠금을 지나서도 남는 경합(같은 번호 동시 발행)은 부분 유니크가 막는다 — 500이 아니라 사전 확인과 같은 400
+      if (isSeriesEpisodeUniqueViolation(error)) {
+        throw this.validationFailed(
+          'episode_no',
+          '이 시리즈에 같은 번호로 발행된 편이 이미 있어요',
+        );
+      }
       throw error;
     }
 
@@ -877,6 +903,8 @@ export class AdminContentService {
         });
       }
 
+      // 회수된 사이에 같은 번호의 시리즈 편이 발행됐으면 되돌리지 않는다(발행 번호 유일성 — KAN-134)
+      await this.seriesService.assertRestorable(target, manager);
       const restored = await this.contentService.restoreWithdrawn(
         target,
         manager,
@@ -1285,6 +1313,35 @@ export class AdminContentService {
       details: { field },
     });
   }
+}
+
+/** 업로드 명령의 시리즈 필드 — 단일 콘텐츠면 null. 편 번호·총 편수가 함께 있는지는 `validateDisclosure`가 먼저 봤다 */
+function toSeriesEpisodeUpload(
+  command: UploadContentCommand,
+): SeriesEpisodeUpload | null {
+  if (
+    command.seriesId === null ||
+    command.episodeNo === null ||
+    command.totalEpisodes === null
+  ) {
+    return null;
+  }
+
+  return {
+    seriesId: command.seriesId,
+    episodeNo: command.episodeNo,
+    totalEpisodes: command.totalEpisodes,
+    market: command.market,
+  };
+}
+
+/** 발행 편 번호 부분 유니크(`uq_contents_series_id_episode_no_published` — 마이그레이션 `AddSeries`) 위반인가 */
+export function isSeriesEpisodeUniqueViolation(error: unknown): boolean {
+  return (
+    isUniqueViolation(error) &&
+    (error as { driverError?: { constraint?: string } }).driverError
+      ?.constraint === 'uq_contents_series_id_episode_no_published'
+  );
 }
 
 function toEnrichmentOutcome(result: EnrichmentParseResult): EnrichmentOutcome {
