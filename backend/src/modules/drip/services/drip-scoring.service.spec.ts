@@ -4,7 +4,7 @@ import {
   ContentFormat,
 } from '@/modules/content/content.enum';
 
-import { DripScoringService } from './drip-scoring.service';
+import { DripScoringService, nextEpisodeNo } from './drip-scoring.service';
 import {
   RegularScoringContext,
   ScoreBreakdown,
@@ -78,6 +78,7 @@ function buildContext(
     preference: null,
     difficultyAffinity: null,
     completedEpisodesBySeries: new Map(),
+    visibleEpisodesBySeries: new Map(),
     isColdStart: true,
     career: null,
     now: NOW,
@@ -120,35 +121,106 @@ describe('DripScoringService', () => {
     service = new DripScoringService();
   });
 
-  describe('filterEpisodeOrder', () => {
-    it('단일 콘텐츠와 시리즈 1편은 통과하고, 직전 편을 완청하지 않은 중간 편은 제외한다', () => {
+  describe('filterEpisodeOrder — 다음 편 = 마지막 완청보다 큰 노출 중 가장 앞 편(KAN-134)', () => {
+    const episode = (id: string, episodeNo: number) =>
+      buildCandidate(id, { content: { seriesId: 's1', episodeNo } });
+    const ids = (candidates: ScoringCandidate[]) =>
+      candidates.map((candidate) => candidate.content.id);
+
+    it('단일 콘텐츠와 시리즈 1편은 통과하고, 앞 편을 듣지 않은 중간 편은 제외한다', () => {
       const single = buildCandidate('single');
-      const first = buildCandidate('first', {
-        content: { seriesId: 's1', episodeNo: 1 },
-      });
-      const middle = buildCandidate('middle', {
-        content: { seriesId: 's1', episodeNo: 3 },
-      });
 
       const result = service.filterEpisodeOrder(
-        [single, first, middle],
+        [single, episode('first', 1), episode('middle', 3)],
         new Map(),
+        new Map([['s1', [1, 2, 3]]]),
       );
 
-      expect(result.map((candidate) => candidate.content.id)).toEqual([
-        'single',
-        'first',
-      ]);
+      expect(ids(result)).toEqual(['single', 'first']);
     });
 
     it('직전 편을 완청한 시리즈의 다음 편은 통과한다', () => {
-      const next = buildCandidate('next', {
-        content: { seriesId: 's1', episodeNo: 2 },
-      });
+      const result = service.filterEpisodeOrder(
+        [episode('next', 2)],
+        new Map([['s1', 1]]),
+        new Map([['s1', [1, 2, 3]]]),
+      );
 
-      const result = service.filterEpisodeOrder([next], new Map([['s1', 1]]));
+      expect(ids(result)).toEqual(['next']);
+    });
 
-      expect(result).toHaveLength(1);
+    it('1화를 완청했고 2화가 회수됐으면 3화가 통과한다 — 종전엔 아무에게도 편성되지 않았다', () => {
+      // given — 노출 중인 편은 1·3화(2화 회수)
+      const result = service.filterEpisodeOrder(
+        [episode('third', 3), episode('fourth', 4)],
+        new Map([['s1', 1]]),
+        new Map([['s1', [1, 3, 4]]]),
+      );
+
+      expect(ids(result)).toEqual(['third']);
+    });
+
+    it('탐색에서 앞 편을 건너뛰고 3화를 완청했으면 4화가 통과하고 2화는 빠진다', () => {
+      // given — 2화는 듣지 않았지만 마지막 완청은 3화다
+      const result = service.filterEpisodeOrder(
+        [episode('second', 2), episode('fourth', 4)],
+        new Map([['s1', 3]]),
+        new Map([['s1', [1, 2, 3, 4]]]),
+      );
+
+      expect(ids(result)).toEqual(['fourth']);
+    });
+
+    it('1화가 회수돼 있으면 처음 듣는 사용자에게 2화가 첫 편이다', () => {
+      const result = service.filterEpisodeOrder(
+        [episode('second', 2), episode('third', 3)],
+        new Map(),
+        new Map([['s1', [2, 3]]]),
+      );
+
+      expect(ids(result)).toEqual(['second']);
+    });
+
+    it('카탈로그에 노출 중인 앞 편이 있으면 풀에 없어도 뒤 편을 막는다', () => {
+      // given — 2화는 이미 라이브러리에 있어 풀에서 빠졌지만 발행 중이다(아직 완청 안 함)
+      const result = service.filterEpisodeOrder(
+        [episode('third', 3)],
+        new Map([['s1', 1]]),
+        new Map([['s1', [1, 2, 3]]]),
+      );
+
+      expect(result).toHaveLength(0);
+    });
+
+    it('카탈로그 맵에 시리즈가 없으면 후보 자신의 번호로 판정한다', () => {
+      const result = service.filterEpisodeOrder(
+        [episode('first', 1), episode('second', 2)],
+        new Map(),
+        new Map(),
+      );
+
+      expect(ids(result)).toEqual(['first']);
+    });
+
+    it('마지막 편까지 완청한 시리즈의 편은 통과하지 않는다', () => {
+      const result = service.filterEpisodeOrder(
+        [episode('second', 2)],
+        new Map([['s1', 3]]),
+        new Map([['s1', [1, 2, 3]]]),
+      );
+
+      expect(result).toHaveLength(0);
+    });
+  });
+
+  describe('nextEpisodeNo', () => {
+    it('완청 이력이 없으면 노출 중인 가장 앞 편, 다 들었으면 null이다', () => {
+      const index = new Map([['s1', [2, 5, 9]]]);
+
+      expect(nextEpisodeNo('s1', new Map(), index)).toBe(2);
+      expect(nextEpisodeNo('s1', new Map([['s1', 5]]), index)).toBe(9);
+      expect(nextEpisodeNo('s1', new Map([['s1', 9]]), index)).toBeNull();
+      expect(nextEpisodeNo('unknown', new Map(), index)).toBeNull();
     });
   });
 
@@ -315,6 +387,35 @@ describe('DripScoringService', () => {
       expect(scoreOf(scored, 'continuation')).toBeGreaterThan(
         scoreOf(scored, 'plain'),
       );
+    });
+
+    it('중간 화가 회수됐으면 그다음 노출 편이 연속 편이다 — 1화 완청·2화 회수 → 3화 우선(KAN-134)', () => {
+      const third = buildCandidate('third', {
+        content: { seriesId: 's1', episodeNo: 3 },
+      });
+
+      const [scored] = service.scoreRegularCandidates(
+        [third],
+        buildContext({
+          completedEpisodesBySeries: new Map([['s1', 1]]),
+          visibleEpisodesBySeries: new Map([['s1', [1, 3]]]),
+        }),
+      );
+
+      expect(scored.isSeriesContinuation).toBe(true);
+    });
+
+    it('아무 편도 완청하지 않은 시리즈의 첫 편은 연속 편이 아니다', () => {
+      const [scored] = service.scoreRegularCandidates(
+        [
+          buildCandidate('first', {
+            content: { seriesId: 's1', episodeNo: 1 },
+          }),
+        ],
+        buildContext({ visibleEpisodesBySeries: new Map([['s1', [1, 2]]]) }),
+      );
+
+      expect(scored.isSeriesContinuation).toBe(false);
     });
 
     it('노출 피로 항목은 폐기됐다 — 정규 편성의 exposureFatigue 는 항상 null(항목 빠짐)이다', () => {

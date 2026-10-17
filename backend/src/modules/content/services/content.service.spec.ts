@@ -34,6 +34,7 @@ describe('ContentService', () => {
       findById: jest.fn(),
       expireLicensed: jest.fn().mockResolvedValue(0),
       findWithdrawnSince: jest.fn().mockResolvedValue([]),
+      findVisibleEpisodeNumbersBySeries: jest.fn().mockResolvedValue([]),
     } as unknown as jest.Mocked<ContentRepository>;
 
     service = new ContentService(
@@ -44,6 +45,31 @@ describe('ContentService', () => {
       {} as ContentScriptRepository,
       {} as ContentAudioRenditionRepository,
     );
+  });
+
+  describe('findVisibleEpisodeNumbers — 드립 다음 편 판정 입력(KAN-134)', () => {
+    it('시리즈별 오름차순 번호 배열로 묶고 중복 id는 한 번만 묻는다', async () => {
+      // given
+      contentRepository.findVisibleEpisodeNumbersBySeries.mockResolvedValue([
+        { seriesId: 's1', episodeNo: 1 },
+        { seriesId: 's1', episodeNo: 3 },
+        { seriesId: 's2', episodeNo: 2 },
+      ]);
+
+      // when
+      const result = await service.findVisibleEpisodeNumbers(
+        ['s1', 's2', 's1'],
+        NOW,
+        UserMarket.KR,
+      );
+
+      // then
+      expect(
+        contentRepository.findVisibleEpisodeNumbersBySeries,
+      ).toHaveBeenCalledWith(['s1', 's2'], NOW, UserMarket.KR, undefined);
+      expect(result.get('s1')).toEqual([1, 3]);
+      expect(result.get('s2')).toEqual([2]);
+    });
   });
 
   describe('getPublishedById', () => {

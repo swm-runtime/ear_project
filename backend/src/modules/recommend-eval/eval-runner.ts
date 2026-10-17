@@ -467,7 +467,7 @@ const INVARIANT_LABEL: Record<InvariantName, string> = {
     '라이브러리에 있었거나 영구 제외된 콘텐츠를 다시 편성하지 않는다',
   'no-duplicate-picks': '같은 날 같은 콘텐츠가 두 번 편성되지 않는다',
   'series-order':
-    '시리즈는 직전 편을 완청한 다음 편만 정규로 가고, 탐험은 1편(또는 단편)만 간다',
+    '시리즈는 마지막 완청 편 다음의 노출 중인 가장 앞 편만 정규로 가고, 탐험은 1편(또는 단편)만 간다',
   'within-plan-counts': '편성 편수가 플랜 편수를 넘지 않는다',
   'discovery-respects-removed-topics':
     '사용자가 직접 해제한 주제의 콘텐츠는 탐험 편으로 가지 않는다',
@@ -529,15 +529,22 @@ class InvariantCollector {
       fail('no-duplicate-picks', ids.join(','));
     }
 
+    // 다음 편 = 마지막 완청보다 큰 노출 중 가장 앞 편(KAN-134). 그 사이에 노출 중인 편이 있거나 이미 완청한 번호 이하면 위반이다
+    const visibleEpisodes =
+      plan.regular?.visibleEpisodesBySeries ?? new Map<string, number[]>();
     for (const pick of regular) {
       const { seriesId, episodeNo } = pick.content;
 
-      if (
-        seriesId !== null &&
-        episodeNo !== null &&
-        episodeNo > 1 &&
-        (plan.completedEpisodesBySeries.get(seriesId) ?? 0) < episodeNo - 1
-      ) {
+      if (seriesId === null || episodeNo === null) {
+        continue;
+      }
+
+      const lastCompleted = plan.completedEpisodesBySeries.get(seriesId) ?? 0;
+      const skipped = (visibleEpisodes.get(seriesId) ?? []).some(
+        (visible) => visible > lastCompleted && visible < episodeNo,
+      );
+
+      if (episodeNo <= lastCompleted || skipped) {
         fail('series-order', `${pick.content.title} (${episodeNo}편)`);
       }
     }

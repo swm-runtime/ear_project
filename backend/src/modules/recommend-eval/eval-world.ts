@@ -618,6 +618,34 @@ export class EvalWorld {
             return entry ? [entry.content] : [];
           }),
         ),
+      // `ContentService.findVisibleEpisodeNumbers` — 노출 중(같은 시장)인 시리즈 편 번호, 오름차순
+      findVisibleEpisodeNumbers: (
+        seriesIds: string[],
+        now: Date,
+        market: string,
+      ) => {
+        const wanted = new Set(seriesIds);
+        const bySeries = new Map<string, number[]>();
+
+        for (const { content } of this.visibleContents(now)) {
+          if (
+            content.seriesId !== null &&
+            content.episodeNo !== null &&
+            wanted.has(content.seriesId) &&
+            (content.market as string) === market
+          ) {
+            const episodes = bySeries.get(content.seriesId) ?? [];
+            episodes.push(content.episodeNo);
+            bySeries.set(content.seriesId, episodes);
+          }
+        }
+
+        for (const episodes of bySeries.values()) {
+          episodes.sort((a, b) => a - b);
+        }
+
+        return Promise.resolve(bySeries);
+      },
       findScorableEmbeddings: (ids: string[]) =>
         Promise.resolve(
           new Map(

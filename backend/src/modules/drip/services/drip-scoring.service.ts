@@ -78,25 +78,33 @@ const YEARS_RANGE_ORDER: readonly YearsOfExperienceRange[] = [
 @Injectable()
 export class DripScoringService {
   /**
-   * 시리즈 회차 순서 필터(`drip-scheduling.md` 7 — "1편을 듣지 않은 사용자에게 3편을
-   * 적립하지 않는다"). 단일 콘텐츠·1편은 통과, 중간 편은 직전 편을 완청했을 때만 통과.
+   * 시리즈 회차 순서 필터(`drip-scheduling.md` 7 — "1편을 듣지 않은 사용자에게 3편을 적립하지 않는다").
+   *
+   * **다음 편 = 마지막으로 완청한 편보다 번호가 큰, 노출 중인 편 중 가장 앞 편**(완청 이력이 없으면 0보다 큰 가장 앞 편 —
+   * KAN-134 확정 설계 5번, 2026-10-17). 시리즈 편은 그 다음 편만 통과하고, 단일 콘텐츠는 늘 통과한다.
+   *
+   * 종전은 "직전 편(k-1)을 완청했는가"를 정확히 맞춰 봐서 두 경우에 시리즈가 멈췄다.
+   * - 중간 화가 회수되면(1화 완청 · 2화 회수) 3화의 직전 편이 영영 완청되지 않아 아무에게도 편성되지 않았다.
+   * - 탐색에서 앞 편을 건너뛰고 들으면(3화 완청) 그 뒤 편이 "2화 미완청"으로 막혔다.
+   *
+   * `visibleEpisodesBySeries`는 카탈로그 전체의 노출 중인 편 번호다 — 후보 풀은 상한으로 잘리고 이미 본 편을 빼므로
+   * 풀만 보면 "사이에 발행 중인 편이 있는지"를 알 수 없다. 후보 자신의 번호를 함께 넣어 맵이 빠진 시리즈도 판정한다.
    */
   filterEpisodeOrder(
     candidates: ScoringCandidate[],
     completedEpisodesBySeries: Map<string, number>,
+    visibleEpisodesBySeries: Map<string, number[]>,
   ): ScoringCandidate[] {
+    const episodeIndex = buildEpisodeIndex(candidates, visibleEpisodesBySeries);
+
     return candidates.filter(({ content }) => {
       if (content.seriesId === null || content.episodeNo === null) {
         return true;
       }
 
-      if (content.episodeNo === 1) {
-        return true;
-      }
-
       return (
-        completedEpisodesBySeries.get(content.seriesId) ===
-        content.episodeNo - 1
+        content.episodeNo ===
+        nextEpisodeNo(content.seriesId, completedEpisodesBySeries, episodeIndex)
       );
     });
   }
@@ -131,6 +139,7 @@ export class DripScoringService {
       preference,
       difficultyAffinity: null,
       completedEpisodesBySeries: new Map(),
+      visibleEpisodesBySeries: new Map(),
       // 탐색은 임베딩·신호 두 축만 쓴다 — 커리어 적합도는 메타 축 항목이라 여기서는 읽지 않는다
       career: null,
       isColdStart: false,
@@ -167,12 +176,17 @@ export class DripScoringService {
     context: RegularScoringContext,
   ): ScoredCandidate[] {
     const poolAverageCompleteRate = this.poolAverageCompleteRate(candidates);
+    const episodeIndex = buildEpisodeIndex(
+      candidates,
+      context.visibleEpisodesBySeries,
+    );
 
     return candidates
       .map((candidate) => {
         const isSeriesContinuation = this.isSeriesContinuation(
           candidate.content,
           context.completedEpisodesBySeries,
+          episodeIndex,
         );
 
         const embedding = this.embeddingAxisScore(candidate, context);
@@ -795,14 +809,21 @@ export class DripScoringService {
     );
   }
 
+  /**
+   * 시리즈 연속 편 — **한 편 이상 완청한 시리즈의 다음 편**(다음 편의 정의는 `filterEpisodeOrder`와 같다). 아무 편도
+   * 완청하지 않은 시리즈의 첫 편은 연속 편이 아니다(우선 선정·가점 없음 — 종전과 같다)
+   */
   private isSeriesContinuation(
     content: Content,
     completedEpisodesBySeries: Map<string, number>,
+    episodeIndex: Map<string, number[]>,
   ): boolean {
     return (
       content.seriesId !== null &&
       content.episodeNo !== null &&
-      completedEpisodesBySeries.get(content.seriesId) === content.episodeNo - 1
+      completedEpisodesBySeries.has(content.seriesId) &&
+      content.episodeNo ===
+        nextEpisodeNo(content.seriesId, completedEpisodesBySeries, episodeIndex)
     );
   }
 
@@ -823,6 +844,51 @@ export class DripScoringService {
 
     return totalComplete / totalPlay;
   }
+}
+
+/**
+ * 시리즈의 다음 편 번호(KAN-134 확정 설계 5번) — 마지막으로 완청한 편 번호(없으면 0)보다 큰 노출 중인 편 번호 중 가장 작은 것.
+ * 남은 편이 없으면 null(그 시리즈는 다 들었다). `episodeIndex`의 번호 배열은 오름차순이다(`buildEpisodeIndex`)
+ */
+export function nextEpisodeNo(
+  seriesId: string,
+  completedEpisodesBySeries: Map<string, number>,
+  episodeIndex: Map<string, number[]>,
+): number | null {
+  const lastCompleted = completedEpisodesBySeries.get(seriesId) ?? 0;
+
+  return (
+    episodeIndex
+      .get(seriesId)
+      ?.find((episodeNo) => episodeNo > lastCompleted) ?? null
+  );
+}
+
+/** 카탈로그의 노출 중인 편 번호에 후보 자신의 번호를 합쳐 시리즈별 오름차순·중복 없는 배열로 만든다 */
+function buildEpisodeIndex(
+  candidates: ScoringCandidate[],
+  visibleEpisodesBySeries: Map<string, number[]>,
+): Map<string, number[]> {
+  const sets = new Map<string, Set<number>>();
+
+  for (const [seriesId, episodes] of visibleEpisodesBySeries) {
+    sets.set(seriesId, new Set(episodes));
+  }
+
+  for (const { content } of candidates) {
+    if (content.seriesId !== null && content.episodeNo !== null) {
+      const episodes = sets.get(content.seriesId) ?? new Set<number>();
+      episodes.add(content.episodeNo);
+      sets.set(content.seriesId, episodes);
+    }
+  }
+
+  return new Map(
+    [...sets].map(([seriesId, episodes]) => [
+      seriesId,
+      [...episodes].sort((a, b) => a - b),
+    ]),
+  );
 }
 
 /**

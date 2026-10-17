@@ -304,6 +304,33 @@ export class ContentService {
     return this.contentRepository.findCandidates(query, manager);
   }
 
+  /**
+   * 시리즈별 노출 중인 편 번호(오름차순, 중복 id는 한 번만 묻는다) — 드립 순서 필터(`DripScoringService.filterEpisodeOrder`)의
+   * "다음 편" 판정 입력(KAN-134). 노출 중인 편이 없는 시리즈는 맵에 없다
+   */
+  async findVisibleEpisodeNumbers(
+    seriesIds: string[],
+    now: Date,
+    market: UserMarket,
+    manager?: EntityManager,
+  ): Promise<Map<string, number[]>> {
+    const rows = await this.contentRepository.findVisibleEpisodeNumbersBySeries(
+      [...new Set(seriesIds)],
+      now,
+      market,
+      manager,
+    );
+    const bySeries = new Map<string, number[]>();
+
+    for (const row of rows) {
+      const episodes = bySeries.get(row.seriesId) ?? [];
+      episodes.push(row.episodeNo);
+      bySeries.set(row.seriesId, episodes);
+    }
+
+    return bySeries;
+  }
+
   async findAllByIds(
     contentIds: string[],
     manager?: EntityManager,

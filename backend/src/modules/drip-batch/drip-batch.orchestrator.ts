@@ -988,9 +988,19 @@ export class DripBatchOrchestrator {
     });
 
     const candidates = await this.buildScoringCandidates(pool);
+    // 다음 편 판정은 풀이 아니라 카탈로그의 노출 중인 편 번호로 한다(KAN-134) — 풀은 상한으로 잘리고 본 편을 뺀다
+    const visibleEpisodesBySeries =
+      await this.contentService.findVisibleEpisodeNumbers(
+        pool
+          .map((content) => content.seriesId)
+          .filter((seriesId): seriesId is string => seriesId !== null),
+        input.now,
+        input.market,
+      );
     const gated = this.dripScoringService.filterEpisodeOrder(
       candidates,
       input.completedEpisodesBySeries,
+      visibleEpisodesBySeries,
     );
     const gatedIds = new Set(gated.map((candidate) => candidate.content.id));
     const gatedOut = candidates.filter(
@@ -1002,6 +1012,7 @@ export class DripBatchOrchestrator {
       return {
         poolSize: pool.length,
         gatedOut,
+        visibleEpisodesBySeries,
         recentDripTopicIds: [],
         scored: [],
         picks: [],
@@ -1018,6 +1029,7 @@ export class DripBatchOrchestrator {
       preference: input.preference,
       difficultyAffinity: input.difficultyAffinity,
       completedEpisodesBySeries: input.completedEpisodesBySeries,
+      visibleEpisodesBySeries,
       isColdStart: input.isColdStart,
       career: input.career,
       now: input.now,
@@ -1031,6 +1043,7 @@ export class DripBatchOrchestrator {
     return {
       poolSize: pool.length,
       gatedOut,
+      visibleEpisodesBySeries,
       recentDripTopicIds,
       scored,
       picks,
