@@ -16,6 +16,7 @@ describe('DailyActiveUserScheduler', () => {
   beforeEach(() => {
     repository = {
       recount: jest.fn().mockResolvedValue(undefined),
+      recordActiveDates: jest.fn().mockResolvedValue(undefined),
     } as unknown as jest.Mocked<DailyActiveUserRepository>;
     scheduler = new DailyActiveUserScheduler(repository);
     jest.spyOn(Logger.prototype, 'log').mockImplementation();
@@ -44,6 +45,10 @@ describe('DailyActiveUserScheduler', () => {
       '2026-10-17',
       '2026-10-16',
     ]);
+    // 코호트 리텐션 재료(사람별 접속일)도 같은 날짜로 남긴다
+    expect(
+      repository.recordActiveDates.mock.calls.map(([date]) => date),
+    ).toEqual(['2026-10-17', '2026-10-16']);
   });
 
   it('같은 시각에 두 번 돌아도 같은 날짜를 같은 순서로 다시 셀 뿐이다 — 재집계라 결과가 같다(멱등)', async () => {

@@ -4,6 +4,7 @@ import { DataSource } from 'typeorm';
 import { UserMarket } from '@/modules/user/user.enum';
 
 import {
+  InsightsCohortCounts,
   InsightsDailyRows,
   InsightsHourly,
   InsightsListeningTotals,
@@ -113,6 +114,13 @@ interface MarketTotalsRow {
 interface RetentionRow {
   day: number;
   cohort_size: number;
+  returned: number;
+}
+
+/** `offset`은 SQL 예약어라 열 이름을 `step`으로 받는다 */
+interface CohortHitRow {
+  start: string;
+  step: number;
   returned: number;
 }
 
@@ -377,6 +385,17 @@ export class AdminInsightsRepository {
     return row?.date ?? null;
   }
 
+  /**
+   * 사람별 접속일(`user_active_dates`, auth 모듈이 쓴다 — 여기서는 읽기만)이 처음 쓰인 시각 — 마이그레이션 백필 시각이다.
+   * 백필은 그때 남은 세션으로 채웠으니, 이 시각 - 29일부터의 날만 온전하다(Service 가 계산). 표가 비었으면 null.
+   */
+  async activeDatesFirstRecordedAt(): Promise<Date | null> {
+    const [row] = await this.dataSource.query<{ at: Date | null }[]>(
+      `select min(created_at) as at from user_active_dates`,
+    );
+    return row?.at ?? null;
+  }
+
   /** 창 안 재생의 KST 시간대 분포 — 재생이 없던 시간대는 Service 가 0 으로 채운다 */
   async hourly(since: Date): Promise<InsightsHourly[]> {
     const rows = await this.dataSource.query<HourlyRow[]>(
@@ -523,6 +542,75 @@ export class AdminInsightsRepository {
       cohortSize: r.cohort_size,
       returned: r.returned,
     }));
+  }
+
+  /**
+   * 코호트 리텐션의 재료 — 가입한 KST 달력일 `[from, to)`의 현재 계정을 `span`일 단위(1 = 일별, 7 = ISO 주, 월요일 시작)로 묶고,
+   * 묶음마다 가입자 수와 "가입 뒤 `offset` 구간에 앱을 쓴 사람 수"를 센다. 구간은 **사람마다 자기 가입일 기준**이다 —
+   * `offset`번째 구간 = 가입일 + `offset × span`일부터 `span`일(D1 = 가입 다음 날 하루, W1 = 가입 7~13일 뒤).
+   *
+   * "앱을 썼다"는 그날 접속(`user_active_dates` — 지워진 세션의 몫까지 남는 기록 · 아직 남은 `sessions`) 또는 재생(`play_records`,
+   * 무기한)이다. 아직 끝나지 않은 구간인지·기록을 믿을 수 있는지는 Service 가 가린다 — 여기서는 있는 대로 센다.
+   * 탈퇴자는 `users`에 없어 분모·분자 모두에서 빠진다(생존 편향 — 기존 `retention`과 같다).
+   */
+  async cohortRetention(
+    from: string,
+    to: string,
+    span: number,
+    offsets: readonly number[],
+  ): Promise<InsightsCohortCounts> {
+    const cohort = `
+      cohort as (
+        select u.id,
+               (u.created_at at time zone 'Asia/Seoul')::date as d
+          from users u
+         where u.created_at >= ($1::date)::timestamp at time zone 'Asia/Seoul'
+           and u.created_at < ($2::date)::timestamp at time zone 'Asia/Seoul'
+      ),
+      keyed as (
+        select c.id, c.d,
+               case when $3::int = 7 then date_trunc('week', c.d)::date else c.d end as start
+          from cohort c
+      )`;
+    const sizes = await this.dataSource.query<InsightsCohortCounts['sizes']>(
+      `with ${cohort}
+       select to_char(k.start, 'YYYY-MM-DD') as start, count(*)::int as users
+         from keyed k
+        group by k.start`,
+      [from, to, span],
+    );
+    const hits = await this.dataSource.query<CohortHitRow[]>(
+      `with ${cohort},
+       activity as (
+         select a.user_id, a.active_date
+           from user_active_dates a join cohort c on c.id = a.user_id
+         union
+         select s.user_id, (s.issued_at at time zone 'Asia/Seoul')::date
+           from sessions s join cohort c on c.id = s.user_id
+         union
+         select p.user_id, (p.played_at at time zone 'Asia/Seoul')::date
+           from play_records p join cohort c on c.id = p.user_id
+       )
+       select to_char(k.start, 'YYYY-MM-DD') as start,
+              o.n::int as step,
+              count(distinct k.id)::int as returned
+         from keyed k
+        cross join unnest($4::int[]) as o(n)
+         join activity a
+           on a.user_id = k.id
+          and a.active_date >= k.d + o.n * $3::int
+          and a.active_date < k.d + (o.n + 1) * $3::int
+        group by k.start, o.n`,
+      [from, to, span, offsets],
+    );
+    return {
+      sizes,
+      hits: hits.map((h) => ({
+        start: h.start,
+        offset: h.step,
+        returned: h.returned,
+      })),
+    };
   }
 
   /**

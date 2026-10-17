@@ -313,6 +313,43 @@ export interface InsightsRetention {
   returned: number;
 }
 
+/** 코호트 리텐션 집계 원본(Repository) — 묶음 시작일(`YYYY-MM-DD`)별 가입자 수와 구간별 돌아온 사람 수. 빈 묶음·구간은 행이 없다 */
+export interface InsightsCohortCounts {
+  sizes: { start: string; users: number }[];
+  hits: { start: string; offset: number; returned: number }[];
+}
+
+/** 코호트 표의 한 칸 — 끝나지 않은 구간은 칸 자체가 `null`이다 */
+export interface InsightsCohortCell {
+  /** 그 구간에 앱을 쓴(접속 또는 재생) 사람 수 */
+  returned: number;
+  /**
+   * 구간이 접속 기록을 믿을 수 있는 첫 날(`InsightsCohortTable.reliableSince`)보다 앞에서 시작한다 — 그 앞은 세션이 지워져 **재생만** 잡혀
+   * 실제보다 낮게 나온다
+   */
+  partial: boolean;
+}
+
+export interface InsightsCohortRow {
+  /** 묶음 시작일(KST) — 일별은 가입일, 주별은 가입 주의 월요일 */
+  start: string;
+  /** 그 묶음의 현재 계정 수 */
+  users: number;
+  /** `offsets` 순서와 같다 */
+  cells: (InsightsCohortCell | null)[];
+}
+
+export interface InsightsCohortTable {
+  /** 구간 길이(일) — 1 = 일별(D), 7 = 주별(W) */
+  span: number;
+  /** 가입 뒤 몇 번째 구간을 보는가 — 일별 `[1, 7]`(D1·D7), 주별 `[1, 2, 3, 4]`(W1~W4) */
+  offsets: number[];
+  /** 접속 기록을 믿을 수 있는 첫 날(KST) — 이보다 앞에서 시작하는 칸이 `partial` */
+  reliableSince: string;
+  /** 최근 묶음 먼저 */
+  rows: InsightsCohortRow[];
+}
+
 /**
  * 주제별 수요·공급 — 관심 사용자 수 대비 아직 줄 수 있는 콘텐츠가 얼마나 남았는가(2026-10-13 추천 검증).
  * 제작 우선순위의 근거다: 관심은 많은데 남은 편수가 적은 주제부터 만든다.
@@ -391,6 +428,8 @@ export interface InsightsSummary {
   topContents: InsightsTopContent[];
   withdrawalReasons: InsightsWithdrawalReason[];
   retention: InsightsRetention[];
+  /** 코호트 리텐션 — 가입일·가입 주로 묶은 D1·D7 · W1~W4 */
+  retentionCohorts: { daily: InsightsCohortTable; weekly: InsightsCohortTable };
   topicSupply: InsightsTopicSupply[];
   byMarket: InsightsMarketTotals[];
 }

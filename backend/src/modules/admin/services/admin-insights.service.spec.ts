@@ -1,6 +1,8 @@
 import { UserMarket } from '@/modules/user/user.enum';
 
 import {
+  INSIGHTS_COHORT_DAILY,
+  INSIGHTS_COHORT_WEEKLY,
   INSIGHTS_RANK_LIMIT,
   INSIGHTS_RETENTION_DAYS,
   INSIGHTS_SUMMARY_MAX_DAYS,
@@ -8,6 +10,10 @@ import {
 import { InsightsDailyRows } from '../admin.types';
 import {
   AdminInsightsService,
+  addDays,
+  buildCohortTable,
+  cohortReliableSince,
+  cohortStarts,
   fillDailySeries,
   fillHourly,
   fillMarkets,
@@ -237,6 +243,105 @@ describe('AdminInsightsService 순수 함수', () => {
   });
 });
 
+describe('코호트 리텐션 순수 함수', () => {
+  it('addDays — 달·해 경계를 넘는다', () => {
+    expect(addDays('2026-10-31', 1)).toBe('2026-11-01');
+    expect(addDays('2027-01-01', -1)).toBe('2026-12-31');
+  });
+
+  it('cohortReliableSince — 사람별 접속일 표가 백필된 날(KST) - 29일이고, 표가 비면 세션으로 셀 수 있는 첫 날이다', () => {
+    // given — 백필 KST 10-18 01:00, 지금은 한 달 뒤(세션으로 셀 수 있는 첫 날 10-22)
+    const backfilledAt = new Date('2026-10-17T16:00:00.000Z');
+
+    // then — 백필 앞쪽은 세션이 지워져 있었다. 일별 접속자 표의 첫 날을 빌리지 않는다(두 마이그레이션이 다른 날 돌 수 있다)
+    expect(cohortReliableSince(backfilledAt, '2026-10-22')).toBe('2026-09-19');
+    expect(cohortReliableSince(null, '2026-10-22')).toBe('2026-10-22');
+  });
+
+  it('cohortStarts — 일별은 어제부터 하루씩, 주별은 이번 주 월요일부터 한 주씩(최근 먼저)', () => {
+    // given — 2026-10-18 은 일요일
+    const today = '2026-10-18';
+
+    // then
+    const daily = cohortStarts(today, INSIGHTS_COHORT_DAILY);
+    expect(daily).toHaveLength(14);
+    expect(daily[0]).toBe('2026-10-17');
+    expect(daily[13]).toBe('2026-10-04');
+    const weekly = cohortStarts(today, INSIGHTS_COHORT_WEEKLY);
+    expect(weekly).toHaveLength(8);
+    expect(weekly[0]).toBe('2026-10-12');
+    expect(weekly[7]).toBe('2026-08-24');
+    // 월요일 당일은 그날이 이번 주 시작이다
+    expect(cohortStarts('2026-10-12', INSIGHTS_COHORT_WEEKLY)[0]).toBe(
+      '2026-10-12',
+    );
+  });
+
+  it('buildCohortTable(일별) — 구간이 오늘 전에 끝난 칸만 숫자이고, 빈 묶음도 0명 행으로 둔다', () => {
+    // given — 오늘 10-18. 10-17 가입자의 D1 은 오늘이라 아직, 10-10 가입자의 D7 은 10-17 이라 끝났다
+    const table = buildCohortTable(
+      {
+        sizes: [
+          { start: '2026-10-17', users: 5 },
+          { start: '2026-10-10', users: 4 },
+        ],
+        hits: [
+          { start: '2026-10-10', offset: 1, returned: 3 },
+          { start: '2026-10-10', offset: 7, returned: 1 },
+          { start: '2026-10-17', offset: 1, returned: 2 },
+        ],
+      },
+      ['2026-10-17', '2026-10-11', '2026-10-10'],
+      INSIGHTS_COHORT_DAILY,
+      '2026-10-18',
+      '2026-09-19',
+    );
+
+    // then
+    expect(table.span).toBe(1);
+    expect(table.offsets).toEqual([1, 7]);
+    expect(table.rows[0]).toEqual({
+      start: '2026-10-17',
+      users: 5,
+      cells: [null, null],
+    });
+    expect(table.rows[1]).toEqual({
+      start: '2026-10-11',
+      users: 0,
+      cells: [{ returned: 0, partial: false }, null],
+    });
+    expect(table.rows[2].cells).toEqual([
+      { returned: 3, partial: false },
+      { returned: 1, partial: false },
+    ]);
+  });
+
+  it('buildCohortTable(주별) — 그 주 마지막 가입자(일요일) 기준으로 구간이 끝나야 숫자이고, 믿을 수 있는 첫 날 앞에서 시작한 칸은 partial', () => {
+    // given — 오늘 10-18(일). 09-14 주 W4 = 일요일 가입자 09-20 + 28~34일 = 10-18~10-24 → 아직
+    //         09-07 주 W4 = 09-13 + 28~34 = 10-11~10-17 → 끝남. W1 시작 09-14 < 09-19 → partial
+    const table = buildCohortTable(
+      {
+        sizes: [{ start: '2026-09-07', users: 10 }],
+        hits: [{ start: '2026-09-07', offset: 4, returned: 2 }],
+      },
+      ['2026-09-14', '2026-09-07'],
+      INSIGHTS_COHORT_WEEKLY,
+      '2026-10-18',
+      '2026-09-19',
+    );
+
+    // then
+    expect(table.rows[0].cells[3]).toBeNull();
+    expect(table.rows[0].cells[2]).toEqual({ returned: 0, partial: false });
+    expect(table.rows[1].cells).toEqual([
+      { returned: 0, partial: true },
+      { returned: 0, partial: false },
+      { returned: 0, partial: false },
+      { returned: 2, partial: false },
+    ]);
+  });
+});
+
 describe('AdminInsightsService.summarize', () => {
   const makeRepository = () => ({
     userTotals: jest.fn().mockResolvedValue({ current: 1 }),
@@ -254,6 +359,8 @@ describe('AdminInsightsService.summarize', () => {
     topContents: jest.fn().mockResolvedValue([]),
     withdrawalReasons: jest.fn().mockResolvedValue([]),
     retention: jest.fn().mockResolvedValue([]),
+    cohortRetention: jest.fn().mockResolvedValue({ sizes: [], hits: [] }),
+    activeDatesFirstRecordedAt: jest.fn().mockResolvedValue(null),
     topicSupply: jest.fn().mockResolvedValue([]),
     marketTotals: jest.fn().mockResolvedValue([]),
   });
@@ -311,6 +418,34 @@ describe('AdminInsightsService.summarize', () => {
     expect((await service.summarize(14, now)).activeUsersSince).toBe(
       '2026-09-19',
     );
+  });
+
+  it('코호트는 창과 무관하게 일별 최근 14일(오늘 제외)·주별 최근 8주(오늘 포함)의 가입자를 센다', async () => {
+    // given — KST 10-18(일) 12:00
+    const now = new Date('2026-10-18T03:00:00.000Z');
+    const repository = makeRepository();
+    const service = new AdminInsightsService(repository as never);
+
+    // when
+    const summary = await service.summarize(7, now);
+
+    // then — [from, to)
+    expect(repository.cohortRetention).toHaveBeenNthCalledWith(
+      1,
+      '2026-10-04',
+      '2026-10-18',
+      1,
+      [1, 7],
+    );
+    expect(repository.cohortRetention).toHaveBeenNthCalledWith(
+      2,
+      '2026-08-24',
+      '2026-10-19',
+      7,
+      [1, 2, 3, 4],
+    );
+    expect(summary.retentionCohorts.daily.rows).toHaveLength(14);
+    expect(summary.retentionCohorts.weekly.rows).toHaveLength(8);
   });
 
   it('days 가 상한을 넘으면 상한으로 자른다 — DTO 가 막지만 Service 혼자서도 안전해야 한다', async () => {

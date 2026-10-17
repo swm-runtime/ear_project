@@ -20,7 +20,8 @@ export function recountDates(now: Date, count: number): string[] {
 }
 
 /**
- * 일별 접속자 저장 배치(`daily_active_users`) — **매일 00:10 KST**, 어제와 그제를 다시 센다.
+ * 일별 접속자 저장 배치(`daily_active_users` · `user_active_dates`) — **매일 00:10 KST**, 어제와 그제를 다시 센다.
+ * 날짜마다 인원 수(일별 접속자)와 사람·날짜 한 쌍(코호트 리텐션)을 함께 남긴다.
  *
  * 세션 행은 만료·폐기 30일 뒤 지워져(`SessionPurgeScheduler`) 지난날을 나중에 셀 수 없다 — 그래서 날이 끝나면 바로 센다.
  * 그제까지 다시 세는 것은 자정을 걸친 늦은 쓰기와, 배포·장애로 하루 크론을 놓친 경우를 메우기 위해서다. 다시 세도 결과가 같다
@@ -46,6 +47,7 @@ export class DailyActiveUserScheduler {
     for (const date of recountDates(now, DAILY_ACTIVE_USERS_RECOUNT_DAYS)) {
       try {
         await this.repository.recount(date);
+        await this.repository.recordActiveDates(date);
         this.logger.log('daily active users recounted', { date });
       } catch (error) {
         this.logger.error(

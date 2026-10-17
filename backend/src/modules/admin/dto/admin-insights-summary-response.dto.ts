@@ -1,8 +1,52 @@
-import { InsightsListeningTotals, InsightsSummary } from '../admin.types';
+import {
+  InsightsCohortTable,
+  InsightsListeningTotals,
+  InsightsSummary,
+} from '../admin.types';
 
 /** 분모가 0 이면 null — 0% 와 "셀 수 없음"을 구분한다 */
 export const ratio = (part: number, whole: number): number | null =>
   whole > 0 ? part / whole : null;
+
+/** 코호트 표 한 장 — 칸은 `offsets` 순서, 끝나지 않은 구간은 `null` */
+interface CohortTableItem {
+  /** 1 = 일별(D) · 7 = 주별(W) */
+  span: number;
+  offsets: number[];
+  /** 접속 기록을 믿을 수 있는 첫 날(KST `YYYY-MM-DD`) — 이보다 앞에서 시작하는 칸이 `partial` */
+  reliable_since: string;
+  rows: {
+    /** 묶음 시작일(KST) — 일별은 가입일, 주별은 가입 주 월요일 */
+    start: string;
+    users: number;
+    cells: ({
+      returned: number;
+      /** `returned / users` */
+      rate: number | null;
+      /** 접속 기록을 믿을 수 있는 첫 날 앞에서 시작하는 구간 — 재생만 잡혀 낮게 나온다 */
+      partial: boolean;
+    } | null)[];
+  }[];
+}
+
+const toCohortTable = (t: InsightsCohortTable): CohortTableItem => ({
+  span: t.span,
+  offsets: t.offsets,
+  reliable_since: t.reliableSince,
+  rows: t.rows.map((r) => ({
+    start: r.start,
+    users: r.users,
+    cells: r.cells.map((c) =>
+      c === null
+        ? null
+        : {
+            returned: c.returned,
+            rate: ratio(c.returned, r.users),
+            partial: c.partial,
+          },
+    ),
+  })),
+});
 
 interface ListeningTotalsItem {
   listen_sec: number;
@@ -114,6 +158,11 @@ export class AdminInsightsSummaryResponseDto {
     /** `returned / cohort_size` */
     rate: number | null;
   }[];
+  /** 코호트 리텐션 — 가입일별 D1·D7, 가입 주별 W1~W4(절대수치·비율 함께) */
+  readonly retention_cohorts: {
+    daily: CohortTableItem;
+    weekly: CohortTableItem;
+  };
   /** 주제별 수요·공급 — 관심 사용자가 많은 순 */
   readonly topic_supply: {
     topic_id: string;
@@ -244,6 +293,10 @@ export class AdminInsightsSummaryResponseDto {
         returned: r.returned,
         rate: ratio(r.returned, r.cohortSize),
       })),
+      retention_cohorts: {
+        daily: toCohortTable(summary.retentionCohorts.daily),
+        weekly: toCohortTable(summary.retentionCohorts.weekly),
+      },
       topic_supply: summary.topicSupply.map((t) => ({
         topic_id: t.topicId,
         name: t.name,

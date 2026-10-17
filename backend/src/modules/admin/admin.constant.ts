@@ -134,6 +134,21 @@ export const INSIGHTS_RANK_LIMIT = 15;
 /** 리텐션을 재는 가입 뒤 일수 — D1·D7·D30(앱 업계 관행) */
 export const INSIGHTS_RETENTION_DAYS: readonly number[] = [1, 7, 30];
 /**
+ * 코호트 리텐션 표 — 일별은 최근 14일 가입자의 D1·D7, 주별은 최근 8주(이번 주 포함) 가입자의 W1~W4. 광고로 유입을 늘리는
+ * 구간에 "들어온 사람이 남는가"를 묶음별로 보려는 표다(2026-10-18 멘토 조언 — 절대수치와 비율을 같이). W4 는 가입 28~34일 뒤라
+ * 8주면 성숙한 행이 3~4개 생긴다.
+ */
+export const INSIGHTS_COHORT_DAILY = {
+  count: 14,
+  span: 1,
+  offsets: [1, 7],
+} as const;
+export const INSIGHTS_COHORT_WEEKLY = {
+  count: 8,
+  span: 7,
+  offsets: [1, 2, 3, 4],
+} as const;
+/**
  * 일별 접속자를 세션에서 바로 셀 수 있는 날 수 — 오늘 포함 최근 이 일수의 KST 달력일(오늘 - 29일 ~ 오늘).
  * 세션 행은 만료·폐기 30일 뒤 지워지므로(`SessionPurgeScheduler`) "지금 - 30일" 이후 발급분은 모두 남아 있고, 그 시각이 걸친
  * 날(오늘 - 30일)은 일부가 지워졌다. 저장 표(`daily_active_users`)에 없는 날 중 이 범위만 바로 세고, 그 앞은 `null`(기록 없음)이다.
