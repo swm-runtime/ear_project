@@ -10,7 +10,7 @@
 | 발행 날짜 | 2026-10-14 |
 | 시작 날짜 | 2026-10-14 |
 | 기한 | 2026-10-17 (Medium) |
-| 선행 | [KAN-188](https://runtime364.atlassian.net/browse/KAN-188) `global-catalog-isolation.md`(`contents.market` 컬럼) |
+| 선행 | [KAN-188](https://runtime364.atlassian.net/browse/KAN-188) `global-catalog-isolation.md`(`contents.market` 컬럼) — 완료 · 2단계(필수 전환)는 AI [KAN-202](https://runtime364.atlassian.net/browse/KAN-202)(파이프라인 `market`·`language` 송신) 뒤 |
 | 관련 | **AI [KAN-204](https://runtime364.atlassian.net/browse/KAN-204) 제품 발행이 이 티켓에 막힌다.** AI [KAN-202](https://runtime364.atlassian.net/browse/KAN-202)(패키지가 같은 필드를 기록) |
 | 근거 문서 | **`spec/api/global-api.md` 4.9 · 4.10** — 구현은 이 문서를 따르고, 계약이 바뀌면 티켓이 아니라 이 문서를 고친다 · 2026-10-14 글로벌화 조사 |
 | 중요도 | Medium |
@@ -47,3 +47,6 @@
   - 남은 것: 필수 전환 · `insights/summary` `by_market` · 배포 후 AI 담당 알림(처리 기록에 날짜).
   - 문서: `changes/pending/global-publish-contract.md`.
 - 2026-10-14 `insights/summary` `by_market` — PR `feat(be)/insights-by-market`. 모양은 `global-api.md` 4.10에 확정. 남은 것: 필수 전환 · 배포 후 AI 담당 알림.
+- 2026-10-17 **기한(10-17) 미준수 — 사유 기록.** 남은 2단계(필수 전환)는 파이프라인이 두 필드를 보내기 시작해야 할 수 있다. 지금 발행 코드(`pipeline/apps/web/app/api/publish/[episodeId]/route.ts`)는 보내지 않는다. 보내는 작업은 AI [KAN-202](https://runtime364.atlassian.net/browse/KAN-202)(`upload-meta` market/language)에 있다. 1단계는 운영까지 배포돼 있음을 확인했다(origin/main). KAN-202에 "지금 보내도 된다"고 계약 요약과 함께 댓글로 알렸다.
+  - 순서: KAN-202 송신 시작 → 운영 업로드 확인 → 2단계. 새 기한은 KAN-202가 보내기 시작한 다음 날이다.
+  - 링크 정리 제안(아직 바꾸지 않음): KAN-202 → KAN-190 blocks 추가, KAN-190 → KAN-204 blocks 제거(발행은 1단계만으로 가능).
