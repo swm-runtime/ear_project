@@ -5,6 +5,7 @@ export const ASSET_KEYS: { key: string; label: string; group: string; optional?:
   { key: "skills/draft/examples/gold-T260820-001-short.md", label: "골드 — 숏폼 (T260820-001)", group: "생성" },
   { key: "skills/draft/examples/gold-T260918-001-full.md", label: "골드 — 본편 이음 해설 (T260918-001, 귀속 재작성)", group: "생성" },
   { key: "skills/draft/examples/gold-T260828-001-full.md", label: "골드 — 본편 윤아 해설 (T260828-001)", group: "생성" },
+  { key: "skills/draft/series.md", label: "시리즈 편 규칙 (시리즈 편에만 붙는다, spec/11)", group: "생성" },
   { key: "skills/qa/prompt.md", label: "QA 프롬프트", group: "검수" },
   { key: "skills/critic/rubric.md", label: "비평 루브릭 v1", group: "검수" },
   { key: "skills/critic/rubric-v2.md", label: "비평 루브릭 v2 (초안)", group: "검수" },

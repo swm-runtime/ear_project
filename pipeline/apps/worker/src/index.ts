@@ -1,6 +1,6 @@
 import fs from "node:fs/promises";
 import { cfg, canAi, canTts, canThumbnail, executedBy } from "./config.js";
-import { claimJob, enqueue, failJob, getBacklog, finishJob, getSetting, hasActiveDraftJob, heartbeat, listApprovedBacklog, pool, requeueJob, startJob } from "./db.js";
+import { claimJob, enqueue, failJob, getBacklog, finishJob, getSetting, hasActiveDraftJob, seriesPrevReady, heartbeat, listApprovedBacklog, pool, requeueJob, startJob } from "./db.js";
 import { workerRev, workerRevTime } from "./assets.js";
 import { probeStorage } from "./storage.js";
 import { executorHandlesWebSearch, makeExecutor, setJobAbort } from "./executors/index.js";
@@ -143,6 +143,7 @@ async function main() {
 async function pickupApproved() {
   for (const id of await listApprovedBacklog()) {
     if (await hasActiveDraftJob(id)) continue;
+    if (!(await seriesPrevReady(id))) continue; // 시리즈 편(spec/11 5.3): 앞 편 초안이 끝나면 다음 폴링에서 건다
     const jobId = await enqueue({ type: "draft", requires_ai: true, payload: { backlog_id: id, attempt: 1 } });
     log(`게이트 1 승인 감지(폴백): ${id} → draft 작업 ${jobId.slice(0, 8)}`);
   }

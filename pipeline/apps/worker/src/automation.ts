@@ -17,7 +17,7 @@
  * 패키지는 enrich 를 자동으로 걸지 않는다 — 발행하지 않을 편까지 메타를 뽑는 낭비를 막기 위해 업로드 화면의 [추천 메타 뽑기]로 사람이 건다.
  * 알림은 편마다가 아니라 큐가 다 비었을 때 한 번 (digest.ts). API 한도(429)는 ai-pause.ts 가 집기를 멈춘다.
  */
-import { approveBacklogAuto, enqueue, getSetting, hasActiveDraftJob, hasActiveJob, insertRun, listProposedForAutoApprove } from "./db.js";
+import { approveBacklogAuto, enqueue, getSetting, hasActiveDraftJob, seriesPrevReady, hasActiveJob, insertRun, listProposedForAutoApprove } from "./db.js";
 import { executedBy } from "./config.js";
 import { workerRev } from "./assets.js";
 import { log } from "./util.js";
@@ -40,8 +40,6 @@ export interface AutoApproveRow { id: string; cluster_version: string | null; ga
 /** 자동 승인 규칙 v1 — 순수 함수 (테스트 대상). 이유를 돌려주면 승인 불가 */
 export function autoApproveBlocker(row: AutoApproveRow): string | null {
   if (row.cluster_version !== "v2") return `군집화 ${row.cluster_version ?? "버전 없음"} (v2 만 자동)`;
-  // 시리즈 편 (KAN-136, 2026-10-17): 시리즈 대본(회상·예고·집기 순서, spec/11 10장 4단계)이 들어가기 전까지는 사람이 승인한다
-  if (row.series_id) return "시리즈 편 (시리즈 대본 구현 전 — 사람 승인)";
   if ((row.gaps ?? []).length > 0) return `빈 역할 ${row.gaps!.length}개`;
   if (/소스 겹침/.test(row.dedup_note ?? "")) return "소스 겹침 경고";
   if (/⚠️ 초안 실패|🗑/.test(row.dedup_note ?? "")) return "초안 실패·삭제 후 복귀 (사람이 다시 승인)";
@@ -59,7 +57,7 @@ export async function autoApprove(): Promise<number> {
     if (autoApproveBlocker(row)) continue;
     const by = `auto:${AUTO_RULE}`;
     if (!(await approveBacklogAuto(row.id, by))) continue; // 그 사이 사람이 손댔으면 건너뜀
-    if (!(await hasActiveDraftJob(row.id))) await enqueue({ type: "draft", requires_ai: true, payload: { backlog_id: row.id, attempt: 1 } });
+    if (!(await hasActiveDraftJob(row.id)) && (await seriesPrevReady(row.id))) await enqueue({ type: "draft", requires_ai: true, payload: { backlog_id: row.id, attempt: 1 } }); // 시리즈 편은 앞 편 초안 뒤(pickupApproved 가 건다)
     await insertRun({ backlog_id: row.id, phase: "approve", result: `자동 승인 (${by}) — 군집화 v2 · 빈 역할 0 · 소스 겹침 없음 → draft 작업 생성`, prompt_version: `auto-approve-${AUTO_RULE} (worker)`, executed_by: executedBy, worker_rev: workerRev() });
     log(`게이트 1 자동 승인 (${by}): ${row.id}`);
     n++;

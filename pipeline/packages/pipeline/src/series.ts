@@ -109,3 +109,101 @@ export function normalizeSeriesPlan(eps: SeriesPlanEpisode[]): SeriesPlanEpisode
     .filter((e) => String(e.title ?? "").trim())
     .map((e, k) => ({ no: k + 1, title: String(e.title).trim(), scope: String(e.scope ?? "").trim(), carries: k === 0 ? "" : String(e.carries ?? "").trim(), only_here: String(e.only_here ?? "").trim(), minutes: Number(e.minutes) > 0 ? Math.round(Number(e.minutes)) : 0 }));
 }
+
+// ── 시리즈 편 대본 (spec/11 5장 · 글로벌 명세 6.11, KAN-136 4단계) ──────────────────
+
+/** 시리즈 편 하나의 대본 맥락 — 워커가 시리즈 행·설계안·앞 편 구성안에서 만든다. 일반 편은 undefined 라 프롬프트가 바뀌지 않는다 */
+export interface SeriesDraftContext {
+  name: string;
+  introLine: string;
+  no: number;
+  total: number;
+  scope: string;
+  onlyHere: string;
+  carries: string;
+  /** 형제 편이 자세히 다룰 것 — 이 편은 구간으로 잡지 않는다 */
+  elsewhere: { no: number; title: string; onlyHere: string }[];
+  /** 앞 편(2화부터) — 제목 + 구성안의 축·구간 질문. 회상의 유일한 재료 */
+  prev: { title: string; axis: string; questions: string[] } | null;
+  /** 다음 편 제목(마지막 화 제외) — 예고 문장에 워커가 넣는다 */
+  nextTitle: string | null;
+  /** 인트로 시리즈 줄 — 대주제 줄({대주제 한 줄} · {topic_line}) 자리에 토씨 그대로 */
+  introSentence: string;
+  /** 클로징 인사의 고정 문장 — 예고(series_next) 또는 맺음(series_finale) */
+  closingSentence: string;
+  /** 회상 재료를 넣은 claims 행 ID (2화부터) — 도입 첫 해설 턴의 turn_claims 에 들어가야 한다 */
+  recapClaimId: string | null;
+  /** 규칙 자산 skills/draft/series.md 본문 */
+  rules: string;
+}
+
+/** 시리즈 템플릿 (settings templates 의 선택 칸, spec/11 5.2). 비어 있으면 아래 기본 문구 */
+export interface SeriesTemplates { series_intro_line?: string; series_next?: string; series_finale?: string }
+export const SERIES_TEMPLATE_DEFAULTS = {
+  ko: { series_intro_line: "{intro_line} 시리즈, {name}의 {nth} 시간입니다.", series_next: "다음 시간에는 '{next_title}'에 대해 이야기합니다.", series_finale: "{name} 시리즈는 여기까지입니다." },
+  en: { series_intro_line: "This is episode {n} of our series {name}. {intro_line}", series_next: "Next time, we'll talk about {next_title}.", series_finale: "That brings our series {name} to a close." },
+} as const;
+
+const KO_ORD_ONES = ["", "한", "두", "세", "네", "다섯", "여섯", "일곱", "여덟", "아홉"];
+const KO_ORD_TENS = ["", "열", "스물", "서른", "마흔", "쉰", "예순", "일흔", "여든", "아흔"];
+/** 1 → "첫 번째", 7 → "일곱 번째", 20 → "스무 번째", 21 → "스물한 번째". 100 이상은 숫자로 */
+export function koreanOrdinal(n: number): string {
+  if (n === 1) return "첫 번째";
+  if (n < 1 || n >= 100 || !Number.isInteger(n)) return `${n}번째`;
+  const t = Math.floor(n / 10), o = n % 10;
+  const tens = t === 2 && o === 0 ? "스무" : KO_ORD_TENS[t];
+  return `${tens}${KO_ORD_ONES[o]} 번째`;
+}
+
+const fill = (tpl: string, v: Record<string, string>) => tpl.replace(/\{(\w+)\}/g, (m, k) => (k in v ? v[k] : m)).replace(/\s+/g, " ").trim();
+
+export function seriesSentences(t: SeriesTemplates | null | undefined, s: { name: string; introLine: string; no: number; total: number; nextTitle: string | null }, en: boolean): { intro: string; closing: string } {
+  const d = en ? SERIES_TEMPLATE_DEFAULTS.en : SERIES_TEMPLATE_DEFAULTS.ko;
+  // 한국판 기본 문구는 한 줄 소개 뒤에 "시리즈"가 붙으므로 끝 마침표를 뗀다. 영어 기본 문구는 문장 그대로 둔다
+  const v = { name: s.name, intro_line: en ? s.introLine.trim() : s.introLine.trim().replace(/[.。]\s*$/, ""), n: String(s.no), nth: koreanOrdinal(s.no), total: String(s.total), next_title: s.nextTitle ?? "" };
+  const intro = fill(t?.series_intro_line?.trim() || d.series_intro_line, v);
+  const closing = fill(s.nextTitle ? t?.series_next?.trim() || d.series_next : t?.series_finale?.trim() || d.series_finale, v);
+  return { intro, closing };
+}
+
+/** 설계 단계 블록 — 이 편 범위와 형제 편 범위. 형제 편이 자세히 다룰 것은 구간으로 잡지 않는다 */
+export function seriesDesignBlock(s: SeriesDraftContext | undefined, en: boolean): string {
+  if (!s) return "";
+  const others = s.elsewhere.map((e) => `${e.no}. ${e.title}${e.onlyHere ? ` — ${e.onlyHere}` : ""}`).join("\n");
+  return en
+    ? `\n\n## Series episode — ${s.name}, episode ${s.no} of ${s.total}
+${s.rules}
+- This episode covers: ${s.scope}${s.onlyHere ? `\n- Only this episode covers in depth: ${s.onlyHere}` : ""}${s.carries ? `\n- Builds on earlier episodes: ${s.carries}` : ""}
+- Other episodes cover these in depth. Do not build a section on them; name one in a sentence at most when needed:
+${others}`
+    : `\n\n## 시리즈 편 — ${s.name} ${s.total}편 중 ${s.no}화
+${s.rules}
+- 이 편의 범위: ${s.scope}${s.onlyHere ? `\n- 이 편에서만 자세히 다룰 것: ${s.onlyHere}` : ""}${s.carries ? `\n- 앞 편에서 이어받는 것: ${s.carries}` : ""}
+- 다른 편이 자세히 다루는 것. 구간으로 잡지 않고, 필요하면 한 문장으로 부르고 넘어간다:
+${others}`;
+}
+
+/** 작성 단계 블록 — 회상(2화부터, 도입 첫 해설 턴)·예고/맺음(클로징 인사 첫 슬롯)·형제 편 범위 */
+export function seriesWriteBlock(s: SeriesDraftContext | undefined, en: boolean): string {
+  if (!s) return "";
+  const others = s.elsewhere.map((e) => `${e.no}. ${e.title}`).join(en ? "; " : " · ");
+  if (en) return `\n\n## Series episode — ${s.name}, episode ${s.no} of ${s.total}
+${s.rules}
+- Intro: the {topic_line} slot is exactly: "${s.introSentence}"
+${s.prev && s.recapClaimId ? `- Recap: the first explainer turn of the Opening starts with one or two sentences that recall episode ${s.no - 1}, "${s.prev.title}". Use only claim ${s.recapClaimId}. List ${s.recapClaimId} in that turn's turn_claims.\n` : ""}- Sign-off: the first {slot} of the sign-off begins with this exact sentence: "${s.closingSentence}"
+- Other episodes cover these; do not explain them in depth here: ${others}`;
+  return `\n\n## 시리즈 편 — ${s.name} ${s.total}편 중 ${s.no}화
+${s.rules}
+- 인트로: {대주제 한 줄} 자리는 정확히 이 문장이다: "${s.introSentence}"
+${s.prev && s.recapClaimId ? `- 회상: 도입의 첫 해설 턴은 ${s.no - 1}화 "${s.prev.title}"를 떠올리는 한두 문장으로 시작한다. 재료는 claims ${s.recapClaimId} 하나뿐이다. 그 턴의 turn_claims 에 ${s.recapClaimId} 를 넣는다.\n` : ""}- 클로징 인사: 첫 {슬롯}은 이 문장으로 시작한다: "${s.closingSentence}"
+- 다른 편이 다루는 것이니 이 편에서 자세히 풀지 않는다: ${others}`;
+}
+
+/** 회상 재료 — claims 행 문장과 sources.md 절. 앞 편 구성안의 축·구간 질문만 싣는다(QA 독립성: 다른 편의 대본·리포트는 넣지 않는다) */
+export function seriesRecapMaterial(s: Pick<SeriesDraftContext, "name" | "no" | "prev">, en: boolean): { claim: string; section: string } | null {
+  if (!s.prev) return null;
+  const q = s.prev.questions.map((x) => `- ${x}`).join("\n");
+  return en
+    ? { claim: `Episode ${s.no - 1} of the series, "${s.prev.title}", explained: ${s.prev.axis}`, section: `## Series link — episode ${s.no - 1} (pipeline record of the previous episode's outline, not a source)\n- Series: ${s.name}\n- Title: ${s.prev.title}\n- Axis: ${s.prev.axis}\n- Section questions:\n${q}` }
+    : { claim: `시리즈 ${s.no - 1}화 "${s.prev.title}"는 이것을 다뤘다: ${s.prev.axis}`, section: `## 시리즈 연결 재료 — ${s.no - 1}화 (앞 편 구성안의 파이프라인 기록, 소스 아님)\n- 시리즈: ${s.name}\n- 제목: ${s.prev.title}\n- 축: ${s.prev.axis}\n- 구간 질문:\n${q}` };
+}

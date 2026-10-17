@@ -32,10 +32,6 @@ function assertPronunciationJson(content: string, allowEmpty = false): Record<st
  */
 export async function setBacklogStatus(id: string, status: "approved" | "rejected" | "held" | "proposed" | "qa_passed" | "published") {
   const sb = await supabaseServer();
-  if (status === "approved") { // 시리즈 편(0029): 시리즈 대본(회상·예고·집기 순서 — spec/11 10장 4단계)이 들어가기 전까지는 초안을 만들지 않는다. 4단계에서 이 검사를 뺀다
-    const { data: b } = await sb.from("backlog").select("series_id").eq("id", id).single();
-    if (b?.series_id) throw new Error("시리즈 편은 시리즈 대본 단계(spec/11 10장 4단계)가 들어간 뒤에 승인할 수 있습니다");
-  }
   if (status === "approved" && pipelineLocale() === "en") { // 글로벌판 게이트 1 승인 조건(명세 6.3, KAN-209) — 화면이 버튼을 막고, 여기서 다시 검사한다. 한국판은 타지 않는다
     const g = await loadGate1(id);
     if (!g.ok) throw new Error(`게이트 1 조건 미충족: ${g.blockers.join(" · ")}`);
@@ -44,12 +40,22 @@ export async function setBacklogStatus(id: string, status: "approved" | "rejecte
   if (error) throw new Error(error.message);
   if (status === "approved") {
     const { data: active } = await sb.from("jobs").select("id").eq("type", "draft").in("status", ["queued", "claimed", "running"]).eq("payload->>backlog_id", id).limit(1);
-    if (!active?.length) {
+    if (!active?.length && (await seriesPrevReadyWeb(id))) { // 시리즈 편(spec/11 5.3): 앞 편 초안 전이면 승인만 하고, 워커가 앞 편이 끝난 뒤 작업을 건다(pickupApproved)
       const { error: e2 } = await sb.from("jobs").insert({ type: "draft", requires_ai: true, status: "queued", payload: { backlog_id: id, attempt: 1 } });
       if (e2) throw new Error(`승인은 됐지만 초안 작업 등록 실패: ${e2.message}`);
     }
   }
   revalidatePath("/backlog"); revalidatePath("/"); revalidatePath("/episodes");
+}
+
+/** 시리즈 편 집기 순서 (spec/11 5.3, 워커 db.ts seriesPrevReady 와 같은 규칙) — 일반 편·1화는 참, k화는 k-1화가 초안을 마쳤을 때(drafted 이후) */
+const SERIES_PREV_READY = ["drafted", "qa_passed", "review_required", "packaged", "published"];
+async function seriesPrevReadyWeb(id: string): Promise<boolean> {
+  const sb = await supabaseServer();
+  const { data: b } = await sb.from("backlog").select("series_id,series_no").eq("id", id).single();
+  if (!b?.series_id || !b.series_no || b.series_no <= 1) return true;
+  const { data: p } = await sb.from("backlog").select("status").eq("series_id", b.series_id).eq("series_no", b.series_no - 1).maybeSingle();
+  return !!p && SERIES_PREV_READY.includes(p.status);
 }
 
 /** 글로벌판 게이트 1 조건 검사 (lib/gate1.ts) — en 인스턴스에서만 부른다. 0028 칸(sub_topic·gate1_checks)은 en 쿼리에서만 읽는다 */

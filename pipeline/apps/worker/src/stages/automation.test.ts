@@ -23,9 +23,7 @@ test("자동 승인 규칙 v1: 초안 실패·삭제 후 proposed 로 복귀한 
   assert.match(autoApproveBlocker({ ...ok, dedup_note: "🗑 사람이 삭제 — 다시 승인 대기 | 중복 없음" })!, /초안 실패/);
 });
 
-// 2026-10-17 KAN-136 — 시리즈 편은 시리즈 대본(spec/11 10장 4단계) 전까지 사람이 승인한다
-test("시리즈 편은 자동 승인하지 않는다", () => {
-  assert.match(autoApproveBlocker({ id: "C1", cluster_version: "v2", gaps: [], dedup_note: "", series_id: "00000000-0000-0000-0000-000000000001" }) ?? "", /시리즈 편/);
-  assert.equal(autoApproveBlocker({ id: "C1", cluster_version: "v2", gaps: [], dedup_note: "", series_id: null }), null);
+// 2026-10-17 KAN-136 4단계 — 시리즈 편도 자동 승인 규칙 v1 을 그대로 따른다(집기 순서는 승인이 아니라 초안 작업 등록에서 지킨다)
+test("시리즈 편은 시리즈라는 이유로 막지 않는다", () => {
+  assert.equal(autoApproveBlocker({ id: "C1", cluster_version: "v2", gaps: [], dedup_note: "", series_id: "00000000-0000-0000-0000-000000000001" }), null);
 });
-

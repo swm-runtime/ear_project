@@ -10,6 +10,7 @@ import { otherSpeaker, pipelineLocale, speakerNames } from "./locale.js";
 export * from "./locale.js";
 export * from "./global-prompts.js";
 export * from "./series.js";
+import { seriesDesignBlock, seriesWriteBlock, type SeriesDraftContext } from "./series.js";
 import { INTRO_STYLES_EN } from "./global-prompts.js";
 
 export type MidTopic = string;
@@ -36,6 +37,9 @@ export interface BacklogCandidate {
   axis?: string | null;
   axis_type?: string | null;
   gaps?: string[];
+  /** 기획 시리즈 편 (0029, spec/11) — 일반 편은 null */
+  series_id?: string | null;
+  series_no?: number | null;
 }
 
 /** 설계 프롬프트에 넣는 백로그 축·역할표 블록 — v2 후보면 구성안의 출발점, v1 후보면 angle 을 참고로만 */
@@ -117,6 +121,10 @@ export interface Templates {
   /** 클로징 인사 (tpl-v2, 2026-09-09 박수헌): 해설 담당 정리 뒤 진행 담당이 말하는 **마지막 턴**. 한 줄에 골격 하나 — 여러 줄이면 에피소드마다 돌아가며 쓴다. 비우면 tpl-v1 형태(정리로 끝) */
   closing_signoff?: string;
   major_lines: Record<string, string>;
+  /** 시리즈 편 문구 (spec/11 5.2) — 비우면 series.ts 의 기본 문구. {intro_line}·{name}·{nth}/{n}·{next_title} */
+  series_intro_line?: string;
+  series_next?: string;
+  series_finale?: string;
 }
 
 export interface DraftInput {
@@ -130,6 +138,8 @@ export interface DraftInput {
   /** 클로징 인사 골격 선택 시드 (에피소드 수) — 여러 골격이면 돌아가며 */
   signoffSeed?: number;
   majorTopic?: string;
+  /** 시리즈 편(spec/11 5장) — 대주제 줄 자리에 시리즈 줄 */
+  series?: SeriesDraftContext;
 }
 
 /** 시그니처 인트로·마무리 (미결 #7 확정, 2026-08-31 박수헌). 골격은 고정, {슬롯}만 에피소드별로 채운다. */
@@ -146,7 +156,7 @@ export function pickSignoff(t: Templates | null | undefined, seed: number): stri
 function templateBlock(i: DraftInput): string {
   const t = i.templates;
   if (!t) return "   - 인트로·클로징 템플릿 미확정 — `{인트로 템플릿}` / `{클로징 템플릿}` 자리 표기만 남긴다.";
-  const majorLine = (i.majorTopic && t.major_lines?.[i.majorTopic]) || "";
+  const majorLine = i.series?.introSentence || (i.majorTopic && t.major_lines?.[i.majorTopic]) || "";
   return `   - **인트로 (고정 시그니처 — 골격을 바꾸지 말 것, {슬롯}만 채운다)**:
 \`\`\`
 ${t.intro}
@@ -731,6 +741,8 @@ export interface WriteInput {
   majorTopic?: string;
   /** 설계의 예상 분량(분) — 2단계의 분량 목표. 없으면 15 */
   estimatedMinutes?: number;
+  /** 시리즈 편(spec/11 5장) — 시리즈 블록·회상·예고. 일반 편은 없다 */
+  series?: SeriesDraftContext;
   /** 인라인 반입 — 이 단계는 파일을 읽지 않는다 (도구 없음) */
   guidelines: string;
   specScript: string;
@@ -829,9 +841,9 @@ ${WRITE_FACT_RULES}
 - 에피소드 ID: ${i.episodeId} · 제목(가): "${i.candidate.title}" · 중분류: ${i.candidate.mid_topic}
 - 해설: **${explainer}** / 진행: **${host}** — 역할 고정, 페르소나는 spec/04 3장.
 - 제목은 구성안의 축에 맞게 새로 지어도 된다 (클릭베이트 금지).
-${templateBlock({ templates: i.templates, majorTopic: i.majorTopic, signoffSeed: i.signoffSeed } as DraftInput)}
+${templateBlock({ templates: i.templates, majorTopic: i.majorTopic, signoffSeed: i.signoffSeed, series: i.series } as DraftInput)}
 - 도입 (규칙 13): 주제 선언 뒤 첫 해설 턴 사이에 청취자가 "대화에 앉는" 두세 턴. 주제를 다시 발견하는 척 금지. 이 에피소드의 진입 방식: **${i.introStyle.label}** — ${i.introStyle.hint}${isHistoryTopic(i.candidate.mid_topic) ? "\n" + HISTORY_WRITE_RULE : ""}
-- **이 에피소드의 목표: 약 ${i.estimatedMinutes ?? 15}분 = 공백·기호 제외 약 ${Math.round((i.estimatedMinutes ?? 15) * 341)}자 (±15%)** — 구성안의 "예상 분량"이다 (341자/분). 하한 13분(약 4,300자)은 필수이고 상한을 규칙으로 두지는 않지만, **예상 분량은 설계가 재료 총량으로 이미 정한 크기다** — 그보다 크게 쓰는 것은 재료가 많아서가 아니라 풀어 쓰기가 길어진 것이다.
+- **이 에피소드의 목표: 약 ${i.estimatedMinutes ?? 15}분 = 공백·기호 제외 약 ${Math.round((i.estimatedMinutes ?? 15) * 341)}자 (±15%)** — 구성안의 "예상 분량"이다 (341자/분). 하한 13분(약 4,300자)은 필수이고 상한을 규칙으로 두지는 않지만, **예상 분량은 설계가 재료 총량으로 이미 정한 크기다** — 그보다 크게 쓰는 것은 재료가 많아서가 아니라 풀어 쓰기가 길어진 것이다.${seriesWriteBlock(i.series, false)}
 
 ## 이 에피소드의 재료
 ### 구성안 — outline.md (계약: 구간 순서·목적·재료·진행자 질문·전환 장치를 그대로 실행한다)
@@ -1007,6 +1019,8 @@ export interface DesignInlineInput {
   goldFullEum: string;
   goldFullYuna: string;
   sources: InlineSource[];
+  /** 시리즈 편(spec/11 5.1) — 이 편 범위·형제 편 범위. 일반 편은 없다 */
+  series?: SeriesDraftContext;
 }
 
 export function buildDesignPromptInlineParts(i: DesignInlineInput): PromptParts {
@@ -1103,7 +1117,7 @@ ${fence(explainer === "이음" ? i.goldFullEum : i.goldFullYuna)}` : `### 1.3 �
 - 해설: **${explainer}** / 진행: **${host}** — 역할 고정
 - 청취자: 이 주제를 처음 듣는 일반 청취자 (특정 집단으로 좁히지 않는다 — 전문가 대상 표현만 금지). 편당 15분 안팎.
 ${candidateAxisBlock(i.candidate)}
-- 타깃 정합 메모: ${i.candidate.target_fit ?? "-"}
+- 타깃 정합 메모: ${i.candidate.target_fit ?? "-"}${seriesDesignBlock(i.series, false)}
 
 ## 소스 본문 (${i.sources.length}건 — 문단 ID 로 인용한다)
 ${srcBlocks}
