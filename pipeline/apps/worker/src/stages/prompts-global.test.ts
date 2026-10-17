@@ -185,9 +185,9 @@ test("판정(en) — 도메인 등급 표시·앵커는 1군만, 보조 주제 �
   const base = { midTopics: ["K-Food"], nextIdNumber: 1, existingTitles: [], specBacklogExcerpt: "" };
   const src = [{ n: 1, url: "u1", title: "t", summary: null, publisher: "Korea.net", domain: "korea.net", published: null, tier: "allow_open" }, { n: 2, url: "u2", title: "t", summary: null, publisher: "Soompi", domain: "soompi.com", published: null, tier: "candidate" }];
   const seed = P.buildTopicJudgePromptEn({ ...base, sources: src, seed: { id: "C1", topic: "Kimjang", hint: null, midTopic: "K-Food" }, subTopicOptions: ["Korean Culture", "Travel in Korea"] });
-  assert.match(seed, /\[M1\] Korea\.net · date unknown · tier 1/);
-  assert.match(seed, /\[M2\] Soompi · date unknown · domain not judged/);
-  assert.match(seed, /Give the anchor role only to sources marked tier 1/);
+  // 2026-10-17: 판정자에게 도메인 계층을 보이지 않는다(한국판과 같게) — 뼈대 1군 검사는 게이트 1
+  assert.match(seed, /\[M1\] Korea\.net · date unknown\n/);
+  assert.doesNotMatch(seed, /tier 1|domain not judged|Give the anchor role only/);
   assert.match(seed, /sub_topic: one of "Korean Culture", "Travel in Korea" only when/);
   assert.match(seed, /Do not use axis_type "event"/);
   assert.match(seed, /Set the count to the items the sources support and put that count in the title\. List the counted items in landing\./);

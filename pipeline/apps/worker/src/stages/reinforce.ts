@@ -86,7 +86,7 @@ export async function runReinforce(job: Job, ex: Executor) {
   const recent = await recentSourcesForTopics([cand.mid_topic], 60, 60);
   const meta: { n: number; url: string; title: string; summary: string | null; publisher: string; domain: string; published: string | null; tier?: string }[] = [];
   const seen = new Set<string>();
-  const tiersPre = en ? await domainTierByHost() : null; // 글로벌판 판정자에게 도메인 등급을 보인다 — 근거 앵커는 1군만(게이트 1)
+  const tiersPre = null as Awaited<ReturnType<typeof domainTierByHost>> | null; // 판정자에게 도메인 등급을 보이지 않는다(2026-10-17 — 한국판과 같게). 뼈대 1군 검사는 글로벌 게이트 1(명세 6.3)
   const push = (s: { url: string; title: string; summary: string | null; publisher: string; domain: string; published: string | null }) => { if (seen.has(s.url)) return; seen.add(s.url); meta.push({ n: meta.length + 1, ...s, ...(tiersPre ? { tier: tierOfUrl(tiersPre, s.url, s.domain) ?? "candidate" } : {}) }); };
   const blockedHosts = await blockedTierHosts();
   const isBlockedTier = (url: string) => { try { const u = new URL(url); const h = u.hostname.replace(/^www\./, ""); const seg = u.pathname.split("/").filter(Boolean)[0]; return blockedHosts.has(h) || (!!seg && blockedHosts.has(`${h}/${seg}`)); } catch { return false; } };

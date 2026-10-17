@@ -87,7 +87,7 @@ export async function runTopicSeed(job: Job, ex: Executor) {
     const excerpt = (en ? ["## 2. Topics", "## 3. Candidate structure", "## 6. Gate 1"] : ["## 3. 후보의 구성", "## 6. 게이트 1"]).map((h) => { const a = specBacklog.indexOf(h); if (a < 0) return ""; const b = specBacklog.indexOf("\n## ", a + 3); return specBacklog.slice(a, b < 0 ? undefined : b); }).join("\n\n");
     const meta: { n: number; url: string; title: string; summary: string | null; publisher: string; domain: string; published: string | null; tier?: string }[] = [];
     const seen = new Set<string>();
-    const tiersPre = en ? await domainTierByHost() : null; // 글로벌판 판정자에게 도메인 등급을 보인다 — 근거 앵커는 1군만(게이트 1)
+    const tiersPre = null as Awaited<ReturnType<typeof domainTierByHost>> | null; // 판정자에게 도메인 등급을 보이지 않는다(2026-10-17 — 한국판과 같게). 뼈대 1군 검사는 글로벌 게이트 1(명세 6.3)
     const push = (s: { url: string; title: string; summary: string | null; publisher: string; domain: string; published: string | null }) => { if (seen.has(s.url)) return; seen.add(s.url); meta.push({ n: meta.length + 1, ...s, ...(tiersPre ? { tier: tierOfUrl(tiersPre, s.url, s.domain) ?? "candidate" } : {}) }); };
     for (const s of added) push({ url: s.url, title: s.title, summary: s.summary, publisher: s.publisher, domain: hostOf(s.url), published: s.published });
     // 한국판만: 풀의 최근 소스 소량 — 검색이 빈 손이어도 채울 수 있게. 글로벌판은 사람이 정한 주제로 찾은 소스만 쓴다 (박수헌 2026-10-15)
