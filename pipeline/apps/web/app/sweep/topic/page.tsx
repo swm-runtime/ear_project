@@ -41,7 +41,7 @@ function GlobalTopicSeedPage({ jobs, runs }: Pick<Awaited<ReturnType<typeof load
         <ul className="list-disc space-y-1 pl-5">
           <li>입력하면 먼저 <b>배제 주제</b>(실존 인물 사안 · 진행 중 정치·군사 현안 · 홍보성)를 판정한다. 해당하면 작업을 만들지 않고 사유를 보인다.</li>
           <li>검색은 <b>8회 상한</b>이고 링크·제목·스니펫만 받는다. 차단·보류 도메인과 robots 불허는 빼고, 처음 보는 도메인은 <code>candidate</code>로 등록된다.</li>
-          <li>게이트 1 [승인]은 소스 도메인이 전부 판정되고, 뼈대 소스가 1군이고, 경고(빈 역할·소스 겹침)를 확인해야 열린다. 자동 승인은 없다.</li>
+          <li>게이트 1 [승인]은 경고(빈 역할·소스 겹침)를 확인해야 열린다. 도메인 판정은 기다리지 않는다 — 차단한 도메인의 소스는 초안이 쓰지 않는다. 자동 승인은 없다.</li>
           <li>노트북 워커 없이 서버 워커(OpenAI 웹 검색)가 집는다.</li>
         </ul>
       </Panel>
