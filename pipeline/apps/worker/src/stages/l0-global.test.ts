@@ -273,8 +273,8 @@ test("출처 이름 계수 — 일반 명사·대문자 이름·대명사로 부
 test("Imagine 으로 시작하는 해설 문장이 셋 이상이면 문체 위반, 둘까지는 통과(템플릿 턴은 뺀다)", () => {
   en();
   const im = (n: number) => [T("Y1", "Imagine this, welcome.", "Intro"), ...Array.from({ length: n }, (_, i) => T(`E${i + 1}`, `Imagine a stall at dawn ${i}. The owner says hello.`)), T("Y9", "Bye.", "Closing")];
-  assert.match(enStyleViolations(im(3)).join("\n"), /3 scenes start with "Imagine" \(E1, E2, E3\)/);
-  assert.doesNotMatch(enStyleViolations(im(2)).join("\n"), /start with "Imagine"/);
+  assert.match(enStyleViolations(im(3)).join("\n"), /3 imagined scenes \("Imagine", "Picture", "imagined"\) \(E1, E2, E3\)/);
+  assert.doesNotMatch(enStyleViolations(im(2)).join("\n"), /imagined scenes/);
 });
 
 test("읽기·설계 흔적 문구(described here · reported connection · possible starting picture)는 문체 위반", () => {
@@ -296,4 +296,27 @@ test("구성안 지시 줄과 8단어 이상 겹치는 턴은 문체 위반 — 
   assert.ok(isRatioViolation(bad[0]));
   assert.deepEqual(outlineCopyViolations(md("Many places let you sleep on the warm floor until morning."), outline), []);
   assert.deepEqual(outlineCopyViolations(md("x"), ""), []);
+});
+
+// ── full-en-v0.10 (2026-10-17 — G261017-009~011 눈가림 판정: Picture 틀 · 자료 가리키기 · Terms 유출) ──
+test("Picture 로 여는 문장과 imagined 를 쓴 문장도 상상 장면으로 세고, 진행자의 picture 는 세지 않는다", () => {
+  en();
+  const v = enStyleViolations([T("Y1", "Welcome.", "Intro"), T("E1", "Picture an imagined viewer at home. The screen is on."), T("Y2", "I can't picture it."), T("E2", "Imagine a stall at dawn."), T("E3", "In an imagined comparison, a viewer sees two lengths."), T("Y9", "Bye.", "Closing")]).join("\n");
+  assert.match(v, /3 imagined scenes .* \(E1, E2, E3\)/);
+  assert.doesNotMatch(enStyleViolations([T("Y1", "Welcome.", "Intro"), T("E1", "Picture a stall at dawn."), T("Y2", "I can't picture it."), T("E2", "The owner says hello."), T("Y9", "Bye.", "Closing")]).join("\n"), /imagined scenes/);
+});
+
+test("자료를 가리키는 말과 보이지 않는 그림(named in the report · in the reporting · mentioned earlier · this picture of)은 문체 위반", () => {
+  en();
+  const v = enStyleViolations([T("E1", "They were at Gyeongbokgung, the palace named in the report."), T("E2", "A producer quoted in the reporting said so."), T("E3", "The institute was behind the survey mentioned earlier."), T("E4", "The museum provides this picture of a table.")]).join("\n");
+  assert.match(v, /planning or reading wording in lines \(E1 "named in the report", E2 "in the reporting", E3 "survey mentioned earlier", E4 "this picture of"\)/);
+  assert.doesNotMatch(enStyleViolations([T("E1", "Families set the table on the morning of Chuseok.")]).join("\n"), /planning or reading wording/);
+});
+
+test("구성안 Terms 줄과 8단어 이상 겹치는 턴도 문체 위반", async () => {
+  en();
+  const { outlineCopyViolations } = await import("./draft-two-stage.js");
+  const outline = "Terms: traditional hanbok — the traditional clothing forms being discussed in this episode";
+  const md = ["## [Intro]", "[Alex] Y1 · Welcome.", "## [Body]", "### #1 Forms", "[Mina] E2 · That is traditional hanbok, the traditional clothing forms being discussed in this episode.", "## [Closing]", "[Alex] Y3 · Bye."].join("\n");
+  assert.match(outlineCopyViolations(md, outline)[0] ?? "", /turns copy the outline's instruction wording \(E2/);
 });

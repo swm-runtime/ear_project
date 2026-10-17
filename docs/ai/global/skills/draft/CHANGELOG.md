@@ -2,6 +2,20 @@
 
 > 대상: `guidelines.gpt.md`(글로벌 DB `prompt_assets` 가 진실 — 이 폴더는 시딩·검토용 git 사본). 규칙 본문은 모델이 읽는 영어이고, 근거·출처·이전 판 문구는 이 파일에만 둔다(한국판 규칙 자산 원칙과 같음).
 
+## full-en-v0.10 (2026-10-17) — 상상 장면 · 자료 가리키기 · claims 조건 · 장면 정의
+
+원천: G261017-009(눈가림 편집자 48점)·010(51)·011(47) — 작성자 눈가림 판정(판정 README 2026-10-17) 첫 회차, v0.9 세 편. 기준선(004~006 눈가림 재판정 평균 46.3)보다 +2.4. 세 편 모두 장면 3.4 가 2~3점, 흐름 3.6·내부자 3.11 이 그대로였다. 비평(critic-en-v0.6)은 68~72점으로 눈가림 편집자보다 20~24점 높았다. 같은 날 비평 critic-en-v0.7 · L0 3종 · 설계·대본 프롬프트. QA 는 그대로(qa-en-v0.6).
+
+- **규칙 3** — "Picture"로 여는 장면도 "Imagine"과 같이 편당 둘까지. 대사에 "imagined"를 쓰지 않는다(종전 "plain words 로 표시"가 "Picture an imagined visitor"(009 E1)·"In an imagined comparison"(010)으로 나왔다). 상상 인물과 claims 속 실제 인물을 같은 명사로 부르지 않는다(009 E1 "imagined visitor" → E3 "The visitor in the reporting" — 편집자 필수 수정). L0 상상 장면 계수가 Picture·imagined 를 같이 센다(010 넷·011 셋이 v0.9 계수를 빠져나갔다).
+- **규칙 17** — 정의에 정의하는 말을 다시 쓰지 않는다(009 E2 "traditional hanbok … the traditional clothing forms"·E10 "service rituals … actions that form part of the service"). 대립하는 두 생각에 소리가 비슷한 이름을 붙이지 않는다(009 E9 continued/continuity). 셋 다 편집자 필수 수정.
+- **규칙 36** — Terms 줄도 구성안 지시다. 자료를 가리키는 말("in the reporting"·"mentioned earlier")과 청취자가 볼 수 없는 그림을 말하지 않는다. 근거: 009 E2·E3·E10·E13 "being discussed"·"named in the report"·"working meaning"·"quoted in the reporting", 011 E11 "this picture of a charye table"·E15 "the report mentioned earlier". L0 2종: 메모 문구 목록 확장, 구성안 복사 대조에 Terms 줄.
+- **규칙 41** — 출처가 일부라고 밝힌 목록은 일부로 둔다(011 E15–E16 "including" 탈락), 특정 연도에 보도된 관행은 그 연도를 지킨다(010 E8 2022년 PPL 보도를 현재 관행으로). 둘 다 한국어·사실 필수 수정.
+- **규칙 45** — 반올림 뒤에도 "nearly"·"almost"가 참이어야 한다(009 E5 "거의 172만 명" → "nearly 1.7 million").
+- **설계 프롬프트** — 장면은 사람·장소·순간에 말·물건·소리가 있는 claim 으로만 계획하고, 없으면 "none". 상상 속 시청자·방문객·가족을 장면으로 계획하지 않는다. 종전 "본문 구간 절반 이상에 장면"이 재료 없는 장면을 강제해 상상 틀이 됐다 — 목표로 낮췄다. Terms 는 짧은 이름표로, claims 에 없는 뜻을 붙이지 않는다. claims 는 수치에 붙은 평가("significant drop" — 011)·일부 목록·보도 연도를 남기고, 발췌가 정의하지 않은 용어를 정의하지 않는다(009 authenticity). 축·클로징 문장은 claims 의 조건과 정도어를 지킨다(011 E17 "약간 다르다" → "집집마다 다르다", 축 문장에서 옮겨 옴). 발음 맵 표기는 한글 읽기의 로마자 표기(음운 변화 포함)이고 발췌 표기를 옮기지 않는다(010 sibyuk-bujak → simnyuk-bujak).
+- **비평 3.4**(critic-en-v0.7) — 보도 속 인물을 이름·나이·장소만으로 전한 것은 장면이 아니다. 장면은 말·물건·소리가 있는 순간이다. 근거: 009 기사 속 방문객("Park, 22")·011 E3 를 장면으로 세서 3.4 에 4~5점(편집자 2~3점) — 상한(장면 없음 3점)이 있었지만 장면이 있다고 판단해 걸리지 않았다. 판정 점수표 `judge/scoring.md` 3.4 도 같은 문장으로 맞췄다.
+
+올리지 않은 것: 비평 상한의 코드 강제(비평이 상한을 몰라서가 아니라 장면 판단이 틀려서 어겼다 — 정의를 고쳤다) · 소스 순회 L0(구간당 출처 문장 셋 이상은 v0.2 부터 있다 — 세 편의 3.6 이 4점인 원인은 문장 수가 아니라 구간=소스 구성이다) · 규칙 15 해설자 질문 재검토(한 편) · 작품 제목 첫 소개(한 편).
+
 ## full-en-v0.9 (2026-10-17) — 장면 실행 · 구성안 문구 유출 · 용어 · claims 범위
 
 원천: G261017-004(54점)·005(55)·006(51) 에이전트 판정 — v0.8 설계 개편 뒤 첫 세 편. 구성안에는 장면·내부자 칸이 생겼지만 점수가 오르지 않았다. 대본이 장면을 "Imagine a …" 한 문장 틀로 바꿨고(004 E8·E13·E18, 006 E2·E5·E10·E13), 구성안·claims 의 지시 문구가 대사가 됐다("A possible starting picture is …"(006 E1)·"described here"(004 E19·005 E6)·"That reported connection"(005 E13)). 같은 날 비평 critic-en-v0.6 · L0 3종 · 설계·대본 프롬프트. QA 는 그대로(qa-en-v0.6).

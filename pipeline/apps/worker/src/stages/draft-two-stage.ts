@@ -345,12 +345,13 @@ export function twoStageViolationsEn(scriptMd: string, outlineMd: string, opts: 
  * 구성안 지시 문구의 대사 유출 (규칙 36, full-en-v0.9 — G261017-004~006: "A possible starting picture is …"·"That reported connection concerns …"·결론형 Opens with 가 그대로 대사가 됐다).
  * 지시 줄(Familiar picture·Opens with·Scene·Insider detail·Purpose·Transition·Development·Interaction)과 대본 턴이 8단어 이상 그대로 겹치면 문체 위반.
  * 축·클로징 문장은 대본이 축을 말해야 하므로(규칙 40), Host question·Question 은 진행자가 그대로 물어도 되므로 대조에서 뺀다
+ * full-en-v0.10 (G261017-009~011): Terms 줄의 풀이가 대사가 됐다("the traditional clothing forms being discussed") — Terms 도 대조한다
  */
 export function outlineCopyViolations(scriptMd: string, outlineMd: string): string[] {
   const N = 8;
   const words = (t: string) => t.toLowerCase().replace(/[’']/g, "'").match(/[a-z0-9']+/g) ?? [];
   const grams = new Set<string>();
-  for (const m of outlineMd.matchAll(/^\s*(?:Familiar picture|Opens with|Scene|Insider detail|Purpose|Transition|Development|Interaction):\s*(.+)$/gim)) {
+  for (const m of outlineMd.matchAll(/^\s*(?:Familiar picture|Terms|Opens with|Scene|Insider detail|Purpose|Transition|Development|Interaction):\s*(.+)$/gim)) {
     const w = words(m[1]);
     for (let k = 0; k + N <= w.length; k++) grams.add(w.slice(k, k + N).join(" "));
   }
@@ -458,10 +459,12 @@ export function enStyleViolations(turns: ScriptTurn[]): string[] {
   const tails = turns.filter((t, i) => !isTemplate(i) && expl(t) && /^(?:So|This|That|These|Those|Both|Each)\b[^?]*\.$/.test(lastSentence(t.text))).map(label);
   if (tails.length > 3) v.push(`${EN_STYLE_MARK} ${tails.length} explainer turns end on a sentence that sums up the turn (${list(tails)}) — end on the newest point; delete a last sentence the turn does not need (rule 31)`);
   // full-en-v0.9 (G261017-004~006): 장면이 "Imagine a …" 한 문장 틀로 굳었다 — 해설 턴에서 Imagine 으로 시작하는 문장이 셋 이상이면 문체 위반(규칙 3·39)
-  const imagine = turns.flatMap((t, i) => (!isTemplate(i) && expl(t) ? t.text.trim().split(/(?<=[.!?])\s+/).filter((x) => /^Imagine\b/.test(x.trim())).map(() => label(t)) : []));
-  if (imagine.length > 2) v.push(`${EN_STYLE_MARK} ${imagine.length} scenes start with "Imagine" (${list(imagine)}) — start scenes differently and give each one a detail from the claims: words said, an object, or a sound (rules 3 and 39)`);
+  // full-en-v0.10 (G261017-009~011): "Picture …"·"In an imagined comparison" 으로 같은 틀이 이어졌다(010 넷 · 011 셋) — 같이 센다
+  const imagine = turns.flatMap((t, i) => (!isTemplate(i) && expl(t) ? t.text.trim().split(/(?<=[.!?])\s+/).filter((x) => /^(?:Imagine|Picture)\b|\bimagined\b/i.test(x.trim())).map(() => label(t)) : []));
+  if (imagine.length > 2) v.push(`${EN_STYLE_MARK} ${imagine.length} imagined scenes ("Imagine", "Picture", "imagined") (${list(imagine)}) — keep at most two; build scenes from a claim with words said, an object, or a sound (rules 3 and 39)`);
   // 읽기·설계 흔적 — 구성안·claims 를 옮겨 적은 말(규칙 36, G261017-005·006)
-  const meta = find(/\b(?:described here|described above|reported connection|possible starting picture|as the (?:outline|plan) says)\b/i);
+  // full-en-v0.10 (G261017-009·011): 자료를 가리키는 말·보이지 않는 그림 — "the palace named in the report"·"quoted in the reporting"·"the report mentioned earlier"·"this picture of a charye table"
+  const meta = find(/\b(?:described here|described above|reported connection|possible starting picture|as the (?:outline|plan) says|named in the report|in the reporting|being discussed|working meaning|(?:report|study|survey|article|source) mentioned earlier|this (?:picture|image|illustration) of)\b/i);
   if (meta.length) v.push(`${EN_STYLE_MARK} planning or reading wording in lines (${list(meta)}) — say it in the speakers' own words (rule 36)`);
   // 해설자 질문 (규칙 15) — Opening 의 되묻기를 포함해 편 전체 두 번까지 (full-en-v0.6, G261017-001: 도입 되묻기 E1 + 본문 E5·E17 = 세 번)
   const eQ = turns.filter((t, i) => !isTemplate(i) && expl(t) && t.text.includes("?")).map(label);

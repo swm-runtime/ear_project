@@ -104,7 +104,9 @@ ${fence(i.guidelines)}
 - Keep each condition on the thing it describes. When an excerpt says one thing varies but another stays fixed, the claim keeps that contrast.
 - Keep the excerpt's quantifiers (some, many, most, a few) and the subject it gives a practice. A practice of one named person stays that person's; claims from one excerpt use the same subject.
 - When a Korean excerpt describes a whole place or group with a modifier, the claim keeps it describing the whole; do not turn it into a subset.
-- A definition claim keeps who uses the term and how widely. An event at a specific time keeps its time and the past tense.
+- A definition claim keeps who uses the term and how widely. An event at a specific time keeps its time and the past tense. A practice from a dated report keeps the report's year.
+- Keep the excerpt's evaluation of a number, such as a large or small change. A list the excerpt marks as partial stays partial in the claim.
+- Do not define a term the excerpts do not define. Leave its meaning out of the claims.
 - For a Korean word, keep in the claims whether the excerpt calls it casual or polite and who uses it.
 - In a Korean Language episode, keep one example phrase per featured word from the excerpts as a claim of type quote: the phrase romanized, its meaning, and its speech level read from the Hangul ending (casual, polite with -yo, or formal with -seumnida). Say when the phrase is a dictionary form ending in -da. Add who says it to whom only when the excerpt says so; otherwise leave the relationship out of the claim. An example sentence from a dictionary or learning guide is allowed; a line from a drama, song, or show is not.
 - Romanize Korean words with Revised Romanization, even when an excerpt spells them another way. Names of people, groups, companies, and works keep their official English spelling.
@@ -118,7 +120,7 @@ ${fence(i.guidelines)}
 Axis: [contrast|paradox|redefinition${history ? "|event" : ""}] one sentence
 Axis note: why this axis creates tension for the listener, two lines
 Familiar picture: what a listener abroad already pictures or assumes about this topic, in plain words
-Terms: each place, object, or role the episode names often — the one plain English name the script uses for it
+Terms: each place, object, or role the episode names often — the one plain English name the script uses for it, as a short label, with no meaning the claims do not give
 Landing section: #n — where the axis is proven
 Estimated length: n min
 
@@ -137,7 +139,7 @@ Section #1 — Title
   Material: C01, C03 (S1) · C07 (S3)
   Host question: one question built only from earlier sections, or "the explainer opens"
   Opens with: the situation or question that opens the section — never its answer, never the source's name
-  Scene: one concrete moment with a person, a place, and an action, plus one detail from the claims (words said, an object, a sound), from C##; or "none"
+  Scene: one concrete moment from a claim that has a person, a place, and an action, plus one detail from the claims (words said, an object, a sound), from C##; or "none"
   Insider detail: the Korean name people use for the thing, an everyday practice, or how people around them do it, from C##; or "none"
   Transition: one device, different from the previous section
   Ratio: n%
@@ -153,12 +155,13 @@ Planning rules:
 - Sections are steps of the axis, not the order of a source. Each source goes to one section only, except the axis_source. Drop a source that answers no sub-question of the axis.
 - A list topic keeps its list: sections may follow the items or groups of items, and each section still answers a sub-question of the axis. The count in the title matches the items the material supports.
 - Three to five Body sections. Fewer, fuller sections are better than many thin ones. The Opening is not a section.
-- Plan scenes. At least half of the Body sections carry a Scene built from claims: a person, a place, and a moment. Select excerpts with cases and practices so scenes are possible. An imagined scene is allowed only as a two-sentence frame that uses claim facts.
+- Plan scenes. Select excerpts with cases and practices so scenes are possible, and aim for a Scene in at least half of the Body sections. Build a Scene only from a claim with a person, a place, and a moment that carries words said, an object, or a sound. A person named only by name, age, or place in a report is not a scene. When no claim has such a moment, write "none". Do not plan an imagined listener, viewer, visitor, or family as a scene.
 - Plan the insider. The explainer is a calm Korean insider. Give each section an Insider detail when the material has one: the Korean name people use, an everyday practice, or how people around them do it. Take it from claims and add any Korean term to pronunciations.
 - Name the Familiar picture so the Opening can start from it. The episode then explains or changes that picture.
 - Do not let source order become the episode. If every section uses one source in the order the sources are listed, rebuild the order around the steps of the axis. A section opens on its scene, a detail, or the host's question; the source is named once, where its first fact is used.
 - A redefinition axis needs the members of the category heard: assign claims that name the kinds, forms, or examples, not only a single figure about one of them.
 - Plan each limitation once, in the section where it applies.
+- The axis and the Closing line keep the conditions and degree words of the claims they rest on.
 - Write the axis, the questions, and the Closing line in plain spoken words a second-language listener knows. Avoid abstract nouns such as care, viewpoint, role, or preparation unless the section explains them; the script reuses these lines.
 - The Host question uses only what came before; it never contains the section's new case, number, or result. Never ask about methods, samples, or limits.
 - Estimated length comes from the material: 5 minutes is the floor, and there is no target length. Do not inflate it. If the material cannot reach 5 minutes, do not build an outline; say why in notes. If it is 20 minutes or more, put a split plan in split_proposal and still build one outline.
@@ -166,7 +169,7 @@ Planning rules:
 - Topic limits (guidelines rule 7) apply to the plan: no section built on prices, opening hours, transport, product recommendations, or plot summary.
 
 ### d) pronunciations
-- Every Korean word and Korean name the script will use, as romanized in the claims. reading = the same word written in Hangul, exactly as Koreans write it. The voice reads the Hangul in Korean. For a name, give the Korean name in Hangul. Leave reading empty when you cannot give one; a person fills it before audio.
+- Every Korean word and Korean name the script will use, as romanized in the claims. reading = the same word written in Hangul, exactly as Koreans write it. Write the term by Revised Romanization of the reading, sound changes included; do not copy an excerpt's spelling. Names of people, groups, companies, and works keep their official English spelling. The voice reads the Hangul in Korean. For a name, give the Korean name in Hangul. Leave reading empty when you cannot give one; a person fills it before audio.
 - Do not list English words or a romanized word that is also a common English word.
 - Do not list a name that listeners abroad already say in English: a place, company, group, or work with an established English name, or a person known abroad by an English form of the name. The voice reads these in English. List every other name, including people's names, in Hangul. Never list the speakers' names.
 
@@ -274,7 +277,7 @@ There are no gold examples yet. Follow the guidelines and the templates.
 - You may write a new title that fits the axis. No clickbait.
 ${templateBlockEn(i.templates, i.majorTopic ?? i.candidate.mid_topic, i.signoffSeed ?? 0, i.series?.introSentence)}
 - Opening style: **${i.introStyle.label}** — ${i.introStyle.hint}${isHistoryCandidateEn(i.candidate) ? "\n" + historyWriteEn : ""}
-- The outline's lines are instructions, not dialogue. Do not copy their wording into turns.
+- The outline's lines, the Terms line included, are instructions, not dialogue. Do not copy their wording into turns. Stage a Scene only where the outline plans one; do not add an imagined viewer or visitor.
 - **Length target: about ${minutes} minutes = about ${Math.round(minutes * 146)} spoken words (within 10 percent).** The floor is 730 words. The outline's estimate already reflects the material; writing longer means the explanation got wordy.${seriesWriteBlock(i.series, true)}
 
 ## Material
