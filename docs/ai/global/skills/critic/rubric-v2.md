@@ -1,6 +1,6 @@
 # Critic rubric v2 (global)
 
-> Version: **critic-en-v0.7** (2026-10-17) · global pipeline · judges against the script rules (guidelines full-en). The global DB `prompt_assets` is the source of truth; this file is the seeding copy. Anchors are empty until people judge the first episodes.
+> Version: **critic-en-v0.8** (2026-10-17) · global pipeline · judges against the script rules (guidelines full-en). The global DB `prompt_assets` is the source of truth; this file is the seeding copy. Anchors are empty until people judge the first episodes.
 
 ## 1. Rules
 
@@ -91,7 +91,7 @@ Length, explainer turns over six sentences, production words, fillers and stage 
 
 | Axis | Points | Sub-items |
 |---|---:|---|
-| Content | 35 | 3.1 Value and depth 12 · 3.2 Argument and support 8 · 3.3 Range of views 8 · 3.4 Emotional resonance 7 |
+| Content | 35 | 3.1 Value and depth 12 · 3.2 Argument and support 8 · 3.3 Variety in practice 4 · 3.4 Scenes and lived detail 11 |
 | Structure | 20 | 3.5 Opening 6 · 3.6 Flow and signposts 8 · 3.7 Ending 6 |
 | Naturalness | 20 | 3.8 Spoken English 12 · 3.9 Exchange 8 |
 | Immersion | 15 | 3.10 as a whole |
@@ -108,38 +108,38 @@ Length, explainer turns over six sentences, production words, fillers and stage 
 
 `{anchor 10–12: }` `{anchor 7–9: }` `{anchor 4–6: }` `{anchor 0–3: }`
 
-**3.2 Argument and support (8)** — Is each claim carried by support (what a study did, a case, a number), introduced once and then told in the explainer's voice, with limits stated by the script itself?
+**3.2 Argument and support (8)** — Is each claim carried by support (what a study did, a case, a number), introduced once and then told in the explainer's voice, with limits stated where the sources state them?
 
 | Band | Definition |
 |---|---|
-| 7–8 | Varied support; the leading source is introduced once and then explained directly; the script states limits or counterpoints first. Several sources meeting at one answer belongs in the Closing. |
+| 7–8 | Varied support; the leading source is introduced once and then explained directly; limits the sources state are said once, where they apply. Several sources meeting at one answer belongs in the Closing. |
 | 5–6 | Support of one kind, or an introduction that sounds mechanical, or attribution on almost every sentence after the introduction. |
 | 3–4 | Loose link between claims and support, or a leading source with no introduction. |
 | 0–2 | Bare assertion, logical jumps. |
 
 `{anchor 7–8: }` `{anchor 5–6: }` `{anchor 3–4: }`
 
-**3.3 Range of views (8)** — Gray areas, trade-offs, disagreement inside Korea.
+**3.3 Variety in practice (4)** — Does the episode show that the practice is not one fixed picture: how it differs by region, generation, family, or setting, or where people in Korea disagree when the sources say so?
 
 | Band | Definition |
 |---|---|
-| 7–8 | Both sides of a disagreement have material in the script; the conclusion is conditional and leaves the listener room to judge. |
-| 5–6 | More than one view, weakly joined, or the other side gets one line and is absorbed. |
-| 3–4 | One view, no reflection. |
-| 0–2 | Black and white, emotion-led. |
+| 4 | Variation or a disagreement from the material is heard and placed; the listener sees the practice is not uniform. |
+| 3 | Variation is mentioned in one line but not shown. |
+| 2 | One uniform picture of how people in Korea do it, though the material allows more. |
+| 0–1 | A stereotype: one practice given to all Koreans. |
 
-`{anchor 7–8: }` `{anchor 5–6: }` `{anchor 3–4: }`
+`{anchor 4: }` `{anchor 3: }` `{anchor 2: }`
 
-**3.4 Emotional resonance (7)** — Do concrete scenes carry the idea, so a listener far from Korea recognizes a situation of their own?
+**3.4 Scenes and lived detail (11)** — Do concrete scenes and everyday detail carry the practice, so a listener far from Korea can picture it and recognize a situation of their own?
 
 | Band | Definition |
 |---|---|
-| 6–7 | A concrete scene carries the idea; a specific feeling arises; it touches a situation people share. |
-| 4–5 | Feeling is named rather than shown. |
-| 2–3 | Dry, manual-like. No concrete scene with a person, a place, and a moment anywhere in the episode: at most 3. A one-sentence "Imagine a …" or "Picture …" line that only restates a rule is not a scene. A person from a report given only by name, age, or place is not a scene; a scene has a moment with words said, an object, or a sound. |
-| 0–1 | Preachy or forced. |
+| 9–11 | A concrete scene carries the idea: a person, a place, and a moment with words said, an object, or a sound. Everyday detail shows how people actually do it. A specific feeling arises. |
+| 6–8 | One scene or several lived details, but the feeling is named rather than shown. |
+| 3–5 | Dry, manual-like. No concrete scene with a person, a place, and a moment anywhere in the episode: at most 4. A one-sentence "Imagine a …" or "Picture …" line that only restates a rule is not a scene. A person from a report given only by name, age, or place is not a scene; a scene has a moment with words said, an object, or a sound. |
+| 0–2 | Preachy or forced. |
 
-`{anchor 6–7: }` `{anchor 4–5: }` `{anchor 2–3: }`
+`{anchor 9–11: }` `{anchor 6–8: }` `{anchor 3–5: }`
 
 **3.5 Opening (6)** — Does the Opening seat the listener after the topic is named?
 
@@ -190,7 +190,7 @@ Length, explainer turns over six sentences, production words, fillers and stage 
 | Band | Definition |
 |---|---|
 | 7–8 | Quick exchanges and long explanations alternate with the content. At least two quotes where a host line changes the next explanation (a guess the explainer builds on or corrects). An explainer who answers "Right" and continues does not count. |
-| 5–6 | Variation is mechanical, or one reaction form repeats four or more times. No point where the host stays partly unconvinced caps this at 6. |
+| 5–6 | Variation is mechanical, or one reaction form repeats four or more times. |
 | 3–4 | Strict alternation of explanation and one-line reaction. The host never moves anything. |
 | 0–2 | A monologue with interjections. |
 
@@ -240,8 +240,8 @@ Length, explainer turns over six sentences, production words, fillers and stage 
 |---|---|---|---|---|---|
 | Content | 3.1 Value and depth | n/12 | [E12] "…" | | |
 | Content | 3.2 Argument and support | n/8 | | | |
-| Content | 3.3 Range of views | n/8 | | | |
-| Content | 3.4 Emotional resonance | n/7 | | | |
+| Content | 3.3 Variety in practice | n/4 | | | |
+| Content | 3.4 Scenes and lived detail | n/11 | | | |
 | Structure | 3.5 Opening | n/6 | | | |
 | Structure | 3.6 Flow and signposts | n/8 | | | |
 | Structure | 3.7 Ending | n/6 | | | |
@@ -271,6 +271,7 @@ Flags n · violations n · suspects n · ⭐ n
 
 ## Change history
 
+- critic-en-v0.8 (2026-10-17) — the global channel introduces Korean culture (decision of the same day). 3.3 Range of views (8) becomes Variety in practice (4): how the practice differs by region, generation, family, or setting, or a disagreement when the sources hold one. 3.4 Emotional resonance (7) becomes Scenes and lived detail (11), with the no-scene cap at 4. 3.2 asks for limits only where the sources state them. 3.9 no longer caps an episode where the host never stays unconvinced. Keys and the 100-point total are unchanged; scores before this version are not comparable on 3.3 and 3.4.
 - critic-en-v0.7 (2026-10-17) — after G261017-009 to 011 the critic was 20 to 24 points above the blind editor and gave 3.4 four or five points to episodes with no scene: it counted a reported visitor given only by name and age, and "Picture …" frames, as scenes. 3.4 now defines a scene by a moment with words said, an object, or a sound.
 - critic-en-v0.6 (2026-10-17) — after three v0.8 episodes (G261017-004 to 006) the critic was still 10 to 15 points above the editor and counted one-sentence "Imagine a …" lines as scenes. 3.4 now says such a line is not a scene; F3 covers planning or reading wording left in a line.
 - critic-en-v0.5 (2026-10-17) — recalibration after four agent verdicts (G261015-001, G261017-001 to 003): the critic scored 14 to 20 points above the native editor every time, mainly on 3.4, 3.5, 3.8, 3.10, and 3.11, and missed most must-fix English problems. The bands now carry explicit caps for what the editor found each time: no scene (3.4 ≤ 3, 3.10 ≤ 8), an Opening that never names the familiar thing (3.5 ≤ 3), recap tails counted as F1 (3.8), no insider framing or one host reaction form (3.11 ≤ 3). F3 now covers a common word a second-language listener would take in another sense (platform, ground pepper, establishment) and a phrase that sounds like its opposite.

@@ -61,7 +61,7 @@ function candidateAxisBlockEn(c: BacklogCandidate): string {
   const roles = c.sources.map((s, n) => `S${n + 1} ${s.publisher}: ${(s.roles ?? []).map(roleEn).join(", ") || "no role"}`).join(" / ");
   return `- **Backlog axis (starting point)**: [${axisTypeEn(c.axis_type ?? "")}] ${c.axis}
 - Backlog roles: ${roles}${c.gaps?.length ? `
-- Empty roles: ${c.gaps.map(roleEn).join(", ")} — fill them from the text if you can; otherwise write "none" in the outline's role table` : ""}
+- Empty roles: ${globalGaps(c.gaps).map(roleEn).join(", ") || "none"} — fill them from the text if you can; otherwise write "none" in the outline's role table` : ""}
 - If the axis does not hold after reading the sources, change it and write "axis changed: reason" in notes.`;
 }
 
@@ -117,8 +117,8 @@ ${fence(i.guidelines)}
 \`\`\`
 # Outline — {episode ID}
 
-Axis: [contrast|paradox|redefinition${history ? "|event" : ""}] one sentence
-Axis note: why this axis creates tension for the listener, two lines
+Axis: [question|contrast|paradox|redefinition${history ? "|event" : ""}] one sentence
+Axis note: why a newcomer wants this answered, two lines
 Familiar picture: what a listener abroad already pictures or assumes about this topic, in plain words
 Terms: each place, object, or role the episode names often — the one plain English name the script uses for it, as a short label, with no meaning the claims do not give
 Landing section: #n — where the axis is proven
@@ -128,9 +128,10 @@ Roles
 - Axis source: S? (the one source that may appear in two sections, or "none")
 - Section order: one line on why #1 to #n are steps toward the axis
 - Cases: S?
-- Counterpoints and limits: S?
-- Numbers and surveys: S?
+- Practice: S?
 - History and context: S? (or "none")
+- Counterpoints and limits: S? (or "none")
+- Numbers and surveys: S? (or "none")
 Unused sources: S? — reason
 
 Section #1 — Title
@@ -151,7 +152,7 @@ Links and metaphors (made by the script, not facts)
 Closing line: what the listener understands at the end
 \`\`\`
 Planning rules:
-- The axis is a contrast ("A, yet B"), a paradox ("trying A leads to B"), or a redefinition ("A is really B")${history ? ", or, in history mode, an event" : ""}. "What is X" is not an axis.
+- The axis is a question a newcomer asks about the practice ("Why do people in Korea …?"), a contrast ("A, yet B"), a paradox ("trying A leads to B"), or a redefinition ("A is really B")${history ? ", or, in history mode, an event" : ""}. Keep the backlog's form. "What is X" is not an axis. ear introduces Korean culture: the episode shows how the practice works, who does it, and why.
 - Sections are steps of the axis, not the order of a source. Each source goes to one section only, except the axis_source. Drop a source that answers no sub-question of the axis.
 - A list topic keeps its list: sections may follow the items or groups of items, and each section still answers a sub-question of the axis. The count in the title matches the items the material supports.
 - Three to five Body sections. Fewer, fuller sections are better than many thin ones. The Opening is not a section.
@@ -160,7 +161,7 @@ Planning rules:
 - Name the Familiar picture so the Opening can start from it. The episode then explains or changes that picture.
 - Do not let source order become the episode. If every section uses one source in the order the sources are listed, rebuild the order around the steps of the axis. A section opens on its scene, a detail, or the host's question; the source is named once, where its first fact is used.
 - A redefinition axis needs the members of the category heard: assign claims that name the kinds, forms, or examples, not only a single figure about one of them.
-- Plan each limitation once, in the section where it applies.
+- Plan a limitation or a disagreement only when the claims state one, once, in the section where it applies. Do not add doubt the sources do not have.
 - The axis and the Closing line keep the conditions and degree words of the claims they rest on.
 - Write the axis, the questions, and the Closing line in plain spoken words a second-language listener knows. Avoid abstract nouns such as care, viewpoint, role, or preparation unless the section explains them; the script reuses these lines.
 - The Host question uses only what came before; it never contains the section's new case, number, or result. Never ask about methods, samples, or limits.
@@ -195,7 +196,7 @@ export const DESIGN_INLINE_SCHEMA_EN = {
   required: ["axis", "axis_type", "landing_section", "axis_source", "sections", "excerpt_ids", "gists", "claims", "outline_md", "pronunciations", "estimated_minutes", "split_proposal", "sources_used", "sources_excluded", "gaps", "notes"],
   properties: {
     axis: { type: "string" },
-    axis_type: { type: "string", enum: ["contrast", "paradox", "redefinition", "event"] },
+    axis_type: { type: "string", enum: ["question", "contrast", "paradox", "redefinition", "event"] },
     landing_section: { type: "integer" },
     axis_source: { type: "string", description: "The one source that may span two sections, as \"S3\" only (no URL or title). Empty string if none" },
     sections: { type: "array", items: { type: "object", additionalProperties: false, required: ["n", "title", "sources", "ratio"], properties: { n: { type: "integer" }, title: { type: "string" }, sources: strArr, ratio: { type: "integer" } } } },
@@ -225,8 +226,8 @@ export function buildAxisCheckPromptPartsEn(i: { outlineMd: string; history?: bo
   const system = `You review outlines for "ear", an audio service. You do not write scripts. Compare the outline's axis with each section's Question line and judge whether each section is a step toward the axis question.
 - The axis is the one question a listener holds for the whole episode. Each section's question moves one step toward it.
 - A section that drifts to a neighboring topic is false, even if it shares a broader idea.
-- A case or counterpoint section is true only if it stays inside the axis's subject. Check the section's material too: a case from a different setting that only shows the same principle is false.
-- The landing section's question is the axis question itself.
+- A case, practice, or counterpoint section is true only if it stays inside the axis's subject. Check the section's material too: a case from a different setting that only shows the same principle is false.
+- The landing section's question is the axis question itself. A question axis is answered by how the practice works and why people do it.
 - Judge strictly: when unsure, mark false and say why. An outline with only three sections passes if all three hold.${i.history ? `
 - History mode: the axis is an event. Sections follow its background, course, result, and interpretation. A section about that event is true; a section about another event or a general idea is false. Do not fail an outline because its axis is an event.` : ""}
 Output only the requested JSON.`;
@@ -481,7 +482,7 @@ export const CRITIC_INLINE_SCHEMA_EN = {
     scores: {
       type: "object", additionalProperties: false, required: ["content", "structure", "naturalness", "immersion", "persona"],
       properties: {
-        content: { type: "object", additionalProperties: false, required: ["value", "argument", "perspective", "resonance"], properties: { value: intEn, argument: intEn, perspective: intEn, resonance: intEn }, description: "3.1 value /12 · 3.2 argument /8 · 3.3 views /8 · 3.4 resonance /7" },
+        content: { type: "object", additionalProperties: false, required: ["value", "argument", "perspective", "resonance"], properties: { value: intEn, argument: intEn, perspective: intEn, resonance: intEn }, description: "3.1 value /12 · 3.2 argument /8 · 3.3 variety /4 · 3.4 scenes and lived detail /11" },
         structure: { type: "object", additionalProperties: false, required: ["opening", "flow", "ending"], properties: { opening: intEn, flow: intEn, ending: intEn }, description: "3.5 opening /6 · 3.6 flow /8 · 3.7 ending /6" },
         naturalness: { type: "object", additionalProperties: false, required: ["spoken", "exchange"], properties: { spoken: intEn, exchange: intEn }, description: "3.8 spoken English /12 · 3.9 exchange /8" },
         immersion: { ...intEn, description: "3.10 immersion /15, as a whole" },
@@ -508,8 +509,17 @@ export const CRITIC_INLINE_SCHEMA_EN = {
 // 모델에게는 영어 값으로 묻고, 저장 직전에 내부 값(한국어 코드)으로 바꾼다 — 게이트 1(apps/web lib/gate1.ts)·후보 검사(candidate-check.ts)·콘솔이
 // 내부 값("근거 앵커"·"성립")을 읽기 때문이다. 화면에 보이는 역할 이름도 팀이 읽는 한국어 그대로다
 
-export const ROLE_EN_TO_KO = { anchor: "근거 앵커", case: "사례", counterpoint: "반론·한계", numbers: "수치·조사", context: "역사·맥락" } as const;
-export const AXIS_EN_TO_KO = { contrast: "대립", paradox: "역설", redefinition: "재정의", event: "사건" } as const;
+// 2026-10-17 소개형 전환(박수헌 — 글로벌판은 한국 문화를 소개한다): 생활 관행(practice) 역할을 더하고, 반론·한계·수치·조사는 선택 역할이다 — 빈 역할(gaps)이 되지 않는다.
+// 축 유형에 질문(question)을 더한다 — 처음 보는 사람이 그 관행에 대해 물을 질문 하나. DB 제약은 0030
+export const ROLE_EN_TO_KO = { anchor: "근거 앵커", case: "사례", practice: "생활 관행", context: "역사·맥락", counterpoint: "반론·한계", numbers: "수치·조사" } as const;
+export const AXIS_EN_TO_KO = { question: "질문", contrast: "대립", paradox: "역설", redefinition: "재정의", event: "사건" } as const;
+/** 선택 역할(내부 값) — 있으면 쓰고, 비어도 빈 역할이 아니다 */
+export const GLOBAL_OPTIONAL_ROLES = ["반론·한계", "수치·조사"] as const;
+/** 글로벌판 역할 전체(내부 값) — 보강이 빈 역할을 고를 때 쓴다 */
+export const GLOBAL_ROLES = Object.values(ROLE_EN_TO_KO) as string[];
+/** 빈 역할에서 선택 역할을 뺀다 */
+export const globalGaps = (gaps: string[]) => gaps.filter((g) => !(GLOBAL_OPTIONAL_ROLES as readonly string[]).includes(g));
+const REQUIRED_ROLES_EN = ["anchor", "case", "practice", "context"] as const;
 const ROLES_EN = Object.keys(ROLE_EN_TO_KO) as (keyof typeof ROLE_EN_TO_KO)[];
 const invert = (o: Record<string, string>) => Object.fromEntries(Object.entries(o).map(([k, v]) => [v, k])) as Record<string, string>;
 const ROLE_KO_TO_EN = invert(ROLE_EN_TO_KO);
@@ -520,18 +530,20 @@ export const axisTypeEn = (a: string) => AXIS_KO_TO_EN[a] ?? a;
 const roleKo = (r: string) => (ROLE_EN_TO_KO as Record<string, string>)[r] ?? r;
 
 const ROLE_INTENT_EN: Record<string, string> = {
-  anchor: "research, an institution's explainer, or an expert account that directly supports the axis",
-  case: "a concrete story, report, interview, or scene a listener can picture",
-  counterpoint: "a view against the axis or its limits: criticism, a contrary study, cases where it does not hold",
-  numbers: "a survey, statistics, or an experiment with figures; official statistics",
+  anchor: "research, an institution's explainer, or an expert account that directly answers the episode's question",
+  case: "a concrete scene, story, interview, or report with a person, a place, and a moment: words said, an object, a sound",
+  practice: "how people in Korea actually do it: the names they use, the steps, who does what, how it differs by region, age, or family",
   context: "where the practice came from, how it changed, the background of the idea",
+  counterpoint: "optional: a disagreement inside Korea or a stated limit, only when a source has one",
+  numbers: "optional: a survey or official statistics, only when they exist",
 };
 const ROLE_INTENT_HISTORY_EN: Record<string, string> = {
   anchor: "an account of the event as a whole: a history reference, an overview, a summary of records, a research institute's explainer",
   case: "a concrete scene, person, or record from the time: letters, diaries, court records, reports of the day",
-  counterpoint: "interpretations of the same event that disagree (good to have, not required)",
-  numbers: "figures recorded at the time: population, losses, costs, votes",
+  practice: "how people lived and did things at the time, from records",
   context: "the background and aftermath of the event",
+  counterpoint: "optional: interpretations of the same event that disagree",
+  numbers: "optional: figures recorded at the time: population, losses, costs, votes",
 };
 const roleIntent = (history: boolean) => (history ? ROLE_INTENT_HISTORY_EN : ROLE_INTENT_EN);
 const historyTopic = (mid: string | null | undefined) => mid === HISTORY_TOPIC_EN;
@@ -547,7 +559,7 @@ const SEARCH_EXCLUDE_EN = `- Exclude what the worker cannot read: paywalled data
 - publisher is the organization's official English name, written the same way every time. Sites of one organization count as one publisher.`;
 
 /** 검색어 계획 (2026-10-15 — 첫 기획 C1: 8회 중 3회가 "site.host" 오기·따옴표 OR 묶음으로 낭비, 정확 구문 따옴표·연도 범위로 결과가 좁았다) */
-const QUERY_PLAN_EN = `- **Plan the queries before searching.** At least one query per role, and about half in English and half in Korean. Use plain keywords: 3 to 7 words, no quotation marks except around a fixed name, no year ranges. Vary the angle between queries (the practice itself, its history, how people see it, numbers about it); do not repeat one query with small changes.
+const QUERY_PLAN_EN = `- **Plan the queries before searching.** At least one query per required role (anchor, case, practice, context), and about half in English and half in Korean. Use plain keywords: 3 to 7 words, no quotation marks except around a fixed name, no year ranges. Vary the angle between queries (the practice itself, its history, how people see it, numbers about it); do not repeat one query with small changes.
 - Use site: only with a host from the pool list below, written exactly as site:host. Do not invent site: filters or combine them with OR.`;
 
 /** 기획 검색 — 도구는 웹 검색만(본문 안 읽음). 한국어·영어 소스 둘 다 — K-컬처는 국문 1차 자료가 많다 */
@@ -562,7 +574,7 @@ The only tool is web search. Do not read pages; the planner reads them later. Re
 ## What to collect — roles
 A candidate holds with 5 to 7 sources that fill these roles:
   · ${ROLES_EN.map((r) => `${r} — ${roleIntent(history)[r]}`).join("\n  · ")}${historyTopic(i.midTopic) ? "\nIf the topic is a past event: an account of the event as a whole is the anchor; an essay that uses the event as an example of another idea is not. Records from the time are cases. Older sources are fine." : ""}
-The worker recounts: at least 3 sources · at least 3 publishers · no publisher over half · at least 1 anchor · at least 1 case · at least 3 roles.
+The worker recounts: at least 3 sources · at least 3 publishers · no publisher over half · at least 1 anchor · at least 1 case · at least 3 roles. ear introduces Korean culture: spend searches on case and practice first. Counterpoint and numbers are optional.
 
 ## Search rules
 - At most ${i.maxSearches} searches. Use them all unless every role is filled with strong sources. Korean institutions and Korean-language sources often hold the best material on Korean culture; English sources show how it is explained to outsiders.
@@ -582,7 +594,7 @@ export function buildReinforceSearchPromptEn(i: ReinforceSearchInput): string {
   const top = [...pubCount].sort((a, b) => b[1] - a[1])[0];
   const diversify = !c.gaps.length && top ? `more publishers — ${top[0]} has ${top[1]} of ${c.sources.length} sources. Find 1 to 2 anchors and 1 case from publishers not already in the list.` : null;
   const roles = (c.gaps.length ? c.gaps : ["근거 앵커", "사례"]).map(roleEn);
-  return `You reinforce sources for "ear", an audio service that makes two-person English episodes about Korean culture. One candidate has an axis but empty roles. Find sources for those roles by web search.
+  return `You reinforce sources for "ear", an audio service that makes two-person English episodes about Korean culture. One candidate has an axis but empty roles. Find sources for those roles by web search. ear introduces Korean culture; counterpoint and numbers are optional.
 The only tool is web search. Do not read pages. Return what the results show: title, summary, publisher, date.
 
 ## Candidate
@@ -637,7 +649,7 @@ export function buildTopicJudgePromptEn(i: ClusterV2Input): string {
 - Empty roles: ${i.reinforce!.gaps.length ? i.reinforce!.gaps.map(roleEn).join(", ") : "(none — this round adds publishers; if a new source gives an anchor from another publisher, swap out one source of the dominant publisher)"}
 - The list mixes the current candidate sources (marked) and new search results. Add a new source only if it fits the axis and fills an empty role.
 - candidates has exactly 1 item, id "${id}". Keep the title and axis (wording may be polished); do not set a new axis. Apply rules 2 to 6 below. Put roles still empty in gaps.`;
-  return `You judge episode topics for "ear", an audio service that makes two-person English episodes about Korean culture. Listeners are English speakers new to Korea, many with English as a second language; do not assume a country. You see source metadata only; there are no tools and no page access. Set the axis first, then fill its roles with sources.
+  return `You judge episode topics for "ear", an audio service that makes two-person English episodes about Korean culture. Listeners are English speakers new to Korea, many with English as a second language; do not assume a country. You see source metadata only; there are no tools and no page access. ear introduces Korean culture to newcomers. Set the axis first, then fill its roles with sources.
 
 ${mode}
 
@@ -645,14 +657,14 @@ ${mode}
 ${i.specBacklogExcerpt.trim()}
 
 ## 2. Rules
-1. **The axis.** One sentence in one of three forms: contrast ("A, yet B"), paradox ("trying A leads to B"), redefinition ("A is really B"). Not an axis: "what is X", "everything about X", or one news event. A comeback, release, or award is not an axis; use it only as a case that opens an industry axis.
+1. **The axis.** One sentence in one of four forms: question (the one plain question a newcomer asks about the practice: "Why do people in Korea …?" or "How do people in Korea …?"), contrast ("A, yet B"), paradox ("trying A leads to B"), redefinition ("A is really B"). Prefer the question form. Use contrast, paradox, or redefinition only when the sources show a real tension inside Korea. Not an axis: "what is X", "everything about X", or one news event. A comeback, release, or award is not an axis; use it only as a case that opens an industry axis.
    A list topic ("10 Korean words in K-dramas") keeps its list shape. The axis is what the items show together; the episode may walk through the items or groups of them. Set the count to the items the sources support and put that count in the title. List the counted items in landing. Do not replace the list with an abstract idea.${history ? `
-   History mode: use axis_type "event" only for a past event in Korean History & Society; modern society topics use the three forms. An event axis asks how to read the event, not who was right. The anchor describes the event itself; an essay that uses the event as an example of another idea is not an anchor. Records from the time are cases. Counterpoint is optional.` : ` Do not use axis_type "event".`}
-2. **It works in English for this listener.** Build the tension inside the subject: two facts, goals, or views about the Korean practice that pull against each other. Do not build it on what outsiders, foreigners, or the West expect. Compare Korea with another country only if a listed source makes that comparison. The axis can be said in plain English with at most one Korean word. It does not rest on Korean wordplay or a pun that does not translate. It does not frame Korea as strange, rank cultures, or argue which country owns a custom.
+   History mode: use axis_type "event" only for a past event in Korean History & Society; modern society topics use the other forms. An event axis asks how to read the event, not who was right. The anchor describes the event itself; an essay that uses the event as an example of another idea is not an anchor. Records from the time are cases. Counterpoint is optional.` : ` Do not use axis_type "event".`}
+2. **It works in English for this listener.** Keep the question or tension inside the subject: the Korean practice itself, how it works, and why people do it. Do not build it on what outsiders, foreigners, or the West expect. Compare Korea with another country only if a listed source makes that comparison. The axis can be said in plain English with at most one Korean word. It does not rest on Korean wordplay or a pun that does not translate. It does not frame Korea as strange, rank cultures, or argue which country owns a custom.
 3. **Excluded.** No axis built around one person. Nothing about a real person's private life, relationships, rumors, controversies, incidents, or lawsuits. No current political issue and no inter-Korean military issue. No promotion of an agency, brand, or product.
-4. **Roles.** anchor (1 to 2 sources that support the axis) · case · counterpoint · numbers · context. One source may have two roles. A source with no role is left out. 5 to 7 sources.
+4. **Roles.** anchor (1 to 2 sources that answer the axis) · case · practice · context · counterpoint (optional) · numbers (optional). One source may have two roles. A source with no role is left out. 5 to 7 sources.
 5. **Diversity.** At least 3 publishers (one organization is one publisher) · no publisher over half · at least 3 roles (anchor, case, and one more) · at most 1 "already used" source. The worker recounts; do not force sources in to meet it.
-6. **Verdict.** "holds" if every criterion is met. "needs reinforcement" if the axis is good but roles are empty; list them in gaps. A domain not yet judged is not a reason for "needs reinforcement"; a person judges domains at gate 1. Mention it in dedup_note instead.
+6. **Verdict.** "holds" if every criterion is met. "needs reinforcement" if the axis is good but required roles (anchor, case, practice, context) are empty; list them in gaps. Never list counterpoint or numbers in gaps. A domain not yet judged is not a reason for "needs reinforcement"; a person judges domains at gate 1. Mention it in dedup_note instead.
 
 ## 3. Fields (candidates[])
 - title (English, plain, no clickbait) · mid_topic ("${mid}") · axis_type · axis (one English sentence) · axis_note (two lines: what question the axis leaves open, and why a newcomer would want it answered) · verdict · gaps
@@ -685,7 +697,7 @@ export const CLUSTER_SCHEMA_V2_EN = {
           id: { type: "string" }, mid_topic: { type: "string" }, sub_topic: { type: ["string", "null"], description: "A second topic area from the list, or null" }, title: { type: "string" },
           axis_type: { type: "string", enum: Object.keys(AXIS_EN_TO_KO) }, axis: { type: "string" }, axis_note: { type: "string" },
           verdict: { type: "string", enum: ["holds", "needs reinforcement"] },
-          gaps: { type: "array", items: { type: "string", enum: ROLES_EN } },
+          gaps: { type: "array", items: { type: "string", enum: REQUIRED_ROLES_EN } },
           sources: { type: "array", minItems: 3, items: { type: "object", additionalProperties: false, required: ["m", "roles", "why"], properties: { m: { type: "string" }, roles: { type: "array", minItems: 1, items: { type: "string", enum: ROLES_EN } }, why: { type: "string" } } } },
           target_fit: { type: "string" }, landing: { type: "string" }, dedup_note: { type: "string" },
         },

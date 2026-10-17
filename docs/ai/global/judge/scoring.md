@@ -2,7 +2,7 @@
 
 | Axis | Points | Items |
 |---|---:|---|
-| Content | 35 | 3.1 Value and depth 12 · 3.2 Argument and support 8 · 3.3 Range of views 8 · 3.4 Emotional resonance 7 |
+| Content | 35 | 3.1 Value and depth 12 · 3.2 Argument and support 8 · 3.3 Variety in practice 4 · 3.4 Scenes and lived detail 11 |
 | Structure | 20 | 3.5 Opening 6 · 3.6 Flow and signposts 8 · 3.7 Ending 6 |
 | Naturalness | 20 | 3.8 Spoken English 12 · 3.9 Exchange 8 |
 | Immersion | 15 | 3.10 as a whole |
@@ -19,32 +19,32 @@ Score the script as it is. Score each item on its own. An ordinary episode gets 
 | 4–6 | One source summarized after another. Correct but empty, or facts about the topic that never answer its question. |
 | 0–3 | A list of what things are. No question holds it. |
 
-**3.2 Argument and support (8)** — Is each claim carried by support (what a study did, a case, a number), with the leading source introduced once and limits stated by the speakers?
+**3.2 Argument and support (8)** — Is each claim carried by support (what a study did, a case, a number), with the leading source introduced once and limits stated where the sources state them?
 
 | Band | Definition |
 |---|---|
-| 7–8 | Varied support. The leading source is introduced once and then explained directly. Limits or counterpoints are stated. |
+| 7–8 | Varied support. The leading source is introduced once and then explained directly. Limits the sources state are said once, where they apply. |
 | 5–6 | Support of one kind, or an introduction that sounds mechanical, or attribution on almost every sentence after the introduction. |
 | 3–4 | Loose link between claims and support, or a leading source with no introduction. |
 | 0–2 | Bare assertion, logical jumps. |
 
-**3.3 Range of views (8)** — Gray areas, trade-offs, disagreement inside Korea.
+**3.3 Variety in practice (4)** — Does the episode show that the practice is not one fixed picture: how it differs by region, generation, family, or setting, or where people in Korea disagree when the sources say so?
 
 | Band | Definition |
 |---|---|
-| 7–8 | Both sides of a disagreement have material. The conclusion is conditional and leaves the listener room to judge. |
-| 5–6 | More than one view, weakly joined, or the other side gets one line and is absorbed. |
-| 3–4 | One view, no reflection. |
-| 0–2 | Black and white, emotion-led. |
+| 4 | Variation or a disagreement from the material is heard and placed. The listener sees the practice is not uniform. |
+| 3 | Variation is mentioned in one line but not shown. |
+| 2 | One uniform picture of how people in Korea do it, though the material allows more. |
+| 0–1 | A stereotype: one practice given to all Koreans. |
 
-**3.4 Emotional resonance (7)** — Do concrete scenes carry the idea, so a listener far from Korea recognizes a situation of their own?
+**3.4 Scenes and lived detail (11)** — Do concrete scenes and everyday detail carry the practice, so a listener far from Korea can picture it and recognize a situation of their own?
 
 | Band | Definition |
 |---|---|
-| 6–7 | A concrete scene carries the idea. A specific feeling arises. It touches a situation people share. |
-| 4–5 | Feeling is named rather than shown. |
-| 2–3 | Dry, manual-like. No concrete scene with a person, a place, and a moment anywhere in the episode: at most 3. A one-sentence "imagine a …" or "picture …" line that only restates a rule is not a scene. A person from a report given only by name, age, or place is not a scene; a scene has a moment with words said, an object, or a sound. |
-| 0–1 | Preachy or forced. |
+| 9–11 | A concrete scene carries the idea: a person, a place, and a moment with words said, an object, or a sound. Everyday detail shows how people actually do it. A specific feeling arises. |
+| 6–8 | One scene or several lived details, but the feeling is named rather than shown. |
+| 3–5 | Dry, manual-like. No concrete scene with a person, a place, and a moment anywhere in the episode: at most 4. A one-sentence "imagine a …" or "picture …" line that only restates a rule is not a scene. A person from a report given only by name, age, or place is not a scene; a scene has a moment with words said, an object, or a sound. |
+| 0–2 | Preachy or forced. |
 
 **3.5 Opening (6)** — Does the opening seat the listener after the topic is named?
 
@@ -87,7 +87,7 @@ Score the script as it is. Score each item on its own. An ordinary episode gets 
 | Band | Definition |
 |---|---|
 | 7–8 | Quick exchanges and long explanations alternate with the content. At least two places where a host line changes the next explanation (a guess the explainer builds on or corrects). An explainer who answers "Right" and continues does not count. |
-| 5–6 | Variation is mechanical, or one reaction form repeats four or more times. No point where the host stays partly unconvinced caps this at 6. |
+| 5–6 | Variation is mechanical, or one reaction form repeats four or more times. |
 | 3–4 | Strict alternation of explanation and one-line reaction. The host never moves anything. |
 | 0–2 | A monologue with interjections. |
 

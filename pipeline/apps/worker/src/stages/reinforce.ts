@@ -2,7 +2,7 @@ import fs from "node:fs/promises";
 import { cfg, executedBy } from "../config.js";
 import { blockedTierHosts, domainTierByHost, existingBacklogTitles, findDomainForUrl, getBacklogFull, insertCandidateDomain, insertRun, majorOfMidTopic, midsOfMajor, poolDomainsForTopics, recentSourcesForTopics, setBacklogStatus, setJobProgress, upsertSource, type Job, tierOfUrl } from "../db.js";
 import type { Executor } from "../executors/index.js";
-import { assetPaths, buildClusterPromptV2, buildReinforceSearchPrompt, buildReinforceSearchPromptEn, buildTopicJudgePromptEn, CLUSTER_SCHEMA_V2, CLUSTER_SCHEMA_V2_EN, judgeToInternal, pipelineLocale, REINFORCE_SEARCH_SCHEMA, REINFORCE_SEARCH_SCHEMA_EN, SOURCE_ROLES, todayKst } from "@ear/pipeline";
+import { assetPaths, globalGaps, GLOBAL_ROLES, buildClusterPromptV2, buildReinforceSearchPrompt, buildReinforceSearchPromptEn, buildTopicJudgePromptEn, CLUSTER_SCHEMA_V2, CLUSTER_SCHEMA_V2_EN, judgeToInternal, pipelineLocale, REINFORCE_SEARCH_SCHEMA, REINFORCE_SEARCH_SCHEMA_EN, SOURCE_ROLES, todayKst } from "@ear/pipeline";
 import { hostOf, log } from "../util.js";
 import { robotsAllows } from "../sources/fetch.js";
 import { rememberRobotsBlocked } from "../sources/robots-memory.js";
@@ -32,7 +32,8 @@ export async function runReinforce(job: Job, ex: Executor) {
   const major = await majorOfMidTopic(cand.mid_topic);
   const mids = major ? await midsOfMajor(major) : [cand.mid_topic];
   const poolDomains = await poolDomainsForTopics(mids);
-  const gaps = (cand.gaps ?? []).filter((g) => (SOURCE_ROLES as string[]).includes(g));
+  const enRoles = pipelineLocale() === "en"; // 글로벌판 역할(생활 관행 포함)·선택 역할은 빈 역할이 아니다 (2026-10-17 소개형 전환)
+  const gaps = enRoles ? globalGaps((cand.gaps ?? []).filter((g) => GLOBAL_ROLES.includes(g))) : (cand.gaps ?? []).filter((g) => (SOURCE_ROLES as string[]).includes(g));
 
   // ── 1. 검색
   await setJobProgress(job.id, { phase: `보강 1/2 — 검색 (${cand.id}, ${gaps.length ? `빈 역할 ${gaps.join("·")}` : "발행처 다양화"})`, detail: `풀 도메인 ${poolDomains.length}곳`, toolCounts: {}, turns: 0, elapsedMs: 0 }).catch(() => {});
@@ -107,7 +108,7 @@ export async function runReinforce(job: Job, ex: Executor) {
   const srcs = c.sources.filter((s) => byM.has(s.m.trim().toUpperCase())).map((s) => ({ ...byM.get(s.m.trim().toUpperCase())!, roles: s.roles, why: s.why }));
   const tiers = await domainTierByHost();
   const { pubs, maxShare, roleSet, problems, missingCore } = checkCandidateSources(srcs); // spec/03 다양성 기준 — topic-seed 와 공유
-  const newGaps = Array.from(new Set([...c.gaps, ...missingCore]));
+  const newGaps = Array.from(new Set([...(enRoles ? globalGaps(c.gaps) : c.gaps), ...missingCore]));
   const ok = c.verdict === "성립" && problems.length === 0;
   const filled = gaps.filter((g) => roleSet.has(g));
   const summary = `보강 1회 ${todayKst()}: 검색 ${r1.output.queries?.length ?? 0}회 · 새 소스 ${added.length}건(풀 밖 ${outside.length})${droppedBlocked.length ? ` · 차단 소스 ${droppedBlocked.length}건 제외` : ""} · 채운 역할 ${filled.join("·") || "없음"}${newGaps.length ? ` · 여전히 빈 역할 ${newGaps.join("·")}` : ""}${problems.length ? ` · ${problems.join(", ")}` : ""} → ${ok ? "성립" : "보류 유지"}`;

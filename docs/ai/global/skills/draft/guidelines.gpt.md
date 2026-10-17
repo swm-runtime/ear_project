@@ -1,11 +1,12 @@
 # Script Writing Guidelines
 
-> Version: **full-en-v0.10** (2026-10-17) · GPT profile · global pipeline. Rationale and sources: [CHANGELOG.md](CHANGELOG.md).
+> Version: **full-en-v0.11** (2026-10-17) · GPT profile · global pipeline. Rationale and sources: [CHANGELOG.md](CHANGELOG.md).
 > Rule numbers are reference IDs for L0, QA and the critic. Do not reuse or renumber them.
 
 ## Principles
 
 - Write for a general listener who has never studied this topic and who speaks English as a second language. Do not assume an age, job, religion, or country.
+- ear introduces Korean culture. An episode shows how a practice works, who does it, and why. It does not need a debate.
 - Fixed conditions: fact scope, speaker roles, script format, injected templates, the outline's section contract, and the report schema. Do not relax them for naturalness or length.
 - Use only the provided materials. Do not search or read other files. Return one report JSON in the schema the prompt gives.
 - Gold examples, when provided, show how the conversation works. Do not reuse their facts, sentences, metaphors, openers, or closing frames.
@@ -48,7 +49,7 @@
 
 10. **The explainer answers the host, not the script.** The explainer's first sentence answers what the host just asked or said. It does not restate, name, or paraphrase the host's question, guess, preference, or feeling. When the host guesses or doubts, say which part holds or fails in new words, then build from it or correct it. It does not start with a one-word acknowledgment. At least twice per episode, the host's turn changes the direction of the next explanation.
 
-11. **Not everything resolves.** At least once and at most twice per episode, the host stays partly unconvinced, or the explainer grants that the host's point holds in some cases.
+11. **Doubt only where the claims hold it.** When the claims hold a disagreement or a limit, the host may stay partly unconvinced, or the explainer may grant that the host's point holds in some cases. At most twice per episode. Do not invent doubt.
 
 12. **Reactions are calm and specific.** Most host reactions are calm. At most one strong surprise per section. A reaction picks up the specific detail that caught the host, not a general feeling. Reactions do not make a claim bigger, broader, or more certain. Do not react to a custom with weird, crazy, wild, insane, bizarre, mind-blowing, obsessed, or cute.
 
@@ -96,7 +97,7 @@
 
 32. **No scripted noise.** No um, uh, or "like" as a filler. No scripted interruptions, overlapping speech, laughter, stage directions, sound tags, or "haha".
 
-33. **Hedges once, where they belong.** Keep the hedges in the claims. Do not add hedges for tone ("It's important to note", "Generally speaking"). State a limitation once, in the turn where it applies, two to four times per episode. A block does not end on a limitation.
+33. **Hedges once, where they belong.** Keep the hedges in the claims. Do not add hedges for tone ("It's important to note", "Generally speaking"). State a limitation only when the claims state one, once, in the turn where it applies, at most four times per episode. A block does not end on a limitation.
 
 ## Length
 
@@ -119,7 +120,7 @@
 
 39. **Scenes, cases, and metaphors, budgeted.** Stage each Scene the outline plans: the explainer says who, where, and what happens, and the host reacts to it. One case per section, four to five per episode, including cases from sources. Use a metaphor only where understanding stalls, at most three per episode. The host creates no metaphors or examples. Record every new link or metaphor in bridges.
 
-40. **Closing.** The Closing is the host's closing lead, one explainer wrap-up turn, and the host's injected sign-off. The wrap-up has 3 to 6 sentences. It connects the sections' answers as one line of reasoning, merging sections when needed, and its last sentence states the axis. No new facts, names, numbers, or cases. Do not open it with "So, to sum up" or similar. Keep the sign-off frame and fill only its slots. The last slot is the host's own reaction to this episode. It is not advice, a command, a pledge, or a moral.
+40. **Closing.** The Closing is the host's closing lead, one explainer wrap-up turn, and the host's injected sign-off. The wrap-up has 3 to 6 sentences. It connects the sections' answers as one line of reasoning, merging sections when needed, and its last sentence answers the axis question or states the axis. No new facts, names, numbers, or cases. Do not open it with "So, to sum up" or similar. Keep the sign-off frame and fill only its slots. The last slot is the host's own reaction to this episode. It is not advice, a command, a pledge, or a moral.
 
 ## Facts and sources
 
@@ -153,7 +154,7 @@
   3. Source introductions, assigned sections, vague authority, footnote details, numbers, relative time.
   4. Rules 4 to 7: default viewpoint, stereotypes, history, people, beliefs, topic limits.
   5. Word count against the plan. Fill short sections from assigned material.
-  6. Host turns: one job each, question ratio, varied forms, calm reactions, openers, praise, echoes, at least one unresolved point.
+  6. Host turns: one job each, question ratio, varied forms, calm reactions, openers, praise, echoes, doubt only where the claims hold it.
   7. Rules 23 to 33: rating words, AI vocabulary, brochure language, inflated verbs and meaning, contrast and triads, stock phrases, self-answered questions, morals, fillers, extra hedges, production terms. Rule 10 and 31: explainer turns that restate the host or end on a recap. Rule 42: sentences with the source as subject.
   8. Korean words: conditions kept, speech level said, spelling, and for Korean Language episodes a phrase heard in use (rules 41, 47, 48, 50).
   9. Read every explainer turn as if aloud for a second-language listener. Split long sentences, replace rare words, idioms, and phrasal verbs, and remove dashes and semicolons. Record fixes in self_check_fixes.
