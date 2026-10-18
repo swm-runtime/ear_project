@@ -592,9 +592,9 @@
 
 > 추가: 2026-10-08. 로그 콘솔 "서비스 지표" 탭(`backend-monitoring.md` 4장)이 읽는다 — 가입·탈퇴·청취를 수치로 보고 인사이트를 얻기 위한 화면. 다른 운영 지표 화면(일일 지표 Slack 보고 — GA4)과 달리 **전부 제품 DB 집계**다. **열 때 1회 + [새로고침]**만 호출하고 자동 폴링하지 않는다(3장) — 서버도 질의를 순차로 돌려 운영 DB 연결을 한 번에 하나만 쓴다.
 
-**Query** — `days` (선택, 정수 1~90, 기본 14): 추이(`daily`·`hourly`)와 창 집계(`listening.window`)의 일수. `now - days` 이후의 행만 센다. 누적 카드·순위·구조 표는 창과 무관하게 **전 기간**이다.
+**Query** — `days` (선택, 정수 1~90, 기본 14): 추이(`daily`·`weekday`·`hourly`)와 창 집계(`listening.window`)의 일수. `now - days` 이후의 행만 센다. 누적 카드·순위·구조 표는 창과 무관하게 **전 기간**이다(최근 24시간 순위 `recent_top_contents`와 코호트 리텐션 `retention_cohorts`도 창과 무관하다 — 아래).
 
-**Response 200** (값은 예시)
+**Response 200** (값은 예시 — `daily[].active_users`·`weekday`·`active_users_since`·`recent_*`·`retention_cohorts`는 2026-10-18 실측 기준 예시라 `since`·`generated_at`과 날짜가 맞지 않는다)
 
 ```json
 {
@@ -613,12 +613,47 @@
     "all_time": { "listen_sec": 122642, "plays": 373, "completes": 54, "complete_rate": 0.145, "listeners": 149, "saves": 119, "avg_listen_sec_per_play": 328.8, "avg_listen_sec_per_listener": 823.1 },
     "window":   { "listen_sec": 70844, "plays": 233, "completes": 40, "complete_rate": 0.172, "listeners": 130, "saves": 61, "avg_listen_sec_per_play": 304.1, "avg_listen_sec_per_listener": 545.0 }
   },
-  "daily":  [ { "date": "2026-10-08", "signups": 28, "withdrawals": 1, "plays": 88, "listeners": 52, "listen_sec": 25100, "completes": 9 } ],
+  "daily":  [
+    { "date": "2026-09-18", "signups": 0, "withdrawals": 0, "plays": 9, "listeners": 7, "listen_sec": 2100, "completes": 1, "active_users": null },
+    { "date": "2026-10-08", "signups": 28, "withdrawals": 1, "plays": 88, "listeners": 52, "listen_sec": 25100, "completes": 9, "active_users": 63 }
+  ],
+  "weekday": [
+    { "weekday": 1, "label": "월", "days": 4, "active_days": 4, "avg_active_users": 12.25, "avg_listeners": 8 },
+    { "weekday": 2, "label": "화", "days": 4, "active_days": 4, "avg_active_users": 11.75, "avg_listeners": 7 },
+    { "weekday": 3, "label": "수", "days": 4, "active_days": 4, "avg_active_users": 13, "avg_listeners": 8.75 },
+    { "weekday": 4, "label": "목", "days": 4, "active_days": 4, "avg_active_users": 12.25, "avg_listeners": 8 },
+    { "weekday": 5, "label": "금", "days": 4, "active_days": 4, "avg_active_users": 8.5, "avg_listeners": 5.5 },
+    { "weekday": 6, "label": "토", "days": 5, "active_days": 5, "avg_active_users": 8.4, "avg_listeners": 5.4 },
+    { "weekday": 7, "label": "일", "days": 4, "active_days": 4, "avg_active_users": 9.5, "avg_listeners": 6 }
+  ],
+  "active_users_since": "2026-09-19",
   "hourly": [ { "hour": 0, "plays": 3, "listen_sec": 900 } ],
   "top_users":    [ { "user_id": "…", "listen_sec": 14953, "plays": 25, "completes": 6, "tier": "light", "signed_up_at": "…", "last_played_at": "…" } ],
   "top_contents": [ { "content_id": "…", "title": "…", "duration_sec": 812, "listen_sec": 9000, "plays": 40, "listeners": 31, "completes": 8, "complete_rate": 0.2, "saves": 5 } ],
+  "recent_since": "2026-10-17T03:00:00.000Z",
+  "recent_top_contents": [ { "content_id": "…", "title": "…", "duration_sec": 612, "listen_sec": 4380, "plays": 11, "listeners": 9, "completes": 4, "complete_rate": 0.364, "saves": 2 } ],
   "withdrawal_reasons": [ { "reason_code": "low_usage", "count": 9 }, { "reason_code": null, "count": 3 } ],
   "retention": [ { "day": 1, "cohort_size": 200, "returned": 50, "rate": 0.25 }, { "day": 7, "cohort_size": 150, "returned": 30, "rate": 0.2 }, { "day": 30, "cohort_size": 0, "returned": 0, "rate": null } ],
+  "retention_cohorts": {
+    "daily": {
+      "span": 1, "offsets": [1, 7], "reliable_since": "2026-09-19",
+      "rows": [
+        { "start": "2026-10-17", "users": 6, "cells": [null, null] },
+        { "start": "2026-10-10", "users": 9, "cells": [ { "returned": 4, "rate": 0.444, "partial": false }, { "returned": 2, "rate": 0.222, "partial": false } ] }
+      ]
+    },
+    "weekly": {
+      "span": 7, "offsets": [1, 2, 3, 4], "reliable_since": "2026-09-19",
+      "rows": [
+        { "start": "2026-09-07", "users": 8, "cells": [
+          { "returned": 6, "rate": 0.75, "partial": true },
+          { "returned": 7, "rate": 0.875, "partial": false },
+          { "returned": 7, "rate": 0.875, "partial": false },
+          { "returned": 2, "rate": 0.25, "partial": false }
+        ] }
+      ]
+    }
+  },
   "topic_supply": [ { "topic_id": "uuid", "name": "인문·교양", "is_visible": true, "published": 1, "published_in_window": 0, "interested_users": 101, "median_remaining": 0, "exhausted_users": 70, "low_users": 101 } ],
   "by_market": [
     { "market": "kr", "users": 225, "signups_in_window": 28, "onboarding_completed": 208, "active_7d": 190, "listeners_7d": 130, "listen_sec": 70844, "plays": 233, "paid_active": 0 },
@@ -637,8 +672,36 @@
 - 청취의 원천은 그 밖에는 **`play_records`**(`listened_sec` 합·행 수·distinct 사용자)다. `content_stats`는 경계 직후(05:30) 배치 집계라 하루 뒤처지고 탈퇴자 몫이 남아 두 숫자는 다를 수 있다 — 이 응답은 전자다. `completes`는 `user_signals.action = complete` 수, `saves`는 `library_items.source = save` 수(삭제분 포함 — 담은 사실이 지표). 평균 두 개는 분모 0이면 `null`.
 - 모든 비율(`*_rate`·`stickiness`)은 **분모 0이면 `null`**(0%와 "셀 수 없음"을 구분). 표본이 작을 때의 "참고" 표시는 화면 몫이다.
 - `daily`는 `since`의 KST 날짜부터 오늘(KST)까지 **하루도 빠지지 않고**(기록 없는 날은 0), `hourly`는 0~23시 전부다. `daily.signups`는 `users.created_at`이라 그날 가입했다가 탈퇴한 사람은 빠진다(`withdrawal_logs`에는 가입일이 없다 — 생존 편향). 날짜는 **KST 달력일**이다(검색 로그 요약과 같은 기준 — 04/05시 서비스 날짜 경계를 쓰지 않는다. 정책 판정이 아니라 운영자가 읽는 단위).
+- `daily[].active_users`(추가 2026-10-18 — `domain.md` 3.3-1)는 그날(KST 달력일) **접속자**, 즉 `sessions.issued_at`이 있는 사용자 수다. `active_1d`와 같은 신호를 하루 단위로 센다.
+  - 지난날은 `daily_active_users`(시장 합)를 읽는다. 지난날 값은 탈퇴로 줄지 않는다.
+  - **오늘은 세션에서 바로 센다.** 아직 저장되지 않았고, 그래프는 지금 값이어야 한다.
+  - 표에 없는 날도 최근 29일(오늘 - 29일 ~ 어제, 세션이 온전히 남은 범위 — `INSIGHTS_LIVE_ACTIVE_DAYS`) 안이면 바로 센다. 오늘·바로 센 날은 현재 계정 기준이다.
+  - 그 밖은 원천이 없어 **`null`**이다. 0명과 구분한다.
+  - 시장은 나누지 않는다. 한 사용자는 한 시장이라 시장 합이 전체 distinct와 같다.
+- `weekday[]`(추가 2026-10-18)는 요일별 평균이다. 월(1)~일(7) **7칸 고정**이다 — 창 안에 없는 요일도 0일 · `null`로 싣는다.
+  - 창 안의 **온전한 KST 달력일만** 센다. 첫날(`since`가 걸친 날)은 청취가 그 시각 뒤만 잡혀 있고 오늘은 끝나지 않아 둘 다 뺀다. `since`가 KST 자정이면 첫날도 센다. 14일 창이면 13일이다.
+  - `days`는 그 요일의 날 수다. `avg_listeners`는 `days`로 나눈 평균 청취자다.
+  - `active_days`는 그중 `active_users`가 `null`이 아닌 날 수다. `avg_active_users`는 `active_days`로 나눈다.
+  - 0일이면 평균은 `null`이다.
+- `active_users_since`(추가 2026-10-18)는 접속자를 믿을 수 있는 첫 날(KST `YYYY-MM-DD`)이다. `min(daily_active_users.active_date)`와 "오늘 - 29일" 중 이른 쪽이다. 화면 각주가 "M월 D일부터 집계"로 쓴다.
 - `top_users`·`top_contents`는 전 기간 청취 시간 내림차순 각 최대 15. `top_contents.saves`는 그 콘텐츠를 직접 담은 수.
+- `recent_top_contents`(추가 2026-10-18 — FE 요청 "최근 하루 어떤 콘텐츠가 인기 있었는지")는 **최근 24시간** 인기 콘텐츠다. `recent_since`가 창 시작 시각(ISO)으로, **지금 - 24시간**이다(`INSIGHTS_RECENT_CONTENT_HOURS`). 굴러가는 창이라 KST 달력일과 다르다 — 자정 직후에 열어도 비지 않고, 언제 열든 같은 길이로 본다. `days` 창과 무관하다.
+  - 항목 모양은 `top_contents`와 같다.
+  - 세는 범위: 재생·청취 시간·청취자는 `recent_since` 이후 **시작된** 재생(`play_records.played_at`), 완청은 그 뒤에 생긴 완청 신호(`user_signals.created_at`), 담기는 그 뒤에 생긴 담기(`library_items.added_at`, `source = 'save'`)다.
+  - **정렬은 청취자(서로 다른 사람) 수 순**이다. 같으면 청취 시간, 그다음 재생 수 순이다. 전 기간 순위(청취 시간 순)와 다른 이유는 한 사람이 오래 들은 편이 "인기"로 올라오지 않게 하기 위해서다.
+  - 최대 15편이다(`top_contents`와 같은 길이). 창 안에 재생이 없으면 빈 배열이다.
+  - 현재 계정 기준이다. 탈퇴자의 재생은 빠진다(`top_contents`와 같다). 담기는 나중에 지운 것(`deleted_at`)도 센다(전 기간 순위와 같은 관례).
+  - **`complete_rate`는 드물게 높게 나올 수 있다.** 재생은 `play_records`(사용자·콘텐츠·서비스 날짜당 1행)의 첫 시작 시각으로, 완청은 신호 시각으로 창에 넣기 때문이다. 서비스 날짜 경계(05:00)를 걸쳐 들은 편은 재생은 창 밖이고 완청만 창 안일 수 있다.
 - `retention`은 D1·D7·D30 — `cohort_size`는 가입한 지 `day`일이 지난 **현재 계정** 수, `returned`는 그중 가입 `day`일 뒤 이후 아무 때나 **앱을 쓴** 사람(토큰 갱신 `sessions.issued_at` 또는 재생 `play_records` — 세션 행은 30일만 보존되므로 영구 보존되는 재생을 합친다. 언바운디드). 탈퇴자는 분모에 없어 실제보다 높게 나온다(생존 편향). 하루만 보는(bounded) 방식은 수백 명 규모에서 표본이 너무 작아 쓰지 않는다.
+- `retention_cohorts`(추가 2026-10-18 — 멘토 조언 "D1·D7, W1~4를 절대수치와 비율로 같이", `domain.md` 3.3-2)는 가입일·가입 주로 묶은 **바운디드** 코호트 리텐션이다. `daily`(D1·D7)와 `weekly`(W1~W4) 두 표이고, 각 표는 `span`(1 = 일별 · 7 = 주별)·`offsets`·`reliable_since`·`rows`다. 기존 언바운디드 `retention`은 그대로 두고 화면에 함께 보인다.
+  - **묶음**: 현재 계정을 가입한 KST 달력일로 묶는다. `daily`는 최근 14일(어제부터, 오늘 제외), `weekly`는 최근 8주(이번 주 포함, ISO 주 월요일 시작 — `start`는 그 주 월요일)다. 최근 묶음이 먼저 온다. 가입 0명인 묶음도 행을 둔다. **창(`days`)과 무관하다.**
+  - **구간**: **사람마다 자기 가입일 기준**이다. `offset`번째 구간은 가입일 + `offset × span`일부터 `span`일이다 — D1 = 가입 다음 날 하루, D7 = 가입 7일 뒤 하루(가입일 + 7), W1 = 7~13일, W2 = 14~20일, W3 = 21~27일, W4 = 28~34일 뒤.
+  - **돌아옴**: 그 구간에 `user_active_dates` · 아직 남은 `sessions` · `play_records`(무기한) 중 하나라도 있으면 돌아온 것으로 센다(`returned`, distinct 사용자). 기존 `retention`과 같은 "앱을 썼다" 정의다(접속 또는 재생).
+  - **칸 `null`**: 묶음의 **마지막 가입자 기준으로 구간이 아직 안 끝났다**(그 구간의 마지막 날이 오늘이거나 그 뒤). 일부만 끝난 묶음을 숫자로 내면 최근 묶음이 낮아 보여 섞지 않는다.
+  - `rate`는 `returned / users`다. 가입 0명이면 `null`이다.
+  - **`partial`**: 구간 시작일이 표의 `reliable_since`보다 이르다. 그 앞은 세션이 지워져 **재생만** 잡혀 실제보다 낮다.
+  - `reliable_since`(KST `YYYY-MM-DD`)는 `user_active_dates`가 백필된 날(KST, `min(created_at)`) - 29일이다 — 그때 세션이 온전히 남아 있던 범위다. 표가 비었으면 오늘 - 29일이다(질의가 남은 세션도 함께 읽는다). 두 값 중 이른 쪽을 쓴다(오늘 - 29일보다 늦지 않다). 일별 접속자의 `active_users_since`를 빌리지 않는다 — 두 마이그레이션(`1790800000000`·`1790900000000`)이 다른 날 돌면(개발계) 어긋나기 때문이다. 두 표의 `reliable_since`는 같은 값이다.
+  - **생존 편향**: 탈퇴자는 분모·분자 모두에서 빠진다. 기존 `retention`과 같다.
 - `topic_supply`(추가 2026-10-13 — 추천 검증)는 주제별 수요·공급이다. `published`는 노출 중(발행·라이선스 유효) 콘텐츠 수, `published_in_window`는 그중 창 안에 발행된 수, `interested_users`는 그 주제를 활성 관심 주제로 둔 **온보딩 완료** 사용자 수다. `median_remaining`은 관심 사용자마다 "아직 드립으로 받을 수 있는 편수"(드립 후보 필터와 같은 기준 — 라이브러리에 한 번이라도 들어온 것·`drip_excluded_contents`를 뺀다, 시리즈 순서 게이트는 반영하지 않는 근사)의 중앙값, `exhausted_users`는 그 값이 0인 사람, `low_users`는 2 이하인 사람이다. 노출 중인 주제와, 숨김이어도 관심 사용자가 남은 주제를 싣고 `interested_users` 내림차순(같으면 `published`가 적은 쪽 먼저)으로 정렬한다 — 수요가 큰 주제부터 공급 상태를 본다. 콘솔은 상위 10개를 먼저 보이고 나머지는 [더보기]로 펼친다.
 - `by_market`(추가 2026-10-14 — KAN-190, `global-api.md` 4.10)은 시장별 가입·활성·청취·결제다. **시장마다 한 칸**이다(계정이 없는 시장도 0으로 싣는다). 각 값은 `users`·`listening.window`의 같은 이름 지표를 시장으로 나눈 것이다 — `users`는 현재 계정 수, `signups_in_window`는 창 안 가입, `onboarding_completed`·`active_7d`·`listeners_7d`·`paid_active`는 `users`의 같은 지표, `listen_sec`·`plays`는 창 안 청취(`listening.window`). 시장은 **현재 계정**의 `users.market`으로 나눈다 — 탈퇴자는 어느 칸에도 없다(`withdrawal_logs.market`은 2026-10-17에 생겼지만 이 블록은 읽지 않는다).
 - 인증은 다른 `/admin/*`와 같다(2장). 400 `VALIDATION_FAILED` — `days` 범위 밖. 응답은 `Cache-Control: no-store`.

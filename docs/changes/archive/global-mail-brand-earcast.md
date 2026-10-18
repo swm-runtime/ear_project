@@ -24,3 +24,4 @@
 ## 처리 기록
 
 - 2026-10-18 발행. 코드 반영 결과: 영어 메일 제목은 `[Earcast] Your verification code is 123456`이고, 본문은 "Earcast verification code"다(`verification-mail.template.spec.ts`).
+- 2026-10-19 **반영**(PR `docs(be)/apply-pending-changes-1019`). 반영 날짜 2026-10-19. `global-api.md` 2.3 인증 메일 행의 마지막 문장을 바꿨다. "BE 반영 대상" 문구를 없앴다.

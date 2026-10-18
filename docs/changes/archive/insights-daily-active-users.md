@@ -89,3 +89,4 @@
   - 마이그레이션 run → 58행(2026-09-19 ~ 10-17 × 2시장). 같은 기간 `sessions` 직접 집계와 날짜·시장별로 일치했다. revert(표 삭제 확인) → run 재적용.
   - `GET /admin/insights/summary?days=30` 실측 — `active_users_since = 2026-09-19`, 09-18은 `null`, 오늘은 바로 센 값, `weekday` 7칸.
   - E2E: 같은 날 두 번 다시 세기 → 같은 값. 원천 세션을 지운 뒤 다시 세기 → 줄지 않음.
+- 2026-10-19 **반영**(PR `docs(be)/apply-pending-changes-1019`). 반영 날짜 2026-10-19. `domain.md` 2장 `auth` 행 · 3.3-1 신설 · 12.1 보존 표 · 12.3 두 표의 "그대로 유지", `admin-api.md` 4.22(`daily[].active_users` · `weekday[]` · `active_users_since`)에 반영했다. 요청의 "범위 밖" 중 한계 두 가지(30분 안 재실행·이틀 연속 누락)도 3.3-1에 한 줄로 적었다.

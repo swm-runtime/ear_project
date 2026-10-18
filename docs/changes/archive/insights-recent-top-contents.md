@@ -45,3 +45,4 @@
 ## 처리 기록
 
 - 2026-10-18 발행. E2E로 확인했다: 지금 3명이 들은 콘텐츠는 `plays 3 · listeners 3 · completes 1`로 실린다. 이틀 전에만 재생된 콘텐츠는 빠진다. 정렬은 청취자 수 내림차순이다.
+- 2026-10-19 **반영**(PR `docs(be)/apply-pending-changes-1019`). 반영 날짜 2026-10-19. `admin-api.md` 4.22(`recent_top_contents` · `recent_since`, Query 줄의 "창과 무관")에 반영했다.

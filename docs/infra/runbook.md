@@ -194,10 +194,11 @@ ssh -i … ec2-user@<IP> 'cd /opt/ear/backend \
 | 결제 검증 거부 | 백엔드 `BillingAlertService` — 영수증·구매 토큰 검증 실패(App Store·Play) | 1건 이상(종류별 10분 묶음) | Slack | 즉시 | 사유 코드 확인 — 위조 시도면 무시, 설정(번들 ID·키)이면 Secrets 점검 |
 | 스토어 알림(S2S·RTDN) 거부 | 백엔드 `BillingAlertService` — 서명·OIDC 검증 실패 | 1건 이상(종류별 10분 묶음) | Slack | 즉시 | 키·주소·Pub/Sub 설정 점검(`subscription-api.md` 7장) |
 | 구독 보정 실패 | 백엔드 `BillingAlertService` — 04:45 `subscription-reconcile` 작업 실패 또는 구독별 보정 실패 | 1건 이상 | Slack | 다음 날 04:45 | 스토어 API 키 만료 여부 → 수동 보정 |
+| 결제(구독 시작·환불·해지 예약) | 백엔드 `BillingEventAlertService` — 유효 구독이 처음 생김·`refunded`가 됨·자동 갱신 꺼짐(`backend-monitoring.md` 3-7) | **건마다**(묶지 않음 · 한 결제에 한 번) | Slack | 즉시 | 할 일 없음(정보). `Sandbox(시험 결제)`는 심사·테스트 결제다. 환불이 잦으면 스토어 콘솔에서 사유 확인 |
 | 파이프라인 워커 실패 | AI 서버 워커 자체 Slack 알림(AI 파트 소관 — `pipeline/`) | 작업 실패 | Slack | 즉시 | AI 담당 |
 | 비용 | Budgets `ear-monthly-10usd` | **$10** 실적 80% · 예측 100% | 메일 | 일 1회 | 조직 계정이라 참고용 — 전송량이면 CloudFront 사용량 확인 |
 
-사용자 신호(가입·탈퇴·스토어 리뷰·앱 삭제)와 일일 지표 보고도 같은 Slack 채널로 온다 — 알림이 아니라 **정보**다([`backend-monitoring.md`](../features/backend-monitoring.md) 3-2~3-5). 임계값이 없고 받으면 할 일도 없다.
+사용자 신호(가입·탈퇴·스토어 리뷰·앱 삭제·결제)와 일일 지표 보고도 같은 Slack 채널로 온다 — 알림이 아니라 **정보**다([`backend-monitoring.md`](../features/backend-monitoring.md) 3-2~3-5, 3-7). 임계값이 없고 받으면 할 일도 없다.
 
 **겹침은 의도다**: CPU·메모리는 백엔드 자체 경보와 Grafana Alerting 둘 다 울린다(KAN-97 5번 — 몇 주 겹쳐 보고 하나로 정리). API 다운은 Grafana 합성 체크가 주, EC2 상태 검사가 뒤를 받는다. 백엔드 프로세스 안에서 도는 경보(자원·결제·배치)는 그 프로세스가 죽으면 같이 멈춘다 — 그 경우를 합성 체크·EC2 상태 검사·워커 생존 알람이 받는다. **감시가 감시를 덮는 구조**를 이 표로 확인한다.
 

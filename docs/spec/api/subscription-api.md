@@ -104,19 +104,19 @@
   "plans": [
     {
       "plan_id": "uuid-light", "tier": "light", "name": "Light", "description": "하루 2편까지 들을 수 있어요",
-      "price_krw": 0, "store_product_id": null,
+      "price_krw": 0, "is_free": true, "store_product_id": null,
       "entitlements": { "daily_play_limit": 2, "daily_drip_count": 2, "drip_enabled": true, "ads_enabled": true },
       "action": "current"
     },
     {
       "plan_id": "uuid-daily", "tier": "daily", "name": "Daily", "description": "하루 5편까지 들을 수 있어요",
-      "price_krw": 3900, "store_product_id": "com.runtime.ear.subscription.daily.monthly",
+      "price_krw": 3900, "is_free": false, "store_product_id": "com.runtime.ear.subscription.daily.monthly",
       "entitlements": { "daily_play_limit": 5, "daily_drip_count": 2, "drip_enabled": true, "ads_enabled": false },
       "action": "purchase"
     },
     {
       "plan_id": "uuid-pro", "tier": "pro", "name": "Pro", "description": "제한 없이 마음껏 들을 수 있어요",
-      "price_krw": 9900, "store_product_id": "com.runtime.ear.subscription.pro.monthly",
+      "price_krw": 9900, "is_free": false, "store_product_id": "com.runtime.ear.subscription.pro.monthly",
       "entitlements": { "daily_play_limit": null, "daily_drip_count": 2, "drip_enabled": true, "ads_enabled": false },
       "action": "purchase"
     }
@@ -130,6 +130,7 @@
 | `plans[]` | `is_active = true`인 요금제, `display_order` 오름차순(낮은 티어 → 높은 티어). **무료(`light`)도 포함한다** — 비교 카드에 필요하다 |
 | `store_product_id` | 요청 `platform`의 상품 ID(`plans.store_product_id_ios` / `_android`). 무료 티어·그 플랫폼에 상품이 없는 요금제는 `null` |
 | `price_krw` | **참고값.** 화면에는 스토어 SDK가 반환한 현지 가격을 그린다(`subscription.md` 7). SDK 조회가 실패했을 때의 폴백으로도 쓰지 않는다 — "요금제를 불러올 수 없어요"다(5장) |
+| `is_free` | 무료 요금제인가 — **서버가 판정한다.** 요금제 정의의 가격(`plans.price_krw`)이 0 이하면 `true`다. 티어 이름으로 가르지 않는다. 시장·플랫폼·구독 상태와 무관하다. 앱은 "무료" 표시를 이 값으로 한다(`store_product_id`·`action`으로 추정하지 않는다). 추가 필드라 옛 앱은 무시한다(2026-10-18 — KAN-226) |
 | `action` | 이 사용자가 그 요금제에 대해 할 수 있는 일 — **서버가 판정한다**. 아래 표 |
 | `is_email_verified` | `email IS NOT NULL AND is_email_verified = true`. `false`면 [구독하기] 탭 시 이메일 등록·인증 화면을 먼저 연다(FR-39) — 4.3이 다시 판정한다 |
 
