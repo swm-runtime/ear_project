@@ -22,7 +22,7 @@ export type EnRouteMeta = {
   koKey: RouteKey;
   /** 바닥글·breadcrumb에 쓰는 이름. */
   label: string;
-  /** `<title>`. 영어 레이아웃의 template이 뒤에 " | Ear"를 붙인다(홈은 예외). */
+  /** `<title>`. 영어 레이아웃의 template이 뒤에 " | Earcast"를 붙인다(홈은 예외). */
   title: string;
   description: string;
   /** `scripts/og-pages.mjs`가 굽는 파일과 이름이 같아야 한다. */
@@ -44,9 +44,9 @@ export const enRoutes: Record<EnRouteKey, EnRouteMeta> = {
     path: "/en/",
     koKey: "home",
     label: "Home",
-    title: "Ear — AI-generated audio episodes on Korean culture",
+    title: "Earcast — AI-generated audio episodes on Korean culture",
     description:
-      "Ear is an AI-generated podcast app. Pick the topics you like, and short audio episodes about Korean culture arrive in your library every day, ready to play.",
+      "Earcast is an AI-generated podcast app. Pick the topics you like, and short audio episodes about Korean culture arrive in your library every day, ready to play.",
     ogImage: "/og/en.png",
     priority: 0.8,
     changeFrequency: "monthly",
@@ -60,7 +60,7 @@ export const enRoutes: Record<EnRouteKey, EnRouteMeta> = {
     title: "Terms of Use",
     // 제목·설명은 PR #1584의 영어 약관 페이지 문구 그대로다
     description:
-      "The rules for using Ear — eligibility, subscriptions and cancellation, AI-generated content, and how you may use our episodes.",
+      "The rules for using Earcast — eligibility, subscriptions and cancellation, AI-generated content, and how you may use our episodes.",
     ogImage: "/og/en-legal.png",
     priority: 0.3,
     changeFrequency: "yearly",
@@ -86,7 +86,7 @@ export const enRoutes: Record<EnRouteKey, EnRouteMeta> = {
     label: "Account Deletion",
     title: "Delete Your Account",
     description:
-      "How to delete your Ear account, what is deleted, and what is kept for a limited time because the law requires it.",
+      "How to delete your Earcast account, what is deleted, and what is kept for a limited time because the law requires it.",
     ogImage: "/og/en-legal.png",
     priority: 0.3,
     changeFrequency: "yearly",

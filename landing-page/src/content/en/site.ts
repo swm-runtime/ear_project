@@ -9,14 +9,15 @@
  * 쓰지 않은 것: 편수·길이·가격·요금제 이름 — 글로벌 요금제와 편성 수치가 아직 확정되지 않았다(global-api.md 9장).
  * 확정되면 그때 넣는다.
  *
- * 영어 앱 이름 `Ear`는 **PM 확정 전 임시값**이다(KAN-198). 바뀌면 `enSite.name` 한 곳만 고친다.
+ * 영어 앱 이름은 `Earcast`다(2026-10-18 PM 확정 — KAN-199. 종전 임시값 `Ear`, KAN-198). 바뀌면 `enSite.name`과
+ * 본문 문장(이 파일·`routes.ts`·`legal-en.ts`·`scripts/og-pages.mjs`)을 함께 고친다.
  * 화면에 나가는 값이므로 **한국어 글자를 넣지 않는다**.
  */
 
 import { site } from "../site";
 
 export const enSite = {
-  name: "Ear",
+  name: "Earcast",
   shortDescription:
     "AI-generated audio episodes on Korean culture, delivered to your library every day.",
   locale: "en_US",
@@ -28,12 +29,12 @@ export const enHome = {
   hero: {
     eyebrow: "AI podcast app",
     title: "Korean culture, in short audio episodes",
-    lede: "Ear is an AI-generated podcast app. Pick the topics you like, and new episodes about Korean culture arrive in your library every day. Every episode is produced ahead of time, so it plays the moment you tap.",
+    lede: "Earcast is an AI-generated podcast app. Pick the topics you like, and new episodes about Korean culture arrive in your library every day. Every episode is produced ahead of time, so it plays the moment you tap.",
   },
   features: {
     eyebrow: "Features",
     title: "Less searching, more listening",
-    lede: "Ear takes care of finding something to listen to, so you can just press play.",
+    lede: "Earcast takes care of finding something to listen to, so you can just press play.",
     items: [
       {
         icon: "drip",
@@ -48,7 +49,7 @@ export const enHome = {
       {
         icon: "resume",
         title: "Pick up where you left off",
-        text: "Ear remembers where you stopped. It never starts playing on its own when you open the app.",
+        text: "Earcast remembers where you stopped. It never starts playing on its own when you open the app.",
       },
       {
         icon: "compass",
@@ -72,13 +73,13 @@ export const enHome = {
     eyebrow: "About the content",
     title: "Made with AI, and we say so",
     paragraphs: [
-      "Episodes on Ear are written with the help of AI and read by synthetic voices (text-to-speech). The voices are not real people.",
+      "Episodes on Earcast are written with the help of AI and read by synthetic voices (text-to-speech). The voices are not real people.",
       "We check scripts against their sources before release, but AI-generated content can still contain mistakes. Episodes are for general interest and are not legal, medical, financial or other professional advice. If you spot an error, let us know.",
     ],
   },
   cta: {
     title: "Start with today's episode",
-    lede: "Ear is available on the App Store and Google Play.",
+    lede: "Earcast is available on the App Store and Google Play.",
   },
   nextTitle: "More information",
 } as const;
