@@ -48,7 +48,7 @@ export const legalLabelsEn = {
 export const privacyBlocksEn: Block[] = [
   {
     type: "p",
-    text: `This Privacy Policy explains how ${TBD.company} ("**we**", "**us**") handles personal information when you use the audio service "${site.name}" ("**Earcast**" or the "**Service**") in the global (English) market — what we collect, why, who receives it, how long we keep it, and the rights you have. It applies to users who chose English as their content language when they signed up.`,
+    text: `This Privacy Policy explains how ${TBD.company} ("**we**", "**us**") handles personal information when you use the audio service "Earcast (${site.name})" ("**Earcast**" or the "**Service**") in the global (English) market — what we collect, why, who receives it, how long we keep it, and the rights you have. It applies to users who chose English as their content language when they signed up.`,
   },
 
   { type: "h2", text: "1. Who we are" },
@@ -290,7 +290,7 @@ export const termsBlocksEn: Block[] = [
   { type: "h2", text: "1. About these Terms" },
   {
     type: "p",
-    text: `These Terms of Use ("**Terms**") are an agreement between you and ${TBD.company} ("**we**", "**us**") for the AI-generated podcast service "${site.name}" ("**Earcast**" or the "**Service**"). By creating an account you agree to these Terms and acknowledge our Privacy Policy.`,
+    text: `These Terms of Use ("**Terms**") are an agreement between you and ${TBD.company} ("**we**", "**us**") for the AI-generated podcast service "Earcast (${site.name})" ("**Earcast**" or the "**Service**"). By creating an account you agree to these Terms and acknowledge our Privacy Policy.`,
   },
 
   { type: "h2", text: "2. Who can use Earcast" },
