@@ -49,7 +49,7 @@ HIG 원문: https://developer.apple.com/design/human-interface-guidelines/
 
 - **색 값은 전부 JS** 다 — 네이티브 리소스(Android values-night)에 두면 색을 바꿀 때마다 빌드해야 한다. 바꾸는 법만 플랫폼별: iOS 는 `theme.color.*` 가 `DynamicColorIOS` 라 OS 가 즉시 다시 칠하고, Android 는 앱이 켜질 때 고른 팔레트로 칠한 뒤 모드가 바뀌면 JS 를 다시 불러 칠한다(설정에서 바꾸면 즉시, 시스템이 바뀐 것이면 앱이 앞으로 돌아올 때 — 재생 중이면 미룸). 네이티브는 `userInterfaceStyle: automatic` · `expo-system-ui` 뿐(runtime 34).
 - **색 문자열이 꼭 필요한 곳**(SVG 아이콘·그라데이션·애니메이션 색 보간)은 `useThemePalette()` / `useResolvedColor()` 로 지금 모드의 값을 받는다 — iOS 의 `theme.color.*` 는 문자열이 아니다.
-- **테두리·막 토큰**(2026-10-11 — 화면 코드에 박혀 있던 값 정리): `hairline`(검정 10% / 흰 14%) · `hairlineStrong` · `separator`·`separatorFaint`(iOS separator) · `fillTertiary`·`fillSecondary`(iOS tertiary/secondarySystemFill) · `divider` · `glassPillFill` · `glassRim`·`glassRimStrong`(다크에선 옅게) · `tabPillSolid` · `backgroundWash`(사진 칩을 배경 쪽으로 물리는 막 — 라이트 흰·다크 검정) · `onPrimarySecondary`. **`onPhoto`(두 모드 흰색)** — 사진·어두운 막 위 글자·아이콘·꺼진 스위치 손잡이. `onPrimary` 는 다크에서 검정으로 뒤집혀 사진 위에 쓰면 안 보인다.
+- **테두리·막 토큰**(2026-10-11 — 화면 코드에 박혀 있던 값 정리): `hairline`(검정 10% / 흰 14%) · `hairlineStrong` · `separator`·`separatorFaint`(iOS separator) · `fillTertiary`·`fillSecondary`(iOS tertiary/secondarySystemFill) · `divider` · `glassPillFill` · `glassRim`·`glassRimStrong`(다크에선 옅게) · `tabPillSolid` · `backgroundWash`(사진 칩을 배경 쪽으로 물리는 막 — 라이트 흰·다크 검정) · `decorWash`·`decorWashSelected`(장식 배경 그림 위 `surface` 막 — §5 "장식 배경 그림", 2026-10-19) · `onPrimarySecondary`. **`onPhoto`(두 모드 흰색)** — 사진·어두운 막 위 글자·아이콘·꺼진 스위치 손잡이. `onPrimary` 는 다크에서 검정으로 뒤집혀 사진 위에 쓰면 안 보인다.
 - **로고·스플래시**(2026-10-11): 화면 속 로고는 투명 바탕 검정 한 색(`assets/logo-mark.png` · `logo-transparent.png`)에 `tintColor: theme.color.textPrimary` — 라이트 검정 · 다크 흰색, 새 이미지 없이. JS 스플래시 영상은 바탕색이 박혀 있어 다크판 `splash-logo-dark.mp4`(ffmpeg 색 반전)를 모드에 따라 고른다. **네이티브 스플래시(JS 뜨기 전)는 아직 Expo 기본 흰 화면** — `expo-splash-screen` 플러그인 라이트/다크 설정은 다음 네이티브 빌드에 싣는다(기기 시스템 모드만 따른다 — 앱에서 고른 모드는 못 읽는다). iOS 18 다크 앱 아이콘도 그때.
 - 그대로 두는 고정 색: 소셜 로그인 버튼(카카오·네이버·구글·애플 브랜드 규정) · 그림자(검정) · 사진·썸네일 위 막과 흰 글자 · 플레이어(원래 어두움). 첫 실행 튜토리얼 가림막은 튜토리얼과 함께 뺐다(2026-10-11).
 - 사진 위 막(photoScrim)·플레이어(`playerColor`, 원래 어두움)는 두 모드 같다. 유리(GlassView)·블러(BlurView)·상태 바·내비게이션 바탕·루트 뷰 바탕은 모드를 따른다.
@@ -186,6 +186,15 @@ Android의 라이브러리·탐색은 검색창 위에 `LargeTitleRow`로 화면
 - **직무 입력칸**: 테두리 없는 `surface` 면 **알약**(`full`), 높이 44, 시작 여백 `lg`(둥근 끝에 글자가 붙지 않게). 입력 중엔 면만 한 단계 짙게(`border`), 글자가 있으면 오른쪽에 회색 원 + 흰 × 지우기(iOS 기본 지우기 모양 — Android 엔 없어 직접 그린다). 상한 100 자에서 입력을 막고 카운터·에러 문구는 없다.
 - **연차**: 연회색 캡슐 트랙 위 **떠 있는 흰 캡슐**(공용 SegmentedControl `ios26` 과 같은 그림자)이 고른 칸으로 미끄러진다(snappy). 다시 누르면 해제되어 제자리에서 사라지고, 빈 상태에서 고르면 그 칸에서 나타난다. 공용 세그먼트는 빈 값을 못 그려 따로 둔 부품이다.
 - 필드 라벨은 두 화면 모두 `sm`·600·위 `md`. 플레이스홀더·연차 표기 문자열은 각 화면의 copy 가 소유한다(값 체계는 같다).
+
+### 장식 배경 그림 — 흐린 그림을 카드 뒤에 깔 때 (2026-10-19, KAN-195)
+처음 쓰는 곳은 A21 콘텐츠 언어 카드의 **흐린 국기**(한국어 = 태극기, English = 성조기 — PM 2026-10-19). 정보가 아니라 분위기라 색 번짐으로만 읽히게 한다. 규칙:
+- **흐림은 미리 구운 이미지로** — 런타임 흐림을 쓰지 않는다. Android 의 expo-image `blurRadius` 는 RenderScript 라 동시 사용 시 죽고(EAR-APP-F), 흐림 네이티브 모듈은 OTA 로 못 나간다. 원본을 규격대로 그려 흐린 PNG 를 만드는 스크립트를 저장소에 둔다(`frontend/scripts/generate-language-flags.py` → `assets/flags/`). 크게 흐린 그림은 해상도가 낮아도 확대 티가 안 나므로 작게(420×140, 한 장 수십 KB) 굽는다. RN `Image` `resizeMode="cover"` 로 깐다.
+- **구조는 사진 칩과 같다**(§5 주제 칩 ①~③): 카드가 `overflow: hidden` + 연속 곡률로 한 번만 클립하고, **카드에 패딩을 주지 않는다**(패딩·간격은 안쪽 글자 층이 갖는다), 그림에 inset 0 과 `100%` 크기를 함께 준다. **테두리도 카드가 아니라 맨 위 겹**(`pointerEvents="none"`)에 그린다 — 카드에 주면 그 두께만큼 그림이 안으로 밀려 투명 테두리 자리에 `surface` 띠가 남는다.
+- **대비는 막으로 지킨다** — 그림 위에 `decorWash`(바탕 `surface` 색 + 알파, 라이트 74% · 다크 84%)를 덮는다. 다크가 더 짙은 이유: 국기의 흰 바탕이 다크에서 밝은 회색 판으로 떠 흰 글자를 먹는다. 막 값은 **그림 전 픽셀에서 `textPrimary` 최소 대비 7:1 이상**으로 실측해 정했다(라이트·다크 × 선택 전후). 막 위에서는 보조색(`textSecondary`)이 4.5:1 을 못 넘으므로 **카드 안 보조 글자도 `textPrimary`** 로 두고 위계는 크기·굵기로 낸다. 빈 선택 원은 `border` 가 묻혀 `textMutedSecondary` 테두리.
+- **선택 상태**: 선택된 카드는 막을 덜 덮는다(`decorWashSelected` 라이트 60% · 다크 75%) — 그림이 조금 더 드러나지만 선택을 말하는 것은 여전히 테두리 + 채운 체크다(색만으로 상태를 말하지 않는다).
+- **장식이라 낭독·초점에서 뺀다**: `accessible={false}` + `accessibilityElementsHidden` + `importantForAccessibility="no-hide-descendants"`.
+- 유채색 그림이지만 §1 의 "유채색 강조 금지"와 충돌하지 않는다 — 강조(버튼·선택)가 아니라 주제 칩 사진과 같은 **내용의 그림**이다. 새로 쓰려면 "그림이 그 선택지를 알아보는 데 도움이 되는가"를 먼저 묻는다.
 
 ### 검색 상자
 **유리 캡슐**(`shared/ui/GlassCapsule` — GlassSurface regular + hairline, `full`), **높이 40 = `HEADER_CONTROL_HEIGHT`** — 옆의 툴바 캡슐(링 + 필터)·탐색의 링 원과 같은 높이(2026-09-25 PM "높이 맞춰"). iOS 26 시스템 검색과 같은 모양(2026-09-24 PM). 종전 `surface` 면 + `md` 12(09-22)는 폐기. 잔여 재생 링도 같은 유리 원(36, 필터 원과 같은 크기)에 담는다.
