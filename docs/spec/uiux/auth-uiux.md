@@ -147,13 +147,13 @@ A9 / A10 ──[인증 코드 받기]──> A12 ──> A13 ──> A18 ──>
 | 질문 | 어떤 언어로 들을까요? | Which language do you want to listen in? |
 | 설명 | 고른 언어에 따라 받아 보는⏎에피소드와 주제가 달라져요 | The language you choose decides which episodes and topics you get. |
 | 카드 — 한국어 | 한국어 / 한국어 에피소드와 주제 | 한국어 / Episodes and topics in Korean |
-| 카드 — English | English / Learn Korea with K-podcast | English / Learn Korea with K-podcast |
+| 카드 — English | English / 영어 에피소드와 주제 | English / Episodes and topics in English |
 | 권장 안내 | Into K-culture? Choose English | Into K-culture? Choose English |
 | 변경 불가 | 가입한 뒤에는 바꿀 수 없어요 | You can’t change this after signing up. |
 | 버튼 | 다음 | Continue |
 | 뒤로가기(스크린리더) | 뒤로가기 | Back |
 
-- **PM 확정 2026-10-19 — 글로벌은 K-콘텐츠 위주**: English 카드 설명(종전 "영어 에피소드와 주제" / "Episodes and topics in English")을 **"Learn Korea with K-podcast"**로, 권장 안내(종전 "해외에 거주하시면 English 선택을 추천해요" / "If you live outside Korea, we recommend English.", 키 `recommendOverseas`)를 **"Into K-culture? Choose English"**(키 `recommendEnglish`)로 바꿨다. 둘 다 영어 사용자에게 하는 말이라 화면 언어와 무관하게 늘 영어다.
+- **PM 확정 2026-10-19 — 글로벌은 K-콘텐츠 위주**: 권장 안내(종전 "해외에 거주하시면 English 선택을 추천해요" / "If you live outside Korea, we recommend English.", 키 `recommendOverseas`)를 **"Into K-culture? Choose English"**(키 `recommendEnglish`)로 바꿨다. 영어 사용자에게 하는 말이라 화면 언어와 무관하게 늘 영어다. English 카드 설명은 종전 문구(화면 언어를 따름) 그대로다 — "Learn Korea with K-podcast"는 A1 시작 화면 영어 설명이다(4.1, 같은 날 PM 정정: 한때 이 카드에 잘못 넣었다가 되돌림).
 
 ### 4.3 A4 약관 동의
 

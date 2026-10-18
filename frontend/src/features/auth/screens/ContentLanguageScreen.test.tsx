@@ -146,35 +146,31 @@ describe('A21 — 화면 문구는 고른 선택지의 언어를 따른다(PM 20
     expect(headers[0]?.props.accessibilityLanguage).toBe('en-US');
   });
 
-  it('선택지 이름과 영어 사용자에게 하는 두 줄은 화면 언어와 무관하게 같다', () => {
+  it('선택지 이름과 English 권장은 화면 언어와 무관하게 같다', () => {
     for (const label of [KOREAN, ENGLISH]) {
       // when
       select(label);
 
-      // then — 이름은 그 언어 자신의 표기, English 설명·권장은 늘 영어
+      // then — 이름은 그 언어 자신의 표기, English 권장은 늘 영어
       expect(visibleTexts()).toEqual(
-        expect.arrayContaining([
-          KOREAN,
-          ENGLISH,
-          'Learn Korea with K-podcast',
-          'Into K-culture? Choose English',
-        ]),
+        expect.arrayContaining([KOREAN, ENGLISH, 'Into K-culture? Choose English']),
       );
-      expect(card(ENGLISH).props.accessibilityHint).toBe('Learn Korea with K-podcast');
       expect(card(KOREAN).props.accessibilityLanguage).toBe('ko-KR');
       expect(card(ENGLISH).props.accessibilityLanguage).toBe('en-US');
     }
   });
 
-  it('한국어 선택지 설명은 고른 언어를 따른다', () => {
+  it('선택지 설명은 고른 언어를 따른다', () => {
     // given — 기본 선택(한국어)에서는 한국어 설명
     expect(card(KOREAN).props.accessibilityHint).toBe(KO.optionDescription.ko);
+    expect(card(ENGLISH).props.accessibilityHint).toBe('영어 에피소드와 주제');
 
     // when
     select(ENGLISH);
 
     // then
     expect(card(KOREAN).props.accessibilityHint).toBe(EN.optionDescription.ko);
+    expect(card(ENGLISH).props.accessibilityHint).toBe('Episodes and topics in English');
   });
 });
 

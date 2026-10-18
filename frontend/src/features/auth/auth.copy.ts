@@ -46,13 +46,10 @@ const ko = {
       ko: '한국어',
       en: 'English',
     } satisfies Record<ContentLanguage, string>,
-    /**
-     * 선택지 아래 한 줄 — 무엇을 받게 되는지. 한국어 선택지는 화면 언어를 따르고, **English 선택지는 화면 언어와 무관하게
-     * 늘 영어**다 — 글로벌은 K-콘텐츠 위주라 영어 사용자에게 하는 말이다(PM 2026-10-19)
-     */
+    /** 선택지 아래 한 줄 — 무엇을 받게 되는지(화면 언어로). "Learn Korea with K-podcast"는 A1 시작 화면 문구다(PM 2026-10-19) */
     optionDescription: {
       ko: '한국어 에피소드와 주제',
-      en: 'Learn Korea with K-podcast',
+      en: '영어 에피소드와 주제',
     } satisfies Record<ContentLanguage, string>,
     /** English 권장 — K-컬처에 관심 있는 영어 사용자에게 하는 말이라 화면 언어와 무관하게 **늘 영어**(PM 2026-10-19) */
     recommendEnglish: 'Into K-culture? Choose English',
@@ -286,7 +283,7 @@ const en: LocalizedCopy<typeof ko> = {
     },
     optionDescription: {
       ko: 'Episodes and topics in Korean',
-      en: 'Learn Korea with K-podcast',
+      en: 'Episodes and topics in English',
     },
     recommendEnglish: 'Into K-culture? Choose English',
     notChangeable: 'You can’t change this after signing up.',
