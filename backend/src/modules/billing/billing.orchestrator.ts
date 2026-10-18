@@ -107,6 +107,7 @@ export class BillingOrchestrator {
         name: text.name,
         description: text.description,
         priceKrw: plan.priceKrw,
+        isFree: isFreePlan(plan),
         storeProductId,
         entitlements: toEntitlements(plan),
         action: resolvePlanAction({
@@ -190,7 +191,7 @@ export class BillingOrchestrator {
     if (
       plan === null ||
       !plan.isActive ||
-      plan.priceKrw <= 0 ||
+      isFreePlan(plan) ||
       storeProductId === null ||
       !this.isStoreEnabled(platform)
     ) {
@@ -676,6 +677,15 @@ function assertEmailVerified(user: {
  * "언제 무료가 되는지"를 알 길이 없었다. 스토어 구독 관리로 가면 "언제 끝나는지"가 거기 보인다. 되돌리기는 여전히
  * 이용 중 카드의 [구독 다시 시작]이 맡는다. "구독 중이니 무료는 해지"를 앱이 스스로 판정하지 않도록 서버가 값으로 준다.
  */
+/**
+ * 무료 요금제인가 — 가격(`price_krw`)이 0 이하인 요금제다. 티어 이름(`light`)으로 가르지 않는다(요금제 정의가 기준).
+ * 앱은 이 판정을 `is_free`로 받아 "무료"를 표시한다 — `store_product_id`·`action`으로 추정하면 다른 스토어 구독자의
+ * 무료 행(`action: none`)과 "이 플랫폼에 상품이 없는 유료 행"이 구별되지 않는다(KAN-226).
+ */
+export function isFreePlan(plan: Pick<Plan, 'priceKrw'>): boolean {
+  return plan.priceKrw <= 0;
+}
+
 export function resolvePlanAction(input: {
   plan: Plan;
   /** 그 플랫폼에서 지금 살 수 있는가(상품 ID가 있고 서버가 검증할 수 있다) */
@@ -692,13 +702,13 @@ export function resolvePlanAction(input: {
   }
 
   // 구독이 없으면 지금 쓰는 요금제는 무료다 — 무료 행이 "이용 중"이 된다(가입 체험 중이어도 같다. 체험은 4.2 `plan.trial`)
-  if (plan.priceKrw <= 0 && current === null) {
+  if (isFreePlan(plan) && current === null) {
     return PlanAction.CURRENT;
   }
 
   // 무료로 가는 것은 구매가 아니라 해지다(스토어로 이동). 다른 스토어 구독자는 여기서 바꿀 수 없다.
   // 해지 예약 중이어도 고를 수 있다 — 스토어에서 종료일을 확인하는 경로다(2026-10-08 팀 결정)
-  if (plan.priceKrw <= 0) {
+  if (isFreePlan(plan)) {
     return !isOtherStore && current !== null
       ? PlanAction.CANCEL
       : PlanAction.NONE;

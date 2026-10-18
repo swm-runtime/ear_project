@@ -14,6 +14,8 @@ export interface PlanOffer {
   name: string;
   description: string;
   priceKrw: number;
+  /** 무료 요금제인가 — `isFreePlan`(가격 0 이하). 시장·플랫폼·구독 상태와 무관하다 */
+  isFree: boolean;
   /** 요청 플랫폼의 상품 ID. 무료·그 플랫폼에 상품이 없으면 `null` */
   storeProductId: string | null;
   entitlements: Entitlements;

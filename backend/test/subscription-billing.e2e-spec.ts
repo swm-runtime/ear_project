@@ -39,6 +39,7 @@ interface PlanBody {
   plan_id: string;
   tier: string;
   price_krw: number;
+  is_free: boolean;
   store_product_id: string | null;
   entitlements: {
     daily_play_limit: number | null;
@@ -156,6 +157,7 @@ describe('구독·인앱 결제 E2E', () => {
       body.plans.map((plan) => [
         plan.tier,
         plan.price_krw,
+        plan.is_free,
         plan.store_product_id,
         plan.entitlements.daily_play_limit,
         plan.entitlements.ads_enabled,
@@ -163,9 +165,9 @@ describe('구독·인앱 결제 E2E', () => {
       ]),
     ).toEqual([
       // 구독이 없으면 무료 요금제가 "이용 중"이다(KAN-147)
-      ['light', 0, null, 2, true, 'current'],
-      ['daily', 3900, PRODUCT_DAILY, 5, false, 'purchase'],
-      ['pro', 9900, PRODUCT_PRO, null, false, 'purchase'],
+      ['light', 0, true, null, 2, true, 'current'],
+      ['daily', 3900, false, PRODUCT_DAILY, 5, false, 'purchase'],
+      ['pro', 9900, false, PRODUCT_PRO, null, false, 'purchase'],
     ]);
 
     // Android 는 구현 전 — 상품 ID 가 없고 살 수 없다
