@@ -27,7 +27,7 @@ const TBD = {
 } as const;
 
 export const legalNoticeEn =
-  "Ear is preparing its global launch. This document describes the rules that will apply at launch. The effective date and confirmed company details will be announced with the launch.";
+  "Earcast is preparing its global launch. This document describes the rules that will apply at launch. The effective date and confirmed company details will be announced with the launch.";
 
 export const legalMetaEn = {
   effectiveDate: TBD.effectiveDate,
@@ -48,7 +48,7 @@ export const legalLabelsEn = {
 export const privacyBlocksEn: Block[] = [
   {
     type: "p",
-    text: `This Privacy Policy explains how ${TBD.company} ("**we**", "**us**") handles personal information when you use the audio service "${site.name}" ("**Ear**" or the "**Service**") in the global (English) market — what we collect, why, who receives it, how long we keep it, and the rights you have. It applies to users who chose English as their content language when they signed up.`,
+    text: `This Privacy Policy explains how ${TBD.company} ("**we**", "**us**") handles personal information when you use the audio service "${site.name}" ("**Earcast**" or the "**Service**") in the global (English) market — what we collect, why, who receives it, how long we keep it, and the rights you have. It applies to users who chose English as their content language when they signed up.`,
   },
 
   { type: "h2", text: "1. Who we are" },
@@ -145,7 +145,7 @@ export const privacyBlocksEn: Block[] = [
   {
     type: "note",
     title: "Recommendations",
-    text: "Ear picks daily episodes automatically from the topics you follow and what you listen to. This is personalization of what we offer you; it does not produce legal or similarly significant effects on you, and you can change your topics at any time.",
+    text: "Earcast picks daily episodes automatically from the topics you follow and what you listen to. This is personalization of what we offer you; it does not produce legal or similarly significant effects on you, and you can change your topics at any time.",
   },
 
   { type: "h2", text: "4. Who receives your information" },
@@ -195,13 +195,13 @@ export const privacyBlocksEn: Block[] = [
   { type: "h2", text: "6. International transfers" },
   {
     type: "p",
-    text: "We are based in the Republic of Korea and our servers are in Seoul. If you use Ear from another country, your information is transferred to Korea, and some providers in section 4 process it in the United States or other countries where they operate. We transfer it only to providers bound by contract to protect it to a standard comparable to the law of your country, and, where your law requires it, with your consent. You can ask us for details of these safeguards at the contact address below.",
+    text: "We are based in the Republic of Korea and our servers are in Seoul. If you use Earcast from another country, your information is transferred to Korea, and some providers in section 4 process it in the United States or other countries where they operate. We transfer it only to providers bound by contract to protect it to a standard comparable to the law of your country, and, where your law requires it, with your consent. You can ask us for details of these safeguards at the contact address below.",
   },
 
   { type: "h2", text: "7. Children" },
   {
     type: "p",
-    text: "Ear is for people **aged 18 or older**, or **16 or older** in Singapore, Hong Kong and the Republic of Korea. We ask you to confirm your age when you sign up and we do not knowingly collect information from anyone below the age that applies where they live. If we learn that we have, we delete it and close the account. If you believe a child has given us information, contact us.",
+    text: "Earcast is for people **aged 18 or older**, or **16 or older** in Singapore, Hong Kong and the Republic of Korea. We ask you to confirm your age when you sign up and we do not knowingly collect information from anyone below the age that applies where they live. If we learn that we have, we delete it and close the account. If you believe a child has given us information, contact us.",
   },
 
   { type: "h2", text: "8. Your rights" },
@@ -290,10 +290,10 @@ export const termsBlocksEn: Block[] = [
   { type: "h2", text: "1. About these Terms" },
   {
     type: "p",
-    text: `These Terms of Use ("**Terms**") are an agreement between you and ${TBD.company} ("**we**", "**us**") for the AI-generated podcast service "${site.name}" ("**Ear**" or the "**Service**"). By creating an account you agree to these Terms and acknowledge our Privacy Policy.`,
+    text: `These Terms of Use ("**Terms**") are an agreement between you and ${TBD.company} ("**we**", "**us**") for the AI-generated podcast service "${site.name}" ("**Earcast**" or the "**Service**"). By creating an account you agree to these Terms and acknowledge our Privacy Policy.`,
   },
 
-  { type: "h2", text: "2. Who can use Ear" },
+  { type: "h2", text: "2. Who can use Earcast" },
   {
     type: "ol",
     items: [
@@ -305,7 +305,7 @@ export const termsBlocksEn: Block[] = [
     ],
   },
 
-  { type: "h2", text: "3. What Ear provides" },
+  { type: "h2", text: "3. What Earcast provides" },
   {
     type: "ol",
     items: [
@@ -332,10 +332,10 @@ export const termsBlocksEn: Block[] = [
   {
     type: "ol",
     items: [
-      "Ear has a free plan with a daily play limit and paid subscription plans with a higher or no daily limit. The plan names, prices, billing period and limits are shown on the subscription screen before you buy.",
+      "Earcast has a free plan with a daily play limit and paid subscription plans with a higher or no daily limit. The plan names, prices, billing period and limits are shown on the subscription screen before you buy.",
       "**Subscriptions are purchased through the Apple App Store or Google Play** and charged to your store account. Prices are shown in your local currency by the store and may include taxes.",
       "**Subscriptions renew automatically** for the same period and price unless you cancel at least 24 hours before the end of the current period. Your account is charged for renewal within 24 hours before the period ends.",
-      "**You can manage or cancel your subscription in your store account settings** (iPhone: Settings › your name › Subscriptions; Android: Google Play › Payments & subscriptions). Ear's plan screen links there.",
+      "**You can manage or cancel your subscription in your store account settings** (iPhone: Settings › your name › Subscriptions; Android: Google Play › Payments & subscriptions). Earcast's plan screen links there.",
       "If you cancel, you keep paid features until the end of the period you already paid for, then move to the free plan. Your library stays.",
       "Upgrades take effect immediately as handled by the store. Downgrades take effect at the next renewal.",
       "If an introductory offer or free trial is offered, its length and what happens when it ends are shown before you start it. Any unused part of a free trial is forfeited when you buy a subscription, where the store applies that rule.",
@@ -373,7 +373,7 @@ export const termsBlocksEn: Block[] = [
   {
     type: "ol",
     items: [
-      "Ear and its episodes are owned by us or our licensors.",
+      "Earcast and its episodes are owned by us or our licensors.",
       "We give you a **personal, non-exclusive, non-transferable, revocable license** to stream episodes in the app for your own non-commercial use.",
       "You may not copy, record, download outside the app, redistribute, broadcast, publicly perform or create derivative works from episodes or scripts without our written permission.",
       "We may stop offering an episode at any time — for example when a license ends or a rights holder asks us to — and it will disappear from your library and search.",
@@ -425,7 +425,7 @@ export const termsBlocksEn: Block[] = [
   { type: "h2", text: "14. Apple App Store" },
   {
     type: "p",
-    text: "If you downloaded Ear from the Apple App Store:",
+    text: "If you downloaded Earcast from the Apple App Store:",
   },
   {
     type: "ul",
@@ -443,7 +443,7 @@ export const termsBlocksEn: Block[] = [
   { type: "h2", text: "15. Changes to these Terms" },
   {
     type: "p",
-    text: "We will announce changes in the app at least 7 days before they take effect, and at least 30 days before changes that are worse for you. If you do not agree, you can stop using Ear and delete your account; continuing to use it after the change requires your agreement to the new version.",
+    text: "We will announce changes in the app at least 7 days before they take effect, and at least 30 days before changes that are worse for you. If you do not agree, you can stop using Earcast and delete your account; continuing to use it after the change requires your agreement to the new version.",
   },
 
   { type: "h2", text: "16. Governing law and disputes" },
