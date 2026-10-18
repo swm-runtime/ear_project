@@ -88,6 +88,8 @@ const ko = {
     marketingDescription: '새 콘텐츠·이벤트 소식을 알려드려요',
     view: '보기',
     submit: '동의하고 시작하기',
+    /** 목록을 끝까지 내리기 전 [동의하고 시작하기] 위 안내 — 비활성 이유를 글로 밝힌다(PM 확정 2026-10-19, auth-uiux.md 4.3) */
+    readToEnd: '끝까지 읽어 주세요',
     /* TODO(카피 미확정): 에러 안내 2종 */
     signupExpired: '로그인이 만료됐어요. 다시 로그인해주세요',
     consentStale: '약관이 갱신됐어요. 다시 로그인해 확인해주세요',
@@ -308,6 +310,7 @@ const en: LocalizedCopy<typeof ko> = {
     marketingDescription: 'Get news about new content and events',
     view: 'View',
     submit: 'Agree and start',
+    readToEnd: 'Scroll to the end to continue',
     signupExpired: 'Your sign-in has expired. Please sign in again',
     consentStale: 'Our terms have been updated. Please sign in again to review them',
   },
