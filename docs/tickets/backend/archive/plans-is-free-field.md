@@ -13,7 +13,7 @@
 | 선행 | 없음 |
 | 근거 문서 | `spec/api/subscription-api.md` 4.1 · `features/subscription.md` 4.2-1 · FE KAN-196 2026-10-15 코멘트 |
 | 중요도 | Medium |
-| 상태 | 발행 |
+| 상태 | 반영 |
 
 ## 왜
 
@@ -48,3 +48,9 @@
 ## 처리 기록
 
 - 2026-10-18 발행(마크다운 + Jira). PM 결정 "BE에 요청".
+- 2026-10-18 **반영**(PR `feat(be)/plans-is-free`). 반영 날짜 2026-10-18.
+  - `GET /plans`의 `plans[]`에 `is_free: boolean`을 추가했다. 판정은 요금제 가격 0 이하이고(`isFreePlan`), 티어 이름으로 가르지 않는다. 같은 판정을 쓰던 결제 의도 거부와 `action` 판정도 이 함수로 모았다(동작 불변).
+  - `buildPlanView`(프로필·설정)에는 넣지 않았다. 지금 요금제 하나를 가리키고, 무료는 이미 `status: free`로 나가기 때문이다.
+  - 계약 문서 반영은 `changes/pending/plans-is-free.md`로 넘겼다.
+  - 검증: 단위 테스트로 완료 조건 4개(KR 무구독 · 다른 스토어 구독자 iOS 목록 · GLOBAL · 기존 필드 회귀)를 확인했다. E2E `subscription-billing`의 요금제 목록에 `is_free`를 넣어 대조했고, `global-market`과 함께 17개 통과했다.
+

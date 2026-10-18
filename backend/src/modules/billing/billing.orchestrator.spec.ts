@@ -110,10 +110,12 @@ describe('BillingOrchestrator — 요금제 목록(4.1)', () => {
 
     const catalog = await orchestrator.listPlans(USER, DevicePlatform.IOS);
 
-    expect(catalog.plans.map((plan) => [plan.tier, plan.action])).toEqual([
-      [UserTier.LIGHT, PlanAction.CURRENT],
-      [UserTier.DAILY, PlanAction.PURCHASE],
-      [UserTier.PRO, PlanAction.PURCHASE],
+    expect(
+      catalog.plans.map((plan) => [plan.tier, plan.action, plan.isFree]),
+    ).toEqual([
+      [UserTier.LIGHT, PlanAction.CURRENT, true],
+      [UserTier.DAILY, PlanAction.PURCHASE, false],
+      [UserTier.PRO, PlanAction.PURCHASE, false],
     ]);
     expect(catalog.plans[2]).toMatchObject({
       storeProductId: PRODUCT_PRO,
@@ -145,6 +147,12 @@ describe('BillingOrchestrator — 요금제 목록(4.1)', () => {
       '무료',
       '하루 5편',
       '무제한',
+    ]);
+    // 무료 판정은 시장과 무관하다(KAN-226)
+    expect(globalCatalog.plans.map((plan) => plan.isFree)).toEqual([
+      true,
+      false,
+      false,
     ]);
   });
 
@@ -244,6 +252,12 @@ describe('BillingOrchestrator — 요금제 목록(4.1)', () => {
       PlanAction.NONE,
       PlanAction.CURRENT,
       PlanAction.NONE,
+    ]);
+    // 무료 행과 "이 기기에서 못 사는 유료 행"이 둘 다 none 이라, 무료 표시는 is_free 로 가른다(KAN-226)
+    expect(catalog.plans.map((plan) => plan.isFree)).toEqual([
+      true,
+      false,
+      false,
     ]);
   });
 
