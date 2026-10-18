@@ -237,7 +237,52 @@ describe('AppleAppStoreGateway', () => {
         // 계정 토큰은 소문자로 맞춘다 — 결제 의도의 id와 대조한다
         accountToken: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
         receipt: signed,
+        // 할인이 없으면 체험이 아니다. 나머지(갱신 사유·국가·금액)는 거래에 없으면 모른다
+        detail: {
+          isTrial: false,
+          isRenewal: null,
+          storefront: null,
+          price: null,
+        },
       });
+    });
+
+    it('결제 알림 문구용 부가 사실을 옮긴다 — 금액은 밀리 단위를 통화 단위로, 체험은 할인 종류로(backend-monitoring.md 3-7)', async () => {
+      const paid = await gateway.verifyTransaction(
+        sign(
+          chain,
+          transactionPayload({
+            transactionReason: 'PURCHASE',
+            storefront: 'KOR',
+            price: 4_900_000,
+            currency: 'KRW',
+          }),
+        ),
+      );
+      const trial = await gateway.verifyTransaction(
+        sign(
+          chain,
+          transactionPayload({
+            transactionReason: 'PURCHASE',
+            offerType: 1,
+            offerDiscountType: 'FREE_TRIAL',
+            price: 0,
+            currency: 'USD',
+          }),
+        ),
+      );
+      const renewal = await gateway.verifyTransaction(
+        sign(chain, transactionPayload({ transactionReason: 'RENEWAL' })),
+      );
+
+      expect(paid.detail).toEqual({
+        isTrial: false,
+        isRenewal: false,
+        storefront: 'KOR',
+        price: { amount: 4900, currency: 'KRW' },
+      });
+      expect(trial.detail?.isTrial).toBe(true);
+      expect(renewal.detail?.isRenewal).toBe(true);
     });
 
     it('환불된 거래는 환불 시각을 싣는다', async () => {

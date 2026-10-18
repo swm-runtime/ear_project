@@ -50,6 +50,7 @@ import {
 import { PlayPurchaseService } from './services/play-purchase.service';
 import { SubscriptionReconcileService } from './services/subscription-reconcile.service';
 import { BillingAlertService } from './services/billing-alert.service';
+import { BillingEventAlertService } from './services/billing-event-alert.service';
 
 const STORE_BY_PLATFORM: Readonly<Record<DevicePlatform, SubscriptionStore>> = {
   [DevicePlatform.IOS]: SubscriptionStore.APP_STORE,
@@ -78,6 +79,7 @@ export class BillingOrchestrator {
     private readonly dataSource: DataSource,
     private readonly billingAlertService: BillingAlertService,
     private readonly inviteCodeService: InviteCodeService,
+    private readonly billingEventAlertService: BillingEventAlertService,
   ) {}
 
   /** 4.1 — 요금제 목록 + 그 사용자가 각 요금제에 할 수 있는 일 */
@@ -265,7 +267,7 @@ export class BillingOrchestrator {
       throw this.receiptInvalid(`store_status:${storeStatus.status}`);
     }
 
-    await this.dataSource.transaction(async (manager) => {
+    const applied = await this.dataSource.transaction(async (manager) => {
       await this.billingSyncService.assertOwnedBy(userId, transaction, manager);
 
       const outcome = await this.applyLinked(
@@ -291,7 +293,12 @@ export class BillingOrchestrator {
         environment: transaction.environment,
         outcome: outcome.kind,
       });
+
+      return outcome;
     });
+
+    // 커밋 뒤에 — 처음 유효 구독이 생긴 제출에서만 전이가 있다. 같은 구매의 재제출은 `unchanged`다(backend-monitoring.md 3-7)
+    this.billingEventAlertService.report(applied, ['started'], now);
 
     return this.buildView(userId, now);
   }

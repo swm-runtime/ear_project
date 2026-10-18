@@ -241,6 +241,9 @@ describe('GooglePlayStoreGateway', () => {
         environment: SubscriptionEnvironment.PRODUCTION,
         needsAcknowledge: true,
         orderId: 'GPA.1234-5678-9012-34567',
+        // 결제 알림 문구용 — 단계 정보가 없는 응답이면 체험 여부를 모른다
+        regionCode: 'KR',
+        isTrial: null,
       });
       // 토큰은 경로에 들어가므로 인코딩한다 — `/`·`+`가 그대로 나가면 다른 경로가 된다
       expect(requests).toEqual([
@@ -266,6 +269,30 @@ describe('GooglePlayStoreGateway', () => {
 
       expect((await gateway.fetchPurchase('t'))?.state).toBe(expected);
     });
+
+    it.each([
+      ['무료 체험 단계', { freeTrial: {} }, true],
+      ['기본 가격 단계', { basePrice: {} }, false],
+    ])(
+      '%s 를 결제 알림 문구용으로 읽는다(backend-monitoring.md 3-7)',
+      async (_label, offerPhase, expected) => {
+        const { gateway } = buildGateway(FULL_ENV, {
+          respond: () =>
+            googlePurchase({
+              lineItems: [
+                {
+                  productId: 'ear_pro_monthly',
+                  expiryTime: '2026-11-01T00:00:00Z',
+                  autoRenewingPlan: { autoRenewEnabled: true },
+                  offerPhase,
+                },
+              ],
+            }),
+        });
+
+        expect((await gateway.fetchPurchase('t'))?.isTrial).toBe(expected);
+      },
+    );
 
     it('시험 구매·이전 토큰·다운그레이드 예약·확인 여부를 읽는다', async () => {
       const { gateway } = buildGateway(FULL_ENV, {

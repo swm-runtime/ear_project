@@ -3,6 +3,8 @@ import { Injectable, Logger } from '@nestjs/common';
 import { SlackAlertService } from '@/modules/alert/slack-alert.service';
 import { SubscriptionStore } from '@/modules/subscription/subscription.enum';
 
+import { KST_TIME, STORE_LABEL } from './billing-event-alert.format';
+
 /** 알림 종류 — 종류별로 묶음 창을 따로 센다 */
 export type BillingAlertKind =
   | 'receipt-rejected'
@@ -13,20 +15,6 @@ export type BillingAlertKind =
 
 /** 같은 종류의 알림을 묶는 창 — 위조 시도 수십 건이 채널을 덮지 않게. 창 안의 건수는 로그로만 */
 export const BILLING_ALERT_WINDOW_MS = 10 * 60 * 1000;
-
-const STORE_LABEL: Record<SubscriptionStore, string> = {
-  [SubscriptionStore.APP_STORE]: 'App Store',
-  [SubscriptionStore.PLAY_STORE]: 'Google Play',
-};
-
-const KST_TIME = new Intl.DateTimeFormat('ko-KR', {
-  timeZone: 'Asia/Seoul',
-  month: '2-digit',
-  day: '2-digit',
-  hour: '2-digit',
-  minute: '2-digit',
-  hour12: false,
-});
 
 /**
  * 결제·스토어 알림 실패를 Slack 으로(`infra/runbook.md` 4-1 알림 표 — KAN-132, 2026-10-06).
