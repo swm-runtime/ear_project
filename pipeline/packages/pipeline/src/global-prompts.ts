@@ -45,7 +45,7 @@ ${fence(t.intro)}
 - **Closing lead template** (the host; keep the frame):
 ${fence(t.closing)}
   - {episode_recap} = the same topic as {episode_line} in one line, in different words. Do not reuse the intro's wording. Name the topic, not the answer.
-  - {host_remark} = one question in the host's own words that asks the explainer to bring the episode together around the axis question. Not a feeling or a reaction; do not repeat the intro's line.
+  - {host_remark} = one question in the host's own words that asks the explainer to bring the episode together around the axis question: why people do it. Not a feeling, a reaction, or a request for advice; do not repeat the intro's line.
   - After it, one explainer wrap-up turn that answers that question (guidelines, Closing rule).${signoff ? `
 - **Sign-off template** (the last turn of the script, by the host; fixed text, say it word for word and add nothing):
 ${fence(signoff)}` : ""}`;
@@ -108,6 +108,8 @@ ${fence(i.guidelines)}
 - When a Korean excerpt describes a whole place or group with a modifier, the claim keeps it describing the whole; do not turn it into a subset.
 - A definition claim keeps who uses the term and how widely. An event at a specific time keeps its time and the past tense. A practice the excerpt places in the past stays in the past tense; a current practice is in the present tense.
 - The subject of a claim is the practice, the people who do it, or the thing. Never make the source, its writer, or its year the subject ("The 2026 description says"). An opinion claim states the view itself and sets opinion to true.
+- Write a guide's or a rule's instruction ("should", "are instructed to", "are required to") as what people do: who does what, where, and when. A rule or schedule for one year or one event keeps that year as a condition. A scene the excerpt says happens every year is a practice, not a single event.
+- Write each claim in plain spoken English. Do not copy a word-for-word noun phrase from a Korean excerpt.
 - Keep the excerpt's evaluation of a number, such as a large or small change. A list the excerpt marks as partial stays partial in the claim.
 - Keep in the claims the Korean words, the scope, and the differences by region, age, family, or setting that the excerpts give. Do not drop them to save space.
 - Do not define a term the excerpts do not define. Leave its meaning out of the claims.
@@ -125,7 +127,7 @@ ${fence(i.guidelines)}
 Axis: [question|contrast|paradox|redefinition${history ? "|event" : ""}] one sentence
 Axis note: why a newcomer wants this answered, two lines
 Familiar picture: what a listener abroad already pictures or assumes about this topic, in plain words
-Terms: each place, object, or role the episode names often — the one plain English name the script uses for it, as a name only, with no explanation
+Terms: each place, object, or role the episode names often — the one plain English name the script uses for it, as a name only, with no explanation; leave out common English words
 Landing section: #n — where the axis is proven
 Estimated length: n min
 
@@ -154,20 +156,20 @@ Section #2 — …
 Links and metaphors (made by the script, not facts)
 - "X carried over to Y" — based on C##, in section #n
 
-Closing line: one sentence with the answer to the axis question and its reason; never a list of the sections
+Closing line: one sentence with the answer to the axis question and its reason, taken from the landing section's claims; never a list of the sections, never three items joined by "and"
 \`\`\`
 Planning rules:
-- The axis is a question a newcomer asks about the practice ("Why do people in Korea …?"), a contrast ("A, yet B"), a paradox ("trying A leads to B"), or a redefinition ("A is really B")${history ? ", or, in history mode, an event" : ""}. Keep the backlog's form. "What is X" is not an axis. ear introduces Korean culture: the episode shows how the practice works, who does it, and why.
+- The axis is a question a newcomer asks about the practice ("Why do people in Korea …?"; a "how" question belongs to a section, not the axis), a contrast ("A, yet B"), a paradox ("trying A leads to B"), or a redefinition ("A is really B")${history ? ", or, in history mode, an event" : ""}. Keep the backlog's form. "What is X" is not an axis. ear introduces Korean culture: the episode shows how the practice works, who does it, and why.
 - Sections are steps of the axis, not the order of a source. For a practice, follow the order in which it happens or the steps a newcomer needs. Give each section the claims that answer its question, from any source; a section usually draws on two or more sources. Do not build a section from one source alone when another source has claims for its question. Drop a source that answers no sub-question of the axis.
 - A list topic keeps its list: sections may follow the items or groups of items, and each section still answers a sub-question of the axis. The count in the title matches the items the material supports.
 - Three to five Body sections. Fewer, fuller sections are better than many thin ones. The Opening is not a section.
-- Plan scenes. Select excerpts with cases and practices so scenes are possible, and aim for a Scene in at least half of the Body sections. Build a Scene only from a claim with a person, a place, and a moment that carries words said, an object, or a sound. A person named only by name, age, or place in a report is not a scene. Prefer a moment with words people say. For a drama or film topic, select excerpts that describe one specific moment: who, what they do, and what is said or left unsaid. When no claim has such a moment, write "none". Do not plan an imagined listener, viewer, visitor, or family as a scene.
+- Plan scenes. Select excerpts with cases and practices so scenes are possible, and aim for a Scene in at least half of the Body sections. Build a Scene only from a claim with a person, a place, and a moment that carries words said, an object, or a sound. A person named only by name, age, or place in a report is not a scene. A general custom, a procedure, or a possible mistake is not a scene. Prefer a moment with words people say. For a drama or film topic, select excerpts that describe one specific moment: who, what they do, and what is said or left unsaid. When no claim has such a moment, write "none". Do not plan an imagined listener, viewer, visitor, or family as a scene.
 - Plan the insider. The explainer is a calm Korean insider. Give each section an Insider detail when the material has one: the Korean name people use, an everyday practice, or how people around them do it. Take it from claims and add any Korean term to pronunciations.
 - Name the Familiar picture so the Opening can start from it: one thing any listener abroad already knows, in plain words, not a detail of the practice. The episode then explains or changes that picture.
 - Do not let source order become the episode. If every section uses one source in the order the sources are listed, rebuild the order around the steps of the axis. A section opens on its scene, a detail, or the host's question. Sources are not named in lines; the app lists them.
 - A redefinition axis needs the members of the category heard: assign claims that name the kinds, forms, or examples, not only a single figure about one of them.
 - Plan a limitation or a disagreement only when the claims state one, once, in the section where it applies. Do not add doubt the sources do not have.
-- The axis and the Closing line keep the conditions and degree words of the claims they rest on.
+- The axis and the Closing line keep the conditions and degree words of the claims they rest on. The Closing line's reason is a cause a claim states; do not repeat a reason the Opening or #1 already gave as the only reason.
 - Write the axis, the questions, and the Closing line in plain spoken words a second-language listener knows. Avoid abstract nouns such as care, viewpoint, role, or preparation unless the section explains them; the script reuses these lines.
 - The Host question uses only what came before; it never contains the section's new case, number, or result. Never ask about methods, samples, or limits.
 - Estimated length comes from the material: 5 minutes is the floor, and there is no target length. Do not inflate it. If the material cannot reach 5 minutes, do not build an outline; say why in notes. If it is 20 minutes or more, put a split plan in split_proposal and still build one outline.
@@ -314,7 +316,7 @@ export const WRITE_SCHEMA_EN = {
     sections_followed: { type: "boolean", description: "Outline section order and count kept" },
     turn_claims: { type: "array", items: { type: "object", additionalProperties: false, required: ["turn", "claims"], properties: { turn: { type: "string" }, claims: { type: "array", items: { type: "string" } } } }, description: "Claim IDs used in each explainer turn. IDs appear only here, never in the script" },
     bridges: { type: "array", items: { type: "object", additionalProperties: false, required: ["turn", "note"], properties: { turn: { type: "string" }, note: { type: "string", description: "What was carried over to what · based on C##" } } }, description: "Every new link, metaphor, or hypothetical scene not in the outline" },
-    terms: { type: "array", description: "Every Korean word and specialist term, with its first turn and how it is explained", items: { type: "object", additionalProperties: false, required: ["term", "turn", "explained_by"], properties: { term: { type: "string" }, turn: { type: "string", description: "First turn id (E7)" }, explained_by: { type: "string", description: "The explaining sentence, or the host turn id that asks (Y8)" } } } },
+    terms: { type: "array", description: "Every Korean word and every term a B2 listener would not know, with its first turn and how it is explained. Not common English words", items: { type: "object", additionalProperties: false, required: ["term", "turn", "explained_by"], properties: { term: { type: "string" }, turn: { type: "string", description: "First turn id (E7)" }, explained_by: { type: "string", description: "The explaining sentence, or the host turn id that asks (Y8)" } } } },
     pronunciations_added: { type: "array", description: "Korean words or names in the script that are not in the pronunciation map", items: { type: "object", additionalProperties: false, required: ["term", "reading"], properties: { term: { type: "string" }, reading: { type: "string", description: "The word in Hangul as Koreans write it, or empty if unknown" } } } },
     self_check_fixes: { type: "array", items: { type: "string" } },
     notes: { type: "string", description: "Up to three sentences: where the explainer asks the host, the metaphors used, length judgment, any material shortfall" },
@@ -338,6 +340,7 @@ There are no tools. Everything is below. Return only the full text of each turn 
 - When a finding names turns, fix every named turn.
 - Length findings: keep the material; shorten wordy turns, or fill from unused claims if short. A turn has at most 6 sentences.
 - Do not change zone headers, section headers, or turn numbering. To delete a turn, set after to an empty string.
+- Write every changed sentence as speech: one idea per sentence and a short subject. To add a condition, split the sentence.
 - When a fix removes a case, scene, or claim, also rewrite the turns that lead into it or answer it, and include them. Leave no turn that only repeats the previous turn or answers nothing.
 - If a fix adds a Korean word, add it to pronunciations_added (reading empty if unknown).
 - For each changed turn, list every claim ID it still uses in claims. Empty if the turn was deleted or uses none.
@@ -580,7 +583,7 @@ The only tool is web search. Do not read pages; the planner reads them later. Re
 ## What to collect — roles
 A candidate holds with 5 to 7 sources that fill these roles:
   · ${ROLES_EN.map((r) => `${r} — ${roleIntent(history)[r]}`).join("\n  · ")}${historyTopic(i.midTopic) ? "\nIf the topic is a past event: an account of the event as a whole is the anchor; an essay that uses the event as an example of another idea is not. Records from the time are cases. Older sources are fine." : ""}
-The worker recounts: at least 3 sources · at least 3 publishers · no publisher over half · at least 1 anchor · at least 1 case · at least 3 roles. ear introduces Korean culture: spend searches on case and practice first. Counterpoint and numbers are optional.
+The worker recounts: at least 3 sources · at least 3 publishers · no publisher over half · at least 1 anchor · at least 1 case · at least 3 roles. ear introduces Korean culture: spend searches on case and practice first. Find at least one source that tells a person's own moment: an interview, a first-hand account, or a report scene with words said. Counterpoint and numbers are optional.
 
 ## Search rules
 - At most ${i.maxSearches} searches. Use them all unless every role is filled with strong sources. Korean institutions and Korean-language sources often hold the best material on Korean culture; English sources show how it is explained to outsiders.
@@ -663,7 +666,7 @@ ${mode}
 ${i.specBacklogExcerpt.trim()}
 
 ## 2. Rules
-1. **The axis.** One sentence in one of four forms: question (the one plain question a newcomer asks about the practice: "Why do people in Korea …?" or "How do people in Korea …?"), contrast ("A, yet B"), paradox ("trying A leads to B"), redefinition ("A is really B"). Prefer the question form. Use contrast, paradox, or redefinition only when the sources show a real tension inside Korea. Not an axis: "what is X", "everything about X", or one news event. A comeback, release, or award is not an axis; use it only as a case that opens an industry axis.
+1. **The axis.** One sentence in one of four forms: question (the one plain question a newcomer asks about the practice: "Why do people in Korea …?"; when the topic asks how, ask why people do it that way), contrast ("A, yet B"), paradox ("trying A leads to B"), redefinition ("A is really B"). Prefer the question form. Use contrast, paradox, or redefinition only when the sources show a real tension inside Korea. Not an axis: "what is X", "everything about X", or one news event. A comeback, release, or award is not an axis; use it only as a case that opens an industry axis.
    A list topic ("10 Korean words in K-dramas") keeps its list shape. The axis is what the items show together; the episode may walk through the items or groups of them. Set the count to the items the sources support and put that count in the title. List the counted items in landing. Do not replace the list with an abstract idea.${history ? `
    History mode: use axis_type "event" only for a past event in Korean History & Society; modern society topics use the other forms. An event axis asks how to read the event, not who was right. The anchor describes the event itself; an essay that uses the event as an example of another idea is not an anchor. Records from the time are cases. Counterpoint is optional.` : ` Do not use axis_type "event".`}
 2. **It works in English for this listener.** Keep the question or tension inside the subject: the Korean practice itself, how it works, and why people do it. Do not build it on what outsiders, foreigners, or the West expect. Compare Korea with another country only if a listed source makes that comparison. The axis can be said in plain English with at most one Korean word. It does not rest on Korean wordplay or a pun that does not translate. It does not frame Korea as strange, rank cultures, or argue which country owns a custom.

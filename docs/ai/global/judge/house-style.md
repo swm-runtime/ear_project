@@ -7,6 +7,10 @@
 - Promotion of a specific agency or brand.
 - A real person may be mentioned only for verifiable facts about their public work, such as a debut year or an official award. An episode centered on one person is out of scope.
 
+## Sources in lines
+
+- Lines never name or point to a source, by name, kind, or year. The episode shows its source list separately. Edits keep this: keep the condition, not the source.
+
 ## People, music, and drama
 
 - No private matters, controversies, or unverified claims about real people.

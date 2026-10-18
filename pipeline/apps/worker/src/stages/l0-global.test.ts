@@ -224,12 +224,14 @@ test("출처 이름 붙이기 — According to·In X's account·대문자 약어
   assert.match(v, /"Jeong" 1 \(E4\)/); // E3 의 한국어 표현 주어는 세지 않는다
 });
 
-test("해설자 질문은 Opening 되묻기를 포함해 편 전체 두 번까지 — 세 번이면 문체 위반", () => {
+test("해설자 질문은 Opening 에서 한 번만 — 본문 질문이나 Opening 두 번이면 문체 위반 (full-en-v0.14)", () => {
   en();
-  const two = [T("Y1", "Hi.", "Intro"), T("E1", "Is it the meaning or the feeling?", "Opening"), T("E2", "Does it feel slower?"), T("Y2", "Slower."), T("Y3", "Bye.", "Closing")];
-  assert.doesNotMatch(enStyleViolations(two).join("\n"), /explainer asks questions/);
-  const three = [...two.slice(0, 3), T("E3", "Which would you pick?"), ...two.slice(3)];
-  assert.match(enStyleViolations(three).join("\n"), new RegExp(`^${EN_STYLE_MARK} the explainer asks questions in 3 turns \\(E1, E2, E3\\)`, "m"));
+  const one = [T("Y1", "Hi.", "Intro"), T("E1", "Is it the meaning or the feeling?", "Opening"), T("E2", "It is the feeling."), T("Y2", "Slower."), T("Y3", "Bye.", "Closing")];
+  assert.doesNotMatch(enStyleViolations(one).join("\n"), /explainer asks questions/);
+  const body = [...one.slice(0, 2), T("E2", "Which would you pick?"), ...one.slice(3)];
+  assert.match(enStyleViolations(body).join("\n"), new RegExp(`^${EN_STYLE_MARK} the explainer asks questions in 2 turns \\(E1, E2\\)`, "m"));
+  const twoOpen = [one[0], one[1], T("E2", "Or is it the sound?", "Opening"), ...one.slice(3)];
+  assert.match(enStyleViolations(twoOpen).join("\n"), /the explainer asks questions in 2 turns/);
 });
 
 test("한국어 표현을 가리키면서 등재 표제어를 말하지 않는 해설 턴은 문체 위반 — English expression·표제어가 있는 턴은 통과", async () => {
@@ -352,14 +354,29 @@ test("Opening 을 Imagine·Picture 로 열면 한 번이라도 문체 위반 —
   assert.match(v, /the Opening starts with "Imagine" or "Picture" \(E1\)/);
 });
 
-test("질문 아닌 진행 턴의 would·I'd 가정형은 셋까지 통과, 넷이면 문체 위반 — 질문은 세지 않는다", () => {
+test("질문 아닌 진행 턴의 자기 상태 서술(would·I'd·to me·I find)은 셋까지 통과, 넷이면 문체 위반 — 질문은 세지 않는다", () => {
   en();
-  const host = (n: number) => [T("Y1", "Welcome.", "Intro"), ...Array.from({ length: n }, (_, i) => T(`Y${i + 2}`, i % 2 ? "I'd feel shy at that table." : "That would make me slow down.")), T("Y8", "Would you eat alone?"), T("Y9", "Bye.", "Closing")];
-  assert.doesNotMatch(enStyleViolations(host(3)).join("\n"), /use "would" or "I'd"/);
-  assert.match(enStyleViolations(host(4)).join("\n"), /4 host turns that are not questions use "would" or "I'd" \(Y2, Y3, Y4, Y5\)/);
+  const host = (n: number) => [T("Y1", "Welcome.", "Intro"), ...Array.from({ length: n }, (_, i) => T(`Y${i + 2}`, ["I'd feel shy at that table.", "That would make me slow down.", "That part is easier for me.", "I notice the quiet."][i % 4])), T("Y8", "Would you eat alone?"), T("Y9", "Bye.", "Closing")];
+  assert.doesNotMatch(enStyleViolations(host(3)).join("\n"), /host's own state/);
+  assert.match(enStyleViolations(host(4)).join("\n"), /4 host turns that are not questions speak about the host's own state .* \(Y2, Y3, Y4, Y5\)/);
 });
 
 test("구성안 장면 메모 말투(gives one example·broader … event)는 설계 흔적으로 잡는다", () => {
   en();
   assert.match(enStyleViolations([T("E1", "A broader K-pop café event gives one example.")]).join("\n"), /planning or reading wording in lines \(E1 "broader K-pop café event"\)/);
+});
+
+// ── full-en-v0.14 (2026-10-18 — G261018-010~012 에이전트 판정) ──
+test("해설 턴의 규범형(should·are instructed to·must)은 둘까지 통과, 셋이면 문체 위반", () => {
+  en();
+  const wrap = (body: ReturnType<typeof T>[]) => [T("Y1", "Welcome.", "Intro"), ...body, T("Y9", "Bye.", "Closing")]; // 첫·마지막 턴은 템플릿이라 뺀다
+  const two = [T("E1", "Diners should wait. Students are instructed to arrive early."), T("E2", "The grill heats fast.")];
+  assert.doesNotMatch(enStyleViolations(wrap(two)).join("\n"), /tell the listener what to do/);
+  const three = [...two, T("E3", "Guests must take off their shoes.")];
+  assert.match(enStyleViolations(wrap(three)).join("\n"), /tell the listener what to do \("should", "are instructed to", "must"\) 3 times \(E1, E3\)/);
+});
+
+test("구성안 칸 이름(familiar picture·insider detail)이 대사에 나오면 설계 흔적", () => {
+  en();
+  assert.match(enStyleViolations([T("E1", "The familiar picture is a quiet morning.")]).join("\n"), /planning or reading wording in lines \(E1 "familiar picture"\)/);
 });

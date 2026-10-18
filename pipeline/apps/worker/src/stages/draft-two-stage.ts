@@ -478,17 +478,22 @@ export function enStyleViolations(turns: ScriptTurn[]): string[] {
   const openImagine = turns.flatMap((t, i) => (!isTemplate(i) && t.section === zones.lead && /^(?:Imagine|Picture)\b/.test(t.text.trim()) ? [label(t)] : []));
   if (openImagine.length) v.push(`${EN_STYLE_MARK} the Opening starts with "Imagine" or "Picture" (${list(openImagine)}) — start from the familiar picture, in plain words (rule 37)`);
   // full-en-v0.13 (G261018-006~008, 3.11 3·2·3): 진행자의 질문 아닌 턴이 "I'd …"·"I would …" 가정형 틀로 굳었다 — 넷 이상이면 문체 위반(규칙 9)
-  const hostWould = turns.filter((t, i) => !isTemplate(i) && t.id?.startsWith("Y") && !t.text.includes("?") && /\b(?:I'd|I’d|I would|would)\b/i.test(t.text)).map(label);
-  if (hostWould.length > 3) v.push(`${EN_STYLE_MARK} ${hostWould.length} host turns that are not questions use "would" or "I'd" (${list(hostWould)}) — at most three; vary the rest: a plain reaction, a doubt, how it sounds from outside (rule 9)`);
+  // full-en-v0.14 (G261018-010~012): would 를 막자 "to me"·"I find"·"I notice"·"I feel" 자기 상태 서술로 같은 틀이 옮겨 갔다 — 함께 센다
+  const hostSelf = turns.filter((t, i) => !isTemplate(i) && t.id?.startsWith("Y") && !t.text.includes("?") && /\b(?:I['’]d|I would|would|I feel|I find|I notice|I['’]m starting|I might|I prefer|to me|for me)\b/i.test(t.text)).map(label);
+  if (hostSelf.length > 3) v.push(`${EN_STYLE_MARK} ${hostSelf.length} host turns that are not questions speak about the host's own state ("I'd", "would", "I feel", "I find", "I notice", "to me") (${list(hostSelf)}) — at most three; vary the rest: a guess about the scene, a doubt, a short reaction to the detail (rule 9)`);
   if (imagine.length > 2) v.push(`${EN_STYLE_MARK} ${imagine.length} imagined scenes ("Imagine", "Picture", "imagined") (${list(imagine)}) — keep at most two; build scenes from a claim with words said, an object, or a sound (rules 3 and 39)`);
   // 읽기·설계 흔적 — 구성안·claims 를 옮겨 적은 말(규칙 36, G261017-005·006)
   // full-en-v0.13 (G261018-008 E14): 구성안 Scene 메모가 대사가 됐다 — "A broader K-pop café event gives one example"
   // full-en-v0.10 (G261017-009·011): 자료를 가리키는 말·보이지 않는 그림 — "the palace named in the report"·"quoted in the reporting"·"the report mentioned earlier"·"this picture of a charye table"
-  const meta = find(/\b(?:described here|described above|reported connection|possible starting picture|as the (?:outline|plan) says|named in the report|in the reporting|being discussed|working meaning|(?:report|study|survey|article|source) mentioned earlier|this (?:picture|image|illustration) of|(?:gives|offers) (?:one|an) example|broader [^.?!,]{1,30}? (?:event|example))\b/i);
+  const meta = find(/\b(?:described here|described above|reported connection|possible starting picture|as the (?:outline|plan) says|named in the report|in the reporting|being discussed|working meaning|(?:report|study|survey|article|source) mentioned earlier|this (?:picture|image|illustration) of|(?:gives|offers) (?:one|an) example|broader [^.?!,]{1,30}? (?:event|example)|familiar picture|insider detail)\b/i);
   if (meta.length) v.push(`${EN_STYLE_MARK} planning or reading wording in lines (${list(meta)}) — say it in the speakers' own words (rule 36)`);
-  // 해설자 질문 (규칙 15) — Opening 의 되묻기를 포함해 편 전체 두 번까지 (full-en-v0.6, G261017-001: 도입 되묻기 E1 + 본문 E5·E17 = 세 번)
-  const eQ = turns.filter((t, i) => !isTemplate(i) && expl(t) && t.text.includes("?")).map(label);
-  if (eQ.length > 2) v.push(`${EN_STYLE_MARK} the explainer asks questions in ${eQ.length} turns (${list(eQ)}) — at most two per episode, the Opening's question back included (rule 15)`);
+  // 해설자 질문 (규칙 15) — full-en-v0.14 (G261018-011·012, 006): 본문의 해설자 퀴즈를 편집자가 세 편째 역할 역전으로 짚었다 — Opening 에서 한 번만, 본문·클로징은 0
+  const eQ = turns.filter((t, i) => !isTemplate(i) && expl(t) && t.text.includes("?"));
+  const eQOut = eQ.filter((t) => t.section !== zones.lead).map(label);
+  if (eQOut.length || eQ.length > 1) v.push(`${EN_STYLE_MARK} the explainer asks questions in ${eQ.length} turn${eQ.length > 1 ? "s" : ""} (${list(eQ.map(label))}) — at most one, in the Opening only; in the Body and the Closing the explainer asks nothing (rule 15)`);
+  // 안내문 말투 (규칙 1, full-en-v0.14 — G261018-010·011: 출처를 지우자 지침의 "are instructed to"·안내서의 "should" 가 해설자 목소리가 됐다) — 해설 턴의 규범형이 셋 이상이면 문체 위반
+  const norm = turns.flatMap((t, i) => (!isTemplate(i) && expl(t) ? (t.text.match(/\b(?:should|shouldn't|are (?:instructed|required|expected|told) to|must)\b/gi) ?? []).map(() => label(t)) : []));
+  if (norm.length > 2) v.push(`${EN_STYLE_MARK} explainer turns tell the listener what to do ("should", "are instructed to", "must") ${norm.length} times (${list([...new Set(norm)])}) — describe what people do in that place or on that day, not what they should do (rule 1)`);
   const bodyY = turns.filter((t) => t.section === zones.body && t.id?.startsWith("Y"));
   if (bodyY.length >= 6) {
     const q = bodyY.filter((t) => t.text.includes("?")).length;
