@@ -12,6 +12,12 @@ import {
 const DAY_OPTIONS = [7, 14, 30, 90] as const;
 
 /**
+ * 그래프 패널을 그리드 줄 높이만큼 채운다 — 옆 패널(각주가 붙은 그래프·7행 표)이 더 길면 그리드가 이 패널을 늘리는데, 그래프가
+ * 고정 높이면 아래가 비어 보인다(2026-10-18). 본문(`Panel`의 둘째 자식 div)을 끝까지 늘리고 그래프가 남은 높이를 차지한다.
+ */
+const FILL_PANEL = "flex flex-col [&>div]:flex [&>div]:flex-1 [&>div]:flex-col";
+
+/**
  * 서비스 지표 탭 — 제품 API 의 `GET /admin/insights/summary`(admin-api 4.22) 한 번으로 화면 전체를 그린다.
  * 실배포가 기본이고 개발계 토글은 검색 로그 탭과 같은 용도(테스트 계정 흐름 확인)다. **열 때 1회 + [새로고침]** —
  * 자동 폴링하지 않는다(사용자 결정 2026-09-06 · 2026-10-08 "누군가 사이트를 켰을 때 그때 요청").
@@ -144,11 +150,11 @@ function InsightsView({ channel, days, onSwitchToDev }: { channel: EarChannel; d
       </div>
 
       <div className="grid gap-3 lg:grid-cols-2">
-        <Panel title={`일별 청취 — ${winLabel} (KST 달력일)`}>
+        <Panel title={`일별 청취 — ${winLabel} (KST 달력일)`} className={FILL_PANEL}>
           <DailyBars
             rows={data.daily}
             primary={(d) => d.listen_sec}
-            height={(d, max) => Math.max(2, Math.round((d.listen_sec / max) * 80))}
+            ratio={(d, max) => d.listen_sec / max}
             title={(d) => `${d.date} · 청취 ${fmtListenSec(d.listen_sec)} · 재생 ${d.plays}회 · 청취자 ${d.listeners}명${d.active_users !== undefined ? ` (접속자 ${d.active_users == null ? "기록 없음" : `${fmtInt(d.active_users)}명`})` : ""} · 완청 ${d.completes}회`}
             legend="막대 = 청취 시간. 호버하면 재생·청취자·접속자·완청"
           />
@@ -158,12 +164,12 @@ function InsightsView({ channel, days, onSwitchToDev }: { channel: EarChannel; d
             </p>
           )}
         </Panel>
-        <Panel title={`일별 가입·탈퇴 — ${winLabel} (KST 달력일)`}>
+        <Panel title={`일별 가입·탈퇴 — ${winLabel} (KST 달력일)`} className={FILL_PANEL}>
           <DailyBars
             rows={data.daily}
             primary={(d) => d.signups}
-            height={(d, max) => Math.max(2, Math.round((d.signups / max) * 80))}
-            overlay={(d, max) => Math.round((d.withdrawals / max) * 80)}
+            ratio={(d, max) => d.signups / max}
+            overlay={(d, max) => d.withdrawals / max}
             title={(d) => `${d.date} · 가입 ${d.signups}명 · 탈퇴 ${d.withdrawals}명`}
             legend="막대 = 가입. 아래 빨간 부분 = 탈퇴(같은 축)"
           />
@@ -172,7 +178,7 @@ function InsightsView({ channel, days, onSwitchToDev }: { channel: EarChannel; d
 
       {data.weekday && (
         <div className="grid gap-3 lg:grid-cols-2">
-          <Panel title={`일별 접속자 → 청취자 — ${winLabel} (KST 달력일)`}>
+          <Panel title={`일별 접속자 → 청취자 — ${winLabel} (KST 달력일)`} className={FILL_PANEL}>
             <ActiveListenerBars rows={data.daily} />
           </Panel>
           <Panel title={`요일별 평균 — ${winLabel} (온전한 날만)`} flush>
@@ -341,11 +347,14 @@ function SectionTitle({ children }: { children: React.ReactNode }) {
 
 type DailyRow = EarInsightsSummary["daily"][number];
 
-/** 일별 막대 — 검색 로그 탭과 같은 div 막대. `overlay`가 있으면 같은 축으로 아래에 빨간 부분을 덧그린다 */
-function DailyBars({ rows, primary, height, overlay, title, legend }: {
+/**
+ * 일별 막대 — 검색 로그 탭과 같은 div 막대. `overlay`가 있으면 같은 축으로 아래에 빨간 부분을 덧그린다.
+ * `ratio`·`overlay`는 0~1(최댓값 대비). 막대 칸이 패널 높이만큼 늘어나므로(최소 96px — `FILL_PANEL`) 높이를 비율로 준다.
+ */
+function DailyBars({ rows, primary, ratio, overlay, title, legend }: {
   rows: DailyRow[];
   primary: (d: DailyRow) => number;
-  height: (d: DailyRow, max: number) => number;
+  ratio: (d: DailyRow, max: number) => number;
   overlay?: (d: DailyRow, max: number) => number;
   title: (d: DailyRow) => string;
   legend: string;
@@ -353,15 +362,17 @@ function DailyBars({ rows, primary, height, overlay, title, legend }: {
   const max = maxOf(rows, primary);
   if (rows.length === 0) return <p className="text-[13px] text-ink-soft">이 창에는 기록이 없다.</p>;
   return (
-    <div>
-      <div className="flex items-end gap-1 overflow-x-auto" style={{ height: 96 }}>
+    <div className="flex flex-1 flex-col">
+      <div className="flex flex-1 items-stretch gap-1 overflow-x-auto" style={{ minHeight: 96 }}>
         {rows.map((d) => {
-          const h = height(d, max);
+          const h = ratio(d, max);
           const o = overlay ? Math.min(h, overlay(d, max)) : 0;
           return (
-            <div key={d.date} className="flex min-w-[18px] flex-1 flex-col items-center justify-end gap-1" title={title(d)}>
-              <div className="relative w-full rounded-t bg-brand/40" style={{ height: h }}>
-                {o > 0 && <div className="absolute inset-x-0 bottom-0 bg-rose-400" style={{ height: o }} />}
+            <div key={d.date} className="flex min-w-[18px] flex-1 flex-col items-center gap-1" title={title(d)}>
+              <div className="relative w-full flex-1">
+                <div className="absolute inset-x-0 bottom-0 rounded-t bg-brand/40" style={{ height: barHeight(h) }}>
+                  {o > 0 && <div className="absolute inset-x-0 bottom-0 bg-rose-400" style={{ height: `${(o / h) * 100}%` }} />}
+                </div>
               </div>
               {/* 라벨 칸 높이 고정 — 라벨 없는 칸에서도 막대 바닥이 한 줄로 맞게. */}
               <span className="block h-3 shrink-0 whitespace-nowrap text-[10px] leading-3 tabular-nums text-ink-soft">{rows.length > 31 ? (d.date.endsWith("01") || d.date.endsWith("15") ? shortDate(d.date) : "") : shortDate(d.date)}</span>
@@ -374,6 +385,9 @@ function DailyBars({ rows, primary, height, overlay, title, legend }: {
   );
 }
 
+/** 막대 칸 높이 대비 비율(0~1) → CSS 높이. 0 이어도 2px 는 보이게(막대가 사라지면 "기록 없음"처럼 읽힌다) */
+const barHeight = (ratio: number): string => `max(2px, ${Math.round(ratio * 1000) / 10}%)`;
+
 /**
  * 일별 접속자·청취자 한 쌍 막대 — 회색 = 접속자, 파랑 = 그중 재생한 청취자(같은 축). 접속자를 모르는 날(첫 신뢰 날짜 앞)은
  * 회색 막대 대신 점선 칸을 그린다 — 0명과 "기록 없음"이 섞이지 않게.
@@ -381,17 +395,21 @@ function DailyBars({ rows, primary, height, overlay, title, legend }: {
 function ActiveListenerBars({ rows }: { rows: DailyRow[] }) {
   const max = maxOf(rows, (d) => Math.max(d.active_users ?? 0, d.listeners));
   if (rows.length === 0) return <p className="text-[13px] text-ink-soft">이 창에는 기록이 없다.</p>;
-  const px = (n: number) => Math.max(2, Math.round((n / max) * 80));
+  // 높이를 px 가 아니라 막대 칸의 비율로 준다 — 칸이 패널 높이만큼 늘어나므로(`FILL_PANEL`) 그래프도 함께 자란다
+  const pct = (n: number) => barHeight(n / max);
   return (
-    <div>
-      <div className="flex items-end gap-1 overflow-x-auto" style={{ height: 96 }}>
+    <div className="flex flex-1 flex-col">
+      <div className="flex flex-1 items-stretch gap-1 overflow-x-auto" style={{ minHeight: 96 }}>
         {rows.map((d) => (
-          <div key={d.date} className="flex min-w-[18px] flex-1 flex-col items-center justify-end gap-1" title={`${d.date} · 접속자 ${d.active_users == null ? "기록 없음" : `${fmtInt(d.active_users)}명`} · 청취자 ${fmtInt(d.listeners)}명${d.active_users ? ` (${fmtPct(d.listeners / d.active_users, 0)})` : ""}`}>
-            <div className="flex w-full items-end justify-center gap-px">
-              {d.active_users == null
-                ? <div className="w-1/2 rounded-t border border-dashed border-line" style={{ height: 8 }} />
-                : <div className="w-1/2 rounded-t bg-ink-soft/40" style={{ height: px(d.active_users) }} />}
-              <div className="w-1/2 rounded-t bg-brand/60" style={{ height: px(d.listeners) }} />
+          <div key={d.date} className="flex min-w-[18px] flex-1 flex-col items-center gap-1" title={`${d.date} · 접속자 ${d.active_users == null ? "기록 없음" : `${fmtInt(d.active_users)}명`} · 청취자 ${fmtInt(d.listeners)}명${d.active_users ? ` (${fmtPct(d.listeners / d.active_users, 0)})` : ""}`}>
+            {/* 막대 칸 — 남은 높이 전부. 막대는 바닥에 붙여 칸 높이의 비율로 그린다 */}
+            <div className="relative w-full flex-1">
+              <div className="absolute inset-0 flex items-end justify-center gap-px">
+                {d.active_users == null
+                  ? <div className="w-1/2 rounded-t border border-dashed border-line" style={{ height: 8 }} />
+                  : <div className="w-1/2 rounded-t bg-ink-soft/40" style={{ height: pct(d.active_users) }} />}
+                <div className="w-1/2 rounded-t bg-brand/60" style={{ height: pct(d.listeners) }} />
+              </div>
             </div>
             {/* 라벨 칸 높이 고정 — DailyBars 와 같은 규칙 */}
             <span className="block h-3 shrink-0 whitespace-nowrap text-[10px] leading-3 tabular-nums text-ink-soft">{rows.length > 31 ? (d.date.endsWith("01") || d.date.endsWith("15") ? shortDate(d.date) : "") : shortDate(d.date)}</span>
