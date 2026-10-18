@@ -19,7 +19,7 @@ const OUTLINE = ["# outline", "Estimated length: 15 min", "", "Section #1 — Wh
 // 본문 턴 — 분량을 채우는 데 쓴다. 첫마디가 턴마다 다르고(문체 L0 첫마디 반복), 해설은 6문장(문장 수 상한), 진행은 질문 60%(질문 비율 절반~3분의 2)
 const NOUNS = ["Cabbage", "Salt", "Neighbors", "Grandmothers", "Jars", "Radish", "Garlic", "Pepper", "Courtyards", "Rubber gloves", "Basins", "Fish sauce", "Ginger", "Scallions", "Buckets", "Children", "Aprons", "Rice flour", "Shrimp", "Pears", "Onions", "Mats", "Ladles", "Lids", "Cousins", "Kitchens", "Rooftops", "Cellars", "Knives", "Towels"];
 const HOST = ["Who decides", "Where does", "Which part", "When do", "Does everyone", "Is there", "Can a family", "What happens", "Would a", "Why would", "Was that", "Could one", "Do they", "How long", "Are the"];
-const REACT = ["I can picture", "That would tire", "I'd guess", "My hunch is", "I'd find", "It sounds"];
+const REACT = ["I can picture", "That might tire", "I'd guess", "My hunch is", "I'm surprised by", "It sounds"]; // full-en-v0.13: 질문 아닌 진행 턴의 would·I'd 는 셋까지
 const LONG_E = (noun: string) => `${noun} matter a lot in this part of the work. Families split the job by hand over two days. One group salts the cabbage overnight in large tubs. Another group grinds the seasoning paste in the morning. Neighbors trade labor, so each house gets help in turn. By the afternoon the jars are packed and shared with relatives.`;
 function script(o: { zones?: string[]; sections?: number[]; bodyTurns?: number; lastTurn?: string } = {}) {
   const z = o.zones ?? ["Intro", "Opening", "Body", "Closing"];
@@ -331,3 +331,35 @@ test("클로징 도입의 {episode_recap} 이 인트로의 {episode_line} 과 �
   assert.ok(!twoStageViolationsEn(md("the rhythm of a day at a temple"), "").some((x) => /repeats the intro's line/.test(x)));
 });
 
+
+// ── full-en-v0.13 (2026-10-18 — G261018-006~008 에이전트 판정) ──
+test("출처를 종류·연도로 가리키는 해설 문장도 출처 문장으로 센다 — 통계의 자료 연도는 세지 않는다", () => {
+  en();
+  const B = (id: string, text: string, topic: string) => ({ ...T(id, text), topic });
+  const v = enStyleViolations([
+    B("E1", "A drama commentator reads these meals as quiet confessions. For a food writer, the side dishes matter most.", "Meals"),
+    B("E2", "In that 2017 description, thread means a long life. A sociologist speaking in 2026 linked it to survival.", "Doljabi"),
+    B("E3", "In 2026, guest lists had become smaller.", "Party"),
+    B("E4", "About 18 percent of people ate alone in 2022. In 2022, the city counted more single homes.", "Alone"),
+  ]).join("\n");
+  assert.match(v, /sources named in lines: "Meals" 2 \(E1\); "Doljabi" 2 \(E2\); "Party" 1 \(E3\)/);
+  assert.doesNotMatch(v, /"Alone"/);
+});
+
+test("Opening 을 Imagine·Picture 로 열면 한 번이라도 문체 위반 — 본문의 장면은 해당 없음", () => {
+  en();
+  const v = enStyleViolations([T("Y1", "Welcome.", "Intro"), T("E1", "Imagine a small café full of posters.", "Opening"), T("E2", "Picture a fan at the door."), T("Y2", "Bye.", "Closing")]).join("\n");
+  assert.match(v, /the Opening starts with "Imagine" or "Picture" \(E1\)/);
+});
+
+test("질문 아닌 진행 턴의 would·I'd 가정형은 셋까지 통과, 넷이면 문체 위반 — 질문은 세지 않는다", () => {
+  en();
+  const host = (n: number) => [T("Y1", "Welcome.", "Intro"), ...Array.from({ length: n }, (_, i) => T(`Y${i + 2}`, i % 2 ? "I'd feel shy at that table." : "That would make me slow down.")), T("Y8", "Would you eat alone?"), T("Y9", "Bye.", "Closing")];
+  assert.doesNotMatch(enStyleViolations(host(3)).join("\n"), /use "would" or "I'd"/);
+  assert.match(enStyleViolations(host(4)).join("\n"), /4 host turns that are not questions use "would" or "I'd" \(Y2, Y3, Y4, Y5\)/);
+});
+
+test("구성안 장면 메모 말투(gives one example·broader … event)는 설계 흔적으로 잡는다", () => {
+  en();
+  assert.match(enStyleViolations([T("E1", "A broader K-pop café event gives one example.")]).join("\n"), /planning or reading wording in lines \(E1 "broader K-pop café event"\)/);
+});

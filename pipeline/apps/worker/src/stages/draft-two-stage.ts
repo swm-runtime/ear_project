@@ -401,7 +401,7 @@ export function enStyleViolations(turns: ScriptTurn[]): string[] {
   const noise = find(/\b(?:um+|uh+|erm)\b|\b(?:ha){2,}\b|\[[A-Za-z][A-Za-z ]*\]|\*[A-Za-z][A-Za-z ]*\*|\((?:laughs?|sighs?|pause|chuckles?)[^)]*\)/i);
   if (noise.length) v.push(`Fillers, sound tags, or stage directions (${list(noise)}) — remove them; naturalness comes from content and rhythm (rule 32)`);
   const time = find(/\b(?:today|nowadays|these days|currently|recently|this year|last year|next year)\b/i, (_t, i) => !isTemplate(i));
-  if (time.length) v.push(`Relative time words outside the templates (${list(time)}) — use a year or timeless wording (rule 46)`);
+  if (time.length) v.push(`Relative time words outside the templates (${list(time)}) — show time by tense: past practices in the past tense, current ones in the present (rule 46)`);
   const sentences = (t: string) => t.replace(/\.{2,}|…/g, " ").match(/[.!?](?:["'”’)]*)(?:\s|$)/g)?.length ?? 0;
   const long = turns.filter((t) => expl(t) && sentences(t.text) > 6).map((t) => `${label(t)} (${sentences(t.text)})`);
   if (long.length) v.push(`Explainer turns over six sentences (${list(long)}) — split with a host question or tighten; a turn has at most 6 sentences (rule 22)`);
@@ -454,15 +454,18 @@ export function enStyleViolations(turns: ScriptTurn[]): string[] {
   // 대문자 약어 주어(KEL)만 고유명사로 본다 — 첫 글자만 대문자인 주어는 한국어 표현("Jeongi deulda describes…")과 가를 수 없다
   // full-en-v0.7 (G261017-002·003): "In the essay's explanation"·"according to the report"·"Its warning…"·"It argues…" 처럼 일반 명사·대명사로 출처를 부르는 꼴도 센다
   const srcRef = /^(?:[Aa]ccording to (?:the |this |that )?(?:[A-Z]|(?:essay|report|article|guide|column|study|survey|union|records?)\b)|[Ii]n (?:(?:the|this|that) )?(?:[A-Z][\w-]*|its|their|guide|article|essay|report|column|study|survey|union|records?)(?:'s|’s)? (?:[a-z]+ )?(?:article|guide|account|description|view|guidance|report|explanation|example|warning)\b|[A-Z]{2,}\b[^.?!]{0,20}?\b(?:says|advises|presents|describes|explains|warns|notes|argues|lists|gives|calls|treats|recommends|rejects|allows)\b|(?:It|She|He|They) (?:says|argues|points|describes|reports|connects|warns|dates|explains|notes|suggests|adds|lists|calls)\b|Its (?:explanation|warning|account|view|description|guidance|claim|argument)\b)/;
+  // full-en-v0.13 (G261018-006~008): 이름이 빠지자 출처 종류·연도가 그 자리를 차지했다 — "A drama commentator reads…"·"For a food writer"·"that 2017 description"·"A sociologist speaking in 2026"·"In 2026, guest lists had become".
+  // 문장 머리의 보유자 종류, 연도를 붙인 자료 명사, "<분사> in 연도", 연도로 연 과거완료 문장을 센다. 통계의 자료 연도("about 18 percent in 2022")는 세지 않는다
+  const srcKind = /^(?:(?:For|To) )?(?:a|an|one|the|another|that|this) (?:[a-z]+ )?(?:commentator|critic|writer|reporter|columnist|researcher|scholar|sociologist|historian|journalist|blogger|author|professor|expert)s?\b|\b(?:a|an|the|that|this|one) (?:19|20)\d{2} (?:description|report|account|article|guide|survey|study|column|essay|explanation|interview|list)\b|\b(?:described|given|written|speaking|reported|published|listed) in (?:19|20)\d{2}\b|^In (?:19|20)\d{2},? [^.?!]*\bhad (?:become|been|grown|shrunk|moved|changed|started|turned)\b/i;
   const perSection = new Map<string, string[]>();
   for (const t of turns) {
     if (!expl(t) || t.section !== zones.body) continue;
-    const n = t.text.split(/(?<=[.!?])\s+/).filter((x) => srcSubj.test(x.trim()) || srcRef.test(x.trim())).length;
+    const n = t.text.split(/(?<=[.!?])\s+/).filter((x) => srcSubj.test(x.trim()) || srcRef.test(x.trim()) || srcKind.test(x.trim())).length;
     for (let k = 0; k < n; k++) perSection.set(t.topic ?? t.section, [...(perSection.get(t.topic ?? t.section) ?? []), label(t)]);
   }
   // full-en-v0.12 (G261018-001~003, 박수헌 2026-10-18 "귀속 빼"): 출처는 앱이 보여 준다 — 대사에서 출처를 부르는 문장은 하나도 두지 않는다
   const srcLoops = [...perSection].filter(([, ids]) => ids.length > 0).map(([sec, ids]) => `"${sec}" ${ids.length} (${[...new Set(ids)].join(", ")})`);
-  if (srcLoops.length) v.push(`${EN_STYLE_MARK} sources named in lines: ${srcLoops.join("; ")} — the app lists sources; do not name them, tell the content directly as an insider; "According to" and "In … account" count too (rule 42)`);
+  if (srcLoops.length) v.push(`${EN_STYLE_MARK} sources named in lines: ${srcLoops.join("; ")} — the app lists sources; do not name them or point to them by kind or year, tell the content directly as an insider; "According to" and "In … account" count too; mark a view inside your own sentence (rule 42)`);
   // 턴 끝 요약 (규칙 31, full-en-v0.7 — G261015-001 · G261017-001·002·003 에이전트 판정에서 네 편 연속): 세 문장 이상인 해설 턴의 마지막 문장이
   // So·This·That·These·Those·Both·Each 로 시작해 앞 내용을 묶으면 센다. 넷 이상이면 문체 위반(한도 뒤 QA 로). 마지막 문장 지우기 시험은 규칙 31 이 맡는다
   const lastSentence = (t: string) => { const s = t.trim().split(/(?<=[.!?])\s+/).filter(Boolean); return s.length >= 3 ? s[s.length - 1] : ""; };
@@ -471,10 +474,17 @@ export function enStyleViolations(turns: ScriptTurn[]): string[] {
   // full-en-v0.9 (G261017-004~006): 장면이 "Imagine a …" 한 문장 틀로 굳었다 — 해설 턴에서 Imagine 으로 시작하는 문장이 셋 이상이면 문체 위반(규칙 3·39)
   // full-en-v0.10 (G261017-009~011): "Picture …"·"In an imagined comparison" 으로 같은 틀이 이어졌다(010 넷 · 011 셋) — 같이 센다
   const imagine = turns.flatMap((t, i) => (!isTemplate(i) && expl(t) ? t.text.trim().split(/(?<=[.!?])\s+/).filter((x) => /^(?:Imagine|Picture)\b|\bimagined\b/i.test(x.trim())).map(() => label(t)) : []));
+  // full-en-v0.13 (G261018-008): 오프닝이 "Imagine …" 한 줄로 열렸다 — Opening 은 Familiar picture 로 연다. 한 번도 문체 위반(규칙 37)
+  const openImagine = turns.flatMap((t, i) => (!isTemplate(i) && t.section === zones.lead && /^(?:Imagine|Picture)\b/.test(t.text.trim()) ? [label(t)] : []));
+  if (openImagine.length) v.push(`${EN_STYLE_MARK} the Opening starts with "Imagine" or "Picture" (${list(openImagine)}) — start from the familiar picture, in plain words (rule 37)`);
+  // full-en-v0.13 (G261018-006~008, 3.11 3·2·3): 진행자의 질문 아닌 턴이 "I'd …"·"I would …" 가정형 틀로 굳었다 — 넷 이상이면 문체 위반(규칙 9)
+  const hostWould = turns.filter((t, i) => !isTemplate(i) && t.id?.startsWith("Y") && !t.text.includes("?") && /\b(?:I'd|I’d|I would|would)\b/i.test(t.text)).map(label);
+  if (hostWould.length > 3) v.push(`${EN_STYLE_MARK} ${hostWould.length} host turns that are not questions use "would" or "I'd" (${list(hostWould)}) — at most three; vary the rest: a plain reaction, a doubt, how it sounds from outside (rule 9)`);
   if (imagine.length > 2) v.push(`${EN_STYLE_MARK} ${imagine.length} imagined scenes ("Imagine", "Picture", "imagined") (${list(imagine)}) — keep at most two; build scenes from a claim with words said, an object, or a sound (rules 3 and 39)`);
   // 읽기·설계 흔적 — 구성안·claims 를 옮겨 적은 말(규칙 36, G261017-005·006)
+  // full-en-v0.13 (G261018-008 E14): 구성안 Scene 메모가 대사가 됐다 — "A broader K-pop café event gives one example"
   // full-en-v0.10 (G261017-009·011): 자료를 가리키는 말·보이지 않는 그림 — "the palace named in the report"·"quoted in the reporting"·"the report mentioned earlier"·"this picture of a charye table"
-  const meta = find(/\b(?:described here|described above|reported connection|possible starting picture|as the (?:outline|plan) says|named in the report|in the reporting|being discussed|working meaning|(?:report|study|survey|article|source) mentioned earlier|this (?:picture|image|illustration) of)\b/i);
+  const meta = find(/\b(?:described here|described above|reported connection|possible starting picture|as the (?:outline|plan) says|named in the report|in the reporting|being discussed|working meaning|(?:report|study|survey|article|source) mentioned earlier|this (?:picture|image|illustration) of|(?:gives|offers) (?:one|an) example|broader [^.?!,]{1,30}? (?:event|example))\b/i);
   if (meta.length) v.push(`${EN_STYLE_MARK} planning or reading wording in lines (${list(meta)}) — say it in the speakers' own words (rule 36)`);
   // 해설자 질문 (규칙 15) — Opening 의 되묻기를 포함해 편 전체 두 번까지 (full-en-v0.6, G261017-001: 도입 되묻기 E1 + 본문 E5·E17 = 세 번)
   const eQ = turns.filter((t, i) => !isTemplate(i) && expl(t) && t.text.includes("?")).map(label);

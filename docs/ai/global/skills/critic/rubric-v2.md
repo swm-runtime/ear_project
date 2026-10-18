@@ -1,6 +1,6 @@
 # Critic rubric v2 (global)
 
-> Version: **critic-en-v0.10** (2026-10-18) · global pipeline · judges against the script rules (guidelines full-en). The global DB `prompt_assets` is the source of truth; this file is the seeding copy. Anchors are empty until people judge the first episodes.
+> Version: **critic-en-v0.11** (2026-10-18) · global pipeline · judges against the script rules (guidelines full-en). The global DB `prompt_assets` is the source of truth; this file is the seeding copy. Anchors are empty until people judge the first episodes.
 
 ## 1. Rules
 
@@ -36,7 +36,7 @@ Each flag names the turn, the item, the severity (violation = clear; suspect = p
 | A5 | Explainer's question to the host | The question is a quiz with a right answer, or opens with "Want to guess" or "Can you guess". |
 | A6 | Awkward naming | A name is used mechanically or in the wrong place. Suspect at most. |
 | A7 | Host not heard | After a host guess or doubt, the explainer says "Right" or "Exactly" and continues a prepared explanation. The host's line changes nothing. |
-| A8 | Source framing | A line names a source (an article, study, guide, museum, website, author, publisher, or researcher) or makes it the subject of a sentence; a line leans on vague authority ("experts say", "studies show"); sample sizes, journal names, methods, or funding are read aloud. Not flagged: facts stated without attribution, an opinion marked as a view by the kind of person who holds it. |
+| A8 | Source framing | A line names a source (an article, study, guide, museum, website, author, publisher, or researcher), points to one by its kind or year ("a food writer", "that 2017 description"), or makes a source or its writer the subject of a sentence; a line leans on vague authority ("experts say", "studies show"); sample sizes, journal names, methods, or funding are read aloud. Not flagged: facts stated without attribution, an opinion marked as a view inside the explainer's sentence, a statistic with the year its data describes. |
 | A9 | Source loops | A new block starts with a pronoun from the previous block, or a block retells one source in order instead of answering its question. |
 | A10 | Reading report | The explainer talks about reading the source ("when I read this…"), about what the materials lack, or previews material from a later section. Saying "we don't know" in answer to a host question is fine. |
 
@@ -85,7 +85,7 @@ Every F flag ends with a replacement: "…" → "…".
 
 ### 2.2 Not flagged here
 
-Length, explainer turns over six sentences, production words, fillers and stage directions, numbers per turn, banned vocabulary, dashes and semicolons, stock reactions, signposting, contrast counts, the host question ratio, the same first word in host turns, explainer turns that open by restating the host, sentences that name a source, explainer questions per episode, and turns that speak of a Korean expression without saying it (L0 — the script was fixed before you see it; judge what remains, do not re-count) · template frames and zones (QA 5) · relative time words and notation (QA 6) · facts, memories, and other countries' practices in host turns (QA 8) · reactions that enlarge a claim (QA 9) · real people, stereotypes, and rankings (QA 11). Their judgment parts are scored in section 3, not flagged.
+Length, explainer turns over six sentences, production words, fillers and stage directions, numbers per turn, banned vocabulary, dashes and semicolons, stock reactions, signposting, contrast counts, the host question ratio, the same first word in host turns, explainer turns that open by restating the host, sentences that name or point to a source, host turns that are not questions using "would" or "I'd", an Opening that starts with "Imagine" or "Picture", explainer questions per episode, and turns that speak of a Korean expression without saying it (L0 — the script was fixed before you see it; judge what remains, do not re-count) · template frames and zones (QA 5) · relative time words and notation (QA 6) · facts, memories, and other countries' practices in host turns (QA 8) · reactions that enlarge a claim (QA 9) · real people, stereotypes, and rankings (QA 11). Their judgment parts are scored in section 3, not flagged.
 
 ## 3. Scores — 100
 
@@ -271,6 +271,7 @@ Flags n · violations n · suspects n · ⭐ n
 
 ## Change history
 
+- critic-en-v0.11 (2026-10-18) — follows guidelines full-en-v0.13: A8 also flags a source pointed to by kind or year, and an opinion is marked as a view inside the explainer's sentence; 2.2 lists the new L0 counts (host "would"/"I'd" turns, an Opening that starts with "Imagine" or "Picture").
 - critic-en-v0.10 (2026-10-18) — wording only: 3.7 caps "a closing" (the sign-off has no slot since tpl-en-v4), and 2.2 lists the L0 count of sentences that name a source (any, since full-en-v0.12).
 - critic-en-v0.9 (2026-10-18, same version) — no source names in lines (guidelines full-en-v0.12 rule 42; the app lists sources). A8 flags a named source; A9 keeps pronoun loops and blocks that retell one source; 3.2 bands no longer ask for a source introduction.
 - critic-en-v0.9 (2026-10-18) — after G261018-001 to 003 (first intro-format round) the critic gave 3.11 up to 5 while the explainer told every section through a source, and gave 3.3 the top band for differences said in one line. 3.11 now says that telling most sections through what a source says is not insider framing.

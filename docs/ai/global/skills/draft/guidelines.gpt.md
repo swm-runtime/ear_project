@@ -1,6 +1,6 @@
 # Script Writing Guidelines
 
-> Version: **full-en-v0.12** (2026-10-18) · GPT profile · global pipeline. Rationale and sources: [CHANGELOG.md](CHANGELOG.md).
+> Version: **full-en-v0.13** (2026-10-18) · GPT profile · global pipeline. Rationale and sources: [CHANGELOG.md](CHANGELOG.md).
 > Rule numbers are reference IDs for L0, QA and the critic. Do not reuse or renumber them.
 
 ## Principles
@@ -17,7 +17,7 @@
 
 2. **The host is the listener's stand-in.** The host is a curious non-Korean. The host asks what a newcomer would ask and says how a point sounds to them. The host makes no factual claims. The host does not describe practices in any country, including their own, and does not name a home country or speak for a group of listeners.
 
-3. **Opinions yes, memories no.** Both speakers may give present-tense feelings, guesses, and preferences. Neither speaker tells personal memories, trips, family stories, or past actions. A scene built from claim facts may run up to four sentences and carries one concrete detail from the claims: words people say, an object, or a sound. An imagined frame with no claim facts stays at two sentences, is marked by its first words, and is recorded in bridges. Never say the words "hypothetical" or "imagined" in a line. At most two scenes in an episode start with "Imagine" or "Picture". Do not refer to an imagined person and a person from the claims with the same noun.
+3. **Opinions yes, memories no.** Both speakers may give present-tense feelings, guesses, and preferences. Neither speaker tells personal memories, trips, family stories, or past actions. A scene built from claim facts may run up to four sentences and carries one concrete detail from the claims: words people say, an object, or a sound. When the claims hold the short words people say in the scene, say those words once, as the claims have them. An imagined frame with no claim facts stays at two sentences, is marked by its first words, and is recorded in bridges. Never say the words "hypothetical" or "imagined" in a line. At most two scenes in an episode start with "Imagine" or "Picture". Do not refer to an imagined person and a person from the claims with the same noun.
 
 4. **No stereotypes, rankings, or default viewpoint.**
    - Do not generalize about Koreans or any other group. Do not rank cultures, countries, artists, groups, or fandoms.
@@ -28,7 +28,7 @@
 5. **History and national feeling.** On the colonial period, wars, and disputes with Japan, China, or North Korea, state only claimed facts and mark interpretations as views. Do not blame present-day people. Do not argue which country a food, garment, or custom belongs to. Do not boast about Korea's global success and do not apologize for or defend Korea. Say "South Korea" when the difference from North Korea matters.
 
 6. **People, bodies, beliefs, food.**
-   - Mention real people only through verifiable public facts from the claims. No private life, relationships, rumors, controversies, or legal cases.
+   - Mention people known to the public by name only through verifiable public facts from the claims. No private life, relationships, rumors, controversies, or legal cases. An unnamed person's own account of a family event or practice, from the claims, is a case.
    - Do not comment on anyone's looks or body. When beauty standards come up, present them as a view some people hold, not as desirable.
    - Describe religions and folk beliefs neutrally, never as superstition.
    - Do not assume the listener eats pork or drinks alcohol. Name ingredients plainly.
@@ -45,7 +45,7 @@
 
 8. **Questions grow from what was just said.** The host asks about a point in the previous explanation that is unclear, surprising, or hard to accept. The first question of a section uses only what came before it. The explainer introduces new cases, numbers, and results first. Do not put the next answer or an unexplained fact into a question. If no question arises, the explainer opens the next point in one sentence.
 
-9. **Host turns have one job, in varied forms.** A host turn does one thing: a question, a guess, a mild doubt, or how the point sounds from outside. Between half and two-thirds of host turns in the Body are questions. A host guess puts the host in the scene or says how it feels. A sentence that states the explanation's conclusion in advance is a small explanation; do not give it to the host. Do not turn the explanation back into a question ("So you're saying…?"). Do not echo the explainer's last phrase. The host does not ask about sample sizes, methods, statistics, or limitations. Do not ask negative questions ("Isn't it…?").
+9. **Host turns have one job, in varied forms.** A host turn does one thing: a question, a guess, a mild doubt, or how the point sounds from outside. Between half and two-thirds of host turns in the Body are questions. A host guess puts the host in the scene or says how it feels. A sentence that states the explanation's conclusion in advance is a small explanation; do not give it to the host. Do not turn the explanation back into a question ("So you're saying…?"). Do not echo the explainer's last phrase. The host does not ask about sample sizes, methods, statistics, or limitations. Do not ask negative questions ("Isn't it…?"). At most three host turns that are not questions use "would" or "I'd"; vary the rest.
 
 10. **The explainer answers the host, not the script.** The explainer's first sentence answers what the host just asked or said. It does not restate, name, or paraphrase the host's question, guess, preference, or feeling. When the host guesses or doubts, say which part holds or fails in new words, then build from it or correct it. It does not start with a one-word acknowledgment. At least twice per episode, the host's turn changes the direction of the next explanation.
 
@@ -71,7 +71,7 @@
 
 20. **Write how people speak.** Use contractions where a speaker would. Short fragments are fine for reactions and quick answers. "I mean" and "kind of" appear at most once per section each. Once or twice per episode, the explainer may correct a word mid-sentence. No turn ends mid-sentence or trails off.
 
-21. **Punctuation for the ear.** Spoken lines use periods, commas, and question marks. No em dashes, en dashes as breaks, semicolons, or parentheses. A colon is allowed only in a clock time. Use "..." only where a speaker pauses to choose a word or to correct themselves: in one of every three to six explainer turns, at most one per turn. Never use "..." in place of a colon or dash before a list or an explanation.
+21. **Punctuation for the ear.** Spoken lines use periods, commas, and question marks. No em dashes, en dashes as breaks, semicolons, or parentheses. A colon is allowed only in a clock time. Use "..." only where a speaker pauses to choose a word or to correct themselves, at most twice per episode and once per turn. It is never required. Never use "..." in place of a colon or dash before a list or an explanation.
 
 22. **Rhythm follows content.** Explainer turns average 2 to 5 sentences, with a maximum of 6. Host turns are usually 1 to 2 sentences. Use longer explainer turns for context and short exchanges for surprises and corrections. Vary the exchange: sometimes the explainer gives a one-line answer and stops; sometimes the host asks before the explanation is finished. Do not split one explanation into small turns.
 
@@ -114,27 +114,27 @@
 
 36. **Nothing outside speech in lines.** No URLs, tables, lists, markdown, emoji, citations, source lists, or AI disclosure in spoken lines. No claim or excerpt IDs (C##, S#-##) anywhere in the script. Do not say production terms: section, axis, block, claim, excerpt, outline, source, gold, Body, Closing. Do not carry the claims' labels into lines: attributed, account, or use as a noun for a sense of a word. The outline's lines, its Terms line included, are instructions, not dialogue: never copy their wording, and never say where something is described ("described here"). Do not point to the materials ("in the reporting", "mentioned earlier") or to a picture or image the listener cannot see.
 
-37. **Intro and Opening.** The injected intro template is Y1, one turn. Keep its frame and fill only its slots; no braces may remain. After the topic is named, use two or three Opening turns to raise the question a newcomer would ask. Start from the outline's Familiar picture and name it in the first Opening turn, before any detail of the practice. Do not introduce studies or sources in the Opening.
+37. **Intro and Opening.** The injected intro template is Y1, one turn. Keep its frame and fill only its slots; no braces may remain. After the topic is named, use two or three Opening turns to raise the question a newcomer would ask. Start from the outline's Familiar picture and name it in the first Opening turn, before any detail of the practice. Do not open the Opening with "Imagine" or "Picture". Do not introduce studies or sources in the Opening.
 
 38. **The axis leads.** Keep the outline's axis and each section's sub-question. Each Body section answers a question left by the one before. Do not add, remove, or reorder sections. If the prompt sets history mode, follow it: the event is the axis and its course is the Body.
 
 39. **Scenes, cases, and metaphors, budgeted.** Stage each Scene the outline plans: the explainer says who, where, and what happens, and the host reacts to it. One case per section, four to five per episode, including cases from sources. Use a metaphor only where understanding stalls, at most three per episode. The host creates no metaphors or examples. Record every new link or metaphor in bridges.
 
-40. **Closing.** The Closing is the host's closing lead with its closing question, one explainer wrap-up turn that answers it, and the host's injected sign-off. The wrap-up has 3 to 6 sentences. It connects the sections' answers as one line of reasoning, merging sections when needed, and its last sentence answers the axis question or states the axis. No new facts, names, numbers, or cases. Do not open it with "So, to sum up" or similar. The sign-off is fixed text. Say it word for word and add nothing to it.
+40. **Closing.** The Closing is the host's closing lead with its closing question, one explainer wrap-up turn that answers it, and the host's injected sign-off. The wrap-up has 3 to 6 sentences. It gives one answer to the axis question and the reason for it, drawn from the sections. It does not retell the sections in order or join their facts into a list. Its last sentence answers the axis question. No new facts, names, numbers, or cases. Do not open it with "So, to sum up" or similar. The sign-off is fixed text. Say it word for word and add nothing to it.
 
 ## Facts and sources
 
-41. **Facts come only from the claims.** Every number, quote, name, cause, definition, and date comes from a claims row, appears only in explainer turns, and stays within what the excerpt supports. Do not raise the strength, scope, or certainty of a claim. Keep every condition the claim states: who says it, to whom, where, and which of its meanings it covers. Keep each condition on the thing it describes; do not move it to another thing. Keep quantifiers such as some, many, and most. A practice the claim gives to one person stays that person's practice; do not make it a place's or a group's. Do not widen a named set into a general category. A list the claim marks as partial stays partial. A practice reported for a year keeps that year. For claims based on Korean-language excerpts, keep the meaning exact when rephrasing in English. List the claim IDs each explainer turn uses in turn_claims.
+41. **Facts come only from the claims.** Every number, quote, name, cause, definition, and date comes from a claims row, appears only in explainer turns, and stays within what the excerpt supports. Do not raise the strength, scope, or certainty of a claim. Keep every condition the claim states: who says it, to whom, where, and which of its meanings it covers. Keep each condition on the thing it describes; do not move it to another thing. Keep quantifiers such as some, many, and most. A practice the claim gives to one person stays that person's practice; do not make it a place's or a group's. Do not widen a named set into a general category. A list the claim marks as partial stays partial. A practice the claim places in the past stays in the past tense; a current practice is in the present tense. For claims based on Korean-language excerpts, keep the meaning exact when rephrasing in English. List the claim IDs each explainer turn uses in turn_claims.
 
-42. **No source names in lines.** The app lists the sources. Do not name an article, study, guide, museum, website, author, publisher, or researcher in a line, and do not make a source the subject of a sentence; "According to" and "In … account" count. Tell facts and practices directly, in the explainer's own voice, as an insider would. Mark an opinion, interpretation, or forecast as a view and say whose kind of view it is without a name. Do not use vague authority ("experts say", "studies show", "many people believe").
+42. **No sources in lines.** The app lists the sources. Do not name or point to a source in a line. Do not name an article, study, guide, museum, website, author, publisher, or researcher. Do not point to a source by its kind or its year ("a food writer", "a drama commentator", "that 2017 description"). Do not make a source or its writer the subject of a sentence; "According to" and "In … account" count. Tell facts and practices directly, in the explainer's own voice, as an insider would. Mark an opinion, interpretation, or forecast as a view inside the explainer's own sentence ("one way to read it is…"). A person the script names as a case keeps that name or a pronoun for their own words and views. Do not use vague authority ("experts say", "studies show", "many people believe").
 
 43. **Claims stay in place.** Use each claim in the section the outline gives it. A section may draw on several sources. Do not describe reading a source, preview later material, or mention that something is missing from the materials.
 
-44. **Sources are not footnotes read aloud.** Do not say sample sizes, survey counts, journal names, methods, funding, or citation relations. Describe a study by who it looked at and what it found, in one sentence. Paraphrase quotes. Read original wording only when the wording itself is the subject. For statistics about Korean society, say the year the data describes.
+44. **Sources are not footnotes read aloud.** Do not say sample sizes, survey counts, journal names, methods, funding, or citation relations. Describe a study by who it looked at and what it found, in one sentence. Paraphrase quotes. Read original wording only when the wording itself is the subject or when it is the short words said in a scene. For statistics about Korean society, say the year the data describes.
 
 45. **Numbers.** At most three numbers per explainer turn and six per section. Round unless precision is the point, and say "about" when you round. Keep a claim's "nearly" or "almost" true after rounding. Keep the unit, the base, and what is compared. Write numbers as digits. Write Korean won as "KRW 15,000", with no "won" after it and no dollar conversion. Spell out units and "percent". Use metric units.
 
-46. **No relative time.** Outside the injected templates, do not use now (for the present era), today, nowadays, these days, currently, recently, this year, last year, or next year. Use years or timeless wording.
+46. **Time by tense.** Outside the injected templates, do not use now (for the present era), today, nowadays, these days, currently, recently, this year, last year, or next year. Show time by tense: a past practice in the past tense, a current practice in the present tense. Use a year only for a dated event or a statistic. Do not date a current practice with a year, and do not tell a current practice in the past perfect.
 
 ## Korean words
 
@@ -151,7 +151,7 @@
 - Check internally in this order. Do not print the check.
   1. Zones, meta line, speaker names, turn numbers, roles, Body sections, templates, no braces, last turn.
   2. Each factual sentence against the claims and excerpts. Remove host facts, raised claims, invented memories, and "we" for Koreans.
-  3. Source names, claims in their sections, vague authority, footnote details, numbers, relative time.
+  3. Sources named or pointed to by kind or year, claims in their sections, vague authority, footnote details, numbers, time by tense.
   4. Rules 4 to 7: default viewpoint, stereotypes, history, people, beliefs, topic limits.
   5. Word count against the plan. Fill short sections from assigned material.
   6. Host turns: one job each, question ratio, varied forms, calm reactions, openers, praise, echoes, doubt only where the claims hold it.

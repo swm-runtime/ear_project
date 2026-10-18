@@ -308,10 +308,11 @@ export async function writeDesignArtifactsEn(x: { dir: string; episodeId: string
   for (const [src, secs] of sectionsOf) for (const sec of secs) { const set = blocks.get(sec) ?? new Set<number>(); set.add(src); blocks.set(sec, set); }
   const blockNote = [...blocks].sort((p, q) => p[0] - q[0]).map(([sec, srcs]) => `#${sec} ${[...srcs].sort((p, q) => p - q).map((n) => `S${n}`).join(", ")}`).join(" · ") || "none";
   const lang = (ids: string[]) => excerptLang(ids.map((id) => textOf.get(id) ?? ""));
-  // full-en-v0.12 (2026-10-18 "귀속 빼"): 대사에서 출처를 부르지 않는다 — 표의 표시는 의견 claim 만 "view"(이름 없이 견해로 표시), 나머지는 "none"
+  // full-en-v0.12 (2026-10-18 "귀속 빼"): 대사에서 출처를 부르지 않는다 — 표의 표시는 의견 claim 만 "view", 나머지는 "none"
+  // full-en-v0.13 (G261018-006~008): "보유자 종류로" 표시하라던 말이 "a drama commentator"·"For a food writer" 주어와 이미 나온 사례 인물(Erin)의 재호칭을 낳았다 — 견해는 해설자 문장 안에서만 표시
   const views = o.claims.filter((c) => c.opinion).length;
   const claimsMd = [`# claims — ${episodeId}`, "",
-    `> Attribution: view ${views} · none ${o.claims.length - views}. Sources are never named in lines. A "view" claim is said as a view, with the kind of person who holds it and no name; the rest the explainer says directly.`,
+    `> Attribution: view ${views} · none ${o.claims.length - views}. Sources are never named in lines. A "view" claim is said as a view inside the explainer's own sentence, never with its holder or source as the subject; a person the script names as a case keeps that name; the rest the explainer says directly.`,
     `> Axis source: ${axis ? `S${axis}` : "none"} · blocks (sources per section): ${blockNote}`,
     `> Excerpt language "ko": the claim is an English restatement of a Korean excerpt. Keep its meaning exact.`, "",
     "| ID | Claim | Excerpt IDs | Type | Section | Notable | Opinion | Attribution | Excerpt language |", "|---|---|---|---|---|---|---|---|---|",
