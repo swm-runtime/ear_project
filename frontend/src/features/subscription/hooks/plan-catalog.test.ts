@@ -90,7 +90,68 @@ describe('요금제 카드 병합 — 가격은 스토어 현지 가격만', () 
   });
 });
 
-describe('무료 요금제 판정 — 서버 필드(상품 ID·action)만 본다', () => {
+describe('무료 요금제 판정 — 서버 is_free 우선(KAN-226)', () => {
+  it('is_free: true 면 action none(다른 스토어 구독자)이어도 무료이고 카드에 "무료"가 붙는다', () => {
+    // given — 다른 스토어 구독자: 모든 행이 none, 이 플랫폼 상품도 없다
+    const light = plan({ planId: 'light', storeProductId: null, action: 'none', isFree: true });
+    const pro = plan({ planId: 'pro', storeProductId: null, action: 'none', isFree: false });
+
+    // when
+    const cards = mergePlanPrices([light, pro], [], SUBSCRIPTION_COPY.plans.freePrice);
+
+    // then — 종전 추정으로는 Light 도 null(가격 칸 비움)이었다
+    expect(isFreePlan(light)).toBe(true);
+    expect(cards?.map((card) => card.priceLabel)).toEqual([
+      SUBSCRIPTION_COPY.plans.freePrice,
+      null,
+    ]);
+  });
+
+  it('is_free: false 면 상품 ID 없음 + current·cancel 이어도 무료가 아니다 — 서버 판정이 추정보다 앞선다', () => {
+    expect(isFreePlan(plan({ storeProductId: null, action: 'current', isFree: false }))).toBe(
+      false,
+    );
+    expect(isFreePlan(plan({ storeProductId: null, action: 'cancel', isFree: false }))).toBe(false);
+    expect(
+      mergePlanPrices(
+        [plan({ storeProductId: null, action: 'current', isFree: false })],
+        [],
+        '무료',
+      )?.[0].priceLabel,
+    ).toBeNull();
+  });
+
+  it('is_free 가 없는 응답(배포 전 서버)은 toPlanCatalog 를 거쳐도 종전 추정으로 돌아간다', () => {
+    // given — is_free 키가 없는 DTO
+    const entitlements = {
+      daily_play_limit: 2,
+      daily_drip_count: 2,
+      drip_enabled: true,
+      ads_enabled: true,
+    };
+    const row = (planId: string, action: 'current' | 'none') => ({
+      plan_id: planId,
+      tier: 'light',
+      name: 'Light',
+      description: '',
+      store_product_id: null,
+      entitlements,
+      action,
+    });
+    const dto: PlansResponseDto = {
+      plans: [row('current', 'current'), row('none', 'none')],
+      is_email_verified: true,
+    };
+
+    // when
+    const cards = mergePlanPrices(toPlanCatalog(dto).plans, [], '무료');
+
+    // then — current 는 무료, none 은 "상품 없는 유료"와 구별되지 않아 비움
+    expect(cards?.map((card) => card.priceLabel)).toEqual(['무료', null]);
+  });
+});
+
+describe('무료 요금제 판정 폴백 — is_free 가 없을 때 서버 필드(상품 ID·action)로 추정', () => {
   it('상품 ID 가 없고 current(구독 없음)·cancel(유료 구독자)이면 무료다', () => {
     expect(isFreePlan(plan({ storeProductId: null, action: 'current' }))).toBe(true);
     expect(isFreePlan(plan({ storeProductId: null, action: 'cancel' }))).toBe(true);

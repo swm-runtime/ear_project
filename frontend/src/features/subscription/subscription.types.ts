@@ -32,6 +32,11 @@ export interface Plan {
    * 서버의 원화 참고값(`price_krw`)은 모델에 두지 않는다(KAN-196 — 두 시장 코드 경로를 하나로)
    */
   storeProductId: string | null;
+  /**
+   * 서버가 내린 무료 판정(`is_free`, KAN-226). 필드가 없는 서버 응답이면 null — 그때만 `isFreePlan` 이 추정한다.
+   * 선택 필드라 테스트·목에서 생략해도 된다(생략 = null 과 같다)
+   */
+  isFree?: boolean | null;
   entitlements: Entitlements;
   action: PlanAction;
 }
