@@ -7,7 +7,13 @@ import ChevronIcon from '@/shared/ui/ChevronIcon';
 import { SkeletonBlock, SkeletonGroup } from '@/shared/ui/Skeleton';
 import { Text } from '@/shared/ui/Typography';
 
-import { JOB_CHIP_HEIGHT, JOB_CHIP_RADIUS, JobCategoryChips, JobTitleField, YearsSegment } from '@/features/career';
+import {
+  JOB_CHIP_HEIGHT,
+  JOB_CHIP_RADIUS,
+  JobCategoryChips,
+  JobTitleField,
+  YearsSegment,
+} from '@/features/career';
 
 import { useCareerScreen } from '../hooks/useCareerScreen';
 import { ONBOARDING_COPY } from '../onboarding.copy';
@@ -106,7 +112,9 @@ export default function CareerScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <View style={[styles.header, { paddingTop: Math.max(theme.spacing.md - insets.top, 0) }]}>
+      {/* 고정 머리는 툴바만 — paddingTop은 inset에 따라 계산한다. SafeAreaView가 이미 넣은 여백 위에
+          고정값을 또 더하면 기기에서만 헤더가 두 배로 내려온다(웹은 inset이 0이다) */}
+      <View style={{ paddingTop: Math.max(theme.spacing.md - insets.top, 0) }}>
         {/* O1과 같은 가운데 타이틀 툴바 — 2단계부터는 왼쪽에 [이전]이 있다(4.1 위치 일치) */}
         <View style={styles.toolbar}>
           <Pressable
@@ -136,40 +144,56 @@ export default function CareerScreen() {
             )}
           </Pressable>
         </View>
-        <Text
-          style={styles.stepLabel}
-          accessibilityLabel={COPY.stepA11y(stepPosition.current, stepPosition.total)}
-        >
-          {COPY.step(stepPosition.current, stepPosition.total)}
-        </Text>
-        <Text style={styles.title}>{ONBOARDING_COPY.career.title}</Text>
-        {/* 손해가 없다는 사실을 상시 노출한다 — 이 문구가 [건너뛰기] 버튼보다 중요하다(onboarding-uiux.md 4.3) */}
-        <Text style={styles.laterNotice}>{ONBOARDING_COPY.career.laterNotice}</Text>
       </View>
 
-      <ScrollView contentContainerStyle={styles.form}>
-        <Text style={styles.fieldLabel}>{ONBOARDING_COPY.career.jobCategoryLabel}</Text>
-        {renderJobCategoryField()}
+      {/* 툴바 밑은 전부 스크롤된다(2026-10-19 KAN-197 "화면 안에 안 들어가면 스크롤되게") — 단계·헤드라인·안내가
+          스크롤 밖 고정 머리였을 땐 큰 글자 + 작은 화면에서 머리가 화면을 다 먹어 폼이 0 높이로 사라졌다. 들어가면
+          종전과 같은 그림이다(간격 값 그대로). 키보드가 직무 입력칸을 덮으면 iOS 는 스크롤 뷰가 바닥 인셋을 넣고
+          입력칸을 올린다(automaticallyAdjustKeyboardInsets). 키보드가 떠 있어도 칩·연차는 한 번에 눌린다(handled) */}
+      <ScrollView
+        style={styles.scroll}
+        keyboardShouldPersistTaps="handled"
+        automaticallyAdjustKeyboardInsets
+        alwaysBounceVertical={false}
+      >
+        <View style={styles.intro}>
+          <Text
+            style={styles.stepLabel}
+            accessibilityLabel={COPY.stepA11y(stepPosition.current, stepPosition.total)}
+          >
+            {COPY.step(stepPosition.current, stepPosition.total)}
+          </Text>
+          <Text style={styles.title}>{ONBOARDING_COPY.career.title}</Text>
+          {/* 손해가 없다는 사실을 상시 노출한다 — 이 문구가 [건너뛰기] 버튼보다 중요하다(onboarding-uiux.md 4.3) */}
+          <Text style={styles.laterNotice}>{ONBOARDING_COPY.career.laterNotice}</Text>
+        </View>
 
-        <Text style={styles.fieldLabel}>{ONBOARDING_COPY.career.jobTitleLabel}</Text>
-        <JobTitleField
-          value={jobTitle}
-          onChangeText={setJobTitle}
-          placeholder={ONBOARDING_COPY.career.jobTitlePlaceholder}
-          accessibilityLabel={ONBOARDING_COPY.career.jobTitleLabel}
-          clearAccessibilityLabel={ONBOARDING_COPY.career.jobTitleClearA11y}
-          disabled={isSubmitting}
-        />
+        <View style={styles.form}>
+          <Text style={styles.fieldLabel}>{ONBOARDING_COPY.career.jobCategoryLabel}</Text>
+          {renderJobCategoryField()}
 
-        <Text style={styles.fieldLabel}>{ONBOARDING_COPY.career.yearsLabel}</Text>
-        {/* 연차 — 커리어 정보와 같은 한 줄 구간 선택. 선택한 칸을 다시 누르면 해제 */}
-        <YearsSegment
-          options={YEARS_OPTIONS}
-          labels={ONBOARDING_COPY.career.yearsOption}
-          value={yearsOfExperience}
-          onToggle={(option) => setYearsOfExperience(yearsOfExperience === option ? null : option)}
-          disabled={isSubmitting}
-        />
+          <Text style={styles.fieldLabel}>{ONBOARDING_COPY.career.jobTitleLabel}</Text>
+          <JobTitleField
+            value={jobTitle}
+            onChangeText={setJobTitle}
+            placeholder={ONBOARDING_COPY.career.jobTitlePlaceholder}
+            accessibilityLabel={ONBOARDING_COPY.career.jobTitleLabel}
+            clearAccessibilityLabel={ONBOARDING_COPY.career.jobTitleClearA11y}
+            disabled={isSubmitting}
+          />
+
+          <Text style={styles.fieldLabel}>{ONBOARDING_COPY.career.yearsLabel}</Text>
+          {/* 연차 — 커리어 정보와 같은 한 줄 구간 선택. 선택한 칸을 다시 누르면 해제 */}
+          <YearsSegment
+            options={YEARS_OPTIONS}
+            labels={ONBOARDING_COPY.career.yearsOption}
+            value={yearsOfExperience}
+            onToggle={(option) =>
+              setYearsOfExperience(yearsOfExperience === option ? null : option)
+            }
+            disabled={isSubmitting}
+          />
+        </View>
       </ScrollView>
 
       <View style={styles.dock}>
@@ -199,10 +223,13 @@ const styles = StyleSheet.create({
     backgroundColor: theme.color.background,
     paddingHorizontal: theme.spacing.lg,
   },
-  header: {
-    // paddingTop은 inset에 따라 화면에서 계산한다 — SafeAreaView가 이미 넣은 여백 위에
-    // 고정값을 또 더하면 기기에서만 헤더가 두 배로 내려온다(웹은 inset이 0이다)
+  scroll: {
+    flex: 1,
+  },
+  // 단계·헤드라인·안내 — 종전 머리의 gap sm 을 그대로 둔다. 툴바와 단계 사이의 sm 은 위 여백으로 옮겼다
+  intro: {
     gap: theme.spacing.sm,
+    paddingTop: theme.spacing.sm,
   },
   toolbar: {
     height: theme.touchTarget.minHeight,

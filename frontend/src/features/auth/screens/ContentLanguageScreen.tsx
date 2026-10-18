@@ -60,6 +60,8 @@ export default function ContentLanguageScreen({ route }: ContentLanguageScreenPr
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={styles.body}
+        // 들어가는 화면에선 iOS 고무줄 튕김을 막는다 — A4·A20 과 같다(KAN-197). 넘치면 그대로 스크롤된다
+        alwaysBounceVertical={false}
         showsVerticalScrollIndicator={false}
       >
         <LanguageSwitchText
