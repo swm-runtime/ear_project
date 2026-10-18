@@ -1,6 +1,6 @@
 # Critic rubric v2 (global)
 
-> Version: **critic-en-v0.11** (2026-10-18) · global pipeline · judges against the script rules (guidelines full-en). The global DB `prompt_assets` is the source of truth; this file is the seeding copy. Anchors are empty until people judge the first episodes.
+> Version: **critic-en-v0.12** (2026-10-18) · global pipeline · judges against the script rules (guidelines full-en). The global DB `prompt_assets` is the source of truth; this file is the seeding copy. Anchors are empty until people judge the first episodes.
 
 ## 1. Rules
 
@@ -17,7 +17,7 @@
   4. Score immersion (3.10) as a whole. It is not a sum of the other axes.
   5. When torn between two bands for 3.1, 3.3, 3.6, 3.8, 3.9, or 3.10, choose the lower band.
   6. When an anchor exists for an item, compare the script with the anchor.
-  7. Until anchors exist: 3.6 is at most 6 and 3.10 is at most 12. For 3.1, first write the one thing a listener could retell; if the script has none, 3.1 is at most 6.
+  7. Until anchors exist: 3.6 is at most 6 and 3.10 is at most 12. For 3.1, first write the one thing a listener could retell; if the script has none, 3.1 is at most 6. 3.3 is 4 only when a difference is shown: who or where, and what changes. A line that says practices differ is 3.
 
 ## 2. Flags
 
@@ -85,7 +85,7 @@ Every F flag ends with a replacement: "…" → "…".
 
 ### 2.2 Not flagged here
 
-Length, explainer turns over six sentences, production words, fillers and stage directions, numbers per turn, banned vocabulary, dashes and semicolons, stock reactions, signposting, contrast counts, the host question ratio, the same first word in host turns, explainer turns that open by restating the host, sentences that name or point to a source, host turns that are not questions using "would" or "I'd", an Opening that starts with "Imagine" or "Picture", explainer questions per episode, and turns that speak of a Korean expression without saying it (L0 — the script was fixed before you see it; judge what remains, do not re-count) · template frames and zones (QA 5) · relative time words and notation (QA 6) · facts, memories, and other countries' practices in host turns (QA 8) · reactions that enlarge a claim (QA 9) · real people, stereotypes, and rankings (QA 11). Their judgment parts are scored in section 3, not flagged.
+Length, explainer turns over six sentences, production words, fillers and stage directions, numbers per turn, banned vocabulary, dashes and semicolons, stock reactions, signposting, contrast counts, the host question ratio, the same first word in host turns, explainer turns that open by restating the host, sentences that name or point to a source, host turns that are not questions about the host's own state ("would", "I'd", "I feel", "I find", "to me"), an Opening that starts with "Imagine" or "Picture", explainer questions outside the Opening, explainer turns that say what people should do, and turns that speak of a Korean expression without saying it (L0 — the script was fixed before you see it; judge what remains, do not re-count) · template frames and zones (QA 5) · relative time words and notation (QA 6) · facts, memories, and other countries' practices in host turns (QA 8) · reactions that enlarge a claim (QA 9) · real people, stereotypes, and rankings (QA 11). Their judgment parts are scored in section 3, not flagged.
 
 ## 3. Scores — 100
 
@@ -271,6 +271,7 @@ Flags n · violations n · suspects n · ⭐ n
 
 ## Change history
 
+- critic-en-v0.12 (2026-10-18) — follows guidelines full-en-v0.14: 3.3 is 4 only when a difference is shown (who or where, and what changes), after the critic gave the top band to one-line mentions in G261018-001, 006, and 010 to 012; 2.2 lists the new L0 counts (host self-state turns, explainer questions outside the Opening, explainer "should" sentences).
 - critic-en-v0.11 (2026-10-18) — follows guidelines full-en-v0.13: A8 also flags a source pointed to by kind or year, and an opinion is marked as a view inside the explainer's sentence; 2.2 lists the new L0 counts (host "would"/"I'd" turns, an Opening that starts with "Imagine" or "Picture").
 - critic-en-v0.10 (2026-10-18) — wording only: 3.7 caps "a closing" (the sign-off has no slot since tpl-en-v4), and 2.2 lists the L0 count of sentences that name a source (any, since full-en-v0.12).
 - critic-en-v0.9 (2026-10-18, same version) — no source names in lines (guidelines full-en-v0.12 rule 42; the app lists sources). A8 flags a named source; A9 keeps pronoun loops and blocks that retell one source; 3.2 bands no longer ask for a source introduction.
