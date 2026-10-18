@@ -71,3 +71,4 @@
 ## 처리 기록
 
 - 2026-10-18 발행. 코드는 브랜치 `feat(be)/billing-success-slack-alert` — 유닛 테스트 `billing-payment-alert.spec.ts`(실제 결제 코드 위에서 재제출·복원·알림 재전송 시 한 번만) · `billing-event-alert.format.spec.ts` · `billing-event-alert.service.spec.ts`.
+- 2026-10-19 **반영**(PR `docs(be)/apply-pending-changes-1019`). 반영 날짜 2026-10-19. `backend-monitoring.md` 3-6 첫 문단과 3-7 신설, `runbook.md` 4-1 알림 표와 "사용자 신호" 문단에 반영했다. 코드를 따라 재구독 판정을 좁혔다: 재구매로 다른 계정의 끝난 행을 넘겨받은 경우는 신규 구독으로 센다(`billing-sync.service.ts`).

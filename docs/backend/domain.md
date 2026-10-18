@@ -131,7 +131,7 @@ idx_idempotency_keys_expires_at
 | 모듈 | 소유 Entity |
 |---|---|
 | `user` | `users`, `consents`, `withdrawal_logs`, `user_settings`, `device_tokens`, `email_verifications` |
-| `auth` | `sessions` |
+| `auth` | `sessions`, `daily_active_users`, `user_active_dates`(2026-10-18 — 원천이 `sessions`이고 표가 필요한 이유도 이 모듈의 세션 파기다. 서비스 지표(`admin`)는 읽기만 한다, [3.3-1](#33-1-daily_active_users-신설-2026-10-18--세션-파기에도-남는-일별-접속자)·[3.3-2](#33-2-user_active_dates-신설-2026-10-18--코호트-리텐션의-사람별-접속일)) |
 | `interest` | `topics`, `user_interests`, `topic_adjacencies` |
 | `content` | `contents`, `content_topics`, `content_scripts`, `content_stats`, `content_sources`, `content_embeddings`, `search_query_logs`, `series`(2026-10-17 — `SeriesService`가 export, [5.9](#59-series-신설-2026-10-17--kan-134-시리즈)) |
 | `library` | `library_items` |
@@ -298,6 +298,48 @@ idx_sessions_revoked_at           ★파기 배치용 (2026-10-10)
   - 회원 탈퇴는 폐기가 아니라 행 삭제(`users` FK CASCADE)라 사유 값이 없다.
   - 물리 컬럼은 `varchar(20)` + TypeScript enum `SessionRevokedReason`(`convention.md` 4.2). 대안으로 "같은 사용자·기기의 더 새 세션이 있으면 회전"이라는 추론(컬럼 없음)을 검토했으나, 회전 직후 새 세션까지 로그아웃된 경우 판정이 흐려져 사유를 직접 남겼다.
 - **원문 토큰을 저장하지 않는다.** 해시만 저장한다.
+
+### 3.3-1 `daily_active_users` *(신설 2026-10-18 — 세션 파기에도 남는 일별 접속자)*
+
+```
+daily_active_users
+  active_date               date            PK   KST 달력일(서비스 날짜 05:00 경계가 아니다 — 서비스 지표의 다른 일별 값과 같은 단위)
+  market                    varchar(10)     PK   사용자의 users.market (kr · global)
+  active_users              int   DEFAULT 0      그날 sessions.issued_at 이 있는 사용자 수(distinct)
+  created_at · updated_at
+```
+
+서비스 지표의 일별 접속자·요일별 평균(`admin-api.md` 4.22 `daily[].active_users` · `weekday[]`)의 원천이다. "접속자"는 그날 `sessions.issued_at`이 있는 사람이다 — `active_1d/7d/30d`와 같은 신호다(액세스 토큰이 30분이라 앱을 열면 거의 매번 리프레시 회전으로 세션 행이 생긴다). **세션 행은 만료·폐기 30일 뒤 hard delete되므로**([12.1](#121-운영-중-삭제-정책) · `SessionPurgeScheduler`) 지난날은 나중에 다시 셀 수 없다. `play_daily_totals`([6.3-1](#63-1-play_daily_totals-신설-2026-10-17--탈퇴로-줄지-않는-서비스-누적))와 같은 이유로 날이 끝나면 바로 세어 이 표에 쌓는다. 마이그레이션 `1790800000000-AddDailyActiveUsers`.
+
+- **쓰기는 일일 배치 하나다**(`DailyActiveUserScheduler`, 00:10 KST). 어제와 그제를 시장마다 다시 세어 upsert한다(`DAILY_ACTIVE_USERS_RECOUNT_DAYS` = 2). 그제까지 세는 것은 자정을 걸친 늦은 쓰기와 배포·장애로 놓친 하루를 메우기 위해서다. 날짜마다 따로 잡고, 실패해도 던지지 않는다.
+- 이미 행이 있으면 **큰 값을 남긴다**(`ON CONFLICT (active_date, market) DO UPDATE SET active_users = GREATEST(…)`). 몇 번 다시 세도 결과가 같다(멱등). 그 사이 탈퇴한 사람의 세션이 CASCADE로 지워져도 기록은 줄지 않는다.
+- 접속자가 없는 날·시장도 **0 행을 둔다.** 행이 없는 날은 "기록 없음"으로 읽는다.
+- 클러스터(워커 2개)에서는 `ScheduleModule`이 스케줄러 프로세스에만 올라가 한 번만 돈다. 겹쳐 돌아도 같은 행에 같은 값을 쓸 뿐이라 잠금은 두지 않는다.
+- **백필 — 첫 신뢰 날짜는 마이그레이션 실행일(KST) - 29일이다.** 파기 조건은 "만료·폐기 시각이 지금 - 30일보다 이른 행"이라 지금 - 30일 이후에 발급된 세션은 모두 남아 있다. 그 시각이 걸친 날(실행일 - 30일)은 이미 일부가 지워져 넣지 않는다. 실행일 - 29일부터 어제까지 29일을 채운다(오늘은 끝나지 않아 넣지 않는다 — 다음 00:10 배치가 센다). 이미 탈퇴한 사람의 세션은 지워져 백필 값에 없다(덜 세는 쪽).
+- 사용자를 가리키는 열이 없는 비식별 집계다. **탈퇴해도 지우지 않고 보존 기한도 없다**(12.1 · 12.3 "그대로 유지").
+- **규약 예외 두 가지**(6.3-1과 같다). ① PK가 `id`가 아니라 자연키 `(active_date, market)`다(`convention.md` 1.5·4.2 예외) — 날짜·시장당 한 행이고 upsert 대상이다. ② [1.5](#15-파생값을-컬럼으로-두지-않는다) "파생값을 두지 않는다"의 예외다 — 원천(세션)이 30일 뒤 사라지므로 이 표가 곧 원천이다.
+- 30분 안의 재실행은 세션 행이 새로 생기지 않아 잡히지 않는다(`active_1d`와 같은 한계). 00:10 실행을 이틀 연속 놓친 날은 기동 시 따라잡는 실행이 없어 행이 비고, 서비스 지표가 오늘 - 29일 안에 있는 동안만 세션에서 바로 센다(`admin-api.md` 4.22).
+
+### 3.3-2 `user_active_dates` *(신설 2026-10-18 — 코호트 리텐션의 사람별 접속일)*
+
+```
+user_active_dates
+  user_id                   uuid            PK, FK → users.id ON DELETE CASCADE
+  active_date               date            PK   KST 달력일(서비스 날짜 05:00 경계가 아니다 — 3.3-1과 같은 단위)
+  created_at · updated_at
+```
+
+서비스 지표의 코호트 리텐션(`admin-api.md` 4.22 `retention_cohorts` — D1·D7 · W1~W4)의 재료다. 가입일·가입 주로 묶은 바운디드 리텐션은 **사람마다** "그날 앱을 열었나"를 알아야 하는데, `daily_active_users`(3.3-1)는 날짜별 인원 수뿐이고 `sessions`는 30일 뒤 지워져 W4(가입 28~34일 뒤)를 셀 무렵이면 앞쪽 구간이 사라진다. 그래서 날이 끝나면 사람·날짜 한 쌍을 남긴다. 마이그레이션 `1790900000000-AddUserActiveDates`.
+
+- **행의 뜻**: 그날 그 사용자의 `sessions.issued_at`이 하나라도 있었다. 값 열은 없다. `daily_active_users`와 같은 신호다.
+- **쓰기**: `DailyActiveUserScheduler`(00:10 KST)가 어제·그제마다 `daily_active_users`를 다시 센 뒤 이 표에도 넣는다(`DailyActiveUserRepository.recordActiveDates`).
+  - **넣기만 한다**(`ON CONFLICT DO NOTHING`). 몇 번 넣어도 같다.
+  - 원천 세션이 지워진 뒤에도 이미 남긴 행은 그대로다.
+- **백필**: 마이그레이션 실행 시점에 남아 있는 `sessions` 전부다.
+  - 3.3-1과 달리 경계를 자르지 않는다. 일부가 지워진 날의 행도 "그날 접속했다"는 사실로는 맞다. 빠진 사람만 있을 뿐이다.
+  - 믿을 수 있는 구간은 서비스 지표가 이 표의 백필 시각(`min(created_at)`, KST) - 29일로 가린다(`admin-api.md` 4.22 `reliable_since`).
+- **탈퇴**: 사람을 가리키는 열이 있어 **즉시 파기**한다 — `users` FK의 ON DELETE CASCADE다([12.3](#123-회원-탈퇴-처리)).
+- **규약 예외**: PK가 자연키 `(user_id, active_date)`다(`convention.md` 1.5·4.2 예외, 3.3-1과 같다).
 
 ### 3.4 `withdrawal_logs`
 
@@ -1701,6 +1743,8 @@ idx_archived_subscriptions_archived_at
 | `audit_logs` | **삭제하지 않는다** | 관리자 행위의 증적이다. 파트너 계약 분쟁은 몇 년 뒤에도 제기될 수 있고, 그때 되짚을 수 있어야 한다 (확정 2026-09-10) |
 | `notices` | **soft** (`deleted_at`) — **삭제 30일 뒤 hard delete 대상**(배치 미구현) | 관리자 실수 삭제를 되짚을 창. 사용자 데이터가 아니라 법적 보존 근거는 없다 (확정 2026-09-17) |
 | `play_records` | **보류** — 기간을 정하지 않는다 | 프로필 통계가 **전 기간 청취 시간 합계**를 이 테이블에서 읽는다([6.3](#63-play_records)). 지금 지우면 사용자가 보던 숫자가 줄어든다. 비식별 누적 집계로 옮긴 뒤 정한다 (보류 2026-09-10). 서비스 전체 누적은 `play_daily_totals`로 옮겼다([6.3-1](#63-1-play_daily_totals-신설-2026-10-17--탈퇴로-줄지-않는-서비스-누적), 2026-10-17). 프로필의 사용자별 전 기간 합계는 아직 `play_records`를 읽는다 |
+| `daily_active_users` | **영구 보존** | 날짜·시장·인원 수만 있는 비식별 집계다. 원천(`sessions`)이 30일 뒤 지워져 다시 만들 수 없다 ([3.3-1](#33-1-daily_active_users-신설-2026-10-18--세션-파기에도-남는-일별-접속자), 2026-10-18) |
+| `user_active_dates` | **탈퇴 시 즉시 파기, 그 밖엔 무기한** | 코호트 리텐션의 재료다. 원천(`sessions`)이 30일 뒤 지워져 다시 만들 수 없다 ([3.3-2](#33-2-user_active_dates-신설-2026-10-18--코호트-리텐션의-사람별-접속일), 2026-10-18) |
 | 나머지 | hard | |
 
 **구현 상태(2026-09-26 기준) — 위 배치는 구현됐다.** `RetentionModule`(`user_signals`·`source_link_clicks`·`audio_access_logs`·`notification_logs`·`search_query_logs`, 04:30 KST) · `SessionPurgeScheduler`(`sessions`, 매시간) · `EmailVerificationPurgeScheduler` · `IdempotencyPurgeScheduler` · `FirstDripPurgeScheduler`(`first_drip_jobs` — 종착 상태 3종을 `updated_at` 기준으로 지운다). **`notices`의 삭제 30일 뒤 hard delete만 미구현**이다. ~~2026-09-10 기준 `idempotency_keys`만 돌았다.~~ 기간을 먼저 정의한 것은 **문서에 없는 삭제를 코드가 임의로 하지 않기 위해서**다. ~~`user_signals`·`audio_access_logs`에는 단독 인덱스가 없어 삭제 쿼리가 풀스캔이 된다~~ → 마이그레이션 `1787000000000-AddRetentionCreatedAtIndexes`로 `created_at` 인덱스를 추가해 해소했다.
@@ -1765,8 +1809,8 @@ idx_archived_subscriptions_archived_at
 | 처리 | 대상 |
 |---|---|
 | **아카이브 후 파기** (5년) | `users` → `archived_users`, `consents` → `archived_consents`, `subscriptions` → `archived_subscriptions` |
-| **즉시 파기** | `library_items`, `playback_progresses`, `play_records`, `user_signals`, `audio_access_logs`, `source_link_clicks`, `search_query_logs`, `user_interests`, `user_settings`, `device_tokens`, `sessions`, `user_preference_vectors`, `drip_excluded_contents`, `drip_feedbacks`, `purchase_intents`, `notification_logs`, `email_verifications`, `first_drip_jobs`, `idempotency_keys`(해당 사용자 `owner_key`) |
-| **그대로 유지** | `withdrawal_logs`(원래 해시만), `store_notification_logs`(개인 식별자 없음), `content_stats`(집계값), `play_daily_totals`(집계값 — 2026-10-17) |
+| **즉시 파기** | `library_items`, `playback_progresses`, `play_records`, `user_signals`, `audio_access_logs`, `source_link_clicks`, `search_query_logs`, `user_interests`, `user_settings`, `device_tokens`, `sessions`, `user_active_dates`(FK CASCADE — 2026-10-18), `user_preference_vectors`, `drip_excluded_contents`, `drip_feedbacks`, `purchase_intents`, `notification_logs`, `email_verifications`, `first_drip_jobs`, `idempotency_keys`(해당 사용자 `owner_key`) |
+| **그대로 유지** | `withdrawal_logs`(원래 해시만), `store_notification_logs`(개인 식별자 없음), `content_stats`(집계값), `play_daily_totals`(집계값 — 2026-10-17), `daily_active_users`(집계값 — 2026-10-18) |
 
 **결제 이력이 없는 사용자 — 아카이브 없이 전량 즉시 파기**
 
@@ -1774,7 +1818,7 @@ idx_archived_subscriptions_archived_at
 |---|---|
 | **즉시 파기** | 위 즉시 파기 목록 **전부 + `users` + `consents`** |
 | **아카이브** | **없음.** `archived_users` · `archived_consents` · `archived_subscriptions` 어디에도 행을 만들지 않는다 |
-| **그대로 유지** | `withdrawal_logs`, `store_notification_logs`, `content_stats`, `play_daily_totals`(집계값 — 2026-10-17) |
+| **그대로 유지** | `withdrawal_logs`, `store_notification_logs`, `content_stats`, `play_daily_totals`(집계값 — 2026-10-17), `daily_active_users`(집계값 — 2026-10-18) |
 
 - 근거: **제21조 제1항의 원칙은 파기이며, 보존은 다른 법령에 근거가 있을 때만 허용되는 예외다**([12.2](#122-법적-근거)). 거래가 없으면 전자상거래법 시행령 제6조가 보존을 허용하는 대상이 존재하지 않으므로, 5년 보관은 그 자체가 제21조 제1항 위반이 된다.
 - `consents`도 함께 파기한다. 동의 이력의 보존 근거는 거래기록이 아니라 **동의 획득의 입증 책임**인데, 이는 법령상 보존 의무가 아니므로 제21조 제1항 단서에 해당하지 않는다.

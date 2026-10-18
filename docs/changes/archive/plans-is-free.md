@@ -32,3 +32,4 @@
 ## 처리 기록
 
 - 2026-10-18 발행. 코드는 `isFreePlan`(`billing.orchestrator.ts`) 한 곳에서 판정하며, 같은 판정을 쓰던 결제 의도 거부와 `action` 판정도 이 함수로 모았다.
+- 2026-10-19 **반영**(PR `docs(be)/apply-pending-changes-1019`). 반영 날짜 2026-10-19. `subscription-api.md` 4.1 응답 예시와 필드 표(`is_free`, 기존 표 머리글 "의미"에 맞춤)에 반영했다.
