@@ -106,14 +106,16 @@ ${fence(i.guidelines)}
 - Keep each condition on the thing it describes. When an excerpt says one thing varies but another stays fixed, the claim keeps that contrast.
 - Keep the excerpt's quantifiers (some, many, most, a few) and the subject it gives a practice. A practice of one named person stays that person's; claims from one excerpt use the same subject.
 - When a Korean excerpt describes a whole place or group with a modifier, the claim keeps it describing the whole; do not turn it into a subset.
-- A definition claim keeps who uses the term and how widely. An event at a specific time keeps its time and the past tense. A practice from a dated report keeps the report's year.
+- A definition claim keeps who uses the term and how widely. An event at a specific time keeps its time and the past tense. A practice the excerpt places in the past stays in the past tense; a current practice is in the present tense.
+- The subject of a claim is the practice, the people who do it, or the thing. Never make the source, its writer, or its year the subject ("The 2026 description says"). An opinion claim states the view itself and sets opinion to true.
 - Keep the excerpt's evaluation of a number, such as a large or small change. A list the excerpt marks as partial stays partial in the claim.
 - Keep in the claims the Korean words, the scope, and the differences by region, age, family, or setting that the excerpts give. Do not drop them to save space.
 - Do not define a term the excerpts do not define. Leave its meaning out of the claims.
 - For a Korean word, keep in the claims whether the excerpt calls it casual or polite and who uses it.
 - In a Korean Language episode, keep one example phrase per featured word from the excerpts as a claim of type quote: the phrase romanized, its meaning, and its speech level read from the Hangul ending (casual, polite with -yo, or formal with -seumnida). Say when the phrase is a dictionary form ending in -da. Add who says it to whom only when the excerpt says so; otherwise leave the relationship out of the claim. An example sentence from a dictionary or learning guide is allowed; a line from a drama, song, or show is not.
 - Romanize Korean words with Revised Romanization, even when an excerpt spells them another way. Names of people, groups, companies, and works keep their official English spelling.
-- A real person appears only through verifiable public facts. Do not make a claim from rumor, private life, or controversy.
+- A person known to the public by name appears only through verifiable public facts. Do not make a claim from rumor, private life, or controversy. An unnamed person's own account of a family event or practice is a case.
+- When a case or scene has short words people say, keep those words as a claim of type quote, as the excerpt has them.
 - Links between sources are not claims; put them in the outline's links list.
 
 ### c) outline_md — the contract for the script stage. Use exactly this format:
@@ -152,14 +154,14 @@ Section #2 — …
 Links and metaphors (made by the script, not facts)
 - "X carried over to Y" — based on C##, in section #n
 
-Closing line: what the listener understands at the end
+Closing line: one sentence with the answer to the axis question and its reason; never a list of the sections
 \`\`\`
 Planning rules:
 - The axis is a question a newcomer asks about the practice ("Why do people in Korea …?"), a contrast ("A, yet B"), a paradox ("trying A leads to B"), or a redefinition ("A is really B")${history ? ", or, in history mode, an event" : ""}. Keep the backlog's form. "What is X" is not an axis. ear introduces Korean culture: the episode shows how the practice works, who does it, and why.
 - Sections are steps of the axis, not the order of a source. For a practice, follow the order in which it happens or the steps a newcomer needs. Give each section the claims that answer its question, from any source; a section usually draws on two or more sources. Do not build a section from one source alone when another source has claims for its question. Drop a source that answers no sub-question of the axis.
 - A list topic keeps its list: sections may follow the items or groups of items, and each section still answers a sub-question of the axis. The count in the title matches the items the material supports.
 - Three to five Body sections. Fewer, fuller sections are better than many thin ones. The Opening is not a section.
-- Plan scenes. Select excerpts with cases and practices so scenes are possible, and aim for a Scene in at least half of the Body sections. Build a Scene only from a claim with a person, a place, and a moment that carries words said, an object, or a sound. A person named only by name, age, or place in a report is not a scene. When no claim has such a moment, write "none". Do not plan an imagined listener, viewer, visitor, or family as a scene.
+- Plan scenes. Select excerpts with cases and practices so scenes are possible, and aim for a Scene in at least half of the Body sections. Build a Scene only from a claim with a person, a place, and a moment that carries words said, an object, or a sound. A person named only by name, age, or place in a report is not a scene. Prefer a moment with words people say. For a drama or film topic, select excerpts that describe one specific moment: who, what they do, and what is said or left unsaid. When no claim has such a moment, write "none". Do not plan an imagined listener, viewer, visitor, or family as a scene.
 - Plan the insider. The explainer is a calm Korean insider. Give each section an Insider detail when the material has one: the Korean name people use, an everyday practice, or how people around them do it. Take it from claims and add any Korean term to pronunciations.
 - Name the Familiar picture so the Opening can start from it: one thing any listener abroad already knows, in plain words, not a detail of the practice. The episode then explains or changes that picture.
 - Do not let source order become the episode. If every section uses one source in the order the sources are listed, rebuild the order around the steps of the axis. A section opens on its scene, a detail, or the host's question. Sources are not named in lines; the app lists them.
@@ -336,6 +338,7 @@ There are no tools. Everything is below. Return only the full text of each turn 
 - When a finding names turns, fix every named turn.
 - Length findings: keep the material; shorten wordy turns, or fill from unused claims if short. A turn has at most 6 sentences.
 - Do not change zone headers, section headers, or turn numbering. To delete a turn, set after to an empty string.
+- When a fix removes a case, scene, or claim, also rewrite the turns that lead into it or answer it, and include them. Leave no turn that only repeats the previous turn or answers nothing.
 - If a fix adds a Korean word, add it to pronunciations_added (reading empty if unknown).
 - For each changed turn, list every claim ID it still uses in claims. Empty if the turn was deleted or uses none.
 
