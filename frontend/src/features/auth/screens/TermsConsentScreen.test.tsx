@@ -164,16 +164,29 @@ describe('TermsConsentScreen — 스크롤 끝 관문', () => {
     expect([isSubmitDisabled(), isHintShown()]).toEqual([false, false]);
   });
 
-  it('열린 뒤 목록이 길어져도(재조회·글자 크기 변경) 닫히지 않는다', async () => {
+  it('스크롤로 끝에 닿아 열린 뒤에는 목록이 길어져도(재조회·글자 크기 변경) 닫히지 않는다', async () => {
     // given
     await renderScreen();
-    await measure(VIEWPORT);
+    await measure(VIEWPORT + 400);
+    await scrollTo(400, VIEWPORT + 400);
 
     // when
     await measure(VIEWPORT + 800);
 
     // then
     expect(isSubmitDisabled()).toBe(false);
+  });
+
+  it('첫 측정에서 다 들어가 보였어도 내용이 길어지면 끝까지 내리기 전에는 다시 닫힌다', async () => {
+    // given — 첫 레이아웃 패스의 짧은 높이(목록이 다 그려지기 전)
+    await renderScreen();
+    await measure(VIEWPORT);
+
+    // when — 실제 목록은 스크롤되는 길이다
+    await measure(VIEWPORT + 400);
+
+    // then
+    expect([isSubmitDisabled(), isHintShown()]).toEqual([true, true]);
   });
 
   it('스크린리더가 켜져 있으면 끝까지 내리지 않아도 버튼이 열린다', async () => {
