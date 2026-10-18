@@ -52,7 +52,13 @@ export default function EmailVerificationScreen() {
       ) : screen.step === 'input' ? (
         /* ── A10 이메일 입력 — 설정·프로필 경로는 진입 사유 문구가 없다(auth-uiux.md 4.7) ── */
         <>
-          <ScrollView contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
+          {/* 큰 글자·작은 화면에서 키보드가 입력칸을 덮으면 iOS 는 바닥 인셋을 넣고 입력칸을 올린다 — 내용이
+              들어가 스크롤이 없던 화면도 그 순간엔 스크롤된다(KAN-197). A13 코드 입력도 같다 */}
+          <ScrollView
+            contentContainerStyle={styles.body}
+            keyboardShouldPersistTaps="handled"
+            automaticallyAdjustKeyboardInsets
+          >
             <Text style={styles.fieldLabel}>{EMAIL_COPY.currentLabel}</Text>
             <Text style={styles.currentEmail}>
               {screen.currentEmail ?? EMAIL_COPY.unregistered}
@@ -107,7 +113,11 @@ export default function EmailVerificationScreen() {
         </>
       ) : (
         /* ── A13 코드 확인 — 이 플로우의 핵심 화면(auth-uiux.md 4.10) ── */
-        <ScrollView contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
+        <ScrollView
+          contentContainerStyle={styles.body}
+          keyboardShouldPersistTaps="handled"
+          automaticallyAdjustKeyboardInsets
+        >
           <Text style={styles.codeGuide}>{EMAIL_COPY.codeGuide(screen.sentEmail)}</Text>
 
           <View style={styles.codeSection}>
