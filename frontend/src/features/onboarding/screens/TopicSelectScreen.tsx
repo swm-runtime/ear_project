@@ -1,4 +1,5 @@
-import { ActivityIndicator, Image, Pressable, StyleSheet, View } from 'react-native';
+import { useEffect, useRef } from 'react';
+import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { localized, type LocalizedCopy } from '@/shared/i18n/localized';
@@ -61,6 +62,16 @@ export default function TopicSelectScreen() {
     handleNextPress,
   } = useTopicSelectScreen();
 
+  // 선택 요약 줄 — 새로 고른 칩이 오른쪽 끝에 붙으므로, 늘어날 때 끝으로 밀어 방금 고른 것이 보이게 한다
+  const selectedRowRef = useRef<ScrollView>(null);
+  const previousSelectedCount = useRef(selectedCount);
+  useEffect(() => {
+    if (selectedCount > previousSelectedCount.current) {
+      selectedRowRef.current?.scrollToEnd({ animated: true });
+    }
+    previousSelectedCount.current = selectedCount;
+  }, [selectedCount]);
+
   // 로딩 중에도 제목은 먼저 그린다 — 이 단계가 무엇인지는 이미 정해져 있다(onboarding-uiux.md 4.2)
   return (
     <SafeAreaView style={styles.container}>
@@ -82,12 +93,18 @@ export default function TopicSelectScreen() {
         </Text>
         <Text style={styles.title}>{ONBOARDING_COPY.topic.title(maxSelectable)}</Text>
         {/*
-          선택 요약 자리 — 0개면 공백, 고르면 아래 알약과 같은 사진 칩이 가로로 쌓인다.
+          선택 요약 자리 — 0개면 공백, 고르면 아래 알약과 같은 사진 칩이 **한 줄로 가로 배치**되고 넘치면 가로로
+          스크롤한다(PM 확정 2026-10-19 — 줄바꿈으로 세로로 쌓이면 아래 캐러셀이 밀린다. 영어 이름이 길어 자주 넘쳤다).
           ✕ 포함 칩 전체가 해제 버튼이다. 높이를 고정해 아래 캐러셀이 튀지 않게 한다.
         */}
         <View style={styles.progressSlot} accessibilityLiveRegion="polite">
           {selectedCount === 0 ? null : (
-            <View style={styles.selectedRow}>
+            <ScrollView
+              ref={selectedRowRef}
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.selectedRow}
+            >
               {topics
                 .filter((topic) => topic.isSelected)
                 .map((topic) => (
@@ -104,13 +121,15 @@ export default function TopicSelectScreen() {
                       style={styles.selectedChipPhoto}
                     />
                     <View style={styles.selectedChipOverlay} />
-                    <Text style={styles.selectedChipLabel}>{topic.name}</Text>
+                    <Text style={styles.selectedChipLabel} numberOfLines={1}>
+                      {topic.name}
+                    </Text>
                     <Text style={styles.selectedChipX} importantForAccessibility="no">
                       ✕
                     </Text>
                   </Pressable>
                 ))}
-            </View>
+            </ScrollView>
           )}
         </View>
       </View>
@@ -230,9 +249,10 @@ const styles = StyleSheet.create({
     minHeight: 40,
     justifyContent: 'center',
   },
+  /** 한 줄 가로 배치 — 넘치면 가로 스크롤(줄바꿈 없음) */
   selectedRow: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
+    alignItems: 'center',
     gap: theme.spacing.sm,
   },
   /** 아래 마퀴 알약과 같은 사진·오버레이 문법의 축소판 + ✕ */
