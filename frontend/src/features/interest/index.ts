@@ -7,7 +7,7 @@
  * 각자 선언하면 한쪽만 고쳐지는 순간 두 화면의 선택지가 어긋난다.
  */
 export { default as InterestManagementScreen } from './screens/InterestManagementScreen';
-export { default as TopicChip } from './components/TopicChip';
+export { default as TopicChip, TOPIC_CHIP_MIN_WIDTH } from './components/TopicChip';
 /** 주제 배경 사진 — slug 먼저, 한국어 이름 폴백(KAN-195). slug 를 싣는 응답이면 둘 다 넘긴다 */
 export { topicImageSource, type TopicImageKey } from './interest.images';
 export { interestKeys } from './api/interest.api';

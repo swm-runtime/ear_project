@@ -15,7 +15,19 @@ import type { ImageSourcePropType } from 'react-native';
  * `personal-finance`이고, 투자는 `topic-invest.jpg`인데 slug 가 `investing`이다 — 파일명 규칙으로 풀면
  * 투자 칩에 재테크 사진이 붙는다(KAN-212 ⚠️). 그래서 slug → 사진을 표로 명시한다.
  *
- * 목록에 없는 주제(관리자가 새로 추가한 주제 · 사진이 아직 없는 GLOBAL 주제)는 기본 사진으로 떨어진다 — 그때 여기에 더한다.
+ * 목록에 없는 주제(관리자가 새로 추가한 주제)는 기본 사진으로 떨어진다 — 그때 여기에 더한다.
+ *
+ * **GLOBAL 주제 사진 8장의 출처**(2026-10-19 KAN-195 — 같은 절차: Openverse CC0/퍼블릭 도메인, 800x320, 품질 80).
+ * 얼굴이 주인공인 사진·실존 인물(아이돌·배우)·글자/로고가 박힌 사진은 걸렀다. 단 한국어는 한글이 곧 주제라 한글 서예를 쓴다.
+ * 알약 폭이 라벨에 맞춰 달라지므로(2026-10-19 PM) 좁게 잘려도 피사체가 남도록 가운데 구도를 골랐다.
+ * - korean-language — 한글 서예 액자(시): flickr.com/photos/101561334@N08/16650985822 · CC0
+ * - k-food — 놋그릇 비빔밥: rawpixel.com/image/5925809 · CC0
+ * - k-pop — 공연장 객석의 손 하트(뒷모습)·무대 조명: stocksnap.io/photo/crowd-people-IUJP9OI22I · CC0
+ * - k-drama-film — 빈 영화관 객석과 스크린: rawpixel.com/image/5921209 · CC0
+ * - korean-culture — 통도사 연등: rawpixel.com/image/5964832 · CC0
+ * - k-beauty-fashion — 동대문 한복 가게 진열: commons.wikimedia.org/w/index.php?curid=89917525 · CC0
+ * - korean-history-society — 창덕궁 인정전: flickr.com/photos/101561334@N08/17330752728 · CC0
+ * - travel-in-korea — 롯데월드타워와 석촌호수 일몰: rawpixel.com/image/3338160 · CC0
  */
 const IMAGE = {
   art: require('../../../assets/topics/topic-art.jpg'),
@@ -26,6 +38,13 @@ const IMAGE = {
   economy: require('../../../assets/topics/topic-economy.jpg'),
   habit: require('../../../assets/topics/topic-habit.jpg'),
   history: require('../../../assets/topics/topic-history.jpg'),
+  kBeautyFashion: require('../../../assets/topics/topic-k-beauty-fashion.jpg'),
+  kDramaFilm: require('../../../assets/topics/topic-k-drama-film.jpg'),
+  kFood: require('../../../assets/topics/topic-k-food.jpg'),
+  kPop: require('../../../assets/topics/topic-k-pop.jpg'),
+  koreanCulture: require('../../../assets/topics/topic-korean-culture.jpg'),
+  koreanHistorySociety: require('../../../assets/topics/topic-korean-history-society.jpg'),
+  koreanLanguage: require('../../../assets/topics/topic-korean-language.jpg'),
   humanities: require('../../../assets/topics/topic-humanities.jpg'),
   /** 투자 — 파일명이 slug(`investing`)와 다르다 */
   invest: require('../../../assets/topics/topic-invest.jpg'),
@@ -48,6 +67,7 @@ const IMAGE = {
   society: require('../../../assets/topics/topic-society.jpg'),
   startup: require('../../../assets/topics/topic-startup.jpg'),
   topcit: require('../../../assets/topics/topic-topcit.jpg'),
+  travelInKorea: require('../../../assets/topics/topic-travel-in-korea.jpg'),
   trend: require('../../../assets/topics/topic-trend.jpg'),
   worldHistory: require('../../../assets/topics/topic-world-history.jpg'),
   writing: require('../../../assets/topics/topic-writing.jpg'),
@@ -59,9 +79,7 @@ const FALLBACK_IMAGE: ImageSourcePropType = require('../../../assets/topics/defa
  * slug → 사진. KR slug 는 BE KAN-212 확정 표(2026-10-15)와 같고, 각 slug 는 **같은 주제의 이름 키와 같은 사진**을
  * 가리킨다 — slug 로 바뀌어도 KR 칩이 1.2.0과 똑같이 보여야 한다(interest.images.test.ts가 대조한다).
  *
- * GLOBAL 주제(`korean-language` · `k-food` · `k-pop` · `k-drama-film` · `korean-culture` · `k-beauty-fashion` ·
- * `korean-history-society` · `travel-in-korea`)는 사진 자산을 아직 받지 못해(AI/PM 수령 대기) 표에 없다 —
- * 기본 사진으로 떨어진다. 자산을 받으면 여기에 더한다.
+ * GLOBAL 주제 8개는 slug 로만 찾는다(영어 이름이라 아래 이름 표에 없다). 사진 출처는 위 IMAGE 주석.
  */
 const TOPIC_IMAGE_BY_SLUG: Record<string, ImageSourcePropType> = {
   // 돈·경제
@@ -108,6 +126,15 @@ const TOPIC_IMAGE_BY_SLUG: Record<string, ImageSourcePropType> = {
   humanities: IMAGE.humanities, // 인문·교양
   writing: IMAGE.writing, // 글쓰기
   'world-history': IMAGE.worldHistory, // 세계사
+  // GLOBAL(K-컬처) — 2026-10-19
+  'korean-language': IMAGE.koreanLanguage, // Korean Language
+  'k-food': IMAGE.kFood, // K-Food
+  'k-pop': IMAGE.kPop, // K-Pop
+  'k-drama-film': IMAGE.kDramaFilm, // K-Drama & Film
+  'korean-culture': IMAGE.koreanCulture, // Korean Culture
+  'k-beauty-fashion': IMAGE.kBeautyFashion, // K-Beauty & Fashion
+  'korean-history-society': IMAGE.koreanHistorySociety, // Korean History & Society
+  'travel-in-korea': IMAGE.travelInKorea, // Travel in Korea
 };
 
 /**

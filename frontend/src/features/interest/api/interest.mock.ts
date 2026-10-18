@@ -13,7 +13,7 @@
  * - load-fail          진입 조회(주제 목록·관심사)가 각 1회 실패 — IM9 전체 화면 에러 +
  *                      [다시 시도] 성공 경로 검증
  * - few-topics         노출 주제 5개만 — 온보딩 마퀴가 적은 주제 수에서도 이음새 없이 흐르는지(KAN-59)
- * - global             GLOBAL 사용자 — 영어 주제 8개(slug 있음, 사진 자산 전이라 전부 기본 사진).
+ * - global             GLOBAL 사용자 — 영어 주제 8개(slug 있음, slug 로 각자의 사진이 붙는다 — 2026-10-19).
  *                      온보딩 단계까지 GLOBAL 로 보려면 EXPO_PUBLIC_ONBOARDING_MOCK_SCENARIO=global 도 함께 켠다
  * - kr-no-slug         KR 주제 slug 가 전부 null — 서버 입력(BE KAN-212) 전 운영 상태. 사진이 이름 키로 붙는지(KAN-195)
  */
@@ -204,10 +204,12 @@ const KR_MOCK_SLUGS: Record<string, string> = {
   'AI·테크 트렌드': 'ai-tech-trends',
 };
 
-export const INTEREST_MOCK_TOPICS: TopicListResponseDto['items'] = KR_MOCK_TOPIC_ROWS.map((row) => ({
-  ...row,
-  slug: SCENARIO === 'kr-no-slug' ? null : (KR_MOCK_SLUGS[row.name] ?? null),
-}));
+export const INTEREST_MOCK_TOPICS: TopicListResponseDto['items'] = KR_MOCK_TOPIC_ROWS.map(
+  (row) => ({
+    ...row,
+    slug: SCENARIO === 'kr-no-slug' ? null : (KR_MOCK_SLUGS[row.name] ?? null),
+  }),
+);
 
 /**
  * GLOBAL 주제 8개 — 서버 시드(backend 마이그레이션 1790100000000)와 같은 이름·slug. id 는 mock 전용이다.
@@ -235,7 +237,10 @@ const MARKET_TOPICS = SCENARIO === 'global' ? GLOBAL_MOCK_TOPICS : INTEREST_MOCK
 
 const initialInterests = (): UserInterestDto[] => {
   if (SCENARIO === 'global') {
-    return GLOBAL_MOCK_TOPICS.slice(0, 2).map((t) => ({ topic_id: t.topic_id, source: 'onboarding' }));
+    return GLOBAL_MOCK_TOPICS.slice(0, 2).map((t) => ({
+      topic_id: t.topic_id,
+      source: 'onboarding',
+    }));
   }
   if (SCENARIO === 'over-limit') {
     return [
@@ -289,10 +294,9 @@ const throwLoadFail = (traceSuffix: string): never => {
 
 const FEW_TOPICS_COUNT = 5;
 const visibleTopics = (): TopicListResponseDto['items'] =>
-  (SCENARIO === 'few-topics'
-    ? MARKET_TOPICS.slice(0, FEW_TOPICS_COUNT)
-    : MARKET_TOPICS
-  ).filter((t) => !state.hiddenTopicIds.has(t.topic_id));
+  (SCENARIO === 'few-topics' ? MARKET_TOPICS.slice(0, FEW_TOPICS_COUNT) : MARKET_TOPICS).filter(
+    (t) => !state.hiddenTopicIds.has(t.topic_id),
+  );
 
 /** 숨겨진 주제의 활성 관심사는 응답에서 제외한다(interest-management-api.md 4.2) */
 const visibleInterests = (): UserInterestDto[] =>

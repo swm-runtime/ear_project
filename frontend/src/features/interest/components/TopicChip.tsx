@@ -1,17 +1,16 @@
 import { Image, Pressable, StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 
-import { APP_LANGUAGE } from '@/shared/i18n/locale';
 import { theme } from '@/shared/theme';
 import { Text } from '@/shared/ui/Typography';
 
 import { topicImageSource } from '../interest.images';
 
 /**
- * 영어 라벨 — 주제 이름이 길어("Korean History & Society") 좌우 여백을 16 으로 줄이고, 그래도 넘치면 한 줄 안에서 글자를
- * 조금 줄인다(말줄임 대신. 2026-10-18 영어 QA). 한국어 이름은 짧아 종전(여백 24 · 줄이지 않음) 그대로다
+ * 알약 최소 폭 — 폭은 라벨에 맞추되(PM 확정 2026-10-19 "알약 가로길이는 글자 크기에 맞추자"), 두 글자 이름("투자"·"철학")은
+ * 라벨 32 + 여백 48 = 80 으로 거의 동그라미가 돼 칩으로 읽히지 않는다. 세 글자 이름의 자연 폭(96)을 바닥으로 둔다.
+ * 높이 62 와 함께 터치 타깃 44pt 는 넉넉히 넘는다
  */
-const IS_COMPACT_LABEL = APP_LANGUAGE !== 'ko';
-const LABEL_MIN_FONT_SCALE = 0.85;
+export const TOPIC_CHIP_MIN_WIDTH = 96;
 
 interface TopicChipProps {
   label: string;
@@ -26,7 +25,10 @@ interface TopicChipProps {
   isDimmed: boolean;
   /** 비활성 이유의 낭독 힌트 — IM2는 상한 토스트, IM6은 초과 안내 문구를 쓴다(interest-management-uiux.md 7장) */
   dimmedHint?: string;
-  /** 배치(폭·flex) 오버라이드 — 화면이 격자/가로 흐름을 정한다. 동작·시각 상태는 칩 소유 그대로다 */
+  /**
+   * 배치 오버라이드(최대 폭·여백 등) — 폭은 칩이 라벨에 맞춰 스스로 정한다. 화면은 줄 폭을 넘지 않게 `maxWidth`를 준다
+   * (넘치는 이름은 말줄임·글자 축소 대신 두 줄로 접힌다). 동작·시각 상태는 칩 소유 그대로다
+   */
   style?: StyleProp<ViewStyle>;
   onPress: () => void;
 }
@@ -77,14 +79,9 @@ export default function TopicChip({
       />
       {/* 선택 표시는 짙은 오버레이만 — 체크 글리프는 두지 않는다. 낭독은 accessibilityState가 한다 */}
       <Text
-        style={[
-          styles.label,
-          IS_COMPACT_LABEL && styles.labelCompact,
-          isDimmed && styles.labelDimmed,
-        ]}
-        numberOfLines={1}
-        adjustsFontSizeToFit={IS_COMPACT_LABEL}
-        minimumFontScale={IS_COMPACT_LABEL ? LABEL_MIN_FONT_SCALE : undefined}
+        style={[styles.label, isDimmed && styles.labelDimmed]}
+        // 한 줄이 기본이고, 화면이 준 최대 폭(줄 폭)을 넘을 때만 두 줄로 접힌다 — 종전 영어 글자 축소(0.85)는 걷어냈다
+        numberOfLines={2}
       >
         {label}
       </Text>
@@ -95,23 +92,21 @@ export default function TopicChip({
 const styles = StyleSheet.create({
   chip: {
     /*
-     * 2열 격자 — 내용 폭에 맡기면 한 줄에 2개가 들어가고도 오른쪽이 크게 남는다.
-     * 40%를 바닥으로 두고 남는 폭을 나눠 가지면 세 번째는 못 들어오고(120%),
-     * 두 칸이 같은 폭으로 늘어 좌우 끝이 모두 맞는다(2026-09-02).
-     * 마지막 홀수 칸은 한 줄을 다 쓴다 — 빈 칸을 남기는 것보다 낫다.
+     * 폭 = 라벨 + 라벨 좌우 여백(PM 확정 2026-10-19 — 한국어·영어 공통). 종전 고정 폭(한국어 156 · 영어 216)은
+     * 짧은 이름에서 사진만 넓고 긴 영어 이름은 글자를 줄여야 들어갔다. 늘거나 줄지 않게 grow·shrink 를 끈다
      */
-    flexGrow: 1,
-    flexBasis: '40%',
+    flexGrow: 0,
+    flexShrink: 0,
+    minWidth: TOPIC_CHIP_MIN_WIDTH,
     // 알약 — 사진·오버레이 클리핑은 여기서 한 번만 한다
     borderRadius: theme.radius.full,
     borderCurve: 'continuous',
     overflow: 'hidden',
     /*
-     * 배경 사진의 가로세로비에 맞춘 높이다. 주제 사진은 전부 800x320(2.50:1)이고
-     * 온보딩 알약 폭이 156이므로, 높이 62면 156/62 = 2.52 로 **크롭이 사실상 0**이 된다.
-     * 52였을 때는 3.00:1 이라 세로가 17% 잘려 나갔고 — 원본이 이미 한 번 잘린 상태라
-     * 피사체가 두 번 잘려 무엇을 찍은 사진인지 알아볼 수 없었다(2026-09-08 iOS 실기기).
-     * 사진을 바꾸려면 이 비(2.50:1)를 함께 본다.
+     * 높이 62 — 고정 폭 156 시절 사진(800x320, 2.50:1)의 크롭이 0이 되던 값이다. 52였을 때는 세로가 17% 잘려
+     * 무엇을 찍은 사진인지 알아볼 수 없었다(2026-09-08 iOS 실기기).
+     * 폭이 라벨을 따르면서(2026-10-19) 짧은 이름(96)은 좌우가, 긴 이름(240 안팎)은 위아래가 잘린다 —
+     * 그래서 주제 사진은 **피사체가 가운데 있는 구도**여야 한다. 사진을 바꿀 때 좁은·넓은 크롭을 함께 본다.
      */
     minHeight: 62,
     alignItems: 'center',
@@ -170,13 +165,12 @@ const styles = StyleSheet.create({
     fontSize: theme.font.size.md,
     // 선택 여부와 무관하게 굵기를 고정한다 — 선택 시 굵어지면 라벨 폭이 변해 시선이 튄다
     fontWeight: '700',
+    // 두 줄로 접힐 때(줄 폭을 넘는 긴 이름) 가운데 정렬 — 한 줄일 때는 차이가 없다
+    textAlign: 'center',
     color: theme.color.onPhoto,
     textShadowColor: theme.color.photoTextShadow,
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 4,
-  },
-  labelCompact: {
-    paddingHorizontal: theme.spacing.md,
   },
   labelDimmed: {
     color: theme.color.textSecondary,

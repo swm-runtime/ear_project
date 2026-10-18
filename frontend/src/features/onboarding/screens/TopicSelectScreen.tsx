@@ -11,12 +11,11 @@ import { Text } from '@/shared/ui/Typography';
 import { topicImageSource } from '@/features/interest';
 
 import TopicMarqueeRow from '../components/TopicMarqueeRow';
-import { TOPIC_PILL_WIDTH, TopicPillRowsSkeleton } from '../components/TopicSelectSkeleton';
+import { TopicPillRowsSkeleton } from '../components/TopicSelectSkeleton';
 import { useTopicSelectScreen } from '../hooks/useTopicSelectScreen';
 import { ONBOARDING_COPY } from '../onboarding.copy';
 import { toTopicRows } from '../services/topic-rows';
 
-const PILL_WIDTH = TOPIC_PILL_WIDTH;
 /** 기본 흐름 속도(px/초)와 줄별 배율 — 같은 박자로 움직이면 기계적으로 보인다 */
 const BASE_SPEED = 18;
 const SPEED_SCALES = [1, 0.9, 1.05, 1.1] as const;
@@ -154,7 +153,6 @@ export default function TopicSelectScreen() {
                   direction={rowIndex % 2 === 0 ? 1 : -1}
                   phase={PHASES[rowIndex % PHASES.length]}
                   speed={BASE_SPEED * SPEED_SCALES[rowIndex % SPEED_SCALES.length]}
-                  pillWidth={PILL_WIDTH}
                   dimmedHint={ONBOARDING_COPY.topic.limitToast(maxSelectable)}
                   onToggle={toggleTopic}
                 />

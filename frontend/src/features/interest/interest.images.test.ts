@@ -97,6 +97,24 @@ describe('topicImageSource', () => {
     });
   });
 
+  describe('GLOBAL 주제(2026-10-19)', () => {
+    it.each(GLOBAL_SLUGS)('GLOBAL slug(%s)는 topic-<slug>.jpg 를 붙인다', (slug) => {
+      // given / when — 영어 이름은 이름 표에 없으므로 slug 만으로 찾아야 한다
+      const source = fileOf(topicImageSource({ slug, name: 'English Name' }));
+
+      // then
+      expect(source).toContain(`topic-${slug}.jpg`);
+    });
+
+    it('GLOBAL 8개는 서로 다른 사진이다', () => {
+      // given / when
+      const files = GLOBAL_SLUGS.map((slug) => fileOf(topicImageSource({ slug })));
+
+      // then
+      expect(new Set(files).size).toBe(GLOBAL_SLUGS.length);
+    });
+  });
+
   describe('재테크·투자 — 파일명과 slug 가 엇갈린다(KAN-212 ⚠️)', () => {
     it('재테크 slug(personal-finance)는 topic-investing.jpg 를 붙인다', () => {
       // given / when
@@ -155,14 +173,6 @@ describe('topicImageSource', () => {
     it('모르는 slug 와 모르는 이름이면 기본 사진이다', () => {
       // given / when
       const source = fileOf(topicImageSource({ slug: 'unknown-new-slug', name: '새 주제' }));
-
-      // then
-      expect(source).toBe(DEFAULT_IMAGE);
-    });
-
-    it.each(GLOBAL_SLUGS)('사진 자산이 아직 없는 GLOBAL slug(%s)는 기본 사진이다', (slug) => {
-      // given / when
-      const source = fileOf(topicImageSource({ slug, name: 'K-Pop' }));
 
       // then
       expect(source).toBe(DEFAULT_IMAGE);
