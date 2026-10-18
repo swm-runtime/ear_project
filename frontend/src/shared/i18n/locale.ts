@@ -10,6 +10,11 @@ import { DevSettings } from 'react-native';
  * 두 언어뿐 — RTL·추가 언어는 범위 밖). 설정 "언어"에서 바꾸면 저장하고 JS 를 다시 부른다 — 카피는 앱이 켜질 때 한 번 정해진다.
  * 고른 언어는 `expo-secure-store` 에 두고 **시작 순간 동기로** 읽는다(첫 화면부터 그 언어로 — 화면 모드 `color-mode.ts` 와 같은 방식).
  *
+ * **예외 하나 — 가입 때 고른 콘텐츠 언어(A21)**: 그 언어로 화면 언어도 맞춘다(PM 2026-10-19 — `adoptSignupLanguage`).
+ * 가입 도중이라 가입 토큰이 내비게이션 파라미터(메모리)에만 있어 다시 부를 수 없다 — 그래서 **다시 부르지 않고** 메모리의
+ * 표시 언어를 바꾼다. `APP_LANGUAGE`·`DISPLAY_LOCALE` 이 `let` 인 이유다(가져다 쓰는 쪽은 읽는 순간의 값을 본다 — ES 모듈의
+ * 산 바인딩). 카피는 `localized` 가 읽는 순간의 언어로 풀어 준다(`localized.ts`).
+ *
  * 기기 값은 JS 표준 `Intl` 로 읽는다 — Hermes 는 기기 로캘·시간대를 그대로 돌려준다. expo-localization 은 네이티브 모듈이라
  * 빌드가 필요해 이 단계에서는 쓰지 않는다(현지화 빌드 KAN-198 에서 바꿀 수 있다). 읽지 못하면 종전 동작인 한국어로 둔다.
  *
@@ -61,13 +66,22 @@ const readPreference = (): LanguagePreference => {
 
 let preference: LanguagePreference = readPreference();
 
-/** 이 실행 동안의 표시 언어 — 시작 때 정해지고, 바꾸면 JS 를 다시 부른다 */
-export const APP_LANGUAGE: AppLanguage =
-  preference === 'system' ? toAppLanguage(DEVICE_LOCALE) : preference;
+/** 고른 값이 실제로 뜻하는 표시 언어 */
+export const languageOf = (next: LanguagePreference): AppLanguage =>
+  next === 'system' ? toAppLanguage(DEVICE_LOCALE) : next;
+
+/** 고른 값의 BCP 47 태그 — 기기 언어를 따르면 기기 로캘 그대로 */
+const localeOf = (next: LanguagePreference): string =>
+  next === 'system' ? DEVICE_LOCALE : next === 'ko' ? 'ko-KR' : 'en-US';
+
+/**
+ * 지금 표시 언어 — 시작 때 정해지고, 설정에서 바꾸면 JS 를 다시 부른다. 가입 때(A21)만 다시 부르지 않고 바뀐다
+ * (`adoptSignupLanguage`). **모듈 최상위에서 읽어 상수로 굳히지 않는다** — 그리는 순간·부르는 순간에 읽는다
+ */
+export let APP_LANGUAGE: AppLanguage = languageOf(preference);
 
 /** 지금 표시 언어의 BCP 47 태그 — `Accept-Language`·설정 `language_code` 값. 기기 언어를 따르면 기기 로캘 그대로 */
-export const DISPLAY_LOCALE: string =
-  preference === 'system' ? DEVICE_LOCALE : APP_LANGUAGE === 'ko' ? 'ko-KR' : 'en-US';
+export let DISPLAY_LOCALE: string = localeOf(preference);
 
 /* ── 고른 언어 구독(설정 화면) ── */
 const listeners = new Set<() => void>();
@@ -79,10 +93,6 @@ const getPreference = () => preference;
 
 export const useLanguagePreference = (): LanguagePreference =>
   useSyncExternalStore(subscribe, getPreference, getPreference);
-
-/** 고른 값이 실제로 뜻하는 표시 언어 */
-export const languageOf = (next: LanguagePreference): AppLanguage =>
-  next === 'system' ? toAppLanguage(DEVICE_LOCALE) : next;
 
 /** JS 다시 부르기 — 운영·개발 빌드는 expo-updates, 개발 서버는 DevSettings */
 const reloadApp = () => {
@@ -103,4 +113,28 @@ export function setLanguagePreference(next: LanguagePreference) {
   }
   listeners.forEach((listener) => listener());
   if (languageOf(next) !== APP_LANGUAGE) reloadApp();
+}
+
+/**
+ * 가입 때(A21) 고른 콘텐츠 언어로 표시 언어를 맞춘다(PM 2026-10-19 — `spec/uiux/auth-uiux.md` 4.2-1). 신규 가입자만 거치는
+ * 화면이라 기존 사용자에게는 일어나지 않는다.
+ *
+ * - **지금 표시 언어와 같으면 아무것도 하지 않는다** — "기기 언어 따르기"였으면 그대로 둔다(저장도 하지 않는다).
+ * - 다르면 설정 "언어"에서 고른 것과 **같은 자리에 같은 값으로 저장**한다(`ko`·`en`) — 다시 켜도 그 언어이고, 나중에 설정에서
+ *   바꿀 수 있다.
+ * - **JS 를 다시 부르지 않는다** — 가입 토큰이 메모리에만 있어 다시 부르면 제공자 로그인부터 다시 해야 한다. 메모리의
+ *   표시 언어·요청 헤더 값을 바로 바꾸고, 이 뒤에 그려지는 화면(A4부터)이 새 언어를 읽는다. 이미 떠 있는 아래 화면(A1)은
+ *   다시 그려질 때까지 이전 언어일 수 있다.
+ */
+export function adoptSignupLanguage(language: AppLanguage) {
+  if (language === APP_LANGUAGE) return;
+  preference = language;
+  try {
+    SecureStore.setItem(STORAGE_KEY, language);
+  } catch {
+    // 저장 실패 — 이번 실행은 새 언어로 그리고, 다음 실행은 이전 언어로 돌아간다(설정에서 다시 고를 수 있다)
+  }
+  APP_LANGUAGE = language;
+  DISPLAY_LOCALE = localeOf(language);
+  listeners.forEach((listener) => listener());
 }

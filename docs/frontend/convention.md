@@ -203,7 +203,7 @@ features/library/
 - 사용자 노출 문구는 컴포넌트에 하드코딩하지 않고 feature별 `<feature>.copy.ts`(상수 모듈)에 모은다. uiux 명세의 확정 카피와 1:1 대조가 가능해야 한다.
 - 해요체 통일, 사용자를 탓하지 않는 문구, 법적 고지는 완곡하게 바꾸지 않는다(`auth-uiux.md` 6).
 - 서버가 `message`를 내려주면 그것을 우선 사용한다 — 한국어 표시일 때만. 영어 표시는 `error_code` 영어 표(`shared/api/error-messages.ts`)가 대신한다(`common-error-handling.md` 4.6).
-- **카피는 한국어·영어 두 벌이다**(2026-10-15 KAN-194). 각 `<feature>.copy.ts`는 한국어 객체를 `ko`, 같은 모양의 영어 객체를 `en: LocalizedCopy<typeof ko>`로 두고 `export const X_COPY = localized({ ko, en })`로 내보낸다(`shared/i18n`). 키가 빠지거나 함수 인자가 다르면 타입 오류다. 함수형 카피는 ICU 메시지 대신 언어별 함수 — 조사·복수형은 그 언어 함수 안에서 처리한다. **표시 언어 = 기기 언어**(한국어면 `ko`, 그 밖은 `en`)이고 시장(`users.market`) 판정과 무관하다. 테스트는 기기와 무관하게 한국어로 돈다(`jest.setup.js`) — 영어는 `localized(..., 'en')`로 직접 확인한다. 한국어 문구는 `src/app/copy-ko.snapshot.test.ts` 스냅숏으로 회귀를 막는다(문구를 바꾸는 PR은 스냅숏도 함께 갱신).
+- **카피는 한국어·영어 두 벌이다**(2026-10-15 KAN-194). 각 `<feature>.copy.ts`는 한국어 객체를 `ko`, 같은 모양의 영어 객체를 `en: LocalizedCopy<typeof ko>`로 두고 `export const X_COPY = localized({ ko, en })`로 내보낸다(`shared/i18n`). 키가 빠지거나 함수 인자가 다르면 타입 오류다. 함수형 카피는 ICU 메시지 대신 언어별 함수 — 조사·복수형은 그 언어 함수 안에서 처리한다. **표시 언어 = 설정 › 언어에서 고른 언어, 없으면 기기 언어**(한국어면 `ko`, 그 밖은 `en`)이고 시장(`users.market`) 판정과 무관하다. 가입 때(A21) 고른 언어로도 정해지는데, 그때는 앱을 다시 부르지 않고 바뀐다(PM 2026-10-19 — `locale.ts` `adoptSignupLanguage`). 그래서 `localized`(언어 인자 없음)는 읽는 순간의 언어로 풀리는 프록시를 돌려준다 — **`X_COPY`의 문자열·함수나 `APP_LANGUAGE`로 정한 값을 모듈 최상위 상수로 꺼내 굳히지 않는다**(그리는 순간에 읽는다. 하위 객체 `const C = X_COPY.section`은 괜찮다). 테스트는 기기와 무관하게 한국어로 돈다(`jest.setup.js`) — 영어는 `localized(..., 'en')`로 직접 확인한다. 한국어 문구는 `src/app/copy-ko.snapshot.test.ts` 스냅숏으로 회귀를 막는다(문구를 바꾸는 PR은 스냅숏도 함께 갱신).
 - 카피 파일 밖에 사용자 노출 문구가 꼭 있어야 하면(내비게이션 제목 등) 그 파일 안에 같은 `ko`/`en` + `localized` 묶음을 둔다.
 
 ## 4. State Convention

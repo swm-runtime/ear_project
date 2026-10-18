@@ -4,7 +4,7 @@ import { useState } from 'react';
 
 import { isApiError } from '@/shared/api/api-error';
 import { ERROR_CODES } from '@/shared/api/error-codes';
-import { APP_LANGUAGE } from '@/shared/i18n/locale';
+import { adoptSignupLanguage, APP_LANGUAGE } from '@/shared/i18n/locale';
 import { logger } from '@/shared/lib/logger';
 import { useToastStore } from '@/shared/ui/toast.store';
 
@@ -25,6 +25,10 @@ export const CONTENT_LANGUAGES: readonly ContentLanguage[] = ['ko', 'en'];
 /**
  * A21 콘텐츠 언어 선택(auth-uiux.md 4.2-1). **기본 선택은 표시 언어(= 기기 언어)** 이고, 고른 값은 가입 요청의
  * `locale.preferred_language` 로 나간다. 시장 판정은 서버가 그 값으로 한다(global-api.md 2.1).
+ *
+ * [다음]으로 A4에 갈 때 **고른 언어로 앱의 표시 언어도 맞춘다**(PM 2026-10-19 — 가입 때 고른 언어로 화면·콘텐츠 언어를
+ * 통일한다). 설정 "언어"와 같은 자리에 저장되어 다시 켜도 그 언어이고, 나중에 설정에서 따로 바꿀 수 있다. 토큰 만료로
+ * 시작 화면에 돌아갈 때는 바꾸지 않는다(가입이 이어지지 않았다).
  *
  * [다음]은 **고른 언어로 동의 목록을 다시 받은 뒤** A4로 간다(PM 2026-10-16 — `POST /auth/sign-up/consents`). 로그인 응답의
  * `required_consents` 는 콘텐츠 언어를 모를 때 정해진 것이라, GLOBAL 의 국외 이전 동의(KAN-215) 같은 시장별 항목이 없다.
@@ -47,6 +51,9 @@ export const useContentLanguageScreen = (params: SignUpParams) => {
   const goToTermsConsent = (requiredConsents: RequiredConsent[], market: Market | null) => {
     // 응답을 기다리는 사이 뒤로 갔으면 A4를 띄우지 않는다
     if (!navigation.isFocused()) return;
+    // 고른 언어로 화면 언어도 맞춘다(PM 2026-10-19) — A4부터 그 언어로 그린다. 같으면 아무것도 바뀌지 않는다.
+    // 다시 부르지 않는다: 가입 토큰이 이 파라미터(메모리)에만 있다(locale.ts adoptSignupLanguage)
+    adoptSignupLanguage(selected);
     navigation.navigate('TermsConsent', {
       signupToken: params.signupToken,
       requiredConsents,

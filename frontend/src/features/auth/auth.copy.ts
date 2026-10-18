@@ -435,7 +435,8 @@ export const AUTH_COPY = localized({ ko, en });
 
 /**
  * A21 콘텐츠 언어 화면의 두 벌 — 화면 문구가 **지금 고른 선택지의 언어**를 따르므로(PM 2026-10-19) 표시 언어로 한 벌만
- * 고른 `AUTH_COPY.contentLanguage` 로는 그릴 수 없다. 앱 전체의 표시 언어는 바꾸지 않는다 — 이 화면만 바뀐다.
+ * 고른 `AUTH_COPY.contentLanguage` 로는 그릴 수 없다. 앱의 표시 언어는 [다음]으로 A4에 갈 때 고른 언어로 맞춘다
+ * (PM 2026-10-19 — `useContentLanguageScreen`).
  */
 export const CONTENT_LANGUAGE_COPY: Readonly<
   Record<ContentLanguage, LocalizedCopy<typeof ko.contentLanguage>>

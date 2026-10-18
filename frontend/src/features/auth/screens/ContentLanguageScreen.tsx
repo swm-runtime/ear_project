@@ -35,7 +35,8 @@ const optionDescriptions = (language: ContentLanguage): Record<ContentLanguage, 
  * [다음]은 고른 언어로 동의 목록을 다시 받는 동안 진행 중(스피너·비활성)이다(PM 2026-10-16).
  *
  * **화면 문구는 지금 고른 선택지의 언어를 따른다**(PM 2026-10-19) — 한국어를 고르면 한국어, English 를 고르면 영어.
- * 첫 선택이 표시 언어라 처음 그림은 표시 언어 그대로다. 앱의 표시 언어는 바꾸지 않는다. 선택지 이름("한국어"·"English")과
+ * 첫 선택이 표시 언어라 처음 그림은 표시 언어 그대로다. 앱의 표시 언어는 [다음]으로 A4에 갈 때 고른 언어로 맞춘다
+ * (PM 2026-10-19 — A4부터 그 언어). 선택지 이름("한국어"·"English")과
  * 영어 사용자에게 하는 두 줄(English 설명·K-컬처 권장)은 언어와 무관하게 늘 같다.
  */
 export default function ContentLanguageScreen({ route }: ContentLanguageScreenProps) {
