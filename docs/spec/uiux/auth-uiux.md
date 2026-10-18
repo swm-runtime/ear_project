@@ -221,14 +221,17 @@ A9 / A10 ──[인증 코드 받기]──> A12 ──> A13 ──> A18 ──>
 - 국외 이전 동의(`cross_border_transfer`)는 **서버 목록에 있을 때만** 그린다. 서버는 GLOBAL 가입 목록(A21 English 선택 뒤 재조회)과 기존 GLOBAL 가입자의 `pending_consents`(A20)에만 싣는다. KR에는 오지 않는다 — 클라이언트가 시장으로 넣거나 빼지 않는다.
 - **필수 여부는 서버 `is_required`를 따른다**(GLOBAL은 필수). 필수면 체크해야 [동의하고 시작하기]·[동의하고 계속하기]가 활성된다.
 - [보기]는 **개인정보 처리방침의 국외 이전 절**을 연다 — GLOBAL `earcast.co.kr/en/privacy#s6`("6. International transfers"), KR `earcast.co.kr/privacy#s6`("6. 국외 이전"). 앵커는 랜딩 `components/Prose.tsx`가 h2에 붙이는 **순번 id**(`s1`, `s2`…)라 처리방침 앞쪽에 절이 끼면 밀린다 — 그때 `frontend/src/shared/lib/legal-urls.ts`의 앵커도 함께 고친다.
-- 문구가 길어 두 줄 이상으로 접힌다. 원은 첫 줄에 맞춘다(위 체크 규칙 그대로).
+- **이름은 다른 항목처럼 짧게 둔다**(PM 확정 2026-10-19 — 종전 한 문장 전체 문구는 7줄로 접혀 화면을 차지했다). 무엇이 어디로 이전되는지는 [보기]가 여는 처리방침 국외 이전 절이 설명한다. **법무 검토 대상** — 동의 문구에 이전 국가·목적을 직접 적어야 한다는 의견이 나오면 이 행을 되돌린다. 글자 크기를 키워 접혀도 원은 첫 줄에 맞춘다(위 체크 규칙 그대로).
 - `version`은 서버가 준 값 그대로 보낸다(없으면 `null`).
 
 **확정 카피**(`auth.copy.ts` `consent.label.cross_border_transfer`)
 
 | ko | en |
 |---|---|
-| 개인정보 처리방침에 안내된 대로, 내 정보가 대한민국으로 이전되어 처리되고 미국 등 다른 나라의 서비스 제공자도 처리하는 데 동의합니다 | I agree that my information is transferred to and processed in the Republic of Korea, and by service providers in other countries such as the United States, as described in the Privacy Policy. |
+| 개인정보 국외 이전 동의 | Agree to international data transfer |
+
+- 종전(2026-10-16~19): "개인정보 처리방침에 안내된 대로, 내 정보가 대한민국으로 이전되어 처리되고 미국 등 다른 나라의 서비스 제공자도 처리하는 데 동의합니다" / "I agree that my information is transferred to and processed in the Republic of Korea, and by service providers in other countries such as the United States, as described in the Privacy Policy."
+
 
 - 접근성 라벨은 위 문구 + 필수 태그, [보기]는 위 문구 + "보기"("View")다(다른 항목과 같다).
 
