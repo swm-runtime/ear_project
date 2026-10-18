@@ -2,6 +2,7 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { useScrollEndGate } from '@/shared/hooks/useScrollEndGate';
 import { localized, type LocalizedCopy } from '@/shared/i18n/localized';
 import { theme } from '@/shared/theme';
 import CheckIcon from '@/shared/ui/CheckIcon';
@@ -39,6 +40,10 @@ export default function TermsConsentScreen({ route, navigation }: TermsConsentSc
     handleViewPress,
     handleSubmit,
   } = useTermsConsentScreen(route.params);
+  // 목록을 끝까지 내려야 버튼이 열린다(PM 확정 2026-10-19) — 필수 체크(canSubmit)에 더하는 조건. [전체 동의]는 이와 무관하게
+  // 체크된다. 짧아서 스크롤이 없는 화면·스크린리더 사용자는 처음부터 열려 있다(useScrollEndGate)
+  const scrollEndGate = useScrollEndGate();
+  const canPressSubmit = canSubmit && scrollEndGate.isOpen;
 
   return (
     <SafeAreaView style={styles.container}>
@@ -60,6 +65,7 @@ export default function TermsConsentScreen({ route, navigation }: TermsConsentSc
         contentContainerStyle={styles.body}
         alwaysBounceVertical={false}
         showsVerticalScrollIndicator={false}
+        {...scrollEndGate.scrollViewProps}
       >
         {/* 브랜드 로고 + 환영 인사 — 이 화면의 주인공. 동의는 그 아래 조연이다 */}
         <Image
@@ -107,18 +113,22 @@ export default function TermsConsentScreen({ route, navigation }: TermsConsentSc
         </View>
       </ScrollView>
 
+      {/* 끝까지 내리기 전에는 버튼이 왜 안 눌리는지 글로 밝힌다(색만으로 상태를 말하지 않는다 — convention 3.4) */}
+      {scrollEndGate.isClosedAfterMeasure ? (
+        <Text style={styles.readToEnd}>{AUTH_COPY.consent.readToEnd}</Text>
+      ) : null}
       <Pressable
         style={[
           pillButton.base,
           pillButton.primary,
           styles.submit,
-          !canSubmit && styles.submitDisabled,
+          !canPressSubmit && styles.submitDisabled,
         ]}
-        disabled={!canSubmit || isSubmitting}
+        disabled={!canPressSubmit || isSubmitting}
         onPress={handleSubmit}
         accessibilityRole="button"
         accessibilityLabel={AUTH_COPY.consent.submit}
-        accessibilityState={{ disabled: !canSubmit || isSubmitting }}
+        accessibilityState={{ disabled: !canPressSubmit || isSubmitting }}
       >
         {isSubmitting ? (
           <ActivityIndicator color={theme.color.onPrimary} />
@@ -213,6 +223,13 @@ const styles = StyleSheet.create({
     height: StyleSheet.hairlineWidth,
     backgroundColor: theme.color.border,
     marginVertical: theme.spacing.sm,
+  },
+  /** 끝까지 읽기 안내 — 버튼 바로 위의 작은 보조 글자 */
+  readToEnd: {
+    fontSize: theme.font.size.xs,
+    color: theme.color.textSecondary,
+    textAlign: 'center',
+    marginBottom: theme.spacing.sm,
   },
   /** 온보딩 진행 버튼과 같은 알약 — 라벨은 법적 명시라 아이콘화하지 않는다 */
   // 크기만 — 모양·색은 공용 알약(pillButton)
