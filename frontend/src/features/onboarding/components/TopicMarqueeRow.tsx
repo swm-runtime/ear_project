@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Animated,
   Easing,
@@ -9,7 +9,7 @@ import {
   View,
   useWindowDimensions,
 } from 'react-native';
-import type { NativeScrollEvent, NativeSyntheticEvent } from 'react-native';
+import type { LayoutChangeEvent, NativeScrollEvent, NativeSyntheticEvent } from 'react-native';
 
 import { theme } from '@/shared/theme';
 
@@ -45,7 +45,6 @@ interface TopicMarqueeRowProps {
   phase: number;
   /** 자동 흐름 속도(px/초) */
   speed: number;
-  pillWidth: number;
   dimmedHint: string;
   onToggle: (topicId: string) => void;
 }
@@ -70,9 +69,20 @@ export default function TopicMarqueeRow(props: TopicMarqueeRowProps) {
   return <IosMarqueeRow {...props} />;
 }
 
-/** 한 벌의 픽셀 폭 — 알약 N개 + 벌 끝 여백(알약 간격과 동일) */
-const copyWidthOf = (count: number, pillWidth: number): number =>
-  count * (pillWidth + theme.spacing.sm);
+/**
+ * 한 벌의 픽셀 폭 — **잰다.** 알약 폭이 라벨을 따르므로(PM 확정 2026-10-19) 종전처럼 `개수 × 고정 폭`으로 셀 수 없다.
+ * 첫 벌(모든 벌이 같은 그림)의 onLayout 폭이 곧 한 벌 폭이다(알약들 + 사이 간격 + 벌 끝 여백).
+ * 재기 전(0)에는 흐름을 시작하지 않는다 — 각 구현이 `copyWidth <= 0`이면 멈춰 있다. 선택·상한 dim 은 라벨 굵기·여백을
+ * 바꾸지 않아 폭이 변하지 않는다(TopicChip — 굵기 고정).
+ */
+const useCopyWidth = (): [number, (event: LayoutChangeEvent) => void] => {
+  const [copyWidth, setCopyWidth] = useState(0);
+  const onCopyLayout = useCallback((event: LayoutChangeEvent) => {
+    const width = Math.round(event.nativeEvent.layout.width);
+    setCopyWidth((prev) => (prev === width ? prev : width));
+  }, []);
+  return [copyWidth, onCopyLayout];
+};
 
 /** 뷰포트 폭 기준 벌 수 — 줄은 화면 폭을 꽉 채우므로 창 폭을 뷰포트로 본다(onLayout 한 프레임 지연 회피) */
 const useCopyCount = (copyWidth: number): number => {
@@ -80,21 +90,31 @@ const useCopyCount = (copyWidth: number): number => {
   return marqueeCopyCount(width, copyWidth);
 };
 
+/** 알약 최대 폭 — 화면 좌우 여백(lg)을 뺀 줄 폭. 이보다 긴 이름은 두 줄로 접힌다(TopicChip) */
+const usePillMaxWidth = (): number => {
+  const { width } = useWindowDimensions();
+  return Math.max(width - theme.spacing.lg * 2, 0);
+};
+
 function MarqueeCopies({
   topics,
-  pillWidth,
   dimmedHint,
   onToggle,
   copyCount,
-}: Pick<TopicMarqueeRowProps, 'topics' | 'pillWidth' | 'dimmedHint' | 'onToggle'> & {
+  onCopyLayout,
+}: Pick<TopicMarqueeRowProps, 'topics' | 'dimmedHint' | 'onToggle'> & {
   copyCount: number;
+  /** 첫 벌의 폭 측정 — 한 벌 폭(useCopyWidth) */
+  onCopyLayout: (event: LayoutChangeEvent) => void;
 }) {
+  const pillMaxWidth = usePillMaxWidth();
   return (
     <>
       {Array.from({ length: copyCount }, (_, copy) => (
         <View
           key={copy}
           style={styles.copy}
+          onLayout={copy === 0 ? onCopyLayout : undefined}
           // 반복 벌은 시각 전용 — 낭독기에는 1번 벌 하나만 들린다
           accessibilityElementsHidden={copy !== ACCESSIBLE_COPY}
           importantForAccessibility={copy !== ACCESSIBLE_COPY ? 'no-hide-descendants' : 'auto'}
@@ -108,7 +128,7 @@ function MarqueeCopies({
               isSelected={topic.isSelected}
               isDimmed={topic.isDimmed}
               dimmedHint={dimmedHint}
-              style={[styles.pill, { width: pillWidth }]}
+              style={{ maxWidth: pillMaxWidth }}
               onPress={() => onToggle(topic.topicId)}
             />
           ))}
@@ -123,7 +143,6 @@ function WebMarqueeRow({
   direction,
   phase,
   speed,
-  pillWidth,
   dimmedHint,
   onToggle,
 }: TopicMarqueeRowProps) {
@@ -137,14 +156,15 @@ function WebMarqueeRow({
     resumeTimer.current = setTimeout(() => animRef.current?.play(), RESUME_MS);
   };
 
-  const copyWidth = copyWidthOf(topics.length, pillWidth);
+  const [copyWidth, onCopyLayout] = useCopyWidth();
   const copyCount = useCopyCount(copyWidth);
 
   // Web Animations API — 컴포지터에서 돌아 JS 지연·픽셀 반올림과 무관하게 부드럽다.
   // (react-native-web의 animationKeyframes는 이 버전에서 적용되지 않아 실측 후 대체 — 2026-09-03)
   useEffect(() => {
     const node = innerRef.current as unknown as HTMLElement | null;
-    if (!node || typeof node.animate !== 'function') return undefined;
+    // 한 벌 폭을 재기 전에는 흐르지 않는다(useCopyWidth)
+    if (!node || typeof node.animate !== 'function' || copyWidth <= 0) return undefined;
     const from = direction === 1 ? 0 : -copyWidth;
     const to = direction === 1 ? -copyWidth : 0;
     const anim = node.animate(
@@ -166,10 +186,10 @@ function WebMarqueeRow({
       <View ref={innerRef} style={styles.copies}>
         <MarqueeCopies
           topics={topics}
-          pillWidth={pillWidth}
           dimmedHint={dimmedHint}
           onToggle={onToggle}
           copyCount={copyCount}
+          onCopyLayout={onCopyLayout}
         />
       </View>
     </View>
@@ -181,11 +201,10 @@ function IosMarqueeRow({
   direction,
   phase,
   speed,
-  pillWidth,
   dimmedHint,
   onToggle,
 }: TopicMarqueeRowProps) {
-  const copyWidth = copyWidthOf(topics.length, pillWidth);
+  const [copyWidth, onCopyLayout] = useCopyWidth();
   const copyCount = useCopyCount(copyWidth);
   /** 이동량 — 0에서 한 벌 폭까지 가면 같은 그림이라 되감아도 티가 나지 않는다 */
   const progress = useMemo(() => new Animated.Value(0), []);
@@ -302,10 +321,10 @@ function IosMarqueeRow({
       <Animated.View style={[styles.copies, { transform: [{ translateX }] }]}>
         <MarqueeCopies
           topics={topics}
-          pillWidth={pillWidth}
           dimmedHint={dimmedHint}
           onToggle={onToggle}
           copyCount={copyCount}
+          onCopyLayout={onCopyLayout}
         />
       </Animated.View>
     </View>
@@ -317,12 +336,12 @@ function AndroidMarqueeRow({
   direction,
   phase,
   speed,
-  pillWidth,
   dimmedHint,
   onToggle,
 }: TopicMarqueeRowProps) {
   const scrollRef = useRef<ScrollView>(null);
-  const copyCount = useCopyCount(copyWidthOf(topics.length, pillWidth));
+  const [measuredCopyWidth, onCopyLayout] = useCopyWidth();
+  const copyCount = useCopyCount(measuredCopyWidth);
   const copyWidth = useRef(0);
   const paused = useRef(false);
   const resumeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -425,10 +444,10 @@ function AndroidMarqueeRow({
       <View style={styles.copies}>
         <MarqueeCopies
           topics={topics}
-          pillWidth={pillWidth}
           dimmedHint={dimmedHint}
           onToggle={onToggle}
           copyCount={copyCount}
+          onCopyLayout={onCopyLayout}
         />
       </View>
     </ScrollView>
@@ -451,9 +470,5 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: theme.spacing.sm,
     paddingRight: theme.spacing.sm,
-  },
-  pill: {
-    flexGrow: 0,
-    flexBasis: 'auto',
   },
 });
