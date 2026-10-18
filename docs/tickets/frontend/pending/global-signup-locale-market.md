@@ -61,3 +61,7 @@
   - 검증: tsc 0 · jest 595 통과(실패 2 — `ConfirmDialog`·`ProfileHeader`, dev 와 같은 기존 실패). 한국어 카피 스냅숏은 **추가만**(기존 문구 무변화).
   - **남은 것**: 실기기 실측(영어 기기 첫 실행·A21·GLOBAL 가입 → 커리어 없음·요청 캡처), KAN-212 KR slug 입력 뒤 KR 주제 칩 이미지 1.2.0 대조, GLOBAL 주제 이미지 자산(AI/PM).
 - 2026-10-18 영어 화면 QA 반영(PR `fix(fe)/global-en-layout-qa`) — 설정 mock 의 `account.market` 이 `'kr'` 고정이라 GLOBAL mock 세션에서 "Episodes stay in Korean" 이 나왔다. mock 이 세션 시장을 따르게 하고 `global` 시나리오를 더했다(실서버는 `users.market` 을 준다 — 코드 버그 아님 확인). GLOBAL 의 프로필·설정 "Career info" 행은 문서에 규칙이 없어 그대로 두고 PM 결정으로 넘겼다. pending 유지.
+- 2026-10-19 A21 다듬기(PR `feat(fe)/content-language-flags`, PM 확정 2026-10-19). pending 유지 — 남은 것은 위 2026-10-15 항목 그대로.
+  - **화면 문구가 고른 선택지의 언어를 따른다**: 한국어 ↔ English 를 고르는 즉시 질문·설명·변경 불가·[다음]·뒤로가기 낭독이 그 언어로 바뀐다(앱 표시 언어는 그대로). 두 언어 글자를 같은 자리에 겹쳐 카드가 움직이지 않게 했고, 글자마다 `accessibilityLanguage`.
+  - **English 카드 설명 "Learn Korea with K-podcast" · 권장 안내 "Into K-culture? Choose English"**(키 `recommendOverseas` → `recommendEnglish`) — 글로벌은 K-콘텐츠 위주라 화면 언어와 무관하게 늘 영어. 한국어 카피 스냅숏은 이 두 값만 바뀐다(의도).
+  - **카드 뒤 흐린 국기**(태극기 · 성조기): `frontend/scripts/generate-language-flags.py` 로 규격대로 그려 미리 흐린 PNG(`assets/flags/`, 420×140). 런타임 흐림·네이티브 모듈 없음 — rt 그대로 OTA. 막 토큰 `decorWash`·`decorWashSelected`. 카피·상태는 `auth-uiux.md` 4.2-1, 규칙은 `design.md` §5 "장식 배경 그림".

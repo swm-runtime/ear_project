@@ -21,6 +21,15 @@ export const CONTENT_LANGUAGE_MARKET: Readonly<Record<ContentLanguage, Market>> 
 };
 
 /**
+ * 콘텐츠 언어 → 낭독 언어(BCP 47, `accessibilityLanguage`). A21은 한 화면에 두 언어 글자가 섞이므로(선택지 이름은 그 언어
+ * 자신의 표기, 나머지는 고른 언어) 글자마다 이 값으로 VoiceOver 목소리를 맞춘다. iOS 만 쓰고 Android 는 무시한다
+ */
+export const CONTENT_LANGUAGE_SPEECH_LOCALE: Readonly<Record<ContentLanguage, string>> = {
+  ko: 'ko-KR',
+  en: 'en-US',
+};
+
+/**
  * 연령 확인의 기준 연령 — **나라별이고 판정은 서버가 한다**(KAN-206, PM 2026-10-16 3안). 서버가 `age_confirmation` 항목에
  * `min_age` 를 실어 보내면 그 값을 그린다(GLOBAL 은 기기 지역 `region_code` 로 16 또는 18, KR 은 18).
  *

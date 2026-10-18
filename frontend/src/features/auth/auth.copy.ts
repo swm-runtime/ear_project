@@ -35,6 +35,8 @@ const ko = {
   /**
    * A21 콘텐츠 언어 선택 — 신규 가입자만(auth-uiux.md 4.2-1, 2026-10-15). 고른 값이 시장을 정하므로
    * "무엇이 달라지는지"와 "바꿀 수 없다"를 같은 화면에서 밝힌다(global-api.md 4.1).
+   * **이 화면의 문구는 표시 언어가 아니라 지금 고른 선택지의 언어를 따른다**(PM 2026-10-19) — 화면은 `AUTH_COPY` 대신
+   * 두 벌을 다 가진 `CONTENT_LANGUAGE_COPY`(파일 아래)를 읽는다.
    */
   contentLanguage: {
     title: '어떤 언어로 들을까요?',
@@ -44,12 +46,16 @@ const ko = {
       ko: '한국어',
       en: 'English',
     } satisfies Record<ContentLanguage, string>,
-    /** 선택지 아래 한 줄 — 무엇을 받게 되는지(표시 언어로) */
+    /**
+     * 선택지 아래 한 줄 — 무엇을 받게 되는지. 한국어 선택지는 화면 언어를 따르고, **English 선택지는 화면 언어와 무관하게
+     * 늘 영어**다 — 글로벌은 K-콘텐츠 위주라 영어 사용자에게 하는 말이다(PM 2026-10-19)
+     */
     optionDescription: {
       ko: '한국어 에피소드와 주제',
-      en: '영어 에피소드와 주제',
+      en: 'Learn Korea with K-podcast',
     } satisfies Record<ContentLanguage, string>,
-    recommendOverseas: '해외에 거주하시면 English 선택을 추천해요',
+    /** English 권장 — K-컬처에 관심 있는 영어 사용자에게 하는 말이라 화면 언어와 무관하게 **늘 영어**(PM 2026-10-19) */
+    recommendEnglish: 'Into K-culture? Choose English',
     notChangeable: '가입한 뒤에는 바꿀 수 없어요',
     next: '다음',
     backA11y: '뒤로가기',
@@ -279,9 +285,9 @@ const en: LocalizedCopy<typeof ko> = {
     },
     optionDescription: {
       ko: 'Episodes and topics in Korean',
-      en: 'Episodes and topics in English',
+      en: 'Learn Korea with K-podcast',
     },
-    recommendOverseas: 'If you live outside Korea, we recommend English.',
+    recommendEnglish: 'Into K-culture? Choose English',
     notChangeable: 'You can’t change this after signing up.',
     next: 'Continue',
     backA11y: 'Back',
@@ -426,6 +432,17 @@ const en: LocalizedCopy<typeof ko> = {
 };
 
 export const AUTH_COPY = localized({ ko, en });
+
+/**
+ * A21 콘텐츠 언어 화면의 두 벌 — 화면 문구가 **지금 고른 선택지의 언어**를 따르므로(PM 2026-10-19) 표시 언어로 한 벌만
+ * 고른 `AUTH_COPY.contentLanguage` 로는 그릴 수 없다. 앱 전체의 표시 언어는 바꾸지 않는다 — 이 화면만 바뀐다.
+ */
+export const CONTENT_LANGUAGE_COPY: Readonly<
+  Record<ContentLanguage, LocalizedCopy<typeof ko.contentLanguage>>
+> = {
+  ko: ko.contentLanguage,
+  en: en.contentLanguage,
+};
 
 /**
  * 연령 확인 문구 — 숫자는 **서버가 판정한 기준 연령**이다(KAN-206 나라별, PM 2026-10-16 — `resolveMinAge`). 문구는 표시

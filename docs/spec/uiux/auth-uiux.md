@@ -129,24 +129,29 @@ A9 / A10 ──[인증 코드 받기]──> A12 ──> A13 ──> A18 ──>
 - BE 티켓(KAN-215)이 적은 "로그인 요청의 `locale.preferred_language`로 미리 판정"안은 이 순서에서 쓸 수 없다 — 로그인 시점에는 A21 선택이 아직 없다.
 - 계약은 `auth-api.md` 4.14 `POST /auth/sign-up/consents`다(확정·구현 2026-10-16 — #1609). 이 경로가 없는 구 서버에서는 위 표의 404 폴백으로 종전과 같이 동작한다.
 
-- **선택지 이름은 그 언어 자신의 표기다** — "한국어" · "English"는 표시 언어와 무관하게 같다. 표시 언어를 못 읽는 사람도 자기 언어를 찾을 수 있게 한다. 카드 아래 한 줄(받게 되는 콘텐츠)은 표시 언어를 따른다.
+- **화면 문구는 지금 고른 선택지의 언어를 따른다**(PM 확정 2026-10-19). 한국어를 고르면 질문·설명·한국어 카드 설명·변경 불가·[다음]·뒤로가기 낭독이 한국어, English를 고르면 전부 영어로 **그 자리에서** 바뀐다. 첫 선택이 표시 언어라 처음 그림은 표시 언어 그대로다. **앱 전체의 표시 언어는 바꾸지 않는다** — 이 화면만 바뀐다(다음 화면 A4부터는 다시 표시 언어).
+  - 언어가 바뀌어도 **카드가 손가락 밑에서 움직이지 않는다** — 바뀌는 글자는 두 언어를 같은 자리에 겹쳐 두고 고른 쪽만 보이게 해, 높이가 늘 두 벌 중 큰 쪽이다(질문은 한국어 한 줄 · 영어 두 줄). 짧은 쪽은 아래에 붙인다(질문이 설명과 떨어져 보이지 않게).
+- **언어와 무관하게 늘 같은 글자**: 선택지 이름("한국어" · "English" — 그 언어 자신의 표기, 표시 언어를 못 읽는 사람도 자기 언어를 찾게), **English 카드 설명과 권장 안내는 늘 영어**(PM 확정 2026-10-19 — 글로벌은 K-콘텐츠 위주라 K-컬처에 관심 있는 영어 사용자에게 하는 말이다).
 - 카드는 **면(둥근 사각 `radius.lg` + 연속 곡률)**, 선택되면 primary 테두리 + 오른쪽 **채운 원 + 체크 도형**(A4 체크와 같은 모양). 색만으로 선택을 말하지 않는다(7장).
-- 접근성: 카드 묶음은 `radiogroup`, 카드는 `radio` + `checked` 상태. 라벨 = 선택지 이름, 힌트 = 카드 아래 한 줄. 질문은 `header`.
+- **카드 뒤 흐린 국기**(PM 확정 2026-10-19): 한국어 = 태극기, English = 미국 성조기. 카드 전체를 채우고 크게 흐려 색 번짐으로만 읽힌다. 장식이라 낭독·초점에서 뺀다. 국기 위에 `decorWash` 막을 덮어 글자 대비를 지키고(라이트·다크·선택 전후 모두 `textPrimary` 7:1 이상 실측), 선택된 카드는 막을 덜 덮어 국기가 조금 더 드러난다 — 선택은 여전히 테두리·체크가 말한다. 카드 설명 글자는 막 위에서 보조색 대비가 모자라 `textPrimary`(크기·굵기로 위계). 규칙은 `frontend/design.md` §5 "장식 배경 그림".
+- 접근성: 카드 묶음은 `radiogroup`, 카드는 `radio` + `checked` 상태. 라벨 = 선택지 이름, 힌트 = 카드 아래 한 줄(지금 보이는 언어). 질문은 `header`. **한 화면에 두 언어가 섞이므로 글자마다 낭독 언어를 단다**(`accessibilityLanguage`, iOS): 카드는 선택지 이름의 언어(영어 목소리는 "한국어"를 못 읽는다), 바뀌는 글자는 보이는 언어, 권장 안내는 영어. 숨은 언어 겹은 낭독에서 빠진다.
 - 변경 불가 안내는 **[다음] 바로 위**에 둔다 — 누르기 전에 읽히는 자리.
 - 버튼은 A4와 같은 알약(`pillButton.primary`) · 같은 높이다.
 
-**확정 카피**(`auth.copy.ts` `contentLanguage`)
+**확정 카피**(`auth.copy.ts` `contentLanguage` — 화면은 두 벌을 다 가진 `CONTENT_LANGUAGE_COPY`를 읽는다). 열 이름 ko·en은 **고른 선택지의 언어**다(2026-10-19부터 표시 언어가 아니다).
 
 | 위치 | ko | en |
 |---|---|---|
 | 질문 | 어떤 언어로 들을까요? | Which language do you want to listen in? |
 | 설명 | 고른 언어에 따라 받아 보는⏎에피소드와 주제가 달라져요 | The language you choose decides which episodes and topics you get. |
 | 카드 — 한국어 | 한국어 / 한국어 에피소드와 주제 | 한국어 / Episodes and topics in Korean |
-| 카드 — English | English / 영어 에피소드와 주제 | English / Episodes and topics in English |
-| 권장 안내 | 해외에 거주하시면 English 선택을 추천해요 | If you live outside Korea, we recommend English. |
+| 카드 — English | English / Learn Korea with K-podcast | English / Learn Korea with K-podcast |
+| 권장 안내 | Into K-culture? Choose English | Into K-culture? Choose English |
 | 변경 불가 | 가입한 뒤에는 바꿀 수 없어요 | You can’t change this after signing up. |
 | 버튼 | 다음 | Continue |
 | 뒤로가기(스크린리더) | 뒤로가기 | Back |
+
+- **PM 확정 2026-10-19 — 글로벌은 K-콘텐츠 위주**: English 카드 설명(종전 "영어 에피소드와 주제" / "Episodes and topics in English")을 **"Learn Korea with K-podcast"**로, 권장 안내(종전 "해외에 거주하시면 English 선택을 추천해요" / "If you live outside Korea, we recommend English.", 키 `recommendOverseas`)를 **"Into K-culture? Choose English"**(키 `recommendEnglish`)로 바꿨다. 둘 다 영어 사용자에게 하는 말이라 화면 언어와 무관하게 늘 영어다.
 
 ### 4.3 A4 약관 동의
 
