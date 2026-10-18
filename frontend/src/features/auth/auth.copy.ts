@@ -264,7 +264,8 @@ const en: LocalizedCopy<typeof ko> = {
   start: {
     appName: 'Earcast',
     tagline: 'Lend us your ear',
-    description: 'Your own podcast, delivered for every commute',
+    // 글로벌은 K-콘텐츠 위주(PM 확정 2026-10-19) — 한국어 "매일 출근길에 도착하는 나만의 팟캐스트"의 번역이 아니다
+    description: 'Learn Korea with K-podcast',
     termsLink: 'Terms of Use',
     privacyLink: 'Privacy Policy',
     provider: {
