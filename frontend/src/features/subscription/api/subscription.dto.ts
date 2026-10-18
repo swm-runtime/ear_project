@@ -19,6 +19,11 @@ export interface PlanDto {
    * GLOBAL 요금제는 `null` 이 올 수 있고(global-api.md 4.6) 다음 메이저에서 필드가 빠진다 — 선언만 남긴다
    */
   price_krw?: number | null;
+  /**
+   * 무료 요금제인가 — **서버 판정**(subscription-api.md 4.1, 2026-10-18 KAN-226). 시장·플랫폼·구독 상태와 무관하다.
+   * 이 필드 배포 전 서버는 보내지 않는다 — 없으면 앱이 `store_product_id`·`action`으로 추정한다(`isFreePlan`)
+   */
+  is_free?: boolean;
   store_product_id: string | null;
   entitlements: EntitlementsDto;
   /** `cancel`(2026-10-08 — KAN-159): 유료 구독자의 무료 요금제. 고르면 스토어 구독 관리(해지)로 보낸다 */

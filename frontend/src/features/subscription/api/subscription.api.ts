@@ -60,6 +60,7 @@ const toPlan = (dto: PlanDto): Plan => ({
   name: dto.name,
   description: dto.description,
   storeProductId: dto.store_product_id,
+  isFree: dto.is_free ?? null,
   entitlements: toEntitlements(dto.entitlements),
   action: dto.action,
 });
