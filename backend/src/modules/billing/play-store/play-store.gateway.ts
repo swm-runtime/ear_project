@@ -54,6 +54,10 @@ export interface PlayPurchase {
   needsAcknowledge: boolean;
   /** 이 결제 주기의 주문 ID(`latestOrderId`) — 갱신·재청구 성공마다 바뀐다. 응답에 없으면 `null` */
   orderId: string | null;
+  /** 구매 국가(`regionCode`). 결제 알림 문구에만 쓴다 — 없으면 비운다(`features/backend-monitoring.md` 3-7) */
+  regionCode?: string | null;
+  /** 지금 결제 단계가 무료 체험인가(`lineItems[].offerPhase`). 모르면 `null`. 결제 알림 문구에만 쓴다 */
+  isTrial?: boolean | null;
 }
 
 /** Pub/Sub push가 실어 온 실시간 개발자 알림(RTDN) — 검증·해독을 마친 것 */

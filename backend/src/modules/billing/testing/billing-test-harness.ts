@@ -3,6 +3,7 @@ import { SlackAlertService } from '@/modules/alert/slack-alert.service';
 import { BillingOrchestrator } from '../billing.orchestrator';
 import { AppStoreWebhookService } from '../services/app-store-webhook.service';
 import { BillingAlertService } from '../services/billing-alert.service';
+import { BillingEventAlertService } from '../services/billing-event-alert.service';
 import { BillingSyncService } from '../services/billing-sync.service';
 import { PlayPurchaseService } from '../services/play-purchase.service';
 import { PlayStoreWebhookService } from '../services/play-store-webhook.service';
@@ -22,6 +23,17 @@ export function assembleBilling(world = new BillingTestWorld()) {
       slackTexts.push(text);
     },
   } as unknown as SlackAlertService);
+  // 결제 알림(성공 쪽)은 따로 모은다 — 실패 알림을 세는 기존 단언(`slackTexts`)이 결제 한 건으로 흔들리지 않게
+  const paymentTexts: string[] = [];
+  const paymentAlerts = new BillingEventAlertService(
+    {
+      enabled: true,
+      notify: (_kind: string, text: string) => {
+        paymentTexts.push(text);
+      },
+    } as unknown as SlackAlertService,
+    world.userService,
+  );
   const sync = new BillingSyncService(
     world.subscriptionService,
     world.planService,
@@ -35,6 +47,7 @@ export function assembleBilling(world = new BillingTestWorld()) {
     sync,
     world.dataSource,
     alerts,
+    paymentAlerts,
   );
   const reconcile = new SubscriptionReconcileService(
     world.subscriptionService,
@@ -56,6 +69,7 @@ export function assembleBilling(world = new BillingTestWorld()) {
     world.dataSource,
     alerts,
     world.inviteCodeService,
+    paymentAlerts,
   );
   const appStoreWebhook = new AppStoreWebhookService(
     world.gateway,
@@ -63,6 +77,7 @@ export function assembleBilling(world = new BillingTestWorld()) {
     sync,
     world.dataSource,
     alerts,
+    paymentAlerts,
   );
   const playStoreWebhook = new PlayStoreWebhookService(
     world.playGateway,
@@ -74,6 +89,7 @@ export function assembleBilling(world = new BillingTestWorld()) {
   return {
     world,
     slackTexts,
+    paymentTexts,
     sync,
     orchestrator,
     reconcile,

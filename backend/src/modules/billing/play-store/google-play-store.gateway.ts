@@ -54,11 +54,20 @@ interface SubscriptionPurchaseV2 {
   acknowledgementState?: string;
   latestOrderId?: string;
   externalAccountIdentifiers?: { obfuscatedExternalAccountId?: string };
+  /** 구매 국가(ISO 3166-1 alpha-2). 결제 알림 문구에만 쓴다 */
+  regionCode?: string;
   lineItems?: {
     productId?: string;
     expiryTime?: string;
     autoRenewingPlan?: { autoRenewEnabled?: boolean };
     deferredItemReplacement?: { productId?: string };
+    /** 이 줄의 지금 결제 단계 — 무료 체험이면 `freeTrial`이 있다. 결제 알림 문구에만 쓴다 */
+    offerPhase?: {
+      freeTrial?: object;
+      introductoryPrice?: object;
+      basePrice?: object;
+      prorationPeriod?: object;
+    };
   }[];
   /** 라이선스 테스터의 시험 구매에만 있다(내용 없는 객체) */
   testPurchase?: object;
@@ -469,6 +478,12 @@ function toPlayPurchase(
     needsAcknowledge:
       body.acknowledgementState === 'ACKNOWLEDGEMENT_STATE_PENDING',
     orderId: body.latestOrderId ?? null,
+    regionCode: body.regionCode ?? null,
+    // 단계 정보가 없으면(옛 응답) 모른다 — 체험 아님으로 단정하지 않는다
+    isTrial:
+      item.offerPhase === undefined
+        ? null
+        : item.offerPhase.freeTrial !== undefined,
   };
 }
 

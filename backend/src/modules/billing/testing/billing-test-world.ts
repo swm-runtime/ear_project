@@ -336,6 +336,8 @@ export function buildTransaction(
     revokedAt: overrides.revokedAt ? new Date(overrides.revokedAt) : null,
     accountToken: overrides.accountToken ?? null,
     receipt,
+    // 결제 알림 문구용 부가 사실 — 준 테스트에만 싣는다(나머지 테스트의 거래 모양을 바꾸지 않게)
+    ...(overrides.detail ? { detail: overrides.detail } : {}),
   };
 }
 

@@ -5,6 +5,7 @@ import { Subscription } from '@/modules/subscription/entities/subscription.entit
 import { PlanService } from '@/modules/subscription/services/plan.service';
 import { SubscriptionStore } from '@/modules/subscription/subscription.enum';
 
+import { SubscriptionTransitionKind } from '../billing.types';
 import {
   alreadySubscribed,
   receiptInvalid,
@@ -23,9 +24,14 @@ import {
 } from '../play-store/play-store.gateway';
 import { BillingSyncService, SyncOutcome } from './billing-sync.service';
 import { BillingAlertService } from './billing-alert.service';
+import { BillingEventAlertService } from './billing-event-alert.service';
 
 /** `subscriptionNotification.notificationType` — 12가 철회(환불)다. 구독 상태만으로는 만료와 구분되지 않는다 */
 const NOTIFICATION_TYPE_REVOKED = 12;
+/** 3 — 해지(자동 갱신 끔). 결제 알림의 해지 예약을 이 알림에서만 올린다 */
+const NOTIFICATION_TYPE_CANCELED = 3;
+/** 4 — 새 구매. 결제 알림의 구독 시작을 이 알림에서만 올린다(복구·갱신·재개도 행을 되살릴 수 있다) */
+const NOTIFICATION_TYPE_PURCHASED = 4;
 
 /**
  * Google Play 구매의 반영(`subscription-api.md` 4.4·4.5·4.7).
@@ -48,6 +54,7 @@ export class PlayPurchaseService {
     private readonly billingSyncService: BillingSyncService,
     private readonly dataSource: DataSource,
     private readonly billingAlertService: BillingAlertService,
+    private readonly billingEventAlertService: BillingEventAlertService,
   ) {}
 
   isEnabled(): boolean {
@@ -62,7 +69,7 @@ export class PlayPurchaseService {
   ): Promise<void> {
     const purchase = await this.fetchOrInvalid(purchaseToken);
 
-    await this.dataSource.transaction(async (manager) => {
+    const applied = await this.dataSource.transaction(async (manager) => {
       const snapshot = await this.snapshotOf(purchase, now, manager);
 
       await this.assertKnownProduct(snapshot);
@@ -95,7 +102,13 @@ export class PlayPurchaseService {
         environment: purchase.environment,
         outcome: outcome.kind,
       });
+
+      return outcome;
     });
+
+    // 커밋 뒤에 — 처음 유효 구독이 생긴 제출에서만 전이가 있다(backend-monitoring.md 3-7). 확인(acknowledge) 실패로
+    // 503 이 나가도 반영은 커밋됐다 — 재제출은 `unchanged`라 다시 알리지 않는다
+    this.billingEventAlertService.report(applied, ['started'], now);
 
     await this.acknowledgeIfNeeded(purchase);
   }
@@ -269,6 +282,12 @@ export class PlayPurchaseService {
 
         return result;
       },
+    );
+
+    this.billingEventAlertService.report(
+      outcome,
+      notificationAlertKinds(notification, isRevoked),
+      now,
     );
 
     // 주인을 찾아 반영한 구매만 확인한다 — 주인 없는 구매를 확인하면 "결제됐는데 아무 계정에도 없음"이 굳는다
@@ -464,5 +483,28 @@ export class PlayPurchaseService {
     );
 
     return receiptInvalid();
+  }
+}
+
+/**
+ * Play 알림이 올릴 결제 알림 전이(`features/backend-monitoring.md` 3-7). Play 는 모든 알림이 "지금 상태"를 다시 조회해
+ * 반영하므로, 전이만 보면 결제 보류에서의 복구(`RECOVERED`)·재개(`RESTARTED`)·갱신도 "구독이 되살아남"으로 보인다 —
+ * 그래서 알림 종류로 한 번 더 거른다
+ */
+function notificationAlertKinds(
+  notification: PlayNotification,
+  isRevoked: boolean,
+): SubscriptionTransitionKind[] {
+  if (isRevoked) {
+    return ['refunded'];
+  }
+
+  switch (notification.type) {
+    case NOTIFICATION_TYPE_PURCHASED:
+      return ['started'];
+    case NOTIFICATION_TYPE_CANCELED:
+      return ['cancel_scheduled'];
+    default:
+      return [];
   }
 }

@@ -153,6 +153,23 @@ export interface StoreTransaction {
    * 주기 식별자(`subscription-api.md` 4.7). App Store 거래에는 없다(거래 ID가 그 역할을 한다)
    */
   orderId?: string | null;
+  /**
+   * 결제 알림 문구에만 쓰는 부가 사실(`features/backend-monitoring.md` 3-7 — 2026-10-18). 상태 판정에 쓰지 않고
+   * 저장하지도 않는다(`domain.md`에 컬럼이 없다). 스토어가 주지 않으면 비운다
+   */
+  detail?: StorePurchaseDetail;
+}
+
+/** 스토어가 거래에 실어 준 결제 정보 — 알림 문구용. 모르는 값은 `null` */
+export interface StorePurchaseDetail {
+  /** 이 결제 주기가 무료 체험인가(App Store `offerDiscountType` · Play `offerPhase`) */
+  isTrial: boolean | null;
+  /** 자동 갱신으로 생긴 거래인가(App Store `transactionReason`). Play는 모른다 */
+  isRenewal: boolean | null;
+  /** 스토어 국가 코드(App Store `storefront` 3자 · Play `regionCode` 2자) */
+  storefront: string | null;
+  /** 결제 금액(통화 단위). App Store만 준다 */
+  price: { amount: number; currency: string } | null;
 }
 
 /** 스토어가 알려 준 "다음 갱신" 정보 */

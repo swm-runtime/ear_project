@@ -48,6 +48,13 @@ export function toPlaySnapshot(
     receipt: purchase.purchaseToken,
     // 결제 주기 식별자 — 환불 고정(4.7)이 "같은 주문인가"를 본다
     orderId: purchase.orderId,
+    // 결제 알림 문구용(`features/backend-monitoring.md` 3-7). Play 구독 조회에는 금액·갱신 사유가 없다
+    detail: {
+      isTrial: purchase.isTrial ?? null,
+      isRenewal: null,
+      storefront: purchase.regionCode ?? null,
+      price: null,
+    },
   };
 
   // 해지 예약(canceled)은 자동 갱신이 꺼진 유효 구독이다 — Google이 `autoRenewEnabled`를 주지만 상태로도 확정한다

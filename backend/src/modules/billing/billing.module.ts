@@ -13,6 +13,7 @@ import { PlanController } from './controllers/plan.controller';
 import { SubscriptionController } from './controllers/subscription.controller';
 import { AppStoreWebhookService } from './services/app-store-webhook.service';
 import { BillingAlertService } from './services/billing-alert.service';
+import { BillingEventAlertService } from './services/billing-event-alert.service';
 import { BillingSyncService } from './services/billing-sync.service';
 import { InviteGrantExpiryScheduler } from './services/invite-grant-expiry.scheduler';
 import { InviteGrantExpiryService } from './services/invite-grant-expiry.service';
@@ -43,6 +44,7 @@ import { SubscriptionReconcileService } from './services/subscription-reconcile.
   ],
   providers: [
     BillingAlertService,
+    BillingEventAlertService,
     BillingOrchestrator,
     BillingSyncService,
     SubscriptionReconcileService,
