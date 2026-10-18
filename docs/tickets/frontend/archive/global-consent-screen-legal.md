@@ -13,7 +13,8 @@
 | 선행 | BE [KAN-215](https://runtime364.atlassian.net/browse/KAN-215) `global-cross-border-consent.md` · 랜딩 영어 약관·처리방침 운영 배포(상태: 완료 — 2026-10-15 `/en/terms/`·`/en/privacy/` 200, 국외 이전 앵커 `/en/privacy/#s6`·`/privacy/#s6` 2026-10-16 확인) |
 | 관련 | [KAN-206](https://runtime364.atlassian.net/browse/KAN-206)(연령 동의 — 같은 화면) · [KAN-198](https://runtime364.atlassian.net/browse/KAN-198)(심사 제출 — 이 티켓이 막는다) · [KAN-197](https://runtime364.atlassian.net/browse/KAN-197)(`legal-urls.ts`) |
 | 중요도 | Medium |
-| 상태 | 진행 중 — BE 재조회 API·국외 이전 동의 대기 |
+| 상태 | 완료 |
+| 반영 날짜 | 2026-10-19 |
 
 ## 1. 국외 이전 동의 항목
 - 서버 동의 목록(`required_consents` / `pending_consents`)에 `cross_border_transfer`가 오면 **필수 체크 항목**으로 그린다. 시장으로 하드코딩하지 않고 서버 목록대로 그린다(KR에는 오지 않는다).
@@ -38,3 +39,4 @@
   - **약관·처리방침 링크를 시장 기준으로**(KAN-197의 표시 언어 기준 대체): `shared/lib/legal-urls.ts` `legalUrlsFor(market)` — GLOBAL → `/en/terms`·`/en/privacy`, KR → 종전. 상수 `TERMS_URL`·`PRIVACY_POLICY_URL`은 없앴다. 시장: A4 = 재조회 응답의 서버 판정 `market`(제안 선택 필드 — 글로벌 가입 스위치가 닫히면 English도 KR이라서), 없으면 A21 선택의 시장(`CONTENT_LANGUAGE_MARKET`), A20·설정·구독 고지 = 세션 `user.market`, A1(로그인 전) = 표시 언어가 가리키는 시장. 문서: `auth-uiux.md` 3장·4.1·4.2-1·4.3·4.3-1 · `settings-uiux.md` 정보 행 · `subscription-uiux.md` 링크 줄 · KAN-197 티켓 처리 기록에 기준 변경 주석.
   - **남은 것**: ① BE KAN-215 — `cross_border_transfer` 종류·GLOBAL 필수 목록·기존 GLOBAL 가입자 `pending_consents` + 재조회 엔드포인트(위 changes 문서의 결정 3건 포함). ② 랜딩 영어 페이지 운영 배포 확인 — `tickets/ops/pending/store-english-legal-links.md`는 2026-10-15 `/en/terms/`·`/en/privacy/` 200이라 적었다. 선행 표의 "PR 전"과 어긋나니 표를 갱신할 것. ③ 서버가 생긴 뒤 실서버(`EXPO_PUBLIC_AUTH_API=real`)로 GLOBAL·KR 가입·재동의 확인 — 위 완료 조건 3개.
 - 2026-10-19 **국외 이전 행 이름을 짧게**(PM 확정): "Agree to international data transfer" / "개인정보 국외 이전 동의". 상세는 [보기] → 처리방침 국외 이전 절. 종전 한 문장 문구는 7줄로 접히고 iOS 큰 글자에서 잘렸다(#1702). **법무 검토 때 이 짧은 이름으로 충분한지 확인 필요.**
+- 2026-10-19 **완료 — 반영 날짜 2026-10-19.** 실기기(iPhone, 개발계 OTA 01a15096 이후, PM 확인): ① GLOBAL 가입 동의 화면에 국외 이전 항목 필수·짧은 이름 잘림 없음·[보기] 영어판 ② KR 가입(한국어 선택)은 국외 이전 항목 없음·한국어 링크·버튼 정상 ③ 설정의 약관·처리방침이 GLOBAL 계정에서 영어판으로 열림 — 완료 조건 3개 충족. 같은 날 "끝까지 스크롤" 관문이 첫 측정의 짧은 높이로 잠겨 [전체 동의]만으로 열리던 버그를 고쳤다(`useScrollEndGate` — 다 들어감 판정을 잠그지 않음, 이 티켓 닫는 PR). **법무 검토 때 확인할 것**: 국외 이전 행의 짧은 이름 + [보기] 링크로 충분한지(되돌릴 때는 `auth-uiux.md` 4.3의 종전 문구).
