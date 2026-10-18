@@ -364,7 +364,7 @@ export default function ExploreScreen() {
           <View
             style={[
               styles.sectionHeaderRow,
-              IS_HEADER_WRAPPABLE && styles.sectionHeaderRowWrap,
+              isHeaderWrappable() && styles.sectionHeaderRowWrap,
               headerStyle,
             ]}
           >
@@ -372,7 +372,7 @@ export default function ExploreScreen() {
               style={[
                 styles.sectionTitle,
                 styles.sectionHeaderTitle,
-                IS_HEADER_WRAPPABLE && styles.sectionHeaderTitleWrap,
+                isHeaderWrappable() && styles.sectionHeaderTitleWrap,
               ]}
               accessibilityRole="header"
             >
@@ -642,8 +642,11 @@ const DIM_DELAY_MS = 300;
 /** 피드로 돌아올 때 먼저 그리는 섹션 수 — 첫 화면 몫 */
 const FEED_FIRST_SECTIONS = 2;
 
-/** 인기 섹션 제목 줄이 토글을 다음 줄로 내릴 수 있는가 — 영어만(아래 sectionHeaderRowWrap) */
-const IS_HEADER_WRAPPABLE = APP_LANGUAGE !== 'ko';
+/**
+ * 인기 섹션 제목 줄이 토글을 다음 줄로 내릴 수 있는가 — 영어만(아래 sectionHeaderRowWrap). 그리는 순간에 읽는다 —
+ * 가입 때 표시 언어가 다시 부르지 않고 바뀔 수 있다(shared/i18n/locale `adoptSignupLanguage`)
+ */
+const isHeaderWrappable = (): boolean => APP_LANGUAGE !== 'ko';
 
 const styles = StyleSheet.create({
   // 고정 제목 아래로 목록이 지나가도 글자가 겹치지 않도록 화면 바탕을 채운다.

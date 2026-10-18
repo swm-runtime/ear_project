@@ -24,6 +24,12 @@ jest.mock('@react-navigation/native', () => ({
     isFocused: () => true,
   }),
 }));
+const mockAdoptSignupLanguage = jest.fn<(language: string) => void>();
+jest.mock('@/shared/i18n/locale', () => ({
+  ...jest.requireActual<object>('@/shared/i18n/locale'),
+  APP_LANGUAGE: 'ko',
+  adoptSignupLanguage: (language: string) => mockAdoptSignupLanguage(language),
+}));
 jest.mock('@/shared/lib/logger', () => ({ logger: { warn: jest.fn(), error: jest.fn() } }));
 jest.mock('@/shared/ui/toast.store', () => ({
   useToastStore: (selector: (state: { show: (message: string) => void }) => unknown) =>
@@ -181,5 +187,73 @@ describe('A21 [다음] — 고른 언어로 동의 목록을 다시 받는다(PM
     expect(mockShowToast).toHaveBeenCalledWith(AUTH_COPY.consent.signupExpired);
     expect(mockPopToTop).toHaveBeenCalledTimes(1);
     expect(mockNavigate).not.toHaveBeenCalled();
+  });
+});
+
+describe('A21 [다음] — 고른 언어로 화면 언어도 맞춘다(PM 2026-10-19)', () => {
+  it('English 를 고르면 A4로 가기 전에 표시 언어를 en 으로 맞춘다', async () => {
+    // given
+    mockMutateAsync.mockResolvedValue({ requiredConsents: GLOBAL_CONSENTS, market: 'global' });
+    act(() => screen.select('en'));
+
+    // when
+    await pressNext();
+
+    // then
+    expect(mockAdoptSignupLanguage).toHaveBeenCalledWith('en');
+    expect(mockAdoptSignupLanguage.mock.invocationCallOrder[0]).toBeLessThan(
+      mockNavigate.mock.invocationCallOrder[0],
+    );
+  });
+
+  it('기본 선택(표시 언어)으로 넘어가면 같은 언어를 넘긴다 — 같으면 locale 이 아무것도 바꾸지 않는다', async () => {
+    // given
+    mockMutateAsync.mockResolvedValue({ requiredConsents: LOGIN_CONSENTS, market: 'kr' });
+
+    // when
+    await pressNext();
+
+    // then
+    expect(mockAdoptSignupLanguage).toHaveBeenCalledWith('ko');
+  });
+
+  it('구 서버라 로그인 응답의 목록으로 A4에 가도 고른 언어로 맞춘다', async () => {
+    // given
+    mockMutateAsync.mockRejectedValue(
+      new ApiError(ERROR_CODES.NOT_FOUND, 'Not found', false, null, null, 404),
+    );
+    act(() => screen.select('en'));
+
+    // when
+    await pressNext();
+
+    // then
+    expect(mockAdoptSignupLanguage).toHaveBeenCalledWith('en');
+    expect(mockNavigate).toHaveBeenCalledTimes(1);
+  });
+
+  it('A4로 가지 않으면(토큰 만료·네트워크 오류) 화면 언어를 바꾸지 않는다', async () => {
+    // given — 토큰 만료
+    mockMutateAsync.mockRejectedValueOnce(
+      new ApiError(ERROR_CODES.AUTH_SIGNUP_TOKEN_EXPIRED, '만료', false, null, null, 401),
+    );
+    act(() => screen.select('en'));
+
+    // when
+    await pressNext();
+
+    // then
+    expect(mockAdoptSignupLanguage).not.toHaveBeenCalled();
+
+    // given — 네트워크 오류
+    mockMutateAsync.mockRejectedValueOnce(
+      new ApiError(ERROR_CODES.NETWORK_ERROR, 'offline', true, null, null, null),
+    );
+
+    // when
+    await pressNext();
+
+    // then
+    expect(mockAdoptSignupLanguage).not.toHaveBeenCalled();
   });
 });
