@@ -65,3 +65,4 @@
   - **화면 문구가 고른 선택지의 언어를 따른다**: 한국어 ↔ English 를 고르는 즉시 질문·설명·변경 불가·[다음]·뒤로가기 낭독이 그 언어로 바뀐다(앱 표시 언어는 그대로). 두 언어 글자를 같은 자리에 겹쳐 카드가 움직이지 않게 했고, 글자마다 `accessibilityLanguage`.
   - **English 카드 설명 "Learn Korea with K-podcast" · 권장 안내 "Into K-culture? Choose English"**(키 `recommendOverseas` → `recommendEnglish`) — 글로벌은 K-콘텐츠 위주라 화면 언어와 무관하게 늘 영어. 한국어 카피 스냅숏은 이 두 값만 바뀐다(의도).
   - **카드 뒤 흐린 국기**(태극기 · 성조기): `frontend/scripts/generate-language-flags.py` 로 규격대로 그려 미리 흐린 PNG(`assets/flags/`, 420×140). 런타임 흐림·네이티브 모듈 없음 — rt 그대로 OTA. 막 토큰 `decorWash`·`decorWashSelected`. 카피·상태는 `auth-uiux.md` 4.2-1, 규칙은 `design.md` §5 "장식 배경 그림".
+- 2026-10-19 **English 카드 설명을 종전 "영어 에피소드와 주제" / "Episodes and topics in English"로 되돌림**(PM 정정 — "Learn Korea with K-podcast"는 A1 시작 화면 영어 설명 요청이었다. A1은 PR #1700에서 반영). 권장 안내 "Into K-culture? Choose English"는 그대로.
