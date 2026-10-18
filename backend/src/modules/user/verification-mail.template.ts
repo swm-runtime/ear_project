@@ -49,8 +49,8 @@ interface MailCopy {
   footer: [string, string];
 }
 
-/** GLOBAL 영어 앱 이름은 PM 확정 전이다(KAN-198) — 확정되면 이 값만 바꾼다 */
-const EN_BRAND = 'Ear';
+/** GLOBAL 영어 앱 이름 — PM 확정 2026-10-18(KAN-198, 종전 임시값 `Ear`). 앱 홈 화면 이름·영어 문구와 같은 값이다 */
+const EN_BRAND = 'Earcast';
 
 const COPY: Record<MessageLanguage, MailCopy> = {
   [MessageLanguage.KO]: {

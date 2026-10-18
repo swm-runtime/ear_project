@@ -40,8 +40,10 @@ describe('renderVerificationMail', () => {
     );
 
     // then
-    expect(subject).toContain('123456');
+    expect(subject).toBe('[Earcast] Your verification code is 123456');
     expect(html).toContain('<html lang="en">');
+    // 영어 앱 이름은 Earcast(PM 확정 2026-10-18, KAN-198)
+    expect(text).toContain('Earcast verification code');
     expect(html).toContain('3 minutes');
     // 다크모드 보정 주석·스타일을 빼면 본문 어디에도 한글이 없다
     const visible = html
