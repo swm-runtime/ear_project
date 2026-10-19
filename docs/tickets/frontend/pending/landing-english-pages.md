@@ -14,7 +14,7 @@
 | 관련 | 스토어 심사(FE 5번)가 영어 지원 URL을 요구하면 선택 범위가 아니라 필수가 된다 |
 | 근거 문서 | **`spec/api/global-api.md` 해당 없음(랜딩)** — 구현은 이 문서를 따르고, 계약이 바뀌면 티켓이 아니라 이 문서를 고친다 · 2026-10-14 글로벌화 조사 |
 | 중요도 | Low |
-| 상태 | 대기 |
+| 상태 | 운영 반영(2026-10-19 19:59 KST) — 완료 조건 2 충족. 남은 것: 법무 검토 뒤 `indexable: true` · 스토어 URL 입력(사람 손, KAN-198·214) |
 
 > 2026-10-14 발행한 묶음 티켓(BE KAN-185 · FE KAN-183 · AI KAN-184)을 처리 단위로 나눈 것. 결정 사항(같은 앱·기기 언어로 가입 시 1회 시장 판정·한국 트랙 불변·에러 번역은 클라이언트·가격은 스토어·영어 진행자 새 2인·K-컬처 주제 신설·GLOBAL 연령 16세)과 결정 대기(시장 전환 불허)는 `spec/api/global-api.md` 2.1·9장이 원본이다.
 
@@ -30,7 +30,7 @@
 
 ## 완료 조건
 
-- Given `/en` 4페이지 / Then 한국어 리터럴 0건, `hreflang` 양방향
+- Given `/en` 4페이지 / Then 한국어 리터럴 0건(예외 — 바닥글의 한국어 전환 링크 이름 "한국어"와 약관·처리방침의 서비스 정의 `"Earcast (이어)"` 괄호 안 원명 1회. 2026-10-19 PM 확정, 처리 기록 참조), `hreflang` 양방향
 - Given 스토어 심사 노트 / Then 영어 지원·개인정보 URL이 200 응답
 
 ## 처리 기록
@@ -51,3 +51,6 @@
 - 2026-10-18 영어 앱 이름 **Earcast** 로 PM 확정(KAN-198 — 종전 임시값 `Ear`). 앱은 PR `feat(fe)/release-1-3-0` 에서 반영했고, **랜딩은 아직 `Ear` 다** — `src/content/en/site.ts` `enSite.name` · `routes.ts` 제목·설명 · `legal-en.ts` 본문의 "Ear" 별칭 · `scripts/og-pages.mjs` 영어 워드마크. 랜딩 릴리즈(dev→main)와 함께 바꾼다.
 - 2026-10-19 **랜딩 영어 앱 이름 `Ear` → `Earcast`**(브랜치 `docs(fe)/landing-earcast-name`). 단어 경계(`Ear`)로만 바꿔 `Earn`·`early`·`hear`·`year` 류는 건드리지 않았다 — 29곳: `src/content/en/site.ts` 7(`enSite.name` 포함 — 헤더·바닥글·`<title>` template·`applicationName`·저작권 줄이 이 값을 따른다) · `src/content/en/routes.ts` 5(제목·설명·주석) · `src/content/legal-en.ts` 13 · `scripts/og-pages.mjs` 4(영어 워드마크·문구·주석). 한국어 "이어"는 그대로다. OG 이미지 `public/og/en.png`·`en-legal.png`는 `npm run og`로 다시 구웠다(글자가 전부 ASCII라 폰트 서브셋은 다시 만들 필요 없음, 한국어 OG는 바이트 동일). lint·build 통과, `out/en/**`에 단독 `Ear` 0건. **법무 검토 대상 주의** — 영어 이용약관·개인정보 처리방침(`legal-en.ts`)의 서비스 별칭 정의가 `("**Earcast**" or the "**Service**")`로 바뀌었다. 이름만 바꾼 것이고 조항 내용은 그대로다. 법무 검토는 `Earcast` 표기로 본다. **남은 것**: 위 10-15 항목 그대로 — 특히 `legal-en.ts`의 `site.name`("이어") 2곳은 이번에도 손대지 않았다(#1584 작성자 확인 대기). 운영 반영은 랜딩 배포(dev→main + 수동 배포) 뒤.
 - 2026-10-19 **영어 약관·처리방침의 서비스 이름 정의를 `"Earcast (이어)"`로**(PM 확정 — 브랜치 `docs(fe)/legal-en-service-name`). `legal-en.ts` 51·293행이 `"${site.name}"`(한국어 "이어" 단독)이었다 → `"Earcast (${site.name})"`. 한국 법인 서비스의 원래 이름을 괄호로 함께 적어 같은 서비스임을 분명히 한다. 별칭 정의 `("**Earcast**" or the "**Service**")`는 그대로. 위 "남은 것"의 `site.name` 2곳 항목은 이것으로 닫힌다 — `out/en/terms/`·`/en/privacy/`의 "이어"는 이 괄호 안 한 번씩만 남는다(의도). 법무 검토는 이 표기로 본다.
+- 2026-10-19 **운영 반영 — `/en/` 4페이지 전부 200**(팀원 배포, 19:59 KST 빌드. 방식은 10-15와 같은 `vercel.json` `git.deploymentEnabled` 잠깐 켜기 → 끄기, dev `230951a9`). 확인(curl, 캐시 우회): `/en/`·`/en/terms/`·`/en/privacy/`·`/en/account-deletion/` 200 · `<html lang="en">` · `<title>` "… | Earcast"(종전 운영은 10-15 빌드라 "Ear | 이어"였다) · hreflang ko/en/x-default 3종 · 약관·처리방침 `noindex, nofollow` 유지 · 본문의 "이어"는 `"Earcast (이어)"` 정의 안에서만. **완료 조건 2 충족.** 완료 조건 1의 "한국어 리터럴 0건"은 PM이 10-19 확정한 `"Earcast (이어)"` 표기와 충돌해 예외 두 가지(전환 링크 이름 · 괄호 안 원명)를 조건에 적었다.
+  - **배포 경로는 아직 임시다** — repo secret `LANDING_VERCEL_DEPLOY_HOOK`이 여전히 없어 `landing-daily-rebuild.yml`은 매일 "미설정 — 건너뜁니다"로 끝난다(2026-10-08 이후 계속. 주제 데이터 변경이 랜딩에 반영되지 않는다). Vercel 프로젝트 → Settings → Git → Deploy Hooks 생성 → `gh secret set LANDING_VERCEL_DEPLOY_HOOK`이 사람 손으로 남는다 — 이 티켓 범위 밖이라 여기엔 기록만.
+  - **남은 것**: 법무 검토(KAN-126) 뒤 `content/en/routes.ts` `indexable: true` · 글로벌 스토어 리스팅 URL 입력(지원 `https://earcast.co.kr/en/` · 개인정보 `/en/privacy/` · Play 계정 삭제 `/en/account-deletion/`, KAN-198·214). 둘 다 사람 손·외부 일정이라 pending 유지.
