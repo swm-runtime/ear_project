@@ -18,10 +18,11 @@ const FALLBACK_SEGMENT_HEIGHT = 26;
 const IS_ANDROID = Platform.OS === 'android';
 const SYSTEM_HEIGHT = 32;
 /**
- * 칸 폭 — 세 칸이 같아야 선택바가 크기 변화 없이 옮겨간다. 한국어("주간"·"월간"·"전체")는 52, 영어("Weekly"·"Monthly"·
- * "All time")는 52 에서 잘려 76 이다(KAN-197). 시스템 컨트롤은 글자 폭으로 늘지 않아 언어별 값을 준다
+ * 칸 폭 — 세 칸이 같아야 선택바가 크기 변화 없이 옮겨간다. 시스템 컨트롤은 글자 폭으로 늘지 않아 값을 준다.
+ * 한국어("주간"·"월간"·"전체")·영어("Week"·"Month"·"All") 모두 52 — 영어는 종전 "Weekly"·"Monthly"·"All time"이 52 에서
+ * 잘려 76 을 줬는데(KAN-197) 그 폭이 제목 줄을 둘째 줄로 접어, 2026-10-19 PM 이 라벨을 줄여 폭을 통일했다
  */
-const systemSegmentWidth = (): number => (APP_LANGUAGE === 'ko' ? 52 : 76);
+const SEGMENT_WIDTH = 52;
 /**
  * Android 토글 외곽 높이는 32dp(칸 28 + 안쪽 2×2). 제목 행의 중앙 정렬 래퍼 안에 둔다.
  * 누르는 영역은 SegmentedControl 이 위아래 hitSlop 으로 44 를 채운다
@@ -81,8 +82,8 @@ export default function PopularPeriodToggle({
       accessibilityLabel={EXPLORE_COPY.popular.toggleA11y}
       appearance={IS_ANDROID ? 'ios26' : 'modern'}
       segmentHeight={IS_ANDROID ? IOS26_SEGMENT_HEIGHT : FALLBACK_SEGMENT_HEIGHT}
-      // iOS 옛 빌드(모듈 없음)의 JS 토글은 기본 칸 폭(48)을 쓴다 — 영어는 그 폭에서 잘려 같은 값을 준다(KAN-197)
-      segmentWidth={IS_ANDROID || APP_LANGUAGE !== 'ko' ? systemSegmentWidth() : undefined}
+      // iOS 옛 빌드(모듈 없음)의 JS 토글은 한국어만 기본 칸 폭(48)을 쓴다 — 영어는 "Month"가 48 에 빠듯해 시스템과 같은 52 를 준다
+      segmentWidth={IS_ANDROID || APP_LANGUAGE !== 'ko' ? SEGMENT_WIDTH : undefined}
     />
   );
 }
@@ -128,7 +129,7 @@ function SystemPeriodToggle({ selected, onSelect, disabled }: PopularPeriodToggl
       selectedIndex={PERIODS.indexOf(selected)}
       onChange={handleChange}
       accessibilityLabel={EXPLORE_COPY.popular.toggleA11y}
-      style={[styles.system, { width: systemSegmentWidth() * PERIODS.length }]}
+      style={[styles.system, { width: SEGMENT_WIDTH * PERIODS.length }]}
     />
   );
 }
