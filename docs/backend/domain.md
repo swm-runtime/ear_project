@@ -130,7 +130,7 @@ idx_idempotency_keys_expires_at
 
 | 모듈 | 소유 Entity |
 |---|---|
-| `user` | `users`, `consents`, `withdrawal_logs`, `user_market_changes`(2026-10-19 결정 · 구현 전 — 3.4-1), `user_settings`, `device_tokens`, `email_verifications` |
+| `user` | `users`, `consents`, `withdrawal_logs`, `user_market_changes`(2026-10-19 — 3.4-1), `user_settings`, `device_tokens`, `email_verifications` |
 | `auth` | `sessions`, `daily_active_users`, `user_active_dates`(2026-10-18 — 원천이 `sessions`이고 표가 필요한 이유도 이 모듈의 세션 파기다. 서비스 지표(`admin`)는 읽기만 한다, [3.3-1](#33-1-daily_active_users-신설-2026-10-18--세션-파기에도-남는-일별-접속자)·[3.3-2](#33-2-user_active_dates-신설-2026-10-18--코호트-리텐션의-사람별-접속일)) |
 | `interest` | `topics`, `user_interests`, `topic_adjacencies` |
 | `content` | `contents`, `content_topics`, `content_scripts`, `content_stats`, `content_sources`, `content_embeddings`, `search_query_logs`, `series`(2026-10-17 — `SeriesService`가 export, [5.9](#59-series-신설-2026-10-17--kan-134-시리즈)) |
@@ -157,7 +157,7 @@ idx_idempotency_keys_expires_at
 | `notification` | `user` | |
 | `partner` | `content` | |
 
-**유스케이스 모듈은 위 두 표에 없다.** `onboarding` · `library-screen`은 Entity를 소유하지 않고 각 소유 모듈의 Service만 조합한다. 이 장은 Entity 소유 모듈의 표이므로, 그쪽 의존 방향은 `architecture.md` 4.5가 관리한다.
+**유스케이스 모듈은 위 두 표에 없다.** `onboarding` · `library-screen` · `market-change`(2026-10-19)는 Entity를 소유하지 않고 각 소유 모듈의 Service만 조합한다. 이 장은 Entity 소유 모듈의 표이므로, 그쪽 의존 방향은 `architecture.md` 4.5가 관리한다.
 
 **`user` ↔ `subscription` 주의** — 위 표에 `user → subscription`과 `subscription → user`가 함께 있지만 **동시에 성립시키면 순환이다**(`architecture.md` 4.3, `forwardRef` 금지).
 
@@ -196,7 +196,7 @@ users
   job_title                 varchar         NULL
   years_of_experience       int             NULL   구간 하한값 — 0(0-1년) · 2(2-3년) · 4(4-6년) · 7(7년+). 구간 enum ↔ 하한 환산은 `user.constant.ts`(`YEARS_OF_EXPERIENCE_LOWER_BOUND`) 한 곳 — 15.1 #4의 매핑 명시(2026-09-11)
   withdrawn_at              timestamptz     NULL
-  market                    enum            kr | global   DEFAULT 'kr'   ★가입 시 1회 판정. 이후 시장 전환 API로만 바뀐다 (global-api.md 2.1·4.11 — KAN-187 · 전환 결정 2026-10-19 KAN-227, 구현 전)
+  market                    enum            kr | global   DEFAULT 'kr'   ★가입 시 1회 판정. 이후 시장 전환 API로만 바뀐다 (global-api.md 2.1·4.11 — KAN-187 · 전환 2026-10-19 KAN-227)
   language_code             varchar(16)     NULL   기기 언어 BCP 47(예 en-US). 표시 언어의 원천(서버 문구 — 푸시·메일 — 언어는 `market`으로 고른다). 가입·로그인·기기 등록마다 갱신
   region_code               varchar(2)      NULL   기기 지역 ISO 3166-1 alpha-2(대문자). 통계용 + **GLOBAL 연령 확인의 기준 연령(16·18) 판정**(KAN-220 — global-api.md 2.1). 가입·로그인마다 갱신
   timezone                  varchar(64)     NULL   기기 시간대 IANA. 드립 발송 그룹에만 쓴다 — 서비스 날짜 경계는 바꾸지 않는다
@@ -213,7 +213,7 @@ idx_users_status
 - **`nickname`은 NULL을 허용한다.** 제공자가 닉네임을 주지 않는 경우가 있고, 값은 **온보딩의 닉네임 입력 단계에서 채운다.** 기본 문자열을 넣어 두면 "아직 정하지 않았다"와 "사용자가 그 값으로 정했다"가 구분되지 않는다. 온보딩 완료(`onboarding_completed = true`) 시점에는 값이 있어야 하며, 그 보장은 온보딩 처리에서 한다. *(온보딩 단계 enum에 닉네임 단계를 어떻게 넣을지는 화면 확정 후 갱신한다)*
 - `role = admin` 계정만 콘텐츠 업로드·주제 관리 API를 호출할 수 있다. 관리자도 동일한 소셜 로그인을 사용한다(자체 아이디/비밀번호를 만들지 않는다 — `auth.md` 4.1).
 - **동일 이메일 다른 제공자는 별개 계정**이다. 계정 통합은 MVP 비범위(`auth.md` 4.1).
-- **`market`은 계정 생성 시 `market.policy.ts`가 1회 정한다**(마이그레이션 `1789900000000-AddUserMarketAndLocale`, 2026-10-14 — KAN-187). 입력은 사용자가 가입 화면에서 고른 콘텐츠 언어(`locale.preferred_language` — `ko` → `kr`, `en` → `global`), 없으면 기기 `language_code`(`ko*` → `kr`, 그 밖 `global`), 그것도 없으면 `kr`. 로그인·기기 등록은 `language_code`·`region_code`·`timezone`만 갱신한다. **가입 뒤 전환은 `global-api.md` 4.11의 전환 API로만 한다**(2026-10-19 결정 — KAN-227, 구현은 1.3.0 다음 버전). 전환은 한 트랜잭션으로 동의 기록·관심 주제 비활성·온보딩 되돌림(`onboarding_completed = false`, `onboarding_step = topic` — **`onboarding_completed_at`은 처음 값을 유지**)·첫 드립 작업 초기화·이력(3.4-1 `user_market_changes`)을 함께 한다. 구현 전까지는 종전대로 불변. 기존 가입자는 마이그레이션 기본값 `kr`.
+- **`market`은 계정 생성 시 `market.policy.ts`가 1회 정한다**(마이그레이션 `1789900000000-AddUserMarketAndLocale`, 2026-10-14 — KAN-187). 입력은 사용자가 가입 화면에서 고른 콘텐츠 언어(`locale.preferred_language` — `ko` → `kr`, `en` → `global`), 없으면 기기 `language_code`(`ko*` → `kr`, 그 밖 `global`), 그것도 없으면 `kr`. 로그인·기기 등록은 `language_code`·`region_code`·`timezone`만 갱신한다. **가입 뒤 전환은 `global-api.md` 4.11의 전환 API로만 한다**(2026-10-19 — KAN-227, 서버 스위치 `MARKET_CHANGE_ENABLED`가 열려 있을 때만). 전환은 한 트랜잭션으로 동의 기록·관심 주제 비활성·온보딩 되돌림(`onboarding_completed = false`, `onboarding_step = topic` — **`onboarding_completed_at`은 처음 값을 유지**)·첫 드립 작업 초기화·이력(3.4-1 `user_market_changes`)을 함께 한다(`MarketChangeOrchestrator`). 기존 가입자는 마이그레이션 기본값 `kr`.
 - **로케일 4컬럼은 `archived_users`(11.3)에 넣지 않는다.** 거래 주체 식별과 무관해 보존 근거가 없다(11.3이 닉네임·커리어를 담지 않는 것과 같은 이유).
 - **`status` · `withdrawn_at` · `idx_users_status`는 아무도 쓰지 않는다**(확인 2026-09-08). 탈퇴는 [12.3](#123-회원-탈퇴-처리)이 정한 대로 **행을 삭제**하므로 `status = withdrawn`으로 남는 사용자가 없다. 컬럼은 남겨 두되 **여기에 소프트 삭제를 구현하지 않는다** — 그러면 개인정보보호법 제21조 제3항의 분리 저장 요건이 깨진다. 정리 여부는 미결이며, 지우려면 마이그레이션이 필요하다.
 
@@ -359,7 +359,7 @@ withdrawal_logs
 - **`user_hash`는 `WITHDRAWAL_HASH_PEPPER`로 만든다** — 아카이브 스키마와 **다른 키다**([11.2](#112-user_hash-생성-규칙)). `archived_users`가 전자우편주소를 보존하므로, 같은 키를 쓰면 탈퇴 사유가 특정 개인과 연결된다. 탈퇴 사유는 집계 목적이라 그럴 필요가 없다.
 - 법령 대응 목적이므로 DB 테이블로 유지한다 (B-8).
 
-### 3.4-1 `user_market_changes` *(신설 결정 2026-10-19 — KAN-227, 구현 전)*
+### 3.4-1 `user_market_changes` *(신설 2026-10-19 — KAN-227, 마이그레이션 `1791000000000-AddUserMarketChanges`)*
 
 ```
 user_market_changes
@@ -367,6 +367,7 @@ user_market_changes
   user_id                   uuid            NOT NULL   FK users(id) ON DELETE CASCADE
   from_market               varchar(10)     NOT NULL   kr | global
   to_market                 varchar(10)     NOT NULL   kr | global
+  is_revert                 boolean         NOT NULL DEFAULT false   재온보딩 전 직전 시장으로 되돌린 행
   changed_at                timestamptz     NOT NULL
 ```
 
@@ -374,10 +375,10 @@ user_market_changes
 idx_user_market_changes_user_id_changed_at (user_id, changed_at DESC)
 ```
 
-- 시장 전환(`global-api.md` 4.11) 한 번에 한 행. 쓰임은 셋이다 — **서비스 날짜당 1회 판정**(직전 시장으로 되돌리기는 횟수에서 뺀다) · 일일 보고의 시장 전환 수 · 문의 대응.
+- 시장 전환(`global-api.md` 4.11) 한 번에 한 행 — 되돌리기도 한 행이다. 쓰임은 셋이다 — **서비스 날짜당 1회 판정**(오늘 행이 있으면 막는다. 단 재온보딩을 끝내기 전 직전 시장으로 되돌리는 요청은 막지 않는다 — `UserMarketChangeService.judgeCooldown`. **되돌리기 행을 다시 되돌리는 것은 예외가 아니다**(`is_revert`) — 없으면 온보딩 중에 무한히 오갈 수 있다) · 일일 보고의 시장 전환 줄(`backend-monitoring.md` 3-4 — 되돌리기 행은 빼고 센다) · 문의 대응.
 - `users.market`이 현재 값의 원천이고 이 표는 이력이다. 시장별 집계는 현재 값(`users.market`) 기준이다.
 - **탈퇴 시 함께 지운다**(CASCADE). 사람과 묶인 행동 기록이라 보존 근거가 없다 — `archived_*` 대상이 아니다. 시장별 탈퇴 집계는 `withdrawal_logs.market`이 맡는다.
-- **규약 예외**: `updated_at`이 없다 — 쓰고 나면 바꾸지 않는 이력 행이다(1.1 예외). `changed_at`은 전환 트랜잭션의 `now`로 `created_at`과 같은 값이지만, 하루 1회 판정이 서비스 날짜 계산에 쓰는 업무 시각이라 이름을 따로 둔다.
+- 쓰고 나면 바꾸지 않는 이력 행이다(`created_at`·`updated_at`은 1.1 공통 그대로). `changed_at`은 전환 트랜잭션의 `now`로 `created_at`과 거의 같지만, 하루 1회 판정이 서비스 날짜 계산에 쓰는 업무 시각이라 따로 둔다(`consents.agreed_at`과 같은 이유).
 
 ### 3.5 `user_settings`
 
@@ -1829,7 +1830,7 @@ idx_archived_subscriptions_archived_at
 | 처리 | 대상 |
 |---|---|
 | **아카이브 후 파기** (5년) | `users` → `archived_users`, `consents` → `archived_consents`, `subscriptions` → `archived_subscriptions` |
-| **즉시 파기** | `library_items`, `playback_progresses`, `play_records`, `user_signals`, `audio_access_logs`, `source_link_clicks`, `search_query_logs`, `user_interests`, `user_settings`, `device_tokens`, `sessions`, `user_active_dates`(FK CASCADE — 2026-10-18), `user_market_changes`(FK CASCADE — 2026-10-19, 구현 전), `user_preference_vectors`, `drip_excluded_contents`, `drip_feedbacks`, `purchase_intents`, `notification_logs`, `email_verifications`, `first_drip_jobs`, `idempotency_keys`(해당 사용자 `owner_key`) |
+| **즉시 파기** | `library_items`, `playback_progresses`, `play_records`, `user_signals`, `audio_access_logs`, `source_link_clicks`, `search_query_logs`, `user_interests`, `user_settings`, `device_tokens`, `sessions`, `user_active_dates`(FK CASCADE — 2026-10-18), `user_market_changes`(FK CASCADE — 2026-10-19), `user_preference_vectors`, `drip_excluded_contents`, `drip_feedbacks`, `purchase_intents`, `notification_logs`, `email_verifications`, `first_drip_jobs`, `idempotency_keys`(해당 사용자 `owner_key`) |
 | **그대로 유지** | `withdrawal_logs`(원래 해시만), `store_notification_logs`(개인 식별자 없음), `content_stats`(집계값), `play_daily_totals`(집계값 — 2026-10-17), `daily_active_users`(집계값 — 2026-10-18) |
 
 **결제 이력이 없는 사용자 — 아카이브 없이 전량 즉시 파기**

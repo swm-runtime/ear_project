@@ -12,6 +12,7 @@ import { EmailVerificationRepository } from './repositories/email-verification.r
 import { EmailVerificationService } from './services/email-verification.service';
 import { DeviceTokenRepository } from './repositories/device-token.repository';
 import { DeviceTokenService } from './services/device-token.service';
+import { UserMarketChangeService } from './services/user-market-change.service';
 import { UserOnboardingService } from './services/user-onboarding.service';
 import { DeviceToken } from './entities/device-token.entity';
 import { ArchivedConsent } from './entities/archived-consent.entity';
@@ -20,6 +21,7 @@ import { ArchivedUser } from './entities/archived-user.entity';
 import { Consent } from './entities/consent.entity';
 import { EmailVerification } from './entities/email-verification.entity';
 import { User } from './entities/user.entity';
+import { UserMarketChange } from './entities/user-market-change.entity';
 import { WithdrawalLog } from './entities/withdrawal-log.entity';
 import { EnvironmentVariables, MailDelivery } from '@/config/env.validation';
 
@@ -34,6 +36,7 @@ import { UserWithdrawalService } from './services/user-withdrawal.service';
 import { UserSetting } from './entities/user-setting.entity';
 import { UserSettingRepository } from './repositories/user-setting.repository';
 import { UserSettingService } from './services/user-setting.service';
+import { UserMarketChangeRepository } from './repositories/user-market-change.repository';
 import { WithdrawalLogRepository } from './repositories/withdrawal-log.repository';
 import { EmailVerificationPurgeScheduler } from './email-verification-purge.scheduler';
 
@@ -43,6 +46,7 @@ import { EmailVerificationPurgeScheduler } from './email-verification-purge.sche
       User,
       Consent,
       WithdrawalLog,
+      UserMarketChange,
       EmailVerification,
       DeviceToken,
       UserSetting,
@@ -60,6 +64,7 @@ import { EmailVerificationPurgeScheduler } from './email-verification-purge.sche
     ConsentRepository,
     EmailVerificationRepository,
     WithdrawalLogRepository,
+    UserMarketChangeRepository,
     ArchiveRepository,
     DeviceTokenRepository,
     UserSettingRepository,
@@ -68,6 +73,7 @@ import { EmailVerificationPurgeScheduler } from './email-verification-purge.sche
     EmailVerificationService,
     UserWithdrawalService,
     UserOnboardingService,
+    UserMarketChangeService,
     UserCareerService,
     DeviceTokenService,
     UserSettingService,
@@ -90,6 +96,7 @@ import { EmailVerificationPurgeScheduler } from './email-verification-purge.sche
     DeviceTokenService,
     ConsentService,
     UserOnboardingService,
+    UserMarketChangeService,
     UserSettingService,
     // 추천 테스트 콘솔(recommend-test) — 테스트 계정의 커리어 교체
     UserCareerService,

@@ -13,7 +13,9 @@ import {
 } from 'typeorm';
 
 import {
+  CONTENT_MARKET_CONDITION,
   CONTENT_SCOPE_CONDITION,
+  contentMarketParameters,
   contentScopeParameters,
 } from '@/modules/content/content.visibility';
 
@@ -210,27 +212,52 @@ export class LibraryItemRepository {
     });
   }
 
+  /** 그 시장 콘텐츠만 센다 — 시장을 바꾼 사용자의 이전 시장 담기분은 숨어 있으므로 세지 않는다(`global-api.md` 4.11) */
   async countByUserIdAndSource(
     userId: string,
     source: LibraryItemSource,
+    market: UserMarket,
     manager?: EntityManager,
   ): Promise<number> {
-    return this.scoped(manager).countBy({ userId, source });
+    return this.scoped(manager)
+      .createQueryBuilder('item')
+      .innerJoin(
+        'item.content',
+        'content',
+        CONTENT_MARKET_CONDITION,
+        contentMarketParameters(market),
+      )
+      .where('item.user_id = :userId', { userId })
+      .andWhere('item.source = :source', { source })
+      .getCount();
   }
 
   /**
    * 미청취 재고 — 편성 스킵 판정의 입력이다(`drip-scheduling.md` 4.1 — 기준값 5편).
    * `in_progress`를 포함한다: 듣다 만 것도 사용자에게는 아직 안 들은 것이다
    * (`library-api.md` 4.1의 미청취 탭과 같은 해석).
+   *
+   * **그 시장 콘텐츠만 센다**(`global-api.md` 4.11) — 시장을 바꾼 사용자의 이전 시장 미청취분은 목록에서 숨는데,
+   * 그것까지 세면 다 못 들은 재고로 보여 편성이 매일 건너뛰어진다. 노출 조건은 붙이지 않는다(종전 판정 그대로).
    */
   async countUnfinishedByUserId(
     userId: string,
+    market: UserMarket,
     manager?: EntityManager,
   ): Promise<number> {
-    return this.scoped(manager).countBy({
-      userId,
-      status: In([LibraryItemStatus.UNPLAYED, LibraryItemStatus.IN_PROGRESS]),
-    });
+    return this.scoped(manager)
+      .createQueryBuilder('item')
+      .innerJoin(
+        'item.content',
+        'content',
+        CONTENT_MARKET_CONDITION,
+        contentMarketParameters(market),
+      )
+      .where('item.user_id = :userId', { userId })
+      .andWhere('item.status IN (:...statuses)', {
+        statuses: [LibraryItemStatus.UNPLAYED, LibraryItemStatus.IN_PROGRESS],
+      })
+      .getCount();
   }
 
   /**

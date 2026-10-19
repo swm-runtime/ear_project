@@ -14,6 +14,7 @@ import { TopicService } from '@/modules/interest/services/topic.service';
 import { UserInterestService } from '@/modules/interest/services/user-interest.service';
 import { LibraryItemSource } from '@/modules/library/library.enum';
 import { LibraryService } from '@/modules/library/library.service';
+import { onboardingStepsFor } from '@/modules/user/policies/onboarding-steps.policy';
 import { UserOnboardingService } from '@/modules/user/services/user-onboarding.service';
 import {
   YEARS_OF_EXPERIENCE_LOWER_BOUND,
@@ -75,7 +76,11 @@ export class OnboardingOrchestrator {
 
     const [selectedTopicIds, pickedCount] = await Promise.all([
       this.userInterestService.findActiveTopicIds(userId),
-      this.libraryService.countBySource(userId, LibraryItemSource.ONBOARDING),
+      this.libraryService.countBySource(
+        userId,
+        LibraryItemSource.ONBOARDING,
+        user.market,
+      ),
     ]);
 
     return {
@@ -305,6 +310,7 @@ export class OnboardingOrchestrator {
     const pickedCount = await this.libraryService.countBySource(
       userId,
       LibraryItemSource.ONBOARDING,
+      user.market,
     );
 
     return { savedContentIds, failed, pickedCount };
@@ -357,6 +363,7 @@ export class OnboardingOrchestrator {
     const pickedCount = await this.libraryService.countBySource(
       userId,
       LibraryItemSource.ONBOARDING,
+      user.market,
     );
 
     // 커밋 이후에 편성을 시작한다. 응답을 붙잡아 두지 않는다 — 편성은 소요 시간을
@@ -559,11 +566,4 @@ export class OnboardingOrchestrator {
         })),
       }));
   }
-}
-
-/** 시장별 온보딩 화면 단계(`global-api.md` 4.4) — 담기 단계는 2026-10-11에 없어졌다(onboarding.md 3) */
-export function onboardingStepsFor(market: UserMarket): OnboardingStep[] {
-  return market === UserMarket.GLOBAL
-    ? [OnboardingStep.TOPIC]
-    : [OnboardingStep.TOPIC, OnboardingStep.CAREER];
 }

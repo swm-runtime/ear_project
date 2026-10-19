@@ -34,6 +34,16 @@ export class TopicService {
     private readonly userInterestRepository: UserInterestRepository,
   ) {}
 
+  /** 그 시장에 고를 수 있는 주제가 있는가 — 시장 전환(`global-api.md` 4.11)이 빈 시장으로 옮기지 않게 본다 */
+  async hasSelectableTopics(
+    market: UserMarket,
+    manager?: EntityManager,
+  ): Promise<boolean> {
+    const visible = await this.topicRepository.findAllVisible(market, manager);
+
+    return visible.length > 0;
+  }
+
   /**
    * onboarding-api.md 4.2 — 1단계에 노출할 목록. **`is_visible`인 것만 내려준다.**
    *

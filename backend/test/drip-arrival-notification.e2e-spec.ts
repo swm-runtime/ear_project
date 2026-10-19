@@ -23,7 +23,11 @@ import { DripArrivalNotificationService } from '@/modules/notification/services/
 import { User } from '@/modules/user/entities/user.entity';
 import { DeviceTokenService } from '@/modules/user/services/device-token.service';
 import { UserSettingService } from '@/modules/user/services/user-setting.service';
-import { DevicePlatform, SocialProvider } from '@/modules/user/user.enum';
+import {
+  DevicePlatform,
+  SocialProvider,
+  UserMarket,
+} from '@/modules/user/user.enum';
 
 /**
  * KAN-68 — 드립 도착 알림의 **판정·기록이 실제 DB에서 맞게 걸리는지** 본다.
@@ -243,10 +247,10 @@ describe('드립 도착 알림 E2E', () => {
     return {
       userId,
       regular: [
-        { contentId: 'r1', title: '정규 1' },
-        { contentId: 'r2', title: '정규 2' },
+        { contentId: 'r1', title: '정규 1', market: UserMarket.KR },
+        { contentId: 'r2', title: '정규 2', market: UserMarket.KR },
       ],
-      discovery: [{ contentId: 'd1', title: '탐험 1' }],
+      discovery: [{ contentId: 'd1', title: '탐험 1', market: UserMarket.KR }],
     };
   }
 

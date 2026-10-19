@@ -64,11 +64,38 @@ export class FirstDripJobRepository {
     return job;
   }
 
-  async save(
+  /**
+   * **행이 아직 있을 때만** 고친다(id 기준 UPDATE). `save`를 쓰지 않는 이유 — 편성 도중 시장 전환(`global-api.md` 4.11)이
+   * 행을 지우면 `save`가 낡은 엔티티를 다시 INSERT해, 재온보딩 완료의 `createIfAbsent`가 새 작업을 만들지 못하고 새 시장의
+   * 첫 드립이 영영 돌지 않는다. id 기준이라 그 사이 새로 만들어진 행(다른 id)도 덮지 않는다. 고쳤으면 true
+   */
+  async updateExisting(
     job: FirstDripJob,
     manager?: EntityManager,
-  ): Promise<FirstDripJob> {
-    return this.scoped(manager).save(job);
+  ): Promise<boolean> {
+    const result = await this.scoped(manager).update(
+      { id: job.id },
+      {
+        status: job.status,
+        attemptCount: job.attemptCount,
+        itemCount: job.itemCount,
+        lastAttemptedAt: job.lastAttemptedAt,
+        completedAt: job.completedAt,
+      },
+    );
+
+    return (result.affected ?? 0) > 0;
+  }
+
+  /** 적립 트랜잭션 안에서 작업 행을 잠근다 — 없으면(시장 전환이 지웠다) null */
+  async findByIdForUpdate(
+    id: string,
+    manager: EntityManager,
+  ): Promise<FirstDripJob | null> {
+    return manager.getRepository(FirstDripJob).findOne({
+      where: { id },
+      lock: { mode: 'pessimistic_write' },
+    });
   }
 
   /**

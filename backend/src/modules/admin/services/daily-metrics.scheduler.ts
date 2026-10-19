@@ -102,6 +102,7 @@ export class DailyMetricsScheduler {
             date,
             withdrawals: s.withdrawals,
             appRemoves: g.events.app_remove.count,
+            marketChanges: s.marketChanges,
           },
           this.environment,
         ),

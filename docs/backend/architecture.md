@@ -198,6 +198,7 @@ src/
 | SeriesDetail | Content, Library, Playback | **Entity를 소유하지 않는 유스케이스 모듈**(ContentDetail과 같은 형태), 아래 참고 — 신설 2026-10-17(KAN-134) |
 | Profile | User, Subscription, Interest, Library, Playback, Content | **Entity를 소유하지 않는 유스케이스 모듈**, 아래 참고 |
 | Settings | User, Subscription, Interest | **Entity를 소유하지 않는 유스케이스 모듈**, 아래 참고 |
+| MarketChange | User, Interest, Drip, Auth | **Entity를 소유하지 않는 유스케이스 모듈**, 아래 참고 — 신설 2026-10-19(KAN-227). Auth는 바뀐 시장을 담은 access token 재발급(`TokenService` — Auth가 export하는 유일한 Service) |
 | Notification | User | `notification_logs` 소유(`domain.md` 2장). 발송 대상 판정에 기기 토큰(`device_tokens`)·알림 토글(`user_settings`)이 필요하다. `User`는 `Notification`을 모르므로 순환은 없다 — 신설 2026-09-17(KAN-68) |
 | Notice | *(없음)* | `notices` 소유(`domain.md` 9.2). 관리자 쓰기의 감사 기록은 admin 모듈이 조합한다 — 신설 2026-09-17(KAN-67) |
 | Retention | *(없음)* | **Entity도 다른 모듈도 갖지 않는 정책 집행 모듈**, 아래 참고 |
@@ -250,6 +251,11 @@ src/
 - **`plan` · `interest_summary`는 소유 모듈의 조립 함수를 호출한다.** `settings-api.md` 4.1이 `profile-api.md` 4.1과 **같은 모양·같은 조립 함수**를 쓰라고 요구하므로 `SubscriptionService` · `UserInterestService`가 조립하고 두 화면이 그것을 부른다 — 화면마다 조립하면 같은 사용자에게 다른 구독 표시·다른 주제 개수가 나간다(`LibraryScreen`의 잔여 재생 표시값과 같은 논리).
 - **`playback`을 의존하지 않는다.** 설정 응답에는 잔여 재생 표시값이 없다 — 필요한 것은 구독 요약뿐이다.
 - **마케팅 동의를 설정 값 변경에 싣지 않는다.** 설정 값은 절대값 UPDATE인데 동의는 `consents`에 **행을 추가한다**(`domain.md` 3.2 — append-only). 저장 구조가 달라 실패·재전송 성질이 다르므로 엔드포인트를 나눈다.
+
+**MarketChange도 Entity를 갖지 않는다** (신설 2026-10-19 — KAN-227, `global-api.md` 4.11). 시장 전환은 사용자 행·동의·전환 이력(`user` 소유 — `users` · `consents` · `user_market_changes`), 관심 주제(`interest` 소유), 첫 드립 작업(`drip` 소유)을 한 번에 바꾸고 새 access token(`auth`)을 돌려준다. 어느 한 모듈에 넣으면 그 모듈이 나머지를 의존해야 하는데 `interest` · `drip` · `auth`가 이미 `user`를 의존해 순환이 된다. 소유 모듈들 **위에서** Orchestrator가 조합한다(→ 3.3). `/users/me/market-change/preview`와 `/users/me/market-change`가 여기에 속한다. 어떤 모듈도 이 모듈을 의존하지 않는다.
+
+- **한 트랜잭션으로 묶는다 — 8.1 "Orchestrator는 단계별 트랜잭션"의 예외.** 단계 사이에서 끊기면 시장만 바뀌고 새 시장 동의가 없거나, 관심 주제가 이전 시장 것으로 남는다. 어느 쪽이든 사용자가 스스로 복구할 길이 없고 상태 머신으로 이어 갈 대상도 아니다. 단계마다 몇 행이고 외부 호출이 없어(토큰 발급은 커밋 뒤 서명만) 짧다.
+- **판정은 소유 Service에 있다.** 하루 1회·되돌리기 판정과 서버 스위치는 `UserMarketChangeService`, 새 시장 동의 검증은 `ConsentService.recordForMarketChange`, 노출 주제 유무는 `TopicService.hasSelectableTopics`다. Orchestrator는 순서만 정한다.
 
 **`User → Subscription`은 한시적이다.** `domain.md` 2장이 `Subscription → User`(결제 반영 시 `users.tier` 갱신)를 함께 정의하고 있어, 두 방향이 동시에 성립하면 순환이 된다. Subscription 모듈이 티어 갱신을 시작하는 시점에 **탈퇴를 Orchestrator로 올려**(→ 3.3) 두 Service를 위에서 조합하고 이 의존을 제거한다.
 

@@ -251,6 +251,21 @@ describe('formatChurnReport', () => {
     ).toContain('· new_reason  1');
   });
 
+  it('시장 전환이 있던 날만 방향별 건수 줄을 앱 삭제 다음에 적는다(global-api 4.11)', () => {
+    const lines = formatChurnReport({
+      ...churn,
+      marketChanges: [
+        { from: KR, to: UserMarket.GLOBAL, count: 3 },
+        { from: UserMarket.GLOBAL, to: KR, count: 1 },
+      ],
+    }).split('\n');
+    expect(lines.at(-3)).toBe('*앱 삭제*  Android 4');
+    expect(lines.at(-2)).toBe('*시장 전환*  KR→GLOBAL 3 · GLOBAL→KR 1');
+    expect(formatChurnReport({ ...churn, marketChanges: [] })).not.toContain(
+      '시장 전환',
+    );
+  });
+
   it('탈퇴가 없어도 보낸다 — 0명과 앱 삭제 줄만', () => {
     const text = formatChurnReport({
       ...churn,
