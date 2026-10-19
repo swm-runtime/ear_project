@@ -23,6 +23,7 @@
 - 개발계 실측: 영어 기기 가입 → GLOBAL 판정 → 영어 주제·요금제 → 드립 그룹 배치 → 영어 푸시 → 결제(샌드박스, storefront 저장). KR 계정은 변화 없음(회귀).
 - Sentry 환경 태그에 `market`(API 로그에도 필드 추가 — 시장별 오류율을 Insights로 셀 수 있게. 대시보드는 나누지 않는다).
 - **사람 손(박준현)**: 국가 배포 확장(iOS·Android), 영어 리스팅 자료 FE에서 수령, 구독 상품 현지화 확인, Paid Apps·세금 양식 Active 확인, Android 운영 submit 프로필(EAS). 연령 등급·대상 연령 설정은 [KAN-207](https://runtime364.atlassian.net/browse/KAN-207) `global-store-age-settings.md`로 분리.
+- **사람 손(박준현) — 시장 전환 운영 스위치**(2026-10-19 — KAN-227): 앱 1.3.0 출시 + FE [KAN-228](https://runtime364.atlassian.net/browse/KAN-228)(설정 › 콘텐츠 언어) 반영 뒤 운영 Secrets `ear/prod/api`에 `MARKET_CHANGE_ENABLED=true` → 운영 재배포 → 컨테이너 env 확인. GLOBAL로의 전환은 `GLOBAL_SIGNUP_ENABLED`가 열려야 함께 열린다(`global-api.md` 4.11).
 - `changes/pending` 글로벌 묶음(`domain.md`·`auth-api.md`·`onboarding-api.md`·`subscription-api.md`·`admin-api.md`·`common-error-handling.md`·`drip-scheduling.md`·PRD FR)이 전부 있는지 점검 — 통합 때 반영.
 
 ## 범위 밖
@@ -35,6 +36,7 @@
 - Given 개발계 KR 계정 / Then 회귀 0건
 - Given Sentry / Then 이벤트에 `market` 태그
 - Given 스토어 콘솔 체크리스트 / Then 항목별 완료 날짜가 처리 기록에 있다
+- Given 앱 1.3.0 출시 · KAN-228 반영 / When 운영 `MARKET_CHANGE_ENABLED=true` / Then 운영 `GET /users/me/market-change/preview`가 `market_unavailable` 외의 응답을 준다(KR 전환 가능)
 - `changes/pending`에 글로벌 개정 요청 묶음이 있다
 
 ## 처리 기록
