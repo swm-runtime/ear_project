@@ -1,7 +1,9 @@
 {
   "ignoreCommand": "node scripts/should-build.mjs",
   "git": {
-    "deploymentEnabled": false
+    "deploymentEnabled": {
+      "dev": true
+    }
   },
   "rewrites": [
     {
