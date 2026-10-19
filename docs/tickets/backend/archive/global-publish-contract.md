@@ -14,7 +14,7 @@
 | 관련 | **AI [KAN-204](https://runtime364.atlassian.net/browse/KAN-204) 제품 발행이 이 티켓에 막힌다.** AI [KAN-202](https://runtime364.atlassian.net/browse/KAN-202)(패키지가 같은 필드를 기록) |
 | 근거 문서 | **`spec/api/global-api.md` 4.9 · 4.10** — 구현은 이 문서를 따르고, 계약이 바뀌면 티켓이 아니라 이 문서를 고친다 · 2026-10-14 글로벌화 조사 |
 | 중요도 | Medium |
-| 상태 | 진행 중 (2026-10-14 1단계 PR 올림 — `market/language` 선택 입력. 파이프라인이 보내기 시작하면 필수로 올리는 2단계 남음) |
+| 상태 | 반영 — 2026-10-19 2단계(필수 전환) 완료 |
 
 > 2026-10-14 발행한 묶음 티켓(BE KAN-185 · FE KAN-183 · AI KAN-184)을 처리 단위로 나눈 것. 결정 사항(같은 앱·기기 언어로 가입 시 1회 시장 판정·한국 트랙 불변·에러 번역은 클라이언트·가격은 스토어·영어 진행자 새 2인·K-컬처 주제 신설·GLOBAL 연령 16세)과 결정 대기(시장 전환 불허)는 `spec/api/global-api.md` 2.1·9장이 원본이다.
 
@@ -50,3 +50,15 @@
 - 2026-10-17 **기한(10-17) 미준수 — 사유 기록.** 남은 2단계(필수 전환)는 파이프라인이 두 필드를 보내기 시작해야 할 수 있다. 지금 발행 코드(`pipeline/apps/web/app/api/publish/[episodeId]/route.ts`)는 보내지 않는다. 보내는 작업은 AI [KAN-202](https://runtime364.atlassian.net/browse/KAN-202)(`upload-meta` market/language)에 있다. 1단계는 운영까지 배포돼 있음을 확인했다(origin/main). KAN-202에 "지금 보내도 된다"고 계약 요약과 함께 댓글로 알렸다.
   - 순서: KAN-202 송신 시작 → 운영 업로드 확인 → 2단계. 새 기한은 KAN-202가 보내기 시작한 다음 날이다.
   - 링크 정리 제안(아직 바꾸지 않음): KAN-202 → KAN-190 blocks 추가, KAN-190 → KAN-204 blocks 제거(발행은 1단계만으로 가능).
+- 2026-10-19 **2단계(필수 전환) 반영 → archive**(PR `feat(be)/upload-market-language-required`). 반영 날짜 2026-10-19.
+  - 선행 확인: AI KAN-202의 송신 #1748이 dev 머지·파이프라인 배포 성공(11:32 UTC)됐다. 업로드 호출 지점은 `uploadEarContent` 하나이고, payload에 `contentMarket()`(kr·ko / global·en)을 늘 채운다.
+  - 운영 업로드 payload를 직접 보는 확인은 하지 못했다. API가 요청 본문을 로그에 남기지 않고(convention), 관리 콘솔 배포본은 로그인 뒤에 있다. 그래서 코드와 배포 성공으로 갈음했다.
+  - 코드: `UploadContentRequestDto` `market`·`language`의 `@IsOptional`을 없앴고, 컨트롤러 기본값 `?? kr/ko`도 없앴다. 누락되면 400 `VALIDATION_FAILED`(`field`)다.
+  - 재발행은 범위 밖이다(시장 불변).
+  - 완료 조건 확인:
+    - 1(누락 400 `field=market`): E2E `series.e2e-spec.ts`
+    - 2·3(시장 불일치 400 · 태그 규칙): 1단계에서 확인
+    - 4(`market=global` 저장·KR 미노출): KAN-188 e2e로 교차 확인
+    - 5(배포 → AI 알림): 개발계 배포 뒤 KAN-202 댓글로 남긴다
+  - 문서 반영 요청: `changes/pending/upload-market-language-required.md`
+
