@@ -77,7 +77,6 @@ import { AdminSystemStatsService } from './services/admin-system-stats.service';
 import { ResourceAlertService } from './services/resource-alert.service';
 import { AdminTopicService } from './services/admin-topic.service';
 import { UserMarket } from '@/modules/user/user.enum';
-import { ContentLanguage } from '@/modules/content/content.enum';
 import { AdminNoticeQueryRequestDto } from './dto/admin-notice-query-request.dto';
 
 interface UploadFiles {
@@ -411,9 +410,9 @@ export class AdminController {
           url: source.url ?? null,
         })),
         reviewConfirmed: payload.review_confirmed,
-        // 1단계 기본값 — 구 콘솔·KR 파이프라인은 아직 보내지 않는다(global-api.md 4.9)
-        market: payload.market ?? UserMarket.KR,
-        language: payload.language ?? ContentLanguage.KO,
+        // 필수(global-api.md 4.9 2단계) — DTO 가 빠진 요청을 400 으로 막는다
+        market: payload.market,
+        language: payload.language,
         audio: toFileInput(audio),
         audioAac: files.audio_aac?.[0] ? toFileInput(files.audio_aac[0]) : null,
         audioLossless: files.audio_lossless?.[0]

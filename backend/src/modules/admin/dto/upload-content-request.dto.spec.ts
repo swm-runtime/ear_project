@@ -17,6 +17,8 @@ function buildUploadPayload(sourceName: string): Record<string, unknown> {
     topic_ids: [TOPIC_ID],
     sources: [{ title: '참고 자료' }],
     review_confirmed: true,
+    market: 'kr',
+    language: 'ko',
   };
 }
 
@@ -75,5 +77,29 @@ describe('source_name 상한 — admin-api.md 4.6 · domain.md 5.1 (500자, KAN-
     // then
     expect(ok).toEqual([]);
     expect(tooLong).toHaveLength(1);
+  });
+});
+
+describe('시장·언어 필수 — global-api.md 4.9 2단계 (KAN-190)', () => {
+  const errorsOf = async (payload: Record<string, unknown>) =>
+    (
+      await validate(plainToInstance(UploadContentRequestDto, payload), {
+        whitelist: true,
+        forbidNonWhitelisted: true,
+      })
+    ).map((error) => error.property);
+
+  it('market·language 를 함께 보내면 통과한다', async () => {
+    expect(await errorsOf(buildUploadPayload('출처'))).toEqual([]);
+  });
+
+  it('둘 중 하나라도 빠지면 거부한다 — 기본값으로 kr·ko 를 채우지 않는다', async () => {
+    const withoutMarket = buildUploadPayload('출처');
+    delete withoutMarket.market;
+    const withoutLanguage = buildUploadPayload('출처');
+    delete withoutLanguage.language;
+
+    expect(await errorsOf(withoutMarket)).toEqual(['market']);
+    expect(await errorsOf(withoutLanguage)).toEqual(['language']);
   });
 });

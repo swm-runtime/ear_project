@@ -296,6 +296,10 @@ describe('시리즈 E2E', () => {
       });
     };
 
+    // 시장·언어 누락 — 2단계부터 필수(global-api.md 4.9, KAN-190). 기본값 kr·ko 로 채우지 않는다
+    await expectField({ market: undefined }, 'market');
+    await expectField({ language: undefined }, 'language');
+
     // 없는 series_id
     await expectField(
       {
@@ -622,6 +626,8 @@ describe('시리즈 E2E', () => {
           topic_ids: [topicId],
           sources: [{ title: 'E2E 소스' }],
           review_confirmed: true,
+          market: 'kr',
+          language: 'ko',
           ...seriesFields,
         }),
       )
