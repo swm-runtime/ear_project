@@ -508,9 +508,10 @@ const en: LocalizedCopy<typeof ko> = {
         case 'listenedDays': {
           const lead = isCurrentWeek ? 'This week' : 'That week';
           const days = enCount(highlight.days, 'day', 'days');
+          // 화면은 수만("3 days") — "Listened to 1 e…" 처럼 잘린다(2026-10-19 KAN-197 실기기). 낭독은 문장 그대로
           return {
             lead,
-            main: `Listened ${days}`,
+            main: days,
             a11y: `You listened ${days} ${isCurrentWeek ? 'this week' : 'that week'}`,
           };
         }
@@ -544,7 +545,7 @@ const en: LocalizedCopy<typeof ko> = {
           const episodes = enCount(highlight.count, 'episode', 'episodes');
           return {
             lead: 'That day',
-            main: `Listened to ${episodes}`,
+            main: episodes,
             a11y: `You listened to ${episodes} that day`,
           };
         }
