@@ -55,3 +55,4 @@ PM 결정(2026-10-19):
 ## 처리 기록
 
 - 2026-10-19 발행(마크다운 + Jira). PM 긴급 지시 — 설계를 오늘 시작하고, 구현은 1.3.0 다음 버전.
+- 2026-10-19 **설계안 작성**(브랜치 `docs(be)/market-change-design`) — `changes/pending/global-market-change-design.md`. 코드 조사로 확인한 핵심: ① 시장이 액세스 토큰 클레임이라(TTL 30분) 전환 응답에 새 토큰을 준다 ② 동의 전 콘텐츠 노출을 막으려고 **전환 요청에 새 시장 필수 동의를 함께 받는다**(미리보기 `GET /users/me/market-change/preview` → `POST /users/me/market-change`) ③ 이전 시장 주제 비활성 + 온보딩 주제 단계 재진입 + 첫 드립 재실행 ④ 라이브러리는 시장 조건으로 자동 숨김(행 유지) ⑤ 전환으로 다시 받는 혜택 없음 — 쿨다운은 데이터 흔들림 때문 ⑥ 노출 주제 0 시장·가입 스위치 닫힌 GLOBAL은 409 `MARKET_UNAVAILABLE` ⑦ 이력 테이블 `user_market_changes` ⑧ 시장 무관 카운터(안 들은 항목 수 등)를 좁혀야 정규 드립이 끊기지 않는다. 독립 검증 1회 반영. PM 결정 D1~D5 대기 — pending 유지.
