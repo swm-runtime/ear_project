@@ -14,7 +14,7 @@
 | 관련 | [KAN-195](https://runtime364.atlassian.net/browse/KAN-195)의 "연령 16세 문구" 항목을 이 티켓으로 이관 · 스토어 설정은 BE [KAN-207](https://runtime364.atlassian.net/browse/KAN-207) |
 | 근거 문서 | **`spec/api/global-api.md` 2.1(연령 행 ✅) · 4.1** — 구현은 이 문서를 따르고, 계약이 바뀌면 티켓이 아니라 이 문서를 고친다 |
 | 중요도 | Medium |
-| 상태 | 진행 중 — 나라별 연령(3안, 2026-10-16 PM 결정) FE 반영, BE `min_age` 판정 대기([KAN-220](https://runtime364.atlassian.net/browse/KAN-220) `global-age-by-region.md`) |
+| 상태 | 완료(2026-10-19) — 나라별 연령 실기기 확인 |
 
 ## 확정 — GLOBAL 16세 (2026-10-14 박준현)
 
@@ -72,3 +72,12 @@ KR 연령 기준 변경 · 부모 동의 흐름 · OS 연령 신호(Declared Age
   - 문서: `auth-uiux.md` 4.3 · `auth-api.md` 4.1(`region_code` 용도)·4.2 · `global-api.md` 2.1·4.1 · `features/auth.md` 4장. 랜딩 `legal-en.ts` 약관 2조 · 처리방침 7조를 "18, 싱가포르·홍콩·한국은 16"으로.
   - 남은 것: BE `min_age` 판정 구현 → 실서버에서 지역별(SG 16 · MY 18 · 지역 없음 18) 확인. 태국 18~19세(성년 20)는 법률 멘토 미팅(KAN-126) 질문으로 넘긴다. 스토어 등급(KAN-207, Apple 16+ · Play 16–17/18+)은 최저 16이 남아 그대로 맞다.
 - 2026-10-18 **문서 갱신** — 완료 조건의 "GLOBAL이면 16" 두 줄을 10-16 결정(나라별: GLOBAL 중 SG·HK·KR 16 · 그 밖·지역 모름 18 · KR 시장 18 · 서버 `min_age` 판정, 값이 없으면 18)으로 바꾸고, "확정 — GLOBAL 16세" 절과 "무엇을 한다" 첫 줄에 대체 표시를 달았다(영어 화면 QA 반영 PR `fix(fe)/global-en-layout-qa`). 같은 PR에서 A4·A20 본문을 스크롤 가능하게 했다 — 영어 국외 이전 동의 행이 하단 버튼 밑에 깔렸다. 실기기 확인이 남아 pending 유지.
+- 2026-10-19 **완료 — archive**(반영 날짜 2026-10-19, PM 실기기 · 개발계 · iPhone). BE `min_age` 판정(KAN-220)은 개발계 배포 상태.
+  - 조건 1 ✅ GLOBAL · 지역 KR → 16 — 개발계 GLOBAL 가입 계정의 연령 동의가 `age-16`으로 저장(DB 집계 확인, 10-19).
+  - 조건 2 ✅ GLOBAL · 지역 **Malaysia** → 약관 화면 "I confirm that I am 18 or older"(실기기).
+  - 조건 3 ✅ 영어 기기(지역 대한민국) + A21 한국어 → "만 18세 이상입니다"(실기기, 화면 언어도 한국어 — KAN-195 화면 언어 통일).
+  - 조건 4 ✅ 서버가 `min_age`를 안 주면 18 — `resolveMinAge` 폴백(`FALLBACK_MIN_AGE` 18·18) 코드·테스트.
+  - 조건 5 ✅ 동의 버전은 서버 값 그대로 — `useTermsConsentScreen.test.tsx`·`useReconsentScreen.test.tsx`(`terms_global_v1`).
+  - 조건 6 ✅ 별도 차단 화면 없음(미체크 = [동의하고 시작하기] 비활성, 처리 기록 10-15) · 영어 경로 한국어 리터럴 0건(KAN-194 9화면 실기기).
+  - 개발계 GLOBAL 주제는 PM 지시로 열어 둔 상태에서 확인했다(원래 노출 0 — BE 상태).
+  - **이관(KAN-198)**: 연령 행 VoiceOver 낭독 · SE급·글자 200%에서 A1·A4 영어 문구 잘림(완료 조건 밖의 추가 확인).
