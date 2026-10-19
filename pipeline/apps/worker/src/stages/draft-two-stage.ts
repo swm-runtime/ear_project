@@ -299,7 +299,7 @@ export function twoStageViolations(scriptMd: string, outlineMd: string, opts: { 
  * 한국어 문체·귀속 검사는 돌지 않는다. 영어 문체 검사는 영어 규칙 자산 v0 와 함께 정하고 파일럿 판정으로 늘린다.
  * 메시지는 영어다 — 수정 재생성 프롬프트가 그대로 읽는다(명세 4.5: 모델이 읽는 글은 영어). 문체 검사(enStyleViolations)는 아래.
  */
-export function twoStageViolationsEn(scriptMd: string, outlineMd: string, opts: { signoffHeads?: string[]; pronunciations?: Record<string, string> } = {}): string[] {
+export function twoStageViolationsEn(scriptMd: string, outlineMd: string, opts: { signoffHeads?: string[]; pronunciations?: Record<string, string>; notesMd?: string } = {}): string[] {
   const v: string[] = [];
   const z = scriptZones();
   const order = [z.intro, z.lead, z.body, z.outro];
@@ -338,6 +338,7 @@ export function twoStageViolationsEn(scriptMd: string, outlineMd: string, opts: 
   if (wrong.length) v.push(`Speaker labels do not match this episode's pair (${wrong.slice(0, 6).join(", ")}${wrong.length > 6 ? " …" : ""}) — E turns are [${explainer}], Y turns are [${host}]`);
   v.push(...enStyleViolations(parseScriptForTts(scriptMd).turns));
   v.push(...outlineCopyViolations(scriptMd, outlineMd));
+  v.push(...axisAnswerViolations(outlineMd, opts.notesMd));
   // 한국어 표현을 가리키면서 표현을 말하지 않는 해설 턴 (규칙 50, full-en-v0.6) — G261017-001 E22·E29: 설계가 등재한 동사형 표현 4개가 대본에서 빠지고 "Neither expression…"·"Korean expressions distinguish…" 만 남았다.
   // 등재 표제어가 하나도 없는 턴만 잡는다 — 영어 표현을 가리키는 "English expression" 과 "an expression of regret" 같은 일반 명사 쓰임은 뺀다
   const keys = Object.keys(opts.pronunciations ?? {}).map((k) => k.trim()).filter(Boolean);
@@ -348,6 +349,19 @@ export function twoStageViolationsEn(scriptMd: string, outlineMd: string, opts: 
     if (vague.length) v.push(`${EN_STYLE_MARK} explainer turns speak of a Korean expression without saying it (${vague.join(", ")}) — say the romanized expression in that turn, with its meaning (rule 50)`);
   }
   return v;
+}
+
+/**
+ * 축 답 claims 누락 (규칙 38, full-en-v0.16 — G261019-003: 구성안이 '왜'에 답하는 claims C04·C25·C26·C34 를 배정했는데 대본이 넷 다 빼고 3.1 6점).
+ * 구성안 `Axis answer:` 줄의 claim 이 script-notes 의 해설 턴별 claims 표에 하나라도 없으면 위반. 표가 없으면(설계 이어받기 전 편) 보지 않는다
+ */
+export function axisAnswerViolations(outlineMd: string, notesMd?: string): string[] {
+  const ids = outlineMd.match(/^Axis answer:\s*(.+)$/m)?.[1].match(/\bC\d{2,3}\b/g) ?? [];
+  if (!ids.length || !notesMd) return [];
+  const used = new Set<string>();
+  for (const m of notesMd.matchAll(/^\|\s*E\d+\s*\|\s*([^|]*)\|/gm)) for (const c of m[1].match(/\bC\d{2,3}\b/g) ?? []) used.add(c);
+  const missing = [...new Set(ids)].filter((c) => !used.has(c));
+  return missing.length ? [`Axis answer claims ${missing.join(", ")} are not used in any explainer turn — use every claim on the outline's Axis answer line in the section it belongs to; the Closing answer rests on them (rule 38)`] : [];
 }
 
 /**

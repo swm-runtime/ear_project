@@ -20,6 +20,8 @@ export interface DesignInlineOut extends Omit<DesignOut, "excerpts" | "claims" |
   excerpt_ids: string[]; gists: { s: number; lines: string[] }[];
   /** 도입과 착지를 잇는 축 소스 하나("S3") — 이 소스만 두 구간에 걸칠 수 있다. 없으면 "" (full-v7) */
   axis_source: string;
+  /** 축 질문에 답하는 claims 와 사람의 순간 claims (full-en-v0.16 재료 점검) — 글로벌판만 */
+  axis_answer_claims?: string[]; moment_claims?: string[];
   /** 귀속 등급은 모델이 고르지 않는다 — section·type·notable·opinion 에서 워커가 도출한다 (guidelines 규칙 20, full-v7) */
   claims: { id: string; text: string; excerpt_ids: string[]; type: string; section: number; notable: boolean; opinion: boolean }[];
   outline_md: string; pronunciations: { term: string; reading: string }[];
@@ -57,14 +59,22 @@ export function normalizeOutline(md: string): string {
 }
 
 /** 글로벌판 구성안 정규화 — 한국판과 같은 일을 영어 키로 (Axis:·Section #n·Estimated length:, global-prompts.ts 구성안 형식) */
-const OUTLINE_KEYS_EN = /^(Axis note|Axis|Landing section|Estimated length|Roles|Unused sources|Links and metaphors|Closing line|Section\s*#?\s*\d)/i;
+const OUTLINE_KEYS_EN = /^(Axis note|Axis answer|Axis|Landing section|Estimated length|Roles|Unused sources|Links and metaphors|Closing line|Section\s*#?\s*\d)/i;
 export function normalizeOutlineEn(md: string): string {
   return md.split(/\r?\n/).map((raw) => {
     let l = raw.replace(/^\s*(?:#{1,6}\s*|[-*>]\s+)?/, "").replace(/\*\*/g, "").replace(/^\s+/, "");
     if (!OUTLINE_KEYS_EN.test(l)) return raw;
-    l = l.replace(/^Section\s*#?\s*(\d+)\s*[—–\-:]?\s*/i, (_m, n) => `Section #${n} — `).replace(/^(Axis note|Axis|Landing section|Estimated length|Roles|Unused sources|Links and metaphors|Closing line)\s*:\s*/i, (_m, k: string) => `${k[0].toUpperCase()}${k.slice(1).toLowerCase()}: `);
+    l = l.replace(/^Section\s*#?\s*(\d+)\s*[—–\-:]?\s*/i, (_m, n) => `Section #${n} — `).replace(/^(Axis note|Axis answer|Axis|Landing section|Estimated length|Roles|Unused sources|Links and metaphors|Closing line)\s*:\s*/i, (_m, k: string) => `${k[0].toUpperCase()}${k.slice(1).toLowerCase()}: `);
     return l.trimEnd();
   }).join("\n");
+}
+
+/** 구성안의 `Axis answer:` 줄을 설계 보고의 axis_answer_claims 로 맞춘다 — 대본 단계와 L0 가 이 줄을 읽는다. 줄이 없으면 Landing section(없으면 Axis) 줄 뒤에 넣는다 */
+export function setAxisAnswerLine(md: string, ids: string[]): string {
+  const line = `Axis answer: ${ids.join(", ")}`;
+  if (/^Axis answer:.*$/m.test(md)) return md.replace(/^Axis answer:.*$/m, line);
+  const anchor = /^Landing section:.*$/m.test(md) ? /^Landing section:.*$/m : /^Axis:.*$/m;
+  return anchor.test(md) ? md.replace(anchor, (l) => `${l}\n${line}`) : md;
 }
 
 /** 다른 편의 sources.md 에서 URL → 발췌 문단 본문 목록. 형식은 이 파일이 쓰는 그대로("## S{n}." 머리, "- URL:", "- S{n}-NN: \"…\"") */
@@ -190,6 +200,18 @@ export async function runDesignSingle(a: { job: Job; ex: Executor; episodeId: st
     throw new Error(msg);
   };
 
+  // 재료 점검 (full-en-v0.16, 2026-10-20 — 9회차: 002 는 축 질문에 답하는 소스를 두고 설문을 축 소스로 잡아 답이 얕았고, 4회차부터 장면·내부자 점수가 그대로였다).
+  // 축 질문에 답하는 claims 나 사람의 순간 claims 가 없으면 대본을 만들지 않는다 — 실패 사유가 백로그 dedup_note 로 가서 사람이 보강·반려를 정한다(onDraftFailed)
+  if (en) {
+    const ids = new Set(o.claims.map((c) => c.id));
+    const answer = (o.axis_answer_claims ?? []).filter((id) => ids.has(id));
+    const moments = (o.moment_claims ?? []).filter((id) => ids.has(id));
+    const needMoment = cand.mid_topic !== "Korean Language";
+    const lack = [!answer.length && "축 질문에 답하는 claims 없음", needMoment && !moments.length && "사람의 순간 claims 없음"].filter(Boolean);
+    if (lack.length) await fail(`재료 부족 — ${lack.join(" · ")}. ${o.notes.replace(/\s+/g, " ").slice(0, 200)}`);
+    o = { ...o, outline_md: setAxisAnswerLine(o.outline_md, answer) };
+  }
+
   // ── 산출물 조립 (ID 검증 포함) ─────────────────────────────────────────────
   const blockById = new Map<string, { s: number; text: string }>();
   for (const f of fetched) for (const b of f.blocks) if (!usedBlocks.has(b.id)) blockById.set(b.id, { s: f.n, text: b.text }); // 제외 문단은 ID 검증에서도 없는 문단이다
@@ -312,7 +334,7 @@ export async function writeDesignArtifactsEn(x: { dir: string; episodeId: string
   // full-en-v0.13 (G261018-006~008): "보유자 종류로" 표시하라던 말이 "a drama commentator"·"For a food writer" 주어와 이미 나온 사례 인물(Erin)의 재호칭을 낳았다 — 견해는 해설자 문장 안에서만 표시
   const views = o.claims.filter((c) => c.opinion).length;
   const claimsMd = [`# claims — ${episodeId}`, "",
-    `> Attribution: view ${views} · none ${o.claims.length - views}. Sources are never named in lines. A "view" claim is said as a view inside the explainer's own sentence, never with its holder or source as the subject; a person the script names as a case keeps that name; the rest the explainer says directly.`,
+    `> Attribution: view ${views} · none ${o.claims.length - views}. Sources are never named in lines. A "view" claim is said as a view inside the explainer's own sentence, never with its holder or source as the subject; a person in a case keeps the same description, never a name; the rest the explainer says directly.`,
     `> Axis source: ${axis ? `S${axis}` : "none"} · blocks (sources per section): ${blockNote}`,
     `> Excerpt language "ko": the claim is an English restatement of a Korean excerpt. Keep its meaning exact.`, "",
     "| ID | Claim | Excerpt IDs | Type | Section | Notable | Opinion | Attribution | Excerpt language |", "|---|---|---|---|---|---|---|---|---|",

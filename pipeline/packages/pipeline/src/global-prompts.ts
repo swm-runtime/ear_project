@@ -108,7 +108,7 @@ ${fence(i.guidelines)}
 - When a Korean excerpt describes a whole place or group with a modifier, the claim keeps it describing the whole; do not turn it into a subset.
 - A definition claim keeps who uses the term and how widely. An event at a specific time keeps its time and the past tense. A practice the excerpt places in the past stays in the past tense; a current practice is in the present tense.
 - The subject of a claim is the practice, the people who do it, or the thing. Never make the source, its writer, or its year the subject ("The 2026 description says"). An opinion claim states the view itself and sets opinion to true.
-- Write a guide's or a rule's instruction ("should", "are instructed to", "are required to") as what people do: who does what, where, and when, and keep who the instruction is for (learners, visitors, newcomers). A rule or schedule for one year or one event keeps that year as a condition. A scene the excerpt says happens every year is a practice, not a single event.
+- Write a guide's or a rule's instruction ("should", "are instructed to", "are required to") as advice: who it is for (learners, visitors, newcomers) and what it advises ("Beginners are advised to …"). Do not turn advice into what people do. A rule or schedule for one year or one event keeps that year as a condition. A scene the excerpt says happens every year is a practice, not a single event.
 - Write each claim in plain spoken English. Do not copy a word-for-word noun phrase from a Korean excerpt.
 - Keep the excerpt's evaluation of a number, such as a large or small change. A list the excerpt marks as partial stays partial in the claim.
 - Keep in the claims the Korean words, the scope, and the differences by region, age, family, or setting that the excerpts give. Do not drop them to save space.
@@ -116,7 +116,7 @@ ${fence(i.guidelines)}
 - For a Korean word, keep in the claims whether the excerpt calls it casual or polite and who uses it.
 - In a Korean Language episode, keep one example phrase per featured word from the excerpts as a claim of type quote: the phrase romanized, its meaning, and its speech level read from the Hangul ending (casual, polite with -yo, or formal with -seumnida). Say when the phrase is a dictionary form ending in -da. Add who says it to whom only when the excerpt says so; otherwise leave the relationship out of the claim. An example sentence from a dictionary or learning guide is allowed; a line from a drama, song, or show is not.
 - Romanize Korean words with Revised Romanization, even when an excerpt spells them another way. Names of people, groups, companies, and works keep their official English spelling.
-- A person known to the public by name appears only through verifiable public facts. Do not make a claim from rumor, private life, or controversy. An unnamed person's own account of a family event or practice is a case.
+- A person known to the public by name appears only through verifiable public facts. Do not make a claim from rumor, private life, or controversy. A person not known to the public is a case: name them in claims by what they do or who they are (a park ranger, a mother), never by name.
 - When a case or scene has short words people say, keep those words as a claim of type quote, as the excerpt has them.
 - When an excerpt tells a person's own words, memory, or experience, keep it as a case or quote claim with that person. Do not turn it into a summary claim without the person.
 - The subject of a claim is never a survey, an assessment, a critique, or survey respondents. State what people do, or state the view itself with opinion set to true.
@@ -132,10 +132,11 @@ Axis note: why a newcomer wants this answered, two lines
 Familiar picture: what a listener abroad already pictures or assumes about this topic, in plain words
 Terms: each place, object, or role the episode names often — the one plain English name the script uses for it, as a name only, with no explanation; leave out common English words
 Landing section: #n — where the axis is proven
+Axis answer: C04, C11 — the claims that answer the axis question: the causes, reasons, or views that say why
 Estimated length: n min
 
 Roles
-- Axis source: S? (the source the axis rests on most, or "none")
+- Axis source: S? (the source whose text answers the axis question most directly, or "none"; a survey or statistics source is never the axis source)
 - Section order: one line on why #1 to #n are steps toward the axis
 - Cases: S?
 - Practice: S?
@@ -159,14 +160,17 @@ Section #2 — …
 Links and metaphors (made by the script, not facts)
 - "X carried over to Y" — based on C##, in section #n
 
-Closing line: one sentence with the answer to the axis question and its reason, drawn from the sections' claims; when the sections give several reasons, the one idea that joins them; never one section's reason as the only cause, never a list of the sections, never three items joined by "and"
+Closing line: one sentence with the answer to the axis question and its reason, resting on the Axis answer claims; when the sections give several reasons, the one idea that joins them; never one section's reason as the only cause, never a list of the sections, never three items joined by "and"
 \`\`\`
 Planning rules:
+- Build the answer first. Find the passages that answer the axis question itself: the causes, reasons, and views that say why. Take them from the source that answers the question most directly; that source is the axis source. A survey or statistics source supports a section; it never carries the answer. List 2 to 4 of these claims on the Axis answer line and in axis_answer_claims. Every section that holds them uses them, and the Closing line rests on them.
+- Moments. List in moment_claims the claims that hold a person's own words, memory, or experience, or a concrete moment with a person, a place, and an action. A general custom is not a moment.
+- **Material check.** If no passage answers the axis question, or no claim holds a moment (except in a Korean Language episode), do not build an outline. Leave outline_md empty and say in notes which is missing.
 - The axis is a question a newcomer asks about the practice ("Why do people in Korea …?"; a "how" question belongs to a section, not the axis), a contrast ("A, yet B"), a paradox ("trying A leads to B"), or a redefinition ("A is really B")${history ? ", or, in history mode, an event" : ""}. Keep the backlog's form. "What is X" is not an axis. ear introduces Korean culture: the episode shows how the practice works, who does it, and why.
 - Sections are steps of the axis, not the order of a source. For a practice, follow the order in which it happens or the steps a newcomer needs. Give each section the claims that answer its question, from any source; a section usually draws on two or more sources. Do not build a section from one source alone when another source has claims for its question. Drop a source that answers no sub-question of the axis. A result or side effect, such as an environmental cost, goes in one or two sentences at the end of the section it follows, not in a section of its own. A survey from outside Korea supports at most one section and is never its main material.
 - A list topic keeps its list: sections may follow the items or groups of items, and each section still answers a sub-question of the axis. The count in the title matches the items the material supports.
 - Three to five Body sections. Fewer, fuller sections are better than many thin ones. The Opening is not a section.
-- Plan scenes. Select excerpts with cases and practices so scenes are possible, and aim for a Scene in at least half of the Body sections. Build a Scene only from a claim with a person, a place, and a moment that carries words said, an object, or a sound. A person named only by name, age, or place in a report is not a scene. A general custom, a procedure, or a possible mistake is not a scene. Prefer a moment with words people say. For a drama or film topic, select excerpts that describe one specific moment: who, what they do, and what is said or left unsaid. When no claim has such a moment, write "none". Do not plan an imagined listener, viewer, visitor, or family as a scene.
+- Plan scenes. Select excerpts with cases and practices so scenes are possible, and aim for a Scene in at least half of the Body sections. Build a Scene only from a claim with a person, a place, and a moment that carries words said, an object, or a sound. A person named only by name, age, or place in a report is not a scene. A general custom, a procedure, or a possible mistake is not a scene. Prefer a moment with words people say. For a drama or film topic, select excerpts that describe one specific moment: who, what they do, an object, or a sound; the scene is told without the drama's lines. For a drama or film topic, the practice role is the screen convention and how viewers in Korea talk about it; do not fill it with a custom off screen. When no claim has such a moment, write "none". Do not plan an imagined listener, viewer, visitor, or family as a scene.
 - Plan the insider. The explainer is a calm Korean insider. Give each section an Insider detail when the material has one: the Korean name people use, an everyday practice, or how people around them do it. Take it from claims and add any Korean term to pronunciations.
 - Name the Familiar picture so the Opening can start from it: one thing any listener abroad already knows, in plain words, not a detail of the practice. The episode then explains or changes that picture.
 - Do not let source order become the episode. If every section uses one source in the order the sources are listed, rebuild the order around the steps of the axis. A section opens on its scene, a detail, or the host's question. Sources are not named in lines; the app lists them.
@@ -203,12 +207,14 @@ const strArr = { type: "array", items: { type: "string" } } as const;
 export const DESIGN_INLINE_SCHEMA_EN = {
   type: "object",
   additionalProperties: false,
-  required: ["axis", "axis_type", "landing_section", "axis_source", "sections", "excerpt_ids", "gists", "claims", "outline_md", "pronunciations", "estimated_minutes", "split_proposal", "sources_used", "sources_excluded", "gaps", "notes"],
+  required: ["axis", "axis_type", "landing_section", "axis_source", "axis_answer_claims", "moment_claims", "sections", "excerpt_ids", "gists", "claims", "outline_md", "pronunciations", "estimated_minutes", "split_proposal", "sources_used", "sources_excluded", "gaps", "notes"],
   properties: {
     axis: { type: "string" },
     axis_type: { type: "string", enum: ["question", "contrast", "paradox", "redefinition", "event"] },
     landing_section: { type: "integer" },
-    axis_source: { type: "string", description: "The source the axis rests on most, as \"S3\" only (no URL or title). Empty string if none" },
+    axis_source: { type: "string", description: "The source whose text answers the axis question most directly, as \"S3\" only (no URL or title). Never a survey or statistics source. Empty string if none" },
+    axis_answer_claims: { ...strArr, description: "2 to 4 claim IDs that answer the axis question: causes, reasons, or views that say why. Empty if no passage answers it" },
+    moment_claims: { ...strArr, description: "Claim IDs that hold a person's own words, memory, or experience, or a concrete moment with a person, a place, and an action. Empty if none" },
     sections: { type: "array", items: { type: "object", additionalProperties: false, required: ["n", "title", "sources", "ratio"], properties: { n: { type: "integer" }, title: { type: "string" }, sources: strArr, ratio: { type: "integer" } } } },
     excerpt_ids: { ...strArr, description: "Selected paragraph IDs (S1-03 …)" },
     gists: { type: "array", items: { type: "object", additionalProperties: false, required: ["s", "lines"], properties: { s: { type: "integer" }, lines: strArr } }, description: "Three English lines per source" },
@@ -557,7 +563,10 @@ const ROLE_INTENT_HISTORY_EN: Record<string, string> = {
   counterpoint: "optional: interpretations of the same event that disagree",
   numbers: "optional: figures recorded at the time: population, losses, costs, votes",
 };
-const roleIntent = (history: boolean) => (history ? ROLE_INTENT_HISTORY_EN : ROLE_INTENT_EN);
+/** 드라마·영화 주제의 생활 관행 역할은 화면 속 관습 (full-en-v0.16 — G261019-001 업어 주기: 생활 관행 역할을 채우느라 #3 이 포대기·폐백으로 벗어났다) */
+const DRAMA_TOPIC_EN = "K-Drama & Film";
+const ROLE_INTENT_DRAMA_EN: Record<string, string> = { ...ROLE_INTENT_EN, practice: "how the convention appears on screen and how viewers in Korea talk about it; not a custom off screen" };
+const roleIntent = (history: boolean, mid?: string | null) => (history ? ROLE_INTENT_HISTORY_EN : mid === DRAMA_TOPIC_EN ? ROLE_INTENT_DRAMA_EN : ROLE_INTENT_EN);
 const historyTopic = (mid: string | null | undefined) => mid === HISTORY_TOPIC_EN;
 
 const SEARCH_EXCLUDE_EN = `- Exclude what the worker cannot read: paywalled databases and repositories (researchgate, ssrn, academia.edu, semanticscholar, paid sciencedirect, springer, or wiley pages, jstor, DBpia, KISS, RISS), login or subscription walls, PDF-only links, social media, YouTube, wikis (including namu.wiki), forums, fan communities, shopping pages, and short press releases.
@@ -585,8 +594,8 @@ The only tool is web search. Do not read pages; the planner reads them later. Re
 
 ## What to collect — roles
 A candidate holds with 5 to 7 sources that fill these roles:
-  · ${ROLES_EN.map((r) => `${r} — ${roleIntent(history)[r]}`).join("\n  · ")}${historyTopic(i.midTopic) ? "\nIf the topic is a past event: an account of the event as a whole is the anchor; an essay that uses the event as an example of another idea is not. Records from the time are cases. Older sources are fine." : ""}
-The worker recounts: at least 3 sources · at least 3 publishers · no publisher over half · at least 1 anchor · at least 1 case · at least 3 roles. ear introduces Korean culture: spend searches on case and practice first. Find at least one source that tells a person's own moment: an interview, a first-hand account, or a report scene with words said. Counterpoint and numbers are optional.
+  · ${ROLES_EN.map((r) => `${r} — ${roleIntent(history, i.midTopic)[r]}`).join("\n  · ")}${historyTopic(i.midTopic) ? "\nIf the topic is a past event: an account of the event as a whole is the anchor; an essay that uses the event as an example of another idea is not. Records from the time are cases. Older sources are fine." : ""}
+The worker recounts: at least 3 sources · at least 3 publishers · no publisher over half · at least 1 anchor · at least 1 case · at least 3 roles. ear introduces Korean culture: spend searches on case and practice first. Find at least one source that tells a person's own moment: an interview, a first-hand account, or a report scene with words said. Prefer a Korean person's own account over a visitor's. Find at least one anchor that answers why people in Korea do it, not only what they do. Counterpoint and numbers are optional.
 
 ## Search rules
 - At most ${i.maxSearches} searches. Use them all unless every role is filled with strong sources. Korean institutions and Korean-language sources often hold the best material on Korean culture; English sources show how it is explained to outsiders.
@@ -613,7 +622,7 @@ The only tool is web search. Do not read pages. Return what the results show: ti
 - ${c.id} "${c.title}" · topic area ${c.mid_topic}
 - Axis (${axisTypeEn(c.axis_type ?? "-")}): ${c.axis ?? "(none)"}
 - Sources already in it: ${c.sources.map((x) => `${x.publisher} "${x.title}"`).join(" / ") || "(none)"}
-- **Roles to fill**: ${roles.map((r) => `${r} — ${roleIntent(history)[r] ?? ""}`).join("\n  · ")}${diversify ? `\n- **Goal of this round**: ${diversify}` : ""}
+- **Roles to fill**: ${roles.map((r) => `${r} — ${roleIntent(history, c.mid_topic)[r] ?? ""}`).join("\n  · ")}${diversify ? `\n- **Goal of this round**: ${diversify}` : ""}
 
 ## Search rules
 - At most ${i.maxSearches} searches, in English and Korean.
@@ -674,7 +683,7 @@ ${i.specBacklogExcerpt.trim()}
    History mode: use axis_type "event" only for a past event in Korean History & Society; modern society topics use the other forms. An event axis asks how to read the event, not who was right. The anchor describes the event itself; an essay that uses the event as an example of another idea is not an anchor. Records from the time are cases. Counterpoint is optional.` : ` Do not use axis_type "event".`}
 2. **It works in English for this listener.** Keep the question or tension inside the subject: the Korean practice itself, how it works, and why people do it. Do not build it on what outsiders, foreigners, or the West expect. Compare Korea with another country only if a listed source makes that comparison. The axis can be said in plain English with at most one Korean word. It does not rest on Korean wordplay or a pun that does not translate. It does not frame Korea as strange, rank cultures, or argue which country owns a custom.
 3. **Excluded.** No axis built around one person. Nothing about a real person's private life, relationships, rumors, controversies, incidents, or lawsuits. No current political issue and no inter-Korean military issue. No promotion of an agency, brand, or product.
-4. **Roles.** anchor (1 to 2 sources that answer the axis) · case · practice · context · counterpoint (optional) · numbers (optional). One source may have two roles. A source with no role is left out. 5 to 7 sources.
+4. **Roles.** anchor (1 to 2 sources that answer the axis question itself; a survey or statistics page is numbers, not anchor) · case (a person's own moment: an interview, a first-hand account, or a report scene with words said; a general explainer of the custom is practice, not case) · practice${mid === DRAMA_TOPIC_EN ? " (for this topic: the convention on screen and how viewers in Korea talk about it)" : ""} · context · counterpoint (optional) · numbers (optional). One source may have two roles. A source with no role is left out. 5 to 7 sources.
 5. **Diversity.** At least 3 publishers (one organization is one publisher) · no publisher over half · at least 3 roles (anchor, case, and one more) · at most 1 "already used" source. The worker recounts; do not force sources in to meet it.
 6. **Verdict.** "holds" if every criterion is met. "needs reinforcement" if the axis is good but required roles (anchor, case, practice, context) are empty; list them in gaps. Never list counterpoint or numbers in gaps. A domain not yet judged is not a reason for "needs reinforcement"; a person judges domains at gate 1. Mention it in dedup_note instead.
 
