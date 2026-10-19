@@ -375,6 +375,16 @@ const enListenedDayValue = (sec: number): string => {
   return hours > 0 ? `${hours} hr ${minutes} min` : `${minutes} min`;
 };
 
+/**
+ * 하루 평균 줄 오른쪽 두 줄의 차이 값 — 단위를 줄여 쓴다("12h 38m"). 그 칸은 폭 상한(62%) 안의 한 줄이라 "12 hr 38 min more" 가
+ * 잘렸다(2026-10-19 KAN-197 실기기). 왼쪽 큰 숫자의 단위(h·m)와 같다. 낭독은 줄이지 않은 값(`enListenedDayValue`)을 쓴다
+ */
+const enCompactDayValue = (sec: number): string => {
+  if (sec > 0 && sec < SECONDS_PER_MINUTE) return '<1m';
+  const { hours, minutes } = toListenedDayParts(sec);
+  return hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`;
+};
+
 const en: LocalizedCopy<typeof ko> = {
   header: {
     settingsA11y: 'Open settings',
@@ -487,12 +497,12 @@ const en: LocalizedCopy<typeof ko> = {
             a11y: `Listening time that week, top ${highlight.percent} percent compared to others`,
           };
         case 'moreThanPrevious': {
+          // 화면 두 줄은 한 줄씩 말줄임이라 짧게("vs. prior week" · "12h 38m more"), 낭독은 풀어 쓴다(KAN-197 실기기)
           const previous = isCurrentWeek ? 'last week' : 'the week before';
-          const amount = enListenedDayValue(highlight.diffSec);
           return {
-            lead: `vs. ${previous}`,
-            main: `${amount} more`,
-            a11y: `You listened ${amount} more than ${previous}`,
+            lead: isCurrentWeek ? 'vs. last week' : 'vs. prior week',
+            main: `${enCompactDayValue(highlight.diffSec)} more`,
+            a11y: `You listened ${enListenedDayValue(highlight.diffSec)} more than ${previous}`,
           };
         }
         case 'listenedDays': {
@@ -514,12 +524,12 @@ const en: LocalizedCopy<typeof ko> = {
       const dayFull = EN_DAY_FULL_NAMES[dayIndex] ?? '';
       switch (highlight.kind) {
         case 'moreThanLastWeek': {
+          // "vs. Thursday the week before" · "12 hr 38 min more" 가 둘 다 잘렸다(2026-10-19 KAN-197 실기기) — 화면은 짧게, 낭독은 풀어 쓴다
           const previous = isCurrentWeek ? `last ${dayFull}` : `${dayFull} the week before`;
-          const amount = enListenedDayValue(highlight.diffSec);
           return {
-            lead: `vs. ${previous}`,
-            main: `${amount} more`,
-            a11y: `You listened ${amount} more than ${previous}`,
+            lead: isCurrentWeek ? `vs. last ${dayFull}` : `vs. prior ${dayFull}`,
+            main: `${enCompactDayValue(highlight.diffSec)} more`,
+            a11y: `You listened ${enListenedDayValue(highlight.diffSec)} more than ${previous}`,
           };
         }
         case 'bestDay': {
