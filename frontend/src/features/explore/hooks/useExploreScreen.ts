@@ -535,7 +535,7 @@ export const useExploreScreen = ({
         // 전환 완료를 한 번만 알린다 — aria-live polite의 대역(uiux 7)
         const count = result.pages.reduce((sum, page) => sum + page.items.length, 0);
         AccessibilityInfo.announceForAccessibility(
-          EXPLORE_COPY.popular.switchedA11y(EXPLORE_COPY.popular.periodLabels[period], count),
+          EXPLORE_COPY.popular.switchedA11y(EXPLORE_COPY.popular.periodA11yLabels[period], count),
         );
       })
       .catch(() => setFailedPeriod(period))

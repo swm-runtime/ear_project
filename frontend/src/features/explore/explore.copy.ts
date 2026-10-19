@@ -121,6 +121,8 @@ const ko = {
   /** E13 인기 구간 토글 — 라벨은 화면 문구이고 week·month·all은 전송값이다(uiux 6장) */
   popular: {
     periodLabels: { week: '주간', month: '월간', all: '전체' },
+    /** 낭독용 구간 이름 — 한국어는 화면 라벨과 같다. 영어는 화면 라벨을 Week·Month·All 로 줄여서 낭독은 온전한 말로 둔다(2026-10-19) */
+    periodA11yLabels: { week: '주간', month: '월간', all: '전체' },
     toggleA11y: '인기 콘텐츠 집계 구간',
     /** 전환 실패 — 직전 목록을 유지한 채 섹션 안에서만 알린다(uiux 4.10) */
     switchFailed: '목록을 불러오지 못했어요',
@@ -210,11 +212,13 @@ const en: LocalizedCopy<typeof ko> = {
   },
 
   popular: {
-    periodLabels: { week: 'Weekly', month: 'Monthly', all: 'All time' },
+    // 짧은 명사형 — 한국어 주간·월간·전체와 같은 꼴. "Weekly·Monthly·All time"은 칸 76 이 필요해 제목이 접혔다(2026-10-19 PM)
+    periodLabels: { week: 'Week', month: 'Month', all: 'All' },
+    periodA11yLabels: { week: 'this week', month: 'this month', all: 'all time' },
     toggleA11y: 'Popular episodes time range',
     switchFailed: "Couldn't load the list",
     switchedA11y: (periodLabel: string, count: number) =>
-      `${periodLabel} popular, ${formatEnCount(count, { one: 'episode', other: 'episodes' })}`,
+      `Popular ${periodLabel}, ${formatEnCount(count, { one: 'episode', other: 'episodes' })}`,
   },
 };
 
