@@ -43,9 +43,9 @@
 | 항목 | 값 |
 |---|---|
 | 시장 | `market` enum — `kr` · `global` |
-| 판정 | **가입 시 1회**, 서버가 한다. 입력은 **사용자가 가입 때 고른 콘텐츠 언어** `locale.preferred_language`(`ko` → `kr`, `en` → `global`). 앱은 모든 신규 가입자에게 한 화면으로 한 번 묻고, 기기 언어는 그 화면의 **기본 선택값**으로만 쓴다. 값이 없으면(구 앱) 기기 `language_code`가 `ko`로 시작하면 `kr`, 그 밖은 `global`, 그것도 없으면 `kr`. **(2026-10-14 결정 — 기기 언어 자동 판정은 영어 설정 한국 사용자를 GLOBAL로 보내고 되돌릴 길이 없어서. 모호한 사용자만 묻는 방식 등은 추후 필요하면 다시 논의)** **서버 스위치 `GLOBAL_SIGNUP_ENABLED`(기본 닫힘)가 닫혀 있으면 GLOBAL 판정도 `kr`로 만든다**(2026-10-15) — GLOBAL 카탈로그가 비어 있는 동안 GLOBAL로 가입하면 온보딩 주제가 0개라 진행할 수 없고 시장은 바꿀 수 없어서다. 글로벌 출시 때 연다 |
+| 판정 | **가입 시 1회**, 서버가 한다. 입력은 **사용자가 가입 때 고른 콘텐츠 언어** `locale.preferred_language`(`ko` → `kr`, `en` → `global`). 앱은 모든 신규 가입자에게 한 화면으로 한 번 묻고, 기기 언어는 그 화면의 **기본 선택값**으로만 쓴다. 값이 없으면(구 앱) 기기 `language_code`가 `ko`로 시작하면 `kr`, 그 밖은 `global`, 그것도 없으면 `kr`. **(2026-10-14 결정 — 기기 언어 자동 판정은 영어 설정 한국 사용자를 GLOBAL로 보내고 되돌릴 길이 없어서. 모호한 사용자만 묻는 방식 등은 추후 필요하면 다시 논의)** **서버 스위치 `GLOBAL_SIGNUP_ENABLED`(기본 닫힘)가 닫혀 있으면 GLOBAL 판정도 `kr`로 만든다**(2026-10-15) — GLOBAL 카탈로그가 비어 있는 동안 GLOBAL로 가입하면 온보딩 주제가 0개라 진행할 수 없어서다. 글로벌 출시 때 연다. **가입 뒤에는 설정에서 바꿀 수 있다**(4.11, 2026-10-19) |
 | 저장 | `users.market`. **요청마다 헤더로 판정하지 않는다** — 헤더는 로그·통계용 |
-| 전환 | ⚪ 기본은 **불허**(가입 시 확정. 표시 언어를 바꿔도 시장은 그대로) |
+| 전환 | ✅ **가입 뒤 설정에서 전환할 수 있다**(PM 결정 2026-10-19 · 규칙 결정 박준현 — KAN-227). 전용 엔드포인트(4.11)로만 바뀌고, 새 시장 필수 동의를 함께 받으며, 서비스 날짜당 1회다. 표시 언어를 바꾸는 것(4.3)으로는 시장이 바뀌지 않는다. **구현은 1.3.0 다음 버전** — 그 전까지는 종전대로 불변 |
 | 결제 | 시장과 무관하게 **스토어 국가**를 따른다(`storefront`). 가격 표시는 스토어 현지가만 |
 | 연령 | ✅ **나라별 자기 선언**(2026-10-16 PM 결정 3안 — KAN-206. 종전 2026-10-14 "GLOBAL 일괄 16"을 바꿨다): KR 시장 18(불변). GLOBAL은 기기 지역(`region_code`)으로 본인 동의 연령이 16 이하인 싱가포르·홍콩·한국 **16**, 18세 미만에 법정대리인 동의가 필요한 말레이시아·필리핀·인도네시아와 성년 20인 태국·**지역 모름은 18**. 판정은 서버가 하고 `age_confirmation` 항목의 `min_age`로 내려준다 ✅(구현 #1614 — `auth-api.md` 4.1 동의 항목 객체). 가입 전에는 요청 `locale.region_code`, 가입 후에는 로그인마다 갱신되는 `users.region_code`로 판정한다. GLOBAL은 확인한 기준을 동의 이력 `version`(`age-16`·`age-18`)으로 남기고, 16으로 확인한 사용자가 18 지역으로 옮기면 한 번 다시 묻는다. 기기 지역은 사용자가 바꿀 수 있는 자기 선언 수준의 근거다. 스토어 등급은 Apple 16+ · Play 16–17/18+로 맞춘다 |
 
@@ -91,12 +91,13 @@
 | 10 | `POST /admin/contents` · `POST /admin/contents/:id/republish` | admin-api 4.6·4.10 | payload `market`·`language` 필수, `enrichment.json` `language`·태그 규칙·`target_audiences` 생략 | 파이프라인이 두 트랙을 만들기 시작하면 서버가 어느 시장 콘텐츠인지 알 길이 payload밖에 없다. 태그 규칙은 현행이 공백 금지여서 "Stray Kids"가 400 — 영어 고유명사 대부분이 막힌다. `target_audiences`는 KR 직군 enum | ✅ |
 | 11 | `GET /admin/contents` · `POST /admin/topics` · `GET /admin/insights/summary` | admin-api | `market` 필터·필드 | 운영 집계가 시장 섞여 나오면 PoC 성과(GLOBAL 가입·청취)를 읽을 수 없다 | 🟡 |
 | 12 | `POST /users/me/subscription/invite-codes` 및 구독 조회 | subscription-api 4.8 | 변경 없음(코드는 시장 무관). `plan.grant` 그대로 | 초대 코드는 시장과 무관한 부여 기능. 확인 결과 바꿀 것이 없다 | ✅ |
+| 13 | `GET /users/me/market-change/preview` · `POST /users/me/market-change` | 신설(4.11) | 시장 전환 — 미리보기 · 동의 포함 전환 · 새 액세스 토큰 | 가입 때 잘못 고른 사용자가 다른 시장에 갇힌다. 값만 바꾸면 동의 전 콘텐츠 노출 · 이전 시장 주제로 드립 끊김 · 토큰의 옛 시장으로 30분간 섞임 | ✅ 결정 · 구현 전(1.3.0 다음) |
 
 ## 4. 엔드포인트 상세
 
 ### 4.1 `POST /auth/social-login` · `POST /auth/sign-up` — `locale` ✅
 
-**왜**: 시장 판정의 입력이 필요하다. 기기 언어로 자동 판정하면 **영어 설정을 쓰는 한국 사용자**가 GLOBAL로 가고(시장 전환 불허라 되돌릴 수 없다), 지역·시간대로 보정해도 한국 거주 외국인·해외 거주 한국인 어느 한쪽은 틀린다. 그래서 **가입 때 사용자에게 콘텐츠 언어를 한 번 묻고** 그 값을 본문으로 받아 1회 저장한다. 헤더(`Accept-Language`)만 쓰면 요청마다 판정이 되어 언어를 바꾸는 순간 주제·피드·요금제가 통째로 바뀐다. 기존 필드는 그대로이고 `locale`은 선택이라 구 앱도 그대로 가입된다(→ 기기 언어 규칙, 없으면 `kr`).
+**왜**: 시장 판정의 입력이 필요하다. 기기 언어로 자동 판정하면 **영어 설정을 쓰는 한국 사용자**가 GLOBAL로 가고(당시엔 시장 전환이 없어 되돌릴 수 없었다 — 가입 뒤 전환은 4.11), 지역·시간대로 보정해도 한국 거주 외국인·해외 거주 한국인 어느 한쪽은 틀린다. 그래서 **가입 때 사용자에게 콘텐츠 언어를 한 번 묻고** 그 값을 본문으로 받아 1회 저장한다. 헤더(`Accept-Language`)만 쓰면 요청마다 판정이 되어 언어를 바꾸는 순간 주제·피드·요금제가 통째로 바뀐다. 기존 필드는 그대로이고 `locale`은 선택이라 구 앱도 그대로 가입된다(→ 기기 언어 규칙, 없으면 `kr`).
 
 **Request**(기존 필드에 추가)
 
@@ -116,8 +117,8 @@
 | `locale.region_code` | ISO 3166-1 alpha-2 | 선택 | 통계용 + **GLOBAL 연령 확인 기준 연령(16·18) 판정**(2.1, 2026-10-16 ✅) |
 | `locale.timezone` | IANA | 선택 | 드립 발송 그룹. 없으면 `Asia/Seoul` |
 
-- 시장은 **계정 생성(sign-up) 시점에만** 정한다. 기존 계정의 로그인에 다른 `locale`이 와도 `market`은 바뀌지 않고 `language_code`·`region_code`·`timezone`만 갱신한다(`preferred_language`는 무시).
-- 가입 화면의 질문은 시장 하나당 선택지 하나다(한국어 / English). 시장이 늘면 선택지가 는다. 화면에는 "선택한 언어에 따라 보여 주는 콘텐츠가 달라진다"는 설명과 해외 거주자에게 English를 권하는 안내, 가입 뒤 변경 불가 안내를 함께 둔다(카피는 FE `spec/uiux`). 앱 실행 직후의 **표시 언어**는 서버 호출 전이라 클라이언트가 기기 `locale`로 1차 판단한다 — 시장 판정과 별개다. 질문을 모호한 사용자에게만 보이는 방식 등은 **추후 필요하면 다시 논의**한다(2026-10-14).
+- 시장은 **계정 생성(sign-up) 시점에** 정하고, 그 뒤에는 **전환 API(4.11)로만** 바뀐다. 기존 계정의 로그인에 다른 `locale`이 와도 `market`은 바뀌지 않고 `language_code`·`region_code`·`timezone`만 갱신한다(`preferred_language`는 무시).
+- 가입 화면의 질문은 시장 하나당 선택지 하나다(한국어 / English). 시장이 늘면 선택지가 는다. 화면에는 "선택한 언어에 따라 보여 주는 콘텐츠가 달라진다"는 설명과 해외 거주자에게 English를 권하는 안내, 가입 뒤 설정에서 바꿀 수 있다는 안내를 함께 둔다(카피는 FE `spec/uiux` — 종전 "가입 뒤 변경 불가"는 전환이 구현되는 버전에서 바꾼다, 4.11). 앱 실행 직후의 **표시 언어**는 서버 호출 전이라 클라이언트가 기기 `locale`로 1차 판단한다 — 시장 판정과 별개다. 질문을 모호한 사용자에게만 보이는 방식 등은 **추후 필요하면 다시 논의**한다(2026-10-14).
 - GLOBAL 시장에서 `provider`가 `kakao`·`naver`인 요청은 거부하지 않는다(서버는 제공자별 독립). **노출을 막는 것은 클라이언트 몫**(4.2 응답의 `market`으로 분기).
 - 연령 동의(`age_confirmation`)의 기준 연령은 나라별이다(2.1 — KR 18 · GLOBAL 지역별 16/18, 항목의 `min_age` ✅).
 - **약관·처리방침 동의 버전은 시장별이다** ✅(2026-10-16 — KAN-212, 구현 #1610). KR `0.1` · GLOBAL `global-<문서 버전>`(현행 `global-0.1`, 영어판 문서 0.1). 동의 이력만 보고도 어느 시장 문서에 동의했는지 구분된다. 다른 시장의 버전을 보내면 409 `CONSENT_VERSION_STALE`이다. 버전을 올리면 그 시장 사용자만 다음 로그인·세션 복원에서 다시 동의한다(KR과 같은 재동의 흐름 — 법무 확인 전, KAN-126).
@@ -141,7 +142,7 @@
 **왜**: 기기 언어는 가입 시 1회만 보므로 사용자가 표시 언어를 바꿀 길이 설정밖에 없다. 서버가 만드는 문자열(푸시·메일)의 언어는 이 값이 아니라 `users.market`으로 고른다(2.3). 기존 설정 API에 필드만 더한다.
 
 - 응답에 `market`(읽기 전용) · `language_code` · `timezone` 추가.
-- `PATCH { "language_code": "en-US", "client_seq": n }` — **표시 언어 변경**. 시장은 바뀌지 않는다(⚪ 전환 불허 기본). 서버 문구(푸시·메일) 언어는 이 값이 아니라 `users.market`으로 고른다(2.3, 2026-10-14 정정).
+- `PATCH { "language_code": "en-US", "client_seq": n }` — **표시 언어 변경**. 시장은 바뀌지 않는다(시장 전환은 4.11). 서버 문구(푸시·메일) 언어는 이 값이 아니라 `users.market`으로 고른다(2.3, 2026-10-14 정정).
 
 ### 4.4 `GET /onboarding/state` — 단계 목록 🟡
 
@@ -233,11 +234,87 @@
 - **일일 Slack 보고**(`backend-monitoring.md` 3-3·3-4, 2026-10-17) — 서버 값만 시장으로 나눈다: 가입자(현재·어제 가입), 시장별 청취(청취자·재생·청취 시간), 탈퇴(`withdrawal_logs.market` — 탈퇴 당시 시장). GA4 줄은 시장이 없어(사용자 속성 미등록) 나누지 않는다. 하루는 KST 달력일(00~24시)이다.
 - `GET /admin/search-query-logs/summary?market=` — 검색 질의 로그 요약을 **검색한 사용자의 시장**(`users.market`)으로 거른다(2026-10-15 — KAN-188, `admin-api.md` 4.21). 생략하면 전 시장, `kr`·`global` 밖의 값은 400 `VALIDATION_FAILED`. 한국어·영어 질의가 한 순위·미스율에 섞이지 않게 하려는 것이고, 한국어 매칭 방식(`pg_trgm`)을 판단할 때는 `market=kr`로 본다.
 
+### 4.11 시장 전환 — `GET /users/me/market-change/preview` · `POST /users/me/market-change` ✅ 결정(2026-10-19 박준현 — KAN-227) · 구현은 1.3.0 다음 버전
+
+**왜**: 가입 때 잘못 고른 사용자(영어 기기에서 English를 고른 한국 사용자 등)가 다른 시장에 갇힌다(PM 결정 2026-10-19 — "가입한 뒤에는 설정에서 바꿀 수 있게"). 그런데 서버는 시장이 바뀌지 않는다는 전제로 만들어져 있다 — 시장이 액세스 토큰 클레임이고(7장), 관심 주제·온보딩·첫 드립·일부 카운터가 시장 무관이다. `users.market` 값만 바꾸면 새 시장 동의 전에 콘텐츠가 나가고, 이전 시장 주제가 남아 드립이 끊긴다. 그래서 **전용 엔드포인트가 한 트랜잭션으로 함께 바꾼다**. 설정 PATCH(4.3)에 필드를 더하지 않는 이유: 동의를 함께 받아야 하고 새 토큰을 돌려줘야 해서 설정 저장과 모양이 다르다. 탈퇴(`withdrawal-preview` → `withdraw`)와 같은 미리보기 → 실행 2단계다.
+
+**미리보기** `GET /users/me/market-change/preview?preferred_language=en` — 아무것도 바꾸지 않는다.
+
+```json
+{
+  "current_market": "kr",
+  "target_market": "global",
+  "available": true,
+  "blocked_reason": null,
+  "retry_after_sec": null,
+  "required_consents": [
+    { "consent_type": "terms", "version": "global-0.1", "is_required": true },
+    { "consent_type": "privacy", "version": "global-0.1", "is_required": true },
+    { "consent_type": "cross_border_transfer", "version": null, "is_required": true },
+    { "consent_type": "age_confirmation", "version": "age-16", "min_age": 16, "is_required": true }
+  ],
+  "steps": ["topic"]
+}
+```
+
+- `blocked_reason`: `null` · `market_unavailable` · `cooldown`. 막히면 `available: false`, `cooldown`이면 `retry_after_sec`(다음 05:00까지 남은 초)가 채워진다. 클라이언트는 막힌 선택지를 비활성으로 그린다.
+- `required_consents`는 **새 시장의 필수 동의 전부**이고 항목 모양은 가입 재조회(`auth-api.md` 4.14)와 같다 — A4 동의 컴포넌트를 그대로 쓴다. `age_confirmation`은 새 시장·현재 `users.region_code` 기준 `min_age`다.
+- `preferred_language`가 현재 시장과 같으면 `available: true`, `required_consents: []`.
+
+**전환** `POST /users/me/market-change`
+
+```json
+{ "preferred_language": "en", "consents": [ { "consent_type": "terms", "version": "global-0.1", "is_agreed": true }, "…미리보기의 필수 항목 전부" ] }
+```
+
+```json
+{
+  "user": { "id": "uuid", "market": "global", "...": "GET /users/me와 같은 모양" },
+  "access_token": "…",
+  "access_token_expires_at": "2026-10-25T01:30:00Z",
+  "onboarding": { "onboarding_completed": false, "onboarding_step": "topic", "steps": ["topic"] }
+}
+```
+
+- 클라이언트는 `market`이 아니라 **`preferred_language`**(`ko` · `en`)를 보낸다(7장). 시장으로 바꾸는 규칙은 가입과 같다(2.1).
+- **응답의 새 액세스 토큰으로 바로 교체한다.** 리프레시 토큰은 그대로다. 앱은 응답의 `user`로 세션을 갱신하고 온보딩으로 보낸다 — 앱은 세션 중에 `GET /users/me`를 다시 읽지 않으므로 이 응답이 재진입의 신호다.
+- 이미 그 시장이면 200 + 변화 없음(멱등). 토큰은 새로 주지 않는다(`access_token: null`).
+- **한 트랜잭션**이다. 하나라도 실패하면 아무것도 바뀌지 않는다: 사용자 행 잠금 → 막힘 판정 → 동의 검증·기록 → `users.market` 변경 → 이전 시장 관심 주제 비활성 → 온보딩 되돌림 → 첫 드립 작업 초기화 → 전환 이력(`user_market_changes`) 기록.
+
+**전환 때 바뀌는 것 · 그대로인 것**
+
+| 대상 | 규칙 |
+|---|---|
+| 동의 | 새 시장 필수 동의를 **전환 요청에서 받는다**. 빠지면 400 `CONSENT_REQUIRED`, 현행과 다른 버전(다른 시장 버전 · 버전이 있는 항목에 `null`)이면 409 `CONSENT_VERSION_STALE`(가입과 같은 판정 — 클라이언트는 미리보기를 다시 받는다). 동의 없이는 전환 자체가 일어나지 않으므로, 새 시장 콘텐츠가 동의 전에 나가는 틈이 없다. 이전 시장 동의 행은 기록으로 남는다. 마케팅 수신 동의는 시장 무관이라 그대로 |
+| 연령 | `age_confirmation`은 **방향과 무관하게 항상** 새 시장 기준(KR 18 · GLOBAL 16/18)으로 다시 받는다 — 어느 기준을 확인했는지가 이력에 남는다 |
+| 관심 주제 | 이전 시장 주제의 활성 행을 전부 비활성(`is_active = false` · `deactivated_at`). 지우지 않고, 되돌아와도 되살리지 않는다(다시 고른다). `is_user_removed`는 건드리지 않는다 |
+| 온보딩 | `onboarding_completed = false` · `onboarding_step = topic`. 단계는 새 시장의 `steps[]`. 커리어 값은 지우지 않는다(GLOBAL → KR이면 기존 값을 기본 선택으로). **`onboarding_completed_at`은 처음 값을 유지**한다 — 재완료가 덮어쓰지 않는다 |
+| 첫 드립 | 재온보딩을 끝내면 새 시장으로 다시 돈다(작업 행 초기화). 커리어 가중은 KR 시장일 때만 쓴다 |
+| 라이브러리·재생 위치·완청 | 행을 남긴다. 이전 시장 항목은 시장 조건(4.7)으로 **숨고**, 되돌아오면 다시 보인다 |
+| 프로필 | 누적 청취 시간·완청 수는 계정 기준 그대로(이전 시장 포함). 주간 주제 분포는 현재 시장 주제만(지금은 시장 무관 — 구현 때 더한다). 백분위 모집단은 새 시장 |
+| 시장으로 좁히는 카운터 | 안 들은 항목 수(정규 드립 `unfinished_inventory` 판정) · 온보딩 담기 수 · 도착 알림 대상은 **현재 시장 콘텐츠만** 센다 — 숨은 이전 시장 항목 때문에 드립이 건너뛰어지거나 이전 시장 제목으로 알림이 나가지 않게. 정규 배치의 하루 1회 편성 판정은 시장 무관 그대로(그룹이 바뀌어도 하루 두 번 편성되지 않게) |
+| 드립 시간대 그룹 | 배치가 매 회차 다시 계산하므로 바꿀 것 없음(2.4) |
+| 구독·재생 한도·체험·초대 코드 | **그대로**. 구독은 시장이 없고(스토어 국가 기준), 한도는 티어 기준이며 오늘 들은 편수도 그대로 센다. 체험은 계정당 1회. 전환으로 다시 받는 혜택이 없다. 요금제 이름·설명만 새 시장 언어 |
+| 푸시·메일 언어 | `users.market`으로 고르므로 다음 발송부터 새 언어(2.3) |
+
+**막는 조건**
+
+- **새 시장에 노출 주제가 0개** → 409 `MARKET_UNAVAILABLE`. 노출 콘텐츠가 0편인 주제는 운영 배치가 자동으로 숨기므로 "노출 주제 있음"이 "고를 콘텐츠 있음"을 대신한다(배치가 하루 1회라 최대 하루 늦을 수 있다 — 감수).
+- **GLOBAL로의 전환은 `GLOBAL_SIGNUP_ENABLED`도 따른다** — 닫혀 있으면 같은 409. 가입이 닫힌 시장으로 전환만 열리면 출시 순서(주제 노출 → 콘텐츠 발행 → 스위치)가 새어 나간다.
+- **서비스 날짜(05:00 KST)당 1회** → 429 `MARKET_CHANGE_COOLDOWN` + 응답 `retry_after_sec`(다음 05:00까지 — `common-error-handling.md` 6장의 최상위 필드). 악용 경로는 없지만 전환마다 주제 초기화·첫 드립 재실행·지표 이동이 일어나서다. **예외**: 전환 뒤 재온보딩을 끝내기 전에 **직전 시장으로 되돌리는 것**은 횟수에 세지 않는다 — 잘못 누른 사용자가 다음 날까지 온보딩에 갇혀 드립·알림이 끊기지 않게. 되돌려도 관심 주제는 되살리지 않으므로(위 표) 주제 단계는 다시 거친다.
+
+**같은 계정의 다른 기기**: 다음 토큰 갱신(최대 30분)까지 이전 시장 토큰으로 이전 시장 콘텐츠를 본다. 강제 로그아웃하지 않는다(7장 예외). 그 기기는 다음 실행에서 `GET /users/me`의 `onboarding_completed: false`로 온보딩에 들어가고, 그 전의 관심 주제 편집은 409 `ONBOARDING_NOT_COMPLETED`다.
+
+**지표**: 시장별 집계(4.10 `by_market`·일일 보고)는 **현재 시장 기준**을 유지한다 — 전환한 사용자의 과거 가입은 새 시장에 세진다. 전환 수는 `user_market_changes`로 따로 센다(일일 보고 "시장 전환" 줄).
+
 ## 5. 에러 코드 표
 
 | error_code | HTTP | retryable | 발생 지점 | 상태 |
 |---|---|---|---|---|
 | `MARKET_MISMATCH` | 409 | false | 4.4 GLOBAL의 커리어 저장 · 4.5 다른 시장 주제 저장 · 4.9 `topic_ids` 시장 불일치(이건 400 `VALIDATION_FAILED`) | 🟡 신설 — `common-error-handling.md` 9장 등재는 BE 구현 PR에서 |
+| `MARKET_UNAVAILABLE` | 409 | false | 4.11 노출 주제가 0개인 시장 · 가입 스위치가 닫힌 GLOBAL로 전환 | ✅ 신설(구현 전) — `common-error-handling.md` 9장 등재 요청 |
+| `MARKET_CHANGE_COOLDOWN` | 429 | false(응답 `retry_after_sec` — 다음 05:00까지. 자동 재시도 대상이 아니다) | 4.11 같은 서비스 날짜에 두 번째 전환(직전 시장으로 되돌리기 예외) | ✅ 신설(구현 전) — 같음 |
+| `CONSENT_REQUIRED` · `CONSENT_VERSION_STALE` | 400 · 409 | false | 4.11 새 시장 필수 동의 누락 · 다른 시장 버전 | 기존(가입과 같은 판정) |
 | `VALIDATION_FAILED` | 400 | false | `locale` 형식·`language`/`market` 값·태그 규칙 | 기존 |
 
 클라이언트 문구(ko/en)는 클라이언트가 갖는다(2.3). `MARKET_MISMATCH`는 정상 UI에서 나올 수 없는 상태라 "다시 시도해 주세요" 류 공통 문구로 충분하다.
@@ -273,6 +350,7 @@ upload-meta{market: global, language: en} → 콘솔 payload → POST /admin/con
 - `locale.*`·헤더 값은 저장 전 형식 검증(BCP 47·ISO 3166·IANA 목록). 모르는 값은 버리고 기본값.
 - 시장 격리 누락은 **데이터 유출**로 본다(한국어 콘텐츠가 해외 피드에, 또는 그 반대). 콘텐츠를 반환하는 모든 레포지토리 메서드가 같은 가시성 조건(`CONTENT_VISIBILITY_CONDITION` + market)을 쓰고, e2e가 교차 접근 0건을 검사한다.
 - 로그에 `Accept-Language`·`timezone`은 남겨도 되지만 `region_code`와 IP를 묶어 저장하지 않는다(위치 추정 금지 — 개인정보 원칙).
+- **시장 클레임과 전환의 30분 예외**(2026-10-19 — 4.11): 시장은 액세스 토큰 클레임이라 요청마다 DB를 읽지 않는다. 전환한 기기는 응답의 새 토큰으로 바로 맞고, 같은 계정의 **다른 기기는 다음 토큰 갱신(최대 30분)까지 이전 시장**을 본다. 본인이 고른 전환의 지연이고 다른 사람의 데이터가 새는 것이 아니라서 격리 누락(위)으로 보지 않는다.
 
 ## 8. 데이터 모델 — `domain.md` 개정 요청(changes/pending 원본)
 
@@ -285,12 +363,12 @@ upload-meta{market: global, language: en} → 콘솔 payload → POST /admin/con
 | `notices` | `market` enum NOT NULL DEFAULT kr | |
 | `subscriptions` · `store_notification_logs` | `storefront` char(3) NULL · `currency` char(3) NULL · `price` numeric NULL | 스토어 응답값 그대로 |
 | `drip_batch_runs` | `group` varchar(16) NOT NULL DEFAULT asia, 유니크 `(run_date, group)` | 발송 그룹 |
+| `user_market_changes` (신설) | `user_id` FK CASCADE · `from_market` · `to_market` · `changed_at`, 인덱스 `(user_id, changed_at DESC)` | 시장 전환 이력 — 하루 1회 판정·일일 보고·문의 대응(4.11, 2026-10-19). 구현 전 |
 
 ## 9. 미결 사항
 
 | # | 항목 | 기본값(결정 전 구현 기준) | 결정자 |
 |---|---|---|---|
-| 1 | 같은 계정의 시장 전환 | 불허 | 박준현 |
 | 3 | 발송 그룹 정의(경계 오프셋·그룹 수) | asia/europe/americas 3그룹 | BE |
 | 4 | GLOBAL 상품 ID·요금(USD) | `com.runtime.ear.global.{daily,pro}.monthly` | 박준현(스토어) |
 | 6 | GLOBAL 주제 트리(대·중분류, slug) | KAN-184 제안 | 박수헌 → PM |
