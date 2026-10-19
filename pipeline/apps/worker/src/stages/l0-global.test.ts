@@ -19,7 +19,7 @@ const OUTLINE = ["# outline", "Estimated length: 15 min", "", "Section #1 — Wh
 // 본문 턴 — 분량을 채우는 데 쓴다. 첫마디가 턴마다 다르고(문체 L0 첫마디 반복), 해설은 6문장(문장 수 상한), 진행은 질문 60%(질문 비율 절반~3분의 2)
 const NOUNS = ["Cabbage", "Salt", "Neighbors", "Grandmothers", "Jars", "Radish", "Garlic", "Pepper", "Courtyards", "Rubber gloves", "Basins", "Fish sauce", "Ginger", "Scallions", "Buckets", "Children", "Aprons", "Rice flour", "Shrimp", "Pears", "Onions", "Mats", "Ladles", "Lids", "Cousins", "Kitchens", "Rooftops", "Cellars", "Knives", "Towels"];
 const HOST = ["Who decides", "Where does", "Which part", "When do", "Does everyone", "Is there", "Can a family", "What happens", "Would a", "Why would", "Was that", "Could one", "Do they", "How long", "Are the"];
-const REACT = ["I can picture", "That might tire", "I'd guess", "My hunch is", "I'm surprised by", "It sounds"]; // full-en-v0.13: 질문 아닌 진행 턴의 would·I'd 는 셋까지
+const REACT = ["Easy to picture", "That might tire", "Probably", "The hunch is", "A surprise is", "It sounds"]; // full-en-v0.15: 질문 아닌 진행 턴의 1인칭·would 는 셋까지
 const LONG_E = (noun: string) => `${noun} matter a lot in this part of the work. Families split the job by hand over two days. One group salts the cabbage overnight in large tubs. Another group grinds the seasoning paste in the morning. Neighbors trade labor, so each house gets help in turn. By the afternoon the jars are packed and shared with relatives.`;
 function script(o: { zones?: string[]; sections?: number[]; bodyTurns?: number; lastTurn?: string } = {}) {
   const z = o.zones ?? ["Intro", "Opening", "Body", "Closing"];
@@ -357,8 +357,8 @@ test("Opening 을 Imagine·Picture 로 열면 한 번이라도 문체 위반 —
 test("질문 아닌 진행 턴의 자기 상태 서술(would·I'd·to me·I find)은 셋까지 통과, 넷이면 문체 위반 — 질문은 세지 않는다", () => {
   en();
   const host = (n: number) => [T("Y1", "Welcome.", "Intro"), ...Array.from({ length: n }, (_, i) => T(`Y${i + 2}`, ["I'd feel shy at that table.", "That would make me slow down.", "That part is easier for me.", "I notice the quiet."][i % 4])), T("Y8", "Would you eat alone?"), T("Y9", "Bye.", "Closing")];
-  assert.doesNotMatch(enStyleViolations(host(3)).join("\n"), /host's own state/);
-  assert.match(enStyleViolations(host(4)).join("\n"), /4 host turns that are not questions speak about the host's own state .* \(Y2, Y3, Y4, Y5\)/);
+  assert.doesNotMatch(enStyleViolations(host(3)).join("\n"), /speak in the first person/);
+  assert.match(enStyleViolations(host(4)).join("\n"), /4 host turns that are not questions speak in the first person .* \(Y2, Y3, Y4, Y5\)/);
 });
 
 test("구성안 장면 메모 말투(gives one example·broader … event)는 설계 흔적으로 잡는다", () => {
@@ -379,4 +379,31 @@ test("해설 턴의 규범형(should·are instructed to·must)은 둘까지 통�
 test("구성안 칸 이름(familiar picture·insider detail)이 대사에 나오면 설계 흔적", () => {
   en();
   assert.match(enStyleViolations([T("E1", "The familiar picture is a quiet morning.")]).join("\n"), /planning or reading wording in lines \(E1 "familiar picture"\)/);
+});
+
+// ── full-en-v0.15 (2026-10-19 — G261018-013~015 에이전트 판정) ──
+test("진행자 1인칭은 낱말 목록이 아니라 I·me·my 로 센다 — 목록 밖 'I hadn't considered' 도 넷째로 잡는다", () => {
+  en();
+  const turnsOf = (xs: string[]) => [T("Y1", "Welcome.", "Intro"), ...xs.map((x, i) => T(`Y${i + 2}`, x)), T("Y9", "Bye.", "Closing")];
+  const four = ["I hadn't considered the card.", "That part is easier for me.", "My first thought was the price.", "That would make me slow down."];
+  assert.match(enStyleViolations(turnsOf(four)).join("\n"), /4 host turns that are not questions speak in the first person/);
+  assert.doesNotMatch(enStyleViolations(turnsOf(["The card is the prize.", "Lunch comes first.", "In Korean, that word is short.", "A quiet room."])).join("\n"), /first person/); // 대문자 I 로 시작하는 낱말(In)은 1인칭이 아니다
+});
+
+test("견해 틀(One concern is that)과 조사 응답자 주어도 출처 문장으로 센다", () => {
+  en();
+  const B = (id: string, text: string, topic: string) => ({ ...T(id, text), topic });
+  const v = enStyleViolations([
+    B("E1", "One concern is that the boxes waste plastic. Another proposal is digital albums.", "Waste"),
+    B("E2", "Many respondents bought more than one copy.", "Buying"),
+    B("E3", "Some fans keep every card.", "Cards"),
+  ]).join("\n");
+  assert.match(v, /sources named in lines: "Waste" 2 \(E1\); "Buying" 1 \(E2\)/);
+  assert.doesNotMatch(v, /"Cards"/);
+});
+
+test("사례 틀(one family's · another family's · remembered)이 셋이면 문체 위반", () => {
+  en();
+  const xs = [T("Y1", "Hi.", "Intro"), T("E1", "In one family's remembered meal, steam rose."), T("E2", "On another family's moving day, boxes filled the room."), T("Y9", "Bye.", "Closing")];
+  assert.match(enStyleViolations(xs).join("\n"), /case frame .* used 3 times \(E1, E2\)/);
 });
