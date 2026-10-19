@@ -545,6 +545,7 @@ RootStack
   - **보내지 않는 것** — `ApiError`의 `NETWORK_ERROR`·`TIMEOUT`·4xx(계약된 응답). 개인정보는 사용자 id만 남기고, breadcrumb URL 쿼리·요청 정보는 제거한다(`sendDefaultPii: false`).
   - DSN은 `SENTRY_DSN` env로 `app.config.js` `extra`를 통해 주입한다(2.1 환경변수 표) — 소스에 박지 않고, 없으면 수집을 끈다. 소스맵 업로드는 `SENTRY_AUTH_TOKEN`(EAS 시크릿). 네이티브 모듈이라 runtimeVersion `6`이다(2.1).
   - 서버 쪽은 `backend/architecture.md` 7.6(같은 org, `ear-api`, `error` 등급만).
+  - **백그라운드 재렌더 진단 breadcrumb**(2026-10-19, EAR-APP-K) — `shared/monitoring/background-store-probe.ts`를 `app/bootstrap`이 켠다. 앱이 `active`가 아닌 동안 전역 zustand 스토어(player 묶음 `playerProbeStores`·auth 세션·library 도착·notification·shared 토스트/독/탭)와 TanStack 쿼리 캐시의 갱신 횟수를 스토어·필드별로 세어, 떠날 때·돌아올 때(그리고 500·2,000·10,000·50,000회를 지날 때) breadcrumb `app.background-probe`로 남긴다. **동작은 바꾸지 않는다.** 근거: Android는 액티비티가 내려가 있으면 네이티브 Animated 명령 큐를 비우지 못해, 백그라운드에서 화면을 다시 그리는 코드가 있으면 복귀 첫 프레임에 `createAnimatedNode`를 한꺼번에 실행하다 자바 힙 256MB를 넘긴다. EAR-APP-H(1.1.0)는 백그라운드 재생 틱이 원인이라 #1469로 막았지만, EAR-APP-K(1.2.1)는 백그라운드 재생이 없는데도 같은 자리에서 죽어 원인이 다르다 — 다음 재발의 breadcrumb에서 "어느 스토어의 어느 필드가 몇 번"을 읽어 범인을 찍는다. 값은 횟수·필드 이름만이고 스토어 내용은 넣지 않는다.
 
 ## 9. Security
 

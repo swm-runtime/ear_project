@@ -4,9 +4,12 @@ import {
   syncAdMeasurementPreference,
 } from '@/shared/analytics';
 import { registerTokenProvider } from '@/shared/api/api-client';
-import { setSentryUser } from '@/shared/monitoring';
+import { setSentryUser, startBackgroundStoreProbe } from '@/shared/monitoring';
+import { useTabSelectionStore } from '@/shared/navigation/tab-selection.store';
 import { setColorModeReloadGuard, startColorModeSync } from '@/shared/theme';
+import { useNoticeDockStore } from '@/shared/ui/notice-dock.store';
 import { prefetchRemoteImages } from '@/shared/ui/RemoteImage';
+import { useToastStore } from '@/shared/ui/toast.store';
 
 import { startAppVersionRecheck } from '@/features/app-update';
 import { registerEmailVerifiedListener, sessionService, useSessionStore } from '@/features/auth';
@@ -30,8 +33,10 @@ import {
   startDeviceSync,
   startPushReceiving,
   syncDeviceNow,
+  useNotificationStore,
 } from '@/features/notification';
 import {
+  playerProbeStores,
   registerPlayerLibraryBridge,
   startWithdrawnSync,
   stopPlaybackForSignOut,
@@ -68,6 +73,24 @@ const QUEUE_PAGE_LIMIT = 50;
  */
 export const bootstrapApp = (): void => {
   registerTokenProvider(sessionService);
+  /*
+   * 백그라운드 재렌더 진단(architecture.md 8.4 — EAR-APP-K, 2026-10-19). 앱이 화면에 없는 동안 어느 스토어의 어느
+   * 필드가 몇 번 바뀌었는지만 세어 Sentry breadcrumb 으로 남긴다. 동작은 바꾸지 않는다. feature 안에 둘 수 없는
+   * 이유: 모든 feature 의 스토어를 한곳에서 구독해야 하고, 그건 app 층만 할 수 있다(4.3)
+   */
+  startBackgroundStoreProbe({
+    stores: {
+      ...playerProbeStores,
+      session: useSessionStore,
+      libraryArrival: useLibraryArrivalStore,
+      notification: useNotificationStore,
+      toast: useToastStore,
+      noticeDock: useNoticeDockStore,
+      tabSelection: useTabSelectionStore,
+    },
+    queryCache: queryClient.getQueryCache(),
+    isPlaying: () => usePlaybackStore.getState().session?.isPlaying === true,
+  });
   // 설정 > 광고 측정 허용(KAN-217) — 저장 값을 읽어 Meta SDK 를 맞춘다. 끈 값은 SDK 가 네이티브에도 저장해 두므로
   // 다음 실행부터는 JS 가 뜨기 전 자동 이벤트도 나가지 않는다(근거는 shared/analytics/meta.ts). 실패해도 켜짐으로 본다
   void syncAdMeasurementPreference();
