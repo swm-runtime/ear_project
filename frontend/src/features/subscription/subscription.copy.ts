@@ -241,6 +241,15 @@ const ko = {
     rateLimited: '잠시 후 다시 시도해주세요',
     network: '네트워크 연결을 확인해주세요',
     unknown: '코드를 확인하지 못했어요. 잠시 후 다시 시도해주세요',
+    /**
+     * 유료 구독 중에 코드를 넣기 전 확인(2026-10-19 PM 결정). 서버는 구독 중에도 지급한다(subscription-api.md 4.8-1) — 지급 요금제가
+     * 더 높을 때만 바로 바뀌고, 아니면 구독이 끝난 뒤 남은 기간에 쓰인다. 코드의 요금제는 넣기 전엔 모르므로 일반 문구로 알린다
+     */
+    subscriberConfirmTitle: (planName: string) => `이미 ${planName} 구독 중이에요`,
+    subscriberConfirmMessage:
+      '코드를 넣어도 지금 구독은 그대로 이어져요. 코드 혜택이 지금 요금제보다 높을 때만 바로 바뀌고, 아니면 구독이 끝난 뒤 프로모션 기간까지 혜택이 이어져요',
+    subscriberConfirmOk: '입력하기',
+    subscriberConfirmCancel: '취소',
     backA11y: '뒤로 가기',
   },
 
@@ -427,6 +436,11 @@ const en: LocalizedCopy<typeof ko> = {
     rateLimited: 'Please try again in a moment',
     network: 'Check your network connection',
     unknown: 'Couldn’t check the code. Please try again in a moment',
+    subscriberConfirmTitle: (planName: string) => `You’re already subscribed to ${planName}`,
+    subscriberConfirmMessage:
+      'Your current subscription stays as it is. The code’s benefits apply right away only if they’re above your current plan; otherwise they continue after your subscription ends, until the promotion ends',
+    subscriberConfirmOk: 'Apply',
+    subscriberConfirmCancel: 'Cancel',
     backA11y: 'Back',
   },
 
