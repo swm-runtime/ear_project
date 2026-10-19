@@ -59,6 +59,30 @@ describe('영어 날짜·복수형(KAN-197) — Intl, en-US 기기', () => {
     expect(formatContentDuration(861)).toBe('14 min 21 sec');
   });
 
+  it('주간 비교 두 줄은 짧게 — 화면은 "vs. prior Thursday" · "12h 38m more", 낭독은 풀어 쓴다(2026-10-19 실기기 잘림)', () => {
+    const day = PROFILE_COPY.stats.dayHighlight(
+      { kind: 'moreThanLastWeek', diffSec: 12 * 3600 + 38 * 60 },
+      3,
+      false,
+    );
+    expect(day.lead).toBe('vs. prior Thursday');
+    expect(day.main).toBe('12h 38m more');
+    expect(day.a11y).toBe('You listened 12 hr 38 min more than Thursday the week before');
+    expect(
+      PROFILE_COPY.stats.dayHighlight({ kind: 'moreThanLastWeek', diffSec: 30 }, 3, true).main,
+    ).toBe('<1m more');
+
+    const week = PROFILE_COPY.stats.highlight(
+      { kind: 'moreThanPrevious', diffSec: 45 * 60 },
+      false,
+    );
+    expect(week.lead).toBe('vs. prior week');
+    expect(week.main).toBe('45m more');
+    expect(PROFILE_COPY.stats.highlight({ kind: 'moreThanPrevious', diffSec: 60 }, true).lead).toBe(
+      'vs. last week',
+    );
+  });
+
   it('발행일·공지 날짜는 "Aug 12, 2026"', () => {
     expect(formatPublishedDate(localNoon(2026, 8, 12))).toBe('Aug 12, 2026');
     expect(formatNoticeDate(localNoon(2026, 8, 12))).toBe('Aug 12, 2026');
