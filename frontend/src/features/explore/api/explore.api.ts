@@ -286,8 +286,9 @@ export const saveContent = async (input: {
   track('content_save', { content_id: input.contentId, entry: body.reason });
   const data = IS_EXPLORE_API_MOCKED
     ? await mockSaveContent(input.contentId, body)
-    : (await apiClient.post<SaveContentResponseDto>(`/contents/${input.contentId}/save`, body))
-        .data;
+    : (
+        await apiClient.post<SaveContentResponseDto>(`/contents/${input.contentId}/save`, body)
+      ).data;
   return {
     clientSeq: data.client_seq,
     // 버튼 전환·삭제 호출 재료 — 상세 화면이 응답의 library_item.id를 보관한다(content-detail-api.md 4.2)
