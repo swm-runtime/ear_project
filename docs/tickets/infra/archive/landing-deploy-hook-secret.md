@@ -13,7 +13,7 @@
 | 선행 | 없음(티켓). 사람 손: Vercel 프로젝트 접근 권한(상태: 담당자 보유) |
 | 근거 문서 | `landing-page/README.md` 배포 절(2026-10-08 "배포는 GitHub Actions만 시작한다") · `.github/workflows/landing-daily-rebuild.yml` · `landing-page/vercel.json` |
 | 중요도 | Lowest — 랜딩 코드는 토글 커밋으로 어떻게든 나가고, 주제 데이터 반영 지연은 사용자 기능이 아니다. 다만 10-08부터 조용히 틀려 있는 상태라 한 번은 닫아야 한다 |
-| 상태 | 대기 |
+| 상태 | 반영 — 2026-10-19 |
 
 ## 왜
 
@@ -43,3 +43,12 @@ Vercel git 자동 배포를 다시 켜는 것(10-08에 한도 문제로 끈 결�
 
 ## 처리 기록
 - 2026-10-19 발행(마크다운 + Jira KAN-231). KAN-199(랜딩 영어 페이지) 완료 처리 중 발견 — 199는 운영 반영 확인으로 닫았고 배포 경로 문제는 범위 밖이라 이 티켓으로 분리(PM 결정 2026-10-19 "티켓으로 넘겨").
+- 2026-10-19 **반영 → archive**(박준현). 반영 날짜 2026-10-19.
+  - Vercel Deploy Hook(브랜치 `dev`)을 만들어 repo secret `LANDING_VERCEL_DEPLOY_HOOK`에 넣었다. 처음 `!` 실행으로 넣은 값은 비어 있었다(입력 프롬프트가 뜨지 않음). 그래서 웹 Settings에서 다시 저장했다.
+  - **원인이 하나 더 있었다**: Vercel Production 브랜치가 `main`이라 dev 훅은 Preview만 만들었다. 운영 도메인이 갱신되지 않았고, `should-build`도 Preview에서는 주제 변경 빌드를 건너뛴다. 그동안 운영 반영은 dev 배포를 손으로 Promote해서 했다. → **Production 브랜치를 `dev`로 바꿨다**(사용자 결정 — "dev 커밋이 곧 운영 배포"). `vercel.json`·워크플로는 바꾸지 않았다.
+  - 확인한 것:
+    - `gh secret list`에 있다 ✅
+    - 수동 실행 로그 `Vercel 응답: 201`, "미설정" 문구 없음 ✅
+    - Vercel에 배포가 생겼다가 취소됐다. 랜딩·주제가 그대로라 `should-build`가 건너뛴 것으로, 정상이다 ✅
+  - 남은 확인(Jira 완료 뒤 사후 관찰): 2026-10-20 05:30 스케줄 실행 결과, 다음 랜딩 변경이 dev 머지 시 실제 빌드돼 운영에 나가는지. `landing-page/README.md` 배포 절에 "Production 브랜치 = dev"를 적었다.
+
