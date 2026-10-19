@@ -3,7 +3,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { castVoiceOf, otherSpeaker, pipelineLocale, speakerNames } from "@ear/pipeline";
 import { cfg, executedBy } from "../config.js";
-import { getBacklog, getEpisode, insertRun, pool, setJobProgress, upsertEpisode, type Job } from "../db.js";
+import { enqueue, getBacklog, getEpisode, insertRun, pool, setJobProgress, upsertEpisode, type Job } from "../db.js";
 import { loadTtsDict, workerRev } from "../assets.js";
 import { listPrefix, localPathOf, pullPrefix, pushPrefix, s3Key, storage } from "../storage.js";
 import { advanceChain } from "../chain.js";
@@ -371,7 +371,10 @@ export async function runTts(job: Job) {
   await insertRun({ backlog_id: backlogId, phase: "tts", result: result + usageNote, prompt_version: "tts-v1 (worker)", artifacts, executed_by: executedBy, model: cfg.ttsModel, cost_usd: ttsCost, tokens: { characters: totalChars, context_characters: ctxChars, chunks: chunks.length, duration_sec: Math.round(durationSec), credits: metered ? u.credits : null, requests: u.requests, unmetered: u.unmetered, align_calls: alignCalls, align_fails: alignFails, align_credits: alignCredits }, worker_rev: workerRev() });
   // 샘플은 발행 경로가 아니다 — 연쇄를 잇지 않는다
   const next = sampleTurns ? null : await advanceChain(job);
-  return { episode_id: episodeId, sample: !!sampleTurns, duration_sec: Math.round(durationSec), chunks: chunks.length, chars: totalChars, format: fmt, artifacts, script_segments: segCount, script_segments_skipped: segFail, next: next?.type ?? null };
+  // 글로벌판 자막 (2026-10-19 G261018-013·015): 배속이 1배라 합성 중 정렬을 하지 않아 자막이 비었다 — 배포본을 강제 정렬하는 소급 작업(script_align)을 바로 건다.
+  // 오디오는 다시 만들지 않는다. 한국판은 배속을 써서 합성 중에 자막이 나오므로 걸지 않는다
+  const alignJob = !sampleTurns && !segCount && pipelineLocale() === "en" ? await enqueue({ type: "script_align", requires_ai: false, payload: { episode_id: episodeId, backlog_id: backlogId }, parent_job_id: job.id }) : null;
+  return { episode_id: episodeId, sample: !!sampleTurns, duration_sec: Math.round(durationSec), chunks: chunks.length, chars: totalChars, format: fmt, artifacts, script_segments: segCount, script_segments_skipped: segFail, ...(alignJob ? { script_align_job_id: alignJob } : {}), next: next?.type ?? null };
 }
 
 /**
