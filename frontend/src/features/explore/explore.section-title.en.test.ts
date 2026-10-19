@@ -12,7 +12,7 @@ jest.mock('@/shared/i18n/locale', () => ({
 describe('resolveSectionTitle — 영어 표시(KAN-194 실기기: 서버 한국어 제목이 보였다)', () => {
   it('아는 종류는 서버가 한국어를 줘도 영어 문구', () => {
     expect(resolveSectionTitle({ sectionKey: 'interest', title: '관심사에 맞는 추천' })).toBe(
-      'Recommended for you',
+      'Recommended',
     );
     expect(resolveSectionTitle({ sectionKey: 'new', title: '새로 나온 콘텐츠' })).toBe(
       'New episodes',

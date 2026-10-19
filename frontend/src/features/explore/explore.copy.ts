@@ -150,7 +150,7 @@ const en: LocalizedCopy<typeof ko> = {
   },
 
   sectionTitles: {
-    interest: 'Recommended for you',
+    interest: 'Recommended',
     new: 'New episodes',
     popular: 'Popular',
   },
