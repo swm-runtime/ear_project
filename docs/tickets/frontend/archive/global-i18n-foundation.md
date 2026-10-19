@@ -14,7 +14,7 @@
 | 관련 | FE 2~5번 전부의 선행. BE [KAN-187](https://runtime364.atlassian.net/browse/KAN-187)과 병행 |
 | 근거 문서 | **`spec/api/global-api.md` 2.2 헤더 · 2.3 문자열 소유자(에러는 클라이언트가 `error_code`로 번역)** — 구현은 이 문서를 따르고, 계약이 바뀌면 티켓이 아니라 이 문서를 고친다 · 2026-10-14 글로벌화 조사 |
 | 중요도 | Medium |
-| 상태 | 코드 반영(2026-10-15) — 영어 기기 실측(우선 9화면 스크린샷) 남음 |
+| 상태 | 완료(2026-10-19) — 우선 9화면 실기기 영어 확인 |
 
 > 2026-10-14 발행한 묶음 티켓(BE KAN-185 · FE KAN-183 · AI KAN-184)을 처리 단위로 나눈 것. 결정 사항(같은 앱·기기 언어로 가입 시 1회 시장 판정·한국 트랙 불변·에러 번역은 클라이언트·가격은 스토어·영어 진행자 새 2인·K-컬처 주제 신설·GLOBAL 연령 16세)과 결정 대기(시장 전환 불허)는 `spec/api/global-api.md` 2.1·9장이 원본이다.
 
@@ -52,3 +52,4 @@ RTL · 추가 언어 · 날짜 포맷(4번)
 - 2026-10-18 영어 화면 QA(react-native-web + mock, en-US, 폭 375) 반영(PR `fix(fe)/global-en-layout-qa`) — A4·A20 본문 스크롤 · `ConfirmDialog` 긴 라벨 세로 쌓기 · 설정 "Terms of Service" → 랜딩과 같은 "Terms of Use" · 설정 mock 시장이 세션 시장을 따른다(+`global` 시나리오). 영어 문구 PM 검토 목록 추가: "Manage topics"↔"Manage interests" · 플레이어 구간 "Main" · "Ear Picks" · GLOBAL 의 "Career info" 행 노출(문서에 규칙 없음). 실기기 확인이 남아 pending 유지.
 - 2026-10-18 영어 문구 PM 검토 결과 반영(PM 확정 2026-10-18, PR `feat(fe)/release-1-3-0`) — "Manage topics" → **"Manage interests"** 로 통일(프로필 행·설정 행·낭독 목적지 "Open interest management") · "Ear Picks"·플레이어 구간 "Main" 그대로 · **GLOBAL 시장 계정에는 "Career info" 행을 두지 않는다**(프로필·설정 — 세션 `user.market`, `features/career` `isCareerEntryVisible`. 규칙은 `profile.md` 4.4 · `settings.md` 4.1 · 두 uiux 문서) · 영어 앱 이름 **Earcast**(KAN-198).
 - 2026-10-19 **실기기 확인 중 발견 — 탐색 섹션 제목 한국어**(개발계 · 설정 › 언어 English, PM). 탐색의 "관심사에 맞는 추천"·"새로 나온 콘텐츠"·"인기 콘텐츠"가 한국어였다 — 서버 `EXPLORE_SECTION_TITLES` 한국어 고정을 앱이 그대로 그렸다. 수정(PR `fix(fe)/explore-section-titles-i18n`): 아는 세 종류만 앱 문구(`explore.copy.ts` `sectionTitles` — en "Recommended for you"·"New episodes"·"Popular", ko 는 서버 문자열과 같다), 주제 섹션·모르는 종류는 서버 `title` 그대로(`explore.section-title.ts`). 문서 `explore-uiux.md` 4.1·6장 개정, explore-api 4.1 서술은 `changes/pending/explore-section-title-owner.md`. 남은 화면 확인을 이어서 하므로 pending 유지.
+- 2026-10-19 **완료 — archive**(반영 날짜 2026-10-19). 완료 조건 1 실기기(개발계 · 설정 › 언어 English, PM): 우선 9화면 앱 문구 한국어 0건 — 시작·약관·온보딩(GLOBAL 계정, 앞선 확인) · 라이브러리 · 플레이어 · 탐색(섹션 제목 수정 PR #1719 · OTA `01a152cb` 뒤 영어 확인) · 설정 · 페이월 · 프로필(플랜 줄·통계 이름·주간 차트). 서버가 주는 콘텐츠 제목·주제 이름은 조건 밖(시장별 행 — `global-api.md` 2.3). 조건 2(에러 영어표 누락 테스트) · 3(`Accept-Language`·`X-Timezone` 헤더) · 4(한국어 스냅숏 회귀)는 코드·테스트로 확인.
