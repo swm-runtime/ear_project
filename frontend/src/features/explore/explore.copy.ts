@@ -118,6 +118,57 @@ const ko = {
     a11yHint: '주제 필터',
   },
 
+  /**
+   * 시리즈 카드(KAN-225 — explore-uiux.md 4.1-1). 단일 타일과 같은 크기·격자에 들어가고, 사진 아래 변의 "시리즈" 글자로 가른다.
+   * 편수는 노출 중인 편 수 — 계획보다 적으면(진행 중) "공개 편/계획 편"으로 적는다
+   */
+  seriesCard: {
+    badge: '시리즈',
+    episodeCount: (count: number, total: number) =>
+      count < total ? `${count}/${total}편` : `${count}편`,
+    /** 카드 하단 줄 — 주제가 있으면 `#주제 #주제 · N편`, 없으면 `N편` */
+    meta: (topicNames: string[], count: number, total: number) => {
+      const episodes = count < total ? `${count}/${total}편` : `${count}편`;
+      return topicNames.length > 0
+        ? `${topicNames.map((name) => `#${name}`).join(' ')} · ${episodes}`
+        : episodes;
+    },
+    /** 카드는 재생이 아니라 시리즈 화면을 연다 — 낭독도 "열기"로 끝난다(uiux 7) */
+    a11yLabel: (title: string, count: number, total: number) =>
+      `${title}, 시리즈, ${count < total ? `${total}편 중 ${count}편` : `${count}편`}, 열기`,
+  },
+
+  /** E14 시리즈 화면(KAN-225 — explore.md 4.7 · explore-uiux.md 4.11) */
+  series: {
+    appBarTitle: '시리즈',
+    backA11y: '뒤로 가기',
+    /** 머리의 편수 — 노출 편이 계획보다 적으면(진행 중) "N편 중 M편 공개" */
+    episodeSummary: (count: number, total: number) =>
+      count < total ? `${total}편 중 ${count}편 공개` : `${total}편`,
+    status: { ongoing: '연재 중', completed: '완결' },
+    episodesTitle: '편 목록',
+    episodeNo: (episodeNo: number) => `${episodeNo}화`,
+    /** 편 행의 내 상태 — 서버 값(library·progress)을 글자로 옮긴다. 색만으로 말하지 않는다 */
+    state: {
+      completed: '완청',
+      saved: '담음',
+      remaining: (minutes: number) => `${minutes}분 남음`,
+    },
+    rowA11y: (parts: { episodeNo: number; title: string; minutes: number; state: string | null }) =>
+      [
+        `${parts.episodeNo}화`,
+        parts.title,
+        `${parts.minutes}분`,
+        ...(parts.state ? [parts.state] : []),
+        '재생',
+      ].join(', '),
+    /** 404(없는·다른 시장·노출 편 0개 시리즈 — explore-api.md 4.7) */
+    notFound: {
+      title: '시리즈를 찾을 수 없어요',
+      action: '돌아가기',
+    },
+  },
+
   /** E13 인기 구간 토글 — 라벨은 화면 문구이고 week·month·all은 전송값이다(uiux 6장) */
   popular: {
     periodLabels: { week: '주간', month: '월간', all: '전체' },
@@ -209,6 +260,58 @@ const en: LocalizedCopy<typeof ko> = {
 
   chips: {
     a11yHint: 'Topic filter',
+  },
+
+  seriesCard: {
+    badge: 'Series',
+    episodeCount: (count: number, total: number) =>
+      count < total
+        ? `${count}/${total} episodes`
+        : formatEnCount(count, { one: 'episode', other: 'episodes' }),
+    meta: (topicNames: string[], count: number, total: number) => {
+      const episodes =
+        count < total
+          ? `${count}/${total} episodes`
+          : formatEnCount(count, { one: 'episode', other: 'episodes' });
+      return topicNames.length > 0
+        ? `${topicNames.map((name) => `#${name}`).join(' ')} · ${episodes}`
+        : episodes;
+    },
+    a11yLabel: (title: string, count: number, total: number) =>
+      `${title}, series, ${
+        count < total
+          ? `${count} of ${total} episodes`
+          : formatEnCount(count, { one: 'episode', other: 'episodes' })
+      }, open`,
+  },
+
+  series: {
+    appBarTitle: 'Series',
+    backA11y: 'Back',
+    episodeSummary: (count: number, total: number) =>
+      count < total
+        ? `${count} of ${total} episodes out`
+        : formatEnCount(total, { one: 'episode', other: 'episodes' }),
+    status: { ongoing: 'Ongoing', completed: 'Complete' },
+    episodesTitle: 'Episodes',
+    episodeNo: (episodeNo: number) => `Episode ${episodeNo}`,
+    state: {
+      completed: 'Played',
+      saved: 'In Library',
+      remaining: (minutes: number) => `${minutes} min left`,
+    },
+    rowA11y: (parts: { episodeNo: number; title: string; minutes: number; state: string | null }) =>
+      [
+        `Episode ${parts.episodeNo}`,
+        parts.title,
+        `${parts.minutes} min`,
+        ...(parts.state ? [parts.state] : []),
+        'Play',
+      ].join(', '),
+    notFound: {
+      title: "Couldn't find this series",
+      action: 'Go back',
+    },
   },
 
   popular: {

@@ -78,3 +78,45 @@ describe('content-detail.api — 참고 소스는 읽지 않는다(KAN-221)', ()
     expect(detail.content).not.toHaveProperty('sources');
   });
 });
+
+describe('content-detail.api — 시리즈 줄의 데이터 출처(KAN-225 · content-detail.md 4.3-1)', () => {
+  it('series 객체의 id·title 을 읽는다(KAN-134 1단계 모양 — series_id 가 함께 와도 id 가 먼저다)', async () => {
+    mockGet.mockResolvedValue({
+      data: response(
+        content({
+          series: {
+            series_id: 's1',
+            id: 's1',
+            title: '키워드로 빠르게 배우는 CS 지식',
+            episode_no: 3,
+            total_episodes: 16,
+          },
+        }),
+      ),
+    });
+
+    const detail = await fetchContentDetail({ contentId: 'c1' });
+
+    expect(detail.content.series).toEqual({
+      seriesId: 's1',
+      title: '키워드로 빠르게 배우는 CS 지식',
+      episodeNo: 3,
+      totalEpisodes: 16,
+    });
+  });
+
+  it('구버전 서버(series_id 만, 제목 없음)는 series_id 로 폴백하고 제목은 null 이다', async () => {
+    mockGet.mockResolvedValue({
+      data: response(content({ series: { series_id: 'old', episode_no: 1, total_episodes: 3 } })),
+    });
+
+    const detail = await fetchContentDetail({ contentId: 'c1' });
+
+    expect(detail.content.series).toEqual({
+      seriesId: 'old',
+      title: null,
+      episodeNo: 1,
+      totalEpisodes: 3,
+    });
+  });
+});

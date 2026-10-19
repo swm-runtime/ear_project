@@ -38,20 +38,22 @@ import {
 
 import ExploreSearchScreen from './ExploreSearchScreen';
 import ExploreEmptyState from '../components/ExploreEmptyState';
+import ExploreEntryTile from '../components/ExploreEntryTile';
 import ExploreFeaturedCard from '../components/ExploreFeaturedCard';
 import ExploreMoreSheet from '../components/ExploreMoreSheet';
 import ExploreRingPill from '../components/ExploreRingPill';
 import ExploreSearchBarRow from '../components/ExploreSearchBarRow';
+import ExploreSeriesTile from '../components/ExploreSeriesTile';
 import ExploreSkeleton from '../components/ExploreSkeleton';
-import ExploreTile from '../components/ExploreTile';
 import PeriodCrossfade from '../components/PeriodCrossfade';
 import PopularPeriodToggle from '../components/PopularPeriodToggle';
 import SearchToolbar from '../components/SearchToolbar';
 import TopicChips from '../components/TopicChips';
 import { EXPLORE_COPY } from '../explore.copy';
+import { exploreEntryKey } from '../explore.entry';
 import { buildSectionListKey } from '../explore.section-key';
 import { resolveSectionTitle } from '../explore.section-title';
-import type { ExploreItem, ExploreSection } from '../explore.types';
+import type { ExploreEntry, ExploreSection } from '../explore.types';
 import { useExploreScreen } from '../hooks/useExploreScreen';
 import type { ExploreSearchRequest } from '../hooks/useExploreSearchRequest';
 
@@ -410,21 +412,31 @@ export default function ExploreScreen() {
           <FlatList
             horizontal
             data={section.items}
-            keyExtractor={(item) => item.content.id}
+            keyExtractor={exploreEntryKey}
             renderItem={({ item }) =>
+              // 시리즈 카드는 같은 줄의 타일과 같은 크기로 섞인다 — 인기 줄은 대표 카드, 그 밖은 사각 타일(KAN-225)
               isPopular ? (
-                <ExploreFeaturedCard
-                  item={item}
-                  topicNames={topicNamesOf(item.content.topicIds)}
-                  onPress={screen.handleRowPress}
-                  onMorePress={screen.openMoreSheet}
-                  onTagPress={screen.openTagSearch}
-                />
+                item.type === 'series' ? (
+                  <ExploreSeriesTile
+                    series={item.series}
+                    layout="featured"
+                    onPress={screen.openSeries}
+                  />
+                ) : (
+                  <ExploreFeaturedCard
+                    item={item}
+                    topicNames={topicNamesOf(item.content.topicIds)}
+                    onPress={screen.handleRowPress}
+                    onMorePress={screen.openMoreSheet}
+                    onTagPress={screen.openTagSearch}
+                  />
+                )
               ) : (
-                <ExploreTile
-                  item={item}
+                <ExploreEntryTile
+                  entry={item}
                   onPress={screen.handleRowPress}
                   onMorePress={screen.openMoreSheet}
+                  onSeriesPress={screen.openSeries}
                 />
               )
             }
@@ -487,12 +499,13 @@ export default function ExploreScreen() {
                 cell === null ? (
                   <View key={`spacer-${column}`} style={styles.gridCell} />
                 ) : (
-                  <View key={cell.content.id} style={styles.gridCell}>
-                    <ExploreTile
-                      item={cell}
+                  <View key={exploreEntryKey(cell)} style={styles.gridCell}>
+                    <ExploreEntryTile
+                      entry={cell}
                       layout="grid"
                       onPress={screen.handleRowPress}
                       onMorePress={screen.openMoreSheet}
+                      onSeriesPress={screen.openSeries}
                     />
                   </View>
                 ),
@@ -629,15 +642,15 @@ const CarouselGap = () => <View style={styles.carouselGap} />;
 /** 한 목록(피드 섹션 · 격자 줄)의 항목 */
 type ExploreListItem =
   | { kind: 'section'; section: ExploreSection; index: number }
-  | { kind: 'gridRow'; key: string; items: (ExploreItem | null)[] };
+  | { kind: 'gridRow'; key: string; items: (ExploreEntry | null)[] };
 
 /** 격자 두 칸을 한 줄로 묶는다 — 홀수면 마지막 줄 오른쪽은 빈 칸 */
-const toGridRows = (items: ExploreItem[]): ExploreListItem[] => {
+const toGridRows = (items: ExploreEntry[]): ExploreListItem[] => {
   const rows: ExploreListItem[] = [];
   for (let i = 0; i < items.length; i += 2) {
     rows.push({
       kind: 'gridRow',
-      key: items[i].content.id,
+      key: exploreEntryKey(items[i]),
       items: [items[i], items[i + 1] ?? null],
     });
   }

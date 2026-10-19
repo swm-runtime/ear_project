@@ -18,7 +18,7 @@ import {
 } from '@/features/auth';
 import { CareerInfoScreen } from '@/features/career';
 import { ContentDetailScreen } from '@/features/content-detail';
-import { ExploreScreen, ExploreSearchScreen } from '@/features/explore';
+import { ExploreScreen, ExploreSearchScreen, SeriesScreen } from '@/features/explore';
 import { InterestManagementScreen } from '@/features/interest';
 import {
   DripFeedbackPrompt,
@@ -193,6 +193,9 @@ export default function MainNavigator() {
           component={ExploreSearchScreen}
           options={{ animation: 'none' }}
         />
+        {/* 시리즈 화면(E14, KAN-225) — 앱바(뒤로 + "시리즈")를 화면이 직접 그린다(콘텐츠 상세와 같은 문법).
+          explore 의 카드·content-detail 의 시리즈 줄은 라우트 이름으로만 이동한다(화면 등록은 여기 — 역방향 의존 없음) */}
+        <MainStack.Screen name="Series" component={SeriesScreen} />
         {/* 설정 — 앱바(뒤로 + "설정")를 화면이 직접 그린다(settings-uiux.md 4.1) */}
         {/* 설정 — iOS 26: 시스템 투명 바(뒤로만) + 콘텐츠 큰 제목(PUSHED_SCREEN_HEADER). 그 외: 화면이 앱바를 그린다 */}
         <MainStack.Screen

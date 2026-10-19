@@ -79,6 +79,16 @@ export const useContentDetailScreen = () => {
     navigation.navigate('Main', toTab('Explore', { searchQuery: toTagQuery(tag) }));
   };
 
+  /**
+   * 메타의 시리즈 줄 탭 → 시리즈 화면(E14 — explore.md 4.7, KAN-225). 라우트 이름으로만 이동한다 — 시리즈 화면은 explore 가
+   * 소유하고 등록은 app/navigation 이 한다(content-detail 은 explore 화면을 import 하지 않는다). 시리즈 화면 → 상세에서 다시
+   * 누르면 시리즈 화면이 한 장 더 쌓인다(React Navigation 7 의 navigate 는 현재 화면이 아니면 새로 쌓는다) — 뒤로가기로 차례로
+   * 돌아오므로 그대로 둔다
+   */
+  const openSeries = (seriesId: string) => {
+    navigation.navigate('Main', { screen: 'Series', params: { seriesId } });
+  };
+
   /* ── 회수·404 — 상세를 그리지 않고 안내 후 원 화면 복귀(content-detail.md 4.1·7장, CD4) ── */
   const error = detailQuery.error;
   const redirectErrorCode =
@@ -260,6 +270,7 @@ export const useContentDetailScreen = () => {
     detail,
     // 헤더 해시태그 → 탐색 검색(KAN-219)
     openTagSearch,
+    openSeries,
     // 로딩·오류(CD3) — 앱바는 화면이 먼저 그린다(uiux 4.7)
     isInitialLoading,
     showSkeleton,

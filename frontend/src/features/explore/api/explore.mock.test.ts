@@ -36,7 +36,11 @@ describe('explore mock 검색 — 해시태그 매칭(KAN-218 서버 대역, KAN
 
     // then
     expect(response.items.length).toBeGreaterThan(0);
-    expect(response.items.every((item) => item.content.tags?.includes('뱅크런'))).toBe(true);
+    expect(
+      response.items.every(
+        (item) => item.type !== 'series' && item.content.tags?.includes('뱅크런'),
+      ),
+    ).toBe(true);
   });
 
   it('`#`을 뗀 값이 태그의 일부일 뿐이면 빈 결과 + fallback 이다(정확 일치)', async () => {
@@ -55,7 +59,9 @@ describe('explore mock 검색 — 해시태그 매칭(KAN-218 서버 대역, KAN
     // then
     expect(response.items.length).toBeGreaterThan(0);
     expect(
-      response.items.every((item) => item.content.tags?.some((tag) => tag.includes('뱅크'))),
+      response.items.every(
+        (item) => item.type !== 'series' && item.content.tags?.some((tag) => tag.includes('뱅크')),
+      ),
     ).toBe(true);
   });
 

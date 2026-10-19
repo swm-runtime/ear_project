@@ -20,8 +20,14 @@ import { useDeferredSheetShare } from '@/features/share';
 
 import { exploreKeys } from '../api/explore.api';
 import { EXPLORE_COPY } from '../explore.copy';
+import { isHiddenEntry, withEntryLibraryState } from '../explore.entry';
 import { isSearchableQuery, toSearchQuery } from '../explore.search-query';
-import type { ExploreItem, ExploreLibraryState, ExploreSearchPage } from '../explore.types';
+import type {
+  ExploreItem,
+  ExploreLibraryState,
+  ExploreSearchPage,
+  ExploreSeries,
+} from '../explore.types';
 import { useExploreSearchQuery } from './useExploreSearchQuery';
 import type { ExploreSearchRequest } from './useExploreSearchRequest';
 import { useExploreTopicsQuery } from './useExploreTopicsQuery';
@@ -225,14 +231,14 @@ export const useExploreSearchScreen = (embedding?: ExploreSearchEmbedding) => {
     () =>
       (pages ?? [])
         .flatMap((page) => page.items)
-        .filter((item) => !hiddenContentIds.has(item.content.id)),
+        .filter((item) => !isHiddenEntry(item, hiddenContentIds)),
     [pages, hiddenContentIds],
   );
 
   // 빈 결과의 대체 노출(E7) — 첫 페이지에만 실려 온다(items가 있으면 null)
   const fallback = pages?.[0]?.fallback ?? null;
   const fallbackItems = useMemo(
-    () => (fallback?.popularItems ?? []).filter((item) => !hiddenContentIds.has(item.content.id)),
+    () => (fallback?.popularItems ?? []).filter((item) => !isHiddenEntry(item, hiddenContentIds)),
     [fallback, hiddenContentIds],
   );
 
@@ -291,15 +297,15 @@ export const useExploreSearchScreen = (embedding?: ExploreSearchEmbedding) => {
                 ...old,
                 pages: old.pages.map((page) => ({
                   ...page,
-                  items: page.items.map((item) =>
-                    item.content.id === contentId ? { ...item, library } : item,
-                  ),
+                  items: withEntryLibraryState(page.items, contentId, library),
                   // E7 대체 목록의 행도 담기/제거가 피드와 동일하게 동작한다(uiux 4.6)
                   fallback: page.fallback
                     ? {
                         ...page.fallback,
-                        popularItems: page.fallback.popularItems.map((item) =>
-                          item.content.id === contentId ? { ...item, library } : item,
+                        popularItems: withEntryLibraryState(
+                          page.fallback.popularItems,
+                          contentId,
+                          library,
                         ),
                       }
                     : null,
@@ -377,6 +383,15 @@ export const useExploreSearchScreen = (embedding?: ExploreSearchEmbedding) => {
       },
       'explore',
     );
+  };
+
+  /**
+   * 시리즈 카드 탭 → 시리즈 화면(E14) — 재생이 아니다(explore.md 4.4 예외). 행동으로 이어졌으니 검색어를 저장한다(4.5-4).
+   * 스택 화면(Main)에 올린다 — 검색 상태는 그 아래 그대로 남아 뒤로가기로 돌아온다
+   */
+  const openSeries = (series: ExploreSeries) => {
+    saveActiveQueryAsRecent();
+    navigation.navigate('Main', { screen: 'Series', params: { seriesId: series.id } });
   };
 
   const openMoreSheet = (item: ExploreItem) => {
@@ -552,8 +567,9 @@ export const useExploreSearchScreen = (embedding?: ExploreSearchEmbedding) => {
     isFetchingNextPage: searchQuery.isFetchingNextPage,
     isLoadMoreFailed,
     retryLoadMore: () => void searchQuery.fetchNextPage(),
-    // 재생
+    // 재생 · 시리즈 카드(E14 이동)
     handleRowPress,
+    openSeries,
     playConfirm: playGate.confirmState,
     confirmPlay: playGate.confirmPlay,
     cancelPlayConfirm: playGate.cancelConfirm,

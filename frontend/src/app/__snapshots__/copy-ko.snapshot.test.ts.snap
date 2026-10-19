@@ -304,6 +304,10 @@ exports[`한국어 카피 회귀 — i18n 전환 전과 1:1 CONTENT_DETAIL_COPY 
     "duration": "길이",
     "publishedAt": "발행일",
     "series": "시리즈",
+    "seriesOpenA11y": [
+      "3, 시리즈 보기",
+      "가나다, 시리즈 보기",
+    ],
   },
   "saveFailedToast": "담지 못했어요. 다시 시도해주세요",
   "saveToast": "라이브러리에 담았어요",
@@ -423,6 +427,54 @@ exports[`한국어 카피 회귀 — i18n 전환 전과 1:1 EXPLORE_COPY 1`] = `
     "interest": "관심사에 맞는 추천",
     "new": "새로 나온 콘텐츠",
     "popular": "인기 콘텐츠",
+  },
+  "series": {
+    "appBarTitle": "시리즈",
+    "backA11y": "뒤로 가기",
+    "episodeNo": [
+      "3화",
+      "가나다화",
+    ],
+    "episodeSummary": [
+      "3편",
+      "2026-10-15T00:00:00.000Z편",
+    ],
+    "episodesTitle": "편 목록",
+    "notFound": {
+      "action": "돌아가기",
+      "title": "시리즈를 찾을 수 없어요",
+    },
+    "rowA11y": [
+      "undefined화, , undefined분, 재생",
+      "undefined화, , undefined분, 재생",
+    ],
+    "state": {
+      "completed": "완청",
+      "remaining": [
+        "3분 남음",
+        "가나다분 남음",
+      ],
+      "saved": "담음",
+    },
+    "status": {
+      "completed": "완결",
+      "ongoing": "연재 중",
+    },
+  },
+  "seriesCard": {
+    "a11yLabel": [
+      "3, 시리즈, 3편, 열기",
+      "가나다, 시리즈, 라마편 중 2026-10-15T00:00:00.000Z편, 열기",
+    ],
+    "badge": "시리즈",
+    "episodeCount": [
+      "3편",
+      "가나다편",
+    ],
+    "meta": [
+      "3편",
+      "[throws]",
+    ],
   },
   "sheet": {
     "close": "닫기",

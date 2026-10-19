@@ -15,6 +15,12 @@
  * - empty          콘텐츠 풀 0건 — E8(피드 비어 있음) 검증
  * - popular-error  인기 구간 전환 실패 — E13 인라인 에러 + [다시 시도] 검증(피드는 정상)
  * - search-error   검색 실패 — 직전 결과 유지 + 상단 배너 검증(피드·초기 화면은 정상)
+ * - series-off     서버 스위치 `SERIES_EXPLORE_CARDS_ENABLED` 꺼짐의 대역 — 항목에 `type` 키가 없고 시리즈 편이 편마다 한 줄
+ *                  (`content.series` 만 붙는다). 기본(켜짐)과 비교해 구버전 서버 모양에서도 깨지지 않는지 본다
+ *
+ * 시리즈(KAN-225) — 기본 시나리오는 스위치 **켜짐**의 대역이다(explore-api.md 4.1-1): 피드 섹션·주제별·인기·검색(fallback 포함)에
+ * 시리즈 카드가 섞이고, 모르는 종류(`type: "playlist"`) 한 건이 새로 나온 콘텐츠 섹션에 끼어 있다(화면에서 빠져야 정상).
+ * 시리즈 화면(4.7)은 `series-cs`(6편 계획 중 4편 공개 · 연재 중)·`series-money`(3편 완결). 그 밖의 id 는 404 다
  */
 import { ApiError } from '@/shared/api/api-error';
 import { ERROR_CODES } from '@/shared/api/error-codes';
@@ -30,18 +36,24 @@ import type { ExplorePeriod } from '../explore.types';
 import type {
   ExploreContentDto,
   ExploreContentsResponseDto,
+  ExploreEntryDto,
   ExploreFeedResponseDto,
   ExploreItemDto,
+  ExploreSeriesCardDto,
   ExplorePopularResponseDto,
   ExploreSearchResponseDto,
   ExploreSectionDto,
   ExploreTopicsResponseDto,
   SaveContentRequestDto,
   SaveContentResponseDto,
+  SeriesDetailResponseDto,
+  SeriesEpisodeDto,
   UnsaveContentResponseDto,
 } from './explore.dto';
 
 const SCENARIO = process.env.EXPO_PUBLIC_EXPLORE_MOCK_SCENARIO ?? 'default';
+/** 서버 스위치 `SERIES_EXPLORE_CARDS_ENABLED` 의 대역 — 꺼지면 `type` 키도 시리즈 카드도 없다(explore-api.md 4.1-1) */
+const IS_SERIES_CARDS_ENABLED = SCENARIO !== 'series-off';
 
 const RESPONSE_DELAY_MS = 600;
 const PAGE_SIZE = 20;
@@ -117,15 +129,136 @@ const CONTENT_POOL: ExploreContentDto[] = [
   ...Array.from({ length: 25 }, (_, i) => makeContent(i + 1, false)),
 ];
 
+/* ── 시리즈(explore-api.md 4.1-1 · 4.7) — 편은 CONTENT_POOL 밖에 둔다: 스위치를 켜면 목록에서 카드로 접히기 때문이다 ── */
+
+interface MockSeries {
+  id: string;
+  title: string;
+  description: string;
+  totalEpisodes: number;
+  status: 'ongoing' | 'completed';
+  /** 노출 중인 편의 seq — 1화부터 차례로. totalEpisodes 보다 적으면 진행 중 시리즈다 */
+  episodeSeqs: number[];
+  topic: { id: string; name: string };
+}
+
+const MOCK_SERIES: MockSeries[] = [
+  {
+    id: 'series-cs',
+    title: '키워드로 빠르게 배우는 CS 지식',
+    description:
+      '소프트웨어 개발부터 네트워크·운영체제까지, 개발자 면접에 자주 나오는 키워드를 한 편에 하나씩 짚어 봐요.',
+    totalEpisodes: 6,
+    status: 'ongoing',
+    episodeSeqs: [201, 202, 203, 204],
+    topic: OTHER_TOPICS[0],
+  },
+  {
+    id: 'series-money',
+    title: '사회초년생 돈 공부',
+    description: '첫 월급부터 연말정산까지, 처음 겪는 돈 문제를 세 편으로 정리했어요.',
+    totalEpisodes: 3,
+    status: 'completed',
+    episodeSeqs: [211, 212, 213],
+    topic: INTEREST_TOPICS[0],
+  },
+];
+
+const SERIES_EPISODE_SUBTITLES = [
+  '소프트웨어를 만드는 방법',
+  '프로세스와 스레드',
+  '네트워크의 계층',
+  '데이터베이스 인덱스',
+];
+
+const makeSeriesEpisode = (series: MockSeries, seq: number): ExploreContentDto => {
+  const episodeNo = series.episodeSeqs.indexOf(seq) + 1;
+  const subtitle = SERIES_EPISODE_SUBTITLES[(episodeNo - 1) % SERIES_EPISODE_SUBTITLES.length];
+  return {
+    id: `content-${seq}`,
+    // 편 제목에 시리즈 이름이 들어 있다 — 시리즈 이름을 따로 보여도 제목을 줄이지 않는다(KAN-225 결정)
+    title: `${series.title} ${episodeNo} - ${subtitle}`,
+    author_name: null,
+    source_name: '이어 스튜디오',
+    source_url: getMockSourceUrl(`content-${seq}`),
+    duration_sec: 900 + episodeNo * 120,
+    thumbnail_url: `https://picsum.photos/seed/content-${seq}/200`,
+    content_version: 1,
+    topic_ids: [series.topic.id],
+    tags: ['CS', '개발'],
+    series: {
+      id: series.id,
+      title: series.title,
+      episode_no: episodeNo,
+      total_episodes: series.totalEpisodes,
+    },
+  };
+};
+
+const SERIES_EPISODES: ExploreContentDto[] = MOCK_SERIES.flatMap((series) =>
+  series.episodeSeqs.map((seq) => makeSeriesEpisode(series, seq)),
+);
+
 const findContent = (contentId: string): ExploreContentDto | null =>
-  CONTENT_POOL.find((c) => c.id === contentId) ?? null;
+  CONTENT_POOL.find((c) => c.id === contentId) ??
+  SERIES_EPISODES.find((c) => c.id === contentId) ??
+  null;
 
 /** 담김·카운트 상태는 저장하지 않고 매 응답에서 브리지로 다시 읽는다 — 서버 조인의 대역 */
 const toItemDto = (content: ExploreContentDto): ExploreItemDto => ({
+  // 스위치가 꺼진 서버는 `type` 키를 보내지 않는다 — 없을 때도 콘텐츠 행으로 읽히는지 series-off 로 본다
+  ...(IS_SERIES_CARDS_ENABLED ? { type: 'content' as const } : {}),
   content,
   library: getMockLibraryItemByContentId(content.id),
   is_counted_today: isMockCountedToday(content.id),
 });
+
+const findSeries = (seriesId: string): MockSeries | null =>
+  MOCK_SERIES.find((series) => series.id === seriesId) ?? null;
+
+const toSeriesCardDto = (series: MockSeries): ExploreSeriesCardDto => ({
+  type: 'series',
+  series: {
+    id: series.id,
+    title: series.title,
+    description: series.description,
+    total_episodes: series.totalEpisodes,
+    episode_count: series.episodeSeqs.length,
+    status: series.status,
+    thumbnail_url: `https://picsum.photos/seed/content-${series.episodeSeqs[0]}/200`,
+    topic_ids: [series.topic.id],
+  },
+});
+
+/**
+ * 목록 자리에 시리즈를 끼운다 — 켜짐이면 카드 하나, 꺼짐이면 노출 편 전부를 편마다 한 줄로(explore-api.md 4.1-1).
+ * `at` 은 카드의 자리(서버의 "시리즈 편 중 가장 앞 편의 자리" 대역)
+ */
+const withSeries = (
+  entries: ExploreEntryDto[],
+  seriesId: string,
+  at: number,
+): ExploreEntryDto[] => {
+  const series = findSeries(seriesId);
+  if (!series) return entries;
+  const inserted: ExploreEntryDto[] = IS_SERIES_CARDS_ENABLED
+    ? [toSeriesCardDto(series)]
+    : series.episodeSeqs.map((seq) => toItemDto(makeSeriesEpisode(series, seq)));
+  return [...entries.slice(0, at), ...inserted, ...entries.slice(at)];
+};
+
+/** 목록 항목의 커서 키 — 콘텐츠 행은 content id, 시리즈 카드는 시리즈 id(대역 전용 — 실서버 커서 모양과 무관) */
+const entryCursorKey = (entry: ExploreEntryDto): string =>
+  entry.type === 'series' ? entry.series.id : entry.content.id;
+
+/**
+ * 모르는 항목 종류의 대역 — 서버가 새 `type` 을 더해도 화면이 그 항목만 건너뛰는지 본다(explore-api.md 4.1-1 "모르는 type 은
+ * 건너뛴다"). 타입에 없는 모양이라 단언으로 끼운다
+ */
+const UNKNOWN_ENTRY = {
+  type: 'playlist',
+  playlist: { id: 'playlist-1', title: '모르는 종류' },
+} as unknown as ExploreEntryDto;
 
 const itemsBySeqs = (seqs: number[]): ExploreItemDto[] =>
   seqs
@@ -147,6 +280,12 @@ const POPULAR_SEQS: Record<ExplorePeriod, number[]> = {
   ],
 };
 
+/** 구간별 인기 목록의 항목 — 월간·전체에는 CS 시리즈가, 주간에는 돈 공부 시리즈가 섞인다 */
+const popularEntries = (period: ExplorePeriod): ExploreEntryDto[] => {
+  const items = itemsBySeqs(POPULAR_SEQS[period]);
+  return withSeries(items, period === 'week' ? 'series-money' : 'series-cs', 1);
+};
+
 export const mockFetchFeed = async (): Promise<ExploreFeedResponseDto> => {
   await delay(RESPONSE_DELAY_MS);
 
@@ -163,15 +302,26 @@ export const mockFetchFeed = async (): Promise<ExploreFeedResponseDto> => {
       topic: null,
       // 피드의 인기 섹션은 기본 구간(월간)으로 내려가고 period로 그것을 알린다(explore-api.md 4.1)
       period: 'month',
-      items: itemsBySeqs(POPULAR_SEQS.month.slice(0, 6)),
+      // 인기 목록 첫 페이지와 같은 자리 — 대표 카드 줄에 시리즈 카드가 섞인다
+      items: popularEntries('month').slice(0, 6),
     },
     { key: 'interest', title: '관심사에 맞는 추천', topic: null, items: itemsBySeqs([101, 2, 102, 5, 103, 8]) },
-    { key: 'new', title: '새로 나온 콘텐츠', topic: null, items: itemsBySeqs([110, 111, 112, 113, 114, 115]) },
+    {
+      key: 'new',
+      title: '새로 나온 콘텐츠',
+      topic: null,
+      // 시리즈 카드 + 모르는 종류 한 건(켜짐) — 모르는 종류는 화면에서 빠져야 한다
+      items: [
+        ...withSeries(itemsBySeqs([110, 111, 112, 113, 114, 115]), 'series-money', 0),
+        ...(IS_SERIES_CARDS_ENABLED ? [UNKNOWN_ENTRY] : []),
+      ],
+    },
     {
       key: 'topic_group',
       title: '커리어',
       topic: { id: 'topic-career', name: '커리어' },
-      items: itemsBySeqs([105, 10, 15, 110, 25]),
+      // 같은 시리즈가 섹션마다 따로 접혀 두 섹션에 각각 나온다(explore-api.md 4.1-1)
+      items: withSeries(itemsBySeqs([105, 10, 15, 110, 25]), 'series-money', 1),
     },
     // topic_group을 반드시 2개 이상 둔다 — 같은 key의 섹션이 반복되는 실서버 모양의 재현이며,
     // 섹션 React key 충돌 회귀를 mock에서 잡기 위한 케이스다(2026-08-08 통합 테스트 발견)
@@ -192,13 +342,19 @@ export const mockFetchContents = async (params: {
 }): Promise<ExploreContentsResponseDto> => {
   await delay(RESPONSE_DELAY_MS);
 
-  // 주제끼리는 OR — "이 중 아무거나"다(explore-api.md 4.2)
+  // 주제끼리는 OR — "이 중 아무거나"다(explore-api.md 4.2). 시리즈는 편 단위로 걸고 카드 하나로 접는다(4.1-1)
+  const matches = (topicIds: string[]) => topicIds.some((id) => params.topicIds.includes(id));
   const pool =
     SCENARIO === 'empty'
       ? []
-      : CONTENT_POOL.filter((c) => c.topic_ids.some((id) => params.topicIds.includes(id)));
+      : MOCK_SERIES.filter((series) => matches([series.topic.id])).reduce(
+          (entries, series) => withSeries(entries, series.id, 0),
+          CONTENT_POOL.filter((c) => matches(c.topic_ids)).map(toItemDto) as ExploreEntryDto[],
+        );
 
-  const startIndex = params.cursor ? pool.findIndex((c) => c.id === params.cursor) + 1 : 0;
+  const startIndex = params.cursor
+    ? pool.findIndex((entry) => entryCursorKey(entry) === params.cursor) + 1
+    : 0;
   if (params.cursor !== undefined && startIndex === 0) {
     throw new ApiError(
       ERROR_CODES.EXPLORE_CURSOR_INVALID,
@@ -213,8 +369,8 @@ export const mockFetchContents = async (params: {
   const hasNext = startIndex + PAGE_SIZE < pool.length;
 
   return {
-    items: page.map(toItemDto),
-    next_cursor: hasNext ? page[page.length - 1].id : null,
+    items: page,
+    next_cursor: hasNext ? entryCursorKey(page[page.length - 1]) : null,
     has_next: hasNext,
     ...mockPlayLimitFields(),
   };
@@ -240,14 +396,11 @@ export const mockFetchPopular = async (params: {
 
   // 기본 구간의 소유자는 서버다(explore-api.md 4.2-1) — 미전송 해석은 서버 대역인 여기서만 한다
   const period = params.period ?? 'month';
-  const pool =
-    SCENARIO === 'empty'
-      ? []
-      : POPULAR_SEQS[period]
-          .map((seq) => findContent(`content-${seq}`))
-          .filter((c): c is ExploreContentDto => c !== null);
+  const pool = SCENARIO === 'empty' ? [] : popularEntries(period);
 
-  const startIndex = params.cursor ? pool.findIndex((c) => c.id === params.cursor) + 1 : 0;
+  const startIndex = params.cursor
+    ? pool.findIndex((entry) => entryCursorKey(entry) === params.cursor) + 1
+    : 0;
   // 발급 시점과 다른 period의 커서도 여기에 걸린다 — 다른 구간 목록에는 그 id 위치가 없다
   if (params.cursor !== undefined && startIndex === 0) {
     throw new ApiError(
@@ -264,8 +417,8 @@ export const mockFetchPopular = async (params: {
 
   return {
     period,
-    items: page.map(toItemDto),
-    next_cursor: hasNext ? page[page.length - 1].id : null,
+    items: page,
+    next_cursor: hasNext ? entryCursorKey(page[page.length - 1]) : null,
     has_next: hasNext,
     ...mockPlayLimitFields(),
   };
@@ -291,7 +444,7 @@ const searchScore = (content: ExploreContentDto, query: string): number => {
   let score = 0;
   if (normalizeForSearch(content.title).includes(query)) score += 8;
   if ((content.tags ?? []).some((tag) => normalizeForSearch(tag).includes(query))) score += 4;
-  if (normalizeForSearch(content.author_name).includes(query)) score += 2;
+  if (normalizeForSearch(content.author_name ?? '').includes(query)) score += 2;
   if (topicNamesOf(content).some((name) => normalizeForSearch(name).includes(query))) score += 1;
   return score;
 };
@@ -331,7 +484,26 @@ export const mockFetchSearch = async (params: {
   }
 
   const query = normalizeForSearch(term);
-  const pool =
+  /*
+   * 시리즈 — 편 단위로 걸고 카드 하나로 접는다(explore-api.md 4.1-1). 켜짐이면 시리즈 제목 일치도 든다(가중은 제목과 같다).
+   * 태그 전용 검색은 태그만 본다. 대역이라 맞는 시리즈는 결과 맨 앞에 둔다
+   */
+  const matchedSeries =
+    SCENARIO === 'empty'
+      ? []
+      : MOCK_SERIES.filter((series) => {
+          const episodes = SERIES_EPISODES.filter((c) => c.series?.id === series.id);
+          if (isTagMode) {
+            return episodes.some((c) =>
+              (c.tags ?? []).some((tag) => normalizeForSearch(tag) === query),
+            );
+          }
+          return (
+            (IS_SERIES_CARDS_ENABLED && normalizeForSearch(series.title).includes(query)) ||
+            episodes.some((c) => searchScore(c, query) > 0)
+          );
+        });
+  const contentPool =
     SCENARIO === 'empty'
       ? []
       : isTagMode
@@ -343,6 +515,10 @@ export const mockFetchSearch = async (params: {
             .filter((entry) => entry.score > 0)
             .sort((a, b) => b.score - a.score)
             .map((entry) => entry.content);
+  const pool = matchedSeries.reduce(
+    (entries, series) => withSeries(entries, series.id, 0),
+    contentPool.map(toItemDto) as ExploreEntryDto[],
+  );
 
   // 빈 결과 — 같은 응답에 fallback을 싣는다(explore-api.md 4.5). 관련 주제·인기 목록은 대역 값이다
   if (pool.length === 0) {
@@ -353,12 +529,15 @@ export const mockFetchSearch = async (params: {
       has_next: false,
       fallback: {
         related_topics: isEmptyPool ? [] : [INTEREST_TOPICS[0], OTHER_TOPICS[0]],
-        popular_items: isEmptyPool ? [] : itemsBySeqs(POPULAR_SEQS.month.slice(0, 5)),
+        // fallback 인기 목록도 같은 규칙으로 접힌다 — 시리즈 카드가 섞인다(explore-api.md 4.1-1)
+        popular_items: isEmptyPool ? [] : popularEntries('month').slice(0, 5),
       },
     };
   }
 
-  const startIndex = params.cursor ? pool.findIndex((c) => c.id === params.cursor) + 1 : 0;
+  const startIndex = params.cursor
+    ? pool.findIndex((entry) => entryCursorKey(entry) === params.cursor) + 1
+    : 0;
   // 발급 시점과 다른 query의 커서도 여기에 걸린다(explore-api.md 4.5 에러 표)
   if (params.cursor !== undefined && startIndex === 0) {
     throw new ApiError(
@@ -374,8 +553,8 @@ export const mockFetchSearch = async (params: {
   const hasNext = startIndex + PAGE_SIZE < pool.length;
 
   return {
-    items: page.map(toItemDto),
-    next_cursor: hasNext ? page[page.length - 1].id : null,
+    items: page,
+    next_cursor: hasNext ? entryCursorKey(page[page.length - 1]) : null,
     has_next: hasNext,
     fallback: null,
   };
@@ -422,7 +601,7 @@ export const mockSaveContent = async (
 
   const result = mockSaveLibraryItemByContent(contentId, {
     title: content.title,
-    authorName: content.author_name,
+    authorName: content.author_name ?? '',
     sourceName: content.source_name,
     durationSec: content.duration_sec,
     topicIds: content.topic_ids,
@@ -443,4 +622,55 @@ export const mockUnsaveContent = async (
   // 대상이 없어도 200 — 큐 재전송을 실패시키지 않는다(explore-api.md 4.4)
   mockUnsaveLibraryItemByContent(contentId);
   return { client_seq: clientSeq };
+};
+
+/**
+ * 시리즈 화면의 첫 상태 대역 — 라이브러리 mock 에 아직 없는 편에도 완청·재생 중·담음 세 상태가 처음부터 보이게 한다.
+ * 라이브러리 mock 에 그 편이 생기면(재생·담기) 그쪽 담김 값이 이긴다
+ */
+const SERIES_SEED_STATE: Record<string, Pick<SeriesEpisodeDto, 'library' | 'progress'>> = {
+  'content-201': {
+    library: { item_id: 'library-item-content-201', source: 'save', status: 'completed' },
+    progress: { position_sec: 1020, max_reached_sec: 1020 },
+  },
+  'content-202': {
+    library: { item_id: 'library-item-content-202', source: 'save', status: 'in_progress' },
+    progress: { position_sec: 372, max_reached_sec: 372 },
+  },
+  'content-203': {
+    library: { item_id: 'library-item-content-203', source: 'drip', status: 'unplayed' },
+    progress: null,
+  },
+};
+
+/** GET /series/:series_id 의 대역(explore-api.md 4.7) — 없는 시리즈는 404 NOT_FOUND */
+export const mockFetchSeriesDetail = async (seriesId: string): Promise<SeriesDetailResponseDto> => {
+  await delay(RESPONSE_DELAY_MS);
+
+  const series = findSeries(seriesId);
+  if (!series) {
+    throw new ApiError(ERROR_CODES.NOT_FOUND, '시리즈를 찾을 수 없어요', false, null, null, 404);
+  }
+
+  return {
+    series: {
+      id: series.id,
+      title: series.title,
+      description: series.description,
+      total_episodes: series.totalEpisodes,
+      status: series.status,
+      thumbnail_url: `https://picsum.photos/seed/content-${series.episodeSeqs[0]}/200`,
+    },
+    episodes: series.episodeSeqs.map((seq) => {
+      const content = makeSeriesEpisode(series, seq);
+      const seed = SERIES_SEED_STATE[content.id];
+      return {
+        episode_no: content.series?.episode_no ?? 0,
+        content,
+        library: getMockLibraryItemByContentId(content.id) ?? seed?.library ?? null,
+        progress: seed?.progress ?? null,
+        is_counted_today: isMockCountedToday(content.id),
+      };
+    }),
+  };
 };
