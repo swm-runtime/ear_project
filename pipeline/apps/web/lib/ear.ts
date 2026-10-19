@@ -157,6 +157,15 @@ export const deleteEarTopic = (id: string) => earFetch<void>(`/admin/topics/${id
 
 /** 이 콘솔 인스턴스의 시장(kr·global) — 서버 레이아웃이 <html data-market> 에 적는다. 제품 서버 하나를 두 시장이 같이 쓰므로 목록은 시장으로 가른다(admin-api 4.5) */
 const consoleMarket = (): string | undefined => (typeof document !== "undefined" ? document.documentElement.dataset.market : undefined);
+
+/**
+ * 발행 payload 의 시장·언어 (global-api 4.9 · BE KAN-190 1단계, 2026-10-19 BE 요청) — 허용 조합은 kr+ko, global+en 뿐이다.
+ * 두 트랙 모두 명시해서 보낸다: 서버가 필수로 바꾸면(KAN-190 2단계) 빠진 쪽이 400 이 되고, 지금 빠뜨리면 GLOBAL 콘텐츠가 kr·ko 로 저장된다.
+ * 인스턴스 시장을 모르면(서버 렌더 등) 한국판으로 둔다 — 레이아웃이 늘 <html data-market> 을 적으므로 브라우저 발행에서는 일어나지 않는다
+ */
+export function contentMarket(market: string | undefined): { market: "kr" | "global"; language: "ko" | "en" } {
+  return market === "global" ? { market: "global", language: "en" } : { market: "kr", language: "ko" };
+}
 export const listEarContents = (status: string, offset: number, limit = 20) => {
   const market = consoleMarket();
   return earFetch<{ items: EarContent[]; total: number }>(`/admin/contents?offset=${offset}&limit=${limit}${status ? `&status=${status}` : ""}${market ? `&market=${market}` : ""}`);
@@ -182,6 +191,7 @@ export interface UploadPayload {
   author_name?: string; source_url?: string; partner_id?: string; license_expires_at?: string;
   series_id?: string; episode_no?: number; total_episodes?: number;
   review_confirmed: boolean;
+  market?: "kr" | "global"; language?: "ko" | "en"; // 비우면 uploadEarContent 가 이 콘솔 인스턴스의 값으로 채운다 (contentMarket)
 }
 
 /** 재발행 — 같은 content_id 에 오디오(·메타) 교체, content_version +1 (admin-api 4.10 — 백엔드 구현 대기: 404 면 아직 없는 것) */
@@ -198,7 +208,7 @@ export function republishEarContent(contentId: string, parts: { audio?: File; lo
 
 export function uploadEarContent(payload: UploadPayload, audio: File, thumbnail: File, enrichment?: File | null, script?: File | null, lossless?: File | null): Promise<EarContent> {
   const fd = new FormData();
-  fd.append("payload", JSON.stringify(payload));
+  fd.append("payload", JSON.stringify({ ...contentMarket(consoleMarket()), ...payload }));
   fd.append("audio", audio);
   if (lossless) fd.append("audio_lossless", lossless); // 무손실(Pro, KAN-141·142) — lib/audio-file.ts 스위치
   fd.append("thumbnail", thumbnail);
