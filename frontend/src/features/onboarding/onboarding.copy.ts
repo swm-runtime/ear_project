@@ -115,7 +115,7 @@ const en: LocalizedCopy<typeof ko> = {
     jobTitleClearA11y: 'Clear role',
     yearsLabel: 'Experience',
     yearsOption: {
-      '0-1': '1 year or less',
+      '0-1': '0–1 year',
       '2-3': '2–3 years',
       '4-6': '4–6 years',
       '7+': '7+ years',
