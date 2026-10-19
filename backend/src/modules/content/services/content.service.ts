@@ -529,10 +529,12 @@ export class ContentService {
   async findTopicViews(
     contentIds: string[],
     manager?: EntityManager,
+    market?: UserMarket,
   ): Promise<ContentTopicView[]> {
     return this.contentTopicRepository.findViewsByContentIds(
       contentIds,
       manager,
+      market,
     );
   }
 

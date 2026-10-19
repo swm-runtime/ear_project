@@ -46,7 +46,8 @@ export class TokenService {
   /** access token은 저장하지 않고 stateless로 검증한다 (architecture.md 9.1) */
   issueAccessToken(user: User, now: Date): IssuedToken {
     const token = this.jwtService.sign(
-      // market은 가입 시 1회 정해져 불변이라 클레임으로 싣는다(global-api.md 2.1) — 요청마다 users를 읽지 않는다
+      // market을 클레임으로 싣는다(global-api.md 2.1) — 요청마다 users를 읽지 않는다. 바뀌는 길은 시장 전환(4.11)뿐이고,
+      // 전환은 응답에 새 토큰을 준다. 같은 계정의 다른 기기는 다음 갱신(최대 TTL)까지 이전 시장이다(7장 예외)
       {
         sub: user.id,
         role: user.role,

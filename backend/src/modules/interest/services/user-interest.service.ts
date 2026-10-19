@@ -268,6 +268,30 @@ export class UserInterestService {
     return topicIds;
   }
 
+  /**
+   * 시장 전환(`global-api.md` 4.11) — 활성 관심사를 **출처와 무관하게 전부** 내린다. 주제는 시장별 행이라 이전 시장 주제가
+   * 남으면 새 시장 후보와 교집합이 0이 되어 드립이 끊긴다. 행은 지우지 않고(위 규칙), 되돌아와도 되살리지 않는다 — 사용자는
+   * 재온보딩에서 다시 고른다. `is_user_removed`는 건드리지 않는다(사용자가 뺀 것이 아니다). 내린 개수를 돌려준다.
+   */
+  async deactivateAllForMarketChange(
+    userId: string,
+    now: Date,
+    manager: EntityManager,
+  ): Promise<number> {
+    const active = await this.userInterestRepository.findAllActiveByUserId(
+      userId,
+      manager,
+    );
+
+    for (const interest of active) {
+      interest.isActive = false;
+      interest.deactivatedAt = now;
+    }
+    await this.userInterestRepository.saveAll(active, manager);
+
+    return active.length;
+  }
+
   async purgeByUserId(userId: string, manager?: EntityManager): Promise<void> {
     await this.userInterestRepository.deleteByUserId(userId, manager);
   }

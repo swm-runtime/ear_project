@@ -11,7 +11,6 @@ import { EnvironmentVariables } from '@/config/env.validation';
 import { ConsentService } from './consent.service';
 import { User } from '../entities/user.entity';
 import {
-  messageLanguageOf,
   normalizeLanguageCode,
   normalizeLocale,
   resolveMarket,
@@ -23,7 +22,6 @@ import {
 import { currentConsentVersionOf } from '../policies/consent.policy';
 import { REQUIRED_CONSENT_TYPES_BY_MARKET } from '../user.constant';
 import {
-  MessageLanguage,
   OnboardingStep,
   SocialProvider,
   UserMarket,
@@ -72,13 +70,14 @@ export class UserService {
     return this.userRepository.findDripTargetsPage(afterId, limit, manager);
   }
 
-  /** 사용자별 서버 문구 언어(`global-api.md` 2.3 — 시장으로 고른다). 없는 사용자는 결과에 없다 */
-  async findMessageLanguagesByIds(
-    ids: string[],
-  ): Promise<Map<string, MessageLanguage>> {
+  /**
+   * 사용자별 **현재** 시장 — 서버 문구 언어(`global-api.md` 2.3 — 시장으로 고른다)와, 시장을 바꾼 사용자의 이전 시장
+   * 적립분을 알림에서 빼는 판정(4.11)이 함께 쓴다. 없는 사용자는 결과에 없다
+   */
+  async findMarketsByIds(ids: string[]): Promise<Map<string, UserMarket>> {
     const rows = await this.userRepository.findMarketsByIds(ids);
 
-    return new Map(rows.map((row) => [row.id, messageLanguageOf(row.market)]));
+    return new Map(rows.map((row) => [row.id, row.market]));
   }
 
   /** 편성 미리보기(admin) — 이메일로 대상 사용자 한 명. 역할 무관, 없으면 null */
@@ -245,7 +244,7 @@ export class UserService {
         status: UserStatus.ACTIVE,
         onboardingCompleted: false,
         onboardingStep: OnboardingStep.TOPIC,
-        // 시장은 여기서 1회 정한다(global-api.md 2.1). 로그인·기기 등록은 바꾸지 못한다
+        // 시장은 여기서 1회 정한다(global-api.md 2.1). 로그인·기기 등록은 바꾸지 못하고, 이후엔 시장 전환(4.11)으로만 바뀐다
         market: resolved.market,
         languageCode: locale.languageCode,
         regionCode: locale.regionCode,

@@ -160,6 +160,8 @@ export type ChurnMetrics = {
   }[];
   /** 앱 삭제 — GA4 `app_remove`(운영 스트림). Android 만 올라온다 */
   appRemoves: number;
+  /** 시장 전환 — **서버 값**(`user_market_changes`, 2026-10-19). 방향별 건수. 없으면 빈 배열 */
+  marketChanges?: { from: UserMarket; to: UserMarket; count: number }[];
 };
 
 /** 탈퇴 화면의 선택지 문구와 같다(`auth-uiux.md` 탈퇴 사유). 순서도 화면 순서 — 건수가 같을 때 이 순서로 놓는다 */
@@ -222,8 +224,24 @@ export function formatChurnReport(
     `*탈퇴*      ${n(total)}명 (${markets.map((x) => `${MARKET_LABEL[x.market]} ${n(x.count)}`).join(' · ')})`,
     ...sections,
     `*앱 삭제*  Android ${n(m.appRemoves)}`,
+    ...marketChangeLine(m.marketChanges ?? []),
     `_어제 = KST 00~24시 · 탈퇴는 서버 값(탈퇴 당시 시장) · 앱 삭제는 GA4 app_remove 운영 스트림 — iOS 는 삭제 이벤트가 없어 세지 않는다_`,
   ].join('\n');
+}
+
+/**
+ * 시장 전환 줄(`global-api.md` 4.11) — 전환이 있던 날만 적는다. 기능이 꺼져 있는 동안 보고 모양이 바뀌지 않게 한다.
+ * 시장 이탈이라 이탈 보고에 둔다(계정은 남지만 그 시장에서는 빠져나갔다).
+ */
+function marketChangeLine(
+  changes: { from: UserMarket; to: UserMarket; count: number }[],
+): string[] {
+  const rows = changes.filter((c) => c.count > 0);
+  if (rows.length === 0) return [];
+  const label = rows
+    .map((c) => `${MARKET_LABEL[c.from]}→${MARKET_LABEL[c.to]} ${n(c.count)}`)
+    .join(' · ');
+  return [`*시장 전환*  ${label}`];
 }
 
 /**

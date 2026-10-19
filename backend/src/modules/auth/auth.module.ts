@@ -49,5 +49,7 @@ import { TokenService } from './services/token.service';
     // 개발 환경에서만 레지스트리가 꺼내 쓴다 (dev.client.ts)
     DevClient,
   ],
+  // 시장 전환(`market-change` — global-api.md 4.11)이 바뀐 시장을 담은 access token을 다시 발급한다
+  exports: [TokenService],
 })
 export class AuthModule {}

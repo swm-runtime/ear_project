@@ -86,6 +86,16 @@ export enum ErrorCode {
    * 저장. 정상 UI에서는 나올 수 없는 상태라 클라이언트는 공통 문구로 처리한다. 409·재시도 불가
    */
   MARKET_MISMATCH = 'MARKET_MISMATCH',
+  /**
+   * 시장 전환(`global-api.md` 4.11)의 목표 시장이 지금 열려 있지 않다 — 노출 주제 0개, GLOBAL 가입 스위치 닫힘, 전환 스위치
+   * 꺼짐. 고를 콘텐츠가 없는 시장으로 옮기면 온보딩에서 멈춘다. 409·재시도 불가
+   */
+  MARKET_UNAVAILABLE = 'MARKET_UNAVAILABLE',
+  /**
+   * 같은 서비스 날짜(05:00 KST)에 두 번째 전환(4.11). 응답 `retry_after_sec`가 다음 05:00까지다. 몇 시간 뒤라 자동 재시도
+   * 대상이 아니다 — 429·재시도 불가(`EMAIL_VERIFICATION_RESEND_COOLDOWN`과 같다)
+   */
+  MARKET_CHANGE_COOLDOWN = 'MARKET_CHANGE_COOLDOWN',
 
   // --- 커리어 정보 (career-api.md 5장) ---
   /**

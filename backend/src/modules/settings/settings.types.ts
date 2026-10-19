@@ -18,7 +18,7 @@ export interface SettingsAccountView {
   /** `null`이면 "등록되지 않음". 값이 있는데 미인증이면 "인증되지 않음" 배지다 */
   email: string | null;
   isEmailVerified: boolean;
-  /** 시장(읽기 전용 — `global-api.md` 4.3). 설정에서 바꿀 수 없다 */
+  /** 시장(읽기 전용 — `global-api.md` 4.3). 바꾸는 것은 설정 PATCH가 아니라 시장 전환 API(4.11)다 */
   market: UserMarket;
   /** 표시 언어(BCP 47). `PATCH language_code`로 바뀐다 */
   languageCode: string | null;

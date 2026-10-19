@@ -137,9 +137,20 @@ export class UserOnboardingService {
   ): Promise<User> {
     user.onboardingCompleted = true;
     user.onboardingStep = OnboardingStep.DONE;
-    user.onboardingCompletedAt = now;
+    // 처음 완료 시각을 유지한다 — 시장 전환 뒤 재온보딩(`global-api.md` 4.11)이 덮어쓰면 가입 퍼널의 완료일이 옮겨 간다
+    user.onboardingCompletedAt ??= now;
 
     return this.userRepository.save(user, manager);
+  }
+
+  /**
+   * 시장 전환(`global-api.md` 4.11) — 새 시장의 주제를 고르도록 **주제 단계로 되돌린다.** "앞으로만 전진"(`advanceStep`)의 유일한
+   * 예외이고, 저장은 호출부(`UserMarketChangeService.apply`)가 같은 트랜잭션에서 한다. 커리어 값과 처음 완료 시각은 남긴다 —
+   * 되돌아왔을 때 다시 묻지 않고, 퍼널 집계가 흔들리지 않게.
+   */
+  restartForMarketChange(user: User): void {
+    user.onboardingCompleted = false;
+    user.onboardingStep = OnboardingStep.TOPIC;
   }
 }
 

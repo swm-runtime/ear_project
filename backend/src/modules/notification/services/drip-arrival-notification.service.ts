@@ -5,7 +5,8 @@ import { DeviceToken } from '@/modules/user/entities/device-token.entity';
 import { DeviceTokenService } from '@/modules/user/services/device-token.service';
 import { UserSettingService } from '@/modules/user/services/user-setting.service';
 import { UserService } from '@/modules/user/services/user.service';
-import { MessageLanguage } from '@/modules/user/user.enum';
+import { messageLanguageOf } from '@/modules/user/policies/market.policy';
+import { MessageLanguage, UserMarket } from '@/modules/user/user.enum';
 
 import { NotificationLog } from '../entities/notification-log.entity';
 import {
@@ -86,9 +87,15 @@ export class DripArrivalNotificationService {
       skippedCount: 0,
       invalidatedDeviceCount: 0,
     };
-    const targets = arrivals.filter(
-      (arrival) => arrival.regular.length + arrival.discovery.length > 0,
+    const markets = await this.userService.findMarketsByIds(
+      arrivals.map((arrival) => arrival.userId),
     );
+    // 적립(05시)과 알림(07시) 사이에 시장을 바꿨으면 이전 시장 편은 이미 목록에서 숨어 있다 — 알리지 않는다(`global-api.md` 4.11)
+    const targets = arrivals
+      .map((arrival) => scopeToMarket(arrival, markets.get(arrival.userId)))
+      .filter(
+        (arrival) => arrival.regular.length + arrival.discovery.length > 0,
+      );
 
     if (targets.length === 0) {
       return summary;
@@ -98,7 +105,7 @@ export class DripArrivalNotificationService {
     // 다음 배치가 새 알림을 보낸다 — 그 뒤까지 보관하면 며칠치 "오늘"이 한꺼번에 뜬다(`notification.md` 4.3)
     const ttl = ttlUntilNextDripBatchSec(nextBatchAt, now);
     const { start, end } = toServiceDayRange(now);
-    const [alreadySent, disabled, languages] = await Promise.all([
+    const [alreadySent, disabled] = await Promise.all([
       this.notificationLogRepository
         .findUserIdsWithStatusBetween(
           userIds,
@@ -109,7 +116,6 @@ export class DripArrivalNotificationService {
         )
         .then((ids) => new Set(ids)),
       this.userSettingService.findDripNotificationDisabledUserIds(userIds),
-      this.userService.findMessageLanguagesByIds(userIds),
     ]);
     const devicesByUserId = groupByUserId(
       await this.deviceTokenService.findDeliverableByUserIds(
@@ -142,7 +148,7 @@ export class DripArrivalNotificationService {
         arrival,
         deepLink,
         ttl,
-        languages.get(arrival.userId) ?? MessageLanguage.KO,
+        messageLanguageOf(markets.get(arrival.userId) ?? UserMarket.KR),
       );
       const sentTokens = new Set<string>();
 
@@ -301,6 +307,22 @@ function resolveDeepLink(arrival: DripArrival): string {
   return contents.length === 1
     ? buildContentDeepLink(contents[0].contentId)
     : DEEP_LINK_LIBRARY;
+}
+
+/** 사용자의 현재 시장 편만 남긴다. 사용자를 못 찾으면(그 사이 탈퇴) 그대로 둔다 — 기기 조회가 대상을 걸러 낸다 */
+function scopeToMarket(
+  arrival: DripArrival,
+  market: UserMarket | undefined,
+): DripArrival {
+  if (market === undefined) {
+    return arrival;
+  }
+
+  return {
+    ...arrival,
+    regular: arrival.regular.filter((content) => content.market === market),
+    discovery: arrival.discovery.filter((content) => content.market === market),
+  };
 }
 
 /** 대표 콘텐츠는 정규 첫 편, 정규가 없으면 탐험 편 */

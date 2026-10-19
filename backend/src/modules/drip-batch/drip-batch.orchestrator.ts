@@ -29,6 +29,7 @@ import {
   isAfterArrivalPushTime,
   nextDripBatchAt,
 } from '@/modules/drip/drip-group.policy';
+import { scoringCareerOf } from '@/modules/drip/drip-career.policy';
 import { DripGroup, PreferenceSignalAction } from '@/modules/drip/drip.enum';
 import {
   PreferenceSignalInput,
@@ -612,7 +613,10 @@ export class DripBatchOrchestrator {
     }
 
     // 미청취 재고 스킵(4.1) — 탐험 편성도 함께 건너뛴다(4.8)
-    plan.unfinishedCount = await this.libraryService.countUnfinished(user.id);
+    plan.unfinishedCount = await this.libraryService.countUnfinished(
+      user.id,
+      user.market,
+    );
 
     if (plan.unfinishedCount >= UNFINISHED_INVENTORY_LIMIT) {
       // 오늘 이미 편성된 사유가 먼저 났으면 유지한다(배치가 보는 순서와 같다)
@@ -650,11 +654,8 @@ export class DripBatchOrchestrator {
         preference: plan.preference,
         difficultyAffinity: plan.difficultyAffinity,
         isColdStart: plan.isColdStart,
-        // 커리어 적합도(4.2 ③) — 프로필이라 신호가 없어도 쓴다
-        career: {
-          jobCategory: user.jobCategory,
-          yearsOfExperience: user.yearsOfExperience,
-        },
+        // 커리어 적합도(4.2 ③) — 프로필이라 신호가 없어도 쓴다. KR 시장만
+        career: scoringCareerOf(user),
         dripCount,
         loadRecentDripTopics: options.loadRecentDripTopics,
         now,
@@ -970,7 +971,7 @@ export class DripBatchOrchestrator {
       preference: UserPreferenceWeights | null;
       difficultyAffinity: Record<string, number> | null;
       isColdStart: boolean;
-      career: UserCareer;
+      career: UserCareer | null;
       dripCount: number;
       loadRecentDripTopics: boolean;
       now: Date;
@@ -1279,7 +1280,11 @@ function groupArrivals(items: LibraryItem[]): DripArrival[] {
       regular: [],
       discovery: [],
     };
-    const arrived = { contentId: item.contentId, title: item.content.title };
+    const arrived = {
+      contentId: item.contentId,
+      title: item.content.title,
+      market: item.content.market,
+    };
 
     if (item.source === LibraryItemSource.DISCOVERY) {
       arrival.discovery.push(arrived);

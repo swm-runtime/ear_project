@@ -3,7 +3,10 @@ import { ErrorCode } from '@/common/exceptions/error-code.enum';
 import { ConsentService } from './consent.service';
 import { Consent } from '../entities/consent.entity';
 import { ConsentRepository } from '../repositories/consent.repository';
-import { CURRENT_CONSENT_VERSIONS_BY_MARKET } from '../user.constant';
+import {
+  CURRENT_CONSENT_VERSIONS_BY_MARKET,
+  REQUIRED_CONSENT_TYPES_BY_MARKET,
+} from '../user.constant';
 import { ConsentType, UserMarket } from '../user.enum';
 
 /** 동의 판정 대상 — 지역을 모르는 사용자(연령 기준 18) */
@@ -500,6 +503,123 @@ describe('ConsentService', () => {
       await expect(recording).rejects.toMatchObject({
         errorCode: ErrorCode.CONSENT_VERSION_STALE,
       });
+    });
+  });
+
+  describe('recordForMarketChange — 시장 전환 동의(global-api 4.11)', () => {
+    const GLOBAL_VERSIONS =
+      CURRENT_CONSENT_VERSIONS_BY_MARKET[UserMarket.GLOBAL];
+    const globalConsents = () => [
+      {
+        consentType: ConsentType.TERMS,
+        version: GLOBAL_VERSIONS[ConsentType.TERMS],
+        isAgreed: true,
+      },
+      {
+        consentType: ConsentType.PRIVACY,
+        version: GLOBAL_VERSIONS[ConsentType.PRIVACY],
+        isAgreed: true,
+      },
+      {
+        consentType: ConsentType.CROSS_BORDER_TRANSFER,
+        version: null,
+        isAgreed: true,
+      },
+      {
+        consentType: ConsentType.AGE_CONFIRMATION,
+        version: 'age-18',
+        isAgreed: true,
+      },
+    ];
+    const manager = {} as never;
+
+    it('새 시장 필수 동의를 전부 받으면 새 시장 버전으로 기록한다', async () => {
+      // when
+      const saved = await service.recordForMarketChange(
+        USER_ID,
+        GLOBAL_USER,
+        globalConsents(),
+        NOW,
+        manager,
+      );
+
+      // then
+      expect(saved.map((consent) => consent.version)).toEqual([
+        GLOBAL_VERSIONS[ConsentType.TERMS],
+        GLOBAL_VERSIONS[ConsentType.PRIVACY],
+        null,
+        'age-18',
+      ]);
+    });
+
+    it('국외 이전 동의가 빠지면 CONSENT_REQUIRED로 거부하고 아무것도 기록하지 않는다', async () => {
+      // when
+      const recording = service.recordForMarketChange(
+        USER_ID,
+        GLOBAL_USER,
+        globalConsents().filter(
+          (consent) =>
+            consent.consentType !== ConsentType.CROSS_BORDER_TRANSFER,
+        ),
+        NOW,
+        manager,
+      );
+
+      // then
+      await expect(recording).rejects.toMatchObject({
+        errorCode: ErrorCode.CONSENT_REQUIRED,
+      });
+      expect(repository.saveAll).not.toHaveBeenCalled();
+    });
+
+    it('이전 시장(KR) 버전이나 버전이 있는 항목의 null은 CONSENT_VERSION_STALE이다 — 재동의 경로와 달리 현행으로 채우지 않는다', async () => {
+      for (const version of [KR_CONSENT_VERSIONS[ConsentType.TERMS], null]) {
+        // given
+        const consents = globalConsents().map((consent) =>
+          consent.consentType === ConsentType.TERMS
+            ? { ...consent, version }
+            : consent,
+        );
+
+        // when
+        const recording = service.recordForMarketChange(
+          USER_ID,
+          GLOBAL_USER,
+          consents,
+          NOW,
+          manager,
+        );
+
+        // then
+        await expect(recording).rejects.toMatchObject({
+          errorCode: ErrorCode.CONSENT_VERSION_STALE,
+        });
+      }
+      expect(repository.saveAll).not.toHaveBeenCalled();
+    });
+
+    it('미리보기 목록은 새 시장의 필수 동의만이다 — 연령 항목은 기준 연령을 싣는다', () => {
+      // when
+      const required = service.buildRequiredConsents({
+        market: UserMarket.GLOBAL,
+        regionCode: 'SG',
+      });
+
+      // then
+      expect(required.map((consent) => consent.consentType)).toEqual(
+        REQUIRED_CONSENT_TYPES_BY_MARKET[UserMarket.GLOBAL],
+      );
+      expect(required.every((consent) => consent.isRequired)).toBe(true);
+      expect(
+        required.find(
+          (consent) => consent.consentType === ConsentType.AGE_CONFIRMATION,
+        ),
+      ).toMatchObject({ version: 'age-16', minAge: 16 });
+      expect(
+        required.some(
+          (consent) => consent.consentType === ConsentType.MARKETING,
+        ),
+      ).toBe(false);
     });
   });
 });

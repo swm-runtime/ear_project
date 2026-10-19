@@ -2,14 +2,14 @@ import { MessageLanguage, PreferredLanguage, UserMarket } from '../user.enum';
 import { LocaleInput, NormalizedLocale, SignUpMarket } from '../user.types';
 
 /**
- * 시장 판정(`global-api.md` 2.1) — **계정 생성 시 1회**만 부른다.
+ * 시장 판정(`global-api.md` 2.1) — **계정 생성 시 1회**만 부른다. 가입 뒤의 전환은 `marketOfPreferredLanguage`(4.11)다.
  *
  * 입력은 사용자가 가입 화면에서 고른 콘텐츠 언어다. 기기 언어로 자동 판정하면 영어 설정을 쓰는 한국 사용자가
- * GLOBAL로 가고 되돌릴 길이 없어서(시장 전환 불허) 사용자에게 묻는다(2026-10-14). 고른 값이 없으면(구 앱) 기기
+ * GLOBAL로 가서(당시엔 시장 전환이 없어 되돌릴 길도 없었다) 사용자에게 묻는다(2026-10-14). 고른 값이 없으면(구 앱) 기기
  * 언어로 폴백하고, 그것도 없으면 `kr` — 지금 스토어에 있는 앱이 그대로 가입되는 이유다.
  *
  * **글로벌 가입이 닫혀 있으면(`globalSignupEnabled = false`) GLOBAL 판정도 `kr`로 만든다**(source `global_closed`,
- * 2026-10-15). 시장은 한 번 정하면 바꿀 수 없는데, GLOBAL 카탈로그(주제·콘텐츠)가 비어 있는 동안 GLOBAL로 가입하면
+ * 2026-10-15). GLOBAL 카탈로그(주제·콘텐츠)가 비어 있는 동안 GLOBAL로 가입하면
  * 온보딩 주제가 0개라 진행할 수 없다. 앱이 언어 선택을 먼저 내보내도 서버가 막는다.
  */
 export function resolveMarket(input: {
@@ -48,6 +48,18 @@ function resolveRequestedMarket(input: {
     market: primary === 'ko' ? UserMarket.KR : UserMarket.GLOBAL,
     source: 'device',
   };
+}
+
+/**
+ * 시장 전환(`global-api.md` 4.11)의 목표 시장 — 클라이언트는 `market`이 아니라 고른 콘텐츠 언어를 보낸다(7장).
+ * 가입과 같은 대응(`ko` → `kr`, `en` → `global`)이다. 글로벌 가입 스위치로 바꿔치지 않는다 — 닫혀 있으면 전환을 거부한다
+ */
+export function marketOfPreferredLanguage(
+  preferredLanguage: PreferredLanguage,
+): UserMarket {
+  return preferredLanguage === PreferredLanguage.EN
+    ? UserMarket.GLOBAL
+    : UserMarket.KR;
 }
 
 /**

@@ -13,6 +13,9 @@ import { UserMarket } from '@/modules/user/user.enum';
  * - **시장별**(2026-10-17 — 글로벌 출시 대비) — 가입자를 `users.market`으로 나누고, 보고일의 **서버 청취**
  *   (`play_records` — 청취자·재생·청취 시간)를 시장별로 센다. GA4 이벤트에는 시장이 없어 서버 값으로만 가른다. 탈퇴도
  *   `withdrawal_logs.market`(탈퇴 당시 시장)으로 나눈다.
+ * - **시장 전환**(이탈 보고, 2026-10-19 — `global-api.md` 4.11) — `user_market_changes`의 방향별 건수. 잘못 눌러 되돌린 행
+ *   (`is_revert`)은 빼고 센다 — 넣으면 실수 한 번이 양방향 전환 두 건으로 보인다. 시장별 집계는 현재
+ *   시장 기준이라 전환한 사람의 가입이 새 시장으로 옮겨 세지는데, 그 크기를 이 줄로 읽는다.
  * - **탈퇴**(이탈 보고, 2026-10-15) — `withdrawal_logs` 의 사유 코드별 건수. 건마다 오던 탈퇴 알림을 대신한다.
  *   사용자 행은 지워져도 이 로그는 남는다(`domain.md` 3.4). 직접 입력 사유 원문은 가져오지 않는다 — 분포만 본다.
  *
@@ -30,6 +33,14 @@ export type DailyServerMetrics = {
   withdrawals: WithdrawalCount[];
   /** 시장마다 한 칸(`UserMarket` 순서) — 계정이 없는 시장도 0 으로 채운다. "0명"과 "집계 누락"을 가르기 위해서다 */
   markets: MarketDaily[];
+  /** 방향별 시장 전환 건수 — 전환이 없던 방향은 행이 없다 */
+  marketChanges: MarketChangeCount[];
+};
+
+export type MarketChangeCount = {
+  from: UserMarket;
+  to: UserMarket;
+  count: number;
 };
 
 export type MarketDaily = {
@@ -61,7 +72,7 @@ export class DailyMetricsDbService {
     // KST 는 고정 +9 라 하루가 늘 24시간이다
     const start = new Date(`${date}T00:00:00+09:00`);
     const end = new Date(start.getTime() + DAY_MS);
-    const [members, withdrawals, listening] = await Promise.all([
+    const [members, withdrawals, listening, marketChanges] = await Promise.all([
       // 시장마다 한 번에 센다 — 표 하나를 두 번 훑을 이유가 없다
       this.dataSource.query<
         { market: UserMarket; sign_ups: number; total_users: number }[]
@@ -102,6 +113,16 @@ export class DailyMetricsDbService {
           group by u.market`,
         [start, end],
       ),
+      this.dataSource.query<
+        { from_market: UserMarket; to_market: UserMarket; count: number }[]
+      >(
+        `select from_market, to_market, count(*)::int as count
+           from user_market_changes
+          where changed_at >= $1 and changed_at < $2
+            and not is_revert
+          group by from_market, to_market`,
+        [start, end],
+      ),
     ]);
     const memberRows = new Map(members.map((r) => [r.market, r]));
     const listeningRows = new Map(listening.map((r) => [r.market, r]));
@@ -117,6 +138,11 @@ export class DailyMetricsDbService {
       signUps: markets.reduce((sum, m) => sum + m.signUps, 0),
       totalUsers: markets.reduce((sum, m) => sum + m.totalUsers, 0),
       markets,
+      marketChanges: marketChanges.map((r) => ({
+        from: r.from_market,
+        to: r.to_market,
+        count: r.count,
+      })),
       withdrawals: withdrawals.map((r) => ({
         market: r.market,
         reasonCode: r.reason_code,

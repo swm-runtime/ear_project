@@ -5,6 +5,7 @@ import { UserService } from './user.service';
 import { User } from '../entities/user.entity';
 import { UserRepository } from '../repositories/user.repository';
 import { JOB_CATEGORIES } from '../user.constant';
+import { OnboardingStep } from '../user.enum';
 
 function buildUser(): User {
   return {
@@ -74,6 +75,61 @@ describe('UserOnboardingService', () => {
       // then
       expect(saved.jobTitle).toBe('백엔드 개발자');
       expect(saved.yearsOfExperience).toBe(2);
+    });
+  });
+
+  describe('complete · restartForMarketChange — 시장 전환 뒤 재온보딩(global-api 4.11)', () => {
+    const FIRST_COMPLETED_AT = new Date('2026-09-01T00:00:00.000Z');
+    const NOW = new Date('2026-10-19T03:00:00.000Z');
+
+    it('시장 전환은 온보딩을 주제 단계로 되돌리고 처음 완료 시각과 커리어는 남긴다', () => {
+      // given
+      const user = {
+        ...buildUser(),
+        jobCategory: JOB_CATEGORIES[0],
+        onboardingCompleted: true,
+        onboardingStep: OnboardingStep.DONE,
+        onboardingCompletedAt: FIRST_COMPLETED_AT,
+      } as User;
+
+      // when
+      service.restartForMarketChange(user);
+
+      // then
+      expect(user).toMatchObject({
+        onboardingCompleted: false,
+        onboardingStep: OnboardingStep.TOPIC,
+        onboardingCompletedAt: FIRST_COMPLETED_AT,
+        jobCategory: JOB_CATEGORIES[0],
+      });
+    });
+
+    it('재완료는 처음 완료 시각을 덮어쓰지 않는다 — 가입 퍼널의 완료일이 옮겨 가지 않게', async () => {
+      // given
+      const user = {
+        ...buildUser(),
+        onboardingCompleted: false,
+        onboardingStep: OnboardingStep.TOPIC,
+        onboardingCompletedAt: FIRST_COMPLETED_AT,
+      } as User;
+
+      // when
+      const saved = await service.complete(user, NOW);
+
+      // then
+      expect(saved.onboardingCompleted).toBe(true);
+      expect(saved.onboardingCompletedAt).toBe(FIRST_COMPLETED_AT);
+    });
+
+    it('처음 완료는 지금 시각을 남긴다', async () => {
+      // given
+      const user = { ...buildUser(), onboardingCompletedAt: null } as User;
+
+      // when
+      const saved = await service.complete(user, NOW);
+
+      // then
+      expect(saved.onboardingCompletedAt).toBe(NOW);
     });
   });
 });

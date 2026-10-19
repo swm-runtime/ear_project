@@ -2,6 +2,8 @@ import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { EntityManager, Repository } from 'typeorm';
 
+import { UserMarket } from '@/modules/user/user.enum';
+
 import { ContentTopicView } from '../content.types';
 import {
   CONTENT_VISIBILITY_CONDITION,
@@ -29,22 +31,30 @@ export class ContentTopicRepository {
   /**
    * 여러 콘텐츠의 주제를 한 번에 읽는다.
    * 콘텐츠마다 조회하면 추천 9건에 9번 쿼리가 나간다(architecture.md 3.4 — N+1 회피).
+   * `market`을 주면 그 시장 주제만 — 시장을 바꾼 사용자의 프로필 주제 분포(`global-api.md` 4.11).
    */
   async findViewsByContentIds(
     contentIds: string[],
     manager?: EntityManager,
+    market?: UserMarket,
   ): Promise<ContentTopicView[]> {
     if (contentIds.length === 0) {
       return [];
     }
 
-    const rows = await this.scoped(manager)
+    const builder = this.scoped(manager)
       .createQueryBuilder('content_topic')
       .innerJoin('topics', 'topic', 'topic.id = content_topic.topic_id')
       .select('content_topic.content_id', 'content_id')
       .addSelect('content_topic.topic_id', 'topic_id')
       .addSelect('topic.name', 'name')
-      .where('content_topic.content_id IN (:...contentIds)', { contentIds })
+      .where('content_topic.content_id IN (:...contentIds)', { contentIds });
+
+    if (market !== undefined) {
+      builder.andWhere('topic.market = :market', { market });
+    }
+
+    const rows = await builder
       .orderBy('topic.display_order', 'ASC')
       .getRawMany<ContentTopicRow>();
 

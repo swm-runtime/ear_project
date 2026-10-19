@@ -14,12 +14,16 @@ describe('DailyMetricsDbService', () => {
       ])
       .mockResolvedValueOnce([
         { market: 'kr', listeners: 30, plays: 40, listen_sec: 45000 },
+      ])
+      .mockResolvedValueOnce([
+        { from_market: 'kr', to_market: 'global', count: 2 },
       ]);
     const svc = new DailyMetricsDbService({ query } as never);
 
     await expect(svc.fetchDaily('2026-09-28')).resolves.toEqual({
       signUps: 3,
       totalUsers: 351,
+      marketChanges: [{ from: 'kr', to: 'global', count: 2 }],
       withdrawals: [
         { market: 'kr', reasonCode: 'price', count: 2 },
         { market: 'global', reasonCode: null, count: 1 },
@@ -48,6 +52,7 @@ describe('DailyMetricsDbService', () => {
     const [usersSql, usersParams] = query.mock.calls[0] as [string, Date[]];
     const [logsSql, logsParams] = query.mock.calls[1] as [string, Date[]];
     const [playsSql, playsParams] = query.mock.calls[2] as [string, Date[]];
+    const [changesSql, changesParams] = query.mock.calls[3] as [string, Date[]];
     expect(usersSql).toContain('from users');
     expect(usersSql).toContain('group by market');
     expect(logsSql).toContain('from withdrawal_logs');
@@ -60,6 +65,12 @@ describe('DailyMetricsDbService', () => {
     expect(usersParams[1].toISOString()).toBe('2026-09-28T15:00:00.000Z');
     expect(logsParams).toEqual(usersParams);
     expect(playsParams).toEqual(usersParams);
+    // 시장 전환(global-api 4.11)도 같은 하루를 방향별로 센다
+    expect(changesSql).toContain('from user_market_changes');
+    expect(changesSql).toContain('group by from_market, to_market');
+    // 잘못 눌러 되돌린 행은 세지 않는다 — 실수 한 번이 양방향 두 건으로 보이지 않게
+    expect(changesSql).toContain('not is_revert');
+    expect(changesParams).toEqual(usersParams);
   });
 
   it('행이 없으면 0 — 던지지 않는다', async () => {
@@ -69,6 +80,7 @@ describe('DailyMetricsDbService', () => {
     await expect(svc.fetchDaily('2026-09-28')).resolves.toEqual({
       signUps: 0,
       totalUsers: 0,
+      marketChanges: [],
       withdrawals: [],
       markets: [
         {

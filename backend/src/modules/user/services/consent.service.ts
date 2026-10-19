@@ -165,6 +165,59 @@ export class ConsentService {
     ];
   }
 
+  /** 그 시장의 필수 동의 목록 — 시장 전환 미리보기(`global-api.md` 4.11)가 그린다. 항목 모양은 가입 목록과 같다 */
+  buildRequiredConsents(audience: ConsentAudience): PendingConsent[] {
+    return REQUIRED_CONSENT_TYPES_BY_MARKET[audience.market].map(
+      (consentType) => toConsentRequirement(audience, consentType, true),
+    );
+  }
+
+  /**
+   * 시장 전환(`global-api.md` 4.11)의 동의 — `audience`는 **옮겨 갈 시장**이다. 동의 없이는 전환 자체가 일어나지 않게,
+   * 가입과 같은 기준으로 검사한 뒤 기록한다: 새 시장 필수 동의가 하나라도 빠지면 400 `CONSENT_REQUIRED`, 현행과 다른 버전
+   * (다른 시장 버전 · 버전이 있는 항목에 `null`)이면 409 `CONSENT_VERSION_STALE`.
+   *
+   * 재동의 경로(`recordConsents`)는 빠진 항목을 묻지 않고 `null` 버전을 현행으로 채운다 — 그쪽은 이미 동의한 계정의 일부
+   * 갱신이라서다. 전환은 새 시장 문서에 처음 동의하는 것이라 가입 쪽 규칙을 따른다.
+   */
+  async recordForMarketChange(
+    userId: string,
+    audience: ConsentAudience,
+    inputs: ConsentInput[],
+    agreedAt: Date,
+    manager: EntityManager,
+  ): Promise<Consent[]> {
+    const agreedTypes = new Set(
+      inputs
+        .filter((input) => input.isAgreed)
+        .map((input) => input.consentType),
+    );
+    const missing = REQUIRED_CONSENT_TYPES_BY_MARKET[audience.market].filter(
+      (type) => !agreedTypes.has(type),
+    );
+    if (missing.length > 0) {
+      throw new BusinessException({
+        status: HttpStatus.BAD_REQUEST,
+        errorCode: ErrorCode.CONSENT_REQUIRED,
+        message: '필수 약관에 동의해야 바꿀 수 있어요',
+      });
+    }
+
+    const stale = inputs.some(
+      (input) =>
+        input.version !== currentConsentVersionOf(audience, input.consentType),
+    );
+    if (stale) {
+      throw new BusinessException({
+        status: HttpStatus.CONFLICT,
+        errorCode: ErrorCode.CONSENT_VERSION_STALE,
+        message: '약관이 변경되었어요. 다시 확인해주세요',
+      });
+    }
+
+    return this.recordConsents(userId, audience, inputs, agreedAt, manager);
+  }
+
   async findAllByUserId(
     userId: string,
     manager?: EntityManager,

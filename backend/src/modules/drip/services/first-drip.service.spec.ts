@@ -65,7 +65,10 @@ describe('FirstDripService', () => {
     jobRepository = {
       findByUserId: jest.fn().mockImplementation(() => Promise.resolve(job)),
       createIfAbsent: jest.fn(),
-      save: jest.fn().mockImplementation((saved: FirstDripJob) => saved),
+      updateExisting: jest.fn().mockResolvedValue(true),
+      findByIdForUpdate: jest
+        .fn()
+        .mockImplementation(() => Promise.resolve(job)),
       claimRetryable: jest.fn(),
       deleteByUserId: jest.fn(),
     } as unknown as jest.Mocked<FirstDripJobRepository>;
@@ -140,6 +143,21 @@ describe('FirstDripService', () => {
       expect(job.status).toBe(FirstDripJobStatus.COMPLETED);
       expect(job.itemCount).toBe(2);
       expect(job.completedAt).toEqual(NOW);
+    });
+
+    it('편성 도중 시장 전환이 작업 행을 지웠으면 이전 시장 편을 적립하지 않고 행도 되살리지 않는다(global-api 4.11)', async () => {
+      // given
+      contentService.findCandidates.mockResolvedValue([
+        buildContent('content-1'),
+      ]);
+      jobRepository.findByIdForUpdate.mockResolvedValue(null);
+
+      // when
+      await service.schedule(USER_ID, NOW);
+
+      // then
+      expect(libraryService.addItems).not.toHaveBeenCalled();
+      expect(jobRepository.updateExisting).not.toHaveBeenCalled();
     });
 
     it('적립하면서 드립 영구 제외 목록에도 함께 남긴다', async () => {

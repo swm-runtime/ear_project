@@ -4,7 +4,7 @@ import { DeviceToken } from '@/modules/user/entities/device-token.entity';
 import { DeviceTokenService } from '@/modules/user/services/device-token.service';
 import { UserService } from '@/modules/user/services/user.service';
 import { UserSettingService } from '@/modules/user/services/user-setting.service';
-import { MessageLanguage } from '@/modules/user/user.enum';
+import { UserMarket } from '@/modules/user/user.enum';
 
 import { NotificationLog } from '../entities/notification-log.entity';
 import {
@@ -32,12 +32,27 @@ function buildArrival(overrides: Partial<DripArrival> = {}): DripArrival {
   return {
     userId: USER_ID,
     regular: [
-      { contentId: 'r1', title: '연봉 협상의 기술' },
-      { contentId: 'r2', title: '이직 타이밍' },
+      { contentId: 'r1', title: '연봉 협상의 기술', market: UserMarket.KR },
+      { contentId: 'r2', title: '이직 타이밍', market: UserMarket.KR },
     ],
-    discovery: [{ contentId: 'd1', title: '처음 듣는 주제' }],
+    discovery: [
+      { contentId: 'd1', title: '처음 듣는 주제', market: UserMarket.KR },
+    ],
     ...overrides,
   };
+}
+
+/** GLOBAL 사용자의 적립분 — 콘텐츠도 GLOBAL 이다(시장이 다른 편은 알리지 않는다) */
+function globalArrival(): DripArrival {
+  return buildArrival({
+    regular: [
+      { contentId: 'r1', title: '연봉 협상의 기술', market: UserMarket.GLOBAL },
+      { contentId: 'r2', title: '이직 타이밍', market: UserMarket.GLOBAL },
+    ],
+    discovery: [
+      { contentId: 'd1', title: '처음 듣는 주제', market: UserMarket.GLOBAL },
+    ],
+  });
 }
 
 function buildDevice(
@@ -92,7 +107,7 @@ describe('DripArrivalNotificationService', () => {
     } as unknown as jest.Mocked<UserSettingService>;
 
     userService = {
-      findMessageLanguagesByIds: jest.fn().mockResolvedValue(new Map()),
+      findMarketsByIds: jest.fn().mockResolvedValue(new Map()),
     } as unknown as jest.Mocked<UserService>;
 
     pushClient = {
@@ -128,12 +143,12 @@ describe('DripArrivalNotificationService', () => {
 
   it('GLOBAL 사용자에게는 영어 제목으로 보낸다 — 본문은 콘텐츠 제목 그대로다(global-api 2.3)', async () => {
     // given
-    userService.findMessageLanguagesByIds.mockResolvedValue(
-      new Map([[USER_ID, MessageLanguage.EN]]),
+    userService.findMarketsByIds.mockResolvedValue(
+      new Map([[USER_ID, UserMarket.GLOBAL]]),
     );
 
     // when
-    await service.notify([buildArrival()], NOW, NEXT_BATCH_AT);
+    await service.notify([globalArrival()], NOW, NEXT_BATCH_AT);
 
     // then
     expect(sentMessages()[0]).toMatchObject({
@@ -144,15 +159,21 @@ describe('DripArrivalNotificationService', () => {
 
   it('GLOBAL 사용자에게 1편이면 단수 영어 제목으로 보낸다', async () => {
     // given
-    userService.findMessageLanguagesByIds.mockResolvedValue(
-      new Map([[USER_ID, MessageLanguage.EN]]),
+    userService.findMarketsByIds.mockResolvedValue(
+      new Map([[USER_ID, UserMarket.GLOBAL]]),
     );
 
     // when
     await service.notify(
       [
         buildArrival({
-          regular: [{ contentId: 'r1', title: 'Negotiating a raise' }],
+          regular: [
+            {
+              contentId: 'r1',
+              title: 'Negotiating a raise',
+              market: UserMarket.GLOBAL,
+            },
+          ],
           discovery: [],
         }),
       ],
@@ -162,6 +183,52 @@ describe('DripArrivalNotificationService', () => {
 
     // then
     expect(sentMessages()[0].title).toBe('Your episode for today is here');
+  });
+
+  it('적립 뒤 시장을 바꾼 사용자에게는 이전 시장 편을 알리지 않는다(global-api 4.11)', async () => {
+    // given — KR 편 3개가 적립된 뒤 GLOBAL 로 옮겼다
+    userService.findMarketsByIds.mockResolvedValue(
+      new Map([[USER_ID, UserMarket.GLOBAL]]),
+    );
+
+    // when
+    const summary = await service.notify([buildArrival()], NOW, NEXT_BATCH_AT);
+
+    // then — 알릴 편이 남지 않아 보내지도 기록하지도 않는다
+    expect(pushClient.send).not.toHaveBeenCalled();
+    expect(summary.sentCount).toBe(0);
+  });
+
+  it('섞여 있으면 현재 시장 편만 세고 그 편을 대표로 알린다', async () => {
+    // given
+    userService.findMarketsByIds.mockResolvedValue(
+      new Map([[USER_ID, UserMarket.GLOBAL]]),
+    );
+
+    // when
+    await service.notify(
+      [
+        buildArrival({
+          regular: [
+            {
+              contentId: 'r1',
+              title: '연봉 협상의 기술',
+              market: UserMarket.KR,
+            },
+            { contentId: 'g1', title: 'K-Pop 101', market: UserMarket.GLOBAL },
+          ],
+          discovery: [],
+        }),
+      ],
+      NOW,
+      NEXT_BATCH_AT,
+    );
+
+    // then
+    expect(sentMessages()[0]).toMatchObject({
+      title: 'Your episode for today is here',
+      body: 'K-Pop 101',
+    });
   });
 
   it('언어를 모르는 사용자(조회 결과에 없음)는 종전처럼 한국어로 보낸다', async () => {
