@@ -50,6 +50,7 @@ import SearchToolbar from '../components/SearchToolbar';
 import TopicChips from '../components/TopicChips';
 import { EXPLORE_COPY } from '../explore.copy';
 import { buildSectionListKey } from '../explore.section-key';
+import { resolveSectionTitle } from '../explore.section-title';
 import type { ExploreItem, ExploreSection } from '../explore.types';
 import { useExploreScreen } from '../hooks/useExploreScreen';
 import type { ExploreSearchRequest } from '../hooks/useExploreSearchRequest';
@@ -208,7 +209,11 @@ export default function ExploreScreen() {
    * 피드를 통째로 갈아 끼워 닫힘 애니메이션 끝에 피드 전체를 새로 마운트하느라 끊겼다)
    */
   const searchOverlay = isSearching ? (
-    <View style={HAS_NATIVE_TAB_BAR ? StyleSheet.absoluteFill : [StyleSheet.absoluteFill, { zIndex: 2 }]}>
+    <View
+      style={
+        HAS_NATIVE_TAB_BAR ? StyleSheet.absoluteFill : [StyleSheet.absoluteFill, { zIndex: 2 }]
+      }
+    >
       <ExploreSearchScreen
         embedding={{
           remaining: screen.remainingDisplay
@@ -376,7 +381,7 @@ export default function ExploreScreen() {
               ]}
               accessibilityRole="header"
             >
-              {section.title}
+              {resolveSectionTitle(section)}
             </Text>
             {/* 세그먼트 내부의 alignSelf:flex-start가 제목 행의 가운데 정렬을 덮지 않게 감싼다. */}
             <View style={styles.sectionPeriodControl}>
@@ -392,7 +397,7 @@ export default function ExploreScreen() {
             style={[styles.sectionTitle, styles.sectionTitleBlock, headerStyle]}
             accessibilityRole="header"
           >
-            {section.title}
+            {resolveSectionTitle(section)}
           </Text>
         )}
 
@@ -536,56 +541,58 @@ export default function ExploreScreen() {
 
   return (
     <View style={styles.container}>
-      {HAS_NATIVE_TAB_BAR ? renderBody() : (
-      <View
-        style={styles.container}
-        pointerEvents={isSearching ? 'none' : 'auto'}
-        accessibilityElementsHidden={isSearching}
-        importantForAccessibility={isSearching ? 'no-hide-descendants' : 'auto'}
-      >
-        {/* Android — 머리 줄의 서리 유리 띠가 흐릴 대상. 머리 줄은 이 뒤에 선언한다 */}
-        <AndroidBlurTarget targetRef={blurTargetRef}>{renderBody()}</AndroidBlurTarget>
-        {/* 머리 줄은 목록 **뒤에 선언**한다(zIndex 로 위에 뜬다) */}
-        {/* 머리 줄은 목록 위에 떠 있다 — 배경 없이 유리 컨트롤만(2026-09-24 PM). 시스템 바 갈래에서는 없다 */}
-        {ANDROID_IOS_HEADER ? (
-          <AndroidCollapsingBar
-            title={EXPLORE_COPY.tabTitle}
-            scrollY={scrollY}
-            // 라이브러리 알약([링 | 필터])과 같은 캡슐 — 탭을 오가면 필터 칸이 줄었다 자란다(useTabPillMorph).
-            // 맨 링(RemainingPlaysIndicator)이면 모양이 달라 모핑이 안 보였다(PM 2026-09-30 03:10)
-            trailing={
-              screen.remainingDisplay ? (
-                <ExploreRingPill
-                  remaining={screen.remainingDisplay.remaining}
-                  limit={screen.remainingDisplay.limit}
-                  onExhaustedPress={() => screen.openPaywall('explore')}
-                />
-              ) : null
-            }
-            blurTarget={blurTargetRef}
-            onTitlePress={() => scrollToTopRef.current?.()}
-          />
-        ) : HAS_NATIVE_TAB_BAR ? null : (
-          <FloatingHeader
-            onHeightChange={setHeaderHeight}
-            solidness={solidness}
-            containerRef={headerRef}
-            androidFrostTarget={blurTargetRef}
-          >
-            {Platform.OS === 'android' ? (
-              <View style={styles.androidTitle}>
-                <LargeTitleRow title={EXPLORE_COPY.tabTitle} trailing={remainingRing} />
-              </View>
-            ) : null}
-            <ExploreSearchBarRow
-              onPress={openSearch}
-              trailing={Platform.OS === 'android' ? null : remainingRing}
+      {HAS_NATIVE_TAB_BAR ? (
+        renderBody()
+      ) : (
+        <View
+          style={styles.container}
+          pointerEvents={isSearching ? 'none' : 'auto'}
+          accessibilityElementsHidden={isSearching}
+          importantForAccessibility={isSearching ? 'no-hide-descendants' : 'auto'}
+        >
+          {/* Android — 머리 줄의 서리 유리 띠가 흐릴 대상. 머리 줄은 이 뒤에 선언한다 */}
+          <AndroidBlurTarget targetRef={blurTargetRef}>{renderBody()}</AndroidBlurTarget>
+          {/* 머리 줄은 목록 **뒤에 선언**한다(zIndex 로 위에 뜬다) */}
+          {/* 머리 줄은 목록 위에 떠 있다 — 배경 없이 유리 컨트롤만(2026-09-24 PM). 시스템 바 갈래에서는 없다 */}
+          {ANDROID_IOS_HEADER ? (
+            <AndroidCollapsingBar
+              title={EXPLORE_COPY.tabTitle}
+              scrollY={scrollY}
+              // 라이브러리 알약([링 | 필터])과 같은 캡슐 — 탭을 오가면 필터 칸이 줄었다 자란다(useTabPillMorph).
+              // 맨 링(RemainingPlaysIndicator)이면 모양이 달라 모핑이 안 보였다(PM 2026-09-30 03:10)
+              trailing={
+                screen.remainingDisplay ? (
+                  <ExploreRingPill
+                    remaining={screen.remainingDisplay.remaining}
+                    limit={screen.remainingDisplay.limit}
+                    onExhaustedPress={() => screen.openPaywall('explore')}
+                  />
+                ) : null
+              }
+              blurTarget={blurTargetRef}
+              onTitlePress={() => scrollToTopRef.current?.()}
             />
+          ) : HAS_NATIVE_TAB_BAR ? null : (
+            <FloatingHeader
+              onHeightChange={setHeaderHeight}
+              solidness={solidness}
+              containerRef={headerRef}
+              androidFrostTarget={blurTargetRef}
+            >
+              {Platform.OS === 'android' ? (
+                <View style={styles.androidTitle}>
+                  <LargeTitleRow title={EXPLORE_COPY.tabTitle} trailing={remainingRing} />
+                </View>
+              ) : null}
+              <ExploreSearchBarRow
+                onPress={openSearch}
+                trailing={Platform.OS === 'android' ? null : remainingRing}
+              />
 
-            {chips}
-          </FloatingHeader>
-        )}
-      </View>
+              {chips}
+            </FloatingHeader>
+          )}
+        </View>
       )}
       {/* 미니플레이어(PL11) — 활성 재생 세션만 그린다. 복원 스냅샷 판정은 라이브러리 소유다 */}
 
@@ -628,7 +635,11 @@ type ExploreListItem =
 const toGridRows = (items: ExploreItem[]): ExploreListItem[] => {
   const rows: ExploreListItem[] = [];
   for (let i = 0; i < items.length; i += 2) {
-    rows.push({ kind: 'gridRow', key: items[i].content.id, items: [items[i], items[i + 1] ?? null] });
+    rows.push({
+      kind: 'gridRow',
+      key: items[i].content.id,
+      items: [items[i], items[i + 1] ?? null],
+    });
   }
   return rows;
 };

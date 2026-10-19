@@ -375,6 +375,11 @@ exports[`한국어 카피 회귀 — i18n 전환 전과 1:1 EXPLORE_COPY 1`] = `
     "suggestedTitle": "추천 키워드",
     "tabTitle": "검색",
   },
+  "sectionTitles": {
+    "interest": "관심사에 맞는 추천",
+    "new": "새로 나온 콘텐츠",
+    "popular": "인기 콘텐츠",
+  },
   "sheet": {
     "close": "닫기",
     "detail": "상세 정보",
