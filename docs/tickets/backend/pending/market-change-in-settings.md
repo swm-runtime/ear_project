@@ -63,3 +63,10 @@ PM 결정(2026-10-19):
   - 문서: `global-api.md` 4.11 구현 반영 · `domain.md` 3.4-1 · `architecture.md` 4.5(MarketChange — 8.1 예외) · `backend-monitoring.md` 3-4. `common-error-handling.md` 등재는 `changes/pending/global-market-change-error-codes.md`로 FE에 요청.
   - 검증: 단위 테스트 추가(동의·하루 1회·되돌리기·스위치·재온보딩·커리어·알림·일일 보고), e2e `test/market-change.e2e-spec.ts`(로컬 DB가 없어 CI에서 실행).
   - **남은 것**: 개발계 배포 뒤 `MARKET_CHANGE_ENABLED=true`로 실측 · FE 티켓 발행(설정 › 콘텐츠 언어 — 1.3.0 포함) · 운영 스위치는 앱 출시 뒤.
+- 2026-10-19 **개발계 실측**(#1724 · 배포 키 수정 #1725 · FE 티켓 KAN-228 #1726). 개발계 Secrets `MARKET_CHANGE_ENABLED=true` → 재배포, 컨테이너 env 확인. 마이그레이션 `AddUserMarketChanges1791000000000` 적용 확인. 개발계 전용 시험 계정(KR·온보딩 완료)으로 확인 — 토큰은 컨테이너 안에서만 서명·사용:
+  - GLOBAL 노출 주제 0개일 때 미리보기 `available: false · market_unavailable` ✅ (개발계 GLOBAL 주제는 콘텐츠 0편이라 자동 숨김 상태 — 시험 중에만 1개 노출 후 되돌림)
+  - 국외 이전 동의 빠짐 → 400 `CONSENT_REQUIRED` ✅ · 전환 KR→GLOBAL 200, 응답·새 토큰 `market: global`, 온보딩 `topic`·`steps: [topic]` ✅ · 새 토큰의 온보딩 주제가 GLOBAL만 ✅
+  - 재온보딩 전 되돌리기 GLOBAL→KR 200(KR 동의 `0.1`·연령 `null`) ✅ · 되돌리기를 다시 되돌리기 → 429 `MARKET_CHANGE_COOLDOWN`(`retry_after_sec` > 0, `retryable: false`) ✅ · 같은 시장 재요청 200·`access_token: null` ✅
+  - DB: 이력 `kr→global(false)`·`global→kr(true)`, 관심 주제 활성 0, 동의 GLOBAL 4행 + KR 3행, `onboarding_completed_at` 유지 ✅
+  - 정리: 시험 계정 삭제(CASCADE로 동의·관심 주제·이력 0건 확인), GLOBAL 주제 숨김 원복. **개발계 `MARKET_CHANGE_ENABLED=true`는 FE KAN-228 개발용으로 켜 둔다.** 운영은 그대로(키 없음 = 꺼짐).
+  - **남은 것**: FE KAN-228 · 운영 스위치(1.3.0 출시 뒤) · FE 화면 반영 뒤 이 티켓 완료 처리.
