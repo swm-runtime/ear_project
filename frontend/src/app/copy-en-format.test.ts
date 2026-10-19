@@ -83,6 +83,17 @@ describe('영어 날짜·복수형(KAN-197) — Intl, en-US 기기', () => {
     );
   });
 
+  it('들은 날 수·그날 편 수도 화면은 수만 — "Listened to 1 e…" 잘림(2026-10-19 실기기), 낭독은 문장', () => {
+    const day = PROFILE_COPY.stats.dayHighlight({ kind: 'listenedContents', count: 1 }, 1, false);
+    expect(day.lead).toBe('That day');
+    expect(day.main).toBe('1 episode');
+    expect(day.a11y).toBe('You listened to 1 episode that day');
+    const week = PROFILE_COPY.stats.highlight({ kind: 'listenedDays', days: 3 }, true);
+    expect(week.lead).toBe('This week');
+    expect(week.main).toBe('3 days');
+    expect(week.a11y).toBe('You listened 3 days this week');
+  });
+
   it('발행일·공지 날짜는 "Aug 12, 2026"', () => {
     expect(formatPublishedDate(localNoon(2026, 8, 12))).toBe('Aug 12, 2026');
     expect(formatNoticeDate(localNoon(2026, 8, 12))).toBe('Aug 12, 2026');

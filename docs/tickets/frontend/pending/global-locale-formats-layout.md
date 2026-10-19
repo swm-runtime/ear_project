@@ -68,6 +68,7 @@ RTL
 | 12 | `frontend/src/features/content-detail/components/ContentDetailMeta.tsx` 메타 라벨 열(`minWidth: 56`) | "Published" 가 56 보다 길어 그 행만 값이 밀림(10-18 QA) | 라벨 실측 최대 폭을 모든 라벨의 최소 폭으로 | 라벨이 56 안이라 동일(글자 200% 에선 열이 함께 넓어진다) |
 | 13 | `frontend/src/features/profile/profile.copy.ts` 누적 청취 타일 값 | "12 episodes" 가 두 줄로 접히고 라벨 "Episodes played" 와 겹말(10-18 QA) | 영어 값은 숫자만 | 카피 불변("N편") |
 | 14 | `frontend/src/features/profile/profile.copy.ts` 하루 평균 오른쪽 두 줄(2행 `rankBlock` 의 영어 문구) | 2026-10-19 실기기(iPhone, en · New York): 요일 선택 시 "vs. Thursday the week…" · "12 hr 38 min m…" 둘 다 말줄임 — 2행의 폭 상한만으로는 부족 | 화면 문구만 짧게: lead "vs. last week"·"vs. prior week"·"vs. last Thursday"·"vs. prior Thursday", main "12h 38m more"(큰 숫자와 같은 h·m). 낭독은 종전 풀어 쓴 문장 그대로 | 카피 불변 |
+| 15 | `WeeklyChart.tsx` `AverageValue` 1분 미만 갈래 · `profile.copy.ts` 들은 날 수·그날 편 수(2행 `rankBlock` 문구) | 2026-10-19 실기기: 화요일 선택 시 큰 숫자 "<1 min" 이 "<1" / "min" 두 줄로 접힘(이 갈래만 한 줄 고정이 없었다) · 오른쪽 "Listened to 1 e…" 말줄임 | 1분 미만 갈래도 숫자 갈래처럼 `numberOfLines={1}` + 글자 줄임 · 화면 문구는 수만("1 episode"·"3 days" — 윗줄 "That day"·"This week"), 낭독은 문장 그대로 | 카피 불변(한국어 "1분 미만"도 넘치면 한 줄 안에서 줄어든다) |
 
 남은 확인(실기기 영어 스크린샷): 위 13곳 + 인증 화면(StartScreen·TermsConsentScreen — 다른 작업) + 버튼 2줄·Android 폰트 폴백. 실측에서 잘림이 나오면 이 표에 행을 더한다.
 - 2026-10-19 **실기기 확인 진행(PM, iPhone · 개발계 · 설정 › 언어 English · 시간대 America/New_York)**: 주간 차트 "오늘" 요일이 서버 서비스 날짜(10-19 월)대로 — 기기 시각 보정 없음 확인(조건 2 실기기). 잘림 1곳 발견 → 표 14행 수정(PR `fix(fe)/profile-rank-en-truncation`). 나머지 날짜·잘림 확인 계속, pending 유지.

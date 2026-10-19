@@ -754,9 +754,14 @@ export default function WeeklyChart({ weekly, footer, onSwipingChange }: WeeklyC
  * 숫자와 같은 34pt 면 "23시간 59분"이 카드 폭을 거의 다 쓴다. 그래도 넘치면 한 줄 안에서 글자를 줄인다
  */
 function AverageValue({ sec }: { sec: number }) {
-  // 1분 미만은 숫자가 없는 문구 그대로(profile-uiux 4.6)
+  // 1분 미만은 숫자가 없는 문구 그대로(profile-uiux 4.6). 한 줄 안에서 줄인다 — 영어 "<1 min" 이 34pt 로 "<1" / "min" 두 줄로
+  // 접혔다(2026-10-19 KAN-197 실기기). 아래 숫자 갈래와 같은 규칙
   if (sec > 0 && sec < 60) {
-    return <Text style={styles.summaryValue}>{PROFILE_COPY.stats.dayValue(sec)}</Text>;
+    return (
+      <Text style={styles.summaryValue} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>
+        {PROFILE_COPY.stats.dayValue(sec)}
+      </Text>
+    );
   }
   const { hours, minutes } = toListenedDayParts(sec);
   return (
