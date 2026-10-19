@@ -32,6 +32,8 @@ const ko = {
     /** 화면 모드(다크 모드, 2026-10-10) */
     colorMode: '화면',
     language: '언어',
+    /** 콘텐츠 언어(시장) 전환(KAN-228) — 화면 언어와 별개 항목 */
+    contentLanguage: '콘텐츠 언어',
     notification: '알림',
     /** 광고 측정 허용 토글의 자리(KAN-217) — 기기의 데이터 전송 설정이라 알림·정보와 따로 묶는다 */
     privacy: '개인정보',
@@ -119,8 +121,18 @@ const ko = {
     footer: (contentLanguage: string | null) =>
       contentLanguage === null
         ? '화면에 보이는 언어만 바뀌어요. 바꾸면 앱을 한 번 다시 불러와요.'
-        : `화면에 보이는 언어만 바뀌어요. 콘텐츠는 가입 때 고른 ${contentLanguage}로 계속 나와요. 바꾸면 앱을 한 번 다시 불러와요.`,
+        : `화면에 보이는 언어만 바뀌어요. 콘텐츠는 ${contentLanguage}로 계속 나와요. 바꾸면 앱을 한 번 다시 불러와요.`,
     contentLanguage: { kr: '한국어', global: '영어' },
+  },
+
+  /**
+   * 콘텐츠 언어(시장) 전환(KAN-228 — global-api.md 4.11). 언어 이름은 그 언어로 쓴다(A21과 같다). 고르면 전환 화면으로
+   * 간다 — 막힘·동의·하루 1번은 서버가 판정한다
+   */
+  contentLanguageSection: {
+    label: { kr: '한국어', global: 'English' },
+    footer:
+      '듣는 에피소드와 주제의 언어예요. 바꾸면 관심 주제를 다시 고르고, 하루에 한 번 바꿀 수 있어요.',
   },
 
   colorMode: {
@@ -214,6 +226,7 @@ const en: LocalizedCopy<typeof ko> = {
     audioQuality: 'Audio quality',
     colorMode: 'Appearance',
     language: 'Language',
+    contentLanguage: 'Content language',
     notification: 'Notifications',
     privacy: 'Privacy',
     info: 'About',
@@ -285,8 +298,14 @@ const en: LocalizedCopy<typeof ko> = {
     footer: (contentLanguage) =>
       contentLanguage === null
         ? 'This changes only the language you see in the app. The app reloads once when you change it.'
-        : `This changes only the language you see in the app. Episodes stay in ${contentLanguage}, the language you chose at sign-up. The app reloads once when you change it.`,
+        : `This changes only the language you see in the app. Episodes stay in ${contentLanguage}. The app reloads once when you change it.`,
     contentLanguage: { kr: 'Korean', global: 'English' },
+  },
+
+  contentLanguageSection: {
+    label: { kr: '한국어', global: 'English' },
+    footer:
+      "The language of your episodes and topics. If you switch, you'll pick your topics again. You can switch once a day.",
   },
 
   colorMode: {

@@ -35,7 +35,12 @@ import type {
   UserDto,
   CurrentUserResponseDto,
 } from './auth.api';
-import type { Market, SocialProvider } from '../auth.types';
+import type { ContentLanguage, Market, SocialProvider } from '../auth.types';
+import type {
+  MarketChangePreviewResponseDto,
+  MarketChangeRequestDto,
+  MarketChangeResponseDto,
+} from './market-change.api';
 
 const SCENARIO = process.env.EXPO_PUBLIC_AUTH_MOCK_SCENARIO ?? 'default';
 
@@ -205,5 +210,72 @@ export const mockGetCurrentUser = async (): Promise<CurrentUserResponseDto> => {
   return {
     user: buildUser(pendingProvider ?? 'kakao', SCENARIO !== 'onboarding'),
     pending_consents: [],
+  };
+};
+
+/* ── 설정 › 콘텐츠 언어(시장) 전환(global-api.md 4.11, KAN-228) ── */
+
+/** 오늘 이미 바꿨는가 — 서버의 서비스 날짜당 1회 흉내(되돌리기 예외는 흉내 내지 않는다) */
+let hasChangedMarketToday = false;
+
+const marketOf = (language: ContentLanguage): Market => (language === 'en' ? 'global' : 'kr');
+
+const marketConsentsFor = (market: Market): ConsentItemDto[] => [
+  ageConsentFor(market, undefined),
+  ...(market === 'global' ? [...REQUIRED_CONSENTS, CROSS_BORDER_CONSENT] : REQUIRED_CONSENTS),
+];
+
+export const mockFetchMarketChangePreview = async (
+  language: ContentLanguage,
+): Promise<MarketChangePreviewResponseDto> => {
+  await delay(RESPONSE_DELAY_MS);
+  const target = marketOf(language);
+  const isSame = target === accountMarket;
+  const isCooldown = !isSame && hasChangedMarketToday;
+  return {
+    current_market: accountMarket,
+    target_market: target,
+    available: !isCooldown,
+    blocked_reason: isCooldown ? 'cooldown' : null,
+    retry_after_sec: isCooldown ? 6 * 3600 : null,
+    required_consents: isSame ? [] : marketConsentsFor(target),
+    steps: target === 'global' ? ['topic'] : ['topic', 'career'],
+  };
+};
+
+export const mockChangeMarket = async (
+  body: MarketChangeRequestDto,
+): Promise<MarketChangeResponseDto> => {
+  await delay(RESPONSE_DELAY_MS);
+  const target = marketOf(body.preferred_language);
+  if (target === accountMarket) {
+    return {
+      user: buildUser(pendingProvider, true),
+      access_token: null,
+      access_token_expires_at: null,
+    };
+  }
+  if (hasChangedMarketToday) {
+    throw new ApiError(
+      ERROR_CODES.MARKET_CHANGE_COOLDOWN,
+      '콘텐츠 언어는 하루에 한 번만 바꿀 수 있어요',
+      false,
+      6 * 3600,
+      null,
+      429,
+    );
+  }
+  hasChangedMarketToday = true;
+  accountMarket = target;
+  const tokens = issueTokens(Date.now());
+  return {
+    user: buildUser(pendingProvider, false),
+    access_token: tokens.access_token,
+    access_token_expires_at: tokens.access_token_expires_at,
+    onboarding: {
+      onboarding_completed: false,
+      onboarding_step: 'topic',
+      steps: target === 'global' ? ['topic'] : ['topic', 'career'],
+    },
   };
 };

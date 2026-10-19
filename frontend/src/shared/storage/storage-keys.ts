@@ -6,6 +6,12 @@ export const STORAGE_KEYS = {
   /** 푸시 토큰 매핑용 기기 식별자 (auth-api.md 4.1) */
   DEVICE_ID: 'device.id',
   /**
+   * 설정 › 콘텐츠 언어(시장) 전환 뒤 재온보딩 중 표시(KAN-228) — `{ revertTo }` JSON. 있으면 ① 온보딩 완료 때 GA4
+   * `onboarding_complete` 를 다시 보내지 않고 ② `revertTo` 가 있으면 주제 화면에 "이전 언어로 되돌리기"를 둔다.
+   * 재온보딩을 마치거나 로그아웃하면 지운다
+   */
+  MARKET_CHANGE_REONBOARDING: 'auth.market_change_reonboarding',
+  /**
    * [오늘은 그만 보기]로 재생 확인 팝업을 억제한 서비스 날짜(library.md 4.3).
    * 타이머가 아니라 날짜 자체를 저장한다 — 서버 service_date와 다르면 억제가 풀린 것으로 본다.
    * 기기 단위 하나의 키 — 진입점 화면별로 따로 저장하지 않는다(explore-uiux.md 8장).

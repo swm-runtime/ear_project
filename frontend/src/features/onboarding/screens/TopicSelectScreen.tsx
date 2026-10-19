@@ -1,3 +1,5 @@
+import { useNavigation } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useEffect, useRef } from 'react';
 import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -6,15 +8,18 @@ import { localized, type LocalizedCopy } from '@/shared/i18n/localized';
 import { theme } from '@/shared/theme';
 import ChevronIcon from '@/shared/ui/ChevronIcon';
 import FullScreenError from '@/shared/ui/FullScreenError';
+import GlassIconButton from '@/shared/ui/GlassIconButton';
 import { SkeletonGroup } from '@/shared/ui/Skeleton';
 import { Text } from '@/shared/ui/Typography';
 
+import { getMarketChangeRevertTarget } from '@/features/auth';
 import { topicImageSource } from '@/features/interest';
 
 import TopicMarqueeRow from '../components/TopicMarqueeRow';
 import { TopicPillRowsSkeleton } from '../components/TopicSelectSkeleton';
 import { useTopicSelectScreen } from '../hooks/useTopicSelectScreen';
 import { ONBOARDING_COPY } from '../onboarding.copy';
+import type { OnboardingStackParamList } from '../onboarding.types';
 import { toTopicRows } from '../services/topic-rows';
 
 /** 기본 흐름 속도(px/초)와 줄별 배율 — 같은 박자로 움직이면 기계적으로 보인다 */
@@ -28,11 +33,14 @@ const ko = {
   stepA11y: (current: number, total: number) => `${total}단계 중 ${current}단계`,
   step: (current: number, total: number) => `${current}/${total} 단계`,
   deselectA11y: (topicName: string) => `${topicName} 선택 해제`,
+  /** 시장 전환 뒤 재온보딩의 되돌리기(KAN-228) — 직전 콘텐츠 언어로 */
+  revertA11y: { kr: '한국어 콘텐츠로 되돌리기', global: '영어 콘텐츠로 되돌리기' },
 } as const;
 const en: LocalizedCopy<typeof ko> = {
   stepA11y: (current: number, total: number) => `Step ${current} of ${total}`,
   step: (current: number, total: number) => `Step ${current}/${total}`,
   deselectA11y: (topicName: string) => `Deselect ${topicName}`,
+  revertA11y: { kr: 'Switch back to Korean content', global: 'Switch back to English content' },
 };
 const COPY = localized({ ko, en });
 
@@ -45,6 +53,12 @@ const COPY = localized({ ko, en });
  */
 export default function TopicSelectScreen() {
   const insets = useSafeAreaInsets();
+  const navigation = useNavigation<NativeStackNavigationProp<OnboardingStackParamList>>();
+  /**
+   * 시장 전환 뒤 재온보딩이면 직전 언어로 되돌릴 수 있다(KAN-228 — 서버가 재온보딩 완료 전 되돌리기를 하루 1회에서 빼 준다).
+   * 첫 가입·되돌린 뒤에는 null — 1단계라 되돌아갈 곳이 없다(종전 그대로 좌우를 비운다)
+   */
+  const revertTarget = getMarketChangeRevertTarget();
   const {
     stepPosition,
     topics,
@@ -81,6 +95,20 @@ export default function TopicSelectScreen() {
           없으므로(주제는 드립 편성의 유일한 필수 신호) 좌우는 비운다.
         */}
         <View style={styles.toolbar}>
+          {revertTarget !== null ? (
+            <View style={styles.toolbarLeading}>
+              <GlassIconButton
+                onPress={() =>
+                  navigation.navigate('MarketChange', {
+                    targetLanguage: revertTarget === 'global' ? 'en' : 'ko',
+                  })
+                }
+                accessibilityLabel={COPY.revertA11y[revertTarget]}
+              >
+                <ChevronIcon direction="left" size={20} color={theme.color.textPrimary} />
+              </GlassIconButton>
+            </View>
+          ) : null}
           <Text style={styles.toolbarTitle} accessibilityRole="header">
             {ONBOARDING_COPY.topic.toolbarTitle}
           </Text>
@@ -222,6 +250,14 @@ const styles = StyleSheet.create({
   toolbar: {
     height: theme.touchTarget.minHeight,
     alignItems: 'center',
+    justifyContent: 'center',
+  },
+  /** 재온보딩 되돌리기(KAN-228) — 가운데 제목을 밀지 않게 왼쪽 끝에 띄운다 */
+  toolbarLeading: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    bottom: 0,
     justifyContent: 'center',
   },
   toolbarTitle: {

@@ -10,7 +10,12 @@ import { USE_NATIVE_PLAYER_ZOOM } from '@/shared/navigation/zoom-transition';
 import { HAS_NATIVE_TAB_BAR } from '@/shared/ui/GlassSurface';
 
 import { useAppUpdateStore } from '@/features/app-update';
-import { EmailVerificationScreen, useSessionStore, WithdrawalScreen } from '@/features/auth';
+import {
+  EmailVerificationScreen,
+  MarketChangeScreen,
+  useSessionStore,
+  WithdrawalScreen,
+} from '@/features/auth';
 import { CareerInfoScreen } from '@/features/career';
 import { ContentDetailScreen } from '@/features/content-detail';
 import { ExploreScreen, ExploreSearchScreen } from '@/features/explore';
@@ -236,6 +241,9 @@ export default function MainNavigator() {
           component={WithdrawalScreen}
           options={PUSHED_SCREEN_HEADER}
         />
+        {/* 콘텐츠 언어(시장) 전환(KAN-228) — 앱바(뒤로 + "콘텐츠 언어")를 화면이 직접 그린다. 성공하면 관문이 온보딩으로
+          스택을 통째로 바꾼다 */}
+        <MainStack.Screen name="MarketChange" component={MarketChangeScreen} />
         <MainStack.Screen
           name="Admin"
           component={PlaceholderScreen}

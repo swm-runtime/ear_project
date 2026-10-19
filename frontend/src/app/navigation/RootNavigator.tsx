@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { ForceUpdateScreen, checkAppVersionGate, useAppUpdateStore } from '@/features/app-update';
 import {
   ReconsentScreen,
+  selectMarket,
   SplashScreen,
   sessionService,
   useSessionStore,
@@ -32,6 +33,11 @@ const RootStack = createNativeStackNavigator<RootStackParamList>();
 export default function RootNavigator() {
   const status = useSessionStore((s) => s.status);
   const isOnboardingCompleted = useSessionStore((s) => s.user?.onboardingCompleted ?? false);
+  /**
+   * 시장(KAN-228) — 재온보딩 중 [되돌리기]로 시장이 바뀌면 루트 경로는 그대로 'Onboarding' 이라 스택이 남는다. 시장을
+   * 온보딩 화면의 `navigationKey` 로 두어 새 시장의 재개 지점·주제로 스택을 새로 세운다
+   */
+  const market = useSessionStore(selectMarket);
   /**
    * 재동의 판정은 **온보딩 판정보다 앞이다**(splash.md 4 — 3단계). 약관에 동의하지 않은
    * 사용자를 온보딩으로 들여보내면 관심사·커리어를 다 받은 뒤에야 동의를 묻게 된다.
@@ -101,7 +107,11 @@ export default function RootNavigator() {
       ) : route === 'Main' ? (
         <RootStack.Screen name="Main" component={MainNavigator} />
       ) : (
-        <RootStack.Screen name="Onboarding" component={OnboardingNavigator} />
+        <RootStack.Screen
+          name="Onboarding"
+          component={OnboardingNavigator}
+          navigationKey={market}
+        />
       )}
     </RootStack.Navigator>
   );

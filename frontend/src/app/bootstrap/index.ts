@@ -12,7 +12,12 @@ import { prefetchRemoteImages } from '@/shared/ui/RemoteImage';
 import { useToastStore } from '@/shared/ui/toast.store';
 
 import { startAppVersionRecheck } from '@/features/app-update';
-import { registerEmailVerifiedListener, sessionService, useSessionStore } from '@/features/auth';
+import {
+  registerEmailVerifiedListener,
+  registerMarketChangedListener,
+  sessionService,
+  useSessionStore,
+} from '@/features/auth';
 import { registerCareerSavedListener } from '@/features/career';
 import { registerInterestSavedListener } from '@/features/interest';
 import {
@@ -35,6 +40,7 @@ import {
   syncDeviceNow,
   useNotificationStore,
 } from '@/features/notification';
+import { useOnboardingStore } from '@/features/onboarding';
 import {
   playerProbeStores,
   registerPlayerLibraryBridge,
@@ -127,6 +133,16 @@ export const bootstrapApp = (): void => {
     if (markEmailVerifiedForPurchase()) {
       setTimeout(() => useLimitNoticeStore.getState().reopen(), EMAIL_RETURN_REOPEN_DELAY_MS);
     }
+  });
+
+  /*
+   * 콘텐츠 언어(시장) 전환(KAN-228 — global-api.md 4.11) — 라이브러리·탐색·주제·설정 요약이 전부 이전 시장의 값이다.
+   * 쿼리 캐시를 통째로 비우고(다음 화면이 새 토큰으로 다시 받는다) 온보딩 로컬 상태(첫 온보딩의 선택)를 비운다.
+   * auth 가 이 키들을 알지 않도록 여기서 배선한다
+   */
+  registerMarketChangedListener(() => {
+    queryClient.clear();
+    useOnboardingStore.getState().reset();
   });
 
   /*

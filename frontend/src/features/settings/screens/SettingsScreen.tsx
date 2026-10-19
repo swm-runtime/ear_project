@@ -22,6 +22,7 @@ import { NotificationPrePromptModal } from '@/features/notification';
 
 import AudioQualitySection from '../components/AudioQualitySection';
 import ColorModeSection from '../components/ColorModeSection';
+import ContentLanguageSection from '../components/ContentLanguageSection';
 import DevDiagnosticsRows from '../components/DevDiagnosticsRows';
 import DevPushTokenRow from '../components/DevPushTokenRow';
 import EmailRow from '../components/EmailRow';
@@ -222,6 +223,7 @@ export default function SettingsScreen() {
             contentLanguage={screen.contentLanguage}
             onSelect={screen.selectLanguage}
           />
+          <ContentLanguageSection market={screen.market} onSelect={screen.openMarketChange} />
 
           <SettingsSection title={SETTINGS_COPY.sections.notification}>
             {screen.isNotificationBannerVisible ? (

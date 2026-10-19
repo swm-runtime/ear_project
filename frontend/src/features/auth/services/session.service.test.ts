@@ -178,3 +178,22 @@ describe('SessionService 세션 복원 — iOS 기기 잠금', () => {
     expect(ctx.values.get('auth.refresh_token')).toBe('refresh-1');
   });
 });
+
+describe('시장 전환 — switchMarket(KAN-228)', () => {
+  it('access token 만 바꾸고 refresh token 은 그대로 두며, 세션 사용자를 응답 user 로 간다', async () => {
+    const ctx = setup();
+    await signIn(ctx);
+
+    await ctx.sessionService.switchMarket({
+      accessToken: 'access-global',
+      user: { id: 'u1', onboardingCompleted: false, market: 'global' } as AuthUser,
+    });
+
+    expect(await ctx.sessionService.getAccessToken()).toBe('access-global');
+    expect(ctx.values.get('auth.access_token')).toBe('access-global');
+    expect(ctx.values.get('auth.refresh_token')).toBe('refresh-1');
+    expect(ctx.useSessionStore.getState().user?.market).toBe('global');
+    // 온보딩 전으로 바뀌어 관문이 온보딩으로 보낸다
+    expect(ctx.useSessionStore.getState().user?.onboardingCompleted).toBe(false);
+  });
+});
