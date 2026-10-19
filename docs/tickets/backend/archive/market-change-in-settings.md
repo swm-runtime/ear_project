@@ -13,7 +13,8 @@
 | 선행 | 없음 — 단 **GLOBAL 콘텐츠 운영 발행**(AI KAN-204)이 끝나기 전에는 GLOBAL로의 전환을 열지 않는다(아래 완료 조건) |
 | 근거 문서 | `spec/api/global-api.md` 2.1(시장 판정)·4.1·9장 미결 #1("같은 계정의 시장 전환 — 기본값 불허") · `features/auth.md` · `spec/uiux/auth-uiux.md` A21 |
 | 중요도 | Highest |
-| 상태 | 발행 |
+| 상태 | **완료**(2026-10-19) — 서버 구현·개발계 실측 끝. 남은 FE 화면은 [KAN-228](https://runtime364.atlassian.net/browse/KAN-228), 운영 스위치는 [KAN-193](https://runtime364.atlassian.net/browse/KAN-193) 출시 체크리스트 |
+| 반영 날짜 | 2026-10-19 |
 
 ## 왜
 
@@ -70,3 +71,11 @@ PM 결정(2026-10-19):
   - DB: 이력 `kr→global(false)`·`global→kr(true)`, 관심 주제 활성 0, 동의 GLOBAL 4행 + KR 3행, `onboarding_completed_at` 유지 ✅
   - 정리: 시험 계정 삭제(CASCADE로 동의·관심 주제·이력 0건 확인), GLOBAL 주제 숨김 원복. **개발계 `MARKET_CHANGE_ENABLED=true`는 FE KAN-228 개발용으로 켜 둔다.** 운영은 그대로(키 없음 = 꺼짐).
   - **남은 것**: FE KAN-228 · 운영 스위치(1.3.0 출시 뒤) · FE 화면 반영 뒤 이 티켓 완료 처리.
+- 2026-10-19 **완료 처리 → `archive/`**(박준현). 완료 조건 6개 확인:
+  - 계약 — `global-api.md` 4.11, 9장 미결 #1 삭제(#1711·#1724) ✅
+  - KR → GLOBAL: 국외 이전 포함 동의 없이는 전환되지 않고 주제를 다시 고른다 — 개발계 실측 ✅
+  - GLOBAL → KR: KR 동의·연령을 다시 받는다 — 개발계 실측(되돌리기에서 KR `0.1`·연령 기록) ✅
+  - 노출 콘텐츠 0인 시장으로의 전환 거부 — 개발계 실측(`market_unavailable` · 409) ✅
+  - 유료 구독자 구독 유지 — 구독 경로를 건드리지 않음(코드·단위 테스트로 확인, 실측은 하지 않음) ✅
+  - 이전 시장 라이브러리 숨김 — CI e2e `test/market-change.e2e-spec.ts` ✅
+  - 이 티켓 밖으로 넘긴 것: FE 화면 **KAN-228**(이 티켓이 선행 — Jira blocks 링크), 운영 `MARKET_CHANGE_ENABLED=true`는 **KAN-193** 출시 체크리스트(앱 1.3.0 출시 + KAN-228 반영 뒤).

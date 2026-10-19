@@ -10,7 +10,7 @@
 | 기한 | 2026-10-19 (Highest — 티켓과 같이 **설계 착수 당일**. PM 결정 목표는 1.3.0 심사 제출(10-24) 전, 구현은 그 다음 버전) |
 | 선행 | 없음 — 단 GLOBAL로의 전환은 GLOBAL 발행(AI KAN-204)과 운영 `GLOBAL_SIGNUP_ENABLED` 열림 뒤에만 열린다(아래 9번) |
 | 중요도 | Highest(티켓과 같음 — 설계 착수 당일) |
-| 관련 | [KAN-227](https://runtime364.atlassian.net/browse/KAN-227) (`tickets/backend/pending/market-change-in-settings.md`) · FE [KAN-195](https://runtime364.atlassian.net/browse/KAN-195) |
+| 관련 | [KAN-227](https://runtime364.atlassian.net/browse/KAN-227) (`tickets/backend/archive/market-change-in-settings.md`) · FE [KAN-195](https://runtime364.atlassian.net/browse/KAN-195) |
 | 상태 | **결정·반영 완료**(2026-10-19 박준현 — `global-api.md` 9장 미결 #1의 결정자). D2만 제안과 다르다: 7일 → **서비스 날짜당 1회** |
 
 ## 배경
