@@ -110,6 +110,21 @@ export class ContentStatAggregationRepository {
     );
 
     /**
+     * **확정할 때는 원천에서 사라진 행도 함께 잠근다**(2026-10-19). 위 upsert 는 원천에 남은 콘텐츠만
+     * 건드린다 — 진행 중에 쓴 행의 원천이 확정 전에 지워지면(탈퇴로 재생·신호가 CASCADE) 그 행은
+     * `is_final = false`로 영영 남고, 순위·정산(`is_final = true`만 읽는다)에서 빠진다(운영 week
+     * 2026-09-14 1행 실측). 값은 고치지 않는다 — 원천이 있을 때 센 값이고, 확정 `month` 행이 원천
+     * 삭제 뒤에도 남는 것(`recomputeAllFromMonths`)·`play_daily_totals`와 같은 방향이다.
+     */
+    if (isFinal) {
+      await this.dataSource.query(
+        `UPDATE content_stats SET is_final = true, updated_at = now()
+          WHERE period_type = $1 AND period_start = $2::date AND is_final = false`,
+        [periodType, periodStart],
+      );
+    }
+
+    /**
      * TypeORM의 `query`는 INSERT에서 `rows`만 돌려준다(`[rows, affected]` 형태는 UPDATE·DELETE
      * 한정 — PostgresQueryRunner). 그래서 `RETURNING 1`로 쓴 행을 한 줄씩 받아 그 수를 센다.
      * **이 값은 로그용이고 판정에 쓰지 않는다.**
