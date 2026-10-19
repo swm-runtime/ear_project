@@ -106,6 +106,26 @@ describe('topicImageSource', () => {
       expect(source).toContain(`topic-${slug}.jpg`);
     });
 
+    it.each([
+      ['Korean Language', 'korean-language'],
+      ['K-Food', 'k-food'],
+      ['K-Pop', 'k-pop'],
+      ['K-Drama & Film', 'k-drama-film'],
+      ['Korean Culture', 'korean-culture'],
+      ['K-Beauty & Fashion', 'k-beauty-fashion'],
+      ['Korean History & Society', 'korean-history-society'],
+      ['Travel in Korea', 'travel-in-korea'],
+    ])(
+      'slug 없이 이름(%s)만 받아도 같은 사진 — 프로필 카드·탐색 칩(2026-10-19 실기기)',
+      (name, slug) => {
+        // given / when
+        const source = fileOf(topicImageSource({ name }));
+
+        // then
+        expect(source).toContain(`topic-${slug}.jpg`);
+      },
+    );
+
     it('GLOBAL 8개는 서로 다른 사진이다', () => {
       // given / when
       const files = GLOBAL_SLUGS.map((slug) => fileOf(topicImageSource({ slug })));
