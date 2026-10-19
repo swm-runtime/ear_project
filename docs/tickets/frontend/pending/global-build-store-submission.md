@@ -45,3 +45,4 @@
 - 2026-10-19 **KAN-197에서 이관** — 1.3.0 Android 빌드(Play 내부 테스트) 실기기에서 같이 본다: ① 영어 화면 Android 폰트 폴백·버튼 2줄(탐색 인기 구간 토글 "Weekly / Monthly / All time" · 커리어 직군 칩) ② iPhone SE + 가장 큰 글자에서 O4 커리어 폼까지 스크롤·직무 입력칸이 키보드 위로(#1708). iPhone 영어 레이아웃은 KAN-197에서 끝났다(`archive/global-locale-formats-layout.md`).
 - 2026-10-19 **KAN-206에서 이관** — 같은 1.3.0 실기기 확인 때: 약관 화면(A4) 연령 행 VoiceOver/TalkBack 낭독 · SE급·글자 200%에서 A1·A4 영어 문구 잘림 없음.
 - 2026-10-19 **KAN-195에서 이관** — A21 콘텐츠 언어 화면 VoiceOver 낭독(한국어·English 글자별 낭독 언어).
+- 2026-10-19 **KAN-199 에서 넘어온 사람 손 — 글로벌 스토어 리스팅 URL 3개 입력**(KAN-199 는 운영 반영 확인 뒤 완료 처리, `archive/landing-english-pages.md`). 제출 때 적는다: 지원 URL `https://earcast.co.kr/en/` · 개인정보처리방침 URL `https://earcast.co.kr/en/privacy/` · Google Play 계정 삭제 URL `https://earcast.co.kr/en/account-deletion/`. 셋 다 운영에서 200 확인(2026-10-19 19:59 KST 빌드). 영어 약관·처리방침은 법무 검토 없이 noindex 상태로 쓴다(PM 결정 2026-10-19) — 심사에는 영향 없다.
