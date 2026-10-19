@@ -26,6 +26,7 @@ import { useDeferredSheetShare } from '@/features/share';
 
 import { exploreKeys } from '../api/explore.api';
 import { EXPLORE_COPY } from '../explore.copy';
+import { exploreEntryThumbnail, isHiddenEntry, withEntryLibraryState } from '../explore.entry';
 import { toTagQuery } from '../explore.search-query';
 import type {
   ExploreContentsPage,
@@ -34,6 +35,7 @@ import type {
   ExploreLibraryState,
   ExplorePeriod,
   ExplorePopularPage,
+  ExploreSeries,
 } from '../explore.types';
 import { useExploreContentsQuery } from './useExploreContentsQuery';
 import { useExploreFeedQuery } from './useExploreFeedQuery';
@@ -164,9 +166,7 @@ export const useExploreScreen = ({
               ...old,
               sections: old.sections.map((section) => ({
                 ...section,
-                items: section.items.map((item) =>
-                  item.content.id === contentId ? { ...item, library } : item,
-                ),
+                items: withEntryLibraryState(section.items, contentId, library),
               })),
             }
           : old,
@@ -179,9 +179,7 @@ export const useExploreScreen = ({
                 ...old,
                 pages: old.pages.map((page) => ({
                   ...page,
-                  items: page.items.map((item) =>
-                    item.content.id === contentId ? { ...item, library } : item,
-                  ),
+                  items: withEntryLibraryState(page.items, contentId, library),
                 })),
               }
             : old,
@@ -194,9 +192,7 @@ export const useExploreScreen = ({
                 ...old,
                 pages: old.pages.map((page) => ({
                   ...page,
-                  items: page.items.map((item) =>
-                    item.content.id === contentId ? { ...item, library } : item,
-                  ),
+                  items: withEntryLibraryState(page.items, contentId, library),
                 })),
               }
             : old,
@@ -320,7 +316,7 @@ export const useExploreScreen = ({
           ...section,
           // 토글 선택 상태 — 전환 중이면 그 구간, 확정했으면 그 구간, 아니면 피드 응답의 period
           period: isPopular ? (pendingPeriod ?? activePeriod ?? section.period) : null,
-          items: items.filter((item) => !hiddenContentIds.has(item.content.id)),
+          items: items.filter((item) => !isHiddenEntry(item, hiddenContentIds)),
         };
       })
       .filter((section) => section.items.length > 0);
@@ -330,7 +326,7 @@ export const useExploreScreen = ({
     () =>
       (contentsPages ?? [])
         .flatMap((page) => page.items)
-        .filter((item) => !hiddenContentIds.has(item.content.id)),
+        .filter((item) => !isHiddenEntry(item, hiddenContentIds)),
     [contentsPages, hiddenContentIds],
   );
 
@@ -368,6 +364,14 @@ export const useExploreScreen = ({
       screen: 'ContentDetail',
       params: { contentId: item.content.id, entryPoint: 'explore' },
     });
+  };
+
+  /**
+   * 시리즈 카드 탭 → 시리즈 화면(E14). **"행 탭 = 즉시 재생"의 예외**다(explore.md 4.4) — 카드에는 편 단위 상태가 없어 재생 판정을
+   * 할 수 없다. 화면 등록은 app/navigation 이 한다(라우트 이름으로만 이동 — ContentDetail 과 같은 방식)
+   */
+  const openSeries = (series: ExploreSeries) => {
+    navigation.navigate('Main', { screen: 'Series', params: { seriesId: series.id } });
   };
 
   /** E12 [원문 보기](FR-12) — 클릭 기록과 브라우저 열기는 서로를 기다리지 않는다(player-api.md 4.5) */
@@ -528,7 +532,7 @@ export const useExploreScreen = ({
         // 새 카드 줄이 빈 칸으로 흘러 들어오지 않게 앞쪽 카드 사진을 메모리에 올린 뒤 바꾼다(최대 POPULAR_WARM_MS — 흐림이 그동안 이어진다)
         const firstPage = result.pages[0]?.items ?? [];
         await warmRemoteImages(
-          firstPage.slice(0, POPULAR_WARM_COUNT).map((item) => item.content.thumbnailUrl),
+          firstPage.slice(0, POPULAR_WARM_COUNT).map(exploreEntryThumbnail),
           POPULAR_WARM_MS,
         );
         setActivePeriod(period);
@@ -641,8 +645,9 @@ export const useExploreScreen = ({
     // 잔여 표시·페이월
     remainingDisplay,
     openPaywall: playGate.openPaywall,
-    // 재생
+    // 재생 · 시리즈 카드(E14 이동)
     handleRowPress,
+    openSeries,
     playConfirm: playGate.confirmState,
     confirmPlay: playGate.confirmPlay,
     cancelPlayConfirm: playGate.cancelConfirm,

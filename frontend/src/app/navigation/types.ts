@@ -56,6 +56,11 @@ export type MainStackParamList = {
    * initialQuery: 태그 탭이 넘긴 질의(`#태그`) — 디바운스 없이 즉시 검색하고 최근 검색어에 저장한다
    */
   ExploreSearch: { initialQuery?: string } | undefined;
+  /**
+   * 시리즈 화면(E14 — explore.md 4.7, KAN-225). 진입은 탐색의 시리즈 카드(피드·주제별·인기·검색 — 스위치
+   * `SERIES_EXPLORE_CARDS_ENABLED` 켬)와 콘텐츠 상세의 시리즈 줄이다. 데이터는 `GET /series/:series_id`(explore-api.md 4.7)
+   */
+  Series: { seriesId: string };
   /** 설정(settings.md) — 진입점은 프로필 우상단 아이콘뿐이다 */
   Settings: undefined;
   /** 요금제 관리(subscription.md · KAN-120) — 설정 "요금제 관리" 카드·프로필 [구독 알아보기]의 목적지 */

@@ -26,9 +26,11 @@ const toContentDetail = (dto: ContentDetailResponseDto): ContentDetail => ({
     topics: dto.content.topics.map((topic) => ({ id: topic.id, name: topic.name })),
     tags: dto.content.tags ?? [],
     language: dto.content.language ?? null,
+    // 새 `id`·`title` 을 먼저 읽고 종전 `series_id` 로 폴백한다(content-detail-api.md 4.1 — KAN-134 1단계)
     series: dto.content.series
       ? {
-          seriesId: dto.content.series.series_id,
+          seriesId: dto.content.series.id ?? dto.content.series.series_id ?? null,
+          title: dto.content.series.title?.trim() ? dto.content.series.title : null,
           episodeNo: dto.content.series.episode_no,
           totalEpisodes: dto.content.series.total_episodes,
         }

@@ -23,11 +23,14 @@ export interface ContentDetailTopic {
 }
 
 /**
- * 시리즈 정보 — 단일 콘텐츠는 세 필드가 전부 null이라 객체째 null로 내려온다
- * (content-detail-api.md 4.1 — null 판정이 하나가 되게 묶은 모양).
+ * 시리즈 정보 — 단일 콘텐츠는 객체째 null로 내려온다(content-detail-api.md 4.1 — null 판정이 하나가 되게 묶은 모양).
+ * `content.series` 객체(KAN-134 1단계)의 `id`·`title` 을 읽는다 — 구버전 서버는 `title` 이 없다
  */
 export interface ContentDetailSeries {
-  seriesId: string;
+  /** 시리즈 화면(E14) 이동 재료 — `id` 우선, 없으면 종전 `series_id`. 둘 다 없으면 null(시리즈 줄은 보이지만 눌리지 않는다) */
+  seriesId: string | null;
+  /** 시리즈 이름 — 없으면(구버전 서버) null 이고 시리즈 줄은 종전 "N부작 중 M화"만 적는다 */
+  title: string | null;
   episodeNo: number;
   totalEpisodes: number;
 }

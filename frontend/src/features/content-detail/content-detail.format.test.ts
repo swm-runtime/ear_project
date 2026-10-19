@@ -44,8 +44,18 @@ describe('content-detail.format', () => {
   });
 
   describe('formatSeriesLabel', () => {
-    it('시리즈 정보를 "N부작 중 M화"로 표시한다', () => {
-      expect(formatSeriesLabel({ seriesId: 'series-1', episodeNo: 1, totalEpisodes: 3 })).toBe(
+    it('시리즈 제목이 있으면 "{시리즈 제목} · N부작 중 M화"로 표시한다(KAN-225)', () => {
+      expect(
+        formatSeriesLabel({
+          title: '키워드로 빠르게 배우는 CS 지식',
+          episodeNo: 3,
+          totalEpisodes: 16,
+        }),
+      ).toBe('키워드로 빠르게 배우는 CS 지식 · 16부작 중 3화');
+    });
+
+    it('시리즈 제목이 없는 응답(구버전 서버)은 종전대로 "N부작 중 M화"로 표시한다', () => {
+      expect(formatSeriesLabel({ title: null, episodeNo: 1, totalEpisodes: 3 })).toBe(
         '3부작 중 1화',
       );
     });

@@ -11,6 +11,8 @@ const ko = {
   publishedDate: (year: number, month: number, day: number) =>
     formatFullDate({ year, month, day }, 'ko'),
   series: (totalEpisodes: number, episodeNo: number) => `${totalEpisodes}부작 중 ${episodeNo}화`,
+  seriesWithTitle: (title: string, totalEpisodes: number, episodeNo: number) =>
+    `${title} · ${totalEpisodes}부작 중 ${episodeNo}화`,
 } as const;
 const en: LocalizedCopy<typeof ko> = {
   // 초가 0 이면 "5 min" — "5 min 0 sec" 는 영어로 어색하다(2026-10-18 영어 QA). 한국어도 같은 규칙이다(정각 "15분", PM 확정 2026-10-18)
@@ -20,6 +22,8 @@ const en: LocalizedCopy<typeof ko> = {
   publishedDate: (year: number, month: number, day: number) =>
     formatFullDate({ year, month, day }, 'en'),
   series: (totalEpisodes: number, episodeNo: number) => `Episode ${episodeNo} of ${totalEpisodes}`,
+  seriesWithTitle: (title: string, totalEpisodes: number, episodeNo: number) =>
+    `${title} · Episode ${episodeNo} of ${totalEpisodes}`,
 };
 const COPY = localized({ ko, en });
 
@@ -45,6 +49,13 @@ export const formatPublishedDate = (publishedAt: string): string => {
   return COPY.publishedDate(year, month, day);
 };
 
-/** 시리즈 "N부작 중 M화"(content-detail.md 4.3-1 — 확정 카피) */
-export const formatSeriesLabel = (series: ContentDetailSeries): string =>
-  COPY.series(series.totalEpisodes, series.episodeNo);
+/**
+ * 시리즈 줄 "{시리즈 제목} · N부작 중 M화"(content-detail.md 4.3-1 — KAN-225). 시리즈 이름이 없는 응답(구버전 서버)은
+ * 종전 "N부작 중 M화" 그대로다. 콘텐츠 제목은 따로 줄이지 않는다(시리즈 이름을 품은 원래 제목 그대로)
+ */
+export const formatSeriesLabel = (
+  series: Pick<ContentDetailSeries, 'title' | 'episodeNo' | 'totalEpisodes'>,
+): string =>
+  series.title !== null
+    ? COPY.seriesWithTitle(series.title, series.totalEpisodes, series.episodeNo)
+    : COPY.series(series.totalEpisodes, series.episodeNo);

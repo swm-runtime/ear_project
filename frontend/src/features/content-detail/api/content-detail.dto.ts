@@ -9,10 +9,19 @@ export interface ContentDetailTopicDto {
   name: string;
 }
 
-/** 단일 콘텐츠는 객체째 null — 세 필드를 묶어 null 판정이 하나가 되게 한 모양(api 4.1) */
+/**
+ * 단일 콘텐츠는 객체째 null — 필드를 묶어 null 판정이 하나가 되게 한 모양(api 4.1).
+ * KAN-134 1단계(2026-10-17)부터 `id`·`title` 이 붙는다 — `series_id` 는 `id` 와 같은 값이고 설치된 앱(1.2.1) 호환으로만 남는다.
+ * 새 앱은 `id` 를 먼저 읽고, 아직 안 보내는 서버(구버전)를 위해 `series_id` 로 폴백한다. 셋 다 선택 필드로 둔다
+ */
 export interface ContentDetailSeriesDto {
-  series_id: string;
+  id?: string;
+  /** 시리즈 이름 — 시리즈 줄 "{시리즈 제목} · N부작 중 M화"의 앞부분. 없으면(구버전 서버) 종전 문구 */
+  title?: string;
+  /** 종전 칸 — `id` 와 같은 값(설치된 앱 호환). 서버가 빼도 깨지지 않게 선택으로 둔다 */
+  series_id?: string;
   episode_no: number;
+  /** 이제 시리즈 표의 계획 편수다(domain.md 5.9) */
   total_episodes: number;
 }
 

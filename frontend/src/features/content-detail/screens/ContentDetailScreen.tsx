@@ -74,7 +74,7 @@ export default function ContentDetailScreen() {
         {/* 구분선은 하나다 — 헤더+소개 / 메타의 두 영역을 가른다(content-detail.md 4.2).
             메타 아래에는 구분선을 두지 않는다 — 출처 영역을 뺐다(KAN-221) */}
         <View style={styles.divider} />
-        <ContentDetailMeta content={content} />
+        <ContentDetailMeta content={content} onSeriesPress={screen.openSeries} />
       </ScrollView>
     );
   };

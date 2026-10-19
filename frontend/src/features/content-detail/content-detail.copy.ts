@@ -16,6 +16,8 @@ const ko = {
     duration: '길이',
     publishedAt: '발행일',
     series: '시리즈',
+    /** 시리즈 줄은 시리즈 화면(E14)을 여는 버튼이다(KAN-225) — 낭독은 줄 값 + 동작 */
+    seriesOpenA11y: (label: string) => `${label}, 시리즈 보기`,
   },
 
   /** 헤더 액션(content-detail.md 4.4 — 확정 카피) */
@@ -63,6 +65,7 @@ const en: LocalizedCopy<typeof ko> = {
     duration: 'Length',
     publishedAt: 'Published',
     series: 'Series',
+    seriesOpenA11y: (label: string) => `${label}, view series`,
   },
 
   actions: {

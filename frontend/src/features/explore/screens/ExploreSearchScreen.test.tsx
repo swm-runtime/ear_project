@@ -46,7 +46,7 @@ jest.mock('../components/SearchToolbar', () => jest.fn(() => null));
 jest.mock('../components/RecentSearchList', () => () => null);
 jest.mock('../components/SuggestedKeywordChips', () => () => null);
 jest.mock('../components/ExploreMoreSheet', () => () => null);
-jest.mock('../components/ExploreTile', () => () => null);
+jest.mock('../components/ExploreEntryTile', () => () => null);
 
 interface Renderer {
   root: {

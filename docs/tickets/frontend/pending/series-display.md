@@ -13,7 +13,7 @@
 | 선행 | BE [KAN-134](https://runtime364.atlassian.net/browse/KAN-134) `tickets/backend/pending/series-backend.md` — 시리즈 응답(`series` 객체 · 탐색 시리즈 카드 · `GET /series/:id`). 배포 전에는 mock 으로 화면을 먼저 만들 수 있다 |
 | 근거 문서 | `tickets/backend/pending/series-backend.md`(확정 설계 3·4번·결정 사항) · `features/explore.md` 4.1·4.4 · `features/content-detail.md` 4.3-1 · `ai/spec/11-series.md` · PRD FR-13 |
 | 중요도 | Low |
-| 상태 | 대기 |
+| 상태 | 코드 반영(2026-10-19) — 개발계 스위치 켠 뒤 실기기 확인 남음 |
 
 ## 배경
 
@@ -70,3 +70,24 @@
 
 - 2026-10-17 발행.
 - 2026-10-17 BE 안내(박준현): 탐색 시리즈 카드는 **헤더 없이** 서버 스위치 `SERIES_EXPLORE_CARDS_ENABLED`(기본 꺼짐)로 켠다(앞서 안내한 `X-Client-Features` 헤더는 철회). 개발계는 이 화면이 준비되면 BE에 알려 켜고 같이 시험한다. 운영은 1.3.0 공개 → 최소 지원 버전 1.3.0 → 스위치 켬(KAN-198). 계약 `docs/changes/archive/series-explore-cards.md`. 주제·검색 필터는 편 단위로 걸려 한 편만 걸려도 카드가 나오고, 카드의 `episode_count`·`topic_ids`는 시리즈 전체 기준이다. 그 전에 쓸 수 있는 것: 카드·라이브러리·플레이어·상세의 `series` 칸, `GET /series/:id`(계약 `docs/changes/archive/series-backend-phase1.md`).
+- 2026-10-19 코드 반영(브랜치 `feat(fe)/series-display`) — 반영한 것:
+  - **탐색 목록 모델** — 피드 섹션·주제별·인기·검색·검색 fallback 의 항목을 `ExploreEntry`(콘텐츠 행 | 시리즈 카드) 섞인 목록으로 바꿨다(`explore.types.ts` · `explore.dto.ts` · `explore.api.ts` `toExploreEntry`). `type` 키가 없으면(스위치 꺼짐) 콘텐츠 행, **모르는 `type` 은 변환에서 버린다**(그 항목만 빠지고 목록은 그대로). 콘텐츠 모델에 `series`(1단계 객체, 없거나 null 이면 null)를 더했다. 섹션 제목(`explore.section-title.ts`)·`sectionKey` 는 그대로다
+  - **시리즈 카드** — `ExploreSeriesTile`(사각 타일·격자·대표 카드 세 크기) + 종류를 가르는 `ExploreEntryTile`. 탭 = 시리즈 화면(재생 아님), 더보기 없음. 낭독 "{제목}, 시리즈, N편, 열기"
+  - **시리즈 화면(E14)** — `features/explore` 에 `SeriesScreen` · `useSeriesScreen` · `useSeriesDetailQuery`(`exploreKeys.series(id)` — explore 키 아래라 탐색의 무효화가 함께 닿는다) · `fetchSeriesDetail`(`GET /series/:id`). 라우트 `Series: { seriesId }`(`app/navigation/types.ts`), 등록은 `MainNavigator`(explore·content-detail 은 라우트 이름으로만 이동 — 새 feature 간 import 없음, `architecture.md` 4.4 표 변경 없음)
+  - **콘텐츠 상세 시리즈 줄** — `series.id ?? series.series_id` · `series.title` 을 읽고 "{시리즈 제목} · N부작 중 M화"(영어 "{title} · Episode M of N"), 제목이 없으면 종전 문구. 줄을 누르면 시리즈 화면
+  - **mock** — 기본 시나리오 = 스위치 켬(피드·주제별·인기·검색·fallback 에 시리즈 카드, 새로 나온 콘텐츠 섹션에 모르는 종류 한 건), `EXPO_PUBLIC_EXPLORE_MOCK_SCENARIO=series-off` = 스위치 꺼짐(`type` 키 없음 · 편마다 한 줄). 시리즈 화면 mock 은 `series-cs`(6편 계획 중 4편 · 연재 중 — 완청·듣는 중·담음·없음 네 상태) · `series-money`(3편 완결), 그 밖 id 는 404. 상세 mock 의 시리즈 편은 새 객체 모양, 종전 `seq % 6 === 2` 는 구버전 모양(`series_id` 만 — 눌러 열면 404 확인용)
+  - **문서** — `features/explore.md` 4.1(카드 표시·모르는 종류) · 4.7 시리즈 화면 신설 · 5장 · 8장, `features/content-detail.md` 4.2 · 4.3-1 · 7장, `spec/uiux/explore-uiux.md` 2장 E14 · 4.11 신설(카드·E14·카피 표), `features/README.md` 인덱스
+  - **테스트** — 변환(`explore.api.test.ts` — type 없음/모름/시리즈/시리즈 화면), 섞인 목록 도우미(`explore.entry.test.ts`), 편 상태(`explore.series-episode.test.ts`), 시리즈 화면 훅(`useSeriesScreen.test.tsx` — 순서·재생 게이트·404·네트워크), 상세 시리즈 줄(`content-detail.format(.en).test.ts` · `content-detail.api.test.ts`)
+- 2026-10-19 FE 결정(코드 반영 중 — 바꾸려면 이 목록부터):
+  1. **카드 크기는 그 줄의 타일을 따른다** — 사각 타일 캐러셀·두 칸 격자는 사각 타일 크기, 인기 줄은 대표 카드와 같은 크기의 시리즈 카드(흐린 표지 바탕). 같은 줄에서 높이·폭이 어긋나지 않게
+  2. **단일 편과의 구분 = 사진 아래 변 "시리즈" 글자 + 겹친 두 사각 글리프**(검정 그라데이션 위 흰 글자 — 라이브러리 "새로운 주제"와 같은 처리). 알약 배지는 사진 위 스티커라 쓰지 않았다(`design.md` §3)
+  3. **편수 = 노출 편 수.** 계획보다 적으면 카드 `M/N편`, 시리즈 화면 머리 "N편 중 M편 공개"(확인할 것 2 — 발행 안 된 편은 줄·자리로 보이지 않는다). 카드 하단 줄 주제는 `topic_ids` 최대 2개(칩 목록으로 이름 풀이)
+  4. **카드에는 더보기·해시태그 탭이 없다** — 카드 전체가 한 히트 영역(시리즈 화면). 담기·제거는 편 행이 가진다
+  5. **편 행 상태 글자는 하나** — 완청 > "N분 남음"(남은 시간 올림, 진행 바 함께) > 담음 > 없음. 탐색 행의 "담김 표시 없음" 합의의 시리즈 화면 예외로 `explore.md` 4.7 에 적었다
+  6. **편 행 조작 = 탐색과 같은 경로** — 재생은 탐색과 같은 게이트·진입점 `explore`(새 진입점 값을 만들지 않았다)·자동 적립 포함, [더보기]는 탐색 시트 그대로(상세 정보 · 원문 보기 · 담기/제거 · 공유는 기존 플래그). 분석 이벤트는 새로 두지 않았다
+  7. **앱바는 콘텐츠 상세와 같은 자체 앱바**(유리 원 뒤로 + 가운데 "시리즈") — iOS 26 시스템 큰 제목(`PUSHED_SCREEN_HEADER`)은 상세가 아직 안 쓰는 것과 맞췄다
+  8. **404·400(uuid 아님) = "시리즈를 찾을 수 없어요" + [돌아가기]**, 그 밖 실패 = 전체 화면 에러 + [다시 시도]. 플레이어·상세에서 돌아오면 조용히 다시 받는다(첫 포커스는 건너뜀)
+  9. **상세의 시리즈 줄은 누를 수 있다**(시리즈 id 가 있을 때만, 셰브론 + hitSlop 44). 시리즈 화면 → 상세 → 시리즈 줄이면 시리즈 화면이 한 장 더 쌓인다(React Navigation 7 navigate) — 그대로 뒀다
+  10. 탐색 DTO 의 `author_name` 을 `string | null` 로 정정했다(시리즈 화면 예시가 null — 화면 모델에서는 빈 문자열)
+  11. 와이어프레임(HTML)은 이번 PR 에서 그리지 않았다 — `explore-uiux.md` 4.11 이 화면 문법·카피의 기준
+
