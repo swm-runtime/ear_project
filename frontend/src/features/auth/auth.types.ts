@@ -187,3 +187,32 @@ export interface WithdrawalSubmission {
   /** 활성 구독이 있을 때만 실어 보낸다. 그 외에는 null(키 자체를 싣지 않는다) */
   agreedSubscriptionExpiry: boolean | null;
 }
+
+/**
+ * 설정 › 콘텐츠 언어(시장) 전환의 미리보기(global-api.md 4.11, KAN-228). **막힘·필요 동의는 서버가 판정한다** — 앱은
+ * 그리기만 한다. `available: false` 면 `blockedReason` 으로 안내한다
+ */
+export type MarketChangeBlockedReason = 'market_unavailable' | 'cooldown';
+
+export interface MarketChangePreview {
+  currentMarket: Market;
+  targetMarket: Market;
+  available: boolean;
+  /** 모르는 값(새 서버)은 `market_unavailable` 로 받는다 — 바꿀 수 없다는 뜻은 같다 */
+  blockedReason: MarketChangeBlockedReason | null;
+  /** `cooldown` 일 때 다음 05:00(서비스 날짜 경계)까지 남은 초 */
+  retryAfterSec: number | null;
+  /** 새 시장의 필수 동의 전부 — 가입 재조회(auth-api 4.14)와 같은 모양. 지금 시장과 같으면 빈 배열 */
+  requiredConsents: RequiredConsent[];
+}
+
+/** 전환 결과 — 이미 그 시장이면 `accessToken: null`(아무것도 바뀌지 않았다) */
+export interface MarketChangeResult {
+  user: AuthUser;
+  accessToken: string | null;
+}
+
+/** 시장 전환 화면의 라우트 파라미터 — 설정(MainStack)과 재온보딩 [되돌리기](OnboardingStack) 두 곳에 같은 이름으로 등록한다 */
+export interface MarketChangeParams {
+  targetLanguage: ContentLanguage;
+}

@@ -24,7 +24,12 @@ import { secureStorage } from '@/shared/storage/secure-storage';
 import { STORAGE_KEYS } from '@/shared/storage/storage-keys';
 import { useToastStore } from '@/shared/ui/toast.store';
 
-import { selectMarket, sessionService, useSessionStore } from '@/features/auth';
+import {
+  selectMarket,
+  sessionService,
+  useSessionStore,
+  type ContentLanguage,
+} from '@/features/auth';
 import { isCareerEntryVisible } from '@/features/career';
 import { getOsPermissionStatus, type OsPermissionStatus } from '@/features/notification';
 import { formatPlanGrantLine } from '@/features/subscription';
@@ -482,6 +487,11 @@ export const useSettingsScreen = () => {
     navigation.navigate('Main', { screen: destination });
   };
 
+  /** 콘텐츠 언어(시장) 전환 화면(KAN-228) — 막힘·동의는 그 화면이 서버 미리보기로 그린다 */
+  const openMarketChange = (targetLanguage: ContentLanguage): void => {
+    navigation.navigate('Main', { screen: 'MarketChange', params: { targetLanguage } });
+  };
+
   /* ── 섹션별 VM — 부분 실패는 해당 카드만 에러로 둔다(S6) ── */
 
   const hasFailed = (section: 'account' | 'plan' | 'interest_summary'): boolean =>
@@ -616,6 +626,9 @@ export const useSettingsScreen = () => {
     isAdmin: summary?.account?.isAdmin ?? false,
     contentLanguage,
     selectLanguage,
+    /** 콘텐츠 언어(시장) — 세션 값. 표시는 섹션이 언어 이름으로 */
+    market,
+    openMarketChange,
     /** 서버 update_available 판정 결과 — 클라이언트가 버전을 비교하지 않는다 */
     isUpdateAvailable: summary?.version.updateAvailable ?? false,
 

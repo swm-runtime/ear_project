@@ -104,7 +104,7 @@ interface SocialLoginConsentRequiredDto {
 
 export type SocialLoginResponseDto = AuthSessionDto | SocialLoginConsentRequiredDto;
 
-interface ConsentSubmissionDto {
+export interface ConsentSubmissionDto {
   consent_type: ConsentType;
   version: string | null;
   is_agreed: boolean;
@@ -155,7 +155,7 @@ interface LogoutRequestDto {
 
 /* ── 변환 — snake_case ↔ camelCase 변환은 이 모듈 안에서만 일어난다 ── */
 
-const toRequiredConsent = (dto: ConsentItemDto): RequiredConsent => ({
+export const toRequiredConsent = (dto: ConsentItemDto): RequiredConsent => ({
   consentType: dto.consent_type,
   version: dto.version,
   isRequired: dto.is_required,
@@ -171,9 +171,10 @@ const toLocaleRequestDto = (locale: DeviceLocale): LocaleRequestDto => ({
 });
 
 /** 모르는 값·누락(구 서버)은 `kr` — 서버 폴백 규칙("없으면 `kr`", global-api.md 2.1)과 같다 */
-const toMarket = (value: string | undefined): Market => (value === 'global' ? 'global' : 'kr');
+export const toMarket = (value: string | undefined): Market =>
+  value === 'global' ? 'global' : 'kr';
 
-const toAuthUser = (dto: UserDto): AuthUser => ({
+export const toAuthUser = (dto: UserDto): AuthUser => ({
   id: dto.id,
   nickname: dto.nickname,
   email: dto.email,
@@ -198,7 +199,7 @@ const toAuthSession = (dto: AuthSessionDto): AuthSession => ({
   pendingConsents: dto.pending_consents.map(toRequiredConsent),
 });
 
-const toConsentSubmissionDto = (model: ConsentSubmission): ConsentSubmissionDto => ({
+export const toConsentSubmissionDto = (model: ConsentSubmission): ConsentSubmissionDto => ({
   consent_type: model.consentType,
   version: model.version,
   is_agreed: model.isAgreed,

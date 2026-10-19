@@ -46,7 +46,7 @@ exports[`한국어 카피 회귀 — i18n 전환 전과 1:1 AUTH_COPY 1`] = `
     "description": "고른 언어에 따라 받아 보는
 에피소드와 주제가 달라져요",
     "next": "다음",
-    "notChangeable": "가입한 뒤에는 바꿀 수 없어요",
+    "notChangeable": "나중에 설정에서 바꿀 수 있어요",
     "option": {
       "en": "English",
       "ko": "한국어",
@@ -107,6 +107,45 @@ exports[`한국어 카피 회귀 — i18n 전환 전과 1:1 AUTH_COPY 1`] = `
     "verifyFailed": "인증하지 못했어요. 다시 시도해주세요",
   },
   "loginFailed": "로그인에 실패했어요. 다시 시도해주세요",
+  "marketChange": {
+    "appBarTitle": "콘텐츠 언어",
+    "backA11y": "뒤로가기",
+    "blocked": {
+      "cooldown": {
+        "description": [
+          "약 3시간 뒤에 다시 바꿀 수 있어요",
+          "약 가나다시간 뒤에 다시 바꿀 수 있어요",
+        ],
+        "title": "콘텐츠 언어는 하루에 한 번 바꿀 수 있어요",
+      },
+      "market_unavailable": {
+        "description": "이 언어의 에피소드를 준비하고 있어요. 다음에 다시 시도해주세요",
+        "title": "지금은 이 언어로 바꿀 수 없어요",
+      },
+    },
+    "close": "닫기",
+    "consentTitle": "바꾸려면 아래 내용에 동의해주세요",
+    "consentsChanged": "동의할 내용이 바뀌었어요. 다시 확인해주세요",
+    "languageName": {
+      "global": "영어",
+      "kr": "한국어",
+    },
+    "loadFailedDescription": "잠시 후 다시 시도해주세요",
+    "loadFailedTitle": "정보를 불러오지 못했어요",
+    "points": [
+      "관심 주제를 새 언어의 주제로 다시 골라요",
+      "지금 라이브러리는 숨겨져요. 이 언어로 돌아오면 다시 보여요",
+      "구독과 남은 재생 횟수는 그대로예요",
+      "콘텐츠 언어는 하루에 한 번 바꿀 수 있어요",
+    ],
+    "retry": "다시 시도",
+    "submit": "바꾸기",
+    "submitFailed": "바꾸지 못했어요. 다시 시도해주세요",
+    "title": [
+      "콘텐츠 언어를 3로 바꿀까요?",
+      "콘텐츠 언어를 가나다로 바꿀까요?",
+    ],
+  },
   "reconsent": {
     "description": "계속 이용하시려면 아래 항목에 동의해 주세요",
     "logout": "로그아웃",
@@ -1113,6 +1152,13 @@ exports[`한국어 카피 회귀 — i18n 전환 전과 1:1 SETTINGS_COPY 1`] = 
     ],
     "inviteCode": "프로모션 코드 입력",
   },
+  "contentLanguageSection": {
+    "footer": "듣는 에피소드와 주제의 언어예요. 바꾸면 관심 주제를 다시 고르고, 하루에 한 번 바꿀 수 있어요.",
+    "label": {
+      "global": "English",
+      "kr": "한국어",
+    },
+  },
   "email": {
     "change": "변경",
     "label": "이메일",
@@ -1150,8 +1196,8 @@ exports[`한국어 카피 회귀 — i18n 전환 전과 1:1 SETTINGS_COPY 1`] = 
       "kr": "한국어",
     },
     "footer": [
-      "화면에 보이는 언어만 바뀌어요. 콘텐츠는 가입 때 고른 3로 계속 나와요. 바꾸면 앱을 한 번 다시 불러와요.",
-      "화면에 보이는 언어만 바뀌어요. 콘텐츠는 가입 때 고른 가나다로 계속 나와요. 바꾸면 앱을 한 번 다시 불러와요.",
+      "화면에 보이는 언어만 바뀌어요. 콘텐츠는 3로 계속 나와요. 바꾸면 앱을 한 번 다시 불러와요.",
+      "화면에 보이는 언어만 바뀌어요. 콘텐츠는 가나다로 계속 나와요. 바꾸면 앱을 한 번 다시 불러와요.",
     ],
     "label": {
       "en": "English",
@@ -1212,6 +1258,7 @@ exports[`한국어 카피 회귀 — i18n 전환 전과 1:1 SETTINGS_COPY 1`] = 
     "audioQuality": "음질",
     "colorMode": "화면",
     "content": "콘텐츠",
+    "contentLanguage": "콘텐츠 언어",
     "developer": "개발 도구",
     "info": "정보",
     "language": "언어",

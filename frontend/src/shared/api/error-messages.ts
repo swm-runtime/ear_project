@@ -23,6 +23,9 @@ export const ERROR_MESSAGES_EN: Readonly<Record<string, string>> = {
   CONTENT_NOT_FOUND: "This episode isn't available.",
   CONTENT_WITHDRAWN: 'This episode is no longer available.',
   MARKET_MISMATCH: 'Something went wrong. Please try again.',
+  // global-api.md 5장 — 시장 전환(KAN-228). 9장 등재는 changes/pending/global-market-change-error-codes.md
+  MARKET_UNAVAILABLE: "You can't switch to this language right now.",
+  MARKET_CHANGE_COOLDOWN: 'You can change your content language once a day. Try again tomorrow.',
   // 9.3 인증·계정
   AUTH_PROVIDER_TOKEN_INVALID: "Sign-in didn't go through. Please try again.",
   AUTH_PROVIDER_UNAVAILABLE: "We couldn't reach the sign-in service. Please try again.",

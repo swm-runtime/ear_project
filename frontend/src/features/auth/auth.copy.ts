@@ -4,6 +4,7 @@ import { localized, type LocalizedCopy } from '@/shared/i18n/localized';
 import type {
   ConsentType,
   ContentLanguage,
+  Market,
   SocialProvider,
   WithdrawalReasonCode,
 } from './auth.types';
@@ -53,7 +54,8 @@ const ko = {
     } satisfies Record<ContentLanguage, string>,
     /** English 권장 — K-컬처에 관심 있는 영어 사용자에게 하는 말이라 화면 언어와 무관하게 **늘 영어**(PM 2026-10-19) */
     recommendEnglish: 'Into K-culture? Choose English',
-    notChangeable: '가입한 뒤에는 바꿀 수 없어요',
+    /** 가입 뒤에도 설정에서 바꿀 수 있다(KAN-228 — 종전 "가입한 뒤에는 바꿀 수 없어요") */
+    notChangeable: '나중에 설정에서 바꿀 수 있어요',
     next: '다음',
     backA11y: '뒤로가기',
   },
@@ -98,6 +100,45 @@ const ko = {
    * A20 재동의 — 기존 사용자(auth-uiux.md 4.3-1). A4와 문구를 나눈다:
    * 신규 가입은 "시작"이고 여기는 "계속 이용"이다. TODO(카피 미확정)
    */
+  /**
+   * 설정 › 콘텐츠 언어(시장) 전환(KAN-228 — global-api.md 4.11). 무엇이 바뀌는지 먼저 밝히고, 새 언어의 필수 동의를
+   * 같은 화면에서 받는다(확인 팝업 + 동의 화면을 한 화면으로 — FE 결정). 규칙(하루 1번·주제 다시 고르기·라이브러리 숨김)은
+   * 서버가 판정하고 화면은 알리기만 한다
+   */
+  marketChange: {
+    appBarTitle: '콘텐츠 언어',
+    backA11y: '뒤로가기',
+    languageName: { kr: '한국어', global: '영어' } satisfies Record<Market, string>,
+    title: (language: string) => `콘텐츠 언어를 ${language}로 바꿀까요?`,
+    points: [
+      '관심 주제를 새 언어의 주제로 다시 골라요',
+      '지금 라이브러리는 숨겨져요. 이 언어로 돌아오면 다시 보여요',
+      '구독과 남은 재생 횟수는 그대로예요',
+      '콘텐츠 언어는 하루에 한 번 바꿀 수 있어요',
+    ],
+    consentTitle: '바꾸려면 아래 내용에 동의해주세요',
+    submit: '바꾸기',
+    close: '닫기',
+    blocked: {
+      market_unavailable: {
+        title: '지금은 이 언어로 바꿀 수 없어요',
+        description: '이 언어의 에피소드를 준비하고 있어요. 다음에 다시 시도해주세요',
+      },
+      cooldown: {
+        title: '콘텐츠 언어는 하루에 한 번 바꿀 수 있어요',
+        description: (hours: number | null) =>
+          hours === null || hours <= 1
+            ? '잠시 뒤에 다시 바꿀 수 있어요'
+            : `약 ${hours}시간 뒤에 다시 바꿀 수 있어요`,
+      },
+    },
+    loadFailedTitle: '정보를 불러오지 못했어요',
+    loadFailedDescription: '잠시 후 다시 시도해주세요',
+    retry: '다시 시도',
+    submitFailed: '바꾸지 못했어요. 다시 시도해주세요',
+    /** 400 CONSENT_REQUIRED · 409 CONSENT_VERSION_STALE — 미리보기를 다시 받아 동의를 다시 그린다 */
+    consentsChanged: '동의할 내용이 바뀌었어요. 다시 확인해주세요',
+  },
   reconsent: {
     title: '약관이 업데이트되었어요',
     description: '계속 이용하시려면 아래 항목에 동의해 주세요',
@@ -288,7 +329,7 @@ const en: LocalizedCopy<typeof ko> = {
       en: 'Episodes and topics in English',
     },
     recommendEnglish: 'Into K-culture? Choose English',
-    notChangeable: 'You can’t change this after signing up.',
+    notChangeable: 'You can change this later in Settings.',
     next: 'Continue',
     backA11y: 'Back',
   },
@@ -312,6 +353,39 @@ const en: LocalizedCopy<typeof ko> = {
     readToEnd: 'Scroll to the end to continue',
     signupExpired: 'Your sign-in has expired. Please sign in again',
     consentStale: 'Our terms have been updated. Please sign in again to review them',
+  },
+  marketChange: {
+    appBarTitle: 'Content language',
+    backA11y: 'Back',
+    languageName: { kr: 'Korean', global: 'English' },
+    title: (language: string) => `Switch your content language to ${language}?`,
+    points: [
+      "You'll pick your topics again from the new language's topics.",
+      'Your current library will be hidden. It comes back if you switch back.',
+      'Your subscription and remaining listens stay the same.',
+      'You can change your content language once a day.',
+    ],
+    consentTitle: 'To switch, please agree to the following',
+    submit: 'Switch',
+    close: 'Close',
+    blocked: {
+      market_unavailable: {
+        title: "You can't switch to this language right now",
+        description: "We're getting episodes ready in this language. Please try again later.",
+      },
+      cooldown: {
+        title: 'You can change your content language once a day',
+        description: (hours: number | null) =>
+          hours === null || hours <= 1
+            ? 'You can change it again in less than an hour.'
+            : `You can change it again in about ${hours} hours.`,
+      },
+    },
+    loadFailedTitle: "Couldn't load this",
+    loadFailedDescription: 'Please try again in a moment.',
+    retry: 'Try again',
+    submitFailed: "Couldn't switch. Please try again.",
+    consentsChanged: 'What you need to agree to has changed. Please check again.',
   },
   reconsent: {
     title: 'We’ve updated our terms',

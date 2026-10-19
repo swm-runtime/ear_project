@@ -1,3 +1,5 @@
+import type { MarketChangeParams } from '@/features/auth';
+
 /** 서버 계약의 onboarding_step 값 그대로 쓴다(domain.md 3.1) */
 export type OnboardingStep = 'topic' | 'career' | 'pick' | 'done';
 
@@ -60,4 +62,9 @@ export type OnboardingStackParamList = {
   /** 2단계 종료 뒤 완료 대기(O13) — 담기 단계를 뺀 뒤(2026-10-11) 모든 경로가 지난다. 폴링 파라미터는 완료 응답(store)에서 읽는다 */
   FirstDripWaiting: undefined;
   Complete: undefined;
+  /**
+   * 시장 전환 뒤 재온보딩 중 직전 언어로 [되돌리기](KAN-228) — auth 의 시장 전환 화면을 이 스택에도 등록한다(app 이 등록).
+   * 되돌리기도 새 시장의 동의를 다시 받는다(global-api.md 4.11 — 연령 재확인)
+   */
+  MarketChange: MarketChangeParams;
 };

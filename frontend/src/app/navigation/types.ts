@@ -2,7 +2,7 @@ import type { NavigatorScreenParams } from '@react-navigation/native';
 
 import type { ExploreTabParams } from '@/shared/navigation/to-tab';
 
-import type { AuthStackParamList } from '@/features/auth';
+import type { AuthStackParamList, MarketChangeParams } from '@/features/auth';
 import type { ContentDetailEntryPoint } from '@/features/content-detail';
 import type { OnboardingStackParamList } from '@/features/onboarding';
 import type { PlayEntryPoint, PlaybackStartMeta } from '@/features/player';
@@ -82,6 +82,11 @@ export type MainStackParamList = {
    * RootNavigator가 시작 화면으로 스택을 통째로 교체한다
    */
   Withdrawal: undefined;
+  /**
+   * 설정 › 콘텐츠 언어(시장) 전환(KAN-228 — global-api.md 4.11). 성공하면 세션 사용자가 온보딩 전으로 바뀌어
+   * RootNavigator 가 스택을 통째로 온보딩으로 바꾼다
+   */
+  MarketChange: MarketChangeParams;
   /** TODO: 관리자 페이지(admin.md 2장) 구현 시 교체 — 관리자 계정에만 진입점이 노출된다 */
   Admin: undefined;
 };

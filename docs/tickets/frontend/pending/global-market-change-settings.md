@@ -13,7 +13,7 @@
 | 선행 | BE [KAN-227](https://runtime364.atlassian.net/browse/KAN-227) 서버 구현 — dev 머지·배포 완료(#1724). 개발계 스위치 `MARKET_CHANGE_ENABLED=true`는 #1725 머지·배포 뒤 |
 | 근거 문서 | **`spec/api/global-api.md` 4.11**(미리보기·전환 계약, 바뀌는 것 표, 막는 조건) · 5장(에러 코드) · `changes/pending/global-market-change-error-codes.md` · `changes/pending/global-market-change-other-docs.md` 3번(A21 문구) |
 | 중요도 | Medium |
-| 상태 | 발행 |
+| 상태 | 코드 반영(2026-10-19) — 개발계 실기기 확인 남음 |
 
 > **1.3.0이 국제화 배포이니 시장 전환 기능도 같이 추가한다**(박준현 결정 2026-10-19 — PM 티켓 KAN-227의 "1.3.0 다음 버전"을 바꿨다). 서버는 스위치 뒤에 이미 들어가 있다.
 
@@ -53,3 +53,17 @@
 ## 처리 기록
 
 - 2026-10-19 발행(마크다운 + Jira KAN-228, KAN-227 → KAN-228 blocks 링크).
+- 2026-10-19 **코드 반영**(PR `feat(fe)/market-change-settings`). 무엇을 한다 1~8 전부.
+  - **진입**: 설정 › **콘텐츠 언어** 섹션(언어 섹션 바로 아래, 한국어 / English 체크 목록 — 체크는 세션 `user.market`). 다른 언어를 누르면 전환 화면(`MarketChange` — auth 소유, MainStack·OnboardingStack 두 곳 등록).
+  - **FE 결정 ① 확인 팝업과 동의 화면을 한 화면으로**: 제목 "콘텐츠 언어를 {언어}로 바꿀까요?" + 바뀌는 것 네 줄 + 새 시장 필수 동의(A20과 같은 `ConsentItem`, 연령 숫자는 `min_age`, [보기]는 새 시장 문서) + [바꾸기]. 같은 결정을 두 번 묻지 않는다.
+  - **막힘**: 미리보기 `available: false` 또는 POST 409·429면 동의 대신 안내 + [닫기]. **FE 결정 ② 쿨다운 남은 시간을 그린다** — `retry_after_sec`를 시간 단위로 올려 "약 N시간 뒤에"(1시간 이하 "잠시 뒤에").
+  - **성공**: `sessionService.switchMarket` — 응답 access token 으로 즉시 교체(refresh 그대로) + 세션 사용자를 응답 `user`로 → `onboardingCompleted: false`라 관문이 온보딩으로. app/bootstrap 리스너가 쿼리 캐시를 통째로 비우고 온보딩 로컬 상태를 초기화한다. `access_token: null`이면 아무것도 안 하고 돌아간다.
+  - **동의 400·409**: 토스트 + **미리보기 다시 받기**(가입 재조회 아님) + 체크 초기화.
+  - **FE 결정 ③ 재온보딩 되돌리기를 둔다**: 주제 화면 왼쪽 위 뒤로 버튼(낭독 "{언어} 콘텐츠로 되돌리기") → 같은 전환 화면(직전 언어). 한 번만 — 되돌린 뒤엔 버튼 없음(되돌리기를 다시 되돌리면 429). 루트가 시장을 온보딩 스택의 `navigationKey`로 써서 되돌린 뒤 새 시장 재개 지점으로 다시 세운다. 재온보딩 표시는 기기에 저장(`auth.market_change_reonboarding` — 앱을 다시 켜도 유지, 온보딩 종료·로그아웃 때 지움).
+  - **GA4**: 재온보딩 완료는 `onboarding_complete`를 보내지 않고 사용자 속성(topic_count)만 갱신한다. 다른 기기에서 이어 끝내면 그 기기는 표시가 없어 한 번 더 보낼 수 있다(드문 경로).
+  - **A21 문구**: "나중에 설정에서 바꿀 수 있어요" / "You can change this later in Settings."(`auth-uiux.md` 4.2-1). 설정 › 언어 설명에서 "가입 때 고른"을 뺐다.
+  - **에러 코드**: `MARKET_UNAVAILABLE`·`MARKET_CHANGE_COOLDOWN` — `ERROR_CODES`·영어표. `common-error-handling.md` 9장 등재는 `changes/pending/global-market-change-error-codes.md` 그대로.
+  - 문서: `settings-uiux.md` 3장 "콘텐츠 언어" 행 신설 · `auth-uiux.md` 4.2-1.
+  - 검증: tsc · eslint 통과, jest 전체 통과(`useMarketChangeScreen.test.tsx` 7 · `session.service.test.ts` switchMarket 1 추가, 한국어 카피 스냅숏은 추가·A21 문구·언어 설명만 변경).
+  - **주의(운영)**: 운영 스위치 `MARKET_CHANGE_ENABLED`가 꺼져 있는 동안 이 OTA가 운영에 닿으면 설정 › 콘텐츠 언어가 늘 "지금은 이 언어로 바꿀 수 없어요"를 보이고, A21 "나중에 설정에서 바꿀 수 있어요"가 사실과 다르다. 운영 반영(dev→main)과 스위치 켜기를 같은 날에 하거나, 스위치를 먼저 켠다.
+  - **남은 것**: 개발계 실기기 — 완료 조건 5개.

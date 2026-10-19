@@ -1,4 +1,4 @@
-import { sessionService } from '@/features/auth';
+import { clearReonboardingAfterMarketChange, sessionService } from '@/features/auth';
 
 import { onboardingCompletionService } from './onboarding-completion.service';
 import { useOnboardingStore } from '../store/onboarding.store';
@@ -10,6 +10,8 @@ import { useOnboardingStore } from '../store/onboarding.store';
  */
 export const exitOnboarding = (): void => {
   sessionService.markOnboardingCompleted();
+  // 시장 전환 뒤 재온보딩이었다면 여기서 끝난다 — [되돌리기]·완료 GA 거르기 표시를 지운다(KAN-228)
+  clearReonboardingAfterMarketChange();
   onboardingCompletionService.reset();
   useOnboardingStore.getState().reset();
 };

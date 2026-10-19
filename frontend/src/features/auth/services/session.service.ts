@@ -9,6 +9,7 @@ import { STORAGE_KEYS } from '@/shared/storage/storage-keys';
 
 import { getCurrentUser, refreshSession, requestLogout } from '../api/auth.api';
 import type { AuthTokens, AuthUser, RequiredConsent } from '../auth.types';
+import { clearReonboardingAfterMarketChange } from './market-change-state';
 import { useSessionStore } from '../store/session.store';
 
 /**
@@ -103,6 +104,28 @@ class SessionService implements TokenProvider {
     useSessionStore.getState().markJustCompletedOnboarding();
   }
 
+  /**
+   * 시장 전환 성공(global-api.md 4.11, KAN-228) — **응답의 access token 으로 즉시 바꾼다**. 시장이 토큰 클레임이라 바꾸지
+   * 않으면 최대 30분간 탐색이 이전 시장을 본다. refresh token 은 그대로다. 세션 사용자를 응답 `user` 로 갈면
+   * `onboardingCompleted: false` 라 관문(RootNavigator)이 온보딩으로 보낸다 — 앱은 세션 중 `GET /users/me` 를 다시 읽지
+   * 않으므로 이 응답이 재진입 신호다
+   */
+  async switchMarket(input: { accessToken: string; user: AuthUser }): Promise<void> {
+    const refreshToken =
+      this.refreshToken ?? (await secureStorage.get(STORAGE_KEYS.REFRESH_TOKEN).catch(() => null));
+    if (refreshToken) {
+      await this.saveTokens({
+        accessToken: input.accessToken,
+        refreshToken,
+        accessTokenExpiresAt: '',
+      });
+    } else {
+      // refresh token 을 못 읽었다(잠금) — 메모리 access token 만 바꾼다. 저장된 쌍은 다음 갱신이 덮는다
+      this.accessToken = input.accessToken;
+    }
+    useSessionStore.getState().setSession(input.user);
+  }
+
   /** 로컬 토큰·세션 상태 정리. TODO: 라이브러리 캐시·재생 위치·오프라인 큐 삭제는 해당 feature 구현 시 연결(auth.md 4.2) */
   async clearSession(): Promise<void> {
     this.accessToken = null;
@@ -111,6 +134,7 @@ class SessionService implements TokenProvider {
     this.hasPendingPersist = false;
     this.cancelPendingPersist?.();
     this.cancelPendingPersist = null;
+    clearReonboardingAfterMarketChange();
     await Promise.all([
       secureStorage.remove(STORAGE_KEYS.ACCESS_TOKEN),
       secureStorage.remove(STORAGE_KEYS.REFRESH_TOKEN),

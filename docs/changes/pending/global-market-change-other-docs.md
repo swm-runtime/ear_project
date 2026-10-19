@@ -29,3 +29,4 @@
 ## 처리 기록
 
 - 2026-10-19 발행(BE — 브랜치 `docs(be)/market-change-contract`, 검증 에이전트가 찾은 목록).
+- 2026-10-19 3번(A21 문구) FE 반영 — `auth-uiux.md` 4.2-1 표 "나중에 설정에서 바꿀 수 있어요" / "You can change this later in Settings." · 기존 사용자 서술을 설정 › 콘텐츠 언어로(KAN-228, PR `feat(fe)/market-change-settings`). 1·2번은 그대로 남는다.

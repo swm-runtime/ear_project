@@ -6,6 +6,7 @@ import { useDelayedVisible } from '@/shared/hooks/useDelayedVisible';
 import { theme } from '@/shared/theme';
 import FullScreenError from '@/shared/ui/FullScreenError';
 
+import { MarketChangeScreen } from '@/features/auth';
 import {
   CareerScreen,
   CompleteScreen,
@@ -94,6 +95,8 @@ export default function OnboardingNavigator() {
         component={CompleteScreen}
         options={{ gestureEnabled: false }}
       />
+      {/* 재온보딩 중 직전 언어로 되돌리기(KAN-228) — 주제 화면의 [되돌리기]가 연다. 성공하면 루트가 시장 키로 이 스택을 새로 세운다 */}
+      <OnboardingStack.Screen name="MarketChange" component={MarketChangeScreen} />
     </OnboardingStack.Navigator>
   );
 }

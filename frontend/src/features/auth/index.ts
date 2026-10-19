@@ -12,6 +12,16 @@ export { default as ContentLanguageScreen } from './screens/ContentLanguageScree
 export { default as TermsConsentScreen } from './screens/TermsConsentScreen';
 export { default as EmailVerificationScreen } from './screens/EmailVerificationScreen';
 export { default as WithdrawalScreen } from './screens/WithdrawalScreen';
+/** 설정 › 콘텐츠 언어(시장) 전환(KAN-228) — MainStack(설정)·OnboardingStack(재온보딩 [되돌리기]) 두 곳에 등록한다 */
+export { default as MarketChangeScreen } from './screens/MarketChangeScreen';
+/** 시장 전환 뒤 재온보딩 표시(KAN-228) — 온보딩이 읽는다: [되돌리기] 대상 · 완료 GA 거르기 · 완료 때 지우기 */
+export {
+  clearReonboardingAfterMarketChange,
+  getMarketChangeRevertTarget,
+  isReonboardingAfterMarketChange,
+} from './services/market-change-state';
+/** 시장 전환 통지 — 캐시 비우기·온보딩 상태 초기화는 app/bootstrap 이 주입한다 */
+export { registerMarketChangedListener } from './services/market-changed-listener';
 export { sessionService } from './services/session.service';
 export { useSessionStore } from './store/session.store';
 /**
@@ -30,7 +40,9 @@ export type {
   ActiveEmailVerification,
   AuthStackParamList,
   AuthUser,
+  ContentLanguage,
   EmailVerifiedResult,
   Market,
+  MarketChangeParams,
   SocialProvider,
 } from './auth.types';
