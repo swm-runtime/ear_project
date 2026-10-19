@@ -108,7 +108,7 @@ ${fence(i.guidelines)}
 - When a Korean excerpt describes a whole place or group with a modifier, the claim keeps it describing the whole; do not turn it into a subset.
 - A definition claim keeps who uses the term and how widely. An event at a specific time keeps its time and the past tense. A practice the excerpt places in the past stays in the past tense; a current practice is in the present tense.
 - The subject of a claim is the practice, the people who do it, or the thing. Never make the source, its writer, or its year the subject ("The 2026 description says"). An opinion claim states the view itself and sets opinion to true.
-- Write a guide's or a rule's instruction ("should", "are instructed to", "are required to") as what people do: who does what, where, and when. A rule or schedule for one year or one event keeps that year as a condition. A scene the excerpt says happens every year is a practice, not a single event.
+- Write a guide's or a rule's instruction ("should", "are instructed to", "are required to") as what people do: who does what, where, and when, and keep who the instruction is for (learners, visitors, newcomers). A rule or schedule for one year or one event keeps that year as a condition. A scene the excerpt says happens every year is a practice, not a single event.
 - Write each claim in plain spoken English. Do not copy a word-for-word noun phrase from a Korean excerpt.
 - Keep the excerpt's evaluation of a number, such as a large or small change. A list the excerpt marks as partial stays partial in the claim.
 - Keep in the claims the Korean words, the scope, and the differences by region, age, family, or setting that the excerpts give. Do not drop them to save space.
@@ -118,6 +118,9 @@ ${fence(i.guidelines)}
 - Romanize Korean words with Revised Romanization, even when an excerpt spells them another way. Names of people, groups, companies, and works keep their official English spelling.
 - A person known to the public by name appears only through verifiable public facts. Do not make a claim from rumor, private life, or controversy. An unnamed person's own account of a family event or practice is a case.
 - When a case or scene has short words people say, keep those words as a claim of type quote, as the excerpt has them.
+- When an excerpt tells a person's own words, memory, or experience, keep it as a case or quote claim with that person. Do not turn it into a summary claim without the person.
+- The subject of a claim is never a survey, an assessment, a critique, or survey respondents. State what people do, or state the view itself with opinion set to true.
+- Keep scope words such as especially, mainly, and only. Keep every item of a named set; a plainer word replaces a word, it does not drop an item.
 - Links between sources are not claims; put them in the outline's links list.
 
 ### c) outline_md — the contract for the script stage. Use exactly this format:
@@ -156,11 +159,11 @@ Section #2 — …
 Links and metaphors (made by the script, not facts)
 - "X carried over to Y" — based on C##, in section #n
 
-Closing line: one sentence with the answer to the axis question and its reason, taken from the landing section's claims; never a list of the sections, never three items joined by "and"
+Closing line: one sentence with the answer to the axis question and its reason, drawn from the sections' claims; when the sections give several reasons, the one idea that joins them; never one section's reason as the only cause, never a list of the sections, never three items joined by "and"
 \`\`\`
 Planning rules:
 - The axis is a question a newcomer asks about the practice ("Why do people in Korea …?"; a "how" question belongs to a section, not the axis), a contrast ("A, yet B"), a paradox ("trying A leads to B"), or a redefinition ("A is really B")${history ? ", or, in history mode, an event" : ""}. Keep the backlog's form. "What is X" is not an axis. ear introduces Korean culture: the episode shows how the practice works, who does it, and why.
-- Sections are steps of the axis, not the order of a source. For a practice, follow the order in which it happens or the steps a newcomer needs. Give each section the claims that answer its question, from any source; a section usually draws on two or more sources. Do not build a section from one source alone when another source has claims for its question. Drop a source that answers no sub-question of the axis.
+- Sections are steps of the axis, not the order of a source. For a practice, follow the order in which it happens or the steps a newcomer needs. Give each section the claims that answer its question, from any source; a section usually draws on two or more sources. Do not build a section from one source alone when another source has claims for its question. Drop a source that answers no sub-question of the axis. A result or side effect, such as an environmental cost, goes in one or two sentences at the end of the section it follows, not in a section of its own. A survey from outside Korea supports at most one section and is never its main material.
 - A list topic keeps its list: sections may follow the items or groups of items, and each section still answers a sub-question of the axis. The count in the title matches the items the material supports.
 - Three to five Body sections. Fewer, fuller sections are better than many thin ones. The Opening is not a section.
 - Plan scenes. Select excerpts with cases and practices so scenes are possible, and aim for a Scene in at least half of the Body sections. Build a Scene only from a claim with a person, a place, and a moment that carries words said, an object, or a sound. A person named only by name, age, or place in a report is not a scene. A general custom, a procedure, or a possible mistake is not a scene. Prefer a moment with words people say. For a drama or film topic, select excerpts that describe one specific moment: who, what they do, and what is said or left unsaid. When no claim has such a moment, write "none". Do not plan an imagined listener, viewer, visitor, or family as a scene.

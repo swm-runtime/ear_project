@@ -456,7 +456,7 @@ export function enStyleViolations(turns: ScriptTurn[]): string[] {
   const srcRef = /^(?:[Aa]ccording to (?:the |this |that )?(?:[A-Z]|(?:essay|report|article|guide|column|study|survey|union|records?)\b)|[Ii]n (?:(?:the|this|that) )?(?:[A-Z][\w-]*|its|their|guide|article|essay|report|column|study|survey|union|records?)(?:'s|’s)? (?:[a-z]+ )?(?:article|guide|account|description|view|guidance|report|explanation|example|warning)\b|[A-Z]{2,}\b[^.?!]{0,20}?\b(?:says|advises|presents|describes|explains|warns|notes|argues|lists|gives|calls|treats|recommends|rejects|allows)\b|(?:It|She|He|They) (?:says|argues|points|describes|reports|connects|warns|dates|explains|notes|suggests|adds|lists|calls)\b|Its (?:explanation|warning|account|view|description|guidance|claim|argument)\b)/;
   // full-en-v0.13 (G261018-006~008): 이름이 빠지자 출처 종류·연도가 그 자리를 차지했다 — "A drama commentator reads…"·"For a food writer"·"that 2017 description"·"A sociologist speaking in 2026"·"In 2026, guest lists had become".
   // 문장 머리의 보유자 종류, 연도를 붙인 자료 명사, "<분사> in 연도", 연도로 연 과거완료 문장을 센다. 통계의 자료 연도("about 18 percent in 2022")는 세지 않는다
-  const srcKind = /^(?:(?:For|To) )?(?:a|an|one|the|another|that|this) (?:[a-z]+ )?(?:commentator|critic|writer|reporter|columnist|researcher|scholar|sociologist|historian|journalist|blogger|author|professor|expert)s?\b|\b(?:a|an|the|that|this|one) (?:19|20)\d{2} (?:description|report|account|article|guide|survey|study|column|essay|explanation|interview|list)\b|\b(?:described|given|written|speaking|reported|published|listed) in (?:19|20)\d{2}\b|^In (?:19|20)\d{2},? [^.?!]*\bhad (?:become|been|grown|shrunk|moved|changed|started|turned)\b/i;
+  const srcKind = /^(?:(?:For|To) )?(?:a|an|one|the|another|that|this) (?:[a-z]+ )?(?:commentator|critic|writer|reporter|columnist|researcher|scholar|sociologist|historian|journalist|blogger|author|professor|expert)s?\b|\b(?:a|an|the|that|this|one) (?:19|20)\d{2} (?:description|report|account|article|guide|survey|study|column|essay|explanation|interview|list)\b|\b(?:described|given|written|speaking|reported|published|listed) in (?:19|20)\d{2}\b|^In (?:19|20)\d{2},? [^.?!]*\bhad (?:become|been|grown|shrunk|moved|changed|started|turned)\b|^(?:One|Another|A) (?:common |main |key |major )?(?:concern|assessment|criticism|critique|complaint|worry|proposal|argument|view) (?:is|was) that\b|^Another proposal is\b|\b(?:respondents|buyers surveyed|people surveyed)\b/i;
   const perSection = new Map<string, string[]>();
   for (const t of turns) {
     if (!expl(t) || t.section !== zones.body) continue;
@@ -469,7 +469,7 @@ export function enStyleViolations(turns: ScriptTurn[]): string[] {
   // 턴 끝 요약 (규칙 31, full-en-v0.7 — G261015-001 · G261017-001·002·003 에이전트 판정에서 네 편 연속): 세 문장 이상인 해설 턴의 마지막 문장이
   // So·This·That·These·Those·Both·Each 로 시작해 앞 내용을 묶으면 센다. 넷 이상이면 문체 위반(한도 뒤 QA 로). 마지막 문장 지우기 시험은 규칙 31 이 맡는다
   const lastSentence = (t: string) => { const s = t.trim().split(/(?<=[.!?])\s+/).filter(Boolean); return s.length >= 3 ? s[s.length - 1] : ""; };
-  const tails = turns.filter((t, i) => !isTemplate(i) && expl(t) && /^(?:So|This|That|These|Those|Both|Each)\b[^?]*\.$/.test(lastSentence(t.text))).map(label);
+  const tails = turns.filter((t, i) => !isTemplate(i) && expl(t) && /^(?:So|This|That|These|Those|Both|Each|Their)\b[^?]*\.$/.test(lastSentence(t.text))).map(label); // Their: full-en-v0.15 (G261018-013 E12 "Their relationship to the speaker differs.")
   if (tails.length > 3) v.push(`${EN_STYLE_MARK} ${tails.length} explainer turns end on a sentence that sums up the turn (${list(tails)}) — end on the newest point; delete a last sentence the turn does not need (rule 31)`);
   // full-en-v0.9 (G261017-004~006): 장면이 "Imagine a …" 한 문장 틀로 굳었다 — 해설 턴에서 Imagine 으로 시작하는 문장이 셋 이상이면 문체 위반(규칙 3·39)
   // full-en-v0.10 (G261017-009~011): "Picture …"·"In an imagined comparison" 으로 같은 틀이 이어졌다(010 넷 · 011 셋) — 같이 센다
@@ -479,8 +479,13 @@ export function enStyleViolations(turns: ScriptTurn[]): string[] {
   if (openImagine.length) v.push(`${EN_STYLE_MARK} the Opening starts with "Imagine" or "Picture" (${list(openImagine)}) — start from the familiar picture, in plain words (rule 37)`);
   // full-en-v0.13 (G261018-006~008, 3.11 3·2·3): 진행자의 질문 아닌 턴이 "I'd …"·"I would …" 가정형 틀로 굳었다 — 넷 이상이면 문체 위반(규칙 9)
   // full-en-v0.14 (G261018-010~012): would 를 막자 "to me"·"I find"·"I notice"·"I feel" 자기 상태 서술로 같은 틀이 옮겨 갔다 — 함께 센다
-  const hostSelf = turns.filter((t, i) => !isTemplate(i) && t.id?.startsWith("Y") && !t.text.includes("?") && /\b(?:I['’]d|I would|would|I feel|I find|I notice|I['’]m starting|I might|I prefer|to me|for me)\b/i.test(t.text)).map(label);
-  if (hostSelf.length > 3) v.push(`${EN_STYLE_MARK} ${hostSelf.length} host turns that are not questions speak about the host's own state ("I'd", "would", "I feel", "I find", "I notice", "to me") (${list(hostSelf)}) — at most three; vary the rest: a guess about the scene, a doubt, a short reaction to the detail (rule 9)`);
+  // full-en-v0.15 (G261018-014): 낱말 목록 상한에 정확히 맞추고 목록 밖 "I hadn't considered"로 넷째가 나왔다 — 낱말 대신 1인칭(I·me·my)과 would 로 센다
+  const firstPerson = (s: string) => /(?<![A-Za-z'’])I(?:['’](?:m|d|ve|ll))?(?![A-Za-z])/.test(s) || /\b(?:me|my|mine|would)\b/i.test(s);
+  const hostSelf = turns.filter((t, i) => !isTemplate(i) && t.id?.startsWith("Y") && !t.text.includes("?") && firstPerson(t.text)).map(label);
+  if (hostSelf.length > 3) v.push(`${EN_STYLE_MARK} ${hostSelf.length} host turns that are not questions speak in the first person (I, me, my) or with "would" (${list(hostSelf)}) — at most three; vary the rest: a guess about the scene, a doubt, a short reaction to the detail (rule 9)`);
+  // 사례 틀 반복 (규칙 3, full-en-v0.15 — G261018-015 "one family's / another family's remembered …"가 턴마다 붙었다) — 셋 이상이면 문체 위반
+  const caseFrame = turns.flatMap((t, i) => (!isTemplate(i) && expl(t) ? (t.text.match(/\b(?:one|another|a different) family['’]s\b|\bremembered\b/gi) ?? []).map(() => label(t)) : []));
+  if (caseFrame.length > 2) v.push(`${EN_STYLE_MARK} the case frame "one family's" / "another family's" / "remembered" is used ${caseFrame.length} times (${list([...new Set(caseFrame)])}) — say who a case is about once, then tell the moment (rule 3)`);
   if (imagine.length > 2) v.push(`${EN_STYLE_MARK} ${imagine.length} imagined scenes ("Imagine", "Picture", "imagined") (${list(imagine)}) — keep at most two; build scenes from a claim with words said, an object, or a sound (rules 3 and 39)`);
   // 읽기·설계 흔적 — 구성안·claims 를 옮겨 적은 말(규칙 36, G261017-005·006)
   // full-en-v0.13 (G261018-008 E14): 구성안 Scene 메모가 대사가 됐다 — "A broader K-pop café event gives one example"
