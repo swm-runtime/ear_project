@@ -13,7 +13,7 @@
 | 선행 | 없음(티켓). 사람 손: 운영 api 컨테이너 **메모리 실사용 측정**(`docker stats` 또는 CWAgent) — 배포 겹침 때 두 배가 t4g.small(1.8GB, 스왑 없음)에 들어가는지. 상태: 미측정 |
 | 근거 문서 | `infra/runbook.md` 4장(배포 흐름·롤백) · `backend/deploy/push.sh` · `features/common-error-handling.md`(5xx 지수 백오프 재시도) · 외부: Caddy `reverse_proxy`(lb_retries·health_uri) · Kamal 2 배포 모델(동일 패턴) |
 | 중요도 | **Lowest** — 지금은 배포 끊김이 10초 안팎이고 앱이 5xx를 지수 백오프로 재시도해 체감이 작다. 사용자가 적은 시간대에 배포하면 피할 수 있다. 그 전제가 깨질 때 집는다 |
-| 상태 | 대기 |
+| 상태 | 닫음 — 2026-10-19 KAN-233으로 묶음 |
 
 ## 왜
 
@@ -64,3 +64,4 @@
 ## 처리 기록
 
 - 2026-10-09 발행(마크다운 + Jira). 배경: 배포마다 10초 끊김 질문 → 방식 비교(blue/green·docker rollout·ALB·ECS·Kamal 조사) → "슬롯 2개, 평시 1개" 변형으로 결정. 중요도 Lowest, 착수 조건 명시.
+- 2026-10-19 **닫음 → archive**(Jira 완료). 반영 날짜 2026-10-19. 지금은 할 필요가 없어 닫는다(박준현). 배포 중 약 10초 502는 조용한 시간대에 배포해 피한다. 선행이던 메모리 실측: api 336MiB, 호스트 가용 636MB(1.8GB 중) — 2배 겹침은 빠듯해 착수 때 다시 잰다. 착수 조건은 그대로 [KAN-233](https://runtime364.atlassian.net/browse/KAN-233) `scale-readiness-design.md`로 묶었다.
