@@ -44,6 +44,8 @@ export { stopPlaybackForSignOut } from './services/playback.service';
  * "현재 재생 중인 콘텐츠면 새 재생 없이 플레이어 복귀"(content-detail.md 4.4) 판정에 쓴다.
  */
 export { usePlaybackStore } from './store/playback.store';
+/** 백그라운드 재렌더 진단(architecture.md 8.4)에 넘기는 스토어 묶음 — app/bootstrap 만 쓴다. 구독 전용 */
+export { playerProbeStores } from './store/probe-stores';
 export type {
   PlaybackProgress,
   PlayEntryPoint,

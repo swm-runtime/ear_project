@@ -67,5 +67,19 @@ export const reportError = (error: unknown, context?: Record<string, unknown>): 
   });
 };
 
+/**
+ * 진단 breadcrumb — 크래시 리포트에 붙는 발자국이지 이벤트가 아니다(횟수 제한 100개 안에서 오래된 것부터 밀린다).
+ * 값에 세션·사용자·콘텐츠 내용을 넣지 않는다 — 횟수·상태 이름·필드 이름까지만.
+ */
+export const addBreadcrumb = (crumb: {
+  category: string;
+  message: string;
+  level?: 'info' | 'warning';
+  data?: Record<string, unknown>;
+}): void => {
+  if (!isInitialized) return;
+  Sentry.addBreadcrumb({ level: 'info', ...crumb });
+};
+
 /** 최상위 컴포넌트를 감싸 네이티브·JS 크래시와 터치 breadcrumb 를 잡는다 */
 export const wrapWithSentry = Sentry.wrap;
