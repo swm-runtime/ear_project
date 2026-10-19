@@ -188,6 +188,16 @@ const TOPIC_IMAGE_BY_NAME: Record<string, ImageSourcePropType> = {
   '인문·교양': IMAGE.humanities,
   글쓰기: IMAGE.writing,
   세계사: IMAGE.worldHistory,
+  // GLOBAL(K-컬처) 영어 이름 — slug 를 받지 않는 화면(프로필 관심 주제 카드·탐색 주제 칩·추천 키워드·상세 헤더)도 사진이
+  // 붙게(2026-10-19 KAN-228 실기기: GLOBAL 전환 뒤 프로필 원형 사진이 기본 사진으로 나왔다). 서버 시드 이름 그대로
+  'Korean Language': IMAGE.koreanLanguage,
+  'K-Food': IMAGE.kFood,
+  'K-Pop': IMAGE.kPop,
+  'K-Drama & Film': IMAGE.kDramaFilm,
+  'Korean Culture': IMAGE.koreanCulture,
+  'K-Beauty & Fashion': IMAGE.kBeautyFashion,
+  'Korean History & Society': IMAGE.koreanHistorySociety,
+  'Travel in Korea': IMAGE.travelInKorea,
 };
 
 /** 사진 조회 키 — slug 가 있는 응답은 둘 다 넘긴다. slug 를 싣지 않는 화면은 이름만 넘긴다 */
