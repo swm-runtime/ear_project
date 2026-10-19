@@ -5,7 +5,7 @@ import os from "node:os";
 import path from "node:path";
 process.env.DATABASE_URL ??= "postgres://test";
 const P = await import("@ear/pipeline");
-const { writeDesignArtifactsEn, normalizeOutlineEn, parsePriorExcerpts, deriveAttribution } = await import("./design-single.js");
+const { writeDesignArtifactsEn, normalizeOutlineEn, parsePriorExcerpts, deriveAttribution, setAxisAnswerLine } = await import("./design-single.js");
 const { addPronunciations } = await import("../tts/normalize.js");
 const { twoStageViolations } = await import("./draft-two-stage.js");
 
@@ -104,11 +104,11 @@ test("발음 등재 추가 — 한국판 종전 그대로, 글로벌판은 빈 �
   assert.deepEqual(addPronunciations({ Hanbok: "", jeong: "jung" }, [{ term: "hanbok", reading: "hahn-bok" }, { term: "Jeong", reading: "WRONG" }, { term: " nunchi ", reading: "" }], "en"), { Hanbok: "hahn-bok", jeong: "jung", nunchi: "" });
 });
 
-test("글로벌 규칙 자산 — 버전 라벨 full-en-v0.15, 모델에 가는 본문에 한글이 없고 규칙 50개, 템플릿 문서와 같은 슬롯", async () => {
+test("글로벌 규칙 자산 — 버전 라벨 full-en-v0.16, 모델에 가는 본문에 한글이 없고 규칙 50개, 템플릿 문서와 같은 슬롯", async () => {
   const { versionOf } = await import("../assets.js");
   const root = path.resolve(import.meta.dirname, "../../../../../docs/ai/global");
   const g = await fs.readFile(path.join(root, "skills/draft/guidelines.gpt.md"), "utf8");
-  assert.equal(versionOf("skills/draft/guidelines.gpt.md", g), "full-en-v0.15");
+  assert.equal(versionOf("skills/draft/guidelines.gpt.md", g), "full-en-v0.16");
   assert.equal(versionOf("skills/draft/guidelines.md", "# x\n\n> 현행 버전: **full-v9.10**"), "full-v9.10"); // 한국판 라벨 그대로
   const body = P.promptBody(g);
   assert.doesNotMatch(body, HANGUL);
@@ -236,4 +236,14 @@ test("기획 검색(en) — 검색어 계획, 풀이 비면 site: 금지, 후보
   const pooled = P.buildTopicSeedSearchPromptEn({ id: "C1", topic: "x", hint: null, midTopic: "K-Food", poolHosts: ["korea.net"], maxSearches: 12 });
   assert.match(pooled, /Pool sites \(known to be readable\): korea\.net/);
   assert.doesNotMatch(empty + pooled, HANGUL);
+});
+
+test("설계 재료 점검(full-en-v0.16) — 스키마에 축 답·순간 claims, 구성안 Axis answer 줄은 보고 값으로 맞춘다", () => {
+  assert.ok(P.DESIGN_INLINE_SCHEMA_EN.required.includes("axis_answer_claims"));
+  assert.ok(P.DESIGN_INLINE_SCHEMA_EN.required.includes("moment_claims"));
+  const base = ["# Outline — G1", "Axis: [question] Why …?", "Landing section: #3", "Estimated length: 8 min"].join("\n");
+  assert.match(setAxisAnswerLine(base, ["C04", "C25"]), /^Landing section: #3\nAxis answer: C04, C25\nEstimated length/m);
+  assert.match(setAxisAnswerLine(base + "\nAxis answer: C99", ["C04"]), /^Axis answer: C04$/m);
+  assert.doesNotMatch(setAxisAnswerLine(base + "\nAxis answer: C99", ["C04"]), /C99/);
+  assert.match(normalizeOutlineEn("**Axis answer:** C04"), /^Axis answer: C04$/);
 });

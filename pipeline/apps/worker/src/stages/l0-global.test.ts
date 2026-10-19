@@ -407,3 +407,14 @@ test("사례 틀(one family's · another family's · remembered)이 셋이면 �
   const xs = [T("Y1", "Hi.", "Intro"), T("E1", "In one family's remembered meal, steam rose."), T("E2", "On another family's moving day, boxes filled the room."), T("Y9", "Bye.", "Closing")];
   assert.match(enStyleViolations(xs).join("\n"), /case frame .* used 3 times \(E1, E2\)/);
 });
+
+// ── full-en-v0.16 (2026-10-20 — G261019-001~003 에이전트 판정) ──
+const { axisAnswerViolations } = await import("./draft-two-stage.js");
+test("구성안 Axis answer 줄의 claim 을 해설 턴이 하나라도 안 쓰면 위반 — 표가 없거나 줄이 없으면 보지 않는다", () => {
+  const outline = ["# Outline — G1", "Axis: [question] Why …?", "Landing section: #3", "Axis answer: C04, C25", "Section #1 — A"].join("\n");
+  const notes = (rows: string[]) => ["## 해설 턴별 사용 claims", "| 턴 | claims |", "|---|---|", ...rows].join("\n");
+  assert.match(axisAnswerViolations(outline, notes(["| E1 | C01, C04 |", "| E2 | C07 |"])).join(), /Axis answer claims C25 are not used/);
+  assert.deepEqual(axisAnswerViolations(outline, notes(["| E1 | C04 |", "| E5 | C25, C30 |"])), []);
+  assert.deepEqual(axisAnswerViolations(outline, ""), []);
+  assert.deepEqual(axisAnswerViolations("# Outline — G1\nAxis: x", notes(["| E1 | C01 |"])), []);
+});
