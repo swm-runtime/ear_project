@@ -1472,6 +1472,7 @@ export function buildEnrichPrompt(i: EnrichInput): string {
   - difficulty: ${ENRICH_DIFFICULTY.join(" | ")}
   - format: ${ENRICH_FORMAT.join(" | ")}
 ${i.locale === "en" ? `  - tags: 한글·영문·숫자, 공백 허용 2~20자(앞뒤 공백 없음)
+  - **언어: keywords·tags 는 콘텐츠 언어인 영어로 쓴다.** 한국어 낱말·이름은 대본의 로마자 표기 그대로(예: jjajangmyeon). 한글로 쓰지 않는다 — 글로벌 청취자가 읽고 검색하는 값이다
 ` : `  - target_audiences[].job_category: ${i.jobCategories.join(" | ")}
   - target_audiences[].years_of_experience: ${i.yearsRanges.join(" | ")}
 `}- 각 판정에 **대본의 어느 대목이 근거인지** 한 줄씩 evidence 에 적는다. 근거를 못 대는 판정은 판정 불능이다.

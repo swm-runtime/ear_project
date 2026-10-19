@@ -157,6 +157,7 @@ services:
       S3_MODE: direct
       # OPENAI_API_KEY 는 env.global 에서 — 글로벌 전용 OpenAI 프로젝트 키(예산 한도·사용량을 한국판과 가른다, 2026-10-15 박수헌). environment 에 두면 env_file 보다 우선해 한국판 키가 덮는다
       ELEVENLABS_API_KEY: ${ELEVENLABS_API_KEY:-} # 계정 공유 — 한도는 두 인스턴스 합산 (KAN-204)
+      ENRICH_TAGS: ${ENRICH_TAGS:-} # 한국판과 같은 값(env.prod) — 빠져 있어 글로벌 메타가 태그 없는 형식 2(콘솔 "구형 v2")로 나왔다(G261018-013·015, 2026-10-19)
       AI_SERVER_URL: ${AI_SERVER_URL:-http://ai-server:8000}
       AI_SERVER_TOKEN: ${AI_SERVER_TOKEN:-}
       SLACK_ERROR_WEBHOOK_URL: ${SLACK_ERROR_WEBHOOK_URL:-} # 알림은 [GLOBAL] 머리로, 백엔드 로그 감시는 en 에서 돌지 않는다
