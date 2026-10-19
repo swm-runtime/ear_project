@@ -9,7 +9,8 @@ import { MigrationInterface, QueryRunner } from 'typeorm';
  *
  * **백필은 지금 남아 있는 세션 전부다** — `daily_active_users`와 달리 경계를 자르지 않는다. 이 표는 "그날 접속했다"는 사실만
  * 담아, 일부가 지워진 날의 행도 틀린 값이 아니다(빠진 사람이 있을 뿐 — 덜 세는 쪽). 리텐션이 "기록을 믿을 수 있는 첫 날" 앞의
- * 칸을 따로 표시한다(`active_users_since`).
+ * 칸을 따로 표시한다(`retention_cohorts.*.reliable_since` = 이 백필 시각 `min(created_at)`(KST) - 29일 —
+ * `admin-insights.service.ts` `cohortReliableSince`. 일별 접속자의 `active_users_since`와는 다른 값이다).
  *
  * 사용자를 가리키는 열이 있어 **탈퇴하면 함께 지운다**(`users` FK ON DELETE CASCADE — domain.md 12.3 즉시 파기).
  */
