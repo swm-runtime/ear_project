@@ -14,7 +14,8 @@
 | 관련 | 스토어 심사(FE 5번)가 영어 지원 URL을 요구하면 선택 범위가 아니라 필수가 된다 |
 | 근거 문서 | **`spec/api/global-api.md` 해당 없음(랜딩)** — 구현은 이 문서를 따르고, 계약이 바뀌면 티켓이 아니라 이 문서를 고친다 · 2026-10-14 글로벌화 조사 |
 | 중요도 | Low |
-| 상태 | 운영 반영(2026-10-19 19:59 KST) — 완료 조건 2 충족. 남은 것: 법무 검토 뒤 `indexable: true` · 스토어 URL 입력(사람 손, KAN-198·214) |
+| 상태 | **완료(2026-10-19 PM 결정 — 법무 검토 생략)**. 운영 `/en/` 4페이지 200. 스토어 URL 입력은 KAN-198 로 넘김 |
+| 반영 날짜 | 2026-10-19 |
 
 > 2026-10-14 발행한 묶음 티켓(BE KAN-185 · FE KAN-183 · AI KAN-184)을 처리 단위로 나눈 것. 결정 사항(같은 앱·기기 언어로 가입 시 1회 시장 판정·한국 트랙 불변·에러 번역은 클라이언트·가격은 스토어·영어 진행자 새 2인·K-컬처 주제 신설·GLOBAL 연령 16세)과 결정 대기(시장 전환 불허)는 `spec/api/global-api.md` 2.1·9장이 원본이다.
 
@@ -54,3 +55,4 @@
 - 2026-10-19 **운영 반영 — `/en/` 4페이지 전부 200**(팀원 배포, 19:59 KST 빌드. 방식은 10-15와 같은 `vercel.json` `git.deploymentEnabled` 잠깐 켜기 → 끄기, dev `230951a9`). 확인(curl, 캐시 우회): `/en/`·`/en/terms/`·`/en/privacy/`·`/en/account-deletion/` 200 · `<html lang="en">` · `<title>` "… | Earcast"(종전 운영은 10-15 빌드라 "Ear | 이어"였다) · hreflang ko/en/x-default 3종 · 약관·처리방침 `noindex, nofollow` 유지 · 본문의 "이어"는 `"Earcast (이어)"` 정의 안에서만. **완료 조건 2 충족.** 완료 조건 1의 "한국어 리터럴 0건"은 PM이 10-19 확정한 `"Earcast (이어)"` 표기와 충돌해 예외 두 가지(전환 링크 이름 · 괄호 안 원명)를 조건에 적었다.
   - **배포 경로는 아직 임시다** — repo secret `LANDING_VERCEL_DEPLOY_HOOK`이 여전히 없어 `landing-daily-rebuild.yml`은 매일 "미설정 — 건너뜁니다"로 끝난다(2026-10-08 이후 계속. 주제 데이터 변경이 랜딩에 반영되지 않는다). Vercel 프로젝트 → Settings → Git → Deploy Hooks 생성 → `gh secret set LANDING_VERCEL_DEPLOY_HOOK`이 사람 손으로 남는다 — 이 티켓 범위 밖이라 여기엔 기록만.
   - **남은 것**: 법무 검토(KAN-126) 뒤 `content/en/routes.ts` `indexable: true` · 글로벌 스토어 리스팅 URL 입력(지원 `https://earcast.co.kr/en/` · 개인정보 `/en/privacy/` · Play 계정 삭제 `/en/account-deletion/`, KAN-198·214). 둘 다 사람 손·외부 일정이라 pending 유지.
+- 2026-10-19 **완료 처리(PM 결정 — "법무 검토 못 할 것 같아, 그냥 완료")**. 완료 조건 2(영어 URL 200)는 충족, 조건 1은 위 예외를 적은 기준으로 충족(`out/en/**`의 한글은 전환 링크 이름과 `"Earcast (이어)"` 괄호 안 원명뿐). **법무 검토는 하지 않은 채 닫는다** — 영어 약관·처리방침은 #1584 결정대로 `noindex, nofollow`·사이트맵 제외(`content/en/routes.ts` `indexable: false`) **그대로 둔다**. 검토 없이 색인까지 열지는 않는다 — 검토 없이 공개된 법적 문서가 검색에 잡히면 되돌리기 어렵고, 심사·앱 안 링크에는 noindex가 영향이 없다. 나중에 검토가 생기면 그때 `indexable: true` 한 줄이다(새 티켓). 스토어 리스팅 URL 3개 입력은 제출 작업이라 KAN-198 `global-build-store-submission.md` 사람 손 목록으로 옮겼다. 배포 훅 secret 미설정은 이 티켓 밖(위 기록 참조). 이 PR 에서 `archive/`로 옮기고 Jira KAN-199 완료.
