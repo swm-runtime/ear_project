@@ -44,7 +44,8 @@ export interface ExploreItem {
 export type ExplorePeriod = 'week' | 'month' | 'all';
 
 /**
- * 섹션 sectionKey는 분석·로깅용이다 — 화면 분기에 쓰지 않는다(explore-api.md 4.1).
+ * 섹션 sectionKey는 분석·로깅용이다 — 화면 분기에 쓰지 않는다(explore-api.md 4.1). 예외 하나: 아는 종류의 **제목 문구**만
+ * 표시 언어로 고른다(`explore.section-title.ts` — 섹션 구성·순서·노출은 여전히 서버 응답 그대로).
  * union으로 좁히지 않는 이유: 서버가 무배포로 섹션을 추가할 수 있어야 한다(9장 미결).
  *
  * 계약 필드명은 `key`지만 화면 타입에서는 `sectionKey`로 옮긴다 — RN SectionList가 섹션 객체의
@@ -53,7 +54,7 @@ export type ExplorePeriod = 'week' | 'month' | 'all';
  */
 export interface ExploreSection {
   sectionKey: string;
-  /** 화면에 그대로 그린다 — 클라이언트가 key로 제목을 조립하지 않는다 */
+  /** 서버 제목 — 화면에는 `resolveSectionTitle` 로 그린다(아는 종류는 앱 문구, 그 밖은 이 값 그대로) */
   title: string;
   /** topic_group 섹션만 값이 있다 */
   topic: { id: string; name: string } | null;

@@ -36,6 +36,17 @@ const ko = {
     suggestedChipA11y: (name: string) => `${name}, 추천 키워드, 탭하면 검색`,
   },
 
+  /**
+   * E1 섹션 제목 — **아는 종류(`key`)만 앱이 갖는다**(global-api.md 2.3 "화면 문구는 클라이언트" · 2026-10-19 KAN-194 실기기 —
+   * 서버 `title` 은 한국어 고정이라 영어 표시에서 한국어가 보였다). 모르는 종류·`topic_group`(주제 이름)은 서버 `title` 그대로다
+   * (`explore.section-title.ts`). 한국어는 서버 문자열과 같은 값이다
+   */
+  sectionTitles: {
+    interest: '관심사에 맞는 추천',
+    new: '새로 나온 콘텐츠',
+    popular: '인기 콘텐츠',
+  },
+
   /** E12 더보기 액션시트 — 상세 정보·원문 보기·담기/제거(explore-uiux.md 4.4, 공유는 P1) */
   sheet: {
     detail: '상세 정보',
@@ -136,6 +147,12 @@ const en: LocalizedCopy<typeof ko> = {
     recentItemA11y: (query: string) => `${query}, recent search, tap to search`,
     recentDeleteA11y: (query: string) => `Remove “${query}” from recent searches`,
     suggestedChipA11y: (name: string) => `${name}, suggested keyword, tap to search`,
+  },
+
+  sectionTitles: {
+    interest: 'Recommended for you',
+    new: 'New episodes',
+    popular: 'Popular',
   },
 
   sheet: {
