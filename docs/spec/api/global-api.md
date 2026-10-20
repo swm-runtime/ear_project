@@ -5,7 +5,7 @@
 > 기준 문서: 글로벌 트랙 에픽 [KAN-186](https://runtime364.atlassian.net/browse/KAN-186) — 자식 티켓 `docs/tickets/<파트>/{pending,archive}/global-*.md`(대부분 archive로 옮겨졌다)(BE 8 — KAN-187~193·207 · FE · AI는 에픽 목록 참조, 2026-10-14 결정. 처음 발행한 묶음 티켓 KAN-183/184/185는 분할 후 닫음)
 > 규약: [`docs/backend/convention.md`](../../backend/convention.md) 5장 · [`docs/backend/architecture.md`](../../backend/architecture.md) 7·9장
 > 스키마: [`docs/backend/domain.md`](../../backend/domain.md) — 이 문서의 8장이 개정 요청의 원본이다(`changes/pending` 경유)
-> 작성: 2026-10-14 (박준현). **글로벌 트랙 `features/` 문서는 아직 없다** — 이 문서가 그 자리를 임시로 맡고, 동작 규칙은 각 티켓의 "결정" 절이 기준이다. FR은 다음 통합 때 PRD에 추가한다.
+> 작성: 2026-10-14 (박준현). **글로벌 트랙 `features/` 문서는 아직 없다** — 이 문서가 그 자리를 임시로 맡고, 동작 규칙은 각 티켓의 "결정" 절이 기준이다. FR은 PRD 6.10 **FR-42 ~ FR-48**이다(2026-10-20 — `changes/pending/prd-global-track.md`. 우선순위는 PM 확인 대기).
 
 ## 0. 이 문서를 읽는 법
 
