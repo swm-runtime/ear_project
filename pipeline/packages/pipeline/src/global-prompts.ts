@@ -578,11 +578,16 @@ const ROLE_INTENT_DRAMA_EN: Record<string, string> = { ...ROLE_INTENT_EN, practi
 const roleIntent = (history: boolean, mid?: string | null) => (history ? ROLE_INTENT_HISTORY_EN : mid === DRAMA_TOPIC_EN ? ROLE_INTENT_DRAMA_EN : ROLE_INTENT_EN);
 const historyTopic = (mid: string | null | undefined) => mid === HISTORY_TOPIC_EN;
 
+/** 국문 소스 하한 (2026-10-21 KAN-202 진단 — 검색어 절반이 한국어인데 결과의 14%, 판정 편 소스의 약 10%만 국문이었다. 답 3.1 이 '소스 하나씩 요약'에 머무는 원인 후보로 '왜'를 설명하는 국문 자료를 채운다) */
+export const KOREAN_SOURCE_MIN_EN = 2;
+/** 국문 소스 판별 — 제목에 한글이 있으면 국문 (검색 결과 요약은 영어로 받으므로 제목만 본다) */
+export const isKoreanTitle = (t: string | null | undefined) => /[가-힣]/.test(t ?? "");
+
 const SEARCH_EXCLUDE_EN = `- Exclude what the worker cannot read: paywalled databases and repositories (researchgate, ssrn, academia.edu, semanticscholar, paid sciencedirect, springer, or wiley pages, jstor, DBpia, KISS, RISS), login or subscription walls, PDF-only links, social media, YouTube, wikis (including namu.wiki), forums, fan communities, shopping pages, and short press releases.
 - Exclude Korean personal publishing: Naver or Daum blogs and cafes, Tistory, Brunch, Naver KnowledgeiN. For portal copies of news (n.news.naver.com, v.daum.net), return the original publisher's URL.
 - English entertainment sites (Soompi, allkpop, Koreaboo and similar) are case material only, never the anchor.
 - For Korean queries, write the Korean term in Hangul.
-- ear does not report news. A news story is case material only.
+- ear does not report news. A news story is case material only. A Korean newspaper's explainer, analysis, or column on why people do the practice is not a news story; it can be an anchor.
 - The two-year limit applies to numbers and to claims about current practice. Reference works, heritage explainers, and museum pages may be any age. A numbers source states the year its data describes.
 - Topic limits: nothing about real people's private life, rumors, or controversies; no promotional pages of agencies or brands; for food and travel, no price, store, or booking guides; for drama and film, no plot summary as the anchor.
 - One source may fill two roles. A source that only shares keywords is worse than none.
@@ -604,7 +609,7 @@ The only tool is web search. Do not read pages; the planner reads them later. Re
 ## What to collect — roles
 A candidate holds with 5 to 7 sources that fill these roles:
   · ${ROLES_EN.map((r) => `${r} — ${roleIntent(history, i.midTopic)[r]}`).join("\n  · ")}${historyTopic(i.midTopic) ? "\nIf the topic is a past event: an account of the event as a whole is the anchor; an essay that uses the event as an example of another idea is not. Records from the time are cases. Older sources are fine." : ""}
-The worker recounts: at least 3 sources · at least 3 publishers · no publisher over half · at least 1 anchor · at least 1 case · at least 3 roles. ear introduces Korean culture: spend searches on case and practice first. Find at least one source that tells a person's own moment: an interview, a first-hand account, or a report scene with words said. Prefer a Korean person's own account over a visitor's. Find at least one anchor that answers why people in Korea do it, not only what they do. Counterpoint and numbers are optional.
+The worker recounts: at least 3 sources · at least 3 publishers · no publisher over half · at least 1 anchor · at least 1 case · at least 3 roles. ear introduces Korean culture: spend searches on case and practice first. Find at least one source that tells a person's own moment: an interview, a first-hand account, or a report scene with words said. Prefer a Korean person's own account over a visitor's. Find at least one anchor that answers why people in Korea do it, not only what they do. Find at least ${KOREAN_SOURCE_MIN_EN} Korean-language sources (Korean title and text) that explain why: a Korean public or research body's explainer or report, an encyclopedia entry, a museum or heritage page, or a Korean newspaper's explainer or column. Search for them in Korean. Counterpoint and numbers are optional.
 
 ## Search rules
 - At most ${i.maxSearches} searches. Use them all unless every role is filled with strong sources. Korean institutions and Korean-language sources often hold the best material on Korean culture; English sources show how it is explained to outsiders.
@@ -624,6 +629,8 @@ export function buildReinforceSearchPromptEn(i: ReinforceSearchInput): string {
   const top = [...pubCount].sort((a, b) => b[1] - a[1])[0];
   const diversify = !c.gaps.length && top ? `more publishers — ${top[0]} has ${top[1]} of ${c.sources.length} sources. Find 1 to 2 anchors and 1 case from publishers not already in the list.` : null;
   const roles = (c.gaps.length ? c.gaps : ["근거 앵커", "사례"]).map(roleEn);
+  const koShort = KOREAN_SOURCE_MIN_EN - c.sources.filter((x) => isKoreanTitle(x.title)).length;
+  const koGoal = koShort > 0 ? `Korean-language sources — the candidate has ${KOREAN_SOURCE_MIN_EN - koShort}. Find at least ${koShort} Korean-language sources (Korean title and text) that explain why, from a Korean public or research body, an encyclopedia, a museum or heritage page, or a Korean newspaper's explainer or column. Search for them in Korean.` : null;
   return `You reinforce sources for "ear", an audio service that makes two-person English episodes about Korean culture. One candidate has an axis but empty roles. Find sources for those roles by web search. ear introduces Korean culture; counterpoint and numbers are optional.
 The only tool is web search. Do not read pages. Return what the results show: title, summary, publisher, date.
 
@@ -631,7 +638,7 @@ The only tool is web search. Do not read pages. Return what the results show: ti
 - ${c.id} "${c.title}" · topic area ${c.mid_topic}
 - Axis (${axisTypeEn(c.axis_type ?? "-")}): ${c.axis ?? "(none)"}
 - Sources already in it: ${c.sources.map((x) => `${x.publisher} "${x.title}"`).join(" / ") || "(none)"}
-- **Roles to fill**: ${roles.map((r) => `${r} — ${roleIntent(history, c.mid_topic)[r] ?? ""}`).join("\n  · ")}${diversify ? `\n- **Goal of this round**: ${diversify}` : ""}
+- **Roles to fill**: ${roles.map((r) => `${r} — ${roleIntent(history, c.mid_topic)[r] ?? ""}`).join("\n  · ")}${koGoal ? `\n- **Goal of this round**: ${koGoal}` : diversify ? `\n- **Goal of this round**: ${diversify}` : ""}
 
 ## Search rules
 - At most ${i.maxSearches} searches, in English and Korean.
@@ -677,7 +684,7 @@ export function buildTopicJudgePromptEn(i: ClusterV2Input): string {
     : `## 0. Mode — re-judge one existing candidate
 - Candidate: "${i.reinforce!.title}" · axis (${axisTypeEn(i.reinforce!.axis_type)}): ${i.reinforce!.axis}
 - Empty roles: ${i.reinforce!.gaps.length ? i.reinforce!.gaps.map(roleEn).join(", ") : "(none — this round adds publishers; if a new source gives an anchor from another publisher, swap out one source of the dominant publisher)"}
-- The list mixes the current candidate sources (marked) and new search results. Add a new source only if it fits the axis and fills an empty role.
+- The list mixes the current candidate sources (marked) and new search results. Add a new source only if it fits the axis and fills an empty role, or if it is a Korean-language source and the candidate has fewer than ${KOREAN_SOURCE_MIN_EN}.
 - candidates has exactly 1 item, id "${id}". Keep the title and axis (wording may be polished); do not set a new axis. Apply rules 2 to 6 below. Put roles still empty in gaps.`;
   return `You judge episode topics for "ear", an audio service that makes two-person English episodes about Korean culture. Listeners are English speakers new to Korea, many with English as a second language; do not assume a country. You see source metadata only; there are no tools and no page access. ear introduces Korean culture to newcomers. Set the axis first, then fill its roles with sources.
 
@@ -693,7 +700,7 @@ ${i.specBacklogExcerpt.trim()}
 2. **It works in English for this listener.** Keep the question or tension inside the subject: the Korean practice itself, how it works, and why people do it. Do not build it on what outsiders, foreigners, or the West expect. Compare Korea with another country only if a listed source makes that comparison. The axis can be said in plain English with at most one Korean word. It does not rest on Korean wordplay or a pun that does not translate. It does not frame Korea as strange, rank cultures, or argue which country owns a custom.
 3. **Excluded.** No axis built around one person. Nothing about a real person's private life, relationships, rumors, controversies, incidents, or lawsuits. No current political issue and no inter-Korean military issue. No promotion of an agency, brand, or product.
 4. **Roles.** anchor (1 to 2 sources that answer the axis question itself; a survey or statistics page is numbers, not anchor) · case (a person's own moment: an interview, a first-hand account, or a report scene with words said; a general explainer of the custom is practice, not case) · practice${mid === DRAMA_TOPIC_EN ? " (for this topic: the convention on screen and how viewers in Korea talk about it)" : ""} · context · counterpoint (optional) · numbers (optional). One source may have two roles. A source with no role is left out. 5 to 7 sources.
-5. **Diversity.** At least 3 publishers (one organization is one publisher) · no publisher over half · at least 3 roles (anchor, case, and one more) · at most 1 "already used" source. The worker recounts; do not force sources in to meet it.
+5. **Diversity.** At least 3 publishers (one organization is one publisher) · no publisher over half · at least 3 roles (anchor, case, and one more) · at most 1 "already used" source · at least ${KOREAN_SOURCE_MIN_EN} Korean-language sources (title in Hangul). Between two sources for the same role, keep the Korean-language one that explains why. The worker recounts; do not force sources in to meet it.
 6. **Verdict.** "holds" if every criterion is met. "needs reinforcement" if the axis is good but required roles (anchor, case, practice, context) are empty; list them in gaps. Never list counterpoint or numbers in gaps. A domain not yet judged is not a reason for "needs reinforcement"; a person judges domains at gate 1. Mention it in dedup_note instead.
 
 ## 3. Fields (candidates[])
