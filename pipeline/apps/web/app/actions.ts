@@ -228,6 +228,14 @@ export async function listPublishableEpisodes(): Promise<{ id: string; title: st
     .map((e) => ({ id: e.id, title: bl[e.backlog_id]?.title ?? e.id, mid_topic: bl[e.backlog_id]?.mid_topic ?? "", created_at: e.created_at as string }));
 }
 
+/** 이 인스턴스 파이프라인의 중분류 이름 전부(비활성 포함) — 콘솔이 제품 주제 목록에서 이 시장 주제만 고를 때 쓴다(lib/ear splitConsoleTopics) */
+export async function listPipelineTopicNames(): Promise<string[]> {
+  const sb = await supabaseServer();
+  const { data, error } = await sb.from("topics").select("mid");
+  if (error) throw new Error(error.message);
+  return (data ?? []).map((t) => t.mid as string);
+}
+
 /**
  * 파이프라인 주제 체계(topics, active) → 제품 주제 동기화용 목록. 대분류 체계 순서 → 중분류 등록 순으로 display_order 를 매긴다.
  * 제품 주제(name·parent_category)는 파이프라인 중분류·대분류와 1:1 이 규약이다(2026-09-06 체계 통일). 실제 생성·수정은 브라우저의 제품 세션으로 한다(/publish/topics).

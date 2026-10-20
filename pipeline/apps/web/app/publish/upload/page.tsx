@@ -3,7 +3,8 @@ import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { backlogSeries, markPublished, listPublishableEpisodes, requestEpisodeEnrich, episodeEnrichState } from "../../actions";
-import { EarTopic, listEarTopics, uploadEarContent } from "@/lib/ear";
+import { EarTopic, uploadEarContent } from "@/lib/ear";
+import { listConsoleTopics } from "@/lib/console-topics";
 import { episodePublishFiles } from "@/lib/publish-episode";
 import { Badge, PageHeader, Panel, btnCls } from "@/components/ui";
 import { EarGate, EarSession, earErrMsg } from "../ear-connect";
@@ -78,7 +79,7 @@ function UploadForm({ episodeId }: { episodeId: string | null }) {
   useEffect(() => {
     void (async () => {
       try {
-        const items = (await listEarTopics()).items;
+        const items = (await listConsoleTopics()).mine; // 이 콘솔 시장의 주제만 (2026-10-20)
         setTopics(items);
         if (episodeId) {
           const res = await fetch(`/api/publish/${episodeId}`);

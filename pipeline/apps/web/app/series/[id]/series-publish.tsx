@@ -2,7 +2,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Badge, Panel, btnCls } from "@/components/ui";
-import { createEarSeries, EarTopic, listEarSeries, listEarTopics, patchEarSeries, uploadEarContent, withdrawEarContent } from "@/lib/ear";
+import { createEarSeries, EarTopic, listEarSeries, patchEarSeries, uploadEarContent, withdrawEarContent } from "@/lib/ear";
+import { listConsoleTopics } from "@/lib/console-topics";
 import { episodePublishFiles } from "@/lib/publish-episode";
 import { seriesContentTitle, seriesPublishBlockers, seriesUploadQueue, type SeriesPublishEpisode, type SeriesStatus } from "@/lib/series";
 import { logPublishEvent, markPublished, requestEpisodeEnrich } from "../../actions";
@@ -38,7 +39,7 @@ function SeriesPublishInner({ id, name, introLine, total, status, productSeriesI
 
   const load = useCallback(async () => {
     try {
-      const items = (await listEarTopics()).items;
+      const items = (await listConsoleTopics()).mine;
       setTopics(items);
       const out: Record<string, Row> = {};
       for (const e of todo) {
