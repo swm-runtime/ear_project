@@ -430,3 +430,13 @@ test("질문 아닌 진행 턴의 반응 틀(sounds·feels·seems)은 둘까지 
   assert.doesNotMatch(enStyleViolations(xs(2)).join("\n"), /react with "sounds"/);
   assert.match(enStyleViolations(xs(3)).join("\n"), /3 host turns that are not questions react with "sounds", "feels", or "seems" \(Y2, Y3, Y4\)/);
 });
+
+// ── full-en-v0.20 (2026-10-20 — G261020-012 에이전트 판정) ──
+test("질문 아닌 진행 턴 — probably/perhaps/maybe 셋이면 문체 위반, 같은 첫 낱말(관사 제외) 셋이면 문체 위반", () => {
+  en();
+  const xs = (texts: string[]) => [T("Y1", "Hi.", "Intro"), ...texts.map((x, k) => T(`Y${k + 2}`, x)), T("Y9", "Bye.", "Closing")];
+  const v = enStyleViolations(xs(["Perhaps the soup came first.", "The cook probably adds beef.", "Maybe the bowl is shared."])).join("\n");
+  assert.match(v, /3 host turns that are not questions are built on "probably", "perhaps", or "maybe"/);
+  assert.match(enStyleViolations(xs(["Even the soup came first.", "Even the cook adds beef.", "Even the bowl is shared."])).join("\n"), /start with the same word: "even" ×3 \(Y2, Y3, Y4\)/);
+  assert.deepEqual(enStyleViolations(xs(["The soup came first.", "The cook adds beef.", "The bowl is shared.", "Is it hot?"])).filter((m) => /same word|probably/.test(m)), []); // 관사는 세지 않는다
+});

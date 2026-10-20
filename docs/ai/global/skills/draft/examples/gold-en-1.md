@@ -1,6 +1,6 @@
 # Gold example 1 (global) — Yuna·Owen
 
-> gold@2026-10-20 · global pipeline · source: G261020-003 (Korean Culture — first birthday (doljanchi)), the final edited script after the blind agent review rated it publishable (editor 60·61, all required fixes applied). Edited again on 2026-10-20 to the current rules (full-en-v0.19): host reaction lines turned into guesses, the explainer's Opening question removed, one source-like view sentence rewritten. Shows how the conversation works — never reuse its facts, sentences, metaphors, openers, or closing frames.
+> gold@2026-10-20 · global pipeline · source: G261020-003 (Korean Culture — first birthday (doljanchi)), the final edited script after the blind agent review rated it publishable (editor 60·61, all required fixes applied). Edited again on 2026-10-20 to the current rules (full-en-v0.19 · v0.20): host reaction lines turned into a mix of a guess, an observation, and a doubt, and the view frame varied so the two golds do not share one. Shows how the conversation works — never reuse its facts, sentences, metaphors, openers, or closing frames.
 
 ---
 
@@ -24,7 +24,7 @@ G261020-003 · Why the First Birthday Becomes a Family Celebration · Korean Cul
 ### #2 Wishes placed on the table
 [Owen] Y5 · What does the food table add to that celebration?
 [Yuna] E5 · It gives the family's wishes a visible form. Families prepare a dolsang, the decorated first-birthday table. Its foods express hopes for the child's future. A coil of white yarn expresses a wish for a long and healthy life.
-[Owen] Y6 · The yarn is probably the only thing on the table with a meaning, then.
+[Owen] Y6 · So far only the yarn has a meaning.
 [Yuna] E6 · The food carries meanings too. Baekseolgi is a steamed white rice cake. Its whiteness expresses a pure start to life. Red-bean cakes connect with the belief that red keeps bad luck and harmful spirits away.
 [Owen] Y7 · Does every family keep the whole display?
 [Yuna] E7 · Families simplify or leave out different parts. Traditionally, rice cakes and fruit were stacked high to express a wish for a life with plenty. A modern first-birthday table may have a simpler display. A small birthday cake may be added, too. Many families keep at least some things that carry these wishes.
@@ -33,14 +33,14 @@ G261020-003 · Why the First Birthday Becomes a Family Celebration · Korean Cul
 [Owen] Y8 · How does the baby take part in all these wishes?
 [Yuna] E8 · The baby gets to choose something. In doljabi, the object-choice part of the celebration, parents place objects before the child. The first one the baby grabs is said to hint at the child's future. Thread means long life, and money means wealth. The person leading the event explains the meanings. Guests react excitedly when the baby reaches for an object.
 [Owen] Y9 · How seriously is that choice taken?
-[Yuna] E9 · One way to understand it is as a shared performance for laughter and photographs, rather than a serious prediction. Parents add objects for careers they hope their child might have. A stethoscope suggests a doctor. A computer mouse suggests work in technology.
-[Owen] Y10 · The parents probably see the same future in that object.
+[Yuna] E9 · Many families treat it as a shared performance for laughter and photographs, rather than a serious prediction. Parents add objects for careers they hope their child might have. A stethoscope suggests a doctor. A computer mouse suggests work in technology.
+[Owen] Y10 · Both parents want the same answer from that mouse, then.
 [Yuna] E10 · They can see different possibilities in the same choice. Three families with babies born within two weeks of each other once held one party together. One baby girl picked a computer mouse from the table. Her father laughed loudly, but he seemed unhappy. Her mother pictured someone skilled with technology. In her view, her husband pictured a gamer or someone always on the computer.
 
 ### #4 A smaller party can keep the celebration
 [Owen] Y11 · Does that moment need a large party around it?
 [Yuna] E11 · Smaller celebrations can keep it too. While preparing for their baby's first birthday, a father and mother knelt on their living-room floor. They debated whether to put a stethoscope or a computer mouse on the table. These parents leaned toward a lunch with only close relatives and photographs in a studio.
-[Owen] Y12 · Without a big party, the object choice is probably dropped.
+[Owen] Y12 · A small lunch leaves little room for the object choice.
 [Yuna] E12 · Parents can keep the choice even without a party. At small gatherings or studio photo sessions, they place objects before the baby and watch what the child picks. As medicine improved, the original reason for celebrating survival faded. One way to see the celebration's later role is as a public announcement that the parents have become a family.
 [Owen] Y13 · What place do gifts have in the celebration?
 [Yuna] E13 · Gifts can stay with the family after the event. A dolbanji is a small gold ring given at the first birthday. The family can keep it or sell it during financial difficulty. Higher gold costs have led guests to give cash or rings with less gold. Guests leaving a party receive a small return gift, such as rice cake or a towel, often marked with the baby's name and birth date.

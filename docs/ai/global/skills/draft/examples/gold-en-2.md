@@ -1,6 +1,6 @@
 # Gold example 2 (global) — E-um·Grace
 
-> gold@2026-10-20 · global pipeline · source: G261018-015 (K-Food — jajangmyeon on moving day), the final edited script after the blind agent review rated it publishable (editor 60·61, all required fixes applied). Edited again on 2026-10-20 to the current rules (full-en-v0.19): host reaction lines turned into guesses, the explainer's Opening question removed, one source-like view sentence rewritten. Shows how the conversation works — never reuse its facts, sentences, metaphors, openers, or closing frames.
+> gold@2026-10-20 · global pipeline · source: G261018-015 (K-Food — jajangmyeon on moving day), the final edited script after the blind agent review rated it publishable (editor 60·61, all required fixes applied). Edited again on 2026-10-20 to the current rules (full-en-v0.19 · v0.20): the explainer's Opening question removed, host reaction lines turned into a doubt and a guess about the scene, and the view frame varied so the two golds do not share one. Shows how the conversation works — never reuse its facts, sentences, metaphors, openers, or closing frames.
 
 ---
 
@@ -48,7 +48,7 @@ G261018-015 · Jjajangmyeon on Moving Day · K-Food · E-um/Grace · full-en-v0.
 
 [E-um] E7 · It also fed the people who carried the furniture. Before professional moving services became familiar, a family might rent a small truck. They asked relatives and friends for help. Neighbors could help too. Belongings traveled in collected cardboard boxes and plastic basins. Blankets and tied bags also held things during the move.
 
-[Grace] Y9 · That sounds like a lot of people's time going into one household's move.
+[Grace] Y9 · One household's move takes up a lot of people's time.
 
 [E-um] E8 · Friends and relatives gave their time and strength. That kind of help stayed familiar longer in smaller cities and the countryside than in Seoul. Once the furniture was inside, the helpers sat down for a meal. Jjajangmyeon fed people who had spent hours on that work.
 
@@ -66,9 +66,9 @@ G261018-015 · Jjajangmyeon on Moving Day · K-Food · E-um/Grace · full-en-v0.
 
 [E-um] E11 · One family remembers it this way. Steam rose as a delivery worker opened a metal delivery bag. The family mixed the sauce into the noodles with chopsticks, in bowls placed on newspaper. The excited children said, This is my room. The parents said, Let's live well here from this point on.
 
-[Grace] Y13 · The children's words sound so certain about a place they've just entered.
+[Grace] Y13 · The children have barely seen the place, and they already claim a room.
 
-[E-um] E12 · One way to see that meal is that it helped a strange new place start to feel like the family's own home. Some people also see more than convenience in the link. For them, the noodles carry family memories and the way people lived at that time.
+[E-um] E12 · Some families describe that meal as the moment a strange new place started to feel like their own home. Others see more than convenience in the link. For them, the noodles carry family memories and the way people lived at that time.
 
 ## [Closing]
 
