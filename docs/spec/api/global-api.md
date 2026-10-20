@@ -88,7 +88,7 @@
 | 7 | `GET /plans` | subscription-api 4.1 | 사용자 시장의 요금제만, GLOBAL은 `price_krw: null` | GLOBAL 요금제는 별도 스토어 상품(ID 다름). KR 행이 보이면 결제가 KR 상품으로 간다. `price_krw`는 해외 사용자에게 원화를 보여 주는 셈이라 `null` | ✅ |
 | 8 | 탐색·라이브러리·상세·플레이어·검색·재개 — 콘텐츠를 담는 모든 응답 | explore·library·content-detail·player-api | `language` 필드 추가, 서버가 시장 필터 | 시장 필터가 없으면 한국어 콘텐츠가 해외 피드·검색·드립에 나온다(유출). `language`는 자막 폰트·낭독 언어 등 표시용 | ✅ |
 | 9 | `GET /notices` · `GET /notices/:id` | settings-api 4.4·4.5 | 시장 필터(필드 변화 없음) | 공지도 시장별로 따로 쓴다. 필터만 추가, 필드는 그대로 쓸 수 있어 바꾸지 않는다 | ✅ |
-| 10 | `POST /admin/contents` · `POST /admin/contents/:id/republish` | admin-api 4.6·4.10 | payload `market`·`language` 필수, `enrichment.json` `language`·태그 규칙·`target_audiences` 생략 | 파이프라인이 두 트랙을 만들기 시작하면 서버가 어느 시장 콘텐츠인지 알 길이 payload밖에 없다. 태그 규칙은 현행이 공백 금지여서 "Stray Kids"가 400 — 영어 고유명사 대부분이 막힌다. `target_audiences`는 KR 직군 enum | ✅ |
+| 10 | `POST /admin/contents` · `PATCH /admin/contents/:contentId`(재발행) | admin-api 4.6·4.10 | 업로드(`POST /admin/contents`) payload `market`·`language` 필수(재발행은 두 필드를 받지 않는다 — 시장은 바뀌지 않는다), `enrichment.json` `language`·태그 규칙·`target_audiences` 생략 | 파이프라인이 두 트랙을 만들기 시작하면(2026-10-19 — #1748 송신 · KAN-190 2단계 필수 전환 완료) 서버가 어느 시장 콘텐츠인지 알 길이 payload밖에 없다. 태그 규칙은 현행이 공백 금지여서 "Stray Kids"가 400 — 영어 고유명사 대부분이 막힌다. `target_audiences`는 KR 직군 enum | ✅ |
 | 11 | `GET /admin/contents` · `POST /admin/topics` · `GET /admin/insights/summary` | admin-api | `market` 필터·필드 | 운영 집계가 시장 섞여 나오면 PoC 성과(GLOBAL 가입·청취)를 읽을 수 없다 | 🟡 |
 | 12 | `POST /users/me/subscription/invite-codes` 및 구독 조회 | subscription-api 4.8 | 변경 없음(코드는 시장 무관). `plan.grant` 그대로 | 초대 코드는 시장과 무관한 부여 기능. 확인 결과 바꿀 것이 없다 | ✅ |
 | 13 | `GET /users/me/market-change/preview` · `POST /users/me/market-change` | 신설(4.11) | 시장 전환 — 미리보기 · 동의 포함 전환 · 새 액세스 토큰 | 가입 때 잘못 고른 사용자가 다른 시장에 갇힌다. 값만 바꾸면 동의 전 콘텐츠 노출 · 이전 시장 주제로 드립 끊김 · 토큰의 옛 시장으로 30분간 섞임 | ✅ 2026-10-19 구현 — 서버 스위치 `MARKET_CHANGE_ENABLED`(기본 닫힘) |
@@ -200,11 +200,11 @@
 
 `GET /notices`·`GET /notices/:id`는 `notices.market`으로 거른다. 필드 변화 없음. 공지는 시장별로 따로 쓴다.
 
-### 4.9 파이프라인 → 서버 발행 — `POST /admin/contents` · `republish` ✅
+### 4.9 파이프라인 → 서버 발행 — `POST /admin/contents` · `PATCH /admin/contents/:contentId`(재발행) ✅
 
 **왜**: 두 트랙을 만들기 시작하면 서버가 콘텐츠의 시장을 알 길은 payload밖에 없다(주제로 추론하면 주제 없는 콘텐츠·다중 주제에서 깨진다). 태그 규칙은 현행이 **공백 금지**여서 "Stray Kids"·"Squid Game"이 400으로 막히고, 영어 고유명사 대부분이 그렇다. `target_audiences`는 KR 직군 enum이라 GLOBAL에는 채울 값이 없다. 나머지(`title`·`sources`·`script_file`·`enrichment_file`)는 **그대로 쓴다**.
 
-`payload`(JSON 문자열)에 두 필드를 더한다. **1단계는 선택**(없으면 `kr`·`ko` — 구 콘솔·KR 파이프라인 무중단), **파이프라인이 보내기 시작한 뒤(AI KAN-204) 필수로 올린다**(KAN-190 2단계).
+업로드 `payload`(JSON 문자열)에 두 필드를 더한다. **필수**(2026-10-19 — KAN-190 2단계. 파이프라인 업로드가 #1748부터 늘 보낸다). 빠지면 400 `VALIDATION_FAILED`(`field: "market"` 또는 `"language"`). 조합은 `kr`+`ko` · `global`+`en`. 재발행(`PATCH /admin/contents/:contentId`)은 그대로다 — 시장은 바뀌지 않고 payload에 `market`·`language`를 받지 않는다.
 
 ```json
 { "title": "...", "description": "...", "origin": "ai_generated", "market": "global", "language": "en", "topic_ids": ["uuid-k1"], "sources": [ ... ] }
@@ -218,7 +218,7 @@
 - 기존 콘텐츠·기존 업로드는 `market = kr`, `language = ko`로 간주한다(마이그레이션 기본값). **파이프라인은 한국어 트랙에도 두 필드를 명시해 보낸다**(콘솔의 `SEND_*` 플래그 패턴 — 서버 배포 전에는 400이 나므로 서버 반영 뒤 켠다).
 - `enrichment.json`(`ai/metadata-pipeline.md` 4.4)에 `language` 키 추가(선택, 없으면 payload 값). `tags` 규칙 완화: **공백 허용, 2~20자, 한글·영문·숫자·공백, 앞뒤 공백 없음**(`^[가-힣A-Za-z0-9][가-힣A-Za-z0-9 ]{0,18}[가-힣A-Za-z0-9]$` — `content.constant.ts` `CONTENT_TAG_PATTERN`) — "Stray Kids"·"BLACKPINK"가 통과한다. `target_audiences`는 **`market = global`이면 생략 허용**(있으면 무시하지 않고 400 — 직군 enum이 KR 전용).
 - `upload-meta.json`(파이프라인 패키지)에 같은 `market`·`language`를 기록해 콘솔이 payload로 옮긴다.
-- 주제 생성 `POST /admin/topics`에 `market`(1단계 선택 — 없으면 `kr`)·`slug` 🟡. `slug`는 생성·수정(`PATCH /admin/topics/:id`)에서 선택 입력으로 받는다(2026-10-14 — 소문자·숫자·하이픈, 같은 시장에 같은 slug면 409 `CONFLICT`, 수정에서 `null`이면 비운다). 목록·응답 항목에 `slug`가 실린다. 두 필드의 필수 전환은 발행 계약 필수 전환(KAN-190 2단계)과 같은 때 한다. GLOBAL 주제 8개는 마이그레이션으로 시드됐다(1790100000000).
+- 주제 생성 `POST /admin/topics`에 `market`(선택 — 없으면 `kr`)·`slug` 🟡. `slug`는 생성·수정(`PATCH /admin/topics/:id`)에서 선택 입력으로 받는다(2026-10-14 — 소문자·숫자·하이픈, 같은 시장에 같은 slug면 409 `CONFLICT`, 수정에서 `null`이면 비운다). 목록·응답 항목에 `slug`가 실린다. GLOBAL 주제 8개는 마이그레이션으로 시드됐다(1790100000000).
 
 ### 4.10 어드민 조회 🟡
 

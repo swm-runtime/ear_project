@@ -175,8 +175,8 @@
   "topic_ids": ["..."],        // 필수, 최소 1개
   "sources": [{ "title": "...", "author": "...", "url": "..." }],  // ai_generated 필수, 최소 1개
   "review_confirmed": true,    // 필수, true여야 한다
-  "market": "kr" | "global",   // 1단계 선택(없으면 kr) — 2026-10-14 KAN-190
-  "language": "ko" | "en"      // 1단계 선택(없으면 ko) — 2026-10-14 KAN-190
+  "market": "kr" | "global",   // 필수(2026-10-19 — KAN-190 2단계)
+  "language": "ko" | "en"      // 필수(2026-10-19 — KAN-190 2단계)
 }
 ```
 
@@ -185,7 +185,7 @@
 - `duration_sec`은 받지 않는다. **서버가 오디오에서 추출한다**(`admin.md` 3.1).
 - `review_confirmed`는 **저장 컬럼이 없다.** 미체크 업로드를 막는 게 목적이고 증적은 `audit_logs`가 담당한다(`domain.md` 5.1, 확정 2026-08-06).
 - `partner_id`는 **존재 검증을 하지 않는다.** `partners` 테이블이 아직 없어 uuid 형식만 본다 — 9장 미결.
-- **`market`·`language`**(추가 2026-10-14 — KAN-190, `global-api.md` 4.9). **1단계는 선택**(없으면 `kr`·`ko`) — 파이프라인이 보내기 시작하면 필수로 올린다(`global-api.md` 4.9의 "필수"가 최종 상태). 검증:
+- **`market`·`language`**(추가 2026-10-14 — KAN-190, `global-api.md` 4.9). **필수**(2026-10-19 — KAN-190 2단계, 종전 1단계는 선택·없으면 `kr`·`ko`). 빠지면 400 `VALIDATION_FAILED`(`details.field = "market"` 또는 `"language"`). 재발행(4.10)은 두 필드를 받지 않는다. 검증:
   - 조합이 `kr↔ko` · `global↔en`이 아니면 400 `VALIDATION_FAILED`(`details.field = "language"`).
   - `topic_ids`가 전부 같은 시장(`market`)의 주제가 아니면 400 `VALIDATION_FAILED`(`details.field = "topic_ids"`).
   - `market = global`인데 `enrichment_file`에 `target_audiences`가 있으면 400 `VALIDATION_FAILED`(`details.field = "target_audiences"`).
