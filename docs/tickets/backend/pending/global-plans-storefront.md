@@ -21,14 +21,14 @@
 ## 무엇을 한다
 
 - `plans.market`(DEFAULT `kr`) 추가, GLOBAL 행 2개(Daily/Pro) 신규 — 영어 `name`·`description`, 별도 `store_product_id_*`, `price_krw` NULL.
-- `GET /plans`를 `users.market`으로 필터. GLOBAL 응답은 `price_krw: null`(필드는 유지 — 스토어의 3.1.x 앱이 읽는다). `action` 판정은 종전 그대로.
+- `GET /plans`를 `users.market`으로 필터. GLOBAL 응답은 `price_krw: null`(필드는 유지 — 스토어의 1.2.x 앱이 읽는다). `action` 판정은 종전 그대로.
 - Apple 거래 `storefront`·`price`·`currency`, Play `regionCode`·가격을 `subscriptions`·`store_notification_logs`에 저장(응답값 그대로, 환산 없음).
 - 구독 행은 시장을 가지지 않는다(결제는 스토어 국가 기준). 초대 코드는 변경 없음.
 - `subscription-api.md` 4.1·4.4 개정 요청(changes/pending).
 
 ## 범위 밖
 
-가격 책정(스토어) · 시장 전환 시 구독 이전(불허라 없음)
+가격 책정(스토어) · 시장 전환 시 구독 이전(구독은 시장이 없어 그대로 — `global-api.md` 4.11)
 
 ## 완료 조건
 
@@ -58,3 +58,4 @@
   - `planTextOf(plan, market)` — 시장의 언어로 고른다(GLOBAL 영어, KR 종전). `GET /plans`와 요금제 카드(`buildPlanView` — 설정·프로필·구독 상태의 현재·예약·지급 요금제 이름)가 이 한 곳을 쓴다. 앱 변경 없음.
   - 문서 `changes/pending/plan-text-by-market.md`.
   - 나머지(GLOBAL 전용 가격·상품, 결제 국가·통화 저장)는 보류 그대로다. 스토어 상품 이름의 영어 현지화는 콘솔 작업(박준현)이다.
+- 2026-10-20 서술 정정(i18n 검증) — 스토어 앱 버전 3.1.x → 1.2.x, 범위 밖의 "시장 전환 불허" → 전환은 생겼고 구독은 시장이 없어 그대로(4.11). 보류 상태는 그대로다(브랜치 `docs(be)/i18n-runbook-tickets`).

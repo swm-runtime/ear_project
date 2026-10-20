@@ -54,10 +54,14 @@
 - Given 4번 / Then
   - 탐색 응답에 `type: "series"` 카드가 있다
   - 다음 날 05:00 배치 뒤 `user_interests.source = 'auto_expand'` 행이 생긴다(대상이 있으면)
-  - `GET /users/me/market-change/preview`가 `market_unavailable` 외의 응답을 준다
-- Given KAN-204 완료 / When 5번 / Then 영어 기기 신규 가입이 `market: global`이고, GLOBAL 계정이 그룹 배치로 편성된다
+  - 운영 api 컨테이너 env에 `MARKET_CHANGE_ENABLED=true`가 있다(`docker exec ear-prod-api-1 printenv MARKET_CHANGE_ENABLED`). KR 계정의 KR→GLOBAL 미리보기(`?preferred_language=en`)는 5번 전까지 **계속 `market_unavailable`이다(정상)** — GLOBAL로의 전환은 `GLOBAL_SIGNUP_ENABLED`와 GLOBAL 노출 주제도 요구한다(`UserMarketChangeService.isTargetOpen` · `global-api.md` 4.11 "막는 조건")
+- Given KAN-204 완료 · 운영 GLOBAL 주제 노출 / When 5번 / Then
+  - A21에서 **English를 고른** 신규 가입이 `market: global`이다(시장은 요청 `locale.preferred_language`로 정한다 — 기기 언어는 A21의 기본 선택값일 뿐이다, `global-api.md` 2.1)
+  - KR 계정의 미리보기 `GET /users/me/market-change/preview?preferred_language=en`이 `market_unavailable` 외의 응답(`available: true` 또는 `cooldown`)을 준다
+  - GLOBAL 계정이 그룹 배치로 편성된다(`drip_batch_runs`에 europe·americas 행 · 로그 `drip batch finished`의 `group` — runbook 4장 드립 시간대 그룹 스위치)
 - 각 단계의 실행 날짜·확인 결과가 처리 기록에 있다
 
 ## 처리 기록
 
 - 2026-10-19 발행(마크다운 + Jira KAN-229 — 시작 날짜·기한·blocks 링크 KAN-198·KAN-204, relates KAN-193·KAN-134). 운영 스위치 5개 꺼짐·최소 지원 `1.0.0` 실측.
+- 2026-10-20 완료 조건 정정(i18n 검증) — 4번의 "미리보기가 `market_unavailable` 외의 응답"은 4번만으로는 만족할 수 없었다(`isTargetOpen`이 GLOBAL 대상에 `GLOBAL_SIGNUP_ENABLED`를 요구 — 운영에 GLOBAL 계정이 없어 KR→GLOBAL만 시험할 수 있다). 4번은 컨테이너 env 확인으로, 미리보기 확인은 5번으로 옮겼다. 5번의 "영어 기기 가입"은 A21 English 선택(`preferred_language`)으로 바로잡았다. runbook 4장에 `MARKET_CHANGE_ENABLED`·`DRIP_TIMEZONE_GROUPS_ENABLED` 절을 더했다(브랜치 `docs(be)/i18n-runbook-tickets`).
