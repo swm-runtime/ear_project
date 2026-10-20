@@ -378,7 +378,8 @@ describe('SeedEconPhilosophySeries 마이그레이션 E2E', () => {
       `INSERT INTO contents (id, title, description, source_name, origin, audio_path, duration_sec,
                              thumbnail_url, content_version, status, published_at)
        VALUES (COALESCE($1::uuid, uuid_generate_v4()), $2, 'e2e 전용', 'E2E', 'ai_generated', $3, 600,
-               'https://example.com/e2e-seed.png', 3, 'published', now())
+               -- 발행 시각을 과거로 둔다 — 병렬로 도는 탐색 e2e의 "새로 나온" 섹션을 밀어내지 않게
+               'https://example.com/e2e-seed.png', 3, 'published', '2001-01-01T00:00:00Z')
        RETURNING id`,
       [id, `${STAMP} ${id ?? 'extra'}`, `${STAMP}/${id ?? 'extra'}.mp3`],
     );
