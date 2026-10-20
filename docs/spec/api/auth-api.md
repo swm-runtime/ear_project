@@ -114,12 +114,12 @@
 | 필드 | 타입 | 필수 | 비고 |
 | --- | --- | --- | --- |
 | `locale.preferred_language` | `ko` · `en` | 선택 | 사용자가 가입 화면에서 고른 콘텐츠 언어 — **시장 판정의 입력**(`ko` → `kr`, `en` → `global`). **4.2(계정 생성)에서만 쓰이고** 4.1의 기존 계정 로그인에서는 무시한다. 서버 스위치 `GLOBAL_SIGNUP_ENABLED`가 닫혀 있으면(기본) `en`이어도 `kr`로 판정한다(`global-api.md` 2.1, 2026-10-15) |
-| `locale.language_code` | BCP 47 (≤16자) | 선택 | 기기 언어(예 `en-US`). `preferred_language`가 없을 때만 시장 판정 폴백(`ko*` → `kr`, 그 밖 `global`, 그것도 없으면 `kr`). 가입·로그인마다 갱신 |
+| `locale.language_code` | BCP 47 (입력 ≤64자) | 선택 | 기기 언어(예 `en-US`). `preferred_language`가 없을 때만 시장 판정 폴백(`ko*` → `kr`, 그 밖 `global`, 그것도 없으면 `kr`). 가입·로그인마다 갱신. 확장 subtag(`-u-…`·`-x-…`)는 잘라 저장한다(`ja-JP-u-ca-japanese` → `ja-JP`, 2026-10-20) |
 | `locale.region_code` | ISO 3166-1 alpha-2 (2자) | 선택 | 기기 지역. 시장 판정에는 쓰지 않는다 — **GLOBAL 연령 확인의 기준 연령(16·18) 판정에만 쓴다**(`global-api.md` 2.1, 2026-10-16 ✅ — 구현 #1614). 가입·로그인마다 갱신 |
 | `locale.timezone` | IANA (≤64자) | 선택 | 기기 시간대. 드립 발송 그룹에만 쓴다(서비스 날짜 경계는 바꾸지 않는다). 가입·로그인마다 갱신 |
 
 - **시장(`market`)은 계정 생성(4.2) 때 정하고, 가입 뒤에는 시장 전환(`global-api.md` 4.11 — `POST /users/me/market-change`)으로만 바뀐다**(개정 2026-10-19 — KAN-227, 종전 "이후 바뀌지 않는다"). 로그인으로는 바뀌지 않는다 — 기존 계정 로그인에 다른 `locale`이 와도 `language_code`·`region_code`·`timezone`만 갱신한다.
-- **길이·열거 범위 안에서 형식이 맞지 않는 값은 버리고 가입·로그인을 막지 않는다**(로케일은 자격 조건이 아니다) — 버린 필드는 저장값을 덮어쓰지 않는다. 다만 DTO 검증에 걸리는 값은 400 `VALIDATION_FAILED`다 — `preferred_language`가 `ko`·`en` 밖 · `language_code` 16자 초과 · `region_code`가 정확히 2자가 아님 · `timezone` 64자 초과 · 문자열이 아닌 값.
+- **길이·열거 범위 안에서 형식이 맞지 않는 값은 버리고 가입·로그인을 막지 않는다**(로케일은 자격 조건이 아니다) — 버린 필드는 저장값을 덮어쓰지 않는다. 다만 DTO 검증에 걸리는 값은 400 `VALIDATION_FAILED`다 — `preferred_language`가 `ko`·`en` 밖 · `language_code` 64자 초과 · `region_code`가 정확히 2자가 아님 · `timezone` 64자 초과 · 문자열이 아닌 값. `language_code`는 `_`를 `-`로 바꾸고 확장 subtag(`-u-…`·`-x-…`, 첫 한 글자 subtag부터)를 잘라낸 뒤 판정한다. 그 뒤에도 형식이 아니거나 16자를 넘는 값은 버린다(가입·로그인을 막지 않는다 — 2026-10-20, `market.policy.ts` `normalizeLanguageCode`).
 - **서버 문구(푸시·인증 메일) 언어는 `language_code`가 아니라 `market`으로 고른다**(KR → ko · GLOBAL → en — `global-api.md` 2.3).
 
 **`provider_token` — 제공자별 형식**

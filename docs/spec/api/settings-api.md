@@ -194,7 +194,7 @@
 | is_auto_expand_enabled | boolean | 선택 | |
 | is_drip_notification_enabled | boolean | 선택 | |
 | preferred_audio_quality | `compressed` \| `aac` \| `lossless` \| `null` | 선택 | 그 밖의 값은 400. **허용 밖 음질도 저장한다**(잠금 해제 뒤 그대로 쓰이도록) — 재생은 서버가 깎는다. **`null`은 "고른 적 없음"으로 되돌린다**(자동 — 티어 허용 최고 선택지, 2026-10-06). `aac`는 받되 선택지가 아니라 화면이 보낼 일은 없다 |
-| language_code | string (BCP 47, ≤16자) | 선택 | **표시 언어 변경**(추가 2026-10-14 — KAN-187). `user_settings`가 아니라 `users.language_code`에 저장한다. **시장(`market`)은 바뀌지 않는다.** 형식이 아니면 400 `VALIDATION_FAILED` — 사용자가 고른 값이라 조용히 버리면 "바꿨는데 안 바뀌는" 화면이 된다. 서버 문구(푸시·인증 메일) 언어는 이 값이 아니라 `market`으로 고른다(`global-api.md` 2.3) |
+| language_code | string (BCP 47, 입력 ≤64자) | 선택 | **표시 언어 변경**(추가 2026-10-14 — KAN-187). `user_settings`가 아니라 `users.language_code`에 저장한다. **시장(`market`)은 바뀌지 않는다.** 확장 subtag를 잘라낸 뒤(`auth-api.md` 4.1과 같은 규칙 — '기기 언어 따르기'가 확장 태그를 보내도 통과한다) 형식이 아니면 400 `VALIDATION_FAILED` — 사용자가 고른 값이라 조용히 버리면 "바꿨는데 안 바뀌는" 화면이 된다. 서버 문구(푸시·인증 메일) 언어는 이 값이 아니라 `market`으로 고른다(`global-api.md` 2.3) |
 | client_seq | int | 필수 | 사용자별 설정 조작의 단조 증가 순번. 서버는 응답에 그대로 되돌린다 |
 
 - 설정 필드 네 개(`default_playback_rate` · `is_auto_expand_enabled` · `is_drip_notification_enabled` · `preferred_audio_quality`) 또는 `language_code` 중 **최소 하나**는 있어야 한다. 전부 없으면 400.

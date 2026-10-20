@@ -39,3 +39,4 @@
 ## 처리 기록
 
 - 2026-10-20 발행(BE — 서버 구현과 같은 PR).
+- 2026-10-20 반영(통합 — `docs(be)/apply-global-change-requests`). 1~5를 그대로 반영했다(`auth-api.md` 4.1 표·규칙, `onboarding-api.md` 4.9 표·규칙, `settings-api.md` 4.2 표, `global-api.md` 7장). 233행 사유는 요청대로 두었다. 코드 대조(dev 29072292): `market.policy.ts` `normalizeLanguageCode`(`_`→`-` · 첫 singleton부터 자름 · 16자·형식 검사 뒤 null) · `locale-input.dto.ts`·`register-device-request.dto.ts`·`update-settings-request.dto.ts` `@MaxLength(64)` — 요청과 같다. 상단 표에 시작 날짜·기한·선행 행이 없지만 문서 요청이라 손대지 않았다.
