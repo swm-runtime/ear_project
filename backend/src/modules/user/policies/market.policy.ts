@@ -78,6 +78,9 @@ export function toUserMarket(value: string | undefined | null): UserMarket {
 
 // BCP 47 language tag — primary subtag + 선택 subtag들. 형식만 본다(값의 실존은 보지 않는다)
 const LANGUAGE_TAG = /^[A-Za-z]{2,3}(-[A-Za-z0-9]{2,8})*$/;
+const LANGUAGE_TAG_MAX_LENGTH = 16; // `users.language_code varchar(16)`
+// 첫 singleton subtag(`-u-`·`-x-`·`-t-` 등 한 글자) — 그 뒤는 확장·사설 영역이다
+const SINGLETON_SUBTAG = /-[A-Za-z0-9](?:-|$)/;
 const REGION_CODE = /^[A-Za-z]{2}$/;
 
 let supportedTimeZones: Set<string> | null = null;
@@ -92,14 +95,27 @@ function isSupportedTimeZone(value: string): boolean {
   return supportedTimeZones.has(value);
 }
 
+/**
+ * 기기 언어 태그를 저장 가능한 값으로 — 형식이 아니면 null.
+ *
+ * 앱은 `Intl…resolvedOptions().locale`을 그대로 보낸다. 달력·숫자 설정이 있는 기기는 유니코드 확장이 붙어 온다
+ * (`ja-JP-u-ca-japanese`·`th-TH-u-nu-thai`). 확장·사설 영역은 언어 판정에 쓰지 않으므로 **첫 singleton subtag에서
+ * 자른다**(`ja-JP`). `_` 구분자(`en_US`)는 `-`로 바꾼다. 자른 뒤에도 형식이 아니거나 16자를 넘으면 버린다.
+ */
 export function normalizeLanguageCode(
   value: string | null | undefined,
 ): string | null {
-  const trimmed = value?.trim();
-  if (!trimmed || trimmed.length > 16 || !LANGUAGE_TAG.test(trimmed)) {
+  const trimmed = value?.trim().replace(/_/g, '-');
+  if (!trimmed) {
     return null;
   }
-  return trimmed;
+
+  const singleton = SINGLETON_SUBTAG.exec(trimmed);
+  const tag = singleton ? trimmed.slice(0, singleton.index) : trimmed;
+  if (tag.length > LANGUAGE_TAG_MAX_LENGTH || !LANGUAGE_TAG.test(tag)) {
+    return null;
+  }
+  return tag;
 }
 
 /**

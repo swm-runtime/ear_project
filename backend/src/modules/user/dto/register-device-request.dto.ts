@@ -35,7 +35,8 @@ export class RegisterDeviceRequestDto {
   /** `global-api.md` 4.2 — 기기 언어(BCP 47). 매 실행 호출되는 이 API가 기존 가입자의 로케일을 채우는 경로다 */
   @IsOptional()
   @IsString()
-  @MaxLength(16)
+  // 64: 유니코드 확장이 붙은 태그(`ja-JP-u-ca-japanese`)를 검증에서 막지 않는다 — 확장은 `normalizeLanguageCode`가 잘라 16자로 저장
+  @MaxLength(64)
   readonly language_code?: string;
 
   /** `global-api.md` 4.2 — 기기 시간대(IANA) */
