@@ -1,6 +1,7 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
-import { EarTopic, createEarTopic, deleteEarTopic, listEarTopics, patchEarTopic } from "@/lib/ear";
+import { EarTopic, createEarTopic, deleteEarTopic, patchEarTopic } from "@/lib/ear";
+import { listConsoleTopics } from "@/lib/console-topics";
 import { PageHeader, Panel, Toolbar, btnCls } from "@/components/ui";
 import { EarGate, EarSession, earErrMsg } from "../ear-connect";
 import { listPipelineTopicsForSync } from "../../actions";
@@ -31,6 +32,7 @@ type SyncPlan = {
 
 function TopicTable() {
   const [rows, setRows] = useState<EarTopic[] | null>(null);
+  const [others, setOthers] = useState<EarTopic[]>([]); // 다른 시장 주제 — 숨기고 수만 알린다 (2026-10-20)
   const [err, setErr] = useState<string | null>(null);
   const [name, setName] = useState("");
   const [cat, setCat] = useState("");
@@ -38,7 +40,7 @@ function TopicTable() {
   const [plan, setPlan] = useState<SyncPlan | null>(null);
 
   const load = useCallback(async () => {
-    try { const r = await listEarTopics(); setErr(null); setRows(r.items); } catch (e) { setErr(earErrMsg(e)); }
+    try { const r = await listConsoleTopics(); setErr(null); setRows(r.mine); setOthers(r.others); } catch (e) { setErr(earErrMsg(e)); }
   }, []);
   useEffect(() => { queueMicrotask(() => void load()); }, [load]); // 동기 setState 회피 (react-hooks/set-state-in-effect)
 
@@ -52,7 +54,7 @@ function TopicTable() {
     setBusy(true);
     try {
       const want = await listPipelineTopicsForSync();
-      const have = rows ?? (await listEarTopics()).items;
+      const have = rows ?? (await listConsoleTopics()).mine;
       const byName = new Map(have.map((t) => [t.name, t]));
       const create = want.filter((w) => !byName.has(w.mid));
       const patch = want.flatMap((w) => {
@@ -104,6 +106,11 @@ function TopicTable() {
         </Panel>
       )}
       {err && <p className="rounded-md border border-rose-200 bg-rose-50 p-3 text-[13px] text-rose-700">{err}</p>}
+      {others.length > 0 && (
+        <p className="rounded border border-line bg-panel px-3 py-2 text-[12px] text-ink-soft">
+          이 콘솔 시장이 아닌 제품 주제 {others.length}개는 숨겼다(서버 목록이 두 시장을 함께 준다). 이름이 이 시장 말인데 여기 있으면 시장이 잘못 붙은 주제다: {others.slice(0, 12).map((t) => t.name).join(" · ")}{others.length > 12 ? " …" : ""}
+        </p>
+      )}
       <Panel flush>
         <table className="w-full text-[13px]">
           <thead>

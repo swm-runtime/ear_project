@@ -123,6 +123,8 @@ export async function connectEar(ch: EarChannel = "prod"): Promise<{ role: strin
 
 export interface EarTopic {
   id: string; name: string; parent_category: string;
+  /** 주제의 시장 — 지금 서버 목록(admin-api 4.1)은 싣지 않는다(BE 요청 2026-10-20). 오면 이 값으로 가른다 */
+  market?: "kr" | "global";
   is_visible: boolean; display_order: number; content_count: number;
   /** 발행 중 + 라이선스 미만료 건수 — 노출 켜기 판정 기준(admin.md 4.5, KAN-58). 배포 전 서버는 주지 않는다 */
   visible_content_count?: number;
@@ -151,8 +153,22 @@ export const ENRICHMENT_SCHEMA_VERSION_FALLBACK = 3;
 export const listEarJobCategories = () => earFetch<{ items: { name: string }[] }>("/job-categories");
 
 export const listEarTopics = () => earFetch<{ items: EarTopic[] }>("/admin/topics");
+/** 주제 생성 — 이 콘솔 인스턴스의 시장을 싣는다(admin-api 4.2 `market`, 없으면 서버가 kr). 2026-10-20 전에는 싣지 않아 글로벌 콘솔이 만든 주제가 kr 로 생길 수 있었다 */
 export const createEarTopic = (name: string, parent_category: string, display_order?: number) =>
-  earFetch<EarTopic>("/admin/topics", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ name, parent_category, ...(display_order != null ? { display_order } : {}) }) });
+  earFetch<EarTopic>("/admin/topics", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ name, parent_category, market: contentMarket(consoleMarket()).market, ...(display_order != null ? { display_order } : {}) }) });
+
+/**
+ * 이 콘솔 시장의 주제만 (2026-10-20) — 서버 목록이 두 시장 주제를 함께 주고 시장 칸이 없다(admin-api 4.1).
+ * 시장 칸이 오면 그 값으로, 없으면 이 인스턴스 파이프라인의 중분류 이름으로 가른다(제품 주제 = 파이프라인 중분류 1:1, 2026-09-06 체계 통일).
+ * others = 다른 시장(또는 체계에 없는) 주제 — 화면은 숨기고 수만 알린다
+ */
+export function splitConsoleTopics(items: EarTopic[], market: "kr" | "global", pipelineNames: string[]): { mine: EarTopic[]; others: EarTopic[] } {
+  const names = new Set(pipelineNames);
+  const mine = (t: EarTopic) => (t.market ? t.market === market : names.has(t.name));
+  return { mine: items.filter(mine), others: items.filter((t) => !mine(t)) };
+}
+/** 브라우저에서 이 콘솔의 시장 — kr | global */
+export const consoleMarketValue = (): "kr" | "global" => contentMarket(consoleMarket()).market;
 export const patchEarTopic = (id: string, fields: Partial<{ name: string; parent_category: string; is_visible: boolean; display_order: number }>) =>
   earFetch<EarTopic>(`/admin/topics/${id}`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify(fields) });
 export const deleteEarTopic = (id: string) => earFetch<void>(`/admin/topics/${id}`, { method: "DELETE" });
