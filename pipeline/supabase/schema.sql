@@ -54,6 +54,10 @@ create table if not exists series (
   approved_at         timestamptz,
   published_series_id uuid,                                -- 제품 series_id (POST /admin/series, BE KAN-134)
   published_at        timestamptz,
+  thumb_word          text,                                -- 시리즈 썸네일 큰 단어(이미지 모델이 그린다) · 0031
+  thumb_label         text,                                -- 오른쪽 위 라벨(코드가 얹는다) · 0031
+  thumb_box           text,                                -- 왼쪽 아래 박스 글자(코드가 얹는다) · 0031
+  thumb_base_key      text,                                -- 시리즈 바탕 그림 s3 키 — 편마다 재사용 · 0031
   created_at          timestamptz not null default now(),
   updated_at          timestamptz not null default now()
 );

@@ -15,15 +15,19 @@ export interface SeriesPlanInput {
 }
 
 export interface SeriesPlanEpisode { no: number; title: string; scope: string; carries: string; only_here: string; minutes: number }
-export interface SeriesPlanOut { name: string; intro_line: string; episodes: SeriesPlanEpisode[]; notes: string }
+/** thumb_*: 시리즈 썸네일 글자 칸(2026-10-20) — 큰 단어는 이미지 모델이 그리고, 라벨·박스는 코드가 얹는다 */
+export interface SeriesPlanOut { name: string; intro_line: string; thumb_word: string; thumb_label: string; thumb_box: string; episodes: SeriesPlanEpisode[]; notes: string }
 
 export const SERIES_PLAN_SCHEMA = {
   type: "object",
   additionalProperties: false,
-  required: ["name", "intro_line", "episodes", "notes"],
+  required: ["name", "intro_line", "thumb_word", "thumb_label", "thumb_box", "episodes", "notes"],
   properties: {
     name: { type: "string" },
     intro_line: { type: "string" },
+    thumb_word: { type: "string" },
+    thumb_label: { type: "string" },
+    thumb_box: { type: "string" },
     episodes: {
       type: "array",
       items: {
@@ -63,6 +67,10 @@ ${i.scopeNote}
 - 교재·시험 범위 같은 자료는 범위 확인용으로만 쓴다. 문장·예시·목차 순서를 옮기지 않는다.
 - 시리즈 이름은 짧은 명사구다. 콘텐츠 제목은 "{시리즈 이름} N - {편 제목}"이 된다. 이름안이 좋으면 그대로 쓴다.
 - 한 줄 소개는 이 시리즈가 무엇을 다루는지 말하는 한 문장이다. 인트로에서 읽는다.
+- 썸네일 글자 칸 셋. 시리즈의 모든 편이 같은 그림을 쓰고 번호만 다르다.
+  - thumb_word: 그림 가운데에 손글씨로 크게 그릴 영어 단어 하나. 영문 소문자 4~10자. 시리즈의 성격을 한 단어로(예: keyword, basics, history).
+  - thumb_label: 오른쪽 위 작은 라벨. 영문 대문자 두세 단어, 20자 이내(예: KEYWORD SERIES).
+  - thumb_box: 왼쪽 아래 검은 박스 글자. 한글 2~5자(예: 경제편, 입문편).
 
 ## 출력 — 요청한 JSON만
 - episodes: 1화부터 순서대로. no 는 1부터 이어지는 번호다.
@@ -92,6 +100,10 @@ ${i.scopeNote}
 - Use textbooks or exam outlines only to check scope. Do not copy their sentences, examples, or table-of-contents order.
 - The series name is a short noun phrase. Content titles become "{series name} N - {episode title}". Keep the working name if it works.
 - The intro line is one sentence that says what the series covers. The host reads it in the intro.
+- Three thumbnail text fields. Every episode of the series uses the same picture with a different number.
+  - thumb_word: one English word drawn large in handwriting in the middle of the picture. Lowercase, 4 to 10 letters. The character of the series in one word (for example keyword, basics, history).
+  - thumb_label: a small label at the top right. Two or three uppercase English words, at most 20 characters (for example KEYWORD SERIES).
+  - thumb_box: the text in the black box at the bottom left. One or two English words, at most 12 characters (for example ECONOMY).
 - Write every value in English. Korean words use Revised Romanization.
 
 ## Output — only the requested JSON

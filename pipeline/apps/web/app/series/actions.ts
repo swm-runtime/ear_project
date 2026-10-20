@@ -4,7 +4,7 @@ import { supabaseServer } from "@/lib/supabase-server";
 import { pipelineLocale } from "@/lib/locale";
 import { majorTopicsFor } from "@/lib/taxonomy";
 import { screenGlobalTopic } from "@/lib/topic-screen";
-import { cleanPlan, seriesEpisodeHint, type SeriesEpisode, type SeriesPublishEpisode, type SeriesRow } from "@/lib/series";
+import { cleanPlan, cleanSeriesThumb, seriesEpisodeHint, type SeriesEpisode, type SeriesPublishEpisode, type SeriesRow } from "@/lib/series";
 import { enqueueJob } from "../actions";
 
 /**
@@ -162,4 +162,35 @@ export async function markSeriesWithdrawn(id: string): Promise<Result> {
   if (error) return { ok: false, reason: error.message };
   revalidatePath(`/series/${id}`); revalidatePath("/series");
   return { ok: true };
+}
+
+/**
+ * 시리즈 썸네일 글자 칸 저장 (2026-10-20) — 기획·승인·발행 중 언제든. 큰 단어가 바뀌면 바탕 그림을 버린다(다음 썸네일이 새로 그린다).
+ * regenerate = 썸네일이 이미 있는 편마다 [썸네일 다시 만들기] 작업을 건다 — 바탕은 워커가 시리즈 잠금 안에서 한 번만 그리고 나머지는 번호만 다시 얹는다
+ */
+export async function saveSeriesThumb(id: string, v: { word: string; label: string; box: string }, regenerate: boolean): Promise<Result<{ queued: number }>> {
+  const s = await loadSeries(id);
+  if (!s) return { ok: false, reason: "시리즈가 없다" };
+  if (["cancelled", "withdrawn"].includes(s.status)) return { ok: false, reason: `${s.status} 시리즈는 고치지 않는다` };
+  const t = cleanSeriesThumb(v);
+  if (t.problems.length) return { ok: false, reason: t.problems.join(" · ") };
+  const sb = await supabaseServer();
+  const rebase = t.word !== (s.thumb_word ?? "");
+  const { error } = await sb.from("series").update({ thumb_word: t.word, thumb_label: t.label || null, thumb_box: t.box || null, ...(rebase || regenerate ? { thumb_base_key: rebase ? null : s.thumb_base_key } : {}) }).eq("id", id);
+  if (error) return { ok: false, reason: error.message };
+  let queued = 0;
+  if (regenerate) {
+    const { data: bls } = await sb.from("backlog").select("id").eq("series_id", id);
+    const ids = (bls ?? []).map((b) => b.id);
+    const { data: eps } = ids.length ? await sb.from("episodes").select("id,backlog_id,thumbnail_key,created_at").in("backlog_id", ids).not("thumbnail_key", "is", null).order("created_at", { ascending: false }) : { data: [] };
+    const seen = new Set<string>();
+    for (const e of eps ?? []) {
+      if (seen.has(e.backlog_id)) continue;
+      seen.add(e.backlog_id);
+      await enqueueJob("thumbnail", { episode_id: e.id, backlog_id: e.backlog_id, force: true });
+      queued++;
+    }
+  }
+  revalidatePath(`/series/${id}`);
+  return { ok: true, queued };
 }

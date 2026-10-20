@@ -29,7 +29,8 @@ export async function runSeriesPlan(job: Job, ex: Executor) {
   const name = String(r.output.name ?? "").trim() || s.name;
   const intro = String(r.output.intro_line ?? "").trim();
   const countNote = wanted && plan.length !== wanted ? ` · ⚠ 요청 ${wanted}편과 다름` : "";
-  if (!(await saveSeriesPlan(id, { name, intro_line: intro, plan }))) throw new Error(`시리즈 ${id} 가 그 사이 기획 중이 아니게 됐다 — 설계안을 버린다`);
+  const thumb = { thumb_word: String(r.output.thumb_word ?? "").trim().toLowerCase().slice(0, 16), thumb_label: String(r.output.thumb_label ?? "").trim().slice(0, 24), thumb_box: String(r.output.thumb_box ?? "").trim().slice(0, 12) };
+  if (!(await saveSeriesPlan(id, { name, intro_line: intro, plan, ...thumb }))) throw new Error(`시리즈 ${id} 가 그 사이 기획 중이 아니게 됐다 — 설계안을 버린다`);
   const summary = `시리즈 설계안 · ${name} · ${plan.length}편${countNote} · 예상 ${plan.reduce((n, e) => n + e.minutes, 0)}분${r.output.notes ? ` · ${String(r.output.notes).slice(0, 200)}` : ""}`;
   await insertRun({ backlog_id: null, phase: "series_plan", result: summary, prompt_version: `${SERIES_PLAN_VERSION} (worker)`, executed_by: executedBy, model: r.model, cost_usd: r.listCostUsd ?? null, tokens: (r.raw as { usage?: unknown } | undefined)?.usage, worker_rev: workerRev() });
   log(`  series-plan ${id.slice(0, 8)}: ${plan.length}편${countNote}`);
