@@ -224,10 +224,12 @@ test("출처 이름 붙이기 — According to·In X's account·대문자 약어
   assert.match(v, /"Jeong" 1 \(E4\)/); // E3 의 한국어 표현 주어는 세지 않는다
 });
 
-test("해설자 질문은 Opening 에서 한 번만 — 본문 질문이나 Opening 두 번이면 문체 위반 (full-en-v0.14)", () => {
+test("해설자 질문은 어느 구역에서도 없다 — Opening 한 번도 문체 위반 (full-en-v0.18, 종전 v0.14 는 Opening 한 번 허용)", () => {
   en();
   const one = [T("Y1", "Hi.", "Intro"), T("E1", "Is it the meaning or the feeling?", "Opening"), T("E2", "It is the feeling."), T("Y2", "Slower."), T("Y3", "Bye.", "Closing")];
-  assert.doesNotMatch(enStyleViolations(one).join("\n"), /explainer asks questions/);
+  assert.match(enStyleViolations(one).join("\n"), /the explainer asks questions in 1 turn \(E1\) — the explainer asks nothing in any zone/);
+  const none = [one[0], T("E1", "It starts with the meaning.", "Opening"), ...one.slice(2)];
+  assert.doesNotMatch(enStyleViolations(none).join("\n"), /explainer asks questions/);
   const body = [...one.slice(0, 2), T("E2", "Which would you pick?"), ...one.slice(3)];
   assert.match(enStyleViolations(body).join("\n"), new RegExp(`^${EN_STYLE_MARK} the explainer asks questions in 2 turns \\(E1, E2\\)`, "m"));
   const twoOpen = [one[0], one[1], T("E2", "Or is it the sound?", "Opening"), ...one.slice(3)];

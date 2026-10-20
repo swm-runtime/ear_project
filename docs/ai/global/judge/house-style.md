@@ -22,7 +22,7 @@ Apply these in order.
 
 1. Names of people, groups, companies, organizations, and works: the official English name in established use. For a person with no confirmed official spelling: family name, space, given name written as one word (a hyphen inside the given name is allowed).
 2. Places, cultural heritage, tourist sites, food, and other public terms: the government guidelines for foreign-language notation of public terms — the romanized name followed by its meaning, such as Gyeongbokgung Palace.
-3. Other Korean words: the Revised Romanization of Korean, with the meaning given at first use.
+3. Other Korean words: the Revised Romanization of Korean, with the meaning given at first use. A word first heard in the fixed intro template (where the template leaves no room for a meaning) has its meaning given in the first explainer turn of the Opening; that counts as first use.
 
 - Dokdo and East Sea are written in the Korean form.
 - One spelling for one thing, within the episode and across episodes. The pronunciation list holds the fixed spellings.

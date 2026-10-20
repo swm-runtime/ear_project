@@ -104,11 +104,11 @@ test("발음 등재 추가 — 한국판 종전 그대로, 글로벌판은 빈 �
   assert.deepEqual(addPronunciations({ Hanbok: "", jeong: "jung" }, [{ term: "hanbok", reading: "hahn-bok" }, { term: "Jeong", reading: "WRONG" }, { term: " nunchi ", reading: "" }], "en"), { Hanbok: "hahn-bok", jeong: "jung", nunchi: "" });
 });
 
-test("글로벌 규칙 자산 — 버전 라벨 full-en-v0.17, 모델에 가는 본문에 한글이 없고 규칙 50개, 템플릿 문서와 같은 슬롯", async () => {
+test("글로벌 규칙 자산 — 버전 라벨 full-en-v0.18, 모델에 가는 본문에 한글이 없고 규칙 50개, 템플릿 문서와 같은 슬롯", async () => {
   const { versionOf } = await import("../assets.js");
   const root = path.resolve(import.meta.dirname, "../../../../../docs/ai/global");
   const g = await fs.readFile(path.join(root, "skills/draft/guidelines.gpt.md"), "utf8");
-  assert.equal(versionOf("skills/draft/guidelines.gpt.md", g), "full-en-v0.17");
+  assert.equal(versionOf("skills/draft/guidelines.gpt.md", g), "full-en-v0.18");
   assert.equal(versionOf("skills/draft/guidelines.md", "# x\n\n> 현행 버전: **full-v9.10**"), "full-v9.10"); // 한국판 라벨 그대로
   const body = P.promptBody(g);
   assert.doesNotMatch(body, HANGUL);
@@ -255,4 +255,15 @@ test("v0.17 프롬프트(full-en-v0.17) — 장소 Terms 는 이름+의미, 축 
   assert.match(qa, /meaning the explainer gives a Korean word or name on first use is not a fact/);
   const r = P.buildRevisionPromptInlinePartsEn({ attempt: 1, qaFailures: [], guidelines: "g", scriptMd: "s", claimsMd: "c", sourcesMd: "x", pronunciationsJson: "{}" } as never);
   assert.match(r.system, /Keep the meaning given for a Korean word or name on first use/);
+});
+
+test("v0.18 프롬프트(full-en-v0.18) — 견해 claims 3분의 1 · 축 답 견해 하나 · 질문 축 섹션은 답의 단계 · 해설자 질문 없는 Opening", () => {
+  const sys = P.buildDesignPromptInlinePartsEn({ episodeId: "G1", candidate: cand, promptVersion: "v", guidelines, specScript: "", goldFullEum: "", goldFullYuna: "", sources: [] }).system;
+  assert.match(sys, /At most one third of the claims are opinions/);
+  assert.match(sys, /at most one of them is an opinion/);
+  assert.match(sys, /For a question axis, the sections are steps of the answer/);
+  assert.match(sys, /Never give a person a gender, age, or nationality the excerpt does not state/);
+  assert.match(sys, /Gochang County/);
+  const src = String(P.INTRO_STYLES_EN.find((x) => x.key === "question")?.hint);
+  assert.match(src, /The explainer asks nothing/);
 });
