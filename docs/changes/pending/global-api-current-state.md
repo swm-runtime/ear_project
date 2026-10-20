@@ -40,6 +40,11 @@
 - 375행 인덱스 `idx_user_market_changes_user_id_changed_at (user_id, changed_at DESC)` → `(user_id, changed_at)`(1-13과 같은 근거).
 - 378행 "**서비스 날짜당 1회 판정**(오늘 행이 있으면 막는다. …" → "**서비스 날짜당 1회 판정**(오늘 **되돌리기가 아닌** 행이 있으면 막는다 — 되돌리기는 횟수에 세지 않는다, `global-api.md` 4.11. …". 4.11 "막는 조건"이 이미 "되돌리기는 횟수에 세지 않는다"고 적고 있고, 지금 코드(`UserMarketChangeService.judgeCooldown` → `countByUserIdSince`)는 되돌리기 행까지 센다 — 동시 BE PR `fix(be)/market-change-cooldown-revert`가 코드를 4.11에 맞춘다. **이 항목은 그 PR 머지 뒤에 반영한다.**
 
+### 2-1. `backend/domain.md` — `contents` 시장 격리(643행)
+
+- 643행 목록류 나열 "(탐색·검색·인기·최신·드립 후보·온보딩 추천·라이브러리 목록·주제별 건수·**복원**)"에서 "·복원"을 뺀다.
+- 근거: 라이브러리 실행 취소(복원 `POST /library/items/:id/restore`)는 시장을 보지 않고 발행·라이선스만 본다(`library-screen.orchestrator.ts` 273행 `isContentVisibleAt`). 대상은 본인 소유 행뿐이고(`getOwnedItemWithDeleted`) 응답은 `id`·`status`·`added_at`·`deleted_at`이라 콘텐츠 정보가 나가지 않는다. 이전 시장 항목을 복원해도 목록·건수가 시장 조건으로 계속 숨기므로 격리는 깨지지 않는다 — 코드에 시장 확인을 더할 이유가 없어 문서를 코드에 맞춘다(i18n 검증 V11, 2026-10-20 결정).
+
 ### 3. `spec/api/auth-api.md`
 
 - 118행(4.1 `locale.region_code` 비고) "(`global-api.md` 2.1, 2026-10-16 🟡)" → "✅(구현 #1614)". `global-api.md` 2.1 연령 행이 이미 ✅(#1614)다.
@@ -65,6 +70,7 @@
 - Given `global-api.md` 4.9 / Then `enrichment.json`에 `language` 키를 싣지 않는다고 적혀 있다
 - Given `global-api.md` 8장과 `domain.md`의 `user_market_changes` / Then 인덱스가 `(user_id, changed_at)`이다
 - Given `domain.md` 378행 / Then 되돌리기 행은 하루 1회 판정에 세지 않는다고 적혀 있다(BE PR `fix(be)/market-change-cooldown-revert` 머지 뒤)
+- Given `domain.md` 643행 / When 시장 조건을 싣는 목록류를 읽는다 / Then "복원"이 없다
 - Given `auth-api.md` 4.2 / Then 가입에서 버전 있는 항목의 `null`은 409이고, `null`을 채우는 것은 재동의뿐이라고 적혀 있다
 - Given `common-error-handling.md` 4.6 / Then 영어 번역 조건이 "앱 표시 언어가 영어"다
 - Given `notification.md` 4.3 / Then GLOBAL 영어 제목 두 가지(1편 · N편)가 적혀 있다
@@ -72,3 +78,4 @@
 ## 처리 기록
 
 - 2026-10-20 발행(BE — i18n 검증, 브랜치 `docs(be)/i18n-audit-change-requests`). 각 줄의 근거는 dev(942d78fc) 코드로 확인했다.
+- 2026-10-20 2-1(`domain.md` 643행 "복원" 삭제) 추가 — i18n 검증 V11, 박준현 결정.
