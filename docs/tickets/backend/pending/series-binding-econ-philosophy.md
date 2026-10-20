@@ -12,7 +12,7 @@
 | 선행 | 사람 손: dev → main 릴리스 #1688 머지·운영 배포(대기 — 운영에 `series` 표가 생겨야 한다). 앱 노출은 [KAN-229](https://runtime364.atlassian.net/browse/KAN-229) 순서를 따른다 |
 | 근거 문서 | `tickets/backend/archive/series-backend.md` 7번(CS 16편 전환) · `ai/spec/11-series.md` 10장 9번 · `domain.md` 5.1·5.9 |
 | 중요도 | Low |
-| 상태 | 발행 |
+| 상태 | 코드 반영(dev PR) — 운영 확인은 #1688 배포 뒤 |
 
 ## 문제
 
@@ -78,3 +78,8 @@ content_id 는 파이프라인 발행 기록(`backlog.published_content_ref`, 20
 ## 처리 기록
 
 - 2026-10-20 발행(마크다운 + Jira KAN-235, 중요도 Low · 시작 10-20 · 기한 10-23). Slack 알림은 보내지 않았다(박수헌).
+- 2026-10-20 **코드 반영 PR(브랜치 `feat(be)/series-binding-econ-philosophy` → `dev`), 운영 확인은 #1688 배포 뒤** — `pending/`에 둔다(박준현).
+  - 마이그레이션 `1791100000000-SeedEconPhilosophySeries` — CS(`1790700100000`)와 같은 방식. 시리즈 id 고정(경제 상식 `cd37aa05-df98-4b21-849b-4f92f387a21d` · 서양 철학 `197f4991-789d-439c-80df-258e444ca5fd` · 동양 철학 `bf07634b-b399-4bff-8c9c-04d2cae59e4c`), 없는 id는 건너뛰고 편이 0개인 시리즈는 만들지 않는다, 시리즈 행은 `ON CONFLICT DO NOTHING`·편은 값이 다를 때만 고친다(멱등), 다른 시리즈에 묶인 편이 있으면 멈춘다. CS에 더해 표 밖 콘텐츠가 같은 번호로 발행돼 있으면 쓰기 전에 이유와 함께 멈춘다(부분 유니크 위반을 미리 알림). `down`은 세 시리즈의 편을 풀고 시리즈 행을 지운다.
+  - 경제 상식 10화는 표에 없다 — 업로드 때 파이프라인이 `series_id`·`episode_no` 10·`total_episodes` 12를 싣는다. 10화가 이 마이그레이션 전에 개별 편으로 먼저 올라가면 그 content_id를 표에 더하는 후속 PR이 필요하다.
+  - E2E `test/series-seed-econ-philosophy.e2e-spec.ts`(10건) — 전부 묶기·ID·버전·담기·재생 위치 유지·두 번 돌림·시리즈 행 비덮어쓰기·0건·일부·다른 시리즈 충돌·번호 충돌·10화 발행 뒤 12편·`down`.
+  - 남은 것: 운영 적용은 dev → main 릴리스 #1688 배포 때 함께 돈다(운영에 `series` 표가 그때 생긴다). 배포 뒤 완료 조건 1·2(`GET /admin/series` 세 시리즈·발행 11/10/8편, 상세 `series` 객체)를 운영에서 확인하고 `archive/`로 옮긴다. 완료 조건 4(10화 업로드)는 파이프라인 재발행 때 확인한다. `domain.md`·`runbook.md` 기재는 `changes/pending/series-seed-econ-philosophy.md`.
