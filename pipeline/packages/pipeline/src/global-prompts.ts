@@ -116,11 +116,12 @@ ${fence(i.guidelines)}
 - For a Korean word, keep in the claims whether the excerpt calls it casual or polite and who uses it.
 - In a Korean Language episode, keep one example phrase per featured word from the excerpts as a claim of type quote: the phrase romanized, its meaning, and its speech level read from the Hangul ending (casual, polite with -yo, or formal with -seumnida). Say when the phrase is a dictionary form ending in -da. Add who says it to whom only when the excerpt says so; otherwise leave the relationship out of the claim. An example sentence from a dictionary or learning guide is allowed; a line from a drama, song, or show is not.
 - Romanize Korean words with Revised Romanization, even when an excerpt spells them another way. Names of people, groups, companies, and works keep their official English spelling.
-- A person known to the public by name appears only through verifiable public facts. Do not make a claim from rumor, private life, or controversy. A person not known to the public is a case: name them in claims by what they do or who they are (a park ranger, a mother), never by name. Leave their health, mental state, and family circumstances out of the claims. Never give a person a gender, age, or nationality the excerpt does not state; use their role.
+- A person known to the public by name appears only through verifiable public facts. Do not make a claim from rumor, private life, or controversy. A person not known to the public is a case: name them in claims by what they do or who they are (a park ranger, a mother), never by name. Leave their health, mental state, and family circumstances out of the claims. Never give a person a gender, age, or nationality the excerpt does not state; use their role. Korean has no gendered pronoun: when a Korean excerpt does not name a person's gender, write the person by role or "they", never he or she. Name a case person by the role the story needs; leave out a job or a home town the point does not need.
 - When a case or scene has short words people say, keep those words as a claim of type quote, as the excerpt has them.
 - When an excerpt tells a person's own words, memory, or experience, keep it as a case or quote claim with that person. Do not turn it into a summary claim without the person.
 - The subject of a claim is never a survey, an assessment, a critique, or survey respondents. State what people do, or state the view itself with opinion set to true.
 - A survey or study result keeps who was surveyed or studied as a condition (which group, where, how many in plain words). Do not state it as a fact about everyone. One person's experience stays that person's.
+- When an excerpt says something about Korea in contrast with another country or medium ("in Korea, unlike …", "Korean dramas, compared with American TV"), keep that contrast in the claim. Without it the claim becomes a general statement about everyone.
 - At most one third of the claims are opinions. Prefer excerpts that state practices, causes, and what people do. If opinions would still be more than one third, do not build an outline; say so in notes.
 - Keep scope words such as especially, mainly, and only. Keep every item of a named set; a plainer word replaces a word, it does not drop an item.
 - Links between sources are not claims; put them in the outline's links list.
@@ -132,7 +133,7 @@ ${fence(i.guidelines)}
 Axis: [question|contrast|paradox|redefinition${history ? "|event" : ""}] one sentence
 Axis note: why a newcomer wants this answered, two lines
 Familiar picture: what a listener abroad already pictures or assumes about this topic, in plain words
-Terms: each place, object, or role the episode names often — the one plain English name the script uses for it, as a name only, with no explanation; a place, including a village, town, county, or city, is its romanized name followed by what it is (Bukhansan Mountain, Baegundae Peak, Gochang County); leave out common English words
+Terms: each place, object, or role the episode names often — the one plain English name the script uses for it, as a name only, with no explanation; a place, including a village, town, county, or city, is its romanized name followed by what it is (Bukhansan Mountain, Baegundae Peak, Gochang County); a place with an established English name (Seoul, Busan, Jeju) keeps that name alone; leave out common English words
 Landing section: #n — where the axis is proven
 Axis answer: C04, C11 — 2 to 3 claims that answer the axis question together: the causes, reasons, or views that say why
 Estimated length: n min
@@ -162,12 +163,12 @@ Section #2 — …
 Links and metaphors (made by the script, not facts)
 - "X carried over to Y" — based on C##, in section #n
 
-Closing line: one sentence with the answer to the axis question and its reason, resting on the Axis answer claims and keeping their words and conditions; when the sections give several reasons, the one idea that joins them, only if the Axis answer claims state it together, otherwise each reason in turn; never a conclusion that merges different cases or sources; when an Axis answer claim is a view, that view as the answer; never one section's reason as the only cause, never a list of the sections, never three items joined by "and"
+Closing line: one sentence with the answer to the axis question and its reason, resting on the Axis answer claims and keeping their words and conditions; when the sections give several reasons, the one idea the Axis answer claims state together (axis_answer_idea); never a list of reasons, never a conclusion that merges different cases or sources; when an Axis answer claim is a view, that view as the answer; never one section's reason as the only cause, never a list of the sections, never three items joined by "and"
 \`\`\`
 Planning rules:
-- Build the answer first. Find the passages that answer the axis question itself: the causes, reasons, and views that say why. Take them from the source that answers the question most directly; that source is the axis source. A survey or statistics source supports a section; it never carries the answer. List 2 to 3 of these claims on the Axis answer line and in axis_answer_claims: claims that join into one idea, not a list of separate reasons. Choose causes and practices first; at most one of them is an opinion. Every section that holds them uses them, and the Closing line rests on them. When one of them is a view, the Closing line gives that view as the answer; do not leave it at the end of a section.
+- Build the answer first. Find the passages that answer the axis question itself: the causes, reasons, and views that say why. Take them from the source that answers the question most directly; that source is the axis source. A survey or statistics source supports a section; it never carries the answer. List 2 to 3 of these claims on the Axis answer line and in axis_answer_claims: claims that join into one idea, not a list of separate reasons. Choose causes and practices first; at most one of them is an opinion. Write in axis_answer_idea the one idea these claims state together, in their words. If the claims you can choose do not state one idea together, choose other Axis answer claims that do; never join different cases into an idea no claim states. Every section that holds them uses them, and the Closing line rests on them. When one of them is a view, the Closing line gives that view as the answer; do not leave it at the end of a section.
 - Moments. List in moment_claims the claims that hold a person's own words, memory, or experience, or a concrete moment with a person, a place, and an action. A general custom is not a moment.
-- **Material check.** If no passage answers the axis question, or no claim holds a moment (except in a Korean Language episode), do not build an outline. Leave outline_md empty and say in notes which is missing.
+- **Material check.** If no passage answers the axis question, if the Axis answer claims do not state one idea together (axis_answer_idea empty), or if no claim holds a moment (except in a Korean Language episode), do not build an outline. For a drama or film topic, at least one moment must describe a specific scene on screen (screen_scene_claims); a moment from life off screen does not count. Leave outline_md empty and say in notes which is missing.
 - The axis is a question a newcomer asks about the practice ("Why do people in Korea …?"; a "how" question belongs to a section, not the axis), a contrast ("A, yet B"), a paradox ("trying A leads to B"), or a redefinition ("A is really B")${history ? ", or, in history mode, an event" : ""}. Keep the backlog's form. "What is X" is not an axis. ear introduces Korean culture: the episode shows how the practice works, who does it, and why.
 - Sections are steps of the axis, not the order of a source. For a question axis, the sections are steps of the answer: each section gives one part of the reason, starting in #1. The order in which a practice happens belongs inside a section or to a "how" sub-question, never to the section order. Every section answers part of the axis question. Do not plan a separate section for a reality check, reactions abroad, or a debate; a limit or disagreement goes in one or two sentences at the end of the section it qualifies. Give each section the claims that answer its question, from any source; a section usually draws on two or more sources. Do not build a section from one source alone when another source has claims for its question. Drop a source that answers no sub-question of the axis. A result or side effect, such as an environmental cost, goes in one or two sentences at the end of the section it follows, not in a section of its own. A survey from outside Korea supports at most one section and is never its main material.
 - A list topic keeps its list: sections may follow the items or groups of items, and each section still answers a sub-question of the axis. The count in the title matches the items the material supports.
@@ -210,14 +211,16 @@ const strArr = { type: "array", items: { type: "string" } } as const;
 export const DESIGN_INLINE_SCHEMA_EN = {
   type: "object",
   additionalProperties: false,
-  required: ["axis", "axis_type", "landing_section", "axis_source", "axis_answer_claims", "moment_claims", "sections", "excerpt_ids", "gists", "claims", "outline_md", "pronunciations", "estimated_minutes", "split_proposal", "sources_used", "sources_excluded", "gaps", "notes"],
+  required: ["axis", "axis_type", "landing_section", "axis_source", "axis_answer_claims", "axis_answer_idea", "moment_claims", "screen_scene_claims", "sections", "excerpt_ids", "gists", "claims", "outline_md", "pronunciations", "estimated_minutes", "split_proposal", "sources_used", "sources_excluded", "gaps", "notes"],
   properties: {
     axis: { type: "string" },
     axis_type: { type: "string", enum: ["question", "contrast", "paradox", "redefinition", "event"] },
     landing_section: { type: "integer" },
     axis_source: { type: "string", description: "The source whose text answers the axis question most directly, as \"S3\" only (no URL or title). Never a survey or statistics source. Empty string if none" },
     axis_answer_claims: { ...strArr, description: "2 to 3 claim IDs that answer the axis question: causes, reasons, or views that say why. Empty if no passage answers it" },
+    axis_answer_idea: { type: "string", description: "One sentence: the single idea the Axis answer claims state together, in their own words. Empty if they do not state one idea together" },
     moment_claims: { ...strArr, description: "Claim IDs that hold a person's own words, memory, or experience, or a concrete moment with a person, a place, and an action. Empty if none" },
+    screen_scene_claims: { ...strArr, description: "For a drama or film topic: claim IDs that describe one specific scene on screen (who, what they do, an object or a sound). Empty otherwise" },
     sections: { type: "array", items: { type: "object", additionalProperties: false, required: ["n", "title", "sources", "ratio"], properties: { n: { type: "integer" }, title: { type: "string" }, sources: strArr, ratio: { type: "integer" } } } },
     excerpt_ids: { ...strArr, description: "Selected paragraph IDs (S1-03 …)" },
     gists: { type: "array", items: { type: "object", additionalProperties: false, required: ["s", "lines"], properties: { s: { type: "integer" }, lines: strArr } }, description: "Three English lines per source" },
@@ -268,7 +271,7 @@ export const AXIS_CHECK_SCHEMA_EN = {
 
 // ── 2단계 대본 ────────────────────────────────────────────────────────────────
 
-/** 대본 단계 — 골드는 아직 없다(글로벌 명세 7장: 파일럿 판정 상위 편을 골드로 올린다). 골드 등록 뒤 이 빌더에 절을 더한다 */
+/** 대본 단계 — 골드 두 편(full-en-v0.19 골드 실험: 발행 가능 판정 편을 지금 규칙에 맞춰 다듬은 대본, 글로벌 명세 7장)이 있으면 대화 예시로 붙인다 */
 export function buildWritePromptPartsEn(i: WriteInput): PromptParts {
   const explainer = explainerEn();
   const host = otherSpeaker(explainer);
@@ -281,7 +284,9 @@ There are no sources and no tools at this stage. Everything you need is in these
 ## 1. Rules — guidelines (${i.promptVersion})
 ${fence(i.guidelines)}
 
-There are no gold examples yet. Follow the guidelines and the templates.
+${i.goldFullEum || i.goldFullYuna ? `## Gold examples — how the conversation works
+These are finished scripts on other topics. Learn from them how the host asks and guesses, how the explainer answers in the first sentence and stays an insider, how a scene is told, and how the wrap-up gives one answer. Never reuse their facts, sentences, metaphors, openers, or closing frames.
+${[i.goldFullEum, i.goldFullYuna].filter(Boolean).map((g) => fence(g)).join("\n\n")}` : "There are no gold examples yet. Follow the guidelines and the templates."}
 
 ## 2. Format (the parser and checks read it exactly)
 - First line (meta): \`Episode ID · Title · Topic · ${explainer}/${host} · ${i.promptVersion} · Sources used\`

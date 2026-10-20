@@ -104,11 +104,11 @@ test("발음 등재 추가 — 한국판 종전 그대로, 글로벌판은 빈 �
   assert.deepEqual(addPronunciations({ Hanbok: "", jeong: "jung" }, [{ term: "hanbok", reading: "hahn-bok" }, { term: "Jeong", reading: "WRONG" }, { term: " nunchi ", reading: "" }], "en"), { Hanbok: "hahn-bok", jeong: "jung", nunchi: "" });
 });
 
-test("글로벌 규칙 자산 — 버전 라벨 full-en-v0.18, 모델에 가는 본문에 한글이 없고 규칙 50개, 템플릿 문서와 같은 슬롯", async () => {
+test("글로벌 규칙 자산 — 버전 라벨 full-en-v0.19, 모델에 가는 본문에 한글이 없고 규칙 50개, 템플릿 문서와 같은 슬롯", async () => {
   const { versionOf } = await import("../assets.js");
   const root = path.resolve(import.meta.dirname, "../../../../../docs/ai/global");
   const g = await fs.readFile(path.join(root, "skills/draft/guidelines.gpt.md"), "utf8");
-  assert.equal(versionOf("skills/draft/guidelines.gpt.md", g), "full-en-v0.18");
+  assert.equal(versionOf("skills/draft/guidelines.gpt.md", g), "full-en-v0.19");
   assert.equal(versionOf("skills/draft/guidelines.md", "# x\n\n> 현행 버전: **full-v9.10**"), "full-v9.10"); // 한국판 라벨 그대로
   const body = P.promptBody(g);
   assert.doesNotMatch(body, HANGUL);
@@ -266,4 +266,28 @@ test("v0.18 프롬프트(full-en-v0.18) — 견해 claims 3분의 1 · 축 답 �
   assert.match(sys, /Gochang County/);
   const src = String(P.INTRO_STYLES_EN.find((x) => x.key === "question")?.hint);
   assert.match(src, /The explainer asks nothing/);
+});
+
+test("v0.19 — 축 답 한 생각·화면 속 장면 칸, 한국어 발췌 인물 they, 대비 조건, 골드가 있으면 대본 프롬프트에 붙는다", () => {
+  assert.ok(P.DESIGN_INLINE_SCHEMA_EN.required.includes("axis_answer_idea"));
+  assert.ok(P.DESIGN_INLINE_SCHEMA_EN.required.includes("screen_scene_claims"));
+  const sys = P.buildDesignPromptInlinePartsEn({ episodeId: "G1", candidate: cand, promptVersion: "v", guidelines, specScript: "", goldFullEum: "", goldFullYuna: "", sources: [] }).system;
+  assert.match(sys, /Korean has no gendered pronoun/);
+  assert.match(sys, /keep that contrast in the claim/);
+  assert.match(sys, /a moment from life off screen does not count/);
+  assert.doesNotMatch(sys, /each reason in turn/);
+  const w = (g: string) => P.buildWritePromptPartsEn({ episodeId: "G1", candidate: cand, introStyle: P.INTRO_STYLES_EN[0], promptVersion: "v", templates: null as never, majorTopic: "K-Food", signoffSeed: 0, estimatedMinutes: 8, guidelines, specScript: "", goldFullEum: g, goldFullYuna: "", sourcesMd: "s", claimsMd: "c", outlineMd: "o", pronunciationsJson: "{}" }).system;
+  assert.match(w("[Owen] Y1 · Hi."), /## Gold examples — how the conversation works/);
+  assert.match(w(""), /There are no gold examples yet/);
+});
+
+test("글로벌 골드 자산 — gold@ 라벨, 대본 줄 문법, 한글 없음", async () => {
+  const { versionOf } = await import("../assets.js");
+  const root = path.resolve(import.meta.dirname, "../../../../../docs/ai/global");
+  for (const n of [1, 2]) {
+    const g = await fs.readFile(path.join(root, `skills/draft/examples/gold-en-${n}.md`), "utf8");
+    assert.equal(versionOf(`skills/draft/examples/gold-en-${n}.md`, g), "gold@2026-10-20");
+    assert.match(g, /^\[[A-Za-z-]+\] E1 · /m);
+    assert.doesNotMatch(g, HANGUL);
+  }
 });

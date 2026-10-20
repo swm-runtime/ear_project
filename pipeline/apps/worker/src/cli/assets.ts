@@ -10,10 +10,10 @@ import os from "node:os";
 import { pipelineLocale } from "@ear/pipeline";
 import { cfg } from "../config.js";
 import { pool } from "../db.js";
-import { DB_ASSET_KEYS, OPTIONAL_ASSET_KEYS, THUMBNAIL_ANCHOR_PROMPT_KEY, THUMBNAIL_PROMPT_KEY, THUMBNAIL_SCENE_PROMPT_KEY, SECTION_SUMMARY_PROMPT_KEY, SERIES_PROMPT_KEY, SERIES_THUMBNAIL_PROMPT_KEY, TTS_DICT_KEY, versionOf, workerRev } from "../assets.js";
+import { DB_ASSET_KEYS, OPTIONAL_ASSET_KEYS, THUMBNAIL_ANCHOR_PROMPT_KEY, THUMBNAIL_PROMPT_KEY, THUMBNAIL_SCENE_PROMPT_KEY, SECTION_SUMMARY_PROMPT_KEY, SERIES_PROMPT_KEY, SERIES_THUMBNAIL_PROMPT_KEY, GLOBAL_GOLD_KEYS, TTS_DICT_KEY, versionOf, workerRev } from "../assets.js";
 
 /** 시딩·상태 대상 = 번들 7개 + TTS 음차 사전 (spec/10 3.2 의 8개) */
-const ALL_ASSET_KEYS = [...DB_ASSET_KEYS, ...OPTIONAL_ASSET_KEYS, TTS_DICT_KEY, THUMBNAIL_PROMPT_KEY, THUMBNAIL_ANCHOR_PROMPT_KEY, THUMBNAIL_SCENE_PROMPT_KEY, SECTION_SUMMARY_PROMPT_KEY, SERIES_PROMPT_KEY, SERIES_THUMBNAIL_PROMPT_KEY]; // 프로파일 키는 git 사본이 없으면 건너뛴다
+const ALL_ASSET_KEYS = [...DB_ASSET_KEYS, ...OPTIONAL_ASSET_KEYS, TTS_DICT_KEY, THUMBNAIL_PROMPT_KEY, THUMBNAIL_ANCHOR_PROMPT_KEY, THUMBNAIL_SCENE_PROMPT_KEY, SECTION_SUMMARY_PROMPT_KEY, SERIES_PROMPT_KEY, SERIES_THUMBNAIL_PROMPT_KEY, ...GLOBAL_GOLD_KEYS]; // 프로파일 키는 git 사본이 없으면 건너뛴다
 
 /** only: 이 키만 다룬다 (2026-10-07) — --force 는 git 사본과 다른 모든 키를 git 쪽으로 덮어써 활성화하므로, DB 에서 고친 대본 지침까지 옛 사본으로 되돌릴 수 있다. 한 자산만 올릴 때는 --only 를 붙인다 */
 async function cmdImport(force: boolean, only?: string) {
@@ -22,7 +22,7 @@ async function cmdImport(force: boolean, only?: string) {
   for (const key of ALL_ASSET_KEYS) {
     if (only && key !== only) continue;
     // 글로벌판(docs/ai/global/skills)은 자산을 차례로 올린다 — 아직 git 사본이 없는 키는 건너뛴다(KAN-201). 한국판은 종전대로 프로파일 키만 선택
-    const content = await fs.readFile(path.join(cfg.assetSourceRoot, key), "utf8").catch((e) => { if (OPTIONAL_ASSET_KEYS.includes(key) || pipelineLocale() === "en") return null; throw e; });
+    const content = await fs.readFile(path.join(cfg.assetSourceRoot, key), "utf8").catch((e) => { if (OPTIONAL_ASSET_KEYS.includes(key) || pipelineLocale() === "en" || (GLOBAL_GOLD_KEYS as readonly string[]).includes(key)) return null; throw e; });
     if (content == null) { console.log(`- ${key}  (git 사본 없음 — ${pipelineLocale() === "en" ? "글로벌판 미작성" : "프로파일 키"}, 건너뜀)`); continue; }
     const version = versionOf(key, content);
     const cur = await pool.query<{ version: string; content: string }>("select version, content from public.prompt_assets where key = $1 and status = 'active'", [key]);

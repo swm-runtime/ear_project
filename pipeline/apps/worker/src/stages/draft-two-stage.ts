@@ -53,7 +53,7 @@ export async function runTwoStageDraft(a: TwoStageArgs): Promise<TwoStageResult>
     designSummary = "설계 이어받기(기존 산출물)";
   } else if (cfg.designMode === "single") {
     log(`  draft ${episodeId} ← ${cand.id} "${cand.title}" · 1/2 설계 (단발, 소스 ${cand.sources.length})`);
-    const d = await runDesignSingle({ job, ex, episodeId, candidate: cand, dir, assetRoot: a.assetRoot, promptVersion: a.promptVersion, noGold: a.noGold, series: a.series });
+    const d = await runDesignSingle({ job, ex, episodeId, candidate: cand, dir, assetRoot: a.assetRoot, promptVersion: a.promptVersion, noGold: a.noGold || pipelineLocale() === "en", series: a.series }); // 글로벌판 설계는 골드를 쓰지 않는다(대본 단계만)
     design = d.design; designCost = d.costUsd; designTokens = d.tokens; designModel = d.model;
     designSummary = `설계(단발): 축 [${design.axis_type}] ${design.axis} · 구간 ${design.sections.length} (착지 #${design.landing_section}) · 발췌 ${design.excerpts}·claims ${design.claims} · 예상 ${design.estimated_minutes}분 · 본문 ${d.fetched.filter((f) => f.ok).length}/${d.fetched.length}${design.gaps.length ? ` · 빈 역할 ${design.gaps.join("/")}` : ""}${design.sources_excluded.length ? ` · 제외 ${design.sources_excluded.map((x) => `${hostOf(x.url)} ${x.reason}`).join("; ").slice(0, 200)}` : ""}${design.split_proposal ? ` · ⚠ 분할 제안: ${design.split_proposal.slice(0, 200)}` : ""}`;
   } else {
@@ -91,7 +91,10 @@ export async function runTwoStageDraft(a: TwoStageArgs): Promise<TwoStageResult>
   const ap = assetPaths(a.assetRoot, cfg.workRoot);
   const read = (p: string) => fs.readFile(p, "utf8");
   const [guidelines, specScript, goldFullEum, goldFullYuna, sourcesMd, claimsMd, outlineMd] = await Promise.all([
-    read(ap.guidelines), read(ap.specScript), a.noGold ? Promise.resolve("") : read(ap.goldFullEum), a.noGold ? Promise.resolve("") : read(ap.goldFullYuna),
+    // 글로벌판 골드(full-en-v0.19 골드 실험): gold-en-1·2 를 같은 두 칸으로 넘긴다 — 번들에 없으면(선택 자산) 골드 없이
+    read(ap.guidelines), read(ap.specScript),
+    a.noGold ? Promise.resolve("") : pipelineLocale() === "en" ? read(ap.goldEn[0]).catch(() => "") : read(ap.goldFullEum),
+    a.noGold ? Promise.resolve("") : pipelineLocale() === "en" ? read(ap.goldEn[1]).catch(() => "") : read(ap.goldFullYuna),
     read(path.join(dir, "sources.md")), read(path.join(dir, "claims.md")), read(path.join(dir, "outline.md")),
   ]);
   const pronFile = path.join(dir, "pronunciations.json");
@@ -489,8 +492,9 @@ export function enStyleViolations(turns: ScriptTurn[]): string[] {
   // full-en-v0.10 (G261017-009~011): "Picture …"·"In an imagined comparison" 으로 같은 틀이 이어졌다(010 넷 · 011 셋) — 같이 센다
   const imagine = turns.flatMap((t, i) => (!isTemplate(i) && expl(t) ? t.text.trim().split(/(?<=[.!?])\s+/).filter((x) => /^(?:Imagine|Picture)\b|\bimagined\b/i.test(x.trim())).map(() => label(t)) : []));
   // full-en-v0.13 (G261018-008): 오프닝이 "Imagine …" 한 줄로 열렸다 — Opening 은 Familiar picture 로 연다. 한 번도 문체 위반(규칙 37)
-  const openImagine = turns.flatMap((t, i) => (!isTemplate(i) && t.section === zones.lead && /^(?:Imagine|Picture)\b/.test(t.text.trim()) ? [label(t)] : []));
-  if (openImagine.length) v.push(`${EN_STYLE_MARK} the Opening starts with "Imagine" or "Picture" (${list(openImagine)}) — start from the familiar picture, in plain words (rule 37)`);
+  // full-en-v0.19 (12회차 004·009 두 회차 연속): "Suppose" 도 같은 틀
+  const openImagine = turns.flatMap((t, i) => (!isTemplate(i) && t.section === zones.lead && /^(?:Imagine|Picture|Suppose)\b/.test(t.text.trim()) ? [label(t)] : []));
+  if (openImagine.length) v.push(`${EN_STYLE_MARK} the Opening starts with "Imagine", "Picture", or "Suppose" (${list(openImagine)}) — start from the familiar picture, in plain words (rule 37)`);
   // full-en-v0.13 (G261018-006~008, 3.11 3·2·3): 진행자의 질문 아닌 턴이 "I'd …"·"I would …" 가정형 틀로 굳었다 — 넷 이상이면 문체 위반(규칙 9)
   // full-en-v0.14 (G261018-010~012): would 를 막자 "to me"·"I find"·"I notice"·"I feel" 자기 상태 서술로 같은 틀이 옮겨 갔다 — 함께 센다
   // full-en-v0.15 (G261018-014): 낱말 목록 상한에 정확히 맞추고 목록 밖 "I hadn't considered"로 넷째가 나왔다 — 낱말 대신 1인칭(I·me·my)과 would 로 센다

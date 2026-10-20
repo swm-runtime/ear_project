@@ -22,6 +22,8 @@ export interface DesignInlineOut extends Omit<DesignOut, "excerpts" | "claims" |
   axis_source: string;
   /** 축 질문에 답하는 claims 와 사람의 순간 claims (full-en-v0.16 재료 점검) — 글로벌판만 */
   axis_answer_claims?: string[]; moment_claims?: string[];
+  /** full-en-v0.19: 축 답 claims 가 함께 말하는 한 생각(비면 묶이지 않음) · 드라마·영화 주제의 화면 속 장면 claims */
+  axis_answer_idea?: string; screen_scene_claims?: string[];
   /** 귀속 등급은 모델이 고르지 않는다 — section·type·notable·opinion 에서 워커가 도출한다 (guidelines 규칙 20, full-v7) */
   claims: { id: string; text: string; excerpt_ids: string[]; type: string; section: number; notable: boolean; opinion: boolean }[];
   outline_md: string; pronunciations: { term: string; reading: string }[];
@@ -211,7 +213,10 @@ export async function runDesignSingle(a: { job: Job; ex: Executor; episodeId: st
     const views = o.claims.filter((c) => c.opinion).length;
     const answerViews = answer.filter((id) => o.claims.find((c) => c.id === id)?.opinion).length;
     const lack = [!answer.length && "축 질문에 답하는 claims 없음", needMoment && !moments.length && "사람의 순간 claims 없음",
-      views * 3 > o.claims.length && `견해 claims 과다 ${views}/${o.claims.length}(3분의 1 초과)`, answerViews > 1 && `축 답 claims 중 견해 ${answerViews}개(하나까지)`].filter(Boolean);
+      views * 3 > o.claims.length && `견해 claims 과다 ${views}/${o.claims.length}(3분의 1 초과)`, answerViews > 1 && `축 답 claims 중 견해 ${answerViews}개(하나까지)`,
+      // full-en-v0.19 (12회차: 정리가 이유 나열 3.7 3 · 드라마 주제인데 순간이 화면 밖 회식 하나뿐이라 #4 가 축을 벗어남)
+      answer.length > 0 && !String(o.axis_answer_idea ?? "").trim() && "축 답 claims 가 한 생각으로 묶이지 않음",
+      cand.mid_topic === "K-Drama & Film" && !(o.screen_scene_claims ?? []).some((id) => ids.has(id)) && "드라마·영화 화면 속 장면 claims 없음"].filter(Boolean);
     if (lack.length) await fail(`재료 부족 — ${lack.join(" · ")}. ${o.notes.replace(/\s+/g, " ").slice(0, 200)}`);
     o = { ...o, outline_md: setAxisAnswerLine(o.outline_md, answer) };
   }

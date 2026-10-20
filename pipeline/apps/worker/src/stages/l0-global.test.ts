@@ -353,7 +353,9 @@ test("출처를 종류·연도로 가리키는 해설 문장도 출처 문장으
 test("Opening 을 Imagine·Picture 로 열면 한 번이라도 문체 위반 — 본문의 장면은 해당 없음", () => {
   en();
   const v = enStyleViolations([T("Y1", "Welcome.", "Intro"), T("E1", "Imagine a small café full of posters.", "Opening"), T("E2", "Picture a fan at the door."), T("Y2", "Bye.", "Closing")]).join("\n");
-  assert.match(v, /the Opening starts with "Imagine" or "Picture" \(E1\)/);
+  assert.match(v, /the Opening starts with "Imagine", "Picture", or "Suppose" \(E1\)/);
+  const s = enStyleViolations([T("Y1", "Welcome.", "Intro"), T("E1", "Suppose a family moves in on a Sunday.", "Opening"), T("Y2", "Bye.", "Closing")]).join("\n");
+  assert.match(s, /starts with "Imagine", "Picture", or "Suppose" \(E1\)/); // full-en-v0.19
 });
 
 test("질문 아닌 진행 턴의 자기 상태 서술(would·I'd·to me·I find)은 셋까지 통과, 넷이면 문체 위반 — 질문은 세지 않는다", () => {
