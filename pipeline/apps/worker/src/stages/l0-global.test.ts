@@ -418,3 +418,11 @@ test("구성안 Axis answer 줄의 claim 을 해설 턴이 하나라도 안 쓰�
   assert.deepEqual(axisAnswerViolations(outline, ""), []);
   assert.deepEqual(axisAnswerViolations("# Outline — G1\nAxis: x", notes(["| E1 | C01 |"])), []);
 });
+
+// ── full-en-v0.17 (2026-10-20 — G261020-001·003 에이전트 판정) ──
+test("질문 아닌 진행 턴의 반응 틀(sounds·feels·seems)은 둘까지 통과, 셋이면 문체 위반 — 질문은 세지 않는다", () => {
+  en();
+  const xs = (n: number) => [T("Y1", "Hi.", "Intro"), ...["That sounds like a long day.", "Those wishes sound very direct.", "That feels more personal."].slice(0, n).map((t, k) => T(`Y${k + 2}`, t)), T("Y8", "Does that sound hard?"), T("Y9", "Bye.", "Closing")];
+  assert.doesNotMatch(enStyleViolations(xs(2)).join("\n"), /react with "sounds"/);
+  assert.match(enStyleViolations(xs(3)).join("\n"), /3 host turns that are not questions react with "sounds", "feels", or "seems" \(Y2, Y3, Y4\)/);
+});

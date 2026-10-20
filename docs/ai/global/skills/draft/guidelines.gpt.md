@@ -1,6 +1,6 @@
 # Script Writing Guidelines
 
-> Version: **full-en-v0.16** (2026-10-20) · GPT profile · global pipeline. Rationale and sources: [CHANGELOG.md](CHANGELOG.md).
+> Version: **full-en-v0.17** (2026-10-20) · GPT profile · global pipeline. Rationale and sources: [CHANGELOG.md](CHANGELOG.md).
 > Rule numbers are reference IDs for L0, QA and the critic. Do not reuse or renumber them.
 
 ## Principles
@@ -28,7 +28,7 @@
 5. **History and national feeling.** On the colonial period, wars, and disputes with Japan, China, or North Korea, state only claimed facts and mark interpretations as views. Do not blame present-day people. Do not argue which country a food, garment, or custom belongs to. Do not boast about Korea's global success and do not apologize for or defend Korea. Say "South Korea" when the difference from North Korea matters.
 
 6. **People, bodies, beliefs, food.**
-   - Mention people known to the public by name only through verifiable public facts from the claims. No private life, relationships, rumors, controversies, or legal cases. A person not known to the public is a case. Refer to them by what they do or who they are (a park ranger, two beginners), never by name.
+   - Mention people known to the public by name only through verifiable public facts from the claims. No private life, relationships, rumors, controversies, or legal cases. A person not known to the public is a case. Refer to them by what they do or who they are (a park ranger, two beginners), never by name. Do not tell their health, mental state, or family circumstances.
    - Do not comment on anyone's looks or body. When beauty standards come up, present them as a view some people hold, not as desirable.
    - Describe religions and folk beliefs neutrally, never as superstition.
    - Do not assume the listener eats pork or drinks alcohol. Name ingredients plainly.
@@ -46,7 +46,7 @@
 
 8. **Questions grow from what was just said.** The host asks about a point in the previous explanation that is unclear, surprising, or hard to accept. The first question of a section uses only what came before it. The explainer introduces new cases, numbers, and results first. Do not put the next answer or an unexplained fact into a question. If no question arises, the explainer opens the next point in one sentence.
 
-9. **Host turns have one job, in varied forms.** A host turn does one thing: a question, a guess, a mild doubt, or how the point sounds from outside. Between half and two-thirds of host turns in the Body are questions. A host guess puts the host in the scene or says how it feels. A sentence that states the explanation's conclusion in advance is a small explanation; do not give it to the host. Do not turn the explanation back into a question ("So you're saying…?"). Do not echo the explainer's last phrase. The host does not ask about sample sizes, methods, statistics, or limitations. Do not ask negative questions ("Isn't it…?"). At most three host turns that are not questions speak in the first person (I, me, my) or with "would". Vary the rest: a guess about the scene, a doubt, a short reaction to the detail. A reaction does not repeat a noun phrase from the turn before it.
+9. **Host turns have one job, in varied forms.** A host turn does one thing: a question, a guess, a mild doubt, or how the point sounds from outside. Between half and two-thirds of host turns in the Body are questions. A host guess puts the host in the scene or says how it feels. A sentence that states the explanation's conclusion in advance is a small explanation; do not give it to the host. Do not turn the explanation back into a question ("So you're saying…?"). Do not echo the explainer's last phrase. The host does not ask about sample sizes, methods, statistics, or limitations. Do not ask negative questions ("Isn't it…?"). At most three host turns that are not questions speak in the first person (I, me, my) or with "would". At most two host turns that are not questions react with "sounds", "feels", or "seems". Vary the rest: a guess about the scene, a doubt, a short reaction to the detail. A reaction does not repeat a noun phrase from the turn before it.
 
 10. **The explainer answers the host, not the script.** The explainer's first sentence answers what the host just asked or said. It does not restate, name, or paraphrase the host's question, guess, preference, or feeling. When the host guesses or doubts, say which part holds or fails in new words, then build from it or correct it. It does not start with a one-word acknowledgment. At least twice per episode, the host's turn changes the direction of the next explanation.
 
@@ -64,7 +64,7 @@
 
 ## Spoken English for international listeners
 
-17. **Plain words.** Use common words a B2-level English learner knows. Prefer common one-word verbs. Avoid phrasal verbs whose meaning is not literal. If a word needs explaining, use a simpler word instead. Explain only Korean words and terms that cannot be avoided. Do not explain a common English word. Keep the same word for the same thing; do not cycle through synonyms. Use the outline's Terms: one plain English name for each place or thing, every time. When a common word has a different everyday sense in this setting, explain it on first use or use another word. Define a word with other words, never with the word itself. Do not give two opposing ideas names that sound alike.
+17. **Plain words.** Use common words a B2-level English learner knows. Prefer common one-word verbs. Avoid phrasal verbs whose meaning is not literal. If a word needs explaining, use a simpler word instead. Explain only Korean words and terms that cannot be avoided. Do not explain a common English word. Keep the same word for the same thing; do not cycle through synonyms. Use the outline's Terms: one plain English name for each place or thing, every time. A place keeps its romanized name followed by what it is (Bukhansan Mountain). When a common word has a different everyday sense in this setting, explain it on first use or use another word. Define a word with other words, never with the word itself. Do not give two opposing ideas names that sound alike.
 
 18. **Nothing that depends on native culture.** No idioms, slang, sports metaphors, sarcasm, irony, or wordplay. Do not refer to American or British TV, holidays, brands, or school life.
 
@@ -119,9 +119,9 @@
 
 38. **The axis leads.** Keep the outline's axis and each section's sub-question. Each Body section answers a question left by the one before. Use every claim on the outline's Axis answer line, in the section the claims give. Do not add, remove, or reorder sections. If the prompt sets history mode, follow it: the event is the axis and its course is the Body.
 
-39. **Scenes, cases, and metaphors, budgeted.** Stage each Scene the outline plans: the explainer says who, where, and what happens, and the host reacts to it. One case per section, four to five per episode, including cases from sources. Use a metaphor only where understanding stalls, at most three per episode. The host creates no metaphors or examples. Record every new link or metaphor in bridges.
+39. **Scenes, cases, and metaphors, budgeted.** Stage each Scene the outline plans: the explainer says who, where, and what happens, and the host reacts to it. Take the scene's facts and conditions from its claim, not from the outline's wording. One case per section, four to five per episode, including cases from sources. Use a metaphor only where understanding stalls, at most three per episode. The host creates no metaphors or examples. Record every new link or metaphor in bridges.
 
-40. **Closing.** The Closing is the host's closing lead with its closing question, one explainer wrap-up turn that answers it, and the host's injected sign-off. The wrap-up has 3 to 6 sentences. It gives one answer to the axis question and the reason for it, drawn from the Axis answer claims. When the sections give several reasons, say the one idea that joins them. Do not give one section's reason as the only cause. It does not retell the sections in order or join their facts into a list. Its last sentence answers the axis question. No new facts, names, numbers, or cases. Do not open it with "So, to sum up" or similar. The sign-off is fixed text. Say it word for word and add nothing to it.
+40. **Closing.** The Closing is the host's closing lead with its closing question, one explainer wrap-up turn that answers it, and the host's injected sign-off. The wrap-up has 3 to 6 sentences. It gives one answer to the axis question and the reason for it, drawn from the Axis answer claims. When the sections give several reasons, say the one idea that joins them. When an Axis answer claim is a view, the wrap-up gives that view as the answer, marked as a view. Do not give one section's reason as the only cause. It does not retell the sections in order or join their facts into a list. Its last sentence answers the axis question. No new facts, names, numbers, or cases. Do not open it with "So, to sum up" or similar. The sign-off is fixed text. Say it word for word and add nothing to it.
 
 ## Facts and sources
 

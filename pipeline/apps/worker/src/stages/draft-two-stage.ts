@@ -497,6 +497,9 @@ export function enStyleViolations(turns: ScriptTurn[]): string[] {
   const firstPerson = (s: string) => /(?<![A-Za-z'’])I(?:['’](?:m|d|ve|ll))?(?![A-Za-z])/.test(s) || /\b(?:me|my|mine|would)\b/i.test(s);
   const hostSelf = turns.filter((t, i) => !isTemplate(i) && t.id?.startsWith("Y") && !t.text.includes("?") && firstPerson(t.text)).map(label);
   if (hostSelf.length > 3) v.push(`${EN_STYLE_MARK} ${hostSelf.length} host turns that are not questions speak in the first person (I, me, my) or with "would" (${list(hostSelf)}) — at most three; vary the rest: a guess about the scene, a doubt, a short reaction to the detail (rule 9)`);
+  // full-en-v0.17 (G261019-001·G261020-001·003, 9·10회차 연속): 1인칭을 막자 질문 아닌 진행 턴이 "That sounds like …"·"That feels …" 반응 틀로 굳었다 — 셋 이상이면 문체 위반(규칙 9)
+  const hostSounds = turns.filter((t, i) => !isTemplate(i) && t.id?.startsWith("Y") && !t.text.includes("?") && /\b(?:sounds?|feels?|seems?)\b/i.test(t.text)).map(label);
+  if (hostSounds.length > 2) v.push(`${EN_STYLE_MARK} ${hostSounds.length} host turns that are not questions react with "sounds", "feels", or "seems" (${list(hostSounds)}) — at most two; vary the rest: a guess about the scene, a doubt, a short reaction to the detail (rule 9)`);
   // 사례 틀 반복 (규칙 3, full-en-v0.15 — G261018-015 "one family's / another family's remembered …"가 턴마다 붙었다) — 셋 이상이면 문체 위반
   const caseFrame = turns.flatMap((t, i) => (!isTemplate(i) && expl(t) ? (t.text.match(/\b(?:one|another|a different) family['’]s\b|\bremembered\b/gi) ?? []).map(() => label(t)) : []));
   if (caseFrame.length > 2) v.push(`${EN_STYLE_MARK} the case frame "one family's" / "another family's" / "remembered" is used ${caseFrame.length} times (${list([...new Set(caseFrame)])}) — say who a case is about once, then tell the moment (rule 3)`);
