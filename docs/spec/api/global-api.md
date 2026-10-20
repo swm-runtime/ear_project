@@ -82,7 +82,7 @@
 | 1 | `POST /auth/social-login` · `POST /auth/sign-up` | auth-api 4.1·4.2 | 요청 `locale` 객체 추가(사용자가 고른 `preferred_language` 포함), 응답 `user.market`·`user.language_code` | 시장을 정할 입력이 가입 요청에 없다. 기기 언어로 자동 판정하면 영어 설정 한국 사용자가 GLOBAL로 가고 되돌릴 수 없다 → 가입 때 사용자에게 1회 묻고 그 값을 본문으로 받아 저장한다. 헤더로만 받으면 "요청마다 판정"이 되어 언어를 바꾸면 피드가 통째로 바뀐다 | ✅ |
 | 2 | `GET /users/me` | auth-api 4.13 | `user.market`·`user.language_code`·`user.timezone` | 클라이언트가 제공자 목록·온보딩 단계·결제 상품을 가르는 기준이 필요하다. 언어로 추측하면 영어 설정 한국 사용자가 GLOBAL로 보인다 → 서버 판정값을 그대로 노출 | ✅ |
 | 3 | `PUT /users/me/devices/:device_id` | onboarding-api 4.9 | 요청 `language_code`·`timezone` | 기존 가입자의 `language_code`·`timezone`은 비어 있다. 매 실행 호출되는 이 API에 실어야 재가입 없이 채워진다 | ✅ |
-| 4 | `GET /users/me/settings` · `PATCH` | settings-api 4.1·4.2 | 응답 `market`(읽기 전용)·`language_code`·`timezone`, PATCH로 `language_code` 변경 | 표시 언어를 사용자가 바꿀 길이 없다(기기 언어 = 가입 시 1회). 서버 문구(푸시·메일) 언어는 이 값이 아니라 `users.market`으로 고른다(2.3) | 🟡 |
+| 4 | `GET /users/me/settings` · `PATCH` | settings-api 4.1·4.2 | 응답 `market`(읽기 전용)·`language_code`·`timezone`, PATCH로 `language_code` 변경 | 가입 뒤에 표시 언어를 사용자가 바꿀 길이 없다(기기 언어 = 가입 시 1회. 가입 때는 A21 선택으로 맞춘다 — 4.1). 서버 문구(푸시·메일) 언어는 이 값이 아니라 `users.market`으로 고른다(2.3) | 🟡 |
 | 5 | `GET /onboarding/state` | onboarding-api 4.1 | `steps[]` 추가 — GLOBAL은 `career` 없음 | 커리어 단계는 한국 직군 분류다. GLOBAL에 보이면 선택할 값이 없다. 클라이언트가 `market`으로 단계를 하드코딩하면 단계가 바뀔 때마다 앱 빌드가 필요해 서버가 배열로 준다 | 🟡 |
 | 6 | `GET /onboarding/topics` · `GET /users/me/interests` · `PUT …` | onboarding-api 4.2·4.3, interest-management-api | 사용자 시장의 주제만, `items[].slug` 추가, 다른 시장 주제 저장은 409 | 주제는 시장별 별도 행이라 거르지 않으면 한국어 주제가 영어 피드에 섞인다. `slug`는 클라이언트 주제 이미지 키가 한국어 이름이어서 영어 주제에 이미지가 안 붙는 문제 | ✅ |
 | 7 | `GET /plans` | subscription-api 4.1 | 사용자 시장의 요금제만, GLOBAL은 `price_krw: null` | GLOBAL 요금제는 별도 스토어 상품(ID 다름). KR 행이 보이면 결제가 KR 상품으로 간다. `price_krw`는 해외 사용자에게 원화를 보여 주는 셈이라 `null` | ✅ |
@@ -118,7 +118,7 @@
 | `locale.timezone` | IANA | 선택 | 드립 발송 그룹. 없으면 `Asia/Seoul` |
 
 - 시장은 **계정 생성(sign-up) 시점에** 정하고, 그 뒤에는 **전환 API(4.11)로만** 바뀐다. 기존 계정의 로그인에 다른 `locale`이 와도 `market`은 바뀌지 않고 `language_code`·`region_code`·`timezone`만 갱신한다(`preferred_language`는 무시).
-- 가입 화면의 질문은 시장 하나당 선택지 하나다(한국어 / English). 시장이 늘면 선택지가 는다. 화면에는 "선택한 언어에 따라 보여 주는 콘텐츠가 달라진다"는 설명과 해외 거주자에게 English를 권하는 안내, 가입 뒤 설정에서 바꿀 수 있다는 안내를 함께 둔다(카피는 FE `spec/uiux/auth-uiux.md` 4.2-1 — 전환은 4.11). 앱 실행 직후의 **표시 언어**는 서버 호출 전이라 클라이언트가 기기 `locale`로 1차 판단한다 — 시장 판정과 별개다. 질문을 모호한 사용자에게만 보이는 방식 등은 **추후 필요하면 다시 논의**한다(2026-10-14).
+- 가입 화면의 질문은 시장 하나당 선택지 하나다(한국어 / English). 시장이 늘면 선택지가 는다. 화면에는 "선택한 언어에 따라 보여 주는 콘텐츠가 달라진다"는 설명과 해외 거주자에게 English를 권하는 안내, 가입 뒤 설정에서 바꿀 수 있다는 안내를 함께 둔다(카피는 FE `spec/uiux/auth-uiux.md` 4.2-1 — 전환은 4.11). 앱 실행 직후의 **표시 언어**는 서버 호출 전이라 클라이언트가 기기 `locale`로 1차 판단한다 — 시장 판정과 별개다. 가입 때 고른 콘텐츠 언어로 표시 언어도 맞춘다(PM 확정 2026-10-19 — 그 뒤엔 설정 › 언어로 따로 바꿀 수 있다). 시장 판정과는 여전히 별개다 — 표시 언어를 바꿔도 시장은 그대로다. 가입 요청의 `locale.language_code`는 계약대로 기기 로캘이라, A21에서 다른 언어를 고르면 가입 직후 `users.language_code`(기기 값)와 앱 표시 언어가 다를 수 있다 — 이 값은 통계용이고 서버 문구 언어는 `users.market`이 정하므로 동작에는 영향이 없다. 질문을 모호한 사용자에게만 보이는 방식 등은 **추후 필요하면 다시 논의**한다(2026-10-14).
 - GLOBAL 시장에서 `provider`가 `kakao`·`naver`인 요청은 거부하지 않는다(서버는 제공자별 독립). **노출을 막는 것은 클라이언트 몫**(4.2 응답의 `market`으로 분기).
 - 연령 동의(`age_confirmation`)의 기준 연령은 나라별이다(2.1 — KR 18 · GLOBAL 지역별 16/18, 항목의 `min_age` ✅).
 - **약관·처리방침 동의 버전은 시장별이다** ✅(2026-10-16 — KAN-212, 구현 #1610). KR `0.1` · GLOBAL `global-<문서 버전>`(현행 `global-0.1`, 영어판 문서 0.1). 동의 이력만 보고도 어느 시장 문서에 동의했는지 구분된다. 다른 시장의 버전을 보내면 409 `CONSENT_VERSION_STALE`이다. 버전을 올리면 그 시장 사용자만 다음 로그인·세션 복원에서 다시 동의한다(KR과 같은 재동의 흐름 — 법무 확인 전, KAN-126).
@@ -139,7 +139,7 @@
 
 ### 4.3 `GET /users/me/settings` · `PATCH /users/me/settings` 🟡
 
-**왜**: 기기 언어는 가입 시 1회만 보므로 사용자가 표시 언어를 바꿀 길이 설정밖에 없다. 서버가 만드는 문자열(푸시·메일)의 언어는 이 값이 아니라 `users.market`으로 고른다(2.3). 기존 설정 API에 필드만 더한다.
+**왜**: 기기 언어는 가입 시 1회만 보므로 가입 뒤에 표시 언어를 바꿀 길은 설정뿐이다(가입 때는 A21 선택으로 맞춘다 — 4.1). 서버가 만드는 문자열(푸시·메일)의 언어는 이 값이 아니라 `users.market`으로 고른다(2.3). 기존 설정 API에 필드만 더한다.
 
 - 응답에 `market`(읽기 전용) · `language_code` · `timezone` 추가.
 - `PATCH { "language_code": "en-US", "client_seq": n }` — **표시 언어 변경**. 시장은 바뀌지 않는다(시장 전환은 4.11). 서버 문구(푸시·메일) 언어는 이 값이 아니라 `users.market`으로 고른다(2.3, 2026-10-14 정정).
