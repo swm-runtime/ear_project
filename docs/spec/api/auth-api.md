@@ -115,7 +115,7 @@
 | --- | --- | --- | --- |
 | `locale.preferred_language` | `ko` · `en` | 선택 | 사용자가 가입 화면에서 고른 콘텐츠 언어 — **시장 판정의 입력**(`ko` → `kr`, `en` → `global`). **4.2(계정 생성)에서만 쓰이고** 4.1의 기존 계정 로그인에서는 무시한다. 서버 스위치 `GLOBAL_SIGNUP_ENABLED`가 닫혀 있으면(기본) `en`이어도 `kr`로 판정한다(`global-api.md` 2.1, 2026-10-15) |
 | `locale.language_code` | BCP 47 (≤16자) | 선택 | 기기 언어(예 `en-US`). `preferred_language`가 없을 때만 시장 판정 폴백(`ko*` → `kr`, 그 밖 `global`, 그것도 없으면 `kr`). 가입·로그인마다 갱신 |
-| `locale.region_code` | ISO 3166-1 alpha-2 (2자) | 선택 | 기기 지역. 시장 판정에는 쓰지 않는다 — **GLOBAL 연령 확인의 기준 연령(16·18) 판정에만 쓴다**(`global-api.md` 2.1, 2026-10-16 🟡). 가입·로그인마다 갱신 |
+| `locale.region_code` | ISO 3166-1 alpha-2 (2자) | 선택 | 기기 지역. 시장 판정에는 쓰지 않는다 — **GLOBAL 연령 확인의 기준 연령(16·18) 판정에만 쓴다**(`global-api.md` 2.1, 2026-10-16 ✅ — 구현 #1614). 가입·로그인마다 갱신 |
 | `locale.timezone` | IANA (≤64자) | 선택 | 기기 시간대. 드립 발송 그룹에만 쓴다(서비스 날짜 경계는 바꾸지 않는다). 가입·로그인마다 갱신 |
 
 - **시장(`market`)은 계정 생성(4.2) 때 정하고, 가입 뒤에는 시장 전환(`global-api.md` 4.11 — `POST /users/me/market-change`)으로만 바뀐다**(개정 2026-10-19 — KAN-227, 종전 "이후 바뀌지 않는다"). 로그인으로는 바뀌지 않는다 — 기존 계정 로그인에 다른 `locale`이 와도 `language_code`·`region_code`·`timezone`만 갱신한다.
@@ -293,7 +293,7 @@
 - **그 시장의 필수 동의**(4.1 "필수 동의는 시장별이다")가 `is_agreed: true`가 아니면 계정을 만들지 않는다(`CONSENT_REQUIRED`). GLOBAL은 `cross_border_transfer`가 빠져도 400이다.
 - 시장 판정은 4.14와 **같은 규칙**이다 — 같은 `locale`이면 4.14가 준 목록 그대로 보내 통과한다.
 - `age_confirmation`은 **연령 자기 선언**이다 — KR **만 18세 이상**(약관 제5조, 2026-09-06 반영), GLOBAL은 **기기 지역별 16 또는 18**(`global-api.md` 2.1, 2026-10-16 나라별 — 항목의 `min_age`). 기준은 요청 `locale.region_code`로 정한다. GLOBAL은 확인한 기준을 `version`(`age-16`·`age-18`)으로 기록하고, KR은 `null`이다.
-- 보낸 `version`이 null이 아니면 그 시장·기준의 현행 버전과 같아야 한다(null이면 서버가 현행값을 기록한다). 다른 시장의 약관 버전(예: GLOBAL 가입에 `0.1`)이나 다른 기준 연령(예: 말레이시아 기기가 `age-16`)을 보내면 409 `CONSENT_VERSION_STALE`이다 — 앱은 4.14로 다시 받아 그린다.
+- 보낸 `version`은 그 시장·기준의 현행 버전과 **같아야 한다**. 버전이 있는 항목(약관·처리방침·GLOBAL 연령 확인)에 `null`을 보내도 409 `CONSENT_VERSION_STALE`이다. `null`을 현행값으로 채우는 것은 **재동의**(`POST /users/me/consents`, 4.5)뿐이다 — 가입과 시장 전환(`global-api.md` 4.11)은 엄격 비교다(정정 2026-10-20 — 종전 "null이면 서버가 현행값을 기록한다"는 코드와 달랐다). 다른 시장의 약관 버전(예: GLOBAL 가입에 `0.1`)이나 다른 기준 연령(예: 말레이시아 기기가 `age-16`)을 보내면 409 `CONSENT_VERSION_STALE`이다 — 앱은 4.14로 다시 받아 그린다.
 
 **Response 201** — `social-login`의 `authenticated` 응답과 같은 형태. `onboarding_completed: false`, `onboarding_step: "topic"`.
 
