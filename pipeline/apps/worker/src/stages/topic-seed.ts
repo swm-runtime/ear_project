@@ -2,7 +2,7 @@ import fs from "node:fs/promises";
 import { cfg, executedBy } from "../config.js";
 import { seriesSiblingIds, domainTierByHost, existingBacklogTitles, findDomainForUrl, insertBacklogAlloc, insertCandidateDomain, insertRun, majorOfMidTopic, midsOfMajor, poolDomainsForTopics, recentSourcesForTopics, recordFetchStatus, setBacklogStatus, setJobProgress, upsertSource, type Job, allTopicMids, tierOfUrl } from "../db.js";
 import type { Executor } from "../executors/index.js";
-import { assetPaths, globalGaps, buildClusterPromptV2, buildTopicJudgePromptEn, buildTopicSeedSearchPrompt, buildTopicSeedSearchPromptEn, CLUSTER_SCHEMA_V2, CLUSTER_SCHEMA_V2_EN, judgeToInternal, REINFORCE_SEARCH_SCHEMA, REINFORCE_SEARCH_SCHEMA_EN, todayKst, pipelineLocale } from "@ear/pipeline";
+import { assetPaths, globalGaps, KOREAN_SOURCE_MIN_EN, buildClusterPromptV2, buildTopicJudgePromptEn, buildTopicSeedSearchPrompt, buildTopicSeedSearchPromptEn, CLUSTER_SCHEMA_V2, CLUSTER_SCHEMA_V2_EN, judgeToInternal, REINFORCE_SEARCH_SCHEMA, REINFORCE_SEARCH_SCHEMA_EN, todayKst, pipelineLocale } from "@ear/pipeline";
 import { hostOf, log } from "../util.js";
 import { prepareAssets, workerRev } from "../assets.js";
 import { putFile, s3Key } from "../storage.js";
@@ -102,7 +102,7 @@ export async function runTopicSeed(job: Job, ex: Executor) {
     const byM = new Map(meta.map((s) => [`M${s.n}`, s]));
     const srcs = c.sources.filter((s) => byM.has(s.m.trim().toUpperCase())).map((s) => ({ ...byM.get(s.m.trim().toUpperCase())!, roles: s.roles, why: s.why }));
     const tiers = await domainTierByHost();
-    const { pubs, maxShare, roleSet, problems, missingCore } = checkCandidateSources(srcs);
+    const { pubs, maxShare, roleSet, problems, missingCore } = checkCandidateSources(srcs, en ? { minKorean: KOREAN_SOURCE_MIN_EN } : {});
     const gaps = Array.from(new Set([...(en ? globalGaps(c.gaps) : c.gaps), ...missingCore])); // 글로벌판: 반론·한계·수치·조사는 선택 역할 (2026-10-17 소개형 전환)
     const ok = c.verdict === "성립" && problems.length === 0;
     const summary = `${TOPIC_SEED_MARK} ${todayKst()}: 입력 "${topic.slice(0, 60)}" · 검색 ${r1.output.queries?.length ?? 0}회 → 소스 ${added.length}건 적재(새 도메인 ${newDomains.length}, 제외 ${dropped.length}) · 판정 ${ok ? "성립" : `보강 필요 (${[...problems, ...(gaps.length ? ["빈 역할 " + gaps.join("·")] : [])].join(", ")})`}`;

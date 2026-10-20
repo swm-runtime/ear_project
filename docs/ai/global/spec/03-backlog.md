@@ -22,7 +22,7 @@ Excluded topics (never planned): private life, relationships, controversies, inc
 | `title` | Working title | No clickbait |
 | `summary` | One line | Why these sources make one story |
 | `axis` · `axis_type` | The axis | question (the one plain question a newcomer asks about the practice), contrast ("A, yet B"), paradox ("trying A leads to B"), redefinition ("A is really B"). The question form comes first; ear introduces Korean culture. An event axis is allowed only in Korean History & Society |
-| `sources` | Source set | At least three, with url, title, publisher, published date, roles, and one backbone source |
+| `sources` | Source set | At least three, with url, title, publisher, published date, roles, and one backbone source. At least two are Korean-language sources (title in Hangul) |
 | `gaps` | Empty roles | Required roles no source fills. Optional roles are never gaps |
 | `dedup_note` | Overlap check | State plainly when the check could not be done |
 
@@ -52,4 +52,5 @@ An episode is at least 5 minutes. There is no target length. Propose a split onl
 ## 7. Done when
 
 - Given a planned topic, When the planner returns, Then the candidate has an axis, at least three sources with roles, and a screen record.
+- Given a candidate with fewer than two Korean-language sources, When the worker recounts, Then it is `held` and reinforcement looks for Korean-language sources that explain why.
 - Given a candidate, When a person approves it, Then all four gate conditions held at that moment.

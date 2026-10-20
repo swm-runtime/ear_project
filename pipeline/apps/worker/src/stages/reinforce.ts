@@ -2,7 +2,7 @@ import fs from "node:fs/promises";
 import { cfg, executedBy } from "../config.js";
 import { blockedTierHosts, domainTierByHost, existingBacklogTitles, findDomainForUrl, getBacklogFull, insertCandidateDomain, insertRun, majorOfMidTopic, midsOfMajor, poolDomainsForTopics, recentSourcesForTopics, setBacklogStatus, setJobProgress, upsertSource, type Job, tierOfUrl } from "../db.js";
 import type { Executor } from "../executors/index.js";
-import { assetPaths, globalGaps, GLOBAL_ROLES, buildClusterPromptV2, buildReinforceSearchPrompt, buildReinforceSearchPromptEn, buildTopicJudgePromptEn, CLUSTER_SCHEMA_V2, CLUSTER_SCHEMA_V2_EN, judgeToInternal, pipelineLocale, REINFORCE_SEARCH_SCHEMA, REINFORCE_SEARCH_SCHEMA_EN, SOURCE_ROLES, todayKst } from "@ear/pipeline";
+import { assetPaths, globalGaps, KOREAN_SOURCE_MIN_EN, GLOBAL_ROLES, buildClusterPromptV2, buildReinforceSearchPrompt, buildReinforceSearchPromptEn, buildTopicJudgePromptEn, CLUSTER_SCHEMA_V2, CLUSTER_SCHEMA_V2_EN, judgeToInternal, pipelineLocale, REINFORCE_SEARCH_SCHEMA, REINFORCE_SEARCH_SCHEMA_EN, SOURCE_ROLES, todayKst } from "@ear/pipeline";
 import { hostOf, log } from "../util.js";
 import { robotsAllows } from "../sources/fetch.js";
 import { rememberRobotsBlocked } from "../sources/robots-memory.js";
@@ -107,7 +107,7 @@ export async function runReinforce(job: Job, ex: Executor) {
   const byM = new Map(meta.map((s) => [`M${s.n}`, s]));
   const srcs = c.sources.filter((s) => byM.has(s.m.trim().toUpperCase())).map((s) => ({ ...byM.get(s.m.trim().toUpperCase())!, roles: s.roles, why: s.why }));
   const tiers = await domainTierByHost();
-  const { pubs, maxShare, roleSet, problems, missingCore } = checkCandidateSources(srcs); // spec/03 다양성 기준 — topic-seed 와 공유
+  const { pubs, maxShare, roleSet, problems, missingCore } = checkCandidateSources(srcs, en ? { minKorean: KOREAN_SOURCE_MIN_EN } : {}); // spec/03 다양성 기준 — topic-seed 와 공유
   const newGaps = Array.from(new Set([...(enRoles ? globalGaps(c.gaps) : c.gaps), ...missingCore]));
   const ok = c.verdict === "성립" && problems.length === 0;
   const filled = gaps.filter((g) => roleSet.has(g));
