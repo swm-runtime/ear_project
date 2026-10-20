@@ -686,7 +686,11 @@ export function v98Violations(scriptMd: string, turns: ScriptTurn[]): string[] {
     const picks = Array.from({ length: over }, (_, i) => sameEnd[Math.min(sameEnd.length - 1, Math.floor(i * step + step / 2))]).filter((t, i, a) => a.indexOf(t) === i);
     // 피할 갈래: 지목한 턴이 모두 그 갈래로 가면 넘치는 갈래
     const full = [...byEnd.entries()].filter(([k, ts]) => k !== "기타" && ts.length + picks.length > capEnd).map(([k, ts]) => `${k} ${ts.length}개`).join(" · ");
-    v.push(`진행 질문 ${qY.length}개 중 ${sameEnd.length}개가 같은 말끝(${topEnd})으로 끝남 — ${RATIO_RULE_MARKS[2]}. 다음 ${picks.length}개 턴의 묻는 말끝을 바꾼다: ${ids(picks, 10)}. 이미 많은 갈래(${full})가 아닌 말끝으로 바꾼다 (규칙 25)`);
+    // 2026-10-20 (v9.10 155편 실측): 격식체 지적 25건이 전부 이 수정 직후였다 — "~니까"도 한 갈래로 세니 "~습니까?"로 옮겨 가 격식체 검사(계약)에 걸렸고 3편이 L0 한도 뒤 실패.
+    // 바꿀 대화체 갈래를 넘치지 않는 것만 적고 격식체를 막는다
+    const fullKeys = new Set([...byEnd.entries()].filter(([k, ts]) => k !== "기타" && ts.length + picks.length > capEnd).map(([k]) => k));
+    const open = ["~죠", "~까요", "~요", "~다고요"].filter((k) => !fullKeys.has(k)).join("·");
+    v.push(`진행 질문 ${qY.length}개 중 ${sameEnd.length}개가 같은 말끝(${topEnd})으로 끝남 — ${RATIO_RULE_MARKS[2]}. 다음 ${picks.length}개 턴의 묻는 말끝을 바꾼다: ${ids(picks, 10)}. 이미 많은 갈래(${full})가 아닌 대화체 말끝(${open})으로 바꾸고, 격식체("~습니까?"·"~합니까?")로는 바꾸지 않는다 (규칙 25)`);
   }
   // 규칙 19·28 (v9.8.1, 2026-10-03): 진행자의 격식체 질문("~습니까?"·"~합니까?") — 말끝 쏠림 L0 가 "~나요"를 밀어내자 이리로 옮겨 갔다(T261002-001 Y3·Y13,
   // 002 Y9·Y16 — D1 동의 2건, 002 Y9 직접 수정 "있지 않습니까?" → "있지 않을까요?"). 진행자와 해설자는 같은 대화체다 — 전부 지목
@@ -878,13 +882,17 @@ export function attributionViolations(scriptMd: string, turns: { id: string | nu
     if (t) turnZone.set(t[1], cur);
   }
   const outside: string[] = [];
-  const closing: string[] = [];
+  // 2026-10-20: 규칙 22 는 마무리에 "새 claims" 를 넣지 말라는 것이다 — 본문에서 쓴 claims 를 정리에서 잇는 것은 규칙 13-1 의 수렴이고,
+  // 자기 점검은 사실 문장마다 claims 를 보고하게 한다. 종전엔 ID 가 하나라도 있으면 잡아(v9.10 155편 중 33건) 표에서 ID 만 빼는 수정을 불렀다. 본문에 없던 claim 만 잡는다
+  const bodyUsed = new Set<string>();
+  const closingRows: { turn: string; ids: string[] }[] = [];
   for (const m of notesMd.matchAll(/^\|\s*([EY]\d+)\s*\|\s*([^|]*)\|/gm)) {
     const ids = m[2].match(/C\d{2,3}/g) ?? [];
     if (!ids.length) continue;
     const zone = turnZone.get(m[1]);
-    if (zone === "마무리") { closing.push(m[1]); continue; }
+    if (zone === "마무리") { closingRows.push({ turn: m[1], ids }); continue; }
     if (typeof zone !== "number") continue;
+    for (const id of ids) bodyUsed.add(id);
     for (const id of ids) {
       const c = claims.get(id);
       if (!c || c.section === null || c.source === null || c.source === axis) continue;
@@ -892,7 +900,8 @@ export function attributionViolations(scriptMd: string, turns: { id: string | nu
     }
   }
   if (outside.length) v.push(`소스가 배정 구간 밖에서 쓰임 (${outside.slice(0, 6).join(", ")}${outside.length > 6 ? " …" : ""}) — 소스는 claims 의 구간에서만, 축 소스만 도입·착지 (규칙 22)`);
-  if (closing.length) v.push(`마무리 턴 ${closing.join(", ")} 이 claims 를 씀 — 마무리는 새 사실 없는 무귀속 요약이다 (규칙 22)`);
+  const closing = closingRows.flatMap((r) => r.ids.filter((id) => !bodyUsed.has(id)).map((id) => `${r.turn}:${id}`));
+  if (closing.length) v.push(`마무리 턴이 본문에서 쓰지 않은 claims 를 씀 (${closing.slice(0, 6).join(", ")}${closing.length > 6 ? " …" : ""}) — 마무리는 새 사실 없이 본문에서 얻은 내용을 잇는다. 이 claim 의 내용을 마무리에서 빼거나 본문의 배정 구간으로 옮긴다 (규칙 22)`);
   return v;
 }
 
