@@ -118,7 +118,7 @@
 | `locale.region_code` | ISO 3166-1 alpha-2 (2자) | 선택 | 기기 지역. 시장 판정에는 쓰지 않는다 — **GLOBAL 연령 확인의 기준 연령(16·18) 판정에만 쓴다**(`global-api.md` 2.1, 2026-10-16 🟡). 가입·로그인마다 갱신 |
 | `locale.timezone` | IANA (≤64자) | 선택 | 기기 시간대. 드립 발송 그룹에만 쓴다(서비스 날짜 경계는 바꾸지 않는다). 가입·로그인마다 갱신 |
 
-- **시장(`market`)은 계정 생성(4.2) 때 1회만 정하고 이후 바뀌지 않는다.** 기존 계정 로그인에 다른 `locale`이 와도 `language_code`·`region_code`·`timezone`만 갱신한다.
+- **시장(`market`)은 계정 생성(4.2) 때 정하고, 가입 뒤에는 시장 전환(`global-api.md` 4.11 — `POST /users/me/market-change`)으로만 바뀐다**(개정 2026-10-19 — KAN-227, 종전 "이후 바뀌지 않는다"). 로그인으로는 바뀌지 않는다 — 기존 계정 로그인에 다른 `locale`이 와도 `language_code`·`region_code`·`timezone`만 갱신한다.
 - **길이·열거 범위 안에서 형식이 맞지 않는 값은 버리고 가입·로그인을 막지 않는다**(로케일은 자격 조건이 아니다) — 버린 필드는 저장값을 덮어쓰지 않는다. 다만 DTO 검증에 걸리는 값은 400 `VALIDATION_FAILED`다 — `preferred_language`가 `ko`·`en` 밖 · `language_code` 16자 초과 · `region_code`가 정확히 2자가 아님 · `timezone` 64자 초과 · 문자열이 아닌 값.
 - **서버 문구(푸시·인증 메일) 언어는 `language_code`가 아니라 `market`으로 고른다**(KR → ko · GLOBAL → en — `global-api.md` 2.3).
 
@@ -227,7 +227,7 @@
 
 **`user.tier`** — `light` \| `daily` \| `pro` \| `trial`. **`trial`은 가입 체험 중인 무료 계정**이다(`subscription.md` 4.8, 2026-10-03 — `/auth/sign-up` 응답과 `GET /users/me`도 같다). 표시용이며 판정에 쓰지 않는다 — 언제까지인지·이후 한도는 `plan.trial`(`profile-api.md` 4.1)이 준다.
 
-**`user.market` · `user.language_code` · `user.timezone`** (추가 2026-10-14 — KAN-187) — `market`은 `kr` \| `global`(가입 시 1회 판정, 불변). `language_code`·`timezone`은 저장된 기기 로케일이며 구 앱 계정은 `null`이다. 클라이언트의 제공자 목록·온보딩 단계·요금제 분기는 **`market`으로** 한다 — 언어로 추측하지 않는다(4.2 응답·4.13도 같다).
+**`user.market` · `user.language_code` · `user.timezone`** (추가 2026-10-14 — KAN-187) — `market`은 `kr` \| `global`(가입 때 정하고, 가입 뒤에는 시장 전환 `global-api.md` 4.11로만 바뀐다 — 개정 2026-10-19). `language_code`·`timezone`은 저장된 기기 로케일이며 구 앱 계정은 `null`이다. 클라이언트의 제공자 목록·온보딩 단계·요금제 분기는 **`market`으로** 한다 — 언어로 추측하지 않는다(4.2 응답·4.13도 같다).
 
 **`pending_consents`** — 기존 계정이라도 약관이 개정됐으면 재동의가 필요한 항목이 담긴다. 판정은 **서버가 `consents`의 최신 버전과 그 사용자 시장의 현행 버전을 비교해서** 한다. 클라이언트가 보낸 버전을 신뢰하지 않는다(`auth.md` 7). 재동의는 `/users/me/consents`로 처리한다.
 
