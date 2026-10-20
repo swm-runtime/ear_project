@@ -651,9 +651,12 @@ export class ContentService {
    * `content_id`가 유지돼야 `library_items` · `playback_progresses` · `content_stats`의
    * 참조가 끊기지 않는다(회수 후 재업로드로는 이걸 지킬 수 없다).
    *
-   * `content_version`은 **바뀐 파트와 무관하게 1 오른다.** 메타만 바꿔도 올리는 이유는
-   * 클라이언트의 재발행 판정(`player.md` 7 · `player-api.md` 4.2)이 이 값 하나만 보기
-   * 때문이다 — 어떤 파트가 바뀌었는지는 클라이언트가 알 수 없고 알 필요도 없다.
+   * `content_version`은 **오디오(`audioPath`)를 바꿀 때만 1 오른다**(KAN-236, 2026-10-20).
+   * 이 값은 "같은 초가 같은 내용인가"의 표지다 — 클라이언트는 버전이 바뀌면 재생 중 세션
+   * 위치를 0으로 폐기하고(`player-api.md` 4.2·4.3), 저장 경로는 낡은 버전의 저장을 버린다.
+   * 썸네일·제목·설명·출처·주제만 바꾸면 오디오와 대본 시각이 그대로라 올릴 이유가 없고,
+   * 올리면 듣던 사람의 위치가 헛되이 0으로 돌아간다. 버전이 그대로이므로 임베딩·대본도
+   * 손대지 않아도 현재 버전과 일치한 채 남는다(`has_current_embedding` 유지).
    *
    * 저장소 업로드는 호출부(admin)가 트랜잭션 밖에서 끝내고 `audioPath`를 넘긴다(`publish`와 같다).
    */
@@ -680,26 +683,16 @@ export class ContentService {
     if (command.thumbnailUrl !== undefined) {
       content.thumbnailUrl = command.thumbnailUrl;
     }
-    const previousVersion = content.contentVersion;
-    content.contentVersion += 1;
+    if (command.audioPath !== undefined) {
+      /**
+       * 오디오가 바뀌면 대본도 바뀌었을 수 있다 — 버전을 올려 임베딩을 "재발행 후 미갱신"으로
+       * 남긴다. 같은 요청에 추천 메타 파일이 있으면 호출부의 `applyEnrichment`가 새 버전으로
+       * 덮어쓴다.
+       */
+      content.contentVersion += 1;
+    }
 
     const [saved] = await this.contentRepository.saveAll([content], manager);
-
-    /**
-     * 오디오가 그대로면 대본도 그대로다 — 임베딩을 새 버전으로 승계한다. 승계하지 않으면
-     * 썸네일·제목만 바꿔도 임베딩이 "재발행 후 미갱신"으로 축에서 빠진다(2026-10-13 운영
-     * 실측: 발행 56편 전부 버전 불일치 → 임베딩 축·취향 벡터·MMR이 통째로 꺼져 있었다).
-     * 오디오를 바꾸면 대본이 바뀌었을 수 있으므로 종전대로 미갱신 처리하고, 같은 요청에
-     * 추천 메타 파일이 있으면 호출부의 `applyEnrichment`가 새 버전으로 덮어쓴다.
-     */
-    if (command.audioPath === undefined) {
-      await this.contentEmbeddingRepository.carryVersionForward(
-        saved.id,
-        previousVersion,
-        saved.contentVersion,
-        manager,
-      );
-    }
 
     // 넘어온 목록은 **전체 교체**다. 지우고 다시 넣어야 빠진 항목이 남지 않는다
     if (command.topicIds !== undefined) {
