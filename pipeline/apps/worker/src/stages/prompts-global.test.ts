@@ -104,11 +104,11 @@ test("발음 등재 추가 — 한국판 종전 그대로, 글로벌판은 빈 �
   assert.deepEqual(addPronunciations({ Hanbok: "", jeong: "jung" }, [{ term: "hanbok", reading: "hahn-bok" }, { term: "Jeong", reading: "WRONG" }, { term: " nunchi ", reading: "" }], "en"), { Hanbok: "hahn-bok", jeong: "jung", nunchi: "" });
 });
 
-test("글로벌 규칙 자산 — 버전 라벨 full-en-v0.19, 모델에 가는 본문에 한글이 없고 규칙 50개, 템플릿 문서와 같은 슬롯", async () => {
+test("글로벌 규칙 자산 — 버전 라벨 full-en-v0.20, 모델에 가는 본문에 한글이 없고 규칙 50개, 템플릿 문서와 같은 슬롯", async () => {
   const { versionOf } = await import("../assets.js");
   const root = path.resolve(import.meta.dirname, "../../../../../docs/ai/global");
   const g = await fs.readFile(path.join(root, "skills/draft/guidelines.gpt.md"), "utf8");
-  assert.equal(versionOf("skills/draft/guidelines.gpt.md", g), "full-en-v0.19");
+  assert.equal(versionOf("skills/draft/guidelines.gpt.md", g), "full-en-v0.20");
   assert.equal(versionOf("skills/draft/guidelines.md", "# x\n\n> 현행 버전: **full-v9.10**"), "full-v9.10"); // 한국판 라벨 그대로
   const body = P.promptBody(g);
   assert.doesNotMatch(body, HANGUL);
@@ -289,5 +289,16 @@ test("글로벌 골드 자산 — gold@ 라벨, 대본 줄 문법, 한글 없음
     assert.equal(versionOf(`skills/draft/examples/gold-en-${n}.md`, g), "gold@2026-10-20");
     assert.match(g, /^\[[A-Za-z-]+\] E1 · /m);
     assert.doesNotMatch(g, HANGUL);
+  }
+});
+
+test("글로벌 골드 두 편은 지금 L0 문체 검사를 통과한다 — 골드의 형식이 대본으로 옮겨 간다(v0.20)", async () => {
+  process.env.PIPELINE_LOCALE = "en";
+  const { enStyleViolations } = await import("./draft-two-stage.js");
+  const { parseScriptForTts } = await import("../tts/script.js");
+  const root = path.resolve(import.meta.dirname, "../../../../../docs/ai/global");
+  for (const n of [1, 2]) {
+    const g = await fs.readFile(path.join(root, `skills/draft/examples/gold-en-${n}.md`), "utf8");
+    assert.deepEqual(enStyleViolations(parseScriptForTts(g.slice(g.indexOf("---") + 3)).turns), [], `gold-en-${n}`);
   }
 });
