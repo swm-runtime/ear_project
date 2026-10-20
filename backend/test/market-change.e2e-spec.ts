@@ -10,6 +10,7 @@ import { DataSource } from 'typeorm';
 
 import { AppModule } from '@/app.module';
 import { traceIdMiddleware } from '@/common/middlewares/trace-id.middleware';
+import { toServiceDayRange } from '@/common/utils/service-date.util';
 import {
   ContentLanguage,
   ContentOrigin,
@@ -297,6 +298,58 @@ describe('시장 전환 E2E', () => {
     expect(
       (blocked.body as { retry_after_sec: number }).retry_after_sec,
     ).toBeGreaterThan(0);
+    expect(await userRow(userId)).toMatchObject({ market: 'kr' });
+  }, 60_000);
+
+  it('어제 바꾼 것을 오늘 되돌려도 오늘의 1회는 남는다 — 되돌리기는 하루 1회에 세지 않는다', async () => {
+    const { auth, userId } = await createKrUser('revert-next-day');
+
+    // 어제(서비스 날짜) KR→GLOBAL — 이력 시각을 오늘 05:00 경계 직전으로 옮긴다
+    const first = await change(auth, 'en', HttpStatus.OK);
+    const { start } = toServiceDayRange(new Date());
+    await dataSource.query(
+      `UPDATE user_market_changes SET changed_at = $2 WHERE user_id = $1`,
+      [userId, new Date(start.getTime() - 60 * 60 * 1000)],
+    );
+
+    // 오늘 재온보딩 전에 되돌린다 — 되돌리기 예외로 200
+    const reverted = await change(
+      `Bearer ${first.access_token}`,
+      'ko',
+      HttpStatus.OK,
+    );
+    const krAuth = `Bearer ${reverted.access_token}`;
+
+    // 오늘의 첫 전환 — 되돌리기는 세지 않으므로 통과한다(종전엔 되돌리기 행이 세져 429였다)
+    expect(await preview(krAuth, 'en')).toMatchObject({
+      available: true,
+      retry_after_sec: null,
+    });
+    const second = await change(krAuth, 'en', HttpStatus.OK);
+    const globalAuth = `Bearer ${second.access_token}`;
+
+    // 그 전환을 재온보딩 전에 되돌리는 것도 예외다
+    const revertedAgain = await change(globalAuth, 'ko', HttpStatus.OK);
+    const krAuth2 = `Bearer ${revertedAgain.access_token}`;
+
+    // 되돌리기를 다시 되돌리는 것은 오늘 두 번째 전환이다 — 429
+    const blocked = await request(app.getHttpServer())
+      .post(path('/users/me/market-change'))
+      .set('Authorization', krAuth2)
+      .send({
+        preferred_language: 'en',
+        consents: await agreedConsents(krAuth2, 'en'),
+      })
+      .expect(HttpStatus.TOO_MANY_REQUESTS);
+    expect(blocked.body).toMatchObject({
+      error_code: 'MARKET_CHANGE_COOLDOWN',
+    });
+    expect(await changeRows(userId)).toEqual([
+      { from_market: 'kr', to_market: 'global', is_revert: false },
+      { from_market: 'global', to_market: 'kr', is_revert: true },
+      { from_market: 'kr', to_market: 'global', is_revert: false },
+      { from_market: 'global', to_market: 'kr', is_revert: true },
+    ]);
     expect(await userRow(userId)).toMatchObject({ market: 'kr' });
   }, 60_000);
 

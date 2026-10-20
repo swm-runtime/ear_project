@@ -26,13 +26,18 @@ export class UserMarketChangeRepository {
     });
   }
 
-  async countByUserIdSince(
+  /**
+   * `since` 이후 전환 중 하루 1회에 세는 것 — 되돌리기(`is_revert`)는 쿨다운에서 뺀다(`global-api.md` 4.11). 어제 바꾼 것을
+   * 오늘 되돌린 사용자가 오늘의 1회를 잃지 않게.
+   */
+  async countNonRevertByUserIdSince(
     userId: string,
     since: Date,
     manager?: EntityManager,
   ): Promise<number> {
     return this.scoped(manager).countBy({
       userId,
+      isRevert: false,
       changedAt: MoreThanOrEqual(since),
     });
   }
