@@ -6,7 +6,7 @@ import { DRIP_ARRIVAL_PUSH_TTL_MIN_SEC } from '../notification.constant';
  *
  * 다음 배치 시각은 호출부(편성 배치)가 그룹 기준으로 정해 넘긴다(2026-10-15) — 종전에는 여기서 "다음 05:00 KST"로
  * 고정해, 현지 07:00이 KST 21~22시인 americas 그룹 알림은 7~8시간 만에 만료됐다
- * (`changes/pending/drip-timezone-groups.md`).
+ * (`changes/archive/drip-timezone-groups.md` · 반영 2026-10-15).
  * 하한은 배치 소요 시간 안에 만료되지 않게 둔다.
  */
 export function ttlUntilNextDripBatchSec(nextBatchAt: Date, now: Date): number {

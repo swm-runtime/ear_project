@@ -118,7 +118,7 @@ export type PlanCountCache = Map<UserTier, PlanCounts>;
 @Injectable()
 export class DripBatchOrchestrator {
   private readonly logger = new Logger(DripBatchOrchestrator.name);
-  /** 자동 확장 서버 스위치 — 명시값이 없으면 운영에서만 꺼진다(`env.validation.ts` 주석) */
+  /** 자동 확장 서버 스위치(`AUTO_EXPAND_ENABLED`) — `true`를 명시했을 때만 켜진다. 비었거나 `false`면 꺼짐(`env.validation.ts` 주석) */
   private readonly autoExpandEnabled: boolean;
   /** 시간대 그룹 스위치(`DRIP_TIMEZONE_GROUPS_ENABLED`) — 꺼져 있으면 전원이 기본 그룹(05:00 KST)이다 */
   private readonly timezoneGroupsEnabled: boolean;

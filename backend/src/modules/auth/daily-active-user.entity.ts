@@ -4,7 +4,7 @@ import { BaseEntity } from '@/database/base.entity';
 import { UserMarket } from '@/modules/user/user.enum';
 
 /**
- * KST 달력일·시장별 **접속자 수**(domain.md 3.3-1 신설 요청 — `changes/pending/insights-daily-active-users.md`, 2026-10-18).
+ * KST 달력일·시장별 **접속자 수**(domain.md 3.3-1 신설 요청 — `changes/archive/insights-daily-active-users.md`, 2026-10-18 · 반영 2026-10-19).
  * 서비스 지표의 일별 접속자·요일별 평균이 읽는다.
  *
  * "접속자"는 그날(KST 00:00~24:00) `sessions.issued_at`이 하나라도 있는 사용자다 — 서비스 지표의 `active_1d/7d/30d`와 같은 신호다

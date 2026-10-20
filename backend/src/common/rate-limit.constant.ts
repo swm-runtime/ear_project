@@ -1,6 +1,6 @@
 /**
  * 레이트 리밋 수치 — `architecture.md` 9.6의 초기값
- * (`changes/pending/rate-limit-numbers.md`, 2026-09-09 코드 선반영).
+ * (`changes/archive/rate-limit-numbers.md`, 2026-09-09 코드 선반영 · 문서 반영 2026-09-09).
  *
  * 전부 **분당** 한도이며 인메모리 저장이다. 수치 조정은 이 상수 + 9.6 표 갱신으로 한다.
  *

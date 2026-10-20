@@ -4,7 +4,7 @@ import { BaseEntity } from '@/database/base.entity';
 import { User } from '@/modules/user/entities/user.entity';
 
 /**
- * 사용자가 앱을 연 **KST 달력일**(domain.md 3.3-2 신설 요청 — `changes/pending/insights-retention-cohorts.md`, 2026-10-18).
+ * 사용자가 앱을 연 **KST 달력일**(domain.md 3.3-2 신설 요청 — `changes/archive/insights-retention-cohorts.md`, 2026-10-18 · 반영 2026-10-19).
  * 서비스 지표의 코호트 리텐션(D1·D7·W1~W4)이 읽는다.
  *
  * "앱을 열었다"는 `daily_active_users`와 같은 신호다 — 그날 `sessions.issued_at`이 하나라도 있으면 한 행. 세션 행은 30일 뒤
