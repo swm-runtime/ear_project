@@ -2,7 +2,7 @@
 
 | 항목 | 값 |
 |---|---|
-| 대상 문서 | `spec/api/global-api.md` 4.9(payload 문단 "1단계는 선택" · 3장 표 10행) · `spec/api/admin-api.md` 4.6 업로드 payload 예시의 `market` 주석(178행 부근) |
+| 대상 문서 | `spec/api/global-api.md` 4.9(payload 문단 "1단계는 선택" · 제목 · 221행 주제 필드) · 3장 표 10행 · `spec/api/admin-api.md` 4.6 업로드 payload 예시의 `market` 주석(178행 부근) |
 | 요청 파트 | 백엔드 — 박준현 |
 | 발행 날짜 | 2026-10-19 |
 | 시작 날짜 | 2026-10-19 |
@@ -24,10 +24,18 @@
 - 재발행(`PATCH /admin/contents/:id`)은 그대로다. 시장은 바뀌지 않고 payload에 `market`을 받지 않는다.
 - 주제 생성(`POST /admin/topics`)의 `market`도 그대로 선택이다. 바꿀 대상이 아니다.
 
+**추가(2026-10-20 i18n 검증)**
+
+- **재발행 경로 정정** — `global-api.md` 3장 표 10행 "메서드·경로" 칸과 4.9 제목이 `POST /admin/contents/:id/republish`로 적혀 있다. 실제 경로는 **`PATCH /admin/contents/:contentId`** 다(`backend/src/modules/admin/admin.controller.ts` 442행 `@Patch('contents/:contentId')` · `republishContent`). 두 곳을 `PATCH /admin/contents/:contentId`(재발행)로 바꾼다. 재발행 payload(`RepublishContentRequestDto` — `title`·`description`·`source_name`·`topic_ids`·`sources`)는 `market`·`language`를 받지 않는다. 그러므로 10행 "변경" 칸의 "payload `market`·`language` **필수**"는 **업로드(`POST /admin/contents`)에만** 걸린다고 적는다.
+- **주제 필드 필수 전환 문장 삭제** — `global-api.md` 221행 "두 필드(주제 `market`·`slug`)의 필수 전환은 발행 계약 필수 전환(KAN-190 2단계)과 같은 때 한다"를 지운다. 이 요청 자체가 "주제 생성의 `market`은 그대로 선택"으로 정했고(위 줄), 코드도 선택이다(`admin/dto/create-topic-request.dto.ts` 37행 `market?`). 221행 앞부분의 "`market`(1단계 선택 — 없으면 `kr`)"도 "`market`(선택 — 없으면 `kr`)"로 줄인다.
+
 ## 완료 조건
 
 - Given `global-api.md` 4.9·`admin-api.md` 4.6 / When 업로드 payload 설명을 읽는다 / Then `market`·`language`가 필수이고 누락 시 400(`field`)이라고 적혀 있다
+- Given `global-api.md` 3장 10행·4.9 제목 / Then 재발행 경로가 `PATCH /admin/contents/:contentId`이고, "필수"가 업로드에만 걸린다
+- Given `global-api.md` 4.9 주제 생성 줄 / Then 주제 `market`·`slug`의 필수 전환 언급이 없다
 
 ## 처리 기록
 
 - 2026-10-19 발행. 코드: `UploadContentRequestDto`에서 `@IsOptional`을 없앴고, 컨트롤러의 `?? kr/ko` 기본값도 없앴다. 단위 테스트(누락 시 해당 필드 거부)와 E2E(`series.e2e-spec.ts` — 누락 시 400 `field: market`/`language`)로 확인했다.
+- 2026-10-20 i18n 검증으로 대상 추가/정정 — 재발행 경로(`PATCH /admin/contents/:contentId`, market·language 받지 않음)와 4.9 221행 주제 필수 전환 문장 삭제를 더했다(BE — 브랜치 `docs(be)/i18n-audit-change-requests`).
