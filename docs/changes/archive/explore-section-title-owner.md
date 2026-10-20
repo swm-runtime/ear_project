@@ -32,3 +32,4 @@ FE는 2.3 을 따랐다 — 아는 세 종류(`interest`·`new`·`popular`)의 �
 ## 처리 기록
 
 - 2026-10-19 발행. FE 반영은 PR `fix(fe)/explore-section-titles-i18n`(같은 PR에서 `explore-uiux.md` 4.1·6장 개정).
+- 2026-10-20 반영(통합 — `docs(be)/apply-explore-section-title`). `explore-api.md` 4.1 `key`·`title` 두 행과 9장 "섹션 `key` enum의 확장"에 요청 1~3 문장을 넣었다. 코드 대조: FE `explore.section-title.ts` `resolveSectionTitle`(아는 종류만 앱 문구, 나머지 서버 `title`)·BE `explore.constant.ts` `EXPLORE_SECTION_TITLES` 유지 — 요청과 같다. 4(서버 제목 유지)는 `title` 행에 "옛 앱(1.2.x)이 그대로 그리므로 서버는 세 종류의 제목도 계속 채운다"로 적었다.
