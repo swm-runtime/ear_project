@@ -33,3 +33,4 @@
 ## 처리 기록
 
 - 2026-10-19 발행(BE — 서버 구현과 같은 PR).
+- 2026-10-20 반영(통합 — `docs(be)/apply-global-change-requests`). `common-error-handling.md` 9장의 시장 공통 절(9.2-1 — `MARKET_MISMATCH`와 같은 표)에 두 행과, 시장 전환 동의 오류(`CONSENT_REQUIRED`·`CONSENT_VERSION_STALE` — 미리보기 재조회) 설명 한 줄을 더했다. 코드 대조: `error-code.enum.ts` 두 값 · `market-change.orchestrator.ts` 409 `MARKET_UNAVAILABLE` · `user-market-change.service.ts` 429 `MARKET_CHANGE_COOLDOWN` + `retryAfterSec` — 요청과 같다.

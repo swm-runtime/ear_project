@@ -212,9 +212,12 @@ NetworkState  { reachable, connection_type }                        // 클라이
 | error_code | HTTP | retryable | 클라이언트 동작 |
 |---|---|---|---|
 | `MARKET_MISMATCH` | 409 | false | **정상 UI에서는 나오지 않는다** — 공통 문구("다시 시도해 주세요" 류 일반 오류 안내). 화면 전용 분기를 두지 않는다 |
+| `MARKET_UNAVAILABLE` | 409 | false | 옮겨 갈 시장이 지금 열려 있지 않다(노출 주제 0개 · GLOBAL 가입 닫힘 · 전환 스위치 꺼짐). 미리보기가 `blocked_reason: market_unavailable`로 먼저 알려 주므로 정상 UI에서는 드물다 — 선택지를 비활성으로 두고 안내 문구 |
+| `MARKET_CHANGE_COOLDOWN` | 429 | false | 같은 서비스 날짜(05:00 KST)에 두 번째 전환. 최상위 `retry_after_sec`가 다음 05:00까지 남은 초다 — 자동 재시도하지 않고 "내일 다시 바꿀 수 있어요" 류 안내 |
 
 - 신설 2026-10-14(KAN-189). 사용자 시장(`users.market`)과 다른 시장의 자원을 저장하려 할 때 낸다. 발생 지점: **GLOBAL 계정의 커리어 저장**(`onboarding-api.md` 4.4 — GLOBAL에는 커리어 단계가 없다) · **다른 시장 주제를 관심사로 저장**(`onboarding-api.md` 4.3 · `interest-management-api.md` 4.3 — 부분 저장 없음).
 - 다른 시장 **콘텐츠** ID로 직접 접근하는 경우는 이 코드가 아니라 404 `CONTENT_NOT_FOUND`(9.2)다 — 존재 여부를 구분해 알려주지 않는다(`global-api.md` 4.7).
+- `MARKET_UNAVAILABLE`·`MARKET_CHANGE_COOLDOWN`은 신설 2026-10-19(KAN-227) — 가입 뒤 시장 전환(`POST /users/me/market-change`, `global-api.md` 4.11)에서만 낸다. 시장 전환의 동의 오류는 기존 코드를 그대로 쓴다 — 400 `CONSENT_REQUIRED`(새 시장 필수 동의 누락) · 409 `CONSENT_VERSION_STALE`(현행과 다른 버전 → **미리보기를 다시 받는다**. 9.3의 가입 화면 재조회 대상과 다르다).
 
 ### 9.3 인증·계정 (`auth-api.md` 5장)
 
