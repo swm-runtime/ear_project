@@ -7,6 +7,7 @@ import { fmtTime } from "@/lib/format";
 import { SERIES_STATUS_LABEL, type SeriesRow } from "@/lib/series";
 import { SeriesEditor } from "./series-editor";
 import { SeriesPublish } from "./series-publish";
+import { SeriesThumb } from "./series-thumb";
 import { seriesPublishEpisodes } from "../actions";
 
 /** 시리즈 화면 (spec/11 9장, KAN-136) — 설계안 편집 · [승인](게이트 S) · 편별 진행 · [시리즈 중단] · [시리즈 발행]·[시리즈 회수](7장, 6단계) */
@@ -35,6 +36,7 @@ export default async function SeriesPage({ params }: { params: Promise<{ id: str
         </div>
       )}
       <Panel title="범위 (관리자 입력)" className="text-[13px] whitespace-pre-wrap">{s.scope_note ?? "-"}</Panel>
+      {!["cancelled", "withdrawn"].includes(s.status) && <SeriesThumb id={s.id} word={s.thumb_word ?? ""} label={s.thumb_label ?? ""} box={s.thumb_box ?? ""} hasBase={!!s.thumb_base_key} />}
       <SeriesEditor id={s.id} status={s.status} name={s.name} introLine={s.intro_line ?? ""} plan={Array.isArray(s.plan) ? s.plan : []} />
       {!planning && (
         <Panel title={`편 후보 (${eps?.length ?? 0}/${s.total_episodes ?? "-"})`} flush>

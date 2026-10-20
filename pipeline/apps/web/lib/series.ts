@@ -7,6 +7,18 @@ export interface SeriesRow {
   total_episodes: number | null; status: SeriesStatus; approved_by: string | null; approved_at: string | null; published_at: string | null; created_at: string; updated_at: string;
   /** 제품 series_id — [시리즈 발행]이 POST /admin/series 로 받은 값(KAN-134). 받기 전엔 null */
   published_series_id: string | null;
+  /** 시리즈 썸네일 글자 칸(0031, 2026-10-20) — 큰 단어는 이미지 모델이 바탕에 그리고, 라벨·박스는 코드가 얹는다. thumb_base_key = 바탕 그림 s3 키 */
+  thumb_word: string | null; thumb_label: string | null; thumb_box: string | null; thumb_base_key: string | null;
+}
+
+/** 썸네일 글자 칸 검증 — 큰 단어는 영문(손글씨로 그린다), 라벨·박스는 짧게(코드가 한 줄로 얹는다) */
+export function cleanSeriesThumb(v: { word: string; label: string; box: string }): { word: string; label: string; box: string; problems: string[] } {
+  const word = v.word.trim().toLowerCase(), label = v.label.trim().toUpperCase(), box = v.box.trim();
+  const problems: string[] = [];
+  if (!/^[a-z][a-z' -]{1,15}$/.test(word)) problems.push("큰 단어는 영문 2~16자다(손글씨로 그린다)");
+  if (label.length > 24) problems.push("라벨은 24자 이내다");
+  if (box.length > 12) problems.push("박스 글자는 12자 이내다");
+  return { word, label, box, problems };
 }
 export type SeriesStatus = "planning" | "approved" | "published" | "withdrawn" | "cancelled";
 export const SERIES_STATUS_LABEL: Record<SeriesStatus, string> = { planning: "기획 중", approved: "승인", published: "발행", withdrawn: "회수", cancelled: "중단" };

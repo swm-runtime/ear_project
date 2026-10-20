@@ -1,11 +1,12 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import { cfg, executedBy } from "../config.js";
-import { getBacklog, getEpisode, getSetting, insertRun, majorOfMidTopic, pool, setJobProgress, type Job } from "../db.js";
+import { getBacklog, getEpisode, getSeries, getSetting, insertRun, majorOfMidTopic, pool, setJobProgress, type Job } from "../db.js";
 import { pipelineLocale, promptBody } from "@ear/pipeline";
-import { THUMBNAIL_ANCHOR_PROMPT_KEY, THUMBNAIL_PROMPT_KEY, THUMBNAIL_SCENE_PROMPT_KEY, workerRev } from "../assets.js";
+import { SERIES_THUMBNAIL_PROMPT_KEY, THUMBNAIL_ANCHOR_PROMPT_KEY, THUMBNAIL_PROMPT_KEY, THUMBNAIL_SCENE_PROMPT_KEY, workerRev } from "../assets.js";
 import { makeExecutor } from "../executors/index.js";
 import { bookmarkFile, composeBookmark, composeCorner, cornerContrast } from "./thumbnail-compose.js";
+import { composeSeriesThumb, seriesCountText, seriesLogo } from "./thumbnail-series.js";
 import { buildScenePrompt, buildScenePromptEn, recentScenes, SCENE_FILE, SCENE_SCHEMA, type ThumbnailScene } from "./thumbnail-scene.js";
 import { advanceChain } from "../chain.js";
 import { exists, localPathOf, pullPrefix, pushPrefix, s3Key } from "../storage.js";
@@ -102,6 +103,12 @@ export async function runThumbnail(job: Job) {
 
   const progress = (detail: string) =>
     setJobProgress(job.id, { phase: "썸네일 생성", detail, elapsedMs: 0, toolCounts: {}, turns: 0 }).catch(() => {});
+
+  // 시리즈 편 — 시리즈 바탕 그림 한 장에 번호만 얹는다(2026-10-20, thumbnail-series.ts). 장면 경로를 타지 않는다
+  const sr = await pool.query("select series_id, series_no from public.backlog where id = $1", [backlogId]);
+  if (sr.rows[0]?.series_id) {
+    return runSeriesThumbnail({ job, episodeId, backlogId, rel, outFile, progress, seriesId: sr.rows[0].series_id as string, no: sr.rows[0].series_no as number, rebase: !!job.payload.rebase });
+  }
 
   // ── 슬롯 재료 ──
   const major = await majorOfMidTopic(cand.mid_topic);
@@ -227,6 +234,71 @@ async function runSceneThumbnail(a: {
   });
   const next = await advanceChain(a.job);
   return { episode_id: a.episodeId, thumbnail_key: key, bytes: png.length, model: cfg.thumbnailModel, anchor: false, scene: scene.scene, corner_delta_e: contrast, next: next?.type ?? null };
+}
+
+/**
+ * 시리즈 경로 (KAN-136, 2026-10-20) — 바탕 그림은 시리즈당 한 번(datasets/series/<id>/thumb-base.png, series.thumb_base_key), 편은 번호를,
+ * 표지(thumb-cover.png)는 편수를 코드로 얹는다. 바탕 생성은 시리즈 단위 advisory lock 안에서 한다 — 편 썸네일 작업이 동시에 돌아도 한 번만 그린다.
+ * payload.rebase = 바탕을 새로 그린다(시리즈 화면 [시리즈 썸네일 다시 만들기]는 thumb_base_key 를 비우고 편마다 작업을 건다 — 첫 작업만 그린다).
+ */
+async function runSeriesThumbnail(a: { job: Job; episodeId: string; backlogId: string; rel: string; outFile: string; progress: (detail: string) => Promise<unknown>; seriesId: string; no: number; rebase: boolean }) {
+  const s = await getSeries(a.seriesId);
+  if (!s) throw new Error(`시리즈 ${a.seriesId} 없음`);
+  if (!s.thumb_word?.trim()) throw new Error(`시리즈 "${s.name}" 썸네일 큰 단어(thumb_word)가 비었다 — 시리즈 화면에서 채운 뒤 [썸네일 다시 만들기]`);
+  const en = pipelineLocale() === "en";
+  const baseRel = `datasets/series/${a.seriesId}`;
+  const baseFile = path.join(cfg.workRoot, baseRel, "thumb-base.png");
+  const coverFile = path.join(cfg.workRoot, baseRel, "thumb-cover.png");
+  await fs.mkdir(path.dirname(baseFile), { recursive: true });
+
+  let generated: { version: string; ms: number; bytes: number } | null = null;
+  const client = await pool.connect();
+  try {
+    await client.query("select pg_advisory_lock(hashtext($1))", [`series-thumb:${a.seriesId}`]);
+    const cur = (await client.query("select thumb_base_key from public.series where id = $1", [a.seriesId])).rows[0]?.thumb_base_key as string | null;
+    if (cur && !a.rebase) await pullPrefix(`${baseRel}/`);
+    if (!cur || a.rebase || !(await exists(baseFile))) {
+      const asset = await loadAsset(SERIES_THUMBNAIL_PROMPT_KEY);
+      const titles = (Array.isArray(s.plan) ? (s.plan as { no: number; title: string }[]) : []).map((e) => `${e.no}. ${e.title}`).join(en ? "; " : " · ");
+      const prompt = fillSlots(promptBody(asset.content), en
+        ? { "{word}": s.thumb_word.trim(), "{series name}": s.name, "{intro}": s.intro_line ?? "", "{episode titles}": titles, "{topic}": s.mid_topic }
+        : { "{큰 단어}": s.thumb_word.trim(), "{시리즈 이름}": s.name, "{소개}": s.intro_line ?? "", "{편 제목들}": titles, "{분야}": s.mid_topic });
+      await a.progress(`${cfg.thumbnailModel} · ${cfg.thumbnailQuality} · 시리즈 바탕`);
+      const started = Date.now();
+      const png = await generateImage(prompt);
+      generated = { version: asset.version, ms: Date.now() - started, bytes: png.length };
+      await fs.writeFile(baseFile, png);
+      await pushPrefix(`${baseRel}/`);
+      await client.query("update public.series set thumb_base_key = $2 where id = $1", [a.seriesId, s3Key(`${baseRel}/thumb-base.png`)]);
+    }
+  } finally {
+    await client.query("select pg_advisory_unlock(hashtext($1))", [`series-thumb:${a.seriesId}`]).catch(() => undefined);
+    client.release();
+  }
+
+  await a.progress("번호·표지 합성");
+  const size = Number(String(cfg.thumbnailSize).split("x")[0]) || 1024;
+  const base = await fs.readFile(baseFile);
+  const text = { logo: seriesLogo(en), label: s.thumb_label ?? "", box: s.thumb_box ?? "" };
+  await fs.writeFile(a.outFile, await composeSeriesThumb(base, { ...text, no: a.no }, size));
+  // 표지 — 제품 시리즈 표지(서버가 표지를 받기 전까지는 앱이 1화 썸네일을 쓴다, KAN-134 후속)
+  if (s.total_episodes) await fs.writeFile(coverFile, await composeSeriesThumb(base, { ...text, no: null, count: seriesCountText(s.total_episodes, en) }, size));
+  await a.progress("S3 업로드");
+  await pushPrefix(`${a.rel}/`);
+  await pushPrefix(`${baseRel}/`);
+  const key = s3Key(`${a.rel}/thumbnail.png`);
+  await pool.query("update public.episodes set thumbnail_key = $2, updated_at = now() where id = $1", [a.episodeId, key]);
+
+  const cost = generated ? cfg.thumbnailUsdPerImage ?? PRICE_PER_IMAGE[cfg.thumbnailModel]?.[cfg.thumbnailQuality] ?? null : 0;
+  const result = `썸네일(시리즈) — ${s.name} ${a.no}화 · ${generated ? `바탕 새로 그림 ${cfg.thumbnailModel}/${cfg.thumbnailQuality} ${(generated.ms / 1000).toFixed(1)}초 · 프롬프트 ${generated.version}` : "바탕 재사용"} · 번호 ${String(a.no).padStart(2, "0")} 합성 · 사람 확인 대기`;
+  log(`  thumbnail ${a.episodeId}: ${key} (시리즈 ${a.no}화 · ${generated ? "바탕 생성" : "바탕 재사용"})`);
+  await insertRun({
+    backlog_id: a.backlogId, phase: "thumbnail", result, prompt_version: generated?.version ?? "seriesthumb (재사용)",
+    artifacts: [key, s3Key(`${baseRel}/thumb-base.png`), s3Key(`${baseRel}/thumb-cover.png`)], executed_by: executedBy,
+    model: generated ? cfg.thumbnailModel : null, cost_usd: cost, tokens: { images: generated ? 1 : 0, series_id: a.seriesId, no: a.no, bytes: generated?.bytes ?? 0 }, worker_rev: workerRev(),
+  });
+  const next = await advanceChain(a.job);
+  return { episode_id: a.episodeId, thumbnail_key: key, series_id: a.seriesId, no: a.no, base_generated: !!generated, next: next?.type ?? null };
 }
 
 /** 프롬프트의 진실은 DB 다 (spec/10 3.2) — git 사본으로 조용히 폴백하지 않는다. 시딩: npm run assets:import */
