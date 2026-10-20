@@ -35,3 +35,4 @@ global-api.md 는 표시 언어를 "앱 실행 때 기기 `locale`로 1차 판�
 
 - 2026-10-19 발행(FE — `feat(fe)/signup-language-unify`).
 - 2026-10-20 i18n 검증으로 대상 추가/정정 — 배경의 "시장 불변"을 "표시 언어를 바꿔도 시장은 바뀌지 않는다(시장 전환은 4.11)"로 정정. 2026-10-19에 가입 뒤 시장 전환이 생겨 "시장 불변"이 사실이 아니다(BE — 브랜치 `docs(be)/i18n-audit-change-requests`).
+- 2026-10-20 반영(통합 — `docs(be)/apply-global-change-requests`). `global-api.md` 4.1 표시 언어 서술 뒤에 1번 문장, 4.3 "왜"에 2번 문장을 넣었다. 대상 표의 3장 4행 "문제" 칸은 고칠 문장이 따로 없어 2번과 같은 뜻으로 "가입 뒤에 … (가입 때는 A21 선택으로 맞춘다 — 4.1)"로 한정했다. 3번(참고 — BE 판단)은 남기기로 하고 4.1 같은 문단에 한 줄로 적었다(`users.language_code`는 기기 값이라 표시 언어와 다를 수 있음 · 통계용 · 동작 영향 없음). 코드 대조: FE `useContentLanguageScreen.ts` `adoptSignupLanguage` — 요청 배경과 같다.

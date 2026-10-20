@@ -372,10 +372,10 @@ user_market_changes
 ```
 
 ```
-idx_user_market_changes_user_id_changed_at (user_id, changed_at DESC)
+idx_user_market_changes_user_id_changed_at (user_id, changed_at)
 ```
 
-- 시장 전환(`global-api.md` 4.11) 한 번에 한 행 — 되돌리기도 한 행이다. 쓰임은 셋이다 — **서비스 날짜당 1회 판정**(오늘 행이 있으면 막는다. 단 재온보딩을 끝내기 전 직전 시장으로 되돌리는 요청은 막지 않는다 — `UserMarketChangeService.judgeCooldown`. **되돌리기 행을 다시 되돌리는 것은 예외가 아니다**(`is_revert`) — 없으면 온보딩 중에 무한히 오갈 수 있다) · 일일 보고의 시장 전환 줄(`backend-monitoring.md` 3-4 — 되돌리기 행은 빼고 센다) · 문의 대응.
+- 시장 전환(`global-api.md` 4.11) 한 번에 한 행 — 되돌리기도 한 행이다. 쓰임은 셋이다 — **서비스 날짜당 1회 판정**(오늘 **되돌리기가 아닌** 행이 있으면 막는다 — 되돌리기는 횟수에 세지 않는다, `global-api.md` 4.11 · `countNonRevertByUserIdSince`. 단 재온보딩을 끝내기 전 직전 시장으로 되돌리는 요청은 막지 않는다 — `UserMarketChangeService.judgeCooldown`. **되돌리기 행을 다시 되돌리는 것은 예외가 아니다**(`is_revert`) — 없으면 온보딩 중에 무한히 오갈 수 있다) · 일일 보고의 시장 전환 줄(`backend-monitoring.md` 3-4 — 되돌리기 행은 빼고 센다) · 문의 대응.
 - `users.market`이 현재 값의 원천이고 이 표는 이력이다. 시장별 집계는 현재 값(`users.market`) 기준이다.
 - **탈퇴 시 함께 지운다**(CASCADE). 사람과 묶인 행동 기록이라 보존 근거가 없다 — `archived_*` 대상이 아니다. 시장별 탈퇴 집계는 `withdrawal_logs.market`이 맡는다.
 - 쓰고 나면 바꾸지 않는 이력 행이다(`created_at`·`updated_at`은 1.1 공통 그대로). `changed_at`은 전환 트랜잭션의 `now`로 `created_at`과 거의 같지만, 하루 1회 판정이 서비스 날짜 계산에 쓰는 업무 시각이라 따로 둔다(`consents.agreed_at`과 같은 이유).
@@ -640,7 +640,7 @@ fk_contents_series  series_id → series.id  ON DELETE RESTRICT   (2026-10-17 �
   - **두 조건을 한 곳에서만 조립한다**(탐색·검색·드립 후보가 같은 헬퍼를 쓴다). 개별 쿼리에서 재작성하면
     한쪽만 고쳐지는 순간 만료 콘텐츠가 그 경로로 새어 나간다.
   - 배치가 도는 것과 무관하게 필터가 먼저 막으므로 **둘 중 하나가 빠져도 노출되지 않는다** — 의도된 이중 방어다.
-- **시장 격리 — 노출 조건의 세 번째 항 `market = users.market`**(2026-10-14 — KAN-188, 마이그레이션 `1790000000000-AddCatalogMarket`). 노출 조건은 "published + 라이선스 유효 + `market = users.market`" 세 조건을 한 곳(`content.visibility.ts` `CONTENT_SCOPE_CONDITION`)에서만 조립한다. 목록류(탐색·검색·인기·최신·드립 후보·온보딩 추천·라이브러리 목록·주제별 건수·복원)는 이 조건을 SQL에 싣고, ID 단건 경로(상세·재생 시작·서명 URL·대본·탐색 담기·온보딩 담기)는 `ContentService.getPublishedById(…, market)`의 같은 판정을 쓴다 — 다른 시장 ID는 404 `CONTENT_NOT_FOUND`. 격리 누락은 데이터 유출로 본다(`global-api.md` 7장). 기존 행은 전부 `kr`/`ko`.
+- **시장 격리 — 노출 조건의 세 번째 항 `market = users.market`**(2026-10-14 — KAN-188, 마이그레이션 `1790000000000-AddCatalogMarket`). 노출 조건은 "published + 라이선스 유효 + `market = users.market`" 세 조건을 한 곳(`content.visibility.ts` `CONTENT_SCOPE_CONDITION`)에서만 조립한다. 목록류(탐색·검색·인기·최신·드립 후보·온보딩 추천·라이브러리 목록·주제별 건수)는 이 조건을 SQL에 싣고, ID 단건 경로(상세·재생 시작·서명 URL·대본·탐색 담기·온보딩 담기)는 `ContentService.getPublishedById(…, market)`의 같은 판정을 쓴다 — 다른 시장 ID는 404 `CONTENT_NOT_FOUND`. 격리 누락은 데이터 유출로 본다(`global-api.md` 7장). 기존 행은 전부 `kr`/`ko`.
   - 사용자 시장은 요청마다 `users`를 읽지 않고 **access token 클레임 `market`** 으로 전달한다. 클레임이 없는 옛 토큰은 `kr`. 시장 전환(`global-api.md` 4.11)은 응답에 새 access token을 주고, 같은 계정의 다른 기기는 다음 갱신(최대 30분)까지 이전 시장 클레임을 쓴다(같은 문서 7장의 예외).
 - `series_id` / `episode_no` / `total_episodes`는 `Episode` 테이블을 폐기하면서 흡수했다. 드립 스코어링의 시리즈 연속성 가점과 편성 순서 판정이 Content 단위 조회를 요구한다(`drip-scheduling.md` 4.2, 7).
 - 분할되지 않은 단일 콘텐츠는 `series_id = NULL`, `episode_no = NULL`이다. 조회 코드는 이 분기를 처리해야 한다.

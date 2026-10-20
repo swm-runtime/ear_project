@@ -140,7 +140,7 @@
 
 - `email` · `is_email_verified` **두 값을 함께 내려준다** — 미등록 / 미인증 / 인증됨 세 상태의 구분에 둘 다 필요하다(`settings.md` 3장). 상태 구분과 화면은 `profile.md` 4.3과 동일하다.
 - `is_admin`: `users.role = 'admin'` 판정 결과다(`domain.md` 3.1). **[관리자] 메뉴 섹션의 노출 판단 전용이다** — `true`면 메뉴 맨 아래에 관리자 섹션을 노출하고, 일반 계정에는 행 자체가 없다(`settings.md` 4.1). 접근 통제가 아니다(3장 설계 메모). `account` 섹션 조회가 실패하면 관리자 섹션은 **노출하지 않는다**(안전한 기본값 false).
-- `market` · `language_code` · `timezone`(추가 2026-10-14 — KAN-187, `global-api.md` 4.3): `market`은 `kr` \| `global`이며 **읽기 전용**이다(가입 시 1회 판정, 시장 전환 불허 — 화면은 표시만 한다). `language_code`(BCP 47)는 표시 언어로 4.2에서 바꾼다. `timezone`(IANA)은 가입·로그인(`auth-api.md` 4.1·4.2)과 기기 등록(`onboarding-api.md` 4.9)이 갱신한다. 구 앱 계정은 둘 다 `null`일 수 있다.
+- `market` · `language_code` · `timezone`(추가 2026-10-14 — KAN-187, `global-api.md` 4.3): `market`은 `kr` \| `global`이며 **읽기 전용**이다(가입 때 정한다. 이 엔드포인트로는 바꾸지 않는다 — 전환은 `POST /users/me/market-change`(`global-api.md` 4.11), 개정 2026-10-19 KAN-227). `language_code`(BCP 47)는 표시 언어로 4.2에서 바꾼다. `timezone`(IANA)은 가입·로그인(`auth-api.md` 4.1·4.2)과 기기 등록(`onboarding-api.md` 4.9)이 갱신한다. 구 앱 계정은 둘 다 `null`일 수 있다.
 - **닉네임·제공자는 내려주지 않는다.** 그 표시는 프로필이 담당한다(`settings.md` 3장). 설정 화면에는 프로필로 되돌아가는 계정 카드를 두지 않는다(`settings.md` 2장).
 
 **`plan`** — `profile-api.md` 4.1의 `plan`과 **같은 모양, 같은 조립 함수**를 쓴다. 두 화면이 다른 로직으로 조립하면 프로필과 설정의 구독 표시가 어긋난다.
@@ -194,7 +194,7 @@
 | is_auto_expand_enabled | boolean | 선택 | |
 | is_drip_notification_enabled | boolean | 선택 | |
 | preferred_audio_quality | `compressed` \| `aac` \| `lossless` \| `null` | 선택 | 그 밖의 값은 400. **허용 밖 음질도 저장한다**(잠금 해제 뒤 그대로 쓰이도록) — 재생은 서버가 깎는다. **`null`은 "고른 적 없음"으로 되돌린다**(자동 — 티어 허용 최고 선택지, 2026-10-06). `aac`는 받되 선택지가 아니라 화면이 보낼 일은 없다 |
-| language_code | string (BCP 47, ≤16자) | 선택 | **표시 언어 변경**(추가 2026-10-14 — KAN-187). `user_settings`가 아니라 `users.language_code`에 저장한다. **시장(`market`)은 바뀌지 않는다.** 형식이 아니면 400 `VALIDATION_FAILED` — 사용자가 고른 값이라 조용히 버리면 "바꿨는데 안 바뀌는" 화면이 된다. 서버 문구(푸시·인증 메일) 언어는 이 값이 아니라 `market`으로 고른다(`global-api.md` 2.3) |
+| language_code | string (BCP 47, 입력 ≤64자) | 선택 | **표시 언어 변경**(추가 2026-10-14 — KAN-187). `user_settings`가 아니라 `users.language_code`에 저장한다. **시장(`market`)은 바뀌지 않는다.** 확장 subtag를 잘라낸 뒤(`auth-api.md` 4.1과 같은 규칙 — '기기 언어 따르기'가 확장 태그를 보내도 통과한다) 형식이 아니면 400 `VALIDATION_FAILED` — 사용자가 고른 값이라 조용히 버리면 "바꿨는데 안 바뀌는" 화면이 된다. 서버 문구(푸시·인증 메일) 언어는 이 값이 아니라 `market`으로 고른다(`global-api.md` 2.3) |
 | client_seq | int | 필수 | 사용자별 설정 조작의 단조 증가 순번. 서버는 응답에 그대로 되돌린다 |
 
 - 설정 필드 네 개(`default_playback_rate` · `is_auto_expand_enabled` · `is_drip_notification_enabled` · `preferred_audio_quality`) 또는 `language_code` 중 **최소 하나**는 있어야 한다. 전부 없으면 400.
