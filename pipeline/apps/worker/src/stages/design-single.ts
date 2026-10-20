@@ -207,7 +207,11 @@ export async function runDesignSingle(a: { job: Job; ex: Executor; episodeId: st
     const answer = (o.axis_answer_claims ?? []).filter((id) => ids.has(id));
     const moments = (o.moment_claims ?? []).filter((id) => ids.has(id));
     const needMoment = cand.mid_topic !== "Korean Language";
-    const lack = [!answer.length && "축 질문에 답하는 claims 없음", needMoment && !moments.length && "사람의 순간 claims 없음"].filter(Boolean);
+    // full-en-v0.18 (11회차: 견해 claims 비율과 점수가 같이 움직였다 — 한복 14/24 44점 · 업어 주기 9/25 56점 · 돌잔치 3/30 60점) — 견해는 3분의 1까지, 축 답의 견해는 하나까지
+    const views = o.claims.filter((c) => c.opinion).length;
+    const answerViews = answer.filter((id) => o.claims.find((c) => c.id === id)?.opinion).length;
+    const lack = [!answer.length && "축 질문에 답하는 claims 없음", needMoment && !moments.length && "사람의 순간 claims 없음",
+      views * 3 > o.claims.length && `견해 claims 과다 ${views}/${o.claims.length}(3분의 1 초과)`, answerViews > 1 && `축 답 claims 중 견해 ${answerViews}개(하나까지)`].filter(Boolean);
     if (lack.length) await fail(`재료 부족 — ${lack.join(" · ")}. ${o.notes.replace(/\s+/g, " ").slice(0, 200)}`);
     o = { ...o, outline_md: setAxisAnswerLine(o.outline_md, answer) };
   }

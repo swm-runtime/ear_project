@@ -496,10 +496,10 @@ export function enStyleViolations(turns: ScriptTurn[]): string[] {
   // full-en-v0.15 (G261018-014): 낱말 목록 상한에 정확히 맞추고 목록 밖 "I hadn't considered"로 넷째가 나왔다 — 낱말 대신 1인칭(I·me·my)과 would 로 센다
   const firstPerson = (s: string) => /(?<![A-Za-z'’])I(?:['’](?:m|d|ve|ll))?(?![A-Za-z])/.test(s) || /\b(?:me|my|mine|would)\b/i.test(s);
   const hostSelf = turns.filter((t, i) => !isTemplate(i) && t.id?.startsWith("Y") && !t.text.includes("?") && firstPerson(t.text)).map(label);
-  if (hostSelf.length > 3) v.push(`${EN_STYLE_MARK} ${hostSelf.length} host turns that are not questions speak in the first person (I, me, my) or with "would" (${list(hostSelf)}) — at most three; vary the rest: a guess about the scene, a doubt, a short reaction to the detail (rule 9)`);
+  if (hostSelf.length > 3) v.push(`${EN_STYLE_MARK} ${hostSelf.length} host turns that are not questions speak in the first person (I, me, my) or with "would" (${list(hostSelf)}) — at most three; make the rest a guess about the scene or a doubt (rule 9)`);
   // full-en-v0.17 (G261019-001·G261020-001·003, 9·10회차 연속): 1인칭을 막자 질문 아닌 진행 턴이 "That sounds like …"·"That feels …" 반응 틀로 굳었다 — 셋 이상이면 문체 위반(규칙 9)
   const hostSounds = turns.filter((t, i) => !isTemplate(i) && t.id?.startsWith("Y") && !t.text.includes("?") && /\b(?:sounds?|feels?|seems?)\b/i.test(t.text)).map(label);
-  if (hostSounds.length > 2) v.push(`${EN_STYLE_MARK} ${hostSounds.length} host turns that are not questions react with "sounds", "feels", or "seems" (${list(hostSounds)}) — at most two; vary the rest: a guess about the scene, a doubt, a short reaction to the detail (rule 9)`);
+  if (hostSounds.length > 2) v.push(`${EN_STYLE_MARK} ${hostSounds.length} host turns that are not questions react with "sounds", "feels", or "seems" (${list(hostSounds)}) — at most two; make the rest a guess about the scene or a doubt (rule 9)`);
   // 사례 틀 반복 (규칙 3, full-en-v0.15 — G261018-015 "one family's / another family's remembered …"가 턴마다 붙었다) — 셋 이상이면 문체 위반
   const caseFrame = turns.flatMap((t, i) => (!isTemplate(i) && expl(t) ? (t.text.match(/\b(?:one|another|a different) family['’]s\b|\bremembered\b/gi) ?? []).map(() => label(t)) : []));
   if (caseFrame.length > 2) v.push(`${EN_STYLE_MARK} the case frame "one family's" / "another family's" / "remembered" is used ${caseFrame.length} times (${list([...new Set(caseFrame)])}) — say who a case is about once, then tell the moment (rule 3)`);
@@ -511,8 +511,8 @@ export function enStyleViolations(turns: ScriptTurn[]): string[] {
   if (meta.length) v.push(`${EN_STYLE_MARK} planning or reading wording in lines (${list(meta)}) — say it in the speakers' own words (rule 36)`);
   // 해설자 질문 (규칙 15) — full-en-v0.14 (G261018-011·012, 006): 본문의 해설자 퀴즈를 편집자가 세 편째 역할 역전으로 짚었다 — Opening 에서 한 번만, 본문·클로징은 0
   const eQ = turns.filter((t, i) => !isTemplate(i) && expl(t) && t.text.includes("?"));
-  const eQOut = eQ.filter((t) => t.section !== zones.lead).map(label);
-  if (eQOut.length || eQ.length > 1) v.push(`${EN_STYLE_MARK} the explainer asks questions in ${eQ.length} turn${eQ.length > 1 ? "s" : ""} (${list(eQ.map(label))}) — at most one, in the Opening only; in the Body and the Closing the explainer asks nothing (rule 15)`);
+    // full-en-v0.18 (10회차 001 E1 · 11회차 006 E1 — Opening 의 해설자 질문도 역할 섞임): 상한 1 → 0
+  if (eQ.length) v.push(`${EN_STYLE_MARK} the explainer asks questions in ${eQ.length} turn${eQ.length > 1 ? "s" : ""} (${list(eQ.map(label))}) — the explainer asks nothing in any zone; questions belong to the host (rule 15)`);
   // 안내문 말투 (규칙 1, full-en-v0.14 — G261018-010·011: 출처를 지우자 지침의 "are instructed to"·안내서의 "should" 가 해설자 목소리가 됐다) — 해설 턴의 규범형이 셋 이상이면 문체 위반
   const norm = turns.flatMap((t, i) => (!isTemplate(i) && expl(t) ? (t.text.match(/\b(?:should|shouldn't|are (?:instructed|required|expected|told) to|must)\b/gi) ?? []).map(() => label(t)) : []));
   if (norm.length > 2) v.push(`${EN_STYLE_MARK} explainer turns tell the listener what to do ("should", "are instructed to", "must") ${norm.length} times (${list([...new Set(norm)])}) — describe what people do in that place or on that day, not what they should do (rule 1)`);
@@ -520,7 +520,7 @@ export function enStyleViolations(turns: ScriptTurn[]): string[] {
   if (bodyY.length >= 6) {
     const q = bodyY.filter((t) => t.text.includes("?")).length;
     const r = q / bodyY.length;
-    if (r < 0.5 || r > 2 / 3) v.push(`${EN_STYLE_MARK} ${q} of ${bodyY.length} Body host turns are questions (${Math.round(r * 100)}%) — between half and two-thirds are questions; the rest are guesses, doubts, or reactions (rule 9)`);
+    if (r < 0.5 || r > 2 / 3) v.push(`${EN_STYLE_MARK} ${q} of ${bodyY.length} Body host turns are questions (${Math.round(r * 100)}%) — between half and two-thirds are questions; the rest are guesses or doubts (rule 9)`);
   }
   return v;
 }
