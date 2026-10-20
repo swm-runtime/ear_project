@@ -1267,6 +1267,121 @@ describe('AdminContentService', () => {
     });
   });
 
+  describe('GLOBAL 콘텐츠의 target_audiences 거부(global-api.md 4.9 · admin-api.md 4.6·4.10)', () => {
+    const ENRICHMENT_WITH_AUDIENCES = {
+      schema_version: 2,
+      difficulty: 'beginner',
+      target_audiences: [{ job_category: '개발', years_of_experience: '2-3' }],
+    };
+    const GLOBAL_PUBLISHED = {
+      id: CONTENT_ID,
+      status: ContentStatus.PUBLISHED,
+      origin: ContentOrigin.AI_GENERATED,
+      contentVersion: 2,
+      audioPath: 'audio/old.mp3',
+      thumbnailUrl: `${CDN_BASE_URL}/thumb/old.png`,
+      market: UserMarket.GLOBAL,
+    };
+    const REJECTED = {
+      status: 400,
+      errorCode: ErrorCode.VALIDATION_FAILED,
+      message: '글로벌 콘텐츠에는 target_audiences를 넣지 않아요',
+      details: { field: 'target_audiences' },
+    };
+
+    it('업로드 — GLOBAL에 target_audiences가 있으면 파일을 올리기 전에 400', async () => {
+      // given — GLOBAL 주제·언어로 시장 일관성은 통과한다
+      topicService.findAllByIds.mockResolvedValue([
+        { id: TOPIC_ID, name: 'Career', market: UserMarket.GLOBAL } as Topic,
+      ]);
+      const command = buildCommand({
+        market: UserMarket.GLOBAL,
+        language: ContentLanguage.EN,
+        enrichment: buildEnrichmentFile(ENRICHMENT_WITH_AUDIENCES),
+      });
+
+      // when / then
+      await expect(service.upload(command, NOW)).rejects.toMatchObject(
+        REJECTED,
+      );
+      expect(storage.putAudio).not.toHaveBeenCalled();
+      expect(contentService.publish).not.toHaveBeenCalled();
+    });
+
+    it('재발행 — GLOBAL에 target_audiences가 있으면 파일을 올리기 전에 400', async () => {
+      // given
+      contentService.getById.mockResolvedValue(GLOBAL_PUBLISHED as never);
+      const command = buildRepublishCommand({
+        enrichment: buildEnrichmentFile(ENRICHMENT_WITH_AUDIENCES),
+      });
+
+      // when / then
+      await expect(service.republish(command)).rejects.toMatchObject(REJECTED);
+      expect(storage.putAudio).not.toHaveBeenCalled();
+      expect(contentService.republish).not.toHaveBeenCalled();
+      expect(contentService.applyEnrichment).not.toHaveBeenCalled();
+    });
+
+    it('추천 메타 단독 재발행 — GLOBAL에 target_audiences가 있으면 400이고 메타를 반영하지 않는다', async () => {
+      // given
+      contentService.getByIdForUpdate.mockResolvedValue(
+        GLOBAL_PUBLISHED as never,
+      );
+      const command = buildRepublishCommand({
+        audio: null,
+        enrichment: buildEnrichmentFile(ENRICHMENT_WITH_AUDIENCES),
+      });
+
+      // when / then
+      await expect(service.republish(command)).rejects.toMatchObject(REJECTED);
+      expect(contentService.applyEnrichment).not.toHaveBeenCalled();
+      expect(auditLogService.record).not.toHaveBeenCalled();
+    });
+
+    it('KR이면 target_audiences를 그대로 반영한다 — 업로드·추천 메타 단독 재발행', async () => {
+      // given
+      contentService.getByIdForUpdate.mockResolvedValue({
+        ...GLOBAL_PUBLISHED,
+        market: UserMarket.KR,
+      } as never);
+      const expected = containing({
+        targetAudiences: [{ jobCategory: '개발', yearsOfExperience: '2-3' }],
+      });
+
+      // when
+      await service.upload(
+        buildCommand({
+          enrichment: buildEnrichmentFile(ENRICHMENT_WITH_AUDIENCES),
+        }),
+        NOW,
+      );
+      const republished = await service.republish(
+        buildRepublishCommand({
+          audio: null,
+          enrichment: buildEnrichmentFile(ENRICHMENT_WITH_AUDIENCES),
+        }),
+      );
+
+      // then
+      expect(contentService.applyEnrichment).toHaveBeenCalledTimes(2);
+      expect(contentService.applyEnrichment).toHaveBeenNthCalledWith(
+        1,
+        containing({ id: CONTENT_ID }),
+        expected,
+        NOW,
+        manager,
+      );
+      expect(contentService.applyEnrichment).toHaveBeenNthCalledWith(
+        2,
+        containing({ contentVersion: 2 }),
+        expected,
+        expect.any(Date),
+        manager,
+      );
+      expect(republished.enrichment?.applied).toBe(true);
+    });
+  });
+
   describe('republish', () => {
     it('오디오만 보내면 같은 행의 경로·길이를 갈아끼우고 버전을 올린 뒤 이전 파일을 지운다', async () => {
       // when

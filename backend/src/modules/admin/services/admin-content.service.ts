@@ -154,18 +154,7 @@ export class AdminContentService {
     if (seriesEpisode) {
       await this.seriesService.assertEpisodeUploadable(seriesEpisode);
     }
-    // GLOBAL에는 채울 값이 없는 KR 직군 enum이다 — 있으면 조용히 버리지 않고 거부한다(global-api.md 4.9)
-    if (
-      command.market === UserMarket.GLOBAL &&
-      enrichment?.data?.targetAudiences !== undefined
-    ) {
-      throw new BusinessException({
-        status: HttpStatus.BAD_REQUEST,
-        errorCode: ErrorCode.VALIDATION_FAILED,
-        message: '글로벌 콘텐츠에는 target_audiences를 넣지 않아요',
-        details: { field: 'target_audiences' },
-      });
-    }
+    this.assertNoGlobalTargetAudiences(command.market, enrichment);
 
     const probed = await this.probeRenditions(renditionFiles);
     const durationSec = probed[0].metadata.durationSec;
@@ -378,6 +367,8 @@ export class AdminContentService {
     // 파일을 올리기 전에 막는다 — 200MB를 다 받아 저장한 뒤 409를 주는 건 낭비다
     const target = await this.contentService.getById(command.contentId);
     this.assertRepublishable(target);
+    // 재발행의 enrichment_file 도 업로드와 같은 규격이다(admin-api.md 4.10 → 4.6) — 파일을 올리기 전에 막는다
+    this.assertNoGlobalTargetAudiences(target.market, enrichment);
     this.validateSourceReplacement(target, command.sources);
 
     if (command.topicIds) {
@@ -625,6 +616,8 @@ export class AdminContentService {
         manager,
       );
       this.assertRepublishable(current);
+      // 추천 메타 단독 재발행도 업로드와 같은 규격이다(admin-api.md 4.10 → 4.6)
+      this.assertNoGlobalTargetAudiences(current.market, enrichment);
 
       if (enrichment?.data) {
         await this.contentService.applyEnrichment(
@@ -729,6 +722,27 @@ export class AdminContentService {
       this.logger.warn('enrichment file rejected', {
         content_id: contentId,
         reason: enrichment.rejectedReason,
+      });
+    }
+  }
+
+  /**
+   * GLOBAL에는 채울 값이 없는 KR 직군 enum이다 — 있으면 조용히 버리지 않고 거부한다(global-api.md 4.9).
+   * 업로드(4.6)·재발행(4.10)·추천 메타 단독 재발행이 같은 판정을 쓴다 — 4.10 `enrichment_file`은 "규격·검증은 4.6과 같다".
+   */
+  private assertNoGlobalTargetAudiences(
+    market: UserMarket | null | undefined,
+    enrichment: EnrichmentParseResult | null,
+  ): void {
+    if (
+      market === UserMarket.GLOBAL &&
+      enrichment?.data?.targetAudiences !== undefined
+    ) {
+      throw new BusinessException({
+        status: HttpStatus.BAD_REQUEST,
+        errorCode: ErrorCode.VALIDATION_FAILED,
+        message: '글로벌 콘텐츠에는 target_audiences를 넣지 않아요',
+        details: { field: 'target_audiences' },
       });
     }
   }
