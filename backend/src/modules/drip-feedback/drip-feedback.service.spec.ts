@@ -4,6 +4,7 @@ import {
   LibraryItemSource,
   LibraryItemStatus,
 } from '@/modules/library/library.enum';
+import { UserMarket } from '@/modules/user/user.enum';
 
 import { DripFeedbackService } from './drip-feedback.service';
 
@@ -85,7 +86,7 @@ describe('DripFeedbackService', () => {
 
   describe('getPrompt', () => {
     it('오늘 전의 가장 최근 정규 편성분(어제) 2편을 한 팝업으로 묻는다 — 그 날짜 구간으로 조회한다', async () => {
-      const view = await service.getPrompt(USER_ID, NOW);
+      const view = await service.getPrompt(USER_ID, UserMarket.KR, NOW);
 
       expect(view.show).toBe(true);
       expect(view.placedDate).toBe('2026-09-29');
@@ -104,13 +105,24 @@ describe('DripFeedbackService', () => {
       expect(end.toISOString()).toBe('2026-09-29T19:00:00.000Z');
     });
 
+    it('현재 시장으로 조회한다 — 이전 시장 편성분은 가장 최근 편성분 판정에도 팝업 항목에도 들어가지 않는다(global-api 4.7·4.11)', async () => {
+      await service.getPrompt(USER_ID, UserMarket.GLOBAL, NOW);
+
+      const [, , latestMarket] = libraryService.findLatestDripPlacedBefore.mock
+        .calls[0] as [string, Date, UserMarket];
+      expect(latestMarket).toBe(UserMarket.GLOBAL);
+      const [, , , placedMarket] = libraryService.findPlacedBetween.mock
+        .calls[0] as [string, Date, Date, UserMarket];
+      expect(placedMarket).toBe(UserMarket.GLOBAL);
+    });
+
     it('며칠 만에 열어도 쌓인 날짜마다 묻지 않는다 — 마지막 편성분(3일 전) 하나만', async () => {
       const threeDaysAgo = new Date('2026-09-26T19:05:00.000Z');
       libraryService.findLatestDripPlacedBefore.mockResolvedValue(
         item(C1, { addedAt: threeDaysAgo }),
       );
 
-      const view = await service.getPrompt(USER_ID, NOW);
+      const view = await service.getPrompt(USER_ID, UserMarket.KR, NOW);
 
       expect(view.placedDate).toBe('2026-09-27');
       const [, start] = libraryService.findPlacedBetween.mock.calls[0] as [
@@ -126,7 +138,7 @@ describe('DripFeedbackService', () => {
         dripFeedbackLastPromptedDate: '2026-09-29',
       });
 
-      const view = await service.getPrompt(USER_ID, NOW);
+      const view = await service.getPrompt(USER_ID, UserMarket.KR, NOW);
 
       expect(view).toEqual({
         show: false,
@@ -143,7 +155,7 @@ describe('DripFeedbackService', () => {
         dripFeedbackLastPromptedDate: '2026-09-22',
       });
 
-      const view = await service.getPrompt(USER_ID, NOW);
+      const view = await service.getPrompt(USER_ID, UserMarket.KR, NOW);
 
       expect(view.show).toBe(true);
       expect(view.placedDate).toBe('2026-09-29');
@@ -156,7 +168,7 @@ describe('DripFeedbackService', () => {
         dripFeedbackLastPromptedDate: '2026-09-23',
       });
 
-      const view = await service.getPrompt(USER_ID, NOW);
+      const view = await service.getPrompt(USER_ID, UserMarket.KR, NOW);
 
       expect(view).toEqual({
         show: false,
@@ -173,7 +185,7 @@ describe('DripFeedbackService', () => {
         createdAt: new Date('2026-09-28T01:00:00.000Z'),
       });
 
-      const view = await service.getPrompt(USER_ID, NOW);
+      const view = await service.getPrompt(USER_ID, UserMarket.KR, NOW);
 
       expect(view).toEqual({
         show: false,
@@ -190,7 +202,7 @@ describe('DripFeedbackService', () => {
         createdAt: new Date('2026-09-27T14:00:00.000Z'),
       });
 
-      const view = await service.getPrompt(USER_ID, NOW);
+      const view = await service.getPrompt(USER_ID, UserMarket.KR, NOW);
 
       expect(view.show).toBe(true);
     });
@@ -201,7 +213,7 @@ describe('DripFeedbackService', () => {
         item(C2, { status: LibraryItemStatus.COMPLETED }),
       ]);
 
-      const view = await service.getPrompt(USER_ID, NOW);
+      const view = await service.getPrompt(USER_ID, UserMarket.KR, NOW);
 
       expect(view.show).toBe(true);
       expect(view.items.map((i) => i.contentId)).toEqual([C1, C2]);
@@ -210,7 +222,7 @@ describe('DripFeedbackService', () => {
     it('편성분이 한 번도 없으면 묻지 않는다', async () => {
       libraryService.findLatestDripPlacedBefore.mockResolvedValue(null);
 
-      const view = await service.getPrompt(USER_ID, NOW);
+      const view = await service.getPrompt(USER_ID, UserMarket.KR, NOW);
 
       expect(view).toEqual({
         show: false,
@@ -226,7 +238,7 @@ describe('DripFeedbackService', () => {
         { contentId: C2 },
       ]);
 
-      const view = await service.getPrompt(USER_ID, NOW);
+      const view = await service.getPrompt(USER_ID, UserMarket.KR, NOW);
 
       expect(view.show).toBe(false);
       expect(view.items).toEqual([]);
@@ -239,7 +251,7 @@ describe('DripFeedbackService', () => {
       );
       libraryService.findPlacedBetween.mockResolvedValue([]);
 
-      const view = await service.getPrompt(USER_ID, NOW);
+      const view = await service.getPrompt(USER_ID, UserMarket.KR, NOW);
 
       expect(view).toEqual({
         show: false,
@@ -260,7 +272,7 @@ describe('DripFeedbackService', () => {
         }),
       );
 
-      const view = await service.getPrompt(USER_ID, NOW);
+      const view = await service.getPrompt(USER_ID, UserMarket.KR, NOW);
 
       expect(view.show).toBe(false);
       expect(view.items).toEqual([]);
@@ -274,7 +286,7 @@ describe('DripFeedbackService', () => {
         }),
       );
 
-      const view = await service.getPrompt(USER_ID, NOW);
+      const view = await service.getPrompt(USER_ID, UserMarket.KR, NOW);
 
       expect(view.show).toBe(true);
     });
@@ -286,7 +298,7 @@ describe('DripFeedbackService', () => {
         item(C2),
       ]);
 
-      const view = await service.getPrompt(USER_ID, NOW);
+      const view = await service.getPrompt(USER_ID, UserMarket.KR, NOW);
 
       expect(view.items.map((i) => i.contentId)).toEqual([C2]);
     });
@@ -297,7 +309,7 @@ describe('DripFeedbackService', () => {
         item(C2),
       ]);
 
-      const view = await service.getPrompt(USER_ID, NOW);
+      const view = await service.getPrompt(USER_ID, UserMarket.KR, NOW);
 
       expect(view.items.map((i) => i.contentId)).toEqual([C2]);
     });
@@ -308,7 +320,7 @@ describe('DripFeedbackService', () => {
         dripFeedbackLastPromptedDate: null,
       });
 
-      const view = await service.getPrompt(USER_ID, NOW);
+      const view = await service.getPrompt(USER_ID, UserMarket.KR, NOW);
 
       expect(view).toEqual({
         show: false,
@@ -325,7 +337,7 @@ describe('DripFeedbackService', () => {
         dripFeedbackLastPromptedDate: null,
       });
 
-      const view = await service.getPrompt(USER_ID, NOW);
+      const view = await service.getPrompt(USER_ID, UserMarket.KR, NOW);
 
       expect(view.show).toBe(true);
       expect(view.mutedUntil).toBeNull();

@@ -153,43 +153,65 @@ export class LibraryItemRepository {
    * 잡혀, 묻지 않아야 할 옛 편성분을 묻게 된다(`drip-feedback.md` 7장).
    *
    * **알고리즘 버전이 찍힌 행만 본다** — 온보딩 직후의 첫 드립은 버전이 없고(배치가 아닌 별도 경로) 별점을
-   * 묻지 않는다(`drip-feedback.md` 4.1-2). 버전 없는 행을 건너뛰어야 첫 드립만 받은 신규 사용자가 "편성분 없음"이 된다
+   * 묻지 않는다(`drip-feedback.md` 4.1-2). 버전 없는 행을 건너뛰어야 첫 드립만 받은 신규 사용자가 "편성분 없음"이 된다.
+   *
+   * **그 시장 콘텐츠의 편성분만 본다**(`global-api.md` 4.7·4.11) — 시장을 바꾼 사용자의 이전 시장 편성분은 숨어
+   * 있으므로, 그것이 "가장 최근 편성분"으로 잡혀 별점 팝업에 이전 시장 제목이 나오지 않게 한다.
+   * `withDeleted()`는 라이브러리 행의 소프트 삭제 조건만 푼다(콘텐츠에는 삭제 컬럼이 없다).
    */
   async findLatestVersionedByUserIdAndSourcesAddedBefore(
     userId: string,
     sources: LibraryItemSource[],
     before: Date,
+    market: UserMarket,
     manager?: EntityManager,
   ): Promise<LibraryItem | null> {
-    return this.scoped(manager).findOne({
-      where: {
-        userId,
-        source: In(sources),
-        addedAt: LessThan(before),
-        algorithmVersion: Not(IsNull()),
-      },
-      order: { addedAt: 'DESC', id: 'DESC' },
-      withDeleted: true,
-    });
+    return this.scoped(manager)
+      .createQueryBuilder('item')
+      .withDeleted()
+      .innerJoin(
+        'item.content',
+        'content',
+        CONTENT_MARKET_CONDITION,
+        contentMarketParameters(market),
+      )
+      .where('item.user_id = :userId', { userId })
+      .andWhere('item.source IN (:...sources)', { sources })
+      .andWhere('item.added_at < :before', { before })
+      .andWhere('item.algorithm_version IS NOT NULL')
+      .orderBy('item.added_at', 'DESC')
+      .addOrderBy('item.id', 'DESC')
+      .limit(1)
+      .getOne();
   }
 
-  /** 구간에 적립된 편성분 + 콘텐츠(제목·썸네일). 소프트 삭제분은 기본 조회대로 제외된다 */
+  /**
+   * 구간에 적립된 편성분 + 콘텐츠(제목·썸네일). 소프트 삭제분은 기본 조회대로 제외된다.
+   * **그 시장 콘텐츠만**(`global-api.md` 4.7) — 이전 시장 편성분은 별점 팝업 항목으로 나가지 않는다
+   */
   async findAllWithContentByUserIdAndSourcesAddedBetween(
     userId: string,
     sources: LibraryItemSource[],
     start: Date,
     end: Date,
+    market: UserMarket,
     manager?: EntityManager,
   ): Promise<LibraryItem[]> {
-    return this.scoped(manager).find({
-      where: {
-        userId,
-        source: In(sources),
-        addedAt: And(MoreThanOrEqual(start), LessThan(end)),
-      },
-      relations: { content: true },
-      order: { addedAt: 'ASC', id: 'ASC' },
-    });
+    return this.scoped(manager)
+      .createQueryBuilder('item')
+      .innerJoinAndSelect(
+        'item.content',
+        'content',
+        CONTENT_MARKET_CONDITION,
+        contentMarketParameters(market),
+      )
+      .where('item.user_id = :userId', { userId })
+      .andWhere('item.source IN (:...sources)', { sources })
+      .andWhere('item.added_at >= :start', { start })
+      .andWhere('item.added_at < :end', { end })
+      .orderBy('item.added_at', 'ASC')
+      .addOrderBy('item.id', 'ASC')
+      .getMany();
   }
 
   /**
