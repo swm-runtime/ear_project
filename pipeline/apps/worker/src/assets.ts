@@ -45,6 +45,10 @@ export const DB_ASSET_KEYS = [
   "skills/critic/rubric-v2.md",
 ] as const;
 
+/** 글로벌판 골드 예시 (full-en-v0.19, 2026-10-20 골드 실험) — 발행 가능 판정을 받고 필수 수정까지 반영한 두 편(Yuna·Owen / E-um·Grace)을 지금 규칙에 맞춰 다듬은 대본.
+ *  글로벌판 번들에만 들고(선택 — 없으면 골드 없이), 대본 단계가 읽는다. 한국판 골드(DB_ASSET_KEYS 의 examples)는 글로벌판 번들에서 뺀다 */
+export const GLOBAL_GOLD_KEYS = ["skills/draft/examples/gold-en-1.md", "skills/draft/examples/gold-en-2.md"] as const;
+
 /** 썸네일 프롬프트 (KAN-50) — 9번째 DB 자산. 대본 번들에 넣지 않는다: 이미지 생성 전용이라 `claude -p` 실행 컨텍스트와 무관하고,
  *  번들에 들어가면 프롬프트를 고칠 때마다 번들 해시가 바뀌어 관계없는 대본 실행까지 다른 스냅샷을 쓰게 된다. 항상 active 를 읽는다 */
 export const THUMBNAIL_PROMPT_KEY = "skills/thumbnail/prompt.md";
@@ -151,7 +155,7 @@ export async function loadBundle(pinned?: Record<string, string> | null, profile
   // 글로벌판(KAN-201): 골드는 0편에서 시작한다(글로벌 명세 7장) — 번들에서 뺀다(대본 프롬프트도 골드를 쓰지 않는다). 대본 규칙 밖의 자산(QA·루브릭)은
   // 단계별로 차례로 올리므로 없어도 번들을 막지 않는다 — 그 자산을 읽는 단계가 파일 없음으로 멈춘다. 한국판은 종전대로 전부 필수
   const en = pipelineLocale() === "en";
-  const keys: string[] = en ? DB_ASSET_KEYS.filter((k) => !k.includes("/examples/")) : [...DB_ASSET_KEYS];
+  const keys: string[] = en ? [...DB_ASSET_KEYS.filter((k) => !k.includes("/examples/")), ...GLOBAL_GOLD_KEYS] : [...DB_ASSET_KEYS];
   const optional = new Set(en ? keys.filter((k) => k !== "skills/draft/guidelines.md") : []);
   // 기본 키 → 실제로 읽을 DB 키: 고정된 프로파일 키 > 고정된 기본 키 > (profile=gpt) 프로파일 키 active > 기본 키 active
   const dbKeyOf: Record<string, string> = {};
