@@ -6,8 +6,10 @@ import { supabaseServer } from "@/lib/supabase-server";
 import { fmtTime } from "@/lib/format";
 import { SERIES_STATUS_LABEL, type SeriesRow } from "@/lib/series";
 import { SeriesEditor } from "./series-editor";
+import { SeriesPublish } from "./series-publish";
+import { seriesPublishEpisodes } from "../actions";
 
-/** 시리즈 화면 (spec/11 9장, KAN-136) — 설계안 편집 · [승인](게이트 S) · 편별 진행 · [시리즈 중단]. [시리즈 발행]은 6단계(BE KAN-134 뒤) */
+/** 시리즈 화면 (spec/11 9장, KAN-136) — 설계안 편집 · [승인](게이트 S) · 편별 진행 · [시리즈 중단] · [시리즈 발행]·[시리즈 회수](7장, 6단계) */
 export default async function SeriesPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const sb = await supabaseServer();
@@ -19,6 +21,7 @@ export default async function SeriesPage({ params }: { params: Promise<{ id: str
     sb.from("jobs").select("id,status,error,created_at,finished_at").eq("type", "series_plan").eq("payload->>series_id", id).order("created_at", { ascending: false }).limit(3),
   ]);
   const planJob = jobs?.[0];
+  const pubEps = ["approved", "published"].includes(s.status) ? await seriesPublishEpisodes(id) : [];
   const planning = s.status === "planning";
   return (
     <div className="space-y-6">
@@ -45,8 +48,11 @@ export default async function SeriesPage({ params }: { params: Promise<{ id: str
               </tr>
             ))}
           </Table>
-          <p className="px-4 py-2 text-[11px] text-ink-soft">게이트 1은 편마다 백로그에서 승인한다. 승인해도 k화 초안은 k-1화 초안이 끝난 뒤에 시작한다(spec/11 5.3). [시리즈 발행]은 서버 시리즈 API(BE KAN-134) 뒤에 붙는다.</p>
+          <p className="px-4 py-2 text-[11px] text-ink-soft">게이트 1은 편마다 백로그에서 승인한다. 승인해도 k화 초안은 k-1화 초안이 끝난 뒤에 시작한다(spec/11 5.3). 시리즈 편에는 개별 [발행]이 없다 — 전 편이 패키지까지 끝나면 아래 [시리즈 발행]으로 한꺼번에 올린다(7장).</p>
         </Panel>
+      )}
+      {["approved", "published"].includes(s.status) && s.total_episodes && (
+        <SeriesPublish id={s.id} name={s.name} introLine={s.intro_line ?? ""} total={s.total_episodes} status={s.status} productSeriesId={s.published_series_id ?? null} episodes={pubEps} />
       )}
     </div>
   );

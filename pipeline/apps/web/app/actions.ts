@@ -208,16 +208,23 @@ export async function saveCriticVerdicts(episodeId: string, verdicts: unknown) {
 }
 
 /** 발행 대기 목록 — 패키지(packaged)·오디오(dist.mp3) 둘 다 끝났고 아직 발행 안 된 에피소드. audio_dist_key 가 있고 backlog 상태가 packaged 인 것. 발행 업로드 화면의 선택 목록. */
+/** 시리즈 편이면 그 시리즈 — 시리즈 편에는 개별 [발행]이 없다(spec/11 7장). 업로드 화면이 막을 때 쓴다 */
+export async function backlogSeries(backlogId: string): Promise<{ series_id: string; series_no: number } | null> {
+  const sb = await supabaseServer();
+  const { data } = await sb.from("backlog").select("series_id,series_no").eq("id", backlogId).maybeSingle();
+  return data?.series_id ? { series_id: data.series_id as string, series_no: data.series_no as number } : null;
+}
+
 export async function listPublishableEpisodes(): Promise<{ id: string; title: string; mid_topic: string; created_at: string }[]> {
   const sb = await supabaseServer();
   const { data: eps, error } = await sb.from("episodes").select("id,backlog_id,audio_dist_key,created_at").not("audio_dist_key", "is", null).order("created_at", { ascending: false }).order("id", { ascending: false }); // 최신순 — 접두어(T·X·S)와 무관하게
   if (error) throw new Error(error.message);
   const ids = [...new Set((eps ?? []).map((e) => e.backlog_id))];
   if (ids.length === 0) return [];
-  const { data: bls } = await sb.from("backlog").select("id,title,mid_topic,status").in("id", ids);
+  const { data: bls } = await sb.from("backlog").select("id,title,mid_topic,status,series_id").in("id", ids);
   const bl = Object.fromEntries((bls ?? []).map((b) => [b.id, b]));
   return (eps ?? [])
-    .filter((e) => bl[e.backlog_id]?.status === "packaged")
+    .filter((e) => bl[e.backlog_id]?.status === "packaged" && !bl[e.backlog_id]?.series_id) // 시리즈 편은 시리즈 화면의 [시리즈 발행]으로만 (spec/11 7장)
     .map((e) => ({ id: e.id, title: bl[e.backlog_id]?.title ?? e.id, mid_topic: bl[e.backlog_id]?.mid_topic ?? "", created_at: e.created_at as string }));
 }
 

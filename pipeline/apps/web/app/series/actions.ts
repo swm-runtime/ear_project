@@ -4,7 +4,7 @@ import { supabaseServer } from "@/lib/supabase-server";
 import { pipelineLocale } from "@/lib/locale";
 import { majorTopicsFor } from "@/lib/taxonomy";
 import { screenGlobalTopic } from "@/lib/topic-screen";
-import { cleanPlan, seriesEpisodeHint, type SeriesEpisode, type SeriesRow } from "@/lib/series";
+import { cleanPlan, seriesEpisodeHint, type SeriesEpisode, type SeriesPublishEpisode, type SeriesRow } from "@/lib/series";
 import { enqueueJob } from "../actions";
 
 /**
@@ -113,4 +113,53 @@ export async function cancelSeries(id: string): Promise<Result<{ rejected: numbe
   if (e2) return { ok: false, reason: e2.message };
   revalidatePath(`/series/${id}`); revalidatePath("/series"); revalidatePath("/backlog");
   return { ok: true, rejected: rej?.length ?? 0 };
+}
+
+// ── [시리즈 발행]·[시리즈 회수] (spec/11 7장, KAN-136 6단계) — 제품 호출은 브라우저 세션이 하고, 여기서는 파이프라인 기록만 ──
+
+/** 발행 화면의 편 목록 — 후보(화 순서) + 편마다 오디오가 있는 최신 에피소드 */
+export async function seriesPublishEpisodes(id: string): Promise<SeriesPublishEpisode[]> {
+  const sb = await supabaseServer();
+  const { data: bls, error } = await sb.from("backlog").select("id,status,series_no,published_content_ref").eq("series_id", id).order("series_no");
+  if (error) throw new Error(error.message);
+  const ids = (bls ?? []).map((b) => b.id);
+  const { data: eps } = ids.length
+    ? await sb.from("episodes").select("id,backlog_id,audio_dist_key,created_at").in("backlog_id", ids).not("audio_dist_key", "is", null).order("created_at", { ascending: false })
+    : { data: [] };
+  const latest = new Map<string, string>();
+  for (const e of eps ?? []) if (!latest.has(e.backlog_id)) latest.set(e.backlog_id, e.id);
+  return (bls ?? []).map((b) => ({ no: b.series_no as number, backlog_id: b.id, status: b.status, episode_id: latest.get(b.id) ?? null, content_id: (b.published_content_ref as string | null) ?? null }));
+}
+
+/** 제품 시리즈를 만든 직후 그 id 를 남긴다 — 다시 누르면 새로 만들지 않고 이 id 로 이어서 올린다. 이미 다른 id 가 있으면 거부 */
+export async function recordProductSeries(id: string, productSeriesId: string): Promise<Result> {
+  const s = await loadSeries(id);
+  if (!s) return { ok: false, reason: "시리즈가 없다" };
+  if (s.published_series_id && s.published_series_id !== productSeriesId) return { ok: false, reason: `이미 제품 시리즈 ${s.published_series_id} 가 기록돼 있다` };
+  const sb = await supabaseServer();
+  const { error } = await sb.from("series").update({ published_series_id: productSeriesId }).eq("id", id);
+  if (error) return { ok: false, reason: error.message };
+  revalidatePath(`/series/${id}`);
+  return { ok: true };
+}
+
+/** 전 편이 올라가면 시리즈를 발행으로 — 한 편이라도 남았으면 거부(이어서 올리기 대상) */
+export async function finishSeriesPublish(id: string): Promise<Result> {
+  const eps = await seriesPublishEpisodes(id);
+  const left = eps.filter((e) => !e.content_id).map((e) => `${e.no}화`);
+  if (left.length) return { ok: false, reason: `아직 안 올라간 편: ${left.join(", ")}` };
+  const sb = await supabaseServer();
+  const { error } = await sb.from("series").update({ status: "published", published_at: new Date().toISOString() }).eq("id", id).in("status", ["approved", "published"]);
+  if (error) return { ok: false, reason: error.message };
+  revalidatePath(`/series/${id}`); revalidatePath("/series");
+  return { ok: true };
+}
+
+/** [시리즈 회수] 뒤 — 편 회수는 브라우저가 제품에 하고(편마다 publish_log 도 남긴다), 여기서는 시리즈 상태만 바꾼다 */
+export async function markSeriesWithdrawn(id: string): Promise<Result> {
+  const sb = await supabaseServer();
+  const { error } = await sb.from("series").update({ status: "withdrawn" }).eq("id", id).eq("status", "published");
+  if (error) return { ok: false, reason: error.message };
+  revalidatePath(`/series/${id}`); revalidatePath("/series");
+  return { ok: true };
 }

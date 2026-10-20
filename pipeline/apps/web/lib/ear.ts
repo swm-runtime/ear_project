@@ -143,6 +143,8 @@ export interface EarContent {
   has_script?: boolean;
   /** 추천 스코어링에 쓰이는 임베딩이 있는가(admin-api 8장, 2026-10-13). false = 없거나 오디오 재발행 뒤 미갱신 — 메타 형식이 최신이어도 다시 뽑을 대상. 배포 전 서버면 없다 */
   has_current_embedding?: boolean;
+  /** 시리즈 편이면 편의 값(admin-api 8장 · 4.6, 2026-10-17 KAN-134). 단일 편은 null */
+  series_id?: string | null; episode_no?: number | null; total_episodes?: number | null;
 }
 /** 현재 추천 메타 형식 버전 — 원본은 서버 CURRENT_ENRICHMENT_SCHEMA_VERSION(admin-api 4.6). 3 = 해시태그 포함(KAN-162 운영 배포 뒤 KAN-164). **워커 ENRICH_TAGS=1 과 같은 시점에 움직인다** — 콘솔만 먼저 올리면 발행분 전부가 "구형 v2"로 보이는데 다시 뽑아도 태그가 붙지 않는다(2026-10-13 먼저 올렸다가 되돌림 #1486). 2026-10-14 AI 서버 워커 env.prod 에 ENRICH_TAGS=1 을 넣고 재기동한 뒤 3으로 올렸다 */
 export const ENRICHMENT_SCHEMA_VERSION_FALLBACK = 3;
@@ -205,6 +207,18 @@ export function republishEarContent(contentId: string, parts: { audio?: File; lo
   if (parts.script) fd.append("script_file", parts.script); // 자막 세그먼트 — 단독 전송이면 역시 버전 무변경 (4.10, 기존 발행분 소급 경로)
   return earFetch<EarContent>(`/admin/contents/${contentId}`, { method: "PATCH", body: fd });
 }
+
+/** 제품 시리즈 (admin-api 4.24, KAN-134) — [시리즈 발행]이 먼저 만들고 그 id 를 업로드의 series_id 로 보낸다(spec/11 7장). 삭제는 없다 */
+export interface EarSeries {
+  id: string; title: string; description: string; total_episodes: number; status: "ongoing" | "completed";
+  episode_counts: { published: number; withdrawn: number; expired: number }; max_published_episode_no: number | null;
+  created_at: string; updated_at: string;
+}
+export const listEarSeries = () => earFetch<{ items: EarSeries[] }>("/admin/series");
+export const createEarSeries = (body: { title: string; description: string; total_episodes: number; status?: "ongoing" | "completed" }) =>
+  earFetch<EarSeries>("/admin/series", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+export const patchEarSeries = (id: string, fields: Partial<{ title: string; description: string; total_episodes: number; status: "ongoing" | "completed" }>) =>
+  earFetch<EarSeries>(`/admin/series/${id}`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify(fields) });
 
 export function uploadEarContent(payload: UploadPayload, audio: File, thumbnail: File, enrichment?: File | null, script?: File | null, lossless?: File | null): Promise<EarContent> {
   const fd = new FormData();
