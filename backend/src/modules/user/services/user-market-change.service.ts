@@ -85,7 +85,7 @@ export class UserMarketChangeService {
 
     const { start, end } = toServiceDayRange(now);
     const changedToday =
-      await this.userMarketChangeRepository.countByUserIdSince(
+      await this.userMarketChangeRepository.countNonRevertByUserIdSince(
         user.id,
         start,
         manager,

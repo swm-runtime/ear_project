@@ -34,7 +34,7 @@ describe('UserMarketChangeService', () => {
   beforeEach(() => {
     repository = {
       findLatestByUserId: jest.fn().mockResolvedValue(null),
-      countByUserIdSince: jest.fn().mockResolvedValue(0),
+      countNonRevertByUserIdSince: jest.fn().mockResolvedValue(0),
       create: jest.fn((value: Partial<UserMarketChange>) => value),
       save: jest.fn((value: UserMarketChange) => Promise.resolve(value)),
     } as unknown as jest.Mocked<UserMarketChangeRepository>;
@@ -81,7 +81,7 @@ describe('UserMarketChangeService', () => {
 
       // then
       expect(cooldown).toEqual({ isRevert: false, retryAfterSec: null });
-      expect(repository.countByUserIdSince).toHaveBeenCalledWith(
+      expect(repository.countNonRevertByUserIdSince).toHaveBeenCalledWith(
         USER_ID,
         toServiceDayRange(NOW).start,
         undefined,
@@ -95,7 +95,7 @@ describe('UserMarketChangeService', () => {
         toMarket: UserMarket.GLOBAL,
         isRevert: false,
       } as UserMarketChange);
-      repository.countByUserIdSince.mockResolvedValue(1);
+      repository.countNonRevertByUserIdSince.mockResolvedValue(1);
 
       // when
       const cooldown = await service.judgeCooldown(
@@ -131,7 +131,7 @@ describe('UserMarketChangeService', () => {
         toMarket: UserMarket.GLOBAL,
         isRevert: false,
       } as UserMarketChange);
-      repository.countByUserIdSince.mockResolvedValue(1);
+      repository.countNonRevertByUserIdSince.mockResolvedValue(1);
 
       // when
       const cooldown = await service.judgeCooldown(
@@ -146,13 +146,13 @@ describe('UserMarketChangeService', () => {
   });
 
   it('되돌리기를 다시 되돌리는 것은 예외가 아니다 — 온보딩 중 무한 왕복을 막는다', async () => {
-    // given — KR→GLOBAL(셈) 뒤 GLOBAL→KR(되돌리기). 다시 GLOBAL로 가려 한다
+    // given — KR→GLOBAL(셈) 뒤 GLOBAL→KR(되돌리기 — 세지 않는다). 다시 GLOBAL로 가려 한다
     repository.findLatestByUserId.mockResolvedValue({
       fromMarket: UserMarket.GLOBAL,
       toMarket: UserMarket.KR,
       isRevert: true,
     } as UserMarketChange);
-    repository.countByUserIdSince.mockResolvedValue(2);
+    repository.countNonRevertByUserIdSince.mockResolvedValue(1);
 
     // when
     const cooldown = await service.judgeCooldown(
