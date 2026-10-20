@@ -1,5 +1,6 @@
 import 'dotenv/config';
 import { HttpStatus, INestApplication, ValidationPipe } from '@nestjs/common';
+import { JwtService } from '@nestjs/jwt';
 import { Test } from '@nestjs/testing';
 import request from 'supertest';
 import { App } from 'supertest/types';
@@ -20,7 +21,7 @@ import {
   LibraryItemSource,
   LibraryItemStatus,
 } from '@/modules/library/library.enum';
-import { SocialProvider } from '@/modules/user/user.enum';
+import { SocialProvider, UserMarket } from '@/modules/user/user.enum';
 
 interface SignUpBody {
   status: string;
@@ -310,6 +311,45 @@ describe('추천 별점 E2E', () => {
 
     expect(prompt.show).toBe(false);
     expect(prompt.items).toEqual([]);
+  }, 60_000);
+
+  it('어제 KR 정규 편성분만 있는 사용자를 global 로 바꾸고 GLOBAL 토큰으로 요청하면 팝업 항목이 없다 — 이전 시장 편성분은 어떤 응답에도 나오지 않는다(global-api 4.7·4.11)', async () => {
+    // given — KR 시장에서 어제 정규 편성분 2편(KR 콘텐츠)을 받았다
+    const { userId, auth } = await createUser('market');
+    await place(userId, [contentIds[0], contentIds[1]], placedAt(1), 'e2e-v1');
+    const before = (
+      await get('/users/me/drip-feedback/prompt', auth).expect(HttpStatus.OK)
+    ).body as PromptBody;
+    expect(before.show).toBe(true);
+
+    // when — 시장을 global 로 바꾸고 GLOBAL 토큰으로 묻는다
+    await dataSource.query(`UPDATE users SET market = $2 WHERE id = $1`, [
+      userId,
+      UserMarket.GLOBAL,
+    ]);
+    const globalToken = app.get(JwtService).sign(
+      {
+        sub: userId,
+        role: 'user',
+        typ: 'access',
+        market: UserMarket.GLOBAL,
+      },
+      { expiresIn: 600 },
+    );
+    const prompt = (
+      await get(
+        '/users/me/drip-feedback/prompt',
+        `Bearer ${globalToken}`,
+      ).expect(HttpStatus.OK)
+    ).body as PromptBody;
+
+    // then — 이전 시장 편성분은 가장 최근 편성분으로도 잡히지 않는다
+    expect(prompt).toEqual({
+      show: false,
+      placed_date: null,
+      muted_until: null,
+      items: [],
+    });
   }, 60_000);
 
   it('편성분이 없는 사용자는 묻지 않는다', async () => {

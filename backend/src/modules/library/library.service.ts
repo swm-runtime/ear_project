@@ -330,12 +330,14 @@ export class LibraryService {
   async findLatestDripPlacedBefore(
     userId: string,
     before: Date,
+    market: UserMarket,
     manager?: EntityManager,
   ): Promise<LibraryItem | null> {
     return this.libraryItemRepository.findLatestVersionedByUserIdAndSourcesAddedBefore(
       userId,
       [LibraryItemSource.DRIP],
       before,
+      market,
       manager,
     );
   }
@@ -362,6 +364,7 @@ export class LibraryService {
     userId: string,
     start: Date,
     end: Date,
+    market: UserMarket,
     manager?: EntityManager,
   ): Promise<LibraryItem[]> {
     return this.libraryItemRepository.findAllWithContentByUserIdAndSourcesAddedBetween(
@@ -369,6 +372,7 @@ export class LibraryService {
       [LibraryItemSource.DRIP, LibraryItemSource.DISCOVERY],
       start,
       end,
+      market,
       manager,
     );
   }

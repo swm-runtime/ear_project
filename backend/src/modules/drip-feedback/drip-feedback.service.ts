@@ -13,6 +13,7 @@ import { LibraryItemSource } from '@/modules/library/library.enum';
 import { LibraryService } from '@/modules/library/library.service';
 import { UserService } from '@/modules/user/services/user.service';
 import { UserSettingService } from '@/modules/user/services/user-setting.service';
+import { UserMarket } from '@/modules/user/user.enum';
 
 import {
   DRIP_FEEDBACK_PROMPT_INTERVAL_DAYS,
@@ -63,8 +64,15 @@ export class DripFeedbackService {
    * **누구에게, 얼마나 자주**(2026-10-16 결정) — 가입 4일째부터, 지난번에 물은 편성분에서 **7일이 지난 편성분**만
    * 묻는다. **듣지 않은 편도 묻는다** — 묻는 것은 콘텐츠 품질이 아니라 "이 추천이 마음에 드는가"다. 재생한 편만
    * 물으면 응답이 너무 적다(같은 날 결정).
+   *
+   * **현재 시장 콘텐츠의 편성분만 묻는다**(`global-api.md` 4.7·4.11) — 시장을 바꾼 사용자의 이전 시장 편성분은
+   * 어떤 응답에도 나오지 않는다. 가장 최근 편성분 판정도 현재 시장 안에서 한다.
    */
-  async getPrompt(userId: string, now: Date): Promise<DripFeedbackPromptView> {
+  async getPrompt(
+    userId: string,
+    market: UserMarket,
+    now: Date,
+  ): Promise<DripFeedbackPromptView> {
     const settings = await this.userSettingService.getSettings(userId);
     const today = toServiceDate(now);
     const hidden = (placedDate: string | null, mutedUntil: string | null) => ({
@@ -97,6 +105,7 @@ export class DripFeedbackService {
     const latest = await this.libraryService.findLatestDripPlacedBefore(
       userId,
       toServiceDayRange(now).start,
+      market,
     );
 
     if (!latest) {
@@ -124,7 +133,7 @@ export class DripFeedbackService {
 
     const { start, end } = toServiceDayRange(latest.addedAt);
     const placed = (
-      await this.libraryService.findPlacedBetween(userId, start, end)
+      await this.libraryService.findPlacedBetween(userId, start, end, market)
     ).filter(
       (item) =>
         item.source === LibraryItemSource.DRIP &&
