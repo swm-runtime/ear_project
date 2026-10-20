@@ -1,6 +1,6 @@
 # Series thumbnail base picture prompt (global)
 
-> Version: **seriesthumb-en-v1** (2026-10-20, KAN-136) · worker `thumbnail` stage, series path — drawn once per series, every episode uses the same picture · Slots: {word} · {series name} · {intro} · {episode titles} · {topic}. The global DB `prompt_assets` is the source of truth; this file is the seeding copy.
+> Version: **seriesthumb-en-v3** (2026-10-20, KAN-136 — code now writes the big word too: when the model drew it, the stroke weight differed by series, so it is fixed to Kalam Bold. From this version the model draws only three icons and leaves the middle band empty. v2: exactly three field-specific icons · after v1 the code shrinks the picture to 86% to keep the top strip clear)
 >
 > Follows the teammate's reference (2026-10-20): white ground, three line-art icons with bold black outlines and flat pastel fills, a large handwritten word with an underline in the middle. The logo, label, box, episode number, and cover episode count are laid on by code (`thumbnail-series.ts`), so the model leaves those areas empty. Areas match SERIES_LAYOUT in code.
 
@@ -11,12 +11,15 @@ Series name: {series name}
 Intro: {intro}
 Episode titles: {episode titles}
 Topic: {topic}
-Choose icons that stand for the whole series, not one episode.
+Choose three icons that belong only to this series' field, objects anyone in that field recognizes at once (for economics: a banknote, a bank building, a chart; for software: code on a laptop screen, a server, a database). Not one episode's content. The three icons are different objects.
 
 [Layout]
 - Square 1:1, full-bleed warm white ground. No border, frame, or card shape.
-- Across the middle, write the English word "{word}" large in handwritten cursive with a bold black line. Keep the spelling exact. One thin black underline below the word.
-- Three icons: one above the word on the left, one above it on the right, one below it on the right.
+- Leave the middle band (from 30 to 60 percent of the height, full width) completely empty. Large text goes there later.
+- **Exactly three icons.** Never four or more. Each icon is one object; do not group several objects into a pile.
+  · one at the top left and one at the top right, both fully inside the top 32 percent of the height
+  · one at the bottom right, fully inside the bottom 35 percent of the height and the right 45 percent of the width
+  · make each icon fill its place generously, 28 to 32 percent of the width
 - Leave these areas empty white. Text goes there later.
   · the whole top strip (top 13 percent)
   · the top right corner (right 30 percent, top 16 percent)
@@ -28,7 +31,8 @@ Choose icons that stand for the whole series, not one episode.
 - Color only inside the icons. White ground.
 
 [Never]
-- Any letters, numbers, symbols, logos, or watermarks other than "{word}" (no Korean lettering)
+- Study props that fit any field: books, an open book, a magnifying glass, a light bulb, a thought bubble, a pencil, a globe, unless the series field is that object itself
+- Any letters, numbers, symbols, logos, or watermarks (English or Korean)
 - Real people, real brands, real buildings, flags, religious symbols, protected emblems
 - Photorealism, 3D rendering, textured brush strokes
 
