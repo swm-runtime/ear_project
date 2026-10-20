@@ -159,6 +159,7 @@ export class RecommendTestService {
     // 다음 배치가 할 일을 지금 한다 — 취향 캐시(탐색 피드가 읽는다)와 자동 확장 슬롯(drip-scheduling 4.5)
     const autoExpand = await this.dripBatchOrchestrator.refreshDerivedState(
       user.id,
+      user.market,
       now,
     );
 

@@ -582,6 +582,7 @@ export class DripBatchOrchestrator {
      */
     plan.autoExpand = await this.resolveAutoExpand(
       user.id,
+      user.market,
       activeInterests,
       preferenceResult,
       now,
@@ -719,6 +720,7 @@ export class DripBatchOrchestrator {
    */
   async refreshDerivedState(
     userId: string,
+    market: UserMarket,
     now: Date,
   ): Promise<AutoExpandDecision> {
     const activeInterests =
@@ -726,6 +728,7 @@ export class DripBatchOrchestrator {
     const preferenceResult = await this.rebuildPreference(userId, now, true);
     const decision = await this.resolveAutoExpand(
       userId,
+      market,
       activeInterests,
       preferenceResult,
       now,
@@ -743,7 +746,9 @@ export class DripBatchOrchestrator {
 
   /**
    * 자동 확장 판정(4.5). 순수 판정(`decideAutoExpand`)에 **조회가 필요한 두 조건**을 얹는다 — 후보 주제가
-   * 지금 고를 수 있는 주제인가(숨김 주제는 `findAllActive`가 걸러 버려 넣어도 유령 행이 된다), 그리고
+   * 지금 고를 수 있는 주제인가(숨김 주제는 `findAllActive`가 걸러 버려 넣어도 유령 행이 된다. **다른 시장
+   * 주제도 같은 길로 뺀다** — 시장 전환 뒤 이전 시장 청취 신호가 이전 시장 주제를 되살리지 않게, global-api 4.5
+   * "자동 확장도 같은 시장 안에서만"), 그리고
    * 사용자가 자동 확장을 켜 두었는가(FR-06). 둘 다 **움직일 일이 있을 때만** 조회한다. 그 밖에 사용자마다
    * 드는 조회는 `user_interests` 한 번(직접 해제한 주제 + 숨김 주제가 차지한 자동 슬롯)이다.
    *
@@ -752,6 +757,7 @@ export class DripBatchOrchestrator {
    */
   private async resolveAutoExpand(
     userId: string,
+    market: UserMarket,
     activeInterests: UserInterest[],
     preferenceResult: {
       signals: PreferenceSignalInput[];
@@ -789,7 +795,9 @@ export class DripBatchOrchestrator {
       );
       const topics = await this.topicService.findAllByIds(candidateIds);
       const selectable = new Set(
-        topics.filter((topic) => topic.isVisible).map((topic) => topic.id),
+        topics
+          .filter((topic) => topic.isVisible && topic.market === market)
+          .map((topic) => topic.id),
       );
       const unavailableTopicIds = candidateIds.filter(
         (topicId) => !selectable.has(topicId),
