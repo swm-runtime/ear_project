@@ -177,6 +177,58 @@ describe('글로벌 시장 모델 E2E', () => {
     });
   }, 60_000);
 
+  it('유니코드 확장이 붙은 기기 언어(ja-JP-u-ca-japanese)로 로그인·가입·기기 등록·설정 변경이 되고 ja-JP로 저장된다', async () => {
+    const extended = 'ja-JP-u-ca-japanese';
+    // 로그인(가입 전 1차)과 가입이 같은 locale을 싣는다 — 16자 초과 태그가 400으로 막히지 않아야 한다
+    const { providerToken, signUp } = await signUpWith('extension', {
+      preferred_language: 'ko',
+      language_code: extended,
+    });
+    expect(signUp.user).toMatchObject({ market: 'kr', language_code: 'ja-JP' });
+    expect(await userRow(signUp.user!.id)).toMatchObject({
+      language_code: 'ja-JP',
+    });
+
+    // 기존 계정 로그인 — 다른 확장 태그로 갱신된다
+    const again = await socialLogin(providerToken, 'e2e-market-extension-b', {
+      language_code: 'th-TH-u-nu-thai',
+    });
+    expect(again.user).toMatchObject({ language_code: 'th-TH' });
+
+    // 기기 등록
+    await request(app.getHttpServer())
+      .put(path('/users/me/devices/e2e-market-extension-a'))
+      .set('Authorization', `Bearer ${signUp.access_token}`)
+      .send({
+        push_token: null,
+        platform: 'ios',
+        is_os_permission_granted: false,
+        app_version: '1.3.0',
+        language_code: extended,
+      })
+      .expect(HttpStatus.NO_CONTENT);
+    expect(await userRow(signUp.user!.id)).toMatchObject({
+      language_code: 'ja-JP',
+    });
+
+    // 설정 "기기 언어 따르기" — 확장 태그도 형식에 맞는 값으로 바뀐다
+    await request(app.getHttpServer())
+      .patch(path('/users/me/settings'))
+      .set('Authorization', `Bearer ${signUp.access_token}`)
+      .send({ language_code: 'en-US-u-hc-h23', client_seq: 1 })
+      .expect(HttpStatus.OK);
+    expect(await userRow(signUp.user!.id)).toMatchObject({
+      language_code: 'en-US',
+    });
+
+    // 자른 뒤에도 형식이 아닌 값은 종전대로 400(settings-api.md)
+    await request(app.getHttpServer())
+      .patch(path('/users/me/settings'))
+      .set('Authorization', `Bearer ${signUp.access_token}`)
+      .send({ language_code: 'not a tag', client_seq: 2 })
+      .expect(HttpStatus.BAD_REQUEST);
+  }, 60_000);
+
   it('형식이 아닌 시간대·지역은 버리고 가입은 막지 않는다', async () => {
     const { signUp } = await signUpWith('invalid-locale', {
       preferred_language: 'en',

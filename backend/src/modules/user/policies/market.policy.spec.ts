@@ -1,5 +1,10 @@
 import { PreferredLanguage, UserMarket } from '../user.enum';
-import { normalizeLocale, resolveMarket, toUserMarket } from './market.policy';
+import {
+  normalizeLanguageCode,
+  normalizeLocale,
+  resolveMarket,
+  toUserMarket,
+} from './market.policy';
 
 /** 글로벌 가입이 열린 상태 / 닫힌 상태(운영 기본값)의 입력 */
 const OPEN = { globalSignupEnabled: true };
@@ -57,6 +62,49 @@ describe('resolveMarket — 글로벌 가입이 열려 있을 때', () => {
       market: UserMarket.KR,
       source: 'default',
     });
+  });
+
+  it('유니코드 확장이 붙은 기기 언어도 언어 부분으로 판정한다 — ko-KR-u-ca-dangi 는 kr, ja-JP-u-ca-japanese 는 global', () => {
+    expect(
+      resolveMarket({ ...OPEN, languageCode: 'ko-KR-u-ca-dangi' }),
+    ).toEqual({ market: UserMarket.KR, source: 'device' });
+    expect(
+      resolveMarket({ ...OPEN, languageCode: 'ja-JP-u-ca-japanese' }),
+    ).toEqual({ market: UserMarket.GLOBAL, source: 'device' });
+  });
+});
+
+describe('normalizeLanguageCode', () => {
+  it.each([
+    ['ja-JP-u-ca-japanese', 'ja-JP'],
+    ['th-TH-u-nu-thai', 'th-TH'],
+    ['en-US-u-hc-h23', 'en-US'],
+    ['de-DE-x-private', 'de-DE'],
+    ['EN-US-U-CA-GREGORY', 'EN-US'],
+    ['en-US-x', 'en-US'],
+  ])(
+    '확장·사설 영역(첫 singleton subtag부터)은 잘라낸다 — %s → %s',
+    (input, expected) => {
+      expect(normalizeLanguageCode(input)).toBe(expected);
+    },
+  );
+
+  it('밑줄 구분자는 하이픈으로 바꾼다 — en_US → en-US', () => {
+    expect(normalizeLanguageCode('en_US')).toBe('en-US');
+  });
+
+  it('확장이 없는 형식에 맞는 값은 그대로다', () => {
+    expect(normalizeLanguageCode('ko-KR')).toBe('ko-KR');
+    expect(normalizeLanguageCode('zh-Hant-TW')).toBe('zh-Hant-TW');
+  });
+
+  it('자른 뒤에도 형식이 아니거나 16자를 넘으면 버린다(null)', () => {
+    expect(normalizeLanguageCode('x'.repeat(70))).toBeNull();
+    expect(normalizeLanguageCode('en-abcdefgh-abcdefgh')).toBeNull();
+    expect(normalizeLanguageCode('x-private')).toBeNull();
+    expect(normalizeLanguageCode('not a tag')).toBeNull();
+    expect(normalizeLanguageCode('   ')).toBeNull();
+    expect(normalizeLanguageCode(null)).toBeNull();
   });
 });
 
