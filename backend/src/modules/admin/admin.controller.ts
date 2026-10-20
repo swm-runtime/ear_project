@@ -433,8 +433,8 @@ export class AdminController {
   }
 
   /**
-   * admin-api.md 4.10 — 재발행. 같은 `content_id`에 오디오·메타를 갈아끼우고
-   * `content_version`을 올린다. 파이프라인이 TTS 규격을 바꿔 오디오를 재생성했을 때
+   * admin-api.md 4.10 — 재발행. 같은 `content_id`에 오디오·메타를 갈아끼우고, 오디오를
+   * 바꿨으면 `content_version`을 올린다(KAN-236). 파이프라인이 TTS 규격을 바꿔 오디오를 재생성했을 때
    * 사용자 라이브러리·재생 기록을 끊지 않고 발행본만 교체하는 경로다.
    *
    * **모든 파트가 선택이다** — 파이프라인은 `audio`만 보낸다.

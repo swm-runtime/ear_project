@@ -310,9 +310,10 @@ export class AdminContentService {
   }
 
   /**
-   * admin.md 4.3 · admin-api.md 4.10 — 재발행. **같은 행의 오디오·메타를 갈아끼우고
-   * `content_version`을 1 올린다.** 회수 후 재업로드와 다른 점은 `content_id`가 유지되는
-   * 것이고, 그래서 사용자의 라이브러리·재생 기록이 끊기지 않는다.
+   * admin.md 4.3 · admin-api.md 4.10 — 재발행. **같은 행의 오디오·메타를 갈아끼운다.**
+   * 회수 후 재업로드와 다른 점은 `content_id`가 유지되는 것이고, 그래서 사용자의
+   * 라이브러리·재생 기록이 끊기지 않는다. **`content_version` 증가와 재생 위치 폐기는
+   * 오디오를 바꿀 때만이다**(KAN-236) — 썸네일·제목 등만 바꾸면 같은 초가 같은 내용이다.
    *
    * 흐름은 업로드(`upload`)와 같다 — 검증 → 새 파일 저장(트랜잭션 밖) → 트랜잭션 →
    * **성공 시 이전 파일 삭제 / 실패 시 새 파일 삭제.** 지우는 순서가 반대인 것만 다르다.
@@ -503,7 +504,7 @@ export class AdminContentService {
         }
 
         if (enrichment?.data) {
-          // 새 버전으로 저장된다 — republish가 방금 올린 content_version을 그대로 쓴다
+          // 재발행 뒤의 버전으로 저장된다 — 오디오를 바꿨으면 방금 올린 버전, 아니면 그대로인 버전
           await this.contentService.applyEnrichment(
             republished,
             enrichment.data,
@@ -538,11 +539,17 @@ export class AdminContentService {
          * 4.1 응답으로 그대로 내려가 엉뚱한 지점에서 재생이 시작되는 것을 막는다.
          * 저장 경로(4.3)는 버전 가드가 이미 막고 있어 읽기 경로만 남아 있었다.
          * 라이브러리·재생 기록은 유지된다 — 지우는 것은 위치뿐이다.
+         *
+         * **오디오를 바꿀 때만 지운다**(KAN-236). 썸네일·제목·설명·출처·주제만 바꾸면 같은
+         * 초가 같은 내용이라 낡은 위치가 생기지 않는다 — 시리즈 썸네일 일괄 교체로 수십 편의
+         * 이어 듣기가 0으로 돌아가던 문제. 버전도 오르지 않아 재생 중 세션도 그대로 이어진다.
          */
-        await this.playbackService.deleteProgressesByContentId(
-          command.contentId,
-          manager,
-        );
+        if (renditions) {
+          await this.playbackService.deleteProgressesByContentId(
+            command.contentId,
+            manager,
+          );
+        }
 
         if (previousTopicIds.length > 0) {
           await this.topicExposureService.hideEmptyTopics(

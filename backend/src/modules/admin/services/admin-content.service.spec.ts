@@ -1500,14 +1500,14 @@ describe('AdminContentService', () => {
       ).not.toHaveBeenCalled();
     });
 
-    it('메타만 보내도 content_version은 오른다 — 클라이언트 재발행 판정이 버전 하나로 동작한다', async () => {
+    it('메타만 보내면 오디오 경로를 넘기지 않는다 — 버전은 오디오가 바뀔 때만 오른다(KAN-236)', async () => {
       // given
       const command = buildRepublishCommand({ audio: null, title: '새 제목' });
 
       // when
       await service.republish(command);
 
-      // then
+      // then — 버전 판정은 contentService.republish가 audioPath 유무로 한다
       expect(contentService.republish).toHaveBeenCalledWith(
         expect.anything(),
         containing({ title: '새 제목', audioPath: undefined }),
@@ -1516,6 +1516,70 @@ describe('AdminContentService', () => {
       expect(storage.putAudio).not.toHaveBeenCalled();
       // 바뀐 파일이 없으므로 지울 것도 없다
       expect(storage.remove).toHaveBeenCalledWith([]);
+    });
+
+    it('썸네일만 바꾸는 재발행은 재생 위치를 지우지 않는다 — 같은 초가 같은 내용이다(KAN-236)', async () => {
+      // given
+      const command = buildRepublishCommand({
+        audio: null,
+        thumbnail: buildFile('thumb.png'),
+      });
+
+      // when
+      await service.republish(command);
+
+      // then — 오디오·길이를 넘기지 않으므로 버전도 그대로이고, 대본도 지우지 않는다
+      expect(contentService.republish).toHaveBeenCalledWith(
+        expect.anything(),
+        containing({ audioPath: undefined, durationSec: undefined }),
+        manager,
+      );
+      expect(
+        playbackService.deleteProgressesByContentId,
+      ).not.toHaveBeenCalled();
+      expect(contentService.deleteScript).not.toHaveBeenCalled();
+      expect(auditLogService.record).toHaveBeenCalledWith(
+        containing({
+          action: 'content.republish',
+          after: containing({ changed_parts: ['thumbnail'] }),
+        }),
+        manager,
+      );
+    });
+
+    it('제목·설명·출처·주제만 바꾸는 재발행도 재생 위치를 지우지 않는다(KAN-236)', async () => {
+      // given
+      const command = buildRepublishCommand({
+        audio: null,
+        title: '새 제목',
+        description: '새 설명',
+        sourceName: '새 출처',
+        topicIds: [TOPIC_ID],
+      });
+
+      // when
+      await service.republish(command);
+
+      // then
+      expect(
+        playbackService.deleteProgressesByContentId,
+      ).not.toHaveBeenCalled();
+    });
+
+    it('오디오를 바꾸는 재발행은 썸네일과 함께 와도 재생 위치를 지운다', async () => {
+      // given
+      const command = buildRepublishCommand({
+        thumbnail: buildFile('thumb.png'),
+      });
+
+      // when
+      await service.republish(command);
+
+      // then
+      expect(playbackService.deleteProgressesByContentId).toHaveBeenCalledWith(
+        CONTENT_ID,
+        manager,
+      );
     });
 
     it('바꿀 파트가 하나도 없으면 audio 필드를 가리키며 거부한다', async () => {
