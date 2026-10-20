@@ -31,5 +31,6 @@ test("시리즈 썸네일 글자 칸 — 큰 단어는 영문 소문자, 라벨�
   const { cleanSeriesThumb } = await import("./series");
   assert.deepEqual(cleanSeriesThumb({ word: " Keyword ", label: "keyword series", box: "경제편" }), { word: "keyword", label: "KEYWORD SERIES", box: "경제편", problems: [] });
   assert.match(cleanSeriesThumb({ word: "경제", label: "", box: "" }).problems.join(), /영문/);
+  assert.deepEqual(cleanSeriesThumb({ word: "", label: "", box: "" }).problems, []); // 비우면 이 디자인을 쓰지 않는다
   assert.match(cleanSeriesThumb({ word: "basics", label: "", box: "아주 긴 박스 글자입니다요" }).problems.join(), /12자/);
 });

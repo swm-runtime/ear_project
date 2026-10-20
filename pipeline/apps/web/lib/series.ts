@@ -15,7 +15,8 @@ export interface SeriesRow {
 export function cleanSeriesThumb(v: { word: string; label: string; box: string }): { word: string; label: string; box: string; problems: string[] } {
   const word = v.word.trim().toLowerCase(), label = v.label.trim().toUpperCase(), box = v.box.trim();
   const problems: string[] = [];
-  if (!/^[a-z][a-z' -]{1,15}$/.test(word)) problems.push("큰 단어는 영문 2~16자다(손글씨로 그린다)");
+  // 큰 단어를 비우면 이 디자인을 쓰지 않는다(편마다 일반 썸네일) — 시리즈 디자인은 시리즈마다 따로 정한다(2026-10-20)
+  if (word && !/^[a-z][a-z' -]{1,15}$/.test(word)) problems.push("큰 단어는 영문 2~16자다(손글씨 글꼴로 얹는다)");
   if (label.length > 24) problems.push("라벨은 24자 이내다");
   if (box.length > 12) problems.push("박스 글자는 12자 이내다");
   return { word, label, box, problems };

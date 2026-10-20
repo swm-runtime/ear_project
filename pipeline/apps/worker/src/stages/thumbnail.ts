@@ -6,7 +6,7 @@ import { pipelineLocale, promptBody } from "@ear/pipeline";
 import { SERIES_THUMBNAIL_PROMPT_KEY, THUMBNAIL_ANCHOR_PROMPT_KEY, THUMBNAIL_PROMPT_KEY, THUMBNAIL_SCENE_PROMPT_KEY, workerRev } from "../assets.js";
 import { makeExecutor } from "../executors/index.js";
 import { bookmarkFile, composeBookmark, composeCorner, cornerContrast } from "./thumbnail-compose.js";
-import { composeSeriesThumb, seriesCountText, seriesLogo } from "./thumbnail-series.js";
+import { composeSeriesThumb, seriesCountText } from "./thumbnail-series.js";
 import { buildScenePrompt, buildScenePromptEn, recentScenes, SCENE_FILE, SCENE_SCHEMA, type ThumbnailScene } from "./thumbnail-scene.js";
 import { advanceChain } from "../chain.js";
 import { exists, localPathOf, pullPrefix, pushPrefix, s3Key } from "../storage.js";
@@ -106,7 +106,10 @@ export async function runThumbnail(job: Job) {
 
   // 시리즈 편 — 시리즈 바탕 그림 한 장에 번호만 얹는다(2026-10-20, thumbnail-series.ts). 장면 경로를 타지 않는다
   const sr = await pool.query("select series_id, series_no from public.backlog where id = $1", [backlogId]);
-  if (sr.rows[0]?.series_id) {
+  // 2026-10-20 박수헌·팀원: 시리즈 디자인은 시리즈마다 따로 정한다(자동화하지 않는다) — 이 디자인은 글자 칸(thumb_word)을 채운 시리즈(키워드 시리즈)에만.
+  // 칸이 빈 시리즈의 편은 일반 편처럼 장면 썸네일로 간다
+  const seriesWord = sr.rows[0]?.series_id ? (await pool.query("select thumb_word from public.series where id = $1", [sr.rows[0].series_id])).rows[0]?.thumb_word as string | null : null;
+  if (sr.rows[0]?.series_id && seriesWord?.trim()) {
     return runSeriesThumbnail({ job, episodeId, backlogId, rel, outFile, progress, seriesId: sr.rows[0].series_id as string, no: sr.rows[0].series_no as number, rebase: !!job.payload.rebase });
   }
 
@@ -237,14 +240,14 @@ async function runSceneThumbnail(a: {
 }
 
 /**
- * 시리즈 경로 (KAN-136, 2026-10-20) — 바탕 그림은 시리즈당 한 번(datasets/series/<id>/thumb-base.png, series.thumb_base_key), 편은 번호를,
- * 표지(thumb-cover.png)는 편수를 코드로 얹는다. 바탕 생성은 시리즈 단위 advisory lock 안에서 한다 — 편 썸네일 작업이 동시에 돌아도 한 번만 그린다.
+ * 시리즈 경로 (KAN-136, 2026-10-20) — 바탕 그림(아이콘 셋, seriesthumb-v3)은 시리즈당 한 번(datasets/series/<id>/thumb-base.png, series.thumb_base_key), 편은 큰 단어·번호를,
+ * 표지(thumb-cover.png)는 큰 단어·편수를 코드로 얹는다. 큰 단어(thumb_word)를 바꿔도 바탕은 다시 그리지 않는다. 바탕 생성은 시리즈 단위 advisory lock 안에서 한다 — 편 썸네일 작업이 동시에 돌아도 한 번만 그린다.
  * payload.rebase = 바탕을 새로 그린다(시리즈 화면 [시리즈 썸네일 다시 만들기]는 thumb_base_key 를 비우고 편마다 작업을 건다 — 첫 작업만 그린다).
  */
 async function runSeriesThumbnail(a: { job: Job; episodeId: string; backlogId: string; rel: string; outFile: string; progress: (detail: string) => Promise<unknown>; seriesId: string; no: number; rebase: boolean }) {
   const s = await getSeries(a.seriesId);
   if (!s) throw new Error(`시리즈 ${a.seriesId} 없음`);
-  if (!s.thumb_word?.trim()) throw new Error(`시리즈 "${s.name}" 썸네일 큰 단어(thumb_word)가 비었다 — 시리즈 화면에서 채운 뒤 [썸네일 다시 만들기]`);
+  if (!s.thumb_word?.trim()) throw new Error(`시리즈 "${s.name}" 썸네일 큰 단어(thumb_word)가 비었다`); // 호출 전에 거른다
   const en = pipelineLocale() === "en";
   const baseRel = `datasets/series/${a.seriesId}`;
   const baseFile = path.join(cfg.workRoot, baseRel, "thumb-base.png");
@@ -261,8 +264,8 @@ async function runSeriesThumbnail(a: { job: Job; episodeId: string; backlogId: s
       const asset = await loadAsset(SERIES_THUMBNAIL_PROMPT_KEY);
       const titles = (Array.isArray(s.plan) ? (s.plan as { no: number; title: string }[]) : []).map((e) => `${e.no}. ${e.title}`).join(en ? "; " : " · ");
       const prompt = fillSlots(promptBody(asset.content), en
-        ? { "{word}": s.thumb_word.trim(), "{series name}": s.name, "{intro}": s.intro_line ?? "", "{episode titles}": titles, "{topic}": s.mid_topic }
-        : { "{큰 단어}": s.thumb_word.trim(), "{시리즈 이름}": s.name, "{소개}": s.intro_line ?? "", "{편 제목들}": titles, "{분야}": s.mid_topic });
+        ? { "{series name}": s.name, "{intro}": s.intro_line ?? "", "{episode titles}": titles, "{topic}": s.mid_topic }
+        : { "{시리즈 이름}": s.name, "{소개}": s.intro_line ?? "", "{편 제목들}": titles, "{분야}": s.mid_topic });
       await a.progress(`${cfg.thumbnailModel} · ${cfg.thumbnailQuality} · 시리즈 바탕`);
       const started = Date.now();
       const png = await generateImage(prompt);
@@ -279,7 +282,7 @@ async function runSeriesThumbnail(a: { job: Job; episodeId: string; backlogId: s
   await a.progress("번호·표지 합성");
   const size = Number(String(cfg.thumbnailSize).split("x")[0]) || 1024;
   const base = await fs.readFile(baseFile);
-  const text = { logo: seriesLogo(en), label: s.thumb_label ?? "", box: s.thumb_box ?? "" };
+  const text = { word: s.thumb_word.trim(), label: s.thumb_label ?? "", box: s.thumb_box ?? "" };
   await fs.writeFile(a.outFile, await composeSeriesThumb(base, { ...text, no: a.no }, size));
   // 표지 — 제품 시리즈 표지(서버가 표지를 받기 전까지는 앱이 1화 썸네일을 쓴다, KAN-134 후속)
   if (s.total_episodes) await fs.writeFile(coverFile, await composeSeriesThumb(base, { ...text, no: null, count: seriesCountText(s.total_episodes, en) }, size));
