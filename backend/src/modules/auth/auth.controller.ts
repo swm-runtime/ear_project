@@ -72,7 +72,7 @@ export class AuthController {
     return SocialLoginResponseDto.from(result, now);
   }
 
-  /** 파이프라인 웹 SSO — 서버 간 어서션으로 관리자 세션 발급 (changes/pending/pipeline-sso-login.md) */
+  /** 파이프라인 웹 SSO — 서버 간 어서션으로 관리자 세션 발급 (changes/archive/pipeline-sso-login.md · 반영 2026-09-03) */
   @Post('pipeline-login')
   @HttpCode(HttpStatus.OK)
   async pipelineLogin(

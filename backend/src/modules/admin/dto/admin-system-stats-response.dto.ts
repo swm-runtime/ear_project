@@ -3,7 +3,7 @@ import { ResourceSample } from '../services/resource-alert.service';
 
 /**
  * 어드민 로그 콘솔 서버 상태 탭 — 자원·DB 부하 스냅샷
- * (changes/pending/admin-api-system-stats.md).
+ * (changes/archive/admin-api-system-stats.md · 반영 2026-09-06).
  */
 export class AdminSystemStatsResponseDto {
   readonly host: {

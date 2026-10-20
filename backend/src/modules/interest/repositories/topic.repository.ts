@@ -37,7 +37,10 @@ export class TopicRepository {
     });
   }
 
-  /** 노출 주제가 하나도 없을 때의 폴백 경로에서만 쓴다 (onboarding.md 7) */
+  /**
+   * 숨긴 주제까지 시장 구분 없이 전부. 관리자 주제 목록(`TopicService.findAll` → `AdminTopicService`, admin.md 5장)과
+   * 새 주제의 기본 `display_order`(최댓값 + 1 — `TopicService.create`)가 쓴다. 사용자 경로는 노출 주제 조회를 쓴다
+   */
   async findAll(manager?: EntityManager): Promise<Topic[]> {
     return this.scoped(manager).find({ order: { displayOrder: 'ASC' } });
   }

@@ -85,7 +85,7 @@ export class UserService {
     return this.userRepository.findByEmail(email);
   }
 
-  /** 파이프라인 SSO — 검증된 이메일과 같은 관리자 계정 (changes/pending/pipeline-sso-login.md) */
+  /** 파이프라인 SSO — 검증된 이메일과 같은 관리자 계정 (changes/archive/pipeline-sso-login.md · 반영 2026-09-03) */
   async findAdminByEmail(email: string): Promise<User | null> {
     return this.userRepository.findAdminByEmail(email);
   }

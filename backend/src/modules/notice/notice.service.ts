@@ -17,7 +17,7 @@ import {
 import { UserMarket } from '@/modules/user/user.enum';
 
 /**
- * `notices`의 소유자(`changes/pending/notice-screen-spec.md` D). 사용자 조회와 관리자 쓰기가 같은
+ * `notices`의 소유자(`changes/archive/notice-screen-spec.md` D · 반영 2026-09-17). 사용자 조회와 관리자 쓰기가 같은
  * 판정("발행됨 = `published_at <= 서버 시각`")을 쓰도록 이 Service 한 곳에 둔다.
  *
  * 관리자 쓰기의 감사 기록은 여기서 하지 않는다 — admin 모듈이 이 Service와 `AuditLogService`를

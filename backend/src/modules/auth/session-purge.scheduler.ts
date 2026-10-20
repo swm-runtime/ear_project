@@ -16,7 +16,7 @@ import { SessionRepository } from './session.repository';
  * 성장은 조회 비용으로도 돌아온다.
  *
  * 보존 기간은 refresh TTL과 같다 — 재사용(탈취) 탐지가 폐기 이력을 보는 창이 그 길이다.
- * 기한의 근거와 domain.md 12.1 개정은 `changes/pending/sessions-retention-period.md`.
+ * 기한의 근거와 domain.md 12.1 개정은 `changes/archive/sessions-retention-period.md` · 반영 2026-09-09.
  *
  * 다중 인스턴스가 동시에 돌아도 안전하다. 같은 조건의 DELETE라 겹치면 지울 것이 없을 뿐이다.
  */

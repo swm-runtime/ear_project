@@ -276,7 +276,7 @@ export class AuthService {
    * 서명한 어서션을 제시하면, 같은 이메일의 **관리자 계정**으로 세션을 발급한다.
    * 발행 콘솔의 두 번째 로그인(GIS)을 없애는 서버 간 신뢰다 — 브라우저는 비밀을 모른다.
    * 관리자 외 계정은 거부한다: 이 경로의 용도가 관리 콘솔뿐이므로 최소 권한으로 좁힌다.
-   * (changes/pending/pipeline-sso-login.md)
+   * (changes/archive/pipeline-sso-login.md · 반영 2026-09-03)
    */
   async pipelineLogin(
     command: PipelineLoginCommand,

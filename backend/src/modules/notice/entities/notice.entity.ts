@@ -10,7 +10,7 @@ import { BaseEntity } from '@/database/base.entity';
 import { UserMarket } from '@/modules/user/user.enum';
 
 /**
- * 공지사항 — 운영 공지 게시판(`changes/pending/notice-screen-spec.md` D, KAN-67).
+ * 공지사항 — 운영 공지 게시판(`changes/archive/notice-screen-spec.md` D · 반영 2026-09-17, KAN-67).
  *
  * **점검 공지(domain.md 13.3 `AppConfig`)와 별개다.** 점검 공지는 배포 설정이고, 이것은 사용자가
  * 설정 > 공지사항에서 당겨 보는 글이다. 푸시와 묶지 않는다.

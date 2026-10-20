@@ -3,7 +3,7 @@ export const ACCESS_TOKEN_TTL_SEC = 30 * 60;
 export const REFRESH_TOKEN_TTL_SEC = 30 * 24 * 60 * 60;
 
 /**
- * 만료·폐기된 세션의 보존 기간 — `changes/pending/sessions-retention-period.md`(domain.md 12.1
+ * 만료·폐기된 세션의 보존 기간 — `changes/archive/sessions-retention-period.md` · 반영 2026-09-09(domain.md 12.1
  * 개정 요청, 2026-09-09). 폐기 이력이 필요한 것은 refresh 재사용 탐지 창(refresh TTL 30일)
  * 동안뿐이라, 그 창을 넘긴 행은 탐지에도 안 쓰이고 조회 비용만 남긴다.
  */
@@ -26,7 +26,7 @@ export const PROVIDER_REQUEST_TIMEOUT_MS = 5000;
 
 export const ACCESS_TOKEN_TYPE = 'access';
 
-/** 파이프라인 웹 SSO 어서션의 typ (changes/pending/pipeline-sso-login.md) */
+/** 파이프라인 웹 SSO 어서션의 typ (changes/archive/pipeline-sso-login.md · 반영 2026-09-03) */
 export const PIPELINE_ASSERTION_TYPE = 'pipeline_sso';
 
 /**
