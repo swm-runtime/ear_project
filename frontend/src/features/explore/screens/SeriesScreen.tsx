@@ -4,7 +4,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { theme } from '@/shared/theme';
 import ChevronIcon from '@/shared/ui/ChevronIcon';
 import FullScreenError from '@/shared/ui/FullScreenError';
-import GlassCapsule, { HEADER_CONTROL_HEIGHT } from '@/shared/ui/GlassCapsule';
+import GlassCapsule from '@/shared/ui/GlassCapsule';
 import GlassIconButton from '@/shared/ui/GlassIconButton';
 import { HAS_NATIVE_TAB_BAR } from '@/shared/ui/GlassSurface';
 import MoreIcon from '@/shared/ui/MoreIcon';
@@ -137,7 +137,11 @@ export default function SeriesScreen() {
           PM 2026-10-22). 제목은 머리가 크게 말한다. 캡슐은 상세가 그려진 뒤에만 — 반쪽 값으로 공유하지 않는다(share-uiux.md 4.2).
           목록 위에 그리도록 본문 뒤에 둔다 */}
       <View style={[styles.appBar, { top: insets.top }]} pointerEvents="box-none">
-        <GlassIconButton onPress={screen.goBack} accessibilityLabel={EXPLORE_COPY.series.backA11y}>
+        <GlassIconButton
+          onPress={screen.goBack}
+          accessibilityLabel={EXPLORE_COPY.series.backA11y}
+          style={styles.backButton}
+        >
           <ChevronIcon direction="left" size={APP_BAR_ICON_SIZE} color={theme.color.textPrimary} />
         </GlassIconButton>
         {screen.detail ? (
@@ -198,9 +202,14 @@ export default function SeriesScreen() {
 const RowSeparator = () => <View style={styles.separator} />;
 
 /** 앱바 유리 버튼 안 아이콘 — 콘텐츠 상세와 같은 값 */
-const APP_BAR_ICON_SIZE = 20;
+/**
+ * 떠 있는 앱바 버튼 — 다른 화면의 머리 줄 컨트롤(40)보다 크게(PM 2026-10-22 "상단 버튼 키우자"). 큰 표지 위에 떠서
+ * 애플 뮤직 앨범 화면처럼 손에 잘 걸리는 크기. 뒤로 원·오른쪽 캡슐이 같은 높이
+ */
+const BAR_BUTTON_SIZE = 48;
+const APP_BAR_ICON_SIZE = 24;
 /** 떠 있는 앱바 줄 높이 — 유리 원(40) 터치 44 + 위아래 여유 */
-const APP_BAR_HEIGHT = theme.touchTarget.minHeight + theme.spacing.sm;
+const APP_BAR_HEIGHT = BAR_BUTTON_SIZE + theme.spacing.sm;
 
 const styles = StyleSheet.create({
   container: {
@@ -221,16 +230,20 @@ const styles = StyleSheet.create({
   nonListBody: {
     flex: 1,
   },
-  // 오른쪽 캡슐 — 뒤로 원과 같은 높이(40), 아이콘 칸 둘
+  backButton: {
+    width: BAR_BUTTON_SIZE,
+    height: BAR_BUTTON_SIZE,
+  },
+  // 오른쪽 캡슐 — 뒤로 원과 같은 높이, 아이콘 칸 둘
   actionCapsule: {
     flexDirection: 'row',
     alignItems: 'center',
-    height: HEADER_CONTROL_HEIGHT,
+    height: BAR_BUTTON_SIZE,
     paddingHorizontal: theme.spacing.xs,
   },
   capsuleButton: {
-    width: HEADER_CONTROL_HEIGHT + theme.spacing.xs,
-    height: HEADER_CONTROL_HEIGHT,
+    width: BAR_BUTTON_SIZE + theme.spacing.xs,
+    height: BAR_BUTTON_SIZE,
     alignItems: 'center',
     justifyContent: 'center',
   },
