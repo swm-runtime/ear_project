@@ -213,6 +213,14 @@ export interface ExploreSearchResponseDto {
 }
 
 /**
+ * GET /contents/:content_id/related (player-api.md 4.8 — KAN-240) — 지금 듣는 편과 대본 임베딩이 비슷한 편.
+ * 행은 탐색 4.1 콘텐츠 행과 같고 `type` 키·시리즈 카드가 없다. 기준 편에 임베딩이 없으면 `items: []`
+ */
+export interface RelatedContentsResponseDto {
+  items: ExploreItemDto[];
+}
+
+/**
  * GET /explore/topics (explore-api.md 4.2-2) — 확정 계약(합의 2026-08-07).
  * 앞쪽은 활성 관심 주제 전부(선택 순서, 숨김 처리돼도 포함), 뒤쪽은 노출 주제(display_order 순).
  * 정렬은 서버 소유다 — 클라이언트는 재배열하지 않는다.

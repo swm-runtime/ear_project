@@ -19,7 +19,7 @@ import {
   useSessionStore,
 } from '@/features/auth';
 import { registerCareerSavedListener } from '@/features/career';
-import { fetchInterestUpNext, saveContent } from '@/features/explore';
+import { fetchUpNext, saveContent } from '@/features/explore';
 import { registerInterestSavedListener } from '@/features/interest';
 import {
   completeLibraryItem,
@@ -219,10 +219,10 @@ export const bootstrapApp = (): void => {
       return result.libraryItem.itemId;
     },
     /*
-     * "다음에 들어볼 만한"(player.md 4.2-2) — ① BE KAN-240 `GET /contents/:id/related` 가 나오면 여기 앞에 둔다(없는 서버에
-     * 매번 404 를 내지 않게 지금은 두지 않는다). ② 탐색 interest 섹션(피드 캐시 재사용)
+     * "다음에 들어볼 만한"(player.md 4.2-2) — ① `GET /contents/:id/related`(KAN-240, 대본 임베딩 코사인) → 비거나 실패면
+     * ② 탐색 interest 섹션(피드 캐시 재사용). 두 단계는 explore 가 묶어 준다
      */
-    fetchUpNext: (_contentId, excludeIds) => fetchInterestUpNext(queryClient, excludeIds),
+    fetchUpNext: (contentId, excludeIds) => fetchUpNext(queryClient, contentId, excludeIds),
   });
 
   /*

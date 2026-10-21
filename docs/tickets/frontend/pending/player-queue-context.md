@@ -68,4 +68,6 @@
   - **시트 2단**(`PlayerScreen`): 진행값을 따로 둔다(`queueExpand` 0→1) — 기존 1단 보간이 `queueProgress` 0~1 을 가정해 범위를 늘리지 않았다. 시트 틀을 2단 자리(앱바 + 한 줄 재생 바 56)에 세워 두고 1단·닫힘은 translateY 로 더 내린다(레이아웃 애니메이션 없음). 2단에서 압축 히어로·아트워크·컨트롤은 opacity 로 흐려지고(`pointerEvents` 끔) 앱바 아래 한 줄 재생 바(썸네일 40 · 제목 · 재생/정지)가 뒤쪽 절반에서 페이드인. 손잡이 끌기: 1단에서 위로 → 2단, 2단에서 아래로 → 1단(단계별 복귀, 임계·속도 규칙 1단과 같음). 손잡이 탭: 2단 → 1단, 1단 → 닫힘. 닫기·다른 패널 전환은 2단 몫부터 접음. 1단 손잡이 글자 "재생목록 더 보기"(탐색 맥락은 `출처 · 더 보기`). 1단에서 시트 아래 2단 몫만큼 패널 바닥 여백(`bottomInset`).
   - 덤: dev 에 올라온 `shared/navigation/to-tab.test.ts`(#1811 시리즈 탭 스택)가 `@jest/globals` import 없이 들어와 로컬 typecheck 가 깨졌다 — import 한 줄 추가(FE CI 는 typecheck 를 안 돌려 머지됐다 — `fe-ci-no-typecheck`).
   - tsc·eslint·jest(player·navigation·ko 스냅샷) 통과. **실기기 미확인** — 2단 모션(Android FLIP 과의 겹침·시트 틀 위치)과 스와이프·스크롤 축 판정은 개발계 빌드에서 봐야 한다.
-  - **남은 것**: related 연결(KAN-240 뒤), 문서 반영(10항), 개발계 실기기 확인(1~4 전부).
+  - ~~**남은 것**: related 연결(KAN-240 뒤)~~ → 아래 05:04 기록.
+- 2026-10-22 05:04 **related 연결**(PM "너가 뜯어고쳐라" — BE PR #1814 를 FE 가 머지, dev `33b56d38`, KAN-240 Jira 완료 전이) — 브랜치 `feat(fe)/player-up-next-related`: `fetchRelatedContents`(`GET /contents/:id/related?limit=5&exclude_ids=…`, exclude 는 서버 상한 50 에서 자른다) → `explore.up-next.ts` `fetchUpNext` 가 ① related → 비거나 실패(404 `CONTENT_NOT_FOUND`·네트워크·임베딩 없음)면 ② interest 폴백으로 묶고, 브리지는 그 함수 하나를 꽂는다. mock 은 같은 주제 편을 "비슷한 편"으로 친다. tsc·eslint·jest 통과.
+  - **남은 것**: 문서 반영(10항 — changes 1~3·3-1·3-2·6·7절 → `player.md`·`player-uiux.md`·`explore.md`·`paywall.md`), 개발계 실기기 확인(1~4 + related 블록).
