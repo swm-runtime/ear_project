@@ -98,7 +98,7 @@ export async function enqueueJob(type: "sweep" | "cluster" | "tts" | "thumbnail"
     const g = agentGate(ep.critic_verdicts);
     if (b?.status !== "published" && !g.ok) throw new Error(`발행 준비를 시작할 수 없습니다 — ${g.blockers.join(" · ")}`);
   }
-  const requires_ai = type === "cluster" || type === "series_plan" || (type === "sweep" && (payload.mode === "B" || payload.mode === "B2")); // series_plan: 시리즈 설계안(0029) — 단발 AI 호출 // 보강 스윕(모드 B-①)·주제 기획(B-②)은 WebSearch 를 쓰는 AI 실행
+  const requires_ai = type === "cluster" || type === "series_plan" || (type === "sweep" && (payload.mode === "B" || payload.mode === "B2" || payload.mode === "P")); // P: 소스 풀 채우기(2026-10-21) — 웹 검색 실행기 // series_plan: 시리즈 설계안(0029) — 단발 AI 호출 // 보강 스윕(모드 B-①)·주제 기획(B-②)은 WebSearch 를 쓰는 AI 실행
   const { data, error } = await sb.from("jobs").insert({ type, requires_ai, payload, status: "queued" }).select("id").single();
   if (error) throw new Error(error.message);
   revalidatePath("/"); revalidatePath("/sweep"); revalidatePath("/episodes");
@@ -387,6 +387,18 @@ export async function requestReinforce(backlogId: string) {
   const { data: dupe } = await sb.from("jobs").select("id").eq("type", "sweep").in("status", ["queued", "claimed", "running"]).eq("payload->>backlog_id", backlogId).limit(1);
   if (dupe && dupe.length) throw new Error("이미 보강 작업이 대기·진행 중입니다");
   return enqueueJob("sweep", { mode: "B", backlog_id: backlogId });
+}
+
+/** 소스 풀 채우기 (스윕 모드 P, 2026-10-21 팀원 요청) — 중분류(+메모)로 발행처를 웹 검색해 candidate 행만 만든다. 판정은 사람(spec/01 4장) */
+export async function requestPoolDiscover(input: { midTopic: string; hint?: string }): Promise<string> {
+  const mid = input.midTopic.trim(); if (!mid) throw new Error("중분류를 고르세요");
+  const sb = await supabaseServer();
+  const { data: t, error } = await sb.from("topics").select("mid").eq("mid", mid).maybeSingle();
+  if (error) throw new Error(error.message); if (!t) throw new Error(`모르는 중분류: ${mid}`);
+  const hint = input.hint?.trim() || null;
+  const id = await enqueueJob("sweep", { mode: "P", mid_topic: mid, ...(hint ? { hint } : {}) });
+  revalidatePath("/domains");
+  return id;
 }
 
 export async function requestDomainCheck(domainIds: string[] | null, onlyUnchecked = true) {

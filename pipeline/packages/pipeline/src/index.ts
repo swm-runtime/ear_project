@@ -1420,6 +1420,42 @@ export function buildTopicSeedSearchPrompt(i: TopicSeedSearchInput): string {
 
 ## 완료 보고 — 반드시 요청된 JSON 스키마 형식으로만 출력한다. sources 는 최대 10건, 각 항목에 url(검색 결과의 실제 URL 그대로) · title · publisher(사이트/발행처명) · published(YYYY-MM-DD 또는 null) · summary(검색 결과 요약을 한국어 두 문장으로) · roles · why(이 역할을 채우는 이유 한 줄) · in_pool(위 풀 사이트 목록에 있으면 true). queries 에는 실제로 쓴 검색어를 전부 적고, notes 에는 못 채운 역할과 이유를 적는다.`;
 }
+// ── 소스 풀 채우기 — 스윕 모드 P (2026-10-21, 팀원 요청): 단건 기사가 아니라 중분류를 꾸준히 다루는 **발행처**를 찾아 candidate 로 등록한다. 판정은 사람(spec/01 4장) ──
+export interface PoolDiscoverInput { midTopic: string; hint: string | null; mids: string[]; existingHosts: string[]; maxSearches: number }
+export const POOL_CATEGORIES = ["공공기관", "연구기관", "대학", "학회·저널", "기업 공식 블로그", "전문 매거진", "비영리 매체", "상업 언론"] as const;
+export function buildPoolDiscoverPrompt(i: PoolDiscoverInput): string {
+  return `당신은 오디오 콘텐츠 서비스 "이어(ear)"의 **소스 풀 담당**이다. 사람이 중분류를 하나 골랐다. 그 중분류의 에피소드 근거로 꾸준히 쓸 수 있는 **발행처(사이트)** 를 웹 검색으로 찾는다. 기사 한 건이 아니라, 그 주제를 정기적으로 다루는 사이트를 찾는 일이다.
+이 실행의 도구는 **WebSearch 뿐**이다 — 페이지 본문을 읽지 않는다. 검색 결과에서 본 사이트·제목·요약만으로 판단한다.
+
+## 중분류
+- ${i.midTopic}${i.hint ? `\n- 사람 메모: ${i.hint}` : ""}
+- 같은 대분류의 중분류 목록(coverage 에 쓸 이름): ${i.mids.join(", ")}
+
+## 무엇을 찾는가
+- 우선순위: 공공기관·연구기관·대학·학회·오픈액세스 저널·기업 공식 블로그 > 전문 매거진·비영리 매체 > 상업 언론.
+- 넣지 않는 곳: 개인 블로그(네이버·티스토리·브런치·velog·개인 미디엄)·SNS·위키·커뮤니티·상품·쇼핑 페이지, 뉴스 속보 위주 사이트, 유료 DB·구독 벽·로그인 뒤 사이트(researchgate, ssrn, academia.edu, 유료 저널), PDF 만 있는 저장소.
+- 한 발행처에 글이 꾸준히 있어야 한다 — 검색 결과에 그 사이트의 글이 둘 이상 보이거나, 사이트 이름 자체가 그 주제의 기관·매체일 때만 넣는다.
+- **이미 풀에 있는 사이트는 넣지 않는다**: ${i.existingHosts.slice(0, 80).join(", ") || "(없음)"}
+
+## 검색 규칙
+- 검색은 최대 ${i.maxSearches}회. 한국어·영어 둘 다 쓴다. 검색어는 글이 아니라 사이트를 찾는 꼴로 만든다 — "<주제> 연구소", "<주제> 학회 저널", "<주제> 기업 기술 블로그", "<topic> institute research", "<topic> open access journal", "<topic> official blog".
+- 사이트 한정은 \`site:도메인\` 형식으로만 쓴다.
+
+## 완료 보고 — 반드시 요청된 JSON 스키마 형식으로만 출력한다. sources 는 최대 15건, 각 항목에 url(검색 결과에서 실제로 본 그 사이트의 페이지 URL 그대로 — 홈이나 글 하나) · publisher(발행처명) · category(${POOL_CATEGORIES.join(" / ")} 중 하나) · feed_url(검색 결과에 RSS·Atom 주소가 보였을 때만, 아니면 null — 지어내지 않는다) · why(이 중분류를 꾸준히 다룬다고 본 근거 한 줄, 검색 결과에서 본 글 제목 포함) · coverage(위 중분류 목록 중 이 사이트가 다루는 것들). queries 에는 실제로 친 검색어를 적는다. notes 에는 못 찾은 종류와 이유.`;
+}
+export const POOL_DISCOVER_SCHEMA = {
+  type: "object",
+  additionalProperties: false,
+  required: ["queries", "sources", "notes"],
+  properties: {
+    queries: { type: "array", items: { type: "string" } },
+    sources: { type: "array", items: { type: "object", additionalProperties: false, required: ["url", "publisher", "category", "feed_url", "why", "coverage"], properties: {
+      url: { type: "string" }, publisher: { type: "string" }, category: { type: "string" }, feed_url: { type: ["string", "null"] }, why: { type: "string" },
+      coverage: { type: "array", items: { type: "string" } } } } },
+    notes: { type: "string" },
+  },
+} as const;
+
 export const REINFORCE_SEARCH_SCHEMA = {
   type: "object",
   additionalProperties: false,
