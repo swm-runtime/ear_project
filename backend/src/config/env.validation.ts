@@ -198,6 +198,20 @@ export class EnvironmentVariables {
   RECOMMEND_TEST_EMAIL?: string;
 
   /**
+   * AI 서버(`ai-server/`) 주소 — 탐색 검색의 질의 임베딩(`POST /embeddings`, KAN-238). 백엔드가 **요청 시점에** AI 서버를
+   * 부르는 유일한 경로다(architecture.md 1장). `AI_SERVER_INTERNAL_TOKEN`과 둘 다 있어야 켜지고, 하나라도 비면 의미 엔진이
+   * 꺼진 채(`engines: ["keyword"]`) 검색이 종전처럼 돈다 — 부팅을 막지 않는다. 예: `http://10.0.1.23:8000`
+   */
+  @IsOptional()
+  @IsString()
+  AI_SERVER_URL?: string;
+
+  /** AI 서버 내부 호출 토큰 — AI 서버의 `INTERNAL_AUTH_TOKEN`과 같은 값. `X-Internal-Token` 헤더로 AI 서버에만 보낸다 */
+  @IsOptional()
+  @IsString()
+  AI_SERVER_INTERNAL_TOKEN?: string;
+
+  /**
    * 행동 기반 자동 확장(`drip-scheduling.md` 4.5 — 2026-09-30)의 서버 스위치. `true`/`false`.
    * **`true`를 명시했을 때만 켜진다**(2026-10-14 개정 — 종전 "운영만 기본 꺼짐"은 운영 환경 이름이 비거나 오타면
    * 조용히 켜졌다). 자동 슬롯이 붙은 사용자의 관심사 화면은 "자동 추가됨" 배지·`N/3` 집계·토글 노출(FE)이 나가야

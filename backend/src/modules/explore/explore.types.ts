@@ -12,8 +12,14 @@ import { DailyPlayQuota } from '@/modules/playback/playback.types';
 import { ExploreSectionKey, SaveReason } from './explore.enum';
 import { UserMarket } from '@/modules/user/user.enum';
 import { ContentLanguage } from '@/modules/content/content.enum';
-import { ContentSeriesRef } from '@/modules/content/content.types';
+import {
+  ContentSeriesRef,
+  SearchEngine,
+} from '@/modules/content/content.types';
 import { SeriesCardView } from '@/modules/content/services/series.service';
+
+/** 검색 응답 최상위 `match`(KAN-238 — explore-api.md 4.5): 첫 페이지에 키워드로 맞은 편이 있으면 `keyword` */
+export type SearchMatch = 'keyword' | 'related';
 
 export interface ExploreContentView {
   id: string;
@@ -155,6 +161,11 @@ export interface ExploreSearchQuery {
   topicIds: string[];
   cursor: string | null;
   limit: number;
+  /**
+   * 교정을 끈다(KAN-238 — "혹시 ‘OO’로 검색하고 싶나요?" 탭). 선택이고 기본 `false` — 옛 앱은 보내지 않는다.
+   * `#` 질의에서는 무시한다
+   */
+  exact: boolean;
 }
 
 /**
@@ -168,6 +179,15 @@ export interface ExploreSearchFallback {
 
 export interface ExploreSearchResult {
   items: ExploreListItemView[];
+  /** `items`와 같은 자리의 "어느 엔진에서 왔는가"(KAN-238 — `items[].matched_by`) */
+  matchedBy: SearchEngine[][];
+  /** 실제 검색에 쓴 정규화 질의 — 교정어 또는 입력의 정규화 값 */
+  queryUsed: string;
+  /** 교정했으면 입력의 정규화 값, 아니면 `null` */
+  correctedFrom: string | null;
+  match: SearchMatch;
+  /** 이 응답을 만든 엔진 */
+  engines: SearchEngine[];
   /** `hasNext`가 false면 `null`이다 */
   nextCursor: string | null;
   hasNext: boolean;

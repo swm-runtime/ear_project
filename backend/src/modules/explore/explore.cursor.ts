@@ -1,4 +1,5 @@
 import { HttpStatus } from '@nestjs/common';
+import { createHash } from 'node:crypto';
 
 import { BusinessException } from '@/common/exceptions/business.exception';
 import { ErrorCode } from '@/common/exceptions/error-code.enum';
@@ -11,9 +12,12 @@ import {
 import { StatsPeriodType } from '@/modules/content/content.enum';
 import {
   ExploreCursorPosition,
+  HybridSearchCursorPosition,
   PopularCursorPosition,
   SearchCursorPosition,
 } from '@/modules/content/content.types';
+
+import { SearchMatch } from './explore.types';
 
 /**
  * 커서는 **API 계약이지 도메인 개념이 아니다.** 그래서 Repository가 아니라 이 모듈이
@@ -274,6 +278,181 @@ function isSearchCursorPayload(value: unknown): value is SearchCursorPayload {
     isTimestampValue(candidate.t) &&
     isUuid(candidate.i) &&
     typeof candidate.q === 'string'
+  );
+}
+
+/**
+ * 하이브리드 검색 커서(KAN-238 — explore-api.md 4.5). 최종 정렬 키 넷(RRF 점수·인기·신선도·id)과, 다음 페이지를 **같은 검색**으로
+ * 잇는 데 필요한 것을 담는다 — 실제 검색어(교정어)·교정 여부·첫 페이지의 `match`·의미 엔진을 썼는가.
+ *
+ * - **지문은 입력 질의 + 주제 필터 + `exact`의 해시다.** 셋 중 하나라도 다르면 `EXPLORE_CURSOR_INVALID`. 해시로 담는 이유: 질의
+ *   원문(최대 100자 = UTF-8 300바이트)과 교정어를 둘 다 실으면 커서 길이 상한(512자)을 넘을 수 있다.
+ * - 교정어(`u`)는 교정했을 때만 싣는다 — 아니면 실제 검색어 = 입력 질의다.
+ * - `s`(의미 엔진 사용)가 거짓이면 다음 페이지도 의미 엔진을 돌리지 않는다 — 첫 페이지가 키워드만으로 줄 세워졌는데 다음
+ *   페이지에서 AI 서버가 살아나 의미 결과가 섞이면 RRF 척도가 달라져 경계가 어긋난다. 반대(첫 페이지는 썼는데 지금 결손)는
+ *   피할 수 없고, 미세한 순서 흔들림으로 감수한다(문서 명시).
+ *
+ * `v: 2`로 종전(키워드 전용) 커서와 가른다. 종전 커서(1.3.0까지의 앱이 배포 순간 들고 있던 것)는 `decodeAnySearchCursor`가
+ * **종전 키워드 경로로 이어 준다** — 오류를 내지 않는다.
+ */
+interface HybridSearchCursorPayload {
+  v: 2;
+  /** RRF 점수(double precision) */
+  r: number;
+  /** 직전 확정 월 재생 수 */
+  p: number;
+  /** `published_at` (ISO 8601) */
+  t: string;
+  i: string;
+  /** 지문 해시 — 입력 질의 + 주제 필터 + exact */
+  q: string;
+  /** 교정어 — 교정했을 때만 */
+  u?: string;
+  /** 첫 페이지의 `match` */
+  m: SearchMatch;
+  /** 첫 페이지가 의미 엔진을 썼는가 */
+  s: boolean;
+}
+
+/** 다음 페이지를 같은 검색으로 잇는 값 — 커서가 싣는 검색 상태 */
+export interface HybridSearchState {
+  /** 실제 검색어 — 교정어 또는 입력 질의 */
+  queryUsed: string;
+  /** 교정했는가 — 그러면 `corrected_from` = 입력 질의 */
+  corrected: boolean;
+  match: SearchMatch;
+  semantic: boolean;
+}
+
+export type DecodedSearchCursor =
+  | { kind: 'legacy'; position: SearchCursorPosition }
+  | {
+      kind: 'hybrid';
+      position: HybridSearchCursorPosition;
+      state: HybridSearchState;
+    };
+
+function hybridFingerprint(
+  normalizedQuery: string,
+  topicIds: string[],
+  exact: boolean,
+): string {
+  return createHash('sha256')
+    .update(
+      `${normalizedQuery}\u0000${[...topicIds].sort().join(',')}\u0000${exact ? 'exact' : ''}`,
+    )
+    .digest('base64url')
+    .slice(0, 22);
+}
+
+export function encodeHybridSearchCursor(
+  position: HybridSearchCursorPosition,
+  state: HybridSearchState,
+  normalizedQuery: string,
+  topicIds: string[],
+  exact: boolean,
+): string {
+  const payload: HybridSearchCursorPayload = {
+    v: 2,
+    r: position.rrf,
+    p: position.playCount,
+    t: position.publishedAt.toISOString(),
+    i: position.id,
+    q: hybridFingerprint(normalizedQuery, topicIds, exact),
+    ...(state.corrected && { u: state.queryUsed }),
+    m: state.match,
+    s: state.semantic,
+  };
+
+  return Buffer.from(JSON.stringify(payload), 'utf8').toString('base64url');
+}
+
+/**
+ * 검색 커서 해석 — 하이브리드(`v: 2`)면 그 위치와 검색 상태, **종전 키워드 커서면 `legacy`**(호출부가 종전 키워드 경로로
+ * 잇는다 — 배포 순간 옛 앱이 들고 있던 커서가 오류 없이 다음 페이지를 받는다. 종전 커서는 `exact`를 모르므로 `exact`와
+ * 무관하게 받는다 — 교정 없는 키워드 검색이 곧 `exact` 키워드 모드다).
+ *
+ * 하이브리드 커서는 발급 시점과 `query`·`topic_ids`·`exact`가 하나라도 다르면 거절한다.
+ */
+export function decodeAnySearchCursor(
+  cursor: string,
+  normalizedQuery: string,
+  topicIds: string[],
+  exact: boolean,
+): DecodedSearchCursor {
+  let decoded: unknown;
+
+  try {
+    decoded = JSON.parse(Buffer.from(cursor, 'base64url').toString('utf8'));
+  } catch {
+    throw invalidCursor();
+  }
+
+  if (
+    typeof decoded === 'object' &&
+    decoded !== null &&
+    (decoded as Record<string, unknown>).v === undefined
+  ) {
+    return {
+      kind: 'legacy',
+      position: decodeSearchCursor(cursor, normalizedQuery, topicIds),
+    };
+  }
+
+  if (
+    !isHybridSearchCursorPayload(decoded) ||
+    decoded.q !== hybridFingerprint(normalizedQuery, topicIds, exact)
+  ) {
+    throw invalidCursor();
+  }
+
+  const publishedAt = new Date(decoded.t);
+
+  if (Number.isNaN(publishedAt.getTime())) {
+    throw invalidCursor();
+  }
+
+  return {
+    kind: 'hybrid',
+    position: {
+      rrf: decoded.r,
+      playCount: decoded.p,
+      publishedAt,
+      id: decoded.i,
+    },
+    state: {
+      queryUsed: decoded.u ?? normalizedQuery,
+      corrected: decoded.u !== undefined,
+      match: decoded.m,
+      semantic: decoded.s,
+    },
+  };
+}
+
+function isHybridSearchCursorPayload(
+  value: unknown,
+): value is HybridSearchCursorPayload {
+  if (typeof value !== 'object' || value === null) {
+    return false;
+  }
+
+  const candidate = value as Record<string, unknown>;
+
+  return (
+    candidate.v === 2 &&
+    // RRF 점수는 두 엔진 합이라 0 초과 2/(k+1) 이하다 — 범위만 막는다(SQL에 들어가는 값이다)
+    typeof candidate.r === 'number' &&
+    Number.isFinite(candidate.r) &&
+    candidate.r > 0 &&
+    candidate.r <= 1 &&
+    isCountValue(candidate.p) &&
+    isTimestampValue(candidate.t) &&
+    isUuid(candidate.i) &&
+    typeof candidate.q === 'string' &&
+    (candidate.u === undefined ||
+      (typeof candidate.u === 'string' && candidate.u.length > 0)) &&
+    (candidate.m === 'keyword' || candidate.m === 'related') &&
+    typeof candidate.s === 'boolean'
   );
 }
 

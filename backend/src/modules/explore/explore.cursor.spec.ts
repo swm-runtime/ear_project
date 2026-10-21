@@ -4,10 +4,12 @@ import { ErrorCode } from '@/common/exceptions/error-code.enum';
 import { StatsPeriodType } from '@/modules/content/content.enum';
 
 import {
+  decodeAnySearchCursor,
   decodeExploreCursor,
   decodePopularCursor,
   decodeSearchCursor,
   encodeExploreCursor,
+  encodeHybridSearchCursor,
   encodePopularCursor,
   encodeSearchCursor,
 } from './explore.cursor';
@@ -269,6 +271,198 @@ describe('exploreCursor', () => {
       // when
       const error = catchError(() =>
         decodeExploreCursor(encode(payload), [TOPIC_A]),
+      );
+
+      // then
+      expect(error.errorCode).toBe(ErrorCode.EXPLORE_CURSOR_INVALID);
+      expect(error.getStatus()).toBe(400);
+    });
+  });
+
+  describe('하이브리드 검색 커서(KAN-238)', () => {
+    const HYBRID_POSITION = {
+      rrf: 1 / 61 + 1 / 62,
+      playCount: 4,
+      publishedAt: PUBLISHED_AT,
+      id: CONTENT_ID,
+    };
+    const STATE = {
+      queryUsed: '커리어',
+      corrected: true,
+      match: 'keyword' as const,
+      semantic: true,
+    };
+
+    it('RRF 점수(float8)·검색 상태가 왕복 그대로다 — 키셋 재비교가 어긋나지 않는다', () => {
+      // given
+      const cursor = encodeHybridSearchCursor(
+        HYBRID_POSITION,
+        STATE,
+        '커리오',
+        [TOPIC_B, TOPIC_A],
+        false,
+      );
+
+      // when — 주제 순서가 달라도 같은 조건이다
+      const decoded = decodeAnySearchCursor(
+        cursor,
+        '커리오',
+        [TOPIC_A, TOPIC_B],
+        false,
+      );
+
+      // then
+      expect(decoded).toEqual({
+        kind: 'hybrid',
+        position: HYBRID_POSITION,
+        state: STATE,
+      });
+    });
+
+    it('교정하지 않았으면 교정어를 싣지 않고 실제 검색어는 입력 질의다', () => {
+      // given
+      const cursor = encodeHybridSearchCursor(
+        HYBRID_POSITION,
+        { ...STATE, queryUsed: '커리어', corrected: false },
+        '커리어',
+        [],
+        false,
+      );
+
+      // when
+      const payload = JSON.parse(
+        Buffer.from(cursor, 'base64url').toString('utf8'),
+      ) as Record<string, unknown>;
+      const decoded = decodeAnySearchCursor(cursor, '커리어', [], false);
+
+      // then
+      expect(payload).not.toHaveProperty('u');
+      expect(decoded).toMatchObject({
+        state: { queryUsed: '커리어', corrected: false },
+      });
+    });
+
+    it('100자 질의 + 긴 교정어도 커서 길이 상한(512자) 안이다 — 질의는 해시로 담는다', () => {
+      // given
+      const cursor = encodeHybridSearchCursor(
+        HYBRID_POSITION,
+        { ...STATE, queryUsed: '가'.repeat(30) },
+        '나'.repeat(100),
+        [TOPIC_A],
+        false,
+      );
+
+      // then
+      expect(cursor.length).toBeLessThanOrEqual(512);
+    });
+
+    it.each([
+      ['질의', '커리어', [], false],
+      ['주제 필터', '커리오', [TOPIC_A], false],
+      ['exact', '커리오', [], true],
+    ])('발급 때와 %s가 다르면 거절한다', (_label, query, topics, exact) => {
+      // given
+      const cursor = encodeHybridSearchCursor(
+        HYBRID_POSITION,
+        STATE,
+        '커리오',
+        [],
+        false,
+      );
+
+      // when
+      const error = catchError(() =>
+        decodeAnySearchCursor(cursor, query, topics, exact),
+      );
+
+      // then
+      expect(error.errorCode).toBe(ErrorCode.EXPLORE_CURSOR_INVALID);
+    });
+
+    it('종전 키워드 커서는 legacy로 해석한다 — exact와 무관하게 받는다', () => {
+      // given — 1.3.0까지의 서버가 발급하던 모양
+      const legacy = encodeSearchCursor(
+        {
+          score: 16,
+          titleSimilarity: 0.5,
+          playCount: 1,
+          publishedAt: PUBLISHED_AT,
+          id: CONTENT_ID,
+        },
+        '커리어',
+        [],
+      );
+
+      // when
+      const decoded = decodeAnySearchCursor(legacy, '커리어', [], true);
+
+      // then
+      expect(decoded).toEqual({
+        kind: 'legacy',
+        position: {
+          score: 16,
+          titleSimilarity: 0.5,
+          playCount: 1,
+          publishedAt: PUBLISHED_AT,
+          id: CONTENT_ID,
+        },
+      });
+    });
+
+    it('종전 커서도 질의가 다르면 거절한다', () => {
+      // given
+      const legacy = encodeSearchCursor(
+        {
+          score: 16,
+          titleSimilarity: 0.5,
+          playCount: 1,
+          publishedAt: PUBLISHED_AT,
+          id: CONTENT_ID,
+        },
+        '커리어',
+        [],
+      );
+
+      // when
+      const error = catchError(() =>
+        decodeAnySearchCursor(legacy, '면접', [], false),
+      );
+
+      // then
+      expect(error.errorCode).toBe(ErrorCode.EXPLORE_CURSOR_INVALID);
+    });
+
+    it.each([
+      ['RRF 0', { r: 0 }],
+      ['RRF 음수', { r: -0.1 }],
+      ['RRF 문자열', { r: '0.01' }],
+      ['모르는 match', { m: 'similar' }],
+      ['semantic 누락', { s: undefined }],
+      ['빈 교정어', { u: '' }],
+      ['uuid 아닌 id', { i: 'x' }],
+      ['모르는 버전', { v: 3 }],
+    ])('%s 값을 고친 하이브리드 커서는 400으로 거절한다', (_label, patch) => {
+      // given
+      const cursor = encodeHybridSearchCursor(
+        HYBRID_POSITION,
+        STATE,
+        '커리오',
+        [],
+        false,
+      );
+      const payload = {
+        ...(JSON.parse(
+          Buffer.from(cursor, 'base64url').toString('utf8'),
+        ) as Record<string, unknown>),
+        ...patch,
+      };
+      const tampered = Buffer.from(JSON.stringify(payload), 'utf8').toString(
+        'base64url',
+      );
+
+      // when
+      const error = catchError(() =>
+        decodeAnySearchCursor(tampered, '커리오', [], false),
       );
 
       // then

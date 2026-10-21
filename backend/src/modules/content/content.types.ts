@@ -271,6 +271,60 @@ export interface SearchPage {
   hasNext: boolean;
 }
 
+/** 검색 엔진 이름(KAN-238 — explore-api.md 4.5 `engines`·`items[].matched_by`) */
+export type SearchEngine = 'keyword' | 'semantic';
+
+/**
+ * 하이브리드 검색 커서 위치(KAN-238). 최종 정렬 키 — RRF 점수 → 직전 확정 월 재생 수 → `published_at` → id 를 전부 담는다.
+ * RRF 점수는 SQL에서 `double precision`으로 계산·비교하고 JSON 왕복도 float8 그대로라 키셋 재비교가 어긋나지 않는다
+ */
+export interface HybridSearchCursorPosition {
+  rrf: number;
+  playCount: number;
+  publishedAt: Date;
+  id: string;
+}
+
+export interface HybridSearchPageQuery {
+  market: UserMarket;
+  /** 실제 검색어 — 정규화 끝난 값(원문 또는 교정어) */
+  normalizedQuery: string;
+  /**
+   * 질의 임베딩(`EMBEDDING_MODEL_ID` · `EMBEDDING_DIM`). `null`이면 의미 엔진을 생략한다(AI 서버 결손·미설정) —
+   * 그때 RRF는 키워드 순위의 단조 함수라 결과·순서가 종전 키워드 검색과 같다
+   */
+  queryVector: number[] | null;
+  matchSeriesTitle?: boolean;
+  seriesAnchorsOnly?: boolean;
+  topicIds: string[];
+  cursor: HybridSearchCursorPosition | null;
+  limit: number;
+  now: Date;
+}
+
+export interface RankedHybridContent {
+  content: Content;
+  rrf: number;
+  playCount: number;
+  /** 어느 엔진에서 왔는가 — 시리즈 카드 모드면 같은 시리즈의 접힌 편까지 합친 값이다(카드가 시리즈를 대표한다) */
+  matchedBy: SearchEngine[];
+}
+
+export interface HybridSearchPage {
+  items: RankedHybridContent[];
+  hasNext: boolean;
+  /** 키워드 엔진이 맞힌 전체 편 수(접기 전) — 0이면 교정어 탐색의 조건이다 */
+  keywordTotal: number;
+}
+
+export interface SearchCorrectionQuery {
+  market: UserMarket;
+  normalizedQuery: string;
+  /** 시리즈 제목도 어휘에 넣는다 — 탐색 시리즈 카드 스위치가 켜졌을 때만(키워드 엔진과 같은 조건) */
+  includeSeriesTitles: boolean;
+  now: Date;
+}
+
 /** admin.md 3.1 — 업로드 입력 중 저장소 처리가 끝난 뒤 content 모듈이 받는 값 */
 export interface PublishContentCommand {
   /** 시장·언어(`global-api.md` 4.9) — 노출 격리의 입력. 호출부(admin)가 검증을 끝내고 넘긴다 */
@@ -336,6 +390,10 @@ export interface SearchQueryRank {
   lastResultCount: number;
   /** 가장 최근 검색에서 첫 페이지 뒤에 더 있었는가 — true면 화면은 "N건 이상"으로 읽는다 */
   lastHasNext: boolean;
+  /** 가장 최근 검색이 실제로 쓴 질의(교정어 또는 원문, KAN-238). 옛 행이면 `null` */
+  lastQueryUsed: string | null;
+  /** 가장 최근 검색의 첫 페이지 중 키워드로 맞은 건수. 옛 행이면 `null` */
+  lastKeywordCount: number | null;
   lastSearchedAt: Date;
 }
 
@@ -361,6 +419,16 @@ export interface SearchQueryLogSummary {
     shortQueries: number;
     /** 주제 필터가 걸린 검색 */
     filteredSearches: number;
+    /** 교정된 검색(`query_used <> query` — KAN-238) */
+    corrected: number;
+    /** 교정 직후 10분 안 같은 입력의 원문 재검색(`exact=true`) */
+    correctionRejected: number;
+    /** 키워드 엔진 0건(`keyword_count = 0`) */
+    keywordMisses: number;
+    /** 키워드 0건인데 결과가 있던 검색 — 의미 엔진이 살렸다 */
+    rescued: number;
+    /** 의미 엔진 없이 응답한 검색(`engines`에 `semantic` 없음, 태그 전용 제외) */
+    semanticUnavailable: number;
   };
   daily: SearchQueryDailyCount[];
   /** 0건이 한 번이라도 있던 질의, 0건 수 내림차순 */

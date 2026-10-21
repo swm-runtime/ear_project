@@ -68,6 +68,28 @@ export const SEARCH_FALLBACK_POPULAR_COUNT = EXPLORE_SECTION_ITEM_COUNT;
 export const MAX_EXPLORE_TOPIC_FILTER_SIZE = 50;
 
 /**
+ * 질의 임베딩(AI 서버 `POST /embeddings` — KAN-238)의 **타임아웃 예산**. 넘기면 그 요청은 의미 엔진 없이 키워드만으로
+ * 응답한다(결손). 디바운스 300ms 자동 검색의 체감 지연 상한에 맞춘 시작값이다(티켓 제안값) — 실측(요약 4.21의
+ * `semantic_unavailable` 비율)으로 조정한다
+ */
+export const QUERY_EMBEDDING_TIMEOUT_MS = 400;
+
+/**
+ * 질의 임베딩 캐시 TTL — **커서 수명(10분) 이상**이어야 다음 페이지가 같은 벡터로 이어진다(explore-api.md 4.5).
+ * 같은 모델의 같은 질의 벡터는 바뀌지 않으므로 길게 둬도 틀리지 않는다. 30분 = 커서 수명의 세 배
+ */
+export const QUERY_EMBEDDING_CACHE_TTL_MS = 30 * 60_000;
+
+/** 질의 임베딩 캐시 크기 상한(워커당). 1536차원 × 8바이트 ≈ 12KB/항목 → 500항목 ≈ 6MB */
+export const QUERY_EMBEDDING_CACHE_MAX_ENTRIES = 500;
+
+/**
+ * 타임아웃·네트워크 오류 뒤 AI 서버를 부르지 않는 시간. 보안 그룹이 패킷을 버리면 매 검색이 예산(400ms)만큼 늦어지므로
+ * 잠시 끊는다 — 그동안 검색은 키워드만으로 즉시 응답한다
+ */
+export const QUERY_EMBEDDING_FAILURE_COOLDOWN_MS = 30_000;
+
+/**
  * 섹션 제목. **화면에 그대로 그리는 문자열이다**(`explore-uiux.md` 4.1) —
  * 클라이언트가 `key`로 조립하지 않으므로 제목 변경에 앱 배포가 필요 없다.
  *

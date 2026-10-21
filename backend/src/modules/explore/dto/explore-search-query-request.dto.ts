@@ -2,6 +2,7 @@ import { Transform, Type } from 'class-transformer';
 import {
   ArrayMaxSize,
   IsArray,
+  IsBoolean,
   IsInt,
   IsOptional,
   IsString,
@@ -65,6 +66,17 @@ export class ExploreSearchQueryRequestDto {
   @IsString()
   @MaxLength(MAX_CURSOR_LENGTH)
   readonly cursor?: string;
+
+  /**
+   * 교정을 끈다(KAN-238 — "혹시 ‘OO’로 검색하고 싶나요?" 탭이 보낸다). 선택이고 기본 `false` — 옛 앱은 보내지 않는다.
+   * 쿼리 문자열이라 `"true"`·`"false"`만 불리언으로 바꾸고, 그 밖의 값은 그대로 두어 `@IsBoolean`이 400으로 거른다
+   */
+  @IsOptional()
+  @Transform(({ value }: { value: unknown }) =>
+    value === 'true' ? true : value === 'false' ? false : value,
+  )
+  @IsBoolean()
+  readonly exact?: boolean;
 
   /** 상한을 서버가 강제한다(architecture.md 9.3) */
   @IsOptional()
