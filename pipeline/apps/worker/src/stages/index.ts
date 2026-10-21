@@ -3,6 +3,7 @@ import type { Executor } from "../executors/index.js";
 import { runSweep } from "./sweep.js";
 import { runReinforce } from "./reinforce.js";
 import { runTopicSeed } from "./topic-seed.js";
+import { runPoolDiscover } from "./pool-discover.js";
 import { runCluster } from "./cluster.js";
 import { runDraft } from "./draft.js";
 import { runQa } from "./qa.js";
@@ -17,7 +18,7 @@ import { runSeriesPlan } from "./series-plan.js";
 
 export async function runStage(job: Job, ex: Executor): Promise<unknown> {
   switch (job.type) {
-    case "sweep": return job.payload.mode === "B" ? runReinforce(job, ex) : job.payload.mode === "B2" ? runTopicSeed(job, ex) : runSweep(job); // 모드 B-① 보강(0019)·B-② 주제 기획(2026-09-26): AI 실행기(WebSearch) 필요 — requires_ai=true 로 넣는다
+    case "sweep": return job.payload.mode === "B" ? runReinforce(job, ex) : job.payload.mode === "B2" ? runTopicSeed(job, ex) : job.payload.mode === "P" ? runPoolDiscover(job, ex) : runSweep(job); // 모드 B-① 보강(0019)·B-② 주제 기획(2026-09-26)·P 소스 풀 채우기(2026-10-21): AI 실행기(WebSearch) 필요 — requires_ai=true 로 넣는다
     case "cluster": return runCluster(job, ex);
     case "draft": return runDraft(job, ex);
     case "qa": return runQa(job, ex);

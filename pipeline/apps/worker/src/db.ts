@@ -350,6 +350,14 @@ export async function insertCandidateDomain(d: { domain: string; publisher: stri
   );
   return r.rowCount === 1;
 }
+/** 소스 풀 채우기(스윕 모드 P)가 찾은 발행처 — category·feed_url 까지 싣는 candidate 행. 판정(tier)은 사람만(spec/01 4.3). 이미 있으면 건너뛴다 */
+export async function insertDiscoveredDomain(d: { domain: string; publisher: string; category: string; feed_url: string | null; topic_coverage: string[]; note: string }): Promise<string | null> {
+  const r = await pool.query(
+    "insert into public.domains (domain, publisher, tier, category, feed_url, topic_coverage, note) values ($1,$2,'candidate',$3,$4,$5,$6) on conflict (domain) do nothing returning id",
+    [d.domain, d.publisher, d.category, d.feed_url, d.topic_coverage, d.note],
+  );
+  return r.rows[0]?.id ?? null;
+}
 export async function getBacklogFull(id: string): Promise<(BacklogCandidate & { status: string; dedup_note: string | null; reinforced_at: string | null }) | null> {
   const r = await pool.query("select id, mid_topic, title, target_fit, angle, sources, axis, axis_type, gaps, status, dedup_note, reinforced_at from public.backlog where id = $1", [id]);
   const row = r.rows[0]; if (!row) return null;

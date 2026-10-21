@@ -581,6 +581,28 @@ const QUERY_PLAN_EN = `- **Plan the queries before searching.** At least one que
 - Use site: only with a host from the pool list below, written exactly as site:host. Do not invent site: filters or combine them with OR.`;
 
 /** 기획 검색 — 도구는 웹 검색만(본문 안 읽음). 한국어·영어 소스 둘 다 — K-컬처는 국문 1차 자료가 많다 */
+/** 소스 풀 채우기 — 스윕 모드 P 의 글로벌판 프롬프트 (2026-10-21). 한국판 buildPoolDiscoverPrompt 와 같은 일을 영어로 — 한국 문화 주제를 꾸준히 다루는 영어·한국어 발행처를 찾는다 */
+export function buildPoolDiscoverPromptEn(i: { midTopic: string; hint: string | null; mids: string[]; existingHosts: string[]; maxSearches: number }): string {
+  return `You manage the source pool for "ear", an audio service with an English podcast about Korea. A person picked one topic. Find **publishers (sites)** that regularly publish on that topic and could serve as episode sources, not single articles.
+The only tool is web search. Do not read page bodies; judge from the sites, titles and snippets you see in results.
+
+## Topic
+- ${i.midTopic}${i.hint ? `\n- Note from the person: ${i.hint}` : ""}
+- Topics in the same group (use these names in coverage): ${i.mids.join(", ")}
+
+## What to find
+- Priority: public institutions, research institutes, universities, academic societies and open-access journals, companies' official blogs > specialist magazines and non-profit media > commercial press. Korean-language publishers count as much as English ones; search in Korean too.
+- Do not include: personal blogs (Naver, Tistory, Brunch, velog, personal Medium), social media, wikis, forums, shopping pages, breaking-news sites, paid databases or sites behind a subscription or login (researchgate, ssrn, academia.edu, paywalled journals), PDF-only repositories.
+- A publisher must publish on the topic repeatedly: include it only when the results show two or more of its articles on the topic, or the site itself is an institution or outlet for that topic.
+- **Skip sites already in the pool**: ${i.existingHosts.slice(0, 80).join(", ") || "(none)"}
+
+## Search rules
+- At most ${i.maxSearches} searches, in Korean and English. Phrase queries to find sites, not articles: "<topic> institute", "<topic> journal open access", "<topic> official blog", "<주제> 연구소", "<주제> 학회", "<주제> 공식 블로그".
+- Limit to a site only with \`site:domain\`.
+
+## Report — output only the requested JSON. sources: at most 15 items, each with url (a page of that site you actually saw in the results — the home page or one article), publisher, category (one of: public institution / research institute / university / society or journal / company official blog / specialist magazine / non-profit media / commercial press), feed_url (only when an RSS or Atom address appeared in the results; otherwise null — never invent one), why (one line on why this site covers the topic regularly, naming an article title you saw), coverage (which of the topics above the site covers). queries: the searches you actually ran. notes: what kinds you could not find and why.`;
+}
+
 export function buildTopicSeedSearchPromptEn(i: TopicSeedSearchInput): string {
   const history = false; // 주제 이름만으로는 사건형인지 모른다 — 아래 조건부 안내로 대신한다
   return `You find sources for "ear", an audio service that makes two-person English episodes about Korean culture for listeners mostly in Southeast Asia and Japan. A person chose one episode topic. Find sources for it by web search.
