@@ -228,9 +228,16 @@ export function republishEarContent(contentId: string, parts: { audio?: File; lo
 export interface EarSeries {
   id: string; title: string; description: string; total_episodes: number; status: "ongoing" | "completed";
   episode_counts: { published: number; withdrawn: number; expired: number }; max_published_episode_no: number | null;
+  cover_url: string | null; // 시리즈 표지 (KAN-234, 2026-10-21) — 없으면 앱이 가장 앞 편 썸네일을 쓴다
   created_at: string; updated_at: string;
 }
 export const listEarSeries = () => earFetch<{ items: EarSeries[] }>("/admin/series");
+/** 시리즈 표지 올리기 (admin-api 4.24 `PUT /admin/series/:id/cover`, KAN-234) — jpg/png/webp ≤5MB, 올리면 탐색 시리즈 카드·시리즈 화면이 이 그림을 쓴다 */
+export function putEarSeriesCover(id: string, cover: File): Promise<EarSeries> {
+  const fd = new FormData();
+  fd.append("cover", cover);
+  return earFetch<EarSeries>(`/admin/series/${id}/cover`, { method: "PUT", body: fd });
+}
 export const createEarSeries = (body: { title: string; description: string; total_episodes: number; status?: "ongoing" | "completed" }) =>
   earFetch<EarSeries>("/admin/series", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
 export const patchEarSeries = (id: string, fields: Partial<{ title: string; description: string; total_episodes: number; status: "ongoing" | "completed" }>) =>

@@ -10,10 +10,10 @@ import { earErrMsg } from "./ear-connect";
 /**
  * 구형 전체 재발행 (2026-10-02 박수헌) — 서비스 중인 콘텐츠 전부에서 발행본보다 새로 만든 파트를 한 번에 보낸다.
  * - 오디오: 발행 이후 TTS 를 다시 했으면 교체. **자막을 함께 싣는다** — 없으면 제품이 기존 자막을 지운다(admin-api 4.10 "대본 삭제")
- * - 썸네일: 발행 이후 다시 만들었으면 교체
+ * - 썸네일: 발행 이후 다시 만들었으면 교체 — 썸네일만이면 버전 무변경·재생 위치 유지(KAN-236, 2026-10-20)
  * - 자막만: 오디오는 그대로인데 제품에 자막이 없고 TTS·정렬 자막이 있으면 반영(버전 무변경)
  * - 추천 메타: 제품 메타가 구형·없음이고 뽑아 둔 산출물이 있으면 반영(버전 무변경). 뽑기는 하지 않는다 — [전부 다시 뽑기]가 먼저
- * 오디오·썸네일이 바뀌면 content_version 이 올라 앱 재생 위치가 초기화된다. 발행 준비 작업이 도는 편은 건너뛴다(끝난 뒤 다시 누른다).
+ * 오디오가 바뀌면 content_version 이 올라 앱 재생 위치가 초기화된다. 발행 준비 작업이 도는 편은 건너뛴다(끝난 뒤 다시 누른다).
  * 판정 규칙은 에피소드 화면 [재발행]과 같다(actions.ts republishPlans). 한 편씩 순서대로 보낸다.
  */
 type Target = { c: EarContent; p?: RepublishPlan; audio: boolean; thumbnail: boolean; scriptOnly: boolean; meta: boolean };
@@ -39,8 +39,8 @@ export function StaleRepublishButton({ disabled, onDone }: { disabled: boolean; 
       const lines = [
         `서비스 중인 콘텐츠 ${targets.length}편을 최신화할까요?`,
         "",
-        `· 오디오(+자막) ${n((t) => t.audio)}편 · 썸네일 ${n((t) => t.thumbnail)}편 — 콘텐츠 버전이 올라 앱 재생 위치가 초기화돼요`,
-        `· 자막만 ${n((t) => t.scriptOnly)}편 · 추천 메타 ${n((t) => t.meta)}편 — 버전 그대로`,
+        `· 오디오(+자막) ${n((t) => t.audio)}편 — 콘텐츠 버전이 올라 앱 재생 위치가 초기화돼요`,
+        `· 썸네일만 ${n((t) => t.thumbnail && !t.audio)}편 · 자막만 ${n((t) => t.scriptOnly)}편 · 추천 메타 ${n((t) => t.meta)}편 — 버전·재생 위치 그대로`,
       ];
       if (skipped.length) lines.push(`· 발행 준비 진행 중이라 이번에 빼는 편 ${skipped.length}편 — 끝난 뒤 다시 누르세요`);
       // KAN-145 — 오디오를 바꾸는 편 중 무손실 파일이 없는 편: 압축만 나가 서버 무손실이 있었다면 지워진다
