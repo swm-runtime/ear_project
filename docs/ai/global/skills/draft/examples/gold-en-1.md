@@ -35,7 +35,7 @@ G261020-003 · Why the First Birthday Becomes a Family Celebration · Korean Cul
 [Owen] Y9 · How seriously is that choice taken?
 [Yuna] E9 · Many families treat it as a shared performance for laughter and photographs, rather than a serious prediction. Parents add objects for careers they hope their child might have. A stethoscope suggests a doctor. A computer mouse suggests work in technology.
 [Owen] Y10 · Both parents want the same answer from that mouse, then.
-[Yuna] E10 · They can see different possibilities in the same choice. Three families with babies born within two weeks of each other once held one party together. One baby girl picked a computer mouse from the table. Her father laughed loudly, but he seemed unhappy. Her mother pictured someone skilled with technology. In her view, her husband pictured a gamer or someone always on the computer.
+[Yuna] E10 · They can see different possibilities in the same choice. Three families with babies born within two weeks of each other once held one party together. One baby girl picked a computer mouse from the table. Her father laughed loudly, but he seemed unhappy. Her mother pictured someone skilled with technology. She thought her husband pictured a gamer or someone always on the computer.
 
 ### #4 A smaller party can keep the celebration
 [Owen] Y11 · Does that moment need a large party around it?
