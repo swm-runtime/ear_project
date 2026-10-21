@@ -24,6 +24,7 @@ import { ContentDetailModule } from '@/modules/content-detail/content-detail.mod
 import { SeriesDetailModule } from '@/modules/series-detail/series-detail.module';
 import { NoticeModule } from '@/modules/notice/notice.module';
 import { DripBatchModule } from '@/modules/drip-batch/drip-batch.module';
+import { RecommendInspectorModule } from '@/modules/recommend-inspector/recommend-inspector.module';
 import { RecommendTestModule } from '@/modules/recommend-test/recommend-test.module';
 import { RecommendEvalModule } from '@/modules/recommend-eval/recommend-eval.module';
 import { DripFeedbackModule } from '@/modules/drip-feedback/drip-feedback.module';
@@ -93,6 +94,8 @@ import { UserModule } from '@/modules/user/user.module';
     RecommendTestModule,
     // 추천 평가 스냅샷 내보내기 — 읽기 전용(backend/recommendation-evaluation.md)
     RecommendEvalModule,
+    // 서비스 지표 "추천 검증" — 가명 사용자의 청취·편성·추천 재계산, 읽기 전용(2026-10-22)
+    RecommendInspectorModule,
     // 추천 온라인 평가 — 어제 추천 별점(drip-feedback.md, KAN-116)
     DripFeedbackModule,
     // 구독·인앱 결제(subscription-api.md — KAN-106). 요금제·구독 조회, 결제 의도, 영수증 검증, 스토어 서버 알림

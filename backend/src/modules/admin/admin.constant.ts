@@ -127,6 +127,13 @@ export const AUDIT_ACTION_SERIES_COVER = 'series.cover';
  * "누가 이 주제를 숨겼나"에 답할 수 없다.
  */
 export const AUDIT_ACTION_TOPIC_AUTO_HIDE = 'topic.auto_hide';
+/**
+ * 서비스 지표 "추천 검증" — 관리자가 한 사용자의 청취·편성·추천 계산을 열람했다(`GET /admin/insights/recommendations/users/:userId`,
+ * 2026-10-22). 쓰기가 없는 조회지만 **개인 단위 행동 기록의 열람**이라 남긴다 — target `user:<user_id>`. 누가 언제 누구를 봤는지는
+ * 이 기록만 안다(개인정보 보호법 — 처리 목적 "콘텐츠 편성과 추천 · 서비스 개선" 안의 열람인지 사후에 확인할 근거).
+ */
+export const AUDIT_ACTION_INSIGHTS_RECOMMENDATION_VIEW =
+  'insights.recommendation_view';
 /** 자동 숨김을 배치가 수행했을 때의 감사 로그 actor — 사람이 아닌 실행 주체를 명시한다 */
 export const SYSTEM_AUDIT_ACTOR = 'system';
 
