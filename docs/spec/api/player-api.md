@@ -9,13 +9,14 @@
 
 ## 1. 범위
 
-`player.md`가 정의한 동작을 HTTP 계약으로 옮긴 문서다. 다루는 것은 다음 다섯이다.
+`player.md`가 정의한 동작을 HTTP 계약으로 옮긴 문서다. 다루는 것은 다음 여섯이다.
 
 - **재생 URL 발급** — 단기 서명 URL + 플레이어 진입에 필요한 메타(출처 고지·진행·라이브러리 상태)를 한 번에. 재생 중 URL 갱신도 같은 경로다
 - **재생 시작**(`POST /contents/:content_id/play`)의 **플레이어 관점 사용** — 계약 자체는 `library-api.md` 4.4가 소유하며 이 문서는 호출 시점과 응답 사용만 서술한다
 - **재생 위치 저장** — `position_sec` · `max_reached_sec` 갱신 + 실제 청취 시간(`listened_sec`) 적산 + **완청 판정(서버)**
 - **`replay` 신호** 적재 — 완료 상태에서 위치 0 재생
 - **원문 유입 클릭** 적재 — **라이브러리·탐색·플레이어 세 화면 공용 계약**(더보기 통일 확정 2026-08-10)
+- **관련 콘텐츠** 조회 — 재생 목록 패널 탐색 맥락의 "다음에 들어볼 만한" 블록(4.8, 등재 2026-10-22 KAN-240)
 
 **이 문서는 동작 규칙을 새로 정하지 않는다.** 규칙이 충돌하면 `player.md`가 기준이며, 재생 허용 판정은 `paywall.md`가 기준이다. 스키마는 `domain.md`가 유일한 기준이다.
 
@@ -70,6 +71,7 @@
 | 5 | POST | `/contents/:content_id/source-link-clicks` | 원문 유입 클릭 — **세 화면 공용** | 필요 | |
 | 6 | GET | `/contents/withdrawn` | 회수 동기화 — 마지막 동기화 이후 회수된 콘텐츠 목록 (4.6, 등재 2026-09-08) | 필요 | |
 | 7 | GET | `/contents/:content_id/script` | 대본(자막) 세그먼트 — **접근 통제는 발급(1)과 동일**, 차감 없음 (4.7, 등재 2026-09-19 KAN-71) | 필요 | |
+| 8 | GET | `/contents/:content_id/related` | 관련 콘텐츠 — 지금 듣는 편과 **대본 임베딩이 비슷한 편**, 재생 목록 패널 "다음에 들어볼 만한" 블록(탐색 맥락) (4.8, 등재 2026-10-22 KAN-240) | 필요 | |
 
 **설계 메모**
 
@@ -382,6 +384,54 @@
 - **복사·선택 차단은 화면 규칙이다**(`player.md` 4.6 — FR-33). 서버는 텍스트를 그대로 내려준다.
 
 **에러** — 4.1과 같다(`PLAY_LIMIT_EXCEEDED` · `PLAY_LIMIT_REACHED` · `CONTENT_WITHDRAWN` 403, `CONTENT_NOT_FOUND` 404).
+
+### 4.8 `GET /contents/:content_id/related` — 관련 콘텐츠
+
+> 등재 2026-10-22 (KAN-240 — `tickets/backend/archive/related-contents-api.md`, 개정 기록 `changes/pending/player-queue-context.md` 4절). 규칙: `player.md` 4.2-2(탐색 맥락 추천 블록) · `domain.md` 5.6.
+
+재생 목록 패널(PL12)의 **탐색 맥락**에서 목록 아래 "다음에 들어볼 만한" 블록의 1차 소스다. 재생 중 콘텐츠가 바뀔 때 호출한다(같은 편이면 패널을 닫았다 열어도 다시 받지 않는다 — `player.md` 4.2-2). 비거나 실패하면 앱이 탐색 `interest` 섹션으로 폴백한다 — 이 계약의 몫이 아니다.
+
+**Query**
+
+| 파라미터 | 형식 | 기본 | 규칙 |
+|---|---|---|---|
+| `limit` | 정수 | 5 | 1~10. 범위 밖 400 |
+| `exclude_ids` | uuid 콤마 구분 | 없음 | 최대 50개. 재생 목록 스냅샷에 이미 있는 편을 뺀다. 경로의 `content_id`(기준 편)는 보내지 않아도 서버가 뺀다 |
+
+**Response 200**
+
+```json
+{
+  "items": [
+    {
+      "content": {
+        "id": "uuid", "title": "…", "author_name": "…", "source_name": "…", "source_url": "https://…",
+        "duration_sec": 600, "thumbnail_url": "https://…", "language": "ko", "content_version": 1,
+        "topic_ids": ["uuid"], "tags": ["…"], "series": null
+      },
+      "library": { "item_id": "uuid", "source": "save", "status": "unplayed" },
+      "is_counted_today": false
+    }
+  ]
+}
+```
+
+- **행 모양은 탐색 콘텐츠 행(`explore-api.md` 4.1)과 같다** — `content`·`library`(담기지 않았으면 `null`)·`is_counted_today`. 담기·재생 처리를 탐색 행 처리 그대로 쓴다. **시리즈 카드로 접지 않는다**(편 단위) — 시리즈 카드 스위치와 무관하게 `type` 키가 없다.
+- 커서·`has_next`·잔여 재생 표시값을 싣지 않는다(페이지가 아니고, 잔여 표시는 플레이어가 이미 갖고 있다). 결과가 없으면 `items: []`.
+- **후보** — 사용자 시장 · 노출 조건(발행 상태 · 라이선스 유효 — 회수·만료 제외, `domain.md` 5.1) · 기준 편 제외 · `exclude_ids` 제외 · 임베딩이 **현행 `model` AND `content_version` 일치**(재발행 후 미갱신 벡터 제외 — 검색 의미 엔진·추천 스코어링과 같은 조건, `domain.md` 5.6).
+- **정렬** — 기준 편 임베딩과의 **코사인 유사도 내림차순**(동률은 id). 기준 벡터는 DB의 기준 편 행이다(AI 서버를 부르지 않는다). 유사도가 서버 하한 이하인 편은 뺀다 — **하한 값은 서버 소유**다(계약에 적지 않는다, 반응을 보고 조정). 전수 코사인(ANN 없음 — `domain.md` 5.6). 같은 시리즈 편이 코사인으로 올라오는 것은 막지 않는다(`player.md` 4.2-2).
+- **기준 편에 현행 임베딩이 없으면**(행 없음·모델 불일치·재발행 후 미갱신) 404가 아니라 200 `items: []`다 — 없는 것이 정상 상태다(4.7 `segments: []`와 같은 판단).
+- 응답 캐시 없음(라이브러리 상태가 사용자별). 차감·한도 판정을 거치지 않는다 — 목록일 뿐이고, 줄 탭은 재생 시작(`library-api.md` 4.4)의 단일 게이트를 지난다.
+
+**에러**
+
+| error_code | HTTP | 언제 |
+|---|---|---|
+| `CONTENT_NOT_FOUND` | 404 | 기준 편이 없음 · **다른 시장** · **회수·만료**(존재 여부를 구분해 알리지 않는다 — `global-api.md` 4.7) |
+| `VALIDATION_FAILED` | 400 | `content_id`가 uuid가 아님 · `limit` 1~10 밖 · `exclude_ids` 51개 이상 또는 uuid 아님 · 모르는 쿼리 |
+
+- 개정 기록(`changes/pending/player-queue-context.md` 4절)·티켓은 404 코드를 `NOT_FOUND`로 적었으나 **콘텐츠 경로의 기존 코드 `CONTENT_NOT_FOUND`(`common-error-handling.md` 9.2)를 쓴다** — 발급(4.1)·대본(4.7)·상세가 같은 상황에 쓰는 코드이고, 범용 `NOT_FOUND`는 라우트 없음에 쓰인다.
+- **회수를 403 `CONTENT_WITHDRAWN`으로 가르지 않는다**(4.1·4.7과 다르다). 추천 블록은 실패하면 섹션을 그리지 않을 뿐이고(`player.md` 4.2-2 — 패널 안 오류 표시 없음), 회수 안내·목록 제거는 재생·상세 경로가 맡는다. 403을 내면 클라이언트 공통 처리("제공이 종료된 콘텐츠예요" + 미니플레이어 내림)가 백그라운드 조회에서 터진다.
 
 ---
 
