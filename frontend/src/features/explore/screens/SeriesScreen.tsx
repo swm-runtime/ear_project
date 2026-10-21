@@ -1,9 +1,7 @@
-import { useEffect } from 'react';
-import { Animated, FlatList, StyleSheet, View } from 'react-native';
+import { FlatList, Image, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { useAnimatedValue } from '@/shared/hooks/useAnimatedValue';
-import { motion, theme } from '@/shared/theme';
+import { theme, useActiveScheme } from '@/shared/theme';
 import ChevronIcon from '@/shared/ui/ChevronIcon';
 import FullScreenError from '@/shared/ui/FullScreenError';
 import GlassIconButton from '@/shared/ui/GlassIconButton';
@@ -25,7 +23,6 @@ import SeriesMoreSheet from '../components/SeriesMoreSheet';
 import SeriesSkeleton from '../components/SeriesSkeleton';
 import { EXPLORE_COPY } from '../explore.copy';
 import { toSeriesEpisodeState } from '../explore.series-episode';
-import { useArtworkTint } from '../hooks/useArtworkTint';
 import { useSeriesScreen } from '../hooks/useSeriesScreen';
 
 /**
@@ -47,23 +44,12 @@ export default function SeriesScreen() {
   const insets = useSafeAreaInsets();
   const listTopInset = (HAS_NATIVE_TAB_BAR ? 0 : insets.top) + APP_BAR_HEIGHT;
   /*
-   * 표지와 어울리는 바탕 단색(PM 2026-10-22 07:51 — 흐린 표지 아래 검정이 안 어울린다, 애플 뮤직 앨범 화면). 표지에서 색을 뽑는 데
-   * 한 박자 걸려, 기본 바탕 위에 이 색 판을 깔고 0.25초에 걸쳐 나타나게 한다. 머리의 흐림 페이드도 같은 값으로 함께 나타난다
+   * 바탕은 **플레이어와 같다**(PM 2026-10-22 08:32 "플레이어 열 때처럼") — 표지를 크게 흐려(60) 화면 전체에 고정으로 깔고 막 한 겹(다크
+   * 차콜 72%). 표지 색이 바탕에 배어 검정 솔리드보다 덜 답답하다. 머리의 흐림·페이드·단색 추출은 걷었다. 라이트 모드는 글자가 모드
+   * 기본색(검정)이라 흰 막을 같은 세기로 얹는다
    */
-  const tint = useArtworkTint(screen.detail?.series.thumbnailUrl ?? null);
-  const tintOpacity = useAnimatedValue(0);
-  useEffect(() => {
-    if (!tint) {
-      tintOpacity.setValue(0);
-      return;
-    }
-    Animated.timing(tintOpacity, {
-      toValue: 1,
-      duration: TINT_FADE_MS,
-      easing: motion.easing.easeOut,
-      useNativeDriver: true,
-    }).start();
-  }, [tint, tintOpacity]);
+  const scheme = useActiveScheme();
+  const backdropUri = screen.detail?.series.thumbnailUrl ?? null;
 
   const renderBody = () => {
     if (screen.isInitialLoading) {
@@ -122,12 +108,7 @@ export default function SeriesScreen() {
               series={series}
               episodeCount={screen.episodeCount}
               playTarget={screen.playTarget}
-              // 흐린 표지가 화면 꼭대기(상태바·떠 있는 앱바)까지 번지도록 목록 상단 여백만큼 위로 올린다.
-              // 시스템 탭 바(iOS 26)에선 스크롤 뷰가 안전영역을 스스로 비우므로 여기에 안전영역을 더해야 꼭대기에 닿는다
-              topBleed={insets.top + APP_BAR_HEIGHT}
               onPlay={screen.playSeries}
-              tint={tint}
-              tintOpacity={tintOpacity}
             />
             <View style={styles.headerRule} />
           </View>
@@ -148,12 +129,25 @@ export default function SeriesScreen() {
 
   return (
     <View style={styles.container}>
-      {/* 표지 단색 판 — 기본 바탕 위, 본문 아래. 색이 오면 페이드인(위 tintOpacity) */}
-      {tint ? (
-        <Animated.View
-          style={[StyleSheet.absoluteFill, { backgroundColor: tint, opacity: tintOpacity }]}
-          pointerEvents="none"
-        />
+      {/* 흐린 표지 바탕 — 플레이어와 같은 흐림·막(PlayerScreen backdrop). 스크롤과 무관하게 화면에 고정, 본문 뒤 */}
+      {backdropUri ? (
+        <View style={styles.backdrop} pointerEvents="none">
+          <Image
+            source={{ uri: backdropUri }}
+            style={styles.backdropImage}
+            // 플레이어와 같은 기본 Image 흐림(KAN-78 — expo-image 는 세기 기준이 달라 톤이 바뀐다. Android RenderScript 도 피한다)
+            blurRadius={BACKDROP_BLUR_RADIUS}
+            resizeMode="cover"
+            accessibilityElementsHidden
+            importantForAccessibility="no"
+          />
+          <View
+            style={[
+              styles.backdropScrim,
+              { backgroundColor: scheme === 'dark' ? BACKDROP_SCRIM_DARK : BACKDROP_SCRIM_LIGHT },
+            ]}
+          />
+        </View>
       ) : null}
       {/* 본문 — 목록은 화면 맨 위부터(앱바 밑으로 흘러간다). 스켈레톤·에러는 목록이 아니라 앱바 아래에서 시작한다 */}
       {screen.detail ? (
@@ -224,8 +218,10 @@ const RowSeparator = () => <View style={styles.separator} />;
  * 애플 뮤직 앨범 화면처럼 손에 잘 걸리는 크기. 뒤로 원·⋯ 원이 같은 크기
  */
 const BAR_BUTTON_SIZE = 48;
-/** 표지 단색 바탕이 나타나는 시간 — 색을 뽑는 한 박자를 덮을 만큼 짧게 */
-const TINT_FADE_MS = 250;
+/** 흐린 표지 바탕 — 플레이어(PlayerScreen)와 같은 값. 바꾸면 둘을 같이 바꾼다 */
+const BACKDROP_BLUR_RADIUS = 60;
+const BACKDROP_SCRIM_DARK = 'rgba(23, 23, 26, 0.72)';
+const BACKDROP_SCRIM_LIGHT = 'rgba(255, 255, 255, 0.72)';
 const APP_BAR_ICON_SIZE = 24;
 /** 떠 있는 앱바 줄 높이 — 유리 원 + 위아래 여유 */
 const APP_BAR_HEIGHT = BAR_BUTTON_SIZE + theme.spacing.sm;
@@ -234,6 +230,19 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: theme.color.background,
+  },
+  // 흐린 표지 바탕 — 화면을 꽉 채우고 가장자리 투명해짐을 화면 밖으로 밀어낸다(플레이어와 같이 1.25 배, 잘라냄)
+  backdrop: {
+    ...StyleSheet.absoluteFill,
+    overflow: 'hidden',
+  },
+  backdropImage: {
+    width: '100%',
+    height: '100%',
+    transform: [{ scale: 1.25 }],
+  },
+  backdropScrim: {
+    ...StyleSheet.absoluteFill,
   },
   // 띠 없는 앱바 — 배경 없이 본문 위에 떠 있다. 버튼 사이 빈 곳의 터치는 밑 목록으로 흘린다(box-none)
   appBar: {

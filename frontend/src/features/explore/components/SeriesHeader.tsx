@@ -1,5 +1,4 @@
-import { LinearGradient } from 'expo-linear-gradient';
-import { Animated, Platform, Pressable, StyleSheet, View, useWindowDimensions } from 'react-native';
+import { Platform, Pressable, StyleSheet, View, useWindowDimensions } from 'react-native';
 
 import { theme, useResolvedColor } from '@/shared/theme';
 import { pillButton } from '@/shared/ui/pill-button.styles';
@@ -9,7 +8,6 @@ import { Text } from '@/shared/ui/Typography';
 
 import { EXPLORE_COPY } from '../explore.copy';
 import type { SeriesDetail } from '../explore.types';
-import FeaturedCardBackdrop from './FeaturedCardBackdrop';
 
 /** 표지 폭 = 화면 폭의 64%(애플 뮤직 앨범 화면 비율), 큰 화면에서 끝없이 커지지 않게 상한을 둔다 */
 const COVER_WIDTH_RATIO = 0.64;
@@ -33,23 +31,11 @@ interface SeriesHeaderProps {
   episodeCount: number;
   /** [재생]이 틀 편(낭독용) — 없으면(편 0개) 버튼을 그리지 않는다 */
   playTarget: { episodeNo: number; title: string } | null;
-  /**
-   * 머리 위로 흐린 표지가 번지는 높이 — 화면 꼭대기(상태바·떠 있는 앱바)까지 올라오게 목록 상단 여백(앱바+안전영역)을
-   * 그대로 받는다. 애플 뮤직 앨범 화면처럼 표지가 바탕으로 녹아들도록 표지 아래에서 배경색으로 페이드한다
-   */
-  topBleed: number;
   onPlay: () => void;
-  /**
-   * 표지와 어울리는 바탕 단색(#RRGGBB — PM 2026-10-22 07:51). 있으면 흐린 표지가 기본 배경 대신 이 색으로 녹는다. 화면 바탕과
-   * 같은 값·같은 불투명도(`tintOpacity`)로 함께 페이드인해 이음매가 없다
-   */
-  tint?: string | null;
-  tintOpacity?: Animated.Value;
 }
 
 /**
- * 시리즈 화면(E14)의 머리 — 애플 뮤직 앨범 화면 문법(2026-10-22 PM). 흐린 표지 바탕(앱바·표지 둘레로 번지고 표지 아래에서
- * 배경색으로 페이드) 위에 큰 표지(그림자) · 굵은 제목 · 카테고리(대표 중분류, 없으면 생략) · `시리즈 · N편 · 완결` 메타 줄 ·
+ * 시리즈 화면(E14)의 머리 — 애플 뮤직 앨범 화면 문법(2026-10-22 PM). 화면 전체에 깔린 흐린 표지 바탕(플레이어와 같다 — `SeriesScreen`) 위에 큰 표지(그림자) · 굵은 제목 · 카테고리(대표 중분류, 없으면 생략) · `시리즈 · N편 · 완결` 메타 줄 ·
  * [재생] 알약 순으로 가운데에 선다. 글자는 표지 아래 솔리드 바탕에 앉아 모드별 기본색을 쓴다(흐린 면 위로 흰 글자를 올리면
  * 라이트 모드에서 배경색 페이드에 묻힌다). 소개 문단은 머리에서 빼고 앱바 ⋯ 시트의 [소개 전체 보기]로 옮겼다(PM 2026-10-22).
  * 셔플·담기는 두지 않는다
@@ -58,48 +44,16 @@ export default function SeriesHeader({
   series,
   episodeCount,
   playTarget,
-  topBleed,
   onPlay,
-  tint,
-  tintOpacity,
 }: SeriesHeaderProps) {
   const { width } = useWindowDimensions();
   const coverSize = seriesCoverSize(width);
   // 다크·라이트에 따라 바뀌는 색 — svg·그라데이션·네이티브 prop 은 문자열 색만 받는다
   const playIconColor = useResolvedColor(theme.color.onPrimary);
-  // 흐린 바탕을 배경색으로 녹이는 페이드 — 배경과 **같은 RGB** 에 알파만 0 으로 둔다(#RRGGBBAA). 'transparent'(투명한 검정)로
-  // 두면 라이트 모드에서 흰 배경으로 가며 회색 띠가 뜬다(Android)
-  const backgroundColor = useResolvedColor(theme.color.background);
-  const backgroundFadeStart = `${backgroundColor}00`;
-  // 흐린 표지 바탕은 화면 꼭대기(−topBleed)에서 표지 아래(여백 md + 표지 높이)까지 — 그 아래부터 솔리드 배경이다
-  const backdropHeight = topBleed + theme.spacing.md + coverSize;
   const category = series.topic?.name ?? null;
 
   return (
     <View style={styles.root}>
-      {/* 흐린 표지 바탕 + 아래로 배경색 페이드 — 표지·글자 뒤에 깔린다(본문보다 먼저 그려 뒤로 보낸다) */}
-      <View
-        style={[styles.backdrop, { top: -topBleed, height: backdropHeight }]}
-        pointerEvents="none"
-      >
-        <FeaturedCardBackdrop uri={series.thumbnailUrl} recyclingKey={series.id} />
-        <LinearGradient
-          colors={[backgroundFadeStart, backgroundFadeStart, backgroundColor] as const}
-          locations={[0, 0.55, 1] as const}
-          style={StyleSheet.absoluteFill}
-        />
-        {/* 표지 단색으로 녹는 페이드 — 기본 페이드 위에 겹쳐 화면 바탕과 같이 페이드인한다(색이 늦게 와도 이음매 없음) */}
-        {tint ? (
-          <Animated.View style={[StyleSheet.absoluteFill, { opacity: tintOpacity ?? 1 }]}>
-            <LinearGradient
-              colors={[`${tint}00`, `${tint}00`, tint] as const}
-              locations={[0, 0.55, 1] as const}
-              style={StyleSheet.absoluteFill}
-            />
-          </Animated.View>
-        ) : null}
-      </View>
-
       {/* 그림자는 바깥, 라운드·클립은 안쪽 프레임 — overflow hidden 이 iOS 그림자를 자른다 */}
       <View style={[styles.coverShadow, { width: coverSize, height: coverSize }]}>
         <View style={styles.coverFrame}>
@@ -146,17 +100,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: theme.spacing.lg,
     paddingTop: theme.spacing.md,
     paddingBottom: theme.spacing.lg,
-  },
-  // 흐린 표지 바탕 — 머리 위로 번져 화면 꼭대기까지. 좌우 가득, top·height 는 화면에서 넘어온 값으로 칠한다
-  backdrop: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    /*
-     * 잘라낸다 — 흐린 사진은 가장자리가 비치지 않게 1.2 배로 키워져(FeaturedCardBackdrop) 틀 밖으로 10% 씩 삐져나온다. 대표 카드는
-     * 카드 틀이 잘라 주지만 여기는 틀이 없어, 아래로 삐진 흰 흐림(약 37pt)이 페이드 밖에 남아 시리즈 제목을 덮었다(PM 2026-10-22 07:40)
-     */
-    overflow: 'hidden',
   },
   coverShadow: {
     marginBottom: theme.spacing.lg,
