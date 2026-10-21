@@ -48,6 +48,16 @@ export const appendToSnapshot = (
   };
 };
 
+/** 줄을 왼쪽으로 밀어 스냅샷에서 뺀다(KAN-241 "3번") — 로컬뿐이다. 라이브러리 맥락은 서버 삭제라 여기서 다루지 않는다 */
+export const withoutSnapshotItem = (
+  context: PlayQueueContext,
+  contentId: string,
+): PlayQueueContext => {
+  if (context.kind !== 'explore') return context;
+  if (!context.items.some((entry) => entry.contentId === contentId)) return context;
+  return { ...context, items: context.items.filter((entry) => entry.contentId !== contentId) };
+};
+
 /** 담기 결과를 스냅샷에 반영한다 — `itemId` 가 채워지면 그 줄의 담기 버튼이 사라진다. 실패 복구는 null 로 되돌린다 */
 export const withSnapshotItemId = (
   context: PlayQueueContext,
