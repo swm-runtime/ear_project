@@ -103,6 +103,9 @@ export default function SeriesScreen() {
               series={series}
               episodeCount={screen.episodeCount}
               playTarget={screen.playTarget}
+              // 흐린 표지가 화면 꼭대기(상태바·떠 있는 앱바)까지 번지도록 목록 상단 여백만큼 위로 올린다.
+              // 시스템 탭 바(iOS 26)에선 스크롤 뷰가 안전영역을 스스로 비우므로 여기에 안전영역을 더해야 꼭대기에 닿는다
+              topBleed={insets.top + APP_BAR_HEIGHT}
               onPlay={screen.playSeries}
             />
             <View style={styles.headerRule} />

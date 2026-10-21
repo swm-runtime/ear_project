@@ -213,5 +213,31 @@ describe('fetchSeriesDetail — GET /series/:series_id(explore-api.md 4.7)', () 
     expect(detail.episodes[0].progress).toEqual({ positionSec: 372, maxReachedSec: 372 });
     expect(detail.episodes[1].item.library).toBeNull();
     expect(detail.episodes[1].progress).toBeNull();
+    // 대표 중분류를 안 보낸 응답(구버전·없는 시리즈) → null 로 읽는다(화면은 카테고리 줄 생략)
+    expect(detail.series.topic).toBeNull();
+  });
+
+  it('대표 중분류(topic)를 보내면 그대로 옮긴다 — 제목 아래 카테고리 줄', async () => {
+    // given
+    mockGet.mockResolvedValue({
+      data: {
+        series: {
+          id: 's1',
+          title: '키워드로 빠르게 배우는 CS 지식',
+          description: '',
+          total_episodes: 16,
+          status: 'completed',
+          thumbnail_url: 'https://example.com/1.webp',
+          topic: { id: 't1', name: 'IT·테크' },
+        },
+        episodes: [],
+      },
+    });
+
+    // when
+    const detail = await fetchSeriesDetail({ seriesId: 's1' });
+
+    // then
+    expect(detail.series.topic).toEqual({ id: 't1', name: 'IT·테크' });
   });
 });

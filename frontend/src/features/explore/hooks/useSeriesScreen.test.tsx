@@ -107,6 +107,7 @@ const detail = (episodes: SeriesEpisode[]): SeriesDetail => ({
     totalEpisodes: 16,
     status: 'ongoing',
     thumbnailUrl: 'https://example.com/1.webp',
+    topic: { id: 't1', name: 'IT·테크' },
   },
   episodes,
 });

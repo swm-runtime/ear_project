@@ -148,6 +148,8 @@ export const toSeriesDetail = (dto: SeriesDetailResponseDto): SeriesDetail => ({
     totalEpisodes: dto.series.total_episodes,
     status: dto.series.status,
     thumbnailUrl: dto.series.thumbnail_url,
+    // 대표 중분류 — 추가 필드라 안 오는 서버(구버전)·없는 시리즈는 null 로 읽는다(화면은 줄째 생략)
+    topic: dto.series.topic ?? null,
   },
   episodes: dto.episodes.map((episode) => ({
     episodeNo: episode.episode_no,

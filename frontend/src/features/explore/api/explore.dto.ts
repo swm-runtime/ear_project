@@ -255,6 +255,12 @@ export interface SeriesDetailResponseDto {
     status: ExploreSeriesStatus;
     /** 표지 = 노출 중인 가장 앞 편(보통 1화)의 썸네일 */
     thumbnail_url: string;
+    /**
+     * 대표 중분류(주제) — 앨범 화면 제목 아래 카테고리 줄(2026-10-22). 서버(series-detail)가 편들의 주제 중 대표 하나를
+     * 골라 싣는다(explore-api.md 4.7). 추가 필드라 보내지 않는 서버(구버전)·값이 없는 시리즈는 `null`/부재로 두고,
+     * 화면은 줄째 생략한다
+     */
+    topic?: { id: string; name: string } | null;
   };
   episodes: SeriesEpisodeDto[];
 }
