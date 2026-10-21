@@ -1,7 +1,9 @@
-import { FlatList, StyleSheet, View } from 'react-native';
+import { useEffect } from 'react';
+import { Animated, FlatList, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { theme } from '@/shared/theme';
+import { useAnimatedValue } from '@/shared/hooks/useAnimatedValue';
+import { motion, theme } from '@/shared/theme';
 import ChevronIcon from '@/shared/ui/ChevronIcon';
 import FullScreenError from '@/shared/ui/FullScreenError';
 import GlassIconButton from '@/shared/ui/GlassIconButton';
@@ -23,6 +25,7 @@ import SeriesMoreSheet from '../components/SeriesMoreSheet';
 import SeriesSkeleton from '../components/SeriesSkeleton';
 import { EXPLORE_COPY } from '../explore.copy';
 import { toSeriesEpisodeState } from '../explore.series-episode';
+import { useArtworkTint } from '../hooks/useArtworkTint';
 import { useSeriesScreen } from '../hooks/useSeriesScreen';
 
 /**
@@ -43,6 +46,24 @@ export default function SeriesScreen() {
    */
   const insets = useSafeAreaInsets();
   const listTopInset = (HAS_NATIVE_TAB_BAR ? 0 : insets.top) + APP_BAR_HEIGHT;
+  /*
+   * 표지와 어울리는 바탕 단색(PM 2026-10-22 07:51 — 흐린 표지 아래 검정이 안 어울린다, 애플 뮤직 앨범 화면). 표지에서 색을 뽑는 데
+   * 한 박자 걸려, 기본 바탕 위에 이 색 판을 깔고 0.25초에 걸쳐 나타나게 한다. 머리의 흐림 페이드도 같은 값으로 함께 나타난다
+   */
+  const tint = useArtworkTint(screen.detail?.series.thumbnailUrl ?? null);
+  const tintOpacity = useAnimatedValue(0);
+  useEffect(() => {
+    if (!tint) {
+      tintOpacity.setValue(0);
+      return;
+    }
+    Animated.timing(tintOpacity, {
+      toValue: 1,
+      duration: TINT_FADE_MS,
+      easing: motion.easing.easeOut,
+      useNativeDriver: true,
+    }).start();
+  }, [tint, tintOpacity]);
 
   const renderBody = () => {
     if (screen.isInitialLoading) {
@@ -105,6 +126,8 @@ export default function SeriesScreen() {
               // 시스템 탭 바(iOS 26)에선 스크롤 뷰가 안전영역을 스스로 비우므로 여기에 안전영역을 더해야 꼭대기에 닿는다
               topBleed={insets.top + APP_BAR_HEIGHT}
               onPlay={screen.playSeries}
+              tint={tint}
+              tintOpacity={tintOpacity}
             />
             <View style={styles.headerRule} />
           </View>
@@ -125,6 +148,13 @@ export default function SeriesScreen() {
 
   return (
     <View style={styles.container}>
+      {/* 표지 단색 판 — 기본 바탕 위, 본문 아래. 색이 오면 페이드인(위 tintOpacity) */}
+      {tint ? (
+        <Animated.View
+          style={[StyleSheet.absoluteFill, { backgroundColor: tint, opacity: tintOpacity }]}
+          pointerEvents="none"
+        />
+      ) : null}
       {/* 본문 — 목록은 화면 맨 위부터(앱바 밑으로 흘러간다). 스켈레톤·에러는 목록이 아니라 앱바 아래에서 시작한다 */}
       {screen.detail ? (
         renderBody()
@@ -194,6 +224,8 @@ const RowSeparator = () => <View style={styles.separator} />;
  * 애플 뮤직 앨범 화면처럼 손에 잘 걸리는 크기. 뒤로 원·⋯ 원이 같은 크기
  */
 const BAR_BUTTON_SIZE = 48;
+/** 표지 단색 바탕이 나타나는 시간 — 색을 뽑는 한 박자를 덮을 만큼 짧게 */
+const TINT_FADE_MS = 250;
 const APP_BAR_ICON_SIZE = 24;
 /** 떠 있는 앱바 줄 높이 — 유리 원 + 위아래 여유 */
 const APP_BAR_HEIGHT = BAR_BUTTON_SIZE + theme.spacing.sm;

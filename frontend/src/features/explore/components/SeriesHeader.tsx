@@ -1,5 +1,5 @@
 import { LinearGradient } from 'expo-linear-gradient';
-import { Platform, Pressable, StyleSheet, View, useWindowDimensions } from 'react-native';
+import { Animated, Platform, Pressable, StyleSheet, View, useWindowDimensions } from 'react-native';
 
 import { theme, useResolvedColor } from '@/shared/theme';
 import { pillButton } from '@/shared/ui/pill-button.styles';
@@ -39,6 +39,12 @@ interface SeriesHeaderProps {
    */
   topBleed: number;
   onPlay: () => void;
+  /**
+   * 표지와 어울리는 바탕 단색(#RRGGBB — PM 2026-10-22 07:51). 있으면 흐린 표지가 기본 배경 대신 이 색으로 녹는다. 화면 바탕과
+   * 같은 값·같은 불투명도(`tintOpacity`)로 함께 페이드인해 이음매가 없다
+   */
+  tint?: string | null;
+  tintOpacity?: Animated.Value;
 }
 
 /**
@@ -54,6 +60,8 @@ export default function SeriesHeader({
   playTarget,
   topBleed,
   onPlay,
+  tint,
+  tintOpacity,
 }: SeriesHeaderProps) {
   const { width } = useWindowDimensions();
   const coverSize = seriesCoverSize(width);
@@ -80,6 +88,16 @@ export default function SeriesHeader({
           locations={[0, 0.55, 1] as const}
           style={StyleSheet.absoluteFill}
         />
+        {/* 표지 단색으로 녹는 페이드 — 기본 페이드 위에 겹쳐 화면 바탕과 같이 페이드인한다(색이 늦게 와도 이음매 없음) */}
+        {tint ? (
+          <Animated.View style={[StyleSheet.absoluteFill, { opacity: tintOpacity ?? 1 }]}>
+            <LinearGradient
+              colors={[`${tint}00`, `${tint}00`, tint] as const}
+              locations={[0, 0.55, 1] as const}
+              style={StyleSheet.absoluteFill}
+            />
+          </Animated.View>
+        ) : null}
       </View>
 
       {/* 그림자는 바깥, 라운드·클립은 안쪽 프레임 — overflow hidden 이 iOS 그림자를 자른다 */}
