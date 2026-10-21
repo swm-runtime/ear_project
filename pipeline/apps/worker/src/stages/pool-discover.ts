@@ -63,7 +63,9 @@ export async function runPoolDiscover(job: Job, ex: Executor) {
     if (tiers.has(key) || tiers.has(key.split("/")[0])) { existing.push(`${key}(${tiers.get(key) ?? tiers.get(key.split("/")[0])})`); continue; }
     const coverage = (s.coverage ?? []).filter((c) => midSet.has(c)); if (!coverage.includes(midTopic)) coverage.unshift(midTopic);
     const feed = s.feed_url && /^https?:\/\//.test(s.feed_url) ? s.feed_url : null;
-    const note = `${POOL_DISCOVER_MARK} (${today}, 중분류 ${midTopic}${hint ? `, 메모 "${hint.slice(0, 60)}"` : ""}): ${s.why.slice(0, 300)} · 대표 페이지 ${s.url}`;
+    const host = key.split("/")[0]; // 같은 기관의 상위·하위 호스트(history.go.kr ↔ contents.history.go.kr, 2026-10-22 역사 첫 실행) — 호스트 단위 규칙상 다른 도메인이지만 판정자가 알아야 한다
+    const related = [...tiers.keys()].filter((d) => { const h = d.split("/")[0]; return h !== host && (h.endsWith("." + host) || host.endsWith("." + h)); }).slice(0, 5);
+    const note = `${POOL_DISCOVER_MARK} (${today}, 중분류 ${midTopic}${hint ? `, 메모 "${hint.slice(0, 60)}"` : ""}): ${s.why.slice(0, 300)} · 대표 페이지 ${s.url}${related.length ? ` · 같은 기관 기존: ${related.map((d) => `${d}(${tiers.get(d)})`).join(", ")}` : ""}`;
     const id = await insertDiscoveredDomain({ domain: key, publisher: s.publisher.trim() || key, category: s.category.trim() || "미분류", feed_url: feed, topic_coverage: coverage, note });
     if (id) { ids.push(id); added.push({ domain: key, publisher: s.publisher, category: s.category }); } else existing.push(`${key}(기존)`);
   }

@@ -594,7 +594,7 @@ The only tool is web search. Do not read page bodies; judge from the sites, titl
 - Priority: public institutions, research institutes, universities, academic societies and open-access journals, companies' official blogs > specialist magazines and non-profit media > commercial press. Korean-language publishers count as much as English ones; search in Korean too.
 - Do not include: personal blogs (Naver, Tistory, Brunch, velog, personal Medium), social media, wikis, forums, shopping pages, breaking-news sites, paid databases or sites behind a subscription or login (researchgate, ssrn, academia.edu, paywalled journals), PDF-only repositories.
 - A publisher must publish on the topic repeatedly: include it only when the results show two or more of its articles on the topic, or the site itself is an institution or outlet for that topic.
-- **Skip sites already in the pool**: ${i.existingHosts.slice(0, 80).join(", ") || "(none)"}
+- **Skip sites already in the pool, and do not spend searches on them** (no \`site:\` queries against this list — the job is to find new sites): ${i.existingHosts.slice(0, 80).join(", ") || "(none)"}
 
 ## Search rules
 - At most ${i.maxSearches} searches, in Korean and English. Phrase queries to find sites, not articles: "<topic> institute", "<topic> journal open access", "<topic> official blog", "<주제> 연구소", "<주제> 학회", "<주제> 공식 블로그".
