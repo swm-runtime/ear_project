@@ -43,6 +43,7 @@ import {
   rejectSectionsPastDuration,
 } from '../script-file';
 import { NormalizedThumbnail, ThumbnailImage } from '../thumbnail-image';
+import { resolveUploadExtension } from '../upload-file.validation';
 import {
   AAC_AUDIO_CONTENT_TYPES,
   AUDIO_CONTENT_TYPES,
@@ -1288,22 +1289,8 @@ export class AdminContentService {
     maxBytes: number,
     field: string,
   ): string {
-    const extension = file.originalName.split('.').pop()?.toLowerCase() ?? '';
-
-    if (!(extension in allowed)) {
-      throw this.validationFailed(
-        field,
-        `허용되지 않는 파일 형식이에요 (${Object.keys(allowed).join(', ')})`,
-      );
-    }
-    if (file.size > maxBytes) {
-      throw this.validationFailed(
-        field,
-        `파일이 너무 커요 (최대 ${Math.floor(maxBytes / 1024 / 1024)}MB)`,
-      );
-    }
-
-    return extension;
+    // 시리즈 표지(KAN-234)와 같은 판정 함수 — 둘이 어긋나지 않게 한 곳에 둔다
+    return resolveUploadExtension(file, allowed, maxBytes, field);
   }
 
   /**

@@ -8,6 +8,11 @@ export const MAX_AUDIO_FILE_BYTES = 200 * 1024 * 1024;
 /** 음질 3종의 길이 허용 오차 — 같은 마스터에서 렌더한 파일이라 반올림 차이만 난다(domain.md 5.8) */
 export const AUDIO_DURATION_TOLERANCE_SEC = 1;
 export const MAX_THUMBNAIL_FILE_BYTES = 5 * 1024 * 1024;
+/**
+ * 시리즈 표지 경로(`PUT /admin/series/:id/cover`, KAN-234)의 multer 수신 상한 — 서버 보호용. 표지 자체의 상한은
+ * `MAX_THUMBNAIL_FILE_BYTES`(콘텐츠 썸네일과 같음)이고 서비스가 400 으로 거절한다. 이보다 크면 multer 가 413 을 준다
+ */
+export const MAX_SERIES_COVER_RECEIVE_BYTES = 4 * MAX_THUMBNAIL_FILE_BYTES;
 
 /** enrichment.json — 벡터 1536개 float라도 수십 KB다. 1MB면 넉넉한 보호 상한 */
 export const MAX_ENRICHMENT_FILE_BYTES = 1 * 1024 * 1024;
@@ -113,6 +118,8 @@ export const AUDIT_ACTION_INVITE_CODE_UPDATE = 'invite_code.update';
 /** 시리즈 관리(KAN-134) — `series`에 작성자 컬럼이 없어 누가 만들고 고쳤는지는 감사 로그만 안다 */
 export const AUDIT_ACTION_SERIES_CREATE = 'series.create';
 export const AUDIT_ACTION_SERIES_UPDATE = 'series.update';
+/** 시리즈 표지 교체(KAN-234, 2026-10-21) — 제목·편수 수정(`series.update`)과 따로 남긴다. 파일 업로드라 경로·실패 양상이 다르다 */
+export const AUDIT_ACTION_SERIES_COVER = 'series.cover';
 /**
  * 노출 가능 콘텐츠가 0건이 된 주제의 자동 숨김(admin.md 4.5, KAN-58).
  *

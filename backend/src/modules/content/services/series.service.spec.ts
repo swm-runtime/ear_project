@@ -9,7 +9,11 @@ import { Series } from '../entities/series.entity';
 import { ContentRepository } from '../repositories/content.repository';
 import { ContentTopicRepository } from '../repositories/content-topic.repository';
 import { SeriesRepository } from '../repositories/series.repository';
-import { SeriesService, assertTotalNotBelowPublished } from './series.service';
+import {
+  SeriesService,
+  assertTotalNotBelowPublished,
+  resolveSeriesCover,
+} from './series.service';
 
 const NOW = new Date('2026-10-17T05:00:00.000Z');
 const SERIES_ID = '55555555-5555-4555-8555-555555555555';
@@ -22,6 +26,7 @@ function buildSeries(overrides: Partial<Series> = {}): Series {
     description: '소개',
     totalEpisodes: 3,
     status: SeriesStatus.ONGOING,
+    coverUrl: null,
     createdAt: NOW,
     updatedAt: NOW,
     ...overrides,
@@ -352,6 +357,62 @@ describe('SeriesService', () => {
         UserMarket.KR,
         undefined,
       );
+    });
+
+    it('시리즈 표지를 올렸으면 가장 앞 편 썸네일 대신 그것이 표지다(KAN-234)', async () => {
+      // given
+      seriesRepository.findAllByIds.mockResolvedValue([
+        buildSeries({ coverUrl: 'https://cdn/cover.webp' }),
+      ]);
+      contentRepository.findVisibleBySeriesIds.mockResolvedValue([
+        { id: 'c1', seriesId: SERIES_ID, thumbnailUrl: 'https://cdn/1.webp' },
+      ] as Content[]);
+
+      // when
+      const cards = await service.findCards([SERIES_ID], NOW, UserMarket.KR);
+
+      // then
+      expect(cards.get(SERIES_ID)?.coverThumbnailUrl).toBe(
+        'https://cdn/cover.webp',
+      );
+    });
+  });
+
+  describe('resolveSeriesCover — 표지 해석(KAN-234)', () => {
+    it('올린 표지가 있으면 그것을 쓴다', () => {
+      expect(
+        resolveSeriesCover(
+          { coverUrl: 'https://cdn/cover.webp' },
+          'https://cdn/1.webp',
+        ),
+      ).toBe('https://cdn/cover.webp');
+    });
+
+    it('표지가 없거나 빈 문자열이면 가장 앞 편 썸네일이다 — 종전 규칙 그대로', () => {
+      expect(resolveSeriesCover({ coverUrl: null }, 'https://cdn/1.webp')).toBe(
+        'https://cdn/1.webp',
+      );
+      expect(resolveSeriesCover({ coverUrl: '' }, 'https://cdn/1.webp')).toBe(
+        'https://cdn/1.webp',
+      );
+    });
+  });
+
+  describe('updateCover — 표지 교체', () => {
+    it('잠근 행에 새 URL을 넣고 같은 트랜잭션으로 저장한다', async () => {
+      // given
+      const series = buildSeries();
+
+      // when
+      const saved = await service.updateCover(
+        series,
+        'https://cdn/cover.webp',
+        manager,
+      );
+
+      // then
+      expect(saved.coverUrl).toBe('https://cdn/cover.webp');
+      expect(seriesRepository.save).toHaveBeenCalledWith(series, manager);
     });
   });
 

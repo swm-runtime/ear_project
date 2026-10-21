@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 
 import { ContentService } from '@/modules/content/services/content.service';
 import {
+  resolveSeriesCover,
   SeriesService,
   toSeriesRef,
 } from '@/modules/content/services/series.service';
@@ -71,8 +72,8 @@ export class SeriesDetailOrchestrator {
 
     return {
       series,
-      // 노출 중인 가장 앞 편 — 1화가 회수돼 있으면 그다음 편이 표지가 된다
-      coverThumbnailUrl: episodes[0].thumbnailUrl,
+      // 시리즈 표지가 있으면 그것(KAN-234). 없으면 노출 중인 가장 앞 편 — 1화가 회수돼 있으면 그다음 편이 표지가 된다
+      coverThumbnailUrl: resolveSeriesCover(series, episodes[0].thumbnailUrl),
       episodes: episodes.map((content) => ({
         content,
         topicIds: topicIdsByContentId.get(content.id) ?? [],

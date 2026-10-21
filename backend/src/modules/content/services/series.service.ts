@@ -29,7 +29,7 @@ export interface SeriesWithCounts {
 /** 탐색 시리즈 카드(KAN-134 확정 설계 4번)의 재료 — 사용자 시장에 노출 중인 편 기준 */
 export interface SeriesCardView {
   series: Series;
-  /** 표지 — 노출 중인 가장 앞 편(보통 1화)의 썸네일 */
+  /** 표지 — 시리즈 표지(`cover_url`)가 있으면 그것, 없으면 노출 중인 가장 앞 편(보통 1화)의 썸네일(`resolveSeriesCover`) */
   coverThumbnailUrl: string;
   /** 노출 중인 편 수 — 계획 편수(`series.totalEpisodes`)보다 적을 수 있다 */
   episodeCount: number;
@@ -80,6 +80,17 @@ export class SeriesService {
     );
   }
 
+  /** 잠그지 않는 존재 확인 — 표지 업로드가 저장소에 올리기 전에 없는 시리즈를 빨리 거절한다(최종 판정은 잠근 재확인) */
+  async getById(seriesId: string, manager?: EntityManager): Promise<Series> {
+    const series = await this.seriesRepository.findById(seriesId, manager);
+
+    if (!series) {
+      throw seriesNotFound();
+    }
+
+    return series;
+  }
+
   /** 관리자 수정 경로 — 업로드 검증과 같은 잠금으로 직렬화한다(편수 하한 판정이 동시 업로드와 엇갈리지 않게) */
   async getByIdForUpdate(
     seriesId: string,
@@ -128,6 +139,20 @@ export class SeriesService {
       series.status = command.status;
     }
 
+    return this.seriesRepository.save(series, manager);
+  }
+
+  /**
+   * 표지 교체(KAN-234) — `getByIdForUpdate`로 잠근 행에 새 공개 URL을 넣는다. 저장소 업로드·옛 객체 정리는 호출부
+   * (`AdminSeriesService.replaceCover`) 몫이다 — 이 모듈은 저장소를 모른다. `updated_at`이 올라가 운영 → 개발계
+   * 콘텐츠 동기화의 지문(표별 `max(updated_at)`)이 바뀜을 알아챈다
+   */
+  async updateCover(
+    series: Series,
+    coverUrl: string,
+    manager: EntityManager,
+  ): Promise<Series> {
+    series.coverUrl = coverUrl;
     return this.seriesRepository.save(series, manager);
   }
 
@@ -335,8 +360,8 @@ export class SeriesService {
       }
       const card = cards.get(series.id) ?? {
         series,
-        // 편 번호순으로 읽었으므로 처음 만나는 편이 가장 앞 편이다
-        coverThumbnailUrl: episode.thumbnailUrl,
+        // 편 번호순으로 읽었으므로 처음 만나는 편이 가장 앞 편이다 — 시리즈 표지가 없을 때의 대체값
+        coverThumbnailUrl: resolveSeriesCover(series, episode.thumbnailUrl),
         episodeCount: 0,
         topicIds: [],
       };
@@ -379,6 +404,18 @@ export class SeriesService {
 
     return { series, episodes };
   }
+}
+
+/**
+ * 시리즈 표지(KAN-234) — 올린 표지(`series.cover_url`)가 있으면 그것, 없으면 노출 중인 가장 앞 편의 썸네일이다
+ * (종전 규칙 · 결정 2026-10-09). 탐색 시리즈 카드와 시리즈 화면이 같은 규칙을 쓰도록 한 곳에 둔다.
+ * 빈 문자열은 없는 것으로 본다 — 저장소가 URL을 못 준 경우(`stored.url ?? ''`)에 빈 표지가 내려가지 않게
+ */
+export function resolveSeriesCover(
+  series: Pick<Series, 'coverUrl'>,
+  firstEpisodeThumbnailUrl: string,
+): string {
+  return series.coverUrl || firstEpisodeThumbnailUrl;
 }
 
 export function toSeriesRef(

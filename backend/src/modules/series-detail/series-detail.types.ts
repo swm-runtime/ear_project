@@ -21,7 +21,7 @@ export interface SeriesEpisodeView {
 /** `GET /series/:id`(KAN-134 확정 설계 3번)의 조립 재료 */
 export interface SeriesDetailView {
   series: Series;
-  /** 표지 — 노출 중인 가장 앞 편의 썸네일(보통 1화, 결정 2026-10-09) */
+  /** 표지 — 시리즈 표지가 있으면 그것(KAN-234), 없으면 노출 중인 가장 앞 편의 썸네일(보통 1화, 결정 2026-10-09) */
   coverThumbnailUrl: string;
   /** 노출 중인 편만, `episode_no` 순 */
   episodes: SeriesEpisodeView[];

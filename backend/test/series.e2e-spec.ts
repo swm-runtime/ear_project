@@ -575,6 +575,137 @@ describe('시리즈 E2E', () => {
       .expect(HttpStatus.NOT_FOUND);
   }, 60_000);
 
+  it('시리즈 표지(KAN-234) — 올리면 시리즈 화면·관리자 목록이 그것을 쓰고, 없으면 1화 썸네일, 형식·크기 위반은 400(cover)', async () => {
+    const { auth: admin } = await createUser('admin-cover', UserRole.ADMIN);
+    const listener = await createUser('listener-cover', UserRole.USER);
+    const topic = await seedTopic(UserMarket.KR);
+    const series = await createSeriesId(admin, 2, `${STAMP} 표지 시리즈`);
+    const first = await uploadId(admin, topic.id, series, 1, 2);
+    await uploadId(admin, topic.id, series, 2, 2);
+    const firstThumbnail = (
+      await dataSource.getRepository(Content).findOneByOrFail({ id: first })
+    ).thumbnailUrl;
+    const detailCover = async () =>
+      (
+        (
+          await request(app.getHttpServer())
+            .get(path(`/series/${series}`))
+            .set('Authorization', listener.auth)
+            .expect(HttpStatus.OK)
+        ).body as SeriesDetailBody
+      ).series.thumbnail_url;
+    const adminRow = async () =>
+      (
+        (
+          await request(app.getHttpServer())
+            .get(path('/admin/series'))
+            .set('Authorization', admin)
+            .expect(HttpStatus.OK)
+        ).body as { items: (SeriesItemBody & { cover_url: string | null })[] }
+      ).items.find((item) => item.id === series);
+
+    // 표지 없음 — 종전 그대로 1화 썸네일, 관리자 항목의 cover_url 은 null
+    expect(await detailCover()).toBe(firstThumbnail);
+    expect((await adminRow())?.cover_url).toBeNull();
+
+    // 형식·크기 위반은 400 VALIDATION_FAILED(field = cover) — 콘텐츠 thumbnail 과 같은 판정
+    const expectCoverRejected = async (
+      buffer: Buffer,
+      filename: string,
+      contentType: string,
+    ) => {
+      const response = await putCover(admin, series, buffer, {
+        filename,
+        contentType,
+      }).expect(HttpStatus.BAD_REQUEST);
+      expect(response.body as ErrorBody).toMatchObject({
+        error_code: ErrorCode.VALIDATION_FAILED,
+        field: 'cover',
+      });
+    };
+    await expectCoverRejected(
+      Buffer.alloc(6 * 1024 * 1024),
+      'cover.png',
+      'image/png',
+    );
+    await expectCoverRejected(
+      Buffer.from('fake-image'),
+      'cover.gif',
+      'image/gif',
+    );
+    // 파일 없이 보내도 400(cover)
+    const missing = await request(app.getHttpServer())
+      .put(path(`/admin/series/${series}/cover`))
+      .set('Authorization', admin)
+      .field('note', 'x')
+      .expect(HttpStatus.BAD_REQUEST);
+    expect(missing.body as ErrorBody).toMatchObject({
+      error_code: ErrorCode.VALIDATION_FAILED,
+      field: 'cover',
+    });
+    // 권한 · 없는 시리즈 · uuid 형식
+    await putCover(listener.auth, series).expect(HttpStatus.FORBIDDEN);
+    await putCover(admin, '00000000-0000-4000-8000-000000000000').expect(
+      HttpStatus.NOT_FOUND,
+    );
+    await putCover(admin, 'not-a-uuid').expect(HttpStatus.BAD_REQUEST);
+    // 거절된 요청은 아무것도 바꾸지 않는다
+    expect(await detailCover()).toBe(firstThumbnail);
+
+    // 올린다 → 응답·시리즈 화면·관리자 목록이 새 표지
+    const uploaded = await putCover(admin, series).expect(HttpStatus.OK);
+    const coverUrl = (uploaded.body as { cover_url: string }).cover_url;
+    expect(coverUrl).toMatch(/^https:\/\/cdn\.example\/.+\.webp$/);
+    expect(coverUrl).not.toBe(firstThumbnail);
+    expect(uploaded.body as SeriesItemBody).toMatchObject({
+      id: series,
+      episode_counts: { published: 2, withdrawn: 0, expired: 0 },
+    });
+    expect(await detailCover()).toBe(coverUrl);
+    expect((await adminRow())?.cover_url).toBe(coverUrl);
+    // 편 썸네일은 그대로다 — 표지는 시리즈 칸만 바꾼다
+    const detail = await request(app.getHttpServer())
+      .get(path(`/series/${series}`))
+      .set('Authorization', listener.auth)
+      .expect(HttpStatus.OK);
+    expect(
+      (detail.body as { episodes: { content: { thumbnail_url: string } }[] })
+        .episodes[0].content.thumbnail_url,
+    ).toBe(firstThumbnail);
+
+    // 다시 올리면 교체된다(PUT — 같은 요청 반복 가능)
+    const replaced = await putCover(admin, series).expect(HttpStatus.OK);
+    const replacedUrl = (replaced.body as { cover_url: string }).cover_url;
+    expect(replacedUrl).not.toBe(coverUrl);
+    expect(await detailCover()).toBe(replacedUrl);
+
+    // 감사 로그 — 성공한 두 번만(거절된 요청은 남지 않는다)
+    const audits = await dataSource.query<{ action: string }[]>(
+      `SELECT action FROM audit_logs WHERE target = $1 ORDER BY created_at`,
+      [`series:${series}`],
+    );
+    expect(audits.map((audit) => audit.action)).toEqual([
+      'series.create',
+      'series.cover',
+      'series.cover',
+    ]);
+  }, 60_000);
+
+  function putCover(
+    auth: string,
+    seriesId: string,
+    buffer: Buffer = Buffer.from('fake-image'),
+    file: { filename: string; contentType: string } = {
+      filename: 'thumb-cover.png',
+      contentType: 'image/png',
+    },
+  ) {
+    return request(app.getHttpServer())
+      .put(path(`/admin/series/${seriesId}/cover`))
+      .set('Authorization', auth)
+      .attach('cover', buffer, file);
+  }
+
   function createSeries(auth: string, body: Record<string, unknown>) {
     return request(app.getHttpServer())
       .post(path('/admin/series'))

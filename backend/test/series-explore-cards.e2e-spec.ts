@@ -270,6 +270,46 @@ describe('탐색 시리즈 카드 E2E', () => {
     }
   }, 60_000);
 
+  it('켬 — 시리즈 표지(KAN-234)가 있으면 주제별·인기·검색 카드 표지가 그것이고, 지우면 다시 1화 썸네일이다', async () => {
+    const COVER = 'https://example.com/e2e-cards-cover.webp';
+    const cardThumbnails = async () => {
+      const lists = await Promise.all([
+        pageAll(onApp, '/explore/contents', {
+          topic_ids: topicId,
+          limit: '20',
+        }),
+        pageAll(onApp, '/explore/popular', { limit: '20' }),
+        pageAll(onApp, '/explore/search', { query: SERIES_WORD, limit: '20' }),
+      ]);
+      return lists.map(
+        (list) =>
+          list.items.find(
+            (item) => item.type === 'series' && item.series?.id === seriesId,
+          )?.series?.thumbnail_url,
+      );
+    };
+
+    await dataSource.getRepository(Series).update(seriesId, {
+      coverUrl: COVER,
+    });
+    try {
+      expect(await cardThumbnails()).toEqual([COVER, COVER, COVER]);
+      // 꺼진 앱은 카드가 없어 표지를 쓰지 않는다 — 편 행의 썸네일은 편 그대로
+      const off = await pageAll(offApp, '/explore/contents', {
+        topic_ids: topicId,
+        limit: '20',
+      });
+      expect(JSON.stringify(off.items)).not.toContain(COVER);
+    } finally {
+      await dataSource.getRepository(Series).update(seriesId, {
+        coverUrl: null,
+      });
+    }
+
+    const EP1 = 'https://example.com/e2e-cards-ep1.png';
+    expect(await cardThumbnails()).toEqual([EP1, EP1, EP1]);
+  }, 60_000);
+
   it('켬 — 검증 재현(검색어 + 주제 필터, limit=1): 시리즈가 많아도 커서가 자라지 않고 빈 페이지·끊김 없이 마지막 시리즈 카드까지 간다', async () => {
     // given — 시리즈 10개(각 2편, 편들이 위쪽 순위) + 단일 1건(가장 아래)
     const list = await pageAll(onApp, '/explore/search', {
