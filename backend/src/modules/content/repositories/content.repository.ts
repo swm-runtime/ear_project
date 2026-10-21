@@ -11,7 +11,8 @@ import {
 } from '../content.visibility';
 import {
   EMBEDDING_MODEL_ID,
-  SEARCH_CORRECTION_MIN_SIMILARITY,
+  SEARCH_CORRECTION_CANDIDATE_LIMIT,
+  SEARCH_CORRECTION_MAX_LENGTH_DIFF,
   SEARCH_CORRECTION_MIN_TERM_LENGTH,
   SEARCH_CORRECTION_PARTICLE_PATTERN,
   SEARCH_RRF_K,
@@ -28,6 +29,7 @@ import {
   ContentStatus,
   StatsPeriodType,
 } from '../content.enum';
+import { pickSearchCorrection } from '../content.search-correction';
 import {
   AdminContentPageQuery,
   ContentCandidateQuery,
@@ -912,9 +914,12 @@ export class ContentRepository {
 
   /**
    * 오타 교정어 하나(KAN-238 — `explore.md` 4.5-5). 어휘 = 사용자 시장 발행 콘텐츠의 태그 항목 ∪ 주제명(노출 주제) ∪
-   * 시리즈 제목(스위치) ∪ 제목 토큰(공백·문장부호로 나누고 끝 조사를 뗀 것, 2자 이상). 자모로 푼 질의와 어휘의
-   * `word_similarity`가 하한 이상인 것 중 최댓값 하나 — 동점은 태그·주제명(깨끗한 명사) → 빈도 → 사전순.
-   * 원문과 같은 말은 교정어가 아니다.
+   * 시리즈 제목(스위치) ∪ 제목 토큰(공백·문장부호로 나누고 끝 조사를 뗀 것, 2자 이상). 원문과 같은 말은 교정어가 아니다.
+   *
+   * 두 단계다. ① SQL — 글자 수가 질의 ±1 안(길이 가드)이고 자모 트라이그램 `similarity`(대칭)가 0보다 큰 어휘를
+   * 유사도순 상한 개수만 ② `pickSearchCorrection` — 자모 편집 유사도로 재채점해 하한 이상 최댓값 하나, 동점은
+   * 태그·주제명 → 빈도 → 길이 차이 → 코드포인트순. 트라이그램만으로는 "겅제"에 대해 경제·거의·정제가 같은 점수라
+   * (자모 다섯 자에 트라이그램이 몇 개 안 된다) 편집 거리로 가른다 — 종전 `word_similarity`(비대칭)는 "거의"를 골랐다.
    *
    * 자모 컬럼·인덱스 없이 **질의 시 전수 비교**다 — 어휘는 수백 편 규모라 함수 호출 몇천 번이다(domain.md 5.1).
    * 어휘가 수만 항목으로 커지면 `search_terms` 머티리얼라이즈드 뷰 + trgm 인덱스를 그때 본다.
@@ -968,25 +973,32 @@ export class ContentRepository {
         SELECT term, min(priority) AS priority, count(*) AS frequency
           FROM terms
          WHERE char_length(term) >= ${SEARCH_CORRECTION_MIN_TERM_LENGTH}
+           AND abs(char_length(term) - char_length(${q})) <= ${SEARCH_CORRECTION_MAX_LENGTH_DIFF}
            AND term <> ${q}
          GROUP BY term
       )
-      SELECT term
+      SELECT term, priority, frequency
         FROM (
           SELECT term, priority, frequency,
-                 word_similarity(hangul_to_jamo(${q}), hangul_to_jamo(term)) AS similarity
+                 similarity(hangul_to_jamo(${q}), hangul_to_jamo(term)) AS similarity
             FROM candidates
         ) scored
-       WHERE similarity >= ${SEARCH_CORRECTION_MIN_SIMILARITY}
+       WHERE similarity > 0
        ORDER BY similarity DESC, priority ASC, frequency DESC, term ASC
-       LIMIT 1`;
+       LIMIT ${SEARCH_CORRECTION_CANDIDATE_LIMIT}`;
 
-    const [row] = await this.scoped(manager).manager.query<{ term: string }[]>(
-      sql,
-      params,
+    const rows = await this.scoped(manager).manager.query<
+      { term: string; priority: number; frequency: string | number }[]
+    >(sql, params);
+
+    return pickSearchCorrection(
+      query.normalizedQuery,
+      rows.map((row) => ({
+        term: row.term,
+        priority: Number(row.priority),
+        frequency: Number(row.frequency),
+      })),
     );
-
-    return row?.term ?? null;
   }
 
   /**

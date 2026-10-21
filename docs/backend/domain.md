@@ -683,7 +683,7 @@ fk_contents_series  series_id → series.id  ON DELETE RESTRICT   (2026-10-17 �
 - 검색 대상 5필드(제목·설명·저자·주제명·해시태그) 중 **`topics.name`에는 인덱스를 두지 않는다**(해시태그도 인덱스 없음 — 위 "해시태그 검색"). 주제 수가 수십 개 수준이라 순차 스캔으로 충분하다([4.1](#41-topics)이 `content_count` 컬럼을 두지 않은 것과 같은 규모 근거).
 - 2자 질의는 트라이그램(3자)을 추출하지 못해 이 인덱스를 타지 못한다 — 초기 콘텐츠 풀 규모에서는 허용하며, 대응 방침은 `explore.md` 4.5-5가 정한다(최소 길이 상향 금지).
 - NFC 정규화·소문자 통일은 **적재·질의 양쪽에서 애플리케이션 계층이 한다.** 정규화 사본 컬럼을 두지 않는다 — 파생값이다([1.5](#15-파생값을-컬럼으로-두지-않는다)).
-- **오타 교정용 함수 `hangul_to_jamo(text) RETURNS text IMMUTABLE`**(신설 2026-10-22 — KAN-238, 마이그레이션 `1791300000000-AddSearchCorrectionHybrid`). 완성형 음절(U+AC00~U+D7A3)을 초·중·종성 호환 자모로 풀고, 겹모음(ㅘ=ㅗ+ㅏ)·겹받침(ㄺ=ㄹ+ㄱ)은 **치는 순서대로** 풀며, 그 밖의 문자는 그대로 통과한다(홀로 온 겹자모도 같게 푼다). `STRICT`·`PARALLEL SAFE`·`SET search_path = pg_catalog`. 교정어 선택(`explore.md` 4.5-5 — 질의·어휘 양쪽을 풀어 `word_similarity`)이 쓰고, `search-text.util.ts` `toJamo`(로그 묶음 판정 — 5.7)와 같은 규칙이다(e2e가 실제 DB에서 동치를 대조한다).
+- **오타 교정용 함수 `hangul_to_jamo(text) RETURNS text IMMUTABLE`**(신설 2026-10-22 — KAN-238, 마이그레이션 `1791300000000-AddSearchCorrectionHybrid`). 완성형 음절(U+AC00~U+D7A3)을 초·중·종성 호환 자모로 풀고, 겹모음(ㅘ=ㅗ+ㅏ)·겹받침(ㄺ=ㄹ+ㄱ)은 **치는 순서대로** 풀며, 그 밖의 문자는 그대로 통과한다(홀로 온 겹자모도 같게 푼다). `STRICT`·`PARALLEL SAFE`·`SET search_path = pg_catalog`. 교정어 선택(`explore.md` 4.5-5 — 질의·어휘 양쪽을 풀어 자모 트라이그램 `similarity`로 후보를 줄인다. 점수는 애플리케이션이 `toJamo`로 잰 자모 편집 유사도다 — 2026-10-22 개정, 종전 `word_similarity`)가 쓰고, `search-text.util.ts` `toJamo`(로그 묶음 판정 — 5.7 · 교정어 재채점)와 같은 규칙이다(e2e가 실제 DB에서 동치를 대조한다).
   - **컬럼·인덱스를 신설하지 않는다** — 교정어 어휘(태그 항목·주제명·시리즈 제목·제목 토큰)는 **질의 시 전수 비교**한다. 운영 콘텐츠 수백 편 규모라 함수 호출 몇천 번이다. 어휘가 수만 항목으로 커지면 `search_terms` 머티리얼라이즈드 뷰 + `gin_trgm_ops`를 그때 본다(IMMUTABLE이라 인덱스 식에 그대로 쓸 수 있다).
   - **의미 엔진**(하이브리드의 둘째 엔진)은 `content_embeddings`([5.6](#56-content_embeddings-신설-2026-08-26--추천-스코어링-고도화))를 읽는다 — 이 표에 컬럼을 더하지 않는다.
 
@@ -2014,7 +2014,7 @@ idx_archived_subscriptions_archived_at
 | 항목 | 결정 | 반영 위치 |
 |---|---|---|
 | 검색 매칭·인덱스 (FR-22, MVP 격상) | **`pg_trgm` 부분 일치 확정**(`explore.md` 4.5-5 — tsvector는 한국어 사전이 없어 폐기). `contents` 3필드(title·description·author_name)에 트라이그램 GIN 인덱스 신설, `topics.name`은 인덱스 없음(주제 수십 개 — 순차 스캔), 확장 `pg_trgm` 도입. NFC 정규화는 애플리케이션 계층 — 정규화 사본 컬럼을 두지 않는다 | 5.1 |
-| 검색 오타 교정·하이브리드 (2026-10-22 개정 — KAN-238) | 키워드 0건이면 자모 트라이그램(`hangul_to_jamo` 함수 — 컬럼·인덱스 없음, 어휘 질의 시 전수)으로 교정어 하나를 골라 "대신 검색". 결과는 키워드 + 임베딩 코사인(`content_embeddings` 전수, ANN 없음) RRF 하이브리드. `search_query_logs`에 `query_used`·`keyword_count`·`engines` | 5.1 · 5.6 · 5.7 |
+| 검색 오타 교정·하이브리드 (2026-10-22 개정 — KAN-238) | 키워드 0건이면 자모 트라이그램(`hangul_to_jamo` 함수 — 컬럼·인덱스 없음, 어휘 질의 시 전수)으로 후보를 줄이고 자모 편집 유사도로 교정어 하나를 골라 "대신 검색". 결과는 키워드 + 임베딩 코사인(`content_embeddings` 전수, ANN 없음) RRF 하이브리드. `search_query_logs`에 `query_used`·`keyword_count`·`engines` | 5.1 · 5.6 · 5.7 |
 
 **2026-08-24 확정 반영분**
 

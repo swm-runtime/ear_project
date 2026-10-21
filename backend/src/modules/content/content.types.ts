@@ -317,6 +317,15 @@ export interface HybridSearchPage {
   keywordTotal: number;
 }
 
+/** 교정어 후보 — SQL이 길이 가드·트라이그램으로 줄여 넘기고 `pickSearchCorrection`이 재채점한다 */
+export interface SearchCorrectionCandidate {
+  term: string;
+  /** 0 = 태그·주제명(깨끗한 명사), 1 = 시리즈 제목·제목 토큰 */
+  priority: number;
+  /** 어휘에 나온 횟수 */
+  frequency: number;
+}
+
 export interface SearchCorrectionQuery {
   market: UserMarket;
   normalizedQuery: string;
