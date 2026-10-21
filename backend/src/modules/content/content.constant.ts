@@ -41,6 +41,14 @@ export const SEARCH_RRF_K = 60;
  */
 export const SEARCH_SEMANTIC_MIN_SIMILARITY = 0.3;
 
+/**
+ * 관련 콘텐츠(`GET /contents/:content_id/related` — KAN-240, `player-api.md` 4.8)의 코사인 유사도 하한. 기준 편과 후보 편의
+ * 대본 임베딩 `1 - (embedding <=> 기준 벡터)`가 **이 값 이하이면 뺀다.** 시작값 0.3은 검색 의미 엔진 하한
+ * (`SEARCH_SEMANTIC_MIN_SIMILARITY`)과 같은 근거다 — text-embedding-3-small은 무관한 한국어 텍스트끼리도 0.1~0.2대가 흔하다.
+ * 대본 전문끼리라 같은 주제면 질의-대본보다 높게 모인다. **계약에 적지 않는다** — 추천 블록 반응을 보고 조정한다.
+ */
+export const RELATED_CONTENT_MIN_SIMILARITY = 0.3;
+
 /** 의미 엔진이 RRF에 넘기는 상위 건수 — 키워드 엔진은 자르지 않는다(종전 결과를 전부 담는다) */
 export const SEARCH_SEMANTIC_TOP_K = 50;
 

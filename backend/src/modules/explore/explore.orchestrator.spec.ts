@@ -176,6 +176,7 @@ describe('ExploreOrchestrator', () => {
         .fn()
         .mockResolvedValue({ items: [], hasNext: false, keywordTotal: 0 }),
       findSearchCorrection: jest.fn().mockResolvedValue(null),
+      findRelatedContents: jest.fn().mockResolvedValue([]),
       findTopicViews: jest.fn().mockResolvedValue([]),
       findScorableEmbeddings: jest.fn().mockResolvedValue(new Map()),
       getPublishedById: jest.fn().mockResolvedValue(buildContent(CONTENT_ID)),
@@ -1679,6 +1680,37 @@ describe('ExploreOrchestrator', () => {
         configWith('true'),
         queryEmbeddingClient,
       );
+    });
+
+    it('관련 콘텐츠(KAN-240)는 스위치가 켜져 있어도 시리즈 카드로 접지 않고 편 행(type 키 없음)을 순서대로 낸다', async () => {
+      // given — 같은 시리즈 두 편이 코사인 순으로 온다
+      contentService.findRelatedContents.mockResolvedValue([
+        episode(E2, 2),
+        episode(E1, 1),
+      ]);
+      libraryService.findActiveItems.mockResolvedValue([
+        buildLibraryItem({ contentId: E1 }),
+      ]);
+      playbackService.findCountedContentIds.mockResolvedValue(new Set([E2]));
+      const query = {
+        baseContentId: CONTENT_ID,
+        market: UserMarket.KR,
+        excludeIds: [],
+        limit: 5,
+        now: NOW,
+      };
+
+      // when
+      const items = await cards.getRelated(USER_ID, query);
+
+      // then
+      expect(contentService.findRelatedContents).toHaveBeenCalledWith(query);
+      expect(seriesService.findCards).not.toHaveBeenCalled();
+      expect(items.map((item) => item.content.id)).toEqual([E2, E1]);
+      expect(items.every((item) => item.type === undefined)).toBe(true);
+      expect(items[0]).toMatchObject({ library: null, isCountedToday: true });
+      expect(items[1].library).not.toBeNull();
+      expect(items[1].isCountedToday).toBe(false);
     });
 
     it('주제 목록 — 시리즈 대표 편만 달라고 묻고, 대표 편은 카드로 · 나머지는 type: content 행으로 낸다', async () => {

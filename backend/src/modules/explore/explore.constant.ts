@@ -104,3 +104,12 @@ export const EXPLORE_SECTION_TITLES: Record<
   [ExploreSectionKey.NEW]: '새로 나온 콘텐츠',
   [ExploreSectionKey.POPULAR]: '인기 콘텐츠',
 };
+
+/**
+ * 관련 콘텐츠(`GET /contents/:content_id/related` — `player-api.md` 4.8, KAN-240) 계약값. 추천 블록이 3~5편이라 기본 5,
+ * 상한 10. `exclude_ids`는 재생 목록 스냅샷(불러 둔 페이지까지)의 편을 빼는 용도라 50이면 탐색 두세 페이지를 덮는다 —
+ * 상한 없는 목록을 받지 않는다(architecture.md 9.3)
+ */
+export const DEFAULT_RELATED_CONTENT_LIMIT = 5;
+export const MAX_RELATED_CONTENT_LIMIT = 10;
+export const MAX_RELATED_EXCLUDE_IDS = 50;

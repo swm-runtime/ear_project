@@ -12,6 +12,7 @@ import {
 import {
   ContentTopicView,
   HybridSearchCursorPosition,
+  RelatedContentQuery,
   HybridSearchPage,
   SearchCursorPosition,
   SearchEngine,
@@ -298,6 +299,20 @@ export class ExploreOrchestrator {
       hasNext: page.hasNext,
       quota,
     };
+  }
+
+  /**
+   * player-api.md 4.8 — 관련 콘텐츠(KAN-240). 코사인 조회·기준 편 판정(404)은 `ContentService`가 하고, 여기서는
+   * **탐색 행과 같은 조립**(`decorate` — 라이브러리 상태·오늘 카운트·주제·시리즈 표시)만 얹는다. 시리즈 카드 스위치와 무관하게
+   * 편 행이다(`decorateGrouped`를 쓰지 않는다 — 추천 블록은 편 단위 목록이다).
+   */
+  async getRelated(
+    userId: string,
+    query: RelatedContentQuery,
+  ): Promise<ExploreItemView[]> {
+    const contents = await this.contentService.findRelatedContents(query);
+
+    return this.decorate(userId, contents, query.now);
   }
 
   /**

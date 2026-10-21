@@ -32,6 +32,8 @@ describe('ContentService', () => {
   beforeEach(() => {
     contentRepository = {
       findById: jest.fn(),
+      findVisibleById: jest.fn(),
+      findRelated: jest.fn().mockResolvedValue([]),
       expireLicensed: jest.fn().mockResolvedValue(0),
       findWithdrawnSince: jest.fn().mockResolvedValue([]),
       findVisibleSeriesEpisodesForUser: jest.fn().mockResolvedValue([]),
@@ -106,6 +108,53 @@ describe('ContentService', () => {
         },
       ]);
       expect(result.get('s2')?.[0]).toMatchObject({ episodeNo: 2, held: true });
+    });
+  });
+
+  describe('findRelatedContents — 관련 콘텐츠(KAN-240, player-api.md 4.8)', () => {
+    const query = {
+      baseContentId: CONTENT_ID,
+      market: UserMarket.KR,
+      excludeIds: ['44444444-4444-4444-8444-444444444444'],
+      limit: 5,
+      now: NOW,
+    };
+
+    it('기준 편이 보이면 같은 조건으로 코사인 조회를 넘긴다', async () => {
+      // given
+      const related = [buildContent({ id: 'r1' })];
+      contentRepository.findVisibleById.mockResolvedValue(buildContent());
+      contentRepository.findRelated.mockResolvedValue(related);
+
+      // when
+      const result = await service.findRelatedContents(query);
+
+      // then
+      expect(contentRepository.findVisibleById).toHaveBeenCalledWith(
+        CONTENT_ID,
+        NOW,
+        UserMarket.KR,
+        undefined,
+      );
+      expect(contentRepository.findRelated).toHaveBeenCalledWith(
+        query,
+        undefined,
+      );
+      expect(result).toBe(related);
+    });
+
+    it('기준 편이 보이지 않으면(없음·다른 시장·회수·만료) 404 CONTENT_NOT_FOUND — 회수를 403으로 가르지 않는다', async () => {
+      // given
+      contentRepository.findVisibleById.mockResolvedValue(null);
+
+      // when
+      const finding = service.findRelatedContents(query);
+
+      // then
+      await expect(finding).rejects.toMatchObject({
+        errorCode: ErrorCode.CONTENT_NOT_FOUND,
+      });
+      expect(contentRepository.findRelated).not.toHaveBeenCalled();
     });
   });
 

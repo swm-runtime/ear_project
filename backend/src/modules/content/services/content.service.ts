@@ -35,6 +35,7 @@ import {
   ScriptSegment,
   HybridSearchPage,
   HybridSearchPageQuery,
+  RelatedContentQuery,
   SearchCorrectionQuery,
   SearchPage,
   SearchPageQuery,
@@ -446,6 +447,33 @@ export class ContentService {
       hasNext,
       keywordTotal,
     };
+  }
+
+  /**
+   * 관련 콘텐츠(KAN-240 — `player-api.md` 4.8). 기준 편이 사용자에게 보이지 않으면(없음·다른 시장·회수·만료) 404
+   * `CONTENT_NOT_FOUND`다 — 상세(`getPublishedById`)와 달리 회수를 403으로 가르지 않는다. 추천 블록은 실패하면 섹션을 그리지
+   * 않을 뿐이고(`player.md` 4.2-2), 회수 안내·목록 제거는 재생·상세 경로가 맡는다. 존재 여부도 시장 밖으로 알리지 않는다
+   * (`global-api.md` 4.7). 기준 편에 현행 임베딩이 없으면 빈 배열이다.
+   */
+  async findRelatedContents(
+    query: RelatedContentQuery,
+    manager?: EntityManager,
+  ): Promise<Content[]> {
+    const base = await this.contentRepository.findVisibleById(
+      query.baseContentId,
+      query.now,
+      query.market,
+      manager,
+    );
+
+    if (!base) {
+      throw new BusinessNotFoundException({
+        errorCode: ErrorCode.CONTENT_NOT_FOUND,
+        message: '콘텐츠를 찾을 수 없어요',
+      });
+    }
+
+    return this.contentRepository.findRelated(query, manager);
   }
 
   /** 오타 교정어 하나 — 없으면 `null`(KAN-238 — 선택 규칙은 Repository) */
