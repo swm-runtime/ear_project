@@ -139,8 +139,10 @@ export const useSeriesScreen = () => {
     },
   });
 
-  /** 편 행 탭 — 탐색 행과 같은 재생 판정(팝업·페이월·회수) */
-  const handleEpisodePress = (item: ExploreItem) => {
+  /**
+   * 편 행 탭 — 탐색 행과 같은 재생 판정(팝업·페이월·회수). `order`를 주면 재생 목록 스냅샷을 그 순서로(셔플) — 없으면 화수 순
+   */
+  const handleEpisodePress = (item: ExploreItem, order?: ExploreItem[]) => {
     const current = detailQuery.data;
     playGate.requestPlay(
       {
@@ -158,9 +160,9 @@ export const useSeriesScreen = () => {
         // 재생 목록 = 이 시리즈의 편 목록(KAN-241). "다음 화 듣기" 유도가 아니다 — 패널은 열람·선택 전용(PM 확인 항목)
         queue: current
           ? toQueueSnapshot(
-              current.episodes
-                .map((episode) => episode.item)
-                .filter((episode) => !hiddenContentIds.has(episode.content.id)),
+              (order ?? current.episodes.map((episode) => episode.item)).filter(
+                (episode) => !hiddenContentIds.has(episode.content.id),
+              ),
               { type: 'series', title: current.series.title },
             )
           : undefined,
@@ -281,6 +283,70 @@ export const useSeriesScreen = () => {
   };
 
   /*
+   * ── 셔플(PM 2026-10-22 08:55) — 편 목록을 섞어 맨 앞 편을 재생하고, 재생 목록 패널도 그 섞인 순서다. 자동 다음 재생은 여전히
+   * 없다(FR-24 — 셔플은 "어느 편부터"와 "목록 순서"만 바꾼다). 판정·팝업은 편 행 탭과 같은 길 ──
+   */
+  const shuffleSeries = () => {
+    const items = episodes.map((episode) => episode.item);
+    if (items.length === 0) return;
+    const shuffled = [...items];
+    for (let i = shuffled.length - 1; i > 0; i -= 1) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+    }
+    handleEpisodePress(shuffled[0], shuffled);
+  };
+
+  /*
+   * ── 시리즈 담기(PM 2026-10-22 08:55) — 노출 중인 편 중 라이브러리에 없는 편을 **편 단위로 전부** 담는다(서버는 편 담기 그대로 —
+   * explore-api.md 4.3, 횟수 제한·페이월 없음). 새로 공개될 편은 따라 들어오지 않는다(시리즈 구독 아님 — 보류). 낙관 반영 후
+   * 한 번에 보내고, 실패한 편만 되돌려 한 번 알린다. 전부 담겨 있으면 버튼이 체크로 바뀌고 아무것도 하지 않는다 ──
+   */
+  const isSeriesSaved =
+    episodes.length > 0 && episodes.every((episode) => episode.item.library !== null);
+  const saveSeries = () => {
+    const targets = episodes.map((episode) => episode.item).filter((item) => item.library === null);
+    if (targets.length === 0) return;
+    const jobs = targets.map((item) => {
+      const contentId = item.content.id;
+      const seq = nextSeq(contentId);
+      setCachedLibraryState(contentId, {
+        itemId: `optimistic-${contentId}`,
+        source: 'save',
+        status: 'unplayed',
+      });
+      return { contentId, seq };
+    });
+    showToast(EXPLORE_COPY.series.saveAllToast(targets.length), {
+      label: EXPLORE_COPY.saveToastAction,
+      onPress: () => goToLibrary(),
+    });
+    void Promise.allSettled(
+      jobs.map(({ contentId, seq }) => saveMutation.mutateAsync({ contentId, clientSeq: seq })),
+    ).then((results) => {
+      let failed = 0;
+      results.forEach((result, index) => {
+        if (result.status === 'fulfilled') return;
+        const { contentId, seq } = jobs[index];
+        if (!isLatestSeq(contentId, seq)) return;
+        const error: unknown = result.reason;
+        if (
+          isApiError(error) &&
+          (error.errorCode === ERROR_CODES.CONTENT_WITHDRAWN ||
+            error.errorCode === ERROR_CODES.CONTENT_NOT_FOUND)
+        ) {
+          hideRow(contentId);
+          return;
+        }
+        setCachedLibraryState(contentId, null);
+        failed += 1;
+      });
+      invalidateLibrary();
+      if (failed > 0) showToast(EXPLORE_COPY.series.saveAllFailedToast);
+    });
+  };
+
+  /*
    * ── 시리즈 공유 — 시리즈 전용 링크가 아직 없어 **1화(노출 중인 가장 앞 편) 상세 링크**에 시리즈 제목을 싣는다. 받은 사람은
    * 1화 상세의 시리즈 줄로 이 화면에 온다. 입구는 ⋯ 시트의 [공유] 하나 — 시트가 닫힌 뒤 연다(앱바 공유 아이콘은
    * 2026-10-22 PM 지시로 뺐다) ──
@@ -324,6 +390,10 @@ export const useSeriesScreen = () => {
           }
         : null,
     playSeries,
+    // [재생] 양옆 — 셔플 · 시리즈 담기(PM 2026-10-22 08:55)
+    shuffleSeries,
+    saveSeries,
+    isSeriesSaved,
     // 앱바 ⋯ · 시리즈 시트
     isSeriesSheetOpen,
     openSeriesSheet: () => setIsSeriesSheetOpen(true),
