@@ -13,7 +13,7 @@
 | 선행 | 없음(티켓). **사람 손**: 운영·개발계 백엔드 env `AI_SERVER_URL`·`AI_SERVER_INTERNAL_TOKEN`(Secrets Manager `ear/prod/api`·개발계 env) — 상태: 미등록. 백엔드 EC2 → AI 서버 EC2 네트워크(보안 그룹) — 상태: 미확인. 문서 개정 기록 `changes/pending/search-similar-fallback.md`를 같은 PR에서 반영 |
 | 근거 문서 | `changes/pending/search-similar-fallback.md`(개정 내용 전부) · `features/explore.md` 4.5-5 · `backend/domain.md` 5.6·5.7 · `ai-server/README.md`(`POST /embeddings`) |
 | 중요도 | Medium |
-| 상태 | 발행 |
+| 상태 | 반영 (2026-10-22 — dev 머지, 운영은 다음 dev→main 릴리스) |
 
 ## 왜
 
@@ -58,3 +58,6 @@
 
 - 2026-10-22 02:16 발행(A — 0건 자모 폴백).
 - 2026-10-22 02:48 하이브리드(자모·의미를 랭킹 엔진으로) → **02:52~02:56 PM: 오타는 "대신 검색"(교정), 의미는 하이브리드. 문구 확정.** 자모 생성 컬럼·GIN은 걷음(어휘 전수 비교). 기한은 그대로 두고 밀리면 사유를 적는다. 미스율 실제 값은 미확인(요약 4.21) — 임계값·k 조정의 근거로 쓴다.
+- **2026-10-22 반영**(BE PR — `feat(be): search correction and semantic hybrid`, 종전 #1804는 닫음). 마이그레이션 `1791300000000-AddSearchCorrectionHybrid`(함수 `hangul_to_jamo` + `search_query_logs.query_used`·`keyword_count`·`engines`), AI 서버 클라이언트 `QueryEmbeddingClient`(400ms 예산·LRU 500·TTL 30분·실패 뒤 30초 쉼), 하이브리드 쿼리(RRF k=60 · 코사인 하한 0.3 · K=50), 교정어 쿼리(자모 `word_similarity` ≥ 0.5), 커서(`v: 2` — 종전 커서는 종전 키워드 경로로 이어 받음), 로그·요약 4.21. 문서 개정 `changes/pending/search-similar-fallback.md` 1~4·6~8절을 같은 PR에서 반영(5절 uiux는 FE KAN-239 몫이라 그 문서는 pending 유지).
+  - **의미 엔진은 env·보안 그룹 선행 뒤에야 켜진다** — 운영·개발계 백엔드 env `AI_SERVER_URL`·`AI_SERVER_INTERNAL_TOKEN`(Secrets Manager `ear/prod/api`·개발계) 미등록, 백엔드 EC2 → AI 서버 EC2 보안 그룹 미확인. 그 전까지는 `engines: ["keyword"]`로 키워드 + 교정만 돈다(부팅·검색 영향 없음).
+  - 운영 반영은 다음 `dev → main` 릴리스에 함께 나간다. 하위 호환: 응답은 덧붙이는 필드만, `exact` 선택 — 의미 엔진·교정이 없으면 결과·순서가 종전과 같다(e2e로 대조).

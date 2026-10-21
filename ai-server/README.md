@@ -8,7 +8,7 @@
 | `POST /embeddings` | `X-Internal-Token` 헤더 | 대본 텍스트 → 단위 벡터(청킹·평균·L2 정규화 포함). 응답 `{ model, dim, vector }`는 `enrichment.json`의 `embedding` 키와 같은 모양(`docs/ai/metadata-pipeline.md` 4.4) |
 | `GET /health` | 없음 | 인프라 헬스체크 |
 
-**호출자**: 메타데이터 부여 파이프라인 스킬(`docs/ai/metadata-pipeline.md` 4.3 Phase B), 추후 Backend(재발행·소급 일괄 재생성). 사용자 앱·클라이언트는 이 서버를 직접 부르지 않는다.
+**호출자**: 메타데이터 부여 파이프라인 스킬(`docs/ai/metadata-pipeline.md` 4.3 Phase B), **Backend 탐색 검색**(질의 임베딩, 요청 시점 — 2026-10-22 KAN-238, `docs/features/explore.md` 4.5-5. 400ms 예산 안에 못 오면 백엔드가 키워드만으로 응답한다 — `docs/backend/architecture.md` 1장), 추후 Backend(재발행·소급 일괄 재생성). 사용자 앱·클라이언트는 이 서버를 직접 부르지 않는다.
 
 ## 실행
 

@@ -6,7 +6,7 @@
 | 요청 파트 | 백엔드(계약·스키마·AI 서버 호출) · 프론트엔드(화면) |
 | 발행 날짜 | 2026-10-22 |
 | 기한 | 2026-10-25 (Medium — 코드 티켓과 같은 날. BE PR과 함께 반영) |
-| 선행 | 없음. 코드: BE [KAN-238](https://runtime364.atlassian.net/browse/KAN-238) `tickets/backend/pending/search-similar-fallback.md` · FE [KAN-239](https://runtime364.atlassian.net/browse/KAN-239) `tickets/frontend/pending/search-similar-fallback-ui.md` |
+| 선행 | 없음. 코드: BE [KAN-238](https://runtime364.atlassian.net/browse/KAN-238) `tickets/backend/archive/search-similar-fallback.md`(2026-10-22 반영) · FE [KAN-239](https://runtime364.atlassian.net/browse/KAN-239) `tickets/frontend/pending/search-similar-fallback-ui.md` |
 | 발견 시점 | PM 검색 개선 논의(2026-10-22 02~03시). 02:16 A(자모 폴백) → 02:48 하이브리드 → **02:52 PM "오타는 대신 검색, 그리고 의미 유사 검색" · 02:56 문구 확정** |
 
 ## 배경
@@ -89,3 +89,4 @@
 ## 처리 기록
 
 - 2026-10-22 02:16 발행(A 폴백) → 02:48 하이브리드(자모를 랭킹 엔진으로) → **02:52~02:56 PM: 오타는 "대신 검색"으로, 의미는 하이브리드로. 문구 "‘커리어’로 대신 검색했어요 / 혹시 ‘커리오’로 검색하고 싶나요?" 확정.** 자모 생성 컬럼·인덱스는 걷음. 파일명은 그대로(Jira·PR 참조 유지).
+- **2026-10-22 BE 반영**(KAN-238 PR과 같은 PR): 1절(`explore.md` 4.5-2 `exact`) · 2절(4.5-3 안내 2종 — 규칙) · 3절(4.5-5 전면 개정) · 4절(`explore-api.md` 4.5) · 6절(`domain.md` 5.1·5.6·요약표) · 7절(`domain.md` 5.7 · `admin-api.md` 4.21) · 8절(`architecture.md` 1장·7.7 · `ai-server/README.md` 호출자). **남은 것 — 5절 `explore-uiux.md` 4.5(E7 앞 안내 2종의 화면 표현·en 카피·접근성)는 FE KAN-239가 반영한다.** 그때 이 문서를 `archive/`로 옮긴다.
