@@ -58,6 +58,7 @@ interface SeriesDetailBody {
     total_episodes: number;
     status: string;
     thumbnail_url: string;
+    topic: { id: string; name: string } | null;
   };
   episodes: {
     episode_no: number;
@@ -518,6 +519,8 @@ describe('시리즈 E2E', () => {
       await dataSource.getRepository(Content).findOneByOrFail({ id: first })
     ).thumbnailUrl;
     expect(body.series.thumbnail_url).toBe(firstThumbnail);
+    // 대표 중분류 — 두 편 모두 같은 주제라 그게 제목 아래 카테고리 줄이 된다
+    expect(body.series.topic).toEqual({ id: topic.id, name: topic.name });
 
     // 다른 시장 사용자에게는 없는 시리즈다 · 없는 id 도 404 · uuid 가 아니면 400
     await request(app.getHttpServer())

@@ -58,10 +58,24 @@ export class SeriesDetailOrchestrator {
       ]);
 
     const topicIdsByContentId = new Map<string, string[]>();
+    // 대표 중분류 집계 — 편마다의 주제를 모아 가장 많은 편에 걸린 주제를 고른다. 동률이면 topic.display_order 우선인데,
+    // topicViews 가 이미 그 순서(repository 가 display_order ASC 로 읽는다)라 최초 등장 순으로 담으면 동률이 그쪽으로 깨진다
+    const topicNameById = new Map<string, string>();
+    const episodeCountByTopicId = new Map<string, number>();
+    const topicIdsInOrder: string[] = [];
     for (const view of topicViews) {
       const topicIds = topicIdsByContentId.get(view.contentId) ?? [];
       topicIds.push(view.topicId);
       topicIdsByContentId.set(view.contentId, topicIds);
+
+      if (!topicNameById.has(view.topicId)) {
+        topicNameById.set(view.topicId, view.name);
+        topicIdsInOrder.push(view.topicId);
+      }
+      episodeCountByTopicId.set(
+        view.topicId,
+        (episodeCountByTopicId.get(view.topicId) ?? 0) + 1,
+      );
     }
     const libraryItemByContentId = new Map(
       libraryItems.map((item) => [item.contentId, item]),
@@ -70,10 +84,29 @@ export class SeriesDetailOrchestrator {
       progresses.map((progress) => [progress.contentId, progress]),
     );
 
+    // 최초 등장(= display_order) 순으로 훑어 편수 최댓값을 고른다 — 엄격한 > 라 동률은 먼저 온 쪽(낮은 display_order)이 이긴다
+    let representativeTopicId: string | null = null;
+    for (const topicId of topicIdsInOrder) {
+      if (
+        representativeTopicId === null ||
+        (episodeCountByTopicId.get(topicId) ?? 0) >
+          (episodeCountByTopicId.get(representativeTopicId) ?? 0)
+      ) {
+        representativeTopicId = topicId;
+      }
+    }
+
     return {
       series,
       // 시리즈 표지가 있으면 그것(KAN-234). 없으면 노출 중인 가장 앞 편 — 1화가 회수돼 있으면 그다음 편이 표지가 된다
       coverThumbnailUrl: resolveSeriesCover(series, episodes[0].thumbnailUrl),
+      topic:
+        representativeTopicId === null
+          ? null
+          : {
+              id: representativeTopicId,
+              name: topicNameById.get(representativeTopicId) as string,
+            },
       episodes: episodes.map((content) => ({
         content,
         topicIds: topicIdsByContentId.get(content.id) ?? [],

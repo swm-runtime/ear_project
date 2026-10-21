@@ -16,6 +16,11 @@ class SeriesDetailSeriesDto {
   readonly status: SeriesStatus;
   /** 표지 — 시리즈 표지(`series.cover_url`, KAN-234)가 있으면 그것, 없으면 노출 중인 가장 앞 편(보통 1화)의 썸네일 */
   readonly thumbnail_url: string;
+  /**
+   * 대표 중분류(주제) — 앨범 화면 제목 아래 카테고리 줄(explore-api.md 4.7). 편들의 주제 중 가장 많은 편에 걸린 하나
+   * (동률은 `display_order` 우선). 노출 편에 주제가 없으면 null
+   */
+  readonly topic: { id: string; name: string } | null;
 }
 
 /** 탐색 카드의 `content`와 같은 모양(explore-api.md 4.1) — 화면이 같은 행 컴포넌트를 쓴다 */
@@ -110,6 +115,7 @@ export class GetSeriesDetailResponseDto {
         total_episodes: view.series.totalEpisodes,
         status: view.series.status,
         thumbnail_url: view.coverThumbnailUrl,
+        topic: view.topic,
       },
       episodes: view.episodes.map((episode) =>
         SeriesEpisodeItemDto.from(episode),
