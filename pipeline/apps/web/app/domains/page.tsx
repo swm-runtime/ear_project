@@ -38,6 +38,8 @@ export default async function DomainsPage({ searchParams }: { searchParams: Prom
           ))}
         </nav>
         <CheckButton unchecked={(all ?? []).filter((r) => r.tier === "candidate" && !r.evidence).length} total={(all ?? []).filter((r) => r.tier === "candidate").length} />
+      </div>
+      <div className="mb-3 flex flex-wrap items-center gap-2">
         <DiscoverForm mids={mids} />
         <form className="ml-auto flex gap-2">
           <input type="hidden" name="tier" value={tier} />
