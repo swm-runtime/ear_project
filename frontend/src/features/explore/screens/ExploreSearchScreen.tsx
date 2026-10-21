@@ -176,6 +176,7 @@ export default function ExploreSearchScreen({ embedding }: ExploreSearchScreenPr
           </Text>
           <Pressable
             style={styles.noticeLinkRow}
+            hitSlop={NOTICE_LINK_HIT_SLOP}
             onPress={screen.searchInsteadExact}
             accessibilityRole="button"
             accessibilityLabel={EXPLORE_COPY.search.searchInsteadA11y(screen.correctedFrom)}
@@ -189,7 +190,7 @@ export default function ExploreSearchScreen({ embedding }: ExploreSearchScreenPr
     }
     if (screen.isRelatedResult) {
       return (
-        <View style={[styles.resultNotice, styles.resultNoticeSingle]}>
+        <View style={styles.resultNotice}>
           <Text style={styles.noticeText}>
             {EXPLORE_COPY.search.relatedResult(screen.activeQuery ?? '')}
           </Text>
@@ -463,17 +464,15 @@ const styles = StyleSheet.create({
   },
   // 검색 안내(KAN-239) — 격자 첫 행 위, 좌우 여백은 격자와 같다(gridContent)
   /*
-   * 위 여백은 0 — 격자 위 여백(sm)과 버튼 높이 44 안의 여백만으로 검색창과 약 16pt 가 된다. 종전 md + xs 가 더해져 검색창과
-   * 30pt 넘게 벌어져 안내가 떠 보였다(PM 2026-10-22 06:24). 버튼 없는 한 줄(관련 결과)은 그 몫을 resultNoticeSingle 이 채운다
+   * 검색창 아래 여백(sm)과 격자 위 여백(sm)만으로 안내 글자가 검색창과 16pt 가 되게 위 여백은 0(PM 2026-10-22 06:24·06:31).
+   * 종전 md + xs 에 버튼 최소 높이 44 의 빈 위쪽이 더해져 30pt 넘게 벌어졌다. 아래는 카드와 12pt — 안내는 결과의 머리다
    */
   resultNotice: {
     alignItems: 'center',
     paddingTop: 0,
-    paddingBottom: theme.spacing.sm,
+    paddingBottom: theme.spacing.sm + theme.spacing.xs,
   },
-  resultNoticeSingle: {
-    paddingTop: theme.spacing.sm,
-  },
+
   // 교정 안내 한 줄 — 안내 글자 + 버튼을 가운데에 나란히. 좁으면 버튼이 다음 줄 가운데로 접힌다
   resultNoticeRow: {
     flexDirection: 'row',
@@ -487,9 +486,8 @@ const styles = StyleSheet.create({
     color: theme.color.textSecondary,
     textAlign: 'center',
   },
-  // 버튼 — 글자는 작아도 누르는 높이는 44 를 채운다
+  // 버튼 — 높이는 글자만큼(줄 높이가 여백을 벌리지 않게), 누르는 영역은 hitSlop 으로 넓힌다(NOTICE_LINK_HIT_SLOP)
   noticeLinkRow: {
-    minHeight: theme.touchTarget.minHeight,
     justifyContent: 'center',
   },
   /*
@@ -572,3 +570,6 @@ const styles = StyleSheet.create({
     color: theme.color.primary,
   },
 });
+
+/** "원본 검색" 링크의 누르는 영역 — 글자 높이(약 20)에 위아래를 더해 44 가까이. 위쪽은 목록 밖(검색창 여백)이라 일부만 닿는다 */
+const NOTICE_LINK_HIT_SLOP = { top: 12, bottom: 12, left: 8, right: 8 };
