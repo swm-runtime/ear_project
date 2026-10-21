@@ -17,6 +17,7 @@ import { useDeferredSheetShare } from '@/features/share';
 
 import { exploreKeys } from '../api/explore.api';
 import { EXPLORE_COPY } from '../explore.copy';
+import { toQueueSnapshot } from '../explore.queue';
 import type { ExploreItem, ExploreLibraryState, SeriesDetail } from '../explore.types';
 import { useSaveContentMutation } from './useSaveContentMutation';
 import { useSeriesDetailQuery } from './useSeriesDetailQuery';
@@ -138,6 +139,7 @@ export const useSeriesScreen = () => {
 
   /** 편 행 탭 — 탐색 행과 같은 재생 판정(팝업·페이월·회수) */
   const handleEpisodePress = (item: ExploreItem) => {
+    const current = detailQuery.data;
     playGate.requestPlay(
       {
         contentId: item.content.id,
@@ -151,6 +153,15 @@ export const useSeriesScreen = () => {
           topicIds: item.content.topicIds,
         },
         onWithdrawn: () => hideRow(item.content.id),
+        // 재생 목록 = 이 시리즈의 편 목록(KAN-241). "다음 화 듣기" 유도가 아니다 — 패널은 열람·선택 전용(PM 확인 항목)
+        queue: current
+          ? toQueueSnapshot(
+              current.episodes
+                .map((episode) => episode.item)
+                .filter((episode) => !hiddenContentIds.has(episode.content.id)),
+              { type: 'series', title: current.series.title },
+            )
+          : undefined,
       },
       'explore',
     );

@@ -72,6 +72,7 @@ import type { PlayerPanelKind } from '../hooks/usePlayerScreen';
 import { useQueueOrder } from '../hooks/useQueueOrder';
 import { useQueueQuery } from '../hooks/useQueueQuery';
 import { useScriptQuery } from '../hooks/useScriptQuery';
+import { useUpNextQuery } from '../hooks/useUpNextQuery';
 import {
   PLAYER_COLLAPSE_DISTANCE_RATIO,
   PLAYER_COLLAPSE_START_DISTANCE,
@@ -79,8 +80,9 @@ import {
 } from '../player.constants';
 import { PLAYER_COPY } from '../player.copy';
 import { playerColor } from '../player.theme';
-import type { QueueItem } from '../player.types';
+import type { QueueEntry, QueueItem, QueueSourceLabel } from '../player.types';
 import { playbackService } from '../services/playback.service';
+import { entryFromSession, withCurrentFirst } from '../services/queue-context';
 import {
   formatSleepTimerRemaining,
   formatSleepTimerRemainingA11y,
@@ -88,6 +90,7 @@ import {
 } from '../services/sleep-timer';
 import { sleepTimerService } from '../services/sleep-timer.service';
 import { useMiniPlayerLayoutStore } from '../store/mini-player-layout.store';
+import { usePlaybackStore } from '../store/playback.store';
 import { usePlayerOpenGestureStore } from '../store/player-open-gesture.store';
 import { useScrubPositionStore } from '../store/scrub-position.store';
 import { useSleepTimerStore } from '../store/sleep-timer.store';
@@ -148,10 +151,39 @@ export default function PlayerScreen() {
   // **요청은 시트가 앉은 뒤에 보낸다**(PM 2026-09-27 23:37 "여전히 렉거림") — 매번 새로 받는데(staleTime 0) 응답이
   // 보통 스프링 중간에 도착해 화면 전체 재렌더가 모션 프레임을 밀었다. 대본 요청(isScriptSettled)과 같은 장치다.
   // 모션 동안은 받아 둔 목록이 그대로 보이고, 처음 여는 경우만 스피너가 한 요청만큼 더 돈다
-  const queueQuery = useQueueQuery(screen.activePanel === 'queue' && isQueueSettled);
+  /*
+   * 재생 목록의 정체 = 재생을 시작한 맥락(KAN-241 — player.md 4.2-1). 라이브러리 맥락은 종전(조회·끌기), 탐색 맥락은
+   * 게이트가 넘긴 스냅샷을 조회 없이 그린다 — 지금 듣는 편이 스냅샷에 없으면 맨 위에 세운다
+   */
+  const queueContext = usePlaybackStore((s) => s.queueContext);
+  const isLibraryQueue = queueContext.kind === 'library';
+  const queueQuery = useQueueQuery(
+    screen.activePanel === 'queue' && isQueueSettled && isLibraryQueue,
+  );
   // 사용자가 손잡이로 바꾼 순서를 기기에 저장해 두고 받아 온 목록 위에 입힌다(2026-09-18)
   const queueOrder = useQueueOrder(queueQuery.data ?? EMPTY_QUEUE);
-  const queueItems = queueOrder.orderedItems;
+  const snapshotItems = useMemo(
+    () =>
+      queueContext.kind === 'explore'
+        ? withCurrentFirst(queueContext.items, session ? entryFromSession(session) : null)
+        : EMPTY_QUEUE,
+    [queueContext, session],
+  );
+  const queueItems: QueueEntry[] = isLibraryQueue ? queueOrder.orderedItems : snapshotItems;
+  const queueSourceLabel = useMemo(
+    () => (queueContext.kind === 'explore' ? sourceLabelOf(queueContext.source) : null),
+    [queueContext],
+  );
+  // "다음에 들어볼 만한"(player.md 4.2-2) — 탐색 맥락에서만, 시트가 앉은 뒤. 지금 듣는 편·스냅샷은 뺀다
+  const upNextExcludeIds = useMemo(
+    () => snapshotItems.map((item) => item.contentId),
+    [snapshotItems],
+  );
+  const upNextQuery = useUpNextQuery(
+    session?.contentId ?? null,
+    upNextExcludeIds,
+    screen.activePanel === 'queue' && isQueueSettled && !isLibraryQueue,
+  );
   const isPanelAvailable = (kind: PlayerPanelKind) =>
     kind === 'script' ? isScriptAvailable : true;
   const activePanel =
@@ -1444,7 +1476,7 @@ export default function PlayerScreen() {
   // 이름을 못 찾으면(목록 미도착·모르는 id) 자리도 남기지 않는다. 최대 두 개까지만 — 그 이상은 제목을 밀어낸다
   const categoryLabel = topicNames.length > 0 ? topicNames.slice(0, 2).join(' · ') : null;
   // 재생 목록 줄의 카테고리 — 플레이어 제목 아래 줄과 같은 규칙(주제 이름 앞 두 개). 이름을 못 찾으면 null
-  const queueCategoryOf = (item: QueueItem): string | null => {
+  const queueCategoryOf = (item: QueueEntry): string | null => {
     const names = item.topicIds
       .map((id) => topicsQuery.data?.items.find((topic) => topic.topicId === id)?.name)
       .filter((name): name is string => Boolean(name));
@@ -2038,7 +2070,10 @@ export default function PlayerScreen() {
                     accessibilityState={{ expanded: activePanel === 'queue' }}
                   >
                     <View style={styles.scriptHandleBar} />
-                    <Text style={styles.scriptHandleLabel}>{PLAYER_COPY.screen.queueHandle}</Text>
+                    {/* 탐색 맥락이면 손잡이 글자가 출처다 — "탐색 · 인기 주간"(KAN-241, 헤더와 같은 값) */}
+                    <Text style={styles.scriptHandleLabel} numberOfLines={1}>
+                      {queueSourceLabel ?? PLAYER_COPY.screen.queueHandle}
+                    </Text>
                   </Pressable>
                 </View>
               }
@@ -2049,7 +2084,7 @@ export default function PlayerScreen() {
               열린 뒤에는 시트 모션 때문에 요청을 미루는 구간도 로딩이다 — 조회 전을 빈 목록으로 표시하면 안 된다.
               한 번 받아 둔 뒤에는 닫혀 있어도 그대로 둔다 — 다시 열 때 목록이 이미 있다.
             */}
-                {isQueueOpen || queueQuery.data !== undefined ? (
+                {isQueueOpen || queueQuery.data !== undefined || !isLibraryQueue ? (
                   <PlayerQueuePanel
                     // 모션 중에는 앞 몇 줄만 — 앉은 뒤 나머지가 올라온다(위 isQueueSettled 주석)
                     items={
@@ -2057,12 +2092,25 @@ export default function PlayerScreen() {
                     }
                     // 첫 응답 전에는 모션 중의 요청 대기도 로딩으로 본다.
                     // 캐시가 있으면 재조회 중에도 목록을 유지하고, 성공한 빈 응답만 빈 상태를 그린다.
-                    isLoading={queueQuery.isPending}
-                    isError={queueQuery.isError && queueQuery.data === undefined}
+                    // 탐색 스냅샷은 조회가 없다 — 로딩·오류가 없다
+                    isLoading={isLibraryQueue && queueQuery.isPending}
+                    isError={isLibraryQueue && queueQuery.isError && queueQuery.data === undefined}
                     currentContentId={session.contentId}
                     showHeader={false}
+                    mode={isLibraryQueue ? 'library' : 'explore'}
+                    sourceLabel={queueSourceLabel ?? undefined}
                     onSelect={screen.playQueueItem}
                     onReorder={queueOrder.move}
+                    onSave={screen.saveQueueItem}
+                    upNext={
+                      isLibraryQueue
+                        ? undefined
+                        : {
+                            items: upNextQuery.data ?? EMPTY_QUEUE,
+                            isLoading: upNextQuery.isPending,
+                          }
+                    }
+                    onSelectUpNext={screen.playUpNextItem}
                     categoryOf={queueCategoryOf}
                     onRetry={() => void queueQuery.refetch()}
                     onSwipeRight={() => setPanel(null)}
@@ -2285,6 +2333,22 @@ const QUEUE_COMMIT_VELOCITY = 0.5;
 /** 아래로 끌기 — 화면 높이의 이 비율만큼 끌면 진행값이 0(미니플레이어)에 닿는다 */
 /** 목록을 받기 전의 빈 재생 목록 — 렌더마다 새 배열을 만들면 순서 계산(useMemo)이 매번 다시 돈다 */
 const EMPTY_QUEUE: QueueItem[] = [];
+
+/** 탐색 맥락 재생 목록의 출처 글자(KAN-241) — 헤더·손잡이가 같은 값을 쓴다 */
+const sourceLabelOf = (source: QueueSourceLabel): string => {
+  switch (source.type) {
+    case 'section':
+      return PLAYER_COPY.queuePanel.sourceSection(source.title);
+    case 'popular':
+      return PLAYER_COPY.queuePanel.sourcePopular(source.period);
+    case 'topic':
+      return PLAYER_COPY.queuePanel.sourceTopic(source.name);
+    case 'search':
+      return PLAYER_COPY.queuePanel.sourceSearch(source.query);
+    case 'series':
+      return PLAYER_COPY.queuePanel.sourceSeries(source.title);
+  }
+};
 /** 모션 아트워크의 도착 시점 — 0.92 에 풀 화면 자리에 서고 교차(0.94~1) 동안 움직이지 않는다 */
 const MORPH_ART_ARRIVE = 0.92;
 /**

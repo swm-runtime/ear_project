@@ -1,4 +1,4 @@
-import type { QueueItem } from '../player.types';
+import type { QueueEntry, QueueItem } from '../player.types';
 
 /**
  * player → library 동작의 의존 역전 지점. library는 player의 게이트를 쓰는 상위 소비자라
@@ -26,6 +26,17 @@ export interface PlayerLibraryBridge {
    * 서버다: `fetchQueue`가 그 순서대로 돌려준다(`sort=queue`)
    */
   saveQueueOrder(itemIds: string[]): Promise<void>;
+  /**
+   * 탐색 맥락 재생 목록의 줄 담기(KAN-241 — explore-api.md 4.3 `POST /contents/:id/save`). 돌려주는 값은 생긴
+   * `library_items.id` — 스냅샷 줄의 `itemId` 를 채워 담기 버튼을 걷는다. 낙관 반영·토스트는 player 몫
+   */
+  saveContent(contentId: string, clientSeq: number): Promise<string>;
+  /**
+   * "다음에 들어볼 만한"(player.md 4.2-2) 후보 — 지금 듣는 편과 비슷한 편(BE KAN-240 `related`, 나오기 전엔 생략) → 비면
+   * 탐색 `interest` 섹션(피드 캐시 재사용). `excludeIds`(지금 듣는 편 + 스냅샷)는 뺀 채 돌려준다. 실패는 빈 배열로 —
+   * 추천은 없어도 되는 블록이라 패널에 오류를 그리지 않는다
+   */
+  fetchUpNext(contentId: string, excludeIds: string[]): Promise<QueueEntry[]>;
 }
 
 let bridge: PlayerLibraryBridge | null = null;

@@ -322,7 +322,11 @@ const en: LocalizedCopy<typeof ko> = {
       const hours = Math.floor(totalMinutes / 60);
       const minutes = totalMinutes % 60;
       const length =
-        hours === 0 ? `${minutes} min` : minutes === 0 ? `${hours} hr` : `${hours} hr ${minutes} min`;
+        hours === 0
+          ? `${minutes} min`
+          : minutes === 0
+            ? `${hours} hr`
+            : `${hours} hr ${minutes} min`;
       return `${formatEnCount(count, { one: 'episode', other: 'episodes' })}, ${length}`;
     },
     nowPlaying: 'Now playing',

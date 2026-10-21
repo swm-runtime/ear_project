@@ -19,6 +19,7 @@ import {
   useSessionStore,
 } from '@/features/auth';
 import { registerCareerSavedListener } from '@/features/career';
+import { fetchInterestUpNext, saveContent } from '@/features/explore';
 import { registerInterestSavedListener } from '@/features/interest';
 import {
   completeLibraryItem,
@@ -209,6 +210,19 @@ export const bootstrapApp = (): void => {
       }));
     },
     saveQueueOrder: (itemIds) => saveQueueOrder({ itemIds }),
+    /*
+     * 탐색 맥락 재생 목록(KAN-241) — 줄 담기는 탐색의 담기 API 그대로(explore-api.md 4.3). 플레이어는 explore 를 모른다
+     */
+    saveContent: async (contentId, clientSeq) => {
+      const result = await saveContent({ contentId, clientSeq, reason: 'user_save' });
+      void queryClient.invalidateQueries({ queryKey: libraryKeys.all });
+      return result.libraryItem.itemId;
+    },
+    /*
+     * "다음에 들어볼 만한"(player.md 4.2-2) — ① BE KAN-240 `GET /contents/:id/related` 가 나오면 여기 앞에 둔다(없는 서버에
+     * 매번 404 를 내지 않게 지금은 두지 않는다). ② 탐색 interest 섹션(피드 캐시 재사용)
+     */
+    fetchUpNext: (_contentId, excludeIds) => fetchInterestUpNext(queryClient, excludeIds),
   });
 
   /*

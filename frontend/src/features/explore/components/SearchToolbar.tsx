@@ -50,7 +50,10 @@ export default function SearchToolbar({
       useNativeDriver: true,
     }).start();
   }, [isOpen, open, fade]);
-  const closeWidth = open.interpolate({ inputRange: [0, 1], outputRange: [0, theme.touchTarget.minWidth] });
+  const closeWidth = open.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, theme.touchTarget.minWidth],
+  });
 
   return (
     <GlassCapsule style={styles.capsule}>
@@ -67,7 +70,9 @@ export default function SearchToolbar({
           <Animated.View style={[styles.divider, { opacity: fade }]} pointerEvents="none" />
         </>
       ) : null}
-      <Animated.View style={[styles.closeSlot, { width: remaining ? closeWidth : theme.touchTarget.minWidth }]}>
+      <Animated.View
+        style={[styles.closeSlot, { width: remaining ? closeWidth : theme.touchTarget.minWidth }]}
+      >
         <Animated.View style={{ opacity: fade }}>
           <Pressable
             style={styles.cell}

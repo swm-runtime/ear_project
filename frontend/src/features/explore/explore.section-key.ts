@@ -10,5 +10,4 @@ import type { ExploreSection } from './explore.types';
  */
 export const buildSectionListKey = (
   section: Pick<ExploreSection, 'sectionKey' | 'topic'>,
-): string =>
-  section.topic ? `${section.sectionKey}:${section.topic.id}` : section.sectionKey;
+): string => (section.topic ? `${section.sectionKey}:${section.topic.id}` : section.sectionKey);

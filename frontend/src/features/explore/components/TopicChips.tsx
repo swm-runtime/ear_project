@@ -120,7 +120,11 @@ export default function TopicChips({
             accessibilityHint={EXPLORE_COPY.chips.a11yHint}
             accessibilityState={{ checked: isSelected }}
           >
-            <Image source={topicImageSource({ name: topic.name })} resizeMode="cover" style={styles.photo} />
+            <Image
+              source={topicImageSource({ name: topic.name })}
+              resizeMode="cover"
+              style={styles.photo}
+            />
             {/*
               선택 표시는 **나머지 칩을 흐리는 것**이다(PM 2026-10-09) — 고른 칩의 막을 짙게 하던 방식은 사진이 원래 어두운 칩
               (경제 상식·투자·IT·개발)에서 차이가 보이지 않았다. 체크 글리프는 두지 않는다. 낭독은 위 accessibilityState 가 한다
