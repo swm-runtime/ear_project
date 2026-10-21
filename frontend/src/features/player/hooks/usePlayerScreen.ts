@@ -18,11 +18,16 @@ import { useDeferredSheetShare } from '@/features/share';
 
 import { BUFFERING_INDICATOR_DELAY_MS, PLAYER_DELETE_UNDO_DURATION_MS } from '../player.constants';
 import { PLAYER_COPY } from '../player.copy';
-import type { PlayEntryPoint, PlaybackStartMeta, QueueEntry } from '../player.types';
+import type { PlayEntryPoint, PlaybackStartMeta, QueueEntry, QueueItem } from '../player.types';
 import { usePlayGate } from './usePlayGate';
+import { queueKeys } from './useQueueQuery';
 import { playbackService } from '../services/playback.service';
 import { getPlayerLibraryBridge } from '../services/player-library.bridge';
-import { appendToSnapshot, withSnapshotItemId } from '../services/queue-context';
+import {
+  appendToSnapshot,
+  withoutSnapshotItem,
+  withSnapshotItemId,
+} from '../services/queue-context';
 import { useLimitNoticeStore } from '../store/limit-notice.store';
 import { usePlaybackStore } from '../store/playback.store';
 
@@ -135,9 +140,18 @@ export const usePlayerScreen = () => {
     if (!bridge) return;
     bridge
       .deleteItem(itemId)
-      .then(() => bridge.invalidateLibrary())
-      .catch(() => showToast(PLAYER_COPY.deleteSnackbar.failedToast));
+      .then(() => {
+        bridge.invalidateLibrary();
+        // 재생 목록(라이브러리 첫 페이지) 캐시도 서버와 다시 맞춘다 — 스와이프 삭제의 낙관 제거를 확정한다
+        void queryClient.invalidateQueries({ queryKey: queueKeys.all });
+      })
+      .catch(() => {
+        showToast(PLAYER_COPY.deleteSnackbar.failedToast);
+        void queryClient.invalidateQueries({ queryKey: queueKeys.all });
+      });
   };
+  /** 스낵바 [실행 취소]가 되돌릴 로컬 변화 — 스와이프 삭제는 목록에서 먼저 걷어 둔 줄을 제자리에 돌려 놓는다 */
+  const undoLocalRef = useRef<(() => void) | null>(null);
 
   const commitDeleteRef = useRef(commitDelete);
   const pendingDeleteRef = useRef<string | null>(null);
@@ -155,20 +169,25 @@ export const usePlayerScreen = () => {
     [],
   );
 
+  /** 삭제 대기 공통 — 스낵바 5초 뒤 서버 삭제. 연속 조작은 이전 대기분을 즉시 확정하고 스낵바를 교체한다 */
+  const startPendingDelete = (itemId: string, undoLocal: (() => void) | null) => {
+    if (deleteTimerRef.current) clearTimeout(deleteTimerRef.current);
+    if (pendingDeleteRef.current) commitDeleteRef.current(pendingDeleteRef.current);
+    undoLocalRef.current = undoLocal;
+    setPendingDeleteItemId(itemId);
+    deleteTimerRef.current = setTimeout(() => {
+      deleteTimerRef.current = null;
+      undoLocalRef.current = null;
+      setPendingDeleteItemId(null);
+      commitDeleteRef.current(itemId);
+    }, PLAYER_DELETE_UNDO_DURATION_MS);
+  };
+
   const requestDelete = () => {
     setIsMoreSheetVisible(false);
     const itemId = session?.libraryItem?.id;
     if (!itemId) return;
-    // 연속 조작 — 이전 대기분을 즉시 확정하고 스낵바를 교체한다
-    if (deleteTimerRef.current) clearTimeout(deleteTimerRef.current);
-    if (pendingDeleteRef.current) commitDeleteRef.current(pendingDeleteRef.current);
-
-    setPendingDeleteItemId(itemId);
-    deleteTimerRef.current = setTimeout(() => {
-      deleteTimerRef.current = null;
-      setPendingDeleteItemId(null);
-      commitDeleteRef.current(itemId);
-    }, PLAYER_DELETE_UNDO_DURATION_MS);
+    startPendingDelete(itemId, null);
   };
 
   /** 스낵바가 떠 있는 동안은 서버 호출이 없었다 — 로컬 취소뿐이다 */
@@ -177,7 +196,39 @@ export const usePlayerScreen = () => {
       clearTimeout(deleteTimerRef.current);
       deleteTimerRef.current = null;
     }
+    undoLocalRef.current?.();
+    undoLocalRef.current = null;
     setPendingDeleteItemId(null);
+  };
+
+  /**
+   * 재생 목록 줄을 왼쪽으로 밀어 삭제(KAN-241 "3번"). 탐색 맥락은 **스냅샷에서 빼기**(로컬, 서버 요청 없음, 실행 취소 없음).
+   * 라이브러리 맥락은 PL7 더보기와 같은 소프트 삭제 — 목록에서 먼저 걷고(낙관) 스낵바 5초 뒤 서버(library.md 4.5), [실행 취소]는
+   * 걷어 둔 줄을 제자리에 돌려 놓는다. 지금 듣는 편은 밀리지 않는다(패널이 막지만 여기서도 지킨다)
+   */
+  const deleteQueueItem = (item: QueueEntry) => {
+    if (item.contentId === contentId) return;
+    const store = usePlaybackStore.getState();
+    if (store.queueContext.kind === 'explore') {
+      store.setQueueContext(withoutSnapshotItem(store.queueContext, item.contentId));
+      return;
+    }
+    const itemId = item.itemId;
+    if (itemId === null) return;
+    const previous = queryClient.getQueryData<QueueItem[]>(queueKeys.all) ?? [];
+    const index = previous.findIndex((entry) => entry.itemId === itemId);
+    const removed = index === -1 ? null : previous[index];
+    queryClient.setQueryData<QueueItem[]>(queueKeys.all, (current = []) =>
+      current.filter((entry) => entry.itemId !== itemId),
+    );
+    startPendingDelete(itemId, () => {
+      if (removed === null) return;
+      queryClient.setQueryData<QueueItem[]>(queueKeys.all, (current = []) =>
+        current.some((entry) => entry.itemId === itemId)
+          ? current
+          : [...current.slice(0, index), removed, ...current.slice(index)],
+      );
+    });
   };
 
   /* ── 컨트롤 ── */
@@ -395,6 +446,7 @@ export const usePlayerScreen = () => {
     playQueueItem,
     playUpNextItem,
     saveQueueItem,
+    deleteQueueItem,
     // 더보기 시트
     isMoreSheetVisible,
     openMoreSheet: () => setIsMoreSheetVisible(true),

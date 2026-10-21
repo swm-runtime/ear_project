@@ -1,7 +1,12 @@
 import { describe, expect, it } from '@jest/globals';
 
 import type { PlayQueueContext, QueueEntry } from '../player.types';
-import { appendToSnapshot, withCurrentFirst, withSnapshotItemId } from './queue-context';
+import {
+  appendToSnapshot,
+  withCurrentFirst,
+  withoutSnapshotItem,
+  withSnapshotItemId,
+} from './queue-context';
 
 const entry = (contentId: string, itemId: string | null = null): QueueEntry => ({
   itemId,
@@ -46,6 +51,16 @@ describe('재생 목록 맥락(KAN-241) — 순수 계산', () => {
     expect(appendToSnapshot(context, entry('a'), 'b')).toBe(context);
     const library: PlayQueueContext = { kind: 'library' };
     expect(appendToSnapshot(library, entry('a'), null)).toBe(library);
+  });
+
+  it('왼쪽 스와이프는 스냅샷에서 그 줄만 뺀다 — 라이브러리 맥락·없는 편은 그대로', () => {
+    const context = exploreContext(['a', 'b', 'c']);
+    const removed = withoutSnapshotItem(context, 'b');
+    if (removed.kind !== 'explore') throw new Error('explore 맥락이어야 한다');
+    expect(removed.items.map((item) => item.contentId)).toEqual(['a', 'c']);
+    expect(withoutSnapshotItem(context, 'zzz')).toBe(context);
+    const library: PlayQueueContext = { kind: 'library' };
+    expect(withoutSnapshotItem(library, 'a')).toBe(library);
   });
 
   it('담기 결과는 그 줄의 itemId 만 채운다 — 실패 복구는 null 로 되돌린다', () => {

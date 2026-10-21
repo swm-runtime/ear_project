@@ -25,8 +25,12 @@ interface PlayerQueuePanelProps {
   currentContentId: string;
   onSelect: (item: QueueEntry) => void;
   onRetry: () => void;
-  /** 항목 위에서 오른쪽으로 밀면 접는다 — 아트워크 화면으로 "돌아가는" 방향 */
-  onSwipeRight: () => void;
+  /**
+   * 줄을 왼쪽으로 밀어 삭제했다(KAN-241 "3번") — 라이브러리 맥락은 서버 소프트 삭제 + 실행 취소 스낵바, 탐색 맥락은 스냅샷에서
+   * 빼기. 둘 다 부모 몫이다. 지금 재생 중인 줄은 밀리지 않는다. 종전 "목록 위 오른쪽 스와이프 = 패널 닫힘"은 걷었다 —
+   * 오른쪽 스와이프가 담기가 되면서 같은 제스처가 둘이 된다(닫기 = 손잡이 탭·시트 아래로 끌기)
+   */
+  onDelete?: (item: QueueEntry) => void;
   /** 손잡이를 끌어 `from` 줄을 `to` 줄로 옮겼다 — 순서의 저장은 부모(useQueueOrder) 몫이다. 라이브러리 맥락에만 */
   onReorder: (from: number, to: number) => void;
   /** 줄의 카테고리(주제 이름) — 이름 해석은 주제 목록을 가진 화면 몫이다. 없으면 길이만 보인다 */
@@ -42,13 +46,35 @@ interface PlayerQueuePanelProps {
   /** "다음에 들어볼 만한"(player.md 4.2-2) — 탐색 맥락만. 비면 섹션을 그리지 않는다 */
   upNext?: { items: QueueEntry[]; isLoading: boolean };
   onSelectUpNext?: (item: QueueEntry) => void;
+  /**
+   * 목록 바닥 여백(KAN-241 "4번") — 시트 틀이 2단 높이로 서 있어 1단에서는 아래가 화면 밖으로 밀려 있다. 그만큼 바닥 여백을 줘
+   * 1단에서도 마지막 줄까지 스크롤된다. 2단에서는 0
+   */
+  bottomInset?: number;
 }
 
 /** 줄의 키 — 라이브러리 항목 id 가 없는(담기지 않은) 스냅샷 줄은 콘텐츠 id 로 */
 const rowKey = (item: QueueEntry): string => item.itemId ?? `content-${item.contentId}`;
 
-const SWIPE_RIGHT_DISTANCE = 40;
+/*
+ * 줄 스와이프(KAN-241 "3번") — 가로 이동이 세로의 1.5배를 넘고 몇 px 움직였을 때 잡는다(목록 스크롤과 가른다). 72px 넘게 밀고
+ * 놓으면 실행, 96px 부터는 고무줄. 삭제는 줄이 왼쪽으로 빠져나간 뒤 부모가 걷고, 담기는 제자리로 돌아오며 실행된다
+ */
 const SWIPE_AXIS_RATIO = 1.5;
+const SWIPE_CLAIM_DISTANCE = 8;
+const SWIPE_ACTION_DISTANCE = 72;
+const SWIPE_MAX_DISTANCE = 96;
+const SWIPE_RUBBER_BAND = 0.25;
+const SWIPE_DISMISS_DISTANCE = 480;
+const SWIPE_SETTLE_MS = 160;
+const rubberBand = (dx: number): number => {
+  const magnitude = Math.abs(dx);
+  const eased =
+    magnitude <= SWIPE_MAX_DISTANCE
+      ? magnitude
+      : SWIPE_MAX_DISTANCE + (magnitude - SWIPE_MAX_DISTANCE) * SWIPE_RUBBER_BAND;
+  return Math.sign(dx) * eased;
+};
 const THUMBNAIL_SIZE = 48;
 /** 행 높이는 고정이다 — 끌어 옮길 때 "몇 칸 움직였나"를 거리에서 바로 센다(썸네일 48 + 위아래 sm) */
 const ROW_HEIGHT = THUMBNAIL_SIZE + theme.spacing.sm * 2;
@@ -112,6 +138,10 @@ interface QueueRowProps {
    */
   trailing: 'reorder' | 'save' | 'none';
   onSave?: (item: QueueEntry) => void;
+  /** 왼쪽 스와이프 삭제 — 지금 재생 중인 줄은 false. 낭독기 액션의 글자는 맥락(라이브러리에서 삭제 / 목록에서 빼기)을 따른다 */
+  canDelete: boolean;
+  deleteA11yLabel: string;
+  onDelete?: (item: QueueEntry) => void;
   /** 이 행이 지금 끌려가는 중인가 */
   isDragging: boolean;
   /** 끌려가는 행에게 자리를 비켜 주는 이동량(px). 끄는 중이 아니면 0 */
@@ -140,6 +170,9 @@ function QueueRow({
   isCurrent,
   trailing,
   onSave,
+  canDelete,
+  deleteA11yLabel,
+  onDelete,
   isDragging,
   shift,
   animateShift,
@@ -198,6 +231,85 @@ function QueueRow({
   if (isCurrent) tags.push(PLAYER_COPY.queuePanel.nowPlayingA11y);
   if (item.isCompleted) tags.push(PLAYER_COPY.queuePanel.completedA11y);
 
+  /*
+   * ── 줄 스와이프(KAN-241 "3번") — 본문에서 시작한 가로 이동. 왼쪽(삭제)은 canDelete, 오른쬭(담기)은 담기 버튼이 있는 줄만.
+   * 손잡이(순서 변경)는 자기 영역에서 먼저 잡고, 세로 이동은 목록 스크롤에 둔다. 잡은 뒤에는 스크롤·시트 끌기에 내주지 않는다 ──
+   */
+  const canSave = trailing === 'save';
+  const swipeX = useAnimatedValue(0);
+  const swipeLatest = useRef({ canDelete, canSave, onDelete, onSave, item });
+  useEffect(() => {
+    swipeLatest.current = { canDelete, canSave, onDelete, onSave, item };
+  });
+  const settleSwipe = useMemo(
+    () => () =>
+      Animated.timing(swipeX, {
+        toValue: 0,
+        duration: SWIPE_SETTLE_MS,
+        easing: motion.easing.easeOut,
+        // 가로 이동만 있는 값이지만 같은 뷰의 translateY 가 JS 값(dragY·shiftY)이라 드라이버를 맞춘다(위 shiftY 주석)
+        useNativeDriver: false,
+      }).start(),
+    [swipeX],
+  );
+  const swipeResponder = useMemo(
+    () =>
+      // eslint-disable-next-line react-hooks/refs -- 콜백은 렌더가 아니라 제스처 시점에 실행된다(표준 PanResponder 패턴)
+      PanResponder.create({
+        onMoveShouldSetPanResponder: (_, gesture) => {
+          const { canDelete: deletable, canSave: savable } = swipeLatest.current;
+          if (Math.abs(gesture.dx) < SWIPE_CLAIM_DISTANCE) return false;
+          if (Math.abs(gesture.dx) < Math.abs(gesture.dy) * SWIPE_AXIS_RATIO) return false;
+          return gesture.dx < 0 ? deletable : savable;
+        },
+        onPanResponderTerminationRequest: () => false,
+        onShouldBlockNativeResponder: () => true,
+        onPanResponderMove: (_, gesture) => {
+          const { canDelete: deletable, canSave: savable } = swipeLatest.current;
+          const allowed = gesture.dx < 0 ? deletable : savable;
+          swipeX.setValue(allowed ? rubberBand(gesture.dx) : 0);
+        },
+        onPanResponderRelease: (_, gesture) => {
+          const {
+            canDelete: deletable,
+            canSave: savable,
+            onDelete: remove,
+            onSave: save,
+            item: target,
+          } = swipeLatest.current;
+          if (deletable && gesture.dx <= -SWIPE_ACTION_DISTANCE) {
+            // 줄이 왼쪽으로 빠져나간 뒤 부모가 목록에서 걷는다 — 걷히면 이 줄은 마운트 해제된다
+            Animated.timing(swipeX, {
+              toValue: -SWIPE_DISMISS_DISTANCE,
+              duration: SWIPE_SETTLE_MS,
+              easing: motion.easing.easeOut,
+              useNativeDriver: false,
+            }).start(() => remove?.(target));
+            return;
+          }
+          if (savable && gesture.dx >= SWIPE_ACTION_DISTANCE) save?.(target);
+          settleSwipe();
+        },
+        onPanResponderTerminate: () => settleSwipe(),
+      }),
+    [swipeX, settleSwipe],
+  );
+  const saveFaceOpacity = swipeX.interpolate({
+    inputRange: [0, SWIPE_ACTION_DISTANCE],
+    outputRange: [0, 1],
+    extrapolate: 'clamp',
+  });
+  const deleteFaceOpacity = swipeX.interpolate({
+    inputRange: [-SWIPE_ACTION_DISTANCE, 0],
+    outputRange: [1, 0],
+    extrapolate: 'clamp',
+  });
+  // 낭독기 — 스와이프 대신 줄의 액션으로 같은 일을 한다
+  const rowActions = [
+    ...(canDelete ? [{ name: 'delete', label: deleteA11yLabel }] : []),
+    ...(canSave ? [{ name: 'save', label: PLAYER_COPY.queuePanel.saveA11y }] : []),
+  ];
+
   return (
     <Animated.View
       style={[
@@ -213,72 +325,102 @@ function QueueRow({
         },
       ]}
     >
-      <Pressable
-        style={styles.row}
-        onPress={() => onSelect(item)}
-        onPressIn={() => setIsPressed(true)}
-        onPressOut={() => setIsPressed(false)}
-        accessibilityRole="button"
-        accessibilityLabel={PLAYER_COPY.queuePanel.itemA11y(
-          item.title,
-          toMinutes(item.durationSec),
-          tags,
-        )}
-        accessibilityState={{ selected: isCurrent }}
+      {/* 스와이프로 드러나는 면 — 왼쪽은 담기(오른쬭으로 밀 때), 오른쪽은 삭제(왼쪽으로 밀 때). 줄 뒤에 깔린다 */}
+      {canSave || canDelete ? (
+        <View style={styles.swipeFaces} pointerEvents="none">
+          {canSave ? (
+            <Animated.View
+              style={[styles.swipeFace, styles.swipeFaceSave, { opacity: saveFaceOpacity }]}
+            >
+              <PlusIcon size={REORDER_ICON_SIZE} color={playerColor.onPrimary} />
+              <Text style={styles.swipeFaceLabelSave}>{PLAYER_COPY.queuePanel.swipeSave}</Text>
+            </Animated.View>
+          ) : null}
+          {canDelete ? (
+            <Animated.View
+              style={[styles.swipeFace, styles.swipeFaceDelete, { opacity: deleteFaceOpacity }]}
+            >
+              <Text style={styles.swipeFaceLabelDelete}>{PLAYER_COPY.queuePanel.swipeDelete}</Text>
+            </Animated.View>
+          ) : null}
+        </View>
+      ) : null}
+      <Animated.View
+        style={[styles.rowSwipe, { transform: [{ translateX: swipeX }] }]}
+        {...swipeResponder.panHandlers}
       >
-        {item.thumbnailUrl ? (
-          <RemoteImage
-            uri={item.thumbnailUrl}
-            recyclingKey={item.contentId}
-            style={styles.thumbnail}
-          />
-        ) : (
-          <View style={styles.thumbnail} />
-        )}
-        <View style={styles.rowMeta}>
-          <Text style={[styles.rowTitle, isCurrent && styles.rowTitleCurrent]} numberOfLines={1}>
-            {item.title}
-          </Text>
-          {/* 카테고리 · 길이 한 줄(2026-09-19 PM) — 무슨 편인지가 길이보다 먼저 읽힌다 */}
-          <Text style={styles.rowDuration} numberOfLines={1}>
-            {[category, item.durationSec === null ? null : formatPlaybackTime(item.durationSec)]
-              .filter(Boolean)
-              .join(' · ')}
-          </Text>
-        </View>
-      </Pressable>
-      {trailing === 'reorder' ? (
-        // 손잡이 — 히트 영역 44pt. 끌기의 낭독기 대체 수단은 위/아래 이동 액션이다(uiux 7장)
-        <View
-          style={styles.reorderHandle}
-          {...handleResponder.panHandlers}
-          accessible
-          accessibilityRole="adjustable"
-          accessibilityLabel={PLAYER_COPY.queuePanel.reorderA11y(item.title, index + 1, total)}
-          accessibilityActions={[
-            { name: 'decrement', label: PLAYER_COPY.queuePanel.moveUpA11y },
-            { name: 'increment', label: PLAYER_COPY.queuePanel.moveDownA11y },
-          ]}
-          onAccessibilityAction={(event) =>
-            onNudge(index, event.nativeEvent.actionName === 'decrement' ? -1 : 1)
-          }
-        >
-          <ReorderIcon size={REORDER_ICON_SIZE} color={playerColor.textSecondary} />
-        </View>
-      ) : trailing === 'save' ? (
-        // 담기(KAN-241) — 라이브러리에 없는 스냅샷 줄만. 탐색 타일의 담기와 같은 뜻·같은 낭독
         <Pressable
-          style={styles.reorderHandle}
-          onPress={() => onSave?.(item)}
+          style={styles.row}
+          onPress={() => onSelect(item)}
+          onPressIn={() => setIsPressed(true)}
+          onPressOut={() => setIsPressed(false)}
           accessibilityRole="button"
-          accessibilityLabel={PLAYER_COPY.queuePanel.saveA11y}
-          hitSlop={theme.spacing.xs}
+          accessibilityLabel={PLAYER_COPY.queuePanel.itemA11y(
+            item.title,
+            toMinutes(item.durationSec),
+            tags,
+          )}
+          accessibilityState={{ selected: isCurrent }}
+          accessibilityActions={rowActions.length > 0 ? rowActions : undefined}
+          onAccessibilityAction={(event) => {
+            if (event.nativeEvent.actionName === 'delete' && canDelete) onDelete?.(item);
+            if (event.nativeEvent.actionName === 'save' && canSave) onSave?.(item);
+          }}
         >
-          <PlusIcon size={REORDER_ICON_SIZE} color={playerColor.textSecondary} />
+          {item.thumbnailUrl ? (
+            <RemoteImage
+              uri={item.thumbnailUrl}
+              recyclingKey={item.contentId}
+              style={styles.thumbnail}
+            />
+          ) : (
+            <View style={styles.thumbnail} />
+          )}
+          <View style={styles.rowMeta}>
+            <Text style={[styles.rowTitle, isCurrent && styles.rowTitleCurrent]} numberOfLines={1}>
+              {item.title}
+            </Text>
+            {/* 카테고리 · 길이 한 줄(2026-09-19 PM) — 무슨 편인지가 길이보다 먼저 읽힌다 */}
+            <Text style={styles.rowDuration} numberOfLines={1}>
+              {[category, item.durationSec === null ? null : formatPlaybackTime(item.durationSec)]
+                .filter(Boolean)
+                .join(' · ')}
+            </Text>
+          </View>
         </Pressable>
-      ) : (
-        <View style={styles.reorderHandle} />
-      )}
+        {trailing === 'reorder' ? (
+          // 손잡이 — 히트 영역 44pt. 끌기의 낭독기 대체 수단은 위/아래 이동 액션이다(uiux 7장)
+          <View
+            style={styles.reorderHandle}
+            {...handleResponder.panHandlers}
+            accessible
+            accessibilityRole="adjustable"
+            accessibilityLabel={PLAYER_COPY.queuePanel.reorderA11y(item.title, index + 1, total)}
+            accessibilityActions={[
+              { name: 'decrement', label: PLAYER_COPY.queuePanel.moveUpA11y },
+              { name: 'increment', label: PLAYER_COPY.queuePanel.moveDownA11y },
+            ]}
+            onAccessibilityAction={(event) =>
+              onNudge(index, event.nativeEvent.actionName === 'decrement' ? -1 : 1)
+            }
+          >
+            <ReorderIcon size={REORDER_ICON_SIZE} color={playerColor.textSecondary} />
+          </View>
+        ) : trailing === 'save' ? (
+          // 담기(KAN-241) — 라이브러리에 없는 스냅샷 줄만. 탐색 타일의 담기와 같은 뜻·같은 낭독
+          <Pressable
+            style={styles.reorderHandle}
+            onPress={() => onSave?.(item)}
+            accessibilityRole="button"
+            accessibilityLabel={PLAYER_COPY.queuePanel.saveA11y}
+            hitSlop={theme.spacing.xs}
+          >
+            <PlusIcon size={REORDER_ICON_SIZE} color={playerColor.textSecondary} />
+          </Pressable>
+        ) : (
+          <View style={styles.reorderHandle} />
+        )}
+      </Animated.View>
     </Animated.View>
   );
 }
@@ -304,7 +446,7 @@ export default function PlayerQueuePanel({
   currentContentId,
   onSelect,
   onRetry,
-  onSwipeRight,
+  onDelete,
   onReorder,
   categoryOf,
   showHeader = true,
@@ -313,28 +455,18 @@ export default function PlayerQueuePanel({
   onSave,
   upNext,
   onSelectUpNext,
+  bottomInset = 0,
 }: PlayerQueuePanelProps) {
   const isExplore = mode === 'explore';
   const trailingOf = (item: QueueEntry): QueueRowProps['trailing'] =>
     !isExplore ? 'reorder' : item.itemId === null ? 'save' : 'none';
+  // 삭제 낭독 글자 — 라이브러리 맥락은 서버 삭제, 탐색 맥락은 목록에서 빼기(KAN-241 "3번")
+  const deleteA11yLabel = isExplore
+    ? PLAYER_COPY.queuePanel.removeFromListA11y
+    : PLAYER_COPY.queuePanel.deleteFromLibraryA11y;
   // 0.3초 안에 오면 빈 패널만 잠깐 보인다 — 스켈레톤이 번쩍이지 않게(common-error-handling.md 5)
   const showSkeleton = useDelayedVisible(isLoading);
-  const swipeRightRef = useRef(onSwipeRight);
-  useEffect(() => {
-    swipeRightRef.current = onSwipeRight;
-  });
-  // 목록은 세로 스크롤을 가져가므로 가로 이동만 부모가 가로챈다(capture) — 스크롤과 겹치지 않는다
-  const swipeRightResponder = useMemo(
-    () =>
-      // eslint-disable-next-line react-hooks/refs -- 콜백은 렌더가 아니라 제스처 시점에 실행된다(표준 PanResponder 패턴)
-      PanResponder.create({
-        onMoveShouldSetPanResponderCapture: (_, gesture) =>
-          gesture.dx > SWIPE_RIGHT_DISTANCE &&
-          Math.abs(gesture.dx) > Math.abs(gesture.dy) * SWIPE_AXIS_RATIO,
-        onPanResponderRelease: () => swipeRightRef.current(),
-      }),
-    [],
-  );
+  const listContentStyle = [styles.listContent, { paddingBottom: theme.spacing.md + bottomInset }];
 
   /*
    * ── 끌어서 순서 바꾸기 ──
@@ -502,6 +634,9 @@ export default function PlayerQueuePanel({
                 isCurrent={false}
                 trailing={item.itemId === null ? 'save' : 'none'}
                 onSave={onSave}
+                // 추천 줄은 목록이 아니라 지우지 않는다 — 오른쬭(담기)만
+                canDelete={false}
+                deleteA11yLabel={deleteA11yLabel}
                 isDragging={false}
                 shift={0}
                 animateShift={false}
@@ -520,7 +655,7 @@ export default function PlayerQueuePanel({
 
   if (isError) {
     return (
-      <View style={styles.panel} {...swipeRightResponder.panHandlers}>
+      <View style={styles.panel}>
         {header}
         <View style={styles.placeholder}>
           <Text style={styles.placeholderText}>{PLAYER_COPY.queuePanel.loadFailed}</Text>
@@ -539,10 +674,10 @@ export default function PlayerQueuePanel({
 
   if (isLoading) {
     return (
-      <View style={styles.panel} {...swipeRightResponder.panHandlers}>
+      <View style={styles.panel}>
         {header}
         {showSkeleton ? (
-          <View style={styles.listContent}>
+          <View style={listContentStyle}>
             <QueueSkeleton />
           </View>
         ) : null}
@@ -551,11 +686,11 @@ export default function PlayerQueuePanel({
   }
 
   return (
-    <View style={styles.panel} {...swipeRightResponder.panHandlers}>
+    <View style={styles.panel}>
       <ScrollView
         ref={scrollRef}
         style={styles.list}
-        contentContainerStyle={styles.listContent}
+        contentContainerStyle={listContentStyle}
         showsVerticalScrollIndicator={false}
         // 끄는 동안 목록이 같이 스크롤되면 손가락과 행이 어긋난다 — 가장자리 자동 스크롤만 직접 옮긴다
         scrollEnabled={drag === null}
@@ -595,6 +730,13 @@ export default function PlayerQueuePanel({
                 isCurrent={item.contentId === currentContentId}
                 trailing={trailingOf(item)}
                 onSave={onSave}
+                // 지금 듣는 줄은 밀리지 않는다(재생 중인 것을 목록에서 지우는 조작은 없다). 라이브러리 항목이 없는 줄은
+                // 라이브러리 맥락에서 올 일이 없다(전부 담긴 편) — 탐색 맥락은 스냅샷 빼기라 itemId 와 무관
+                canDelete={
+                  item.contentId !== currentContentId && (isExplore || item.itemId !== null)
+                }
+                deleteA11yLabel={deleteA11yLabel}
+                onDelete={onDelete}
                 isDragging={drag !== null && drag.from === index}
                 shift={shiftOf(index)}
                 animateShift={drag !== null}
@@ -725,6 +867,53 @@ const styles = StyleSheet.create({
     height: ROW_HEIGHT,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  // 스와이프로 미는 본문 — 행 전체(본문 + 오른쪽 칸)가 함께 움직이고, 면은 그 뒤 rowWrap 에 깔린다
+  rowSwipe: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    height: ROW_HEIGHT,
+  },
+  // 드러나는 면 — 행 본문과 같은 둥근 사각(좌우 여백 md 안쪽). 담기는 흰 면·검은 글자(주 동작), 삭제는 위험색
+  swipeFaces: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    left: theme.spacing.md,
+    right: theme.spacing.md,
+    borderRadius: theme.radius.md,
+    borderCurve: 'continuous',
+    overflow: 'hidden',
+  },
+  swipeFace: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    left: 0,
+    right: 0,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.xs,
+    paddingHorizontal: theme.spacing.md,
+  },
+  swipeFaceSave: {
+    justifyContent: 'flex-start',
+    backgroundColor: playerColor.primary,
+  },
+  swipeFaceDelete: {
+    justifyContent: 'flex-end',
+    backgroundColor: playerColor.danger,
+  },
+  swipeFaceLabelSave: {
+    fontSize: theme.font.size.sm,
+    fontWeight: '600',
+    color: playerColor.onPrimary,
+  },
+  swipeFaceLabelDelete: {
+    fontSize: theme.font.size.sm,
+    fontWeight: '600',
+    color: '#FFFFFF',
   },
   // 추천 블록(KAN-241) — 목록과 여백 lg 로 가른다. 제목은 패널 제목과 같은 꼴
   upNext: {

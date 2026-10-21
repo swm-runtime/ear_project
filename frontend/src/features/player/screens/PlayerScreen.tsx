@@ -204,6 +204,13 @@ export default function PlayerScreen() {
    * 컨트롤 **아래**에 선다(유튜브 뮤직). 값 하나(queueProgress, 0 닫힘 → 1 열림)가 시트 위치와 압축을 함께 몬다
    */
   const queueProgress = useSharedValue(0);
+  /*
+   * 재생 목록 **2단**(KAN-241 "4번", PM 2026-10-22) — 1단(queueProgress 1)에서 한 번 더 올리면 목록이 화면을 다 쓴다. 진행값은
+   * 따로 둔다(0 → 1): 기존 1단 보간들이 전부 queueProgress 를 0~1 로 가정하고 있어 범위를 늘리면 아트워크 FLIP 이 넘친다.
+   * 2단에서는 압축된 히어로·컨트롤이 흐려지고(opacity) 맨 위에 한 줄 재생 바가 뜬다 — 모두 transform·opacity 만
+   */
+  const queueExpand = useSharedValue(0);
+  const [queueStage, setQueueStage] = useState<1 | 2>(1);
   /**
    * 진행값 스프링 — UI 스레드에서 돌고, 끝 콜백(finished)만 JS 로 돌려준다. 끝점에서 튀지 않는다(overshootClamping —
    * 0·1 을 넘기면 아트워크가 좌표 밖으로 튄다)
@@ -244,10 +251,22 @@ export default function PlayerScreen() {
     },
     [],
   );
+  /** 2단 ↔ 1단(KAN-241 "4번") — 시트만 움직인다. 1단 전환은 setPanel 이 맡는다 */
+  const setQueueStageTo = (stage: 1 | 2) => {
+    playbackService.holdPositionUpdates(SCRIPT_TOGGLE_DURATION_MS);
+    springTo(queueExpand, stage === 2 ? 1 : 0, motion.spring.smooth, (finished) => {
+      if (finished) setQueueStage(stage);
+    });
+  };
   const setPanel = (kind: PlayerPanelKind | null) => {
     if (kind !== null && !isPanelAvailable(kind)) return;
     if (kind !== null) screen.openPanel(kind);
     else screen.closePanel();
+    // 2단에서 닫거나 다른 패널로 가면 2단 몫부터 접는다 — 1단 스프링과 같은 곡선으로 함께 돈다
+    if (kind !== 'queue' && (queueStage === 2 || queueExpand.get() > 0)) {
+      springTo(queueExpand, 0, motion.spring.smooth);
+      setQueueStage(1);
+    }
     // 스크립트 패널(히어로 위) — 열 때 마운트, 닫힘 애니메이션이 끝나면 내린다. 둘은 동시에 열리지 않는다
     const isScriptOpen = kind === 'script';
     /*
@@ -937,6 +956,13 @@ export default function PlayerScreen() {
   const sectionLift = -currentSectionHeight;
   // 시트는 열린 자리에 고정 크기로 두고 translateY 로 내린다(PM 2026-09-27 23:53) — 틀이 열린 자리부터 바닥까지를 자른다
   const queueSheetTravel = queueClosedTop - queueOpenTop;
+  /*
+   * 2단(KAN-241 "4번") — 시트 틀을 **2단 자리(앱바 + 한 줄 재생 바 아래)에 세워 두고** 1단·닫힘은 그만큼 더 내려 둔다. 틀 크기를
+   * 단계마다 바꾸지 않으려는 것이다(레이아웃 애니메이션 금지 — 위 Android 주석). 대가: 1단에서 시트 아래 queueExpandTravel 만큼이
+   * 화면 밖이라 패널에 그만큼 바닥 여백을 준다(bottomInset)
+   */
+  const queueFullTop = Math.min(queueOpenTop, appBarHeight + QUEUE_NOW_BAR_HEIGHT);
+  const queueExpandTravel = Math.max(0, queueOpenTop - queueFullTop);
 
   /*
    * **Android 는 아트워크 틀의 크기를 바꾸지 않는다 — FLIP**(PM 2026-10-10 22:56 "재생목록 열고 닫는 애니메이션 Android 에서
@@ -1071,7 +1097,22 @@ export default function PlayerScreen() {
     transform: [{ translateY: queueProgress.get() * controlRowLift }],
   }));
   const queueSheetStyle = useAnimatedStyle(() => ({
-    transform: [{ translateY: (1 - queueProgress.get()) * queueSheetTravel }],
+    transform: [
+      {
+        translateY:
+          (1 - queueExpand.get()) * queueExpandTravel +
+          (1 - queueProgress.get()) * queueSheetTravel,
+      },
+    ],
+  }));
+  /** 2단에서 걷히는 것들(압축된 히어로·아트워크·컨트롤) — 흐려지기만 한다. 자리는 그대로(레이아웃 불변) */
+  const queueExpandFadeStyle = useAnimatedStyle(() => ({
+    opacity: 1 - queueExpand.get(),
+  }));
+  /** 2단의 한 줄 재생 바 — 시트가 거의 다 올라온 뒤에 나타난다(겹쳐 보이지 않게 뒤쪽 절반에서만 페이드) */
+  const nowPlayingBarStyle = useAnimatedStyle(() => ({
+    opacity: interpolate(queueExpand.get(), [0.5, 1], [0, 1], 'clamp'),
+    transform: [{ translateY: (1 - queueExpand.get()) * theme.spacing.sm }],
   }));
   /** 사진 위에 얹히는 순간 색이 바뀌는 요소 — 어두운 것과 흰 것을 겹쳐 두고 재생 목록 진행값으로 교차한다 */
   const dualTone = (dark: ReactNode, light: ReactNode) => (
@@ -1093,10 +1134,14 @@ export default function PlayerScreen() {
   // 거리(35%)·속도로 열림/닫힘을 확정한다(탭은 토글). 세로 드래그 전용이라 몇 px에 먼저 잡는다(화면 축소보다 우선)
   const queueGestureRef = useRef({
     travel: 1,
+    expandTravel: 0,
     isOpen: false,
+    isExpanded: false,
     isScriptOpen: false,
     open: () => {},
     close: () => {},
+    expand: () => {},
+    shrink: () => {},
     closeScriptForDrag: () => {},
     holdArtLayout: () => {},
     releaseArtLayout: () => {},
@@ -1104,10 +1149,14 @@ export default function PlayerScreen() {
   useEffect(() => {
     queueGestureRef.current = {
       travel: Math.max(1, queueClosedTop - queueOpenTop),
+      expandTravel: queueExpandTravel,
       isOpen: activePanel === 'queue',
+      isExpanded: activePanel === 'queue' && queueStage === 2,
       isScriptOpen: activePanel === 'script',
       open: () => setPanel('queue'),
       close: () => setPanel(null),
+      expand: () => setQueueStageTo(2),
+      shrink: () => setQueueStageTo(1),
       holdArtLayout,
       releaseArtLayout,
       // 대본이 펼쳐진 채 손잡이를 끌 때 — 대본만 즉시 내리고 히어로를 편다. setPanel(null) 은 queueProgress 도 0 으로
@@ -1147,7 +1196,19 @@ export default function PlayerScreen() {
           if (isScriptOpen) closeScriptForDrag();
         },
         onPanResponderMove: (_, gesture) => {
-          const { travel, isOpen } = queueGestureRef.current;
+          const { travel, expandTravel, isOpen, isExpanded } = queueGestureRef.current;
+          // 2단(KAN-241 "4번") — 1단에서 더 올리면 queueExpand, 2단에서 내리면 queueExpand 가 먼저 줄고 1단 아래로는 안 간다
+          if (isExpanded) {
+            const next = 1 - gesture.dy / Math.max(1, expandTravel);
+            queueExpand.set(Math.min(1, Math.max(0, next)));
+            return;
+          }
+          if (isOpen && gesture.dy < 0 && expandTravel > 0) {
+            queueExpand.set(Math.min(1, -gesture.dy / expandTravel));
+            queueProgress.set(1);
+            return;
+          }
+          queueExpand.set(0);
           // 위로 끌면 dy 가 음수다 — 열림 방향이 +1 이 되도록 부호를 뒤집는다
           const next = (isOpen ? 1 : 0) - gesture.dy / travel;
           queueProgress.set(Math.min(1, Math.max(0, next)));
@@ -1155,12 +1216,28 @@ export default function PlayerScreen() {
         onPanResponderRelease: (_, gesture) => {
           const {
             travel,
+            expandTravel,
             isOpen,
+            isExpanded,
             open,
             close,
+            expand,
+            shrink,
             releaseArtLayout: release,
           } = queueGestureRef.current;
           release();
+          // 2단에서 — 내리면 1단, 아니면 2단 유지. 1단 아래로 한 번에 닫지는 않는다(단계별 복귀)
+          if (isExpanded) {
+            if (gesture.vy > QUEUE_COMMIT_VELOCITY) return shrink();
+            if (gesture.vy < -QUEUE_COMMIT_VELOCITY) return expand();
+            const expanded = 1 - gesture.dy / Math.max(1, expandTravel);
+            return expanded > 1 - QUEUE_COMMIT_RATIO ? expand() : shrink();
+          }
+          // 1단에서 위로 — 2단으로 갈지
+          if (isOpen && gesture.dy < 0 && expandTravel > 0) {
+            if (gesture.vy < -QUEUE_COMMIT_VELOCITY) return expand();
+            return -gesture.dy / expandTravel > QUEUE_COMMIT_RATIO ? expand() : shrink();
+          }
           // 속도가 실렸으면 거리가 모자라도 그 방향으로 — 짧게 튕기는 조작을 받는다
           if (gesture.vy < -QUEUE_COMMIT_VELOCITY) return open();
           if (gesture.vy > QUEUE_COMMIT_VELOCITY) return close();
@@ -1170,14 +1247,26 @@ export default function PlayerScreen() {
           else close();
         },
         onPanResponderTerminate: () => {
-          const { isOpen, open, close, releaseArtLayout: release } = queueGestureRef.current;
+          const {
+            isOpen,
+            isExpanded,
+            open,
+            close,
+            expand,
+            shrink,
+            releaseArtLayout: release,
+          } = queueGestureRef.current;
           release();
-          if (isOpen) open();
-          else close();
+          if (isExpanded) return expand();
+          if (isOpen) {
+            shrink();
+            return open();
+          }
+          close();
         },
         onPanResponderTerminationRequest: () => false,
       }),
-    [queueProgress],
+    [queueProgress, queueExpand],
   );
 
   /* ── 모션 좌표 — 출발(미니플레이어 썸네일·제목)과 도착(풀 화면 아트워크·제목)을 window 좌표로 잇는다 ── */
@@ -1587,7 +1676,12 @@ export default function PlayerScreen() {
             pointerEvents="none"
           >
             <Reanimated.View
-              style={[styles.heroArtwork, { borderCurve: 'continuous' }, artFrameStyle]}
+              style={[
+                styles.heroArtwork,
+                { borderCurve: 'continuous' },
+                artFrameStyle,
+                queueExpandFadeStyle,
+              ]}
               onLayout={onHeroArtLayout}
             >
               {ARTWORK_FLIP ? (
@@ -1737,7 +1831,7 @@ export default function PlayerScreen() {
             onLayout={onHeroLayout}
             {...horizontalSwipeResponder.panHandlers}
           >
-            <Reanimated.View style={[styles.hero, heroHeightStyle]}>
+            <Reanimated.View style={[styles.hero, heroHeightStyle, queueExpandFadeStyle]}>
               {/* 대본이 펼쳐져 작아진 커버를 탭하면 대본을 접는다(PM 2026-09-26 17:00 스샷). 아트워크는 히어로 **밑**의 형제라
               그 안의 Pressable 은 터치를 못 받는다(#758 실패, 17:15) — 히어로 안 같은 자리에 탭 영역을 둔다. 평소엔 없다 */}
               {activePanel === 'script' ? (
@@ -1835,7 +1929,10 @@ export default function PlayerScreen() {
             </Reanimated.View>
           ) : null}
 
-          <Reanimated.View style={[{ paddingBottom: controlAreaBottom }, controlAreaStyle]}>
+          <Reanimated.View
+            style={[{ paddingBottom: controlAreaBottom }, controlAreaStyle, queueExpandFadeStyle]}
+            pointerEvents={queueStage === 2 ? 'none' : 'auto'}
+          >
             {/* 지금 듣는 구간 — 시크바 바로 위 한 줄(KAN-127, PM 2026-10-07). 재생 목록이 열리면 사진 위라 걷는다 */}
             <FadeByProgress
               progress={queueProgress}
@@ -2041,7 +2138,46 @@ export default function PlayerScreen() {
 
           {/* 재생 목록 시트 — 화면 바닥에서 올라온다(2026-09-17 PM). 닫힘엔 손잡이만 보이고, 위로 끌면 시트가
             따라 올라오며 위의 플레이어가 세로 구조 그대로 공백을 접는다. 목록은 컨트롤 아래에 선다 */}
-          <View style={[styles.queueSheetFrame, { top: queueOpenTop }]} pointerEvents="box-none">
+          {/* 2단의 한 줄 재생 바(KAN-241 "4번") — 앱바 바로 아래. 시트가 거의 다 올라왔을 때만 보이고 눌린다 */}
+          <Reanimated.View
+            style={[styles.nowPlayingBar, { top: appBarHeight }, nowPlayingBarStyle]}
+            pointerEvents={queueStage === 2 ? 'auto' : 'none'}
+            accessibilityElementsHidden={queueStage !== 2}
+            importantForAccessibility={queueStage === 2 ? 'auto' : 'no-hide-descendants'}
+          >
+            {session.meta.thumbnailUrl ? (
+              <RemoteImage
+                uri={session.meta.thumbnailUrl}
+                recyclingKey={session.contentId}
+                style={styles.nowPlayingThumb}
+              />
+            ) : (
+              <View style={[styles.nowPlayingThumb, styles.artworkPlaceholder]} />
+            )}
+            <Text
+              style={styles.nowPlayingTitle}
+              numberOfLines={1}
+              accessibilityLabel={PLAYER_COPY.screen.nowPlayingBarA11y(session.meta.title ?? '')}
+            >
+              {session.meta.title ?? ''}
+            </Text>
+            <Pressable
+              style={styles.nowPlayingButton}
+              onPress={screen.handlePlayPausePress}
+              disabled={isControlDisabled}
+              accessibilityRole="button"
+              accessibilityLabel={playButtonA11y}
+              hitSlop={theme.spacing.xs}
+            >
+              <PlayPauseSymbol
+                kind={session.isPlaying && !isEnded ? 'pause' : 'play'}
+                size={NOW_PLAYING_BUTTON_ICON}
+                color={playerColor.textPrimary}
+              />
+            </Pressable>
+          </Reanimated.View>
+
+          <View style={[styles.queueSheetFrame, { top: queueFullTop }]} pointerEvents="box-none">
             <Reanimated.View style={[styles.queueSheet, queueSheetStyle]}>
               {
                 // 드래그 핸들러는 감싼 View에 — Pressable은 자기 press 응답자로 panHandlers를 덮어쓴다
@@ -2059,20 +2195,29 @@ export default function PlayerScreen() {
                     }}
                     onPress={() => {
                       if (handleDraggedRef.current) return;
+                      // 2단에서 탭은 1단으로(KAN-241 "4번"). 1단 탭은 종전처럼 닫는다
+                      if (activePanel === 'queue' && queueStage === 2) return setQueueStageTo(1);
                       setPanel(activePanel === 'queue' ? null : 'queue');
                     }}
                     accessibilityRole="button"
                     accessibilityLabel={
                       activePanel === 'queue'
-                        ? PLAYER_COPY.screen.queueCollapseA11y
+                        ? queueStage === 2
+                          ? PLAYER_COPY.screen.queueShrinkA11y
+                          : PLAYER_COPY.screen.queueCollapseA11y
                         : PLAYER_COPY.screen.queueHandleA11y
                     }
                     accessibilityState={{ expanded: activePanel === 'queue' }}
                   >
                     <View style={styles.scriptHandleBar} />
-                    {/* 탐색 맥락이면 손잡이 글자가 출처다 — "탐색 · 인기 주간"(KAN-241, 헤더와 같은 값) */}
+                    {/* 탐색 맥락이면 손잡이 글자가 출처다 — "탐색 · 인기 주간"(KAN-241, 헤더와 같은 값). 1단에서는 한 번 더 올릴 수
+                        있다는 꼬리("· 더 보기")를 붙인다(4번) */}
                     <Text style={styles.scriptHandleLabel} numberOfLines={1}>
-                      {queueSourceLabel ?? PLAYER_COPY.screen.queueHandle}
+                      {activePanel === 'queue' && queueStage === 1 && queueExpandTravel > 0
+                        ? queueSourceLabel
+                          ? `${queueSourceLabel}${PLAYER_COPY.screen.queueHandleMoreSuffix}`
+                          : PLAYER_COPY.screen.queueHandleMore
+                        : (queueSourceLabel ?? PLAYER_COPY.screen.queueHandle)}
                     </Text>
                   </Pressable>
                 </View>
@@ -2111,9 +2256,11 @@ export default function PlayerScreen() {
                           }
                     }
                     onSelectUpNext={screen.playUpNextItem}
+                    onDelete={screen.deleteQueueItem}
                     categoryOf={queueCategoryOf}
                     onRetry={() => void queueQuery.refetch()}
-                    onSwipeRight={() => setPanel(null)}
+                    // 1단에서는 시트 아래 2단 몫이 화면 밖 — 그만큼 바닥 여백(KAN-241 "4번")
+                    bottomInset={queueStage === 1 ? queueExpandTravel : 0}
                   />
                 ) : null}
               </View>
@@ -2318,6 +2465,10 @@ const QUEUE_MOTION_PREVIEW_COUNT = 8;
  * 얹힌다(2026-09-17 PM, 유튜브 뮤직). 사진 전체 높이 = 앱바 + 이 값 + 시크바
  */
 const QUEUE_BANNER_HEIGHT = 232;
+/** 2단 재생 목록의 한 줄 재생 바(KAN-241 "4번") — 썸네일 40 + 위아래 sm */
+const QUEUE_NOW_BAR_HEIGHT = 56;
+const NOW_PLAYING_THUMB_SIZE = 40;
+const NOW_PLAYING_BUTTON_ICON = 22;
 /** 사진 아래쪽 그라데이션 높이 — 제목·카테고리 블록과 재생바를 넉넉히 덮는다 */
 const QUEUE_ART_FADE_HEIGHT = 160;
 /** 재생 목록 열림 상태의 제목 줄(xl × 1.3)·카테고리 줄(sm 글자의 줄 높이) — 메타 블록을 사진 밑변에 맞추는 셈에 쓴다 */
@@ -2775,6 +2926,36 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
     overflow: 'hidden',
+  },
+  // 2단의 한 줄 재생 바 — 앱바 바로 아래, 좌우 여백은 손잡이 줄과 같다(lg). 면을 칠하지 않는다(흐린 바탕 위)
+  nowPlayingBar: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    height: QUEUE_NOW_BAR_HEIGHT,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.md,
+    paddingHorizontal: theme.spacing.lg,
+  },
+  nowPlayingThumb: {
+    width: NOW_PLAYING_THUMB_SIZE,
+    height: NOW_PLAYING_THUMB_SIZE,
+    borderRadius: theme.radius.sm,
+    borderCurve: 'continuous',
+    backgroundColor: playerColor.surface,
+  },
+  nowPlayingTitle: {
+    flex: 1,
+    fontSize: theme.font.size.sm,
+    fontWeight: '600',
+    color: playerColor.textPrimary,
+  },
+  nowPlayingButton: {
+    width: theme.touchTarget.minWidth,
+    height: theme.touchTarget.minHeight,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   queueSheet: {
     flex: 1,

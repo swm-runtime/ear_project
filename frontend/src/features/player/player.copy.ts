@@ -68,6 +68,13 @@ const ko = {
     queueHandle: '재생 목록',
     queueHandleA11y: '다음 재생 목록 열기',
     queueCollapseA11y: '재생 목록 접기',
+    /** 1단에서 한 번 더 올릴 수 있다는 손잡이 글자(KAN-241 "4번", PM 2026-10-22) — 출처 글자 뒤에 붙인다 */
+    queueHandleMore: '재생목록 더 보기',
+    queueHandleMoreSuffix: ' · 더 보기',
+    queueExpandA11y: '재생 목록 전체 화면으로',
+    queueShrinkA11y: '재생 목록 줄이기',
+    /** 2단(전체 화면 재생 목록)의 맨 위 한 줄 재생 바 */
+    nowPlayingBarA11y: (title: string) => `지금 재생 중, ${title}`,
     /** 재생 버튼 라벨 — 상태별로 다르다. 완료의 ▶가 "재생"으로만 읽히면 이어듣기로 오해된다 */
     playA11y: '재생',
     pauseA11y: '일시정지',
@@ -114,6 +121,14 @@ const ko = {
     saveA11y: '라이브러리에 담기',
     saveToast: '라이브러리에 담았어요',
     saveFailedToast: '담지 못했어요. 다시 시도해주세요',
+    /**
+     * 줄 스와이프(KAN-241 "3번", PM 2026-10-22) — 왼쪽으로 밀면 삭제, 오른쪽으로 밀면 담기. 드러나는 면의 글자와
+     * 낭독기 대체 액션. 삭제는 맥락에 따라 "라이브러리에서 삭제"(서버 소프트 삭제) / "목록에서 빼기"(스냅샷 로컬)
+     */
+    swipeDelete: '삭제',
+    swipeSave: '담기',
+    deleteFromLibraryA11y: '라이브러리에서 삭제',
+    removeFromListA11y: '목록에서 빼기',
     /** 지금 재생 중인 줄에 붙는 낭독 꼬리표 — 시각 표시(굵게)만으로는 전달되지 않는다 */
     nowPlayingA11y: '재생 중',
     completedA11y: '완청함',
@@ -253,6 +268,11 @@ const en: LocalizedCopy<typeof ko> = {
     queueHandle: 'Up next',
     queueHandleA11y: 'Open up next',
     queueCollapseA11y: 'Close up next',
+    queueHandleMore: 'Up next · more',
+    queueHandleMoreSuffix: ' · more',
+    queueExpandA11y: 'Expand up next to full screen',
+    queueShrinkA11y: 'Shrink up next',
+    nowPlayingBarA11y: (title: string) => `Now playing, ${title}`,
     playA11y: 'Play',
     pauseA11y: 'Pause',
     replayA11y: 'Play from the beginning',
@@ -282,6 +302,10 @@ const en: LocalizedCopy<typeof ko> = {
     saveA11y: 'Save to library',
     saveToast: 'Saved to your library',
     saveFailedToast: "Couldn't save. Please try again.",
+    swipeDelete: 'Delete',
+    swipeSave: 'Save',
+    deleteFromLibraryA11y: 'Delete from library',
+    removeFromListA11y: 'Remove from list',
     nowPlayingA11y: 'Now playing',
     completedA11y: 'Finished',
     empty: 'Your library is empty',

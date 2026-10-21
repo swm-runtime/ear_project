@@ -61,4 +61,11 @@
   - 패널 `mode`(library/explore): 탐색 맥락은 조회 없이 스냅샷, 현재 편 없으면 맨 위(`queue-context.ts`), 헤더·손잡이 글자 = 출처("탐색 · 인기 주간" 등 5종 ko·en), 순서 손잡이 대신 담기 버튼(`itemId` null 줄만, 낙관 반영·토스트·실패 복구). 줄 탭은 맥락을 그대로 넘기고 진입점은 맥락 따라.
   - 추천 블록 "다음에 들어볼 만한": 브리지 `fetchUpNext` → 지금은 interest 폴백만(`explore.up-next.ts`, 피드 캐시 재사용, 현재·스냅샷 제외 5편). related API(KAN-240)는 서버가 나오면 브리지 앞에 둔다. 줄 탭 = 게이트(entry `player`), 스냅샷의 현재 편 뒤에 더해짐. 0건·실패는 섹션 생략.
   - 테스트: `queue-context.test.ts`(현재 편 맨 위·추천 더하기·담기 반영), `explore.queue.test.ts`(변환·시리즈 카드 제외). tsc·eslint·jest(player·explore·ko 스냅샷) 통과.
-  - **남은 것**: 8·9항(스와이프·2단) 다음 PR, related 연결(KAN-240 뒤), 문서 반영(10항 — 8·9와 함께), 개발계 실기기 확인.
+  - ~~**남은 것**: 8·9항(스와이프·2단) 다음 PR~~ → 아래 04:43 기록.
+- 2026-10-22 04:43~05시 **3·4 코드 반영**(PM "ㄱㄱ" 04:43) — 브랜치 `feat(fe)/player-queue-swipe-stage`:
+  - **줄 스와이프**(`PlayerQueuePanel` `QueueRow`): 본문에서 시작한 가로 이동(8px, 세로의 1.5배)만 잡고 잡은 뒤에는 스크롤·시트 끌기에 내주지 않는다. 72px 넘게 놓으면 실행, 96px 부터 고무줄. 왼쪽 = 삭제(줄이 빠져나간 뒤 부모가 걷음), 오른쪽 = 담기(제자리 복귀 + 담기). 드러나는 면: 담기 흰 면·검은 글자(주 동작), 삭제 위험색. 지금 듣는 줄·추천 줄은 삭제 불가, 담긴 줄은 담기 면 없음. 낭독기는 `accessibilityActions`("라이브러리에서 삭제"/"목록에서 빼기"/"라이브러리에 담기"). **패널의 오른쪽 스와이프 닫힘은 걷었다**(PM 확인 — 04:43 ㄱㄱ).
+  - 삭제 흐름(`usePlayerScreen.deleteQueueItem`): 탐색 맥락은 스냅샷에서 빼기(로컬). 라이브러리 맥락은 목록 캐시에서 먼저 걷고(낙관) PL7 과 같은 스낵바 5초 뒤 서버 소프트 삭제, [실행 취소]는 걷어 둔 줄을 제자리에 — 종전 `requestDelete` 를 `startPendingDelete(itemId, undoLocal)` 로 일반화.
+  - **시트 2단**(`PlayerScreen`): 진행값을 따로 둔다(`queueExpand` 0→1) — 기존 1단 보간이 `queueProgress` 0~1 을 가정해 범위를 늘리지 않았다. 시트 틀을 2단 자리(앱바 + 한 줄 재생 바 56)에 세워 두고 1단·닫힘은 translateY 로 더 내린다(레이아웃 애니메이션 없음). 2단에서 압축 히어로·아트워크·컨트롤은 opacity 로 흐려지고(`pointerEvents` 끔) 앱바 아래 한 줄 재생 바(썸네일 40 · 제목 · 재생/정지)가 뒤쪽 절반에서 페이드인. 손잡이 끌기: 1단에서 위로 → 2단, 2단에서 아래로 → 1단(단계별 복귀, 임계·속도 규칙 1단과 같음). 손잡이 탭: 2단 → 1단, 1단 → 닫힘. 닫기·다른 패널 전환은 2단 몫부터 접음. 1단 손잡이 글자 "재생목록 더 보기"(탐색 맥락은 `출처 · 더 보기`). 1단에서 시트 아래 2단 몫만큼 패널 바닥 여백(`bottomInset`).
+  - 덤: dev 에 올라온 `shared/navigation/to-tab.test.ts`(#1811 시리즈 탭 스택)가 `@jest/globals` import 없이 들어와 로컬 typecheck 가 깨졌다 — import 한 줄 추가(FE CI 는 typecheck 를 안 돌려 머지됐다 — `fe-ci-no-typecheck`).
+  - tsc·eslint·jest(player·navigation·ko 스냅샷) 통과. **실기기 미확인** — 2단 모션(Android FLIP 과의 겹침·시트 틀 위치)과 스와이프·스크롤 축 판정은 개발계 빌드에서 봐야 한다.
+  - **남은 것**: related 연결(KAN-240 뒤), 문서 반영(10항), 개발계 실기기 확인(1~4 전부).
