@@ -168,10 +168,83 @@ describe('exploreCursor', () => {
       const cursor = encodeSearchCursor(SEARCH_POSITION, '커리어', [TOPIC_A]);
 
       // when
-      const position = decodeSearchCursor(cursor, '커리어', [TOPIC_A]);
+      const decoded = decodeSearchCursor(cursor, '커리어', [TOPIC_A]);
+
+      // then — 모드를 주지 않고 발급한 커서는 부분 일치다
+      expect(decoded).toEqual({ position: SEARCH_POSITION, match: 'exact' });
+    });
+
+    it('유사 결과 커서는 모드를 싣고, 해석하면 같은 모드로 돌아온다', () => {
+      // given — 유사 모드는 1순위가 0, 2순위가 자모 유사도다(KAN-238)
+      const similarPosition = { ...SEARCH_POSITION, score: 0 };
+      const cursor = encodeSearchCursor(
+        similarPosition,
+        '커리오',
+        [],
+        'similar',
+      );
+
+      // when
+      const decoded = decodeSearchCursor(cursor, '커리오', []);
 
       // then
-      expect(position).toEqual(SEARCH_POSITION);
+      expect(decoded).toEqual({ position: similarPosition, match: 'similar' });
+    });
+
+    it('부분 일치 커서는 모드 키를 싣지 않는다 — 도입 전 커서와 모양이 같다', () => {
+      // given
+      const cursor = encodeSearchCursor(SEARCH_POSITION, '커리어', [], 'exact');
+
+      // when
+      const payload = JSON.parse(
+        Buffer.from(cursor, 'base64url').toString('utf8'),
+      ) as Record<string, unknown>;
+
+      // then
+      expect(payload).not.toHaveProperty('m');
+    });
+
+    it('모드 키가 없는 옛 커서는 부분 일치로 해석한다', () => {
+      // given — 도입 전 앱이 들고 있던 커서
+      const legacy = Buffer.from(
+        JSON.stringify({
+          s: 16,
+          w: 0.5,
+          p: 0,
+          t: PUBLISHED_AT.toISOString(),
+          i: CONTENT_ID,
+          q: '커리어|',
+        }),
+        'utf8',
+      ).toString('base64url');
+
+      // when
+      const decoded = decodeSearchCursor(legacy, '커리어', []);
+
+      // then
+      expect(decoded.match).toBe('exact');
+    });
+
+    it('모르는 모드 값이 실린 커서는 거절한다', () => {
+      // given
+      const forged = Buffer.from(
+        JSON.stringify({
+          s: 0,
+          w: 0.5,
+          p: 0,
+          t: PUBLISHED_AT.toISOString(),
+          i: CONTENT_ID,
+          q: '커리오|',
+          m: 'x',
+        }),
+        'utf8',
+      ).toString('base64url');
+
+      // when
+      const error = catchError(() => decodeSearchCursor(forged, '커리오', []));
+
+      // then
+      expect(error.errorCode).toBe(ErrorCode.EXPLORE_CURSOR_INVALID);
     });
 
     it('발급 시점과 질의가 다르면 거절한다', () => {
@@ -206,7 +279,10 @@ describe('exploreCursor', () => {
       ]);
 
       // when
-      const position = decodeSearchCursor(cursor, '커리어', [TOPIC_B, TOPIC_A]);
+      const { position } = decodeSearchCursor(cursor, '커리어', [
+        TOPIC_B,
+        TOPIC_A,
+      ]);
 
       // then
       expect(position.id).toBe(CONTENT_ID);

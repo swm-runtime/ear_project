@@ -69,3 +69,134 @@ export function parseSearchQuery(raw: string): ParsedSearchQuery {
 export function hasSearchableCharacter(value: string): boolean {
   return /[\p{L}\p{N}]/u.test(value);
 }
+
+const HANGUL_SYLLABLE_START = 0xac00;
+const HANGUL_SYLLABLE_END = 0xd7a3;
+const JUNGSEONG_COUNT = 21;
+const JONGSEONG_COUNT = 28;
+
+/* 겹모음·겹받침은 **치는 순서대로** 푼다 — "과"는 "고" 다음에, "닭"은 "달" 다음에 나온다 */
+const CHOSEONG = [
+  'ㄱ',
+  'ㄲ',
+  'ㄴ',
+  'ㄷ',
+  'ㄸ',
+  'ㄹ',
+  'ㅁ',
+  'ㅂ',
+  'ㅃ',
+  'ㅅ',
+  'ㅆ',
+  'ㅇ',
+  'ㅈ',
+  'ㅉ',
+  'ㅊ',
+  'ㅋ',
+  'ㅌ',
+  'ㅍ',
+  'ㅎ',
+];
+const JUNGSEONG = [
+  'ㅏ',
+  'ㅐ',
+  'ㅑ',
+  'ㅒ',
+  'ㅓ',
+  'ㅔ',
+  'ㅕ',
+  'ㅖ',
+  'ㅗ',
+  'ㅗㅏ',
+  'ㅗㅐ',
+  'ㅗㅣ',
+  'ㅛ',
+  'ㅜ',
+  'ㅜㅓ',
+  'ㅜㅔ',
+  'ㅜㅣ',
+  'ㅠ',
+  'ㅡ',
+  'ㅡㅣ',
+  'ㅣ',
+];
+const JONGSEONG = [
+  '',
+  'ㄱ',
+  'ㄲ',
+  'ㄱㅅ',
+  'ㄴ',
+  'ㄴㅈ',
+  'ㄴㅎ',
+  'ㄷ',
+  'ㄹ',
+  'ㄹㄱ',
+  'ㄹㅁ',
+  'ㄹㅂ',
+  'ㄹㅅ',
+  'ㄹㅌ',
+  'ㄹㅍ',
+  'ㄹㅎ',
+  'ㅁ',
+  'ㅂ',
+  'ㅂㅅ',
+  'ㅅ',
+  'ㅆ',
+  'ㅇ',
+  'ㅈ',
+  'ㅊ',
+  'ㅋ',
+  'ㅌ',
+  'ㅍ',
+  'ㅎ',
+];
+/** 음절로 묶이지 않고 홀로 온 겹자모(조합 중인 "ㅘ"·"ㄳ")도 같은 방식으로 푼다 */
+const COMPOUND_JAMO: Record<string, string> = {
+  ㅘ: 'ㅗㅏ',
+  ㅙ: 'ㅗㅐ',
+  ㅚ: 'ㅗㅣ',
+  ㅝ: 'ㅜㅓ',
+  ㅞ: 'ㅜㅔ',
+  ㅟ: 'ㅜㅣ',
+  ㅢ: 'ㅡㅣ',
+  ㄳ: 'ㄱㅅ',
+  ㄵ: 'ㄴㅈ',
+  ㄶ: 'ㄴㅎ',
+  ㄺ: 'ㄹㄱ',
+  ㄻ: 'ㄹㅁ',
+  ㄼ: 'ㄹㅂ',
+  ㄽ: 'ㄹㅅ',
+  ㄾ: 'ㄹㅌ',
+  ㄿ: 'ㄹㅍ',
+  ㅀ: 'ㄹㅎ',
+  ㅄ: 'ㅂㅅ',
+};
+
+/**
+ * 한글 음절을 호환 자모 열로 푼다. 한글이 아닌 글자는 그대로 둔다 — 질의는 이미 NFC다(`explore.md` 4.5-5).
+ *
+ * 검색 질의 로그의 타이핑 묶음 판정(`isSameTyping` — domain.md 5.7)이 쓴다. **유사 검색 폴백의 자모 분해는 이 함수가
+ * 아니라 SQL 함수 `hangul_to_jamo`(domain.md 5.1)가 한다** — 질의·저장 양쪽을 DB 한 곳에서 풀어 매칭이 갈라지지 않게 한다.
+ * 두 구현의 규칙(겹모음·겹받침을 치는 순서대로, 홀로 온 겹자모도 풂)은 같아야 하고, 그 동치는
+ * `test/search-similar-fallback.e2e-spec.ts`가 실제 DB 위에서 대조한다.
+ */
+export function toJamo(text: string): string {
+  let jamo = '';
+
+  for (const char of text) {
+    const code = char.codePointAt(0)!;
+
+    if (code < HANGUL_SYLLABLE_START || code > HANGUL_SYLLABLE_END) {
+      jamo += COMPOUND_JAMO[char] ?? char;
+      continue;
+    }
+
+    const offset = code - HANGUL_SYLLABLE_START;
+    jamo +=
+      CHOSEONG[Math.floor(offset / (JUNGSEONG_COUNT * JONGSEONG_COUNT))] +
+      JUNGSEONG[Math.floor(offset / JONGSEONG_COUNT) % JUNGSEONG_COUNT] +
+      JONGSEONG[offset % JONGSEONG_COUNT];
+  }
+
+  return jamo;
+}

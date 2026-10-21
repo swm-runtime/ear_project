@@ -229,6 +229,7 @@ export interface SearchCursorPosition {
   /**
    * 제목 `word_similarity` — SQL에서 `double precision`으로 캐스팅해 읽는다.
    * `real`(4바이트) 그대로 커서에 실으면 float8 파라미터와의 재비교에서 어긋난다.
+   * 유사 모드(KAN-238)에서는 이 자리에 자모 유사도(제목+태그·주제명·시리즈 제목의 최댓값)가 들어가고 `score`는 0이다.
    */
   titleSimilarity: number;
   /** 직전 확정 월의 재생 수 (`domain.md` 5.4 — 순위는 직전 확정 구간을 쓴다) */
@@ -251,6 +252,11 @@ export interface SearchPageQuery {
   matchSeriesTitle?: boolean;
   /** 시리즈 카드 모드(KAN-134 — `SERIES_EXPLORE_CARDS_ENABLED`) — 시리즈마다 순위가 가장 높은 편 하나만 남긴다(`applySeriesAnchors`) */
   seriesAnchorsOnly?: boolean;
+  /**
+   * 유사 결과 모드(KAN-238 — `explore.md` 4.5-5) — 부분 일치 대신 자모 트라이그램 유사도(`hangul_to_jamo` + `word_similarity`)로
+   * 찾는다. 부분 일치 첫 페이지가 0건이고 태그 전용이 아닐 때만 호출부가 켠다. 생략·false면 종전 그대로
+   */
+  similar?: boolean;
   /** 검색 결과에 주제 필터를 겹칠 때(explore-api.md 4.5). 비우면 조건을 적용하지 않는다 */
   topicIds: string[];
   cursor: SearchCursorPosition | null;
@@ -336,6 +342,8 @@ export interface SearchQueryRank {
   lastResultCount: number;
   /** 가장 최근 검색에서 첫 페이지 뒤에 더 있었는가 — true면 화면은 "N건 이상"으로 읽는다 */
   lastHasNext: boolean;
+  /** 가장 최근 검색의 유사 결과 폴백 건수(KAN-238). `null`이면 그 검색에서 폴백이 돌지 않았다 */
+  lastSimilarCount: number | null;
   lastSearchedAt: Date;
 }
 
@@ -354,6 +362,8 @@ export interface SearchQueryLogSummary {
   totals: {
     searches: number;
     misses: number;
+    /** 0건(`misses`) 중 유사 결과 폴백이 1건 이상 채운 검색 수(KAN-238) */
+    rescued: number;
     /** 결과에 반응한 검색 수 */
     clicked: number;
     users: number;

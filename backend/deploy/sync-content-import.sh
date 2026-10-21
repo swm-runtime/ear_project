@@ -97,11 +97,20 @@ BEGIN
       ('content_audio_renditions', 'content_id, quality')
     ) AS t(tbl, conflict_cols)
   LOOP
-    SELECT string_agg(quote_ident(column_name), ', ' ORDER BY ordinal_position),
-           string_agg(quote_ident(column_name) || ' = EXCLUDED.' || quote_ident(column_name), ', ' ORDER BY ordinal_position)
+    -- **public 쪽 생성 컬럼(GENERATED ALWAYS … STORED)은 뺀다**(2026-10-22 — KAN-238 contents.search_jamo). 생성 컬럼은
+    -- INSERT·UPDATE 대상이 될 수 없어(NULL 이라도 "cannot insert a non-DEFAULT value") 열 목록에 들면 회차 전체가 취소된다.
+    -- stage 는 LIKE 로 만들어 생성식 없는 보통 열로 생기고(INCLUDING GENERATED 를 쓰지 않는다), 덤프(pg_dump --column-inserts)도
+    -- 생성 컬럼을 싣지 않는다 — 값은 public 에 들어가며 다시 계산된다. 운영에 아직 그 열이 없는 기간에도 같다
+    SELECT string_agg(quote_ident(c.column_name), ', ' ORDER BY c.ordinal_position),
+           string_agg(quote_ident(c.column_name) || ' = EXCLUDED.' || quote_ident(c.column_name), ', ' ORDER BY c.ordinal_position)
       INTO cols, sets
-      FROM information_schema.columns
-     WHERE table_schema = 'sync_stage' AND table_name = spec.tbl;
+      FROM information_schema.columns c
+     WHERE c.table_schema = 'sync_stage' AND c.table_name = spec.tbl
+       AND NOT EXISTS (
+         SELECT 1 FROM information_schema.columns g
+          WHERE g.table_schema = 'public' AND g.table_name = spec.tbl
+            AND g.column_name = c.column_name AND g.is_generated = 'ALWAYS'
+       );
     EXECUTE format('INSERT INTO public.%1$I (%2$s) SELECT %2$s FROM sync_stage.%1$I ON CONFLICT (%3$s) DO UPDATE SET %4$s',
                    spec.tbl, cols, spec.conflict_cols, sets);
     GET DIAGNOSTICS n = ROW_COUNT; total := total + n;

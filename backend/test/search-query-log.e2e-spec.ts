@@ -61,6 +61,11 @@ describe('검색 질의 로그 E2E', () => {
   const userIds: string[] = [];
   const contentIds: string[] = [];
   const TOKEN = `e2esql${Date.now()}`;
+  /**
+   * 0건 질의 — 이 실행의 토큰을 **넣지 않는다.** 토큰이 든 질의는 부분 일치가 0건이어도 유사 결과 폴백(KAN-238)이 토큰이 든
+   * 시드 편을 찾아 "0건 · 반응 없음"이 아니게 된다. 숫자 열이 실행마다 달라 요약에서 이 질의만 골라낼 수 있다
+   */
+  const MISS_QUERY = `없는말 ${Date.now().toString().split('').reverse().join('')}`;
   const path = (p: string) => `/api/v1${p}`;
 
   beforeAll(async () => {
@@ -114,10 +119,10 @@ describe('검색 질의 로그 E2E', () => {
     );
 
     // given — 다른 말 "없는말" : 새 행, 0건
-    await search(auth, `${TOKEN} 없는말`).expect(HttpStatus.OK);
+    await search(auth, MISS_QUERY).expect(HttpStatus.OK);
     rows = await logs.find({ where: { userId }, order: { id: 'ASC' } });
     expect(rows).toHaveLength(2);
-    expect(rows[1].query).toBe(`${TOKEN} 없는말`);
+    expect(rows[1].query).toBe(MISS_QUERY);
     expect(rows[1].resultCount).toBe(0);
 
     // given — 커서 페이지는 행을 늘리지 않는다 (결과가 한 페이지뿐이라 next_cursor 가 없으면 생략)
@@ -161,7 +166,7 @@ describe('검색 질의 로그 E2E', () => {
     // then — 이 테스트의 두 질의가 각각 반응 1·0건 0으로 집계된다
     expect(body.days).toBe(1);
     const hit = body.top.find((row) => row.query === `${TOKEN} 커리어`);
-    const miss = body.missed.find((row) => row.query === `${TOKEN} 없는말`);
+    const miss = body.missed.find((row) => row.query === MISS_QUERY);
     expect(hit).toEqual(
       expect.objectContaining({ searches: 1, misses: 0, clicked: 1 }),
     );

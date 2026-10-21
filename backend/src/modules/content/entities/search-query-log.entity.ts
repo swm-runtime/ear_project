@@ -56,6 +56,13 @@ export class SearchQueryLog extends BaseEntity {
   @Column({ name: 'result_count', type: 'smallint' })
   resultCount: number;
 
+  /**
+   * 유사 결과 폴백(KAN-238 — `explore.md` 4.5-5)이 돌았을 때 그 첫 페이지 건수. **NULL = 폴백이 돌지 않았다**(부분 일치 결과가
+   * 있었거나 태그 전용·도입 전 행). `result_count`는 그대로 부분 일치 건수라 미스율 정의가 바뀌지 않는다
+   */
+  @Column({ name: 'similar_count', type: 'smallint', nullable: true })
+  similarCount: number | null;
+
   /** 첫 페이지 뒤에 더 있었는가 — `result_count`가 페이지 크기와 같을 때 "딱 그만큼"과 "더 있음"을 가른다 */
   @Column({ name: 'has_next', type: 'boolean' })
   hasNext: boolean;

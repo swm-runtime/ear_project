@@ -17,6 +17,7 @@ export type SearchQueryLogDraft = Pick<
   | 'query'
   | 'resultCount'
   | 'hasNext'
+  | 'similarCount'
   | 'topicFilterCount'
   | 'resultContentIds'
 >;
@@ -24,6 +25,7 @@ export type SearchQueryLogDraft = Pick<
 interface TotalsRow {
   searches: number;
   misses: number;
+  rescued: number;
   clicked: number;
   users: number;
   short_queries: number;
@@ -44,6 +46,7 @@ interface RankRow {
   clicked: number;
   last_result_count: number;
   last_has_next: boolean;
+  last_similar_count: number | null;
   last_searched_at: Date;
 }
 
@@ -144,6 +147,8 @@ export class SearchQueryLogRepository {
       `with scoped as (${scoped})
        select count(*)::int as searches,
               count(*) filter (where result_count = 0)::int as misses,
+              -- 0건 중 유사 결과 폴백이 1건 이상 채운 검색(KAN-238). NULL(폴백 안 돎)은 > 0에서 빠진다
+              count(*) filter (where result_count = 0 and similar_count > 0)::int as rescued,
               count(*) filter (where clicked)::int as clicked,
               count(distinct user_id)::int as users,
               count(*) filter (where char_length(query) < 3)::int as short_queries,
@@ -170,6 +175,7 @@ export class SearchQueryLogRepository {
               count(*) filter (where clicked)::int as clicked,
               (array_agg(result_count order by updated_at desc, id desc))[1]::int as last_result_count,
               (array_agg(has_next order by updated_at desc, id desc))[1] as last_has_next,
+              (array_agg(similar_count order by updated_at desc, id desc))[1]::int as last_similar_count,
               max(updated_at) as last_searched_at
          from scoped
         group by query`;
@@ -198,6 +204,7 @@ export class SearchQueryLogRepository {
       clicked: row.clicked,
       lastResultCount: row.last_result_count,
       lastHasNext: row.last_has_next,
+      lastSimilarCount: row.last_similar_count,
       lastSearchedAt: row.last_searched_at,
     });
     const toDaily = (row: DailyRow): SearchQueryDailyCount => ({
@@ -212,6 +219,7 @@ export class SearchQueryLogRepository {
       totals: {
         searches: totals?.searches ?? 0,
         misses: totals?.misses ?? 0,
+        rescued: totals?.rescued ?? 0,
         clicked: totals?.clicked ?? 0,
         users: totals?.users ?? 0,
         shortQueries: totals?.short_queries ?? 0,

@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 
+import { toJamo } from '@/common/utils/search-text.util';
 import { UserMarket } from '@/modules/user/user.enum';
 
 import {
@@ -14,9 +15,11 @@ export interface SearchQueryLogEntry {
   userId: string;
   /** 정규화된 질의 — 조회가 본 그 문자열(`explore.md` 4.5-5) */
   normalizedQuery: string;
-  /** 첫 페이지에 실린 건수 */
+  /** 부분 일치 첫 페이지 건수 — 유사 결과 폴백이 돌았어도 부분 일치 값이다(미스율 정의 불변) */
   resultCount: number;
   hasNext: boolean;
+  /** 유사 결과 폴백 첫 페이지 건수(KAN-238). 폴백이 돌지 않았으면 `null` */
+  similarCount: number | null;
   topicFilterCount: number;
   /** 첫 페이지 결과의 콘텐츠 id — 결과 반응 추정의 열쇠(domain.md 5.7) */
   resultContentIds: string[];
@@ -60,6 +63,8 @@ export class SearchQueryLogService {
         query: entry.normalizedQuery,
         resultCount: entry.resultCount,
         hasNext: entry.hasNext,
+        // 묶음 덮어쓰기 때도 마지막 질의 값으로 덮는다 — 폴백이 안 돈 질의면 NULL로 되돌린다
+        similarCount: entry.similarCount,
         topicFilterCount: entry.topicFilterCount,
         resultContentIds: entry.resultContentIds,
       };
@@ -134,128 +139,4 @@ export function isSameTyping(previous: string, next: string): boolean {
   const after = toJamo(next);
 
   return after.startsWith(before) || before.startsWith(after);
-}
-
-const HANGUL_SYLLABLE_START = 0xac00;
-const HANGUL_SYLLABLE_END = 0xd7a3;
-const JUNGSEONG_COUNT = 21;
-const JONGSEONG_COUNT = 28;
-
-/* 겹모음·겹받침은 **치는 순서대로** 푼다 — "과"는 "고" 다음에, "닭"은 "달" 다음에 나온다 */
-const CHOSEONG = [
-  'ㄱ',
-  'ㄲ',
-  'ㄴ',
-  'ㄷ',
-  'ㄸ',
-  'ㄹ',
-  'ㅁ',
-  'ㅂ',
-  'ㅃ',
-  'ㅅ',
-  'ㅆ',
-  'ㅇ',
-  'ㅈ',
-  'ㅉ',
-  'ㅊ',
-  'ㅋ',
-  'ㅌ',
-  'ㅍ',
-  'ㅎ',
-];
-const JUNGSEONG = [
-  'ㅏ',
-  'ㅐ',
-  'ㅑ',
-  'ㅒ',
-  'ㅓ',
-  'ㅔ',
-  'ㅕ',
-  'ㅖ',
-  'ㅗ',
-  'ㅗㅏ',
-  'ㅗㅐ',
-  'ㅗㅣ',
-  'ㅛ',
-  'ㅜ',
-  'ㅜㅓ',
-  'ㅜㅔ',
-  'ㅜㅣ',
-  'ㅠ',
-  'ㅡ',
-  'ㅡㅣ',
-  'ㅣ',
-];
-const JONGSEONG = [
-  '',
-  'ㄱ',
-  'ㄲ',
-  'ㄱㅅ',
-  'ㄴ',
-  'ㄴㅈ',
-  'ㄴㅎ',
-  'ㄷ',
-  'ㄹ',
-  'ㄹㄱ',
-  'ㄹㅁ',
-  'ㄹㅂ',
-  'ㄹㅅ',
-  'ㄹㅌ',
-  'ㄹㅍ',
-  'ㄹㅎ',
-  'ㅁ',
-  'ㅂ',
-  'ㅂㅅ',
-  'ㅅ',
-  'ㅆ',
-  'ㅇ',
-  'ㅈ',
-  'ㅊ',
-  'ㅋ',
-  'ㅌ',
-  'ㅍ',
-  'ㅎ',
-];
-/** 음절로 묶이지 않고 홀로 온 겹자모(조합 중인 "ㅘ"·"ㄳ")도 같은 방식으로 푼다 */
-const COMPOUND_JAMO: Record<string, string> = {
-  ㅘ: 'ㅗㅏ',
-  ㅙ: 'ㅗㅐ',
-  ㅚ: 'ㅗㅣ',
-  ㅝ: 'ㅜㅓ',
-  ㅞ: 'ㅜㅔ',
-  ㅟ: 'ㅜㅣ',
-  ㅢ: 'ㅡㅣ',
-  ㄳ: 'ㄱㅅ',
-  ㄵ: 'ㄴㅈ',
-  ㄶ: 'ㄴㅎ',
-  ㄺ: 'ㄹㄱ',
-  ㄻ: 'ㄹㅁ',
-  ㄼ: 'ㄹㅂ',
-  ㄽ: 'ㄹㅅ',
-  ㄾ: 'ㄹㅌ',
-  ㄿ: 'ㄹㅍ',
-  ㅀ: 'ㄹㅎ',
-  ㅄ: 'ㅂㅅ',
-};
-
-/** 한글 음절을 호환 자모 열로 푼다. 한글이 아닌 글자는 그대로 둔다 — 질의는 이미 NFC다(`explore.md` 4.5-5) */
-function toJamo(text: string): string {
-  let jamo = '';
-
-  for (const char of text) {
-    const code = char.codePointAt(0)!;
-
-    if (code < HANGUL_SYLLABLE_START || code > HANGUL_SYLLABLE_END) {
-      jamo += COMPOUND_JAMO[char] ?? char;
-      continue;
-    }
-
-    const offset = code - HANGUL_SYLLABLE_START;
-    jamo +=
-      CHOSEONG[Math.floor(offset / (JUNGSEONG_COUNT * JONGSEONG_COUNT))] +
-      JUNGSEONG[Math.floor(offset / JONGSEONG_COUNT) % JUNGSEONG_COUNT] +
-      JONGSEONG[offset % JONGSEONG_COUNT];
-  }
-
-  return jamo;
 }

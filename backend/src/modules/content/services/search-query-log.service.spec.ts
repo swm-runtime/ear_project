@@ -16,6 +16,7 @@ describe('SearchQueryLogService', () => {
     normalizedQuery: '커리어',
     resultCount: 3,
     hasNext: false,
+    similarCount: null,
     topicFilterCount: 0,
     resultContentIds: ['c1', 'c2', 'c3'],
   };
@@ -55,6 +56,7 @@ describe('SearchQueryLogService', () => {
         query: '커리어',
         resultCount: 3,
         hasNext: false,
+        similarCount: null,
         topicFilterCount: 0,
         resultContentIds: ['c1', 'c2', 'c3'],
       });
@@ -75,6 +77,7 @@ describe('SearchQueryLogService', () => {
         query: '커리어',
         resultCount: 3,
         hasNext: false,
+        similarCount: null,
         topicFilterCount: 0,
         resultContentIds: ['c1', 'c2', 'c3'],
       });
@@ -230,6 +233,7 @@ describe('SearchQueryLogService', () => {
         totals: {
           searches: 0,
           misses: 0,
+          rescued: 0,
           clicked: 0,
           users: 0,
           shortQueries: 0,
@@ -257,6 +261,7 @@ describe('SearchQueryLogService', () => {
         totals: {
           searches: 0,
           misses: 0,
+          rescued: 0,
           clicked: 0,
           users: 0,
           shortQueries: 0,

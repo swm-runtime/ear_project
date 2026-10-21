@@ -172,12 +172,14 @@ describe('탐색 시리즈 카드 E2E', () => {
         .filter((id) => episodeIds.includes(id))
         .sort(),
     ).toEqual([...episodeIds].sort());
-    // 시리즈 제목 일치는 묻지 않는다
-    const seriesWord = await pageAll(offApp, '/explore/search', {
-      query: SERIES_WORD,
-      limit: '20',
-    });
-    expect(seriesWord.items).toEqual([]);
+    // 시리즈 제목 일치는 묻지 않는다 — 부분 일치로는 0건이다. 편 제목이 닮은 편은 유사 결과 폴백(KAN-238)으로 나올 수 있어
+    // 첫 페이지의 `match`로 가른다: 결과가 있다면 부분 일치(시리즈 제목 일치)가 아니라 유사 결과여야 한다
+    const seriesWord = (
+      await get(offApp, '/explore/search', { query: SERIES_WORD, limit: '20' })
+    ).body as ListBody & { match: string };
+    expect(
+      seriesWord.items.length === 0 || seriesWord.match === 'similar',
+    ).toBe(true);
   }, 60_000);
 
   it('켬 — 주제별 목록을 끝까지 넘기면 시리즈 카드 한 번 + 단일 콘텐츠 전부, 중복 없음', async () => {
@@ -248,6 +250,20 @@ describe('탐색 시리즈 카드 E2E', () => {
       type: 'series',
       series: { id: seriesId },
     });
+
+    // 시리즈 제목 오타 — 부분 일치는 0건이고 유사 결과 폴백(KAN-238)이 시리즈 제목 유사도까지 보아 같은 카드 하나로 접는다
+    const typo = (
+      await get(onApp, '/explore/search', {
+        query: `${SERIES_WORD.slice(0, -1)}z`,
+        limit: '20',
+      })
+    ).body as ListBody & { match: string };
+    expect(typo.match).toBe('similar');
+    expect(
+      typo.items.filter(
+        (item) => item.type === 'series' && item.series?.id === seriesId,
+      ),
+    ).toHaveLength(1);
 
     const feed = await get(onApp, '/explore/feed');
     const sections = (

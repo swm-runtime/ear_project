@@ -9,6 +9,7 @@ import {
   contentScopeParameters,
 } from '../content.visibility';
 import {
+  SEARCH_SIMILAR_THRESHOLD,
   SEARCH_WEIGHT_AUTHOR,
   SEARCH_WEIGHT_DESCRIPTION,
   SEARCH_WEIGHT_TAG,
@@ -124,6 +125,39 @@ const TAG_ONLY_SEARCH_SCORE = '0::integer';
 const SEARCH_TITLE_SIMILARITY =
   'word_similarity(:searchQuery, content.title)::double precision';
 const SEARCH_TITLE_SIMILARITY_ALIAS = 'search_title_similarity';
+
+/**
+ * 유사 결과 폴백(KAN-238 — `explore.md` 4.5-5). 부분 일치 첫 페이지가 0건일 때만 쓴다(판단은 탐색 Orchestrator).
+ *
+ * 질의와 대상을 **둘 다 SQL 함수 `hangul_to_jamo`로 푼다**(domain.md 5.1) — TS 쪽에 두 번째 분해를 두면 규칙이 갈라진다.
+ * 대상은 `contents.search_jamo`(제목+태그 생성 컬럼)·주제명·시리즈 제목(스위치 켜짐일 때만 — 부분 일치와 같은 조건)이고,
+ * 설명·저자는 대상이 아니다. 주제·시리즈는 행이 적어 인덱스 없이 함수를 부른다.
+ *
+ * 점수는 세 유사도의 최댓값이고 `double precision`으로 맞춘다 — 커서 재비교 타입을 `SEARCH_TITLE_SIMILARITY`와 같게 한다.
+ * 정렬·커서는 부분 일치의 다섯 키 모양을 그대로 쓴다: 1순위 자리는 상수(`0::integer` — 태그 전용과 같은 처리),
+ * 2순위 자리에 이 유사도를 넣는다. 그 뒤(인기 → 신선도 → id)는 같다.
+ *
+ * 매칭을 `word_similarity(...) >= :similarThreshold` 식으로 거는 이유: `<%` 연산자(GIN 인덱스를 타는 형태)는 임계값을
+ * 세션 GUC(`pg_trgm.word_similarity_threshold`)로만 받는데, 임계값의 소유자는 `content.constant.ts`다. 또 주제·시리즈 유사도와
+ * 최댓값으로 묶이면 어차피 인덱스 단독 탐색이 되지 않는다. 운영 수백 편 규모에서는 순차 탐색이 밀리초 단위다 — 커지면 이 식을 다시 본다.
+ */
+const SEARCH_SIMILAR_QUERY_JAMO = 'hangul_to_jamo(:searchQuery)';
+const SEARCH_SIMILAR_CONTENT = `word_similarity(${SEARCH_SIMILAR_QUERY_JAMO}, content.search_jamo)`;
+const SEARCH_SIMILAR_TOPIC = `COALESCE((
+  SELECT max(word_similarity(${SEARCH_SIMILAR_QUERY_JAMO}, hangul_to_jamo(lower(similar_topic.name))))
+  FROM content_topics similar_matched
+  JOIN topics similar_topic ON similar_topic.id = similar_matched.topic_id
+  WHERE similar_matched.content_id = content.id
+), 0)`;
+const SEARCH_SIMILAR_SERIES_TITLE = `COALESCE((
+  SELECT word_similarity(${SEARCH_SIMILAR_QUERY_JAMO}, hangul_to_jamo(lower(similar_series.title)))
+  FROM series similar_series
+  WHERE similar_series.id = content.series_id
+), 0)`;
+const SEARCH_SIMILARITY = `GREATEST(${SEARCH_SIMILAR_CONTENT}, ${SEARCH_SIMILAR_TOPIC})::double precision`;
+const SEARCH_SIMILARITY_WITH_SERIES = `GREATEST(${SEARCH_SIMILAR_CONTENT}, ${SEARCH_SIMILAR_TOPIC}, ${SEARCH_SIMILAR_SERIES_TITLE})::double precision`;
+/** 유사 모드의 1순위 자리 — 상수다(2순위 유사도가 실제 순서를 정한다). 커서 모양을 부분 일치와 같게 둔다 */
+const SIMILAR_SEARCH_SCORE = TAG_ONLY_SEARCH_SCORE;
 
 interface SearchRow extends RankingRow {
   [SEARCH_SCORE_ALIAS]: string | number;
@@ -618,11 +652,27 @@ export class ContentRepository {
     monthPeriodStart: string,
     manager?: EntityManager,
   ): Promise<RankedSearchContent[]> {
-    const score = query.tagOnly
-      ? TAG_ONLY_SEARCH_SCORE
-      : query.matchSeriesTitle
-        ? SEARCH_SCORE_WITH_SERIES
-        : SEARCH_SCORE;
+    // 유사 모드(KAN-238)는 1순위가 상수, 2순위가 자모 유사도다. 부분 일치·태그 전용은 종전 그대로
+    const similar = query.similar === true;
+    const score = similar
+      ? SIMILAR_SEARCH_SCORE
+      : query.tagOnly
+        ? TAG_ONLY_SEARCH_SCORE
+        : query.matchSeriesTitle
+          ? SEARCH_SCORE_WITH_SERIES
+          : SEARCH_SCORE;
+    const similarity = similar
+      ? query.matchSeriesTitle
+        ? SEARCH_SIMILARITY_WITH_SERIES
+        : SEARCH_SIMILARITY
+      : SEARCH_TITLE_SIMILARITY;
+    const matchCondition = similar
+      ? `${similarity} >= :similarThreshold`
+      : query.tagOnly
+        ? SEARCH_MATCH_TAG_EXACT
+        : `(${SEARCH_MATCH_TITLE} OR ${SEARCH_MATCH_TAG} OR ${SEARCH_MATCH_AUTHOR} OR ${SEARCH_MATCH_TOPIC} OR ${SEARCH_MATCH_DESCRIPTION}${
+            query.matchSeriesTitle ? ` OR ${SEARCH_MATCH_SERIES_TITLE}` : ''
+          })`;
     const base = () => {
       const filtered = this.applyVisibility(
         this.scoped(manager)
@@ -637,21 +687,16 @@ export class ContentRepository {
             { monthPeriod: StatsPeriodType.MONTH, monthPeriodStart },
           )
           .addSelect(score, SEARCH_SCORE_ALIAS)
-          .addSelect(SEARCH_TITLE_SIMILARITY, SEARCH_TITLE_SIMILARITY_ALIAS)
+          .addSelect(similarity, SEARCH_TITLE_SIMILARITY_ALIAS)
           .addSelect(RANKING_PLAY_COUNT, RANKING_PLAY_COUNT_ALIAS),
         query.now,
         query.market,
-      ).andWhere(
-        query.tagOnly
-          ? SEARCH_MATCH_TAG_EXACT
-          : `(${SEARCH_MATCH_TITLE} OR ${SEARCH_MATCH_TAG} OR ${SEARCH_MATCH_AUTHOR} OR ${SEARCH_MATCH_TOPIC} OR ${SEARCH_MATCH_DESCRIPTION}${
-              query.matchSeriesTitle ? ` OR ${SEARCH_MATCH_SERIES_TITLE}` : ''
-            })`,
-      );
+      ).andWhere(matchCondition);
 
       filtered.setParameters({
         searchQuery: query.normalizedQuery,
         searchPattern: `%${escapeLikePattern(query.normalizedQuery)}%`,
+        ...(similar && { similarThreshold: SEARCH_SIMILAR_THRESHOLD }),
       });
 
       if (query.topicIds.length > 0) {
@@ -665,7 +710,7 @@ export class ContentRepository {
     if (query.seriesAnchorsOnly) {
       this.applySeriesAnchors(builder, base(), [
         `${score} DESC`,
-        `${SEARCH_TITLE_SIMILARITY} DESC`,
+        `${similarity} DESC`,
         `${RANKING_PLAY_COUNT} DESC`,
         'content.published_at DESC',
         'content.id DESC',
@@ -675,7 +720,7 @@ export class ContentRepository {
     if (query.cursor) {
       // Postgres 행 비교 — 다섯 정렬 키의 tie-break를 한 조건으로 표현한다
       builder.andWhere(
-        `(${score}, ${SEARCH_TITLE_SIMILARITY}, ${RANKING_PLAY_COUNT}, content.published_at, content.id) < (:cursorScore, :cursorTitleSimilarity, :cursorPlayCount, :cursorPublishedAt, :cursorId)`,
+        `(${score}, ${similarity}, ${RANKING_PLAY_COUNT}, content.published_at, content.id) < (:cursorScore, :cursorTitleSimilarity, :cursorPlayCount, :cursorPublishedAt, :cursorId)`,
         {
           cursorScore: query.cursor.score,
           cursorTitleSimilarity: query.cursor.titleSimilarity,
@@ -688,7 +733,7 @@ export class ContentRepository {
 
     const { entities, raw } = await builder
       .orderBy(score, 'DESC')
-      .addOrderBy(SEARCH_TITLE_SIMILARITY, 'DESC')
+      .addOrderBy(similarity, 'DESC')
       .addOrderBy(RANKING_PLAY_COUNT, 'DESC')
       .addOrderBy('content.published_at', 'DESC')
       .addOrderBy('content.id', 'DESC')

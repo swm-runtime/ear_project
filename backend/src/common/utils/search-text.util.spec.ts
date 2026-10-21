@@ -3,6 +3,7 @@ import {
   hasSearchableCharacter,
   normalizeSearchText,
   parseSearchQuery,
+  toJamo,
 } from './search-text.util';
 
 describe('normalizeSearchText', () => {
@@ -96,5 +97,23 @@ describe('parseSearchQuery', () => {
 
     // then
     expect(parsed.term).toBe('#태그');
+  });
+});
+
+describe('toJamo', () => {
+  it.each([
+    ['커리어', 'ㅋㅓㄹㅣㅇㅓ', '받침 없는 음절'],
+    ['면접', 'ㅁㅕㄴㅈㅓㅂ', '홑받침'],
+    ['과자', 'ㄱㅗㅏㅈㅏ', '겹모음은 치는 순서대로(ㅘ=ㅗ+ㅏ)'],
+    ['닭', 'ㄷㅏㄹㄱ', '겹받침은 치는 순서대로(ㄺ=ㄹ+ㄱ)'],
+    ['ㅘㄳ', 'ㅗㅏㄱㅅ', '음절이 아닌 홀겹자모도 푼다'],
+    ['AI 2편!', 'AI 2편!'.replace('편', 'ㅍㅕㄴ'), '한글이 아닌 글자는 그대로'],
+  ])('%s → %s (%s)', (input, expected) => {
+    // given
+    // when
+    const jamo = toJamo(input);
+
+    // then
+    expect(jamo).toBe(expected);
   });
 });

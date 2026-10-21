@@ -47,6 +47,7 @@ import {
   encodeExploreCursor,
   encodePopularCursor,
   encodeSearchCursor,
+  invalidSearchCursor,
 } from './explore.cursor';
 import { groupBySeries } from './explore.series-grouping';
 import { ExploreSectionKey, SaveReason } from './explore.enum';
@@ -59,6 +60,7 @@ import {
   ExplorePopularListQuery,
   ExplorePopularListResult,
   ExploreSearchFallback,
+  ExploreSearchMatch,
   ExploreSearchQuery,
   ExploreSearchResult,
   ExploreSectionDraft,
@@ -436,31 +438,75 @@ export class ExploreOrchestrator {
 
     // 빈 커서(`cursor=`)도 첫 페이지다 — 세 판정(디코드·검색 로그·대체 콘텐츠)이 같은 기준을 써야 한다(2026-10-13)
     const isFirstPage = !query.cursor;
-
-    const page = await this.contentService.findSearchPage({
+    const decoded = query.cursor
+      ? decodeSearchCursor(query.cursor, normalizedQuery, query.topicIds)
+      : null;
+    const pageQuery = {
       market,
       normalizedQuery: term,
       tagOnly,
       topicIds: query.topicIds,
-      cursor: query.cursor
-        ? decodeSearchCursor(query.cursor, normalizedQuery, query.topicIds)
-        : null,
       limit: query.limit,
       now,
       // 시리즈 카드 모드는 시리즈 제목 일치도 묻는다(KAN-134 확정 설계 4번)
       ...(this.seriesCardsEnabled && { matchSeriesTitle: true }),
       ...this.seriesAnchorsQuery(),
+    };
+
+    // 유사 결과 커서(KAN-238)는 **지금도 부분 일치가 0건일 때만** 이어진다 — 그 사이 부분 일치 결과가 생겼으면(새 발행)
+    // 첫 페이지의 모드가 바뀐 것이라 두 모드가 섞인 목록이 된다. 태그 전용 질의에는 유사 모드가 없다.
+    // 부분 일치 커서는 종전 그대로 이어 읽는다(확인 조회를 붙이지 않는다 — 기존 경로의 비용·동작 불변)
+    if (decoded?.match === 'similar') {
+      const exactProbe = tagOnly
+        ? null
+        : await this.contentService.findSearchPage({
+            ...pageQuery,
+            cursor: null,
+            limit: 1,
+          });
+
+      if (!exactProbe || exactProbe.items.length > 0) {
+        throw invalidSearchCursor();
+      }
+    }
+
+    let match: ExploreSearchMatch = decoded?.match ?? 'exact';
+    let page = await this.contentService.findSearchPage({
+      ...pageQuery,
+      cursor: decoded?.position ?? null,
+      ...(match === 'similar' && { similar: true }),
     });
+    // 미스율의 정의(부분 일치 0건)는 바뀌지 않는다 — 로그의 `result_count`·`has_next`는 부분 일치 첫 페이지 값이다
+    const exactCount = page.items.length;
+    const exactHasNext = page.hasNext;
+    let similarCount: number | null = null;
+
+    // 유사 결과 폴백(`explore.md` 4.5-5) — 부분 일치 **첫 페이지가 0건**이고 태그 전용이 아닐 때만 한 번 다시 묻는다
+    if (isFirstPage && exactCount === 0 && !tagOnly) {
+      const similarPage = await this.contentService.findSearchPage({
+        ...pageQuery,
+        cursor: null,
+        similar: true,
+      });
+      similarCount = similarPage.items.length;
+
+      if (similarCount > 0) {
+        page = similarPage;
+        match = 'similar';
+      }
+    }
 
     // 첫 페이지만 남긴다 — 커서 페이지는 같은 질의의 이어 읽기라 새 검색이 아니다(domain.md 5.7).
-    // 디바운스 중간 입력은 서비스가 직전 행에 덮어쓰고, 적재 실패도 거기서 삼켜져 응답에는 영향이 없다
+    // 디바운스 중간 입력은 서비스가 직전 행에 덮어쓰고, 적재 실패도 거기서 삼켜져 응답에는 영향이 없다.
+    // `result_content_ids`는 **화면에 나간 결과**(유사 결과 포함)다 — 폴백이 살린 검색의 반응을 셀 수 있게
     if (isFirstPage) {
       await this.searchQueryLogService.record(
         {
           userId,
           normalizedQuery,
-          resultCount: page.items.length,
-          hasNext: page.hasNext,
+          resultCount: exactCount,
+          hasNext: exactHasNext,
+          similarCount,
           topicFilterCount: query.topicIds.length,
           resultContentIds: page.items.map((ranked) => ranked.content.id),
         },
@@ -470,6 +516,7 @@ export class ExploreOrchestrator {
 
     if (page.items.length === 0) {
       return {
+        match: 'exact',
         items: [],
         nextCursor: null,
         hasNext: false,
@@ -490,6 +537,7 @@ export class ExploreOrchestrator {
     const lastItem = page.items.at(-1);
 
     return {
+      match,
       items,
       nextCursor:
         page.hasNext && lastItem
@@ -503,6 +551,7 @@ export class ExploreOrchestrator {
               },
               normalizedQuery,
               query.topicIds,
+              match,
             )
           : null,
       hasNext: page.hasNext,

@@ -12,6 +12,14 @@ interface RankItem {
   last_searched_at: string;
 }
 
+/**
+ * 0건 질의 줄 — 유사 결과 폴백(KAN-238)의 마지막 건수를 더한다. `null`이면 그 질의의 마지막 검색에서 폴백이 돌지 않았고,
+ * `0`이면 폴백도 못 살렸다(방안 B — 의미 검색 판단 근거)
+ */
+interface MissedRankItem extends RankItem {
+  similar_count: number | null;
+}
+
 /** `GET /admin/search-query-logs/summary` (admin-api.md 4.21) */
 export class SearchQueryLogSummaryResponseDto {
   readonly days: number;
@@ -19,6 +27,8 @@ export class SearchQueryLogSummaryResponseDto {
   readonly totals: {
     searches: number;
     misses: number;
+    /** `misses` 중 유사 결과 폴백이 1건 이상 채운 검색 수 */
+    rescued: number;
     /** `misses / searches`. 검색 0건이면 null */
     miss_rate: number | null;
     /**
@@ -36,7 +46,7 @@ export class SearchQueryLogSummaryResponseDto {
     misses: number;
     clicked: number;
   }[];
-  readonly missed: RankItem[];
+  readonly missed: MissedRankItem[];
   readonly top: RankItem[];
 
   static from(
@@ -61,6 +71,7 @@ export class SearchQueryLogSummaryResponseDto {
       totals: {
         searches,
         misses,
+        rescued: summary.totals.rescued,
         miss_rate: searches > 0 ? misses / searches : null,
         clicked,
         users: summary.totals.users,
@@ -68,7 +79,10 @@ export class SearchQueryLogSummaryResponseDto {
         filtered_searches: summary.totals.filteredSearches,
       },
       daily: summary.daily,
-      missed: summary.missed.map(toItem),
+      missed: summary.missed.map((rank) => ({
+        ...toItem(rank),
+        similar_count: rank.lastSimilarCount,
+      })),
       top: summary.top.map(toItem),
     };
   }

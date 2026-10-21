@@ -1,4 +1,8 @@
-import { ExploreSearchFallback, ExploreSearchResult } from '../explore.types';
+import {
+  ExploreSearchFallback,
+  ExploreSearchMatch,
+  ExploreSearchResult,
+} from '../explore.types';
 import { ExploreItemDto, ExploreListItemDto } from './explore-item.dto';
 
 class SearchRelatedTopicDto {
@@ -37,6 +41,10 @@ class SearchFallbackDto {
  * `fallback: null`, 빈 결과면 같은 응답의 `fallback`으로 대체 콘텐츠를 내려준다.
  */
 export class ExploreSearchResponseDto {
+  /**
+   * 매칭 모드(KAN-238) — `similar`면 부분 일치 0건을 자모 유사 결과로 채웠다. 덧붙이는 필드라 옛 앱은 무시하고 일반 결과처럼 그린다
+   */
+  readonly match: ExploreSearchMatch;
   readonly items: ExploreListItemDto[];
   readonly next_cursor: string | null;
   readonly has_next: boolean;
@@ -44,6 +52,7 @@ export class ExploreSearchResponseDto {
 
   static from(result: ExploreSearchResult): ExploreSearchResponseDto {
     return {
+      match: result.match,
       items: result.items.map((item) => ExploreItemDto.from(item)),
       next_cursor: result.nextCursor,
       has_next: result.hasNext,

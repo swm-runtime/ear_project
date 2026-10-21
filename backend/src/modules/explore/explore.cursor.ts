@@ -15,6 +15,8 @@ import {
   SearchCursorPosition,
 } from '@/modules/content/content.types';
 
+import { ExploreSearchMatch } from './explore.types';
+
 /**
  * 커서는 **API 계약이지 도메인 개념이 아니다.** 그래서 Repository가 아니라 이 모듈이
  * 소유하고, `content` 모듈에는 해석된 위치(`ExploreCursorPosition`)만 넘긴다
@@ -197,6 +199,19 @@ interface SearchCursorPayload {
   i: string;
   /** 발급 시점의 조회 조건 지문 */
   q: string;
+  /**
+   * 매칭 모드(KAN-238) — 유사 결과 폴백이면 `"s"`. **부분 일치는 키를 싣지 않는다** — 도입 전 커서와 모양이 같아,
+   * 키가 없는 커서는 전부 부분 일치로 읽힌다(옛 앱이 들고 있던 커서가 그대로 유효하다)
+   */
+  m?: typeof SIMILAR_MODE_KEY;
+}
+
+const SIMILAR_MODE_KEY = 's';
+
+/** 디코드 결과 — 위치와 발급 시점의 매칭 모드. 모드 대조(재조회 시점의 모드와 같은가)는 호출부가 한다 */
+export interface DecodedSearchCursor {
+  position: SearchCursorPosition;
+  match: ExploreSearchMatch;
 }
 
 function searchFingerprint(
@@ -210,6 +225,7 @@ export function encodeSearchCursor(
   position: SearchCursorPosition,
   normalizedQuery: string,
   topicIds: string[],
+  match: ExploreSearchMatch = 'exact',
 ): string {
   const payload: SearchCursorPayload = {
     s: position.score,
@@ -218,17 +234,21 @@ export function encodeSearchCursor(
     t: position.publishedAt.toISOString(),
     i: position.id,
     q: searchFingerprint(normalizedQuery, topicIds),
+    ...(match === 'similar' && { m: SIMILAR_MODE_KEY }),
   };
 
   return Buffer.from(JSON.stringify(payload), 'utf8').toString('base64url');
 }
 
-/** **발급 시점과 다른 `query`·`topic_ids`면 거절한다.** 클라이언트는 첫 페이지부터 다시 조회한다 */
+/**
+ * **발급 시점과 다른 `query`·`topic_ids`면 거절한다.** 클라이언트는 첫 페이지부터 다시 조회한다.
+ * 매칭 모드는 커서가 정한다 — 모르는 모드 값이면 거절하고, 모드가 지금의 질의와 맞는지는 호출부(탐색 Orchestrator)가 본다
+ */
 export function decodeSearchCursor(
   cursor: string,
   normalizedQuery: string,
   topicIds: string[],
-): SearchCursorPosition {
+): DecodedSearchCursor {
   let decoded: unknown;
 
   try {
@@ -251,11 +271,14 @@ export function decodeSearchCursor(
   }
 
   return {
-    score: decoded.s,
-    titleSimilarity: decoded.w,
-    playCount: decoded.p,
-    publishedAt,
-    id: decoded.i,
+    position: {
+      score: decoded.s,
+      titleSimilarity: decoded.w,
+      playCount: decoded.p,
+      publishedAt,
+      id: decoded.i,
+    },
+    match: decoded.m === SIMILAR_MODE_KEY ? 'similar' : 'exact',
   };
 }
 
@@ -273,8 +296,15 @@ function isSearchCursorPayload(value: unknown): value is SearchCursorPayload {
     isCountValue(candidate.p) &&
     isTimestampValue(candidate.t) &&
     isUuid(candidate.i) &&
-    typeof candidate.q === 'string'
+    typeof candidate.q === 'string' &&
+    // 모드 키는 없거나(부분 일치) 유사 모드 값 하나뿐이다
+    (candidate.m === undefined || candidate.m === SIMILAR_MODE_KEY)
   );
+}
+
+/** 커서의 모드가 지금 질의의 모드와 다를 때 — 호출부가 던진다(`EXPLORE_CURSOR_INVALID`, 클라이언트는 첫 페이지부터 다시) */
+export function invalidSearchCursor(): BusinessException {
+  return invalidCursor();
 }
 
 function parse(cursor: string): CursorPayload {

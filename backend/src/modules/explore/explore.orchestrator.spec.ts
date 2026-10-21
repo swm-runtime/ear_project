@@ -1096,6 +1096,7 @@ describe('ExploreOrchestrator', () => {
           normalizedQuery: '커리어',
           resultCount: 1,
           hasNext: true,
+          similarCount: null,
           topicFilterCount: 1,
           resultContentIds: [CONTENT_ID],
         },
@@ -1216,11 +1217,269 @@ describe('ExploreOrchestrator', () => {
       expect(
         decodeSearchCursor(result.nextCursor as string, '커리어', []),
       ).toEqual({
-        score: 8,
-        titleSimilarity: 0.5,
-        playCount: 3,
-        publishedAt: SEARCH_ROW.content.publishedAt,
-        id: CONTENT_ID,
+        position: {
+          score: 8,
+          titleSimilarity: 0.5,
+          playCount: 3,
+          publishedAt: SEARCH_ROW.content.publishedAt,
+          id: CONTENT_ID,
+        },
+        match: 'exact',
+      });
+      expect(result.match).toBe('exact');
+    });
+
+    describe('유사 결과 폴백 (KAN-238)', () => {
+      const SIMILAR_ROW = { ...SEARCH_ROW, score: 0, titleSimilarity: 0.71 };
+      const EMPTY_PAGE = { items: [], hasNext: false };
+
+      it('부분 일치가 0건이면 유사 모드로 한 번 다시 묻고 match: similar로 돌려준다', async () => {
+        // given
+        contentService.findSearchPage
+          .mockResolvedValueOnce(EMPTY_PAGE)
+          .mockResolvedValueOnce({ items: [SIMILAR_ROW], hasNext: true });
+
+        // when
+        const result = await orchestrator.search(
+          USER_ID,
+          { query: '커리오', topicIds: [], cursor: null, limit: 1 },
+          NOW,
+          UserMarket.KR,
+        );
+
+        // then
+        expect(contentService.findSearchPage).toHaveBeenCalledTimes(2);
+        expect(contentService.findSearchPage.mock.calls[1][0]).toEqual(
+          expect.objectContaining({
+            normalizedQuery: '커리오',
+            similar: true,
+            cursor: null,
+          }),
+        );
+        expect(result.match).toBe('similar');
+        expect(result.items).toHaveLength(1);
+        expect(result.fallback).toBeNull();
+        expect(
+          decodeSearchCursor(result.nextCursor as string, '커리오', []).match,
+        ).toBe('similar');
+      });
+
+      it('로그의 result_count는 부분 일치 건수(0) 그대로, similar_count에 유사 결과 건수를 남긴다', async () => {
+        // given
+        contentService.findSearchPage
+          .mockResolvedValueOnce(EMPTY_PAGE)
+          .mockResolvedValueOnce({ items: [SIMILAR_ROW], hasNext: false });
+
+        // when
+        await orchestrator.search(
+          USER_ID,
+          { query: '커리오', topicIds: [], cursor: null, limit: 20 },
+          NOW,
+          UserMarket.KR,
+        );
+
+        // then
+        expect(searchQueryLogService.record).toHaveBeenCalledWith(
+          expect.objectContaining({
+            resultCount: 0,
+            hasNext: false,
+            similarCount: 1,
+            resultContentIds: [CONTENT_ID],
+          }),
+          NOW,
+        );
+      });
+
+      it('유사 결과도 0건이면 종전 빈 결과(fallback)와 match: exact, similar_count 0', async () => {
+        // given
+        contentService.findSearchPage.mockResolvedValue(EMPTY_PAGE);
+
+        // when
+        const result = await orchestrator.search(
+          USER_ID,
+          { query: '없는말', topicIds: [], cursor: null, limit: 20 },
+          NOW,
+          UserMarket.KR,
+        );
+
+        // then
+        expect(result.match).toBe('exact');
+        expect(result.items).toEqual([]);
+        expect(result.fallback).not.toBeNull();
+        expect(searchQueryLogService.record).toHaveBeenCalledWith(
+          expect.objectContaining({ resultCount: 0, similarCount: 0 }),
+          NOW,
+        );
+      });
+
+      it('태그 전용(#) 질의는 0건이어도 폴백하지 않는다', async () => {
+        // given
+        contentService.findSearchPage.mockResolvedValue(EMPTY_PAGE);
+
+        // when
+        const result = await orchestrator.search(
+          USER_ID,
+          { query: '#커리오', topicIds: [], cursor: null, limit: 20 },
+          NOW,
+          UserMarket.KR,
+        );
+
+        // then
+        expect(contentService.findSearchPage).toHaveBeenCalledTimes(1);
+        expect(result.match).toBe('exact');
+        expect(result.fallback).not.toBeNull();
+        expect(searchQueryLogService.record).toHaveBeenCalledWith(
+          expect.objectContaining({ similarCount: null }),
+          NOW,
+        );
+      });
+
+      it('부분 일치 결과가 있으면 유사 모드를 묻지 않는다', async () => {
+        // given
+        contentService.findSearchPage.mockResolvedValue({
+          items: [SEARCH_ROW],
+          hasNext: false,
+        });
+
+        // when
+        await orchestrator.search(
+          USER_ID,
+          { query: '커리어', topicIds: [], cursor: null, limit: 20 },
+          NOW,
+          UserMarket.KR,
+        );
+
+        // then
+        expect(contentService.findSearchPage).toHaveBeenCalledTimes(1);
+        expect(
+          contentService.findSearchPage.mock.calls[0][0],
+        ).not.toHaveProperty('similar');
+      });
+
+      it('커서 페이지는 0건이어도 폴백하지 않는다 — 목록의 끝이다', async () => {
+        // given
+        contentService.findSearchPage.mockResolvedValue(EMPTY_PAGE);
+        const cursor = encodeSearchCursor(
+          {
+            score: 8,
+            titleSimilarity: 0.5,
+            playCount: 3,
+            publishedAt: NOW,
+            id: CONTENT_ID,
+          },
+          '커리어',
+          [],
+        );
+
+        // when
+        const result = await orchestrator.search(
+          USER_ID,
+          { query: '커리어', topicIds: [], cursor, limit: 20 },
+          NOW,
+          UserMarket.KR,
+        );
+
+        // then
+        expect(contentService.findSearchPage).toHaveBeenCalledTimes(1);
+        expect(result.match).toBe('exact');
+        expect(result.fallback).toBeNull();
+      });
+
+      it('유사 결과 커서는 부분 일치가 여전히 0건이면 같은 모드로 이어 읽는다', async () => {
+        // given
+        const position = {
+          score: 0,
+          titleSimilarity: 0.71,
+          playCount: 3,
+          publishedAt: NOW,
+          id: CONTENT_ID,
+        };
+        const cursor = encodeSearchCursor(position, '커리오', [], 'similar');
+        contentService.findSearchPage
+          .mockResolvedValueOnce(EMPTY_PAGE)
+          .mockResolvedValueOnce({ items: [SIMILAR_ROW], hasNext: false });
+
+        // when
+        const result = await orchestrator.search(
+          USER_ID,
+          { query: '커리오', topicIds: [], cursor, limit: 20 },
+          NOW,
+          UserMarket.KR,
+        );
+
+        // then — 첫 호출은 모드 확인(부분 일치 첫 페이지 1건), 둘째가 유사 모드 이어 읽기
+        expect(contentService.findSearchPage.mock.calls[0][0]).toEqual(
+          expect.objectContaining({ cursor: null, limit: 1 }),
+        );
+        expect(contentService.findSearchPage.mock.calls[1][0]).toEqual(
+          expect.objectContaining({ cursor: position, similar: true }),
+        );
+        expect(result.match).toBe('similar');
+        expect(searchQueryLogService.record).not.toHaveBeenCalled();
+      });
+
+      it('유사 결과 커서인데 지금은 부분 일치 결과가 있으면 EXPLORE_CURSOR_INVALID', async () => {
+        // given — 그 사이 "커리오"가 제목에 든 편이 발행됐다
+        const cursor = encodeSearchCursor(
+          {
+            score: 0,
+            titleSimilarity: 0.71,
+            playCount: 3,
+            publishedAt: NOW,
+            id: CONTENT_ID,
+          },
+          '커리오',
+          [],
+          'similar',
+        );
+        contentService.findSearchPage.mockResolvedValue({
+          items: [SEARCH_ROW],
+          hasNext: false,
+        });
+
+        // when
+        const error = await catchError(
+          orchestrator.search(
+            USER_ID,
+            { query: '커리오', topicIds: [], cursor, limit: 20 },
+            NOW,
+            UserMarket.KR,
+          ),
+        );
+
+        // then
+        expect(error.errorCode).toBe(ErrorCode.EXPLORE_CURSOR_INVALID);
+        expect(contentService.findSearchPage).toHaveBeenCalledTimes(1);
+      });
+
+      it('태그 전용 질의에 유사 결과 커서가 오면 EXPLORE_CURSOR_INVALID', async () => {
+        // given — 태그 전용에는 유사 모드가 없다(지문은 맞춘 위조 커서)
+        const cursor = encodeSearchCursor(
+          {
+            score: 0,
+            titleSimilarity: 0.71,
+            playCount: 3,
+            publishedAt: NOW,
+            id: CONTENT_ID,
+          },
+          '#커리오',
+          [],
+          'similar',
+        );
+
+        // when
+        const error = await catchError(
+          orchestrator.search(
+            USER_ID,
+            { query: '#커리오', topicIds: [], cursor, limit: 20 },
+            NOW,
+            UserMarket.KR,
+          ),
+        );
+
+        // then
+        expect(error.errorCode).toBe(ErrorCode.EXPLORE_CURSOR_INVALID);
+        expect(contentService.findSearchPage).not.toHaveBeenCalled();
       });
     });
 

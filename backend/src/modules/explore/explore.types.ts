@@ -166,7 +166,14 @@ export interface ExploreSearchFallback {
   popularItems: ExploreListItemView[];
 }
 
+/**
+ * 검색 결과의 매칭 모드(explore-api.md 4.5 `match` — KAN-238). `similar`는 부분 일치가 0건이라 자모 유사 결과로 채웠다는 뜻이다.
+ * 모든 200 응답에 싣는다(`items`가 비면 `exact`)
+ */
+export type ExploreSearchMatch = 'exact' | 'similar';
+
 export interface ExploreSearchResult {
+  match: ExploreSearchMatch;
   items: ExploreListItemView[];
   /** `hasNext`가 false면 `null`이다 */
   nextCursor: string | null;
