@@ -453,3 +453,81 @@ export interface EarInsightsSummary {
 /** 열 때 1회 + [새로고침] — 자동 폴링하지 않는다(backend-monitoring.md 3장). 서버도 no-store */
 export const getEarInsightsSummary = (ch: EarChannel, days: number) =>
   earFetch<EarInsightsSummary>(`/admin/insights/summary?days=${days}`, { cache: "no-store" }, ch);
+
+// ── 추천 검증 (서비스 지표 — `GET /admin/insights/recommendations/*`, 2026-10-22) ──
+// 사용자는 user_id 로만 온다 — 서버가 이름·이메일·제공자 ID·프로필 사진을 조회하지도 싣지도 않는다(루트 CLAUDE.md 개인정보 원칙).
+
+export type EarInspectorSort = "listen" | "recent";
+export interface EarInspectorUser {
+  user_id: string; tier: string; signed_up_at: string; market: string; interest_count: number;
+  plays_30d: number; listen_sec_30d: number; completes_30d: number; last_played_at: string | null;
+}
+export interface EarInspectorUsers { sort: EarInspectorSort; since: string; generated_at: string; users: EarInspectorUser[] }
+
+/** 후보 표 한 줄 — 편성 미리보기의 후보 + 점수 순위·편성 여부 */
+export type EarInspectorCandidate = EarDripCandidate & { rank: number; would_place: boolean };
+export interface EarInspectorPick {
+  pick_order: number; content_id: string; title: string; score: number; rank: number;
+  is_series_continuation: boolean; is_outside_interests: boolean | null;
+}
+export interface EarInspectorDetail {
+  user_id: string; generated_at: string;
+  profile: {
+    tier: string; market: string; signed_up_at: string; onboarding_completed: boolean; onboarding_step: string;
+    onboarding_completed_at: string | null; job_category: string | null; years_of_experience: number | null;
+    /** 커리어 적합도를 편성이 쓰는가 — KR 시장만 */
+    career_used: boolean; is_auto_expand_enabled: boolean;
+  };
+  interests: {
+    topic_id: string; name: string | null; source: string; is_active: boolean; is_user_removed: boolean;
+    is_topic_visible: boolean | null; added_at: string; deactivated_at: string | null;
+  }[];
+  listening: {
+    since: string;
+    items: {
+      content_id: string; title: string; topics: EarDripTopicRef[]; duration_sec: number;
+      first_played_at: string | null; last_played_at: string | null; play_days: number; listen_sec: number;
+      complete_count: number; last_completed_at: string | null; saved_at: string | null; max_reached_sec: number | null;
+      listened_ratio: number | null;
+    }[];
+  };
+  deliveries: {
+    since: string;
+    items: {
+      service_date: string; added_at: string; content_id: string; title: string; topics: EarDripTopicRef[];
+      source: string; algorithm_version: string | null; status: string; deleted: boolean;
+      played_after: boolean; completed_after: boolean; feedback_stars: number | null;
+    }[];
+  };
+  /** 현재 시점 재계산 — 점수는 저장되지 않으므로 과거 편성 당시 값이 아니다(`notice`) */
+  explanation: {
+    notice: string; computed_at: string; service_date: string;
+    skip_reason: string | null; unfinished_count: number | null; unfinished_limit: number;
+    drip_count: number | null; discovery_count: number | null;
+    weights: EarDripPreview["weights"];
+    preference: EarDripPreview["preference"] & {
+      signal_total: number; signal_actions: Record<string, number>;
+      signal_counts_by_topic: { topic_id: string; name: string | null; counts: Record<string, number>; total: number }[];
+    };
+    auto_expand: EarDripPreview["auto_expand"];
+    exclusion_sources: { library_contents: number; permanently_excluded: number };
+    regular: {
+      pool_size: number; sql_filters: string[]; excluded_counts: Record<string, number>; candidate_count: number;
+      series: { gated_out: { content_id: string; title: string; reason: string }[]; continuation_count: number };
+      top: EarInspectorCandidate[]; picks: EarInspectorPick[];
+    } | null;
+    discovery: {
+      pool_size: number; sql_filters: string[]; quality_floor: number; typical_complete_rate: number;
+      excluded_counts: Record<string, number>; candidate_count: number;
+      top: EarInspectorCandidate[]; picks: EarInspectorPick[];
+    } | null;
+    discovery_error: string | null;
+    today_placed: { content_id: string; title: string }[];
+  };
+}
+/** 열 때 1회 + [새로고침] — 자동 폴링하지 않는다. 서버도 no-store */
+export const getEarInspectorUsers = (ch: EarChannel, sort: EarInspectorSort, limit = 30) =>
+  earFetch<EarInspectorUsers>(`/admin/insights/recommendations/users?sort=${sort}&limit=${limit}`, { cache: "no-store" }, ch);
+/** 상세는 열 때마다 서버가 감사 로그 1행을 남긴다(insights.recommendation_view) — 사용자를 고를 때만 부른다 */
+export const getEarInspectorDetail = (ch: EarChannel, userId: string) =>
+  earFetch<EarInspectorDetail>(`/admin/insights/recommendations/users/${encodeURIComponent(userId)}`, { cache: "no-store" }, ch);
