@@ -11,6 +11,7 @@ import {
 } from '@/modules/interest/interest.types';
 import { TopicService } from '@/modules/interest/services/topic.service';
 import { AuditLogService } from '@/modules/partner/audit-log.service';
+import { UserMarket } from '@/modules/user/user.enum';
 
 import { AdminTopicView } from '../admin.types';
 import {
@@ -37,8 +38,9 @@ export class AdminTopicService {
     private readonly auditLogService: AuditLogService,
   ) {}
 
-  async findAll(now: Date): Promise<AdminTopicView[]> {
-    const topics = await this.topicService.findAll();
+  /** `market`이 없으면 전 시장(admin-api 4.1 — KAN-237) */
+  async findAll(now: Date, market?: UserMarket): Promise<AdminTopicView[]> {
+    const topics = await this.topicService.findAll({ market });
     const topicIds = topics.map((topic) => topic.id);
     const [counts, visibleCounts] = await Promise.all([
       this.contentService.countByTopicIds(topicIds),

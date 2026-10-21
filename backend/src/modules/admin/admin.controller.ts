@@ -43,6 +43,7 @@ import {
 } from './admin.constant';
 import { AdminContentListResponseDto } from './dto/admin-content-list-response.dto';
 import { AdminContentQueryRequestDto } from './dto/admin-content-query-request.dto';
+import { AdminTopicQueryRequestDto } from './dto/admin-topic-query-request.dto';
 import { AdminContentItemDto } from './dto/admin-content-item.dto';
 import {
   AdminTopicItemDto,
@@ -143,9 +144,11 @@ export class AdminController {
   }
 
   @Get('topics')
-  async listTopics(): Promise<AdminTopicListResponseDto> {
+  async listTopics(
+    @Query() query: AdminTopicQueryRequestDto,
+  ): Promise<AdminTopicListResponseDto> {
     return AdminTopicListResponseDto.from(
-      await this.adminTopicService.findAll(new Date()),
+      await this.adminTopicService.findAll(new Date(), query.market),
     );
   }
 

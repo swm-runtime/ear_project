@@ -141,9 +141,12 @@ export class TopicService {
     );
   }
 
-  /** admin.md 5장 — 숨긴 주제까지 전부. 관리자만 쓴다 */
-  async findAll(manager?: EntityManager): Promise<Topic[]> {
-    return this.topicRepository.findAll(manager);
+  /** admin.md 5장 — 숨긴 주제까지 전부. 관리자만 쓴다. `market`을 주면 그 시장 주제만(KAN-237) */
+  async findAll(
+    filter: { market?: UserMarket } = {},
+    manager?: EntityManager,
+  ): Promise<Topic[]> {
+    return this.topicRepository.findAll(filter, manager);
   }
 
   /** 잠금 조회 — 노출 판정과 갱신을 직렬화한다(`TopicRepository.findAllByIdsForUpdate`) */
@@ -199,7 +202,7 @@ export class TopicService {
       command.displayOrder ??
       Math.max(
         0,
-        ...(await this.topicRepository.findAll(manager)).map(
+        ...(await this.topicRepository.findAll({}, manager)).map(
           (t) => t.displayOrder,
         ),
       ) + 1;

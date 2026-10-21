@@ -38,11 +38,18 @@ export class TopicRepository {
   }
 
   /**
-   * 숨긴 주제까지 시장 구분 없이 전부. 관리자 주제 목록(`TopicService.findAll` → `AdminTopicService`, admin.md 5장)과
+   * 숨긴 주제까지 전부(`filter.market`이 없으면 시장 구분 없이). 관리자 주제 목록(`TopicService.findAll` → `AdminTopicService`, admin.md 5장)과
    * 새 주제의 기본 `display_order`(최댓값 + 1 — `TopicService.create`)가 쓴다. 사용자 경로는 노출 주제 조회를 쓴다
    */
-  async findAll(manager?: EntityManager): Promise<Topic[]> {
-    return this.scoped(manager).find({ order: { displayOrder: 'ASC' } });
+  async findAll(
+    filter: { market?: UserMarket } = {},
+    manager?: EntityManager,
+  ): Promise<Topic[]> {
+    return this.scoped(manager).find({
+      // 시장 필터는 관리자 목록 `?market=`(KAN-237)용. 없으면 전 시장
+      where: filter.market ? { market: filter.market } : {},
+      order: { displayOrder: 'ASC' },
+    });
   }
 
   async findAllByIds(ids: string[], manager?: EntityManager): Promise<Topic[]> {
