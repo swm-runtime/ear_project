@@ -168,6 +168,12 @@ const ko = {
     },
     /** 지금 플레이어에 올라 있는 편 — 번호 자리 표식의 낭독 */
     nowPlaying: '재생 중',
+    /** 머리 [재생] — 아직 다 듣지 않은 가장 앞 편(전부 들었으면 1화). 낭독은 어느 편인지까지 */
+    play: '재생',
+    playA11y: (episodeNo: number, title: string) => `재생, ${episodeNo}화 ${title}`,
+    /** 앱바 오른쪽 캡슐의 ⋯ — 시리즈 시트(공유 · 소개 전체 보기) */
+    moreA11y: '시리즈 더보기',
+    aboutAction: '소개 전체 보기',
     /** 편 행의 내 상태 — 서버 값(library·progress)을 글자로 옮긴다. 색만으로 말하지 않는다 */
     state: {
       completed: '완청',
@@ -329,6 +335,10 @@ const en: LocalizedCopy<typeof ko> = {
       return `${formatEnCount(count, { one: 'episode', other: 'episodes' })}, ${length}`;
     },
     nowPlaying: 'Now playing',
+    play: 'Play',
+    playA11y: (episodeNo: number, title: string) => `Play, episode ${episodeNo}, ${title}`,
+    moreA11y: 'More for this series',
+    aboutAction: 'Show description',
     state: {
       completed: 'Played',
       saved: 'In Library',

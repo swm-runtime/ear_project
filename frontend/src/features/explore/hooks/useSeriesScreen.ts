@@ -13,11 +13,12 @@ import { useToastStore } from '@/shared/ui/toast.store';
 
 import { libraryKeys } from '@/features/library';
 import { sendSourceLinkClick, usePlayGate } from '@/features/player';
-import { useDeferredSheetShare } from '@/features/share';
+import { shareContent, useDeferredSheetShare } from '@/features/share';
 
 import { exploreKeys } from '../api/explore.api';
 import { EXPLORE_COPY } from '../explore.copy';
 import { toQueueSnapshot } from '../explore.queue';
+import { pickSeriesPlayEpisode, seriesEpisodeSubtitle } from '../explore.series-episode';
 import type { ExploreItem, ExploreLibraryState, SeriesDetail } from '../explore.types';
 import { useSaveContentMutation } from './useSaveContentMutation';
 import { useSeriesDetailQuery } from './useSeriesDetailQuery';
@@ -43,7 +44,8 @@ const isSeriesNotFound = (error: unknown): boolean =>
 /**
  * 시리즈 화면(E14 — explore.md 4.7) ViewModel. 편 행의 동작은 탐색 행과 **같은 계약·같은 규칙**이다 — 행 탭 = 재생 확인 팝업
  * → 재생(진입점 `explore`, 자동 적립 포함 — explore.md 4.4), [더보기] = 상세 정보·원문 보기·담기/제거(4.3).
- * "다음 화 듣기"·연속 재생은 두지 않는다(KAN-225 결정 — 보류)
+ * 머리 [재생](PM 2026-10-22)은 아직 다 듣지 않은 가장 앞 편 하나를 같은 재생 판정으로 튼다 — 연속 재생은 여전히 없다.
+ * 앱바 캡슐: [공유](시리즈 제목 + 1화 링크) · ⋯ 시리즈 시트(공유 · 소개 전체 보기)
  */
 export const useSeriesScreen = () => {
   const navigation = useNavigation();
@@ -271,6 +273,32 @@ export const useSeriesScreen = () => {
       (detail?.episodes ?? []).filter((episode) => !hiddenContentIds.has(episode.item.content.id)),
     [detail, hiddenContentIds],
   );
+
+  /* ── 머리 [재생] — 아직 다 듣지 않은 가장 앞 편(전부 들었으면 1화). 판정·팝업은 편 행 탭과 같은 길 ── */
+  const playEpisode = pickSeriesPlayEpisode(episodes);
+  const playSeries = () => {
+    if (playEpisode) handleEpisodePress(playEpisode.item);
+  };
+
+  /*
+   * ── 시리즈 공유 — 시리즈 전용 링크가 아직 없어 **1화(노출 중인 가장 앞 편) 상세 링크**에 시리즈 제목을 싣는다. 받은 사람은
+   * 1화 상세의 시리즈 줄로 이 화면에 온다. 캡슐 아이콘은 바로 열고, 시트의 [공유]는 시트가 닫힌 뒤 연다 ──
+   */
+  const seriesShareInput = () => {
+    const first = episodes[0];
+    if (!detail || !first) return null;
+    return { contentId: first.item.content.id, title: detail.series.title, entry: 'series' };
+  };
+  const shareSeries = () => {
+    const input = seriesShareInput();
+    if (input) void shareContent(input);
+  };
+  const [isSeriesSheetOpen, setIsSeriesSheetOpen] = useState(false);
+  const shareSeriesFromSheet = () => {
+    setIsSeriesSheetOpen(false);
+    const input = seriesShareInput();
+    if (input) requestShare(input);
+  };
   const isInitialLoading = detailQuery.isPending;
   const showSkeleton = useDelayedVisible(isInitialLoading);
   const isNotFound = !detail && isSeriesNotFound(detailQuery.error);
@@ -291,6 +319,21 @@ export const useSeriesScreen = () => {
     goBack: () => navigation.goBack(),
     // 재생
     handleEpisodePress,
+    playTarget:
+      playEpisode && detail
+        ? {
+            episodeNo: playEpisode.episodeNo,
+            title: seriesEpisodeSubtitle(playEpisode.item.content.title, detail.series.title),
+          }
+        : null,
+    playSeries,
+    // 앱바 캡슐 · 시리즈 시트
+    canShareSeries: detail !== undefined && episodes.length > 0,
+    shareSeries,
+    isSeriesSheetOpen,
+    openSeriesSheet: () => setIsSeriesSheetOpen(true),
+    closeSeriesSheet: () => setIsSeriesSheetOpen(false),
+    shareSeriesFromSheet,
     playConfirm: playGate.confirmState,
     confirmPlay: playGate.confirmPlay,
     cancelPlayConfirm: playGate.cancelConfirm,

@@ -22,6 +22,7 @@ export default function SeriesSkeleton() {
         <SkeletonBlock width={coverSize} height={coverSize} radius="md" />
         <SkeletonLine height={24} width="60%" />
         <SkeletonLine height={theme.font.size.sm} width="40%" />
+        <SkeletonBlock width={200} height={52} radius="full" style={styles.playSlot} />
       </View>
       {Array.from({ length: ROW_COUNT }, (_, index) => (
         <View key={index} style={styles.row}>
@@ -53,6 +54,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: SERIES_EPISODE_NUMBER_GAP,
     paddingVertical: theme.spacing.sm + 2,
+  },
+  // 머리 [재생] 알약 자리 — 메타 줄과의 간격(lg)을 맞춘다
+  playSlot: {
+    marginTop: theme.spacing.md,
   },
   numberCell: {
     width: SERIES_EPISODE_NUMBER_WIDTH,

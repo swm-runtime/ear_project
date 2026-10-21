@@ -63,3 +63,11 @@ export const seriesEpisodeSubtitle = (title: string, seriesTitle: string): strin
   const rest = title.slice(match[0].length).trim();
   return rest.length > 0 ? rest : title;
 };
+
+/**
+ * 머리 [재생]이 틀 편 — **아직 다 듣지 않은 가장 앞 편**(듣다 만 편이면 서버 재생 위치에서 이어진다), 전부 완청이면 1화부터
+ * (PM 2026-10-22 — 앨범 화면의 재생 버튼). 순서는 서버가 준 목록(episode_no 오름차순) 그대로. 편이 없으면 null.
+ * 한 편만 튼다 — 끝난 뒤 다음 편으로 넘어가는 연속 재생은 없다(보류 그대로)
+ */
+export const pickSeriesPlayEpisode = (episodes: readonly SeriesEpisode[]): SeriesEpisode | null =>
+  episodes.find((episode) => !toSeriesEpisodeState(episode).isCompleted) ?? episodes[0] ?? null;
