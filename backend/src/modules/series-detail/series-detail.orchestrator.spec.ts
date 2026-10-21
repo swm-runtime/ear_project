@@ -115,6 +115,8 @@ describe('SeriesDetailOrchestrator', () => {
       progress: { positionSec: 120, maxReachedSec: 150 },
       isCountedToday: true,
     });
+    // 대표 중분류 — 편에 걸린 주제가 하나뿐이면 그게 대표다(제목 아래 카테고리 줄)
+    expect(view.topic).toEqual({ id: 't1', name: 'CS' });
     // 편 수만큼 묻지 않는다
     expect(libraryService.findActiveItems).toHaveBeenCalledWith(USER_ID, [
       'c1',
@@ -124,6 +126,61 @@ describe('SeriesDetailOrchestrator', () => {
       'c1',
       'c3',
     ]);
+  });
+
+  it('대표 중분류는 가장 많은 편에 걸린 주제다', async () => {
+    // given — t2(개발)는 두 편, t1(CS)은 한 편(topicViews 는 display_order ASC 순서로 온다)
+    contentService.findTopicViews.mockResolvedValue([
+      { contentId: 'c1', topicId: 't1', name: 'CS' },
+      { contentId: 'c1', topicId: 't2', name: '개발' },
+      { contentId: 'c3', topicId: 't2', name: '개발' },
+    ]);
+
+    // when
+    const view = await orchestrator.getSeries(
+      USER_ID,
+      SERIES_ID,
+      NOW,
+      UserMarket.KR,
+    );
+
+    // then
+    expect(view.topic).toEqual({ id: 't2', name: '개발' });
+  });
+
+  it('편수가 같으면 display_order 가 앞선(먼저 온) 주제가 대표다', async () => {
+    // given — t1·t2 각 한 편. topicViews 는 display_order ASC 라 먼저 온 t1 이 이긴다
+    contentService.findTopicViews.mockResolvedValue([
+      { contentId: 'c1', topicId: 't1', name: 'CS' },
+      { contentId: 'c3', topicId: 't2', name: '개발' },
+    ]);
+
+    // when
+    const view = await orchestrator.getSeries(
+      USER_ID,
+      SERIES_ID,
+      NOW,
+      UserMarket.KR,
+    );
+
+    // then
+    expect(view.topic).toEqual({ id: 't1', name: 'CS' });
+  });
+
+  it('노출 편에 주제가 하나도 없으면 대표 중분류는 null 이다', async () => {
+    // given
+    contentService.findTopicViews.mockResolvedValue([]);
+
+    // when
+    const view = await orchestrator.getSeries(
+      USER_ID,
+      SERIES_ID,
+      NOW,
+      UserMarket.KR,
+    );
+
+    // then
+    expect(view.topic).toBeNull();
   });
 
   it('시리즈를 볼 수 없으면(없음·다른 시장) 404를 그대로 올린다', async () => {
