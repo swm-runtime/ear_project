@@ -48,7 +48,47 @@ const summary = (): InsightsSummary => ({
     }),
     window: listening(),
   },
-  daily: [],
+  daily: [
+    {
+      date: '2026-10-07',
+      signups: 1,
+      withdrawals: 0,
+      plays: 3,
+      listeners: 2,
+      listenSec: 600,
+      completes: 1,
+      activeUsers: 5,
+    },
+    {
+      date: '2026-09-01',
+      signups: 0,
+      withdrawals: 0,
+      plays: 0,
+      listeners: 0,
+      listenSec: 0,
+      completes: 0,
+      activeUsers: null,
+    },
+  ],
+  weekday: [
+    {
+      weekday: 1,
+      label: '월',
+      days: 2,
+      activeDays: 1,
+      avgActiveUsers: 5,
+      avgListeners: 1.5,
+    },
+    {
+      weekday: 2,
+      label: '화',
+      days: 0,
+      activeDays: 0,
+      avgActiveUsers: null,
+      avgListeners: null,
+    },
+  ],
+  activeUsersSince: '2026-09-19',
   hourly: [],
   topUsers: [
     {
@@ -73,11 +113,60 @@ const summary = (): InsightsSummary => ({
       saves: 2,
     },
   ],
+  recentTopContents: [
+    {
+      contentId: 'c2',
+      title: 'R',
+      durationSec: 300,
+      listenSec: 900,
+      plays: 3,
+      listeners: 3,
+      completes: 0,
+      saves: 1,
+    },
+  ],
+  recentSince: new Date('2026-10-07T00:00:00.000Z'),
   withdrawalReasons: [{ reasonCode: null, count: 3 }],
   retention: [
     { day: 1, cohortSize: 200, returned: 50 },
     { day: 30, cohortSize: 0, returned: 0 },
   ],
+  retentionCohorts: {
+    daily: {
+      span: 1,
+      offsets: [1, 7],
+      reliableSince: '2026-09-19',
+      rows: [
+        {
+          start: '2026-10-07',
+          users: 8,
+          cells: [{ returned: 2, partial: false }, null],
+        },
+        {
+          start: '2026-10-06',
+          users: 0,
+          cells: [{ returned: 0, partial: false }, null],
+        },
+      ],
+    },
+    weekly: {
+      span: 7,
+      offsets: [1, 2, 3, 4],
+      reliableSince: '2026-09-19',
+      rows: [
+        {
+          start: '2026-08-24',
+          users: 10,
+          cells: [
+            { returned: 4, partial: true },
+            { returned: 3, partial: false },
+            { returned: 3, partial: false },
+            { returned: 2, partial: false },
+          ],
+        },
+      ],
+    },
+  },
   topicSupply: [
     {
       topicId: 'topic-1',
@@ -140,6 +229,18 @@ describe('AdminInsightsSummaryResponseDto', () => {
       last_played_at: '2026-10-07T00:00:00.000Z',
     });
     expect(dto.top_contents[0].complete_rate).toBe(0.25);
+    expect(dto.recent_top_contents[0]).toEqual({
+      content_id: 'c2',
+      title: 'R',
+      duration_sec: 300,
+      listen_sec: 900,
+      plays: 3,
+      listeners: 3,
+      completes: 0,
+      complete_rate: 0,
+      saves: 1,
+    });
+    expect(dto.recent_since).toBe('2026-10-07T00:00:00.000Z');
     expect(dto.retention[0].rate).toBe(0.25);
     expect(dto.retention[1].rate).toBeNull();
     expect(dto.withdrawal_reasons[0]).toEqual({ reason_code: null, count: 3 });
@@ -153,6 +254,32 @@ describe('AdminInsightsSummaryResponseDto', () => {
       median_remaining: 1.5,
       exhausted_users: 20,
       low_users: 90,
+    });
+  });
+
+  it('코호트 칸마다 비율을 붙이고, 끝나지 않은 칸(null)과 가입 0명 묶음의 비율(null)을 그대로 둔다', () => {
+    // when
+    const dto = AdminInsightsSummaryResponseDto.from(summary(), 14);
+
+    // then
+    const daily = dto.retention_cohorts.daily;
+    expect(daily.span).toBe(1);
+    expect(daily.offsets).toEqual([1, 7]);
+    expect(daily.reliable_since).toBe('2026-09-19');
+    expect(daily.rows[0]).toEqual({
+      start: '2026-10-07',
+      users: 8,
+      cells: [{ returned: 2, rate: 0.25, partial: false }, null],
+    });
+    expect(daily.rows[1].cells[0]).toEqual({
+      returned: 0,
+      rate: null,
+      partial: false,
+    });
+    expect(dto.retention_cohorts.weekly.rows[0].cells[0]).toEqual({
+      returned: 4,
+      rate: 0.4,
+      partial: true,
     });
   });
 
@@ -174,6 +301,33 @@ describe('AdminInsightsSummaryResponseDto', () => {
         paid_active: 0,
       },
     ]);
+  });
+
+  it('일별 접속자·요일별 평균·첫 신뢰 날짜를 snake_case 로 내리고, 모르는 값은 null 그대로 둔다', () => {
+    // when
+    const dto = AdminInsightsSummaryResponseDto.from(summary(), 14);
+
+    // then
+    expect(dto.daily.map((d) => d.active_users)).toEqual([5, null]);
+    expect(dto.weekday).toEqual([
+      {
+        weekday: 1,
+        label: '월',
+        days: 2,
+        active_days: 1,
+        avg_active_users: 5,
+        avg_listeners: 1.5,
+      },
+      {
+        weekday: 2,
+        label: '화',
+        days: 0,
+        active_days: 0,
+        avg_active_users: null,
+        avg_listeners: null,
+      },
+    ]);
+    expect(dto.active_users_since).toBe('2026-09-19');
   });
 
   it('개인 식별 정보 필드가 어디에도 없다 — 사용자 순위는 user_id·티어·날짜뿐', () => {

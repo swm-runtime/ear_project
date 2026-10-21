@@ -4,8 +4,10 @@ import { User } from '@/modules/user/entities/user.entity';
 import { UserService } from '@/modules/user/services/user.service';
 
 import { PlaybackProgressRepository } from '../repositories/playback-progress.repository';
+import { PlayDailyTotalRepository } from '../repositories/play-daily-total.repository';
 import { PlayRecordRepository } from '../repositories/play-record.repository';
 import { UserSignalRepository } from '../repositories/user-signal.repository';
+import { UserSignalAction } from '../playback.enum';
 import { PlaybackService } from './playback.service';
 
 const USER_ID = '11111111-1111-4111-8111-111111111111';
@@ -19,6 +21,7 @@ describe('PlaybackService', () => {
   let service: PlaybackService;
   let progressRepository: jest.Mocked<PlaybackProgressRepository>;
   let playRecordRepository: jest.Mocked<PlayRecordRepository>;
+  let playDailyTotalRepository: jest.Mocked<PlayDailyTotalRepository>;
   let userSignalRepository: jest.Mocked<UserSignalRepository>;
   let userService: jest.Mocked<UserService>;
   let planService: jest.Mocked<PlanService>;
@@ -34,7 +37,13 @@ describe('PlaybackService', () => {
       findAllCountedContentIdsSince: jest.fn().mockResolvedValue([]),
       insertIgnoringConflicts: jest.fn().mockResolvedValue(true),
       existsCountedSince: jest.fn().mockResolvedValue(false),
+      findLatestByUserIdAndContentId: jest.fn().mockResolvedValue(null),
+      incrementListenedSec: jest.fn().mockResolvedValue(undefined),
     } as unknown as jest.Mocked<PlayRecordRepository>;
+
+    playDailyTotalRepository = {
+      add: jest.fn().mockResolvedValue(undefined),
+    } as unknown as jest.Mocked<PlayDailyTotalRepository>;
 
     userSignalRepository = {
       insert: jest.fn(),
@@ -59,6 +68,7 @@ describe('PlaybackService', () => {
     service = new PlaybackService(
       progressRepository,
       playRecordRepository,
+      playDailyTotalRepository,
       userSignalRepository,
       userService,
       planService,
@@ -106,6 +116,93 @@ describe('PlaybackService', () => {
 
       // then
       expect(counted).toBe(false);
+      // 재생 행이 늘지 않았으니 누적 재생 수도 늘지 않는다
+      expect(playDailyTotalRepository.add).not.toHaveBeenCalled();
+    });
+
+    it('행이 새로 생기면 그 서비스 날짜의 누적 재생 수에 1을 더한다 — 탈퇴로 줄지 않는 누적의 원천', async () => {
+      const manager = {} as never;
+
+      await service.recordPlay(
+        USER_ID,
+        CONTENT_ID,
+        false,
+        BEFORE_BOUNDARY,
+        manager,
+      );
+
+      // 재청취 창 안(차감 없음)의 행도 재생 기록이라 센다 — `play_records` 행 수와 같은 정의
+      expect(playDailyTotalRepository.add).toHaveBeenCalledWith(
+        '2026-08-04',
+        { playCount: 1, listenSec: 0 },
+        manager,
+      );
+    });
+  });
+
+  describe('recordSignal', () => {
+    it('완청 신호면 그 서비스 날짜의 누적 완청 수에 1을 더한다 — 신호가 지워져도 줄지 않는 누적', async () => {
+      const manager = {} as never;
+
+      await service.recordSignal(
+        USER_ID,
+        CONTENT_ID,
+        UserSignalAction.COMPLETE,
+        manager,
+      );
+
+      expect(userSignalRepository.insert).toHaveBeenCalled();
+      expect(playDailyTotalRepository.add).toHaveBeenCalledWith(
+        expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/),
+        { completeCount: 1 },
+        manager,
+      );
+    });
+
+    it('완청이 아닌 신호는 누적에 더하지 않는다', async () => {
+      await service.recordSignal(USER_ID, CONTENT_ID, UserSignalAction.PLAY);
+
+      expect(playDailyTotalRepository.add).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('addListenedSec', () => {
+    it('재생 행에 더한 만큼 그 행의 날짜(재생 시작일)의 누적 청취 시간에도 더한다', async () => {
+      const manager = {} as never;
+      playRecordRepository.findLatestByUserIdAndContentId.mockResolvedValue({
+        id: '7',
+        playDate: '2026-08-03',
+      } as never);
+
+      const added = await service.addListenedSec(
+        USER_ID,
+        CONTENT_ID,
+        30,
+        manager,
+      );
+
+      expect(added).toBe(true);
+      expect(playRecordRepository.incrementListenedSec).toHaveBeenCalledWith(
+        '7',
+        30,
+        manager,
+      );
+      expect(playDailyTotalRepository.add).toHaveBeenCalledWith(
+        '2026-08-03',
+        { playCount: 0, listenSec: 30 },
+        manager,
+      );
+    });
+
+    it('재생 행이 없거나 더할 값이 0 이하면 누적에도 더하지 않는다', async () => {
+      await service.addListenedSec(USER_ID, CONTENT_ID, 30);
+      playRecordRepository.findLatestByUserIdAndContentId.mockResolvedValue({
+        id: '7',
+        playDate: '2026-08-03',
+      } as never);
+      await service.addListenedSec(USER_ID, CONTENT_ID, 0);
+
+      expect(playDailyTotalRepository.add).not.toHaveBeenCalled();
     });
   });
 

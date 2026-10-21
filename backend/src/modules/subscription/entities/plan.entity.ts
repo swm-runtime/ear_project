@@ -28,6 +28,16 @@ export class Plan extends BaseEntity {
   @Column({ name: 'description', type: 'text' })
   description: string;
 
+  /**
+   * 영어 이름·설명(domain.md 8.1 — 2026-10-16). GLOBAL 사용자에게 내려준다(`planTextOf`). 서버 문구의 언어는 기기 언어가
+   * 아니라 **시장**으로 고른다 — 푸시·인증 메일과 같은 기준이다(`messageLanguageOf`). NULL이면 한국어로 내려간다.
+   */
+  @Column({ name: 'name_en', type: 'varchar', length: 50, nullable: true })
+  nameEn: string | null;
+
+  @Column({ name: 'description_en', type: 'text', nullable: true })
+  descriptionEn: string | null;
+
   /** null = 무제한 */
   @Column({ name: 'daily_play_limit', type: 'int', nullable: true })
   dailyPlayLimit: number | null;

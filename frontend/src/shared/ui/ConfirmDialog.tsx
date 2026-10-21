@@ -1,5 +1,13 @@
-import type { ReactNode } from 'react';
-import { ActivityIndicator, Modal, Pressable, StyleSheet, View } from 'react-native';
+import { useState, type ReactNode } from 'react';
+import {
+  ActivityIndicator,
+  Modal,
+  Pressable,
+  StyleSheet,
+  View,
+  type NativeSyntheticEvent,
+  type TextLayoutEventData,
+} from 'react-native';
 
 import { theme } from '@/shared/theme';
 import GlassSurface, { HAS_LIQUID_GLASS } from '@/shared/ui/GlassSurface';
@@ -35,6 +43,11 @@ export interface ConfirmDialogProps {
   /** 제목 위 아이콘(알림 사전 안내의 종). 있으면 제목·본문을 가운데 정렬한다 — 아이콘이 가운데인데 글이 왼쪽이면 어긋난다 */
   icon?: ReactNode;
   /**
+   * 제목 줄 오른쪽 위의 세 번째 선택지("이번 주 그만 보기" 류 — design.md §5). 버튼 줄에 세우지 않는다 — 세 번째 버튼처럼
+   * 읽혀 시선이 갈린다. 작은 회색 글자 버튼을 넘긴다(히트 44pt 는 그쪽 hitSlop). 제목과 함께 써야 하고 아이콘과는 같이 쓰지 않는다
+   */
+  titleAccessory?: ReactNode;
+  /**
    * 딤 영역 탭으로 닫히는가(기본 true). 커리어 이탈 확인(CR5)처럼 **파괴적 결과가 걸린 팝업은 false** —
    * 의도 없는 탭으로 닫히면 어느 쪽을 고른 것인지 알 수 없다(career-uiux.md 4.6). 뒤로가기는 언제나 `onCloseRequest`
    */
@@ -62,6 +75,10 @@ export interface ConfirmDialogProps {
  * 글라스 면(GlassView), 큰 연속 곡률(32), 왼쪽 정렬 제목 17 굵게 · 본문 15, 높이 48 캡슐 버튼 둘을 나란히. 보조 동작은
  * 반투명 회색 캡슐(시스템 알림 버튼과 같은 결), 주 동작은 우리 앱 주 동작 그대로 검정 채움, 주 액션은 오른쪽.
  * 그 밑 iOS · Android 는 같은 모양에 흰 면(글라스 없음).
+ *
+ * **라벨이 한 줄에 안 들어가면 버튼을 세로로 쌓는다**(2026-10-18 영어 QA — "Turn on notifications" 가 반쪽 캡슐에서
+ * 두 줄로 넘쳤다). iOS 시스템 알림도 버튼 글자가 길면 가로 둘을 세로로 바꾼다(HIG Alerts). 판정은 글자 길이가 아니라
+ * 실제 줄 수(`onTextLayout`)라 언어·글꼴 크기와 무관하게 견딘다. 쌓을 때는 주 동작이 위, 보조 동작이 아래다.
  */
 export default function ConfirmDialog({
   isVisible,
@@ -69,6 +86,7 @@ export default function ConfirmDialog({
   body,
   children,
   icon,
+  titleAccessory,
   dismissOnBackdrop = true,
   secondaryAction,
   primaryAction,
@@ -79,6 +97,78 @@ export default function ConfirmDialog({
     (secondaryAction?.disabled ?? false) || (secondaryAction?.isBusy ?? false);
   const primaryDisabled = (primaryAction.disabled ?? false) || (primaryAction.isBusy ?? false);
   const centered = icon !== undefined;
+
+  // 세로 쌓기는 **그 라벨 조합에 대해서만** 기억한다 — 라벨이 바뀌면(같은 다이얼로그를 다른 문구로 재사용) 다시 가로로 재 본다.
+  // 쌓은 뒤엔 버튼이 넓어져 한 줄로 들어가므로, 줄 수만 보고 되돌리면 가로·세로를 오간다
+  const labelsKey =
+    secondaryAction === undefined
+      ? null
+      : JSON.stringify([secondaryAction.label, primaryAction.label]);
+  const [stackedLabelsKey, setStackedLabelsKey] = useState<string | null>(null);
+  const isStacked = labelsKey !== null && stackedLabelsKey === labelsKey;
+  const handleLabelLayout = (event: NativeSyntheticEvent<TextLayoutEventData>) => {
+    if (isStacked || labelsKey === null) return;
+    if (event.nativeEvent.lines.length > 1) setStackedLabelsKey(labelsKey);
+  };
+
+  const secondaryButton =
+    secondaryAction === undefined ? null : (
+      <Pressable
+        style={[
+          pillButton.base,
+          pillButton.secondary,
+          styles.button,
+          isStacked && styles.buttonStacked,
+          HAS_LIQUID_GLASS && styles.buttonOnGlass,
+          secondaryDisabled && styles.buttonDisabled,
+        ]}
+        onPress={secondaryAction.onPress}
+        disabled={secondaryDisabled}
+        accessibilityRole="button"
+        accessibilityLabel={secondaryAction.label}
+        accessibilityState={{ disabled: secondaryDisabled }}
+      >
+        {secondaryAction.isBusy ? (
+          <ActivityIndicator color={theme.color.textPrimary} />
+        ) : (
+          <Text style={[pillButton.secondaryLabel, styles.label]} onTextLayout={handleLabelLayout}>
+            {secondaryAction.label}
+          </Text>
+        )}
+      </Pressable>
+    );
+
+  const primaryButton = (
+    <Pressable
+      style={[
+        pillButton.base,
+        isDestructive ? pillButton.destructive : pillButton.primary,
+        styles.button,
+        isStacked && styles.buttonStacked,
+        primaryDisabled && styles.buttonDisabled,
+      ]}
+      onPress={primaryAction.onPress}
+      disabled={primaryDisabled}
+      accessibilityRole="button"
+      accessibilityLabel={primaryAction.label}
+      accessibilityState={{ disabled: primaryDisabled }}
+    >
+      {primaryAction.isBusy ? (
+        <ActivityIndicator color={theme.color.onPrimary} />
+      ) : (
+        <Text
+          style={[
+            isDestructive ? pillButton.destructiveLabel : pillButton.primaryLabel,
+            styles.label,
+          ]}
+          onTextLayout={handleLabelLayout}
+        >
+          {primaryAction.label}
+        </Text>
+      )}
+    </Pressable>
+  );
+
   return (
     <Modal visible={isVisible} transparent animationType="fade" onRequestClose={onCloseRequest}>
       <Pressable
@@ -95,59 +185,25 @@ export default function ConfirmDialog({
                   {icon}
                 </View>
               ) : null}
-              {title !== undefined ? (
+              {title !== undefined && titleAccessory !== undefined ? (
+                <View style={styles.titleRow}>
+                  <Text style={[styles.title, styles.titleInRow]}>{title}</Text>
+                  {titleAccessory}
+                </View>
+              ) : title !== undefined ? (
                 <Text style={[styles.title, centered && styles.textCentered]}>{title}</Text>
               ) : null}
               {body !== undefined ? (
                 <Text style={[styles.body, centered && styles.textCentered]}>{body}</Text>
               ) : null}
               {children}
-              <View style={styles.actions}>
-                {secondaryAction === undefined ? null : (
-                  <Pressable
-                    style={[
-                      pillButton.base,
-                      pillButton.secondary,
-                      styles.button,
-                      HAS_LIQUID_GLASS && styles.buttonOnGlass,
-                      secondaryDisabled && styles.buttonDisabled,
-                    ]}
-                    onPress={secondaryAction.onPress}
-                    disabled={secondaryDisabled}
-                    accessibilityRole="button"
-                    accessibilityLabel={secondaryAction.label}
-                    accessibilityState={{ disabled: secondaryDisabled }}
-                  >
-                    {secondaryAction.isBusy ? (
-                      <ActivityIndicator color={theme.color.textPrimary} />
-                    ) : (
-                      <Text style={pillButton.secondaryLabel}>{secondaryAction.label}</Text>
-                    )}
-                  </Pressable>
-                )}
-                <Pressable
-                  style={[
-                    pillButton.base,
-                    isDestructive ? pillButton.destructive : pillButton.primary,
-                    styles.button,
-                    primaryDisabled && styles.buttonDisabled,
-                  ]}
-                  onPress={primaryAction.onPress}
-                  disabled={primaryDisabled}
-                  accessibilityRole="button"
-                  accessibilityLabel={primaryAction.label}
-                  accessibilityState={{ disabled: primaryDisabled }}
-                >
-                  {primaryAction.isBusy ? (
-                    <ActivityIndicator color={theme.color.onPrimary} />
-                  ) : (
-                    <Text
-                      style={isDestructive ? pillButton.destructiveLabel : pillButton.primaryLabel}
-                    >
-                      {primaryAction.label}
-                    </Text>
-                  )}
-                </Pressable>
+              <View
+                style={[styles.actions, isStacked && styles.actionsStacked]}
+                testID="confirm-dialog-actions"
+              >
+                {/* 가로: 보조 왼쪽 · 주 오른쪽. 세로: 주 위 · 보조 아래(시스템 알림의 쌓인 버튼 순서) */}
+                {isStacked ? primaryButton : secondaryButton}
+                {isStacked ? secondaryButton : primaryButton}
               </View>
             </View>
           </View>
@@ -199,6 +255,16 @@ const styles = StyleSheet.create({
     color: theme.color.textPrimary,
     lineHeight: 17 * 1.35,
   },
+  // 제목 + 오른쪽 위 작은 글자(titleAccessory) — 제목이 길면 줄바꿈하고 글자는 첫 줄 높이에 붙는다
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: theme.spacing.sm,
+  },
+  titleInRow: {
+    flex: 1,
+  },
   body: {
     fontSize: 15,
     color: theme.color.textSecondary,
@@ -210,11 +276,25 @@ const styles = StyleSheet.create({
     gap: theme.spacing.sm,
     marginTop: theme.spacing.md,
   },
+  // 라벨이 반쪽 캡슐에 안 들어갈 때 — 버튼마다 한 줄 전체 폭(위 ConfirmDialog 주석)
+  actionsStacked: {
+    flexDirection: 'column',
+  },
   // 크기만 — 모양·역할 색은 공용 알약(pillButton). 보조 동작은 테두리 없는 연한 면(design.md §5, 2026-09-22 PM
   // "검정 버튼 옆에서 선으로 그린 상자는 낡아 보인다"), 파괴적 확인은 채운 빨강(위 isDestructive 주석)
   button: {
     flex: 1,
     minHeight: BUTTON_HEIGHT,
+  },
+  // 세로로 쌓으면 flex: 1 이 높이로 늘어나므로 끈다 — 폭은 줄 전체(stretch)
+  buttonStacked: {
+    flex: 0,
+    alignSelf: 'stretch',
+  },
+  // 캡슐 안 글자 — 두 줄로 넘쳐도 가운데 정렬(쌓기 전 한 프레임, 세로 쌓은 뒤에도 넘치는 아주 긴 라벨)
+  label: {
+    textAlign: 'center',
+    paddingHorizontal: theme.spacing.md,
   },
   // 글라스 위 보조 동작 — 시스템 알림 버튼처럼 반투명 회색(흰 surface 면은 유리 위에서 뜬다)
   buttonOnGlass: {

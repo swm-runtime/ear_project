@@ -1,5 +1,4 @@
-import { Image as ExpoImage } from 'expo-image';
-import { Image, Platform, Pressable, StyleSheet, useWindowDimensions, View } from 'react-native';
+import { Pressable, StyleSheet, useWindowDimensions, View } from 'react-native';
 
 import { theme } from '@/shared/theme';
 import MoreIcon from '@/shared/ui/MoreIcon';
@@ -8,6 +7,7 @@ import { Text } from '@/shared/ui/Typography';
 
 import { EXPLORE_COPY } from '../explore.copy';
 import type { ExploreItem } from '../explore.types';
+import FeaturedCardBackdrop, { ON_ART_TEXT, ON_ART_TEXT_SECONDARY } from './FeaturedCardBackdrop';
 
 /** 하단 줄에 적는 주제 수 — 그 이상은 길이를 밀어낸다(플레이어 제목 줄과 같은 규칙) */
 const MAX_TOPIC_TAGS = 2;
@@ -22,6 +22,11 @@ interface ExploreFeaturedCardProps {
   /** 카드 본문 탭 = 곧장 재생 판정. 상세 화면을 끼우지 않는다(explore-uiux.md 4.1) */
   onPress: (item: ExploreItem) => void;
   onMorePress: (item: ExploreItem) => void;
+  /**
+   * 하단 줄 해시태그 탭 → `#태그` 검색(KAN-219, explore-uiux.md 4.1). 태그 글자만 따로 눌린다 — 카드 본문(재생)과 겹치지
+   * 않는 하단 줄에 있다. 콘텐츠 태그가 없어 주제 이름으로 대신 적을 때는 태그가 아니라 눌리지 않는다
+   */
+  onTagPress?: (tag: string) => void;
 }
 
 const toMinutes = (durationSec: number): number => Math.max(1, Math.round(durationSec / 60));
@@ -35,16 +40,9 @@ const MAX_WIDTH = 312;
 /** 대표 카드 폭 — 화면 폭에서 정한다(카드 안 사진·제목 배치의 기준) */
 export const featuredCardWidth = (windowWidth: number): number =>
   Math.min(windowWidth * WIDTH_RATIO, MAX_WIDTH);
-/**
- * 카드 하단(제목·알약 줄)의 바탕은 **앨범아트가 흐리게 이어진 면**이다(PM 2026-09-25 22:01 "blur 처리해서 마치
- * 이어진 것처럼"). 카드 전체에 흐린 커버를 깔고 위 정사각형만 선명한 커버가 덮는다 — 플레이어 배경과 같은 방식
- * (기본 Image blurRadius, expo-image 는 세기 기준이 달라 톤이 바뀐다). 우리 커버는 차콜 계열이라 하단 글자는
- * 플레이어 팔레트(흰 글자)로, 밝은 커버가 와도 읽히게 어두운 막을 한 겹 둔다
- */
-const BACKDROP_BLUR_RADIUS = 36;
-const BACKDROP_SCRIM = 'rgba(23, 23, 26, 0.45)';
-const ON_ART_TEXT = '#FFFFFF';
-const ON_ART_TEXT_SECONDARY = 'rgba(255, 255, 255, 0.72)';
+/* 하단 바탕(흐린 커버 + 막)은 FeaturedCardBackdrop 이 그린다 — 시리즈 대표 카드와 같은 바탕(KAN-225) */
+/** 태그 글자를 누르는 동안 — iOS 시스템 글자 버튼의 눌림(옅어짐)과 같은 처리 */
+const TAG_PRESSED_OPACITY = 0.5;
 
 /**
  * 인기 섹션의 큰 카드 — 가로 캐러셀의 항목이다.
@@ -56,45 +54,17 @@ export default function ExploreFeaturedCard({
   topicNames = [],
   onPress,
   onMorePress,
+  onTagPress,
 }: ExploreFeaturedCardProps) {
   const { width } = useWindowDimensions();
   const cardWidth = featuredCardWidth(width);
   const isCompleted = item.library?.status === 'completed';
   const minutes = toMinutes(item.content.durationSec);
+  const tags = item.content.tags.slice(0, MAX_TOPIC_TAGS);
 
   return (
     <View style={[styles.card, { width: cardWidth }]}>
-      {/* 흐린 커버 바탕 — 카드 전체. 위 정사각형은 아래 선명한 커버가 덮어 하단만 "이어진" 흐림으로 남는다 */}
-      {Platform.OS === 'android' ? (
-        /*
-         * Android 는 기본 Image — expo-image 의 Android 흐림(glide-transformations BlurTransformation)은 RenderScript 를 쓰고,
-         * 카드 여러 장이 동시에 흐림을 만들면 한쪽이 RS 컨텍스트를 닫은 사이 다른 쪽이 써서 앱이 죽었다
-         * (Sentry EAR-APP-F RSInvalidStateException, 2026-10-09 — 주제 칩을 여러 번 오가며). 기본 Image 의 흐림은 RS 를 안 쓴다.
-         * 플레이어 배경도 같은 이유로 기본 Image 다
-         */
-        <Image
-          source={{ uri: item.content.thumbnailUrl }}
-          style={styles.backdrop}
-          blurRadius={BACKDROP_BLUR_RADIUS}
-          resizeMode="cover"
-          accessibilityElementsHidden
-          importantForAccessibility="no"
-        />
-      ) : (
-        <ExpoImage
-          source={{ uri: item.content.thumbnailUrl }}
-          style={styles.backdrop}
-          blurRadius={BACKDROP_BLUR_RADIUS}
-          contentFit="cover"
-          // iOS 는 expo-image — 메모리 캐시로 구간 전환·피드 복귀 때 바로 뜬다(종전 RN Image 는 다시 그릴 때마다 받아 흐리게
-          // 다시 그려 그동안 카드 바탕이 비었다 — PM 2026-10-09 흰 깜빡임). iOS 흐림은 RenderScript 와 무관하다
-          cachePolicy="memory-disk"
-          recyclingKey={item.content.id}
-          accessibilityElementsHidden
-          importantForAccessibility="no"
-        />
-      )}
-      <View style={styles.backdropScrim} pointerEvents="none" />
+      <FeaturedCardBackdrop uri={item.content.thumbnailUrl} recyclingKey={item.content.id} />
       <Pressable
         style={styles.body}
         onPress={() => onPress(item)}
@@ -134,13 +104,39 @@ export default function ExploreFeaturedCard({
           콘텐츠 해시태그가 있으면 그것을(KAN-163 — 타일과 같은 줄), 아직 없는 콘텐츠(소급 전)는 종전대로 주제 이름을 쓴다.
           '#'이 둘을 가리키는 기간은 태그 소급이 끝나면 사라진다
         */}
-        <Text style={styles.meta} numberOfLines={1}>
-          {item.content.tags.length > 0
-            ? EXPLORE_COPY.row.metaWithTags(item.content.tags.slice(0, MAX_TOPIC_TAGS), minutes)
-            : topicNames.length > 0
-              ? `${EXPLORE_COPY.row.hashtags(topicNames.slice(0, MAX_TOPIC_TAGS))} · ${EXPLORE_COPY.row.durationLabel(minutes)}`
-              : EXPLORE_COPY.row.durationLabel(minutes)}
-        </Text>
+        {tags.length > 0 && onTagPress ? (
+          /*
+           * 태그는 글자마다 따로 눌리는 버튼이다(KAN-219) — 높이는 하단 줄(더보기 44)이, 폭은 최소 44 가 채운다. 버튼끼리 붙어
+           * 있어 히트 영역이 겹치지 않는다(hitSlop 을 쓰지 않는 이유). 글자가 자기 Pressable 안에만 있어 Android 의 Text
+           * pointerEvents 무시와 무관하다(형제 Pressable 위에 겹친 글자가 없다)
+           */
+          <View style={styles.metaRow}>
+            {tags.map((tag) => (
+              <Pressable
+                key={tag}
+                onPress={() => onTagPress(tag)}
+                style={({ pressed }) => [styles.tagButton, pressed ? styles.tagPressed : null]}
+                accessibilityRole="button"
+                accessibilityLabel={EXPLORE_COPY.row.hashtagSearchA11y(tag)}
+              >
+                <Text style={styles.metaText} numberOfLines={1}>
+                  {EXPLORE_COPY.row.hashtag(tag)}
+                </Text>
+              </Pressable>
+            ))}
+            <Text style={styles.durationText} numberOfLines={1}>
+              {EXPLORE_COPY.row.durationAfterTags(minutes)}
+            </Text>
+          </View>
+        ) : (
+          <Text style={styles.meta} numberOfLines={1}>
+            {tags.length > 0
+              ? EXPLORE_COPY.row.metaWithTags(tags, minutes)
+              : topicNames.length > 0
+                ? `${EXPLORE_COPY.row.hashtags(topicNames.slice(0, MAX_TOPIC_TAGS))} · ${EXPLORE_COPY.row.durationLabel(minutes)}`
+                : EXPLORE_COPY.row.durationLabel(minutes)}
+          </Text>
+        )}
         <Pressable
           style={styles.moreButton}
           onPress={() => onMorePress(item)}
@@ -168,23 +164,6 @@ const styles = StyleSheet.create({
     backgroundColor: theme.color.surface,
     paddingBottom: theme.spacing.md,
     gap: theme.spacing.xs,
-  },
-  backdrop: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    // 흐림의 가장자리가 비치지 않게 살짝 키운다(플레이어 배경과 같다)
-    transform: [{ scale: 1.2 }],
-  },
-  backdropScrim: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: BACKDROP_SCRIM,
   },
   body: {
     gap: theme.spacing.xs,
@@ -218,6 +197,38 @@ const styles = StyleSheet.create({
   /** 저자 · 길이 — 정보지 버튼 성분이 아니라 보조 글자. 더보기 점을 오른쪽 끝으로 민다 */
   meta: {
     flex: 1,
+    fontSize: theme.font.size.sm,
+    color: ON_ART_TEXT_SECONDARY,
+  },
+  /** 태그 버튼 + 길이 — 더보기 점을 오른쪽 끝으로 민다. 넘치면 태그 글자가 말줄임으로 줄어든다 */
+  metaRow: {
+    flex: 1,
+    // 첫 태그 버튼의 왼쪽 여백만큼 당겨 글자 시작선을 제목 시작선에 맞춘다
+    marginLeft: -theme.spacing.xs,
+    flexDirection: 'row',
+    alignItems: 'center',
+    overflow: 'hidden',
+  },
+  /*
+   * 글자 버튼 — 터치 44×44(design.md §6). 보이는 글자는 그대로 두고 상자만 키운다. 좌우 여백 xs 가 태그 사이 간격이 된다
+   */
+  tagButton: {
+    flexShrink: 1,
+    minWidth: theme.touchTarget.minWidth,
+    minHeight: theme.touchTarget.minHeight,
+    paddingHorizontal: theme.spacing.xs,
+    justifyContent: 'center',
+  },
+  tagPressed: {
+    opacity: TAG_PRESSED_OPACITY,
+  },
+  metaText: {
+    fontSize: theme.font.size.sm,
+    color: ON_ART_TEXT_SECONDARY,
+  },
+  durationText: {
+    flexShrink: 0,
+    paddingLeft: theme.spacing.xs,
     fontSize: theme.font.size.sm,
     color: ON_ART_TEXT_SECONDARY,
   },

@@ -69,7 +69,8 @@ function tree(page) {
     h("div", { key: "mark", style: { display: "flex" } }, logo),
     div(
       { key: "name", fontSize: 46, fontWeight: 800, letterSpacing: "-0.05em", color: ACCENT },
-      "이어"
+      // 워드마크. 영어 페이지 이미지는 `brand`로 영어 앱 이름을 넘긴다(og-pages.mjs)
+      page.brand ?? "이어"
     ),
   ];
 

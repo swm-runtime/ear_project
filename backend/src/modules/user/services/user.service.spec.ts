@@ -9,7 +9,12 @@ import { ConsentService } from './consent.service';
 import { User } from '../entities/user.entity';
 import { UserRepository } from '../repositories/user.repository';
 import { UserService } from './user.service';
-import { ConsentType, SocialProvider } from '../user.enum';
+import {
+  ConsentType,
+  PreferredLanguage,
+  SocialProvider,
+  UserMarket,
+} from '../user.enum';
 import { ConsentInput, CreateUserCommand } from '../user.types';
 
 const NOW = new Date('2026-09-06T09:00:00.000Z');
@@ -18,18 +23,37 @@ type TrialEnv = Partial<
   Record<
     | 'SIGNUP_TRIAL_ENABLED'
     | 'SIGNUP_TRIAL_DAYS'
-    | 'SIGNUP_TRIAL_EXISTING_USERS_BEFORE',
+    | 'SIGNUP_TRIAL_EXISTING_USERS_BEFORE'
+    | 'GLOBAL_SIGNUP_ENABLED',
     string
   >
 >;
 
-/** 가입 체험 스위치(`SIGNUP_TRIAL_*`)만 읽는 ConfigService 대역 — 기본은 꺼짐 */
+/** 가입 체험(`SIGNUP_TRIAL_*`)·글로벌 가입(`GLOBAL_SIGNUP_ENABLED`) 스위치만 읽는 ConfigService 대역 — 기본은 꺼짐 */
 function buildConfigService(
   env: TrialEnv = {},
 ): ConfigService<EnvironmentVariables, true> {
   return {
     get: (key: keyof TrialEnv) => env[key],
   } as unknown as ConfigService<EnvironmentVariables, true>;
+}
+
+/** GLOBAL 정상 가입 입력 — 영어판 약관·처리방침 버전 + 지역 모름의 연령 기준 18 + 국외 이전 동의 (KAN-212·215·220) */
+function buildGlobalConsents(): ConsentInput[] {
+  return [
+    { consentType: ConsentType.TERMS, version: 'global-0.1', isAgreed: true },
+    { consentType: ConsentType.PRIVACY, version: 'global-0.1', isAgreed: true },
+    {
+      consentType: ConsentType.AGE_CONFIRMATION,
+      version: 'age-18',
+      isAgreed: true,
+    },
+    {
+      consentType: ConsentType.CROSS_BORDER_TRANSFER,
+      version: null,
+      isAgreed: true,
+    },
+  ];
 }
 
 /** 필수 3종 + 마케팅 거부 — 정상 가입 입력 (auth-api.md 4.2) */
@@ -71,6 +95,7 @@ describe('UserService.createUser — 필수 동의 판정', () => {
     } as unknown as jest.Mocked<UserRepository>;
     consentService = {
       recordConsents: jest.fn(() => Promise.resolve([])),
+      buildSignUpConsents: jest.fn(() => []),
     } as unknown as jest.Mocked<ConsentService>;
     dataSource = {
       transaction: jest.fn((run: (manager: EntityManager) => unknown) =>
@@ -94,6 +119,7 @@ describe('UserService.createUser — 필수 동의 판정', () => {
     expect(userRepository.save).toHaveBeenCalled();
     expect(consentService.recordConsents).toHaveBeenCalledWith(
       'user-1',
+      expect.objectContaining({ market: UserMarket.KR }),
       consents,
       NOW,
       expect.anything(),
@@ -145,6 +171,193 @@ describe('UserService.createUser — 필수 동의 판정', () => {
     await expect(
       service.createUser(buildCommand(buildConsents()), NOW),
     ).resolves.toBeDefined();
+  });
+
+  describe('시장별 필수 동의(KAN-215)', () => {
+    const englishLocale = { preferredLanguage: PreferredLanguage.EN };
+    const crossBorder: ConsentInput = {
+      consentType: ConsentType.CROSS_BORDER_TRANSFER,
+      version: null,
+      isAgreed: true,
+    };
+
+    function openGlobalSignup(): void {
+      service = new UserService(
+        userRepository,
+        consentService,
+        dataSource,
+        buildConfigService({ GLOBAL_SIGNUP_ENABLED: 'true' }),
+      );
+    }
+
+    it('GLOBAL 가입에 국외 이전 동의가 빠지면 CONSENT_REQUIRED로 거절하고 계정을 만들지 않는다', async () => {
+      // given
+      openGlobalSignup();
+
+      // when
+      const creating = service.createUser(
+        {
+          ...buildCommand(
+            buildGlobalConsents().filter(
+              (consent) =>
+                consent.consentType !== ConsentType.CROSS_BORDER_TRANSFER,
+            ),
+          ),
+          locale: englishLocale,
+        },
+        NOW,
+      );
+
+      // then
+      await expect(creating).rejects.toMatchObject<Partial<BusinessException>>({
+        errorCode: ErrorCode.CONSENT_REQUIRED,
+      });
+      expect(userRepository.save).not.toHaveBeenCalled();
+    });
+
+    it('GLOBAL 가입은 국외 이전 동의까지 받으면 GLOBAL 시장으로 기록한다', async () => {
+      // given
+      openGlobalSignup();
+      const consents = buildGlobalConsents();
+
+      // when
+      await service.createUser(
+        { ...buildCommand(consents), locale: englishLocale },
+        NOW,
+      );
+
+      // then
+      expect(consentService.recordConsents).toHaveBeenCalledWith(
+        'user-1',
+        expect.objectContaining({ market: UserMarket.GLOBAL }),
+        consents,
+        NOW,
+        expect.anything(),
+      );
+    });
+
+    it('KR 가입에 GLOBAL 약관 버전을 보내면 CONSENT_VERSION_STALE이다 — 판정은 양방향이다', async () => {
+      // given — 기본 대역은 글로벌 가입이 닫혀 있어 KR로 판정된다
+      const consents = buildConsents().map((consent) =>
+        consent.consentType === ConsentType.TERMS
+          ? { ...consent, version: 'global-0.1' }
+          : consent,
+      );
+
+      // when
+      const creating = service.createUser(buildCommand(consents), NOW);
+
+      // then
+      await expect(creating).rejects.toMatchObject<Partial<BusinessException>>({
+        errorCode: ErrorCode.CONSENT_VERSION_STALE,
+      });
+    });
+
+    it('GLOBAL 가입에 KR 약관 버전을 보내면 CONSENT_VERSION_STALE이다 — 그 시장 문서에 동의해야 한다(KAN-212)', async () => {
+      // given
+      openGlobalSignup();
+      const consents = [...buildConsents(), crossBorder];
+
+      // when
+      const creating = service.createUser(
+        { ...buildCommand(consents), locale: englishLocale },
+        NOW,
+      );
+
+      // then
+      await expect(creating).rejects.toMatchObject<Partial<BusinessException>>({
+        errorCode: ErrorCode.CONSENT_VERSION_STALE,
+      });
+      expect(userRepository.save).not.toHaveBeenCalled();
+    });
+
+    it('싱가포르 기기의 GLOBAL 가입은 16세 기준으로 확인받고 그 기준을 기록한다(KAN-220)', async () => {
+      // given
+      openGlobalSignup();
+      const consents = buildGlobalConsents().map((consent) =>
+        consent.consentType === ConsentType.AGE_CONFIRMATION
+          ? { ...consent, version: 'age-16' }
+          : consent,
+      );
+
+      // when
+      await service.createUser(
+        {
+          ...buildCommand(consents),
+          locale: { ...englishLocale, regionCode: 'SG' },
+        },
+        NOW,
+      );
+
+      // then — 저장할 사용자 행의 지역이 판정과 같은 값이다
+      expect(consentService.recordConsents).toHaveBeenCalledWith(
+        'user-1',
+        expect.objectContaining({
+          market: UserMarket.GLOBAL,
+          regionCode: 'SG',
+        }),
+        consents,
+        NOW,
+        expect.anything(),
+      );
+    });
+
+    it('말레이시아 기기의 GLOBAL 가입이 16세 기준을 보내면 CONSENT_VERSION_STALE이다 — 기준은 서버가 정한다', async () => {
+      // given
+      openGlobalSignup();
+      const consents = buildGlobalConsents().map((consent) =>
+        consent.consentType === ConsentType.AGE_CONFIRMATION
+          ? { ...consent, version: 'age-16' }
+          : consent,
+      );
+
+      // when
+      const creating = service.createUser(
+        {
+          ...buildCommand(consents),
+          locale: { ...englishLocale, regionCode: 'MY' },
+        },
+        NOW,
+      );
+
+      // then
+      await expect(creating).rejects.toMatchObject<Partial<BusinessException>>({
+        errorCode: ErrorCode.CONSENT_VERSION_STALE,
+      });
+      expect(userRepository.save).not.toHaveBeenCalled();
+    });
+
+    it('글로벌 가입이 닫혀 있으면 English를 골라도 KR 목록이다 — 국외 이전 동의 없이 가입된다', async () => {
+      // when — 기본 대역은 스위치가 닫혀 있다
+      await service.createUser(
+        { ...buildCommand(buildConsents()), locale: englishLocale },
+        NOW,
+      );
+
+      // then
+      expect(consentService.recordConsents).toHaveBeenCalledWith(
+        'user-1',
+        expect.objectContaining({ market: UserMarket.KR }),
+        buildConsents(),
+        NOW,
+        expect.anything(),
+      );
+    });
+
+    it('가입 동의 목록은 가입이 정할 시장과 같은 판정이다 — 그려 준 목록대로 보내면 통과한다', () => {
+      // given
+      openGlobalSignup();
+
+      // when
+      const opened = service.findSignUpConsents(englishLocale);
+
+      // then
+      expect(opened.market).toBe(UserMarket.GLOBAL);
+      expect(consentService.buildSignUpConsents).toHaveBeenCalledWith({
+        market: UserMarket.GLOBAL,
+        regionCode: null,
+      });
+    });
   });
 
   describe('가입 체험(subscription.md 4.8)', () => {

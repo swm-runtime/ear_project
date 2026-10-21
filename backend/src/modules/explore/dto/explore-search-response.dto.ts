@@ -1,5 +1,5 @@
 import { ExploreSearchFallback, ExploreSearchResult } from '../explore.types';
-import { ExploreItemDto } from './explore-item.dto';
+import { ExploreItemDto, ExploreListItemDto } from './explore-item.dto';
 
 class SearchRelatedTopicDto {
   readonly id: string;
@@ -12,7 +12,7 @@ class SearchRelatedTopicDto {
  */
 class SearchFallbackDto {
   readonly related_topics: SearchRelatedTopicDto[];
-  readonly popular_items: ExploreItemDto[];
+  readonly popular_items: ExploreListItemDto[];
 
   static from(fallback: ExploreSearchFallback): SearchFallbackDto {
     return {
@@ -37,7 +37,7 @@ class SearchFallbackDto {
  * `fallback: null`, 빈 결과면 같은 응답의 `fallback`으로 대체 콘텐츠를 내려준다.
  */
 export class ExploreSearchResponseDto {
-  readonly items: ExploreItemDto[];
+  readonly items: ExploreListItemDto[];
   readonly next_cursor: string | null;
   readonly has_next: boolean;
   readonly fallback: SearchFallbackDto | null;

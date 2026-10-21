@@ -111,12 +111,18 @@ export enum ConsentType {
   PRIVACY = 'privacy',
   MARKETING = 'marketing',
   /**
-   * 만 18세 이상 자기 선언 (개인정보 보호법 22조의2 대응 — 약관 5조).
-   * 열람할 문서가 없는 선언이라 버전이 없다. 화면 게이트만으로는 그 사용자가
-   * 확인했다는 증거가 남지 않아 이력으로 기록한다
-   * (tickets/backend/pending/age-confirmation-consent.md).
+   * 연령 자기 선언 (개인정보 보호법 22조의2 대응 — 약관 5조). 기준 연령은 나라별이다 — KR 시장 18, GLOBAL은 기기
+   * 지역에 따라 16·18(KAN-220, `policies/age-confirmation.policy.ts`). 열람할 문서가 없는 선언이라 문서 버전은 없고,
+   * GLOBAL은 확인한 기준 연령을 버전(`age-16`·`age-18`)으로 남긴다(KR은 null). 화면 게이트만으로는 그 사용자가
+   * 확인했다는 증거가 남지 않아 이력으로 기록한다(tickets/backend/archive/age-confirmation-consent.md).
    */
   AGE_CONFIRMATION = 'age_confirmation',
+  /**
+   * 국외 이전 동의 — **GLOBAL 시장만 가입 필수**(KAN-215). 해외 사용자 정보는 서울 서버와 해외 외부 서비스(미국)로
+   * 넘어가고, 싱가포르·인도네시아·태국은 이용자 동의가 가장 쉬운 근거다. 이전 내용은 영어 처리방침이 고지하고
+   * 별도 문서가 없어 버전이 없다. KR은 한국어 처리방침의 국외 이전 고지로 갈음해 받지 않는다.
+   */
+  CROSS_BORDER_TRANSFER = 'cross_border_transfer',
 }
 
 /**

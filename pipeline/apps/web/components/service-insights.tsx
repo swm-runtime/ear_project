@@ -1,14 +1,21 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
 import { Panel, Stat, Table, Td, Tr, btnCls } from "@/components/ui";
-import { EarApiError, type EarChannel, type EarInsightsSummary, earChannelLabel, getEarInsightsSummary } from "@/lib/ear";
+import { EarApiError, type EarChannel, type EarInsightsCohortTable, type EarInsightsSummary, type EarInsightsWeekday, earChannelLabel, getEarInsightsSummary } from "@/lib/ear";
 import { EarGate, EarSession, earErrMsg } from "@/app/publish/ear-connect";
+import { fmtTime } from "@/lib/format";
 import {
   PROVIDER_LABEL, REASON_LABEL, TIER_LABEL,
-  fmtInt, fmtKstDate, fmtListenSec, fmtPct, isSmall, labelOf, maxOf, shortDate, shortId,
+  fmtAvg, fmtInt, fmtKstDate, fmtListenSec, fmtMonthDay, fmtPct, isSmall, labelOf, maxOf, shortDate, shortId,
 } from "@/lib/insights-format";
 
 const DAY_OPTIONS = [7, 14, 30, 90] as const;
+
+/**
+ * 그래프 패널을 그리드 줄 높이만큼 채운다 — 옆 패널(각주가 붙은 그래프·7행 표)이 더 길면 그리드가 이 패널을 늘리는데, 그래프가
+ * 고정 높이면 아래가 비어 보인다(2026-10-18). 본문(`Panel`의 둘째 자식 div)을 끝까지 늘리고 그래프가 남은 높이를 차지한다.
+ */
+const FILL_PANEL = "flex flex-col [&>div]:flex [&>div]:flex-1 [&>div]:flex-col";
 
 /**
  * 서비스 지표 탭 — 제품 API 의 `GET /admin/insights/summary`(admin-api 4.22) 한 번으로 화면 전체를 그린다.
@@ -143,26 +150,42 @@ function InsightsView({ channel, days, onSwitchToDev }: { channel: EarChannel; d
       </div>
 
       <div className="grid gap-3 lg:grid-cols-2">
-        <Panel title={`일별 청취 — ${winLabel} (KST 달력일)`}>
+        <Panel title={`일별 청취 — ${winLabel} (KST 달력일)`} className={FILL_PANEL}>
           <DailyBars
             rows={data.daily}
             primary={(d) => d.listen_sec}
-            height={(d, max) => Math.max(2, Math.round((d.listen_sec / max) * 80))}
-            title={(d) => `${d.date} · 청취 ${fmtListenSec(d.listen_sec)} · 재생 ${d.plays}회 · 청취자 ${d.listeners}명 · 완청 ${d.completes}회`}
-            legend="막대 = 청취 시간. 호버하면 재생·청취자·완청"
+            ratio={(d, max) => d.listen_sec / max}
+            title={(d) => `${d.date} · 청취 ${fmtListenSec(d.listen_sec)} · 재생 ${d.plays}회 · 청취자 ${d.listeners}명${d.active_users !== undefined ? ` (접속자 ${d.active_users == null ? "기록 없음" : `${fmtInt(d.active_users)}명`})` : ""} · 완청 ${d.completes}회`}
+            legend="막대 = 청취 시간. 호버하면 재생·청취자·접속자·완청"
           />
+          {data.active_users_since && (
+            <p className="mt-1 text-xs text-ink-soft">
+              접속자 수는 {fmtMonthDay(data.active_users_since)}부터 집계돼요. 접속 기록(로그인 세션)을 30일만 보관해서, 이 기능을 넣기 전 기간은 남아 있던 최근 30일까지만 채울 수 있었어요. 이후로는 매일 저장돼 계속 쌓여요.
+            </p>
+          )}
         </Panel>
-        <Panel title={`일별 가입·탈퇴 — ${winLabel} (KST 달력일)`}>
+        <Panel title={`일별 가입·탈퇴 — ${winLabel} (KST 달력일)`} className={FILL_PANEL}>
           <DailyBars
             rows={data.daily}
             primary={(d) => d.signups}
-            height={(d, max) => Math.max(2, Math.round((d.signups / max) * 80))}
-            overlay={(d, max) => Math.round((d.withdrawals / max) * 80)}
+            ratio={(d, max) => d.signups / max}
+            overlay={(d, max) => d.withdrawals / max}
             title={(d) => `${d.date} · 가입 ${d.signups}명 · 탈퇴 ${d.withdrawals}명`}
             legend="막대 = 가입. 아래 빨간 부분 = 탈퇴(같은 축)"
           />
         </Panel>
       </div>
+
+      {data.weekday && (
+        <div className="grid gap-3 lg:grid-cols-2">
+          <Panel title={`일별 접속자 → 청취자 — ${winLabel} (KST 달력일)`} className={FILL_PANEL}>
+            <ActiveListenerBars rows={data.daily} />
+          </Panel>
+          <Panel title={`요일별 평균 — ${winLabel} (온전한 날만)`} flush>
+            <WeekdayTable rows={data.weekday} />
+          </Panel>
+        </div>
+      )}
 
       <Panel title={`시간대별 재생 — ${winLabel} (KST)`}>
         <div className="flex items-end gap-1" style={{ height: 96 }}>
@@ -179,6 +202,26 @@ function InsightsView({ channel, days, onSwitchToDev }: { channel: EarChannel; d
         </div>
         <p className="mt-2 text-xs text-ink-soft">재생이 시작된 시각의 분포 — 편성(04/05시)·푸시 발송 시각을 고를 때 본다.</p>
       </Panel>
+
+      {/* ── 최근 하루 인기 ── */}
+      {data.recent_top_contents && (
+        <Panel title={`최근 24시간 인기 콘텐츠 ${data.recent_top_contents.length}편 — 청취자 많은 순`} right={data.recent_since ? <span className="text-xs text-ink-soft">{fmtTime(data.recent_since)} 이후</span> : undefined} flush>
+          <Table head={["#", "콘텐츠", "길이", "청취자", "재생", "청취 시간", "완청률", "담기"]} empty="최근 24시간 재생 기록이 없다">
+            {data.recent_top_contents.map((c, i) => (
+              <Tr key={c.content_id}>
+                <Td className="tabular-nums text-ink-soft">{i + 1}</Td>
+                <Td className="max-w-[360px] truncate font-medium">{c.title}</Td>
+                <Td className="tabular-nums text-ink-soft">{fmtListenSec(c.duration_sec)}</Td>
+                <Td className="tabular-nums font-medium">{c.listeners}명</Td>
+                <Td className="tabular-nums">{c.plays}회</Td>
+                <Td className="tabular-nums">{fmtListenSec(c.listen_sec)}</Td>
+                <Td className="tabular-nums">{fmtPct(c.complete_rate, 0)} <span className="text-ink-soft">({c.completes})</span></Td>
+                <Td className="tabular-nums">{c.saves}</Td>
+              </Tr>
+            ))}
+          </Table>
+        </Panel>
+      )}
 
       {/* ── 순위 ── */}
       <div className="grid gap-3 lg:grid-cols-2">
@@ -242,6 +285,19 @@ function InsightsView({ channel, days, onSwitchToDev }: { channel: EarChannel; d
           </Table>
         </Panel>
       </div>
+      {data.retention_cohorts && (
+        <Panel title="코호트 리텐션 — 가입한 날·주로 묶어 그 뒤에도 앱을 쓴 사람 (명 · 비율)">
+          <div className="grid gap-4 lg:grid-cols-2">
+            <CohortTable table={data.retention_cohorts.daily} />
+            <CohortTable table={data.retention_cohorts.weekly} />
+          </div>
+          <p className="mt-2 text-xs text-ink-soft">
+            D1 = 가입 다음 날 하루, D7 = 가입 7일 뒤 하루. W1~W4 = 가입 7~13일 · 14~20일 · 21~27일 · 28~34일 뒤에 한 번이라도. 구간은 사람마다 자기 가입일 기준이다. 접속(토큰 갱신) 또는 재생이면 돌아온 것으로 센다.
+            {" "}<b>…</b> = 구간이 아직 끝나지 않음(묶음의 마지막 가입자 기준). <span className="text-ink-soft/70">흐린 칸*</span> = 접속 기록({fmtMonthDay(data.retention_cohorts.daily.reliable_since)}~) 이전 구간이라 재생만 잡혀 실제보다 낮다. 가입자 {SMALL_COHORT}명 미만 묶음은 비율이 크게 흔들린다.
+          </p>
+        </Panel>
+      )}
+
       {/* ── 주제별 수요·공급 ── */}
       {data.topic_supply ? (
         <Panel title={`주제별 수요·공급 — 관심 사용자 많은 순 (신규 발행은 ${winLabel})`} flush>
@@ -270,9 +326,12 @@ function InsightsView({ channel, days, onSwitchToDev }: { channel: EarChannel; d
       <Panel title="읽는 법">
           <ul className="list-disc space-y-1 pl-4 text-xs text-ink-soft">
             <li><b>누적 가입(탈퇴 포함)</b>은 현재 계정 수 + 탈퇴 기록 수다. <b>유료</b>는 실결제 구독이 만료 전인 사람(해지 예약 포함)이다. 탈퇴하면 계정 행이 지워지므로(domain.md 12.3) 둘을 더해야 &quot;가입한 적 있는 사람&quot;이 된다.</li>
-            <li><b>청취 시간·재생</b>의 원천은 재생 기록(<code>play_records</code>)이다 — 즉시 반영되지만 탈퇴자의 기록은 함께 지워진다. 04시 배치가 모으는 콘텐츠 집계(<code>content_stats</code>)는 탈퇴자 몫이 남는 대신 하루 늦다. 두 숫자는 다를 수 있다.</li>
+            <li><b>누적 청취 시간·재생·완청</b>(전 기간 카드)은 줄지 않는 누적(<code>play_daily_totals</code>)이다 — 재생·완청이 기록될 때 함께 더해지고, 탈퇴하거나 완청 신호가 보존 기간(180일)으로 지워져도 남는다. <b>최근 N일 값·순위·일별 추이·시간대·시장별</b>은 재생 기록(<code>play_records</code>)을 바로 세므로 즉시 반영되지만 <b>현재 계정 기준</b>이다 — 탈퇴자의 몫은 빠진다. 그래서 순위·추이를 더한 값이 누적 카드보다 작을 수 있다.</li>
             <li><b>활성 사용자(DAU/WAU/MAU)</b>는 앱을 써서 서버 토큰을 갱신한 사람이다 — 액세스 토큰이 30분짜리라 앱을 열면 거의 매번 갱신이 일어나므로 &quot;앱 실행&quot;에 가장 가까운 서버 신호다(30분 안의 재실행은 안 잡힌다). 그중 <b>재생</b>까지 간 사람을 함께 적어 켜고 안 듣는 비율을 본다. <b>완청</b>은 서버의 90% 판정 신호다.</li>
+            <li><b>접속자</b>는 그날(KST 달력일 0~24시) 앱을 열어 서버 토큰을 갱신한 사람이다 — 위 <b>활성 사용자</b>와 같은 신호를 하루 단위로 센 것이다. 지난날은 매일 00:10 에 저장한 값, 오늘은 지금까지 센 값이다. <b>요일별 평균</b>은 창 안의 온전한 날(첫날 부분일·오늘 제외)만 그 요일의 날 수로 나눈다 — 날 수가 1~2일이면 한 주의 사정이 그대로 드러나니 30·90일 창으로 본다.</li>
+            <li><b>코호트 리텐션</b>은 가입한 날(최근 14일)·주(최근 8주, 월요일 시작)로 묶어, 가입 뒤 그 구간에 앱을 쓴 사람을 <b>인원과 비율</b>로 적는다 — 위의 언바운디드 리텐션과 달리 <b>그 구간 안</b>만 본다(바운디드). 광고로 유입을 늘릴 때 최근 묶음의 D1·W1 이 떨어지면 들어온 사람이 새고 있는 것이다. 사람마다 접속한 날을 매일 00:10 에 따로 저장해(<code>user_active_dates</code>) 세션이 30일 뒤 지워져도 W4 를 셀 수 있다. 탈퇴자는 분모·분자 모두에서 빠진다.</li>
             <li><b>리텐션</b>은 가입한 지 N일이 지난 현재 계정 중 N일 뒤 이후 아무 때나 앱을 쓴(토큰 갱신 또는 재생) 사람의 비율(언바운디드)이다. 탈퇴자는 분모에 없어 실제보다 높게 나오고(생존 편향), 같은 이유로 <b>일별 가입</b>에서도 그날 가입했다가 탈퇴한 사람은 빠진다.</li>
+            <li><b>최근 24시간 인기 콘텐츠</b>는 지금부터 24시간 전까지(달력일이 아니다) 시작된 재생을 콘텐츠별로 센다 — 청취자(서로 다른 사람) 수 순이라 한 사람이 오래 들은 편이 위로 오지 않는다. 완청·담기도 그 24시간 안에 생긴 것만이다(재생은 그날 첫 시작 시각, 완청은 완청한 시각 기준이라 서비스 날짜 경계를 걸친 편은 완청률이 드물게 높게 나온다).</li>
             <li><b>날짜</b>는 KST 달력일이다(앱의 서비스 날짜 04/05시 경계가 아니다 — 운영자가 읽는 단위). 창 버튼은 추이·&quot;최근 N일&quot; 값에만 걸리고 누적·순위는 전 기간이다.</li>
             <li><b>주제별 수요·공급</b>의 <b>남은 편수</b>는 그 주제를 관심으로 둔 온보딩 완료 사용자마다 &quot;아직 드립으로 받을 수 있는 편수&quot;다 — 라이브러리에 한 번이라도 들어왔거나(지운 것 포함) 드립으로 이미 받은 콘텐츠는 빠진다. <b>더 줄 것 없음</b>이 많은 주제가 제작 우선순위다. 시리즈 순서 게이트는 반영하지 않은 근사값이다.</li>
             <li>이름·이메일은 서버가 싣지 않는다 — 사용자 순위는 <code>user_id</code> 앞 8자다. 특정 사용자를 더 봐야 하면 목적을 적고 DB 를 직접 본다.</li>
@@ -288,11 +347,14 @@ function SectionTitle({ children }: { children: React.ReactNode }) {
 
 type DailyRow = EarInsightsSummary["daily"][number];
 
-/** 일별 막대 — 검색 로그 탭과 같은 div 막대. `overlay`가 있으면 같은 축으로 아래에 빨간 부분을 덧그린다 */
-function DailyBars({ rows, primary, height, overlay, title, legend }: {
+/**
+ * 일별 막대 — 검색 로그 탭과 같은 div 막대. `overlay`가 있으면 같은 축으로 아래에 빨간 부분을 덧그린다.
+ * `ratio`·`overlay`는 0~1(최댓값 대비). 막대 칸이 패널 높이만큼 늘어나므로(최소 96px — `FILL_PANEL`) 높이를 비율로 준다.
+ */
+function DailyBars({ rows, primary, ratio, overlay, title, legend }: {
   rows: DailyRow[];
   primary: (d: DailyRow) => number;
-  height: (d: DailyRow, max: number) => number;
+  ratio: (d: DailyRow, max: number) => number;
   overlay?: (d: DailyRow, max: number) => number;
   title: (d: DailyRow) => string;
   legend: string;
@@ -300,15 +362,17 @@ function DailyBars({ rows, primary, height, overlay, title, legend }: {
   const max = maxOf(rows, primary);
   if (rows.length === 0) return <p className="text-[13px] text-ink-soft">이 창에는 기록이 없다.</p>;
   return (
-    <div>
-      <div className="flex items-end gap-1 overflow-x-auto" style={{ height: 96 }}>
+    <div className="flex flex-1 flex-col">
+      <div className="flex flex-1 items-stretch gap-1 overflow-x-auto" style={{ minHeight: 96 }}>
         {rows.map((d) => {
-          const h = height(d, max);
+          const h = ratio(d, max);
           const o = overlay ? Math.min(h, overlay(d, max)) : 0;
           return (
-            <div key={d.date} className="flex min-w-[18px] flex-1 flex-col items-center justify-end gap-1" title={title(d)}>
-              <div className="relative w-full rounded-t bg-brand/40" style={{ height: h }}>
-                {o > 0 && <div className="absolute inset-x-0 bottom-0 bg-rose-400" style={{ height: o }} />}
+            <div key={d.date} className="flex min-w-[18px] flex-1 flex-col items-center gap-1" title={title(d)}>
+              <div className="relative w-full flex-1">
+                <div className="absolute inset-x-0 bottom-0 rounded-t bg-brand/40" style={{ height: barHeight(h) }}>
+                  {o > 0 && <div className="absolute inset-x-0 bottom-0 bg-rose-400" style={{ height: `${(o / h) * 100}%` }} />}
+                </div>
               </div>
               {/* 라벨 칸 높이 고정 — 라벨 없는 칸에서도 막대 바닥이 한 줄로 맞게. */}
               <span className="block h-3 shrink-0 whitespace-nowrap text-[10px] leading-3 tabular-nums text-ink-soft">{rows.length > 31 ? (d.date.endsWith("01") || d.date.endsWith("15") ? shortDate(d.date) : "") : shortDate(d.date)}</span>
@@ -318,6 +382,109 @@ function DailyBars({ rows, primary, height, overlay, title, legend }: {
       </div>
       <p className="mt-2 text-xs text-ink-soft">{legend}</p>
     </div>
+  );
+}
+
+/** 막대 칸 높이 대비 비율(0~1) → CSS 높이. 0 이어도 2px 는 보이게(막대가 사라지면 "기록 없음"처럼 읽힌다) */
+const barHeight = (ratio: number): string => `max(2px, ${Math.round(ratio * 1000) / 10}%)`;
+
+/**
+ * 일별 접속자·청취자 한 쌍 막대 — 회색 = 접속자, 파랑 = 그중 재생한 청취자(같은 축). 접속자를 모르는 날(첫 신뢰 날짜 앞)은
+ * 회색 막대 대신 점선 칸을 그린다 — 0명과 "기록 없음"이 섞이지 않게.
+ */
+function ActiveListenerBars({ rows }: { rows: DailyRow[] }) {
+  const max = maxOf(rows, (d) => Math.max(d.active_users ?? 0, d.listeners));
+  if (rows.length === 0) return <p className="text-[13px] text-ink-soft">이 창에는 기록이 없다.</p>;
+  // 높이를 px 가 아니라 막대 칸의 비율로 준다 — 칸이 패널 높이만큼 늘어나므로(`FILL_PANEL`) 그래프도 함께 자란다
+  const pct = (n: number) => barHeight(n / max);
+  return (
+    <div className="flex flex-1 flex-col">
+      <div className="flex flex-1 items-stretch gap-1 overflow-x-auto" style={{ minHeight: 96 }}>
+        {rows.map((d) => (
+          <div key={d.date} className="flex min-w-[18px] flex-1 flex-col items-center gap-1" title={`${d.date} · 접속자 ${d.active_users == null ? "기록 없음" : `${fmtInt(d.active_users)}명`} · 청취자 ${fmtInt(d.listeners)}명${d.active_users ? ` (${fmtPct(d.listeners / d.active_users, 0)})` : ""}`}>
+            {/* 막대 칸 — 남은 높이 전부. 막대는 바닥에 붙여 칸 높이의 비율로 그린다 */}
+            <div className="relative w-full flex-1">
+              <div className="absolute inset-0 flex items-end justify-center gap-px">
+                {d.active_users == null
+                  ? <div className="w-1/2 rounded-t border border-dashed border-line" style={{ height: 8 }} />
+                  : <div className="w-1/2 rounded-t bg-ink-soft/40" style={{ height: pct(d.active_users) }} />}
+                <div className="w-1/2 rounded-t bg-brand/60" style={{ height: pct(d.listeners) }} />
+              </div>
+            </div>
+            {/* 라벨 칸 높이 고정 — DailyBars 와 같은 규칙 */}
+            <span className="block h-3 shrink-0 whitespace-nowrap text-[10px] leading-3 tabular-nums text-ink-soft">{rows.length > 31 ? (d.date.endsWith("01") || d.date.endsWith("15") ? shortDate(d.date) : "") : shortDate(d.date)}</span>
+          </div>
+        ))}
+      </div>
+      <p className="mt-2 flex flex-wrap items-center gap-3 text-xs text-ink-soft">
+        <span className="flex items-center gap-1"><span className="inline-block h-2 w-2 rounded-sm bg-ink-soft/40" />접속자</span>
+        <span className="flex items-center gap-1"><span className="inline-block h-2 w-2 rounded-sm bg-brand/60" />청취자(그중 재생)</span>
+        <span>점선 = 접속 기록 없음. 호버하면 인원·청취 전환</span>
+      </p>
+    </div>
+  );
+}
+
+/** 요일별 평균 표 — 막대는 같은 축(회색 접속자 · 파랑 청취자). 날 수가 적은 요일은 한 주의 사정이 그대로라 날 수를 함께 적는다 */
+function WeekdayTable({ rows }: { rows: EarInsightsWeekday[] }) {
+  const max = maxOf(rows, (w) => Math.max(w.avg_active_users ?? 0, w.avg_listeners ?? 0));
+  return (
+    <Table head={["요일", "날 수", "평균 접속자", "평균 청취자", "청취 전환", ""]} empty="-">
+      {rows.map((w) => (
+        <Tr key={w.weekday}>
+          <Td className={`font-medium ${w.weekday >= 6 ? "text-brand-ink" : ""}`}>{w.label}</Td>
+          <Td className="tabular-nums text-ink-soft">{w.days}일{w.active_days < w.days ? <span className="ml-1 text-xs">(접속 {w.active_days}일)</span> : null}</Td>
+          <Td className="tabular-nums font-medium">{fmtAvg(w.avg_active_users)}{w.avg_active_users != null ? "명" : ""}</Td>
+          <Td className="tabular-nums">{fmtAvg(w.avg_listeners)}{w.avg_listeners != null ? "명" : ""}</Td>
+          <Td className="tabular-nums text-ink-soft">{w.avg_active_users && w.avg_listeners != null && w.active_days === w.days ? fmtPct(w.avg_listeners / w.avg_active_users, 0) : "-"}</Td>
+          <Td className="w-[30%]">
+            <div className="space-y-0.5">
+              <div className="h-1.5 rounded-sm bg-ink-soft/40" style={{ width: `${((w.avg_active_users ?? 0) / max) * 100}%` }} />
+              <div className="h-1.5 rounded-sm bg-brand/60" style={{ width: `${((w.avg_listeners ?? 0) / max) * 100}%` }} />
+            </div>
+          </Td>
+        </Tr>
+      ))}
+    </Table>
+  );
+}
+
+/** 이 인원 미만 묶음은 비율을 흐리게 — 한두 명으로 수십 %p 가 움직인다 */
+const SMALL_COHORT = 10;
+
+/**
+ * 코호트 표 한 장 — 행 = 묶음(최근 먼저), 칸 = "N명 · R%". 칸 배경은 비율만큼 진하게(브랜드색 `--brand` #16a394 — 같은 표 안에서 눈으로 비교).
+ * 끝나지 않은 칸은 `…`, 접속 기록 이전 구간은 흐리게 + `*`.
+ */
+function CohortTable({ table }: { table: EarInsightsCohortTable }) {
+  const weekly = table.span === 7;
+  const head = [weekly ? "가입 주" : "가입일", "가입자", ...table.offsets.map((o) => `${weekly ? "W" : "D"}${o}`)];
+  return (
+    <Table head={head} empty="-">
+      {table.rows.map((r) => (
+        <Tr key={r.start}>
+          <Td className="whitespace-nowrap font-medium tabular-nums">{shortDate(r.start)}{weekly ? " 주" : ""}</Td>
+          <Td className="tabular-nums text-ink-soft">{fmtInt(r.users)}명</Td>
+          {r.cells.map((c, i) => (
+            <Td key={table.offsets[i]} className="whitespace-nowrap tabular-nums">
+              {c === null ? (
+                <span className="text-ink-soft">…</span>
+              ) : r.users === 0 ? (
+                <span className="text-ink-soft">-</span>
+              ) : (
+                <span
+                  className={`inline-block rounded px-1.5 py-0.5 ${c.partial || r.users < SMALL_COHORT ? "text-ink-soft" : "text-ink"}`}
+                  style={{ backgroundColor: `rgba(22, 163, 148, ${Math.min(0.35, (c.rate ?? 0) * 0.5)})` }}
+                  title={c.partial ? "접속 기록 이전 구간 — 재생만 잡혀 실제보다 낮다" : undefined}
+                >
+                  {fmtInt(c.returned)}명 · {fmtPct(c.rate, 0)}{c.partial ? "*" : ""}
+                </span>
+              )}
+            </Td>
+          ))}
+        </Tr>
+      ))}
+    </Table>
   );
 }
 

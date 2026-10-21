@@ -1,4 +1,4 @@
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useQueryClient, type InfiniteData } from '@tanstack/react-query';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -20,9 +20,16 @@ import { useDeferredSheetShare } from '@/features/share';
 
 import { exploreKeys } from '../api/explore.api';
 import { EXPLORE_COPY } from '../explore.copy';
+import { isHiddenEntry, withEntryLibraryState } from '../explore.entry';
 import { isSearchableQuery, toSearchQuery } from '../explore.search-query';
-import type { ExploreItem, ExploreLibraryState, ExploreSearchPage } from '../explore.types';
+import type {
+  ExploreItem,
+  ExploreLibraryState,
+  ExploreSearchPage,
+  ExploreSeries,
+} from '../explore.types';
 import { useExploreSearchQuery } from './useExploreSearchQuery';
+import type { ExploreSearchRequest } from './useExploreSearchRequest';
 import { useExploreTopicsQuery } from './useExploreTopicsQuery';
 import { useSaveContentMutation } from './useSaveContentMutation';
 import { useUnsaveContentMutation } from './useUnsaveContentMutation';
@@ -64,7 +71,17 @@ export interface ExploreSearchEmbedding {
   isClosing?: boolean;
   /** Android 제자리 검색의 닫기·시스템 뒤로가기에서 퇴장 애니메이션을 요청한다. */
   onRequestClose?: () => void;
+  /**
+   * 질의를 넘긴 검색(KAN-219 — 태그 탭 → `#태그`). id 가 바뀔 때마다 그 질의로 즉시 검색한다 — 이미 열린 검색에도 적용된다.
+   * null 이면 검색창으로 연 검색(초기 화면부터)
+   */
+  searchRequest?: ExploreSearchRequest | null;
 }
+
+/** 스택 검색 화면(ExploreSearch)의 라우트 파람 — 원본은 app/navigation/types.ts 의 MainStackParamList */
+type ExploreSearchRouteParams = {
+  ExploreSearch: { initialQuery?: string } | undefined;
+};
 
 export const useExploreSearchScreen = (embedding?: ExploreSearchEmbedding) => {
   const navigation = useNavigation();
@@ -75,6 +92,18 @@ export const useExploreSearchScreen = (embedding?: ExploreSearchEmbedding) => {
     >();
   const queryClient = useQueryClient();
   const showToast = useToastStore((s) => s.show);
+  /*
+   * 질의를 넘긴 검색 요청 — 제자리 검색은 탐색 화면이 넘기고(embedding.searchRequest), 스택 검색은 라우트 파람
+   * (initialQuery)이다. 스택 화면은 태그 탭마다 새로 쌓이므로(toTab 이 먼저 걷는다) 라우트 키가 요청 id 다.
+   * 제자리 검색일 때 useRoute 는 탐색 탭 라우트라 파람을 읽지 않는다
+   */
+  const route = useRoute<RouteProp<ExploreSearchRouteParams, 'ExploreSearch'>>();
+  const routeInitialQuery = embedding ? undefined : route.params?.initialQuery;
+  const searchRequest: ExploreSearchRequest | null = embedding
+    ? (embedding.searchRequest ?? null)
+    : routeInitialQuery !== undefined
+      ? { query: routeInitialQuery, id: route.key }
+      : null;
 
   /* ── 질의 상태 — inputText는 입력 그대로, activeQuery는 실행된 질의(트림본)다 ── */
   const [inputText, setInputText] = useState('');
@@ -89,25 +118,34 @@ export const useExploreSearchScreen = (embedding?: ExploreSearchEmbedding) => {
 
   /* ── 최근 검색어 — 기기 로컬 10건. 저장 시점은 "사용자 행동으로 이어진 때"뿐이다(4.5-4) ── */
   const [recentSearches, setRecentSearches] = useState<string[]>([]);
+  /*
+   * 목록 갱신은 마지막에 시작한 작업의 결과만 반영한다 — 태그 탭으로 열면 화면에 들어오자마자 읽기(load)와 저장(add)이
+   * 함께 출발해, 늦게 끝난 읽기가 방금 저장한 `#태그` 없는 목록으로 덮을 수 있다(KAN-219)
+   */
+  const recentSeqRef = useRef(0);
+  const applyRecent = useCallback((task: Promise<string[]>) => {
+    recentSeqRef.current += 1;
+    const seq = recentSeqRef.current;
+    void task.then((next) => {
+      if (recentSeqRef.current === seq) setRecentSearches(next);
+    });
+  }, []);
   useEffect(() => {
-    void loadRecentSearches().then(setRecentSearches);
-  }, []);
+    applyRecent(loadRecentSearches());
+  }, [applyRecent]);
 
-  const saveRecent = useCallback((query: string) => {
-    void addRecentSearch(query).then(setRecentSearches);
-  }, []);
+  const saveRecent = useCallback(
+    (query: string) => applyRecent(addRecentSearch(query)),
+    [applyRecent],
+  );
 
   /** 결과 행 탭(재생·더보기)도 저장 시점이다(explore.md 4.5-4) — 디바운스 검색어가 행동으로 이어졌다 */
   const saveActiveQueryAsRecent = useCallback(() => {
     if (activeQuery !== null) saveRecent(activeQuery);
   }, [activeQuery, saveRecent]);
 
-  const deleteRecentSearch = (query: string) => {
-    void removeRecentSearch(query).then(setRecentSearches);
-  };
-  const clearAllRecentSearches = () => {
-    void clearRecentSearches().then(setRecentSearches);
-  };
+  const deleteRecentSearch = (query: string) => applyRecent(removeRecentSearch(query));
+  const clearAllRecentSearches = () => applyRecent(clearRecentSearches());
 
   /* ── 질의 입력·실행 ── */
   const handleChangeText = (text: string) => {
@@ -147,6 +185,28 @@ export const useExploreSearchScreen = (embedding?: ExploreSearchEmbedding) => {
     runSearchNow(query);
   };
 
+  /*
+   * ── 질의를 넘긴 검색(KAN-219 — 태그 탭) — 검색창에 `#태그`를 채우고 디바운스 없이 즉시 검색한다([검색] 제출과 같은 경로).
+   * 태그 탭은 "검색이 사용자 행동으로 이어진 때"라 최근 검색어에도 저장한다(4.5-4). 질의 상태는 렌더 중 조정하고
+   * (effect 내 setState 금지), 저장소 기록·타이머 정리만 effect 가 한다 ──
+   */
+  const [handledRequestId, setHandledRequestId] = useState<number | string | null>(null);
+  if (searchRequest !== null && searchRequest.id !== handledRequestId) {
+    setHandledRequestId(searchRequest.id);
+    setInputText(searchRequest.query);
+    setActiveQuery(
+      isSearchableQuery(searchRequest.query) ? toSearchQuery(searchRequest.query) : null,
+    );
+  }
+  const requestQuery = searchRequest?.query;
+  const requestId = searchRequest?.id;
+  /* 저장소(최근 검색어)·디바운스 타이머와 동기화 — 요청 id 마다 한 번 */
+  useEffect(() => {
+    if (requestId === undefined || requestQuery === undefined) return;
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    if (isSearchableQuery(requestQuery)) saveRecent(toSearchQuery(requestQuery));
+  }, [requestId, requestQuery, saveRecent]);
+
   /* ── 서버 조회 — 추천 키워드는 주제 칩 응답 재사용이다(explore-api.md 2-2, 별도 호출 없음) ── */
   const searchQuery = useExploreSearchQuery(activeQuery);
   const topicsQuery = useExploreTopicsQuery();
@@ -171,14 +231,14 @@ export const useExploreSearchScreen = (embedding?: ExploreSearchEmbedding) => {
     () =>
       (pages ?? [])
         .flatMap((page) => page.items)
-        .filter((item) => !hiddenContentIds.has(item.content.id)),
+        .filter((item) => !isHiddenEntry(item, hiddenContentIds)),
     [pages, hiddenContentIds],
   );
 
   // 빈 결과의 대체 노출(E7) — 첫 페이지에만 실려 온다(items가 있으면 null)
   const fallback = pages?.[0]?.fallback ?? null;
   const fallbackItems = useMemo(
-    () => (fallback?.popularItems ?? []).filter((item) => !hiddenContentIds.has(item.content.id)),
+    () => (fallback?.popularItems ?? []).filter((item) => !isHiddenEntry(item, hiddenContentIds)),
     [fallback, hiddenContentIds],
   );
 
@@ -237,15 +297,15 @@ export const useExploreSearchScreen = (embedding?: ExploreSearchEmbedding) => {
                 ...old,
                 pages: old.pages.map((page) => ({
                   ...page,
-                  items: page.items.map((item) =>
-                    item.content.id === contentId ? { ...item, library } : item,
-                  ),
+                  items: withEntryLibraryState(page.items, contentId, library),
                   // E7 대체 목록의 행도 담기/제거가 피드와 동일하게 동작한다(uiux 4.6)
                   fallback: page.fallback
                     ? {
                         ...page.fallback,
-                        popularItems: page.fallback.popularItems.map((item) =>
-                          item.content.id === contentId ? { ...item, library } : item,
+                        popularItems: withEntryLibraryState(
+                          page.fallback.popularItems,
+                          contentId,
+                          library,
                         ),
                       }
                     : null,
@@ -323,6 +383,15 @@ export const useExploreSearchScreen = (embedding?: ExploreSearchEmbedding) => {
       },
       'explore',
     );
+  };
+
+  /**
+   * 시리즈 카드 탭 → 시리즈 화면(E14) — 재생이 아니다(explore.md 4.4 예외). 행동으로 이어졌으니 검색어를 저장한다(4.5-4).
+   * 스택 화면(Main)에 올린다 — 검색 상태는 그 아래 그대로 남아 뒤로가기로 돌아온다
+   */
+  const openSeries = (series: ExploreSeries) => {
+    saveActiveQueryAsRecent();
+    navigation.navigate('Main', { screen: 'Series', params: { seriesId: series.id } });
   };
 
   const openMoreSheet = (item: ExploreItem) => {
@@ -498,8 +567,9 @@ export const useExploreSearchScreen = (embedding?: ExploreSearchEmbedding) => {
     isFetchingNextPage: searchQuery.isFetchingNextPage,
     isLoadMoreFailed,
     retryLoadMore: () => void searchQuery.fetchNextPage(),
-    // 재생
+    // 재생 · 시리즈 카드(E14 이동)
     handleRowPress,
+    openSeries,
     playConfirm: playGate.confirmState,
     confirmPlay: playGate.confirmPlay,
     cancelPlayConfirm: playGate.cancelConfirm,

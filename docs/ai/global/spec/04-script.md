@@ -20,7 +20,7 @@ Turn an approved candidate into a two-person English dialogue script that QA can
 | Does | Every factual statement | Questions, guesses, reactions |
 | Fixed | Explains in every episode | Hosts in every episode |
 
-Speaker names come from `PIPELINE_SPEAKERS` ("explainer,host"). Persona details are pending (PIPELINE.md 10, #4).
+Speaker names come from the episode's team, chosen by the representative topic (PIPELINE.md 6.7 cast table): Yuna (explainer) and Owen (host), or E-um (explainer) and Grace (host). The prompt gives the two names; E turns use the explainer's name and Y turns the host's.
 
 ## 4. Structure and length
 
@@ -44,30 +44,34 @@ Speaker names come from `PIPELINE_SPEAKERS` ("explainer,host"). Persona details 
 - The meta line is `Episode ID · Title · Topic · explainer/host · prompt version · sources used`.
 - No source list, no AI disclosure, no URLs, tables, or markdown in lines.
 
-### Templates (settings `templates`, tpl-en-v1)
+### Templates (settings `templates`, tpl-en-v4)
 
 ```
 [Intro — host, Y1, one turn]
-Hi, and welcome to ear podcast. {topic_line} Today we're talking about {episode_line}.
+Hi, and annyeonghaseyo! Welcome to Earcast, your K-podcast. {topic_line} Today we're talking about {episode_line}.
 
 [Closing lead — host]
-We've been talking about {episode_line}. {host_remark}
+We've been talking about {episode_recap}. {host_remark}
 (the explainer's wrap-up turn follows)
 
-[Sign-off — host, the last turn; variants rotate per episode]
-That's all for this episode of ear podcast. {host_line} Thanks for listening.
-Thanks for spending this time with us on ear podcast. {host_line}
-That's our story for this episode. {host_line} See you next time on ear podcast.
+[Sign-off — host, the last turn, fixed text; variants rotate per episode]
+That's all for this episode of Earcast. Thanks for listening, and gamsahamnida!
+Thanks for spending this time with us on Earcast. Gamsahamnida!
+That's our story for this episode. See you next time on Earcast. Gamsahamnida!
 ```
 
-- `{topic_line}` is the topic's fixed line (`templates.major_lines`). `{episode_line}` is the same words in the intro and the closing lead.
-- `{host_remark}` and `{host_line}` are written new each episode.
+- `{topic_line}` is the topic's fixed line (`templates.major_lines`). `{episode_line}` is this episode's axis in one line, in the intro.
+- `{episode_recap}` is the same topic in one line, in different words from `{episode_line}`. It names the topic, not the answer; the wrap-up gives the answer.
+- `{host_remark}` is one question in the host's own words that asks the explainer to bring the episode together around the axis question. It is not a feeling or a reaction, and it does not repeat the intro. The explainer's wrap-up answers it.
+- The sign-off has no slot. It is said word for word.
+- tpl-en-v4 (2026-10-18, 박수헌): the closing lead was "We've been talking about {episode_line}. {host_remark}" — the same slot repeated the intro line word for word, and {host_remark} had no definition, so the host gave a reaction twice (G261018-001~003). The frame stays; the slot is now {episode_recap}. The sign-off's {host_line} (the host's reaction) was dropped: after the host's closing question and the explainer's answer, the sign-off only says goodbye.
+- The intro greeting (`annyeonghaseyo`) and the sign-off thanks (`gamsahamnida`) are written in romanization. The global pronunciation dictionary maps them to Hangul, so the voice says them in Korean (tpl-en-v2 and v3, 2026-10-16).
 - L0 checks that the last turn is a host turn containing a sign-off head (the text before its first `{`).
 
 ### Length
 
-- Floor 13 minutes, average target 15 minutes, no upper limit. Split only when every part is 13 minutes or more.
-- Provisional rate: 150 words per minute (spoken words in turns). L0 floor: 1,950 words. Writing target: the outline's estimated minutes × 150, within 10 percent. The rate is fixed after measuring the first three synthesized episodes.
+- Floor 5 minutes, no target length, no upper limit. Length comes from the material. Propose a split only when the material is 20 minutes or more.
+- Rate: 146 words per minute (spoken words in turns), fixed on 2026-10-17 from the first three synthesized episodes (145.3, 148.3, 146.3). L0 floor: 730 words. Writing target: the outline's estimated minutes × 146, within 10 percent.
 
 ## 5. Notation
 
@@ -79,7 +83,7 @@ That's our story for this episode. {host_line} See you next time on ear podcast.
 
 ## 6. Pronunciation map
 
-- The planner registers every Korean word and name the script will use in `pronunciations.json`, with an English respelling as the reading, or an empty reading when it cannot give one. The writer and the fix call add new ones the same way.
+- The planner registers every Korean word and name the script will use in `pronunciations.json`, with the word in Hangul as the reading (the voice reads Hangul in Korean), or an empty reading when it cannot give one. Lines keep the romanized spelling; only the TTS input gets the Hangul. Names that listeners abroad already say in English (a place, company, group, or work with an established English name, or a person known abroad by an English form) are not registered, so the voice reads them in English. Other names, including people's names, are registered in Hangul. The writer and the fix call add new ones the same way.
 - The global dictionary (asset `skills/tts/pronunciation.json`) and the episode map are merged; the global entry wins; matching ignores case.
 - TTS stops if any registered word has no reading in either. A person fills it in the episode's pronunciation tab.
 

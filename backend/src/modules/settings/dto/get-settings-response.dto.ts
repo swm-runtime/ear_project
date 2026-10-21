@@ -9,7 +9,7 @@ import { SettingsSection } from '../settings.enum';
 import { SettingsSummaryResult } from '../settings.types';
 
 class SettingsAccountDto {
-  /** 시장(읽기 전용 — `global-api.md` 4.3). 화면은 표시만 한다 */
+  /** 시장(읽기 전용 — `global-api.md` 4.3). 화면은 표시만 하고, 바꾸는 것은 시장 전환 API(4.11)다 */
   readonly market: UserMarket;
   /** 표시 언어(BCP 47) — 4.2 `language_code`로 바꾼다. 구 앱은 `null` */
   readonly language_code: string | null;

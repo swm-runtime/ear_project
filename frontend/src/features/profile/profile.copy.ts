@@ -3,16 +3,18 @@
  * 내부 용어("티어"·"라이트"·"완청"·"서비스 날짜" 등)를 노출하지 않는다 — 플랜은 plan_name 표시명만 쓴다.
  * 숫자·상태 판정은 profile.format.ts가 하고 여기는 문장 조립만 한다.
  */
-import { toDateOnlyMonthDay } from '@/shared/lib/date-only';
+import {
+  formatDateLabelMonthDay,
+  formatEnCount,
+  formatInstantMonthDay,
+  formatMonthDay,
+  type CalendarDate,
+} from '@/shared/i18n/format';
+import { localized, type LocalizedCopy } from '@/shared/i18n/localized';
 
 import type { SocialProvider } from '@/features/auth';
 
-import {
-  toListenedDayParts,
-  toListenedSummaryParts,
-  toMonthDayParts,
-  toWeekRangeParts,
-} from './profile.format';
+import { toListenedDayParts, toListenedSummaryParts, toWeekRangeParts } from './profile.format';
 import type {
   DailyListeningHighlight,
   ListeningHighlight,
@@ -34,16 +36,11 @@ const PROVIDER_NAMES: Record<SocialProvider, string> = {
   apple: '애플',
 };
 
-const monthDay = (iso: string): string => {
-  const { month, day } = toMonthDayParts(iso);
-  return `${month}월 ${day}일`;
-};
+/** ISO UTC 시각 → 기기 시간대의 "N월 N일"(표기 전용 — 판정은 서버 몫, profile-uiux.md 6장) */
+const monthDay = (iso: string): string => formatInstantMonthDay(iso, 'ko');
 
 /** 서버가 판정한 날짜(YYYY-MM-DD) 그대로 "N월 N일" — 시간대를 거치지 않는다(가입 체험 last_free_date) */
-const dateOnlyMonthDay = (date: string): string => {
-  const { month, day } = toDateOnlyMonthDay(date);
-  return `${month}월 ${day}일`;
-};
+const dateOnlyMonthDay = (date: string): string => formatDateLabelMonthDay(date, 'ko');
 
 /** 1분 미만을 가르는 값 — 버림하면 0이 되는 구간이다 */
 const SECONDS_PER_MINUTE = 60;
@@ -62,7 +59,7 @@ const listenedDayValue = (sec: number): string => {
   return hours > 0 ? `${hours}시간 ${minutes}분` : `${minutes}분`;
 };
 
-export const PROFILE_COPY = {
+const ko = {
   header: {
     settingsA11y: '설정 열기',
     /**
@@ -240,7 +237,11 @@ export const PROFILE_COPY = {
      * - 지난주 같은 요일: 이번 주면 "지난주 수요일보다", 지난 주를 보고 있으면 "전주 수요일보다"
      * - 최고의 날: "이번 주" / "그 주"
      */
-    dayHighlight: (highlight: DailyListeningHighlight, dayIndex: number, isCurrentWeek: boolean) => {
+    dayHighlight: (
+      highlight: DailyListeningHighlight,
+      dayIndex: number,
+      isCurrentWeek: boolean,
+    ) => {
       const dayFull = DAY_FULL_NAMES[dayIndex] ?? '';
       switch (highlight.kind) {
         case 'moreThanLastWeek': {
@@ -331,3 +332,274 @@ export const PROFILE_COPY = {
     career: '커리어 정보 열기',
   },
 } as const;
+
+const EN_YEARS_LABELS: Record<YearsOfExperience, string> = {
+  '0-1': '0-1 yrs',
+  '2-3': '2-3 yrs',
+  '4-6': '4-6 yrs',
+  '7+': '7+ yrs',
+};
+
+const EN_PROVIDER_NAMES: Record<SocialProvider, string> = {
+  kakao: 'Kakao',
+  naver: 'Naver',
+  google: 'Google',
+  apple: 'Apple',
+};
+
+/** 달력 날짜 → 기기 로캘 순서의 월·일(`Intl` — en-US "Oct 15" · en-GB "15 Oct", KAN-197) */
+const enMonthDayText = (date: CalendarDate): string => formatMonthDay(date, 'en');
+
+const enMonthDay = (iso: string): string => formatInstantMonthDay(iso, 'en');
+
+/** 서버 날짜 라벨 그대로 — 시간대를 거치지 않는다 */
+const enDateOnlyMonthDay = (date: string): string => formatDateLabelMonthDay(date, 'en');
+
+const EN_DAY_FULL_NAMES = [
+  'Monday',
+  'Tuesday',
+  'Wednesday',
+  'Thursday',
+  'Friday',
+  'Saturday',
+  'Sunday',
+];
+
+/** 영어 복수형 — `Intl.PluralRules`(KAN-197) */
+const enCount = (count: number, one: string, other: string): string =>
+  formatEnCount(count, { one, other });
+
+const enListenedDayValue = (sec: number): string => {
+  if (sec > 0 && sec < SECONDS_PER_MINUTE) return '<1 min';
+  const { hours, minutes } = toListenedDayParts(sec);
+  return hours > 0 ? `${hours} hr ${minutes} min` : `${minutes} min`;
+};
+
+/**
+ * 하루 평균 줄 오른쪽 두 줄의 차이 값 — 단위를 줄여 쓴다("12h 38m"). 그 칸은 폭 상한(62%) 안의 한 줄이라 "12 hr 38 min more" 가
+ * 잘렸다(2026-10-19 KAN-197 실기기). 왼쪽 큰 숫자의 단위(h·m)와 같다. 낭독은 줄이지 않은 값(`enListenedDayValue`)을 쓴다
+ */
+const enCompactDayValue = (sec: number): string => {
+  if (sec > 0 && sec < SECONDS_PER_MINUTE) return '<1m';
+  const { hours, minutes } = toListenedDayParts(sec);
+  return hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`;
+};
+
+const en: LocalizedCopy<typeof ko> = {
+  header: {
+    settingsA11y: 'Open settings',
+    noNickname: 'No name',
+    noEmail: 'No email added',
+    providerA11y: (provider: SocialProvider) => `Signed in with ${EN_PROVIDER_NAMES[provider]}`,
+    providerName: (provider: SocialProvider) => EN_PROVIDER_NAMES[provider],
+  },
+
+  cardLabels: {
+    plan: 'Current plan',
+    email: 'Email',
+    interest: 'Manage interests',
+    career: 'Career info',
+  },
+
+  plan: {
+    free: (dailyPlayLimit: number | null) =>
+      dailyPlayLimit === null
+        ? 'Free'
+        : `Free · ${enCount(dailyPlayLimit, 'episode', 'episodes')} a day`,
+    renewsAt: (iso: string) => `Renews ${enMonthDay(iso)}`,
+    cancelScheduled: (iso: string) => `Active until ${enMonthDay(iso)} · then Free`,
+    pendingPlan: (iso: string, nextPlanName: string) =>
+      `Active until ${enMonthDay(iso)} · then ${nextPlanName}`,
+    paymentIssue: "There's a problem with your payment",
+    trial: (lastFreeDate: string) =>
+      `Free trial · Unlimited until ${enDateOnlyMonthDay(lastFreeDate)}`,
+  },
+
+  signupTrialNotice: {
+    title: (lastFreeDate: string) =>
+      `Listen without limits until ${enDateOnlyMonthDay(lastFreeDate)}`,
+    body: (dailyPlayLimitAfter: number | null) =>
+      dailyPlayLimitAfter === null
+        ? "Here's a little gift from us. After that, you can keep listening without limits."
+        : `Here's a little gift from us. After that, you can listen to ${enCount(dailyPlayLimitAfter, 'episode', 'episodes')} a day.`,
+    confirm: 'OK',
+  },
+
+  email: {
+    unregistered: 'Not added',
+    unverifiedBadge: 'Email not verified',
+    unregisteredBadge: 'No email added',
+    helper: 'You need a verified email to make purchases',
+    register: 'Add',
+    verify: 'Verify',
+    change: 'Change',
+    unverifiedGlyph: '!',
+    lockedTitle: "Verified emails can't be changed",
+    lockedBody: 'This address is used to keep your payment records. To change it, contact us.',
+    lockedClose: 'Close',
+    lockedContact: 'Contact us',
+    unverifiedValueA11y: (email: string) => `${email}, not verified`,
+  },
+
+  interest: {
+    count: (count: number) => `${count} selected`,
+    overflow: (n: number) => `+${n}`,
+    overflowA11y: (n: number) => `and ${n} more`,
+  },
+
+  career: {
+    line: (parts: {
+      jobCategory: string | null;
+      jobTitle: string | null;
+      yearsOfExperience: YearsOfExperience | null;
+    }) =>
+      [
+        parts.jobCategory,
+        parts.jobTitle,
+        parts.yearsOfExperience === null ? null : EN_YEARS_LABELS[parts.yearsOfExperience],
+      ]
+        .filter((part): part is string => part !== null)
+        .join(' · '),
+    visibleLine: (parts: {
+      jobTitle: string | null;
+      yearsOfExperience: YearsOfExperience | null;
+    }) =>
+      [
+        parts.jobTitle,
+        parts.yearsOfExperience === null ? null : EN_YEARS_LABELS[parts.yearsOfExperience],
+      ]
+        .filter((part): part is string => part !== null)
+        .join(' · '),
+    emptyPrompt: 'Add it for better recommendations',
+    emptyAction: 'Add',
+  },
+
+  stats: {
+    labels: { completed: 'Episodes played', listened: 'Listening time', streak: 'Streak' },
+    // 값은 숫자만 — 아래 라벨 "Episodes played" 가 단위를 말한다("12 episodes" 는 두 줄로 접히고 겹말, 2026-10-18 영어 QA)
+    completedValue: (count: number) => String(count),
+    listenedValue: (totalSec: number) => {
+      const parts = toListenedSummaryParts(totalSec);
+      return parts.unit === 'minutes' ? `${parts.value} min` : `${parts.value} hr`;
+    },
+    streakValue: (days: number) => enCount(days, 'day', 'days'),
+    tileA11y: (label: string, value: string) => `${label}, ${value}`,
+
+    weeklyTitle: 'Weekly listening',
+    dailyAverageTitle: 'Daily average',
+    selectedDayTitle: (dayIndex: number) => EN_DAY_FULL_NAMES[dayIndex] ?? '',
+    highlight: (highlight: ListeningHighlight, isCurrentWeek: boolean) => {
+      switch (highlight.kind) {
+        case 'topPercent':
+          return {
+            lead: 'Compared to others',
+            main: `Top ${highlight.percent}%`,
+            a11y: `Listening time that week, top ${highlight.percent} percent compared to others`,
+          };
+        case 'moreThanPrevious': {
+          // 화면 두 줄은 한 줄씩 말줄임이라 짧게("vs. prior week" · "12h 38m more"), 낭독은 풀어 쓴다(KAN-197 실기기)
+          const previous = isCurrentWeek ? 'last week' : 'the week before';
+          return {
+            lead: isCurrentWeek ? 'vs. last week' : 'vs. prior week',
+            main: `${enCompactDayValue(highlight.diffSec)} more`,
+            a11y: `You listened ${enListenedDayValue(highlight.diffSec)} more than ${previous}`,
+          };
+        }
+        case 'listenedDays': {
+          const lead = isCurrentWeek ? 'This week' : 'That week';
+          const days = enCount(highlight.days, 'day', 'days');
+          // 화면은 수만("3 days") — "Listened to 1 e…" 처럼 잘린다(2026-10-19 KAN-197 실기기). 낭독은 문장 그대로
+          return {
+            lead,
+            main: days,
+            a11y: `You listened ${days} ${isCurrentWeek ? 'this week' : 'that week'}`,
+          };
+        }
+      }
+    },
+    dayHighlight: (
+      highlight: DailyListeningHighlight,
+      dayIndex: number,
+      isCurrentWeek: boolean,
+    ) => {
+      const dayFull = EN_DAY_FULL_NAMES[dayIndex] ?? '';
+      switch (highlight.kind) {
+        case 'moreThanLastWeek': {
+          // "vs. Thursday the week before" · "12 hr 38 min more" 가 둘 다 잘렸다(2026-10-19 KAN-197 실기기) — 화면은 짧게, 낭독은 풀어 쓴다
+          const previous = isCurrentWeek ? `last ${dayFull}` : `${dayFull} the week before`;
+          return {
+            lead: isCurrentWeek ? `vs. last ${dayFull}` : `vs. prior ${dayFull}`,
+            main: `${enCompactDayValue(highlight.diffSec)} more`,
+            a11y: `You listened ${enListenedDayValue(highlight.diffSec)} more than ${previous}`,
+          };
+        }
+        case 'bestDay': {
+          const lead = isCurrentWeek ? 'This week' : 'That week';
+          return {
+            lead,
+            main: 'Your top day',
+            a11y: `Your top listening day ${isCurrentWeek ? 'this week' : 'that week'}`,
+          };
+        }
+        case 'listenedContents': {
+          const episodes = enCount(highlight.count, 'episode', 'episodes');
+          return {
+            lead: 'That day',
+            main: episodes,
+            a11y: `You listened to ${episodes} that day`,
+          };
+        }
+      }
+    },
+    weekRange: (weekStart: string) => {
+      const { start, end } = toWeekRangeParts(weekStart);
+      return `${enMonthDayText(start)} – ${enMonthDayText(end)}`;
+    },
+    weeklyA11y: (weekStart: string) => {
+      const { start, end } = toWeekRangeParts(weekStart);
+      return `Weekly listening, ${enMonthDayText(start)} to ${enMonthDayText(end)}`;
+    },
+    prevWeekA11y: 'Previous week',
+    nextWeekA11y: 'Next week',
+    dayNames: ['M', 'T', 'W', 'T', 'F', 'S', 'S'],
+    dayValue: enListenedDayValue,
+    averageLabel: (sec: number) => `Avg ${enListenedDayValue(sec)}`,
+    axisAverage: 'Avg',
+    /** 축 칸은 고정 48(라벨 자리 28) — "180 min" 은 잘려 단위를 줄여 쓴다("180m", 큰 숫자 옆 단위 `m` 과 같다 — KAN-197) */
+    axisMax: (sec: number) =>
+      sec > 0 && sec < SECONDS_PER_MINUTE ? '<1m' : `${Math.floor(sec / SECONDS_PER_MINUTE)}m`,
+    axisZero: '0',
+    averageA11y: (sec: number) => `Daily average ${enListenedDayValue(sec)}`,
+    dayBarA11y: (dayIndex: number, sec: number) => {
+      return `${EN_DAY_FULL_NAMES[dayIndex]}, ${enListenedDayValue(sec)}`;
+    },
+
+    distributionTitle: 'Top topics',
+    topTopicLabel: 'Most played topic',
+    topTopicAllTimeLabel: 'Most played topic · All time',
+    topTopicDayLabel: (dayIndex: number) =>
+      `Most played topic · ${EN_DAY_FULL_NAMES[dayIndex] ?? ''}`,
+    othersLabel: 'Other',
+    ratioValue: (ratio: number) => `${ratio}%`,
+    legendA11y: (entries: { name: string; ratio: number }[]) =>
+      entries.map((entry) => `${entry.name} ${entry.ratio}%`).join(', '),
+
+    emptyState: 'No listening history yet',
+    errorTitle: 'Listening stats',
+    error: "Couldn't load stats",
+  },
+
+  cardError: "Couldn't load this info",
+  retry: 'Try again',
+
+  cardA11y: (label: string, value: string, destination: string) =>
+    `${label}, ${value}, ${destination}`,
+  destinations: {
+    plan: 'Open plan management',
+    email: 'Open email verification',
+    interest: 'Open interest management',
+    career: 'Open career info',
+  },
+};
+
+export const PROFILE_COPY = localized({ ko, en });

@@ -25,9 +25,12 @@ const toContentDetail = (dto: ContentDetailResponseDto): ContentDetail => ({
     contentVersion: dto.content.content_version,
     topics: dto.content.topics.map((topic) => ({ id: topic.id, name: topic.name })),
     tags: dto.content.tags ?? [],
+    language: dto.content.language ?? null,
+    // 새 `id`·`title` 을 먼저 읽고 종전 `series_id` 로 폴백한다(content-detail-api.md 4.1 — KAN-134 1단계)
     series: dto.content.series
       ? {
-          seriesId: dto.content.series.series_id,
+          seriesId: dto.content.series.id ?? dto.content.series.series_id ?? null,
+          title: dto.content.series.title?.trim() ? dto.content.series.title : null,
           episodeNo: dto.content.series.episode_no,
           totalEpisodes: dto.content.series.total_episodes,
         }
@@ -36,13 +39,7 @@ const toContentDetail = (dto: ContentDetailResponseDto): ContentDetail => ({
     authorName: dto.content.author_name,
     sourceName: dto.content.source_name,
     sourceUrl: dto.content.source_url,
-    sources: dto.content.sources
-      ? dto.content.sources.map((source) => ({
-          title: source.title,
-          author: source.author,
-          url: source.url,
-        }))
-      : null,
+    // sources는 옮기지 않는다 — 상세가 출처를 그리지 않는다(KAN-221, content-detail.md 4.3)
   },
   libraryItem: dto.library_item
     ? {

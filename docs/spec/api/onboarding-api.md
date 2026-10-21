@@ -371,7 +371,7 @@
 
 | 코드 | 상황 |
 |---|---|
-| `CONTENT_NOT_FOUND` | 존재하지 않는 `content_id` |
+| `CONTENT_NOT_FOUND` | 존재하지 않거나 **사용자 시장의 콘텐츠가 아닌** `content_id`(2026-10-15 — 상세·재생·탐색 담기와 같은 판정) |
 | `CONTENT_WITHDRAWN` | 회수·만료된 콘텐츠(`status != published`) |
 
 **에러**
@@ -512,7 +512,7 @@
 | `platform` | enum `ios` / `android` | 필수 | |
 | `is_os_permission_granted` | boolean | 필수 | **device 단위 값이다**(`domain.md` 3.6) |
 | `app_version` | string | 필수 | |
-| `language_code` | string (BCP 47, ≤16자) | 선택 | 기기 언어(추가 2026-10-14 — KAN-187) |
+| `language_code` | string (BCP 47, 입력 ≤64자) | 선택 | 기기 언어(추가 2026-10-14 — KAN-187) |
 | `timezone` | string (IANA, ≤64자) | 선택 | 기기 시간대(추가 2026-10-14 — KAN-187) |
 
 **Response 204**
@@ -522,7 +522,7 @@
 - **권한 상태는 `user_settings`가 아니라 `device_tokens`에 저장한다.** 사용자 단위가 아니라 기기 단위 값이다(`domain.md` 3.5·3.6).
 - **재고 팝업의 노출 이력은 서버에 저장하지 않는다.** "온보딩 전체에서 1회"는 온보딩 세션 안에서만 의미가 있고(`onboarding.md` 4 [알림]), 서버에 두면 이 화면 하나 때문에 계정 단위 상태가 하나 늘어난다. 클라이언트 로컬에서 관리한다.
 - **알림 허용·거부는 온보딩 진행을 가르지 않는다.** 결과와 무관하게 라이브러리로 진입한다.
-- **`language_code`·`timezone`은 기존 가입자의 로케일이 채워지는 경로다**(추가 2026-10-14 — KAN-187, `global-api.md` 4.2). 매 실행 호출되므로 재가입 없이 채워진다. 값은 기기 행이 아니라 **`users` 행**(`users.language_code`·`users.timezone`)에 저장하고 **`market`은 바꾸지 않는다.** 형식이 아닌 값은 버리고(저장값을 덮어쓰지 않는다) 요청은 204로 끝낸다.
+- **`language_code`·`timezone`은 기존 가입자의 로케일이 채워지는 경로다**(추가 2026-10-14 — KAN-187, `global-api.md` 4.2). 매 실행 호출되므로 재가입 없이 채워진다. 값은 기기 행이 아니라 **`users` 행**(`users.language_code`·`users.timezone`)에 저장하고 **`market`은 바꾸지 않는다.** 확장 subtag는 잘라 저장하고(`auth-api.md` 4.1과 같은 규칙) 형식이 아닌 값은 버리고(저장값을 덮어쓰지 않는다) 요청은 204로 끝낸다.
 
 ---
 

@@ -6,7 +6,11 @@ import { ERROR_CODES } from '@/shared/api/error-codes';
 import { formatPlanGrantLine } from '../plan-grant';
 import { SUBSCRIPTION_COPY } from '../subscription.copy';
 import type { MySubscription, PlanGrant } from '../subscription.types';
-import { inviteErrorMessage, inviteSuccessMessage } from './useInviteCodeScreen';
+import {
+  inviteErrorMessage,
+  inviteSuccessMessage,
+  subscriberConfirmPlanName,
+} from './useInviteCodeScreen';
 import { toEventNotice } from './useSubscriptionScreen';
 
 const GRANT: PlanGrant = {
@@ -112,5 +116,29 @@ describe('toEventNotice — 요금제 관리 프로모션 알림', () => {
   it('지급이 없거나 구독을 아직 모르면 null — 섹션이 없다', () => {
     expect(toEventNotice(subscription('free', null))).toBeNull();
     expect(toEventNotice(null)).toBeNull();
+  });
+});
+
+describe('subscriberConfirmPlanName — 유료 구독 중 코드 입력 전 확인(2026-10-19)', () => {
+  it('구독 중·해지 예약·결제 유예이고 지급이 없으면 지금 요금제 이름 — 확인을 띄운다', () => {
+    expect(subscriberConfirmPlanName(subscription('subscribed', null))).toBe('Pro');
+    expect(subscriberConfirmPlanName(subscription('cancel_scheduled', null))).toBe('Pro');
+    expect(subscriberConfirmPlanName(subscription('grace', null))).toBe('Pro');
+  });
+
+  it('구독이 없으면 null — 바로 보낸다', () => {
+    expect(subscriberConfirmPlanName(subscription('free', null))).toBeNull();
+  });
+
+  it('이미 지급 중이면 null — 서버가 막거나 그대로 돌려준다', () => {
+    expect(subscriberConfirmPlanName(subscription('subscribed', GRANT))).toBeNull();
+  });
+
+  it('구독 조회를 아직 못 받았으면 null — 확인 때문에 입력을 막지 않는다', () => {
+    expect(subscriberConfirmPlanName(undefined)).toBeNull();
+  });
+
+  it('확인 문구는 지금 요금제 이름을 넣는다', () => {
+    expect(SUBSCRIPTION_COPY.invite.subscriberConfirmTitle('Pro')).toBe('이미 Pro 구독 중이에요');
   });
 });

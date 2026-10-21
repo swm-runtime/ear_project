@@ -1,3 +1,5 @@
+import { UserMarket } from '@/modules/user/user.enum';
+
 import { AdminTopicView } from '../admin.types';
 
 /** admin.md 5장 주제 관리 — 콘텐츠 건수는 집계값이다(domain.md 4.1 — B-7) */
@@ -7,6 +9,8 @@ export class AdminTopicItemDto {
   readonly parent_category: string;
   /** 이미지 매핑 키(`global-api.md` 4.5). 아직 채우지 않은 주제는 `null` */
   readonly slug: string | null;
+  /** 주제가 속한 시장(KAN-237). 콘솔이 국내·글로벌 주제를 이 값으로 가른다 */
+  readonly market: UserMarket;
   readonly is_visible: boolean;
   readonly display_order: number;
   readonly content_count: number;
@@ -23,6 +27,7 @@ export class AdminTopicItemDto {
       name: view.topic.name,
       parent_category: view.topic.parentCategory,
       slug: view.topic.slug,
+      market: view.topic.market,
       is_visible: view.topic.isVisible,
       display_order: view.topic.displayOrder,
       content_count: view.contentCount,

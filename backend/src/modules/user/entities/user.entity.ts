@@ -119,8 +119,8 @@ export class User extends BaseEntity {
   withdrawnAt: Date | null;
 
   /**
-   * 시장(`global-api.md` 2.1). **계정 생성 시 1회** `market.policy.ts`가 정하고 이후 바꾸지 않는다 —
-   * 로그인·기기 등록이 다른 로케일을 보내도 그대로다. 기존 가입자는 마이그레이션 기본값 `kr`.
+   * 시장(`global-api.md` 2.1). **계정 생성 시 1회** `market.policy.ts`가 정하고, 그 뒤에는 시장 전환(4.11 —
+   * `UserMarketChangeService`)으로만 바뀐다. 로그인·기기 등록이 다른 로케일을 보내도 그대로다. 기존 가입자는 마이그레이션 기본값 `kr`.
    */
   @Column({
     name: 'market',

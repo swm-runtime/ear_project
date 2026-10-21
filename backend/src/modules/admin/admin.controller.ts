@@ -43,6 +43,7 @@ import {
 } from './admin.constant';
 import { AdminContentListResponseDto } from './dto/admin-content-list-response.dto';
 import { AdminContentQueryRequestDto } from './dto/admin-content-query-request.dto';
+import { AdminTopicQueryRequestDto } from './dto/admin-topic-query-request.dto';
 import { AdminContentItemDto } from './dto/admin-content-item.dto';
 import {
   AdminTopicItemDto,
@@ -77,7 +78,6 @@ import { AdminSystemStatsService } from './services/admin-system-stats.service';
 import { ResourceAlertService } from './services/resource-alert.service';
 import { AdminTopicService } from './services/admin-topic.service';
 import { UserMarket } from '@/modules/user/user.enum';
-import { ContentLanguage } from '@/modules/content/content.enum';
 import { AdminNoticeQueryRequestDto } from './dto/admin-notice-query-request.dto';
 
 interface UploadFiles {
@@ -144,9 +144,11 @@ export class AdminController {
   }
 
   @Get('topics')
-  async listTopics(): Promise<AdminTopicListResponseDto> {
+  async listTopics(
+    @Query() query: AdminTopicQueryRequestDto,
+  ): Promise<AdminTopicListResponseDto> {
     return AdminTopicListResponseDto.from(
-      await this.adminTopicService.findAll(new Date()),
+      await this.adminTopicService.findAll(new Date(), query.market),
     );
   }
 
@@ -411,9 +413,9 @@ export class AdminController {
           url: source.url ?? null,
         })),
         reviewConfirmed: payload.review_confirmed,
-        // 1단계 기본값 — 구 콘솔·KR 파이프라인은 아직 보내지 않는다(global-api.md 4.9)
-        market: payload.market ?? UserMarket.KR,
-        language: payload.language ?? ContentLanguage.KO,
+        // 필수(global-api.md 4.9 2단계) — DTO 가 빠진 요청을 400 으로 막는다
+        market: payload.market,
+        language: payload.language,
         audio: toFileInput(audio),
         audioAac: files.audio_aac?.[0] ? toFileInput(files.audio_aac[0]) : null,
         audioLossless: files.audio_lossless?.[0]
@@ -434,8 +436,8 @@ export class AdminController {
   }
 
   /**
-   * admin-api.md 4.10 — 재발행. 같은 `content_id`에 오디오·메타를 갈아끼우고
-   * `content_version`을 올린다. 파이프라인이 TTS 규격을 바꿔 오디오를 재생성했을 때
+   * admin-api.md 4.10 — 재발행. 같은 `content_id`에 오디오·메타를 갈아끼우고, 오디오를
+   * 바꿨으면 `content_version`을 올린다(KAN-236). 파이프라인이 TTS 규격을 바꿔 오디오를 재생성했을 때
    * 사용자 라이브러리·재생 기록을 끊지 않고 발행본만 교체하는 경로다.
    *
    * **모든 파트가 선택이다** — 파이프라인은 `audio`만 보낸다.

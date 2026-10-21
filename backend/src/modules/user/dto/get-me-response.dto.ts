@@ -42,6 +42,8 @@ class MePendingConsentDto {
   readonly consent_type: ConsentType;
   readonly version: string | null;
   readonly is_required: boolean;
+  /** `age_confirmation` 항목에만 — 기준 연령(KAN-220). 로그인 응답(4.1)과 같은 모양이다 */
+  readonly min_age?: number;
 }
 
 export class GetMeResponseDto {
@@ -74,6 +76,7 @@ export class GetMeResponseDto {
         consent_type: consent.consentType,
         version: consent.version,
         is_required: consent.isRequired,
+        ...(consent.minAge === undefined ? {} : { min_age: consent.minAge }),
       })),
     };
   }

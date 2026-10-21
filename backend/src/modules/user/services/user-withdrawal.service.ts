@@ -123,7 +123,7 @@ export class UserWithdrawalService {
       }
 
       await this.purge(user.id, manager);
-      await this.recordWithdrawalLog(user.id, command, now, manager);
+      await this.recordWithdrawalLog(user, command, now, manager);
     });
 
     this.logger.log('user withdrawn', { user_id: command.userId });
@@ -214,7 +214,7 @@ export class UserWithdrawalService {
    * `sessions` · `consents` · `user_interests` · `library_items` ·
    * `drip_excluded_contents` · `first_drip_jobs` · `device_tokens` ·
    * `playback_progresses` · `play_records` · `user_signals` ·
-   * `user_settings` · `user_preference_vectors` · `source_link_clicks`
+   * `user_settings` · `user_preference_vectors` · `source_link_clicks` · `user_active_dates`
    *
    * **명시적으로 지우는 것** — FK가 없거나(`idempotency_keys`는 `owner_key` 스코프)
    * 아카이브 이관 순서가 있어야 하는 것(`subscriptions` · `consents`)이다.
@@ -236,7 +236,7 @@ export class UserWithdrawalService {
 
   /** 탈퇴 사유는 집계 목적이므로 아카이브와 **다른 pepper**로 해싱한다 (domain.md 11.2) */
   private async recordWithdrawalLog(
-    userId: string,
+    user: User,
     command: WithdrawUserCommand,
     now: Date,
     manager: EntityManager,
@@ -245,12 +245,13 @@ export class UserWithdrawalService {
       this.withdrawalLogRepository.create({
         userHash: hmacSha256Hex(
           this.configService.get('WITHDRAWAL_HASH_PEPPER', { infer: true }),
-          userId,
+          user.id,
         ),
         userHashVersion: USER_HASH_VERSION,
         reasonCode: command.reasonCode,
         reasonText: command.reasonText,
         withdrawnAt: now,
+        market: user.market,
       }),
       manager,
     );

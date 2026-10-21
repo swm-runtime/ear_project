@@ -15,9 +15,3 @@ export const deriveEmailStatus = (
   if (email === null) return 'unregistered';
   return isEmailVerified ? 'verified' : 'unverified';
 };
-
-/** ISO UTC 시각 → 기기 로캘의 월·일. 판정은 서버 몫이고 표기만 클라이언트가 한다(profile-uiux.md 6장과 동일) */
-export const toMonthDayParts = (iso: string): { month: number; day: number } => {
-  const date = new Date(iso);
-  return { month: date.getMonth() + 1, day: date.getDate() };
-};

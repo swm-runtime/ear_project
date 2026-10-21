@@ -1,19 +1,26 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { ActivityIndicator, Image, Pressable, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { useScrollEndGate } from '@/shared/hooks/useScrollEndGate';
+import { localized, type LocalizedCopy } from '@/shared/i18n/localized';
 import { theme } from '@/shared/theme';
 import CheckIcon from '@/shared/ui/CheckIcon';
 import ChevronIcon from '@/shared/ui/ChevronIcon';
 import { pillButton } from '@/shared/ui/pill-button.styles';
 import { Text } from '@/shared/ui/Typography';
 
+import { hasPolicyDocument } from '../auth.constants';
 import { AUTH_COPY } from '../auth.copy';
 import type { AuthStackParamList } from '../auth.types';
 import ConsentItem from '../components/ConsentItem';
 import { useTermsConsentScreen } from '../hooks/useTermsConsentScreen';
 
 type TermsConsentScreenProps = NativeStackScreenProps<AuthStackParamList, 'TermsConsent'>;
+
+const ko = { backA11y: '뒤로가기', logoA11y: '이어' } as const;
+const en: LocalizedCopy<typeof ko> = { backA11y: 'Back', logoA11y: 'Earcast' };
+const COPY = localized({ ko, en });
 
 /**
  * A4 약관 동의 — 신규 가입 시 별도 화면. [동의하고 시작하기]를 누른 시점에 계정이 생성된다.
@@ -33,6 +40,10 @@ export default function TermsConsentScreen({ route, navigation }: TermsConsentSc
     handleViewPress,
     handleSubmit,
   } = useTermsConsentScreen(route.params);
+  // 목록을 끝까지 내려야 버튼이 열린다(PM 확정 2026-10-19) — 필수 체크(canSubmit)에 더하는 조건. [전체 동의]는 이와 무관하게
+  // 체크된다. 짧아서 스크롤이 없는 화면·스크린리더 사용자는 처음부터 열려 있다(useScrollEndGate)
+  const scrollEndGate = useScrollEndGate();
+  const canPressSubmit = canSubmit && scrollEndGate.isOpen;
 
   return (
     <SafeAreaView style={styles.container}>
@@ -41,18 +52,27 @@ export default function TermsConsentScreen({ route, navigation }: TermsConsentSc
         style={styles.back}
         onPress={() => navigation.goBack()}
         accessibilityRole="button"
-        accessibilityLabel="뒤로가기"
+        accessibilityLabel={COPY.backA11y}
       >
         <ChevronIcon direction="left" size={24} color={theme.color.textPrimary} />
       </Pressable>
 
-      <View style={styles.body}>
+      {/* 본문은 스크롤된다 — 영어 국외 이전 동의(5줄)처럼 항목이 길면 리스트가 하단 버튼 밑으로 깔렸다(2026-10-18
+          영어 QA). 버튼은 스크롤 밖 형제라 본문 끝은 언제나 버튼 위에서 멈춘다. 짧으면 flexGrow 로 화면을 채워
+          리스트가 지금처럼 바닥에 붙는다 */}
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={styles.body}
+        alwaysBounceVertical={false}
+        showsVerticalScrollIndicator={false}
+        {...scrollEndGate.scrollViewProps}
+      >
         {/* 브랜드 로고 + 환영 인사 — 이 화면의 주인공. 동의는 그 아래 조연이다 */}
         <Image
           source={require('../../../../assets/logo-mark.png')}
           style={styles.logo}
           resizeMode="contain"
-          accessibilityLabel="이어"
+          accessibilityLabel={COPY.logoA11y}
         />
         <Text style={styles.greeting}>{AUTH_COPY.consent.greeting}</Text>
         <Text style={styles.title}>{AUTH_COPY.consent.title}</Text>
@@ -82,29 +102,33 @@ export default function TermsConsentScreen({ route, navigation }: TermsConsentSc
               description={item.description}
               onToggle={() => toggleConsent(item.consentType)}
               // 열람 문서가 있는 항목만 [보기] 셰브론을 그린다 — 마케팅은 한 줄 고지로,
-              // 연령 확인은 자기 선언이라 열 문서가 없다
+              // 연령 확인은 자기 선언이라 열 문서가 없다. 국외 이전은 처리방침의 국외 이전 절을 연다
               onViewPress={
-                item.consentType === 'terms' || item.consentType === 'privacy'
+                hasPolicyDocument(item.consentType)
                   ? () => handleViewPress(item.consentType)
                   : undefined
               }
             />
           ))}
         </View>
-      </View>
+      </ScrollView>
 
+      {/* 끝까지 내리기 전에는 버튼이 왜 안 눌리는지 글로 밝힌다(색만으로 상태를 말하지 않는다 — convention 3.4) */}
+      {scrollEndGate.isClosedAfterMeasure ? (
+        <Text style={styles.readToEnd}>{AUTH_COPY.consent.readToEnd}</Text>
+      ) : null}
       <Pressable
         style={[
           pillButton.base,
           pillButton.primary,
           styles.submit,
-          !canSubmit && styles.submitDisabled,
+          !canPressSubmit && styles.submitDisabled,
         ]}
-        disabled={!canSubmit || isSubmitting}
+        disabled={!canPressSubmit || isSubmitting}
         onPress={handleSubmit}
         accessibilityRole="button"
         accessibilityLabel={AUTH_COPY.consent.submit}
-        accessibilityState={{ disabled: !canSubmit || isSubmitting }}
+        accessibilityState={{ disabled: !canPressSubmit || isSubmitting }}
       >
         {isSubmitting ? (
           <ActivityIndicator color={theme.color.onPrimary} />
@@ -130,8 +154,12 @@ const styles = StyleSheet.create({
     paddingLeft: theme.spacing.sm,
     marginTop: theme.spacing.sm,
   },
-  body: {
+  scroll: {
     flex: 1,
+  },
+  // 스크롤 내용 — 짧으면 flexGrow 로 화면을 채워 리스트(marginTop auto)가 종전처럼 바닥에 붙는다
+  body: {
+    flexGrow: 1,
     // 로고·인사를 한 뼘 아래로 — 상단 여백이 숨을 만든다
     paddingTop: theme.spacing.xl + theme.spacing.md,
   },
@@ -185,6 +213,8 @@ const styles = StyleSheet.create({
     borderColor: theme.color.primary,
   },
   agreeAllLabel: {
+    // 원 옆 남는 폭 안에서 접힌다 — 긴 영어 라벨이 화면 밖으로 밀리지 않게(KAN-197)
+    flexShrink: 1,
     fontSize: theme.font.size.md,
     fontWeight: '700',
     color: theme.color.textPrimary,
@@ -193,6 +223,13 @@ const styles = StyleSheet.create({
     height: StyleSheet.hairlineWidth,
     backgroundColor: theme.color.border,
     marginVertical: theme.spacing.sm,
+  },
+  /** 끝까지 읽기 안내 — 버튼 바로 위의 작은 보조 글자 */
+  readToEnd: {
+    fontSize: theme.font.size.xs,
+    color: theme.color.textSecondary,
+    textAlign: 'center',
+    marginBottom: theme.spacing.sm,
   },
   /** 온보딩 진행 버튼과 같은 알약 — 라벨은 법적 명시라 아이콘화하지 않는다 */
   // 크기만 — 모양·색은 공용 알약(pillButton)

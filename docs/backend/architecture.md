@@ -195,8 +195,10 @@ src/
 | LibraryScreen | Library, Playback, Content, Drip | **Entity를 소유하지 않는 유스케이스 모듈**, 아래 참고 |
 | Explore | Content, Library, Playback, Interest, Drip | **Entity를 소유하지 않는 유스케이스 모듈**, 아래 참고 |
 | ContentDetail | Content, Library, Playback | **Entity를 소유하지 않는 유스케이스 모듈**, 아래 참고 |
+| SeriesDetail | Content, Library, Playback | **Entity를 소유하지 않는 유스케이스 모듈**(ContentDetail과 같은 형태), 아래 참고 — 신설 2026-10-17(KAN-134) |
 | Profile | User, Subscription, Interest, Library, Playback, Content | **Entity를 소유하지 않는 유스케이스 모듈**, 아래 참고 |
 | Settings | User, Subscription, Interest | **Entity를 소유하지 않는 유스케이스 모듈**, 아래 참고 |
+| MarketChange | User, Interest, Drip, Auth | **Entity를 소유하지 않는 유스케이스 모듈**, 아래 참고 — 신설 2026-10-19(KAN-227). Auth는 바뀐 시장을 담은 access token 재발급(`TokenService` — Auth가 export하는 유일한 Service) |
 | Notification | User | `notification_logs` 소유(`domain.md` 2장). 발송 대상 판정에 기기 토큰(`device_tokens`)·알림 토글(`user_settings`)이 필요하다. `User`는 `Notification`을 모르므로 순환은 없다 — 신설 2026-09-17(KAN-68) |
 | Notice | *(없음)* | `notices` 소유(`domain.md` 9.2). 관리자 쓰기의 감사 기록은 admin 모듈이 조합한다 — 신설 2026-09-17(KAN-67) |
 | Retention | *(없음)* | **Entity도 다른 모듈도 갖지 않는 정책 집행 모듈**, 아래 참고 |
@@ -232,6 +234,10 @@ src/
 - **`user` · `subscription`을 의존하지 않는다.** 상세 응답에는 잔여 재생 표시값이 없다(`content-detail-api.md` 2장 — 상세 화면에 잔여 표시가 없고, [재생] 허용은 재생 시작 시점에 서버가 판정한다).
 - **쓰기 경로가 없다.** 상세 화면의 액션([재생]·[담기]/[삭제]·[원문 보기])은 전부 기존 계약의 재사용이라(`content-detail-api.md` 1장) 소유 모듈(playback·explore·library-screen)에 그대로 남는다.
 
+**SeriesDetail도 Entity를 갖지 않는다** (신설 2026-10-17 — KAN-134). 시리즈 화면 하나에 시리즈·편·주제(`content` 소유 — `series` · `contents` · `content_topics`), 편마다의 담김 상태(`library` 소유), 재생 위치·오늘 카운트 힌트(`playback` 소유)가 함께 나간다. ContentDetail과 같은 이유로 `content` 모듈에 넣을 수 없어(`library` · `playback`이 이미 `→ content`) 소유 모듈들 **위에서** Orchestrator가 조합한다(→ 3.3). `GET /series/:series_id` 하나가 여기에 속하고(`explore-api.md` 4.7), 쓰기 경로는 없다 — 편 단위 액션(재생·담기·삭제)은 기존 계약을 그대로 쓴다. 어떤 모듈도 이 모듈을 의존하지 않는다.
+
+- Admin·Explore·LibraryScreen·ContentDetail·Playback·DripBatch에는 시리즈로 새 의존 방향이 생기지 않았다 — 모두 이미 Content를 의존하고, `SeriesService`·`ContentService`를 더 부를 뿐이다.
+
 **Profile도 Entity를 갖지 않는다.** 프로필 응답에는 계정·커리어(`user` 소유), 구독 상태·요금제(`subscription` 소유), 관심 주제 요약(`interest` 소유), 완청 고유 콘텐츠 수(`library` 소유), 청취 시간·연속 일수·주간 그래프(`playback` 소유), 주제 분포의 주제 매핑(`content` 소유)이 함께 나간다. `profile.md` 6장이 **전용 테이블을 만들지 않는다**고 정하고 있어 조립할 자기 Entity가 애초에 없다. 소유 모듈들 **위에서** Orchestrator가 조합한다(→ 3.3). `/users/me/profile`과 `/users/me/profile/weekly-listening`이 여기에 속한다.
 
 - **`user` 모듈에 넣을 수 없다.** 통계가 `library_items` · `play_records` · `content_topics`를 읽는데, `user` 모듈에 그 셋을 더하면 `library → user` · `playback → user`와 부딪쳐 순환이 된다.
@@ -245,6 +251,11 @@ src/
 - **`plan` · `interest_summary`는 소유 모듈의 조립 함수를 호출한다.** `settings-api.md` 4.1이 `profile-api.md` 4.1과 **같은 모양·같은 조립 함수**를 쓰라고 요구하므로 `SubscriptionService` · `UserInterestService`가 조립하고 두 화면이 그것을 부른다 — 화면마다 조립하면 같은 사용자에게 다른 구독 표시·다른 주제 개수가 나간다(`LibraryScreen`의 잔여 재생 표시값과 같은 논리).
 - **`playback`을 의존하지 않는다.** 설정 응답에는 잔여 재생 표시값이 없다 — 필요한 것은 구독 요약뿐이다.
 - **마케팅 동의를 설정 값 변경에 싣지 않는다.** 설정 값은 절대값 UPDATE인데 동의는 `consents`에 **행을 추가한다**(`domain.md` 3.2 — append-only). 저장 구조가 달라 실패·재전송 성질이 다르므로 엔드포인트를 나눈다.
+
+**MarketChange도 Entity를 갖지 않는다** (신설 2026-10-19 — KAN-227, `global-api.md` 4.11). 시장 전환은 사용자 행·동의·전환 이력(`user` 소유 — `users` · `consents` · `user_market_changes`), 관심 주제(`interest` 소유), 첫 드립 작업(`drip` 소유)을 한 번에 바꾸고 새 access token(`auth`)을 돌려준다. 어느 한 모듈에 넣으면 그 모듈이 나머지를 의존해야 하는데 `interest` · `drip` · `auth`가 이미 `user`를 의존해 순환이 된다. 소유 모듈들 **위에서** Orchestrator가 조합한다(→ 3.3). `/users/me/market-change/preview`와 `/users/me/market-change`가 여기에 속한다. 어떤 모듈도 이 모듈을 의존하지 않는다.
+
+- **한 트랜잭션으로 묶는다 — 8.1 "Orchestrator는 단계별 트랜잭션"의 예외.** 단계 사이에서 끊기면 시장만 바뀌고 새 시장 동의가 없거나, 관심 주제가 이전 시장 것으로 남는다. 어느 쪽이든 사용자가 스스로 복구할 길이 없고 상태 머신으로 이어 갈 대상도 아니다. 단계마다 몇 행이고 외부 호출이 없어(토큰 발급은 커밋 뒤 서명만) 짧다.
+- **판정은 소유 Service에 있다.** 하루 1회·되돌리기 판정과 서버 스위치는 `UserMarketChangeService`, 새 시장 동의 검증은 `ConsentService.recordForMarketChange`, 노출 주제 유무는 `TopicService.hasSelectableTopics`다. Orchestrator는 순서만 정한다.
 
 **`User → Subscription`은 한시적이다.** `domain.md` 2장이 `Subscription → User`(결제 반영 시 `users.tier` 갱신)를 함께 정의하고 있어, 두 방향이 동시에 성립하면 순환이 된다. Subscription 모듈이 티어 갱신을 시작하는 시점에 **탈퇴를 Orchestrator로 올려**(→ 3.3) 두 Service를 위에서 조합하고 이 의존을 제거한다.
 

@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { DataSource, EntityManager } from 'typeorm';
+import { DataSource, EntityManager, QueryFailedError } from 'typeorm';
 
 import { BusinessException } from '@/common/exceptions/business.exception';
 import { ErrorCode } from '@/common/exceptions/error-code.enum';
@@ -14,6 +14,7 @@ import {
   ContentStatus,
 } from '@/modules/content/content.enum';
 import { ContentService } from '@/modules/content/services/content.service';
+import { SeriesService } from '@/modules/content/services/series.service';
 import { Topic } from '@/modules/interest/entities/topic.entity';
 import { UserMarket } from '@/modules/user/user.enum';
 import { TopicService } from '@/modules/interest/services/topic.service';
@@ -148,6 +149,7 @@ describe('AdminContentService', () => {
   let topicService: jest.Mocked<TopicService>;
   let topicExposureService: jest.Mocked<TopicExposureService>;
   let auditLogService: jest.Mocked<AuditLogService>;
+  let seriesService: jest.Mocked<SeriesService>;
   let storage: jest.Mocked<ContentStorageClient>;
   let audioProbe: jest.Mocked<AudioProbe>;
   let thumbnailImage: jest.Mocked<ThumbnailImage>;
@@ -206,6 +208,11 @@ describe('AdminContentService', () => {
       saveScript: jest.fn().mockResolvedValue(undefined),
       deleteScript: jest.fn().mockResolvedValue(undefined),
     } as unknown as jest.Mocked<ContentService>;
+
+    seriesService = {
+      assertEpisodeUploadable: jest.fn().mockResolvedValue({}),
+      assertRestorable: jest.fn().mockResolvedValue(undefined),
+    } as unknown as jest.Mocked<SeriesService>;
 
     libraryService = {
       removeAllByWithdrawnContent: jest.fn().mockResolvedValue(3),
@@ -275,6 +282,7 @@ describe('AdminContentService', () => {
     service = new AdminContentService(
       dataSource,
       contentService,
+      seriesService,
       libraryService,
       playbackService,
       topicService,
@@ -759,6 +767,94 @@ describe('AdminContentService', () => {
       });
     });
 
+    describe('시리즈 편(KAN-134)', () => {
+      const SERIES_ID = '55555555-5555-4555-8555-555555555555';
+      const seriesCommand = () =>
+        buildCommand({ seriesId: SERIES_ID, episodeNo: 2, totalEpisodes: 3 });
+
+      it('저장소에 올리기 전에 한 번, 발행 트랜잭션 안에서 잠그고 한 번 더 시리즈를 검증한다', async () => {
+        // when
+        await service.upload(seriesCommand(), NOW);
+
+        // then
+        const expected = {
+          seriesId: SERIES_ID,
+          episodeNo: 2,
+          totalEpisodes: 3,
+          market: UserMarket.KR,
+        };
+        expect(seriesService.assertEpisodeUploadable).toHaveBeenNthCalledWith(
+          1,
+          expected,
+        );
+        expect(seriesService.assertEpisodeUploadable).toHaveBeenNthCalledWith(
+          2,
+          expected,
+          manager,
+        );
+        expect(contentService.publish).toHaveBeenCalledWith(
+          containing({ seriesId: SERIES_ID, episodeNo: 2, totalEpisodes: 3 }),
+          NOW,
+          manager,
+        );
+      });
+
+      it('사전 검증이 거절하면 저장소에 아무것도 올리지 않는다', async () => {
+        // given
+        seriesService.assertEpisodeUploadable.mockRejectedValueOnce(
+          new BusinessException({
+            status: 400,
+            errorCode: ErrorCode.VALIDATION_FAILED,
+            message: '존재하지 않는 시리즈예요',
+            details: { field: 'series_id' },
+          }),
+        );
+
+        // when
+        const act = service.upload(seriesCommand(), NOW);
+
+        // then
+        await expect(act).rejects.toMatchObject({
+          errorCode: ErrorCode.VALIDATION_FAILED,
+          details: { field: 'series_id' },
+        });
+        expect(storage.putAudio).not.toHaveBeenCalled();
+        expect(contentService.publish).not.toHaveBeenCalled();
+      });
+
+      it('같은 번호 동시 발행이 부분 유니크에 걸리면 올린 파일을 지우고 400(episode_no)으로 바꾼다', async () => {
+        // given
+        const violation = Object.assign(
+          new QueryFailedError('INSERT', [], new Error('duplicate key')),
+          {
+            driverError: {
+              code: '23505',
+              constraint: 'uq_contents_series_id_episode_no_published',
+            },
+          },
+        );
+        contentService.publish.mockRejectedValueOnce(violation);
+
+        // when
+        const act = service.upload(seriesCommand(), NOW);
+
+        // then
+        await expect(act).rejects.toMatchObject({
+          errorCode: ErrorCode.VALIDATION_FAILED,
+          details: { field: 'episode_no' },
+        });
+        expect(storage.remove).toHaveBeenCalled();
+      });
+
+      it('단일 콘텐츠는 시리즈 검증을 부르지 않는다', async () => {
+        // when
+        await service.upload(buildCommand(), NOW);
+
+        // then
+        expect(seriesService.assertEpisodeUploadable).not.toHaveBeenCalled();
+      });
+    });
+
     it('썸네일은 원본이 아니라 저장 규격(WebP 768px)으로 변환된 파일을 올린다', async () => {
       // when
       await service.upload(buildCommand(), NOW);
@@ -1013,6 +1109,32 @@ describe('AdminContentService', () => {
       );
     });
 
+    it('같은 번호의 시리즈 편이 그 사이 발행됐으면 복구하지 않는다', async () => {
+      // given
+      contentService.getByIdForUpdate.mockResolvedValue({
+        id: CONTENT_ID,
+        status: ContentStatus.WITHDRAWN,
+        seriesId: '55555555-5555-4555-8555-555555555555',
+        episodeNo: 2,
+      } as never);
+      seriesService.assertRestorable.mockRejectedValueOnce(
+        new BusinessException({
+          status: 409,
+          errorCode: ErrorCode.CONFLICT,
+          message: '같은 번호로 발행된 편이 있어 되돌릴 수 없어요',
+        }),
+      );
+
+      // when
+      const act = service.restore(ACTOR_ID, CONTENT_ID);
+
+      // then
+      await expect(act).rejects.toMatchObject({
+        errorCode: ErrorCode.CONFLICT,
+      });
+      expect(contentService.restoreWithdrawn).not.toHaveBeenCalled();
+    });
+
     it('회수 상태가 아닌 콘텐츠의 복구는 409로 거부한다', async () => {
       // when
       const act = service.restore(ACTOR_ID, CONTENT_ID);
@@ -1145,6 +1267,121 @@ describe('AdminContentService', () => {
     });
   });
 
+  describe('GLOBAL 콘텐츠의 target_audiences 거부(global-api.md 4.9 · admin-api.md 4.6·4.10)', () => {
+    const ENRICHMENT_WITH_AUDIENCES = {
+      schema_version: 2,
+      difficulty: 'beginner',
+      target_audiences: [{ job_category: '개발', years_of_experience: '2-3' }],
+    };
+    const GLOBAL_PUBLISHED = {
+      id: CONTENT_ID,
+      status: ContentStatus.PUBLISHED,
+      origin: ContentOrigin.AI_GENERATED,
+      contentVersion: 2,
+      audioPath: 'audio/old.mp3',
+      thumbnailUrl: `${CDN_BASE_URL}/thumb/old.png`,
+      market: UserMarket.GLOBAL,
+    };
+    const REJECTED = {
+      status: 400,
+      errorCode: ErrorCode.VALIDATION_FAILED,
+      message: '글로벌 콘텐츠에는 target_audiences를 넣지 않아요',
+      details: { field: 'target_audiences' },
+    };
+
+    it('업로드 — GLOBAL에 target_audiences가 있으면 파일을 올리기 전에 400', async () => {
+      // given — GLOBAL 주제·언어로 시장 일관성은 통과한다
+      topicService.findAllByIds.mockResolvedValue([
+        { id: TOPIC_ID, name: 'Career', market: UserMarket.GLOBAL } as Topic,
+      ]);
+      const command = buildCommand({
+        market: UserMarket.GLOBAL,
+        language: ContentLanguage.EN,
+        enrichment: buildEnrichmentFile(ENRICHMENT_WITH_AUDIENCES),
+      });
+
+      // when / then
+      await expect(service.upload(command, NOW)).rejects.toMatchObject(
+        REJECTED,
+      );
+      expect(storage.putAudio).not.toHaveBeenCalled();
+      expect(contentService.publish).not.toHaveBeenCalled();
+    });
+
+    it('재발행 — GLOBAL에 target_audiences가 있으면 파일을 올리기 전에 400', async () => {
+      // given
+      contentService.getById.mockResolvedValue(GLOBAL_PUBLISHED as never);
+      const command = buildRepublishCommand({
+        enrichment: buildEnrichmentFile(ENRICHMENT_WITH_AUDIENCES),
+      });
+
+      // when / then
+      await expect(service.republish(command)).rejects.toMatchObject(REJECTED);
+      expect(storage.putAudio).not.toHaveBeenCalled();
+      expect(contentService.republish).not.toHaveBeenCalled();
+      expect(contentService.applyEnrichment).not.toHaveBeenCalled();
+    });
+
+    it('추천 메타 단독 재발행 — GLOBAL에 target_audiences가 있으면 400이고 메타를 반영하지 않는다', async () => {
+      // given
+      contentService.getByIdForUpdate.mockResolvedValue(
+        GLOBAL_PUBLISHED as never,
+      );
+      const command = buildRepublishCommand({
+        audio: null,
+        enrichment: buildEnrichmentFile(ENRICHMENT_WITH_AUDIENCES),
+      });
+
+      // when / then
+      await expect(service.republish(command)).rejects.toMatchObject(REJECTED);
+      expect(contentService.applyEnrichment).not.toHaveBeenCalled();
+      expect(auditLogService.record).not.toHaveBeenCalled();
+    });
+
+    it('KR이면 target_audiences를 그대로 반영한다 — 업로드·추천 메타 단독 재발행', async () => {
+      // given
+      contentService.getByIdForUpdate.mockResolvedValue({
+        ...GLOBAL_PUBLISHED,
+        market: UserMarket.KR,
+      } as never);
+      const expected = containing({
+        targetAudiences: [{ jobCategory: '개발', yearsOfExperience: '2-3' }],
+      });
+
+      // when
+      await service.upload(
+        buildCommand({
+          enrichment: buildEnrichmentFile(ENRICHMENT_WITH_AUDIENCES),
+        }),
+        NOW,
+      );
+      const republished = await service.republish(
+        buildRepublishCommand({
+          audio: null,
+          enrichment: buildEnrichmentFile(ENRICHMENT_WITH_AUDIENCES),
+        }),
+      );
+
+      // then
+      expect(contentService.applyEnrichment).toHaveBeenCalledTimes(2);
+      expect(contentService.applyEnrichment).toHaveBeenNthCalledWith(
+        1,
+        containing({ id: CONTENT_ID }),
+        expected,
+        NOW,
+        manager,
+      );
+      expect(contentService.applyEnrichment).toHaveBeenNthCalledWith(
+        2,
+        containing({ contentVersion: 2 }),
+        expected,
+        expect.any(Date),
+        manager,
+      );
+      expect(republished.enrichment?.applied).toBe(true);
+    });
+  });
+
   describe('republish', () => {
     it('오디오만 보내면 같은 행의 경로·길이를 갈아끼우고 버전을 올린 뒤 이전 파일을 지운다', async () => {
       // when
@@ -1263,14 +1500,14 @@ describe('AdminContentService', () => {
       ).not.toHaveBeenCalled();
     });
 
-    it('메타만 보내도 content_version은 오른다 — 클라이언트 재발행 판정이 버전 하나로 동작한다', async () => {
+    it('메타만 보내면 오디오 경로를 넘기지 않는다 — 버전은 오디오가 바뀔 때만 오른다(KAN-236)', async () => {
       // given
       const command = buildRepublishCommand({ audio: null, title: '새 제목' });
 
       // when
       await service.republish(command);
 
-      // then
+      // then — 버전 판정은 contentService.republish가 audioPath 유무로 한다
       expect(contentService.republish).toHaveBeenCalledWith(
         expect.anything(),
         containing({ title: '새 제목', audioPath: undefined }),
@@ -1279,6 +1516,70 @@ describe('AdminContentService', () => {
       expect(storage.putAudio).not.toHaveBeenCalled();
       // 바뀐 파일이 없으므로 지울 것도 없다
       expect(storage.remove).toHaveBeenCalledWith([]);
+    });
+
+    it('썸네일만 바꾸는 재발행은 재생 위치를 지우지 않는다 — 같은 초가 같은 내용이다(KAN-236)', async () => {
+      // given
+      const command = buildRepublishCommand({
+        audio: null,
+        thumbnail: buildFile('thumb.png'),
+      });
+
+      // when
+      await service.republish(command);
+
+      // then — 오디오·길이를 넘기지 않으므로 버전도 그대로이고, 대본도 지우지 않는다
+      expect(contentService.republish).toHaveBeenCalledWith(
+        expect.anything(),
+        containing({ audioPath: undefined, durationSec: undefined }),
+        manager,
+      );
+      expect(
+        playbackService.deleteProgressesByContentId,
+      ).not.toHaveBeenCalled();
+      expect(contentService.deleteScript).not.toHaveBeenCalled();
+      expect(auditLogService.record).toHaveBeenCalledWith(
+        containing({
+          action: 'content.republish',
+          after: containing({ changed_parts: ['thumbnail'] }),
+        }),
+        manager,
+      );
+    });
+
+    it('제목·설명·출처·주제만 바꾸는 재발행도 재생 위치를 지우지 않는다(KAN-236)', async () => {
+      // given
+      const command = buildRepublishCommand({
+        audio: null,
+        title: '새 제목',
+        description: '새 설명',
+        sourceName: '새 출처',
+        topicIds: [TOPIC_ID],
+      });
+
+      // when
+      await service.republish(command);
+
+      // then
+      expect(
+        playbackService.deleteProgressesByContentId,
+      ).not.toHaveBeenCalled();
+    });
+
+    it('오디오를 바꾸는 재발행은 썸네일과 함께 와도 재생 위치를 지운다', async () => {
+      // given
+      const command = buildRepublishCommand({
+        thumbnail: buildFile('thumb.png'),
+      });
+
+      // when
+      await service.republish(command);
+
+      // then
+      expect(playbackService.deleteProgressesByContentId).toHaveBeenCalledWith(
+        CONTENT_ID,
+        manager,
+      );
     });
 
     it('바꿀 파트가 하나도 없으면 audio 필드를 가리키며 거부한다', async () => {

@@ -22,7 +22,7 @@ set -euo pipefail
 # 크론과 SSH forced command 는 PATH 가 짧다 — aws CLI(/usr/local/bin)를 못 찾는 경우를 막는다
 export PATH="/usr/local/bin:/usr/bin:/bin:${PATH:-}"
 
-TABLES=(topics contents content_topics content_sources content_embeddings content_stats content_scripts content_audio_renditions)
+TABLES=(topics series contents content_topics content_sources content_embeddings content_stats content_scripts content_audio_renditions)
 BUCKET="${CONTENT_SYNC_BUCKET:-earcast-backup-prod}"
 PREFIX="${CONTENT_SYNC_PREFIX:-content-sync}"
 LOCK=/tmp/ear-content-import.lock
@@ -66,7 +66,13 @@ PSQL=(docker compose -f docker-compose.prod.yml --env-file .env.prod exec -T pos
 } | "${PSQL[@]}" >/dev/null
 
 # 2) upsert — 표마다 충돌 키로 갱신. 열 목록은 정보 스키마에서 뽑아 스키마가 달라도(개발계가 앞서도) 깨지지 않게
-"${PSQL[@]}" 2>&1 <<'SQL' | grep -E "NOTICE|ERROR" | sed 's/^psql://' || true
+#
+#    **오류가 나면 실패로 끝낸다**(2026-10-16). 종전엔 출력을 거르고 `|| true`로 삼켜, upsert 가 통째로 취소돼도
+#    "content import ok" 를 찍고 ETag 까지 적었다 — 행 수 검증은 개발계가 더 많으면 통과하므로 잡지 못했다.
+#    실제로 GLOBAL 주제가 개발계·운영에서 각자 다른 ID 로 만들어져(마이그레이션 1790100000000) 10-15부터
+#    `uq_topics_market_slug` 위반으로 모든 회차가 취소됐는데 하루 넘게 아무도 몰랐다.
+UPSERT_FAILED=0
+UPSERT_OUT=$("${PSQL[@]}" 2>&1 <<'SQL'
 DO $$
 DECLARE
   spec record;
@@ -75,6 +81,10 @@ BEGIN
   FOR spec IN
     SELECT * FROM (VALUES
       ('topics',             'id'),
+      -- **contents 보다 먼저다**(2026-10-17 — KAN-134). public.contents.series_id 는 series 를 FK 로 가리켜, 새 시리즈의 편을
+      -- 시리즈보다 먼저 넣으면 FK 위반으로 회차 전체가 취소된다. 시리즈 id 는 환경마다 같다(CS 시리즈는 마이그레이션 고정 id,
+      -- 그 밖은 운영에서 만들어 이 동기화로만 들어온다)
+      ('series',             'id'),
       ('contents',           'id'),
       ('content_topics',     'content_id, topic_id'),
       ('content_sources',    'content_id, position'),
@@ -114,6 +124,15 @@ DELETE FROM public.content_audio_renditions r
  WHERE r.content_id IN (SELECT id FROM sync_stage.contents)
    AND NOT EXISTS (SELECT 1 FROM sync_stage.content_audio_renditions s WHERE s.content_id = r.content_id AND s.quality = r.quality);
 SQL
+) || UPSERT_FAILED=1
+printf '%s\n' "$UPSERT_OUT" | grep -E "NOTICE|ERROR" | sed 's/^psql://' || true
+
+if [ "$UPSERT_FAILED" -ne 0 ]; then
+  "${PSQL[@]}" -c "DROP SCHEMA IF EXISTS sync_stage CASCADE;" >/dev/null || true
+  # ETag 를 적지 않는다 — 원인을 고친 뒤 다음 알림·크론이 같은 덤프로 다시 시도한다
+  echo "content import FAILED: upsert 오류 — 위 ERROR 를 본다(이 회차는 아무것도 반영되지 않았다)"
+  exit 1
+fi
 
 # 3) 검증 — 운영이 센 행 수(매니페스트)만큼 개발계에도 들어왔는지 본다.
 #    개발계 행 수는 **더 많을 수 있다**(운영에서 하드 삭제된 옛 행이 남는다). 모자라면 실패다.

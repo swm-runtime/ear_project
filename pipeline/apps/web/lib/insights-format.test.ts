@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { fmtListenSec, fmtPct, isSmall, labelOf, maxOf, REASON_LABEL, shortDate, shortId } from "./insights-format";
+import { fmtAvg, fmtListenSec, fmtMonthDay, fmtPct, isSmall, labelOf, maxOf, REASON_LABEL, shortDate, shortId } from "./insights-format";
 
 test("fmtListenSec — 초·분·시간 단위로 바꾸고 100시간부터는 분을 버린다", () => {
   assert.equal(fmtListenSec(42), "42초");
@@ -34,4 +34,18 @@ test("보조 함수 — shortDate·shortId·maxOf·isSmall", () => {
   assert.equal(isSmall(0), false);
   assert.equal(isSmall(12), true);
   assert.equal(isSmall(30), false);
+});
+
+test("fmtMonthDay — YYYY-MM-DD 를 'M월 D일'로, 형식이 아니면 '-'", () => {
+  assert.equal(fmtMonthDay("2026-09-19"), "9월 19일");
+  assert.equal(fmtMonthDay("2026-10-01"), "10월 1일");
+  assert.equal(fmtMonthDay(undefined), "-");
+  assert.equal(fmtMonthDay("2026-9-1"), "-");
+});
+
+test("fmtAvg — 0일(null)은 '-', 아니면 소수 한 자리까지", () => {
+  assert.equal(fmtAvg(null), "-");
+  assert.equal(fmtAvg(12), "12");
+  assert.equal(fmtAvg(12.25), "12.3");
+  assert.equal(fmtAvg(1234.5), "1,234.5");
 });

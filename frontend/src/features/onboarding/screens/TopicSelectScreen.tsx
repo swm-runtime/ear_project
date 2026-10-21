@@ -1,29 +1,51 @@
-import { ActivityIndicator, Image, Pressable, StyleSheet, View } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { useEffect, useRef } from 'react';
+import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { localized, type LocalizedCopy } from '@/shared/i18n/localized';
 import { theme } from '@/shared/theme';
 import ChevronIcon from '@/shared/ui/ChevronIcon';
 import FullScreenError from '@/shared/ui/FullScreenError';
+import GlassIconButton from '@/shared/ui/GlassIconButton';
 import { SkeletonGroup } from '@/shared/ui/Skeleton';
 import { Text } from '@/shared/ui/Typography';
 
+import { getMarketChangeRevertTarget } from '@/features/auth';
 import { topicImageSource } from '@/features/interest';
 
 import TopicMarqueeRow from '../components/TopicMarqueeRow';
-import { TOPIC_PILL_WIDTH, TopicPillRowsSkeleton } from '../components/TopicSelectSkeleton';
+import { TopicPillRowsSkeleton } from '../components/TopicSelectSkeleton';
 import { useTopicSelectScreen } from '../hooks/useTopicSelectScreen';
 import { ONBOARDING_COPY } from '../onboarding.copy';
+import type { OnboardingStackParamList } from '../onboarding.types';
 import { toTopicRows } from '../services/topic-rows';
 
-const PILL_WIDTH = TOPIC_PILL_WIDTH;
 /** 기본 흐름 속도(px/초)와 줄별 배율 — 같은 박자로 움직이면 기계적으로 보인다 */
 const BASE_SPEED = 18;
 const SPEED_SCALES = [1, 0.9, 1.05, 1.1] as const;
 /** 줄마다 다른 시작 위상 — 벽돌 어긋남 + 열이 겹쳐 보이지 않게 전부 다르다 */
 const PHASES = [40, 122, 96, 10] as const;
 
+/** 단계 표시 — 분모는 서버 steps[] 길이다(KR "1/2 단계" · GLOBAL "1/1 단계", global-api.md 4.4) */
+const ko = {
+  stepA11y: (current: number, total: number) => `${total}단계 중 ${current}단계`,
+  step: (current: number, total: number) => `${current}/${total} 단계`,
+  deselectA11y: (topicName: string) => `${topicName} 선택 해제`,
+  /** 시장 전환 뒤 재온보딩의 되돌리기(KAN-228) — 직전 콘텐츠 언어로 */
+  revertA11y: { kr: '한국어 콘텐츠로 되돌리기', global: '영어 콘텐츠로 되돌리기' },
+} as const;
+const en: LocalizedCopy<typeof ko> = {
+  stepA11y: (current: number, total: number) => `Step ${current} of ${total}`,
+  step: (current: number, total: number) => `Step ${current}/${total}`,
+  deselectA11y: (topicName: string) => `Deselect ${topicName}`,
+  revertA11y: { kr: 'Switch back to Korean content', global: 'Switch back to English content' },
+};
+const COPY = localized({ ko, en });
+
 /**
- * O1–O3 관심 주제 선택(1/2). 이 화면에는 [건너뛰기]가 없다 —
+ * O1–O3 관심 주제 선택(KR 1/2 · GLOBAL 1/1 — 서버 steps[]). 이 화면에는 [건너뛰기]가 없다 —
  * 주제는 드립 편성의 유일한 필수 신호다(onboarding-uiux.md 4.1).
  * 시각 개편(2026-09-03): 큰 회색 헤드라인 + 사진 알약 마퀴 4줄(줄마다 반대 방향으로
  * 자동 흐름·무한 루프) + 상단 선택 요약 칩(✕로 해제) + 원형 [다음] 버튼.
@@ -31,7 +53,14 @@ const PHASES = [40, 122, 96, 10] as const;
  */
 export default function TopicSelectScreen() {
   const insets = useSafeAreaInsets();
+  const navigation = useNavigation<NativeStackNavigationProp<OnboardingStackParamList>>();
+  /**
+   * 시장 전환 뒤 재온보딩이면 직전 언어로 되돌릴 수 있다(KAN-228 — 서버가 재온보딩 완료 전 되돌리기를 하루 1회에서 빼 준다).
+   * 첫 가입·되돌린 뒤에는 null — 1단계라 되돌아갈 곳이 없다(종전 그대로 좌우를 비운다)
+   */
+  const revertTarget = getMarketChangeRevertTarget();
   const {
+    stepPosition,
     topics,
     maxSelectable,
     selectedCount,
@@ -47,6 +76,16 @@ export default function TopicSelectScreen() {
     handleNextPress,
   } = useTopicSelectScreen();
 
+  // 선택 요약 줄 — 새로 고른 칩이 오른쪽 끝에 붙으므로, 늘어날 때 끝으로 밀어 방금 고른 것이 보이게 한다
+  const selectedRowRef = useRef<ScrollView>(null);
+  const previousSelectedCount = useRef(selectedCount);
+  useEffect(() => {
+    if (selectedCount > previousSelectedCount.current) {
+      selectedRowRef.current?.scrollToEnd({ animated: true });
+    }
+    previousSelectedCount.current = selectedCount;
+  }, [selectedCount]);
+
   // 로딩 중에도 제목은 먼저 그린다 — 이 단계가 무엇인지는 이미 정해져 있다(onboarding-uiux.md 4.2)
   return (
     <SafeAreaView style={styles.container}>
@@ -56,21 +95,44 @@ export default function TopicSelectScreen() {
           없으므로(주제는 드립 편성의 유일한 필수 신호) 좌우는 비운다.
         */}
         <View style={styles.toolbar}>
+          {revertTarget !== null ? (
+            <View style={styles.toolbarLeading}>
+              <GlassIconButton
+                onPress={() =>
+                  navigation.navigate('MarketChange', {
+                    targetLanguage: revertTarget === 'global' ? 'en' : 'ko',
+                  })
+                }
+                accessibilityLabel={COPY.revertA11y[revertTarget]}
+              >
+                <ChevronIcon direction="left" size={20} color={theme.color.textPrimary} />
+              </GlassIconButton>
+            </View>
+          ) : null}
           <Text style={styles.toolbarTitle} accessibilityRole="header">
             {ONBOARDING_COPY.topic.toolbarTitle}
           </Text>
         </View>
-        <Text style={styles.stepLabel} accessibilityLabel="2단계 중 1단계">
-          1/2 단계
+        <Text
+          style={styles.stepLabel}
+          accessibilityLabel={COPY.stepA11y(stepPosition.current, stepPosition.total)}
+        >
+          {COPY.step(stepPosition.current, stepPosition.total)}
         </Text>
         <Text style={styles.title}>{ONBOARDING_COPY.topic.title(maxSelectable)}</Text>
         {/*
-          선택 요약 자리 — 0개면 공백, 고르면 아래 알약과 같은 사진 칩이 가로로 쌓인다.
+          선택 요약 자리 — 0개면 공백, 고르면 아래 알약과 같은 사진 칩이 **한 줄로 가로 배치**되고 넘치면 가로로
+          스크롤한다(PM 확정 2026-10-19 — 줄바꿈으로 세로로 쌓이면 아래 캐러셀이 밀린다. 영어 이름이 길어 자주 넘쳤다).
           ✕ 포함 칩 전체가 해제 버튼이다. 높이를 고정해 아래 캐러셀이 튀지 않게 한다.
         */}
         <View style={styles.progressSlot} accessibilityLiveRegion="polite">
           {selectedCount === 0 ? null : (
-            <View style={styles.selectedRow}>
+            <ScrollView
+              ref={selectedRowRef}
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.selectedRow}
+            >
               {topics
                 .filter((topic) => topic.isSelected)
                 .map((topic) => (
@@ -79,21 +141,23 @@ export default function TopicSelectScreen() {
                     style={styles.selectedChip}
                     onPress={() => toggleTopic(topic.topicId)}
                     accessibilityRole="button"
-                    accessibilityLabel={topic.name + ' 선택 해제'}
+                    accessibilityLabel={COPY.deselectA11y(topic.name)}
                   >
                     <Image
-                      source={topicImageSource(topic.name)}
+                      source={topicImageSource({ slug: topic.slug, name: topic.name })}
                       resizeMode="cover"
                       style={styles.selectedChipPhoto}
                     />
                     <View style={styles.selectedChipOverlay} />
-                    <Text style={styles.selectedChipLabel}>{topic.name}</Text>
+                    <Text style={styles.selectedChipLabel} numberOfLines={1}>
+                      {topic.name}
+                    </Text>
                     <Text style={styles.selectedChipX} importantForAccessibility="no">
                       ✕
                     </Text>
                   </Pressable>
                 ))}
-            </View>
+            </ScrollView>
           )}
         </View>
       </View>
@@ -136,7 +200,6 @@ export default function TopicSelectScreen() {
                   direction={rowIndex % 2 === 0 ? 1 : -1}
                   phase={PHASES[rowIndex % PHASES.length]}
                   speed={BASE_SPEED * SPEED_SCALES[rowIndex % SPEED_SCALES.length]}
-                  pillWidth={PILL_WIDTH}
                   dimmedHint={ONBOARDING_COPY.topic.limitToast(maxSelectable)}
                   onToggle={toggleTopic}
                 />
@@ -189,6 +252,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  /** 재온보딩 되돌리기(KAN-228) — 가운데 제목을 밀지 않게 왼쪽 끝에 띄운다 */
+  toolbarLeading: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    bottom: 0,
+    justifyContent: 'center',
+  },
   toolbarTitle: {
     // lg(20)와 xl(28) 사이 — 툴바 한도 안에서 존재감 있게
     fontSize: 24,
@@ -214,9 +285,10 @@ const styles = StyleSheet.create({
     minHeight: 40,
     justifyContent: 'center',
   },
+  /** 한 줄 가로 배치 — 넘치면 가로 스크롤(줄바꿈 없음) */
   selectedRow: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
+    alignItems: 'center',
     gap: theme.spacing.sm,
   },
   /** 아래 마퀴 알약과 같은 사진·오버레이 문법의 축소판 + ✕ */

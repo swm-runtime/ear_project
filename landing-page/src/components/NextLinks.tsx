@@ -13,7 +13,8 @@ export function NextLinks({
   items,
 }: {
   title?: string;
-  items: RouteMeta[];
+  /** 경로·이름·설명만 쓴다 — 영어 페이지(`content/en/routes.ts`)도 같은 모양으로 넘긴다. */
+  items: Pick<RouteMeta, "path" | "label" | "description">[];
 }) {
   return (
     <section className={`section ${s.wrap}`}>

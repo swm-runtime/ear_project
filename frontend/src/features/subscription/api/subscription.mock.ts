@@ -42,6 +42,7 @@ export const mockFetchPlans = async (platform: 'ios' | 'android'): Promise<Plans
         name: 'Light',
         description: '하루 2편까지 들을 수 있어요',
         price_krw: 0,
+        is_free: true,
         store_product_id: null,
         entitlements: FREE_SUBSCRIPTION.entitlements,
         // 구독이 없는 사용자의 무료 요금제는 current(KAN-147) — 이용 중 카드가 회색 + [이용 중]
@@ -53,6 +54,7 @@ export const mockFetchPlans = async (platform: 'ios' | 'android'): Promise<Plans
         name: 'Daily',
         description: '하루 5편까지 들을 수 있어요',
         price_krw: 3900,
+        is_free: false,
         store_product_id: productId('daily'),
         entitlements: {
           daily_play_limit: 5,
@@ -68,6 +70,7 @@ export const mockFetchPlans = async (platform: 'ios' | 'android'): Promise<Plans
         name: 'Pro',
         description: '제한 없이 마음껏 들을 수 있어요',
         price_krw: 9900,
+        is_free: false,
         store_product_id: productId('pro'),
         entitlements: {
           daily_play_limit: null,

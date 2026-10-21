@@ -124,7 +124,8 @@ function ContentList() {
                 <td className="px-4 py-2.5"><Badge tone={c.status === "published" ? "done" : "failed"}>{c.status}</Badge></td>
                 <td className="px-4 py-2.5 text-right">
                   <Link href={`/publish/${c.id}`} className={`${btnCls()} mr-1.5`}>상세·수정</Link>
-                  {c.status === "published" && (
+                  {c.status === "published" && c.series_id && <span className="text-[11px] text-ink-soft" title="시리즈 편은 개별 회수가 없다 — 시리즈 화면의 [시리즈 회수]로 전 편을 한꺼번에 (spec/11 7장)">시리즈 {c.episode_no}화</span>}
+                  {c.status === "published" && !c.series_id && (
                     <button className={btnCls("danger")} disabled={busy} onClick={() => {
                       if (!confirm(`"${c.title}" 을(를) 회수할까요?\n\n전 사용자 라이브러리에서 즉시 사라지고, 발급된 재생 URL은 5분 안에 만료돼요.`)) return;
                       const reason = prompt("회수 사유 (선택 — 감사 로그에만)") || undefined;

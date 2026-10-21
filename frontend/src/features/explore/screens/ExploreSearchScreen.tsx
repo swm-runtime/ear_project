@@ -30,9 +30,9 @@ import {
   useBottomDockInset,
 } from '@/features/player';
 
+import ExploreEntryTile from '../components/ExploreEntryTile';
 import ExploreMoreSheet from '../components/ExploreMoreSheet';
 import ExploreSkeleton from '../components/ExploreSkeleton';
-import ExploreTile from '../components/ExploreTile';
 import RecentSearchList from '../components/RecentSearchList';
 import SearchInputRow from '../components/SearchInputRow';
 import SearchToolbar from '../components/SearchToolbar';
@@ -215,11 +215,12 @@ export default function ExploreSearchScreen({ embedding }: ExploreSearchScreenPr
             item === null ? (
               <View style={styles.gridSpacer} />
             ) : (
-              <ExploreTile
-                item={item}
+              <ExploreEntryTile
+                entry={item}
                 layout="grid"
                 onPress={screen.handleRowPress}
                 onMorePress={screen.openMoreSheet}
+                onSeriesPress={screen.openSeries}
               />
             )
           }
@@ -276,11 +277,12 @@ export default function ExploreSearchScreen({ embedding }: ExploreSearchScreenPr
             item === null ? (
               <View style={styles.gridSpacer} />
             ) : (
-              <ExploreTile
-                item={item}
+              <ExploreEntryTile
+                entry={item}
                 layout="grid"
                 onPress={screen.handleRowPress}
                 onMorePress={screen.openMoreSheet}
+                onSeriesPress={screen.openSeries}
               />
             )
           }

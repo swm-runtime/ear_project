@@ -21,23 +21,28 @@ import { site, SITE_URL } from "./site";
 
 /** 확정 전 자리표시자. 화면에서 눈에 띄어야 하므로 꺾쇠를 그대로 노출한다. */
 const TBD = {
-  company: "〈법인명 확정 후 기재〉",
-  ceo: "〈대표자명 확정 후 기재〉",
-  address: "〈사업장 주소 확정 후 기재〉",
-  registration: "〈사업자등록번호 확정 후 기재〉",
-  officer: "〈개인정보 보호책임자 지정 후 기재〉",
-  effectiveDate: "정식 출시일에 맞춰 공지",
+  company: "런타임(개인사업자, 대표 박수헌)",
+  ceo: "박수헌",
+  address: "경상북도 구미시 문장로 111 102동 1804호",
+  registration: "346-16-02865",
+  officer: "박수헌 (psuheon818@gmail.com)",
+  /** 전자상거래법 제12조 — 신고 전이라 자리표시자. 신고하면 번호를 넣는다 */
+  mailOrder: "〈통신판매업 신고 후 기재〉",
+  /** 앱 출시일(2026-09-19) */
+  effectiveDate: "2026년 9월 19일",
   /** 약관 부칙의 공고일자. 시행일과 달리 게시 시점이므로 따로 둔다. */
-  announcementDate: "〈약관 공고일 확정 후 기재〉",
+  announcementDate: "2026년 9월 19일",
 } as const;
 
-/** 두 문서 상단에 공통으로 붙는 안내. 출시 전이라는 사실을 숨기지 않는다. */
-export const legalNotice =
-  "이어는 정식 출시를 준비하고 있습니다. 아래 내용은 출시 시점에 적용될 기준으로 작성한 것이며, 시행일과 확정된 사업자 정보는 출시와 함께 다시 공지합니다.";
+/**
+ * 두 문서 상단 안내. 출시 전에는 "정식 출시 준비 중"을 적었으나 앱이 스토어에 출시돼 사실과 달라 비웠다(2026-10-15).
+ * 비어 있으면 화면에 그리지 않는다(`LegalDocument`).
+ */
+export const legalNotice = "";
 
 export const legalMeta = {
   effectiveDate: TBD.effectiveDate,
-  version: "0.4 (출시 준비본 — 서비스 날짜 경계 05:00, 2026-10-12 적용)",
+  version: "0.4 (서비스 날짜 경계 05:00, 2026-10-12 적용)",
 } as const;
 
 /* ============================================================
@@ -165,7 +170,7 @@ export const privacyBlocks: Block[] = [
   { type: "h2", text: "5. 개인정보 처리의 위탁" },
   {
     type: "p",
-    text: "회사는 서비스 운영에 필요한 범위에서 아래 업무를 외부에 위탁합니다. 수탁사가 확정되면 회사명과 위탁 업무를 이 항목에 구체적으로 기재하고, 변경 시 이 방침을 통해 알립니다.",
+    text: "회사는 서비스 운영에 필요한 범위에서 아래 업무를 외부에 위탁합니다. 수탁사나 위탁 업무가 바뀌면 이 방침을 통해 알립니다.",
   },
   {
     type: "dl",
@@ -184,9 +189,10 @@ export const privacyBlocks: Block[] = [
         term: "광고 성과 측정",
         desc: "Meta Platforms Ireland Limited (Meta SDK) — 앱 설치·실행, 가입 완료, 온보딩 완료, 첫 재생 여부와 기기 정보를 전달합니다. 이름·이메일·계정 식별값·광고 식별자는 전달하지 않습니다.",
       },
-      { term: "푸시 알림 발송", desc: "〈수탁사 확정 후 기재〉" },
-      { term: "클라우드 인프라 운영", desc: "〈수탁사 확정 후 기재〉" },
-      { term: "음성 합성(TTS) 처리", desc: "〈수탁사 확정 후 기재〉 — 콘텐츠 제작 과정에만 사용하며 이용자의 개인정보는 전달하지 않습니다." },
+      { term: "푸시 알림 발송", desc: "650 Industries, Inc. (Expo) — 기기 푸시 토큰과 알림 내용만 전달합니다." },
+      { term: "클라우드 인프라 운영·이메일 발송", desc: "Amazon Web Services, Inc. — 서버·저장소는 서울 리전(대한민국)에 있습니다." },
+      { term: "오류·장애 기록", desc: "Functional Software, Inc. (Sentry) — 앱·서버 오류 내용과 기기 정보를 전달합니다. 이름·이메일은 전달하지 않습니다." },
+      { term: "음성 합성(TTS) 처리", desc: "ElevenLabs, Inc. — 콘텐츠 제작 과정에만 사용하며 이용자의 개인정보는 전달하지 않습니다." },
     ],
   },
   {
@@ -197,7 +203,7 @@ export const privacyBlocks: Block[] = [
   { type: "h2", text: "6. 국외 이전" },
   {
     type: "p",
-    text: "위탁사의 서버가 국외에 있는 경우 개인정보가 국외로 이전될 수 있습니다. 아직 확정되지 않은 위탁 업무의 이전 내역은 인프라 구성이 확정되는 대로 이 항목에 덧붙입니다. 현재 확정된 내역은 다음과 같습니다.",
+    text: "서비스의 서버와 저장소는 서울(대한민국)에 있습니다. 다만 아래 수탁사의 서버가 국외에 있어 해당 항목이 국외로 이전됩니다. 음성 합성(ElevenLabs)에는 이용자의 개인정보를 전달하지 않으므로 이전 대상이 아닙니다.",
   },
   { type: "h3", text: "6.1 웹사이트 방문 통계 — Google LLC" },
   {
@@ -242,6 +248,31 @@ export const privacyBlocks: Block[] = [
       { term: "이전 시점과 방법", desc: "앱을 설치해 처음 실행하는 시점과 가입·온보딩 완료·첫 재생 시점에 앱에 포함된 Meta SDK를 통해 자동으로 전송됩니다." },
       { term: "이용 목적", desc: "앱 설치 광고의 성과 측정(설치·가입·첫 재생 건수 집계)" },
       { term: "보유 기간", desc: "Meta의 개인정보처리방침에 따릅니다." },
+    ],
+  },
+
+  { type: "h3", text: "6.4 푸시 알림 발송 — 650 Industries, Inc. (Expo)" },
+  {
+    type: "dl",
+    items: [
+      { term: "이전받는 자", desc: "650 Industries, Inc. (문의처: expo.dev/privacy)" },
+      { term: "이전 국가", desc: "미국" },
+      { term: "이전 항목", desc: "기기 푸시 토큰, 알림 제목·본문" },
+      { term: "이전 시점과 방법", desc: "알림을 보낼 때마다 서버에서 암호화된 통신으로 전송합니다." },
+      { term: "이용 목적", desc: "콘텐츠 도착 알림 등 푸시 알림 발송" },
+      { term: "보유 기간", desc: "발송 처리에 필요한 기간 동안만 보관하며, Expo의 개인정보처리방침에 따릅니다." },
+    ],
+  },
+  { type: "h3", text: "6.5 오류·장애 기록 — Functional Software, Inc. (Sentry)" },
+  {
+    type: "dl",
+    items: [
+      { term: "이전받는 자", desc: "Functional Software, Inc. (문의처: sentry.io/privacy)" },
+      { term: "이전 국가", desc: "미국" },
+      { term: "이전 항목", desc: "앱·서버 오류 내용, 기기 모델·운영체제·앱 버전, 내부 계정 식별값. 이름·이메일은 전송하지 않습니다." },
+      { term: "이전 시점과 방법", desc: "오류가 발생한 시점에 앱·서버에 포함된 도구를 통해 자동으로 전송됩니다." },
+      { term: "이용 목적", desc: "서비스 장애 파악과 수정" },
+      { term: "보유 기간", desc: "Sentry의 보관 설정에 따르며, 최대 90일입니다." },
     ],
   },
 
@@ -294,6 +325,7 @@ export const privacyBlocks: Block[] = [
   {
     type: "ul",
     items: [
+      "**앱 설정** — 앱의 설정 › 개인정보 › 광고 측정 허용을 끄면 Meta SDK로의 전송(앱 실행, 가입·온보딩 완료·첫 재생)이 중단되며, 다시 켜기 전까지 앱을 다시 실행해도 유지됩니다. 앱 이용 분석(Google Firebase Analytics)은 이 설정과 별개입니다.",
       "**iOS** — 설정 › 개인정보 보호 및 보안 › 추적에서 '앱이 추적을 요청하도록 허용'을 끄면 Meta SDK가 보내는 정보의 이용이 제한됩니다.",
       "**Android** — 설정 › 개인정보 보호 › 광고에서 광고 ID를 삭제하거나 재설정할 수 있습니다. 회사는 광고 ID를 수집하지 않으므로 이 설정과 무관하게 개인 단위로 연결되지 않습니다.",
       "**앱 삭제** — 앱을 삭제하면 전송이 즉시 중단됩니다.",
@@ -375,7 +407,8 @@ export const privacyBlocks: Block[] = [
   {
     type: "dl",
     items: [
-      { term: "사업자", desc: `${TBD.company} (대표 ${TBD.ceo})` },
+      { term: "사업자", desc: TBD.company },
+      { term: "통신판매업 신고번호", desc: TBD.mailOrder },
       { term: "사업자등록번호", desc: TBD.registration },
       { term: "주소", desc: TBD.address },
     ],
@@ -497,7 +530,7 @@ export const termsBlocks: Block[] = [
   {
     type: "ol",
     items: [
-      "서비스의 요금제는 무료 요금제인 **라이트**와 유료 구독 요금제인 **데일리·프로**로 구성됩니다. 라이트에는 하루 2편의 재생 한도가 적용되며 광고가 제공될 수 있습니다. 데일리·프로에는 재생 한도가 확대 적용되며, **유료 요금제의 이용료와 재생 한도는 시범 운영을 거쳐 확정하여 정식 출시 시 결제 화면과 서비스 안내를 통해 공지합니다.**",
+      "서비스의 요금제는 무료 요금제인 **라이트**와 유료 구독 요금제인 **데일리·프로**로 구성됩니다. 라이트에는 하루 2편의 재생 한도가 적용되며 광고가 제공될 수 있습니다. 데일리·프로에는 재생 한도가 확대 적용되며, **유료 요금제의 이용료와 재생 한도는 결제 화면과 서비스 안내에 표시합니다.**",
       "유료 구독의 가격과 제공 내용은 결제 화면에 표시된 내용을 따릅니다. 스토어별 통화·가격 표시는 각 앱 마켓(Apple App Store, Google Play)이 제공하는 현지 가격을 기준으로 합니다.",
       "유료 구독의 결제는 **앱 마켓 사업자의 인앱 결제**를 통해 처리되며, 결제 수단·청구 시점 등은 해당 앱 마켓의 정책을 따릅니다.",
       "유료 구독 결제를 위해서는 거래기록 보존(「전자상거래 등에서의 소비자보호에 관한 법률」 시행령 제6조)을 위해 **인증된 이메일 주소의 등록이 선행되어야 합니다.** 인증된 이메일이 없는 회원은 첫 결제 전에 이메일 코드 인증을 완료하여야 합니다.",
@@ -629,14 +662,15 @@ export const termsBlocks: Block[] = [
   { type: "h2", text: "부칙" },
   {
     type: "p",
-    text: `이 약관의 공고일자와 시행일은 ${TBD.effectiveDate}합니다.`,
+    text: `이 약관은 ${TBD.effectiveDate}부터 시행합니다.`,
   },
   {
     type: "dl",
     items: [
       { term: "공고일자", desc: TBD.announcementDate },
       { term: "시행일자", desc: TBD.effectiveDate },
-      { term: "사업자", desc: `${TBD.company} (대표 ${TBD.ceo})` },
+      { term: "사업자", desc: TBD.company },
+      { term: "통신판매업 신고번호", desc: TBD.mailOrder },
       { term: "사업자등록번호", desc: TBD.registration },
       { term: "주소", desc: TBD.address },
       { term: "문의", desc: site.contactEmail },

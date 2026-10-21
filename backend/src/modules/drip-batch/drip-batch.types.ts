@@ -1,3 +1,4 @@
+import { SeriesEpisodeState } from '@/modules/content/content.types';
 import { Content } from '@/modules/content/entities/content.entity';
 import {
   AutoExpandAction,
@@ -37,6 +38,8 @@ export interface RegularPlan {
   poolSize: number;
   /** 시리즈 순서 게이트(`filterEpisodeOrder`)에서 빠진 후보 */
   gatedOut: ScoringCandidate[];
+  /** 게이트 판정에 쓴 시리즈별 노출 중 편과 사용자 상태(편 번호 오름차순) — 평가기 불변식이 같은 입력으로 다시 본다(KAN-134) */
+  seriesEpisodesBySeries: Map<string, SeriesEpisodeState[]>;
   /** 최근 편성분의 주제 — 편성 미리보기 표시용(노출 피로 항목은 2026-09-25 폐기, 스코어링 입력이 아니다) */
   recentDripTopicIds: string[];
   /** 게이트 통과 후보 전부, 점수 내림차순 */

@@ -19,6 +19,7 @@ import {
 } from '../drip.constant';
 import { DripExclusionReason, FirstDripJobStatus } from '../drip.enum';
 import { FirstDripState, ScoringCandidate } from '../drip.types';
+import { scoringCareerOf } from '../drip-career.policy';
 import { FirstDripJob } from '../entities/first-drip-job.entity';
 import { DripExcludedContentRepository } from '../repositories/drip-excluded-content.repository';
 import { FirstDripJobRepository } from '../repositories/first-drip-job.repository';
@@ -151,7 +152,7 @@ export class FirstDripService {
       job.status = exhausted
         ? FirstDripJobStatus.FAILED
         : FirstDripJobStatus.QUEUED;
-      await this.firstDripJobRepository.save(job);
+      await this.firstDripJobRepository.updateExisting(job);
 
       // 신규 사용자의 첫 편성 실패는 편성 배치 장애의 조기 신호다 — 조용히 넘기지 않는다
       this.logger.error('first drip retry failed', {
@@ -179,7 +180,7 @@ export class FirstDripService {
     if (contentIds.length === 0) {
       job.status = FirstDripJobStatus.NO_CANDIDATES;
       job.itemCount = 0;
-      await this.firstDripJobRepository.save(job);
+      await this.firstDripJobRepository.updateExisting(job);
 
       // 후보 고갈은 실패가 아니지만, 신규 사용자에게 줄 것이 없다는 사실은 운영이 알아야 한다
       this.logger.error('first drip found no candidates', { user_id: userId });
@@ -188,7 +189,14 @@ export class FirstDripService {
 
     // 적립은 원자적으로 처리한다 — 2편 중 1편만 적립되는 상태를 만들지 않는다
     // (`drip-scheduling.md` 4.6-4)
-    await this.dataSource.transaction(async (manager) => {
+    const scheduled = await this.dataSource.transaction(async (manager) => {
+      // 그 사이 시장 전환이 작업 행을 지웠으면 이전 시장 편을 적립하지 않는다 — 재온보딩 완료가 새 작업을 만든다(4.11)
+      if (
+        !(await this.firstDripJobRepository.findByIdForUpdate(job.id, manager))
+      ) {
+        return false;
+      }
+
       await this.libraryService.addItems(
         userId,
         contentIds,
@@ -211,13 +219,32 @@ export class FirstDripService {
       job.status = FirstDripJobStatus.COMPLETED;
       job.itemCount = contentIds.length;
       job.completedAt = now;
-      await this.firstDripJobRepository.save(job, manager);
+      await this.firstDripJobRepository.updateExisting(job, manager);
+      return true;
     });
+
+    if (!scheduled) {
+      this.logger.log('first drip dropped — job reset by market change', {
+        user_id: userId,
+      });
+      return;
+    }
 
     this.logger.log('first drip scheduled', {
       user_id: userId,
       scheduled_count: contentIds.length,
     });
+  }
+
+  /**
+   * 시장 전환(`global-api.md` 4.11) — 작업 행을 지워 재온보딩 완료 때 **새 시장으로 첫 드립이 다시 돌게** 한다. 행은 사용자당
+   * 1행이라(`createIfAbsent`) 남아 있으면 완료가 새 작업을 만들지 못한다. 첫 드립은 하루 편성 판정을 보지 않으므로 그날 바로 들어간다.
+   */
+  async resetForMarketChange(
+    userId: string,
+    manager: EntityManager,
+  ): Promise<void> {
+    await this.firstDripJobRepository.deleteByUserId(userId, manager);
   }
 
   async purgeByUserId(userId: string, manager?: EntityManager): Promise<void> {
@@ -267,12 +294,11 @@ export class FirstDripService {
         preference: null,
         difficultyAffinity: null,
         completedEpisodesBySeries: new Map(),
+        // 첫 드립은 완청 이력이 없어 연속 편이 없다 — 후보도 시리즈 첫 편뿐이다(seriesStartOnly)
+        seriesEpisodesBySeries: new Map(),
         isColdStart: true,
-        // 커리어 적합도(4.2 ③) — 온보딩 2단계에서 받은 프로필이라 신호 없이도 쓴다
-        career: {
-          jobCategory: user.jobCategory,
-          yearsOfExperience: user.yearsOfExperience,
-        },
+        // 커리어 적합도(4.2 ③) — 온보딩 2단계에서 받은 프로필이라 신호 없이도 쓴다. KR 시장만
+        career: scoringCareerOf(user),
         now,
       },
     );
@@ -342,7 +368,7 @@ export class FirstDripService {
 
     job.attemptCount += 1;
     job.lastAttemptedAt = now;
-    await this.firstDripJobRepository.save(job);
+    await this.firstDripJobRepository.updateExisting(job);
   }
 
   private async markQueued(userId: string, now: Date): Promise<void> {
@@ -354,7 +380,7 @@ export class FirstDripService {
 
     job.status = FirstDripJobStatus.QUEUED;
     job.lastAttemptedAt = now;
-    await this.firstDripJobRepository.save(job);
+    await this.firstDripJobRepository.updateExisting(job);
 
     this.logger.error('first drip handed to retry queue', {
       user_id: userId,

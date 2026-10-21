@@ -2,7 +2,6 @@ import type { Executor, ExecRequest, ExecResult, Progress } from "./types.js";
 import { ClaudeCliExecutor } from "./claude-cli.js";
 import { OpenAiExecutor } from "./openai-api.js";
 import { OpenAiSearchExecutor } from "./openai-search.js";
-import { pipelineLocale } from "@ear/pipeline";
 import type { ExecutorKind } from "../config.js";
 
 class NoneExecutor implements Executor {
@@ -41,8 +40,16 @@ export function makeExecutor(kind: ExecutorKind, model?: string): Executor {
   switch (kind) {
     case "claude-cli": return new RoutedExecutor(new ClaudeCliExecutor(model));
     case "api": return new ApiExecutor();
-    case "openai": return pipelineLocale() === "en" ? new OpenAiSearchExecutor(model) : new OpenAiExecutor(model); // 실험 (2026-09-19): GPT 로 같은 후보를 재생성해 비용·품질 비교. 단발 호출만 · en 인스턴스만 웹 검색(2026-10-15 KAN-209 — 한국판은 그대로 거절)
+    case "openai": return new OpenAiSearchExecutor(model); // 단발 호출 + 웹 검색(WebSearch 만 쓰는 요청). 2026-10-15 KAN-209 글로벌판에 붙이고, 2026-10-16 KAN-222 한국판도 같은 실행기 — 보강·주제 기획을 서버 워커가 집는다
     default: return new NoneExecutor();
   }
+}
+/**
+ * 이 실행기가 도구 작업(sweep 모드 B 보강·B2 주제 기획 — WebSearch 만 쓰는 검색 단계)을 처리할 수 있는가 (0025 claim_job p_can_tools).
+ * claude-cli 는 WebSearch 도구, openai 는 OpenAI 웹 검색(executors/openai-search.ts). api(미이식)·none(IO 전용)은 못 한다.
+ * 2026-10-16 KAN-222: 종전 조건은 "openai 가 아니거나 en 인스턴스"였다 — 언어가 아니라 실행기 능력으로 묶는다.
+ */
+export function executorHandlesWebSearch(kind: ExecutorKind): boolean {
+  return kind === "claude-cli" || kind === "openai";
 }
 export type { Executor, ExecRequest, ExecResult, Progress };

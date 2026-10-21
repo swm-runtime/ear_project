@@ -1,0 +1,197 @@
+"use server";
+import { revalidatePath } from "next/cache";
+import { supabaseServer } from "@/lib/supabase-server";
+import { pipelineLocale } from "@/lib/locale";
+import { majorTopicsFor } from "@/lib/taxonomy";
+import { screenGlobalTopic } from "@/lib/topic-screen";
+import { cleanPlan, cleanSeriesThumb, seriesEpisodeHint, type SeriesEpisode, type SeriesPublishEpisode, type SeriesRow } from "@/lib/series";
+import { enqueueJob } from "../actions";
+
+/**
+ * 기획 시리즈 (spec/11 3·4·9장 · 글로벌 명세 6.11, KAN-136). 거부는 throw 가 아니라 반환값으로 — 운영 빌드는 서버 액션 오류 문구를 가린다.
+ */
+type Result<T = object> = ({ ok: true } & T) | { ok: false; reason: string };
+
+async function loadSeries(id: string): Promise<SeriesRow | null> {
+  const sb = await supabaseServer();
+  const { data } = await sb.from("series").select("*").eq("id", id).single();
+  return (data as SeriesRow | null) ?? null;
+}
+
+/** [주제 기획] › 시리즈 — 시리즈 행(기획 중)을 만들고 설계안 작업(series_plan)을 건다. 편수는 선택이고 상한이 없다(2026-10-17) */
+export async function requestSeriesPlan(input: { midTopic: string; name: string; scope: string; episodes?: number | null }): Promise<Result<{ id: string }>> {
+  const en = pipelineLocale() === "en";
+  const name = input.name.trim(); const scope = input.scope.trim(); const mid = input.midTopic.trim();
+  if (name.length < 2) return { ok: false, reason: "시리즈 이름안이 너무 짧다" };
+  if (scope.length < 10) return { ok: false, reason: "다룰 범위를 더 적어 달라 — 편 목록의 재료다" };
+  const episodes = input.episodes && input.episodes > 0 ? Math.round(input.episodes) : null;
+  const sb = await supabaseServer();
+  if (en) {
+    if (!majorTopicsFor("en").includes(mid)) return { ok: false, reason: `모르는 주제: ${mid}` };
+    try {
+      const screen = await screenGlobalTopic({ topics: [mid], title: name, hint: scope });
+      if (screen.excluded) return { ok: false, reason: `배제 주제 — ${screen.reason}` };
+    } catch (e: any) { return { ok: false, reason: String(e?.message ?? e) }; }
+  } else {
+    const { data: t } = await sb.from("topics").select("mid").eq("mid", mid).maybeSingle();
+    if (!t) return { ok: false, reason: `중분류 '${mid}' 가 없다` };
+  }
+  const { data, error } = await sb.from("series").insert({ name, mid_topic: mid, scope_note: scope, status: "planning" }).select("id").single();
+  if (error) return { ok: false, reason: error.message };
+  await enqueueJob("series_plan", { series_id: data.id, ...(episodes ? { episodes } : {}) });
+  revalidatePath("/series");
+  return { ok: true, id: data.id as string };
+}
+
+/** 설계안 다시 만들기 — 기획 중일 때만. 지금 편 목록은 작업이 끝나면 덮어쓴다 */
+export async function regenerateSeriesPlan(id: string, episodes?: number | null): Promise<Result> {
+  const s = await loadSeries(id);
+  if (!s) return { ok: false, reason: "시리즈가 없다" };
+  if (s.status !== "planning") return { ok: false, reason: "기획 중일 때만 다시 만들 수 있다" };
+  await enqueueJob("series_plan", { series_id: id, ...(episodes && episodes > 0 ? { episodes: Math.round(episodes) } : {}) });
+  revalidatePath(`/series/${id}`);
+  return { ok: true };
+}
+
+/** 설계안 저장(사람 편집) — 기획 중일 때만. 승인 뒤 편 변경은 첫 발행 전 재작성 흐름(spec/11 3장)이라 이 화면에서 막는다 */
+export async function saveSeries(id: string, v: { name: string; intro_line: string; plan: SeriesEpisode[] }): Promise<Result<{ problems: string[] }>> {
+  const s = await loadSeries(id);
+  if (!s) return { ok: false, reason: "시리즈가 없다" };
+  if (s.status !== "planning") return { ok: false, reason: "기획 중일 때만 고칠 수 있다" };
+  const name = v.name.trim();
+  if (name.length < 2) return { ok: false, reason: "시리즈 이름이 너무 짧다" };
+  const { plan, problems } = cleanPlan(v.plan);
+  const sb = await supabaseServer();
+  const { error } = await sb.from("series").update({ name, intro_line: v.intro_line.trim() || null, plan }).eq("id", id).eq("status", "planning");
+  if (error) return { ok: false, reason: error.message };
+  revalidatePath(`/series/${id}`);
+  return { ok: true, problems };
+}
+
+/**
+ * [승인] = 게이트 S, 편수 확정 (spec/11 3장). 승인자·시각은 트리거가 찍는다. 그다음 편마다 B-② 주제 기획 작업을 건다(4장) —
+ * payload 에 series_id·series_no 와 이 편 범위·형제 편 범위 힌트를 싣는다. 글로벌판은 편마다 배제 주제를 먼저 판정해 게이트 1 조건 3 의 기록으로 넘긴다.
+ */
+export async function approveSeries(id: string): Promise<Result<{ queued: number }>> {
+  const s = await loadSeries(id);
+  if (!s) return { ok: false, reason: "시리즈가 없다" };
+  if (s.status !== "planning") return { ok: false, reason: `기획 중이 아니다 (${s.status})` };
+  const { plan, problems } = cleanPlan(s.plan ?? []);
+  if (problems.length) return { ok: false, reason: `설계안을 먼저 고쳐 달라 — ${problems.join(" · ")}` };
+  const en = pipelineLocale() === "en";
+  const screens = new Map<number, unknown>();
+  if (en) {
+    for (const ep of plan) {
+      try {
+        const sc = await screenGlobalTopic({ topics: [s.mid_topic], title: ep.title, hint: ep.scope });
+        if (sc.excluded) return { ok: false, reason: `${ep.no}화 "${ep.title}" 배제 주제 — ${sc.reason}` };
+        screens.set(ep.no, sc);
+      } catch (e: any) { return { ok: false, reason: String(e?.message ?? e) }; }
+    }
+  }
+  const sb = await supabaseServer();
+  const { data: done, error } = await sb.from("series").update({ status: "approved", total_episodes: plan.length, plan }).eq("id", id).eq("status", "planning").select("id");
+  if (error) return { ok: false, reason: error.message };
+  if (!done?.length) return { ok: false, reason: "그 사이 다른 사람이 상태를 바꿨다" };
+  const row = { ...s, plan };
+  for (const ep of plan) {
+    await enqueueJob("sweep", { mode: "B2", mid_topic: s.mid_topic, topic: ep.title, hint: seriesEpisodeHint(row, ep.no, en), series_id: id, series_no: ep.no, ...(en ? { screen: screens.get(ep.no) } : {}) });
+  }
+  revalidatePath(`/series/${id}`); revalidatePath("/series"); revalidatePath("/backlog");
+  return { ok: true, queued: plan.length };
+}
+
+/** [시리즈 중단] — 발행 전만. 아직 초안에 들어가지 않은 편 후보는 반려하고, 이미 만든 편은 보관만 한다(회상·예고가 있어 단일 편으로 내지 않는다) */
+export async function cancelSeries(id: string): Promise<Result<{ rejected: number }>> {
+  const s = await loadSeries(id);
+  if (!s) return { ok: false, reason: "시리즈가 없다" };
+  if (!["planning", "approved"].includes(s.status)) return { ok: false, reason: `발행 전에만 중단할 수 있다 (${s.status})` };
+  const sb = await supabaseServer();
+  const { error } = await sb.from("series").update({ status: "cancelled" }).eq("id", id).in("status", ["planning", "approved"]);
+  if (error) return { ok: false, reason: error.message };
+  const { data: rej, error: e2 } = await sb.from("backlog").update({ status: "rejected" }).eq("series_id", id).in("status", ["proposed", "held", "approved"]).select("id");
+  if (e2) return { ok: false, reason: e2.message };
+  revalidatePath(`/series/${id}`); revalidatePath("/series"); revalidatePath("/backlog");
+  return { ok: true, rejected: rej?.length ?? 0 };
+}
+
+// ── [시리즈 발행]·[시리즈 회수] (spec/11 7장, KAN-136 6단계) — 제품 호출은 브라우저 세션이 하고, 여기서는 파이프라인 기록만 ──
+
+/** 발행 화면의 편 목록 — 후보(화 순서) + 편마다 오디오가 있는 최신 에피소드 */
+export async function seriesPublishEpisodes(id: string): Promise<SeriesPublishEpisode[]> {
+  const sb = await supabaseServer();
+  const { data: bls, error } = await sb.from("backlog").select("id,status,series_no,published_content_ref").eq("series_id", id).order("series_no");
+  if (error) throw new Error(error.message);
+  const ids = (bls ?? []).map((b) => b.id);
+  const { data: eps } = ids.length
+    ? await sb.from("episodes").select("id,backlog_id,audio_dist_key,created_at").in("backlog_id", ids).not("audio_dist_key", "is", null).order("created_at", { ascending: false })
+    : { data: [] };
+  const latest = new Map<string, string>();
+  for (const e of eps ?? []) if (!latest.has(e.backlog_id)) latest.set(e.backlog_id, e.id);
+  return (bls ?? []).map((b) => ({ no: b.series_no as number, backlog_id: b.id, status: b.status, episode_id: latest.get(b.id) ?? null, content_id: (b.published_content_ref as string | null) ?? null }));
+}
+
+/** 제품 시리즈를 만든 직후 그 id 를 남긴다 — 다시 누르면 새로 만들지 않고 이 id 로 이어서 올린다. 이미 다른 id 가 있으면 거부 */
+export async function recordProductSeries(id: string, productSeriesId: string): Promise<Result> {
+  const s = await loadSeries(id);
+  if (!s) return { ok: false, reason: "시리즈가 없다" };
+  if (s.published_series_id && s.published_series_id !== productSeriesId) return { ok: false, reason: `이미 제품 시리즈 ${s.published_series_id} 가 기록돼 있다` };
+  const sb = await supabaseServer();
+  const { error } = await sb.from("series").update({ published_series_id: productSeriesId }).eq("id", id);
+  if (error) return { ok: false, reason: error.message };
+  revalidatePath(`/series/${id}`);
+  return { ok: true };
+}
+
+/** 전 편이 올라가면 시리즈를 발행으로 — 한 편이라도 남았으면 거부(이어서 올리기 대상) */
+export async function finishSeriesPublish(id: string): Promise<Result> {
+  const eps = await seriesPublishEpisodes(id);
+  const left = eps.filter((e) => !e.content_id).map((e) => `${e.no}화`);
+  if (left.length) return { ok: false, reason: `아직 안 올라간 편: ${left.join(", ")}` };
+  const sb = await supabaseServer();
+  const { error } = await sb.from("series").update({ status: "published", published_at: new Date().toISOString() }).eq("id", id).in("status", ["approved", "published"]);
+  if (error) return { ok: false, reason: error.message };
+  revalidatePath(`/series/${id}`); revalidatePath("/series");
+  return { ok: true };
+}
+
+/** [시리즈 회수] 뒤 — 편 회수는 브라우저가 제품에 하고(편마다 publish_log 도 남긴다), 여기서는 시리즈 상태만 바꾼다 */
+export async function markSeriesWithdrawn(id: string): Promise<Result> {
+  const sb = await supabaseServer();
+  const { error } = await sb.from("series").update({ status: "withdrawn" }).eq("id", id).eq("status", "published");
+  if (error) return { ok: false, reason: error.message };
+  revalidatePath(`/series/${id}`); revalidatePath("/series");
+  return { ok: true };
+}
+
+/**
+ * 시리즈 썸네일 글자 칸 저장 (2026-10-20) — 기획·승인·발행 중 언제든. 글자는 전부 코드가 얹으므로 바탕은 그대로다. redrawBase 면 바탕 그림을 버린다(다음 썸네일이 새로 그린다).
+ * regenerate = 썸네일이 이미 있는 편마다 [썸네일 다시 만들기] 작업을 건다 — 바탕은 워커가 시리즈 잠금 안에서 한 번만 그리고 나머지는 번호만 다시 얹는다
+ */
+export async function saveSeriesThumb(id: string, v: { word: string; label: string; box: string }, regenerate: boolean, redrawBase = false): Promise<Result<{ queued: number }>> {
+  const s = await loadSeries(id);
+  if (!s) return { ok: false, reason: "시리즈가 없다" };
+  if (["cancelled", "withdrawn"].includes(s.status)) return { ok: false, reason: `${s.status} 시리즈는 고치지 않는다` };
+  const t = cleanSeriesThumb(v);
+  if (t.problems.length) return { ok: false, reason: t.problems.join(" · ") };
+  const sb = await supabaseServer();
+  // seriesthumb-v3 부터 큰 단어는 코드가 얹는다 — 글자 칸을 바꿔도 바탕은 그대로 두고, 바탕은 [바탕 그림도 새로 그리기]로만 버린다
+  const rebase = redrawBase;
+  const { error } = await sb.from("series").update({ thumb_word: t.word, thumb_label: t.label || null, thumb_box: t.box || null, ...(rebase || regenerate ? { thumb_base_key: rebase ? null : s.thumb_base_key } : {}) }).eq("id", id);
+  if (error) return { ok: false, reason: error.message };
+  let queued = 0;
+  if (regenerate) {
+    const { data: bls } = await sb.from("backlog").select("id").eq("series_id", id);
+    const ids = (bls ?? []).map((b) => b.id);
+    const { data: eps } = ids.length ? await sb.from("episodes").select("id,backlog_id,thumbnail_key,created_at").in("backlog_id", ids).not("thumbnail_key", "is", null).order("created_at", { ascending: false }) : { data: [] };
+    const seen = new Set<string>();
+    for (const e of eps ?? []) {
+      if (seen.has(e.backlog_id)) continue;
+      seen.add(e.backlog_id);
+      await enqueueJob("thumbnail", { episode_id: e.id, backlog_id: e.backlog_id, force: true });
+      queued++;
+    }
+  }
+  revalidatePath(`/series/${id}`);
+  return { ok: true, queued };
+}

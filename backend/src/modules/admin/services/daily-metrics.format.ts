@@ -6,26 +6,38 @@
  * 이탈을 지표에 섞으면 퍼널 숫자 사이에 사유 목록이 끼어 둘 다 읽기 어려워서 나눴다.
  */
 
-import { serviceDayStartHour } from '@/common/utils/service-date.util';
-import { WithdrawalReason } from '@/modules/user/user.enum';
+import { UserMarket, WithdrawalReason } from '@/modules/user/user.enum';
 
 export type DailyMetrics = {
   /** 보고 대상 날짜 (`YYYY-MM-DD`, KST) */
   date: string;
   /**
    * 가입자 — **서버 값**(2026-10-13 — 건마다 오던 가입 알림을 대신한다).
-   * `total` 은 보고 시각의 `users` 행 수(탈퇴는 행을 지워 빠진다), `signUps` 는 보고일 서비스 날짜의 가입 건수
+   * `total` 은 보고 시각의 `users` 행 수(탈퇴는 행을 지워 빠진다), `signUps` 는 보고일(KST 달력일)의 가입 건수
    */
   members: {
     total: number;
     signUps: number;
   };
-  /** 사용자 — GA4 운영 스트림 */
+  /**
+   * 시장별 — **서버 값**(2026-10-17). 가입자를 시장으로 나눈 값과 보고일(KST 달력일)의 서버 청취. GA4 이벤트에는 시장이
+   * 없다. 계정이 없는 시장도 0 으로 온다
+   */
+  markets: {
+    market: UserMarket;
+    totalUsers: number;
+    signUps: number;
+    listeners: number;
+    plays: number;
+    listenSec: number;
+  }[];
+  /**
+   * 사용자 — GA4 운영 스트림. **신규(`newUsers`)는 싣지 않는다**(2026-10-17) — 앱 첫 실행 수라 "몇 명이 가입했나"와 다르고,
+   * 가입은 가입자 줄(서버)이 정확히 센다. 두 숫자가 나란히 있으면 어느 쪽이 가입인지 헷갈렸다
+   */
   users: {
     active: number;
     activePrev: number;
-    new: number;
-    newPrev: number;
     sessions: number;
     avgSessionSec: number;
     active7d: number;
@@ -68,6 +80,24 @@ export function formatDuration(sec: number): string {
   return s < 60 ? `${s}초` : `${Math.floor(s / 60)}분 ${s % 60}초`;
 }
 
+/** 청취 시간 — 1시간 미만은 `42분`, 그 이상은 소수 한 자리 `12.5시간` */
+export function formatListenTime(sec: number): string {
+  if (sec < 3600) return `${Math.round(sec / 60)}분`;
+  return `${(Math.round((sec / 3600) * 10) / 10).toLocaleString('en-US')}시간`;
+}
+
+const MARKET_LABEL: Record<UserMarket, string> = {
+  [UserMarket.KR]: 'KR',
+  [UserMarket.GLOBAL]: 'GLOBAL',
+};
+
+/** 시장 나눔 괄호 — `(KR 1,350 · GLOBAL 1)` */
+const byMarket = (
+  markets: DailyMetrics['markets'],
+  pick: (m: DailyMetrics['markets'][number]) => number,
+): string =>
+  `(${markets.map((m) => `${MARKET_LABEL[m.market]} ${n(pick(m))}`).join(' · ')})`;
+
 /** 리텐션 한 칸 — 표본이 없으면 `—`, 있으면 `33% (3명 중 1)` */
 export function formatRetention(r: {
   rate: number | null;
@@ -82,7 +112,7 @@ const ratio = (num: number, den: number): string =>
   den === 0 ? '' : ` (${Math.round((num / den) * 100)}%)`;
 
 /**
- * 하루치 보고 — 가입자(서버) 한 줄 뒤에 퍼널 순서(사용자 → 획득 → 재생 → 리텐션)로 4줄.
+ * 하루치 보고 — 서버 값 두 줄(가입자 · 시장별 청취) 뒤에 퍼널 순서(사용자 → 획득 → 재생 → 리텐션)로 4줄.
  * 운영이 아니면 환경을 앞에 붙인다(건별 Slack 알림과 같은 규칙).
  */
 export function formatDailyMetrics(
@@ -97,12 +127,18 @@ export function formatDailyMetrics(
   const p = m.playback;
   return [
     `${prefix}:bar_chart: *${m.date} (${day}) 이어 일간 지표*  ·  운영 스트림`,
-    `*가입자*   현재 ${n(mb.total)}명  ·  어제 가입 ${n(mb.signUps)}명`,
-    `*사용자*   활성 ${n(u.active)}${delta(u.active, u.activePrev)}  ·  신규 ${n(u.new)}${delta(u.new, u.newPrev)}  ·  세션 ${n(u.sessions)} (평균 ${formatDuration(u.avgSessionSec)})  ·  7일 활성 ${n(u.active7d)}`,
+    `*가입자*   현재 ${n(mb.total)}명 ${byMarket(m.markets, (x) => x.totalUsers)}  ·  어제 가입 ${n(mb.signUps)}명 ${byMarket(m.markets, (x) => x.signUps)}`,
+    `*시장별 청취*  ${m.markets
+      .map(
+        (x) =>
+          `${MARKET_LABEL[x.market]} ${n(x.listeners)}명 · 재생 ${n(x.plays)} · ${formatListenTime(x.listenSec)}`,
+      )
+      .join('  ·  ')}`,
+    `*사용자*   활성 ${n(u.active)}${delta(u.active, u.activePrev)}  ·  세션 ${n(u.sessions)} (평균 ${formatDuration(u.avgSessionSec)})  ·  7일 활성 ${n(u.active7d)}`,
     `*획득*     가입 ${n(a.signUps)} → 온보딩 완료 ${n(a.onboardingCompletes)}${ratio(a.onboardingCompletes, a.signUps)}  ·  푸시 응답 ${n(a.pushResponses)}`,
     `*재생*     시작 ${n(p.playStarts)} (${n(p.playStartUsers)}명)  ·  완청 ${n(p.completes)}  ·  중도 이탈 ${n(p.abandons)}  ·  드립 재생 ${n(p.dripPlays)}  ·  담기 ${n(p.saves)}`,
     `*리텐션*   D1 ${formatRetention(m.retention.d1)}  ·  D7 ${formatRetention(m.retention.d7)}`,
-    `_▲▼ 전일 대비 · 가입자 줄은 서버 값(${serverBoundary(m.date)}시 경계) · 나머지는 GA4 운영 스트림(00시 경계)_`,
+    `_▲▼ 전일 대비 · 어제 = KST 00~24시(전 줄 같은 범위) · 현재 가입자는 보고 시각 값 · 가입자·시장별 청취 줄은 서버 값, 나머지는 GA4 운영 스트림_`,
   ].join('\n');
 }
 
@@ -113,20 +149,19 @@ const envPrefix = (environment?: string): string =>
 const weekday = (date: string): string =>
   WEEKDAY[new Date(`${date}T00:00:00Z`).getUTCDay()];
 
-/** 서버 값의 하루 경계 — 보고 날짜(정오)에 적용되는 경계로 적는다. 05:00 전환(KAN-149) 전후를 가른다 */
-const serverBoundary = (date: string): string =>
-  String(serviceDayStartHour(new Date(`${date}T12:00:00+09:00`))).padStart(
-    2,
-    '0',
-  );
-
 export type ChurnMetrics = {
   /** 보고 대상 날짜 — 지표 보고와 같은 값(어제) */
   date: string;
-  /** 탈퇴 — **서버 값**(`withdrawal_logs`). 사유 코드별 건수, `null` 은 사유 미선택 */
-  withdrawals: { reasonCode: string | null; count: number }[];
+  /** 탈퇴 — **서버 값**(`withdrawal_logs`). 시장 × 사유 코드별 건수, `null` 은 사유 미선택 */
+  withdrawals: {
+    market: UserMarket;
+    reasonCode: string | null;
+    count: number;
+  }[];
   /** 앱 삭제 — GA4 `app_remove`(운영 스트림). Android 만 올라온다 */
   appRemoves: number;
+  /** 시장 전환 — **서버 값**(`user_market_changes`, 2026-10-19). 방향별 건수. 없으면 빈 배열 */
+  marketChanges?: { from: UserMarket; to: UserMarket; count: number }[];
 };
 
 /** 탈퇴 화면의 선택지 문구와 같다(`auth-uiux.md` 탈퇴 사유). 순서도 화면 순서 — 건수가 같을 때 이 순서로 놓는다 */
@@ -156,31 +191,57 @@ function reasonRank(code: string | null): number {
 }
 
 /**
- * 이탈 보고 — 탈퇴(서버, 사유 분포)와 앱 삭제(GA4, Android). 하루 범위는 지표 보고와 같다: 서버 값은
- * 서비스 날짜, GA4 는 00시. 탈퇴가 0이어도 보낸다 — "없었다"도 보고다.
+ * 이탈 보고 — 탈퇴(서버, 사유 분포)와 앱 삭제(GA4, Android). 하루 범위는 지표 보고와 같다: 둘 다 KST 달력일(00시). 탈퇴가 0이어도 보낸다 — "없었다"도 보고다.
  *
- * 사유는 건수 많은 순, 같으면 화면 순서. 직접 입력 사유 원문은 싣지 않는다(분포만 — 2026-10-15 결정).
+ * 탈퇴는 시장별 소제목 아래 사유를 적는다(2026-10-17 — 해외 전용 사유를 둘 수 있게). 사유는 건수 많은 순, 같으면 화면 순서. 직접 입력 사유 원문은 싣지 않는다(분포만 — 2026-10-15 결정).
  */
 export function formatChurnReport(
   m: ChurnMetrics,
   environment?: string,
 ): string {
   const total = m.withdrawals.reduce((sum, w) => sum + w.count, 0);
-  const reasons = [...m.withdrawals]
-    .filter((w) => w.count > 0)
-    .sort(
-      (a, b) =>
-        b.count - a.count ||
-        reasonRank(a.reasonCode) - reasonRank(b.reasonCode),
-    )
-    .map((w) => `    · ${reasonLabel(w.reasonCode)}  ${n(w.count)}`);
+  const markets = Object.values(UserMarket).map((market) => {
+    const rows = m.withdrawals.filter(
+      (w) => w.market === market && w.count > 0,
+    );
+    return { market, rows, count: rows.reduce((sum, w) => sum + w.count, 0) };
+  });
+  // 시장마다 소제목 아래 사유 — 탈퇴가 있던 시장만 적는다(합계 괄호에는 0 인 시장도 적는다)
+  const sections = markets
+    .filter((x) => x.count > 0)
+    .flatMap((x) => [
+      `  *${MARKET_LABEL[x.market]}*  ${n(x.count)}명`,
+      ...[...x.rows]
+        .sort(
+          (a, b) =>
+            b.count - a.count ||
+            reasonRank(a.reasonCode) - reasonRank(b.reasonCode),
+        )
+        .map((w) => `    · ${reasonLabel(w.reasonCode)}  ${n(w.count)}`),
+    ]);
   return [
     `${envPrefix(environment)}:door: *${m.date} (${weekday(m.date)}) 이어 이탈*  ·  운영 스트림`,
-    `*탈퇴*      ${n(total)}명`,
-    ...reasons,
+    `*탈퇴*      ${n(total)}명 (${markets.map((x) => `${MARKET_LABEL[x.market]} ${n(x.count)}`).join(' · ')})`,
+    ...sections,
     `*앱 삭제*  Android ${n(m.appRemoves)}`,
-    `_탈퇴는 서버 값(${serverBoundary(m.date)}시 경계) · 앱 삭제는 GA4 app_remove 운영 스트림(00시 경계) — iOS 는 삭제 이벤트가 없어 세지 않는다_`,
+    ...marketChangeLine(m.marketChanges ?? []),
+    `_어제 = KST 00~24시 · 탈퇴는 서버 값(탈퇴 당시 시장) · 앱 삭제는 GA4 app_remove 운영 스트림 — iOS 는 삭제 이벤트가 없어 세지 않는다_`,
   ].join('\n');
+}
+
+/**
+ * 시장 전환 줄(`global-api.md` 4.11) — 전환이 있던 날만 적는다. 기능이 꺼져 있는 동안 보고 모양이 바뀌지 않게 한다.
+ * 시장 이탈이라 이탈 보고에 둔다(계정은 남지만 그 시장에서는 빠져나갔다).
+ */
+function marketChangeLine(
+  changes: { from: UserMarket; to: UserMarket; count: number }[],
+): string[] {
+  const rows = changes.filter((c) => c.count > 0);
+  if (rows.length === 0) return [];
+  const label = rows
+    .map((c) => `${MARKET_LABEL[c.from]}→${MARKET_LABEL[c.to]} ${n(c.count)}`)
+    .join(' · ');
+  return [`*시장 전환*  ${label}`];
 }
 
 /**

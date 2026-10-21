@@ -3,6 +3,27 @@
  * 선택지는 문서가 정한 다섯 개뿐이다: 5분 · 10분 · 15분 · 30분 · 이 에피소드 종료 시(+ 해제).
  */
 
+import { formatEnCount } from '@/shared/i18n/format';
+import { localized, type LocalizedCopy } from '@/shared/i18n/localized';
+
+/** 영어 단위 — 단·복수는 `Intl.PluralRules`(KAN-197) */
+const enUnit = (count: number, unit: string): string =>
+  formatEnCount(count, { one: unit, other: `${unit}s` });
+
+/** 낭독기용 남은 시간 문구(KAN-194) */
+const ko = {
+  secondsLeft: (seconds: number) => `${seconds}초 남음`,
+  minutesLeft: (minutes: number) => `${minutes}분 남음`,
+  minutesSecondsLeft: (minutes: number, seconds: number) => `${minutes}분 ${seconds}초 남음`,
+} as const;
+const en: LocalizedCopy<typeof ko> = {
+  secondsLeft: (seconds: number) => `${enUnit(seconds, 'second')} left`,
+  minutesLeft: (minutes: number) => `${enUnit(minutes, 'minute')} left`,
+  minutesSecondsLeft: (minutes: number, seconds: number) =>
+    `${enUnit(minutes, 'minute')} ${enUnit(seconds, 'second')} left`,
+};
+const COPY = localized({ ko, en });
+
 /** 분 단위 선택지 */
 export const SLEEP_TIMER_MINUTES = [5, 10, 15, 30] as const;
 export type SleepTimerMinutes = (typeof SLEEP_TIMER_MINUTES)[number];
@@ -37,7 +58,7 @@ export const formatSleepTimerRemainingA11y = (remainingSec: number): string => {
   const safe = Math.max(0, Math.floor(remainingSec));
   const minutes = Math.floor(safe / 60);
   const seconds = safe % 60;
-  if (minutes === 0) return `${seconds}초 남음`;
-  if (seconds === 0) return `${minutes}분 남음`;
-  return `${minutes}분 ${seconds}초 남음`;
+  if (minutes === 0) return COPY.secondsLeft(seconds);
+  if (seconds === 0) return COPY.minutesLeft(minutes);
+  return COPY.minutesSecondsLeft(minutes, seconds);
 };

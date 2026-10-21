@@ -57,11 +57,38 @@ const POOL_TOPICS = [
   { id: 'topic-psychology', name: '심리' },
 ];
 
+/**
+ * 탐색 mock 의 시리즈 편(explore.mock.ts `MOCK_SERIES` — KAN-225). 같은 id·시리즈 값이어야 시리즈 화면 → 상세 → 시리즈 줄 →
+ * 시리즈 화면이 이어진다. 편 제목·길이 규칙도 탐색 mock 과 같다
+ */
+const MOCK_SERIES_EPISODES: {
+  id: string;
+  title: string;
+  totalEpisodes: number;
+  seqs: number[];
+}[] = [
+  {
+    id: 'series-cs',
+    title: '키워드로 빠르게 배우는 CS 지식',
+    totalEpisodes: 6,
+    seqs: [201, 202, 203, 204],
+  },
+  { id: 'series-money', title: '사회초년생 돈 공부', totalEpisodes: 3, seqs: [211, 212, 213] },
+];
+const SERIES_EPISODE_SUBTITLES = [
+  '소프트웨어를 만드는 방법',
+  '프로세스와 스레드',
+  '네트워크의 계층',
+  '데이터베이스 인덱스',
+];
+const findMockSeriesOf = (seq: number) =>
+  MOCK_SERIES_EPISODES.find((series) => series.seqs.includes(seq)) ?? null;
+
 /** 목록 mock이 노출하는 콘텐츠 id 범위 — 밖의 id는 404다(content-detail-api.md 4.1) */
 const isKnownContentSeq = (seq: number): boolean =>
-  (seq >= 1 && seq <= 25) || (seq >= 101 && seq <= 118);
+  (seq >= 1 && seq <= 25) || (seq >= 101 && seq <= 118) || findMockSeriesOf(seq) !== null;
 
-/** CD2 검증용 소스 3건 — 저자만·링크만·둘 다(조건부 변형 전수 — uiux 4.6과 같은 구성) */
+/** 서버 응답 모양 재현용 소스 3건 — 앱은 sources를 읽지 않는다(KAN-221). 응답에 실려도 화면이 깨지지 않는지 본다 */
 const makeSources = (seq: number, topicName: string): ContentDetailSourceDto[] => [
   { title: '딥 워크', author: '칼 뉴포트', url: null },
   { title: `${topicName} 연구 노트 ${seq}`, author: null, url: `https://blog.example.com/notes/${seq}` },
@@ -76,17 +103,25 @@ const makeContent = (seq: number): ContentDetailContentDto => {
   const isAiGenerated = isMockAiGeneratedContent(contentId);
   const hasSeries = seq % 6 === 2;
   const sources = isAiGenerated ? makeSources(seq, topic.name) : null;
+  const mockSeries = findMockSeriesOf(seq);
+  const episodeNo = mockSeries ? mockSeries.seqs.indexOf(seq) + 1 : 0;
 
   return {
     id: contentId,
     // 제목·길이 생성 규칙은 목록 mock과 동일해야 한다(위 파일 주석 — 화면 간 정합)
-    title: isExploreOnly
-      ? `${topic.name} 특집 ${seq} — 탐색에서 만나는 이야기`
-      : `${topic.name} 이야기 ${seq} — 오래 일하는 사람들의 습관`,
+    title: mockSeries
+      ? `${mockSeries.title} ${episodeNo} - ${SERIES_EPISODE_SUBTITLES[(episodeNo - 1) % SERIES_EPISODE_SUBTITLES.length]}`
+      : isExploreOnly
+        ? `${topic.name} 특집 ${seq} — 탐색에서 만나는 이야기`
+        : `${topic.name} 이야기 ${seq} — 오래 일하는 사람들의 습관`,
     description:
       `오래 일하는 사람들은 무엇이 다를까요? ${topic.name} 관점에서 일과 삶의 리듬을 지키는 ` +
       `습관을 하나씩 짚어봅니다. 출근길 한 편으로 듣기 좋게 정리했어요.`,
-    duration_sec: isExploreOnly ? 480 + (seq % 5) * 120 : 240 + (seq % 5) * 30,
+    duration_sec: mockSeries
+      ? 900 + episodeNo * 120
+      : isExploreOnly
+        ? 480 + (seq % 5) * 120
+        : 240 + (seq % 5) * 30,
     published_at: new Date(Date.UTC(2026, 7, 20, 5, 0) - seq * 24 * 60 * 60 * 1000).toISOString(),
     thumbnail_url: `https://picsum.photos/seed/${contentId}/200`,
     content_version: 1,
@@ -99,9 +134,21 @@ const makeContent = (seq: number): ContentDetailContentDto => {
         : [['협상', '앵커링'], ['뱅크런', '예금보험', '금리'], ['회의', '결정권', '안건정리', '시간관리']][
             seq % 3
           ],
-    series: hasSeries
-      ? { series_id: `series-${seq}`, episode_no: (seq % 3) + 1, total_episodes: 3 }
-      : null,
+    /*
+     * 시리즈 편(KAN-134 1단계 모양) — `series_id` 는 `id` 와 같은 값으로 남는다. 그 밖의 `seq % 6 === 2` 는 **구버전 서버 모양**
+     * (`series_id` 만, 제목 없음)이다: 시리즈 줄이 종전 "N부작 중 M화"로 나오고, 눌러 열면 탐색 mock 에 없는 시리즈라 404 다
+     */
+    series: mockSeries
+      ? {
+          id: mockSeries.id,
+          series_id: mockSeries.id,
+          title: mockSeries.title,
+          episode_no: episodeNo,
+          total_episodes: mockSeries.totalEpisodes,
+        }
+      : hasSeries
+        ? { series_id: `series-${seq}`, episode_no: (seq % 3) + 1, total_episodes: 3 }
+        : null,
     origin: isAiGenerated ? 'ai_generated' : 'partner',
     author_name: isAiGenerated ? null : `저자 ${seq}`,
     // ai_generated의 source_name은 고지 문구 표기다 — 상세 출처 영역에는 쓰지 않는다(api 4.1)

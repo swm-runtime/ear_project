@@ -29,6 +29,7 @@ import {
   isAfterArrivalPushTime,
   nextDripBatchAt,
 } from '@/modules/drip/drip-group.policy';
+import { scoringCareerOf } from '@/modules/drip/drip-career.policy';
 import { DripGroup, PreferenceSignalAction } from '@/modules/drip/drip.enum';
 import {
   PreferenceSignalInput,
@@ -117,7 +118,7 @@ export type PlanCountCache = Map<UserTier, PlanCounts>;
 @Injectable()
 export class DripBatchOrchestrator {
   private readonly logger = new Logger(DripBatchOrchestrator.name);
-  /** 자동 확장 서버 스위치 — 명시값이 없으면 운영에서만 꺼진다(`env.validation.ts` 주석) */
+  /** 자동 확장 서버 스위치(`AUTO_EXPAND_ENABLED`) — `true`를 명시했을 때만 켜진다. 비었거나 `false`면 꺼짐(`env.validation.ts` 주석) */
   private readonly autoExpandEnabled: boolean;
   /** 시간대 그룹 스위치(`DRIP_TIMEZONE_GROUPS_ENABLED`) — 꺼져 있으면 전원이 기본 그룹(05:00 KST)이다 */
   private readonly timezoneGroupsEnabled: boolean;
@@ -581,6 +582,7 @@ export class DripBatchOrchestrator {
      */
     plan.autoExpand = await this.resolveAutoExpand(
       user.id,
+      user.market,
       activeInterests,
       preferenceResult,
       now,
@@ -612,7 +614,10 @@ export class DripBatchOrchestrator {
     }
 
     // 미청취 재고 스킵(4.1) — 탐험 편성도 함께 건너뛴다(4.8)
-    plan.unfinishedCount = await this.libraryService.countUnfinished(user.id);
+    plan.unfinishedCount = await this.libraryService.countUnfinished(
+      user.id,
+      user.market,
+    );
 
     if (plan.unfinishedCount >= UNFINISHED_INVENTORY_LIMIT) {
       // 오늘 이미 편성된 사유가 먼저 났으면 유지한다(배치가 보는 순서와 같다)
@@ -650,11 +655,8 @@ export class DripBatchOrchestrator {
         preference: plan.preference,
         difficultyAffinity: plan.difficultyAffinity,
         isColdStart: plan.isColdStart,
-        // 커리어 적합도(4.2 ③) — 프로필이라 신호가 없어도 쓴다
-        career: {
-          jobCategory: user.jobCategory,
-          yearsOfExperience: user.yearsOfExperience,
-        },
+        // 커리어 적합도(4.2 ③) — 프로필이라 신호가 없어도 쓴다. KR 시장만
+        career: scoringCareerOf(user),
         dripCount,
         loadRecentDripTopics: options.loadRecentDripTopics,
         now,
@@ -718,6 +720,7 @@ export class DripBatchOrchestrator {
    */
   async refreshDerivedState(
     userId: string,
+    market: UserMarket,
     now: Date,
   ): Promise<AutoExpandDecision> {
     const activeInterests =
@@ -725,6 +728,7 @@ export class DripBatchOrchestrator {
     const preferenceResult = await this.rebuildPreference(userId, now, true);
     const decision = await this.resolveAutoExpand(
       userId,
+      market,
       activeInterests,
       preferenceResult,
       now,
@@ -742,7 +746,9 @@ export class DripBatchOrchestrator {
 
   /**
    * 자동 확장 판정(4.5). 순수 판정(`decideAutoExpand`)에 **조회가 필요한 두 조건**을 얹는다 — 후보 주제가
-   * 지금 고를 수 있는 주제인가(숨김 주제는 `findAllActive`가 걸러 버려 넣어도 유령 행이 된다), 그리고
+   * 지금 고를 수 있는 주제인가(숨김 주제는 `findAllActive`가 걸러 버려 넣어도 유령 행이 된다. **다른 시장
+   * 주제도 같은 길로 뺀다** — 시장 전환 뒤 이전 시장 청취 신호가 이전 시장 주제를 되살리지 않게, global-api 4.5
+   * "자동 확장도 같은 시장 안에서만"), 그리고
    * 사용자가 자동 확장을 켜 두었는가(FR-06). 둘 다 **움직일 일이 있을 때만** 조회한다. 그 밖에 사용자마다
    * 드는 조회는 `user_interests` 한 번(직접 해제한 주제 + 숨김 주제가 차지한 자동 슬롯)이다.
    *
@@ -751,6 +757,7 @@ export class DripBatchOrchestrator {
    */
   private async resolveAutoExpand(
     userId: string,
+    market: UserMarket,
     activeInterests: UserInterest[],
     preferenceResult: {
       signals: PreferenceSignalInput[];
@@ -788,7 +795,9 @@ export class DripBatchOrchestrator {
       );
       const topics = await this.topicService.findAllByIds(candidateIds);
       const selectable = new Set(
-        topics.filter((topic) => topic.isVisible).map((topic) => topic.id),
+        topics
+          .filter((topic) => topic.isVisible && topic.market === market)
+          .map((topic) => topic.id),
       );
       const unavailableTopicIds = candidateIds.filter(
         (topicId) => !selectable.has(topicId),
@@ -970,7 +979,7 @@ export class DripBatchOrchestrator {
       preference: UserPreferenceWeights | null;
       difficultyAffinity: Record<string, number> | null;
       isColdStart: boolean;
-      career: UserCareer;
+      career: UserCareer | null;
       dripCount: number;
       loadRecentDripTopics: boolean;
       now: Date;
@@ -988,9 +997,20 @@ export class DripBatchOrchestrator {
     });
 
     const candidates = await this.buildScoringCandidates(pool);
+    // 다음 편 판정은 풀이 아니라 카탈로그의 노출 중인 편과 사용자 상태로 한다(KAN-134 규칙 ②′) — 풀은 상한으로 잘리고 본 편을 뺀다
+    const seriesEpisodesBySeries =
+      await this.contentService.findSeriesEpisodeStates(
+        pool
+          .map((content) => content.seriesId)
+          .filter((seriesId): seriesId is string => seriesId !== null),
+        userId,
+        input.now,
+        input.market,
+      );
     const gated = this.dripScoringService.filterEpisodeOrder(
       candidates,
       input.completedEpisodesBySeries,
+      seriesEpisodesBySeries,
     );
     const gatedIds = new Set(gated.map((candidate) => candidate.content.id));
     const gatedOut = candidates.filter(
@@ -1002,6 +1022,7 @@ export class DripBatchOrchestrator {
       return {
         poolSize: pool.length,
         gatedOut,
+        seriesEpisodesBySeries,
         recentDripTopicIds: [],
         scored: [],
         picks: [],
@@ -1018,6 +1039,7 @@ export class DripBatchOrchestrator {
       preference: input.preference,
       difficultyAffinity: input.difficultyAffinity,
       completedEpisodesBySeries: input.completedEpisodesBySeries,
+      seriesEpisodesBySeries,
       isColdStart: input.isColdStart,
       career: input.career,
       now: input.now,
@@ -1031,6 +1053,7 @@ export class DripBatchOrchestrator {
     return {
       poolSize: pool.length,
       gatedOut,
+      seriesEpisodesBySeries,
       recentDripTopicIds,
       scored,
       picks,
@@ -1265,7 +1288,11 @@ function groupArrivals(items: LibraryItem[]): DripArrival[] {
       regular: [],
       discovery: [],
     };
-    const arrived = { contentId: item.contentId, title: item.content.title };
+    const arrived = {
+      contentId: item.contentId,
+      title: item.content.title,
+      market: item.content.market,
+    };
 
     if (item.source === LibraryItemSource.DISCOVERY) {
       arrival.discovery.push(arrived);

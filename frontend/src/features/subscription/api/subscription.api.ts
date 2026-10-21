@@ -59,8 +59,8 @@ const toPlan = (dto: PlanDto): Plan => ({
   tier: dto.tier,
   name: dto.name,
   description: dto.description,
-  priceKrw: dto.price_krw,
   storeProductId: dto.store_product_id,
+  isFree: dto.is_free ?? null,
   entitlements: toEntitlements(dto.entitlements),
   action: dto.action,
 });
@@ -109,7 +109,7 @@ export const toMySubscription = (dto: MySubscriptionResponseDto): MySubscription
 
 /* ── 엔드포인트 — mock 분기는 각 함수 진입점 한 곳에서만 한다 ── */
 
-/** 4.1 요금제 목록 — 가격은 스토어 SDK 가 준 현지 가격을 병합해 그린다(price_krw 는 참고값) */
+/** 4.1 요금제 목록 — 가격은 스토어 SDK 가 준 현지 가격을 병합해 그린다(price_krw 는 읽지 않는다 — KAN-196) */
 export const fetchPlans = async (platform: PurchasePlatform): Promise<PlanCatalog> => {
   const data = IS_SUBSCRIPTION_API_MOCKED
     ? await mockFetchPlans(platform)

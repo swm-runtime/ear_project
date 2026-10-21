@@ -9,6 +9,7 @@ import {
   ContentLanguage,
   ContentOrigin,
   ContentStatus,
+  SeriesStatus,
   StatsPeriodType,
 } from './content.enum';
 import { Content } from './entities/content.entity';
@@ -154,6 +155,8 @@ export interface ExplorePageQuery {
   cursor: ExploreCursorPosition | null;
   limit: number;
   now: Date;
+  /** 시리즈 카드 모드(KAN-134 — `SERIES_EXPLORE_CARDS_ENABLED`) — 시리즈마다 순위가 가장 높은 편 하나만 남긴다(`applySeriesAnchors`) */
+  seriesAnchorsOnly?: boolean;
 }
 
 /**
@@ -196,6 +199,8 @@ export interface PopularPageQuery {
   cursor: PopularCursorPosition | null;
   limit: number;
   now: Date;
+  /** 시리즈 카드 모드(KAN-134 — `SERIES_EXPLORE_CARDS_ENABLED`) — 시리즈마다 순위가 가장 높은 편 하나만 남긴다(`applySeriesAnchors`) */
+  seriesAnchorsOnly?: boolean;
 }
 
 /** 인기 랭킹의 정렬 키가 붙은 콘텐츠 한 줄 — 커서 발급에 쓴다 */
@@ -235,8 +240,17 @@ export interface SearchCursorPosition {
 export interface SearchPageQuery {
   /** 사용자 시장(`global-api.md` 4.7) — 다른 시장의 콘텐츠는 후보가 아니다 */
   market: UserMarket;
-  /** **이미 정규화된 질의다**(NFC + 소문자 + 트림 — `explore.md` 4.5-5). 호출부가 정규화한다 */
+  /**
+   * **이미 정규화된 검색어다**(NFC + 소문자 + 트림 — `explore.md` 4.5-5). 호출부가 정규화하고,
+   * 태그 전용 검색이면 앞의 `#`을 뗀 값이다(`parseSearchQuery`)
+   */
   normalizedQuery: string;
+  /** `#`으로 시작한 질의 — 태그 정확 일치만 결과로 낸다(KAN-218) */
+  tagOnly: boolean;
+  /** 시리즈 제목 일치도 결과로 낸다 — 탐색 시리즈 카드 스위치가 켜졌을 때만(KAN-134). 생략·false면 종전 그대로 */
+  matchSeriesTitle?: boolean;
+  /** 시리즈 카드 모드(KAN-134 — `SERIES_EXPLORE_CARDS_ENABLED`) — 시리즈마다 순위가 가장 높은 편 하나만 남긴다(`applySeriesAnchors`) */
+  seriesAnchorsOnly?: boolean;
   /** 검색 결과에 주제 필터를 겹칠 때(explore-api.md 4.5). 비우면 조건을 적용하지 않는다 */
   topicIds: string[];
   cursor: SearchCursorPosition | null;
@@ -368,4 +382,61 @@ export interface AudioRenditionInput {
   sampleRateHz: number | null;
   byteSize: string | null;
   durationSec: number;
+}
+
+/**
+ * 편이 속한 시리즈의 표시값(KAN-134 확정 설계 3번) — 카드·라이브러리 항목·플레이어·상세 응답의 `series` 객체 재료.
+ * 단일 콘텐츠는 이 값이 없다(응답에서 `null`). 총 편수는 `series.total_episodes`가 기준이다(`contents.total_episodes`가 아니다)
+ */
+export interface ContentSeriesRef {
+  id: string;
+  title: string;
+  episodeNo: number;
+  totalEpisodes: number;
+}
+
+/** 시리즈 생성(`POST /admin/series`) 입력 */
+export interface CreateSeriesCommand {
+  title: string;
+  description: string;
+  totalEpisodes: number;
+  status: SeriesStatus;
+}
+
+/** 시리즈 수정(`PATCH /admin/series/:id`) — `undefined`는 "안 바꾼다" */
+export interface UpdateSeriesCommand {
+  title?: string;
+  description?: string;
+  totalEpisodes?: number;
+  status?: SeriesStatus;
+}
+
+/** 시리즈 하나의 편 현황 — 상태별 편 수와 발행 중인 가장 큰 편 번호(관리자 목록) */
+export interface SeriesEpisodeCounts {
+  published: number;
+  withdrawn: number;
+  expired: number;
+  /** 발행 중(`published`)인 편이 없으면 null */
+  maxPublishedEpisodeNo: number | null;
+}
+
+/**
+ * 드립 다음 편 판정(KAN-134, 규칙 ②′)의 편 하나 — 노출 중인 편과 그 편에 대한 사용자 상태.
+ * `received`: 라이브러리에 한 번이라도 들어온 적이 있다(소프트 삭제분 포함) · `held`: 지금 라이브러리에 있고(삭제 안 됨) 완청 전 ·
+ * `excluded`: 드립 영구 제외(`drip_excluded_contents`)
+ */
+export interface SeriesEpisodeState {
+  contentId: string;
+  episodeNo: number;
+  received: boolean;
+  held: boolean;
+  excluded: boolean;
+}
+
+/** 업로드할 편의 시리즈 필드 — 업로드 검증(`SeriesService.assertEpisodeUploadable`) 입력 */
+export interface SeriesEpisodeUpload {
+  seriesId: string;
+  episodeNo: number;
+  totalEpisodes: number;
+  market: UserMarket;
 }

@@ -31,6 +31,40 @@ export function escapeLikePattern(value: string): string {
   return value.replace(/[\\%_]/g, '\\$&');
 }
 
+/** 해시태그 전용 검색의 접두 — `#뱅크런`은 태그가 정확히 `뱅크런`인 콘텐츠만 찾는다(`explore.md` 4.5-2, KAN-218) */
+export const TAG_SEARCH_PREFIX = '#';
+
+/** 검색 질의를 해석한 결과 */
+export interface ParsedSearchQuery {
+  /**
+   * 정규화한 질의 — **`#`을 남긴다.** 커서 지문과 검색 로그가 이 값을 쓴다(태그 검색 비율을 셀 수 있게). 태그 전용이면
+   * `#` + 검색어로 맞춰 `#  뱅크런`과 `#뱅크런`이 같은 값이 된다
+   */
+  normalizedQuery: string;
+  /** 매칭에 쓰는 검색어 — 앞의 `#` 하나를 떼고 다시 트림한 값. 2자 규칙도 이 값에 적용한다 */
+  term: string;
+  /** `#`으로 시작했으면 태그 정확 일치만 찾는다 */
+  tagOnly: boolean;
+}
+
+/**
+ * 검색 질의 해석 — 정규화(`normalizeSearchText`) 뒤 **앞의 `#` 하나**를 뗀다. `##태그`는 `#태그`를 찾는 것이 아니라
+ * 남은 `#`이 검색어에 들어가 매칭되지 않는다(태그에는 `#`이 없다 — `CONTENT_TAG_PATTERN`).
+ */
+export function parseSearchQuery(raw: string): ParsedSearchQuery {
+  const normalized = normalizeSearchText(raw);
+  if (!normalized.startsWith(TAG_SEARCH_PREFIX)) {
+    return { normalizedQuery: normalized, term: normalized, tagOnly: false };
+  }
+
+  const term = normalized.slice(TAG_SEARCH_PREFIX.length).trim();
+  return {
+    normalizedQuery: `${TAG_SEARCH_PREFIX}${term}`,
+    term,
+    tagOnly: true,
+  };
+}
+
 /** 트림 후 특수문자·이모지만 남는 질의 판정 — 문자·숫자가 하나도 없으면 검색하지 않는다 */
 export function hasSearchableCharacter(value: string): boolean {
   return /[\p{L}\p{N}]/u.test(value);

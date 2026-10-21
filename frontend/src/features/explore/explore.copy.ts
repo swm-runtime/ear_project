@@ -1,8 +1,11 @@
+import { formatEnCount } from '@/shared/i18n/format';
+import { localized, type LocalizedCopy } from '@/shared/i18n/localized';
+
 /**
  * 사용자 노출 문구(convention.md 3.5). 확정 카피는 explore-uiux.md 6장과 1:1 대조한다.
  * 잔여 표시·재생 확인 팝업·회수/한도 토스트는 player가 소유한다(PLAYER_COPY) — 여기 두지 않는다.
  */
-export const EXPLORE_COPY = {
+const ko = {
   /** iOS 26 큰 제목 바의 제목 — 탭 라벨과 같은 말(NativeMainTabs, 2026-09-25) */
   tabTitle: '탐색',
   /** E6·E7 검색(explore.md 4.5 — MVP 포함 격상, 합의 2026-08-23) */
@@ -31,6 +34,17 @@ export const EXPLORE_COPY = {
     recentDeleteA11y: (query: string) => `‘${query}’ 검색어 삭제`,
     /** 추천 키워드는 버튼이다 — 탭 결과가 필터가 아니라 검색 실행이다(uiux 7) */
     suggestedChipA11y: (name: string) => `${name}, 추천 키워드, 탭하면 검색`,
+  },
+
+  /**
+   * E1 섹션 제목 — **아는 종류(`key`)만 앱이 갖는다**(global-api.md 2.3 "화면 문구는 클라이언트" · 2026-10-19 KAN-194 실기기 —
+   * 서버 `title` 은 한국어 고정이라 영어 표시에서 한국어가 보였다). 모르는 종류·`topic_group`(주제 이름)은 서버 `title` 그대로다
+   * (`explore.section-title.ts`). 한국어는 서버 문자열과 같은 값이다
+   */
+  sectionTitles: {
+    interest: '관심사에 맞는 추천',
+    new: '새로 나온 콘텐츠',
+    popular: '인기 콘텐츠',
   },
 
   /** E12 더보기 액션시트 — 상세 정보·원문 보기·담기/제거(explore-uiux.md 4.4, 공유는 P1) */
@@ -80,6 +94,12 @@ export const EXPLORE_COPY = {
     /** 카드 하단 줄 — 해시태그가 있으면 `#태그 #태그 · N분`, 없으면 `N분` */
     metaWithTags: (tags: string[], minutes: number) =>
       tags.length > 0 ? `${tags.map((tag) => `#${tag}`).join(' ')} · ${minutes}분` : `${minutes}분`,
+    /** 해시태그 한 개 — 대표 카드에서는 이 글자가 검색 버튼이다(KAN-219) */
+    hashtag: (tag: string) => `#${tag}`,
+    /** 해시태그 버튼 낭독 — 누르면 무엇을 하는지까지(uiux 7) */
+    hashtagSearchA11y: (tag: string) => `#${tag} 검색`,
+    /** 대표 카드 하단 줄의 길이 — 태그 버튼 뒤에 붙는다 */
+    durationAfterTags: (minutes: number) => `· ${minutes}분`,
     moreA11y: '더보기, 담기·제거',
     /** 완청 체크는 색이 아니라 형태 단서 + 스크린리더 텍스트로 전달한다(library 카드와 동일) */
     completedA11y: '완청한 콘텐츠',
@@ -98,9 +118,62 @@ export const EXPLORE_COPY = {
     a11yHint: '주제 필터',
   },
 
+  /**
+   * 시리즈 카드(KAN-225 — explore-uiux.md 4.1-1). 단일 타일과 같은 크기·격자에 들어가고, 사진 아래 변의 "시리즈" 글자로 가른다.
+   * 편수는 노출 중인 편 수 — 계획보다 적으면(진행 중) "공개 편/계획 편"으로 적는다
+   */
+  seriesCard: {
+    badge: '시리즈',
+    episodeCount: (count: number, total: number) =>
+      count < total ? `${count}/${total}편` : `${count}편`,
+    /** 카드 하단 줄 — 주제가 있으면 `#주제 #주제 · N편`, 없으면 `N편` */
+    meta: (topicNames: string[], count: number, total: number) => {
+      const episodes = count < total ? `${count}/${total}편` : `${count}편`;
+      return topicNames.length > 0
+        ? `${topicNames.map((name) => `#${name}`).join(' ')} · ${episodes}`
+        : episodes;
+    },
+    /** 카드는 재생이 아니라 시리즈 화면을 연다 — 낭독도 "열기"로 끝난다(uiux 7) */
+    a11yLabel: (title: string, count: number, total: number) =>
+      `${title}, 시리즈, ${count < total ? `${total}편 중 ${count}편` : `${count}편`}, 열기`,
+  },
+
+  /** E14 시리즈 화면(KAN-225 — explore.md 4.7 · explore-uiux.md 4.11) */
+  series: {
+    appBarTitle: '시리즈',
+    backA11y: '뒤로 가기',
+    /** 머리의 편수 — 노출 편이 계획보다 적으면(진행 중) "N편 중 M편 공개" */
+    episodeSummary: (count: number, total: number) =>
+      count < total ? `${total}편 중 ${count}편 공개` : `${total}편`,
+    status: { ongoing: '연재 중', completed: '완결' },
+    episodesTitle: '편 목록',
+    episodeNo: (episodeNo: number) => `${episodeNo}화`,
+    /** 편 행의 내 상태 — 서버 값(library·progress)을 글자로 옮긴다. 색만으로 말하지 않는다 */
+    state: {
+      completed: '완청',
+      saved: '담음',
+      remaining: (minutes: number) => `${minutes}분 남음`,
+    },
+    rowA11y: (parts: { episodeNo: number; title: string; minutes: number; state: string | null }) =>
+      [
+        `${parts.episodeNo}화`,
+        parts.title,
+        `${parts.minutes}분`,
+        ...(parts.state ? [parts.state] : []),
+        '재생',
+      ].join(', '),
+    /** 404(없는·다른 시장·노출 편 0개 시리즈 — explore-api.md 4.7) */
+    notFound: {
+      title: '시리즈를 찾을 수 없어요',
+      action: '돌아가기',
+    },
+  },
+
   /** E13 인기 구간 토글 — 라벨은 화면 문구이고 week·month·all은 전송값이다(uiux 6장) */
   popular: {
     periodLabels: { week: '주간', month: '월간', all: '전체' },
+    /** 낭독용 구간 이름 — 한국어는 화면 라벨과 같다. 영어는 화면 라벨을 Week·Month·All 로 줄여서 낭독은 온전한 말로 둔다(2026-10-19) */
+    periodA11yLabels: { week: '주간', month: '월간', all: '전체' },
     toggleA11y: '인기 콘텐츠 집계 구간',
     /** 전환 실패 — 직전 목록을 유지한 채 섹션 안에서만 알린다(uiux 4.10) */
     switchFailed: '목록을 불러오지 못했어요',
@@ -108,3 +181,148 @@ export const EXPLORE_COPY = {
     switchedA11y: (periodLabel: string, count: number) => `${periodLabel} 인기 콘텐츠, ${count}개`,
   },
 } as const;
+
+const en: LocalizedCopy<typeof ko> = {
+  tabTitle: 'Explore',
+  search: {
+    tabTitle: 'Search',
+    placeholder: 'Search episodes',
+    clearA11y: 'Clear search',
+    cancel: 'Cancel',
+    emptyPrompt: 'Enter a search term',
+    recentTitle: 'Recent searches',
+    clearAll: 'Clear all',
+    suggestedTitle: 'Suggested',
+    noResult: (query: string) => `No results for “${query}”`,
+    popularTitle: 'Popular',
+    resultCountA11y: (query: string, count: number) =>
+      `${formatEnCount(count, { one: 'result', other: 'results' })} for “${query}”`,
+    recentItemA11y: (query: string) => `${query}, recent search, tap to search`,
+    recentDeleteA11y: (query: string) => `Remove “${query}” from recent searches`,
+    suggestedChipA11y: (name: string) => `${name}, suggested keyword, tap to search`,
+  },
+
+  sectionTitles: {
+    interest: 'Recommended',
+    new: 'New episodes',
+    popular: 'Popular',
+  },
+
+  sheet: {
+    detail: 'Details',
+    sourceLink: 'View original',
+    save: 'Add to Library',
+    remove: 'Remove from Library',
+    close: 'Close',
+  },
+
+  saveToast: 'Added to Library',
+  saveToastAction: 'View',
+  saveFailedToast: "Couldn't add. Please try again.",
+  removeFailedToast: "Couldn't remove. Please try again.",
+
+  empty: {
+    feed: {
+      title: 'More episodes are coming soon',
+      action: 'Go to Library',
+    },
+    filtered: {
+      title: 'No episodes on this topic yet',
+      action: 'Clear filter',
+    },
+  },
+
+  error: {
+    networkTitle: 'Check your internet connection',
+    loadFailedTitle: 'Something went wrong',
+    loadFailedDescription: 'Please try again later.',
+    retry: 'Try again',
+    loadMoreFailed: "Couldn't load more",
+  },
+
+  row: {
+    durationLabel: (minutes: number) => `${minutes} min`,
+    hashtags: (names: string[]) => names.map((name) => `#${name}`).join(' '),
+    metaWithTags: (tags: string[], minutes: number) =>
+      tags.length > 0
+        ? `${tags.map((tag) => `#${tag}`).join(' ')} · ${minutes} min`
+        : `${minutes} min`,
+    hashtag: (tag: string) => `#${tag}`,
+    hashtagSearchA11y: (tag: string) => `Search #${tag}`,
+    durationAfterTags: (minutes: number) => `· ${minutes} min`,
+    moreA11y: 'More, add or remove',
+    completedA11y: 'Played',
+    a11yLabel: (parts: { title: string; minutes: number; completed: boolean }) =>
+      [parts.title, `${parts.minutes} min`, ...(parts.completed ? ['Played'] : []), 'Play'].join(
+        ', ',
+      ),
+  },
+
+  chips: {
+    a11yHint: 'Topic filter',
+  },
+
+  seriesCard: {
+    badge: 'Series',
+    episodeCount: (count: number, total: number) =>
+      count < total
+        ? `${count}/${total} episodes`
+        : formatEnCount(count, { one: 'episode', other: 'episodes' }),
+    meta: (topicNames: string[], count: number, total: number) => {
+      const episodes =
+        count < total
+          ? `${count}/${total} episodes`
+          : formatEnCount(count, { one: 'episode', other: 'episodes' });
+      return topicNames.length > 0
+        ? `${topicNames.map((name) => `#${name}`).join(' ')} · ${episodes}`
+        : episodes;
+    },
+    a11yLabel: (title: string, count: number, total: number) =>
+      `${title}, series, ${
+        count < total
+          ? `${count} of ${total} episodes`
+          : formatEnCount(count, { one: 'episode', other: 'episodes' })
+      }, open`,
+  },
+
+  series: {
+    appBarTitle: 'Series',
+    backA11y: 'Back',
+    episodeSummary: (count: number, total: number) =>
+      count < total
+        ? `${count} of ${total} episodes out`
+        : formatEnCount(total, { one: 'episode', other: 'episodes' }),
+    status: { ongoing: 'Ongoing', completed: 'Complete' },
+    episodesTitle: 'Episodes',
+    episodeNo: (episodeNo: number) => `Episode ${episodeNo}`,
+    state: {
+      completed: 'Played',
+      saved: 'In Library',
+      remaining: (minutes: number) => `${minutes} min left`,
+    },
+    rowA11y: (parts: { episodeNo: number; title: string; minutes: number; state: string | null }) =>
+      [
+        `Episode ${parts.episodeNo}`,
+        parts.title,
+        `${parts.minutes} min`,
+        ...(parts.state ? [parts.state] : []),
+        'Play',
+      ].join(', '),
+    notFound: {
+      title: "Couldn't find this series",
+      action: 'Go back',
+    },
+  },
+
+  popular: {
+    // 짧은 명사형 — 한국어 주간·월간·전체와 같은 꼴. "Weekly·Monthly·All time"은 칸 76 이 필요해 제목이 접혔다(2026-10-19 PM)
+    periodLabels: { week: 'Week', month: 'Month', all: 'All' },
+    periodA11yLabels: { week: 'this week', month: 'this month', all: 'all time' },
+    toggleA11y: 'Popular episodes time range',
+    switchFailed: "Couldn't load the list",
+    switchedA11y: (periodLabel: string, count: number) =>
+      `Popular ${periodLabel}, ${formatEnCount(count, { one: 'episode', other: 'episodes' })}`,
+  },
+};
+
+export const EXPLORE_COPY = localized({ ko, en });

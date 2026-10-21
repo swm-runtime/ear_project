@@ -338,6 +338,85 @@ describe('주제 노출 E2E', () => {
     });
   });
 
+  describe('주제 시장 칸·필터(KAN-237)', () => {
+    const suffix = `${Date.now()}`;
+    let krId: string;
+    let globalId: string;
+
+    beforeAll(async () => {
+      const kr = await request(app.getHttpServer())
+        .post('/api/v1/admin/topics')
+        .set('Authorization', adminAuth)
+        .send({ parent_category: PARENT_CATEGORY, name: `시장 국내 ${suffix}` })
+        .expect(HttpStatus.CREATED);
+      const global = await request(app.getHttpServer())
+        .post('/api/v1/admin/topics')
+        .set('Authorization', adminAuth)
+        .send({
+          parent_category: PARENT_CATEGORY,
+          name: `market global ${suffix}`,
+          market: 'global',
+        })
+        .expect(HttpStatus.CREATED);
+      krId = (kr.body as { id: string }).id;
+      globalId = (global.body as { id: string }).id;
+
+      // 생성 응답 항목에도 시장이 실린다
+      expect(kr.body).toMatchObject({ market: 'kr' });
+      expect(global.body).toMatchObject({ market: 'global' });
+    });
+
+    it('필터 없이 보면 두 시장 주제가 함께 오고 항목마다 market 이 있다', async () => {
+      // when
+      const items = await listAdminTopics('');
+
+      // then
+      expect(items.find((topic) => topic.id === krId)).toMatchObject({
+        market: 'kr',
+      });
+      expect(items.find((topic) => topic.id === globalId)).toMatchObject({
+        market: 'global',
+      });
+      expect(items.every((topic) => typeof topic.market === 'string')).toBe(
+        true,
+      );
+    });
+
+    it('?market=global 이면 GLOBAL 주제만 온다', async () => {
+      // when
+      const items = await listAdminTopics('?market=global');
+
+      // then
+      expect(items.length).toBeGreaterThan(0);
+      expect(items.every((topic) => topic.market === 'global')).toBe(true);
+      expect(items.map((topic) => topic.id)).toContain(globalId);
+      expect(items.map((topic) => topic.id)).not.toContain(krId);
+    });
+
+    it('?market=kr 이면 KR 주제만 온다', async () => {
+      // when
+      const items = await listAdminTopics('?market=kr');
+
+      // then
+      expect(items.every((topic) => topic.market === 'kr')).toBe(true);
+      expect(items.map((topic) => topic.id)).toContain(krId);
+      expect(items.map((topic) => topic.id)).not.toContain(globalId);
+    });
+
+    it('시장 값이 틀리면 400 VALIDATION_FAILED 다', async () => {
+      // when
+      const response = await request(app.getHttpServer())
+        .get('/api/v1/admin/topics?market=jp')
+        .set('Authorization', adminAuth)
+        .expect(HttpStatus.BAD_REQUEST);
+
+      // then
+      expect((response.body as { error_code: string }).error_code).toBe(
+        ErrorCode.VALIDATION_FAILED,
+      );
+    });
+  });
+
   // --- 헬퍼 ---
 
   const patchTopic = (topicId: string, body: object) =>
@@ -345,6 +424,19 @@ describe('주제 노출 E2E', () => {
       .patch(`/api/v1/admin/topics/${topicId}`)
       .set('Authorization', adminAuth)
       .send(body);
+
+  async function listAdminTopics(
+    queryString: string,
+  ): Promise<(Record<string, unknown> & { id: string })[]> {
+    const response = await request(app.getHttpServer())
+      .get(`/api/v1/admin/topics${queryString}`)
+      .set('Authorization', adminAuth)
+      .expect(HttpStatus.OK);
+
+    return (
+      response.body as { items: (Record<string, unknown> & { id: string })[] }
+    ).items;
+  }
 
   async function findAdminTopic(
     topicId: string,

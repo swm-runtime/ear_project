@@ -8,6 +8,11 @@ export const MAX_AUDIO_FILE_BYTES = 200 * 1024 * 1024;
 /** 음질 3종의 길이 허용 오차 — 같은 마스터에서 렌더한 파일이라 반올림 차이만 난다(domain.md 5.8) */
 export const AUDIO_DURATION_TOLERANCE_SEC = 1;
 export const MAX_THUMBNAIL_FILE_BYTES = 5 * 1024 * 1024;
+/**
+ * 시리즈 표지 경로(`PUT /admin/series/:id/cover`, KAN-234)의 multer 수신 상한 — 서버 보호용. 표지 자체의 상한은
+ * `MAX_THUMBNAIL_FILE_BYTES`(콘텐츠 썸네일과 같음)이고 서비스가 400 으로 거절한다. 이보다 크면 multer 가 413 을 준다
+ */
+export const MAX_SERIES_COVER_RECEIVE_BYTES = 4 * MAX_THUMBNAIL_FILE_BYTES;
 
 /** enrichment.json — 벡터 1536개 float라도 수십 KB다. 1MB면 넉넉한 보호 상한 */
 export const MAX_ENRICHMENT_FILE_BYTES = 1 * 1024 * 1024;
@@ -110,6 +115,11 @@ export const AUDIT_ACTION_NOTICE_DELETE = 'notice.delete';
 /** 초대 코드 관리(admin-api.md 4.23, 2026-10-10) — 코드 테이블에 작성자 컬럼이 없어 누가 만들고 고쳤는지는 감사 로그만 안다 */
 export const AUDIT_ACTION_INVITE_CODE_CREATE = 'invite_code.create';
 export const AUDIT_ACTION_INVITE_CODE_UPDATE = 'invite_code.update';
+/** 시리즈 관리(KAN-134) — `series`에 작성자 컬럼이 없어 누가 만들고 고쳤는지는 감사 로그만 안다 */
+export const AUDIT_ACTION_SERIES_CREATE = 'series.create';
+export const AUDIT_ACTION_SERIES_UPDATE = 'series.update';
+/** 시리즈 표지 교체(KAN-234, 2026-10-21) — 제목·편수 수정(`series.update`)과 따로 남긴다. 파일 업로드라 경로·실패 양상이 다르다 */
+export const AUDIT_ACTION_SERIES_COVER = 'series.cover';
 /**
  * 노출 가능 콘텐츠가 0건이 된 주제의 자동 숨김(admin.md 4.5, KAN-58).
  *
@@ -128,5 +138,42 @@ export const SYSTEM_AUDIT_ACTOR = 'system';
 export const INSIGHTS_SUMMARY_DEFAULT_DAYS = 14;
 export const INSIGHTS_SUMMARY_MAX_DAYS = 90;
 export const INSIGHTS_RANK_LIMIT = 15;
+/**
+ * "최근 하루 인기 콘텐츠" 창(시간) — 지금부터 24시간 전까지 굴러가는 창이다(달력일이 아니다). 자정 직후에 열어도 비지 않고,
+ * "어제 무엇이 잘 나갔나"를 언제 열든 같은 길이로 본다(2026-10-18 FE 요청 "최근 하루 어떤 콘텐츠가 인기 있었는지").
+ */
+export const INSIGHTS_RECENT_CONTENT_HOURS = 24;
 /** 리텐션을 재는 가입 뒤 일수 — D1·D7·D30(앱 업계 관행) */
 export const INSIGHTS_RETENTION_DAYS: readonly number[] = [1, 7, 30];
+/**
+ * 코호트 리텐션 표 — 일별은 최근 14일 가입자의 D1·D7, 주별은 최근 8주(이번 주 포함) 가입자의 W1~W4. 광고로 유입을 늘리는
+ * 구간에 "들어온 사람이 남는가"를 묶음별로 보려는 표다(2026-10-18 멘토 조언 — 절대수치와 비율을 같이). W4 는 가입 28~34일 뒤라
+ * 8주면 성숙한 행이 3~4개 생긴다.
+ */
+export const INSIGHTS_COHORT_DAILY = {
+  count: 14,
+  span: 1,
+  offsets: [1, 7],
+} as const;
+export const INSIGHTS_COHORT_WEEKLY = {
+  count: 8,
+  span: 7,
+  offsets: [1, 2, 3, 4],
+} as const;
+/**
+ * 일별 접속자를 세션에서 바로 셀 수 있는 날 수 — 오늘 포함 최근 이 일수의 KST 달력일(오늘 - 29일 ~ 오늘).
+ * 세션 행은 만료·폐기 30일 뒤 지워지므로(`SessionPurgeScheduler`) "지금 - 30일" 이후 발급분은 모두 남아 있고, 그 시각이 걸친
+ * 날(오늘 - 30일)은 일부가 지워졌다. 저장 표(`daily_active_users`)에 없는 날 중 이 범위만 바로 세고, 그 앞은 `null`(기록 없음)이다.
+ * 마이그레이션 `1790800000000` 백필이 같은 경계(실행일 - 29일)를 쓴다.
+ */
+export const INSIGHTS_LIVE_ACTIVE_DAYS = 29;
+/** 요일 라벨 — ISO 요일(1 = 월 … 7 = 일) 순 */
+export const INSIGHTS_WEEKDAY_LABELS: readonly string[] = [
+  '월',
+  '화',
+  '수',
+  '목',
+  '금',
+  '토',
+  '일',
+];

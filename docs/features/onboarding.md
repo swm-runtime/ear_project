@@ -54,6 +54,8 @@
 - 2단계를 마치면 인디케이터가 사라지고 완료 대기로 전환된다. **완료 대기·완료·알림 화면에서는 인디케이터를 그리지 않는다.**
 - **[완료 대기]도 인디케이터에 넣지 않는다.** 사용자가 입력하는 단계가 아니라 서버 처리를 기다리는 구간이다.
 - `onboarding_step` enum(`topic | career | pick | done`)은 그대로 쓴다(서버 계약 불변). `pick`은 담기 단계 제거 뒤 클라이언트가 머무는 단계가 아니며, **재개 진입에서 `pick`·`done`은 모두 완료 대기로 바로 간다.** **[완료 대기]를 위한 새 값을 만들지 않는다** — 완료 요청 시점에 이미 `done`으로 확정되고, 로딩은 그 이후 클라이언트가 편성 결과를 기다리는 구간일 뿐이라 서버가 관리하는 재개 지점이 늘어나지 않는다.
+- **시장별 단계**(2026-10-14 — KAN-189): 단계는 서버가 `GET /onboarding/state`의 `steps[]`로 준다 — KR `["topic","career"]`, GLOBAL `["topic"]`(커리어는 한국 직군 분류라 GLOBAL에 없다). 클라이언트는 배열대로 잇고 하드코딩하지 않는다. GLOBAL 계정의 커리어 저장은 409 `MARKET_MISMATCH`. 근거 `spec/api/onboarding-api.md` 4.1 · `spec/api/global-api.md` 4.4 · 코드 `backend/src/modules/user/policies/onboarding-steps.policy.ts`.
+- **시장 전환 뒤 재온보딩**(2026-10-19 — KAN-227): 전환하면 `onboarding_completed = false` · `onboarding_step = topic`, 단계는 새 시장의 `steps[]`. 이전 시장 관심 주제는 비활성이라 주제를 다시 고른다. 커리어 값은 지우지 않는다(GLOBAL → KR이면 기본 선택). `onboarding_completed_at`은 처음 값을 유지한다. 재온보딩을 끝내면 첫 드립이 새 시장으로 다시 돈다. 근거 `spec/api/global-api.md` 4.11 "전환 때 바뀌는 것" 표.
 
 ### 단계별 로직
 

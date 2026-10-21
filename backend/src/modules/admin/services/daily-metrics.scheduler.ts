@@ -73,6 +73,7 @@ export class DailyMetricsScheduler {
         {
           date,
           members: { total: s.totalUsers, signUps: s.signUps },
+          markets: s.markets,
           users: g.users,
           acquisition: {
             signUps: g.events.sign_up.count,
@@ -101,6 +102,7 @@ export class DailyMetricsScheduler {
             date,
             withdrawals: s.withdrawals,
             appRemoves: g.events.app_remove.count,
+            marketChanges: s.marketChanges,
           },
           this.environment,
         ),

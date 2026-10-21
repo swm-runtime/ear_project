@@ -7,6 +7,13 @@
  * 그 밑에 깔려 보이지 않는다(2026-09-20 실기기, KAN-69 확인 중 발견). **`pop: true` 가 있어야 기존 탭으로
  * 되돌아가며 위에 얹힌 화면이 걷힌다.** 탭 안에서 부르면(이미 그 화면이 앞이다) 탭만 바뀐다.
  */
+/**
+ * 탐색 탭이 받는 파라미터 — 화면이 처리한 뒤 스스로 소거한다(useExploreScreen · useExploreSearchRequest).
+ * applyTopicId: 검색 빈 결과(E7)의 관련 주제 칩 복귀 — 그 주제의 단일 목록으로 전환한다.
+ * searchQuery: 태그 탭 → 검색 화면을 열고 이 질의로 즉시 검색한다(KAN-219 — 예: `#뱅크런`).
+ */
+export type ExploreTabParams = { applyTopicId?: string; searchQuery?: string };
+
 export function toTab(tab: 'Library' | 'Profile'): {
   screen: 'Tabs';
   params: { screen: 'Library' | 'Profile' };
@@ -14,12 +21,9 @@ export function toTab(tab: 'Library' | 'Profile'): {
 };
 export function toTab(
   tab: 'Explore',
-  params?: { applyTopicId?: string },
-): { screen: 'Tabs'; params: { screen: 'Explore'; params?: { applyTopicId?: string } }; pop: true };
-export function toTab(
-  tab: 'Library' | 'Explore' | 'Profile',
-  params?: { applyTopicId?: string },
-) {
+  params?: ExploreTabParams,
+): { screen: 'Tabs'; params: { screen: 'Explore'; params?: ExploreTabParams }; pop: true };
+export function toTab(tab: 'Library' | 'Explore' | 'Profile', params?: ExploreTabParams) {
   return {
     screen: 'Tabs' as const,
     params: params === undefined ? { screen: tab } : { screen: tab, params },

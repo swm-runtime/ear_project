@@ -1,3 +1,5 @@
+import { localized, type LocalizedCopy } from '@/shared/i18n/localized';
+
 import type { YearsOfExperienceRange } from './career.types';
 
 /**
@@ -5,7 +7,7 @@ import type { YearsOfExperienceRange } from './career.types';
  * 용도 안내(온보딩 O4)·유도 문구(프로필 카드)·이탈 팝업(관심사 관리)은 다른 화면과
  * 공유하는 문자열이라 그대로 쓴다(uiux 6장 — 변형 금지).
  */
-export const CAREER_COPY = {
+const ko = {
   appBarTitle: '커리어 정보',
   /** 본문 첫 줄 큰 제목 — 관심 주제 관리의 "어떤 이야기가 궁금하세요?"와 같은 문법(PM 2026-10-10) */
   headline: '어떤 일을 하고 계세요?',
@@ -53,3 +55,38 @@ export const CAREER_COPY = {
   /** 진입 조회 실패 — 공통 전체 화면 에러의 제목(공통 표현이라 uiux 6장 카피 전수 밖이다) */
   loadFailed: '커리어 정보를 불러올 수 없어요',
 } as const;
+
+const en: LocalizedCopy<typeof ko> = {
+  appBarTitle: 'Career',
+  headline: 'What do you do?',
+  backA11y: 'Back',
+  reset: 'Reset',
+  resetA11yLabel: 'Reset all fields',
+  resetA11yHint: 'Clears field, role, and experience',
+  resetAnnouncement: 'All fields cleared',
+  purposeNotice: 'Used only to improve your recommendations',
+  emptyNotice: 'Add this for better recommendations',
+  jobCategoryLabel: 'Field',
+  jobTitleLabel: 'Role',
+  jobTitlePlaceholder: 'e.g. Product manager',
+  jobTitleClearA11y: 'Clear role',
+  yearsLabel: 'Experience',
+  yearsChip: {
+    '0-1': '0–1 year',
+    '2-3': '2–3 years',
+    '4-6': '4–6 years',
+    '7+': '7+ years',
+  },
+  save: 'Save',
+  retry: 'Try again',
+  saveFailed: "Couldn't save. Please try again.",
+  saveSuccessToast: 'Career info saved',
+  leaveConfirm: {
+    title: 'Leave without saving changes?',
+    stay: 'Keep editing',
+    leave: 'Leave',
+  },
+  loadFailed: "Couldn't load career info",
+};
+
+export const CAREER_COPY = localized({ ko, en });

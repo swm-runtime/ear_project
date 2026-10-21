@@ -1,9 +1,11 @@
+import { localized, type LocalizedCopy } from '@/shared/i18n/localized';
+
 /**
  * 사용자 노출 문구(convention.md 3.5). 확정 카피는 content-detail-uiux.md 6장과 1:1 대조한다.
  * TODO 표시 항목은 uiux 6장의 "제안 문자열 — 카피 미확정" 표에 있는 값 — 확정 시 교체한다.
  * 재생 확인 팝업·페이월·잔여 표시 카피는 player가 소유한다(PLAYER_COPY) — 여기 두지 않는다.
  */
-export const CONTENT_DETAIL_COPY = {
+const ko = {
   /* TODO(카피 미확정 — uiux 9장): 더보기 시트 항목명을 그대로 쓴 시안 임시값 */
   appBarTitle: '상세 정보',
   backA11y: '뒤로가기',
@@ -14,19 +16,8 @@ export const CONTENT_DETAIL_COPY = {
     duration: '길이',
     publishedAt: '발행일',
     series: '시리즈',
-  },
-
-  source: {
-    /* TODO(카피 미확정 — uiux 6장): 출처 영역 라벨. partner와 ai_generated를 갈라 쓴다 —
-       같은 말로 부르면 참고 소스가 원문으로 오독된다 */
-    partnerLabel: '출처',
-    aiLabel: '참고한 소스',
-    author: '저자',
-    provider: '제공',
-    /** 확정 — 더보기 시트와 같은 항목명(content-detail.md 4.3) */
-    sourceLink: '원문 보기',
-    /** 링크 항목의 낭독 힌트 — 외부 링크로 열림이 드러나야 한다(uiux 7장) */
-    linkA11yHint: '브라우저로 열기',
+    /** 시리즈 줄은 시리즈 화면(E14)을 여는 버튼이다(KAN-225) — 낭독은 줄 값 + 동작 */
+    seriesOpenA11y: (label: string) => `${label}, 시리즈 보기`,
   },
 
   /** 헤더 액션(content-detail.md 4.4 — 확정 카피) */
@@ -38,6 +29,11 @@ export const CONTENT_DETAIL_COPY = {
     saveA11y: '라이브러리에 담기',
     deleteA11y: '라이브러리에서 삭제',
   },
+
+  /** 헤더 해시태그(KAN-163) — 글자마다 누르면 탐색 탭에서 `#태그` 검색이 열린다(KAN-219) */
+  hashtag: (tag: string) => `#${tag}`,
+  /** 해시태그 버튼 낭독 — 누르면 무엇을 하는지까지(uiux 7장) */
+  hashtagSearchA11y: (tag: string) => `#${tag} 검색`,
 
   /** 담기 완료 — explore와 같은 구성([보러가기] 포함, 확정 2026-08-23 — uiux 4.3) */
   saveToast: '라이브러리에 담았어요',
@@ -59,3 +55,44 @@ export const CONTENT_DETAIL_COPY = {
     retry: '다시 시도',
   },
 } as const;
+
+const en: LocalizedCopy<typeof ko> = {
+  appBarTitle: 'Details',
+  backA11y: 'Back',
+
+  introLabel: 'About',
+  meta: {
+    duration: 'Length',
+    publishedAt: 'Published',
+    series: 'Series',
+    seriesOpenA11y: (label: string) => `${label}, view series`,
+  },
+
+  actions: {
+    play: 'Play',
+    save: 'Save',
+    delete: 'Remove',
+    saveA11y: 'Add to Library',
+    deleteA11y: 'Remove from Library',
+  },
+
+  hashtag: (tag: string) => `#${tag}`,
+  hashtagSearchA11y: (tag: string) => `Search #${tag}`,
+
+  saveToast: 'Added to Library',
+  saveToastAction: 'View',
+  saveFailedToast: "Couldn't add. Please try again.",
+  deleteFailedToast: "Couldn't remove. Please try again.",
+  deletedA11yAnnounce: 'Removed from Library',
+
+  withdrawnToast: 'This episode is no longer available',
+
+  error: {
+    networkTitle: 'Check your internet connection',
+    loadFailedTitle: 'Something went wrong',
+    loadFailedDescription: 'Please try again later.',
+    retry: 'Try again',
+  },
+};
+
+export const CONTENT_DETAIL_COPY = localized({ ko, en });

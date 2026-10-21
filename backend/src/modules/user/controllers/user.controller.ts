@@ -80,7 +80,7 @@ export class UserController {
 
     return GetMeResponseDto.from(
       user,
-      await this.consentService.findPendingConsents(user.id),
+      await this.consentService.findPendingConsents(user.id, user),
       now,
     );
   }
@@ -127,8 +127,10 @@ export class UserController {
     @CurrentUser() currentUser: AuthenticatedUser,
     @Body() request: UpdateConsentsRequestDto,
   ): Promise<UpdateConsentsResponseDto> {
+    // 무엇이 필수인지·현행 버전은 시장이, 연령 확인 기준은 기기 지역이 정한다 — 둘 다 사용자 행에 있다
     await this.consentService.recordConsents(
       currentUser.id,
+      await this.userService.getById(currentUser.id),
       request.consents.map((consent) => ({
         consentType: consent.consent_type,
         version: consent.version ?? null,

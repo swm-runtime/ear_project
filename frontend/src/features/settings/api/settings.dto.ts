@@ -11,6 +11,10 @@ export interface SettingsAccountDto {
   email: string | null;
   is_email_verified: boolean;
   is_admin: boolean;
+  /** 시장(가입 때 1회, 읽기 전용) · 표시 언어 · 시간대 — global-api.md 4.3(KAN-187). 옛 서버엔 없다 */
+  market?: 'kr' | 'global';
+  language_code?: string | null;
+  timezone?: string | null;
 }
 
 /** profile-api.md 4.1의 plan과 같은 모양, 같은 조립 함수다(settings-api.md 4.1) */
@@ -90,6 +94,8 @@ export interface UpdateSettingsRequestDto {
   is_auto_expand_enabled?: boolean;
   is_drip_notification_enabled?: boolean;
   preferred_audio_quality?: AudioQualityDto;
+  /** 표시 언어(BCP 47) — global-api.md 4.3. 시장은 바뀌지 않는다 */
+  language_code?: string;
   client_seq: number;
 }
 

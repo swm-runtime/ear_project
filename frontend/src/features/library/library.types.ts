@@ -39,6 +39,8 @@ export interface LibraryContent {
   /** 재발행 판정용 — 올라갔으면 저장한 위치·오프라인 파일을 폐기한다(domain.md 5.1) */
   contentVersion: number;
   topicIds: string[];
+  /** 콘텐츠 언어(BCP 47 primary — `ko` · `en`). 표시 전용 — 이 값으로 거르지 않는다(global-api.md 4.7). 모르면 null */
+  language: string | null;
 }
 
 export interface LibraryProgress {
@@ -87,6 +89,8 @@ export interface ResumeContent {
   thumbnailUrl: string;
   contentVersion: number;
   topicIds: string[];
+  /** 콘텐츠 언어(BCP 47 primary — `ko` · `en`). 표시 전용 — 이 값으로 거르지 않는다(global-api.md 4.7). 모르면 null */
+  language: string | null;
 }
 
 /** 미니플레이어 복원 대상(library-api.md 4.3). 항상 일시정지 상태로 표시만 한다 */
@@ -102,4 +106,40 @@ export interface ResumeTarget {
 export interface ResumeResult {
   resumeTarget: ResumeTarget | null;
   playLimit: PlayLimitSnapshot;
+}
+
+/* ── 추천 별점 팝업(drip-feedback.md · drip-feedback-api.md — KAN-224) ── */
+
+/** 콘텐츠 언어 — 표시 전용(drip-feedback-api.md 4.1, 2026-10-14). 이 값으로 거르지 않는다 */
+export type DripFeedbackLanguage = 'ko' | 'en';
+
+/** 팝업의 한 편 — `items[]` 순서 그대로 그린다 */
+export interface DripFeedbackItem {
+  contentId: string;
+  title: string;
+  /** 비어 오면 null — 썸네일 자리는 면만 남긴다 */
+  thumbnailUrl: string | null;
+  language: DripFeedbackLanguage;
+  source: LibrarySource;
+  /** 그 편의 편성 서비스 날짜 라벨(`YYYY-MM-DD`) — 표시·판정에 쓰지 않는다 */
+  placedDate: string;
+  /** 보조 표시용이지 판정이 아니다(4.1) */
+  libraryStatus: LibraryItemStatus;
+}
+
+/**
+ * 노출 판정 결과(4.1). **클라이언트는 `show`만 본다** — 편성 날짜·이번 주·가입 며칠째를 기기 시각으로 계산하지 않는다.
+ * `placedDate`는 닫을 때 `dismiss`에 그대로 되돌리는 값이다(4.3).
+ */
+export interface DripFeedbackPrompt {
+  show: boolean;
+  placedDate: string | null;
+  mutedUntil: string | null;
+  items: DripFeedbackItem[];
+}
+
+/** 별점 하나 — 1~5 정수(4.2) */
+export interface DripFeedbackRating {
+  contentId: string;
+  stars: number;
 }

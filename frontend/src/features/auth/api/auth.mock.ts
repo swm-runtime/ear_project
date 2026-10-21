@@ -11,17 +11,36 @@
  * - (기본)     신규 사용자 — social-login이 consent_required → 약관 동의 → sign-up이
  *              onboarding_step "topic" 세션 반환(auth-api.md 4.2) → 온보딩 진입
  * - returning  기존 사용자 — social-login이 바로 authenticated(온보딩 완료) → 라이브러리
+ * - legacy-consents  신규 사용자 + 동의 목록 재조회(sign-up/consents)가 없는 구 서버 — 404 `NOT_FOUND` →
+ *              A4가 로그인 응답의 목록으로 그려진다(폴백 확인용)
+ *
+ * 동의 목록 재조회(sign-up/consents, PM 2026-10-16 — BE 제안 계약): `preferred_language` `en`(GLOBAL)이면
+ * 국외 이전 동의(`cross_border_transfer`)가 필수로 붙고, `ko`(KR)면 로그인 응답의 목록 그대로다(KAN-215).
+ *
+ * 시장(global-api.md 2.1): 가입은 `locale.preferred_language`(`en` → `global`)로, 그 밖은 마지막 가입의
+ * 시장을 돌려준다(처음엔 `kr`). 기존 계정 로그인은 서버처럼 `locale`로 시장을 바꾸지 않는다.
  */
+import { ApiError } from '@/shared/api/api-error';
+import { ERROR_CODES } from '@/shared/api/error-codes';
+
 import type {
   AuthSessionDto,
   ConsentItemDto,
   RefreshTokenResponseDto,
+  SignUpConsentsRequestDto,
+  SignUpConsentsResponseDto,
+  SignUpRequestDto,
   SocialLoginRequestDto,
   SocialLoginResponseDto,
   UserDto,
   CurrentUserResponseDto,
 } from './auth.api';
-import type { SocialProvider } from '../auth.types';
+import type { ContentLanguage, Market, SocialProvider } from '../auth.types';
+import type {
+  MarketChangePreviewResponseDto,
+  MarketChangeRequestDto,
+  MarketChangeResponseDto,
+} from './market-change.api';
 
 const SCENARIO = process.env.EXPO_PUBLIC_AUTH_MOCK_SCENARIO ?? 'default';
 
@@ -37,12 +56,28 @@ const REQUIRED_CONSENTS: ConsentItemDto[] = [
   { consent_type: 'marketing', version: '1.0', is_required: false },
 ];
 
+/**
+ * GLOBAL 시장에만 붙는 국외 이전 동의(KAN-215). 버전 유무는 BE 가 정한다 — 화면은 서버 값을 그대로 돌려보낸다.
+ * mock 은 처리방침 개정에 묶인다고 보고 버전을 둔다.
+ */
+const CROSS_BORDER_CONSENT: ConsentItemDto = {
+  consent_type: 'cross_border_transfer',
+  version: '1.0',
+  is_required: true,
+};
+
 const ACCESS_TOKEN_TTL_MS = 30 * 60_000;
 const SIGNUP_TOKEN_TTL_MS = 10 * 60_000;
 
 let tokenSeq = 0;
 /** social-login에서 받은 제공자를 sign-up 응답의 user.provider로 되돌려준다 */
 let pendingProvider: SocialProvider = 'kakao';
+/** 가입 때 정한 시장과 마지막으로 받은 기기 로캘 — 이후 응답의 user 에 되돌려준다 */
+let accountMarket: Market = 'kr';
+let accountLocale: { language_code: string | null; timezone: string | null } = {
+  language_code: null,
+  timezone: null,
+};
 
 const issueTokens = (nowMs: number) => {
   tokenSeq += 1;
@@ -64,6 +99,9 @@ const buildUser = (provider: SocialProvider, onboardingCompleted: boolean): User
   role: 'user',
   onboarding_completed: onboardingCompleted,
   onboarding_step: onboardingCompleted ? 'done' : 'topic',
+  market: accountMarket,
+  language_code: accountLocale.language_code,
+  timezone: accountLocale.timezone,
 });
 
 export const mockSocialLogin = async (
@@ -72,6 +110,8 @@ export const mockSocialLogin = async (
   await delay(RESPONSE_DELAY_MS);
   const nowMs = Date.now();
   pendingProvider = body.provider;
+  // 기존 계정 로그인은 기기 값만 갱신한다 — 시장은 바뀌지 않는다(global-api.md 4.1)
+  accountLocale = { language_code: body.locale.language_code, timezone: body.locale.timezone };
 
   // 기존 사용자 — 바로 세션이 열린다(auth-api.md 4.1 authenticated)
   if (SCENARIO === 'returning') {
@@ -92,8 +132,50 @@ export const mockSocialLogin = async (
   };
 };
 
-export const mockSignUp = async (): Promise<AuthSessionDto> => {
+/** 시장은 가입 때 한 번 — 고른 언어가 우선, 없으면 기기 언어(`ko*` → kr, 그 밖 global)(global-api.md 2.1) */
+const decideMarket = (locale: SignUpRequestDto['locale']): Market => {
+  if (locale.preferred_language) return locale.preferred_language === 'en' ? 'global' : 'kr';
+  return locale.language_code.toLowerCase().startsWith('ko') ? 'kr' : 'global';
+};
+
+/**
+ * 연령 확인 행 — 서버의 나라별 판정 흉내(KAN-206 3안, `changes/pending/auth-age-by-region.md`). KR 시장 18, GLOBAL 은
+ * 본인 동의 연령이 16 이하인 지역(SG·HK·KR)만 16이고 나머지·모름은 18
+ */
+const AGE_16_REGIONS = new Set(['SG', 'HK', 'KR']);
+const ageConsentFor = (market: Market, regionCode: string | undefined): ConsentItemDto => ({
+  consent_type: 'age_confirmation',
+  version: null,
+  is_required: true,
+  min_age:
+    market === 'global' && regionCode !== undefined && AGE_16_REGIONS.has(regionCode.toUpperCase())
+      ? 16
+      : 18,
+});
+
+/** A21 → A4 사이 동의 목록 재조회 — 고른 언어가 가리키는 시장의 목록(서버 판정 흉내) */
+export const mockSignUpConsents = async (
+  body: SignUpConsentsRequestDto,
+): Promise<SignUpConsentsResponseDto> => {
   await delay(RESPONSE_DELAY_MS);
+  if (SCENARIO === 'legacy-consents') {
+    // 라우터 404 — 서버 전역 필터가 `NOT_FOUND` 로 정규화한다(backend all-exceptions.filter)
+    throw new ApiError(ERROR_CODES.NOT_FOUND, '찾을 수 없어요', false, null, null, 404);
+  }
+  const market = decideMarket(body.locale);
+  return {
+    required_consents: [
+      ageConsentFor(market, body.locale.region_code),
+      ...(market === 'global' ? [...REQUIRED_CONSENTS, CROSS_BORDER_CONSENT] : REQUIRED_CONSENTS),
+    ],
+    market,
+  };
+};
+
+export const mockSignUp = async (body: SignUpRequestDto): Promise<AuthSessionDto> => {
+  await delay(RESPONSE_DELAY_MS);
+  accountMarket = decideMarket(body.locale);
+  accountLocale = { language_code: body.locale.language_code, timezone: body.locale.timezone };
   // 가입 직후는 온보딩 전 상태다 — onboarding_step "topic"(auth-api.md 4.2)
   return {
     status: 'authenticated',
@@ -128,5 +210,72 @@ export const mockGetCurrentUser = async (): Promise<CurrentUserResponseDto> => {
   return {
     user: buildUser(pendingProvider ?? 'kakao', SCENARIO !== 'onboarding'),
     pending_consents: [],
+  };
+};
+
+/* ── 설정 › 콘텐츠 언어(시장) 전환(global-api.md 4.11, KAN-228) ── */
+
+/** 오늘 이미 바꿨는가 — 서버의 서비스 날짜당 1회 흉내(되돌리기 예외는 흉내 내지 않는다) */
+let hasChangedMarketToday = false;
+
+const marketOf = (language: ContentLanguage): Market => (language === 'en' ? 'global' : 'kr');
+
+const marketConsentsFor = (market: Market): ConsentItemDto[] => [
+  ageConsentFor(market, undefined),
+  ...(market === 'global' ? [...REQUIRED_CONSENTS, CROSS_BORDER_CONSENT] : REQUIRED_CONSENTS),
+];
+
+export const mockFetchMarketChangePreview = async (
+  language: ContentLanguage,
+): Promise<MarketChangePreviewResponseDto> => {
+  await delay(RESPONSE_DELAY_MS);
+  const target = marketOf(language);
+  const isSame = target === accountMarket;
+  const isCooldown = !isSame && hasChangedMarketToday;
+  return {
+    current_market: accountMarket,
+    target_market: target,
+    available: !isCooldown,
+    blocked_reason: isCooldown ? 'cooldown' : null,
+    retry_after_sec: isCooldown ? 6 * 3600 : null,
+    required_consents: isSame ? [] : marketConsentsFor(target),
+    steps: target === 'global' ? ['topic'] : ['topic', 'career'],
+  };
+};
+
+export const mockChangeMarket = async (
+  body: MarketChangeRequestDto,
+): Promise<MarketChangeResponseDto> => {
+  await delay(RESPONSE_DELAY_MS);
+  const target = marketOf(body.preferred_language);
+  if (target === accountMarket) {
+    return {
+      user: buildUser(pendingProvider, true),
+      access_token: null,
+      access_token_expires_at: null,
+    };
+  }
+  if (hasChangedMarketToday) {
+    throw new ApiError(
+      ERROR_CODES.MARKET_CHANGE_COOLDOWN,
+      '콘텐츠 언어는 하루에 한 번만 바꿀 수 있어요',
+      false,
+      6 * 3600,
+      null,
+      429,
+    );
+  }
+  hasChangedMarketToday = true;
+  accountMarket = target;
+  const tokens = issueTokens(Date.now());
+  return {
+    user: buildUser(pendingProvider, false),
+    access_token: tokens.access_token,
+    access_token_expires_at: tokens.access_token_expires_at,
+    onboarding: {
+      onboarding_completed: false,
+      onboarding_step: 'topic',
+      steps: target === 'global' ? ['topic'] : ['topic', 'career'],
+    },
   };
 };

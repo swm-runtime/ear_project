@@ -32,7 +32,7 @@ const TOPIC_B = 'bbbbbbbb-1111-4111-8111-111111111111';
 const TOPIC_HIDDEN = 'dddddddd-1111-4111-8111-111111111111';
 
 function buildUser(id: string = USER_ID): User {
-  return { id, tier: UserTier.LIGHT } as User;
+  return { id, tier: UserTier.LIGHT, market: UserMarket.KR } as User;
 }
 
 function buildInterest(
@@ -121,7 +121,9 @@ describe('DripBatchOrchestrator', () => {
       findAllByIds: jest
         .fn()
         .mockImplementation((ids: string[]) =>
-          Promise.resolve(ids.map((id) => ({ id, isVisible: true }))),
+          Promise.resolve(
+            ids.map((id) => ({ id, isVisible: true, market: UserMarket.KR })),
+          ),
         ),
     } as unknown as jest.Mocked<TopicService>;
 
@@ -135,6 +137,8 @@ describe('DripBatchOrchestrator', () => {
     } as unknown as jest.Mocked<PlanService>;
 
     contentService = {
+      // 시리즈 다음 편 판정 입력(KAN-134) — 기본은 시리즈 편 없음
+      findSeriesEpisodeStates: jest.fn().mockResolvedValue(new Map()),
       // 관심 주제 필터가 있으면 정규 풀, 없으면 탐험 풀이다 (4.8 — 교집합 필터 우회)
       findCandidates: jest
         .fn()
@@ -528,7 +532,7 @@ describe('DripBatchOrchestrator', () => {
     it('후보 주제가 숨겨져 있으면 넣지 않는다 — 숨김 주제는 관심사 조회에서 걸러져 유령 행이 된다', async () => {
       givenOutsideInterestListener();
       topicService.findAllByIds.mockResolvedValue([
-        { id: TOPIC_B, isVisible: false },
+        { id: TOPIC_B, isVisible: false, market: UserMarket.KR },
       ] as never);
 
       const plan = await orchestrator.planForUser(buildUser(), NOW, new Map(), {
@@ -540,6 +544,27 @@ describe('DripBatchOrchestrator', () => {
 
       expect(plan.autoExpand?.action).toBe('none');
       expect(userInterestService.applyAutoExpand).not.toHaveBeenCalled();
+    });
+
+    it('후보 주제가 다른 시장이면 넣지 않는다 — 시장 전환 뒤 이전 시장 청취가 이전 시장 주제를 되살리지 않는다(global-api 4.5)', async () => {
+      // given — KR 사용자의 관심사 밖 청취가 가리키는 주제가 GLOBAL 주제다
+      givenOutsideInterestListener();
+      topicService.findAllByIds.mockResolvedValue([
+        { id: TOPIC_B, isVisible: true, market: UserMarket.GLOBAL },
+      ] as never);
+
+      // when
+      const plan = await orchestrator.planForUser(buildUser(), NOW, new Map(), {
+        persistPreference: true,
+        persistAutoExpand: true,
+        stopAtSkip: false,
+        loadRecentDripTopics: false,
+      });
+
+      // then
+      expect(plan.autoExpand?.action).toBe('none');
+      expect(userInterestService.applyAutoExpand).not.toHaveBeenCalled();
+      expect(plan.activeTopicIds).toEqual([TOPIC_A]);
     });
 
     it('숨김 주제가 차지한 자동 슬롯은 비우고, 후보가 있으면 같은 배치에서 그 자리를 채운다', async () => {
@@ -631,7 +656,11 @@ describe('DripBatchOrchestrator', () => {
     it('refreshDerivedState — 테스트 콘솔은 취향 캐시 저장과 자동 확장 적용을 배치와 같은 함수로 앞당긴다', async () => {
       givenOutsideInterestListener();
 
-      const decision = await orchestrator.refreshDerivedState(USER_ID, NOW);
+      const decision = await orchestrator.refreshDerivedState(
+        USER_ID,
+        UserMarket.KR,
+        NOW,
+      );
 
       expect(preferenceVectorService.rebuild).toHaveBeenCalledTimes(1);
       expect(decision.action).toBe('add');
@@ -738,6 +767,53 @@ describe('DripBatchOrchestrator', () => {
       expect(plan.discovery?.ranking.scored.map((c) => c.content.id)).toEqual([
         'd1',
       ]);
+    });
+
+    it('1화를 완청했고 2화가 회수됐으면 3화가 연속 편으로 우선 선정된다 — 노출 중 편과 사용자 상태를 카탈로그에서 묻는다(KAN-134)', async () => {
+      // given — 풀에는 3·4화와 단일 콘텐츠, 카탈로그에 노출 중인 편은 1·3·4화(2화 회수)
+      const episode = (id: string, episodeNo: number) =>
+        ({ ...buildContent(id), seriesId: 's1', episodeNo }) as Content;
+      contentService.findCandidates.mockImplementation(
+        (query: ContentCandidateQuery) =>
+          Promise.resolve(
+            query.includeTopicIds
+              ? [episode('e3', 3), episode('e4', 4), buildContent('r1')]
+              : discoveryPool,
+          ),
+      );
+      const state = (episodeNo: number, received = false) => ({
+        contentId: `e${episodeNo}`,
+        episodeNo,
+        received,
+        held: false,
+        excluded: false,
+      });
+      contentService.findSeriesEpisodeStates.mockResolvedValue(
+        new Map([['s1', [state(1, true), state(3), state(4)]]]),
+      );
+      libraryService.findCompletedSeriesMaxEpisodes.mockResolvedValue(
+        new Map([['s1', 1]]),
+      );
+
+      // when
+      const user = { ...buildUser(), market: UserMarket.KR } as User;
+      const plan = await orchestrator.planForUser(user, NOW, new Map(), {
+        persistPreference: false,
+        persistAutoExpand: false,
+        stopAtSkip: true,
+        loadRecentDripTopics: false,
+      });
+
+      // then
+      expect(contentService.findSeriesEpisodeStates).toHaveBeenCalledWith(
+        ['s1', 's1'],
+        USER_ID,
+        NOW,
+        UserMarket.KR,
+      );
+      expect(plan.regular?.gatedOut.map((c) => c.content.id)).toEqual(['e4']);
+      expect(plan.regular?.picks[0].content.id).toBe('e3');
+      expect(plan.regular?.picks[0].isSeriesContinuation).toBe(true);
     });
   });
 

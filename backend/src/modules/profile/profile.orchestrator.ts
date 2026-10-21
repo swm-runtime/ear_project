@@ -85,7 +85,11 @@ export class ProfileOrchestrator {
 
     const [plan, interestSummary, stats] = await Promise.all([
       this.subscriptionService
-        .buildPlanView(userId, { trialEndsAt: user.trialEndsAt, now })
+        .buildPlanView(userId, {
+          trialEndsAt: user.trialEndsAt,
+          now,
+          market: user.market,
+        })
         .catch((error: unknown) => {
           this.logSectionFailure(ProfileSection.PLAN, userId, error);
           failedSections.push(ProfileSection.PLAN);
@@ -173,7 +177,7 @@ export class ProfileOrchestrator {
       this.buildWeeklyListening(user, toCurrentWeekStart(now), now, {
         strict: false,
       }),
-      this.buildTopicDistribution(user.id),
+      this.buildTopicDistribution(user),
     ]);
 
     return {
@@ -227,7 +231,11 @@ export class ProfileOrchestrator {
     ]);
     const dailyListenedSec = buildWeeklyBuckets(weekDates, listenedSecByDate);
     const [topicDistributions, listeningTopPercent] = await Promise.all([
-      this.buildWeeklyTopicDistributions(weekDates, listenedByContentAndDate),
+      this.buildWeeklyTopicDistributions(
+        weekDates,
+        listenedByContentAndDate,
+        user.market,
+      ),
       this.buildListeningTopPercent(
         weekDates,
         dailyListenedSec.reduce((sum, sec) => sum + sec, 0),
@@ -339,6 +347,7 @@ export class ProfileOrchestrator {
   private async buildWeeklyTopicDistributions(
     weekDates: string[],
     listenedByContentAndDate: ContentDailyListenedSecView[],
+    market: UserMarket,
   ): Promise<{
     weekly: TopicDistributionView;
     daily: TopicDistributionView[];
@@ -350,7 +359,11 @@ export class ProfileOrchestrator {
     const contentIds = [
       ...new Set(listenedByContentAndDate.map((row) => row.contentId)),
     ];
-    const topicViews = await this.contentService.findTopicViews(contentIds);
+    const topicViews = await this.contentService.findTopicViews(
+      contentIds,
+      undefined,
+      market,
+    );
 
     return buildWeeklyTopicDistributions(
       weekDates,
@@ -359,11 +372,12 @@ export class ProfileOrchestrator {
     );
   }
 
+  /** 주제는 현재 시장의 것만 — 시장을 바꾼 사용자에게 이전 시장 주제 이름이 섞이지 않게(`global-api.md` 4.11) */
   private async buildTopicDistribution(
-    userId: string,
+    user: User,
   ): Promise<TopicDistributionView> {
     const listenedByContent =
-      await this.playbackService.sumListenedSecByContent(userId);
+      await this.playbackService.sumListenedSecByContent(user.id);
 
     if (listenedByContent.length === 0) {
       return { topics: [], othersRatio: 0 };
@@ -371,6 +385,8 @@ export class ProfileOrchestrator {
 
     const topicViews = await this.contentService.findTopicViews(
       listenedByContent.map((row) => row.contentId),
+      undefined,
+      user.market,
     );
 
     return buildTopicDistribution(listenedByContent, topicViews);

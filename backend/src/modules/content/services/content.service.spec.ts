@@ -34,6 +34,7 @@ describe('ContentService', () => {
       findById: jest.fn(),
       expireLicensed: jest.fn().mockResolvedValue(0),
       findWithdrawnSince: jest.fn().mockResolvedValue([]),
+      findVisibleSeriesEpisodesForUser: jest.fn().mockResolvedValue([]),
     } as unknown as jest.Mocked<ContentRepository>;
 
     service = new ContentService(
@@ -44,6 +45,68 @@ describe('ContentService', () => {
       {} as ContentScriptRepository,
       {} as ContentAudioRenditionRepository,
     );
+  });
+
+  describe('findSeriesEpisodeStates — 드립 다음 편 판정 입력(KAN-134 규칙 ②′)', () => {
+    it('시리즈별로 묶고 중복 id는 한 번만 묻는다 — 순서는 저장소의 편 번호순 그대로', async () => {
+      // given
+      contentRepository.findVisibleSeriesEpisodesForUser.mockResolvedValue([
+        {
+          seriesId: 's1',
+          contentId: 'c1',
+          episodeNo: 1,
+          received: true,
+          held: false,
+          excluded: false,
+        },
+        {
+          seriesId: 's1',
+          contentId: 'c3',
+          episodeNo: 3,
+          received: false,
+          held: false,
+          excluded: true,
+        },
+        {
+          seriesId: 's2',
+          contentId: 'c2',
+          episodeNo: 2,
+          received: true,
+          held: true,
+          excluded: false,
+        },
+      ]);
+
+      // when
+      const result = await service.findSeriesEpisodeStates(
+        ['s1', 's2', 's1'],
+        'u1',
+        NOW,
+        UserMarket.KR,
+      );
+
+      // then
+      expect(
+        contentRepository.findVisibleSeriesEpisodesForUser,
+      ).toHaveBeenCalledWith(['s1', 's2'], 'u1', NOW, UserMarket.KR, undefined);
+      expect(result.get('s1')).toEqual([
+        {
+          contentId: 'c1',
+          episodeNo: 1,
+          received: true,
+          held: false,
+          excluded: false,
+        },
+        {
+          contentId: 'c3',
+          episodeNo: 3,
+          received: false,
+          held: false,
+          excluded: true,
+        },
+      ]);
+      expect(result.get('s2')?.[0]).toMatchObject({ episodeNo: 2, held: true });
+    });
   });
 
   describe('getPublishedById', () => {
@@ -259,55 +322,54 @@ describe('ContentService', () => {
   });
 });
 
-describe('ContentService.republish — 임베딩 버전 승계', () => {
+describe('ContentService.republish — content_version(KAN-236)', () => {
   const manager = {} as never;
   let contentRepository: jest.Mocked<ContentRepository>;
-  let contentEmbeddingRepository: jest.Mocked<ContentEmbeddingRepository>;
   let service: ContentService;
 
   beforeEach(() => {
     contentRepository = {
       saveAll: jest.fn((contents: Content[]) => Promise.resolve(contents)),
     } as unknown as jest.Mocked<ContentRepository>;
-    contentEmbeddingRepository = {
-      carryVersionForward: jest.fn().mockResolvedValue(undefined),
-    } as unknown as jest.Mocked<ContentEmbeddingRepository>;
 
     service = new ContentService(
       contentRepository,
       {} as ContentTopicRepository,
       {} as ContentSourceRepository,
-      contentEmbeddingRepository,
+      {} as ContentEmbeddingRepository,
       {} as ContentScriptRepository,
       {} as ContentAudioRenditionRepository,
     );
   });
 
-  it('오디오 없이 썸네일만 바꾸면 직전 버전의 임베딩을 새 버전으로 승계한다', async () => {
+  it('오디오 없이 썸네일만 바꾸면 버전을 올리지 않는다 — 임베딩도 현재 버전과 일치한 채 남는다', async () => {
     const saved = await service.republish(
       buildContent({ contentVersion: 3 }),
-      { thumbnailUrl: 'https://cdn.example/thumb.png' },
+      { thumbnailUrl: 'https://cdn.example/thumb.webp' },
       manager,
     );
 
-    expect(saved.contentVersion).toBe(4);
-    expect(contentEmbeddingRepository.carryVersionForward).toHaveBeenCalledWith(
-      CONTENT_ID,
-      3,
-      4,
-      manager,
-    );
+    expect(saved.contentVersion).toBe(3);
+    expect(saved.thumbnailUrl).toBe('https://cdn.example/thumb.webp');
   });
 
-  it('오디오를 바꾸면 대본이 바뀌었을 수 있어 승계하지 않는다', async () => {
-    await service.republish(
+  it('제목만 바꿔도 버전을 올리지 않는다', async () => {
+    const saved = await service.republish(
+      buildContent({ contentVersion: 3 }),
+      { title: '새 제목' },
+      manager,
+    );
+
+    expect(saved.contentVersion).toBe(3);
+  });
+
+  it('오디오를 바꾸면 버전을 1 올린다 — 대본·임베딩이 바뀌었을 수 있다', async () => {
+    const saved = await service.republish(
       buildContent({ contentVersion: 3 }),
       { audioPath: 'contents/new.m4a', durationSec: 600 },
       manager,
     );
 
-    expect(
-      contentEmbeddingRepository.carryVersionForward,
-    ).not.toHaveBeenCalled();
+    expect(saved.contentVersion).toBe(4);
   });
 });

@@ -1,7 +1,9 @@
 import { describe, expect, it } from '@jest/globals';
 
+import { toPlanCatalog } from '../api/subscription.api';
+import type { PlansResponseDto } from '../api/subscription.dto';
 import type { Plan } from '../subscription.types';
-import { mergePlanPrices } from './plan-catalog';
+import { isFreePlan, mergePlanPrices } from './plan-catalog';
 import { toPurchaseFeedback, toRestoreFeedback } from './purchase-feedback';
 import { toSubscriptionStatusVM } from './subscription-status';
 import { SUBSCRIPTION_COPY } from '../subscription.copy';
@@ -11,7 +13,6 @@ const plan = (overrides: Partial<Plan>): Plan => ({
   tier: 'daily',
   name: '데일리',
   description: '',
-  priceKrw: 3900,
   storeProductId: 'daily.monthly',
   entitlements: { dailyPlayLimit: 5, dailyDripCount: 2, dripEnabled: true, adsEnabled: false },
   action: 'purchase',
@@ -21,10 +22,7 @@ const plan = (overrides: Partial<Plan>): Plan => ({
 describe('요금제 카드 병합 — 가격은 스토어 현지 가격만', () => {
   it('유료 요금제에 스토어 가격을 붙이고 무료 요금제는 "무료"다', () => {
     // given
-    const plans = [
-      plan({ planId: 'light', storeProductId: null, priceKrw: 0, action: 'none' }),
-      plan({}),
-    ];
+    const plans = [plan({ planId: 'light', storeProductId: null, action: 'current' }), plan({})];
 
     // when
     const cards = mergePlanPrices(
@@ -37,13 +35,134 @@ describe('요금제 카드 병합 — 가격은 스토어 현지 가격만', () 
     expect(cards?.map((c) => c.priceLabel)).toEqual(['무료', '₩3,900']);
   });
 
-  it('스토어가 상품을 돌려주지 않으면 price_krw 로 메우지 않고 전체 실패(null)다', () => {
+  it('스토어가 상품을 돌려주지 않으면 서버 원화 값으로 메우지 않고 전체 실패(null)다', () => {
     expect(mergePlanPrices([plan({})], [], '무료')).toBeNull();
   });
 
   it('이 플랫폼에 상품이 없는 유료 요금제는 가격을 지어내지 않는다', () => {
     const cards = mergePlanPrices([plan({ storeProductId: null, action: 'none' })], [], '무료');
     expect(cards?.[0].priceLabel).toBeNull();
+  });
+
+  it('GLOBAL 요금제 응답(price_krw: null)도 오류 없이 스토어 현지가만 그린다(KAN-196)', () => {
+    // given — 무료는 상품 ID 없음 + current, 유료는 원화 값 null
+    const entitlements = {
+      daily_play_limit: 5,
+      daily_drip_count: 2,
+      drip_enabled: true,
+      ads_enabled: false,
+    };
+    const dto: PlansResponseDto = {
+      plans: [
+        {
+          plan_id: 'g-light',
+          tier: 'light',
+          name: 'Light',
+          description: 'Up to 2 episodes a day',
+          price_krw: null,
+          store_product_id: null,
+          entitlements: { ...entitlements, daily_play_limit: 2, ads_enabled: true },
+          action: 'current',
+        },
+        {
+          plan_id: 'g-pro',
+          tier: 'pro',
+          name: 'Pro',
+          description: 'Listen without limits',
+          price_krw: null,
+          store_product_id: 'pro.monthly',
+          entitlements: { ...entitlements, daily_play_limit: null },
+          action: 'purchase',
+        },
+      ],
+      is_email_verified: true,
+    };
+
+    // when
+    const cards = mergePlanPrices(
+      toPlanCatalog(dto).plans,
+      [{ productId: 'pro.monthly', displayPrice: '$6.99' }],
+      'Free',
+    );
+
+    // then
+    expect(cards?.map((card) => card.priceLabel)).toEqual(['Free', '$6.99']);
+  });
+});
+
+describe('무료 요금제 판정 — 서버 is_free 우선(KAN-226)', () => {
+  it('is_free: true 면 action none(다른 스토어 구독자)이어도 무료이고 카드에 "무료"가 붙는다', () => {
+    // given — 다른 스토어 구독자: 모든 행이 none, 이 플랫폼 상품도 없다
+    const light = plan({ planId: 'light', storeProductId: null, action: 'none', isFree: true });
+    const pro = plan({ planId: 'pro', storeProductId: null, action: 'none', isFree: false });
+
+    // when
+    const cards = mergePlanPrices([light, pro], [], SUBSCRIPTION_COPY.plans.freePrice);
+
+    // then — 종전 추정으로는 Light 도 null(가격 칸 비움)이었다
+    expect(isFreePlan(light)).toBe(true);
+    expect(cards?.map((card) => card.priceLabel)).toEqual([
+      SUBSCRIPTION_COPY.plans.freePrice,
+      null,
+    ]);
+  });
+
+  it('is_free: false 면 상품 ID 없음 + current·cancel 이어도 무료가 아니다 — 서버 판정이 추정보다 앞선다', () => {
+    expect(isFreePlan(plan({ storeProductId: null, action: 'current', isFree: false }))).toBe(
+      false,
+    );
+    expect(isFreePlan(plan({ storeProductId: null, action: 'cancel', isFree: false }))).toBe(false);
+    expect(
+      mergePlanPrices(
+        [plan({ storeProductId: null, action: 'current', isFree: false })],
+        [],
+        '무료',
+      )?.[0].priceLabel,
+    ).toBeNull();
+  });
+
+  it('is_free 가 없는 응답(배포 전 서버)은 toPlanCatalog 를 거쳐도 종전 추정으로 돌아간다', () => {
+    // given — is_free 키가 없는 DTO
+    const entitlements = {
+      daily_play_limit: 2,
+      daily_drip_count: 2,
+      drip_enabled: true,
+      ads_enabled: true,
+    };
+    const row = (planId: string, action: 'current' | 'none') => ({
+      plan_id: planId,
+      tier: 'light',
+      name: 'Light',
+      description: '',
+      store_product_id: null,
+      entitlements,
+      action,
+    });
+    const dto: PlansResponseDto = {
+      plans: [row('current', 'current'), row('none', 'none')],
+      is_email_verified: true,
+    };
+
+    // when
+    const cards = mergePlanPrices(toPlanCatalog(dto).plans, [], '무료');
+
+    // then — current 는 무료, none 은 "상품 없는 유료"와 구별되지 않아 비움
+    expect(cards?.map((card) => card.priceLabel)).toEqual(['무료', null]);
+  });
+});
+
+describe('무료 요금제 판정 폴백 — is_free 가 없을 때 서버 필드(상품 ID·action)로 추정', () => {
+  it('상품 ID 가 없고 current(구독 없음)·cancel(유료 구독자)이면 무료다', () => {
+    expect(isFreePlan(plan({ storeProductId: null, action: 'current' }))).toBe(true);
+    expect(isFreePlan(plan({ storeProductId: null, action: 'cancel' }))).toBe(true);
+  });
+
+  it('상품 ID 가 있으면 무료가 아니다', () => {
+    expect(isFreePlan(plan({ action: 'current' }))).toBe(false);
+  });
+
+  it('상품 ID 없음 + none 은 "상품 없는 유료"와 구별되지 않아 무료로 보지 않는다', () => {
+    expect(isFreePlan(plan({ storeProductId: null, action: 'none' }))).toBe(false);
   });
 });
 

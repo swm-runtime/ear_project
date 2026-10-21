@@ -130,12 +130,12 @@ idx_idempotency_keys_expires_at
 
 | 모듈 | 소유 Entity |
 |---|---|
-| `user` | `users`, `consents`, `withdrawal_logs`, `user_settings`, `device_tokens`, `email_verifications` |
-| `auth` | `sessions` |
+| `user` | `users`, `consents`, `withdrawal_logs`, `user_market_changes`(2026-10-19 — 3.4-1), `user_settings`, `device_tokens`, `email_verifications` |
+| `auth` | `sessions`, `daily_active_users`, `user_active_dates`(2026-10-18 — 원천이 `sessions`이고 표가 필요한 이유도 이 모듈의 세션 파기다. 서비스 지표(`admin`)는 읽기만 한다, [3.3-1](#33-1-daily_active_users-신설-2026-10-18--세션-파기에도-남는-일별-접속자)·[3.3-2](#33-2-user_active_dates-신설-2026-10-18--코호트-리텐션의-사람별-접속일)) |
 | `interest` | `topics`, `user_interests`, `topic_adjacencies` |
-| `content` | `contents`, `content_topics`, `content_scripts`, `content_stats`, `content_sources`, `content_embeddings`, `search_query_logs` |
+| `content` | `contents`, `content_topics`, `content_scripts`, `content_stats`, `content_sources`, `content_embeddings`, `search_query_logs`, `series`(2026-10-17 — `SeriesService`가 export, [5.9](#59-series-신설-2026-10-17--kan-134-시리즈)) |
 | `library` | `library_items` |
-| `playback` | `playback_progresses`, `play_records`, `user_signals`, `audio_access_logs`, `source_link_clicks` |
+| `playback` | `playback_progresses`, `play_records`, `play_daily_totals`, `user_signals`, `audio_access_logs`, `source_link_clicks` |
 | `drip` | `drip_excluded_contents`, `user_preference_vectors`, `drip_batch_runs`, `first_drip_jobs` |
 | `subscription` | `plans`, `subscriptions`, `purchase_intents`, `store_notification_logs` |
 | `notification` | `notification_logs` |
@@ -157,7 +157,7 @@ idx_idempotency_keys_expires_at
 | `notification` | `user` | |
 | `partner` | `content` | |
 
-**유스케이스 모듈은 위 두 표에 없다.** `onboarding` · `library-screen`은 Entity를 소유하지 않고 각 소유 모듈의 Service만 조합한다. 이 장은 Entity 소유 모듈의 표이므로, 그쪽 의존 방향은 `architecture.md` 4.5가 관리한다.
+**유스케이스 모듈은 위 두 표에 없다.** `onboarding` · `library-screen` · `market-change`(2026-10-19)는 Entity를 소유하지 않고 각 소유 모듈의 Service만 조합한다. 이 장은 Entity 소유 모듈의 표이므로, 그쪽 의존 방향은 `architecture.md` 4.5가 관리한다.
 
 **`user` ↔ `subscription` 주의** — 위 표에 `user → subscription`과 `subscription → user`가 함께 있지만 **동시에 성립시키면 순환이다**(`architecture.md` 4.3, `forwardRef` 금지).
 
@@ -196,9 +196,9 @@ users
   job_title                 varchar         NULL
   years_of_experience       int             NULL   구간 하한값 — 0(0-1년) · 2(2-3년) · 4(4-6년) · 7(7년+). 구간 enum ↔ 하한 환산은 `user.constant.ts`(`YEARS_OF_EXPERIENCE_LOWER_BOUND`) 한 곳 — 15.1 #4의 매핑 명시(2026-09-11)
   withdrawn_at              timestamptz     NULL
-  market                    enum            kr | global   DEFAULT 'kr'   ★가입 시 1회 판정, 이후 불변 (global-api.md 2.1, 2026-10-14 — KAN-187)
+  market                    enum            kr | global   DEFAULT 'kr'   ★가입 시 1회 판정. 이후 시장 전환 API로만 바뀐다 (global-api.md 2.1·4.11 — KAN-187 · 전환 2026-10-19 KAN-227)
   language_code             varchar(16)     NULL   기기 언어 BCP 47(예 en-US). 표시 언어의 원천(서버 문구 — 푸시·메일 — 언어는 `market`으로 고른다). 가입·로그인·기기 등록마다 갱신
-  region_code               varchar(2)      NULL   기기 지역 ISO 3166-1 alpha-2(대문자). 통계용 — 판정에 쓰지 않는다
+  region_code               varchar(2)      NULL   기기 지역 ISO 3166-1 alpha-2(대문자). 통계용 + **GLOBAL 연령 확인의 기준 연령(16·18) 판정**(KAN-220 — global-api.md 2.1). 가입·로그인마다 갱신
   timezone                  varchar(64)     NULL   기기 시간대 IANA. 드립 발송 그룹에만 쓴다 — 서비스 날짜 경계는 바꾸지 않는다
 
 uq_users_provider_provider_user_id (provider, provider_user_id)
@@ -213,7 +213,7 @@ idx_users_status
 - **`nickname`은 NULL을 허용한다.** 제공자가 닉네임을 주지 않는 경우가 있고, 값은 **온보딩의 닉네임 입력 단계에서 채운다.** 기본 문자열을 넣어 두면 "아직 정하지 않았다"와 "사용자가 그 값으로 정했다"가 구분되지 않는다. 온보딩 완료(`onboarding_completed = true`) 시점에는 값이 있어야 하며, 그 보장은 온보딩 처리에서 한다. *(온보딩 단계 enum에 닉네임 단계를 어떻게 넣을지는 화면 확정 후 갱신한다)*
 - `role = admin` 계정만 콘텐츠 업로드·주제 관리 API를 호출할 수 있다. 관리자도 동일한 소셜 로그인을 사용한다(자체 아이디/비밀번호를 만들지 않는다 — `auth.md` 4.1).
 - **동일 이메일 다른 제공자는 별개 계정**이다. 계정 통합은 MVP 비범위(`auth.md` 4.1).
-- **`market`은 계정 생성 시 `market.policy.ts`가 1회 정한다**(마이그레이션 `1789900000000-AddUserMarketAndLocale`, 2026-10-14 — KAN-187). 입력은 사용자가 가입 화면에서 고른 콘텐츠 언어(`locale.preferred_language` — `ko` → `kr`, `en` → `global`), 없으면 기기 `language_code`(`ko*` → `kr`, 그 밖 `global`), 그것도 없으면 `kr`. 로그인·기기 등록은 `language_code`·`region_code`·`timezone`만 갱신한다. 시장 전환은 불허(기본값 — 바뀌면 `global-api.md` 9장). 기존 가입자는 마이그레이션 기본값 `kr`.
+- **`market`은 계정 생성 시 `market.policy.ts`가 1회 정한다**(마이그레이션 `1789900000000-AddUserMarketAndLocale`, 2026-10-14 — KAN-187). 입력은 사용자가 가입 화면에서 고른 콘텐츠 언어(`locale.preferred_language` — `ko` → `kr`, `en` → `global`), 없으면 기기 `language_code`(`ko*` → `kr`, 그 밖 `global`), 그것도 없으면 `kr`. 로그인·기기 등록은 `language_code`·`region_code`·`timezone`만 갱신한다. **가입 뒤 전환은 `global-api.md` 4.11의 전환 API로만 한다**(2026-10-19 — KAN-227, 서버 스위치 `MARKET_CHANGE_ENABLED`가 열려 있을 때만). 전환은 한 트랜잭션으로 동의 기록·관심 주제 비활성·온보딩 되돌림(`onboarding_completed = false`, `onboarding_step = topic` — **`onboarding_completed_at`은 처음 값을 유지**)·첫 드립 작업 초기화·이력(3.4-1 `user_market_changes`)을 함께 한다(`MarketChangeOrchestrator`). 기존 가입자는 마이그레이션 기본값 `kr`.
 - **로케일 4컬럼은 `archived_users`(11.3)에 넣지 않는다.** 거래 주체 식별과 무관해 보존 근거가 없다(11.3이 닉네임·커리어를 담지 않는 것과 같은 이유).
 - **`status` · `withdrawn_at` · `idx_users_status`는 아무도 쓰지 않는다**(확인 2026-09-08). 탈퇴는 [12.3](#123-회원-탈퇴-처리)이 정한 대로 **행을 삭제**하므로 `status = withdrawn`으로 남는 사용자가 없다. 컬럼은 남겨 두되 **여기에 소프트 삭제를 구현하지 않는다** — 그러면 개인정보보호법 제21조 제3항의 분리 저장 요건이 깨진다. 정리 여부는 미결이며, 지우려면 마이그레이션이 필요하다.
 
@@ -240,8 +240,8 @@ idx_users_status
 consents
   id                        uuid            PK
   user_id                   uuid            FK → users
-  consent_type              enum            terms | privacy | marketing | age_confirmation
-  version                   varchar         NULL 허용 (marketing · age_confirmation)
+  consent_type              enum            terms | privacy | marketing | age_confirmation | cross_border_transfer   varchar(32)
+  version                   varchar         NULL 허용 (marketing · KR age_confirmation · cross_border_transfer). 약관·처리방침은 **시장별** — KR `0.1` · GLOBAL `global-<문서 버전>`
   is_agreed                 boolean         철회는 false 행을 추가
   agreed_at                 timestamptz
 
@@ -250,7 +250,13 @@ idx_consents_user_id_consent_type_agreed_at (user_id, consent_type, agreed_at DE
 
 - **append-only.** 동의·재동의·철회가 발생할 때마다 새 행을 추가한다. `UPDATE`하지 않는다 — 갱신하는 순간 이력 테이블이 아니게 된다.
 - 현재 동의 상태 = `consent_type`별 `agreed_at` 최신 1건.
-- `age_confirmation` — **만 18세 이상 자기 선언**(약관 제5조 · 개인정보 보호법 제22조의2, 2026-09-06 `tickets/backend/age-confirmation-consent` 반영). 열람할 문서가 없는 선언이라 `version`은 항상 NULL이며, 가입 필수 동의에 포함된다. 화면 게이트만으로는 그 사용자가 확인했다는 사실을 입증할 수 없어 이력으로 남긴다. 연령 기준이 바뀌면 그때 버전을 도입해 재확인을 트리거한다.
+- `age_confirmation` — **연령 자기 선언**(약관 제5조 · 개인정보 보호법 제22조의2, 2026-09-06 `tickets/backend/age-confirmation-consent` 반영). 가입 필수 동의에 포함된다. 화면 게이트만으로는 그 사용자가 확인했다는 사실을 입증할 수 없어 이력으로 남긴다.
+  - 기준 연령은 **나라별**이다(2026-10-16 — KAN-220): KR 시장 18, GLOBAL은 `users.region_code`가 SG·HK·KR이면 16, 그 밖·모름 18(`global-api.md` 2.1).
+  - **`version`** — KR은 NULL(문구가 처음부터 18 하나라 값을 바꾸면 기존 사용자 전원에게 재확인이 뜬다). GLOBAL은 확인한 기준을 `age-16`·`age-18`로 남긴다 — 지역마다 문구의 숫자가 달라, 숫자가 없으면 무엇을 확인했는지 입증할 수 없다.
+  - **재확인 판정은 버전 일치가 아니라 "확인받은 기준 연령 ≥ 지금 기준"**이다. 16으로 확인한 사용자가 18 지역으로 옮기면 한 번 다시 묻고, 반대는 묻지 않는다. NULL은 18로, 모르는 형식은 0으로 본다(다시 묻는다) — 그래서 연령 확인의 재확인은 버전을 올리는 대신 기준 연령이나 버전 형식을 바꿔 트리거한다.
+- `cross_border_transfer` — **국외 이전 동의**(2026-10-16 — KAN-215). **GLOBAL 시장만 가입 필수**다. 해외 사용자 정보가 서울 서버와 해외 외부 서비스(미국)로 넘어간다. 이전 내용은 영어 처리방침이 고지하고 별도 문서가 없어 `version`은 NULL이다. KR은 한국어 처리방침의 국외 이전 고지로 갈음해 받지 않는다. 값이 21자라 `consent_type`을 varchar(32)로 넓혔다(`1790300000000-WidenConsentType`, `archived_consents`도 같이).
+- **필수 동의 목록은 시장별이다** — KR `terms`·`privacy`·`age_confirmation`, GLOBAL은 거기에 `cross_border_transfer`. 이 목록 하나를 가입 거절 판정·가입 동의 목록(`auth-api.md` 4.1·4.14)·재동의 판정(`pending_consents`)·철회 불가 판정이 함께 쓴다.
+- **약관·처리방침의 `version`은 시장별이다**(2026-10-16 — KAN-212). KR `0.1` · GLOBAL `global-<문서 버전>`(현행 `global-0.1`). 두 시장 문서가 각자 0.1에서 시작해서 접두가 없으면 겹친다. `archived_consents`에는 시장 컬럼이 없어, 버전 값만으로 어느 시장 문서인지 구분된다.
 - **동의 종류를 축으로 쪼갠다.** 이용약관과 개인정보처리방침은 개정 시점이 다르고, 마케팅 동의는 수시로 철회된다. 한 행에 3종을 묶으면 마케팅 토글만 껐는데 약관 버전이 딸려 들어간 행이 생기고, 그 행이 "약관에 다시 동의했다"로 읽힌다.
 - 컬럼이 아니라 이력 테이블인 이유:
   - **동의 획득 사실의 입증 책임이 사업자에게** 있는데, 컬럼은 덮어쓰면 과거 근거가 소멸한다.
@@ -293,6 +299,48 @@ idx_sessions_revoked_at           ★파기 배치용 (2026-10-10)
   - 물리 컬럼은 `varchar(20)` + TypeScript enum `SessionRevokedReason`(`convention.md` 4.2). 대안으로 "같은 사용자·기기의 더 새 세션이 있으면 회전"이라는 추론(컬럼 없음)을 검토했으나, 회전 직후 새 세션까지 로그아웃된 경우 판정이 흐려져 사유를 직접 남겼다.
 - **원문 토큰을 저장하지 않는다.** 해시만 저장한다.
 
+### 3.3-1 `daily_active_users` *(신설 2026-10-18 — 세션 파기에도 남는 일별 접속자)*
+
+```
+daily_active_users
+  active_date               date            PK   KST 달력일(서비스 날짜 05:00 경계가 아니다 — 서비스 지표의 다른 일별 값과 같은 단위)
+  market                    varchar(10)     PK   사용자의 users.market (kr · global)
+  active_users              int   DEFAULT 0      그날 sessions.issued_at 이 있는 사용자 수(distinct)
+  created_at · updated_at
+```
+
+서비스 지표의 일별 접속자·요일별 평균(`admin-api.md` 4.22 `daily[].active_users` · `weekday[]`)의 원천이다. "접속자"는 그날 `sessions.issued_at`이 있는 사람이다 — `active_1d/7d/30d`와 같은 신호다(액세스 토큰이 30분이라 앱을 열면 거의 매번 리프레시 회전으로 세션 행이 생긴다). **세션 행은 만료·폐기 30일 뒤 hard delete되므로**([12.1](#121-운영-중-삭제-정책) · `SessionPurgeScheduler`) 지난날은 나중에 다시 셀 수 없다. `play_daily_totals`([6.3-1](#63-1-play_daily_totals-신설-2026-10-17--탈퇴로-줄지-않는-서비스-누적))와 같은 이유로 날이 끝나면 바로 세어 이 표에 쌓는다. 마이그레이션 `1790800000000-AddDailyActiveUsers`.
+
+- **쓰기는 일일 배치 하나다**(`DailyActiveUserScheduler`, 00:10 KST). 어제와 그제를 시장마다 다시 세어 upsert한다(`DAILY_ACTIVE_USERS_RECOUNT_DAYS` = 2). 그제까지 세는 것은 자정을 걸친 늦은 쓰기와 배포·장애로 놓친 하루를 메우기 위해서다. 날짜마다 따로 잡고, 실패해도 던지지 않는다.
+- 이미 행이 있으면 **큰 값을 남긴다**(`ON CONFLICT (active_date, market) DO UPDATE SET active_users = GREATEST(…)`). 몇 번 다시 세도 결과가 같다(멱등). 그 사이 탈퇴한 사람의 세션이 CASCADE로 지워져도 기록은 줄지 않는다.
+- 접속자가 없는 날·시장도 **0 행을 둔다.** 행이 없는 날은 "기록 없음"으로 읽는다.
+- 클러스터(워커 2개)에서는 `ScheduleModule`이 스케줄러 프로세스에만 올라가 한 번만 돈다. 겹쳐 돌아도 같은 행에 같은 값을 쓸 뿐이라 잠금은 두지 않는다.
+- **백필 — 첫 신뢰 날짜는 마이그레이션 실행일(KST) - 29일이다.** 파기 조건은 "만료·폐기 시각이 지금 - 30일보다 이른 행"이라 지금 - 30일 이후에 발급된 세션은 모두 남아 있다. 그 시각이 걸친 날(실행일 - 30일)은 이미 일부가 지워져 넣지 않는다. 실행일 - 29일부터 어제까지 29일을 채운다(오늘은 끝나지 않아 넣지 않는다 — 다음 00:10 배치가 센다). 이미 탈퇴한 사람의 세션은 지워져 백필 값에 없다(덜 세는 쪽).
+- 사용자를 가리키는 열이 없는 비식별 집계다. **탈퇴해도 지우지 않고 보존 기한도 없다**(12.1 · 12.3 "그대로 유지").
+- **규약 예외 두 가지**(6.3-1과 같다). ① PK가 `id`가 아니라 자연키 `(active_date, market)`다(`convention.md` 1.5·4.2 예외) — 날짜·시장당 한 행이고 upsert 대상이다. ② [1.5](#15-파생값을-컬럼으로-두지-않는다) "파생값을 두지 않는다"의 예외다 — 원천(세션)이 30일 뒤 사라지므로 이 표가 곧 원천이다.
+- 30분 안의 재실행은 세션 행이 새로 생기지 않아 잡히지 않는다(`active_1d`와 같은 한계). 00:10 실행을 이틀 연속 놓친 날은 기동 시 따라잡는 실행이 없어 행이 비고, 서비스 지표가 오늘 - 29일 안에 있는 동안만 세션에서 바로 센다(`admin-api.md` 4.22).
+
+### 3.3-2 `user_active_dates` *(신설 2026-10-18 — 코호트 리텐션의 사람별 접속일)*
+
+```
+user_active_dates
+  user_id                   uuid            PK, FK → users.id ON DELETE CASCADE
+  active_date               date            PK   KST 달력일(서비스 날짜 05:00 경계가 아니다 — 3.3-1과 같은 단위)
+  created_at · updated_at
+```
+
+서비스 지표의 코호트 리텐션(`admin-api.md` 4.22 `retention_cohorts` — D1·D7 · W1~W4)의 재료다. 가입일·가입 주로 묶은 바운디드 리텐션은 **사람마다** "그날 앱을 열었나"를 알아야 하는데, `daily_active_users`(3.3-1)는 날짜별 인원 수뿐이고 `sessions`는 30일 뒤 지워져 W4(가입 28~34일 뒤)를 셀 무렵이면 앞쪽 구간이 사라진다. 그래서 날이 끝나면 사람·날짜 한 쌍을 남긴다. 마이그레이션 `1790900000000-AddUserActiveDates`.
+
+- **행의 뜻**: 그날 그 사용자의 `sessions.issued_at`이 하나라도 있었다. 값 열은 없다. `daily_active_users`와 같은 신호다.
+- **쓰기**: `DailyActiveUserScheduler`(00:10 KST)가 어제·그제마다 `daily_active_users`를 다시 센 뒤 이 표에도 넣는다(`DailyActiveUserRepository.recordActiveDates`).
+  - **넣기만 한다**(`ON CONFLICT DO NOTHING`). 몇 번 넣어도 같다.
+  - 원천 세션이 지워진 뒤에도 이미 남긴 행은 그대로다.
+- **백필**: 마이그레이션 실행 시점에 남아 있는 `sessions` 전부다.
+  - 3.3-1과 달리 경계를 자르지 않는다. 일부가 지워진 날의 행도 "그날 접속했다"는 사실로는 맞다. 빠진 사람만 있을 뿐이다.
+  - 믿을 수 있는 구간은 서비스 지표가 이 표의 백필 시각(`min(created_at)`, KST) - 29일로 가린다(`admin-api.md` 4.22 `reliable_since`).
+- **탈퇴**: 사람을 가리키는 열이 있어 **즉시 파기**한다 — `users` FK의 ON DELETE CASCADE다([12.3](#123-회원-탈퇴-처리)).
+- **규약 예외**: PK가 자연키 `(user_id, active_date)`다(`convention.md` 1.5·4.2 예외, 3.3-1과 같다).
+
 ### 3.4 `withdrawal_logs`
 
 ```
@@ -303,11 +351,34 @@ withdrawal_logs
   reason_code               varchar         NULL
   reason_text               text            NULL
   withdrawn_at              timestamptz
+  market                    varchar(10)     NOT NULL DEFAULT 'kr'   ★탈퇴 당시 users.market (2026-10-17, `1790600000000-AddWithdrawalLogMarket`)
 ```
 
 - **`user_id` FK를 두지 않는다.** 탈퇴 사용자를 다시 식별할 수 있으면 탈퇴의 의미가 없다.
+- **`market`은 집계용이고 비식별이다**(2026-10-17 사용자 결정 — 일일 이탈 보고를 시장별로 나누고, 해외 전용 탈퇴 사유를 둘 수 있게. `backend-monitoring.md` 3-4). 값이 둘(`kr`·`global`)뿐이라 사람을 가리키지 않는다 — 위 원칙은 그대로다. 기존 행은 `kr`로 채웠다 — 운영은 GLOBAL 가입이 열린 적이 없어 지금까지의 탈퇴가 전부 KR이다(개발계의 GLOBAL 시험 탈퇴는 KR로 잘못 들어갈 수 있다 — 감수).
 - **`user_hash`는 `WITHDRAWAL_HASH_PEPPER`로 만든다** — 아카이브 스키마와 **다른 키다**([11.2](#112-user_hash-생성-규칙)). `archived_users`가 전자우편주소를 보존하므로, 같은 키를 쓰면 탈퇴 사유가 특정 개인과 연결된다. 탈퇴 사유는 집계 목적이라 그럴 필요가 없다.
 - 법령 대응 목적이므로 DB 테이블로 유지한다 (B-8).
+
+### 3.4-1 `user_market_changes` *(신설 2026-10-19 — KAN-227, 마이그레이션 `1791000000000-AddUserMarketChanges`)*
+
+```
+user_market_changes
+  id                        uuid            PK
+  user_id                   uuid            NOT NULL   FK users(id) ON DELETE CASCADE
+  from_market               varchar(10)     NOT NULL   kr | global
+  to_market                 varchar(10)     NOT NULL   kr | global
+  is_revert                 boolean         NOT NULL DEFAULT false   재온보딩 전 직전 시장으로 되돌린 행
+  changed_at                timestamptz     NOT NULL
+```
+
+```
+idx_user_market_changes_user_id_changed_at (user_id, changed_at)
+```
+
+- 시장 전환(`global-api.md` 4.11) 한 번에 한 행 — 되돌리기도 한 행이다. 쓰임은 셋이다 — **서비스 날짜당 1회 판정**(오늘 **되돌리기가 아닌** 행이 있으면 막는다 — 되돌리기는 횟수에 세지 않는다, `global-api.md` 4.11 · `countNonRevertByUserIdSince`. 단 재온보딩을 끝내기 전 직전 시장으로 되돌리는 요청은 막지 않는다 — `UserMarketChangeService.judgeCooldown`. **되돌리기 행을 다시 되돌리는 것은 예외가 아니다**(`is_revert`) — 없으면 온보딩 중에 무한히 오갈 수 있다) · 일일 보고의 시장 전환 줄(`backend-monitoring.md` 3-4 — 되돌리기 행은 빼고 센다) · 문의 대응.
+- `users.market`이 현재 값의 원천이고 이 표는 이력이다. 시장별 집계는 현재 값(`users.market`) 기준이다.
+- **탈퇴 시 함께 지운다**(CASCADE). 사람과 묶인 행동 기록이라 보존 근거가 없다 — `archived_*` 대상이 아니다. 시장별 탈퇴 집계는 `withdrawal_logs.market`이 맡는다.
+- 쓰고 나면 바꾸지 않는 이력 행이다(`created_at`·`updated_at`은 1.1 공통 그대로). `changed_at`은 전환 트랜잭션의 `now`로 `created_at`과 거의 같지만, 하루 1회 판정이 서비스 날짜 계산에 쓰는 업무 시각이라 따로 둔다(`consents.agreed_at`과 같은 이유).
 
 ### 3.5 `user_settings`
 
@@ -320,7 +391,7 @@ user_settings
   is_auto_expand_enabled      boolean       DEFAULT true   (FR-06)
   is_drip_notification_enabled boolean      DEFAULT true   (FR-19)
   drip_feedback_muted_until   date          NULL           ★추천 별점 팝업 [이번 주 그만 보기] 종료 서비스 날짜 (2026-09-30, KAN-116)
-  drip_feedback_last_prompted_date date     NULL           ★마지막으로 별점을 물은 편성분의 서비스 날짜 — 이보다 새 편성이 없으면 다시 묻지 않는다 (2026-09-30)
+  drip_feedback_last_prompted_date date     NULL           ★마지막으로 별점을 물은 편성분의 서비스 날짜 — 이 날짜 + 7일 전의 편성분은 묻지 않는다(사람 단위 7일 간격) (2026-09-30, 개정 2026-10-16)
   preferred_audio_quality     enum          NULL           ★1.3-1 — 사용자가 고른 음질 (2026-10-06, KAN-141). **NULL = 고른 적 없음** → 티어가 허용하는 가장 높은 선택지로 판정(Pro 는 lossless). 종전 DEFAULT 'compressed' 는 "직접 압축을 고름"과 구분되지 않아 같은 날 NULL 로 바꿨다. 서버에 두는 이유: 기기 간 같은 선택을 보장하고, 발급 때 서버가 바로 읽는다
 
 uq_user_settings_user_id (user_id)
@@ -332,7 +403,7 @@ uq_user_settings_user_id (user_id)
 - 오프라인 저장 관련 설정(`network_policy`)은 **P1 이연**이므로 지금 두지 않는다.
 - **마케팅 수신 동의 토글 컬럼을 두지 않는다.** 그 상태의 소유자는 `consents`다([3.2](#32-consents) — 합의 2026-08-06). 설정 화면의 토글은 표시·철회 경로일 뿐 저장소가 아니다.
 - **방해금지(야간 발송 제한) 설정 컬럼은 없다 — 없음을 유지한다**(합의 2026-08-06 — `notification.md` 4.3, 방해금지 개념 자체 폐기). 드립 도착은 순수 정보성 알림이라 전역·사용자별 야간 제한을 두지 않는다.
-- `drip_feedback_last_prompted_date`는 별점을 보내거나 팝업을 닫을 때 그 편성분 날짜로 갱신되고 뒤로 가지 않는다(`drip-feedback.md` 4.1). 팝업은 편성분 단위로 한 번만 묻는다.
+- `drip_feedback_last_prompted_date`는 별점을 보내거나 팝업을 닫을 때 그 편성분 날짜로 갱신되고 뒤로 가지 않는다(`drip-feedback.md` 4.1). 이 날짜 + 7일 전의 편성분은 묻지 않는다(사람 단위 7일 간격 — 개정 2026-10-16).
 - `drip_feedback_muted_until`은 서비스 날짜 **라벨**이다(다음 주 월요일). 팝업 노출 판정(`drip-feedback.md` 4.1)이 오늘 서비스 날짜와 문자열 비교한다. 설정 화면 응답에는 싣지 않는다 — 사용자가 켜고 끄는 설정이 아니라 팝업의 억제 상태다.
 - `is_drip_notification_enabled`의 **사용자 노출 명칭은 "이어 PICK 알림"이다**(합의 2026-08-06 — `settings.md` 4.1). 화면 이름만 바뀐 것이므로 **컬럼명은 유지한다** — "드립"은 내부 용어라는 결정이지 데이터 의미가 바뀐 것이 아니다.
 - **`sleep_timer_last_choice`의 값 집합은 아직 정하지 않았다.** 수면 타이머가 P1이라(FR-25) 선택지가 확정되지 않았다. 위 표기 `enum`은 논리 타입이며 **물리 컬럼은 `varchar`다**(`convention.md` 4.2 — DB enum 타입을 쓰지 않는다). 값이 없으므로 TypeScript enum도 두지 않고 타입은 `string | null`이다. **값의 소유는 `player.md`이며**, 수면 타이머 구현 시 값을 정하고 타입을 좁힌다 — 그때 `varchar(20)`을 넘는 값이 나오면 길이도 함께 본다. **설정 API는 이 컬럼을 조회·변경 모두 하지 않는다**(`settings-api.md` 8장 — 플레이어 소관).
@@ -519,9 +590,9 @@ contents
   source_url                varchar         NULL 허용 — origin 분기 (합의 2026-08-06, 아래)
   origin                    enum            partner | ai_generated
   partner_id                uuid            FK → partners, NULL 허용 (partner만 채운다)
-  series_id                 uuid            NULL   ← Episode 흡수 (B-5)
+  series_id                 uuid            FK → series, NULL 허용   ← Episode 흡수 (B-5). FK는 2026-10-17 — KAN-134 (5.9)
   episode_no                int             NULL
-  total_episodes            int             NULL
+  total_episodes            int             NULL   ★업로드 계약 호환으로 남은 사본 — 총 편수의 기준은 series.total_episodes (2026-10-17, 아래)
   audio_path                varchar         ★URL이 아니라 저장 경로 (B-5). **압축 음질(`compressed`) 파일의 경로**이며 5.8 `content_audio_renditions`의 같은 음질 행과 항상 같다(2026-10-06, KAN-141)
   duration_sec              int
   thumbnail_url             varchar
@@ -544,17 +615,22 @@ contents
 idx_contents_status_published_at (status, published_at DESC)
 idx_contents_market_status_published_at (market, status, published_at)
 idx_contents_series_id_episode_no (series_id, episode_no)
+uq_contents_series_id_episode_no_published  UNIQUE (series_id, episode_no) WHERE status = 'published' AND series_id IS NOT NULL   (2026-10-17 — KAN-134)
 idx_contents_partner_id
 idx_contents_title_trgm        GIN (title gin_trgm_ops)        ★검색 (FR-22)
 idx_contents_description_trgm  GIN (description gin_trgm_ops)  ★검색 (FR-22)
 idx_contents_author_name_trgm  GIN (author_name gin_trgm_ops)  ★검색 (FR-22)
+(tags 인덱스 없음 — 아래 "해시태그 검색" 참조)
 
 chk_contents_partner_disclosure
   origin <> 'partner'
   OR (author_name IS NOT NULL AND source_url IS NOT NULL
       AND partner_id IS NOT NULL AND license_expires_at IS NOT NULL)
+
+fk_contents_series  series_id → series.id  ON DELETE RESTRICT   (2026-10-17 — KAN-134)
 ```
 
+- **해시태그 검색에 인덱스를 두지 않는다**(2026-10-16 — KAN-218). 검색은 `tags`의 항목 하나라도 부분 일치(`#` 없는 질의)하거나 정확 일치(`#태그`)하면 매칭한다(`explore.md` 4.5-5). 태그는 콘텐츠당 4개 이하이고 운영 콘텐츠가 71편이라, jsonb 배열 펼침 비교의 순차 탐색 비용이 무시할 만하다(2자 질의 순차 탐색과 같은 논리). 콘텐츠가 수천 편으로 늘면 정규화 컬럼 + `gin_trgm_ops`(부분 일치)와 jsonb 포함 인덱스(정확 일치)를 다시 본다. 저장된 태그는 정규화하지 않고 비교한다 — 적재 검증(`CONTENT_TAG_PATTERN`)이 완성형 한글·ASCII 영숫자·공백만 받아 NFC가 보장되고, 그 범위에서 SQL `lower()`와 앱의 소문자 변환이 같다. 태그 문자 범위를 넓히면 이 가정을 다시 본다.
 - **`audio_url`이 아니라 `audio_path`다** (B-5). 재생 URL은 매 요청 서명 발급이므로 컬럼이 아니라 응답 DTO 필드다. 서명 URL을 DB에 저장하면 그 자체가 유출 경로가 된다.
 - **`audio_path`는 응답 본문·목록 어디에도 실리지 않는다. 단 재생용 서명 URL의 경로에는 실린다**(개정 2026-08-31). 원 규칙은 "어떤 응답에도 실리지 않는다"였으나, CloudFront KeyValueStore 데이터 플레인이 조직 SCP로 막혀 `/play/<contentId>` 재작성이 성립하지 않아 서버가 저장 경로를 직접 서명하는 방식으로 바뀌었다(`architecture.md` 9.4). **원 규칙의 목적은 그대로 달성된다** — 키가 무작위 hex 32자라 제목·순서 같은 의미가 새지 않고, URL 자체가 단기 만료 서명이라 재사용도 막힌다.
 - `status`는 **3값만** 갖는다 (A-6). 파이프라인 상태(`draft` / `partner_review` / `qa_failed` 등)는 존재하지 않는다. 업로드 = 발행이다.
@@ -564,10 +640,14 @@ chk_contents_partner_disclosure
   - **두 조건을 한 곳에서만 조립한다**(탐색·검색·드립 후보가 같은 헬퍼를 쓴다). 개별 쿼리에서 재작성하면
     한쪽만 고쳐지는 순간 만료 콘텐츠가 그 경로로 새어 나간다.
   - 배치가 도는 것과 무관하게 필터가 먼저 막으므로 **둘 중 하나가 빠져도 노출되지 않는다** — 의도된 이중 방어다.
-- **시장 격리 — 노출 조건의 세 번째 항 `market = users.market`**(2026-10-14 — KAN-188, 마이그레이션 `1790000000000-AddCatalogMarket`). 노출 조건은 "published + 라이선스 유효 + `market = users.market`" 세 조건을 한 곳(`content.visibility.ts` `CONTENT_SCOPE_CONDITION`)에서만 조립한다. 목록류(탐색·검색·인기·최신·드립 후보·온보딩 추천·라이브러리 목록·주제별 건수·복원)는 이 조건을 SQL에 싣고, ID 단건 경로(상세·재생 시작·서명 URL·대본·탐색 담기·온보딩 담기)는 `ContentService.getPublishedById(…, market)`의 같은 판정을 쓴다 — 다른 시장 ID는 404 `CONTENT_NOT_FOUND`. 격리 누락은 데이터 유출로 본다(`global-api.md` 7장). 기존 행은 전부 `kr`/`ko`.
-  - 사용자 시장은 요청마다 `users`를 읽지 않고 **access token 클레임 `market`** 으로 전달한다(가입 시 1회 정해져 불변이므로). 클레임이 없는 옛 토큰은 `kr`.
+- **시장 격리 — 노출 조건의 세 번째 항 `market = users.market`**(2026-10-14 — KAN-188, 마이그레이션 `1790000000000-AddCatalogMarket`). 노출 조건은 "published + 라이선스 유효 + `market = users.market`" 세 조건을 한 곳(`content.visibility.ts` `CONTENT_SCOPE_CONDITION`)에서만 조립한다. 목록류(탐색·검색·인기·최신·드립 후보·온보딩 추천·라이브러리 목록·주제별 건수)는 이 조건을 SQL에 싣고, ID 단건 경로(상세·재생 시작·서명 URL·대본·탐색 담기·온보딩 담기)는 `ContentService.getPublishedById(…, market)`의 같은 판정을 쓴다 — 다른 시장 ID는 404 `CONTENT_NOT_FOUND`. 격리 누락은 데이터 유출로 본다(`global-api.md` 7장). 기존 행은 전부 `kr`/`ko`.
+  - 사용자 시장은 요청마다 `users`를 읽지 않고 **access token 클레임 `market`** 으로 전달한다. 클레임이 없는 옛 토큰은 `kr`. 시장 전환(`global-api.md` 4.11)은 응답에 새 access token을 주고, 같은 계정의 다른 기기는 다음 갱신(최대 30분)까지 이전 시장 클레임을 쓴다(같은 문서 7장의 예외).
 - `series_id` / `episode_no` / `total_episodes`는 `Episode` 테이블을 폐기하면서 흡수했다. 드립 스코어링의 시리즈 연속성 가점과 편성 순서 판정이 Content 단위 조회를 요구한다(`drip-scheduling.md` 4.2, 7).
 - 분할되지 않은 단일 콘텐츠는 `series_id = NULL`, `episode_no = NULL`이다. 조회 코드는 이 분기를 처리해야 한다.
+- **`series_id`는 `series.id`를 가리킨다**(`fk_contents_series`, `ON DELETE RESTRICT` — 개정 2026-10-17, KAN-134, 마이그레이션 `1790700000000-AddSeries`). 종전에는 가리키는 테이블 없이 "같은 값을 공유한다"는 표시였다. 시리즈의 주인은 [5.9](#59-series-신설-2026-10-17--kan-134-시리즈)다.
+  - **발행 편 번호 유일성** — 부분 유니크 `uq_contents_series_id_episode_no_published`가 같은 시리즈에 같은 번호가 둘 발행되지 않게 한다. 회수·만료 편은 빠지므로 "회수 후 같은 번호로 다시 올리기"는 된다. (`series_id IS NOT NULL`은 단일 콘텐츠를 인덱스에서 빼는 것뿐 — 판정은 같다.)
+  - **`total_episodes`는 업로드 계약 호환으로 남은 사본이다.** 업로드 때 `series.total_episodes`와 같아야 하고(`admin-api.md` 4.6), 응답의 총 편수는 `series.total_episodes`에서 읽는다. 시리즈 편수를 고쳐도(`PATCH /admin/series/:id`) 편의 사본은 고치지 않는다.
+  - 마이그레이션의 기존 데이터 처리 — 고아 `series_id`(가리키는 시리즈가 없는 값 — 로컬·개발계 시드)는 **자리표시 시리즈 행**으로 메운 뒤 FK를 검증된 상태로 걸었다(제목 = 그 시리즈 가장 앞 편의 제목, 소개 `''`, 총 편수 = `max(total_episodes, episode_no, 1)`, `ongoing`). 운영은 시리즈 편이 0건이라 만들 행이 없다. 이미 발행 번호 중복이 있으면 마이그레이션이 이유를 밝히고 멈춘다(어느 편을 남길지는 사람이 정한다).
 - **`content_version`은 같은 행의 값을 증가시킨다.** 재발행 시 새 행을 만들지 않으므로 `content_id`가 바뀌지 않고, `library_items` · `playback_progresses` · `content_stats`의 참조가 그대로 유지된다.
   - 따라서 `status`에 `superseded`가 필요 없다. 이전 버전은 행에 남지 않는다.
   - 클라이언트는 `content_version`이 올라간 것을 보고 저장한 재생 위치·오프라인 파일을 폐기한다(`player.md` 7).
@@ -593,14 +673,14 @@ chk_contents_partner_disclosure
 
 - `origin = partner`의 `source_name`에는 **파트너명**이 들어간다 (B-5). `partners.name`의 비정규화 사본이며, 발행 시점 값을 고정한다(파트너명이 나중에 바뀌어도 발행된 콘텐츠의 고지 문구는 변하면 안 된다).
 - `origin = ai_generated`의 `source_name`에는 **"참고한 자료" 소스 표기**가 들어간다(복수 소스 가능). 근거 소스가 단일 원문·단일 저자가 아니므로 `author_name`·`source_url`은 선택이다(`admin.md` 3.1 — `content-pipeline.md` 4.3의 AI 생성 고지 멘트와 같은 기준).
-- **`ai_generated`의 소스 목록은 `content_sources`로 승격했다** (개정 2026-08-24 — [5.5](#55-content_sources)). 종전 결정은 "복수 소스를 별도 테이블·배열로 정규화하지 않는다"였다 — 당시 용도가 출처 고지 문구 표시(FR-12) 하나뿐이고 소스 단위 질의·조인·집계 요구가 없었기 때문이다. 콘텐츠 상세 화면(FR-40, `content-detail.md` 4.3)이 소스 단위 표시(제목·저자·링크 전수 나열)를 요구하면서 그 전제가 깨졌고, 예고해 둔 승격 경로대로 테이블로 올렸다. **`source_name`의 고지 문구 표기(복수 가능)는 그대로 유지한다** — 승격은 표시용 목록의 추가이지 고지 문구의 대체가 아니다. 정책 확인(적법 수집)의 **확인 기록**을 시스템 필드로 남길지는 여전히 미결이다([15.1](#151-남아-있는-결정) #8 — `admin.md` 4.2-1).
+- **`ai_generated`의 소스 목록은 `content_sources`로 승격했다** (개정 2026-08-24 — [5.5](#55-content_sources)). 종전 결정은 "복수 소스를 별도 테이블·배열로 정규화하지 않는다"였다 — 당시 용도가 출처 고지 문구 표시(FR-12) 하나뿐이고 소스 단위 질의·조인·집계 요구가 없었기 때문이다. 콘텐츠 상세 화면(FR-40, `content-detail.md` 4.3)이 소스 단위 표시(제목·저자·링크 전수 나열)를 요구하면서 그 전제가 깨졌고, 예고해 둔 승격 경로대로 테이블로 올렸다. **상세 화면의 소스 표시는 2026-10-17 중단했다**(KAN-221 — `content-detail.md` 4.3). 테이블과 상세 응답 `sources`는 그대로 유지한다(저장·추후 노출 대비). **`source_name`의 고지 문구 표기(복수 가능)는 그대로 유지한다** — 승격은 표시용 목록의 추가이지 고지 문구의 대체가 아니다. 정책 확인(적법 수집)의 **확인 기록**을 시스템 필드로 남길지는 여전히 미결이다([15.1](#151-남아-있는-결정) #8 — `admin.md` 4.2-1).
 - `chk_contents_partner_disclosure`가 파트너 콘텐츠의 필수 고지(FR-12 — 예외 없는 필수)를 DB에서 이중 방어한다([1.1](#11-모든-테이블에-공통으로-들어가는-것)). 업로드 검증이 뚫려도 고지 정보 없는 파트너 콘텐츠 행이 생기지 않는다.
 
 **검색(FR-22, MVP)은 `pg_trgm` 부분 일치다** (확정 2026-08-23 — `explore.md` 4.5-5)
 
 - 매칭·랭킹 규칙(필드 가중·동점 해소·미지원 범위)은 `explore.md` 4.5-5가 소유한다. 이 문서는 그것을 지탱하는 인덱스만 정의한다.
 - **확장 `pg_trgm`이 필요하다** — 마이그레이션에서 `CREATE EXTENSION IF NOT EXISTS pg_trgm`. tsvector는 한국어 사전이 없어 폐기했다.
-- 검색 대상 4필드(제목·설명·저자·주제명) 중 **`topics.name`에는 인덱스를 두지 않는다.** 주제 수가 수십 개 수준이라 순차 스캔으로 충분하다([4.1](#41-topics)이 `content_count` 컬럼을 두지 않은 것과 같은 규모 근거).
+- 검색 대상 5필드(제목·설명·저자·주제명·해시태그) 중 **`topics.name`에는 인덱스를 두지 않는다**(해시태그도 인덱스 없음 — 위 "해시태그 검색"). 주제 수가 수십 개 수준이라 순차 스캔으로 충분하다([4.1](#41-topics)이 `content_count` 컬럼을 두지 않은 것과 같은 규모 근거).
 - 2자 질의는 트라이그램(3자)을 추출하지 못해 이 인덱스를 타지 못한다 — 초기 콘텐츠 풀 규모에서는 허용하며, 대응 방침은 `explore.md` 4.5-5가 정한다(최소 길이 상향 금지).
 - NFC 정규화·소문자 통일은 **적재·질의 양쪽에서 애플리케이션 계층이 한다.** 정규화 사본 컬럼을 두지 않는다 — 파생값이다([1.5](#15-파생값을-컬럼으로-두지-않는다)).
 
@@ -712,7 +792,7 @@ idx_content_stats_period_type_period_start_play_count (period_type, period_start
 
 ### 5.5 `content_sources`
 
-`ai_generated` 콘텐츠의 참고 소스 목록이다 (확정 2026-08-24 — 콘텐츠 상세 화면 FR-40, `content-detail.md` 4.3). 상세 화면이 소스마다 제목·저자를 전수 나열하고, 링크 있는 항목의 탭이 인앱 브라우저를 열기 위한 표시용 데이터다.
+`ai_generated` 콘텐츠의 참고 소스 목록이다 (확정 2026-08-24 — 콘텐츠 상세 화면 FR-40, `content-detail.md` 4.3). 상세 화면이 소스마다 제목·저자를 전수 나열하고, 링크 있는 항목의 탭이 인앱 브라우저를 열기 위한 표시용 데이터였다. **화면 표시는 2026-10-17 중단했다**(KAN-221 — `content-detail.md` 4.3). 테이블·적재·상세 응답의 `sources`는 그대로 유지한다.
 
 ```
 content_sources
@@ -727,7 +807,7 @@ uq_content_sources_content_id_position (content_id, position)
 ```
 
 - **`partner` 콘텐츠는 행을 만들지 않는다.** partner의 출처는 기존 컬럼(`author_name` · `source_name` · `source_url`)이 담당한다([5.1](#51-contents)) — 상세 응답에서 partner의 `sources`는 `null`이다(`content-detail-api.md` 4.1).
-- **`source_name`을 대체하지 않는다.** 재생 멘트의 출처 고지 문구(FR-12)는 표기 문자열이 계속 필요하다 — 이 테이블은 상세 화면 표시용 목록의 추가다.
+- **`source_name`을 대체하지 않는다.** 재생 멘트의 출처 고지 문구(FR-12)는 표기 문자열이 계속 필요하다 — 이 테이블은 상세 화면 표시용 목록의 추가였다(화면 표시는 2026-10-17 중단 — 데이터는 유지).
 - **순서는 `position`이 소유한다.** 서버가 정해 내려주고 클라이언트는 재배열하지 않는다(`content-detail.md` 4.3 — 기존 원칙).
 - **`content_id` 단독 인덱스를 두지 않는다.** 유니크 `(content_id, position)`의 선두 컬럼이 콘텐츠 단위 조회를 이미 커버한다.
 - **소스 항목 탭의 클릭은 기록하지 않는다** (확정 2026-08-24 — MVP). `source_link_clicks`의 존재 이유는 파트너 정산·리포팅 지표이고([6.6](#66-source_link_clicks)), `ai_generated` 소스에는 그 요구가 없다. 따라서 상세 응답의 소스 항목에 식별자(`id`)를 싣지 않는다. 소스별 분석 요구가 생기면 P1에서 `source_link_clicks.source_id` 추가와 함께 재검토한다.
@@ -765,7 +845,7 @@ uq_content_embeddings_content_id (content_id)
 search_query_logs
   id                        bigserial       PK
   user_id                   uuid            FK → users (CASCADE)
-  query                     varchar(100)    정규화된 질의(NFC·소문자·트림) — 조회가 본 그 문자열
+  query                     varchar(100)    정규화된 질의(NFC·소문자·트림) — 조회가 본 그 문자열. 태그 전용 검색은 `#`을 남겨 `#` + 검색어로 맞춘다(`#  뱅크런` → `#뱅크런`, KAN-218) — 태그 검색 비율을 셀 수 있게
   result_count              smallint        첫 페이지에 실린 건수(0 ~ 페이지 크기). CHECK >= 0
   has_next                  boolean         첫 페이지 뒤에 더 있었는가
   topic_filter_count        smallint        함께 걸린 주제 필터 수. CHECK >= 0
@@ -811,6 +891,31 @@ uq_content_audio_renditions_content_id_quality (content_id, quality)
 - **`compressed` 행은 항상 있다**(발행의 필수 파트). `aac` · `lossless`는 있을 때만 있다 — 2026-10-06 기준 발행분 40편은 `compressed`만 있고, 마이그레이션이 `contents.audio_path`에서 그 행을 만든다(코덱 `mp3`, 나머지 부속값 NULL).
 - 메타(코덱·비트레이트·채널·샘플레이트·크기)는 **업로드 때 서버가 파일에서 읽어 채운다**(`audio-probe`). 수동 입력을 받지 않는다 — `duration_sec`과 같은 이유다(불일치하면 판정이 깨진다).
 - 재생 URL 발급은 이 표에서 **허용·보유 음질 가운데 가장 높은 것**을 고른다(`player.md` 4.9). 어떤 응답에도 `path`는 실리지 않는다.
+
+### 5.9 `series` *(신설 2026-10-17 — KAN-134 시리즈)*
+
+시리즈의 주인. `contents.series_id`의 FK 대상이다([5.1](#51-contents)). 마이그레이션 `1790700000000-AddSeries`.
+
+```
+series
+  id              uuid          PK
+  title           varchar(255)  NOT NULL
+  description     text          NOT NULL   빈 문자열 허용(소개 없음)
+  total_episodes  int           NOT NULL   CHECK >= 1 — 계획 편수. 총 편수의 기준. 상한 없음
+  status          varchar(20)   NOT NULL   CHECK IN ('ongoing','completed')
+  created_at · updated_at
+
+ck_series_total_episodes  CHECK (total_episodes >= 1)
+ck_series_status          CHECK (status IN ('ongoing', 'completed'))
+```
+
+- **표지 칸이 없다** — 표지는 노출 중인 가장 앞 편(보통 1화)의 썸네일이다(결정 2026-10-09).
+- **시장 칸이 없다** — 시리즈는 편(`contents.market`)의 시장을 따른다. 한 시리즈에 시장이 섞이지 않게 업로드가 막는다(`admin-api.md` 4.6).
+- `status`는 표시용 구분이다 — 업로드·노출을 막지 않는다. `ongoing`이면 편수를 늘려 편을 더한다.
+- `total_episodes`는 발행 중인 가장 큰 편 번호보다 작게 줄일 수 없다(`admin-api.md` 4.24).
+- 삭제 API가 없다. 편이 FK로 가리킨다(`ON DELETE RESTRICT`).
+- 담기·재생 위치·완청·통계·페이월 차감은 편 단위 그대로다 — 그 테이블들은 `series`를 참조하지 않는다.
+- **CS 키워드 시리즈(데이터)** — 마이그레이션 `1790700100000-SeedCsKeywordSeries`가 시리즈 행 하나(id **`7de91e6e-2e96-4aea-9ddb-80fe99179c2e`** 고정, "키워드로 빠르게 배우는 CS 지식", 16편, `completed`)를 만들고 해당 16개 콘텐츠에 `series_id`·`episode_no`(1~16)·`total_episodes`(16)를 채웠다. `content_id`·`content_version`·제목·오디오는 그대로다. id를 고정한 이유는 운영 → 개발계 콘텐츠 동기화가 행을 id로 맞추기 때문이다(동기화 스크립트가 `series`를 `contents`보다 먼저 upsert한다).
 
 ## 6. 라이브러리 · 재생
 
@@ -937,6 +1042,27 @@ daily_play_count = COUNT(*) FROM play_records
 
 - 누적 청취 시간 = `listened_sec` 총합, 연속 청취 일수 = `play_date` 연속 구간(그 서비스 날짜에 행 1건 이상이면 "들은 날"), 주간 요일별 그래프 = `play_date`별 `listened_sec` 합, 주제 분포 = `listened_sec` × `content_topics` 조인 비율.
 - **전부 파생값이므로 사용자 테이블에 컬럼을 만들지 않는다**([1.5](#15-파생값을-컬럼으로-두지-않는다)). 사용자 단위 통계 집계 테이블(캐시)을 신설할지는 매 조회 집계 비용을 보고 정한다 — [15.1](#151-남아-있는-결정) 결정 항목.
+
+### 6.3-1 `play_daily_totals` *(신설 2026-10-17 — 탈퇴로 줄지 않는 서비스 누적)*
+
+```
+play_daily_totals
+  play_date                 date            PK   서비스 날짜(05:00 경계 — 재생 행의 play_date와 같다)
+  play_count                int   DEFAULT 0      그날 새로 생긴 play_records 행 수
+  listen_sec                bigint DEFAULT 0     그날 재생 행의 listened_sec에 더한 값의 합
+  complete_count            int   DEFAULT 0      그날 남은 완청 신호(user_signals.action = complete) 수
+  created_at · updated_at
+```
+
+서비스 지표의 누적 재생 수·청취 시간·완청 수(`admin-api.md` 4.22 `listening.all_time`)의 원천이다. 종전에는 `play_records`를 바로 더해 **탈퇴가 생기면 누적이 줄었다**(2026-10-16 운영 100시간 → 96시간 — 탈퇴는 재생 기록을 즉시 파기한다, [12.3](#123-회원-탈퇴-처리)). 사용자 결정(2026-10-17): 누적은 탈퇴해도 줄지 않는다. 탈퇴자 몫을 따로 모으지 않고 하나의 누적에 다 더한다. 마이그레이션 `1790500000000-AddPlayDailyTotals`.
+
+- **재생 기록을 쓸 때 같은 트랜잭션에서 함께 더한다.** 재생 시작에 `play_records` 행이 **새로 생기면** `play_count + 1`(같은 날 다시 눌러 행이 생기지 않으면 늘지 않는다). 위치 저장이 `listened_sec`에 더하면 그 재생 행의 `play_date`(재생 시작일)에 `listen_sec + delta`. 완청 신호를 남기면 그 서비스 날짜에 `complete_count + 1` — 완청 신호는 탈퇴에 더해 **180일 보존 배치**로도 지워져([12.1](#121-운영-중-삭제-정책)), 원천 합계는 서비스 180일째부터 매일 줄었을 것이다.
+- **더하기만 하고 빼지 않는다.** 동시 갱신이 겹치므로 읽어서 더한 값을 쓰지 않고 DB에서 더한다(`INSERT … ON CONFLICT (play_date) DO UPDATE SET x = x + EXCLUDED.x`).
+- 사용자·콘텐츠를 가리키는 열이 없는 비식별 집계다. **탈퇴해도 지우지 않는다**(12.3 "그대로 유지").
+- 도입 시점에 남아 있던 `play_records`·완청 신호로 채웠다. **이미 탈퇴한 사람의 몫은 기록이 지워져 되살리지 못한다.**
+- **규약 예외 두 가지.** ① PK가 `id`가 아니라 자연키 `play_date`다(`convention.md` 1.5·4.2 예외) — 날짜당 한 행이고 upsert 대상이다. ② [1.5](#15-파생값을-컬럼으로-두지-않는다) "파생값을 두지 않는다"의 예외다 — 탈퇴 뒤에는 원천에서 다시 계산할 수 없어 이 표가 곧 원천이다.
+- 추천 테스트 초기화(`recommend-test` reset)·부하 테스트 정리(`load-test/server/cleanup-users.js`)가 재생 기록을 지워도 누적은 줄지 않는다. 운영에서 부하 테스트를 돌리면 누적이 부풀므로, 돌린다면 그 몫을 빼는 절차를 runbook에 둔다.
+- 배포 순간(새 컨테이너 마이그레이션 백필 ~ 옛 컨테이너 종료) 사이에 옛 컨테이너가 받은 재생은 누적에서 빠질 수 있다(덜 세는 쪽). 배포 직후 `play_records` 합계와 한 번 대조한다.
 
 ### 6.4 `user_signals`
 
@@ -1168,6 +1294,8 @@ plans
   tier                      enum            light | daily | pro | trial
   name                      varchar
   description               text
+  name_en                   varchar(50)     NULL   영어 이름 ★신설 2026-10-16 (`1790400000000-AddPlanEnglishText`)
+  description_en            text            NULL   영어 설명 ★신설 2026-10-16
   daily_play_limit          int             NULL = 무제한
   daily_drip_count          int             일일 자동 적립 편수
   daily_discovery_count     int             DEFAULT 1   일일 탐험 편성 편수 ★신설 2026-08-27 (`drip-scheduling.md` 4.8)
@@ -1195,6 +1323,8 @@ uq_plans_tier (tier)
 **음질**(`max_audio_quality`, 2026-10-06 — KAN-141): `light` · `daily` · `trial` = **`aac`**, `pro` = **`lossless`**. 가입 체험은 재생 한도만 풀고 음질은 무료와 같다 — 체험 끝에 "무손실이 사라졌다"는 경험을 만들지 않는다. 값을 바꾸면 다음 발급부터 바로 적용된다(배포 없음).
 
 - **`trial` 행은 판매 요금제가 아니라 체험 기간의 한도·이름을 담는 정책 행이다**(2026-10-03, `1788400000000-AddSignupTrial`). `is_active = false` · `display_order = 0`이라 요금제 목록(`GET /plans`)·페이월에 나오지 않고 최상위 티어 판정에도 끼지 않는다. 이름은 "무료 체험", 광고는 무료 티어와 같다(`is_ads_enabled = true`). 체험 중 한도를 바꾸려면 이 행의 `daily_play_limit`만 고친다. 행이 없으면 체험은 적용되지 않는다(무료 한도로 판정).
+
+- **`name_en`·`description_en`은 영어 이름·설명이다. GLOBAL 사용자에게 내려준다**(2026-10-16, KAN-192 일부 — `planTextOf`). 언어는 기기 언어가 아니라 **시장**으로 고른다(푸시·메일과 같은 기준). NULL이면 한국어로 내려간다. 앱은 받은 문구를 그대로 그리므로 문구의 원천은 이 행 하나다 — **한도를 바꾸면 한국어·영어 설명을 함께 고친다.** 현행 값: `light` `Light`·"Listen to up to 2 episodes a day" · `daily` `Daily`·"Listen to up to 5 episodes a day" · `pro` `Pro`·"Listen as much as you like, with no daily limit" · `trial` `Free trial`·"Unlimited listening during your free trial"(체험 행은 `is_active = false`라 목록에는 나오지 않고 요금제 카드 이름에만 쓰인다). GLOBAL 전용 요금제 행·상품은 두지 않는다(같은 상품을 현지가로 판다).
 
 - **유료 티어 값이 확정됐다**(2026-10-02): 데일리 월 3,900원·하루 5편, 프로 월 9,900원·무제한. 둘 다 광고가 없다(`is_ads_enabled = false`). 행은 마이그레이션 `1788300100000-SeedPaidPlans`가 넣는다 — `store_product_id_ios`는 `com.runtime.ear.subscription.{daily,pro}.monthly`, `store_product_id_android`는 Play 구현 전이라 비어 있다. `name`·`description`은 표시 문구라 DB에서 고친다(마이그레이션이 기존 값을 덮지 않는다). 두 행은 `is_active = true`(판매 중)로 시작한다 — 시드 이전에 넣어 둔 행이 꺼져 있던 환경은 `1788300200000-ActivatePaidPlans`가 맞춘다.
 
@@ -1384,7 +1514,7 @@ notices
   body                      text            NOT NULL     줄바꿈 보존 plain text
   is_pinned                 boolean         DEFAULT false
   published_at              timestamptz     NULL         NULL = 초안, 미래 = 예약 발행
-  market                    enum            kr | global   DEFAULT 'kr'   공지는 시장별로 따로 쓴다 — 사용자 시장의 공지만 보인다 (global-api.md 4.8, 2026-10-14 — KAN-188)
+  market                    enum            kr | global   DEFAULT 'kr'   공지는 시장별로 따로 쓴다 — 사용자 시장의 공지만 보인다 (global-api.md 4.8, 2026-10-14 — KAN-188). 관리자 작성(`POST /admin/notices` `market`, 없으면 kr) 때 정하고 이후 바꾸지 않는다 (2026-10-15 — KAN-211)
   created_at / updated_at / deleted_at                   (1.1 공통, soft delete)
 
 idx_notices_list (is_pinned DESC, published_at DESC) WHERE deleted_at IS NULL
@@ -1565,7 +1695,7 @@ archived_consents
   id                        uuid            PK
   user_hash                 varchar
   user_hash_version         smallint        DEFAULT 1
-  consent_type              enum            terms | privacy | marketing | age_confirmation
+  consent_type              enum            terms | privacy | marketing | age_confirmation | cross_border_transfer   varchar(32)
   version                   varchar         NULL
   is_agreed                 boolean
   agreed_at                 timestamptz
@@ -1633,7 +1763,9 @@ idx_archived_subscriptions_archived_at
 | `search_query_logs` | **hard** — `created_at` 90일 후 배치 삭제 | 검색 미스율 분석은 최근 몇 주를 보면 되고, 질의 본문을 오래 들고 있을 이유가 없다 (신설 2026-10-01 — [5.7](#57-search_query_logs-신설-2026-10-01--검색-미스율-측정)) |
 | `audit_logs` | **삭제하지 않는다** | 관리자 행위의 증적이다. 파트너 계약 분쟁은 몇 년 뒤에도 제기될 수 있고, 그때 되짚을 수 있어야 한다 (확정 2026-09-10) |
 | `notices` | **soft** (`deleted_at`) — **삭제 30일 뒤 hard delete 대상**(배치 미구현) | 관리자 실수 삭제를 되짚을 창. 사용자 데이터가 아니라 법적 보존 근거는 없다 (확정 2026-09-17) |
-| `play_records` | **보류** — 기간을 정하지 않는다 | 프로필 통계가 **전 기간 청취 시간 합계**를 이 테이블에서 읽는다([6.3](#63-play_records)). 지금 지우면 사용자가 보던 숫자가 줄어든다. 비식별 누적 집계로 옮긴 뒤 정한다 (보류 2026-09-10) |
+| `play_records` | **보류** — 기간을 정하지 않는다 | 프로필 통계가 **전 기간 청취 시간 합계**를 이 테이블에서 읽는다([6.3](#63-play_records)). 지금 지우면 사용자가 보던 숫자가 줄어든다. 비식별 누적 집계로 옮긴 뒤 정한다 (보류 2026-09-10). 서비스 전체 누적은 `play_daily_totals`로 옮겼다([6.3-1](#63-1-play_daily_totals-신설-2026-10-17--탈퇴로-줄지-않는-서비스-누적), 2026-10-17). 프로필의 사용자별 전 기간 합계는 아직 `play_records`를 읽는다 |
+| `daily_active_users` | **영구 보존** | 날짜·시장·인원 수만 있는 비식별 집계다. 원천(`sessions`)이 30일 뒤 지워져 다시 만들 수 없다 ([3.3-1](#33-1-daily_active_users-신설-2026-10-18--세션-파기에도-남는-일별-접속자), 2026-10-18) |
+| `user_active_dates` | **탈퇴 시 즉시 파기, 그 밖엔 무기한** | 코호트 리텐션의 재료다. 원천(`sessions`)이 30일 뒤 지워져 다시 만들 수 없다 ([3.3-2](#33-2-user_active_dates-신설-2026-10-18--코호트-리텐션의-사람별-접속일), 2026-10-18) |
 | 나머지 | hard | |
 
 **구현 상태(2026-09-26 기준) — 위 배치는 구현됐다.** `RetentionModule`(`user_signals`·`source_link_clicks`·`audio_access_logs`·`notification_logs`·`search_query_logs`, 04:30 KST) · `SessionPurgeScheduler`(`sessions`, 매시간) · `EmailVerificationPurgeScheduler` · `IdempotencyPurgeScheduler` · `FirstDripPurgeScheduler`(`first_drip_jobs` — 종착 상태 3종을 `updated_at` 기준으로 지운다). **`notices`의 삭제 30일 뒤 hard delete만 미구현**이다. ~~2026-09-10 기준 `idempotency_keys`만 돌았다.~~ 기간을 먼저 정의한 것은 **문서에 없는 삭제를 코드가 임의로 하지 않기 위해서**다. ~~`user_signals`·`audio_access_logs`에는 단독 인덱스가 없어 삭제 쿼리가 풀스캔이 된다~~ → 마이그레이션 `1787000000000-AddRetentionCreatedAtIndexes`로 `created_at` 인덱스를 추가해 해소했다.
@@ -1698,8 +1830,8 @@ idx_archived_subscriptions_archived_at
 | 처리 | 대상 |
 |---|---|
 | **아카이브 후 파기** (5년) | `users` → `archived_users`, `consents` → `archived_consents`, `subscriptions` → `archived_subscriptions` |
-| **즉시 파기** | `library_items`, `playback_progresses`, `play_records`, `user_signals`, `audio_access_logs`, `source_link_clicks`, `search_query_logs`, `user_interests`, `user_settings`, `device_tokens`, `sessions`, `user_preference_vectors`, `drip_excluded_contents`, `drip_feedbacks`, `purchase_intents`, `notification_logs`, `email_verifications`, `first_drip_jobs`, `idempotency_keys`(해당 사용자 `owner_key`) |
-| **그대로 유지** | `withdrawal_logs`(원래 해시만), `store_notification_logs`(개인 식별자 없음), `content_stats`(집계값) |
+| **즉시 파기** | `library_items`, `playback_progresses`, `play_records`, `user_signals`, `audio_access_logs`, `source_link_clicks`, `search_query_logs`, `user_interests`, `user_settings`, `device_tokens`, `sessions`, `user_active_dates`(FK CASCADE — 2026-10-18), `user_market_changes`(FK CASCADE — 2026-10-19), `user_preference_vectors`, `drip_excluded_contents`, `drip_feedbacks`, `purchase_intents`, `notification_logs`, `email_verifications`, `first_drip_jobs`, `idempotency_keys`(해당 사용자 `owner_key`) |
+| **그대로 유지** | `withdrawal_logs`(원래 해시만), `store_notification_logs`(개인 식별자 없음), `content_stats`(집계값), `play_daily_totals`(집계값 — 2026-10-17), `daily_active_users`(집계값 — 2026-10-18) |
 
 **결제 이력이 없는 사용자 — 아카이브 없이 전량 즉시 파기**
 
@@ -1707,7 +1839,7 @@ idx_archived_subscriptions_archived_at
 |---|---|
 | **즉시 파기** | 위 즉시 파기 목록 **전부 + `users` + `consents`** |
 | **아카이브** | **없음.** `archived_users` · `archived_consents` · `archived_subscriptions` 어디에도 행을 만들지 않는다 |
-| **그대로 유지** | `withdrawal_logs`, `store_notification_logs`, `content_stats` |
+| **그대로 유지** | `withdrawal_logs`, `store_notification_logs`, `content_stats`, `play_daily_totals`(집계값 — 2026-10-17), `daily_active_users`(집계값 — 2026-10-18) |
 
 - 근거: **제21조 제1항의 원칙은 파기이며, 보존은 다른 법령에 근거가 있을 때만 허용되는 예외다**([12.2](#122-법적-근거)). 거래가 없으면 전자상거래법 시행령 제6조가 보존을 허용하는 대상이 존재하지 않으므로, 5년 보관은 그 자체가 제21조 제1항 위반이 된다.
 - `consents`도 함께 파기한다. 동의 이력의 보존 근거는 거래기록이 아니라 **동의 획득의 입증 책임**인데, 이는 법령상 보존 의무가 아니므로 제21조 제1항 단서에 해당하지 않는다.

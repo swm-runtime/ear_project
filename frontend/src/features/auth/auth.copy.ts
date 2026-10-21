@@ -1,10 +1,19 @@
-import type { ConsentType, SocialProvider, WithdrawalReasonCode } from './auth.types';
+import type { AppLanguage } from '@/shared/i18n/locale';
+import { localized, type LocalizedCopy } from '@/shared/i18n/localized';
+
+import type {
+  ConsentType,
+  ContentLanguage,
+  Market,
+  SocialProvider,
+  WithdrawalReasonCode,
+} from './auth.types';
 
 /**
  * 사용자 노출 문구(convention.md 3.5). 확정 카피는 auth-uiux.md와 1:1 대조한다.
  * TODO 표시 항목은 uiux 문서에 확정 카피가 없어 임시로 둔 것 — 확정 시 교체한다.
  */
-export const AUTH_COPY = {
+const ko = {
   start: {
     /* TODO(카피 미확정): 시작 화면 서비스 소개 문구 */
     /** 로고 이미지의 대체 텍스트 — 화면에 글자로는 보이지 않는다 */
@@ -24,6 +33,32 @@ export const AUTH_COPY = {
   },
   /** auth-uiux.md 4.2 — 확정 카피 */
   loginFailed: '로그인에 실패했어요. 다시 시도해주세요',
+  /**
+   * A21 콘텐츠 언어 선택 — 신규 가입자만(auth-uiux.md 4.2-1, 2026-10-15). 고른 값이 시장을 정하므로
+   * "무엇이 달라지는지"와 "바꿀 수 없다"를 같은 화면에서 밝힌다(global-api.md 4.1).
+   * **이 화면의 문구는 표시 언어가 아니라 지금 고른 선택지의 언어를 따른다**(PM 2026-10-19) — 화면은 `AUTH_COPY` 대신
+   * 두 벌을 다 가진 `CONTENT_LANGUAGE_COPY`(파일 아래)를 읽는다.
+   */
+  contentLanguage: {
+    title: '어떤 언어로 들을까요?',
+    description: '고른 언어에 따라 받아 보는\n에피소드와 주제가 달라져요',
+    /** 선택지 이름은 **그 언어 자신의 표기**다 — 표시 언어를 못 읽는 사람도 자기 언어를 찾을 수 있게 */
+    option: {
+      ko: '한국어',
+      en: 'English',
+    } satisfies Record<ContentLanguage, string>,
+    /** 선택지 아래 한 줄 — 무엇을 받게 되는지(화면 언어로). "Learn Korea with K-podcast"는 A1 시작 화면 문구다(PM 2026-10-19) */
+    optionDescription: {
+      ko: '한국어 에피소드와 주제',
+      en: '영어 에피소드와 주제',
+    } satisfies Record<ContentLanguage, string>,
+    /** English 권장 — K-컬처에 관심 있는 영어 사용자에게 하는 말이라 화면 언어와 무관하게 **늘 영어**(PM 2026-10-19) */
+    recommendEnglish: 'Into K-culture? Choose English',
+    /** 가입 뒤에도 설정에서 바꿀 수 있다(KAN-228 — 종전 "가입한 뒤에는 바꿀 수 없어요") */
+    notChangeable: '나중에 설정에서 바꿀 수 있어요',
+    next: '다음',
+    backA11y: '뒤로가기',
+  },
   consent: {
     /* TODO(카피 미확정): 인사 라인 — 시각 개편(changes/pending/auth-consent-visual-refresh.md) */
     greeting: '만나서 반가워요!',
@@ -34,11 +69,20 @@ export const AUTH_COPY = {
       terms: '이용약관 동의',
       privacy: '개인정보 처리방침 동의',
       marketing: '마케팅 정보 수신 동의',
-      // 연령 확인의 표시 문구는 consent.ageConfirmation 이 갖는다. 이 표는 서버 유형과
-      // 1:1이어야 해서 자리를 비워둘 수 없다
+      // 연령 확인의 표시 문구는 기준 연령이 나라별이라 ageConfirmationLabel(minAge) 이 갖는다. 이 표는 서버 유형과
+      // 1:1이어야 해서 자리를 비워둘 수 없다(값은 KR 문구)
       age_confirmation: '만 18세 이상입니다',
+      /**
+       * 국외 이전 동의 — 서버가 GLOBAL 목록에만 싣는다(KAN-215·216). [보기]는 처리방침의 국외 이전 절.
+       * 확정 카피는 auth-uiux.md 4.3 "국외 이전 행" — 다른 항목처럼 짧은 이름만 두고 내용은 [보기](처리방침 국외 이전 절)가
+       * 보여 준다(PM 2026-10-19, 법무 확인 전)
+       */
+      cross_border_transfer: '개인정보 국외 이전 동의',
     } satisfies Record<ConsentType, string>,
-    /** 연령 확인 — 만 18세 미만 가입을 막는 자기 선언(Play 대상 연령대 18+ 선언과 같은 기준) */
+    /**
+     * 연령 확인 — KR 시장 문구(만 18세). 화면은 이 값을 직접 쓰지 않고 서버가 판정한 기준 연령을 끼우는
+     * `ageConfirmationLabel(minAge)` 을 쓴다(나라별 16·18 — KAN-206, global-api.md 2.1)
+     */
     ageConfirmation: '만 18세 이상입니다',
     requiredTag: '(필수)',
     optionalTag: '(선택)',
@@ -46,6 +90,8 @@ export const AUTH_COPY = {
     marketingDescription: '새 콘텐츠·이벤트 소식을 알려드려요',
     view: '보기',
     submit: '동의하고 시작하기',
+    /** 목록을 끝까지 내리기 전 [동의하고 시작하기] 위 안내 — 비활성 이유를 글로 밝힌다(PM 확정 2026-10-19, auth-uiux.md 4.3) */
+    readToEnd: '끝까지 읽어 주세요',
     /* TODO(카피 미확정): 에러 안내 2종 */
     signupExpired: '로그인이 만료됐어요. 다시 로그인해주세요',
     consentStale: '약관이 갱신됐어요. 다시 로그인해 확인해주세요',
@@ -54,6 +100,45 @@ export const AUTH_COPY = {
    * A20 재동의 — 기존 사용자(auth-uiux.md 4.3-1). A4와 문구를 나눈다:
    * 신규 가입은 "시작"이고 여기는 "계속 이용"이다. TODO(카피 미확정)
    */
+  /**
+   * 설정 › 콘텐츠 언어(시장) 전환(KAN-228 — global-api.md 4.11). 무엇이 바뀌는지 먼저 밝히고, 새 언어의 필수 동의를
+   * 같은 화면에서 받는다(확인 팝업 + 동의 화면을 한 화면으로 — FE 결정). 규칙(하루 1번·주제 다시 고르기·라이브러리 숨김)은
+   * 서버가 판정하고 화면은 알리기만 한다
+   */
+  marketChange: {
+    appBarTitle: '콘텐츠 언어',
+    backA11y: '뒤로가기',
+    languageName: { kr: '한국어', global: '영어' } satisfies Record<Market, string>,
+    title: (language: string) => `콘텐츠 언어를 ${language}로 바꿀까요?`,
+    points: [
+      '관심 주제를 새 언어의 주제로 다시 골라요',
+      '지금 라이브러리는 숨겨져요. 이 언어로 돌아오면 다시 보여요',
+      '구독과 남은 재생 횟수는 그대로예요',
+      '콘텐츠 언어는 하루에 한 번 바꿀 수 있어요',
+    ],
+    consentTitle: '바꾸려면 아래 내용에 동의해주세요',
+    submit: '바꾸기',
+    close: '닫기',
+    blocked: {
+      market_unavailable: {
+        title: '지금은 이 언어로 바꿀 수 없어요',
+        description: '이 언어의 에피소드를 준비하고 있어요. 다음에 다시 시도해주세요',
+      },
+      cooldown: {
+        title: '콘텐츠 언어는 하루에 한 번 바꿀 수 있어요',
+        description: (hours: number | null) =>
+          hours === null || hours <= 1
+            ? '잠시 뒤에 다시 바꿀 수 있어요'
+            : `약 ${hours}시간 뒤에 다시 바꿀 수 있어요`,
+      },
+    },
+    loadFailedTitle: '정보를 불러오지 못했어요',
+    loadFailedDescription: '잠시 후 다시 시도해주세요',
+    retry: '다시 시도',
+    submitFailed: '바꾸지 못했어요. 다시 시도해주세요',
+    /** 400 CONSENT_REQUIRED · 409 CONSENT_VERSION_STALE — 미리보기를 다시 받아 동의를 다시 그린다 */
+    consentsChanged: '동의할 내용이 바뀌었어요. 다시 확인해주세요',
+  },
   reconsent: {
     title: '약관이 업데이트되었어요',
     description: '계속 이용하시려면 아래 항목에 동의해 주세요',
@@ -214,3 +299,236 @@ export const AUTH_COPY = {
     },
   },
 } as const;
+
+const en: LocalizedCopy<typeof ko> = {
+  start: {
+    appName: 'Earcast',
+    tagline: 'Lend us your ear',
+    // 글로벌은 K-콘텐츠 위주(PM 확정 2026-10-19) — 한국어 "매일 출근길에 도착하는 나만의 팟캐스트"의 번역이 아니다
+    description: 'Learn Korea with K-podcast',
+    termsLink: 'Terms of Use',
+    privacyLink: 'Privacy Policy',
+    provider: {
+      kakao: 'Continue with Kakao',
+      naver: 'Continue with Naver',
+      google: 'Continue with Google',
+      apple: 'Continue with Apple',
+    },
+    providerSectionLabel: 'Continue with a social account',
+  },
+  loginFailed: 'Couldn’t sign in. Please try again',
+  contentLanguage: {
+    title: 'Which language do you want to listen in?',
+    description: 'The language you choose decides which episodes and topics you get.',
+    option: {
+      ko: '한국어',
+      en: 'English',
+    },
+    optionDescription: {
+      ko: 'Episodes and topics in Korean',
+      en: 'Episodes and topics in English',
+    },
+    recommendEnglish: 'Into K-culture? Choose English',
+    notChangeable: 'You can change this later in Settings.',
+    next: 'Continue',
+    backA11y: 'Back',
+  },
+  consent: {
+    greeting: 'Nice to meet you!',
+    title: 'Please agree to the following\nto use the service',
+    agreeAll: 'Agree to all',
+    label: {
+      terms: 'Agree to Terms of Use',
+      privacy: 'Agree to Privacy Policy',
+      marketing: 'Receive marketing updates',
+      age_confirmation: 'I’m 18 or older',
+      cross_border_transfer: 'Agree to international data transfer',
+    },
+    ageConfirmation: 'I’m 18 or older',
+    requiredTag: '(Required)',
+    optionalTag: '(Optional)',
+    marketingDescription: 'Get news about new content and events',
+    view: 'View',
+    submit: 'Agree and start',
+    readToEnd: 'Scroll to the end to continue',
+    signupExpired: 'Your sign-in has expired. Please sign in again',
+    consentStale: 'Our terms have been updated. Please sign in again to review them',
+  },
+  marketChange: {
+    appBarTitle: 'Content language',
+    backA11y: 'Back',
+    languageName: { kr: 'Korean', global: 'English' },
+    title: (language: string) => `Switch your content language to ${language}?`,
+    points: [
+      "You'll pick your topics again from the new language's topics.",
+      'Your current library will be hidden. It comes back if you switch back.',
+      'Your subscription and remaining listens stay the same.',
+      'You can change your content language once a day.',
+    ],
+    consentTitle: 'To switch, please agree to the following',
+    submit: 'Switch',
+    close: 'Close',
+    blocked: {
+      market_unavailable: {
+        title: "You can't switch to this language right now",
+        description: "We're getting episodes ready in this language. Please try again later.",
+      },
+      cooldown: {
+        title: 'You can change your content language once a day',
+        description: (hours: number | null) =>
+          hours === null || hours <= 1
+            ? 'You can change it again in less than an hour.'
+            : `You can change it again in about ${hours} hours.`,
+      },
+    },
+    loadFailedTitle: "Couldn't load this",
+    loadFailedDescription: 'Please try again in a moment.',
+    retry: 'Try again',
+    submitFailed: "Couldn't switch. Please try again.",
+    consentsChanged: 'What you need to agree to has changed. Please check again.',
+  },
+  reconsent: {
+    title: 'We’ve updated our terms',
+    description: 'To keep using the service, please agree to the items below',
+    submit: 'Agree and continue',
+    logout: 'Sign out',
+    logoutConfirmTitle: 'You need to agree to keep using the service',
+    logoutConfirmBody: 'Sign out? Your account and saved content will stay as they are.',
+    logoutCancel: 'Cancel',
+    logoutConfirm: 'Sign out',
+    submitFailed: 'Couldn’t save your consent. Please try again in a moment',
+  },
+  email: {
+    appBarTitle: 'Verify email',
+    backA11y: 'Back',
+    loadFailed: 'Couldn’t load verification info',
+    verifyFailed: 'Couldn’t verify. Please try again',
+    currentLabel: 'Current email',
+    unregistered: 'Not registered',
+    inputLabel: 'Email address',
+    inputPlaceholder: 'example@email.com',
+    changeNotice: 'Changing your address uses the same verification steps',
+    send: 'Get verification code',
+    formatInvalid: 'Check your email format',
+    alreadyRegistered: 'This email is already registered',
+    sendFailedToast: 'Couldn’t send the verification email. Please try again',
+    retry: 'Try again',
+    codeGuide: (email: string) => `Enter the 6-digit code\nwe sent to ${email}`,
+    codeDigitA11y: (index: number) => `Verification code digit ${index}`,
+    resend: 'Resend',
+    resendCooldown: (sec: number) => `Resend in ${sec}s`,
+    reenterEmail: 'Re-enter email',
+    spamNotice: 'If you don’t see the email, check your spam folder',
+    codeMismatch: (attemptsRemaining: number | null) =>
+      attemptsRemaining === null
+        ? 'Incorrect verification code'
+        : `Incorrect verification code (${attemptsRemaining} ${attemptsRemaining === 1 ? 'attempt' : 'attempts'} left)`,
+    codeExpired: 'The code has expired. Please request a new one',
+    attemptsExceeded: 'Please request a new code',
+    sendLimit: (minutes: number) =>
+      `You can send up to 5 codes per hour to this address. Try again in about ${minutes} ${minutes === 1 ? 'minute' : 'minutes'}, or verify with a different email`,
+    successToast: 'Your email has been registered',
+    countdownA11y: (sec: number) => `${sec} ${sec === 1 ? 'second' : 'seconds'} left`,
+  },
+  withdrawal: {
+    appBarTitle: 'Delete account',
+    backA11y: 'Back',
+    headline: 'Are you sure you want to leave?',
+
+    loadFailed: 'Couldn’t load account deletion info',
+    retry: 'Try again',
+
+    deleted: {
+      title: 'Deleted right away',
+      items: [
+        'Content saved to your library',
+        'Your topics of interest and career info',
+        'Playback positions and listening history',
+        'Notification and playback settings',
+      ],
+    },
+
+    retained: {
+      title: (years: number) =>
+        `Kept for ${years} ${years === 1 ? 'year' : 'years'} as required by law`,
+      item: {
+        email: 'Email address (for transaction verification)',
+        subscription_history: 'Payment and subscription history',
+        consent_history: 'Consent history',
+      },
+      basis: 'Transaction records must be kept under Korea’s E-Commerce Act.',
+    },
+
+    immediateDeletionNotice: 'All your data will be deleted right away.',
+
+    activeSubscription: {
+      title: 'You have an active subscription',
+      description:
+        'Payments will continue unless you cancel your subscription in the store. You can cancel in Settings > Manage plan.',
+      agreement: 'I agree that my subscription benefits will end immediately',
+    },
+
+    reason: {
+      label: 'Tell us why you’re leaving',
+      option: {
+        content_quailty: 'The content quality didn’t meet my expectations',
+        recommendation_mismatch: 'The content didn’t match my interests',
+        low_usage: 'I don’t have time to listen or rarely use it',
+        price: 'The subscription is too expensive',
+        not_enough_content: 'Not enough content on topics I want',
+        app_issue: 'The app had bugs or was hard to use',
+        alternative: 'I’m switching to another service',
+        other: 'Other (please specify)',
+      },
+      textLabel: 'Anything else you’d like to share',
+      textPlaceholder: 'Write anything you like',
+    },
+
+    confirm: 'I’ve read all of the above',
+
+    submit: 'Delete account',
+    cancel: 'Cancel',
+
+    processing: {
+      title: 'Deleting your account',
+      description: 'This will only take a moment',
+    },
+
+    successToast: 'Your account has been deleted',
+
+    failed: 'Couldn’t delete your account. Please try again',
+    archiveIdentityMissing: {
+      title: 'Something went wrong',
+      description: 'Your account was not deleted. Please try again in a moment or contact support',
+      back: 'Go back',
+    },
+  },
+};
+
+export const AUTH_COPY = localized({ ko, en });
+
+/**
+ * A21 콘텐츠 언어 화면의 두 벌 — 화면 문구가 **지금 고른 선택지의 언어**를 따르므로(PM 2026-10-19) 표시 언어로 한 벌만
+ * 고른 `AUTH_COPY.contentLanguage` 로는 그릴 수 없다. 앱의 표시 언어는 [다음]으로 A4에 갈 때 고른 언어로 맞춘다
+ * (PM 2026-10-19 — `useContentLanguageScreen`).
+ */
+export const CONTENT_LANGUAGE_COPY: Readonly<
+  Record<ContentLanguage, LocalizedCopy<typeof ko.contentLanguage>>
+> = {
+  ko: ko.contentLanguage,
+  en: en.contentLanguage,
+};
+
+/**
+ * 연령 확인 문구 — 숫자는 **서버가 판정한 기준 연령**이다(KAN-206 나라별, PM 2026-10-16 — `resolveMinAge`). 문구는 표시
+ * 언어를 따르고 숫자만 끼운다. 한국어 18은 종전 `consent.ageConfirmation`("만 18세 이상입니다")과 같은 문자열이다.
+ * `AUTH_COPY` 밖에 두는 이유: 한국어 카피 회귀 스냅숏(`copy-ko.snapshot.test.ts`)의 모양을 바꾸지 않기 위해서다.
+ */
+const AGE_CONFIRMATION = {
+  ko: (minAge: number) => `만 ${minAge}세 이상입니다`,
+  en: (minAge: number) => `I confirm that I am ${minAge} or older`,
+} satisfies Record<AppLanguage, (minAge: number) => string>;
+
+/** 기준 연령의 연령 확인 문구(표시 언어로). `language` 는 테스트용 — 생략하면 지금 표시 언어 */
+export const ageConfirmationLabel = (minAge: number, language?: AppLanguage): string =>
+  localized<(minAge: number) => string>(AGE_CONFIRMATION, language)(minAge);

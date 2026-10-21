@@ -11,6 +11,7 @@ import {
 import {
   SEARCH_WEIGHT_AUTHOR,
   SEARCH_WEIGHT_DESCRIPTION,
+  SEARCH_WEIGHT_TAG,
   SEARCH_WEIGHT_TITLE,
   SEARCH_WEIGHT_TOPIC,
 } from '../content.constant';
@@ -30,6 +31,7 @@ import {
   SearchPageQuery,
 } from '../content.types';
 import { Content } from '../entities/content.entity';
+import { LibraryItemStatus } from '@/modules/library/library.enum';
 import { UserMarket } from '@/modules/user/user.enum';
 
 /** 커서에 담기는 랭킹 값. `content_stats` 조인 결과이지 `contents`의 컬럼이 아니다 */
@@ -62,16 +64,57 @@ const SEARCH_MATCH_TOPIC = `EXISTS (
 )`;
 
 /**
- * 랭킹 1순위 — 매칭 필드 가중 합산(제목 > 저자 > 주제명 > 설명). 가중치가 2의 거듭제곱이라
+ * 해시태그 매칭(KAN-218) — `contents.tags`(jsonb 문자열 배열)의 항목 하나라도 맞으면 된다. 태그가 NULL이면
+ * `jsonb_array_elements_text`가 행을 내지 않아 EXISTS가 거짓이다.
+ *
+ * 저장된 태그는 정규화하지 않고 비교한다 — 적재 검증(`CONTENT_TAG_PATTERN`)이 완성형 한글·ASCII 영숫자·공백만
+ * 받아 NFC가 보장되고, 그 문자 범위에서는 SQL `lower()`와 질의 쪽 `toLowerCase()`가 같다. **태그 문자 범위를
+ * 넓히면 이 두 가정을 다시 본다.** 인덱스는 두지 않는다: 태그는 콘텐츠당 4개 이하이고 초기 풀이 작아 순차 탐색
+ * 비용이 무시할 만하다(domain.md 5.1 — 2자 질의 순차 탐색과 같은 논리, 2026-10-16 운영 콘텐츠 71편).
+ */
+const SEARCH_MATCH_TAG = `EXISTS (
+  SELECT 1 FROM jsonb_array_elements_text(content.tags) AS matched_tag(tag)
+  WHERE matched_tag.tag ILIKE :searchPattern
+)`;
+
+/** 태그 전용 검색(`#태그`) — 태그 항목과 **정확히 같아야** 한다(소문자 통일. 안쪽 공백은 그대로) */
+const SEARCH_MATCH_TAG_EXACT = `EXISTS (
+  SELECT 1 FROM jsonb_array_elements_text(content.tags) AS matched_tag(tag)
+  WHERE lower(matched_tag.tag) = :searchQuery
+)`;
+
+/**
+ * 랭킹 1순위 — 매칭 필드 가중 합산(제목 > 태그 > 저자 > 주제명 > 설명). 가중치가 2의 거듭제곱이라
  * 이 합산이 곧 문서의 필드 우선순위다(`content.constant.ts` 참조).
  */
 const SEARCH_SCORE = `(
   (CASE WHEN ${SEARCH_MATCH_TITLE} THEN ${SEARCH_WEIGHT_TITLE} ELSE 0 END)
+  + (CASE WHEN ${SEARCH_MATCH_TAG} THEN ${SEARCH_WEIGHT_TAG} ELSE 0 END)
   + (CASE WHEN ${SEARCH_MATCH_AUTHOR} THEN ${SEARCH_WEIGHT_AUTHOR} ELSE 0 END)
   + (CASE WHEN ${SEARCH_MATCH_TOPIC} THEN ${SEARCH_WEIGHT_TOPIC} ELSE 0 END)
   + (CASE WHEN ${SEARCH_MATCH_DESCRIPTION} THEN ${SEARCH_WEIGHT_DESCRIPTION} ELSE 0 END)
 )`;
 const SEARCH_SCORE_ALIAS = 'search_score';
+
+/**
+ * 시리즈 제목 일치(KAN-134 확정 설계 4번 — 탐색 시리즈 카드가 켜졌을 때만). 편 제목이 아니라 그 편이 속한 시리즈의 제목이
+ * 맞으면 편도 결과에 든다 — 탐색이 그 편들을 시리즈 카드 하나로 접는다. 가중은 제목과 같다(시리즈 제목은 편의 제목 계열이다)
+ */
+const SEARCH_MATCH_SERIES_TITLE = `EXISTS (
+  SELECT 1 FROM series matched_series
+  WHERE matched_series.id = content.series_id
+    AND matched_series.title ILIKE :searchPattern
+)`;
+const SEARCH_SCORE_WITH_SERIES = `(${SEARCH_SCORE}
+  + (CASE WHEN ${SEARCH_MATCH_SERIES_TITLE} THEN ${SEARCH_WEIGHT_TITLE} ELSE 0 END)
+)`;
+
+/**
+ * 태그 전용 검색의 1순위 — 매칭이 곧 정확 일치라 필드 가중이 의미가 없다. 상수로 두고 동점 해소 체인
+ * (제목 유사도 → 인기 → 신선도)만 쓴다. 커서 모양은 부분 일치와 같게 유지한다.
+ */
+// 맨 정수 리터럴은 ORDER BY에서 "선택 목록의 0번째 열"로 읽혀 오류가 난다 — 캐스트해 식으로 만든다
+const TAG_ONLY_SEARCH_SCORE = '0::integer';
 
 /**
  * 동점 해소 1키 — 제목 `word_similarity`(`explore.md` 4.5-5).
@@ -126,6 +169,41 @@ export class ContentRepository {
        )`,
       { topicIds },
     );
+  }
+
+  /**
+   * 시리즈 카드 모드(KAN-134 확정 설계 4번 — `SERIES_EXPLORE_CARDS_ENABLED`)의 **시리즈 대표 편만 남기기.** 같은 시리즈 편들 중
+   * 그 목록의 정렬 키로 가장 앞선 편 하나(= 편 점수의 최댓값 자리)와 단일 콘텐츠만 남긴다. 탐색이 대표 편을 카드로 바꾼다.
+   *
+   * `ranked`는 **같은 필터를 건 두 번째 빌더**다(노출·시장·주제·검색 일치 — 커서·정렬·limit 없이). 그 위에서
+   * `ROW_NUMBER() OVER (PARTITION BY series_id ORDER BY <정렬 키>) = 1`인 편을 대표로 고른다. 필터가 윈도 **앞**에 걸리므로 대표는
+   * "그 목록에 들어온 편 중 가장 앞 편"이다. 필터 조각은 alias `content`·`stat`을 그대로 쓰는데, 부분 질의 안의 같은 alias가
+   * 바깥을 가리므로 같은 문자열·같은 파라미터가 부분 질의 안에서 그대로 성립한다.
+   *
+   * 남은 행 위에서 바깥 질의가 종전 그대로 키셋 커서·정렬·limit을 건다 — 페이지 경계·커서 모양이 꺼진 모드와 같고, 한 시리즈는
+   * 목록 전체에서 한 번이며, 빈·짧은 페이지가 생기지 않는다. 대표 판정은 커서와 무관하다(부분 질의에 커서 조건이 없다).
+   */
+  private applySeriesAnchors(
+    builder: SelectQueryBuilder<Content>,
+    ranked: SelectQueryBuilder<Content>,
+    orderKeys: string[],
+  ): void {
+    const anchors = ranked
+      .select('content.id', 'anchor_id')
+      .addSelect(
+        `ROW_NUMBER() OVER (PARTITION BY content.series_id ORDER BY ${orderKeys.join(', ')})`,
+        'anchor_rank',
+      )
+      .andWhere('content.series_id IS NOT NULL');
+
+    builder
+      .andWhere(
+        `(content.series_id IS NULL OR content.id IN (
+           SELECT series_anchor.anchor_id FROM (${anchors.getQuery()}) series_anchor
+           WHERE series_anchor.anchor_rank = 1
+         ))`,
+      )
+      .setParameters(anchors.getParameters());
   }
 
   async findById(id: string, manager?: EntityManager): Promise<Content | null> {
@@ -341,13 +419,26 @@ export class ContentRepository {
     now: Date,
     market: UserMarket,
     manager?: EntityManager,
+    /** 시리즈 카드 모드 — 시리즈마다 가장 최신 편 하나만(`applySeriesAnchors`) */
+    seriesAnchorsOnly = false,
   ): Promise<Content[]> {
-    return (
+    const base = () =>
       this.applyVisibility(
         this.scoped(manager).createQueryBuilder('content'),
         now,
         market,
-      )
+      );
+    const builder = base();
+
+    if (seriesAnchorsOnly) {
+      this.applySeriesAnchors(builder, base(), [
+        'content.published_at DESC',
+        'content.id DESC',
+      ]);
+    }
+
+    return (
+      builder
         .orderBy('content.published_at', 'DESC')
         // 같은 배치로 업로드된 콘텐츠는 `published_at`이 동일할 수 있다
         .addOrderBy('content.id', 'DESC')
@@ -382,22 +473,33 @@ export class ContentRepository {
         ? ''
         : ' AND stat.is_final = true';
 
-    const builder = this.applyVisibility(
-      this.scoped(manager)
-        .createQueryBuilder('content')
-        .leftJoin(
-          'content_stats',
-          'stat',
-          `stat.content_id = content.id
+    const base = () =>
+      this.applyVisibility(
+        this.scoped(manager)
+          .createQueryBuilder('content')
+          .leftJoin(
+            'content_stats',
+            'stat',
+            `stat.content_id = content.id
              AND stat.period_type = :periodType
              AND stat.period_start = :periodStart${isFinalCondition}`,
-          { periodType: query.periodType, periodStart },
-        )
-        .addSelect(RANKING_PLAY_COUNT, RANKING_PLAY_COUNT_ALIAS)
-        .addSelect(RANKING_COMPLETE_COUNT, RANKING_COMPLETE_COUNT_ALIAS),
-      query.now,
-      query.market,
-    );
+            { periodType: query.periodType, periodStart },
+          )
+          .addSelect(RANKING_PLAY_COUNT, RANKING_PLAY_COUNT_ALIAS)
+          .addSelect(RANKING_COMPLETE_COUNT, RANKING_COMPLETE_COUNT_ALIAS),
+        query.now,
+        query.market,
+      );
+    const builder = base();
+
+    if (query.seriesAnchorsOnly) {
+      this.applySeriesAnchors(builder, base(), [
+        `${RANKING_PLAY_COUNT} DESC`,
+        `${RANKING_COMPLETE_COUNT} DESC`,
+        'content.published_at DESC',
+        'content.id DESC',
+      ]);
+    }
 
     if (query.cursor) {
       builder.andWhere(
@@ -443,24 +545,35 @@ export class ContentRepository {
     query: ExplorePageQuery,
     manager?: EntityManager,
   ): Promise<RankedContent[]> {
-    const builder = this.applyVisibility(
-      this.scoped(manager)
-        .createQueryBuilder('content')
-        .leftJoin(
-          'content_stats',
-          'stat',
-          'stat.content_id = content.id AND stat.period_type = :allPeriod AND stat.period_start = :allPeriodStart',
-          {
-            allPeriod: StatsPeriodType.ALL,
-            allPeriodStart: ALL_TIME_PERIOD_START,
-          },
-        )
-        .addSelect(RANKING_PLAY_COUNT, RANKING_PLAY_COUNT_ALIAS),
-      query.now,
-      query.market,
-    );
+    const base = () => {
+      const filtered = this.applyVisibility(
+        this.scoped(manager)
+          .createQueryBuilder('content')
+          .leftJoin(
+            'content_stats',
+            'stat',
+            'stat.content_id = content.id AND stat.period_type = :allPeriod AND stat.period_start = :allPeriodStart',
+            {
+              allPeriod: StatsPeriodType.ALL,
+              allPeriodStart: ALL_TIME_PERIOD_START,
+            },
+          )
+          .addSelect(RANKING_PLAY_COUNT, RANKING_PLAY_COUNT_ALIAS),
+        query.now,
+        query.market,
+      );
+      this.applyTopicFilter(filtered, query.topicIds);
+      return filtered;
+    };
+    const builder = base();
 
-    this.applyTopicFilter(builder, query.topicIds);
+    if (query.seriesAnchorsOnly) {
+      this.applySeriesAnchors(builder, base(), [
+        `${RANKING_PLAY_COUNT} DESC`,
+        'content.published_at DESC',
+        'content.id DESC',
+      ]);
+    }
 
     if (query.cursor) {
       // Postgres 행 비교 — 세 정렬 키의 tie-break를 한 조건으로 표현한다
@@ -488,7 +601,8 @@ export class ContentRepository {
   }
 
   /**
-   * 키워드 검색 한 페이지(explore-api.md 4.5) — **관련도 순**의 커서 페이지.
+   * 키워드 검색 한 페이지(explore-api.md 4.5) — **관련도 순**의 커서 페이지. `tagOnly`(`#태그`)면 태그 정확
+   * 일치만 찾고 1순위 가중 합산 대신 상수를 쓴다(KAN-218).
    *
    * 정렬은 매칭 필드 가중 합(`SEARCH_SCORE`) → 제목 유사도 → 직전 확정 월 재생 수 →
    * 신선도 순이며(`explore.md` 4.5-5의 우선순위·동점 해소 체인 그대로), **전부
@@ -504,40 +618,64 @@ export class ContentRepository {
     monthPeriodStart: string,
     manager?: EntityManager,
   ): Promise<RankedSearchContent[]> {
-    const builder = this.applyVisibility(
-      this.scoped(manager)
-        .createQueryBuilder('content')
-        .leftJoin(
-          'content_stats',
-          'stat',
-          `stat.content_id = content.id
+    const score = query.tagOnly
+      ? TAG_ONLY_SEARCH_SCORE
+      : query.matchSeriesTitle
+        ? SEARCH_SCORE_WITH_SERIES
+        : SEARCH_SCORE;
+    const base = () => {
+      const filtered = this.applyVisibility(
+        this.scoped(manager)
+          .createQueryBuilder('content')
+          .leftJoin(
+            'content_stats',
+            'stat',
+            `stat.content_id = content.id
              AND stat.period_type = :monthPeriod
              AND stat.period_start = :monthPeriodStart
              AND stat.is_final = true`,
-          { monthPeriod: StatsPeriodType.MONTH, monthPeriodStart },
-        )
-        .addSelect(SEARCH_SCORE, SEARCH_SCORE_ALIAS)
-        .addSelect(SEARCH_TITLE_SIMILARITY, SEARCH_TITLE_SIMILARITY_ALIAS)
-        .addSelect(RANKING_PLAY_COUNT, RANKING_PLAY_COUNT_ALIAS),
-      query.now,
-      query.market,
-    ).andWhere(
-      `(${SEARCH_MATCH_TITLE} OR ${SEARCH_MATCH_AUTHOR} OR ${SEARCH_MATCH_TOPIC} OR ${SEARCH_MATCH_DESCRIPTION})`,
-    );
+            { monthPeriod: StatsPeriodType.MONTH, monthPeriodStart },
+          )
+          .addSelect(score, SEARCH_SCORE_ALIAS)
+          .addSelect(SEARCH_TITLE_SIMILARITY, SEARCH_TITLE_SIMILARITY_ALIAS)
+          .addSelect(RANKING_PLAY_COUNT, RANKING_PLAY_COUNT_ALIAS),
+        query.now,
+        query.market,
+      ).andWhere(
+        query.tagOnly
+          ? SEARCH_MATCH_TAG_EXACT
+          : `(${SEARCH_MATCH_TITLE} OR ${SEARCH_MATCH_TAG} OR ${SEARCH_MATCH_AUTHOR} OR ${SEARCH_MATCH_TOPIC} OR ${SEARCH_MATCH_DESCRIPTION}${
+              query.matchSeriesTitle ? ` OR ${SEARCH_MATCH_SERIES_TITLE}` : ''
+            })`,
+      );
 
-    builder.setParameters({
-      searchQuery: query.normalizedQuery,
-      searchPattern: `%${escapeLikePattern(query.normalizedQuery)}%`,
-    });
+      filtered.setParameters({
+        searchQuery: query.normalizedQuery,
+        searchPattern: `%${escapeLikePattern(query.normalizedQuery)}%`,
+      });
 
-    if (query.topicIds.length > 0) {
-      this.applyTopicFilter(builder, query.topicIds);
+      if (query.topicIds.length > 0) {
+        this.applyTopicFilter(filtered, query.topicIds);
+      }
+
+      return filtered;
+    };
+    const builder = base();
+
+    if (query.seriesAnchorsOnly) {
+      this.applySeriesAnchors(builder, base(), [
+        `${score} DESC`,
+        `${SEARCH_TITLE_SIMILARITY} DESC`,
+        `${RANKING_PLAY_COUNT} DESC`,
+        'content.published_at DESC',
+        'content.id DESC',
+      ]);
     }
 
     if (query.cursor) {
       // Postgres 행 비교 — 다섯 정렬 키의 tie-break를 한 조건으로 표현한다
       builder.andWhere(
-        `(${SEARCH_SCORE}, ${SEARCH_TITLE_SIMILARITY}, ${RANKING_PLAY_COUNT}, content.published_at, content.id) < (:cursorScore, :cursorTitleSimilarity, :cursorPlayCount, :cursorPublishedAt, :cursorId)`,
+        `(${score}, ${SEARCH_TITLE_SIMILARITY}, ${RANKING_PLAY_COUNT}, content.published_at, content.id) < (:cursorScore, :cursorTitleSimilarity, :cursorPlayCount, :cursorPublishedAt, :cursorId)`,
         {
           cursorScore: query.cursor.score,
           cursorTitleSimilarity: query.cursor.titleSimilarity,
@@ -549,7 +687,7 @@ export class ContentRepository {
     }
 
     const { entities, raw } = await builder
-      .orderBy(SEARCH_SCORE, 'DESC')
+      .orderBy(score, 'DESC')
       .addOrderBy(SEARCH_TITLE_SIMILARITY, 'DESC')
       .addOrderBy(RANKING_PLAY_COUNT, 'DESC')
       .addOrderBy('content.published_at', 'DESC')
@@ -589,6 +727,226 @@ export class ContentRepository {
 
     const [items, total] = await builder.getManyAndCount();
     return { items, total };
+  }
+
+  /**
+   * 시리즈별 **노출 중인** 편과 그 편에 대한 이 사용자의 상태 — 드립 순서 필터의 "다음 편" 판정 입력(KAN-134, 규칙 ②′).
+   * 후보 풀이 아니라 카탈로그 전체에서 읽는다 — 풀은 상한(인기순 300건)으로 잘리고 이미 본 편을 빼므로, 풀만 보면 "사이에
+   * 노출 중인 편이 있는지·그 편을 이미 받았는지"를 알 수 없다. 노출 조건은 후보 조회와 같다(시장 포함).
+   *
+   * 사용자 상태는 후보 필터(`excludeSeenByUserId`)와 같은 원천을 원시 SQL로 본다 — `received`는 라이브러리에 한 번이라도
+   * 들어온 적(소프트 삭제분 포함), `held`는 지금 라이브러리에 있고(삭제 안 됨) 완청 전, `excluded`는 드립 영구 제외.
+   */
+  async findVisibleSeriesEpisodesForUser(
+    seriesIds: string[],
+    userId: string,
+    now: Date,
+    market: UserMarket,
+    manager?: EntityManager,
+  ): Promise<
+    {
+      seriesId: string;
+      contentId: string;
+      episodeNo: number;
+      received: boolean;
+      held: boolean;
+      excluded: boolean;
+    }[]
+  > {
+    if (seriesIds.length === 0) {
+      return [];
+    }
+
+    const rows = await this.applyVisibility(
+      this.scoped(manager).createQueryBuilder('content'),
+      now,
+      market,
+    )
+      .select('content.series_id', 'series_id')
+      .addSelect('content.id', 'content_id')
+      .addSelect('content.episode_no', 'episode_no')
+      .addSelect(
+        `EXISTS (
+           SELECT 1 FROM library_items received
+           WHERE received.content_id = content.id AND received.user_id = :seriesUserId
+         )`,
+        'received',
+      )
+      .addSelect(
+        `EXISTS (
+           SELECT 1 FROM library_items held
+           WHERE held.content_id = content.id AND held.user_id = :seriesUserId
+             AND held.deleted_at IS NULL AND held.status <> :completedStatus
+         )`,
+        'held',
+      )
+      .addSelect(
+        `EXISTS (
+           SELECT 1 FROM drip_excluded_contents dripped
+           WHERE dripped.content_id = content.id AND dripped.user_id = :seriesUserId
+         )`,
+        'excluded',
+      )
+      .andWhere('content.series_id IN (:...seriesIds)', { seriesIds })
+      .andWhere('content.episode_no IS NOT NULL')
+      .setParameter('seriesUserId', userId)
+      .setParameter('completedStatus', LibraryItemStatus.COMPLETED)
+      .orderBy('content.series_id', 'ASC')
+      .addOrderBy('content.episode_no', 'ASC')
+      .getRawMany<{
+        series_id: string;
+        content_id: string;
+        episode_no: number;
+        received: boolean;
+        held: boolean;
+        excluded: boolean;
+      }>();
+
+    return rows.map((row) => ({
+      seriesId: row.series_id,
+      contentId: row.content_id,
+      episodeNo: Number(row.episode_no),
+      received: row.received === true,
+      held: row.held === true,
+      excluded: row.excluded === true,
+    }));
+  }
+
+  /** 시리즈 화면(`GET /series/:id`)의 편 목록 — 노출 중인 편만, 편 번호순 */
+  async findVisibleBySeriesId(
+    seriesId: string,
+    now: Date,
+    market: UserMarket,
+    manager?: EntityManager,
+  ): Promise<Content[]> {
+    return this.findVisibleBySeriesIds([seriesId], now, market, manager);
+  }
+
+  /** 여러 시리즈의 노출 중인 편 — 시리즈 → 편 번호순. 탐색 시리즈 카드(표지·편 수·주제)의 재료를 한 번에 읽는다 */
+  async findVisibleBySeriesIds(
+    seriesIds: string[],
+    now: Date,
+    market: UserMarket,
+    manager?: EntityManager,
+  ): Promise<Content[]> {
+    if (seriesIds.length === 0) {
+      return [];
+    }
+
+    return this.applyVisibility(
+      this.scoped(manager).createQueryBuilder('content'),
+      now,
+      market,
+    )
+      .andWhere('content.series_id IN (:...seriesIds)', { seriesIds })
+      .andWhere('content.episode_no IS NOT NULL')
+      .orderBy('content.series_id', 'ASC')
+      .addOrderBy('content.episode_no', 'ASC')
+      .addOrderBy('content.published_at', 'ASC')
+      .addOrderBy('content.id', 'ASC')
+      .getMany();
+  }
+
+  /**
+   * 관리자 시리즈 목록의 편 현황 — 시리즈 × 상태별 편 수와 발행 중 최대 편 번호. 상태 3값을 한 번에 센다
+   * (시리즈마다 따로 묻지 않는다 — architecture.md 3.4)
+   */
+  async countEpisodesBySeries(
+    seriesIds: string[],
+    manager?: EntityManager,
+  ): Promise<
+    {
+      seriesId: string;
+      published: number;
+      withdrawn: number;
+      expired: number;
+      maxPublishedEpisodeNo: number | null;
+    }[]
+  > {
+    if (seriesIds.length === 0) {
+      return [];
+    }
+
+    const rows = await this.scoped(manager)
+      .createQueryBuilder('content')
+      .select('content.series_id', 'series_id')
+      .addSelect(
+        'COUNT(*) FILTER (WHERE content.status = :published)',
+        'published',
+      )
+      .addSelect(
+        'COUNT(*) FILTER (WHERE content.status = :withdrawn)',
+        'withdrawn',
+      )
+      .addSelect('COUNT(*) FILTER (WHERE content.status = :expired)', 'expired')
+      .addSelect(
+        'MAX(content.episode_no) FILTER (WHERE content.status = :published)',
+        'max_published_episode_no',
+      )
+      .where('content.series_id IN (:...seriesIds)', { seriesIds })
+      .setParameters({
+        published: ContentStatus.PUBLISHED,
+        withdrawn: ContentStatus.WITHDRAWN,
+        expired: ContentStatus.EXPIRED,
+      })
+      .groupBy('content.series_id')
+      .getRawMany<{
+        series_id: string;
+        published: string;
+        withdrawn: string;
+        expired: string;
+        max_published_episode_no: number | null;
+      }>();
+
+    return rows.map((row) => ({
+      seriesId: row.series_id,
+      published: Number(row.published),
+      withdrawn: Number(row.withdrawn),
+      expired: Number(row.expired),
+      maxPublishedEpisodeNo:
+        row.max_published_episode_no === null
+          ? null
+          : Number(row.max_published_episode_no),
+    }));
+  }
+
+  /**
+   * 같은 시리즈·같은 번호로 **발행 중인** 편이 있는가 — 부분 유니크(`uq_contents_series_id_episode_no_published`)의
+   * 사전 확인. 라이선스 만료 전 `published`도 센다(인덱스와 같은 조건 — 노출 조건이 아니라 상태다)
+   */
+  async existsPublishedEpisode(
+    seriesId: string,
+    episodeNo: number,
+    excludeContentId: string | null,
+    manager?: EntityManager,
+  ): Promise<boolean> {
+    const builder = this.scoped(manager)
+      .createQueryBuilder('content')
+      .where('content.series_id = :seriesId', { seriesId })
+      .andWhere('content.episode_no = :episodeNo', { episodeNo })
+      .andWhere('content.status = :published', {
+        published: ContentStatus.PUBLISHED,
+      });
+
+    if (excludeContentId !== null) {
+      builder.andWhere('content.id <> :excludeContentId', { excludeContentId });
+    }
+
+    return builder.getExists();
+  }
+
+  /** 시리즈에 이미 올라간 편들의 시장(상태 무관) — 한 시리즈에 시장이 섞이지 않게 업로드가 본다 */
+  async findMarketsBySeriesId(
+    seriesId: string,
+    manager?: EntityManager,
+  ): Promise<UserMarket[]> {
+    const rows = await this.scoped(manager)
+      .createQueryBuilder('content')
+      .select('DISTINCT content.market', 'market')
+      .where('content.series_id = :seriesId', { seriesId })
+      .getRawMany<{ market: UserMarket }>();
+
+    return rows.map((row) => row.market);
   }
 
   async saveAll(

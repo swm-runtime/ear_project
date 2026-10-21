@@ -5,6 +5,7 @@ import { ContentOrigin, ContentStatus } from '@/modules/content/content.enum';
 import { ContentSource } from '@/modules/content/entities/content-source.entity';
 import { Content } from '@/modules/content/entities/content.entity';
 import { ContentService } from '@/modules/content/services/content.service';
+import { SeriesService } from '@/modules/content/services/series.service';
 import { LibraryItem } from '@/modules/library/library-item.entity';
 import {
   LibraryItemSource,
@@ -81,6 +82,7 @@ describe('ContentDetailOrchestrator', () => {
   let contentService: jest.Mocked<ContentService>;
   let libraryService: jest.Mocked<LibraryService>;
   let playbackService: jest.Mocked<PlaybackService>;
+  let seriesService: jest.Mocked<SeriesService>;
 
   beforeEach(() => {
     contentService = {
@@ -97,10 +99,15 @@ describe('ContentDetailOrchestrator', () => {
       findCountedContentIds: jest.fn().mockResolvedValue(new Set<string>()),
     } as unknown as jest.Mocked<PlaybackService>;
 
+    seriesService = {
+      findRefs: jest.fn().mockResolvedValue(new Map()),
+    } as unknown as jest.Mocked<SeriesService>;
+
     orchestrator = new ContentDetailOrchestrator(
       contentService,
       libraryService,
       playbackService,
+      seriesService,
     );
   });
 
@@ -142,6 +149,37 @@ describe('ContentDetailOrchestrator', () => {
       // then
       expect(result.sources).toBeNull();
       expect(contentService.findSourcesByContentId).not.toHaveBeenCalled();
+    });
+
+    it('시리즈 편이면 시리즈 표의 표시값을, 단일 콘텐츠면 null을 담는다(KAN-134)', async () => {
+      // given
+      const ref = {
+        id: '77777777-7777-4777-8777-777777777777',
+        title: '시리즈',
+        episodeNo: 2,
+        totalEpisodes: 16,
+      };
+      seriesService.findRefs.mockResolvedValueOnce(
+        new Map([[CONTENT_ID, ref]]),
+      );
+
+      // when
+      const inSeries = await orchestrator.getContentDetail(
+        USER_ID,
+        CONTENT_ID,
+        NOW,
+        UserMarket.KR,
+      );
+      const single = await orchestrator.getContentDetail(
+        USER_ID,
+        CONTENT_ID,
+        NOW,
+        UserMarket.KR,
+      );
+
+      // then
+      expect(inSeries.series).toEqual(ref);
+      expect(single.series).toBeNull();
     });
 
     it('담기지 않은 콘텐츠면 libraryItem이 null이다', async () => {

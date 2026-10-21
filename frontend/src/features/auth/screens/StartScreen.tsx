@@ -1,14 +1,18 @@
 import { Image, Pressable, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { APP_LANGUAGE } from '@/shared/i18n/locale';
 import { theme } from '@/shared/theme';
 import LoadingOverlay from '@/shared/ui/LoadingOverlay';
 import { Text } from '@/shared/ui/Typography';
 
-import { SOCIAL_PROVIDERS } from '../auth.constants';
 import { AUTH_COPY } from '../auth.copy';
 import ProviderButton from '../components/ProviderButton';
 import { useStartScreen } from '../hooks/useStartScreen';
+import { providersFor } from '../services/start-providers';
+
+/** 로그인 전이라 시장을 모른다 — 표시 언어로 거른다(영어면 Google·Apple만, auth-uiux.md 4.1) */
+const PROVIDERS = providersFor(APP_LANGUAGE);
 
 /**
  * A1 시작 화면 — 서비스 소개 + 제공자 버튼 3개 + 약관·개인정보 처리방침 링크.
@@ -42,7 +46,7 @@ export default function StartScreen() {
         </View>
 
         <View style={styles.providers}>
-          {SOCIAL_PROVIDERS.map((provider) => (
+          {PROVIDERS.map((provider) => (
             <ProviderButton
               key={provider}
               provider={provider}
@@ -95,12 +99,15 @@ const styles = StyleSheet.create({
   },
   tagline: {
     marginTop: theme.spacing.md,
+    // 영어 등 긴 문구가 두 줄로 접혀도 가운데 정렬을 유지한다(KAN-197)
+    textAlign: 'center',
     fontSize: theme.font.size.xl,
     fontWeight: '700',
     color: theme.color.textPrimary,
   },
   description: {
     marginTop: theme.spacing.sm,
+    textAlign: 'center',
     fontSize: theme.font.size.md,
     color: theme.color.textSecondary,
   },
@@ -122,6 +129,9 @@ const styles = StyleSheet.create({
     backgroundColor: theme.color.border,
   },
   dividerLabel: {
+    // 선은 고정 폭이고 줄어드는 쪽은 문구다 — 긴 영어 문구가 가로로 넘치지 않고 접힌다(KAN-197)
+    flexShrink: 1,
+    textAlign: 'center',
     fontSize: theme.font.size.xs,
     color: theme.color.textSecondary,
   },
@@ -134,6 +144,8 @@ const styles = StyleSheet.create({
   },
   links: {
     flexDirection: 'row',
+    // 좁은 기기에서 링크 둘이 한 줄에 안 들어가면 다음 줄로 내린다(KAN-197)
+    flexWrap: 'wrap',
     alignItems: 'center',
     justifyContent: 'center',
     gap: theme.spacing.sm,

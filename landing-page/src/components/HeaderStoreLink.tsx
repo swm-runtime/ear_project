@@ -18,7 +18,15 @@ import s from "./Header.module.css";
  * 메뉴는 `<details>`다(헤더의 모바일 메뉴와 같은 방식) — 스크립트가 늦게 떠도 열리고 닫힌다. 바깥을 누르거나
  * Esc를 누르면 닫히는 것만 스크립트가 보탠다.
  */
-export function HeaderStoreLink() {
+export function HeaderStoreLink({
+  label = "앱 다운로드",
+  iphoneLabel = "아이폰",
+}: {
+  /** 버튼 문구. 영어 헤더(`EnHeader`)는 영어로 넘긴다. */
+  label?: string;
+  /** 스토어 메뉴의 App Store 보조 문구. */
+  iphoneLabel?: string;
+} = {}) {
   const platform = useStorePlatform();
   const directUrl = storeUrlFor(platform);
 
@@ -31,15 +39,15 @@ export function HeaderStoreLink() {
         rel="noopener noreferrer"
       >
         {platform === "android" ? <GooglePlayLogo /> : <AppleLogo />}
-        앱 다운로드
+        {label}
       </a>
     );
   }
 
-  return <StoreMenu />;
+  return <StoreMenu label={label} iphoneLabel={iphoneLabel} />;
 }
 
-function StoreMenu() {
+function StoreMenu({ label, iphoneLabel }: { label: string; iphoneLabel: string }) {
   const ref = useRef<HTMLDetailsElement>(null);
 
   useEffect(() => {
@@ -66,7 +74,7 @@ function StoreMenu() {
     <details ref={ref} className={s.storeMenu}>
       <summary className={`btn btnPrimary ${s.storeBtn}`}>
         <DownloadIcon />
-        앱 다운로드
+        {label}
       </summary>
       <div className={s.storePanel}>
         <a
@@ -79,7 +87,7 @@ function StoreMenu() {
           <AppleLogo />
           <span>
             App Store
-            <small>아이폰</small>
+            <small>{iphoneLabel}</small>
           </span>
         </a>
         <a

@@ -1,11 +1,14 @@
 import { track } from '@/shared/analytics';
 import { apiClient } from '@/shared/api/api-client';
+import { logger } from '@/shared/lib/logger';
 
 import { toPlayLimitSnapshot } from '@/features/player';
 
 import { IS_EXPLORE_API_MOCKED } from '../explore.constants';
 import type {
+  ExploreContent,
   ExploreContentsPage,
+  ExploreEntry,
   ExploreFeed,
   ExploreItem,
   ExplorePeriod,
@@ -14,15 +17,20 @@ import type {
   ExploreTopic,
   SaveContentResult,
   SaveReason,
+  SeriesDetail,
 } from '../explore.types';
 import type {
+  ExploreContentDto,
   ExploreContentsResponseDto,
+  ExploreEntryDto,
   ExploreFeedResponseDto,
   ExploreItemDto,
+  ExploreSeriesCardDto,
   ExplorePopularResponseDto,
   ExploreSearchResponseDto,
   ExploreTopicsResponseDto,
   SaveContentResponseDto,
+  SeriesDetailResponseDto,
   UnsaveContentResponseDto,
 } from './explore.dto';
 import {
@@ -30,6 +38,7 @@ import {
   mockFetchFeed,
   mockFetchPopular,
   mockFetchSearch,
+  mockFetchSeriesDetail,
   mockFetchTopics,
   mockSaveContent,
   mockUnsaveContent,
@@ -50,27 +59,100 @@ export const exploreKeys = {
    * 덮지 못하게 하는 구조적 방어다(explore.md 4.5-2). 화면은 현재 질의의 키만 구독한다.
    */
   search: (query: string) => [...exploreKeys.all, 'search', query] as const,
+  /**
+   * 시리즈 화면(explore-api.md 4.7) — explore 아래에 둔다: 탐색의 재생·담기 뒤 `exploreKeys.all` 무효화가 시리즈 화면의
+   * 편 상태(담음·완청·재생 위치)도 함께 최신화한다
+   */
+  series: (seriesId: string) => [...exploreKeys.all, 'series', seriesId] as const,
 };
 
 /* ── 변환 — snake_case ↔ camelCase 변환은 이 모듈 안에서만 일어난다 ── */
 
+const toExploreContent = (dto: ExploreContentDto): ExploreContent => ({
+  id: dto.id,
+  title: dto.title,
+  authorName: dto.author_name ?? '',
+  sourceName: dto.source_name,
+  sourceUrl: dto.source_url,
+  durationSec: dto.duration_sec,
+  thumbnailUrl: dto.thumbnail_url,
+  contentVersion: dto.content_version,
+  topicIds: dto.topic_ids,
+  tags: dto.tags ?? [],
+  language: dto.language ?? null,
+  series: dto.series
+    ? {
+        id: dto.series.id,
+        title: dto.series.title,
+        episodeNo: dto.series.episode_no,
+        totalEpisodes: dto.series.total_episodes,
+      }
+    : null,
+});
+
 const toExploreItem = (dto: ExploreItemDto): ExploreItem => ({
-  content: {
-    id: dto.content.id,
-    title: dto.content.title,
-    authorName: dto.content.author_name,
-    sourceName: dto.content.source_name,
-    sourceUrl: dto.content.source_url,
-    durationSec: dto.content.duration_sec,
-    thumbnailUrl: dto.content.thumbnail_url,
-    contentVersion: dto.content.content_version,
-    topicIds: dto.content.topic_ids,
-    tags: dto.content.tags ?? [],
-  },
+  type: 'content',
+  content: toExploreContent(dto.content),
   library: dto.library
     ? { itemId: dto.library.item_id, source: dto.library.source, status: dto.library.status }
     : null,
   isCountedToday: dto.is_counted_today,
+});
+
+const toExploreSeriesItem = (dto: ExploreSeriesCardDto): ExploreEntry => ({
+  type: 'series',
+  series: {
+    id: dto.series.id,
+    title: dto.series.title,
+    description: dto.series.description,
+    totalEpisodes: dto.series.total_episodes,
+    episodeCount: dto.series.episode_count,
+    status: dto.series.status,
+    thumbnailUrl: dto.series.thumbnail_url,
+    topicIds: dto.series.topic_ids,
+  },
+});
+
+/**
+ * 섞인 목록의 항목 하나(explore-api.md 4.1-1) — `type` 이 없으면 콘텐츠 행이다(스위치가 꺼진 서버는 `type` 키를 보내지
+ * 않는다). **모르는 `type` 은 null 로 버린다** — 서버가 무배포로 새 종류를 더해도 그 항목만 빠지고 목록이 깨지지 않게 한다
+ * (계약 "모르는 type 은 건너뛴다"). 타입에 없는 값도 런타임엔 올 수 있어 문자열로 다시 읽는다
+ */
+export const toExploreEntry = (dto: ExploreEntryDto): ExploreEntry | null => {
+  const type: unknown = (dto as { type?: unknown }).type;
+  if (type === undefined || type === 'content') return toExploreItem(dto as ExploreItemDto);
+  if (type === 'series') return toExploreSeriesItem(dto as ExploreSeriesCardDto);
+  logger.debug('[explore] unknown entry type skipped', type);
+  return null;
+};
+
+const toExploreEntries = (dtos: ExploreEntryDto[]): ExploreEntry[] =>
+  dtos.map(toExploreEntry).filter((entry): entry is ExploreEntry => entry !== null);
+
+/** GET /series/:series_id(explore-api.md 4.7) — 편 순서는 서버 정렬(episode_no 오름차순) 그대로 둔다 */
+export const toSeriesDetail = (dto: SeriesDetailResponseDto): SeriesDetail => ({
+  series: {
+    id: dto.series.id,
+    title: dto.series.title,
+    description: dto.series.description,
+    totalEpisodes: dto.series.total_episodes,
+    status: dto.series.status,
+    thumbnailUrl: dto.series.thumbnail_url,
+  },
+  episodes: dto.episodes.map((episode) => ({
+    episodeNo: episode.episode_no,
+    item: toExploreItem({
+      content: episode.content,
+      library: episode.library,
+      is_counted_today: episode.is_counted_today,
+    }),
+    progress: episode.progress
+      ? {
+          positionSec: episode.progress.position_sec,
+          maxReachedSec: episode.progress.max_reached_sec,
+        }
+      : null,
+  })),
 });
 
 const toExploreFeed = (dto: ExploreFeedResponseDto): ExploreFeed => ({
@@ -80,33 +162,33 @@ const toExploreFeed = (dto: ExploreFeedResponseDto): ExploreFeed => ({
     title: section.title,
     topic: section.topic,
     period: section.period ?? null,
-    items: section.items.map(toExploreItem),
+    items: toExploreEntries(section.items),
   })),
   playLimit: toPlayLimitSnapshot(dto),
 });
 
 const toContentsPage = (dto: ExploreContentsResponseDto): ExploreContentsPage => ({
-  items: dto.items.map(toExploreItem),
+  items: toExploreEntries(dto.items),
   nextCursor: dto.next_cursor,
   hasNext: dto.has_next,
   playLimit: toPlayLimitSnapshot(dto),
 });
 
 const toSearchPage = (dto: ExploreSearchResponseDto): ExploreSearchPage => ({
-  items: dto.items.map(toExploreItem),
+  items: toExploreEntries(dto.items),
   nextCursor: dto.next_cursor,
   hasNext: dto.has_next,
   fallback: dto.fallback
     ? {
         relatedTopics: dto.fallback.related_topics,
-        popularItems: dto.fallback.popular_items.map(toExploreItem),
+        popularItems: toExploreEntries(dto.fallback.popular_items),
       }
     : null,
 });
 
 const toPopularPage = (dto: ExplorePopularResponseDto): ExplorePopularPage => ({
   period: dto.period,
-  items: dto.items.map(toExploreItem),
+  items: toExploreEntries(dto.items),
   nextCursor: dto.next_cursor,
   hasNext: dto.has_next,
   playLimit: toPlayLimitSnapshot(dto),
@@ -181,6 +263,17 @@ export const fetchExploreSearch = async (input: {
     ? await mockFetchSearch({ query: input.query, cursor: input.cursor })
     : (await apiClient.get<ExploreSearchResponseDto>('/explore/search', { params })).data;
   return toSearchPage(data);
+};
+
+/**
+ * 시리즈 화면(explore-api.md 4.7) — 탐색 시리즈 카드·상세의 시리즈 줄이 연다. 스위치와 무관하게 열려 있다.
+ * 없는·다른 시장·노출 편 0개 시리즈는 404 `NOT_FOUND` 다 — 화면이 "시리즈를 찾을 수 없어요"로 받는다
+ */
+export const fetchSeriesDetail = async (input: { seriesId: string }): Promise<SeriesDetail> => {
+  const data = IS_EXPLORE_API_MOCKED
+    ? await mockFetchSeriesDetail(input.seriesId)
+    : (await apiClient.get<SeriesDetailResponseDto>(`/series/${input.seriesId}`)).data;
+  return toSeriesDetail(data);
 };
 
 /** 담기(explore-api.md 4.3) — 횟수 제한이 없고 페이월을 노출하지 않는다(PRD 5.4) */

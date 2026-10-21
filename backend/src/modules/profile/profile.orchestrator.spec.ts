@@ -154,6 +154,7 @@ describe('ProfileOrchestrator', () => {
       expect(subscriptionService.buildPlanView).toHaveBeenCalledWith(USER_ID, {
         trialEndsAt,
         now: NOW,
+        market: UserMarket.KR,
       });
     });
   });
@@ -409,7 +410,12 @@ describe('ProfileOrchestrator', () => {
       const result = await orchestrator.getSummary(USER_ID, NOW);
 
       // then — 주제 매핑은 등장한 콘텐츠만 한 번 조회한다
-      expect(contentService.findTopicViews).toHaveBeenCalledWith([CONTENT_ID]);
+      // 주제는 현재 시장 것만 — 시장을 바꾼 사용자에게 이전 시장 주제가 섞이지 않게(global-api 4.11)
+      expect(contentService.findTopicViews).toHaveBeenCalledWith(
+        [CONTENT_ID],
+        undefined,
+        UserMarket.KR,
+      );
       expect(result.weeklyListening?.topicDistribution).toEqual({
         topics: [{ topicId: TOPIC_ID, name: '커리어', ratio: 100 }],
         othersRatio: 0,

@@ -19,6 +19,7 @@ import {
   SubscriptionStore,
 } from '@/modules/subscription/subscription.enum';
 import {
+  StorePurchaseDetail,
   StoreRenewalInfo,
   StoreTransaction,
 } from '@/modules/subscription/subscription.types';
@@ -470,6 +471,40 @@ function toStoreTransaction(
     // UUID는 대소문자를 가리지 않는다 — 의도 행의 `id`(소문자)와 맞춘다
     accountToken: payload.appAccountToken?.toLowerCase() ?? null,
     receipt: signedTransaction,
+    detail: toPurchaseDetail(payload),
+  };
+}
+
+/** Apple `price`는 밀리 단위(실제 금액 × 1000)다 */
+const APPLE_PRICE_SCALE = 1000;
+
+/**
+ * 결제 알림 문구용 부가 사실(`features/backend-monitoring.md` 3-7). 판정에 쓰지 않는다 — 값이 없거나 낯설면 `null`.
+ * 문자열 비교는 라이브러리 enum 대신 원문으로 한다(값이 문자열 그대로 온다)
+ */
+function toPurchaseDetail(
+  payload: JWSTransactionDecodedPayload,
+): StorePurchaseDetail {
+  const reason = payload.transactionReason;
+
+  return {
+    // 체험은 "소개 할인"의 한 종류다 — 할인 종류가 무료 체험이면 체험이다. 할인이 없으면 체험이 아니다
+    isTrial:
+      payload.offerDiscountType !== undefined
+        ? payload.offerDiscountType === 'FREE_TRIAL'
+        : payload.offerType === undefined
+          ? false
+          : null,
+    isRenewal:
+      reason === 'RENEWAL' ? true : reason === 'PURCHASE' ? false : null,
+    storefront: payload.storefront ?? null,
+    price:
+      typeof payload.price === 'number' && payload.currency
+        ? {
+            amount: payload.price / APPLE_PRICE_SCALE,
+            currency: payload.currency,
+          }
+        : null,
   };
 }
 

@@ -1,5 +1,6 @@
 import 'dotenv/config';
 import { HttpStatus, INestApplication, ValidationPipe } from '@nestjs/common';
+import { JwtService } from '@nestjs/jwt';
 import { Test } from '@nestjs/testing';
 import request from 'supertest';
 import { App } from 'supertest/types';
@@ -9,6 +10,7 @@ import { AppModule } from '@/app.module';
 import { ErrorCode } from '@/common/exceptions/error-code.enum';
 import { traceIdMiddleware } from '@/common/middlewares/trace-id.middleware';
 import {
+  shiftServiceDate,
   toServiceDate,
   toServiceDayRange,
 } from '@/common/utils/service-date.util';
@@ -19,7 +21,7 @@ import {
   LibraryItemSource,
   LibraryItemStatus,
 } from '@/modules/library/library.enum';
-import { SocialProvider } from '@/modules/user/user.enum';
+import { SocialProvider, UserMarket } from '@/modules/user/user.enum';
 
 interface SignUpBody {
   status: string;
@@ -174,7 +176,7 @@ describe('추천 별점 E2E', () => {
     );
   }, 60_000);
 
-  it('닫기는 그 편성분을 다시 묻지 않게 하고, 새 편성분이 생기면 다시 묻는다', async () => {
+  it('닫기는 그 편성분을 다시 묻지 않게 하고, 7일 안의 새 편성분도 묻지 않다가 7일이 지난 편성분이면 다시 묻는다', async () => {
     const { userId, auth } = await createUser('dismiss');
     await place(userId, [contentIds[0]], placedAt(2), 'e2e-v1');
 
@@ -192,8 +194,18 @@ describe('추천 별점 E2E', () => {
     ).body as PromptBody;
     expect(closed.show).toBe(false);
 
-    // 새 편성(어제)이 생기면 그것을 묻는다
+    // 새 편성(어제)이 생겨도 지난번에 물은 편성분에서 7일이 안 지났으면 묻지 않는다
     await place(userId, [contentIds[1]], placedAt(1), 'e2e-v1');
+    const tooSoon = (
+      await get('/users/me/drip-feedback/prompt', auth).expect(HttpStatus.OK)
+    ).body as PromptBody;
+    expect(tooSoon.show).toBe(false);
+
+    // 지난번에 물은 편성분이 어제보다 7일 전이었다면 어제 편성분을 묻는다
+    await dataSource.query(
+      `UPDATE user_settings SET drip_feedback_last_prompted_date = $2 WHERE user_id = $1`,
+      [userId, shiftServiceDate(toServiceDate(placedAt(1)), -7)],
+    );
     const again = (
       await get('/users/me/drip-feedback/prompt', auth).expect(HttpStatus.OK)
     ).body as PromptBody;
@@ -289,6 +301,57 @@ describe('추천 별점 E2E', () => {
     });
   }, 60_000);
 
+  it('가입 3일째까지는 묻지 않는다 — 가입일이 1일째', async () => {
+    const { userId, auth } = await createUser('fresh', 0);
+    await place(userId, [contentIds[0]], placedAt(1), 'e2e-v1');
+
+    const prompt = (
+      await get('/users/me/drip-feedback/prompt', auth).expect(HttpStatus.OK)
+    ).body as PromptBody;
+
+    expect(prompt.show).toBe(false);
+    expect(prompt.items).toEqual([]);
+  }, 60_000);
+
+  it('어제 KR 정규 편성분만 있는 사용자를 global 로 바꾸고 GLOBAL 토큰으로 요청하면 팝업 항목이 없다 — 이전 시장 편성분은 어떤 응답에도 나오지 않는다(global-api 4.7·4.11)', async () => {
+    // given — KR 시장에서 어제 정규 편성분 2편(KR 콘텐츠)을 받았다
+    const { userId, auth } = await createUser('market');
+    await place(userId, [contentIds[0], contentIds[1]], placedAt(1), 'e2e-v1');
+    const before = (
+      await get('/users/me/drip-feedback/prompt', auth).expect(HttpStatus.OK)
+    ).body as PromptBody;
+    expect(before.show).toBe(true);
+
+    // when — 시장을 global 로 바꾸고 GLOBAL 토큰으로 묻는다
+    await dataSource.query(`UPDATE users SET market = $2 WHERE id = $1`, [
+      userId,
+      UserMarket.GLOBAL,
+    ]);
+    const globalToken = app.get(JwtService).sign(
+      {
+        sub: userId,
+        role: 'user',
+        typ: 'access',
+        market: UserMarket.GLOBAL,
+      },
+      { expiresIn: 600 },
+    );
+    const prompt = (
+      await get(
+        '/users/me/drip-feedback/prompt',
+        `Bearer ${globalToken}`,
+      ).expect(HttpStatus.OK)
+    ).body as PromptBody;
+
+    // then — 이전 시장 편성분은 가장 최근 편성분으로도 잡히지 않는다
+    expect(prompt).toEqual({
+      show: false,
+      placed_date: null,
+      muted_until: null,
+      items: [],
+    });
+  }, 60_000);
+
   it('편성분이 없는 사용자는 묻지 않는다', async () => {
     const { auth } = await createUser('none');
 
@@ -316,6 +379,8 @@ describe('추천 별점 E2E', () => {
 
   async function createUser(
     label: string,
+    // 가입 4일째부터 묻는다 — 기본은 한 달 전 가입으로 옮겨 그 조건을 넘긴다
+    signedUpDaysAgo = 30,
   ): Promise<{ userId: string; auth: string; providerToken: string }> {
     const providerToken = `e2e-df-${label}-${Date.now()}-${Math.floor(Math.random() * 1_000_000)}`;
     const deviceId = `e2e-df-device-${label}`;
@@ -343,6 +408,10 @@ describe('추천 별점 E2E', () => {
       .expect(HttpStatus.CREATED);
     const signUpBody = signUp.body as SignUpBody;
     userIds.push(signUpBody.user.id);
+    await dataSource.query(
+      `UPDATE users SET created_at = now() - make_interval(days => $2) WHERE id = $1`,
+      [signUpBody.user.id, signedUpDaysAgo],
+    );
 
     return {
       userId: signUpBody.user.id,

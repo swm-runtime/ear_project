@@ -3,6 +3,7 @@ import { ErrorCode } from '@/common/exceptions/error-code.enum';
 import { SaveReason } from '@/modules/explore/explore.enum';
 import { LibraryItemStatus } from '@/modules/library/library.enum';
 import { PlayEntryPoint } from '@/modules/playback/playback.enum';
+import { UserMarket } from '@/modules/user/user.enum';
 
 import { RecommendTestAction } from './recommend-test.enum';
 import { RecommendTestService } from './recommend-test.service';
@@ -40,7 +41,11 @@ type Deps = {
 function build(env: Record<string, string | undefined>) {
   const deps: Deps = {
     userService: {
-      findByEmail: jest.fn().mockResolvedValue({ id: USER_ID, email: EMAIL }),
+      findByEmail: jest.fn().mockResolvedValue({
+        id: USER_ID,
+        email: EMAIL,
+        market: UserMarket.KR,
+      }),
     },
     libraryService: {
       findItemByContentId: jest.fn().mockResolvedValue(null),
@@ -191,17 +196,19 @@ describe('RecommendTestService', () => {
         userId: USER_ID,
         contentId: CONTENT_ID,
         reason: SaveReason.AUTO_PLAY,
+        market: UserMarket.KR,
         now: NOW,
       });
       expect(deps.playService.startPlay).toHaveBeenCalledWith({
         userId: USER_ID,
         contentId: CONTENT_ID,
         entryPoint: PlayEntryPoint.EXPLORE,
+        market: UserMarket.KR,
         now: NOW,
       });
       expect(
         deps.dripBatchOrchestrator.refreshDerivedState,
-      ).toHaveBeenCalledWith(USER_ID, NOW);
+      ).toHaveBeenCalledWith(USER_ID, UserMarket.KR, NOW);
       expect(result.preferenceRebuilt).toBe(true);
       expect(result.effects).toHaveLength(2);
     });

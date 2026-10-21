@@ -1,5 +1,6 @@
 import { AudioQuality } from '@/modules/content/content.enum';
 import { ContentService } from '@/modules/content/services/content.service';
+import { SeriesService } from '@/modules/content/services/series.service';
 import { LibraryService } from '@/modules/library/library.service';
 import { PlanService } from '@/modules/subscription/services/plan.service';
 import { UserService } from '@/modules/user/services/user.service';
@@ -22,6 +23,7 @@ const CONTENT_ID = 'aaaaaaaa-1111-4111-8111-111111111111';
 describe('AudioUrlService — 음질(KAN-141)', () => {
   let service: AudioUrlService;
   let contentService: jest.Mocked<ContentService>;
+  let seriesService: jest.Mocked<SeriesService>;
   let userService: jest.Mocked<UserService>;
   let userSettingService: jest.Mocked<UserSettingService>;
   let planService: jest.Mocked<PlanService>;
@@ -44,6 +46,9 @@ describe('AudioUrlService — 음질(KAN-141)', () => {
     });
 
   beforeEach(() => {
+    seriesService = {
+      findRefs: jest.fn().mockResolvedValue(new Map()),
+    } as unknown as jest.Mocked<SeriesService>;
     contentService = {
       getPublishedById: jest.fn().mockResolvedValue({
         id: CONTENT_ID,
@@ -100,7 +105,21 @@ describe('AudioUrlService — 음질(KAN-141)', () => {
       { insert: jest.fn() } as unknown as AudioAccessLogRepository,
       { hashIp: jest.fn().mockReturnValue(null) } as unknown as AudioUrlSigner,
       issuer,
+      seriesService,
     );
+  });
+
+  it('시리즈 편이면 content.series 를 싣고, 단일 콘텐츠면 null 이다(KAN-134)', async () => {
+    const ref = {
+      id: '77777777-7777-4777-8777-777777777777',
+      title: '시리즈',
+      episodeNo: 3,
+      totalEpisodes: 16,
+    };
+    seriesService.findRefs.mockResolvedValueOnce(new Map([[CONTENT_ID, ref]]));
+
+    expect((await issue()).content.series).toEqual(ref);
+    expect((await issue()).content.series).toBeNull();
   });
 
   it('대본이 있으면 has_script 와 구간 제목을 함께 내려준다 — 세그먼트 본문은 읽지 않는다(KAN-144)', async () => {

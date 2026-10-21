@@ -6,18 +6,26 @@ import { BackHandler } from 'react-native';
 import { track } from '@/shared/analytics';
 import { isApiError } from '@/shared/api/api-error';
 import { useDelayedVisible } from '@/shared/hooks/useDelayedVisible';
+import { localized, type LocalizedCopy } from '@/shared/i18n/localized';
 import { useToastStore } from '@/shared/ui/toast.store';
 
 import { useJobCategoriesQuery } from '@/features/career';
 
 import type { OnboardingStackParamList, YearsOfExperience } from '../onboarding.types';
+import { useOnboardingStepFlow } from './useOnboardingStepFlow';
 import { useSaveCareerMutation } from './useSaveCareerMutation';
 import { onboardingCompletionService } from '../services/onboarding-completion.service';
 
 type PendingAction = 'next' | 'skip' | null;
 
+const ko = { saveFailed: '저장하지 못했어요. 다시 시도해주세요' } as const;
+const en: LocalizedCopy<typeof ko> = { saveFailed: 'Couldn’t save. Please try again' };
+const COPY = localized({ ko, en });
+
 export const useCareerScreen = () => {
   const navigation = useNavigation<NativeStackNavigationProp<OnboardingStackParamList, 'Career'>>();
+  // 다음 화면은 서버 steps[]가 정한다 — 지금 KR 배열에선 커리어가 마지막이라 완료 대기로 간다(global-api.md 4.4)
+  const { position: stepPosition, goToNextStep } = useOnboardingStepFlow('career');
   const showToast = useToastStore((s) => s.show);
   const saveCareerMutation = useSaveCareerMutation();
   // 직군 선택지는 서버 목록이다 — 커리어 정보 화면과 같은 계약·같은 캐시(career-api.md 4.3,
@@ -68,18 +76,19 @@ export const useCareerScreen = () => {
       onSuccess: () => {
         track('onboarding_step', { step: 'career', action });
         onboardingCompletionService.noteCareer(action === 'next' && Object.keys(input).length > 0);
-        // 담기 단계가 없다(2026-10-11) — 2단계가 마지막 입력이라 바로 완료 대기로. 완료 요청은 그 화면이 쏜다.
-        // 완료 이후 구간은 뒤로 올 수 없다(reset)
-        navigation.reset({ index: 0, routes: [{ name: 'FirstDripWaiting' }] });
+        // 담기 단계가 없다(2026-10-11) — 커리어 뒤 단계가 없으면 완료 대기로(reset). 완료 요청은 그 화면이 쏜다
+        goToNextStep();
       },
       onError: (error) => {
-        showToast(isApiError(error) ? error.message : '저장하지 못했어요. 다시 시도해주세요');
+        showToast(isApiError(error) ? error.message : COPY.saveFailed);
       },
       onSettled: () => setPendingAction(null),
     });
   };
 
   return {
+    /** 단계 표시 숫자 — 서버 steps[] 기준(KR 2/2) */
+    stepPosition,
     jobCategory,
     jobTitle,
     yearsOfExperience,

@@ -11,7 +11,10 @@ import type { LibraryItemStatus, LibrarySource } from '@/features/library';
  */
 export type ContentDetailEntryPoint = 'library' | 'explore' | 'player' | 'share';
 
-/** 출처 영역 분기(content-detail.md 4.3) — 화면 라벨로 노출하지 않는다(uiux 8장 금지) */
+/**
+ * 콘텐츠 분류(partner · ai_generated) — 화면 라벨로 노출하지 않는다(uiux 8장 금지).
+ * 상세의 출처 영역을 뺀 뒤(KAN-221)로 이 화면이 분기에 쓰지 않는다 — 응답 값으로만 들고 있다.
+ */
 export type ContentOrigin = 'partner' | 'ai_generated';
 
 export interface ContentDetailTopic {
@@ -20,26 +23,16 @@ export interface ContentDetailTopic {
 }
 
 /**
- * 시리즈 정보 — 단일 콘텐츠는 세 필드가 전부 null이라 객체째 null로 내려온다
- * (content-detail-api.md 4.1 — null 판정이 하나가 되게 묶은 모양).
+ * 시리즈 정보 — 단일 콘텐츠는 객체째 null로 내려온다(content-detail-api.md 4.1 — null 판정이 하나가 되게 묶은 모양).
+ * `content.series` 객체(KAN-134 1단계)의 `id`·`title` 을 읽는다 — 구버전 서버는 `title` 이 없다
  */
 export interface ContentDetailSeries {
-  seriesId: string;
+  /** 시리즈 화면(E14) 이동 재료 — `id` 우선, 없으면 종전 `series_id`. 둘 다 없으면 null(시리즈 줄은 보이지만 눌리지 않는다) */
+  seriesId: string | null;
+  /** 시리즈 이름 — 없으면(구버전 서버) null 이고 시리즈 줄은 종전 "N부작 중 M화"만 적는다 */
+  title: string | null;
   episodeNo: number;
   totalEpisodes: number;
-}
-
-/**
- * ai_generated의 참고 소스 한 건.
- * ⚠️ 가정 계약 — 백엔드 티켓 확정 대기(tickets/backend/pending/content-sources-structured-list.md).
- * 계약 확정 시 필드명·형태를 맞춘다(content-detail.md 4.3).
- */
-export interface ContentDetailSource {
-  title: string;
-  /** 없으면 제목 한 줄만 표시한다 — "저자 없음"으로 채우지 않는다(content-detail.md 4.3-1) */
-  author: string | null;
-  /** 없으면 항목이 탭 대상이 아니다 — 목록에서 빼지 않는다(content-detail.md 4.3-1) */
-  url: string | null;
 }
 
 export interface ContentDetailContent {
@@ -55,17 +48,16 @@ export interface ContentDetailContent {
   topics: ContentDetailTopic[];
   /** 콘텐츠 해시태그('#' 없이) — 주제(분류)와 별개인 내용 표시. 없으면 빈 배열(KAN-163) */
   tags: string[];
+  /** 콘텐츠 언어(BCP 47 primary — `ko` · `en`). 표시 전용 — 이 값으로 거르지 않는다(global-api.md 4.7). 모르면 null */
+  language: string | null;
   series: ContentDetailSeries | null;
   origin: ContentOrigin;
   authorName: string | null;
-  /**
-   * partner는 제공(파트너명). ai_generated는 고지 문구용 표기 문자열이라 출처 영역에
-   * 쓰지 않는다 — 소스 나열은 sources가 담당한다(content-detail-api.md 4.1).
-   */
+  /** partner는 제공(파트너명), ai_generated는 고지 문구용 표기 문자열 — 플레이어 진입 메타로만 쓴다 */
   sourceName: string;
+  /** 상세 화면은 출처를 그리지 않는다(KAN-221) — 응답 값으로만 들고 있다 */
   sourceUrl: string | null;
-  /** ai_generated의 참고 소스 전수(⚠️ 가정 계약). partner는 null — api 9장 제안값 */
-  sources: ContentDetailSource[] | null;
+  // 참고 소스 목록(sources)은 읽지 않는다 — 상세에서 출처 영역을 뺐다(KAN-221). DTO에는 선택 필드로 남아 있다
 }
 
 /**

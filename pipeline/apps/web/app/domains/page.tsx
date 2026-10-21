@@ -4,16 +4,19 @@ import { PageHeader, Panel, Table } from "@/components/ui";
 import { AddDomainForm } from "./add-form";
 import { DomainRows } from "./domain-rows";
 import { CheckButton } from "./check-button";
+import { DiscoverForm } from "./discover-form";
 
 const TIERS: [string, string][] = [["candidate", "판정 대기"], ["allow_open", "1군"], ["allow_support", "2군"], ["hold", "보류"], ["blocked", "차단"], ["all", "전체"]];
 
 export default async function DomainsPage({ searchParams }: { searchParams: Promise<{ tier?: string; topic?: string; q?: string }> }) {
   const { tier = "candidate", topic, q } = await searchParams;
   const sb = await supabaseServer();
-  const [{ data: all }, { data: statRows }] = await Promise.all([
+  const [{ data: all }, { data: statRows }, { data: topicRows }] = await Promise.all([
     sb.from("domains").select("id,domain,publisher,tier,category,feed_url,topic_coverage,decided_by,decided_at,license_basis,note,evidence,fetch_blocked_at").order("domain"),
     sb.from("domain_stats").select("domain_id,source_count,last_swept,blocked_count,ok_count"),
+    sb.from("topics").select("mid,ai_generation,active"), // 소스 풀 채우기(모드 P)의 중분류 선택 — 제작 대상 중분류만
   ]);
+  const mids = (topicRows ?? []).filter((t: any) => t.ai_generation && t.active !== false).map((t: any) => t.mid as string).sort();
   const stats = Object.fromEntries((statRows ?? []).map((s: any) => [s.domain_id, s]));
   const rows = (all ?? []).filter((r) => (tier === "all" || r.tier === tier) && (!topic || (r.topic_coverage ?? []).includes(topic)) && (!q || `${r.domain} ${r.publisher} ${r.note ?? ""}`.toLowerCase().includes(q.toLowerCase())));
   const topics = Array.from(new Set((all ?? []).flatMap((r) => r.topic_coverage ?? []))).sort();
@@ -25,7 +28,7 @@ export default async function DomainsPage({ searchParams }: { searchParams: Prom
 
   return (
     <div>
-      <PageHeader title="소스 풀" breadcrumb={["파이프라인", "소스 풀"]} desc="계층 판정은 사람만 한다 (spec/01 4장). 행을 클릭하면 판정 보조 증거와 판정 폼이 그 자리에서 열리고, 계층을 저장하면 판정자·시각이 자동 기록된다." />
+      <PageHeader title="소스 풀" breadcrumb={["파이프라인", "소스 풀"]} desc="계층 판정은 사람만 한다 (spec/01 4장). 행을 클릭하면 판정 보조 증거와 판정 폼이 그 자리에서 열리고, 계층을 저장하면 판정자·시각이 자동 기록된다. [소스 풀 채우기]는 중분류의 발행처를 웹 검색으로 찾아 판정 대기에 올린다(spec/02 모드 P) — 올라온 뒤 확인 ①~④가 자동으로 돈다." />
       <div className="mb-3 flex flex-wrap items-center gap-2">
         <nav className="flex flex-wrap gap-1">
           {TIERS.map(([t, name]) => (
@@ -35,6 +38,9 @@ export default async function DomainsPage({ searchParams }: { searchParams: Prom
           ))}
         </nav>
         <CheckButton unchecked={(all ?? []).filter((r) => r.tier === "candidate" && !r.evidence).length} total={(all ?? []).filter((r) => r.tier === "candidate").length} />
+      </div>
+      <div className="mb-3 flex flex-wrap items-center gap-2">
+        <DiscoverForm mids={mids} />
         <form className="ml-auto flex gap-2">
           <input type="hidden" name="tier" value={tier} />
           {topic && <input type="hidden" name="topic" value={topic} />}

@@ -51,3 +51,12 @@ test("에피소드 발음 맵 읽기 — 글로벌판은 빈 값을 형식 오�
   await assert.rejects(readEpisodePronunciations(file, true), /항목이 잘못됐다/);
   await fs.rm(dir, { recursive: true, force: true });
 });
+
+// 2026-10-16 글로벌 명세 6.7 개정 — 발음 사전 값이 한글이다. 대본의 로마자를 TTS 입력에서만 한글로 바꾼다
+test("en: 로마자 표제어를 한글로 바꾸고, 대소문자를 무시하며, 단어 안쪽은 건드리지 않는다", () => {
+  process.env.PIPELINE_LOCALE = "en";
+  const dict = mergeTtsDict({ daebak: "대박", Gwaenchana: "괜찮아", Busan: "부산" }, {});
+  assert.equal(normalizeForTts("Daebak! You'd say gwaenchana in Busan, not daebakery.", dict), "대박! You'd say 괜찮아 in 부산, not daebakery.");
+  assert.deepEqual(residualIssues("대박 is a word."), []); // 영어판 잔존 검사는 한글을 막지 않는다
+  assert.deepEqual(missingPronunciations({ daebak: "대박", oppa: "" }, {}), ["oppa"]);
+});

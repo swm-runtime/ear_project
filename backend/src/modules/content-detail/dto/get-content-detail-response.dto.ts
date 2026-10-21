@@ -6,17 +6,21 @@ import {
 
 import { ContentDetailView } from '../content-detail.types';
 import { ContentLanguage } from '@/modules/content/content.enum';
+import { ContentSeriesDto } from '@/modules/content/dto/content-series.dto';
 
 class ContentDetailTopicDto {
   readonly id: string;
   readonly name: string;
 }
 
-/** 세 필드를 한 객체로 묶어 null 판정이 하나가 되게 한다 (content-detail-api.md 4.1) */
-class ContentDetailSeriesDto {
+/**
+ * 세 필드를 한 객체로 묶어 null 판정이 하나가 되게 한다 (content-detail-api.md 4.1).
+ * KAN-134부터 다른 응답과 같은 `{ id, title, episode_no, total_episodes }`(`ContentSeriesDto`)에 **종전 `series_id`를 더해 둔다** —
+ * 설치된 앱(1.2.1)이 `series_id`를 읽으므로 빼지 않는다(값은 `id`와 같다). `total_episodes`는 이제 시리즈 표의 값이다.
+ */
+class ContentDetailSeriesDto extends ContentSeriesDto {
+  /** @deprecated `id`와 같은 값 — 1.2.1 호환으로만 남는다 */
   readonly series_id: string;
-  readonly episode_no: number | null;
-  readonly total_episodes: number | null;
 }
 
 /**
@@ -88,12 +92,14 @@ export class GetContentDetailResponseDto {
           name: topic.name,
         })),
         tags: content.tags ?? [],
-        // 단일 콘텐츠는 셋 다 null이다(domain.md 5.1) — 화면은 null 판정 하나로 줄을 생략한다
-        series: content.seriesId
+        // 단일 콘텐츠는 null이다(domain.md 5.1) — 화면은 null 판정 하나로 줄을 생략한다
+        series: view.series
           ? {
-              series_id: content.seriesId,
-              episode_no: content.episodeNo,
-              total_episodes: content.totalEpisodes,
+              series_id: view.series.id,
+              id: view.series.id,
+              title: view.series.title,
+              episode_no: view.series.episodeNo,
+              total_episodes: view.series.totalEpisodes,
             }
           : null,
         origin: content.origin,

@@ -21,12 +21,12 @@ Excluded topics (never planned): private life, relationships, controversies, inc
 | `sub_topic` | Second topic | Optional |
 | `title` | Working title | No clickbait |
 | `summary` | One line | Why these sources make one story |
-| `axis` · `axis_type` | The axis | contrast ("A, yet B"), paradox ("trying A leads to B"), redefinition ("A is really B"). An event axis is allowed only in Korean History & Society |
-| `sources` | Source set | At least three, with url, title, publisher, published date, roles, and one backbone source |
-| `gaps` | Empty roles | Roles no source fills |
+| `axis` · `axis_type` | The axis | question (the one plain question a newcomer asks about the practice), contrast ("A, yet B"), paradox ("trying A leads to B"), redefinition ("A is really B"). The question form comes first; ear introduces Korean culture. An event axis is allowed only in Korean History & Society |
+| `sources` | Source set | At least three, with url, title, publisher, published date, roles, and one backbone source. At least two are Korean-language sources (title in Hangul) |
+| `gaps` | Empty roles | Required roles no source fills. Optional roles are never gaps |
 | `dedup_note` | Overlap check | State plainly when the check could not be done |
 
-Source roles: anchor (the evidence the axis rests on) · case · counterpoint or limit · numbers or survey · history or context. The backbone source is an anchor from an allow-open (tier 1) domain.
+Source roles: anchor (the evidence the axis rests on) · case or scene · everyday practice (how people in Korea actually do it) · history or context. Optional roles: counterpoint or limit · numbers or survey — used when a source has them, never required. The backbone source is the anchor.
 
 Content limits by topic:
 - K-Food, Travel in Korea: no prices, store names, opening hours, transport, fares, or booking details.
@@ -41,15 +41,16 @@ Content limits by topic:
 
 ## 5. Splitting
 
-An episode is at least 13 minutes. Split only when every part is at least 13 minutes (26 minutes or more). A person decides the split.
+An episode is at least 5 minutes. There is no target length. Propose a split only when the material is 20 minutes or more. A person decides the split.
 
 ## 6. Gate 1
 
 - The decision is about the topic and its sources together: are these sources worth an episode?
-- Approval opens only when all four hold: every source domain is judged (no candidate or unknown domain) · the backbone is from a tier-1 domain · the excluded-topic screen passed · any empty-role or overlap warning was confirmed by a person.
+- A person approves directly, as in the Korean pipeline. There are no approval conditions. Pending domains and empty-role or overlap warnings are shown for reference. Sources from domains a person blocked are not used by the draft.
 - The global instance never auto-approves.
 
 ## 7. Done when
 
 - Given a planned topic, When the planner returns, Then the candidate has an axis, at least three sources with roles, and a screen record.
+- Given a candidate with fewer than two Korean-language sources, When the worker recounts, Then it is `held` and reinforcement looks for Korean-language sources that explain why.
 - Given a candidate, When a person approves it, Then all four gate conditions held at that moment.

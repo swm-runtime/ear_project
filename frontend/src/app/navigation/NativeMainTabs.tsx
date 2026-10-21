@@ -1,6 +1,7 @@
 import { createNativeBottomTabNavigator } from '@react-navigation/bottom-tabs/unstable';
 import { useState } from 'react';
 
+import { localized, type LocalizedCopy } from '@/shared/i18n/localized';
 import { selectTab } from '@/shared/navigation/tab-selection.store';
 import { theme } from '@/shared/theme';
 
@@ -15,6 +16,11 @@ import NativeNoticeDock from './NativeNoticeDock';
 import type { MainTabParamList } from './types';
 
 const NativeTab = createNativeBottomTabNavigator<MainTabParamList>();
+
+/** 탭 라벨(KAN-194) */
+const ko = { library: '라이브러리', explore: '탐색', profile: '프로필' } as const;
+const en: LocalizedCopy<typeof ko> = { library: 'Library', explore: 'Explore', profile: 'Profile' };
+const COPY = localized({ ko, en });
 
 /**
  * **투명 시스템 바** — 스크롤하면 바 밑 블러를 시스템 scroll edge effect 가 그린다(PM 2026-09-28 01:40 "애플에서 기본적으로
@@ -92,7 +98,7 @@ export default function NativeMainTabs() {
         name="Library"
         component={LibraryScreen}
         options={{
-          tabBarLabel: '라이브러리',
+          tabBarLabel: COPY.library,
           tabBarBadge: arrivalBadge.value,
           tabBarBadgeStyle: { backgroundColor: theme.color.primary, color: theme.color.onPrimary },
           tabBarIcon: ({ focused }) => ({
@@ -112,7 +118,7 @@ export default function NativeMainTabs() {
         // 큰 제목이 안 접혔다(PM 2026-09-28 05:35 "탐색은 왜 안 돼" — 라이브러리는 됨). 검색은 제자리 덮개라 스택이 필요 없다
         component={ExploreScreen}
         options={{
-          tabBarLabel: '탐색',
+          tabBarLabel: COPY.explore,
           tabBarIcon: ({ focused }) => ({
             type: 'sfSymbol',
             name: focused ? 'safari.fill' : 'safari',
@@ -124,7 +130,7 @@ export default function NativeMainTabs() {
         name="Profile"
         component={ProfileScreen}
         options={{
-          tabBarLabel: '프로필',
+          tabBarLabel: COPY.profile,
           tabBarIcon: ({ focused }) => ({
             type: 'sfSymbol',
             name: focused ? 'person.fill' : 'person',

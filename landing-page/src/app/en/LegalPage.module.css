@@ -1,0 +1,4 @@
+/* 번역본 안내 상자. 머리(PageHeader)의 아래 경계선에 붙지 않게 위를 띄운다 — 본문 쪽 여백은 LegalDocument의 .section이 맡는다 */
+.translation {
+  padding-top: clamp(28px, 4vw, 40px);
+}

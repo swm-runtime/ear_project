@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Platform, StyleSheet, type NativeSyntheticEvent } from 'react-native';
 
+import { APP_LANGUAGE } from '@/shared/i18n/locale';
 import SegmentedControl from '@/shared/ui/SegmentedControl';
 
 import {
@@ -16,13 +17,17 @@ const FALLBACK_SEGMENT_HEIGHT = 26;
 /** 시스템 컨트롤 크기 — UISegmentedControl 은 Yoga 에 크기를 알리지 않는다. 높이 32 는 iOS 기본, 칸 52×3 */
 const IS_ANDROID = Platform.OS === 'android';
 const SYSTEM_HEIGHT = 32;
-const SYSTEM_SEGMENT_WIDTH = 52;
+/**
+ * 칸 폭 — 세 칸이 같아야 선택바가 크기 변화 없이 옮겨간다. 시스템 컨트롤은 글자 폭으로 늘지 않아 값을 준다.
+ * 한국어("주간"·"월간"·"전체")·영어("Week"·"Month"·"All") 모두 52 — 영어는 종전 "Weekly"·"Monthly"·"All time"이 52 에서
+ * 잘려 76 을 줬는데(KAN-197) 그 폭이 제목 줄을 둘째 줄로 접어, 2026-10-19 PM 이 라벨을 줄여 폭을 통일했다
+ */
+const SEGMENT_WIDTH = 52;
 /**
  * Android 토글 외곽 높이는 32dp(칸 28 + 안쪽 2×2). 제목 행의 중앙 정렬 래퍼 안에 둔다.
  * 누르는 영역은 SegmentedControl 이 위아래 hitSlop 으로 44 를 채운다
  */
 const IOS26_SEGMENT_HEIGHT = 28;
-const IOS_SEGMENT_WIDTH = SYSTEM_SEGMENT_WIDTH;
 
 interface PopularPeriodToggleProps {
   /** 선택 상태의 근거는 서버 응답의 period다 — 클라이언트 기본값이 없다(uiux 4.10) */
@@ -32,10 +37,17 @@ interface PopularPeriodToggleProps {
   disabled: boolean;
 }
 
-/** 라벨은 화면 문구, 값은 전송값 — 순서는 uiux 4.10의 "주간 · 월간 · 전체"다 */
+/**
+ * 라벨은 화면 문구, 값은 전송값 — 순서는 uiux 4.10의 "주간 · 월간 · 전체"다. 라벨·칸 폭은 **처음 그릴 때** 읽는다 —
+ * 가입 때 표시 언어가 다시 부르지 않고 바뀔 수 있어 모듈 최상위에서 굳히지 않는다(shared/i18n/locale `adoptSignupLanguage`)
+ */
 const PERIODS: ExplorePeriod[] = ['week', 'month', 'all'];
-const LABELS = PERIODS.map((value) => EXPLORE_COPY.popular.periodLabels[value]);
-const OPTIONS = PERIODS.map((value, index) => ({ value, label: LABELS[index] }));
+const periodLabels = (): string[] =>
+  PERIODS.map((value) => EXPLORE_COPY.popular.periodLabels[value]);
+const periodOptions = () => {
+  const labels = periodLabels();
+  return PERIODS.map((value, index) => ({ value, label: labels[index] }));
+};
 
 /**
  * E13 인기 구간 토글 — 인기 섹션 제목 줄에만 붙는 3택 1. 확정 구간이 없어도 세 구간 모두 항상 고를 수 있다 —
@@ -54,6 +66,8 @@ export default function PopularPeriodToggle({
   onSelect,
   disabled,
 }: PopularPeriodToggleProps) {
+  // 그릴 때마다 새 배열을 만들지 않는다 — 처음 그릴 때의 표시 언어로 한 번
+  const [options] = useState(periodOptions);
   // Android 는 Material 네이티브 토글(모듈에 남아 있다)을 쓰지 않는다 — iOS 26 모양의 JS 토글(PM 2026-09-29 17:10 "안드로이드
   // 토글 구리다, iOS 거 참고해서"). 시스템 컨트롤은 iOS 만
   if (HAS_SYSTEM_SEGMENTED_CONTROL && !IS_ANDROID) {
@@ -61,14 +75,15 @@ export default function PopularPeriodToggle({
   }
   return (
     <SegmentedControl
-      options={OPTIONS}
+      options={options}
       value={selected}
       onChange={onSelect}
       disabled={disabled}
       accessibilityLabel={EXPLORE_COPY.popular.toggleA11y}
       appearance={IS_ANDROID ? 'ios26' : 'modern'}
       segmentHeight={IS_ANDROID ? IOS26_SEGMENT_HEIGHT : FALLBACK_SEGMENT_HEIGHT}
-      segmentWidth={IS_ANDROID ? IOS_SEGMENT_WIDTH : undefined}
+      // iOS 옛 빌드(모듈 없음)의 JS 토글은 한국어만 기본 칸 폭(48)을 쓴다 — 영어는 "Month"가 48 에 빠듯해 시스템과 같은 52 를 준다
+      segmentWidth={IS_ANDROID || APP_LANGUAGE !== 'ko' ? SEGMENT_WIDTH : undefined}
     />
   );
 }
@@ -83,6 +98,7 @@ function SystemPeriodToggle({ selected, onSelect, disabled }: PopularPeriodToggl
   /** 컨트롤이 지금 보여 주는 값 — 탭 이벤트로 갱신한다 */
   const shownRef = useRef<ExplorePeriod>(selected);
   const [resyncKey, setResyncKey] = useState(0);
+  const [segments] = useState(periodLabels);
 
   useEffect(() => {
     if (!disabled && shownRef.current !== selected) {
@@ -109,18 +125,17 @@ function SystemPeriodToggle({ selected, onSelect, disabled }: PopularPeriodToggl
   return (
     <SystemSegmentedControl
       key={resyncKey}
-      segments={LABELS}
+      segments={segments}
       selectedIndex={PERIODS.indexOf(selected)}
       onChange={handleChange}
       accessibilityLabel={EXPLORE_COPY.popular.toggleA11y}
-      style={styles.system}
+      style={[styles.system, { width: SEGMENT_WIDTH * PERIODS.length }]}
     />
   );
 }
 
 const styles = StyleSheet.create({
   system: {
-    width: SYSTEM_SEGMENT_WIDTH * PERIODS.length,
     height: SYSTEM_HEIGHT,
   },
 });

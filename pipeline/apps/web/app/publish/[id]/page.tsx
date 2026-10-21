@@ -2,7 +2,8 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { EarContent, EarTopic, findEarContent, listEarTopics, republishEarContent } from "@/lib/ear";
+import { EarContent, EarTopic, findEarContent, republishEarContent } from "@/lib/ear";
+import { listConsoleTopics } from "@/lib/console-topics";
 import { getPublishHistory, markPublished, type PublishAction, type PublishLogRow } from "../../actions";
 import { Badge, PageHeader, Panel, btnCls } from "@/components/ui";
 import { fmtTime } from "@/lib/format";
@@ -46,8 +47,10 @@ function Detail({ id }: { id: string }) {
 
   async function load() {
     try {
-      const [content, t, h] = await Promise.all([findEarContent(id), listEarTopics(), getPublishHistory(id)]);
-      setC(content); setTopics(t.items); setHist(h);
+      const [content, t, h] = await Promise.all([findEarContent(id), listConsoleTopics(), getPublishHistory(id)]);
+      // 이 콘솔 시장의 주제만 + 이미 붙은 주제(다른 시장으로 잘못 붙었으면 보여야 뗄 수 있다)
+      const attached = new Set(content?.topics.map((x) => x.topic_id) ?? []);
+      setC(content); setTopics([...t.mine, ...t.others.filter((x) => attached.has(x.id))]); setHist(h);
       if (content) { setTitle(content.title); setDescription(content.description); setSourceName(content.source_name); setTopicIds(content.topics.map((x) => x.topic_id)); }
     } catch (e) { setErr(earErrMsg(e)); }
   }

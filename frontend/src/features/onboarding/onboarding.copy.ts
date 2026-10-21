@@ -1,10 +1,13 @@
+import { formatEnCount } from '@/shared/i18n/format';
+import { localized, type LocalizedCopy } from '@/shared/i18n/localized';
+
 import { NOTIFICATION_COPY } from '@/features/notification';
 
 /**
  * 사용자 노출 문구(convention.md 3.5). 확정 카피는 onboarding-uiux.md와 1:1 대조한다.
  * TODO 표시 항목은 uiux 문서에 확정 카피가 없어 임시로 둔 것 — 확정 시 교체한다.
  */
-export const ONBOARDING_COPY = {
+const ko = {
   /**
    * 첫 사용 튜토리얼 — 실제 화면이 아니라 **예시 화면**을 띄워 설명한다.
    * 갓 가입한 사용자의 라이브러리는 비어 있어서, 실제 화면 위에 설명을 얹으면
@@ -84,3 +87,53 @@ export const ONBOARDING_COPY = {
    */
   notification: NOTIFICATION_COPY.prePrompt,
 } as const;
+
+const en: LocalizedCopy<typeof ko> = {
+  topic: {
+    toolbarTitle: 'Interests',
+    title: (max: number) =>
+      max > 0
+        ? `What are you curious about?\nPick up to ${max}`
+        : 'What are you curious about?\nPick your topics',
+    countLabel: (count: number, max: number) => `${count}/${max} selected`,
+    limitToast: (max: number) =>
+      `You can choose up to ${formatEnCount(max, { one: 'topic', other: 'topics' })}`,
+    next: 'Next',
+    loadFailedTitle: "Couldn't load topics",
+    loadFailedDescription: 'Please try again later.',
+    emptyTitle: 'Coming soon',
+    emptyDescription: "We're getting topics ready.\nPlease try again later.",
+    retry: 'Try again',
+  },
+  career: {
+    toolbarTitle: 'Career',
+    title: 'What do you do?',
+    laterNotice: 'You can add this anytime in your profile',
+    jobCategoryLabel: 'Field',
+    jobTitleLabel: 'Role',
+    jobTitlePlaceholder: 'e.g. Backend engineer',
+    jobTitleClearA11y: 'Clear role',
+    yearsLabel: 'Experience',
+    yearsOption: {
+      '0-1': '0–1 year',
+      '2-3': '2–3 years',
+      '4-6': '4–6 years',
+      '7+': '7+ years',
+    },
+    skip: 'Skip',
+    next: 'Next',
+    jobCategoryLoadFailed: "Couldn't load fields",
+    retry: 'Try again',
+  },
+  firstDripWaiting: {
+    message: 'Getting your first episode ready',
+    completeFailedTitle: 'Something went wrong',
+    completeFailedDescription: 'Please try again later.',
+  },
+  complete: {
+    failTitle: "Couldn't finish setting up",
+  },
+  notification: NOTIFICATION_COPY.prePrompt,
+};
+
+export const ONBOARDING_COPY = localized({ ko, en });

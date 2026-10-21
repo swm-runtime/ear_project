@@ -3,8 +3,9 @@ import {
   LibraryItemStatus,
 } from '@/modules/library/library.enum';
 
-import { ExploreItemView } from '../explore.types';
-import { ContentLanguage } from '@/modules/content/content.enum';
+import { ExploreListItemView, ExploreSeriesCardView } from '../explore.types';
+import { ContentLanguage, SeriesStatus } from '@/modules/content/content.enum';
+import { ContentSeriesDto } from '@/modules/content/dto/content-series.dto';
 
 class ExploreContentDto {
   readonly id: string;
@@ -23,6 +24,8 @@ class ExploreContentDto {
   readonly topic_ids: string[];
   /** 화면 해시태그('#' 없이 — 붙이는 것은 화면). 없으면 빈 배열 (KAN-162) */
   readonly tags: string[];
+  /** 속한 시리즈 `{ id, title, episode_no, total_episodes }` — 단일 콘텐츠는 null (KAN-134, 추가 필드) */
+  readonly series: ContentSeriesDto | null;
 }
 
 /**
@@ -43,13 +46,21 @@ class ExploreLibraryDto {
  * 처리가 두 벌이 된다(explore-api.md 4.2).
  */
 export class ExploreItemDto {
+  /** 시리즈 카드 스위치가 켜졌을 때만 `"content"` — 꺼져 있으면 키가 없다(1.2.x 응답과 같다) */
+  readonly type?: 'content';
   readonly content: ExploreContentDto;
   readonly library: ExploreLibraryDto | null;
   /** 재생 확인 팝업을 탭 즉시 띄우기 위한 힌트. **판정이 아니다** */
   readonly is_counted_today: boolean;
 
-  static from(view: ExploreItemView): ExploreItemDto {
+  /** 목록 항목 하나 — 시리즈 카드면 `ExploreSeriesCardDto`, 아니면 콘텐츠 행이다 */
+  static from(view: ExploreListItemView): ExploreListItemDto {
+    if (view.type === 'series') {
+      return ExploreSeriesCardDto.from(view);
+    }
+
     return {
+      ...(view.type === 'content' && { type: 'content' as const }),
       content: {
         id: view.content.id,
         title: view.content.title,
@@ -62,6 +73,7 @@ export class ExploreItemDto {
         content_version: view.content.contentVersion,
         topic_ids: view.content.topicIds,
         tags: view.content.tags,
+        series: ContentSeriesDto.from(view.content.series),
       },
       library: view.library
         ? {
@@ -74,3 +86,46 @@ export class ExploreItemDto {
     };
   }
 }
+
+class ExploreSeriesCardSeriesDto {
+  readonly id: string;
+  readonly title: string;
+  readonly description: string;
+  /** 계획 편수(시리즈 표) */
+  readonly total_episodes: number;
+  /** 지금 노출 중인 편 수 — 진행 중 시리즈면 `total_episodes`보다 적다 */
+  readonly episode_count: number;
+  readonly status: SeriesStatus;
+  /** 표지 — 시리즈 표지(`series.cover_url`, KAN-234)가 있으면 그것, 없으면 노출 중인 가장 앞 편(보통 1화)의 썸네일 */
+  readonly thumbnail_url: string;
+  /** 노출 중인 편들의 주제 합집합 */
+  readonly topic_ids: string[];
+}
+
+/**
+ * 탐색 시리즈 카드(KAN-134 확정 설계 4번) — 그 시리즈 편들을 대신하는 항목. 탭하면 `GET /series/:id`로 시리즈 화면을 연다
+ * (행 탭 = 즉시 재생의 예외). 편 단위 상태(담김·오늘 카운트)는 싣지 않는다 — 시리즈 화면이 편마다 준다
+ */
+export class ExploreSeriesCardDto {
+  readonly type: 'series';
+  readonly series: ExploreSeriesCardSeriesDto;
+
+  static from({ card }: ExploreSeriesCardView): ExploreSeriesCardDto {
+    return {
+      type: 'series',
+      series: {
+        id: card.series.id,
+        title: card.series.title,
+        description: card.series.description,
+        total_episodes: card.series.totalEpisodes,
+        episode_count: card.episodeCount,
+        status: card.series.status,
+        thumbnail_url: card.coverThumbnailUrl,
+        topic_ids: card.topicIds,
+      },
+    };
+  }
+}
+
+/** 탐색 목록 항목의 응답 모양 — 스위치가 꺼져 있으면 언제나 `ExploreItemDto`(타입 키 없음) */
+export type ExploreListItemDto = ExploreItemDto | ExploreSeriesCardDto;

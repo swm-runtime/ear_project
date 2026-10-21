@@ -3,6 +3,7 @@ import type { Executor } from "../executors/index.js";
 import { runSweep } from "./sweep.js";
 import { runReinforce } from "./reinforce.js";
 import { runTopicSeed } from "./topic-seed.js";
+import { runPoolDiscover } from "./pool-discover.js";
 import { runCluster } from "./cluster.js";
 import { runDraft } from "./draft.js";
 import { runQa } from "./qa.js";
@@ -13,10 +14,11 @@ import { runPackage } from "./package.js";
 import { runThumbnail } from "./thumbnail.js";
 import { runEnrich } from "./enrich.js";
 import { runScriptAlign } from "./script-align.js";
+import { runSeriesPlan } from "./series-plan.js";
 
 export async function runStage(job: Job, ex: Executor): Promise<unknown> {
   switch (job.type) {
-    case "sweep": return job.payload.mode === "B" ? runReinforce(job, ex) : job.payload.mode === "B2" ? runTopicSeed(job, ex) : runSweep(job); // 모드 B-① 보강(0019)·B-② 주제 기획(2026-09-26): AI 실행기(WebSearch) 필요 — requires_ai=true 로 넣는다
+    case "sweep": return job.payload.mode === "B" ? runReinforce(job, ex) : job.payload.mode === "B2" ? runTopicSeed(job, ex) : job.payload.mode === "P" ? runPoolDiscover(job, ex) : runSweep(job); // 모드 B-① 보강(0019)·B-② 주제 기획(2026-09-26)·P 소스 풀 채우기(2026-10-21): AI 실행기(WebSearch) 필요 — requires_ai=true 로 넣는다
     case "cluster": return runCluster(job, ex);
     case "draft": return runDraft(job, ex);
     case "qa": return runQa(job, ex);
@@ -24,6 +26,7 @@ export async function runStage(job: Job, ex: Executor): Promise<unknown> {
     case "critic_measure": return runCriticMeasure(job, ex);
     case "script_align": return runScriptAlign(job); // 자막 세그먼트 소급 (0022, KAN-72 후속) — 강제 정렬, 산출물만. 반영은 콘솔
     case "enrich": return runEnrich(job, ex); // 추천 메타 부여 (KAN-53, 0021) — 산출물만 만든다. 제품 반영은 콘솔이 브라우저 세션으로 // 루브릭 개정안 측정 (0020) — 리포트를 따로 쓰고 에피소드 행은 건드리지 않는다
+    case "series_plan": return runSeriesPlan(job, ex); // 시리즈 설계안 (0029, spec/11 3장) — 단발, 도구 없음. 사람이 시리즈 화면에서 고쳐 승인한다
     case "domain_check": return runDomainCheck(job); // IO 전용 — AI 실행기 불필요
     case "tts": return runTts(job);       // IO 전용 — ElevenLabs (spec/06). 수동 트리거만
     case "thumbnail": return runThumbnail(job); // IO 전용 — OpenAI 이미지 API (KAN-50). 키 있는 워커만 집는다(0018)

@@ -15,7 +15,7 @@ import { OnboardingStep } from '@/modules/user/user.enum';
 
 import { RecommendationSectionType } from './onboarding.enum';
 import { OnboardingOrchestrator } from './onboarding.orchestrator';
-import { onboardingStepsFor } from './onboarding.orchestrator';
+import { onboardingStepsFor } from '@/modules/user/policies/onboarding-steps.policy';
 import { UserMarket } from '@/modules/user/user.enum';
 
 const NOW = new Date('2026-05-20T09:00:00.000Z');

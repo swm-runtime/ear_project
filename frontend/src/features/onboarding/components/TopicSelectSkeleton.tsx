@@ -4,17 +4,26 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { theme } from '@/shared/theme';
 import { SkeletonBlock, SkeletonCircle, SkeletonGroup, SkeletonLine } from '@/shared/ui/Skeleton';
 
+import { TOPIC_CHIP_MIN_WIDTH } from '@/features/interest';
+
 import { MAX_MARQUEE_ROWS } from '../services/topic-rows';
 
-/** 마퀴 알약 폭 — 주제 화면(TopicSelectScreen)의 실제 알약과 스켈레톤이 같은 값을 쓴다 */
-export const TOPIC_PILL_WIDTH = 156;
+/**
+ * 알약 자리 폭 — 실제 알약은 라벨 폭을 따르므로(PM 확정 2026-10-19) 스켈레톤도 같은 폭으로 늘어세우지 않는다.
+ * 줄마다 다른 순서로 돌려 써서 폭이 제각각인 알약 줄처럼 보이게 한다. 가장 짧은 자리는 칩 최소 폭과 같다
+ */
+const PILL_WIDTHS = [
+  TOPIC_CHIP_MIN_WIDTH + 24,
+  TOPIC_CHIP_MIN_WIDTH,
+  TOPIC_CHIP_MIN_WIDTH + 56,
+] as const;
 const PILL_HEIGHT = theme.touchTarget.minHeight + theme.spacing.sm;
-const PILLS_PER_ROW = 3;
+const PILLS_PER_ROW = 4;
 /** 원형 [다음] 자리 — TopicSelectScreen `next` 와 같은 64 */
 const NEXT_BUTTON_SIZE = 64;
 
 /**
- * 주제 알약 줄 자리 — 마퀴 4줄 × 알약 3개. **반드시 `SkeletonGroup` 안에서 쓴다**(낭독 라벨·반짝임은 그룹 몫).
+ * 주제 알약 줄 자리 — 마퀴 4줄 × 알약 4개(넘치는 끝은 화면 밖으로 잘린다). **반드시 `SkeletonGroup` 안에서 쓴다**(낭독 라벨·반짝임은 그룹 몫).
  * 주제 화면(목록 로딩)과 온보딩 진입 스켈레톤이 같이 쓴다.
  */
 export function TopicPillRowsSkeleton() {
@@ -25,7 +34,7 @@ export function TopicPillRowsSkeleton() {
           {Array.from({ length: PILLS_PER_ROW }, (_, index) => (
             <SkeletonBlock
               key={index}
-              width={TOPIC_PILL_WIDTH}
+              width={PILL_WIDTHS[(rowIndex + index) % PILL_WIDTHS.length]}
               height={PILL_HEIGHT}
               radius="full"
             />

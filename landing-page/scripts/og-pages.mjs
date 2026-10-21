@@ -54,6 +54,23 @@ export const OG_PAGES = [
     line2: "개인정보 처리방침",
     foot: ["이어가 정보를 다루는 기준"],
   },
+  /* 영어 페이지(`/en/` — KAN-199). 워드마크를 영어 앱 이름 `Earcast`(2026-10-18 PM 확정 — KAN-199)로 바꾼다.
+     글자가 전부 서브셋 기본 범위(U+0020-007E 등)라 폰트 서브셋을 다시 만들 필요가 없다 */
+  {
+    file: "en.png",
+    brand: "Earcast",
+    line1: "Korean culture,",
+    line2: "in short audio episodes",
+    foot: ["AI-generated podcast app", "New episodes every day"],
+  },
+  {
+    file: "en-legal.png",
+    brand: "Earcast",
+    eyebrow: "Legal",
+    line1: "Terms of Use and",
+    line2: "Privacy Policy",
+    foot: ["How Earcast handles your information"],
+  },
 ];
 
 /** 서브셋 스크립트가 쓰는 문자 집합. 이미지에 찍히는 모든 글자를 한 줄로 모은다. */

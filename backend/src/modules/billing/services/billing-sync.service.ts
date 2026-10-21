@@ -32,12 +32,18 @@ import {
 import { UserService } from '@/modules/user/services/user.service';
 import { UserTier } from '@/modules/user/user.enum';
 
+import { SubscriptionTransition } from '../billing.types';
+
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 /** 반영 결과 — 호출부가 응답을 가르는 근거 */
 export type SyncOutcome =
-  | { kind: 'applied' }
+  /**
+   * 행을 바꿨다. 결제 알림으로 올릴 전이가 있었으면 `transition`(`features/backend-monitoring.md` 3-7) — 알림은
+   * **커밋 뒤에** 호출부가 보낸다(롤백된 반영을 알리지 않게)
+   */
+  | { kind: 'applied'; transition?: SubscriptionTransition }
   | { kind: 'unchanged' }
   | { kind: 'ignored'; reason: StoreStateIgnoreReason }
   /** 알림의 구독이 어느 계정 것인지 알 수 없다 — 이후 영수증 제출·복원이 연결한다 */
@@ -491,7 +497,7 @@ export class BillingSyncService {
       );
 
       if (result.created) {
-        return { kind: 'applied' };
+        return withTransition(null, false, decision.state, userId, transaction);
       }
 
       subscription = result.subscription;
@@ -518,7 +524,8 @@ export class BillingSyncService {
       previousOwnerId = subscription.userId;
     }
 
-    const decision = resolve(toStoredState(subscription));
+    const previous = toStoredState(subscription);
+    const decision = resolve(previous);
 
     if (decision.kind === 'ignore') {
       return toOutcome(decision);
@@ -563,6 +570,17 @@ export class BillingSyncService {
         user_id: userId,
         previous_user_id: previousOwnerId,
       });
+    }
+
+    if (decision.kind === 'apply') {
+      // 남의 끝난 행을 넘겨받은 것은 이 사용자에게 재구독이 아니라 첫 구독이다
+      return withTransition(
+        previous,
+        previousOwnerId === null,
+        decision.state,
+        userId,
+        transaction,
+      );
     }
 
     return toOutcome(decision);
@@ -635,6 +653,65 @@ function assignState(
   subscription.expiresAt = state.expiresAt;
   subscription.cancelledAt = state.cancelledAt;
   subscription.pendingTier = state.pendingTier;
+}
+
+/**
+ * 반영 전후 상태로 결제 알림 전이를 판정한다(`features/backend-monitoring.md` 3-7). 갱신(비종결 → 비종결, 만료일만
+ * 늦어짐)·만료·변경 예약은 전이가 아니다.
+ *
+ * @param previous 반영 전 상태. 행이 없었으면 `null`
+ */
+export function resolveTransitionKind(
+  previous: Pick<SubscriptionState, 'status' | 'isAutoRenew'> | null,
+  next: Pick<SubscriptionState, 'status' | 'isAutoRenew'>,
+): SubscriptionTransition['kind'] | null {
+  const wasLive = previous !== null && !isTerminalStatus(previous.status);
+  const isLive = !isTerminalStatus(next.status);
+
+  if (!wasLive && isLive) {
+    return 'started';
+  }
+
+  if (
+    previous !== null &&
+    previous.status !== SubscriptionStatus.REFUNDED &&
+    next.status === SubscriptionStatus.REFUNDED
+  ) {
+    return 'refunded';
+  }
+
+  if (wasLive && isLive && previous.isAutoRenew && !next.isAutoRenew) {
+    return 'cancel_scheduled';
+  }
+
+  return null;
+}
+
+function withTransition(
+  previous: StoredSubscriptionState | null,
+  canResubscribe: boolean,
+  next: SubscriptionState,
+  userId: string,
+  transaction: StoreTransaction,
+): SyncOutcome {
+  const kind = resolveTransitionKind(previous, next);
+
+  if (kind === null) {
+    return { kind: 'applied' };
+  }
+
+  return {
+    kind: 'applied',
+    transition: {
+      kind,
+      isResubscribe: kind === 'started' && previous !== null && canResubscribe,
+      userId,
+      store: transaction.store,
+      environment: transaction.environment,
+      tier: next.tier,
+      detail: transaction.detail ?? null,
+    },
+  };
 }
 
 function toOutcome(decision: StoreStateDecision): SyncOutcome {

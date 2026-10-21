@@ -45,6 +45,13 @@ describe('toPlaySnapshot — Google Play 상태 → 우리 의미', () => {
         accountToken: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
         receipt: 'token-1',
         orderId: 'GPA.0000-0000-0000-00000',
+        // 결제 알림 문구용 — Play 구독 조회에는 금액·갱신 사유가 없다
+        detail: {
+          isTrial: null,
+          isRenewal: null,
+          storefront: null,
+          price: null,
+        },
       },
       renewal: {
         isAutoRenew: true,

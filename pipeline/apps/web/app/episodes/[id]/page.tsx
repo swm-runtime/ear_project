@@ -2,7 +2,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { supabaseServer } from "@/lib/supabase-server";
 import { parseCriticReport, parseCriticScores, parseScript, readArtifact } from "@/lib/artifacts";
-import { speakerNames } from "@/lib/locale";
+import { allSpeakerNames, pipelineLocale } from "@/lib/locale";
+import { agentBlock, agentGate } from "@/lib/agent-verdict";
 import { fmtTime, fmtTokens, fmtUsd, label, jobRoundLabel } from "@/lib/format";
 import { JudgeView } from "./judge-view";
 import { VerdictForm } from "./verdict-form";
@@ -61,6 +62,10 @@ export default async function EpisodePage({ params, searchParams }: { params: Pr
   // 썸네일도 같은 규칙(KAN-50 5-1) — 건너뛴 실행은 새로 만든 것이 아니므로 제외한다
   const lastThumbAt = (runs ?? []).filter((r) => r.phase === "thumbnail" && !/건너뜀/.test(r.result ?? "")).map((r) => r.executed_at as string).sort().at(-1) ?? null;
   const thumbnailNewer = !!(bl?.published_at && lastThumbAt && lastThumbAt > bl.published_at);
+  // 글로벌판 에이전트 판정(명세 6.10) — 발행 가능이고 필수 수정이 전부 반영돼야 발행 준비가 열린다. 발행된 편의 재발행 준비는 막지 않는다. 한국판은 null
+  const agent = pipelineLocale() === "en" ? { block: agentBlock(ep.critic_verdicts), gate: agentGate(ep.critic_verdicts) } : null;
+  const agentBlocked = !!agent && !agent.gate.ok && bl?.status !== "published";
+  const agentReportUrl = agent?.block?.report_key ? await presignGet(String(agent.block.report_key).replace(/^s3:/, ""), 3600).catch(() => null) : null;
 
   return (
     <div className="space-y-4">
@@ -75,7 +80,7 @@ export default async function EpisodePage({ params, searchParams }: { params: Pr
           <span className="text-xs text-ink-soft">{bl?.mid_topic} · {ep.prompt_version}</span>
           {/* 상단은 [발행 준비] 하나다 — 개별 재실행은 각 산출물 탭에 있다(KAN-50 1번) */}
           {bl?.status === "review_required" && !!ep.script_key && !activeJobs.some((j) => j.type === "qa" || j.type === "draft") && <ReQaHeaderButton episodeId={ep.id} backlogId={ep.backlog_id} />}
-          <PublishPrepButton episodeId={ep.id} backlogId={ep.backlog_id} enabled={["qa_passed", "packaged", "published"].includes(bl?.status ?? "")} pending={prepPending} />
+          <PublishPrepButton episodeId={ep.id} backlogId={ep.backlog_id} enabled={["qa_passed", "packaged", "published"].includes(bl?.status ?? "") && !agentBlocked} pending={prepPending} blockedReason={agentBlocked ? agent!.gate.blockers.join(" · ") : undefined} />
           {["packaged", "published"].includes(bl?.status ?? "") && <LinkBtn kind="primary" href={`/publish/upload?episode=${ep.id}`}>제품 발행</LinkBtn>}
           <DeleteButton episodeId={ep.id} backlogId={ep.backlog_id} disabled={!!ep.regression || bl?.status === "published" || activeJobs.some((j) => j.status !== "queued")}
             disabledReason={ep.regression ? "회귀 세트는 지울 수 없음" : bl?.status === "published" ? "발행된 에피소드 — 제품 발행에서 회수가 먼저" : "진행 중인 작업이 끝난 뒤"} />
@@ -84,6 +89,18 @@ export default async function EpisodePage({ params, searchParams }: { params: Pr
           )}
         </>}
       />
+      {agent && ["qa_passed", "packaged", "review_required"].includes(bl?.status ?? "") && (
+        <div className={`rounded-md border px-4 py-2 text-[13px] ${agent.gate.ok ? "border-line bg-panel" : "border-amber-300 bg-amber-50"}`}>
+          <span className="font-medium">에이전트 판정</span>{" "}
+          {!agent.block ? "— 아직 없습니다. 판정 전에는 발행 준비를 시작할 수 없습니다." : <>
+            — {agent.block.publishable ? "발행 가능" : "발행 불가"}
+            {(agent.block.must_fix?.length ?? 0) > 0 && ` · 필수 수정 ${agent.block.must_fix!.length}건 중 반영 ${agent.block.must_fix!.length - agent.gate.openFixes.length}건`}
+            {!agent.gate.ok && <span className="text-ink-soft"> · {agent.gate.blockers.join(" · ")}</span>}
+            {agentReportUrl && <> · <a className="text-brand-ink underline" href={agentReportUrl} target="_blank" rel="noreferrer">요약 리포트</a></>}
+            <span className="text-ink-soft"> · 판정 화면의 사람 칸에 에이전트 판정이 들어 있습니다</span>
+          </>}
+        </div>
+      )}
       {activeJobs.map((j) => (
         <div key={j.id} className="rounded-md border border-line bg-panel px-4 py-3">
           <div className="text-[13px] font-medium">{j.type}{jobRoundLabel(j)} {j.status === "queued" ? "— AI 워커 대기 중" : "실행 중"} <span className="font-normal text-ink-soft">{j.claimed_by ?? ""}</span></div>
@@ -128,8 +145,8 @@ export default async function EpisodePage({ params, searchParams }: { params: Pr
       {tab === "outline" && content == null && <p className="rounded-md border border-line bg-panel p-6 text-center text-[13px] text-ink-soft">구성안이 없습니다 — 2단계 초안(설계→대본)으로 만든 에피소드에만 있습니다.</p>}
       {tab !== "runs" && tab !== "audio" && tab !== "meta" && tab !== "pron" && tab !== "outline" && content == null && <p className="rounded-md border border-line bg-panel p-6 text-center text-[13px] text-ink-soft">아직 산출물이 없습니다{keyOf[tab] ? ` (키: ${keyOf[tab]} — 서버에서 읽을 수 없음. s3: 키면 PIPELINE_BUCKET·AWS 자격증명(인스턴스 역할 / 로컬 AWS_PROFILE), local: 키면 WORK_ROOT 확인)` : ""}.</p>}
       {tab === "script" && content && (criticMd
-        ? (() => { const parsed = parseCriticReport(criticMd); const sc = parseCriticScores(criticMd); return <JudgeView episodeId={ep.id} backlogId={ep.backlog_id} turns={parseScript(content, speakerNames())} flags={parsed.flags} stars={parsed.stars} scores={sc.rows} total={sc.total} saved={ep.critic_verdicts} edits={ep.human_edits ?? []} />; })()
-        : <ScriptEditor episodeId={ep.id} backlogId={ep.backlog_id} turns={parseScript(content, speakerNames())} edits={ep.human_edits ?? []} editable />)}
+        ? (() => { const parsed = parseCriticReport(criticMd); const sc = parseCriticScores(criticMd); return <JudgeView episodeId={ep.id} backlogId={ep.backlog_id} turns={parseScript(content, allSpeakerNames())} flags={parsed.flags} stars={parsed.stars} scores={sc.rows} total={sc.total} saved={ep.critic_verdicts} edits={ep.human_edits ?? []} />; })()
+        : <ScriptEditor episodeId={ep.id} backlogId={ep.backlog_id} turns={parseScript(content, allSpeakerNames())} edits={ep.human_edits ?? []} editable />)}
       {(tab === "sources" || tab === "claims" || tab === "qa") && content && <Panel className="min-w-0"><pre className="whitespace-pre-wrap break-words font-mono text-[12px] leading-relaxed text-ink">{content}</pre></Panel>}
       {tab === "outline" && content && (
         <div className="grid gap-4 lg:grid-cols-2">

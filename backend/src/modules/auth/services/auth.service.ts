@@ -6,13 +6,9 @@ import { ErrorCode } from '@/common/exceptions/error-code.enum';
 import { sha256Hex } from '@/common/utils/hash.util';
 import { ConsentService } from '@/modules/user/services/consent.service';
 import { User } from '@/modules/user/entities/user.entity';
-import {
-  CURRENT_CONSENT_VERSIONS,
-  REQUIRED_CONSENT_TYPES,
-} from '@/modules/user/user.constant';
-import { ConsentType } from '@/modules/user/user.enum';
 import { DeviceTokenService } from '@/modules/user/services/device-token.service';
 import { UserService } from '@/modules/user/services/user.service';
+import { SignUpConsents } from '@/modules/user/user.types';
 
 import {
   AuthenticatedResult,
@@ -21,6 +17,7 @@ import {
   PipelineLoginCommand,
   RefreshTokenCommand,
   SignUpCommand,
+  SignUpConsentsCommand,
   SocialLoginCommand,
   SocialLoginResult,
 } from '../auth.types';
@@ -76,18 +73,10 @@ export class AuthService {
         status: 'consent_required',
         signupToken: signupToken.token,
         signupTokenExpiresAt: signupToken.expiresAt,
-        requiredConsents: [
-          ...REQUIRED_CONSENT_TYPES.map((consentType) => ({
-            consentType,
-            version: CURRENT_CONSENT_VERSIONS[consentType],
-            isRequired: true,
-          })),
-          {
-            consentType: ConsentType.MARKETING,
-            version: CURRENT_CONSENT_VERSIONS[ConsentType.MARKETING],
-            isRequired: false,
-          },
-        ],
+        // 이 시점엔 사용자가 콘텐츠 언어를 아직 고르지 않았다 — 기기 로캘로 정한 목록이다. 앱은 언어를 고른 뒤
+        // `POST /auth/sign-up/consents`로 다시 받아 덮는다(KAN-215·216)
+        requiredConsents: this.userService.findSignUpConsents(command.locale)
+          .requiredConsents,
       };
     }
 
@@ -112,7 +101,10 @@ export class AuthService {
       status: 'authenticated',
       tokens,
       user,
-      pendingConsents: await this.consentService.findPendingConsents(user.id),
+      pendingConsents: await this.consentService.findPendingConsents(
+        user.id,
+        user,
+      ),
     };
   }
 
@@ -156,8 +148,22 @@ export class AuthService {
       status: 'authenticated',
       tokens,
       user,
-      pendingConsents: await this.consentService.findPendingConsents(user.id),
+      pendingConsents: await this.consentService.findPendingConsents(
+        user.id,
+        user,
+      ),
     };
+  }
+
+  /**
+   * auth-api.md 4.x `POST /auth/sign-up/consents` — 가입 화면에서 콘텐츠 언어를 고른 뒤 그 시장의 동의 목록을 다시 준다
+   * (KAN-215·216). **조회다** — 계정·동의를 만들지 않고 `signup_token`도 소비하지 않는다(만료 시각 그대로).
+   * 토큰을 검증하는 것은 가입 흐름 밖에서 시장 판정 결과를 캐내지 못하게 하려는 것이다.
+   */
+  findSignUpConsents(command: SignUpConsentsCommand): SignUpConsents {
+    this.tokenService.verifySignupToken(command.signupToken);
+
+    return this.userService.findSignUpConsents(command.locale);
   }
 
   /**
@@ -270,7 +276,7 @@ export class AuthService {
    * 서명한 어서션을 제시하면, 같은 이메일의 **관리자 계정**으로 세션을 발급한다.
    * 발행 콘솔의 두 번째 로그인(GIS)을 없애는 서버 간 신뢰다 — 브라우저는 비밀을 모른다.
    * 관리자 외 계정은 거부한다: 이 경로의 용도가 관리 콘솔뿐이므로 최소 권한으로 좁힌다.
-   * (changes/pending/pipeline-sso-login.md)
+   * (changes/archive/pipeline-sso-login.md · 반영 2026-09-03)
    */
   async pipelineLogin(
     command: PipelineLoginCommand,

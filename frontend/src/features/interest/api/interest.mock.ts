@@ -13,11 +13,19 @@
  * - load-fail          진입 조회(주제 목록·관심사)가 각 1회 실패 — IM9 전체 화면 에러 +
  *                      [다시 시도] 성공 경로 검증
  * - few-topics         노출 주제 5개만 — 온보딩 마퀴가 적은 주제 수에서도 이음새 없이 흐르는지(KAN-59)
+ * - global             GLOBAL 사용자 — 영어 주제 8개(slug 있음, slug 로 각자의 사진이 붙는다 — 2026-10-19).
+ *                      온보딩 단계까지 GLOBAL 로 보려면 EXPO_PUBLIC_ONBOARDING_MOCK_SCENARIO=global 도 함께 켠다
+ * - kr-no-slug         KR 주제 slug 가 전부 null — 서버 입력(BE KAN-212) 전 운영 상태. 사진이 이름 키로 붙는지(KAN-195)
  */
 import { ApiError } from '@/shared/api/api-error';
 import { ERROR_CODES } from '@/shared/api/error-codes';
 
-import type { InterestsResponseDto, TopicListResponseDto, UserInterestDto } from './interest.dto';
+import type {
+  InterestsResponseDto,
+  TopicItemDto,
+  TopicListResponseDto,
+  UserInterestDto,
+} from './interest.dto';
 
 const SCENARIO = process.env.EXPO_PUBLIC_INTEREST_MOCK_SCENARIO ?? 'default';
 
@@ -42,7 +50,7 @@ const delay = (ms: number): Promise<void> => new Promise((resolve) => setTimeout
  * 뒤쪽의 구 체계 항목(커리어 성장·이직·면접·AI·테크 트렌드·경제·인문·교양·글쓰기)은
  * 아직 테이블에 남아 있는 잔재다. 서버에서 정리되면 여기서도 지운다.
  */
-export const INTEREST_MOCK_TOPICS: TopicListResponseDto['items'] = [
+const KR_MOCK_TOPIC_ROWS: Omit<TopicItemDto, 'slug'>[] = [
   { topic_id: 'f941e9e4-6e77-4cf1-a311-0b05b72907b2', name: '재테크', parent_category: '돈·경제' },
   {
     topic_id: '740cbca6-a6c3-444f-89c7-74fc380beab6',
@@ -153,7 +161,87 @@ export const INTEREST_MOCK_TOPICS: TopicListResponseDto['items'] = [
   { topic_id: '8b6bfb5b-e1d3-404a-ba0c-91348ff596b1', name: '글쓰기', parent_category: '배움' },
 ];
 
+/**
+ * KR 주제 slug — BE KAN-212 확정 표(2026-10-15)대로. 운영 입력 뒤의 응답을 재현한다(입력 전 상태는 `kr-no-slug`).
+ * TOPCIT 는 표에 없어 `null` — 이름 폴백 경로가 mock 에서도 한 칸 보인다.
+ */
+const KR_MOCK_SLUGS: Record<string, string> = {
+  재테크: 'personal-finance',
+  '경제 상식': 'economics-basics',
+  투자: 'investing',
+  부동산: 'real-estate',
+  경제: 'economy',
+  '인문·교양': 'humanities',
+  철학: 'philosophy',
+  '사회·문화': 'society-culture',
+  예술: 'art',
+  커뮤니케이션: 'communication',
+  산업안전: 'industrial-safety',
+  마케팅: 'marketing',
+  '데이터·AI': 'data-ai',
+  'IT·개발': 'it-dev',
+  자연과학: 'natural-science',
+  심리학: 'psychology',
+  '뇌과학·인지': 'neuroscience',
+  '습관·동기': 'habits-motivation',
+  인간관계: 'relationships',
+  글쓰기: 'writing',
+  커리어: 'career',
+  생산성: 'productivity',
+  리더십: 'leadership',
+  조직: 'organization',
+  디자인: 'design',
+  스타트업: 'startup',
+  트렌드: 'trends',
+  경영: 'management',
+  역사: 'history',
+  세계사: 'world-history',
+  한능검: 'korean-history-exam',
+  공인중개사: 'real-estate-agent-exam',
+  산업안전기사: 'industrial-safety-exam',
+  '커리어 성장': 'career-growth',
+  '이직·면접': 'job-change-interview',
+  'AI·테크 트렌드': 'ai-tech-trends',
+};
+
+export const INTEREST_MOCK_TOPICS: TopicListResponseDto['items'] = KR_MOCK_TOPIC_ROWS.map(
+  (row) => ({
+    ...row,
+    slug: SCENARIO === 'kr-no-slug' ? null : (KR_MOCK_SLUGS[row.name] ?? null),
+  }),
+);
+
+/**
+ * GLOBAL 주제 8개 — 서버 시드(backend 마이그레이션 1790100000000)와 같은 이름·slug. id 는 mock 전용이다.
+ * 대분류가 없는 1단계 체계라 서버도 `parent_category`에 이름을 그대로 넣는다.
+ */
+const GLOBAL_TOPIC_SEED: [name: string, slug: string][] = [
+  ['Korean Language', 'korean-language'],
+  ['K-Food', 'k-food'],
+  ['K-Pop', 'k-pop'],
+  ['K-Drama & Film', 'k-drama-film'],
+  ['Korean Culture', 'korean-culture'],
+  ['K-Beauty & Fashion', 'k-beauty-fashion'],
+  ['Korean History & Society', 'korean-history-society'],
+  ['Travel in Korea', 'travel-in-korea'],
+];
+const GLOBAL_MOCK_TOPICS: TopicListResponseDto['items'] = GLOBAL_TOPIC_SEED.map(([name, slug]) => ({
+  topic_id: `mock-global-${slug}`,
+  slug,
+  name,
+  parent_category: name,
+}));
+
+/** 사용자 시장의 주제만 내려온다(global-api.md 4.5) — mock 은 시나리오로 시장을 고른다 */
+const MARKET_TOPICS = SCENARIO === 'global' ? GLOBAL_MOCK_TOPICS : INTEREST_MOCK_TOPICS;
+
 const initialInterests = (): UserInterestDto[] => {
+  if (SCENARIO === 'global') {
+    return GLOBAL_MOCK_TOPICS.slice(0, 2).map((t) => ({
+      topic_id: t.topic_id,
+      source: 'onboarding',
+    }));
+  }
   if (SCENARIO === 'over-limit') {
     return [
       { topic_id: '9bb3a706-2035-4635-82e2-5a9579d8987b', source: 'onboarding' },
@@ -206,10 +294,9 @@ const throwLoadFail = (traceSuffix: string): never => {
 
 const FEW_TOPICS_COUNT = 5;
 const visibleTopics = (): TopicListResponseDto['items'] =>
-  (SCENARIO === 'few-topics'
-    ? INTEREST_MOCK_TOPICS.slice(0, FEW_TOPICS_COUNT)
-    : INTEREST_MOCK_TOPICS
-  ).filter((t) => !state.hiddenTopicIds.has(t.topic_id));
+  (SCENARIO === 'few-topics' ? MARKET_TOPICS.slice(0, FEW_TOPICS_COUNT) : MARKET_TOPICS).filter(
+    (t) => !state.hiddenTopicIds.has(t.topic_id),
+  );
 
 /** 숨겨진 주제의 활성 관심사는 응답에서 제외한다(interest-management-api.md 4.2) */
 const visibleInterests = (): UserInterestDto[] =>
@@ -226,7 +313,7 @@ export const getInterestMockSummary = (): {
 } => {
   const interests = visibleInterests();
   const nameOf = (id: string): string =>
-    INTEREST_MOCK_TOPICS.find((t) => t.topic_id === id)?.name ?? '주제';
+    MARKET_TOPICS.find((t) => t.topic_id === id)?.name ?? '주제';
   return {
     count: interests.length,
     top_topics: interests

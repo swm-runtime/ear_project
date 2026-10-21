@@ -1,0 +1,109 @@
+import type { Metadata, Viewport } from "next";
+import { Analytics as VercelAnalytics } from "@vercel/analytics/next";
+import { Analytics } from "@/components/Analytics";
+import { Footer } from "@/components/Footer";
+import { Header } from "@/components/Header";
+import { JsonLd } from "@/components/JsonLd";
+import { ScrollReveal } from "@/components/ScrollReveal";
+import { routes } from "@/content/routes";
+import { site, SITE_URL } from "@/content/site";
+import { siteGraph } from "@/lib/schema";
+import "../globals.css";
+
+/**
+ * 한국어 페이지의 루트 레이아웃.
+ *
+ * 루트 레이아웃이 둘이다(2026-10-15 — KAN-199): 한국어는 `(ko)` 라우트 그룹, 영어는 `en/layout.tsx`.
+ * `<html lang>`과 헤더·푸터 문구가 언어마다 달라야 하는데, 정적 내보내기에서는 레이아웃이 현재 경로를
+ * 알 수 없어 한 레이아웃으로 둘을 가를 수 없다. 그룹 이름 `(ko)`는 주소에 나오지 않으므로 기존 주소는 그대로다.
+ * 두 레이아웃 사이를 오가면 클라이언트 전환 대신 전체 새로고침이 일어난다(Next 라우트 그룹 문서의 제약) —
+ * 언어 전환 링크 한 곳뿐이라 감수한다.
+ *
+ * 여기에는 **모든 페이지에 공통인 것만** 둔다. 제목·설명·canonical·OG 이미지는
+ * 페이지마다 달라야 하므로 각 page.tsx가 `lib/seo.ts`로 만들어 내보낸다.
+ * 여기서 openGraph를 정의해 두면 페이지가 덮어쓰지 않은 경우 홈 값이 그대로
+ * 새어 나가므로, 공통 기본값으로 둘 만한 것만 남겼다.
+ */
+export const metadata: Metadata = {
+  // canonical·OG·sitemap의 상대 경로가 절대 URL로 펼쳐지는 기준점.
+  metadataBase: new URL(SITE_URL),
+  title: {
+    default: routes.home.title,
+    template: `%s | ${site.name}`,
+  },
+  description: routes.home.description,
+  keywords: [...site.keywords],
+  applicationName: site.name,
+  authors: [{ name: site.name }],
+  creator: site.name,
+  publisher: site.name,
+  category: "education",
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      "max-image-preview": "large",
+      "max-snippet": -1,
+      "max-video-preview": -1,
+    },
+  },
+  // 한국어 페이지에서 숫자가 전화번호로 자동 링크되는 것을 막는다.
+  formatDetection: { telephone: false, address: false, email: false },
+  // 검색엔진 소유 확인 코드는 발급받은 뒤 환경변수로 주입한다.
+  verification: {
+    google: process.env.NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION,
+    other: process.env.NEXT_PUBLIC_NAVER_SITE_VERIFICATION
+      ? { "naver-site-verification": process.env.NEXT_PUBLIC_NAVER_SITE_VERIFICATION }
+      : {},
+  },
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  themeColor: [
+    /* globals.css의 --paper / --ink-900과 같은 값이다. 어긋나면 주소창 색과
+       페이지 상단 색이 갈라져 이음매가 보인다. */
+    { media: "(prefers-color-scheme: light)", color: "#ffffff" },
+    { media: "(prefers-color-scheme: dark)", color: "#ffffff" },
+  ],
+  colorScheme: "light",
+};
+
+export default function RootLayout({
+  children,
+}: Readonly<{ children: React.ReactNode }>) {
+  return (
+    <html lang="ko">
+      <head>
+        {/* 본문 글꼴을 CSS 파싱보다 먼저 받기 시작한다. LCP(제목)가 폰트를 기다리지 않게 하는 것이 목적이다. */}
+        <link
+          rel="preload"
+          href="/fonts/pretendard-var.woff2"
+          as="font"
+          type="font/woff2"
+          crossOrigin="anonymous"
+        />
+        {/* 사이트 전역 개체(Organization·WebSite·MobileApplication). 페이지 고유 타입은 각 page가 더한다. */}
+        <JsonLd data={siteGraph()} />
+      </head>
+      <body>
+        <a href="#main" className="skipLink">
+          본문 바로가기
+        </a>
+        <Header />
+        <main id="main">{children}</main>
+        {/* 아래쪽 섹션의 스크롤 등장 — 표식이 없으면 전부 보이므로 크롤러·JS 꺼짐에 영향이 없다 */}
+        <ScrollReveal />
+        <Footer />
+        {/* GA4. 본문 뒤에 두어 측정 스크립트가 첫 화면 렌더를 붙잡지 않게 한다. */}
+        <Analytics />
+        {/* Vercel Web Analytics(2026-09-18 추가). 클라이언트에서 스크립트를 주입하므로 정적 내보내기에서도 동작하고,
+            Vercel 밖(localhost)에서는 아무 것도 보내지 않는다. 페이지뷰만 잡는다 — 개인정보 동의 배너가 필요 없는 범위 */}
+        <VercelAnalytics />
+      </body>
+    </html>
+  );
+}

@@ -22,7 +22,8 @@ export class LocaleInputDto {
   /** 기기 언어 BCP 47(`getLocales()[0].languageTag`) */
   @IsOptional()
   @IsString()
-  @MaxLength(16)
+  // 64: 유니코드 확장이 붙은 태그(`ja-JP-u-ca-japanese`)를 검증에서 막지 않는다 — 확장은 `normalizeLanguageCode`가 잘라 16자로 저장
+  @MaxLength(64)
   readonly language_code?: string;
 
   /** 기기 지역 ISO 3166-1 alpha-2 */

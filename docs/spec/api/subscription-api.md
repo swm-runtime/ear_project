@@ -104,19 +104,19 @@
   "plans": [
     {
       "plan_id": "uuid-light", "tier": "light", "name": "Light", "description": "하루 2편까지 들을 수 있어요",
-      "price_krw": 0, "store_product_id": null,
+      "price_krw": 0, "is_free": true, "store_product_id": null,
       "entitlements": { "daily_play_limit": 2, "daily_drip_count": 2, "drip_enabled": true, "ads_enabled": true },
       "action": "current"
     },
     {
       "plan_id": "uuid-daily", "tier": "daily", "name": "Daily", "description": "하루 5편까지 들을 수 있어요",
-      "price_krw": 3900, "store_product_id": "com.runtime.ear.subscription.daily.monthly",
+      "price_krw": 3900, "is_free": false, "store_product_id": "com.runtime.ear.subscription.daily.monthly",
       "entitlements": { "daily_play_limit": 5, "daily_drip_count": 2, "drip_enabled": true, "ads_enabled": false },
       "action": "purchase"
     },
     {
       "plan_id": "uuid-pro", "tier": "pro", "name": "Pro", "description": "제한 없이 마음껏 들을 수 있어요",
-      "price_krw": 9900, "store_product_id": "com.runtime.ear.subscription.pro.monthly",
+      "price_krw": 9900, "is_free": false, "store_product_id": "com.runtime.ear.subscription.pro.monthly",
       "entitlements": { "daily_play_limit": null, "daily_drip_count": 2, "drip_enabled": true, "ads_enabled": false },
       "action": "purchase"
     }
@@ -130,6 +130,7 @@
 | `plans[]` | `is_active = true`인 요금제, `display_order` 오름차순(낮은 티어 → 높은 티어). **무료(`light`)도 포함한다** — 비교 카드에 필요하다 |
 | `store_product_id` | 요청 `platform`의 상품 ID(`plans.store_product_id_ios` / `_android`). 무료 티어·그 플랫폼에 상품이 없는 요금제는 `null` |
 | `price_krw` | **참고값.** 화면에는 스토어 SDK가 반환한 현지 가격을 그린다(`subscription.md` 7). SDK 조회가 실패했을 때의 폴백으로도 쓰지 않는다 — "요금제를 불러올 수 없어요"다(5장) |
+| `is_free` | 무료 요금제인가 — **서버가 판정한다.** 요금제 정의의 가격(`plans.price_krw`)이 0 이하면 `true`다. 티어 이름으로 가르지 않는다. 시장·플랫폼·구독 상태와 무관하다. 앱은 "무료" 표시를 이 값으로 한다(`store_product_id`·`action`으로 추정하지 않는다). 추가 필드라 옛 앱은 무시한다(2026-10-18 — KAN-226) |
 | `action` | 이 사용자가 그 요금제에 대해 할 수 있는 일 — **서버가 판정한다**. 아래 표 |
 | `is_email_verified` | `email IS NOT NULL AND is_email_verified = true`. `false`면 [구독하기] 탭 시 이메일 등록·인증 화면을 먼저 연다(FR-39) — 4.3이 다시 판정한다 |
 
@@ -146,6 +147,7 @@
 
 - **다른 스토어에서 결제한 구독자**(예: Android에서 구독하고 iOS로 접속): 유료 요금제 전부 `none`이다. 한 계정에 두 스토어 구독을 겹치지 않는다. 화면은 4.2의 `store`로 "Google Play에서 구독 중이에요"를 안내한다.
 - **표시 문구는 DB 값이다**(`plans.name`·`description` — `domain.md` 8.1). 2026-10-06 PM 결정으로 `Light` / `Daily` / `Pro`, 설명은 "하루 2편까지 들을 수 있어요" / "하루 5편까지 들을 수 있어요" / "제한 없이 마음껏 들을 수 있어요"(마이그레이션 `RenamePlanDisplayNames`). 화면은 이 값을 그대로 그린다 — 앱에 티어명을 두지 않는다.
+- **`name`·`description`은 사용자 시장의 언어다**(2026-10-16 — KAN-192 일부). KR은 한국어(`name`·`description`), GLOBAL은 영어(`name_en`·`description_en` — `domain.md` 8.1. 비어 있으면 한국어)다. 언어는 기기 언어가 아니라 `users.market`으로 고른다. 앱은 받은 문구를 그대로 그린다.
 - 비활성(`is_active = false`) 요금제는 목록에서 빠진다. 그 요금제의 기존 구독자는 만료까지 유지되며(`subscription.md` 7), 이때 응답에 `current`인 항목이 없을 수 있다 — 현재 구독 표시는 4.2가 한다.
 
 **에러** — `VALIDATION_FAILED`(400): `platform` 누락·오값.
@@ -179,6 +181,7 @@
 | `plan.grant` | **초대 코드 지급** 중이면 `{ "name", "tier", "plan_name", "ends_at", "last_date" }`, 아니면 `null`(4.8 — 2026-10-10). 프로필·설정의 `plan.grant`와 같다 |
 | `pending_plan` | **다운그레이드 예약**이 있으면 `{ "tier", "plan_name", "effective_at" }`, 없으면 `null`. `effective_at`은 현재 결제 주기 만료 시각이다(`subscription.md` 4.4 — "언제부터 적용되는지" 표시) |
 
+- **`plan.plan_name`·`plan.grant.plan_name`·`pending_plan.plan_name`(현재·지급·예약 요금제 이름)은 사용자 시장의 언어다**(2026-10-16) — 4.1 `name`과 같은 규칙이다(GLOBAL 체험 중이면 `Free trial`). 프로필·설정의 `plan_name`도 같다.
 - **`users.tier` 캐시가 아니라 `subscriptions`를 기준으로 조립한다**(`domain.md` 8.2). 프로필·설정과 같은 규칙이다.
 - **만료 보정** — 알림 유실 대비(`subscription.md` 7). 조회 시점에 비종결 행(`active`·`grace`·`cancelled`)의 `expires_at`이 **1시간 넘게 지나 있으면** 서버가 스토어에 그 구독의 현재 상태를 조회해 반영한 뒤 응답한다. 스토어 조회가 실패하면 **저장된 상태 그대로 응답한다** — 섣불리 추측으로 강등하지 않는다(유예·갱신 지연을 만료로 오판하면 결제한 사용자가 막힌다). 같은 보정을 하루 1회 배치도 돌린다.
   - **상한 — 7일**(2026-10-06). 스토어에 **확인할 수 없는 채로**(조회 키 미구성 · 스토어가 그 구독을 모름 · 조회 실패 지속 · 상품을 모름) `expires_at`이 **7일 넘게** 지난 비종결 행은 `expired`로 내리고 `users.tier`를 맞춘다. 상한이 없으면 그런 행은 영영 유료로 남고, 매 배치의 앞자리를 차지해 다른 행의 보정을 민다. 7일은 App Store가 실패한 알림을 다시 보내는 기간(1·12·24·48·72시간 뒤, 합 약 6.5일)을 넘긴 값이다 — 그 뒤에는 늦은 갱신 알림이 올 가능성이 없다. 유예 기간은 이미 `expires_at`에 들어 있다(4.6).
@@ -446,7 +449,7 @@ Google Cloud Pub/Sub **push 구독**이 호출한다. 본문은 Pub/Sub 메시�
 
 - **`plan.status`는 지급과 무관하다** — 구독 상태 그대로다(지급은 구독이 아니다). 지급 요금제가 구독보다 높으면 `plan.tier` · `plan_name` · `daily_play_limit`과 `entitlements`가 지급 요금제의 값이 된다. 낮으면 구독 표시 그대로이고 `grant`만 실린다.
 - 가입 체험과 겹치면 지급이 표시를 이긴다(`tier`는 지급 요금제). 한도는 둘 중 넉넉한 쪽이다.
-- **이벤트 중 결제** — 코드를 입력할 때 구독이 없던 계정에 지급 기간 중 살아 있는 구독이 반영되면(4.4·4.5·스토어 알림 — 재구독 포함) 서버가 지급을 끝낸다. 결제 응답의 `plan.grant`는 `null`이 된다. 결제 전에 "이벤트가 끝나요"를 알리거나 막는 것은 클라이언트가 `plan.grant.tier`와 고른 요금제로 정한다. 입력 때 이미 구독 중이었으면 그 구독의 갱신·변경은 지급을 끝내지 않는다.
+- **프로모션 중 결제** — 코드를 입력할 때 구독이 없던 계정에 지급 기간 중 살아 있는 구독이 반영되면(4.4·4.5·스토어 알림 — 재구독 포함) 서버가 지급을 끝낸다. 결제 응답의 `plan.grant`는 `null`이 된다. 결제 전에 "프로모션이 끝나요"를 알리거나 막는 것은 클라이언트가 `plan.grant.tier`와 고른 요금제로 정한다. 입력 때 이미 구독 중이었으면 그 구독의 갱신·변경은 지급을 끝내지 않는다.
 - 체험과 지급이 겹치면 `plan.trial.daily_play_limit_after`는 지급까지 반영한 한도다.
 - 요금제 목록(4.1)의 `action`은 **구독만 보고** 정한다 — 지급은 반영하지 않는다(구독이 없으면 무료가 `current`). 지급 중 표시는 `plan.grant`로 한다.
 - 지급이 끝나면 10분 안에 `users.tier`가 되돌아간다(`domain.md` 8.6 만료 배치). 그 사이 응답의 `plan`은 이미 지급 없이 조립된다.

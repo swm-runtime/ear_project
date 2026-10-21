@@ -1,6 +1,8 @@
 import type { NavigatorScreenParams } from '@react-navigation/native';
 
-import type { AuthStackParamList } from '@/features/auth';
+import type { ExploreTabParams } from '@/shared/navigation/to-tab';
+
+import type { AuthStackParamList, MarketChangeParams } from '@/features/auth';
 import type { ContentDetailEntryPoint } from '@/features/content-detail';
 import type { OnboardingStackParamList } from '@/features/onboarding';
 import type { PlayEntryPoint, PlaybackStartMeta } from '@/features/player';
@@ -18,8 +20,11 @@ export type ExploreStackParamList = {
 /** 하단 탭 3개 — 라이브러리가 기본이고 설정은 탭이 아니라 프로필 안이다(library.md 2) */
 export type MainTabParamList = {
   Library: undefined;
-  /** JS 탭 바 갈래는 화면 하나(applyTopicId 직접), iOS 26 갈래는 안에 스택(ExploreStackParamList) */
-  Explore: NavigatorScreenParams<ExploreStackParamList> | { applyTopicId?: string } | undefined;
+  /**
+   * JS 탭 바 갈래는 화면 하나(applyTopicId 직접), iOS 26 갈래는 안에 스택(ExploreStackParamList).
+   * searchQuery: 태그 탭 → 검색을 열고 그 질의로 즉시 검색한다(KAN-219, `toTab('Explore', { searchQuery })`)
+   */
+  Explore: NavigatorScreenParams<ExploreStackParamList> | ExploreTabParams | undefined;
   Profile: undefined;
 };
 
@@ -45,11 +50,17 @@ export type MainStackParamList = {
    */
   ContentDetail: { contentId: string; entryPoint: ContentDetailEntryPoint };
   /**
-   * 검색(E6·E7, explore.md 4.5 — MVP 포함 격상 2026-08-23) — 진입점은 탐색 검색창뿐이다.
+   * 검색(E6·E7, explore.md 4.5 — MVP 포함 격상 2026-08-23) — 진입점은 탐색 검색창과 태그 탭(KAN-219)이다.
    * 피드 상태(필터·구간·스크롤)는 스택 아래 Tabs가 유지하고, 검색 상태(검색어·결과)는
    * pop과 함께 버려진다(4.5-1) — 재진입은 검색 초기 화면부터다.
+   * initialQuery: 태그 탭이 넘긴 질의(`#태그`) — 디바운스 없이 즉시 검색하고 최근 검색어에 저장한다
    */
-  ExploreSearch: undefined;
+  ExploreSearch: { initialQuery?: string } | undefined;
+  /**
+   * 시리즈 화면(E14 — explore.md 4.7, KAN-225). 진입은 탐색의 시리즈 카드(피드·주제별·인기·검색 — 스위치
+   * `SERIES_EXPLORE_CARDS_ENABLED` 켬)와 콘텐츠 상세의 시리즈 줄이다. 데이터는 `GET /series/:series_id`(explore-api.md 4.7)
+   */
+  Series: { seriesId: string };
   /** 설정(settings.md) — 진입점은 프로필 우상단 아이콘뿐이다 */
   Settings: undefined;
   /** 요금제 관리(subscription.md · KAN-120) — 설정 "요금제 관리" 카드·프로필 [구독 알아보기]의 목적지 */
@@ -76,6 +87,11 @@ export type MainStackParamList = {
    * RootNavigator가 시작 화면으로 스택을 통째로 교체한다
    */
   Withdrawal: undefined;
+  /**
+   * 설정 › 콘텐츠 언어(시장) 전환(KAN-228 — global-api.md 4.11). 성공하면 세션 사용자가 온보딩 전으로 바뀌어
+   * RootNavigator 가 스택을 통째로 온보딩으로 바꾼다
+   */
+  MarketChange: MarketChangeParams;
   /** TODO: 관리자 페이지(admin.md 2장) 구현 시 교체 — 관리자 계정에만 진입점이 노출된다 */
   Admin: undefined;
 };

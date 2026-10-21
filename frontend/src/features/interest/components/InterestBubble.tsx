@@ -1,15 +1,17 @@
-import { useEffect, useId } from 'react';
+import { useEffect, useMemo } from 'react';
 import { Animated, Image, Pressable, StyleSheet, View } from 'react-native';
-import Svg, { Defs, Line, Pattern, Rect } from 'react-native-svg';
+import Svg, { Line, Rect } from 'react-native-svg';
 
 import { useAnimatedValue } from '@/shared/hooks/useAnimatedValue';
 import { motion, theme } from '@/shared/theme';
 
 import { INTEREST_COPY } from '../interest.copy';
-import { topicImageSource } from './TopicChip';
+import { topicImageSource } from '../interest.images';
 
 interface InterestBubbleProps {
   name: string;
+  /** 사진 키 — slug 먼저, 없으면 `name`으로 찾는다(interest.images.ts, KAN-195) */
+  slug: string | null;
   /** 기본 지름(pt) — 자리·배율은 부모(InterestBubbleField)의 물리가 transform 으로 준다 */
   size: number;
   isSelected: boolean;
@@ -27,6 +29,10 @@ interface InterestBubbleProps {
  * 빗금 — 흰 선(블라인드 살), 반투명. 간격·굵기는 버블 지름과 무관하게 일정하게.
  * 밝은 사진(IT·개발 같은 코드 이미지) 위에서도 또렷하게: 아래 옅은 어두운 판(블라인드 사이 그늘)을
  * 깔고 그 위에 흰 살을 얹는다 — 흰 선만으로는 밝은 사진에 묻힌다(2026-10-14 실기기 확인, juho).
+ *
+ * **`<Pattern patternTransform="rotate(45)">` 로 그리지 않는다** — react-native-svg 15.x 에서 회전 패턴이
+ * 기기에 따라 아예 안 그려졌다(2026-10-14 대비·그늘 보강 뒤에도 실기기 미표시, juho 2026-10-15). 지름(size)으로
+ * 45° 대각선 Line 을 직접 깔아 패턴 엔진 의존을 없앴다(앱 안에 Pattern 쓰는 검증된 전례도 여기뿐이었다).
  */
 const HATCH_GAP = 7;
 const HATCH_STROKE = 2;
@@ -52,6 +58,7 @@ const DIMMED_WASH = 0.62;
  */
 export default function InterestBubble({
   name,
+  slug,
   size,
   isSelected,
   isDimmed,
@@ -59,8 +66,22 @@ export default function InterestBubble({
   onPress,
 }: InterestBubbleProps) {
   const wash = useAnimatedValue(isDimmed ? DIMMED_WASH : 0);
-  // SVG 패턴 id — useId의 콜론은 웹 url(#…)에서 깨지므로 걷어낸다. 버블마다 고유해야 패턴이 섞이지 않는다
-  const hatchId = `hatch-${useId().replace(/:/g, '')}`;
+  /**
+   * 45° 대각선 살 — 반대각선 x+y=t 의 가족을 수직 간격 HATCH_GAP(=> t 간격 GAP·√2)로 깔고, 각 선을 버블
+   * 정사각형(size) 안으로 자른다. 원 밖 삐침은 hatchClip(overflow:hidden·둥근 모서리)이 자른다.
+   */
+  const hatchLines = useMemo(() => {
+    const step = HATCH_GAP * Math.SQRT2;
+    const lines: { x1: number; y1: number; x2: number; y2: number }[] = [];
+    for (let t = step; t < size * 2; t += step) {
+      lines.push(
+        t <= size
+          ? { x1: t, y1: 0, x2: 0, y2: t }
+          : { x1: size, y1: t - size, x2: t - size, y2: size },
+      );
+    }
+    return lines;
+  }, [size]);
 
   useEffect(() => {
     Animated.timing(wash, {
@@ -89,38 +110,30 @@ export default function InterestBubble({
         ]}
       >
         <View style={[styles.photoClip, { borderRadius: radius }]}>
-          <Image source={topicImageSource(name)} resizeMode="cover" style={styles.photo} />
+          <Image source={topicImageSource({ slug, name })} resizeMode="cover" style={styles.photo} />
           <View style={styles.scrim} />
         </View>
       </View>
       {/* 자동 확장 주제 — 사진 위 빗금("창문 블라인드"). 이름은 위에 그대로 올라 읽힌다(빗금은 label 아래) */}
       {isAutoExpanded ? (
         <View style={[styles.hatchClip, { borderRadius: radius }]} pointerEvents="none">
-          {/* 퍼센트 대신 숫자 지름 — react-native-svg 는 absoluteFill 안에서 width="100%" 를 못 잡아
-              SVG 가 0 으로 안 그려지는 함정이 있다(2026-10-14 실기기 빗금 미표시, juho) */}
+          {/* 숫자 지름 — react-native-svg 는 absoluteFill 안에서 width="100%" 를 못 잡아 SVG 가 0 으로
+              안 그려지는 함정이 있다(2026-10-14, juho). 그늘 판을 먼저 깔고 그 위에 45° 살을 직접 올린다 */}
           <Svg width={size} height={size}>
-            <Defs>
-              <Pattern
-                id={hatchId}
-                patternUnits="userSpaceOnUse"
-                width={HATCH_GAP}
-                height={HATCH_GAP}
-                patternTransform="rotate(45)"
-              >
-                <Line
-                  x1={0}
-                  y1={0}
-                  x2={0}
-                  y2={HATCH_GAP}
-                  stroke={theme.color.onPhoto}
-                  strokeWidth={HATCH_STROKE}
-                  strokeOpacity={HATCH_OPACITY}
-                />
-              </Pattern>
-            </Defs>
             {/* 블라인드 사이 그늘 — 밝은 사진 위에서도 흰 살이 떠 보이게 옅은 어두운 판을 먼저 깐다 */}
             <Rect x={0} y={0} width={size} height={size} fill="#000000" fillOpacity={HATCH_SCRIM_OPACITY} />
-            <Rect x={0} y={0} width={size} height={size} fill={`url(#${hatchId})`} />
+            {hatchLines.map((line, index) => (
+              <Line
+                key={index}
+                x1={line.x1}
+                y1={line.y1}
+                x2={line.x2}
+                y2={line.y2}
+                stroke={theme.color.onPhoto}
+                strokeWidth={HATCH_STROKE}
+                strokeOpacity={HATCH_OPACITY}
+              />
+            ))}
           </Svg>
         </View>
       ) : null}

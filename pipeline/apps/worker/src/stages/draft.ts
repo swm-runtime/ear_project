@@ -1,7 +1,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import { cfg, executedBy } from "../config.js";
-import { claimApprovedBacklog, deleteEpisode, enqueue, getBacklog, getBacklogStatus, getEpisode, getSetting, insertRun, majorOfMidTopic, nextEpisodeId, setBacklogStatus, setJobProgress, updateJobPayload, upsertEpisode, pool, type Job } from "../db.js";
+import { seriesPrevReady, claimApprovedBacklog, deleteEpisode, enqueue, getBacklog, getBacklogStatus, getEpisode, getSetting, insertRun, majorOfMidTopic, nextEpisodeId, setBacklogStatus, setJobProgress, updateJobPayload, upsertEpisode, pool, type Job } from "../db.js";
 import type { Executor } from "../executors/index.js";
 import { buildDraftPrompt, buildDraftRevisionPrompt, DRAFT_SCHEMA, DRAFT_REVISION_SCHEMA, episodeDatePrefix, episodeIdLetter, pickIntroStyle, pipelineLocale, signoffVariants, speakerNames, type Templates } from "@ear/pipeline";
 import { exists, hostOf, log, RetryLater } from "../util.js";
@@ -9,6 +9,7 @@ import { prepareAssets, workerRev } from "../assets.js";
 import { listPrefix, pullPrefix, pushPrefix, s3Key } from "../storage.js";
 import { parseScriptForTts } from "../tts/script.js";
 import { l0Next, runTwoStageDraft, twoStageViolations } from "./draft-two-stage.js";
+import { buildSeriesContext, readSeriesLinks, seriesOverlapViolations, seriesViolations } from "./series-draft.js";
 import { runRevisionSingle } from "./revision-single.js";
 
 interface DraftOut { turns: number; chars: number; minutes: number; sources_used: string[]; sources_excluded: { url: string; reason: string }[]; self_check_fixes: string[]; notes: string }
@@ -26,6 +27,11 @@ export async function runDraft(job: Job, ex: Executor) {
   if (cand.sources.length < 3) throw new Error(`소스 ${cand.sources.length}건 — 3건 하한 미달 (불변 원칙 5)`);
 
   let episodeId: string;
+  // 시리즈 편 집기 순서 (spec/11 5.3): k화는 k-1화 구성안이 생긴 뒤(앞 편 drafted 이후)에만 — 선점 전에 돌려보내 후보를 approved 로 둔다. 앞 편이 준비되면 pickupApproved 가 다시 건다
+  if (attempt === 1 && cand.series_id && !job.payload.episode_id && !(await seriesPrevReady(backlogId))) {
+    log(`  draft ${backlogId}: 시리즈 ${cand.series_no}화 — 앞 편 구성안 대기, 집지 않음`);
+    return { backlog_id: backlogId, skipped: true, reason: `시리즈 ${cand.series_no}화 — 앞 편(${(cand.series_no ?? 1) - 1}화) 초안 대기` };
+  }
   if (attempt === 1) {
     // 선점 (approved → claimed, 원자적) — 승인 시 UI 가 넣은 작업이 여기서 후보를 집는다 (2026-09-08). 실패하면:
     //   · 이 작업이 이미 집었던 후보(재집기 — payload 에 episode_id 있음) → 이어받기
@@ -40,7 +46,9 @@ export async function runDraft(job: Job, ex: Executor) {
       }
     }
     // 재집기(워커 사망 후 회수) 시 같은 에피소드를 이어받도록 작업 payload 에 ID 를 고정한다
-    episodeId = String(job.payload.episode_id ?? "") || (await allocateEpisodeId(episodeDatePrefix(episodeIdLetter()), backlogId));
+    // 한국판 시리즈 편은 S 접두어(spec/11 7장 — CS 시리즈 선례). 글로벌판은 시리즈 편도 G(글로벌 명세 6.11)
+    const letter = cand.series_id && pipelineLocale() !== "en" ? "S" : episodeIdLetter();
+    episodeId = String(job.payload.episode_id ?? "") || (await allocateEpisodeId(episodeDatePrefix(letter), backlogId));
     if (!job.payload.episode_id) await updateJobPayload(job.id, { episode_id: episodeId });
   } else {
     episodeId = String(job.payload.episode_id ?? "");
@@ -51,7 +59,7 @@ export async function runDraft(job: Job, ex: Executor) {
   const { assetRoot, bundle } = await prepareAssets(prior?.asset_versions ?? null);
   // 실험 no-gold (2026-09-15): settings.experiments.no_gold_backlog_ids 에 든 후보는 골드 예시 없이 설계·대본을 쓴다 — 라벨 "+no-gold" 로 runs·episodes 에 남긴다
   const experiments = await getSetting<{ no_gold_backlog_ids?: string[] }>("experiments").catch(() => null);
-  const noGold = pipelineLocale() === "en" || (experiments?.no_gold_backlog_ids ?? []).includes(backlogId); // 글로벌판은 골드 0편에서 시작(명세 7장)
+  const noGold = pipelineLocale() === "en" || (experiments?.no_gold_backlog_ids ?? []).includes(backlogId); // 글로벌판은 골드를 쓰지 않는다 — 골드 실험(v0.19~v0.20) 세 편이 −2·0·+2 에 골드의 틀만 옮겨 와 끝냈다(2026-10-21)
   const promptVersion = attempt === 1 && cfg.draftMode === "two-stage" ? `${bundle.labels.draft}+2stage${noGold ? "+no-gold" : ""}` : (prior?.prompt_version ?? bundle.labels.draft); // 2단계는 라벨에 표시 — 통과율·비용을 방식별로 집계한다
   if (noGold) log(`  draft ${episodeId}: 실험 no-gold — 골드 예시 없이 설계·대본`);
   if (!prior?.asset_versions) await upsertEpisode({ id: episodeId, backlog_id: backlogId, prompt_version: promptVersion, asset_versions: bundle.versions });
@@ -89,11 +97,13 @@ export async function runDraft(job: Job, ex: Executor) {
     const seed = await countEpisodes();
     const intro = pickIntroStyle(seed);
     const [templates, majorTopic] = await Promise.all([getSetting<Templates>("templates"), majorOfMidTopic(cand.mid_topic)]);
-    const t = await runTwoStageDraft({ job, ex, episodeId, candidate: cand, dir, rel, assetRoot, promptVersion, noGold, templates, majorTopic: majorTopic ?? undefined, introStyle: intro, fileTools, signoffSeed: Number(cand.id.replace(/\D/g, "")) || seed }); // 클로징 골격은 후보 번호로 돌린다 — 같은 시각에 시작한 3편이 같은 에피소드 수를 받아 골격이 겹쳤다 (T260909-005·007·009)
+    const series = await buildSeriesContext(cand, templates); // 시리즈 편(spec/11 5장) — 일반 편은 undefined 라 프롬프트가 그대로다
+    const t = await runTwoStageDraft({ job, ex, episodeId, candidate: cand, dir, rel, assetRoot, promptVersion, noGold, templates, majorTopic: majorTopic ?? undefined, introStyle: intro, fileTools, signoffSeed: Number(cand.id.replace(/\D/g, "")) || seed, series, seriesId: cand.series_id ?? undefined }); // 클로징 골격은 후보 번호로 돌린다 — 같은 시각에 시작한 3편이 같은 에피소드 수를 받아 골격이 겹쳤다 (T260909-005·007·009)
     out = { turns: t.stats.turns, chars: t.stats.chars, minutes: t.stats.minutes, sources_used: t.design?.sources_used ?? [], sources_excluded: t.design?.sources_excluded ?? [], self_check_fixes: t.write.self_check_fixes, notes: t.write.notes };
     oneLiner = t.write.one_liner?.trim() || null; // KAN-50 3-1 — 썸네일 {핵심 개념}·발행 메타 설명 첫 줄
     model = t.model; costUsd = t.costUsd; tokens = t.tokens; summary = t.summary;
   } else if (attempt === 1) {
+    if (cand.series_id) throw new Error("시리즈 편은 2단계 초안(DRAFT_MODE=two-stage)에서만 만든다 — 회상·예고는 2단계 프롬프트에 있다");
     const introSeed = await countEpisodes();
     const intro = pickIntroStyle(introSeed);
     const [templates, majorTopic] = await Promise.all([getSetting<Templates>("templates"), majorOfMidTopic(cand.mid_topic)]);
@@ -173,7 +183,10 @@ export async function runDraft(job: Job, ex: Executor) {
   const [claimsMd, sourcesMd, notesMd] = await Promise.all([readIf("claims.md"), readIf("sources.md"), readIf("script-notes.md")]);
   let pronunciations: Record<string, string> | undefined;
   try { pronunciations = JSON.parse(await fs.readFile(pronFile, "utf8")) as Record<string, string>; } catch { pronunciations = undefined; }
-  const violations = [...formatViolations(scriptMd), ...((await exists(outlineFile)) ? twoStageViolations(scriptMd, await fs.readFile(outlineFile, "utf8"), { signoffHeads, claimsMd, sourcesMd, notesMd, pronunciations }) : [])];
+  const seriesLinks = await readSeriesLinks(dir); // 시리즈 편(spec/11 6장) — series-links.json 이 없으면 시리즈 검사 없음
+  const overlap = await seriesOverlapViolations(ex, scriptMd, seriesLinks); // 범위 검사(L1 겹침 항목) — 형제 편 몫을 풀어 쓴 곳. 한도 뒤엔 QA 로
+  if (overlap.costUsd) costUsd = (costUsd ?? 0) + overlap.costUsd;
+  const violations = [...formatViolations(scriptMd), ...((await exists(outlineFile)) ? twoStageViolations(scriptMd, await fs.readFile(outlineFile, "utf8"), { signoffHeads, claimsMd, sourcesMd, notesMd, pronunciations }) : []), ...seriesViolations(scriptMd, notesMd, seriesLinks), ...overlap.violations];
   // L0 수정은 QA 회차와 별도로 센다 (2026-09-09): 같은 카운터를 쓰니 시점 표현 1건 고치는 데 QA 회차 하나가 사라졌고, QA 수정본이 통계 용어로 L0 에 걸리자 attempt 3 한도에 막혀 검토 대기로 빠졌다(T260909-009)
   // 한도 3회 · 한도 뒤 비율 위반만 남으면 QA 로 넘긴다 (2026-10-07 — v9.7 이후 최종 실패 12편 중 7편, 남은 위반이 턴 한두 개짜리 비율·이름 소개였다)
   const l0Fixes = Number(job.payload.l0_fixes ?? 0);

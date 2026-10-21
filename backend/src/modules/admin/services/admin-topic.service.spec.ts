@@ -92,6 +92,17 @@ describe('AdminTopicService', () => {
       expect(result).toEqual([
         { topic: buildTopic(), contentCount: 3, visibleContentCount: 1 },
       ]);
+      expect(topicService.findAll).toHaveBeenCalledWith({ market: undefined });
+    });
+
+    it('시장을 주면 그 시장으로 거른 조회를 요청한다(KAN-237)', async () => {
+      // when
+      await service.findAll(NOW, UserMarket.GLOBAL);
+
+      // then
+      expect(topicService.findAll).toHaveBeenCalledWith({
+        market: UserMarket.GLOBAL,
+      });
     });
   });
 

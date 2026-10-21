@@ -1,8 +1,13 @@
 import { useRoute } from '@react-navigation/native';
 import { StyleSheet, View } from 'react-native';
 
+import { localized, type LocalizedCopy } from '@/shared/i18n/localized';
 import { theme } from '@/shared/theme';
 import { Text } from '@/shared/ui/Typography';
+
+const ko = { preparing: '화면 준비 중' } as const;
+const en: LocalizedCopy<typeof ko> = { preparing: 'Coming soon' };
+const COPY = localized({ ko, en });
 
 /** 미구현 화면 임시 표시 — onboarding·library feature 구현 시 교체한다 */
 export default function PlaceholderScreen() {
@@ -11,7 +16,7 @@ export default function PlaceholderScreen() {
   return (
     <View style={styles.container}>
       <Text style={styles.name}>{route.name}</Text>
-      <Text style={styles.caption}>화면 준비 중</Text>
+      <Text style={styles.caption}>{COPY.preparing}</Text>
     </View>
   );
 }

@@ -11,6 +11,7 @@ import { UserService } from '@/modules/user/services/user.service';
 import { UserMarket } from '@/modules/user/user.enum';
 
 import { PlaybackProgressRepository } from '../repositories/playback-progress.repository';
+import { PlayDailyTotalRepository } from '../repositories/play-daily-total.repository';
 import { PlayRecordRepository } from '../repositories/play-record.repository';
 import { UserSignalRepository } from '../repositories/user-signal.repository';
 import { REPLAY_WINDOW_DAYS } from '../playback.constant';
@@ -37,6 +38,7 @@ export class PlaybackService {
   constructor(
     private readonly playbackProgressRepository: PlaybackProgressRepository,
     private readonly playRecordRepository: PlayRecordRepository,
+    private readonly playDailyTotalRepository: PlayDailyTotalRepository,
     private readonly userSignalRepository: UserSignalRepository,
     private readonly userService: UserService,
     private readonly planService: PlanService,
@@ -276,6 +278,10 @@ export class PlaybackService {
    * **창 안의 재청취도 행을 만든다**(`isCounted = false`). 차감은 없지만 `listened_sec`
    * 적산 대상이 필요하기 때문이다(domain.md 6.3).
    *
+   * 행이 **새로 생겼을 때만** 서비스 날짜별 누적(`play_daily_totals`)의 재생 수에 1을 더한다 — 서비스 지표의 누적 재생 수가
+   * 탈퇴로 줄지 않게 하는 원천이다(domain.md 6.3-1). 날짜 행 하나를 모든 재생이 함께 갱신해 커밋까지 잠그지만, 지금 규모
+   * (동시 청취 수십 명)에서는 대기가 무시할 만하다 — 커지면 트랜잭션의 마지막 쓰기로 옮기거나 날짜 × 버킷으로 나눈다.
+   *
    * @returns 이 요청으로 행이 새로 생겼는지
    */
   async recordPlay(
@@ -285,16 +291,27 @@ export class PlaybackService {
     now: Date,
     manager?: EntityManager,
   ): Promise<boolean> {
-    return this.playRecordRepository.insertIgnoringConflicts(
+    const playDate = toServiceDate(now);
+    const inserted = await this.playRecordRepository.insertIgnoringConflicts(
       {
         userId,
         contentId,
-        playDate: toServiceDate(now),
+        playDate,
         playedAt: now,
         isCounted,
       },
       manager,
     );
+
+    if (inserted) {
+      await this.playDailyTotalRepository.add(
+        playDate,
+        { playCount: 1, listenSec: 0 },
+        manager,
+      );
+    }
+
+    return inserted;
   }
 
   /**
@@ -332,6 +349,12 @@ export class PlaybackService {
       delta,
       manager,
     );
+    // 누적 청취 시간 — 재생 행과 같은 날짜(재생 시작일)에 더한다(domain.md 6.3-1)
+    await this.playDailyTotalRepository.add(
+      record.playDate,
+      { playCount: 0, listenSec: delta },
+      manager,
+    );
 
     return true;
   }
@@ -360,6 +383,10 @@ export class PlaybackService {
     return { contentId, positionSec, maxReachedSec };
   }
 
+  /**
+   * 소비 신호 적재. **완청이면 그날의 누적 완청 수에도 더한다**(domain.md 6.3-1) — 신호는 탈퇴·180일 보존 배치로 지워지지만
+   * 서비스 지표의 누적 완청 수는 줄지 않아야 한다. 날짜는 신호의 `created_at`(DB 시각)과 같은 순간의 서비스 날짜다
+   */
   async recordSignal(
     userId: string,
     contentId: string,
@@ -370,6 +397,14 @@ export class PlaybackService {
       { userId, contentId, action },
       manager,
     );
+
+    if (action === UserSignalAction.COMPLETE) {
+      await this.playDailyTotalRepository.add(
+        toServiceDate(new Date()),
+        { completeCount: 1 },
+        manager,
+      );
+    }
   }
 
   /**

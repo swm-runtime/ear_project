@@ -98,7 +98,8 @@ GET 요청은 기본 자동 재시도 대상, POST/PUT/DELETE는 멱등키 또�
 ### 4.6 에러 문구 원칙
 
 - 기술 용어·에러 코드를 사용자에게 노출하지 않는다. 단 문의 대응을 위해 화면 구석에 코드를 작게 표기할 수 있다
-- 서버가 `error_message`를 내려준 경우 그것을 우선 사용한다(운영 중 문구 조정 가능)
+- 서버가 `error_message`를 내려준 경우 그것을 우선 사용한다(운영 중 문구 조정 가능) — **한국어 표시일 때만**. 서버 `message`는 한국어 폴백이다
+- **영어 표시(앱 표시 언어가 영어 — 설정 › 언어 · 가입 때 A21 선택으로 바뀐다, 2026-10-20 정정)에서는 서버 `message`를 쓰지 않고 클라이언트가 `error_code`로 번역한다**(2026-10-15 KAN-194 — `global-api.md` 2.3). 클라이언트는 **9장의 모든 `error_code`에 영어 문구**를 갖고(`frontend/src/shared/api/error-messages.ts`), 9장에 코드가 생겼는데 영어 문구가 없으면 테스트가 실패한다. 모르는 코드는 공통 영어 문구로 떨어진다 — 한국어가 새지 않는다
 - 기본 문구
   - 네트워크: "인터넷 연결을 확인해주세요"
   - 서버: "일시적인 오류가 발생했어요. 잠시 후 다시 시도해주세요"
@@ -211,9 +212,12 @@ NetworkState  { reachable, connection_type }                        // 클라이
 | error_code | HTTP | retryable | 클라이언트 동작 |
 |---|---|---|---|
 | `MARKET_MISMATCH` | 409 | false | **정상 UI에서는 나오지 않는다** — 공통 문구("다시 시도해 주세요" 류 일반 오류 안내). 화면 전용 분기를 두지 않는다 |
+| `MARKET_UNAVAILABLE` | 409 | false | 옮겨 갈 시장이 지금 열려 있지 않다(노출 주제 0개 · GLOBAL 가입 닫힘 · 전환 스위치 꺼짐). 미리보기가 `blocked_reason: market_unavailable`로 먼저 알려 주므로 정상 UI에서는 드물다 — 선택지를 비활성으로 두고 안내 문구 |
+| `MARKET_CHANGE_COOLDOWN` | 429 | false | 같은 서비스 날짜(05:00 KST)에 두 번째 전환. 최상위 `retry_after_sec`가 다음 05:00까지 남은 초다 — 자동 재시도하지 않고 "내일 다시 바꿀 수 있어요" 류 안내 |
 
 - 신설 2026-10-14(KAN-189). 사용자 시장(`users.market`)과 다른 시장의 자원을 저장하려 할 때 낸다. 발생 지점: **GLOBAL 계정의 커리어 저장**(`onboarding-api.md` 4.4 — GLOBAL에는 커리어 단계가 없다) · **다른 시장 주제를 관심사로 저장**(`onboarding-api.md` 4.3 · `interest-management-api.md` 4.3 — 부분 저장 없음).
 - 다른 시장 **콘텐츠** ID로 직접 접근하는 경우는 이 코드가 아니라 404 `CONTENT_NOT_FOUND`(9.2)다 — 존재 여부를 구분해 알려주지 않는다(`global-api.md` 4.7).
+- `MARKET_UNAVAILABLE`·`MARKET_CHANGE_COOLDOWN`은 신설 2026-10-19(KAN-227) — 가입 뒤 시장 전환(`POST /users/me/market-change`, `global-api.md` 4.11)에서만 낸다. 시장 전환의 동의 오류는 기존 코드를 그대로 쓴다 — 400 `CONSENT_REQUIRED`(새 시장 필수 동의 누락) · 409 `CONSENT_VERSION_STALE`(현행과 다른 버전 → **미리보기를 다시 받는다**. 9.3의 가입 화면 재조회 대상과 다르다).
 
 ### 9.3 인증·계정 (`auth-api.md` 5장)
 

@@ -3,7 +3,7 @@ export const ACCESS_TOKEN_TTL_SEC = 30 * 60;
 export const REFRESH_TOKEN_TTL_SEC = 30 * 24 * 60 * 60;
 
 /**
- * 만료·폐기된 세션의 보존 기간 — `changes/pending/sessions-retention-period.md`(domain.md 12.1
+ * 만료·폐기된 세션의 보존 기간 — `changes/archive/sessions-retention-period.md` · 반영 2026-09-09(domain.md 12.1
  * 개정 요청, 2026-09-09). 폐기 이력이 필요한 것은 refresh 재사용 탐지 창(refresh TTL 30일)
  * 동안뿐이라, 그 창을 넘긴 행은 탐지에도 안 쓰이고 조회 비용만 남긴다.
  */
@@ -11,6 +11,12 @@ export const SESSION_RETENTION_MS = REFRESH_TOKEN_TTL_SEC * 1000;
 
 /** 세션 파기 배치 주기(ms). 하루 단위 보존이라 시간 단위면 충분하다 */
 export const SESSION_PURGE_INTERVAL_MS = 60 * 60 * 1000;
+
+/**
+ * 일별 접속자 배치가 매일 다시 세는 날 수 — 어제와 그제(`DailyActiveUserScheduler`). 그제는 자정을 걸친 늦은 쓰기와
+ * 하루 놓친 크론을 메운다. 세션 보존(30일)보다 한참 짧아 원천이 남아 있는 날만 센다.
+ */
+export const DAILY_ACTIVE_USERS_RECOUNT_DAYS = 2;
 
 /** auth-api.md 9 미결 사항 — 약관 동의 화면 체류 시간을 감안해 10분으로 확정 */
 export const SIGNUP_TOKEN_TTL_SEC = 10 * 60;
@@ -20,7 +26,7 @@ export const PROVIDER_REQUEST_TIMEOUT_MS = 5000;
 
 export const ACCESS_TOKEN_TYPE = 'access';
 
-/** 파이프라인 웹 SSO 어서션의 typ (changes/pending/pipeline-sso-login.md) */
+/** 파이프라인 웹 SSO 어서션의 typ (changes/archive/pipeline-sso-login.md · 반영 2026-09-03) */
 export const PIPELINE_ASSERTION_TYPE = 'pipeline_sso';
 
 /**

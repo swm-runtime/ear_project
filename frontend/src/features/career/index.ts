@@ -24,6 +24,8 @@ export type { CareerInfo, JobCategory, YearsOfExperienceRange } from './career.t
  * (career가 profile의 키를 직접 import하면 의존 방향이 역행한다 — interest와 같은 방식)
  */
 export { registerCareerSavedListener } from './services/career-saved-listener';
+/** [커리어 정보] 진입 행 노출 판정 — GLOBAL 시장은 숨긴다(PM 확정 2026-10-18). 프로필·설정이 함께 쓴다 */
+export { isCareerEntryVisible } from './services/career-visibility';
 /**
  * dev mock 전용 — 커리어 상태의 mock 원본은 이 feature 하나다(실서버의 users 행처럼).
  * getCareerMockSummary는 프로필 mock의 career 요약이, seedCareerMockFromOnboarding은

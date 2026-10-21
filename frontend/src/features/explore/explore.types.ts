@@ -16,6 +16,21 @@ export interface ExploreContent {
   topicIds: string[];
   /** 콘텐츠 해시태그('#' 없이) — 주제(분류)와 별개인 내용 표시. 없으면 빈 배열(KAN-163) */
   tags: string[];
+  /** 콘텐츠 언어(BCP 47 primary — `ko` · `en`). 표시 전용 — 이 값으로 거르지 않는다(global-api.md 4.7). 모르면 null */
+  language: string | null;
+  /**
+   * 시리즈 편이면 그 시리즈 정보, 단일 콘텐츠면 null(explore-api.md 4.1 `content.series` — KAN-134 1단계).
+   * 아직 안 보내는 서버(구버전)도 null 로 읽는다. 탐색 행은 이 값으로 모양을 바꾸지 않는다 — 시리즈 화면(편 목록)만 쓴다
+   */
+  series: ExploreContentSeries | null;
+}
+
+/** 편이 속한 시리즈(explore-api.md 4.1 `content.series`) — `totalEpisodes` 는 시리즈 표의 계획 편수다 */
+export interface ExploreContentSeries {
+  id: string;
+  title: string;
+  episodeNo: number;
+  totalEpisodes: number;
 }
 
 /**
@@ -28,12 +43,50 @@ export interface ExploreLibraryState {
   status: LibraryItemStatus;
 }
 
+/**
+ * 목록의 콘텐츠 행 — 섞인 목록(`ExploreEntry`)의 한 종류다. `type` 은 서버 값 그대로(explore-api.md 4.1-1). 스위치가 꺼진
+ * 서버는 `type` 을 보내지 않는데, 그때도 변환 함수가 'content' 로 채운다
+ */
 export interface ExploreItem {
+  type: 'content';
   content: ExploreContent;
   library: ExploreLibraryState | null;
   /** 재생 확인 팝업을 탭 즉시 띄우기 위한 힌트 — 판정이 아니다(library-api.md 4.1과 동일) */
   isCountedToday: boolean;
 }
+
+/** 시리즈 상태 — 표시용(ongoing = 연재 중, completed = 완결). 판정에 쓰지 않는다(explore-api.md 4.1-1) */
+export type ExploreSeriesStatus = 'ongoing' | 'completed';
+
+/**
+ * 시리즈 카드(explore-api.md 4.1-1 — 서버 스위치 `SERIES_EXPLORE_CARDS_ENABLED` 가 켜졌을 때만 온다). 같은 시리즈 편들을 접은
+ * 목록의 한 항목이다. 편 단위 상태(담김·오늘 카운트)가 없다 — 탭하면 시리즈 화면이 편마다 준다(explore.md 4.4 예외)
+ */
+export interface ExploreSeries {
+  id: string;
+  title: string;
+  description: string;
+  /** 계획 편수(시리즈 표) */
+  totalEpisodes: number;
+  /** 지금 사용자 시장에 노출 중인 편 수 — 진행 중 시리즈면 totalEpisodes 보다 적다 */
+  episodeCount: number;
+  status: ExploreSeriesStatus;
+  /** 표지 = 노출 중인 가장 앞 편(보통 1화)의 썸네일. 따로 표지가 없다(KAN-225 결정) */
+  thumbnailUrl: string;
+  /** 노출 중인 편들의 주제 합집합(처음 나온 순서) — 필터와 무관한 시리즈 전체 값이다 */
+  topicIds: string[];
+}
+
+export interface ExploreSeriesItem {
+  type: 'series';
+  series: ExploreSeries;
+}
+
+/**
+ * 탐색 목록의 항목 — 콘텐츠 행과 시리즈 카드가 섞인다(explore-api.md 4.1-1). 피드 섹션·주제별·인기·검색(fallback 포함)이
+ * 전부 이 모양이다. 모르는 종류는 변환 함수가 버린다 — 화면에는 이 두 종류만 온다
+ */
+export type ExploreEntry = ExploreItem | ExploreSeriesItem;
 
 /**
  * 인기 콘텐츠 집계 구간(explore.md 4.1-1) — week·month·all은 전송값이고 화면 라벨은 copy가 가진다.
@@ -42,7 +95,8 @@ export interface ExploreItem {
 export type ExplorePeriod = 'week' | 'month' | 'all';
 
 /**
- * 섹션 sectionKey는 분석·로깅용이다 — 화면 분기에 쓰지 않는다(explore-api.md 4.1).
+ * 섹션 sectionKey는 분석·로깅용이다 — 화면 분기에 쓰지 않는다(explore-api.md 4.1). 예외 하나: 아는 종류의 **제목 문구**만
+ * 표시 언어로 고른다(`explore.section-title.ts` — 섹션 구성·순서·노출은 여전히 서버 응답 그대로).
  * union으로 좁히지 않는 이유: 서버가 무배포로 섹션을 추가할 수 있어야 한다(9장 미결).
  *
  * 계약 필드명은 `key`지만 화면 타입에서는 `sectionKey`로 옮긴다 — RN SectionList가 섹션 객체의
@@ -51,7 +105,7 @@ export type ExplorePeriod = 'week' | 'month' | 'all';
  */
 export interface ExploreSection {
   sectionKey: string;
-  /** 화면에 그대로 그린다 — 클라이언트가 key로 제목을 조립하지 않는다 */
+  /** 서버 제목 — 화면에는 `resolveSectionTitle` 로 그린다(아는 종류는 앱 문구, 그 밖은 이 값 그대로) */
   title: string;
   /** topic_group 섹션만 값이 있다 */
   topic: { id: string; name: string } | null;
@@ -60,7 +114,7 @@ export interface ExploreSection {
    * 선택 상태를 그리는 근거다(explore-api.md 4.1). key가 아니라 이 값으로 토글 노출을 가른다.
    */
   period: ExplorePeriod | null;
-  items: ExploreItem[];
+  items: ExploreEntry[];
 }
 
 export interface ExploreFeed {
@@ -70,7 +124,7 @@ export interface ExploreFeed {
 }
 
 export interface ExploreContentsPage {
-  items: ExploreItem[];
+  items: ExploreEntry[];
   nextCursor: string | null;
   hasNext: boolean;
   playLimit: PlayLimitSnapshot;
@@ -79,7 +133,7 @@ export interface ExploreContentsPage {
 /** 인기 목록 한 페이지(explore-api.md 4.2-1) — period는 서버가 되돌린 값(토글 선택 상태의 근거)이다 */
 export interface ExplorePopularPage {
   period: ExplorePeriod;
-  items: ExploreItem[];
+  items: ExploreEntry[];
   nextCursor: string | null;
   hasNext: boolean;
   playLimit: PlayLimitSnapshot;
@@ -88,7 +142,7 @@ export interface ExplorePopularPage {
 /** 검색 빈 결과의 대체 노출(E7) — 같은 응답으로 온다. 빈 화면이 한 박자 늦게 채워지지 않게 한다(explore-api.md 4.5) */
 export interface ExploreSearchFallback {
   relatedTopics: { id: string; name: string }[];
-  popularItems: ExploreItem[];
+  popularItems: ExploreEntry[];
 }
 
 /**
@@ -96,7 +150,7 @@ export interface ExploreSearchFallback {
  * 잔여 표시값이 없다 — 검색 화면은 표시를 숨긴다(explore.md 4.4-1).
  */
 export interface ExploreSearchPage {
-  items: ExploreItem[];
+  items: ExploreEntry[];
   nextCursor: string | null;
   hasNext: boolean;
   /** items가 있으면 null — 빈 결과일 때만 값이 있다 */
@@ -127,4 +181,33 @@ export interface SaveContentResult {
     status: LibraryItemStatus;
     addedAt: string;
   };
+}
+
+/** 편의 재생 위치(explore-api.md 4.7 `progress`) — 재생 위치 행이 없으면 null 이다(0 으로 채우지 않는다) */
+export interface SeriesEpisodeProgress {
+  positionSec: number;
+  maxReachedSec: number;
+}
+
+/**
+ * 시리즈 화면의 편 한 줄(explore-api.md 4.7 `episodes[]`) — 행 동작(재생·더보기)은 탐색 행과 같으므로 콘텐츠 행
+ * (`ExploreItem`)을 그대로 품는다. 상태(담음·완청·재생 위치)는 전부 서버 값이다
+ */
+export interface SeriesEpisode {
+  episodeNo: number;
+  item: ExploreItem;
+  progress: SeriesEpisodeProgress | null;
+}
+
+/** GET /series/:series_id(explore-api.md 4.7) — 편은 노출 중인 것만, episode_no 오름차순(서버 정렬 그대로) */
+export interface SeriesDetail {
+  series: {
+    id: string;
+    title: string;
+    description: string;
+    totalEpisodes: number;
+    status: ExploreSeriesStatus;
+    thumbnailUrl: string;
+  };
+  episodes: SeriesEpisode[];
 }

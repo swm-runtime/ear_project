@@ -1,8 +1,78 @@
-import { InsightsListeningTotals, InsightsSummary } from '../admin.types';
+import {
+  InsightsCohortTable,
+  InsightsListeningTotals,
+  InsightsSummary,
+  InsightsTopContent,
+} from '../admin.types';
 
 /** 분모가 0 이면 null — 0% 와 "셀 수 없음"을 구분한다 */
 export const ratio = (part: number, whole: number): number | null =>
   whole > 0 ? part / whole : null;
+
+/** 코호트 표 한 장 — 칸은 `offsets` 순서, 끝나지 않은 구간은 `null` */
+interface CohortTableItem {
+  /** 1 = 일별(D) · 7 = 주별(W) */
+  span: number;
+  offsets: number[];
+  /** 접속 기록을 믿을 수 있는 첫 날(KST `YYYY-MM-DD`) — 이보다 앞에서 시작하는 칸이 `partial` */
+  reliable_since: string;
+  rows: {
+    /** 묶음 시작일(KST) — 일별은 가입일, 주별은 가입 주 월요일 */
+    start: string;
+    users: number;
+    cells: ({
+      returned: number;
+      /** `returned / users` */
+      rate: number | null;
+      /** 접속 기록을 믿을 수 있는 첫 날 앞에서 시작하는 구간 — 재생만 잡혀 낮게 나온다 */
+      partial: boolean;
+    } | null)[];
+  }[];
+}
+
+const toCohortTable = (t: InsightsCohortTable): CohortTableItem => ({
+  span: t.span,
+  offsets: t.offsets,
+  reliable_since: t.reliableSince,
+  rows: t.rows.map((r) => ({
+    start: r.start,
+    users: r.users,
+    cells: r.cells.map((c) =>
+      c === null
+        ? null
+        : {
+            returned: c.returned,
+            rate: ratio(c.returned, r.users),
+            partial: c.partial,
+          },
+    ),
+  })),
+});
+
+interface TopContentItem {
+  content_id: string;
+  title: string;
+  duration_sec: number;
+  listen_sec: number;
+  plays: number;
+  listeners: number;
+  completes: number;
+  /** `completes / plays` */
+  complete_rate: number | null;
+  saves: number;
+}
+
+const toTopContent = (c: InsightsTopContent): TopContentItem => ({
+  content_id: c.contentId,
+  title: c.title,
+  duration_sec: c.durationSec,
+  listen_sec: c.listenSec,
+  plays: c.plays,
+  listeners: c.listeners,
+  completes: c.completes,
+  complete_rate: ratio(c.completes, c.plays),
+  saves: c.saves,
+});
 
 interface ListeningTotalsItem {
   listen_sec: number;
@@ -70,7 +140,20 @@ export class AdminInsightsSummaryResponseDto {
     listeners: number;
     listen_sec: number;
     completes: number;
+    /** 그날 접속자(토큰 갱신한 사람 — `active_1d`와 같은 신호). 기록이 없는 날(첫 신뢰 날짜 앞)은 null */
+    active_users: number | null;
   }[];
+  /** 요일별 평균 — 월(1)~일(7) 7칸, 창 안의 온전한 하루만 */
+  readonly weekday: {
+    weekday: number;
+    label: string;
+    days: number;
+    active_days: number;
+    avg_active_users: number | null;
+    avg_listeners: number | null;
+  }[];
+  /** 접속자를 믿을 수 있는 첫 날(KST `YYYY-MM-DD`) — 화면 각주가 "M월 D일부터 집계"로 쓴다 */
+  readonly active_users_since: string;
   readonly hourly: { hour: number; plays: number; listen_sec: number }[];
   readonly top_users: {
     user_id: string;
@@ -81,18 +164,11 @@ export class AdminInsightsSummaryResponseDto {
     signed_up_at: string;
     last_played_at: string;
   }[];
-  readonly top_contents: {
-    content_id: string;
-    title: string;
-    duration_sec: number;
-    listen_sec: number;
-    plays: number;
-    listeners: number;
-    completes: number;
-    /** `completes / plays` */
-    complete_rate: number | null;
-    saves: number;
-  }[];
+  readonly top_contents: TopContentItem[];
+  /** 최근 24시간 인기 콘텐츠 — 창 안의 재생·완청·담기만, 청취자 수 순 */
+  readonly recent_top_contents: TopContentItem[];
+  /** `recent_top_contents`의 창 시작(ISO) — 지금 - 24시간 */
+  readonly recent_since: string;
   readonly withdrawal_reasons: { reason_code: string | null; count: number }[];
   readonly retention: {
     day: number;
@@ -101,6 +177,11 @@ export class AdminInsightsSummaryResponseDto {
     /** `returned / cohort_size` */
     rate: number | null;
   }[];
+  /** 코호트 리텐션 — 가입일별 D1·D7, 가입 주별 W1~W4(절대수치·비율 함께) */
+  readonly retention_cohorts: {
+    daily: CohortTableItem;
+    weekly: CohortTableItem;
+  };
   /** 주제별 수요·공급 — 관심 사용자가 많은 순 */
   readonly topic_supply: {
     topic_id: string;
@@ -185,7 +266,17 @@ export class AdminInsightsSummaryResponseDto {
         listeners: d.listeners,
         listen_sec: d.listenSec,
         completes: d.completes,
+        active_users: d.activeUsers,
       })),
+      weekday: summary.weekday.map((w) => ({
+        weekday: w.weekday,
+        label: w.label,
+        days: w.days,
+        active_days: w.activeDays,
+        avg_active_users: w.avgActiveUsers,
+        avg_listeners: w.avgListeners,
+      })),
+      active_users_since: summary.activeUsersSince,
       hourly: summary.hourly.map((h) => ({
         hour: h.hour,
         plays: h.plays,
@@ -200,17 +291,9 @@ export class AdminInsightsSummaryResponseDto {
         signed_up_at: t.signedUpAt.toISOString(),
         last_played_at: t.lastPlayedAt.toISOString(),
       })),
-      top_contents: summary.topContents.map((c) => ({
-        content_id: c.contentId,
-        title: c.title,
-        duration_sec: c.durationSec,
-        listen_sec: c.listenSec,
-        plays: c.plays,
-        listeners: c.listeners,
-        completes: c.completes,
-        complete_rate: ratio(c.completes, c.plays),
-        saves: c.saves,
-      })),
+      top_contents: summary.topContents.map(toTopContent),
+      recent_top_contents: summary.recentTopContents.map(toTopContent),
+      recent_since: summary.recentSince.toISOString(),
       withdrawal_reasons: summary.withdrawalReasons.map((r) => ({
         reason_code: r.reasonCode,
         count: r.count,
@@ -221,6 +304,10 @@ export class AdminInsightsSummaryResponseDto {
         returned: r.returned,
         rate: ratio(r.returned, r.cohortSize),
       })),
+      retention_cohorts: {
+        daily: toCohortTable(summary.retentionCohorts.daily),
+        weekly: toCohortTable(summary.retentionCohorts.weekly),
+      },
       topic_supply: summary.topicSupply.map((t) => ({
         topic_id: t.topicId,
         name: t.name,

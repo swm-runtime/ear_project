@@ -1,3 +1,5 @@
+import { UserMarket } from '@/modules/user/user.enum';
+
 /** 편성 배치가 넘기는 사용자 한 명의 그날 적립분 */
 export interface DripArrival {
   userId: string;
@@ -10,6 +12,8 @@ export interface DripArrival {
 export interface ArrivedContent {
   contentId: string;
   title: string;
+  /** 콘텐츠 시장 — 적립과 알림 사이에 시장을 바꾼 사용자에게 이전 시장 편을 알리지 않으려고 싣는다(`global-api.md` 4.11) */
+  market: UserMarket;
 }
 
 export interface DripArrivalNotifySummary {

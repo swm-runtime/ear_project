@@ -22,9 +22,11 @@ import { NotificationPrePromptModal } from '@/features/notification';
 
 import AudioQualitySection from '../components/AudioQualitySection';
 import ColorModeSection from '../components/ColorModeSection';
+import ContentLanguageSection from '../components/ContentLanguageSection';
 import DevDiagnosticsRows from '../components/DevDiagnosticsRows';
 import DevPushTokenRow from '../components/DevPushTokenRow';
 import EmailRow from '../components/EmailRow';
+import LanguageSection from '../components/LanguageSection';
 import PlanSummaryCard from '../components/PlanSummaryCard';
 import PlaybackRateSheet from '../components/PlaybackRateSheet';
 import SettingsDialog from '../components/SettingsDialog';
@@ -176,7 +178,10 @@ export default function SettingsScreen() {
               }
               onPress={screen.openInterests}
             />
-            <SettingsRow label={SETTINGS_COPY.content.career} onPress={screen.openCareer} />
+            {/* GLOBAL 시장은 커리어 정보 행을 두지 않는다(settings.md 3장, PM 확정 2026-10-18) */}
+            {screen.isCareerVisible ? (
+              <SettingsRow label={SETTINGS_COPY.content.career} onPress={screen.openCareer} />
+            ) : null}
             {/* 이벤트(초대) 코드 입력(KAN-182) — 결제 UI 플래그와 무관하게 항상 있다. 지급은 스토어 결제가 아니다 */}
             <SettingsRow label={SETTINGS_COPY.content.inviteCode} onPress={screen.openInviteCode} />
             {/* 주제 자동 확장 토글(FR-06, KAN-181) — 즉시 저장(settings-api.md 4.2). 조회 값이 기준이라 실패 시 비활성 */}
@@ -214,6 +219,11 @@ export default function SettingsScreen() {
 
           {/* 화면 모드(다크 모드, 2026-10-10) — 기기 표시 설정이라 서버 응답과 무관하게 늘 보인다 */}
           <ColorModeSection />
+          <LanguageSection
+            contentLanguage={screen.contentLanguage}
+            onSelect={screen.selectLanguage}
+          />
+          <ContentLanguageSection market={screen.market} onSelect={screen.openMarketChange} />
 
           <SettingsSection title={SETTINGS_COPY.sections.notification}>
             {screen.isNotificationBannerVisible ? (
@@ -235,6 +245,17 @@ export default function SettingsScreen() {
               value={screen.controls?.isMarketingAgreed ?? false}
               onToggle={screen.toggleMarketingConsent}
               disabled={!hasControls}
+            />
+          </SettingsSection>
+
+          {/* 개인정보 — 광고 측정 허용(KAN-217). 기기 저장이라 서버 조회와 무관하게 늘 동작한다(비활성 없음).
+              끄면 Meta 광고 성과 측정 전송만 멈춘다 — 앱 개선용 분석(GA4)은 별개다(settings-uiux.md 4.1) */}
+          <SettingsSection title={SETTINGS_COPY.sections.privacy}>
+            <SettingsToggleRow
+              label={SETTINGS_COPY.privacy.adMeasurement}
+              description={SETTINGS_COPY.privacy.adMeasurementDescription}
+              value={screen.isAdMeasurementAllowed}
+              onToggle={screen.toggleAdMeasurement}
             />
           </SettingsSection>
 

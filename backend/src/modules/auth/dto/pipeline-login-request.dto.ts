@@ -1,7 +1,7 @@
 import { IsString, MaxLength } from 'class-validator';
 
 /**
- * 파이프라인 웹 SSO (changes/pending/pipeline-sso-login.md).
+ * 파이프라인 웹 SSO (changes/archive/pipeline-sso-login.md · 반영 2026-09-03).
  * `assertion`은 파이프라인 웹 **서버**만 만들 수 있는 서명 토큰이다 — 브라우저 입력값이 아니다.
  */
 export class PipelineLoginRequestDto {

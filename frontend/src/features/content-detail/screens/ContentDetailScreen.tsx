@@ -14,7 +14,6 @@ import { IS_SHARE_ENABLED, SHARE_COPY, ShareIcon } from '@/features/share';
 import ContentDetailHeader from '../components/ContentDetailHeader';
 import ContentDetailMeta from '../components/ContentDetailMeta';
 import ContentDetailSkeleton from '../components/ContentDetailSkeleton';
-import ContentDetailSourceSection from '../components/ContentDetailSourceSection';
 import { CONTENT_DETAIL_COPY } from '../content-detail.copy';
 import { useContentDetailScreen } from '../hooks/useContentDetailScreen';
 
@@ -22,7 +21,8 @@ import { useContentDetailScreen } from '../hooks/useContentDetailScreen';
  * 콘텐츠 상세 화면(CD1~CD4, content-detail.md · content-detail-uiux.md) — 화면은 뷰만 담당하고
  * 로직은 useContentDetailScreen이 소유한다. 진입은 세 화면(라이브러리 L4 · 탐색 E12 · 플레이어
  * PL7) 더보기 시트의 [상세 정보]뿐이고, 하단 탭바 없이 위에 쌓이는 푸시 화면이다(uiux 4.1).
- * 구성: 헤더(썸네일·제목·태그·[재생]·[담기]/[삭제]) / 소개 / ― / 메타 / ― / 출처.
+ * 구성: 헤더(썸네일·제목·태그·[재생]·[담기]/[삭제]) / 소개 / ― / 메타.
+ * 출처 영역은 두지 않는다(KAN-221, 2026-10-17 — 출처 고지는 오디오 안의 소스 소개가 맡는다).
  */
 export default function ContentDetailScreen() {
   const screen = useContentDetailScreen();
@@ -62,6 +62,7 @@ export default function ContentDetailScreen() {
           onPlayPress={screen.requestPlay}
           onSavePress={screen.requestSave}
           onDeletePress={screen.requestDelete}
+          onTagPress={screen.openTagSearch}
         />
 
         {/* 소개 — 전문 표시, 접기/펼치기를 두지 않는다(uiux 4.1) */}
@@ -70,15 +71,10 @@ export default function ContentDetailScreen() {
           <Text style={styles.description}>{content.description}</Text>
         </View>
 
-        {/* 구분선은 두 개다 — 헤더+소개 / 메타 / 출처의 세 영역을 가른다(content-detail.md 4.2) */}
+        {/* 구분선은 하나다 — 헤더+소개 / 메타의 두 영역을 가른다(content-detail.md 4.2).
+            메타 아래에는 구분선을 두지 않는다 — 출처 영역을 뺐다(KAN-221) */}
         <View style={styles.divider} />
-        <ContentDetailMeta content={content} />
-        <View style={styles.divider} />
-        <ContentDetailSourceSection
-          content={content}
-          onSourceLinkPress={screen.openSourceLink}
-          onSourceItemPress={screen.openSourceItemLink}
-        />
+        <ContentDetailMeta content={content} onSeriesPress={screen.openSeries} />
       </ScrollView>
     );
   };

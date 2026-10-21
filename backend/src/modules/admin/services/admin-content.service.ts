@@ -6,6 +6,7 @@ import { DataSource } from 'typeorm';
 import { BusinessException } from '@/common/exceptions/business.exception';
 import { ErrorCode } from '@/common/exceptions/error-code.enum';
 import { ExternalServiceException } from '@/common/exceptions/external-service.exception';
+import { isUniqueViolation } from '@/common/utils/unique-violation.util';
 import {
   ContentLanguage,
   ContentOrigin,
@@ -13,8 +14,12 @@ import {
 } from '@/modules/content/content.enum';
 import { Content } from '@/modules/content/entities/content.entity';
 import { AudioQuality } from '@/modules/content/content.enum';
-import { AudioRenditionInput } from '@/modules/content/content.types';
+import {
+  AudioRenditionInput,
+  SeriesEpisodeUpload,
+} from '@/modules/content/content.types';
 import { ContentService } from '@/modules/content/services/content.service';
+import { SeriesService } from '@/modules/content/services/series.service';
 import { LibraryService } from '@/modules/library/library.service';
 import { PlaybackService } from '@/modules/playback/services/playback.service';
 import { TopicService } from '@/modules/interest/services/topic.service';
@@ -38,6 +43,7 @@ import {
   rejectSectionsPastDuration,
 } from '../script-file';
 import { NormalizedThumbnail, ThumbnailImage } from '../thumbnail-image';
+import { resolveUploadExtension } from '../upload-file.validation';
 import {
   AAC_AUDIO_CONTENT_TYPES,
   AUDIO_CONTENT_TYPES,
@@ -101,6 +107,7 @@ export class AdminContentService {
   constructor(
     private readonly dataSource: DataSource,
     private readonly contentService: ContentService,
+    private readonly seriesService: SeriesService,
     private readonly libraryService: LibraryService,
     private readonly playbackService: PlaybackService,
     private readonly topicService: TopicService,
@@ -142,18 +149,13 @@ export class AdminContentService {
       });
     }
     assertMarketConsistent(command.market, command.language, topics);
-    // GLOBAL에는 채울 값이 없는 KR 직군 enum이다 — 있으면 조용히 버리지 않고 거부한다(global-api.md 4.9)
-    if (
-      command.market === UserMarket.GLOBAL &&
-      enrichment?.data?.targetAudiences !== undefined
-    ) {
-      throw new BusinessException({
-        status: HttpStatus.BAD_REQUEST,
-        errorCode: ErrorCode.VALIDATION_FAILED,
-        message: '글로벌 콘텐츠에는 target_audiences를 넣지 않아요',
-        details: { field: 'target_audiences' },
-      });
+    // 시리즈 편이면 시리즈 존재·총 편수 일치·번호 범위·발행 번호 중복·시장을 먼저 본다(KAN-134) — 저장소에 올리기 전에
+    // 거절한다. 최종 판정은 발행 트랜잭션 안에서 시리즈 행을 잠그고 다시 한다
+    const seriesEpisode = toSeriesEpisodeUpload(command);
+    if (seriesEpisode) {
+      await this.seriesService.assertEpisodeUploadable(seriesEpisode);
     }
+    this.assertNoGlobalTargetAudiences(command.market, enrichment);
 
     const probed = await this.probeRenditions(renditionFiles);
     const durationSec = probed[0].metadata.durationSec;
@@ -193,6 +195,13 @@ export class AdminContentService {
     let content: Content;
     try {
       content = await this.dataSource.transaction(async (manager) => {
+        if (seriesEpisode) {
+          // 같은 시리즈의 동시 업로드·편수 수정과 직렬화한다 — 사전 확인 뒤 상태가 바뀌었을 수 있다
+          await this.seriesService.assertEpisodeUploadable(
+            seriesEpisode,
+            manager,
+          );
+        }
         const published = await this.contentService.publish(
           {
             title: command.title,
@@ -271,6 +280,13 @@ export class AdminContentService {
       });
     } catch (error) {
       await this.storage.remove(uploadedKeys);
+      // 잠금을 지나서도 남는 경합(같은 번호 동시 발행)은 부분 유니크가 막는다 — 500이 아니라 사전 확인과 같은 400
+      if (isSeriesEpisodeUniqueViolation(error)) {
+        throw this.validationFailed(
+          'episode_no',
+          '이 시리즈에 같은 번호로 발행된 편이 이미 있어요',
+        );
+      }
       throw error;
     }
 
@@ -295,9 +311,10 @@ export class AdminContentService {
   }
 
   /**
-   * admin.md 4.3 · admin-api.md 4.10 — 재발행. **같은 행의 오디오·메타를 갈아끼우고
-   * `content_version`을 1 올린다.** 회수 후 재업로드와 다른 점은 `content_id`가 유지되는
-   * 것이고, 그래서 사용자의 라이브러리·재생 기록이 끊기지 않는다.
+   * admin.md 4.3 · admin-api.md 4.10 — 재발행. **같은 행의 오디오·메타를 갈아끼운다.**
+   * 회수 후 재업로드와 다른 점은 `content_id`가 유지되는 것이고, 그래서 사용자의
+   * 라이브러리·재생 기록이 끊기지 않는다. **`content_version` 증가와 재생 위치 폐기는
+   * 오디오를 바꿀 때만이다**(KAN-236) — 썸네일·제목 등만 바꾸면 같은 초가 같은 내용이다.
    *
    * 흐름은 업로드(`upload`)와 같다 — 검증 → 새 파일 저장(트랜잭션 밖) → 트랜잭션 →
    * **성공 시 이전 파일 삭제 / 실패 시 새 파일 삭제.** 지우는 순서가 반대인 것만 다르다.
@@ -352,6 +369,8 @@ export class AdminContentService {
     // 파일을 올리기 전에 막는다 — 200MB를 다 받아 저장한 뒤 409를 주는 건 낭비다
     const target = await this.contentService.getById(command.contentId);
     this.assertRepublishable(target);
+    // 재발행의 enrichment_file 도 업로드와 같은 규격이다(admin-api.md 4.10 → 4.6) — 파일을 올리기 전에 막는다
+    this.assertNoGlobalTargetAudiences(target.market, enrichment);
     this.validateSourceReplacement(target, command.sources);
 
     if (command.topicIds) {
@@ -486,7 +505,7 @@ export class AdminContentService {
         }
 
         if (enrichment?.data) {
-          // 새 버전으로 저장된다 — republish가 방금 올린 content_version을 그대로 쓴다
+          // 재발행 뒤의 버전으로 저장된다 — 오디오를 바꿨으면 방금 올린 버전, 아니면 그대로인 버전
           await this.contentService.applyEnrichment(
             republished,
             enrichment.data,
@@ -521,11 +540,17 @@ export class AdminContentService {
          * 4.1 응답으로 그대로 내려가 엉뚱한 지점에서 재생이 시작되는 것을 막는다.
          * 저장 경로(4.3)는 버전 가드가 이미 막고 있어 읽기 경로만 남아 있었다.
          * 라이브러리·재생 기록은 유지된다 — 지우는 것은 위치뿐이다.
+         *
+         * **오디오를 바꿀 때만 지운다**(KAN-236). 썸네일·제목·설명·출처·주제만 바꾸면 같은
+         * 초가 같은 내용이라 낡은 위치가 생기지 않는다 — 시리즈 썸네일 일괄 교체로 수십 편의
+         * 이어 듣기가 0으로 돌아가던 문제. 버전도 오르지 않아 재생 중 세션도 그대로 이어진다.
          */
-        await this.playbackService.deleteProgressesByContentId(
-          command.contentId,
-          manager,
-        );
+        if (renditions) {
+          await this.playbackService.deleteProgressesByContentId(
+            command.contentId,
+            manager,
+          );
+        }
 
         if (previousTopicIds.length > 0) {
           await this.topicExposureService.hideEmptyTopics(
@@ -599,6 +624,8 @@ export class AdminContentService {
         manager,
       );
       this.assertRepublishable(current);
+      // 추천 메타 단독 재발행도 업로드와 같은 규격이다(admin-api.md 4.10 → 4.6)
+      this.assertNoGlobalTargetAudiences(current.market, enrichment);
 
       if (enrichment?.data) {
         await this.contentService.applyEnrichment(
@@ -703,6 +730,27 @@ export class AdminContentService {
       this.logger.warn('enrichment file rejected', {
         content_id: contentId,
         reason: enrichment.rejectedReason,
+      });
+    }
+  }
+
+  /**
+   * GLOBAL에는 채울 값이 없는 KR 직군 enum이다 — 있으면 조용히 버리지 않고 거부한다(global-api.md 4.9).
+   * 업로드(4.6)·재발행(4.10)·추천 메타 단독 재발행이 같은 판정을 쓴다 — 4.10 `enrichment_file`은 "규격·검증은 4.6과 같다".
+   */
+  private assertNoGlobalTargetAudiences(
+    market: UserMarket | null | undefined,
+    enrichment: EnrichmentParseResult | null,
+  ): void {
+    if (
+      market === UserMarket.GLOBAL &&
+      enrichment?.data?.targetAudiences !== undefined
+    ) {
+      throw new BusinessException({
+        status: HttpStatus.BAD_REQUEST,
+        errorCode: ErrorCode.VALIDATION_FAILED,
+        message: '글로벌 콘텐츠에는 target_audiences를 넣지 않아요',
+        details: { field: 'target_audiences' },
       });
     }
   }
@@ -877,6 +925,8 @@ export class AdminContentService {
         });
       }
 
+      // 회수된 사이에 같은 번호의 시리즈 편이 발행됐으면 되돌리지 않는다(발행 번호 유일성 — KAN-134)
+      await this.seriesService.assertRestorable(target, manager);
       const restored = await this.contentService.restoreWithdrawn(
         target,
         manager,
@@ -1239,22 +1289,8 @@ export class AdminContentService {
     maxBytes: number,
     field: string,
   ): string {
-    const extension = file.originalName.split('.').pop()?.toLowerCase() ?? '';
-
-    if (!(extension in allowed)) {
-      throw this.validationFailed(
-        field,
-        `허용되지 않는 파일 형식이에요 (${Object.keys(allowed).join(', ')})`,
-      );
-    }
-    if (file.size > maxBytes) {
-      throw this.validationFailed(
-        field,
-        `파일이 너무 커요 (최대 ${Math.floor(maxBytes / 1024 / 1024)}MB)`,
-      );
-    }
-
-    return extension;
+    // 시리즈 표지(KAN-234)와 같은 판정 함수 — 둘이 어긋나지 않게 한 곳에 둔다
+    return resolveUploadExtension(file, allowed, maxBytes, field);
   }
 
   /**
@@ -1285,6 +1321,35 @@ export class AdminContentService {
       details: { field },
     });
   }
+}
+
+/** 업로드 명령의 시리즈 필드 — 단일 콘텐츠면 null. 편 번호·총 편수가 함께 있는지는 `validateDisclosure`가 먼저 봤다 */
+function toSeriesEpisodeUpload(
+  command: UploadContentCommand,
+): SeriesEpisodeUpload | null {
+  if (
+    command.seriesId === null ||
+    command.episodeNo === null ||
+    command.totalEpisodes === null
+  ) {
+    return null;
+  }
+
+  return {
+    seriesId: command.seriesId,
+    episodeNo: command.episodeNo,
+    totalEpisodes: command.totalEpisodes,
+    market: command.market,
+  };
+}
+
+/** 발행 편 번호 부분 유니크(`uq_contents_series_id_episode_no_published` — 마이그레이션 `AddSeries`) 위반인가 */
+export function isSeriesEpisodeUniqueViolation(error: unknown): boolean {
+  return (
+    isUniqueViolation(error) &&
+    (error as { driverError?: { constraint?: string } }).driverError
+      ?.constraint === 'uq_contents_series_id_episode_no_published'
+  );
 }
 
 function toEnrichmentOutcome(result: EnrichmentParseResult): EnrichmentOutcome {

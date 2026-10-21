@@ -30,7 +30,6 @@ jest.mock('@/shared/api/api-client', () => ({
   },
 }));
 
-
 const SUBSCRIPTION_DTO: MySubscriptionResponseDto = {
   plan: {
     status: 'subscribed',
@@ -57,7 +56,7 @@ beforeEach(() => {
 });
 
 describe('subscription.api 서버 계약(subscription-api.md)', () => {
-  it('4.1 요금제 목록은 platform 을 실어 조회하고 action·상품 ID·이메일 인증 여부를 그대로 옮긴다', async () => {
+  it('4.1 요금제 목록은 platform 을 실어 조회하고 action·상품 ID·무료 판정·이메일 인증 여부를 그대로 옮긴다', async () => {
     // given
     const dto: PlansResponseDto = {
       plans: [
@@ -67,6 +66,7 @@ describe('subscription.api 서버 계약(subscription-api.md)', () => {
           name: '프로',
           description: '…',
           price_krw: 9900,
+          is_free: false,
           store_product_id: 'com.runtime.ear.subscription.pro.monthly',
           entitlements: SUBSCRIPTION_DTO.entitlements,
           action: 'upgrade',
@@ -88,8 +88,8 @@ describe('subscription.api 서버 계약(subscription-api.md)', () => {
           tier: 'pro',
           name: '프로',
           description: '…',
-          priceKrw: 9900,
           storeProductId: 'com.runtime.ear.subscription.pro.monthly',
+          isFree: false,
           entitlements: {
             dailyPlayLimit: null,
             dailyDripCount: 2,
@@ -101,6 +101,81 @@ describe('subscription.api 서버 계약(subscription-api.md)', () => {
       ],
       isEmailVerified: false,
     });
+  });
+
+  it('4.1 price_krw 가 null 이거나 없어도 깨지지 않고, 원화 값은 모델에 옮기지 않는다(KAN-196 · global-api.md 4.6)', async () => {
+    // given — GLOBAL 요금제(null)와 필드를 뺀 다음 메이저 응답(생략)
+    const base = {
+      tier: 'pro',
+      name: 'Pro',
+      description: 'Listen without limits',
+      store_product_id: 'com.runtime.ear.subscription.pro.monthly',
+      entitlements: SUBSCRIPTION_DTO.entitlements,
+      action: 'purchase' as const,
+    };
+    const dto: PlansResponseDto = {
+      plans: [
+        { ...base, plan_id: 'uuid-pro-null', price_krw: null },
+        { ...base, plan_id: 'uuid-pro-omitted' },
+      ],
+      is_email_verified: true,
+    };
+    mockGet.mockResolvedValue({ data: dto });
+
+    // when
+    const catalog = await fetchPlans('ios');
+
+    // then — 모양이 정확히 같다(toStrictEqual — 원화 값 키가 따라오지 않는다). is_free 도 없는 응답이라 isFree 는 null
+    const expected = (planId: string) => ({
+      planId,
+      tier: 'pro',
+      name: 'Pro',
+      description: 'Listen without limits',
+      storeProductId: 'com.runtime.ear.subscription.pro.monthly',
+      isFree: null,
+      entitlements: {
+        dailyPlayLimit: null,
+        dailyDripCount: 2,
+        dripEnabled: true,
+        adsEnabled: false,
+      },
+      action: 'purchase',
+    });
+    expect(catalog).toStrictEqual({
+      plans: [expected('uuid-pro-null'), expected('uuid-pro-omitted')],
+      isEmailVerified: true,
+    });
+  });
+
+  it('4.1 is_free 는 있으면 그대로, 없으면 null 로 옮긴다(KAN-226 — 배포 전 서버 호환)', async () => {
+    // given
+    const base = {
+      tier: 'light',
+      name: 'Light',
+      description: '하루 2편까지 들을 수 있어요',
+      store_product_id: null,
+      entitlements: SUBSCRIPTION_DTO.entitlements,
+      action: 'none' as const,
+    };
+    const dto: PlansResponseDto = {
+      plans: [
+        { ...base, plan_id: 'free', is_free: true },
+        { ...base, plan_id: 'paid', is_free: false },
+        { ...base, plan_id: 'legacy' },
+      ],
+      is_email_verified: true,
+    };
+    mockGet.mockResolvedValue({ data: dto });
+
+    // when
+    const catalog = await fetchPlans('android');
+
+    // then
+    expect(catalog.plans.map((plan) => [plan.planId, plan.isFree])).toEqual([
+      ['free', true],
+      ['paid', false],
+      ['legacy', null],
+    ]);
   });
 
   it('4.2 현재 구독의 pending_plan·store 를 옮긴다', async () => {

@@ -1,28 +1,23 @@
 import { useIsFocused, useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
 import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef } from 'react';
-import { AccessibilityInfo, Linking } from 'react-native';
+import { AccessibilityInfo } from 'react-native';
 
 import { track } from '@/shared/analytics';
 import { isApiError } from '@/shared/api/api-error';
 import { ERROR_CODES } from '@/shared/api/error-codes';
 import { useDelayedVisible } from '@/shared/hooks/useDelayedVisible';
-import { generateId } from '@/shared/lib/generate-id';
-import { logger } from '@/shared/lib/logger';
 import { toTab } from '@/shared/navigation/to-tab';
 import { useToastStore } from '@/shared/ui/toast.store';
 
+import { toTagQuery } from '@/features/explore';
 import { libraryKeys } from '@/features/library';
-import { sendSourceLinkClick, usePlaybackStore, usePlayGate } from '@/features/player';
+import { usePlaybackStore, usePlayGate } from '@/features/player';
 import { shareContent } from '@/features/share';
 
 import { contentDetailKeys } from '../api/content-detail.api';
 import { CONTENT_DETAIL_COPY } from '../content-detail.copy';
-import type {
-  ContentDetail,
-  ContentDetailEntryPoint,
-  ContentDetailSource,
-} from '../content-detail.types';
+import type { ContentDetail, ContentDetailEntryPoint } from '../content-detail.types';
 import { useContentDetailQuery } from './useContentDetailQuery';
 import { useDeleteLibraryItemMutation } from './useDeleteLibraryItemMutation';
 import { useSaveContentMutation } from './useSaveContentMutation';
@@ -73,6 +68,25 @@ export const useContentDetailScreen = () => {
 
   const goToLibrary = () => {
     navigation.navigate('Main', toTab('Library'));
+  };
+
+  /**
+   * 헤더 해시태그 탭 → 탐색 탭의 검색을 열고 `#태그`로 즉시 검색한다(KAN-219, content-detail-uiux.md 4.1). 이 화면이
+   * 어느 탭 위에 있든(라이브러리·탐색·플레이어에서 연 상세) toTab 이 상세를 걷고 탐색 탭으로 돌아간다 — 검색을 여는 것은
+   * 탐색 화면(파라미터 수신)이다. 피드 상태는 그대로다(explore.md 4.5-1)
+   */
+  const openTagSearch = (tag: string) => {
+    navigation.navigate('Main', toTab('Explore', { searchQuery: toTagQuery(tag) }));
+  };
+
+  /**
+   * 메타의 시리즈 줄 탭 → 시리즈 화면(E14 — explore.md 4.7, KAN-225). 라우트 이름으로만 이동한다 — 시리즈 화면은 explore 가
+   * 소유하고 등록은 app/navigation 이 한다(content-detail 은 explore 화면을 import 하지 않는다). 시리즈 화면 → 상세에서 다시
+   * 누르면 시리즈 화면이 한 장 더 쌓인다(React Navigation 7 의 navigate 는 현재 화면이 아니면 새로 쌓는다) — 뒤로가기로 차례로
+   * 돌아오므로 그대로 둔다
+   */
+  const openSeries = (seriesId: string) => {
+    navigation.navigate('Main', { screen: 'Series', params: { seriesId } });
   };
 
   /* ── 회수·404 — 상세를 그리지 않고 안내 후 원 화면 복귀(content-detail.md 4.1·7장, CD4) ── */
@@ -238,34 +252,6 @@ export const useContentDetailScreen = () => {
     );
   };
 
-  /* ── 출처 링크 — 인앱 브라우저 열기(FR-12) ── */
-
-  /** partner [원문 보기] — 클릭 기록과 브라우저 열기는 서로를 기다리지 않는다(player-api.md 4.5) */
-  const openSourceLink = () => {
-    const url = detail?.content.sourceUrl;
-    if (!url) return;
-    sendSourceLinkClick({ contentId, idempotencyKey: generateId() }).catch((clickError) =>
-      logger.debug('[content-detail] source link click record failed', clickError),
-    );
-    // TODO(인앱 브라우저): architecture.md 9.3 — expo-web-browser 도입 검토. 현재는 플레이어와
-    // 같은 Linking 패턴을 쓴다
-    Linking.openURL(url).catch((linkError) =>
-      logger.warn('[content-detail] open source link failed', linkError),
-    );
-  };
-
-  /**
-   * ai_generated 소스 항목 탭 — 링크 있는 항목만 탭 대상이다(content-detail.md 4.3-1).
-   * 클릭 기록은 백엔드 티켓(소스별 구분 기록) 확정 전이라 기록 없이 브라우저만 연다
-   * (content-detail-api.md 4.2).
-   */
-  const openSourceItemLink = (source: ContentDetailSource) => {
-    if (source.url === null) return;
-    Linking.openURL(source.url).catch((linkError) =>
-      logger.warn('[content-detail] open source item link failed', linkError),
-    );
-  };
-
   /** SH2 [공유](P1) — 앱바 우측 아이콘. 상세가 이미 든 값으로 조립하고 전송·취소 어느 쪽에도
       후속 동작이 없다(share.md 4.1·4.4). 조회 성공(CD1·CD2) 상태에서만 화면이 버튼을 그린다 */
   const shareDetail = () => {
@@ -282,6 +268,9 @@ export const useContentDetailScreen = () => {
 
   return {
     detail,
+    // 헤더 해시태그 → 탐색 검색(KAN-219)
+    openTagSearch,
+    openSeries,
     // 로딩·오류(CD3) — 앱바는 화면이 먼저 그린다(uiux 4.7)
     isInitialLoading,
     showSkeleton,
@@ -301,9 +290,6 @@ export const useContentDetailScreen = () => {
     isActionPending,
     requestSave,
     requestDelete,
-    // 출처
-    openSourceLink,
-    openSourceItemLink,
     // [공유](SH2, P1)
     shareDetail,
     // 복귀 — 공유 링크 수신은 뒤로 갈 원 화면이 없어 라이브러리로 간다(share-uiux.md 4.4)

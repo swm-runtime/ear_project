@@ -9,6 +9,9 @@ import { DataSource } from 'typeorm';
 
 import { AppModule } from '@/app.module';
 import { traceIdMiddleware } from '@/common/middlewares/trace-id.middleware';
+import { AdminInsightsRepository } from '@/modules/admin/repositories/admin-insights.repository';
+import { DailyActiveUserRepository } from '@/modules/auth/daily-active-user.repository';
+import { Session } from '@/modules/auth/session.entity';
 import { toServiceDate } from '@/common/utils/service-date.util';
 import { ContentOrigin, ContentStatus } from '@/modules/content/content.enum';
 import { Content } from '@/modules/content/entities/content.entity';
@@ -18,6 +21,7 @@ import { UserSignalAction } from '@/modules/playback/playback.enum';
 import { InviteCodeRedemption } from '@/modules/subscription/entities/invite-code-redemption.entity';
 import { InviteCode } from '@/modules/subscription/entities/invite-code.entity';
 import { User } from '@/modules/user/entities/user.entity';
+import { PlayDailyTotalRepository } from '@/modules/playback/repositories/play-daily-total.repository';
 import { WithdrawalLog } from '@/modules/user/entities/withdrawal-log.entity';
 import { SocialProvider, UserRole, UserTier } from '@/modules/user/user.enum';
 
@@ -39,7 +43,22 @@ interface SummaryBody {
     all_time: { listen_sec: number; plays: number; completes: number };
     window: { listen_sec: number; plays: number; completes: number };
   };
-  daily: { date: string; plays: number; listen_sec: number; signups: number }[];
+  daily: {
+    date: string;
+    plays: number;
+    listen_sec: number;
+    signups: number;
+    active_users: number | null;
+  }[];
+  weekday: {
+    weekday: number;
+    label: string;
+    days: number;
+    active_days: number;
+    avg_active_users: number | null;
+    avg_listeners: number | null;
+  }[];
+  active_users_since: string;
   by_market: {
     market: string;
     users: number;
@@ -68,6 +87,25 @@ interface SummaryBody {
     completes: number;
   }[];
   retention: { day: number; cohort_size: number; returned: number }[];
+  retention_cohorts: Record<
+    'daily' | 'weekly',
+    {
+      offsets: number[];
+      rows: {
+        start: string;
+        users: number;
+        cells: ({ returned: number; rate: number | null } | null)[];
+      }[];
+    }
+  >;
+  recent_since: string;
+  recent_top_contents: {
+    content_id: string;
+    plays: number;
+    listeners: number;
+    listen_sec: number;
+    completes: number;
+  }[];
 }
 
 /**
@@ -80,6 +118,24 @@ describe('서비스 지표 요약 E2E', () => {
   const userIds: string[] = [];
   const contentIds: string[] = [];
   const withdrawalIds: string[] = [];
+  // 이 테스트가 누적에 더한 값 — afterAll 이 되돌린다(누적은 앱에서는 빼지 않지만 테스트가 심은 값은 치운다)
+  const seededTotals: [string, number][] = [];
+
+  async function addPlayDailyTotal(
+    playDate: string,
+    playCount: number,
+    listenSec: number,
+    completeCount: number,
+  ): Promise<void> {
+    await dataSource.query(
+      `INSERT INTO play_daily_totals (play_date, play_count, listen_sec, complete_count) VALUES ($1, $2, $3, $4)
+       ON CONFLICT (play_date) DO UPDATE
+          SET play_count = play_daily_totals.play_count + EXCLUDED.play_count,
+              listen_sec = play_daily_totals.listen_sec + EXCLUDED.listen_sec,
+              complete_count = play_daily_totals.complete_count + EXCLUDED.complete_count`,
+      [playDate, playCount, listenSec, completeCount],
+    );
+  }
   const inviteCodeIds: string[] = [];
   const TOKEN = `e2einsight${Date.now()}`;
   const path = (p: string) => `/api/v1${p}`;
@@ -121,6 +177,9 @@ describe('서비스 지표 요약 E2E', () => {
     for (const id of withdrawalIds) {
       await dataSource.query(`DELETE FROM withdrawal_logs WHERE id = $1`, [id]);
     }
+    for (const [playDate, listenSec] of seededTotals) {
+      await addPlayDailyTotal(playDate, -1, -listenSec, 0);
+    }
     await app.close();
   }, 60_000);
 
@@ -159,6 +218,14 @@ describe('서비스 지표 요약 E2E', () => {
         listenedSec: 4_000_000,
       }),
     ]);
+    // 전 기간 누적은 `play_daily_totals`를 읽는다 — 재생 경로(PlaybackService)를 거치지 않고 심었으니 누적도 같이 심는다
+    for (const [playDate, listenSec] of [
+      [toServiceDate(yesterday), 5_000_000],
+      [toServiceDate(now), 4_000_000],
+    ] as const) {
+      await addPlayDailyTotal(playDate, 1, listenSec, 0);
+      seededTotals.push([playDate, listenSec]);
+    }
     const signals = dataSource.getRepository(UserSignal);
     await signals.save(
       signals.create({
@@ -238,9 +305,9 @@ describe('서비스 지표 요약 E2E', () => {
       9_000_000,
     );
     expect(body.listening.window.listen_sec).toBeGreaterThanOrEqual(9_000_000);
-    expect(body.listening.window.plays).toBeLessThanOrEqual(
-      body.listening.all_time.plays,
-    );
+    // 창(window)은 `play_records`를, 전 기간은 줄지 않는 누적(`play_daily_totals`)을 읽어 원천이 다르다 — 병렬 스위트가 재생
+    // 기록만 직접 심으면 창이 전 기간을 넘을 수 있어 둘을 비교하지 않는다. 이 테스트가 심은 2회만 확인한다
+    expect(body.listening.all_time.plays).toBeGreaterThanOrEqual(2);
 
     // then — 이 테스트의 청취자(KR)가 KR 시장 칸에 들어 있다
     expect(
@@ -303,6 +370,335 @@ describe('서비스 지표 요약 E2E', () => {
       .expect(HttpStatus.UNAUTHORIZED);
   }, 60_000);
 
+  it('누적 표는 같은 날짜에 더하기만 한다 — 운영 SQL 그대로(재생 수·청취 시간·완청 수 각각)', async () => {
+    // 다른 스위트가 건드리지 않는 날짜로 정확히 본다(오늘·어제 행은 병렬 스위트가 함께 더한다)
+    const playDate = '2001-02-03';
+    const repository = app.get(PlayDailyTotalRepository);
+    try {
+      await repository.add(playDate, { playCount: 1, listenSec: 0 });
+      await repository.add(playDate, { playCount: 0, listenSec: 90 });
+      await repository.add(playDate, { playCount: 1, listenSec: 30 });
+      await repository.add(playDate, { completeCount: 1 });
+
+      const [row] = await dataSource.query<
+        { play_count: number; listen_sec: string; complete_count: number }[]
+      >(
+        `SELECT play_count, listen_sec, complete_count FROM play_daily_totals WHERE play_date = $1`,
+        [playDate],
+      );
+      expect(row).toEqual({
+        play_count: 2,
+        listen_sec: '120',
+        complete_count: 1,
+      });
+    } finally {
+      await dataSource.query(
+        `DELETE FROM play_daily_totals WHERE play_date = $1`,
+        [playDate],
+      );
+    }
+  });
+
+  it('일별 접속자 — 오늘은 세션에서 바로 세어 들어 있고, 요일별 7칸과 첫 신뢰 날짜가 실린다', async () => {
+    // given — 지금 토큰을 갱신한 사용자 하나(세션 행)
+    const adminAuth = await createUser('admin-active', UserRole.ADMIN);
+    const activeId = await createUserId('active');
+    await seedSession(activeId, new Date());
+
+    // when
+    const body = (
+      await request(app.getHttpServer())
+        .get(path('/admin/insights/summary'))
+        .query({ days: 14 })
+        .set('Authorization', adminAuth)
+        .expect(HttpStatus.OK)
+    ).body as SummaryBody;
+
+    // then — 전역 합계는 병렬 스위트 때문에 정확히 비교하지 않는다. 오늘 칸에 이 테스트의 1명이 있는지만 본다
+    const today = body.daily[body.daily.length - 1];
+    expect(today.active_users).toBeGreaterThanOrEqual(1);
+    for (const d of body.daily) {
+      expect(
+        d.active_users === null || typeof d.active_users === 'number',
+      ).toBe(true);
+    }
+    expect(body.weekday.map((w) => w.label)).toEqual([
+      '월',
+      '화',
+      '수',
+      '목',
+      '금',
+      '토',
+      '일',
+    ]);
+    // 14일 창의 온전한 날은 13일(첫날 부분일·오늘 제외) — 요일마다 1~2일
+    expect(body.weekday.reduce((sum, w) => sum + w.days, 0)).toBe(13);
+    for (const w of body.weekday) {
+      expect(w.active_days).toBeLessThanOrEqual(w.days);
+      // 0일이면 평균은 0 이 아니라 null
+      if (w.days === 0) expect(w.avg_listeners).toBeNull();
+      if (w.active_days === 0) expect(w.avg_active_users).toBeNull();
+    }
+    expect(body.active_users_since).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    expect(body.active_users_since <= today.date).toBe(true);
+  }, 60_000);
+
+  it('일별 접속자 저장 — 같은 날을 두 번 다시 세도 값이 같고, 시장마다 한 행(접속자 없는 시장은 0)이다', async () => {
+    // 다른 스위트가 건드리지 않는 날짜로 정확히 본다(KST 2001-02-04 12:00 에 토큰 갱신 1명 — 같은 날 두 번 갱신해도 1명)
+    const activeDate = '2001-02-04';
+    const userId = await createUserId('active-past');
+    await seedSession(userId, new Date('2001-02-04T03:00:00.000Z'));
+    await seedSession(userId, new Date('2001-02-04T14:59:00.000Z'));
+    // 그 앞날 KST 23:59(= UTC 02-03 14:59)는 세지 않는다
+    const otherId = await createUserId('active-past-other');
+    await seedSession(otherId, new Date('2001-02-03T14:59:00.000Z'));
+    const repository = app.get(DailyActiveUserRepository);
+    const read = () =>
+      dataSource.query<{ market: string; active_users: number }[]>(
+        `SELECT market, active_users FROM daily_active_users WHERE active_date = $1 ORDER BY market`,
+        [activeDate],
+      );
+    try {
+      // when
+      await repository.recount(activeDate);
+      const first = await read();
+      await repository.recount(activeDate);
+      const second = await read();
+
+      // then
+      expect(first).toEqual([
+        { market: 'global', active_users: 0 },
+        { market: 'kr', active_users: 1 },
+      ]);
+      expect(second).toEqual(first);
+
+      // when — 원천(세션)이 지워진 뒤 다시 세도 기록은 줄지 않는다
+      await dataSource.query(`DELETE FROM sessions WHERE user_id = $1`, [
+        userId,
+      ]);
+      await repository.recount(activeDate);
+
+      // then
+      expect(await read()).toEqual(first);
+    } finally {
+      await dataSource.query(
+        `DELETE FROM daily_active_users WHERE active_date = $1`,
+        [activeDate],
+      );
+    }
+  });
+
+  it('사람별 접속일 — 그날 세션이 있는 사람마다 한 행이고, 두 번 넣어도 같으며, 원천 세션이 지워져도 남는다', async () => {
+    // given — KST 2001-02-11 에 두 번 토큰 갱신한 1명, 그 앞날 KST 23:59 에 갱신한 1명(세지 않는다)
+    const activeDate = '2001-02-11';
+    const userId = await createUserId('active-date');
+    await seedSession(userId, new Date('2001-02-11T03:00:00.000Z'));
+    await seedSession(userId, new Date('2001-02-11T14:59:00.000Z'));
+    const otherId = await createUserId('active-date-other');
+    await seedSession(otherId, new Date('2001-02-10T14:59:00.000Z'));
+    const repository = app.get(DailyActiveUserRepository);
+    const read = () =>
+      dataSource.query<{ user_id: string }[]>(
+        `SELECT user_id FROM user_active_dates WHERE active_date = $1 AND user_id = ANY($2)`,
+        [activeDate, [userId, otherId]],
+      );
+
+    // when
+    await repository.recordActiveDates(activeDate);
+    await repository.recordActiveDates(activeDate);
+
+    // then
+    expect(await read()).toEqual([{ user_id: userId }]);
+
+    // when — 원천이 지워진 뒤 다시 넣어도 이미 남긴 행은 그대로
+    await dataSource.query(`DELETE FROM sessions WHERE user_id = $1`, [userId]);
+    await repository.recordActiveDates(activeDate);
+
+    // then
+    expect(await read()).toEqual([{ user_id: userId }]);
+  });
+
+  it('코호트 리텐션 — 가입일 기준 구간마다 접속 기록·남은 세션·재생 중 하나라도 있으면 돌아온 사람이다', async () => {
+    // given — 다른 스위트와 겹치지 않는 2001-03-05(월) KST 12:00 가입자 2명
+    const signedUpAt = new Date('2001-03-05T03:00:00.000Z');
+    const a = await createUserId('cohort-a');
+    const b = await createUserId('cohort-b');
+    await dataSource.query(
+      `UPDATE users SET created_at = $1 WHERE id = ANY($2)`,
+      [signedUpAt, [a, b]],
+    );
+    // A: D1 접속(세션은 지워지고 기록만 남은 경우) · W2(가입 14~20일 뒤) 재생
+    await dataSource.query(
+      `INSERT INTO user_active_dates (user_id, active_date) VALUES ($1, '2001-03-06')`,
+      [a],
+    );
+    const contentId = await seedContent();
+    const playedAt = new Date('2001-03-20T03:00:00.000Z');
+    const playRecords = dataSource.getRepository(PlayRecord);
+    await playRecords.save(
+      playRecords.create({
+        userId: a,
+        contentId,
+        playDate: toServiceDate(playedAt),
+        playedAt,
+        isCounted: true,
+        listenedSec: 60,
+      }),
+    );
+    // B: 가입 당일(d+0)·D2(d+2) 세션은 D1 이 아니다 · D7 = W1 첫날(03-12) 세션
+    await seedSession(b, new Date('2001-03-05T05:00:00.000Z'));
+    await seedSession(b, new Date('2001-03-07T03:00:00.000Z'));
+    await seedSession(b, new Date('2001-03-12T03:00:00.000Z'));
+    // C: 일요일 KST 23:59 가입(= UTC 14:59) — 그날(03-11) 묶음이고 그 주(03-05 주)에 든다.
+    //    가입 당일 활동은 세지 않고, 가입 14일 뒤(03-25) 재생은 W1 이 아니라 W2 다
+    const c = await createUserId('cohort-c');
+    await dataSource.query(`UPDATE users SET created_at = $1 WHERE id = $2`, [
+      new Date('2001-03-11T14:59:00.000Z'),
+      c,
+    ]);
+    await seedSession(c, new Date('2001-03-11T14:59:30.000Z'));
+    const playedAtC = new Date('2001-03-25T03:00:00.000Z');
+    await playRecords.save(
+      playRecords.create({
+        userId: c,
+        contentId,
+        playDate: toServiceDate(playedAtC),
+        playedAt: playedAtC,
+        isCounted: true,
+        listenedSec: 60,
+      }),
+    );
+    const repository = app.get(AdminInsightsRepository);
+
+    // when
+    const daily = await repository.cohortRetention(
+      '2001-03-05',
+      '2001-03-12',
+      1,
+      [1, 7],
+    );
+    const weekly = await repository.cohortRetention(
+      '2001-03-05',
+      '2001-03-12',
+      7,
+      [1, 2, 3, 4],
+    );
+
+    // then — 일별: 03-05 묶음 2명(D1 = A 만, D7 = B 만), 03-11 묶음 1명(C — 돌아온 칸 없음)
+    expect(
+      [...daily.sizes].sort((x, y) => x.start.localeCompare(y.start)),
+    ).toEqual([
+      { start: '2001-03-05', users: 2 },
+      { start: '2001-03-11', users: 1 },
+    ]);
+    expect([...daily.hits].sort((x, y) => x.offset - y.offset)).toEqual([
+      { start: '2001-03-05', offset: 1, returned: 1 },
+      { start: '2001-03-05', offset: 7, returned: 1 },
+    ]);
+    // 주별: 03-05 주 3명(일요일 23:59 가입자 포함). W1 = B, W2 = A(가입 15일 뒤)·C(가입 14일 뒤)
+    expect(weekly.sizes).toEqual([{ start: '2001-03-05', users: 3 }]);
+    expect([...weekly.hits].sort((x, y) => x.offset - y.offset)).toEqual([
+      { start: '2001-03-05', offset: 1, returned: 1 },
+      { start: '2001-03-05', offset: 2, returned: 2 },
+    ]);
+  });
+
+  it('요약 응답에 코호트 표 두 장(일별 14행 D1·D7 · 주별 8행 W1~W4)이 실린다', async () => {
+    // given
+    const adminAuth = await createUser('admin-cohort', UserRole.ADMIN);
+
+    // when
+    const body = (
+      await request(app.getHttpServer())
+        .get(path('/admin/insights/summary'))
+        .set('Authorization', adminAuth)
+        .expect(HttpStatus.OK)
+    ).body as SummaryBody;
+
+    // then
+    const { daily, weekly } = body.retention_cohorts;
+    expect(daily.offsets).toEqual([1, 7]);
+    expect(daily.rows).toHaveLength(14);
+    expect(weekly.offsets).toEqual([1, 2, 3, 4]);
+    expect(weekly.rows).toHaveLength(8);
+    // 어제 가입자의 D1 은 오늘이라 아직 끝나지 않았다
+    expect(daily.rows[0].cells[0]).toBeNull();
+    for (const row of [...daily.rows, ...weekly.rows]) {
+      for (const cell of row.cells) {
+        if (cell) expect(cell.returned).toBeLessThanOrEqual(row.users);
+      }
+    }
+  }, 60_000);
+
+  it('최근 하루 인기 콘텐츠 — 지금 - 24시간 이후 재생만 세고, 그 앞에만 재생된 콘텐츠는 없다', async () => {
+    // given — 지금 3명이 들은 콘텐츠(완청 1) · 이틀 전에만 3명이 들은 콘텐츠
+    const adminAuth = await createUser('admin-recent', UserRole.ADMIN);
+    const recentId = await seedContent();
+    const oldId = await seedContent();
+    const now = new Date();
+    const twoDaysAgo = new Date(now.getTime() - 2 * 86_400_000);
+    const playRecords = dataSource.getRepository(PlayRecord);
+    for (const label of ['r1', 'r2', 'r3']) {
+      const userId = await createUserId(`recent-${label}`);
+      await playRecords.save([
+        playRecords.create({
+          userId,
+          contentId: recentId,
+          playDate: toServiceDate(now),
+          playedAt: now,
+          isCounted: true,
+          listenedSec: 120,
+        }),
+        playRecords.create({
+          userId,
+          contentId: oldId,
+          playDate: toServiceDate(twoDaysAgo),
+          playedAt: twoDaysAgo,
+          isCounted: true,
+          listenedSec: 120,
+        }),
+      ]);
+      if (label === 'r1') {
+        await dataSource.getRepository(UserSignal).save({
+          userId,
+          contentId: recentId,
+          action: UserSignalAction.COMPLETE,
+          positionSec: 600,
+          maxReachedSec: 600,
+        });
+      }
+    }
+
+    // when
+    const body = (
+      await request(app.getHttpServer())
+        .get(path('/admin/insights/summary'))
+        .set('Authorization', adminAuth)
+        .expect(HttpStatus.OK)
+    ).body as SummaryBody;
+
+    // then
+    const sinceMs = new Date(body.recent_since).getTime();
+    expect(Math.abs(now.getTime() - 86_400_000 - sinceMs)).toBeLessThan(60_000);
+    const recent = body.recent_top_contents.find(
+      (c) => c.content_id === recentId,
+    );
+    expect(recent).toEqual(
+      expect.objectContaining({
+        plays: 3,
+        listeners: 3,
+        listen_sec: 360,
+        completes: 1,
+      }),
+    );
+    expect(body.recent_top_contents.some((c) => c.content_id === oldId)).toBe(
+      false,
+    );
+    // 청취자 수 순
+    const listeners = body.recent_top_contents.map((c) => c.listeners);
+    expect([...listeners].sort((a, b) => b - a)).toEqual(listeners);
+  }, 60_000);
+
   it('시장별 집계는 계정이 없는 시장까지 시장마다 한 칸이고, 각 값은 그 시장 계정 수를 넘지 않는다(global-api 4.10)', async () => {
     // given
     const adminAuth = await createUser('admin-market', UserRole.ADMIN);
@@ -341,6 +737,22 @@ describe('서비스 지표 요약 E2E', () => {
     );
     userIds.push(user.id);
     return user.id;
+  }
+
+  /** 토큰 갱신 1회 — 세션 행. 사용자를 지우면 CASCADE 로 함께 지워진다 */
+  async function seedSession(userId: string, issuedAt: Date): Promise<void> {
+    const repository = dataSource.getRepository(Session);
+    await repository.save(
+      repository.create({
+        userId,
+        refreshTokenHash: `${TOKEN}-${userId}-${issuedAt.getTime()}`,
+        deviceId: `${TOKEN}-device`,
+        issuedAt,
+        expiresAt: new Date(Date.now() + 86_400_000),
+        revokedAt: null,
+        revokedReason: null,
+      }),
+    );
   }
 
   async function createUser(label: string, role: UserRole): Promise<string> {

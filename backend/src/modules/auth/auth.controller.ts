@@ -26,6 +26,8 @@ import { PipelineLoginRequestDto } from './dto/pipeline-login-request.dto';
 import { PipelineLoginResponseDto } from './dto/pipeline-login-response.dto';
 import { RefreshTokenRequestDto } from './dto/refresh-token-request.dto';
 import { RefreshTokenResponseDto } from './dto/refresh-token-response.dto';
+import { SignUpConsentsRequestDto } from './dto/sign-up-consents-request.dto';
+import { SignUpConsentsResponseDto } from './dto/sign-up-consents-response.dto';
 import { SignUpRequestDto } from './dto/sign-up-request.dto';
 import { SignUpResponseDto } from './dto/sign-up-response.dto';
 import { SocialLoginRequestDto } from './dto/social-login-request.dto';
@@ -70,7 +72,7 @@ export class AuthController {
     return SocialLoginResponseDto.from(result, now);
   }
 
-  /** 파이프라인 웹 SSO — 서버 간 어서션으로 관리자 세션 발급 (changes/pending/pipeline-sso-login.md) */
+  /** 파이프라인 웹 SSO — 서버 간 어서션으로 관리자 세션 발급 (changes/archive/pipeline-sso-login.md · 반영 2026-09-03) */
   @Post('pipeline-login')
   @HttpCode(HttpStatus.OK)
   async pipelineLogin(
@@ -115,6 +117,24 @@ export class AuthController {
     );
 
     return SignUpResponseDto.from(result, now);
+  }
+
+  /**
+   * 가입 동의 목록 재조회(KAN-215·216) — 로그인 응답의 목록은 콘텐츠 언어를 고르기 전의 것이라, 앱이 언어를 고른 뒤
+   * 이 목록으로 동의 화면을 그린다. 조회라 기록이 없어 멱등키를 받지 않는다. 인증이 없는 경로라 IP 한도를 건다.
+   */
+  @Post('sign-up/consents')
+  @HttpCode(HttpStatus.OK)
+  @Throttle(AUTH_THROTTLE)
+  findSignUpConsents(
+    @Body() request: SignUpConsentsRequestDto,
+  ): SignUpConsentsResponseDto {
+    return SignUpConsentsResponseDto.from(
+      this.authService.findSignUpConsents({
+        signupToken: request.signup_token,
+        locale: toLocaleInput(request.locale),
+      }),
+    );
   }
 
   @Post('token/refresh')

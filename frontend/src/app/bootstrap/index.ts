@@ -1,11 +1,23 @@
-import { setAnalyticsUser, setAnalyticsUserProperties } from '@/shared/analytics';
+import {
+  setAnalyticsUser,
+  setAnalyticsUserProperties,
+  syncAdMeasurementPreference,
+} from '@/shared/analytics';
 import { registerTokenProvider } from '@/shared/api/api-client';
-import { setSentryUser } from '@/shared/monitoring';
+import { setSentryUser, startBackgroundStoreProbe } from '@/shared/monitoring';
+import { useTabSelectionStore } from '@/shared/navigation/tab-selection.store';
 import { setColorModeReloadGuard, startColorModeSync } from '@/shared/theme';
+import { useNoticeDockStore } from '@/shared/ui/notice-dock.store';
 import { prefetchRemoteImages } from '@/shared/ui/RemoteImage';
+import { useToastStore } from '@/shared/ui/toast.store';
 
 import { startAppVersionRecheck } from '@/features/app-update';
-import { registerEmailVerifiedListener, sessionService, useSessionStore } from '@/features/auth';
+import {
+  registerEmailVerifiedListener,
+  registerMarketChangedListener,
+  sessionService,
+  useSessionStore,
+} from '@/features/auth';
 import { registerCareerSavedListener } from '@/features/career';
 import { registerInterestSavedListener } from '@/features/interest';
 import {
@@ -14,8 +26,10 @@ import {
   fetchLibraryItems,
   libraryKeys,
   prefetchLibraryFirstPage,
+  resetDripFeedbackSession,
   restoreLibraryItem,
   saveQueueOrder,
+  startDripFeedbackOutboxSync,
   useLibraryArrivalStore,
 } from '@/features/library';
 import {
@@ -24,8 +38,11 @@ import {
   startDeviceSync,
   startPushReceiving,
   syncDeviceNow,
+  useNotificationStore,
 } from '@/features/notification';
+import { useOnboardingStore } from '@/features/onboarding';
 import {
+  playerProbeStores,
   registerPlayerLibraryBridge,
   startWithdrawnSync,
   stopPlaybackForSignOut,
@@ -62,6 +79,27 @@ const QUEUE_PAGE_LIMIT = 50;
  */
 export const bootstrapApp = (): void => {
   registerTokenProvider(sessionService);
+  /*
+   * 백그라운드 재렌더 진단(architecture.md 8.4 — EAR-APP-K, 2026-10-19). 앱이 화면에 없는 동안 어느 스토어의 어느
+   * 필드가 몇 번 바뀌었는지만 세어 Sentry breadcrumb 으로 남긴다. 동작은 바꾸지 않는다. feature 안에 둘 수 없는
+   * 이유: 모든 feature 의 스토어를 한곳에서 구독해야 하고, 그건 app 층만 할 수 있다(4.3)
+   */
+  startBackgroundStoreProbe({
+    stores: {
+      ...playerProbeStores,
+      session: useSessionStore,
+      libraryArrival: useLibraryArrivalStore,
+      notification: useNotificationStore,
+      toast: useToastStore,
+      noticeDock: useNoticeDockStore,
+      tabSelection: useTabSelectionStore,
+    },
+    queryCache: queryClient.getQueryCache(),
+    isPlaying: () => usePlaybackStore.getState().session?.isPlaying === true,
+  });
+  // 설정 > 광고 측정 허용(KAN-217) — 저장 값을 읽어 Meta SDK 를 맞춘다. 끈 값은 SDK 가 네이티브에도 저장해 두므로
+  // 다음 실행부터는 JS 가 뜨기 전 자동 이벤트도 나가지 않는다(근거는 shared/analytics/meta.ts). 실패해도 켜짐으로 본다
+  void syncAdMeasurementPreference();
   // 화면 모드(다크 모드, 2026-10-10) — Android 는 시스템 모드가 바뀌면 앱이 앞으로 돌아올 때 다시 칠한다(JS 다시 부르기).
   // 재생 중이면 미룬다 — 듣던 것이 끊기면 안 된다. shared(theme)는 player 를 모르므로 여기서 잇는다
   setColorModeReloadGuard(() => usePlaybackStore.getState().session?.isPlaying === true);
@@ -95,6 +133,16 @@ export const bootstrapApp = (): void => {
     if (markEmailVerifiedForPurchase()) {
       setTimeout(() => useLimitNoticeStore.getState().reopen(), EMAIL_RETURN_REOPEN_DELAY_MS);
     }
+  });
+
+  /*
+   * 콘텐츠 언어(시장) 전환(KAN-228 — global-api.md 4.11) — 라이브러리·탐색·주제·설정 요약이 전부 이전 시장의 값이다.
+   * 쿼리 캐시를 통째로 비우고(다음 화면이 새 토큰으로 다시 받는다) 온보딩 로컬 상태(첫 온보딩의 선택)를 비운다.
+   * auth 가 이 키들을 알지 않도록 여기서 배선한다
+   */
+  registerMarketChangedListener(() => {
+    queryClient.clear();
+    useOnboardingStore.getState().reset();
   });
 
   /*
@@ -178,6 +226,14 @@ export const bootstrapApp = (): void => {
   startDeviceSync(isSignedIn);
 
   /*
+   * 추천 별점 팝업의 미전송 보관함(KAN-224) — 포그라운드 복귀마다 다시 보낸다. 보관함이 계정별이라 지금 계정 id 를 주입한다
+   * (진입 때의 재전송은 라이브러리가 판정 조회 직전에 한다)
+   */
+  startDripFeedbackOutboxSync(() =>
+    isSignedIn() ? (useSessionStore.getState().user?.id ?? null) : null,
+  );
+
+  /*
    * 구독 동기화(subscription.md 4.3 · KAN-120) — 포그라운드 복귀마다 미완료 거래 제출 + 구독 상태 재조회.
    * 구독 UI 가 꺼진 바이너리(플래그·결제 모듈·플랫폼)에서는 아무것도 하지 않는다 — 결제 모듈을 부르지 않는다.
    */
@@ -236,6 +292,8 @@ export const bootstrapApp = (): void => {
       // 앞 사용자의 알림 목적지·새 도착 배지를 다음 사용자에게 넘기지 않는다
       clearPushState();
       useLibraryArrivalStore.getState().reset();
+      // 추천 별점 팝업은 계정마다 이번 세션에 한 번 — 다음 계정은 새로 묻는다
+      resetDripFeedbackSession();
       resetDeviceSync();
       // 반영이 미뤄진 거래의 재시도를 멈춘다 — 다음 계정의 세션으로 앞 사용자의 거래를 제출하지 않는다
       stopSubscriptionSync();

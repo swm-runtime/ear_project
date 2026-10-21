@@ -1,4 +1,5 @@
 import fs from "node:fs/promises";
+import { applySeriesMaterial } from "./series-draft.js";
 import path from "node:path";
 import { cfg } from "../config.js";
 import { insertRun, setJobProgress, updateJobPayload, type Job } from "../db.js";
@@ -6,11 +7,11 @@ import { executedBy } from "../config.js";
 import { workerRev } from "../assets.js";
 import { ApiLimit, RetryLater } from "../util.js";
 import type { Executor } from "../executors/index.js";
-import { assetPaths, buildDesignPrompt, buildWritePromptParts, DESIGN_SCHEMA, buildWritePromptPartsEn, outlineMarks, pipelineLocale, scriptZones, WRITE_SCHEMA, WRITE_SCHEMA_EN, type BacklogCandidate, type IntroStyle, type Templates } from "@ear/pipeline";
+import { assetPaths, buildDesignPrompt, buildWritePromptParts, DESIGN_SCHEMA, buildWritePromptPartsEn, outlineMarks, pipelineLocale, scriptZones, WRITE_SCHEMA, WRITE_SCHEMA_EN, type BacklogCandidate, type IntroStyle, type SeriesDraftContext, type Templates, speakerNames } from "@ear/pipeline";
 import { exists, hostOf, log } from "../util.js";
 import { parseScriptForTts, type ScriptTurn } from "../tts/script.js";
 import { runDesignSingle } from "./design-single.js";
-import { countWords, MIN_WORDS_EN, WORDS_PER_MIN_EN } from "../script-length.js";
+import { countWords, MIN_MINUTES_EN, MIN_WORDS_EN, WORDS_PER_MIN_EN } from "../script-length.js";
 import { addPronunciations } from "../tts/normalize.js";
 
 /**
@@ -31,6 +32,9 @@ export interface TwoStageArgs {
   signoffSeed?: number;
   /** 실험 no-gold (2026-09-15): 설계·대본 프롬프트에서 골드 예시를 뺀다 — settings.experiments.no_gold_backlog_ids 에 든 후보만 */
   noGold?: boolean;
+  /** 시리즈 편(spec/11 5장) — 설계·작성 블록, 설계 뒤 연결 재료 */
+  series?: SeriesDraftContext;
+  seriesId?: string;
 }
 export interface TwoStageResult { summary: string; model: string | null; costUsd: number; tokens: unknown; design: DesignOut | null; write: WriteOut; stats: { turns: number; chars: number; minutes: number } }
 
@@ -49,7 +53,7 @@ export async function runTwoStageDraft(a: TwoStageArgs): Promise<TwoStageResult>
     designSummary = "설계 이어받기(기존 산출물)";
   } else if (cfg.designMode === "single") {
     log(`  draft ${episodeId} ← ${cand.id} "${cand.title}" · 1/2 설계 (단발, 소스 ${cand.sources.length})`);
-    const d = await runDesignSingle({ job, ex, episodeId, candidate: cand, dir, assetRoot: a.assetRoot, promptVersion: a.promptVersion, noGold: a.noGold });
+    const d = await runDesignSingle({ job, ex, episodeId, candidate: cand, dir, assetRoot: a.assetRoot, promptVersion: a.promptVersion, noGold: a.noGold || pipelineLocale() === "en", series: a.series }); // 글로벌판 설계는 골드를 쓰지 않는다(대본 단계만)
     design = d.design; designCost = d.costUsd; designTokens = d.tokens; designModel = d.model;
     designSummary = `설계(단발): 축 [${design.axis_type}] ${design.axis} · 구간 ${design.sections.length} (착지 #${design.landing_section}) · 발췌 ${design.excerpts}·claims ${design.claims} · 예상 ${design.estimated_minutes}분 · 본문 ${d.fetched.filter((f) => f.ok).length}/${d.fetched.length}${design.gaps.length ? ` · 빈 역할 ${design.gaps.join("/")}` : ""}${design.sources_excluded.length ? ` · 제외 ${design.sources_excluded.map((x) => `${hostOf(x.url)} ${x.reason}`).join("; ").slice(0, 200)}` : ""}${design.split_proposal ? ` · ⚠ 분할 제안: ${design.split_proposal.slice(0, 200)}` : ""}`;
   } else {
@@ -72,24 +76,32 @@ export async function runTwoStageDraft(a: TwoStageArgs): Promise<TwoStageResult>
     const missing: string[] = [];
     for (const f of DESIGN_FILES) if (!(await exists(path.join(dir, f)))) missing.push(f);
     if (missing.length) throw new Error(`설계 산출물 누락: ${missing.join(", ")} — 모델은 완료 보고를 냈으나 파일 없음 (turns=${r.numTurns ?? "?"}, notes="${design.notes.slice(0, 160)}")`);
-    if (design.estimated_minutes && design.estimated_minutes < 13) {
-      throw new Error(`재료 부족 — 설계 예상 분량 ${design.estimated_minutes}분 < 하한 13분. ${design.notes.slice(0, 200)}`);
+    const floorMin = pipelineLocale() === "en" ? MIN_MINUTES_EN : 13;
+    if (design.estimated_minutes && design.estimated_minutes < floorMin) {
+      throw new Error(`재료 부족 — 설계 예상 분량 ${design.estimated_minutes}분 < 하한 ${floorMin}분. ${design.notes.slice(0, 200)}`);
     }
     designSummary = `설계: 축 [${design.axis_type}] ${design.axis} · 구간 ${design.sections.length} (착지 #${design.landing_section}) · 발췌 ${design.excerpts}·claims ${design.claims} · 예상 ${design.estimated_minutes}분${design.gaps.length ? ` · 빈 역할 ${design.gaps.join("/")}` : ""}${design.sources_excluded.length ? ` · 제외 ${design.sources_excluded.map((x) => `${hostOf(x.url)} ${x.reason}`).join("; ").slice(0, 200)}` : ""}${design.split_proposal ? ` · ⚠ 분할 제안: ${design.split_proposal.slice(0, 200)}` : ""}`;
   }
+
+  // ── 시리즈 편: 연결 재료(회상 claims 행 · sources 절 · series-links.json) — 설계 검증 뒤에 붙인다(spec/11 5.3, 멱등)
+  if (a.series && !a.seriesId) throw new Error("시리즈 맥락에 series_id 가 없다");
+  const series = a.series && a.seriesId ? await applySeriesMaterial(dir, a.seriesId, a.series) : undefined;
 
   // ── 2단계 대본 (단발) ─────────────────────────────────────────────────────────
   const ap = assetPaths(a.assetRoot, cfg.workRoot);
   const read = (p: string) => fs.readFile(p, "utf8");
   const [guidelines, specScript, goldFullEum, goldFullYuna, sourcesMd, claimsMd, outlineMd] = await Promise.all([
-    read(ap.guidelines), read(ap.specScript), a.noGold ? Promise.resolve("") : read(ap.goldFullEum), a.noGold ? Promise.resolve("") : read(ap.goldFullYuna),
+    // 글로벌판 골드(full-en-v0.19 골드 실험): gold-en-1·2 를 같은 두 칸으로 넘긴다 — 번들에 없으면(선택 자산) 골드 없이
+    read(ap.guidelines), read(ap.specScript),
+    a.noGold ? Promise.resolve("") : pipelineLocale() === "en" ? read(ap.goldEn[0]).catch(() => "") : read(ap.goldFullEum),
+    a.noGold ? Promise.resolve("") : pipelineLocale() === "en" ? read(ap.goldEn[1]).catch(() => "") : read(ap.goldFullYuna),
     read(path.join(dir, "sources.md")), read(path.join(dir, "claims.md")), read(path.join(dir, "outline.md")),
   ]);
   const pronFile = path.join(dir, "pronunciations.json");
   const pronunciationsJson = (await exists(pronFile)) ? await read(pronFile) : "{}";
   const estimatedMinutes = design?.estimated_minutes || Number(outlineMd.match(outlineMarks().estimate)?.[1]) || 15; // 설계 이어받기면 outline.md 에서 읽는다
   const en = pipelineLocale() === "en"; // 글로벌판: 영어 대본 프롬프트·스키마 (global-prompts.ts)
-  const parts = (en ? buildWritePromptPartsEn : buildWritePromptParts)({ episodeId, candidate: cand, introStyle: a.introStyle, promptVersion: a.promptVersion, templates: a.templates, majorTopic: a.majorTopic, signoffSeed: a.signoffSeed, estimatedMinutes, guidelines, specScript, goldFullEum, goldFullYuna, sourcesMd, claimsMd, outlineMd, pronunciationsJson });
+  const parts = (en ? buildWritePromptPartsEn : buildWritePromptParts)({ episodeId, candidate: cand, introStyle: a.introStyle, promptVersion: a.promptVersion, templates: a.templates, majorTopic: a.majorTopic, signoffSeed: a.signoffSeed, estimatedMinutes, guidelines, specScript, goldFullEum, goldFullYuna, sourcesMd, claimsMd, outlineMd, pronunciationsJson, series });
   log(`  draft ${episodeId} · 2/2 대본 (단발, 공유 ${Math.round(parts.system.length / 1000)}K + 편별 ${Math.round(parts.user.length / 1000)}K자)`);
   let w: Awaited<ReturnType<typeof ex.run<WriteOut>>>;
   try {
@@ -290,7 +302,7 @@ export function twoStageViolations(scriptMd: string, outlineMd: string, opts: { 
  * 한국어 문체·귀속 검사는 돌지 않는다. 영어 문체 검사는 영어 규칙 자산 v0 와 함께 정하고 파일럿 판정으로 늘린다.
  * 메시지는 영어다 — 수정 재생성 프롬프트가 그대로 읽는다(명세 4.5: 모델이 읽는 글은 영어). 문체 검사(enStyleViolations)는 아래.
  */
-export function twoStageViolationsEn(scriptMd: string, outlineMd: string, opts: { signoffHeads?: string[] } = {}): string[] {
+export function twoStageViolationsEn(scriptMd: string, outlineMd: string, opts: { signoffHeads?: string[]; pronunciations?: Record<string, string>; notesMd?: string } = {}): string[] {
   const v: string[] = [];
   const z = scriptZones();
   const order = [z.intro, z.lead, z.body, z.outro];
@@ -303,7 +315,7 @@ export function twoStageViolationsEn(scriptMd: string, outlineMd: string, opts: 
   else if (planned.length && written.some((n, i) => n !== planned[i])) v.push(`Section order differs from the outline (outline ${planned.join(",")} / script ${written.join(",")})`);
   const s = scriptStats(scriptMd);
   const words = s.words ?? 0;
-  if (words < MIN_WORDS_EN) v.push(`Length ${words} words (about ${s.minutes} min) — below the 13-minute floor (${MIN_WORDS_EN} words). Use more of the outline's material (reserve material, background); do not pad`);
+  if (words < MIN_WORDS_EN) v.push(`Length ${words} words (about ${s.minutes} min) — below the ${MIN_MINUTES_EN}-minute floor (${MIN_WORDS_EN} words). Use more of the outline's material (reserve material, background); do not pad`);
   const est = Number(outlineMd.match(marks.estimate)?.[1]);
   if (est && s.minutes > est * 1.6) v.push(`Length ${words} words (about ${s.minutes} min) — more than 1.6× the outline estimate of ${est} min. Keep the material; shorten long explainer turns to land within ±15% of the estimate`);
   const heads = (opts.signoffHeads ?? []).map((h) => h.replace(/\s+/g, " ").trim()).filter(Boolean);
@@ -314,8 +326,68 @@ export function twoStageViolationsEn(scriptMd: string, outlineMd: string, opts: 
     if (!last?.id?.startsWith("Y")) v.push(`The last turn is not a host (Y) turn (${last?.id ?? "none"}) — after the explainer's wrap-up, the host closes with one sign-off turn ("${heads[0]} …")`);
     else if (!heads.some((h) => text.includes(h))) v.push(`The last turn ${last.id} lacks the sign-off frame ("${heads[0]}"${heads.length > 1 ? ` or ${heads.length - 1} other${heads.length > 2 ? "s" : ""}` : ""}) — keep the template frame as is and fill only the {slots}`);
   }
+  // 클로징 도입 칸 (tpl-en-v4, 2026-10-18): {episode_recap} 은 인트로의 {episode_line} 과 같은 주제를 다른 말로 — 같은 단어면 인트로 되풀이다(G261018-001~003)
+  {
+    const tt = parseScriptForTts(scriptMd).turns;
+    const norm = (x: string) => x.toLowerCase().replace(/[’']/g, "'").replace(/[^a-z0-9' ]+/g, " ").replace(/\s+/g, " ").trim();
+    const introLine = tt[0]?.text.match(/Today we're talking about (.+?)\.(?:\s|$)/)?.[1];
+    const lead = tt.find((t) => t.section === z.outro);
+    const recap = lead?.text.match(/We've been talking about (.+?)\.(?:\s|$)/)?.[1];
+    if (introLine && recap && norm(introLine) === norm(recap)) v.push(`The closing lead ${lead!.id} repeats the intro's line ("${recap.slice(0, 80)}") — fill {episode_recap} with the same topic in different words`);
+  }
+  // 화자 라벨 (2026-10-17 출연진 4명): 이 편의 2인조와 맞아야 한다 — 파서는 네 이름을 다 받으므로 다른 팀 이름이 섞여도 여기서 잡는다
+  const [explainer, host] = speakerNames();
+  const wrong = parseScriptForTts(scriptMd).turns.filter((t) => t.id && (t.id.startsWith("E") ? t.speaker !== explainer : t.speaker !== host)).map((t) => `${t.id} [${t.speaker}]`);
+  if (wrong.length) v.push(`Speaker labels do not match this episode's pair (${wrong.slice(0, 6).join(", ")}${wrong.length > 6 ? " …" : ""}) — E turns are [${explainer}], Y turns are [${host}]`);
   v.push(...enStyleViolations(parseScriptForTts(scriptMd).turns));
+  v.push(...outlineCopyViolations(scriptMd, outlineMd));
+  v.push(...axisAnswerViolations(outlineMd, opts.notesMd));
+  // 한국어 표현을 가리키면서 표현을 말하지 않는 해설 턴 (규칙 50, full-en-v0.6) — G261017-001 E22·E29: 설계가 등재한 동사형 표현 4개가 대본에서 빠지고 "Neither expression…"·"Korean expressions distinguish…" 만 남았다.
+  // 등재 표제어가 하나도 없는 턴만 잡는다 — 영어 표현을 가리키는 "English expression" 과 "an expression of regret" 같은 일반 명사 쓰임은 뺀다
+  const keys = Object.keys(opts.pronunciations ?? {}).map((k) => k.trim()).filter(Boolean);
+  if (keys.length) {
+    const alt = keys.map((k) => k.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|");
+    const keyRe = new RegExp(`(?<![A-Za-z0-9])(?:${alt})(?![A-Za-z0-9])`, "i");
+    const vague = parseScriptForTts(scriptMd).turns.filter((t) => t.id?.startsWith("E") && /(?<!English )\bexpressions?\b(?! of\b)/i.test(t.text) && !keyRe.test(t.text)).map((t) => t.id!);
+    if (vague.length) v.push(`${EN_STYLE_MARK} explainer turns speak of a Korean expression without saying it (${vague.join(", ")}) — say the romanized expression in that turn, with its meaning (rule 50)`);
+  }
   return v;
+}
+
+/**
+ * 축 답 claims 누락 (규칙 38, full-en-v0.16 — G261019-003: 구성안이 '왜'에 답하는 claims C04·C25·C26·C34 를 배정했는데 대본이 넷 다 빼고 3.1 6점).
+ * 구성안 `Axis answer:` 줄의 claim 이 script-notes 의 해설 턴별 claims 표에 하나라도 없으면 위반. 표가 없으면(설계 이어받기 전 편) 보지 않는다
+ */
+export function axisAnswerViolations(outlineMd: string, notesMd?: string): string[] {
+  const ids = outlineMd.match(/^Axis answer:\s*(.+)$/m)?.[1].match(/\bC\d{2,3}\b/g) ?? [];
+  if (!ids.length || !notesMd) return [];
+  const used = new Set<string>();
+  for (const m of notesMd.matchAll(/^\|\s*E\d+\s*\|\s*([^|]*)\|/gm)) for (const c of m[1].match(/\bC\d{2,3}\b/g) ?? []) used.add(c);
+  const missing = [...new Set(ids)].filter((c) => !used.has(c));
+  return missing.length ? [`Axis answer claims ${missing.join(", ")} are not used in any explainer turn — use every claim on the outline's Axis answer line in the section it belongs to; the Closing answer rests on them (rule 38)`] : [];
+}
+
+/**
+ * 구성안 지시 문구의 대사 유출 (규칙 36, full-en-v0.9 — G261017-004~006: "A possible starting picture is …"·"That reported connection concerns …"·결론형 Opens with 가 그대로 대사가 됐다).
+ * 지시 줄(Familiar picture·Opens with·Scene·Insider detail·Purpose·Transition·Development·Interaction)과 대본 턴이 8단어 이상 그대로 겹치면 문체 위반.
+ * 축·클로징 문장은 대본이 축을 말해야 하므로(규칙 40), Host question·Question 은 진행자가 그대로 물어도 되므로 대조에서 뺀다
+ * full-en-v0.10 (G261017-009~011): Terms 줄의 풀이가 대사가 됐다("the traditional clothing forms being discussed") — Terms 도 대조한다
+ */
+export function outlineCopyViolations(scriptMd: string, outlineMd: string): string[] {
+  const N = 8;
+  const words = (t: string) => t.toLowerCase().replace(/[’']/g, "'").match(/[a-z0-9']+/g) ?? [];
+  const grams = new Set<string>();
+  for (const m of outlineMd.matchAll(/^\s*(?:Familiar picture|Terms|Opens with|Scene|Insider detail|Purpose|Transition|Development|Interaction):\s*(.+)$/gim)) {
+    const w = words(m[1]);
+    for (let k = 0; k + N <= w.length; k++) grams.add(w.slice(k, k + N).join(" "));
+  }
+  if (!grams.size) return [];
+  const hits: string[] = [];
+  for (const t of parseScriptForTts(scriptMd).turns) {
+    const w = words(t.text);
+    for (let k = 0; k + N <= w.length; k++) if (grams.has(w.slice(k, k + N).join(" "))) { hits.push(`${t.id ?? t.section} "${w.slice(k, k + N).join(" ")}"`); break; }
+  }
+  return hits.length ? [`${EN_STYLE_MARK} turns copy the outline's instruction wording (${hits.slice(0, 6).join(", ")}${hits.length > 6 ? " …" : ""}) — the outline's lines are instructions, not dialogue; say it in new words (rule 36)`] : [];
 }
 
 /** 글로벌판 문체 위반 표지 — 이 머리로 시작하는 위반은 L0 한도 뒤 남아도 QA 로 넘긴다(한국판 비율 규칙과 같은 취급, RATIO_RULE_MARKS) */
@@ -341,12 +413,12 @@ export function enStyleViolations(turns: ScriptTurn[]): string[] {
   // ── 계약 (한도 뒤 남으면 실패) ──
   const ids = find(/\bC\d{2,3}\b|\bS\d+-\d{2}\b/);
   if (ids.length) v.push(`Claim or excerpt IDs in spoken lines (${list(ids)}) — IDs go only in turn_claims; remove them from the script (rule 36)`);
-  const prod = find(/\b(?:axis|outline|excerpts?|gold examples?|claims? (?:table|IDs?))\b|\b(?:this|next|last|previous|earlier|that) (?:section|block)\b/i);
-  if (prod.length) v.push(`Production words in spoken lines (${list(prod)}) — say it in the speakers' own words; never name the axis, outline, sections, blocks, claims, or excerpts (rule 36)`);
+  const prod = find(/\b(?:axis|outline|excerpts?|gold examples?|claims? (?:table|IDs?)|attributed)\b|\b(?:this|next|last|previous|earlier|that) (?:section|block)\b/i);
+  if (prod.length) v.push(`Production words in spoken lines (${list(prod)}) — say it in the speakers' own words; never name the axis, outline, sections, blocks, claims, excerpts, or attribution (rule 36)`);
   const noise = find(/\b(?:um+|uh+|erm)\b|\b(?:ha){2,}\b|\[[A-Za-z][A-Za-z ]*\]|\*[A-Za-z][A-Za-z ]*\*|\((?:laughs?|sighs?|pause|chuckles?)[^)]*\)/i);
   if (noise.length) v.push(`Fillers, sound tags, or stage directions (${list(noise)}) — remove them; naturalness comes from content and rhythm (rule 32)`);
   const time = find(/\b(?:today|nowadays|these days|currently|recently|this year|last year|next year)\b/i, (_t, i) => !isTemplate(i));
-  if (time.length) v.push(`Relative time words outside the templates (${list(time)}) — use a year or timeless wording (rule 46)`);
+  if (time.length) v.push(`Relative time words outside the templates (${list(time)}) — show time by tense: past practices in the past tense, current ones in the present (rule 46)`);
   const sentences = (t: string) => t.replace(/\.{2,}|…/g, " ").match(/[.!?](?:["'”’)]*)(?:\s|$)/g)?.length ?? 0;
   const long = turns.filter((t) => expl(t) && sentences(t.text) > 6).map((t) => `${label(t)} (${sentences(t.text)})`);
   if (long.length) v.push(`Explainer turns over six sentences (${list(long)}) — split with a host question or tighten; a turn has at most 6 sentences (rule 22)`);
@@ -382,11 +454,91 @@ export function enStyleViolations(turns: ScriptTurn[]): string[] {
   if (repeated.length) v.push(`${EN_STYLE_MARK} the same turn opener more than three times: ${repeated.join("; ")} — vary how turns start (rule 13)`);
   const soTurns = turns.filter((t, i) => !isTemplate(i) && /^(?:so|okay,? so)\b/i.test(t.text.trim())).map(label);
   if (soTurns.length >= 3 && soTurns.length > turns.length / 10) v.push(`${EN_STYLE_MARK} ${soTurns.length} turns open with "So" or "Okay, so" (${list(soTurns)}) — at most one turn in ten (rule 13)`);
+  // full-en-v0.2 (2026-10-16, G261015-001 에이전트 판정): 첫 두 단어로 세면 "I'd feel"·"I'd still" 이 갈려 진행 턴 9개가 "I'd" 로 시작해도 빠져나갔다 — 진행 턴은 첫 단어로 따로 센다. 의문사·조동사로 여는 질문은 뺀다
+  const QUESTION_HEAD = new Set(["what", "how", "why", "when", "where", "which", "who", "whose", "does", "do", "did", "is", "are", "was", "were", "can", "could", "would", "will", "should", "has", "have"]);
+  const hostHead = new Map<string, string[]>();
+  turns.forEach((t, i) => { if (isTemplate(i) || !t.id?.startsWith("Y")) return; const w = t.text.trim().split(/\s+/)[0]?.toLowerCase().replace(/[^a-z']/g, "").replace(/’/g, "'"); if (w && !QUESTION_HEAD.has(w)) hostHead.set(w, [...(hostHead.get(w) ?? []), label(t)]); });
+  const hostRepeated = [...hostHead].filter(([, ids]) => ids.length > 4).map(([w, ids]) => `"${w}" ×${ids.length} (${ids.slice(0, 6).join(", ")})`);
+  if (hostRepeated.length) v.push(`${EN_STYLE_MARK} the same first word opens more than four host turns: ${hostRepeated.join("; ")} — vary the host's forms: a question, a guess, a doubt, how it sounds from outside (rules 9 and 13)`);
+  // 해설이 진행자의 말을 되받아 시작한다 (규칙 10) — 첫 문장이 진행자의 질문·추측·망설임을 이름 붙여 다시 말하는 턴
+  const firstSentence = (t: string) => t.trim().split(/(?<=[.!?])\s+/)[0] ?? "";
+  const echoRe = /\b(?:your|that|this|the) (?:hesitation|preference|doubt|guess|question|choice|concern|worry|point|reaction|instinct|feeling|uncertainty)\b|\byou(?:'ve| have)? (?:chose|chosen|picked|said|mentioned|asked|described|noticed)\b/i;
+  const echo = turns.filter((t, i) => !isTemplate(i) && expl(t) && echoRe.test(firstSentence(t.text))).map(label);
+  if (echo.length > 3) v.push(`${EN_STYLE_MARK} ${echo.length} explainer turns open by restating the host's words (${list(echo)}) — answer in the first sentence; do not name or paraphrase the host's question, guess, or feeling (rule 10)`);
+  // 소스가 문장 주어 (규칙 42) — 단락마다 소스 명사 + 전달 동사로 시작하는 해설 문장. 소개 한 문장 + 하나까지
+  const srcSubj = /^(?:the|this|that|one|another|a|an) (?:(?:[a-z]+|[A-Z][\w-]*) ){0,3}(?:guide|compiler|report|study|article|author|authors|researchers?|participant|participants|dictionary|entry|survey|book|writer|reporter|museum|encyclopedia|page|source|conversation|interview|essay|column|columnist|union|records?|maker)\b[^.?!]{0,40}?\b(?:says|said|describes|described|lists|listed|gives|gave|reports|reported|notes|noted|explains|explained|connects|connected|calls|called|treats|treated|warns|warned|includes|included|mentions|mentioned|adds|added|suggests|suggested|argues|argued|shows|showed|writes|wrote|uses|used|puts|links|separates|pairs|allows|presents|advises|rejects|recommends)\b/i;
+  // full-en-v0.6 (G261017-001): 주어 꼴만 세니 "According to KEL"·"In KEL's account"·"KEL presents" 처럼 이름을 붙인 문장이 #4 에서 여덟 번 나와도 빠져나갔다 — 이름 붙이기 꼴도 같이 센다.
+  // 대문자 약어 주어(KEL)만 고유명사로 본다 — 첫 글자만 대문자인 주어는 한국어 표현("Jeongi deulda describes…")과 가를 수 없다
+  // full-en-v0.7 (G261017-002·003): "In the essay's explanation"·"according to the report"·"Its warning…"·"It argues…" 처럼 일반 명사·대명사로 출처를 부르는 꼴도 센다
+  const srcRef = /^(?:[Aa]ccording to (?:the |this |that )?(?:[A-Z]|(?:essay|report|article|guide|column|study|survey|union|records?)\b)|[Ii]n (?:(?:the|this|that) )?(?:[A-Z][\w-]*|its|their|guide|article|essay|report|column|study|survey|union|records?)(?:'s|’s)? (?:[a-z]+ )?(?:article|guide|account|description|view|guidance|report|explanation|example|warning)\b|[A-Z]{2,}\b[^.?!]{0,20}?\b(?:says|advises|presents|describes|explains|warns|notes|argues|lists|gives|calls|treats|recommends|rejects|allows)\b|(?:It|She|He|They) (?:says|argues|points|describes|reports|connects|warns|dates|explains|notes|suggests|adds|lists|calls)\b|Its (?:explanation|warning|account|view|description|guidance|claim|argument)\b)/;
+  // full-en-v0.13 (G261018-006~008): 이름이 빠지자 출처 종류·연도가 그 자리를 차지했다 — "A drama commentator reads…"·"For a food writer"·"that 2017 description"·"A sociologist speaking in 2026"·"In 2026, guest lists had become".
+  // 문장 머리의 보유자 종류, 연도를 붙인 자료 명사, "<분사> in 연도", 연도로 연 과거완료 문장을 센다. 통계의 자료 연도("about 18 percent in 2022")는 세지 않는다
+  const srcKind = /^(?:(?:For|To) )?(?:a|an|one|the|another|that|this) (?:[a-z]+ )?(?:commentator|critic|writer|reporter|columnist|researcher|scholar|sociologist|historian|journalist|blogger|author|professor|expert)s?\b|\b(?:a|an|the|that|this|one) (?:19|20)\d{2} (?:description|report|account|article|guide|survey|study|column|essay|explanation|interview|list)\b|\b(?:described|given|written|speaking|reported|published|listed) in (?:19|20)\d{2}\b|^In (?:19|20)\d{2},? [^.?!]*\bhad (?:become|been|grown|shrunk|moved|changed|started|turned)\b|^(?:One|Another|A) (?:common |main |key |major )?(?:concern|assessment|criticism|critique|complaint|worry|proposal|argument|view) (?:is|was) that\b|^Another proposal is\b|\b(?:respondents|buyers surveyed|people surveyed)\b/i;
+  const perSection = new Map<string, string[]>();
+  for (const t of turns) {
+    if (!expl(t) || t.section !== zones.body) continue;
+    const n = t.text.split(/(?<=[.!?])\s+/).filter((x) => srcSubj.test(x.trim()) || srcRef.test(x.trim()) || srcKind.test(x.trim())).length;
+    for (let k = 0; k < n; k++) perSection.set(t.topic ?? t.section, [...(perSection.get(t.topic ?? t.section) ?? []), label(t)]);
+  }
+  // full-en-v0.12 (G261018-001~003, 박수헌 2026-10-18 "귀속 빼"): 출처는 앱이 보여 준다 — 대사에서 출처를 부르는 문장은 하나도 두지 않는다
+  const srcLoops = [...perSection].filter(([, ids]) => ids.length > 0).map(([sec, ids]) => `"${sec}" ${ids.length} (${[...new Set(ids)].join(", ")})`);
+  if (srcLoops.length) v.push(`${EN_STYLE_MARK} sources named in lines: ${srcLoops.join("; ")} — the app lists sources; do not name them or point to them by kind or year, tell the content directly as an insider; "According to" and "In … account" count too; give a view to the people the claim names, by role (rule 42)`);
+  // full-en-v0.21 (15회차 세 편 모두 내부자 3.11 2 — "One view is that"·"In her view"·"One interpretation" 거리두기 틀이 턴마다): 해설 문장의 견해 틀은 에피소드에 한 번까지
+  const viewFrame = /\b(?:One (?:view|interpretation|reading|explanation|way to (?:understand|see|read|think about))|Another (?:view|interpretation|way to (?:understand|see))|In (?:that|this|her|his|their|one|its [a-z]+'s|the [a-z]+'s) (?:view|interpretation|reading))\b/i;
+  const frames = turns.flatMap((t, i) => (!isTemplate(i) && expl(t) ? t.text.split(/(?<=[.!?])\s+/).filter((x) => viewFrame.test(x)).map(() => label(t)) : []));
+  if (frames.length > 1) v.push(`${EN_STYLE_MARK} ${frames.length} explainer sentences use a view frame such as "One view is", "One way to understand", or "In that view" (${list(frames)}) — at most one per episode; give the view to the people the claim names, by role, or tell the practice directly (rule 42)`);
+  // 턴 끝 요약 (규칙 31, full-en-v0.7 — G261015-001 · G261017-001·002·003 에이전트 판정에서 네 편 연속): 세 문장 이상인 해설 턴의 마지막 문장이
+  // So·This·That·These·Those·Both·Each 로 시작해 앞 내용을 묶으면 센다. 넷 이상이면 문체 위반(한도 뒤 QA 로). 마지막 문장 지우기 시험은 규칙 31 이 맡는다
+  const lastSentence = (t: string) => { const s = t.trim().split(/(?<=[.!?])\s+/).filter(Boolean); return s.length >= 3 ? s[s.length - 1] : ""; };
+  const tails = turns.filter((t, i) => !isTemplate(i) && expl(t) && /^(?:So|This|That|These|Those|Both|Each|Their)\b[^?]*\.$/.test(lastSentence(t.text))).map(label); // Their: full-en-v0.15 (G261018-013 E12 "Their relationship to the speaker differs.")
+  if (tails.length > 3) v.push(`${EN_STYLE_MARK} ${tails.length} explainer turns end on a sentence that sums up the turn (${list(tails)}) — end on the newest point; delete a last sentence the turn does not need (rule 31)`);
+  // full-en-v0.9 (G261017-004~006): 장면이 "Imagine a …" 한 문장 틀로 굳었다 — 해설 턴에서 Imagine 으로 시작하는 문장이 셋 이상이면 문체 위반(규칙 3·39)
+  // full-en-v0.10 (G261017-009~011): "Picture …"·"In an imagined comparison" 으로 같은 틀이 이어졌다(010 넷 · 011 셋) — 같이 센다
+  const imagine = turns.flatMap((t, i) => (!isTemplate(i) && expl(t) ? t.text.trim().split(/(?<=[.!?])\s+/).filter((x) => /^(?:Imagine|Picture)\b|\bimagined\b/i.test(x.trim())).map(() => label(t)) : []));
+  // full-en-v0.13 (G261018-008): 오프닝이 "Imagine …" 한 줄로 열렸다 — Opening 은 Familiar picture 로 연다. 한 번도 문체 위반(규칙 37)
+  // full-en-v0.19 (12회차 004·009 두 회차 연속): "Suppose" 도 같은 틀
+  const openImagine = turns.flatMap((t, i) => (!isTemplate(i) && t.section === zones.lead && /^(?:Imagine|Picture|Suppose)\b/.test(t.text.trim()) ? [label(t)] : []));
+  if (openImagine.length) v.push(`${EN_STYLE_MARK} the Opening starts with "Imagine", "Picture", or "Suppose" (${list(openImagine)}) — start from the familiar picture, in plain words (rule 37)`);
+  // full-en-v0.13 (G261018-006~008, 3.11 3·2·3): 진행자의 질문 아닌 턴이 "I'd …"·"I would …" 가정형 틀로 굳었다 — 넷 이상이면 문체 위반(규칙 9)
+  // full-en-v0.14 (G261018-010~012): would 를 막자 "to me"·"I find"·"I notice"·"I feel" 자기 상태 서술로 같은 틀이 옮겨 갔다 — 함께 센다
+  // full-en-v0.15 (G261018-014): 낱말 목록 상한에 정확히 맞추고 목록 밖 "I hadn't considered"로 넷째가 나왔다 — 낱말 대신 1인칭(I·me·my)과 would 로 센다
+  const firstPerson = (s: string) => /(?<![A-Za-z'’])I(?:['’](?:m|d|ve|ll))?(?![A-Za-z])/.test(s) || /\b(?:me|my|mine|would)\b/i.test(s);
+  const hostSelf = turns.filter((t, i) => !isTemplate(i) && t.id?.startsWith("Y") && !t.text.includes("?") && firstPerson(t.text)).map(label);
+  if (hostSelf.length > 3) v.push(`${EN_STYLE_MARK} ${hostSelf.length} host turns that are not questions speak in the first person (I, me, my) or with "would" (${list(hostSelf)}) — at most three; make the rest a guess about the scene or a doubt (rule 9)`);
+  // full-en-v0.17 (G261019-001·G261020-001·003, 9·10회차 연속): 1인칭을 막자 질문 아닌 진행 턴이 "That sounds like …"·"That feels …" 반응 틀로 굳었다 — 셋 이상이면 문체 위반(규칙 9)
+  const hostSounds = turns.filter((t, i) => !isTemplate(i) && t.id?.startsWith("Y") && !t.text.includes("?") && /\b(?:sounds?|feels?|seems?)\b/i.test(t.text)).map(label);
+  // full-en-v0.20 (13회차 G261020-012: 질문 아닌 진행 턴 넷이 전부 "Perhaps/probably" 추측 — 골드 1 의 형식이 옮겨 왔다) — 추측 낱말 셋 이상 · 같은 첫 낱말(관사 제외) 셋 이상이면 문체 위반
+  const hostPlain = turns.filter((t, i) => !isTemplate(i) && t.id?.startsWith("Y") && !t.text.includes("?"));
+  // full-en-v0.21 (15회차 G261021-002~004: probably 를 막자 질문 아닌 진행 턴이 전부 "might" 추측으로 옮겨 갔다) — might·may 도 같이 센다
+  const hedged = hostPlain.filter((t) => /\b(?:might|may|probably|perhaps|maybe)\b/i.test(t.text)).map(label);
+  if (hedged.length > 2) v.push(`${EN_STYLE_MARK} ${hedged.length} host turns that are not questions are built on "might", "may", "probably", "perhaps", or "maybe" (${list(hedged)}) — at most two; mix a guess, a doubt, and a plain observation of a detail (rule 9)`);
+  const firstWord = new Map<string, string[]>();
+  for (const t of hostPlain) { const w = t.text.trim().split(/\s+/)[0]?.toLowerCase().replace(/[^a-z']/g, ""); if (w && !["the", "a", "an"].includes(w)) firstWord.set(w, [...(firstWord.get(w) ?? []), label(t)]); }
+  // 관사는 세지 않고 같은 첫 낱말 셋부터 — 진행 턴이 서른 개인 긴 대본에서도 틀만 잡는다
+  const sameStart = [...firstWord].filter(([, ids]) => ids.length > 2).map(([w, ids]) => `"${w}" ×${ids.length} (${ids.join(", ")})`);
+  if (sameStart.length) v.push(`${EN_STYLE_MARK} host turns that are not questions start with the same word: ${sameStart.join("; ")} — start each one differently (rule 9)`);
+  if (hostSounds.length > 2) v.push(`${EN_STYLE_MARK} ${hostSounds.length} host turns that are not questions react with "sounds", "feels", or "seems" (${list(hostSounds)}) — at most two; make the rest a guess about the scene or a doubt (rule 9)`);
+  // 사례 틀 반복 (규칙 3, full-en-v0.15 — G261018-015 "one family's / another family's remembered …"가 턴마다 붙었다) — 셋 이상이면 문체 위반
+  const caseFrame = turns.flatMap((t, i) => (!isTemplate(i) && expl(t) ? (t.text.match(/\b(?:one|another|a different) family['’]s\b|\bremembered\b/gi) ?? []).map(() => label(t)) : []));
+  if (caseFrame.length > 2) v.push(`${EN_STYLE_MARK} the case frame "one family's" / "another family's" / "remembered" is used ${caseFrame.length} times (${list([...new Set(caseFrame)])}) — say who a case is about once, then tell the moment (rule 3)`);
+  if (imagine.length > 2) v.push(`${EN_STYLE_MARK} ${imagine.length} imagined scenes ("Imagine", "Picture", "imagined") (${list(imagine)}) — keep at most two; build scenes from a claim with words said, an object, or a sound (rules 3 and 39)`);
+  // 읽기·설계 흔적 — 구성안·claims 를 옮겨 적은 말(규칙 36, G261017-005·006)
+  // full-en-v0.13 (G261018-008 E14): 구성안 Scene 메모가 대사가 됐다 — "A broader K-pop café event gives one example"
+  // full-en-v0.10 (G261017-009·011): 자료를 가리키는 말·보이지 않는 그림 — "the palace named in the report"·"quoted in the reporting"·"the report mentioned earlier"·"this picture of a charye table"
+  const meta = find(/\b(?:described here|described above|reported connection|possible starting picture|as the (?:outline|plan) says|named in the report|in the reporting|being discussed|working meaning|(?:report|study|survey|article|source) mentioned earlier|this (?:picture|image|illustration) of|(?:gives|offers) (?:one|an) example|broader [^.?!,]{1,30}? (?:event|example)|familiar picture|insider detail)\b/i);
+  if (meta.length) v.push(`${EN_STYLE_MARK} planning or reading wording in lines (${list(meta)}) — say it in the speakers' own words (rule 36)`);
+  // 해설자 질문 (규칙 15) — full-en-v0.14 (G261018-011·012, 006): 본문의 해설자 퀴즈를 편집자가 세 편째 역할 역전으로 짚었다 — Opening 에서 한 번만, 본문·클로징은 0
+  const eQ = turns.filter((t, i) => !isTemplate(i) && expl(t) && t.text.includes("?"));
+    // full-en-v0.18 (10회차 001 E1 · 11회차 006 E1 — Opening 의 해설자 질문도 역할 섞임): 상한 1 → 0
+  if (eQ.length) v.push(`${EN_STYLE_MARK} the explainer asks questions in ${eQ.length} turn${eQ.length > 1 ? "s" : ""} (${list(eQ.map(label))}) — the explainer asks nothing in any zone; questions belong to the host (rule 15)`);
+  // 안내문 말투 (규칙 1, full-en-v0.14 — G261018-010·011: 출처를 지우자 지침의 "are instructed to"·안내서의 "should" 가 해설자 목소리가 됐다) — 해설 턴의 규범형이 셋 이상이면 문체 위반
+  const norm = turns.flatMap((t, i) => (!isTemplate(i) && expl(t) ? (t.text.match(/\b(?:should|shouldn't|are (?:instructed|required|expected|told) to|must)\b/gi) ?? []).map(() => label(t)) : []));
+  if (norm.length > 2) v.push(`${EN_STYLE_MARK} explainer turns tell the listener what to do ("should", "are instructed to", "must") ${norm.length} times (${list([...new Set(norm)])}) — describe what people do in that place or on that day, not what they should do (rule 1)`);
   const bodyY = turns.filter((t) => t.section === zones.body && t.id?.startsWith("Y"));
   if (bodyY.length >= 6) {
     const q = bodyY.filter((t) => t.text.includes("?")).length;
     const r = q / bodyY.length;
-    if (r < 0.5 || r > 2 / 3) v.push(`${EN_STYLE_MARK} ${q} of ${bodyY.length} Body host turns are questions (${Math.round(r * 100)}%) — between half and two-thirds are questions; the rest are guesses, doubts, or reactions (rule 9)`);
+    if (r < 0.5 || r > 2 / 3) v.push(`${EN_STYLE_MARK} ${q} of ${bodyY.length} Body host turns are questions (${Math.round(r * 100)}%) — between half and two-thirds are questions; the rest are guesses or doubts (rule 9)`);
   }
   return v;
 }
@@ -407,7 +559,9 @@ export const RATIO_RULE_MARKS = ["셋 중 하나가 상한이다", "질문은 �
   // v9.10 (2026-10-14): 진행자의 추측을 맞장구 한마디로 받는 곳 — 주고받기 문체 규칙
   "추측을 맞장구 한마디로 받는 곳은 편에 한 번까지다",
   // 글로벌판 문체 위반(enStyleViolations) — 한국판 메시지와 겹치지 않는 영어 머리
-  "Style limit:"] as const;
+  "Style limit:",
+  // 시리즈 범위 검사(spec/11 6장, 2026-10-17) — 다른 편 몫을 풀어 쓴 곳. 판단 검사라 한도 뒤엔 QA 로
+  "시리즈 범위:", "Series scope:"] as const;
 export const isRatioViolation = (v: string): boolean => RATIO_RULE_MARKS.some((m) => v.includes(m));
 
 /** L0 수정 한도 (2026-10-07: 2 → 3) — QA 회차(qa.ts MAX_ATTEMPTS = QA 실행 3회, 실패 뒤 수정 2회)와 따로 센다 */
@@ -550,7 +704,11 @@ export function v98Violations(scriptMd: string, turns: ScriptTurn[]): string[] {
     const picks = Array.from({ length: over }, (_, i) => sameEnd[Math.min(sameEnd.length - 1, Math.floor(i * step + step / 2))]).filter((t, i, a) => a.indexOf(t) === i);
     // 피할 갈래: 지목한 턴이 모두 그 갈래로 가면 넘치는 갈래
     const full = [...byEnd.entries()].filter(([k, ts]) => k !== "기타" && ts.length + picks.length > capEnd).map(([k, ts]) => `${k} ${ts.length}개`).join(" · ");
-    v.push(`진행 질문 ${qY.length}개 중 ${sameEnd.length}개가 같은 말끝(${topEnd})으로 끝남 — ${RATIO_RULE_MARKS[2]}. 다음 ${picks.length}개 턴의 묻는 말끝을 바꾼다: ${ids(picks, 10)}. 이미 많은 갈래(${full})가 아닌 말끝으로 바꾼다 (규칙 25)`);
+    // 2026-10-20 (v9.10 155편 실측): 격식체 지적 25건이 전부 이 수정 직후였다 — "~니까"도 한 갈래로 세니 "~습니까?"로 옮겨 가 격식체 검사(계약)에 걸렸고 3편이 L0 한도 뒤 실패.
+    // 바꿀 대화체 갈래를 넘치지 않는 것만 적고 격식체를 막는다
+    const fullKeys = new Set([...byEnd.entries()].filter(([k, ts]) => k !== "기타" && ts.length + picks.length > capEnd).map(([k]) => k));
+    const open = ["~죠", "~까요", "~요", "~다고요"].filter((k) => !fullKeys.has(k)).join("·");
+    v.push(`진행 질문 ${qY.length}개 중 ${sameEnd.length}개가 같은 말끝(${topEnd})으로 끝남 — ${RATIO_RULE_MARKS[2]}. 다음 ${picks.length}개 턴의 묻는 말끝을 바꾼다: ${ids(picks, 10)}. 이미 많은 갈래(${full})가 아닌 대화체 말끝(${open})으로 바꾸고, 격식체("~습니까?"·"~합니까?")로는 바꾸지 않는다 (규칙 25)`);
   }
   // 규칙 19·28 (v9.8.1, 2026-10-03): 진행자의 격식체 질문("~습니까?"·"~합니까?") — 말끝 쏠림 L0 가 "~나요"를 밀어내자 이리로 옮겨 갔다(T261002-001 Y3·Y13,
   // 002 Y9·Y16 — D1 동의 2건, 002 Y9 직접 수정 "있지 않습니까?" → "있지 않을까요?"). 진행자와 해설자는 같은 대화체다 — 전부 지목
@@ -742,13 +900,17 @@ export function attributionViolations(scriptMd: string, turns: { id: string | nu
     if (t) turnZone.set(t[1], cur);
   }
   const outside: string[] = [];
-  const closing: string[] = [];
+  // 2026-10-20: 규칙 22 는 마무리에 "새 claims" 를 넣지 말라는 것이다 — 본문에서 쓴 claims 를 정리에서 잇는 것은 규칙 13-1 의 수렴이고,
+  // 자기 점검은 사실 문장마다 claims 를 보고하게 한다. 종전엔 ID 가 하나라도 있으면 잡아(v9.10 155편 중 33건) 표에서 ID 만 빼는 수정을 불렀다. 본문에 없던 claim 만 잡는다
+  const bodyUsed = new Set<string>();
+  const closingRows: { turn: string; ids: string[] }[] = [];
   for (const m of notesMd.matchAll(/^\|\s*([EY]\d+)\s*\|\s*([^|]*)\|/gm)) {
     const ids = m[2].match(/C\d{2,3}/g) ?? [];
     if (!ids.length) continue;
     const zone = turnZone.get(m[1]);
-    if (zone === "마무리") { closing.push(m[1]); continue; }
+    if (zone === "마무리") { closingRows.push({ turn: m[1], ids }); continue; }
     if (typeof zone !== "number") continue;
+    for (const id of ids) bodyUsed.add(id);
     for (const id of ids) {
       const c = claims.get(id);
       if (!c || c.section === null || c.source === null || c.source === axis) continue;
@@ -756,7 +918,8 @@ export function attributionViolations(scriptMd: string, turns: { id: string | nu
     }
   }
   if (outside.length) v.push(`소스가 배정 구간 밖에서 쓰임 (${outside.slice(0, 6).join(", ")}${outside.length > 6 ? " …" : ""}) — 소스는 claims 의 구간에서만, 축 소스만 도입·착지 (규칙 22)`);
-  if (closing.length) v.push(`마무리 턴 ${closing.join(", ")} 이 claims 를 씀 — 마무리는 새 사실 없는 무귀속 요약이다 (규칙 22)`);
+  const closing = closingRows.flatMap((r) => r.ids.filter((id) => !bodyUsed.has(id)).map((id) => `${r.turn}:${id}`));
+  if (closing.length) v.push(`마무리 턴이 본문에서 쓰지 않은 claims 를 씀 (${closing.slice(0, 6).join(", ")}${closing.length > 6 ? " …" : ""}) — 마무리는 새 사실 없이 본문에서 얻은 내용을 잇는다. 이 claim 의 내용을 마무리에서 빼거나 본문의 배정 구간으로 옮긴다 (규칙 22)`);
   return v;
 }
 

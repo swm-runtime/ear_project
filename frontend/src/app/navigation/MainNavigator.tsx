@@ -2,6 +2,7 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { useState } from 'react';
 
+import { localized, type LocalizedCopy } from '@/shared/i18n/localized';
 import { IS_SUBSCRIPTION_UI_ENABLED } from '@/shared/lib/feature-flags';
 import { PUSHED_SCREEN_HEADER } from '@/shared/navigation/pushed-screen-header';
 import { selectTab } from '@/shared/navigation/tab-selection.store';
@@ -9,12 +10,23 @@ import { USE_NATIVE_PLAYER_ZOOM } from '@/shared/navigation/zoom-transition';
 import { HAS_NATIVE_TAB_BAR } from '@/shared/ui/GlassSurface';
 
 import { useAppUpdateStore } from '@/features/app-update';
-import { EmailVerificationScreen, useSessionStore, WithdrawalScreen } from '@/features/auth';
+import {
+  EmailVerificationScreen,
+  MarketChangeScreen,
+  useSessionStore,
+  WithdrawalScreen,
+} from '@/features/auth';
 import { CareerInfoScreen } from '@/features/career';
 import { ContentDetailScreen } from '@/features/content-detail';
-import { ExploreScreen, ExploreSearchScreen } from '@/features/explore';
+import { ExploreScreen, ExploreSearchScreen, SeriesScreen } from '@/features/explore';
 import { InterestManagementScreen } from '@/features/interest';
-import { LibraryScreen, useLibraryArrivalBadge } from '@/features/library';
+import {
+  DripFeedbackPrompt,
+  LibraryScreen,
+  selectIsDripFeedbackVisible,
+  useDripFeedbackStore,
+  useLibraryArrivalBadge,
+} from '@/features/library';
 import { NoticeDetailScreen, NoticeListScreen } from '@/features/notice';
 import {
   NotificationPrePromptModal,
@@ -30,13 +42,28 @@ import { InviteCodeScreen, SubscriptionScreen } from '@/features/subscription';
 
 import CapsuleTabBar from './CapsuleTabBar';
 import { rememberTab, takePrimedTab, type RestorableTab } from './last-tab';
-import { isSignupTrialNoticeReady } from './launch-dialog-gate';
+import { isDripFeedbackPromptReady, isSignupTrialNoticeReady } from './launch-dialog-gate';
 import NativeMainTabs from './NativeMainTabs';
 import PlaceholderScreen from './PlaceholderScreen';
 import type { MainStackParamList, MainTabParamList } from './types';
 
 const MainTab = createBottomTabNavigator<MainTabParamList>();
 const MainStack = createNativeStackNavigator<MainStackParamList>();
+
+/** 탭 라벨·플레이스홀더 화면의 뒤로 버튼 제목(KAN-194) */
+const ko = {
+  library: '라이브러리',
+  explore: '탐색',
+  profile: '프로필',
+  settings: '설정',
+} as const;
+const en: LocalizedCopy<typeof ko> = {
+  library: 'Library',
+  explore: 'Explore',
+  profile: 'Profile',
+  settings: 'Settings',
+};
+const COPY = localized({ ko, en });
 
 /**
  * 하단 탭 3개 — 앱을 실행하면 라이브러리로 들어온다(library.md 2).
@@ -78,7 +105,7 @@ function MainTabs() {
         name="Library"
         component={LibraryScreen}
         options={{
-          tabBarLabel: '라이브러리',
+          tabBarLabel: COPY.library,
           tabBarBadge: arrivalBadge.value,
           tabBarAccessibilityLabel: arrivalBadge.accessibilityLabel,
         }}
@@ -88,14 +115,14 @@ function MainTabs() {
         name="Explore"
         component={ExploreScreen}
         options={{
-          tabBarLabel: '탐색',
+          tabBarLabel: COPY.explore,
         }}
       />
       <MainTab.Screen
         name="Profile"
         component={ProfileScreen}
         options={{
-          tabBarLabel: '프로필',
+          tabBarLabel: COPY.profile,
         }}
       />
     </MainTab.Navigator>
@@ -115,11 +142,22 @@ export default function MainNavigator() {
   // 가입 체험 안내(P11)보다 먼저 뜨는 것들 — 하나라도 떠 있으면 P11 은 기다린다(launch-dialog-gate)
   const isUpdateRecommendVisible = useAppUpdateStore((s) => s.isRecommendVisible);
   const isLimitNoticeVisible = useLimitNoticeStore((s) => s.isVisible);
+  // 추천 별점 팝업(KAN-224)과 P11 은 서로 겹치지 않는다 — 먼저 뜬 쪽이 끝난 뒤다(launch-dialog-gate 의 비대칭 규칙)
+  const isDripFeedbackVisible = useDripFeedbackStore(selectIsDripFeedbackVisible);
+  const [isSignupTrialActive, setIsSignupTrialActive] = useState(false);
   const isSignupTrialReady = isSignupTrialNoticeReady({
     isPrePromptPending,
     isUpdateRecommendVisible,
     isPushPlayConfirmVisible: pushGate.confirmState !== null,
     isLimitNoticeVisible,
+    isDripFeedbackVisible,
+  });
+  const isDripFeedbackReady = isDripFeedbackPromptReady({
+    isPrePromptPending,
+    isUpdateRecommendVisible,
+    isPushPlayConfirmVisible: pushGate.confirmState !== null,
+    isLimitNoticeVisible,
+    isSignupTrialNoticeActive: isSignupTrialActive,
   });
 
   return (
@@ -155,6 +193,9 @@ export default function MainNavigator() {
           component={ExploreSearchScreen}
           options={{ animation: 'none' }}
         />
+        {/* 시리즈 화면(E14, KAN-225) — 앱바(뒤로 + "시리즈")를 화면이 직접 그린다(콘텐츠 상세와 같은 문법).
+          explore 의 카드·content-detail 의 시리즈 줄은 라우트 이름으로만 이동한다(화면 등록은 여기 — 역방향 의존 없음) */}
+        <MainStack.Screen name="Series" component={SeriesScreen} />
         {/* 설정 — 앱바(뒤로 + "설정")를 화면이 직접 그린다(settings-uiux.md 4.1) */}
         {/* 설정 — iOS 26: 시스템 투명 바(뒤로만) + 콘텐츠 큰 제목(PUSHED_SCREEN_HEADER). 그 외: 화면이 앱바를 그린다 */}
         <MainStack.Screen
@@ -172,7 +213,7 @@ export default function MainNavigator() {
           <MainStack.Screen
             name="Subscription"
             component={PlaceholderScreen}
-            options={{ headerShown: true, headerTitle: '', headerBackTitle: '프로필' }}
+            options={{ headerShown: true, headerTitle: '', headerBackTitle: COPY.profile }}
           />
         )}
         {/* 이벤트 코드 입력(KAN-182) — 결제 UI 플래그와 **무관하게** 등록한다(지급은 스토어 결제가 아니다).
@@ -203,10 +244,13 @@ export default function MainNavigator() {
           component={WithdrawalScreen}
           options={PUSHED_SCREEN_HEADER}
         />
+        {/* 콘텐츠 언어(시장) 전환(KAN-228) — 앱바(뒤로 + "콘텐츠 언어")를 화면이 직접 그린다. 성공하면 관문이 온보딩으로
+          스택을 통째로 바꾼다 */}
+        <MainStack.Screen name="MarketChange" component={MarketChangeScreen} />
         <MainStack.Screen
           name="Admin"
           component={PlaceholderScreen}
-          options={{ headerShown: true, headerTitle: '', headerBackTitle: '설정' }}
+          options={{ headerShown: true, headerTitle: '', headerBackTitle: COPY.settings }}
         />
       </MainStack.Navigator>
 
@@ -227,7 +271,13 @@ export default function MainNavigator() {
         알림 안내는 "매일 아침 도착한다"를 튜토리얼이 막 말한 직후가 가장 설득력 있어(onboarding-uiux.md 4.6) 그 사이에 끼우지 않는다.
         기존 가입자는 앱 시작에 뜬다 — 권장 업데이트 안내·푸시 재생 확인·한도 안내가 떠 있으면 그 뒤다. 모달 둘이 겹치지 않게
       */}
-      <SignupTrialNotice isReady={isSignupTrialReady} />
+      <SignupTrialNotice isReady={isSignupTrialReady} onActiveChange={setIsSignupTrialActive} />
+
+      {/*
+        추천 별점 팝업(KAN-224 — drip-feedback.md 5장). 판정 조회는 라이브러리 진입 때 한 세션에 한 번 하고(show=true 일 때만 차례가 온다),
+        여기서는 다른 앱 시작 팝업이 없을 때 그린다 — 가입 체험 안내가 뜰 차례면 그 뒤다
+      */}
+      <DripFeedbackPrompt isReady={isDripFeedbackReady} />
 
       {/* 푸시 딥링크 재생의 확인 팝업 — 딥링크도 팝업 규칙의 예외가 아니다(paywall.md 4.2) */}
       <PlayConfirmDialog

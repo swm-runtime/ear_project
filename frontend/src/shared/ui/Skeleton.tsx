@@ -11,6 +11,7 @@ import {
 
 import { useAnimatedValue } from '@/shared/hooks/useAnimatedValue';
 import { useReduceMotion } from '@/shared/hooks/useReduceMotion';
+import { localized } from '@/shared/i18n/localized';
 import { motion, theme } from '@/shared/theme';
 
 /**
@@ -24,7 +25,7 @@ import { motion, theme } from '@/shared/theme';
  */
 
 /** 로딩 영역의 낭독 라벨 — 영역마다 하나(design.md §5 스켈레톤 · §6) */
-export const SKELETON_A11Y_LABEL = '불러오는 중';
+export const SKELETON_A11Y_LABEL = localized({ ko: '불러오는 중', en: 'Loading' });
 /** 반짝임 — 영역 불투명도가 1 ↔ 이 값을 오간다. 블록이 사라져 보이지 않을 만큼만 옅어진다 */
 export const SKELETON_PULSE_MIN_OPACITY = 0.5;
 /** 반짝임 한 방향 길이(ms) — 왕복 1.6초. 애플 placeholder 의 느린 숨쉬기 박자 */

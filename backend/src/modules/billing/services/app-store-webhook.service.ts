@@ -11,8 +11,24 @@ import {
   AppStoreNotification,
   AppStoreVerificationError,
 } from '../app-store/app-store.gateway';
+import { SubscriptionTransitionKind } from '../billing.types';
 import { BillingSyncService } from './billing-sync.service';
 import { BillingAlertService } from './billing-alert.service';
+import { BillingEventAlertService } from './billing-event-alert.service';
+
+/**
+ * App Store 알림 종류별로 올릴 결제 알림 전이(`features/backend-monitoring.md` 3-7). 표에 없는 종류는 올리지 않는다 —
+ * `DID_RENEW`(결제 실패 복구)·`REFUND_REVERSED`(환불 취소)도 끝난 행을 되살리지만 새 결제가 아니다
+ */
+const APP_STORE_ALERT_KINDS: Readonly<
+  Record<string, readonly SubscriptionTransitionKind[]>
+> = {
+  SUBSCRIBED: ['started'],
+  OFFER_REDEEMED: ['started'],
+  DID_CHANGE_RENEWAL_STATUS: ['cancel_scheduled'],
+  REFUND: ['refunded'],
+  REVOKE: ['refunded'],
+};
 
 /**
  * App Store Server Notifications V2 수신(`subscription-api.md` 4.6) — 갱신·해지·환불·유예의 **진실의 원천**.
@@ -32,6 +48,7 @@ export class AppStoreWebhookService {
     private readonly billingSyncService: BillingSyncService,
     private readonly dataSource: DataSource,
     private readonly billingAlertService: BillingAlertService,
+    private readonly billingEventAlertService: BillingEventAlertService,
   ) {}
 
   async handle(signedPayload: string, now: Date): Promise<void> {
@@ -79,6 +96,13 @@ export class AppStoreWebhookService {
 
       return result;
     });
+
+    // 커밋 뒤에 — 행을 실제로 바꾼 알림에만 전이가 있다(재전송은 위에서 걸렀고, 같은 상태면 `unchanged`)
+    this.billingEventAlertService.report(
+      outcome,
+      APP_STORE_ALERT_KINDS[notification.type] ?? [],
+      now,
+    );
 
     this.logger.log('app store notification handled', {
       notification_id: notification.id,

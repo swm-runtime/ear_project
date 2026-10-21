@@ -4,7 +4,9 @@
  * 배너와 사전 안내가 다른 말을 쓰면 탭했을 때 다른 곳에 온 것처럼 읽힌다).
  * "드립"은 내부 용어라 카피에 쓰지 않는다(합의 2026-08-06).
  */
-export const NOTIFICATION_COPY = {
+import { localized, type LocalizedCopy } from '@/shared/i18n/localized';
+
+const ko = {
   prePrompt: {
     title: '새 콘텐츠가 도착하면 알려드릴까요?',
     /**
@@ -34,3 +36,20 @@ export const NOTIFICATION_COPY = {
    * TODO: 출처 있는 통계 확보 시 "평균 N% 이상 더 많이 듣고 있어요" 카피로 교체하고 출처를 함께 기록한다.
    */
 } as const;
+
+const en: LocalizedCopy<typeof ko> = {
+  prePrompt: {
+    title: 'Get notified when new content arrives?',
+    description: "We'll send just one notification when new content arrives",
+    allow: 'Turn on notifications',
+    later: 'Not now',
+  },
+
+  push: {
+    contentUnavailableToast: "Couldn't find this content",
+  },
+
+  androidChannelName: 'New content',
+};
+
+export const NOTIFICATION_COPY = localized({ ko, en });

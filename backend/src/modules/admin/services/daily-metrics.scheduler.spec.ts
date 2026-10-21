@@ -12,12 +12,36 @@ const GA4_OK = config({
 const db = (
   signUps = 0,
   totalUsers = 0,
-  withdrawals: { reasonCode: string | null; count: number }[] = [],
+  withdrawals: {
+    market: 'kr' | 'global';
+    reasonCode: string | null;
+    count: number;
+  }[] = [],
 ) =>
   ({
-    fetchDaily: jest
-      .fn()
-      .mockResolvedValue({ signUps, totalUsers, withdrawals }),
+    fetchDaily: jest.fn().mockResolvedValue({
+      signUps,
+      totalUsers,
+      withdrawals,
+      markets: [
+        {
+          market: 'kr',
+          totalUsers,
+          signUps,
+          listeners: 0,
+          plays: 0,
+          listenSec: 0,
+        },
+        {
+          market: 'global',
+          totalUsers: 0,
+          signUps: 0,
+          listeners: 0,
+          plays: 0,
+          listenSec: 0,
+        },
+      ],
+    }),
   }) as unknown as DailyMetricsDbService;
 
 const ev = (count = 0, users = 0) => ({ count, users });
@@ -95,7 +119,9 @@ describe('DailyMetricsScheduler', () => {
       (fetchSpy.mock.calls[0][1] as RequestInit).body as string,
     ) as { text: string };
     expect(body.text).toMatch(/^\[development\] /);
-    expect(body.text).toContain('현재 351명  ·  어제 가입 2명');
+    expect(body.text).toContain(
+      '현재 351명 (KR 351 · GLOBAL 0)  ·  어제 가입 2명 (KR 2 · GLOBAL 0)',
+    );
     expect(body.text).toContain('가입 3 → 온보딩 완료 1 (33%)');
     expect(body.text).toContain('완청 5');
     expect(body.text).toContain('시작 4 (3명)');
@@ -112,8 +138,8 @@ describe('DailyMetricsScheduler', () => {
     const scheduler = new DailyMetricsScheduler(
       ga4,
       db(2, 351, [
-        { reasonCode: 'price', count: 1 },
-        { reasonCode: 'low_usage', count: 2 },
+        { market: 'kr', reasonCode: 'price', count: 1 },
+        { market: 'kr', reasonCode: 'low_usage', count: 2 },
       ]),
       config({ SLACK_ERROR_WEBHOOK_URL: 'https://hook' }),
     );

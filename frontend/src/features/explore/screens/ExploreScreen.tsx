@@ -13,6 +13,7 @@ import {
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useAnimatedValue } from '@/shared/hooks/useAnimatedValue';
+import { APP_LANGUAGE } from '@/shared/i18n/locale';
 import { useNativeHeaderInset } from '@/shared/navigation/useNativeHeaderInset';
 import { useSystemLargeTitle } from '@/shared/navigation/useSystemLargeTitle';
 import { useTabScrollToTop } from '@/shared/navigation/useTabScrollToTop';
@@ -37,20 +38,24 @@ import {
 
 import ExploreSearchScreen from './ExploreSearchScreen';
 import ExploreEmptyState from '../components/ExploreEmptyState';
+import ExploreEntryTile from '../components/ExploreEntryTile';
 import ExploreFeaturedCard from '../components/ExploreFeaturedCard';
 import ExploreMoreSheet from '../components/ExploreMoreSheet';
 import ExploreRingPill from '../components/ExploreRingPill';
 import ExploreSearchBarRow from '../components/ExploreSearchBarRow';
+import ExploreSeriesTile from '../components/ExploreSeriesTile';
 import ExploreSkeleton from '../components/ExploreSkeleton';
-import ExploreTile from '../components/ExploreTile';
 import PeriodCrossfade from '../components/PeriodCrossfade';
 import PopularPeriodToggle from '../components/PopularPeriodToggle';
 import SearchToolbar from '../components/SearchToolbar';
 import TopicChips from '../components/TopicChips';
 import { EXPLORE_COPY } from '../explore.copy';
+import { exploreEntryKey } from '../explore.entry';
 import { buildSectionListKey } from '../explore.section-key';
-import type { ExploreItem, ExploreSection } from '../explore.types';
+import { resolveSectionTitle } from '../explore.section-title';
+import type { ExploreEntry, ExploreSection } from '../explore.types';
 import { useExploreScreen } from '../hooks/useExploreScreen';
+import type { ExploreSearchRequest } from '../hooks/useExploreSearchRequest';
 
 /**
  * 탐색 탭(E1~E13) — 화면은 뷰만 담당하고 로직은 useExploreScreen이 소유한다.
@@ -62,7 +67,7 @@ import { useExploreScreen } from '../hooks/useExploreScreen';
  * - 그 외 — 떠 있는 유리 머리 줄(FloatingHeader: 검색창 + 링 + 칩)이 목록 위에 뜬다(2026-09-24).
  */
 export default function ExploreScreen() {
-  const screen = useExploreScreen();
+  const screen = useExploreScreen({ isInlineSearch: HAS_NATIVE_TAB_BAR || ANDROID_IOS_HEADER });
   const miniInset = useBottomDockInset();
   // 떠 있는 머리 줄(검색창·칩)의 높이 — 목록이 그만큼 위를 비운다(시스템 바 갈래에서는 0)
   const [headerHeight, setHeaderHeight] = useState(0);
@@ -115,6 +120,20 @@ export default function ExploreScreen() {
   const [isSearching, setIsSearching] = useState(false);
   // 제자리 검색 닫기 요청 — ✕ 는 시스템 바 캡슐에 있고, 덮개가 퇴장 애니메이션 끝에 onExit 로 isSearching 을 끈다
   const [isClosingSearch, setIsClosingSearch] = useState(false);
+  /*
+   * 질의를 넘긴 검색(KAN-219 — 태그 탭) — 새 요청이 오면 제자리 검색을 열고 그 질의를 덮개에 넘긴다. 이미 검색 중이면 덮개가
+   * 새 질의로 다시 검색한다. 렌더 중 상태 조정 패턴(effect 내 setState 금지). 검색창으로 연 검색·닫은 뒤에는 넘기지 않는다
+   */
+  const [inlineSearchRequest, setInlineSearchRequest] = useState<ExploreSearchRequest | null>(null);
+  const [handledSearchRequestId, setHandledSearchRequestId] = useState<number | string | null>(
+    null,
+  );
+  if (screen.searchRequest !== null && screen.searchRequest.id !== handledSearchRequestId) {
+    setHandledSearchRequestId(screen.searchRequest.id);
+    setInlineSearchRequest(screen.searchRequest);
+    setIsSearching(true);
+    setIsClosingSearch(false);
+  }
   // 탭 재선택과 같은 "맨 위로"를 Android 접힘 바 제목 탭도 부른다
   const scrollToTopRef = useRef<(() => void) | null>(null);
   const { solidness, scrollY, scrollProps } = useFloatingHeaderScroll();
@@ -125,6 +144,7 @@ export default function ExploreScreen() {
   });
   const openSearch = () => {
     if (HAS_NATIVE_TAB_BAR || ANDROID_IOS_HEADER) {
+      setInlineSearchRequest(null);
       setIsSearching(true);
     } else {
       screen.openSearch();
@@ -191,7 +211,11 @@ export default function ExploreScreen() {
    * 피드를 통째로 갈아 끼워 닫힘 애니메이션 끝에 피드 전체를 새로 마운트하느라 끊겼다)
    */
   const searchOverlay = isSearching ? (
-    <View style={HAS_NATIVE_TAB_BAR ? StyleSheet.absoluteFill : [StyleSheet.absoluteFill, { zIndex: 2 }]}>
+    <View
+      style={
+        HAS_NATIVE_TAB_BAR ? StyleSheet.absoluteFill : [StyleSheet.absoluteFill, { zIndex: 2 }]
+      }
+    >
       <ExploreSearchScreen
         embedding={{
           remaining: screen.remainingDisplay
@@ -199,16 +223,19 @@ export default function ExploreScreen() {
             : null,
           onExhaustedPress: () => screen.openPaywall('explore'),
           isClosing: isClosingSearch,
+          searchRequest: inlineSearchRequest,
           onRequestClose: () => setIsClosingSearch(true),
           onExit: () => {
             setIsSearching(false);
             setIsClosingSearch(false);
+            setInlineSearchRequest(null);
           },
           onOpenTopic: (topicId) => {
             screen.clearTopicFilter();
             screen.toggleTopic(topicId);
             setIsSearching(false);
             setIsClosingSearch(false);
+            setInlineSearchRequest(null);
           },
         }}
       />
@@ -341,12 +368,22 @@ export default function ExploreScreen() {
     return (
       <View key={buildSectionListKey(section)} style={styles.section}>
         {section.period !== null ? (
-          <View style={[styles.sectionHeaderRow, headerStyle]}>
+          <View
+            style={[
+              styles.sectionHeaderRow,
+              isHeaderWrappable() && styles.sectionHeaderRowWrap,
+              headerStyle,
+            ]}
+          >
             <Text
-              style={[styles.sectionTitle, styles.sectionHeaderTitle]}
+              style={[
+                styles.sectionTitle,
+                styles.sectionHeaderTitle,
+                isHeaderWrappable() && styles.sectionHeaderTitleWrap,
+              ]}
               accessibilityRole="header"
             >
-              {section.title}
+              {resolveSectionTitle(section)}
             </Text>
             {/* 세그먼트 내부의 alignSelf:flex-start가 제목 행의 가운데 정렬을 덮지 않게 감싼다. */}
             <View style={styles.sectionPeriodControl}>
@@ -362,7 +399,7 @@ export default function ExploreScreen() {
             style={[styles.sectionTitle, styles.sectionTitleBlock, headerStyle]}
             accessibilityRole="header"
           >
-            {section.title}
+            {resolveSectionTitle(section)}
           </Text>
         )}
 
@@ -375,20 +412,31 @@ export default function ExploreScreen() {
           <FlatList
             horizontal
             data={section.items}
-            keyExtractor={(item) => item.content.id}
+            keyExtractor={exploreEntryKey}
             renderItem={({ item }) =>
+              // 시리즈 카드는 같은 줄의 타일과 같은 크기로 섞인다 — 인기 줄은 대표 카드, 그 밖은 사각 타일(KAN-225)
               isPopular ? (
-                <ExploreFeaturedCard
-                  item={item}
-                  topicNames={topicNamesOf(item.content.topicIds)}
-                  onPress={screen.handleRowPress}
-                  onMorePress={screen.openMoreSheet}
-                />
+                item.type === 'series' ? (
+                  <ExploreSeriesTile
+                    series={item.series}
+                    layout="featured"
+                    onPress={screen.openSeries}
+                  />
+                ) : (
+                  <ExploreFeaturedCard
+                    item={item}
+                    topicNames={topicNamesOf(item.content.topicIds)}
+                    onPress={screen.handleRowPress}
+                    onMorePress={screen.openMoreSheet}
+                    onTagPress={screen.openTagSearch}
+                  />
+                )
               ) : (
-                <ExploreTile
-                  item={item}
+                <ExploreEntryTile
+                  entry={item}
                   onPress={screen.handleRowPress}
                   onMorePress={screen.openMoreSheet}
+                  onSeriesPress={screen.openSeries}
                 />
               )
             }
@@ -451,12 +499,13 @@ export default function ExploreScreen() {
                 cell === null ? (
                   <View key={`spacer-${column}`} style={styles.gridCell} />
                 ) : (
-                  <View key={cell.content.id} style={styles.gridCell}>
-                    <ExploreTile
-                      item={cell}
+                  <View key={exploreEntryKey(cell)} style={styles.gridCell}>
+                    <ExploreEntryTile
+                      entry={cell}
                       layout="grid"
                       onPress={screen.handleRowPress}
                       onMorePress={screen.openMoreSheet}
+                      onSeriesPress={screen.openSeries}
                     />
                   </View>
                 ),
@@ -505,56 +554,58 @@ export default function ExploreScreen() {
 
   return (
     <View style={styles.container}>
-      {HAS_NATIVE_TAB_BAR ? renderBody() : (
-      <View
-        style={styles.container}
-        pointerEvents={isSearching ? 'none' : 'auto'}
-        accessibilityElementsHidden={isSearching}
-        importantForAccessibility={isSearching ? 'no-hide-descendants' : 'auto'}
-      >
-        {/* Android — 머리 줄의 서리 유리 띠가 흐릴 대상. 머리 줄은 이 뒤에 선언한다 */}
-        <AndroidBlurTarget targetRef={blurTargetRef}>{renderBody()}</AndroidBlurTarget>
-        {/* 머리 줄은 목록 **뒤에 선언**한다(zIndex 로 위에 뜬다) */}
-        {/* 머리 줄은 목록 위에 떠 있다 — 배경 없이 유리 컨트롤만(2026-09-24 PM). 시스템 바 갈래에서는 없다 */}
-        {ANDROID_IOS_HEADER ? (
-          <AndroidCollapsingBar
-            title={EXPLORE_COPY.tabTitle}
-            scrollY={scrollY}
-            // 라이브러리 알약([링 | 필터])과 같은 캡슐 — 탭을 오가면 필터 칸이 줄었다 자란다(useTabPillMorph).
-            // 맨 링(RemainingPlaysIndicator)이면 모양이 달라 모핑이 안 보였다(PM 2026-09-30 03:10)
-            trailing={
-              screen.remainingDisplay ? (
-                <ExploreRingPill
-                  remaining={screen.remainingDisplay.remaining}
-                  limit={screen.remainingDisplay.limit}
-                  onExhaustedPress={() => screen.openPaywall('explore')}
-                />
-              ) : null
-            }
-            blurTarget={blurTargetRef}
-            onTitlePress={() => scrollToTopRef.current?.()}
-          />
-        ) : HAS_NATIVE_TAB_BAR ? null : (
-          <FloatingHeader
-            onHeightChange={setHeaderHeight}
-            solidness={solidness}
-            containerRef={headerRef}
-            androidFrostTarget={blurTargetRef}
-          >
-            {Platform.OS === 'android' ? (
-              <View style={styles.androidTitle}>
-                <LargeTitleRow title={EXPLORE_COPY.tabTitle} trailing={remainingRing} />
-              </View>
-            ) : null}
-            <ExploreSearchBarRow
-              onPress={openSearch}
-              trailing={Platform.OS === 'android' ? null : remainingRing}
+      {HAS_NATIVE_TAB_BAR ? (
+        renderBody()
+      ) : (
+        <View
+          style={styles.container}
+          pointerEvents={isSearching ? 'none' : 'auto'}
+          accessibilityElementsHidden={isSearching}
+          importantForAccessibility={isSearching ? 'no-hide-descendants' : 'auto'}
+        >
+          {/* Android — 머리 줄의 서리 유리 띠가 흐릴 대상. 머리 줄은 이 뒤에 선언한다 */}
+          <AndroidBlurTarget targetRef={blurTargetRef}>{renderBody()}</AndroidBlurTarget>
+          {/* 머리 줄은 목록 **뒤에 선언**한다(zIndex 로 위에 뜬다) */}
+          {/* 머리 줄은 목록 위에 떠 있다 — 배경 없이 유리 컨트롤만(2026-09-24 PM). 시스템 바 갈래에서는 없다 */}
+          {ANDROID_IOS_HEADER ? (
+            <AndroidCollapsingBar
+              title={EXPLORE_COPY.tabTitle}
+              scrollY={scrollY}
+              // 라이브러리 알약([링 | 필터])과 같은 캡슐 — 탭을 오가면 필터 칸이 줄었다 자란다(useTabPillMorph).
+              // 맨 링(RemainingPlaysIndicator)이면 모양이 달라 모핑이 안 보였다(PM 2026-09-30 03:10)
+              trailing={
+                screen.remainingDisplay ? (
+                  <ExploreRingPill
+                    remaining={screen.remainingDisplay.remaining}
+                    limit={screen.remainingDisplay.limit}
+                    onExhaustedPress={() => screen.openPaywall('explore')}
+                  />
+                ) : null
+              }
+              blurTarget={blurTargetRef}
+              onTitlePress={() => scrollToTopRef.current?.()}
             />
+          ) : HAS_NATIVE_TAB_BAR ? null : (
+            <FloatingHeader
+              onHeightChange={setHeaderHeight}
+              solidness={solidness}
+              containerRef={headerRef}
+              androidFrostTarget={blurTargetRef}
+            >
+              {Platform.OS === 'android' ? (
+                <View style={styles.androidTitle}>
+                  <LargeTitleRow title={EXPLORE_COPY.tabTitle} trailing={remainingRing} />
+                </View>
+              ) : null}
+              <ExploreSearchBarRow
+                onPress={openSearch}
+                trailing={Platform.OS === 'android' ? null : remainingRing}
+              />
 
-            {chips}
-          </FloatingHeader>
-        )}
-      </View>
+              {chips}
+            </FloatingHeader>
+          )}
+        </View>
       )}
       {/* 미니플레이어(PL11) — 활성 재생 세션만 그린다. 복원 스냅샷 판정은 라이브러리 소유다 */}
 
@@ -591,13 +642,17 @@ const CarouselGap = () => <View style={styles.carouselGap} />;
 /** 한 목록(피드 섹션 · 격자 줄)의 항목 */
 type ExploreListItem =
   | { kind: 'section'; section: ExploreSection; index: number }
-  | { kind: 'gridRow'; key: string; items: (ExploreItem | null)[] };
+  | { kind: 'gridRow'; key: string; items: (ExploreEntry | null)[] };
 
 /** 격자 두 칸을 한 줄로 묶는다 — 홀수면 마지막 줄 오른쪽은 빈 칸 */
-const toGridRows = (items: ExploreItem[]): ExploreListItem[] => {
+const toGridRows = (items: ExploreEntry[]): ExploreListItem[] => {
   const rows: ExploreListItem[] = [];
   for (let i = 0; i < items.length; i += 2) {
-    rows.push({ kind: 'gridRow', key: items[i].content.id, items: [items[i], items[i + 1] ?? null] });
+    rows.push({
+      kind: 'gridRow',
+      key: exploreEntryKey(items[i]),
+      items: [items[i], items[i + 1] ?? null],
+    });
   }
   return rows;
 };
@@ -610,6 +665,12 @@ const SWITCH_DIM_OPACITY = 0.5;
 const DIM_DELAY_MS = 300;
 /** 피드로 돌아올 때 먼저 그리는 섹션 수 — 첫 화면 몫 */
 const FEED_FIRST_SECTIONS = 2;
+
+/**
+ * 인기 섹션 제목 줄이 토글을 다음 줄로 내릴 수 있는가 — 영어만(아래 sectionHeaderRowWrap). 그리는 순간에 읽는다 —
+ * 가입 때 표시 언어가 다시 부르지 않고 바뀔 수 있다(shared/i18n/locale `adoptSignupLanguage`)
+ */
+const isHeaderWrappable = (): boolean => APP_LANGUAGE !== 'ko';
 
 const styles = StyleSheet.create({
   // 고정 제목 아래로 목록이 지나가도 글자가 겹치지 않도록 화면 바탕을 채운다.
@@ -670,6 +731,20 @@ const styles = StyleSheet.create({
     // alignItems:center가 글자가 아니라 그 상자를 기준으로 맞춰 토글이 위로 뜬다
     paddingTop: theme.spacing.lg,
     paddingBottom: theme.spacing.sm,
+  },
+  /**
+   * 영어 — 제목이 토글 옆 한 줄에 안 들어가면 **토글을 제목 아래 줄로 내린다**(2026-10-18 영어 QA: 토글 76×3 옆에 제목 칸이
+   * 약 150 뿐이라 서버 제목이 두 줄로 접혔다). 말줄임은 쓰지 않는다 — 섹션 제목은 잘리면 안 된다(explore-uiux.md 7장).
+   * 줄바꿈 판정은 글자의 원래 폭이라 들어가면 종전처럼 한 줄이다. 좌우 여백을 제목 대신 행이 가져야 둘째 줄 토글이
+   * 화면 끝에 붙지 않는다(제목 왼쪽 16 · 제목↔토글 16 · 오른쪽 16 은 종전과 같다). 한국어는 바꾸지 않는다
+   */
+  sectionHeaderRowWrap: {
+    flexWrap: 'wrap',
+    paddingLeft: theme.spacing.md,
+    columnGap: theme.spacing.md,
+  },
+  sectionHeaderTitleWrap: {
+    paddingHorizontal: 0,
   },
   /** 첫 섹션 — 위가 주제 칩 줄이라 여백이 겹친다(위 headerStyle 주석). 32 → 24 */
   sectionHeaderFirst: {

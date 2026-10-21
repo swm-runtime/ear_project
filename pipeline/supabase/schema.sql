@@ -38,6 +38,30 @@ create table if not exists sources (
 create index if not exists idx_sources_published on sources (published desc);
 create index if not exists idx_sources_fetch_status on sources (fetch_status);
 
+-- ── 2b. series: 기획 시리즈 (0029, spec/11 8장) ──────────────────
+-- 설계안(plan)·게이트 S 승인·시리즈 단위 발행·회수. 편의 진행 상태는 편(backlog)이 갖는다. RLS 정책·승인 기록 트리거는 0029 가 건다
+create table if not exists series (
+  id                  uuid primary key default gen_random_uuid(),
+  name                text not null,                       -- 시리즈 이름 (콘텐츠 제목 머리)
+  mid_topic           text not null,
+  intro_line          text,                                -- 한 줄 소개 — 인트로 시리즈 줄 · 제품 series.description
+  scope_note          text,                                -- 관리자가 준 범위 설명·메모
+  plan                jsonb not null default '[]'::jsonb,  -- 편 목록 [{no, title, scope, carries, only_here, minutes}]
+  total_episodes      int check (total_episodes is null or total_episodes >= 1), -- 승인 때 확정, 상한 없음
+  status              text not null default 'planning'
+                      check (status in ('planning','approved','published','withdrawn','cancelled')),
+  approved_by         text,
+  approved_at         timestamptz,
+  published_series_id uuid,                                -- 제품 series_id (POST /admin/series, BE KAN-134)
+  published_at        timestamptz,
+  thumb_word          text,                                -- 시리즈 썸네일 큰 단어(이미지 모델이 그린다) · 0031
+  thumb_label         text,                                -- 오른쪽 위 라벨(코드가 얹는다) · 0031
+  thumb_box           text,                                -- 왼쪽 아래 박스 글자(코드가 얹는다) · 0031
+  thumb_base_key      text,                                -- 시리즈 바탕 그림 s3 키 — 편마다 재사용 · 0031
+  created_at          timestamptz not null default now(),
+  updated_at          timestamptz not null default now()
+);
+
 -- ── 3. backlog: 에피소드 주제 후보 (03 문서 3장) ─────────────────
 create table if not exists backlog (
   id          text primary key,                -- 'C04' 형식 유지
@@ -57,7 +81,7 @@ create table if not exists backlog (
   claimed_by  text,                            -- 동시 작업 충돌 방지
   claimed_at  timestamptz,
   axis        text,                            -- 군집화 v2(0016): 축 한 문장 (대립·역설·재정의). v1 후보는 null
-  axis_type   text check (axis_type in ('대립','역설','재정의','사건')), -- 0027: 사건형 — 역사 중분류 전용 (사건 + 해석의 쟁점)
+  axis_type   text check (axis_type in ('대립','역설','재정의','사건','질문')), -- 0027: 사건형 — 역사 중분류 전용 (사건 + 해석의 쟁점) · 0030: 질문형 — 글로벌판 소개형
   gaps        text[] not null default '{}',    -- 비어 있는 소스 역할 (탐색 보강의 입력). sources[].role 이 역할표
   cluster_version text,                        -- v1 / v2
   reinforced_at timestamptz,                   -- 0019: 보강 스윕 실행 시각 (후보당 1회)
@@ -67,6 +91,8 @@ create table if not exists backlog (
   published_at timestamptz,                    -- 최근 발행·재발행 시각 (0012) — TTS 재합성 시각과 비교해 재발행 버튼을 띄운다
   sub_topic   text,                            -- 0028: 글로벌판 보조 주제(대표는 mid_topic) — 한국판은 null
   gate1_checks jsonb,                          -- 0028: 글로벌판 게이트 1 기록 {screen, warnings_confirmed} — 한국판은 null
+  series_id   uuid references series(id),      -- 0029: 기획 시리즈 편이면 그 시리즈 — 일반 편은 null
+  series_no   int,                             -- 0029: 화 번호(1부터). series_id 와 함께 있거나 함께 없다 (backlog_series_pair_check · 부분 유니크 backlog_series_no_uq)
   created_at  timestamptz not null default now(),
   updated_at  timestamptz not null default now()
 );
@@ -93,7 +119,7 @@ create table if not exists runs (
   id          uuid primary key default gen_random_uuid(),
   backlog_id  text references backlog(id),
   phase       text not null
-              check (phase in ('sweep','cluster','draft','critic','qa','package','tts','domain_check','thumbnail','enrich','script_align','approve')), -- 0023: approve(자동 승인 기록) -- 0008: domain_check(스냅샷 누락분 정정) · 0018: thumbnail · 0021: enrich
+              check (phase in ('sweep','cluster','draft','critic','qa','package','tts','domain_check','thumbnail','enrich','script_align','approve','series_plan')), -- 0029: series_plan(시리즈 설계안) -- 0023: approve(자동 승인 기록) -- 0008: domain_check(스냅샷 누락분 정정) · 0018: thumbnail · 0021: enrich
               -- critic: 품질 사이클의 선행 비평 실행 (spec/09 7장) — QA(사실)와 별개의 스타일 검수
   attempt     int not null default 1,          -- QA 재생성 차수 (1~3)
   result      text,                            -- 통과/실패 + 사유 요약
@@ -133,7 +159,7 @@ alter table runs    enable row level security;
 
 create table if not exists public.jobs (
   id uuid primary key default gen_random_uuid(),
-  type text not null check (type in ('sweep','cluster','draft','qa','critic','tts','package','domain_check','thumbnail','critic_measure','enrich','script_align')), -- 0007: domain_check(스냅샷 누락분 정정) · 0018: thumbnail · 0020: critic_measure(루브릭 개정안 측정) · 0021: enrich(추천 메타)
+  type text not null check (type in ('sweep','cluster','draft','qa','critic','tts','package','domain_check','thumbnail','critic_measure','enrich','script_align','series_plan')), -- 0029: series_plan(시리즈 설계안) · 0007: domain_check(스냅샷 누락분 정정) · 0018: thumbnail · 0020: critic_measure(루브릭 개정안 측정) · 0021: enrich(추천 메타)
   requires_ai boolean not null,
   payload jsonb not null default '{}'::jsonb,
   status text not null default 'queued' check (status in ('queued','claimed','running','done','failed','cancelled')),
@@ -277,7 +303,7 @@ create or replace function public.claim_job(
   p_can_tts boolean default true,
   p_can_thumbnail boolean default true,
   p_exclude_types text[] default '{}',   -- 0024: 서버 AI 집기 스위치가 꺼지면 ['sweep'] — 스윕·군집화는 노트북
-  p_can_tools boolean default true       -- 0025: 도구(WebSearch) 워커만 sweep 모드 B·B2(보강·주제 기획)를 집는다 — API 실행기는 false
+  p_can_tools boolean default true       -- 0025: 도구(WebSearch) 워커만 sweep 모드 B·B2(보강·주제 기획)를 집는다 — API 실행기는 false · 0032: 모드 P(소스 풀 채우기)도
 )
 returns setof public.jobs
 language plpgsql
@@ -298,7 +324,7 @@ begin
      and (p_can_tts or type not in ('tts','script_align'))   -- 0022: script_align 도 ElevenLabs 키 게이트
      and (p_can_thumbnail or type <> 'thumbnail')
      and not (type = any(p_exclude_types))
-     and (p_can_tools or not (type = 'sweep' and coalesce(payload->>'mode', '') in ('B','B2')))
+     and (p_can_tools or not (type = 'sweep' and coalesce(payload->>'mode', '') in ('B','B2','P')))   -- 0032: P 소스 풀 채우기(2026-10-21)
    order by
      case when payload ? 'episode_id' then 0      -- 0023: 진행 중인 에피소드의 후속 먼저 (한 편을 승인부터 패키지까지 끝낸 뒤 다음 편)
           when type = 'draft' then 2              -- 새 초안은 마지막

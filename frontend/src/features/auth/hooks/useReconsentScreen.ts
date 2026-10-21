@@ -4,11 +4,12 @@ import { logger } from '@/shared/lib/logger';
 import { useToastStore } from '@/shared/ui/toast.store';
 
 import { submitConsents } from '../api/auth.api';
-import { AUTH_COPY } from '../auth.copy';
+import { hasPolicyDocument, resolveMinAge } from '../auth.constants';
+import { AUTH_COPY, ageConfirmationLabel } from '../auth.copy';
 import type { ConsentType } from '../auth.types';
 import { openPolicyDocument } from '../services/policy-document.service';
 import { sessionService } from '../services/session.service';
-import { useSessionStore } from '../store/session.store';
+import { selectMarket, useSessionStore } from '../store/session.store';
 
 /**
  * A20 재동의(auth-uiux.md 4.3-1) — **A4와 규칙이 다르다.**
@@ -21,6 +22,11 @@ import { useSessionStore } from '../store/session.store';
 export const useReconsentScreen = () => {
   const pendingConsents = useSessionStore((s) => s.pendingConsents);
   const clearPendingConsents = useSessionStore((s) => s.clearPendingConsents);
+  /**
+   * [보기] 문서의 시장·연령 보수값의 기준 — 서버가 정한 세션 시장. 연령 숫자는 서버가 항목에 실은 `min_age`(나라별 16·18,
+   * KAN-206)이고, 없으면 시장 보수값 18이다(`resolveMinAge`)
+   */
+  const market = useSessionStore(selectMarket);
   const showToast = useToastStore((s) => s.show);
 
   /** 기본값 전부 해제 — 재동의도 동의다(auth-uiux.md 8장 금지) */
@@ -31,7 +37,10 @@ export const useReconsentScreen = () => {
 
   const items = pendingConsents.map((consent) => ({
     ...consent,
-    label: AUTH_COPY.consent.label[consent.consentType],
+    label:
+      consent.consentType === 'age_confirmation'
+        ? ageConfirmationLabel(resolveMinAge(consent, market))
+        : AUTH_COPY.consent.label[consent.consentType],
     description:
       consent.consentType === 'marketing' ? AUTH_COPY.consent.marketingDescription : null,
     isChecked: checkedMap[consent.consentType] ?? false,
@@ -50,17 +59,21 @@ export const useReconsentScreen = () => {
     setCheckedMap(Object.fromEntries(items.map((item) => [item.consentType, next])));
   };
 
-  /** [보기] — 열람은 동의가 아니다. 연령 확인·마케팅은 열 문서가 없어 화면이 셰브론을 그리지 않는다 */
+  /**
+   * [보기] — 열람은 동의가 아니다. 연령 확인·마케팅은 열 문서가 없어 화면이 셰브론을 그리지 않는다.
+   * 문서는 세션 시장의 것이다(GLOBAL → 영어 본문 — 기존 GLOBAL 가입자의 국외 이전 동의도 여기로 온다, KAN-216)
+   */
   const handleViewPress = (consentType: ConsentType) => {
-    if (consentType !== 'terms' && consentType !== 'privacy') return;
-    void openPolicyDocument(consentType);
+    if (!hasPolicyDocument(consentType)) return;
+    void openPolicyDocument(consentType, market);
   };
 
   const handleSubmit = async () => {
     if (!canSubmit || isSubmitting) return;
     setIsSubmitting(true);
     try {
-      // 화면이 그린 항목 그대로 보낸다. 선택 항목은 체크 여부가 그대로 is_agreed 다
+      // 화면이 그린 항목 그대로 보낸다. 선택 항목은 체크 여부가 그대로 is_agreed 다.
+      // version 은 pending_consents 의 값 그대로다(`terms_global_v1` 등 — 클라이언트 상수 금지)
       await submitConsents({
         consents: items.map((item) => ({
           consentType: item.consentType,

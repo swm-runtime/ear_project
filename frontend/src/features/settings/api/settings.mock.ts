@@ -14,6 +14,9 @@
  * - update-android-only  Android만 최신 아님 — platform 파라미터가 실제로 전달·판정에
  *                        쓰이는지 화면에서 검증한다(iOS면 배지 없음, Android면 배지)
  * - admin                관리자 계정 — 리스트 맨 아래 관리자 섹션
+ * - global               GLOBAL 시장 계정(account.market 'global') — 언어 행의 "Episodes in English". 이 시나리오가
+ *                        아니어도 market 은 **세션 사용자의 시장**을 따른다(실서버가 users.market 을 주는 것과 같다 —
+ *                        GLOBAL 로 가입한 mock 세션에서 "콘텐츠는 한국어"가 나오던 것, 2026-10-18 영어 QA)
  * - marketing-off        마케팅 수신 미동의 상태로 시작
  * - partial-error        account·plan·interest_summary 실패 — S6(상단 카드만 에러, 토글·메뉴는 동작)
  * - full-error           조회 전체 500 — S6 전체(정적 메뉴는 정상 동작)
@@ -26,7 +29,7 @@ import { ApiError } from '@/shared/api/api-error';
 import { ERROR_CODES } from '@/shared/api/error-codes';
 import type { DevicePlatform } from '@/shared/lib/device-platform';
 
-import { getEmailMockAccount } from '@/features/auth';
+import { getEmailMockAccount, selectMarket, useSessionStore } from '@/features/auth';
 import { getInterestMockSummary } from '@/features/interest';
 
 import type {
@@ -80,7 +83,8 @@ let marketingConsentState: MarketingConsentDto =
 // 같은 상태를 만들 수 있다 — 그쪽은 인증 화면과 상태가 이어진다)
 const accountForScenario = (): SettingsAccountDto => {
   const emailAccount = getEmailMockAccount();
-  const base: SettingsAccountDto = { ...emailAccount, is_admin: false };
+  const market = SCENARIO === 'global' ? 'global' : selectMarket(useSessionStore.getState());
+  const base: SettingsAccountDto = { ...emailAccount, is_admin: false, market };
   switch (SCENARIO) {
     case 'email-unregistered':
       return { ...base, email: null, is_email_verified: false };

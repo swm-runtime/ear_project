@@ -6,35 +6,37 @@ import { useDelayedVisible } from '@/shared/hooks/useDelayedVisible';
 import { theme } from '@/shared/theme';
 import FullScreenError from '@/shared/ui/FullScreenError';
 
+import { MarketChangeScreen } from '@/features/auth';
 import {
   CareerScreen,
   CompleteScreen,
   exitOnboarding,
   FirstDripWaitingScreen,
   ONBOARDING_COPY,
+  resumeOnboardingTarget,
   TopicSelectScreen,
   TopicSelectSkeleton,
   useOnboardingStateQuery,
   useOnboardingStore,
+  type OnboardingScreenStep,
   type OnboardingStackParamList,
-  type OnboardingStep,
 } from '@/features/onboarding';
 
 const OnboardingStack = createNativeStackNavigator<OnboardingStackParamList>();
 
 /**
- * 재개 지점(onboarding_step) → 시작 화면. 서버의 `pick`(2단계 저장 뒤)·`done`(완료 직전)은 담기 화면을 뺀 뒤
- * (2026-10-11) 곧바로 완료 대기로 보낸다 — 그 화면이 완료 요청을 쏘고 첫 드립을 기다린다
+ * 재개 지점(onboarding_step) + 서버 steps[] → 시작 화면(resumeOnboardingTarget). 서버의 `pick`(입력 끝)·`done`(완료 직전)은
+ * 담기 화면을 뺀 뒤(2026-10-11) 곧바로 완료 대기로 보낸다 — 그 화면이 완료 요청을 쏘고 첫 드립을 기다린다.
+ * steps[]에 없는 단계(GLOBAL의 커리어)는 재개 지점이어도 띄우지 않는다(global-api.md 4.4)
  */
-const RESUME_ROUTES: Record<OnboardingStep, keyof OnboardingStackParamList> = {
+const START_ROUTES: Record<OnboardingScreenStep | 'finish', keyof OnboardingStackParamList> = {
   topic: 'Topic',
   career: 'Career',
-  pick: 'FirstDripWaiting',
-  done: 'FirstDripWaiting',
+  finish: 'FirstDripWaiting',
 };
 
 /**
- * 주제(1/2) → 커리어(2/2) → 완료 대기(완료 요청 + 첫 드립) → 완료(자동 통과) → 탐색. 추천 콘텐츠 담기(구 3/3)는
+ * 서버 steps[]대로 — KR 주제(1/2) → 커리어(2/2), GLOBAL 주제(1/1) — → 완료 대기(완료 요청 + 첫 드립) → 완료(자동 통과) → 탐색. 추천 콘텐츠 담기(구 3/3)는
  * 뺐다(PM 2026-10-11) — 첫 드립이 라이브러리를 채운다.
  * 진입 시 서버의 onboarding_step부터 재개한다(onboarding.md 2, splash.md 4).
  * 온보딩은 서버 저장이 필수라 상태 조회 실패 시 진행 경로를 열지 않는다(onboarding-api.md 2).
@@ -77,7 +79,7 @@ export default function OnboardingNavigator() {
 
   return (
     <OnboardingStack.Navigator
-      initialRouteName={RESUME_ROUTES[state.onboardingStep]}
+      initialRouteName={START_ROUTES[resumeOnboardingTarget(state.onboardingStep, state.steps)]}
       screenOptions={{ headerShown: false }}
     >
       <OnboardingStack.Screen name="Topic" component={TopicSelectScreen} />
@@ -93,6 +95,8 @@ export default function OnboardingNavigator() {
         component={CompleteScreen}
         options={{ gestureEnabled: false }}
       />
+      {/* 재온보딩 중 직전 언어로 되돌리기(KAN-228) — 주제 화면의 [되돌리기]가 연다. 성공하면 루트가 시장 키로 이 스택을 새로 세운다 */}
+      <OnboardingStack.Screen name="MarketChange" component={MarketChangeScreen} />
     </OnboardingStack.Navigator>
   );
 }

@@ -12,6 +12,7 @@ import {
 import { LocaleInputDto } from '@/modules/user/dto/locale-input.dto';
 
 import { ConsentInputDto } from '@/modules/user/dto/consent-input.dto';
+import { ConsentType } from '@/modules/user/user.enum';
 
 /** auth-api.md 4.2 — 약관 동의를 기록하고 계정을 생성한다 */
 export class SignUpRequestDto {
@@ -25,7 +26,8 @@ export class SignUpRequestDto {
 
   @IsArray()
   @ArrayNotEmpty()
-  @ArrayMaxSize(4)
+  // 동의 종류 수만큼 — 같은 종류를 두 번 보내면 ConsentService가 거부한다(GLOBAL 가입은 국외 이전까지 5개)
+  @ArrayMaxSize(Object.values(ConsentType).length)
   @ValidateNested({ each: true })
   @Type(() => ConsentInputDto)
   readonly consents: ConsentInputDto[];

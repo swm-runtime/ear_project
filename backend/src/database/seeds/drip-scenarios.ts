@@ -23,6 +23,8 @@ import { DripBatchOrchestrator } from '@/modules/drip-batch/drip-batch.orchestra
 import { UNFINISHED_INVENTORY_LIMIT } from '@/modules/drip/drip.constant';
 
 const TAG = '[drip-scn]';
+/** 시나리오 시리즈 — `contents.series_id`의 FK 대상(`fk_contents_series`, KAN-134). 고정 id라 다시 돌려도 같은 행이다 */
+const SCENARIO_SERIES_ID = 'd0000000-0000-4000-8000-00000000a001';
 /** 실제 배치(오늘 05:00)의 run_date와 겹치지 않게 30일 뒤 05:00 KST로 돈다 */
 const RUN_AT = (() => {
   const d = new Date();
@@ -248,7 +250,14 @@ async function main(): Promise<void> {
     const a2 = await content(m, 'A-2', [tA]);
     const a3 = await content(m, 'A-3', [tA]);
     const a4 = await content(m, 'A-4', [tA]);
-    const seriesId = a1; // series_id는 uuid면 되므로 첫 콘텐츠 id를 빌린다
+    // 편보다 시리즈 행이 먼저다(FK)
+    await m.query(
+      `INSERT INTO series (id, title, description, total_episodes, status)
+       VALUES ($1, $2, '검증', 3, 'completed')
+       ON CONFLICT (id) DO NOTHING`,
+      [SCENARIO_SERIES_ID, `${TAG} A 시리즈`],
+    );
+    const seriesId = SCENARIO_SERIES_ID;
     const s1 = await content(m, 'A-S1', [tA], {
       seriesId,
       episodeNo: 1,
@@ -481,6 +490,8 @@ async function cleanup(db: DataSource): Promise<void> {
     `${TAG}-%`,
   ]);
   await db.query(`DELETE FROM contents WHERE title LIKE $1`, [`${TAG} %`]);
+  // 편을 지운 뒤 — 편이 남아 있으면 FK가 막는다
+  await db.query(`DELETE FROM series WHERE id = $1`, [SCENARIO_SERIES_ID]);
   await db.query(`DELETE FROM topics WHERE name LIKE $1`, [`${TAG} %`]);
 }
 

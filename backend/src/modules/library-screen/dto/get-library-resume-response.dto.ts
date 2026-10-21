@@ -2,6 +2,7 @@ import { LibraryItemStatus } from '@/modules/library/library.enum';
 
 import { LibraryItemView, LibraryResumeResult } from '../library-screen.types';
 import { ContentLanguage } from '@/modules/content/content.enum';
+import { ContentSeriesDto } from '@/modules/content/dto/content-series.dto';
 
 class ResumeContentDto {
   readonly id: string;
@@ -18,6 +19,8 @@ class ResumeContentDto {
    * 주제가 없으면 **`null`이 아니라 빈 배열**이다 — 화면이 분기하지 않게 한다.
    */
   readonly topic_ids: string[];
+  /** 목록 응답(4.1)의 `content.series`와 같은 모양 — 단일 콘텐츠는 null (KAN-134, 추가 필드) */
+  readonly series: ContentSeriesDto | null;
 }
 
 class ResumeProgressDto {
@@ -74,6 +77,7 @@ function toResumeTarget(view: LibraryItemView): ResumeTargetDto {
       language: view.content.language,
       content_version: view.content.contentVersion,
       topic_ids: view.content.topicIds,
+      series: ContentSeriesDto.from(view.content.series),
     },
     progress: view.progress
       ? {

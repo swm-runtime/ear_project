@@ -11,7 +11,6 @@ import { EnvironmentVariables } from '@/config/env.validation';
 import { ConsentService } from './consent.service';
 import { User } from '../entities/user.entity';
 import {
-  messageLanguageOf,
   normalizeLanguageCode,
   normalizeLocale,
   resolveMarket,
@@ -20,12 +19,9 @@ import {
   resolveExistingUserTrialEndsAtFor,
   resolveSignupTrialEndsAtFor,
 } from '../policies/signup-trial.policy';
+import { currentConsentVersionOf } from '../policies/consent.policy';
+import { REQUIRED_CONSENT_TYPES_BY_MARKET } from '../user.constant';
 import {
-  REQUIRED_CONSENT_TYPES,
-  CURRENT_CONSENT_VERSIONS,
-} from '../user.constant';
-import {
-  MessageLanguage,
   OnboardingStep,
   SocialProvider,
   UserMarket,
@@ -34,7 +30,13 @@ import {
   UserTier,
 } from '../user.enum';
 import { UserRepository } from '../repositories/user.repository';
-import { CreateUserCommand, LocaleInput } from '../user.types';
+import {
+  ConsentAudience,
+  CreateUserCommand,
+  LocaleInput,
+  SignUpConsents,
+  SignUpMarket,
+} from '../user.types';
 
 @Injectable()
 export class UserService {
@@ -68,13 +70,14 @@ export class UserService {
     return this.userRepository.findDripTargetsPage(afterId, limit, manager);
   }
 
-  /** 사용자별 서버 문구 언어(`global-api.md` 2.3 — 시장으로 고른다). 없는 사용자는 결과에 없다 */
-  async findMessageLanguagesByIds(
-    ids: string[],
-  ): Promise<Map<string, MessageLanguage>> {
+  /**
+   * 사용자별 **현재** 시장 — 서버 문구 언어(`global-api.md` 2.3 — 시장으로 고른다)와, 시장을 바꾼 사용자의 이전 시장
+   * 적립분을 알림에서 빼는 판정(4.11)이 함께 쓴다. 없는 사용자는 결과에 없다
+   */
+  async findMarketsByIds(ids: string[]): Promise<Map<string, UserMarket>> {
     const rows = await this.userRepository.findMarketsByIds(ids);
 
-    return new Map(rows.map((row) => [row.id, messageLanguageOf(row.market)]));
+    return new Map(rows.map((row) => [row.id, row.market]));
   }
 
   /** 편성 미리보기(admin) — 이메일로 대상 사용자 한 명. 역할 무관, 없으면 null */
@@ -82,7 +85,7 @@ export class UserService {
     return this.userRepository.findByEmail(email);
   }
 
-  /** 파이프라인 SSO — 검증된 이메일과 같은 관리자 계정 (changes/pending/pipeline-sso-login.md) */
+  /** 파이프라인 SSO — 검증된 이메일과 같은 관리자 계정 (changes/archive/pipeline-sso-login.md · 반영 2026-09-03) */
   async findAdminByEmail(email: string): Promise<User | null> {
     return this.userRepository.findAdminByEmail(email);
   }
@@ -131,10 +134,15 @@ export class UserService {
    * 계정과 동의 이력을 하나의 트랜잭션에서 만든다 — 동의 없는 계정이 남으면 안 된다.
    */
   async createUser(command: CreateUserCommand, now: Date): Promise<User> {
-    this.assertRequiredConsents(command);
+    // 시장을 한 번 정해 검증과 저장에 같이 쓴다 — 둘이 따로 판정하면 받은 동의와 저장된 시장이 어긋날 수 있다
+    const signupMarket = this.resolveSignUpMarket(command.locale);
+    this.assertRequiredConsents(
+      command,
+      this.signUpAudienceOf(command.locale, signupMarket),
+    );
 
     try {
-      return await this.insertUser(command, now);
+      return await this.insertUser(command, signupMarket, now);
     } catch (error) {
       if (!isUniqueViolation(error)) {
         throw error;
@@ -168,15 +176,58 @@ export class UserService {
     }
   }
 
+  /**
+   * 가입 시장 판정(`global-api.md` 2.1) — 가입(`createUser`)과 가입 동의 목록(`findSignUpConsents`)이 이 한 곳을 쓴다.
+   * 같은 `locale`이면 같은 시장이 나와야, 동의 화면이 그린 목록대로 보낸 가입이 통과한다.
+   */
+  resolveSignUpMarket(locale: LocaleInput | undefined): SignUpMarket {
+    return resolveMarket({
+      preferredLanguage: locale?.preferredLanguage,
+      languageCode: normalizeLocale(locale).languageCode,
+      // 글로벌 카탈로그가 준비될 때까지 닫아 둔다 — `true`를 명시했을 때만 연다(env.validation.ts)
+      globalSignupEnabled:
+        this.configService
+          .get('GLOBAL_SIGNUP_ENABLED', { infer: true })
+          ?.trim() === 'true',
+    });
+  }
+
+  /**
+   * 계정이 생기기 전 동의 화면에 그릴 목록 — 그 `locale`로 가입하면 정해질 시장의 필수·선택 동의
+   * (auth-api.md 4.1 `required_consents` · `POST /auth/sign-up/consents`, KAN-215). 아무것도 기록하지 않는다.
+   */
+  findSignUpConsents(locale: LocaleInput | undefined): SignUpConsents {
+    const audience = this.signUpAudienceOf(
+      locale,
+      this.resolveSignUpMarket(locale),
+    );
+
+    return {
+      market: audience.market,
+      requiredConsents: this.consentService.buildSignUpConsents(audience),
+    };
+  }
+
+  /**
+   * 가입 전 동의 판정 대상 — 시장은 가입 판정, 연령 확인의 기준 연령은 기기 지역이다(KAN-220). 가입 검증과 가입 동의
+   * 목록이 이 한 곳으로 대상을 만든다 — 저장되는 `users.region_code`도 같은 `normalizeLocale` 값이다.
+   */
+  private signUpAudienceOf(
+    locale: LocaleInput | undefined,
+    signupMarket: SignUpMarket,
+  ): ConsentAudience {
+    return {
+      market: signupMarket.market,
+      regionCode: normalizeLocale(locale).regionCode,
+    };
+  }
+
   private async insertUser(
     command: CreateUserCommand,
+    resolved: SignUpMarket,
     now: Date,
   ): Promise<User> {
     const locale = normalizeLocale(command.locale);
-    const resolved = resolveMarket({
-      preferredLanguage: command.locale?.preferredLanguage,
-      languageCode: locale.languageCode,
-    });
 
     return this.dataSource.transaction(async (manager) => {
       const user = this.userRepository.create({
@@ -193,7 +244,7 @@ export class UserService {
         status: UserStatus.ACTIVE,
         onboardingCompleted: false,
         onboardingStep: OnboardingStep.TOPIC,
-        // 시장은 여기서 1회 정한다(global-api.md 2.1). 로그인·기기 등록은 바꾸지 못한다
+        // 시장은 여기서 1회 정한다(global-api.md 2.1). 로그인·기기 등록은 바꾸지 못하고, 이후엔 시장 전환(4.11)으로만 바뀐다
         market: resolved.market,
         languageCode: locale.languageCode,
         regionCode: locale.regionCode,
@@ -218,6 +269,7 @@ export class UserService {
 
       await this.consentService.recordConsents(
         saved.id,
+        saved,
         command.consents,
         now,
         manager,
@@ -411,15 +463,18 @@ export class UserService {
     await this.userRepository.deleteById(userId, manager);
   }
 
-  /** 필수 동의(약관·개인정보·연령 확인)가 빠지면 계정을 만들지 않는다 (auth-api.md 4.2) */
-  private assertRequiredConsents(command: CreateUserCommand): void {
+  /** 그 시장의 필수 동의(약관·개인정보·연령 확인, GLOBAL은 국외 이전까지)가 빠지면 계정을 만들지 않는다 (auth-api.md 4.2) */
+  private assertRequiredConsents(
+    command: CreateUserCommand,
+    audience: ConsentAudience,
+  ): void {
     const agreedTypes = new Set(
       command.consents
         .filter((consent) => consent.isAgreed)
         .map((c) => c.consentType),
     );
 
-    const missing = REQUIRED_CONSENT_TYPES.filter(
+    const missing = REQUIRED_CONSENT_TYPES_BY_MARKET[audience.market].filter(
       (type) => !agreedTypes.has(type),
     );
     if (missing.length > 0) {
@@ -430,10 +485,11 @@ export class UserService {
       });
     }
 
-    // 동의 화면 체류 중 약관이 개정된 경우 — 최신 버전으로 다시 받는다
+    // 동의 화면 체류 중 약관이 개정됐거나, 다른 시장의 버전·다른 기준 연령을 보낸 경우 — 지금 기준으로 다시 받는다
     const stale = command.consents.some(
       (consent) =>
-        consent.version !== CURRENT_CONSENT_VERSIONS[consent.consentType],
+        consent.version !==
+        currentConsentVersionOf(audience, consent.consentType),
     );
     if (stale) {
       throw new BusinessException({

@@ -26,6 +26,8 @@ import { useDeferredSheetShare } from '@/features/share';
 
 import { exploreKeys } from '../api/explore.api';
 import { EXPLORE_COPY } from '../explore.copy';
+import { exploreEntryThumbnail, isHiddenEntry, withEntryLibraryState } from '../explore.entry';
+import { toTagQuery } from '../explore.search-query';
 import type {
   ExploreContentsPage,
   ExploreFeed,
@@ -33,10 +35,12 @@ import type {
   ExploreLibraryState,
   ExplorePeriod,
   ExplorePopularPage,
+  ExploreSeries,
 } from '../explore.types';
 import { useExploreContentsQuery } from './useExploreContentsQuery';
 import { useExploreFeedQuery } from './useExploreFeedQuery';
 import { explorePopularQueryOptions, useExplorePopularQuery } from './useExplorePopularQuery';
+import { useExploreSearchRequest } from './useExploreSearchRequest';
 import { useExploreTopicsQuery } from './useExploreTopicsQuery';
 import { useSaveContentMutation } from './useSaveContentMutation';
 import { useUnsaveContentMutation } from './useUnsaveContentMutation';
@@ -66,7 +70,12 @@ const isNetworkError = (error: unknown): boolean =>
   isApiError(error) &&
   (error.errorCode === ERROR_CODES.NETWORK_ERROR || error.errorCode === ERROR_CODES.TIMEOUT);
 
-export const useExploreScreen = () => {
+export const useExploreScreen = ({
+  isInlineSearch,
+}: {
+  /** 제자리 검색 갈래(iOS 26·Android)인가 — 화면이 정한다. 질의를 넘긴 검색(태그 탭)을 어디서 열지 가른다 */
+  isInlineSearch: boolean;
+}) => {
   const navigation = useNavigation();
   const queryClient = useQueryClient();
   const showToast = useToastStore((s) => s.show);
@@ -93,6 +102,13 @@ export const useExploreScreen = () => {
     if (applyTopicId === undefined) return;
     tabNavigation.setParams({ applyTopicId: undefined });
   }, [applyTopicId, tabNavigation]);
+
+  /* ── 질의를 넘긴 검색(KAN-219 — 태그 탭 → `#태그` 즉시 검색). 다른 화면은 탭 파라미터, 이 화면은 openTagSearch ── */
+  const { request: searchRequest, requestSearch } = useExploreSearchRequest({
+    isInline: isInlineSearch,
+  });
+  /** 인기 대표 카드의 태그 탭 — 카드 재생 판정이 아니라 `#태그` 검색을 연다(explore-uiux.md 4.1) */
+  const openTagSearch = (tag: string) => requestSearch(toTagQuery(tag));
 
   /* ── 인기 구간 상태(E13) — 화면 상태이지 사용자 상태가 아니다. 서버에 저장하지 않는다(explore.md 4.1-1).
      null이면 사용자가 아직 고르지 않은 상태 — 선택 표시는 피드 응답의 period가 정한다.
@@ -150,9 +166,7 @@ export const useExploreScreen = () => {
               ...old,
               sections: old.sections.map((section) => ({
                 ...section,
-                items: section.items.map((item) =>
-                  item.content.id === contentId ? { ...item, library } : item,
-                ),
+                items: withEntryLibraryState(section.items, contentId, library),
               })),
             }
           : old,
@@ -165,9 +179,7 @@ export const useExploreScreen = () => {
                 ...old,
                 pages: old.pages.map((page) => ({
                   ...page,
-                  items: page.items.map((item) =>
-                    item.content.id === contentId ? { ...item, library } : item,
-                  ),
+                  items: withEntryLibraryState(page.items, contentId, library),
                 })),
               }
             : old,
@@ -180,9 +192,7 @@ export const useExploreScreen = () => {
                 ...old,
                 pages: old.pages.map((page) => ({
                   ...page,
-                  items: page.items.map((item) =>
-                    item.content.id === contentId ? { ...item, library } : item,
-                  ),
+                  items: withEntryLibraryState(page.items, contentId, library),
                 })),
               }
             : old,
@@ -306,7 +316,7 @@ export const useExploreScreen = () => {
           ...section,
           // 토글 선택 상태 — 전환 중이면 그 구간, 확정했으면 그 구간, 아니면 피드 응답의 period
           period: isPopular ? (pendingPeriod ?? activePeriod ?? section.period) : null,
-          items: items.filter((item) => !hiddenContentIds.has(item.content.id)),
+          items: items.filter((item) => !isHiddenEntry(item, hiddenContentIds)),
         };
       })
       .filter((section) => section.items.length > 0);
@@ -316,7 +326,7 @@ export const useExploreScreen = () => {
     () =>
       (contentsPages ?? [])
         .flatMap((page) => page.items)
-        .filter((item) => !hiddenContentIds.has(item.content.id)),
+        .filter((item) => !isHiddenEntry(item, hiddenContentIds)),
     [contentsPages, hiddenContentIds],
   );
 
@@ -354,6 +364,14 @@ export const useExploreScreen = () => {
       screen: 'ContentDetail',
       params: { contentId: item.content.id, entryPoint: 'explore' },
     });
+  };
+
+  /**
+   * 시리즈 카드 탭 → 시리즈 화면(E14). **"행 탭 = 즉시 재생"의 예외**다(explore.md 4.4) — 카드에는 편 단위 상태가 없어 재생 판정을
+   * 할 수 없다. 화면 등록은 app/navigation 이 한다(라우트 이름으로만 이동 — ContentDetail 과 같은 방식)
+   */
+  const openSeries = (series: ExploreSeries) => {
+    navigation.navigate('Main', { screen: 'Series', params: { seriesId: series.id } });
   };
 
   /** E12 [원문 보기](FR-12) — 클릭 기록과 브라우저 열기는 서로를 기다리지 않는다(player-api.md 4.5) */
@@ -514,14 +532,14 @@ export const useExploreScreen = () => {
         // 새 카드 줄이 빈 칸으로 흘러 들어오지 않게 앞쪽 카드 사진을 메모리에 올린 뒤 바꾼다(최대 POPULAR_WARM_MS — 흐림이 그동안 이어진다)
         const firstPage = result.pages[0]?.items ?? [];
         await warmRemoteImages(
-          firstPage.slice(0, POPULAR_WARM_COUNT).map((item) => item.content.thumbnailUrl),
+          firstPage.slice(0, POPULAR_WARM_COUNT).map(exploreEntryThumbnail),
           POPULAR_WARM_MS,
         );
         setActivePeriod(period);
         // 전환 완료를 한 번만 알린다 — aria-live polite의 대역(uiux 7)
         const count = result.pages.reduce((sum, page) => sum + page.items.length, 0);
         AccessibilityInfo.announceForAccessibility(
-          EXPLORE_COPY.popular.switchedA11y(EXPLORE_COPY.popular.periodLabels[period], count),
+          EXPLORE_COPY.popular.switchedA11y(EXPLORE_COPY.popular.periodA11yLabels[period], count),
         );
       })
       .catch(() => setFailedPeriod(period))
@@ -620,13 +638,16 @@ export const useExploreScreen = () => {
     isFetchingPopularNextPage: popularQuery.isFetchingNextPage,
     isPopularLoadMoreFailed,
     retryPopularLoadMore: () => void popularQuery.fetchNextPage(),
-    // 검색 진입(E6)
+    // 검색 진입(E6) — 검색창 탭 · 태그 탭(질의를 넘긴 검색, 제자리 갈래는 searchRequest 로 화면이 연다)
     openSearch,
+    openTagSearch,
+    searchRequest,
     // 잔여 표시·페이월
     remainingDisplay,
     openPaywall: playGate.openPaywall,
-    // 재생
+    // 재생 · 시리즈 카드(E14 이동)
     handleRowPress,
+    openSeries,
     playConfirm: playGate.confirmState,
     confirmPlay: playGate.confirmPlay,
     cancelPlayConfirm: playGate.cancelConfirm,

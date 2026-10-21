@@ -10,7 +10,14 @@ export { default as TopicSelectSkeleton } from './components/TopicSelectSkeleton
 export { useOnboardingStateQuery } from './hooks/useOnboardingStateQuery';
 export { useOnboardingStore } from './store/onboarding.store';
 export { exitOnboarding } from './services/onboarding-exit.service';
+/** 재개 지점 → 시작 단계 — 서버 steps[]에 없는 단계는 띄우지 않는다(global-api.md 4.4) */
+export { resumeOnboardingTarget } from './services/onboarding-steps';
 export { ONBOARDING_COPY } from './onboarding.copy';
-export type { OnboardingStackParamList, OnboardingState, OnboardingStep } from './onboarding.types';
+export type {
+  OnboardingScreenStep,
+  OnboardingStackParamList,
+  OnboardingState,
+  OnboardingStep,
+} from './onboarding.types';
 // 연차 구간 enum — 커리어 값의 원 정의를 재사용한다(career.md 3장, profile 요약 표시가 쓴다)
 export type { YearsOfExperience } from './onboarding.types';

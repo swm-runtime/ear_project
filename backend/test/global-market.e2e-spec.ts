@@ -1,6 +1,7 @@
 import 'dotenv/config';
 
 import { HttpStatus, INestApplication, ValidationPipe } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { Test } from '@nestjs/testing';
 import request from 'supertest';
 import { App } from 'supertest/types';
@@ -44,6 +45,8 @@ describe('글로벌 시장 모델 E2E', () => {
   const userIds: string[] = [];
   const path = (p: string) => `/api/v1${p}`;
 
+  let configService: ConfigService;
+
   beforeAll(async () => {
     const moduleRef = await Test.createTestingModule({
       imports: [AppModule],
@@ -60,6 +63,10 @@ describe('글로벌 시장 모델 E2E', () => {
     );
     await app.init();
     dataSource = app.get(DataSource);
+    // 이 파일은 글로벌 가입이 열린 상태(출시 뒤)의 판정을 본다 — 닫힌 상태는 마지막 테스트가 본다.
+    // `process.env`가 아니라 ConfigService 를 바꾼다 — 검증된 env 스냅샷을 먼저 읽어 로컬 `.env` 값에 흔들린다
+    configService = app.get(ConfigService);
+    configService.set('GLOBAL_SIGNUP_ENABLED', 'true');
   }, 60_000);
 
   afterAll(async () => {
@@ -170,6 +177,58 @@ describe('글로벌 시장 모델 E2E', () => {
     });
   }, 60_000);
 
+  it('유니코드 확장이 붙은 기기 언어(ja-JP-u-ca-japanese)로 로그인·가입·기기 등록·설정 변경이 되고 ja-JP로 저장된다', async () => {
+    const extended = 'ja-JP-u-ca-japanese';
+    // 로그인(가입 전 1차)과 가입이 같은 locale을 싣는다 — 16자 초과 태그가 400으로 막히지 않아야 한다
+    const { providerToken, signUp } = await signUpWith('extension', {
+      preferred_language: 'ko',
+      language_code: extended,
+    });
+    expect(signUp.user).toMatchObject({ market: 'kr', language_code: 'ja-JP' });
+    expect(await userRow(signUp.user!.id)).toMatchObject({
+      language_code: 'ja-JP',
+    });
+
+    // 기존 계정 로그인 — 다른 확장 태그로 갱신된다
+    const again = await socialLogin(providerToken, 'e2e-market-extension-b', {
+      language_code: 'th-TH-u-nu-thai',
+    });
+    expect(again.user).toMatchObject({ language_code: 'th-TH' });
+
+    // 기기 등록
+    await request(app.getHttpServer())
+      .put(path('/users/me/devices/e2e-market-extension-a'))
+      .set('Authorization', `Bearer ${signUp.access_token}`)
+      .send({
+        push_token: null,
+        platform: 'ios',
+        is_os_permission_granted: false,
+        app_version: '1.3.0',
+        language_code: extended,
+      })
+      .expect(HttpStatus.NO_CONTENT);
+    expect(await userRow(signUp.user!.id)).toMatchObject({
+      language_code: 'ja-JP',
+    });
+
+    // 설정 "기기 언어 따르기" — 확장 태그도 형식에 맞는 값으로 바뀐다
+    await request(app.getHttpServer())
+      .patch(path('/users/me/settings'))
+      .set('Authorization', `Bearer ${signUp.access_token}`)
+      .send({ language_code: 'en-US-u-hc-h23', client_seq: 1 })
+      .expect(HttpStatus.OK);
+    expect(await userRow(signUp.user!.id)).toMatchObject({
+      language_code: 'en-US',
+    });
+
+    // 자른 뒤에도 형식이 아닌 값은 종전대로 400(settings-api.md)
+    await request(app.getHttpServer())
+      .patch(path('/users/me/settings'))
+      .set('Authorization', `Bearer ${signUp.access_token}`)
+      .send({ language_code: 'not a tag', client_seq: 2 })
+      .expect(HttpStatus.BAD_REQUEST);
+  }, 60_000);
+
   it('형식이 아닌 시간대·지역은 버리고 가입은 막지 않는다', async () => {
     const { signUp } = await signUpWith('invalid-locale', {
       preferred_language: 'en',
@@ -183,6 +242,59 @@ describe('글로벌 시장 모델 E2E', () => {
       language_code: 'en',
       timezone: null,
     });
+  }, 60_000);
+
+  it('요금제 이름·설명은 시장의 언어다 — GLOBAL은 영어, KR은 종전 한국어(KAN-192 일부)', async () => {
+    // given
+    const { signUp: globalUser } = await signUpWith('plans-en', {
+      preferred_language: 'en',
+      language_code: 'en-US',
+    });
+    const { signUp: krUser } = await signUpWith('plans-ko', {
+      preferred_language: 'ko',
+      language_code: 'ko-KR',
+    });
+
+    // when
+    const plansOf = async (token: string) =>
+      (
+        (
+          await request(app.getHttpServer())
+            .get(path('/plans'))
+            .query({ platform: 'ios' })
+            .set('Authorization', `Bearer ${token}`)
+            .expect(HttpStatus.OK)
+        ).body as { plans: { tier: string; description: string }[] }
+      ).plans;
+    const globalPlans = await plansOf(globalUser.access_token);
+    const krPlans = await plansOf(krUser.access_token);
+
+    // then
+    expect(globalPlans.find((plan) => plan.tier === 'daily')).toMatchObject({
+      description: 'Listen to up to 5 episodes a day',
+    });
+    expect(krPlans.find((plan) => plan.tier === 'daily')).toMatchObject({
+      description: '하루 5편까지 들을 수 있어요',
+    });
+  }, 60_000);
+
+  it('글로벌 가입이 닫혀 있으면 English 를 골라도 kr 이다 — GLOBAL 카탈로그가 비어 온보딩에 갇히지 않게', async () => {
+    // given — 글로벌 가입을 닫아 둔다(운영 기본값)
+    configService.set('GLOBAL_SIGNUP_ENABLED', 'false');
+
+    try {
+      // when
+      const { signUp } = await signUpWith('en-closed', {
+        preferred_language: 'en',
+        language_code: 'en-US',
+      });
+
+      // then
+      expect(signUp.user).toMatchObject({ market: 'kr' });
+      expect(await userRow(signUp.user!.id)).toMatchObject({ market: 'kr' });
+    } finally {
+      configService.set('GLOBAL_SIGNUP_ENABLED', 'true');
+    }
   }, 60_000);
 
   async function signUpWith(
@@ -203,11 +315,8 @@ describe('글로벌 시장 모델 E2E', () => {
       .send({
         signup_token: first.signup_token,
         device_id: deviceId,
-        consents: [
-          { consent_type: 'terms', version: '0.1', is_agreed: true },
-          { consent_type: 'privacy', version: '0.1', is_agreed: true },
-          { consent_type: 'age_confirmation', version: null, is_agreed: true },
-        ],
+        // 앱처럼 그 시장의 필수 동의를 전부 동의한다 — GLOBAL은 국외 이전 동의까지다(KAN-215)
+        consents: await requiredConsentsFor(first.signup_token!, locale),
         ...(locale === undefined ? {} : { locale }),
       })
       .expect(HttpStatus.CREATED);
@@ -215,6 +324,37 @@ describe('글로벌 시장 모델 E2E', () => {
     userIds.push(signUp.user!.id);
 
     return { providerToken, signUp };
+  }
+
+  /** 가입 동의 목록 재조회(`POST /auth/sign-up/consents`)가 준 필수 항목을 전부 동의한 입력 */
+  async function requiredConsentsFor(
+    signupToken: string,
+    locale: LocaleInput | undefined,
+  ): Promise<
+    { consent_type: string; version: string | null; is_agreed: boolean }[]
+  > {
+    const response = await request(app.getHttpServer())
+      .post(path('/auth/sign-up/consents'))
+      .send({
+        signup_token: signupToken,
+        ...(locale === undefined ? {} : { locale }),
+      })
+      .expect(HttpStatus.OK);
+    const body = response.body as {
+      required_consents: {
+        consent_type: string;
+        version: string | null;
+        is_required: boolean;
+      }[];
+    };
+
+    return body.required_consents
+      .filter((consent) => consent.is_required)
+      .map((consent) => ({
+        consent_type: consent.consent_type,
+        version: consent.version,
+        is_agreed: true,
+      }));
   }
 
   async function socialLogin(

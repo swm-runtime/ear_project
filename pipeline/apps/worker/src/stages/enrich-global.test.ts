@@ -35,3 +35,9 @@ test("글로벌 스키마·프롬프트에는 직군 칸이 없고, 한국판은
   assert.equal(buildEnrichPrompt({ ...input, locale: "en" }).includes("job_category"), false);
   assert.equal(buildEnrichPrompt(input).includes("target_audiences[].job_category: 개발"), true);
 });
+
+// 2026-10-19 G261018-013·015: 영어 편의 keywords 가 한국어("나이 질문", "포장이사")로 나왔다 — 글로벌 프롬프트만 영어로 쓰게 한다
+test("글로벌 프롬프트는 keywords·tags 를 영어(한국어 낱말은 로마자)로 쓰게 하고, 한국판 프롬프트는 그대로다", () => {
+  assert.equal(buildEnrichPrompt({ ...input, locale: "en" }).includes("keywords·tags 는 콘텐츠 언어인 영어로 쓴다"), true);
+  assert.equal(buildEnrichPrompt(input).includes("콘텐츠 언어인 영어"), false);
+});

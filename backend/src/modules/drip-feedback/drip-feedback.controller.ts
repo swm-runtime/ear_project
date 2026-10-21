@@ -12,6 +12,7 @@ import {
 import type { AuthenticatedUser } from '@/common/decorators/current-user.decorator';
 import { CurrentUser } from '@/common/decorators/current-user.decorator';
 import { JwtAuthGuard } from '@/common/guards/jwt-auth.guard';
+import { toUserMarket } from '@/modules/user/policies/market.policy';
 
 import { DismissDripFeedbackRequestDto } from './dto/dismiss-drip-feedback-request.dto';
 import { DripFeedbackPromptResponseDto } from './dto/drip-feedback-prompt-response.dto';
@@ -31,7 +32,11 @@ export class DripFeedbackController {
     @CurrentUser() currentUser: AuthenticatedUser,
   ): Promise<DripFeedbackPromptResponseDto> {
     return DripFeedbackPromptResponseDto.from(
-      await this.dripFeedbackService.getPrompt(currentUser.id, new Date()),
+      await this.dripFeedbackService.getPrompt(
+        currentUser.id,
+        toUserMarket(currentUser.market),
+        new Date(),
+      ),
     );
   }
 

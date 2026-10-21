@@ -2,12 +2,12 @@
 import { revalidatePath } from "next/cache";
 import { supabaseServer } from "@/lib/supabase-server";
 import { loadArtifact, replaceTurn, writeArtifact } from "@/lib/artifacts";
-import { pipelineLocale, speakerNames } from "@/lib/locale";
+import { allSpeakerNames, pipelineLocale } from "@/lib/locale";
 import { deletePrefix, getBytes, getText, putBytes, putText } from "@/lib/storage";
 import { readScriptFileBody } from "@/lib/script-file";
 import { majorOrder, majorTopicsFor } from "@/lib/taxonomy";
 import { ensureEmbedding } from "@/lib/embedding";
-import { gate1Check, type Gate1Domain, type Gate1Row } from "@/lib/gate1";
+import { agentGate } from "@/lib/agent-verdict";
 import { screenGlobalTopic } from "@/lib/topic-screen";
 
 /** 음차 사전·발음 맵 공통 형식 검증 — {"표기": "발음"} 객체, 값은 비어 있지 않은 문자열 (spec/06 6장).
@@ -31,15 +31,11 @@ function assertPronunciationJson(content: string, allowEmpty = false): Record<st
  */
 export async function setBacklogStatus(id: string, status: "approved" | "rejected" | "held" | "proposed" | "qa_passed" | "published") {
   const sb = await supabaseServer();
-  if (status === "approved" && pipelineLocale() === "en") { // 글로벌판 게이트 1 승인 조건(명세 6.3, KAN-209) — 화면이 버튼을 막고, 여기서 다시 검사한다. 한국판은 타지 않는다
-    const g = await loadGate1(id);
-    if (!g.ok) throw new Error(`게이트 1 조건 미충족: ${g.blockers.join(" · ")}`);
-  }
   const { error } = await sb.from("backlog").update({ status }).eq("id", id);
   if (error) throw new Error(error.message);
   if (status === "approved") {
     const { data: active } = await sb.from("jobs").select("id").eq("type", "draft").in("status", ["queued", "claimed", "running"]).eq("payload->>backlog_id", id).limit(1);
-    if (!active?.length) {
+    if (!active?.length && (await seriesPrevReadyWeb(id))) { // 시리즈 편(spec/11 5.3): 앞 편 초안 전이면 승인만 하고, 워커가 앞 편이 끝난 뒤 작업을 건다(pickupApproved)
       const { error: e2 } = await sb.from("jobs").insert({ type: "draft", requires_ai: true, status: "queued", payload: { backlog_id: id, attempt: 1 } });
       if (e2) throw new Error(`승인은 됐지만 초안 작업 등록 실패: ${e2.message}`);
     }
@@ -47,28 +43,14 @@ export async function setBacklogStatus(id: string, status: "approved" | "rejecte
   revalidatePath("/backlog"); revalidatePath("/"); revalidatePath("/episodes");
 }
 
-/** 글로벌판 게이트 1 조건 검사 (lib/gate1.ts) — en 인스턴스에서만 부른다. 0028 칸(sub_topic·gate1_checks)은 en 쿼리에서만 읽는다 */
-export async function loadGate1(id: string) {
+/** 시리즈 편 집기 순서 (spec/11 5.3, 워커 db.ts seriesPrevReady 와 같은 규칙) — 일반 편·1화는 참, k화는 k-1화가 초안을 마쳤을 때(drafted 이후) */
+const SERIES_PREV_READY = ["drafted", "qa_passed", "review_required", "packaged", "published"];
+async function seriesPrevReadyWeb(id: string): Promise<boolean> {
   const sb = await supabaseServer();
-  const [{ data: row, error }, { data: domains }] = await Promise.all([
-    sb.from("backlog").select("sources,gaps,dedup_note,gate1_checks").eq("id", id).single(),
-    sb.from("domains").select("id,domain,tier"),
-  ]);
-  if (error || !row) throw new Error(`후보 ${id} 를 찾지 못했다`);
-  return gate1Check(row as Gate1Row, (domains ?? []) as Gate1Domain[]);
-}
-
-/** 글로벌판 게이트 1 조건 4 — 빈 역할·소스 겹침 경고를 사람이 확인했다는 기록. 기록자는 사용자 id(이메일은 남기지 않는다) */
-export async function confirmGate1Warnings(id: string) {
-  if (pipelineLocale() !== "en") throw new Error("글로벌판 전용 기능이다");
-  const sb = await supabaseServer();
-  const { data: { user } } = await sb.auth.getUser();
-  const { data: row, error } = await sb.from("backlog").select("gate1_checks").eq("id", id).single();
-  if (error || !row) throw new Error(`후보 ${id} 를 찾지 못했다`);
-  const checks = { ...((row.gate1_checks as Record<string, unknown> | null) ?? {}), warnings_confirmed: { at: new Date().toISOString(), by: user?.id ?? "unknown" } };
-  const { error: e2 } = await sb.from("backlog").update({ gate1_checks: checks }).eq("id", id);
-  if (e2) throw new Error(e2.message);
-  revalidatePath("/backlog");
+  const { data: b } = await sb.from("backlog").select("series_id,series_no").eq("id", id).single();
+  if (!b?.series_id || !b.series_no || b.series_no <= 1) return true;
+  const { data: p } = await sb.from("backlog").select("status").eq("series_id", b.series_id).eq("series_no", b.series_no - 1).maybeSingle();
+  return !!p && SERIES_PREV_READY.includes(p.status);
 }
 
 /** 글로벌판 보조 주제 변경 — 후보 구성 뒤 더하거나 뺀다(명세 2장). 대표 주제(mid_topic)와 같으면 거부, 빈 값은 지움 */
@@ -105,9 +87,18 @@ export async function requestGlobalTopicPlan(input: { topics: string[]; title: s
 }
 
 /** 작업 요청 (사람 트리거): sweep · tts · thumbnail · package · cluster 재실행. requested_by 는 트리거가 찍는다. */
-export async function enqueueJob(type: "sweep" | "cluster" | "tts" | "thumbnail" | "package" | "domain_check", payload: Record<string, unknown>) {
+export async function enqueueJob(type: "sweep" | "cluster" | "tts" | "thumbnail" | "package" | "domain_check" | "series_plan", payload: Record<string, unknown>) {
   const sb = await supabaseServer();
-  const requires_ai = type === "cluster" || (type === "sweep" && (payload.mode === "B" || payload.mode === "B2")); // 보강 스윕(모드 B-①)·주제 기획(B-②)은 WebSearch 를 쓰는 AI 실행
+  // 글로벌판(명세 6.10): 패키지로 이어지는 작업은 에이전트 판정이 발행 가능이고 필수 수정이 전부 반영된 편만 — 화면이 버튼을 막고, 여기서 다시 검사한다. 발행된 편의 재발행 준비는 막지 않는다. 한국판은 타지 않는다
+  const toPackage = type === "package" || (Array.isArray(payload.chain) && payload.chain.includes("package"));
+  if (toPackage && pipelineLocale() === "en" && typeof payload.episode_id === "string") {
+    const { data: ep, error: e0 } = await sb.from("episodes").select("critic_verdicts,backlog_id").eq("id", payload.episode_id).single();
+    if (e0) throw new Error(e0.message);
+    const { data: b } = await sb.from("backlog").select("status").eq("id", ep.backlog_id).single();
+    const g = agentGate(ep.critic_verdicts);
+    if (b?.status !== "published" && !g.ok) throw new Error(`발행 준비를 시작할 수 없습니다 — ${g.blockers.join(" · ")}`);
+  }
+  const requires_ai = type === "cluster" || type === "series_plan" || (type === "sweep" && (payload.mode === "B" || payload.mode === "B2" || payload.mode === "P")); // P: 소스 풀 채우기(2026-10-21) — 웹 검색 실행기 // series_plan: 시리즈 설계안(0029) — 단발 AI 호출 // 보강 스윕(모드 B-①)·주제 기획(B-②)은 WebSearch 를 쓰는 AI 실행
   const { data, error } = await sb.from("jobs").insert({ type, requires_ai, payload, status: "queued" }).select("id").single();
   if (error) throw new Error(error.message);
   revalidatePath("/"); revalidatePath("/sweep"); revalidatePath("/episodes");
@@ -217,17 +208,32 @@ export async function saveCriticVerdicts(episodeId: string, verdicts: unknown) {
 }
 
 /** 발행 대기 목록 — 패키지(packaged)·오디오(dist.mp3) 둘 다 끝났고 아직 발행 안 된 에피소드. audio_dist_key 가 있고 backlog 상태가 packaged 인 것. 발행 업로드 화면의 선택 목록. */
+/** 시리즈 편이면 그 시리즈 — 시리즈 편에는 개별 [발행]이 없다(spec/11 7장). 업로드 화면이 막을 때 쓴다 */
+export async function backlogSeries(backlogId: string): Promise<{ series_id: string; series_no: number } | null> {
+  const sb = await supabaseServer();
+  const { data } = await sb.from("backlog").select("series_id,series_no").eq("id", backlogId).maybeSingle();
+  return data?.series_id ? { series_id: data.series_id as string, series_no: data.series_no as number } : null;
+}
+
 export async function listPublishableEpisodes(): Promise<{ id: string; title: string; mid_topic: string; created_at: string }[]> {
   const sb = await supabaseServer();
   const { data: eps, error } = await sb.from("episodes").select("id,backlog_id,audio_dist_key,created_at").not("audio_dist_key", "is", null).order("created_at", { ascending: false }).order("id", { ascending: false }); // 최신순 — 접두어(T·X·S)와 무관하게
   if (error) throw new Error(error.message);
   const ids = [...new Set((eps ?? []).map((e) => e.backlog_id))];
   if (ids.length === 0) return [];
-  const { data: bls } = await sb.from("backlog").select("id,title,mid_topic,status").in("id", ids);
+  const { data: bls } = await sb.from("backlog").select("id,title,mid_topic,status,series_id").in("id", ids);
   const bl = Object.fromEntries((bls ?? []).map((b) => [b.id, b]));
   return (eps ?? [])
-    .filter((e) => bl[e.backlog_id]?.status === "packaged")
+    .filter((e) => bl[e.backlog_id]?.status === "packaged" && !bl[e.backlog_id]?.series_id) // 시리즈 편은 시리즈 화면의 [시리즈 발행]으로만 (spec/11 7장)
     .map((e) => ({ id: e.id, title: bl[e.backlog_id]?.title ?? e.id, mid_topic: bl[e.backlog_id]?.mid_topic ?? "", created_at: e.created_at as string }));
+}
+
+/** 이 인스턴스 파이프라인의 중분류 이름 전부(비활성 포함) — 콘솔이 제품 주제 목록에서 이 시장 주제만 고를 때 쓴다(lib/ear splitConsoleTopics) */
+export async function listPipelineTopicNames(): Promise<string[]> {
+  const sb = await supabaseServer();
+  const { data, error } = await sb.from("topics").select("mid");
+  if (error) throw new Error(error.message);
+  return (data ?? []).map((t) => t.mid as string);
 }
 
 /**
@@ -383,6 +389,18 @@ export async function requestReinforce(backlogId: string) {
   return enqueueJob("sweep", { mode: "B", backlog_id: backlogId });
 }
 
+/** 소스 풀 채우기 (스윕 모드 P, 2026-10-21 팀원 요청) — 중분류(+메모)로 발행처를 웹 검색해 candidate 행만 만든다. 판정은 사람(spec/01 4장) */
+export async function requestPoolDiscover(input: { midTopic: string; hint?: string }): Promise<string> {
+  const mid = input.midTopic.trim(); if (!mid) throw new Error("중분류를 고르세요");
+  const sb = await supabaseServer();
+  const { data: t, error } = await sb.from("topics").select("mid").eq("mid", mid).maybeSingle();
+  if (error) throw new Error(error.message); if (!t) throw new Error(`모르는 중분류: ${mid}`);
+  const hint = input.hint?.trim() || null;
+  const id = await enqueueJob("sweep", { mode: "P", mid_topic: mid, ...(hint ? { hint } : {}) });
+  revalidatePath("/domains");
+  return id;
+}
+
 export async function requestDomainCheck(domainIds: string[] | null, onlyUnchecked = true) {
   return enqueueJob("domain_check", { domain_ids: domainIds, only_unchecked: onlyUnchecked });
 }
@@ -434,7 +452,7 @@ export async function editScriptTurn(episodeId: string, turn: string, after: str
   if (!ep?.script_key) throw new Error("대본 파일 키가 없습니다");
   const md = await loadArtifact(ep.script_key);
   if (md == null) throw new Error(`대본을 읽을 수 없습니다: ${ep.script_key} (PIPELINE_BUCKET·AWS 자격증명 확인)`);
-  const r = replaceTurn(md, turn, after.trim(), speakerNames());
+  const r = replaceTurn(md, turn, after.trim(), allSpeakerNames());
   if (!r) throw new Error(`대본에서 ${turn} 을 찾을 수 없습니다`);
   if (r.before.trim() === after.trim()) return { changed: false };
   await writeArtifact(ep.script_key, r.md);

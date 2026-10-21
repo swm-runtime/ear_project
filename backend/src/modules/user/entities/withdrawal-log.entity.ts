@@ -2,6 +2,8 @@ import { Column, Entity, PrimaryGeneratedColumn } from 'typeorm';
 
 import { BaseEntity } from '@/database/base.entity';
 
+import { UserMarket } from '../user.enum';
+
 /**
  * domain.md 3.4 — 탈퇴 사유 집계용.
  * **`user_id` FK를 두지 않는다.** 탈퇴 사용자를 다시 식별할 수 있으면 탈퇴의 의미가 없다.
@@ -26,4 +28,16 @@ export class WithdrawalLog extends BaseEntity {
 
   @Column({ name: 'withdrawn_at', type: 'timestamptz' })
   withdrawnAt: Date;
+
+  /**
+   * 탈퇴한 사용자의 시장(2026-10-17) — 탈퇴를 시장별로 보고 해외 전용 사유를 둘 수 있게 한다. 값이 둘(kr·global)뿐이라
+   * 사람을 가리키지 않는다(`user_hash`와 같은 비식별 원칙 안이다)
+   */
+  @Column({
+    name: 'market',
+    type: 'varchar',
+    length: 10,
+    default: UserMarket.KR,
+  })
+  market: UserMarket;
 }

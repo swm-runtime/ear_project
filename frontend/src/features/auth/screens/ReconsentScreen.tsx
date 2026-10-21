@@ -1,4 +1,4 @@
-import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { theme } from '@/shared/theme';
@@ -7,6 +7,7 @@ import ConfirmDialog from '@/shared/ui/ConfirmDialog';
 import { pillButton } from '@/shared/ui/pill-button.styles';
 import { Text } from '@/shared/ui/Typography';
 
+import { hasPolicyDocument } from '../auth.constants';
 import { AUTH_COPY } from '../auth.copy';
 import ConsentItem from '../components/ConsentItem';
 import { useReconsentScreen } from '../hooks/useReconsentScreen';
@@ -39,7 +40,14 @@ export default function ReconsentScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <View style={styles.body}>
+      {/* 본문은 스크롤된다 — A4 와 같은 구조라 긴 영어 동의 항목이 하단 버튼 밑으로 깔린다(2026-10-18 영어 QA).
+          버튼·로그아웃은 스크롤 밖 형제라 본문 끝은 언제나 그 위에서 멈춘다 */}
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={styles.body}
+        alwaysBounceVertical={false}
+        showsVerticalScrollIndicator={false}
+      >
         <Text style={styles.title}>{AUTH_COPY.reconsent.title}</Text>
         <Text style={styles.description}>{AUTH_COPY.reconsent.description}</Text>
 
@@ -68,16 +76,16 @@ export default function ReconsentScreen() {
               description={item.description}
               onToggle={() => toggleConsent(item.consentType)}
               // 열람 문서가 있는 항목만 [보기]를 그린다 — 연령 확인은 version이 항상 null인
-              // 자기 선언이라 열 문서가 없다(auth-uiux.md 4.3-1)
+              // 자기 선언이라 열 문서가 없다(auth-uiux.md 4.3-1). 국외 이전은 처리방침의 국외 이전 절
               onViewPress={
-                item.consentType === 'terms' || item.consentType === 'privacy'
+                hasPolicyDocument(item.consentType)
                   ? () => handleViewPress(item.consentType)
                   : undefined
               }
             />
           ))}
         </View>
-      </View>
+      </ScrollView>
 
       <Pressable
         style={[
@@ -138,9 +146,14 @@ const styles = StyleSheet.create({
     backgroundColor: theme.color.background,
     paddingHorizontal: theme.spacing.lg,
   },
-  body: {
+  scroll: {
     flex: 1,
+  },
+  body: {
+    flexGrow: 1,
     paddingTop: theme.spacing.xxl,
+    // 마지막 항목과 하단 버튼 사이 숨 — 스크롤 끝에서 항목이 버튼에 붙지 않게
+    paddingBottom: theme.spacing.lg,
   },
   title: {
     fontSize: theme.font.size.xl,

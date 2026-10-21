@@ -20,6 +20,13 @@ jest.mock('expo-modules-core', () => ({
   requireOptionalNativeModule: () => mockNativeIap,
 }));
 
+// 법적 고지가 세션 시장을 읽는다(KAN-196) — auth 공개 API 는 네이티브 의존을 끌어와 selector 만 흉내 낸다
+jest.mock('@/features/auth', () => ({
+  useSessionStore: (selector: (state: { user: { market: 'kr' } }) => unknown) =>
+    selector({ user: { market: 'kr' } }),
+  selectMarket: (state: { user: { market: 'kr' } }) => state.user.market,
+}));
+
 /** 빌드 플래그·모듈 유무를 정한 뒤 모듈을 새로 읽는다 — 플래그는 모듈을 읽는 시점에 정해진다 */
 const loadWith = (env: { flag: string | undefined; hasNativeIap: boolean }) => {
   if (env.flag === undefined) delete process.env.EXPO_PUBLIC_SUBSCRIPTION_UI;

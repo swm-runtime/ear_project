@@ -9,7 +9,7 @@ import {
   SubscriptionStatus,
   SubscriptionStore,
 } from '@/modules/subscription/subscription.enum';
-import { DevicePlatform, UserTier } from '@/modules/user/user.enum';
+import { DevicePlatform, UserMarket, UserTier } from '@/modules/user/user.enum';
 
 import { AppStoreVerificationError } from './app-store/app-store.gateway';
 import { PlanAction } from './billing.enum';
@@ -110,10 +110,12 @@ describe('BillingOrchestrator — 요금제 목록(4.1)', () => {
 
     const catalog = await orchestrator.listPlans(USER, DevicePlatform.IOS);
 
-    expect(catalog.plans.map((plan) => [plan.tier, plan.action])).toEqual([
-      [UserTier.LIGHT, PlanAction.CURRENT],
-      [UserTier.DAILY, PlanAction.PURCHASE],
-      [UserTier.PRO, PlanAction.PURCHASE],
+    expect(
+      catalog.plans.map((plan) => [plan.tier, plan.action, plan.isFree]),
+    ).toEqual([
+      [UserTier.LIGHT, PlanAction.CURRENT, true],
+      [UserTier.DAILY, PlanAction.PURCHASE, false],
+      [UserTier.PRO, PlanAction.PURCHASE, false],
     ]);
     expect(catalog.plans[2]).toMatchObject({
       storeProductId: PRODUCT_PRO,
@@ -121,6 +123,37 @@ describe('BillingOrchestrator — 요금제 목록(4.1)', () => {
       entitlements: { dailyPlayLimit: null, adsEnabled: false },
     });
     expect(catalog.isEmailVerified).toBe(true);
+  });
+
+  it('GLOBAL 사용자에게는 요금제 이름·설명을 영어로 준다 — KR 사용자는 종전 한국어 그대로다(KAN-192 일부)', async () => {
+    // given
+    const { world, orchestrator } = setup();
+    world.addUser('global-user', { market: UserMarket.GLOBAL });
+
+    // when
+    const globalCatalog = await orchestrator.listPlans(
+      'global-user',
+      DevicePlatform.IOS,
+    );
+    const krCatalog = await orchestrator.listPlans(USER, DevicePlatform.IOS);
+
+    // then
+    expect(globalCatalog.plans.map((plan) => plan.description)).toEqual([
+      'Free',
+      '5 a day',
+      'Unlimited',
+    ]);
+    expect(krCatalog.plans.map((plan) => plan.description)).toEqual([
+      '무료',
+      '하루 5편',
+      '무제한',
+    ]);
+    // 무료 판정은 시장과 무관하다(KAN-226)
+    expect(globalCatalog.plans.map((plan) => plan.isFree)).toEqual([
+      true,
+      false,
+      false,
+    ]);
   });
 
   it('데일리 구독자에게 프로는 업그레이드, 프로 구독자에게 데일리는 변경(다운그레이드)이고 무료는 해지(cancel)다', async () => {
@@ -219,6 +252,12 @@ describe('BillingOrchestrator — 요금제 목록(4.1)', () => {
       PlanAction.NONE,
       PlanAction.CURRENT,
       PlanAction.NONE,
+    ]);
+    // 무료 행과 "이 기기에서 못 사는 유료 행"이 둘 다 none 이라, 무료 표시는 is_free 로 가른다(KAN-226)
+    expect(catalog.plans.map((plan) => plan.isFree)).toEqual([
+      true,
+      false,
+      false,
     ]);
   });
 

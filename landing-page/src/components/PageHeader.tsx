@@ -19,7 +19,15 @@ export function PageHeader({
   title,
   lede,
   meta,
+  homeLabel = "홈",
+  homePath = routes.home.path,
+  crumbsAria = "현재 위치",
 }: {
+  /** 영어 페이지가 바꾼다 */
+  homeLabel?: string;
+  /** 빵부스러기 첫 칸의 주소. 영어 페이지는 영어 홈(`/en/`)을 넘긴다(KAN-199) — 기본은 한국어 홈 */
+  homePath?: string;
+  crumbsAria?: string;
   crumbs?: Crumb[];
   title: string;
   lede?: string;
@@ -30,10 +38,10 @@ export function PageHeader({
     <div className={s.wrap}>
       <div className={s.glow} aria-hidden="true" />
       <div className={`container ${s.inner}`}>
-        <nav className={s.crumbs} aria-label="현재 위치">
+        <nav className={s.crumbs} aria-label={crumbsAria}>
           <ol>
             <li>
-              <Link href={routes.home.path}>홈</Link>
+              <Link href={homePath}>{homeLabel}</Link>
             </li>
             {crumbs.map((c) => (
               <li key={c.name}>

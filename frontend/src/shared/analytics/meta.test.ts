@@ -1,6 +1,11 @@
 import { beforeEach, describe, expect, it, jest } from '@jest/globals';
 
-import { forwardToMeta, setMetaUser } from './meta';
+import {
+  forwardToMeta,
+  getAdMeasurementAllowed,
+  setAdMeasurementAllowed,
+  setMetaUser,
+} from './meta';
 
 jest.mock('react-native', () => ({ Platform: { OS: 'ios' } }));
 // 운영 변형 — 개발계(IS_DEV_API)에서는 스텁이라 여기선 운영으로 둔다
@@ -126,5 +131,131 @@ describe('Meta 광고 측정 — track() 이 고른 이벤트만 넘긴다(KAN-9
     const status = await forwardToMeta('play_complete', { content_id: 'c1', listen_sec: 600 });
     expect(status).toBe('skipped');
     expect(mockLogEvent).not.toHaveBeenCalled();
+  });
+});
+
+describe('광고 측정 허용 토글 — 끄면 Meta 로 보내지 않는다(KAN-217)', () => {
+  beforeEach(async () => {
+    // 앞 테스트가 끈 값을 남기지 않는다 — 기본(켜짐)에서 시작
+    await setAdMeasurementAllowed(true);
+    mockLogEvent.mockClear();
+    mockSetAdvertiserIDCollectionEnabled.mockClear();
+    mockSetAutoLogAppEventsEnabled.mockClear();
+  });
+
+  it('끄면 대상 이벤트도 보내지 않고 SDK 자동 이벤트·광고 ID 수집을 즉시 끈다', async () => {
+    expect(await setAdMeasurementAllowed(false)).toBe(true);
+    expect(mockSetAutoLogAppEventsEnabled).toHaveBeenLastCalledWith(false);
+    expect(mockSetAdvertiserIDCollectionEnabled).toHaveBeenLastCalledWith(false);
+    expect(getAdMeasurementAllowed()).toBe(false);
+
+    const status = await forwardToMeta('sign_up', { method: 'kakao' });
+    expect(status).toBe('opted_out');
+    expect(mockLogEvent).not.toHaveBeenCalled();
+  });
+
+  it('끈 동안의 첫 재생은 기록하지 않는다 — 다시 켠 뒤 첫 재생이 그대로 나간다', async () => {
+    setMetaUser('user-opt-hash');
+    await setAdMeasurementAllowed(false);
+    const whileOff = await forwardToMeta('play_start', {
+      content_id: 'c1',
+      entry: 'library',
+      origin: 'ai_generated',
+      resumed: false,
+    });
+    await setAdMeasurementAllowed(true);
+    const afterOn = await forwardToMeta('play_start', {
+      content_id: 'c1',
+      entry: 'library',
+      origin: 'ai_generated',
+      resumed: false,
+    });
+    expect(whileOff).toBe('opted_out');
+    expect(afterOn).toBe('sent');
+    expect(mockLogEvent).toHaveBeenCalledTimes(1);
+    expect(mockLogEvent).toHaveBeenCalledWith('first_play');
+  });
+
+  it('다시 켜면 자동 이벤트를 켜고 광고 ID 는 종전 값(iOS false)으로 돌리고 전송을 재개한다', async () => {
+    await setAdMeasurementAllowed(false);
+    await setAdMeasurementAllowed(true);
+    expect(mockSetAutoLogAppEventsEnabled).toHaveBeenLastCalledWith(true);
+    expect(mockSetAdvertiserIDCollectionEnabled).toHaveBeenLastCalledWith(false);
+    const status = await forwardToMeta('onboarding_complete', {
+      topic_count: 1,
+      career_filled: false,
+      picked_count: 0,
+      elapsed_sec: 10,
+    });
+    expect(status).toBe('sent');
+  });
+});
+
+describe('광고 측정 허용 — 앱 시작 때 저장 값으로 SDK 를 맞춘다(KAN-217)', () => {
+  type SecureStorageStub = {
+    get: () => Promise<string | null>;
+    set: () => Promise<void>;
+  };
+  /**
+   * 저장소를 바꿔 끼운 새 모듈 — 시작 시 읽기는 모듈마다 한 번이라 테스트마다 새로 띄운다.
+   * `isolateModules` 는 이미 만들어진 목(파일 위 `jest.mock`)을 그대로 돌려줘서 `resetModules` 로 비운다
+   */
+  const loadIsolated = (storage: SecureStorageStub): typeof import('./meta') => {
+    jest.resetModules();
+    jest.doMock('@/shared/storage/secure-storage', () => ({
+      secureStorage: { ...storage, remove: async () => undefined },
+    }));
+    return jest.requireActual<typeof import('./meta')>('./meta');
+  };
+  const noopSet = async (): Promise<void> => undefined;
+
+  beforeEach(() => {
+    mockLogEvent.mockClear();
+    mockSetAutoLogAppEventsEnabled.mockClear();
+    mockSetAdvertiserIDCollectionEnabled.mockClear();
+    mockInitializeSDK.mockClear();
+  });
+
+  it('저장 값이 꺼짐이면 시작 동기화가 SDK 를 끈 채 초기화하고, 이후 이벤트는 opted_out', async () => {
+    const meta = loadIsolated({ get: async () => '0', set: noopSet });
+    expect(await meta.syncAdMeasurementPreference()).toBe(false);
+    expect(meta.getAdMeasurementAllowed()).toBe(false);
+    expect(mockSetAutoLogAppEventsEnabled).toHaveBeenCalledWith(false);
+    expect(mockSetAutoLogAppEventsEnabled).not.toHaveBeenCalledWith(true);
+    expect(mockSetAdvertiserIDCollectionEnabled).toHaveBeenCalledWith(false);
+    expect(mockInitializeSDK).toHaveBeenCalled();
+    expect(await meta.forwardToMeta('sign_up', { method: 'apple' })).toBe('opted_out');
+    expect(mockLogEvent).not.toHaveBeenCalled();
+  });
+
+  it('저장 값이 없으면 켜짐(기본값)이다', async () => {
+    const meta = loadIsolated({ get: async () => null, set: noopSet });
+    expect(await meta.syncAdMeasurementPreference()).toBe(true);
+    expect(mockSetAutoLogAppEventsEnabled).toHaveBeenCalledWith(true);
+    expect(await meta.forwardToMeta('sign_up', { method: 'apple' })).toBe('sent');
+  });
+
+  it('저장 값을 읽지 못하면 켜짐(기본값)으로 본다', async () => {
+    const meta = loadIsolated({
+      get: async () => {
+        throw new Error('keychain unavailable');
+      },
+      set: noopSet,
+    });
+    expect(await meta.syncAdMeasurementPreference()).toBe(true);
+    expect(meta.getAdMeasurementAllowed()).toBe(true);
+    expect(await meta.forwardToMeta('sign_up', { method: 'apple' })).toBe('sent');
+  });
+
+  it('저장에 실패하면 값을 바꾸지 않고 false 를 돌려준다(화면이 원복한다)', async () => {
+    const meta = loadIsolated({
+      get: async () => null,
+      set: async () => {
+        throw new Error('write failed');
+      },
+    });
+    expect(await meta.setAdMeasurementAllowed(false)).toBe(false);
+    expect(meta.getAdMeasurementAllowed()).toBe(true);
+    expect(mockSetAutoLogAppEventsEnabled).not.toHaveBeenCalledWith(false);
   });
 });

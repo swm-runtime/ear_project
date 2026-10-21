@@ -19,12 +19,18 @@ interface ContentDetailHeaderProps {
   onPlayPress: () => void;
   onSavePress: () => void;
   onDeletePress: () => void;
+  /** 해시태그 탭 → 탐색 탭의 `#태그` 검색(KAN-219, uiux 4.1) */
+  onTagPress: (tag: string) => void;
 }
+
+/** 태그 글자를 누르는 동안 — iOS 시스템 글자 버튼의 눌림(옅어짐)과 같은 처리 */
+const TAG_PRESSED_OPACITY = 0.5;
 
 /**
  * CD1·CD2 헤더 — 썸네일 · 제목 · 주제 태그 · 액션 버튼 줄(content-detail.md 4.2).
  * [재생]이 주 액션(primary), [담기]/[삭제]가 보조 액션(outline)이다(uiux 4.1).
- * 주제 태그는 MVP에서 탭 대상이 아니다 — 탭 가능해 보이는 시각 처리를 하지 않는다.
+ * 주제 칩(사진 알약)은 MVP에서 탭 대상이 아니다 — 탭 가능해 보이는 시각 처리를 하지 않는다.
+ * 해시태그는 글자마다 탭하면 탐색 검색(`#태그`)이 열린다(KAN-219).
  */
 export default function ContentDetailHeader({
   content,
@@ -33,6 +39,7 @@ export default function ContentDetailHeader({
   onPlayPress,
   onSavePress,
   onDeletePress,
+  onTagPress,
 }: ContentDetailHeaderProps) {
   return (
     <View style={styles.root}>
@@ -48,7 +55,7 @@ export default function ContentDetailHeader({
               <View key={topic.id} style={styles.chip}>
                 {/* 주제 사진 알약 — 온보딩·탐색·필터와 같은 문법(design.md 주제 칩). 고를 수 없는 표시라 선택 상태는 없다 */}
                 <Image
-                  source={topicImageSource(topic.name)}
+                  source={topicImageSource({ name: topic.name })}
                   resizeMode="cover"
                   style={styles.chipPhoto}
                 />
@@ -60,11 +67,27 @@ export default function ContentDetailHeader({
             ))}
           </View>
           {/*
-            콘텐츠 해시태그(KAN-163) — 주제 칩(사진 알약 = 분류)과 구분되게 배경 없는 '#' 글자 한 줄. 표시만, 탭 없음.
-            없으면 줄을 그리지 않는다
+            콘텐츠 해시태그(KAN-163) — 주제 칩(사진 알약 = 분류)과 구분되게 배경 없는 '#' 글자 줄. 없으면 줄을 그리지 않는다.
+            글자마다 따로 눌리는 버튼이다(KAN-219 — 탭 = 탐색 탭의 `#태그` 검색). 터치 44×44 는 상자가 채우고(design.md §6),
+            줄은 위아래로 당겨 보이는 간격을 종전과 비슷하게 둔다. 글자는 자기 Pressable 안에만 있어 형제 위에 겹치지 않는다
           */}
           {content.tags.length > 0 ? (
-            <Text style={styles.hashtags}>{content.tags.map((tag) => `#${tag}`).join('  ')}</Text>
+            <View style={styles.hashtags}>
+              {content.tags.map((tag) => (
+                <Pressable
+                  key={tag}
+                  onPress={() => onTagPress(tag)}
+                  style={({ pressed }) => [
+                    styles.hashtagButton,
+                    pressed ? styles.hashtagPressed : null,
+                  ]}
+                  accessibilityRole="button"
+                  accessibilityLabel={CONTENT_DETAIL_COPY.hashtagSearchA11y(tag)}
+                >
+                  <Text style={styles.hashtagLabel}>{CONTENT_DETAIL_COPY.hashtag(tag)}</Text>
+                </Pressable>
+              ))}
+            </View>
           ) : null}
         </View>
       </View>
@@ -150,6 +173,23 @@ const styles = StyleSheet.create({
   },
   // 해시태그 — 보조색 글자만(칩 모양을 쓰지 않는다 — 주제 칩과 섞이면 분류인지 내용인지 안 읽힌다)
   hashtags: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    // 버튼 상자(44)가 키운 높이만큼 위아래를 당긴다 — 글자 위치는 종전 한 줄과 비슷하게, 첫 글자는 제목 시작선에
+    marginVertical: -theme.spacing.sm,
+    marginLeft: -theme.spacing.xs,
+  },
+  /** 글자 버튼 — 터치 44×44(design.md §6). 좌우 여백 xs 가 태그 사이 간격이 된다(종전 두 칸 공백 대신) */
+  hashtagButton: {
+    minWidth: theme.touchTarget.minWidth,
+    minHeight: theme.touchTarget.minHeight,
+    paddingHorizontal: theme.spacing.xs,
+    justifyContent: 'center',
+  },
+  hashtagPressed: {
+    opacity: TAG_PRESSED_OPACITY,
+  },
+  hashtagLabel: {
     fontSize: theme.font.size.sm,
     fontWeight: '600',
     color: theme.color.textSecondary,

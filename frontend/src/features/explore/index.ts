@@ -4,6 +4,11 @@
  */
 export { default as ExploreScreen } from './screens/ExploreScreen';
 export { default as ExploreSearchScreen } from './screens/ExploreSearchScreen';
+/**
+ * 시리즈 화면(E14 — explore.md 4.7, KAN-225). 화면 등록은 app/navigation 이 한다 — 탐색 카드·콘텐츠 상세의 시리즈 줄은 라우트
+ * 이름(`Series`)으로 이동만 한다(ContentDetail 과 같은 방식)
+ */
+export { default as SeriesScreen } from './screens/SeriesScreen';
 export { EXPLORE_COPY } from './explore.copy';
 export type { ExploreItem, ExploreTopic } from './explore.types';
 
@@ -19,3 +24,9 @@ export { default as ExploreSearchBarRow } from './components/ExploreSearchBarRow
 export { default as ExploreTile } from './components/ExploreTile';
 export { default as PopularPeriodToggle } from './components/PopularPeriodToggle';
 export { default as TopicChips } from './components/TopicChips';
+
+/**
+ * 태그 탭 → 탐색 검색(KAN-219) — 콘텐츠 상세가 `toTab('Explore', { searchQuery: toTagQuery(tag) })` 로 탐색 탭의 검색을
+ * 연다(라우트 파라미터로만 — 검색 화면을 import 하지 않는다). `#` 접두 규칙의 소유자가 explore 라 여기서 꺼내 쓴다
+ */
+export { toTagQuery } from './explore.search-query';

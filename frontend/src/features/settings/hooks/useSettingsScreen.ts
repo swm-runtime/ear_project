@@ -3,28 +3,40 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { AccessibilityInfo, Alert, AppState, Linking, Platform } from 'react-native';
 
-import { track } from '@/shared/analytics';
+import {
+  getAdMeasurementAllowed,
+  setAdMeasurementAllowed,
+  syncAdMeasurementPreference,
+  track,
+} from '@/shared/analytics';
+import {
+  DEVICE_LOCALE,
+  languageOf,
+  setLanguagePreference,
+  type LanguagePreference,
+} from '@/shared/i18n/locale';
 import { copyToClipboard } from '@/shared/lib/clipboard';
 import { IS_SUBSCRIPTION_UI_ENABLED } from '@/shared/lib/feature-flags';
+import { legalUrlsFor } from '@/shared/lib/legal-urls';
 import { logger } from '@/shared/lib/logger';
 import { isOnCellular } from '@/shared/lib/network-type';
 import { secureStorage } from '@/shared/storage/secure-storage';
 import { STORAGE_KEYS } from '@/shared/storage/storage-keys';
 import { useToastStore } from '@/shared/ui/toast.store';
 
-import { sessionService } from '@/features/auth';
+import {
+  selectMarket,
+  sessionService,
+  useSessionStore,
+  type ContentLanguage,
+} from '@/features/auth';
+import { isCareerEntryVisible } from '@/features/career';
 import { getOsPermissionStatus, type OsPermissionStatus } from '@/features/notification';
 import { formatPlanGrantLine } from '@/features/subscription';
 
 import { settingsKeys, submitMarketingConsent, updateUserSettings } from '../api/settings.api';
 import { visibleAudioQualityOptions } from '../settings.audio-quality';
-import {
-  KAKAO_CHANNEL_URL,
-  PRIVACY_POLICY_URL,
-  LICENSES_URL,
-  STORE_URL,
-  TERMS_URL,
-} from '../settings.constants';
+import { KAKAO_CHANNEL_URL, LICENSES_URL, STORE_URL } from '../settings.constants';
 import { SETTINGS_COPY } from '../settings.copy';
 import { deriveEmailStatus } from '../settings.format';
 import type {
@@ -135,6 +147,8 @@ export const useSettingsScreen = () => {
   const queryClient = useQueryClient();
   const query = useSettingsQuery();
   const showToast = useToastStore((s) => s.show);
+  /** 약관·처리방침 링크의 시장 — 서버가 정한 세션 `user.market`(KAN-216) */
+  const market = useSessionStore(selectMarket);
 
   /* ── OS 알림 권한 — 판정 입력은 기기만 안다. 서버 필드가 없다(settings-api.md 3장 설계 메모) ── */
 
@@ -305,6 +319,36 @@ export const useSettingsScreen = () => {
     );
   };
 
+  /* ── 광고 측정 허용(KAN-217) — 기기에만 저장한다(서버 호출 없음 · settings.md 4.1). 낙관적 전환, 저장 실패는
+   * 다른 토글과 같이 원복 + 안내(settings-uiux.md 4.5). 서버 조회와 무관해 조회 실패에도 동작한다 ── */
+
+  const [isAdMeasurementAllowed, setIsAdMeasurementAllowedState] =
+    useState(getAdMeasurementAllowed);
+  /** 조작 순번 — 연타에서 늦게 끝난 앞 조작의 결과가 마지막 조작을 덮지 않게 한다 */
+  const adMeasurementSeqRef = useRef(0);
+
+  // 시작 때 읽은 값을 기다린다 — 화면이 그보다 먼저 열렸을 때만 의미가 있다. 사용자가 이미 만졌으면 덮지 않는다
+  useEffect(() => {
+    let isActive = true;
+    void syncAdMeasurementPreference().then((allowed) => {
+      if (isActive && adMeasurementSeqRef.current === 0) setIsAdMeasurementAllowedState(allowed);
+    });
+    return () => {
+      isActive = false;
+    };
+  }, []);
+
+  const toggleAdMeasurement = (next: boolean): void => {
+    const seq = ++adMeasurementSeqRef.current;
+    setIsAdMeasurementAllowedState(next);
+    void setAdMeasurementAllowed(next).then((isSaved) => {
+      if (isSaved || adMeasurementSeqRef.current !== seq) return;
+      setIsAdMeasurementAllowedState(getAdMeasurementAllowed());
+      showToast(SETTINGS_COPY.saveError);
+      AccessibilityInfo.announceForAccessibility(SETTINGS_COPY.saveError);
+    });
+  };
+
   /* ── 기본 배속 시트 — 선택 즉시 저장하고 닫는다. [저장] 버튼을 두지 않는다(settings.md 4.2) ── */
 
   const [isRateSheetVisible, setIsRateSheetVisible] = useState(false);
@@ -399,11 +443,14 @@ export const useSettingsScreen = () => {
   };
 
   // TODO: expo-web-browser 도입 시 인앱 브라우저로 교체한다(settings.md 4.1 — 약관은 인앱 브라우저)
+  // 문서는 계정 시장의 것이다 — GLOBAL 은 영어 본문(KAN-216). 표시 언어로 고르지 않는다
   const openTerms = (): void => {
-    Linking.openURL(TERMS_URL).catch((error) => logger.warn('[settings] open terms failed', error));
+    Linking.openURL(legalUrlsFor(market).terms).catch((error) =>
+      logger.warn('[settings] open terms failed', error),
+    );
   };
   const openPrivacyPolicy = (): void => {
-    Linking.openURL(PRIVACY_POLICY_URL).catch((error) =>
+    Linking.openURL(legalUrlsFor(market).privacy).catch((error) =>
       logger.warn('[settings] open privacy failed', error),
     );
   };
@@ -416,10 +463,33 @@ export const useSettingsScreen = () => {
     Linking.openURL(STORE_URL).catch((error) => logger.warn('[settings] open store failed', error));
   };
 
+  /* ── 표시 언어(KAN-195 — global-api.md 4.3) — 서버에 알린 뒤 저장하고, 언어가 바뀌면 앱을 다시 부른다 ──
+   * 서버 저장이 실패해도 기기 선택은 적용한다(표시 언어는 기기 설정이고 서버 값은 통계용 — 문구 언어는 시장이 정한다).
+   * 다시 부르기 전에 요청을 끝낸다 — 먼저 다시 부르면 요청이 끊긴다 */
+  const selectLanguage = (next: LanguagePreference): void => {
+    const languageCode =
+      next === 'system' ? DEVICE_LOCALE : languageOf(next) === 'ko' ? 'ko-KR' : 'en-US';
+    const clientSeq = ++clientSeqRef.current;
+    updateUserSettings({ patch: { language_code: languageCode }, clientSeq })
+      .catch((error) => logger.warn('[settings] language save failed', error))
+      .finally(() => setLanguagePreference(next));
+  };
+
+  /** 콘텐츠 언어(시장) 표시 — 가입 때 정해져 바뀌지 않는다. 계정 조회 실패·옛 서버면 null */
+  const contentLanguage: string | null =
+    summary?.account?.market != null
+      ? SETTINGS_COPY.language.contentLanguage[summary.account.market]
+      : null;
+
   /* ── 내비게이션 ── */
 
   const openDestination = (destination: SettingsDestination): void => {
     navigation.navigate('Main', { screen: destination });
+  };
+
+  /** 콘텐츠 언어(시장) 전환 화면(KAN-228) — 막힘·동의는 그 화면이 서버 미리보기로 그린다 */
+  const openMarketChange = (targetLanguage: ContentLanguage): void => {
+    navigation.navigate('Main', { screen: 'MarketChange', params: { targetLanguage } });
   };
 
   /* ── 섹션별 VM — 부분 실패는 해당 카드만 에러로 둔다(S6) ── */
@@ -500,6 +570,8 @@ export const useSettingsScreen = () => {
     toggleAutoExpand,
     toggleDripNotification,
     toggleMarketingConsent,
+    isAdMeasurementAllowed,
+    toggleAdMeasurement,
 
     isPermissionDialogVisible,
     closePermissionDialog: () => setIsPermissionDialogVisible(false),
@@ -552,6 +624,11 @@ export const useSettingsScreen = () => {
 
     /** 관리자 섹션 — 서버 판정 boolean 하나. account 실패 시 노출하지 않는다(안전한 기본값) */
     isAdmin: summary?.account?.isAdmin ?? false,
+    contentLanguage,
+    selectLanguage,
+    /** 콘텐츠 언어(시장) — 세션 값. 표시는 섹션이 언어 이름으로 */
+    market,
+    openMarketChange,
     /** 서버 update_available 판정 결과 — 클라이언트가 버전을 비교하지 않는다 */
     isUpdateAvailable: summary?.version.updateAvailable ?? false,
 
@@ -579,6 +656,8 @@ export const useSettingsScreen = () => {
       openContact();
     },
     openInterests: () => openDestination('InterestManagement'),
+    /** [커리어 정보] 행 노출 — GLOBAL 시장 계정에는 두지 않는다(settings.md 3장, PM 확정 2026-10-18). 세션 시장 기준 */
+    isCareerVisible: isCareerEntryVisible(market),
     openCareer: () => openDestination('Career'),
     openNotice: () => openDestination('Notice'),
     openWithdrawal: () => openDestination('Withdrawal'),

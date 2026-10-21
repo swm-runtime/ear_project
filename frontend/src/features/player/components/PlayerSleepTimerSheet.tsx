@@ -21,8 +21,13 @@ interface PlayerSleepTimerSheetProps {
   onClose: () => void;
 }
 
-/** 행 6개: 5분 · 10분 · 15분 · 30분 · 이 에피소드 종료 시 · 해제(`player-uiux.md` 4.6 PL5) */
-const OPTIONS: { key: string; choice: SleepTimerChoice | null; label: string }[] = [
+type SleepTimerOption = { key: string; choice: SleepTimerChoice | null; label: string };
+
+/**
+ * 행 6개: 5분 · 10분 · 15분 · 30분 · 이 에피소드 종료 시 · 해제(`player-uiux.md` 4.6 PL5).
+ * 라벨은 그리는 순간에 읽는다 — 가입 때 표시 언어가 다시 부르지 않고 바뀔 수 있다(shared/i18n/localized)
+ */
+const sleepTimerOptions = (): SleepTimerOption[] => [
   ...SLEEP_TIMER_MINUTES.map((minutes) => ({
     key: `m${minutes}`,
     choice: { kind: 'minutes', minutes } as SleepTimerChoice,
@@ -57,7 +62,7 @@ export default function PlayerSleepTimerSheet({
             <Text style={styles.title} accessibilityRole="header">
               {PLAYER_COPY.sleepTimerSheet.title}
             </Text>
-            {OPTIONS.map((option) => {
+            {sleepTimerOptions().map((option) => {
               // "해제" 줄에는 체크를 두지 않는다 — 꺼져 있다는 것은 다른 줄에 체크가 없는 것으로 읽힌다
               const isSelected =
                 option.choice !== null && isSameSleepTimerChoice(option.choice, currentChoice);

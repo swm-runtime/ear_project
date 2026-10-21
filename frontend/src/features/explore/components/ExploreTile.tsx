@@ -67,7 +67,12 @@ export default function ExploreTile({
         <Text style={styles.title} numberOfLines={2}>
           {item.content.title}
         </Text>
-        {/* 콘텐츠 해시태그(최대 2) + 길이(KAN-163). 태그가 없으면 길이만 — 자리를 비우지 않는다. 표시만, 탭 없음 */}
+        {/*
+          콘텐츠 해시태그(최대 2) + 길이(KAN-163). 태그가 없으면 길이만 — 자리를 비우지 않는다.
+          **타일의 태그는 표시만이다**(KAN-219 결정 — explore-uiux.md 4.1): xs 글자 두 개가 길이와 한 줄이라 태그마다 44
+          히트 영역을 주면 서로·제목·카드 탭(재생)과 겹친다. 오탭이 재생 판정으로 이어지는 쪽이 더 비싸다. 태그 검색은 대표 카드와
+          콘텐츠 상세(⋯ → 상세 정보)에서 연다
+        */}
         <Text style={styles.meta} numberOfLines={1}>
           {EXPLORE_COPY.row.metaWithTags(item.content.tags.slice(0, MAX_CARD_TAGS), minutes)}
         </Text>

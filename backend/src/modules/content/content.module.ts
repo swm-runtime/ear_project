@@ -11,6 +11,9 @@ import { ContentStat } from './entities/content-stat.entity';
 import { ContentTopic } from './entities/content-topic.entity';
 import { Content } from './entities/content.entity';
 import { SearchQueryLog } from './entities/search-query-log.entity';
+import { Series } from './entities/series.entity';
+import { SeriesRepository } from './repositories/series.repository';
+import { SeriesService } from './services/series.service';
 import { ContentRepository } from './repositories/content.repository';
 import { ContentAudioRenditionRepository } from './repositories/content-audio-rendition.repository';
 import { ContentEmbeddingRepository } from './repositories/content-embedding.repository';
@@ -36,6 +39,7 @@ import { SearchQueryLogService } from './services/search-query-log.service';
       ContentAudioRendition,
       ContentScript,
       SearchQueryLog,
+      Series,
     ]),
     // 라이선스 만료 배치가 라이브러리 잔존분을 함께 지운다(partner-control.md 4.4)
     LibraryModule,
@@ -50,11 +54,18 @@ import { SearchQueryLogService } from './services/search-query-log.service';
     ContentAudioRenditionRepository,
     ContentScriptRepository,
     SearchQueryLogRepository,
+    SeriesRepository,
     ContentService,
     ContentStatService,
     SearchQueryLogService,
+    SeriesService,
     ContentExpiryScheduler,
   ],
-  exports: [ContentService, ContentStatService, SearchQueryLogService],
+  exports: [
+    ContentService,
+    ContentStatService,
+    SearchQueryLogService,
+    SeriesService,
+  ],
 })
 export class ContentModule {}

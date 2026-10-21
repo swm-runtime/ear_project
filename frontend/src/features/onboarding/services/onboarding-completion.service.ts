@@ -4,6 +4,8 @@ import { ERROR_CODES } from '@/shared/api/error-codes';
 import { generateId } from '@/shared/lib/generate-id';
 import { logger } from '@/shared/lib/logger';
 
+import { isReonboardingAfterMarketChange } from '@/features/auth';
+
 import { completeOnboarding } from '../api/onboarding.api';
 import { useOnboardingStore } from '../store/onboarding.store';
 
@@ -67,6 +69,12 @@ class OnboardingCompletionService {
     if (this.hasReportedComplete) return;
     this.hasReportedComplete = true;
     const { startedAt, topicCount, careerFilled } = this.funnel;
+    // 시장 전환 뒤 재온보딩은 가입 퍼널이 아니다 — 완료 이벤트를 다시 보내면 가입 완료를 두 번 센다(KAN-228).
+    // 주제 수는 지금 값이라 사용자 속성만 갱신한다
+    if (isReonboardingAfterMarketChange()) {
+      setAnalyticsUserProperties({ topic_count: topicCount });
+      return;
+    }
     track('onboarding_complete', {
       topic_count: topicCount,
       career_filled: careerFilled,

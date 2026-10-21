@@ -1,9 +1,12 @@
+import { UserMarket } from '@/modules/user/user.enum';
+
 import {
   DailyMetrics,
   delta,
   formatChurnReport,
   formatDailyMetrics,
   formatDuration,
+  formatListenTime,
   formatRetention,
   reportDate,
 } from './daily-metrics.format';
@@ -11,11 +14,27 @@ import {
 const base: DailyMetrics = {
   date: '2026-09-28',
   members: { total: 1351, signUps: 7 },
+  markets: [
+    {
+      market: UserMarket.KR,
+      totalUsers: 1350,
+      signUps: 7,
+      listeners: 30,
+      plays: 40,
+      listenSec: 45_000,
+    },
+    {
+      market: UserMarket.GLOBAL,
+      totalUsers: 1,
+      signUps: 0,
+      listeners: 0,
+      plays: 0,
+      listenSec: 0,
+    },
+  ],
   users: {
     active: 1234,
     activePrev: 1200,
-    new: 56,
-    newPrev: 60,
     sessions: 1500,
     avgSessionSec: 116.08,
     active7d: 4000,
@@ -36,6 +55,16 @@ const base: DailyMetrics = {
   retention: { d1: { rate: 0.412, size: 100 }, d7: { rate: 0.1875, size: 80 } },
 };
 
+describe('formatListenTime', () => {
+  it('1시간 미만은 분, 그 이상은 소수 한 자리 시간이다', () => {
+    expect(formatListenTime(0)).toBe('0분');
+    expect(formatListenTime(2_520)).toBe('42분');
+    expect(formatListenTime(3_600)).toBe('1시간');
+    expect(formatListenTime(45_000)).toBe('12.5시간');
+    expect(formatListenTime(36_000_000)).toBe('10,000시간');
+  });
+});
+
 describe('formatDailyMetrics', () => {
   it('제목에 날짜와 요일을 적는다 — 09-28 은 월요일이다', () => {
     expect(formatDailyMetrics(base)).toContain(
@@ -43,25 +72,45 @@ describe('formatDailyMetrics', () => {
     );
   });
 
-  it('가입자 줄 뒤에 퍼널 순서로 4묶음이다 — 사용자·획득·재생·리텐션', () => {
+  it('서버 값 두 줄(가입자·시장별 청취) 뒤에 퍼널 순서로 4묶음이다 — 사용자·획득·재생·리텐션', () => {
     const lines = formatDailyMetrics(base).split('\n');
     expect(lines[1]).toMatch(/^\*가입자\*/);
-    expect(lines[2]).toMatch(/^\*사용자\*/);
-    expect(lines[3]).toMatch(/^\*획득\*/);
-    expect(lines[4]).toMatch(/^\*재생\*/);
-    expect(lines[5]).toMatch(/^\*리텐션\*/);
+    expect(lines[2]).toMatch(/^\*시장별 청취\*/);
+    expect(lines[3]).toMatch(/^\*사용자\*/);
+    expect(lines[4]).toMatch(/^\*획득\*/);
+    expect(lines[5]).toMatch(/^\*재생\*/);
+    expect(lines[6]).toMatch(/^\*리텐션\*/);
   });
 
-  it('가입자 줄에 현재 가입자 수와 어제 가입 수(서버 값)를 적는다', () => {
+  it('가입자 줄에 현재 가입자 수와 어제 가입 수(서버 값)를 적고, 각각 시장별로 나눈다', () => {
     expect(formatDailyMetrics(base)).toContain(
-      '*가입자*   현재 1,351명  ·  어제 가입 7명',
+      '*가입자*   현재 1,351명 (KR 1,350 · GLOBAL 1)  ·  어제 가입 7명 (KR 7 · GLOBAL 0)',
+    );
+  });
+
+  it('시장별 청취 줄은 시장마다 청취자·재생·청취 시간이다 — 0 인 시장도 적는다', () => {
+    expect(formatDailyMetrics(base)).toContain(
+      '*시장별 청취*  KR 30명 · 재생 40 · 12.5시간  ·  GLOBAL 0명 · 재생 0 · 0분',
     );
   });
 
   it('전일 대비 방향을 붙인다 — 오르면 ▲, 내리면 ▼', () => {
-    const text = formatDailyMetrics(base);
-    expect(text).toContain('활성 1,234 (▲34)');
-    expect(text).toContain('신규 56 (▼4)');
+    expect(formatDailyMetrics(base)).toContain('활성 1,234 (▲34)');
+    expect(
+      formatDailyMetrics({
+        ...base,
+        users: { ...base.users, active: 1100 },
+      }),
+    ).toContain('활성 1,100 (▼100)');
+  });
+
+  it('사용자 줄에 신규(GA4 첫 실행)를 싣지 않는다 — 가입은 가입자 줄(서버)이 센다', () => {
+    const line = formatDailyMetrics(base)
+      .split('\n')
+      .find((l) => l.startsWith('*사용자*'));
+    expect(line).toBe(
+      '*사용자*   활성 1,234 (▲34)  ·  세션 1,500 (평균 1분 56초)  ·  7일 활성 4,000',
+    );
   });
 
   it('가입 → 온보딩 완료 전환율을 적고, 가입이 0 이면 비율을 생략한다', () => {
@@ -89,26 +138,10 @@ describe('formatDailyMetrics', () => {
     expect(text).not.toContain('(서버');
   });
 
-  it('각주에 출처와 경계를 적는다 — 가입자 줄만 서버, 나머지는 GA4', () => {
+  it('각주에 하루 범위(전 줄 KST 00~24시)와 출처를 적는다 — 현재 가입자만 보고 시각 값', () => {
     expect(formatDailyMetrics(base)).toContain(
-      '가입자 줄은 서버 값(04시 경계) · 나머지는 GA4 운영 스트림(00시 경계)',
+      '어제 = KST 00~24시(전 줄 같은 범위) · 현재 가입자는 보고 시각 값 · 가입자·시장별 청취 줄은 서버 값, 나머지는 GA4 운영 스트림',
     );
-  });
-
-  it('각주의 서버 경계는 보고 날짜에 적용되는 경계다 — 05:00 전환 뒤 날짜면 05시', () => {
-    const key = 'SERVICE_DAY_BOUNDARY_05_FROM';
-    const prev = process.env[key];
-    process.env[key] = '2026-10-12T05:00:00+09:00';
-    try {
-      expect(formatDailyMetrics({ ...base, date: '2026-10-12' })).toContain(
-        '가입자 줄은 서버 값(05시 경계)',
-      );
-      // 전환 전 날짜는 그대로 04시
-      expect(formatDailyMetrics(base)).toContain('서버 값(04시 경계)');
-    } finally {
-      if (prev === undefined) delete process.env[key];
-      else process.env[key] = prev;
-    }
   });
 
   it('완청 건수를 재생 줄에 넣는다', () => {
@@ -159,41 +192,78 @@ describe('reportDate', () => {
 });
 
 describe('formatChurnReport', () => {
+  const KR = UserMarket.KR;
   const churn = {
     date: '2026-09-28',
     withdrawals: [
-      { reasonCode: 'price', count: 1 },
-      { reasonCode: null, count: 1 },
-      { reasonCode: 'low_usage', count: 2 },
-      { reasonCode: 'content_quailty', count: 1 },
+      { market: KR, reasonCode: 'price', count: 1 },
+      { market: KR, reasonCode: null, count: 1 },
+      { market: KR, reasonCode: 'low_usage', count: 2 },
+      { market: KR, reasonCode: 'content_quailty', count: 1 },
     ],
     appRemoves: 4,
   };
 
-  it('제목·탈퇴 합계·앱 삭제(Android) 순서다 — 지표 보고와 같은 날짜·요일', () => {
+  it('제목·탈퇴 합계(시장별 괄호)·앱 삭제(Android) 순서다 — 지표 보고와 같은 날짜·요일', () => {
     const lines = formatChurnReport(churn).split('\n');
     expect(lines[0]).toContain('*2026-09-28 (월) 이어 이탈*');
-    expect(lines[1]).toBe('*탈퇴*      5명');
+    expect(lines[1]).toBe('*탈퇴*      5명 (KR 5 · GLOBAL 0)');
     expect(lines.at(-2)).toBe('*앱 삭제*  Android 4');
   });
 
-  it('사유는 건수 많은 순, 같으면 화면 순서, 사유 미선택은 맨 뒤다', () => {
-    const lines = formatChurnReport(churn).split('\n').slice(2, 6);
+  it('시장 소제목 아래 사유는 건수 많은 순, 같으면 화면 순서, 사유 미선택은 맨 뒤다 — 탈퇴가 없던 시장은 소제목도 없다', () => {
+    const lines = formatChurnReport(churn).split('\n').slice(2, 7);
     expect(lines).toEqual([
+      '  *KR*  5명',
       '    · 들을 시간이 없거나 잘 안 쓰게 됐어요  2',
       '    · 콘텐츠 품질이 기대에 못 미쳤어요  1',
       '    · 구독 가격이 부담됐어요  1',
       '    · 사유 미선택  1',
     ]);
+    expect(formatChurnReport(churn)).not.toContain('*GLOBAL*');
   });
 
-  it('모르는 사유 코드는 원값을 쓴다 — 조용히 비는 것보다 낫다', () => {
+  it('두 시장 모두 탈퇴가 있으면 KR·GLOBAL 순으로 시장마다 사유를 따로 적는다', () => {
+    const lines = formatChurnReport({
+      ...churn,
+      withdrawals: [
+        { market: UserMarket.GLOBAL, reasonCode: 'price', count: 1 },
+        { market: KR, reasonCode: 'low_usage', count: 2 },
+      ],
+    }).split('\n');
+    expect(lines.slice(1, 6)).toEqual([
+      '*탈퇴*      3명 (KR 2 · GLOBAL 1)',
+      '  *KR*  2명',
+      '    · 들을 시간이 없거나 잘 안 쓰게 됐어요  2',
+      '  *GLOBAL*  1명',
+      '    · 구독 가격이 부담됐어요  1',
+    ]);
+  });
+
+  it('모르는 사유 코드는 원값을 쓴다 — 조용히 비는 것보다 낫다(해외 전용 사유가 문구표보다 먼저 생겨도)', () => {
     expect(
       formatChurnReport({
         ...churn,
-        withdrawals: [{ reasonCode: 'new_reason', count: 1 }],
+        withdrawals: [
+          { market: UserMarket.GLOBAL, reasonCode: 'new_reason', count: 1 },
+        ],
       }),
     ).toContain('· new_reason  1');
+  });
+
+  it('시장 전환이 있던 날만 방향별 건수 줄을 앱 삭제 다음에 적는다(global-api 4.11)', () => {
+    const lines = formatChurnReport({
+      ...churn,
+      marketChanges: [
+        { from: KR, to: UserMarket.GLOBAL, count: 3 },
+        { from: UserMarket.GLOBAL, to: KR, count: 1 },
+      ],
+    }).split('\n');
+    expect(lines.at(-3)).toBe('*앱 삭제*  Android 4');
+    expect(lines.at(-2)).toBe('*시장 전환*  KR→GLOBAL 3 · GLOBAL→KR 1');
+    expect(formatChurnReport({ ...churn, marketChanges: [] })).not.toContain(
+      '시장 전환',
+    );
   });
 
   it('탈퇴가 없어도 보낸다 — 0명과 앱 삭제 줄만', () => {
@@ -203,25 +273,14 @@ describe('formatChurnReport', () => {
       appRemoves: 0,
     });
     expect(text.split('\n')).toHaveLength(4);
-    expect(text).toContain('*탈퇴*      0명');
+    expect(text).toContain('*탈퇴*      0명 (KR 0 · GLOBAL 0)');
     expect(text).toContain('Android 0');
   });
 
-  it('각주에 출처와 경계를 적는다 — 탈퇴는 지표 보고의 가입자 줄과 같은 서버 경계', () => {
+  it('각주에 하루 범위와 출처를 적는다 — 탈퇴·앱 삭제 모두 KST 00~24시', () => {
     expect(formatChurnReport(churn)).toContain(
-      '탈퇴는 서버 값(04시 경계) · 앱 삭제는 GA4 app_remove 운영 스트림(00시 경계)',
+      '어제 = KST 00~24시 · 탈퇴는 서버 값(탈퇴 당시 시장) · 앱 삭제는 GA4 app_remove 운영 스트림',
     );
-    const key = 'SERVICE_DAY_BOUNDARY_05_FROM';
-    const prev = process.env[key];
-    process.env[key] = '2026-10-12T05:00:00+09:00';
-    try {
-      expect(formatChurnReport({ ...churn, date: '2026-10-14' })).toContain(
-        '탈퇴는 서버 값(05시 경계)',
-      );
-    } finally {
-      if (prev === undefined) delete process.env[key];
-      else process.env[key] = prev;
-    }
   });
 
   it('운영이 아니면 환경을 앞에 붙인다', () => {

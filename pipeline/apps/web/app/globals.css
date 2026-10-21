@@ -14,6 +14,13 @@
   --brand-ink: #0f7a6f;
 }
 
+/* 글로벌판 인스턴스 사이드바 (2026-10-15) — 한국판(슬레이트)과 한눈에 갈리게 짙은 자주. aside[data-locale] 아래에서만 바뀐다 */
+[data-locale="en"] {
+  --side: #3b2d4a;
+  --side-soft: #4a3a5b;
+  --side-ink: #cbbfd8;
+}
+
 @theme inline {
   --color-bg: var(--bg);
   --color-panel: var(--panel);

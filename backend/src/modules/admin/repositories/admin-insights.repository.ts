@@ -4,6 +4,7 @@ import { DataSource } from 'typeorm';
 import { UserMarket } from '@/modules/user/user.enum';
 
 import {
+  InsightsCohortCounts,
   InsightsDailyRows,
   InsightsHourly,
   InsightsListeningTotals,
@@ -116,6 +117,13 @@ interface RetentionRow {
   returned: number;
 }
 
+/** `offset`은 SQL 예약어라 열 이름을 `step`으로 받는다 */
+interface CohortHitRow {
+  start: string;
+  step: number;
+  returned: number;
+}
+
 /** KST 달력일 라벨 — 검색 로그 요약(`search-query-log.repository.ts`)과 같은 기준 */
 const kstDateExpr = (column: string): string =>
   `to_char((${column} at time zone 'Asia/Seoul')::date, 'YYYY-MM-DD')`;
@@ -129,8 +137,11 @@ const kstDateExpr = (column: string): string =>
  *
  * - 재생·청취 시간의 원천은 `play_records`(행 단위·즉시 반영)다. `content_stats`는 경계 직후(05:30) 배치가 모으는 집계라 하루
  *   뒤처지고, 대신 탈퇴자의 청취가 남는다 — 두 숫자는 다를 수 있고 이 화면은 전자를 쓴다.
+ * - **단, 전 기간 누적 재생 수·청취 시간·완청 수는 `play_daily_totals`를 읽는다**(2026-10-17). 완청 신호는 180일 보존 배치로도 지워진다. 재생 기록과 같은 트랜잭션에서 더해지고
+ *   탈퇴해도 지우지 않아 **줄지 않는다** — `play_records` 합계는 탈퇴하면 줄었다(운영 100시간 → 96시간).
  * - 탈퇴자는 `users`에서 지워진다(domain.md 12.3). 그래서 "가입한 적 있는 사람"은 `users` + `withdrawal_logs`이고,
- *   탈퇴자의 재생·라이브러리 행도 함께 지워져 청취 합계·리텐션은 **현재 계정 기준**이다(생존 편향 — 화면 각주가 적는다).
+ *   탈퇴자의 재생·라이브러리 행도 함께 지워져 창 안 청취·순위·일별 추이·리텐션은 **현재 계정 기준**이다(생존 편향 — 화면 각주가
+ *   적는다). 전 기간 재생 수·청취 시간·완청 수만 예외다(아래).
  * - 질의는 호출부가 **순차**로 부른다. 탭을 연 사람 한 명이 운영 DB 연결을 열 개씩 동시에 잡지 않게 — 테이블이 작아
  *   전부 합쳐도 수십 ms 다.
  * - 개인 식별 정보는 어떤 행에도 넣지 않는다 — 사용자 순위는 `user_id`·티어·가입일뿐이다.
@@ -256,7 +267,10 @@ export class AdminInsightsRepository {
     }));
   }
 
-  /** `since`가 null 이면 전 기간 */
+  /**
+   * `since`가 null 이면 전 기간. 전 기간의 재생 수·청취 시간·완청 수는 `play_daily_totals`(줄지 않는 누적)이고, 청취자 수·담기는
+   * 사람 단위 원천이라 현재 계정 기준이다(탈퇴하면 빠진다)
+   */
   async listeningTotals(since: Date | null): Promise<InsightsListeningTotals> {
     const [play] = await this.dataSource.query<ListeningRow[]>(
       `select coalesce(sum(listened_sec), 0)::float8 as listen_sec,
@@ -266,6 +280,20 @@ export class AdminInsightsRepository {
         where $1::timestamptz is null or played_at >= $1`,
       [since],
     );
+    let allTimeCompletes: number | null = null;
+    if (since === null) {
+      const [total] = await this.dataSource.query<
+        (Pick<ListeningRow, 'listen_sec' | 'plays'> & { completes: number })[]
+      >(
+        `select coalesce(sum(listen_sec), 0)::float8 as listen_sec,
+                coalesce(sum(play_count), 0)::int as plays,
+                coalesce(sum(complete_count), 0)::int as completes
+           from play_daily_totals`,
+      );
+      play.listen_sec = total.listen_sec;
+      play.plays = total.plays;
+      allTimeCompletes = total.completes;
+    }
     const [complete] = await this.dataSource.query<CountRow[]>(
       `select count(*)::int as count from user_signals
         where action = 'complete' and ($1::timestamptz is null or created_at >= $1)`,
@@ -280,7 +308,7 @@ export class AdminInsightsRepository {
     return {
       listenSec: play.listen_sec,
       plays: play.plays,
-      completes: complete.count,
+      completes: allTimeCompletes ?? complete.count,
       listeners: play.listeners,
       saves: save.count,
     };
@@ -289,8 +317,12 @@ export class AdminInsightsRepository {
   /**
    * 일별 추이의 재료 — 날짜가 빈 칸은 Service 가 0 으로 채운다. 가입은 `users.created_at`이라 그날 가입했다가 탈퇴한
    * 사람은 빠진다(`withdrawal_logs`에는 가입일이 없다) — 일별 가입에도 생존 편향이 있다.
+   *
+   * 접속자는 두 갈래다 — 저장 표(`daily_active_users`, auth 모듈이 매일 쓰는 집계 — 여기서는 읽기만)는 `since`의 KST 날짜부터,
+   * 세션 바로 세기는 `liveFrom`(KST `YYYY-MM-DD`, 세션이 온전히 남아 있는 첫 날)부터다. 어느 쪽을 쓸지는 Service 가 고른다.
+   * 접속자는 시장을 나누지 않는다(한 사용자는 한 시장이라 시장 합 = 전체 distinct).
    */
-  async dailyRows(since: Date): Promise<InsightsDailyRows> {
+  async dailyRows(since: Date, liveFrom: string): Promise<InsightsDailyRows> {
     const signups = await this.dataSource.query<DateCountRow[]>(
       `select ${kstDateExpr('created_at')} as date, count(*)::int as count
          from users where created_at >= $1 group by 1 order by 1`,
@@ -315,9 +347,26 @@ export class AdminInsightsRepository {
       [since],
     );
 
+    const activeUsersStored = await this.dataSource.query<DateCountRow[]>(
+      `select to_char(active_date, 'YYYY-MM-DD') as date, sum(active_users)::int as count
+         from daily_active_users
+        where active_date >= ($1::timestamptz at time zone 'Asia/Seoul')::date
+        group by active_date order by active_date`,
+      [since],
+    );
+    const activeUsersLive = await this.dataSource.query<DateCountRow[]>(
+      `select ${kstDateExpr('issued_at')} as date, count(distinct user_id)::int as count
+         from sessions
+        where issued_at >= ($1::date)::timestamp at time zone 'Asia/Seoul'
+        group by 1 order by 1`,
+      [liveFrom],
+    );
+
     return {
       signups,
       withdrawals,
+      activeUsersStored,
+      activeUsersLive,
       plays: plays.map((p) => ({
         date: p.date,
         plays: p.plays,
@@ -326,6 +375,25 @@ export class AdminInsightsRepository {
       })),
       completes,
     };
+  }
+
+  /** 저장 표(`daily_active_users`)의 가장 이른 날(`YYYY-MM-DD`) — 표가 비었으면 null */
+  async activeUsersFirstDate(): Promise<string | null> {
+    const [row] = await this.dataSource.query<{ date: string | null }[]>(
+      `select to_char(min(active_date), 'YYYY-MM-DD') as date from daily_active_users`,
+    );
+    return row?.date ?? null;
+  }
+
+  /**
+   * 사람별 접속일(`user_active_dates`, auth 모듈이 쓴다 — 여기서는 읽기만)이 처음 쓰인 시각 — 마이그레이션 백필 시각이다.
+   * 백필은 그때 남은 세션으로 채웠으니, 이 시각 - 29일부터의 날만 온전하다(Service 가 계산). 표가 비었으면 null.
+   */
+  async activeDatesFirstRecordedAt(): Promise<Date | null> {
+    const [row] = await this.dataSource.query<{ at: Date | null }[]>(
+      `select min(created_at) as at from user_active_dates`,
+    );
+    return row?.at ?? null;
   }
 
   /** 창 안 재생의 KST 시간대 분포 — 재생이 없던 시간대는 Service 가 0 으로 채운다 */
@@ -388,7 +456,23 @@ export class AdminInsightsRepository {
     }));
   }
 
-  async topContents(limit: number): Promise<InsightsTopContent[]> {
+  /**
+   * 콘텐츠 순위. `since`가 null 이면 전 기간(청취 시간 순), 있으면 그 시각 이후만 센다 — 재생·청취자는 그 뒤에 시작한 재생,
+   * 완청·담기도 그 뒤에 생긴 것만. `rankBy`가 `listeners`면 청취자 수 순이다(최근 하루 인기 — 한 사람이 오래 들은 편이
+   * 위로 오지 않게). 같으면 청취 시간·재생 수 순.
+   */
+  async topContents(
+    limit: number,
+    since: Date | null = null,
+    rankBy: 'listen_sec' | 'listeners' = 'listen_sec',
+  ): Promise<InsightsTopContent[]> {
+    // 안쪽(집계 열)과 바깥(`r.` 접두사) 두 번 쓴다 — 바깥 조인이 순서를 보장하지 않는다
+    const keys =
+      rankBy === 'listeners'
+        ? ['listeners', 'listen_sec', 'plays']
+        : ['listen_sec', 'plays'];
+    const order = (prefix: string) =>
+      keys.map((k) => `${prefix}${k} desc`).join(', ');
     const rows = await this.dataSource.query<TopContentRow[]>(
       `with ranked as (
          select p.content_id,
@@ -396,8 +480,9 @@ export class AdminInsightsRepository {
                 count(*)::int as plays,
                 count(distinct p.user_id)::int as listeners
            from play_records p
+          where $2::timestamptz is null or p.played_at >= $2
           group by p.content_id
-          order by listen_sec desc, plays desc
+          order by ${order('')}
           limit $1
        )
        select r.content_id,
@@ -413,13 +498,15 @@ export class AdminInsightsRepository {
          left join lateral (
            select count(*)::int as completes from user_signals s
             where s.content_id = r.content_id and s.action = 'complete'
+              and ($2::timestamptz is null or s.created_at >= $2)
          ) x on true
          left join lateral (
            select count(*)::int as saves from library_items i
             where i.content_id = r.content_id and i.source = 'save'
+              and ($2::timestamptz is null or i.added_at >= $2)
          ) v on true
-        order by r.listen_sec desc, r.plays desc`,
-      [limit],
+        order by ${order('r.')}`,
+      [limit, since],
     );
     return rows.map((r) => ({
       contentId: r.content_id,
@@ -474,6 +561,75 @@ export class AdminInsightsRepository {
       cohortSize: r.cohort_size,
       returned: r.returned,
     }));
+  }
+
+  /**
+   * 코호트 리텐션의 재료 — 가입한 KST 달력일 `[from, to)`의 현재 계정을 `span`일 단위(1 = 일별, 7 = ISO 주, 월요일 시작)로 묶고,
+   * 묶음마다 가입자 수와 "가입 뒤 `offset` 구간에 앱을 쓴 사람 수"를 센다. 구간은 **사람마다 자기 가입일 기준**이다 —
+   * `offset`번째 구간 = 가입일 + `offset × span`일부터 `span`일(D1 = 가입 다음 날 하루, W1 = 가입 7~13일 뒤).
+   *
+   * "앱을 썼다"는 그날 접속(`user_active_dates` — 지워진 세션의 몫까지 남는 기록 · 아직 남은 `sessions`) 또는 재생(`play_records`,
+   * 무기한)이다. 아직 끝나지 않은 구간인지·기록을 믿을 수 있는지는 Service 가 가린다 — 여기서는 있는 대로 센다.
+   * 탈퇴자는 `users`에 없어 분모·분자 모두에서 빠진다(생존 편향 — 기존 `retention`과 같다).
+   */
+  async cohortRetention(
+    from: string,
+    to: string,
+    span: number,
+    offsets: readonly number[],
+  ): Promise<InsightsCohortCounts> {
+    const cohort = `
+      cohort as (
+        select u.id,
+               (u.created_at at time zone 'Asia/Seoul')::date as d
+          from users u
+         where u.created_at >= ($1::date)::timestamp at time zone 'Asia/Seoul'
+           and u.created_at < ($2::date)::timestamp at time zone 'Asia/Seoul'
+      ),
+      keyed as (
+        select c.id, c.d,
+               case when $3::int = 7 then date_trunc('week', c.d)::date else c.d end as start
+          from cohort c
+      )`;
+    const sizes = await this.dataSource.query<InsightsCohortCounts['sizes']>(
+      `with ${cohort}
+       select to_char(k.start, 'YYYY-MM-DD') as start, count(*)::int as users
+         from keyed k
+        group by k.start`,
+      [from, to, span],
+    );
+    const hits = await this.dataSource.query<CohortHitRow[]>(
+      `with ${cohort},
+       activity as (
+         select a.user_id, a.active_date
+           from user_active_dates a join cohort c on c.id = a.user_id
+         union
+         select s.user_id, (s.issued_at at time zone 'Asia/Seoul')::date
+           from sessions s join cohort c on c.id = s.user_id
+         union
+         select p.user_id, (p.played_at at time zone 'Asia/Seoul')::date
+           from play_records p join cohort c on c.id = p.user_id
+       )
+       select to_char(k.start, 'YYYY-MM-DD') as start,
+              o.n::int as step,
+              count(distinct k.id)::int as returned
+         from keyed k
+        cross join unnest($4::int[]) as o(n)
+         join activity a
+           on a.user_id = k.id
+          and a.active_date >= k.d + o.n * $3::int
+          and a.active_date < k.d + (o.n + 1) * $3::int
+        group by k.start, o.n`,
+      [from, to, span, offsets],
+    );
+    return {
+      sizes,
+      hits: hits.map((h) => ({
+        start: h.start,
+        offset: h.step,
+        returned: h.returned,
+      })),
+    };
   }
 
   /**

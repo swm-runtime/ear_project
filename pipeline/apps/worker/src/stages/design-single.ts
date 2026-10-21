@@ -4,10 +4,11 @@ import { cfg, executedBy } from "../config.js";
 import { blockedTierHosts, insertRun, priorEpisodesUsingUrls, recordFetchStatus, refreshDomainFetchBlock, setJobProgress, type Job } from "../db.js";
 import { getFile } from "../storage.js";
 import type { Executor } from "../executors/index.js";
-import { assetPaths, AXIS_CHECK_SCHEMA, AXIS_CHECK_SCHEMA_EN, buildAxisCheckPromptParts, buildAxisCheckPromptPartsEn, buildDesignPromptInlineParts, buildDesignPromptInlinePartsEn, DESIGN_INLINE_SCHEMA, DESIGN_INLINE_SCHEMA_EN, designAxisRejectEn, designMissingQuestionsEn, isHistoryCandidateEn, pipelineLocale, type BacklogCandidate, type InlineSource } from "@ear/pipeline";
+import { assetPaths, AXIS_CHECK_SCHEMA, AXIS_CHECK_SCHEMA_EN, buildAxisCheckPromptParts, buildAxisCheckPromptPartsEn, buildDesignPromptInlineParts, buildDesignPromptInlinePartsEn, DESIGN_INLINE_SCHEMA, DESIGN_INLINE_SCHEMA_EN, designAxisRejectEn, designMissingQuestionsEn, isHistoryCandidateEn, pipelineLocale, type BacklogCandidate, type InlineSource, type SeriesDraftContext } from "@ear/pipeline";
 import { fetchArticle, fetchStatusOf, type FetchedSource } from "../sources/fetch.js";
 import { log } from "../util.js";
 import { addPronunciations } from "../tts/normalize.js";
+import { MIN_MINUTES_EN } from "../script-length.js";
 import { workerRev } from "../assets.js";
 import type { DesignOut } from "./draft-two-stage.js";
 
@@ -19,6 +20,10 @@ export interface DesignInlineOut extends Omit<DesignOut, "excerpts" | "claims" |
   excerpt_ids: string[]; gists: { s: number; lines: string[] }[];
   /** 도입과 착지를 잇는 축 소스 하나("S3") — 이 소스만 두 구간에 걸칠 수 있다. 없으면 "" (full-v7) */
   axis_source: string;
+  /** 축 질문에 답하는 claims 와 사람의 순간 claims (full-en-v0.16 재료 점검) — 글로벌판만 */
+  axis_answer_claims?: string[]; moment_claims?: string[];
+  /** full-en-v0.19: 축 답 claims 가 함께 말하는 한 생각(비면 묶이지 않음) · 드라마·영화 주제의 화면 속 장면 claims */
+  axis_answer_idea?: string; screen_scene_claims?: string[];
   /** 귀속 등급은 모델이 고르지 않는다 — section·type·notable·opinion 에서 워커가 도출한다 (guidelines 규칙 20, full-v7) */
   claims: { id: string; text: string; excerpt_ids: string[]; type: string; section: number; notable: boolean; opinion: boolean }[];
   outline_md: string; pronunciations: { term: string; reading: string }[];
@@ -56,14 +61,22 @@ export function normalizeOutline(md: string): string {
 }
 
 /** 글로벌판 구성안 정규화 — 한국판과 같은 일을 영어 키로 (Axis:·Section #n·Estimated length:, global-prompts.ts 구성안 형식) */
-const OUTLINE_KEYS_EN = /^(Axis note|Axis|Landing section|Estimated length|Roles|Unused sources|Links and metaphors|Closing line|Section\s*#?\s*\d)/i;
+const OUTLINE_KEYS_EN = /^(Axis note|Axis answer|Axis|Landing section|Estimated length|Roles|Unused sources|Links and metaphors|Closing line|Section\s*#?\s*\d)/i;
 export function normalizeOutlineEn(md: string): string {
   return md.split(/\r?\n/).map((raw) => {
     let l = raw.replace(/^\s*(?:#{1,6}\s*|[-*>]\s+)?/, "").replace(/\*\*/g, "").replace(/^\s+/, "");
     if (!OUTLINE_KEYS_EN.test(l)) return raw;
-    l = l.replace(/^Section\s*#?\s*(\d+)\s*[—–\-:]?\s*/i, (_m, n) => `Section #${n} — `).replace(/^(Axis note|Axis|Landing section|Estimated length|Roles|Unused sources|Links and metaphors|Closing line)\s*:\s*/i, (_m, k: string) => `${k[0].toUpperCase()}${k.slice(1).toLowerCase()}: `);
+    l = l.replace(/^Section\s*#?\s*(\d+)\s*[—–\-:]?\s*/i, (_m, n) => `Section #${n} — `).replace(/^(Axis note|Axis answer|Axis|Landing section|Estimated length|Roles|Unused sources|Links and metaphors|Closing line)\s*:\s*/i, (_m, k: string) => `${k[0].toUpperCase()}${k.slice(1).toLowerCase()}: `);
     return l.trimEnd();
   }).join("\n");
+}
+
+/** 구성안의 `Axis answer:` 줄을 설계 보고의 axis_answer_claims 로 맞춘다 — 대본 단계와 L0 가 이 줄을 읽는다. 줄이 없으면 Landing section(없으면 Axis) 줄 뒤에 넣는다 */
+export function setAxisAnswerLine(md: string, ids: string[]): string {
+  const line = `Axis answer: ${ids.join(", ")}`;
+  if (/^Axis answer:.*$/m.test(md)) return md.replace(/^Axis answer:.*$/m, line);
+  const anchor = /^Landing section:.*$/m.test(md) ? /^Landing section:.*$/m : /^Axis:.*$/m;
+  return anchor.test(md) ? md.replace(anchor, (l) => `${l}\n${line}`) : md;
 }
 
 /** 다른 편의 sources.md 에서 URL → 발췌 문단 본문 목록. 형식은 이 파일이 쓰는 그대로("## S{n}." 머리, "- URL:", "- S{n}-NN: \"…\"") */
@@ -84,7 +97,7 @@ export function isUsedBlock(text: string, used: string[]): boolean {
   return used.some((u) => { const b = normText(u); return b.length >= 40 && (a === b || a.includes(b) || b.includes(a)); });
 }
 
-export async function runDesignSingle(a: { job: Job; ex: Executor; episodeId: string; candidate: BacklogCandidate; dir: string; assetRoot: string; promptVersion: string; noGold?: boolean }):
+export async function runDesignSingle(a: { job: Job; ex: Executor; episodeId: string; candidate: BacklogCandidate; dir: string; assetRoot: string; promptVersion: string; noGold?: boolean; series?: SeriesDraftContext }):
   Promise<{ design: DesignOut; model: string | null; costUsd: number; tokens: unknown; fetched: FetchedSource[] }> {
   const { job, ex, episodeId, candidate: cand, dir } = a;
   await setJobProgress(job.id, { phase: "설계 1/2 — 소스 본문 가져오기", detail: `${cand.sources.length}건 fetch`, toolCounts: {}, turns: 0, elapsedMs: 0 }).catch(() => {});
@@ -129,7 +142,7 @@ export async function runDesignSingle(a: { job: Job; ex: Executor; episodeId: st
   const sources: InlineSource[] = fetched.map((f, i) => ({ n: f.n, url: f.url, publisher: cand.sources[i].publisher, title: cand.sources[i].title || f.title || "", published: cand.sources[i].published, backbone: cand.sources[i].backbone, ok: f.ok, byline: f.byline, note: f.note,
     blocks: f.blocks.filter((b) => !usedBlocks.has(b.id)), usedBlocks: f.blocks.filter((b) => usedBlocks.has(b.id)).map((b) => ({ id: b.id, by: usedBlocks.get(b.id)! })) }));
   const en = pipelineLocale() === "en"; // 글로벌판: 영어 설계 프롬프트·스키마·산출물 표기 (global-prompts.ts, KAN-201)
-  const parts = (en ? buildDesignPromptInlinePartsEn : buildDesignPromptInlineParts)({ episodeId, candidate: cand, promptVersion: a.promptVersion, guidelines, specScript, goldFullEum, goldFullYuna, sources });
+  const parts = (en ? buildDesignPromptInlinePartsEn : buildDesignPromptInlineParts)({ episodeId, candidate: cand, promptVersion: a.promptVersion, guidelines, specScript, goldFullEum, goldFullYuna, sources, series: a.series });
   const normOutline = en ? normalizeOutlineEn : normalizeOutline;
   log(`  design ${episodeId}: 단발 호출 (공유 ${Math.round(parts.system.length / 1000)}K + 편별 ${Math.round(parts.user.length / 1000)}K자)`);
   const runDesign = (userPrompt: string, phase: string) => ex.run<DesignInlineOut>({
@@ -189,6 +202,25 @@ export async function runDesignSingle(a: { job: Job; ex: Executor; episodeId: st
     throw new Error(msg);
   };
 
+  // 재료 점검 (full-en-v0.16, 2026-10-20 — 9회차: 002 는 축 질문에 답하는 소스를 두고 설문을 축 소스로 잡아 답이 얕았고, 4회차부터 장면·내부자 점수가 그대로였다).
+  // 축 질문에 답하는 claims 나 사람의 순간 claims 가 없으면 대본을 만들지 않는다 — 실패 사유가 백로그 dedup_note 로 가서 사람이 보강·반려를 정한다(onDraftFailed)
+  if (en) {
+    const ids = new Set(o.claims.map((c) => c.id));
+    const answer = (o.axis_answer_claims ?? []).filter((id) => ids.has(id));
+    const moments = (o.moment_claims ?? []).filter((id) => ids.has(id));
+    const needMoment = cand.mid_topic !== "Korean Language";
+    // full-en-v0.18 (11회차: 견해 claims 비율과 점수가 같이 움직였다 — 한복 14/24 44점 · 업어 주기 9/25 56점 · 돌잔치 3/30 60점) — 견해는 3분의 1까지, 축 답의 견해는 하나까지
+    const views = o.claims.filter((c) => c.opinion).length;
+    const answerViews = answer.filter((id) => o.claims.find((c) => c.id === id)?.opinion).length;
+    const lack = [!answer.length && "축 질문에 답하는 claims 없음", needMoment && !moments.length && "사람의 순간 claims 없음",
+      views * 3 > o.claims.length && `견해 claims 과다 ${views}/${o.claims.length}(3분의 1 초과)`, answerViews > 1 && `축 답 claims 중 견해 ${answerViews}개(하나까지)`,
+      // full-en-v0.19 (12회차: 정리가 이유 나열 3.7 3 · 드라마 주제인데 순간이 화면 밖 회식 하나뿐이라 #4 가 축을 벗어남)
+      answer.length > 0 && !String(o.axis_answer_idea ?? "").trim() && "축 답 claims 가 한 생각으로 묶이지 않음",
+      cand.mid_topic === "K-Drama & Film" && !(o.screen_scene_claims ?? []).some((id) => ids.has(id)) && "드라마·영화 화면 속 장면 claims 없음"].filter(Boolean);
+    if (lack.length) await fail(`재료 부족 — ${lack.join(" · ")}. ${o.notes.replace(/\s+/g, " ").slice(0, 200)}`);
+    o = { ...o, outline_md: setAxisAnswerLine(o.outline_md, answer) };
+  }
+
   // ── 산출물 조립 (ID 검증 포함) ─────────────────────────────────────────────
   const blockById = new Map<string, { s: number; text: string }>();
   for (const f of fetched) for (const b of f.blocks) if (!usedBlocks.has(b.id)) blockById.set(b.id, { s: f.n, text: b.text }); // 제외 문단은 ID 검증에서도 없는 문단이다
@@ -219,7 +251,8 @@ export async function runDesignSingle(a: { job: Job; ex: Executor; episodeId: st
     sectionsOf.set(s, set);
   }
   const spread = [...sectionsOf].filter(([s, secs]) => secs.size > (s === axis ? 2 : 1)).map(([s, secs]) => `S${s}→#${[...secs].sort((a, b) => a - b).join(",#")}`);
-  if (spread.length) await fail(`소스가 여러 구간에 배정됨: ${spread.join(" · ")} — 소스는 한 구간에만(축 소스 ${axis ? `S${axis}` : "없음"}만 둘). 한 구간으로 모으거나 소스를 제외한다 (규칙 22, full-v7)`);
+  // 글로벌판 full-en-v0.12 (2026-10-18): 구간당 소스 하나를 폐지했다 — 구간은 관행의 순서를 따르고 여러 소스를 섞는다. 한국판만 검사한다 (G261018-004 이 이 검사로 실패)
+  if (spread.length && !en) await fail(`소스가 여러 구간에 배정됨: ${spread.join(" · ")} — 소스는 한 구간에만(축 소스 ${axis ? `S${axis}` : "없음"}만 둘). 한 구간으로 모으거나 소스를 제외한다 (규칙 22, full-v7)`);
   // full-v8.1: "사용 소스 ≤ 구간 + 1" 상한 폐지 — 소스를 소화하려고 구간이 생기는 것이 축 이탈의 원인이었다. 대신 구간마다 축의 하위 질문(`질문:`) 이 있어야 한다
   if (q.heads && q.qs < q.heads) await fail(`구성안 구간 ${q.heads}개 중 \`질문:\` 줄이 ${q.qs}개 — 재설계 뒤에도 누락. 구간마다 축의 하위 질문을 적는다 (full-v8.1)`);
   const attribution = deriveAttribution(o.claims);
@@ -229,7 +262,8 @@ export async function runDesignSingle(a: { job: Job; ex: Executor; episodeId: st
     if (used < 3 || /보류/.test(o.outline_md.slice(0, 200))) await fail(`소스 본문 ${used}건 — 3건 하한 미달 (설계 판단: ${(o.notes || o.outline_md).replace(/\s+/g, " ").slice(0, 200)})`);
     await fail(`outline_md 형식 위반 — ${en ? "'Axis:' 또는 'Section #1'" : "'축:' 또는 '구간 #1'"} 줄이 없음 (정규화 후). 앞부분: ${o.outline_md.replace(/\s+/g, " ").slice(0, 160)}`);
   }
-  if (o.estimated_minutes && o.estimated_minutes < 13) await fail(`재료 부족 — 설계 예상 분량 ${o.estimated_minutes}분 < 하한 13분. ${o.notes.slice(0, 200)}`);
+  const floorMin = en ? MIN_MINUTES_EN : 13;
+  if (o.estimated_minutes && o.estimated_minutes < floorMin) await fail(`재료 부족 — 설계 예상 분량 ${o.estimated_minutes}분 < 하한 ${floorMin}분. ${o.notes.slice(0, 200)}`);
 
   if (en) await writeDesignArtifactsEn({ dir, episodeId, cand, fetched, o, chosen, priorNotes, attribution, sectionsOf, axis });
   else {
@@ -276,6 +310,14 @@ export async function runDesignSingle(a: { job: Job; ex: Executor; episodeId: st
  * 글로벌판 설계 산출물 (KAN-201) — 다음 단계의 모델이 읽으므로 영어로 쓴다. 표 구조·줄머리(`## S{n}.`·`- URL:`·`- S{n}-NN: "…"`)는 한국판과 같다(parsePriorExcerpts 가 두 판을 다 읽는다).
  * claims 표에 발췌 언어 열을 더한다(글로벌 명세 6.4 국문 소스 처리 — 한글 발췌에 근거한 주장은 QA 가 의미 변형을 본다). 발음 맵은 힌트가 빈 등재도 남긴다(명세 6.7 발음 누락 검사)
  */
+/**
+ * claims 의 "발췌 언어" (글로벌판) — 발췌 중 하나라도 한국어 문단이면 ko. 한국어 문단 = 글자 중 한글이 절반 이상.
+ * 2026-10-16: 한글이 한 글자라도 있으면 ko 로 봐서, 한국어 예문을 담은 영어 학습 기사(G261015-001 S2)가 "Korean excerpt" 로 표시됐다 — 대본·QA 가 영어 원문을 번역 재서술로 다뤘다.
+ */
+export function excerptLang(texts: string[]): "ko" | "en" {
+  return texts.some((t) => { const ko = t.match(/[가-힣]/g)?.length ?? 0; const en = t.match(/[A-Za-z]/g)?.length ?? 0; return ko > 0 && ko >= en; }) ? "ko" : "en";
+}
+
 export async function writeDesignArtifactsEn(x: { dir: string; episodeId: string; cand: BacklogCandidate; fetched: FetchedSource[]; o: DesignInlineOut; chosen: Set<string>; priorNotes: string[]; attribution: Map<string, Attribution>; sectionsOf: Map<number, Set<number>>; axis: number | null }) {
   const { dir, episodeId, cand, fetched, o, chosen, priorNotes, attribution, sectionsOf, axis } = x;
   const textOf = new Map<string, string>();
@@ -296,14 +338,16 @@ export async function writeDesignArtifactsEn(x: { dir: string; episodeId: string
   const blocks = new Map<number, Set<number>>();
   for (const [src, secs] of sectionsOf) for (const sec of secs) { const set = blocks.get(sec) ?? new Set<number>(); set.add(src); blocks.set(sec, set); }
   const blockNote = [...blocks].sort((p, q) => p[0] - q[0]).map(([sec, srcs]) => `#${sec} ${[...srcs].sort((p, q) => p - q).map((n) => `S${n}`).join(", ")}`).join(" · ") || "none";
-  const lang = (ids: string[]) => (ids.some((id) => /[가-힣]/.test(textOf.get(id) ?? "")) ? "ko" : "en");
-  const attributed = o.claims.filter((c) => attribution.get(c.id) === "귀속").length;
+  const lang = (ids: string[]) => excerptLang(ids.map((id) => textOf.get(id) ?? ""));
+  // full-en-v0.12 (2026-10-18 "귀속 빼"): 대사에서 출처를 부르지 않는다 — 표의 표시는 의견 claim 만 "view", 나머지는 "none"
+  // full-en-v0.13 (G261018-006~008): "보유자 종류로" 표시하라던 말이 "a drama commentator"·"For a food writer" 주어와 이미 나온 사례 인물(Erin)의 재호칭을 낳았다 — 견해는 해설자 문장 안에서만 표시
+  const views = o.claims.filter((c) => c.opinion).length;
   const claimsMd = [`# claims — ${episodeId}`, "",
-    `> Attribution (worker-derived from type and opinion): attributed ${attributed} · none ${o.claims.length - attributed}. Attributed claims are marked as the block source's view once; the rest the explainer says directly.`,
+    `> Attribution: view ${views} · none ${o.claims.length - views}. Sources are never named in lines. A "view" claim is said as a view inside the explainer's own sentence, never with its holder or source as the subject; a person in a case keeps the same description, never a name; the rest the explainer says directly.`,
     `> Axis source: ${axis ? `S${axis}` : "none"} · blocks (sources per section): ${blockNote}`,
     `> Excerpt language "ko": the claim is an English restatement of a Korean excerpt. Keep its meaning exact.`, "",
     "| ID | Claim | Excerpt IDs | Type | Section | Notable | Opinion | Attribution | Excerpt language |", "|---|---|---|---|---|---|---|---|---|",
-    ...o.claims.map((c) => `| ${c.id} | ${c.text.replace(/\|/g, "／")} | ${c.excerpt_ids.join(", ")} | ${c.type} | #${c.section} | ${c.notable ? "yes" : ""} | ${c.opinion ? "yes" : ""} | ${attribution.get(c.id) === "귀속" ? "attributed" : "none"} | ${lang(c.excerpt_ids)} |`), ""].join("\n");
+    ...o.claims.map((c) => `| ${c.id} | ${c.text.replace(/\|/g, "／")} | ${c.excerpt_ids.join(", ")} | ${c.type} | #${c.section} | ${c.notable ? "yes" : ""} | ${c.opinion ? "yes" : ""} | ${c.opinion ? "view" : "none"} | ${lang(c.excerpt_ids)} |`), ""].join("\n");
   await fs.writeFile(path.join(dir, "claims.md"), claimsMd, "utf8");
   await fs.writeFile(path.join(dir, "outline.md"), o.outline_md.trim() + "\n", "utf8");
   await fs.writeFile(path.join(dir, "pronunciations.json"), JSON.stringify(addPronunciations({}, o.pronunciations, "en"), null, 2) + "\n", "utf8");

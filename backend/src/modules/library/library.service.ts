@@ -272,24 +272,32 @@ export class LibraryService {
     );
   }
 
+  /** 그 시장 콘텐츠만 센다(`global-api.md` 4.11 — 시장을 바꾼 사용자의 이전 시장 항목은 숨어 있다) */
   async countBySource(
     userId: string,
     source: LibraryItemSource,
+    market: UserMarket,
     manager?: EntityManager,
   ): Promise<number> {
     return this.libraryItemRepository.countByUserIdAndSource(
       userId,
       source,
+      market,
       manager,
     );
   }
 
-  /** 미청취 재고(`drip-scheduling.md` 4.1) — 편성 배치의 스킵 판정 입력 */
+  /** 미청취 재고(`drip-scheduling.md` 4.1) — 편성 배치의 스킵 판정 입력. 그 시장 콘텐츠만 센다(`global-api.md` 4.11) */
   async countUnfinished(
     userId: string,
+    market: UserMarket,
     manager?: EntityManager,
   ): Promise<number> {
-    return this.libraryItemRepository.countUnfinishedByUserId(userId, manager);
+    return this.libraryItemRepository.countUnfinishedByUserId(
+      userId,
+      market,
+      manager,
+    );
   }
 
   /**
@@ -317,17 +325,19 @@ export class LibraryService {
    * 기준(`drip-feedback.md` 4.1). 탐험 편은 묻지 않으므로 보지 않는다. **삭제분도 포함해 찾는다** — 최근 편성분을
    * 전부 지웠으면 그 전 편성분으로 거슬러 올라가지 않고 묻지 않아야 한다(7장). 지운 편을 팝업에서 빼는 것은
    * `findPlacedBetween`의 몫이다. **알고리즘 버전이 찍힌 편성분만 본다** — 온보딩 직후의 첫 드립은 버전이 없고
-   * 별점을 묻지 않는다(4.1-2)
+   * 별점을 묻지 않는다(4.1-3)
    */
   async findLatestDripPlacedBefore(
     userId: string,
     before: Date,
+    market: UserMarket,
     manager?: EntityManager,
   ): Promise<LibraryItem | null> {
     return this.libraryItemRepository.findLatestVersionedByUserIdAndSourcesAddedBefore(
       userId,
       [LibraryItemSource.DRIP],
       before,
+      market,
       manager,
     );
   }
@@ -354,6 +364,7 @@ export class LibraryService {
     userId: string,
     start: Date,
     end: Date,
+    market: UserMarket,
     manager?: EntityManager,
   ): Promise<LibraryItem[]> {
     return this.libraryItemRepository.findAllWithContentByUserIdAndSourcesAddedBetween(
@@ -361,6 +372,7 @@ export class LibraryService {
       [LibraryItemSource.DRIP, LibraryItemSource.DISCOVERY],
       start,
       end,
+      market,
       manager,
     );
   }

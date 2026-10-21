@@ -21,6 +21,7 @@ import { AdminModule } from '@/modules/admin/admin.module';
 import { AuthModule } from '@/modules/auth/auth.module';
 import { BillingModule } from '@/modules/billing/billing.module';
 import { ContentDetailModule } from '@/modules/content-detail/content-detail.module';
+import { SeriesDetailModule } from '@/modules/series-detail/series-detail.module';
 import { NoticeModule } from '@/modules/notice/notice.module';
 import { DripBatchModule } from '@/modules/drip-batch/drip-batch.module';
 import { RecommendTestModule } from '@/modules/recommend-test/recommend-test.module';
@@ -35,6 +36,7 @@ import { PlaybackModule } from '@/modules/playback/playback.module';
 import { ProfileModule } from '@/modules/profile/profile.module';
 import { RetentionModule } from '@/modules/retention/retention.module';
 import { VocModule } from '@/modules/voc/voc.module';
+import { MarketChangeModule } from '@/modules/market-change/market-change.module';
 import { SettingsModule } from '@/modules/settings/settings.module';
 import { UserModule } from '@/modules/user/user.module';
 
@@ -96,9 +98,12 @@ import { UserModule } from '@/modules/user/user.module';
     // 구독·인앱 결제(subscription-api.md — KAN-106). 요금제·구독 조회, 결제 의도, 영수증 검증, 스토어 서버 알림
     BillingModule,
     ContentDetailModule,
+    // 시리즈 화면 `GET /series/:id`(KAN-134). 어떤 모듈도 의존하지 않는다
+    SeriesDetailModule,
     NoticeModule,
     ProfileModule,
     SettingsModule,
+    MarketChangeModule,
     PartnerModule,
     AdminModule,
     // domain.md 12.1의 보존 기간 배치. 어떤 모듈도 이 모듈을 의존하지 않는다

@@ -209,6 +209,34 @@ export class EnvironmentVariables {
   AUTO_EXPAND_ENABLED?: string;
 
   /**
+   * 글로벌 가입(`global-api.md` 2.1)의 서버 스위치. `true`/`false`. **`true`를 명시했을 때만 열린다.**
+   * 닫혀 있으면 가입 때 English를 골라도(또는 영어 기기의 구 앱이어도) 서버가 `kr`로 판정한다 — GLOBAL 카탈로그가 비어
+   * 있으면 그 계정은 온보딩 주제를 고를 수 없다(2026-10-15). GLOBAL로의 시장 전환(4.11)도 이 스위치를 따른다. 글로벌 출시 때 켠다.
+   */
+  @IsOptional()
+  @IsIn(['true', 'false', ''])
+  GLOBAL_SIGNUP_ENABLED?: string;
+
+  /**
+   * 가입 뒤 시장 전환(`global-api.md` 4.11 — KAN-227)의 서버 스위치. `true`/`false`. **`true`를 명시했을 때만 열린다.**
+   * 꺼져 있으면 미리보기는 `available: false`(`market_unavailable`), 전환은 409 `MARKET_UNAVAILABLE`이다. 앱 설정 화면이
+   * 나간 뒤 켠다. GLOBAL로의 전환은 켜도 `GLOBAL_SIGNUP_ENABLED`를 따로 따른다
+   */
+  @IsOptional()
+  @IsIn(['true', 'false', ''])
+  MARKET_CHANGE_ENABLED?: string;
+
+  /**
+   * 탐색 시리즈 카드(KAN-134 확정 설계 4번)의 서버 스위치. `true`/`false`. **`true`를 명시했을 때만 켜진다.**
+   * 켜지면 탐색 피드·주제별·인기·검색이 `type: "content" | "series"` 항목을 섞어 내고 같은 시리즈 편들을 카드 하나로 접는다.
+   * 1.2.x 앱은 모르는 항목 종류에서 깨지므로 운영은 1.3.0 출시 · 최소 지원 버전 1.3.0 뒤에 켠다. 개발계는 FE(KAN-225)가 준비되면 켠다.
+   * 꺼져 있으면 응답은 이 기능이 없던 때와 바이트 단위로 같다
+   */
+  @IsOptional()
+  @IsIn(['true', 'false', ''])
+  SERIES_EXPLORE_CARDS_ENABLED?: string;
+
+  /**
    * 드립 시간대 그룹(`global-api.md` 2.4, KAN-191)의 서버 스위치. `true`/`false`.
    * **`true`를 명시했을 때만 켜진다.** 꺼져 있으면 전원이 기본 그룹(05:00 KST 편성 · 07:00 KST 알림)으로 종전과 같다.
    * 켜면 GLOBAL 시장 사용자를 시간대로 europe·americas 그룹에 나눠 각 그룹의 현지 05:00에 편성한다. KR은 그대로다.

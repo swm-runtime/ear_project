@@ -26,13 +26,16 @@ const searchCall = (query: string, urls: string[]) => ({ type: "web_search_call"
 const message = (out: unknown) => ({ type: "message", content: [{ type: "output_text", text: JSON.stringify(out), annotations: [] }] });
 const usage = { input_tokens: 1000, input_tokens_details: { cached_tokens: 0 }, output_tokens: 100, output_tokens_details: { reasoning_tokens: 0 } };
 
-test("한국판(PIPELINE_LOCALE 없음)의 openai 실행기는 검색 없는 종전 실행기이고, WebSearch 요청을 거절한다", async () => {
+test("한국판(PIPELINE_LOCALE 없음)의 openai 실행기도 검색 실행기다 — 2026-10-16 KAN-222 (종전: 검색 없는 실행기라 WebSearch 요청을 거절했다)", async () => {
   delete process.env.PIPELINE_LOCALE;
   process.env.OPENAI_API_KEY = "test";
   const ex = makeExecutor("openai");
-  assert.ok(ex instanceof OpenAiExecutor);
-  assert.ok(!(ex instanceof OpenAiSearchExecutor));
-  await assert.rejects(ex.run(searchReq()), /단발 호출만 지원/);
+  assert.ok(ex instanceof OpenAiSearchExecutor);
+  assert.ok(ex instanceof OpenAiExecutor); // 단발 호출은 부모 경로 그대로
+  const sent = stubFetch({ status: "completed", model: "gpt-6.1-sol", output: [searchCall("김장 문화", ["https://www.korea.kr/a"]), message({ queries: [], sources: [{ url: "https://www.korea.kr/a", title: "t" }], notes: "" })], usage });
+  const r = await (ex as OpenAiSearchExecutor).run<any>(searchReq());
+  assert.equal(sent[0].tools[0].type, "web_search");
+  assert.deepEqual(r.output.queries, ["김장 문화"]);
 });
 
 test("en 인스턴스의 openai 실행기는 검색 실행기다", () => {
@@ -87,4 +90,17 @@ test("실호출 형태: query·queries 가 함께 오면 한 번만 세고, URL 
   assert.deepEqual(trace.queries, ["kimjang unesco"]);
   const { output } = keepSeenSources({ sources: [{ url: "https://ich.unesco.org/en/search?call=film&amp;id=1" }] }, trace.seen);
   assert.equal(output.sources[0].url, "https://ich.unesco.org/en/search?call=film&id=1");
+});
+
+// 2026-10-16 KAN-222 — 한국판 서버 워커(openai)도 보강·주제 기획(WebSearch 만 쓰는 검색)을 집는다. 언어가 아니라 실행기 능력으로 판정한다
+test("openai 실행기는 언어와 무관하게 웹 검색 실행기이고, 웹 검색 작업을 집는 실행기는 claude-cli·openai 뿐이다", async () => {
+  const { makeExecutor, executorHandlesWebSearch } = await import("./index.js");
+  const { OpenAiSearchExecutor } = await import("./openai-search.js");
+  const prev = process.env.PIPELINE_LOCALE;
+  for (const loc of ["", "ko", "en"]) {
+    if (loc) process.env.PIPELINE_LOCALE = loc; else delete process.env.PIPELINE_LOCALE;
+    assert.ok(makeExecutor("openai") instanceof OpenAiSearchExecutor, `locale=${loc || "(없음)"}`);
+  }
+  if (prev === undefined) delete process.env.PIPELINE_LOCALE; else process.env.PIPELINE_LOCALE = prev;
+  assert.deepEqual((["claude-cli", "openai", "api", "none"] as const).map(executorHandlesWebSearch), [true, true, false, false]);
 });

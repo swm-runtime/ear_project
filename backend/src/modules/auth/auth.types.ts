@@ -48,6 +48,12 @@ export interface SignUpCommand {
   locale?: LocaleInput;
 }
 
+/** 가입 동의 목록 재조회 — `locale`은 sign-up과 같은 객체다(같은 입력이면 같은 시장) */
+export interface SignUpConsentsCommand {
+  signupToken: string;
+  locale?: LocaleInput;
+}
+
 export interface RefreshTokenCommand {
   refreshToken: string;
   deviceId: string;
@@ -58,7 +64,7 @@ export interface LogoutCommand {
   deviceId: string;
 }
 
-/** 파이프라인 웹 SSO — 서버 간 어서션 로그인 (changes/pending/pipeline-sso-login.md) */
+/** 파이프라인 웹 SSO — 서버 간 어서션 로그인 (changes/archive/pipeline-sso-login.md · 반영 2026-09-03) */
 export interface PipelineLoginCommand {
   assertion: string;
   deviceId: string;

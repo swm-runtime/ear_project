@@ -14,6 +14,11 @@ export interface CareerDto {
 export interface OnboardingStateDto {
   onboarding_completed: boolean;
   onboarding_step: OnboardingStep;
+  /**
+   * 이 사용자가 밟을 화면 단계(global-api.md 4.4, KAN-189) — KR `["topic","career"]`, GLOBAL `["topic"]`.
+   * 계약상 문자열 배열이라 모르는 이름이 올 수 있다(변환에서 거른다). 필드가 없는 응답(배포 전 서버)은 종전 단계로 본다
+   */
+  steps?: string[];
   selected_topic_ids: string[];
   career: CareerDto;
   picked_count: number;

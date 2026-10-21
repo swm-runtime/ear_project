@@ -82,6 +82,13 @@ export interface Palette {
   /** 주 동작 면 위 보조 글자 — onPrimary 70% */
   onPrimarySecondary: string;
   /**
+   * 장식 배경 그림(A21 언어 카드의 흐린 국기)을 바탕 쪽으로 물리는 막 — `surface` 색에 알파. 글자는 이 막 위에서
+   * `textPrimary` 대비 7:1 이상이 되게 잡았다(라이트·다크·선택 전후 최소값 실측 — design.md §5 "장식 배경 그림").
+   * 선택된 카드는 막을 덜 덮어 그림이 조금 더 드러난다(선택 표시는 여전히 테두리·체크가 한다)
+   */
+  decorWash: string;
+  decorWashSelected: string;
+  /**
    * 사진·어두운 막 위 글자·아이콘 — **두 모드 모두 흰색**. onPrimary(주 버튼 위 글자)는 다크에서 검정으로 뒤집히므로
    * 사진 칩·썸네일 위 아이콘·튜토리얼 막·스위치 손잡이에는 이걸 쓴다(다크 모드, 2026-10-10)
    */
@@ -122,6 +129,8 @@ export const LIGHT_PALETTE: Palette = {
   tabPillSolid: '#ECECF0',
   backgroundWash: 'rgba(255, 255, 255, 0.76)',
   onPrimarySecondary: 'rgba(255, 255, 255, 0.7)',
+  decorWash: 'rgba(245, 245, 247, 0.74)',
+  decorWashSelected: 'rgba(245, 245, 247, 0.6)',
   onPhoto: '#FFFFFF',
 };
 
@@ -160,5 +169,8 @@ export const DARK_PALETTE: Palette = {
   tabPillSolid: '#2C2C2E', // systemGray5(dark)
   backgroundWash: 'rgba(0, 0, 0, 0.76)',
   onPrimarySecondary: 'rgba(0, 0, 0, 0.6)',
+  // 국기의 흰 바탕이 다크에서 밝은 회색 막으로 떠 흰 글자를 먹으므로 라이트보다 더 덮는다
+  decorWash: 'rgba(28, 28, 30, 0.84)',
+  decorWashSelected: 'rgba(28, 28, 30, 0.75)',
   onPhoto: '#FFFFFF',
 };

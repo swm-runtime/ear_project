@@ -1,0 +1,18 @@
+/* 영어 소개 페이지(`/en/`) 전용. 히어로 바탕·제목은 PageHeader.module.css를 그대로 쓰고, 여기에는 그 밖의 것만 둔다. */
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 30px;
+}
+
+.store {
+  gap: 8px;
+}
+
+/* AI 고지 문단. 줄 길이만 줄이고 왼쪽 정렬은 다른 섹션과 맞춘다. 제목과 첫 문단 사이를 띄운다 */
+.note {
+  max-width: 64ch;
+  margin-top: 20px;
+}

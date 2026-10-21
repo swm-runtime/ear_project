@@ -5,7 +5,7 @@ import os from "node:os";
 import path from "node:path";
 process.env.DATABASE_URL ??= "postgres://test";
 const P = await import("@ear/pipeline");
-const { writeDesignArtifactsEn, normalizeOutlineEn, parsePriorExcerpts, deriveAttribution } = await import("./design-single.js");
+const { writeDesignArtifactsEn, normalizeOutlineEn, parsePriorExcerpts, deriveAttribution, setAxisAnswerLine } = await import("./design-single.js");
 const { addPronunciations } = await import("../tts/normalize.js");
 const { twoStageViolations } = await import("./draft-two-stage.js");
 
@@ -54,7 +54,7 @@ test("대본 프롬프트 — 구역·줄 문법·화자 이름·단어 목표, 
   assert.doesNotMatch(p.user, HANGUL);
   assert.match(p.system, /`## \[Intro\]` `## \[Opening\]` `## \[Body\]` `## \[Closing\]`/);
   assert.match(p.system, /`\[Mina\] E1 · sentence` and `\[Alex\] Y1 · sentence`/);
-  assert.match(p.user, /about 14 minutes = about 2100 spoken words/);
+  assert.match(p.user, /about 14 minutes = about 2044 spoken words/);
   assert.match(p.user, /\{topic_line\} = "Food, and the life around it\." \(fixed text/);
   assert.match(p.user, /That's all for today on ear\. \{host_line\}/);
 });
@@ -89,7 +89,8 @@ test("설계 산출물(en) — 영어 머리·발췌 언어 열·빈 힌트 등�
   await writeDesignArtifactsEn({ dir, episodeId: "G1", cand: { ...cand, sources: [{ ...cand.sources[0] }] } as never, fetched: fetched as never, o: o as never, chosen: new Set(["S1-01", "S1-02"]), priorNotes: [], attribution: deriveAttribution(o.claims), sectionsOf: new Map([[1, new Set([1])]]), axis: null });
   const claims = await fs.readFile(path.join(dir, "claims.md"), "utf8");
   assert.match(claims, /\| C01 \| Kimjang is making winter kimchi at once\. \| S1-01 \| definition \| #1 \|  \|  \| none \| ko \|/);
-  assert.match(claims, /\| C02 \| .* \| number \| #1 \|  \|  \| attributed \| en \|/);
+  assert.match(claims, /\| C02 \| .* \| number \| #1 \|  \|  \| none \| en \|/); // full-en-v0.12: 수치도 출처를 부르지 않는다 — 의견 claim 만 view
+  assert.match(claims, /Sources are never named in lines/);
   assert.doesNotMatch(claims.replace(/\| [^|]*[가-힣][^|]* \|/g, ""), HANGUL);
   const sources = await fs.readFile(path.join(dir, "sources.md"), "utf8");
   assert.match(sources, /^- Gist: a \/ b \/ c$/m);
@@ -103,25 +104,31 @@ test("발음 등재 추가 — 한국판 종전 그대로, 글로벌판은 빈 �
   assert.deepEqual(addPronunciations({ Hanbok: "", jeong: "jung" }, [{ term: "hanbok", reading: "hahn-bok" }, { term: "Jeong", reading: "WRONG" }, { term: " nunchi ", reading: "" }], "en"), { Hanbok: "hahn-bok", jeong: "jung", nunchi: "" });
 });
 
-test("글로벌 규칙 자산 — 버전 라벨 full-en-v0.1, 모델에 가는 본문에 한글이 없고 규칙 49개, 템플릿 문서와 같은 슬롯", async () => {
+test("글로벌 규칙 자산 — 버전 라벨 full-en-v0.21, 모델에 가는 본문에 한글이 없고 규칙 번호 1~50 이 모두 있음(묶음 번호 포함), 템플릿 문서와 같은 슬롯", async () => {
   const { versionOf } = await import("../assets.js");
   const root = path.resolve(import.meta.dirname, "../../../../../docs/ai/global");
   const g = await fs.readFile(path.join(root, "skills/draft/guidelines.gpt.md"), "utf8");
-  assert.equal(versionOf("skills/draft/guidelines.gpt.md", g), "full-en-v0.1");
+  assert.equal(versionOf("skills/draft/guidelines.gpt.md", g), "full-en-v0.21");
   assert.equal(versionOf("skills/draft/guidelines.md", "# x\n\n> 현행 버전: **full-v9.10**"), "full-v9.10"); // 한국판 라벨 그대로
   const body = P.promptBody(g);
   assert.doesNotMatch(body, HANGUL);
-  assert.equal(body.match(/^\s*\d+\. \*\*/gm)?.length, 49);
+  const ids = (body.match(/^\d[\d, –]*(?=\. \*\*)/gm) ?? []).flatMap((h) => h.split(/,\s*/).flatMap((x) => { const [s, e] = x.split("–").map(Number); return e ? Array.from({ length: e - s + 1 }, (_, k) => s + k) : [s]; })); // full-en-v0.21: 겹치는 규칙을 "13, 14, 29." · "23–27." 묶음으로
+  assert.deepEqual([...ids].sort((x, y) => x - y), Array.from({ length: 50 }, (_, k) => k + 1));
+  const plan = P.planGuidelinesEn(body); // 설계는 기획에 쓰는 절만 읽는다
+  assert.match(plan, /^## What the episode needs/m);
+  assert.match(plan, /^41\. \*\*Facts come only from the claims/m);
+  assert.doesNotMatch(plan, /^## (?:Dialogue|Spoken English|Length and format|Before output)/m);
   const spec = await fs.readFile(path.join(root, "spec/04-script.md"), "utf8");
-  assert.match(spec, /Hi, and welcome to ear podcast\. \{topic_line\} Today we're talking about \{episode_line\}\.\n/);
-  assert.deepEqual(JSON.parse(await fs.readFile(path.join(root, "skills/tts/pronunciation.json"), "utf8")), {});
+  assert.match(spec, /Hi, and annyeonghaseyo! Welcome to Earcast, your K-podcast\. \{topic_line\} Today we're talking about \{episode_line\}\.\n/);
+  assert.match(spec, /^We've been talking about \{episode_recap\}\. \{host_remark\}$/m); // tpl-en-v4 — 클로징 도입은 같은 주제를 다른 말로
+  assert.deepEqual(JSON.parse(await fs.readFile(path.join(root, "skills/tts/pronunciation.json"), "utf8")), { annyeonghaseyo: "안녕하세요", gamsahamnida: "감사합니다" }); // 인트로 인사(tpl-en-v2)·끝인사(v3) — 한글로 읽힌다
 });
 
-test("QA(en) — 영어 지시문·스키마, 자산 본문 한글 없음·버전 qa-en-v0.1, 이전 회차 실패는 check 번호로", async () => {
+test("QA(en) — 영어 지시문·스키마, 자산 본문 한글 없음·버전 qa-en-v0.10, 이전 회차 실패는 check 번호로", async () => {
   const { versionOf } = await import("../assets.js");
   const root = path.resolve(import.meta.dirname, "../../../../../docs/ai/global");
   const qa = await fs.readFile(path.join(root, "skills/qa/prompt.md"), "utf8");
-  assert.equal(versionOf("skills/qa/prompt.md", qa), "qa-en-v0.1");
+  assert.equal(versionOf("skills/qa/prompt.md", qa), "qa-en-v0.10");
   const body = P.promptBody(qa);
   assert.doesNotMatch(body, HANGUL);
   assert.doesNotMatch(body, /Change history/); // --- 아래 이력은 모델에 가지 않는다
@@ -138,7 +145,7 @@ test("비평(en) — 루브릭 critic-en 본문 한글 없음, 하위 항목 12�
   const { versionOf } = await import("../assets.js");
   const root = path.resolve(import.meta.dirname, "../../../../../docs/ai/global");
   const rb = await fs.readFile(path.join(root, "skills/critic/rubric-v2.md"), "utf8");
-  assert.equal(versionOf("skills/critic/rubric-v2.md", rb), "critic-en-v0.2");
+  assert.equal(versionOf("skills/critic/rubric-v2.md", rb), "critic-en-v0.13");
   const body = P.promptBody(rb, { dropSections: [/^## 0\./] });
   assert.doesNotMatch(body, HANGUL);
   assert.doesNotMatch(body, /Change history/);
@@ -150,4 +157,153 @@ test("비평(en) — 루브릭 critic-en 본문 한글 없음, 하위 항목 12�
   assert.doesNotMatch(p.system + p.user, HANGUL);
   assert.deepEqual([...P.CRITIC_INLINE_SCHEMA_EN.required].sort(), [...P.CRITIC_INLINE_SCHEMA.required].sort());
   assert.doesNotMatch(JSON.stringify(P.CRITIC_INLINE_SCHEMA_EN), HANGUL);
+});
+
+test("주제 기획·보강(en) — 검색·판정 프롬프트와 스키마에 한글이 없고, 판정 결과는 내부 값(성립·근거 앵커·대립)으로 바뀐다", () => {
+  en();
+  const s1 = P.buildTopicSeedSearchPromptEn({ id: "C1", topic: "Why kimjang is shared work", hint: null, midTopic: "K-Food", poolHosts: ["korea.net"], maxSearches: 8 });
+  const s2 = P.buildReinforceSearchPromptEn({ candidate: { id: "C1", title: "Kimjang", mid_topic: "K-Food", axis: "Kimjang looks like cooking, yet it is a labor exchange", axis_type: "대립", gaps: ["반론·한계"], sources: [{ publisher: "korea.net", title: "Kimjang" }] }, poolHosts: ["korea.net"], maxSearches: 8 });
+  assert.match(s2, /Axis \(contrast\)/);
+  assert.match(s2, /counterpoint — /);
+  const seedJudge = P.buildTopicJudgePromptEn({ midTopics: ["K-Food"], nextIdNumber: 1, sources: [{ n: 1, url: "u", title: "Kimjang", summary: "s", publisher: "korea.net", domain: "korea.net", published: null }], existingTitles: [], specBacklogExcerpt: "## 3. Candidate structure", seed: { id: "C1", topic: "Kimjang", hint: null, midTopic: "K-Food" } });
+  const reJudge = P.buildTopicJudgePromptEn({ midTopics: ["K-Food"], nextIdNumber: 1, sources: [], existingTitles: [], specBacklogExcerpt: "", reinforce: { id: "C1", title: "Kimjang", axis: "x", axis_type: "역설", gaps: ["사례"], currentM: [] }, reinforceMidTopic: "K-Food" });
+  for (const t of [s1, s2, seedJudge, reJudge]) assert.doesNotMatch(t, HANGUL);
+  assert.match(reJudge, /axis \(paradox\)/);
+  assert.match(reJudge, /Empty roles: case/);
+  assert.throws(() => P.buildTopicJudgePromptEn({ midTopics: ["K-Food"], nextIdNumber: 1, sources: [], existingTitles: [], specBacklogExcerpt: "" }), /seed/);
+  for (const sc of [P.REINFORCE_SEARCH_SCHEMA_EN, P.CLUSTER_SCHEMA_V2_EN]) assert.doesNotMatch(JSON.stringify(sc), HANGUL);
+  const out = P.judgeToInternal({ candidates: [{ axis_type: "contrast", verdict: "holds", gaps: ["counterpoint"], sources: [{ m: "M1", roles: ["anchor", "case"], why: "w" }], title: "T" }] });
+  assert.deepEqual(out.candidates?.[0], { axis_type: "대립", verdict: "성립", gaps: ["반론·한계"], sources: [{ m: "M1", roles: ["근거 앵커", "사례"], why: "w" }], title: "T" });
+  assert.equal(P.judgeToInternal({ candidates: [{ axis_type: "event", verdict: "needs reinforcement", gaps: [], sources: [] }] }).candidates?.[0].verdict, "보강 필요");
+});
+
+test("설계 프롬프트(en)는 백로그의 내부 값(역할·축 유형)을 영어로 보여 준다", () => {
+  en();
+  const c = { ...cand, axis_type: "대립", gaps: ["생활 관행", "반론·한계"], sources: [{ ...cand.sources[0], roles: ["근거 앵커"] }] } as typeof cand;
+  const p = P.buildDesignPromptInlinePartsEn({ episodeId: "G1", candidate: c, promptVersion: "v", guidelines, specScript: "", goldFullEum: "", goldFullYuna: "", sources: [] });
+  assert.doesNotMatch(p.user, HANGUL);
+  assert.match(p.user, /\[contrast\] Kimjang looks like cooking/);
+  assert.match(p.user, /korea\.net: anchor/);
+  assert.match(p.user, /Empty roles: practice —/); // 선택 역할(반론·한계)은 빈 역할로 보이지 않는다
+});
+
+// 2026-10-17 소개형 전환 — 생활 관행 역할 · 질문형 축 · 반론·한계·수치·조사는 선택 역할
+test("글로벌 소개형: 질문형 축과 생활 관행은 내부 값으로 바뀌고, 선택 역할은 빈 역할이 되지 않는다", () => {
+  en();
+  const out = P.judgeToInternal({ candidates: [{ axis_type: "question", verdict: "holds", gaps: ["practice"], sources: [{ m: "M1", roles: ["anchor", "practice"], why: "w" }] }] });
+  assert.equal(out.candidates?.[0].axis_type, "질문");
+  assert.deepEqual(out.candidates?.[0].gaps, ["생활 관행"]);
+  assert.deepEqual(out.candidates?.[0].sources[0].roles, ["근거 앵커", "생활 관행"]);
+  assert.deepEqual(P.globalGaps(["반론·한계", "사례", "수치·조사", "생활 관행"]), ["사례", "생활 관행"]);
+  const gapsEnum = P.CLUSTER_SCHEMA_V2_EN.properties.candidates.items.properties.gaps.items.enum as readonly string[];
+  assert.deepEqual([...gapsEnum], ["anchor", "case", "practice", "context"]);
+  assert.ok((P.CLUSTER_SCHEMA_V2_EN.properties.candidates.items.properties.axis_type.enum as readonly string[]).includes("question"));
+  const judge = P.buildTopicJudgePromptEn({ midTopics: ["K-Food"], nextIdNumber: 1, sources: [], existingTitles: [], specBacklogExcerpt: "", seed: { id: "C1", topic: "Seaweed soup", hint: null, midTopic: "K-Food" } });
+  assert.match(judge, /four forms: question/);
+  assert.match(judge, /Never list counterpoint or numbers in gaps/);
+});
+
+test("판정(en) — 도메인 등급 표시·앵커는 1군만, 보조 주제 후보, 사건형은 History & Society 만, 보강은 축 유지, 국문 개인 출판 제외", () => {
+  en();
+  const base = { midTopics: ["K-Food"], nextIdNumber: 1, existingTitles: [], specBacklogExcerpt: "" };
+  const src = [{ n: 1, url: "u1", title: "t", summary: null, publisher: "Korea.net", domain: "korea.net", published: null, tier: "allow_open" }, { n: 2, url: "u2", title: "t", summary: null, publisher: "Soompi", domain: "soompi.com", published: null, tier: "candidate" }];
+  const seed = P.buildTopicJudgePromptEn({ ...base, sources: src, seed: { id: "C1", topic: "Kimjang", hint: null, midTopic: "K-Food" }, subTopicOptions: ["Korean Culture", "Travel in Korea"] });
+  // 2026-10-17: 판정자에게 도메인 계층을 보이지 않는다(한국판과 같게) — 뼈대 1군 검사는 게이트 1
+  assert.match(seed, /\[M1\] Korea\.net · date unknown\n/);
+  assert.doesNotMatch(seed, /tier 1|domain not judged|Give the anchor role only/);
+  assert.match(seed, /sub_topic: one of "Korean Culture", "Travel in Korea" only when/);
+  assert.match(seed, /Do not use axis_type "event"/);
+  assert.match(seed, /Set the count to the items the sources support and put that count in the title\. List the counted items in landing\./);
+  assert.doesNotMatch(seed, /7 instead of 10/); // 규칙에 예시 숫자를 두지 않는다 — 그대로 복제된다
+  assert.match(seed, /A domain not yet judged is not a reason for "needs reinforcement"/);
+  assert.doesNotMatch(seed, /History mode/);
+  const hist = P.buildTopicJudgePromptEn({ ...base, midTopics: ["Korean History & Society"], sources: src, seed: { id: "C2", topic: "The 1988 Olympics", hint: null, midTopic: "Korean History & Society" } });
+  assert.match(hist, /use axis_type "event" only for a past event in Korean History & Society/);
+  assert.match(hist, /sub_topic: null/);
+  const re = P.buildTopicJudgePromptEn({ ...base, sources: src, reinforce: { id: "C1", title: "Kimjang", axis: "x", axis_type: "대립", gaps: [], currentM: ["M1"] }, reinforceMidTopic: "K-Food" });
+  assert.match(re, /do not set a new axis\. Apply rules 2 to 6 below/);
+  const search = P.buildTopicSeedSearchPromptEn({ id: "C1", topic: "Kimjang", hint: null, midTopic: "K-Food", poolHosts: [], maxSearches: 8 });
+  assert.match(search, /Naver or Daum blogs and cafes, Tistory, Brunch/);
+  assert.match(search, /at least 1 case/);
+  assert.match(search, /official English name/);
+  assert.equal(P.judgeToInternal({ candidates: [{ axis_type: "contrast", verdict: "holds", gaps: [], sources: [], sub_topic: "Korean Culture" }] }).candidates?.[0].sub_topic, "Korean Culture");
+});
+
+test("기획 검색(en) — 검색어 계획, 풀이 비면 site: 금지, 후보 8~12건, 나열형 주제는 공통점으로", () => {
+  en();
+  const empty = P.buildTopicSeedSearchPromptEn({ id: "C1", topic: "10 Korean words", hint: null, midTopic: "Korean Language", poolHosts: [], maxSearches: 8 });
+  assert.match(empty, /Plan the queries before searching/);
+  assert.match(empty, /The pool list is empty; do not use site:/);
+  assert.match(empty, /return 10 to 12 candidates that fit .* at most 3 from one publisher/);
+  assert.match(empty, /explain the items one by one .* Keep the list\./);
+  assert.match(empty, /If the topic is a list/);
+  assert.match(empty, /At most 8 searches/);
+  const pooled = P.buildTopicSeedSearchPromptEn({ id: "C1", topic: "x", hint: null, midTopic: "K-Food", poolHosts: ["korea.net"], maxSearches: 12 });
+  assert.match(pooled, /Pool sites \(known to be readable\): korea\.net/);
+  assert.doesNotMatch(empty + pooled, HANGUL);
+});
+
+test("설계 재료 점검(full-en-v0.16) — 스키마에 축 답·순간 claims, 구성안 Axis answer 줄은 보고 값으로 맞춘다", () => {
+  assert.ok(P.DESIGN_INLINE_SCHEMA_EN.required.includes("axis_answer_claims"));
+  assert.ok(P.DESIGN_INLINE_SCHEMA_EN.required.includes("moment_claims"));
+  const base = ["# Outline — G1", "Axis: [question] Why …?", "Landing section: #3", "Estimated length: 8 min"].join("\n");
+  assert.match(setAxisAnswerLine(base, ["C04", "C25"]), /^Landing section: #3\nAxis answer: C04, C25\nEstimated length/m);
+  assert.match(setAxisAnswerLine(base + "\nAxis answer: C99", ["C04"]), /^Axis answer: C04$/m);
+  assert.doesNotMatch(setAxisAnswerLine(base + "\nAxis answer: C99", ["C04"]), /C99/);
+  assert.match(normalizeOutlineEn("**Axis answer:** C04"), /^Axis answer: C04$/);
+});
+
+test("v0.17 프롬프트(full-en-v0.17) — 장소 Terms 는 이름+의미, 축 답 2~3개, 수정은 뜻풀이를 지우지 않는다, QA 는 뜻풀이를 사실로 보지 않는다", async () => {
+  assert.match(JSON.stringify(P.DESIGN_INLINE_SCHEMA_EN.properties.axis_answer_claims), /2 to 3 claim IDs/);
+  const root = path.resolve(import.meta.dirname, "../../../../../docs/ai/global");
+  const qa = P.promptBody(await fs.readFile(path.join(root, "skills/qa/prompt.md"), "utf8"));
+  assert.match(qa, /meaning the explainer gives a Korean word or name on first use is not a fact/);
+  const r = P.buildRevisionPromptInlinePartsEn({ attempt: 1, qaFailures: [], guidelines: "g", scriptMd: "s", claimsMd: "c", sourcesMd: "x", pronunciationsJson: "{}" } as never);
+  assert.match(r.system, /Keep the meaning given for a Korean word or name on first use/);
+});
+
+test("v0.18 프롬프트(full-en-v0.18) — 견해 claims 3분의 1 · 축 답 견해 하나 · 질문 축 섹션은 답의 단계 · 해설자 질문 없는 Opening", () => {
+  const sys = P.buildDesignPromptInlinePartsEn({ episodeId: "G1", candidate: cand, promptVersion: "v", guidelines, specScript: "", goldFullEum: "", goldFullYuna: "", sources: [] }).system;
+  assert.match(sys, /At most one third of the claims are opinions/);
+  assert.match(sys, /at most one of them is an opinion/);
+  assert.match(sys, /For a question axis, the sections are steps of the answer/);
+  assert.match(sys, /Never give a person a gender, age, or nationality the excerpt does not state/);
+  assert.match(sys, /Gochang County/);
+  const src = String(P.INTRO_STYLES_EN.find((x) => x.key === "question")?.hint);
+  assert.match(src, /The explainer asks nothing/);
+});
+
+test("v0.19 — 축 답 한 생각·화면 속 장면 칸, 한국어 발췌 인물 they, 대비 조건, 골드가 있으면 대본 프롬프트에 붙는다", () => {
+  assert.ok(P.DESIGN_INLINE_SCHEMA_EN.required.includes("axis_answer_idea"));
+  assert.ok(P.DESIGN_INLINE_SCHEMA_EN.required.includes("screen_scene_claims"));
+  const sys = P.buildDesignPromptInlinePartsEn({ episodeId: "G1", candidate: cand, promptVersion: "v", guidelines, specScript: "", goldFullEum: "", goldFullYuna: "", sources: [] }).system;
+  assert.match(sys, /Korean has no gendered pronoun/);
+  assert.match(sys, /keep that contrast in the claim/);
+  assert.match(sys, /a moment from life off screen does not count/);
+  assert.doesNotMatch(sys, /each reason in turn/);
+  const w = (g: string) => P.buildWritePromptPartsEn({ episodeId: "G1", candidate: cand, introStyle: P.INTRO_STYLES_EN[0], promptVersion: "v", templates: null as never, majorTopic: "K-Food", signoffSeed: 0, estimatedMinutes: 8, guidelines, specScript: "", goldFullEum: g, goldFullYuna: "", sourcesMd: "s", claimsMd: "c", outlineMd: "o", pronunciationsJson: "{}" }).system;
+  assert.match(w("[Owen] Y1 · Hi."), /## Gold examples — how the conversation works/);
+  assert.match(w(""), /There are no gold examples yet/);
+});
+
+test("글로벌 골드 자산 — gold@ 라벨, 대본 줄 문법, 한글 없음", async () => {
+  const { versionOf } = await import("../assets.js");
+  const root = path.resolve(import.meta.dirname, "../../../../../docs/ai/global");
+  for (const n of [1, 2]) {
+    const g = await fs.readFile(path.join(root, `skills/draft/examples/gold-en-${n}.md`), "utf8");
+    assert.equal(versionOf(`skills/draft/examples/gold-en-${n}.md`, g), "gold@2026-10-20");
+    assert.match(g, /^\[[A-Za-z-]+\] E1 · /m);
+    assert.doesNotMatch(g, HANGUL);
+  }
+});
+
+test("글로벌 골드 두 편은 지금 L0 문체 검사를 통과한다 — 골드의 형식이 대본으로 옮겨 간다(v0.20)", async () => {
+  process.env.PIPELINE_LOCALE = "en";
+  const { enStyleViolations } = await import("./draft-two-stage.js");
+  const { parseScriptForTts } = await import("../tts/script.js");
+  const root = path.resolve(import.meta.dirname, "../../../../../docs/ai/global");
+  for (const n of [1, 2]) {
+    const g = await fs.readFile(path.join(root, `skills/draft/examples/gold-en-${n}.md`), "utf8");
+    assert.deepEqual(enStyleViolations(parseScriptForTts(g.slice(g.indexOf("---") + 3)).turns), [], `gold-en-${n}`);
+  }
 });

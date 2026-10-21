@@ -9,7 +9,7 @@ import { InviteCodeRedemption } from '@/modules/subscription/entities/invite-cod
 import { InviteCodeService } from '@/modules/subscription/services/invite-code.service';
 import {
   ActiveInviteGrant,
-  TrialContext,
+  PlanViewContext,
 } from '@/modules/subscription/subscription.types';
 import { PurchaseIntentService } from '@/modules/subscription/services/purchase-intent.service';
 import { StoreNotificationLogService } from '@/modules/subscription/services/store-notification-log.service';
@@ -79,6 +79,8 @@ export function buildPlans(): Plan[] {
       tier: UserTier.LIGHT,
       name: 'Light',
       description: '무료',
+      nameEn: 'Light',
+      descriptionEn: 'Free',
       dailyPlayLimit: 2,
       isAdsEnabled: true,
       priceKrw: 0,
@@ -91,6 +93,8 @@ export function buildPlans(): Plan[] {
       tier: UserTier.DAILY,
       name: 'Daily',
       description: '하루 5편',
+      nameEn: 'Daily',
+      descriptionEn: '5 a day',
       dailyPlayLimit: 5,
       isAdsEnabled: false,
       priceKrw: 3900,
@@ -103,6 +107,8 @@ export function buildPlans(): Plan[] {
       tier: UserTier.PRO,
       name: 'Pro',
       description: '무제한',
+      nameEn: 'Pro',
+      descriptionEn: 'Unlimited',
       dailyPlayLimit: null,
       isAdsEnabled: false,
       priceKrw: 9900,
@@ -330,6 +336,8 @@ export function buildTransaction(
     revokedAt: overrides.revokedAt ? new Date(overrides.revokedAt) : null,
     accountToken: overrides.accountToken ?? null,
     receipt,
+    // 결제 알림 문구용 부가 사실 — 준 테스트에만 싣는다(나머지 테스트의 거래 모양을 바꾸지 않게)
+    ...(overrides.detail ? { detail: overrides.detail } : {}),
   };
 }
 
@@ -576,7 +584,7 @@ export class BillingTestWorld {
           (row) => row.expiresAt.getTime() < before.getTime(),
         ),
       ),
-    buildPlanView: (userId: string, trialContext: TrialContext) =>
+    buildPlanView: (userId: string, context: PlanViewContext) =>
       SubscriptionService.prototype.buildPlanView.call(
         Object.assign(Object.create(SubscriptionService.prototype), {
           subscriptionRepository: {
@@ -590,7 +598,7 @@ export class BillingTestWorld {
           logger: { warn: () => undefined },
         }) as SubscriptionService,
         userId,
-        trialContext,
+        context,
       ),
   } as unknown as SubscriptionService;
 

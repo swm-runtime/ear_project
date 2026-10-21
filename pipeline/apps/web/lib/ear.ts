@@ -123,6 +123,8 @@ export async function connectEar(ch: EarChannel = "prod"): Promise<{ role: strin
 
 export interface EarTopic {
   id: string; name: string; parent_category: string;
+  /** 주제의 시장 — 지금 서버 목록(admin-api 4.1)은 싣지 않는다(BE 요청 2026-10-20). 오면 이 값으로 가른다 */
+  market?: "kr" | "global";
   is_visible: boolean; display_order: number; content_count: number;
   /** 발행 중 + 라이선스 미만료 건수 — 노출 켜기 판정 기준(admin.md 4.5, KAN-58). 배포 전 서버는 주지 않는다 */
   visible_content_count?: number;
@@ -143,20 +145,49 @@ export interface EarContent {
   has_script?: boolean;
   /** 추천 스코어링에 쓰이는 임베딩이 있는가(admin-api 8장, 2026-10-13). false = 없거나 오디오 재발행 뒤 미갱신 — 메타 형식이 최신이어도 다시 뽑을 대상. 배포 전 서버면 없다 */
   has_current_embedding?: boolean;
+  /** 시리즈 편이면 편의 값(admin-api 8장 · 4.6, 2026-10-17 KAN-134). 단일 편은 null */
+  series_id?: string | null; episode_no?: number | null; total_episodes?: number | null;
 }
 /** 현재 추천 메타 형식 버전 — 원본은 서버 CURRENT_ENRICHMENT_SCHEMA_VERSION(admin-api 4.6). 3 = 해시태그 포함(KAN-162 운영 배포 뒤 KAN-164). **워커 ENRICH_TAGS=1 과 같은 시점에 움직인다** — 콘솔만 먼저 올리면 발행분 전부가 "구형 v2"로 보이는데 다시 뽑아도 태그가 붙지 않는다(2026-10-13 먼저 올렸다가 되돌림 #1486). 2026-10-14 AI 서버 워커 env.prod 에 ENRICH_TAGS=1 을 넣고 재기동한 뒤 3으로 올렸다 */
 export const ENRICHMENT_SCHEMA_VERSION_FALLBACK = 3;
 export const listEarJobCategories = () => earFetch<{ items: { name: string }[] }>("/job-categories");
 
 export const listEarTopics = () => earFetch<{ items: EarTopic[] }>("/admin/topics");
+/** 주제 생성 — 이 콘솔 인스턴스의 시장을 싣는다(admin-api 4.2 `market`, 없으면 서버가 kr). 2026-10-20 전에는 싣지 않아 글로벌 콘솔이 만든 주제가 kr 로 생길 수 있었다 */
 export const createEarTopic = (name: string, parent_category: string, display_order?: number) =>
-  earFetch<EarTopic>("/admin/topics", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ name, parent_category, ...(display_order != null ? { display_order } : {}) }) });
+  earFetch<EarTopic>("/admin/topics", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ name, parent_category, market: contentMarket(consoleMarket()).market, ...(display_order != null ? { display_order } : {}) }) });
+
+/**
+ * 이 콘솔 시장의 주제만 (2026-10-20) — 서버 목록이 두 시장 주제를 함께 주고 시장 칸이 없다(admin-api 4.1).
+ * 시장 칸이 오면 그 값으로, 없으면 이 인스턴스 파이프라인의 중분류 이름으로 가른다(제품 주제 = 파이프라인 중분류 1:1, 2026-09-06 체계 통일).
+ * others = 다른 시장(또는 체계에 없는) 주제 — 화면은 숨기고 수만 알린다
+ */
+export function splitConsoleTopics(items: EarTopic[], market: "kr" | "global", pipelineNames: string[]): { mine: EarTopic[]; others: EarTopic[] } {
+  const names = new Set(pipelineNames);
+  const mine = (t: EarTopic) => (t.market ? t.market === market : names.has(t.name));
+  return { mine: items.filter(mine), others: items.filter((t) => !mine(t)) };
+}
+/** 브라우저에서 이 콘솔의 시장 — kr | global */
+export const consoleMarketValue = (): "kr" | "global" => contentMarket(consoleMarket()).market;
 export const patchEarTopic = (id: string, fields: Partial<{ name: string; parent_category: string; is_visible: boolean; display_order: number }>) =>
   earFetch<EarTopic>(`/admin/topics/${id}`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify(fields) });
 export const deleteEarTopic = (id: string) => earFetch<void>(`/admin/topics/${id}`, { method: "DELETE" });
 
-export const listEarContents = (status: string, offset: number, limit = 20) =>
-  earFetch<{ items: EarContent[]; total: number }>(`/admin/contents?offset=${offset}&limit=${limit}${status ? `&status=${status}` : ""}`);
+/** 이 콘솔 인스턴스의 시장(kr·global) — 서버 레이아웃이 <html data-market> 에 적는다. 제품 서버 하나를 두 시장이 같이 쓰므로 목록은 시장으로 가른다(admin-api 4.5) */
+const consoleMarket = (): string | undefined => (typeof document !== "undefined" ? document.documentElement.dataset.market : undefined);
+
+/**
+ * 발행 payload 의 시장·언어 (global-api 4.9 · BE KAN-190 1단계, 2026-10-19 BE 요청) — 허용 조합은 kr+ko, global+en 뿐이다.
+ * 두 트랙 모두 명시해서 보낸다: 서버가 필수로 바꾸면(KAN-190 2단계) 빠진 쪽이 400 이 되고, 지금 빠뜨리면 GLOBAL 콘텐츠가 kr·ko 로 저장된다.
+ * 인스턴스 시장을 모르면(서버 렌더 등) 한국판으로 둔다 — 레이아웃이 늘 <html data-market> 을 적으므로 브라우저 발행에서는 일어나지 않는다
+ */
+export function contentMarket(market: string | undefined): { market: "kr" | "global"; language: "ko" | "en" } {
+  return market === "global" ? { market: "global", language: "en" } : { market: "kr", language: "ko" };
+}
+export const listEarContents = (status: string, offset: number, limit = 20) => {
+  const market = consoleMarket();
+  return earFetch<{ items: EarContent[]; total: number }>(`/admin/contents?offset=${offset}&limit=${limit}${status ? `&status=${status}` : ""}${market ? `&market=${market}` : ""}`);
+};
 /** 단건 — admin-api 에 GET /admin/contents/:id 가 없어(3장) 목록을 넘기며 찾는다. 콘텐츠가 수백 건을 넘기 전까지는 충분하다 */
 export async function findEarContent(id: string): Promise<EarContent | null> {
   for (let off = 0; ; off += 50) {
@@ -178,6 +209,7 @@ export interface UploadPayload {
   author_name?: string; source_url?: string; partner_id?: string; license_expires_at?: string;
   series_id?: string; episode_no?: number; total_episodes?: number;
   review_confirmed: boolean;
+  market?: "kr" | "global"; language?: "ko" | "en"; // 비우면 uploadEarContent 가 이 콘솔 인스턴스의 값으로 채운다 (contentMarket)
 }
 
 /** 재발행 — 같은 content_id 에 오디오(·메타) 교체, content_version +1 (admin-api 4.10 — 백엔드 구현 대기: 404 면 아직 없는 것) */
@@ -192,9 +224,21 @@ export function republishEarContent(contentId: string, parts: { audio?: File; lo
   return earFetch<EarContent>(`/admin/contents/${contentId}`, { method: "PATCH", body: fd });
 }
 
+/** 제품 시리즈 (admin-api 4.24, KAN-134) — [시리즈 발행]이 먼저 만들고 그 id 를 업로드의 series_id 로 보낸다(spec/11 7장). 삭제는 없다 */
+export interface EarSeries {
+  id: string; title: string; description: string; total_episodes: number; status: "ongoing" | "completed";
+  episode_counts: { published: number; withdrawn: number; expired: number }; max_published_episode_no: number | null;
+  created_at: string; updated_at: string;
+}
+export const listEarSeries = () => earFetch<{ items: EarSeries[] }>("/admin/series");
+export const createEarSeries = (body: { title: string; description: string; total_episodes: number; status?: "ongoing" | "completed" }) =>
+  earFetch<EarSeries>("/admin/series", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+export const patchEarSeries = (id: string, fields: Partial<{ title: string; description: string; total_episodes: number; status: "ongoing" | "completed" }>) =>
+  earFetch<EarSeries>(`/admin/series/${id}`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify(fields) });
+
 export function uploadEarContent(payload: UploadPayload, audio: File, thumbnail: File, enrichment?: File | null, script?: File | null, lossless?: File | null): Promise<EarContent> {
   const fd = new FormData();
-  fd.append("payload", JSON.stringify(payload));
+  fd.append("payload", JSON.stringify({ ...contentMarket(consoleMarket()), ...payload }));
   fd.append("audio", audio);
   if (lossless) fd.append("audio_lossless", lossless); // 무손실(Pro, KAN-141·142) — lib/audio-file.ts 스위치
   fd.append("thumbnail", thumbnail);
@@ -350,6 +394,26 @@ export interface EarInsightsListening {
   listen_sec: number; plays: number; completes: number; complete_rate: number | null; listeners: number; saves: number;
   avg_listen_sec_per_play: number | null; avg_listen_sec_per_listener: number | null;
 }
+export interface EarInsightsWeekday {
+  /** ISO 요일 — 1 = 월 … 7 = 일 */
+  weekday: number; label: string;
+  /** 창 안 그 요일의 온전한 날 수 · 그중 접속자 기록이 있는 날 수 */
+  days: number; active_days: number;
+  avg_active_users: number | null; avg_listeners: number | null;
+}
+/** 코호트 표 한 칸 — `null`은 구간이 아직 끝나지 않음. `partial`은 접속 기록 이전 구간(재생만 잡혀 낮게 나온다) */
+export type EarInsightsCohortCell = { returned: number; rate: number | null; partial: boolean } | null;
+export interface EarInsightsCohortTable {
+  /** 1 = 일별(D) · 7 = 주별(W) */
+  span: number;
+  /** 가입 뒤 몇 번째 구간 — 일별 [1, 7] · 주별 [1, 2, 3, 4] */
+  offsets: number[];
+  /** 접속 기록을 믿을 수 있는 첫 날(KST) — 이보다 앞에서 시작하는 칸이 `partial` */
+  reliable_since: string;
+  /** 최근 묶음 먼저. `start`는 일별 가입일 · 주별 가입 주 월요일(KST) */
+  rows: { start: string; users: number; cells: EarInsightsCohortCell[] }[];
+}
+export interface EarInsightsTopContent { content_id: string; title: string; duration_sec: number; listen_sec: number; plays: number; listeners: number; completes: number; complete_rate: number | null; saves: number }
 export interface EarInsightsSummary {
   days: number; since: string; generated_at: string;
   users: {
@@ -366,12 +430,23 @@ export interface EarInsightsSummary {
     by_provider: { provider: string; count: number }[];
   };
   listening: { all_time: EarInsightsListening; window: EarInsightsListening };
-  daily: { date: string; signups: number; withdrawals: number; plays: number; listeners: number; listen_sec: number; completes: number }[];
+  /** `active_users` — 그날 접속자(토큰 갱신한 사람). 기록이 없는 날은 null, 배포 전 서버면 키가 없다(2026-10-18 추가) */
+  daily: { date: string; signups: number; withdrawals: number; plays: number; listeners: number; listen_sec: number; completes: number; active_users?: number | null }[];
+  /** 요일별 평균 — 월~일 7칸, 창 안의 온전한 하루만(첫날 부분일·오늘 제외). 배포 전 서버면 없다 */
+  weekday?: EarInsightsWeekday[];
+  /** 접속자를 믿을 수 있는 첫 날(KST `YYYY-MM-DD`). 배포 전 서버면 없다 */
+  active_users_since?: string;
   hourly: { hour: number; plays: number; listen_sec: number }[];
   top_users: { user_id: string; listen_sec: number; plays: number; completes: number; tier: string; signed_up_at: string; last_played_at: string }[];
-  top_contents: { content_id: string; title: string; duration_sec: number; listen_sec: number; plays: number; listeners: number; completes: number; complete_rate: number | null; saves: number }[];
+  top_contents: EarInsightsTopContent[];
+  /** 최근 24시간 인기 콘텐츠 — 창 안의 재생·완청·담기만, 청취자 수 순. 배포 전 서버면 없다(2026-10-18 추가) */
+  recent_top_contents?: EarInsightsTopContent[];
+  /** `recent_top_contents`의 창 시작(ISO) — 지금 - 24시간 */
+  recent_since?: string;
   withdrawal_reasons: { reason_code: string | null; count: number }[];
   retention: { day: number; cohort_size: number; returned: number; rate: number | null }[];
+  /** 코호트 리텐션 — 일별 D1·D7 · 주별 W1~W4. 배포 전 서버면 없다(2026-10-18 추가) */
+  retention_cohorts?: { daily: EarInsightsCohortTable; weekly: EarInsightsCohortTable };
   /** 주제별 수요·공급 — 관심 사용자가 많은 순(admin-api 4.22). 배포 전 서버면 없다 */
   topic_supply?: { topic_id: string; name: string; is_visible: boolean; published: number; published_in_window: number; interested_users: number; median_remaining: number; exhausted_users: number; low_users: number }[];
 }

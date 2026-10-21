@@ -1,0 +1,81 @@
+# [BE] 설정에서 콘텐츠 언어(시장) 바꾸기 — 시장 전환 API·전환 시 데이터 규칙 (1.3.0 다음 버전)
+
+| 항목 | 값 |
+|---|---|
+| 대상 | `users.market` 전환 · 새 엔드포인트(예: `PATCH /users/me/market`) · 관심 주제·라이브러리·드립·동의·연령의 전환 규칙 · `global-api.md` 9장 미결 #1 |
+| 요청 파트 | 백엔드 |
+| 요청자 | 이주호(PM) |
+| 담당 | 박준현 |
+| Jira | [KAN-227](https://runtime364.atlassian.net/browse/KAN-227) · 관련 FE [KAN-195](https://runtime364.atlassian.net/browse/KAN-195) |
+| 발행 날짜 | 2026-10-19 |
+| 시작 날짜 | 2026-10-19 |
+| 기한 | 2026-10-19 (Highest — 발행 당일. **설계·범위 확정을 오늘 시작**한다는 뜻이고, 구현·배포는 1.3.0 심사 제출(10-24) 뒤 다음 버전) |
+| 선행 | 없음 — 단 **GLOBAL 콘텐츠 운영 발행**(AI KAN-204)이 끝나기 전에는 GLOBAL로의 전환을 열지 않는다(아래 완료 조건) |
+| 근거 문서 | `spec/api/global-api.md` 2.1(시장 판정)·4.1·9장 미결 #1("같은 계정의 시장 전환 — 기본값 불허") · `features/auth.md` · `spec/uiux/auth-uiux.md` A21 |
+| 중요도 | Highest |
+| 상태 | **완료**(2026-10-19) — 서버 구현·개발계 실측 끝. 남은 FE 화면은 [KAN-228](https://runtime364.atlassian.net/browse/KAN-228), 운영 스위치는 [KAN-193](https://runtime364.atlassian.net/browse/KAN-193) 출시 체크리스트 |
+| 반영 날짜 | 2026-10-19 |
+
+## 왜
+
+PM 결정(2026-10-19):
+
+- **가입할 때는** 콘텐츠 언어 화면(A21)에서 고른 언어로 **화면 언어와 콘텐츠(시장)를 통일한다**. FE가 1.3.0에 반영한다(KAN-195).
+- **가입한 뒤에는 설정에서 콘텐츠(시장)와 화면 언어를 따로 바꿀 수 있게 한다.** 화면 언어는 이미 설정 › 언어로 바꿀 수 있다. 바꿀 수 없는 것은 시장이다.
+- 1.3.0은 **지금처럼 가입 때 한 번만** 고른다. 시장 전환은 이 티켓으로 BE를 먼저 설계하고, 다음 버전에 넣는다.
+
+지금은 시장을 바꿀 길이 없다. 영어 기기에서 실수로 English를 고른 한국 사용자는 GLOBAL에 갇히고, 반대로 한국어를 고른 해외 사용자는 KR에 갇힌다. A21이 "가입한 뒤에는 바꿀 수 없어요"라고 경고하지만, 실기기 QA에서 PM이 바로 "설정에서 바꾸게 하자"고 판단했다.
+
+## 정해야 할 것 (BE 설계 — 결정 후 `global-api.md`에 계약으로 적는다)
+
+1. **엔드포인트**: 예) `PATCH /users/me/market { "market": "kr" | "global" }`. 응답은 새 `user.market` + 온보딩 재진입 필요 여부(`steps[]`).
+2. **관심 주제**: 시장마다 주제가 격리돼 있다(KAN-188). 전환하면 기존 관심 주제를 어떻게 하나 — 비활성 + 새 시장 주제 선택(온보딩 주제 단계 재진입) 제안.
+3. **라이브러리·청취 기록·드립**: 이전 시장 콘텐츠를 라이브러리에 남기나 숨기나. 받은 드립 편성, 재생 위치, 통계(프로필)를 어떻게 하나. 서비스 날짜·드립 시간대 그룹(KAN-191) 재배정.
+4. **동의**: GLOBAL은 국외 이전 동의(KAN-215)가 필수고, 약관 버전 네임스페이스가 시장별이다(KAN-212). 전환할 때 새 시장의 필수 동의를 받는다 — `pending_consents`로 A20 재동의를 태우는 방식 제안.
+5. **연령**: 기준 연령이 시장·나라별이다(KR 18, GLOBAL 16/18 — KAN-220). KR → GLOBAL이면 완화되고 GLOBAL → KR이면 강화된다. 강화 방향이면 18세 확인을 다시 받는다.
+6. **구독**: 결제는 스토어 국가 기준이라 구독 행은 시장을 갖지 않는다(KAN-192 보류 사유). 전환해도 구독은 유지되는지 확인. 요금제 문구는 새 시장 언어로 나온다(`planTextOf`).
+7. **푸시·메일 언어**: `users.market`으로 고르므로 전환 즉시 바뀐다(2.3). 의도대로인지 확인.
+8. **횟수 제한·악용**: 시장을 오가며 체험·프로모션을 다시 받는 경로가 없는지. 전환 쿨다운이 필요한가.
+9. **비어 있는 시장으로의 전환 차단**: 노출 주제·콘텐츠가 0인 시장으로는 전환을 거부한다(에러 코드). GLOBAL 콘텐츠가 0편인 지금 GLOBAL로 옮기면 빈 화면만 남는다.
+10. **관리자·지표**: 시장별 집계(KAN-187·4.10)에서 전환 사용자를 어떻게 셀지. 전환 이력 테이블이 필요한가(`domain.md`).
+
+## 범위 밖
+
+- FE 설정 화면(콘텐츠 언어 항목 · 전환 확인 팝업 · 재온보딩 진입)과 A21 "가입한 뒤에는 바꿀 수 없어요" 문구 수정 — 이 티켓의 계약이 확정되면 FE 티켓을 따로 낸다.
+- 1.3.0 범위의 어떤 변경도 아니다. 1.3.0 심사 빌드에는 시장 전환이 없다.
+
+## 완료 조건
+
+- Given 이 티켓 / When `global-api.md`를 본다 / Then 9장 미결 #1이 결정으로 바뀌어 있고, 전환 엔드포인트와 위 1~10의 규칙이 계약으로 적혀 있다
+- Given KR 사용자 / When GLOBAL로 전환 / Then 국외 이전 동의를 포함한 GLOBAL 필수 동의를 받기 전까지 GLOBAL 콘텐츠가 나오지 않고, 관심 주제는 GLOBAL 주제로 다시 고른다
+- Given GLOBAL 사용자 / When KR로 전환 / Then KR 연령 기준(18)과 KR 동의를 다시 받는다
+- Given 노출 콘텐츠가 0인 시장 / When 전환 요청 / Then 거부된다(에러 코드)
+- Given 유료 구독자 / When 전환 / Then 구독·결제 상태가 그대로다
+- Given 전환 / Then 이전 시장의 라이브러리·통계 처리가 계약대로다(e2e)
+
+## 처리 기록
+
+- 2026-10-19 발행(마크다운 + Jira). PM 긴급 지시 — 설계를 오늘 시작하고, 구현은 1.3.0 다음 버전.
+- 2026-10-19 **설계안 작성**(브랜치 `docs(be)/market-change-design`) — `changes/pending/global-market-change-design.md`. 코드 조사로 확인한 핵심: ① 시장이 액세스 토큰 클레임이라(TTL 30분) 전환 응답에 새 토큰을 준다 ② 동의 전 콘텐츠 노출을 막으려고 **전환 요청에 새 시장 필수 동의를 함께 받는다**(미리보기 `GET /users/me/market-change/preview` → `POST /users/me/market-change`) ③ 이전 시장 주제 비활성 + 온보딩 주제 단계 재진입 + 첫 드립 재실행 ④ 라이브러리는 시장 조건으로 자동 숨김(행 유지) ⑤ 전환으로 다시 받는 혜택 없음 — 쿨다운은 데이터 흔들림 때문 ⑥ 노출 주제 0 시장·가입 스위치 닫힌 GLOBAL은 409 `MARKET_UNAVAILABLE` ⑦ 이력 테이블 `user_market_changes` ⑧ 시장 무관 카운터(안 들은 항목 수 등)를 좁혀야 정규 드립이 끊기지 않는다. 독립 검증 1회 반영. PM 결정 D1~D5 대기 — pending 유지.
+- 2026-10-19 **규칙 결정·계약 반영**(박준현 — `global-api.md` 9장 미결 #1의 결정자, 브랜치 `docs(be)/market-change-contract`). D1 주제 초기화 · D2 **서비스 날짜당 1회**(직전 시장 되돌리기 예외) · D3 라이브러리 숨김 · D4 다른 기기 30분 지연 허용 · D5 연령 항상 재확인. `global-api.md` 4.11 신설(미리보기·전환 계약, 바뀌는 것 표, 막는 조건)·9장 #1 삭제 · `domain.md` 3.4-1 `user_market_changes`. 설계안은 `changes/archive/global-market-change-design.md`. 완료 조건 1(계약)은 충족 — **남은 것**: 서버 구현·e2e(1.3.0 심사 제출 10-24 뒤) · FE 티켓 발행(설정 › 콘텐츠 언어 · 동의 · 토큰 교체 후 온보딩 · A21 문구) · `common-error-handling.md` 9장에 `MARKET_UNAVAILABLE`·`MARKET_CHANGE_COOLDOWN` 등재 요청(FE). pending 유지.
+- 2026-10-19 **서버 구현**(브랜치 `feat(be)/market-change`) — 사용자 결정: 1.3.0이 국제화 배포라 시장 전환도 1.3.0에 함께 넣는다(종전 "1.3.0 다음 버전"을 바꿨다). 서버 스위치 `MARKET_CHANGE_ENABLED`(기본 닫힘) 뒤에 둔다 — 운영은 앱 설정 화면이 나간 뒤 연다.
+  - 신설 모듈 `market-change`(Orchestrator·컨트롤러 — 한 트랜잭션) · `UserMarketChangeService`(하루 1회·되돌리기·스위치 판정, 시장 변경) · `user_market_changes`(마이그레이션 `1791000000000`) · 에러 코드 `MARKET_UNAVAILABLE`·`MARKET_CHANGE_COOLDOWN` · `AuthModule`이 `TokenService` export.
+  - 시장으로 좁힌 곳: 안 들은 항목 수(정규 드립 `unfinished_inventory`) · 온보딩 담기 수 · 도착 알림(적립 뒤 전환하면 이전 시장 편을 알리지 않는다) · 프로필 주제 분포 · 첫 드립·정규 드립의 커리어 가중(KR만). `onboarding_completed_at`은 처음 값 유지. 일일 이탈 보고에 "시장 전환" 줄(전환 있던 날만).
+  - 문서: `global-api.md` 4.11 구현 반영 · `domain.md` 3.4-1 · `architecture.md` 4.5(MarketChange — 8.1 예외) · `backend-monitoring.md` 3-4. `common-error-handling.md` 등재는 `changes/pending/global-market-change-error-codes.md`로 FE에 요청.
+  - 검증: 단위 테스트 추가(동의·하루 1회·되돌리기·스위치·재온보딩·커리어·알림·일일 보고), e2e `test/market-change.e2e-spec.ts`(로컬 DB가 없어 CI에서 실행).
+  - **남은 것**: 개발계 배포 뒤 `MARKET_CHANGE_ENABLED=true`로 실측 · FE 티켓 발행(설정 › 콘텐츠 언어 — 1.3.0 포함) · 운영 스위치는 앱 출시 뒤.
+- 2026-10-19 **개발계 실측**(#1724 · 배포 키 수정 #1725 · FE 티켓 KAN-228 #1726). 개발계 Secrets `MARKET_CHANGE_ENABLED=true` → 재배포, 컨테이너 env 확인. 마이그레이션 `AddUserMarketChanges1791000000000` 적용 확인. 개발계 전용 시험 계정(KR·온보딩 완료)으로 확인 — 토큰은 컨테이너 안에서만 서명·사용:
+  - GLOBAL 노출 주제 0개일 때 미리보기 `available: false · market_unavailable` ✅ (개발계 GLOBAL 주제는 콘텐츠 0편이라 자동 숨김 상태 — 시험 중에만 1개 노출 후 되돌림)
+  - 국외 이전 동의 빠짐 → 400 `CONSENT_REQUIRED` ✅ · 전환 KR→GLOBAL 200, 응답·새 토큰 `market: global`, 온보딩 `topic`·`steps: [topic]` ✅ · 새 토큰의 온보딩 주제가 GLOBAL만 ✅
+  - 재온보딩 전 되돌리기 GLOBAL→KR 200(KR 동의 `0.1`·연령 `null`) ✅ · 되돌리기를 다시 되돌리기 → 429 `MARKET_CHANGE_COOLDOWN`(`retry_after_sec` > 0, `retryable: false`) ✅ · 같은 시장 재요청 200·`access_token: null` ✅
+  - DB: 이력 `kr→global(false)`·`global→kr(true)`, 관심 주제 활성 0, 동의 GLOBAL 4행 + KR 3행, `onboarding_completed_at` 유지 ✅
+  - 정리: 시험 계정 삭제(CASCADE로 동의·관심 주제·이력 0건 확인), GLOBAL 주제 숨김 원복. **개발계 `MARKET_CHANGE_ENABLED=true`는 FE KAN-228 개발용으로 켜 둔다.** 운영은 그대로(키 없음 = 꺼짐).
+  - **남은 것**: FE KAN-228 · 운영 스위치(1.3.0 출시 뒤) · FE 화면 반영 뒤 이 티켓 완료 처리.
+- 2026-10-19 **완료 처리 → `archive/`**(박준현). 완료 조건 6개 확인:
+  - 계약 — `global-api.md` 4.11, 9장 미결 #1 삭제(#1711·#1724) ✅
+  - KR → GLOBAL: 국외 이전 포함 동의 없이는 전환되지 않고 주제를 다시 고른다 — 개발계 실측 ✅
+  - GLOBAL → KR: KR 동의·연령을 다시 받는다 — 개발계 실측(되돌리기에서 KR `0.1`·연령 기록) ✅
+  - 노출 콘텐츠 0인 시장으로의 전환 거부 — 개발계 실측(`market_unavailable` · 409) ✅
+  - 유료 구독자 구독 유지 — 구독 경로를 건드리지 않음(코드·단위 테스트로 확인, 실측은 하지 않음) ✅
+  - 이전 시장 라이브러리 숨김 — CI e2e `test/market-change.e2e-spec.ts` ✅
+  - 이 티켓 밖으로 넘긴 것: FE 화면 **KAN-228**(이 티켓이 선행 — Jira blocks 링크), 운영 `MARKET_CHANGE_ENABLED=true`는 **KAN-193** 출시 체크리스트(앱 1.3.0 출시 + KAN-228 반영 뒤).

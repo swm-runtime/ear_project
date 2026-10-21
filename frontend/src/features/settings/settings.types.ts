@@ -32,6 +32,8 @@ export interface SettingsAccount {
   isEmailVerified: boolean;
   /** [관리자] 섹션 노출 판단 전용 — 접근 통제가 아니다(settings-api.md 4.1) */
   isAdmin: boolean;
+  /** 시장 = 콘텐츠 언어(가입 때 1회, 바뀌지 않는다 — global-api.md 2.1). 옛 서버면 null */
+  market: 'kr' | 'global' | null;
 }
 
 export interface SettingsPlan {

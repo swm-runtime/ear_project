@@ -30,10 +30,10 @@
 | 문서 | 범위 | 주요 FR |
 |---|---|---|
 | [library.md](library.md) | 메인 화면. 드립·담기 통합 목록, 상태 관리, 삭제, 이어듣기 | FR-20, FR-24, FR-16 |
-| [explore.md](explore.md) | 추천 피드, 주제 필터, 검색, 담기 | FR-21, FR-22 |
+| [explore.md](explore.md) | 추천 피드, 주제 필터, 검색, 담기, 시리즈 카드·시리즈 화면(4.7 — 2026-10-19 KAN-225) | FR-21, FR-22 |
 | [player.md](player.md) | 즉시 재생, 배속·구간 이동, 스크립트, 수면 타이머, 출처 고지 | FR-23, FR-24, FR-25, FR-12 |
 | [content-detail.md](content-detail.md) | 콘텐츠 상세 — 더보기 시트 [상세 정보] 진입, 메타데이터 + [재생]·[담기/삭제](신설 2026-08-23) | FR-40, FR-12 |
-| [drip-feedback.md](drip-feedback.md) | 추천 별점(온라인 평가) — "어제 추천 어떠셨나요?" 팝업, 별 1~5, 이번 주 그만 보기, 알고리즘 버전별 집계(신설 2026-09-30) | FR-41 |
+| [drip-feedback.md](drip-feedback.md) | 추천 별점(온라인 평가) — "최근 추천 어떠셨나요?" 팝업(가입 4일째부터 7일에 한 번), 별 1~5, 이번 주 그만 보기, 알고리즘 버전별 집계(신설 2026-09-30) | FR-41 |
 | [share.md](share.md) | 공유 — OS 공유 시트, 콘텐츠 상세 연결 링크 **(P1 — MVP 미노출)**(신설 2026-08-25, `explore.md` 4.6에서 소유 이전) | FR-27 |
 
 ### 클라이언트 — 수익화
@@ -88,10 +88,16 @@
 | FR-17 | drip-scheduling, onboarding | FR-35 | splash |
 | FR-18 | drip-scheduling | FR-36 | common-error-handling, splash |
 | FR-40 | content-detail, library, explore | FR-37 | admin, content-pipeline |
-| | | FR-38 | admin, interest-management, onboarding |
-| | | FR-39 | auth, paywall, subscription, profile, settings |
+| FR-41 | drip-feedback | FR-38 | admin, interest-management, onboarding |
+| FR-42 | global-api 2.1·4.1·4.4 (임시), auth, onboarding | FR-39 | auth, paywall, subscription, profile, settings |
+| FR-43 | global-api 4.5·4.7·4.8 (임시), explore, library | | |
+| FR-44 | global-api 2.1·4.1 (임시), auth | | |
+| FR-45 | global-api 4.11 (임시), settings, onboarding | | |
+| FR-46 | global-api 2.3·4.6 (임시), notification, subscription | | |
+| FR-47 | global-api 2.4 (임시), drip-scheduling, notification | | |
+| FR-48 | global-api 4.9·4.10 (임시), admin, backend-monitoring | | |
 
-FR-01 ~ FR-40 전부 커버됨.
+FR-01 ~ FR-41 전부 커버됨. FR-42 ~ FR-48(글로벌)은 `features/` 문서 없이 `spec/api/global-api.md`가 임시로 맡는다. FR-42 ~ FR-48의 P0/P1은 PM 확인 대기다(PRD 6장 머리말, 2026-10-20).
 
 ## 명세를 쓰면서 드러난 PRD 결정 포인트
 
@@ -167,6 +173,18 @@ FR-01 ~ FR-40 전부 커버됨.
 | 54 | **추천 온라인 평가 — 별점은 측정값, 추천 입력이 아니다** | 가장 최근 정규 편성분 2편(보통 어제)에 **편성분당 한 번** 별 1~5를 받아 **알고리즘 버전별**로 집계한다(결정 2026-09-30, KAN-116 — 같은 날 "어제치를 매일"에서 정정). 별점을 그 사용자의 추천에 반영하지 않는다 — 반영하면 평점 변화의 원인(알고리즘 vs 반영)을 가를 수 없다. 편성분마다 `library_items.algorithm_version`(서버 상수, 결과가 달라지는 변경마다 올림)을 남긴다. 탐험 편은 묻지 않는다. "이번 주"는 서비스 주(월 05:00) | drip-feedback, drip-feedback-api, admin-api 4.19, domain 6.1·6.7·3.5 |
 | 55 | **가입 체험**(2026-10-03) | **새로 가입한 계정은 7일간(가입일 포함, 05:00 경계) 재생 한도 없이 듣는다.** 저장 티어는 `light` 그대로 두고 `users.trial_ends_at`으로 판정하며 응답 `tier`만 `trial`이다. 서버 환경 변수로 켜고 끄고, 꺼도 이미 지급한 체험은 유지한다. **체험 도입 전 가입자에게도 한 번 준다 — 스위치가 켜진 뒤 처음 앱을 여는 날부터 7일**(2026-10-05. 경계 날짜 env로 대상을 자른다). 팝업 1회 + 프로필 표시(문구·방식은 FE. 기존 가입자 팝업은 KAN-121) | subscription 4.8, paywall 4.1, `domain.md` 3.1 · 8.1 |
 | 56 | **서비스 날짜 경계 05:00**(2026-10-07 합의, 2026-10-12 적용) | 하루의 경계를 04:00에서 **05:00 KST**로 옮긴다 — 새 에피소드 도착(05:00)과 한도 리셋을 한 시각으로. 서버 env(`SERVICE_DAY_BOUNDARY_05_FROM`)로 전환하고, 그 전 시각은 04:00 경계로 계산한다. 드립·알림은 05:00 유지, 통계 집계만 05:30으로. 약관은 바로 개정·재동의 없음(KAN-148) | domain 1.2, paywall 4.4, drip-scheduling 2 |
+| 57 | **시장 모델 — 가입 때 고른 콘텐츠 언어로 정한다**(2026-10-14) | 시장 `kr`·`global`. 가입 화면(A21)에서 고른 콘텐츠 언어(`ko`→`kr` · `en`→`global`)로 서버가 1회 정한다 — 기기 언어 자동 판정은 영어 기기 한국 사용자를 GLOBAL로 보내서 버렸다(기기 언어는 기본 선택값만). 클라이언트는 시장을 보내지 않고, 서버는 요청마다 다시 판정하지 않는다. 글로벌 가입 스위치 `GLOBAL_SIGNUP_ENABLED`(기본 닫힘)가 닫혀 있으면 GLOBAL 판정도 `kr`(2026-10-15) | PRD FR-42, global-api 2.1·4.1 |
+| 58 | **카탈로그 격리 — 시장별 별도 행**(2026-10-14) | 콘텐츠·주제·공지는 번역 테이블이 아니라 시장별 행. 사용자는 자기 시장 것만 보고(상세 직접 접근도 404) 다른 시장 주제는 저장 불가(409 `MARKET_MISMATCH`). 격리 누락은 데이터 유출. 주제 이미지 키는 `slug`(KAN-188) | PRD FR-43, global-api 4.5·4.7 |
+| 59 | **영어 화면·브랜드 Earcast**(2026-10-18) | GLOBAL 앱은 영어 화면, 영어 앱 이름·메일 브랜드는 **Earcast**(종전 임시 `Ear`, KAN-198). 가입 때 고른 언어로 표시 언어도 맞추고 그 뒤엔 설정 › 언어(2026-10-19 PM). 표시 언어는 시장을 바꾸지 않는다 | PRD FR-42·FR-46, global-api 2.3 |
+| 60 | **GLOBAL 온보딩 = 관심 주제 한 단계**(2026-10-14) | 커리어는 한국 직군 분류라 GLOBAL에서 뺀다. 단계는 서버가 `steps[]`로 준다(KR `topic,career` · GLOBAL `topic`) — 클라이언트 하드코딩 금지 | PRD FR-42, global-api 4.4, onboarding |
+| 61 | **연령 기준 — 나라별 자기 선언 16/18**(2026-10-16 PM, KAN-206) | KR 18 불변. GLOBAL은 기기 지역 SG·HK·KR 16, 그 밖·모름 18(종전 2026-10-14 "GLOBAL 일괄 16" 폐기). 서버가 `min_age`로 내려주고 이력 버전 `age-16`·`age-18`로 남긴다 | PRD FR-44·7장, global-api 2.1 |
+| 62 | **시장별 동의 버전 · 국외 이전 동의**(2026-10-16, KAN-212·KAN-215) | 약관·처리방침 버전은 시장별(KR `0.1` · GLOBAL `global-0.1`) — 다른 시장 버전은 409. GLOBAL 필수 동의에 `cross_border_transfer`(버전 없음)를 더한다, KR은 받지 않는다 | PRD FR-44, global-api 4.1, auth-api 4.14 |
+| 63 | **시장 전환 — 설정에서, 하루 1회, 되돌리기 예외**(2026-10-19 PM · 규칙 BE, KAN-227) | 설정 › 콘텐츠 언어. 미리보기 → 실행, 새 시장 필수 동의를 함께 받는다. 이전 시장 관심 주제 비활성 + 재온보딩. 서비스 날짜당 1회, 재온보딩 전 직전 시장으로 되돌리기는 세지 않는다(되돌리기의 되돌리기는 센다). 구독·한도·체험 그대로. 스위치 `MARKET_CHANGE_ENABLED`(기본 닫힘) | PRD FR-45, global-api 4.11 |
+| 64 | **서버 문구 언어 = 시장**(2026-10-14 정정) | 푸시·인증 메일·요금제 이름은 기기 언어가 아니라 `users.market`으로 고른다 — 영어 기기 KR 사용자가 한국어 콘텐츠를 영어 알림으로 받지 않게. 화면·에러 문구는 클라이언트 소유 | PRD FR-46, global-api 2.3, notification |
+| 65 | **GLOBAL 요금제·USD 가격 보류**(2026-10-14 보류 · 2026-10-16 이름만 영어) | 같은 상품을 스토어 현지가로 판다. GLOBAL 전용 행·상품 없음, `name_en`·`description_en`만. 다른 가격·혜택을 둘 때 재개(KAN-192) | PRD FR-46·4.1, global-api 4.6·9장 #4 |
+| 66 | **시간대별 드립 그룹**(2026-10-14, KAN-191) | asia·europe·americas 3그룹, 그룹 현지 05:00 편성 · 07:00 도착 알림. 서비스 날짜는 전 시장 05:00 KST 단일. 스위치 `DRIP_TIMEZONE_GROUPS_ENABLED` 꺼짐이면 전원 asia. 경계·그룹 수는 미결(global-api 9장 #3) | PRD FR-47, global-api 2.4, drip-scheduling |
+| 67 | **운영 — 업로드 시장 필수·지표 시장 분리**(2026-10-14~10-19) | 업로드 `market`·`language` 필수(2026-10-19, KAN-190 2단계 — 기본값 `kr` 채우지 않음). 어드민 `by_market`·검색 로그 시장 필터·일일 Slack 보고 시장별 가입·청취·탈퇴·시장 전환 줄. 집계는 현재 시장 기준 | PRD FR-48, global-api 4.9·4.10, admin, backend-monitoring |
+   
 
 ## 개발 착수 순서 제안
 

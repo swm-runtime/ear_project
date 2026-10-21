@@ -15,7 +15,7 @@
 | 심각도 | **중** — 지금은 증상 없음(운영 스위치 꺼짐). 이 티켓이 끝나야 운영에서 자동 확장을 켤 수 있다 |
 | 우선순위 | Medium(3일 안) |
 | Jira | [KAN-181](https://runtime364.atlassian.net/browse/KAN-181) |
-| 상태 | 진행 중 — 코드·문서 반영 완료(typecheck·eslint 통과), PR·배포 남음 |
+| 상태 | 진행 중 — 코드 dev 머지(#1499)·운영 반영(#1509, 2026-10-14). 남은 것: 운영 `AUTO_EXPAND_ENABLED` 켠 뒤 운영 앱 실측(마지막 완료 조건) |
 
 ## 현황 (2026-10-13 확인 — `origin/dev`·`origin/main` 동일)
 
@@ -58,3 +58,4 @@
   - 설정: `SettingsToggleRow`(선택 `description` 부제 추가) · `useSettingsScreen`(`controls.isAutoExpandEnabled`·overlay·`toggleAutoExpand`) · `SettingsScreen`(콘텐츠 섹션 토글 행) · `settings.copy`(autoExpand 라벨·설명)·`settings.types`(주석).
   - 문서: uiux 4.8·§1·§2·§8·§9 / settings.md 2.1·4.1 / settings-api 4.1 / interest-management 1·4.1·5·미결 / interest-management-api 4.1·4.4·6·9 정리.
   - frontend `npm run typecheck`·eslint(변경 파일) 통과. 프론트 CI 게이트는 backend 변경에만 돌아(deploy-api 검증 잡) 이 PR엔 적용 안 됨. 커밋·PR·dev 머지는 이어서.
+- 2026-10-15 상태 정정 — PR #1499 dev 머지, 릴리즈 #1509(dev → main, 2026-10-14)로 운영 반영. 앞의 5개 완료 조건은 코드로 충족. **남은 것**: BE 가 운영 `AUTO_EXPAND_ENABLED` 를 켠 뒤 운영 앱에서 빗금·N/3·토글을 실측(마지막 완료 조건) → 확인되면 archive·Jira 완료.

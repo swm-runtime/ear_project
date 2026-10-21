@@ -1,2 +1,3 @@
 export { default as AppErrorBoundary } from './AppErrorBoundary';
-export { initSentry, reportError, setSentryUser, wrapWithSentry } from './sentry';
+export { startBackgroundStoreProbe } from './background-store-probe';
+export { addBreadcrumb, initSentry, reportError, setSentryUser, wrapWithSentry } from './sentry';

@@ -6,6 +6,12 @@ export const STORAGE_KEYS = {
   /** 푸시 토큰 매핑용 기기 식별자 (auth-api.md 4.1) */
   DEVICE_ID: 'device.id',
   /**
+   * 설정 › 콘텐츠 언어(시장) 전환 뒤 재온보딩 중 표시(KAN-228) — `{ revertTo }` JSON. 있으면 ① 온보딩 완료 때 GA4
+   * `onboarding_complete` 를 다시 보내지 않고 ② `revertTo` 가 있으면 주제 화면에 "이전 언어로 되돌리기"를 둔다.
+   * 재온보딩을 마치거나 로그아웃하면 지운다
+   */
+  MARKET_CHANGE_REONBOARDING: 'auth.market_change_reonboarding',
+  /**
    * [오늘은 그만 보기]로 재생 확인 팝업을 억제한 서비스 날짜(library.md 4.3).
    * 타이머가 아니라 날짜 자체를 저장한다 — 서버 service_date와 다르면 억제가 풀린 것으로 본다.
    * 기기 단위 하나의 키 — 진입점 화면별로 따로 저장하지 않는다(explore-uiux.md 8장).
@@ -35,6 +41,13 @@ export const STORAGE_KEYS = {
   /** 새 도착 기준값·미확인 편수. 계정 id를 접미사로 붙여 다른 계정과 분리한다. */
   LIBRARY_ARRIVAL: 'library.arrival',
   /**
+   * 추천 별점 팝업(KAN-224)의 미전송 요청 — 망이 끊겨 못 보낸 별점·닫기·그만 보기(JSON 배열, 최대 몇 건).
+   * 계정 id를 접미사로 붙인다 — 다른 계정의 세션으로 앞 계정의 별점을 보내지 않는다. 다음 진입·포그라운드 복귀에
+   * 다시 보내고, 보내면 지운다. 서버 접수 기간(7일)이 지난 별점은 `DRIP_FEEDBACK_NOT_RATEABLE`로 와서 버린다
+   * (drip-feedback-api.md 6장). SQLite 오프라인 큐(architecture.md 5.4)가 생기면 그쪽으로 옮긴다
+   */
+  LIBRARY_DRIP_FEEDBACK_OUTBOX: 'library.drip_feedback_outbox',
+  /**
    * 재생 목록의 사용자 지정 순서 — `library_items.id` 의 나열(JSON). 기기 로컬 전용이다: 재생 목록의 원천이
    * 라이브러리 첫 페이지라 서버에 순서를 둘 자리가 없다(player/services/queue-order.ts). 판정이 아니라
    * 표시 순서다. 로그아웃 때 지우지 않는다 — 다른 계정의 목록에는 이 id 들이 없어 저절로 무시된다.
@@ -45,6 +58,12 @@ export const STORAGE_KEYS = {
    * 광고 최적화 목표는 기기당 1회면 충분해 서버 계약을 늘리지 않는다(`shared/analytics/meta.ts`)
    */
   META_FIRST_PLAY_SENT: 'analytics.meta_first_play_sent',
+  /**
+   * 설정 > 광고 측정 허용(KAN-217) — 끄면 `'0'`, 켜면 `'1'`. **값이 없거나 읽지 못하면 켜짐**(기본값). 기기 로컬 전용 —
+   * 측정이 기기 단위라 서버에 두지 않는다(KR·GLOBAL 공통). 로그아웃과 무관하다(계정이 아니라 기기의 값). 앱 시작 때
+   * `shared/analytics/meta.ts` 가 읽어 Meta SDK 설정을 맞춘다
+   */
+  META_AD_MEASUREMENT_ALLOWED: 'analytics.meta_ad_measurement_allowed',
   /**
    * 스플래시 버전 관문의 마지막 **성공** 판정(`splash.md` 7장 · KAN-99) — `{ appVersion, platform, verdict, … }` JSON.
    * 조회가 실패하면(망·5xx·타임아웃) 이 값으로 판정하고, 없으면 통과(fail-open — README 결정 39).

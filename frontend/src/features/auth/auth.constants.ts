@@ -1,4 +1,49 @@
-import type { SocialProvider, WithdrawalReasonCode } from './auth.types';
+import type { LegalUrls } from '@/shared/lib/legal-urls';
+
+import type {
+  ConsentType,
+  ContentLanguage,
+  Market,
+  RequiredConsent,
+  SocialProvider,
+  WithdrawalReasonCode,
+} from './auth.types';
+
+/**
+ * A21에서 고른 콘텐츠 언어가 가리키는 시장(global-api.md 2.1 — `ko` → `kr`, `en` → `global`).
+ *
+ * **시장 판정은 서버가 한다** — 이 표는 계정이 아직 없는 가입 화면(A4)에서 시장별 문구(연령 기준)를 미리 그리기 위한
+ * 표시용 대응이다. 계정이 생긴 뒤에는 응답의 `user.market` 만 쓴다(`selectMarket`).
+ */
+export const CONTENT_LANGUAGE_MARKET: Readonly<Record<ContentLanguage, Market>> = {
+  ko: 'kr',
+  en: 'global',
+};
+
+/**
+ * 콘텐츠 언어 → 낭독 언어(BCP 47, `accessibilityLanguage`). A21은 한 화면에 두 언어 글자가 섞이므로(선택지 이름은 그 언어
+ * 자신의 표기, 나머지는 고른 언어) 글자마다 이 값으로 VoiceOver 목소리를 맞춘다. iOS 만 쓰고 Android 는 무시한다
+ */
+export const CONTENT_LANGUAGE_SPEECH_LOCALE: Readonly<Record<ContentLanguage, string>> = {
+  ko: 'ko-KR',
+  en: 'en-US',
+};
+
+/**
+ * 연령 확인의 기준 연령 — **나라별이고 판정은 서버가 한다**(KAN-206, PM 2026-10-16 3안). 서버가 `age_confirmation` 항목에
+ * `min_age` 를 실어 보내면 그 값을 그린다(GLOBAL 은 기기 지역 `region_code` 로 16 또는 18, KR 은 18).
+ *
+ * 이 표는 `min_age` 를 아직 주지 않는 서버를 만났을 때의 **보수값**이다 — 어느 공개 국가에서도 법정대리인 동의가 필요 없는
+ * 18로 둔다. 16을 보여줄 수 있는 나라인지는 서버만 안다(클라이언트가 지역으로 판정하지 않는다)
+ */
+export const FALLBACK_MIN_AGE: Readonly<Record<Market, number>> = {
+  kr: 18,
+  global: 18,
+};
+
+/** 연령 확인 행의 기준 연령 — 서버 값이 있으면 그것, 없으면 시장의 보수값 */
+export const resolveMinAge = (consent: RequiredConsent | undefined, market: Market): number =>
+  consent?.minAge ?? FALLBACK_MIN_AGE[market];
 
 /**
  * 이메일 인증 API의 mock 전환(CLAUDE.local 개발 방식 — onboarding·career와 동일 패턴).
@@ -48,18 +93,25 @@ export const PROVIDER_BRAND: Record<
 };
 
 /**
- * 약관 문서 URL — 랜딩(`earcast.co.kr`)에 게시된 본문을 인앱 브라우저로 연다.
- * 앱에 본문을 넣지 않는 이유: 약관은 개정되면 즉시 바뀐 본문이 보여야 하는데, 앱에 넣으면
+ * 열람 문서가 있는 동의 유형 → 문서 주소 키(`shared/lib/legal-urls.ts`). 랜딩(`earcast.co.kr`)에 게시된 본문을
+ * 인앱 브라우저로 연다. 앱에 본문을 넣지 않는 이유: 약관은 개정되면 즉시 바뀐 본문이 보여야 하는데, 앱에 넣으면
  * 스토어 배포를 기다려야 한다. 웹에 두면 랜딩 배포만으로 반영된다.
  *
- * 마케팅 동의는 열람 문서가 없다 — 한 줄 고지로 갈음한다(auth-uiux.md 4.3).
+ * 마케팅 동의는 열람 문서가 없다 — 한 줄 고지로 갈음한다(auth-uiux.md 4.3). 연령 확인은 자기 선언이라 없다.
+ * 국외 이전 동의는 처리방침의 국외 이전 절을 연다(KAN-216). 주소는 설정·구독 화면과 같은 원천이고 **시장별**이다 —
+ * 시장은 여는 쪽이 넘긴다(A4는 A21 선택의 시장, A20은 세션 `user.market`).
  */
-export const POLICY_DOCUMENT_URL = {
-  terms: 'https://earcast.co.kr/terms',
-  privacy: 'https://earcast.co.kr/privacy',
-} as const satisfies Record<'terms' | 'privacy', string>;
+export const POLICY_DOCUMENT_KEY = {
+  terms: 'terms',
+  privacy: 'privacy',
+  cross_border_transfer: 'crossBorderTransfer',
+} as const satisfies Partial<Record<ConsentType, keyof LegalUrls>>;
 
-export type PolicyDocument = keyof typeof POLICY_DOCUMENT_URL;
+export type PolicyDocument = keyof typeof POLICY_DOCUMENT_KEY;
+
+/** [보기] 셰브론을 그릴 항목인가 — 열람 문서가 있는 동의 유형만 */
+export const hasPolicyDocument = (consentType: ConsentType): consentType is PolicyDocument =>
+  consentType in POLICY_DOCUMENT_KEY;
 
 /**
  * 탈퇴 API(withdrawal-preview·withdraw)의 mock 전환 — 계정을 실제로 지우지 않고 A7·A8을

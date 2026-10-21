@@ -1,0 +1,27 @@
+# [문서] "이벤트 코드/이벤트" → "프로모션 코드/프로모션" 명칭 통일 (KAN-182)
+
+| 항목 | 값 |
+|---|---|
+| 대상 문서 | `spec/uiux/settings-uiux.md`(확정 카피 "이벤트 코드" 6곳) · `spec/uiux/subscription-uiux.md`(초대/지급 화면에 "이벤트" 문구가 있으면 함께) · 필요 시 `features/*`·`spec/api/subscription-api.md`의 사용자 노출 카피 |
+| 발행 날짜 | 2026-10-15 |
+| 반영 | (통합 시) |
+| 사유 | PM 2026-10-15 — 사용자에게 보이는 **명칭을 "이벤트 코드"에서 "프로모션 코드"로** 바꾼다. 연관 문구("○○ 이벤트 이용 중 · 이벤트 혜택 · ○○ 이벤트가 시작/끝")도 "프로모션"으로 **전부 통일**(PM 확인). 코드(FE 카피)는 이미 반영됨 — 문서가 뒤처지면 확정 카피와 구현이 충돌한다 |
+
+## 바뀐 카피 (코드에 이미 반영된 값 — 문서를 여기에 맞춘다)
+
+FE `subscription.copy.ts`·`settings.copy.ts`에서 다음과 같이 바꿨다(ko·en):
+
+- 코드 이름: "이벤트 코드 입력"→**"프로모션 코드 입력"**, "이벤트 코드"→**"프로모션 코드"**, "이벤트 코드가 적용됐어요"→**"프로모션 코드가 적용됐어요"** / en "event code"→**"promo code"**, "Event code"→**"Promo code"**
+- 지급(이벤트 자체): "○○ 이벤트 이용 중"→**"○○ 프로모션 이용 중"**, "이벤트 혜택"→**"프로모션 혜택"**, "○○ 이벤트가 끝나요/시작됐어요"→**"○○ 프로모션이 끝나요/시작됐어요"** / en "event"→**"promotion"**
+
+> 내부 용어 노출 금지(uiux 7장)는 그대로다 — "프로모션"은 사용자 언어이고, "자동 확장·편성" 같은 내부어는 여전히 쓰지 않는다.
+
+## 완료 조건
+
+- Given `spec/uiux/settings-uiux.md`를 연다 / When "이벤트 코드"를 찾는다 / Then 한 건도 없고 전부 "프로모션 코드"다
+- Given `spec/uiux/subscription-uiux.md`의 초대/지급 화면 카피 / When 확인한다 / Then FE `subscription.copy.ts`의 `invite`·`grant` 값과 문자열이 1:1로 같다("프로모션")
+- Given Jira KAN-182 / When 본다 / Then 명칭 변경(이벤트→프로모션)이 코멘트로 남아 있다
+
+## 처리 기록
+
+- 2026-10-16 반영 — `spec/uiux/settings-uiux.md` S12·4.8·6장("이벤트" 0건) · `spec/uiux/subscription-uiux.md` 프로모션 안내·프로모션 중 결제 확인 · `spec/api/subscription-api.md` 4.8 "프로모션 중 결제". FE `subscription.copy.ts`·`settings.copy.ts`(dev)의 `invite`·`grant` 문자열과 1:1 대조함. KAN-182 명칭 변경 코멘트 확인(2026-10-15).

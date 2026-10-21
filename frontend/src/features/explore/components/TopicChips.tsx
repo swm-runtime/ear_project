@@ -27,7 +27,7 @@ interface TopicChipsProps {
  *
  * 시각은 **온보딩·관심사 칩과 같은 사진 알약**이다(PM 2026-09-27 19:17 "온보딩 페이지에 배경 넣은 것처럼
  * 채워 넣자") — 주제 사진 + 어두운 막 + 흰 라벨, 선택하면 막이 짙어진다. 사진은 `@/features/interest` 의
- * `topicImageSource`(주제 **이름**으로 찾는다 — id 는 mock 과 서버가 다르다)를 쓰고, 프로필의 관심 주제
+ * `topicImageSource`(slug 먼저·이름 폴백 — 탐색 주제 응답엔 slug 가 없어 **이름**으로 찾는다, KAN-195)를 쓰고, 프로필의 관심 주제
  * 카드도 같은 방식이다. 종전엔 흰 테두리 알약 / 선택 시 검정 채움이었다.
  */
 export default function TopicChips({
@@ -120,7 +120,7 @@ export default function TopicChips({
             accessibilityHint={EXPLORE_COPY.chips.a11yHint}
             accessibilityState={{ checked: isSelected }}
           >
-            <Image source={topicImageSource(topic.name)} resizeMode="cover" style={styles.photo} />
+            <Image source={topicImageSource({ name: topic.name })} resizeMode="cover" style={styles.photo} />
             {/*
               선택 표시는 **나머지 칩을 흐리는 것**이다(PM 2026-10-09) — 고른 칩의 막을 짙게 하던 방식은 사진이 원래 어두운 칩
               (경제 상식·투자·IT·개발)에서 차이가 보이지 않았다. 체크 글리프는 두지 않는다. 낭독은 위 accessibilityState 가 한다

@@ -1,0 +1,4 @@
+{
+  "ios": { "CFBundleDisplayName": "Earcast" },
+  "android": { "app_name": "Earcast" }
+}

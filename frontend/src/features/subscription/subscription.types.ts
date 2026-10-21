@@ -27,10 +27,16 @@ export interface Plan {
   tier: string;
   name: string;
   description: string;
-  /** 참고값 — 화면에는 스토어가 준 현지 가격을 그린다. 폴백으로도 쓰지 않는다 */
-  priceKrw: number;
-  /** 이 플랫폼의 스토어 상품 ID. 무료·상품 없는 요금제는 null */
+  /**
+   * 이 플랫폼의 스토어 상품 ID. 무료·상품 없는 요금제는 null. 가격은 이 ID 로 스토어가 준 현지가만 그린다 —
+   * 서버의 원화 참고값(`price_krw`)은 모델에 두지 않는다(KAN-196 — 두 시장 코드 경로를 하나로)
+   */
   storeProductId: string | null;
+  /**
+   * 서버가 내린 무료 판정(`is_free`, KAN-226). 필드가 없는 서버 응답이면 null — 그때만 `isFreePlan` 이 추정한다.
+   * 선택 필드라 테스트·목에서 생략해도 된다(생략 = null 과 같다)
+   */
+  isFree?: boolean | null;
   entitlements: Entitlements;
   action: PlanAction;
 }

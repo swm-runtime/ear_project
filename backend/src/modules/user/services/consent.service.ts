@@ -6,12 +6,22 @@ import { ErrorCode } from '@/common/exceptions/error-code.enum';
 
 import { ConsentRepository } from '../repositories/consent.repository';
 import { Consent } from '../entities/consent.entity';
+import { REQUIRED_CONSENT_TYPES_BY_MARKET } from '../user.constant';
 import {
-  CURRENT_CONSENT_VERSIONS,
-  REQUIRED_CONSENT_TYPES,
-} from '../user.constant';
+  confirmedMinAgeOf,
+  minAgeFor,
+} from '../policies/age-confirmation.policy';
+import {
+  currentConsentVersionOf,
+  toConsentRequirement,
+} from '../policies/consent.policy';
 import { ConsentType } from '../user.enum';
-import { ConsentInput, ConsentState, PendingConsent } from '../user.types';
+import {
+  ConsentAudience,
+  ConsentInput,
+  ConsentState,
+  PendingConsent,
+} from '../user.types';
 
 @Injectable()
 export class ConsentService {
@@ -20,18 +30,23 @@ export class ConsentService {
   /**
    * domain.md 3.2 — UPDATE 하지 않고 행을 추가한다. 철회도 `is_agreed: false` 행 추가다.
    *
-   * 동의 이력은 법적 입증 자료라 **기록되는 버전은 서버가 정한다**(`CURRENT_CONSENT_VERSIONS`).
+   * 동의 이력은 법적 입증 자료라 **기록되는 버전은 서버가 정한다**(`currentConsentVersionOf`).
    * 클라이언트가 보낸 버전은 현행과 대조해 낡았으면 거부하고(가입 경로와 같은
    * `CONSENT_VERSION_STALE`), 비웠으면 현행 버전을 채운다. 같은 요청에 같은 종류가 두 번
    * 있으면 `agreed_at`이 동률이 되어 현재 상태 판정(아래 findCurrentStates)이 비결정이 되므로
    * 거부한다(2026-09-09 감사 — 종전엔 4.5 경로가 클라이언트 값을 그대로 기록했다).
+   *
+   * `audience`는 그 사용자다 — 무엇이 필수(철회 불가)인지와 현행 버전이 시장마다, 연령 확인 버전은 기기 지역마다
+   * 다르다(KAN-215·212·220).
    */
   async recordConsents(
     userId: string,
+    audience: ConsentAudience,
     inputs: ConsentInput[],
     agreedAt: Date,
     manager?: EntityManager,
   ): Promise<Consent[]> {
+    const requiredTypes = REQUIRED_CONSENT_TYPES_BY_MARKET[audience.market];
     const seenTypes = new Set<ConsentType>();
     for (const input of inputs) {
       if (seenTypes.has(input.consentType)) {
@@ -46,10 +61,7 @@ export class ConsentService {
 
       // 필수 동의는 철회 행을 받지 않는다 — 약관을 버리는 정식 경로는 탈퇴다(auth-api.md 4.5는
       // 이 API의 용도를 재동의·마케팅 변경으로 둔다). 가입(UserService)과 같은 코드로 거부한다
-      if (
-        REQUIRED_CONSENT_TYPES.includes(input.consentType) &&
-        !input.isAgreed
-      ) {
+      if (requiredTypes.includes(input.consentType) && !input.isAgreed) {
         throw new BusinessException({
           status: HttpStatus.BAD_REQUEST,
           errorCode: ErrorCode.CONSENT_REQUIRED,
@@ -57,7 +69,10 @@ export class ConsentService {
         });
       }
 
-      const currentVersion = CURRENT_CONSENT_VERSIONS[input.consentType];
+      const currentVersion = currentConsentVersionOf(
+        audience,
+        input.consentType,
+      );
       if (input.version !== null && input.version !== currentVersion) {
         throw new BusinessException({
           status: HttpStatus.CONFLICT,
@@ -71,7 +86,7 @@ export class ConsentService {
       this.consentRepository.create({
         userId,
         consentType: input.consentType,
-        version: CURRENT_CONSENT_VERSIONS[input.consentType],
+        version: currentConsentVersionOf(audience, input.consentType),
         isAgreed: input.isAgreed,
         agreedAt,
       }),
@@ -108,10 +123,14 @@ export class ConsentService {
 
   /**
    * auth-api.md 4.1 — 재동의 판정은 서버가 `consents` 최신 버전과 현행 버전을 비교해서 한다.
-   * 클라이언트가 보낸 버전을 신뢰하지 않는다.
+   * 클라이언트가 보낸 버전을 신뢰하지 않는다. 필수 목록과 현행 버전은 그 사용자의 시장 기준이다(KAN-215·212).
+   *
+   * 연령 확인은 버전 일치가 아니라 **확인받은 기준 연령이 지금 기준 이상인지**로 본다(KAN-220). 기준은 로그인마다
+   * 갱신되는 기기 지역을 따르는데, 18세로 확인한 사용자가 16세 지역으로 옮겼다고 다시 물을 이유는 없다.
    */
   async findPendingConsents(
     userId: string,
+    audience: ConsentAudience,
     manager?: EntityManager,
   ): Promise<PendingConsent[]> {
     const states = await this.findCurrentStates(userId, manager);
@@ -119,17 +138,84 @@ export class ConsentService {
       states.map((state) => [state.consentType, state]),
     );
 
-    return REQUIRED_CONSENT_TYPES.filter((consentType) => {
-      const state = stateByType.get(consentType);
-      return (
-        !state?.isAgreed ||
-        state.version !== CURRENT_CONSENT_VERSIONS[consentType]
-      );
-    }).map((consentType) => ({
-      consentType,
-      version: CURRENT_CONSENT_VERSIONS[consentType],
-      isRequired: true,
-    }));
+    return REQUIRED_CONSENT_TYPES_BY_MARKET[audience.market]
+      .filter((consentType) => {
+        const state = stateByType.get(consentType);
+        if (!state?.isAgreed) {
+          return true;
+        }
+        return consentType === ConsentType.AGE_CONFIRMATION
+          ? confirmedMinAgeOf(state.version) < minAgeFor(audience)
+          : state.version !== currentConsentVersionOf(audience, consentType);
+      })
+      .map((consentType) => toConsentRequirement(audience, consentType, true));
+  }
+
+  /**
+   * 가입 동의 목록 — 그 시장의 필수 동의 + 선택(마케팅). 계정이 없는 시점의 목록이라 저장소를 보지 않는다.
+   * 로그인 응답(auth-api.md 4.1 `required_consents`)과 재조회(`POST /auth/sign-up/consents`)가 이 한 곳을 쓰고,
+   * 가입 검증(`UserService.createUser`)도 같은 `currentConsentVersionOf`를 본다 — 그려 준 목록대로 보내면 가입이 통과한다.
+   */
+  buildSignUpConsents(audience: ConsentAudience): PendingConsent[] {
+    return [
+      ...REQUIRED_CONSENT_TYPES_BY_MARKET[audience.market].map((consentType) =>
+        toConsentRequirement(audience, consentType, true),
+      ),
+      toConsentRequirement(audience, ConsentType.MARKETING, false),
+    ];
+  }
+
+  /** 그 시장의 필수 동의 목록 — 시장 전환 미리보기(`global-api.md` 4.11)가 그린다. 항목 모양은 가입 목록과 같다 */
+  buildRequiredConsents(audience: ConsentAudience): PendingConsent[] {
+    return REQUIRED_CONSENT_TYPES_BY_MARKET[audience.market].map(
+      (consentType) => toConsentRequirement(audience, consentType, true),
+    );
+  }
+
+  /**
+   * 시장 전환(`global-api.md` 4.11)의 동의 — `audience`는 **옮겨 갈 시장**이다. 동의 없이는 전환 자체가 일어나지 않게,
+   * 가입과 같은 기준으로 검사한 뒤 기록한다: 새 시장 필수 동의가 하나라도 빠지면 400 `CONSENT_REQUIRED`, 현행과 다른 버전
+   * (다른 시장 버전 · 버전이 있는 항목에 `null`)이면 409 `CONSENT_VERSION_STALE`.
+   *
+   * 재동의 경로(`recordConsents`)는 빠진 항목을 묻지 않고 `null` 버전을 현행으로 채운다 — 그쪽은 이미 동의한 계정의 일부
+   * 갱신이라서다. 전환은 새 시장 문서에 처음 동의하는 것이라 가입 쪽 규칙을 따른다.
+   */
+  async recordForMarketChange(
+    userId: string,
+    audience: ConsentAudience,
+    inputs: ConsentInput[],
+    agreedAt: Date,
+    manager: EntityManager,
+  ): Promise<Consent[]> {
+    const agreedTypes = new Set(
+      inputs
+        .filter((input) => input.isAgreed)
+        .map((input) => input.consentType),
+    );
+    const missing = REQUIRED_CONSENT_TYPES_BY_MARKET[audience.market].filter(
+      (type) => !agreedTypes.has(type),
+    );
+    if (missing.length > 0) {
+      throw new BusinessException({
+        status: HttpStatus.BAD_REQUEST,
+        errorCode: ErrorCode.CONSENT_REQUIRED,
+        message: '필수 약관에 동의해야 바꿀 수 있어요',
+      });
+    }
+
+    const stale = inputs.some(
+      (input) =>
+        input.version !== currentConsentVersionOf(audience, input.consentType),
+    );
+    if (stale) {
+      throw new BusinessException({
+        status: HttpStatus.CONFLICT,
+        errorCode: ErrorCode.CONSENT_VERSION_STALE,
+        message: '약관이 변경되었어요. 다시 확인해주세요',
+      });
+    }
+
+    return this.recordConsents(userId, audience, inputs, agreedAt, manager);
   }
 
   async findAllByUserId(

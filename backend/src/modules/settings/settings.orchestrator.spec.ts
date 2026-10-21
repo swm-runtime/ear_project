@@ -17,6 +17,7 @@ import {
   DevicePlatform,
   PlaybackRate,
   SocialProvider,
+  UserMarket,
   UserRole,
   UserTier,
 } from '@/modules/user/user.enum';
@@ -45,6 +46,8 @@ const APP_VERSIONS: Record<string, string> = {
 function buildUser(overrides: Partial<User> = {}): User {
   return {
     id: USER_ID,
+    market: UserMarket.KR,
+    regionCode: null,
     provider: SocialProvider.KAKAO,
     nickname: '수현',
     email: 'user@example.com',
@@ -619,6 +622,7 @@ describe('SettingsOrchestrator', () => {
       // then
       expect(consentService.recordConsents).toHaveBeenCalledWith(
         USER_ID,
+        expect.objectContaining({ id: USER_ID }),
         [
           {
             consentType: ConsentType.MARKETING,

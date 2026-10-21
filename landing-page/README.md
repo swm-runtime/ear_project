@@ -27,6 +27,16 @@ npm run build    # out/ 에 정적 파일 생성 (prebuild가 og:image를 먼저
 | `/faq/` | 주제별 전체 FAQ. FAQPage 구조화 데이터는 **이 페이지만** 내보낸다 |
 | `/privacy/`, `/terms/` | 개인정보 처리방침·이용약관 |
 
+### 영어 페이지(`/en/`)
+
+글로벌 스토어 심사용 **필수 4페이지만** 영어로 둔다(2026-10-15 — KAN-199): `/en/`(소개) · `/en/terms/` · `/en/privacy/` · `/en/account-deletion/`. 랜딩 전면 영어화는 범위 밖이다.
+
+- **루트 레이아웃이 둘이다.** 한국어 페이지는 `src/app/(ko)/`(주소에 `(ko)`는 나오지 않는다), 영어는 `src/app/en/`이 각자 `<html lang>`과 헤더를 그린다. 맨 위 레이아웃이 없어서 없는 주소의 404는 `src/app/global-not-found.tsx`가 그린다(`next.config.ts` `experimental.globalNotFound`). 두 레이아웃 사이 이동은 전체 새로고침이다.
+- 영어 경로·메타는 `src/content/en/routes.ts`, 문구는 `src/content/en/`(`site.ts` 소개 · `account-deletion.ts` 계정 삭제)와 `src/content/legal-en.ts`(약관·처리방침 — PR #1584). **`/en` 화면에는 한국어 글자를 넣지 않는다** — 예외는 바닥글의 언어 전환 링크 이름 "한국어" 하나.
+- 영어판이 있는 페이지는 양쪽이 같은 `hreflang` 묶음(ko · en · x-default=ko)을 `<head>`와 사이트맵에 낸다(`lib/seo.ts` `languageAlternates`).
+- 영어 약관·처리방침(`legal-en.ts`)은 한국어 번역이 아니라 **글로벌 시장용으로 따로 쓴 초안**이다(동남아 개인정보법·CCPA/CPRA·Apple 3.1.2). 법무 검토 전이라 **noindex·nofollow이고 사이트맵에 넣지 않는다**(`content/en/routes.ts`의 `indexable: false` — 검토가 끝나면 true로). `hreflang`은 그대로 단다.
+- 계정 삭제 영어판은 한국어 원문의 **번역**이고 "충돌 시 한국어판 우선" 안내를 단다. **한국어 원문을 고치면 같은 PR에서 번역도 고친다.**
+
 ### 사이트맵 밖의 주소
 
 | 경로 | 내용 |
@@ -47,7 +57,7 @@ npm run build    # out/ 에 정적 파일 생성 (prebuild가 og:image를 먼저
 - API 주소는 두 개다. 빌드 시점 fetch(주제 목록)는 `LANDING_API_BASE_URL`, 브라우저에서 부르는 것(Try 샘플 플레이어)은 `NEXT_PUBLIC_API_BASE_URL`. **기본값은 둘 다 개발계 `https://api-dev.earcast.co.kr/api/v1`** — 랜딩은 `dev` 머지만으로 배포·확인한다(2026-09-18). 운영을 보게 하려면 두 변수를 `https://api.earcast.co.kr/api/v1`로 준다.
 - **실패해도 빌드는 멈추지 않는다** — 네트워크 오류·404·공개 주제 0개면 내장 기본 목록(주제 체계 v2)을 그리고 빌드 로그에 `[public-topics]` 경고를 남긴다.
 - 관리자에서 바꾼 주제는 **다시 빌드해야** 반영된다. `.github/workflows/landing-daily-rebuild.yml`이 매일 05:30 KST에 Vercel 배포 훅을 호출한다(repo secret `LANDING_VERCEL_DEPLOY_HOOK` 필요). 급하면 Actions에서 수동 실행한다.
-- **배포는 GitHub Actions 만 시작한다**(2026-10-08). Vercel 의 git 자동 배포는 꺼져 있다(`vercel.json` `git.deploymentEnabled: false`) — 커밋마다 배포가 만들어져 하루 한도에 걸렸기 때문이다. `landing-daily-rebuild.yml`이 ① dev 에 `landing-page/**`가 바뀌어 들어오면 ② 매일 05:30 KST 에 배포 훅을 부르고, 빌드 여부는 `scripts/should-build.mjs`가 정한다(랜딩 변경 또는 주제 데이터 변경). PR 미리보기 배포는 없다 — 확인은 로컬 `npm run dev`. 손으로 배포하려면 `gh workflow run landing-daily-rebuild.yml`.
+- **배포는 GitHub Actions 만 시작한다**(2026-10-08). Vercel 의 git 자동 배포는 꺼져 있다(`vercel.json` `git.deploymentEnabled: false`) — 커밋마다 배포가 만들어져 하루 한도에 걸렸기 때문이다. `landing-daily-rebuild.yml`이 ① dev 에 `landing-page/**`가 바뀌어 들어오면 ② 매일 05:30 KST 에 배포 훅을 부르고, 빌드 여부는 `scripts/should-build.mjs`가 정한다(랜딩 변경 또는 주제 데이터 변경). PR 미리보기 배포는 없다 — 확인은 로컬 `npm run dev`. 손으로 배포하려면 `gh workflow run landing-daily-rebuild.yml`. **Vercel Production 브랜치는 `dev`다**(2026-10-19 KAN-231 — 종전 `main`이라 dev 훅이 Preview만 만들어 운영 도메인이 갱신되지 않았다). 그래서 dev 훅이 곧 운영 배포이고, main 커밋은 Preview다. 랜딩·주제가 그대로면 배포가 만들어졌다가 바로 취소되는 것이 정상이다.
 
 ## 배포 전 반드시 바꿀 것
 
@@ -88,16 +98,20 @@ NEXT_PUBLIC_SITE_URL=https://이실제도메인 npm run build
 ```
 src/
   app/
-    layout.tsx          공통 메타데이터 + 헤더·푸터 + 전역 JSON-LD
-    page.tsx            홈
-    features/ pricing/ faq/ privacy/ terms/     각 page.tsx + page.module.css
-    blog/page.tsx       목록
-    blog/[slug]/page.tsx  글 상세 (generateStaticParams로 정적 생성)
+    (ko)/               한국어 페이지(라우트 그룹 — 주소에 나오지 않는다)
+      layout.tsx          한국어 루트 레이아웃: 공통 메타데이터 + 헤더·푸터 + 전역 JSON-LD
+      page.tsx            홈
+      features/ pricing/ faq/ privacy/ terms/ account-deletion/ ...   각 page.tsx
+      blog/page.tsx       목록
+    en/                 영어 4페이지 + 영어 루트 레이아웃(`<html lang="en">`)
+    global-not-found.tsx  없는 주소의 404(루트 레이아웃이 둘이라 레이아웃 없이 그린다)
     globals.css         디자인 토큰 + 공용 클래스(container/section/btn/eyebrow)
-    icon.svg  manifest.ts  robots.ts  sitemap.ts  not-found.tsx
+    icon.png  manifest.ts  robots.ts  sitemap.ts
   components/           섹션·공용 컴포넌트 + 같은 이름의 *.module.css
   content/
     routes.ts           ★ 페이지 목록과 페이지별 SEO 메타의 유일한 원본
+    en/                 영어 페이지의 목록(routes.ts)·소개 문구·계정 삭제 번역
+    legal-en.ts         영어(글로벌) 약관·처리방침 본문
     site.ts             화면 문구·수치
     blog.ts             블로그 글
     legal.ts            처리방침·약관 본문

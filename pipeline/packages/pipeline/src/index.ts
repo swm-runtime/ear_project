@@ -9,6 +9,8 @@
 import { otherSpeaker, pipelineLocale, speakerNames } from "./locale.js";
 export * from "./locale.js";
 export * from "./global-prompts.js";
+export * from "./series.js";
+import { seriesDesignBlock, seriesWriteBlock, type SeriesDraftContext } from "./series.js";
 import { INTRO_STYLES_EN } from "./global-prompts.js";
 
 export type MidTopic = string;
@@ -35,6 +37,9 @@ export interface BacklogCandidate {
   axis?: string | null;
   axis_type?: string | null;
   gaps?: string[];
+  /** 기획 시리즈 편 (0029, spec/11) — 일반 편은 null */
+  series_id?: string | null;
+  series_no?: number | null;
 }
 
 /** 설계 프롬프트에 넣는 백로그 축·역할표 블록 — v2 후보면 구성안의 출발점, v1 후보면 angle 을 참고로만 */
@@ -61,6 +66,7 @@ export function assetPaths(assetRoot: string, workRoot: string = assetRoot) {
     goldShort: p("skills", "draft", "examples", "gold-T260820-001-short.md"),
     goldFullEum: p("skills", "draft", "examples", "gold-T260918-001-full.md"),
     goldFullYuna: p("skills", "draft", "examples", "gold-T260828-001-full.md"),
+    goldEn: [p("skills", "draft", "examples", "gold-en-1.md"), p("skills", "draft", "examples", "gold-en-2.md")], // 글로벌판 골드(full-en-v0.19)
     specScript: p("spec", "04-script.md"),
     specQa: p("spec", "05-qa.md"),
     specBacklog: p("spec", "03-backlog.md"),
@@ -116,6 +122,10 @@ export interface Templates {
   /** 클로징 인사 (tpl-v2, 2026-09-09 박수헌): 해설 담당 정리 뒤 진행 담당이 말하는 **마지막 턴**. 한 줄에 골격 하나 — 여러 줄이면 에피소드마다 돌아가며 쓴다. 비우면 tpl-v1 형태(정리로 끝) */
   closing_signoff?: string;
   major_lines: Record<string, string>;
+  /** 시리즈 편 문구 (spec/11 5.2) — 비우면 series.ts 의 기본 문구. {intro_line}·{name}·{nth}/{n}·{next_title} */
+  series_intro_line?: string;
+  series_next?: string;
+  series_finale?: string;
 }
 
 export interface DraftInput {
@@ -129,6 +139,8 @@ export interface DraftInput {
   /** 클로징 인사 골격 선택 시드 (에피소드 수) — 여러 골격이면 돌아가며 */
   signoffSeed?: number;
   majorTopic?: string;
+  /** 시리즈 편(spec/11 5장) — 대주제 줄 자리에 시리즈 줄 */
+  series?: SeriesDraftContext;
 }
 
 /** 시그니처 인트로·마무리 (미결 #7 확정, 2026-08-31 박수헌). 골격은 고정, {슬롯}만 에피소드별로 채운다. */
@@ -145,7 +157,7 @@ export function pickSignoff(t: Templates | null | undefined, seed: number): stri
 function templateBlock(i: DraftInput): string {
   const t = i.templates;
   if (!t) return "   - 인트로·클로징 템플릿 미확정 — `{인트로 템플릿}` / `{클로징 템플릿}` 자리 표기만 남긴다.";
-  const majorLine = (i.majorTopic && t.major_lines?.[i.majorTopic]) || "";
+  const majorLine = i.series?.introSentence || (i.majorTopic && t.major_lines?.[i.majorTopic]) || "";
   return `   - **인트로 (고정 시그니처 — 골격을 바꾸지 말 것, {슬롯}만 채운다)**:
 \`\`\`
 ${t.intro}
@@ -730,6 +742,8 @@ export interface WriteInput {
   majorTopic?: string;
   /** 설계의 예상 분량(분) — 2단계의 분량 목표. 없으면 15 */
   estimatedMinutes?: number;
+  /** 시리즈 편(spec/11 5장) — 시리즈 블록·회상·예고. 일반 편은 없다 */
+  series?: SeriesDraftContext;
   /** 인라인 반입 — 이 단계는 파일을 읽지 않는다 (도구 없음) */
   guidelines: string;
   specScript: string;
@@ -828,9 +842,9 @@ ${WRITE_FACT_RULES}
 - 에피소드 ID: ${i.episodeId} · 제목(가): "${i.candidate.title}" · 중분류: ${i.candidate.mid_topic}
 - 해설: **${explainer}** / 진행: **${host}** — 역할 고정, 페르소나는 spec/04 3장.
 - 제목은 구성안의 축에 맞게 새로 지어도 된다 (클릭베이트 금지).
-${templateBlock({ templates: i.templates, majorTopic: i.majorTopic, signoffSeed: i.signoffSeed } as DraftInput)}
+${templateBlock({ templates: i.templates, majorTopic: i.majorTopic, signoffSeed: i.signoffSeed, series: i.series } as DraftInput)}
 - 도입 (규칙 13): 주제 선언 뒤 첫 해설 턴 사이에 청취자가 "대화에 앉는" 두세 턴. 주제를 다시 발견하는 척 금지. 이 에피소드의 진입 방식: **${i.introStyle.label}** — ${i.introStyle.hint}${isHistoryTopic(i.candidate.mid_topic) ? "\n" + HISTORY_WRITE_RULE : ""}
-- **이 에피소드의 목표: 약 ${i.estimatedMinutes ?? 15}분 = 공백·기호 제외 약 ${Math.round((i.estimatedMinutes ?? 15) * 341)}자 (±15%)** — 구성안의 "예상 분량"이다 (341자/분). 하한 13분(약 4,300자)은 필수이고 상한을 규칙으로 두지는 않지만, **예상 분량은 설계가 재료 총량으로 이미 정한 크기다** — 그보다 크게 쓰는 것은 재료가 많아서가 아니라 풀어 쓰기가 길어진 것이다.
+- **이 에피소드의 목표: 약 ${i.estimatedMinutes ?? 15}분 = 공백·기호 제외 약 ${Math.round((i.estimatedMinutes ?? 15) * 341)}자 (±15%)** — 구성안의 "예상 분량"이다 (341자/분). 하한 13분(약 4,300자)은 필수이고 상한을 규칙으로 두지는 않지만, **예상 분량은 설계가 재료 총량으로 이미 정한 크기다** — 그보다 크게 쓰는 것은 재료가 많아서가 아니라 풀어 쓰기가 길어진 것이다.${seriesWriteBlock(i.series, false)}
 
 ## 이 에피소드의 재료
 ### 구성안 — outline.md (계약: 구간 순서·목적·재료·진행자 질문·전환 장치를 그대로 실행한다)
@@ -1006,6 +1020,8 @@ export interface DesignInlineInput {
   goldFullEum: string;
   goldFullYuna: string;
   sources: InlineSource[];
+  /** 시리즈 편(spec/11 5.1) — 이 편 범위·형제 편 범위. 일반 편은 없다 */
+  series?: SeriesDraftContext;
 }
 
 export function buildDesignPromptInlineParts(i: DesignInlineInput): PromptParts {
@@ -1102,7 +1118,7 @@ ${fence(explainer === "이음" ? i.goldFullEum : i.goldFullYuna)}` : `### 1.3 �
 - 해설: **${explainer}** / 진행: **${host}** — 역할 고정
 - 청취자: 이 주제를 처음 듣는 일반 청취자 (특정 집단으로 좁히지 않는다 — 전문가 대상 표현만 금지). 편당 15분 안팎.
 ${candidateAxisBlock(i.candidate)}
-- 타깃 정합 메모: ${i.candidate.target_fit ?? "-"}
+- 타깃 정합 메모: ${i.candidate.target_fit ?? "-"}${seriesDesignBlock(i.series, false)}
 
 ## 소스 본문 (${i.sources.length}건 — 문단 ID 로 인용한다)
 ${srcBlocks}
@@ -1264,7 +1280,7 @@ export interface ClusterV2Input {
   midTopics: string[];
   majorTopic?: string | null;
   nextIdNumber: number;
-  sources: { n: number; url: string; title: string; summary: string | null; publisher: string; domain: string; published: string | null; midTopics?: string[]; used?: boolean }[];
+  sources: { n: number; url: string; title: string; summary: string | null; publisher: string; domain: string; published: string | null; midTopics?: string[]; used?: boolean; tier?: string }[]; // tier: 소스 풀 판정(allow_open…) — 글로벌판 판정자에게만 보인다(근거 앵커는 1군만, 게이트 1)
   existingTitles: string[];
   /** spec/03 3장(후보 구성)·6장(게이트 1) 등 인라인으로 넣을 규격 발췌 */
   specBacklogExcerpt: string;
@@ -1274,6 +1290,8 @@ export interface ClusterV2Input {
   seed?: { id: string; topic: string; hint: string | null; midTopic: string };
   /** 보강 재판정 후보의 중분류 (역사 모드 판별, 2026-10-01) */
   reinforceMidTopic?: string | null;
+  /** 글로벌판 판정의 보조 주제 후보(주제 8개 중 대표 주제 외) — 판정이 sub_topic 을 고를 수 있는 목록 (2026-10-15) */
+  subTopicOptions?: string[];
 }
 
 export function buildClusterPromptV2(i: ClusterV2Input): string {
@@ -1369,7 +1387,7 @@ export function buildReinforceSearchPrompt(i: ReinforceSearchInput): string {
 
 ## 검색 규칙
 - 검색은 최대 ${i.maxSearches}회. 역할마다 검색 의도가 다르다(위 설명). 한국어·영어 둘 다 쓴다 — 대본은 한국어지만 근거는 영어 소스가 많다.
-- **우선 검색 사이트** (소스 풀 — 여기서 나온 결과만 바로 쓸 수 있다). 검색어에 \`site:\` 로 2~3곳씩 묶어서 넣는다:
+- **우선 검색 사이트** (소스 풀 — 여기서 나온 결과만 바로 쓸 수 있다). 검색어에 \`site:\` 로 2~3곳씩 묶어서 넣는다. 사이트 한정은 \`site:도메인\` 형식(콜론, 공백 없음)으로만 쓴다 — 점이나 공백으로 쓰면 일반 검색어가 된다:
   ${i.poolHosts.join(", ")}
 - 풀 밖 사이트의 결과는 버리지 말고 in_pool=false 로 돌려준다 — 워커가 도메인 후보로만 등록하고 소스로는 쓰지 않는다(사람이 판정한 뒤 다음 보강에서 쓴다).
 - 뉴스 속보·보도자료·상품 페이지·SNS·위키는 제외. **논문 저장소·유료 DB(researchgate, ssrn, academia.edu, semanticscholar, sciencedirect, springer/wiley 유료 페이지)도 제외** — 본문을 못 가져온다. 2년 넘게 지난 글은 역사·맥락 역할일 때만.
@@ -1393,7 +1411,7 @@ export function buildTopicSeedSearchPrompt(i: TopicSeedSearchInput): string {
 
 ## 검색 규칙
 - 검색은 최대 ${i.maxSearches}회. 한국어·영어 둘 다 쓴다 — 대본은 한국어지만 근거는 영어 소스가 많다.
-- **사이트를 풀에 가두지 않는다.** 주제에 맞는 소스라면 어느 발행처든 좋다. 다만 우선순위는 있다: 공공기관·연구기관·대학·학회·오픈액세스 저널·기업 공식 블로그 > 전문 매거진·비영리 매체 > 상업 언론. 아래 소스 풀 사이트는 접근이 확인된 곳이니 검색어에 \`site:\` 로 섞어 쓰면 좋다(의무 아님):
+- **사이트를 풀에 가두지 않는다.** 주제에 맞는 소스라면 어느 발행처든 좋다. 다만 우선순위는 있다: 공공기관·연구기관·대학·학회·오픈액세스 저널·기업 공식 블로그 > 전문 매거진·비영리 매체 > 상업 언론. 아래 소스 풀 사이트는 접근이 확인된 곳이니 검색어에 \`site:\` 로 섞어 쓰면 좋다(의무 아님). 사이트 한정은 \`site:도메인\` 형식(콜론, 공백 없음)으로만 쓴다 — 점이나 공백으로 쓰면 일반 검색어가 된다:
   ${i.poolHosts.slice(0, 40).join(", ")}
 - **접근이 막힌 곳은 제외** — 워커가 본문을 가져와야 한다: 논문 저장소·유료 DB(researchgate, ssrn, academia.edu, semanticscholar, sciencedirect 유료 페이지, springer/wiley 유료, jstor 본문), 로그인·구독 벽 뒤의 기사, PDF 만 있는 링크, SNS·위키·커뮤니티·상품 페이지·보도자료 단신은 넣지 않는다.
 - 뉴스 속보 하나를 소스로 삼지 않는다 — 이어는 소식이 아니라 축(대립·역설·재정의, 역사는 사건형)을 다룬다. 사건성 글은 사례 재료로만.
@@ -1402,6 +1420,42 @@ export function buildTopicSeedSearchPrompt(i: TopicSeedSearchInput): string {
 
 ## 완료 보고 — 반드시 요청된 JSON 스키마 형식으로만 출력한다. sources 는 최대 10건, 각 항목에 url(검색 결과의 실제 URL 그대로) · title · publisher(사이트/발행처명) · published(YYYY-MM-DD 또는 null) · summary(검색 결과 요약을 한국어 두 문장으로) · roles · why(이 역할을 채우는 이유 한 줄) · in_pool(위 풀 사이트 목록에 있으면 true). queries 에는 실제로 쓴 검색어를 전부 적고, notes 에는 못 채운 역할과 이유를 적는다.`;
 }
+// ── 소스 풀 채우기 — 스윕 모드 P (2026-10-21, 팀원 요청): 단건 기사가 아니라 중분류를 꾸준히 다루는 **발행처**를 찾아 candidate 로 등록한다. 판정은 사람(spec/01 4장) ──
+export interface PoolDiscoverInput { midTopic: string; hint: string | null; mids: string[]; existingHosts: string[]; maxSearches: number }
+export const POOL_CATEGORIES = ["공공기관", "연구기관", "대학", "학회·저널", "기업 공식 블로그", "전문 매거진", "비영리 매체", "상업 언론"] as const;
+export function buildPoolDiscoverPrompt(i: PoolDiscoverInput): string {
+  return `당신은 오디오 콘텐츠 서비스 "이어(ear)"의 **소스 풀 담당**이다. 사람이 중분류를 하나 골랐다. 그 중분류의 에피소드 근거로 꾸준히 쓸 수 있는 **발행처(사이트)** 를 웹 검색으로 찾는다. 기사 한 건이 아니라, 그 주제를 정기적으로 다루는 사이트를 찾는 일이다.
+이 실행의 도구는 **WebSearch 뿐**이다 — 페이지 본문을 읽지 않는다. 검색 결과에서 본 사이트·제목·요약만으로 판단한다.
+
+## 중분류
+- ${i.midTopic}${i.hint ? `\n- 사람 메모: ${i.hint}` : ""}
+- 같은 대분류의 중분류 목록(coverage 에 쓸 이름): ${i.mids.join(", ")}
+
+## 무엇을 찾는가
+- 우선순위: 공공기관·연구기관·대학·학회·오픈액세스 저널·기업 공식 블로그 > 전문 매거진·비영리 매체 > 상업 언론. **한국 기관·매체·학회를 먼저** 찾고, 해외 사이트는 한국 쪽이 부족할 때 보탠다(대본은 한국어다).
+- 넣지 않는 곳: 개인 블로그(네이버·티스토리·브런치·velog·개인 미디엄)·SNS·위키·커뮤니티·상품·쇼핑 페이지, 뉴스 속보 위주 사이트, 유료 DB·구독 벽·로그인 뒤 사이트(researchgate, ssrn, academia.edu, 유료 저널), PDF 만 있는 저장소.
+- 한 발행처에 글이 꾸준히 있어야 한다 — 검색 결과에 그 사이트의 글이 둘 이상 보이거나, 사이트 이름 자체가 그 주제의 기관·매체일 때만 넣는다.
+- **이미 풀에 있는 사이트는 넣지 않고, 검색어에도 쓰지 않는다**(이 사이트들을 \`site:\` 로 검색하는 데 횟수를 쓰지 않는다 — 새 사이트를 찾는 일이다): ${i.existingHosts.slice(0, 80).join(", ") || "(없음)"}
+
+## 검색 규칙
+- 검색은 최대 ${i.maxSearches}회. 한국어·영어 둘 다 쓴다. 검색어는 글이 아니라 사이트를 찾는 꼴로 만든다 — "<주제> 연구소", "<주제> 학회 저널", "<주제> 기업 기술 블로그", "<topic> institute research", "<topic> open access journal", "<topic> official blog".
+- 사이트 한정은 \`site:도메인\` 형식으로만 쓴다.
+
+## 완료 보고 — 반드시 요청된 JSON 스키마 형식으로만 출력한다. sources 는 최대 15건, 각 항목에 url(검색 결과에서 실제로 본 그 사이트의 페이지 URL 그대로 — 홈이나 글 하나) · publisher(발행처명) · category(${POOL_CATEGORIES.join(" / ")} 중 하나) · feed_url(검색 결과에 RSS·Atom 주소가 보였을 때만, 아니면 null — 지어내지 않는다) · why(이 중분류를 꾸준히 다룬다고 본 근거 한 줄, 검색 결과에서 본 글 제목 포함) · coverage(위 중분류 목록 중 이 사이트가 다루는 것들). queries 에는 실제로 친 검색어를 적는다. notes 에는 못 찾은 종류와 이유.`;
+}
+export const POOL_DISCOVER_SCHEMA = {
+  type: "object",
+  additionalProperties: false,
+  required: ["queries", "sources", "notes"],
+  properties: {
+    queries: { type: "array", items: { type: "string" } },
+    sources: { type: "array", items: { type: "object", additionalProperties: false, required: ["url", "publisher", "category", "feed_url", "why", "coverage"], properties: {
+      url: { type: "string" }, publisher: { type: "string" }, category: { type: "string" }, feed_url: { type: ["string", "null"] }, why: { type: "string" },
+      coverage: { type: "array", items: { type: "string" } } } } },
+    notes: { type: "string" },
+  },
+} as const;
+
 export const REINFORCE_SEARCH_SCHEMA = {
   type: "object",
   additionalProperties: false,
@@ -1455,6 +1509,7 @@ export function buildEnrichPrompt(i: EnrichInput): string {
   - difficulty: ${ENRICH_DIFFICULTY.join(" | ")}
   - format: ${ENRICH_FORMAT.join(" | ")}
 ${i.locale === "en" ? `  - tags: 한글·영문·숫자, 공백 허용 2~20자(앞뒤 공백 없음)
+  - **언어: keywords·tags 는 콘텐츠 언어인 영어로 쓴다.** 한국어 낱말·이름은 대본의 로마자 표기 그대로(예: jjajangmyeon). 한글로 쓰지 않는다 — 글로벌 청취자가 읽고 검색하는 값이다
 ` : `  - target_audiences[].job_category: ${i.jobCategories.join(" | ")}
   - target_audiences[].years_of_experience: ${i.yearsRanges.join(" | ")}
 `}- 각 판정에 **대본의 어느 대목이 근거인지** 한 줄씩 evidence 에 적는다. 근거를 못 대는 판정은 판정 불능이다.

@@ -1,10 +1,10 @@
 import fs from "node:fs/promises";
 import { cfg, canAi, canTts, canThumbnail, executedBy } from "./config.js";
-import { claimJob, enqueue, failJob, finishJob, getSetting, hasActiveDraftJob, heartbeat, listApprovedBacklog, pool, requeueJob, startJob } from "./db.js";
+import { claimJob, enqueue, failJob, getBacklog, finishJob, getSetting, hasActiveDraftJob, seriesPrevReady, heartbeat, listApprovedBacklog, pool, requeueJob, startJob } from "./db.js";
 import { workerRev, workerRevTime } from "./assets.js";
 import { probeStorage } from "./storage.js";
-import { makeExecutor, setJobAbort } from "./executors/index.js";
-import { pipelineLocale, speakerNames } from "@ear/pipeline";
+import { executorHandlesWebSearch, makeExecutor, setJobAbort } from "./executors/index.js";
+import { allSpeakerNames, pipelineLocale, speakersForTopic, withSpeakers } from "@ear/pipeline";
 import { startLogWatch } from "./log-watch.js";
 import { runStage } from "./stages/index.js";
 import { log, sleep, ApiLimit, RetryLater } from "./util.js";
@@ -37,7 +37,7 @@ async function main() {
   const ex = makeExecutor(cfg.executor, cfg.claudeModel);
   await fs.mkdir(cfg.workRoot, { recursive: true }); // 실행기 cwd — 없으면 spawn 이 실패한다
   const storageInfo = await probeStorage(); // 산출물 저장소(S3) 접근 확인 — 못 쓰면 작업을 집기 전에 죽는다 (spec/10 3.3)
-  log(`워커 시작 — ${executedBy} · locale=${pipelineLocale()}(${speakerNames().join("·")}) · capabilities=${cfg.capabilities.join(",")} · AI=${canAi ? "on" : "off"} · TTS=${canTts ? "on" : "off(키 없음 — 서버가 집음)"} · 썸네일=${canThumbnail ? "on" : "off(키 없음 — 서버가 집음)"} · assets=DB(${cfg.assetProfile})+${cfg.assetSourceRoot} · work=${cfg.workRoot} · storage=${storageInfo} · rev=${workerRev()}`);
+  log(`워커 시작 — ${executedBy} · locale=${pipelineLocale()}(${allSpeakerNames().join("·")}) · capabilities=${cfg.capabilities.join(",")} · AI=${canAi ? "on" : "off"} · TTS=${canTts ? "on" : "off(키 없음 — 서버가 집음)"} · 썸네일=${canThumbnail ? "on" : "off(키 없음 — 서버가 집음)"} · assets=DB(${cfg.assetProfile})+${cfg.assetSourceRoot} · work=${cfg.workRoot} · storage=${storageInfo} · rev=${workerRev()}`);
   // 백엔드 ERROR → Slack 감시 (log-watch.ts) — 자체 타이머·전부 try/catch·unref 로 작업 큐와 완전 분리. env 없으면 off
   log(`백엔드 ERROR 감시: ${startLogWatch()}`);
 
@@ -84,9 +84,9 @@ async function main() {
       ttsPausedLogged = !!ttsPause;
       const ttsNow = canTts && !ttsPause;
       if (aiNow) { await autoApprove().catch((e) => log(`자동 승인 오류 (계속 진행): ${e?.message ?? e}`)); await pickupApproved(); }
-      // 0025: 도구(WebSearch)가 필요한 보강·주제 기획(sweep 모드 B·B2)은 Claude CLI 워커만 — API 실행기는 단발 호출뿐이라 집지 않는다
-      // 예외는 en 인스턴스(2026-10-15 KAN-209): 노트북 워커가 없고 OpenAI 실행기가 웹 검색을 붙인다(executors/openai-search.ts). 한국판은 값이 종전과 같다
-      const job = await claimJob(cfg.workerName, aiNow, ttsNow, canThumbnail, (await serverClaimOff()) ? ["sweep"] : [], cfg.executor !== "openai" || pipelineLocale() === "en"); // 스위치 꺼짐: 스윕도 노트북 몫
+      // 0025: 도구(WebSearch)가 필요한 보강·주제 기획(sweep 모드 B·B2)은 웹 검색을 처리하는 실행기만 집는다 — Claude CLI(WebSearch)·OpenAI(웹 검색, executors/openai-search.ts).
+      // 2026-10-16 KAN-222: 한국판 서버 워커(openai)도 집는다. 종전엔 en 인스턴스만이라 노트북이 꺼지면 한국판 보강·기획이 대기만 했다
+      const job = await claimJob(cfg.workerName, aiNow, ttsNow, canThumbnail, (await serverClaimOff()) ? ["sweep"] : [], executorHandlesWebSearch(cfg.executor)); // 스위치 꺼짐: 스윕도 노트북 몫
       if (!job) {
         if (once) { log("대기 중인 작업 없음"); break; }
         if (drain && (await listApprovedBacklog()).length === 0) { log("큐 비움 — drain 종료"); break; }
@@ -101,7 +101,7 @@ async function main() {
       const ac = new AbortController(); setJobAbort(ac);
       const hb = setInterval(() => heartbeat(job.id).then((st) => { if (st === "cancelled" && !ac.signal.aborted) { log(`⏹ ${job.type} ${job.id.slice(0, 8)} 콘솔에서 취소됨 — 중단`); ac.abort(); } }).catch(() => {}), 15_000);
       try {
-        const result = await runStage(job, ex);
+        const result = await withJobSpeakers(job, () => runStage(job, ex));
         await finishJob(job.id, result);
         if (ac.signal.aborted) log(`⏹ ${job.type} ${job.id.slice(0, 8)} 취소됨 (단계는 끝났으나 결과는 버림)`); else log(`✔ ${job.type} ${job.id.slice(0, 8)} 완료`);
       } catch (e: any) {
@@ -143,9 +143,21 @@ async function main() {
 async function pickupApproved() {
   for (const id of await listApprovedBacklog()) {
     if (await hasActiveDraftJob(id)) continue;
+    if (!(await seriesPrevReady(id))) continue; // 시리즈 편(spec/11 5.3): 앞 편 초안이 끝나면 다음 폴링에서 건다
     const jobId = await enqueue({ type: "draft", requires_ai: true, payload: { backlog_id: id, attempt: 1 } });
     log(`게이트 1 승인 감지(폴백): ${id} → draft 작업 ${jobId.slice(0, 8)}`);
   }
 }
 
 main().catch((e) => { console.error(e); process.exit(1); });
+
+/**
+ * 글로벌판: 작업 하나가 도는 동안의 2인조를 그 편의 대표 주제로 정한다(글로벌 명세 6.7 · @ear/pipeline GLOBAL_TEAMS, 2026-10-17).
+ * 프롬프트·L0·TTS·패키지가 speakerNames() 로 같은 값을 읽는다. 후보를 모르는 작업(스윕 등)과 한국판은 그대로 돈다
+ */
+async function withJobSpeakers<T>(job: { payload: Record<string, unknown> }, fn: () => Promise<T>): Promise<T> {
+  if (pipelineLocale() !== "en") return fn();
+  const backlogId = typeof job.payload?.backlog_id === "string" ? job.payload.backlog_id : null;
+  const cand = backlogId ? await getBacklog(backlogId).catch(() => null) : null;
+  return cand ? withSpeakers(speakersForTopic(cand.mid_topic), fn) : fn();
+}

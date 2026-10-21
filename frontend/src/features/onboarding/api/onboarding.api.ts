@@ -26,6 +26,7 @@ import {
   mockSaveCareer,
   mockSaveInterests,
 } from './onboarding.mock';
+import { normalizeOnboardingSteps } from '../services/onboarding-steps';
 
 /* ── Query Key factory(convention.md 4.1) ── */
 
@@ -47,6 +48,7 @@ const toCareerInfo = (dto: CareerDto): CareerInfo => ({
 const toOnboardingState = (dto: OnboardingStateDto): OnboardingState => ({
   onboardingCompleted: dto.onboarding_completed,
   onboardingStep: dto.onboarding_step,
+  steps: normalizeOnboardingSteps(dto.steps),
   selectedTopicIds: dto.selected_topic_ids,
   career: toCareerInfo(dto.career),
   pickedCount: dto.picked_count,

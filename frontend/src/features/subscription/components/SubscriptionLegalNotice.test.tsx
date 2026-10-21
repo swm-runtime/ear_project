@@ -1,9 +1,21 @@
-import { describe, expect, it, jest } from '@jest/globals';
+import { afterEach, describe, expect, it, jest } from '@jest/globals';
 import type { ReactNode } from 'react';
-import { Text as RNText } from 'react-native';
+import { Linking, Text as RNText } from 'react-native';
 
 import { SUBSCRIPTION_COPY } from '../subscription.copy';
 import SubscriptionLegalNotice from './SubscriptionLegalNotice';
+
+/** 세션 사용자의 시장 — 테스트마다 바꾼다. auth 공개 API 는 네이티브 의존을 끌어와 selector 만 흉내 낸다 */
+let mockMarket: 'kr' | 'global' = 'kr';
+jest.mock('@/features/auth', () => ({
+  useSessionStore: (selector: (state: { user: { market: 'kr' | 'global' } }) => unknown) =>
+    selector({ user: { market: mockMarket } }),
+  selectMarket: (state: { user: { market: 'kr' | 'global' } | null }) => state.user?.market ?? 'kr',
+}));
+
+afterEach(() => {
+  mockMarket = 'kr';
+});
 
 // 렌더러는 jest-expo의 의존성이다. 검증에 필요한 공개 API만 선언한다(Skeleton.test.tsx 와 같은 방식)
 interface TestNode {
@@ -107,6 +119,84 @@ describe('SubscriptionLegalNotice — 맨 아래 링크 줄(KAN-146)', () => {
         typeof node.props.onPress === 'function',
     );
     expect(restore[0].props.disabled).toBe(true);
+    act(() => renderer.unmount());
+  });
+});
+
+/** 화면에 그려진 고지 항목 — 글머리·링크를 뺀 본문 줄 */
+const legalItemTexts = (renderer: Renderer): string[] =>
+  renderer.root
+    .findAll(
+      (node) =>
+        node.type === RNText &&
+        typeof node.props.children === 'string' &&
+        node.props.lineBreakStrategyIOS === 'hangul-word',
+    )
+    .map((node) => node.props.children as string);
+
+describe('SubscriptionLegalNotice — 시장별 자동 갱신 고지(KAN-196)', () => {
+  it('KR 계정은 종전 고지(전자상거래법 겸용 PM 확정 문구)를 그대로 그린다', () => {
+    // given
+    mockMarket = 'kr';
+
+    // when
+    const renderer = render(
+      <SubscriptionLegalNotice onRestore={jest.fn()} isRestoreDisabled={false} isRestoring={false} />,
+    );
+
+    // then — 테스트 환경은 iOS
+    expect(legalItemTexts(renderer)).toEqual([...SUBSCRIPTION_COPY.legal.ios]);
+    act(() => renderer.unmount());
+  });
+
+  it('GLOBAL 계정은 Apple·Google 표준 고지를 그린다 — 표시 언어가 아니라 시장으로 고른다', () => {
+    // given
+    mockMarket = 'global';
+
+    // when
+    const renderer = render(
+      <SubscriptionLegalNotice onRestore={jest.fn()} isRestoreDisabled={false} isRestoring={false} />,
+    );
+
+    // then
+    const texts = legalItemTexts(renderer);
+    expect(texts).toEqual([...SUBSCRIPTION_COPY.legal.global.ios]);
+    expect(texts).not.toEqual([...SUBSCRIPTION_COPY.legal.ios]);
+    act(() => renderer.unmount());
+  });
+});
+
+describe('SubscriptionLegalNotice — 약관·처리방침은 계정 시장의 문서(KAN-216)', () => {
+  const pressLink = (renderer: Renderer, label: string) => {
+    const link = renderer.root.findAll(
+      (node) =>
+        typeof node.type !== 'string' &&
+        node.props.accessibilityLabel === label &&
+        typeof node.props.onPress === 'function',
+    );
+    act(() => (link[0].props.onPress as () => void)());
+  };
+
+  const CASES: ['kr' | 'global', string, string][] = [
+    ['global', 'https://earcast.co.kr/en/terms', 'https://earcast.co.kr/en/privacy'],
+    ['kr', 'https://earcast.co.kr/terms', 'https://earcast.co.kr/privacy'],
+  ];
+
+  it.each(CASES)('%s 계정은 그 시장의 본문을 연다', (market, termsUrl, privacyUrl) => {
+    // given
+    mockMarket = market;
+    const openURL = jest.spyOn(Linking, 'openURL').mockResolvedValue(true);
+    const renderer = render(
+      <SubscriptionLegalNotice onRestore={jest.fn()} isRestoreDisabled={false} isRestoring={false} />,
+    );
+
+    // when
+    pressLink(renderer, SUBSCRIPTION_COPY.legal.terms);
+    pressLink(renderer, SUBSCRIPTION_COPY.legal.privacy);
+
+    // then
+    expect(openURL.mock.calls).toEqual([[termsUrl], [privacyUrl]]);
+    openURL.mockRestore();
     act(() => renderer.unmount());
   });
 });

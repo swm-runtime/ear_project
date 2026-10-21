@@ -41,7 +41,7 @@ export default function CareerInfoScreen() {
         {/* 터치를 통과시키는 View 로 감싼다 — Android 의 Text 는 pointerEvents 를 따르지 않아, 줄 전체에 겹친 제목이 뒤로 원의
             탭을 가로챌 수 있다(AndroidCollapsingBar 제목과 같은 이유, 2026-09-30) */}
         <View style={styles.appBarTitleBox} pointerEvents="none">
-          <Text style={styles.appBarTitle} accessibilityRole="header">
+          <Text style={styles.appBarTitle} accessibilityRole="header" numberOfLines={1}>
             {CAREER_COPY.appBarTitle}
           </Text>
         </View>
@@ -201,6 +201,9 @@ const BACK_ICON_SIZE = 20;
 /** 보이는 40 을 터치 44 로 채운다(design.md §6) */
 const RESET_HIT_SLOP = 2;
 
+/** 가운데 제목의 좌우 비움 — 앱바 좌우 여백(16) + [초기화] 캡슐(글자 + 좌우 16)이 들어갈 자리 */
+const APP_BAR_TITLE_INSET = 104;
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -215,6 +218,8 @@ const styles = StyleSheet.create({
   },
   // 제목은 **화면 정가운데** — 오른쪽 [초기화] 캡슐이 왼쪽 뒤로 원(40)보다 넓어 flex 로 두면 가운데에서 왼쪽으로 밀렸다.
   // 좌우 버튼 사이를 채우는 대신 줄 전체에 겹쳐 놓고, 버튼 탭은 그대로 받게 터치를 통과시킨다
+  // 좌우는 버튼 자리만큼 비운다 — 긴 제목(영어·큰 글자)이 [초기화]·뒤로 밑으로 겹치지 않고 말줄임된다(KAN-197).
+  // 양쪽을 같은 값으로 비워 가운데는 그대로다
   appBarTitleBox: {
     position: 'absolute',
     left: 0,
@@ -223,6 +228,7 @@ const styles = StyleSheet.create({
     bottom: 0,
     alignItems: 'center',
     justifyContent: 'center',
+    paddingHorizontal: APP_BAR_TITLE_INSET,
   },
   appBarTitle: {
     textAlign: 'center',

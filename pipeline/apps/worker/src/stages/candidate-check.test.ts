@@ -20,3 +20,16 @@ test("후보 성립 판정: 소스가 없으면 전부 문제", () => {
   const r = checkCandidateSources([]);
   assert.equal(r.ok, false); assert.ok(r.problems.includes("소스 0건"));
 });
+test("후보 성립 판정: 글로벌판 국문 소스 하한 — 제목이 한글인 소스를 센다", () => {
+  const t = (publisher: string, roles: string[], title: string) => ({ ...s(publisher, roles), title });
+  const one = [t("A", ["근거 앵커"], "돌잔치의 유래"), t("B", ["사례"], "A first birthday in Seoul"), t("C", ["수치·조사"], "Survey")];
+  assert.equal(checkCandidateSources(one).ok, true); // 한국판(옵션 없음)은 언어를 세지 않는다
+  assert.ok(checkCandidateSources(one, { minKorean: 2 }).problems.includes("국문 소스 1건"));
+  const two = [...one.slice(0, 2), t("C", ["수치·조사"], "돌잔치 비용 조사")];
+  assert.equal(checkCandidateSources(two, { minKorean: 2 }).ok, true);
+});
+test("후보 성립 판정: 영어 제목에 한글이 괄호로 붙은 소스는 국문이 아니다", () => {
+  const t = (publisher: string, roles: string[], title: string) => ({ ...s(publisher, roles), title });
+  const r = checkCandidateSources([t("A", ["근거 앵커"], "Ppalli-Ppalli (빨리빨리): The Engine of the Fastest Nation"), t("B", ["사례"], "<문화> 당신의 인상을 바꾸는 마법, 퍼스널 컬러(한성대신문,522호)"), t("C", ["수치·조사"], "Survey")], { minKorean: 2 });
+  assert.ok(r.problems.includes("국문 소스 1건"));
+});

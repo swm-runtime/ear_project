@@ -1,6 +1,6 @@
 import { Logger } from '@nestjs/common';
 
-import { UserTier } from '@/modules/user/user.enum';
+import { UserMarket, UserTier } from '@/modules/user/user.enum';
 
 import { InviteCodeRedemption } from '../entities/invite-code-redemption.entity';
 import { Plan } from '../entities/plan.entity';
@@ -18,7 +18,7 @@ const USER_ID = '11111111-1111-4111-8111-111111111111';
 const EXPIRES_AT = new Date('2026-09-01T00:00:00.000Z');
 const NOW = new Date('2026-08-10T03:00:00.000Z');
 /** 체험을 받지 않은 사용자 — 기존 판정이 그대로여야 한다 */
-const NO_TRIAL = { trialEndsAt: null, now: NOW };
+const NO_TRIAL = { trialEndsAt: null, now: NOW, market: UserMarket.KR };
 /** 8월 15일 04:00 KST에 끝나는 체험(마지막 날 8월 14일) */
 const TRIAL_ENDS_AT = new Date('2026-08-14T19:00:00.000Z');
 
@@ -96,6 +96,39 @@ describe('SubscriptionService', () => {
       });
     });
 
+    it('GLOBAL 사용자의 요금제 이름은 영어다 — 체험 중이면 "Free trial"(KR은 "무료 체험")', async () => {
+      // given — 무료 사용자가 가입 체험 중이다
+      planService.findByTier.mockImplementation((tier: UserTier) =>
+        Promise.resolve(
+          tier === UserTier.TRIAL
+            ? buildPlan({
+                tier: UserTier.TRIAL,
+                name: '무료 체험',
+                nameEn: 'Free trial',
+              })
+            : buildPlan({ tier, name: 'Light', nameEn: 'Light' }),
+        ),
+      );
+      const trial = {
+        trialEndsAt: new Date(NOW.getTime() + 86_400_000),
+        now: NOW,
+      };
+
+      // when
+      const global = await service.buildPlanView(USER_ID, {
+        ...trial,
+        market: UserMarket.GLOBAL,
+      });
+      const kr = await service.buildPlanView(USER_ID, {
+        ...trial,
+        market: UserMarket.KR,
+      });
+
+      // then
+      expect(global.planName).toBe('Free trial');
+      expect(kr.planName).toBe('무료 체험');
+    });
+
     describe('초대 코드 지급(subscription-api.md 4.8)', () => {
       const GRANT_ENDS_AT = new Date('2026-09-09T19:00:00.000Z');
       const plans: Record<string, Plan> = {
@@ -113,6 +146,7 @@ describe('SubscriptionService', () => {
         [UserTier.TRIAL]: buildPlan({
           tier: UserTier.TRIAL,
           name: '무료 체험',
+          nameEn: 'Free trial',
         }),
       };
       const grantOf = (tier: UserTier) => ({
@@ -180,6 +214,7 @@ describe('SubscriptionService', () => {
 
         const plan = await service.buildPlanView(USER_ID, {
           trialEndsAt: TRIAL_ENDS_AT,
+          market: UserMarket.KR,
           now: NOW,
         });
 
@@ -335,6 +370,43 @@ describe('SubscriptionService', () => {
     });
   });
   describe('buildPlanView — 다운그레이드 예약(KAN-161)', () => {
+    it('GLOBAL 사용자에게는 예약·지급 요금제 이름도 영어다 — 세 자리(현재·예약·지급) 모두 같은 규칙', async () => {
+      // given — Pro 구독 + Daily 예약 + Pro 지급. KR·영어 이름을 다르게 둬 분기를 가린다
+      subscriptionRepository.findAllByUserId.mockResolvedValue([
+        buildSubscription({ pendingTier: UserTier.DAILY }),
+      ]);
+      planService.findByTier.mockImplementation((tier: UserTier) =>
+        Promise.resolve(
+          tier === UserTier.DAILY
+            ? buildPlan({
+                tier: UserTier.DAILY,
+                name: '데일리',
+                nameEn: 'Daily EN',
+              })
+            : buildPlan({ name: '프로', nameEn: 'Pro EN' }),
+        ),
+      );
+      inviteCodeService.findActiveGrant.mockResolvedValue({
+        redemption: {
+          tier: UserTier.PRO,
+          startsAt: new Date('2026-08-01T00:00:00.000Z'),
+          endsAt: new Date('2026-09-09T19:00:00.000Z'),
+        } as InviteCodeRedemption,
+        codeName: '산군 PoC',
+      });
+
+      // when
+      const plan = await service.buildPlanView(USER_ID, {
+        ...NO_TRIAL,
+        market: UserMarket.GLOBAL,
+      });
+
+      // then
+      expect(plan.planName).toBe('Pro EN');
+      expect(plan.pendingPlan?.planName).toBe('Daily EN');
+      expect(plan.grant?.planName).toBe('Pro EN');
+    });
+
     it('Pro → Daily 예약이면 pendingPlan 에 Daily 이름과 지금 결제 주기 끝(expiresAt)을 싣는다', async () => {
       // given — Pro 구독, 다음 갱신은 Daily
       subscriptionRepository.findAllByUserId.mockResolvedValue([
@@ -455,6 +527,7 @@ describe('SubscriptionService', () => {
       // when
       const plan = await service.buildPlanView(USER_ID, {
         trialEndsAt: TRIAL_ENDS_AT,
+        market: UserMarket.KR,
         now: NOW,
       });
 
@@ -475,6 +548,7 @@ describe('SubscriptionService', () => {
     it('체험이 끝난 시각부터는 원래 무료 요금제로 돌아간다', async () => {
       const plan = await service.buildPlanView(USER_ID, {
         trialEndsAt: TRIAL_ENDS_AT,
+        market: UserMarket.KR,
         now: TRIAL_ENDS_AT,
       });
 
@@ -495,6 +569,7 @@ describe('SubscriptionService', () => {
       // when
       const plan = await service.buildPlanView(USER_ID, {
         trialEndsAt: TRIAL_ENDS_AT,
+        market: UserMarket.KR,
         now: NOW,
       });
 
@@ -517,6 +592,7 @@ describe('SubscriptionService', () => {
       // when
       const plan = await service.buildPlanView(USER_ID, {
         trialEndsAt: TRIAL_ENDS_AT,
+        market: UserMarket.KR,
         now: NOW,
       });
 
