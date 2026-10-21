@@ -13,7 +13,7 @@
 | 선행 | BE [KAN-238](https://runtime364.atlassian.net/browse/KAN-238) `tickets/backend/pending/search-similar-fallback.md` — 응답 필드·`exact` 파라미터(Jira is blocked by). mock으로 화면·카피는 먼저 만들 수 있다 |
 | 근거 문서 | `changes/pending/search-similar-fallback.md` 1·2·4·5절 · `spec/uiux/explore-uiux.md` 4.5 |
 | 중요도 | Medium |
-| 상태 | 발행 |
+| 상태 | **코드 반영(2026-10-22) — 개발계 실기기 확인은 BE KAN-238 머지 뒤** |
 
 ## 왜
 
@@ -47,3 +47,10 @@
 ## 처리 기록
 
 - 2026-10-22 02:16 발행 → 02:48 하이브리드 → **02:52~02:56 PM: 교정 "대신 검색" 안내 2줄 + 관련 결과 안내 1줄로 확정.** 문구는 PM이 준 꼴 그대로.
+- 2026-10-22 03시 **FE 코드 반영**(PM "ㄱ" 03:05) — 브랜치 `feat(fe)/search-correction-notice`. mock 기준으로 완료 조건 1~7 통과(jest). 반영 내용:
+  - 계약: `exact` 요청 파라미터(true 일 때만 보냄 — 옛 서버에 모르는 키 안 보냄), 응답 `query_used`·`corrected_from`·`match`·`engines`·`items[].matched_by` 파싱, 없으면 종전 동작. 쿼리 키에 `exact` 포함(`exploreKeys.search(query, exact)`).
+  - 훅: `exact` 상태(입력·제출·칩·태그 탭 모두 false 리셋), `searchInsteadExact`(exact=true 재조회 + 원문 최근 검색어 저장), `correctedFrom`·`queryUsed`·`isRelatedResult`(placeholder 결과에는 붙이지 않음). 낭독은 안내 문구 + 결과 수, exact 재검색은 한 번 더.
+  - 화면(제자리·스택): 격자 `ListHeaderComponent` 로 안내 2종. 둘째 줄 버튼 44pt, 낭독 "‘OO’로 검색".
+  - 카피: ko `correctedTo`·`searchInsteadFor`·`searchInsteadA11y`·`relatedResult` — **조사를 받침에 맞춘다**(`shared/i18n/korean-particle.ts` 로/으로·와/과. "‘면접’으로", "‘커리오’와"). en 4종. 분석 `search` 이벤트에 `corrected`·`related` 불리언(검색어 원문 없음).
+  - mock(서버 대역): 자모 트라이그램 교정어(태그·주제명·시리즈·제목 토큰 어휘, 임계 0.5) → 교정어로 키워드 1건 이상일 때만 적용, `#`·`exact` 는 교정 없음, `search-related` 시나리오로 관련 결과 응답.
+  - **남은 완료 조건**: 개발계 실기기("커리오"·"이직") — BE KAN-238 머지 뒤. 그때까지 pending 유지.

@@ -108,6 +108,11 @@ export const useExploreSearchScreen = (embedding?: ExploreSearchEmbedding) => {
   /* ── 질의 상태 — inputText는 입력 그대로, activeQuery는 실행된 질의(트림본)다 ── */
   const [inputText, setInputText] = useState('');
   const [activeQuery, setActiveQuery] = useState<string | null>(null);
+  /**
+   * 교정 끄기(KAN-239) — "혹시 ‘OO’로 검색하고 싶나요?"를 탭하면 같은 질의를 `exact=true`로 다시 받는다.
+   * 질의가 바뀌는 모든 경로(입력·제출·칩·태그 탭)에서 false 로 돌아간다 — 새 말은 다시 교정 대상이다
+   */
+  const [exact, setExact] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(
     () => () => {
@@ -154,10 +159,12 @@ export const useExploreSearchScreen = (embedding?: ExploreSearchEmbedding) => {
     // 실행할 수 없는 입력(2자 미만·특수문자만)이면 검색을 내리고 초기 상태로 돌아간다(4.5-2)
     if (!isSearchableQuery(text)) {
       setActiveQuery(null);
+      setExact(false);
       return;
     }
     debounceRef.current = setTimeout(() => {
       setActiveQuery(toSearchQuery(text));
+      setExact(false);
     }, SEARCH_DEBOUNCE_MS);
   };
 
@@ -167,7 +174,19 @@ export const useExploreSearchScreen = (embedding?: ExploreSearchEmbedding) => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
     const query = toSearchQuery(raw);
     setActiveQuery(query);
+    setExact(false);
     saveRecent(query);
+  };
+
+  /**
+   * "혹시 ‘OO’로 검색하고 싶나요?" 탭(KAN-239) — 교정을 끄고 같은 질의를 즉시 다시 받는다(디바운스 없이, 쿼리 키가
+   * 갈려 새 조회다). 사용자가 그 말을 고집한 행동이라 최근 검색어에도 (입력 그대로) 저장한다 — 교정어는 저장하지 않는다
+   */
+  const searchInsteadExact = () => {
+    if (activeQuery === null) return;
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    setExact(true);
+    saveRecent(activeQuery);
   };
 
   /** 키보드 [검색] 제출 */
@@ -197,6 +216,7 @@ export const useExploreSearchScreen = (embedding?: ExploreSearchEmbedding) => {
     setActiveQuery(
       isSearchableQuery(searchRequest.query) ? toSearchQuery(searchRequest.query) : null,
     );
+    setExact(false);
   }
   const requestQuery = searchRequest?.query;
   const requestId = searchRequest?.id;
@@ -208,7 +228,7 @@ export const useExploreSearchScreen = (embedding?: ExploreSearchEmbedding) => {
   }, [requestId, requestQuery, saveRecent]);
 
   /* ── 서버 조회 — 추천 키워드는 주제 칩 응답 재사용이다(explore-api.md 2-2, 별도 호출 없음) ── */
-  const searchQuery = useExploreSearchQuery(activeQuery);
+  const searchQuery = useExploreSearchQuery(activeQuery, exact);
   const topicsQuery = useExploreTopicsQuery();
 
   /* ── 커서 무효 — 커서를 버리고 첫 페이지부터. 사용자에게 노출하지 않는다(explore-api.md 5장) ── */
@@ -251,12 +271,28 @@ export const useExploreSearchScreen = (embedding?: ExploreSearchEmbedding) => {
     !isInitialMode && searchQuery.data === undefined && searchQuery.isFetching;
   /** 첫 검색 스켈레톤 — 0.3초 이상 걸릴 때만(common-error-handling.md 5) */
   const showFirstSearchSkeleton = useDelayedVisible(isFirstSearchLoading);
-  const isNoResult =
-    !isInitialMode && searchQuery.data !== undefined && !searchQuery.isPlaceholderData
-      ? results.length === 0 && fallback !== null
-      : false;
+  /** 지금 질의의 응답이 와 있다(직전 질의의 placeholder 가 아니다) — 안내 줄은 이때만 그 응답을 따른다 */
+  const hasFreshResults =
+    !isInitialMode && searchQuery.data !== undefined && !searchQuery.isPlaceholderData;
+  const isNoResult = hasFreshResults ? results.length === 0 && fallback !== null : false;
   /** 질의가 바뀌어 직전 질의 결과를 유지한 채 로딩 중이다 — 결과를 지우지 않는다(explore.md 5장) */
   const isShowingStaleResults = searchQuery.isPlaceholderData && searchQuery.isFetching;
+
+  /*
+   * ── 검색 안내 2종(KAN-239) — 첫 페이지 값으로 정하고 커서 페이지에서 바꾸지 않는다(서버가 응답마다 반복하지만 첫 페이지 기준).
+   * 교정(correctedFrom)과 관련 결과(related)는 동시에 뜨지 않는다 — 교정된 응답은 항상 keyword 다(서버 규칙, explore.md 4.5-5) ──
+   */
+  const firstPage = pages?.[0];
+  /** 서버가 오타를 교정해 대신 검색했다 — 원문. 없으면 null */
+  const correctedFrom = hasFreshResults ? (firstPage?.correctedFrom ?? null) : null;
+  /** 실제 검색에 쓴 질의 — 옛 서버는 보내지 않아 activeQuery 로 대신한다 */
+  const queryUsed = firstPage?.queryUsed ?? activeQuery;
+  /** 키워드로 맞은 편이 하나도 없고 의미 유사 결과만이다 — "‘OO’와 관련된 결과예요" */
+  const isRelatedResult =
+    hasFreshResults &&
+    results.length > 0 &&
+    correctedFrom === null &&
+    firstPage?.match === 'related';
 
   /* ── 검색 실패 배너 — 이전 결과(또는 초기 화면)를 유지하고 상단 배너로 알린다(explore.md 7장) ── */
   const errorBanner = useMemo(() => {
@@ -274,17 +310,37 @@ export const useExploreSearchScreen = (embedding?: ExploreSearchEmbedding) => {
   const announcedQueryRef = useRef<string | null>(null);
   useEffect(() => {
     if (isInitialMode || pages === undefined || searchQuery.isPlaceholderData) return;
-    if (announcedQueryRef.current === activeQuery) return;
-    announcedQueryRef.current = activeQuery;
+    // 교정을 끈 재검색(exact)은 같은 질의의 다른 조회다 — 한 번 더 읽는다(KAN-239)
+    const announceKey = `${activeQuery ?? ''}\u0000${exact ? 'exact' : ''}`;
+    if (announcedQueryRef.current === announceKey) return;
+    announcedQueryRef.current = announceKey;
+    const first = pages[0];
     const count = pages.flatMap((page) => page.items).length;
+    const corrected = first?.correctedFrom ?? null;
     // 낭독과 같은 "질의당 한 번" 게이트를 탄다 — 첫 페이지 결과 수이고 검색어 원문은 싣지 않는다
-    track('search', { query_length: activeQuery?.length ?? 0, result_count: count });
-    AccessibilityInfo.announceForAccessibility(
+    track('search', {
+      query_length: activeQuery?.length ?? 0,
+      result_count: count,
+      corrected: corrected !== null,
+      related: first?.match === 'related',
+    });
+    // 안내 줄(KAN-239)이 있으면 그 문구를 앞에 — 화면이 보여 주는 것과 같은 순서로 읽는다
+    const spokenQuery =
+      corrected !== null ? (first?.queryUsed ?? activeQuery ?? '') : (activeQuery ?? '');
+    const resultLine =
       count > 0
-        ? EXPLORE_COPY.search.resultCountA11y(activeQuery ?? '', count)
-        : EXPLORE_COPY.search.noResult(activeQuery ?? ''),
+        ? EXPLORE_COPY.search.resultCountA11y(spokenQuery, count)
+        : EXPLORE_COPY.search.noResult(activeQuery ?? '');
+    const noticeLine =
+      corrected !== null
+        ? EXPLORE_COPY.search.correctedTo(spokenQuery)
+        : count > 0 && first?.match === 'related'
+          ? EXPLORE_COPY.search.relatedResult(activeQuery ?? '')
+          : null;
+    AccessibilityInfo.announceForAccessibility(
+      noticeLine === null ? resultLine : `${noticeLine}. ${resultLine}`,
     );
-  }, [isInitialMode, pages, searchQuery.isPlaceholderData, activeQuery]);
+  }, [isInitialMode, pages, searchQuery.isPlaceholderData, activeQuery, exact]);
 
   /* ── 낙관 반영 — 검색 캐시만 덮는다. 피드·필터 목록은 탐색 복귀 시 invalidate가 최신화한다 ── */
   const setCachedLibraryState = useCallback(
@@ -558,6 +614,11 @@ export const useExploreSearchScreen = (embedding?: ExploreSearchEmbedding) => {
     isNoResult,
     relatedTopics: fallback?.relatedTopics ?? [],
     fallbackItems,
+    // 검색 안내 2종(KAN-239) — 교정("대신 검색") · 관련 결과
+    correctedFrom,
+    queryUsed,
+    isRelatedResult,
+    searchInsteadExact,
     openTopicList,
     errorBanner,
     retrySearch: () => void searchQuery.refetch(),

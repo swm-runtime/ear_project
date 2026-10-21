@@ -162,6 +162,42 @@ export default function ExploreSearchScreen({ embedding }: ExploreSearchScreenPr
     return null;
   };
 
+  /*
+   * 검색 안내 2종(KAN-239) — 결과 격자 첫 행 위. 교정("‘커리어’로 대신 검색했어요 / 혹시 ‘커리오’로 검색하고 싶나요?")은
+   * 둘째 줄이 버튼이고, 관련 결과("‘커리오’와 관련된 결과예요")는 한 줄이다. 둘이 같이 뜨는 경우는 없다(서버 규칙)
+   */
+  const renderResultNotice = () => {
+    if (screen.correctedFrom) {
+      return (
+        <View style={styles.resultNotice}>
+          <Text style={styles.noticeText}>
+            {EXPLORE_COPY.search.correctedTo(screen.queryUsed ?? '')}
+          </Text>
+          <Pressable
+            style={styles.noticeLinkRow}
+            onPress={screen.searchInsteadExact}
+            accessibilityRole="button"
+            accessibilityLabel={EXPLORE_COPY.search.searchInsteadA11y(screen.correctedFrom)}
+          >
+            <Text style={styles.noticeLink}>
+              {EXPLORE_COPY.search.searchInsteadFor(screen.correctedFrom)}
+            </Text>
+          </Pressable>
+        </View>
+      );
+    }
+    if (screen.isRelatedResult) {
+      return (
+        <View style={styles.resultNotice}>
+          <Text style={styles.noticeText}>
+            {EXPLORE_COPY.search.relatedResult(screen.activeQuery ?? '')}
+          </Text>
+        </View>
+      );
+    }
+    return null;
+  };
+
   const renderBody = () => {
     // E6 검색 초기 — 최근 검색어 + 추천 키워드. 서버 호출 없음(explore-api.md 6장)
     if (screen.isInitialMode) {
@@ -287,6 +323,7 @@ export default function ExploreSearchScreen({ embedding }: ExploreSearchScreenPr
             )
           }
           ItemSeparatorComponent={() => <View style={styles.gridSeparator} />}
+          ListHeaderComponent={renderResultNotice()}
           ListFooterComponent={renderResultFooter()}
           onEndReached={screen.loadMore}
           onEndReachedThreshold={0.4}
@@ -422,6 +459,28 @@ const styles = StyleSheet.create({
   noResultHeader: {
     paddingVertical: theme.spacing.lg,
     gap: theme.spacing.md,
+  },
+  // 검색 안내(KAN-239) — 격자 첫 행 위, 좌우 여백은 격자와 같다(gridContent)
+  resultNotice: {
+    paddingTop: theme.spacing.md,
+    paddingBottom: theme.spacing.sm,
+    gap: theme.spacing.xs,
+  },
+  noticeText: {
+    fontSize: theme.font.size.sm,
+    color: theme.color.textSecondary,
+  },
+  // 둘째 줄은 버튼 — 글자는 작아도 누르는 높이는 44 를 채운다
+  noticeLinkRow: {
+    minHeight: theme.touchTarget.minHeight,
+    justifyContent: 'center',
+    alignSelf: 'flex-start',
+  },
+  noticeLink: {
+    fontSize: theme.font.size.sm,
+    fontWeight: '600',
+    color: theme.color.textPrimary,
+    textDecorationLine: 'underline',
   },
   noResultTitle: {
     fontSize: theme.font.size.md,

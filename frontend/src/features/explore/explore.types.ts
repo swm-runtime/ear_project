@@ -53,7 +53,14 @@ export interface ExploreItem {
   library: ExploreLibraryState | null;
   /** 재생 확인 팝업을 탭 즉시 띄우기 위한 힌트 — 판정이 아니다(library-api.md 4.1과 동일) */
   isCountedToday: boolean;
+  /** 검색 결과에만(KAN-238) — 이 항목을 낸 엔진. 화면은 아직 쓰지 않는다('관련' 꼬리표는 다음 결정) */
+  matchedBy?: ExploreSearchMatchedBy[];
 }
+
+/** 검색 하이브리드(KAN-238)의 엔진·판정 — dto 와 같은 값이고 화면 층에서는 이 이름으로 쓴다 */
+export type ExploreSearchMatchedBy = 'keyword' | 'semantic';
+export type ExploreSearchEngine = 'keyword' | 'semantic';
+export type ExploreSearchMatch = 'keyword' | 'related';
 
 /** 시리즈 상태 — 표시용(ongoing = 연재 중, completed = 완결). 판정에 쓰지 않는다(explore-api.md 4.1-1) */
 export type ExploreSeriesStatus = 'ongoing' | 'completed';
@@ -80,6 +87,8 @@ export interface ExploreSeries {
 export interface ExploreSeriesItem {
   type: 'series';
   series: ExploreSeries;
+  /** 검색 결과에만(KAN-238) — 카드로 접힌 편들을 낸 엔진 */
+  matchedBy?: ExploreSearchMatchedBy[];
 }
 
 /**
@@ -155,6 +164,13 @@ export interface ExploreSearchPage {
   hasNext: boolean;
   /** items가 있으면 null — 빈 결과일 때만 값이 있다 */
   fallback: ExploreSearchFallback | null;
+  /** 실제 검색에 쓴 질의(KAN-238) — 옛 서버는 보내지 않아 null 일 수 있다 */
+  queryUsed: string | null;
+  /** 서버가 오타를 교정해 "대신 검색"했으면 원문 — "혹시 ‘OO’로 검색하고 싶나요?"의 근거(KAN-239). 없으면 null */
+  correctedFrom: string | null;
+  /** 첫 페이지에 키워드로 맞은 편이 없으면 `related` — "‘OO’와 관련된 결과예요"의 유일한 근거. 옛 서버는 `keyword` */
+  match: ExploreSearchMatch;
+  engines: ExploreSearchEngine[];
 }
 
 /**

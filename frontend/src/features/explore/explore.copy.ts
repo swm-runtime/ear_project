@@ -1,4 +1,5 @@
 import { formatEnCount } from '@/shared/i18n/format';
+import { particleRo, particleWa } from '@/shared/i18n/korean-particle';
 import { localized, type LocalizedCopy } from '@/shared/i18n/localized';
 
 /**
@@ -25,6 +26,17 @@ const ko = {
     suggestedTitle: '추천 키워드',
     /** 입력한 검색어를 그대로 되비춘다(explore.md 4.5-3, 확정 문구) */
     noResult: (query: string) => `‘${query}’ 검색 결과가 없어요`,
+    /**
+     * 서버가 오타를 교정해 "대신 검색"했다(KAN-239 — PM 문구 2026-10-22 02:56). 교정어를 되비추고 조사는 받침에 맞춘다
+     * ("‘커리어’로" · "‘면접’으로")
+     */
+    correctedTo: (queryUsed: string) => `‘${queryUsed}’${particleRo(queryUsed)} 대신 검색했어요`,
+    /** 교정 안내 둘째 줄 — 탭하면 교정을 끄고 원문 그대로 검색한다(`exact=true`) */
+    searchInsteadFor: (original: string) =>
+      `혹시 ‘${original}’${particleRo(original)} 검색하고 싶나요?`,
+    searchInsteadA11y: (original: string) => `‘${original}’${particleRo(original)} 검색`,
+    /** 교정 없이 키워드로 맞은 편이 하나도 없다 — 의미 유사 결과만이다(match: related). 입력 검색어를 되비춘다 */
+    relatedResult: (query: string) => `‘${query}’${particleWa(query)} 관련된 결과예요`,
     /** E7 대체 목록의 제목(explore-uiux.md 4.6 — "인기 콘텐츠" 행 목록) */
     popularTitle: '인기 콘텐츠',
     /** 결과 갱신을 polite 채널로 한 번 알린다 — "'커리어' 검색 결과 12개"(uiux 7) */
@@ -194,6 +206,10 @@ const en: LocalizedCopy<typeof ko> = {
     clearAll: 'Clear all',
     suggestedTitle: 'Suggested',
     noResult: (query: string) => `No results for “${query}”`,
+    correctedTo: (queryUsed: string) => `Showing results for “${queryUsed}”`,
+    searchInsteadFor: (original: string) => `Search instead for “${original}”?`,
+    searchInsteadA11y: (original: string) => `Search for “${original}”`,
+    relatedResult: (query: string) => `Showing related results for “${query}”`,
     popularTitle: 'Popular',
     resultCountA11y: (query: string, count: number) =>
       `${formatEnCount(count, { one: 'result', other: 'results' })} for “${query}”`,

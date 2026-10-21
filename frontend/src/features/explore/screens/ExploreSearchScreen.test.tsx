@@ -7,6 +7,7 @@ import {
   FlatList,
   Keyboard,
   Platform,
+  Text as RNText,
 } from 'react-native';
 
 import InlineNotice from '@/shared/ui/InlineNotice';
@@ -206,6 +207,112 @@ describe('Android 탐색 제자리 검색', () => {
       skeletons: renderer.root.findAllByType(ExploreSkeleton).length,
       spinners: renderer.root.findAllByType(ActivityIndicator).length,
     }).toEqual({ skeletons: 1, spinners: 0 });
+    await act(async () => {
+      renderer.unmount();
+    });
+  });
+});
+
+describe('Android 탐색 제자리 검색 — 검색 안내 2종(KAN-239)', () => {
+  interface RoleNode {
+    props: Record<string, unknown>;
+  }
+  interface RoleFinder {
+    find(predicate: (node: RoleNode) => boolean): RoleNode;
+    findAll(predicate: (node: RoleNode) => boolean): RoleNode[];
+  }
+  const findTexts = (renderer: Renderer): string[] =>
+    (renderer.root.findAllByType(RNText) as { props: { children: unknown } }[])
+      .map((node) => node.props.children)
+      .filter((child): child is string => typeof child === 'string');
+  const baseScreen = {
+    inputText: '커리오',
+    activeQuery: '커리오',
+    isInitialMode: false,
+    results: [{ type: 'content', content: { id: 'c1' } }],
+    errorBanner: null,
+    playConfirm: null,
+    isNoResult: false,
+    relatedTopics: [],
+    fallbackItems: [],
+    isRelatedResult: false,
+    correctedFrom: null,
+    queryUsed: '커리오',
+  };
+
+  it('교정 응답이면 격자 위에 "대신 검색했어요" + "혹시 … 검색하고 싶나요?"(버튼)를 그리고, 탭하면 exact 재검색을 부른다', async () => {
+    jest.replaceProperty(Platform, 'OS', 'android');
+    const searchInsteadExact = jest.fn();
+    jest.mocked(useExploreSearchScreen).mockReturnValue({
+      ...baseScreen,
+      correctedFrom: '커리오',
+      queryUsed: '커리어',
+      searchInsteadExact,
+    } as unknown as ReturnType<typeof useExploreSearchScreen>);
+    let renderer!: Renderer;
+    await act(async () => {
+      renderer = create(<ExploreSearchScreen />);
+    });
+    const header = renderer.root.findByType(FlatList).props.ListHeaderComponent as ReactNode;
+    let headerRenderer!: Renderer;
+    await act(async () => {
+      headerRenderer = create(header);
+    });
+    const texts = findTexts(headerRenderer);
+    expect(texts).toContain('‘커리어’로 대신 검색했어요');
+    expect(texts).toContain('혹시 ‘커리오’로 검색하고 싶나요?');
+    // Pressable 은 내부 구성요소로 풀려 타입 검색이 안 된다 — 버튼 역할을 가진 노드로 찾는다
+    const button = (headerRenderer.root as unknown as RoleFinder).find(
+      (node) => node.props.accessibilityRole === 'button',
+    ).props;
+    expect(button.accessibilityLabel).toBe('‘커리오’로 검색');
+    await act(async () => {
+      (button.onPress as () => void)();
+    });
+    expect(searchInsteadExact).toHaveBeenCalledTimes(1);
+    await act(async () => {
+      headerRenderer.unmount();
+      renderer.unmount();
+    });
+  });
+
+  it('관련 결과(match: related)면 한 줄만 — 버튼이 없다', async () => {
+    jest.replaceProperty(Platform, 'OS', 'android');
+    jest.mocked(useExploreSearchScreen).mockReturnValue({
+      ...baseScreen,
+      isRelatedResult: true,
+    } as unknown as ReturnType<typeof useExploreSearchScreen>);
+    let renderer!: Renderer;
+    await act(async () => {
+      renderer = create(<ExploreSearchScreen />);
+    });
+    const header = renderer.root.findByType(FlatList).props.ListHeaderComponent as ReactNode;
+    let headerRenderer!: Renderer;
+    await act(async () => {
+      headerRenderer = create(header);
+    });
+    expect(findTexts(headerRenderer)).toEqual(['‘커리오’와 관련된 결과예요']);
+    expect(
+      (headerRenderer.root as unknown as RoleFinder).findAll(
+        (node) => node.props.accessibilityRole === 'button',
+      ),
+    ).toHaveLength(0);
+    await act(async () => {
+      headerRenderer.unmount();
+      renderer.unmount();
+    });
+  });
+
+  it('교정도 관련 결과도 아니면 안내가 없다(종전 화면)', async () => {
+    jest.replaceProperty(Platform, 'OS', 'android');
+    jest
+      .mocked(useExploreSearchScreen)
+      .mockReturnValue(baseScreen as unknown as ReturnType<typeof useExploreSearchScreen>);
+    let renderer!: Renderer;
+    await act(async () => {
+      renderer = create(<ExploreSearchScreen />);
+    });
+    expect(renderer.root.findByType(FlatList).props.ListHeaderComponent).toBeNull();
     await act(async () => {
       renderer.unmount();
     });

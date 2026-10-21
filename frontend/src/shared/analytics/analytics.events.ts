@@ -58,7 +58,8 @@ export interface AnalyticsEvents {
   play_confirm: { action: 'confirm' | 'cancel' | 'suppress_today'; remaining: number };
   // 탐색·검색
   explore_period_change: { period: Period };
-  search: { query_length: number; result_count: number };
+  /** corrected = 서버가 오타를 교정해 대신 검색했다 · related = 키워드 편 없이 의미 결과만(KAN-239). 검색어 원문은 싣지 않는다 */
+  search: { query_length: number; result_count: number; corrected?: boolean; related?: boolean };
   content_save: { content_id: string; entry: string };
   content_remove: { content_id: string; entry: string; undone: boolean };
   content_detail_view: { content_id: string; entry: DetailEntry };
