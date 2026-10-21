@@ -1,6 +1,8 @@
 import {
+  editDistance,
   escapeLikePattern,
   hasSearchableCharacter,
+  jamoEditSimilarity,
   normalizeSearchText,
   parseSearchQuery,
   toJamo,
@@ -115,5 +117,40 @@ describe('toJamo', () => {
 
     // then
     expect(jamo).toBe(expected);
+  });
+});
+
+describe('editDistance', () => {
+  it.each([
+    ['', '', 0],
+    ['abc', '', 3],
+    ['kitten', 'sitting', 3],
+    ['ㄱㅓㅇㅈㅔ', 'ㄱㅕㅇㅈㅔ', 1],
+    ['ㄱㅓㅇㅈㅔ', 'ㄱㅓㅇㅡㅣ', 2],
+  ])('"%s" ↔ "%s" = %d', (a, b, expected) => {
+    // when
+    // then
+    expect(editDistance(a, b)).toBe(expected);
+    expect(editDistance(b, a)).toBe(expected);
+  });
+});
+
+describe('jamoEditSimilarity', () => {
+  it.each([
+    ['겅제', '경제', 0.8],
+    ['겅제', '거의', 0.6],
+    ['네트웍', '네트워크', 1 - 2 / 9],
+    ['커리오', '커리어', 1 - 1 / 6],
+    ['운영체재', '운영체제', 0.9],
+  ])('%s ↔ %s = %d (대칭)', (a, b, expected) => {
+    // when
+    // then
+    expect(jamoEditSimilarity(a, b)).toBeCloseTo(expected);
+    expect(jamoEditSimilarity(b, a)).toBeCloseTo(expected);
+  });
+
+  it('같은 말은 1, 빈 문자열끼리도 1이다', () => {
+    expect(jamoEditSimilarity('경제', '경제')).toBe(1);
+    expect(jamoEditSimilarity('', '')).toBe(1);
   });
 });

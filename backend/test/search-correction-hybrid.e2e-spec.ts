@@ -10,7 +10,7 @@ import { DataSource } from 'typeorm';
 
 import { AppModule } from '@/app.module';
 import { traceIdMiddleware } from '@/common/middlewares/trace-id.middleware';
-import { toJamo } from '@/common/utils/search-text.util';
+import { jamoEditSimilarity, toJamo } from '@/common/utils/search-text.util';
 import {
   EMBEDDING_DIM,
   EMBEDDING_MODEL_ID,
@@ -87,6 +87,20 @@ const VOWEL_A = 0; // ㅏ
 const VOWEL_EO = 4; // ㅓ
 const VOWEL_O = 8; // ㅗ
 const VOWEL_U = 13; // ㅜ
+/** 자모 하나로 풀리는 모음(ㅏㅐㅑㅒㅓㅔㅕㅖㅗㅛㅜㅠㅡㅣ) — 겹모음(ㅘ·ㅢ 등)은 자모 둘이다 */
+const SIMPLE_VOWELS = [0, 1, 2, 3, 4, 5, 6, 7, 8, 12, 13, 17, 18, 20];
+
+/** 무작위 받침 없는 홑모음 음절 n개 — 음절마다 자모가 정확히 2개다 */
+function randomSimpleSyllables(n: number): string {
+  let token = '';
+  for (let i = 0; i < n; i += 1) {
+    token += syllable(
+      Math.floor(Math.random() * 19),
+      SIMPLE_VOWELS[Math.floor(Math.random() * SIMPLE_VOWELS.length)],
+    );
+  }
+  return token;
+}
 
 /**
  * 하이브리드 검색·오타 교정 E2E(KAN-238 — `explore.md` 4.5-5, explore-api.md 4.5, domain.md 5.1·5.7). 실제 DB와 로컬 HTTP
@@ -136,6 +150,11 @@ describe('하이브리드 검색·오타 교정 E2E', () => {
   const FREQ_ONCE = FREQ_BASE + syllable(FREQ_CHO, VOWEL_A);
   const FREQ_TWICE = FREQ_BASE + syllable(FREQ_CHO, VOWEL_EO);
   const FREQ_TYPO = FREQ_BASE + syllable(FREQ_CHO, VOWEL_O);
+  /** 자모 둘 차이 — 홑모음만 쓴 3음절 말(겹모음이 끼면 자모가 7개 이상이라 점수가 달라진다)과 끝음절 초성·모음을 바꾼 오타 */
+  const TWO_OFF_BASE = randomSimpleSyllables(2);
+  const TWO_OFF_CHO = Math.floor(Math.random() * 19);
+  const TWO_OFF_WORD = TWO_OFF_BASE + syllable(TWO_OFF_CHO, VOWEL_EO);
+  const TWO_OFF_TYPO = TWO_OFF_BASE + syllable((TWO_OFF_CHO + 5) % 19, VOWEL_U);
   /** 의미 엔진 — "이직" 자리. 질의는 토큰 + "이직", 제목에 그 말이 있는 편과 없는 편 */
   const SEMANTIC_TOKEN = randomPlainSyllables(3);
   const SEMANTIC_QUERY = `${SEMANTIC_TOKEN}이직`;
@@ -321,13 +340,10 @@ describe('하이브리드 검색·오타 교정 E2E', () => {
     });
 
     it('똑같이 닮은 두 말이면 태그(·주제명)가 제목 토큰보다 앞선다', async () => {
-      // given — 두 말의 자모 유사도가 같다
-      const [row] = await dataSource.query<{ a: number; b: number }[]>(
-        `SELECT word_similarity(hangul_to_jamo($1), hangul_to_jamo($2)) AS a,
-                word_similarity(hangul_to_jamo($1), hangul_to_jamo($3)) AS b`,
-        [TIE_TYPO, TIE_TAG, TIE_TITLE],
+      // given — 두 말의 점수(자모 편집 유사도)가 같다
+      expect(jamoEditSimilarity(TIE_TYPO, TIE_TAG)).toBe(
+        jamoEditSimilarity(TIE_TYPO, TIE_TITLE),
       );
-      expect(row.a).toBe(row.b);
 
       // when
       const term = await correct(TIE_TYPO);
@@ -344,9 +360,8 @@ describe('하이브리드 검색·오타 교정 E2E', () => {
       expect(term).toBe(FREQ_TWICE);
     });
 
-    it('임계값(0.5) 아래면 교정어가 없다 — 자모 둘 이상 틀림', async () => {
-      // given — 뒤 두 음절을 통째로 바꾼다(자모 넷 차이). 끝음절 하나의 초성·모음 둘(자모 둘)만 바꾸면 3음절 말에서는
-      // 4/7 = 0.57로 아직 하한 위다 — 하한 0.5는 "자모 둘까지" 고친다
+    it('임계값(0.7) 아래면 교정어가 없다 — 자모 넷 틀림', async () => {
+      // given — 뒤 두 음절을 통째로 바꾼다(자모 넷 차이, 점수 1 − 4/6 = 0.33)
       const farTypo =
         BASE[0] +
         syllable((LAST_CHO + 3) % 19, VOWEL_U) +
@@ -359,12 +374,108 @@ describe('하이브리드 검색·오타 교정 E2E', () => {
       expect(term).toBeNull();
     });
 
+    it('자모 6개인 말에서 자모 둘 틀리면(점수 0.667) 고치지 않는다 — 종전 word_similarity는 4/7 = 0.57로 고쳤다', async () => {
+      // given — 홑모음만 쓴 받침 없는 3음절 말(자모 정확히 6개). 끝음절의 초성·모음을 둘 다 바꾼다
+      await seed(`${TWO_OFF_WORD} 이야기`, 9);
+      expect(jamoEditSimilarity(TWO_OFF_TYPO, TWO_OFF_WORD)).toBeCloseTo(
+        1 - 2 / 6,
+      );
+
+      // when
+      const term = await correct(TWO_OFF_TYPO);
+
+      // then
+      expect(term).toBeNull();
+    });
+
     it('원문과 같은 말은 교정어가 아니다', async () => {
       // when
       const term = await correct(WORD);
 
       // then
       expect(term).not.toBe(WORD);
+    });
+  });
+
+  describe('교정어 선택 — 실제 말(개발계 실측 사례)', () => {
+    const realIds = { economy: '' };
+
+    beforeAll(async () => {
+      // "경제"는 제목 토큰으로만, "거의"는 태그(우선순위가 더 높다)로도 둔다 — 경제가 점수로 이겨야 한다
+      realIds.economy = await seed('키워드로 훑어보는 경제 상식', 60);
+      await seed('거의 모든 것의 역사', 61, { tags: ['거의'] });
+      await seed('운영체제 기초', 62, { tags: ['운영체제', '운영'] });
+      await seed('네트워크 입문', 63, { tags: ['네트워크'] });
+      await seed('커리어 전환 첫걸음', 64, { tags: ['커리어', '커리어 전환'] });
+      await seed('면접 준비하는 법', 65, { tags: ['면접', '면허'] });
+    });
+
+    const correct = (normalizedQuery: string) =>
+      contentService.findSearchCorrection({
+        market: UserMarket.KR,
+        normalizedQuery,
+        includeSeriesTitles: false,
+        now: new Date(),
+      });
+
+    it.each([
+      ['겅제', '경제'],
+      ['운영체재', '운영체제'],
+      ['네트웍', '네트워크'],
+      ['커리오', '커리어'],
+      ['면졉', '면접'],
+    ])('"%s" → "%s"', async (typo, expected) => {
+      // when
+      const term = await correct(typo);
+
+      // then
+      expect(term).toBe(expected);
+    });
+
+    it('겅제 — 종전 word_similarity는 "거의"(0.5)가 "경제"(0.333)보다 높았다(회귀 근거)', async () => {
+      // given
+      const [row] = await dataSource.query<{ wrong: number; right: number }[]>(
+        `SELECT word_similarity(hangul_to_jamo('겅제'), hangul_to_jamo('거의')) AS wrong,
+                word_similarity(hangul_to_jamo('겅제'), hangul_to_jamo('경제')) AS right`,
+      );
+
+      // then — 그래서 점수를 자모 편집 유사도로 바꿨다(경제 0.8, 거의 0.6)
+      expect(row.wrong).toBeGreaterThan(row.right);
+      expect(jamoEditSimilarity('겅제', '경제')).toBeCloseTo(0.8);
+      expect(jamoEditSimilarity('겅제', '거의')).toBeCloseTo(0.6);
+    });
+
+    it('여러 단어 질의 "커리어 없는말"은 고치지 않는다 — 통째로 닮은 어휘가 없다', async () => {
+      // when
+      const term = await correct('커리어 없는말');
+
+      // then
+      expect(term).toBeNull();
+    });
+
+    it('아무 말도 아닌 문자열은 고치지 않는다', async () => {
+      // when
+      const term = await correct('zqxj쀍뷁');
+
+      // then
+      expect(term).toBeNull();
+    });
+
+    it('흐름 — "겅제" 검색은 "경제"로 대신 검색한다', async () => {
+      // given
+      const { auth } = await createUser('real-correct');
+
+      // when
+      const body = (await search(auth, { query: '겅제' }).expect(HttpStatus.OK))
+        .body as SearchBody;
+
+      // then
+      expect(body.query_used).toBe('경제');
+      expect(body.corrected_from).toBe('겅제');
+      expect(body.match).toBe('keyword');
+      expect(body.items.map((item) => item.content.id)).toContain(
+        realIds.economy,
+      );
     });
   });
 
