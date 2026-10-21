@@ -21,6 +21,7 @@ import { useDeferredSheetShare } from '@/features/share';
 import { exploreKeys } from '../api/explore.api';
 import { EXPLORE_COPY } from '../explore.copy';
 import { isHiddenEntry, withEntryLibraryState } from '../explore.entry';
+import { toQueueSnapshot } from '../explore.queue';
 import { isSearchableQuery, toSearchQuery } from '../explore.search-query';
 import type {
   ExploreItem,
@@ -439,6 +440,11 @@ export const useExploreSearchScreen = (embedding?: ExploreSearchEmbedding) => {
           topicIds: item.content.topicIds,
         },
         onWithdrawn: () => hideRow(item.content.id),
+        // 재생 목록 = 이 검색 결과(KAN-241) — 빈 결과의 대체 목록(인기)에서 눌렀으면 그 목록이 맥락이다
+        queue: toQueueSnapshot(results.length > 0 ? results : fallbackItems, {
+          type: 'search',
+          query: activeQuery ?? '',
+        }),
       },
       'explore',
     );

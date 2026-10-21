@@ -227,6 +227,21 @@ export function ScriptIcon({ size, color }: IconProps) {
  * 순서 변경 손잡이 — 가로줄 두 개(재생 목록 행 오른쪽, 2026-09-18). 잡고 끄는 자리라는 관례 표식이다.
  * 대본 아이콘(길이가 다른 세 줄)과 헷갈리지 않게 같은 길이 두 줄로 둔다
  */
+/** 담기(KAN-241) — 탐색 맥락 재생 목록의 라이브러리에 없는 줄. 더하기 하나, 순서 손잡이와 같은 선 굵기 */
+export function PlusIcon({ size, color }: IconProps) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24">
+      <Path
+        d="M12 5v14M5 12h14"
+        stroke={color}
+        strokeWidth={1.8}
+        strokeLinecap="round"
+        fill="none"
+      />
+    </Svg>
+  );
+}
+
 export function ReorderIcon({ size, color }: IconProps) {
   return (
     <Svg width={size} height={size} viewBox="0 0 24 24">

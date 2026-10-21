@@ -863,7 +863,31 @@ exports[`한국어 카피 회귀 — i18n 전환 전과 1:1 PLAYER_COPY 1`] = `
       "가나다 순서 변경, 라마개 중 2026-10-15T00:00:00.000Z번째",
     ],
     "retry": "다시 시도",
+    "saveA11y": "라이브러리에 담기",
+    "saveFailedToast": "담지 못했어요. 다시 시도해주세요",
+    "saveToast": "라이브러리에 담았어요",
+    "sourcePopular": [
+      "탐색 · 인기 undefined",
+      "탐색 · 인기 undefined",
+    ],
+    "sourceSearch": [
+      "검색 ‘3’",
+      "검색 ‘가나다’",
+    ],
+    "sourceSection": [
+      "탐색 · 3",
+      "탐색 · 가나다",
+    ],
+    "sourceSeries": [
+      "시리즈 · 3",
+      "시리즈 · 가나다",
+    ],
+    "sourceTopic": [
+      "주제 · 3",
+      "주제 · 가나다",
+    ],
     "title": "재생 목록",
+    "upNextTitle": "다음에 들어볼 만한",
   },
   "rateSheet": {
     "optionA11y": [

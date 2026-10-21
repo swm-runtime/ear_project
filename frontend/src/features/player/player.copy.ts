@@ -98,6 +98,22 @@ const ko = {
    */
   queuePanel: {
     title: '재생 목록',
+    /**
+     * 탐색 맥락의 출처 한 줄(KAN-241 — player.md 4.2-1). 헤더와 바닥 손잡이 글자가 같은 값이다.
+     * 섹션은 화면에 보이던 제목 그대로("탐색 · 새로 나온 콘텐츠")
+     */
+    sourceSection: (title: string) => `탐색 · ${title}`,
+    sourcePopular: (period: 'week' | 'month' | 'all') =>
+      `탐색 · 인기 ${{ week: '주간', month: '월간', all: '전체' }[period]}`,
+    sourceTopic: (name: string) => `주제 · ${name}`,
+    sourceSearch: (query: string) => `검색 ‘${query}’`,
+    sourceSeries: (title: string) => `시리즈 · ${title}`,
+    /** 탐색 맥락 목록 아래 추천 블록(player.md 4.2-2) — 자동 재생은 없다, 목록일 뿐 */
+    upNextTitle: '다음에 들어볼 만한',
+    /** 라이브러리에 없는 줄의 담기 버튼(탐색 맥락만) — 탐색 타일의 담기와 같은 말 */
+    saveA11y: '라이브러리에 담기',
+    saveToast: '라이브러리에 담았어요',
+    saveFailedToast: '담지 못했어요. 다시 시도해주세요',
     /** 지금 재생 중인 줄에 붙는 낭독 꼬리표 — 시각 표시(굵게)만으로는 전달되지 않는다 */
     nowPlayingA11y: '재생 중',
     completedA11y: '완청함',
@@ -256,6 +272,16 @@ const en: LocalizedCopy<typeof ko> = {
 
   queuePanel: {
     title: 'Up next',
+    sourceSection: (title: string) => `Explore · ${title}`,
+    sourcePopular: (period: 'week' | 'month' | 'all') =>
+      `Explore · Popular ${{ week: 'this week', month: 'this month', all: 'all time' }[period]}`,
+    sourceTopic: (name: string) => `Topic · ${name}`,
+    sourceSearch: (query: string) => `Search “${query}”`,
+    sourceSeries: (title: string) => `Series · ${title}`,
+    upNextTitle: 'Up next for you',
+    saveA11y: 'Save to library',
+    saveToast: 'Saved to your library',
+    saveFailedToast: "Couldn't save. Please try again.",
     nowPlayingA11y: 'Now playing',
     completedA11y: 'Finished',
     empty: 'Your library is empty',

@@ -18,10 +18,11 @@ import { useDeferredSheetShare } from '@/features/share';
 
 import { BUFFERING_INDICATOR_DELAY_MS, PLAYER_DELETE_UNDO_DURATION_MS } from '../player.constants';
 import { PLAYER_COPY } from '../player.copy';
-import type { PlayEntryPoint, PlaybackStartMeta, QueueItem } from '../player.types';
+import type { PlayEntryPoint, PlaybackStartMeta, QueueEntry } from '../player.types';
 import { usePlayGate } from './usePlayGate';
 import { playbackService } from '../services/playback.service';
 import { getPlayerLibraryBridge } from '../services/player-library.bridge';
+import { appendToSnapshot, withSnapshotItemId } from '../services/queue-context';
 import { useLimitNoticeStore } from '../store/limit-notice.store';
 import { usePlaybackStore } from '../store/playback.store';
 
@@ -209,31 +210,81 @@ export const usePlayerScreen = () => {
     playbackService.togglePlayPause();
   };
 
+  const queueEntryTarget = (item: QueueEntry) => ({
+    contentId: item.contentId,
+    isCountedToday: item.isCountedToday,
+    meta: {
+      title: item.title,
+      authorName: item.authorName ?? undefined,
+      sourceName: item.sourceName ?? undefined,
+      thumbnailUrl: item.thumbnailUrl ?? undefined,
+      durationSec: item.durationSec ?? undefined,
+      // 고른 편의 주제 — 빠뜨리면 카테고리 줄이 사라진다(2026-09-18 PM 지적)
+      topicIds: item.topicIds,
+    },
+  });
+
   /**
    * 재생 목록에서 다른 편을 고른다 — **게이트를 거친다.** 재생 진입점이 하나 늘어난 것이므로 여기서
    * playbackService.start 를 직접 부르면 한도 확인 팝업을 건너뛰는 다섯 번째 경로가 생긴다
-   * (paywall.md 4.2 — 모든 경로가 단일 게이트). 진입점은 목록의 정체를 따라 `library`다.
+   * (paywall.md 4.2 — 모든 경로가 단일 게이트). 진입점은 목록의 정체를 따른다 — 라이브러리 맥락 `library`,
+   * 탐색 스냅샷 맥락 `explore`(KAN-241). **맥락은 그대로 넘긴다** — 그 목록 안에서 옮겨 다닌 것이다.
    * 지금 듣고 있는 편을 다시 고르면 아무 일도 하지 않는다 — 재시작이 아니라 오조작이다.
    */
-  const playQueueItem = (item: QueueItem) => {
+  const playQueueItem = (item: QueueEntry) => {
     setActivePanel(null);
     if (item.contentId === contentId) return;
+    const queue = usePlaybackStore.getState().queueContext;
     playGate.requestPlay(
-      {
-        contentId: item.contentId,
-        isCountedToday: item.isCountedToday,
-        meta: {
-          title: item.title,
-          authorName: item.authorName ?? undefined,
-          sourceName: item.sourceName ?? undefined,
-          thumbnailUrl: item.thumbnailUrl ?? undefined,
-          durationSec: item.durationSec ?? undefined,
-          // 고른 편의 주제 — 빠뜨리면 카테고리 줄이 사라진다(2026-09-18 PM 지적)
-          topicIds: item.topicIds,
-        },
-      },
-      'library',
+      { ...queueEntryTarget(item), queue },
+      queue.kind === 'library' ? 'library' : 'explore',
     );
+  };
+
+  /**
+   * "다음에 들어볼 만한"의 줄을 틀었다(player.md 4.2-2) — 맥락은 바뀌지 않고 그 편이 스냅샷(지금 듣는 편 뒤)에 더해진다.
+   * 진입점은 `player`(플레이어 안에서 시작한 재생). 자동 재생이 아니다 — 사용자가 고른 편만 재생된다(FR-24)
+   */
+  const playUpNextItem = (item: QueueEntry) => {
+    setActivePanel(null);
+    if (item.contentId === contentId) return;
+    const current = usePlaybackStore.getState().queueContext;
+    playGate.requestPlay(
+      { ...queueEntryTarget(item), queue: appendToSnapshot(current, item, contentId) },
+      'player',
+    );
+  };
+
+  /**
+   * 탐색 맥락 줄의 담기(KAN-241) — 탐색 타일의 담기와 같은 뜻. 낙관 반영(스냅샷 `itemId` 임시 채움) → 서버 → 실패면 되돌리고
+   * 토스트. 라이브러리 목록 재조회는 브리지가 한다. 담기는 횟수 제한이 없고 페이월을 노출하지 않는다(PRD 5.4)
+   */
+  const saveSeqRef = useRef(new Map<string, number>());
+  const saveQueueItem = (item: QueueEntry) => {
+    if (item.itemId !== null) return;
+    const bridge = getPlayerLibraryBridge();
+    if (!bridge) return;
+    const seq = (saveSeqRef.current.get(item.contentId) ?? 0) + 1;
+    saveSeqRef.current.set(item.contentId, seq);
+    const store = usePlaybackStore.getState();
+    store.setQueueContext(
+      withSnapshotItemId(store.queueContext, item.contentId, `optimistic-${item.contentId}`),
+    );
+    bridge
+      .saveContent(item.contentId, seq)
+      .then((itemId) => {
+        if (saveSeqRef.current.get(item.contentId) !== seq) return;
+        const latest = usePlaybackStore.getState();
+        latest.setQueueContext(withSnapshotItemId(latest.queueContext, item.contentId, itemId));
+        showToast(PLAYER_COPY.queuePanel.saveToast);
+      })
+      .catch((error: unknown) => {
+        if (saveSeqRef.current.get(item.contentId) !== seq) return;
+        logger.warn('[player] queue save failed', error);
+        const latest = usePlaybackStore.getState();
+        latest.setQueueContext(withSnapshotItemId(latest.queueContext, item.contentId, null));
+        showToast(PLAYER_COPY.queuePanel.saveFailedToast);
+      });
   };
 
   /** PL7 [상세 정보] — 시트를 닫고 상세 화면으로 이동한다(player-uiux.md 4.7, 추가 2026-08-23).
@@ -342,6 +393,8 @@ export const usePlayerScreen = () => {
     openPanel: (kind: PlayerPanelKind) => setActivePanel(kind),
     closePanel: () => setActivePanel(null),
     playQueueItem,
+    playUpNextItem,
+    saveQueueItem,
     // 더보기 시트
     isMoreSheetVisible,
     openMoreSheet: () => setIsMoreSheetVisible(true),

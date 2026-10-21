@@ -21,13 +21,21 @@ import { warmRemoteImages } from '@/shared/ui/RemoteImage';
 import { useToastStore } from '@/shared/ui/toast.store';
 
 import { libraryKeys } from '@/features/library';
-import { sendSourceLinkClick, usePlayGate, usePlayLimitStore } from '@/features/player';
+import {
+  sendSourceLinkClick,
+  usePlayGate,
+  usePlayLimitStore,
+  type PlayQueueContext,
+  type QueueSourceLabel,
+} from '@/features/player';
 import { useDeferredSheetShare } from '@/features/share';
 
 import { exploreKeys } from '../api/explore.api';
 import { EXPLORE_COPY } from '../explore.copy';
 import { exploreEntryThumbnail, isHiddenEntry, withEntryLibraryState } from '../explore.entry';
+import { toQueueSnapshot } from '../explore.queue';
 import { toTagQuery } from '../explore.search-query';
+import { resolveSectionTitle } from '../explore.section-title';
 import type {
   ExploreContentsPage,
   ExploreFeed,
@@ -465,6 +473,33 @@ export const useExploreScreen = ({
     );
   };
 
+  /**
+   * 재생 목록 맥락(KAN-241 — player.md 4.2-1) — 이 편이 **어느 목록에서 눌렸는가**를 스냅샷으로 넘긴다. 주제 필터 중이면
+   * 그 격자, 아니면 그 편이 든 첫 섹션(인기는 구간 라벨, 주제 묶음은 주제 이름, 그 밖은 화면 제목 그대로). 같은 편이
+   * 두 섹션에 있으면 앞 섹션으로 본다 — 타일이 자기 섹션을 모르는 대신 재생 시점의 목록에서 찾는다
+   */
+  const queueContextOf = (item: ExploreItem): PlayQueueContext | undefined => {
+    if (isFiltered) {
+      const names = selectedTopicIds
+        .map((id) => topicsQuery.data?.find((topic) => topic.id === id)?.name)
+        .filter((name): name is string => Boolean(name));
+      return toQueueSnapshot(filteredItems, { type: 'topic', name: names.join(' · ') });
+    }
+    const section = sections.find((candidate) =>
+      candidate.items.some(
+        (entry) => entry.type === 'content' && entry.content.id === item.content.id,
+      ),
+    );
+    if (!section) return undefined;
+    const source: QueueSourceLabel =
+      section.period !== null
+        ? { type: 'popular', period: section.period }
+        : section.topic !== null
+          ? { type: 'topic', name: section.topic.name }
+          : { type: 'section', title: resolveSectionTitle(section) };
+    return toQueueSnapshot(section.items, source);
+  };
+
   /* ── 재생 — 행 본문 탭은 곧장 재생 판정이다(explore-uiux.md 4.1) ── */
   const handleRowPress = (item: ExploreItem) => {
     playGate.requestPlay(
@@ -481,6 +516,7 @@ export const useExploreScreen = ({
           topicIds: item.content.topicIds,
         },
         onWithdrawn: () => hideRow(item.content.id),
+        queue: queueContextOf(item),
       },
       'explore',
     );

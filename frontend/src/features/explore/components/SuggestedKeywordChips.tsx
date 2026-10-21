@@ -41,7 +41,11 @@ export default function SuggestedKeywordChips({
             accessibilityRole="button"
             accessibilityLabel={EXPLORE_COPY.search.suggestedChipA11y(topic.name)}
           >
-            <Image source={topicImageSource({ name: topic.name })} resizeMode="cover" style={styles.photo} />
+            <Image
+              source={topicImageSource({ name: topic.name })}
+              resizeMode="cover"
+              style={styles.photo}
+            />
             <View style={styles.overlay} />
             <Text style={styles.chipLabel} numberOfLines={1}>
               {topic.name}

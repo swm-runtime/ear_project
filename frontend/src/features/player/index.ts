@@ -55,6 +55,7 @@ export type {
 } from './player.types';
 
 /* ── 의존 역전 지점 — app/bootstrap이 library 공개 API로 구현을 주입한다(architecture.md 4.3) ── */
+export type { PlayQueueContext, QueueEntry, QueueSourceLabel } from './player.types';
 export { registerPlayerLibraryBridge } from './services/player-library.bridge';
 export type { PlayerLibraryBridge } from './services/player-library.bridge';
 

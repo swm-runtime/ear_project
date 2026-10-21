@@ -16,7 +16,9 @@ export const MINI_DROP_TRAVEL = 65;
 export const miniDropStyle = (progress: Animated.Value) => ({
   opacity: progress.interpolate({ inputRange: [0, 0.7, 1], outputRange: [1, 0.85, 0] }),
   transform: [
-    { translateY: progress.interpolate({ inputRange: [0, 1], outputRange: [0, MINI_DROP_TRAVEL] }) },
+    {
+      translateY: progress.interpolate({ inputRange: [0, 1], outputRange: [0, MINI_DROP_TRAVEL] }),
+    },
     { scaleX: progress.interpolate({ inputRange: [0, 1], outputRange: [1, 0.92] }) },
     { scaleY: progress.interpolate({ inputRange: [0, 1], outputRange: [1, 0.12] }) },
   ],

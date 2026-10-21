@@ -5,7 +5,12 @@ import { useState } from 'react';
 import { track } from '@/shared/analytics';
 
 import { PLAYER_COPY } from '../player.copy';
-import type { PlaybackStartMeta, PlayEntryPoint, PlayStartResult } from '../player.types';
+import type {
+  PlaybackStartMeta,
+  PlayEntryPoint,
+  PlayQueueContext,
+  PlayStartResult,
+} from '../player.types';
 import { fetchQueueItems, queueKeys } from './useQueueQuery';
 import { suppressPlayConfirmForToday } from '../services/play-confirm-suppression.service';
 import { playbackService } from '../services/playback.service';
@@ -32,7 +37,17 @@ export interface PlayGateTarget {
    * (2026-09-20 실기기). 재생 가능하다는 답을 받은 뒤에만 열면 닫을 일이 없다.
    */
   openAfterIssue?: boolean;
+  /**
+   * 재생 목록의 맥락(KAN-241 — player.md 4.2-1). 탐색 목록에서 시작한 재생은 그 목록의 스냅샷을 넘기고, 재생 목록 패널·추천
+   * 줄은 현재 맥락을 그대로 넘긴다. **넘기지 않으면 라이브러리 맥락**이다 — 라이브러리·푸시·공유·미니플레이어 복원
+   */
+  queue?: PlayQueueContext;
 }
+
+/** 게이트가 재생을 시작하는 두 경로(즉시·발급 뒤)가 같은 순간에 맥락을 쓴다 — 재생이 바뀌지 않으면 맥락도 바뀌지 않는다 */
+const applyQueueContext = (target: PlayGateTarget) => {
+  usePlaybackStore.getState().setQueueContext(target.queue ?? { kind: 'library' });
+};
 
 interface PlayGateOptions {
   /**
@@ -92,6 +107,7 @@ export const usePlayGate = (options?: PlayGateOptions) => {
   };
 
   const startPlayback = (target: PlayGateTarget, entryPoint: PlayEntryPoint) => {
+    applyQueueContext(target);
     playbackService.start({
       contentId: target.contentId,
       entryPoint,
@@ -117,7 +133,8 @@ export const usePlayGate = (options?: PlayGateOptions) => {
    */
   const remainingIfDeducting = (isCountedToday: boolean): number | null => {
     const { playLimit: limit, suppressedServiceDate: suppressed } = usePlayLimitStore.getState();
-    if (limit === null || limit.dailyPlayLimit === null || limit.dailyPlayCount === null) return null;
+    if (limit === null || limit.dailyPlayLimit === null || limit.dailyPlayCount === null)
+      return null;
     if (isCountedToday || suppressed === limit.serviceDate) return null;
     const remaining = Math.max(0, limit.dailyPlayLimit - limit.dailyPlayCount);
     return remaining > 0 ? remaining : null;
@@ -126,7 +143,12 @@ export const usePlayGate = (options?: PlayGateOptions) => {
   /** 서버가 준 잔여가 0 이고 이 편이 오늘 아직 차감 전인가 — 여는 순서를 정하는 힌트일 뿐 차단 판정은 아니다 */
   const isExhaustedHint = (isCountedToday: boolean): boolean => {
     const { playLimit: limit } = usePlayLimitStore.getState();
-    if (isCountedToday || limit === null || limit.dailyPlayLimit === null || limit.dailyPlayCount === null) {
+    if (
+      isCountedToday ||
+      limit === null ||
+      limit.dailyPlayLimit === null ||
+      limit.dailyPlayCount === null
+    ) {
       return false;
     }
     return limit.dailyPlayLimit - limit.dailyPlayCount <= 0;
@@ -162,6 +184,7 @@ export const usePlayGate = (options?: PlayGateOptions) => {
       playbackService.playWhenReady();
       openPlayer(target.contentId);
     };
+    applyQueueContext(target);
     playbackService.start({
       contentId: target.contentId,
       entryPoint,

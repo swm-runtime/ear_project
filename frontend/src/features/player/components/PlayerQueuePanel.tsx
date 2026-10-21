@@ -11,26 +11,41 @@ import { Text } from '@/shared/ui/Typography';
 import { PLAYER_COPY } from '../player.copy';
 import { formatPlaybackTime } from '../player.format';
 import { playerColor } from '../player.theme';
-import type { QueueItem } from '../player.types';
-import { ReorderIcon } from './PlayerIcons';
+import type { QueueEntry } from '../player.types';
+import { PlusIcon, ReorderIcon } from './PlayerIcons';
+
+/** 목록의 정체(player.md 4.2-1, KAN-241) — 라이브러리(조회·끌기) / 탐색 스냅샷(담기·추천 블록) */
+export type QueuePanelMode = 'library' | 'explore';
 
 interface PlayerQueuePanelProps {
-  items: QueueItem[];
+  items: QueueEntry[];
   isLoading: boolean;
   isError: boolean;
   /** 지금 재생 중인 콘텐츠 — 굵게 표시하고 낭독에도 "재생 중"을 붙인다(색만으로 구분하지 않는다) */
   currentContentId: string;
-  onSelect: (item: QueueItem) => void;
+  onSelect: (item: QueueEntry) => void;
   onRetry: () => void;
   /** 항목 위에서 오른쪽으로 밀면 접는다 — 아트워크 화면으로 "돌아가는" 방향 */
   onSwipeRight: () => void;
-  /** 손잡이를 끌어 `from` 줄을 `to` 줄로 옮겼다 — 순서의 저장은 부모(useQueueOrder) 몫이다 */
+  /** 손잡이를 끌어 `from` 줄을 `to` 줄로 옮겼다 — 순서의 저장은 부모(useQueueOrder) 몫이다. 라이브러리 맥락에만 */
   onReorder: (from: number, to: number) => void;
   /** 줄의 카테고리(주제 이름) — 이름 해석은 주제 목록을 가진 화면 몫이다. 없으면 길이만 보인다 */
-  categoryOf?: (item: QueueItem) => string | null;
+  categoryOf?: (item: QueueEntry) => string | null;
   /** 시트 안에서는 손잡이 라벨이 제목 역할이라 패널 제목을 다시 그리지 않는다 */
   showHeader?: boolean;
+  /** 기본 `library`. `explore` 면 순서 손잡이 대신 담기 버튼(라이브러리에 없는 줄만), 아래에 추천 블록 */
+  mode?: QueuePanelMode;
+  /** 탐색 맥락의 헤더 글자("탐색 · 인기 주간") — 없으면 "재생 목록" */
+  sourceLabel?: string;
+  /** 라이브러리에 없는 줄의 담기(탐색 맥락) — 낙관 반영·토스트는 부모 몫 */
+  onSave?: (item: QueueEntry) => void;
+  /** "다음에 들어볼 만한"(player.md 4.2-2) — 탐색 맥락만. 비면 섹션을 그리지 않는다 */
+  upNext?: { items: QueueEntry[]; isLoading: boolean };
+  onSelectUpNext?: (item: QueueEntry) => void;
 }
+
+/** 줄의 키 — 라이브러리 항목 id 가 없는(담기지 않은) 스냅샷 줄은 콘텐츠 id 로 */
+const rowKey = (item: QueueEntry): string => item.itemId ?? `content-${item.contentId}`;
 
 const SWIPE_RIGHT_DISTANCE = 40;
 const SWIPE_AXIS_RATIO = 1.5;
@@ -56,6 +71,8 @@ const speedOf = (depth: number): number =>
 
 /** 로딩 스켈레톤 행 수 — 패널을 연 첫 화면을 채울 만큼 */
 const SKELETON_ROW_COUNT = 5;
+/** 추천 블록 스켈레톤 — 목록 아래라 둘이면 "뭔가 온다"는 단서로 충분하다 */
+const UP_NEXT_SKELETON_ROW_COUNT = 2;
 
 /**
  * 대기열 로딩 스켈레톤 — 실제 행과 같은 높이·여백(썸네일 48 + 제목 줄 + 보조 줄). 손잡이 자리는 비워 둔다.
@@ -83,12 +100,18 @@ const toMinutes = (durationSec: number | null): number =>
   durationSec === null ? 0 : Math.max(1, Math.round(durationSec / 60));
 
 interface QueueRowProps {
-  item: QueueItem;
+  item: QueueEntry;
   /** 제목 아래 보조 줄 앞에 붙는 카테고리 — "AI·테크 트렌드 · 5:00" */
   category: string | null;
   index: number;
   total: number;
   isCurrent: boolean;
+  /**
+   * 오른쬭 칸 — `reorder`(라이브러리 맥락: 끌기 손잡이) / `save`(탐색 맥락, 라이브러리에 없는 줄: 담기 버튼) /
+   * `none`(탐색 맥락, 이미 담긴 줄 · 추천 줄: 자리만 비운다 — 줄 폭이 흔들리지 않게)
+   */
+  trailing: 'reorder' | 'save' | 'none';
+  onSave?: (item: QueueEntry) => void;
   /** 이 행이 지금 끌려가는 중인가 */
   isDragging: boolean;
   /** 끌려가는 행에게 자리를 비켜 주는 이동량(px). 끄는 중이 아니면 0 */
@@ -97,7 +120,7 @@ interface QueueRowProps {
   animateShift: boolean;
   /** 끌려가는 행의 손가락 이동량 */
   dragY: Animated.Value;
-  onSelect: (item: QueueItem) => void;
+  onSelect: (item: QueueEntry) => void;
   onDragStart: (index: number) => void;
   onDragMove: (dy: number) => void;
   onDragEnd: () => void;
@@ -115,6 +138,8 @@ function QueueRow({
   index,
   total,
   isCurrent,
+  trailing,
+  onSave,
   isDragging,
   shift,
   animateShift,
@@ -222,23 +247,38 @@ function QueueRow({
           </Text>
         </View>
       </Pressable>
-      {/* 손잡이 — 히트 영역 44pt. 끌기의 낭독기 대체 수단은 위/아래 이동 액션이다(uiux 7장) */}
-      <View
-        style={styles.reorderHandle}
-        {...handleResponder.panHandlers}
-        accessible
-        accessibilityRole="adjustable"
-        accessibilityLabel={PLAYER_COPY.queuePanel.reorderA11y(item.title, index + 1, total)}
-        accessibilityActions={[
-          { name: 'decrement', label: PLAYER_COPY.queuePanel.moveUpA11y },
-          { name: 'increment', label: PLAYER_COPY.queuePanel.moveDownA11y },
-        ]}
-        onAccessibilityAction={(event) =>
-          onNudge(index, event.nativeEvent.actionName === 'decrement' ? -1 : 1)
-        }
-      >
-        <ReorderIcon size={REORDER_ICON_SIZE} color={playerColor.textSecondary} />
-      </View>
+      {trailing === 'reorder' ? (
+        // 손잡이 — 히트 영역 44pt. 끌기의 낭독기 대체 수단은 위/아래 이동 액션이다(uiux 7장)
+        <View
+          style={styles.reorderHandle}
+          {...handleResponder.panHandlers}
+          accessible
+          accessibilityRole="adjustable"
+          accessibilityLabel={PLAYER_COPY.queuePanel.reorderA11y(item.title, index + 1, total)}
+          accessibilityActions={[
+            { name: 'decrement', label: PLAYER_COPY.queuePanel.moveUpA11y },
+            { name: 'increment', label: PLAYER_COPY.queuePanel.moveDownA11y },
+          ]}
+          onAccessibilityAction={(event) =>
+            onNudge(index, event.nativeEvent.actionName === 'decrement' ? -1 : 1)
+          }
+        >
+          <ReorderIcon size={REORDER_ICON_SIZE} color={playerColor.textSecondary} />
+        </View>
+      ) : trailing === 'save' ? (
+        // 담기(KAN-241) — 라이브러리에 없는 스냅샷 줄만. 탐색 타일의 담기와 같은 뜻·같은 낭독
+        <Pressable
+          style={styles.reorderHandle}
+          onPress={() => onSave?.(item)}
+          accessibilityRole="button"
+          accessibilityLabel={PLAYER_COPY.queuePanel.saveA11y}
+          hitSlop={theme.spacing.xs}
+        >
+          <PlusIcon size={REORDER_ICON_SIZE} color={playerColor.textSecondary} />
+        </Pressable>
+      ) : (
+        <View style={styles.reorderHandle} />
+      )}
     </Animated.View>
   );
 }
@@ -268,7 +308,15 @@ export default function PlayerQueuePanel({
   onReorder,
   categoryOf,
   showHeader = true,
+  mode = 'library',
+  sourceLabel,
+  onSave,
+  upNext,
+  onSelectUpNext,
 }: PlayerQueuePanelProps) {
+  const isExplore = mode === 'explore';
+  const trailingOf = (item: QueueEntry): QueueRowProps['trailing'] =>
+    !isExplore ? 'reorder' : item.itemId === null ? 'save' : 'none';
   // 0.3초 안에 오면 빈 패널만 잠깐 보인다 — 스켈레톤이 번쩍이지 않게(common-error-handling.md 5)
   const showSkeleton = useDelayedVisible(isLoading);
   const swipeRightRef = useRef(onSwipeRight);
@@ -413,10 +461,62 @@ export default function PlayerQueuePanel({
   };
 
   const header = showHeader ? (
-    <Text style={styles.title} accessibilityRole="header">
-      {PLAYER_COPY.queuePanel.title}
+    <Text style={styles.title} accessibilityRole="header" numberOfLines={1}>
+      {sourceLabel ?? PLAYER_COPY.queuePanel.title}
     </Text>
   ) : null;
+
+  /*
+   * "다음에 들어볼 만한"(player.md 4.2-2) — 탐색 맥락 목록 아래 두 번째 섹션. 로딩은 줄 스켈레톤 둘, 0건·실패는 섹션 자체를
+   * 그리지 않는다(목록은 멀쩡하다 — 패널 안 오류 표시 없음). 자동 재생은 없다 — 줄 탭이 재생 시작(게이트)이다
+   */
+  const upNextSection =
+    isExplore && upNext && (upNext.isLoading || upNext.items.length > 0) ? (
+      <View style={styles.upNext}>
+        <Text style={styles.upNextTitle} accessibilityRole="header">
+          {PLAYER_COPY.queuePanel.upNextTitle}
+        </Text>
+        {upNext.isLoading && upNext.items.length === 0 ? (
+          <SkeletonGroup style={styles.rows} color={playerColor.skeleton}>
+            {Array.from({ length: UP_NEXT_SKELETON_ROW_COUNT }, (_, index) => (
+              <View key={index} style={styles.rowWrap}>
+                <View style={styles.row}>
+                  <SkeletonBlock width={THUMBNAIL_SIZE} height={THUMBNAIL_SIZE} radius="sm" />
+                  <View style={styles.skeletonMeta}>
+                    <SkeletonLine width="72%" height={theme.font.size.md} />
+                    <SkeletonLine width="36%" height={theme.font.size.xs} />
+                  </View>
+                </View>
+              </View>
+            ))}
+          </SkeletonGroup>
+        ) : (
+          <View style={styles.rows}>
+            {upNext.items.map((item, index) => (
+              <QueueRow
+                key={`up-next-${rowKey(item)}`}
+                item={item}
+                category={categoryOf ? categoryOf(item) : null}
+                index={index}
+                total={upNext.items.length}
+                isCurrent={false}
+                trailing={item.itemId === null ? 'save' : 'none'}
+                onSave={onSave}
+                isDragging={false}
+                shift={0}
+                animateShift={false}
+                dragY={dragY}
+                onSelect={(selected) => onSelectUpNext?.(selected)}
+                onDragStart={() => undefined}
+                onDragMove={() => undefined}
+                onDragEnd={() => undefined}
+                onNudge={() => undefined}
+              />
+            ))}
+          </View>
+        )}
+      </View>
+    ) : null;
 
   if (isError) {
     return (
@@ -487,12 +587,14 @@ export default function PlayerQueuePanel({
           >
             {items.map((item, index) => (
               <QueueRow
-                key={item.itemId}
+                key={rowKey(item)}
                 item={item}
                 category={categoryOf ? categoryOf(item) : null}
                 index={index}
                 total={items.length}
                 isCurrent={item.contentId === currentContentId}
+                trailing={trailingOf(item)}
+                onSave={onSave}
                 isDragging={drag !== null && drag.from === index}
                 shift={shiftOf(index)}
                 animateShift={drag !== null}
@@ -506,6 +608,7 @@ export default function PlayerQueuePanel({
             ))}
           </View>
         )}
+        {upNextSection}
       </ScrollView>
     </View>
   );
@@ -622,5 +725,16 @@ const styles = StyleSheet.create({
     height: ROW_HEIGHT,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  // 추천 블록(KAN-241) — 목록과 여백 lg 로 가른다. 제목은 패널 제목과 같은 꼴
+  upNext: {
+    paddingTop: theme.spacing.lg,
+  },
+  upNextTitle: {
+    fontSize: theme.font.size.xs,
+    fontWeight: '600',
+    color: playerColor.textSecondary,
+    paddingHorizontal: theme.spacing.lg,
+    paddingBottom: theme.spacing.xs,
   },
 });
