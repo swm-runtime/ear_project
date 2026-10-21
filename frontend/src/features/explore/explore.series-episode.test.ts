@@ -1,6 +1,7 @@
 import { describe, expect, it } from '@jest/globals';
 
 import {
+  pickSeriesPlayEpisode,
   seriesEpisodeStateLabel,
   seriesEpisodeSubtitle,
   toSeriesEpisodeState,
@@ -137,5 +138,33 @@ describe('seriesEpisodeSubtitle — 시리즈 화면 편 행 제목', () => {
 
   it('시리즈 제목에 정규식 특수문자가 있어도 글자 그대로 맞춘다', () => {
     expect(seriesEpisodeSubtitle('C++ (기초) 1 - 포인터', 'C++ (기초)')).toBe('포인터');
+  });
+});
+
+describe('pickSeriesPlayEpisode — 머리 [재생]이 틀 편', () => {
+  const numbered = (episodeNo: number, library: ExploreLibraryState | null): SeriesEpisode => ({
+    ...episode(library, null),
+    episodeNo,
+  });
+  const completed: ExploreLibraryState = { itemId: 'i', source: 'save', status: 'completed' };
+
+  it('아직 다 듣지 않은 가장 앞 편을 고른다', () => {
+    const picked = pickSeriesPlayEpisode([
+      numbered(1, completed),
+      numbered(2, null),
+      numbered(3, null),
+    ]);
+
+    expect(picked?.episodeNo).toBe(2);
+  });
+
+  it('전부 완청이면 1화부터', () => {
+    const picked = pickSeriesPlayEpisode([numbered(1, completed), numbered(2, completed)]);
+
+    expect(picked?.episodeNo).toBe(1);
+  });
+
+  it('편이 없으면 null(버튼을 그리지 않는다)', () => {
+    expect(pickSeriesPlayEpisode([])).toBeNull();
   });
 });

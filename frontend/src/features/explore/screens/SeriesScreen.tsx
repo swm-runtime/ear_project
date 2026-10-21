@@ -1,10 +1,12 @@
-import { FlatList, StyleSheet, View } from 'react-native';
+import { FlatList, Pressable, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { theme } from '@/shared/theme';
 import ChevronIcon from '@/shared/ui/ChevronIcon';
 import FullScreenError from '@/shared/ui/FullScreenError';
+import GlassCapsule, { HEADER_CONTROL_HEIGHT } from '@/shared/ui/GlassCapsule';
 import GlassIconButton from '@/shared/ui/GlassIconButton';
+import MoreIcon from '@/shared/ui/MoreIcon';
 import { Text } from '@/shared/ui/Typography';
 
 import {
@@ -13,6 +15,7 @@ import {
   useBottomDockInset,
   usePlaybackStore,
 } from '@/features/player';
+import { IS_SHARE_ENABLED, SHARE_COPY, ShareIcon } from '@/features/share';
 
 import ExploreMoreSheet from '../components/ExploreMoreSheet';
 import SeriesEpisodeRow, {
@@ -20,6 +23,7 @@ import SeriesEpisodeRow, {
   SERIES_EPISODE_NUMBER_WIDTH,
 } from '../components/SeriesEpisodeRow';
 import SeriesHeader from '../components/SeriesHeader';
+import SeriesMoreSheet from '../components/SeriesMoreSheet';
 import SeriesSkeleton from '../components/SeriesSkeleton';
 import { EXPLORE_COPY } from '../explore.copy';
 import { toSeriesEpisodeState } from '../explore.series-episode';
@@ -90,7 +94,12 @@ export default function SeriesScreen() {
         ItemSeparatorComponent={RowSeparator}
         ListHeaderComponent={
           <View>
-            <SeriesHeader series={series} episodeCount={screen.episodeCount} />
+            <SeriesHeader
+              series={series}
+              episodeCount={screen.episodeCount}
+              playTarget={screen.playTarget}
+              onPlay={screen.playSeries}
+            />
             <View style={styles.headerRule} />
           </View>
         }
@@ -107,11 +116,34 @@ export default function SeriesScreen() {
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      {/* 앱바는 로딩보다 먼저 그린다 — 유리 원 뒤로만. 제목은 머리가 크게 말한다(앨범 화면 문법) */}
+      {/* 앱바는 로딩보다 먼저 그린다 — 왼쪽 유리 원 뒤로, 오른쪽 유리 캡슐(공유 · ⋯ — 애플 뮤직 앨범, PM 2026-10-22).
+          제목은 머리가 크게 말한다. 캡슐은 상세가 그려진 뒤에만 — 반쪽 값으로 공유하지 않는다(share-uiux.md 4.2) */}
       <View style={styles.appBar}>
         <GlassIconButton onPress={screen.goBack} accessibilityLabel={EXPLORE_COPY.series.backA11y}>
           <ChevronIcon direction="left" size={APP_BAR_ICON_SIZE} color={theme.color.textPrimary} />
         </GlassIconButton>
+        {screen.detail ? (
+          <GlassCapsule style={styles.actionCapsule}>
+            {IS_SHARE_ENABLED && screen.canShareSeries ? (
+              <Pressable
+                style={styles.capsuleButton}
+                onPress={screen.shareSeries}
+                accessibilityRole="button"
+                accessibilityLabel={SHARE_COPY.action}
+              >
+                <ShareIcon size={APP_BAR_ICON_SIZE} color={theme.color.textPrimary} />
+              </Pressable>
+            ) : null}
+            <Pressable
+              style={styles.capsuleButton}
+              onPress={screen.openSeriesSheet}
+              accessibilityRole="button"
+              accessibilityLabel={EXPLORE_COPY.series.moreA11y}
+            >
+              <MoreIcon size={APP_BAR_ICON_SIZE + 2} color={theme.color.textPrimary} />
+            </Pressable>
+          </GlassCapsule>
+        ) : null}
       </View>
 
       {renderBody()}
@@ -124,6 +156,13 @@ export default function SeriesScreen() {
         onRemove={screen.requestRemove}
         onShare={screen.shareItem}
         onDismiss={screen.closeMoreSheet}
+        onDismissed={screen.handleSheetDismiss}
+      />
+
+      <SeriesMoreSheet
+        series={screen.isSeriesSheetOpen && screen.detail ? screen.detail.series : null}
+        onShare={screen.shareSeriesFromSheet}
+        onDismiss={screen.closeSeriesSheet}
         onDismissed={screen.handleSheetDismiss}
       />
 
@@ -155,8 +194,22 @@ const styles = StyleSheet.create({
   appBar: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
     paddingHorizontal: theme.spacing.md,
     minHeight: theme.touchTarget.minHeight + theme.spacing.sm,
+  },
+  // 오른쪽 캡슐 — 뒤로 원과 같은 높이(40), 아이콘 칸 둘
+  actionCapsule: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    height: HEADER_CONTROL_HEIGHT,
+    paddingHorizontal: theme.spacing.xs,
+  },
+  capsuleButton: {
+    width: HEADER_CONTROL_HEIGHT + theme.spacing.xs,
+    height: HEADER_CONTROL_HEIGHT,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   // 머리와 목록 사이 한 줄 — 좌우 여백 안쪽(앨범 화면의 버튼 줄 아래 선 자리)
   headerRule: {
