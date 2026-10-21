@@ -20,7 +20,7 @@ import { useExploreTopicsQuery } from '../hooks/useExploreTopicsQuery';
 const MAX_TOPIC_TAGS = 2;
 /** 사진 아래 변 그라데이션 높이 — 라이브러리 타일의 "새로운 주제" 바탕과 같은 값(design.md §3) */
 const BOTTOM_FADE_HEIGHT = 56;
-/** "시리즈" 앞의 겹친 사각 글리프 — 글자 크기(xs)와 같은 높이 */
+/** "시리즈" 앞의 쌓인 카드 글리프 — 글자 크기(xs)와 같은 높이 */
 const STACK_GLYPH_SIZE = 12;
 /** 뒤 카드가 표지보다 한쪽에서 좁아지는 폭(가까운 장 — 먼 장은 두 배). 대표 카드는 폭이 넓어 더 들인다 */
 const STACK_INSET = theme.spacing.sm;
@@ -159,19 +159,14 @@ function SeriesArtworkLabel() {
         <Rect x="0" y="0" width="100%" height={BOTTOM_FADE_HEIGHT} fill="url(#seriesBottomFade)" />
       </Svg>
       <View style={styles.label}>
-        {/* 겹친 두 사각 — "여러 편이 묶여 있다"는 형태 단서(색만으로 가르지 않는다) */}
-        <Svg width={STACK_GLYPH_SIZE} height={STACK_GLYPH_SIZE} viewBox="0 0 12 12">
-          <Rect
-            x="3.5"
-            y="0.75"
-            width="7.75"
-            height="7.75"
-            rx="1.6"
-            fill="none"
-            stroke={ON_ART_TEXT}
-            strokeWidth={1.3}
-          />
-          <Rect x="0.75" y="3.5" width="7.75" height="7.75" rx="1.6" fill={ON_ART_TEXT} />
+        {/*
+          쌓인 카드 — 앞 카드 위로 뒤 카드 두 장이 반투명 판으로 비져 나온다. 표지 뒤 겹친 카드(SeriesStackedArtwork)를 그대로
+          줄인 모양이라 글리프와 카드가 같은 말을 한다(PM 2026-10-22 다섯 후보 중 선택). 색만으로 가르지 않는다
+        */}
+        <Svg width={STACK_GLYPH_SIZE} height={STACK_GLYPH_SIZE} viewBox="0 0 24 24">
+          <Rect x="5" y="1.2" width="14" height="2.6" rx="1.3" fill={ON_ART_TEXT} opacity={0.45} />
+          <Rect x="3" y="4.6" width="18" height="2.9" rx="1.45" fill={ON_ART_TEXT} opacity={0.72} />
+          <Rect x="1" y="8.6" width="22" height="13.9" rx="3" fill={ON_ART_TEXT} />
         </Svg>
         <Text style={styles.labelText}>{EXPLORE_COPY.seriesCard.badge}</Text>
       </View>
