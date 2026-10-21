@@ -422,12 +422,13 @@ const styles = StyleSheet.create({
   // 검색 안내(KAN-239) — 격자 첫 행 위, 좌우 여백은 격자와 같다(gridContent)
   /*
    * 검색창 아래 여백(sm)과 격자 위 여백(sm)만으로 안내 글자가 검색창과 16pt 가 되게 위 여백은 0(PM 2026-10-22 06:24·06:31).
-   * 종전 md + xs 에 버튼 최소 높이 44 의 빈 위쪽이 더해져 30pt 넘게 벌어졌다. 아래는 카드와 12pt — 안내는 결과의 머리다
+   * 종전 md + xs 에 버튼 최소 높이 44 의 빈 위쪽이 더해져 30pt 넘게 벌어졌다. 아래도 16 — 위아래 같은 간격(가운데)
    */
   resultNotice: {
     alignItems: 'center',
     paddingTop: 0,
-    paddingBottom: theme.spacing.sm + theme.spacing.xs,
+    // 위(검색창 줄 아래 sm + 격자 위 sm = 16)와 같은 16 — 안내가 검색창과 카드 사이 가운데에 선다(PM 2026-10-22 07:17)
+    paddingBottom: theme.spacing.md,
   },
 
   // 교정 안내 한 줄 — 안내 글자 + 버튼을 가운데에 나란히. 좁으면 버튼이 다음 줄 가운데로 접힌다
