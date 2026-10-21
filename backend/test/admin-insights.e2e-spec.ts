@@ -431,8 +431,8 @@ describe('서비스 지표 요약 E2E', () => {
       '토',
       '일',
     ]);
-    // 14일 창의 온전한 날은 13일(첫날 부분일·오늘 제외) — 요일마다 1~2일
-    expect(body.weekday.reduce((sum, w) => sum + w.days, 0)).toBe(13);
+    // 14일 창의 온전한 날은 14일 — 일별은 창 시작이 걸친 날의 KST 자정부터라 첫날도 온전하고, 오늘만 뺀다(요일마다 2일)
+    expect(body.weekday.reduce((sum, w) => sum + w.days, 0)).toBe(14);
     for (const w of body.weekday) {
       expect(w.active_days).toBeLessThanOrEqual(w.days);
       // 0일이면 평균은 0 이 아니라 null
