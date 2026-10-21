@@ -1,10 +1,9 @@
-import { FlatList, Pressable, StyleSheet, View } from 'react-native';
+import { FlatList, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { theme } from '@/shared/theme';
 import ChevronIcon from '@/shared/ui/ChevronIcon';
 import FullScreenError from '@/shared/ui/FullScreenError';
-import GlassCapsule from '@/shared/ui/GlassCapsule';
 import GlassIconButton from '@/shared/ui/GlassIconButton';
 import { HAS_NATIVE_TAB_BAR } from '@/shared/ui/GlassSurface';
 import MoreIcon from '@/shared/ui/MoreIcon';
@@ -16,7 +15,6 @@ import {
   useBottomDockInset,
   usePlaybackStore,
 } from '@/features/player';
-import { IS_SHARE_ENABLED, SHARE_COPY, ShareIcon } from '@/features/share';
 
 import ExploreMoreSheet from '../components/ExploreMoreSheet';
 import SeriesEpisodeRow from '../components/SeriesEpisodeRow';
@@ -136,38 +134,25 @@ export default function SeriesScreen() {
         </View>
       )}
 
-      {/* 앱바는 로딩보다 먼저 그린다 — 띠 없이 떠 있는 왼쪽 유리 원 뒤로 · 오른쪽 유리 캡슐(공유 · ⋯ — 애플 뮤직 앨범,
-          PM 2026-10-22). 제목은 머리가 크게 말한다. 캡슐은 상세가 그려진 뒤에만 — 반쪽 값으로 공유하지 않는다(share-uiux.md 4.2).
-          목록 위에 그리도록 본문 뒤에 둔다 */}
+      {/* 앱바는 로딩보다 먼저 그린다 — 띠 없이 떠 있는 왼쪽 유리 원 뒤로 · 오른쪽 유리 원 ⋯(애플 뮤직 앨범, PM 2026-10-22.
+          공유 아이콘은 뺐다 — 공유는 ⋯ 시트 안). 제목은 머리가 크게 말한다. ⋯ 는 상세가 그려진 뒤에만 — 반쪽 값으로
+          공유하지 않는다(share-uiux.md 4.2). 목록 위에 그리도록 본문 뒤에 둔다 */}
       <View style={[styles.appBar, { top: insets.top }]} pointerEvents="box-none">
         <GlassIconButton
           onPress={screen.goBack}
           accessibilityLabel={EXPLORE_COPY.series.backA11y}
-          style={styles.backButton}
+          style={styles.barButton}
         >
           <ChevronIcon direction="left" size={APP_BAR_ICON_SIZE} color={theme.color.textPrimary} />
         </GlassIconButton>
         {screen.detail ? (
-          <GlassCapsule style={styles.actionCapsule}>
-            {IS_SHARE_ENABLED && screen.canShareSeries ? (
-              <Pressable
-                style={styles.capsuleButton}
-                onPress={screen.shareSeries}
-                accessibilityRole="button"
-                accessibilityLabel={SHARE_COPY.action}
-              >
-                <ShareIcon size={APP_BAR_ICON_SIZE} color={theme.color.textPrimary} />
-              </Pressable>
-            ) : null}
-            <Pressable
-              style={styles.capsuleButton}
-              onPress={screen.openSeriesSheet}
-              accessibilityRole="button"
-              accessibilityLabel={EXPLORE_COPY.series.moreA11y}
-            >
-              <MoreIcon size={APP_BAR_ICON_SIZE + 2} color={theme.color.textPrimary} />
-            </Pressable>
-          </GlassCapsule>
+          <GlassIconButton
+            onPress={screen.openSeriesSheet}
+            accessibilityLabel={EXPLORE_COPY.series.moreA11y}
+            style={styles.barButton}
+          >
+            <MoreIcon size={APP_BAR_ICON_SIZE + 2} color={theme.color.textPrimary} />
+          </GlassIconButton>
         ) : null}
       </View>
 
@@ -204,14 +189,13 @@ export default function SeriesScreen() {
 /** 편 행 사이 구분선 — 좌우 같은 여백(머리 아래 선과 같은 폭) */
 const RowSeparator = () => <View style={styles.separator} />;
 
-/** 앱바 유리 버튼 안 아이콘 — 콘텐츠 상세와 같은 값 */
 /**
  * 떠 있는 앱바 버튼 — 다른 화면의 머리 줄 컨트롤(40)보다 크게(PM 2026-10-22 "상단 버튼 키우자"). 큰 표지 위에 떠서
- * 애플 뮤직 앨범 화면처럼 손에 잘 걸리는 크기. 뒤로 원·오른쪽 캡슐이 같은 높이
+ * 애플 뮤직 앨범 화면처럼 손에 잘 걸리는 크기. 뒤로 원·⋯ 원이 같은 크기
  */
 const BAR_BUTTON_SIZE = 48;
 const APP_BAR_ICON_SIZE = 24;
-/** 떠 있는 앱바 줄 높이 — 유리 원(40) 터치 44 + 위아래 여유 */
+/** 떠 있는 앱바 줄 높이 — 유리 원 + 위아래 여유 */
 const APP_BAR_HEIGHT = BAR_BUTTON_SIZE + theme.spacing.sm;
 
 const styles = StyleSheet.create({
@@ -233,22 +217,9 @@ const styles = StyleSheet.create({
   nonListBody: {
     flex: 1,
   },
-  backButton: {
+  barButton: {
     width: BAR_BUTTON_SIZE,
     height: BAR_BUTTON_SIZE,
-  },
-  // 오른쪽 캡슐 — 뒤로 원과 같은 높이, 아이콘 칸 둘
-  actionCapsule: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    height: BAR_BUTTON_SIZE,
-    paddingHorizontal: theme.spacing.xs,
-  },
-  capsuleButton: {
-    width: BAR_BUTTON_SIZE + theme.spacing.xs,
-    height: BAR_BUTTON_SIZE,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   // 머리와 목록 사이 한 줄 — 좌우 여백 안쪽(앨범 화면의 버튼 줄 아래 선 자리)
   headerRule: {

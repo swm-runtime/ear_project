@@ -12,18 +12,18 @@ import {
 } from '../explore.series-episode';
 import type { ExploreItem, SeriesEpisode } from '../explore.types';
 
-/** 번호 칸 폭 — 두 자리 화수까지 오른쪽 끝이 맞는다(앨범 트랙 목록 문법) */
+/** 번호 칸 폭 — 두 자리 화수까지 들어간다. 번호는 칸 가운데(PM 2026-10-22) */
 export const SERIES_EPISODE_NUMBER_WIDTH = 32;
 /** 번호 칸과 제목 사이 — 구분선 시작선 계산에도 쓴다 */
 export const SERIES_EPISODE_NUMBER_GAP = 12;
-/** 재생 중 표식 — 번호 왼쪽 작은 점(애플 뮤직 트랙 목록과 같은 자리) */
+/** 재생 중 표식 — 목록 밖 왼쪽 여백의 작은 점(PM 2026-10-22 "점은 리스트 밖으로") */
 const NOW_PLAYING_DOT = 6;
 
 interface SeriesEpisodeRowProps {
   episode: SeriesEpisode;
   /** 시리즈 제목 — 편 제목 앞머리(`{시리즈 제목} {N} — `)를 떼는 데 쓴다 */
   seriesTitle: string;
-  /** 지금 플레이어에 올라 있는 편인가 — 번호 왼쪽 점 + 낭독 "재생 중"(색만으로 말하지 않는다) */
+  /** 지금 플레이어에 올라 있는 편인가 — 왼쪽 여백 점 + 굵은 제목 + 낭독 "재생 중"(색만으로 말하지 않는다) */
   isNowPlaying: boolean;
   /** 행 탭 = 탐색 행과 같은 재생 판정(재생 확인 팝업 → 재생 — explore.md 4.4) */
   onPress: (item: ExploreItem) => void;
@@ -53,6 +53,8 @@ export default function SeriesEpisodeRow({
 
   return (
     <View style={styles.row}>
+      {/* 점은 번호 칸이 아니라 행의 왼쪽 여백(목록 밖)에 — 번호가 점 유무와 상관없이 같은 자리에 선다 */}
+      {isNowPlaying ? <View style={styles.nowPlayingDot} pointerEvents="none" /> : null}
       <Pressable
         style={styles.body}
         onPress={() => onPress(item)}
@@ -65,7 +67,6 @@ export default function SeriesEpisodeRow({
         })}
       >
         <View style={styles.numberCell}>
-          {isNowPlaying ? <View style={styles.nowPlayingDot} /> : null}
           <Text style={styles.number}>{episode.episodeNo}</Text>
         </View>
         <View style={styles.info}>
@@ -106,18 +107,20 @@ const styles = StyleSheet.create({
   },
   numberCell: {
     width: SERIES_EPISODE_NUMBER_WIDTH,
-    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'flex-end',
-    gap: theme.spacing.xs,
+    justifyContent: 'center',
   },
+  // 왼쪽 여백(md) 가운데 — 구분선·번호가 시작하는 선 바깥
   nowPlayingDot: {
+    position: 'absolute',
+    left: (theme.spacing.md - NOW_PLAYING_DOT) / 2,
     width: NOW_PLAYING_DOT,
     height: NOW_PLAYING_DOT,
     borderRadius: NOW_PLAYING_DOT / 2,
     backgroundColor: theme.color.textSecondary,
   },
   number: {
+    textAlign: 'center',
     fontSize: theme.font.size.md,
     color: theme.color.textSecondary,
     fontVariant: ['tabular-nums'],
