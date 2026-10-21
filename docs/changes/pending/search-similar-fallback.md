@@ -6,7 +6,7 @@
 | 요청 파트 | 백엔드(계약·스키마) · 프론트엔드(화면) |
 | 발행 날짜 | 2026-10-22 |
 | 기한 | 2026-10-25 (Medium — 코드 티켓과 같은 날. 코드보다 문서가 늦지 않게 BE PR과 함께 반영) |
-| 선행 | 없음. 코드: BE [KAN-238](https://runtime364.atlassian.net/browse/KAN-238) `tickets/backend/pending/search-similar-fallback.md` · FE [KAN-239](https://runtime364.atlassian.net/browse/KAN-239) `tickets/frontend/pending/search-similar-fallback-ui.md` |
+| 선행 | 없음. 코드: BE [KAN-238](https://runtime364.atlassian.net/browse/KAN-238) `tickets/backend/archive/search-similar-fallback.md`(2026-10-22 반영) · FE [KAN-239](https://runtime364.atlassian.net/browse/KAN-239) `tickets/frontend/pending/search-similar-fallback-ui.md` |
 | 발견 시점 | PM 검색 개선 논의(2026-10-22 02시) — "유사 검색·오타 보정" 중 **A(자모 trgm 폴백)** 채택, B(임베딩 의미 검색)는 검색 로그 보고 재검토 |
 
 ## 배경
@@ -65,3 +65,4 @@
 ## 처리 기록
 
 - 2026-10-22 발행(PM 결정 02:16 "A ㄱㄱ").
+- 2026-10-22 1·2·3·5·6절 반영(BE PR) — 4절(uiux)은 FE KAN-239 PR에서

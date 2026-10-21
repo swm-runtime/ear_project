@@ -572,14 +572,16 @@
 {
   "days": 14,
   "since": "2026-09-17T09:00:10.000Z",
-  "totals": { "searches": 120, "misses": 30, "miss_rate": 0.25, "clicked": 54, "users": 18, "short_queries": 12, "filtered_searches": 5 },
+  "totals": { "searches": 120, "misses": 30, "rescued": 18, "miss_rate": 0.25, "clicked": 54, "users": 18, "short_queries": 12, "filtered_searches": 5 },
   "daily": [ { "date": "2026-09-30", "searches": 14, "misses": 3, "clicked": 6 } ],
-  "missed": [ { "query": "면접", "searches": 6, "misses": 6, "clicked": 0, "result_count": 0, "has_more": false, "last_searched_at": "…" } ],
+  "missed": [ { "query": "면졉", "searches": 6, "misses": 6, "clicked": 2, "result_count": 0, "has_more": false, "similar_count": 4, "last_searched_at": "…" } ],
   "top": [ { "query": "커리어", "searches": 20, "misses": 0, "clicked": 12, "result_count": 20, "has_more": true, "last_searched_at": "…" } ]
 }
 ```
 
 - 한 건은 `search_query_logs` 한 행 = **타이핑 묶음 하나**다(`domain.md` 5.7 — 디바운스 중간 입력은 서버가 접는다). `misses`는 그중 첫 페이지 0건.
+- **`rescued`**(추가 2026-10-22 — KAN-238) = `misses` 중 유사 결과 폴백이 1건 이상 채운 검색(`similar_count > 0` — `domain.md` 5.7). `misses`·`miss_rate`의 정의는 그대로 **부분 일치 0건**이다 — 도입 전후를 같은 잣대로 비교한다.
+- **`missed[].similar_count`**(추가 2026-10-22) = 그 질의의 **가장 최근 검색**에서 유사 결과 폴백이 낸 첫 페이지 건수(`result_count`와 같은 "마지막 값" 규칙). `null`이면 그 검색에서 폴백이 돌지 않았고(태그 전용·도입 전 행), `0`이면 폴백도 못 살렸다. "폴백이 몇 건을 살렸는가"(`rescued`·`clicked`)와 "폴백도 못 살린 질의"(`similar_count: 0`)를 가르는 축이다 — 후자가 의미 검색(방안 B) 판단 근거다. `top[]`에는 싣지 않는다.
 - `miss_rate` = `misses / searches`. 검색 0건이면 `null`. 표본이 작을 때의 "참고" 표시는 화면 몫이다.
 - `clicked`는 **반응한 검색** — 타이핑 묶음의 시작부터 마지막 질의 뒤 10분까지 결과 중 하나를 재생·담은 것(서버가 역산, `domain.md` 5.7). **무반응 비율은 내리지 않는다** — 반응이 없는 이유(재생 한도에 막힘 / 보고 나감)를 알 수 없어 비율로 읽으면 오판한다. 질의별 `clicked`로 "눌린 적 있나"만 본다.
 - `result_count`·`has_more`는 **그 질의의 가장 최근 검색**이 돌려준 콘텐츠 수와 다음 페이지 유무다(추가 2026-10-02). **첫 페이지 건수라 페이지 크기(20)에서 멈춘다** — 총 건수는 검색마다 COUNT 쿼리가 하나 더 붙어 세지 않는다(`domain.md` 5.7). `has_more`가 true면 화면은 "20건 이상"으로 읽는다. 여러 번 검색된 질의도 평균을 내지 않는다 — 콘텐츠가 늘면 값이 달라지고, 보려는 것은 "지금 치면 몇 건 나오는가"다.

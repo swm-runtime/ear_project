@@ -611,6 +611,7 @@ contents
   withdrawn_at              timestamptz     NULL
   market                    enum            kr | global   DEFAULT 'kr'   ★노출 쿼리 전부가 users.market과 대조 — 시장이 다른 콘텐츠는 어떤 응답에도 나오지 않는다 (global-api.md 4.7, 2026-10-14 — KAN-188)
   language                  varchar(8)      DEFAULT 'ko'  콘텐츠 언어(ko | en). 표시용으로 응답에 싣는다. 필터는 market이 한다
+  search_jamo               text            GENERATED ALWAYS AS (hangul_to_jamo(lower(title) || ' ' || coalesce(tags::text, ''))) STORED   ★유사 검색 전용 파생 컬럼 (2026-10-22 — KAN-238, 아래)
 
 idx_contents_status_published_at (status, published_at DESC)
 idx_contents_market_status_published_at (market, status, published_at)
@@ -620,6 +621,7 @@ idx_contents_partner_id
 idx_contents_title_trgm        GIN (title gin_trgm_ops)        ★검색 (FR-22)
 idx_contents_description_trgm  GIN (description gin_trgm_ops)  ★검색 (FR-22)
 idx_contents_author_name_trgm  GIN (author_name gin_trgm_ops)  ★검색 (FR-22)
+idx_contents_search_jamo_trgm  GIN (search_jamo gin_trgm_ops)  ★유사 검색 (2026-10-22 — KAN-238)
 (tags 인덱스 없음 — 아래 "해시태그 검색" 참조)
 
 chk_contents_partner_disclosure
@@ -628,7 +630,14 @@ chk_contents_partner_disclosure
       AND partner_id IS NOT NULL AND license_expires_at IS NOT NULL)
 
 fk_contents_series  series_id → series.id  ON DELETE RESTRICT   (2026-10-17 — KAN-134)
+
+hangul_to_jamo(text) RETURNS text  IMMUTABLE STRICT   (함수 — 2026-10-22, KAN-238)
 ```
+
+- **유사 검색 폴백의 자모 분해 — 함수 `hangul_to_jamo(text)` · 컬럼 `search_jamo`**(2026-10-22 — KAN-238, `explore.md` 4.5-5). 함수는 완성형 음절(U+AC00~U+D7A3)을 초·중·종성 호환 자모로 풀고 나머지 문자는 그대로 둔다. 겹모음·겹받침은 치는 순서대로 푼다(ㅘ = ㅗ+ㅏ, ㄺ = ㄹ+ㄱ — 음절이 아닌 홀겹자모도 같다). **IMMUTABLE**이어야 생성 컬럼·인덱스에 쓸 수 있고, `search_path`를 `pg_catalog`로 고정해 호출 세션과 무관하다. 질의·저장 양쪽을 이 함수 하나로 푼다 — `search-text.util.ts` `toJamo`(5.7 묶음 판정)와 규칙이 같아야 하며 e2e가 음절 전 범위로 대조한다.
+  - `search_jamo`는 **"파생값을 컬럼으로 두지 않는다"([1.5](#15-파생값을-컬럼으로-두지-않는다))의 예외**다 — 인덱스가 필요한 파생값이고, 생성 컬럼이라 원본과 어긋날 수 없다. 앱은 쓰지 않는다(엔티티에 선언하지 않는다 — 생성 컬럼은 INSERT·UPDATE 대상이 아니다). `tags::text`의 괄호·따옴표는 트라이그램 소음이지만 유사도에 미치는 영향이 작아 따로 펼치지 않는다. 태그는 소문자로 바꾸지 않는다 — `pg_trgm`이 트라이그램을 만들 때 대소문자를 무시한다.
+  - **DB의 `LC_CTYPE`이 `C`이면 한글·자모가 단어 문자로 보이지 않아 트라이그램이 비고**(`show_trgm` = `{}`) 유사 결과가 항상 0건이 된다 — 그때는 종전 빈 결과(대체 콘텐츠)로 떨어질 뿐 오류는 없다. 운영·개발계·로컬은 `pgvector/pgvector:pg16` 이미지 기본값(`en_US.utf8`)으로 초기화된다.
+  - 운영→개발계 콘텐츠 동기화(`deploy/sync-content-*.sh`)는 생성 컬럼을 옮기지 않는다 — `pg_dump --column-inserts`가 싣지 않고, 들여오기 upsert가 `public` 쪽 생성 컬럼을 열 목록에서 뺀다. 값은 개발계에서 다시 계산된다.
 
 - **해시태그 검색에 인덱스를 두지 않는다**(2026-10-16 — KAN-218). 검색은 `tags`의 항목 하나라도 부분 일치(`#` 없는 질의)하거나 정확 일치(`#태그`)하면 매칭한다(`explore.md` 4.5-5). 태그는 콘텐츠당 4개 이하이고 운영 콘텐츠가 71편이라, jsonb 배열 펼침 비교의 순차 탐색 비용이 무시할 만하다(2자 질의 순차 탐색과 같은 논리). 콘텐츠가 수천 편으로 늘면 정규화 컬럼 + `gin_trgm_ops`(부분 일치)와 jsonb 포함 인덱스(정확 일치)를 다시 본다. 저장된 태그는 정규화하지 않고 비교한다 — 적재 검증(`CONTENT_TAG_PATTERN`)이 완성형 한글·ASCII 영숫자·공백만 받아 NFC가 보장되고, 그 범위에서 SQL `lower()`와 앱의 소문자 변환이 같다. 태그 문자 범위를 넓히면 이 가정을 다시 본다.
 - **`audio_url`이 아니라 `audio_path`다** (B-5). 재생 URL은 매 요청 서명 발급이므로 컬럼이 아니라 응답 DTO 필드다. 서명 URL을 DB에 저장하면 그 자체가 유출 경로가 된다.
@@ -846,10 +855,11 @@ search_query_logs
   id                        bigserial       PK
   user_id                   uuid            FK → users (CASCADE)
   query                     varchar(100)    정규화된 질의(NFC·소문자·트림) — 조회가 본 그 문자열. 태그 전용 검색은 `#`을 남겨 `#` + 검색어로 맞춘다(`#  뱅크런` → `#뱅크런`, KAN-218) — 태그 검색 비율을 셀 수 있게
-  result_count              smallint        첫 페이지에 실린 건수(0 ~ 페이지 크기). CHECK >= 0
-  has_next                  boolean         첫 페이지 뒤에 더 있었는가
+  result_count              smallint        첫 페이지에 실린 건수(0 ~ 페이지 크기). CHECK >= 0. **부분 일치 건수다** — 유사 결과 폴백이 돌아도 0으로 남는다(2026-10-22)
+  has_next                  boolean         첫 페이지 뒤에 더 있었는가(부분 일치 기준)
+  similar_count             smallint        NULL 허용 — 유사 결과 폴백이 돌았을 때 그 첫 페이지 건수. NULL = 폴백이 돌지 않았다 (신설 2026-10-22 — KAN-238, 아래)
   topic_filter_count        smallint        함께 걸린 주제 필터 수. CHECK >= 0
-  result_content_ids        uuid[]          첫 페이지 결과의 콘텐츠 id(순서대로). DEFAULT '{}' — 결과 반응 추정의 열쇠 (신설 2026-10-01)
+  result_content_ids        uuid[]          첫 페이지 결과의 콘텐츠 id(순서대로). DEFAULT '{}' — 결과 반응 추정의 열쇠 (신설 2026-10-01). 유사 결과 폴백이 채웠으면 그 결과의 id다 — 폴백이 살린 검색의 반응을 센다 (2026-10-22)
 
 idx_search_query_logs_user_id_created_at (user_id, created_at)
 idx_search_query_logs_created_at (created_at)   — 보존 배치 범위 삭제용
@@ -857,6 +867,7 @@ idx_search_query_logs_created_at (created_at)   — 보존 배치 범위 삭제�
 
 - **총 건수가 아니라 첫 페이지 건수다.** 총수를 세면 검색마다 COUNT 쿼리가 하나 더 붙는데, 미스율에 필요한 것은 0건 여부뿐이다. 페이지 크기만큼 찼을 때 "딱 그만큼"과 "더 있음"은 `has_next`가 가른다.
 - **커서 페이지는 기록하지 않는다** — 같은 질의의 이어 읽기라 새 검색이 아니다.
+- **`similar_count`**(신설 2026-10-22 — KAN-238, `explore.md` 4.5-5). 유사 결과 폴백이 돌았을 때 첫 페이지 건수(0이면 폴백도 못 살렸다). NULL = 폴백이 돌지 않았다(부분 일치 결과가 있었거나 태그 전용·도입 전 행). **`result_count`는 종전처럼 부분 일치 건수** — 미스율 정의(`misses` = 부분 일치 0건)가 바뀌지 않아야 도입 전후를 비교할 수 있다. 묶음 덮어쓰기 때 `similar_count`도 마지막 질의 값으로 덮는다(폴백이 안 돈 질의로 덮이면 NULL).
 - **디바운스 자동 검색의 중간 입력은 적재 시점에 접는다**("커" → "커리" → "커리어"). 서버는 키보드 제출과 자동 검색을 구분할 수 없으므로(`explore-api.md` 4.5 — 같은 엔드포인트) **같은 사용자의 직전 행이 10초 안이고 두 질의가 같은 타이핑으로 보이면 — 자모 단위로 풀었을 때 한쪽이 다른 쪽의 접두사이면 — 새 행을 만들지 않고 그 행을 마지막 질의로 덮어쓴다**(이어 친 "커리" → "커리어", 조합 중인 "커리ㅇ"·"커링" → "커리어", 지우고 다시 친 "커리어" → "커"). 남는 것은 사용자가 치다가 멈춘 질의다 — 중간 입력을 다 세면 미스율이 "커"(거의 항상 결과 있음)와 "커리ㅇ"(거의 항상 0건)에 끌려간다. `created_at`은 묶음의 시작, `updated_at`은 마지막 요청 시각이다. 10초 넘게 멈췄다 이어 치면 다른 검색으로 본다. `user_id`는 그 판정과 탈퇴 파기 경로용이고, 집계는 개인 식별 없이 질의·건수만 쓴다.
   - **오타를 고친 질의는 묶지 않는다**(개정 2026-10-02). "커리오" → "커리어"는 새 행이고 "커리오"는 0건으로 남는다. 종전 규칙("한 글자 차이면 덮어쓴다")은 폐기했다 — 2자 질의는 한 글자만 같아도 다른 말이 한 행으로 합쳐졌고("면접" → "면담"), 오타 0건이 고친 질의에 덮여 사라져 **오타 허용을 도입할지 판단할 근거가 이 표에 남지 않았다.** 자모 접두사는 조합 중간 모습만 정확히 가려낸다 — 음절 단위로는 접두사가 아닌 "커링" → "커리어"(받침이 다음 글자의 초성으로 넘어감)도 자모로 풀면 접두사다. 겹모음(ㅘ = ㅗ+ㅏ)·겹받침(ㄺ = ㄹ+ㄱ)은 치는 순서대로 풀어 본다.
 - **같은 질의의 재조회는 새 검색이 아니다**(신설 2026-10-02). 직전 행과 질의·주제 필터 수가 같고 그 행의 마지막 요청(`updated_at`)에서 **10분** 안이면 **아무것도 쓰지 않는다** — 행을 만들지도, `updated_at`을 밀지도 않는다. 앱은 재생이 시작되거나 포그라운드로 돌아오면 탐색 쿼리를 통째로 다시 불러, 같은 검색의 첫 페이지 요청이 한 번 더 온다. 그것을 기록하면 10초 안에서는 행을 덮어써 `updated_at`이 방금의 재생보다 뒤로 가 반응이 사라지고, 10초 밖에서는 반응 없는 중복 행이 생겨 검색 수가 부풀고 미스율이 흐려진다. 대가로 10분 안에 같은 말을 다시 검색한 것은 세지 않는다.
@@ -2005,7 +2016,7 @@ idx_archived_subscriptions_archived_at
 
 | 항목 | 결정 | 반영 위치 |
 |---|---|---|
-| 검색 매칭·인덱스 (FR-22, MVP 격상) | **`pg_trgm` 부분 일치 확정**(`explore.md` 4.5-5 — tsvector는 한국어 사전이 없어 폐기). `contents` 3필드(title·description·author_name)에 트라이그램 GIN 인덱스 신설, `topics.name`은 인덱스 없음(주제 수십 개 — 순차 스캔), 확장 `pg_trgm` 도입. NFC 정규화는 애플리케이션 계층 — 정규화 사본 컬럼을 두지 않는다 | 5.1 |
+| 검색 매칭·인덱스 (FR-22, MVP 격상) | **`pg_trgm` 부분 일치 확정**(`explore.md` 4.5-5 — tsvector는 한국어 사전이 없어 폐기). `contents` 3필드(title·description·author_name)에 트라이그램 GIN 인덱스 신설, `topics.name`은 인덱스 없음(주제 수십 개 — 순차 스캔), 확장 `pg_trgm` 도입. NFC 정규화는 애플리케이션 계층 — 정규화 사본 컬럼을 두지 않는다. **유사 결과 폴백**(2026-10-22 — KAN-238): 부분 일치 0건이면 함수 `hangul_to_jamo` + 생성 컬럼 `contents.search_jamo`(제목+태그, GIN `gin_trgm_ops`)의 자모 `word_similarity`로 채운다 — 생성 컬럼이라 1.5의 예외, 로그는 `search_query_logs.similar_count` | 5.1 · 5.7 |
 
 **2026-08-24 확정 반영분**
 

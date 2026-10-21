@@ -13,7 +13,8 @@
 | 선행 | 없음. 문서 개정 기록 `changes/pending/search-similar-fallback.md`를 같은 PR에서 반영한다 |
 | 근거 문서 | `changes/pending/search-similar-fallback.md`(개정 내용 전부) · `features/explore.md` 4.5-5 · `backend/domain.md` 5.1·5.7 |
 | 중요도 | Medium |
-| 상태 | 발행 |
+| 상태 | 완료(dev 반영 — 운영은 다음 dev→main 릴리스) |
+| 반영 날짜 | 2026-10-22 |
 
 ## 왜
 
@@ -59,3 +60,4 @@
 ## 처리 기록
 
 - 2026-10-22 발행(PM 결정 02:16). 미스율 실제 값은 미확인 — 관리자 요약 4.21을 보고 임계값을 정하는 것이 맞으나, 도입 자체는 PM 결정으로 확정.
+- 2026-10-22 반영(BE PR — `feat(be)/search-similar-fallback`). 마이그레이션 `1791300000000-AddSearchSimilarFallback`(함수 `hangul_to_jamo`·생성 컬럼 `contents.search_jamo`·GIN `idx_contents_search_jamo_trgm`·`search_query_logs.similar_count`), 유사 모드 쿼리·응답 `match`·커서 모드(`m: "s"`, 없으면 부분 일치)·로그 `similar_count`·관리자 요약 `rescued`·`missed[].similar_count`. 임계값 `SEARCH_SIMILAR_THRESHOLD = 0.5`(`content.constant.ts`). 문서 개정 `changes/pending/search-similar-fallback.md` 1·2·3·5·6절 같은 PR 반영(4절 uiux는 FE KAN-239). 운영→개발계 콘텐츠 동기화 들여오기(`deploy/sync-content-import.sh`)가 생성 컬럼을 upsert 열 목록에서 빼도록 같은 PR에서 고쳤다(안 고치면 개발계 들여오기가 `cannot insert a non-DEFAULT value into column "search_jamo"`로 매 회차 취소된다 — 로컬 재현). **운영 적용은 다음 dev → main 릴리스**에서 일어난다.
