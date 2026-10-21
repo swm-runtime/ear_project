@@ -474,7 +474,8 @@ describe('관련 콘텐츠 E2E — GET /contents/:content_id/related', () => {
         contentVersion: 1,
         licenseExpiresAt: null,
         status: ContentStatus.PUBLISHED,
-        publishedAt: new Date(Date.now() - index * 60_000),
+        // 발행 시각을 과거로 둔다 — 병렬로 도는 탐색 e2e의 "새로 나온" 섹션을 밀어내지 않게(series-explore-cards)
+        publishedAt: new Date(Date.UTC(2001, 0, 1) + index * 60_000),
         withdrawnAt: null,
         tags: null,
         ...overrides,
