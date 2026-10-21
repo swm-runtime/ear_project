@@ -3,12 +3,20 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { EntityManager, In, Repository, SelectQueryBuilder } from 'typeorm';
 
 import { escapeLikePattern } from '@/common/utils/search-text.util';
+import { vectorTransformer } from '@/common/utils/vector.transformer';
 
 import {
   CONTENT_SCOPE_CONDITION,
   contentScopeParameters,
 } from '../content.visibility';
 import {
+  EMBEDDING_MODEL_ID,
+  SEARCH_CORRECTION_MIN_SIMILARITY,
+  SEARCH_CORRECTION_MIN_TERM_LENGTH,
+  SEARCH_CORRECTION_PARTICLE_PATTERN,
+  SEARCH_RRF_K,
+  SEARCH_SEMANTIC_MIN_SIMILARITY,
+  SEARCH_SEMANTIC_TOP_K,
   SEARCH_WEIGHT_AUTHOR,
   SEARCH_WEIGHT_DESCRIPTION,
   SEARCH_WEIGHT_TAG,
@@ -24,10 +32,14 @@ import {
   AdminContentPageQuery,
   ContentCandidateQuery,
   ExplorePageQuery,
+  HybridSearchPageQuery,
   PopularPageQuery,
+  RankedHybridContent,
   RankedContent,
   RankedPopularContent,
   RankedSearchContent,
+  SearchCorrectionQuery,
+  SearchEngine,
   SearchPageQuery,
 } from '../content.types';
 import { Content } from '../entities/content.entity';
@@ -128,6 +140,16 @@ const SEARCH_TITLE_SIMILARITY_ALIAS = 'search_title_similarity';
 interface SearchRow extends RankingRow {
   [SEARCH_SCORE_ALIAS]: string | number;
   [SEARCH_TITLE_SIMILARITY_ALIAS]: string | number;
+}
+
+/** 하이브리드 검색의 한 줄(`findHybridSearchPage`) — pg 드라이버는 bigint·double을 문자열로 줄 수 있어 숫자로 다시 읽는다 */
+interface HybridSearchRow {
+  id: string;
+  rrf: string | number;
+  play_count: string | number;
+  matched_keyword: boolean;
+  matched_semantic: boolean;
+  keyword_total: string | number;
 }
 
 @Injectable()
@@ -701,6 +723,270 @@ export class ContentRepository {
       titleSimilarity: Number(raw[index]?.[SEARCH_TITLE_SIMILARITY_ALIAS] ?? 0),
       playCount: Number(raw[index]?.[RANKING_PLAY_COUNT_ALIAS] ?? 0),
     }));
+  }
+
+  /**
+   * 하이브리드 검색 한 페이지(KAN-238 — `explore.md` 4.5-5). 공통 필터(노출·시장·`topic_ids`) 뒤 두 엔진을 CTE로 돌려
+   * RRF(`Σ 1/(k + 엔진 내 순위)`)로 합친다.
+   *
+   * - `keyword` — 종전 부분 일치(제목 > 태그 > 저자 > 주제명 > 설명, 시리즈 제목은 스위치)와 **종전 정렬 키 그대로**
+   *   (가중 합 → 제목 유사도 → 직전 확정 월 재생 수 → 신선도 → id)의 `ROW_NUMBER`. 가중이 전부 양수라 "점수 > 0"이 곧
+   *   "어느 필드든 맞음"이다(`findSearchPage`의 OR 조건과 같은 집합).
+   * - `semantic` — `content_embeddings` 코사인(`1 - (embedding <=> 질의 벡터)`) ≥ 하한, 상위 K. 현행 모델이고 대본 버전이
+   *   일치하는 행만(domain.md 5.6 — 추천 스코어링과 같은 조건). 질의 벡터가 없으면(결손) 빈 CTE다. ANN 인덱스 없이 전수
+   *   계산한다(수천 편 상한 — domain.md 5.6).
+   *
+   * **의미 엔진이 없으면 결과·순서가 종전 키워드 검색과 같다** — RRF가 키워드 순위의 강한 단조 함수(순위가 고유)라
+   * 최종 정렬이 키워드 정렬과 같고, 시리즈 대표 편 판정(`ROW_NUMBER() OVER (PARTITION BY series_id ...)`)도 같은 순서로
+   * 고른다. 동점(두 엔진이 섞일 때만 생긴다)은 인기 → `published_at` → id.
+   *
+   * 키셋은 최종 정렬 키 넷 전부(`rrf`, 재생 수, `published_at`, id)다. 페이지마다 두 엔진의 순위를 다시 계산하므로 그 사이
+   * 발행·집계가 바뀌면 경계가 미세하게 흔들릴 수 있다 — 종전 키워드 커서와 같은 성질이다(explore-api.md 4.5).
+   *
+   * Raw SQL이다(architecture.md 3.4) — 공통 필터는 QueryBuilder로 만들어 같은 조각(`CONTENT_SCOPE_CONDITION`·주제 필터)을
+   * 그대로 쓰고, 그 위에 CTE를 얹는다. 엔티티는 고른 id로 한 번 더 읽는다(최대 `limit + 1`건).
+   */
+  async findHybridSearchPage(
+    query: HybridSearchPageQuery,
+    monthPeriodStart: string,
+    manager?: EntityManager,
+  ): Promise<{ items: RankedHybridContent[]; keywordTotal: number }> {
+    const score = query.matchSeriesTitle
+      ? SEARCH_SCORE_WITH_SERIES
+      : SEARCH_SCORE;
+    const base = this.applyVisibility(
+      this.scoped(manager)
+        .createQueryBuilder('content')
+        .select('content.id', 'id')
+        .addSelect('content.series_id', 'series_id')
+        .addSelect('content.published_at', 'published_at')
+        .addSelect('content.content_version', 'content_version')
+        .addSelect(RANKING_PLAY_COUNT, 'play_count')
+        .addSelect(score, 'kw_score')
+        .addSelect(SEARCH_TITLE_SIMILARITY, 'kw_title_similarity')
+        .leftJoin(
+          'content_stats',
+          'stat',
+          `stat.content_id = content.id
+           AND stat.period_type = :monthPeriod
+           AND stat.period_start = :monthPeriodStart
+           AND stat.is_final = true`,
+          { monthPeriod: StatsPeriodType.MONTH, monthPeriodStart },
+        ),
+      query.now,
+      query.market,
+    ).setParameters({
+      searchQuery: query.normalizedQuery,
+      searchPattern: `%${escapeLikePattern(query.normalizedQuery)}%`,
+    });
+
+    if (query.topicIds.length > 0) {
+      this.applyTopicFilter(base, query.topicIds);
+    }
+
+    const [baseSql, baseParams] = base.getQueryAndParameters();
+    const params: unknown[] = [...(baseParams as unknown[])];
+    const param = (value: unknown): string => {
+      params.push(value);
+      return `$${params.length}`;
+    };
+
+    // 질의 벡터는 pgvector 텍스트 표현(`[0.1,...]`)으로 보내 `::vector`로 캐스팅한다 — 저장 경로(`vectorTransformer`)와 같은 표현
+    const semanticCte = query.queryVector
+      ? (() => {
+          const vector = param(vectorTransformer.to(query.queryVector));
+          const model = param(EMBEDDING_MODEL_ID);
+          return `SELECT base.id,
+                         ROW_NUMBER() OVER (ORDER BY embedding.embedding <=> ${vector}::vector, base.id DESC) AS rank
+                    FROM base
+                    JOIN content_embeddings embedding
+                      ON embedding.content_id = base.id
+                     AND embedding.model = ${model}
+                     AND embedding.content_version = base.content_version
+                   WHERE 1 - (embedding.embedding <=> ${vector}::vector) >= ${SEARCH_SEMANTIC_MIN_SIMILARITY}
+                   ORDER BY embedding.embedding <=> ${vector}::vector, base.id DESC
+                   LIMIT ${SEARCH_SEMANTIC_TOP_K}`;
+        })()
+      : 'SELECT NULL::uuid AS id, NULL::bigint AS rank WHERE false';
+
+    const conditions: string[] = [];
+
+    if (query.seriesAnchorsOnly) {
+      conditions.push('(ranked.series_id IS NULL OR ranked.anchor_rank = 1)');
+    }
+
+    if (query.cursor) {
+      conditions.push(
+        `(ranked.rrf, ranked.play_count, ranked.published_at, ranked.id) < (${param(query.cursor.rrf)}::double precision, ${param(query.cursor.playCount)}::bigint, ${param(query.cursor.publishedAt)}::timestamptz, ${param(query.cursor.id)}::uuid)`,
+      );
+    }
+
+    const limit = param(query.limit + 1);
+    // 시리즈 카드는 시리즈를 대표한다 — 어느 엔진에서 왔는가도 접힌 편까지 합친다(꺼져 있으면 편 자기 값)
+    const seriesPartition = query.seriesAnchorsOnly
+      ? 'PARTITION BY COALESCE(fused.series_id, fused.id)'
+      : 'PARTITION BY fused.id';
+
+    const sql = `
+      WITH base AS (${baseSql}),
+      keyword AS (
+        SELECT base.id,
+               ROW_NUMBER() OVER (
+                 ORDER BY base.kw_score DESC, base.kw_title_similarity DESC, base.play_count DESC,
+                          base.published_at DESC, base.id DESC
+               ) AS rank
+          FROM base
+         WHERE base.kw_score > 0
+      ),
+      semantic AS (${semanticCte}),
+      fused AS (
+        SELECT base.id, base.series_id, base.published_at, base.play_count,
+               (COALESCE(1.0::double precision / (${SEARCH_RRF_K} + keyword.rank), 0)
+                + COALESCE(1.0::double precision / (${SEARCH_RRF_K} + semantic.rank), 0))::double precision AS rrf,
+               keyword.rank IS NOT NULL AS by_keyword,
+               semantic.rank IS NOT NULL AS by_semantic
+          FROM base
+          LEFT JOIN keyword ON keyword.id = base.id
+          LEFT JOIN semantic ON semantic.id = base.id
+         WHERE keyword.id IS NOT NULL OR semantic.id IS NOT NULL
+      ),
+      ranked AS (
+        SELECT fused.*,
+               ROW_NUMBER() OVER (
+                 PARTITION BY fused.series_id
+                 ORDER BY fused.rrf DESC, fused.play_count DESC, fused.published_at DESC, fused.id DESC
+               ) AS anchor_rank,
+               bool_or(fused.by_keyword) OVER (${seriesPartition}) AS matched_keyword,
+               bool_or(fused.by_semantic) OVER (${seriesPartition}) AS matched_semantic
+          FROM fused
+      )
+      SELECT ranked.id, ranked.rrf, ranked.play_count, ranked.matched_keyword, ranked.matched_semantic,
+             (SELECT count(*) FROM keyword)::int AS keyword_total
+        FROM ranked
+       ${conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : ''}
+       ORDER BY ranked.rrf DESC, ranked.play_count DESC, ranked.published_at DESC, ranked.id DESC
+       LIMIT ${limit}`;
+
+    const rows = await this.scoped(manager).manager.query<HybridSearchRow[]>(
+      sql,
+      params,
+    );
+
+    // 행이 없으면 키워드도 0건이다 — 키워드가 하나라도 맞으면 `fused`가 비지 않고, 대표 편 접기는 시리즈마다 하나를 남긴다
+    // (커서 페이지의 빈 응답은 목록의 끝이라 교정 판정에 쓰지 않는다)
+    if (rows.length === 0) {
+      return { items: [], keywordTotal: 0 };
+    }
+
+    const contents = await this.scoped(manager).findBy({
+      id: In(rows.map((row) => row.id)),
+    });
+    const contentById = new Map(
+      contents.map((content) => [content.id, content]),
+    );
+
+    const items = rows.flatMap((row): RankedHybridContent[] => {
+      const content = contentById.get(row.id);
+
+      // 두 읽기 사이에 지워진 행(CASCADE)은 건너뛴다 — 정상 경로에서는 생기지 않는다
+      if (!content) {
+        return [];
+      }
+
+      const matchedBy: SearchEngine[] = [];
+      if (row.matched_keyword) matchedBy.push('keyword');
+      if (row.matched_semantic) matchedBy.push('semantic');
+
+      return [
+        {
+          content,
+          rrf: Number(row.rrf),
+          playCount: Number(row.play_count),
+          matchedBy,
+        },
+      ];
+    });
+
+    return { items, keywordTotal: Number(rows[0].keyword_total) };
+  }
+
+  /**
+   * 오타 교정어 하나(KAN-238 — `explore.md` 4.5-5). 어휘 = 사용자 시장 발행 콘텐츠의 태그 항목 ∪ 주제명(노출 주제) ∪
+   * 시리즈 제목(스위치) ∪ 제목 토큰(공백·문장부호로 나누고 끝 조사를 뗀 것, 2자 이상). 자모로 푼 질의와 어휘의
+   * `word_similarity`가 하한 이상인 것 중 최댓값 하나 — 동점은 태그·주제명(깨끗한 명사) → 빈도 → 사전순.
+   * 원문과 같은 말은 교정어가 아니다.
+   *
+   * 자모 컬럼·인덱스 없이 **질의 시 전수 비교**다 — 어휘는 수백 편 규모라 함수 호출 몇천 번이다(domain.md 5.1).
+   * 어휘가 수만 항목으로 커지면 `search_terms` 머티리얼라이즈드 뷰 + trgm 인덱스를 그때 본다.
+   */
+  async findSearchCorrection(
+    query: SearchCorrectionQuery,
+    manager?: EntityManager,
+  ): Promise<string | null> {
+    const visible = this.applyVisibility(
+      this.scoped(manager)
+        .createQueryBuilder('content')
+        .select('content.id', 'id')
+        .addSelect('content.title', 'title')
+        .addSelect('content.tags', 'tags')
+        .addSelect('content.series_id', 'series_id'),
+      query.now,
+      query.market,
+    );
+    const [visibleSql, visibleParams] = visible.getQueryAndParameters();
+    const params: unknown[] = [...(visibleParams as unknown[])];
+    const param = (value: unknown): string => {
+      params.push(value);
+      return `$${params.length}`;
+    };
+    const q = param(query.normalizedQuery);
+    const particle = param(SEARCH_CORRECTION_PARTICLE_PATTERN);
+    // 우선순위 0 = 태그·주제명, 1 = 시리즈 제목·제목 토큰
+    const seriesTerms = query.includeSeriesTitles
+      ? `UNION ALL
+         SELECT lower(matched_series.title), 1
+           FROM visible JOIN series matched_series ON matched_series.id = visible.series_id`
+      : '';
+
+    const sql = `
+      WITH visible AS (${visibleSql}),
+      terms(term, priority) AS (
+        SELECT lower(tag.value), 0
+          FROM visible, jsonb_array_elements_text(visible.tags) AS tag(value)
+        UNION ALL
+        SELECT lower(topic.name), 0
+          FROM visible
+          JOIN content_topics linked ON linked.content_id = visible.id
+          JOIN topics topic ON topic.id = linked.topic_id AND topic.is_visible = true
+        ${seriesTerms}
+        UNION ALL
+        SELECT regexp_replace(token.value, ${particle}, '\\1'), 1
+          FROM visible,
+               regexp_split_to_table(lower(visible.title), '[[:space:][:punct:]·…‘’“”「」『』]+') AS token(value)
+      ),
+      candidates AS (
+        SELECT term, min(priority) AS priority, count(*) AS frequency
+          FROM terms
+         WHERE char_length(term) >= ${SEARCH_CORRECTION_MIN_TERM_LENGTH}
+           AND term <> ${q}
+         GROUP BY term
+      )
+      SELECT term
+        FROM (
+          SELECT term, priority, frequency,
+                 word_similarity(hangul_to_jamo(${q}), hangul_to_jamo(term)) AS similarity
+            FROM candidates
+        ) scored
+       WHERE similarity >= ${SEARCH_CORRECTION_MIN_SIMILARITY}
+       ORDER BY similarity DESC, priority ASC, frequency DESC, term ASC
+       LIMIT 1`;
+
+    const [row] = await this.scoped(manager).manager.query<{ term: string }[]>(
+      sql,
+      params,
+    );
+
+    return row?.term ?? null;
   }
 
   /**

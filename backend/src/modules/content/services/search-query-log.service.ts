@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 
+import { toJamo } from '@/common/utils/search-text.util';
 import { UserMarket } from '@/modules/user/user.enum';
 
 import {
@@ -14,8 +15,19 @@ export interface SearchQueryLogEntry {
   userId: string;
   /** 정규화된 질의 — 조회가 본 그 문자열(`explore.md` 4.5-5) */
   normalizedQuery: string;
-  /** 첫 페이지에 실린 건수 */
+  /**
+   * 실제 검색에 쓴 정규화 질의(KAN-238) — 교정했으면 교정어, 아니면 `normalizedQuery`와 같다.
+   * `query_used <> query`가 교정 행이다(domain.md 5.7)
+   */
+  queryUsed: string;
+  /** 첫 페이지에 실린 건수 — 하이브리드(키워드 + 의미) 첫 페이지. 종전 의미("사용자가 본 건수") 그대로 */
   resultCount: number;
+  /** 첫 페이지 중 키워드 엔진으로 맞은 건수. `0`이고 `resultCount > 0`이면 의미 엔진이 살린 검색이다 */
+  keywordCount: number;
+  /** 이 응답을 만든 엔진(`keyword` · `semantic`) */
+  engines: string[];
+  /** `exact=true`(교정 거절 재검색) — 직전 교정 행을 덮지 않고 새 행으로 남긴다 */
+  exact: boolean;
   hasNext: boolean;
   topicFilterCount: number;
   /** 첫 페이지 결과의 콘텐츠 id — 결과 반응 추정의 열쇠(domain.md 5.7) */
@@ -56,9 +68,15 @@ export class SearchQueryLogService {
       const latest = await this.searchQueryLogRepository.findLatestByUserId(
         entry.userId,
       );
+      // 교정어는 어휘(시리즈 제목 등)에서 와서 입력 상한(100자)보다 길 수 있다 — 컬럼 폭에 맞춘다
+      const queryUsed = entry.queryUsed.slice(0, 100);
       const draft = {
         query: entry.normalizedQuery,
+        // 묶음 덮어쓰기 때도 마지막 질의 값으로 함께 덮는다(domain.md 5.7)
+        queryUsed,
         resultCount: entry.resultCount,
+        keywordCount: entry.keywordCount,
+        engines: entry.engines,
         hasNext: entry.hasNext,
         topicFilterCount: entry.topicFilterCount,
         resultContentIds: entry.resultContentIds,
@@ -68,11 +86,24 @@ export class SearchQueryLogService {
         ? now.getTime() - latest.updatedAt.getTime()
         : Infinity;
 
-      // 같은 검색의 재조회 — 쓰지 않는다. 주제 필터 수가 달라졌으면 결과가 다른 검색이라 아래로 내려간다
+      // 옛 행(KAN-238 전)은 `query_used`가 NULL이다 — 교정이 없던 시절이라 입력 그대로 검색한 것과 같다
+      const latestQueryUsed = latest?.queryUsed ?? latest?.query;
+      // 교정 거절(`exact=true`) — 같은 입력인데 직전 행이 교정 행이고 이번엔 원문으로 검색했다. 재조회도 묶음도 아닌
+      // **새 행**이어야 요약(4.21)이 "교정 행 직후의 exact 행"으로 거절을 센다
+      const rejectsCorrection =
+        latest !== null &&
+        entry.exact &&
+        latest.query === entry.normalizedQuery &&
+        latestQueryUsed !== latest.query &&
+        queryUsed === entry.normalizedQuery;
+
+      // 같은 검색의 재조회 — 쓰지 않는다. 주제 필터 수·실제 검색어가 달라졌으면 결과가 다른 검색이라 아래로 내려간다
       if (
         latest &&
+        !rejectsCorrection &&
         sinceLatestMs <= SEARCH_QUERY_LOG_REFETCH_WINDOW_MS &&
         latest.query === entry.normalizedQuery &&
+        latestQueryUsed === queryUsed &&
         latest.topicFilterCount === entry.topicFilterCount
       ) {
         return;
@@ -80,6 +111,7 @@ export class SearchQueryLogService {
 
       if (
         latest &&
+        !rejectsCorrection &&
         sinceLatestMs <= SEARCH_QUERY_LOG_MERGE_WINDOW_MS &&
         isSameTyping(latest.query, entry.normalizedQuery)
       ) {
@@ -134,128 +166,4 @@ export function isSameTyping(previous: string, next: string): boolean {
   const after = toJamo(next);
 
   return after.startsWith(before) || before.startsWith(after);
-}
-
-const HANGUL_SYLLABLE_START = 0xac00;
-const HANGUL_SYLLABLE_END = 0xd7a3;
-const JUNGSEONG_COUNT = 21;
-const JONGSEONG_COUNT = 28;
-
-/* 겹모음·겹받침은 **치는 순서대로** 푼다 — "과"는 "고" 다음에, "닭"은 "달" 다음에 나온다 */
-const CHOSEONG = [
-  'ㄱ',
-  'ㄲ',
-  'ㄴ',
-  'ㄷ',
-  'ㄸ',
-  'ㄹ',
-  'ㅁ',
-  'ㅂ',
-  'ㅃ',
-  'ㅅ',
-  'ㅆ',
-  'ㅇ',
-  'ㅈ',
-  'ㅉ',
-  'ㅊ',
-  'ㅋ',
-  'ㅌ',
-  'ㅍ',
-  'ㅎ',
-];
-const JUNGSEONG = [
-  'ㅏ',
-  'ㅐ',
-  'ㅑ',
-  'ㅒ',
-  'ㅓ',
-  'ㅔ',
-  'ㅕ',
-  'ㅖ',
-  'ㅗ',
-  'ㅗㅏ',
-  'ㅗㅐ',
-  'ㅗㅣ',
-  'ㅛ',
-  'ㅜ',
-  'ㅜㅓ',
-  'ㅜㅔ',
-  'ㅜㅣ',
-  'ㅠ',
-  'ㅡ',
-  'ㅡㅣ',
-  'ㅣ',
-];
-const JONGSEONG = [
-  '',
-  'ㄱ',
-  'ㄲ',
-  'ㄱㅅ',
-  'ㄴ',
-  'ㄴㅈ',
-  'ㄴㅎ',
-  'ㄷ',
-  'ㄹ',
-  'ㄹㄱ',
-  'ㄹㅁ',
-  'ㄹㅂ',
-  'ㄹㅅ',
-  'ㄹㅌ',
-  'ㄹㅍ',
-  'ㄹㅎ',
-  'ㅁ',
-  'ㅂ',
-  'ㅂㅅ',
-  'ㅅ',
-  'ㅆ',
-  'ㅇ',
-  'ㅈ',
-  'ㅊ',
-  'ㅋ',
-  'ㅌ',
-  'ㅍ',
-  'ㅎ',
-];
-/** 음절로 묶이지 않고 홀로 온 겹자모(조합 중인 "ㅘ"·"ㄳ")도 같은 방식으로 푼다 */
-const COMPOUND_JAMO: Record<string, string> = {
-  ㅘ: 'ㅗㅏ',
-  ㅙ: 'ㅗㅐ',
-  ㅚ: 'ㅗㅣ',
-  ㅝ: 'ㅜㅓ',
-  ㅞ: 'ㅜㅔ',
-  ㅟ: 'ㅜㅣ',
-  ㅢ: 'ㅡㅣ',
-  ㄳ: 'ㄱㅅ',
-  ㄵ: 'ㄴㅈ',
-  ㄶ: 'ㄴㅎ',
-  ㄺ: 'ㄹㄱ',
-  ㄻ: 'ㄹㅁ',
-  ㄼ: 'ㄹㅂ',
-  ㄽ: 'ㄹㅅ',
-  ㄾ: 'ㄹㅌ',
-  ㄿ: 'ㄹㅍ',
-  ㅀ: 'ㄹㅎ',
-  ㅄ: 'ㅂㅅ',
-};
-
-/** 한글 음절을 호환 자모 열로 푼다. 한글이 아닌 글자는 그대로 둔다 — 질의는 이미 NFC다(`explore.md` 4.5-5) */
-function toJamo(text: string): string {
-  let jamo = '';
-
-  for (const char of text) {
-    const code = char.codePointAt(0)!;
-
-    if (code < HANGUL_SYLLABLE_START || code > HANGUL_SYLLABLE_END) {
-      jamo += COMPOUND_JAMO[char] ?? char;
-      continue;
-    }
-
-    const offset = code - HANGUL_SYLLABLE_START;
-    jamo +=
-      CHOSEONG[Math.floor(offset / (JUNGSEONG_COUNT * JONGSEONG_COUNT))] +
-      JUNGSEONG[Math.floor(offset / JONGSEONG_COUNT) % JUNGSEONG_COUNT] +
-      JONGSEONG[offset % JONGSEONG_COUNT];
-  }
-
-  return jamo;
 }

@@ -572,10 +572,10 @@
 {
   "days": 14,
   "since": "2026-09-17T09:00:10.000Z",
-  "totals": { "searches": 120, "misses": 30, "miss_rate": 0.25, "clicked": 54, "users": 18, "short_queries": 12, "filtered_searches": 5 },
+  "totals": { "searches": 120, "misses": 30, "miss_rate": 0.25, "clicked": 54, "users": 18, "short_queries": 12, "filtered_searches": 5, "corrected": 9, "correction_rejected": 1, "keyword_misses": 41, "rescued": 11, "semantic_unavailable": 2 },
   "daily": [ { "date": "2026-09-30", "searches": 14, "misses": 3, "clicked": 6 } ],
-  "missed": [ { "query": "면접", "searches": 6, "misses": 6, "clicked": 0, "result_count": 0, "has_more": false, "last_searched_at": "…" } ],
-  "top": [ { "query": "커리어", "searches": 20, "misses": 0, "clicked": 12, "result_count": 20, "has_more": true, "last_searched_at": "…" } ]
+  "missed": [ { "query": "면접", "searches": 6, "misses": 6, "clicked": 0, "result_count": 0, "has_more": false, "query_used": "면접", "keyword_count": 0, "last_searched_at": "…" } ],
+  "top": [ { "query": "커리오", "searches": 20, "misses": 0, "clicked": 12, "result_count": 20, "has_more": true, "query_used": "커리어", "keyword_count": 20, "last_searched_at": "…" } ]
 }
 ```
 
@@ -586,6 +586,13 @@
 - `short_queries`는 2자 질의 수(트라이그램 인덱스를 못 타는 길이 — `explore.md` 4.5-5), `filtered_searches`는 주제 필터가 걸린 검색 수.
 - `daily.date`는 **KST 달력일**이다(05시 서비스 날짜 경계를 쓰지 않는다 — 정책 판정이 아니라 운영자가 읽는 단위). 검색이 없던 날은 빠진다.
 - `missed`는 0건이 한 번이라도 있던 질의를 0건 수 내림차순으로, `top`은 검색 수 내림차순으로 각 최대 50개. `last_searched_at`은 그 질의의 마지막 요청 시각(`updated_at`).
+- **교정·하이브리드 집계**(추가 2026-10-22 — KAN-238, `domain.md` 5.7 · `explore.md` 4.5-5). 2026-10-22 전 옛 행(새 컬럼 NULL)은 다섯 값 어디에도 세지 않는다.
+  - `totals.corrected` — 교정된 검색(`query_used <> query`).
+  - `totals.correction_rejected` — 교정 거절: 원문 그대로 검색한 행(`query_used = query`)이고, 같은 사용자의 **바로 앞 행**이 같은 입력의 교정 행이며 그 행의 마지막 요청 뒤 10분 안이다(`exact=true` 재검색은 새 행으로 남는다).
+  - `totals.keyword_misses` — 키워드 엔진 0건(`keyword_count = 0`). `totals.rescued` — 그중 결과가 있던 검색(`keyword_count = 0`이고 `result_count > 0` — 의미 엔진이 살린 것).
+  - `totals.semantic_unavailable` — 의미 엔진 없이 응답한 검색(`engines`에 `semantic` 없음 — AI 서버 결손·미설정). 태그 전용 검색(`#`)은 의미 엔진을 돌리지 않는 경로라 세지 않는다.
+  - `missed[]`·`top[]`의 `query_used`·`keyword_count`는 그 질의의 **가장 최근 검색** 값이다(`result_count`와 같은 원칙). 옛 행이면 `null`.
+  - **`misses`·`miss_rate` 정의는 불변**이다 — 하이브리드 첫 페이지 0건(사용자가 본 결과가 없었다).
 - 인증은 다른 `/admin/*`와 같다(2장). 400 `VALIDATION_FAILED` — `days` 범위 밖, `market` 값 밖.
 
 ### 4.22 `GET /admin/insights/summary` — 서비스 지표 요약 (읽기 전용)

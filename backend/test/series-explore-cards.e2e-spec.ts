@@ -155,10 +155,16 @@ describe('탐색 시리즈 카드 E2E', () => {
     });
     const popular = await pageAll(offApp, '/explore/popular', { limit: '50' });
 
-    for (const list of [topicList, searched, popular]) {
+    for (const list of [topicList, popular]) {
       for (const item of list.items) {
         expect(Object.keys(item).sort()).toEqual(LEGACY_ITEM_KEYS);
       }
+    }
+    // 검색 행은 종전 키에 `matched_by` 하나만 덧붙는다(KAN-238 — 덧붙이는 필드라 옛 앱은 무시한다). type 키는 여전히 없다
+    for (const item of searched.items) {
+      expect(Object.keys(item).sort()).toEqual(
+        [...LEGACY_ITEM_KEYS, 'matched_by'].sort(),
+      );
     }
     // 시리즈 편 3개가 편마다 따로 나온다
     expect(idsOf(topicList.items).sort()).toEqual(
@@ -172,10 +178,12 @@ describe('탐색 시리즈 카드 E2E', () => {
         .filter((id) => episodeIds.includes(id))
         .sort(),
     ).toEqual([...episodeIds].sort());
-    // 시리즈 제목 일치는 묻지 않는다
+    // 시리즈 제목 일치는 묻지 않는다. `exact`로 교정을 끈다 — 켜 두면 질의 앞부분(STAMP)이 편 제목 토큰과 자모로 닮아 그
+    // 토큰으로 "대신 검색"된다(KAN-238, 꺼짐 모드 어휘에는 시리즈 제목이 없다). 여기서 보려는 것은 키워드 매칭이다
     const seriesWord = await pageAll(offApp, '/explore/search', {
       query: SERIES_WORD,
       limit: '20',
+      exact: 'true',
     });
     expect(seriesWord.items).toEqual([]);
   }, 60_000);

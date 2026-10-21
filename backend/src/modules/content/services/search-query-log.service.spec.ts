@@ -14,17 +14,26 @@ describe('SearchQueryLogService', () => {
   const ENTRY = {
     userId: USER_ID,
     normalizedQuery: '커리어',
+    queryUsed: '커리어',
     resultCount: 3,
+    keywordCount: 3,
+    engines: ['keyword', 'semantic'],
+    exact: false,
     hasNext: false,
     topicFilterCount: 0,
     resultContentIds: ['c1', 'c2', 'c3'],
   };
 
-  const latestRow = (query: string, updatedAt: Date): SearchQueryLog =>
+  const latestRow = (
+    query: string,
+    updatedAt: Date,
+    queryUsed: string | null = query,
+  ): SearchQueryLog =>
     ({
       id: '7',
       userId: USER_ID,
       query,
+      queryUsed,
       resultCount: 0,
       hasNext: false,
       topicFilterCount: 0,
@@ -53,7 +62,10 @@ describe('SearchQueryLogService', () => {
       expect(repository.insert).toHaveBeenCalledWith({
         userId: USER_ID,
         query: '커리어',
+        queryUsed: '커리어',
         resultCount: 3,
+        keywordCount: 3,
+        engines: ['keyword', 'semantic'],
         hasNext: false,
         topicFilterCount: 0,
         resultContentIds: ['c1', 'c2', 'c3'],
@@ -73,7 +85,10 @@ describe('SearchQueryLogService', () => {
       // then
       expect(repository.overwrite).toHaveBeenCalledWith('7', {
         query: '커리어',
+        queryUsed: '커리어',
         resultCount: 3,
+        keywordCount: 3,
+        engines: ['keyword', 'semantic'],
         hasNext: false,
         topicFilterCount: 0,
         resultContentIds: ['c1', 'c2', 'c3'],
@@ -212,6 +227,54 @@ describe('SearchQueryLogService', () => {
       );
     });
 
+    it('교정 행 직후 같은 입력의 exact 재검색은 재조회·묶음이 아니라 새 행이다 — 교정 거절을 센다', async () => {
+      // given — 2초 전 "커리오"가 "커리어"로 교정됐다
+      repository.findLatestByUserId.mockResolvedValue(
+        latestRow('커리오', new Date(NOW.getTime() - 2_000), '커리어'),
+      );
+
+      // when
+      await service.record(
+        {
+          ...ENTRY,
+          normalizedQuery: '커리오',
+          queryUsed: '커리오',
+          exact: true,
+        },
+        NOW,
+      );
+
+      // then
+      expect(repository.insert).toHaveBeenCalledWith(
+        expect.objectContaining({ query: '커리오', queryUsed: '커리오' }),
+      );
+      expect(repository.overwrite).not.toHaveBeenCalled();
+    });
+
+    it('같은 입력이라도 실제 검색어가 같으면(교정 없는 재조회) 쓰지 않는다 — 옛 행(query_used NULL)도 같다', async () => {
+      // given — 5초 전 같은 질의, 기능 전 행
+      repository.findLatestByUserId.mockResolvedValue(
+        latestRow('커리어', new Date(NOW.getTime() - 5_000), null),
+      );
+
+      // when
+      await service.record(ENTRY, NOW);
+
+      // then
+      expect(repository.insert).not.toHaveBeenCalled();
+      expect(repository.overwrite).not.toHaveBeenCalled();
+    });
+
+    it('교정어가 컬럼 폭(100자)보다 길면 잘라 적는다', async () => {
+      // when
+      await service.record({ ...ENTRY, queryUsed: '가'.repeat(120) }, NOW);
+
+      // then
+      expect(repository.insert).toHaveBeenCalledWith(
+        expect.objectContaining({ queryUsed: '가'.repeat(100) }),
+      );
+    });
+
     it('적재가 실패해도 던지지 않는다 — 로그는 검색 응답의 일부가 아니다', async () => {
       // given
       repository.insert.mockRejectedValue(new Error('connection reset'));
@@ -234,6 +297,11 @@ describe('SearchQueryLogService', () => {
           users: 0,
           shortQueries: 0,
           filteredSearches: 0,
+          corrected: 0,
+          correctionRejected: 0,
+          keywordMisses: 0,
+          rescued: 0,
+          semanticUnavailable: 0,
         },
         daily: [],
         missed: [],
@@ -261,6 +329,11 @@ describe('SearchQueryLogService', () => {
           users: 0,
           shortQueries: 0,
           filteredSearches: 0,
+          corrected: 0,
+          correctionRejected: 0,
+          keywordMisses: 0,
+          rescued: 0,
+          semanticUnavailable: 0,
         },
         daily: [],
         missed: [],

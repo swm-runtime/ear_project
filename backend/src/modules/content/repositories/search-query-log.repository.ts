@@ -15,7 +15,10 @@ export type SearchQueryLogDraft = Pick<
   SearchQueryLog,
   | 'userId'
   | 'query'
+  | 'queryUsed'
   | 'resultCount'
+  | 'keywordCount'
+  | 'engines'
   | 'hasNext'
   | 'topicFilterCount'
   | 'resultContentIds'
@@ -28,6 +31,11 @@ interface TotalsRow {
   users: number;
   short_queries: number;
   filtered_searches: number;
+  corrected: number;
+  correction_rejected: number;
+  keyword_misses: number;
+  rescued: number;
+  semantic_unavailable: number;
 }
 
 interface DailyRow {
@@ -44,6 +52,8 @@ interface RankRow {
   clicked: number;
   last_result_count: number;
   last_has_next: boolean;
+  last_query_used: string | null;
+  last_keyword_count: number | null;
   last_searched_at: Date;
 }
 
@@ -133,7 +143,22 @@ export class SearchQueryLogRepository {
                    and i.source = 'save'
                    and i.added_at >= l.created_at
                    and i.added_at < l.updated_at + interval '${CLICK_WINDOW}'
-              )) as clicked
+              )) as clicked,
+             -- 교정 거절(KAN-238): 원문 그대로 검색한 행(query_used = query)이고, 같은 사용자의 **바로 앞 행**이 같은 입력의
+             -- 교정 행(query_used <> query)이며 그 행의 마지막 요청 뒤 10분 안이다 — exact=true 재검색은 새 행으로 남는다
+             (l.query_used = l.query and exists (
+                select 1 from (
+                  select p.query, p.query_used, p.updated_at
+                    from search_query_logs p
+                   where p.user_id = l.user_id
+                     and (p.created_at, p.id) < (l.created_at, l.id)
+                   order by p.created_at desc, p.id desc
+                   limit 1
+                ) prev
+                 where prev.query = l.query
+                   and prev.query_used <> prev.query
+                   and l.created_at < prev.updated_at + interval '${CLICK_WINDOW}'
+              )) as correction_rejected
         from search_query_logs l
        where l.created_at >= $1
          -- 시장은 검색한 사용자의 것(admin-api.md 4.21) — 행에 시장을 따로 적지 않는다(사용자 시장은 바뀌지 않는다)
@@ -147,7 +172,14 @@ export class SearchQueryLogRepository {
               count(*) filter (where clicked)::int as clicked,
               count(distinct user_id)::int as users,
               count(*) filter (where char_length(query) < 3)::int as short_queries,
-              count(*) filter (where topic_filter_count > 0)::int as filtered_searches
+              count(*) filter (where topic_filter_count > 0)::int as filtered_searches,
+              -- 아래 다섯은 KAN-238 컬럼이 있는 행만 센다 — 옛 행(NULL)은 교정·의미 엔진이 없던 시절이다
+              count(*) filter (where query_used <> query)::int as corrected,
+              count(*) filter (where correction_rejected)::int as correction_rejected,
+              count(*) filter (where keyword_count = 0)::int as keyword_misses,
+              count(*) filter (where keyword_count = 0 and result_count > 0)::int as rescued,
+              -- 태그 전용(#)은 의미 엔진을 돌리지 않는 경로라 결손이 아니다
+              count(*) filter (where engines is not null and not ('semantic' = any (engines)) and query not like '#%')::int as semantic_unavailable
          from scoped`,
       [since, market],
     );
@@ -170,6 +202,8 @@ export class SearchQueryLogRepository {
               count(*) filter (where clicked)::int as clicked,
               (array_agg(result_count order by updated_at desc, id desc))[1]::int as last_result_count,
               (array_agg(has_next order by updated_at desc, id desc))[1] as last_has_next,
+              (array_agg(query_used order by updated_at desc, id desc))[1] as last_query_used,
+              (array_agg(keyword_count order by updated_at desc, id desc))[1]::int as last_keyword_count,
               max(updated_at) as last_searched_at
          from scoped
         group by query`;
@@ -198,6 +232,8 @@ export class SearchQueryLogRepository {
       clicked: row.clicked,
       lastResultCount: row.last_result_count,
       lastHasNext: row.last_has_next,
+      lastQueryUsed: row.last_query_used,
+      lastKeywordCount: row.last_keyword_count,
       lastSearchedAt: row.last_searched_at,
     });
     const toDaily = (row: DailyRow): SearchQueryDailyCount => ({
@@ -216,6 +252,11 @@ export class SearchQueryLogRepository {
         users: totals?.users ?? 0,
         shortQueries: totals?.short_queries ?? 0,
         filteredSearches: totals?.filtered_searches ?? 0,
+        corrected: totals?.corrected ?? 0,
+        correctionRejected: totals?.correction_rejected ?? 0,
+        keywordMisses: totals?.keyword_misses ?? 0,
+        rescued: totals?.rescued ?? 0,
+        semanticUnavailable: totals?.semantic_unavailable ?? 0,
       },
       daily: daily.map(toDaily),
       missed: missed.map(toRank),

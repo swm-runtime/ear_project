@@ -9,6 +9,7 @@ import { PlaybackModule } from '@/modules/playback/playback.module';
 import { ContentSaveController } from './controllers/content-save.controller';
 import { ExploreController } from './controllers/explore.controller';
 import { ExploreOrchestrator } from './explore.orchestrator';
+import { QueryEmbeddingClient } from './query-embedding.client';
 
 /**
  * **Entity를 소유하지 않는 유스케이스 모듈이다**(`onboarding` · `library-screen`과 같은 형태 —
@@ -32,7 +33,7 @@ import { ExploreOrchestrator } from './explore.orchestrator';
     DripModule,
   ],
   controllers: [ExploreController, ContentSaveController],
-  providers: [ExploreOrchestrator],
+  providers: [ExploreOrchestrator, QueryEmbeddingClient],
   // 추천 테스트 콘솔(recommend-test)이 테스트 계정의 담기·해제·피드를 앱과 같은 경로로 부른다
   exports: [ExploreOrchestrator],
 })

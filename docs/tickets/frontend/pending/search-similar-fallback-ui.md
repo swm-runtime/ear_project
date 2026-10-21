@@ -10,7 +10,7 @@
 | 발행 날짜 | 2026-10-22 |
 | 시작 날짜 | 2026-10-22 |
 | 기한 | 2026-10-25 (Medium — BE와 같은 날. 작업이 작아 BE 머지 당일 반영 가능. BE가 밀리면 사유를 처리 기록에 적는다) |
-| 선행 | BE [KAN-238](https://runtime364.atlassian.net/browse/KAN-238) `tickets/backend/pending/search-similar-fallback.md` — 응답 필드·`exact` 파라미터(Jira is blocked by). mock으로 화면·카피는 먼저 만들 수 있다 |
+| 선행 | BE [KAN-238](https://runtime364.atlassian.net/browse/KAN-238) `tickets/backend/archive/search-similar-fallback.md`(2026-10-22 반영) — 응답 필드·`exact` 파라미터(Jira is blocked by). mock으로 화면·카피는 먼저 만들 수 있다 |
 | 근거 문서 | `changes/pending/search-similar-fallback.md` 1·2·4·5절 · `spec/uiux/explore-uiux.md` 4.5 |
 | 중요도 | Medium |
 | 상태 | **코드 반영(2026-10-22) — 개발계 실기기 확인은 BE KAN-238 머지 뒤** |

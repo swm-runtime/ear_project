@@ -27,6 +27,42 @@ export const EMBEDDING_MODEL_ID = 'text-embedding-3-small';
 export const EMBEDDING_DIM = 1536;
 
 /**
+ * 검색 하이브리드(KAN-238 — `explore.md` 4.5-5)의 RRF 상수 `k`. 편마다 `Σ 1/(k + 엔진 내 순위)`.
+ * 60은 RRF 원 논문(Cormack 2009)의 기본값이고, 순위 1과 10의 차이(1/61 vs 1/70)를 완만하게 만들어 한 엔진의 상위가
+ * 다른 엔진의 결과를 통째로 밀어내지 않게 한다. **계약에 적지 않는다** — 검색 로그(4.21)로 조정한다.
+ */
+export const SEARCH_RRF_K = 60;
+
+/**
+ * 의미 엔진의 코사인 유사도 하한(`1 - (embedding <=> 질의 벡터)`). 시작값 0.3의 근거: text-embedding-3-small은 무관한
+ * 한국어 텍스트끼리도 코사인 0.1~0.2대가 흔하고, 짧은 질의("이직")와 같은 주제의 대본 전문은 0.3~0.5대에 모인다 —
+ * 0.3 아래는 "아무거나 조금 닮음"이라 결과를 채우는 소음이 된다. 상위 K로 한 번 더 자르므로 하한은 소음 차단만 맡는다.
+ * 미스율·`rescued`(4.21)를 보고 조정한다.
+ */
+export const SEARCH_SEMANTIC_MIN_SIMILARITY = 0.3;
+
+/** 의미 엔진이 RRF에 넘기는 상위 건수 — 키워드 엔진은 자르지 않는다(종전 결과를 전부 담는다) */
+export const SEARCH_SEMANTIC_TOP_K = 50;
+
+/**
+ * 오타 교정어 선택의 자모 `word_similarity` 하한(시작 0.5 — 티켓 값). "커리오" → "커리어"(자모 하나 차이)가 0.714
+ * (운영·개발계 실측, en_US.utf8)이고, 3음절 말의 끝 자모 둘 차이가 4/7 ≈ 0.57, 그보다 많이 틀리면 0.5 아래다. 질의가 어휘를
+ * 품은 긴 말("커리어 없는말" → "커리어")도 질의 쪽 트라이그램의 절반 이상이 어휘에 있으면 하한을 넘는다 — 로그(4.21의
+ * `corrected`·`correction_rejected`)로 조정한다.
+ */
+export const SEARCH_CORRECTION_MIN_SIMILARITY = 0.5;
+
+/**
+ * 교정어 어휘에서 제목 토큰 끝의 조사를 뗀다(을/를/이/가/은/는/의/에/로/와/과/도). 뗀 뒤 2자 이상일 때만 뗀다 —
+ * "나이"·"사이"가 "나"·"사"가 되지 않는다. Postgres 정규식(ARE)으로 쓴다.
+ */
+export const SEARCH_CORRECTION_PARTICLE_PATTERN =
+  '^(.{2,})(을|를|이|가|은|는|의|에|로|와|과|도)$';
+
+/** 교정어 어휘 최소 길이 — 1자 어휘는 무엇과도 비슷해진다 */
+export const SEARCH_CORRECTION_MIN_TERM_LENGTH = 2;
+
+/**
  * `enrichment.json` 형식 버전(metadata-pipeline.md 4.4). 파일이 이 값보다 낮으면 구형 판정으로 만든
  * 메타다 — 어드민이 `enrichment_schema_version`으로 재부여 대상을 고른다.
  *   1 — 메타 4종 + 임베딩 (2026-08-26)

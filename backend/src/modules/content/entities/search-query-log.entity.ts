@@ -56,6 +56,21 @@ export class SearchQueryLog extends BaseEntity {
   @Column({ name: 'result_count', type: 'smallint' })
   resultCount: number;
 
+  /**
+   * 실제 검색에 쓴 정규화 질의(KAN-238 — domain.md 5.7). 교정했으면 교정어, 아니면 `query`와 같다.
+   * **NULL은 KAN-238 전의 옛 행**(교정이 없던 시절 — `query`와 같은 뜻)이다
+   */
+  @Column({ name: 'query_used', type: 'varchar', length: 100, nullable: true })
+  queryUsed: string | null;
+
+  /** 첫 페이지 중 키워드 엔진으로 맞은 건수. NULL = 옛 행 */
+  @Column({ name: 'keyword_count', type: 'smallint', nullable: true })
+  keywordCount: number | null;
+
+  /** 이 응답을 만든 엔진(`keyword` · `semantic`). `semantic`이 없으면 의미 엔진 결손이다. NULL = 옛 행 */
+  @Column({ name: 'engines', type: 'text', array: true, nullable: true })
+  engines: string[] | null;
+
   /** 첫 페이지 뒤에 더 있었는가 — `result_count`가 페이지 크기와 같을 때 "딱 그만큼"과 "더 있음"을 가른다 */
   @Column({ name: 'has_next', type: 'boolean' })
   hasNext: boolean;

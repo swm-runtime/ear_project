@@ -33,6 +33,9 @@ import {
   ScriptDocument,
   ScriptSection,
   ScriptSegment,
+  HybridSearchPage,
+  HybridSearchPageQuery,
+  SearchCorrectionQuery,
   SearchPage,
   SearchPageQuery,
   AudioRenditionInput,
@@ -420,6 +423,37 @@ export class ContentService {
     const hasNext = rows.length > query.limit;
 
     return { items: hasNext ? rows.slice(0, query.limit) : rows, hasNext };
+  }
+
+  /**
+   * 하이브리드 검색 한 페이지(KAN-238 — `explore.md` 4.5-5). 키워드 + 의미 엔진을 RRF로 합친다(Repository).
+   * 인기 tie-break 구간(직전 확정 월) 환산과 다음 페이지 판정은 `findSearchPage`와 같다.
+   */
+  async findHybridSearchPage(
+    query: HybridSearchPageQuery,
+    manager?: EntityManager,
+  ): Promise<HybridSearchPage> {
+    const { items, keywordTotal } =
+      await this.contentRepository.findHybridSearchPage(
+        query,
+        toPreviousFinalMonthStart(query.now),
+        manager,
+      );
+    const hasNext = items.length > query.limit;
+
+    return {
+      items: hasNext ? items.slice(0, query.limit) : items,
+      hasNext,
+      keywordTotal,
+    };
+  }
+
+  /** 오타 교정어 하나 — 없으면 `null`(KAN-238 — 선택 규칙은 Repository) */
+  async findSearchCorrection(
+    query: SearchCorrectionQuery,
+    manager?: EntityManager,
+  ): Promise<string | null> {
+    return this.contentRepository.findSearchCorrection(query, manager);
   }
 
   /**
