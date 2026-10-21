@@ -46,3 +46,20 @@ export const seriesEpisodeStateLabel = (state: SeriesEpisodeState): string | nul
   if (state.isSaved) return EXPLORE_COPY.series.state.saved;
   return null;
 };
+
+const escapeRegExp = (text: string): string => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+/**
+ * 시리즈 화면 편 행의 제목 — 앞머리의 `{시리즈 제목} {N} — `를 떼고 소제목만 남긴다(PM 2026-10-22 "시리즈명 1 이거 없애고
+ * 소제목만"). 시리즈 화면은 머리에 시리즈 제목이, 행 왼쪽에 화수 번호가 이미 있어 같은 글자가 줄마다 반복됐다.
+ * 구분자는 시리즈마다 다르다(`—` · `-` · `–` · `:`). 꼴이 맞지 않거나 떼고 나서 비면 원래 제목 그대로 둔다 —
+ * 서버 제목은 바꾸지 않는다(탐색·라이브러리·플레이어는 원래 제목)
+ */
+export const seriesEpisodeSubtitle = (title: string, seriesTitle: string): string => {
+  const prefix = seriesTitle.trim();
+  if (prefix.length === 0) return title;
+  const match = new RegExp(`^${escapeRegExp(prefix)}\\s*\\d+\\s*[—–\\-:]\\s*`).exec(title);
+  if (!match) return title;
+  const rest = title.slice(match[0].length).trim();
+  return rest.length > 0 ? rest : title;
+};

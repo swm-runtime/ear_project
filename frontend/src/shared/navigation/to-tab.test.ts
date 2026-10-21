@@ -1,3 +1,5 @@
+import { describe, expect, it } from '@jest/globals';
+
 import { toTab } from './to-tab';
 
 describe('toTab', () => {

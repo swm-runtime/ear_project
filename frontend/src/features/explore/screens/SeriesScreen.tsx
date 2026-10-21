@@ -81,6 +81,7 @@ export default function SeriesScreen() {
         renderItem={({ item: episode }) => (
           <SeriesEpisodeRow
             episode={episode}
+            seriesTitle={series.title}
             isNowPlaying={episode.item.content.id === nowPlayingContentId}
             onPress={screen.handleEpisodePress}
             onMorePress={screen.openMoreSheet}

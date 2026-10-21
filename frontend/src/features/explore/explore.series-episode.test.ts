@@ -1,6 +1,10 @@
 import { describe, expect, it } from '@jest/globals';
 
-import { seriesEpisodeStateLabel, toSeriesEpisodeState } from './explore.series-episode';
+import {
+  seriesEpisodeStateLabel,
+  seriesEpisodeSubtitle,
+  toSeriesEpisodeState,
+} from './explore.series-episode';
 import type { ExploreLibraryState, SeriesEpisode, SeriesEpisodeProgress } from './explore.types';
 
 const episode = (
@@ -96,5 +100,42 @@ describe('toSeriesEpisodeState — 편 행의 내 상태는 서버 값 그대로
 
     expect(state.progressRatio).toBeNull();
     expect(state.remainingMinutes).toBeNull();
+  });
+});
+
+describe('seriesEpisodeSubtitle — 시리즈 화면 편 행 제목', () => {
+  it('앞머리 "{시리즈 제목} {N} — "를 떼고 소제목만 남긴다', () => {
+    expect(
+      seriesEpisodeSubtitle(
+        '키워드로 훑어보는 경제 상식 2 — 금리: 돈의 가격은 어떻게 정해지나',
+        '키워드로 훑어보는 경제 상식',
+      ),
+    ).toBe('금리: 돈의 가격은 어떻게 정해지나');
+  });
+
+  it('구분자가 하이픈이어도 뗀다(시리즈마다 다르다)', () => {
+    expect(
+      seriesEpisodeSubtitle(
+        '키워드로 빠르게 배우는 CS 지식 12 - 네트워크',
+        '키워드로 빠르게 배우는 CS 지식',
+      ),
+    ).toBe('네트워크');
+  });
+
+  it('꼴이 맞지 않으면 원래 제목 그대로 둔다', () => {
+    expect(seriesEpisodeSubtitle('금리의 모든 것', '키워드로 훑어보는 경제 상식')).toBe(
+      '금리의 모든 것',
+    );
+    expect(
+      seriesEpisodeSubtitle('키워드로 훑어보는 경제 상식 특별편', '키워드로 훑어보는 경제 상식'),
+    ).toBe('키워드로 훑어보는 경제 상식 특별편');
+  });
+
+  it('떼고 나서 비면 원래 제목 그대로 둔다', () => {
+    expect(seriesEpisodeSubtitle('시리즈 3 — ', '시리즈')).toBe('시리즈 3 — ');
+  });
+
+  it('시리즈 제목에 정규식 특수문자가 있어도 글자 그대로 맞춘다', () => {
+    expect(seriesEpisodeSubtitle('C++ (기초) 1 - 포인터', 'C++ (기초)')).toBe('포인터');
   });
 });
