@@ -293,7 +293,7 @@ function InsightsView({ channel, days, onSwitchToDev }: { channel: EarChannel; d
           </div>
           <p className="mt-2 text-xs text-ink-soft">
             D1 = 가입 다음 날 하루, D7 = 가입 7일 뒤 하루. W1~W4 = 가입 7~13일 · 14~20일 · 21~27일 · 28~34일 뒤에 한 번이라도. 구간은 사람마다 자기 가입일 기준이다. 접속(토큰 갱신) 또는 재생이면 돌아온 것으로 센다.
-            {" "}<b>…</b> = 구간이 아직 끝나지 않음(묶음의 마지막 가입자 기준). <span className="text-ink-soft/70">흐린 칸*</span> = 접속 기록({fmtMonthDay(data.retention_cohorts.daily.reliable_since)}~) 이전 구간이라 재생만 잡혀 실제보다 낮다. 가입자 {SMALL_COHORT}명 미만 묶음은 비율이 크게 흔들린다.
+            {" "}<b>집계 중</b> = 구간이 아직 끝나지 않음(묶음의 마지막 가입자 기준 — 0명이 아니다). <span className="text-ink-soft/70">흐린 칸*</span> = 접속 기록({fmtMonthDay(data.retention_cohorts.daily.reliable_since)}~) 이전 구간이라 재생만 잡혀 실제보다 낮다. 가입자 {SMALL_COHORT}명 미만 묶음은 비율이 크게 흔들린다.
           </p>
         </Panel>
       )}
@@ -454,7 +454,7 @@ const SMALL_COHORT = 10;
 
 /**
  * 코호트 표 한 장 — 행 = 묶음(최근 먼저), 칸 = "N명 · R%". 칸 배경은 비율만큼 진하게(브랜드색 `--brand` #16a394 — 같은 표 안에서 눈으로 비교).
- * 끝나지 않은 칸은 `…`, 접속 기록 이전 구간은 흐리게 + `*`.
+ * 끝나지 않은 칸은 `집계 중`(빈칸·`…`이면 0명으로 읽혀 이름을 붙였다 — 2026-10-22), 접속 기록 이전 구간은 흐리게 + `*`.
  */
 function CohortTable({ table }: { table: EarInsightsCohortTable }) {
   const weekly = table.span === 7;
@@ -468,7 +468,7 @@ function CohortTable({ table }: { table: EarInsightsCohortTable }) {
           {r.cells.map((c, i) => (
             <Td key={table.offsets[i]} className="whitespace-nowrap tabular-nums">
               {c === null ? (
-                <span className="text-ink-soft">…</span>
+                <span className="text-ink-soft" title="이 묶음의 마지막 가입자 기준 구간이 아직 끝나지 않았다 — 0명이 아니다">집계 중</span>
               ) : r.users === 0 ? (
                 <span className="text-ink-soft">-</span>
               ) : (
