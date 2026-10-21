@@ -13,7 +13,7 @@
 | 선행 | 없음. 문서 개정 기록 `changes/pending/player-queue-context.md` 4·5절을 같은 PR에서 반영 |
 | 근거 문서 | `changes/pending/player-queue-context.md` · `features/player.md` 4.2-2(신설) · `backend/domain.md` 5.6 · `spec/api/explore-api.md` 4.1(행 모양) |
 | 중요도 | Medium |
-| 상태 | 발행 |
+| 상태 | 완료 |
 
 ## 왜
 
@@ -44,3 +44,4 @@
 ## 처리 기록
 
 - 2026-10-22 발행(PM 03:58).
+- 2026-10-22 **반영** — `GET /contents/:content_id/related` 구현(explore 모듈 `ContentRelatedController` → `ExploreOrchestrator.getRelated`가 탐색 행 조립 `decorate` 재사용, 코사인은 `ContentRepository.findRelated` — 기준 편 `content_embeddings` 셀프 조인, 하한 `RELATED_CONTENT_MIN_SIMILARITY = 0.3`), `player-api.md` 4.8·`domain.md` 5.6 반영. 에러 코드는 티켓의 `NOT_FOUND` 대신 콘텐츠 공용 `CONTENT_NOT_FOUND`(404 그대로 — 4.8에 사유). E2E `test/related-contents.e2e-spec.ts`가 완료 조건 전부를 밟는다. 운영은 다음 dev→main 릴리스에 나간다.

@@ -11,6 +11,7 @@ import {
 } from '../content.visibility';
 import {
   EMBEDDING_MODEL_ID,
+  RELATED_CONTENT_MIN_SIMILARITY,
   SEARCH_CORRECTION_CANDIDATE_LIMIT,
   SEARCH_CORRECTION_MAX_LENGTH_DIFF,
   SEARCH_CORRECTION_MIN_TERM_LENGTH,
@@ -40,6 +41,7 @@ import {
   RankedContent,
   RankedPopularContent,
   RankedSearchContent,
+  RelatedContentQuery,
   SearchCorrectionQuery,
   SearchEngine,
   SearchPageQuery,
@@ -910,6 +912,116 @@ export class ContentRepository {
     });
 
     return { items, keywordTotal: Number(rows[0].keyword_total) };
+  }
+
+  /**
+   * 노출·시장 조건을 지난 단건 — 없으면 `null`. 회수·만료·다른 시장을 **없음과 구분하지 않는다**(관련 콘텐츠의 기준 편 판정 —
+   * `player-api.md` 4.8). 목록과 같은 `CONTENT_SCOPE_CONDITION`이라 "목록에 보이는 편이면 기준 편이 된다"가 성립한다
+   */
+  async findVisibleById(
+    id: string,
+    now: Date,
+    market: UserMarket,
+    manager?: EntityManager,
+  ): Promise<Content | null> {
+    return this.applyVisibility(
+      this.scoped(manager).createQueryBuilder('content'),
+      now,
+      market,
+    )
+      .andWhere('content.id = :id', { id })
+      .getOne();
+  }
+
+  /**
+   * 관련 콘텐츠(KAN-240 — `player-api.md` 4.8): 기준 편과 **대본 임베딩이 비슷한 편**을 코사인 유사도 내림차순으로.
+   *
+   * - 기준 벡터는 DB의 기준 편 행이다(AI 서버를 부르지 않는다) — `content_embeddings`를 기준 편으로 한 번, 후보로 한 번 읽는
+   *   셀프 조인. 기준 편 행도 **현행 모델 AND `content_version` 일치**여야 한다 — 재발행 후 미갱신 벡터는 없는 것과 같다.
+   *   기준 벡터가 없으면 CROSS JOIN이 비어 결과가 0건이다(200 `items: []`).
+   * - 후보는 목록과 같은 노출·시장 조건(`CONTENT_SCOPE_CONDITION` — 발행·라이선스·시장. 회수·만료는 `published`가 아니다),
+   *   기준 편·`excludeIds` 제외, 후보 벡터도 현행 모델·버전 일치(검색 의미 엔진·추천 스코어링과 같은 조건 — domain.md 5.6).
+   * - 유사도(`1 - (e <=> base)`)가 하한(`RELATED_CONTENT_MIN_SIMILARITY`) **이하면 뺀다.** 동률은 id 내림차순(결정적 순서).
+   * - 시리즈 대표 편 접기를 하지 않는다 — 편 단위 목록이다. ANN 없이 전수 계산(수천 편 상한 — domain.md 5.6).
+   *
+   * Raw SQL이다(architecture.md 3.4) — 후보 필터는 QueryBuilder로 만들어 같은 조각을 쓰고 그 위에 코사인을 얹는다.
+   * 엔티티는 고른 id로 한 번 더 읽어 순서대로 돌려준다(최대 `limit`건).
+   */
+  async findRelated(
+    query: RelatedContentQuery,
+    manager?: EntityManager,
+  ): Promise<Content[]> {
+    const candidates = this.applyVisibility(
+      this.scoped(manager)
+        .createQueryBuilder('content')
+        .select('content.id', 'id')
+        .addSelect('content.content_version', 'content_version'),
+      query.now,
+      query.market,
+    ).andWhere('content.id <> :baseContentId', {
+      baseContentId: query.baseContentId,
+    });
+
+    if (query.excludeIds.length > 0) {
+      candidates.andWhere('content.id NOT IN (:...excludeIds)', {
+        excludeIds: query.excludeIds,
+      });
+    }
+
+    const [candidateSql, candidateParams] = candidates.getQueryAndParameters();
+    const params: unknown[] = [...(candidateParams as unknown[])];
+    const param = (value: unknown): string => {
+      params.push(value);
+      return `$${params.length}`;
+    };
+
+    const baseId = param(query.baseContentId);
+    const model = param(EMBEDDING_MODEL_ID);
+    const limit = param(query.limit);
+
+    const sql = `
+      WITH candidate AS (${candidateSql}),
+      base_embedding AS (
+        SELECT embedding.embedding
+          FROM content_embeddings embedding
+          JOIN contents base_content
+            ON base_content.id = embedding.content_id
+           AND base_content.content_version = embedding.content_version
+         WHERE embedding.content_id = ${baseId}::uuid
+           AND embedding.model = ${model}
+      )
+      SELECT candidate.id
+        FROM candidate
+        JOIN content_embeddings embedding
+          ON embedding.content_id = candidate.id
+         AND embedding.model = ${model}
+         AND embedding.content_version = candidate.content_version
+       CROSS JOIN base_embedding
+       WHERE 1 - (embedding.embedding <=> base_embedding.embedding) > ${RELATED_CONTENT_MIN_SIMILARITY}
+       ORDER BY embedding.embedding <=> base_embedding.embedding, candidate.id DESC
+       LIMIT ${limit}`;
+
+    const rows = await this.scoped(manager).manager.query<{ id: string }[]>(
+      sql,
+      params,
+    );
+
+    if (rows.length === 0) {
+      return [];
+    }
+
+    const contents = await this.scoped(manager).findBy({
+      id: In(rows.map((row) => row.id)),
+    });
+    const contentById = new Map(
+      contents.map((content) => [content.id, content]),
+    );
+
+    // 두 읽기 사이에 지워진 행(CASCADE)은 건너뛴다 — 정상 경로에서는 생기지 않는다
+    return rows.flatMap((row) => {
+      const content = contentById.get(row.id);
+      return content ? [content] : [];
+    });
   }
 
   /**

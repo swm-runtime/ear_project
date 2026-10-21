@@ -326,6 +326,18 @@ export interface SearchCorrectionCandidate {
   frequency: number;
 }
 
+/**
+ * 관련 콘텐츠 조회(KAN-240 — `player-api.md` 4.8). 기준 편은 이미 노출·시장 판정을 통과한 편이다(Service가 먼저 본다)
+ */
+export interface RelatedContentQuery {
+  baseContentId: string;
+  market: UserMarket;
+  /** 결과에서 뺄 편 — 재생 목록 스냅샷에 이미 있는 편. 기준 편은 따로 빠진다 */
+  excludeIds: string[];
+  limit: number;
+  now: Date;
+}
+
 export interface SearchCorrectionQuery {
   market: UserMarket;
   normalizedQuery: string;
