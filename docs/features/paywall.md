@@ -36,7 +36,7 @@
 | tier | 서버(`users.tier`) | 필수 |
 | daily_play_count | 서버가 `play_records` 집계로 산출한 **파생값**(컬럼 아님) | 필수 |
 | blocked_content_id | 재생 시도한 콘텐츠 | 필수 |
-| entry_point | library / explore / miniplayer / push / player(완료 후 ▶ 재청취 — 개정 2026-08-10) | 필수(전환 분석용) |
+| entry_point | library / explore / miniplayer / push / player(완료 후 ▶ 재청취 — 개정 2026-08-10 · 재생 목록 패널의 "다음에 들어볼 만한" 줄 — 2026-10-22 KAN-241). **재생 목록 패널의 줄은 맥락의 진입점을 따른다**(`player.md` 4.2-1 — 라이브러리 맥락 `library`, 탐색 스냅샷 맥락 `explore`) | 필수(전환 분석용) |
 | plans | 서버가 내려주는 요금제 목록 + 스토어 상품 ID | 필수 |
 
 ## 4. 처리 로직
