@@ -88,7 +88,10 @@ export const useExploreSearchScreen = (embedding?: ExploreSearchEmbedding) => {
   /** iOS 26 갈래의 탐색 탭 안 스택 — 원본은 app/navigation/types.ts 의 ExploreStackParamList(feature 는 app 을 import 하지 않는다) */
   const exploreStackNavigation =
     useNavigation<
-      NativeStackNavigationProp<{ ExploreHome: { applyTopicId?: string } | undefined }>
+      NativeStackNavigationProp<{
+        ExploreHome: { applyTopicId?: string } | undefined;
+        Series: { seriesId: string };
+      }>
     >();
   const queryClient = useQueryClient();
   const showToast = useToastStore((s) => s.show);
@@ -443,11 +446,12 @@ export const useExploreSearchScreen = (embedding?: ExploreSearchEmbedding) => {
 
   /**
    * 시리즈 카드 탭 → 시리즈 화면(E14) — 재생이 아니다(explore.md 4.4 예외). 행동으로 이어졌으니 검색어를 저장한다(4.5-4).
-   * 스택 화면(Main)에 올린다 — 검색 상태는 그 아래 그대로 남아 뒤로가기로 돌아온다
+   * 가장 가까운 스택의 `Series` 로 연다 — 제자리 검색(iOS 26·Android)은 탐색 탭 안 스택이라 독·미니플레이어가 남고,
+   * 스택 검색(그 외 — Main 스택의 ExploreSearch)은 Main 스택에 쌓인다. 검색 상태는 그 아래 그대로 남아 뒤로가기로 돌아온다
    */
   const openSeries = (series: ExploreSeries) => {
     saveActiveQueryAsRecent();
-    navigation.navigate('Main', { screen: 'Series', params: { seriesId: series.id } });
+    exploreStackNavigation.navigate('Series', { seriesId: series.id });
   };
 
   const openMoreSheet = (item: ExploreItem) => {

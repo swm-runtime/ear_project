@@ -60,10 +60,11 @@ type EmptyKind = 'none' | 'feed' | 'filtered';
 type ExploreRouteParams = {
   Explore: { applyTopicId?: string } | undefined;
 };
-/** iOS 26 갈래의 탐색 탭 안 스택(app/navigation/ExploreStack) — 원본은 app/navigation/types.ts 의 ExploreStackParamList */
+/** 탐색 탭 안 스택(app/navigation/ExploreStack) — 원본은 app/navigation/types.ts 의 ExploreStackParamList */
 type ExploreStackRouteParams = {
   ExploreHome: { applyTopicId?: string } | undefined;
   ExploreSearch: undefined;
+  Series: { seriesId: string };
 };
 
 const isNetworkError = (error: unknown): boolean =>
@@ -368,10 +369,11 @@ export const useExploreScreen = ({
 
   /**
    * 시리즈 카드 탭 → 시리즈 화면(E14). **"행 탭 = 즉시 재생"의 예외**다(explore.md 4.4) — 카드에는 편 단위 상태가 없어 재생 판정을
-   * 할 수 없다. 화면 등록은 app/navigation 이 한다(라우트 이름으로만 이동 — ContentDetail 과 같은 방식)
+   * 할 수 없다. 화면 등록은 app/navigation 이 한다(라우트 이름으로만 이동). **탭 안 스택에 푸시한다** — 독(탭 바)과 미니플레이어가
+   * 남는다(PM 2026-10-22)
    */
   const openSeries = (series: ExploreSeries) => {
-    navigation.navigate('Main', { screen: 'Series', params: { seriesId: series.id } });
+    exploreStackNavigation.navigate('Series', { seriesId: series.id });
   };
 
   /** E12 [원문 보기](FR-12) — 클릭 기록과 브라우저 열기는 서로를 기다리지 않는다(player-api.md 4.5) */

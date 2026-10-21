@@ -7,7 +7,12 @@ import FullScreenError from '@/shared/ui/FullScreenError';
 import GlassIconButton from '@/shared/ui/GlassIconButton';
 import { Text } from '@/shared/ui/Typography';
 
-import { PlayConfirmDialog, usePlaybackStore } from '@/features/player';
+import {
+  DOCK_SCROLL_PROPS,
+  PlayConfirmDialog,
+  useBottomDockInset,
+  usePlaybackStore,
+} from '@/features/player';
 
 import ExploreMoreSheet from '../components/ExploreMoreSheet';
 import SeriesEpisodeRow, {
@@ -22,13 +27,15 @@ import { useSeriesScreen } from '../hooks/useSeriesScreen';
 
 /**
  * 시리즈 화면(E14 — explore.md 4.7 · explore-uiux.md 4.11). 탐색의 시리즈 카드(·상세의 시리즈 줄)가 연다. 화면은 뷰만 담당하고
- * 로직은 useSeriesScreen 이 소유한다. 하단 탭 위에 쌓이는 푸시 화면이다.
+ * 로직은 useSeriesScreen 이 소유한다. 탐색에서는 탭 안 스택에 푸시돼 독·미니플레이어가 남고(2026-10-22), 콘텐츠 상세의 시리즈 줄에서는 탭 위에 쌓인다.
  * 애플 뮤직 앨범 화면 문법(2026-10-22 PM): 앱바는 유리 원 뒤로만(가운데 제목 없음) / 머리(큰 표지·제목·`시리즈 · N편 · 상태`·소개)
  * / 구분선 / 번호 트랙 목록(episode_no 순 — 서버 정렬 그대로) / 끝 요약 `N편, 길이`. 다음 화 듣기·연속 재생은 없다(보류)
  */
 export default function SeriesScreen() {
   const screen = useSeriesScreen();
   const nowPlayingContentId = usePlaybackStore((s) => s.session?.contentId ?? null);
+  // 탐색 탭 안에서 열리면 독(탭 바 + 미니플레이어)이 목록 위에 떠 있다 — 그만큼 바닥을 비운다(탭 밖이면 미니플레이어 몫만)
+  const dockInset = useBottomDockInset();
 
   const renderBody = () => {
     if (screen.isInitialLoading) {
@@ -91,7 +98,8 @@ export default function SeriesScreen() {
             {EXPLORE_COPY.series.footer(screen.episodeCount, totalMinutes)}
           </Text>
         }
-        contentContainerStyle={styles.listContent}
+        {...DOCK_SCROLL_PROPS}
+        contentContainerStyle={{ paddingBottom: dockInset + theme.spacing.lg }}
       />
     );
   };
@@ -148,9 +156,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: theme.spacing.md,
     minHeight: theme.touchTarget.minHeight + theme.spacing.sm,
-  },
-  listContent: {
-    paddingBottom: theme.spacing.xxl,
   },
   // 머리와 목록 사이 한 줄 — 좌우 여백 안쪽(앨범 화면의 버튼 줄 아래 선 자리)
   headerRule: {
