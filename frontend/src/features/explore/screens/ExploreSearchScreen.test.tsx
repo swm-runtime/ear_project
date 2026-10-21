@@ -240,7 +240,7 @@ describe('Android 탐색 제자리 검색 — 검색 안내 2종(KAN-239)', () =
     queryUsed: '커리오',
   };
 
-  it('교정 응답이면 격자 위에 "대신 검색했어요" + "혹시 … 검색하고 싶나요?"(버튼)를 그리고, 탭하면 exact 재검색을 부른다', async () => {
+  it('교정 응답이면 격자 위에 "대신 검색했어요" + "원본 검색 ‘…’"(버튼)를 한 줄에 그리고, 탭하면 exact 재검색을 부른다', async () => {
     jest.replaceProperty(Platform, 'OS', 'android');
     const searchInsteadExact = jest.fn();
     jest.mocked(useExploreSearchScreen).mockReturnValue({
@@ -260,7 +260,7 @@ describe('Android 탐색 제자리 검색 — 검색 안내 2종(KAN-239)', () =
     });
     const texts = findTexts(headerRenderer);
     expect(texts).toContain('‘커리어’로 대신 검색했어요');
-    expect(texts).toContain('혹시 ‘커리오’로 검색하고 싶나요?');
+    expect(texts).toContain('원본 검색 ‘커리오’');
     // Pressable 은 내부 구성요소로 풀려 타입 검색이 안 된다 — 버튼 역할을 가진 노드로 찾는다
     const button = (headerRenderer.root as unknown as RoleFinder).find(
       (node) => node.props.accessibilityRole === 'button',

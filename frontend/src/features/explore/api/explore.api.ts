@@ -273,7 +273,7 @@ export const fetchExploreTopics = async (): Promise<ExploreTopic[]> => {
 export const fetchExploreSearch = async (input: {
   query: string;
   cursor?: string;
-  /** 교정 끄기(KAN-239 "혹시 ‘OO’로 검색하고 싶나요?") — false 면 파라미터를 보내지 않는다(옛 서버에 모르는 키를 보내지 않게) */
+  /** 교정 끄기(KAN-239 "원본 검색 ‘OO’") — false 면 파라미터를 보내지 않는다(옛 서버에 모르는 키를 보내지 않게) */
   exact?: boolean;
 }): Promise<ExploreSearchPage> => {
   const params: Record<string, string> = { query: input.query };

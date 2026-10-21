@@ -54,3 +54,4 @@
   - 카피: ko `correctedTo`·`searchInsteadFor`·`searchInsteadA11y`·`relatedResult` — **조사를 받침에 맞춘다**(`shared/i18n/korean-particle.ts` 로/으로·와/과. "‘면접’으로", "‘커리오’와"). en 4종. 분석 `search` 이벤트에 `corrected`·`related` 불리언(검색어 원문 없음).
   - mock(서버 대역): 자모 트라이그램 교정어(태그·주제명·시리즈·제목 토큰 어휘, 임계 0.5) → 교정어로 키워드 1건 이상일 때만 적용, `#`·`exact` 는 교정 없음, `search-related` 시나리오로 관련 결과 응답.
   - **남은 완료 조건**: 개발계 실기기("커리오"·"이직") — BE KAN-238 머지 뒤. 그때까지 pending 유지.
+- 2026-10-22 PM: 교정 안내를 **가운데 한 줄**로 — "‘커리어’로 대신 검색했어요" 옆에 버튼 "원본 검색 ‘커리오’"(en "Search “커리오” instead"). 종전 둘째 줄 "혹시 ‘커리오’로 검색하고 싶나요?"는 걷음. 관련 결과 한 줄도 같은 자리라 가운데 정렬
