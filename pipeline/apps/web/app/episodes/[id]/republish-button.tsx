@@ -31,7 +31,9 @@ export function RepublishButton({ episodeId, backlogId, contentId, version, publ
     if (parts.length === 0) return;
     const what = parts.join("·");
     const dropWarn = audioNewer && (await losslessWouldDrop(episodeId)); // KAN-145 — 오디오를 바꾸는 재발행만 음질 행이 바뀐다
-    if (!confirm(`${episodeId} 의 발행본 ${what}${audioNewer ? "(자막 포함)" : ""}을(를) 교체합니다 (제품 콘텐츠 ${contentId.slice(0, 8)}…, v${version ?? "?"} → v${(version ?? 0) + 1}).\n확인을 마쳤나요? 앱 사용자의 저장 위치는 초기화되고 라이브러리는 유지됩니다.${dropWarn ? `\n\n⚠️ ${LOSSLESS_DROP_WARNING}` : ""}`)) return;
+    // 오디오를 바꾸면 content_version 이 오르고 재생 위치가 지워진다. 썸네일만이면 버전·재생 위치 그대로(admin-api 4.10, KAN-236 2026-10-20)
+    const effect = audioNewer ? `v${version ?? "?"} → v${(version ?? 0) + 1}).\n확인을 마쳤나요? 앱 사용자의 저장 위치는 초기화되고 라이브러리는 유지됩니다.` : `v${version ?? "?"} 그대로).\n썸네일만 바꾸므로 버전과 앱 재생 위치는 그대로입니다.`;
+    if (!confirm(`${episodeId} 의 발행본 ${what}${audioNewer ? "(자막 포함)" : ""}을(를) 교체합니다 (제품 콘텐츠 ${contentId.slice(0, 8)}…, ${effect}${dropWarn ? `\n\n⚠️ ${LOSSLESS_DROP_WARNING}` : ""}`)) return;
     setBusy(true); setMsg(null);
     try {
       // 바뀐 것만 받아 보낸다 — 안 바뀐 파일까지 올리면 같은 내용으로 버전만 오른다
