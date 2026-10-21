@@ -1,6 +1,7 @@
 import { Platform, Pressable, StyleSheet, View, useWindowDimensions } from 'react-native';
 
 import { theme, useResolvedColor } from '@/shared/theme';
+import CheckIcon from '@/shared/ui/CheckIcon';
 import { pillButton } from '@/shared/ui/pill-button.styles';
 import PlayIcon from '@/shared/ui/PlayIcon';
 import RemoteImage from '@/shared/ui/RemoteImage';
@@ -8,6 +9,7 @@ import { Text } from '@/shared/ui/Typography';
 
 import { EXPLORE_COPY } from '../explore.copy';
 import type { SeriesDetail } from '../explore.types';
+import { PlusIcon, ShuffleIcon } from './SeriesActionIcons';
 
 /** 표지 폭 = 화면 폭의 64%(애플 뮤직 앨범 화면 비율), 큰 화면에서 끝없이 커지지 않게 상한을 둔다 */
 const COVER_WIDTH_RATIO = 0.64;
@@ -21,6 +23,9 @@ export const seriesCoverSize = (windowWidth: number): number =>
 const PLAY_BUTTON_WIDTH = 200;
 const PLAY_BUTTON_HEIGHT = 52;
 const PLAY_ICON_SIZE = 22;
+/** [재생] 양옆 원(셔플 · 담기) — 알약과 같은 높이의 원, 아이콘 22(애플 뮤직 앨범 화면) */
+const SIDE_BUTTON_SIZE = PLAY_BUTTON_HEIGHT;
+const SIDE_ICON_SIZE = 22;
 
 /** 시리즈 제목 — 앨범 제목 자리. 큰 제목(xl 28)보다 한 단 작게, 두세 줄로 접혀도 표지를 밀어내지 않게 */
 const TITLE_SIZE = 24;
@@ -32,6 +37,12 @@ interface SeriesHeaderProps {
   /** [재생]이 틀 편(낭독용) — 없으면(편 0개) 버튼을 그리지 않는다 */
   playTarget: { episodeNo: number; title: string } | null;
   onPlay: () => void;
+  /** 셔플 — 무작위 한 편 + 재생 목록 순서 섞기(자동 다음 재생 없음) */
+  onShuffle: () => void;
+  /** 시리즈 담기 — 라이브러리에 없는 편 전부를 편 단위로 */
+  onSaveSeries: () => void;
+  /** 노출 편이 전부 라이브러리에 있다 — 담기 원이 체크로 바뀌고 눌리지 않는다 */
+  isSeriesSaved: boolean;
 }
 
 /**
@@ -45,6 +56,9 @@ export default function SeriesHeader({
   episodeCount,
   playTarget,
   onPlay,
+  onShuffle,
+  onSaveSeries,
+  isSeriesSaved,
 }: SeriesHeaderProps) {
   const { width } = useWindowDimensions();
   const coverSize = seriesCoverSize(width);
@@ -67,20 +81,50 @@ export default function SeriesHeader({
       {category ? <Text style={styles.category}>{category}</Text> : null}
       <Text style={styles.meta}>{meta(episodeCount, series)}</Text>
       {playTarget ? (
-        <Pressable
-          style={({ pressed }) => [
-            pillButton.base,
-            pillButton.primary,
-            styles.playButton,
-            pressed && styles.playButtonPressed,
-          ]}
-          onPress={onPlay}
-          accessibilityRole="button"
-          accessibilityLabel={EXPLORE_COPY.series.playA11y(playTarget.episodeNo, playTarget.title)}
-        >
-          <PlayIcon size={PLAY_ICON_SIZE} color={playIconColor} />
-          <Text style={styles.playLabel}>{EXPLORE_COPY.series.play}</Text>
-        </Pressable>
+        // [셔플] · [재생] · [담기] 한 줄(PM 2026-10-22 08:55 — 애플 뮤직 앨범 화면). 좁은 화면에선 알약만 줄어든다
+        <View style={styles.actionRow}>
+          <Pressable
+            style={({ pressed }) => [styles.sideButton, pressed && styles.playButtonPressed]}
+            onPress={onShuffle}
+            accessibilityRole="button"
+            accessibilityLabel={EXPLORE_COPY.series.shuffleA11y}
+          >
+            <ShuffleIcon size={SIDE_ICON_SIZE} color={theme.color.textPrimary} />
+          </Pressable>
+          <Pressable
+            style={({ pressed }) => [
+              pillButton.base,
+              pillButton.primary,
+              styles.playButton,
+              pressed && styles.playButtonPressed,
+            ]}
+            onPress={onPlay}
+            accessibilityRole="button"
+            accessibilityLabel={EXPLORE_COPY.series.playA11y(
+              playTarget.episodeNo,
+              playTarget.title,
+            )}
+          >
+            <PlayIcon size={PLAY_ICON_SIZE} color={playIconColor} />
+            <Text style={styles.playLabel}>{EXPLORE_COPY.series.play}</Text>
+          </Pressable>
+          <Pressable
+            style={({ pressed }) => [styles.sideButton, pressed && styles.playButtonPressed]}
+            onPress={onSaveSeries}
+            disabled={isSeriesSaved}
+            accessibilityRole="button"
+            accessibilityLabel={
+              isSeriesSaved ? EXPLORE_COPY.series.savedAllA11y : EXPLORE_COPY.series.saveAllA11y
+            }
+            accessibilityState={{ disabled: isSeriesSaved }}
+          >
+            {isSeriesSaved ? (
+              <CheckIcon size={SIDE_ICON_SIZE} color={theme.color.textPrimary} />
+            ) : (
+              <PlusIcon size={SIDE_ICON_SIZE} color={theme.color.textPrimary} />
+            )}
+          </Pressable>
+        </View>
       ) : null}
     </View>
   );
@@ -147,12 +191,30 @@ const styles = StyleSheet.create({
     color: theme.color.textSecondary,
     textAlign: 'center',
   },
+  // [셔플] · [재생] · [담기] — 가운데 정렬, 사이 md. 화면이 좁으면 알약이 줄어든다(원은 그대로)
+  actionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: theme.spacing.md,
+    alignSelf: 'stretch',
+    marginTop: theme.spacing.lg,
+  },
   playButton: {
     flexDirection: 'row',
     gap: theme.spacing.xs,
     width: PLAY_BUTTON_WIDTH,
+    flexShrink: 1,
     height: PLAY_BUTTON_HEIGHT,
-    marginTop: theme.spacing.lg,
+  },
+  // 양옆 원 — 흐린 표지 바탕 위 반투명 회색 면(다크·라이트 둘 다 비친다), 아이콘은 모드 기본 글자색
+  sideButton: {
+    width: SIDE_BUTTON_SIZE,
+    height: SIDE_BUTTON_SIZE,
+    borderRadius: SIDE_BUTTON_SIZE / 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(127, 127, 127, 0.24)',
   },
   playButtonPressed: {
     opacity: 0.7,

@@ -171,6 +171,15 @@ const ko = {
     /** 머리 [재생] — 아직 다 듣지 않은 가장 앞 편(전부 들었으면 1화). 낭독은 어느 편인지까지 */
     play: '재생',
     playA11y: (episodeNo: number, title: string) => `재생, ${episodeNo}화 ${title}`,
+    /**
+     * [재생] 양옆 원 버튼(PM 2026-10-22 08:55 — 애플 뮤직 앨범 화면). 셔플 = 무작위 한 편 재생 + 재생 목록 순서 섞기(자동 다음 재생은
+     * 여전히 없다). 담기 = 시리즈 편 전부를 라이브러리에 편 단위로 담는다(새로 공개될 편은 들어오지 않는다 — 구독 아님)
+     */
+    shuffleA11y: '셔플 재생',
+    saveAllA11y: '시리즈를 라이브러리에 담기',
+    savedAllA11y: '라이브러리에 담김',
+    saveAllToast: (count: number) => `${count}편을 라이브러리에 담았어요`,
+    saveAllFailedToast: '일부 편을 담지 못했어요. 다시 시도해주세요',
     /** 앱바 오른쪽 캡슐의 ⋯ — 시리즈 시트(공유 · 소개 전체 보기) */
     moreA11y: '시리즈 더보기',
     aboutAction: '소개 전체 보기',
@@ -323,6 +332,12 @@ const en: LocalizedCopy<typeof ko> = {
         ? `${count} of ${total} episodes out`
         : formatEnCount(total, { one: 'episode', other: 'episodes' }),
     status: { ongoing: 'Ongoing', completed: 'Complete' },
+    shuffleA11y: 'Shuffle',
+    saveAllA11y: 'Add series to Library',
+    savedAllA11y: 'In Library',
+    saveAllToast: (count: number) =>
+      `Added ${formatEnCount(count, { one: 'episode', other: 'episodes' })} to Library`,
+    saveAllFailedToast: "Couldn't add some episodes. Please try again.",
     footer: (count: number, totalMinutes: number) => {
       const hours = Math.floor(totalMinutes / 60);
       const minutes = totalMinutes % 60;

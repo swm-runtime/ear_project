@@ -109,6 +109,9 @@ export default function SeriesScreen() {
               episodeCount={screen.episodeCount}
               playTarget={screen.playTarget}
               onPlay={screen.playSeries}
+              onShuffle={screen.shuffleSeries}
+              onSaveSeries={screen.saveSeries}
+              isSeriesSaved={screen.isSeriesSaved}
             />
             <View style={styles.headerRule} />
           </View>
