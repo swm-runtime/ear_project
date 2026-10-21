@@ -24,6 +24,7 @@ import { UserService } from '@/modules/user/services/user.service';
 import { UserMarket, UserTier } from '@/modules/user/user.enum';
 
 import { DripBatchOrchestrator } from './drip-batch.orchestrator';
+import { READ_ONLY_PLAN_OPTIONS } from './drip-preview.service';
 
 const NOW = new Date('2026-08-27T05:00:00.000Z');
 const USER_ID = '11111111-1111-4111-8111-111111111111';
@@ -465,6 +466,79 @@ describe('DripBatchOrchestrator', () => {
         addTopicId: TOPIC_B,
       });
       expect(plan.activeTopicIds).toEqual([TOPIC_A, TOPIC_B]);
+    });
+
+    it('READ_ONLY_PLAN_OPTIONS 계산은 조회 메서드만 부른다 — 자동 확장·취향 캐시·적립·배치 기록·알림 어느 쓰기도 없다(추천 검증)', async () => {
+      // given — 자동 확장이 "추가"로 판정되는 사용자(저장 경로가 있는 분기를 일부러 지난다), 이메일·닉네임 없는 사용자 값
+      givenOutsideInterestListener();
+      const services: Record<string, object> = {
+        userService,
+        userInterestService,
+        planService,
+        contentService,
+        contentStatService,
+        libraryService,
+        playbackService,
+        preferenceVectorService,
+        dripPlacementService,
+        dripBatchRunService,
+        dripArrivalNotificationService,
+        topicService,
+        userSettingService,
+      };
+      const readOnly = new Set([
+        'userInterestService.findAllActive',
+        'userInterestService.findAutoExpandState',
+        'userInterestService.findUserRemovedTopicIds',
+        'planService.getDailyDripCount',
+        'planService.getDailyDiscoveryCount',
+        'contentService.findCandidates',
+        'contentService.findAllByIds',
+        'contentService.findScorableEmbeddings',
+        'contentService.findTopicViews',
+        'contentService.findSeriesEpisodeStates',
+        'contentStatService.findAllTimeCounts',
+        'libraryService.countUnfinished',
+        'libraryService.countPlacedToday',
+        'libraryService.findCompletedSeriesMaxEpisodes',
+        'libraryService.findRecentDripContentIds',
+        'libraryService.findPlacementsAddedBetween',
+        'libraryService.findIgnoredDripItems',
+        'libraryService.countExposures',
+        'playbackService.findRecentSignals',
+        'playbackService.countSignals',
+        'preferenceVectorService.compute',
+        'topicService.findAllByIds',
+        'userSettingService.getSettings',
+      ]);
+
+      // when
+      const plan = await orchestrator.planForUser(
+        {
+          id: USER_ID,
+          tier: UserTier.LIGHT,
+          market: UserMarket.KR,
+          jobCategory: null,
+          yearsOfExperience: null,
+        },
+        NOW,
+        new Map(),
+        READ_ONLY_PLAN_OPTIONS,
+      );
+
+      // then — 불린 메서드가 전부 조회 허용 목록 안이다. 새 의존이 생기면 이 목록에 판단을 거쳐 더해야 통과한다
+      const called = Object.entries(services).flatMap(([name, service]) =>
+        Object.entries(service)
+          .filter(
+            ([, fn]) => jest.isMockFunction(fn) && fn.mock.calls.length > 0,
+          )
+          .map(([method]) => `${name}.${method}`),
+      );
+      expect(called.filter((call) => !readOnly.has(call))).toEqual([]);
+      expect(userInterestService.applyAutoExpand).not.toHaveBeenCalled();
+      expect(preferenceVectorService.rebuild).not.toHaveBeenCalled();
+      expect(plan.autoExpand?.action).toBe('add');
+      expect(plan.regular?.picks.length).toBeGreaterThan(0);
     });
 
     it('자동 확장을 끈 사용자는 넣지도 빼지도 않는다', async () => {
