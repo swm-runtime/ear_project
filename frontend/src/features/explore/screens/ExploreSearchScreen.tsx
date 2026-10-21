@@ -479,7 +479,7 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     justifyContent: 'center',
     columnGap: theme.spacing.sm,
-    paddingBottom: 0,
+    // 아래 여백은 resultNotice 의 것을 그대로 쓴다 — 여기서 0 으로 덮어 카드에 3pt 까지 붙었다(PM 2026-10-22 06:44 스샷)
   },
   noticeText: {
     fontSize: theme.font.size.sm,
