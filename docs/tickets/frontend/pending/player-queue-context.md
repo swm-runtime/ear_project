@@ -70,4 +70,6 @@
   - tsc·eslint·jest(player·navigation·ko 스냅샷) 통과. **실기기 미확인** — 2단 모션(Android FLIP 과의 겹침·시트 틀 위치)과 스와이프·스크롤 축 판정은 개발계 빌드에서 봐야 한다.
   - ~~**남은 것**: related 연결(KAN-240 뒤)~~ → 아래 05:04 기록.
 - 2026-10-22 05:04 **related 연결**(PM "너가 뜯어고쳐라" — BE PR #1814 를 FE 가 머지, dev `33b56d38`, KAN-240 Jira 완료 전이) — 브랜치 `feat(fe)/player-up-next-related`: `fetchRelatedContents`(`GET /contents/:id/related?limit=5&exclude_ids=…`, exclude 는 서버 상한 50 에서 자른다) → `explore.up-next.ts` `fetchUpNext` 가 ① related → 비거나 실패(404 `CONTENT_NOT_FOUND`·네트워크·임베딩 없음)면 ② interest 폴백으로 묶고, 브리지는 그 함수 하나를 꽂는다. mock 은 같은 주제 편을 "비슷한 편"으로 친다. tsc·eslint·jest 통과.
-  - **남은 것**: 문서 반영(10항 — changes 1~3·3-1·3-2·6·7절 → `player.md`·`player-uiux.md`·`explore.md`·`paywall.md`), 개발계 실기기 확인(1~4 + related 블록).
+  - ~~**남은 것**: 문서 반영(10항)~~ → 아래 05:15 기록.
+- 2026-10-22 05:15 **문서 반영(10항)** — changes 문서의 1~3·3-1·3-2·6·7절을 `player.md`(4.2-1 개정, 4.2-2·4.2-3 신설, 4.7-1, 8장 완료 조건 6개, 9장)·`player-uiux.md` 4.6-1·`explore.md` 4.7·`paywall.md` 4.2 에 옮기고 `changes/archive/player-queue-context.md` 로 이동.
+  - **남은 것: 개발계 실기기 확인만**(1~4 + related 블록 — 완료 조건의 실기기 항목). 확인되면 이 md 를 `archive/` 로 옮기고 Jira 완료.

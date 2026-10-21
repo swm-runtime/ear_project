@@ -5,6 +5,7 @@
 | 대상 문서 | `docs/features/player.md` 4.2-1·4.7-1·8장·9장 미결 · `docs/spec/uiux/player-uiux.md` 4.6-1 · `docs/features/explore.md` 4.7(시리즈 화면 "두지 않는 것") · `docs/spec/api/player-api.md` 3장·4.8 신설 · `docs/backend/domain.md` 5.6 · `docs/features/paywall.md` 4.2(진입점 값) |
 | 요청 파트 | 프론트엔드(맥락·패널·추천 블록) · 백엔드(관련 콘텐츠 API) |
 | 발행 날짜 | 2026-10-22 |
+| 반영 날짜 | 2026-10-22 (4·5절 BE #1814 · 나머지 FE — 아래 처리 기록) |
 | 기한 | 2026-10-25 (Medium — 코드 티켓과 같은 날) |
 | 선행 | 없음. 코드: FE [KAN-241](https://runtime364.atlassian.net/browse/KAN-241) `tickets/frontend/pending/player-queue-context.md` · BE [KAN-240](https://runtime364.atlassian.net/browse/KAN-240) `tickets/backend/pending/related-contents-api.md` |
 | 발견 시점 | PM 질문(2026-10-22 01:57) "라이브러리/탐색에서 열 때 재생목록·추천 어떻게 할지" → 03:58 "1, 2 둘 다 ㄱㄱ" |
@@ -98,3 +99,4 @@ PM 결정(2026-10-22):
 - 2026-10-22 발행(PM 03:58 "ㄱㄱ 1,2 두개다").
 - 2026-10-22 04:05 PM 추가 — **3번**(줄 왼쪽 스와이프 삭제 · 오른쪽 스와이프 담기) → 3-1절, **4번**(한 번 더 올리면 전체 화면 "재생목록 더 보기") → 3-2절. 3-1은 종전 "오른쪽 스와이프 = 패널 닫힘"과 충돌해 닫힘 제스처를 걷는 것으로 정리했다(PM 확인 항목).
 - 2026-10-22 **4·5절 반영(BE KAN-240 PR)** — `spec/api/player-api.md` 1장 범위·3장 목록 8번·4.8 신설, `backend/domain.md` 5.6 소비처·ANN 문단. 구현과의 차이 두 가지를 4.8에 적었다: ① 404 코드는 `NOT_FOUND`가 아니라 콘텐츠 공용 `CONTENT_NOT_FOUND`(`common-error-handling.md` 9.2 — 발급·대본·상세와 같다) ② 회수 기준 편도 403 `CONTENT_WITHDRAWN`이 아니라 404(이 절의 결정 그대로 — 백그라운드 블록에서 공통 회수 처리가 터지지 않게). `type` 키는 생략으로 확정. **남은 것(FE KAN-241)**: 1·2·3·3-1·3-2·6·7절과 `paywall.md` 4.2 진입점 — `player.md` 4.2-1~4.2-3·8·9장, `player-uiux.md` 4.6-1, `explore.md` 4.7. 그 반영 뒤 `archive/`로 옮긴다.
+- 2026-10-22 05시 **나머지 절 반영(FE KAN-241)** — `player.md` 4.2-1 개정 · 4.2-2(추천 블록)·4.2-3(줄 스와이프·시트 2단) 신설 · 4.7-1·8장 완료 조건·9장 미결, `player-uiux.md` 4.6-1(손잡이 글자·2단·탐색 맥락 줄·스와이프·추천 섹션·영어, 오른쪽 스와이프 닫힘 걷음), `explore.md` 4.7, `paywall.md` 4.2 진입점 표. 코드는 FE #1812·#1815·#1816, BE #1814. `archive/` 로 옮김.
