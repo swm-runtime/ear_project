@@ -13,7 +13,7 @@ import { useToastStore } from '@/shared/ui/toast.store';
 
 import { libraryKeys } from '@/features/library';
 import { sendSourceLinkClick, usePlayGate } from '@/features/player';
-import { shareContent, useDeferredSheetShare } from '@/features/share';
+import { useDeferredSheetShare } from '@/features/share';
 
 import { exploreKeys } from '../api/explore.api';
 import { EXPLORE_COPY } from '../explore.copy';
@@ -282,16 +282,13 @@ export const useSeriesScreen = () => {
 
   /*
    * ── 시리즈 공유 — 시리즈 전용 링크가 아직 없어 **1화(노출 중인 가장 앞 편) 상세 링크**에 시리즈 제목을 싣는다. 받은 사람은
-   * 1화 상세의 시리즈 줄로 이 화면에 온다. 캡슐 아이콘은 바로 열고, 시트의 [공유]는 시트가 닫힌 뒤 연다 ──
+   * 1화 상세의 시리즈 줄로 이 화면에 온다. 입구는 ⋯ 시트의 [공유] 하나 — 시트가 닫힌 뒤 연다(앱바 공유 아이콘은
+   * 2026-10-22 PM 지시로 뺐다) ──
    */
   const seriesShareInput = () => {
     const first = episodes[0];
     if (!detail || !first) return null;
     return { contentId: first.item.content.id, title: detail.series.title, entry: 'series' };
-  };
-  const shareSeries = () => {
-    const input = seriesShareInput();
-    if (input) void shareContent(input);
   };
   const [isSeriesSheetOpen, setIsSeriesSheetOpen] = useState(false);
   const shareSeriesFromSheet = () => {
@@ -327,9 +324,7 @@ export const useSeriesScreen = () => {
           }
         : null,
     playSeries,
-    // 앱바 캡슐 · 시리즈 시트
-    canShareSeries: detail !== undefined && episodes.length > 0,
-    shareSeries,
+    // 앱바 ⋯ · 시리즈 시트
     isSeriesSheetOpen,
     openSeriesSheet: () => setIsSeriesSheetOpen(true),
     closeSeriesSheet: () => setIsSeriesSheetOpen(false),
