@@ -96,7 +96,7 @@ class ExploreSeriesCardSeriesDto {
   /** 지금 노출 중인 편 수 — 진행 중 시리즈면 `total_episodes`보다 적다 */
   readonly episode_count: number;
   readonly status: SeriesStatus;
-  /** 표지 — 노출 중인 가장 앞 편(보통 1화)의 썸네일 */
+  /** 표지 — 시리즈 표지(`series.cover_url`, KAN-234)가 있으면 그것, 없으면 노출 중인 가장 앞 편(보통 1화)의 썸네일 */
   readonly thumbnail_url: string;
   /** 노출 중인 편들의 주제 합집합 */
   readonly topic_ids: string[];

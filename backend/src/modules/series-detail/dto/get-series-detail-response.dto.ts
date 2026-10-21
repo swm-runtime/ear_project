@@ -14,7 +14,7 @@ class SeriesDetailSeriesDto {
   /** 계획 편수(시리즈 표). 아래 `episodes`는 노출 중인 편만이라 이보다 적을 수 있다 */
   readonly total_episodes: number;
   readonly status: SeriesStatus;
-  /** 표지 — 노출 중인 가장 앞 편(보통 1화)의 썸네일. 시리즈 표지 칸은 따로 없다 */
+  /** 표지 — 시리즈 표지(`series.cover_url`, KAN-234)가 있으면 그것, 없으면 노출 중인 가장 앞 편(보통 1화)의 썸네일 */
   readonly thumbnail_url: string;
 }
 
