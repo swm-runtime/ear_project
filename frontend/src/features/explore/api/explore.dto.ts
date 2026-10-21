@@ -168,7 +168,7 @@ export interface ExploreSearchRequestDto {
   cursor?: string;
   limit?: number;
   /**
-   * `true`면 서버가 오타 교정("대신 검색")을 하지 않는다 — "혹시 ‘OO’로 검색하고 싶나요?" 탭이 보내는 값(KAN-239).
+   * `true`면 서버가 오타 교정("대신 검색")을 하지 않는다 — "원본 검색 ‘OO’" 탭이 보내는 값(KAN-239).
    * 기본 false. `#` 질의에는 의미 없음
    */
   exact?: boolean;
@@ -206,7 +206,7 @@ export interface ExploreSearchResponseDto {
    */
   /** 실제 검색에 쓴 정규화 질의 — 교정 없으면 입력의 정규화 값 */
   query_used?: string;
-  /** 교정했으면 원문(정규화 값), 아니면 null — "혹시 ‘OO’로 검색하고 싶나요?" 자리 */
+  /** 교정했으면 원문(정규화 값), 아니면 null — "원본 검색 ‘OO’" 자리 */
   corrected_from?: string | null;
   match?: ExploreSearchMatch;
   engines?: ExploreSearchEngine[];

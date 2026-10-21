@@ -133,13 +133,14 @@ export default function ExploreSearchScreen({ embedding }: ExploreSearchScreenPr
   };
 
   /*
-   * 검색 안내 2종(KAN-239) — 결과 격자 첫 행 위. 교정("‘커리어’로 대신 검색했어요 / 혹시 ‘커리오’로 검색하고 싶나요?")은
-   * 둘째 줄이 버튼이고, 관련 결과("‘커리오’와 관련된 결과예요")는 한 줄이다. 둘이 같이 뜨는 경우는 없다(서버 규칙)
+   * 검색 안내 2종(KAN-239) — 결과 격자 첫 행 위, 가운데 정렬. 교정은 **한 줄**("‘커리어’로 대신 검색했어요  원본 검색 ‘커리오’" —
+   * PM 2026-10-22, 종전 두 줄)이고 오른쪽이 버튼이다(좁으면 버튼이 다음 줄로 접힌다).
+   *  관련 결과("‘커리오’와 관련된 결과예요")는 한 줄이다. 둘이 같이 뜨는 경우는 없다(서버 규칙)
    */
   const renderResultNotice = () => {
     if (screen.correctedFrom) {
       return (
-        <View style={styles.resultNotice}>
+        <View style={[styles.resultNotice, styles.resultNoticeRow]}>
           <Text style={styles.noticeText}>
             {EXPLORE_COPY.search.correctedTo(screen.queryUsed ?? '')}
           </Text>
@@ -419,19 +420,28 @@ const styles = StyleSheet.create({
   },
   // 검색 안내(KAN-239) — 격자 첫 행 위, 좌우 여백은 격자와 같다(gridContent)
   resultNotice: {
+    alignItems: 'center',
     paddingTop: theme.spacing.md,
     paddingBottom: theme.spacing.sm,
-    gap: theme.spacing.xs,
+  },
+  // 교정 안내 한 줄 — 안내 글자 + 버튼을 가운데에 나란히. 좁으면 버튼이 다음 줄 가운데로 접힌다
+  resultNoticeRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    columnGap: theme.spacing.sm,
+    paddingTop: theme.spacing.xs,
+    paddingBottom: 0,
   },
   noticeText: {
     fontSize: theme.font.size.sm,
     color: theme.color.textSecondary,
+    textAlign: 'center',
   },
-  // 둘째 줄은 버튼 — 글자는 작아도 누르는 높이는 44 를 채운다
+  // 버튼 — 글자는 작아도 누르는 높이는 44 를 채운다
   noticeLinkRow: {
     minHeight: theme.touchTarget.minHeight,
     justifyContent: 'center',
-    alignSelf: 'flex-start',
   },
   noticeLink: {
     fontSize: theme.font.size.sm,

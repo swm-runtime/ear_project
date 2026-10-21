@@ -230,7 +230,7 @@ describe('useExploreSearchScreen — 태그 검색(KAN-219)', () => {
   });
 });
 
-describe('useExploreSearchScreen — 교정 끄기(KAN-239 "혹시 ‘OO’로 검색하고 싶나요?")', () => {
+describe('useExploreSearchScreen — 교정 끄기(KAN-239 "원본 검색 ‘OO’")', () => {
   /** 훅이 쿼리 훅에 넘긴 (query, exact) 쌍 — 모듈 mock 이 쌓는다 */
   const lastSearchArgs = () => mockSearchQueryCalls[mockSearchQueryCalls.length - 1];
 
