@@ -12,7 +12,7 @@
 | 선행 | 사람 손: dev → main 릴리스 #1688 머지·운영 배포(대기 — 운영에 `series` 표가 생겨야 한다). 앱 노출은 [KAN-229](https://runtime364.atlassian.net/browse/KAN-229) 순서를 따른다 |
 | 근거 문서 | `tickets/backend/archive/series-backend.md` 7번(CS 16편 전환) · `ai/spec/11-series.md` 10장 9번 · `domain.md` 5.1·5.9 |
 | 중요도 | Low |
-| 상태 | 코드 반영(dev PR) — 운영 확인은 #1688 배포 뒤 |
+| 상태 | 완료(2026-10-22 — 운영 적용 확인) |
 
 ## 문제
 
@@ -83,3 +83,4 @@ content_id 는 파이프라인 발행 기록(`backlog.published_content_ref`, 20
   - 경제 상식 10화는 표에 없다 — 업로드 때 파이프라인이 `series_id`·`episode_no` 10·`total_episodes` 12를 싣는다. 10화가 이 마이그레이션 전에 개별 편으로 먼저 올라가면 그 content_id를 표에 더하는 후속 PR이 필요하다.
   - E2E `test/series-seed-econ-philosophy.e2e-spec.ts`(10건) — 전부 묶기·ID·버전·담기·재생 위치 유지·두 번 돌림·시리즈 행 비덮어쓰기·0건·일부·다른 시리즈 충돌·번호 충돌·10화 발행 뒤 12편·`down`.
   - 남은 것: 운영 적용은 dev → main 릴리스 #1688 배포 때 함께 돈다(운영에 `series` 표가 그때 생긴다). 배포 뒤 완료 조건 1·2(`GET /admin/series` 세 시리즈·발행 11/10/8편, 상세 `series` 객체)를 운영에서 확인하고 `archive/`로 옮긴다. 완료 조건 4(10화 업로드)는 파이프라인 재발행 때 확인한다. `domain.md`·`runbook.md` 기재는 `changes/pending/series-seed-econ-philosophy.md`.
+- 2026-10-22 **운영 적용 확인·완료**(1.3.0 운영 릴리스 #1688, 01:37 KST 머지 · 01:41 배포 · 태그 `v1.3.0`). 마이그레이션 11건 적용(마지막 `1791200000000`). 운영 `series`: 키워드로 훑어보는 경제 상식 12편 계획 · 발행 11편(ongoing) · 시대별로 보는 서양 철학 10/10(completed) · 시대별로 보는 동양 철학 8/8(completed) · CS 16/16(completed). 머지 전 사전 확인(읽기 전용)에서 대상 45편 전부 존재·미결속이었다. 경제 상식 10화는 업로드 때 시리즈 칸을 싣는다(파이프라인). Jira KAN-235 같은 날 완료.
