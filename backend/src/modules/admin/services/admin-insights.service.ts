@@ -47,7 +47,10 @@ export class AdminInsightsService {
     const liveFrom = kstDateLabel(
       new Date(now.getTime() - INSIGHTS_LIVE_ACTIVE_DAYS * DAY_MS),
     );
-    const dailyRows = await this.repository.dailyRows(since, liveFrom);
+    // 일별 추이는 첫날도 온전한 하루로 센다 — `since`(지금 - days)가 걸친 날의 KST 자정부터. 그러지 않으면 첫 막대가
+    // `since` 시각 뒤만 잡혀 코호트 표의 같은 날 가입자보다 적게 보인다(2026-10-22 운영 10-08 가입 39 vs 48)
+    const dailySince = kstMidnightOf(since);
+    const dailyRows = await this.repository.dailyRows(dailySince, liveFrom);
     const firstStored = await this.repository.activeUsersFirstDate();
     const hourly = await this.repository.hourly(since);
     const topUsers = await this.repository.topUsers(INSIGHTS_RANK_LIMIT);
@@ -90,7 +93,7 @@ export class AdminInsightsService {
       INSIGHTS_COHORT_WEEKLY.offsets,
     );
 
-    const daily = fillDailySeries(since, now, dailyRows, liveFrom);
+    const daily = fillDailySeries(dailySince, now, dailyRows, liveFrom);
 
     return {
       since,
@@ -98,7 +101,7 @@ export class AdminInsightsService {
       users,
       listening: { allTime, window },
       daily,
-      weekday: summarizeWeekdays(daily, since, now),
+      weekday: summarizeWeekdays(daily, dailySince, now),
       activeUsersSince,
       hourly: fillHourly(hourly),
       topUsers,
@@ -127,6 +130,11 @@ export class AdminInsightsService {
       byMarket: fillMarkets(byMarket),
     };
   }
+}
+
+/** `at`이 속한 KST 달력일의 자정(00:00 KST) */
+export function kstMidnightOf(at: Date): Date {
+  return new Date(`${kstDateLabel(at)}T00:00:00+09:00`);
 }
 
 /** `YYYY-MM-DD` KST 달력일 라벨 — Repository 의 `to_char(... at time zone 'Asia/Seoul')`와 같은 값이어야 한다 */

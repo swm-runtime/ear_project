@@ -19,6 +19,7 @@ import {
   fillMarkets,
   isoWeekday,
   kstDateLabel,
+  kstMidnightOf,
   pickActiveUsers,
   summarizeWeekdays,
 } from './admin-insights.service';
@@ -80,6 +81,15 @@ describe('AdminInsightsService 순수 함수', () => {
       expect.objectContaining({ signups: 0, plays: 0, listenSec: 0 }),
     );
     expect(series[3].withdrawals).toBe(1);
+  });
+
+  it('kstMidnightOf — 그 시각이 속한 KST 달력일의 00:00(KST)', () => {
+    expect(
+      kstMidnightOf(new Date('2026-10-07T17:06:00.000Z')).toISOString(),
+    ).toBe('2026-10-07T15:00:00.000Z');
+    expect(
+      kstMidnightOf(new Date('2026-10-07T14:59:59.000Z')).toISOString(),
+    ).toBe('2026-10-06T15:00:00.000Z');
   });
 
   it('fillDailySeries — since 와 now 가 같은 KST 날짜면 한 칸이다', () => {
@@ -412,8 +422,9 @@ describe('AdminInsightsService.summarize', () => {
     const empty = await service.summarize(14, now);
 
     // then
+    // 일별 추이는 창 시작이 걸친 날(KST 10-04)의 자정부터 — 첫 막대도 온전한 하루다
     expect(repository.dailyRows).toHaveBeenCalledWith(
-      empty.since,
+      new Date('2026-10-03T15:00:00.000Z'),
       '2026-09-19',
     );
     expect(empty.activeUsersSince).toBe('2026-09-19');
