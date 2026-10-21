@@ -88,7 +88,10 @@ export interface ExploreSeriesCardDto {
  * 탐색 목록의 항목 — 콘텐츠 행과 시리즈 카드가 섞인다(explore-api.md 4.1-1). 서버가 새 `type` 을 더할 수 있으므로
  * 변환 함수는 `type` 을 문자열로 다시 읽어 모르는 값을 버린다(타입에 없는 값도 런타임에는 올 수 있다)
  */
-export type ExploreEntryDto = ExploreItemDto | ExploreSeriesCardDto;
+export type ExploreEntryDto = (ExploreItemDto | ExploreSeriesCardDto) & {
+  /** 검색 응답에만(KAN-238) — 이 항목을 낸 엔진. 콘텐츠 행·시리즈 카드 공통 */
+  matched_by?: ExploreSearchMatchedBy[];
+};
 
 export interface ExploreSectionDto {
   /** interest / new / popular / topic_group — 분석·로깅용. 화면 분기에 쓰지 않는다 */
@@ -164,7 +167,22 @@ export interface ExploreSearchRequestDto {
   topic_ids?: string;
   cursor?: string;
   limit?: number;
+  /**
+   * `true`면 서버가 오타 교정("대신 검색")을 하지 않는다 — "혹시 ‘OO’로 검색하고 싶나요?" 탭이 보내는 값(KAN-239).
+   * 기본 false. `#` 질의에는 의미 없음
+   */
+  exact?: boolean;
 }
+
+/** 검색 결과 한 항목을 낸 엔진(KAN-238 하이브리드) — 화면은 아직 쓰지 않는다. 타일 '관련' 꼬리표의 근거로만 남는다 */
+export type ExploreSearchMatchedBy = 'keyword' | 'semantic';
+/** 이 응답을 만든 엔진 — AI 서버가 늦거나 빠지면 `semantic`이 없다. 진단·로그 대조용 */
+export type ExploreSearchEngine = 'keyword' | 'semantic';
+/**
+ * 첫 페이지에 키워드로 맞은 편이 하나라도 있으면 `keyword`, 없으면(의미 결과만) `related` — "‘OO’와 관련된 결과예요"의
+ * 유일한 근거. 교정된 응답은 항상 `keyword`다(교정은 교정어로 키워드 1건 이상일 때만 — explore.md 4.5-5)
+ */
+export type ExploreSearchMatch = 'keyword' | 'related';
 
 /** 빈 결과의 대체 노출(E7) — 같은 응답으로 온다. items가 있으면 fallback은 null이다(explore-api.md 4.5) */
 export interface ExploreSearchFallbackDto {
@@ -183,6 +201,15 @@ export interface ExploreSearchResponseDto {
   next_cursor: string | null;
   has_next: boolean;
   fallback: ExploreSearchFallbackDto | null;
+  /*
+   * ── KAN-238(하이브리드·교정)부터 덧붙는 필드 — 옛 서버는 보내지 않아 전부 선택이다. 없으면 "교정 없음·키워드 결과"로 본다 ──
+   */
+  /** 실제 검색에 쓴 정규화 질의 — 교정 없으면 입력의 정규화 값 */
+  query_used?: string;
+  /** 교정했으면 원문(정규화 값), 아니면 null — "혹시 ‘OO’로 검색하고 싶나요?" 자리 */
+  corrected_from?: string | null;
+  match?: ExploreSearchMatch;
+  engines?: ExploreSearchEngine[];
 }
 
 /**

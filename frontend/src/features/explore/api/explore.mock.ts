@@ -15,6 +15,8 @@
  * - empty          콘텐츠 풀 0건 — E8(피드 비어 있음) 검증
  * - popular-error  인기 구간 전환 실패 — E13 인라인 에러 + [다시 시도] 검증(피드는 정상)
  * - search-error   검색 실패 — 직전 결과 유지 + 상단 배너 검증(피드·초기 화면은 정상)
+ * - search-related 키워드 0건 질의에 의미 유사 결과만 오는 응답의 대역(KAN-239 "‘OO’와 관련된 결과예요") — 인기 목록을 빌려 쓴다.
+ *                  오타 교정("대신 검색")은 시나리오와 무관하게 기본에서 돈다 — "커리오"(→커리어)·"뱅크론"(→뱅크런)으로 검증
  * - series-off     서버 스위치 `SERIES_EXPLORE_CARDS_ENABLED` 꺼짐의 대역 — 항목에 `type` 키가 없고 시리즈 편이 편마다 한 줄
  *                  (`content.series` 만 붙는다). 기본(켜짐)과 비교해 구버전 서버 모양에서도 깨지지 않는지 본다
  *
@@ -273,7 +275,9 @@ const itemsBySeqs = (seqs: number[]): ExploreItemDto[] =>
  */
 const POPULAR_SEQS: Record<ExplorePeriod, number[]> = {
   week: [116, 110, 3, 105, 8, 111, 1, 14],
-  month: [1, 104, 12, 105, 3, 116, 7, 110, 21, 9, 113, 5, 108, 2, 117, 11, 106, 18, 101, 24, 15, 112],
+  month: [
+    1, 104, 12, 105, 3, 116, 7, 110, 21, 9, 113, 5, 108, 2, 117, 11, 106, 18, 101, 24, 15, 112,
+  ],
   all: [
     ...Array.from({ length: 18 }, (_, i) => 101 + i),
     ...Array.from({ length: 25 }, (_, i) => i + 1),
@@ -305,7 +309,12 @@ export const mockFetchFeed = async (): Promise<ExploreFeedResponseDto> => {
       // 인기 목록 첫 페이지와 같은 자리 — 대표 카드 줄에 시리즈 카드가 섞인다
       items: popularEntries('month').slice(0, 6),
     },
-    { key: 'interest', title: '관심사에 맞는 추천', topic: null, items: itemsBySeqs([101, 2, 102, 5, 103, 8]) },
+    {
+      key: 'interest',
+      title: '관심사에 맞는 추천',
+      topic: null,
+      items: itemsBySeqs([101, 2, 102, 5, 103, 8]),
+    },
     {
       key: 'new',
       title: '새로 나온 콘텐츠',
@@ -449,9 +458,124 @@ const searchScore = (content: ExploreContentDto, query: string): number => {
   return score;
 };
 
+/* ── 오타 교정("대신 검색")의 대역 — 서버 `hangul_to_jamo` + `word_similarity`(KAN-238, explore.md 4.5-5) ── */
+
+const HANGUL_FIRST = 0xac00;
+const HANGUL_LAST = 0xd7a3;
+const CHOSEONG = [...'ㄱㄲㄴㄷㄸㄹㅁㅂㅃㅅㅆㅇㅈㅉㅊㅋㅌㅍㅎ'];
+const JUNGSEONG = [...'ㅏㅐㅑㅒㅓㅔㅕㅖㅗㅘㅙㅚㅛㅜㅝㅞㅟㅠㅡㅢㅣ'];
+const JONGSEONG = ['', ...'ㄱㄲㄳㄴㄵㄶㄷㄹㄺㄻㄼㄽㄾㄿㅀㅁㅂㅄㅅㅆㅇㅈㅊㅋㅌㅍㅎ'];
+
+/** 완성형 음절을 초·중·종성으로 푼다 — 겹모음·겹받침은 한 글자로 두는 단순화(서버는 치는 순서대로 더 푼다). 그 외 문자는 그대로 */
+const toJamo = (text: string): string =>
+  [...text]
+    .map((ch) => {
+      const code = ch.codePointAt(0) ?? 0;
+      if (code < HANGUL_FIRST || code > HANGUL_LAST) return ch;
+      const index = code - HANGUL_FIRST;
+      return (
+        CHOSEONG[Math.floor(index / 588)] +
+        JUNGSEONG[Math.floor((index % 588) / 28)] +
+        JONGSEONG[index % 28]
+      );
+    })
+    .join('');
+
+const trigramsOf = (text: string): Set<string> => {
+  const padded = `  ${text} `;
+  const grams = new Set<string>();
+  for (let i = 0; i + 3 <= padded.length; i += 1) grams.add(padded.slice(i, i + 3));
+  return grams;
+};
+
+/** `word_similarity(질의, 어휘)`의 대역 — 질의 트라이그램 중 어휘에 있는 비율 */
+const jamoWordSimilarity = (query: string, term: string): number => {
+  const q = trigramsOf(toJamo(query));
+  const t = trigramsOf(toJamo(term));
+  let hit = 0;
+  for (const gram of q) if (t.has(gram)) hit += 1;
+  return q.size === 0 ? 0 : hit / q.size;
+};
+
+/** 교정어 임계값 — 서버 소유 상수의 대역(시작 0.5) */
+const CORRECTION_THRESHOLD = 0.5;
+/** 제목 토큰 끝의 조사 — 어휘를 "커리어를"이 아니라 "커리어"로 만든다 */
+const TRAILING_PARTICLE = /(을|를|이|가|은|는|의|에|로|와|과|도)$/u;
+
+/**
+ * 교정어 어휘 — 태그·주제명·시리즈 제목(스위치 켜짐)·제목 토큰(조사 제거, 2자 이상). 앞 그룹이 깨끗한 명사라 동점에서 우선한다.
+ * 수백 편 규모라 질의 때마다 전수 비교해도 된다(서버도 같은 판단 — changes/pending/search-similar-fallback.md)
+ */
+const correctionVocabulary = (): { term: string; rank: number }[] => {
+  const seen = new Map<string, number>();
+  const add = (term: string, rank: number) => {
+    const normalized = normalizeForSearch(term.trim());
+    if (normalized.length < 2) return;
+    const prev = seen.get(normalized);
+    if (prev === undefined || rank < prev) seen.set(normalized, rank);
+  };
+  const contents = [...CONTENT_POOL, ...SERIES_EPISODES];
+  for (const content of contents) for (const tag of content.tags ?? []) add(tag, 0);
+  for (const topic of [...INTEREST_TOPICS, ...OTHER_TOPICS]) add(topic.name, 0);
+  if (IS_SERIES_CARDS_ENABLED) for (const series of MOCK_SERIES) add(series.title, 1);
+  for (const content of contents) {
+    for (const token of content.title.split(/[\s—\-·,.!?]+/u)) {
+      add(token.replace(TRAILING_PARTICLE, ''), 2);
+    }
+  }
+  return [...seen.entries()].map(([term, rank]) => ({ term, rank }));
+};
+
+/** 교정어 하나 — 임계값 이상 중 유사도 최대, 동점은 태그·주제명 우선. 원문과 같은 말은 교정어가 아니다 */
+const suggestCorrection = (query: string): string | null => {
+  let best: { term: string; rank: number; score: number } | null = null;
+  for (const entry of correctionVocabulary()) {
+    if (entry.term === query) continue;
+    const score = jamoWordSimilarity(query, entry.term);
+    if (score < CORRECTION_THRESHOLD) continue;
+    if (best === null || score > best.score || (score === best.score && entry.rank < best.rank)) {
+      best = { ...entry, score };
+    }
+  }
+  return best?.term ?? null;
+};
+
+/**
+ * 키워드 엔진의 후보 목록 — 시리즈는 편 단위로 걸고 카드 하나로 접는다(explore-api.md 4.1-1). 켜짐이면 시리즈 제목 일치도
+ * 든다(가중은 제목과 같다). 태그 전용 검색은 태그만 본다. 대역이라 맞는 시리즈는 결과 맨 앞에 둔다
+ */
+const keywordPool = (query: string, isTagMode: boolean): ExploreEntryDto[] => {
+  if (SCENARIO === 'empty') return [];
+  const matchedSeries = MOCK_SERIES.filter((series) => {
+    const episodes = SERIES_EPISODES.filter((c) => c.series?.id === series.id);
+    if (isTagMode) {
+      return episodes.some((c) => (c.tags ?? []).some((tag) => normalizeForSearch(tag) === query));
+    }
+    return (
+      (IS_SERIES_CARDS_ENABLED && normalizeForSearch(series.title).includes(query)) ||
+      episodes.some((c) => searchScore(c, query) > 0)
+    );
+  });
+  const contentPool = isTagMode
+    ? // 태그 전용 — 태그 항목과 정확히 같은 콘텐츠만(NFC + 소문자, 필드 가중 없음 — explore.md 4.5-5)
+      CONTENT_POOL.filter((content) =>
+        (content.tags ?? []).some((tag) => normalizeForSearch(tag) === query),
+      )
+    : CONTENT_POOL.map((content) => ({ content, score: searchScore(content, query) }))
+        .filter((entry) => entry.score > 0)
+        .sort((a, b) => b.score - a.score)
+        .map((entry) => entry.content);
+  return matchedSeries.reduce(
+    (entries, series) => withSeries(entries, series.id, 0),
+    contentPool.map(toItemDto) as ExploreEntryDto[],
+  );
+};
+
 export const mockFetchSearch = async (params: {
   query: string;
   cursor?: string;
+  /** 교정 끄기(KAN-239) — "혹시 ‘OO’로 검색하고 싶나요?" 탭 */
+  exact?: boolean;
 }): Promise<ExploreSearchResponseDto> => {
   await delay(RESPONSE_DELAY_MS);
 
@@ -485,40 +609,34 @@ export const mockFetchSearch = async (params: {
 
   const query = normalizeForSearch(term);
   /*
-   * 시리즈 — 편 단위로 걸고 카드 하나로 접는다(explore-api.md 4.1-1). 켜짐이면 시리즈 제목 일치도 든다(가중은 제목과 같다).
-   * 태그 전용 검색은 태그만 본다. 대역이라 맞는 시리즈는 결과 맨 앞에 둔다
+   * 흐름(explore.md 4.5-5 — KAN-238 대역): ① 키워드 → ② 키워드 0건이고 태그 전용·exact 가 아니면 교정어 → 교정어로 키워드
+   * 1건 이상일 때만 교정 적용(`query_used`·`corrected_from`). 의미 엔진은 임베딩이 없어 `search-related` 시나리오로만 흉내 낸다
    */
-  const matchedSeries =
-    SCENARIO === 'empty'
-      ? []
-      : MOCK_SERIES.filter((series) => {
-          const episodes = SERIES_EPISODES.filter((c) => c.series?.id === series.id);
-          if (isTagMode) {
-            return episodes.some((c) =>
-              (c.tags ?? []).some((tag) => normalizeForSearch(tag) === query),
-            );
-          }
-          return (
-            (IS_SERIES_CARDS_ENABLED && normalizeForSearch(series.title).includes(query)) ||
-            episodes.some((c) => searchScore(c, query) > 0)
-          );
-        });
-  const contentPool =
-    SCENARIO === 'empty'
-      ? []
-      : isTagMode
-        ? // 태그 전용 — 태그 항목과 정확히 같은 콘텐츠만(NFC + 소문자, 필드 가중 없음 — explore.md 4.5-5)
-          CONTENT_POOL.filter((content) =>
-            (content.tags ?? []).some((tag) => normalizeForSearch(tag) === query),
-          )
-        : CONTENT_POOL.map((content) => ({ content, score: searchScore(content, query) }))
-            .filter((entry) => entry.score > 0)
-            .sort((a, b) => b.score - a.score)
-            .map((entry) => entry.content);
-  const pool = matchedSeries.reduce(
-    (entries, series) => withSeries(entries, series.id, 0),
-    contentPool.map(toItemDto) as ExploreEntryDto[],
-  );
+  let queryUsed = query;
+  let correctedFrom: string | null = null;
+  let pool = keywordPool(query, isTagMode);
+  if (pool.length === 0 && !isTagMode && !params.exact) {
+    const corrected = suggestCorrection(query);
+    const correctedPool = corrected === null ? [] : keywordPool(corrected, false);
+    if (corrected !== null && correctedPool.length > 0) {
+      queryUsed = corrected;
+      correctedFrom = query;
+      pool = correctedPool;
+    }
+  }
+  const engines: ExploreSearchResponseDto['engines'] = isTagMode
+    ? ['keyword']
+    : ['keyword', 'semantic'];
+  let match: ExploreSearchResponseDto['match'] = 'keyword';
+  if (pool.length > 0) {
+    pool = pool.map((entry) => ({ ...entry, matched_by: ['keyword'] }));
+  } else if (!isTagMode && SCENARIO === 'search-related') {
+    // 의미 유사 결과만 있는 응답의 대역 — "‘OO’와 관련된 결과예요"(KAN-239) 검증용. 인기 목록을 의미 결과로 빌려 쓴다
+    pool = popularEntries('month')
+      .slice(0, 5)
+      .map((entry) => ({ ...entry, matched_by: ['semantic'] }));
+    match = 'related';
+  }
 
   // 빈 결과 — 같은 응답에 fallback을 싣는다(explore-api.md 4.5). 관련 주제·인기 목록은 대역 값이다
   if (pool.length === 0) {
@@ -532,6 +650,10 @@ export const mockFetchSearch = async (params: {
         // fallback 인기 목록도 같은 규칙으로 접힌다 — 시리즈 카드가 섞인다(explore-api.md 4.1-1)
         popular_items: isEmptyPool ? [] : popularEntries('month').slice(0, 5),
       },
+      query_used: queryUsed,
+      corrected_from: null,
+      match: 'keyword',
+      engines,
     };
   }
 
@@ -557,6 +679,11 @@ export const mockFetchSearch = async (params: {
     next_cursor: hasNext ? entryCursorKey(page[page.length - 1]) : null,
     has_next: hasNext,
     fallback: null,
+    // KAN-238 필드 — 응답마다 반복한다(커서 페이지도 같은 교정어)
+    query_used: queryUsed,
+    corrected_from: correctedFrom,
+    match,
+    engines,
   };
 };
 

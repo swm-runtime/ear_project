@@ -6,6 +6,8 @@ import { useExploreSearchScreen, type ExploreSearchEmbedding } from './useExplor
 
 const mockAddRecentSearch = jest.fn((query: string) => Promise.resolve([query]));
 const mockSearchQueryArgs: (string | null)[] = [];
+/** (query, exact) 쌍 — 교정 끄기(KAN-239) 검증용 */
+const mockSearchQueryCalls: [string | null, boolean][] = [];
 let mockRouteParams: { initialQuery?: string } | undefined;
 
 jest.mock('@react-navigation/native', () => ({
@@ -38,8 +40,9 @@ jest.mock('@/features/share', () => ({
 }));
 jest.mock('../api/explore.api', () => ({ exploreKeys: { all: ['explore'] } }));
 jest.mock('./useExploreSearchQuery', () => ({
-  useExploreSearchQuery: (query: string | null) => {
+  useExploreSearchQuery: (query: string | null, exact = false) => {
     mockSearchQueryArgs.push(query);
+    mockSearchQueryCalls.push([query, exact]);
     return {
       data: undefined,
       error: null,
@@ -100,6 +103,7 @@ const render = async (element: ReactNode) => {
 beforeEach(() => {
   jest.clearAllMocks();
   mockSearchQueryArgs.length = 0;
+  mockSearchQueryCalls.length = 0;
   mockRouteParams = undefined;
 });
 afterEach(() => {
@@ -223,5 +227,61 @@ describe('useExploreSearchScreen — 태그 검색(KAN-219)', () => {
       expect(screen.showEmptyPrompt).toBe(false);
       jest.useRealTimers();
     });
+  });
+});
+
+describe('useExploreSearchScreen — 교정 끄기(KAN-239 "혹시 ‘OO’로 검색하고 싶나요?")', () => {
+  /** 훅이 쿼리 훅에 넘긴 (query, exact) 쌍 — 모듈 mock 이 쌓는다 */
+  const lastSearchArgs = () => mockSearchQueryCalls[mockSearchQueryCalls.length - 1];
+
+  it('탭하면 같은 질의를 exact=true 로 다시 받고, 원문을 최근 검색어에 저장한다', async () => {
+    // given
+    await render(<Probe embedding={embeddingWith({ query: '커리오', id: 1 })} />);
+    expect(lastSearchArgs()).toEqual(['커리오', false]);
+    mockAddRecentSearch.mockClear();
+
+    // when
+    await act(async () => {
+      screen.searchInsteadExact();
+    });
+
+    // then
+    expect(lastSearchArgs()).toEqual(['커리오', true]);
+    expect(mockAddRecentSearch).toHaveBeenCalledWith('커리오');
+  });
+
+  it('검색어를 고쳐 치면 exact 가 false 로 돌아간다 — 새 말은 다시 교정 대상이다', async () => {
+    // given
+    jest.useFakeTimers();
+    await render(<Probe embedding={embeddingWith({ query: '커리오', id: 1 })} />);
+    await act(async () => {
+      screen.searchInsteadExact();
+    });
+    expect(lastSearchArgs()).toEqual(['커리오', true]);
+
+    // when
+    await act(async () => {
+      screen.handleChangeText('면졉');
+      jest.advanceTimersByTime(300);
+    });
+
+    // then
+    expect(lastSearchArgs()).toEqual(['면졉', false]);
+    jest.useRealTimers();
+  });
+
+  it('초기 화면(질의 없음)에서는 아무 일도 하지 않는다', async () => {
+    // given
+    await render(<Probe embedding={embeddingWith(null)} />);
+    mockAddRecentSearch.mockClear();
+
+    // when
+    await act(async () => {
+      screen.searchInsteadExact();
+    });
+
+    // then
+    expect(mockAddRecentSearch).not.toHaveBeenCalled();
+    expect(lastSearchArgs()).toEqual([null, false]);
   });
 });

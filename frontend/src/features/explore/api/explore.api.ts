@@ -49,8 +49,7 @@ import {
 export const exploreKeys = {
   all: ['explore'] as const,
   feed: () => [...exploreKeys.all, 'feed'] as const,
-  contents: (topicIds: string[]) =>
-    [...exploreKeys.all, 'contents', [...topicIds].sort()] as const,
+  contents: (topicIds: string[]) => [...exploreKeys.all, 'contents', [...topicIds].sort()] as const,
   /** 구간별로 키가 갈린다 — 커서가 구간을 넘어 이어지지 않게 하는 구조적 방어다(explore-api.md 4.2-1) */
   popular: (period: ExplorePeriod | null) => [...exploreKeys.all, 'popular', period] as const,
   topics: () => [...exploreKeys.all, 'topics'] as const,
@@ -58,7 +57,8 @@ export const exploreKeys = {
    * 질의별로 키가 갈린다 — 연속 입력 중 늦게 도착한 이전 질의 응답이 최신 질의 화면을
    * 덮지 못하게 하는 구조적 방어다(explore.md 4.5-2). 화면은 현재 질의의 키만 구독한다.
    */
-  search: (query: string) => [...exploreKeys.all, 'search', query] as const,
+  search: (query: string, exact = false) =>
+    [...exploreKeys.all, 'search', query, exact ? 'exact' : 'corrected'] as const,
   /**
    * 시리즈 화면(explore-api.md 4.7) — explore 아래에 둔다: 탐색의 재생·담기 뒤 `exploreKeys.all` 무효화가 시리즈 화면의
    * 편 상태(담음·완청·재생 위치)도 함께 최신화한다
@@ -120,10 +120,18 @@ const toExploreSeriesItem = (dto: ExploreSeriesCardDto): ExploreEntry => ({
  */
 export const toExploreEntry = (dto: ExploreEntryDto): ExploreEntry | null => {
   const type: unknown = (dto as { type?: unknown }).type;
-  if (type === undefined || type === 'content') return toExploreItem(dto as ExploreItemDto);
-  if (type === 'series') return toExploreSeriesItem(dto as ExploreSeriesCardDto);
-  logger.debug('[explore] unknown entry type skipped', type);
-  return null;
+  const entry =
+    type === undefined || type === 'content'
+      ? toExploreItem(dto as ExploreItemDto)
+      : type === 'series'
+        ? toExploreSeriesItem(dto as ExploreSeriesCardDto)
+        : null;
+  if (entry === null) {
+    logger.debug('[explore] unknown entry type skipped', type);
+    return null;
+  }
+  // 검색 응답의 엔진 표시(KAN-238) — 있을 때만 붙인다. 피드·주제별·인기 행에는 키 자체가 없다
+  return dto.matched_by ? { ...entry, matchedBy: dto.matched_by } : entry;
 };
 
 const toExploreEntries = (dtos: ExploreEntryDto[]): ExploreEntry[] =>
@@ -174,6 +182,10 @@ const toContentsPage = (dto: ExploreContentsResponseDto): ExploreContentsPage =>
   playLimit: toPlayLimitSnapshot(dto),
 });
 
+/**
+ * 검색 페이지 — KAN-238 필드(`query_used`·`corrected_from`·`match`·`engines`·행의 `matched_by`)는 옛 서버가 보내지 않는다.
+ * 없으면 "교정 없음·키워드 결과"로 읽어 종전 화면과 같게 그린다(explore-api.md 4.5 — 덧붙이는 필드만, 옛 앱·옛 서버 호환)
+ */
 const toSearchPage = (dto: ExploreSearchResponseDto): ExploreSearchPage => ({
   items: toExploreEntries(dto.items),
   nextCursor: dto.next_cursor,
@@ -184,6 +196,10 @@ const toSearchPage = (dto: ExploreSearchResponseDto): ExploreSearchPage => ({
         popularItems: toExploreEntries(dto.fallback.popular_items),
       }
     : null,
+  queryUsed: dto.query_used ?? null,
+  correctedFrom: dto.corrected_from ?? null,
+  match: dto.match ?? 'keyword',
+  engines: dto.engines ?? [],
 });
 
 const toPopularPage = (dto: ExplorePopularResponseDto): ExplorePopularPage => ({
@@ -255,12 +271,15 @@ export const fetchExploreTopics = async (): Promise<ExploreTopic[]> => {
 export const fetchExploreSearch = async (input: {
   query: string;
   cursor?: string;
+  /** 교정 끄기(KAN-239 "혹시 ‘OO’로 검색하고 싶나요?") — false 면 파라미터를 보내지 않는다(옛 서버에 모르는 키를 보내지 않게) */
+  exact?: boolean;
 }): Promise<ExploreSearchPage> => {
   const params: Record<string, string> = { query: input.query };
   if (input.cursor !== undefined) params.cursor = input.cursor;
+  if (input.exact) params.exact = 'true';
 
   const data = IS_EXPLORE_API_MOCKED
-    ? await mockFetchSearch({ query: input.query, cursor: input.cursor })
+    ? await mockFetchSearch({ query: input.query, cursor: input.cursor, exact: input.exact })
     : (await apiClient.get<ExploreSearchResponseDto>('/explore/search', { params })).data;
   return toSearchPage(data);
 };
@@ -286,9 +305,8 @@ export const saveContent = async (input: {
   track('content_save', { content_id: input.contentId, entry: body.reason });
   const data = IS_EXPLORE_API_MOCKED
     ? await mockSaveContent(input.contentId, body)
-    : (
-        await apiClient.post<SaveContentResponseDto>(`/contents/${input.contentId}/save`, body)
-      ).data;
+    : (await apiClient.post<SaveContentResponseDto>(`/contents/${input.contentId}/save`, body))
+        .data;
   return {
     clientSeq: data.client_seq,
     // 버튼 전환·삭제 호출 재료 — 상세 화면이 응답의 library_item.id를 보관한다(content-detail-api.md 4.2)
