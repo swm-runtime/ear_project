@@ -6,13 +6,14 @@ import { selectTab } from '@/shared/navigation/tab-selection.store';
 import { theme } from '@/shared/theme';
 
 import { useSessionStore } from '@/features/auth';
-import { ExploreScreen } from '@/features/explore';
 import { LibraryScreen, useLibraryArrivalBadge } from '@/features/library';
 import { MiniPlayer, useIsMiniPlayerVisible } from '@/features/player';
 import { ProfileScreen } from '@/features/profile';
 
+import ExploreStack from './ExploreStack';
 import { rememberTab, takePrimedTab, type RestorableTab } from './last-tab';
 import NativeNoticeDock from './NativeNoticeDock';
+import { TRANSPARENT_BAR } from './transparent-bar';
 import type { MainTabParamList } from './types';
 
 const NativeTab = createNativeBottomTabNavigator<MainTabParamList>();
@@ -21,18 +22,6 @@ const NativeTab = createNativeBottomTabNavigator<MainTabParamList>();
 const ko = { library: '라이브러리', explore: '탐색', profile: '프로필' } as const;
 const en: LocalizedCopy<typeof ko> = { library: 'Library', explore: 'Explore', profile: 'Profile' };
 const COPY = localized({ ko, en });
-
-/**
- * **투명 시스템 바** — 스크롤하면 바 밑 블러를 시스템 scroll edge effect 가 그린다(PM 2026-09-28 01:40 "애플에서 기본적으로
- * 제공하는거로" — 그리던 서리 띠 NativeBarBlurBand 는 걷었다). 큰 제목·오른쪽 캡슐은 화면이
- * `useSystemLargeTitle` 로 건다(iOS 26 .inline — 큰 제목과 바 버튼이 같은 줄, 09-28)
- */
-const TRANSPARENT_BAR = {
-  headerShown: true,
-  headerTransparent: true,
-  headerShadowVisible: false,
-  title: '',
-} as const;
 
 /**
  * 하단 탭 — **iOS 26 시스템 탭 바**(`UITabBarController`, react-native-screens BottomTabs). JS 캡슐(CapsuleTabBar)
@@ -114,16 +103,16 @@ export default function NativeMainTabs() {
           콘텐츠와 같이 스크롤. 검색 탭(탭 바 옆 검색 원, #730)은 뺐다 — 입구가 둘이라(PM 09-26 01:20) */}
       <NativeTab.Screen
         name="Explore"
-        // 탭에 화면을 바로 붙인다(종전 ExploreStack) — 안에 스택이 한 겹 더 있으면 늦게 뜨는 피드 목록을 시스템 바가 못 붙잡아
-        // 큰 제목이 안 접혔다(PM 2026-09-28 05:35 "탐색은 왜 안 돼" — 라이브러리는 됨). 검색은 제자리 덮개라 스택이 필요 없다
-        component={ExploreScreen}
+        // 탭 안 스택(ExploreStack) — 시리즈 화면을 탭 안에서 열어 탭 바·미니플레이어가 남는다(PM 2026-10-22).
+        // 바는 탭이 아니라 스택의 홈 화면이 든다 — 탭이 들면 스택 한 겹 너머의 피드 목록을 못 붙잡아 큰 제목이 안 접혔다
+        // (2026-09-28 b020d5f6 에 스택을 걷어낸 이유). 검색은 여전히 제자리 덮개다
+        component={ExploreStack}
         options={{
           tabBarLabel: COPY.explore,
           tabBarIcon: ({ focused }) => ({
             type: 'sfSymbol',
             name: focused ? 'safari.fill' : 'safari',
           }),
-          ...TRANSPARENT_BAR,
         }}
       />
       <NativeTab.Screen

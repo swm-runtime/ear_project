@@ -18,7 +18,7 @@ import {
 } from '@/features/auth';
 import { CareerInfoScreen } from '@/features/career';
 import { ContentDetailScreen } from '@/features/content-detail';
-import { ExploreScreen, ExploreSearchScreen, SeriesScreen } from '@/features/explore';
+import { ExploreSearchScreen, SeriesScreen } from '@/features/explore';
 import { InterestManagementScreen } from '@/features/interest';
 import {
   DripFeedbackPrompt,
@@ -41,6 +41,7 @@ import { useShareLinkLanding } from '@/features/share';
 import { InviteCodeScreen, SubscriptionScreen } from '@/features/subscription';
 
 import CapsuleTabBar from './CapsuleTabBar';
+import ExploreStack from './ExploreStack';
 import { rememberTab, takePrimedTab, type RestorableTab } from './last-tab';
 import { isDripFeedbackPromptReady, isSignupTrialNoticeReady } from './launch-dialog-gate';
 import NativeMainTabs from './NativeMainTabs';
@@ -113,7 +114,8 @@ function MainTabs() {
       />
       <MainTab.Screen
         name="Explore"
-        component={ExploreScreen}
+        // 탭 안 스택 — 시리즈 화면을 탭 안에서 열어 캡슐 독(탭 바 + 미니플레이어)이 남는다(PM 2026-10-22)
+        component={ExploreStack}
         options={{
           tabBarLabel: COPY.explore,
         }}
@@ -193,8 +195,8 @@ export default function MainNavigator() {
           component={ExploreSearchScreen}
           options={{ animation: 'none' }}
         />
-        {/* 시리즈 화면(E14, KAN-225) — 앱바(뒤로 + "시리즈")를 화면이 직접 그린다(콘텐츠 상세와 같은 문법).
-          explore 의 카드·content-detail 의 시리즈 줄은 라우트 이름으로만 이동한다(화면 등록은 여기 — 역방향 의존 없음) */}
+        {/* 시리즈 화면(E14, KAN-225) — 탐색에서는 탭 안 스택(ExploreStack)의 같은 이름 화면이 열린다(독·미니플레이어 유지).
+          여기 등록은 탭 위에서 여는 경로용이다 — 콘텐츠 상세의 시리즈 줄(상세가 이미 탭 위라 그 위에 쌓인다) */}
         <MainStack.Screen name="Series" component={SeriesScreen} />
         {/* 설정 — 앱바(뒤로 + "설정")를 화면이 직접 그린다(settings-uiux.md 4.1) */}
         {/* 설정 — iOS 26: 시스템 투명 바(뒤로만) + 콘텐츠 큰 제목(PUSHED_SCREEN_HEADER). 그 외: 화면이 앱바를 그린다 */}

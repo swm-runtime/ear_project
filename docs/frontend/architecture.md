@@ -396,7 +396,7 @@ RootStack
 ├── OnboardingStack               # 주제 → 커리어 → 완료 대기 → 완료(담기 단계는 2026-10-11 뺐다)
 ├── MainTab                       # 하단 탭 3개
 │   ├── LibraryStack
-│   ├── ExploreStack
+│   ├── ExploreStack              # 탐색 홈 → 시리즈(E14) — 독·미니플레이어 유지(2026-10-22). 큰 제목 바는 스택의 홈이 든다
 │   └── ProfileStack              # 프로필 → 설정(우상단 아이콘) → 하위 화면
 ├── PlayerModal                   # 플레이어 (탭 위 풀스크린 모달)
 └── (전역 오버레이) MiniPlayer · PaywallBottomSheet · Toast/Snackbar
