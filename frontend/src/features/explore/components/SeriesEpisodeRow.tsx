@@ -69,7 +69,7 @@ export default function SeriesEpisodeRow({
           <Text style={styles.number}>{episode.episodeNo}</Text>
         </View>
         <View style={styles.info}>
-          <Text style={[styles.title, isNowPlaying && styles.titleNowPlaying]} numberOfLines={2}>
+          <Text style={[styles.title, isNowPlaying && styles.titleNowPlaying]} numberOfLines={1}>
             {title}
           </Text>
           <Text style={styles.meta} numberOfLines={1}>
