@@ -71,7 +71,7 @@ export interface ExploreSeries {
   /** 지금 사용자 시장에 노출 중인 편 수 — 진행 중 시리즈면 totalEpisodes 보다 적다 */
   episodeCount: number;
   status: ExploreSeriesStatus;
-  /** 표지 = 노출 중인 가장 앞 편(보통 1화)의 썸네일. 따로 표지가 없다(KAN-225 결정) */
+  /** 표지 = 시리즈 표지(관리자가 올린 것)가 있으면 그것, 없으면 노출 중인 가장 앞 편(보통 1화)의 썸네일(KAN-234) */
   thumbnailUrl: string;
   /** 노출 중인 편들의 주제 합집합(처음 나온 순서) — 필터와 무관한 시리즈 전체 값이다 */
   topicIds: string[];
