@@ -69,6 +69,13 @@ function candidateAxisBlockEn(c: BacklogCandidate): string {
 
 // ── 1단계 설계 ────────────────────────────────────────────────────────────────
 
+/** 설계가 읽는 대본 규칙 (full-en-v0.21) — 기획에 쓰는 절만 넘긴다. 대화·구어·형식·출력 전 점검은 대본 단계 몫이다 */
+export const planGuidelinesEn = (g: string): string => {
+  const drop = /^## (?:Dialogue|Spoken English|Length and format|Before output)\b/;
+  let skip = false;
+  return g.split("\n").filter((l) => { if (/^## /.test(l)) skip = drop.test(l); return !skip; }).join("\n").trim();
+};
+
 export function buildDesignPromptInlinePartsEn(i: DesignInlineInput): PromptParts {
   const history = isHistoryCandidateEn(i.candidate);
   const explainer = explainerEn();
@@ -89,41 +96,26 @@ There are no tools. All source text is in the next message with paragraph IDs. D
 Sources may be in Korean or English. Write everything you produce in English.
 
 ## 1. Script rules (plan so the script can follow them)
-${fence(i.guidelines)}
+${fence(planGuidelinesEn(i.guidelines))}
 
 ## 2. Output fields
 
 ### a) excerpt_ids
-- 10 to 20 paragraph IDs per source: main claims, numbers and how they were gathered, concrete cases, the author's limits and caveats, practices. Missing material costs more than extra material.
-- Every ID a claim cites must be in excerpt_ids.
-- gists: three lines per source, in English. Add nothing the excerpts do not say.
-- Exclude sources with no or too little text and give the reason in sources_excluded. Keep at least three sources. If fewer remain, do not build an outline; say so in notes.
+- 10 to 20 paragraph IDs per source: main claims, numbers, cases, practices, and the author's limits. Missing material costs more than extra material.
+- Every ID a claim cites is in excerpt_ids. gists: three English lines per source, adding nothing.
+- Exclude a source with too little text and give the reason in sources_excluded. Keep at least three sources; if fewer remain, do not build an outline and say so in notes.
 
 ### b) claims
-- Each claim: id (C01…) · text (one English sentence) · excerpt_ids · type (number, quote, name, cause, definition, practice) · section (the Body section that uses it; claims from one source may go to different sections) · notable (true only for people or institutions a general listener knows by name) · opinion (true for a person's opinion, interpretation, or forecast, or a contested or interested claim).
-- A claim is never more specific than its excerpt. Keep the excerpt's hedges and the subject it attributes to. For a Korean excerpt, translate the meaning exactly; do not add or soften.
-- Keep every condition the excerpt attaches: who says it, to whom, where, when (before or after which event), and which meanings it covers. When one condition covers several meanings, say so in each claim that states a meaning. Keep a named set as named; do not widen it into a general category.
-- Keep each condition on the thing it describes. When an excerpt says one thing varies but another stays fixed, the claim keeps that contrast.
-- Keep the excerpt's quantifiers (some, many, most, a few) and the subject it gives a practice. A practice of one named person stays that person's; claims from one excerpt use the same subject.
-- When a Korean excerpt describes a whole place or group with a modifier, the claim keeps it describing the whole; do not turn it into a subset.
-- A definition claim keeps who uses the term and how widely. An event at a specific time keeps its time and the past tense. A practice the excerpt places in the past stays in the past tense; a current practice is in the present tense.
-- The subject of a claim is the practice, the people who do it, or the thing. Never make the source, its writer, or its year the subject ("The 2026 description says"). An opinion claim states the view itself and sets opinion to true.
-- Write a guide's or a rule's instruction ("should", "are instructed to", "are required to") as advice: who it is for (learners, visitors, newcomers) and what it advises ("Beginners are advised to …"). Do not turn advice into what people do. A rule or schedule for one year or one event keeps that year as a condition. A scene the excerpt says happens every year is a practice, not a single event.
-- Write each claim in plain spoken English. Do not copy a word-for-word noun phrase from a Korean excerpt.
-- Keep the excerpt's evaluation of a number, such as a large or small change. A list the excerpt marks as partial stays partial in the claim.
-- Keep in the claims the Korean words, the scope, and the differences by region, age, family, or setting that the excerpts give. Do not drop them to save space.
-- Do not define a term the excerpts do not define. Leave its meaning out of the claims.
-- For a Korean word, keep in the claims whether the excerpt calls it casual or polite and who uses it.
-- In a Korean Language episode, keep one example phrase per featured word from the excerpts as a claim of type quote: the phrase romanized, its meaning, and its speech level read from the Hangul ending (casual, polite with -yo, or formal with -seumnida). Say when the phrase is a dictionary form ending in -da. Add who says it to whom only when the excerpt says so; otherwise leave the relationship out of the claim. An example sentence from a dictionary or learning guide is allowed; a line from a drama, song, or show is not.
-- Romanize Korean words with Revised Romanization, even when an excerpt spells them another way. Names of people, groups, companies, and works keep their official English spelling.
-- A person known to the public by name appears only through verifiable public facts. Do not make a claim from rumor, private life, or controversy. A person not known to the public is a case: name them in claims by what they do or who they are (a park ranger, a mother), never by name. Leave their health, mental state, and family circumstances out of the claims. Never give a person a gender, age, or nationality the excerpt does not state; use their role. Korean has no gendered pronoun: when a Korean excerpt does not name a person's gender, write the person by role or "they", never he or she. Name a case person by the role the story needs; leave out a job or a home town the point does not need.
-- When a case or scene has short words people say, keep those words as a claim of type quote, as the excerpt has them.
-- When an excerpt tells a person's own words, memory, or experience, keep it as a case or quote claim with that person. Do not turn it into a summary claim without the person.
-- The subject of a claim is never a survey, an assessment, a critique, or survey respondents. State what people do, or state the view itself with opinion set to true.
-- A survey or study result keeps who was surveyed or studied as a condition (which group, where, how many in plain words). Do not state it as a fact about everyone. One person's experience stays that person's.
-- When an excerpt says something about Korea in contrast with another country or medium ("in Korea, unlike …", "Korean dramas, compared with American TV"), keep that contrast in the claim. Without it the claim becomes a general statement about everyone.
-- At most one third of the claims are opinions. Prefer excerpts that state practices, causes, and what people do. If opinions would still be more than one third, do not build an outline; say so in notes.
-- Keep scope words such as especially, mainly, and only. Keep every item of a named set; a plainer word replaces a word, it does not drop an item.
+- Each claim: id (C01…) · text (one plain spoken English sentence) · excerpt_ids · type (number, quote, name, cause, definition, practice) · section (the Body section that uses it) · notable (true only for people or institutions a general listener knows by name) · opinion (true for an opinion, interpretation, forecast, or contested or interested claim).
+- A claim is never more specific, stronger, or broader than its excerpt. Translate a Korean excerpt's meaning exactly; do not copy a word-for-word noun phrase.
+- Keep every condition, on the thing it describes: who says it, to whom, where, when (before or after which event, for which year), and which meanings it covers. Keep quantifiers and scope words (some, most, a few, only, especially, mainly), a whole place or group as whole, every item of a named set, a partial list as partial, and the excerpt's evaluation of a number. When an excerpt says something about Korea in contrast with another country or medium, keep that contrast in the claim.
+- Keep the subject. A practice of one person stays that person's. A survey result keeps who was surveyed. One person's words, memory, or experience stays a case or quote claim with that person. The subject is never the source, its writer, its year, a survey, or respondents.
+- An opinion claim states the view itself, keeps who holds it by role (a producer, many parents), and sets opinion to true. At most one third of the claims are opinions; if more, do not build an outline and say so in notes.
+- A guide's or rule's instruction stays advice: who it is for and what it advises ("Beginners are advised to …"). A past practice stays in the past tense, a current one in the present. An event at a specific time keeps its time; a scene that happens every year is a practice.
+- When a case or scene has short words people say, keep them as a quote claim.
+- Keep the Korean words, regional, age, and family differences, and whether a word is casual or polite and who uses it. Do not define a term the excerpts do not define. Romanize with Revised Romanization; names of people, groups, companies, and works keep their official English spelling.
+- In a Korean Language episode, keep one example phrase per featured word as a quote claim: romanized, its meaning, and its speech level from the Hangul ending (casual, polite with -yo, formal with -seumnida), and say when it is a dictionary form ending in -da. Add who says it to whom only when the excerpt says so. Never a line from a drama, song, or show.
+- People: a public figure only through verifiable public facts, never rumor or private life. A private person is a case named by role, never by name, without health, mental state, or family details. Never give a person a gender, age, or nationality the excerpt does not state. Korean has no gendered pronoun: when a Korean excerpt does not name a gender, write the role or "they".
 - Links between sources are not claims; put them in the outline's links list.
 
 ### c) outline_md — the contract for the script stage. Use exactly this format:
@@ -133,13 +125,13 @@ ${fence(i.guidelines)}
 Axis: [question|contrast|paradox|redefinition${history ? "|event" : ""}] one sentence
 Axis note: why a newcomer wants this answered, two lines
 Familiar picture: what a listener abroad already pictures or assumes about this topic, in plain words
-Terms: each place, object, or role the episode names often — the one plain English name the script uses for it, as a name only, with no explanation; a place, including a village, town, county, or city, is its romanized name followed by what it is (Bukhansan Mountain, Baegundae Peak, Gochang County); a place with an established English name (Seoul, Busan, Jeju) keeps that name alone; leave out common English words
+Terms: each place, object, or role the episode names often, as the one plain English name the script uses, with no explanation; a place is its romanized name plus what it is (Gochang County), or its established English name (Seoul); no common English words
 Landing section: #n — where the axis is proven
-Axis answer: C04, C11 — 2 to 3 claims that answer the axis question together: the causes, reasons, or views that say why
+Axis answer: C04, C11 — 2 to 3 claims that answer the axis question together
 Estimated length: n min
 
 Roles
-- Axis source: S? (the source whose text answers the axis question most directly, or "none"; a survey or statistics source is never the axis source)
+- Axis source: S? (the source whose text answers the axis question most directly, never a survey or statistics source; or "none")
 - Section order: one line on why #1 to #n are steps toward the axis
 - Cases: S?
 - Practice: S?
@@ -153,9 +145,9 @@ Section #1 — Title
   Question: the sub-question of the axis this section answers
   Material: C01, C03 (S1) · C07 (S3)
   Host question: one question built only from earlier sections, or "the explainer opens"
-  Opens with: the situation or question that opens the section — never its answer, never the source's name
-  Scene: one concrete moment from a claim that has a person, a place, and an action, plus one detail from the claims (words said, an object, a sound), from C##, in the claim's words with its conditions (whose, who, where); or "none"
-  Insider detail: the Korean name people use for the thing, an everyday practice, or how people around them do it, from C##; never a source name; or "none"
+  Opens with: the situation or question that opens the section, never its answer or a source
+  Scene: one moment from C## with a person, a place, an action, and one detail (words said, an object, a sound), in the claim's words and conditions; or "none"
+  Insider detail: the Korean name people use, an everyday practice, or how people around them do it, from C##; or "none"
   Transition: one device, different from the previous section
   Ratio: n%
 Section #2 — …
@@ -163,34 +155,25 @@ Section #2 — …
 Links and metaphors (made by the script, not facts)
 - "X carried over to Y" — based on C##, in section #n
 
-Closing line: one sentence with the answer to the axis question and its reason, resting on the Axis answer claims and keeping their words and conditions; when the sections give several reasons, the one idea the Axis answer claims state together (axis_answer_idea); never a list of reasons, never a conclusion that merges different cases or sources; when an Axis answer claim is a view, that view as the answer; never one section's reason as the only cause, never a list of the sections, never three items joined by "and"
+Closing line: one sentence giving the one idea the Axis answer claims state together (axis_answer_idea) and its reason, in their words and conditions; a view stays a view; never a list of reasons or sections, never one section's reason as the only cause
 \`\`\`
 Planning rules:
-- Build the answer first. Find the passages that answer the axis question itself: the causes, reasons, and views that say why. Take them from the source that answers the question most directly; that source is the axis source. A survey or statistics source supports a section; it never carries the answer. List 2 to 3 of these claims on the Axis answer line and in axis_answer_claims: claims that join into one idea, not a list of separate reasons. Choose causes and practices first; at most one of them is an opinion. Write in axis_answer_idea the one idea these claims state together, in their words. If the claims you can choose do not state one idea together, choose other Axis answer claims that do; never join different cases into an idea no claim states. Every section that holds them uses them, and the Closing line rests on them. When one of them is a view, the Closing line gives that view as the answer; do not leave it at the end of a section.
-- Moments. List in moment_claims the claims that hold a person's own words, memory, or experience, or a concrete moment with a person, a place, and an action. A moment has a place or words someone says; a memory with neither is not a moment. A general custom is not a moment.
-- **Material check.** If no passage answers the axis question, if the Axis answer claims do not state one idea together (axis_answer_idea empty), or if no claim holds a moment (except in a Korean Language episode), do not build an outline. For a drama or film topic, at least one moment must describe a specific scene on screen (screen_scene_claims); a moment from life off screen does not count. Leave outline_md empty and say in notes which is missing.
-- The axis is a question a newcomer asks about the practice ("Why do people in Korea …?"; a "how" question belongs to a section, not the axis), a contrast ("A, yet B"), a paradox ("trying A leads to B"), or a redefinition ("A is really B")${history ? ", or, in history mode, an event" : ""}. Keep the backlog's form. "What is X" is not an axis. ear introduces Korean culture: the episode shows how the practice works, who does it, and why.
-- Sections are steps of the axis, not the order of a source. For a question axis, the sections are steps of the answer: each section gives one part of the reason, starting in #1. The order in which a practice happens belongs inside a section or to a "how" sub-question, never to the section order. Every section answers part of the axis question. Do not plan a separate section for a reality check, reactions abroad, or a debate; a limit or disagreement goes in one or two sentences at the end of the section it qualifies. Give each section the claims that answer its question, from any source; a section usually draws on two or more sources. Do not build a section from one source alone when another source has claims for its question. Drop a source that answers no sub-question of the axis. A result or side effect, such as an environmental cost, goes in one or two sentences at the end of the section it follows, not in a section of its own. Never plan a section that walks through a recipe or a procedure step by step; a procedure is one or two sentences inside the section whose question it answers. A survey from outside Korea supports at most one section and is never its main material.
-- A list topic keeps its list: sections may follow the items or groups of items, and each section still answers a sub-question of the axis. The count in the title matches the items the material supports.
-- Three to five Body sections. Fewer, fuller sections are better than many thin ones. The Opening is not a section.
-- Plan scenes. Select excerpts with cases and practices so scenes are possible, and aim for a Scene in at least half of the Body sections. Build a Scene only from a claim with a person, a place, and a moment that carries words said, an object, or a sound. A person named only by name, age, or place in a report is not a scene. A general custom, a procedure, or a possible mistake is not a scene. Prefer a moment with words people say. For a drama or film topic, select excerpts that describe one specific moment: who, what they do, an object, or a sound; the scene is told without the drama's lines. For a drama or film topic, the practice role is the screen convention and how viewers in Korea talk about it; do not fill it with a custom off screen. When no claim has such a moment, write "none". Do not plan an imagined listener, viewer, visitor, or family as a scene.
-- Plan the insider. The explainer is a calm Korean insider. Give each section an Insider detail when the material has one: the Korean name people use, an everyday practice, or how people around them do it. Take it from claims and add any Korean term to pronunciations.
-- Name the Familiar picture so the Opening can start from it: one thing any listener abroad already knows, in plain words, not a detail of the practice. The episode then explains or changes that picture.
-- Do not let source order become the episode. If every section uses one source in the order the sources are listed, rebuild the order around the steps of the axis. A section opens on its scene, a detail, or the host's question. Sources are not named in lines; the app lists them.
-- A redefinition axis needs the members of the category heard: assign claims that name the kinds, forms, or examples, not only a single figure about one of them.
-- Plan a limitation or a disagreement only when the claims state one, once, in the section where it applies. Do not add doubt the sources do not have.
-- The axis, the Scene lines, and the Closing line keep the words and conditions of the claims they rest on: whose event it is, who takes part, and words such as only or close. Do not widen them into plainer, broader words. The Closing line's reason is a cause a claim states; do not repeat a reason the Opening or #1 already gave as the only reason.
-- The landing section holds only material that answers the axis question. Side material that does not answer it, such as gifts, goes to another section or is left out.
-- Write the axis, the questions, and the Closing line in plain spoken words a second-language listener knows. Avoid abstract nouns such as care, viewpoint, role, or preparation unless the section explains them; the script reuses these lines.
-- The Host question uses only what came before; it never contains the section's new case, number, or result. Never ask about methods, samples, or limits.
-- Estimated length comes from the material: 5 minutes is the floor, and there is no target length. Do not inflate it. If the material cannot reach 5 minutes, do not build an outline; say why in notes. If it is 20 minutes or more, put a split plan in split_proposal and still build one outline.
-- Every C## in the outline exists in claims.
-- Topic limits (guidelines rule 7) apply to the plan: no section built on prices, opening hours, transport, product recommendations, or plot summary.
+- **Build the answer first.** Take from the axis source the passages that answer the axis question: the causes, reasons, and views that say why. List 2 to 3 of them on the Axis answer line and in axis_answer_claims: claims that join into one idea, causes and practices first, at most one of them is an opinion. Write that idea in axis_answer_idea, in their words. Never join different cases into an idea no claim states.
+- **Moments.** List in moment_claims the claims that hold a person's own words, memory, or experience, or a moment with a person, a place, and an action. A moment has a place or words someone says. A general custom is not a moment.
+- **Material check.** If no passage answers the axis question, if axis_answer_idea is empty, or if no claim holds a moment (except in a Korean Language episode), leave outline_md empty and say in notes which is missing. For a drama or film topic, at least one moment describes a specific scene on screen (screen_scene_claims); a moment from life off screen does not count.
+- **Axis.** A question a newcomer asks ("Why do people in Korea …?"), a contrast ("A, yet B"), a paradox ("trying A leads to B"), or a redefinition ("A is really B")${history ? ", or, in history mode, an event" : ""}. Keep the backlog's form. "What is X" and "how" questions are not axes.
+- **Sections.** Three to five Body sections, fewer and fuller. Sections are steps of the axis, never the order of a source. For a question axis, the sections are steps of the answer, starting in #1. Each section draws on every source that has claims for its question. No section for a reality check, reactions abroad, a debate, a side effect, or a step-by-step procedure; put those in one or two sentences inside the section they belong to. A survey from outside Korea supports at most one section. Drop a source that answers no sub-question. A list topic keeps its items, and the count in the title matches the items the material supports.
+- **Scenes.** Aim for a Scene in at least half of the Body sections, built only from a claim with a person, a place, and a moment carrying words said, an object, or a sound. Prefer a moment with words people say. A name in a report, a general custom, a procedure, or an imagined visitor is not a scene. For a drama or film topic, the scene is a specific moment on screen told without its lines, and the practice role is the screen convention and how viewers in Korea talk about it.
+- **Insider and opening.** Give each section an Insider detail when the material has one, and add any Korean term to pronunciations. Name the Familiar picture: one thing any listener abroad already knows, not a detail of the practice.
+- A redefinition axis assigns claims that name the kinds or examples. Plan a limit or disagreement only where the claims state one, once. The landing section holds only material that answers the axis question.
+- The axis, the Scene lines, and the Closing line keep the words and conditions of their claims. Write them, and the questions, in plain spoken words; avoid abstract nouns such as care, role, or viewpoint.
+- The Host question uses only what came before and never asks about methods, samples, or limits.
+- Estimated length comes from the material: 5 minutes is the floor, with no target. If the material cannot reach 5 minutes, do not build an outline and say why in notes. At 20 minutes or more, add split_proposal and still build one outline.
+- Every C## in the outline exists in claims. Topic limits (rule 7) apply to the plan.
 
 ### d) pronunciations
-- Every Korean word and Korean name the script will use, as romanized in the claims. reading = the same word written in Hangul, exactly as Koreans write it. Write the term by Revised Romanization of the reading, sound changes included; do not copy an excerpt's spelling. Names of people, groups, companies, and works keep their official English spelling. The voice reads the Hangul in Korean. For a name, give the Korean name in Hangul. Leave reading empty when you cannot give one; a person fills it before audio.
-- Do not list English words or a romanized word that is also a common English word.
-- Do not list a name that listeners abroad already say in English: a place, company, group, or work with an established English name, or a person known abroad by an English form of the name. The voice reads these in English. List every other name, including people's names, in Hangul. Never list the speakers' names.
+- Every Korean word and name the script will use, as romanized in the claims, with reading = the word in Hangul as Koreans write it. Write the term by Revised Romanization of the reading, sound changes included. Names of people, groups, companies, and works keep their official English spelling. Leave reading empty when you cannot give one; a person fills it before audio.
+- Do not list English words, a romanized word that is also a common English word, a name with an established English form, or the speakers' names.
 
 ## 3. Report — output only the requested JSON. No text before it.`;
   const user = `${history ? historyDesignEn + "\n\n" : ""}## Episode (backlog ${i.candidate.id}, gate 1 approved)

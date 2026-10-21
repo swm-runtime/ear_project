@@ -482,7 +482,11 @@ export function enStyleViolations(turns: ScriptTurn[]): string[] {
   }
   // full-en-v0.12 (G261018-001~003, 박수헌 2026-10-18 "귀속 빼"): 출처는 앱이 보여 준다 — 대사에서 출처를 부르는 문장은 하나도 두지 않는다
   const srcLoops = [...perSection].filter(([, ids]) => ids.length > 0).map(([sec, ids]) => `"${sec}" ${ids.length} (${[...new Set(ids)].join(", ")})`);
-  if (srcLoops.length) v.push(`${EN_STYLE_MARK} sources named in lines: ${srcLoops.join("; ")} — the app lists sources; do not name them or point to them by kind or year, tell the content directly as an insider; "According to" and "In … account" count too; mark a view inside your own sentence (rule 42)`);
+  if (srcLoops.length) v.push(`${EN_STYLE_MARK} sources named in lines: ${srcLoops.join("; ")} — the app lists sources; do not name them or point to them by kind or year, tell the content directly as an insider; "According to" and "In … account" count too; give a view to the people the claim names, by role (rule 42)`);
+  // full-en-v0.21 (15회차 세 편 모두 내부자 3.11 2 — "One view is that"·"In her view"·"One interpretation" 거리두기 틀이 턴마다): 해설 문장의 견해 틀은 에피소드에 한 번까지
+  const viewFrame = /\b(?:One (?:view|interpretation|reading|explanation|way to (?:understand|see|read|think about))|Another (?:view|interpretation|way to (?:understand|see))|In (?:that|this|her|his|their|one|its [a-z]+'s|the [a-z]+'s) (?:view|interpretation|reading))\b/i;
+  const frames = turns.flatMap((t, i) => (!isTemplate(i) && expl(t) ? t.text.split(/(?<=[.!?])\s+/).filter((x) => viewFrame.test(x)).map(() => label(t)) : []));
+  if (frames.length > 1) v.push(`${EN_STYLE_MARK} ${frames.length} explainer sentences use a view frame such as "One view is", "One way to understand", or "In that view" (${list(frames)}) — at most one per episode; give the view to the people the claim names, by role, or tell the practice directly (rule 42)`);
   // 턴 끝 요약 (규칙 31, full-en-v0.7 — G261015-001 · G261017-001·002·003 에이전트 판정에서 네 편 연속): 세 문장 이상인 해설 턴의 마지막 문장이
   // So·This·That·These·Those·Both·Each 로 시작해 앞 내용을 묶으면 센다. 넷 이상이면 문체 위반(한도 뒤 QA 로). 마지막 문장 지우기 시험은 규칙 31 이 맡는다
   const lastSentence = (t: string) => { const s = t.trim().split(/(?<=[.!?])\s+/).filter(Boolean); return s.length >= 3 ? s[s.length - 1] : ""; };
@@ -505,8 +509,9 @@ export function enStyleViolations(turns: ScriptTurn[]): string[] {
   const hostSounds = turns.filter((t, i) => !isTemplate(i) && t.id?.startsWith("Y") && !t.text.includes("?") && /\b(?:sounds?|feels?|seems?)\b/i.test(t.text)).map(label);
   // full-en-v0.20 (13회차 G261020-012: 질문 아닌 진행 턴 넷이 전부 "Perhaps/probably" 추측 — 골드 1 의 형식이 옮겨 왔다) — 추측 낱말 셋 이상 · 같은 첫 낱말(관사 제외) 셋 이상이면 문체 위반
   const hostPlain = turns.filter((t, i) => !isTemplate(i) && t.id?.startsWith("Y") && !t.text.includes("?"));
-  const hedged = hostPlain.filter((t) => /\b(?:probably|perhaps|maybe)\b/i.test(t.text)).map(label);
-  if (hedged.length > 2) v.push(`${EN_STYLE_MARK} ${hedged.length} host turns that are not questions are built on "probably", "perhaps", or "maybe" (${list(hedged)}) — mix a guess, a doubt, and a plain observation of a detail (rule 9)`);
+  // full-en-v0.21 (15회차 G261021-002~004: probably 를 막자 질문 아닌 진행 턴이 전부 "might" 추측으로 옮겨 갔다) — might·may 도 같이 센다
+  const hedged = hostPlain.filter((t) => /\b(?:might|may|probably|perhaps|maybe)\b/i.test(t.text)).map(label);
+  if (hedged.length > 2) v.push(`${EN_STYLE_MARK} ${hedged.length} host turns that are not questions are built on "might", "may", "probably", "perhaps", or "maybe" (${list(hedged)}) — at most two; mix a guess, a doubt, and a plain observation of a detail (rule 9)`);
   const firstWord = new Map<string, string[]>();
   for (const t of hostPlain) { const w = t.text.trim().split(/\s+/)[0]?.toLowerCase().replace(/[^a-z']/g, ""); if (w && !["the", "a", "an"].includes(w)) firstWord.set(w, [...(firstWord.get(w) ?? []), label(t)]); }
   // 관사는 세지 않고 같은 첫 낱말 셋부터 — 진행 턴이 서른 개인 긴 대본에서도 틀만 잡는다

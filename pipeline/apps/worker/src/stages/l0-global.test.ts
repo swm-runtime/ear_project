@@ -19,7 +19,7 @@ const OUTLINE = ["# outline", "Estimated length: 15 min", "", "Section #1 — Wh
 // 본문 턴 — 분량을 채우는 데 쓴다. 첫마디가 턴마다 다르고(문체 L0 첫마디 반복), 해설은 6문장(문장 수 상한), 진행은 질문 60%(질문 비율 절반~3분의 2)
 const NOUNS = ["Cabbage", "Salt", "Neighbors", "Grandmothers", "Jars", "Radish", "Garlic", "Pepper", "Courtyards", "Rubber gloves", "Basins", "Fish sauce", "Ginger", "Scallions", "Buckets", "Children", "Aprons", "Rice flour", "Shrimp", "Pears", "Onions", "Mats", "Ladles", "Lids", "Cousins", "Kitchens", "Rooftops", "Cellars", "Knives", "Towels"];
 const HOST = ["Who decides", "Where does", "Which part", "When do", "Does everyone", "Is there", "Can a family", "What happens", "Would a", "Why would", "Was that", "Could one", "Do they", "How long", "Are the"];
-const REACT = ["Easy to picture", "That might tire", "Probably", "The hunch is", "A surprise is", "It sounds"]; // full-en-v0.15: 질문 아닌 진행 턴의 1인칭·would 는 셋까지
+const REACT = ["Easy to picture", "That could tire", "Surely", "The hunch is", "A surprise is", "It sounds"]; // full-en-v0.15: 질문 아닌 진행 턴의 1인칭·would 는 셋까지
 const LONG_E = (noun: string) => `${noun} matter a lot in this part of the work. Families split the job by hand over two days. One group salts the cabbage overnight in large tubs. Another group grinds the seasoning paste in the morning. Neighbors trade labor, so each house gets help in turn. By the afternoon the jars are packed and shared with relatives.`;
 function script(o: { zones?: string[]; sections?: number[]; bodyTurns?: number; lastTurn?: string } = {}) {
   const z = o.zones ?? ["Intro", "Opening", "Body", "Closing"];
@@ -436,7 +436,23 @@ test("질문 아닌 진행 턴 — probably/perhaps/maybe 셋이면 문체 위�
   en();
   const xs = (texts: string[]) => [T("Y1", "Hi.", "Intro"), ...texts.map((x, k) => T(`Y${k + 2}`, x)), T("Y9", "Bye.", "Closing")];
   const v = enStyleViolations(xs(["Perhaps the soup came first.", "The cook probably adds beef.", "Maybe the bowl is shared."])).join("\n");
-  assert.match(v, /3 host turns that are not questions are built on "probably", "perhaps", or "maybe"/);
+  assert.match(v, /3 host turns that are not questions are built on "might", "may", "probably", "perhaps", or "maybe"/);
   assert.match(enStyleViolations(xs(["Even the soup came first.", "Even the cook adds beef.", "Even the bowl is shared."])).join("\n"), /start with the same word: "even" ×3 \(Y2, Y3, Y4\)/);
   assert.deepEqual(enStyleViolations(xs(["The soup came first.", "The cook adds beef.", "The bowl is shared.", "Is it hot?"])).filter((m) => /same word|probably/.test(m)), []); // 관사는 세지 않는다
+});
+
+// ── full-en-v0.21 (2026-10-21 — 15회차 G261021-002~004 에이전트 판정) ──
+test("질문 아닌 진행 턴 — might·may 도 추측으로 센다(probably 를 막자 might 로 옮겨 갔다), 둘까지는 괜찮다", () => {
+  en();
+  const xs = (texts: string[]) => [T("Y1", "Hi.", "Intro"), ...texts.map((x, k) => T(`Y${k + 2}`, x)), T("Y9", "Bye.", "Closing")];
+  assert.match(enStyleViolations(xs(["The soup might come first.", "A cook may add beef.", "Each bowl might be shared."])).join("\n"), /3 host turns that are not questions are built on "might"/);
+  assert.deepEqual(enStyleViolations(xs(["The soup might come first.", "A cook may add beef.", "Each bowl is shared."])).filter((m) => /built on/.test(m)), []);
+});
+
+test("해설 문장의 견해 틀(One view is · In that view · One interpretation)은 에피소드에 한 번까지", () => {
+  en();
+  const xs = (texts: string[]) => [T("Y1", "Hi.", "Intro"), ...texts.map((x, k) => T(`E${k + 1}`, x)), T("Y9", "Bye.", "Closing")];
+  const v = enStyleViolations(xs(["One view is that the soup came first.", "Cooks add beef. In that view, the bowl is shared.", "One interpretation places it in the 1960s."])).join("\n");
+  assert.match(v, /3 explainer sentences use a view frame .* \(E1, E2, E3\)/);
+  assert.deepEqual(enStyleViolations(xs(["One way to understand it is as care.", "Many parents see it as care."])).filter((m) => /view frame/.test(m)), []);
 });
