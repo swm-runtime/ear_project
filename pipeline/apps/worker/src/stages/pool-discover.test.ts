@@ -23,3 +23,9 @@ test("소스 풀 채우기 프롬프트 — 중분류·메모·기존 풀 호스
   assert.match(en, /K-Food/); assert.doesNotMatch(en.replace(/"[^"]*"/g, ""), /[가-힣]/); // 지시문 본문은 영어 — 따옴표 안 예시 검색어의 한국어만 허용
   assert.deepEqual([...P.POOL_DISCOVER_SCHEMA.properties.sources.items.required], ["url", "publisher", "category", "feed_url", "why", "coverage"]);
 });
+test("소스 풀 채우기 프롬프트 — 기존 사이트는 검색어에도 쓰지 않고, 국내판은 한국 발행처를 먼저 찾는다 (2026-10-22, 역사 첫 실행: 검색 8회 중 4회를 기존 사이트 site: 검색에 씀)", async () => {
+  const P = await import("@ear/pipeline");
+  const input = { midTopic: "역사", hint: null, mids: ["역사"], existingHosts: ["contents.history.go.kr"], maxSearches: 8 };
+  assert.match(P.buildPoolDiscoverPrompt(input), /검색어에도 쓰지 않는다/); assert.match(P.buildPoolDiscoverPrompt(input), /한국 기관·매체·학회를 먼저/);
+  assert.match(P.buildPoolDiscoverPromptEn({ ...input, midTopic: "Korean History & Society", mids: ["Korean History & Society"] }), /do not spend searches on them/);
+});
