@@ -224,6 +224,8 @@ export interface SeriesDetail {
     totalEpisodes: number;
     status: ExploreSeriesStatus;
     thumbnailUrl: string;
+    /** 대표 중분류(주제) — 제목 아래 카테고리 줄. 서버가 안 주면 null(줄째 생략) */
+    topic: { id: string; name: string } | null;
   };
   episodes: SeriesEpisode[];
 }

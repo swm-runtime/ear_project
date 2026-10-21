@@ -611,7 +611,8 @@ POST /contents/:content_id/play  (entry_point = "explore" — library-api 4.4)
     "description": "소프트웨어 개발부터 …",
     "total_episodes": 16,            // 계획 편수. episodes 는 노출 중인 편만이라 이보다 적을 수 있다
     "status": "completed",           // ongoing | completed — 표시용
-    "thumbnail_url": "https://…/1화.webp"   // 표지 = 노출 중인 가장 앞 편(보통 1화)의 썸네일
+    "thumbnail_url": "https://…/1화.webp",  // 표지 = 노출 중인 가장 앞 편(보통 1화)의 썸네일
+    "topic": { "id": "uuid", "name": "IT·테크" }  // 대표 중분류 — 제목 아래 카테고리 줄. 주제 없으면 null (추가 2026-10-22)
   },
   "episodes": [                      // 노출 중인 편만(published·라이선스 유효·사용자 시장), episode_no 오름차순
     {
@@ -639,6 +640,7 @@ POST /contents/:content_id/play  (entry_point = "explore" — library-api 4.4)
 ```
 
 - 회수된 편은 목록에서 빠진다 — 1화가 회수돼 있으면 표지도 그다음 노출 편이다.
+- `series.topic`은 **대표 중분류(주제)** 다 — 앨범 화면 제목 아래 카테고리 줄(`explore-uiux.md` 4.11). 시리즈 표엔 주제 칸이 없어 **노출 편들의 `content_topics`에서 뽑는다**: 가장 많은 편에 걸린 주제, 동률이면 `topics.display_order` 우선. 노출 편에 주제가 하나도 없으면 `null`이고 화면은 줄째 생략한다. **추가 필드뿐이라 설치된 앱은 무시한다**(없으면 종전과 같다).
 - `library`·`progress`·`is_counted_today`는 탐색·라이브러리와 같은 원천이다(편 단위). 시리즈 단위 진행 상태는 두지 않는다.
 - **두지 않는 것**: `next_episode`(다음 화 듣기 보류) · 시리즈 구독 · 페이지(편 수가 수십 단위).
 - 액션(재생·담기·삭제)은 전부 기존 편 단위 계약을 그대로 쓴다(`POST /contents/:id/play` · `POST /contents/:id/save` 등).

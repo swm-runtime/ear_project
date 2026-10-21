@@ -817,6 +817,8 @@ export const mockFetchSeriesDetail = async (seriesId: string): Promise<SeriesDet
       total_episodes: series.totalEpisodes,
       status: series.status,
       thumbnail_url: `https://picsum.photos/seed/content-${series.episodeSeqs[0]}/200`,
+      // 대표 중분류 — 앨범 화면 제목 아래 카테고리 줄. 서버는 편들의 주제에서 대표 하나를 고른다(여기선 mock 시리즈의 주제)
+      topic: series.topic,
     },
     episodes: series.episodeSeqs.map((seq) => {
       const content = makeSeriesEpisode(series, seq);

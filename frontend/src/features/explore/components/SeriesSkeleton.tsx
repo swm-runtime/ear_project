@@ -21,6 +21,8 @@ export default function SeriesSkeleton() {
       <View style={styles.header}>
         <SkeletonBlock width={coverSize} height={coverSize} radius="md" />
         <SkeletonLine height={24} width="60%" />
+        {/* 카테고리(대표 중분류) 줄 자리 — 제목과 메타 사이 */}
+        <SkeletonLine height={theme.font.size.md} width="35%" />
         <SkeletonLine height={theme.font.size.sm} width="40%" />
         <SkeletonBlock width={200} height={52} radius="full" style={styles.playSlot} />
       </View>
