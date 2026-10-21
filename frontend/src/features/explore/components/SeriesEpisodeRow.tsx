@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { theme } from '@/shared/theme';
@@ -16,8 +17,14 @@ import type { ExploreItem, SeriesEpisode } from '../explore.types';
 export const SERIES_EPISODE_NUMBER_WIDTH = 32;
 /** 번호 칸과 제목 사이 — 구분선 시작선 계산에도 쓴다 */
 export const SERIES_EPISODE_NUMBER_GAP = 12;
-/** 재생 중 표식 — 목록 밖 왼쪽 여백의 작은 점(PM 2026-10-22 "점은 리스트 밖으로") */
+/**
+ * 재생 중 표식 — **화면 왼쪽 끝과 번호 글자 사이의 정가운데** 작은 점(PM 2026-10-22 08:39 "중앙으로". 종전 "점은 리스트 밖으로"는
+ * 왼쪽 여백 가운데라 번호와 25pt 떨어져 매달려 보였다). 번호 글자 폭(한·두 자리)을 재서 그 왼쪽 끝과 화면 끝의 가운데에 둔다.
+ * 번호 자리는 점 유무와 상관없이 그대로다
+ */
 const NOW_PLAYING_DOT = 6;
+/** 재기 전 번호 글자 왼쪽 끝 추정 — 한 자리 글자(약 9pt)가 32 칸 가운데일 때 */
+const NUMBER_GLYPH_LEFT_ESTIMATE = theme.spacing.md + (SERIES_EPISODE_NUMBER_WIDTH - 9) / 2;
 
 interface SeriesEpisodeRowProps {
   episode: SeriesEpisode;
@@ -50,11 +57,15 @@ export default function SeriesEpisodeRow({
   const a11yState = [isNowPlaying ? EXPLORE_COPY.series.nowPlaying : null, stateLabel]
     .filter((part): part is string => part !== null)
     .join(', ');
+  // 번호 글자의 왼쪽 끝(행 기준) — 재생 중 점을 화면 끝과 그 사이 가운데에 두려고 잰다
+  const [numberLeft, setNumberLeft] = useState<number | null>(null);
+  const dotLeft = (numberLeft ?? NUMBER_GLYPH_LEFT_ESTIMATE) / 2 - NOW_PLAYING_DOT / 2;
 
   return (
     <View style={styles.row}>
-      {/* 점은 번호 칸이 아니라 행의 왼쪽 여백(목록 밖)에 — 번호가 점 유무와 상관없이 같은 자리에 선다 */}
-      {isNowPlaying ? <View style={styles.nowPlayingDot} pointerEvents="none" /> : null}
+      {isNowPlaying ? (
+        <View style={[styles.nowPlayingDot, { left: dotLeft }]} pointerEvents="none" />
+      ) : null}
       <Pressable
         style={styles.body}
         onPress={() => onPress(item)}
@@ -67,7 +78,16 @@ export default function SeriesEpisodeRow({
         })}
       >
         <View style={styles.numberCell}>
-          <Text style={styles.number}>{episode.episodeNo}</Text>
+          {/* 글자 상자만 감싸 왼쪽 끝을 잰다(칸 안 가운데 정렬이라 x = 칸 왼쪽 여백). 행 왼쪽 여백(md) + 그 x = 글자 왼쪽 끝 */}
+          <View
+            onLayout={
+              isNowPlaying
+                ? (event) => setNumberLeft(theme.spacing.md + event.nativeEvent.layout.x)
+                : undefined
+            }
+          >
+            <Text style={styles.number}>{episode.episodeNo}</Text>
+          </View>
         </View>
         <View style={styles.info}>
           <Text style={[styles.title, isNowPlaying && styles.titleNowPlaying]} numberOfLines={1}>
@@ -110,10 +130,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  // 왼쪽 여백(md) 가운데 — 구분선·번호가 시작하는 선 바깥
+  // 화면 끝과 번호 글자 사이 가운데(left 는 렌더에서) — 세로는 행 가운데
   nowPlayingDot: {
     position: 'absolute',
-    left: (theme.spacing.md - NOW_PLAYING_DOT) / 2,
+    top: '50%',
+    marginTop: -NOW_PLAYING_DOT / 2,
     width: NOW_PLAYING_DOT,
     height: NOW_PLAYING_DOT,
     borderRadius: NOW_PLAYING_DOT / 2,
