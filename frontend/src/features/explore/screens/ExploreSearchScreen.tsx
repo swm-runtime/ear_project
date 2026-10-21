@@ -189,7 +189,7 @@ export default function ExploreSearchScreen({ embedding }: ExploreSearchScreenPr
     }
     if (screen.isRelatedResult) {
       return (
-        <View style={styles.resultNotice}>
+        <View style={[styles.resultNotice, styles.resultNoticeSingle]}>
           <Text style={styles.noticeText}>
             {EXPLORE_COPY.search.relatedResult(screen.activeQuery ?? '')}
           </Text>
@@ -462,10 +462,17 @@ const styles = StyleSheet.create({
     gap: theme.spacing.md,
   },
   // 검색 안내(KAN-239) — 격자 첫 행 위, 좌우 여백은 격자와 같다(gridContent)
+  /*
+   * 위 여백은 0 — 격자 위 여백(sm)과 버튼 높이 44 안의 여백만으로 검색창과 약 16pt 가 된다. 종전 md + xs 가 더해져 검색창과
+   * 30pt 넘게 벌어져 안내가 떠 보였다(PM 2026-10-22 06:24). 버튼 없는 한 줄(관련 결과)은 그 몫을 resultNoticeSingle 이 채운다
+   */
   resultNotice: {
     alignItems: 'center',
-    paddingTop: theme.spacing.md,
+    paddingTop: 0,
     paddingBottom: theme.spacing.sm,
+  },
+  resultNoticeSingle: {
+    paddingTop: theme.spacing.sm,
   },
   // 교정 안내 한 줄 — 안내 글자 + 버튼을 가운데에 나란히. 좁으면 버튼이 다음 줄 가운데로 접힌다
   resultNoticeRow: {
@@ -473,7 +480,6 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     justifyContent: 'center',
     columnGap: theme.spacing.sm,
-    paddingTop: theme.spacing.xs,
     paddingBottom: 0,
   },
   noticeText: {
@@ -486,10 +492,13 @@ const styles = StyleSheet.create({
     minHeight: theme.touchTarget.minHeight,
     justifyContent: 'center',
   },
+  /*
+   * 원본 검색은 **보조 선택지**다 — 교정 결과가 주인공이라 링크가 안내 글자보다 튀면 안 된다(PM 2026-10-22 06:24). 안내와 같은
+   * 보조색·같은 굵기에 밑줄만으로 "누를 수 있다"를 말한다. 종전 흰색 굵게는 링크가 주인공처럼 보였다
+   */
   noticeLink: {
     fontSize: theme.font.size.sm,
-    fontWeight: '600',
-    color: theme.color.textPrimary,
+    color: theme.color.textSecondary,
     textDecorationLine: 'underline',
   },
   noResultTitle: {
