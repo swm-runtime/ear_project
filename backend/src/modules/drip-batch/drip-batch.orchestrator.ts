@@ -62,6 +62,7 @@ import { UserTier } from '@/modules/user/user.enum';
 
 import {
   DiscoveryPlan,
+  DripPlanUser,
   PlanOptions,
   RegularPlan,
   UserDripPlan,
@@ -518,7 +519,7 @@ export class DripBatchOrchestrator {
    * "이대로라면 어떤 2편·어떤 1편이 가는가"에 실제 배치와 같은 답을 내려면 계산기가 하나여야 한다.
    */
   async planForUser(
-    user: User,
+    user: DripPlanUser,
     now: Date,
     planCounts: PlanCountCache,
     options: PlanOptions,

@@ -28,10 +28,24 @@ import { UserService } from '@/modules/user/services/user.service';
 
 import { DripBatchOrchestrator } from './drip-batch.orchestrator';
 import {
+  DripExplainView,
+  DripPlanUser,
   DripPreviewCandidateView,
   DripPreviewView,
+  PlanOptions,
   UserDripPlan,
 } from './drip-batch.types';
+
+/**
+ * 저장 없는 계산 옵션 — 취향 캐시·자동 확장을 저장하지 않고, 스킵 사유가 나도 끝까지 계산하고, 최근 편성 주제(표시용)를
+ * 읽는다. 편성 미리보기와 추천 검증이 **이 값 하나로만** 계산기를 부른다 — 어느 쪽도 저장 옵션을 켤 길이 없다.
+ */
+export const READ_ONLY_PLAN_OPTIONS: Readonly<PlanOptions> = Object.freeze({
+  persistPreference: false,
+  persistAutoExpand: false,
+  stopAtSkip: false,
+  loadRecentDripTopics: true,
+});
 
 /** 취향 가중치 표시 상한 — 절대값 큰 것부터 */
 const PREFERENCE_WEIGHT_DISPLAY_LIMIT = 15;
@@ -69,12 +83,21 @@ export class DripPreviewService {
       });
     }
 
-    const plan = await this.orchestrator.planForUser(user, now, new Map(), {
-      persistPreference: false,
-      persistAutoExpand: false,
-      stopAtSkip: false,
-      loadRecentDripTopics: true,
-    });
+    return { user: toUserView(user), ...(await this.explain(user, now)) };
+  }
+
+  /**
+   * 편성 계산 결과를 화면용으로 펼친다 — 사용자 신원(이메일·닉네임)은 싣지 않는다. 편성 미리보기(`preview`)와
+   * 서비스 지표의 추천 검증(`RecommendInspectorService`, 2026-10-22)이 함께 쓴다. **쓰기가 없다** — 계산은
+   * `READ_ONLY_PLAN_OPTIONS`로만 부르고, 나머지는 전부 조회다.
+   */
+  async explain(user: DripPlanUser, now: Date): Promise<DripExplainView> {
+    const plan = await this.orchestrator.planForUser(
+      user,
+      now,
+      new Map(),
+      READ_ONLY_PLAN_OPTIONS,
+    );
 
     const [interests, removedTopicIds, todayPlacedIds] = await Promise.all([
       this.userInterestService.findAllActive(user.id),
@@ -105,7 +128,6 @@ export class DripPreviewService {
     return {
       computedAt: now,
       serviceDate: toServiceDate(now),
-      user: toUserView(user),
       skipReason: plan.skipReason,
       unfinishedCount: plan.unfinishedCount,
       unfinishedLimit: UNFINISHED_INVENTORY_LIMIT,

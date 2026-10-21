@@ -3,7 +3,7 @@ import { ScoreBreakdown } from '@/modules/drip/drip.types';
 import { DripPreviewCandidateView, DripPreviewView } from '../drip-batch.types';
 
 /** 점수 분해 — 내부 형상(camelCase)을 API 규약(snake_case)으로 옮긴다. `null` = 입력 없어 축·항목에서 빠짐 */
-interface ScoreBreakdownDto {
+export interface ScoreBreakdownDto {
   embedding: number | null;
   signal: number | null;
   signal_items: {
@@ -25,12 +25,12 @@ interface ScoreBreakdownDto {
   };
 }
 
-interface TopicRefDto {
+export interface TopicRefDto {
   topic_id: string;
   name: string | null;
 }
 
-interface CandidateDto {
+export interface CandidateDto {
   content_id: string;
   title: string;
   author_name: string | null;
@@ -235,14 +235,16 @@ export class DripPreviewResponseDto {
   }
 }
 
-function toTopicRef(ref: {
+export function toTopicRef(ref: {
   topicId: string;
   name: string | null;
 }): TopicRefDto {
   return { topic_id: ref.topicId, name: ref.name };
 }
 
-function toCandidateDto(candidate: DripPreviewCandidateView): CandidateDto {
+export function toCandidateDto(
+  candidate: DripPreviewCandidateView,
+): CandidateDto {
   return {
     content_id: candidate.contentId,
     title: candidate.title,
@@ -268,7 +270,7 @@ function toCandidateDto(candidate: DripPreviewCandidateView): CandidateDto {
   };
 }
 
-function toBreakdownDto(breakdown: ScoreBreakdown): ScoreBreakdownDto {
+export function toBreakdownDto(breakdown: ScoreBreakdown): ScoreBreakdownDto {
   return {
     embedding: breakdown.embedding,
     signal: breakdown.signal,
@@ -296,7 +298,9 @@ function toBreakdownDto(breakdown: ScoreBreakdown): ScoreBreakdownDto {
 }
 
 /** 상수 객체의 camelCase 키를 snake_case로 — 가중치 표는 키가 곧 항목 이름이다 */
-function snakeKeys(record: Record<string, number>): Record<string, number> {
+export function snakeKeys(
+  record: Record<string, number>,
+): Record<string, number> {
   return Object.fromEntries(
     Object.entries(record).map(([key, value]) => [
       key.replace(/[A-Z]/g, (char) => `_${char.toLowerCase()}`),
