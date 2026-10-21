@@ -1,11 +1,12 @@
 import { FlatList, Pressable, StyleSheet, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { theme } from '@/shared/theme';
 import ChevronIcon from '@/shared/ui/ChevronIcon';
 import FullScreenError from '@/shared/ui/FullScreenError';
 import GlassCapsule, { HEADER_CONTROL_HEIGHT } from '@/shared/ui/GlassCapsule';
 import GlassIconButton from '@/shared/ui/GlassIconButton';
+import { HAS_NATIVE_TAB_BAR } from '@/shared/ui/GlassSurface';
 import MoreIcon from '@/shared/ui/MoreIcon';
 import { Text } from '@/shared/ui/Typography';
 
@@ -18,10 +19,7 @@ import {
 import { IS_SHARE_ENABLED, SHARE_COPY, ShareIcon } from '@/features/share';
 
 import ExploreMoreSheet from '../components/ExploreMoreSheet';
-import SeriesEpisodeRow, {
-  SERIES_EPISODE_NUMBER_GAP,
-  SERIES_EPISODE_NUMBER_WIDTH,
-} from '../components/SeriesEpisodeRow';
+import SeriesEpisodeRow from '../components/SeriesEpisodeRow';
 import SeriesHeader from '../components/SeriesHeader';
 import SeriesMoreSheet from '../components/SeriesMoreSheet';
 import SeriesSkeleton from '../components/SeriesSkeleton';
@@ -40,6 +38,13 @@ export default function SeriesScreen() {
   const nowPlayingContentId = usePlaybackStore((s) => s.session?.contentId ?? null);
   // 탐색 탭 안에서 열리면 독(탭 바 + 미니플레이어)이 목록 위에 떠 있다 — 그만큼 바닥을 비운다(탭 밖이면 미니플레이어 몫만)
   const dockInset = useBottomDockInset();
+  /*
+   * 앱바는 띠 없이 본문 위에 떠 있다(PM 2026-10-22 — 띠가 표지를 잘라 먹었다). 목록은 화면 맨 위부터 깔리고 첫 내용만
+   * 앱바 높이만큼 내려 둔다. 시스템 탭 바(iOS 26)에선 스크롤 뷰가 상단 안전영역을 스스로 비우므로(DOCK_SCROLL_PROPS 의
+   * automatic) 앱바 몫만 준다 — 탐색 화면과 같은 규칙
+   */
+  const insets = useSafeAreaInsets();
+  const listTopInset = (HAS_NATIVE_TAB_BAR ? 0 : insets.top) + APP_BAR_HEIGHT;
 
   const renderBody = () => {
     if (screen.isInitialLoading) {
@@ -109,16 +114,29 @@ export default function SeriesScreen() {
           </Text>
         }
         {...DOCK_SCROLL_PROPS}
-        contentContainerStyle={{ paddingBottom: dockInset + theme.spacing.lg }}
+        contentContainerStyle={{
+          paddingTop: listTopInset,
+          paddingBottom: dockInset + theme.spacing.lg,
+        }}
       />
     );
   };
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
-      {/* 앱바는 로딩보다 먼저 그린다 — 왼쪽 유리 원 뒤로, 오른쪽 유리 캡슐(공유 · ⋯ — 애플 뮤직 앨범, PM 2026-10-22).
-          제목은 머리가 크게 말한다. 캡슐은 상세가 그려진 뒤에만 — 반쪽 값으로 공유하지 않는다(share-uiux.md 4.2) */}
-      <View style={styles.appBar}>
+    <View style={styles.container}>
+      {/* 본문 — 목록은 화면 맨 위부터(앱바 밑으로 흘러간다). 스켈레톤·에러는 목록이 아니라 앱바 아래에서 시작한다 */}
+      {screen.detail ? (
+        renderBody()
+      ) : (
+        <View style={[styles.nonListBody, { paddingTop: insets.top + APP_BAR_HEIGHT }]}>
+          {renderBody()}
+        </View>
+      )}
+
+      {/* 앱바는 로딩보다 먼저 그린다 — 띠 없이 떠 있는 왼쪽 유리 원 뒤로 · 오른쪽 유리 캡슐(공유 · ⋯ — 애플 뮤직 앨범,
+          PM 2026-10-22). 제목은 머리가 크게 말한다. 캡슐은 상세가 그려진 뒤에만 — 반쪽 값으로 공유하지 않는다(share-uiux.md 4.2).
+          목록 위에 그리도록 본문 뒤에 둔다 */}
+      <View style={[styles.appBar, { top: insets.top }]} pointerEvents="box-none">
         <GlassIconButton onPress={screen.goBack} accessibilityLabel={EXPLORE_COPY.series.backA11y}>
           <ChevronIcon direction="left" size={APP_BAR_ICON_SIZE} color={theme.color.textPrimary} />
         </GlassIconButton>
@@ -146,8 +164,6 @@ export default function SeriesScreen() {
         ) : null}
       </View>
 
-      {renderBody()}
-
       <ExploreMoreSheet
         item={screen.moreSheetItem}
         onDetail={screen.openDetail}
@@ -174,29 +190,36 @@ export default function SeriesScreen() {
         onCancel={screen.cancelPlayConfirm}
         onSuppressToday={screen.suppressAndPlay}
       />
-    </SafeAreaView>
+    </View>
   );
 }
 
-/** 편 행 사이 구분선 — 번호 칸 오른쪽(제목 시작선)부터 긋는다(앨범 트랙 목록 문법) */
+/** 편 행 사이 구분선 — 좌우 같은 여백(머리 아래 선과 같은 폭) */
 const RowSeparator = () => <View style={styles.separator} />;
 
 /** 앱바 유리 버튼 안 아이콘 — 콘텐츠 상세와 같은 값 */
 const APP_BAR_ICON_SIZE = 20;
-/** 구분선 시작 — 행 왼쪽 여백(16) + 번호 칸 + 간격 */
-const SEPARATOR_INSET = theme.spacing.md + SERIES_EPISODE_NUMBER_WIDTH + SERIES_EPISODE_NUMBER_GAP;
+/** 떠 있는 앱바 줄 높이 — 유리 원(40) 터치 44 + 위아래 여유 */
+const APP_BAR_HEIGHT = theme.touchTarget.minHeight + theme.spacing.sm;
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: theme.color.background,
   },
+  // 띠 없는 앱바 — 배경 없이 본문 위에 떠 있다. 버튼 사이 빈 곳의 터치는 밑 목록으로 흘린다(box-none)
   appBar: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: theme.spacing.md,
-    minHeight: theme.touchTarget.minHeight + theme.spacing.sm,
+    height: APP_BAR_HEIGHT,
+  },
+  nonListBody: {
+    flex: 1,
   },
   // 오른쪽 캡슐 — 뒤로 원과 같은 높이(40), 아이콘 칸 둘
   actionCapsule: {
@@ -223,9 +246,10 @@ const styles = StyleSheet.create({
     fontSize: theme.font.size.sm,
     color: theme.color.textSecondary,
   },
+  // 편 사이 구분선 — 머리 아래 선과 같이 좌우 같은 여백으로 가운데(PM 2026-10-22, 종전 제목 시작선 ~ 오른쪽 끝)
   separator: {
     height: StyleSheet.hairlineWidth,
-    marginLeft: SEPARATOR_INSET,
+    marginHorizontal: theme.spacing.md,
     backgroundColor: theme.color.border,
   },
 });
