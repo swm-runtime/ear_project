@@ -134,6 +134,11 @@ const styles = StyleSheet.create({
     position: 'absolute',
     left: 0,
     right: 0,
+    /*
+     * 잘라낸다 — 흐린 사진은 가장자리가 비치지 않게 1.2 배로 키워져(FeaturedCardBackdrop) 틀 밖으로 10% 씩 삐져나온다. 대표 카드는
+     * 카드 틀이 잘라 주지만 여기는 틀이 없어, 아래로 삐진 흰 흐림(약 37pt)이 페이드 밖에 남아 시리즈 제목을 덮었다(PM 2026-10-22 07:40)
+     */
+    overflow: 'hidden',
   },
   coverShadow: {
     marginBottom: theme.spacing.lg,
