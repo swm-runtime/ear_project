@@ -37,3 +37,4 @@
 ## 처리 기록
 
 - 2026-10-20 발행(마크다운 + Jira KAN-237, 중요도 Low · 시작 10-20 · 기한 10-23, KAN-193 과 relates 연결). KAN-193 에 같은 내용 코멘트. Slack 알림은 보내지 않았다(박수헌).
+- 2026-10-21 요청 1·2 코드 PR(브랜치 `feat(be)/admin-topics-market`) — `GET /admin/topics` 항목에 `market`, `?market=kr|global` 필터(`GET /admin/contents` 4.5와 같은 `@IsEnum`, 없으면 전 시장, 틀린 값 400 `VALIDATION_FAILED`). `POST`·`PATCH` 응답 항목에도 실린다. 계약 문서 반영은 `changes/pending/admin-topics-market-field.md`. 요청 3 운영 점검은 읽기 전용 스크립트(`topics-market-audit.sh` — 이름·시장 엇갈림 주제와 콘텐츠 건수, `content_topics` ↔ `contents.market` 어긋난 연결의 주제별 수, 시장별 노출·숨김 주제 수)를 준비했다. **남은 일**: 점검을 돌려 건수를 이 처리 기록에 적고, 있으면 숨김·시장 정정을 AI 와 정한 뒤 `archive/`로 옮긴다. 완료 조건 3이 아직 충족되지 않아 `pending/`에 둔다(BE).
