@@ -29,6 +29,7 @@ import type {
   ExplorePopularResponseDto,
   ExploreSearchResponseDto,
   ExploreTopicsResponseDto,
+  RelatedContentsResponseDto,
   SaveContentResponseDto,
   SeriesDetailResponseDto,
   UnsaveContentResponseDto,
@@ -37,6 +38,7 @@ import {
   mockFetchContents,
   mockFetchFeed,
   mockFetchPopular,
+  mockFetchRelatedContents,
   mockFetchSearch,
   mockFetchSeriesDetail,
   mockFetchTopics,
@@ -294,6 +296,31 @@ export const fetchSeriesDetail = async (input: { seriesId: string }): Promise<Se
     : (await apiClient.get<SeriesDetailResponseDto>(`/series/${input.seriesId}`)).data;
   return toSeriesDetail(data);
 };
+
+/**
+ * 관련 콘텍츠(player-api.md 4.8 — KAN-240) — 재생 목록 패널 "다음에 들어볼 만한"의 1차 소스. `exclude_ids`는 스냅샷에 이미 있는
+ * 편(최대 50 — 넘으면 앞 50만 보낸다, 서버 400 을 내지 않게). 없는·다른 시장·회수 편은 404 `CONTENT_NOT_FOUND` — 호출자가 삼킨다
+ */
+export const fetchRelatedContents = async (input: {
+  contentId: string;
+  excludeIds: string[];
+  limit?: number;
+}): Promise<ExploreItem[]> => {
+  const excludeIds = input.excludeIds.slice(0, RELATED_EXCLUDE_LIMIT);
+  const params: Record<string, string> = {};
+  if (input.limit !== undefined) params.limit = String(input.limit);
+  if (excludeIds.length > 0) params.exclude_ids = excludeIds.join(',');
+  const data = IS_EXPLORE_API_MOCKED
+    ? await mockFetchRelatedContents({ contentId: input.contentId, excludeIds })
+    : (
+        await apiClient.get<RelatedContentsResponseDto>(`/contents/${input.contentId}/related`, {
+          params,
+        })
+      ).data;
+  return data.items.map(toExploreItem);
+};
+/** 서버 상한(player-api.md 4.8) */
+const RELATED_EXCLUDE_LIMIT = 50;
 
 /** 담기(explore-api.md 4.3) — 횟수 제한이 없고 페이월을 노출하지 않는다(PRD 5.4) */
 export const saveContent = async (input: {

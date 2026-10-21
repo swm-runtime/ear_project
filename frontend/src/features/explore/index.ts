@@ -18,7 +18,7 @@ export type { ExploreItem, ExploreTopic } from './explore.types';
  */
 export { saveContent } from './api/explore.api';
 /** 재생 목록 맥락(KAN-241) — bootstrap 이 player 브리지에 꽂는 추천 폴백 */
-export { fetchInterestUpNext } from './explore.up-next';
+export { fetchUpNext } from './explore.up-next';
 export type { SaveContentResult, SaveReason } from './explore.types';
 export { default as ExploreFeaturedCard } from './components/ExploreFeaturedCard';
 /** 코치마크가 카드가 아니라 썸네일만 가리킬 때 쓴다 — 기하는 카드가 소유한다 */

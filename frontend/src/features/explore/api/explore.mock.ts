@@ -44,6 +44,7 @@ import type {
   ExploreSeriesCardDto,
   ExplorePopularResponseDto,
   ExploreSearchResponseDto,
+  RelatedContentsResponseDto,
   ExploreSectionDto,
   ExploreTopicsResponseDto,
   SaveContentRequestDto,
@@ -771,6 +772,35 @@ const SERIES_SEED_STATE: Record<string, Pick<SeriesEpisodeDto, 'library' | 'prog
 };
 
 /** GET /series/:series_id 의 대역(explore-api.md 4.7) — 없는 시리즈는 404 NOT_FOUND */
+/**
+ * 관련 콘텐츠 대역(player-api.md 4.8) — 임베딩이 없으니 같은 주제의 편을 "비슷한 편"으로 친다. 기준 편·`excludeIds`는 뺀다.
+ * 없는 편은 404 `CONTENT_NOT_FOUND`(서버 코드 그대로)
+ */
+export const mockFetchRelatedContents = async (params: {
+  contentId: string;
+  excludeIds: string[];
+}): Promise<RelatedContentsResponseDto> => {
+  await delay(RESPONSE_DELAY_MS);
+  const all = [...CONTENT_POOL, ...SERIES_EPISODES];
+  const base = all.find((content) => content.id === params.contentId);
+  if (!base) {
+    throw new ApiError(
+      ERROR_CODES.CONTENT_NOT_FOUND,
+      '콘텍츠를 찾을 수 없어요',
+      false,
+      null,
+      null,
+      404,
+    );
+  }
+  const exclude = new Set([params.contentId, ...params.excludeIds]);
+  const related = all
+    .filter((content) => !exclude.has(content.id))
+    .filter((content) => content.topic_ids.some((id) => base.topic_ids.includes(id)))
+    .slice(0, 5);
+  return { items: related.map(toItemDto) };
+};
+
 export const mockFetchSeriesDetail = async (seriesId: string): Promise<SeriesDetailResponseDto> => {
   await delay(RESPONSE_DELAY_MS);
 
