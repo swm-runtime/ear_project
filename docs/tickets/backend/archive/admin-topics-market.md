@@ -12,7 +12,7 @@
 | 선행 | 없음 |
 | 근거 문서 | `spec/api/admin-api.md` 4.1·4.2 · `spec/api/global-api.md` 4.5·표 11번 · `domain.md` 4.1 `topics`(`market`, `uq_topics_market_slug`) |
 | 중요도 | Low |
-| 상태 | 발행 |
+| 상태 | 완료(2026-10-21) |
 
 ## 문제
 
@@ -38,3 +38,4 @@
 
 - 2026-10-20 발행(마크다운 + Jira KAN-237, 중요도 Low · 시작 10-20 · 기한 10-23, KAN-193 과 relates 연결). KAN-193 에 같은 내용 코멘트. Slack 알림은 보내지 않았다(박수헌).
 - 2026-10-21 요청 1·2 코드 PR(브랜치 `feat(be)/admin-topics-market`) — `GET /admin/topics` 항목에 `market`, `?market=kr|global` 필터(`GET /admin/contents` 4.5와 같은 `@IsEnum`, 없으면 전 시장, 틀린 값 400 `VALIDATION_FAILED`). `POST`·`PATCH` 응답 항목에도 실린다. 계약 문서 반영은 `changes/pending/admin-topics-market-field.md`. 요청 3 운영 점검은 읽기 전용 스크립트(`topics-market-audit.sh` — 이름·시장 엇갈림 주제와 콘텐츠 건수, `content_topics` ↔ `contents.market` 어긋난 연결의 주제별 수, 시장별 노출·숨김 주제 수)를 준비했다. **남은 일**: 점검을 돌려 건수를 이 처리 기록에 적고, 있으면 숨김·시장 정정을 AI 와 정한 뒤 `archive/`로 옮긴다. 완료 조건 3이 아직 충족되지 않아 `pending/`에 둔다(BE).
+- 2026-10-21 **반영·완료**(#1788 dev 배포 확인 — `GET /admin/topics` 항목 `market` · `?market=` 필터). 3번 운영 `topics` 점검(읽기 전용 트랜잭션, 주제 정보·건수만): ① 이름과 시장이 엇갈려 보이는 주제 **1건 — `TOPCIT`(kr · 숨김 · 콘텐츠 연결 0)**. 한국 IT 자격 시험 이름이라 KR이 맞다(오탐) — 처리 없음. 한글이 있는데 `global`인 주제 0건 ② 콘텐츠와 시장이 다른 `content_topics` 연결 **0건** ③ 시장별 주제 수 — global 8(노출 0·숨김 8) · kr 31(노출 23·숨김 8). 글로벌 콘솔이 영어 주제를 `kr`로 잘못 만든 흔적은 없다 → 정정·숨김할 것 없음. 문서는 `changes/pending/admin-topics-market-field.md`가 다음 통합 때 반영한다.
