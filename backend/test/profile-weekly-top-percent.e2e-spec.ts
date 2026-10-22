@@ -5,7 +5,7 @@ import { JwtService } from '@nestjs/jwt';
 import { Test } from '@nestjs/testing';
 import request from 'supertest';
 import { App } from 'supertest/types';
-import { DataSource } from 'typeorm';
+import { DataSource, QueryRunner } from 'typeorm';
 
 import { AppModule } from '@/app.module';
 import { traceIdMiddleware } from '@/common/middlewares/trace-id.middleware';
@@ -19,17 +19,28 @@ import { SocialProvider, UserMarket, UserRole } from '@/modules/user/user.enum';
  * 주간 청취 상위 %·한 줄 E2E(`profile-api.md` 4.2 `listening_top_percent` · `listening_highlight` · `daily_listening_highlight`, KAN-168·170·171) — 실제 DB 위에서
  * "나보다 많이 들은 사람 수" 집계 SQL 과 모집단(그 주 끝 전 가입자) 집계를 본다.
  *
- * 공유 로컬 DB 의 다른 행과 섞이지 않게 **2020년 1월 둘째 주**를 쓴다 — 그 주에 가입·청취한 행은 이 테스트가
- * 심은 것뿐이라 순위·모집단이 정확히 정해진다.
+ * **모집단은 누적이다** — "그 주 끝 전에 가입한 같은 시장 전체"라서, 그 주와 겹치지 않아도 **더 일찍 가입한 사용자는
+ * 전부 모집단에 든다.** 병렬 e2e(한 DB)에서 `admin-insights` 가 2001년 가입 KR 사용자를 심는 동안 이 스위트가
+ * 2020년 주를 물으면 모집단이 늘어 순위가 흔들렸다(1/6 → 1/9). 그래서 이 스위트는 **다른 스위트보다 이른 1979~1980년**을
+ * 자기 전용 시대로 쓴다 — 그 시대 이전에 가입한 계정은 이 스위트가 심은 것뿐이라 순위·모집단이 정확히 정해진다.
+ * 다른 스위트가 가입 시각을 과거로 옮길 때는 **1981년 이후**를 써야 한다.
+ *
+ * 같은 스위트가 동시에 두 번 돌면(같은 DB 를 쓰는 여러 작업자) 서로의 사용자가 모집단에 들어가므로, 스위트 전체를
+ * advisory lock 으로 직렬화하고, 잠금을 얻은 뒤 이전 실행이 남긴 행을 지운다.
  */
 describe('주간 청취 상위 % E2E', () => {
   let app: INestApplication<App>;
   let dataSource: DataSource;
   const userIds: string[] = [];
   const contentIds: string[] = [];
-  const TOKEN = `e2etoppct${Date.now()}`;
-  const WEEK_START = '2020-01-06';
-  const JOINED_AT = new Date('2020-01-01T00:00:00.000Z');
+  const WEEK_START = '1980-01-07';
+  const JOINED_AT = new Date('1980-01-02T00:00:00.000Z');
+  /** 이 스위트 전용 시대의 끝 — 이 시각 전에 가입한 계정은 이 스위트가 심은 것뿐이어야 한다 */
+  const RESERVED_ERA_END = new Date('1981-01-01T00:00:00.000Z');
+  const TOKEN_PREFIX = 'e2etoppct';
+  const TOKEN = `${TOKEN_PREFIX}${Date.now()}`;
+  const SUITE_LOCK_KEY = 'e2e:profile-weekly-top-percent';
+  let lockRunner: QueryRunner;
   const path = (p: string) => `/api/v1${p}`;
 
   beforeAll(async () => {
@@ -48,7 +59,25 @@ describe('주간 청취 상위 % E2E', () => {
     );
     await app.init();
     dataSource = app.get(DataSource);
-  }, 60_000);
+
+    // 같은 스위트의 동시 실행을 직렬화한다 — 잠금은 이 연결이 끝날 때(프로세스가 죽어도) 풀린다
+    lockRunner = dataSource.createQueryRunner();
+    await lockRunner.connect();
+    await lockRunner.query(`SELECT pg_advisory_lock(hashtext($1))`, [
+      SUITE_LOCK_KEY,
+    ]);
+    // 이전 실행이 afterAll 전에 죽어 남긴 행을 지운다 — 남아 있으면 모집단에 든다
+    await dataSource.query(
+      `DELETE FROM play_records WHERE user_id IN (
+         SELECT id FROM users WHERE created_at < $1 AND provider_user_id LIKE $2
+       )`,
+      [RESERVED_ERA_END, `${TOKEN_PREFIX}%`],
+    );
+    await dataSource.query(
+      `DELETE FROM users WHERE created_at < $1 AND provider_user_id LIKE $2`,
+      [RESERVED_ERA_END, `${TOKEN_PREFIX}%`],
+    );
+  }, 120_000);
 
   afterAll(async () => {
     for (const userId of userIds) {
@@ -59,6 +88,12 @@ describe('주간 청취 상위 % E2E', () => {
     }
     for (const contentId of contentIds) {
       await dataSource.query(`DELETE FROM contents WHERE id = $1`, [contentId]);
+    }
+    if (lockRunner) {
+      await lockRunner.query(`SELECT pg_advisory_unlock(hashtext($1))`, [
+        SUITE_LOCK_KEY,
+      ]);
+      await lockRunner.release();
     }
     await app.close();
   }, 60_000);
@@ -73,15 +108,16 @@ describe('주간 청취 상위 % E2E', () => {
     const grower = await createUser('grower');
     const shrinker = await createUser('shrinker');
     const silent = await createUser('silent');
-    await seedPlay(top.id, contentId, '2020-01-06', 3000);
-    await seedPlay(tiedA.id, contentId, '2020-01-07', 600);
-    await seedPlay(tiedA.id, contentId, '2020-01-12', 400);
-    await seedPlay(tiedB.id, contentId, '2020-01-08', 1000);
-    await seedPlay(grower.id, contentId, '2019-12-31', 30);
-    await seedPlay(grower.id, contentId, '2020-01-09', 100);
-    await seedPlay(shrinker.id, contentId, '2020-01-02', 500);
-    await seedPlay(shrinker.id, contentId, '2020-01-10', 50);
-    await seedPlay(silent.id, contentId, '2020-01-13', 99_999);
+    await seedPlay(top.id, contentId, '1980-01-07', 3000);
+    await seedPlay(tiedA.id, contentId, '1980-01-08', 600);
+    await seedPlay(tiedA.id, contentId, '1980-01-13', 400);
+    await seedPlay(tiedB.id, contentId, '1980-01-09', 1000);
+    await seedPlay(grower.id, contentId, '1980-01-01', 30);
+    await seedPlay(grower.id, contentId, '1980-01-10', 100);
+    await seedPlay(shrinker.id, contentId, '1980-01-03', 500);
+    await seedPlay(shrinker.id, contentId, '1980-01-11', 50);
+    await seedPlay(silent.id, contentId, '1980-01-14', 99_999);
+    await expectReservedEraHoldsOnlyOurUsers();
 
     // when / then — 1등: 1/6 → 17%
     expect(await weekOf(top.auth)).toEqual({
@@ -104,7 +140,7 @@ describe('주간 청취 상위 % E2E', () => {
     expect(await weekOf(grower.auth)).toEqual({
       listening_top_percent: null,
       listening_highlight: { kind: 'more_than_previous', diff_sec: 70 },
-      // 요일별(KAN-171): 목요일 100초 — 직전 주 목요일(01-02) 0초라 100초 더
+      // 요일별(KAN-171): 목요일 100초 — 직전 주 목요일(01-03) 0초라 100초 더
       daily_listening_highlight: [
         null,
         null,
@@ -154,10 +190,10 @@ describe('주간 청취 상위 % E2E', () => {
   });
 
   describe('시장 분리 — 다른 시장의 많이 들은 사람이 순위를 밀어내지 않는다', () => {
-    // 위 테스트 사용자(2020-01-01 가입)가 모집단에 들지 않는 더 이른 주(2019-06-03). 가입은 그 주 전.
+    // 위 테스트 사용자(1980-01-02 가입)가 모집단에 들지 않는 더 이른 주(1979-06-04). 가입은 그 주 전.
     // KR 2명(1000초·0초) · GLOBAL 3명(3000초·2000초·0초)
-    const week = '2019-06-03';
-    const joinedAt = new Date('2019-05-01T00:00:00.000Z');
+    const week = '1979-06-04';
+    const joinedAt = new Date('1979-05-01T00:00:00.000Z');
     let krListenerAuth: string;
     let globalTopAuth: string;
 
@@ -171,11 +207,12 @@ describe('주간 청취 상위 % E2E', () => {
       const globalTop = await global('global-top');
       const globalSecond = await global('global-second');
       await global('global-silent');
-      await seedPlay(krListener.id, contentId, '2019-06-04', 1000);
-      await seedPlay(globalTop.id, contentId, '2019-06-04', 3000);
-      await seedPlay(globalSecond.id, contentId, '2019-06-04', 2000);
+      await seedPlay(krListener.id, contentId, '1979-06-05', 1000);
+      await seedPlay(globalTop.id, contentId, '1979-06-05', 3000);
+      await seedPlay(globalSecond.id, contentId, '1979-06-05', 2000);
       krListenerAuth = krListener.auth;
       globalTopAuth = globalTop.auth;
+      await expectReservedEraHoldsOnlyOurUsers();
     });
 
     it('KR 사용자는 KR 사용자끼리 순위를 매긴다 — 1/2 → 50%(섞으면 3/5 → 하위권 null)', async () => {
@@ -194,6 +231,18 @@ describe('주간 청취 상위 % E2E', () => {
       expect(result.listening_top_percent).toBe(34);
     });
   });
+
+  /**
+   * 전제 확인 — 전용 시대(1981년 전)에 가입한 계정이 이 스위트가 심은 것뿐인가. 다른 스위트가 이 시대로 가입 시각을
+   * 옮기면 순위 단언보다 먼저 여기서 이유가 드러난다.
+   */
+  async function expectReservedEraHoldsOnlyOurUsers(): Promise<void> {
+    const [{ count }] = await dataSource.query<{ count: string }[]>(
+      `SELECT count(*) FROM users WHERE created_at < $1 AND NOT (id = ANY($2))`,
+      [RESERVED_ERA_END, userIds],
+    );
+    expect(Number(count)).toBe(0);
+  }
 
   async function weekOf(
     auth: string,
