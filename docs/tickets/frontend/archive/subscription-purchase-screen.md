@@ -14,7 +14,7 @@
 | 관련 | 백엔드 `tickets/backend/archive/subscription-receipt-verification.md`([KAN-40](https://runtime364.atlassian.net/browse/KAN-40)) · `google-ios-in-app-payment.md`([KAN-106](https://runtime364.atlassian.net/browse/KAN-106)) — 서버 쪽은 이 티켓의 선행이 아니라 **함께 닫히는 짝**이다(실제 결제로 확인해야 서버 티켓도 archive된다) |
 | 근거 문서 | `spec/api/subscription-api.md`(계약 전체 — **이 문서가 기준**) · `features/subscription.md` 4.2~4.7·5장 · `features/paywall.md` 4.5 · `features/common-error-handling.md` 9.10-3 |
 | 중요도 | Medium — 서버는 운영에서 결제를 받을 준비가 됐지만 앱에 화면이 없어 아무도 결제할 수 없다 |
-| 상태 | 1단계 코드 반영 — 묶음 빌드 대기 (PR #1146, 2026-10-06) |
+| 상태 | 완료 — archive 2026-10-22 (Jira 완료 2026-10-15 · iOS 구독 공개 #1474 KAN-180, 2026-10-13) |
 
 ## 배경
 
@@ -166,3 +166,9 @@
 - [ ] 묶음 빌드 Android aab 를 Play 내부 테스트에 업로드 → Play Console 상품 메뉴 열림 확인(2단계 첫 완료 조건, KAN-130 선행)
 - [ ] 2단계(Android) — KAN-130 뒤 `EXPO_PUBLIC_SUBSCRIPTION_ANDROID=on`. 코드 경로(obfuscatedAccountId · purchase_token 제출 · acknowledge 안 함 · 복원)는 들어가 있다. **확인 필요**: 구독 오퍼 토큰 지정(지금은 `subscriptionOffers` 를 비워 라이브러리 기본 선택에 맡김)과 업·다운그레이드의 교체 모드(`purchaseToken` + replacement params)를 실제 상품으로 확인
 - [ ] 결제 중 앱이 죽은 뒤의 **막혔던 콘텐츠 자동 재생**은 하지 않는다(구독 반영은 된다) — `architecture.md` 6.5 의 `blocked_content_id` 로컬 영속은 범위 밖으로 남겼다
+
+### 2026-10-22 — archive(반영 날짜 2026-10-22)
+
+- Jira KAN-120 은 2026-10-15 에 완료로 넘어갔는데 이 문서는 10-06 "묶음 빌드 대기"에 멈춰 있었다. 티켓 정리 때 PM 확인으로 archive 한다.
+- 그 사이 반영된 것: 운영 iOS 구독 UI 공개(#1474, KAN-180, 2026-10-13) · `eas.json` `preview`·`production` 에 `EXPO_PUBLIC_SUBSCRIPTION_UI=on` · `EXPO_PUBLIC_SUBSCRIPTION_ANDROID=on`.
+- 위 "남은 것"의 샌드박스 결제 실측 결과는 이 문서에 따로 적히지 않았다 — 체크박스를 채우지 않고 그대로 둔다.

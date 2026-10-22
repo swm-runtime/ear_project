@@ -11,7 +11,7 @@
 | 시작 날짜 | 2026-10-05 |
 | 기한 | 2026-10-09 (Low — 이번 주 안) |
 | 선행 | 없음(티켓). 결제 라이브러리가 든 Android 빌드 업로드(KAN-120 2단계 — Play Console 상품 메뉴가 그 뒤에 열린다. 상태: 미완) |
-| 근거 문서 | `features/subscription.md` · `spec/api/subscription-api.md` · `tickets/frontend/pending/subscription-purchase-screen.md`(KAN-120) |
+| 근거 문서 | `features/subscription.md` · `spec/api/subscription-api.md` · `tickets/frontend/archive/subscription-purchase-screen.md`(KAN-120) |
 | 중요도 | Low — PM 발행(2026-10-05). 중요도 미지정이라 이번 주 마감으로 잡았다 — 바꾸려면 Jira·이 표를 함께 고친다 |
 | 상태 | 대기 |
 

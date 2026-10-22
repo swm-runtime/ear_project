@@ -11,7 +11,7 @@
 | 시작 날짜 | 2026-10-05 |
 | 기한 | 2026-10-09 (Low — 이번 주 안) |
 | 선행 | 없음 |
-| 근거 문서 | `ai/PIPELINE.md` · `ai/spec/`(대본·오디오) · KAN-125(이주호 — 콘텐츠 구성 조사, `tickets/frontend/pending/content-structure-research-expert-feedback.md`) |
+| 근거 문서 | `ai/PIPELINE.md` · `ai/spec/`(대본·오디오) · KAN-125(이주호 — 콘텐츠 구성 조사, `tickets/frontend/archive/content-structure-research-expert-feedback.md`) |
 | 중요도 | Low — PM 발행(2026-10-05). 중요도 미지정이라 이번 주 마감으로 잡았다 — 바꾸려면 Jira·이 표를 함께 고친다 |
 | 상태 | 대기 |
 
