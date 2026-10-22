@@ -24,6 +24,7 @@ import {
 import ExploreMoreSheet from '../components/ExploreMoreSheet';
 import SeriesEpisodeRow from '../components/SeriesEpisodeRow';
 import SeriesHeader from '../components/SeriesHeader';
+import SeriesMoreSection from '../components/SeriesMoreSection';
 import SeriesMoreSheet from '../components/SeriesMoreSheet';
 import SeriesSkeleton from '../components/SeriesSkeleton';
 import { EXPLORE_COPY } from '../explore.copy';
@@ -140,9 +141,26 @@ export default function SeriesScreen() {
           </View>
         }
         ListFooterComponent={
-          <Text style={styles.footer}>
-            {EXPLORE_COPY.series.footer(screen.episodeCount, totalMinutes)}
-          </Text>
+          <View>
+            <Text style={styles.footer}>
+              {EXPLORE_COPY.series.footer(screen.episodeCount, totalMinutes)}
+            </Text>
+            {/* 애플 뮤직 앨범 화면 아래 두 줄(PM 2026-10-22) — 비면 줄째 숨는다 */}
+            <SeriesMoreSection
+              title={EXPLORE_COPY.series.moreSeriesTitle}
+              entries={screen.otherSeries}
+              onPress={screen.playRelated}
+              onMorePress={screen.openMoreSheet}
+              onSeriesPress={screen.openOtherSeries}
+            />
+            <SeriesMoreSection
+              title={EXPLORE_COPY.series.youMayLikeTitle}
+              entries={screen.relatedItems}
+              onPress={screen.playRelated}
+              onMorePress={screen.openMoreSheet}
+              onSeriesPress={screen.openOtherSeries}
+            />
+          </View>
         }
         {...DOCK_SCROLL_PROPS}
         onScroll={handleScroll}
