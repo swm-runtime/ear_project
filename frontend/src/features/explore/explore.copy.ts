@@ -131,22 +131,19 @@ const ko = {
 
   /**
    * 시리즈 카드(KAN-225 — explore-uiux.md 4.1-1). 단일 타일과 같은 크기·격자에 들어가고, 사진 아래 변의 "시리즈" 글자로 가른다.
-   * 편수는 노출 중인 편 수 — 계획보다 적으면(진행 중) "공개 편/계획 편"으로 적는다
+   * 편수는 계획 편수 그대로다(PM 2026-10-22 — 시리즈는 결국 한 번에 다 공개되므로 "공개 편/계획 편"을 쓰지 않는다. 시리즈 화면 머리와 같다)
    */
   seriesCard: {
     badge: '시리즈',
-    episodeCount: (count: number, total: number) =>
-      count < total ? `${count}/${total}편` : `${count}편`,
     /** 카드 하단 줄 — 주제가 있으면 `#주제 #주제 · N편`, 없으면 `N편` */
-    meta: (topicNames: string[], count: number, total: number) => {
-      const episodes = count < total ? `${count}/${total}편` : `${count}편`;
+    meta: (topicNames: string[], total: number) => {
+      const episodes = `${total}편`;
       return topicNames.length > 0
         ? `${topicNames.map((name) => `#${name}`).join(' ')} · ${episodes}`
         : episodes;
     },
     /** 카드는 재생이 아니라 시리즈 화면을 연다 — 낭독도 "열기"로 끝난다(uiux 7) */
-    a11yLabel: (title: string, count: number, total: number) =>
-      `${title}, 시리즈, ${count < total ? `${total}편 중 ${count}편` : `${count}편`}, 열기`,
+    a11yLabel: (title: string, total: number) => `${title}, 시리즈, ${total}편, 열기`,
   },
 
   /** E14 시리즈 화면(KAN-225 — explore.md 4.7 · explore-uiux.md 4.11) */
@@ -310,25 +307,14 @@ const en: LocalizedCopy<typeof ko> = {
 
   seriesCard: {
     badge: 'Series',
-    episodeCount: (count: number, total: number) =>
-      count < total
-        ? `${count}/${total} episodes`
-        : formatEnCount(count, { one: 'episode', other: 'episodes' }),
-    meta: (topicNames: string[], count: number, total: number) => {
-      const episodes =
-        count < total
-          ? `${count}/${total} episodes`
-          : formatEnCount(count, { one: 'episode', other: 'episodes' });
+    meta: (topicNames: string[], total: number) => {
+      const episodes = formatEnCount(total, { one: 'episode', other: 'episodes' });
       return topicNames.length > 0
         ? `${topicNames.map((name) => `#${name}`).join(' ')} · ${episodes}`
         : episodes;
     },
-    a11yLabel: (title: string, count: number, total: number) =>
-      `${title}, series, ${
-        count < total
-          ? `${count} of ${total} episodes`
-          : formatEnCount(count, { one: 'episode', other: 'episodes' })
-      }, open`,
+    a11yLabel: (title: string, total: number) =>
+      `${title}, series, ${formatEnCount(total, { one: 'episode', other: 'episodes' })}, open`,
   },
 
   series: {

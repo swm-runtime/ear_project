@@ -447,16 +447,15 @@ exports[`한국어 카피 회귀 — i18n 전환 전과 1:1 EXPLORE_COPY 1`] = `
   "series": {
     "aboutAction": "소개 전체 보기",
     "backA11y": "뒤로 가기",
-    "episodeSummary": [
+    "episodeTotal": [
       "3편",
-      "2026-10-15T00:00:00.000Z편",
+      "가나다편",
     ],
     "followToast": "새 편이 나오면 라이브러리에 담아 드릴게요",
     "footer": [
       "3편, 3분",
       "가나다편, NaN시간 NaN분",
     ],
-    "kind": "시리즈",
     "moreA11y": "시리즈 더보기",
     "moreSeriesTitle": "다른 시리즈 더보기",
     "notFound": {
@@ -507,13 +506,9 @@ exports[`한국어 카피 회귀 — i18n 전환 전과 1:1 EXPLORE_COPY 1`] = `
   "seriesCard": {
     "a11yLabel": [
       "3, 시리즈, 3편, 열기",
-      "가나다, 시리즈, 라마편 중 2026-10-15T00:00:00.000Z편, 열기",
+      "가나다, 시리즈, 2026-10-15T00:00:00.000Z편, 열기",
     ],
     "badge": "시리즈",
-    "episodeCount": [
-      "3편",
-      "가나다편",
-    ],
     "meta": [
       "3편",
       "[throws]",
