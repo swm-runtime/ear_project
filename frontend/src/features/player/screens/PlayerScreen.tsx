@@ -3015,16 +3015,17 @@ const styles = StyleSheet.create({
     gap: theme.spacing.sm,
     paddingBottom: theme.spacing.sm,
   },
+  // 손잡이 막대·글자 — 흐린 커버 바탕에서 불투명 회색(border · textSecondary)이 묻혀 반투명 흰색으로(PM 2026-10-23)
   scriptHandleBar: {
     width: 36,
     height: 4,
     borderRadius: theme.radius.full,
-    backgroundColor: playerColor.border,
+    backgroundColor: playerColor.grabber,
   },
   scriptHandleLabel: {
     fontSize: theme.font.size.xs,
     fontWeight: '600',
-    color: playerColor.textSecondary,
+    color: playerColor.controlSecondary,
   },
   bannerAction: {
     minHeight: theme.touchTarget.minHeight,
