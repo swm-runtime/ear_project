@@ -422,7 +422,10 @@ const styles = StyleSheet.create({
   },
   // '다른 항목' 영역 — 흐린 표지 바탕을 그대로 비추고 반투명 검정 한 장으로 톤만 어둡게 한다
   // (PM 2026-10-22 "표지색에서 톤만 더 어둡게"). 그 면이 존 밖(독 뒤)으로 나가야 해서 잘라 내지 않는다
-  moreSectionsZone: {},
+  // 위 소개 문단과 존 경계 사이 숨 쉴 자리(PM 2026-10-22 "공백만 조정" — 소개 끝줄이 존 경계에 붙어 있었다)
+  moreSectionsZone: {
+    marginTop: theme.spacing.lg,
+  },
   // 존 꼭대기 ~ 존 바닥 아래 MORE_ZONE_BLEED(독 뒤·바닥 튕김)까지 한 장. 숫자 bottom 은 바닥 여백과 무관하게 테두리 기준이다
   moreSectionsShade: {
     position: 'absolute',
