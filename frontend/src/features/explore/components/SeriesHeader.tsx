@@ -1,7 +1,9 @@
+import MaskedView from '@react-native-masked-view/masked-view';
+import { LinearGradient } from 'expo-linear-gradient';
 import { Platform, Pressable, StyleSheet, View, useWindowDimensions } from 'react-native';
 import Animated, { type SharedValue, useAnimatedStyle } from 'react-native-reanimated';
 
-import { theme, useResolvedColor } from '@/shared/theme';
+import { theme, useActiveScheme, useResolvedColor } from '@/shared/theme';
 import { pillButton } from '@/shared/ui/pill-button.styles';
 import PlayIcon from '@/shared/ui/PlayIcon';
 import RemoteImage from '@/shared/ui/RemoteImage';
@@ -9,6 +11,7 @@ import { Text } from '@/shared/ui/Typography';
 
 import { EXPLORE_COPY } from '../explore.copy';
 import type { SeriesDetail } from '../explore.types';
+import FeaturedCardBackdrop from './FeaturedCardBackdrop';
 import { PlusIcon, ShuffleIcon, TrashIcon } from './SeriesActionIcons';
 
 /** 표지 폭 = 화면 폭의 64%(애플 뮤직 앨범 화면 비율), 큰 화면에서 끝없이 커지지 않게 상한을 둔다 */
@@ -32,12 +35,23 @@ const SIDE_ICON_SIZE = 22;
  * 다 채우면 표지가 앱바 버튼 밑으로 파고든다
  */
 const COVER_STRETCH_SHARE = 0.5;
+/**
+ * 표지 뒤 비침(PM 2026-10-22 15:37·16:01 스샷 "이렇게 비치게") — 머리 영역에만 흐린 표지 한 장(탐색 대표 카드와 같은 흐림 36 ·
+ * 막 45%). 화면 전체 바탕(흐림 60)은 세로로 크게 확대돼 한 가지 색으로 뭉개지지만, 이 한 장은 가로 폭에 맞춰 표지 구도가
+ * 남는다. 아래 끝은 마스크로 투명하게 녹여 밑의 화면 바탕(종전 그대로)이 이어진다. 페이드는 표지 아랫변 GLOW_LEAD 위에서
+ * 시작해 GLOW_TAIL 아래에서 끝난다 — 제목 글자(표지 아래 lg)는 종전 바탕 위에 앉는다
+ */
+const GLOW_LEAD = 48;
+const GLOW_TAIL = 20;
+const GLOW_SCRIM_LIGHT = 'rgba(255, 255, 255, 0.35)';
 
 /** 시리즈 제목 — 앨범 제목 자리. 큰 제목(xl 28)보다 한 단 작게, 두세 줄로 접혀도 표지를 밀어내지 않게 */
 const TITLE_SIZE = 24;
 
 interface SeriesHeaderProps {
   series: SeriesDetail['series'];
+  /** 머리 윗변에서 화면 꼭대기까지(상단 안전영역 + 앱바) — 표지 뒤 흐린 표지가 화면 꼭대기까지 번진다 */
+  topBleed: number;
   /** 목록 맨 위에서 더 당긴 거리(pt, 0 이상) — 표지가 손을 따라 커졌다가 돌아온다(PM 2026-10-22) */
   overscroll: SharedValue<number>;
   /** 노출 중인 편 수(서버가 준 편 목록) — 계획 편수보다 적으면 "N편 중 M편 공개" */
@@ -64,6 +78,7 @@ interface SeriesHeaderProps {
 export default function SeriesHeader({
   series,
   overscroll,
+  topBleed,
   episodeCount,
   playTarget,
   onPlay,
@@ -85,8 +100,37 @@ export default function SeriesHeader({
     };
   });
 
+  // 흐린 표지 한 장 — 화면 꼭대기(당긴 만큼 더 위)부터 표지 아래 GLOW_TAIL 까지. 표지는 아래 끝 고정으로 자라므로 아래 끝도 고정
+  const glowStyle = useAnimatedStyle(() => ({
+    top: -(topBleed + overscroll.value),
+    height: topBleed + overscroll.value + theme.spacing.md + coverSize + GLOW_TAIL,
+  }));
+  const scheme = useActiveScheme();
+
   return (
     <View style={styles.root}>
+      <Animated.View style={[styles.glow, glowStyle]} pointerEvents="none">
+        <MaskedView
+          style={StyleSheet.absoluteFill}
+          maskElement={
+            <View style={StyleSheet.absoluteFill}>
+              <View style={styles.glowMaskSolid} />
+              <LinearGradient
+                colors={['#000000', '#00000000']}
+                style={{ height: GLOW_LEAD + GLOW_TAIL }}
+              />
+            </View>
+          }
+        >
+          <View style={StyleSheet.absoluteFill}>
+            <FeaturedCardBackdrop
+              uri={series.thumbnailUrl}
+              recyclingKey={series.id}
+              scrimColor={scheme === 'dark' ? undefined : GLOW_SCRIM_LIGHT}
+            />
+          </View>
+        </MaskedView>
+      </Animated.View>
       {/* 그림자는 바깥, 라운드·클립은 안쪽 프레임 — overflow hidden 이 iOS 그림자를 자른다 */}
       <Animated.View
         style={[styles.coverShadow, { width: coverSize, height: coverSize }, coverStretchStyle]}
@@ -168,6 +212,17 @@ const styles = StyleSheet.create({
     paddingHorizontal: theme.spacing.lg,
     paddingTop: theme.spacing.md,
     paddingBottom: theme.spacing.lg,
+  },
+  // 표지 뒤 흐린 표지 — 좌우 가득, top·height 는 렌더에서(화면 꼭대기 ~ 표지 아래). 확대(1.2) 가장자리가 밖으로 새지 않게 자른다
+  glow: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    overflow: 'hidden',
+  },
+  glowMaskSolid: {
+    flex: 1,
+    backgroundColor: '#000000',
   },
   coverShadow: {
     marginBottom: theme.spacing.lg,
