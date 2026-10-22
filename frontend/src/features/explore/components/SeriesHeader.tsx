@@ -46,7 +46,23 @@ const COVER_STRETCH_SHARE = 0.5;
  * 끊겨 제목·버튼이 회색 띠 위에 따로 떴다), 아래 끝 GLOW_FADE 만 마스크로 투명하게 녹여 밑의 화면 바탕(종전 그대로)으로 잇는다.
  * 제목·버튼이 흐린 표지 위에 앉으므로 라이트 모드 막을 진하게 둔다(어두운 표지 위 검정 글자 대비)
  */
-const GLOW_FADE = 40;
+/**
+ * 아래 끝 페이드 — 길게(140) + 곡선(ease-out: 처음엔 천천히 옅어지고 끝은 긴 꼬리)으로 녹이고, 머리 아래로 GLOW_OVERHANG 만큼
+ * 첫 편 줄 뒤까지 걸친다(PM 2026-10-22 16:58 "그라데이션 자연스럽게" — 종전 40pt 직선 페이드는 버튼 줄 아래에서 띠처럼 끊겨 보였다)
+ */
+const GLOW_FADE = 140;
+const GLOW_OVERHANG = 48;
+/** 마스크 불투명도 곡선(1 → 0) — 직선 두 점이면 끝에서 꺾여 보인다 */
+const GLOW_FADE_COLORS = [
+  'rgba(0, 0, 0, 1)',
+  'rgba(0, 0, 0, 0.88)',
+  'rgba(0, 0, 0, 0.66)',
+  'rgba(0, 0, 0, 0.42)',
+  'rgba(0, 0, 0, 0.22)',
+  'rgba(0, 0, 0, 0.08)',
+  'rgba(0, 0, 0, 0)',
+] as const;
+const GLOW_FADE_LOCATIONS = [0, 0.18, 0.36, 0.54, 0.72, 0.88, 1] as const;
 const GLOW_SCRIM_LIGHT = 'rgba(255, 255, 255, 0.6)';
 
 /** 시리즈 제목 — 앨범 제목 자리. 큰 제목(xl 28)보다 한 단 작게, 두세 줄로 접혀도 표지를 밀어내지 않게 */
@@ -132,7 +148,11 @@ export default function SeriesHeader({
           maskElement={
             <View style={StyleSheet.absoluteFill}>
               <View style={styles.glowMaskSolid} />
-              <LinearGradient colors={['#000000', '#00000000']} style={{ height: GLOW_FADE }} />
+              <LinearGradient
+                colors={GLOW_FADE_COLORS}
+                locations={GLOW_FADE_LOCATIONS}
+                style={{ height: GLOW_FADE }}
+              />
             </View>
           }
         >
@@ -232,7 +252,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     left: 0,
     right: 0,
-    bottom: 0,
+    bottom: -GLOW_OVERHANG,
     overflow: 'hidden',
   },
   glowMaskSolid: {
