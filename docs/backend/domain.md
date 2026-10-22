@@ -134,7 +134,7 @@ idx_idempotency_keys_expires_at
 | `auth` | `sessions`, `daily_active_users`, `user_active_dates`(2026-10-18 — 원천이 `sessions`이고 표가 필요한 이유도 이 모듈의 세션 파기다. 서비스 지표(`admin`)는 읽기만 한다, [3.3-1](#33-1-daily_active_users-신설-2026-10-18--세션-파기에도-남는-일별-접속자)·[3.3-2](#33-2-user_active_dates-신설-2026-10-18--코호트-리텐션의-사람별-접속일)) |
 | `interest` | `topics`, `user_interests`, `topic_adjacencies` |
 | `content` | `contents`, `content_topics`, `content_scripts`, `content_stats`, `content_sources`, `content_embeddings`, `search_query_logs`, `series`(2026-10-17 — `SeriesService`가 export, [5.9](#59-series-신설-2026-10-17--kan-134-시리즈)) |
-| `library` | `library_items` |
+| `library` | `library_items`, `library_series`(2026-10-22 — 시리즈째 담기, [6.1-1](#61-1-library_series-신설-2026-10-22--kan-245-시리즈째-담기)) |
 | `playback` | `playback_progresses`, `play_records`, `play_daily_totals`, `user_signals`, `audio_access_logs`, `source_link_clicks` |
 | `drip` | `drip_excluded_contents`, `user_preference_vectors`, `drip_batch_runs`, `first_drip_jobs` |
 | `subscription` | `plans`, `subscriptions`, `purchase_intents`, `store_notification_logs` |
@@ -922,7 +922,7 @@ ck_series_status          CHECK (status IN ('ongoing', 'completed'))
 - `status`는 표시용 구분이다 — 업로드·노출을 막지 않는다. `ongoing`이면 편수를 늘려 편을 더한다.
 - `total_episodes`는 발행 중인 가장 큰 편 번호보다 작게 줄일 수 없다(`admin-api.md` 4.24).
 - 삭제 API가 없다. 편이 FK로 가리킨다(`ON DELETE RESTRICT`).
-- 담기·재생 위치·완청·통계·페이월 차감은 편 단위 그대로다 — 그 테이블들은 `series`를 참조하지 않는다.
+- 담기·재생 위치·완청·통계·페이월 차감은 편 단위 그대로다 — 그 테이블들은 `series`를 참조하지 않는다. **+ 시리즈째 담기 기록 `library_series`**(2026-10-22 — KAN-245, [6.1-1](#61-1-library_series-신설-2026-10-22--kan-245-시리즈째-담기)) — 새 편 자동 적립의 근거이고, 라이브러리 목록은 이 표를 읽지 않는다(편 단위 `library_items` 그대로).
 - **CS 키워드 시리즈(데이터)** — 마이그레이션 `1790700100000-SeedCsKeywordSeries`가 시리즈 행 하나(id **`7de91e6e-2e96-4aea-9ddb-80fe99179c2e`** 고정, "키워드로 빠르게 배우는 CS 지식", 16편, `completed`)를 만들고 해당 16개 콘텐츠에 `series_id`·`episode_no`(1~16)·`total_episodes`(16)를 채웠다. `content_id`·`content_version`·제목·오디오는 그대로다. id를 고정한 이유는 운영 → 개발계 콘텐츠 동기화가 행을 id로 맞추기 때문이다(동기화 스크립트가 `series`를 `contents`보다 먼저 upsert한다).
 
 ## 6. 라이브러리 · 재생
@@ -981,6 +981,31 @@ idx_library_items_content_id (content_id)
 - **프로필의 "누적 청취 콘텐츠 수"(완청 고유 콘텐츠 수 — `profile.md` 4.5)의 원천은 이 테이블이다.** `status = completed`인 고유 `content_id` COUNT로 구한다(`deleted_at` 무관 — soft delete라 행이 남는다). 파생값이므로 컬럼·집계 테이블을 만들지 않는다([1.5](#15-파생값을-컬럼으로-두지-않는다)).
 
 - **`algorithm_version`은 사용자 별점을 버전별로 모으는 열쇠다**(`drip-feedback.md` 4.4, 2026-09-30). 편성 배치가 적립할 때 서버 상수 `DRIP_ALGORITHM_VERSION`(`YYYY-MM-DD.n`)을 쓴다. 편성 계산은 이 값을 읽지 않는다. 온보딩 직후의 첫 드립은 배치가 아닌 별도 경로(신호 없이 고름)라 찍지 않으며, 별점 팝업도 버전이 있는 편성분만 묻는다(`drip-feedback.md` 4.1-2, 2026-10-02). 버전 도입 전 행은 NULL로 두고 소급하지 않는다 — 다른 알고리즘의 결과가 한 버전으로 뭉친다. `idx_library_items_algorithm_version`(부분 인덱스, NOT NULL) — 어드민 버전별 편성 수 집계용.
+
+### 6.1-1 `library_series` *(신설 2026-10-22 — KAN-245 시리즈째 담기)*
+
+시리즈째 담기 기록. **새로 공개되는 편이 라이브러리에 따라 들어오는 근거는 이 표의 살아 있는 행 하나다** — 편 하나씩 담은 것·드립 적립은 따라오기가 아니다. 마이그레이션 `1791400000000-AddLibrarySeries`.
+
+```
+library_series
+  id          uuid          PK
+  user_id     uuid          FK → users  ON DELETE CASCADE
+  series_id   uuid          FK → series
+  added_at    timestamptz   NOT NULL   시리즈째 담은 시각 — 다시 담으면 새로, 실행 취소는 유지
+  deleted_at  timestamptz   NULL       ★소프트 삭제 — 시리즈째 빼기
+  created_at · updated_at
+
+uq_library_series_user_id_series_id (user_id, series_id)
+idx_library_series_series_id_deleted_at (series_id, deleted_at)
+```
+
+- **라이브러리는 편 단위 그대로다.** 목록·필터·순서는 이 표를 읽지 않는다 — 시리즈 카드로 묶지 않는다(2026-10-22 14:55 철회).
+- 담기(`POST /series/:id/save` — `explore-api.md` 4.8) = 이 행 upsert(삭제분이면 되살리고 `added_at`을 새로) + 노출 편을 편 담기 규칙 그대로 적립. 빼기(4.9) = 소프트 삭제 + 그 시리즈의 살아 있는 `library_items`를 편 해제 규칙 그대로 소프트 삭제. 실행 취소(4.10) = 되살림(`added_at` 유지) + 넘긴 행만 편 복구 규칙으로.
+- **새 편 적립** — 시리즈 편이 **처음 공개되는 시점**(관리자 업로드 = 즉시 발행. 재발행·회수 복구는 아니다)에 그 시리즈의 살아 있는 행의 사용자 중 **편과 같은 시장**(`users.market = contents.market`)이고 그 편의 `library_items` 행이 **없는**(삭제 이력도 없는) 사용자에게 `INSERT … SELECT` 한 문장으로 `source = save`·`added_at = 적립 시각` 행을 넣는다. `uq_library_items_user_id_content_id`가 중복을 막는다. 신호(`user_signals`)는 남기지 않는다. 실패해도 발행은 성공이고 로그만 남는다.
+- **편을 따로 빼도 이 행은 그대로다** — 새 편은 계속 오고, 뺀 편은 행이 남아 있어 다시 넣지 않는다.
+- `idx_library_series_series_id_deleted_at`은 새 편 적립(시리즈 축 조회)용이다. 유니크는 `user_id`가 선두라 이 방향에 쓸 수 없다.
+- 이 기능 전에 편 단위로 시리즈를 다 담은 사용자는 소급하지 않는다(개발계뿐 — 티켓 범위 밖).
+- **사용자 데이터다** — 운영 → 개발계 콘텐츠 동기화(`deploy/sync-content-*.sh`)의 대상 표가 아니다. 탈퇴 시 즉시 파기([12.3](#123-회원-탈퇴-처리)).
 
 ### 6.2 `playback_progresses`
 
@@ -1757,6 +1782,7 @@ idx_archived_subscriptions_archived_at
 | 테이블 | 정책 | 근거 |
 |---|---|---|
 | `library_items` | **soft** (`deleted_at`) | 삭제 후 [실행 취소] 지원, 재적립 방지 근거 |
+| `library_series` | **soft** (`deleted_at`) — 탈퇴 시 즉시 파기 | 시리즈째 빼기의 [실행 취소]가 `added_at`을 유지한 채 되살린다 (신설 2026-10-22 — [6.1-1](#61-1-library_series-신설-2026-10-22--kan-245-시리즈째-담기)) |
 | `contents` | **soft** (`status = withdrawn` + `withdrawn_at`) | 파트너 회수 이력 |
 | `sessions` | **soft** (`revoked_at`), **만료(`expires_at`) 또는 폐기(`revoked_at`) 후 30일 경과 시 hard delete 배치** | 폐기 이력이 필요한 것은 refresh 재사용 탐지 창(refresh TTL 30일 — `architecture.md` 9.1) 동안뿐이다. 그 창을 넘긴 행은 탐지에도 안 쓰이고 조회 비용만 남긴다. 활성 세션(`revoked_at IS NULL` 이고 `expires_at`이 미래)은 대상이 아니다 (확정 2026-09-09) |
 | `device_tokens` | **soft** (`invalidated_at`) | 발송 실패 원인 추적 |
@@ -1838,7 +1864,7 @@ idx_archived_subscriptions_archived_at
 | 처리 | 대상 |
 |---|---|
 | **아카이브 후 파기** (5년) | `users` → `archived_users`, `consents` → `archived_consents`, `subscriptions` → `archived_subscriptions` |
-| **즉시 파기** | `library_items`, `playback_progresses`, `play_records`, `user_signals`, `audio_access_logs`, `source_link_clicks`, `search_query_logs`, `user_interests`, `user_settings`, `device_tokens`, `sessions`, `user_active_dates`(FK CASCADE — 2026-10-18), `user_market_changes`(FK CASCADE — 2026-10-19), `user_preference_vectors`, `drip_excluded_contents`, `drip_feedbacks`, `purchase_intents`, `notification_logs`, `email_verifications`, `first_drip_jobs`, `idempotency_keys`(해당 사용자 `owner_key`) |
+| **즉시 파기** | `library_items`, `library_series`(FK CASCADE — 2026-10-22), `playback_progresses`, `play_records`, `user_signals`, `audio_access_logs`, `source_link_clicks`, `search_query_logs`, `user_interests`, `user_settings`, `device_tokens`, `sessions`, `user_active_dates`(FK CASCADE — 2026-10-18), `user_market_changes`(FK CASCADE — 2026-10-19), `user_preference_vectors`, `drip_excluded_contents`, `drip_feedbacks`, `purchase_intents`, `notification_logs`, `email_verifications`, `first_drip_jobs`, `idempotency_keys`(해당 사용자 `owner_key`) |
 | **그대로 유지** | `withdrawal_logs`(원래 해시만), `store_notification_logs`(개인 식별자 없음), `content_stats`(집계값), `play_daily_totals`(집계값 — 2026-10-17), `daily_active_users`(집계값 — 2026-10-18) |
 
 **결제 이력이 없는 사용자 — 아카이브 없이 전량 즉시 파기**
