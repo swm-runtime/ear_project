@@ -26,7 +26,7 @@ import { prepareAssets, workerRev } from "../assets.js";
 import { pullPrefix, pushPrefix, s3Key } from "../storage.js";
 import { scriptStats, twoStageViolationsEn } from "./draft-two-stage.js";
 
-export const JUDGE_LOOP_VERSION = "judge-loop-v1";
+export const JUDGE_LOOP_VERSION = "judge-loop-v1.1";
 export const DEFAULT_THRESHOLD = 65;
 const MAX_ROUNDS = 3;
 export const K = ["3.1", "3.2", "3.3", "3.4", "3.5", "3.6", "3.7", "3.8", "3.9", "3.10", "3.11", "3.12"] as const;
@@ -258,9 +258,10 @@ ${formatBlock}
       script = fixMeta(o2, script); pron = mergePron(pron, o2.pronunciations_added); tc = o2.turn_claims; v = l0(script, pron, tc); o = { ...o2, plan: o.plan || o2.plan };
     }
     await save(`round${t}-plan.md`, `# ${t}회차 ${mode}\n\n${o.plan}\n\n## 바꾼 것\n${o.changes}\n\n${notesMd(tc)}\n`);
-    // 한국어·사실 검토 → must_fix 턴만 수리
-    await progress(`판정 루프 ${t}회차 — 한국어·사실 검토`);
-    const kr = await korea(script, pron);
+    // 한국어·사실 검토와 편집자 3회를 같은 판에 병렬로 (2026-10-23: 직렬이면 회차당 16~17분, 편당 1시간). 편집자는 must_fix 수리 전 판을 채점한다 —
+    // 수리는 지적된 턴만의 최소 변경이라 점수를 바꾸지 않는 것으로 본다(README 6.2). 수리 뒤 L0 는 다시 돈다
+    await progress(`판정 루프 ${t}회차 — 한국어·사실 검토 · 편집자 3회 채점`);
+    const [kr, eds] = await Promise.all([korea(script, pron), editors(script)]);
     const mustFix = kr.findings.filter((f) => f.kind === "must_fix");
     let repaired: string[] = [];
     if (mustFix.length) {
@@ -269,9 +270,6 @@ ${formatBlock}
       script = applyFixes(script, valid); pron = mergePron(pron, r.pronunciations_added); repaired = valid.map((f) => f.turn);
       v = l0(script, pron, tc);
     }
-    // 편집자 3회 (GPT, 눈가림)
-    await progress(`판정 루프 ${t}회차 — 편집자 3회 채점`);
-    const eds = await editors(script);
     const med = medianScores(eds); const totalT = sumOf(med), structT = sumOf(med, STRUCT);
     rounds.push({ t, mode, totals: eds.map(editorTotal), median: med, total: totalT, struct: structT, koreaPub: kr.publishable, koreaMf: mustFix.length, repaired, l0: v.length, words: scriptStats(script).words ?? 0, cost: Math.round((cost - c0) * 1000) / 1000 });
     await save(`round${t}-script.md`, script); await save(`round${t}.json`, JSON.stringify({ editors: eds, korea: kr, repaired, l0: v }, null, 1));
@@ -280,8 +278,10 @@ ${formatBlock}
     const cur: State = { script, pron, eds, korea: kr, repaired, round: t };
     const prev = { total: best.total, struct: best.struct }; const gained = totalT > prev.total;
     if (gained) best = { ...cur, total: totalT, struct: structT };
-    if (mode === "structure") { if (structT < prev.struct + 1) mode = "detail"; }
-    else if (!gained) break;
+    // 중단: 세부 단계에서 이득이 없으면, 그리고 2회차부터는 단계와 무관하게 이득이 없으면 다음 회차를 돌리지 않는다
+    // (2026-10-23 조기 종료 — G261023-001 이 1회차 66 → 2회차 66 → 3회차 64 로 세 번째 회차는 비용·20분만 썼다)
+    if (!gained && (mode === "detail" || t >= 2)) break;
+    if (mode === "structure" && structT < prev.struct + 1) mode = "detail";
     base = gained || mode === "structure" ? cur : { ...best };
   }
 
