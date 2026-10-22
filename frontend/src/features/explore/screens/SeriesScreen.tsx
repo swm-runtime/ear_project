@@ -1,4 +1,3 @@
-import { LinearGradient } from 'expo-linear-gradient';
 import { Image, Platform, ScrollView, StyleSheet, View } from 'react-native';
 import Animated, {
   cancelAnimation,
@@ -134,8 +133,7 @@ export default function SeriesScreen() {
       0,
     );
     // '다른 항목' 존이 있으면 그 톤이 바닥까지 이어지도록 바닥 여백을 존이 책임진다(아래 contentContainer·zone 참조)
-    const hasMoreSections =
-      screen.otherSeries.length > 0 || screen.relatedItems.length > 0;
+    const hasMoreSections = screen.otherSeries.length > 0 || screen.relatedItems.length > 0;
     return (
       <Animated.FlatList
         data={screen.episodes}
@@ -188,18 +186,11 @@ export default function SeriesScreen() {
                 달리해 '다른 항목' 영역으로 가른다(PM 2026-10-22 — surface 면). 둘 다 비면 빈 면이 뜨지 않게 존째 생략 */}
             {hasMoreSections ? (
               <View
-                style={[
-                  styles.moreSectionsZone,
-                  { paddingBottom: dockInset + theme.spacing.lg },
-                ]}
+                style={[styles.moreSectionsZone, { paddingBottom: dockInset + theme.spacing.lg }]}
               >
-                {/* 아래로 갈수록 진해지는 어둠 — 추천 영역은 은은하게, 독(리퀴드 글라스) 뒤쪽은 진하게 깔아
-                    시스템 유리가 밑 밝기를 따라 어두워지게 한다(iOS 26 독은 화면별 틴트 불가 — fe-68 확인 2026-10-22) */}
-                <LinearGradient
-                  colors={[MORE_ZONE_TOP_SHADE, MORE_ZONE_BOTTOM_SHADE]}
-                  style={StyleSheet.absoluteFill}
-                  pointerEvents="none"
-                />
+                {/* 존 어둠 — **위아래 같은 톤 한 겹**(PM 2026-10-22 18:28 "dock 뒤에도 위에랑 색깔 맞춰줘" — 종전 0.3→0.62
+                    그라데이션은 독 뒤만 따로 시커멓게 떴다). 아래 연장 면도 같은 값이라 독(리퀴드 글라스) 뒤까지 한 색이다 */}
+                <View style={styles.moreSectionsShade} pointerEvents="none" />
                 {/* 존 아래로 같은 톤을 더 칠한다 — iOS 26 시스템 탭 바는 탭 바·미니플레이어 자리를 스크롤 뷰 자동
                     인셋(목록 콘텐츠 밖)으로 비워, 존의 바닥 여백만으로는 독 뒤까지 닿지 않았다(PM 2026-10-22 스샷).
                     콘텐츠 크기엔 안 들어가는 절대 위치라 스크롤 길이는 그대로다 */}
@@ -359,9 +350,8 @@ const BAR_BUTTON_SIZE = 48;
 const BACKDROP_BLUR_RADIUS = 60;
 const BACKDROP_SCRIM_DARK = 'rgba(23, 23, 26, 0.72)';
 const BACKDROP_SCRIM_LIGHT = 'rgba(255, 255, 255, 0.72)';
-/** '다른 항목' 존의 어둠 — 위(추천 줄)는 은은하게, 아래(독 뒤)는 진하게. 연장 면도 아래 값으로 이어 칠한다 */
-const MORE_ZONE_TOP_SHADE = 'rgba(0, 0, 0, 0.3)';
-const MORE_ZONE_BOTTOM_SHADE = 'rgba(0, 0, 0, 0.62)';
+/** '다른 항목' 존의 어둠 — 존 전체와 아래 연장 면(독 뒤)이 같은 값 하나다 */
+const MORE_ZONE_SHADE = 'rgba(0, 0, 0, 0.4)';
 /** 존 아래 연장 면 높이 — 시스템 탭 바·미니플레이어 인셋과 바닥 튕김까지 덮게 넉넉히 */
 const MORE_ZONE_BLEED = 1000;
 const APP_BAR_ICON_SIZE = 24;
@@ -436,14 +426,18 @@ const styles = StyleSheet.create({
   // (PM 2026-10-22 "표지색에서 톤만 더 어둡게"). 독 뒤가 가장 어두워 리퀴드 글라스 독이 그 밝기를 따라 어두워진다
   // (fe-68 확인). 아래 연장 면이 존 밖으로 나가야 해서 잘라 내지 않는다
   moreSectionsZone: {},
-  // 존 바로 아래부터 독 뒤·바닥 튕김까지 이어 칠하는 면 — 그라데이션 끝 톤과 같다
+  moreSectionsShade: {
+    ...StyleSheet.absoluteFill,
+    backgroundColor: MORE_ZONE_SHADE,
+  },
+  // 존 바로 아래부터 독 뒤·바닥 튕김까지 이어 칠하는 면 — 존과 같은 톤
   moreSectionsBleed: {
     position: 'absolute',
     top: '100%',
     left: 0,
     right: 0,
     height: MORE_ZONE_BLEED,
-    backgroundColor: MORE_ZONE_BOTTOM_SHADE,
+    backgroundColor: MORE_ZONE_SHADE,
   },
   // 편 사이 구분선 — 머리 아래 선과 같이 좌우 같은 여백으로 가운데(PM 2026-10-22, 종전 제목 시작선 ~ 오른쪽 끝)
   separator: {
