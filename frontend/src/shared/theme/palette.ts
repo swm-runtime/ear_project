@@ -64,6 +64,12 @@ export interface Palette {
   separator: string;
   /** 옅은 구분선 — 그래프 세로 격자 */
   separatorFaint: string;
+  /**
+   * 흐린 그림(재질) 위 구분선 — iOS 의 비비드(vibrancy) 구분선을 흉내 낸다: 배경이 무슨 색이든 글자색 쪽으로 일정하게 밝히거나
+   * (다크 흰 16%) 어둡게(라이트 검정 14%) 그려 대비가 유지된다. `separator`(시스템 회색)는 단색 배경용이라 흐린 표지 위
+   * 중간 톤에서 배경과 밝기가 같아져 묻힌다(시리즈 화면, PM 2026-10-22)
+   */
+  separatorOnMaterial: string;
   /** 트랙·옅은 면 — iOS tertiarySystemFill(세그먼트 트랙·도넛 바탕) */
   fillTertiary: string;
   /** 유리 위 보조 버튼 면 — iOS secondarySystemFill(확인 다이얼로그) */
@@ -120,6 +126,7 @@ export const LIGHT_PALETTE: Palette = {
   hairlineStrong: 'rgba(0, 0, 0, 0.14)',
   separator: 'rgba(60, 60, 67, 0.2)',
   separatorFaint: 'rgba(60, 60, 67, 0.1)',
+  separatorOnMaterial: 'rgba(0, 0, 0, 0.14)',
   fillTertiary: 'rgba(118, 118, 128, 0.12)',
   fillSecondary: 'rgba(120, 120, 128, 0.16)',
   divider: 'rgba(0, 0, 0, 0.12)',
@@ -160,6 +167,7 @@ export const DARK_PALETTE: Palette = {
   hairlineStrong: 'rgba(255, 255, 255, 0.18)',
   separator: 'rgba(84, 84, 88, 0.65)', // separator(dark)
   separatorFaint: 'rgba(84, 84, 88, 0.35)',
+  separatorOnMaterial: 'rgba(255, 255, 255, 0.16)',
   fillTertiary: 'rgba(118, 118, 128, 0.24)', // tertiarySystemFill(dark)
   fillSecondary: 'rgba(120, 120, 128, 0.32)', // secondarySystemFill(dark)
   divider: 'rgba(255, 255, 255, 0.15)',
