@@ -65,7 +65,7 @@ export default function SeriesStackedArtwork({
 }
 
 /**
- * 뒤 카드 두 장만 — 부모를 꽉 채우는 절대 배치 층. 부모는 위에 `SERIES_STACK_HEIGHT` 여백을 두고, 그 아래를 불투명한 표지(또는
+ * 뒤 카드 두 장만 — 부모 위 띠(뒤 카드 몫 + 모서리 곡률)에 까는 절대 배치 층. 부모는 위에 `SERIES_STACK_HEIGHT` 여백을 두고, 그 아래를 불투명한 표지(또는
  * 카드)가 덮어야 한다. 인기 대표 카드처럼 카드가 표지를 클립하는 자리는 이것을 카드 바깥에 둔다
  */
 export function SeriesStackLayers({
@@ -81,8 +81,10 @@ export function SeriesStackLayers({
 }) {
   const shape = { borderRadius: radius, borderCurve: 'continuous' as const };
   return (
+    // 위 띠에만 깐다 — 표지 위 모서리 곡률까지만 내려가면 나머지는 표지가 덮는다. 부모 바닥까지 깔면 부모가 옆 카드 높이로
+    // 늘어나는 인기 줄에서 뒤 카드가 카드 아래로 비져 나왔다(PM 2026-10-23)
     <View
-      style={StyleSheet.absoluteFill}
+      style={[styles.layers, { height: SERIES_STACK_HEIGHT + radius * 2 }]}
       pointerEvents="none"
       accessibilityElementsHidden
       importantForAccessibility="no-hide-descendants"
@@ -132,7 +134,13 @@ const styles = StyleSheet.create({
     borderCurve: 'continuous',
     overflow: 'hidden',
   },
-  // 뒤 카드는 표지 높이만큼 내려가 표지에 가려진다 — 위 변만 비져 나온다
+  layers: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+  },
+  // 뒤 카드는 층 바닥까지 내려가 표지에 가려진다 — 위 변만 비져 나온다
   layer: {
     position: 'absolute',
     bottom: 0,

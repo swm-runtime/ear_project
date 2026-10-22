@@ -231,6 +231,8 @@ const styles = StyleSheet.create({
   },
   // 대표 카드 — ExploreFeaturedCard 와 같은 껍데기(커버가 위·양옆 변에 붙고 카드가 클립)
   featuredCard: {
+    // 줄이 옆 카드 높이로 늘리면 카드도 끝까지 채운다 — 아래 변이 옆 카드와 맞는다
+    flexGrow: 1,
     borderRadius: theme.radius.lg,
     borderCurve: 'continuous',
     overflow: 'hidden',
