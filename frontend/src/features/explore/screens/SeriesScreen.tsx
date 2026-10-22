@@ -333,7 +333,8 @@ const OVERSCROLL_RELEASE_MS = 450;
 
 /**
  * 머리 아래 선·편 사이 구분선 두께 — 1pt(PM 2026-10-22 "리스트 구분선들도 잘 보이게"). 종전 머리카락 굵기(1px) +
- * `border`(#E3E3E8)는 흐린 표지 배경·회색 재생 중 행 옆에서 묻혔다. 색은 iOS separator(`theme.color.separator`)
+ * `border`(#E3E3E8)는 흐린 표지 배경·회색 재생 중 행 옆에서 묻혔다. 색은 흐린 그림 위 구분선(`separatorOnMaterial` — 비비드 구분선
+ * 흉내, 다크 흰 16% · 라이트 검정 14%). 시스템 separator 회색은 흐린 바탕 중간 톤과 밝기가 같아 여전히 안 보였다(PM 2026-10-22 17:55)
  */
 const LIST_RULE_THICKNESS = 1;
 
@@ -390,7 +391,7 @@ const styles = StyleSheet.create({
   headerRule: {
     height: LIST_RULE_THICKNESS,
     marginHorizontal: theme.spacing.md,
-    backgroundColor: theme.color.separator,
+    backgroundColor: theme.color.separatorOnMaterial,
   },
   // 발행일자 — 'N편, 길이' 위 보조 줄(앨범 하단 발행일)
   publishedAt: {
@@ -424,6 +425,6 @@ const styles = StyleSheet.create({
   separator: {
     height: LIST_RULE_THICKNESS,
     marginHorizontal: theme.spacing.md,
-    backgroundColor: theme.color.separator,
+    backgroundColor: theme.color.separatorOnMaterial,
   },
 });
