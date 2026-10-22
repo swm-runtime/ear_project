@@ -93,6 +93,15 @@ export type ExploreEntryDto = (ExploreItemDto | ExploreSeriesCardDto) & {
   matched_by?: ExploreSearchMatchedBy[];
 };
 
+/**
+ * 같은 간행물의 다른 시리즈(explore-api.md 4.7-1 `GET /series/:id/publisher-series` — 2026-10-22). `items` 는 탐색 시리즈 카드와
+ * 같은 모양이다. 발행 이름이 없으면 `publisher_name` null · 빈 목록
+ */
+export interface PublisherSeriesResponseDto {
+  publisher_name: string | null;
+  items: ExploreEntryDto[];
+}
+
 export interface ExploreSectionDto {
   /** interest / new / popular / topic_group — 분석·로깅용. 화면 분기에 쓰지 않는다 */
   key: string;

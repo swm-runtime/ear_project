@@ -33,7 +33,11 @@ import type {
 } from '../explore.types';
 import { useSaveContentMutation } from './useSaveContentMutation';
 import { useSeriesDetailQuery } from './useSeriesDetailQuery';
-import { useOtherSeriesQuery, useSeriesRelatedQuery } from './useSeriesMoreQueries';
+import {
+  useOtherSeriesQuery,
+  usePublisherSeriesQuery,
+  useSeriesRelatedQuery,
+} from './useSeriesMoreQueries';
 import {
   useRestoreSeriesMutation,
   useSaveSeriesMutation,
@@ -306,6 +310,10 @@ export const useSeriesScreen = () => {
    * ── 아래 가로 목록 두 줄(PM 2026-10-22 — 애플 뮤직 앨범 화면 아래). "다른 시리즈 더보기" = 같은 주제 목록·탐색 피드의
    * 시리즈 카드, "좋아할 만한 다른 항목" = 관련 콘텐츠(KAN-240)에서 이 시리즈 편을 뺀 것. 새 API 없음, 비면 줄째 숨는다 ──
    */
+  // 같은 간행물의 다른 시리즈(PM 2026-10-22 — 애플 뮤직 "○○의 다른 앨범"). 맨 위 줄이고, 아래 "다른 시리즈 더보기"는 겹치는 시리즈를 뺀다
+  const publisherQuery = usePublisherSeriesQuery(seriesId, detail !== undefined);
+  const publisherSeries = publisherQuery.data?.series ?? [];
+  const publisherSeriesIds = new Set(publisherSeries.map((series) => series.id));
   const otherSeriesQuery = useOtherSeriesQuery(
     seriesId,
     detail?.series.topic?.id ?? null,
@@ -508,10 +516,11 @@ export const useSeriesScreen = () => {
         : null,
     playSeries,
     // 아래 가로 목록
-    otherSeries: (otherSeriesQuery.data ?? []).map((series) => ({
-      type: 'series' as const,
-      series,
-    })),
+    publisherName: publisherQuery.data?.publisherName ?? null,
+    publisherSeries: publisherSeries.map((series) => ({ type: 'series' as const, series })),
+    otherSeries: (otherSeriesQuery.data ?? [])
+      .filter((series) => !publisherSeriesIds.has(series.id))
+      .map((series) => ({ type: 'series' as const, series })),
     relatedItems,
     openOtherSeries,
     playRelated,
