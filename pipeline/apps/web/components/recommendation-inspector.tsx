@@ -141,6 +141,12 @@ function InspectorDetailView({ channel, userId }: { channel: EarChannel; userId:
       <SectionTitle>사용자 <span className="font-mono normal-case">{shortId(userId)}</span></SectionTitle>
       <span className="ml-auto flex items-center gap-2 text-xs text-ink-soft">
         {data && <span>{new Date(data.generated_at).toLocaleTimeString("ko-KR", { hour12: false })} 기준</span>}
+        {/* 편성 미리보기는 운영 서버만 본다 — 같은 가명 id 로 연다(열면 그쪽도 감사 로그를 남긴다) */}
+        {channel === "prod" && (
+          <a href={`/drip-check?user_id=${encodeURIComponent(userId)}`} className={btnCls("ghost")} title="이 사용자의 편성 미리보기 — 점수 분해 전체">
+            편성 미리보기 →
+          </a>
+        )}
         <button className={btnCls("ghost")} disabled={loading} onClick={() => void load()}>{loading ? "불러오는 중…" : "새로고침"}</button>
       </span>
     </div>

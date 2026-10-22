@@ -254,7 +254,7 @@ export function uploadEarContent(payload: UploadPayload, audio: File, thumbnail:
   return earFetch<EarContent>("/admin/contents", { method: "POST", body: fd });
 }
 
-// ── 편성 미리보기 (admin-api `GET /admin/drip/preview` — 추천 검증 콘솔, 2026-09-18) ──
+// ── 편성 미리보기 (admin-api `GET /admin/drip/preview?user_id=` — 추천 검증 콘솔, 2026-09-18 · user_id 조회 2026-10-22) ──
 
 export interface EarDripTopicRef { topic_id: string; name: string | null }
 export interface EarDripWeight { key: string; name: string | null; weight: number }
@@ -281,7 +281,8 @@ export interface EarDripCandidate {
 }
 export interface EarDripPreview {
   computed_at: string; service_date: string;
-  user: { id: string; email: string | null; nickname: string | null; tier: string; job_category: string | null; years_of_experience: number | null; onboarding_completed: boolean };
+  /** 가명 사용자 — 서버가 이메일·닉네임을 조회하지도 싣지도 않는다(2026-10-22, changes/pending/drip-preview-user-id.md) */
+  user: { id: string; tier: string; market: string; job_category: string | null; years_of_experience: number | null; onboarding_completed: boolean };
   skip_reason: "no_interests" | "unfinished_inventory" | "plan_disabled" | null;
   unfinished_count: number | null; unfinished_limit: number; drip_count: number | null; discovery_count: number | null;
   interests: (EarDripTopicRef & { source: string })[]; removed_topics: EarDripTopicRef[];
@@ -304,9 +305,22 @@ export interface EarDripPreview {
   discovery_error: string | null;
   today_placed: { content_id: string; title: string }[];
 }
-/** 매 호출이 서버에서 새로 계산한다(서버도 no-store). 브라우저 캐시도 끈다 */
-export const getEarDripPreview = (email: string, ch: EarChannel = "prod") =>
-  earFetch<EarDripPreview>(`/admin/drip/preview?email=${encodeURIComponent(email)}`, { cache: "no-store" }, ch);
+/** uuid 모양인가 — 입력 형식만 본다(대상 판정은 서버가 한다). 형식이 맞는데 400 이면 옛 계약 서버라는 뜻이다 */
+export const isUuidLike = (v: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v.trim());
+
+/**
+ * 이 서버가 아직 옛 계약(`?email=`만 받음)인가 — 형식이 맞는 `user_id`를 보냈는데 400 `VALIDATION_FAILED`가 오면 그렇다.
+ * 콘솔은 dev 머지 즉시 배포되지만 운영 API 는 다음 dev→main 릴리스에 들어가서, 그 사이 운영은 이 상태다(2026-10-22).
+ */
+export const isDripPreviewNotDeployed = (e: unknown) =>
+  e instanceof EarApiError && e.status === 400 && (e.errorCode === undefined || e.errorCode === "VALIDATION_FAILED");
+
+/**
+ * 매 호출이 서버에서 새로 계산한다(서버도 no-store). 브라우저 캐시도 끈다. 대상은 가명 `user_id`로만 고른다 —
+ * 이메일 조회는 폐기됐다(2026-10-22). 열 때마다 서버가 감사 로그 1행을 남긴다(drip.preview_view)
+ */
+export const getEarDripPreview = (userId: string, ch: EarChannel = "prod") =>
+  earFetch<EarDripPreview>(`/admin/drip/preview?user_id=${encodeURIComponent(userId.trim())}`, { cache: "no-store" }, ch);
 
 // ── 추천 테스트 (admin-api 4.17 — 개발계 전용, changes/pending/admin-api-recommend-test.md) ──
 
