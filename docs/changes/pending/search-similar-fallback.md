@@ -6,7 +6,7 @@
 | 요청 파트 | 백엔드(계약·스키마·AI 서버 호출) · 프론트엔드(화면) |
 | 발행 날짜 | 2026-10-22 |
 | 기한 | 2026-10-25 (Medium — 코드 티켓과 같은 날. BE PR과 함께 반영) |
-| 선행 | 없음. 코드: BE [KAN-238](https://runtime364.atlassian.net/browse/KAN-238) `tickets/backend/archive/search-similar-fallback.md`(2026-10-22 반영) · FE [KAN-239](https://runtime364.atlassian.net/browse/KAN-239) `tickets/frontend/pending/search-similar-fallback-ui.md` |
+| 선행 | 없음. 코드: BE [KAN-238](https://runtime364.atlassian.net/browse/KAN-238) `tickets/backend/archive/search-similar-fallback.md`(2026-10-22 반영) · FE [KAN-239](https://runtime364.atlassian.net/browse/KAN-239) `tickets/frontend/archive/search-similar-fallback-ui.md` |
 | 발견 시점 | PM 검색 개선 논의(2026-10-22 02~03시). 02:16 A(자모 폴백) → 02:48 하이브리드 → **02:52 PM "오타는 대신 검색, 그리고 의미 유사 검색" · 02:56 문구 확정** |
 
 ## 배경

@@ -7,7 +7,7 @@
 | 발행 날짜 | 2026-10-22 |
 | 기한 | 다음 문서 통합 때 — API·스키마는 BE PR, 화면 문서는 FE PR과 같이 |
 | 선행 | 없음 |
-| 관련 | BE [KAN-245](https://runtime364.atlassian.net/browse/KAN-245) `tickets/backend/archive/series-follow-new-episodes.md` · FE [KAN-246](https://runtime364.atlassian.net/browse/KAN-246) `tickets/frontend/pending/series-follow-ui.md` |
+| 관련 | BE [KAN-245](https://runtime364.atlassian.net/browse/KAN-245) `tickets/backend/archive/series-follow-new-episodes.md` · FE [KAN-246](https://runtime364.atlassian.net/browse/KAN-246) `tickets/frontend/archive/series-follow-ui.md` |
 
 ## 배경
 
