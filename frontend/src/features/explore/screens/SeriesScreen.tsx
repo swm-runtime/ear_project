@@ -350,9 +350,9 @@ const BACKDROP_BLUR_RADIUS = 60;
 const BACKDROP_SCRIM_DARK_RGB = '23, 23, 26';
 const BACKDROP_SCRIM_LIGHT_RGB = '255, 255, 255';
 const BACKDROP_SCRIM_ALPHA = 0.72;
-/** 표지 뒤(위쪽) 막 세기 — 낮을수록 흐린 표지 색이 또렷이 비친다 */
-const COVER_GLOW_SCRIM_ALPHA = 0.3;
-/** 아래 진한 막 세기 — 위 옅은 막과 겹쳐 72% 가 되게 푼 값: 1 − (1 − 0.72) / (1 − 0.3) = 0.6 */
+/** 표지 뒤(위쪽) 막 세기 — 낮을수록 흐린 표지 색이 또렷이 비친다. 30% 는 어두웠다(PM 2026-10-22 15:55 스샷 "이렇게 비치게") */
+const COVER_GLOW_SCRIM_ALPHA = 0.1;
+/** 아래 진한 막 세기 — 위 옅은 막과 겹쳐 72% 가 되게 푼 값: 1 − (1 − 0.72) / (1 − 0.1) ≈ 0.69 */
 const LOWER_SCRIM_ALPHA = 1 - (1 - BACKDROP_SCRIM_ALPHA) / (1 - COVER_GLOW_SCRIM_ALPHA);
 /** 진한 막 페이드가 시작되는 곳 — 표지 아랫변보다 이만큼 위(표지 아랫부분에서 녹기 시작해 제목 전에 끝난다) */
 const COVER_GLOW_FADE_LEAD = 80;
