@@ -1,4 +1,10 @@
-import { useFocusEffect, useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
+import {
+  StackActions,
+  useFocusEffect,
+  useNavigation,
+  useRoute,
+  type RouteProp,
+} from '@react-navigation/native';
 import { useQueryClient } from '@tanstack/react-query';
 import { useCallback, useMemo, useRef, useState } from 'react';
 import { Linking } from 'react-native';
@@ -19,9 +25,15 @@ import { exploreKeys } from '../api/explore.api';
 import { EXPLORE_COPY } from '../explore.copy';
 import { toQueueSnapshot } from '../explore.queue';
 import { pickSeriesPlayEpisode, seriesEpisodeSubtitle } from '../explore.series-episode';
-import type { ExploreItem, ExploreLibraryState, SeriesDetail } from '../explore.types';
+import type {
+  ExploreItem,
+  ExploreLibraryState,
+  ExploreSeries,
+  SeriesDetail,
+} from '../explore.types';
 import { useSaveContentMutation } from './useSaveContentMutation';
 import { useSeriesDetailQuery } from './useSeriesDetailQuery';
+import { useOtherSeriesQuery, useSeriesRelatedQuery } from './useSeriesMoreQueries';
 import { useUnsaveContentMutation } from './useUnsaveContentMutation';
 
 /** 시리즈 화면 라우트 파람의 로컬 선언 — 원본은 app/navigation/types.ts 의 MainStackParamList(feature 는 app 을 import 하지 않는다) */
@@ -283,6 +295,51 @@ export const useSeriesScreen = () => {
   };
 
   /*
+   * ── 아래 가로 목록 두 줄(PM 2026-10-22 — 애플 뮤직 앨범 화면 아래). "다른 시리즈 더보기" = 같은 주제 목록·탐색 피드의
+   * 시리즈 카드, "좋아할 만한 다른 항목" = 관련 콘텐츠(KAN-240)에서 이 시리즈 편을 뺀 것. 새 API 없음, 비면 줄째 숨는다 ──
+   */
+  const otherSeriesQuery = useOtherSeriesQuery(
+    seriesId,
+    detail?.series.topic?.id ?? null,
+    detail !== undefined,
+  );
+  const relatedQuery = useSeriesRelatedQuery(
+    seriesId,
+    episodes[0]?.item.content.id ?? null,
+    episodes.map((episode) => episode.item.content.id),
+  );
+  const relatedItems = (relatedQuery.data ?? []).filter(
+    (item) => !hiddenContentIds.has(item.content.id),
+  );
+  /** 다른 시리즈 카드 탭 — 같은 스택에 시리즈 화면을 하나 더 쌓는다(뒤로 가면 지금 시리즈로) */
+  const openOtherSeries = (series: ExploreSeries) => {
+    navigation.dispatch(StackActions.push('Series', { seriesId: series.id }));
+  };
+  /** 좋아할 만한 항목 탭 — 탐색 타일과 같은 재생 판정. 재생 목록은 이 줄(편 목록이 아니다) */
+  const playRelated = (item: ExploreItem) => {
+    playGate.requestPlay(
+      {
+        contentId: item.content.id,
+        isCountedToday: item.isCountedToday,
+        meta: {
+          title: item.content.title,
+          authorName: item.content.authorName,
+          sourceName: item.content.sourceName,
+          thumbnailUrl: item.content.thumbnailUrl,
+          durationSec: item.content.durationSec,
+          topicIds: item.content.topicIds,
+        },
+        onWithdrawn: () => hideRow(item.content.id),
+        queue: toQueueSnapshot(relatedItems, {
+          type: 'section',
+          title: EXPLORE_COPY.series.youMayLikeTitle,
+        }),
+      },
+      'explore',
+    );
+  };
+
+  /*
    * ── 셔플(PM 2026-10-22 08:55) — 편 목록을 섞어 맨 앞 편을 재생하고, 재생 목록 패널도 그 섞인 순서다. 자동 다음 재생은 여전히
    * 없다(FR-24 — 셔플은 "어느 편부터"와 "목록 순서"만 바꾼다). 판정·팝업은 편 행 탭과 같은 길 ──
    */
@@ -427,6 +484,14 @@ export const useSeriesScreen = () => {
           }
         : null,
     playSeries,
+    // 아래 가로 목록
+    otherSeries: (otherSeriesQuery.data ?? []).map((series) => ({
+      type: 'series' as const,
+      series,
+    })),
+    relatedItems,
+    openOtherSeries,
+    playRelated,
     // [재생] 양옆 — 셔플 · 시리즈 담기/빼기(PM 2026-10-22 08:55 · 14:22)
     shuffleSeries,
     saveSeries,

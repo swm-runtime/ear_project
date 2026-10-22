@@ -183,6 +183,9 @@ const ko = {
     undo: '실행 취소',
     saveAllToast: (count: number) => `${count}편을 라이브러리에 담았어요`,
     saveAllFailedToast: '일부 편을 담지 못했어요. 다시 시도해주세요',
+    /** 아래 가로 목록 제목 — 애플 뮤직 앨범 화면 "○○의 다른 앨범" · "좋아할 만한 다른 항목" 자리(PM 2026-10-22) */
+    moreSeriesTitle: '다른 시리즈 더보기',
+    youMayLikeTitle: '좋아할 만한 다른 항목',
     /** 앱바 오른쪽 캡슐의 ⋯ — 시리즈 시트(공유 · 소개 전체 보기) */
     moreA11y: '시리즈 더보기',
     aboutAction: '소개 전체 보기',
@@ -345,6 +348,8 @@ const en: LocalizedCopy<typeof ko> = {
     saveAllToast: (count: number) =>
       `Added ${formatEnCount(count, { one: 'episode', other: 'episodes' })} to Library`,
     saveAllFailedToast: "Couldn't add some episodes. Please try again.",
+    moreSeriesTitle: 'More Series',
+    youMayLikeTitle: 'You Might Also Like',
     footer: (count: number, totalMinutes: number) => {
       const hours = Math.floor(totalMinutes / 60);
       const minutes = totalMinutes % 60;

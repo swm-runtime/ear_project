@@ -60,6 +60,10 @@ jest.mock('./useSaveContentMutation', () => ({
 jest.mock('./useUnsaveContentMutation', () => ({
   useUnsaveContentMutation: () => ({ mutate: jest.fn() }),
 }));
+jest.mock('./useSeriesMoreQueries', () => ({
+  useOtherSeriesQuery: () => ({ data: [] }),
+  useSeriesRelatedQuery: () => ({ data: [] }),
+}));
 
 const { act, create } = jest.requireActual<{
   act(callback: () => void | Promise<void>): Promise<void> | void;
