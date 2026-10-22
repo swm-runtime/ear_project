@@ -132,6 +132,9 @@ export default function SeriesScreen() {
       (sum, episode) => sum + toSeriesEpisodeState(episode).minutes,
       0,
     );
+    // '다른 항목' 존이 있으면 그 톤이 바닥까지 이어지도록 바닥 여백을 존이 책임진다(아래 contentContainer·zone 참조)
+    const hasMoreSections =
+      screen.otherSeries.length > 0 || screen.relatedItems.length > 0;
     return (
       <Animated.FlatList
         data={screen.episodes}
@@ -182,8 +185,13 @@ export default function SeriesScreen() {
             ) : null}
             {/* 애플 뮤직 앨범 화면 아래 두 줄(PM 2026-10-22) — 비면 줄째 숨는다. 앨범 구역(흐린 표지 바탕)과 톤을
                 달리해 '다른 항목' 영역으로 가른다(PM 2026-10-22 — surface 면). 둘 다 비면 빈 면이 뜨지 않게 존째 생략 */}
-            {screen.otherSeries.length > 0 || screen.relatedItems.length > 0 ? (
-              <View style={styles.moreSectionsZone}>
+            {hasMoreSections ? (
+              <View
+                style={[
+                  styles.moreSectionsZone,
+                  { paddingBottom: dockInset + theme.spacing.lg },
+                ]}
+              >
                 <SeriesMoreSection
                   title={EXPLORE_COPY.series.moreSeriesTitle}
                   entries={screen.otherSeries}
@@ -207,7 +215,8 @@ export default function SeriesScreen() {
         scrollEventThrottle={16}
         contentContainerStyle={{
           paddingTop: listTopInset,
-          paddingBottom: dockInset + theme.spacing.lg,
+          // 추천 존이 있으면 그 톤이 바닥까지 이어지도록 존이 바닥 여백을 갖는다(존 없으면 리스트가 비운다)
+          paddingBottom: hasMoreSections ? 0 : dockInset + theme.spacing.lg,
         }}
       />
     );
@@ -405,12 +414,11 @@ const styles = StyleSheet.create({
     lineHeight: theme.font.size.sm * 1.6,
     color: theme.color.textSecondary,
   },
-  // '다른 항목' 영역 — 앨범 구역(흐린 표지 바탕)과 톤을 달리한다(PM 2026-10-22). surface 면이 흐린 바탕을 덮어
-  // 추천 줄을 앨범과 다른 구역으로 가른다. 위 marginTop 만큼은 바탕이 보여 경계가 된다. 바닥은 독이 가린다
+  // '다른 항목' 영역 — 앨범 구역(흐린 표지 바탕)보다 조금 더 어두운 단색(background)으로 덮어 구역을 가른다
+  // (PM 2026-10-22). 위 marginTop 만큼은 바탕이 보여 경계가 되고, 바닥 여백(dockInset)은 인라인으로 줘 톤이 바닥까지 이어진다
   moreSectionsZone: {
     marginTop: theme.spacing.lg,
-    paddingBottom: theme.spacing.xl,
-    backgroundColor: theme.color.surface,
+    backgroundColor: theme.color.background,
   },
   // 편 사이 구분선 — 머리 아래 선과 같이 좌우 같은 여백으로 가운데(PM 2026-10-22, 종전 제목 시작선 ~ 오른쪽 끝)
   separator: {
