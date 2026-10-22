@@ -226,6 +226,8 @@ export interface SeriesDetail {
     thumbnailUrl: string;
     /** 대표 중분류(주제) — 제목 아래 카테고리 줄. 서버가 안 주면 null(줄째 생략) */
     topic: { id: string; name: string } | null;
+    /** 발행일자(ISO 8601 순간) — 앨범 화면 하단 발행일. 구버전 서버는 안 보내므로 null(줄째 생략) */
+    publishedAt: string | null;
   };
   episodes: SeriesEpisode[];
 }

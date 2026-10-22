@@ -150,6 +150,8 @@ export const toSeriesDetail = (dto: SeriesDetailResponseDto): SeriesDetail => ({
     thumbnailUrl: dto.series.thumbnail_url,
     // 대표 중분류 — 추가 필드라 안 오는 서버(구버전)·없는 시리즈는 null 로 읽는다(화면은 줄째 생략)
     topic: dto.series.topic ?? null,
+    // 발행일자 — 추가 필드라 구버전 서버는 부재 → null(화면은 줄째 생략)
+    publishedAt: dto.series.published_at ?? null,
   },
   episodes: dto.episodes.map((episode) => ({
     episodeNo: episode.episode_no,

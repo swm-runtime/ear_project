@@ -186,9 +186,19 @@ export default function SeriesScreen() {
           <View>
             {/* 마지막 편 아래도 같은 구분선으로 닫는다(PM 2026-10-22) — 편 사이 선(ItemSeparator)은 마지막 뒤에 안 붙는다 */}
             {screen.episodes.length > 0 ? <RowSeparator /> : null}
+            {/* 발행일자 — 'N편, 길이' 위(애플 뮤직 앨범 하단, PM 2026-10-22). 서버가 안 주면 줄째 생략 */}
+            {series.publishedAt ? (
+              <Text style={styles.publishedAt}>
+                {EXPLORE_COPY.series.publishedAt(series.publishedAt)}
+              </Text>
+            ) : null}
             <Text style={styles.footer}>
               {EXPLORE_COPY.series.footer(screen.episodeCount, totalMinutes)}
             </Text>
+            {/* 간단한 소개 — 'N편, 길이' 아래(앨범 하단 노트 자리). 전문은 앱바 ⋯ [소개 전체 보기], 여기선 짧게(PM 2026-10-22) */}
+            {series.description.trim().length > 0 ? (
+              <Text style={styles.footerDescription}>{series.description.trim()}</Text>
+            ) : null}
             {/* 애플 뮤직 앨범 화면 아래 두 줄(PM 2026-10-22) — 비면 줄째 숨는다 */}
             <SeriesMoreSection
               title={EXPLORE_COPY.series.moreSeriesTitle}
@@ -418,10 +428,25 @@ const styles = StyleSheet.create({
     marginHorizontal: theme.spacing.md,
     backgroundColor: theme.color.separator,
   },
+  // 발행일자 — 'N편, 길이' 위 보조 줄(앨범 하단 발행일)
+  publishedAt: {
+    paddingHorizontal: theme.spacing.md,
+    paddingTop: theme.spacing.md,
+    fontSize: theme.font.size.sm,
+    color: theme.color.textSecondary,
+  },
   footer: {
     paddingHorizontal: theme.spacing.md,
     paddingTop: theme.spacing.md,
     fontSize: theme.font.size.sm,
+    color: theme.color.textSecondary,
+  },
+  // 간단한 소개 — 'N편, 길이' 아래. 전문은 앱바 ⋯ 시트에, 여기선 줄 간격을 둔 짧은 문단
+  footerDescription: {
+    paddingHorizontal: theme.spacing.md,
+    paddingTop: theme.spacing.md,
+    fontSize: theme.font.size.sm,
+    lineHeight: theme.font.size.sm * 1.6,
     color: theme.color.textSecondary,
   },
   // 편 사이 구분선 — 머리 아래 선과 같이 좌우 같은 여백으로 가운데(PM 2026-10-22, 종전 제목 시작선 ~ 오른쪽 끝)

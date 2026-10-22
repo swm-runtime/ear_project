@@ -112,6 +112,7 @@ const detail = (episodes: SeriesEpisode[]): SeriesDetail => ({
     status: 'ongoing',
     thumbnailUrl: 'https://example.com/1.webp',
     topic: { id: 't1', name: 'IT·테크' },
+    publishedAt: '2026-10-01T00:00:00.000Z',
   },
   episodes,
 });
