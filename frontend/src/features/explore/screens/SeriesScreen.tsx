@@ -412,10 +412,12 @@ const styles = StyleSheet.create({
     fontSize: theme.font.size.sm,
     color: theme.color.textSecondary,
   },
-  // 간단한 소개 — 'N편, 길이' 아래. 전문은 앱바 ⋯ 시트에, 여기선 줄 간격을 둔 짧은 문단
+  // 간단한 소개 — 'N편, 길이' 아래. 전문은 앱바 ⋯ 시트에, 여기선 줄 간격을 둔 짧은 문단.
+  // 'N편, 길이' 위·아래 글자 사이 간격을 같게(PM 2026-10-22) — 이 문단은 줄 높이 1.6 의 윗 여유(~4pt)가 이미 있어
+  // 위 줄(footer paddingTop xs)보다 덜 띄운다. 실기기 스샷 실측: 종전 위 28px · 아래 45px(@3x)
   footerDescription: {
     paddingHorizontal: theme.spacing.md,
-    paddingTop: theme.spacing.sm,
+    paddingTop: 2,
     fontSize: theme.font.size.sm,
     lineHeight: theme.font.size.sm * 1.6,
     color: theme.color.textSecondary,
