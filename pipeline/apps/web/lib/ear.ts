@@ -343,7 +343,35 @@ export interface EarExploreFeed {
 const DEV: EarChannel = "dev";
 const json = (body: unknown): RequestInit => ({ headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
 export const getRecommendTestAccount = () => earFetch<RecommendTestAccount>("/admin/recommend-test/account", { cache: "no-store" }, DEV);
-export const getRecommendTestFeed = () => earFetch<EarExploreFeed>("/admin/recommend-test/feed", { cache: "no-store" }, DEV);
+/**
+ * 탐색 피드 — 시리즈 카드 스위치(`SERIES_EXPLORE_CARDS_ENABLED`)가 켜진 서버는 `type: "series"` 행(`content` 없음)을 섞는다.
+ * 이 화면은 편 단위로만 그리므로 시리즈 카드를 "[시리즈] 제목" 한 줄로 바꿔 싣는다(2026-10-22 — 개발계 스위치 켬 뒤
+ * `Cannot read properties of undefined (reading 'id')`). 순위 비교 키는 시리즈 id 다.
+ */
+type RawFeedItem = EarExploreFeed["sections"][number]["items"][number] & {
+  type?: "content" | "series";
+  series?: { id: string; title: string } | null;
+};
+export const getRecommendTestFeed = async (): Promise<EarExploreFeed> => {
+  const feed = await earFetch<EarExploreFeed>("/admin/recommend-test/feed", { cache: "no-store" }, DEV);
+  return {
+    ...feed,
+    sections: feed.sections.map((s) => ({
+      ...s,
+      items: (s.items as RawFeedItem[]).flatMap((it) => {
+        if (it.content) return [it];
+        if (it.type === "series" && it.series) {
+          return [{
+            content: { id: it.series.id, title: `[시리즈] ${it.series.title}`, author_name: null, source_name: "", duration_sec: 0, topic_ids: [] },
+            library: null,
+            is_counted_today: false,
+          }];
+        }
+        return [];
+      }),
+    })),
+  };
+};
 export const postRecommendTestAction = (action: RecommendTestAction, content_id: string) =>
   earFetch<RecommendTestActionResult>("/admin/recommend-test/actions", { method: "POST", ...json({ action, content_id }) }, DEV);
 export const putRecommendTestInterests = (topic_ids: string[]) =>
