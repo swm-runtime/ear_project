@@ -1,7 +1,11 @@
 import MaskedView from '@react-native-masked-view/masked-view';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Platform, Pressable, StyleSheet, View, useWindowDimensions } from 'react-native';
-import Animated, { type SharedValue, useAnimatedStyle } from 'react-native-reanimated';
+import Animated, {
+  type SharedValue,
+  useAnimatedStyle,
+  useSharedValue,
+} from 'react-native-reanimated';
 
 import { theme, useActiveScheme, useResolvedColor } from '@/shared/theme';
 import { pillButton } from '@/shared/ui/pill-button.styles';
@@ -100,15 +104,29 @@ export default function SeriesHeader({
     };
   });
 
-  // 흐린 표지 한 장 — 화면 꼭대기(당긴 만큼 더 위)부터 머리 끝까지(아래 끝은 스타일의 bottom: 0)
-  const glowStyle = useAnimatedStyle(() => ({
-    top: -(topBleed + overscroll.value),
-  }));
+  /*
+   * 흐린 표지 한 장 — 화면 꼭대기부터 머리 끝까지(아래 끝은 스타일의 bottom: 0). 맨 위에서 당기면 **레이아웃은 그대로 두고
+   * 아래 끝 기준으로 확대**해 꼭대기를 덮는다(표지 늘이기와 같은 방식). 종전엔 당긴 만큼 top 을 매 프레임 바꿔 상자를 키웠는데,
+   * 마스크·흐린 그림이 커진 크기를 제때 못 따라가 늘어난 부분이 잘려 보였다(PM 2026-10-22 16:52 스샷)
+   */
+  const glowHeight = useSharedValue(0);
+  const glowStyle = useAnimatedStyle(() => {
+    const height = glowHeight.value;
+    if (height <= 0) return { transform: [] };
+    const grow = overscroll.value;
+    return { transform: [{ translateY: -grow / 2 }, { scale: 1 + grow / height }] };
+  });
   const scheme = useActiveScheme();
 
   return (
     <View style={styles.root}>
-      <Animated.View style={[styles.glow, glowStyle]} pointerEvents="none">
+      <Animated.View
+        style={[styles.glow, { top: -topBleed }, glowStyle]}
+        onLayout={(event) => {
+          glowHeight.value = event.nativeEvent.layout.height;
+        }}
+        pointerEvents="none"
+      >
         <MaskedView
           style={StyleSheet.absoluteFill}
           maskElement={
