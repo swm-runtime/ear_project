@@ -1,4 +1,4 @@
-import { formatEnCount } from '@/shared/i18n/format';
+import { formatEnCount, formatFullDate, toLocalDate } from '@/shared/i18n/format';
 import { particleRo, particleWa } from '@/shared/i18n/korean-particle';
 import { localized, type LocalizedCopy } from '@/shared/i18n/localized';
 
@@ -184,6 +184,8 @@ const ko = {
     saveAllToast: (count: number) => `${count}편을 라이브러리에 담았어요`,
     saveAllFailedToast: '일부 편을 담지 못했어요. 다시 시도해주세요',
     /** 아래 가로 목록 제목 — 애플 뮤직 앨범 화면 "○○의 다른 앨범" · "좋아할 만한 다른 항목" 자리(PM 2026-10-22) */
+    /** 발행일자 — 노출 편 중 가장 이른 발행 시각(ISO 순간)을 기기 시간대의 연·월·일로. 앨범 하단 발행일 자리 */
+    publishedAt: (iso: string) => formatFullDate(toLocalDate(iso), 'ko'),
     moreSeriesTitle: '다른 시리즈 더보기',
     youMayLikeTitle: '좋아할 만한 다른 항목',
     /** 앱바 오른쪽 캡슐의 ⋯ — 시리즈 시트(공유 · 소개 전체 보기) */
@@ -348,6 +350,7 @@ const en: LocalizedCopy<typeof ko> = {
     saveAllToast: (count: number) =>
       `Added ${formatEnCount(count, { one: 'episode', other: 'episodes' })} to Library`,
     saveAllFailedToast: "Couldn't add some episodes. Please try again.",
+    publishedAt: (iso: string) => formatFullDate(toLocalDate(iso), 'en'),
     moreSeriesTitle: 'More Series',
     youMayLikeTitle: 'You Might Also Like',
     footer: (count: number, totalMinutes: number) => {

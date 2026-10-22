@@ -261,6 +261,8 @@ export interface SeriesDetailResponseDto {
      * 화면은 줄째 생략한다
      */
     topic?: { id: string; name: string } | null;
+    /** 발행일자(ISO 8601) — 노출 편 중 가장 이른 발행 시각. 추가 필드라 구버전 서버는 부재(화면은 줄째 생략) */
+    published_at?: string | null;
   };
   episodes: SeriesEpisodeDto[];
 }

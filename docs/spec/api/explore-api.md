@@ -616,7 +616,8 @@ POST /contents/:content_id/play  (entry_point = "explore" — library-api 4.4)
     "status": "completed",           // ongoing | completed — 표시용
     "thumbnail_url": "https://…/1화.webp",  // 표지 = 노출 중인 가장 앞 편(보통 1화)의 썸네일
     "topic": { "id": "uuid", "name": "IT·테크" },  // 대표 중분류 — 제목 아래 카테고리 줄. 주제 없으면 null (추가 2026-10-22)
-    "is_saved": true                 // 시리즈째 담았는가(library_series) — 새 편이 따라 들어온다 (추가 2026-10-22 — KAN-245)
+    "is_saved": true,                // 시리즈째 담았는가(library_series) — 새 편이 따라 들어온다 (추가 2026-10-22 — KAN-245)
+    "published_at": "2026-09-01T00:00:00Z"  // 발행일자 = 노출 편 중 가장 이른 published_at — 앨범 하단 발행일 (추가 2026-10-22)
   },
   "episodes": [                      // 노출 중인 편만(published·라이선스 유효·사용자 시장), episode_no 오름차순
     {
@@ -646,6 +647,7 @@ POST /contents/:content_id/play  (entry_point = "explore" — library-api 4.4)
 - 회수된 편은 목록에서 빠진다 — 1화가 회수돼 있으면 표지도 그다음 노출 편이다.
 - `series.topic`은 **대표 중분류(주제)** 다 — 앨범 화면 제목 아래 카테고리 줄(`explore-uiux.md` 4.11). 시리즈 표엔 주제 칸이 없어 **노출 편들의 `content_topics`에서 뽑는다**: 가장 많은 편에 걸린 주제, 동률이면 `topics.display_order` 우선. 노출 편에 주제가 하나도 없으면 `null`이고 화면은 줄째 생략한다. **추가 필드뿐이라 설치된 앱은 무시한다**(없으면 종전과 같다).
 - `series.is_saved`는 **시리즈째 담기 기록**(`library_series`의 살아 있는 행 — `domain.md` 6.1-1)이다(추가 2026-10-22 — KAN-245). 편이 전부 담겼는지와 다르다 — 편을 하나씩 다 담아도 `false`이고, 시리즈째 담은 뒤 편 하나를 따로 빼도 `true`다. 시리즈 화면의 담기/빼기 버튼은 이 값으로 그린다. **추가 필드뿐이라 설치된 앱은 무시한다.**
+- `series.published_at`은 **발행일자**(ISO 8601 순간)다 — 앨범 화면 하단 발행일(`explore-uiux.md` 4.11). 시리즈 표엔 발행 시각이 없어 **노출 편들의 `contents.published_at` 중 가장 이른 값**을 쓴다(재발행 등으로 편 번호와 발행 순서가 어긋나도 번호가 아니라 최소 시각). 편 목록이 비면 404라 늘 값이 있다. 클라이언트는 기기 시간대 날짜로 그린다(표시 전용). **추가 필드뿐이라 설치된 앱은 무시한다.**
 - `library`·`progress`·`is_counted_today`는 탐색·라이브러리와 같은 원천이다(편 단위). 시리즈 단위 진행 상태는 두지 않는다.
 - **두지 않는 것**: `next_episode`(다음 화 듣기 보류) · 페이지(편 수가 수십 단위).
 - 편 하나의 액션(재생·담기·삭제)은 기존 편 단위 계약을 그대로 쓴다(`POST /contents/:id/play` · `POST /contents/:id/save` 등). 시리즈째 담기·빼기·실행 취소는 4.8~4.10이다.

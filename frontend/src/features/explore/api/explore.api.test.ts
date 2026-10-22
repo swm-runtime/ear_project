@@ -215,6 +215,8 @@ describe('fetchSeriesDetail — GET /series/:series_id(explore-api.md 4.7)', () 
     expect(detail.episodes[1].progress).toBeNull();
     // 대표 중분류를 안 보낸 응답(구버전·없는 시리즈) → null 로 읽는다(화면은 카테고리 줄 생략)
     expect(detail.series.topic).toBeNull();
+    // 발행일자도 안 보낸 응답(구버전) → null(화면은 발행일 줄 생략)
+    expect(detail.series.publishedAt).toBeNull();
   });
 
   it('대표 중분류(topic)를 보내면 그대로 옮긴다 — 제목 아래 카테고리 줄', async () => {
@@ -229,6 +231,7 @@ describe('fetchSeriesDetail — GET /series/:series_id(explore-api.md 4.7)', () 
           status: 'completed',
           thumbnail_url: 'https://example.com/1.webp',
           topic: { id: 't1', name: 'IT·테크' },
+          published_at: '2026-10-01T00:00:00.000Z',
         },
         episodes: [],
       },
@@ -239,5 +242,7 @@ describe('fetchSeriesDetail — GET /series/:series_id(explore-api.md 4.7)', () 
 
     // then
     expect(detail.series.topic).toEqual({ id: 't1', name: 'IT·테크' });
+    // 발행일자(ISO 순간)를 그대로 옮긴다 — 화면에서 기기 시간대 날짜로 그린다
+    expect(detail.series.publishedAt).toBe('2026-10-01T00:00:00.000Z');
   });
 });
