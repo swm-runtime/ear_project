@@ -300,26 +300,19 @@ export const useSeriesScreen = () => {
   /*
    * ── 시리즈 담기(PM 2026-10-22 08:55) — 노출 중인 편 중 라이브러리에 없는 편을 **편 단위로 전부** 담는다(서버는 편 담기 그대로 —
    * explore-api.md 4.3, 횟수 제한·페이월 없음). 새로 공개될 편은 따라 들어오지 않는다(시리즈 구독 아님 — 보류). 낙관 반영 후
-   * 한 번에 보내고, 실패한 편만 되돌려 한 번 알린다. 전부 담겨 있으면 버튼이 체크로 바뀌고 아무것도 하지 않는다 ──
+   * 한 번에 보내고, 실패한 편만 되돌려 한 번 알린다. 전부 담겨 있으면 버튼이 빼기(휴지통)로 바뀐다 ──
    */
   const isSeriesSaved =
     episodes.length > 0 && episodes.every((episode) => episode.item.library !== null);
-  const saveSeries = () => {
-    const targets = episodes.map((episode) => episode.item).filter((item) => item.library === null);
-    if (targets.length === 0) return;
-    const jobs = targets.map((item) => {
-      const contentId = item.content.id;
+  /** 편들을 한꺼번에 담는다(낙관 반영 → 일괄 전송 → 실패만 되돌림). `restore`는 빼기 실행 취소 — 빼기 전 상태로 되돌린다 */
+  const saveItems = (targets: { contentId: string; restore?: ExploreLibraryState }[]) => {
+    const jobs = targets.map(({ contentId, restore }) => {
       const seq = nextSeq(contentId);
-      setCachedLibraryState(contentId, {
-        itemId: `optimistic-${contentId}`,
-        source: 'save',
-        status: 'unplayed',
-      });
+      setCachedLibraryState(
+        contentId,
+        restore ?? { itemId: `optimistic-${contentId}`, source: 'save', status: 'unplayed' },
+      );
       return { contentId, seq };
-    });
-    showToast(EXPLORE_COPY.series.saveAllToast(targets.length), {
-      label: EXPLORE_COPY.saveToastAction,
-      onPress: () => goToLibrary(),
     });
     void Promise.allSettled(
       jobs.map(({ contentId, seq }) => saveMutation.mutateAsync({ contentId, clientSeq: seq })),
@@ -343,6 +336,50 @@ export const useSeriesScreen = () => {
       });
       invalidateLibrary();
       if (failed > 0) showToast(EXPLORE_COPY.series.saveAllFailedToast);
+    });
+  };
+  const saveSeries = () => {
+    const targets = episodes.map((episode) => episode.item).filter((item) => item.library === null);
+    if (targets.length === 0) return;
+    saveItems(targets.map((item) => ({ contentId: item.content.id })));
+    showToast(EXPLORE_COPY.series.saveAllToast(targets.length), {
+      label: EXPLORE_COPY.saveToastAction,
+      onPress: () => goToLibrary(),
+    });
+  };
+
+  /*
+   * ── 시리즈째 빼기(PM 2026-10-22 14:22 "이미 담긴거는 삭제로") — 노출 편이 전부 담겨 있을 때 담기 원 자리. 담긴 편을 편 단위로
+   * 전부 뺀다(서버는 편 제거 `explore-api.md` 4.3 그대로). 한 번에 여러 편이 빠지므로 토스트에 [실행 취소]를 단다 — 누르면 뺀
+   * 편을 다시 담는다. 실패한 편만 되돌려 한 번 알린다 ──
+   */
+  const removeSeries = () => {
+    const jobs = episodes.flatMap(({ item }) => {
+      if (item.library === null) return [];
+      const contentId = item.content.id;
+      const seq = nextSeq(contentId);
+      setCachedLibraryState(contentId, null);
+      return [{ contentId, seq, previous: item.library }];
+    });
+    if (jobs.length === 0) return;
+    showToast(EXPLORE_COPY.series.removeAllToast(jobs.length), {
+      label: EXPLORE_COPY.series.undo,
+      onPress: () =>
+        saveItems(jobs.map(({ contentId, previous }) => ({ contentId, restore: previous }))),
+    });
+    void Promise.allSettled(
+      jobs.map(({ contentId, seq }) => unsaveMutation.mutateAsync({ contentId, clientSeq: seq })),
+    ).then((results) => {
+      let failed = 0;
+      results.forEach((result, index) => {
+        if (result.status === 'fulfilled') return;
+        const { contentId, seq, previous } = jobs[index];
+        if (!isLatestSeq(contentId, seq)) return;
+        setCachedLibraryState(contentId, previous);
+        failed += 1;
+      });
+      invalidateLibrary();
+      if (failed > 0) showToast(EXPLORE_COPY.series.removeAllFailedToast);
     });
   };
 
@@ -390,9 +427,10 @@ export const useSeriesScreen = () => {
           }
         : null,
     playSeries,
-    // [재생] 양옆 — 셔플 · 시리즈 담기(PM 2026-10-22 08:55)
+    // [재생] 양옆 — 셔플 · 시리즈 담기/빼기(PM 2026-10-22 08:55 · 14:22)
     shuffleSeries,
     saveSeries,
+    removeSeries,
     isSeriesSaved,
     // 앱바 ⋯ · 시리즈 시트
     isSeriesSheetOpen,

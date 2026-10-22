@@ -111,6 +111,7 @@ export default function SeriesScreen() {
               onPlay={screen.playSeries}
               onShuffle={screen.shuffleSeries}
               onSaveSeries={screen.saveSeries}
+              onRemoveSeries={screen.removeSeries}
               isSeriesSaved={screen.isSeriesSaved}
             />
             <View style={styles.headerRule} />

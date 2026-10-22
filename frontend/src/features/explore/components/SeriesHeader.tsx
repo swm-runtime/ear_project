@@ -1,7 +1,6 @@
 import { Platform, Pressable, StyleSheet, View, useWindowDimensions } from 'react-native';
 
 import { theme, useResolvedColor } from '@/shared/theme';
-import CheckIcon from '@/shared/ui/CheckIcon';
 import { pillButton } from '@/shared/ui/pill-button.styles';
 import PlayIcon from '@/shared/ui/PlayIcon';
 import RemoteImage from '@/shared/ui/RemoteImage';
@@ -9,7 +8,7 @@ import { Text } from '@/shared/ui/Typography';
 
 import { EXPLORE_COPY } from '../explore.copy';
 import type { SeriesDetail } from '../explore.types';
-import { PlusIcon, ShuffleIcon } from './SeriesActionIcons';
+import { PlusIcon, ShuffleIcon, TrashIcon } from './SeriesActionIcons';
 
 /** 표지 폭 = 화면 폭의 64%(애플 뮤직 앨범 화면 비율), 큰 화면에서 끝없이 커지지 않게 상한을 둔다 */
 const COVER_WIDTH_RATIO = 0.64;
@@ -41,7 +40,9 @@ interface SeriesHeaderProps {
   onShuffle: () => void;
   /** 시리즈 담기 — 라이브러리에 없는 편 전부를 편 단위로 */
   onSaveSeries: () => void;
-  /** 노출 편이 전부 라이브러리에 있다 — 담기 원이 체크로 바뀌고 눌리지 않는다 */
+  /** 시리즈째 빼기 — 노출 편 중 라이브러리에 있는 편 전부(실행 취소 토스트) */
+  onRemoveSeries: () => void;
+  /** 노출 편이 전부 라이브러리에 있다 — 담기 원이 휴지통(빼기)으로 바뀐다(PM 2026-10-22 14:22) */
   isSeriesSaved: boolean;
 }
 
@@ -49,7 +50,7 @@ interface SeriesHeaderProps {
  * 시리즈 화면(E14)의 머리 — 애플 뮤직 앨범 화면 문법(2026-10-22 PM). 화면 전체에 깔린 흐린 표지 바탕(플레이어와 같다 — `SeriesScreen`) 위에 큰 표지(그림자) · 굵은 제목 · 카테고리(대표 중분류, 없으면 생략) · `시리즈 · N편 · 완결` 메타 줄 ·
  * [재생] 알약 순으로 가운데에 선다. 글자는 표지 아래 솔리드 바탕에 앉아 모드별 기본색을 쓴다(흐린 면 위로 흰 글자를 올리면
  * 라이트 모드에서 배경색 페이드에 묻힌다). 소개 문단은 머리에서 빼고 앱바 ⋯ 시트의 [소개 전체 보기]로 옮겼다(PM 2026-10-22).
- * 셔플·담기는 두지 않는다
+ * [재생] 양옆은 셔플 · 담기(전부 담겼으면 빼기) 원이다
  */
 export default function SeriesHeader({
   series,
@@ -58,6 +59,7 @@ export default function SeriesHeader({
   onPlay,
   onShuffle,
   onSaveSeries,
+  onRemoveSeries,
   isSeriesSaved,
 }: SeriesHeaderProps) {
   const { width } = useWindowDimensions();
@@ -110,16 +112,14 @@ export default function SeriesHeader({
           </Pressable>
           <Pressable
             style={({ pressed }) => [styles.sideButton, pressed && styles.playButtonPressed]}
-            onPress={onSaveSeries}
-            disabled={isSeriesSaved}
+            onPress={isSeriesSaved ? onRemoveSeries : onSaveSeries}
             accessibilityRole="button"
             accessibilityLabel={
-              isSeriesSaved ? EXPLORE_COPY.series.savedAllA11y : EXPLORE_COPY.series.saveAllA11y
+              isSeriesSaved ? EXPLORE_COPY.series.removeAllA11y : EXPLORE_COPY.series.saveAllA11y
             }
-            accessibilityState={{ disabled: isSeriesSaved }}
           >
             {isSeriesSaved ? (
-              <CheckIcon size={SIDE_ICON_SIZE} color={theme.color.textPrimary} />
+              <TrashIcon size={SIDE_ICON_SIZE} color={theme.color.textPrimary} />
             ) : (
               <PlusIcon size={SIDE_ICON_SIZE} color={theme.color.textPrimary} />
             )}
