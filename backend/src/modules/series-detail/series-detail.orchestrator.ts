@@ -112,9 +112,17 @@ export class SeriesDetailOrchestrator {
       }
     }
 
+    // 발행일자 — 노출 편 중 가장 이른 발행 시각(앨범 출시일 자리). episodes 는 늘 1건 이상이다(없으면 getVisibleForUser 가 404)
+    const publishedAt = episodes.reduce(
+      (earliest, content) =>
+        content.publishedAt < earliest ? content.publishedAt : earliest,
+      episodes[0].publishedAt,
+    );
+
     return {
       series,
       isSaved,
+      publishedAt,
       // 시리즈 표지가 있으면 그것(KAN-234). 없으면 노출 중인 가장 앞 편 — 1화가 회수돼 있으면 그다음 편이 표지가 된다
       coverThumbnailUrl: resolveSeriesCover(series, episodes[0].thumbnailUrl),
       topic:

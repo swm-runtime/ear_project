@@ -30,6 +30,11 @@ export interface SeriesDetailView {
    * 뽑는다: 가장 많은 편에 걸린 주제, 동률이면 `topic.display_order` 우선. 노출 편에 주제가 하나도 없으면 null
    */
   topic: { id: string; name: string } | null;
+  /**
+   * 발행일자 — 노출 편 중 가장 이른 `published_at`(앨범 화면 하단 출시일 자리, 2026-10-22). 편 목록이 비면 404라
+   * 늘 1건 이상이어서 항상 값이 있다
+   */
+  publishedAt: Date;
   /** 노출 중인 편만, `episode_no` 순 */
   episodes: SeriesEpisodeView[];
 }

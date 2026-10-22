@@ -26,6 +26,8 @@ class SeriesDetailSeriesDto {
    * 편이 전부 담겼는지와 다르다 — 편 하나씩 다 담아도 false다. **추가 필드라 설치된 앱은 무시한다**
    */
   readonly is_saved: boolean;
+  /** 발행일자(ISO 8601) — 노출 편 중 가장 이른 발행 시각. 앨범 화면 하단 발행일 자리(explore-api.md 4.7) */
+  readonly published_at: string;
 }
 
 /** 탐색 카드의 `content`와 같은 모양(explore-api.md 4.1) — 화면이 같은 행 컴포넌트를 쓴다 */
@@ -122,6 +124,7 @@ export class GetSeriesDetailResponseDto {
         thumbnail_url: view.coverThumbnailUrl,
         topic: view.topic,
         is_saved: view.isSaved,
+        published_at: view.publishedAt.toISOString(),
       },
       episodes: view.episodes.map((episode) =>
         SeriesEpisodeItemDto.from(episode),
