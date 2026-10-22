@@ -348,8 +348,8 @@ const BAR_BUTTON_SIZE = 48;
 const BACKDROP_BLUR_RADIUS = 60;
 const BACKDROP_SCRIM_DARK = 'rgba(23, 23, 26, 0.72)';
 const BACKDROP_SCRIM_LIGHT = 'rgba(255, 255, 255, 0.72)';
-/** '다른 항목' 존의 어둠 — 존 전체와 아래 연장 면(독 뒤)이 같은 값 하나다 */
-const MORE_ZONE_SHADE = 'rgba(0, 0, 0, 0.4)';
+/** '다른 항목' 존의 어둠 — 존 전체와 아래 연장 면(독 뒤)이 같은 값 하나다. 0.4 → 0.3(PM 2026-10-22 "톤 차이 살짝 줄이자") */
+const MORE_ZONE_SHADE = 'rgba(0, 0, 0, 0.3)';
 /** 존 아래 연장 면 높이 — 시스템 탭 바·미니플레이어 인셋과 바닥 튕김까지 덮게 넉넉히 */
 const MORE_ZONE_BLEED = 1000;
 const APP_BAR_ICON_SIZE = 24;
