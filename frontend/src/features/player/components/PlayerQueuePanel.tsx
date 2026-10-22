@@ -256,7 +256,10 @@ function QueueRow({
     () =>
       // eslint-disable-next-line react-hooks/refs -- 콜백은 렌더가 아니라 제스처 시점에 실행된다(표준 PanResponder 패턴)
       PanResponder.create({
-        onMoveShouldSetPanResponder: (_, gesture) => {
+        // capture 로 잡는다 — 본문이 Pressable 이라 손을 대는 순간 Pressable 이 응답자가 되고, bubble 질의
+        // (onMoveShouldSetPanResponder)는 아예 불리지 않는다. 그래서 줄 스와이프가 한 번도 안 잡혔다(PM 2026-10-23).
+        // 손잡이(순서 변경)는 잡은 뒤 내주지 않아(terminationRequest false) 세로 끌기를 뺏기지 않는다
+        onMoveShouldSetPanResponderCapture: (_, gesture) => {
           const { canDelete: deletable, canSave: savable } = swipeLatest.current;
           if (Math.abs(gesture.dx) < SWIPE_CLAIM_DISTANCE) return false;
           if (Math.abs(gesture.dx) < Math.abs(gesture.dy) * SWIPE_AXIS_RATIO) return false;
