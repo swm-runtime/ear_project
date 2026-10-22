@@ -774,6 +774,7 @@ PoC·제휴 캠페인마다 코드를 만들고, 켜고 끄고, 사용 현황을
   "status": "ongoing" | "completed",
   "episode_counts": { "published": 16, "withdrawn": 0, "expired": 0 },  // 이 시리즈의 편 수(상태별). published 는 상태 기준(라이선스 만료 전 포함)
   "max_published_episode_no": 16,   // 발행 중인 가장 큰 편 번호. 없으면 null — total_episodes 를 줄일 수 있는 하한
+  "publisher_name": "키워드",       // 발행 이름 — 앱 시리즈 화면 제목 아래 줄. 없으면 null (추가 2026-10-22)
   "created_at": "2026-10-17T08:00:00.000Z",
   "updated_at": "2026-10-17T08:00:00.000Z"
 }
@@ -788,7 +789,8 @@ PoC·제휴 캠페인마다 코드를 만들고, 켜고 끄고, 사용 현황을
   "title": "…",            // 필수, 공백만은 안 됨, ≤255자 (앞뒤 공백은 서버가 자른다)
   "description": "…",      // 필수 키, 빈 문자열 허용, ≤2000자
   "total_episodes": 3,     // 필수, 정수 ≥1 (상한 없음 — int 범위 밖만 400)
-  "status": "ongoing"      // 선택, 없으면 ongoing
+  "status": "ongoing",     // 선택, 없으면 ongoing
+  "publisher_name": "키워드" // 선택, ≤50자. 앞뒤 공백은 자르고 빈 문자열·null 은 없음 (추가 2026-10-22)
 }
 ```
 
@@ -797,7 +799,7 @@ PoC·제휴 캠페인마다 코드를 만들고, 켜고 끄고, 사용 현황을
 **`PATCH /admin/series/:seriesId`** → 200 `AdminSeriesItem`
 
 ```jsonc
-{ "title": "…", "description": "…", "total_episodes": 20, "status": "completed" }   // 전부 선택, 담긴 키만 바꾼다
+{ "title": "…", "description": "…", "total_episodes": 20, "status": "completed", "publisher_name": "키워드" }   // 전부 선택, 담긴 키만 바꾼다. publisher_name 만 null(또는 빈 문자열)로 지울 수 있다
 ```
 
 - `total_episodes`는 **`max_published_episode_no`보다 작게 줄일 수 없다** → 400 `VALIDATION_FAILED`(`details.field = "total_episodes"`, "이미 N화까지 발행돼 그보다 작게 줄일 수 없어요"). 같게 줄이거나 늘리는 것은 된다. 회수된 편 번호는 하한에 들지 않는다.

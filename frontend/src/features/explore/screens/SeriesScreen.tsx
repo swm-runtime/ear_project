@@ -154,7 +154,6 @@ export default function SeriesScreen() {
             <SeriesHeader
               series={series}
               overscroll={overscroll}
-              episodeCount={screen.episodeCount}
               playTarget={screen.playTarget}
               onPlay={screen.playSeries}
               onShuffle={screen.shuffleSeries}

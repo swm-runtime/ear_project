@@ -263,6 +263,8 @@ export interface SeriesDetailResponseDto {
     topic?: { id: string; name: string } | null;
     /** 발행일자(ISO 8601) — 노출 편 중 가장 이른 발행 시각. 추가 필드라 구버전 서버는 부재(화면은 줄째 생략) */
     published_at?: string | null;
+    /** 발행 이름(예: "키워드") — 제목 아래 아티스트 줄 자리(2026-10-22). 추가 필드라 구버전 서버는 부재(화면은 줄째 생략) */
+    publisher_name?: string | null;
     /** 시리즈째 담았는가(library_series — KAN-245). 추가 필드라 구버전 서버는 부재 → false */
     is_saved?: boolean;
   };
