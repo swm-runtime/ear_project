@@ -2210,7 +2210,7 @@ export default function PlayerScreen() {
                     accessibilityState={{ expanded: activePanel === 'queue' }}
                   >
                     <View style={styles.scriptHandleBar} />
-                    {/* 탐색 맥락이면 손잡이 글자가 출처다 — "탐색 · 인기 주간"(KAN-241, 헤더와 같은 값). 1단의 "· 더 보기" 꼬리는
+                    {/* 탐색 맥락이면 손잡이 글자가 출처다 — "주간 인기 콘텐츠"(KAN-241, 헤더와 같은 값). 1단의 "· 더 보기" 꼬리는
                         뺐다(PM 2026-10-23) — 단계와 무관하게 같은 글자 */}
                     <Text style={styles.scriptHandleLabel} numberOfLines={1}>
                       {queueSourceLabel ?? PLAYER_COPY.screen.queueHandle}

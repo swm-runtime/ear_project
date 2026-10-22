@@ -212,7 +212,7 @@ export interface QueueEntry extends Omit<QueueItem, 'itemId'> {
 
 /**
  * 재생 목록의 출처 라벨(KAN-241) — 탐색 맥락 패널의 헤더·손잡이 글자가 된다. 문구는 copy 가 만든다
- * ("탐색 · 인기 주간" / "주제 · 커리어" / "검색 ‘커리어’" / 시리즈는 제목만)
+ * ("주간 인기 콘텐츠" / 섹션·주제·시리즈 이름 / 검색어 — 앞머리 없음)
  */
 export type QueueSourceLabel =
   | { type: 'section'; title: string }
