@@ -1,8 +1,11 @@
 import { Image, StyleSheet, View } from 'react-native';
 import Animated, {
+  cancelAnimation,
+  Easing,
   useAnimatedScrollHandler,
   useAnimatedStyle,
   useSharedValue,
+  withTiming,
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -65,8 +68,28 @@ export default function SeriesScreen() {
    */
   const restingOffset = HAS_NATIVE_TAB_BAR ? -insets.top : 0;
   const overscroll = useSharedValue(0);
-  const handleScroll = useAnimatedScrollHandler((event) => {
-    overscroll.value = Math.max(0, restingOffset - event.contentOffset.y);
+  /*
+   * 손가락이 붙어 있는 동안만 스크롤 위치를 그대로 따른다. 놓는 순간부터는 위치 신호를 버리고 직접 부드럽게 줄인다 — 튕겨
+   * 돌아가는 동안 스크롤 신호가 드문드문 와서 표지가 계단처럼 툭 줄어들었다(PM 2026-10-22 15:18 "돌아올 때 급격해 끊어져 보여")
+   */
+  const isDragging = useSharedValue(false);
+  const handleScroll = useAnimatedScrollHandler({
+    onBeginDrag: () => {
+      isDragging.value = true;
+      cancelAnimation(overscroll);
+    },
+    onScroll: (event) => {
+      if (isDragging.value) overscroll.value = Math.max(0, restingOffset - event.contentOffset.y);
+    },
+    onEndDrag: () => {
+      isDragging.value = false;
+      if (overscroll.value > 0) {
+        overscroll.value = withTiming(0, {
+          duration: OVERSCROLL_RELEASE_MS,
+          easing: Easing.out(Easing.cubic),
+        });
+      }
+    },
   });
   const backdropStretchStyle = useAnimatedStyle(() => ({
     transform: [{ scale: 1 + overscroll.value / BACKDROP_STRETCH_DISTANCE }],
@@ -261,6 +284,8 @@ const RowSeparator = () => <View style={styles.separator} />;
 
 /** 흐린 바탕이 당긴 거리만큼 커지는 비율의 분모 — 800pt 당기면 2배(실제 당김은 고무줄이라 100~200pt, 1.1~1.25배) */
 const BACKDROP_STRETCH_DISTANCE = 800;
+/** 놓은 뒤 표지·바탕이 원래 크기로 돌아가는 시간 — iOS 목록 튕김(약 0.4~0.5초)에 맞춘다 */
+const OVERSCROLL_RELEASE_MS = 450;
 
 /**
  * 머리 아래 선·편 사이 구분선 두께 — 1pt(PM 2026-10-22 "리스트 구분선들도 잘 보이게"). 종전 머리카락 굵기(1px) +
