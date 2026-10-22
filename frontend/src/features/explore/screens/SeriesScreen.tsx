@@ -196,10 +196,14 @@ export default function SeriesScreen() {
                 {/* 아래로 갈수록 진해지는 어둠 — 추천 영역은 은은하게, 독(리퀴드 글라스) 뒤쪽은 진하게 깔아
                     시스템 유리가 밑 밝기를 따라 어두워지게 한다(iOS 26 독은 화면별 틴트 불가 — fe-68 확인 2026-10-22) */}
                 <LinearGradient
-                  colors={['rgba(0, 0, 0, 0.3)', 'rgba(0, 0, 0, 0.62)']}
+                  colors={[MORE_ZONE_TOP_SHADE, MORE_ZONE_BOTTOM_SHADE]}
                   style={StyleSheet.absoluteFill}
                   pointerEvents="none"
                 />
+                {/* 존 아래로 같은 톤을 더 칠한다 — iOS 26 시스템 탭 바는 탭 바·미니플레이어 자리를 스크롤 뷰 자동
+                    인셋(목록 콘텐츠 밖)으로 비워, 존의 바닥 여백만으로는 독 뒤까지 닿지 않았다(PM 2026-10-22 스샷).
+                    콘텐츠 크기엔 안 들어가는 절대 위치라 스크롤 길이는 그대로다 */}
+                <View style={styles.moreSectionsBleed} pointerEvents="none" />
                 <SeriesMoreSection
                   title={EXPLORE_COPY.series.moreSeriesTitle}
                   entries={screen.otherSeries}
@@ -355,6 +359,11 @@ const BAR_BUTTON_SIZE = 48;
 const BACKDROP_BLUR_RADIUS = 60;
 const BACKDROP_SCRIM_DARK = 'rgba(23, 23, 26, 0.72)';
 const BACKDROP_SCRIM_LIGHT = 'rgba(255, 255, 255, 0.72)';
+/** '다른 항목' 존의 어둠 — 위(추천 줄)는 은은하게, 아래(독 뒤)는 진하게. 연장 면도 아래 값으로 이어 칠한다 */
+const MORE_ZONE_TOP_SHADE = 'rgba(0, 0, 0, 0.3)';
+const MORE_ZONE_BOTTOM_SHADE = 'rgba(0, 0, 0, 0.62)';
+/** 존 아래 연장 면 높이 — 시스템 탭 바·미니플레이어 인셋과 바닥 튕김까지 덮게 넉넉히 */
+const MORE_ZONE_BLEED = 1000;
 const APP_BAR_ICON_SIZE = 24;
 /** 떠 있는 앱바 줄 높이 — 유리 원 + 위아래 여유 */
 const APP_BAR_HEIGHT = BAR_BUTTON_SIZE + theme.spacing.sm;
@@ -423,13 +432,18 @@ const styles = StyleSheet.create({
     lineHeight: theme.font.size.sm * 1.6,
     color: theme.color.textSecondary,
   },
-  // '다른 항목' 영역 — 위 앨범 구역과 같은 흐린 표지 바탕을 그대로 이어받되 톤만 조금 더 어둡게(반투명 검정 덮개)
-  // 해서 단색 경계 없이 자연스럽게 가른다(PM 2026-10-22 — "표지색에서 톤만 더 어둡게"). 바닥 여백(dockInset)은
-  // 인라인으로 줘 어두운 톤이 바닥(독 뒤)까지 끊김 없이 이어진다
-  // '다른 항목' 영역 — 흐린 표지 바탕을 그대로 비추고 위 그라데이션(아래로 갈수록 진하게)으로 톤만 어둡게 한다.
-  // 바닥(독 뒤)이 가장 어두워 리퀴드 글라스 독이 그 밝기를 따라 어두워진다(PM 2026-10-22, fe-68 확인). 바닥 여백은 인라인
-  moreSectionsZone: {
-    overflow: 'hidden',
+  // '다른 항목' 영역 — 흐린 표지 바탕을 그대로 비추고 그라데이션(아래로 갈수록 진하게)으로 톤만 어둡게 한다
+  // (PM 2026-10-22 "표지색에서 톤만 더 어둡게"). 독 뒤가 가장 어두워 리퀴드 글라스 독이 그 밝기를 따라 어두워진다
+  // (fe-68 확인). 아래 연장 면이 존 밖으로 나가야 해서 잘라 내지 않는다
+  moreSectionsZone: {},
+  // 존 바로 아래부터 독 뒤·바닥 튕김까지 이어 칠하는 면 — 그라데이션 끝 톤과 같다
+  moreSectionsBleed: {
+    position: 'absolute',
+    top: '100%',
+    left: 0,
+    right: 0,
+    height: MORE_ZONE_BLEED,
+    backgroundColor: MORE_ZONE_BOTTOM_SHADE,
   },
   // 편 사이 구분선 — 머리 아래 선과 같이 좌우 같은 여백으로 가운데(PM 2026-10-22, 종전 제목 시작선 ~ 오른쪽 끝)
   separator: {
