@@ -30,7 +30,10 @@ import {
   AdminSeriesItemDto,
   AdminSeriesListResponseDto,
 } from './dto/admin-series-item.dto';
-import { CreateSeriesRequestDto } from './dto/create-series-request.dto';
+import {
+  CreateSeriesRequestDto,
+  normalizePublisherName,
+} from './dto/create-series-request.dto';
 import { UpdateSeriesRequestDto } from './dto/update-series-request.dto';
 import {
   AdminSeriesService,
@@ -92,6 +95,7 @@ export class AdminSeriesController {
         description: request.description.trim(),
         totalEpisodes: request.total_episodes,
         status: request.status ?? SeriesStatus.ONGOING,
+        publisherName: normalizePublisherName(request.publisher_name ?? null),
       }),
     );
   }
@@ -107,7 +111,8 @@ export class AdminSeriesController {
       request.title === undefined &&
       request.description === undefined &&
       request.total_episodes === undefined &&
-      request.status === undefined
+      request.status === undefined &&
+      request.publisher_name === undefined
     ) {
       throw new BusinessException({
         status: HttpStatus.BAD_REQUEST,
@@ -123,6 +128,10 @@ export class AdminSeriesController {
         description: request.description?.trim(),
         totalEpisodes: request.total_episodes,
         status: request.status,
+        publisherName:
+          request.publisher_name === undefined
+            ? undefined
+            : normalizePublisherName(request.publisher_name),
       }),
     );
   }

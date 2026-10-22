@@ -75,6 +75,7 @@ export class SeriesService {
         description: normalizeStoredText(command.description),
         totalEpisodes: command.totalEpisodes,
         status: command.status,
+        publisherName: command.publisherName,
       }),
       manager,
     );
@@ -137,6 +138,9 @@ export class SeriesService {
     }
     if (command.status !== undefined) {
       series.status = command.status;
+    }
+    if (command.publisherName !== undefined) {
+      series.publisherName = command.publisherName;
     }
 
     return this.seriesRepository.save(series, manager);

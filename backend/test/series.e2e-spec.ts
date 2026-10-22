@@ -35,6 +35,7 @@ interface SeriesItemBody {
   status: string;
   episode_counts: { published: number; withdrawn: number; expired: number };
   max_published_episode_no: number | null;
+  publisher_name: string | null;
 }
 
 /** 에러 본문 — `details`는 최상위에 펼쳐진다(`field`) */
@@ -60,6 +61,7 @@ interface SeriesDetailBody {
     thumbnail_url: string;
     topic: { id: string; name: string } | null;
     published_at: string;
+    publisher_name: string | null;
   };
   episodes: {
     episode_no: number;
@@ -179,6 +181,8 @@ describe('시리즈 E2E', () => {
       status: 'ongoing',
       episode_counts: { published: 0, withdrawn: 0, expired: 0 },
       max_published_episode_no: null,
+      // 발행 이름을 빼면 없음
+      publisher_name: null,
     });
 
     // 형식 오류는 400 — 빈 제목·편수 0·모르는 상태값·모르는 필드
@@ -278,6 +282,19 @@ describe('시리즈 E2E', () => {
       'series.create',
       'series.update',
     ]);
+
+    // 발행 이름 — 앞뒤 공백은 걷어 넣고, null 이면 지운다. 50자를 넘으면 400
+    const named = await patchSeries(admin, series.id, {
+      publisher_name: '  키워드 ',
+    }).expect(HttpStatus.OK);
+    expect((named.body as SeriesItemBody).publisher_name).toBe('키워드');
+    const cleared = await patchSeries(admin, series.id, {
+      publisher_name: null,
+    }).expect(HttpStatus.OK);
+    expect((cleared.body as SeriesItemBody).publisher_name).toBeNull();
+    await patchSeries(admin, series.id, {
+      publisher_name: 'x'.repeat(51),
+    }).expect(HttpStatus.BAD_REQUEST);
   }, 60_000);
 
   it('업로드 검증 — 없는 시리즈·총 편수 불일치·번호 범위·발행 번호 중복은 400이고, 회수한 번호는 다시 올릴 수 있다', async () => {
@@ -460,6 +477,9 @@ describe('시리즈 E2E', () => {
     );
     const topic = await seedTopic(UserMarket.KR);
     const series = await createSeriesId(admin, 3, `${STAMP} 시리즈 화면`);
+    await patchSeries(admin, series, { publisher_name: '키워드' }).expect(
+      HttpStatus.OK,
+    );
 
     // 3화를 먼저, 1화를 나중에 올린다 — 화면은 발행 순이 아니라 편 번호순이다
     const third = await uploadId(admin, topic.id, series, 3);
@@ -533,6 +553,8 @@ describe('시리즈 E2E', () => {
     expect(body.series.published_at).toBe(
       new Date(earliestPublished).toISOString(),
     );
+    // 발행 이름 — 제목 아래 아티스트 줄 자리
+    expect(body.series.publisher_name).toBe('키워드');
 
     // 다른 시장 사용자에게는 없는 시리즈다 · 없는 id 도 404 · uuid 가 아니면 400
     await request(app.getHttpServer())

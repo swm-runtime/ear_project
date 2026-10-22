@@ -507,6 +507,8 @@ export interface CreateSeriesCommand {
   description: string;
   totalEpisodes: number;
   status: SeriesStatus;
+  /** 발행 이름(예: "키워드") — 없으면 null */
+  publisherName: string | null;
 }
 
 /** 시리즈 수정(`PATCH /admin/series/:id`) — `undefined`는 "안 바꾼다" */
@@ -515,6 +517,8 @@ export interface UpdateSeriesCommand {
   description?: string;
   totalEpisodes?: number;
   status?: SeriesStatus;
+  /** `null`은 "지운다" — 발행 이름은 비울 수 있는 칸이다 */
+  publisherName?: string | null;
 }
 
 /** 시리즈 하나의 편 현황 — 상태별 편 수와 발행 중인 가장 큰 편 번호(관리자 목록) */
