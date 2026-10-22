@@ -1,3 +1,4 @@
+import { LinearGradient } from 'expo-linear-gradient';
 import { Image, Platform, ScrollView, StyleSheet, View } from 'react-native';
 import Animated, {
   cancelAnimation,
@@ -192,6 +193,13 @@ export default function SeriesScreen() {
                   { paddingBottom: dockInset + theme.spacing.lg },
                 ]}
               >
+                {/* 아래로 갈수록 진해지는 어둠 — 추천 영역은 은은하게, 독(리퀴드 글라스) 뒤쪽은 진하게 깔아
+                    시스템 유리가 밑 밝기를 따라 어두워지게 한다(iOS 26 독은 화면별 틴트 불가 — fe-68 확인 2026-10-22) */}
+                <LinearGradient
+                  colors={['rgba(0, 0, 0, 0.3)', 'rgba(0, 0, 0, 0.62)']}
+                  style={StyleSheet.absoluteFill}
+                  pointerEvents="none"
+                />
                 <SeriesMoreSection
                   title={EXPLORE_COPY.series.moreSeriesTitle}
                   entries={screen.otherSeries}
@@ -418,8 +426,10 @@ const styles = StyleSheet.create({
   // '다른 항목' 영역 — 위 앨범 구역과 같은 흐린 표지 바탕을 그대로 이어받되 톤만 조금 더 어둡게(반투명 검정 덮개)
   // 해서 단색 경계 없이 자연스럽게 가른다(PM 2026-10-22 — "표지색에서 톤만 더 어둡게"). 바닥 여백(dockInset)은
   // 인라인으로 줘 어두운 톤이 바닥(독 뒤)까지 끊김 없이 이어진다
+  // '다른 항목' 영역 — 흐린 표지 바탕을 그대로 비추고 위 그라데이션(아래로 갈수록 진하게)으로 톤만 어둡게 한다.
+  // 바닥(독 뒤)이 가장 어두워 리퀴드 글라스 독이 그 밝기를 따라 어두워진다(PM 2026-10-22, fe-68 확인). 바닥 여백은 인라인
   moreSectionsZone: {
-    backgroundColor: 'rgba(0, 0, 0, 0.3)',
+    overflow: 'hidden',
   },
   // 편 사이 구분선 — 머리 아래 선과 같이 좌우 같은 여백으로 가운데(PM 2026-10-22, 종전 제목 시작선 ~ 오른쪽 끝)
   separator: {
