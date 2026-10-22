@@ -1,4 +1,9 @@
-import { FlatList, Image, StyleSheet, View } from 'react-native';
+import { Image, StyleSheet, View } from 'react-native';
+import Animated, {
+  useAnimatedScrollHandler,
+  useAnimatedStyle,
+  useSharedValue,
+} from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { theme, useActiveScheme } from '@/shared/theme';
@@ -51,6 +56,20 @@ export default function SeriesScreen() {
    */
   const scheme = useActiveScheme();
   const backdropUri = screen.detail?.series.thumbnailUrl ?? null;
+  /*
+   * 맨 위에서 더 당긴 거리(pt) — 표지·흐린 바탕이 손을 따라 늘어났다가 놓으면 목록 튕김과 같이 돌아온다(애플 뮤직 앨범,
+   * PM 2026-10-22 "맨 위로 올리고 초과됐을 때 다시 돌아오는 애니메이션"). 스크롤 위치에 묶여 UI 스레드에서 움직이므로 따로
+   * 되돌리는 애니메이션이 없다. 쉬는 위치는 시스템 탭 바(automatic)면 상단 안전영역만큼 음수, 아니면 0.
+   * Android 는 맨 위를 넘겨 당겨지지 않아(음수 오프셋 없음) 그대로다
+   */
+  const restingOffset = HAS_NATIVE_TAB_BAR ? -insets.top : 0;
+  const overscroll = useSharedValue(0);
+  const handleScroll = useAnimatedScrollHandler((event) => {
+    overscroll.value = Math.max(0, restingOffset - event.contentOffset.y);
+  });
+  const backdropStretchStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: 1 + overscroll.value / BACKDROP_STRETCH_DISTANCE }],
+  }));
 
   const renderBody = () => {
     if (screen.isInitialLoading) {
@@ -90,7 +109,7 @@ export default function SeriesScreen() {
       0,
     );
     return (
-      <FlatList
+      <Animated.FlatList
         data={screen.episodes}
         keyExtractor={(episode) => episode.item.content.id}
         renderItem={({ item: episode }) => (
@@ -108,6 +127,7 @@ export default function SeriesScreen() {
           <View>
             <SeriesHeader
               series={series}
+              overscroll={overscroll}
               episodeCount={screen.episodeCount}
               playTarget={screen.playTarget}
               onPlay={screen.playSeries}
@@ -125,6 +145,8 @@ export default function SeriesScreen() {
           </Text>
         }
         {...DOCK_SCROLL_PROPS}
+        onScroll={handleScroll}
+        scrollEventThrottle={16}
         contentContainerStyle={{
           paddingTop: listTopInset,
           paddingBottom: dockInset + theme.spacing.lg,
@@ -135,9 +157,9 @@ export default function SeriesScreen() {
 
   return (
     <View style={styles.container}>
-      {/* 흐린 표지 바탕 — 플레이어와 같은 흐림·막(PlayerScreen backdrop). 스크롤과 무관하게 화면에 고정, 본문 뒤 */}
+      {/* 흐린 표지 바탕 — 플레이어와 같은 흐림·막(PlayerScreen backdrop). 스크롤과 무관하게 화면에 고정, 본문 뒤. 맨 위에서 더 당길 때만 커진다 */}
       {backdropUri ? (
-        <View style={styles.backdrop} pointerEvents="none">
+        <Animated.View style={[styles.backdrop, backdropStretchStyle]} pointerEvents="none">
           <Image
             source={{ uri: backdropUri }}
             style={styles.backdropImage}
@@ -153,7 +175,7 @@ export default function SeriesScreen() {
               { backgroundColor: scheme === 'dark' ? BACKDROP_SCRIM_DARK : BACKDROP_SCRIM_LIGHT },
             ]}
           />
-        </View>
+        </Animated.View>
       ) : null}
       {/* 본문 — 목록은 화면 맨 위부터(앱바 밑으로 흘러간다). 스켈레톤·에러는 목록이 아니라 앱바 아래에서 시작한다 */}
       {screen.detail ? (
@@ -218,6 +240,9 @@ export default function SeriesScreen() {
 
 /** 편 행 사이 구분선 — 좌우 같은 여백(머리 아래 선과 같은 폭) */
 const RowSeparator = () => <View style={styles.separator} />;
+
+/** 흐린 바탕이 당긴 거리만큼 커지는 비율의 분모 — 800pt 당기면 2배(실제 당김은 고무줄이라 100~200pt, 1.1~1.25배) */
+const BACKDROP_STRETCH_DISTANCE = 800;
 
 /**
  * 머리 아래 선·편 사이 구분선 두께 — 1pt(PM 2026-10-22 "리스트 구분선들도 잘 보이게"). 종전 머리카락 굵기(1px) +
