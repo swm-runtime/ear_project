@@ -294,11 +294,12 @@ function isSearchCursorPayload(value: unknown): value is SearchCursorPayload {
  *
  * `v: 2`로 종전(키워드 전용) 커서와 가른다. 종전 커서(1.3.0까지의 앱이 배포 순간 들고 있던 것)는 `decodeAnySearchCursor`가
  * **종전 키워드 경로로 이어 준다** — 오류를 내지 않는다.
+ *
+ * `v: 3`은 **키워드 순서** 하이브리드 커서다(KAN-242) — 질의 벡터 없이 시작한 검색은 종전 키워드 검색 그대로 줄 세우므로 RRF 점수
+ * 대신 종전 키워드 정렬 키(가중 합 `k`·제목 유사도 `w`)를 담는다. 그런 검색만 이 커서를 받으므로 `s`는 언제나 거짓이다(참이면
+ * 거절 — 척도가 다른 두 정렬을 섞지 않는다). 버전이 달라 RRF 커서와 섞여 해석되지 않는다.
  */
-interface HybridSearchCursorPayload {
-  v: 2;
-  /** RRF 점수(double precision) */
-  r: number;
+interface HybridSearchCursorPayloadBase {
   /** 직전 확정 월 재생 수 */
   p: number;
   /** `published_at` (ISO 8601) */
@@ -313,6 +314,26 @@ interface HybridSearchCursorPayload {
   /** 첫 페이지가 의미 엔진을 썼는가 */
   s: boolean;
 }
+
+/** RRF 순서 */
+interface RrfHybridSearchCursorPayload extends HybridSearchCursorPayloadBase {
+  v: 2;
+  /** RRF 점수(double precision) */
+  r: number;
+}
+
+/** 키워드 순서(KAN-242) — 의미 엔진 없이 시작한 검색 */
+interface KeywordHybridSearchCursorPayload extends HybridSearchCursorPayloadBase {
+  v: 3;
+  /** 매칭 필드 가중 합 */
+  k: number;
+  /** 제목 `word_similarity` (double precision) */
+  w: number;
+  s: false;
+}
+
+type HybridSearchCursorPayload =
+  RrfHybridSearchCursorPayload | KeywordHybridSearchCursorPayload;
 
 /** 다음 페이지를 같은 검색으로 잇는 값 — 커서가 싣는 검색 상태 */
 export interface HybridSearchState {
@@ -352,17 +373,31 @@ export function encodeHybridSearchCursor(
   topicIds: string[],
   exact: boolean,
 ): string {
-  const payload: HybridSearchCursorPayload = {
-    v: 2,
-    r: position.rrf,
+  const base = {
     p: position.playCount,
     t: position.publishedAt.toISOString(),
     i: position.id,
     q: hybridFingerprint(normalizedQuery, topicIds, exact),
     ...(state.corrected && { u: state.queryUsed }),
     m: state.match,
-    s: state.semantic,
   };
+  let payload: HybridSearchCursorPayload;
+
+  if (position.order === 'rrf') {
+    payload = { v: 2, r: position.rrf, ...base, s: state.semantic };
+  } else {
+    // 키워드 순서는 의미 엔진 없이 시작한 검색에서만 나온다 — 발급부터 그 불변식을 지킨다
+    if (state.semantic) {
+      throw new Error('keyword-order hybrid cursor must not use semantic');
+    }
+    payload = {
+      v: 3,
+      k: position.score,
+      w: position.titleSimilarity,
+      ...base,
+      s: false,
+    };
+  }
 
   return Buffer.from(JSON.stringify(payload), 'utf8').toString('base64url');
 }
@@ -414,12 +449,23 @@ export function decodeAnySearchCursor(
 
   return {
     kind: 'hybrid',
-    position: {
-      rrf: decoded.r,
-      playCount: decoded.p,
-      publishedAt,
-      id: decoded.i,
-    },
+    position:
+      decoded.v === 2
+        ? {
+            order: 'rrf',
+            rrf: decoded.r,
+            playCount: decoded.p,
+            publishedAt,
+            id: decoded.i,
+          }
+        : {
+            order: 'keyword',
+            score: decoded.k,
+            titleSimilarity: decoded.w,
+            playCount: decoded.p,
+            publishedAt,
+            id: decoded.i,
+          },
     state: {
       queryUsed: decoded.u ?? normalizedQuery,
       corrected: decoded.u !== undefined,
@@ -437,22 +483,29 @@ function isHybridSearchCursorPayload(
   }
 
   const candidate = value as Record<string, unknown>;
+  const orderKeys =
+    candidate.v === 2
+      ? // RRF 점수는 두 엔진 합이라 0 초과 2/(k+1) 이하다 — 범위만 막는다(SQL에 들어가는 값이다)
+        typeof candidate.r === 'number' &&
+        Number.isFinite(candidate.r) &&
+        candidate.r > 0 &&
+        candidate.r <= 1 &&
+        typeof candidate.s === 'boolean'
+      : candidate.v === 3 &&
+        // 종전 키워드 커서와 같은 정의역 — 가중 합(정수)·제목 유사도(0~1). 의미 엔진을 쓴 검색의 커서가 아니다
+        isCountValue(candidate.k) &&
+        isRatioValue(candidate.w) &&
+        candidate.s === false;
 
   return (
-    candidate.v === 2 &&
-    // RRF 점수는 두 엔진 합이라 0 초과 2/(k+1) 이하다 — 범위만 막는다(SQL에 들어가는 값이다)
-    typeof candidate.r === 'number' &&
-    Number.isFinite(candidate.r) &&
-    candidate.r > 0 &&
-    candidate.r <= 1 &&
+    orderKeys &&
     isCountValue(candidate.p) &&
     isTimestampValue(candidate.t) &&
     isUuid(candidate.i) &&
     typeof candidate.q === 'string' &&
     (candidate.u === undefined ||
       (typeof candidate.u === 'string' && candidate.u.length > 0)) &&
-    (candidate.m === 'keyword' || candidate.m === 'related') &&
-    typeof candidate.s === 'boolean'
+    (candidate.m === 'keyword' || candidate.m === 'related')
   );
 }
 

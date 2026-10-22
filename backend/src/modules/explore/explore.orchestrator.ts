@@ -523,7 +523,7 @@ export class ExploreOrchestrator {
     let queryUsed = normalizedQuery;
     let run = await this.runHybrid(query, now, market, normalizedQuery, true);
 
-    if (!query.exact && run.page.keywordTotal === 0) {
+    if (!query.exact && !run.page.keywordMatched) {
       const correction = await this.contentService.findSearchCorrection({
         market,
         normalizedQuery,
@@ -541,7 +541,7 @@ export class ExploreOrchestrator {
         );
 
         // 교정어로도 키워드가 0건이면 교정하지 않는다 — "대신 검색"이 키워드 결과 없는 화면을 만들지 않게(4.5-3)
-        if (corrected.page.keywordTotal > 0) {
+        if (corrected.page.keywordMatched) {
           queryUsed = correction;
           run = corrected;
         }
@@ -593,12 +593,7 @@ export class ExploreOrchestrator {
       nextCursor:
         page.hasNext && lastItem
           ? encodeHybridSearchCursor(
-              {
-                rrf: lastItem.rrf,
-                playCount: lastItem.playCount,
-                publishedAt: lastItem.content.publishedAt,
-                id: lastItem.content.id,
-              },
+              lastItem.position,
               {
                 queryUsed,
                 corrected: correctedFrom !== null,
@@ -654,12 +649,7 @@ export class ExploreOrchestrator {
       nextCursor:
         page.hasNext && lastItem
           ? encodeHybridSearchCursor(
-              {
-                rrf: lastItem.rrf,
-                playCount: lastItem.playCount,
-                publishedAt: lastItem.content.publishedAt,
-                id: lastItem.content.id,
-              },
+              lastItem.position,
               // 이번 페이지에서 결손이었어도 첫 페이지 상태(`semantic`)를 그대로 넘긴다 — 다음 페이지는 다시 시도한다
               state,
               normalizedQuery,

@@ -8,6 +8,7 @@ import { ErrorCode } from '@/common/exceptions/error-code.enum';
 import { ContentStatus, StatsPeriodType } from '@/modules/content/content.enum';
 import {
   RankedPopularContent,
+  RrfSearchCursorPosition,
   SearchEngine,
 } from '@/modules/content/content.types';
 import { Content } from '@/modules/content/entities/content.entity';
@@ -76,6 +77,21 @@ function buildContent(id: string, overrides: Partial<Content> = {}): Content {
     publishedAt: new Date('2026-08-01T00:00:00.000Z'),
     ...overrides,
   } as Content;
+}
+
+/** 하이브리드 행의 RRF 커서 위치 — `buildContent`의 `published_at`과 같다 */
+function rrfPosition(
+  id: string,
+  rrf: number,
+  playCount: number,
+): RrfSearchCursorPosition {
+  return {
+    order: 'rrf',
+    rrf,
+    playCount,
+    publishedAt: new Date('2026-08-01T00:00:00.000Z'),
+    id,
+  };
 }
 
 /** 인기 목록은 커서 발급 때문에 정렬 키를 함께 돌려준다 */
@@ -172,9 +188,11 @@ describe('ExploreOrchestrator', () => {
       findSearchPage: jest
         .fn()
         .mockResolvedValue({ items: [], hasNext: false }),
-      findHybridSearchPage: jest
-        .fn()
-        .mockResolvedValue({ items: [], hasNext: false, keywordTotal: 0 }),
+      findHybridSearchPage: jest.fn().mockResolvedValue({
+        items: [],
+        hasNext: false,
+        keywordMatched: false,
+      }),
       findSearchCorrection: jest.fn().mockResolvedValue(null),
       findRelatedContents: jest.fn().mockResolvedValue([]),
       findTopicViews: jest.fn().mockResolvedValue([]),
@@ -985,14 +1003,12 @@ describe('ExploreOrchestrator', () => {
     };
     const HYBRID_ROW = {
       content: buildContent(CONTENT_ID),
-      rrf: 1 / 61,
-      playCount: 3,
+      position: rrfPosition(CONTENT_ID, 1 / 61, 3),
       matchedBy: ['keyword'] as SearchEngine[],
     };
     const SEMANTIC_ROW = {
       content: buildContent(OTHER_CONTENT_ID),
-      rrf: 1 / 62,
-      playCount: 1,
+      position: rrfPosition(OTHER_CONTENT_ID, 1 / 62, 1),
       matchedBy: ['semantic'] as SearchEngine[],
     };
     const VECTOR = [0.1, 0.2];
@@ -1132,7 +1148,7 @@ describe('ExploreOrchestrator', () => {
         contentService.findHybridSearchPage.mockResolvedValue({
           items: [HYBRID_ROW, SEMANTIC_ROW],
           hasNext: false,
-          keywordTotal: 1,
+          keywordMatched: true,
         });
 
         // when
@@ -1166,7 +1182,7 @@ describe('ExploreOrchestrator', () => {
         contentService.findHybridSearchPage.mockResolvedValue({
           items: [HYBRID_ROW],
           hasNext: false,
-          keywordTotal: 1,
+          keywordMatched: true,
         });
 
         // when
@@ -1190,7 +1206,7 @@ describe('ExploreOrchestrator', () => {
         contentService.findHybridSearchPage.mockResolvedValue({
           items: [SEMANTIC_ROW],
           hasNext: false,
-          keywordTotal: 0,
+          keywordMatched: false,
         });
 
         // when
@@ -1212,7 +1228,7 @@ describe('ExploreOrchestrator', () => {
         contentService.findHybridSearchPage.mockResolvedValue({
           items: [HYBRID_ROW, SEMANTIC_ROW],
           hasNext: true,
-          keywordTotal: 1,
+          keywordMatched: true,
         });
 
         // when
@@ -1296,7 +1312,7 @@ describe('ExploreOrchestrator', () => {
         contentService.findHybridSearchPage.mockResolvedValue({
           items: [HYBRID_ROW],
           hasNext: true,
-          keywordTotal: 3,
+          keywordMatched: true,
         });
 
         // when
@@ -1318,6 +1334,7 @@ describe('ExploreOrchestrator', () => {
         ).toEqual({
           kind: 'hybrid',
           position: {
+            order: 'rrf',
             rrf: 1 / 61,
             playCount: 3,
             publishedAt: HYBRID_ROW.content.publishedAt,
@@ -1331,17 +1348,81 @@ describe('ExploreOrchestrator', () => {
           },
         });
       });
+
+      it('질의 벡터 없이 줄 세운 첫 페이지는 키워드 순서 커서를 발급하고, 다음 페이지는 그 커서로 AI 서버 없이 잇는다(KAN-242)', async () => {
+        // given — 임베딩 결손(기본 mock null). 서비스는 종전 키워드 쿼리 결과를 키워드 순서 위치로 돌려준다
+        const keywordPosition = {
+          order: 'keyword' as const,
+          score: 16,
+          titleSimilarity: 0.5,
+          playCount: 3,
+          publishedAt: HYBRID_ROW.content.publishedAt,
+          id: CONTENT_ID,
+        };
+        contentService.findHybridSearchPage.mockResolvedValue({
+          items: [{ ...HYBRID_ROW, position: keywordPosition }],
+          hasNext: true,
+          keywordMatched: true,
+        });
+
+        // when
+        const first = await orchestrator.search(
+          USER_ID,
+          query({ limit: 1 }),
+          NOW,
+          UserMarket.KR,
+        );
+        queryEmbeddingClient.embed.mockClear();
+        const next = await orchestrator.search(
+          USER_ID,
+          query({ limit: 1, cursor: first.nextCursor as string }),
+          NOW,
+          UserMarket.KR,
+        );
+
+        // then
+        expect(first.engines).toEqual(['keyword']);
+        expect(
+          decodeAnySearchCursor(
+            first.nextCursor as string,
+            '커리어',
+            [],
+            false,
+          ),
+        ).toEqual({
+          kind: 'hybrid',
+          position: keywordPosition,
+          state: {
+            queryUsed: '커리어',
+            corrected: false,
+            match: 'keyword',
+            semantic: false,
+          },
+        });
+        expect(queryEmbeddingClient.embed).not.toHaveBeenCalled();
+        expect(contentService.findHybridSearchPage).toHaveBeenLastCalledWith(
+          expect.objectContaining({
+            queryVector: null,
+            cursor: keywordPosition,
+          }),
+        );
+        expect(next.engines).toEqual(['keyword']);
+      });
     });
 
     describe('교정("대신 검색")', () => {
       it('키워드 0건이면 교정어를 찾고, 교정어로 키워드 1건 이상이면 그 결과를 낸다', async () => {
         // given
         contentService.findHybridSearchPage
-          .mockResolvedValueOnce({ items: [], hasNext: false, keywordTotal: 0 })
+          .mockResolvedValueOnce({
+            items: [],
+            hasNext: false,
+            keywordMatched: false,
+          })
           .mockResolvedValueOnce({
             items: [HYBRID_ROW],
             hasNext: false,
-            keywordTotal: 1,
+            keywordMatched: true,
           });
         contentService.findSearchCorrection.mockResolvedValue('커리어');
 
@@ -1386,12 +1467,12 @@ describe('ExploreOrchestrator', () => {
           .mockResolvedValueOnce({
             items: [SEMANTIC_ROW],
             hasNext: false,
-            keywordTotal: 0,
+            keywordMatched: false,
           })
           .mockResolvedValueOnce({
             items: [SEMANTIC_ROW],
             hasNext: false,
-            keywordTotal: 0,
+            keywordMatched: false,
           });
         contentService.findSearchCorrection.mockResolvedValue('커리어');
 
@@ -1449,7 +1530,7 @@ describe('ExploreOrchestrator', () => {
         contentService.findHybridSearchPage.mockResolvedValue({
           items: [HYBRID_ROW],
           hasNext: false,
-          keywordTotal: 1,
+          keywordMatched: true,
         });
 
         // when
@@ -1471,7 +1552,13 @@ describe('ExploreOrchestrator', () => {
         exact = false,
       ) =>
         encodeHybridSearchCursor(
-          { rrf: 1 / 61, playCount: 3, publishedAt: NOW, id: CONTENT_ID },
+          {
+            order: 'rrf',
+            rrf: 1 / 61,
+            playCount: 3,
+            publishedAt: NOW,
+            id: CONTENT_ID,
+          },
           state,
           '커리오',
           [],
@@ -1484,7 +1571,7 @@ describe('ExploreOrchestrator', () => {
         contentService.findHybridSearchPage.mockResolvedValue({
           items: [HYBRID_ROW],
           hasNext: false,
-          keywordTotal: 2,
+          keywordMatched: true,
         });
         const cursor = hybridCursor({
           queryUsed: '커리어',
@@ -1507,6 +1594,7 @@ describe('ExploreOrchestrator', () => {
             normalizedQuery: '커리어',
             queryVector: VECTOR,
             cursor: {
+              order: 'rrf',
               rrf: 1 / 61,
               playCount: 3,
               publishedAt: NOW,
@@ -1781,18 +1869,21 @@ describe('ExploreOrchestrator', () => {
     it('검색은 시리즈 제목 일치와 대표 편만을 함께 묻고, 교정어 어휘에도 시리즈 제목을 넣는다', async () => {
       // given — 교정 경로까지 밟도록 첫 조회는 키워드 0건
       contentService.findHybridSearchPage
-        .mockResolvedValueOnce({ items: [], hasNext: false, keywordTotal: 0 })
+        .mockResolvedValueOnce({
+          items: [],
+          hasNext: false,
+          keywordMatched: false,
+        })
         .mockResolvedValueOnce({
           items: [
             {
               content: episode(E1, 1),
-              rrf: 1 / 61,
-              playCount: 3,
+              position: rrfPosition(E1, 1 / 61, 3),
               matchedBy: ['keyword'],
             },
           ],
           hasNext: false,
-          keywordTotal: 1,
+          keywordMatched: true,
         });
       contentService.findSearchCorrection.mockResolvedValue('시리즈');
 
@@ -1861,19 +1952,17 @@ describe('ExploreOrchestrator', () => {
         items: [
           {
             content: episode(E1, 1),
-            rrf: 1 / 61,
-            playCount: 3,
+            position: rrfPosition(E1, 1 / 61, 3),
             matchedBy: ['keyword'],
           },
           {
             content: episode(E2, 2),
-            rrf: 1 / 62,
-            playCount: 2,
+            position: rrfPosition(E2, 1 / 62, 2),
             matchedBy: ['keyword'],
           },
         ],
         hasNext: false,
-        keywordTotal: 2,
+        keywordMatched: true,
       });
 
       // when
