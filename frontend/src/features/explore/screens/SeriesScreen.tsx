@@ -34,6 +34,7 @@ import { useSeriesScreen } from '../hooks/useSeriesScreen';
 export default function SeriesScreen() {
   const screen = useSeriesScreen();
   const nowPlayingContentId = usePlaybackStore((s) => s.session?.contentId ?? null);
+  const isPlayerPlaying = usePlaybackStore((s) => s.session?.isPlaying ?? false);
   // 탐색 탭 안에서 열리면 독(탭 바 + 미니플레이어)이 목록 위에 떠 있다 — 그만큼 바닥을 비운다(탭 밖이면 미니플레이어 몫만)
   const dockInset = useBottomDockInset();
   /*
@@ -97,6 +98,7 @@ export default function SeriesScreen() {
             episode={episode}
             seriesTitle={series.title}
             isNowPlaying={episode.item.content.id === nowPlayingContentId}
+            isPlaying={isPlayerPlaying}
             onPress={screen.handleEpisodePress}
             onMorePress={screen.openMoreSheet}
           />
