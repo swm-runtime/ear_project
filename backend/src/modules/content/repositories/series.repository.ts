@@ -53,6 +53,20 @@ export class SeriesRepository {
     });
   }
 
+  /**
+   * 같은 발행 이름(간행물)의 시리즈 — 만든 순(오래된 것부터). 이름은 저장값 그대로 비교한다(관리자 입력이 앞뒤 공백을 걷는다).
+   * 시리즈는 수십 단위라 인덱스·페이지를 두지 않는다
+   */
+  async findByPublisherName(
+    publisherName: string,
+    manager?: EntityManager,
+  ): Promise<Series[]> {
+    return this.scoped(manager).find({
+      where: { publisherName },
+      order: { createdAt: 'ASC', id: 'ASC' },
+    });
+  }
+
   async save(series: Series, manager?: EntityManager): Promise<Series> {
     return this.scoped(manager).save(series);
   }

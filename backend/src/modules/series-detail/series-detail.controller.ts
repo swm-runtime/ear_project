@@ -17,6 +17,7 @@ import { CurrentUser } from '@/common/decorators/current-user.decorator';
 import { JwtAuthGuard } from '@/common/guards/jwt-auth.guard';
 import { toUserMarket } from '@/modules/user/policies/market.policy';
 
+import { GetPublisherSeriesResponseDto } from './dto/get-publisher-series-response.dto';
 import { GetSeriesDetailResponseDto } from './dto/get-series-detail-response.dto';
 import { RestoreSeriesRequestDto } from './dto/restore-series-request.dto';
 import { SaveSeriesRequestDto } from './dto/save-series-request.dto';
@@ -51,6 +52,24 @@ export class SeriesDetailController {
     return GetSeriesDetailResponseDto.from(
       await this.seriesDetailOrchestrator.getSeries(
         currentUser.id,
+        seriesId,
+        new Date(),
+        toUserMarket(currentUser.market),
+      ),
+    );
+  }
+
+  /**
+   * 같은 간행물(발행 이름)의 다른 시리즈 — 시리즈 화면 아래 "○○의 다른 시리즈" 줄(2026-10-22 PM). 기준 시리즈가 안 보이면 404,
+   * 발행 이름이 없으면 빈 목록
+   */
+  @Get(':seriesId/publisher-series')
+  async getPublisherSeries(
+    @CurrentUser() currentUser: AuthenticatedUser,
+    @Param('seriesId', ParseUUIDPipe) seriesId: string,
+  ): Promise<GetPublisherSeriesResponseDto> {
+    return GetPublisherSeriesResponseDto.from(
+      await this.seriesDetailOrchestrator.getPublisherSeries(
         seriesId,
         new Date(),
         toUserMarket(currentUser.market),

@@ -55,6 +55,7 @@ describe('SeriesService', () => {
       findByIdForUpdate: jest.fn().mockResolvedValue(buildSeries()),
       findAllByIds: jest.fn().mockResolvedValue([buildSeries()]),
       findAll: jest.fn().mockResolvedValue([buildSeries()]),
+      findByPublisherName: jest.fn().mockResolvedValue([]),
       save: jest.fn((series: Series) => Promise.resolve(series)),
       create: jest.fn((series: Partial<Series>) => series as Series),
     } as unknown as jest.Mocked<SeriesRepository>;
@@ -438,6 +439,94 @@ describe('SeriesService', () => {
       // then
       expect(saved.coverUrl).toBe('https://cdn/cover.webp');
       expect(seriesRepository.save).toHaveBeenCalledWith(series, manager);
+    });
+  });
+
+  describe('findPublisherSiblingCards — 같은 간행물의 다른 시리즈', () => {
+    const THIRD_SERIES_ID = '77777777-7777-4777-8777-777777777777';
+
+    it('같은 발행 이름의 다른 시리즈를 만든 순으로, 자기 자신과 노출 편이 없는 시리즈는 빼고 낸다', async () => {
+      // given — 기준 시리즈(키워드)가 보이고, 같은 간행물에 시리즈가 둘 더 있는데 하나는 이 시장에 노출 편이 없다
+      seriesRepository.findById.mockResolvedValue(
+        buildSeries({ publisherName: '키워드' }),
+      );
+      contentRepository.findVisibleBySeriesId.mockResolvedValue([
+        { id: 'c1', seriesId: SERIES_ID } as Content,
+      ]);
+      seriesRepository.findByPublisherName.mockResolvedValue([
+        buildSeries({ id: OTHER_SERIES_ID, publisherName: '키워드' }),
+        buildSeries({ publisherName: '키워드' }),
+        buildSeries({ id: THIRD_SERIES_ID, publisherName: '키워드' }),
+      ]);
+      seriesRepository.findAllByIds.mockResolvedValue([
+        buildSeries({ id: OTHER_SERIES_ID, publisherName: '키워드' }),
+        buildSeries({ id: THIRD_SERIES_ID, publisherName: '키워드' }),
+      ]);
+      contentRepository.findVisibleBySeriesIds.mockResolvedValue([
+        {
+          id: 'o1',
+          seriesId: OTHER_SERIES_ID,
+          thumbnailUrl: 'https://cdn/o1.webp',
+        },
+      ] as Content[]);
+
+      // when
+      const result = await service.findPublisherSiblingCards(
+        SERIES_ID,
+        NOW,
+        UserMarket.KR,
+      );
+
+      // then
+      expect(result.publisherName).toBe('키워드');
+      expect(result.cards.map((card) => card.series.id)).toEqual([
+        OTHER_SERIES_ID,
+      ]);
+      expect(seriesRepository.findByPublisherName).toHaveBeenCalledWith(
+        '키워드',
+        undefined,
+      );
+      expect(contentRepository.findVisibleBySeriesIds).toHaveBeenCalledWith(
+        [OTHER_SERIES_ID, THIRD_SERIES_ID],
+        NOW,
+        UserMarket.KR,
+        undefined,
+      );
+    });
+
+    it('발행 이름이 없으면 같은 간행물을 찾지 않고 빈 목록이다', async () => {
+      // given
+      contentRepository.findVisibleBySeriesId.mockResolvedValue([
+        { id: 'c1', seriesId: SERIES_ID } as Content,
+      ]);
+
+      // when
+      const result = await service.findPublisherSiblingCards(
+        SERIES_ID,
+        NOW,
+        UserMarket.KR,
+      );
+
+      // then
+      expect(result).toEqual({ publisherName: null, cards: [] });
+      expect(seriesRepository.findByPublisherName).not.toHaveBeenCalled();
+    });
+
+    it('기준 시리즈가 사용자에게 보이지 않으면 시리즈 화면과 같은 404다', async () => {
+      // given
+      contentRepository.findVisibleBySeriesId.mockResolvedValue([]);
+
+      // when
+      const act = service.findPublisherSiblingCards(
+        SERIES_ID,
+        NOW,
+        UserMarket.GLOBAL,
+      );
+
+      // then
+      await expect(act).rejects.toMatchObject({
+        errorCode: ErrorCode.NOT_FOUND,
+      });
     });
   });
 

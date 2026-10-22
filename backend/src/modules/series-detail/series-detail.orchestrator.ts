@@ -45,6 +45,11 @@ export class SeriesDetailOrchestrator {
     private readonly dataSource: DataSource,
   ) {}
 
+  /** 같은 간행물의 다른 시리즈 — 사용자 상태가 없는 카드라 콘텐츠 모듈 판정을 그대로 넘긴다(기준 시리즈가 안 보이면 404) */
+  async getPublisherSeries(seriesId: string, now: Date, market: UserMarket) {
+    return this.seriesService.findPublisherSiblingCards(seriesId, now, market);
+  }
+
   /**
    * 노출 중인 편이 사용자 시장에 없으면 404(`SeriesService.getVisibleForUser`). 조회 전용이라 트랜잭션으로 감싸지 않는다
    * (architecture.md 8.7 기본). 편 수만큼 조회하지 않고 id 목록으로 한 번씩 읽는다(architecture.md 3.4).
