@@ -130,7 +130,11 @@ export default function SeriesHeader({
             <Text style={styles.playLabel}>{EXPLORE_COPY.series.play}</Text>
           </Pressable>
           <Pressable
-            style={({ pressed }) => [styles.sideButton, pressed && styles.playButtonPressed]}
+            style={({ pressed }) => [
+              styles.sideButton,
+              isSeriesSaved && styles.removeButton,
+              pressed && styles.playButtonPressed,
+            ]}
             onPress={isSeriesSaved ? onRemoveSeries : onSaveSeries}
             accessibilityRole="button"
             accessibilityLabel={
@@ -138,8 +142,8 @@ export default function SeriesHeader({
             }
           >
             {isSeriesSaved ? (
-              // 빼기(삭제)는 위험색 빨강 — 편 ⋯ 시트 [삭제]와 같은 색(PM 2026-10-22)
-              <TrashIcon size={SIDE_ICON_SIZE} color={theme.color.danger} />
+              // 시리즈째 빼기 — 채운 빨강 원 + 흰 휴지통(iOS 파괴 동작, PM 2026-10-22 "아이콘 배경이 빨간색")
+              <TrashIcon size={SIDE_ICON_SIZE} color={theme.color.onPrimary} />
             ) : (
               <PlusIcon size={SIDE_ICON_SIZE} color={theme.color.textPrimary} />
             )}
@@ -235,6 +239,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: 'rgba(127, 127, 127, 0.24)',
+  },
+  // 시리즈째 빼기 상태 — 채운 빨강 원(iOS 파괴 동작). PM 2026-10-22 "아이콘 배경이 빨간색"
+  // palette.ts는 채운 danger를 배경으로 쓰지 말라 하지만(주 버튼과 위계 역전) PM이 이 버튼엔 명시 지시
+  removeButton: {
+    backgroundColor: theme.color.danger,
   },
   playButtonPressed: {
     opacity: 0.7,
