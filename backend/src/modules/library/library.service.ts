@@ -272,6 +272,34 @@ export class LibraryService {
     );
   }
 
+  /** 한 시리즈 편들의 살아 있는 내 항목(편 번호순) — 시리즈째 빼기(KAN-245)의 대상 */
+  async findActiveItemsInSeries(
+    userId: string,
+    seriesId: string,
+    manager?: EntityManager,
+  ): Promise<LibraryItem[]> {
+    return this.libraryItemRepository.findAllActiveByUserIdAndSeriesId(
+      userId,
+      seriesId,
+      manager,
+    );
+  }
+
+  /** 넘긴 id 중 내 항목이면서 그 시리즈 편인 것(삭제분 포함, `content` 관계 포함) — 시리즈 빼기 실행 취소(KAN-245) */
+  async findOwnedItemsInSeriesWithDeleted(
+    userId: string,
+    seriesId: string,
+    itemIds: string[],
+    manager?: EntityManager,
+  ): Promise<LibraryItem[]> {
+    return this.libraryItemRepository.findAllByUserIdAndSeriesIdAndIdsWithDeleted(
+      userId,
+      seriesId,
+      itemIds,
+      manager,
+    );
+  }
+
   /** 그 시장 콘텐츠만 센다(`global-api.md` 4.11 — 시장을 바꾼 사용자의 이전 시장 항목은 숨어 있다) */
   async countBySource(
     userId: string,
