@@ -1,5 +1,5 @@
 import { StatusBar } from 'expo-status-bar';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import type { LayoutChangeEvent, ViewProps } from 'react-native';
 import {
@@ -82,7 +82,7 @@ import { PLAYER_COPY } from '../player.copy';
 import { playerColor } from '../player.theme';
 import type { QueueEntry, QueueItem, QueueSourceLabel } from '../player.types';
 import { playbackService } from '../services/playback.service';
-import { entryFromSession, withCurrentFirst } from '../services/queue-context';
+import { entryFromSession, withCurrentFirst, withSnapshotMoved } from '../services/queue-context';
 import {
   formatSleepTimerRemaining,
   formatSleepTimerRemainingA11y,
@@ -170,6 +170,15 @@ export default function PlayerScreen() {
     [queueContext, session],
   );
   const queueItems: QueueEntry[] = isLibraryQueue ? queueOrder.orderedItems : snapshotItems;
+  // 줄 손잡이 끌기 — 라이브러리 맥락은 서버 순서 저장, 탐색 맥락은 스냅샷만 바꾼다(PM 2026-10-23, 로컬뿐)
+  const moveQueueItem = useCallback(
+    (from: number, to: number) => {
+      if (isLibraryQueue) return queueOrder.move(from, to);
+      const store = usePlaybackStore.getState();
+      store.setQueueContext(withSnapshotMoved(store.queueContext, snapshotItems, from, to));
+    },
+    [isLibraryQueue, queueOrder, snapshotItems],
+  );
   const queueSourceLabel = useMemo(
     () => (queueContext.kind === 'explore' ? sourceLabelOf(queueContext.source) : null),
     [queueContext],
@@ -2243,7 +2252,7 @@ export default function PlayerScreen() {
                     mode={isLibraryQueue ? 'library' : 'explore'}
                     sourceLabel={queueSourceLabel ?? undefined}
                     onSelect={screen.playQueueItem}
-                    onReorder={queueOrder.move}
+                    onReorder={moveQueueItem}
                     onSave={screen.saveQueueItem}
                     upNext={
                       isLibraryQueue

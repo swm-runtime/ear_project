@@ -6,6 +6,7 @@ import {
   withCurrentFirst,
   withoutSnapshotItem,
   withSnapshotItemId,
+  withSnapshotMoved,
 } from './queue-context';
 
 const entry = (contentId: string, itemId: string | null = null): QueueEntry => ({
@@ -61,6 +62,24 @@ describe('재생 목록 맥락(KAN-241) — 순수 계산', () => {
     expect(withoutSnapshotItem(context, 'zzz')).toBe(context);
     const library: PlayQueueContext = { kind: 'library' };
     expect(withoutSnapshotItem(library, 'a')).toBe(library);
+  });
+
+  it('손잡이로 옮긴 순서가 스냅샷이 된다 — 맨 위에 세운 지금 듣는 편도 함께 들어간다', () => {
+    const context = exploreContext(['a', 'b']);
+    const displayed = withCurrentFirst([entry('a'), entry('b')], entry('x'));
+    const moved = withSnapshotMoved(context, displayed, 0, 2);
+    if (moved.kind !== 'explore') throw new Error('explore 맥락이어야 한다');
+    expect(moved.items.map((item) => item.contentId)).toEqual(['a', 'b', 'x']);
+    expect(moved.source).toEqual({ type: 'search', query: '커리어' });
+  });
+
+  it('같은 자리·범위 밖 이동과 라이브러리 맥락은 그대로 둔다', () => {
+    const context = exploreContext(['a', 'b']);
+    const displayed = [entry('a'), entry('b')];
+    expect(withSnapshotMoved(context, displayed, 1, 1)).toBe(context);
+    expect(withSnapshotMoved(context, displayed, 0, 5)).toBe(context);
+    const library: PlayQueueContext = { kind: 'library' };
+    expect(withSnapshotMoved(library, displayed, 0, 1)).toBe(library);
   });
 
   it('담기 결과는 그 줄의 itemId 만 채운다 — 실패 복구는 null 로 되돌린다', () => {
