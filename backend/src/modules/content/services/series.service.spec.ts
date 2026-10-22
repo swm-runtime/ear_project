@@ -27,6 +27,7 @@ function buildSeries(overrides: Partial<Series> = {}): Series {
     totalEpisodes: 3,
     status: SeriesStatus.ONGOING,
     coverUrl: null,
+    publisherName: null,
     createdAt: NOW,
     updatedAt: NOW,
     ...overrides,
@@ -266,6 +267,30 @@ describe('SeriesService', () => {
         description: '소개',
       });
       expect(contentRepository.countEpisodesBySeries).not.toHaveBeenCalled();
+    });
+
+    it('발행 이름은 넣을 수 있고 null 이면 지우며, 안 보내면 그대로다', async () => {
+      // when
+      const named = await service.update(
+        buildSeries(),
+        { publisherName: '키워드' },
+        manager,
+      );
+      const untouched = await service.update(
+        buildSeries({ publisherName: '키워드' }),
+        { title: '새 제목' },
+        manager,
+      );
+      const cleared = await service.update(
+        buildSeries({ publisherName: '키워드' }),
+        { publisherName: null },
+        manager,
+      );
+
+      // then
+      expect(named.publisherName).toBe('키워드');
+      expect(untouched.publisherName).toBe('키워드');
+      expect(cleared.publisherName).toBeNull();
     });
   });
 

@@ -25,6 +25,8 @@ export class AdminSeriesItemDto {
    * null이어도 앱에는 가장 앞 편 썸네일이 표지로 나간다 — 이 칸은 앱이 쓰는 해석값이 아니라 저장된 값이다
    */
   readonly cover_url: string | null;
+  /** 발행 이름(예: "키워드") — 없으면 null */
+  readonly publisher_name: string | null;
   readonly created_at: string;
   readonly updated_at: string;
 
@@ -43,6 +45,7 @@ export class AdminSeriesItemDto {
       max_published_episode_no: counts.maxPublishedEpisodeNo,
       // 빈 문자열(저장소가 URL을 못 준 경우)은 없는 것으로 낸다 — 앱 응답의 표지 해석(`resolveSeriesCover`)과 같은 판정
       cover_url: series.coverUrl || null,
+      publisher_name: series.publisherName ?? null,
       created_at: series.createdAt.toISOString(),
       updated_at: series.updatedAt.toISOString(),
     };

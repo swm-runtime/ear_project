@@ -244,5 +244,6 @@ function snapshot(series: Series): Record<string, unknown> {
     total_episodes: series.totalEpisodes,
     status: series.status,
     cover_url: series.coverUrl ?? null,
+    publisher_name: series.publisherName ?? null,
   };
 }

@@ -911,6 +911,7 @@ series
   description     text          NOT NULL   빈 문자열 허용(소개 없음)
   total_episodes  int           NOT NULL   CHECK >= 1 — 계획 편수. 총 편수의 기준. 상한 없음
   status          varchar(20)   NOT NULL   CHECK IN ('ongoing','completed')
+  publisher_name  varchar(50)   NULL       발행 이름(예: "키워드") — 2026-10-22
   created_at · updated_at
 
 ck_series_total_episodes  CHECK (total_episodes >= 1)
@@ -920,6 +921,7 @@ ck_series_status          CHECK (status IN ('ongoing', 'completed'))
 - **표지 칸이 없다** — 표지는 노출 중인 가장 앞 편(보통 1화)의 썸네일이다(결정 2026-10-09).
 - **시장 칸이 없다** — 시리즈는 편(`contents.market`)의 시장을 따른다. 한 시리즈에 시장이 섞이지 않게 업로드가 막는다(`admin-api.md` 4.6).
 - `status`는 표시용 구분이다 — 업로드·노출을 막지 않는다. `ongoing`이면 편수를 늘려 편을 더한다.
+- **`publisher_name`**(2026-10-22 PM, 마이그레이션 `1791500000000-AddSeriesPublisherName`) — 시리즈를 낸 이름. 시리즈 화면 제목 아래 줄(애플 뮤직 앨범의 아티스트 자리)에 나가고, 없으면(NULL) 앱이 그 줄을 생략한다. 관리자 시리즈 만들기·고치기(`publisher_name`)로 넣고, 빈 문자열은 NULL로 저장한다. 마이그레이션이 제목이 "키워드로"로 시작하는 시리즈를 "키워드"로 채웠다.
 - `total_episodes`는 발행 중인 가장 큰 편 번호보다 작게 줄일 수 없다(`admin-api.md` 4.24).
 - 삭제 API가 없다. 편이 FK로 가리킨다(`ON DELETE RESTRICT`).
 - 담기·재생 위치·완청·통계·페이월 차감은 편 단위 그대로다 — 그 테이블들은 `series`를 참조하지 않는다. **+ 시리즈째 담기 기록 `library_series`**(2026-10-22 — KAN-245, [6.1-1](#61-1-library_series-신설-2026-10-22--kan-245-시리즈째-담기)) — 새 편 자동 적립의 근거이고, 라이브러리 목록은 이 표를 읽지 않는다(편 단위 `library_items` 그대로).

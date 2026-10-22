@@ -43,4 +43,16 @@ export class Series extends BaseEntity {
    */
   @Column({ name: 'cover_url', type: 'text', nullable: true })
   coverUrl: string | null;
+
+  /**
+   * 발행 이름(2026-10-22 PM) — 시리즈를 낸 이름("키워드" 등). 애플 뮤직 앨범의 아티스트 줄 자리로, 시리즈 화면 제목 아래에
+   * 나간다. 없으면 null(그 줄을 생략한다). 관리자가 시리즈 만들기·고치기에서 넣는다
+   */
+  @Column({
+    name: 'publisher_name',
+    type: 'varchar',
+    length: 50,
+    nullable: true,
+  })
+  publisherName: string | null;
 }

@@ -37,6 +37,7 @@ function buildSeries(overrides: Partial<Series> = {}): Series {
     totalEpisodes: 12,
     status: SeriesStatus.ONGOING,
     coverUrl: null,
+    publisherName: null,
     createdAt: NOW,
     updatedAt: NOW,
     ...overrides,

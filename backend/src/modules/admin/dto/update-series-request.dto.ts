@@ -14,6 +14,7 @@ import { SeriesStatus } from '@/modules/content/content.enum';
 import {
   NOT_BLANK,
   SERIES_DESCRIPTION_MAX_LENGTH,
+  SERIES_PUBLISHER_NAME_MAX_LENGTH,
   SERIES_TITLE_MAX_LENGTH,
   SERIES_TOTAL_EPISODES_MAX,
 } from './create-series-request.dto';
@@ -45,4 +46,10 @@ export class UpdateSeriesRequestDto {
   @ValidateIf((_, value) => value !== undefined)
   @IsEnum(SeriesStatus)
   readonly status?: SeriesStatus;
+
+  /** 발행 이름 — 이 칸만 NULL 허용 컬럼이라 `null`(또는 빈 문자열)은 "지운다"로 받는다 */
+  @ValidateIf((_, value) => value !== undefined && value !== null)
+  @IsString()
+  @MaxLength(SERIES_PUBLISHER_NAME_MAX_LENGTH)
+  readonly publisher_name?: string | null;
 }
