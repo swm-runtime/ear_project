@@ -179,10 +179,12 @@ const ko = {
     saveAllA11y: '시리즈를 라이브러리에 담기',
     removeAllA11y: '시리즈를 라이브러리에서 빼기',
     removeAllToast: (count: number) => `${count}편을 라이브러리에서 뺐어요`,
-    removeAllFailedToast: '일부 편을 빼지 못했어요. 다시 시도해주세요',
+    /** 담긴 편 없이 시리즈째 담기만 남아 있을 때의 빼기 */
+    seriesRemovedToast: '시리즈를 라이브러리에서 뺐어요',
     undo: '실행 취소',
     saveAllToast: (count: number) => `${count}편을 라이브러리에 담았어요`,
-    saveAllFailedToast: '일부 편을 담지 못했어요. 다시 시도해주세요',
+    /** 노출 편이 이미 다 담겨 있을 때 시리즈째 담기 — 새로 담긴 편은 없고 따라오기만 켜진다 */
+    followToast: '새 편이 나오면 라이브러리에 담아 드릴게요',
     /** 아래 가로 목록 제목 — 애플 뮤직 앨범 화면 "○○의 다른 앨범" · "좋아할 만한 다른 항목" 자리(PM 2026-10-22) */
     /** 발행일자 — 노출 편 중 가장 이른 발행 시각(ISO 순간)을 기기 시간대의 연·월·일로. 앨범 하단 발행일 자리 */
     publishedAt: (iso: string) => formatFullDate(toLocalDate(iso), 'ko'),
@@ -345,11 +347,11 @@ const en: LocalizedCopy<typeof ko> = {
     removeAllA11y: 'Remove series from Library',
     removeAllToast: (count: number) =>
       `Removed ${formatEnCount(count, { one: 'episode', other: 'episodes' })} from Library`,
-    removeAllFailedToast: "Couldn't remove some episodes. Please try again.",
+    seriesRemovedToast: 'Removed series from Library',
     undo: 'Undo',
     saveAllToast: (count: number) =>
       `Added ${formatEnCount(count, { one: 'episode', other: 'episodes' })} to Library`,
-    saveAllFailedToast: "Couldn't add some episodes. Please try again.",
+    followToast: 'New episodes will be added to your Library',
     publishedAt: (iso: string) => formatFullDate(toLocalDate(iso), 'en'),
     moreSeriesTitle: 'More Series',
     youMayLikeTitle: 'You Might Also Like',

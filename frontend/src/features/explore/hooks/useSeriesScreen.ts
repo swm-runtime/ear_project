@@ -34,6 +34,11 @@ import type {
 import { useSaveContentMutation } from './useSaveContentMutation';
 import { useSeriesDetailQuery } from './useSeriesDetailQuery';
 import { useOtherSeriesQuery, useSeriesRelatedQuery } from './useSeriesMoreQueries';
+import {
+  useRestoreSeriesMutation,
+  useSaveSeriesMutation,
+  useUnsaveSeriesMutation,
+} from './useSeriesSaveMutations';
 import { useUnsaveContentMutation } from './useUnsaveContentMutation';
 
 /** 시리즈 화면 라우트 파람의 로컬 선언 — 원본은 app/navigation/types.ts 의 MainStackParamList(feature 는 app 을 import 하지 않는다) */
@@ -69,6 +74,9 @@ export const useSeriesScreen = () => {
   const detailQuery = useSeriesDetailQuery(seriesId);
   const saveMutation = useSaveContentMutation();
   const unsaveMutation = useUnsaveContentMutation();
+  const saveSeriesMutation = useSaveSeriesMutation();
+  const unsaveSeriesMutation = useUnsaveSeriesMutation();
+  const restoreSeriesMutation = useRestoreSeriesMutation();
 
   /*
    * 플레이어·상세에서 돌아오면 편의 재생 위치·완청이 바뀌었을 수 있다 — 조용히 다시 받는다. 첫 포커스(진입)는 이미 받는 중이라
@@ -355,89 +363,104 @@ export const useSeriesScreen = () => {
   };
 
   /*
-   * ── 시리즈 담기(PM 2026-10-22 08:55) — 노출 중인 편 중 라이브러리에 없는 편을 **편 단위로 전부** 담는다(서버는 편 담기 그대로 —
-   * explore-api.md 4.3, 횟수 제한·페이월 없음). 새로 공개될 편은 따라 들어오지 않는다(시리즈 구독 아님 — 보류). 낙관 반영 후
-   * 한 번에 보내고, 실패한 편만 되돌려 한 번 알린다. 전부 담겨 있으면 버튼이 빼기(휴지통)로 바뀐다 ──
+   * ── 시리즈째 담기·빼기(KAN-246 — PM 2026-10-22 14:57 "새 편 따라 들어오게") — 서버가 "시리즈째 담았다"를 기록해야 새 편이 따라
+   * 들어온다(explore-api.md 4.8~4.10). [+] = 시리즈 담기 한 번(노출 편 중 없는 편은 서버가 담는다), 🗑 = 시리즈 빼기 한 번(담긴 편
+   * 전부 + 따라오기 중단) + [실행 취소] = 복구. 버튼은 `series.isSaved`로 그린다 — 편이 다 담겼는지와 다르다(편을 하나씩 다 담아도
+   * false, 시리즈째 담은 뒤 편 하나를 따로 빼도 true). 낙관 반영 후 실패면 되돌린다. 순번은 시리즈 단위 키 하나 ──
    */
-  const isSeriesSaved =
-    episodes.length > 0 && episodes.every((episode) => episode.item.library !== null);
-  /** 편들을 한꺼번에 담는다(낙관 반영 → 일괄 전송 → 실패만 되돌림). `restore`는 빼기 실행 취소 — 빼기 전 상태로 되돌린다 */
-  const saveItems = (targets: { contentId: string; restore?: ExploreLibraryState }[]) => {
-    const jobs = targets.map(({ contentId, restore }) => {
-      const seq = nextSeq(contentId);
-      setCachedLibraryState(
-        contentId,
-        restore ?? { itemId: `optimistic-${contentId}`, source: 'save', status: 'unplayed' },
-      );
-      return { contentId, seq };
-    });
-    void Promise.allSettled(
-      jobs.map(({ contentId, seq }) => saveMutation.mutateAsync({ contentId, clientSeq: seq })),
-    ).then((results) => {
-      let failed = 0;
-      results.forEach((result, index) => {
-        if (result.status === 'fulfilled') return;
-        const { contentId, seq } = jobs[index];
-        if (!isLatestSeq(contentId, seq)) return;
-        const error: unknown = result.reason;
-        if (
-          isApiError(error) &&
-          (error.errorCode === ERROR_CODES.CONTENT_WITHDRAWN ||
-            error.errorCode === ERROR_CODES.CONTENT_NOT_FOUND)
-        ) {
-          hideRow(contentId);
-          return;
-        }
-        setCachedLibraryState(contentId, null);
-        failed += 1;
-      });
-      invalidateLibrary();
-      if (failed > 0) showToast(EXPLORE_COPY.series.saveAllFailedToast);
-    });
+  const isSeriesSaved = detail?.series.isSaved ?? false;
+  const seriesSeqKey = `series:${seriesId}`;
+  const setCachedSeriesSaved = (isSaved: boolean) => {
+    queryClient.setQueryData<SeriesDetail>(exploreKeys.series(seriesId), (old) =>
+      old ? { ...old, series: { ...old.series, isSaved } } : old,
+    );
   };
-  const saveSeries = () => {
-    const targets = episodes.map((episode) => episode.item).filter((item) => item.library === null);
-    if (targets.length === 0) return;
-    saveItems(targets.map((item) => ({ contentId: item.content.id })));
-    showToast(EXPLORE_COPY.series.saveAllToast(targets.length), {
-      label: EXPLORE_COPY.saveToastAction,
-      onPress: () => goToLibrary(),
-    });
+  const refreshSeries = () => {
+    void queryClient.invalidateQueries({ queryKey: exploreKeys.series(seriesId) });
+    invalidateLibrary();
   };
 
-  /*
-   * ── 시리즈째 빼기(PM 2026-10-22 14:22 "이미 담긴거는 삭제로") — 노출 편이 전부 담겨 있을 때 담기 원 자리. 담긴 편을 편 단위로
-   * 전부 뺀다(서버는 편 제거 `explore-api.md` 4.3 그대로). 한 번에 여러 편이 빠지므로 토스트에 [실행 취소]를 단다 — 누르면 뺀
-   * 편을 다시 담는다. 실패한 편만 되돌려 한 번 알린다 ──
-   */
+  const saveSeries = () => {
+    const targets = episodes.map((episode) => episode.item).filter((item) => item.library === null);
+    const seq = nextSeq(seriesSeqKey);
+    setCachedSeriesSaved(true);
+    targets.forEach((item) =>
+      setCachedLibraryState(item.content.id, {
+        itemId: `optimistic-${item.content.id}`,
+        source: 'save',
+        status: 'unplayed',
+      }),
+    );
+    showToast(
+      targets.length > 0
+        ? EXPLORE_COPY.series.saveAllToast(targets.length)
+        : EXPLORE_COPY.series.followToast,
+      { label: EXPLORE_COPY.saveToastAction, onPress: () => goToLibrary() },
+    );
+    saveSeriesMutation.mutate(
+      { seriesId, clientSeq: seq },
+      {
+        onSuccess: () => {
+          if (isLatestSeq(seriesSeqKey, seq)) refreshSeries();
+        },
+        onError: () => {
+          if (!isLatestSeq(seriesSeqKey, seq)) return;
+          setCachedSeriesSaved(false);
+          targets.forEach((item) => setCachedLibraryState(item.content.id, null));
+          showToast(EXPLORE_COPY.saveFailedToast);
+          refreshSeries();
+        },
+      },
+    );
+  };
+
   const removeSeries = () => {
-    const jobs = episodes.flatMap(({ item }) => {
-      if (item.library === null) return [];
-      const contentId = item.content.id;
-      const seq = nextSeq(contentId);
-      setCachedLibraryState(contentId, null);
-      return [{ contentId, seq, previous: item.library }];
-    });
-    if (jobs.length === 0) return;
-    showToast(EXPLORE_COPY.series.removeAllToast(jobs.length), {
-      label: EXPLORE_COPY.series.undo,
-      onPress: () =>
-        saveItems(jobs.map(({ contentId, previous }) => ({ contentId, restore: previous }))),
-    });
-    void Promise.allSettled(
-      jobs.map(({ contentId, seq }) => unsaveMutation.mutateAsync({ contentId, clientSeq: seq })),
-    ).then((results) => {
-      let failed = 0;
-      results.forEach((result, index) => {
-        if (result.status === 'fulfilled') return;
-        const { contentId, seq, previous } = jobs[index];
-        if (!isLatestSeq(contentId, seq)) return;
-        setCachedLibraryState(contentId, previous);
-        failed += 1;
-      });
-      invalidateLibrary();
-      if (failed > 0) showToast(EXPLORE_COPY.series.removeAllFailedToast);
-    });
+    const previous = episodes.flatMap(({ item }) =>
+      item.library ? [{ contentId: item.content.id, library: item.library }] : [],
+    );
+    const seq = nextSeq(seriesSeqKey);
+    const restoreLocal = () => {
+      setCachedSeriesSaved(true);
+      previous.forEach(({ contentId, library }) => setCachedLibraryState(contentId, library));
+    };
+    setCachedSeriesSaved(false);
+    previous.forEach(({ contentId }) => setCachedLibraryState(contentId, null));
+    const request = unsaveSeriesMutation.mutateAsync({ seriesId, clientSeq: seq });
+    request.then(
+      () => {
+        if (isLatestSeq(seriesSeqKey, seq)) refreshSeries();
+      },
+      () => {
+        if (!isLatestSeq(seriesSeqKey, seq)) return;
+        restoreLocal();
+        showToast(EXPLORE_COPY.removeFailedToast);
+      },
+    );
+    showToast(
+      previous.length > 0
+        ? EXPLORE_COPY.series.removeAllToast(previous.length)
+        : EXPLORE_COPY.series.seriesRemovedToast,
+      {
+        label: EXPLORE_COPY.series.undo,
+        // 실행 취소 — 빼기 응답(뺀 항목 id)을 기다렸다가 그대로 복구에 넘긴다. 화면은 먼저 되돌린다
+        onPress: () => {
+          const undoSeq = nextSeq(seriesSeqKey);
+          restoreLocal();
+          request
+            .then((result) =>
+              restoreSeriesMutation.mutateAsync({ seriesId, itemIds: result.removedItemIds }),
+            )
+            .then(() => {
+              if (isLatestSeq(seriesSeqKey, undoSeq)) refreshSeries();
+            })
+            .catch(() => {
+              if (!isLatestSeq(seriesSeqKey, undoSeq)) return;
+              showToast(EXPLORE_COPY.saveFailedToast);
+              refreshSeries();
+            });
+        },
+      },
+    );
   };
 
   /*

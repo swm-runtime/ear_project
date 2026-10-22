@@ -13,7 +13,7 @@
 | 선행 | BE `tickets/backend/pending/series-follow-new-episodes.md` ([KAN-245](https://runtime364.atlassian.net/browse/KAN-245)) — `POST`·`DELETE /series/:id/save` · `restore` · `is_saved` |
 | 근거 문서 | `changes/pending/series-follow-new-episodes.md` · BE 티켓 "규칙" · `features/explore.md` 4.7 |
 | 중요도 | Medium |
-| 상태 | 발행 |
+| 상태 | 코드 반영(2026-10-22) — 실기기 확인 남음 |
 
 ## 왜
 
@@ -43,3 +43,4 @@
 ## 처리 기록
 
 - 2026-10-22 14:57 발행.
+- 2026-10-22 16:2x 코드 반영(BE KAN-245 #1855 머지 확인 후 착수). [+] = `POST /series/:id/save` 1회, 🗑 = `DELETE` 1회 + [실행 취소] = 빼기 응답의 `removed_item_ids`로 `POST /series/:id/restore`, 판정 = `series.isSaved`. 이미 다 담긴 시리즈의 [+]는 토스트 "새 편이 나오면 라이브러리에 담아 드릴게요". 실패는 시리즈 단위로 되돌림(서버가 한 트랜잭션) — "일부 편" 문구 2종 삭제. **실기기 확인 뒤 archive·Jira 완료.**
