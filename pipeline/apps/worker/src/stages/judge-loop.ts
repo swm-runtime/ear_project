@@ -19,7 +19,7 @@ import path from "node:path";
 import { cfg, executedBy } from "../config.js";
 import { enqueue, getBacklog, getBacklogStatus, getEpisode, insertRun, setCriticVerdicts, setJobProgress, type Job } from "../db.js";
 import type { Executor } from "../executors/index.js";
-import { pipelineLocale, promptBody } from "@ear/pipeline";
+import { assetPaths, pipelineLocale, promptBody } from "@ear/pipeline";
 import { readAutomation } from "../automation.js";
 import { log } from "../util.js";
 import { prepareAssets, workerRev } from "../assets.js";
@@ -178,7 +178,7 @@ export async function runJudgeLoop(job: Job, ex: Executor) {
   const meta = script0.split("\n")[0].split(" · "); const [explainer, host] = (meta[3] ?? "").split("/");
   if (!explainer || !host) throw new Error("대본 메타 줄에서 화자를 읽지 못했다");
   const { assetRoot, bundle } = await prepareAssets(ep.asset_versions ?? null);
-  const guidelines = promptBody(await fs.readFile(path.join(assetRoot, "skills/draft/guidelines.gpt.md"), "utf8"));
+  const guidelines = promptBody(await fs.readFile(assetPaths(assetRoot, cfg.workRoot).guidelines, "utf8")); // 번들은 프로파일 키(guidelines.gpt.md)를 기본 키 경로(guidelines.md)에 내려놓는다 (assets.ts PROFILE_KEYS)
   const JD = path.join(cfg.assetSourceRoot, "judge"); // 판정 지시문은 prompt_assets 가 아니라 저장소 파일(README 1장 — 눈가림용, 시딩 안 함)
   const [editorMd, scoringMd, koreaMd, houseMd] = await Promise.all(["editor.md", "scoring.md", "korea-check.md", "house-style.md"].map((f) => fs.readFile(path.join(JD, f), "utf8")));
   const threshold = Number((await readAutomation()).judge_threshold ?? DEFAULT_THRESHOLD);
