@@ -18,8 +18,8 @@ const COVER_MAX_SIZE = 320;
 export const seriesCoverSize = (windowWidth: number): number =>
   Math.min(Math.round(windowWidth * COVER_WIDTH_RATIO), COVER_MAX_SIZE);
 
-/** [재생] 알약 — 앨범 화면의 가운데 재생 버튼 크기(넓은 알약, 누르기 쉬운 높이) */
-const PLAY_BUTTON_WIDTH = 200;
+/** [재생] 알약 — 앨범 화면 가운데 재생 버튼. 양옆 원(셔플·담기)과 균형 잡히게 좁혔다(PM 2026-10-22 "재생 가로 줄이자") */
+const PLAY_BUTTON_WIDTH = 150;
 const PLAY_BUTTON_HEIGHT = 52;
 const PLAY_ICON_SIZE = 22;
 /** [재생] 양옆 원(셔플 · 담기) — 알약과 같은 높이의 원, 아이콘 22(애플 뮤직 앨범 화면) */
@@ -119,7 +119,8 @@ export default function SeriesHeader({
             }
           >
             {isSeriesSaved ? (
-              <TrashIcon size={SIDE_ICON_SIZE} color={theme.color.textPrimary} />
+              // 빼기(삭제)는 위험색 빨강 — 편 ⋯ 시트 [삭제]와 같은 색(PM 2026-10-22)
+              <TrashIcon size={SIDE_ICON_SIZE} color={theme.color.danger} />
             ) : (
               <PlusIcon size={SIDE_ICON_SIZE} color={theme.color.textPrimary} />
             )}
