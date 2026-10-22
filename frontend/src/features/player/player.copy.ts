@@ -104,14 +104,14 @@ const ko = {
     title: '재생 목록',
     /**
      * 탐색 맥락의 출처 한 줄(KAN-241 — player.md 4.2-1). 헤더와 바닥 손잡이 글자가 같은 값이다.
-     * 섹션은 화면에 보이던 제목 그대로("탐색 · 새로 나온 콘텐츠")
+     * 섹션은 화면에 보이던 제목 그대로("새로 나온 콘텐츠")
      */
-    sourceSection: (title: string) => `탐색 · ${title}`,
+    /** "탐색 · "·"주제 · "·"검색"·"시리즈 · " 머리는 뺐다 — 이름만 남긴다(PM 2026-10-23) */
+    sourceSection: (title: string) => title,
     sourcePopular: (period: 'week' | 'month' | 'all') =>
-      `탐색 · 인기 ${{ week: '주간', month: '월간', all: '전체' }[period]}`,
-    sourceTopic: (name: string) => `주제 · ${name}`,
-    sourceSearch: (query: string) => `검색 ‘${query}’`,
-    /** 시리즈는 제목만 — "시리즈 · " 머리는 뺐다(PM 2026-10-23) */
+      `${{ week: '주간', month: '월간', all: '전체' }[period]} 인기 콘텐츠`,
+    sourceTopic: (name: string) => name,
+    sourceSearch: (query: string) => query,
     sourceSeries: (title: string) => title,
     /** 탐색 맥락 목록 아래 추천 블록(player.md 4.2-2) — 자동 재생은 없다, 목록일 뿐 */
     upNextTitle: '다음에 들어볼 만한',
@@ -288,11 +288,11 @@ const en: LocalizedCopy<typeof ko> = {
 
   queuePanel: {
     title: 'Up next',
-    sourceSection: (title: string) => `Explore · ${title}`,
+    sourceSection: (title: string) => title,
     sourcePopular: (period: 'week' | 'month' | 'all') =>
-      `Explore · Popular ${{ week: 'this week', month: 'this month', all: 'all time' }[period]}`,
-    sourceTopic: (name: string) => `Topic · ${name}`,
-    sourceSearch: (query: string) => `Search “${query}”`,
+      `Popular ${{ week: 'this week', month: 'this month', all: 'all time' }[period]}`,
+    sourceTopic: (name: string) => name,
+    sourceSearch: (query: string) => query,
     sourceSeries: (title: string) => title,
     upNextTitle: 'Up next for you',
     saveA11y: 'Save to library',

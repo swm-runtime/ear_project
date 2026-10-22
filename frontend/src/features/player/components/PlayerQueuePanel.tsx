@@ -39,7 +39,7 @@ interface PlayerQueuePanelProps {
   showHeader?: boolean;
   /** 기본 `library`. `explore` 면 순서 손잡이 대신 담기 버튼(라이브러리에 없는 줄만), 아래에 추천 블록 */
   mode?: QueuePanelMode;
-  /** 탐색 맥락의 헤더 글자("탐색 · 인기 주간") — 없으면 "재생 목록" */
+  /** 탐색 맥락의 헤더 글자("주간 인기 콘텐츠") — 없으면 "재생 목록" */
   sourceLabel?: string;
   /** 라이브러리에 없는 줄의 담기(탐색 맥락) — 낙관 반영·토스트는 부모 몫 */
   onSave?: (item: QueueEntry) => void;
