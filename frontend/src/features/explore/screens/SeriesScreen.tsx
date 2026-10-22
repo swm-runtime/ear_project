@@ -188,13 +188,11 @@ export default function SeriesScreen() {
               <View
                 style={[styles.moreSectionsZone, { paddingBottom: dockInset + theme.spacing.lg }]}
               >
-                {/* 존 어둠 — **위아래 같은 톤 한 겹**(PM 2026-10-22 18:28 "dock 뒤에도 위에랑 색깔 맞춰줘" — 종전 0.3→0.62
-                    그라데이션은 독 뒤만 따로 시커멓게 떴다). 아래 연장 면도 같은 값이라 독(리퀴드 글라스) 뒤까지 한 색이다 */}
+                {/* 존 어둠 — **위아래 같은 톤 한 장**(PM 2026-10-22 18:28 "dock 뒤에도 위에랑 색깔 맞춰줘"). 존 위에서
+                    시작해 존 아래로 MORE_ZONE_BLEED 만큼 더 내려가 독 뒤까지 칠한다 — iOS 26 시스템 탭 바는 독 자리를
+                    스크롤 자동 인셋(목록 콘텐츠 밖)으로 비우기 때문. 두 장으로 나누면 겹친 곳이 두 겹으로 진해진다
+                    (PM 2026-10-22 19:37 "띠" — RN 은 절대 위치 top:'100%' 를 바닥 여백 뺀 높이로 풀어 32pt 겹쳤다) */}
                 <View style={styles.moreSectionsShade} pointerEvents="none" />
-                {/* 존 아래로 같은 톤을 더 칠한다 — iOS 26 시스템 탭 바는 탭 바·미니플레이어 자리를 스크롤 뷰 자동
-                    인셋(목록 콘텐츠 밖)으로 비워, 존의 바닥 여백만으로는 독 뒤까지 닿지 않았다(PM 2026-10-22 스샷).
-                    콘텐츠 크기엔 안 들어가는 절대 위치라 스크롤 길이는 그대로다 */}
-                <View style={styles.moreSectionsBleed} pointerEvents="none" />
                 <SeriesMoreSection
                   title={EXPLORE_COPY.series.moreSeriesTitle}
                   entries={screen.otherSeries}
@@ -422,21 +420,16 @@ const styles = StyleSheet.create({
     lineHeight: theme.font.size.sm * 1.6,
     color: theme.color.textSecondary,
   },
-  // '다른 항목' 영역 — 흐린 표지 바탕을 그대로 비추고 그라데이션(아래로 갈수록 진하게)으로 톤만 어둡게 한다
-  // (PM 2026-10-22 "표지색에서 톤만 더 어둡게"). 독 뒤가 가장 어두워 리퀴드 글라스 독이 그 밝기를 따라 어두워진다
-  // (fe-68 확인). 아래 연장 면이 존 밖으로 나가야 해서 잘라 내지 않는다
+  // '다른 항목' 영역 — 흐린 표지 바탕을 그대로 비추고 반투명 검정 한 장으로 톤만 어둡게 한다
+  // (PM 2026-10-22 "표지색에서 톤만 더 어둡게"). 그 면이 존 밖(독 뒤)으로 나가야 해서 잘라 내지 않는다
   moreSectionsZone: {},
+  // 존 꼭대기 ~ 존 바닥 아래 MORE_ZONE_BLEED(독 뒤·바닥 튕김)까지 한 장. 숫자 bottom 은 바닥 여백과 무관하게 테두리 기준이다
   moreSectionsShade: {
-    ...StyleSheet.absoluteFill,
-    backgroundColor: MORE_ZONE_SHADE,
-  },
-  // 존 바로 아래부터 독 뒤·바닥 튕김까지 이어 칠하는 면 — 존과 같은 톤
-  moreSectionsBleed: {
     position: 'absolute',
-    top: '100%',
+    top: 0,
     left: 0,
     right: 0,
-    height: MORE_ZONE_BLEED,
+    bottom: -MORE_ZONE_BLEED,
     backgroundColor: MORE_ZONE_SHADE,
   },
   // 편 사이 구분선 — 머리 아래 선과 같이 좌우 같은 여백으로 가운데(PM 2026-10-22, 종전 제목 시작선 ~ 오른쪽 끝)
