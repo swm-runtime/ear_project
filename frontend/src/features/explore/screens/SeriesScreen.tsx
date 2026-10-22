@@ -388,14 +388,15 @@ const styles = StyleSheet.create({
   },
   footer: {
     paddingHorizontal: theme.spacing.md,
-    paddingTop: theme.spacing.md,
+    // 발행일자와 한 묶음으로 바싹 — 셋을 가깝게(PM 2026-10-22 "간격 줄여")
+    paddingTop: theme.spacing.xs,
     fontSize: theme.font.size.sm,
     color: theme.color.textSecondary,
   },
   // 간단한 소개 — 'N편, 길이' 아래. 전문은 앱바 ⋯ 시트에, 여기선 줄 간격을 둔 짧은 문단
   footerDescription: {
     paddingHorizontal: theme.spacing.md,
-    paddingTop: theme.spacing.md,
+    paddingTop: theme.spacing.sm,
     fontSize: theme.font.size.sm,
     lineHeight: theme.font.size.sm * 1.6,
     color: theme.color.textSecondary,
