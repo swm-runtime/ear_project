@@ -21,6 +21,8 @@ export interface SeriesEpisodeView {
 /** `GET /series/:id`(KAN-134 확정 설계 3번)의 조립 재료 */
 export interface SeriesDetailView {
   series: Series;
+  /** 시리즈째 담기(`library_series` 살아 있는 행 — KAN-245). 새 편이 따라 들어오는가 */
+  isSaved: boolean;
   /** 표지 — 시리즈 표지가 있으면 그것(KAN-234), 없으면 노출 중인 가장 앞 편의 썸네일(보통 1화, 결정 2026-10-09) */
   coverThumbnailUrl: string;
   /**
@@ -30,4 +32,26 @@ export interface SeriesDetailView {
   topic: { id: string; name: string } | null;
   /** 노출 중인 편만, `episode_no` 순 */
   episodes: SeriesEpisodeView[];
+}
+
+/** `POST /series/:id/save`(KAN-245) */
+export interface SeriesSaveResult {
+  seriesId: string;
+  /** 이번 요청으로 라이브러리에 새로 들어온(생성·되살림) 편 수 — 이미 담겨 있던 편은 세지 않는다 */
+  addedCount: number;
+}
+
+/** `DELETE /series/:id/save`(KAN-245) */
+export interface SeriesUnsaveResult {
+  seriesId: string;
+  /** 이번 요청으로 뺀 라이브러리 항목 id — [실행 취소](`POST /series/:id/restore`)에 그대로 넘긴다 */
+  removedItemIds: string[];
+}
+
+/** `POST /series/:id/restore`(KAN-245) */
+export interface SeriesRestoreResult {
+  seriesId: string;
+  /** 넘긴 id 중 내 그 시리즈 편이고 노출 중이라 살아 있게 된 항목 */
+  restoredItemIds: string[];
+  isSaved: boolean;
 }

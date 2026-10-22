@@ -819,6 +819,49 @@ export class LibraryItemRepository {
     });
   }
 
+  /**
+   * 한 시리즈 편들의 살아 있는 내 항목 — 시리즈째 빼기(KAN-245)의 대상. 노출·시장을 가리지 않는다: 만료·다른 시장으로 숨은
+   * 편이 남아 있어도 "시리즈째 뺐다"면 함께 빠져야 한다(회수된 편은 회수 반영이 이미 지웠다).
+   */
+  async findAllActiveByUserIdAndSeriesId(
+    userId: string,
+    seriesId: string,
+    manager?: EntityManager,
+  ): Promise<LibraryItem[]> {
+    return this.scoped(manager)
+      .createQueryBuilder('item')
+      .innerJoin('item.content', 'content')
+      .where('item.user_id = :userId', { userId })
+      .andWhere('content.series_id = :seriesId', { seriesId })
+      .orderBy('content.episode_no', 'ASC')
+      .addOrderBy('item.id', 'ASC')
+      .getMany();
+  }
+
+  /**
+   * 시리즈 빼기 실행 취소(KAN-245)의 대상 — 넘긴 id 중 **내 항목이면서 그 시리즈 편인 것만**(삭제분 포함, 콘텐츠와 함께).
+   * 남의 항목·다른 시리즈 편은 결과에 없다(호출부는 조용히 무시한다).
+   */
+  async findAllByUserIdAndSeriesIdAndIdsWithDeleted(
+    userId: string,
+    seriesId: string,
+    ids: string[],
+    manager?: EntityManager,
+  ): Promise<LibraryItem[]> {
+    if (ids.length === 0) {
+      return [];
+    }
+
+    return this.scoped(manager)
+      .createQueryBuilder('item')
+      .withDeleted()
+      .innerJoinAndSelect('item.content', 'content')
+      .where('item.user_id = :userId', { userId })
+      .andWhere('content.series_id = :seriesId', { seriesId })
+      .andWhere('item.id IN (:...ids)', { ids })
+      .getMany();
+  }
+
   async save(item: LibraryItem, manager?: EntityManager): Promise<LibraryItem> {
     return this.scoped(manager).save(item);
   }

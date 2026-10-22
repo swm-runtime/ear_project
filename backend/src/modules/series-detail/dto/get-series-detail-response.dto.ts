@@ -21,6 +21,11 @@ class SeriesDetailSeriesDto {
    * (동률은 `display_order` 우선). 노출 편에 주제가 없으면 null
    */
   readonly topic: { id: string; name: string } | null;
+  /**
+   * 시리즈째 담았는가(`library_series` 살아 있는 행 — KAN-245). true면 새로 공개되는 편이 라이브러리에 따라 들어온다.
+   * 편이 전부 담겼는지와 다르다 — 편 하나씩 다 담아도 false다. **추가 필드라 설치된 앱은 무시한다**
+   */
+  readonly is_saved: boolean;
 }
 
 /** 탐색 카드의 `content`와 같은 모양(explore-api.md 4.1) — 화면이 같은 행 컴포넌트를 쓴다 */
@@ -116,6 +121,7 @@ export class GetSeriesDetailResponseDto {
         status: view.series.status,
         thumbnail_url: view.coverThumbnailUrl,
         topic: view.topic,
+        is_saved: view.isSaved,
       },
       episodes: view.episodes.map((episode) =>
         SeriesEpisodeItemDto.from(episode),

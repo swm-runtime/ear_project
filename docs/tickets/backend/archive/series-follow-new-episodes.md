@@ -11,9 +11,10 @@
 | 시작 날짜 | 2026-10-22 |
 | 기한 | 2026-10-25 (Medium — +3일) |
 | 선행 | 없음(티켓). 문서 개정 기록 `changes/pending/series-follow-new-episodes.md`를 같은 PR에서 반영 |
+| 반영 날짜 | 2026-10-22 |
 | 근거 문서 | `changes/pending/series-follow-new-episodes.md` · `features/explore.md` 4.7 · `spec/api/explore-api.md` 4.3·4.7 · `backend/domain.md` 5.9·6.1 · `features/library.md` 4.5 |
 | 중요도 | Medium |
-| 상태 | 발행 |
+| 상태 | 완료 |
 
 ## 왜
 
@@ -55,3 +56,10 @@
 ## 처리 기록
 
 - 2026-10-22 14:57 발행.
+- 2026-10-22 반영(dev PR — `feat(be)/series-follow-new-episodes`). **운영은 다음 dev → main 릴리스와 함께 나간다.**
+  - 마이그레이션 `1791400000000-AddLibrarySeries` · `LibrarySeries` 엔티티·저장소·`LibrarySeriesService`(library 모듈).
+  - `POST`·`DELETE /series/:series_id/save` · `POST /series/:series_id/restore` · `GET /series/:series_id`의 `series.is_saved` — `series-detail` Orchestrator가 편 담기(`LibraryService.save`)·편 해제(소프트 삭제 + `drip_excluded_contents(unsave)` + `user_signals(unsave)`)·편 복구(`LibraryService.restore`) 규칙을 편마다 그대로 부른다. 빼기의 `client_seq`는 편 해제와 같이 쿼리. 담기·빼기·실행 취소 모두 200.
+  - 새 편 적립 훅은 `AdminContentService.upload`(신규 발행)에만 — 발행 트랜잭션 커밋 뒤 `INSERT … SELECT` 한 문장(같은 시장 · `library_items` 행 없음(삭제 이력 포함) · 살아 있는 `library_series` · `ON CONFLICT DO NOTHING`), 실패는 로그만. 재발행·회수 복구는 부르지 않는다(단위 테스트로 고정). 예약 발행·라이선스 시작일은 없고(노출 조건 = `published` + 만료 전), 운영 → 개발계 동기화는 SQL upsert라 이 경로를 지나지 않는다(개발계 한정).
+  - 탈퇴: `users` FK ON DELETE CASCADE — 탈퇴 서비스는 표마다 지우지 않고 사용자 행 삭제에 맡기므로(주석 목록에 추가) 별도 호출 없음. `deploy/sync-content-*.sh`의 표 목록에 `library_series`가 없음을 확인(사용자 데이터).
+  - 테스트: e2e `test/series-follow.e2e-spec.ts`(완료 조건 6개 + 일부 담김·남의 항목 무시·시장 전환·회수 복구·404/400) · 단위(적립 SQL 조건 — 시장·삭제 이력 제외·시리즈째 뺀 사용자 제외, Orchestrator 담기·빼기·복구, 업로드 훅·재발행/회수 복구 미호출).
+  - 문서: changes 문서 1~4 반영 — 5번(uiux)은 FE 몫이라 changes 문서는 `pending/`에 남겼다.

@@ -20,6 +20,7 @@ import { UserMarket } from '@/modules/user/user.enum';
 import { TopicService } from '@/modules/interest/services/topic.service';
 import { AuditLogService } from '@/modules/partner/audit-log.service';
 
+import { LibrarySeriesService } from '@/modules/library/library-series.service';
 import { LibraryService } from '@/modules/library/library.service';
 import { PlaybackService } from '@/modules/playback/services/playback.service';
 
@@ -153,6 +154,7 @@ describe('AdminContentService', () => {
   let storage: jest.Mocked<ContentStorageClient>;
   let audioProbe: jest.Mocked<AudioProbe>;
   let thumbnailImage: jest.Mocked<ThumbnailImage>;
+  let librarySeriesService: jest.Mocked<LibrarySeriesService>;
   let manager: EntityManager;
 
   beforeEach(() => {
@@ -217,6 +219,10 @@ describe('AdminContentService', () => {
     libraryService = {
       removeAllByWithdrawnContent: jest.fn().mockResolvedValue(3),
     } as unknown as jest.Mocked<LibraryService>;
+
+    librarySeriesService = {
+      deliverNewEpisode: jest.fn().mockResolvedValue(2),
+    } as unknown as jest.Mocked<LibrarySeriesService>;
 
     playbackService = {
       deleteProgressesByContentId: jest.fn().mockResolvedValue(undefined),
@@ -291,6 +297,7 @@ describe('AdminContentService', () => {
       storage,
       audioProbe,
       thumbnailImage,
+      librarySeriesService,
     );
   });
 
@@ -853,6 +860,74 @@ describe('AdminContentService', () => {
         // then
         expect(seriesService.assertEpisodeUploadable).not.toHaveBeenCalled();
       });
+
+      describe('새 편 적립(KAN-245)', () => {
+        beforeEach(() => {
+          contentService.publish.mockResolvedValue({
+            id: CONTENT_ID,
+            status: ContentStatus.PUBLISHED,
+            seriesId: SERIES_ID,
+            episodeNo: 2,
+            market: UserMarket.KR,
+          } as never);
+        });
+
+        it('발행 트랜잭션이 끝난 뒤 그 편·시리즈·편의 시장·발행 시각으로 시리즈째 담은 사용자에게 적립한다', async () => {
+          // when
+          await service.upload(seriesCommand(), NOW);
+
+          // then — 트랜잭션 manager 를 넘기지 않는다(커밋 뒤 따로 돈다)
+          expect(librarySeriesService.deliverNewEpisode).toHaveBeenCalledWith({
+            contentId: CONTENT_ID,
+            seriesId: SERIES_ID,
+            market: UserMarket.KR,
+            now: NOW,
+          });
+        });
+
+        it('적립이 실패해도 발행은 성공으로 끝난다', async () => {
+          // given
+          librarySeriesService.deliverNewEpisode.mockRejectedValueOnce(
+            new Error('connection reset'),
+          );
+
+          // when
+          const result = await service.upload(seriesCommand(), NOW);
+
+          // then
+          expect(result.content.id).toBe(CONTENT_ID);
+          expect(storage.remove).not.toHaveBeenCalled();
+        });
+
+        it('단일 콘텐츠 발행은 적립을 부르지 않는다', async () => {
+          // given
+          contentService.publish.mockResolvedValue({
+            id: CONTENT_ID,
+            status: ContentStatus.PUBLISHED,
+            seriesId: null,
+            episodeNo: null,
+            market: UserMarket.KR,
+          } as never);
+
+          // when
+          await service.upload(buildCommand(), NOW);
+
+          // then
+          expect(librarySeriesService.deliverNewEpisode).not.toHaveBeenCalled();
+        });
+
+        it('발행이 실패하면 적립하지 않는다', async () => {
+          // given
+          contentService.publish.mockRejectedValueOnce(new Error('db down'));
+
+          // when
+          const act = service.upload(seriesCommand(), NOW);
+
+          // then
+          await expect(act).rejects.toThrow('db down');
+          expect(librarySeriesService.deliverNewEpisode).not.toHaveBeenCalled();
+        });
+      });
     });
 
     it('썸네일은 원본이 아니라 저장 규격(WebP 768px)으로 변환된 파일을 올린다', async () => {
@@ -1086,6 +1161,22 @@ describe('AdminContentService', () => {
   });
 
   describe('restore', () => {
+    it('시리즈 편을 회수 복구해도 새 편 적립을 하지 않는다 — 새 공개가 아니다(KAN-245)', async () => {
+      // given
+      contentService.getByIdForUpdate.mockResolvedValue({
+        id: CONTENT_ID,
+        status: ContentStatus.WITHDRAWN,
+        seriesId: '55555555-5555-4555-8555-555555555555',
+        episodeNo: 2,
+      } as never);
+
+      // when
+      await service.restore(ACTOR_ID, CONTENT_ID);
+
+      // then
+      expect(librarySeriesService.deliverNewEpisode).not.toHaveBeenCalled();
+    });
+
     it('회수된 콘텐츠를 복구하면 published로 돌아가고 감사 로그가 남는다', async () => {
       // given
       contentService.getByIdForUpdate.mockResolvedValue({
@@ -1400,6 +1491,26 @@ describe('AdminContentService', () => {
       );
       // 새 파일 저장 → 트랜잭션 성공 → **그 다음에** 이전 파일 삭제 (반대면 롤백 시 파일이 없다)
       expect(storage.remove).toHaveBeenCalledWith(['audio/old.mp3']);
+    });
+
+    it('시리즈 편을 재발행해도 새 편 적립을 하지 않는다 — 이미 노출 중이던 편이다(KAN-245)', async () => {
+      // given
+      contentService.getByIdForUpdate.mockResolvedValue({
+        id: CONTENT_ID,
+        status: ContentStatus.PUBLISHED,
+        origin: ContentOrigin.AI_GENERATED,
+        contentVersion: 2,
+        audioPath: 'audio/old.mp3',
+        thumbnailUrl: `${CDN_BASE_URL}/thumb/old.png`,
+        seriesId: '55555555-5555-4555-8555-555555555555',
+        episodeNo: 2,
+      } as never);
+
+      // when
+      await service.republish(buildRepublishCommand());
+
+      // then
+      expect(librarySeriesService.deliverNewEpisode).not.toHaveBeenCalled();
     });
 
     it('오디오와 함께 온 추천 메타 파일은 재발행된 새 버전으로 저장된다', async () => {

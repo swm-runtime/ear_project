@@ -20,6 +20,7 @@ import {
 } from '@/modules/content/content.types';
 import { ContentService } from '@/modules/content/services/content.service';
 import { SeriesService } from '@/modules/content/services/series.service';
+import { LibrarySeriesService } from '@/modules/library/library-series.service';
 import { LibraryService } from '@/modules/library/library.service';
 import { PlaybackService } from '@/modules/playback/services/playback.service';
 import { TopicService } from '@/modules/interest/services/topic.service';
@@ -116,6 +117,7 @@ export class AdminContentService {
     private readonly storage: ContentStorageClient,
     private readonly audioProbe: AudioProbe,
     private readonly thumbnailImage: ThumbnailImage,
+    private readonly librarySeriesService: LibrarySeriesService,
   ) {}
 
   async upload(
@@ -296,6 +298,7 @@ export class AdminContentService {
     });
     this.logEnrichmentOutcome(content.id, enrichment);
     this.logScriptOutcome(content.id, script);
+    await this.deliverToSeriesFollowers(content, now);
 
     const embeddingContentIds =
       await this.contentService.findScorableEmbeddingContentIds([content.id]);
@@ -308,6 +311,48 @@ export class AdminContentService {
       ...(enrichment && { enrichment: toEnrichmentOutcome(enrichment) }),
       ...(script && { script: toScriptOutcome(script) }),
     };
+  }
+
+  /**
+   * 새 편 적립(KAN-245) — 시리즈째 담은 사용자에게 방금 발행한 편을 넣는다. **업로드(신규 발행)에서만 부른다** — 시리즈 편이
+   * 처음 노출되는 경로가 이것 하나다:
+   *
+   * - 재발행(`republish`)은 같은 행의 파일·메타 교체라 이미 노출 중이던 편이다(시리즈를 바꾸는 필드도 없다).
+   * - 회수 복구(`restore`)는 되살림이지 새 공개가 아니다 — 회수 반영이 지운 라이브러리 행도 되살리지 않는다(`partner-control.md` 4.3).
+   * - 예약 발행·라이선스 시작일은 없다 — 노출 조건은 `status = published` + 만료 전뿐이다(`content.visibility.ts`).
+   * - 운영 → 개발계 콘텐츠 동기화(`deploy/sync-content-import.sh`)는 행을 SQL로 upsert 해 이 경로를 지나지 않는다(개발계 한정).
+   *
+   * **발행 트랜잭션이 커밋된 뒤 따로 돈다.** 실패해도 발행은 이미 성공이고(티켓 6), 적립이 발행 트랜잭션의 잠금(시리즈 행)을
+   * 오래 잡지 않게 한다. 실패는 로그로 남기고 삼킨다 — 놓친 편은 사용자가 시리즈 화면에서 다시 담으면 들어온다.
+   */
+  private async deliverToSeriesFollowers(
+    content: Content,
+    now: Date,
+  ): Promise<void> {
+    // 단일 콘텐츠는 따라올 시리즈가 없다. 시리즈 편은 업로드 검증이 편 번호를 필수로 받는다(`assertEpisodeUploadable`)
+    if (!content.seriesId) {
+      return;
+    }
+
+    try {
+      const deliveredCount = await this.librarySeriesService.deliverNewEpisode({
+        contentId: content.id,
+        seriesId: content.seriesId,
+        market: content.market,
+        now,
+      });
+      this.logger.log('series episode delivered to followers', {
+        content_id: content.id,
+        series_id: content.seriesId,
+        delivered_count: deliveredCount,
+      });
+    } catch (error) {
+      this.logger.error('series episode delivery failed', {
+        content_id: content.id,
+        series_id: content.seriesId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
   }
 
   /**
