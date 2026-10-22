@@ -61,11 +61,11 @@ export interface CandidateDto {
 export class DripPreviewResponseDto {
   readonly computed_at: string;
   readonly service_date: string;
+  /** 가명 사용자 — 이메일·닉네임은 싣지 않는다(2026-10-22, changes/pending/drip-preview-user-id.md) */
   readonly user: {
     id: string;
-    email: string | null;
-    nickname: string | null;
     tier: string;
+    market: string;
     job_category: string | null;
     years_of_experience: number | null;
     onboarding_completed: boolean;
@@ -137,9 +137,8 @@ export class DripPreviewResponseDto {
       service_date: view.serviceDate,
       user: {
         id: view.user.id,
-        email: view.user.email,
-        nickname: view.user.nickname,
         tier: view.user.tier,
+        market: view.user.market,
         job_category: view.user.jobCategory,
         years_of_experience: view.user.yearsOfExperience,
         onboarding_completed: view.user.onboardingCompleted,

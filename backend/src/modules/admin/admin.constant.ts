@@ -134,6 +134,11 @@ export const AUDIT_ACTION_TOPIC_AUTO_HIDE = 'topic.auto_hide';
  */
 export const AUDIT_ACTION_INSIGHTS_RECOMMENDATION_VIEW =
   'insights.recommendation_view';
+/**
+ * 편성 미리보기 — 관리자가 한 사용자의 지금 시점 편성 계산(관심 주제·취향·신호·후보 점수)을 열람했다(`GET /admin/drip/preview`,
+ * 2026-10-22). 추천 검증(`insights.recommendation_view`)과 같은 이유로 남긴다 — target `user:<user_id>`.
+ */
+export const AUDIT_ACTION_DRIP_PREVIEW_VIEW = 'drip.preview_view';
 /** 자동 숨김을 배치가 수행했을 때의 감사 로그 actor — 사람이 아닌 실행 주체를 명시한다 */
 export const SYSTEM_AUDIT_ACTOR = 'system';
 

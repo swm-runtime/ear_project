@@ -36,6 +36,7 @@ import {
   LocaleInput,
   SignUpConsents,
   SignUpMarket,
+  UserPlanProfile,
 } from '../user.types';
 
 @Injectable()
@@ -80,9 +81,17 @@ export class UserService {
     return new Map(rows.map((row) => [row.id, row.market]));
   }
 
-  /** 편성 미리보기(admin) — 이메일로 대상 사용자 한 명. 역할 무관, 없으면 null */
+  /** 추천 테스트(개발계) — 이메일로 테스트 계정 한 명. 역할 무관, 없으면 null */
   async findByEmail(email: string): Promise<User | null> {
     return this.userRepository.findByEmail(email);
+  }
+
+  /**
+   * 편성 미리보기(admin) — 가명 `user_id`로 편성 계산·화면에 쓰는 열만. 역할 무관, 없거나 탈퇴면 null.
+   * 이메일·닉네임 열은 조회하지 않는다(2026-10-22)
+   */
+  async findPlanProfileById(id: string): Promise<UserPlanProfile | null> {
+    return this.userRepository.findPlanProfileById(id);
   }
 
   /** 파이프라인 SSO — 검증된 이메일과 같은 관리자 계정 (changes/archive/pipeline-sso-login.md · 반영 2026-09-03) */

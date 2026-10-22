@@ -1,5 +1,7 @@
 import { Controller, Get, Header, Query, UseGuards } from '@nestjs/common';
 
+import type { AuthenticatedUser } from '@/common/decorators/current-user.decorator';
+import { CurrentUser } from '@/common/decorators/current-user.decorator';
 import { AdminRoleGuard } from '@/common/guards/admin-role.guard';
 import { JwtAuthGuard } from '@/common/guards/jwt-auth.guard';
 
@@ -8,8 +10,10 @@ import { DripPreviewResponseDto } from './dto/drip-preview-response.dto';
 import { DripPreviewService } from './drip-preview.service';
 
 /**
- * 편성 미리보기 — admin 콘솔 "추천 검증" 탭(요청 2026-09-18). **읽기 전용**이다: 계산만 하고 어떤 표도
- * 바꾸지 않는다(`DripPreviewService` 머리 주석).
+ * 편성 미리보기 — admin 콘솔 "추천 검증" 탭(요청 2026-09-18). **사용자 상태는 바꾸지 않는다**: 계산만 하고, 유일한 쓰기는
+ * 열람 1회마다 남기는 감사 로그(`drip.preview_view`)다(2026-10-22 — `DripPreviewService` 머리 주석).
+ *
+ * 대상은 가명 `user_id`로 고르고 응답에 이메일·닉네임을 싣지 않는다(2026-10-22, changes/pending/drip-preview-user-id.md).
  *
  * `/admin` 아래에 두되 `AdminModule`이 아니라 여기(편성 배치 모듈)에 둔다 — 계산기(`planForUser`)가 이
  * 모듈에 있고, `AdminModule`이 배치 모듈을 의존하게 만들 이유가 없다("어떤 모듈도 이 모듈을 의존하지
@@ -24,10 +28,15 @@ export class DripPreviewController {
   @Get('preview')
   @Header('Cache-Control', 'no-store')
   async preview(
+    @CurrentUser() currentUser: AuthenticatedUser,
     @Query() query: DripPreviewQueryRequestDto,
   ): Promise<DripPreviewResponseDto> {
     return DripPreviewResponseDto.from(
-      await this.dripPreviewService.preview(query.email, new Date()),
+      await this.dripPreviewService.preview(
+        query.user_id,
+        currentUser.id,
+        new Date(),
+      ),
     );
   }
 }
