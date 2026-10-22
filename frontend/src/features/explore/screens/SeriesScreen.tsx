@@ -220,6 +220,12 @@ export default function SeriesScreen() {
 const RowSeparator = () => <View style={styles.separator} />;
 
 /**
+ * 머리 아래 선·편 사이 구분선 두께 — 1pt(PM 2026-10-22 "리스트 구분선들도 잘 보이게"). 종전 머리카락 굵기(1px) +
+ * `border`(#E3E3E8)는 흐린 표지 배경·회색 재생 중 행 옆에서 묻혔다. 색은 iOS separator(`theme.color.separator`)
+ */
+const LIST_RULE_THICKNESS = 1;
+
+/**
  * 떠 있는 앱바 버튼 — 다른 화면의 머리 줄 컨트롤(40)보다 크게(PM 2026-10-22 "상단 버튼 키우자"). 큰 표지 위에 떠서
  * 애플 뮤직 앨범 화면처럼 손에 잘 걸리는 크기. 뒤로 원·⋯ 원이 같은 크기
  */
@@ -270,9 +276,9 @@ const styles = StyleSheet.create({
   },
   // 머리와 목록 사이 한 줄 — 좌우 여백 안쪽(앨범 화면의 버튼 줄 아래 선 자리)
   headerRule: {
-    height: StyleSheet.hairlineWidth,
+    height: LIST_RULE_THICKNESS,
     marginHorizontal: theme.spacing.md,
-    backgroundColor: theme.color.border,
+    backgroundColor: theme.color.separator,
   },
   footer: {
     paddingHorizontal: theme.spacing.md,
@@ -282,8 +288,8 @@ const styles = StyleSheet.create({
   },
   // 편 사이 구분선 — 머리 아래 선과 같이 좌우 같은 여백으로 가운데(PM 2026-10-22, 종전 제목 시작선 ~ 오른쪽 끝)
   separator: {
-    height: StyleSheet.hairlineWidth,
+    height: LIST_RULE_THICKNESS,
     marginHorizontal: theme.spacing.md,
-    backgroundColor: theme.color.border,
+    backgroundColor: theme.color.separator,
   },
 });
