@@ -30,3 +30,4 @@ PM 결정(2026-10-22 14:57): 시리즈째 담은 사용자에게는 새 편이 �
 - 2026-10-22 발행.
 - 2026-10-22 BE PR(KAN-245)에서 **1~4 반영** — `features/explore.md` 4.7(시리즈째 담기·새 편 자동 적립·시리즈째 빼기 + [실행 취소], "두지 않는 것"에서 시리즈 구독·시리즈째 빼기 제거) · `features/library.md` 4.5(시리즈째 빼기도 편 삭제 규칙) · `backend/domain.md` 2장 소유표·5.9·**6.1-1 `library_series` 신설**·12.1 보존 표·12.3 탈퇴 즉시 파기 목록 · `spec/api/explore-api.md` 3장 표·4.7 `series.is_saved`·**4.8 담기 / 4.9 빼기 / 4.10 실행 취소 / 4.11 새 편 자동 적립**·5장·8장. 빼기의 `client_seq`는 편 해제(4.4)와 같이 쿼리, 담기·빼기는 둘 다 200, 실행 취소 응답은 `{ series_id, restored_item_ids, is_saved }`로 정했다.
 - **남은 것 — 5번(`spec/uiux/explore-uiux.md` 4.11)은 FE 소유라 FE PR(KAN-246)과 같이 반영한다.** 그때까지 이 문서는 `pending/`에 둔다.
+- 2026-10-22 **5번 반영 — 반영 날짜 2026-10-22.** FE PR(KAN-246)에서 `spec/uiux/explore-uiux.md` 4.11 담기 원 판정 근거를 `series.is_saved`로 고침. 1~5 전부 반영되어 `archive/`로 옮긴다.

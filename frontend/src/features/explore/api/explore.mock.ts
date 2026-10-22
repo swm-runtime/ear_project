@@ -52,6 +52,9 @@ import type {
   SeriesDetailResponseDto,
   SeriesEpisodeDto,
   UnsaveContentResponseDto,
+  RestoreSeriesResponseDto,
+  SaveSeriesResponseDto,
+  UnsaveSeriesResponseDto,
 } from './explore.dto';
 
 const SCENARIO = process.env.EXPO_PUBLIC_EXPLORE_MOCK_SCENARIO ?? 'default';
@@ -821,6 +824,7 @@ export const mockFetchSeriesDetail = async (seriesId: string): Promise<SeriesDet
       topic: series.topic,
       // 발행일자 — mock 은 고정 날짜(실서버는 노출 편 중 가장 이른 published_at)
       published_at: '2026-10-01T00:00:00.000Z',
+      is_saved: MOCK_SAVED_SERIES.has(series.id),
     },
     episodes: series.episodeSeqs.map((seq) => {
       const content = makeSeriesEpisode(series, seq);
@@ -834,4 +838,79 @@ export const mockFetchSeriesDetail = async (seriesId: string): Promise<SeriesDet
       };
     }),
   };
+};
+
+/* ── 시리즈째 담기·빼기·실행 취소 대역(explore-api.md 4.8~4.10 — KAN-246). 라이브러리 mock 상태와 정합을 맞춘다 ── */
+const MOCK_SAVED_SERIES = new Set<string>();
+/** 시리즈째 빼기로 뺀 항목 id → 콘텐츠 id — 실행 취소가 되살릴 편을 찾는다 */
+const MOCK_REMOVED_SERIES_ITEMS = new Map<string, { seriesId: string; contentId: string }>();
+
+const mockSeriesOrThrow = (seriesId: string): MockSeries => {
+  const series = findSeries(seriesId);
+  if (!series) {
+    throw new ApiError(ERROR_CODES.NOT_FOUND, '시리즈를 찾을 수 없어요', false, null, null, 404);
+  }
+  return series;
+};
+
+const mockSaveSeriesEpisode = (content: ExploreContentDto) =>
+  mockSaveLibraryItemByContent(content.id, {
+    title: content.title,
+    authorName: content.author_name ?? '',
+    sourceName: content.source_name,
+    durationSec: content.duration_sec,
+    topicIds: content.topic_ids,
+  });
+
+export const mockSaveSeries = async (
+  seriesId: string,
+  clientSeq: number,
+): Promise<SaveSeriesResponseDto> => {
+  await delay(RESPONSE_DELAY_MS);
+  const series = mockSeriesOrThrow(seriesId);
+  MOCK_SAVED_SERIES.add(seriesId);
+  let added = 0;
+  for (const seq of series.episodeSeqs) {
+    const content = makeSeriesEpisode(series, seq);
+    if (mockSaveSeriesEpisode(content).created) added += 1;
+  }
+  return { series_id: seriesId, added_count: added, client_seq: clientSeq };
+};
+
+export const mockUnsaveSeries = async (
+  seriesId: string,
+  clientSeq: number,
+): Promise<UnsaveSeriesResponseDto> => {
+  await delay(RESPONSE_DELAY_MS);
+  const series = mockSeriesOrThrow(seriesId);
+  MOCK_SAVED_SERIES.delete(seriesId);
+  const removed: string[] = [];
+  for (const seq of series.episodeSeqs) {
+    const contentId = `content-${seq}`;
+    const item = getMockLibraryItemByContentId(contentId);
+    if (!item) continue;
+    MOCK_REMOVED_SERIES_ITEMS.set(item.item_id, { seriesId, contentId });
+    removed.push(item.item_id);
+    mockUnsaveLibraryItemByContent(contentId);
+  }
+  return { series_id: seriesId, removed_item_ids: removed, client_seq: clientSeq };
+};
+
+export const mockRestoreSeries = async (
+  seriesId: string,
+  itemIds: string[],
+): Promise<RestoreSeriesResponseDto> => {
+  await delay(RESPONSE_DELAY_MS);
+  const series = mockSeriesOrThrow(seriesId);
+  MOCK_SAVED_SERIES.add(seriesId);
+  const restored: string[] = [];
+  for (const itemId of itemIds) {
+    const removed = MOCK_REMOVED_SERIES_ITEMS.get(itemId);
+    // 남의 항목·다른 시리즈 편은 조용히 무시한다(서버 4.10과 같다)
+    if (!removed || removed.seriesId !== seriesId) continue;
+    const seq = Number(removed.contentId.replace('content-', ''));
+    restored.push(mockSaveSeriesEpisode(makeSeriesEpisode(series, seq)).library_item.id);
+    MOCK_REMOVED_SERIES_ITEMS.delete(itemId);
+  }
+  return { series_id: seriesId, restored_item_ids: restored, is_saved: true };
 };

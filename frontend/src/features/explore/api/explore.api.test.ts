@@ -232,6 +232,7 @@ describe('fetchSeriesDetail — GET /series/:series_id(explore-api.md 4.7)', () 
           thumbnail_url: 'https://example.com/1.webp',
           topic: { id: 't1', name: 'IT·테크' },
           published_at: '2026-10-01T00:00:00.000Z',
+          is_saved: true,
         },
         episodes: [],
       },
@@ -242,6 +243,8 @@ describe('fetchSeriesDetail — GET /series/:series_id(explore-api.md 4.7)', () 
 
     // then
     expect(detail.series.topic).toEqual({ id: 't1', name: 'IT·테크' });
+    // 시리즈째 담김(KAN-246) — 버튼의 근거
+    expect(detail.series.isSaved).toBe(true);
     // 발행일자(ISO 순간)를 그대로 옮긴다 — 화면에서 기기 시간대 날짜로 그린다
     expect(detail.series.publishedAt).toBe('2026-10-01T00:00:00.000Z');
   });

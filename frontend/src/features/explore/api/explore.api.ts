@@ -33,6 +33,9 @@ import type {
   SaveContentResponseDto,
   SeriesDetailResponseDto,
   UnsaveContentResponseDto,
+  RestoreSeriesResponseDto,
+  SaveSeriesResponseDto,
+  UnsaveSeriesResponseDto,
 } from './explore.dto';
 import {
   mockFetchContents,
@@ -44,6 +47,9 @@ import {
   mockFetchTopics,
   mockSaveContent,
   mockUnsaveContent,
+  mockRestoreSeries,
+  mockSaveSeries,
+  mockUnsaveSeries,
 } from './explore.mock';
 
 /* ── Query Key factory(convention.md 4.1) ── */
@@ -152,6 +158,8 @@ export const toSeriesDetail = (dto: SeriesDetailResponseDto): SeriesDetail => ({
     topic: dto.series.topic ?? null,
     // 발행일자 — 추가 필드라 구버전 서버는 부재 → null(화면은 줄째 생략)
     publishedAt: dto.series.published_at ?? null,
+    // 시리즈째 담김 — 추가 필드라 구버전 서버는 부재 → false
+    isSaved: dto.series.is_saved ?? false,
   },
   episodes: dto.episodes.map((episode) => ({
     episodeNo: episode.episode_no,
@@ -364,4 +372,52 @@ export const unsaveContent = async (input: {
         })
       ).data;
   return { clientSeq: data.client_seq };
+};
+
+/**
+ * 시리즈째 담기(explore-api.md 4.8 — KAN-246) — 노출 편 중 없는 편을 서버가 담고 "시리즈째 담음"을 기록한다(이후 새 편이 따라
+ * 들어온다). 이미 담긴 편은 그대로. 횟수 제한·페이월 없음
+ */
+export const saveSeriesToLibrary = async (input: {
+  seriesId: string;
+  clientSeq: number;
+}): Promise<{ clientSeq: number; addedCount: number }> => {
+  const data: SaveSeriesResponseDto = IS_EXPLORE_API_MOCKED
+    ? await mockSaveSeries(input.seriesId, input.clientSeq)
+    : (
+        await apiClient.post<SaveSeriesResponseDto>(`/series/${input.seriesId}/save`, {
+          client_seq: input.clientSeq,
+        })
+      ).data;
+  return { clientSeq: data.client_seq, addedCount: data.added_count };
+};
+
+/** 시리즈째 빼기(explore-api.md 4.9) — 담긴 편 전부 + 따라오기 중단. `removedItemIds`는 [실행 취소]에 그대로 넘긴다 */
+export const unsaveSeriesFromLibrary = async (input: {
+  seriesId: string;
+  clientSeq: number;
+}): Promise<{ clientSeq: number; removedItemIds: string[] }> => {
+  const data: UnsaveSeriesResponseDto = IS_EXPLORE_API_MOCKED
+    ? await mockUnsaveSeries(input.seriesId, input.clientSeq)
+    : (
+        await apiClient.delete<UnsaveSeriesResponseDto>(`/series/${input.seriesId}/save`, {
+          params: { client_seq: input.clientSeq },
+        })
+      ).data;
+  return { clientSeq: data.client_seq, removedItemIds: data.removed_item_ids };
+};
+
+/** 시리즈째 빼기 실행 취소(explore-api.md 4.10) — 뺀 항목을 자리·상태 그대로 되살리고 시리즈째 담음도 되돌린다 */
+export const restoreSeriesToLibrary = async (input: {
+  seriesId: string;
+  itemIds: string[];
+}): Promise<{ isSaved: boolean }> => {
+  const data: RestoreSeriesResponseDto = IS_EXPLORE_API_MOCKED
+    ? await mockRestoreSeries(input.seriesId, input.itemIds)
+    : (
+        await apiClient.post<RestoreSeriesResponseDto>(`/series/${input.seriesId}/restore`, {
+          item_ids: input.itemIds,
+        })
+      ).data;
+  return { isSaved: data.is_saved };
 };

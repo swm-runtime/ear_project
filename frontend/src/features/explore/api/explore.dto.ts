@@ -263,6 +263,29 @@ export interface SeriesDetailResponseDto {
     topic?: { id: string; name: string } | null;
     /** 발행일자(ISO 8601) — 노출 편 중 가장 이른 발행 시각. 추가 필드라 구버전 서버는 부재(화면은 줄째 생략) */
     published_at?: string | null;
+    /** 시리즈째 담았는가(library_series — KAN-245). 추가 필드라 구버전 서버는 부재 → false */
+    is_saved?: boolean;
   };
   episodes: SeriesEpisodeDto[];
+}
+
+/** POST /series/:series_id/save (explore-api.md 4.8) */
+export interface SaveSeriesResponseDto {
+  series_id: string;
+  added_count: number;
+  client_seq: number;
+}
+
+/** DELETE /series/:series_id/save (explore-api.md 4.9) */
+export interface UnsaveSeriesResponseDto {
+  series_id: string;
+  removed_item_ids: string[];
+  client_seq: number;
+}
+
+/** POST /series/:series_id/restore (explore-api.md 4.10) */
+export interface RestoreSeriesResponseDto {
+  series_id: string;
+  restored_item_ids: string[];
+  is_saved: boolean;
 }
