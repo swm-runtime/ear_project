@@ -22,10 +22,12 @@ export const seriesCoverSize = (windowWidth: number): number =>
 /** [재생] 알약 — 앨범 화면 가운데 재생 버튼. 양옆 원(셔플·담기)과 균형 잡히게 좁혔다(PM 2026-10-22 "재생 가로 줄이자") */
 const PLAY_BUTTON_WIDTH = 150;
 const PLAY_BUTTON_HEIGHT = 52;
-const PLAY_ICON_SIZE = 22;
-/** [재생] 양옆 원(셔플 · 담기) — 알약과 같은 높이의 원, 아이콘 22(애플 뮤직 앨범 화면) */
+/** 아이콘·글자는 버튼 크기 그대로 두고 키웠다(PM 2026-10-22 "재생, +, 셔플 아이콘 글자 크기 키우자" — 종전 아이콘 22 · 글자 17) */
+const PLAY_ICON_SIZE = 26;
+const PLAY_LABEL_SIZE = theme.font.size.lg;
+/** [재생] 양옆 원(셔플 · 담기) — 알약과 같은 높이의 원 */
 const SIDE_BUTTON_SIZE = PLAY_BUTTON_HEIGHT;
-const SIDE_ICON_SIZE = 22;
+const SIDE_ICON_SIZE = 26;
 
 /**
  * 맨 위에서 당긴 거리 중 표지가 키우는 몫 — 당긴 빈자리의 절반만큼 표지가 위로 자란다(아래 끝은 제목 위에 고정).
@@ -249,7 +251,7 @@ const styles = StyleSheet.create({
     opacity: 0.7,
   },
   playLabel: {
-    fontSize: theme.font.size.md + 1,
+    fontSize: PLAY_LABEL_SIZE,
     fontWeight: '700',
     color: theme.color.onPrimary,
   },
