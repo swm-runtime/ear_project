@@ -177,7 +177,10 @@ const ko = {
      */
     shuffleA11y: '셔플 재생',
     saveAllA11y: '시리즈를 라이브러리에 담기',
-    savedAllA11y: '라이브러리에 담김',
+    removeAllA11y: '시리즈를 라이브러리에서 빼기',
+    removeAllToast: (count: number) => `${count}편을 라이브러리에서 뺐어요`,
+    removeAllFailedToast: '일부 편을 빼지 못했어요. 다시 시도해주세요',
+    undo: '실행 취소',
     saveAllToast: (count: number) => `${count}편을 라이브러리에 담았어요`,
     saveAllFailedToast: '일부 편을 담지 못했어요. 다시 시도해주세요',
     /** 앱바 오른쪽 캡슐의 ⋯ — 시리즈 시트(공유 · 소개 전체 보기) */
@@ -334,7 +337,11 @@ const en: LocalizedCopy<typeof ko> = {
     status: { ongoing: 'Ongoing', completed: 'Complete' },
     shuffleA11y: 'Shuffle',
     saveAllA11y: 'Add series to Library',
-    savedAllA11y: 'In Library',
+    removeAllA11y: 'Remove series from Library',
+    removeAllToast: (count: number) =>
+      `Removed ${formatEnCount(count, { one: 'episode', other: 'episodes' })} from Library`,
+    removeAllFailedToast: "Couldn't remove some episodes. Please try again.",
+    undo: 'Undo',
     saveAllToast: (count: number) =>
       `Added ${formatEnCount(count, { one: 'episode', other: 'episodes' })} to Library`,
     saveAllFailedToast: "Couldn't add some episodes. Please try again.",
