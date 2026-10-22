@@ -1,5 +1,4 @@
 import { PageHeader } from "@/components/ui";
-import { InsightsTabs } from "@/components/insights-tabs";
 import { ServiceInsights } from "@/components/service-insights";
 
 export const dynamic = "force-dynamic";
@@ -15,7 +14,6 @@ export default function ServiceInsightsPage() {
         title="서비스 지표"
         breadcrumb={["백엔드 로그", "서비스 지표"]}
         desc="가입·탈퇴·활성 사용자·청취 시간·완청률·많이 들은 사용자와 콘텐츠·리텐션·탈퇴 사유. 운영 DB 를 관리자 API 로 읽는 읽기 전용 조회이며, 열 때 한 번만 가져오고 자동 갱신하지 않는다."
-        actions={<InsightsTabs active="/backend-logs/insights" />}
       />
       <ServiceInsights />
     </div>
