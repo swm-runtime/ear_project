@@ -1,4 +1,5 @@
-import { Image, StyleSheet, View } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import { Image, StyleSheet, View, useWindowDimensions } from 'react-native';
 import Animated, {
   cancelAnimation,
   Easing,
@@ -26,7 +27,7 @@ import {
 
 import ExploreMoreSheet from '../components/ExploreMoreSheet';
 import SeriesEpisodeRow from '../components/SeriesEpisodeRow';
-import SeriesHeader from '../components/SeriesHeader';
+import SeriesHeader, { seriesCoverSize } from '../components/SeriesHeader';
 import SeriesMoreSection from '../components/SeriesMoreSection';
 import SeriesMoreSheet from '../components/SeriesMoreSheet';
 import SeriesSkeleton from '../components/SeriesSkeleton';
@@ -73,12 +74,15 @@ export default function SeriesScreen() {
    * 돌아가는 동안 스크롤 신호가 드문드문 와서 표지가 계단처럼 툭 줄어들었다(PM 2026-10-22 15:18 "돌아올 때 급격해 끊어져 보여")
    */
   const isDragging = useSharedValue(false);
+  /** 쉬는 위치 기준 스크롤 거리 — 위로 올리면 양수, 맨 위에서 당기면 음수. 표지 뒤 비침 영역이 머리를 따라 움직이는 데 쓴다 */
+  const scrollFromRest = useSharedValue(0);
   const handleScroll = useAnimatedScrollHandler({
     onBeginDrag: () => {
       isDragging.value = true;
       cancelAnimation(overscroll);
     },
     onScroll: (event) => {
+      scrollFromRest.value = event.contentOffset.y - restingOffset;
       if (isDragging.value) overscroll.value = Math.max(0, restingOffset - event.contentOffset.y);
     },
     onEndDrag: () => {
@@ -94,6 +98,21 @@ export default function SeriesScreen() {
   const backdropStretchStyle = useAnimatedStyle(() => ({
     transform: [{ scale: 1 + overscroll.value / BACKDROP_STRETCH_DISTANCE }],
   }));
+
+  /*
+   * 표지 뒤 비침(PM 2026-10-22 15:37 "앨범커버 뒤에 배경을 앨범커버 blur 로 비치게, 그 아래는 기존처럼") — 같은 흐린 표지 위에 막을
+   * 두 겹으로 나눈다. 화면 전체에 옅은 막(위쪽 — 표지 색이 비친다), 그 위로 표지 아랫부분부터 아래로 진한 막(페이드 후 솔리드).
+   * 두 겹이 겹친 아래쪽은 종전 바탕(막 72%)과 같은 세기라 편 목록 바탕은 그대로다. 진한 막의 윗변은 머리(표지 아랫변)를 따라
+   * 스크롤·당김과 함께 움직이고, 화면 위로 다 올라가면 거기서 멈춘다(화면 전체가 종전 바탕)
+   */
+  const { width: windowWidth, height: windowHeight } = useWindowDimensions();
+  const coverBottomAtRest =
+    insets.top + APP_BAR_HEIGHT + theme.spacing.md + seriesCoverSize(windowWidth);
+  const scrimEdgeAtRest = coverBottomAtRest - COVER_GLOW_FADE_LEAD;
+  const lowerScrimStyle = useAnimatedStyle(() => ({
+    transform: [{ translateY: Math.max(-COVER_GLOW_FADE, scrimEdgeAtRest - scrollFromRest.value) }],
+  }));
+  const scrimRgb = scheme === 'dark' ? BACKDROP_SCRIM_DARK_RGB : BACKDROP_SCRIM_LIGHT_RGB;
 
   const renderBody = () => {
     if (screen.isInitialLoading) {
@@ -212,13 +231,38 @@ export default function SeriesScreen() {
             accessibilityElementsHidden
             importantForAccessibility="no"
           />
+        </Animated.View>
+      ) : null}
+      {/* 막 두 겹 — 위쪽 옅은 막(표지 뒤 비침) + 표지 아래부터 진한 막. 당김 확대(scale)와 무관하게 화면 좌표에 둔다 */}
+      {backdropUri ? (
+        <>
           <View
             style={[
               styles.backdropScrim,
-              { backgroundColor: scheme === 'dark' ? BACKDROP_SCRIM_DARK : BACKDROP_SCRIM_LIGHT },
+              { backgroundColor: rgba(scrimRgb, COVER_GLOW_SCRIM_ALPHA) },
             ]}
+            pointerEvents="none"
           />
-        </Animated.View>
+          <Animated.View
+            style={[
+              styles.lowerScrim,
+              { height: windowHeight + COVER_GLOW_FADE * 2 },
+              lowerScrimStyle,
+            ]}
+            pointerEvents="none"
+          >
+            <LinearGradient
+              colors={[rgba(scrimRgb, 0), rgba(scrimRgb, LOWER_SCRIM_ALPHA)]}
+              style={styles.lowerScrimFade}
+            />
+            <View
+              style={[
+                styles.lowerScrimSolid,
+                { backgroundColor: rgba(scrimRgb, LOWER_SCRIM_ALPHA) },
+              ]}
+            />
+          </Animated.View>
+        </>
       ) : null}
       {/* 본문 — 목록은 화면 맨 위부터(앱바 밑으로 흘러간다). 스켈레톤·에러는 목록이 아니라 앱바 아래에서 시작한다 */}
       {screen.detail ? (
@@ -302,8 +346,19 @@ const LIST_RULE_THICKNESS = 1;
 const BAR_BUTTON_SIZE = 48;
 /** 흐린 표지 바탕 — 플레이어(PlayerScreen)와 같은 값. 바꾸면 둘을 같이 바꾼다 */
 const BACKDROP_BLUR_RADIUS = 60;
-const BACKDROP_SCRIM_DARK = 'rgba(23, 23, 26, 0.72)';
-const BACKDROP_SCRIM_LIGHT = 'rgba(255, 255, 255, 0.72)';
+/** 막 색(다크 차콜 · 라이트 흰색) — 편 목록 바탕의 최종 세기는 플레이어와 같은 72% */
+const BACKDROP_SCRIM_DARK_RGB = '23, 23, 26';
+const BACKDROP_SCRIM_LIGHT_RGB = '255, 255, 255';
+const BACKDROP_SCRIM_ALPHA = 0.72;
+/** 표지 뒤(위쪽) 막 세기 — 낮을수록 흐린 표지 색이 또렷이 비친다 */
+const COVER_GLOW_SCRIM_ALPHA = 0.3;
+/** 아래 진한 막 세기 — 위 옅은 막과 겹쳐 72% 가 되게 푼 값: 1 − (1 − 0.72) / (1 − 0.3) = 0.6 */
+const LOWER_SCRIM_ALPHA = 1 - (1 - BACKDROP_SCRIM_ALPHA) / (1 - COVER_GLOW_SCRIM_ALPHA);
+/** 진한 막 페이드가 시작되는 곳 — 표지 아랫변보다 이만큼 위(표지 아랫부분에서 녹기 시작해 제목 전에 끝난다) */
+const COVER_GLOW_FADE_LEAD = 80;
+/** 페이드 높이 — 표지 아랫변 16pt 아래에서 솔리드가 된다(제목·메타 글자는 종전 바탕 세기 위) */
+const COVER_GLOW_FADE = 96;
+const rgba = (rgb: string, alpha: number): string => `rgba(${rgb}, ${alpha})`;
 const APP_BAR_ICON_SIZE = 24;
 /** 떠 있는 앱바 줄 높이 — 유리 원 + 위아래 여유 */
 const APP_BAR_HEIGHT = BAR_BUTTON_SIZE + theme.spacing.sm;
@@ -325,6 +380,19 @@ const styles = StyleSheet.create({
   },
   backdropScrim: {
     ...StyleSheet.absoluteFill,
+  },
+  // 진한 막 — 윗변이 표지 아래를 따라 움직인다(높이는 렌더에서: 화면 + 페이드 두 배 — 위로 다 올라가도 바닥까지 덮는다)
+  lowerScrim: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+  },
+  lowerScrimFade: {
+    height: COVER_GLOW_FADE,
+  },
+  lowerScrimSolid: {
+    flex: 1,
   },
   // 띠 없는 앱바 — 배경 없이 본문 위에 떠 있다. 버튼 사이 빈 곳의 터치는 밑 목록으로 흘린다(box-none)
   appBar: {
