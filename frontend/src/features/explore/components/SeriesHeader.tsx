@@ -1,4 +1,5 @@
 import { Platform, Pressable, StyleSheet, View, useWindowDimensions } from 'react-native';
+import Animated, { type SharedValue, useAnimatedStyle } from 'react-native-reanimated';
 
 import { theme, useResolvedColor } from '@/shared/theme';
 import { pillButton } from '@/shared/ui/pill-button.styles';
@@ -26,11 +27,19 @@ const PLAY_ICON_SIZE = 22;
 const SIDE_BUTTON_SIZE = PLAY_BUTTON_HEIGHT;
 const SIDE_ICON_SIZE = 22;
 
+/**
+ * 맨 위에서 당긴 거리 중 표지가 키우는 몫 — 당긴 빈자리의 절반만큼 표지가 위로 자란다(아래 끝은 제목 위에 고정).
+ * 다 채우면 표지가 앱바 버튼 밑으로 파고든다
+ */
+const COVER_STRETCH_SHARE = 0.5;
+
 /** 시리즈 제목 — 앨범 제목 자리. 큰 제목(xl 28)보다 한 단 작게, 두세 줄로 접혀도 표지를 밀어내지 않게 */
 const TITLE_SIZE = 24;
 
 interface SeriesHeaderProps {
   series: SeriesDetail['series'];
+  /** 목록 맨 위에서 더 당긴 거리(pt, 0 이상) — 표지가 손을 따라 커졌다가 돌아온다(PM 2026-10-22) */
+  overscroll: SharedValue<number>;
   /** 노출 중인 편 수(서버가 준 편 목록) — 계획 편수보다 적으면 "N편 중 M편 공개" */
   episodeCount: number;
   /** [재생]이 틀 편(낭독용) — 없으면(편 0개) 버튼을 그리지 않는다 */
@@ -54,6 +63,7 @@ interface SeriesHeaderProps {
  */
 export default function SeriesHeader({
   series,
+  overscroll,
   episodeCount,
   playTarget,
   onPlay,
@@ -67,15 +77,24 @@ export default function SeriesHeader({
   // 다크·라이트에 따라 바뀌는 색 — svg·그라데이션·네이티브 prop 은 문자열 색만 받는다
   const playIconColor = useResolvedColor(theme.color.onPrimary);
   const category = series.topic?.name ?? null;
+  // 아래 끝을 고정하고 위로 자란다 — 가운데 기준 scale 을 자란 높이 절반만큼 올려 보정
+  const coverStretchStyle = useAnimatedStyle(() => {
+    const grow = overscroll.value * COVER_STRETCH_SHARE;
+    return {
+      transform: [{ translateY: -grow / 2 }, { scale: 1 + grow / coverSize }],
+    };
+  });
 
   return (
     <View style={styles.root}>
       {/* 그림자는 바깥, 라운드·클립은 안쪽 프레임 — overflow hidden 이 iOS 그림자를 자른다 */}
-      <View style={[styles.coverShadow, { width: coverSize, height: coverSize }]}>
+      <Animated.View
+        style={[styles.coverShadow, { width: coverSize, height: coverSize }, coverStretchStyle]}
+      >
         <View style={styles.coverFrame}>
           <RemoteImage uri={series.thumbnailUrl} recyclingKey={series.id} style={styles.cover} />
         </View>
-      </View>
+      </Animated.View>
       <Text style={styles.title} accessibilityRole="header">
         {series.title}
       </Text>
