@@ -13,6 +13,7 @@ import {
   ContentOrigin,
   ContentStatus,
 } from '@/modules/content/content.enum';
+import { ContentTitleEmbeddingService } from '@/modules/content/services/content-title-embedding.service';
 import { ContentService } from '@/modules/content/services/content.service';
 import { SeriesService } from '@/modules/content/services/series.service';
 import { Topic } from '@/modules/interest/entities/topic.entity';
@@ -155,6 +156,7 @@ describe('AdminContentService', () => {
   let audioProbe: jest.Mocked<AudioProbe>;
   let thumbnailImage: jest.Mocked<ThumbnailImage>;
   let librarySeriesService: jest.Mocked<LibrarySeriesService>;
+  let contentTitleEmbeddingService: jest.Mocked<ContentTitleEmbeddingService>;
   let manager: EntityManager;
 
   beforeEach(() => {
@@ -223,6 +225,10 @@ describe('AdminContentService', () => {
     librarySeriesService = {
       deliverNewEpisode: jest.fn().mockResolvedValue(2),
     } as unknown as jest.Mocked<LibrarySeriesService>;
+
+    contentTitleEmbeddingService = {
+      refresh: jest.fn().mockResolvedValue('created'),
+    } as unknown as jest.Mocked<ContentTitleEmbeddingService>;
 
     playbackService = {
       deleteProgressesByContentId: jest.fn().mockResolvedValue(undefined),
@@ -298,7 +304,86 @@ describe('AdminContentService', () => {
       audioProbe,
       thumbnailImage,
       librarySeriesService,
+      contentTitleEmbeddingService,
     );
+  });
+
+  describe('제목 임베딩 훅 — 검색 의미 엔진(커밋 뒤 최선 노력)', () => {
+    it('업로드가 커밋되면 발행한 편으로 제목 임베딩을 만든다', async () => {
+      // when
+      await service.upload(buildCommand(), NOW);
+
+      // then
+      expect(contentTitleEmbeddingService.refresh).toHaveBeenCalledWith(
+        expect.objectContaining({ id: CONTENT_ID }),
+      );
+    });
+
+    it('제목 임베딩이 실패해도(failed) 업로드는 성공으로 끝난다', async () => {
+      // given
+      contentTitleEmbeddingService.refresh.mockResolvedValueOnce('failed');
+
+      // when
+      const result = await service.upload(buildCommand(), NOW);
+
+      // then
+      expect(result.content.id).toBe(CONTENT_ID);
+    });
+
+    it('발행 트랜잭션이 실패하면 제목 임베딩을 부르지 않는다', async () => {
+      // given
+      contentService.publish.mockRejectedValueOnce(new Error('db down'));
+
+      // when
+      const act = service.upload(buildCommand(), NOW);
+
+      // then
+      await expect(act).rejects.toThrow('db down');
+      expect(contentTitleEmbeddingService.refresh).not.toHaveBeenCalled();
+    });
+
+    it('재발행이 커밋되면 재발행한 편으로 제목 임베딩을 다시 맞춘다 — 제목이 바뀌었는지는 서비스가 판정한다', async () => {
+      // given
+      contentService.republish.mockResolvedValueOnce({
+        id: CONTENT_ID,
+        title: '새 제목',
+        status: ContentStatus.PUBLISHED,
+        contentVersion: 2,
+      } as never);
+
+      // when
+      await service.republish(
+        buildRepublishCommand({ audio: null, title: '새 제목' }),
+      );
+
+      // then
+      expect(contentTitleEmbeddingService.refresh).toHaveBeenCalledWith(
+        expect.objectContaining({ id: CONTENT_ID, title: '새 제목' }),
+      );
+    });
+
+    it('제목 임베딩이 실패해도(failed) 재발행은 성공으로 끝난다', async () => {
+      // given
+      contentTitleEmbeddingService.refresh.mockResolvedValueOnce('failed');
+
+      // when
+      const result = await service.republish(buildRepublishCommand());
+
+      // then
+      expect(result.content.id).toBe(CONTENT_ID);
+    });
+
+    it('재발행 트랜잭션이 실패하면 제목 임베딩을 부르지 않는다', async () => {
+      // given
+      contentService.republish.mockRejectedValueOnce(new Error('db down'));
+
+      // when
+      const act = service.republish(buildRepublishCommand());
+
+      // then
+      await expect(act).rejects.toThrow('db down');
+      expect(contentTitleEmbeddingService.refresh).not.toHaveBeenCalled();
+    });
   });
 
   describe('upload — 음질 3종(admin-api.md 4.6, KAN-141)', () => {

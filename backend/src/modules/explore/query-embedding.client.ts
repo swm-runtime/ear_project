@@ -2,10 +2,8 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 
 import { EnvironmentVariables } from '@/config/env.validation';
-import {
-  EMBEDDING_DIM,
-  EMBEDDING_MODEL_ID,
-} from '@/modules/content/content.constant';
+import { EMBEDDING_MODEL_ID } from '@/modules/content/content.constant';
+import { parseEmbeddingResponse } from '@/modules/content/embedding-response';
 
 import {
   QUERY_EMBEDDING_CACHE_MAX_ENTRIES,
@@ -162,30 +160,9 @@ export class QueryEmbeddingClient {
 
   /** 응답 `{ model, dim, vector }`(ai-server `EmbeddingResponse`) — 모델·차원이 저장 벡터와 같아야 비교할 수 있다(domain.md 5.6) */
   private validate(body: unknown): number[] | null {
-    if (typeof body !== 'object' || body === null) {
-      return this.unavailable('invalid_body');
-    }
+    const parsed = parseEmbeddingResponse(body);
 
-    const { model, dim, vector } = body as Record<string, unknown>;
-
-    // 다른 모델(개발 스텁 `dev-stub` 포함)의 벡터는 저장 벡터와 비교 불가다
-    if (model !== EMBEDDING_MODEL_ID) {
-      return this.unavailable('model_mismatch');
-    }
-
-    if (
-      dim !== EMBEDDING_DIM ||
-      !Array.isArray(vector) ||
-      vector.length !== EMBEDDING_DIM
-    ) {
-      return this.unavailable('dim_mismatch');
-    }
-
-    if (!vector.every((value) => Number.isFinite(value))) {
-      return this.unavailable('invalid_body');
-    }
-
-    return vector as number[];
+    return 'vector' in parsed ? parsed.vector : this.unavailable(parsed.reason);
   }
 
   private remember(key: string, vector: number[], now: number): void {

@@ -18,6 +18,7 @@ import {
   AudioRenditionInput,
   SeriesEpisodeUpload,
 } from '@/modules/content/content.types';
+import { ContentTitleEmbeddingService } from '@/modules/content/services/content-title-embedding.service';
 import { ContentService } from '@/modules/content/services/content.service';
 import { SeriesService } from '@/modules/content/services/series.service';
 import { LibrarySeriesService } from '@/modules/library/library-series.service';
@@ -118,6 +119,7 @@ export class AdminContentService {
     private readonly audioProbe: AudioProbe,
     private readonly thumbnailImage: ThumbnailImage,
     private readonly librarySeriesService: LibrarySeriesService,
+    private readonly contentTitleEmbeddingService: ContentTitleEmbeddingService,
   ) {}
 
   async upload(
@@ -299,6 +301,8 @@ export class AdminContentService {
     this.logEnrichmentOutcome(content.id, enrichment);
     this.logScriptOutcome(content.id, script);
     await this.deliverToSeriesFollowers(content, now);
+    // 검색 의미 엔진의 제목 임베딩 — 커밋 뒤 최선 노력(던지지 않는다). 실패하면 행이 없고 검색은 대본 벡터만 본다
+    await this.contentTitleEmbeddingService.refresh(content);
 
     const embeddingContentIds =
       await this.contentService.findScorableEmbeddingContentIds([content.id]);
@@ -647,6 +651,8 @@ export class AdminContentService {
     });
     this.logEnrichmentOutcome(content.id, enrichment);
     this.logScriptOutcome(content.id, script);
+    // 제목을 바꾼 재발행이면 제목 임베딩을 다시 만든다(같은 제목이면 AI 서버를 부르지 않는다) — 커밋 뒤 최선 노력
+    await this.contentTitleEmbeddingService.refresh(content);
 
     return this.withOutcomes(await this.toView(content), enrichment, script);
   }
