@@ -59,9 +59,9 @@ const styles = StyleSheet.create({
   root: {
     paddingTop: theme.spacing.lg,
   },
-  // 탐색 피드 섹션 제목과 같은 크기(xl 굵게)
+  // 시리즈 하단 '다른 항목' 섹션 제목 — 앨범 본문보다 작게(PM 2026-10-22, 종전 탐색 피드 xl)
   title: {
-    fontSize: theme.font.size.xl,
+    fontSize: theme.font.size.lg,
     fontWeight: '700',
     color: theme.color.textPrimary,
     paddingHorizontal: theme.spacing.md,

@@ -181,21 +181,26 @@ export default function SeriesScreen() {
             {series.description.trim().length > 0 ? (
               <Text style={styles.footerDescription}>{series.description.trim()}</Text>
             ) : null}
-            {/* 애플 뮤직 앨범 화면 아래 두 줄(PM 2026-10-22) — 비면 줄째 숨는다 */}
-            <SeriesMoreSection
-              title={EXPLORE_COPY.series.moreSeriesTitle}
-              entries={screen.otherSeries}
-              onPress={screen.playRelated}
-              onMorePress={screen.openMoreSheet}
-              onSeriesPress={screen.openOtherSeries}
-            />
-            <SeriesMoreSection
-              title={EXPLORE_COPY.series.youMayLikeTitle}
-              entries={screen.relatedItems}
-              onPress={screen.playRelated}
-              onMorePress={screen.openMoreSheet}
-              onSeriesPress={screen.openOtherSeries}
-            />
+            {/* 애플 뮤직 앨범 화면 아래 두 줄(PM 2026-10-22) — 비면 줄째 숨는다. 앨범 구역(흐린 표지 바탕)과 톤을
+                달리해 '다른 항목' 영역으로 가른다(PM 2026-10-22 — surface 면). 둘 다 비면 빈 면이 뜨지 않게 존째 생략 */}
+            {screen.otherSeries.length > 0 || screen.relatedItems.length > 0 ? (
+              <View style={styles.moreSectionsZone}>
+                <SeriesMoreSection
+                  title={EXPLORE_COPY.series.moreSeriesTitle}
+                  entries={screen.otherSeries}
+                  onPress={screen.playRelated}
+                  onMorePress={screen.openMoreSheet}
+                  onSeriesPress={screen.openOtherSeries}
+                />
+                <SeriesMoreSection
+                  title={EXPLORE_COPY.series.youMayLikeTitle}
+                  entries={screen.relatedItems}
+                  onPress={screen.playRelated}
+                  onMorePress={screen.openMoreSheet}
+                  onSeriesPress={screen.openOtherSeries}
+                />
+              </View>
+            ) : null}
           </View>
         }
         {...DOCK_SCROLL_PROPS}
@@ -400,6 +405,13 @@ const styles = StyleSheet.create({
     fontSize: theme.font.size.sm,
     lineHeight: theme.font.size.sm * 1.6,
     color: theme.color.textSecondary,
+  },
+  // '다른 항목' 영역 — 앨범 구역(흐린 표지 바탕)과 톤을 달리한다(PM 2026-10-22). surface 면이 흐린 바탕을 덮어
+  // 추천 줄을 앨범과 다른 구역으로 가른다. 위 marginTop 만큼은 바탕이 보여 경계가 된다. 바닥은 독이 가린다
+  moreSectionsZone: {
+    marginTop: theme.spacing.lg,
+    paddingBottom: theme.spacing.xl,
+    backgroundColor: theme.color.surface,
   },
   // 편 사이 구분선 — 머리 아래 선과 같이 좌우 같은 여백으로 가운데(PM 2026-10-22, 종전 제목 시작선 ~ 오른쪽 끝)
   separator: {
