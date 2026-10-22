@@ -851,9 +851,14 @@ describe('하이브리드 검색·오타 교정 E2E', () => {
             };
           }
 
-          // then
+          // then — 순서 대조는 이 스위트가 심은 편끼리만 한다. 병렬로 도는 다른 e2e 가 같은 말을 품은 편을 넣고 지워
+          // 두 경로를 넘기는 사이 DB 전체 목록이 달라질 수 있다(CI 2026-10-22 #1828 — Received +3). 키셋 페이지네이션이라
+          // 남의 행이 끼어도 내 편끼리의 상대 순서는 그대로다
           expect(hybridIds.length).toBeGreaterThan(0);
-          expect(hybridIds).toEqual(legacyIds);
+          const own = new Set(contentIds);
+          expect(hybridIds.filter((id) => own.has(id))).toEqual(
+            legacyIds.filter((id) => own.has(id)),
+          );
         }
       },
       60_000,
