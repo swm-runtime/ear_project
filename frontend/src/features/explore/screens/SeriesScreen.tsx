@@ -414,11 +414,11 @@ const styles = StyleSheet.create({
     lineHeight: theme.font.size.sm * 1.6,
     color: theme.color.textSecondary,
   },
-  // '다른 항목' 영역 — 앨범 구역(흐린 표지 바탕)보다 조금 더 어두운 단색(background)으로 덮어 구역을 가른다
-  // (PM 2026-10-22). 위 marginTop 만큼은 바탕이 보여 경계가 되고, 바닥 여백(dockInset)은 인라인으로 줘 톤이 바닥까지 이어진다
+  // '다른 항목' 영역 — 위 앨범 구역과 같은 흐린 표지 바탕을 그대로 이어받되 톤만 조금 더 어둡게(반투명 검정 덮개)
+  // 해서 단색 경계 없이 자연스럽게 가른다(PM 2026-10-22 — "표지색에서 톤만 더 어둡게"). 바닥 여백(dockInset)은
+  // 인라인으로 줘 어두운 톤이 바닥(독 뒤)까지 끊김 없이 이어진다
   moreSectionsZone: {
-    marginTop: theme.spacing.lg,
-    backgroundColor: theme.color.background,
+    backgroundColor: 'rgba(0, 0, 0, 0.3)',
   },
   // 편 사이 구분선 — 머리 아래 선과 같이 좌우 같은 여백으로 가운데(PM 2026-10-22, 종전 제목 시작선 ~ 오른쪽 끝)
   separator: {
