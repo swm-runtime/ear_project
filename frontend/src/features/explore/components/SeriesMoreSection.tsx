@@ -56,9 +56,9 @@ export default function SeriesMoreSection({
 const Gap = () => <View style={styles.gap} />;
 
 const styles = StyleSheet.create({
-  // 제목 위·아래 여백을 같게(PM 2026-10-22 — 종전 위 lg · 아래 sm 이라 제목이 카드 쪽으로 붙어 보였다)
+  // 제목 위 여백 — 아래(md)보다 조금 더(PM 2026-10-22 "제목 위에 공백 조금만 더"). 종전 위 lg · 아래 sm → 위아래 md → 위 md+xs
   root: {
-    paddingTop: theme.spacing.md,
+    paddingTop: theme.spacing.md + theme.spacing.xs,
   },
   // 시리즈 하단 '다른 항목' 섹션 제목 — 앨범 본문보다 작게(PM 2026-10-22, 종전 탐색 피드 xl)
   title: {
