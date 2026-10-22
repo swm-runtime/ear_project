@@ -1933,10 +1933,12 @@ export default function PlayerScreen() {
             style={[{ paddingBottom: controlAreaBottom }, controlAreaStyle, queueExpandFadeStyle]}
             pointerEvents={queueStage === 2 ? 'none' : 'auto'}
           >
-            {/* 지금 듣는 구간 — 시크바 바로 위 한 줄(KAN-127, PM 2026-10-07). 재생 목록이 열리면 사진 위라 걷는다 */}
+            {/* 지금 듣는 구간 — 시크바 바로 위 한 줄(KAN-127, PM 2026-10-07). 재생 목록이 열리면 사진 위라 걷는다.
+              시크바가 이 자리로 올라오므로 진행 앞 30% 안에 먼저 다 걷는다(PM 2026-10-23 "재생바 올라가는 애니메이션이랑 겹쳐 보인다") */}
             <FadeByProgress
               progress={queueProgress}
               invert
+              span={CURRENT_SECTION_FADE_SPAN}
               pointerEvents="none"
               accessibilityElementsHidden={isQueueOpen}
               importantForAccessibility={isQueueOpen ? 'no-hide-descendants' : 'auto'}
@@ -2535,6 +2537,8 @@ interface FadeByProgressProps extends ViewProps {
   progress: SharedValue<number>;
   /** true 면 1 − 진행값 — 열리는 만큼 사라진다 */
   invert?: boolean;
+  /** 진행값 0 → 이 값 안에 전환을 끝낸다(기본 1 — 진행 내내). 남들보다 먼저 걷혀야 하는 층에 쓴다 */
+  span?: number;
   children?: ReactNode;
 }
 
@@ -2545,13 +2549,15 @@ interface FadeByProgressProps extends ViewProps {
 function FadeByProgress({
   progress,
   invert = false,
+  span = 1,
   style,
   children,
   ...rest
 }: FadeByProgressProps) {
-  const fadeStyle = useAnimatedStyle(() => ({
-    opacity: invert ? 1 - progress.get() : progress.get(),
-  }));
+  const fadeStyle = useAnimatedStyle(() => {
+    const shown = interpolate(progress.get(), [0, span], [0, 1], 'clamp');
+    return { opacity: invert ? 1 - shown : shown };
+  });
   return (
     <Reanimated.View {...rest} style={[style, fadeStyle]}>
       {children}
@@ -2559,6 +2565,8 @@ function FadeByProgress({
   );
 }
 
+/** 재생 목록 1단을 열 때 구간 카드가 다 걷히는 진행 지점 — 시크바가 그 자리로 올라오기 전에 비운다 */
+const CURRENT_SECTION_FADE_SPAN = 0.3;
 /** 재생 목록의 히어로 축소를 transform 으로(hero 주석) — Android 만. iOS 는 종전 레이아웃 그대로 */
 const HERO_QUEUE_BY_TRANSFORM = Platform.OS === 'android';
 /**
