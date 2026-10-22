@@ -112,6 +112,9 @@ function randomSimpleSyllables(n: number): string {
  *
  * 공유 로컬 DB의 다른 콘텐츠와 섞이지 않게 질의마다 이 실행만의 무작위 한글 토큰을 쓴다.
  */
+/** 하위 호환 순서 대조의 페이지 상한 — limit 3 × 이 값 = 끝까지 넘길 수 있는 편 수 */
+const PARITY_PAGE_GUARD = 2_000;
+
 describe('하이브리드 검색·오타 교정 E2E', () => {
   let app: INestApplication<App>;
   let dataSource: DataSource;
@@ -813,7 +816,8 @@ describe('하이브리드 검색·오타 교정 E2E', () => {
           let legacyCursor: Parameters<
             ContentService['findSearchPage']
           >[0]['cursor'] = null;
-          for (let guard = 0; guard < 100; guard += 1) {
+          // 상한을 넉넉히 — 병렬 CI DB 에서는 흔한 말이 수백 편이라 100쪽(300편)에서 잘리면 두 경로가 다른 곳에서 끊긴다
+          for (let guard = 0; guard < PARITY_PAGE_GUARD; guard += 1) {
             const page = await contentService.findSearchPage({
               ...common,
               tagOnly: false,
@@ -834,7 +838,8 @@ describe('하이브리드 검색·오타 교정 E2E', () => {
           let hybridCursor: Parameters<
             ContentService['findHybridSearchPage']
           >[0]['cursor'] = null;
-          for (let guard = 0; guard < 100; guard += 1) {
+          // 상한을 넉넉히 — 병렬 CI DB 에서는 흔한 말이 수백 편이라 100쪽(300편)에서 잘리면 두 경로가 다른 곳에서 끊긴다
+          for (let guard = 0; guard < PARITY_PAGE_GUARD; guard += 1) {
             const page = await contentService.findHybridSearchPage({
               ...common,
               queryVector: null,
