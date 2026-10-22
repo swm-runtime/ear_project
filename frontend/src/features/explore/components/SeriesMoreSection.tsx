@@ -56,8 +56,9 @@ export default function SeriesMoreSection({
 const Gap = () => <View style={styles.gap} />;
 
 const styles = StyleSheet.create({
+  // 제목 위·아래 여백을 같게(PM 2026-10-22 — 종전 위 lg · 아래 sm 이라 제목이 카드 쪽으로 붙어 보였다)
   root: {
-    paddingTop: theme.spacing.lg,
+    paddingTop: theme.spacing.md,
   },
   // 시리즈 하단 '다른 항목' 섹션 제목 — 앨범 본문보다 작게(PM 2026-10-22, 종전 탐색 피드 xl)
   title: {
@@ -65,7 +66,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: theme.color.textPrimary,
     paddingHorizontal: theme.spacing.md,
-    paddingBottom: theme.spacing.sm,
+    paddingBottom: theme.spacing.md,
   },
   carousel: {
     paddingHorizontal: theme.spacing.md,
