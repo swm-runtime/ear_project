@@ -281,6 +281,7 @@ describe('exploreCursor', () => {
 
   describe('하이브리드 검색 커서(KAN-238)', () => {
     const HYBRID_POSITION = {
+      order: 'rrf' as const,
       rrf: 1 / 61 + 1 / 62,
       playCount: 4,
       publishedAt: PUBLISHED_AT,
@@ -440,7 +441,8 @@ describe('exploreCursor', () => {
       ['semantic 누락', { s: undefined }],
       ['빈 교정어', { u: '' }],
       ['uuid 아닌 id', { i: 'x' }],
-      ['모르는 버전', { v: 3 }],
+      ['RRF 커서를 키워드 순서 버전으로', { v: 3 }],
+      ['모르는 버전', { v: 4 }],
     ])('%s 값을 고친 하이브리드 커서는 400으로 거절한다', (_label, patch) => {
       // given
       const cursor = encodeHybridSearchCursor(
@@ -468,6 +470,118 @@ describe('exploreCursor', () => {
       // then
       expect(error.errorCode).toBe(ErrorCode.EXPLORE_CURSOR_INVALID);
       expect(error.getStatus()).toBe(400);
+    });
+  });
+
+  describe('키워드 순서 하이브리드 커서(KAN-242 — 질의 벡터 없이 시작한 검색)', () => {
+    const KEYWORD_POSITION = {
+      order: 'keyword' as const,
+      score: 16,
+      titleSimilarity: 0.4285714285714286,
+      playCount: 2,
+      publishedAt: PUBLISHED_AT,
+      id: CONTENT_ID,
+    };
+    const STATE = {
+      queryUsed: '커리어',
+      corrected: true,
+      match: 'keyword' as const,
+      semantic: false,
+    };
+    const encodeKeyword = () =>
+      encodeHybridSearchCursor(KEYWORD_POSITION, STATE, '커리오', [], false);
+    const tamper = (cursor: string, patch: Record<string, unknown>) =>
+      Buffer.from(
+        JSON.stringify({
+          ...(JSON.parse(
+            Buffer.from(cursor, 'base64url').toString('utf8'),
+          ) as Record<string, unknown>),
+          ...patch,
+        }),
+        'utf8',
+      ).toString('base64url');
+
+    it('종전 키워드 정렬 키(가중 합·제목 유사도 float8)와 검색 상태가 왕복 그대로다 — RRF 커서와 버전으로 갈린다', () => {
+      // given
+      const cursor = encodeKeyword();
+
+      // when
+      const payload = JSON.parse(
+        Buffer.from(cursor, 'base64url').toString('utf8'),
+      ) as Record<string, unknown>;
+      const decoded = decodeAnySearchCursor(cursor, '커리오', [], false);
+
+      // then
+      expect(payload.v).toBe(3);
+      expect(payload).not.toHaveProperty('r');
+      expect(decoded).toEqual({
+        kind: 'hybrid',
+        position: KEYWORD_POSITION,
+        state: STATE,
+      });
+    });
+
+    it('의미 엔진을 쓴 검색 상태로는 발급하지 않는다 — 척도가 다른 정렬을 섞지 않는다', () => {
+      // when
+      const issue = () =>
+        encodeHybridSearchCursor(
+          KEYWORD_POSITION,
+          { ...STATE, semantic: true },
+          '커리오',
+          [],
+          false,
+        );
+
+      // then
+      expect(issue).toThrow();
+    });
+
+    it('100자 질의 + 긴 교정어도 커서 길이 상한(512자) 안이다', () => {
+      // given
+      const cursor = encodeHybridSearchCursor(
+        KEYWORD_POSITION,
+        { ...STATE, queryUsed: '가'.repeat(30) },
+        '나'.repeat(100),
+        [TOPIC_A],
+        false,
+      );
+
+      // then
+      expect(cursor.length).toBeLessThanOrEqual(512);
+    });
+
+    it.each([
+      ['semantic 참', { s: true }],
+      ['semantic 누락', { s: undefined }],
+      ['가중 합 소수', { k: 1.5 }],
+      ['가중 합 음수', { k: -1 }],
+      ['제목 유사도 1 초과', { w: 1.5 }],
+      ['제목 유사도 누락', { w: undefined }],
+      ['키워드 순서 커서를 RRF 버전으로', { v: 2 }],
+    ])('%s 값을 고친 키워드 순서 커서는 400으로 거절한다', (_label, patch) => {
+      // when
+      const error = catchError(() =>
+        decodeAnySearchCursor(
+          tamper(encodeKeyword(), patch),
+          '커리오',
+          [],
+          false,
+        ),
+      );
+
+      // then
+      expect(error.errorCode).toBe(ErrorCode.EXPLORE_CURSOR_INVALID);
+      expect(error.getStatus()).toBe(400);
+    });
+
+    it('발급 때와 질의가 다르면 거절한다', () => {
+      // when
+      const error = catchError(() =>
+        decodeAnySearchCursor(encodeKeyword(), '커리어', [], false),
+      );
+
+      // then
+      expect(error.errorCode).toBe(ErrorCode.EXPLORE_CURSOR_INVALID);
     });
   });
 });

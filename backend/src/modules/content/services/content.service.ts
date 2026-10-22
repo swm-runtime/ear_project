@@ -35,6 +35,7 @@ import {
   ScriptSegment,
   HybridSearchPage,
   HybridSearchPageQuery,
+  KeywordOrderSearchCursorPosition,
   RelatedContentQuery,
   SearchCorrectionQuery,
   SearchPage,
@@ -429,15 +430,45 @@ export class ContentService {
   /**
    * 하이브리드 검색 한 페이지(KAN-238 — `explore.md` 4.5-5). 키워드 + 의미 엔진을 RRF로 합친다(Repository).
    * 인기 tie-break 구간(직전 확정 월) 환산과 다음 페이지 판정은 `findSearchPage`와 같다.
+   *
+   * **질의 벡터가 없고 커서가 RRF 순서가 아니면 종전 키워드 검색에 그대로 맡긴다**(KAN-242). 의미 엔진이 없으면 결과·순서가
+   * 종전 키워드 검색과 같아야 하는데(하위 호환), RRF 키셋은 매칭 집합 안의 순위라 페이지 사이에 편이 발행·삭제되면 경계가
+   * 밀린다(Repository 주석). 같은 쿼리를 타게 해 결과·순서·시리즈 대표 편·커서 키를 구조적으로 같게 만든다 — 모든 행이 키워드로
+   * 맞은 것이라 `matchedBy`는 `['keyword']`, 커서는 종전 키워드 정렬 키 다섯(`order: 'keyword'`)이다.
+   *
+   * 첫 페이지가 의미 엔진을 썼는데 이번 페이지에서 결손이면(RRF 커서 + 벡터 없음) RRF 쿼리로 잇는다 — 정렬 척도를 페이지
+   * 중간에 바꾸지 않는다. 키워드 순서 커서는 벡터 없이 시작한 검색에서만 나오므로(커서의 `semantic: false`) 벡터와 함께 오지 않는다.
    */
   async findHybridSearchPage(
     query: HybridSearchPageQuery,
     manager?: EntityManager,
   ): Promise<HybridSearchPage> {
-    const { items, keywordTotal } =
-      await this.contentRepository.findHybridSearchPage(
+    const { cursor } = query;
+    const monthPeriodStart = toPreviousFinalMonthStart(query.now);
+
+    if (
+      cursor?.order === 'keyword' ||
+      (cursor === null && !query.queryVector)
+    ) {
+      if (query.queryVector) {
+        // 커서 디코더가 막는 조합이다(키워드 순서 커서는 `semantic: false`) — 척도가 다른 두 정렬을 섞지 않는다
+        throw new Error(
+          'keyword-order hybrid cursor must not carry a query vector',
+        );
+      }
+
+      return this.findKeywordOrderHybridPage(
         query,
-        toPreviousFinalMonthStart(query.now),
+        cursor,
+        monthPeriodStart,
+        manager,
+      );
+    }
+
+    const { items, keywordMatched } =
+      await this.contentRepository.findHybridSearchPage(
+        { ...query, cursor },
+        monthPeriodStart,
         manager,
       );
     const hasNext = items.length > query.limit;
@@ -445,7 +476,57 @@ export class ContentService {
     return {
       items: hasNext ? items.slice(0, query.limit) : items,
       hasNext,
-      keywordTotal,
+      keywordMatched,
+    };
+  }
+
+  /** 질의 벡터 없는 하이브리드 — 종전 키워드 검색 한 페이지를 하이브리드 행 모양으로 옮긴다(`findHybridSearchPage`) */
+  private async findKeywordOrderHybridPage(
+    query: HybridSearchPageQuery,
+    cursor: KeywordOrderSearchCursorPosition | null,
+    monthPeriodStart: string,
+    manager?: EntityManager,
+  ): Promise<HybridSearchPage> {
+    const rows = await this.contentRepository.findSearchPage(
+      {
+        market: query.market,
+        normalizedQuery: query.normalizedQuery,
+        tagOnly: false,
+        matchSeriesTitle: query.matchSeriesTitle,
+        seriesAnchorsOnly: query.seriesAnchorsOnly,
+        topicIds: query.topicIds,
+        cursor: cursor && {
+          score: cursor.score,
+          titleSimilarity: cursor.titleSimilarity,
+          playCount: cursor.playCount,
+          publishedAt: cursor.publishedAt,
+          id: cursor.id,
+        },
+        limit: query.limit,
+        now: query.now,
+      },
+      monthPeriodStart,
+      manager,
+    );
+    const hasNext = rows.length > query.limit;
+    const page = hasNext ? rows.slice(0, query.limit) : rows;
+
+    return {
+      items: page.map((row) => ({
+        content: row.content,
+        position: {
+          order: 'keyword',
+          score: row.score,
+          titleSimilarity: row.titleSimilarity,
+          playCount: row.playCount,
+          publishedAt: row.content.publishedAt,
+          id: row.content.id,
+        },
+        matchedBy: ['keyword'],
+      })),
+      hasNext,
+      // 커서 페이지는 앞 페이지에 키워드 결과가 있었다는 뜻이다 — 첫 페이지는 빈 결과가 곧 키워드 0건이다(접어도 시리즈마다 하나는 남는다)
+      keywordMatched: cursor !== null || rows.length > 0,
     };
   }
 

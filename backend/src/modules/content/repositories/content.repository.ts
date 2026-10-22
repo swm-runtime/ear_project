@@ -42,6 +42,7 @@ import {
   RankedPopularContent,
   RankedSearchContent,
   RelatedContentQuery,
+  RrfSearchCursorPosition,
   SearchCorrectionQuery,
   SearchEngine,
   SearchPageQuery,
@@ -740,21 +741,23 @@ export class ContentRepository {
    *   일치하는 행만(domain.md 5.6 — 추천 스코어링과 같은 조건). 질의 벡터가 없으면(결손) 빈 CTE다. ANN 인덱스 없이 전수
    *   계산한다(수천 편 상한 — domain.md 5.6).
    *
-   * **의미 엔진이 없으면 결과·순서가 종전 키워드 검색과 같다** — RRF가 키워드 순위의 강한 단조 함수(순위가 고유)라
-   * 최종 정렬이 키워드 정렬과 같고, 시리즈 대표 편 판정(`ROW_NUMBER() OVER (PARTITION BY series_id ...)`)도 같은 순서로
-   * 고른다. 동점(두 엔진이 섞일 때만 생긴다)은 인기 → `published_at` → id.
+   * **질의 벡터 없이 시작한 검색은 이 쿼리를 타지 않는다**(KAN-242) — Service가 종전 키워드 검색(`findSearchPage`)에 맡긴다.
+   * 여기서 벡터가 없는 경우는 첫 페이지가 의미 엔진을 썼는데 이번 페이지에서 결손난 커서 페이지뿐이다. 그때 의미 CTE는 비고
+   * RRF는 키워드 순위의 단조 함수다. 동점(두 엔진이 섞일 때만 생긴다)은 인기 → `published_at` → id.
    *
-   * 키셋은 최종 정렬 키 넷 전부(`rrf`, 재생 수, `published_at`, id)다. 페이지마다 두 엔진의 순위를 다시 계산하므로 그 사이
-   * 발행·집계가 바뀌면 경계가 미세하게 흔들릴 수 있다 — 종전 키워드 커서와 같은 성질이다(explore-api.md 4.5).
+   * 키셋은 최종 정렬 키 넷 전부(`rrf`, 재생 수, `published_at`, id)다. **`rrf`는 행 자기 값이 아니라 매칭 집합 안의 순위에서
+   * 나온다** — 페이지 사이에 앞쪽에 편이 발행되면 같은 행의 순위가 밀려 `rrf`가 작아지므로 경계 행이 다시 나오고(중복), 지워지면
+   * 한 행을 건너뛸 수 있다(누락). 의미 엔진을 쓰는 검색에서는 이 미세 흔들림을 감수한다(explore-api.md 4.5). 종전 키워드 커서는
+   * 키가 전부 행 자기 값이라 이 흔들림이 없고, 그래서 벡터 없는 검색은 그쪽에 맡긴다.
    *
    * Raw SQL이다(architecture.md 3.4) — 공통 필터는 QueryBuilder로 만들어 같은 조각(`CONTENT_SCOPE_CONDITION`·주제 필터)을
    * 그대로 쓰고, 그 위에 CTE를 얹는다. 엔티티는 고른 id로 한 번 더 읽는다(최대 `limit + 1`건).
    */
   async findHybridSearchPage(
-    query: HybridSearchPageQuery,
+    query: HybridSearchPageQuery & { cursor: RrfSearchCursorPosition | null },
     monthPeriodStart: string,
     manager?: EntityManager,
-  ): Promise<{ items: RankedHybridContent[]; keywordTotal: number }> {
+  ): Promise<{ items: RankedHybridContent[]; keywordMatched: boolean }> {
     const score = query.matchSeriesTitle
       ? SEARCH_SCORE_WITH_SERIES
       : SEARCH_SCORE;
@@ -879,7 +882,7 @@ export class ContentRepository {
     // 행이 없으면 키워드도 0건이다 — 키워드가 하나라도 맞으면 `fused`가 비지 않고, 대표 편 접기는 시리즈마다 하나를 남긴다
     // (커서 페이지의 빈 응답은 목록의 끝이라 교정 판정에 쓰지 않는다)
     if (rows.length === 0) {
-      return { items: [], keywordTotal: 0 };
+      return { items: [], keywordMatched: false };
     }
 
     const contents = await this.scoped(manager).findBy({
@@ -904,14 +907,19 @@ export class ContentRepository {
       return [
         {
           content,
-          rrf: Number(row.rrf),
-          playCount: Number(row.play_count),
+          position: {
+            order: 'rrf',
+            rrf: Number(row.rrf),
+            playCount: Number(row.play_count),
+            publishedAt: content.publishedAt,
+            id: content.id,
+          },
           matchedBy,
         },
       ];
     });
 
-    return { items, keywordTotal: Number(rows[0].keyword_total) };
+    return { items, keywordMatched: Number(rows[0].keyword_total) > 0 };
   }
 
   /**

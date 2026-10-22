@@ -275,15 +275,29 @@ export interface SearchPage {
 export type SearchEngine = 'keyword' | 'semantic';
 
 /**
- * 하이브리드 검색 커서 위치(KAN-238). 최종 정렬 키 — RRF 점수 → 직전 확정 월 재생 수 → `published_at` → id 를 전부 담는다.
+ * 하이브리드 검색 커서 위치 — RRF 순서(KAN-238). 최종 정렬 키 — RRF 점수 → 직전 확정 월 재생 수 → `published_at` → id 를 전부 담는다.
  * RRF 점수는 SQL에서 `double precision`으로 계산·비교하고 JSON 왕복도 float8 그대로라 키셋 재비교가 어긋나지 않는다
  */
-export interface HybridSearchCursorPosition {
+export interface RrfSearchCursorPosition {
+  order: 'rrf';
   rrf: number;
   playCount: number;
   publishedAt: Date;
   id: string;
 }
+
+/**
+ * 하이브리드 검색 커서 위치 — 키워드 순서(KAN-242). 질의 벡터 없이 시작한 검색은 종전 키워드 검색 그대로 줄 세우므로 커서도
+ * 종전 키워드 정렬 키 다섯(`SearchCursorPosition`)을 담는다. 키가 전부 행 자기 값이라 페이지 사이 발행·삭제에도 경계가 밀리지
+ * 않는다(RRF 점수는 매칭 집합 안의 순위라 앞쪽 행이 늘고 줄면 같은 행의 값이 바뀐다)
+ */
+export interface KeywordOrderSearchCursorPosition extends SearchCursorPosition {
+  order: 'keyword';
+}
+
+/** 하이브리드 검색 커서 위치 — 어느 정렬로 이은 페이지인가(`order`)로 가른다 */
+export type HybridSearchCursorPosition =
+  RrfSearchCursorPosition | KeywordOrderSearchCursorPosition;
 
 export interface HybridSearchPageQuery {
   market: UserMarket;
@@ -291,7 +305,7 @@ export interface HybridSearchPageQuery {
   normalizedQuery: string;
   /**
    * 질의 임베딩(`EMBEDDING_MODEL_ID` · `EMBEDDING_DIM`). `null`이면 의미 엔진을 생략한다(AI 서버 결손·미설정) —
-   * 그때 RRF는 키워드 순위의 단조 함수라 결과·순서가 종전 키워드 검색과 같다
+   * 그때 커서가 RRF 순서가 아니면 **종전 키워드 검색(`findSearchPage`)에 그대로 맡긴다**(KAN-242 — 결과·순서·커서가 구조적으로 같다)
    */
   queryVector: number[] | null;
   matchSeriesTitle?: boolean;
@@ -304,8 +318,8 @@ export interface HybridSearchPageQuery {
 
 export interface RankedHybridContent {
   content: Content;
-  rrf: number;
-  playCount: number;
+  /** 이 행에서 다음 페이지를 잇는 커서 위치 — 페이지를 만든 정렬(RRF·키워드)의 키다 */
+  position: HybridSearchCursorPosition;
   /** 어느 엔진에서 왔는가 — 시리즈 카드 모드면 같은 시리즈의 접힌 편까지 합친 값이다(카드가 시리즈를 대표한다) */
   matchedBy: SearchEngine[];
 }
@@ -313,8 +327,11 @@ export interface RankedHybridContent {
 export interface HybridSearchPage {
   items: RankedHybridContent[];
   hasNext: boolean;
-  /** 키워드 엔진이 맞힌 전체 편 수(접기 전) — 0이면 교정어 탐색의 조건이다 */
-  keywordTotal: number;
+  /**
+   * 키워드 엔진이 맞힌 편이 하나라도 있는가(접기 전) — 첫 페이지에서 거짓이면 교정어 탐색의 조건이다. 커서 페이지는 앞 페이지가
+   * 있었다는 뜻이라 교정 판정에 쓰지 않는다
+   */
+  keywordMatched: boolean;
 }
 
 /** 교정어 후보 — SQL이 길이 가드·트라이그램으로 줄여 넘기고 `pickSearchCorrection`이 재채점한다 */

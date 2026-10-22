@@ -6,7 +6,7 @@ import { createServer, IncomingMessage, Server, ServerResponse } from 'http';
 import { AddressInfo } from 'net';
 import request from 'supertest';
 import { App } from 'supertest/types';
-import { DataSource } from 'typeorm';
+import { DataSource, EntityManager } from 'typeorm';
 
 import { AppModule } from '@/app.module';
 import { traceIdMiddleware } from '@/common/middlewares/trace-id.middleware';
@@ -787,87 +787,203 @@ describe('하이브리드 검색·오타 교정 E2E', () => {
       await seed(`${COMPAT_TOKEN}${COMPAT_TOKEN} 반복`, 46);
     });
 
+    type LegacyCursor = Parameters<
+      ContentService['findSearchPage']
+    >[0]['cursor'];
+    type HybridCursor = Parameters<
+      ContentService['findHybridSearchPage']
+    >[0]['cursor'];
+
+    /** 질의 하나의 공통 입력 — 시리즈 카드 모드면 시리즈 제목 일치·대표 편 접기까지 */
+    const commonOf = (normalizedQuery: string, seriesAnchorsOnly: boolean) => ({
+      market: UserMarket.KR,
+      normalizedQuery,
+      topicIds: [],
+      limit: 3,
+      now: new Date(),
+      ...(seriesAnchorsOnly && {
+        seriesAnchorsOnly: true,
+        matchSeriesTitle: true,
+      }),
+    });
+
+    /** 종전 키워드 경로를 끝까지 넘긴 id 목록 */
+    async function pageLegacy(
+      common: ReturnType<typeof commonOf>,
+      manager?: EntityManager,
+    ): Promise<string[]> {
+      const seen: string[] = [];
+      let cursor: LegacyCursor = null;
+      // 상한을 넉넉히 — 병렬 CI DB 에서는 흔한 말이 수백 편이라 100쪽(300편)에서 잘리면 두 경로가 다른 곳에서 끊긴다
+      for (let guard = 0; guard < PARITY_PAGE_GUARD; guard += 1) {
+        const page = await contentService.findSearchPage(
+          { ...common, tagOnly: false, cursor },
+          manager,
+        );
+        seen.push(...page.items.map((row) => row.content.id));
+        const last = page.items.at(-1);
+        if (!page.hasNext || !last) return seen;
+        cursor = {
+          score: last.score,
+          titleSimilarity: last.titleSimilarity,
+          playCount: last.playCount,
+          publishedAt: last.content.publishedAt,
+          id: last.content.id,
+        };
+      }
+      throw new Error('페이지 상한에 닿았다 — PARITY_PAGE_GUARD를 늘린다');
+    }
+
+    /** 하이브리드(질의 벡터 없음)를 끝까지 넘긴 id 목록 — 커서는 응답 행이 준 위치 그대로다 */
+    async function pageHybrid(
+      common: ReturnType<typeof commonOf>,
+      manager?: EntityManager,
+    ): Promise<string[]> {
+      const seen: string[] = [];
+      let cursor: HybridCursor = null;
+      for (let guard = 0; guard < PARITY_PAGE_GUARD; guard += 1) {
+        const page = await contentService.findHybridSearchPage(
+          { ...common, queryVector: null, cursor },
+          manager,
+        );
+        seen.push(...page.items.map((row) => row.content.id));
+        expect(
+          page.items.every((row) => row.matchedBy.join() === 'keyword'),
+        ).toBe(true);
+        const last = page.items.at(-1);
+        if (!page.hasNext || !last) return seen;
+        cursor = last.position;
+      }
+      throw new Error('페이지 상한에 닿았다 — PARITY_PAGE_GUARD를 늘린다');
+    }
+
     it.each([
-      // DB 전체에 흔한 말('e2e'·'이')로 대조하던 두 케이스는 뺐다 — 병렬 CI 에서 다른 스위트가 넣고 지우는 편에 따라
-      // 결과가 달라져(2026-10-22 3회 연속 ±1) 경로 차이와 구분할 수 없다. 동점은 아래 시드 토큰 케이스의 반복·위치 시드가 만든다
       ['시드 토큰', () => COMPAT_TOKEN],
+      // DB 전체에 흔한 말 — 병렬 CI 에서 다른 스위트가 같은 말을 품은 편을 넣고 지운다(2026-10-22 #1828). 아래 대조는 내 편끼리만
+      // 하고, DB 전체 목록의 완전 일치는 다음 테스트가 한 스냅숏 안에서 본다
+      ['로컬 DB 전체에 흔한 말 e2e', () => 'e2e'],
+      ['로컬 DB 전체에 흔한 말 이', () => '이'],
     ])(
       '%s: 하이브리드(질의 벡터 없음)와 종전 키워드가 페이지를 넘겨도 같은 순서다',
       async (_label, queryOf) => {
-        const normalizedQuery = queryOf();
-
         for (const seriesAnchorsOnly of [false, true]) {
           // given
-          const now = new Date();
-          const common = {
-            market: UserMarket.KR,
-            normalizedQuery,
-            topicIds: [],
-            limit: 3,
-            now,
-            ...(seriesAnchorsOnly && {
-              seriesAnchorsOnly: true,
-              matchSeriesTitle: true,
-            }),
-          };
+          const common = commonOf(queryOf(), seriesAnchorsOnly);
 
           // when — 두 경로를 각각 끝까지 넘긴다
-          const legacyIds: string[] = [];
-          let legacyCursor: Parameters<
-            ContentService['findSearchPage']
-          >[0]['cursor'] = null;
-          // 상한을 넉넉히 — 병렬 CI DB 에서는 흔한 말이 수백 편이라 100쪽(300편)에서 잘리면 두 경로가 다른 곳에서 끊긴다
-          for (let guard = 0; guard < PARITY_PAGE_GUARD; guard += 1) {
-            const page = await contentService.findSearchPage({
-              ...common,
-              tagOnly: false,
-              cursor: legacyCursor,
-            });
-            legacyIds.push(...page.items.map((row) => row.content.id));
-            const last = page.items.at(-1);
-            if (!page.hasNext || !last) break;
-            legacyCursor = {
-              score: last.score,
-              titleSimilarity: last.titleSimilarity,
-              playCount: last.playCount,
-              publishedAt: last.content.publishedAt,
-              id: last.content.id,
-            };
-          }
-          const hybridIds: string[] = [];
-          let hybridCursor: Parameters<
-            ContentService['findHybridSearchPage']
-          >[0]['cursor'] = null;
-          // 상한을 넉넉히 — 병렬 CI DB 에서는 흔한 말이 수백 편이라 100쪽(300편)에서 잘리면 두 경로가 다른 곳에서 끊긴다
-          for (let guard = 0; guard < PARITY_PAGE_GUARD; guard += 1) {
-            const page = await contentService.findHybridSearchPage({
-              ...common,
-              queryVector: null,
-              cursor: hybridCursor,
-            });
-            hybridIds.push(...page.items.map((row) => row.content.id));
-            const last = page.items.at(-1);
-            if (!page.hasNext || !last) break;
-            hybridCursor = {
-              rrf: last.rrf,
-              playCount: last.playCount,
-              publishedAt: last.content.publishedAt,
-              id: last.content.id,
-            };
-          }
+          const legacyIds = await pageLegacy(common);
+          const hybridIds = await pageHybrid(common);
 
-          // then — 순서 대조는 이 스위트가 심은 편끼리만 한다. 병렬로 도는 다른 e2e 가 같은 말을 품은 편을 넣고 지워
-          // 두 경로를 넘기는 사이 DB 전체 목록이 달라질 수 있다(CI 2026-10-22 #1828 — Received +3). 키셋 페이지네이션이라
-          // 남의 행이 끼어도 내 편끼리의 상대 순서는 그대로다
+          // then — 이 스위트가 심은 편끼리의 순서. 키셋이 전부 행 자기 값이라 남의 행이 끼고 빠져도 내 편끼리의 상대 순서는
+          // 그대로다(KAN-242 — 종전 RRF 키셋은 순위라 앞쪽 행이 늘면 경계 행이 다시 나왔다)
           expect(hybridIds.length).toBeGreaterThan(0);
           const own = new Set(contentIds);
-          expect(hybridIds.filter((id) => own.has(id))).toEqual(
-            legacyIds.filter((id) => own.has(id)),
-          );
+          const ownHybrid = hybridIds.filter((id) => own.has(id));
+          expect(ownHybrid.length).toBeGreaterThan(0);
+          expect(ownHybrid).toEqual(legacyIds.filter((id) => own.has(id)));
+          expect(new Set(hybridIds).size).toBe(hybridIds.length);
         }
       },
-      60_000,
+      120_000,
     );
+
+    it.each([
+      ['시드 토큰', () => COMPAT_TOKEN],
+      ['로컬 DB 전체에 흔한 말 e2e', () => 'e2e'],
+      ['로컬 DB 전체에 흔한 말 이', () => '이'],
+    ])(
+      '%s: 같은 스냅숏에서 연달아 돌리면 DB 전체 목록이 행·순서까지 완전히 같다 — 종전 키워드 쿼리에 그대로 맡긴다',
+      async (_label, queryOf) => {
+        for (const seriesAnchorsOnly of [false, true]) {
+          // given — REPEATABLE READ 한 트랜잭션 = 한 스냅숏. 병렬 스위트의 쓰기가 두 경로 사이에 끼지 않는다
+          const common = commonOf(queryOf(), seriesAnchorsOnly);
+
+          // when
+          const [legacyIds, hybridIds] = await dataSource.transaction(
+            'REPEATABLE READ',
+            async (manager) => [
+              await pageLegacy(common, manager),
+              await pageHybrid(common, manager),
+            ],
+          );
+
+          // then
+          expect(hybridIds.length).toBeGreaterThan(0);
+          expect(hybridIds).toEqual(legacyIds);
+        }
+      },
+      120_000,
+    );
+  });
+
+  describe('질의 벡터 없는 커서 페이지 — 페이지 사이 발행·삭제(KAN-242)', () => {
+    /** `boom` 표식 — 스텁이 500을 내 의미 엔진이 결손이다(쿨다운 없음) */
+    const SHIFT_QUERY = `${randomPlainSyllables(3)}boom`;
+    const originals: string[] = [];
+
+    beforeAll(async () => {
+      // 제목에 질의 전체 — 가중 점수·제목 유사도·재생 수가 같고 신선도만 갈린다(index가 작을수록 최신)
+      for (let index = 0; index < 5; index += 1) {
+        originals.push(await seed(`${SHIFT_QUERY} 편 ${index}`, 60 + index));
+      }
+    });
+
+    /** 첫 페이지 뒤 `between`을 한 번 돌리고 끝까지 넘긴다(HTTP — 커서 발급·해석까지) */
+    async function pageThrough(
+      label: string,
+      between: () => Promise<void>,
+    ): Promise<{ pages: SearchBody[]; ids: string[] }> {
+      const { auth } = await createUser(label);
+      const pages: SearchBody[] = [];
+      let cursor: string | null = null;
+      for (let guard = 0; guard < 10; guard += 1) {
+        const body = (
+          await search(auth, {
+            query: SHIFT_QUERY,
+            limit: '2',
+            ...(cursor && { cursor }),
+          }).expect(HttpStatus.OK)
+        ).body as SearchBody;
+        pages.push(body);
+        if (guard === 0) await between();
+        cursor = body.next_cursor;
+        if (!cursor) break;
+      }
+      return {
+        pages,
+        ids: pages.flatMap((page) => page.items.map((item) => item.content.id)),
+      };
+    }
+
+    it('1쪽과 2쪽 사이에 맨 앞에 올 편이 발행돼도 원래 편이 중복·누락 없이 한 번씩 나온다', async () => {
+      // when — 1쪽 뒤 가장 최신 편을 하나 발행한다(종전 RRF 키셋이면 순위가 하나씩 밀려 1쪽 끝 편이 2쪽에 다시 나온다)
+      let inserted = '';
+      const { pages, ids } = await pageThrough('shift-insert', async () => {
+        inserted = await seed(`${SHIFT_QUERY} 새 편`, 0);
+      });
+      // 다음 테스트의 목록은 원래 편 다섯이다
+      await dataSource.query(`DELETE FROM contents WHERE id = $1`, [inserted]);
+
+      // then
+      expect(pages.every((page) => page.engines.join() === 'keyword')).toBe(
+        true,
+      );
+      expect(new Set(ids).size).toBe(ids.length);
+      expect(ids.filter((id) => originals.includes(id))).toEqual(originals);
+    });
+
+    it('1쪽과 2쪽 사이에 1쪽의 두 편이 지워져도 남은 편이 누락 없이 나온다', async () => {
+      // when — 1쪽 두 편(커서 편 포함)을 지운다(종전 RRF 키셋이면 순위가 둘씩 당겨져 3번째 편의 RRF가 커서보다 커지고 건너뛴다)
+      const { ids } = await pageThrough('shift-delete', async () => {
+        await dataSource.query(`DELETE FROM contents WHERE id = ANY($1)`, [
+          originals.slice(0, 2),
+        ]);
+      });
+
+      // then — 1쪽에 두 편, 그 뒤로 남은 세 편이 순서대로
+      expect(new Set(ids).size).toBe(ids.length);
+      expect(ids).toEqual(originals);
+    });
   });
 
   describe('검색 로그·관리자 요약', () => {

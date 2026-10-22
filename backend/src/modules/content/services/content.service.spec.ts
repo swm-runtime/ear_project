@@ -1,4 +1,5 @@
 import { ErrorCode } from '@/common/exceptions/error-code.enum';
+import { toPreviousFinalMonthStart } from '@/common/utils/service-date.util';
 import { UserMarket } from '@/modules/user/user.enum';
 
 import { ContentService } from './content.service';
@@ -37,6 +38,10 @@ describe('ContentService', () => {
       expireLicensed: jest.fn().mockResolvedValue(0),
       findWithdrawnSince: jest.fn().mockResolvedValue([]),
       findVisibleSeriesEpisodesForUser: jest.fn().mockResolvedValue([]),
+      findSearchPage: jest.fn().mockResolvedValue([]),
+      findHybridSearchPage: jest
+        .fn()
+        .mockResolvedValue({ items: [], keywordMatched: false }),
     } as unknown as jest.Mocked<ContentRepository>;
 
     service = new ContentService(
@@ -284,6 +289,189 @@ describe('ContentService', () => {
       expect(resolution.failed).toEqual([
         { contentId: CONTENT_ID, errorCode: ErrorCode.CONTENT_NOT_FOUND },
       ]);
+    });
+  });
+
+  describe('findHybridSearchPage — 질의 벡터가 없으면 종전 키워드 검색에 맡긴다(KAN-242)', () => {
+    const OTHER_ID = '44444444-4444-4444-8444-444444444444';
+    const PUBLISHED_AT = new Date('2026-09-01T00:00:00.000Z');
+    const base = {
+      market: UserMarket.KR,
+      normalizedQuery: '커리어',
+      topicIds: ['t1'],
+      limit: 1,
+      now: NOW,
+    };
+    const keywordRow = (id: string, score: number) => ({
+      content: buildContent({ id, publishedAt: PUBLISHED_AT }),
+      score,
+      titleSimilarity: 0.25,
+      playCount: 3,
+    });
+
+    it('첫 페이지 — 종전 키워드 쿼리를 같은 입력으로 부르고 행을 키워드 순서 커서 위치·matchedBy keyword로 옮긴다', async () => {
+      // given — limit + 1건이면 다음 페이지가 있다
+      contentRepository.findSearchPage.mockResolvedValue([
+        keywordRow(CONTENT_ID, 16),
+        keywordRow(OTHER_ID, 8),
+      ]);
+
+      // when
+      const page = await service.findHybridSearchPage({
+        ...base,
+        queryVector: null,
+        matchSeriesTitle: true,
+        seriesAnchorsOnly: true,
+        cursor: null,
+      });
+
+      // then
+      expect(contentRepository.findSearchPage).toHaveBeenCalledWith(
+        {
+          market: UserMarket.KR,
+          normalizedQuery: '커리어',
+          tagOnly: false,
+          matchSeriesTitle: true,
+          seriesAnchorsOnly: true,
+          topicIds: ['t1'],
+          cursor: null,
+          limit: 1,
+          now: NOW,
+        },
+        toPreviousFinalMonthStart(NOW),
+        undefined,
+      );
+      expect(contentRepository.findHybridSearchPage).not.toHaveBeenCalled();
+      expect(page).toEqual({
+        items: [
+          {
+            content: expect.objectContaining({ id: CONTENT_ID }) as Content,
+            position: {
+              order: 'keyword',
+              score: 16,
+              titleSimilarity: 0.25,
+              playCount: 3,
+              publishedAt: PUBLISHED_AT,
+              id: CONTENT_ID,
+            },
+            matchedBy: ['keyword'],
+          },
+        ],
+        hasNext: true,
+        keywordMatched: true,
+      });
+    });
+
+    it('첫 페이지가 비면 keywordMatched 거짓 — 교정어 탐색의 조건이다', async () => {
+      // when
+      const page = await service.findHybridSearchPage({
+        ...base,
+        queryVector: null,
+        cursor: null,
+      });
+
+      // then
+      expect(page).toEqual({
+        items: [],
+        hasNext: false,
+        keywordMatched: false,
+      });
+    });
+
+    it('키워드 순서 커서는 종전 키셋 다섯 키 그대로 넘기고, 빈 페이지여도 keywordMatched 참이다(목록의 끝)', async () => {
+      // when
+      const page = await service.findHybridSearchPage({
+        ...base,
+        queryVector: null,
+        cursor: {
+          order: 'keyword',
+          score: 16,
+          titleSimilarity: 0.25,
+          playCount: 3,
+          publishedAt: PUBLISHED_AT,
+          id: CONTENT_ID,
+        },
+      });
+
+      // then
+      expect(contentRepository.findSearchPage).toHaveBeenCalledWith(
+        expect.objectContaining({
+          cursor: {
+            score: 16,
+            titleSimilarity: 0.25,
+            playCount: 3,
+            publishedAt: PUBLISHED_AT,
+            id: CONTENT_ID,
+          },
+        }),
+        toPreviousFinalMonthStart(NOW),
+        undefined,
+      );
+      expect(page.keywordMatched).toBe(true);
+    });
+
+    it('RRF 커서(첫 페이지는 의미 엔진을 썼고 지금 결손)는 RRF 쿼리로 잇는다 — 페이지 중간에 정렬을 바꾸지 않는다', async () => {
+      // given
+      const cursor = {
+        order: 'rrf' as const,
+        rrf: 1 / 61,
+        playCount: 3,
+        publishedAt: PUBLISHED_AT,
+        id: CONTENT_ID,
+      };
+
+      // when
+      await service.findHybridSearchPage({
+        ...base,
+        queryVector: null,
+        cursor,
+      });
+
+      // then
+      expect(contentRepository.findSearchPage).not.toHaveBeenCalled();
+      expect(contentRepository.findHybridSearchPage).toHaveBeenCalledWith(
+        expect.objectContaining({ queryVector: null, cursor }),
+        toPreviousFinalMonthStart(NOW),
+        undefined,
+      );
+    });
+
+    it('질의 벡터가 있으면 RRF 쿼리다', async () => {
+      // when
+      await service.findHybridSearchPage({
+        ...base,
+        queryVector: [0.1, 0.2],
+        cursor: null,
+      });
+
+      // then
+      expect(contentRepository.findSearchPage).not.toHaveBeenCalled();
+      expect(contentRepository.findHybridSearchPage).toHaveBeenCalledWith(
+        expect.objectContaining({ queryVector: [0.1, 0.2], cursor: null }),
+        toPreviousFinalMonthStart(NOW),
+        undefined,
+      );
+    });
+
+    it('키워드 순서 커서에 질의 벡터가 함께 오면 조회하지 않고 실패한다 — 커서 디코더가 막는 조합이다', async () => {
+      // when
+      const run = service.findHybridSearchPage({
+        ...base,
+        queryVector: [0.1, 0.2],
+        cursor: {
+          order: 'keyword',
+          score: 16,
+          titleSimilarity: 0.25,
+          playCount: 3,
+          publishedAt: PUBLISHED_AT,
+          id: CONTENT_ID,
+        },
+      });
+
+      // then
+      await expect(run).rejects.toThrow();
+      expect(contentRepository.findSearchPage).not.toHaveBeenCalled();
+      expect(contentRepository.findHybridSearchPage).not.toHaveBeenCalled();
     });
   });
 
