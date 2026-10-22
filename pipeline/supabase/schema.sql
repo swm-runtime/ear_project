@@ -347,3 +347,13 @@ end;
 $$;
 
 -- ===== 0022 (2026-09-20): 자막 세그먼트 소급 script_align — jobs.type·runs.phase 추가, claim_job TTS 키 게이트 확장 (원문 migrations/0022_script_align.sql) =====
+
+-- ===== 0033 (2026-10-22): judge_loop 작업 · judge 단계 — 원문은 supabase/migrations/0033_judge_loop.sql =====
+
+alter table public.jobs drop constraint if exists jobs_type_check;
+alter table public.jobs add constraint jobs_type_check
+  check (type in ('sweep','cluster','draft','qa','critic','tts','package','domain_check','thumbnail','critic_measure','enrich','script_align','series_plan','judge_loop'));
+alter table public.runs drop constraint if exists runs_phase_check;
+alter table public.runs add constraint runs_phase_check
+  check (phase in ('sweep','cluster','draft','critic','qa','package','tts','domain_check','thumbnail','enrich','script_align','approve','series_plan','judge'));
+

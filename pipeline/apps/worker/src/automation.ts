@@ -25,7 +25,7 @@ import { workerRev } from "./assets.js";
 import { log } from "./util.js";
 import { pipelineLocale } from "@ear/pipeline";
 
-export interface AutomationSetting { auto_approve?: boolean; auto_publish_prep?: boolean; rule?: string; server_ai_claim?: boolean }
+export interface AutomationSetting { auto_approve?: boolean; auto_publish_prep?: boolean; rule?: string; server_ai_claim?: boolean; judge_threshold?: number } // judge_threshold: 글로벌 판정 루프의 발행 기준(편집자 GPT 3회 중앙값, 기본 65 — 2026-10-22 박수헌)
 export const AUTO_RULE = "v1";
 
 let cached: { at: number; value: AutomationSetting } | null = null;

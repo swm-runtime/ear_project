@@ -12,7 +12,7 @@ export function SettingsForm({ tts, worker, templates, thumbnail, anchor, automa
   // 썸네일 대분류 띠 색(KAN-50 3-2) — 비우면 워커의 thumb-v1 기본값이 쓰인다
   const [th, setTh] = useState<Record<string, string>>({ ...(thumbnail ?? {}) });
   // 자동화 스위치 (0023, 2026-09-23) — 워커가 30초 안에 반영한다. 행이 없으면(마이그레이션 전) 전부 off 로 보인다
-  const [auto, setAuto] = useState({ auto_approve: false, auto_publish_prep: false, rule: "v1", server_ai_claim: true, ...(automation ?? {}) });
+  const [auto, setAuto] = useState<{ auto_approve: boolean; auto_publish_prep: boolean; rule: string; server_ai_claim: boolean; judge_threshold?: number }>({ auto_approve: false, auto_publish_prep: false, rule: "v1", server_ai_claim: true, ...(automation ?? {}) });
   const [pending, start] = useTransition();
   const [msg, setMsg] = useState<string | null>(null);
   const save = (key: string, value: unknown, name: string) =>
@@ -35,6 +35,10 @@ export function SettingsForm({ tts, worker, templates, thumbnail, anchor, automa
             ? <span><b>판정 통과 뒤 발행 준비 자동</b> — 에이전트 판정이 발행 가능이고 필수 수정이 전부 반영된 편에 TTS → 썸네일 → 패키지를 바로 잇는다(ElevenLabs·OpenAI 과금). 비평만 끝난 편은 걸지 않는다(글로벌 명세 6.10). 추천 메타·검수·발행은 업로드 화면에서 사람이 한다.</span>
             : <span><b>비평 뒤 발행 준비 자동</b> — 비평이 끝나면 TTS → 썸네일 → 패키지를 바로 잇는다(ElevenLabs·OpenAI 과금). 추천 메타·검수·발행은 업로드 화면에서 사람이 한다.</span>}
         </label>
+        {locale === "en" && <label className="mb-2 flex items-start gap-2">
+          <input type="number" min={0} max={100} className="w-16 rounded border border-line px-1 text-xs" value={Number(auto.judge_threshold ?? 65)} onChange={(e) => setAuto({ ...auto, judge_threshold: Number(e.target.value) })} />
+          <span><b>판정 루프 발행 기준</b> — 비평 뒤 워커가 돌리는 판정·재작성 루프(judge_loop)에서 편집자(GPT 3회 중앙값) 합계가 이 값 이상이고 한국어·사실 검토가 발행 가능이며 필수 수정이 전부 수리된 편만 발행 가능으로 저장한다. 기본 65(2026-10-22 — Claude 외부 채점과 6~11점 차를 보정한 값). 바꾸면 다음 루프부터.</span>
+        </label>}
         <label className="mb-2 flex items-start gap-2">
           <input type="checkbox" className="mt-0.5" checked={auto.server_ai_claim !== false} onChange={(e) => setAuto({ ...auto, server_ai_claim: e.target.checked })} />
           <span><b>서버 워커가 AI 작업·스윕을 집는다</b> — 운영은 서버 워커만 쓴다(2026-10-16). 끄면 서버(GPT)는 발행 준비(TTS·썸네일·패키지·자막 정렬)만 하고, 스윕·주제 기획·보강·군집화·초안·QA·비평은 노트북 Claude 워커만 집는다. <b className="text-rose-700">노트북 워커가 켜져 있지 않으면 이 작업들이 전부 멈춘다.</b> 큐에 있는 작업은 사라지지 않고 기다린다. OpenAI 비용을 급히 멈추거나 로컬에서 실험할 때만 끈다.</span>
