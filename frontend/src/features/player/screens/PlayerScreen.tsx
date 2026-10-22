@@ -2210,14 +2210,10 @@ export default function PlayerScreen() {
                     accessibilityState={{ expanded: activePanel === 'queue' }}
                   >
                     <View style={styles.scriptHandleBar} />
-                    {/* 탐색 맥락이면 손잡이 글자가 출처다 — "탐색 · 인기 주간"(KAN-241, 헤더와 같은 값). 1단에서는 한 번 더 올릴 수
-                        있다는 꼬리("· 더 보기")를 붙인다(4번) */}
+                    {/* 탐색 맥락이면 손잡이 글자가 출처다 — "탐색 · 인기 주간"(KAN-241, 헤더와 같은 값). 1단의 "· 더 보기" 꼬리는
+                        뺐다(PM 2026-10-23) — 단계와 무관하게 같은 글자 */}
                     <Text style={styles.scriptHandleLabel} numberOfLines={1}>
-                      {activePanel === 'queue' && queueStage === 1 && queueExpandTravel > 0
-                        ? queueSourceLabel
-                          ? `${queueSourceLabel}${PLAYER_COPY.screen.queueHandleMoreSuffix}`
-                          : PLAYER_COPY.screen.queueHandleMore
-                        : (queueSourceLabel ?? PLAYER_COPY.screen.queueHandle)}
+                      {queueSourceLabel ?? PLAYER_COPY.screen.queueHandle}
                     </Text>
                   </Pressable>
                 </View>

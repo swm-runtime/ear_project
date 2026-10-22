@@ -68,9 +68,6 @@ const ko = {
     queueHandle: '재생 목록',
     queueHandleA11y: '다음 재생 목록 열기',
     queueCollapseA11y: '재생 목록 접기',
-    /** 1단에서 한 번 더 올릴 수 있다는 손잡이 글자(KAN-241 "4번", PM 2026-10-22) — 출처 글자 뒤에 붙인다 */
-    queueHandleMore: '재생목록 더 보기',
-    queueHandleMoreSuffix: ' · 더 보기',
     queueExpandA11y: '재생 목록 전체 화면으로',
     queueShrinkA11y: '재생 목록 줄이기',
     /** 2단(전체 화면 재생 목록)의 맨 위 한 줄 재생 바 */
@@ -114,7 +111,8 @@ const ko = {
       `탐색 · 인기 ${{ week: '주간', month: '월간', all: '전체' }[period]}`,
     sourceTopic: (name: string) => `주제 · ${name}`,
     sourceSearch: (query: string) => `검색 ‘${query}’`,
-    sourceSeries: (title: string) => `시리즈 · ${title}`,
+    /** 시리즈는 제목만 — "시리즈 · " 머리는 뺐다(PM 2026-10-23) */
+    sourceSeries: (title: string) => title,
     /** 탐색 맥락 목록 아래 추천 블록(player.md 4.2-2) — 자동 재생은 없다, 목록일 뿐 */
     upNextTitle: '다음에 들어볼 만한',
     /** 라이브러리에 없는 줄의 담기 버튼(탐색 맥락만) — 탐색 타일의 담기와 같은 말 */
@@ -268,8 +266,6 @@ const en: LocalizedCopy<typeof ko> = {
     queueHandle: 'Up next',
     queueHandleA11y: 'Open up next',
     queueCollapseA11y: 'Close up next',
-    queueHandleMore: 'Up next · more',
-    queueHandleMoreSuffix: ' · more',
     queueExpandA11y: 'Expand up next to full screen',
     queueShrinkA11y: 'Shrink up next',
     nowPlayingBarA11y: (title: string) => `Now playing, ${title}`,
@@ -297,7 +293,7 @@ const en: LocalizedCopy<typeof ko> = {
       `Explore · Popular ${{ week: 'this week', month: 'this month', all: 'all time' }[period]}`,
     sourceTopic: (name: string) => `Topic · ${name}`,
     sourceSearch: (query: string) => `Search “${query}”`,
-    sourceSeries: (title: string) => `Series · ${title}`,
+    sourceSeries: (title: string) => title,
     upNextTitle: 'Up next for you',
     saveA11y: 'Save to library',
     saveToast: 'Saved to your library',
