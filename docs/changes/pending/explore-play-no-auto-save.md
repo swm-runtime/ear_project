@@ -29,4 +29,5 @@
 
 ## 처리 기록
 
+- 2026-10-23 서버 쪽은 BE 티켓 `tickets/backend/pending/complete-signal-without-library.md`(KAN-248)로 넘김.
 - 2026-10-23 발행 — FE 코드·`explore.md` 4.4·`explore-api.md` 4.6 반영(브랜치 `fix(fe)/no-auto-save-on-play`). 서버 쪽 결정 대기.
