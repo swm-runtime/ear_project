@@ -158,6 +158,8 @@ export const toSeriesDetail = (dto: SeriesDetailResponseDto): SeriesDetail => ({
     topic: dto.series.topic ?? null,
     // 발행일자 — 추가 필드라 구버전 서버는 부재 → null(화면은 줄째 생략)
     publishedAt: dto.series.published_at ?? null,
+    // 발행 이름 — 추가 필드라 구버전 서버는 부재 → null(화면은 줄째 생략)
+    publisherName: dto.series.publisher_name ?? null,
     // 시리즈째 담김 — 추가 필드라 구버전 서버는 부재 → false
     isSaved: dto.series.is_saved ?? false,
   },

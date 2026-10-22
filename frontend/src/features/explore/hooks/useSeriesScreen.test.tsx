@@ -119,6 +119,7 @@ const detail = (episodes: SeriesEpisode[]): SeriesDetail => ({
     thumbnailUrl: 'https://example.com/1.webp',
     topic: { id: 't1', name: 'IT·테크' },
     publishedAt: '2026-10-01T00:00:00.000Z',
+    publisherName: '키워드',
     isSaved: false,
   },
   episodes,

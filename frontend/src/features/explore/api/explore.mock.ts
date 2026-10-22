@@ -824,6 +824,7 @@ export const mockFetchSeriesDetail = async (seriesId: string): Promise<SeriesDet
       topic: series.topic,
       // 발행일자 — mock 은 고정 날짜(실서버는 노출 편 중 가장 이른 published_at)
       published_at: '2026-10-01T00:00:00.000Z',
+      publisher_name: '키워드',
       is_saved: MOCK_SAVED_SERIES.has(series.id),
     },
     episodes: series.episodeSeqs.map((seq) => {

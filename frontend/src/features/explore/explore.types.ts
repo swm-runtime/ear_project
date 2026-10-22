@@ -228,6 +228,8 @@ export interface SeriesDetail {
     topic: { id: string; name: string } | null;
     /** 발행일자(ISO 8601 순간) — 앨범 화면 하단 발행일. 구버전 서버는 안 보내므로 null(줄째 생략) */
     publishedAt: string | null;
+    /** 발행 이름(예: "키워드") — 제목 바로 아래 줄(애플 뮤직 아티스트 자리). 없거나 구버전 서버면 null(줄째 생략) */
+    publisherName: string | null;
     /**
      * 시리즈째 담았는가(KAN-246) — 시리즈 화면 담기/빼기 버튼의 근거. 편이 다 담겼는지와 다르다: 편을 하나씩 다 담아도 false,
      * 시리즈째 담은 뒤 편 하나를 따로 빼도 true. true 면 새 편이 라이브러리에 따라 들어온다(서버)

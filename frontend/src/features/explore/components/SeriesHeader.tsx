@@ -42,8 +42,6 @@ interface SeriesHeaderProps {
   series: SeriesDetail['series'];
   /** 목록 맨 위에서 더 당긴 거리(pt, 0 이상) — 표지가 손을 따라 커졌다가 돌아온다(PM 2026-10-22) */
   overscroll: SharedValue<number>;
-  /** 노출 중인 편 수(서버가 준 편 목록) — 계획 편수보다 적으면 "N편 중 M편 공개" */
-  episodeCount: number;
   /** [재생]이 틀 편(낭독용) — 없으면(편 0개) 버튼을 그리지 않는다 */
   playTarget: { episodeNo: number; title: string } | null;
   onPlay: () => void;
@@ -58,7 +56,7 @@ interface SeriesHeaderProps {
 }
 
 /**
- * 시리즈 화면(E14)의 머리 — 애플 뮤직 앨범 화면 문법(2026-10-22 PM). 화면 전체에 깔린 흐린 표지 바탕(플레이어와 같다 — `SeriesScreen`) 위에 큰 표지(그림자) · 굵은 제목 · 카테고리(대표 중분류, 없으면 생략) · `시리즈 · N편 · 완결` 메타 줄 ·
+ * 시리즈 화면(E14)의 머리 — 애플 뮤직 앨범 화면 문법(2026-10-22 PM). 화면 전체에 깔린 흐린 표지 바탕(플레이어와 같다 — `SeriesScreen`) 위에 큰 표지(그림자) · 굵은 제목 · 발행 이름(없으면 생략) · `카테고리 · N편 · 완결` 메타 줄 ·
  * [재생] 알약 순으로 가운데에 선다. 글자는 표지 아래 솔리드 바탕에 앉아 모드별 기본색을 쓴다(흐린 면 위로 흰 글자를 올리면
  * 라이트 모드에서 배경색 페이드에 묻힌다). 소개 문단은 머리에서 빼고 앱바 ⋯ 시트의 [소개 전체 보기]로 옮겼다(PM 2026-10-22).
  * [재생] 양옆은 셔플 · 담기(전부 담겼으면 빼기) 원이다
@@ -66,7 +64,6 @@ interface SeriesHeaderProps {
 export default function SeriesHeader({
   series,
   overscroll,
-  episodeCount,
   playTarget,
   onPlay,
   onShuffle,
@@ -78,7 +75,7 @@ export default function SeriesHeader({
   const coverSize = seriesCoverSize(width);
   // 다크·라이트에 따라 바뀌는 색 — svg·그라데이션·네이티브 prop 은 문자열 색만 받는다
   const playIconColor = useResolvedColor(theme.color.onPrimary);
-  const category = series.topic?.name ?? null;
+  const publisherName = series.publisherName?.trim() || null;
   // 아래 끝을 고정하고 위로 자란다 — 가운데 기준 scale 을 자란 높이 절반만큼 올려 보정
   const coverStretchStyle = useAnimatedStyle(() => {
     const grow = overscroll.value * COVER_STRETCH_SHARE;
@@ -100,9 +97,9 @@ export default function SeriesHeader({
       <Text style={styles.title} accessibilityRole="header">
         {series.title}
       </Text>
-      {/* 카테고리 — 제목 바로 아래(애플 뮤직 아티스트 자리). 대표 중분류 이름, 서버가 안 주면 줄째 생략 */}
-      {category ? <Text style={styles.category}>{category}</Text> : null}
-      <Text style={styles.meta}>{meta(episodeCount, series)}</Text>
+      {/* 발행 이름 — 제목 바로 아래(애플 뮤직 아티스트 자리, PM 2026-10-22 "키워드"). 서버가 안 주면 줄째 생략 */}
+      {publisherName ? <Text style={styles.category}>{publisherName}</Text> : null}
+      <Text style={styles.meta}>{meta(series)}</Text>
       {playTarget ? (
         // [셔플] · [재생] · [담기] 한 줄(PM 2026-10-22 08:55 — 애플 뮤직 앨범 화면). 좁은 화면에선 알약만 줄어든다
         <View style={styles.actionRow}>
@@ -156,13 +153,18 @@ export default function SeriesHeader({
   );
 }
 
-/** 메타 줄 `시리즈 · N편 · 완결` — 카테고리가 따로 서므로 첫 칸은 종류(시리즈) 그대로 둔다 */
-const meta = (episodeCount: number, series: SeriesDetail['series']): string =>
+/**
+ * 메타 줄 `카테고리 · N편 · 완결`(PM 2026-10-22 — 앨범의 장르 자리에 대표 중분류, 편수는 계획 편수 그대로. 시리즈는 결국 한 번에
+ * 다 공개되므로 "N편 중 M편 공개"를 쓰지 않는다). 카테고리가 없으면 그 칸만 빠진다
+ */
+const meta = (series: SeriesDetail['series']): string =>
   [
-    EXPLORE_COPY.series.kind,
-    EXPLORE_COPY.series.episodeSummary(episodeCount, series.totalEpisodes),
+    series.topic?.name ?? null,
+    EXPLORE_COPY.series.episodeTotal(series.totalEpisodes),
     EXPLORE_COPY.series.status[series.status],
-  ].join(' · ');
+  ]
+    .filter((part): part is string => Boolean(part))
+    .join(' · ');
 
 const styles = StyleSheet.create({
   root: {

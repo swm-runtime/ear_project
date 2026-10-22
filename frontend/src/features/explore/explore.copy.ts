@@ -151,12 +151,9 @@ const ko = {
 
   /** E14 시리즈 화면(KAN-225 — explore.md 4.7 · explore-uiux.md 4.11) */
   series: {
-    /** 머리 메타 줄의 첫 칸 — 앨범 화면의 장르 자리(`시리즈 · N편 · 완결`). 앱바 제목은 두지 않는다(2026-10-22 PM) */
-    kind: '시리즈',
     backA11y: '뒤로 가기',
-    /** 머리의 편수 — 노출 편이 계획보다 적으면(진행 중) "N편 중 M편 공개" */
-    episodeSummary: (count: number, total: number) =>
-      count < total ? `${total}편 중 ${count}편 공개` : `${total}편`,
+    /** 머리 메타 줄의 편수 — 계획 편수 그대로(PM 2026-10-22 — 종전 "N편 중 M편 공개"는 쓰지 않는다) */
+    episodeTotal: (total: number) => `${total}편`,
     status: { ongoing: '연재 중', completed: '완결' },
     /** 목록 끝 요약 — 앨범의 "N곡, M분" 자리. 길이는 노출 편 길이의 합(분 올림 합) */
     footer: (count: number, totalMinutes: number) => {
@@ -335,12 +332,8 @@ const en: LocalizedCopy<typeof ko> = {
   },
 
   series: {
-    kind: 'Series',
     backA11y: 'Back',
-    episodeSummary: (count: number, total: number) =>
-      count < total
-        ? `${count} of ${total} episodes out`
-        : formatEnCount(total, { one: 'episode', other: 'episodes' }),
+    episodeTotal: (total: number) => formatEnCount(total, { one: 'episode', other: 'episodes' }),
     status: { ongoing: 'Ongoing', completed: 'Complete' },
     shuffleA11y: 'Shuffle',
     saveAllA11y: 'Add series to Library',

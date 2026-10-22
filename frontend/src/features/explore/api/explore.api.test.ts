@@ -217,6 +217,8 @@ describe('fetchSeriesDetail — GET /series/:series_id(explore-api.md 4.7)', () 
     expect(detail.series.topic).toBeNull();
     // 발행일자도 안 보낸 응답(구버전) → null(화면은 발행일 줄 생략)
     expect(detail.series.publishedAt).toBeNull();
+    // 발행 이름도 안 보낸 응답(구버전) → null(화면은 제목 아래 줄 생략)
+    expect(detail.series.publisherName).toBeNull();
   });
 
   it('대표 중분류(topic)를 보내면 그대로 옮긴다 — 제목 아래 카테고리 줄', async () => {
@@ -233,6 +235,7 @@ describe('fetchSeriesDetail — GET /series/:series_id(explore-api.md 4.7)', () 
           topic: { id: 't1', name: 'IT·테크' },
           published_at: '2026-10-01T00:00:00.000Z',
           is_saved: true,
+          publisher_name: '키워드',
         },
         episodes: [],
       },
@@ -247,5 +250,7 @@ describe('fetchSeriesDetail — GET /series/:series_id(explore-api.md 4.7)', () 
     expect(detail.series.isSaved).toBe(true);
     // 발행일자(ISO 순간)를 그대로 옮긴다 — 화면에서 기기 시간대 날짜로 그린다
     expect(detail.series.publishedAt).toBe('2026-10-01T00:00:00.000Z');
+    // 발행 이름 — 제목 아래 줄
+    expect(detail.series.publisherName).toBe('키워드');
   });
 });
