@@ -13,7 +13,7 @@
 | 선행 | BE `tickets/backend/pending/library-series-save.md` ([KAN-243](https://runtime364.atlassian.net/browse/KAN-243)) — 시리즈 담기·빼기·복구 API, 목록 `group=series`, `series.is_saved`. 배포 전에는 mock으로 화면을 만든다 |
 | 근거 문서 | `changes/pending/library-series-card.md` · BE 티켓의 결정 D1~D6 · `features/library.md` 4.1·4.5 · `features/explore.md` 4.7 |
 | 중요도 | Medium |
-| 상태 | 발행 |
+| 상태 | 철회 (2026-10-22 14:55 — PM, 작업 없음) |
 
 ## 왜
 
@@ -47,3 +47,4 @@
 ## 처리 기록
 
 - 2026-10-22 14:46 발행. 그때까지 시리즈 화면은 편 단위 임시 구현(#1835·#1839)을 유지한다.
+- 2026-10-22 14:55 **철회 — 반영 날짜 2026-10-22(작업 없음).** PM "묶는 게 아니라 전체로 들어가는 게 맞겠다" — 라이브러리 시리즈 카드(묶음)·시리즈 단위 API·새 편 자동 적립은 하지 않는다. 시리즈 화면 [+]는 현행대로 노출 편 전체를 편 단위로 담고, 다 담겼으면 🗑 전부 빼기 + [실행 취소](#1835·#1839). 문서도 현행(`explore.md` 4.7 · `explore-uiux.md` 4.11)이 맞아 고칠 것이 없다. Jira KAN-243·KAN-244 코멘트 후 완료 전이(취소 상태 없음).
