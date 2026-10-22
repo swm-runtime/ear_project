@@ -26,12 +26,17 @@ const NOW = new Date('2026-10-17T09:00:00.000Z');
 const USER_ID = '11111111-1111-4111-8111-111111111111';
 const SERIES_ID = '55555555-5555-4555-8555-555555555555';
 
-function buildEpisode(id: string, episodeNo: number): Content {
+function buildEpisode(
+  id: string,
+  episodeNo: number,
+  publishedAt = '2026-09-01T00:00:00.000Z',
+): Content {
   return {
     id,
     seriesId: SERIES_ID,
     episodeNo,
     thumbnailUrl: `https://cdn.example/${id}.webp`,
+    publishedAt: new Date(publishedAt),
   } as Content;
 }
 
@@ -57,7 +62,10 @@ describe('SeriesDetailOrchestrator', () => {
       // 2화가 회수돼 1·3화만 노출 중이다
       getVisibleForUser: jest.fn().mockResolvedValue({
         series,
-        episodes: [buildEpisode('c1', 1), buildEpisode('c3', 3)],
+        episodes: [
+          buildEpisode('c1', 1, '2026-09-10T00:00:00.000Z'),
+          buildEpisode('c3', 3, '2026-10-02T00:00:00.000Z'),
+        ],
       }),
     } as unknown as jest.Mocked<SeriesService>;
     contentService = {
@@ -146,6 +154,8 @@ describe('SeriesDetailOrchestrator', () => {
     });
     // 대표 중분류 — 편에 걸린 주제가 하나뿐이면 그게 대표다(제목 아래 카테고리 줄)
     expect(view.topic).toEqual({ id: 't1', name: 'CS' });
+    // 발행일자 — 노출 편 중 가장 이른 발행 시각(1화 2026-09-10 < 3화 2026-10-02)
+    expect(view.publishedAt).toEqual(new Date('2026-09-10T00:00:00.000Z'));
     // 편 수만큼 묻지 않는다
     expect(libraryService.findActiveItems).toHaveBeenCalledWith(USER_ID, [
       'c1',
@@ -210,6 +220,28 @@ describe('SeriesDetailOrchestrator', () => {
 
     // then
     expect(view.topic).toBeNull();
+  });
+
+  it('발행일자는 편 번호 순서와 무관하게 노출 편 중 가장 이른 발행 시각이다', async () => {
+    // given — 1화가 3화보다 늦게 발행됐다(재발행 등). 발행일자는 번호가 아니라 가장 이른 시각이어야 한다
+    seriesService.getVisibleForUser.mockResolvedValue({
+      series,
+      episodes: [
+        buildEpisode('c1', 1, '2026-10-10T00:00:00.000Z'),
+        buildEpisode('c3', 3, '2026-09-01T00:00:00.000Z'),
+      ],
+    });
+
+    // when
+    const view = await orchestrator.getSeries(
+      USER_ID,
+      SERIES_ID,
+      NOW,
+      UserMarket.KR,
+    );
+
+    // then
+    expect(view.publishedAt).toEqual(new Date('2026-09-01T00:00:00.000Z'));
   });
 
   it('시리즈를 볼 수 없으면(없음·다른 시장) 404를 그대로 올린다', async () => {

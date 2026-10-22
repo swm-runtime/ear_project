@@ -59,6 +59,7 @@ interface SeriesDetailBody {
     status: string;
     thumbnail_url: string;
     topic: { id: string; name: string } | null;
+    published_at: string;
   };
   episodes: {
     episode_no: number;
@@ -515,12 +516,23 @@ describe('시리즈 E2E', () => {
       progress: { position_sec: 120, max_reached_sec: 150 },
     });
     // 표지 = 노출 중인 가장 앞 편(1화)의 썸네일
-    const firstThumbnail = (
-      await dataSource.getRepository(Content).findOneByOrFail({ id: first })
-    ).thumbnailUrl;
-    expect(body.series.thumbnail_url).toBe(firstThumbnail);
+    const firstContent = await dataSource
+      .getRepository(Content)
+      .findOneByOrFail({ id: first });
+    const thirdContent = await dataSource
+      .getRepository(Content)
+      .findOneByOrFail({ id: third });
+    expect(body.series.thumbnail_url).toBe(firstContent.thumbnailUrl);
     // 대표 중분류 — 두 편 모두 같은 주제라 그게 제목 아래 카테고리 줄이 된다
     expect(body.series.topic).toEqual({ id: topic.id, name: topic.name });
+    // 발행일자 — 노출 편(1·3화) 중 가장 이른 발행 시각
+    const earliestPublished = Math.min(
+      firstContent.publishedAt.getTime(),
+      thirdContent.publishedAt.getTime(),
+    );
+    expect(body.series.published_at).toBe(
+      new Date(earliestPublished).toISOString(),
+    );
 
     // 다른 시장 사용자에게는 없는 시리즈다 · 없는 id 도 404 · uuid 가 아니면 400
     await request(app.getHttpServer())
