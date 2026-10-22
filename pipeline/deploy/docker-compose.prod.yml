@@ -144,6 +144,8 @@ services:
     pull_policy: never
     profiles: ['global']
     restart: unless-stopped
+    deploy:
+      replicas: ${WORKER_GLOBAL_REPLICAS:-1} # 동시에 집는 작업 수 — env.prod 에서 (2026-10-23: 판정 루프가 편당 1시간이라 워커 하나면 TTS·초안이 그 뒤에 줄 선다, 운영 4). 집기는 claim_job 의 skip locked 라 여러 개가 안전하다. 복제마다 약 110MB
     command: ['npm', 'run', 'worker']
     env_file: env.global # DATABASE_URL(Session pooler) · PIPELINE_BUCKET · PIPELINE_SPEAKERS · TTS_VOICE_A · TTS_VOICE_B · PIPELINE_CONSOLE_URL · OPENAI_API_KEY
     environment:
