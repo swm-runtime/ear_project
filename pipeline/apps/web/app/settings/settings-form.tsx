@@ -25,15 +25,15 @@ export function SettingsForm({ tts, worker, templates, thumbnail, anchor, automa
           군집화까지는 사람+Claude, 그 뒤는 워커가 잇는다. 끄면 그 지점부터 종전대로 사람이 누른다 — 진행 중인 작업은 끝까지 간다.
           하루 상한은 두지 않는다(API 쪽 hard limit 이 상한). 알림은 편마다가 아니라 큐가 다 비었을 때 한 번 — 검수 대기·검토 필요·초안 실패·연쇄 실패를 Slack 요약으로 보낸다.
         </p>
-        {locale === "en" ? (
-          <p className="mb-2 text-ink-soft"><b>후보 자동 승인 없음</b> — 글로벌판은 소스가 풀 밖에서 오므로 게이트 1을 사람만 승인한다(글로벌 명세 5장 원칙 6). 워커도 이 인스턴스에서는 자동 승인하지 않는다.</p>
-        ) : <label className="mb-2 flex items-start gap-2">
+        <label className="mb-2 flex items-start gap-2">
           <input type="checkbox" className="mt-0.5" checked={!!auto.auto_approve} onChange={(e) => setAuto({ ...auto, auto_approve: e.target.checked })} />
-          <span><b>후보 자동 승인</b> (규칙 {auto.rule}) — 군집화 v2 · 빈 역할 없음 · 소스 겹침 경고 없음이면 <code>approved_by = auto:{auto.rule}</code> 로 승인하고 초안을 건다. 조건 밖 후보와 초안 실패로 돌아온 후보는 사람이 본다.</span>
-        </label>}
+          <span><b>후보 자동 승인</b> (규칙 {auto.rule}) — 군집화 v2 · 빈 역할 없음 · 소스 겹침 경고 없음이면 <code>approved_by = auto:{auto.rule}</code> 로 승인하고 초안을 건다. 조건 밖 후보와 초안 실패로 돌아온 후보는 사람이 본다.{locale === "en" ? " 글로벌판도 같은 규칙이다(2026-10-22 개정) — 보류(held)·판정 대기 도메인은 승인을 막지 않고 사람이 본다." : ""}</span>
+        </label>
         <label className="mb-2 flex items-start gap-2">
           <input type="checkbox" className="mt-0.5" checked={!!auto.auto_publish_prep} onChange={(e) => setAuto({ ...auto, auto_publish_prep: e.target.checked })} />
-          <span><b>비평 뒤 발행 준비 자동</b> — 비평이 끝나면 TTS → 썸네일 → 패키지를 바로 잇는다(ElevenLabs·OpenAI 과금). 추천 메타·검수·발행은 업로드 화면에서 사람이 한다.</span>
+          {locale === "en"
+            ? <span><b>판정 통과 뒤 발행 준비 자동</b> — 에이전트 판정이 발행 가능이고 필수 수정이 전부 반영된 편에 TTS → 썸네일 → 패키지를 바로 잇는다(ElevenLabs·OpenAI 과금). 비평만 끝난 편은 걸지 않는다(글로벌 명세 6.10). 추천 메타·검수·발행은 업로드 화면에서 사람이 한다.</span>
+            : <span><b>비평 뒤 발행 준비 자동</b> — 비평이 끝나면 TTS → 썸네일 → 패키지를 바로 잇는다(ElevenLabs·OpenAI 과금). 추천 메타·검수·발행은 업로드 화면에서 사람이 한다.</span>}
         </label>
         <label className="mb-2 flex items-start gap-2">
           <input type="checkbox" className="mt-0.5" checked={auto.server_ai_claim !== false} onChange={(e) => setAuto({ ...auto, server_ai_claim: e.target.checked })} />

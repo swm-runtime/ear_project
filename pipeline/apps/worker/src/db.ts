@@ -133,6 +133,13 @@ export async function listProposedForAutoApprove(): Promise<{ id: string; cluste
   const r = await pool.query("select id, cluster_version, gaps, dedup_note, series_id from public.backlog where status = 'proposed' order by id");
   return r.rows;
 }
+/** 글로벌 발행 준비 자동 후보 (automation.ts autoPublishPrepGlobal) — 에이전트 판정이 있는 qa_passed 편 중 tts 작업이 아직 없는(실패만 있는) 편. 판정 통과 여부는 순수 함수가 가른다 */
+export async function listGlobalPrepCandidates(): Promise<{ episode_id: string; backlog_id: string; critic_verdicts: unknown }[]> {
+  const r = await pool.query(
+    "select e.id as episode_id, b.id as backlog_id, e.critic_verdicts from public.episodes e join public.backlog b on b.id = e.backlog_id where b.status = 'qa_passed' and e.critic_verdicts->'agent' is not null and not exists (select 1 from public.jobs j where j.type = 'tts' and j.payload->>'episode_id' = e.id and j.status <> 'failed') order by e.id",
+  );
+  return r.rows;
+}
 /** 자동 승인 — proposed 일 때만 원자적으로 전환 (사람이 그 사이 반려·보류했으면 실패) */
 export async function approveBacklogAuto(id: string, by: string): Promise<boolean> {
   const r = await pool.query("update public.backlog set status = 'approved', approved_by = $2, approved_at = now(), updated_at = now() where id = $1 and status = 'proposed' returning id", [id, by]);
