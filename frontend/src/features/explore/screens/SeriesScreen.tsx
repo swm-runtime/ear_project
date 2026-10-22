@@ -165,6 +165,8 @@ export default function SeriesScreen() {
         }
         ListFooterComponent={
           <View>
+            {/* 마지막 편 아래도 같은 구분선으로 닫는다(PM 2026-10-22) — 편 사이 선(ItemSeparator)은 마지막 뒤에 안 붙는다 */}
+            {screen.episodes.length > 0 ? <RowSeparator /> : null}
             <Text style={styles.footer}>
               {EXPLORE_COPY.series.footer(screen.episodeCount, totalMinutes)}
             </Text>
