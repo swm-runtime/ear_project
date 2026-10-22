@@ -123,30 +123,10 @@ export const useContentDetailScreen = () => {
       invalidateDetail();
       invalidateLibrary();
     },
-    // 재생이 실제로 시작되면 미담김 콘텐츠는 자동 적립한다(explore.md 4.4와 동일 — 무음)
-    onPlayStarted: (result, target) => {
+    // 재생해도 라이브러리에 담지 않는다 — 자동 적립은 뺐다(PM 2026-10-23, explore.md 4.4)
+    onPlayStarted: () => {
       // 이 재생으로 재청취 창 안이 됐다 — 팝업 힌트를 갱신한다(값은 판정이 아니다)
       setCachedDetail((old) => ({ ...old, isCountedToday: true }));
-      if (result.libraryItem !== null) return;
-      const seq = nextSeq();
-      saveMutation.mutate(
-        { contentId: target.contentId, clientSeq: seq, reason: 'auto_play' },
-        {
-          onSuccess: (saved) => {
-            setCachedDetail((old) => ({
-              ...old,
-              libraryItem: {
-                id: saved.libraryItem.itemId,
-                source: saved.libraryItem.source,
-                status: saved.libraryItem.status,
-              },
-            }));
-            invalidateLibrary();
-          },
-          // 사용자가 시작하지 않은 실패는 알리지 않는다(common-error-handling.md 4.3)
-          onError: () => undefined,
-        },
-      );
     },
   });
 

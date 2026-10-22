@@ -226,25 +226,7 @@ export const useExploreScreen = ({
       void queryClient.invalidateQueries({ queryKey: exploreKeys.all });
       invalidateLibrary();
     },
-    // 자동 적립(explore-api.md 4.6) — 재생이 실제로 시작됐고 라이브러리에 없을 때만
-    onPlayStarted: (result, target) => {
-      if (result.libraryItem !== null) return;
-      const seq = nextSeq(target.contentId);
-      setCachedLibraryState(target.contentId, {
-        itemId: `optimistic-${target.contentId}`,
-        source: 'save',
-        status: 'in_progress',
-      });
-      saveMutation.mutate(
-        { contentId: target.contentId, clientSeq: seq, reason: 'auto_play' },
-        {
-          onSuccess: () => invalidateLibrary(),
-          // 사용자가 시작하지 않은 실패는 알리지 않는다(common-error-handling.md 4.3)
-          // TODO(offline-queue): 큐 인프라 도입 시 재전송 대상으로 적재한다(explore-api.md 4.6)
-          onError: () => undefined,
-        },
-      );
-    },
+    // 재생해도 라이브러리에 담지 않는다 — 탐색 재생 자동 적립은 뺐다(PM 2026-10-23, explore.md 4.4). 담기는 사용자 조작만
   });
 
   /* ── 잔여 재생 표시값 — 서버 응답으로만 덮어쓴다. 신선도 판정은 store 가드가 한다 ── */
