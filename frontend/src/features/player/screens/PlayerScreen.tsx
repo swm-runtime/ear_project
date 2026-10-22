@@ -975,6 +975,13 @@ export default function PlayerScreen() {
   const flipFrameWidth = contentWidth;
   const flipFrameHeight = queueArtHeight + insetTop;
   const flipImageSize = Math.max(flipFrameWidth, flipFrameHeight);
+  /*
+   * 2단(queueExpand)에서 사진은 흐려지지 않고 **한 줄 재생 바의 썸네일 자리로 줄어든다**(PM 2026-10-23 "앨범커버는 그대로
+   * 줄어들고"). 다 올라오면 이 사진이 곧 바의 썸네일이다 — 바 안의 썸네일은 자리만 잡고 그리지 않는다(같은 사진이 두 겹이면
+   * 바가 페이드·이동하는 동안 어긋나 보인다). 좌표는 content 기준(바는 top: appBarHeight)
+   */
+  const nowThumbLeft = theme.spacing.lg;
+  const nowThumbTop = appBarHeight + (QUEUE_NOW_BAR_HEIGHT - NOW_PLAYING_THUMB_SIZE) / 2;
   const artFrameStyle = useAnimatedStyle(() => {
     const panel = panelProgress.get();
     const queue = queueProgress.get();
@@ -983,11 +990,17 @@ export default function PlayerScreen() {
     const artLeft = interpolate(panel, [0, 1], [collapsedArtLeft, 0]);
     const artRadius = interpolate(panel, [0, 1], [theme.radius.lg, theme.radius.md]);
     const scale = artScale.get();
-    const left = artLeft + heroX + queue * (0 - (heroX + collapsedArtLeft));
-    const top = artTop + heroY + queue * (-insetTop - (heroY + collapsedArtTop));
-    const width = artSize + queue * (contentWidth - artSizeCollapsed);
-    const height = artSize + queue * (queueArtHeight + insetTop - artSizeCollapsed);
-    const radius = artRadius + queue * (0 - theme.radius.lg);
+    const queueLeft = artLeft + heroX + queue * (0 - (heroX + collapsedArtLeft));
+    const queueTop = artTop + heroY + queue * (-insetTop - (heroY + collapsedArtTop));
+    const queueWidth = artSize + queue * (contentWidth - artSizeCollapsed);
+    const queueHeight = artSize + queue * (queueArtHeight + insetTop - artSizeCollapsed);
+    const expand = queueExpand.get();
+    const left = queueLeft + expand * (nowThumbLeft - queueLeft);
+    const top = queueTop + expand * (nowThumbTop - queueTop);
+    const width = queueWidth + expand * (NOW_PLAYING_THUMB_SIZE - queueWidth);
+    const height = queueHeight + expand * (NOW_PLAYING_THUMB_SIZE - queueHeight);
+    const queueRadius = artRadius + queue * (0 - theme.radius.lg);
+    const radius = queueRadius + expand * (theme.radius.sm - queueRadius);
     const shownScale = scale + (1 - scale) * queue;
     if (ARTWORK_FLIP) {
       // 틀은 열린 자리(0, -insetTop)에 고정 — 이 넷은 실측이 바뀔 때만 달라져 애니메이션 중엔 보내지지 않는다
@@ -1033,8 +1046,11 @@ export default function PlayerScreen() {
     const panel = panelProgress.get();
     const queue = queueProgress.get();
     const artSize = interpolate(panel, [0, 1], [artSizeCollapsed, COMPACT_ARTWORK_SIZE]);
-    const width = artSize + queue * (contentWidth - artSizeCollapsed);
-    const height = artSize + queue * (queueArtHeight + insetTop - artSizeCollapsed);
+    const expand = queueExpand.get();
+    const queueWidth = artSize + queue * (contentWidth - artSizeCollapsed);
+    const queueHeight = artSize + queue * (queueArtHeight + insetTop - artSizeCollapsed);
+    const width = queueWidth + expand * (NOW_PLAYING_THUMB_SIZE - queueWidth);
+    const height = queueHeight + expand * (NOW_PLAYING_THUMB_SIZE - queueHeight);
     const scale = artScale.get();
     const shownScale = scale + (1 - scale) * queue;
     const scaleX = (width * shownScale) / flipFrameWidth;
@@ -1105,8 +1121,12 @@ export default function PlayerScreen() {
       },
     ],
   }));
-  /** 2단에서 걷히는 것들(압축된 히어로·아트워크·컨트롤) — 흐려지기만 한다. 자리는 그대로(레이아웃 불변) */
+  /** 2단에서 걷히는 것들(압축된 히어로·컨트롤) — 흐려지기만 한다. 자리는 그대로(레이아웃 불변). 사진은 줄어든다(artFrameStyle) */
   const queueExpandFadeStyle = useAnimatedStyle(() => ({
+    opacity: 1 - queueExpand.get(),
+  }));
+  /** 2단에서 앱바 아이콘(접기·수면 타이머·더보기)을 걷는다(PM 2026-10-23) — 내리기는 손잡이로 */
+  const appBarExpandFadeStyle = useAnimatedStyle(() => ({
     opacity: 1 - queueExpand.get(),
   }));
   /** 2단의 한 줄 재생 바 — 시트가 거의 다 올라온 뒤에 나타난다(겹쳐 보이지 않게 뒤쪽 절반에서만 페이드) */
@@ -1676,12 +1696,7 @@ export default function PlayerScreen() {
             pointerEvents="none"
           >
             <Reanimated.View
-              style={[
-                styles.heroArtwork,
-                { borderCurve: 'continuous' },
-                artFrameStyle,
-                queueExpandFadeStyle,
-              ]}
+              style={[styles.heroArtwork, { borderCurve: 'continuous' }, artFrameStyle]}
               onLayout={onHeroArtLayout}
             >
               {ARTWORK_FLIP ? (
@@ -1724,6 +1739,7 @@ export default function PlayerScreen() {
               {/* 사진 위 글자·시크바 대비용 어두운 막 — 열린 만큼만 */}
               <FadeByProgress
                 progress={queueProgress}
+                fadeOut={queueExpand}
                 pointerEvents="none"
                 style={styles.queueTint}
               />
@@ -1735,6 +1751,7 @@ export default function PlayerScreen() {
           */}
               <FadeByProgress
                 progress={queueProgress}
+                fadeOut={queueExpand}
                 pointerEvents="none"
                 style={styles.queueArtFade}
                 accessibilityElementsHidden
@@ -1764,7 +1781,13 @@ export default function PlayerScreen() {
           </Animated.View>
 
           {/* 앱바 — 제목을 두지 않는다. 동적 텍스트 200%에서 앱바가 먼저 넘친다(uiux 4.1) */}
-          <View style={styles.appBar} onLayout={onAppBarLayout}>
+          <Reanimated.View
+            style={[styles.appBar, appBarExpandFadeStyle]}
+            onLayout={onAppBarLayout}
+            pointerEvents={queueStage === 2 ? 'none' : 'auto'}
+            accessibilityElementsHidden={queueStage === 2}
+            importantForAccessibility={queueStage === 2 ? 'no-hide-descendants' : 'auto'}
+          >
             <Pressable
               style={styles.appBarButton}
               onPress={dismissPlayer}
@@ -1819,7 +1842,7 @@ export default function PlayerScreen() {
                 )}
               </Pressable>
             </View>
-          </View>
+          </Reanimated.View>
 
           {/*
           히어로 — 아트워크 + 제목·카테고리. 접힘(0)과 펼침(1) 사이를 panelProgress가 잇는다.
@@ -2147,15 +2170,8 @@ export default function PlayerScreen() {
             accessibilityElementsHidden={queueStage !== 2}
             importantForAccessibility={queueStage === 2 ? 'auto' : 'no-hide-descendants'}
           >
-            {session.meta.thumbnailUrl ? (
-              <RemoteImage
-                uri={session.meta.thumbnailUrl}
-                recyclingKey={session.contentId}
-                style={styles.nowPlayingThumb}
-              />
-            ) : (
-              <View style={[styles.nowPlayingThumb, styles.artworkPlaceholder]} />
-            )}
+            {/* 썸네일 자리만 — 줄어든 커버 사진이 여기 앉는다(artFrameStyle) */}
+            <View style={styles.nowPlayingThumbSlot} />
             <Text
               style={styles.nowPlayingTitle}
               numberOfLines={1}
@@ -2537,6 +2553,8 @@ interface FadeByProgressProps extends ViewProps {
   progress: SharedValue<number>;
   /** true 면 1 − 진행값 — 열리는 만큼 사라진다 */
   invert?: boolean;
+  /** 이 진행값만큼 다시 걷힌다(곱) — 재생 목록이 열리면 나타났다가 2단에서 사라지는 층에 쓴다 */
+  fadeOut?: SharedValue<number>;
   /** 진행값 0 → 이 값 안에 전환을 끝낸다(기본 1 — 진행 내내). 남들보다 먼저 걷혀야 하는 층에 쓴다 */
   span?: number;
   children?: ReactNode;
@@ -2550,13 +2568,15 @@ function FadeByProgress({
   progress,
   invert = false,
   span = 1,
+  fadeOut,
   style,
   children,
   ...rest
 }: FadeByProgressProps) {
   const fadeStyle = useAnimatedStyle(() => {
     const shown = interpolate(progress.get(), [0, span], [0, 1], 'clamp');
-    return { opacity: invert ? 1 - shown : shown };
+    const kept = fadeOut ? 1 - fadeOut.get() : 1;
+    return { opacity: (invert ? 1 - shown : shown) * kept };
   });
   return (
     <Reanimated.View {...rest} style={[style, fadeStyle]}>
@@ -2942,12 +2962,9 @@ const styles = StyleSheet.create({
     gap: theme.spacing.md,
     paddingHorizontal: theme.spacing.lg,
   },
-  nowPlayingThumb: {
+  nowPlayingThumbSlot: {
     width: NOW_PLAYING_THUMB_SIZE,
     height: NOW_PLAYING_THUMB_SIZE,
-    borderRadius: theme.radius.sm,
-    borderCurve: 'continuous',
-    backgroundColor: playerColor.surface,
   },
   nowPlayingTitle: {
     flex: 1,
