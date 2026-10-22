@@ -56,12 +56,9 @@ export default function ExploreSeriesTile({
     .map((id) => topics?.find((topic) => topic.id === id)?.name)
     .filter((name): name is string => Boolean(name))
     .slice(0, MAX_TOPIC_TAGS);
-  const meta = EXPLORE_COPY.seriesCard.meta(topicNames, series.episodeCount, series.totalEpisodes);
-  const a11yLabel = EXPLORE_COPY.seriesCard.a11yLabel(
-    series.title,
-    series.episodeCount,
-    series.totalEpisodes,
-  );
+  // 편수는 계획 편수 그대로(PM 2026-10-22 — 시리즈 화면 머리와 같다)
+  const meta = EXPLORE_COPY.seriesCard.meta(topicNames, series.totalEpisodes);
+  const a11yLabel = EXPLORE_COPY.seriesCard.a11yLabel(series.title, series.totalEpisodes);
 
   if (layout === 'featured') {
     const cardWidth = featuredCardWidth(width);
