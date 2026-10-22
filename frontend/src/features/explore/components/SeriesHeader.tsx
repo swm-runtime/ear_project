@@ -1,13 +1,7 @@
-import MaskedView from '@react-native-masked-view/masked-view';
-import { LinearGradient } from 'expo-linear-gradient';
 import { Platform, Pressable, StyleSheet, View, useWindowDimensions } from 'react-native';
-import Animated, {
-  type SharedValue,
-  useAnimatedStyle,
-  useSharedValue,
-} from 'react-native-reanimated';
+import Animated, { type SharedValue, useAnimatedStyle } from 'react-native-reanimated';
 
-import { theme, useActiveScheme, useResolvedColor } from '@/shared/theme';
+import { theme, useResolvedColor } from '@/shared/theme';
 import { pillButton } from '@/shared/ui/pill-button.styles';
 import PlayIcon from '@/shared/ui/PlayIcon';
 import RemoteImage from '@/shared/ui/RemoteImage';
@@ -15,8 +9,6 @@ import { Text } from '@/shared/ui/Typography';
 
 import { EXPLORE_COPY } from '../explore.copy';
 import type { SeriesDetail } from '../explore.types';
-import FeaturedCardBackdrop from './FeaturedCardBackdrop';
-import { easedAlphaGradient } from '../explore.easing-gradient';
 import { PlusIcon, ShuffleIcon, TrashIcon } from './SeriesActionIcons';
 
 /** 표지 폭 = 화면 폭의 64%(애플 뮤직 앨범 화면 비율), 큰 화면에서 끝없이 커지지 않게 상한을 둔다 */
@@ -40,44 +32,14 @@ const SIDE_ICON_SIZE = 22;
  * 다 채우면 표지가 앱바 버튼 밑으로 파고든다
  */
 const COVER_STRETCH_SHARE = 0.5;
-/**
- * 표지 뒤 비침(PM 2026-10-22 15:37·16:01 스샷 "이렇게 비치게") — 머리 영역에만 흐린 표지 한 장(탐색 대표 카드와 같은 흐림 36 ·
- * 막 45%). 화면 전체 바탕(흐림 60)은 세로로 크게 확대돼 한 가지 색으로 뭉개지지만, 이 한 장은 가로 폭에 맞춰 표지 구도가
- * 남는다. **머리 끝(버튼 줄 아래 여백 — 편 목록 첫 구분선 바로 위)까지** 깔고(PM 2026-10-22 16:42 — 종전 표지 바로 아래에서
- * 끊겨 제목·버튼이 회색 띠 위에 따로 떴다), 아래 끝 GLOW_FADE 만 마스크로 투명하게 녹여 밑의 화면 바탕(종전 그대로)으로 잇는다.
- * 제목·버튼이 흐린 표지 위에 앉으므로 라이트 모드 막을 진하게 둔다(어두운 표지 위 검정 글자 대비)
- */
-/**
- * 아래 끝 잇기(PM 2026-10-22 17:08 "다른 앱들처럼 자연스럽게") — 두 단계다.
- * 1. **밝기 먼저 맞추기** — 위 흐린 표지(막 45%)와 아래 목록 바탕(막 72%)은 밝기가 달라, 투명도로만 섞으면 이음새가 띠로 남는다.
- *    표지 아래부터 흐린 표지 위에 막을 S 곡선으로 더 얹어 녹기 시작할 즈음엔 아래 바탕과 같은 밝기가 되게 한다(스포티파이·애플
- *    뮤직이 아트 색에서 바탕색으로 잇는 것과 같은 원리 — 경계 양쪽 색을 맞춘다).
- * 2. **곡선 녹이기** — 마스크 불투명도를 smoothstep 16점으로(직선·점 몇 개는 시작·끝에서 꺾여 보인다).
- * 머리 아래로 GLOW_OVERHANG 만큼 첫 편 줄 뒤까지 걸친다
- */
-const GLOW_FADE = 160;
-const GLOW_OVERHANG = 48;
-const GLOW_MASK = easedAlphaGradient('0, 0, 0', 1, 0);
-/** 밝기 맞추기 막이 차오르는 길이 — 녹이기 가운데에서 다 찬다 */
-const GLOW_TONE_RAMP = 220;
-/** 아래 바탕 막(SeriesScreen 72%)과 같아지도록 더 얹는 세기: 1 − (1 − 0.72) / (1 − 위 막) */
-const GLOW_TONE = {
-  dark: { rgb: '23, 23, 26', alpha: 1 - 0.28 / (1 - 0.45) },
-  light: { rgb: '255, 255, 255', alpha: 1 - 0.28 / (1 - 0.6) },
-} as const;
-const GLOW_SCRIM_LIGHT = 'rgba(255, 255, 255, 0.6)';
 
 /** 시리즈 제목 — 앨범 제목 자리. 큰 제목(xl 28)보다 한 단 작게, 두세 줄로 접혀도 표지를 밀어내지 않게 */
 const TITLE_SIZE = 24;
 
 interface SeriesHeaderProps {
   series: SeriesDetail['series'];
-  /** 머리 윗변에서 화면 꼭대기까지(상단 안전영역 + 앱바) — 표지 뒤 흐린 표지가 화면 꼭대기까지 번진다 */
-  topBleed: number;
   /** 목록 맨 위에서 더 당긴 거리(pt, 0 이상) — 표지가 손을 따라 커졌다가 돌아온다(PM 2026-10-22) */
   overscroll: SharedValue<number>;
-  /** 맨 위에서 더 내려간 실제 거리(손을 뗀 튕김 포함) — 흐린 표지가 꼭대기를 덮는 데 쓴다 */
-  pull: SharedValue<number>;
   /** 노출 중인 편 수(서버가 준 편 목록) — 계획 편수보다 적으면 "N편 중 M편 공개" */
   episodeCount: number;
   /** [재생]이 틀 편(낭독용) — 없으면(편 0개) 버튼을 그리지 않는다 */
@@ -102,8 +64,6 @@ interface SeriesHeaderProps {
 export default function SeriesHeader({
   series,
   overscroll,
-  pull,
-  topBleed,
   episodeCount,
   playTarget,
   onPlay,
@@ -125,64 +85,8 @@ export default function SeriesHeader({
     };
   });
 
-  /*
-   * 흐린 표지 한 장 — 화면 꼭대기부터 머리 끝까지(아래 끝은 스타일의 bottom: 0). 맨 위에서 당기면 **레이아웃은 그대로 두고
-   * 아래 끝 기준으로 확대**해 꼭대기를 덮는다(표지 늘이기와 같은 방식). 종전엔 당긴 만큼 top 을 매 프레임 바꿔 상자를 키웠는데,
-   * 마스크·흐린 그림이 커진 크기를 제때 못 따라가 늘어난 부분이 잘려 보였다(PM 2026-10-22 16:52 스샷)
-   */
-  const glowHeight = useSharedValue(0);
-  const glowStyle = useAnimatedStyle(() => {
-    const height = glowHeight.value;
-    if (height <= 0) return { transform: [] };
-    // 손으로 당긴 값(놓으면 부드럽게 줄어든다)과 실제 내려간 거리 중 큰 쪽 — 튕김 중에도 꼭대기에 틈이 나지 않게
-    const grow = Math.max(overscroll.value, pull.value);
-    return { transform: [{ translateY: -grow / 2 }, { scale: 1 + grow / height }] };
-  });
-  const scheme = useActiveScheme();
-  const tone = scheme === 'dark' ? GLOW_TONE.dark : GLOW_TONE.light;
-  const glowTone = easedAlphaGradient(tone.rgb, 0, tone.alpha);
-  const glowToneSolid = `rgba(${tone.rgb}, ${tone.alpha})`;
-
   return (
     <View style={styles.root}>
-      <Animated.View
-        style={[styles.glow, { top: -topBleed }, glowStyle]}
-        onLayout={(event) => {
-          glowHeight.value = event.nativeEvent.layout.height;
-        }}
-        pointerEvents="none"
-      >
-        <MaskedView
-          style={StyleSheet.absoluteFill}
-          maskElement={
-            <View style={StyleSheet.absoluteFill}>
-              <View style={styles.glowMaskSolid} />
-              <LinearGradient
-                colors={GLOW_MASK.colors}
-                locations={GLOW_MASK.locations}
-                style={{ height: GLOW_FADE }}
-              />
-            </View>
-          }
-        >
-          <View style={StyleSheet.absoluteFill}>
-            <FeaturedCardBackdrop
-              uri={series.thumbnailUrl}
-              recyclingKey={series.id}
-              scrimColor={scheme === 'dark' ? undefined : GLOW_SCRIM_LIGHT}
-            />
-            {/* 밝기 맞추기 막 — 아래로 갈수록 S 곡선으로 차올라 녹이기 가운데부터는 아래 바탕과 같은 밝기 */}
-            <View style={[styles.glowTone, { height: GLOW_TONE_RAMP + GLOW_FADE / 2 }]}>
-              <LinearGradient
-                colors={glowTone.colors}
-                locations={glowTone.locations}
-                style={{ height: GLOW_TONE_RAMP }}
-              />
-              <View style={[styles.glowToneSolid, { backgroundColor: glowToneSolid }]} />
-            </View>
-          </View>
-        </MaskedView>
-      </Animated.View>
       {/* 그림자는 바깥, 라운드·클립은 안쪽 프레임 — overflow hidden 이 iOS 그림자를 자른다 */}
       <Animated.View
         style={[styles.coverShadow, { width: coverSize, height: coverSize }, coverStretchStyle]}
@@ -264,27 +168,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: theme.spacing.lg,
     paddingTop: theme.spacing.md,
     paddingBottom: theme.spacing.lg,
-  },
-  // 표지 뒤 흐린 표지 — 좌우 가득, top·height 는 렌더에서(화면 꼭대기 ~ 표지 아래). 확대(1.2) 가장자리가 밖으로 새지 않게 자른다
-  glow: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: -GLOW_OVERHANG,
-    overflow: 'hidden',
-  },
-  glowTone: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 0,
-  },
-  glowToneSolid: {
-    flex: 1,
-  },
-  glowMaskSolid: {
-    flex: 1,
-    backgroundColor: '#000000',
   },
   coverShadow: {
     marginBottom: theme.spacing.lg,

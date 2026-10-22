@@ -73,18 +73,12 @@ export default function SeriesScreen() {
    * 돌아가는 동안 스크롤 신호가 드문드문 와서 표지가 계단처럼 툭 줄어들었다(PM 2026-10-22 15:18 "돌아올 때 급격해 끊어져 보여")
    */
   const isDragging = useSharedValue(false);
-  /**
-   * 맨 위에서 더 내려간 실제 거리 — 손가락 여부와 상관없이 스크롤 위치 그대로. 맨 위로 세게 튕겨 올린 튕김(손을 뗀 채)에서도
-   * 표지 뒤 흐린 표지가 꼭대기를 덮게 한다(PM 2026-10-22 17:03 "맨 위로 쭉 올려도 표지가 잘렸다가 돌아오네")
-   */
-  const pull = useSharedValue(0);
   const handleScroll = useAnimatedScrollHandler({
     onBeginDrag: () => {
       isDragging.value = true;
       cancelAnimation(overscroll);
     },
     onScroll: (event) => {
-      pull.value = Math.max(0, restingOffset - event.contentOffset.y);
       if (isDragging.value) overscroll.value = Math.max(0, restingOffset - event.contentOffset.y);
     },
     onEndDrag: () => {
@@ -158,8 +152,6 @@ export default function SeriesScreen() {
             <SeriesHeader
               series={series}
               overscroll={overscroll}
-              pull={pull}
-              topBleed={insets.top + APP_BAR_HEIGHT}
               episodeCount={screen.episodeCount}
               playTarget={screen.playTarget}
               onPlay={screen.playSeries}
