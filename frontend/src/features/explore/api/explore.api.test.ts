@@ -1,7 +1,12 @@
 import { beforeEach, describe, expect, it, jest } from '@jest/globals';
 
 import type { ExploreItem, ExploreSeriesItem } from '../explore.types';
-import { fetchExploreFeed, fetchSeriesDetail, toExploreEntry } from './explore.api';
+import {
+  fetchExploreFeed,
+  fetchPublisherSeries,
+  fetchSeriesDetail,
+  toExploreEntry,
+} from './explore.api';
 import type { ExploreContentDto, ExploreEntryDto } from './explore.dto';
 
 // 실서버 경로의 변환을 본다 — 테스트 환경은 __DEV__ 라 mock 플래그를 끈다
@@ -252,5 +257,34 @@ describe('fetchSeriesDetail — GET /series/:series_id(explore-api.md 4.7)', () 
     expect(detail.series.publishedAt).toBe('2026-10-01T00:00:00.000Z');
     // 발행 이름 — 제목 아래 줄
     expect(detail.series.publisherName).toBe('키워드');
+  });
+});
+
+describe('fetchPublisherSeries — GET /series/:series_id/publisher-series(explore-api.md 4.7-1)', () => {
+  it('발행 이름과 시리즈 카드만 옮긴다 — 모르는 종류는 버린다', async () => {
+    // given
+    mockGet.mockResolvedValue({
+      data: { publisher_name: '키워드', items: [seriesCard, unknownEntry] },
+    });
+
+    // when
+    const result = await fetchPublisherSeries({ seriesId: 's0' });
+
+    // then
+    expect(mockGet).toHaveBeenCalledWith('/series/s0/publisher-series');
+    expect(result.publisherName).toBe('키워드');
+    expect(result.series.map((series) => series.id)).toEqual(['s1']);
+    expect(result.series[0]).toMatchObject({ totalEpisodes: 16, episodeCount: 10 });
+  });
+
+  it('발행 이름이 없으면 null 이다', async () => {
+    // given
+    mockGet.mockResolvedValue({ data: { publisher_name: null, items: [] } });
+
+    // when
+    const result = await fetchPublisherSeries({ seriesId: 's0' });
+
+    // then
+    expect(result).toEqual({ publisherName: null, series: [] });
   });
 });

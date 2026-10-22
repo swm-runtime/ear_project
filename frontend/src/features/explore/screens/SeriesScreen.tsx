@@ -133,7 +133,10 @@ export default function SeriesScreen() {
       0,
     );
     // '다른 항목' 존이 있으면 그 톤이 바닥까지 이어지도록 바닥 여백을 존이 책임진다(아래 contentContainer·zone 참조)
-    const hasMoreSections = screen.otherSeries.length > 0 || screen.relatedItems.length > 0;
+    const hasMoreSections =
+      screen.publisherSeries.length > 0 ||
+      screen.otherSeries.length > 0 ||
+      screen.relatedItems.length > 0;
     return (
       <Animated.FlatList
         data={screen.episodes}
@@ -192,6 +195,16 @@ export default function SeriesScreen() {
                     스크롤 자동 인셋(목록 콘텐츠 밖)으로 비우기 때문. 두 장으로 나누면 겹친 곳이 두 겹으로 진해진다
                     (PM 2026-10-22 19:37 "띠" — RN 은 절대 위치 top:'100%' 를 바닥 여백 뺀 높이로 풀어 32pt 겹쳤다) */}
                 <View style={styles.moreSectionsShade} pointerEvents="none" />
+                {/* 같은 간행물의 다른 시리즈 — 맨 위(애플 뮤직 "○○의 다른 앨범", PM 2026-10-22). 발행 이름이 없거나 비면 줄째 숨는다 */}
+                {screen.publisherName ? (
+                  <SeriesMoreSection
+                    title={EXPLORE_COPY.series.publisherSeriesTitle(screen.publisherName)}
+                    entries={screen.publisherSeries}
+                    onPress={screen.playRelated}
+                    onMorePress={screen.openMoreSheet}
+                    onSeriesPress={screen.openOtherSeries}
+                  />
+                ) : null}
                 <SeriesMoreSection
                   title={EXPLORE_COPY.series.moreSeriesTitle}
                   entries={screen.otherSeries}

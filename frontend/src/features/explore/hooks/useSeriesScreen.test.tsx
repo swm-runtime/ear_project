@@ -67,6 +67,7 @@ jest.mock('./useSeriesSaveMutations', () => ({
   useRestoreSeriesMutation: () => ({ mutateAsync: jest.fn() }),
 }));
 jest.mock('./useSeriesMoreQueries', () => ({
+  usePublisherSeriesQuery: () => ({ data: { publisherName: null, series: [] } }),
   useOtherSeriesQuery: () => ({ data: [] }),
   useSeriesRelatedQuery: () => ({ data: [] }),
 }));

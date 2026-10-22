@@ -79,6 +79,7 @@
 | 7 | POST | `/series/:series_id/save` | 시리즈째 담기 — `library_series` + 노출 편 편 담기, 이후 새 편 자동 적립 (추가 2026-10-22 — KAN-245) | 필요 | |
 | 8 | DELETE | `/series/:series_id/save` | 시리즈째 빼기 — 담긴 편 전부 편 해제 + 따라오기 중단 (추가 2026-10-22 — KAN-245) | 필요 | |
 | 9 | POST | `/series/:series_id/restore` | 시리즈째 빼기 실행 취소 (추가 2026-10-22 — KAN-245) | 필요 | |
+| 10 | GET | `/series/:series_id/publisher-series` | 같은 간행물(발행 이름)의 다른 시리즈 카드 — 시리즈 화면 아래 "○○의 다른 시리즈" 줄 (추가 2026-10-22) | 필요 | |
 
 **설계 메모**
 
@@ -663,6 +664,32 @@ POST /contents/:content_id/play  (entry_point = "explore" — library-api 4.4)
 | `UNAUTHORIZED` | 401 | 토큰 없음·만료 |
 
 ---
+
+### 4.7-1 `GET /series/:series_id/publisher-series` — 같은 간행물의 다른 시리즈 (추가 2026-10-22)
+
+시리즈 화면 아래 맨 위 줄 **"{발행 이름}의 다른 시리즈"**(애플 뮤직 "○○의 다른 앨범" 자리 — `explore-uiux.md` 4.11)의 재료다. 간행물 = 시리즈의 발행 이름(`series.publisher_name` — `domain.md` 5.9, 4.7 `publisher_name`).
+
+```jsonc
+// 200
+{
+  "publisher_name": "키워드",   // 기준 시리즈의 발행 이름. 없으면 null(그때 items 는 빈 배열)
+  "items": [                    // 탐색 시리즈 카드(4.1-1)와 같은 모양
+    {
+      "type": "series",
+      "series": {
+        "id": "uuid", "title": "키워드로 빠르게 배우는 CS 지식", "description": "…",
+        "total_episodes": 16, "episode_count": 16, "status": "completed",
+        "thumbnail_url": "https://…", "topic_ids": ["uuid"]
+      }
+    }
+  ]
+}
+```
+
+- 같은 `publisher_name`을 가진 **다른** 시리즈를 **만든 순**으로 낸다. 기준 시리즈 자신과 **사용자 시장에 노출 중인 편이 없는 시리즈는 빠진다**(카드 재료는 4.1-1과 같다). 페이지 없음 — 시리즈는 수십 단위다.
+- 기준 시리즈가 사용자에게 보이지 않으면(없음·다른 시장·노출 편 0개) 4.7과 같은 404 `NOT_FOUND`. uuid 가 아니면 400 `VALIDATION_FAILED`.
+- 서버 스위치(`SERIES_EXPLORE_CARDS_ENABLED`)와 무관하다 — 시리즈 화면이 스위치와 무관하게 열려 있는 것과 같다.
+- 클라이언트는 보조 목록으로 다룬다 — 실패(구버전 서버의 404 포함)는 알리지 않고 줄째 숨긴다.
 
 ### 4.8 `POST /series/:series_id/save` — 시리즈째 담기 (추가 2026-10-22 — KAN-245)
 

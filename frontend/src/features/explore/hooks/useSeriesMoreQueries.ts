@@ -4,13 +4,32 @@ import {
   exploreKeys,
   fetchExploreContents,
   fetchExploreFeed,
+  fetchPublisherSeries,
   fetchRelatedContents,
 } from '../api/explore.api';
 import { SERIES_MORE_LIMIT, pickOtherSeries, withoutSeriesEpisodes } from '../explore.series-more';
 import type { ExploreEntry } from '../explore.types';
 
-const seriesMoreKey = (seriesId: string, kind: 'other-series' | 'related') =>
+const seriesMoreKey = (seriesId: string, kind: 'publisher' | 'other-series' | 'related') =>
   [...exploreKeys.all, 'series-more', seriesId, kind] as const;
+
+/**
+ * 시리즈 화면 아래 "○○의 다른 시리즈"(PM 2026-10-22 — 같은 간행물, 애플 뮤직 "○○의 다른 앨범"). explore-api.md 4.7-1.
+ * 보조 목록이라 실패(404·구버전 서버 포함)는 빈 목록 — 줄째 숨는다
+ */
+export const usePublisherSeriesQuery = (seriesId: string, enabled: boolean) =>
+  useQuery({
+    queryKey: seriesMoreKey(seriesId, 'publisher'),
+    enabled,
+    queryFn: async () => {
+      try {
+        const { publisherName, series } = await fetchPublisherSeries({ seriesId });
+        return { publisherName, series: series.slice(0, SERIES_MORE_LIMIT) };
+      } catch {
+        return { publisherName: null, series: [] };
+      }
+    },
+  });
 
 /**
  * 시리즈 화면 아래 "다른 시리즈 더보기"(PM 2026-10-22 — 애플 뮤직 "○○의 다른 앨범" 자리). 새 API 없이 탐색 목록을 다시 쓴다 —

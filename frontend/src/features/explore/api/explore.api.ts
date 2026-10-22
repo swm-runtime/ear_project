@@ -14,6 +14,7 @@ import type {
   ExplorePeriod,
   ExplorePopularPage,
   ExploreSearchPage,
+  ExploreSeries,
   ExploreTopic,
   SaveContentResult,
   SaveReason,
@@ -29,6 +30,7 @@ import type {
   ExplorePopularResponseDto,
   ExploreSearchResponseDto,
   ExploreTopicsResponseDto,
+  PublisherSeriesResponseDto,
   RelatedContentsResponseDto,
   SaveContentResponseDto,
   SeriesDetailResponseDto,
@@ -309,6 +311,25 @@ export const fetchSeriesDetail = async (input: { seriesId: string }): Promise<Se
     ? await mockFetchSeriesDetail(input.seriesId)
     : (await apiClient.get<SeriesDetailResponseDto>(`/series/${input.seriesId}`)).data;
   return toSeriesDetail(data);
+};
+
+/**
+ * 같은 간행물(발행 이름)의 다른 시리즈(explore-api.md 4.7-1 — 2026-10-22). 시리즈 카드만 남긴다(모르는 종류는 변환이 버린다).
+ * 기준 시리즈가 안 보이면 404 — 호출자가 삼킨다. mock 은 빈 목록(간행물 데이터가 없다)
+ */
+export const fetchPublisherSeries = async (input: {
+  seriesId: string;
+}): Promise<{ publisherName: string | null; series: ExploreSeries[] }> => {
+  const data: PublisherSeriesResponseDto = IS_EXPLORE_API_MOCKED
+    ? { publisher_name: null, items: [] }
+    : (await apiClient.get<PublisherSeriesResponseDto>(`/series/${input.seriesId}/publisher-series`))
+        .data;
+  return {
+    publisherName: data.publisher_name?.trim() || null,
+    series: toExploreEntries(data.items).flatMap((entry) =>
+      entry.type === 'series' ? [entry.series] : [],
+    ),
+  };
 };
 
 /**
