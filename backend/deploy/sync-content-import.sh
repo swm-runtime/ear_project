@@ -22,7 +22,7 @@ set -euo pipefail
 # 크론과 SSH forced command 는 PATH 가 짧다 — aws CLI(/usr/local/bin)를 못 찾는 경우를 막는다
 export PATH="/usr/local/bin:/usr/bin:/bin:${PATH:-}"
 
-TABLES=(topics series contents content_topics content_sources content_embeddings content_stats content_scripts content_audio_renditions)
+TABLES=(topics series contents content_topics content_sources content_embeddings content_title_embeddings content_stats content_scripts content_audio_renditions)
 BUCKET="${CONTENT_SYNC_BUCKET:-earcast-backup-prod}"
 PREFIX="${CONTENT_SYNC_PREFIX:-content-sync}"
 LOCK=/tmp/ear-content-import.lock
@@ -89,6 +89,9 @@ BEGIN
       ('content_topics',     'content_id, topic_id'),
       ('content_sources',    'content_id, position'),
       ('content_embeddings', 'content_id'),
+      -- 콘텐츠당 1행(uq_content_title_embeddings_content_id) — 대본 임베딩과 같이 content_id 로 충돌을 잡는다(2026-10-22).
+      -- 운영 덤프에 이 표가 아직 없으면(운영 배포 전) stage 가 비어 0행이다
+      ('content_title_embeddings', 'content_id'),
       ('content_stats',      'content_id, period_type, period_start'),
       -- 콘텐츠당 1행(uq_content_scripts_content_id). **자체 id 가 아니라 content_id 로 충돌을 잡는다** —
       -- 대본 행의 id 는 운영과 개발계가 다를 수 있다(KAN-83)

@@ -18,6 +18,8 @@ import {
   SEARCH_CORRECTION_PARTICLE_PATTERN,
   SEARCH_RRF_K,
   SEARCH_SEMANTIC_MIN_SIMILARITY,
+  SEARCH_SEMANTIC_SCRIPT_MIN_SIMILARITY_WITH_TITLE,
+  SEARCH_SEMANTIC_TITLE_MIN_SIMILARITY,
   SEARCH_SEMANTIC_TOP_K,
   SEARCH_WEIGHT_AUTHOR,
   SEARCH_WEIGHT_DESCRIPTION,
@@ -737,9 +739,13 @@ export class ContentRepository {
    * - `keyword` — 종전 부분 일치(제목 > 태그 > 저자 > 주제명 > 설명, 시리즈 제목은 스위치)와 **종전 정렬 키 그대로**
    *   (가중 합 → 제목 유사도 → 직전 확정 월 재생 수 → 신선도 → id)의 `ROW_NUMBER`. 가중이 전부 양수라 "점수 > 0"이 곧
    *   "어느 필드든 맞음"이다(`findSearchPage`의 OR 조건과 같은 집합).
-   * - `semantic` — `content_embeddings` 코사인(`1 - (embedding <=> 질의 벡터)`) ≥ 하한, 상위 K. 현행 모델이고 대본 버전이
-   *   일치하는 행만(domain.md 5.6 — 추천 스코어링과 같은 조건). 질의 벡터가 없으면(결손) 빈 CTE다. ANN 인덱스 없이 전수
-   *   계산한다(수천 편 상한 — domain.md 5.6).
+   * - `semantic` — 질의 벡터를 **제목 벡터**(`content_title_embeddings`)와 **대본 벡터**(`content_embeddings`) 둘에 견준다.
+   *   제목 코사인 ≥ `SEARCH_SEMANTIC_TITLE_MIN_SIMILARITY`(0.34)이거나 대본 코사인 ≥ 대본 하한이면 맞음이고, 대본 하한은 그 편에
+   *   유효한 제목 벡터가 있으면 `SEARCH_SEMANTIC_SCRIPT_MIN_SIMILARITY_WITH_TITLE`(0.45), 없으면 종전 `SEARCH_SEMANTIC_MIN_SIMILARITY`
+   *   (0.3)다 — 제목 벡터가 하나도 없는 동안(백필 전·생성 실패) 결과는 종전과 같다. 순서는 **하한을 넘은 폭**(`margin` — 두 벡터
+   *   중 큰 쪽)이고 상위 K. 짧은 질의 ↔ 대본 전문은 코사인이 0.2~0.3대에 몰려 소음이 됐다(2026-10-22 실측 — 상수 주석).
+   *   대본 벡터는 현행 모델이고 대본 버전이 일치하는 행만(domain.md 5.6 — 추천 스코어링과 같은 조건), 제목 벡터는 현행 모델이고
+   *   `source_text`가 지금 제목과 같은 행만이다. 질의 벡터가 없으면(결손) 빈 CTE다. ANN 인덱스 없이 전수 계산한다(수천 편 상한).
    *
    * **질의 벡터 없이 시작한 검색은 이 쿼리를 타지 않는다**(KAN-242) — Service가 종전 키워드 검색(`findSearchPage`)에 맡긴다.
    * 여기서 벡터가 없는 경우는 첫 페이지가 의미 엔진을 썼는데 이번 페이지에서 결손난 커서 페이지뿐이다. 그때 의미 CTE는 비고
@@ -768,6 +774,7 @@ export class ContentRepository {
         .addSelect('content.series_id', 'series_id')
         .addSelect('content.published_at', 'published_at')
         .addSelect('content.content_version', 'content_version')
+        .addSelect('content.title', 'title')
         .addSelect(RANKING_PLAY_COUNT, 'play_count')
         .addSelect(score, 'kw_score')
         .addSelect(SEARCH_TITLE_SIMILARITY, 'kw_title_similarity')
@@ -803,15 +810,32 @@ export class ContentRepository {
       ? (() => {
           const vector = param(vectorTransformer.to(query.queryVector));
           const model = param(EMBEDDING_MODEL_ID);
-          return `SELECT base.id,
-                         ROW_NUMBER() OVER (ORDER BY embedding.embedding <=> ${vector}::vector, base.id DESC) AS rank
-                    FROM base
-                    JOIN content_embeddings embedding
-                      ON embedding.content_id = base.id
-                     AND embedding.model = ${model}
-                     AND embedding.content_version = base.content_version
-                   WHERE 1 - (embedding.embedding <=> ${vector}::vector) >= ${SEARCH_SEMANTIC_MIN_SIMILARITY}
-                   ORDER BY embedding.embedding <=> ${vector}::vector, base.id DESC
+          return `SELECT scored.id,
+                         ROW_NUMBER() OVER (ORDER BY scored.margin DESC, scored.id DESC) AS rank
+                    FROM (
+                      SELECT matched.id,
+                             GREATEST(matched.title_similarity - ${SEARCH_SEMANTIC_TITLE_MIN_SIMILARITY},
+                                      matched.script_similarity - matched.script_min) AS margin
+                        FROM (
+                          SELECT base.id,
+                                 1 - (title_embedding.embedding <=> ${vector}::vector) AS title_similarity,
+                                 1 - (embedding.embedding <=> ${vector}::vector) AS script_similarity,
+                                 CASE WHEN title_embedding.id IS NULL THEN ${SEARCH_SEMANTIC_MIN_SIMILARITY}
+                                      ELSE ${SEARCH_SEMANTIC_SCRIPT_MIN_SIMILARITY_WITH_TITLE} END AS script_min
+                            FROM base
+                            LEFT JOIN content_embeddings embedding
+                              ON embedding.content_id = base.id
+                             AND embedding.model = ${model}
+                             AND embedding.content_version = base.content_version
+                            LEFT JOIN content_title_embeddings title_embedding
+                              ON title_embedding.content_id = base.id
+                             AND title_embedding.model = ${model}
+                             AND title_embedding.source_text = base.title
+                        ) matched
+                       WHERE matched.title_similarity >= ${SEARCH_SEMANTIC_TITLE_MIN_SIMILARITY}
+                          OR matched.script_similarity >= matched.script_min
+                    ) scored
+                   ORDER BY scored.margin DESC, scored.id DESC
                    LIMIT ${SEARCH_SEMANTIC_TOP_K}`;
         })()
       : 'SELECT NULL::uuid AS id, NULL::bigint AS rank WHERE false';

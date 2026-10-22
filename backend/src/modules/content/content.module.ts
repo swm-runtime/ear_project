@@ -8,6 +8,7 @@ import { ContentEmbedding } from './entities/content-embedding.entity';
 import { ContentScript } from './entities/content-script.entity';
 import { ContentSource } from './entities/content-source.entity';
 import { ContentStat } from './entities/content-stat.entity';
+import { ContentTitleEmbedding } from './entities/content-title-embedding.entity';
 import { ContentTopic } from './entities/content-topic.entity';
 import { Content } from './entities/content.entity';
 import { SearchQueryLog } from './entities/search-query-log.entity';
@@ -20,13 +21,16 @@ import { ContentEmbeddingRepository } from './repositories/content-embedding.rep
 import { ContentScriptRepository } from './repositories/content-script.repository';
 import { ContentSourceRepository } from './repositories/content-source.repository';
 import { ContentStatRepository } from './repositories/content-stat.repository';
+import { ContentTitleEmbeddingRepository } from './repositories/content-title-embedding.repository';
 import { ContentTopicRepository } from './repositories/content-topic.repository';
 import { SearchQueryLogRepository } from './repositories/search-query-log.repository';
 import { ContentExpiryScheduler } from './content-expiry.scheduler';
 import { SearchQueryLogAdminController } from './search-query-log-admin.controller';
 import { ContentService } from './services/content.service';
 import { ContentStatService } from './services/content-stat.service';
+import { ContentTitleEmbeddingService } from './services/content-title-embedding.service';
 import { SearchQueryLogService } from './services/search-query-log.service';
+import { TextEmbeddingClient } from './text-embedding.client';
 
 @Module({
   imports: [
@@ -36,6 +40,7 @@ import { SearchQueryLogService } from './services/search-query-log.service';
       ContentStat,
       ContentSource,
       ContentEmbedding,
+      ContentTitleEmbedding,
       ContentAudioRendition,
       ContentScript,
       SearchQueryLog,
@@ -51,6 +56,7 @@ import { SearchQueryLogService } from './services/search-query-log.service';
     ContentStatRepository,
     ContentSourceRepository,
     ContentEmbeddingRepository,
+    ContentTitleEmbeddingRepository,
     ContentAudioRenditionRepository,
     ContentScriptRepository,
     SearchQueryLogRepository,
@@ -60,10 +66,14 @@ import { SearchQueryLogService } from './services/search-query-log.service';
     SearchQueryLogService,
     SeriesService,
     ContentExpiryScheduler,
+    TextEmbeddingClient,
+    ContentTitleEmbeddingService,
   ],
   exports: [
     ContentService,
     ContentStatService,
+    // 발행·재발행 뒤 제목 임베딩(admin) · 백필 스크립트
+    ContentTitleEmbeddingService,
     SearchQueryLogService,
     SeriesService,
   ],

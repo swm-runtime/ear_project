@@ -42,6 +42,30 @@ export const SEARCH_RRF_K = 60;
 export const SEARCH_SEMANTIC_MIN_SIMILARITY = 0.3;
 
 /**
+ * 의미 엔진의 **제목 임베딩**(`content_title_embeddings`) 코사인 하한. 2026-10-22 개발계 실측(199편 · 질의 30개 — 짧은 말 25 ·
+ * 문장 5, `scripts/measure-search-embeddings.js`)에서 제목 벡터의 (질의, 편) 쌍 F1이 0.34에서 가장 높다(정밀도 0.51 · 재현율
+ * 0.40 — 같은 표에서 대본 벡터는 최고 F1 0.26). 관련 편 최고점의 중앙값이 0.40, 무관 편 최고점의 중앙값이 0.31이라 그 사이다.
+ * **계약에 적지 않는다** — 검색 로그(4.21)로 조정한다.
+ */
+export const SEARCH_SEMANTIC_TITLE_MIN_SIMILARITY = 0.34;
+
+/**
+ * 제목 임베딩이 **있는** 편의 대본 임베딩 하한. 제목 벡터가 있으면 대본 벡터는 "아주 가까울 때만" 더한다 — 같은 실측에서 대본
+ * 0.45 미만은 무관 편이 대부분이었고(0.30 이상 쌍의 정밀도 0.16), 0.45 이상만 더하면 제목 단독보다 F1이 약간 오른다(0.450 → 0.454).
+ * 제목 벡터가 **없는** 편(생성 실패·백필 전)은 종전 하한(`SEARCH_SEMANTIC_MIN_SIMILARITY`)을 그대로 쓴다 — 백필 전 검색은 종전과 같다.
+ */
+export const SEARCH_SEMANTIC_SCRIPT_MIN_SIMILARITY_WITH_TITLE = 0.45;
+
+/**
+ * 제목 임베딩 생성 요청(발행·재발행 훅, 백필)의 타임아웃. 질의 임베딩(400ms)과 달리 사용자를 기다리게 하지 않는 경로라 넉넉히 둔다 —
+ * 넘기면 그 편은 행 없이 남고(검색은 대본 벡터만 본다) 백필이 다시 채운다
+ */
+export const TITLE_EMBEDDING_TIMEOUT_MS = 10_000;
+
+/** 백필의 요청 간격 기본값 — 초당 5건. AI 서버(→ OpenAI)에 몰아 보내지 않는다 */
+export const TITLE_EMBEDDING_BACKFILL_DELAY_MS = 200;
+
+/**
  * 관련 콘텐츠(`GET /contents/:content_id/related` — KAN-240, `player-api.md` 4.8)의 코사인 유사도 하한. 기준 편과 후보 편의
  * 대본 임베딩 `1 - (embedding <=> 기준 벡터)`가 **이 값 이하이면 뺀다.** 시작값 0.3은 검색 의미 엔진 하한
  * (`SEARCH_SEMANTIC_MIN_SIMILARITY`)과 같은 근거다 — text-embedding-3-small은 무관한 한국어 텍스트끼리도 0.1~0.2대가 흔하다.

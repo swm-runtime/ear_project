@@ -29,7 +29,8 @@
     "migration:show": "npm run typeorm -- migration:show",
     "seed:mock": "node -r ts-node/register/transpile-only -r tsconfig-paths/register src/database/seeds/seed-mock-onboarding.ts",
     "drip:scenarios": "node -r ts-node/register/transpile-only -r tsconfig-paths/register src/database/seeds/drip-scenarios.ts",
-    "thumbnails:reprocess": "node -r ts-node/register/transpile-only -r tsconfig-paths/register src/scripts/reprocess-thumbnails.ts"
+    "thumbnails:reprocess": "node -r ts-node/register/transpile-only -r tsconfig-paths/register src/scripts/reprocess-thumbnails.ts",
+    "embeddings:backfill-titles": "node -r ts-node/register/transpile-only -r tsconfig-paths/register src/scripts/backfill-title-embeddings.ts"
   },
   "dependencies": {
     "@apple/app-store-server-library": "3.1.0",
