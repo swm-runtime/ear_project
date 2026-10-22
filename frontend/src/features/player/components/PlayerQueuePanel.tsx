@@ -133,10 +133,12 @@ interface QueueRowProps {
   total: number;
   isCurrent: boolean;
   /**
-   * 오른쬭 칸 — `reorder`(라이브러리 맥락: 끌기 손잡이) / `save`(탐색 맥락, 라이브러리에 없는 줄: 담기 버튼) /
-   * `none`(탐색 맥락, 이미 담긴 줄 · 추천 줄: 자리만 비운다 — 줄 폭이 흔들리지 않게)
+   * 오른쪽 칸 — `reorder`(목록 줄: 끌기 손잡이 — 라이브러리·탐색 맥락 모두) / `none`(추천 줄: 자리만 비운다 — 줄 폭이 흔들리지
+   * 않게). 종전 탐색 맥락의 담기 버튼(+)은 걷었다(PM 2026-10-23 "+ 버튼 없애고 =로") — 담기는 오른쪽 스와이프·낭독 액션이 맡는다
    */
-  trailing: 'reorder' | 'save' | 'none';
+  trailing: 'reorder' | 'none';
+  /** 오른쪽 스와이프 담기 — 라이브러리에 없는 줄만 */
+  canSave: boolean;
   onSave?: (item: QueueEntry) => void;
   /** 왼쪽 스와이프 삭제 — 지금 재생 중인 줄은 false. 낭독기 액션의 글자는 맥락(라이브러리에서 삭제 / 목록에서 빼기)을 따른다 */
   canDelete: boolean;
@@ -169,6 +171,7 @@ function QueueRow({
   total,
   isCurrent,
   trailing,
+  canSave,
   onSave,
   canDelete,
   deleteA11yLabel,
@@ -232,10 +235,9 @@ function QueueRow({
   if (item.isCompleted) tags.push(PLAYER_COPY.queuePanel.completedA11y);
 
   /*
-   * ── 줄 스와이프(KAN-241 "3번") — 본문에서 시작한 가로 이동. 왼쪽(삭제)은 canDelete, 오른쬭(담기)은 담기 버튼이 있는 줄만.
+   * ── 줄 스와이프(KAN-241 "3번") — 본문에서 시작한 가로 이동. 왼쪽(삭제)은 canDelete, 오른쪽(담기)은 canSave.
    * 손잡이(순서 변경)는 자기 영역에서 먼저 잡고, 세로 이동은 목록 스크롤에 둔다. 잡은 뒤에는 스크롤·시트 끌기에 내주지 않는다 ──
    */
-  const canSave = trailing === 'save';
   const swipeX = useAnimatedValue(0);
   const swipeLatest = useRef({ canDelete, canSave, onDelete, onSave, item });
   useEffect(() => {
@@ -409,17 +411,6 @@ function QueueRow({
           >
             <ReorderIcon size={REORDER_ICON_SIZE} color={playerColor.textSecondary} />
           </View>
-        ) : trailing === 'save' ? (
-          // 담기(KAN-241) — 라이브러리에 없는 스냅샷 줄만. 탐색 타일의 담기와 같은 뜻·같은 낭독
-          <Pressable
-            style={styles.reorderHandle}
-            onPress={() => onSave?.(item)}
-            accessibilityRole="button"
-            accessibilityLabel={PLAYER_COPY.queuePanel.saveA11y}
-            hitSlop={theme.spacing.xs}
-          >
-            <PlusIcon size={REORDER_ICON_SIZE} color={playerColor.textSecondary} />
-          </Pressable>
         ) : (
           <View style={styles.reorderHandle} />
         )}
@@ -461,8 +452,8 @@ export default function PlayerQueuePanel({
   bottomInset = 0,
 }: PlayerQueuePanelProps) {
   const isExplore = mode === 'explore';
-  const trailingOf = (item: QueueEntry): QueueRowProps['trailing'] =>
-    !isExplore ? 'reorder' : item.itemId === null ? 'save' : 'none';
+  // 담기 스와이프는 탐색 맥락의 라이브러리에 없는 줄만(라이브러리 맥락은 전부 담긴 편)
+  const canSaveOf = (item: QueueEntry) => isExplore && item.itemId === null;
   // 삭제 낭독 글자 — 라이브러리 맥락은 서버 삭제, 탐색 맥락은 목록에서 빼기(KAN-241 "3번")
   const deleteA11yLabel = isExplore
     ? PLAYER_COPY.queuePanel.removeFromListA11y
@@ -635,7 +626,9 @@ export default function PlayerQueuePanel({
                 index={index}
                 total={upNext.items.length}
                 isCurrent={false}
-                trailing={item.itemId === null ? 'save' : 'none'}
+                // 추천 줄은 목록이 아니라 손잡이가 없다 — 자리만 비운다
+                trailing="none"
+                canSave={item.itemId === null}
                 onSave={onSave}
                 // 추천 줄은 목록이 아니라 지우지 않는다 — 오른쬭(담기)만
                 canDelete={false}
@@ -731,7 +724,8 @@ export default function PlayerQueuePanel({
                 index={index}
                 total={items.length}
                 isCurrent={item.contentId === currentContentId}
-                trailing={trailingOf(item)}
+                trailing="reorder"
+                canSave={canSaveOf(item)}
                 onSave={onSave}
                 // 지금 듣는 줄은 밀리지 않는다(재생 중인 것을 목록에서 지우는 조작은 없다). 라이브러리 항목이 없는 줄은
                 // 라이브러리 맥락에서 올 일이 없다(전부 담긴 편) — 탐색 맥락은 스냅샷 빼기라 itemId 와 무관

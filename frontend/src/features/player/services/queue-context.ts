@@ -58,6 +58,26 @@ export const withoutSnapshotItem = (
   return { ...context, items: context.items.filter((entry) => entry.contentId !== contentId) };
 };
 
+/**
+ * 줄 손잡이로 스냅샷 순서를 바꾼다(PM 2026-10-23 — 담기 버튼 자리에 손잡이). `displayed` 는 패널이 그린 목록(지금 듣는 편이
+ * 맨 위에 세워졌을 수 있다)이고, 옮긴 결과가 그대로 스냅샷이 된다. 로컬뿐 — 서버 순서(라이브러리 맥락)와 무관하다
+ */
+export const withSnapshotMoved = (
+  context: PlayQueueContext,
+  displayed: readonly QueueEntry[],
+  from: number,
+  to: number,
+): PlayQueueContext => {
+  if (context.kind !== 'explore') return context;
+  if (from === to || from < 0 || to < 0 || from >= displayed.length || to >= displayed.length) {
+    return context;
+  }
+  const items = [...displayed];
+  const [moved] = items.splice(from, 1);
+  items.splice(to, 0, moved);
+  return { ...context, items };
+};
+
 /** 담기 결과를 스냅샷에 반영한다 — `itemId` 가 채워지면 그 줄의 담기 버튼이 사라진다. 실패 복구는 null 로 되돌린다 */
 export const withSnapshotItemId = (
   context: PlayQueueContext,
