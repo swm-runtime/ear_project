@@ -40,6 +40,8 @@ const LOG_NAV: NavItem[] = [
 const DRIP_NAV: NavItem[] = [
   { href: "/drip-check", label: "편성 미리보기 (실배포)", icon: Radar, exact: true, note: "읽기 전용" },
   { href: "/drip-check/test", label: "추천 테스트", icon: Pulse, note: "개발계" },
+  // 가명 사용자 한 명의 청취·편성 이력과 지금 시점 추천 점수(2026-10-22 — 서비스 지표 탭에서 옮김)
+  { href: "/drip-check/users", label: "사용자별 추천", icon: Radar, note: "실배포" },
   // 실사용자가 어제 추천에 매긴 별점을 알고리즘 버전별로 — 배포 후 온라인 평가(drip-feedback.md, KAN-116)
   { href: "/drip-check/ratings", label: "버전별 별점", icon: Chart, note: "실배포" },
 ];
