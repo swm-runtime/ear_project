@@ -612,6 +612,80 @@ describe('시리즈 E2E', () => {
       .expect(HttpStatus.NOT_FOUND);
   }, 60_000);
 
+  it('같은 간행물의 다른 시리즈 — 발행 이름이 같은 시리즈 카드(자기 자신·노출 편 없는 시리즈 제외), 이름이 없으면 빈 목록, 안 보이는 시리즈는 404', async () => {
+    const { auth: admin } = await createUser('admin-publisher', UserRole.ADMIN);
+    const listener = await createUser('listener-publisher', UserRole.USER);
+    const topic = await seedTopic(UserMarket.KR);
+    // 다른 테스트 데이터와 섞이지 않게 이 실행만의 간행물 이름
+    const publisher = `간행-${Date.now().toString(36)}`;
+
+    const base = await createSeriesId(admin, 2, `${STAMP} 간행 A`);
+    const sibling = await createSeriesId(admin, 2, `${STAMP} 간행 B`);
+    const empty = await createSeriesId(admin, 2, `${STAMP} 간행 C`);
+    const unnamed = await createSeriesId(admin, 2, `${STAMP} 간행 없음`);
+    for (const id of [base, sibling, empty]) {
+      await patchSeries(admin, id, { publisher_name: publisher }).expect(
+        HttpStatus.OK,
+      );
+    }
+    await uploadId(admin, topic.id, base, 1, 2);
+    const siblingFirst = await uploadId(admin, topic.id, sibling, 1, 2);
+    await uploadId(admin, topic.id, unnamed, 1, 2);
+    // empty 는 편이 없다 — 카드로 나오지 않는다
+
+    const listed = await request(app.getHttpServer())
+      .get(path(`/series/${base}/publisher-series`))
+      .set('Authorization', listener.auth)
+      .expect(HttpStatus.OK);
+    const body = listed.body as {
+      publisher_name: string | null;
+      items: {
+        type: string;
+        series: {
+          id: string;
+          total_episodes: number;
+          episode_count: number;
+          thumbnail_url: string;
+          topic_ids: string[];
+        };
+      }[];
+    };
+    expect(body.publisher_name).toBe(publisher);
+    expect(body.items).toHaveLength(1);
+    const siblingThumbnail = (
+      await dataSource
+        .getRepository(Content)
+        .findOneByOrFail({ id: siblingFirst })
+    ).thumbnailUrl;
+    expect(body.items[0]).toEqual({
+      type: 'series',
+      series: expect.objectContaining({
+        id: sibling,
+        total_episodes: 2,
+        episode_count: 1,
+        thumbnail_url: siblingThumbnail,
+        topic_ids: [topic.id],
+      }) as unknown,
+    });
+
+    // 발행 이름이 없는 시리즈 → 빈 목록
+    const none = await request(app.getHttpServer())
+      .get(path(`/series/${unnamed}/publisher-series`))
+      .set('Authorization', listener.auth)
+      .expect(HttpStatus.OK);
+    expect(none.body).toEqual({ publisher_name: null, items: [] });
+
+    // 편이 없어 안 보이는 시리즈 · uuid 아님
+    await request(app.getHttpServer())
+      .get(path(`/series/${empty}/publisher-series`))
+      .set('Authorization', listener.auth)
+      .expect(HttpStatus.NOT_FOUND);
+    await request(app.getHttpServer())
+      .get(path('/series/not-a-uuid/publisher-series'))
+      .set('Authorization', listener.auth)
+      .expect(HttpStatus.BAD_REQUEST);
+  }, 60_000);
+
   it('시리즈 표지(KAN-234) — 올리면 시리즈 화면·관리자 목록이 그것을 쓰고, 없으면 1화 썸네일, 형식·크기 위반은 400(cover)', async () => {
     const { auth: admin } = await createUser('admin-cover', UserRole.ADMIN);
     const listener = await createUser('listener-cover', UserRole.USER);

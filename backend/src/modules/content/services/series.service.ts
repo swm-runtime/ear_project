@@ -382,6 +382,48 @@ export class SeriesService {
   }
 
   /**
+   * 같은 간행물의 다른 시리즈(`GET /series/:id/publisher-series` — 애플 뮤직 "○○의 다른 앨범" 자리, 2026-10-22 PM).
+   * 기준 시리즈가 사용자에게 보이지 않으면 시리즈 화면과 같은 404다. 발행 이름이 없으면 빈 목록이다. 카드는 탐색 시리즈 카드와
+   * 같은 재료이고, 노출 편이 사용자 시장에 없는 시리즈는 빠진다(`findCards`). 순서는 만든 순
+   */
+  async findPublisherSiblingCards(
+    seriesId: string,
+    now: Date,
+    market: UserMarket,
+    manager?: EntityManager,
+  ): Promise<{ publisherName: string | null; cards: SeriesCardView[] }> {
+    const { series } = await this.getVisibleForUser(
+      seriesId,
+      now,
+      market,
+      manager,
+    );
+    if (!series.publisherName) {
+      return { publisherName: null, cards: [] };
+    }
+
+    const siblings = (
+      await this.seriesRepository.findByPublisherName(
+        series.publisherName,
+        manager,
+      )
+    ).filter((sibling) => sibling.id !== series.id);
+    const cardById = await this.findCards(
+      siblings.map((sibling) => sibling.id),
+      now,
+      market,
+      manager,
+    );
+
+    return {
+      publisherName: series.publisherName,
+      cards: siblings
+        .map((sibling) => cardById.get(sibling.id))
+        .filter((card): card is SeriesCardView => card !== undefined),
+    };
+  }
+
+  /**
    * 사용자 시리즈 화면(`GET /series/:id`). **노출 중인 편이 사용자 시장에 하나도 없으면 없는 시리즈다(404)** —
    * 시리즈는 편의 시장을 따르므로, 다른 시장 시리즈는 id로 직접 와도 존재를 드러내지 않는다(콘텐츠 상세와 같은 규칙).
    * 전 편이 회수된 시리즈도 같은 404다 — 보여 줄 편이 없다.
