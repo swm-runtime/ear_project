@@ -7,7 +7,7 @@ export const pool = new pg.Pool({ connectionString: cfg.databaseUrl, max: 3, idl
 // Supabase 풀러가 유휴 연결을 끊으면 풀이 'error' 를 낸다 — 받지 않으면 EventEmitter 규칙상 프로세스가 죽는다 (2026-08-31 워커 사망 원인 후보)
 pool.on("error", (e) => console.error(`[pg pool] 연결 오류 (무시하고 재연결): ${e.message}`));
 
-export type JobType = "sweep" | "cluster" | "draft" | "qa" | "critic" | "tts" | "package" | "domain_check" | "thumbnail" | "critic_measure" | "enrich" | "script_align" | "series_plan";
+export type JobType = "sweep" | "cluster" | "draft" | "qa" | "critic" | "tts" | "package" | "domain_check" | "thumbnail" | "critic_measure" | "enrich" | "script_align" | "series_plan" | "judge_loop"; // judge_loop: 글로벌 판정·재작성 루프 (0033, 명세 6.10)
 export interface Job {
   id: string;
   type: JobType;
@@ -132,6 +132,12 @@ export async function hasActiveJob(types: JobType[], episodeId: string): Promise
 export async function listProposedForAutoApprove(): Promise<{ id: string; cluster_version: string | null; gaps: string[] | null; dedup_note: string | null; series_id: string | null }[]> {
   const r = await pool.query("select id, cluster_version, gaps, dedup_note, series_id from public.backlog where status = 'proposed' order by id");
   return r.rows;
+}
+/** 에이전트 판정 저장 (judge_loop, README 4장 형식) — 이전 판정이 있으면 agent.previous 에 요약만 남기고 덮어쓴다(루프 전 원판의 판정) */
+export async function setCriticVerdicts(episodeId: string, v: Record<string, unknown> & { agent: Record<string, unknown> }) {
+  const prev = (await pool.query("select critic_verdicts from public.episodes where id = $1", [episodeId])).rows[0]?.critic_verdicts as { judged_at?: string; judged_by?: string; agent?: { publishable?: boolean } } | null;
+  if (prev) v.agent.previous = { judged_at: prev.judged_at ?? null, judged_by: prev.judged_by ?? null, publishable: prev.agent?.publishable ?? null };
+  await pool.query("update public.episodes set critic_verdicts = $2::jsonb, updated_at = now() where id = $1", [episodeId, JSON.stringify(v)]);
 }
 /** 글로벌 발행 준비 자동 후보 (automation.ts autoPublishPrepGlobal) — 에이전트 판정이 있는 qa_passed 편 중 tts 작업이 아직 없는(실패만 있는) 편. 판정 통과 여부는 순수 함수가 가른다 */
 export async function listGlobalPrepCandidates(): Promise<{ episode_id: string; backlog_id: string; critic_verdicts: unknown }[]> {

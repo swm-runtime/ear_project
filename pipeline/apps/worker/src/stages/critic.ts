@@ -6,6 +6,7 @@ import type { Executor } from "../executors/index.js";
 import { assetPaths, buildCriticPrompt, buildCriticPromptInlineParts, buildCriticPromptInlinePartsEn, CRITIC_INLINE_SCHEMA, CRITIC_INLINE_SCHEMA_EN, CRITIC_SCHEMA, CRITIC_SCHEMA_V2, pipelineLocale } from "@ear/pipeline";
 import { readFile } from "node:fs/promises";
 import { startPublishPrepIfEnabled } from "../automation.js";
+import { enqueueJudgeLoop } from "./judge-loop.js";
 import { log } from "../util.js";
 import { prepareAssets, workerRev, type AssetBundle } from "../assets.js";
 import { localPathOf, pullPrefix, pushPrefix, s3Key } from "../storage.js";
@@ -144,5 +145,7 @@ async function runCriticV2(job: Job, ex: Executor, e: { episodeId: string; backl
   });
   // 자동화 (2026-09-23): 비평까지 끝나면 발행 준비 연쇄(tts → thumbnail → package)를 바로 건다 — settings.automation.auto_publish_prep 이 켜져 있을 때만
   const prepJobId = await startPublishPrepIfEnabled(e.episodeId, e.backlogId, job.id).catch((err) => { log(`  자동 발행 준비 걸기 실패: ${err?.message ?? err}`); return null; });
-  return { episode_id: e.episodeId, rubric: "v2", pre_template: preTemplate, scores: s, sums: sum, total, violations: o.violations, suspects: o.suspects, stars: o.stars, summary: o.summary, model: r.model, publish_prep_job_id: prepJobId };
+  // 글로벌판(2026-10-22, 명세 6.10): 비평 뒤 판정·재작성 루프를 워커가 잇는다 — 판정이 발행 가능이면 자동 발행 준비(스위치)가 그다음을 건다
+  const judgeJobId = await enqueueJudgeLoop(e.episodeId, e.backlogId, job.id).catch((err) => { log(`  판정 루프 걸기 실패: ${err?.message ?? err}`); return null; });
+  return { episode_id: e.episodeId, rubric: "v2", pre_template: preTemplate, judge_loop_job_id: judgeJobId, scores: s, sums: sum, total, violations: o.violations, suspects: o.suspects, stars: o.stars, summary: o.summary, model: r.model, publish_prep_job_id: prepJobId };
 }
