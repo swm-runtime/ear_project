@@ -17,10 +17,16 @@ export const ON_ART_TEXT_SECONDARY = 'rgba(255, 255, 255, 0.72)';
 interface FeaturedCardBackdropProps {
   uri: string;
   recyclingKey: string;
+  /** 막 색 — 기본은 카드용 어두운 막. 시리즈 화면 표지 뒤 비침은 라이트 모드에서 흰 막을 쓴다 */
+  scrimColor?: string;
 }
 
 /** 카드 전체에 까는 흐린 커버 + 어두운 막 — 카드(부모)가 라운드·클립한다 */
-export default function FeaturedCardBackdrop({ uri, recyclingKey }: FeaturedCardBackdropProps) {
+export default function FeaturedCardBackdrop({
+  uri,
+  recyclingKey,
+  scrimColor,
+}: FeaturedCardBackdropProps) {
   return (
     <>
       {/* 흐린 커버 바탕 — 카드 전체. 위 정사각형은 선명한 커버가 덮어 하단만 "이어진" 흐림으로 남는다 */}
@@ -53,7 +59,10 @@ export default function FeaturedCardBackdrop({ uri, recyclingKey }: FeaturedCard
           importantForAccessibility="no"
         />
       )}
-      <View style={styles.backdropScrim} pointerEvents="none" />
+      <View
+        style={[styles.backdropScrim, scrimColor ? { backgroundColor: scrimColor } : null]}
+        pointerEvents="none"
+      />
     </>
   );
 }
