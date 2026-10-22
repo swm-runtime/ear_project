@@ -1205,6 +1205,13 @@ export default function PlayerScreen() {
    * 네이티브는 응답자를 빼앗긴 Pressable 이 press 를 취소해 해당 없지만 같은 규칙으로 둔다
    */
   const handleDraggedRef = useRef(false);
+  /*
+   * 끌기 시작 때의 2단 몫 — null 이면 1단·닫힘 끌기. **단계 판정은 상태(queueStage)가 아니라 이 값으로 한다**(PM 2026-10-23
+   * "두 단계 한 번에 내리지 말고 한 단계씩, 애니메이션 꼬인다"). queueStage 는 2단 스프링이 **끝나야** 바뀌어서, 올라가는
+   * 도중에 내려 끌면 1단 끌기로 읽혀 2단 몫이 0 으로 튀고 시트가 그대로 닫혔다. 2단 몫이 조금이라도 있으면 그 끌기는
+   * 2단 ↔ 1단만 움직이고, 닫힘까지는 1단에서 다시 끌어야 간다
+   */
+  const handleExpandStartRef = useRef<number | null>(null);
   const handlePanResponder = useMemo(
     () =>
       // eslint-disable-next-line react-hooks/refs -- 콜백은 렌더가 아니라 제스처 시점에 실행된다(표준 PanResponder 패턴)
@@ -1221,15 +1228,22 @@ export default function PlayerScreen() {
           handleDraggedRef.current = true;
           // 끌기 동안도 아트워크가 매 프레임 커지고 줄어든다 — 실측 보류(뗄 때 푼다)
           queueGestureRef.current.holdArtLayout();
-          const { isScriptOpen, closeScriptForDrag } = queueGestureRef.current;
+          const { isScriptOpen, closeScriptForDrag, isOpen, isExpanded } = queueGestureRef.current;
           if (isScriptOpen) closeScriptForDrag();
+          const expandNow = queueExpand.get();
+          // 2단이거나 1단 ↔ 2단 사이에서 잡았다(내려가는 도중이면 queueStage 는 아직 2) — 도는 스프링은 set 이 끊는다.
+          // 잡은 자리(지금 값)에서 손가락을 따른다 — 1 로 두면 내려가던 시트가 위로 튄다
+          handleExpandStartRef.current = isExpanded || (isOpen && expandNow > 0) ? expandNow : null;
+          if (handleExpandStartRef.current !== null) queueExpand.set(handleExpandStartRef.current);
         },
         onPanResponderMove: (_, gesture) => {
-          const { travel, expandTravel, isOpen, isExpanded } = queueGestureRef.current;
-          // 2단(KAN-241 "4번") — 1단에서 더 올리면 queueExpand, 2단에서 내리면 queueExpand 가 먼저 줄고 1단 아래로는 안 간다
-          if (isExpanded) {
-            const next = 1 - gesture.dy / Math.max(1, expandTravel);
+          const { travel, expandTravel, isOpen } = queueGestureRef.current;
+          // 2단(KAN-241 "4번") — 1단에서 더 올리면 queueExpand, 2단에서 내리면 queueExpand 가 줄고 1단 아래로는 안 간다
+          const expandStart = handleExpandStartRef.current;
+          if (expandStart !== null) {
+            const next = expandStart - gesture.dy / Math.max(1, expandTravel);
             queueExpand.set(Math.min(1, Math.max(0, next)));
+            queueProgress.set(1);
             return;
           }
           if (isOpen && gesture.dy < 0 && expandTravel > 0) {
@@ -1255,12 +1269,15 @@ export default function PlayerScreen() {
             releaseArtLayout: release,
           } = queueGestureRef.current;
           release();
-          // 2단에서 — 내리면 1단, 아니면 2단 유지. 1단 아래로 한 번에 닫지는 않는다(단계별 복귀)
-          if (isExpanded) {
+          // 2단(또는 1단 ↔ 2단 사이)에서 — 내리면 1단, 아니면 2단. 1단 아래로 한 번에 닫지는 않는다(단계별 복귀)
+          const expandStart = handleExpandStartRef.current;
+          handleExpandStartRef.current = null;
+          if (expandStart !== null) {
             if (gesture.vy > QUEUE_COMMIT_VELOCITY) return shrink();
             if (gesture.vy < -QUEUE_COMMIT_VELOCITY) return expand();
-            const expanded = 1 - gesture.dy / Math.max(1, expandTravel);
-            return expanded > 1 - QUEUE_COMMIT_RATIO ? expand() : shrink();
+            // 2단에서 잡았으면 35% 내려야 1단, 오가던 도중에 잡았으면 놓은 자리에서 가까운 단계로
+            const keepAbove = isExpanded ? 1 - QUEUE_COMMIT_RATIO : 0.5;
+            return queueExpand.get() > keepAbove ? expand() : shrink();
           }
           // 1단에서 위로 — 2단으로 갈지
           if (isOpen && gesture.dy < 0 && expandTravel > 0) {
@@ -1278,7 +1295,6 @@ export default function PlayerScreen() {
         onPanResponderTerminate: () => {
           const {
             isOpen,
-            isExpanded,
             open,
             close,
             expand,
@@ -1286,7 +1302,9 @@ export default function PlayerScreen() {
             releaseArtLayout: release,
           } = queueGestureRef.current;
           release();
-          if (isExpanded) return expand();
+          const expandStart = handleExpandStartRef.current;
+          handleExpandStartRef.current = null;
+          if (expandStart !== null) return expandStart > 0.5 ? expand() : shrink();
           if (isOpen) {
             shrink();
             return open();
@@ -1858,9 +1876,11 @@ export default function PlayerScreen() {
           접힘: 아트워크가 가운데 크게, 제목이 그 아래. 펼침: 56pt 썸네일 + 오른쪽 제목 한 줄 헤더.
           절대 배치로 두 배치 사이를 보간한다 — 레이아웃 전환이면 "다른 화면"으로 읽힌다.
         */}
+          {/* 2단에서는 흐려진 히어로가 터치를 받지 않는다 — 오른쪽 밀기(setPanel(null))가 2단에서 목록을 한 번에 닫았다 */}
           <Animated.View
             style={{ opacity: morph.heroOpacity }}
             onLayout={onHeroLayout}
+            pointerEvents={queueStage === 2 ? 'none' : 'auto'}
             {...horizontalSwipeResponder.panHandlers}
           >
             <Reanimated.View style={[styles.hero, heroHeightStyle, queueExpandFadeStyle]}>
@@ -2222,8 +2242,10 @@ export default function PlayerScreen() {
                     }}
                     onPress={() => {
                       if (handleDraggedRef.current) return;
-                      // 2단에서 탭은 1단으로(KAN-241 "4번"). 1단 탭은 종전처럼 닫는다
-                      if (activePanel === 'queue' && queueStage === 2) return setQueueStageTo(1);
+                      // 2단에서 탭은 1단으로(KAN-241 "4번"). 1단 탭은 종전처럼 닫는다. 2단으로 올라가는 도중(상태는 아직 1단)의
+                      // 탭도 1단으로 — 한 번에 닫으면 두 단계가 겹쳐 꼬인다(PM 2026-10-23)
+                      if (activePanel === 'queue' && (queueStage === 2 || queueExpand.get() > 0))
+                        return setQueueStageTo(1);
                       setPanel(activePanel === 'queue' ? null : 'queue');
                     }}
                     accessibilityRole="button"
