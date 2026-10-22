@@ -38,12 +38,12 @@ const COVER_STRETCH_SHARE = 0.5;
 /**
  * 표지 뒤 비침(PM 2026-10-22 15:37·16:01 스샷 "이렇게 비치게") — 머리 영역에만 흐린 표지 한 장(탐색 대표 카드와 같은 흐림 36 ·
  * 막 45%). 화면 전체 바탕(흐림 60)은 세로로 크게 확대돼 한 가지 색으로 뭉개지지만, 이 한 장은 가로 폭에 맞춰 표지 구도가
- * 남는다. 아래 끝은 마스크로 투명하게 녹여 밑의 화면 바탕(종전 그대로)이 이어진다. 페이드는 표지 아랫변 GLOW_LEAD 위에서
- * 시작해 GLOW_TAIL 아래에서 끝난다 — 제목 글자(표지 아래 lg)는 종전 바탕 위에 앉는다
+ * 남는다. **머리 끝(버튼 줄 아래 여백 — 편 목록 첫 구분선 바로 위)까지** 깔고(PM 2026-10-22 16:42 — 종전 표지 바로 아래에서
+ * 끊겨 제목·버튼이 회색 띠 위에 따로 떴다), 아래 끝 GLOW_FADE 만 마스크로 투명하게 녹여 밑의 화면 바탕(종전 그대로)으로 잇는다.
+ * 제목·버튼이 흐린 표지 위에 앉으므로 라이트 모드 막을 진하게 둔다(어두운 표지 위 검정 글자 대비)
  */
-const GLOW_LEAD = 48;
-const GLOW_TAIL = 20;
-const GLOW_SCRIM_LIGHT = 'rgba(255, 255, 255, 0.35)';
+const GLOW_FADE = 40;
+const GLOW_SCRIM_LIGHT = 'rgba(255, 255, 255, 0.6)';
 
 /** 시리즈 제목 — 앨범 제목 자리. 큰 제목(xl 28)보다 한 단 작게, 두세 줄로 접혀도 표지를 밀어내지 않게 */
 const TITLE_SIZE = 24;
@@ -100,10 +100,9 @@ export default function SeriesHeader({
     };
   });
 
-  // 흐린 표지 한 장 — 화면 꼭대기(당긴 만큼 더 위)부터 표지 아래 GLOW_TAIL 까지. 표지는 아래 끝 고정으로 자라므로 아래 끝도 고정
+  // 흐린 표지 한 장 — 화면 꼭대기(당긴 만큼 더 위)부터 머리 끝까지(아래 끝은 스타일의 bottom: 0)
   const glowStyle = useAnimatedStyle(() => ({
     top: -(topBleed + overscroll.value),
-    height: topBleed + overscroll.value + theme.spacing.md + coverSize + GLOW_TAIL,
   }));
   const scheme = useActiveScheme();
 
@@ -115,10 +114,7 @@ export default function SeriesHeader({
           maskElement={
             <View style={StyleSheet.absoluteFill}>
               <View style={styles.glowMaskSolid} />
-              <LinearGradient
-                colors={['#000000', '#00000000']}
-                style={{ height: GLOW_LEAD + GLOW_TAIL }}
-              />
+              <LinearGradient colors={['#000000', '#00000000']} style={{ height: GLOW_FADE }} />
             </View>
           }
         >
@@ -218,6 +214,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     left: 0,
     right: 0,
+    bottom: 0,
     overflow: 'hidden',
   },
   glowMaskSolid: {
