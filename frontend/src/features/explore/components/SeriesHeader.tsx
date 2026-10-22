@@ -74,6 +74,8 @@ interface SeriesHeaderProps {
   topBleed: number;
   /** 목록 맨 위에서 더 당긴 거리(pt, 0 이상) — 표지가 손을 따라 커졌다가 돌아온다(PM 2026-10-22) */
   overscroll: SharedValue<number>;
+  /** 맨 위에서 더 내려간 실제 거리(손을 뗀 튕김 포함) — 흐린 표지가 꼭대기를 덮는 데 쓴다 */
+  pull: SharedValue<number>;
   /** 노출 중인 편 수(서버가 준 편 목록) — 계획 편수보다 적으면 "N편 중 M편 공개" */
   episodeCount: number;
   /** [재생]이 틀 편(낭독용) — 없으면(편 0개) 버튼을 그리지 않는다 */
@@ -98,6 +100,7 @@ interface SeriesHeaderProps {
 export default function SeriesHeader({
   series,
   overscroll,
+  pull,
   topBleed,
   episodeCount,
   playTarget,
@@ -129,7 +132,8 @@ export default function SeriesHeader({
   const glowStyle = useAnimatedStyle(() => {
     const height = glowHeight.value;
     if (height <= 0) return { transform: [] };
-    const grow = overscroll.value;
+    // 손으로 당긴 값(놓으면 부드럽게 줄어든다)과 실제 내려간 거리 중 큰 쪽 — 튕김 중에도 꼭대기에 틈이 나지 않게
+    const grow = Math.max(overscroll.value, pull.value);
     return { transform: [{ translateY: -grow / 2 }, { scale: 1 + grow / height }] };
   });
   const scheme = useActiveScheme();
