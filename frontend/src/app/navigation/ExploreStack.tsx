@@ -25,7 +25,15 @@ export default function ExploreStack() {
         component={ExploreScreen}
         options={HAS_NATIVE_TAB_BAR ? TRANSPARENT_BAR : undefined}
       />
-      <Stack.Screen name="Series" component={SeriesScreen} />
+      {/*
+        시리즈 화면은 아래쪽 스크롤 가장자리 효과를 끈다(iOS 26 — 시스템 탭 바·미니플레이어 위 내용을 흐리고 어둡게 하는 띠).
+        하단 '다른 항목' 구역이 단색이라 그 어둡게 하는 부분만 따로 띠로 떴다(PM 2026-10-22 18:40 "이상한 띠만 없애봐")
+      */}
+      <Stack.Screen
+        name="Series"
+        component={SeriesScreen}
+        options={{ scrollEdgeEffects: { bottom: 'hidden' } }}
+      />
     </Stack.Navigator>
   );
 }
