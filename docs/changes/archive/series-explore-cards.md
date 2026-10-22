@@ -6,7 +6,7 @@
 | 요청 파트 | 백엔드 — 박준현 |
 | 발행 날짜 | 2026-10-17 |
 | 반영 날짜 | 2026-10-17 |
-| 관련 | [KAN-134](https://runtime364.atlassian.net/browse/KAN-134) 확정 설계 4번 · FE [KAN-225](https://runtime364.atlassian.net/browse/KAN-225)(`tickets/frontend/pending/series-display.md`) · 1단계 계약 `changes/archive/series-backend-phase1.md` · 브랜치 `feat(be)/series-explore-cards`(1단계 `feat(be)/series-backend` 위) |
+| 관련 | [KAN-134](https://runtime364.atlassian.net/browse/KAN-134) 확정 설계 4번 · FE [KAN-225](https://runtime364.atlassian.net/browse/KAN-225)(`tickets/frontend/archive/series-display.md`) · 1단계 계약 `changes/archive/series-backend-phase1.md` · 브랜치 `feat(be)/series-explore-cards`(1단계 `feat(be)/series-backend` 위) |
 
 ## 배경
 

@@ -13,7 +13,7 @@
 | 선행 | BE [KAN-238](https://runtime364.atlassian.net/browse/KAN-238) `tickets/backend/archive/search-similar-fallback.md`(2026-10-22 반영) — 응답 필드·`exact` 파라미터(Jira is blocked by). mock으로 화면·카피는 먼저 만들 수 있다 |
 | 근거 문서 | `changes/pending/search-similar-fallback.md` 1·2·4·5절 · `spec/uiux/explore-uiux.md` 4.5 |
 | 중요도 | Medium |
-| 상태 | **코드 반영(2026-10-22) — 개발계 실기기 확인은 BE KAN-238 머지 뒤** |
+| 상태 | 완료 — archive 2026-10-23 (실기기 확인 PM) |
 
 ## 왜
 
@@ -55,3 +55,7 @@
   - mock(서버 대역): 자모 트라이그램 교정어(태그·주제명·시리즈·제목 토큰 어휘, 임계 0.5) → 교정어로 키워드 1건 이상일 때만 적용, `#`·`exact` 는 교정 없음, `search-related` 시나리오로 관련 결과 응답.
   - **남은 완료 조건**: 개발계 실기기("커리오"·"이직") — BE KAN-238 머지 뒤. 그때까지 pending 유지.
 - 2026-10-22 PM: 교정 안내를 **가운데 한 줄**로 — "‘커리어’로 대신 검색했어요" 옆에 버튼 "원본 검색 ‘커리오’"(en "Search “커리오” instead"). 종전 둘째 줄 "혹시 ‘커리오’로 검색하고 싶나요?"는 걷음. 관련 결과 한 줄도 같은 자리라 가운데 정렬
+
+### 2026-10-23 — 완료 · archive(반영 날짜 2026-10-23)
+
+- 실기기 확인(교정 안내 2줄 · 탭 → exact 재검색 · 관련 결과 1줄)은 PM이 개발계에서 마쳤다고 확인. 마크다운을 archive로 옮기고 Jira KAN-239를 완료로 넘긴다.
