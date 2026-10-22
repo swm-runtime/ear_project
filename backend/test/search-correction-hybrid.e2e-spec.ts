@@ -112,6 +112,9 @@ function randomSimpleSyllables(n: number): string {
  *
  * 공유 로컬 DB의 다른 콘텐츠와 섞이지 않게 질의마다 이 실행만의 무작위 한글 토큰을 쓴다.
  */
+/** 하위 호환 순서 대조의 페이지 상한 — limit 3 × 이 값 = 끝까지 넘길 수 있는 편 수 */
+const PARITY_PAGE_GUARD = 2_000;
+
 describe('하이브리드 검색·오타 교정 E2E', () => {
   let app: INestApplication<App>;
   let dataSource: DataSource;
@@ -785,9 +788,9 @@ describe('하이브리드 검색·오타 교정 E2E', () => {
     });
 
     it.each([
+      // DB 전체에 흔한 말('e2e'·'이')로 대조하던 두 케이스는 뺐다 — 병렬 CI 에서 다른 스위트가 넣고 지우는 편에 따라
+      // 결과가 달라져(2026-10-22 3회 연속 ±1) 경로 차이와 구분할 수 없다. 동점은 아래 시드 토큰 케이스의 반복·위치 시드가 만든다
       ['시드 토큰', () => COMPAT_TOKEN],
-      ['로컬 DB 전체에 흔한 말', () => 'e2e'],
-      ['한 글자(서비스 직접 — 동점이 많다)', () => '이'],
     ])(
       '%s: 하이브리드(질의 벡터 없음)와 종전 키워드가 페이지를 넘겨도 같은 순서다',
       async (_label, queryOf) => {
@@ -813,7 +816,8 @@ describe('하이브리드 검색·오타 교정 E2E', () => {
           let legacyCursor: Parameters<
             ContentService['findSearchPage']
           >[0]['cursor'] = null;
-          for (let guard = 0; guard < 100; guard += 1) {
+          // 상한을 넉넉히 — 병렬 CI DB 에서는 흔한 말이 수백 편이라 100쪽(300편)에서 잘리면 두 경로가 다른 곳에서 끊긴다
+          for (let guard = 0; guard < PARITY_PAGE_GUARD; guard += 1) {
             const page = await contentService.findSearchPage({
               ...common,
               tagOnly: false,
@@ -834,7 +838,8 @@ describe('하이브리드 검색·오타 교정 E2E', () => {
           let hybridCursor: Parameters<
             ContentService['findHybridSearchPage']
           >[0]['cursor'] = null;
-          for (let guard = 0; guard < 100; guard += 1) {
+          // 상한을 넉넉히 — 병렬 CI DB 에서는 흔한 말이 수백 편이라 100쪽(300편)에서 잘리면 두 경로가 다른 곳에서 끊긴다
+          for (let guard = 0; guard < PARITY_PAGE_GUARD; guard += 1) {
             const page = await contentService.findHybridSearchPage({
               ...common,
               queryVector: null,
@@ -851,9 +856,14 @@ describe('하이브리드 검색·오타 교정 E2E', () => {
             };
           }
 
-          // then
+          // then — 순서 대조는 이 스위트가 심은 편끼리만 한다. 병렬로 도는 다른 e2e 가 같은 말을 품은 편을 넣고 지워
+          // 두 경로를 넘기는 사이 DB 전체 목록이 달라질 수 있다(CI 2026-10-22 #1828 — Received +3). 키셋 페이지네이션이라
+          // 남의 행이 끼어도 내 편끼리의 상대 순서는 그대로다
           expect(hybridIds.length).toBeGreaterThan(0);
-          expect(hybridIds).toEqual(legacyIds);
+          const own = new Set(contentIds);
+          expect(hybridIds.filter((id) => own.has(id))).toEqual(
+            legacyIds.filter((id) => own.has(id)),
+          );
         }
       },
       60_000,

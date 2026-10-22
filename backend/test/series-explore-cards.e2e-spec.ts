@@ -281,14 +281,18 @@ describe('탐색 시리즈 카드 E2E', () => {
   it('켬 — 시리즈 표지(KAN-234)가 있으면 주제별·인기·검색 카드 표지가 그것이고, 지우면 다시 1화 썸네일이다', async () => {
     const COVER = 'https://example.com/e2e-cards-cover.webp';
     const cardThumbnails = async () => {
-      const lists = await Promise.all([
-        pageAll(onApp, '/explore/contents', {
+      // 차례로 부른다 — 세 목록을 동시에 끝까지 넘기면 테스트 서버 소켓이 끊길 때가 있다(CI ECONNRESET 2026-10-22)
+      const lists = [
+        await pageAll(onApp, '/explore/contents', {
           topic_ids: topicId,
           limit: '20',
         }),
-        pageAll(onApp, '/explore/popular', { limit: '20' }),
-        pageAll(onApp, '/explore/search', { query: SERIES_WORD, limit: '20' }),
-      ]);
+        await pageAll(onApp, '/explore/popular', { limit: '20' }),
+        await pageAll(onApp, '/explore/search', {
+          query: SERIES_WORD,
+          limit: '20',
+        }),
+      ];
       return lists.map(
         (list) =>
           list.items.find(
@@ -426,7 +430,9 @@ describe('탐색 시리즈 카드 E2E', () => {
     );
     seriesId = series.id;
 
-    const base = Date.now() - 3_600_000;
+    // 미래 시각으로 둔다 — 병렬로 도는 다른 e2e 가 "방금" 발행한 편들이 피드 "새로 나온" 섹션(상위 N)에서 이 스위트의
+    // 시리즈를 밀어내지 않게(CI 2026-10-22). 노출 조건은 발행 시각을 보지 않는다(content.visibility.ts)
+    const base = Date.now() + 86_400_000;
     const make = async (
       label: string,
       index: number,
