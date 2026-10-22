@@ -16,7 +16,17 @@ interface PlayIconProps {
  * 도형으로, design.md §5 더보기 아이콘과 같은 이유). 원형 버튼 안에서 광학 중심이 맞도록 왼쪽 여백을 조금 더 준다
  */
 export default function PlayIcon({ size, color, shadow = false }: PlayIconProps) {
-  const triangle = <Path fill={color} d="M8 5.2 19 12 8 18.8z" />;
+  // SF Symbols `play.fill` 처럼 꼭짓점을 둥글린 삼각형 — 채움 + 같은 색 라운드 조인(테두리가 모서리를 둥글린다).
+  // 베이스 삼각형을 조금 줄여 선 두께만큼 커지는 걸 상쇄한다(각진 삼각형은 애플 글리프와 다르다, PM 2026-10-22)
+  const triangle = (
+    <Path
+      fill={color}
+      stroke={color}
+      strokeWidth={2.4}
+      strokeLinejoin="round"
+      d="M9 6.8 17.8 12 9 17.2z"
+    />
+  );
   if (!shadow) {
     return (
       <Svg width={size} height={size} viewBox="0 0 24 24">
