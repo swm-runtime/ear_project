@@ -1,5 +1,5 @@
 import { LinearGradient } from 'expo-linear-gradient';
-import { Image, StyleSheet, View, useWindowDimensions } from 'react-native';
+import { Image, Platform, ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native';
 import Animated, {
   cancelAnimation,
   Easing,
@@ -219,6 +219,24 @@ export default function SeriesScreen() {
 
   return (
     <View style={styles.container}>
+      {/*
+       * [진단 2026-10-22 PM "맨 위에서 당겼다 놓으면 튕기지 않고 원래 위치로 바로 바뀐다" — 시리즈 화면만]
+       * 이 화면만 시스템 바를 숨기는데, react-native-screens 는 숨김일 때 largeTitleDisplayMode 를 안 건드려 탐색 홈의
+       * 큰 제목 모드가 남고, 우리 RNS 패치(earRegisterContentScrollView)가 목록을 바의 콘텐츠 스크롤 뷰로 등록한다 →
+       * UIKit 큰 제목 처리가 놓는 순간 목록 위치를 맞추는 것으로 의심. 패치는 "화면 절반 이상 높이의 첫 UIScrollView"를
+       * 고르므로, 맨 앞에 보이지 않는 빈 스크롤 뷰를 둬 UIKit 이 이것을 보게 한다. 확인되면 패치 쪽(숨김 화면은 Never)
+       * 으로 옮기고 이 뷰는 걷는다
+       */}
+      {Platform.OS === 'ios' ? (
+        <ScrollView
+          style={StyleSheet.absoluteFill}
+          pointerEvents="none"
+          scrollEnabled={false}
+          contentInsetAdjustmentBehavior="never"
+          accessibilityElementsHidden
+          importantForAccessibility="no-hide-descendants"
+        />
+      ) : null}
       {/* 흐린 표지 바탕 — 플레이어와 같은 흐림·막(PlayerScreen backdrop). 스크롤과 무관하게 화면에 고정, 본문 뒤. 맨 위에서 더 당길 때만 커진다 */}
       {backdropUri ? (
         <Animated.View style={[styles.backdrop, backdropStretchStyle]} pointerEvents="none">
