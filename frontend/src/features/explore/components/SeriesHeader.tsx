@@ -142,8 +142,8 @@ export default function SeriesHeader({
             }
           >
             {isSeriesSaved ? (
-              // 시리즈째 빼기 — 채운 빨강 원 + 흰 휴지통(iOS 파괴 동작, PM 2026-10-22 "아이콘 배경이 빨간색")
-              <TrashIcon size={SIDE_ICON_SIZE} color={theme.color.onPrimary} />
+              // 시리즈째 빼기 — 채운 빨강 원 + 흰 휴지통(두 모드 흰색 onPhoto — onPrimary 는 다크에서 검정, PM 2026-10-22 "휴지통 흰색으로")
+              <TrashIcon size={SIDE_ICON_SIZE} color={theme.color.onPhoto} />
             ) : (
               <PlusIcon size={SIDE_ICON_SIZE} color={theme.color.textPrimary} />
             )}
