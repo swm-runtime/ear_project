@@ -4,7 +4,7 @@ import { Badge, Panel, btnCls } from "@/components/ui";
 import { fmtTime } from "@/lib/format";
 import {
   EarApiError, type EarContent, type EarDripCandidate, type EarDripPreview, type EarExploreFeed, type EarTopic,
-  type RecommendTestAccount, type RecommendTestAction, getEarDripPreview, getRecommendTestAccount, getRecommendTestFeed,
+  type RecommendTestAccount, type RecommendTestAction, getEarDripPreview, isDripPreviewNotDeployed, getRecommendTestAccount, getRecommendTestFeed,
   listEarContentsOn, listEarTopicsOn, postRecommendTestAction, putRecommendTestCareer, putRecommendTestInterests, resetRecommendTest, runRecommendTestFirstDrip,
 } from "@/lib/ear";
 import { diffRanked, rankMark, type RankDiff } from "@/lib/recommend-test-diff";
@@ -58,9 +58,12 @@ export function RecommendTest() {
   const refresh = useCallback(async (markDiff: boolean) => {
     const acc = await getRecommendTestAccount();
     setAccount(acc);
-    const email = acc.user.email;
+    // 편성 미리보기는 user_id 로만 묻는다(2026-10-22). 개발계 API 가 아직 옛 계약이면 400 → 안내만 하고 나머지는 그대로 그린다
     const [preview, feed] = await Promise.all([
-      email ? getEarDripPreview(email, "dev").catch((e: unknown) => { setErr(`편성 미리보기 실패: ${earErrMsg(e)}`); return null; }) : Promise.resolve(null),
+      getEarDripPreview(acc.user.id, "dev").catch((e: unknown) => {
+        setErr(isDripPreviewNotDeployed(e) ? "편성 미리보기: 개발계 API 배포 후 사용 가능 (아직 옛 계약 — user_id 미지원)" : `편성 미리보기 실패: ${earErrMsg(e)}`);
+        return null;
+      }),
       getRecommendTestFeed().catch((e: unknown) => { setErr(`탐색 피드 실패: ${earErrMsg(e)}`); return null; }),
     ]);
     const regular = picks(preview?.regular?.candidates).map((c) => c.content_id);

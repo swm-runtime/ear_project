@@ -169,11 +169,11 @@ export interface DripPreviewCandidateView {
 export interface DripPreviewView {
   computedAt: Date;
   serviceDate: string;
+  /** 편성 계산·화면에 쓰는 열만 — 이메일·닉네임 같은 신원·연락처는 조회하지도 싣지도 않는다(2026-10-22) */
   user: {
     id: string;
-    email: string | null;
-    nickname: string | null;
     tier: string;
+    market: string;
     jobCategory: string | null;
     yearsOfExperience: number | null;
     onboardingCompleted: boolean;

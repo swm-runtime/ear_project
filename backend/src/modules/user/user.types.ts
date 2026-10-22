@@ -9,10 +9,26 @@ import {
   YearsOfExperienceRange,
 } from './user.enum';
 
+import type { User } from './entities/user.entity';
+
 /**
  * convention.md 3.2 — Service 경계에는 HTTP DTO 대신 Command 타입을 쓴다.
  * 모듈 밖으로 공개되는 타입만 이 파일에 둔다.
  */
+
+/**
+ * 편성 미리보기(admin)가 읽는 사용자 열 — 편성 계산 입력(`DripPlanUser`) + 화면의 온보딩 완료 여부.
+ * 이메일·닉네임 같은 신원·연락처 열은 넣지 않는다(2026-10-22).
+ */
+export type UserPlanProfile = Pick<
+  User,
+  | 'id'
+  | 'tier'
+  | 'market'
+  | 'jobCategory'
+  | 'yearsOfExperience'
+  | 'onboardingCompleted'
+>;
 
 /** 소셜 프로필에서 환산한 계정 생성 입력 (auth.md 4.1) */
 /**
