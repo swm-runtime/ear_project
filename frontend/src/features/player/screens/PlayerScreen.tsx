@@ -334,8 +334,16 @@ export default function PlayerScreen() {
   /** 2단 ↔ 1단(KAN-241 "4번") — 시트만 움직인다. 1단 전환은 setPanel 이 맡는다 */
   const setQueueStageTo = (stage: 1 | 2) => {
     playbackService.holdPositionUpdates(SCRIPT_TOGGLE_DURATION_MS);
+    const transition = panelTransitionRef.current;
     springTo(queueExpand, stage === 2 ? 1 : 0, motion.spring.smooth, (finished) => {
-      if (finished) setQueueStage(stage);
+      if (!finished) return;
+      setQueueStage(stage);
+      /*
+       * 단계 이동이 끝났으면 목록도 앉은 것이다(KAN-262 재발 3차, PM 2026-10-24 스샷 — 8줄 아래가 빈칸). 열리는 도중에 손잡이를
+       * 잡아 올리면 끌기가 열림 스프링을 끊어(queueProgress.set) "앉음"이 영영 오지 않았다 — 모션용 앞 8줄만 그려진 채 나머지가
+       * 빈 자리로 남고, 앉음에 걸린 목록·추천 조회도 출발하지 않았다. 그 사이 패널이 바뀌었으면(닫힘·대본) 그쪽이 정리한다
+       */
+      if (panelTransitionRef.current === transition) setIsQueueSettled(true);
     });
   };
   const setPanel = (kind: PlayerPanelKind | null) => {
