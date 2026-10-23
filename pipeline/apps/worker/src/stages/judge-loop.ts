@@ -8,7 +8,7 @@
  * 회차(최대 3): GPT 재작성(구조 단계 → 구조 점수가 안 오르면 잠그고 세부 단계) → L0(한 번 되돌림) → GPT 한국어·사실 검토 → must_fix 턴만 수리
  *   → GPT 편집자 3회(눈가림, effort medium) 항목별 중앙값. 합계가 최고판을 넘으면 최고판 갱신, 세부 단계에서 안 오르면 중단.
  * 끝: 최고판을 episodes/<ep>/script.md 에 쓰고(S3 버저닝으로 이전 판이 남는다), 판정을 episodes.critic_verdicts 에 저장한다(README 4장 형식,
- *   judged_by `agent:<모델>`). 발행 가능 = 편집자 중앙값 ≥ 기준(settings.automation.judge_threshold, 기본 65 — 2026-10-22 박수헌)
+ *   judged_by `agent:<모델>`). 발행 가능 = 편집자 중앙값 ≥ 기준(settings.automation.judge_threshold, 기본 60 — 2026-10-23 박수헌, 종전 65)
  *   · 한국어·사실 발행 가능 · 한국어 must_fix 전부 수리. 편집자 지적은 점수에 녹아 있으므로 관문이 아니고 기록만 한다(agent.editor_findings).
  * 발행 준비 자동 스위치가 켜져 있으면 이 저장을 보고 워커가 tts 연쇄를 건다(automation.ts autoPublishPrepGlobal).
  *
@@ -27,7 +27,7 @@ import { pullPrefix, pushPrefix, s3Key } from "../storage.js";
 import { scriptStats, twoStageViolationsEn } from "./draft-two-stage.js";
 
 export const JUDGE_LOOP_VERSION = "judge-loop-v1.2";
-export const DEFAULT_THRESHOLD = 65;
+export const DEFAULT_THRESHOLD = 60; // 2026-10-23 박수헌: 65 → 60 (첫 배치 28편 중 6편 통과. 60~64 편의 편집자 평은 "필수 수정 없이 발행 가능, 장면보다 설명이 많다"로 66~70 편과 같은 지적 — 정확성 아닌 연출 밀도 차이). 한국어·사실 must_fix 관문은 그대로
 const MAX_ROUNDS = 3;
 export const K = ["3.1", "3.2", "3.3", "3.4", "3.5", "3.6", "3.7", "3.8", "3.9", "3.10", "3.11", "3.12"] as const;
 const STRUCT = ["3.1", "3.5", "3.6", "3.7"];

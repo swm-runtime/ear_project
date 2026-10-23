@@ -36,8 +36,8 @@ export function SettingsForm({ tts, worker, templates, thumbnail, anchor, automa
             : <span><b>비평 뒤 발행 준비 자동</b> — 비평이 끝나면 TTS → 썸네일 → 패키지를 바로 잇는다(ElevenLabs·OpenAI 과금). 추천 메타·검수·발행은 업로드 화면에서 사람이 한다.</span>}
         </label>
         {locale === "en" && <label className="mb-2 flex items-start gap-2">
-          <input type="number" min={0} max={100} className="w-16 rounded border border-line px-1 text-xs" value={Number(auto.judge_threshold ?? 65)} onChange={(e) => setAuto({ ...auto, judge_threshold: Number(e.target.value) })} />
-          <span><b>판정 루프 발행 기준</b> — 비평 뒤 워커가 돌리는 판정·재작성 루프(judge_loop)에서 편집자(GPT 3회 중앙값) 합계가 이 값 이상이고 한국어·사실 검토가 발행 가능이며 필수 수정이 전부 수리된 편만 발행 가능으로 저장한다. 기본 65(2026-10-22 — Claude 외부 채점과 6~11점 차를 보정한 값). 바꾸면 다음 루프부터.</span>
+          <input type="number" min={0} max={100} className="w-16 rounded border border-line px-1 text-xs" value={Number(auto.judge_threshold ?? 60)} onChange={(e) => setAuto({ ...auto, judge_threshold: Number(e.target.value) })} />
+          <span><b>판정 루프 발행 기준</b> — 비평 뒤 워커가 돌리는 판정·재작성 루프(judge_loop)에서 편집자(GPT 3회 중앙값) 합계가 이 값 이상이고 한국어·사실 검토가 발행 가능이며 필수 수정이 전부 수리된 편만 발행 가능으로 저장한다. 기본 60(2026-10-23 — 종전 65. 60~64 편은 필수 수정 없이 발행 가능하다는 편집자 평이 붙어 하한을 내렸다). 바꾸면 다음 루프부터.</span>
         </label>}
         <label className="mb-2 flex items-start gap-2">
           <input type="checkbox" className="mt-0.5" checked={auto.server_ai_claim !== false} onChange={(e) => setAuto({ ...auto, server_ai_claim: e.target.checked })} />
