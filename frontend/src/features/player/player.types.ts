@@ -221,7 +221,9 @@ export type QueueSourceLabel =
   | { type: 'popular'; period: 'week' | 'month' | 'all' }
   | { type: 'topic'; name: string }
   | { type: 'search'; query: string }
-  | { type: 'series'; title: string };
+  | { type: 'series'; title: string }
+  /** 목록이 끝나 자동 재생이 갈아탄 추천 재생 목록(player.md 4.2-4) */
+  | { type: 'recommended' };
 
 /**
  * 재생 목록의 정체 = **재생을 시작한 맥락**(player.md 4.2-1, KAN-241 — PM 2026-10-22).
