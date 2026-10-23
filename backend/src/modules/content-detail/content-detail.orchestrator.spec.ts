@@ -92,6 +92,7 @@ describe('ContentDetailOrchestrator', () => {
     } as unknown as jest.Mocked<ContentService>;
 
     libraryService = {
+      findCompletedContentIds: jest.fn().mockResolvedValue(new Set()),
       findActiveItems: jest.fn().mockResolvedValue([]),
     } as unknown as jest.Mocked<LibraryService>;
 

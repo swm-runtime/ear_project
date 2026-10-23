@@ -41,8 +41,13 @@ interface ListBody {
   has_next: boolean;
 }
 
-/** 1.2.x 응답의 항목 키 — 스위치가 꺼져 있으면 정확히 이것이다 */
-const LEGACY_ITEM_KEYS = ['content', 'is_counted_today', 'library'];
+/** 1.2.x 응답의 항목 키 + 덧붙인 `is_completed`(KAN-248 — 옛 앱은 모르는 키라 무시한다). 스위치가 꺼져 있으면 정확히 이것이다 */
+const LEGACY_ITEM_KEYS = [
+  'content',
+  'is_completed',
+  'is_counted_today',
+  'library',
+];
 
 /**
  * 탐색 시리즈 카드 E2E(KAN-134 확정 설계 4번 — `SERIES_EXPLORE_CARDS_ENABLED`).

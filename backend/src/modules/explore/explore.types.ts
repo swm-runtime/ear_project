@@ -64,6 +64,11 @@ export interface ExploreItemView {
   content: ExploreContentView;
   library: ExploreLibraryView | null;
   /**
+   * 완청했는가 — 라이브러리 `completed` 행 ∪ 재생 위치가 기준을 넘은 편(KAN-248). **담지 않고 끝까지 들은 편도 true다** —
+   * 탐색 재생은 행을 만들지 않는다(`explore.md` 4.4). 완청 표시·연속 재생의 건너뛰기는 `library.status`가 아니라 이 값을 본다
+   */
+  isCompleted: boolean;
+  /**
    * 오늘의 서비스 날짜에 이 콘텐츠의 `play_records` 행이 있는가.
    *
    * **컬럼이 아니라 조회 결과이며 힌트이지 판정이 아니다**(라이브러리와 같은 필드·같은 이유).

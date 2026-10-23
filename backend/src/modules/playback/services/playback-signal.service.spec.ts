@@ -40,12 +40,27 @@ class SignalWorld {
     },
   };
 
+  /** 담지 않고 끝까지 들은 편(KAN-248) — 재생 위치가 기준을 넘었지만 라이브러리 행은 없다 */
+  readonly reachedWithoutLibrary: Array<{ userId: string; contentId: string }> =
+    [];
+
   readonly libraryService = {
-    findItemByContentId: (userId: string, contentId: string) =>
+    findCompletedContentIds: (userId: string, contentIds: string[]) =>
       Promise.resolve(
-        this.libraryItems.find(
-          (item) => item.userId === userId && item.contentId === contentId,
-        ) ?? null,
+        new Set(
+          contentIds.filter(
+            (contentId) =>
+              this.libraryItems.some(
+                (item) =>
+                  item.userId === userId &&
+                  item.contentId === contentId &&
+                  item.status === LibraryItemStatus.COMPLETED,
+              ) ||
+              this.reachedWithoutLibrary.some(
+                (row) => row.userId === userId && row.contentId === contentId,
+              ),
+          ),
+        ),
       ),
   };
 
@@ -94,6 +109,28 @@ async function expectContentNotFound(work: Promise<unknown>): Promise<void> {
 
 describe('PlaybackSignalService', () => {
   describe('recordReplay', () => {
+    it('담지 않고 끝까지 들은 편의 다시 듣기도 replay 신호를 남긴다(KAN-248)', async () => {
+      // given
+      const { world, service } = setup();
+      world.contentIds.add(CONTENT_ID);
+      world.reachedWithoutLibrary.push({
+        userId: USER_ID,
+        contentId: CONTENT_ID,
+      });
+
+      // when
+      await service.recordReplay(USER_ID, CONTENT_ID);
+
+      // then
+      expect(world.signals).toEqual([
+        {
+          userId: USER_ID,
+          contentId: CONTENT_ID,
+          action: UserSignalAction.REPLAY,
+        },
+      ]);
+    });
+
     it('완료 상태의 콘텐츠면 replay 신호를 한 건 적재한다', async () => {
       // given
       const { world, service } = setup();

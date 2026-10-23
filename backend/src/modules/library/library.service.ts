@@ -534,16 +534,35 @@ export class LibraryService {
   ): Promise<Map<string, number>> {
     return this.libraryItemRepository.findCompletedSeriesMaxEpisodes(
       userId,
+      COMPLETION_REACHED_RATIO,
       manager,
+    );
+  }
+
+  /**
+   * 주어진 편 중 완청한 편(KAN-248) — 라이브러리 `completed` 행(삭제분 포함) ∪ 재생 위치가 기준을 넘은 편.
+   * 탐색 재생은 행을 만들지 않으므로(`explore.md` 4.4) 행 상태만 보면 끝까지 들은 편이 "안 들음"으로 보인다.
+   */
+  async findCompletedContentIds(
+    userId: string,
+    contentIds: string[],
+    manager?: EntityManager,
+  ): Promise<Set<string>> {
+    return new Set(
+      await this.libraryItemRepository.findCompletedContentIds(
+        userId,
+        contentIds,
+        COMPLETION_REACHED_RATIO,
+        manager,
+      ),
     );
   }
 
   /**
    * 완청한 고유 콘텐츠 수 — 프로필 통계의 `completed_content_count`(`profile.md` 4.5).
    *
-   * 완청 **판정**은 이 모듈이 하지 않는다. `player`가 판정해 `status = completed`로 전이시킨
-   * 결과를 세기만 한다(`profile-api.md` 1장 — 완청 판정 값을 재정의하지 않는다).
-   * 삭제된 항목도 포함한다 — 들었다는 사실은 목록에서 지운다고 없어지지 않는다.
+   * 라이브러리 `completed` 행(삭제분 포함)에 **담지 않고 끝까지 들은 편**을 더한다(KAN-248 — 탐색 재생은 행을
+   * 만들지 않는다). 기준은 재생 위치 저장의 완청 판정과 같은 값이다(`library.md` 4.4).
    */
   async countCompletedContents(
     userId: string,
@@ -551,6 +570,7 @@ export class LibraryService {
   ): Promise<number> {
     return this.libraryItemRepository.countCompletedContentsByUserId(
       userId,
+      COMPLETION_REACHED_RATIO,
       manager,
     );
   }

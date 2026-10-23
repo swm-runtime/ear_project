@@ -270,6 +270,7 @@ describe('관련 콘텐츠 E2E — GET /contents/:content_id/related', () => {
       const [saved, counted, plain] = (response.body as RelatedBody).items;
       expect(Object.keys(saved).sort()).toEqual([
         'content',
+        'is_completed',
         'is_counted_today',
         'library',
       ]);

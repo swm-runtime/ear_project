@@ -1,7 +1,6 @@
 import { Injectable } from '@nestjs/common';
 
 import { ContentService } from '@/modules/content/services/content.service';
-import { LibraryItemStatus } from '@/modules/library/library.enum';
 import { LibraryService } from '@/modules/library/library.service';
 
 import { UserSignalAction } from '../playback.enum';
@@ -42,12 +41,13 @@ export class PlaybackSignalService {
     // 회수 여부는 보지 않는다 — 없는 콘텐츠만 404다(`player-api.md` 4.4 에러 표)
     await this.contentService.getById(contentId);
 
-    const item = await this.libraryService.findItemByContentId(
+    // 완청은 라이브러리 행과 무관하다(KAN-248) — 담지 않고 끝까지 들은 편의 다시 듣기도 `replay`다
+    const completed = await this.libraryService.findCompletedContentIds(
       userId,
-      contentId,
+      [contentId],
     );
 
-    if (item?.status !== LibraryItemStatus.COMPLETED) {
+    if (!completed.has(contentId)) {
       return;
     }
 

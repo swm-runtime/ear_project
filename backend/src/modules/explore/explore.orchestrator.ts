@@ -1199,14 +1199,21 @@ export class ExploreOrchestrator {
     // 같은 콘텐츠가 여러 섹션에 걸쳐 있으므로 중복을 제거하고 조회한다
     const contentIds = [...new Set(contents.map((content) => content.id))];
 
-    const [topicViews, libraryItems, countedContentIds, seriesRefs] =
-      await Promise.all([
-        this.contentService.findTopicViews(contentIds, manager),
-        this.libraryService.findActiveItems(userId, contentIds, manager),
-        this.playbackService.findCountedContentIds(userId, now, manager),
-        // 카드의 시리즈 표시(KAN-134) — 시리즈 행을 한 번에 읽는다. 묶음 카드(type: series)는 아직 없다
-        this.seriesService.findRefs(contents, manager),
-      ]);
+    const [
+      topicViews,
+      libraryItems,
+      countedContentIds,
+      seriesRefs,
+      completedIds,
+    ] = await Promise.all([
+      this.contentService.findTopicViews(contentIds, manager),
+      this.libraryService.findActiveItems(userId, contentIds, manager),
+      this.playbackService.findCountedContentIds(userId, now, manager),
+      // 카드의 시리즈 표시(KAN-134) — 시리즈 행을 한 번에 읽는다. 묶음 카드(type: series)는 아직 없다
+      this.seriesService.findRefs(contents, manager),
+      // 완청 표시(KAN-248) — 담지 않고 끝까지 들은 편도 완청이다
+      this.libraryService.findCompletedContentIds(userId, contentIds, manager),
+    ]);
 
     const topicIdsByContentId = groupTopicIds(topicViews);
     const libraryItemByContentId = new Map<string, LibraryItem>(
@@ -1238,6 +1245,7 @@ export class ExploreOrchestrator {
               status: libraryItem.status,
             }
           : null,
+        isCompleted: completedIds.has(content.id),
         isCountedToday: countedContentIds.has(content.id),
       };
     });
