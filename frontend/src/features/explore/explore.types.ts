@@ -53,6 +53,11 @@ export interface ExploreItem {
   library: ExploreLibraryState | null;
   /** 재생 확인 팝업을 탭 즉시 띄우기 위한 힌트 — 판정이 아니다(library-api.md 4.1과 동일) */
   isCountedToday: boolean;
+  /**
+   * 완청 — 서버 `is_completed`(KAN-249). 담지 않고 끝까지 들은 편도 true(탐색 재생 자동 적립 폐기 뒤 `library.status` 만으로는
+   * 알 수 없다). 클라이언트가 위치로 다시 판정하지 않는다
+   */
+  isCompleted: boolean;
   /** 검색 결과에만(KAN-238) — 이 항목을 낸 엔진. 화면은 아직 쓰지 않는다('관련' 꼬리표는 다음 결정) */
   matchedBy?: ExploreSearchMatchedBy[];
 }

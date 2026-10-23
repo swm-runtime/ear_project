@@ -37,6 +37,7 @@ const episode = (
     },
     library,
     isCountedToday: false,
+    isCompleted: library?.status === 'completed',
   },
   progress,
 });
@@ -162,6 +163,19 @@ describe('pickSeriesPlayEpisode — 머리 [재생]이 틀 편', () => {
     const picked = pickSeriesPlayEpisode([numbered(1, completed), numbered(2, completed)]);
 
     expect(picked?.episodeNo).toBe(1);
+  });
+
+  it('담지 않고 끝까지 들은 편(is_completed)도 완청이고, 머리 [재생]은 그 편을 건너뛴다(KAN-249)', () => {
+    // given — 1화는 담지 않았지만 서버가 완청이라고 준다
+    const first = {
+      ...episode(null, null),
+      item: { ...episode(null, null).item, isCompleted: true },
+    };
+    const second = { ...episode(null, null), episodeNo: 2 };
+
+    // then
+    expect(toSeriesEpisodeState(first).isCompleted).toBe(true);
+    expect(pickSeriesPlayEpisode([first, second])).toBe(second);
   });
 
   it('편이 없으면 null(버튼을 그리지 않는다)', () => {

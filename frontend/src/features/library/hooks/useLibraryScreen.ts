@@ -234,13 +234,18 @@ export const useLibraryScreen = () => {
     [],
   );
 
-  const dismissResume = useCallback((resumeId: string) => {
-    setDismissedResumeIds((prev) => new Set(prev).add(resumeId));
+  /** 이번 실행에서 치운 복원 — **콘텐츠 id** 로 기억한다(KAN-249) */
+  const dismissResume = useCallback((contentId: string) => {
+    setDismissedResumeIds((prev) => new Set(prev).add(contentId));
   }, []);
 
   const resumeTarget = resumeData?.resumeTarget ?? null;
+  // 치운 복원은 콘텐츠 id 로 기억한다 — 담지 않은 편은 항목 id 가 null 이라(KAN-249) null 끼리 겹쳐 다른 편까지 숨는다.
+  // 목록에서 지운(숨긴) 항목과의 대조는 항목 id 가 있을 때만
   const visibleResumeTarget =
-    resumeTarget && !dismissedResumeIds.has(resumeTarget.id) && !hiddenItemIds.has(resumeTarget.id)
+    resumeTarget &&
+    !dismissedResumeIds.has(resumeTarget.content.id) &&
+    (resumeTarget.id === null || !hiddenItemIds.has(resumeTarget.id))
       ? resumeTarget
       : null;
 
@@ -296,7 +301,7 @@ export const useLibraryScreen = () => {
 
     setHiddenItemIds((prev) => new Set(prev).add(item.id));
     // 미니플레이어에 뜬 콘텐츠를 삭제하면 미니플레이어를 내린다(library.md 7)
-    if (resumeTarget && resumeTarget.id === item.id) dismissResume(item.id);
+    if (resumeTarget && resumeTarget.content.id === item.content.id) dismissResume(item.content.id);
     setPendingDeleteItem(item);
     setHasDeletedInSession(true);
 
@@ -372,7 +377,7 @@ export const useLibraryScreen = () => {
           topicIds: resumeTopicIds,
         },
         // 회수된 콘텐츠면 미니플레이어를 내리고 같은 안내를 띄운다(uiux 4.11)
-        onWithdrawn: () => dismissResume(target.id),
+        onWithdrawn: () => dismissResume(target.content.id),
       },
       'miniplayer',
     );
@@ -401,7 +406,7 @@ export const useLibraryScreen = () => {
   /** 복원 스냅샷의 스와이프 종료 — 이번 실행에서 치우는 조작. 다음 실행 복원은 영향 없다 */
   const handleMiniPlayerDismiss = () => {
     if (!visibleResumeTarget) return;
-    dismissResume(visibleResumeTarget.id);
+    dismissResume(visibleResumeTarget.content.id);
   };
 
   /* ── 새로고침·추가 로딩 ── */

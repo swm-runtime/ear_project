@@ -106,6 +106,7 @@ const episode = (episodeNo: number, isCountedToday = false): SeriesEpisode => ({
     },
     library: null,
     isCountedToday,
+    isCompleted: false,
   },
   progress: null,
 });

@@ -63,6 +63,11 @@ export interface ExploreItemDto {
   /** 없으면 null — 라이브러리에 담기지 않은 상태다(explore-api.md 4.1) */
   library: ExploreLibraryStateDto | null;
   is_counted_today: boolean;
+  /**
+   * 완청 여부(explore-api.md 4.1 — 2026-10-23 KAN-248) — 라이브러리 `completed` 행 ∪ 재생 위치 최대 도달 ≥ 길이 × 90%. 담지 않고
+   * 끝까지 들은 편도 true. 추가 필드라 옛 서버는 없다 → `library.status === 'completed'` 로 폴백
+   */
+  is_completed?: boolean;
 }
 
 /** 시리즈 카드(explore-api.md 4.1-1 — 스위치 켬에만). 편 단위 상태(`library`·`is_counted_today`)가 없다 */
@@ -248,6 +253,8 @@ export interface SeriesEpisodeDto {
   progress: { position_sec: number; max_reached_sec: number } | null;
   /** 재생 확인 팝업 힌트 — 판정이 아니다 */
   is_counted_today: boolean;
+  /** 완청 여부(explore-api.md 4.7 — KAN-248). 없으면(옛 서버) library.status 폴백 */
+  is_completed?: boolean;
 }
 
 /**
