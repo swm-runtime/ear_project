@@ -31,3 +31,4 @@
 
 - 2026-10-23 서버 쪽은 BE 티켓 `tickets/backend/pending/complete-signal-without-library.md`(KAN-248)로 넘김.
 - 2026-10-23 발행 — FE 코드·`explore.md` 4.4·`explore-api.md` 4.6 반영(브랜치 `fix(fe)/no-auto-save-on-play`). 서버 쪽 결정 대기.
+- **2026-10-23 반영** — 결정(사용자 2026-10-23 "라이브러리에 안 담아도 완청하면 완청으로 판정, 나중에 담으면 완료로"): 1 = 남긴다, 3 = 나중에 담으면 `completed`. `player-api.md` 4.3 · `explore-api.md` 4.3 개정, 코드는 KAN-248 PR(`feat(be)/complete-signal-without-library`). 반영 날짜 2026-10-23.

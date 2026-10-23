@@ -891,6 +891,49 @@ export class LibraryItemRepository {
     return (result.affected ?? 0) > 0;
   }
 
+  /**
+   * 이미 완청한 편을 담으면 `completed`로 맞춘다(KAN-248). 완청은 라이브러리와 무관한 사용자×편의 사실이고,
+   * 그 원천은 `playback_progresses.max_reached_sec`이다 — 담기 전에 끝까지 들은 편이 "안 들음"으로 보이면 안 된다.
+   * 조건은 재생 위치 저장의 판정과 같다(`duration_sec > 0` · 도달 ≥ 길이 × `ratio`). `completed_at`은 담은 시각 —
+   * 행이 없던 때의 완청 시각은 어디에도 남지 않는다. 신호는 완청 때 이미 남았으므로 여기서 쌓지 않는다.
+   *
+   * @returns 이번에 `completed`로 바뀐 편의 `content_id`
+   */
+  async completeReachedByProgress(
+    userId: string,
+    contentIds: string[],
+    completedAt: Date,
+    ratio: number,
+    manager?: EntityManager,
+  ): Promise<string[]> {
+    if (contentIds.length === 0) {
+      return [];
+    }
+
+    const rows: unknown = await this.scoped(manager).query(
+      `UPDATE library_items item
+          SET status = $4, completed_at = $3
+         FROM playback_progresses progress, contents content
+        WHERE item.user_id = $1
+          AND item.content_id = ANY($2::uuid[])
+          AND item.status <> $4
+          AND progress.user_id = item.user_id
+          AND progress.content_id = item.content_id
+          AND content.id = item.content_id
+          AND content.duration_sec > 0
+          AND progress.max_reached_sec >= content.duration_sec * $5::numeric
+        RETURNING item.content_id`,
+      [userId, contentIds, completedAt, LibraryItemStatus.COMPLETED, ratio],
+    );
+
+    // pg 드라이버의 UPDATE … RETURNING 은 [행 목록, affected] 로 온다
+    const returned = (
+      Array.isArray(rows) && Array.isArray(rows[0]) ? rows[0] : rows
+    ) as { content_id: string }[];
+
+    return returned.map((row) => row.content_id);
+  }
+
   /** 살아 있는 행만 지운다 — affected로 이번 요청이 지웠는지 판정한다(`reactivateById`와 같은 이유) */
   async softDeleteById(
     id: string,

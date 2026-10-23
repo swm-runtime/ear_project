@@ -89,6 +89,15 @@ export class LibraryService {
       );
     }
 
+    // 담기 전에 끝까지 들은 편은 `completed`로 들어간다(KAN-248 — 완청은 라이브러리와 무관하다)
+    await this.libraryItemRepository.completeReachedByProgress(
+      userId,
+      contentIds,
+      now,
+      COMPLETION_REACHED_RATIO,
+      manager,
+    );
+
     /**
      * **요청 순서로 돌려준다.** `find`는 ORDER BY 가 없어 행 순서가 실행 계획에 달려 있다 — 인덱스가 하나 늘자
      * (`idx_library_items_algorithm_version`, 2026-09-30) 온보딩 e2e 의 `saved_content_ids` 순서가 뒤집혔다.
@@ -153,7 +162,12 @@ export class LibraryService {
           manager,
         );
 
-      return { item: this.assertFound(item), created, reactivated: false };
+      const found = this.assertFound(item);
+      if (created) {
+        await this.completeIfAlreadyReached(found, now, manager);
+      }
+
+      return { item: found, created, reactivated: false };
     }
 
     if (!existing.deletedAt) {
@@ -186,8 +200,53 @@ export class LibraryService {
     existing.deletedAt = null;
     existing.addedAt = now;
     existing.source = LibraryItemSource.SAVE;
+    await this.completeIfAlreadyReached(existing, now, manager);
 
     return { item: existing, created: false, reactivated: true };
+  }
+
+  /**
+   * 담기 전에 이미 완청한 편이면 `completed`로 맞춘다(KAN-248). 탐색 재생은 행을 만들지 않으므로(`explore.md` 4.4)
+   * 끝까지 들은 뒤 담는 것이 평소 경로다 — 그대로 두면 담긴 편이 "안 들음"으로 보인다. 지웠다 다시 담은 행도 같다 —
+   * 지워진 동안의 완청은 행에 반영되지 않는다(재생 위치 저장은 살아 있는 행만 본다).
+   */
+  private async completeIfAlreadyReached(
+    item: LibraryItem,
+    now: Date,
+    manager?: EntityManager,
+  ): Promise<void> {
+    if (item.status === LibraryItemStatus.COMPLETED) {
+      return;
+    }
+
+    const completed =
+      await this.libraryItemRepository.completeReachedByProgress(
+        item.userId,
+        [item.contentId],
+        now,
+        COMPLETION_REACHED_RATIO,
+        manager,
+      );
+
+    if (completed.length > 0) {
+      item.status = LibraryItemStatus.COMPLETED;
+      item.completedAt = now;
+    }
+  }
+
+  /**
+   * 완청 기준 도달 여부(`library.md` 4.4) — 기준값의 소유자가 이 모듈이라 라이브러리 행이 없는 판정(KAN-248)도
+   * 여기를 부른다. 길이를 모르면(0·null) 위치로는 판정할 수 없다.
+   */
+  isCompletionReached(
+    maxReachedSec: number,
+    durationSec: number | null,
+  ): boolean {
+    return (
+      durationSec !== null &&
+      durationSec > 0 &&
+      maxReachedSec >= durationSec * COMPLETION_REACHED_RATIO
+    );
   }
 
   /**

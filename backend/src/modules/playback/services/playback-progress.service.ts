@@ -81,6 +81,15 @@ export class PlaybackProgressService {
       const positionSec = clamp(command.positionSec, content.durationSec);
       const maxReachedSec = clamp(command.maxReachedSec, content.durationSec);
 
+      // 라이브러리 행 없는 완청의 "처음 도달" 판정용(KAN-248) — 덮어쓰기 전 값
+      const previous = libraryItem
+        ? null
+        : await this.playbackService.findProgress(
+            command.userId,
+            command.contentId,
+            manager,
+          );
+
       const saved = await this.playbackService.saveProgress(
         command.userId,
         command.contentId,
@@ -101,12 +110,24 @@ export class PlaybackProgressService {
         manager,
       );
 
-      const completed = await this.completeIfReached(
-        command,
-        libraryItem,
-        maxReachedSec,
-        manager,
-      );
+      const completed = libraryItem
+        ? await this.completeIfReached(
+            command,
+            libraryItem,
+            maxReachedSec,
+            manager,
+          )
+        : null;
+
+      if (!libraryItem) {
+        await this.recordCompleteWithoutLibrary(
+          command,
+          content.durationSec,
+          previous?.maxReachedSec ?? 0,
+          maxReachedSec,
+          manager,
+        );
+      }
 
       return {
         positionSec: saved.positionSec,
@@ -123,8 +144,7 @@ export class PlaybackProgressService {
    * 완청 판정(`player.md` 4.4) — 90% 기준값은 `library` 모듈이 소유하므로 그쪽 Service를
    * 호출한다. 기준을 여기서 다시 쓰면 두 곳이 갈라진다.
    *
-   * **라이브러리에 없는 콘텐츠는 진행만 저장한다.** 상태 전이·`complete` 신호는 라이브러리
-   * 행이 전제다. 실제로는 탐색 재생의 자동 적립이 행을 만들어 두므로 경합에서만 나타난다.
+   * 라이브러리 행이 있을 때의 판정이다 — 없으면 `recordCompleteWithoutLibrary`가 신호만 남긴다.
    *
    * **이미 `completed`면 전이도 신호 적재도 반복하지 않는다** — `completed_at`은 최초 값을
    * 유지하고, 완료 후 되감아 들어도 상태는 내려가지 않는다.
@@ -184,6 +204,52 @@ export class PlaybackProgressService {
     );
 
     return completion.item;
+  }
+
+  /**
+   * **라이브러리에 없는 편의 완청도 `complete` 신호로 남긴다**(KAN-248). 탐색 재생은 행을 만들지 않으므로
+   * (`explore.md` 4.4) 이것이 평소 경로다 — 남기지 않으면 탐색에서 끝까지 들은 편이 추천·드립 입력에서 빠진다.
+   * 상태 전이는 할 행이 없다 — 나중에 담으면 담기가 `completed`로 넣는다(`LibraryService.save`).
+   *
+   * **최초 1회.** 이번 저장이 기준을 처음 넘길 때만 본다(덮어쓰기 전 도달이 이미 기준 이상이면 끝) — 그 뒤
+   * 저장마다 신호를 조회하지 않는다. 처음 넘기는 저장이 두 기기에서 동시에 와도 위 진행 upsert가 같은 행을
+   * 잠가 차례로 들어오므로, 뒤에 온 쪽은 앞쪽이 커밋한 신호를 보고 멈춘다. 재발행으로 위치가 지워진 뒤
+   * 다시 넘겨도 같은 편의 신호가 이미 있어 쌓이지 않는다.
+   */
+  private async recordCompleteWithoutLibrary(
+    command: SaveProgressCommand,
+    durationSec: number,
+    previousMaxReachedSec: number,
+    maxReachedSec: number,
+    manager: EntityManager,
+  ): Promise<void> {
+    if (
+      !this.libraryService.isCompletionReached(maxReachedSec, durationSec) ||
+      this.libraryService.isCompletionReached(
+        previousMaxReachedSec,
+        durationSec,
+      )
+    ) {
+      return;
+    }
+
+    const recorded = await this.playbackService.hasSignal(
+      command.userId,
+      command.contentId,
+      UserSignalAction.COMPLETE,
+      manager,
+    );
+
+    if (recorded) {
+      return;
+    }
+
+    await this.playbackService.recordSignal(
+      command.userId,
+      command.contentId,
+      UserSignalAction.COMPLETE,
+      manager,
+    );
   }
 }
 

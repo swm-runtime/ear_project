@@ -407,6 +407,21 @@ export class PlaybackService {
     }
   }
 
+  /** 그 편에 이 행동의 신호가 이미 있는가 — 라이브러리 행 없는 완청의 최초 1회 판정(KAN-248) */
+  async hasSignal(
+    userId: string,
+    contentId: string,
+    action: UserSignalAction,
+    manager?: EntityManager,
+  ): Promise<boolean> {
+    return this.userSignalRepository.existsByUserIdContentIdAndAction(
+      userId,
+      contentId,
+      action,
+      manager,
+    );
+  }
+
   /**
    * 최근 소비 신호. **편성 배치가 선호도 캐시를 다시 계산할 때 읽는 유일한 입력이다**
    * (domain.md 7.2) — 탐색 피드는 이 원천이 아니라 그 캐시를 읽는다.
