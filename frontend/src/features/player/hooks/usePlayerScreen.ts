@@ -64,6 +64,23 @@ export const usePlayerScreen = () => {
   const [activePanel, setActivePanel] = useState<PlayerPanelKind | null>(null);
   const [isMoreSheetVisible, setIsMoreSheetVisible] = useState(false);
   const [pendingDeleteItemId, setPendingDeleteItemId] = useState<string | null>(null);
+  /**
+   * 재생 목록에서 숨겨 둘 라이브러리 항목 — 삭제를 고른 순간부터 **서버 삭제가 끝나고 목록을 다시 받을 때까지**.
+   * 낙관 제거(캐시에서 걷기)만으로는 스낵바 5초 동안의 재조회(시트 단계 이동·다시 열기 — staleTime 0)가 서버에 아직 있는
+   * 항목을 되살려, 지운 줄이 나타났다가 5초 뒤 사라졌다(PM 2026-10-23)
+   */
+  const [hiddenQueueItemIds, setHiddenQueueItemIds] = useState<ReadonlySet<string>>(
+    () => new Set(),
+  );
+  const hideQueueItem = (itemId: string) =>
+    setHiddenQueueItemIds((current) => new Set(current).add(itemId));
+  const unhideQueueItem = (itemId: string) =>
+    setHiddenQueueItemIds((current) => {
+      if (!current.has(itemId)) return current;
+      const next = new Set(current);
+      next.delete(itemId);
+      return next;
+    });
   const deleteTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const rateSeqRef = useRef(0);
   const pendingDetailRef = useRef<string | null>(null);
@@ -157,15 +174,17 @@ export const usePlayerScreen = () => {
     if (!bridge) return;
     bridge
       .deleteItem(itemId)
-      .then(() => {
+      .then(async () => {
         bridge.invalidateLibrary();
-        // 재생 목록(라이브러리 첫 페이지) 캐시도 서버와 다시 맞춘다 — 스와이프 삭제의 낙관 제거를 확정한다
-        void queryClient.invalidateQueries({ queryKey: queueKeys.all });
+        // 재생 목록(라이브러리 첫 페이지) 캐시도 서버와 다시 맞춘다 — 스와이프 삭제의 낙관 제거를 확정한다.
+        // 다시 받은 목록에 그 항목이 없을 때까지 숨김을 유지한다(위 hiddenQueueItemIds)
+        await queryClient.invalidateQueries({ queryKey: queueKeys.all });
       })
-      .catch(() => {
+      .catch(async () => {
         showToast(PLAYER_COPY.deleteSnackbar.failedToast);
-        void queryClient.invalidateQueries({ queryKey: queueKeys.all });
-      });
+        await queryClient.invalidateQueries({ queryKey: queueKeys.all });
+      })
+      .finally(() => unhideQueueItem(itemId));
   };
   /** 스낵바 [실행 취소]가 되돌릴 로컬 변화 — 스와이프 삭제는 목록에서 먼저 걷어 둔 줄을 제자리에 돌려 놓는다 */
   const undoLocalRef = useRef<(() => void) | null>(null);
@@ -192,6 +211,7 @@ export const usePlayerScreen = () => {
     if (pendingDeleteRef.current) commitDeleteRef.current(pendingDeleteRef.current);
     undoLocalRef.current = undoLocal;
     setPendingDeleteItemId(itemId);
+    hideQueueItem(itemId);
     deleteTimerRef.current = setTimeout(() => {
       deleteTimerRef.current = null;
       undoLocalRef.current = null;
@@ -215,6 +235,7 @@ export const usePlayerScreen = () => {
     }
     undoLocalRef.current?.();
     undoLocalRef.current = null;
+    if (pendingDeleteItemId !== null) unhideQueueItem(pendingDeleteItemId);
     setPendingDeleteItemId(null);
   };
 
@@ -473,6 +494,7 @@ export const usePlayerScreen = () => {
     handleMoreSheetDismiss,
     requestDelete,
     pendingDeleteItemId,
+    hiddenQueueItemIds,
     undoDelete,
     // 재청취 창 밖 ▶의 확인 팝업(플레이어 호스트 — paywall.md 4.2 예외)
     playConfirm: playGate.confirmState,

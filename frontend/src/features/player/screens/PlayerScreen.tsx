@@ -169,15 +169,33 @@ export default function PlayerScreen() {
         : EMPTY_QUEUE,
     [queueContext, session],
   );
-  const queueItems: QueueEntry[] = isLibraryQueue ? queueOrder.orderedItems : snapshotItems;
+  // 삭제 대기·진행 중인 줄은 서버 목록에 아직 있어도 그리지 않는다(usePlayerScreen hiddenQueueItemIds)
+  const hiddenQueueItemIds = screen.hiddenQueueItemIds;
+  const libraryQueueItems = useMemo(
+    () =>
+      hiddenQueueItemIds.size === 0
+        ? queueOrder.orderedItems
+        : queueOrder.orderedItems.filter(
+            (item) => item.itemId === null || !hiddenQueueItemIds.has(item.itemId),
+          ),
+    [queueOrder.orderedItems, hiddenQueueItemIds],
+  );
+  const queueItems: QueueEntry[] = isLibraryQueue ? libraryQueueItems : snapshotItems;
   // 줄 손잡이 끌기 — 라이브러리 맥락은 서버 순서 저장, 탐색 맥락은 스냅샷만 바꾼다(PM 2026-10-23, 로컬뿐)
   const moveQueueItem = useCallback(
     (from: number, to: number) => {
-      if (isLibraryQueue) return queueOrder.move(from, to);
+      if (isLibraryQueue) {
+        // 패널의 자리는 숨긴 줄을 뺀 목록 기준 — 캐시 목록의 자리로 옮겨 적는다
+        const full = queueOrder.orderedItems;
+        const fromIndex = full.indexOf(libraryQueueItems[from]);
+        const toIndex = full.indexOf(libraryQueueItems[to]);
+        if (fromIndex === -1 || toIndex === -1) return;
+        return queueOrder.move(fromIndex, toIndex);
+      }
       const store = usePlaybackStore.getState();
       store.setQueueContext(withSnapshotMoved(store.queueContext, snapshotItems, from, to));
     },
-    [isLibraryQueue, queueOrder, snapshotItems],
+    [isLibraryQueue, queueOrder, libraryQueueItems, snapshotItems],
   );
   const queueSourceLabel = useMemo(
     () => (queueContext.kind === 'explore' ? sourceLabelOf(queueContext.source) : null),
