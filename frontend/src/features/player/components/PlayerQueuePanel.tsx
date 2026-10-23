@@ -57,7 +57,7 @@ interface PlayerQueuePanelProps {
    */
   isOpen?: boolean;
   /**
-   * 시트 모션 중 그릴 줄 수 — 주면 **재생 중인 줄부터** 이만큼만 그리고 나머지는 같은 높이의 빈 자리로 둔다(행 수십 개를 모션 중에
+   * 시트 모션 중 그릴 줄 수 — 주면 **재생 중인 줄 바로 앞 줄부터** 이만큼만 그리고 나머지는 같은 높이의 빈 자리로 둔다(행 수십 개를 모션 중에
    * 마운트하면 프레임이 밀린다 — PlayerScreen isQueueSettled). 앞 몇 줄이 아니라 재생 중인 줄 주변이라, 맞춰 둔 스크롤 위치에서 비지 않는다
    */
   previewCount?: number;
@@ -609,11 +609,11 @@ export default function PlayerQueuePanel({
     isOpenRef.current = isOpen;
   });
   const currentIndex = items.findIndex((item) => item.contentId === currentContentId);
-  // 모션 중 그릴 창 — 재생 중인 줄부터(끝 근처면 끝에서 previewCount 만큼). 창 밖은 같은 높이의 빈 자리
+  // 모션 중 그릴 창 — 재생 중인 줄 바로 앞 줄부터(반쯤 보이는 줄)(끝 근처면 끝에서 previewCount 만큼). 창 밖은 같은 높이의 빈 자리
   const windowStart =
     previewCount === undefined
       ? 0
-      : Math.max(0, Math.min(Math.max(currentIndex, 0), items.length - previewCount));
+      : Math.max(0, Math.min(Math.max(currentIndex - 1, 0), items.length - previewCount));
   const windowEnd = previewCount === undefined ? items.length : windowStart + previewCount;
   /*
    * 붙잡은 기록은 잠시 뒤 지운다 — 새 순서가 그려지는 렌더에서는 위 shownDrag 가 이미 null 이라 화면엔 영향이 없고, 순서가 끝내 안
@@ -654,8 +654,10 @@ export default function PlayerQueuePanel({
     if (index < 0) return itemsRef.current.length > 0;
     const maxScroll =
       state.content > 0 && state.viewport > 0 ? Math.max(0, state.content - state.viewport) : null;
-    // 위 여백(sm)만큼 덜 내려 첫 줄일 때와 같은 숨 쉴 자리를 둔다
-    const target = Math.max(0, state.rowsTop + index * ROW_STEP - theme.spacing.sm);
+    // 바로 앞 줄을 반쯤 보이게 덜 내린다(PM 2026-10-23) — 맨 위가 딱 재생 중인 줄이면 앞 편들이 없어진 것처럼 보였다.
+    // 첫 줄이면 위 여백(sm)만 — 종전처럼 목록 맨 위다
+    const peek = index > 0 ? ROW_STEP / 2 : theme.spacing.sm;
+    const target = Math.max(0, state.rowsTop + index * ROW_STEP - peek);
     const y = maxScroll === null ? target : Math.min(target, maxScroll);
     scrollRef.current?.scrollTo({ y, animated: false });
     state.offset = y;

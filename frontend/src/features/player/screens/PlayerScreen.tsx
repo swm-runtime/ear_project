@@ -2305,7 +2305,7 @@ export default function PlayerScreen() {
             */}
                 {isQueueOpen || queueQuery.data !== undefined || !isLibraryQueue ? (
                   <PlayerQueuePanel
-                    // 모션 중(닫힘 포함)에는 재생 중인 줄부터 몇 줄만 — 앉은 뒤 나머지가 올라온다(위 isQueueSettled 주석)
+                    // 모션 중(닫힘 포함)에는 재생 중인 줄 바로 앞부터 몇 줄만 — 앉은 뒤 나머지가 올라온다(위 isQueueSettled 주석)
                     items={queueItems}
                     previewCount={isQueueSettled ? undefined : QUEUE_MOTION_PREVIEW_COUNT}
                     isOpen={isQueueOpen}
