@@ -81,4 +81,22 @@ describe('cluster.util — 클러스터 토폴로지(infra/scaling.md 5장)', ()
       expect(isSchedulerProcess()).toBe(true);
     });
   });
+
+  describe('isSchedulerProcess — 일회성 스크립트', () => {
+    afterEach(() => {
+      delete process.env.EAR_ONE_OFF_SCRIPT;
+    });
+
+    it('일회성 스크립트 표시가 있으면 스케줄러를 맡지 않는다 — 운영 워커와 편성 배치를 겹쳐 돌리지 않게', () => {
+      // given
+      process.env.EAR_ONE_OFF_SCRIPT = 'true';
+
+      // when / then
+      expect(isSchedulerProcess()).toBe(false);
+    });
+
+    it('표시가 없는 단일 프로세스는 종전대로 맡는다', () => {
+      expect(isSchedulerProcess()).toBe(true);
+    });
+  });
 });

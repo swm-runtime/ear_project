@@ -50,6 +50,11 @@ export function clusterWorkerCount(): number {
  * 새로 매겨져 **아무도 1번이 아니게 된다.** 그러면 편성 배치가 조용히 영영 돌지 않는다.
  */
 export function isSchedulerProcess(): boolean {
+  // 일회성 스크립트(`src/scripts/*`)는 스케줄러를 맡지 않는다 — 운영 워커와 배치를 겹쳐 돌리지 않게(one-off-script.ts)
+  if (process.env.EAR_ONE_OFF_SCRIPT === 'true') {
+    return false;
+  }
+
   if (!cluster.isWorker) {
     return true;
   }
