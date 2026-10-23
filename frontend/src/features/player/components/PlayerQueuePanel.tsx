@@ -330,6 +330,9 @@ function QueueRow({
         },
       ]}
     >
+      {/* 재생 중인 줄의 띠 — 화면 폭 전체(유튜브 뮤직, PM 2026-10-23). 줄 사이 틈의 절반씩 위아래로 넓혀 띠가 줄에 꼭 맞지 않고
+        여유 있게 감싼다. 굵기·낭독 꼬리표는 그대로 둔다(색만으로 구분하지 않는다) */}
+      {isCurrent ? <View style={styles.rowCurrentBand} pointerEvents="none" /> : null}
       {/* 스와이프로 드러나는 면 — 왼쪽은 담기(오른쬭으로 밀 때), 오른쪽은 삭제(왼쪽으로 밀 때). 줄 뒤에 깔린다 */}
       {canSave || canDelete ? (
         <View style={styles.swipeFaces} pointerEvents="none">
@@ -804,7 +807,7 @@ const styles = StyleSheet.create({
     // 행 패딩(sm)과 합쳐 화면 여백(lg)
     paddingHorizontal: theme.spacing.md,
   },
-  // 누르는 동안만 — 불투명 면이 아니라 옅은 흰색이라 바탕의 커버 색이 비친다. 선택 상태는 따로 두지 않는다
+  // 누르는 동안만 — 불투명 면이 아니라 옅은 흰색이라 바탕의 커버 색이 비친다. 재생 중 줄은 아래 띠(rowCurrentBand)
   rowWrapPressed: {
     backgroundColor: 'rgba(255, 255, 255, 0.08)',
   },
@@ -818,6 +821,15 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.35,
     shadowRadius: 12,
     shadowOffset: { width: 0, height: 6 },
+  },
+  // 재생 중 줄의 띠 — 반투명 흰색(fill 10%)이라 1단(흐린 커버)·2단(시트 면) 어느 바탕에서도 한 단 밝게 읽힌다
+  rowCurrentBand: {
+    position: 'absolute',
+    top: -ROW_GAP / 2,
+    bottom: -ROW_GAP / 2,
+    left: 0,
+    right: 0,
+    backgroundColor: playerColor.fill,
   },
   row: {
     flex: 1,
