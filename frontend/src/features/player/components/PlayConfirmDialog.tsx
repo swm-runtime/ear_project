@@ -19,7 +19,10 @@ interface PlayConfirmDialogProps {
 }
 
 /** 체크 칸 지름 — iOS 체크 원(checkmark.circle)과 같은 결 */
-const CHECK_SIZE = 22;
+const CHECK_SIZE = 20;
+/** 체크 줄의 보이는 높이 — 히트 44 는 hitSlop 으로 채운다 */
+const CHECK_ROW_HEIGHT = 30;
+const CHECK_HIT_SLOP = (44 - CHECK_ROW_HEIGHT) / 2;
 
 /**
  * L3 재생 확인 팝업 — 알리는 것은 남은 횟수와 1회 차감뿐. 업그레이드 유도를 얹지 않는다.
@@ -49,6 +52,8 @@ export default function PlayConfirmDialog({
       body={PLAYER_COPY.playConfirm.body}
       // 시스템 알림처럼 바깥 탭으로 닫히지 않는다(종전 팝업과 같다). 뒤로가기는 취소
       dismissOnBackdrop={false}
+      // 작고 촘촘하게(PM 2026-10-23 "너무 크다, 밀집되게") — 재생할 때마다 지나가는 확인이라 화면을 덜 덮는다
+      compact
       secondaryAction={{ label: PLAYER_COPY.playConfirm.cancel, onPress: () => close(onCancel) }}
       primaryAction={{
         label: PLAYER_COPY.playConfirm.play,
@@ -59,12 +64,14 @@ export default function PlayConfirmDialog({
       <Pressable
         style={styles.checkRow}
         onPress={() => setSuppress((value) => !value)}
+        // 보이는 줄은 낮게, 히트 영역은 44 로(위아래 hitSlop)
+        hitSlop={{ top: CHECK_HIT_SLOP, bottom: CHECK_HIT_SLOP }}
         accessibilityRole="checkbox"
         accessibilityState={{ checked: suppress }}
         accessibilityLabel={PLAYER_COPY.playConfirm.suppressToday}
       >
         <View style={[styles.checkBox, suppress && styles.checkBoxOn]}>
-          {suppress ? <CheckIcon size={14} color={theme.color.onPrimary} strokeWidth={3} /> : null}
+          {suppress ? <CheckIcon size={13} color={theme.color.onPrimary} strokeWidth={3} /> : null}
         </View>
         <Text style={styles.checkLabel}>{PLAYER_COPY.playConfirm.suppressToday}</Text>
       </Pressable>
@@ -73,13 +80,13 @@ export default function PlayConfirmDialog({
 }
 
 const styles = StyleSheet.create({
-  // 본문 아래 한 줄 — 줄 전체가 히트 영역(44pt)
+  // 본문 아래 한 줄 — 줄 전체가 히트 영역(보이는 30 + hitSlop = 44pt)
   checkRow: {
     alignSelf: 'flex-start',
     flexDirection: 'row',
     alignItems: 'center',
     gap: theme.spacing.sm,
-    minHeight: theme.touchTarget.minHeight,
+    minHeight: CHECK_ROW_HEIGHT,
   },
   checkBox: {
     width: CHECK_SIZE,
@@ -96,7 +103,7 @@ const styles = StyleSheet.create({
     backgroundColor: theme.color.primary,
   },
   checkLabel: {
-    fontSize: 15,
+    fontSize: theme.font.size.sm,
     color: theme.color.textSecondary,
   },
 });
