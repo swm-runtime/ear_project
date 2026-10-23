@@ -28,7 +28,7 @@ import { pullPrefix, pushPrefix, s3Key } from "../storage.js";
 import { createHash } from "node:crypto";
 import { scriptStats, twoStageViolationsEn } from "./draft-two-stage.js";
 
-export const JUDGE_LOOP_VERSION = "judge-loop-v1.7"; // v1.7 (2026-10-23): 시간 단축 — 세부 재작성·한국어 검토 medium, 회차 상한 2, 단계별 시간 기록. v1.6 (2026-10-23): 0회차 수리본은 L0 지적이 있어도 쓴다(회차 안과 같은 정책). v1.5: 회차 체크포인트 — 끊긴 루프는 다음 회차부터 잇는다. v1.4: // v1.4 (2026-10-23): 발음 관문(빈 읽기를 채우고 남으면 발행 불가) + 발행 준비 연쇄를 여기서 한 번 건다(한국판 비평 끝과 같은 함수). v1.3: // v1.3 (2026-10-23): 0회차 원판도 한국어 must_fix 를 수리한다 — 최고판이 원판에 머문 편(G261023-010·018·020, 60~61점)이 must_fix 미수리로만 막혔다
+export const JUDGE_LOOP_VERSION = "judge-loop-v1.7"; // v1.7 (2026-10-23): 단계별 시간 기록 · 작업별 effort/회차 덮어쓰기 · 실험 모드(대본·판정 미반영). 기본값은 종전 그대로. v1.6 (2026-10-23): 0회차 수리본은 L0 지적이 있어도 쓴다(회차 안과 같은 정책). v1.5: 회차 체크포인트 — 끊긴 루프는 다음 회차부터 잇는다. v1.4: // v1.4 (2026-10-23): 발음 관문(빈 읽기를 채우고 남으면 발행 불가) + 발행 준비 연쇄를 여기서 한 번 건다(한국판 비평 끝과 같은 함수). v1.3: // v1.3 (2026-10-23): 0회차 원판도 한국어 must_fix 를 수리한다 — 최고판이 원판에 머문 편(G261023-010·018·020, 60~61점)이 must_fix 미수리로만 막혔다
 export const DEFAULT_THRESHOLD = 60; // 2026-10-23 박수헌: 65 → 60 (첫 배치 28편 중 6편 통과. 60~64 편의 편집자 평은 "필수 수정 없이 발행 가능, 장면보다 설명이 많다"로 66~70 편과 같은 지적 — 정확성 아닌 연출 밀도 차이). 한국어·사실 must_fix 관문은 그대로
 const MAX_ROUNDS = 3;
 /** 회차 체크포인트 (v1.5, 2026-10-23) — 배포가 워커를 재생성하면 진행 중 루프가 끊기고 15분 뒤 처음부터 다시 돌았다(하루 10회, 약 $15).
@@ -189,7 +189,12 @@ export async function runJudgeLoop(job: Job, ex: Executor) {
   if (!ep || !cand) throw new Error(`에피소드/백로그 없음: ${episodeId}/${backlogId}`);
   const st = (await getBacklogStatus(backlogId))?.status;
   if (st !== "qa_passed") throw new Error(`판정 루프는 qa_passed 에서만 (현재: ${st})`); // 불변 원칙 6 — QA 통과본 기준
-  const rel = `episodes/${episodeId}`; const dir = path.join(cfg.workRoot, rel); const jdir = path.join(dir, "judge");
+  // 작업별 덮어쓰기(실험 A/B, 2026-10-23): payload.judge = { rewrite_effort_structure, rewrite_effort_detail, korea_effort, max_rounds }
+  const ov = (job.payload.judge ?? {}) as Partial<{ rewrite_effort_structure: "high" | "medium"; rewrite_effort_detail: "high" | "medium"; korea_effort: "high" | "medium"; max_rounds: number }>;
+  const knobs = { structure: ov.rewrite_effort_structure ?? cfg.judgeRewriteEffortStructure, detail: ov.rewrite_effort_detail ?? cfg.judgeRewriteEffortDetail, korea: ov.korea_effort ?? cfg.judgeKoreaEffort, maxRounds: Number(ov.max_rounds ?? cfg.judgeMaxRounds) };
+  // 실험 모드: payload.experiment = "<라벨>" — 대본·발음·판정(critic_verdicts)·발행 준비를 건드리지 않고 judge-exp-<라벨>/ 에만 기록한다. 같은 원판에서 설정을 달리해 동시에 돌릴 수 있다
+  const experiment = typeof job.payload.experiment === "string" && job.payload.experiment ? String(job.payload.experiment).replace(/[^A-Za-z0-9_-]/g, "") : null;
+  const rel = `episodes/${episodeId}`; const dir = path.join(cfg.workRoot, rel); const jdirName = experiment ? `judge-exp-${experiment}` : "judge"; const jdir = path.join(dir, jdirName);
   await fs.mkdir(jdir, { recursive: true });
   await pullPrefix(`${rel}/`); // S3 가 원본
   const rd = (f: string) => fs.readFile(path.join(dir, f), "utf8");
@@ -226,7 +231,7 @@ export async function runJudgeLoop(job: Job, ex: Executor) {
   const editorOnce = (script: string) => gpt<Editor>(`${editorMd.trim()}\n\nThe two input files are inlined in the next message.\n\n## scoring.md\n${scoringMd.trim()}`, `## script.md\n${fence(blindScript(script))}\n\n${FE}\n\nReturn the JSON object only.`, EDITOR_SCHEMA, 20, "medium", SCORE_MAX_OUT);
   const editors = (script: string) => Promise.all([1, 2, 3].map(() => editorOnce(script)));
   const korea = (script: string, pron: string) => gpt<Korea>(`${koreaMd.trim()}\n\nThe input files are inlined in the next message.\n\n## house-style.md\n${houseMd.trim()}`,
-    `## script.md\n${fence(blindScript(script))}\n\n## notes.md\n${fence(blindNotes(claims))}\n\n## sources.md\n${fence(blindSources(sources))}\n\n## pronunciations.json\n${fence(pron)}\n\n${FK}\n\nReturn the JSON object only.`, KOREA_SCHEMA, 30, cfg.judgeKoreaEffort, SCORE_MAX_OUT);
+    `## script.md\n${fence(blindScript(script))}\n\n## notes.md\n${fence(blindNotes(claims))}\n\n## sources.md\n${fence(blindSources(sources))}\n\n## pronunciations.json\n${fence(pron)}\n\n${FK}\n\nReturn the JSON object only.`, KOREA_SCHEMA, 30, knobs.korea, SCORE_MAX_OUT);
   const l0 = (script: string, pron: string, tc: { turn: string; claims: string[] }[]) => twoStageViolationsEn(script, outline, { pronunciations: JSON.parse(pron), notesMd: notesMd(tc) });
   const materials = (pron: string) => `## Outline — outline.md (the contract)\n${fence(outline)}\n\n## Claims — claims.md (every fact you may use)\n${fence(claims)}\n\n## Excerpts — sources.md\n${fence(sources)}\n\n## Pronunciation map — pronunciations.json\n${fence(pron)}`;
   const formatBlock = `## Format (the parser and checks read it exactly)
@@ -275,7 +280,7 @@ ${formatBlock}
   const ck = checkpointUsable(ckRaw, scriptHash) ? ckRaw : null;
   const saveCheckpoint = async (c: Omit<JudgeCheckpoint, "version" | "script_hash" | "at">) => {
     await save("checkpoint.json", JSON.stringify({ version: JUDGE_LOOP_VERSION, script_hash: scriptHash, at: new Date().toISOString(), ...c }, null, 1));
-    await pushPrefix(`${rel}/judge/`).catch((e) => log(`  judge_loop ${episodeId}: 체크포인트 업로드 실패 (계속): ${e?.message ?? e}`));
+    await pushPrefix(`${rel}/${jdirName}/`).catch((e) => log(`  judge_loop ${episodeId}: 체크포인트 업로드 실패 (계속): ${e?.message ?? e}`));
   };
   let rounds: RoundRec[]; let base: State; let best: State & { total: number; struct: number }; let mode: "structure" | "detail" = "structure"; let startT = 1; let resumedStopped = false;
   if (ck) {
@@ -284,7 +289,7 @@ ${formatBlock}
   } else {
   // 0회차 — 원판의 GPT 기준선 (루프의 비교는 GPT 점수끼리)
   await progress("판정 루프 0회차 — 원판 채점");
-  log(`  judge_loop ${episodeId} 시작 (기준 ${threshold})`);
+  log(`  judge_loop ${episodeId} 시작 (기준 ${threshold} · 재작성 ${knobs.structure}/${knobs.detail} · 검토 ${knobs.korea} · 상한 ${knobs.maxRounds}회차${experiment ? ` · 실험 ${experiment}` : ""})`);
   const t0k = Date.now();
   const [eds0, kr0] = await Promise.all([editors(script0), korea(script0, pron0)]);
   const ms0 = { review: Date.now() - t0k, repair: 0 };
@@ -311,10 +316,10 @@ ${formatBlock}
   await saveCheckpoint({ t: 0, stopped: false, rounds, base, best, mode, cost, model });
   }
 
-  for (let t = startT; t <= Math.min(MAX_ROUNDS, cfg.judgeMaxRounds) && !resumedStopped; t++) { // 상한 기본 2 (cfg, 2026-10-23)
+  for (let t = startT; t <= Math.min(MAX_ROUNDS, knobs.maxRounds) && !resumedStopped; t++) {
     const c0 = cost;
     await progress(`판정 루프 ${t}회차 — ${mode === "structure" ? "구조" : "세부"} 재작성`);
-    const effort = mode === "structure" ? cfg.judgeRewriteEffortStructure : cfg.judgeRewriteEffortDetail; // 세부 회차는 medium(2026-10-23 시간 단축)
+    const effort = mode === "structure" ? knobs.structure : knobs.detail;
     const ms = { rewrite: 0, l0fix: 0, review: 0, repair: 0 }; let tk = Date.now();
     let o = await gpt<RewriteOut>(baseSystem(mode), userPrompt(base.script, base.eds, base.korea, base.repaired, base.pron), OUT_SCHEMA, 40, effort);
     ms.rewrite = Date.now() - tk; tk = Date.now();
@@ -376,8 +381,23 @@ ${formatBlock}
   const blockers = missing.length ? [`발음 읽기 누락 ${missing.length}개 (${missing.slice(0, 5).join(", ")}) — 발음 탭에서 채운 뒤 재판정`] : [];
 
   // 최고판 → 대본·발음 사전 덮어쓰기(원판이면 그대로) · 판정 저장 · 보고서
-  const reportKey = s3Key(`${rel}/agent-verdict.md`);
+  const reportKey = s3Key(`${rel}/${experiment ? jdirName + "/" : ""}agent-verdict.md`);
   const verdict = buildVerdict({ episodeId, rounds, bestRound: best.round, eds: best.eds, korea: best.korea, repaired: best.repaired, threshold, model: model ?? "gpt", reportKey, cost, blockers });
+  const timing = rounds.map((r) => `${r.t}:${r.ms ? Math.round(((r.ms.rewrite ?? 0) + (r.ms.l0fix ?? 0) + r.ms.review + r.ms.repair) / 1000) : "?"}s`).join(" ");
+  if (experiment) {
+    // 실험: 결과는 judge-exp-<라벨>/ 와 runs 에만. 대본·판정·발행 준비는 건드리지 않는다
+    await save("agent-verdict.md", reportMd({ episodeId, title: cand.title, verdict, rounds, eds: best.eds, korea: best.korea }));
+    await save("summary.json", JSON.stringify({ episodeId, experiment, knobs, rounds, best: best.round, threshold, cost: Math.round(cost * 1000) / 1000, verdict: verdict.agent }, null, 1));
+    await save("checkpoint.json", JSON.stringify({ version: JUDGE_LOOP_VERSION, script_hash: scriptHash, done: true, t: rounds.length - 1, at: new Date().toISOString() }, null, 1));
+    await pushPrefix(`${rel}/${jdirName}/`);
+    await insertRun({
+      backlog_id: backlogId, phase: "judge", attempt: 1,
+      result: `[실험 ${experiment}] 판정 루프 ${JUDGE_LOOP_VERSION} (재작성 ${knobs.structure}/${knobs.detail} · 검토 ${knobs.korea} · 상한 ${knobs.maxRounds}) — ${verdict.agent.publishable ? "발행 가능" : "발행 불가"}: ${verdict.agent.publishable_reason}. GPT ${rounds.map((r) => `${r.t}:${r.total}`).join(" ")} · 최고판 ${best.round}회차 · 시간 ${timing} · 대본·판정 미반영`,
+      prompt_version: `${JUDGE_LOOP_VERSION} (worker, experiment)`, artifacts: [reportKey], executed_by: executedBy, model, cost_usd: cost, worker_rev: workerRev(),
+    });
+    log(`  judge_loop ${episodeId} [실험 ${experiment}] 끝 — ${verdict.agent.publishable ? "발행 가능" : "발행 불가"} · ${timing} · $${cost.toFixed(2)} (미반영)`);
+    return { episode_id: episodeId, experiment, knobs, publishable: verdict.agent.publishable, reason: verdict.agent.publishable_reason, best_round: best.round, totals: rounds.map((r) => r.total), timing, cost_usd: cost, model };
+  }
   if (best.round > 0 || best.repaired.length || pronFilled) { await fs.writeFile(path.join(dir, "script.md"), best.script, "utf8"); await fs.writeFile(path.join(dir, "pronunciations.json"), best.pron, "utf8"); } // 원판이 최고판이어도 must_fix 수리본이면 덮어쓴다(v1.3)
   await fs.writeFile(path.join(dir, "agent-verdict.md"), reportMd({ episodeId, title: cand.title, verdict, rounds, eds: best.eds, korea: best.korea }), "utf8");
   await save("summary.json", JSON.stringify({ episodeId, rounds, best: best.round, threshold, cost: Math.round(cost * 1000) / 1000 }, null, 1));
@@ -389,7 +409,7 @@ ${formatBlock}
   if (prepJobId) log(`  judge_loop ${episodeId}: 자동 발행 준비 → tts ${prepJobId.slice(0, 8)} (→ thumbnail → package)`);
   await insertRun({
     backlog_id: backlogId, phase: "judge", attempt: 1,
-    result: `판정 루프 ${JUDGE_LOOP_VERSION} — ${verdict.agent.publishable ? "발행 가능" : "발행 불가"}: ${verdict.agent.publishable_reason}. GPT ${rounds.map((r) => `${r.t}:${r.total}`).join(" ")} · 최고판 ${best.round}회차`,
+    result: `판정 루프 ${JUDGE_LOOP_VERSION} — ${verdict.agent.publishable ? "발행 가능" : "발행 불가"}: ${verdict.agent.publishable_reason}. GPT ${rounds.map((r) => `${r.t}:${r.total}`).join(" ")} · 최고판 ${best.round}회차 · 시간 ${timing}`,
     prompt_version: `${JUDGE_LOOP_VERSION} (worker)`, artifacts: [reportKey], executed_by: executedBy, model, cost_usd: cost, worker_rev: workerRev(),
   });
   log(`  judge_loop ${episodeId} 끝 — ${verdict.agent.publishable ? "발행 가능" : "발행 불가"} (${verdict.agent.publishable_reason}) · $${cost.toFixed(2)}`);

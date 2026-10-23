@@ -173,11 +173,12 @@ export const cfg = {
   thumbnailSceneModel: process.env.THUMBNAIL_SCENE_MODEL || "gpt-6.1-sol",
   packageTitleModel: process.env.PACKAGE_TITLE_MODEL || "gpt-6.1-sol",
   // 글로벌 판정 루프 시간 (2026-10-23 박수헌 "루프 시간이 말이 안 된다" — 편당 35~50분, 회차당 8~10분). 배포 없이 env 로 되돌릴 수 있게 둔다
-  //   재작성 effort: 구조 회차 high(기본) · 세부 회차 medium(기본, 종전 high) · 한국어 검토 medium(기본, 종전 high) · 회차 상한 2(기본, 종전 3 — 첫 배치 20루프 중 3회차가 최고판을 올린 건 1편)
+  //   재작성 effort(구조 회차·세부 회차) · 한국어 검토 effort · 회차 상한. 후보 설정(세부 medium·검토 medium·상한 2)은 실험(2026-10-23) 뒤 기본값으로 올린다
+  //   기본값은 실험 전까지 종전 그대로(high·high·high·3). 작업 payload.judge 로 작업마다 덮어쓸 수 있다(실험 A/B, enqueue-judge-ep.mts --judge)
   judgeRewriteEffortStructure: (process.env.JUDGE_REWRITE_EFFORT_STRUCTURE || "high") as "high" | "medium",
-  judgeRewriteEffortDetail: (process.env.JUDGE_REWRITE_EFFORT_DETAIL || "medium") as "high" | "medium",
-  judgeKoreaEffort: (process.env.JUDGE_KOREA_EFFORT || "medium") as "high" | "medium",
-  judgeMaxRounds: Number(process.env.JUDGE_MAX_ROUNDS || 2), // 글로벌 발행 제목(package-title.ts, 2026-10-23) — 한국판은 쓰지 않는다 // 2026-10-09 gpt-5.6-terra → gpt-6.1-sol (GPT 전부 6.1-sol)
+  judgeRewriteEffortDetail: (process.env.JUDGE_REWRITE_EFFORT_DETAIL || "high") as "high" | "medium",
+  judgeKoreaEffort: (process.env.JUDGE_KOREA_EFFORT || "high") as "high" | "medium",
+  judgeMaxRounds: Number(process.env.JUDGE_MAX_ROUNDS || 3), // 글로벌 발행 제목(package-title.ts, 2026-10-23) — 한국판은 쓰지 않는다 // 2026-10-09 gpt-5.6-terra → gpt-6.1-sol (GPT 전부 6.1-sol)
   /** 구간 요약 모델 (KAN-152, 2026-10-07) — OpenAI 실행기(키는 OPENAI_API_KEY). 한 편에 한 번 호출, 1센트 안팎. 키가 없으면 요약 없이 구간만 낸다 */
   sectionSummaryModel: process.env.SECTION_SUMMARY_MODEL || "gpt-6.1-sol", // 2026-10-09 gpt-5.6-terra → gpt-6.1-sol
   /** 1장당 USD — runs.cost_usd 환산용. 모델·품질을 바꾸면 THUMBNAIL_USD_PER_IMAGE 로 덮는다 */
