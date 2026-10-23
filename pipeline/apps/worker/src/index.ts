@@ -10,7 +10,7 @@ import { runStage } from "./stages/index.js";
 import { log, sleep, ApiLimit, RetryLater } from "./util.js";
 import { aiPaused, pauseForLimit, serverClaimOff, ttsPaused } from "./ai-pause.js";
 import { onDraftFailed } from "./stages/draft.js";
-import { autoApprove, autoPublishPrepGlobal } from "./automation.js";
+import { autoApprove } from "./automation.js";
 import { maybeSendDigest } from "./digest.js";
 import { evictEpisodeAudio } from "./disk.js";
 
@@ -84,7 +84,6 @@ async function main() {
       ttsPausedLogged = !!ttsPause;
       const ttsNow = canTts && !ttsPause;
       if (aiNow) { await autoApprove().catch((e) => log(`자동 승인 오류 (계속 진행): ${e?.message ?? e}`)); await pickupApproved(); }
-      if (canTts) await autoPublishPrepGlobal().catch((e) => log(`자동 발행 준비(글로벌) 오류 (계속 진행): ${e?.message ?? e}`)); // 판정 통과 편에 tts 연쇄 — 글로벌 인스턴스에서만 동작
       // 0025: 도구(WebSearch)가 필요한 보강·주제 기획(sweep 모드 B·B2)은 웹 검색을 처리하는 실행기만 집는다 — Claude CLI(WebSearch)·OpenAI(웹 검색, executors/openai-search.ts).
       // 2026-10-16 KAN-222: 한국판 서버 워커(openai)도 집는다. 종전엔 en 인스턴스만이라 노트북이 꺼지면 한국판 보강·기획이 대기만 했다
       const job = await claimJob(cfg.workerName, aiNow, ttsNow, canThumbnail, (await serverClaimOff()) ? ["sweep"] : [], executorHandlesWebSearch(cfg.executor)); // 스위치 꺼짐: 스윕도 노트북 몫

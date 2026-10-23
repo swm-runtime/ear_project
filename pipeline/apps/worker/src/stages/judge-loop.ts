@@ -20,13 +20,14 @@ import { cfg, executedBy } from "../config.js";
 import { enqueue, getBacklog, getBacklogStatus, getEpisode, insertRun, setCriticVerdicts, setJobProgress, type Job } from "../db.js";
 import type { Executor } from "../executors/index.js";
 import { assetPaths, pipelineLocale, promptBody } from "@ear/pipeline";
-import { readAutomation } from "../automation.js";
+import { readAutomation, startPublishPrepIfEnabled } from "../automation.js";
 import { log } from "../util.js";
-import { prepareAssets, workerRev } from "../assets.js";
+import { loadTtsDict, prepareAssets, workerRev } from "../assets.js";
+import { missingPronunciations } from "../tts/normalize.js";
 import { pullPrefix, pushPrefix, s3Key } from "../storage.js";
 import { scriptStats, twoStageViolationsEn } from "./draft-two-stage.js";
 
-export const JUDGE_LOOP_VERSION = "judge-loop-v1.3"; // v1.3 (2026-10-23): 0회차 원판도 한국어 must_fix 를 수리한다 — 최고판이 원판에 머문 편(G261023-010·018·020, 60~61점)이 must_fix 미수리로만 막혔다
+export const JUDGE_LOOP_VERSION = "judge-loop-v1.4"; // v1.4 (2026-10-23): 발음 관문(빈 읽기를 채우고 남으면 발행 불가) + 발행 준비 연쇄를 여기서 한 번 건다(한국판 비평 끝과 같은 함수). v1.3: // v1.3 (2026-10-23): 0회차 원판도 한국어 must_fix 를 수리한다 — 최고판이 원판에 머문 편(G261023-010·018·020, 60~61점)이 must_fix 미수리로만 막혔다
 export const DEFAULT_THRESHOLD = 60; // 2026-10-23 박수헌: 65 → 60 (첫 배치 28편 중 6편 통과. 60~64 편의 편집자 평은 "필수 수정 없이 발행 가능, 장면보다 설명이 많다"로 66~70 편과 같은 지적 — 정확성 아닌 연출 밀도 차이). 한국어·사실 must_fix 관문은 그대로
 const MAX_ROUNDS = 3;
 export const K = ["3.1", "3.2", "3.3", "3.4", "3.5", "3.6", "3.7", "3.8", "3.9", "3.10", "3.11", "3.12"] as const;
@@ -87,7 +88,7 @@ export function fixMeta(o: { title: string; script: string }, base: string): str
   return ls.join("\n").trim() + "\n";
 }
 /** 판정 저장 형식 (README 4장) — 발행 가능 = 중앙값 ≥ 기준 · 한국어 가 · 한국어 must_fix 전부 수리 */
-export function buildVerdict(a: { episodeId: string; rounds: RoundRec[]; bestRound: number; eds: Editor[]; korea: Korea; repaired: string[]; threshold: number; model: string; reportKey: string; cost: number }) {
+export function buildVerdict(a: { episodeId: string; rounds: RoundRec[]; bestRound: number; eds: Editor[]; korea: Korea; repaired: string[]; threshold: number; model: string; reportKey: string; cost: number; blockers?: string[] }) {
   const mi = medianIndex(a.eds); const med = medianScores(a.eds); const total = sumOf(med);
   const kMust = a.korea.findings.filter((f) => f.kind === "must_fix");
   const at = new Date().toISOString();
@@ -97,6 +98,7 @@ export function buildVerdict(a: { episodeId: string; rounds: RoundRec[]; bestRou
   if (total < a.threshold) reasons.push(`편집자 중앙값 ${total} < 기준 ${a.threshold}`);
   if (!a.korea.publishable) reasons.push(`한국어·사실 검토 발행 불가 — ${a.korea.publishable_reason}`);
   if (openK.length) reasons.push(`한국어 필수 수정 ${openK.length}건 미수리 (${openK.map((m) => `${m.id} ${m.turn}`).join(", ")})`);
+  reasons.push(...(a.blockers ?? [])); // v1.4 발음 관문 등 — 사람이 게이트 2 에서 하던 확인
   const publishable = reasons.length === 0;
   const r0 = a.rounds[0];
   return {
@@ -156,6 +158,9 @@ const FIX_SCHEMA = { type: "object", additionalProperties: false, required: ["fi
   pronunciations_added: { type: "array", items: { type: "object", additionalProperties: false, required: ["term", "reading"], properties: { term: { type: "string" }, reading: { type: "string" } } } } } } as const;
 
 const fence = (s: string) => "```\n" + s.trim() + "\n```";
+// 발음 관문(v1.4) — 빈 읽기를 채우는 작은 호출. 한국어 TTS 가 영어 문장 속에서 그 말을 읽는 소리를 한글로
+const PRON_SYSTEM = `You fill the pronunciation map of an English podcast script about Korea. For each listed term, give the Hangul reading a Korean speaker would use for it inside an English sentence: romanized Korean words (gimbap → 김밥), Korean names and places (Suneung → 수능), and foreign names used in Korea (Marché → 마르셰). Return Hangul only, no Latin letters or punctuation. If the term is an ordinary English word that should simply be read as English, return an empty string. Output only the requested JSON.`;
+const PRON_SCHEMA = { type: "object", additionalProperties: false, required: ["readings"], properties: { readings: { type: "array", items: { type: "object", additionalProperties: false, required: ["term", "reading"], properties: { term: { type: "string" }, reading: { type: "string" } } } } } };
 const fmtScores = (e: Editor) => K.map((k) => `- ${k}: ${e.scores[k].score} — ${e.scores[k].reason}`).join("\n");
 const fmtFindings = (fs_: Finding[]) => fs_.map((f, i) => `${i}. [${f.kind}] ${f.turn}${(f.turns?.length ?? 0) > 1 ? ` (${f.turns!.join(", ")})` : ""} — "${f.quote}" — ${f.problem}${f.evidence ? ` — evidence: ${f.evidence}` : ""}`).join("\n") || "(none)";
 const fmtEdits = (es: Edit[]) => (es ?? []).map((e) => `- ${e.turn}: ${e.after}`).join("\n") || "(none)";
@@ -309,21 +314,40 @@ ${formatBlock}
     base = gained || mode === "structure" ? cur : { ...best };
   }
 
+  // 발음 관문 (v1.4, 명세 6.7·6.10) — 발음 맵의 빈 읽기를 여기서 채운다. 종전에는 TTS 가 "발음 누락"으로 실패했고(G261023-013 "Marché"), 그 확인은 한국판에서 게이트 2 의 사람 몫이었다.
+  // 전역 사전(DB active)에 있으면 비어 있어도 된다. 채우고도 남으면 발행 불가 — 발음 탭에서 채운 뒤 재판정
+  const { entries: ttsDict } = await loadTtsDict().catch(() => ({ version: "", entries: {} as Record<string, string> }));
+  let missing = missingPronunciations(JSON.parse(best.pron) as Record<string, string>, ttsDict);
+  let pronFilled = 0;
+  if (missing.length) {
+    await progress("판정 루프 — 발음 읽기 채우기");
+    const fill = await gpt<{ readings: { term: string; reading: string }[] }>(PRON_SYSTEM, `## Terms with no reading\n${missing.map((m) => `- ${m}`).join("\n")}\n\n## script.md (context)\n${fence(best.script)}\n\nReturn the JSON object only.`, PRON_SCHEMA, 5, "medium", 8192);
+    const cur = JSON.parse(best.pron) as Record<string, string>;
+    for (const r of fill.readings ?? []) if (missing.includes(r.term) && /[가-힣]/.test(r.reading) && !(cur[r.term] ?? "").trim()) { cur[r.term] = r.reading.trim(); pronFilled++; }
+    best = { ...best, pron: JSON.stringify(cur, null, 2) };
+    missing = missingPronunciations(cur, ttsDict);
+    log(`  judge_loop ${episodeId} 발음 읽기 채움 ${pronFilled}개 · 남은 누락 ${missing.length}개${missing.length ? ` (${missing.slice(0, 5).join(", ")})` : ""}`);
+  }
+  const blockers = missing.length ? [`발음 읽기 누락 ${missing.length}개 (${missing.slice(0, 5).join(", ")}) — 발음 탭에서 채운 뒤 재판정`] : [];
+
   // 최고판 → 대본·발음 사전 덮어쓰기(원판이면 그대로) · 판정 저장 · 보고서
   const reportKey = s3Key(`${rel}/agent-verdict.md`);
-  const verdict = buildVerdict({ episodeId, rounds, bestRound: best.round, eds: best.eds, korea: best.korea, repaired: best.repaired, threshold, model: model ?? "gpt", reportKey, cost });
-  if (best.round > 0 || best.repaired.length) { await fs.writeFile(path.join(dir, "script.md"), best.script, "utf8"); await fs.writeFile(path.join(dir, "pronunciations.json"), best.pron, "utf8"); } // 원판이 최고판이어도 must_fix 수리본이면 덮어쓴다(v1.3)
+  const verdict = buildVerdict({ episodeId, rounds, bestRound: best.round, eds: best.eds, korea: best.korea, repaired: best.repaired, threshold, model: model ?? "gpt", reportKey, cost, blockers });
+  if (best.round > 0 || best.repaired.length || pronFilled) { await fs.writeFile(path.join(dir, "script.md"), best.script, "utf8"); await fs.writeFile(path.join(dir, "pronunciations.json"), best.pron, "utf8"); } // 원판이 최고판이어도 must_fix 수리본이면 덮어쓴다(v1.3)
   await fs.writeFile(path.join(dir, "agent-verdict.md"), reportMd({ episodeId, title: cand.title, verdict, rounds, eds: best.eds, korea: best.korea }), "utf8");
   await save("summary.json", JSON.stringify({ episodeId, rounds, best: best.round, threshold, cost: Math.round(cost * 1000) / 1000 }, null, 1));
   await pushPrefix(`${rel}/`); // 대본(버저닝)·judge/·보고서 — 먼저 S3 에
   await setCriticVerdicts(episodeId, verdict);
+  // 발행 준비 연쇄 — 여기서 한 번(한국판의 비평 끝과 같은 함수·같은 조건). 실패하면 멈추고 콘솔 [발행 준비]로 다시 건다
+  const prepJobId = verdict.agent.publishable ? await startPublishPrepIfEnabled(episodeId, backlogId, job.id, "judge").catch((err) => { log(`  judge_loop ${episodeId}: 자동 발행 준비 걸기 실패: ${err?.message ?? err}`); return null; }) : null;
+  if (prepJobId) log(`  judge_loop ${episodeId}: 자동 발행 준비 → tts ${prepJobId.slice(0, 8)} (→ thumbnail → package)`);
   await insertRun({
     backlog_id: backlogId, phase: "judge", attempt: 1,
     result: `판정 루프 ${JUDGE_LOOP_VERSION} — ${verdict.agent.publishable ? "발행 가능" : "발행 불가"}: ${verdict.agent.publishable_reason}. GPT ${rounds.map((r) => `${r.t}:${r.total}`).join(" ")} · 최고판 ${best.round}회차`,
     prompt_version: `${JUDGE_LOOP_VERSION} (worker)`, artifacts: [reportKey], executed_by: executedBy, model, cost_usd: cost, worker_rev: workerRev(),
   });
   log(`  judge_loop ${episodeId} 끝 — ${verdict.agent.publishable ? "발행 가능" : "발행 불가"} (${verdict.agent.publishable_reason}) · $${cost.toFixed(2)}`);
-  return { episode_id: episodeId, publishable: verdict.agent.publishable, reason: verdict.agent.publishable_reason, best_round: best.round, totals: rounds.map((r) => r.total), threshold, cost_usd: cost, model };
+  return { episode_id: episodeId, publishable: verdict.agent.publishable, reason: verdict.agent.publishable_reason, best_round: best.round, totals: rounds.map((r) => r.total), threshold, cost_usd: cost, model, pron_filled: pronFilled, prep_job_id: prepJobId };
 }
 
 /** 비평 뒤 연결 (critic.ts) — 글로벌 인스턴스에서만, 이미 걸려 있으면 건너뛴다 */

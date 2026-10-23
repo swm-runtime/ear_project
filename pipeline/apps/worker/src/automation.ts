@@ -18,7 +18,7 @@
  * 패키지는 enrich 를 자동으로 걸지 않는다 — 발행하지 않을 편까지 메타를 뽑는 낭비를 막기 위해 업로드 화면의 [추천 메타 뽑기]로 사람이 건다.
  * 알림은 편마다가 아니라 큐가 다 비었을 때 한 번 (digest.ts). API 한도(429)는 ai-pause.ts 가 집기를 멈춘다.
  */
-import { approveBacklogAuto, enqueue, getSetting, hasActiveDraftJob, seriesPrevReady, hasActiveJob, insertRun, listProposedForAutoApprove, listGlobalPrepCandidates } from "./db.js";
+import { approveBacklogAuto, enqueue, getSetting, hasActiveDraftJob, seriesPrevReady, hasActiveJob, insertRun, listProposedForAutoApprove } from "./db.js";
 import { agentGateBlockers } from "./stages/agent-gate.js";
 import { executedBy } from "./config.js";
 import { workerRev } from "./assets.js";
@@ -66,32 +66,18 @@ export async function autoApprove(): Promise<number> {
   return n;
 }
 
-/** 비평 완료 후 발행 준비 연쇄 — 이미 걸려 있으면 건너뛴다. 글로벌판은 비평 시점이 아니라 에이전트 판정 통과 시점에 건다(autoPublishPrepGlobal) */
-export async function startPublishPrepIfEnabled(episodeId: string, backlogId: string, parentJobId: string): Promise<string | null> {
+/** 발행 준비 연쇄 — 작업이 끝나는 자리에서 **한 번** 건다. 한국판은 비평 끝(source critic), 글로벌판은 판정 루프 끝(source judge, 명세 6.10 — 판정이 발행 가능이고 필수 수정이 전부 반영된 편만).
+ *  이미 걸려 있으면 건너뛴다. 실패하면 멈추고 사람이 콘솔 [발행 준비]로 다시 건다 — 폴링으로 다시 걸지 않는다
+ *  (2026-10-23: 글로벌 1분 폴링(autoPublishPrepGlobal)이 발음 누락 편을 12분에 51번 다시 걸어 폐기. 연결 방식은 한국판과 같게) */
+export async function startPublishPrepIfEnabled(episodeId: string, backlogId: string, parentJobId: string, source: "critic" | "judge" = "critic"): Promise<string | null> {
   const s = await readAutomation();
   if (!s.auto_publish_prep) return null;
-  if (pipelineLocale() === "en") return null; // 명세 6.10: 발행 준비는 판정이 발행 가능이고 필수 수정이 전부 반영된 편만 — 비평 직후엔 판정이 없다
+  if ((pipelineLocale() === "en") !== (source === "judge")) return null; // 한국판은 비평 끝에서만, 글로벌판은 판정 끝에서만
   if (await hasActiveJob(["tts", "thumbnail", "package"], episodeId)) return null;
   const id = await enqueue({ type: "tts", requires_ai: false, payload: { episode_id: episodeId, backlog_id: backlogId, chain: ["thumbnail", "package"], auto: true }, parent_job_id: parentJobId });
   log(`  자동 발행 준비: ${episodeId} → tts ${id.slice(0, 8)} (→ thumbnail → package)`);
   return id;
 }
 
-/** 글로벌판 발행 준비 자동 (2026-10-22, 글로벌 명세 6.10): 에이전트 판정이 발행 가능이고 필수 수정이 전부 fixed 인 qa_passed 편에 tts → thumbnail → package 를 건다. 한 편에 한 번(실패한 tts 작업만 있으면 다시 — 단 30분 간격·자동 3회까지, db.ts listGlobalPrepCandidates. 2026-10-23 발음 누락 편이 12분에 51번 재시도·알림) */
+/** 글로벌 판정 통과 편의 발행 준비 차단 사유 — 콘솔 표시용(에이전트 판정 불가·must_fix 미수리). 연쇄 자체는 판정 루프 끝에서 startPublishPrepIfEnabled(…, "judge") 가 건다 */
 export function globalPrepBlockers(verdicts: unknown): string[] { return agentGateBlockers(verdicts); }
-let lastGlobalPrep = 0;
-export async function autoPublishPrepGlobal(): Promise<number> {
-  if (pipelineLocale() !== "en") return 0;
-  const s = await readAutomation();
-  if (!s.auto_publish_prep) return 0;
-  if (Date.now() - lastGlobalPrep < 60_000) return 0; lastGlobalPrep = Date.now();
-  let n = 0;
-  for (const row of await listGlobalPrepCandidates()) {
-    if (globalPrepBlockers(row.critic_verdicts).length) continue;
-    if (await hasActiveJob(["tts", "thumbnail", "package"], row.episode_id)) continue;
-    const id = await enqueue({ type: "tts", requires_ai: false, payload: { episode_id: row.episode_id, backlog_id: row.backlog_id, chain: ["thumbnail", "package"], auto: true } });
-    log(`  자동 발행 준비(글로벌, 판정 통과): ${row.episode_id} → tts ${id.slice(0, 8)} (→ thumbnail → package)`);
-    n++;
-  }
-  return n;
-}
