@@ -104,15 +104,15 @@ test("발음 등재 추가 — 한국판 종전 그대로, 글로벌판은 빈 �
   assert.deepEqual(addPronunciations({ Hanbok: "", jeong: "jung" }, [{ term: "hanbok", reading: "hahn-bok" }, { term: "Jeong", reading: "WRONG" }, { term: " nunchi ", reading: "" }], "en"), { Hanbok: "hahn-bok", jeong: "jung", nunchi: "" });
 });
 
-test("글로벌 규칙 자산 — 버전 라벨 full-en-v0.21, 모델에 가는 본문에 한글이 없고 규칙 번호 1~50 이 모두 있음(묶음 번호 포함), 템플릿 문서와 같은 슬롯", async () => {
+test("글로벌 규칙 자산 — 버전 라벨 full-en-v0.22, 모델에 가는 본문에 한글이 없고 규칙 번호 1~50 이 모두 있음(묶음 번호 포함), 템플릿 문서와 같은 슬롯", async () => {
   const { versionOf } = await import("../assets.js");
   const root = path.resolve(import.meta.dirname, "../../../../../docs/ai/global");
   const g = await fs.readFile(path.join(root, "skills/draft/guidelines.gpt.md"), "utf8");
-  assert.equal(versionOf("skills/draft/guidelines.gpt.md", g), "full-en-v0.21");
+  assert.equal(versionOf("skills/draft/guidelines.gpt.md", g), "full-en-v0.22");
   assert.equal(versionOf("skills/draft/guidelines.md", "# x\n\n> 현행 버전: **full-v9.10**"), "full-v9.10"); // 한국판 라벨 그대로
   const body = P.promptBody(g);
   assert.doesNotMatch(body, HANGUL);
-  const ids = (body.match(/^\d[\d, –]*(?=\. \*\*)/gm) ?? []).flatMap((h) => h.split(/,\s*/).flatMap((x) => { const [s, e] = x.split("–").map(Number); return e ? Array.from({ length: e - s + 1 }, (_, k) => s + k) : [s]; })); // full-en-v0.21: 겹치는 규칙을 "13, 14, 29." · "23–27." 묶음으로
+  const ids = (body.match(/^\d[\d, –]*(?=\. \*\*)/gm) ?? []).flatMap((h) => h.split(/,\s*/).flatMap((x) => { const [s, e] = x.split("–").map(Number); return e ? Array.from({ length: e - s + 1 }, (_, k) => s + k) : [s]; })); // full-en-v0.22: 겹치는 규칙을 "13, 14, 29." · "23–27." 묶음으로
   assert.deepEqual([...ids].sort((x, y) => x - y), Array.from({ length: 50 }, (_, k) => k + 1));
   const plan = P.planGuidelinesEn(body); // 설계는 기획에 쓰는 절만 읽는다
   assert.match(plan, /^## What the episode needs/m);

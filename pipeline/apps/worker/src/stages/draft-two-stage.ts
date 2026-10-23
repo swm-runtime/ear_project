@@ -538,7 +538,8 @@ export function enStyleViolations(turns: ScriptTurn[]): string[] {
   if (bodyY.length >= 6) {
     const q = bodyY.filter((t) => t.text.includes("?")).length;
     const r = q / bodyY.length;
-    if (r < 0.5 || r > 2 / 3) v.push(`${EN_STYLE_MARK} ${q} of ${bodyY.length} Body host turns are questions (${Math.round(r * 100)}%) — between half and two-thirds are questions; the rest are guesses or doubts (rule 9)`);
+    // 폭 40~75% (full-en-v0.22, 2026-10-23 — 종전 50~67%): 14턴이면 7~9개만 허용돼 QA 가 턴 하나를 고치게 할 때마다 비율에 걸리고, 비율을 맞추려 넣은 추측 턴이 다시 QA 항목 8(결론 선점)에 걸려 C76 이 3회 헛돌았다
+    if (r < 0.4 || r > 0.75) v.push(`${EN_STYLE_MARK} ${q} of ${bodyY.length} Body host turns are questions (${Math.round(r * 100)}%) — between two in five and three in four are questions; the rest are guesses, doubts, or observations (rule 9)`);
   }
   return v;
 }
