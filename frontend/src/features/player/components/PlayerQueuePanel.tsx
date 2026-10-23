@@ -134,6 +134,11 @@ const DRAG_SCALE = 1.03;
 const DRAG_SURFACE_COLOR = '#35353B';
 /** 비켜 주는 행이 한 칸 움직이는 시간 · 놓은 행이 제자리에 앉는 시간 */
 const ROW_SHIFT_MS = 140;
+/**
+ * 재생 중인 줄의 띠가 옮겨 갈 때의 교차 페이드 — 자동 재생으로 다음 편에 넘어가면 앞 줄의 띠는 걷히고 다음 줄에 띠가 차오른다
+ * (PM 2026-10-23 "자동 재생할 때 재생 목록이 넘어가는 것도 자연스럽게"). 종전엔 띠가 다음 줄로 순간 이동했다
+ */
+const CURRENT_BAND_FADE_MS = 320;
 const ROW_SETTLE_MS = 120;
 /** 끄는 행이 뷰포트 끝에서 이 거리 안에 들어오면 자동 스크롤이 시작된다 */
 const AUTO_SCROLL_EDGE = 56;
@@ -284,6 +289,17 @@ function QueueRow({
   // 눌림 표시는 본문이 아니라 **줄 전체**(손잡이 포함)에 깐다 — 본문만 밝히면 줄이 알약과 아이콘으로 쪼개져 보인다
   const [isPressed, setIsPressed] = useState(false);
   const shiftY = useAnimatedValue(0);
+  const bandOpacity = useAnimatedValue(isCurrent ? 1 : 0);
+  useEffect(() => {
+    const animation = Animated.timing(bandOpacity, {
+      toValue: isCurrent ? 1 : 0,
+      duration: CURRENT_BAND_FADE_MS,
+      easing: motion.easing.easeInOut,
+      useNativeDriver: true,
+    });
+    animation.start();
+    return () => animation.stop();
+  }, [isCurrent, bandOpacity]);
   // 그리기 전에 맞춘다(useLayoutEffect) — 놓아서 순서가 바뀐 렌더에서 비켜 줬던 몫이 한 프레임 남으면 줄이 두 칸 튀어 깜박였다
   useLayoutEffect(() => {
     if (!animateShift) {
@@ -487,7 +503,10 @@ function QueueRow({
       ) : null}
       {/* 재생 중인 줄의 띠 — 화면 폭 전체(유튜브 뮤직, PM 2026-10-23). 줄 사이 틈의 절반씩 위아래로 넓혀 띠가 줄에 꼭 맞지 않고
         여유 있게 감싼다. 굵기·낭독 꼬리표는 그대로 둔다(색만으로 구분하지 않는다) */}
-      {isCurrent ? <View style={styles.rowCurrentBand} pointerEvents="none" /> : null}
+      <Animated.View
+        style={[styles.rowCurrentBand, { opacity: bandOpacity }]}
+        pointerEvents="none"
+      />
       {/* 스와이프로 드러나는 동그라미 — 왼쪽 끝은 담기(오른쪽으로 밀 때), 오른쪽 끝은 삭제(왼쪽으로 밀 때). 줄 뒤에 깔리고, 줄이
         밀려나 드러난 자리에서만 탭이 닿는다. 낭독기는 줄의 액션으로 같은 일을 한다(동그라미는 낭독 대상에서 뺀다) */}
       {canSave || canDelete ? (
@@ -720,7 +739,7 @@ export default function PlayerQueuePanel({
    * 재생 중인 줄을 뷰포트 맨 위로 — 줄 위치는 실측(rowsTop) + 칸 수라, 실측 전이면 false(나중에 다시). 목록 끝 근처면 끝까지만 내린다
    */
   const pendingFocusRef = useRef(true);
-  const focusCurrent = (): boolean => {
+  const focusCurrent = (animated = false): boolean => {
     const state = scrollState.current;
     if (state.rowsTop < 0) return false;
     const index = itemsRef.current.findIndex((item) => item.contentId === currentIdRef.current);
@@ -732,7 +751,7 @@ export default function PlayerQueuePanel({
     const peek = index > 0 ? ROW_STEP / 2 : theme.spacing.sm;
     const target = Math.max(0, state.rowsTop + index * ROW_STEP - peek);
     const y = maxScroll === null ? target : Math.min(target, maxScroll);
-    scrollRef.current?.scrollTo({ y, animated: false });
+    scrollRef.current?.scrollTo({ y, animated });
     state.offset = y;
     return true;
   };
@@ -767,10 +786,19 @@ export default function PlayerQueuePanel({
   useEffect(() => {
     focusCurrentRef.current = focusCurrent;
   });
+  const lastCurrentIdRef = useRef(currentContentId);
   useEffect(() => {
+    const isAdvanced = lastCurrentIdRef.current !== currentContentId;
+    lastCurrentIdRef.current = currentContentId;
     if (isOpen) {
       // 처음 열자마자 마운트된 경우(닫힌 채로는 아직 목록이 없었다) — 실측되면 한 번 맞춘다(아래 rows onLayout)
-      if (pendingFocusRef.current && focusCurrentRef.current()) pendingFocusRef.current = false;
+      if (pendingFocusRef.current) {
+        if (focusCurrentRef.current()) pendingFocusRef.current = false;
+        return;
+      }
+      // 열린 채 다음 편으로 넘어갔다(자동 재생 — player.md 4.2-4) — 재생 중인 줄로 **부드럽게** 따라간다(PM 2026-10-23).
+      // 끄는 중이면 손가락의 목록을 빼앗지 않는다
+      if (isAdvanced && dragRef.current === null) focusCurrentRef.current(true);
       return;
     }
     // 닫힘 — 다 내려가 목록이 숨은 뒤 재생 중인 줄로 맞춰 둔다. 닫힌 채 다음 편으로 넘어가도 다시 맞춘다
