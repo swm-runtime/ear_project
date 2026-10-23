@@ -319,7 +319,7 @@ export class RecommendTestService {
     }
   }
 
-  /** 탐색에서 재생하는 것과 같다 — 라이브러리에 없으면 자동 적립(`auto_play`) 후 재생 시작 */
+  /** 탐색에서 재생하는 것과 같다 — 담지 않고 재생 시작(자동 적립 폐기 — 2026-10-23) */
   private async play(
     user: User,
     contentId: string,
@@ -331,15 +331,9 @@ export class RecommendTestService {
       contentId,
     );
 
+    // 앱처럼 담지 않는다 — 탐색 재생 자동 적립은 폐기됐다(2026-10-23, `explore.md` 4.4). 옛 스토어 앱만 아직 담는다
     if (!existing) {
-      await this.exploreOrchestrator.saveContent({
-        market: user.market,
-        userId: user.id,
-        contentId,
-        reason: SaveReason.AUTO_PLAY,
-        now,
-      });
-      effects.push('탐색 재생 자동 적립 (auto_play — 신호 없음)');
+      effects.push('라이브러리에 담지 않고 재생 (자동 적립 폐기 — 앱과 같다)');
     }
 
     const started = await this.playService.startPlay({
@@ -384,9 +378,11 @@ export class RecommendTestService {
       now,
     });
     effects.push(
-      saved.libraryItem?.status === LibraryItemStatus.COMPLETED
-        ? '끝까지 들음 → 완청 (complete 신호)'
-        : '위치 저장됨 — 완청 전이 없음(이미 완료였거나 라이브러리 행 없음)',
+      saved.libraryItem === null
+        ? '끝까지 들음 → 완청 (담지 않은 편 — complete 신호, 이미 있으면 생략)'
+        : saved.libraryItem.status === (LibraryItemStatus.COMPLETED as string)
+          ? '끝까지 들음 → 완청 (complete 신호)'
+          : '위치 저장됨 — 완청 전이 없음',
     );
 
     return effects;

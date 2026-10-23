@@ -327,22 +327,15 @@ export class EvalWorld {
     }
   }
 
-  /** 재생 후 완청 — 라이브러리에 없으면 탐색 재생처럼 자동 적립한다(신호는 play·complete) */
+  /**
+   * 재생 후 완청 — **라이브러리에 없으면 행을 만들지 않는다**(탐색 재생 자동 적립 폐기 — 2026-10-23, `explore.md` 4.4). 신호는
+   * play·complete, 완청 신호는 사용자×편당 1회(서버 `PlaybackProgressService`와 같다). 라이브러리에 있으면 그 행을 완청으로 올린다
+   */
   complete(key: string, contentId: string, at: Date): void {
     const user = this.user(key);
-    let item = user.library.find((row) => row.contentId === contentId);
-
-    if (!item) {
-      item = {
-        contentId,
-        source: LibraryItemSource.SAVE,
-        status: LibraryItemStatus.UNPLAYED,
-        addedAt: at,
-        completedAt: null,
-        deletedAt: null,
-      };
-      user.library.push(item);
-    }
+    const item = user.library.find(
+      (row) => row.contentId === contentId && row.deletedAt === null,
+    );
 
     if (!user.excluded.some((row) => row.contentId === contentId)) {
       user.excluded.push({ contentId, createdAt: at });
@@ -354,9 +347,18 @@ export class EvalWorld {
       createdAt: at,
     });
 
-    if (item.status !== (LibraryItemStatus.COMPLETED as string)) {
+    if (item && item.status !== (LibraryItemStatus.COMPLETED as string)) {
       item.status = LibraryItemStatus.COMPLETED;
       item.completedAt = at;
+    }
+
+    const alreadyCompleted = user.signals.some(
+      (signal) =>
+        signal.contentId === contentId &&
+        signal.action === (UserSignalAction.COMPLETE as string),
+    );
+
+    if (!alreadyCompleted) {
       user.signals.push({
         contentId,
         action: UserSignalAction.COMPLETE,
@@ -773,17 +775,28 @@ export class EvalWorld {
           ),
         ),
       // `findCompletedSeriesMaxEpisodes` — 완청한 시리즈의 가장 뒤 편(삭제분 포함)
+      // 완청 = 라이브러리 `completed`(삭제분 포함) ∪ 완청 신호 — 서버 `COMPLETED_CONTENT_IDS_CTE`와 같은 정의(위치는 이 세계에 없다)
       findCompletedSeriesMaxEpisodes: (key: string) => {
         const max = new Map<string, number>();
+        const user = this.user(key);
+        const completedIds = new Set([
+          ...user.library
+            .filter(
+              (item) => item.status === (LibraryItemStatus.COMPLETED as string),
+            )
+            .map((item) => item.contentId),
+          ...user.signals
+            .filter(
+              (signal) =>
+                signal.action === (UserSignalAction.COMPLETE as string),
+            )
+            .map((signal) => signal.contentId),
+        ]);
 
-        for (const item of this.user(key).library) {
-          const content = this.contents.get(item.contentId)?.content;
+        for (const contentId of completedIds) {
+          const content = this.contents.get(contentId)?.content;
 
-          if (
-            item.status === (LibraryItemStatus.COMPLETED as string) &&
-            content?.seriesId &&
-            content.episodeNo !== null
-          ) {
+          if (content?.seriesId && content.episodeNo !== null) {
             max.set(
               content.seriesId,
               Math.max(max.get(content.seriesId) ?? 0, content.episodeNo),

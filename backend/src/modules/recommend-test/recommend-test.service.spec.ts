@@ -1,6 +1,5 @@
 import { BusinessException } from '@/common/exceptions/business.exception';
 import { ErrorCode } from '@/common/exceptions/error-code.enum';
-import { SaveReason } from '@/modules/explore/explore.enum';
 import { LibraryItemStatus } from '@/modules/library/library.enum';
 import { PlayEntryPoint } from '@/modules/playback/playback.enum';
 import { UserMarket } from '@/modules/user/user.enum';
@@ -180,7 +179,7 @@ describe('RecommendTestService', () => {
   });
 
   describe('행동 — 앱과 같은 서비스 경로를 부른다', () => {
-    it('play: 라이브러리에 없으면 auto_play 로 자동 적립한 뒤 재생 시작하고, 취향 캐시를 재계산한다', async () => {
+    it('play: 라이브러리에 없어도 담지 않고 재생 시작하고, 취향 캐시를 재계산한다', async () => {
       // given
       const { service, deps } = build(DEV);
 
@@ -191,14 +190,8 @@ describe('RecommendTestService', () => {
         NOW,
       );
 
-      // then
-      expect(deps.exploreOrchestrator.saveContent).toHaveBeenCalledWith({
-        userId: USER_ID,
-        contentId: CONTENT_ID,
-        reason: SaveReason.AUTO_PLAY,
-        market: UserMarket.KR,
-        now: NOW,
-      });
+      // then — 앱처럼 담지 않는다(자동 적립 폐기 — 2026-10-23)
+      expect(deps.exploreOrchestrator.saveContent).not.toHaveBeenCalled();
       expect(deps.playService.startPlay).toHaveBeenCalledWith({
         userId: USER_ID,
         contentId: CONTENT_ID,
