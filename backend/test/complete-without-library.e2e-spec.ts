@@ -292,6 +292,36 @@ describe('담지 않은 편의 완청 E2E', () => {
     expect(rows[0].status).toBe('unplayed');
   });
 
+  it('라이브러리에서 지운 편은 지운 뒤 위치가 저장돼도 미니플레이어로 돌아오지 않는다', async () => {
+    // given — 담고 듣다가 지웠는데, 재생이 이어져 위치가 한 번 더 저장됐다
+    const contentId = await seedContent();
+    const { auth } = await createUser('deleted-resume');
+    const saved = await request(app.getHttpServer())
+      .post(path(`/contents/${contentId}/save`))
+      .set('Authorization', auth)
+      .send({ client_seq: 1, reason: 'user_save' })
+      .expect(HttpStatus.CREATED);
+    const itemId = (saved.body as { library_item: { id: string } }).library_item
+      .id;
+    await saveProgress(auth, contentId, 100);
+    await request(app.getHttpServer())
+      .delete(path(`/users/me/library-items/${itemId}`))
+      .set('Authorization', auth)
+      .expect(HttpStatus.NO_CONTENT);
+    await saveProgress(auth, contentId, 130);
+
+    // when
+    const resume = await request(app.getHttpServer())
+      .get(path('/users/me/library-items/resume'))
+      .set('Authorization', auth)
+      .expect(HttpStatus.OK);
+
+    // then
+    expect(
+      (resume.body as { resume_target: unknown }).resume_target,
+    ).toBeNull();
+  });
+
   async function saveProgress(
     auth: string,
     contentId: string,
