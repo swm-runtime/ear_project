@@ -1136,6 +1136,7 @@ user_signals
   max_reached_sec           int             NULL
 
 idx_user_signals_user_id_created_at (user_id, created_at DESC)
+idx_user_signals_user_id_content_id_action (user_id, content_id, action)   ★신설 2026-10-23
 ```
 
 - **추천 스코어링 입력 전용이다** (A-7). `drip-scheduling.md` 4.3 신호 해석 표에 쓰이는 값만 담는다.
@@ -1145,6 +1146,7 @@ idx_user_signals_user_id_created_at (user_id, created_at DESC)
 - **`skip`도 없다** — 제거 확정(2026-08-10, README 결정 36 · `player.md` 4.4). 종전 "재생 시작 후 20% 미만 이탈 = skip" 잠정 규칙을 폐기했다. 초반·중간 이탈을 스코어링 감점에 다시 쓸지는 미결이며, 쓴다면 원천은 신호가 아니라 `playback_progresses.max_reached_sec`(상태)다(`drip-scheduling.md` 미결).
 - 별도 테이블인 이유: `playback_progresses`·`library_items`는 "현재 상태"만 알고 있어서 추천 학습에 필요한 **행동 이력**을 표현할 수 없다. 특히 `unsave`·`delete`는 행이 사라져 근거가 남지 않는다.
 - 최근성 가중(`drip-scheduling.md` 4.3)을 위해 `created_at`이 반드시 필요하다.
+- **`(user_id, content_id, action)` 인덱스**(2026-10-23): 완청을 라이브러리 행과 무관한 사실로 보면서(KAN-248 — 라이브러리 `completed` ∪ 위치 90% ∪ 완청 신호) "이 편에 완청 신호가 있는가"를 진행 저장(5초마다)·탐색 목록·미니플레이어 복원·드립 시리즈 대기가 묻는다. `(user_id, created_at)`만으로는 그 사용자의 신호를 다 훑어야 했다. 마이그레이션 `1791700000000`.
 
 ### 6.5 `audio_access_logs`
 
