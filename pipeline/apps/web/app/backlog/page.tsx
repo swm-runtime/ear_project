@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { judgeState } from "@/lib/agent-verdict";
 import { supabaseServer } from "@/lib/supabase-server";
 import { Badge, PageHeader, Panel, Table, Td } from "@/components/ui";
 import { fmtTime } from "@/lib/format";
@@ -33,12 +34,18 @@ export default async function BacklogPage({ searchParams }: { searchParams: Prom
   const sb = await supabaseServer();
   // 글로벌판만 0028 칸(sub_topic)과 도메인 판정을 읽어 판정 대기 도메인을 참고로 보인다 — 승인 조건은 없다(2026-10-17, 한국판과 같게). 한국판 쿼리는 종전 그대로
   const en = pipelineLocale() === "en";
-  const [{ data: rows }, { data: eps }, { data: rjobs }, { data: domains }] = await Promise.all([
+  const [{ data: rows }, { data: eps }, { data: rjobs }, { data: domains }, { data: jjobs }] = await Promise.all([
     sb.from("backlog").select(`id,mid_topic,title,target_fit,angle,sources,status,dedup_note,approved_by,approved_at,axis,axis_type,gaps,cluster_version,reinforced_at,reinforce_note,created_at${en ? ",sub_topic" : ""}` as "*").order("created_at", { ascending: false }),
-    sb.from("episodes").select("id,backlog_id,regression_kind"),
+    sb.from("episodes").select(`id,backlog_id,regression_kind${en ? ",critic_verdicts" : ""}` as "id,backlog_id,regression_kind"),
     sb.from("jobs").select("payload").eq("type", "sweep").in("status", ["queued", "claimed", "running"]).eq("payload->>mode", "B"), // 보강 스윕 진행 중 (0019)
     en ? sb.from("domains").select("id,domain,tier") : Promise.resolve({ data: null }),
+    // 글로벌: 판정 상태 칸(2026-10-23) — 편마다 가장 최근 judge_loop 작업 상태
+    en ? sb.from("jobs").select("payload,status,created_at").eq("type", "judge_loop").order("created_at", { ascending: false }).limit(400) : Promise.resolve({ data: null }),
   ]);
+  const latestJudge = new Map<string, string>();
+  for (const j of (jjobs ?? []) as { payload: { backlog_id?: string } | null; status: string }[]) { const b = j.payload?.backlog_id; if (b && !latestJudge.has(b)) latestJudge.set(b, j.status); }
+  const verdictOf = new Map((eps ?? []).map((e: any) => [e.backlog_id, e.critic_verdicts ?? null]));
+  const JUDGE_TONE: Record<string, string> = { ok: "bg-emerald-50 text-emerald-700 ring-emerald-200", running: "bg-sky-50 text-sky-700 ring-sky-200", failed: "bg-rose-50 text-rose-700 ring-rose-200", held: "bg-amber-50 text-amber-800 ring-amber-200", none: "bg-slate-100 text-slate-600 ring-slate-200" };
   const pendingOf = (r: any) => (en && (r.status === "proposed" || r.status === "held") ? pendingDomainsOf(r.sources, (domains ?? []) as Gate1Domain[]) : []);
   const reinforcing = new Set((rjobs ?? []).map((j) => String((j.payload as { backlog_id?: string } | null)?.backlog_id ?? "")));
   const epOf = new Map((eps ?? []).map((e) => [e.backlog_id, e.id]));
@@ -106,6 +113,9 @@ export default async function BacklogPage({ searchParams }: { searchParams: Prom
                     <Td className="text-center tabular-nums">{Array.isArray(r.sources) ? r.sources.length : 0}</Td>
                     <Td>
                       <Badge value={r.status} />
+                      {en && (r.status === "qa_passed" || r.status === "packaged") && (() => { const js = judgeState(verdictOf.get(r.id) ?? null, latestJudge.get(r.id) ?? null, r.status); return (
+                        <div className="mt-1"><span className={`inline-flex items-center whitespace-nowrap rounded px-1.5 py-0.5 text-[11px] font-medium ring-1 ring-inset ${JUDGE_TONE[js.tone]}`} title="에이전트 판정 상태 (글로벌 명세 6.10)">{js.label}</span></div>
+                      ); })()}
                       {r.approved_by && <div className="mt-0.5 whitespace-nowrap text-[11px] text-ink-soft">{r.approved_by} · {fmtTime(r.approved_at)}</div>}
                     </Td>
                     <Td className="whitespace-nowrap">

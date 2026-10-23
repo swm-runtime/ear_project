@@ -119,6 +119,12 @@ async function main() {
           await failJob(job.id, e?.stack ?? String(e));
           log(`✖ ${job.type} ${job.id.slice(0, 8)} 실패: ${e?.message ?? e}`);
           if (job.type === "draft") await onDraftFailed(job, e); // 실패한 초안은 에피소드로 남기지 않고 백로그로 (spec/03 5장)
+          // 글로벌 판정 루프는 한 번 자동 재시도한다 (2026-10-23 박수헌: 실패한 루프가 failed 로 남아 사람이 다시 걸어야 했다 — 기술 실패(응답 폭주·연결)는 다시 돌리면 대개 끝난다).
+          // 전제 조건 오류(qa_passed 아님·행 없음)는 다시 돌려도 같으므로 제외. 두 번째도 실패하면 콘솔 [재판정]
+          if (job.type === "judge_loop" && (job.attempt ?? 1) < 2 && !/qa_passed 에서만|에피소드\/백로그 없음|글로벌 인스턴스 전용/.test(String(e?.message ?? e))) {
+            const rid = await enqueue({ type: "judge_loop", requires_ai: true, payload: job.payload, parent_job_id: job.id, attempt: (job.attempt ?? 1) + 1 }).catch((err) => { log(`  judge_loop 자동 재시도 등록 실패: ${err?.message ?? err}`); return null; });
+            if (rid) log(`↺ judge_loop ${job.id.slice(0, 8)} 자동 재시도 1회 → ${rid.slice(0, 8)}`);
+          }
         }
       } finally {
         clearInterval(hb);

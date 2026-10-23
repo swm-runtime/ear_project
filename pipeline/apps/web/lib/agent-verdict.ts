@@ -24,3 +24,18 @@ export function agentGate(verdicts: unknown): AgentGateResult {
   if (openFixes.length) blockers.push(`필수 수정 ${openFixes.length}건이 반영되지 않았습니다 (${openFixes.map((m) => m.turn ? `${m.id} ${m.turn}` : m.id).join(", ")})`);
   return { ok: blockers.length === 0, blockers, openFixes };
 }
+
+/** 백로그 "QA 통과 · 판정 대기" 묶음의 판정 상태 한 칸 (글로벌, 2026-10-23 박수헌) — 미판정·판정 중·판정 실패·기준 미달·통과가 한 줄에 섞여 구분되지 않았다.
+ *  latestJob 은 그 편의 가장 최근 judge_loop 작업 상태(없으면 null) */
+export function judgeState(verdicts: unknown, latestJob: string | null, backlogStatus: string): { label: string; tone: "ok" | "running" | "failed" | "held" | "none" } {
+  if (backlogStatus === "packaged") return { label: "발행 준비 완료", tone: "ok" };
+  if (latestJob === "queued" || latestJob === "claimed" || latestJob === "running") return { label: "판정 중", tone: "running" };
+  const block = agentBlock(verdicts);
+  if (!block) return latestJob === "failed" ? { label: "판정 실패 — [재판정]", tone: "failed" } : { label: "판정 전", tone: "none" };
+  const g = agentGate(verdicts);
+  if (g.ok) return { label: "판정 통과 — 발행 준비 대기", tone: "ok" };
+  const r = block.publishable_reason ?? "";
+  const m = r.match(/편집자 중앙값 (\d+) < 기준 (\d+)/);
+  const why = m ? `${m[1]}점 < ${m[2]}` : g.openFixes.length ? `필수 수정 ${g.openFixes.length}건 미수리` : r.slice(0, 40);
+  return { label: `판정 미달 — ${why}`, tone: "held" };
+}
