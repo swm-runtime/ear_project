@@ -30,10 +30,11 @@
 2. **판정 교체** — 위 네 곳의 완청 판정을 `isCompleted`(= `is_completed`)로 바꾼다. 클라이언트가 위치로 완청을 다시 계산하지 않는다(판정은 서버).
 3. 라이브러리 화면(`features/library`)은 그대로 둔다 — 라이브러리 행이 있는 화면이라 `status`가 맞다.
 
+4. **미니플레이어 복원 대상의 `id`가 null일 수 있다**(BE #1938 — 담지 않고 듣던 편도 복원 대상, `library-api.md` 4.3). `useLibraryScreen`의 숨김·삭제 대조(`dismissedResumeIds`·`hiddenItemIds`·`resumeTarget.id === item.id`)를 `content.id` 키로 바꾼다 — null끼리 키가 겹치면 담지 않은 편 하나를 숨길 때 다른 편도 숨는다. 타입 `ResumeTarget.id`를 `string | null`로.
+
 ## 범위 밖
 
 - **지금 듣는 편의 완청 반영** — `queue-context.ts:19`는 세션의 `libraryItem.status`를 본다. 담지 않은 편은 진행 저장 응답의 `library_item`이 null이라 듣는 도중 완청으로 바뀌지 않는다. 연속 재생은 다음 편만 보므로 당장은 영향이 없다. 필요하면 BE가 진행 저장 응답에 완청 여부를 더한다(요청 시 BE 티켓).
-- 미니플레이어 복원(FR-24 — `GET /users/me/library-items/resume`)은 계약 개정이 필요해 BE가 따로 다룬다.
 
 ## 완료 조건
 
@@ -44,4 +45,5 @@
 
 ## 처리 기록
 
-- 2026-10-23 발행(BE — 자동 적립 폐기 영향 검토. 서버 쪽은 #1928·#1930).
+- 2026-10-23 발행(BE — 자동 적립 폐기 영향 검토. 서버 쪽은 #1928·#1934).
+- 2026-10-23 4번 추가 — 미니플레이어 복원 `id` null(BE #1938).
