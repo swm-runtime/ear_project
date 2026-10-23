@@ -148,6 +148,8 @@ interface SessionContext {
   isReportingPlayStart: boolean;
   /** `play_abandon` 은 세션당 한 번 — 백그라운드에서 센 세션을 나중에 교체할 때 또 세지 않는다 */
   hasReportedAbandon: boolean;
+  /** 서버 완청 판정으로 재조회 신호를 이미 냈는가 — 담은 편(library_item)·담지 않은 편(is_completed) 어느 쪽이든 한 번만(KAN-252) */
+  hasNotifiedCompleted: boolean;
   /** 완료 상태 ▶로 시작한 재생 — 시작 기록과 함께 replay 신호를 보낸다(player-api.md 4.4) */
   isReplay: boolean;
   replayIdempotencyKey: string | null;
@@ -315,6 +317,7 @@ class PlaybackService {
       hasReportedPlayStart: false,
       isReportingPlayStart: false,
       hasReportedAbandon: false,
+      hasNotifiedCompleted: false,
       isReplay: request.restartFromBeginning === true,
       replayIdempotencyKey: null,
       isSaving: false,
@@ -988,9 +991,18 @@ class PlaybackService {
         });
         // 완청 전이는 서버 판정의 결과 통지다 — 90% 도달 시점에 화면은 아무것도 하지 않는다(uiux 4.4)
         if (result.libraryItem.status === 'completed' && prevStatus !== 'completed') {
+          ctx.hasNotifiedCompleted = true;
           getPlayerLibraryBridge()?.invalidateLibrary();
           ctx.callbacks.onServerStateChanged?.();
         }
+      }
+      /*
+       * 담지 않은 편의 완청(KAN-252) — `library_item` 이 null 이라 위 갈래가 돌지 않는다. 서버 `is_completed` 가 처음 true 가 되면
+       * 같은 재조회 신호를 낸다(시리즈 화면 "완청"·머리 [재생]이 새로고침 없이 바뀐다). 한 세션에 한 번만
+       */
+      if (result.isCompleted === true && !ctx.hasNotifiedCompleted) {
+        ctx.hasNotifiedCompleted = true;
+        ctx.callbacks.onServerStateChanged?.();
       }
     } catch (error) {
       if (generation !== this.generation) return;
