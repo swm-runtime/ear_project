@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Animated, PanResponder, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import { useAnimatedValue } from '@/shared/hooks/useAnimatedValue';
@@ -80,6 +80,11 @@ const THUMBNAIL_SIZE = 48;
 const ROW_HEIGHT = THUMBNAIL_SIZE + theme.spacing.sm * 2;
 const ROW_GAP = theme.spacing.xs;
 const ROW_STEP = ROW_HEIGHT + ROW_GAP;
+/** 놓은 뒤 새 순서를 기다리는 상한 — 보통은 다음 틱에 온다 */
+const SETTLE_FALLBACK_MS = 600;
+/** 두 목록이 같은 줄을 같은 순서로 담았는지 */
+const isSameOrder = (a: QueueEntry[], b: QueueEntry[]): boolean =>
+  a === b || (a.length === b.length && a.every((item, index) => rowKey(item) === rowKey(b[index])));
 const REORDER_ICON_SIZE = 22;
 /** 끄는 줄의 확대 비율 — 떠 있다는 단서만 줄 만큼 */
 const DRAG_SCALE = 1.03;
@@ -189,7 +194,8 @@ function QueueRow({
   // 눌림 표시는 본문이 아니라 **줄 전체**(손잡이 포함)에 깐다 — 본문만 밝히면 줄이 알약과 아이콘으로 쪼개져 보인다
   const [isPressed, setIsPressed] = useState(false);
   const shiftY = useAnimatedValue(0);
-  useEffect(() => {
+  // 그리기 전에 맞춘다(useLayoutEffect) — 놓아서 순서가 바뀐 렌더에서 비켜 줬던 몫이 한 프레임 남으면 줄이 두 칸 튀어 깜박였다
+  useLayoutEffect(() => {
     if (!animateShift) {
       shiftY.setValue(shift);
       return;
@@ -473,12 +479,39 @@ export default function PlayerQueuePanel({
   const dragY = useAnimatedValue(0);
   const [drag, setDrag] = useState<{ from: number; hover: number } | null>(null);
   const dragRef = useRef<{ from: number; hover: number } | null>(null);
+  /*
+   * 놓은 뒤 새 순서가 들어올 때까지 끌던 모습(끄는 줄은 목표 칸, 나머지는 비켜 선 채)을 붙잡아 둔다(PM 2026-10-23 "위에다 놓으면
+   * 깜박인다"). 라이브러리 맥락의 순서는 쿼리 캐시라 갱신이 **다음 틱**에 온다 — 그 사이 끌기 표시를 먼저 지우면 한 프레임 동안
+   * 옛 순서 그대로 그려져 줄이 제자리로 튀었다가 새 자리로 갔다. `items` 가 바뀐 그 렌더에서 함께 놓는다
+   */
+  const [settle, setSettle] = useState<{
+    from: number;
+    hover: number;
+    items: QueueEntry[];
+  } | null>(null);
+  // 같은 배열인지가 아니라 **같은 순서인지**로 본다 — 재생 위치 갱신 등으로 부모가 새 배열을 만들어도 순서는 그대로일 수 있다
+  const isAwaitingOrder = settle !== null && isSameOrder(settle.items, items);
+  const shownDrag = drag ?? (isAwaitingOrder ? settle : null);
   const countRef = useRef(items.length);
+  const itemsRef = useRef(items);
   const onReorderRef = useRef(onReorder);
   useEffect(() => {
     countRef.current = items.length;
+    itemsRef.current = items;
     onReorderRef.current = onReorder;
   });
+  /*
+   * 붙잡은 기록은 잠시 뒤 지운다 — 새 순서가 그려지는 렌더에서는 위 shownDrag 가 이미 null 이라 화면엔 영향이 없고, 순서가 끝내 안
+   * 바뀌어 오면(저장 실패로 되돌림 등) 이때 붙잡은 모습이 풀린다. 그새 다음 끌기가 시작됐으면 그 끌기의 dragY 는 건드리지 않는다
+   */
+  useEffect(() => {
+    if (settle === null) return;
+    const timer = setTimeout(() => {
+      if (dragRef.current === null) dragY.setValue(0);
+      setSettle(null);
+    }, SETTLE_FALLBACK_MS);
+    return () => clearTimeout(timer);
+  }, [settle, dragY]);
   /*
    * 가장자리 자동 스크롤 — 끄는 행이 뷰포트 위·아래 끝에 가까워지면 목록이 그쪽으로 흘러, 한 번의 끌기로
    * 보이지 않는 칸까지 옮길 수 있다. 손가락은 가만히 있어도 목록이 밑에서 흐르므로 행의 이동량은
@@ -568,7 +601,13 @@ export default function PlayerQueuePanel({
           // 위 shiftY 와 같은 이유 — dragY 는 끄는 내내 JS 에서 직접 움직이는 값이다
           useNativeDriver: false,
         }).start(() => {
-          if (current.hover !== current.from) onReorderRef.current(current.from, current.hover);
+          if (current.hover !== current.from) {
+            // 끌던 모습을 붙잡은 채 순서를 넘긴다 — 새 순서가 그려질 때 함께 놓는다(위 settle)
+            setSettle({ ...current, items: itemsRef.current });
+            onReorderRef.current(current.from, current.hover);
+            setDrag(null);
+            return;
+          }
           setDrag(null);
           dragY.setValue(0);
         });
@@ -583,9 +622,10 @@ export default function PlayerQueuePanel({
   );
 
   const shiftOf = (index: number): number => {
-    if (!drag || index === drag.from) return 0;
-    if (drag.from < drag.hover && index > drag.from && index <= drag.hover) return -ROW_STEP;
-    if (drag.hover < drag.from && index >= drag.hover && index < drag.from) return ROW_STEP;
+    if (!shownDrag || index === shownDrag.from) return 0;
+    const { from, hover } = shownDrag;
+    if (from < hover && index > from && index <= hover) return -ROW_STEP;
+    if (hover < from && index >= hover && index < from) return ROW_STEP;
     return 0;
   };
 
@@ -737,7 +777,7 @@ export default function PlayerQueuePanel({
                 }
                 deleteA11yLabel={deleteA11yLabel}
                 onDelete={onDelete}
-                isDragging={drag !== null && drag.from === index}
+                isDragging={shownDrag !== null && shownDrag.from === index}
                 shift={shiftOf(index)}
                 animateShift={drag !== null}
                 dragY={dragY}
