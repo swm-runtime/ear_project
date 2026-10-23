@@ -250,13 +250,14 @@ export const useLibraryScreen = () => {
       : null;
 
   /*
-   * 복원 대상의 주제 — 복원 계약(library-api.md 4.3)의 content 에는 주제가 없다. 받아 둔 목록에서 같은 항목을
-   * 찾아 채운다: 이게 없으면 미니플레이어로 연 플레이어에서만 카테고리 줄이 빈다(2026-09-18 PM 지적).
-   * 목록에 아직 없으면(다음 페이지) 비워 둔다 — 재생 시작 응답에 topics 를 싣는 BE 요청이 근본 해결이다
-   * (changes/pending/player-controls-redesign.md 계약 요청 1)
+   * 복원 대상의 주제 — **복원 응답의 `content.topic_ids`** 를 쓴다(KAN-251 — 담지 않고 듣던 편은 항목 id 가 null 이라 목록에서
+   * 찾을 수 없다). 옛 서버(필드 없음 → 빈 배열)면 받아 둔 목록에서 같은 항목을 찾는다 — 없으면 미니플레이어로 연 플레이어의
+   * 카테고리 줄이 빈다(2026-09-18 PM 지적)
    */
   const resumeTopicIds = visibleResumeTarget
-    ? items.find((item) => item.id === visibleResumeTarget.id)?.content.topicIds
+    ? visibleResumeTarget.content.topicIds.length > 0
+      ? visibleResumeTarget.content.topicIds
+      : items.find((item) => item.id === visibleResumeTarget.id)?.content.topicIds
     : undefined;
 
   /** L4 [상세 정보] — 시트를 닫고 상세 화면으로 이동한다(content-detail.md 2장). 뒤로가기로
