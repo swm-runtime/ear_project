@@ -71,3 +71,4 @@
 ## 처리 기록
 
 - 2026-10-22 발행(BE — 코드와 같은 PR `feat(be): add insights recommendation inspector`).
+- **2026-10-23 반영**(통합 브랜치 `docs(be)/apply-pending-changes`) — 대상 문서 전부 반영, 코드와 대조. 반영 날짜 2026-10-23.

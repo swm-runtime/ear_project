@@ -133,7 +133,7 @@ idx_idempotency_keys_expires_at
 | `user` | `users`, `consents`, `withdrawal_logs`, `user_market_changes`(2026-10-19 — 3.4-1), `user_settings`, `device_tokens`, `email_verifications` |
 | `auth` | `sessions`, `daily_active_users`, `user_active_dates`(2026-10-18 — 원천이 `sessions`이고 표가 필요한 이유도 이 모듈의 세션 파기다. 서비스 지표(`admin`)는 읽기만 한다, [3.3-1](#33-1-daily_active_users-신설-2026-10-18--세션-파기에도-남는-일별-접속자)·[3.3-2](#33-2-user_active_dates-신설-2026-10-18--코호트-리텐션의-사람별-접속일)) |
 | `interest` | `topics`, `user_interests`, `topic_adjacencies` |
-| `content` | `contents`, `content_topics`, `content_scripts`, `content_stats`, `content_sources`, `content_embeddings`, `search_query_logs`, `series`(2026-10-17 — `SeriesService`가 export, [5.9](#59-series-신설-2026-10-17--kan-134-시리즈)) |
+| `content` | `contents`, `content_topics`, `content_scripts`, `content_stats`, `content_sources`, `content_embeddings`, `content_title_embeddings`(2026-10-22 — 검색 제목 임베딩, [5.6-1](#56-1-content_title_embeddings-신설-2026-10-22--검색-제목-임베딩)), `search_query_logs`, `series`(2026-10-17 — `SeriesService`가 export, [5.9](#59-series-신설-2026-10-17--kan-134-시리즈)) |
 | `library` | `library_items`, `library_series`(2026-10-22 — 시리즈째 담기, [6.1-1](#61-1-library_series-신설-2026-10-22--kan-245-시리즈째-담기)) |
 | `playback` | `playback_progresses`, `play_records`, `play_daily_totals`, `user_signals`, `audio_access_logs`, `source_link_clicks` |
 | `drip` | `drip_excluded_contents`, `user_preference_vectors`, `drip_batch_runs`, `first_drip_jobs` |
@@ -648,7 +648,7 @@ fk_contents_series  series_id → series.id  ON DELETE RESTRICT   (2026-10-17 �
   - **발행 편 번호 유일성** — 부분 유니크 `uq_contents_series_id_episode_no_published`가 같은 시리즈에 같은 번호가 둘 발행되지 않게 한다. 회수·만료 편은 빠지므로 "회수 후 같은 번호로 다시 올리기"는 된다. (`series_id IS NOT NULL`은 단일 콘텐츠를 인덱스에서 빼는 것뿐 — 판정은 같다.)
   - **`total_episodes`는 업로드 계약 호환으로 남은 사본이다.** 업로드 때 `series.total_episodes`와 같아야 하고(`admin-api.md` 4.6), 응답의 총 편수는 `series.total_episodes`에서 읽는다. 시리즈 편수를 고쳐도(`PATCH /admin/series/:id`) 편의 사본은 고치지 않는다.
   - 마이그레이션의 기존 데이터 처리 — 고아 `series_id`(가리키는 시리즈가 없는 값 — 로컬·개발계 시드)는 **자리표시 시리즈 행**으로 메운 뒤 FK를 검증된 상태로 걸었다(제목 = 그 시리즈 가장 앞 편의 제목, 소개 `''`, 총 편수 = `max(total_episodes, episode_no, 1)`, `ongoing`). 운영은 시리즈 편이 0건이라 만들 행이 없다. 이미 발행 번호 중복이 있으면 마이그레이션이 이유를 밝히고 멈춘다(어느 편을 남길지는 사람이 정한다).
-- **`content_version`은 같은 행의 값을 증가시킨다.** 재발행 시 새 행을 만들지 않으므로 `content_id`가 바뀌지 않고, `library_items` · `playback_progresses` · `content_stats`의 참조가 그대로 유지된다.
+- **`content_version`은 같은 행의 값을 증가시킨다.** **오디오를 바꾸는 재발행에서만 오른다** — 썸네일·메타만 바꾸면 그대로다(2026-10-20, KAN-236 — `admin-api.md` 4.10). 재발행 시 새 행을 만들지 않으므로 `content_id`가 바뀌지 않고, `library_items` · `playback_progresses` · `content_stats`의 참조가 그대로 유지된다.
   - 따라서 `status`에 `superseded`가 필요 없다. 이전 버전은 행에 남지 않는다.
   - 클라이언트는 `content_version`이 올라간 것을 보고 저장한 재생 위치·오프라인 파일을 폐기한다(`player.md` 7).
   - 재발행 이력이 필요해지면 그때 별도 이력 테이블을 만든다. 지금은 요구가 없다.
@@ -685,7 +685,7 @@ fk_contents_series  series_id → series.id  ON DELETE RESTRICT   (2026-10-17 �
 - NFC 정규화·소문자 통일은 **적재·질의 양쪽에서 애플리케이션 계층이 한다.** 정규화 사본 컬럼을 두지 않는다 — 파생값이다([1.5](#15-파생값을-컬럼으로-두지-않는다)).
 - **오타 교정용 함수 `hangul_to_jamo(text) RETURNS text IMMUTABLE`**(신설 2026-10-22 — KAN-238, 마이그레이션 `1791300000000-AddSearchCorrectionHybrid`). 완성형 음절(U+AC00~U+D7A3)을 초·중·종성 호환 자모로 풀고, 겹모음(ㅘ=ㅗ+ㅏ)·겹받침(ㄺ=ㄹ+ㄱ)은 **치는 순서대로** 풀며, 그 밖의 문자는 그대로 통과한다(홀로 온 겹자모도 같게 푼다). `STRICT`·`PARALLEL SAFE`·`SET search_path = pg_catalog`. 교정어 선택(`explore.md` 4.5-5 — 질의·어휘 양쪽을 풀어 자모 트라이그램 `similarity`로 후보를 줄인다. 점수는 애플리케이션이 `toJamo`로 잰 자모 편집 유사도다 — 2026-10-22 개정, 종전 `word_similarity`)가 쓰고, `search-text.util.ts` `toJamo`(로그 묶음 판정 — 5.7 · 교정어 재채점)와 같은 규칙이다(e2e가 실제 DB에서 동치를 대조한다).
   - **컬럼·인덱스를 신설하지 않는다** — 교정어 어휘(태그 항목·주제명·시리즈 제목·제목 토큰)는 **질의 시 전수 비교**한다. 운영 콘텐츠 수백 편 규모라 함수 호출 몇천 번이다. 어휘가 수만 항목으로 커지면 `search_terms` 머티리얼라이즈드 뷰 + `gin_trgm_ops`를 그때 본다(IMMUTABLE이라 인덱스 식에 그대로 쓸 수 있다).
-  - **의미 엔진**(하이브리드의 둘째 엔진)은 `content_embeddings`([5.6](#56-content_embeddings-신설-2026-08-26--추천-스코어링-고도화))를 읽는다 — 이 표에 컬럼을 더하지 않는다.
+  - **의미 엔진**(하이브리드의 둘째 엔진)은 `content_title_embeddings`([5.6-1](#56-1-content_title_embeddings-신설-2026-10-22--검색-제목-임베딩))와 `content_embeddings`([5.6](#56-content_embeddings-신설-2026-08-26--추천-스코어링-고도화))를 읽는다(개정 2026-10-22 — 제목 임베딩 추가) — 이 표에 컬럼을 더하지 않는다.
 
 **검수 완료 확인(체크)은 컬럼으로 두지 않는다** (합의 2026-08-06 — `admin.md` 3.1·4.2-1의 이행 기록)
 
@@ -834,12 +834,35 @@ uq_content_embeddings_content_id (content_id)
 - **확장 `pgvector`가 필요하다** — 마이그레이션에서 `CREATE EXTENSION IF NOT EXISTS vector` (5.1의 `pg_trgm`과 같은 방식).
 - **유사도 지표는 코사인으로 확정한다** (`<=>` 연산). 임베딩 모델 후보들이 정규화 벡터를 내므로 내적과 동치이고, 지표를 통일해야 사용자 취향 벡터([7.2](#72-user_preference_vectors))와의 비교가 성립한다.
 - **ANN 인덱스(HNSW 등)를 두지 않는다.** 소비처가 후보 전수 스코어링(편성 배치·탐색 랭킹)이라 근사 검색이 필요 없고, 콘텐츠 수백~수천 편 규모에서는 전수 계산이 충분히 빠르다. "유사 콘텐츠 Top-K" 같은 검색 요구가 생기면 그때 추가한다. **탐색 검색의 의미 엔진(2026-10-22 — KAN-238)도 지금은 전수 코사인으로 간다**(질의 벡터 vs 노출 후보 전부 — 수천 편 상한). **플레이어 관련 콘텐츠(2026-10-22 — KAN-240)도 "유사 콘텐츠 Top-K"이지만 지금은 전수 코사인이다**(기준 편 벡터 vs 노출 후보 전부 — 같은 수천 편 상한, 검색 하이브리드와 같은 판단). 그 위로 가면 HNSW를 그때 본다.
-- **소비처**: 편성 배치·탐색 랭킹의 임베딩 축(`drip-scheduling.md` 4.2) · **탐색 검색 의미 엔진**(`explore.md` 4.5-5 — 질의 임베딩은 AI 서버 `POST /embeddings`, 같은 모델). 검색도 **`model = 현행 모델` AND `content_version` 일치** 행만 읽는다(재발행 후 미갱신 벡터 제외 — 추천과 같은 조건). · **플레이어 관련 콘텐츠**(`GET /contents/:id/related` — `player-api.md` 4.8, KAN-240 — 기준 벡터는 기준 편의 이 표 행, AI 서버를 부르지 않는다). 기준 편·후보 편 모두 같은 `model`·`content_version` 조건이고, 기준 편에 현행 행이 없으면 결과가 비어 있다.
+- **소비처**: 편성 배치·탐색 랭킹의 임베딩 축(`drip-scheduling.md` 4.2) · **탐색 검색 의미 엔진**(`explore.md` 4.5-5 — 질의 임베딩은 AI 서버 `POST /embeddings`, 같은 모델). 검색도 **`model = 현행 모델` AND `content_version` 일치** 행만 읽는다(재발행 후 미갱신 벡터 제외 — 추천과 같은 조건). **제목 벡터([5.6-1](#56-1-content_title_embeddings-신설-2026-10-22--검색-제목-임베딩))와 함께 본다** — 제목 벡터가 있는 편은 대본 벡터를 하한 0.45로, 없는 편은 종전 0.3으로 본다(2026-10-22). · **플레이어 관련 콘텐츠**(`GET /contents/:id/related` — `player-api.md` 4.8, KAN-240 — 기준 벡터는 기준 편의 이 표 행, AI 서버를 부르지 않는다). 기준 편·후보 편 모두 같은 `model`·`content_version` 조건이고, 기준 편에 현행 행이 없으면 결과가 비어 있다.
 - **`contents`의 컬럼이 아니라 별도 테이블인 이유**: 차원이 미결이라(15.1 #11) 모델 확정·교체 시 이 테이블만 재생성하면 되고, 후보 필터 질의(`contents` 스캔)가 큰 벡터 컬럼을 끌고 다니지 않게 분리한다.
 - **모델을 교체하면 전량 재생성한다.** 서로 다른 모델의 벡터는 비교 불가하므로 `model`이 섞인 상태로 스코어링하지 않는다 — 배치는 스코어링 전에 `model` 단일성을 확인한다.
 - **행이 없는 콘텐츠도 발행 상태일 수 있다** (추천 메타 4종과 동일 — NULL 허용 원칙). 스코어링에서 임베딩 축을 중립 처리한다(`drip-scheduling.md` 4.2).
 - [1.5](#15-파생값을-컬럼으로-두지-않는다) 위반이 아닌 이유는 추천 메타 4종과 같다 — SQL로 구할 수 없는 값이다. `user_preference_vectors`([7.2](#72-user_preference_vectors))와 같은 층의 파생 캐시다.
 
+
+### 5.6-1 `content_title_embeddings` *(신설 2026-10-22 — 검색 제목 임베딩)*
+
+콘텐츠 **제목**의 임베딩 벡터다. 탐색 검색 의미 엔진 전용이다(`explore.md` 4.5-5). 짧은 질의("이직"·"수면")와 대본 전문 벡터(5.6)의 코사인은 0.2~0.3대에 몰려 관련·무관이 갈리지 않아(2026-10-22 개발계 실측 — 199편·질의 30개, `backend/scripts/measure-search-embeddings.js`), 질의를 제목 벡터와 견주는 구조를 더했다. 마이그레이션 `1791650000000-AddContentTitleEmbeddings`.
+
+```
+content_title_embeddings
+  id                        uuid            PK
+  content_id                uuid            FK → contents (CASCADE)
+  embedding                 vector(1536)    contents.title의 임베딩 — 5.6과 같은 모델·차원·정규화
+  model                     varchar(100)    생성 모델 식별자 — 질의 벡터와 같은 모델 행만 비교
+  source_text               varchar(255)    임베딩한 글자 그대로(= 그때의 contents.title) — 지금 제목과 다르면 낡은 행
+
+uq_content_title_embeddings_content_id (content_id)
+```
+
+- 소비처는 **탐색 검색 의미 엔진뿐이다**(`explore.md` 4.5-5). 추천 스코어링·관련 콘텐츠·관리자 "현행 임베딩" 표시는 5.6만 읽는다.
+- **생성 주체는 서버다**(5.6과 다르다). 발행(`upload`)·재발행(`republish`) 트랜잭션이 **커밋된 뒤** 백엔드가 AI 서버 `POST /embeddings`를 불러 만든다. 최선 노력이라, 실패하면 행이 없고 발행·재발행은 그대로 성공한다. 기존 편과 실패한 편은 백필(`node dist/scripts/backfill-title-embeddings.js`)이 채운다. 백필은 멱등이고 요청 간격이 기본 200ms다.
+- **유효 조건 = `model` 현행 AND `source_text` = `contents.title`.** 5.6처럼 `content_version`으로 대조하지 않는다. 제목만 바꾸는 재발행은 버전을 올리지 않으므로(KAN-236 — 5.1) 버전 대조로는 낡은 벡터를 가리지 못한다. 재발행 훅은 제목(과 모델)이 같으면 AI 서버를 부르지 않는다.
+- **5.6에 `kind` 열을 넣지 않고 표를 나눈 이유**: 5.6은 추천 스코어링·관련 콘텐츠·관리자 표시·개발계 동기화가 모두 "콘텐츠당 1행"으로 읽는다. 종류 열을 넣으면 그 읽기 전부에 조건을 더해야 하고, 하나라도 빠지면 제목 벡터가 추천 축에 섞인다. 유효 조건도 서로 다르다(버전 대조 vs 글자 대조).
+- 설명·태그는 넣지 않는다. 실측에서 제목+설명+태그가 제목 단독보다 낮았다(쌍 단위 최고 F1 0.388 vs 0.450). 넣게 되면 `source_text`에 넣은 글자 전체를 담으면 같은 규칙이 성립한다.
+- ANN 인덱스는 두지 않는다(5.6과 같은 판단 — 전수 코사인, 수천 편 상한).
+- 개발계 동기화 표 목록(`deploy/sync-content-*.sh`)에 들어간다. 동기화로 들어온 편은 발행 훅을 타지 않고, 제목이 운영과 같으므로 운영 벡터가 그대로 유효하다.
 
 ### 5.7 `search_query_logs` *(신설 2026-10-01 — 검색 미스율 측정)*
 
@@ -911,6 +934,7 @@ series
   description     text          NOT NULL   빈 문자열 허용(소개 없음)
   total_episodes  int           NOT NULL   CHECK >= 1 — 계획 편수. 총 편수의 기준. 상한 없음
   status          varchar(20)   NOT NULL   CHECK IN ('ongoing','completed')
+  cover_url       text          NULL       ★신설 2026-10-21 (KAN-234) — 올린 표지의 공개 URL. contents.thumbnail_url 과 같은 종류
   publisher_name  varchar(50)   NULL       발행 이름(예: "키워드") — 2026-10-22
   created_at · updated_at
 
@@ -918,7 +942,7 @@ ck_series_total_episodes  CHECK (total_episodes >= 1)
 ck_series_status          CHECK (status IN ('ongoing', 'completed'))
 ```
 
-- **표지 칸이 없다** — 표지는 노출 중인 가장 앞 편(보통 1화)의 썸네일이다(결정 2026-10-09).
+- **표지** — `cover_url`이 있으면 그것, 없으면(NULL·빈 문자열) 노출 중인 가장 앞 편(보통 1화)의 썸네일이다(결정 2026-10-09 → 표지 칸 신설 2026-10-21 — KAN-234). 관리자 `PUT /admin/series/:id/cover`(`admin-api.md` 4.24)로만 채운다. 백필 없음 — 기존 CS·경제·철학 시리즈는 올리기 전까지 종전 그대로다. 마이그레이션 `1791200000000-AddSeriesCoverUrl`. *(개정 2026-10-21 — 종전 "표지 칸이 없다". 파이프라인이 시리즈 편 썸네일을 같은 그림에 편 번호만 다르게 만들어 1화 썸네일을 표지로 쓰면 "01"이 찍힌다)*
 - **시장 칸이 없다** — 시리즈는 편(`contents.market`)의 시장을 따른다. 한 시리즈에 시장이 섞이지 않게 업로드가 막는다(`admin-api.md` 4.6).
 - `status`는 표시용 구분이다 — 업로드·노출을 막지 않는다. `ongoing`이면 편수를 늘려 편을 더한다.
 - **`publisher_name`**(2026-10-22 PM, 마이그레이션 `1791500000000-AddSeriesPublisherName`) — 시리즈를 낸 이름. 시리즈 화면 제목 아래 줄(애플 뮤직 앨범의 아티스트 자리)에 나가고, 없으면(NULL) 앱이 그 줄을 생략한다. 관리자 시리즈 만들기·고치기(`publisher_name`)로 넣고, 빈 문자열은 NULL로 저장한다. 마이그레이션이 제목이 "키워드로"로 시작하는 시리즈를 "키워드"로 채웠다.
@@ -926,6 +950,7 @@ ck_series_status          CHECK (status IN ('ongoing', 'completed'))
 - 삭제 API가 없다. 편이 FK로 가리킨다(`ON DELETE RESTRICT`).
 - 담기·재생 위치·완청·통계·페이월 차감은 편 단위 그대로다 — 그 테이블들은 `series`를 참조하지 않는다. **+ 시리즈째 담기 기록 `library_series`**(2026-10-22 — KAN-245, [6.1-1](#61-1-library_series-신설-2026-10-22--kan-245-시리즈째-담기)) — 새 편 자동 적립의 근거이고, 라이브러리 목록은 이 표를 읽지 않는다(편 단위 `library_items` 그대로).
 - **CS 키워드 시리즈(데이터)** — 마이그레이션 `1790700100000-SeedCsKeywordSeries`가 시리즈 행 하나(id **`7de91e6e-2e96-4aea-9ddb-80fe99179c2e`** 고정, "키워드로 빠르게 배우는 CS 지식", 16편, `completed`)를 만들고 해당 16개 콘텐츠에 `series_id`·`episode_no`(1~16)·`total_episodes`(16)를 채웠다. `content_id`·`content_version`·제목·오디오는 그대로다. id를 고정한 이유는 운영 → 개발계 콘텐츠 동기화가 행을 id로 맞추기 때문이다(동기화 스크립트가 `series`를 `contents`보다 먼저 upsert한다).
+- **경제 상식·서양 철학·동양 철학 시리즈(데이터, 2026-10-20 — KAN-235)** — 마이그레이션 `1791100000000-SeedEconPhilosophySeries`가 시리즈 행 세 개를 고정 id로 만들고 해당 콘텐츠에 `series_id`·`episode_no`·`total_episodes`를 채웠다: "키워드로 훑어보는 경제 상식"(**`cd37aa05-df98-4b21-849b-4f92f387a21d`**, 12편, `ongoing` — 10화는 재발행 예정이라 11편만 묶었다. 10화는 업로드가 시리즈 칸을 싣는다) · "시대별로 보는 서양 철학"(**`197f4991-789d-439c-80df-258e444ca5fd`**, 10편, `completed`) · "시대별로 보는 동양 철학"(**`bf07634b-b399-4bff-8c9c-04d2cae59e4c`**, 8편, `completed`). `content_id`·`content_version`·제목·오디오는 그대로다. 없는 콘텐츠는 건너뛰고 편이 하나도 없는 시리즈는 만들지 않는다. 대상 편이 다른 시리즈에 묶여 있거나 표 밖 콘텐츠가 같은 번호로 발행돼 있으면 멈춘다(검사를 쓰기 전에 끝내 — 하나라도 걸리면 세 시리즈 모두 손대지 않는다). 멱등이고 시리즈 행은 덮지 않는다(경제 상식을 `completed`로 바꾼 뒤 다시 돌려도 되돌리지 않는다). id를 고정한 이유는 CS 시리즈와 같다.
 
 ## 6. 라이브러리 · 재생
 
@@ -2042,7 +2067,7 @@ idx_archived_subscriptions_archived_at
 | 항목 | 결정 | 반영 위치 |
 |---|---|---|
 | 검색 매칭·인덱스 (FR-22, MVP 격상) | **`pg_trgm` 부분 일치 확정**(`explore.md` 4.5-5 — tsvector는 한국어 사전이 없어 폐기). `contents` 3필드(title·description·author_name)에 트라이그램 GIN 인덱스 신설, `topics.name`은 인덱스 없음(주제 수십 개 — 순차 스캔), 확장 `pg_trgm` 도입. NFC 정규화는 애플리케이션 계층 — 정규화 사본 컬럼을 두지 않는다 | 5.1 |
-| 검색 오타 교정·하이브리드 (2026-10-22 개정 — KAN-238) | 키워드 0건이면 자모 트라이그램(`hangul_to_jamo` 함수 — 컬럼·인덱스 없음, 어휘 질의 시 전수)으로 후보를 줄이고 자모 편집 유사도로 교정어 하나를 골라 "대신 검색". 결과는 키워드 + 임베딩 코사인(`content_embeddings` 전수, ANN 없음) RRF 하이브리드. `search_query_logs`에 `query_used`·`keyword_count`·`engines` | 5.1 · 5.6 · 5.7 |
+| 검색 오타 교정·하이브리드 (2026-10-22 개정 — KAN-238) | 키워드 0건이면 자모 트라이그램(`hangul_to_jamo` 함수 — 컬럼·인덱스 없음, 어휘 질의 시 전수)으로 후보를 줄이고 자모 편집 유사도로 교정어 하나를 골라 "대신 검색". 결과는 키워드 + 임베딩 코사인(제목 `content_title_embeddings` · 대본 `content_embeddings` 전수, ANN 없음 — 제목 임베딩 2026-10-22 추가) RRF 하이브리드. `search_query_logs`에 `query_used`·`keyword_count`·`engines` | 5.1 · 5.6 · 5.6-1 · 5.7 |
 
 **2026-08-24 확정 반영분**
 
