@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Animated, PanResponder, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import { useAnimatedValue } from '@/shared/hooks/useAnimatedValue';
@@ -234,6 +234,9 @@ function QueueSkeleton() {
   );
 }
 
+/** 추천 줄처럼 끌기가 없는 줄에 넘기는 빈 콜백 — 모듈에 하나라 memo 를 깨지 않는다 */
+const noop = (): void => undefined;
+
 const toMinutes = (durationSec: number | null): number =>
   durationSec === null ? 0 : Math.max(1, Math.round(durationSec / 60));
 
@@ -283,7 +286,7 @@ interface QueueRowProps {
  * 끌기 라이브러리(reanimated·gesture-handler)는 네이티브 모듈이라 새 빌드가 필요하다. 행 높이를 고정하고
  * PanResponder 로 직접 구현해 OTA 로 나간다. 본문 탭(재생)과 손잡이(순서)는 영역이 갈려 있어 서로 섞이지 않는다.
  */
-function QueueRow({
+function QueueRowBase({
   item,
   category,
   index,
@@ -501,24 +504,37 @@ function QueueRow({
     [swipeX, swipeActions],
   );
   // 동그라미는 열린 자리까지 밀리는 동안 커지며 나타난다
-  const saveCircleProgress = swipeX.interpolate({
-    inputRange: [0, SWIPE_OPEN_DISTANCE],
-    outputRange: [0, 1],
-    extrapolate: 'clamp',
-  });
-  const deleteCircleProgress = swipeX.interpolate({
-    inputRange: [-SWIPE_OPEN_DISTANCE, 0],
-    outputRange: [1, 0],
-    extrapolate: 'clamp',
-  });
-  const saveCircleScale = saveCircleProgress.interpolate({
-    inputRange: [0, 1],
-    outputRange: [0.6, 1],
-  });
-  const deleteCircleScale = deleteCircleProgress.interpolate({
-    inputRange: [0, 1],
-    outputRange: [0.6, 1],
-  });
+  // 보간 노드는 한 번만 만든다(KAN-260) — 렌더마다 만들면 줄 수만큼 노드가 새로 붙었다 떨어진다
+  const circles = useMemo(() => {
+    const saveProgress = swipeX.interpolate({
+      inputRange: [0, SWIPE_OPEN_DISTANCE],
+      outputRange: [0, 1],
+      extrapolate: 'clamp',
+    });
+    const deleteProgress = swipeX.interpolate({
+      inputRange: [-SWIPE_OPEN_DISTANCE, 0],
+      outputRange: [1, 0],
+      extrapolate: 'clamp',
+    });
+    return {
+      saveProgress,
+      deleteProgress,
+      saveScale: saveProgress.interpolate({ inputRange: [0, 1], outputRange: [0.6, 1] }),
+      deleteScale: deleteProgress.interpolate({ inputRange: [0, 1], outputRange: [0.6, 1] }),
+    };
+  }, [swipeX]);
+  // 끄는 줄의 그림자·배율 — 끌기 값이 바뀔 때만(끄는 줄만) 만든다
+  const lifted = useMemo(
+    () =>
+      drag === null
+        ? null
+        : {
+            shadowOpacity: drag.lift.interpolate({ inputRange: [0, 1], outputRange: [0, 0.35] }),
+            elevation: drag.lift.interpolate({ inputRange: [0, 1], outputRange: [0, 6] }),
+            scale: drag.lift.interpolate({ inputRange: [0, 1], outputRange: [1, DRAG_SCALE] }),
+          },
+    [drag],
+  );
   // 낭독기 — 스와이프 대신 줄의 액션으로 같은 일을 한다
   const rowActions = [
     ...(canDelete ? [{ name: 'delete', label: deleteA11yLabel }] : []),
@@ -531,10 +547,10 @@ function QueueRow({
         styles.rowWrap,
         isPressed && styles.rowWrapPressed,
         isDragging && styles.rowWrapDragging,
-        drag !== null && {
+        lifted !== null && {
           // 그림자도 떠 있는 만큼 — 놓을 때 한 번에 꺼지면 줄이 번쩍인다(PM 2026-10-23 "놓으면 깜박인다")
-          shadowOpacity: drag.lift.interpolate({ inputRange: [0, 1], outputRange: [0, 0.35] }),
-          elevation: drag.lift.interpolate({ inputRange: [0, 1], outputRange: [0, 6] }),
+          shadowOpacity: lifted.shadowOpacity,
+          elevation: lifted.elevation,
         },
         // 접는 동안만 잘라 낸다 — 평소에 자르면 끄는 줄의 그림자까지 잘린다
         isCollapsing && styles.rowWrapCollapsing,
@@ -546,10 +562,7 @@ function QueueRow({
             { translateY: drag !== null ? drag.y : animateShift ? shiftY : shift },
             // 끄는 줄은 살짝 커져 떠 있는 것으로 읽힌다 — 놓으면 내려앉으며 제 크기로
             {
-              scale:
-                drag !== null
-                  ? drag.lift.interpolate({ inputRange: [0, 1], outputRange: [1, DRAG_SCALE] })
-                  : 1,
+              scale: lifted !== null ? lifted.scale : 1,
             },
           ],
         },
@@ -574,7 +587,7 @@ function QueueRow({
               style={[
                 styles.swipeCircleSlot,
                 styles.swipeCircleSlotSave,
-                { opacity: saveCircleProgress, transform: [{ scale: saveCircleScale }] },
+                { opacity: circles.saveProgress, transform: [{ scale: circles.saveScale }] },
               ]}
             >
               <Pressable
@@ -592,7 +605,7 @@ function QueueRow({
               style={[
                 styles.swipeCircleSlot,
                 styles.swipeCircleSlotDelete,
-                { opacity: deleteCircleProgress, transform: [{ scale: deleteCircleScale }] },
+                { opacity: circles.deleteProgress, transform: [{ scale: circles.deleteScale }] },
               ]}
             >
               <Pressable
@@ -678,6 +691,12 @@ function QueueRow({
 }
 
 /**
+ * 줄은 memo — 재생 위치가 0.5초마다 바뀌어 부모가 다시 그려져도, 줄의 값(콘텐츠·자리·끌기)이 같으면 다시 그리지 않는다(KAN-260).
+ * 넘기는 콜백·배열은 부모가 안정화한다(인라인 함수 금지)
+ */
+const QueueRow = memo(QueueRowBase);
+
+/**
  * 재생 목록 패널(2026-09-16) — 바닥 손잡이를 끌어올리면 아트워크가 압축되고 이 패널이 남은 높이를
  * 채운다(스크립트 패널과 같은 자리·같은 전환).
  *
@@ -691,7 +710,7 @@ function QueueRow({
  *
  * 문서 반영 요청: changes/pending/player-queue-panel.md
  */
-export default function PlayerQueuePanel({
+function PlayerQueuePanel({
   items: parentItems,
   isLoading,
   isError,
@@ -1132,7 +1151,8 @@ export default function PlayerQueuePanel({
                 item={item}
                 category={categoryOf ? categoryOf(item) : null}
                 index={index}
-                total={upNext.items.length}
+                // 추천 줄은 손잡이가 없어 "N개 중 M번째" 낭독을 쓰지 않는다 — 장이 붙을 때 모든 줄이 다시 그려지지 않게 0
+                total={0}
                 isCurrent={false}
                 // 추천 줄은 목록이 아니라 손잡이가 없다 — 자리만 비운다
                 trailing="none"
@@ -1144,11 +1164,12 @@ export default function PlayerQueuePanel({
                 drag={null}
                 shift={0}
                 animateShift={false}
-                onSelect={(selected) => onSelectUpNext?.(selected)}
-                onDragStart={() => undefined}
-                onDragMove={() => undefined}
-                onDragEnd={() => undefined}
-                onNudge={() => undefined}
+                // 줄마다 새 함수를 만들지 않는다(KAN-260) — memo 된 줄이 패널 렌더마다 다시 그려졌다
+                onSelect={onSelectUpNext ?? noop}
+                onDragStart={noop}
+                onDragMove={noop}
+                onDragEnd={noop}
+                onNudge={noop}
               />
             ))}
           </View>
@@ -1156,19 +1177,28 @@ export default function PlayerQueuePanel({
         {upNext.isFetchingMore && upNext.items.length > 0 ? upNextSkeleton : null}
       </View>
     ) : null;
-  // 바닥 가까이 왔으면 추천 다음 장 — 스크롤·내용 크기·화면 크기가 바뀔 때마다 본다(목록이 짧아 스크롤이 없어도 부른다)
+  /*
+   * 바닥 가까이 왔으면 추천 다음 장 — **스크롤·내용 크기·화면 크기가 바뀔 때만** 본다(목록이 짧아 스크롤이 없어도 내용 크기 변화로
+   * 부른다). 종전엔 "장 수가 바뀐 뒤"와 "콜백이 바뀐 뒤"(렌더마다 새 함수)에도 봐서, 장이 붙은 직후 **옛 콘텐츠 높이**로 다시 판정해
+   * 바닥 근처에 가만히 있어도 장이 스스로 계속 붙었다(KAN-260 원인 2). 새 높이는 onContentSizeChange 가 가져온다
+   */
   const onUpNextEnd = upNext?.onEndReached;
-  const upNextCount = upNext?.items.length ?? 0;
+  const onUpNextEndRef = useRef(onUpNextEnd);
+  useEffect(() => {
+    onUpNextEndRef.current = onUpNextEnd;
+  });
   const checkUpNextEnd = useCallback(() => {
-    if (!onUpNextEnd) return;
+    const reachEnd = onUpNextEndRef.current;
+    if (!reachEnd) return;
     const { offset, viewport, content } = scrollState.current;
     if (viewport <= 0 || content <= 0) return;
-    if (offset + viewport >= content - UP_NEXT_PREFETCH_ROWS * ROW_STEP) onUpNextEnd();
-  }, [onUpNextEnd]);
-  // 시트가 열린 순간(부를 수 있게 된 순간)·장이 붙은 뒤에도 한 번 본다 — 스크롤 없이 바닥이 보이는 짧은 목록
+    if (offset + viewport >= content - UP_NEXT_PREFETCH_ROWS * ROW_STEP) reachEnd();
+  }, []);
+  // 부를 수 있게 된 순간(시트가 열림) 한 번 — 이미 바닥이 보이는 짧은 목록
+  const canReachUpNextEnd = onUpNextEnd !== undefined;
   useEffect(() => {
-    checkUpNextEnd();
-  }, [checkUpNextEnd, upNextCount]);
+    if (canReachUpNextEnd) checkUpNextEnd();
+  }, [canReachUpNextEnd, checkUpNextEnd]);
 
   if (isError) {
     return (
@@ -1297,6 +1327,12 @@ export default function PlayerQueuePanel({
     </View>
   );
 }
+
+/**
+ * 패널도 memo(KAN-260) — 재생 위치 갱신(0.5초)마다 플레이어 화면이 다시 그려져도 목록·콜백이 같으면 건너뛴다. 종전엔 그때마다
+ * 모든 줄(추천 포함)을 다시 그려, 추천이 끝없이 붙으면 줄 수에 비례해 JS 스레드를 잡다가 플레이어가 멈췄다
+ */
+export default memo(PlayerQueuePanel);
 
 const styles = StyleSheet.create({
   // 구분선 없음(PM 2026-09-17) — 손잡이와 목록 사이는 여백으로만 가른다

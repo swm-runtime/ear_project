@@ -5,8 +5,13 @@ import type { PlaybackSession, PlayQueueContext, QueueEntry } from '../player.ty
  * 상태를 바꾸지 않는다 — 호출자가 스토어에 쓴다.
  */
 
-/** 세션 메타로 만든 임시 줄 — 스냅샷에 없는 편(상세 화면을 거쳐 왔거나 카드로 접혀 있던 편)을 맨 위에 세울 때 쓴다 */
-export const entryFromSession = (session: PlaybackSession): QueueEntry => ({
+/**
+ * 세션 메타로 만든 임시 줄 — 스냅샷에 없는 편(상세 화면을 거쳐 왔거나 카드로 접혀 있던 편)을 맨 위에 세울 때 쓴다. 줄에 드는
+ * 필드만 받는다 — 화면이 재생 위치(0.5초마다 바뀐다)와 무관하게 메모해 둘 수 있게(KAN-260)
+ */
+export const entryFromSession = (
+  session: Pick<PlaybackSession, 'contentId' | 'meta' | 'libraryItem' | 'durationSec'>,
+): QueueEntry => ({
   itemId: session.libraryItem?.id ?? null,
   contentId: session.contentId,
   title: session.meta.title ?? '',

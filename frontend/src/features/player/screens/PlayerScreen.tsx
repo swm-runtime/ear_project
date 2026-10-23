@@ -77,6 +77,7 @@ import type { PlayerPanelKind } from '../hooks/usePlayerScreen';
 import { useQueueOrder } from '../hooks/useQueueOrder';
 import { useQueueQuery } from '../hooks/useQueueQuery';
 import { useScriptQuery } from '../hooks/useScriptQuery';
+import { useStableCallback } from '../hooks/useStableCallback';
 import { useUpNextQuery } from '../hooks/useUpNextQuery';
 import {
   PLAYER_COLLAPSE_DISTANCE_RATIO,
@@ -168,12 +169,32 @@ export default function PlayerScreen() {
   );
   // 사용자가 손잡이로 바꾼 순서를 기기에 저장해 두고 받아 온 목록 위에 입힌다(2026-09-18)
   const queueOrder = useQueueOrder(queueQuery.data ?? EMPTY_QUEUE);
+  /*
+   * 맨 위에 세울 지금 듣는 편의 줄 — **세션 전체가 아니라 줄에 드는 필드로만** 메모한다(KAN-260). 세션은 재생 위치가 0.5초마다 바뀌어
+   * 새 객체가 되는데, 그때마다 목록 배열이 새로 만들어져 재생 목록 패널·모든 줄이 다시 그려졌다(추천이 길어지면 플레이어가 멈췄다)
+   */
+  const sessionContentId = session?.contentId ?? null;
+  const sessionMeta = session?.meta;
+  const sessionLibraryItem = session?.libraryItem ?? null;
+  const sessionDurationSec = session?.durationSec ?? 0;
+  const sessionEntry = useMemo(
+    () =>
+      sessionContentId === null || sessionMeta === undefined
+        ? null
+        : entryFromSession({
+            contentId: sessionContentId,
+            meta: sessionMeta,
+            libraryItem: sessionLibraryItem,
+            durationSec: sessionDurationSec,
+          }),
+    [sessionContentId, sessionMeta, sessionLibraryItem, sessionDurationSec],
+  );
   const snapshotItems = useMemo(
     () =>
       queueContext.kind === 'explore'
-        ? withCurrentFirst(queueContext.items, session ? entryFromSession(session) : null)
+        ? withCurrentFirst(queueContext.items, sessionEntry)
         : EMPTY_QUEUE,
-    [queueContext, session],
+    [queueContext, sessionEntry],
   );
   // 삭제 대기·진행 중인 줄은 서버 목록에 아직 있어도 그리지 않는다(usePlayerScreen hiddenQueueItemIds)
   const hiddenQueueItemIds = screen.hiddenQueueItemIds;
@@ -194,8 +215,8 @@ export default function PlayerScreen() {
     () =>
       queueQuery.data === undefined
         ? libraryQueueItems
-        : withCurrentFirst(libraryQueueItems, session ? entryFromSession(session) : null),
-    [libraryQueueItems, queueQuery.data, session],
+        : withCurrentFirst(libraryQueueItems, sessionEntry),
+    [libraryQueueItems, queueQuery.data, sessionEntry],
   );
   const queueItems: QueueEntry[] = isLibraryQueue ? libraryShownItems : snapshotItems;
   /*
@@ -1298,32 +1319,92 @@ export default function PlayerScreen() {
    * 2단 목록 맨 위에서 끌어내리기(PM 2026-10-23 "ㄱㄱ" — 유튜브 뮤직) — 손잡이의 2단 끌기와 같은 규칙이다: 손가락만큼 2단 몫이
    * 줄고, 놓으면 35%·속도 임계로 1단 아니면 2단. 1단 아래로는 안 간다(단계별). 목록이 가로채는 조건은 패널 몫(pullDown)
    */
-  const listPullDown = {
-    enabled: activePanel === 'queue' && queueStage === 2,
-    onStart: () => {
-      handleDraggedRef.current = true;
-      queueGestureRef.current.holdArtLayout();
-    },
-    onMove: (dy: number) => {
-      const { expandTravel } = queueGestureRef.current;
-      queueExpand.set(Math.min(1, Math.max(0, 1 - dy / Math.max(1, expandTravel))));
-      queueProgress.set(1);
-    },
-    onRelease: (dy: number, vy: number) => {
-      const { expandTravel, expand, shrink, releaseArtLayout: release } = queueGestureRef.current;
-      release();
-      if (vy > QUEUE_COMMIT_VELOCITY) return shrink();
-      if (vy < -QUEUE_COMMIT_VELOCITY) return expand();
-      return dy / Math.max(1, expandTravel) > QUEUE_COMMIT_RATIO ? shrink() : expand();
-    },
-    onTerminate: () => {
-      queueGestureRef.current.releaseArtLayout();
-      queueGestureRef.current.expand();
-    },
-  };
+  // 패널에 넘기는 객체라 단계가 바뀔 때만 새로 만든다(KAN-260 — 패널 memo). 안의 값은 전부 ref·공유 값이라 늘 최신이다
+  const isListPullDownEnabled = activePanel === 'queue' && queueStage === 2;
+  const listPullDown = useMemo(
+    () => ({
+      enabled: isListPullDownEnabled,
+      onStart: () => {
+        handleDraggedRef.current = true;
+        queueGestureRef.current.holdArtLayout();
+      },
+      onMove: (dy: number) => {
+        const { expandTravel } = queueGestureRef.current;
+        queueExpand.set(Math.min(1, Math.max(0, 1 - dy / Math.max(1, expandTravel))));
+        queueProgress.set(1);
+      },
+      onRelease: (dy: number, vy: number) => {
+        const { expandTravel, expand, shrink, releaseArtLayout: release } = queueGestureRef.current;
+        release();
+        if (vy > QUEUE_COMMIT_VELOCITY) return shrink();
+        if (vy < -QUEUE_COMMIT_VELOCITY) return expand();
+        return dy / Math.max(1, expandTravel) > QUEUE_COMMIT_RATIO ? shrink() : expand();
+      },
+      onTerminate: () => {
+        queueGestureRef.current.releaseArtLayout();
+        queueGestureRef.current.expand();
+      },
+    }),
+    [isListPullDownEnabled, queueExpand, queueProgress],
+  );
   // 칩은 추천 이어 틀기만 토글한다 — 설정의 연속 재생이 꺼져 있으면 흐리게(player.md 4.2-4)
   const isAutoplayNextOn = useAutoplayNextEnabled();
   const isAutoplayRecommendedOn = useAutoplayRecommendedEnabled();
+  /*
+   * ── 재생 목록 패널에 넘기는 콜백·객체 — 늘 같은 참조다(KAN-260) ──
+   * 패널과 줄은 memo 다. 재생 위치가 0.5초마다 바뀌어 이 화면이 다시 그려질 때 인라인 콜백·객체를 넘기면 패널과 모든 줄(추천 포함)이
+   * 따라 다시 그려졌고, 추천이 길어지면 플레이어가 멈췄다. 콜백은 useStableCallback(부를 때 최신 값), 객체는 값이 바뀔 때만
+   */
+  const onQueueSelect = useStableCallback((item: QueueEntry) => {
+    // 줄 탭 = 재생 + 시트 닫기 — **화면의 setPanel(null) 로 닫는다**(KAN-250). 훅이 패널 상태만 null 로 바꾸면
+    // 시트 모션·정착값이 그대로라, 시트는 열린 채 남고 목록 터치·추천 조회가 꺼졌다(스켈레톤에 멈춤)
+    setPanel(null);
+    screen.playQueueItem(item);
+  });
+  const onQueueSelectUpNext = useStableCallback((item: QueueEntry) => {
+    setPanel(null);
+    screen.playUpNextItem(item);
+  });
+  const onQueueSave = useStableCallback((item: QueueEntry) => screen.saveQueueItem(item));
+  const onQueueDelete = useStableCallback((item: QueueEntry) => screen.deleteQueueItem(item));
+  const onQueueRetry = useStableCallback(() => void queueQuery.refetch());
+  // 재생 목록 줄의 카테고리 — 플레이어 제목 아래 줄과 같은 규칙(주제 이름 앞 두 개). 이름을 못 찾으면 null
+  const topicItems = topicsQuery.data?.items;
+  const queueCategoryOf = useCallback(
+    (item: QueueEntry): string | null => {
+      const names = item.topicIds
+        .map((id) => topicItems?.find((topic) => topic.topicId === id)?.name)
+        .filter((name): name is string => Boolean(name));
+      return names.length > 0 ? names.slice(0, 2).join(' · ') : null;
+    },
+    [topicItems],
+  );
+  const {
+    items: upNextItems,
+    isLoading: isUpNextLoading,
+    isFetchingMore: isUpNextFetchingMore,
+    fetchMore: fetchMoreUpNext,
+  } = upNextQuery;
+  const isQueuePanelOpen = activePanel === 'queue';
+  const queueUpNext = useMemo(
+    () => ({
+      items: upNextItems,
+      // 실제로 받는 중일 때만 — 꺼진 쿼리는 데이터가 없어도 pending 이라 스켈레톤에 묶였다(KAN-250)
+      isLoading: isUpNextLoading,
+      isFetchingMore: isUpNextFetchingMore,
+      // 열려 있을 때만 다음 장 — 닫힌 채 목록 맞추기(스크롤)로 불리지 않게
+      onEndReached: isQueuePanelOpen ? fetchMoreUpNext : undefined,
+    }),
+    [upNextItems, isUpNextLoading, isUpNextFetchingMore, isQueuePanelOpen, fetchMoreUpNext],
+  );
+  const queueAutoplay = useMemo(
+    () => ({
+      value: isAutoplayRecommendedOn,
+      disabled: !isAutoplayNextOn,
+      onToggle: setAutoplayRecommendedEnabled,
+    }),
+    [isAutoplayRecommendedOn, isAutoplayNextOn],
+  );
   const handlePanResponder = useMemo(
     () =>
       // eslint-disable-next-line react-hooks/refs -- 콜백은 렌더가 아니라 제스처 시점에 실행된다(표준 PanResponder 패턴)
@@ -1724,13 +1805,6 @@ export default function PlayerScreen() {
     .filter((name): name is string => name !== undefined);
   // 이름을 못 찾으면(목록 미도착·모르는 id) 자리도 남기지 않는다. 최대 두 개까지만 — 그 이상은 제목을 밀어낸다
   const categoryLabel = topicNames.length > 0 ? topicNames.slice(0, 2).join(' · ') : null;
-  // 재생 목록 줄의 카테고리 — 플레이어 제목 아래 줄과 같은 규칙(주제 이름 앞 두 개). 이름을 못 찾으면 null
-  const queueCategoryOf = (item: QueueEntry): string | null => {
-    const names = item.topicIds
-      .map((id) => topicsQuery.data?.items.find((topic) => topic.topicId === id)?.name)
-      .filter((name): name is string => Boolean(name));
-    return names.length > 0 ? names.slice(0, 2).join(' · ') : null;
-  };
 
   const isEnded = session.state === 'ended';
   const isControlDisabled = session.state === 'loading' || hasPlaybackError;
@@ -2420,36 +2494,18 @@ export default function PlayerScreen() {
                     showHeader={false}
                     mode={isLibraryQueue ? 'library' : 'explore'}
                     sourceLabel={queueSourceLabel ?? undefined}
-                    // 줄 탭 = 재생 + 시트 닫기 — **화면의 setPanel(null) 로 닫는다**(KAN-250). 훅이 패널 상태만 null 로 바꾸면
-                    // 시트 모션·정착값이 그대로라, 시트는 열린 채 남고 목록 터치·추천 조회가 꺼졌다(스켈레톤에 멈춤)
-                    onSelect={(item) => {
-                      setPanel(null);
-                      screen.playQueueItem(item);
-                    }}
+                    // 넘기는 콜백·객체는 전부 안정된 참조다(위 "재생 목록 패널에 넘기는 콜백·객체", KAN-260)
+                    onSelect={onQueueSelect}
                     onReorder={moveQueueItem}
                     pinnedContentId={queuePinnedContentId}
-                    onSave={screen.saveQueueItem}
-                    upNext={{
-                      items: upNextQuery.items,
-                      // 실제로 받는 중일 때만 — 꺼진 쿼리는 데이터가 없어도 pending 이라 스켈레톤에 묶였다(KAN-250)
-                      isLoading: upNextQuery.isLoading,
-                      isFetchingMore: upNextQuery.isFetchingMore,
-                      // 열려 있을 때만 다음 장 — 닫힌 채 목록 맞추기(스크롤)로 불리지 않게
-                      onEndReached: isQueueOpen ? upNextQuery.fetchMore : undefined,
-                    }}
-                    onSelectUpNext={(item) => {
-                      setPanel(null);
-                      screen.playUpNextItem(item);
-                    }}
-                    autoplay={{
-                      value: isAutoplayRecommendedOn,
-                      disabled: !isAutoplayNextOn,
-                      onToggle: setAutoplayRecommendedEnabled,
-                    }}
+                    onSave={onQueueSave}
+                    upNext={queueUpNext}
+                    onSelectUpNext={onQueueSelectUpNext}
+                    autoplay={queueAutoplay}
                     pullDown={listPullDown}
-                    onDelete={screen.deleteQueueItem}
+                    onDelete={onQueueDelete}
                     categoryOf={queueCategoryOf}
-                    onRetry={() => void queueQuery.refetch()}
+                    onRetry={onQueueRetry}
                     // 1단에서는 시트 아래 2단 몫이 화면 밖 — 그만큼 바닥 여백(KAN-241 "4번"). **2단에서도 빼지 않는다**
                     // (PM 2026-10-23 "1단에서 2단으로 갈 때 갑자기 재생목록이 내려온다") — 2단에 앉는 순간 여백을 빼면 내용이
                     // 짧아져, 재생 중인 줄로 맞춰 둔 스크롤 위치가 끝을 넘어 목록이 툭 내려앉았다. 대가: 2단에서 마지막 줄 밑에

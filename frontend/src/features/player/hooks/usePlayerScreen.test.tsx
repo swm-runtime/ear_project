@@ -283,7 +283,7 @@ describe('추천 줄 담기는 추천 캐시에 반영된다(KAN-259)', () => {
     isCompleted: false,
     topicIds: [],
   });
-  const UP_NEXT_KEY = upNextKeys.of('content-1', []);
+  const UP_NEXT_KEY = upNextKeys.of('content-1');
   const upNextItemIdOf = (contentId: string) =>
     mockQueryClient
       .getQueryData<{ pages: QueueEntry[][] }>(UP_NEXT_KEY)
