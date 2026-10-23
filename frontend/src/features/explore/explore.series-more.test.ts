@@ -21,6 +21,7 @@ const item = (id: string, seriesId: string | null = null): ExploreItem => ({
   },
   library: null,
   isCountedToday: false,
+  isCompleted: false,
 });
 
 const card = (id: string): ExploreSeriesItem => ({

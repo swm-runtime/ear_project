@@ -58,7 +58,7 @@ export default function ExploreFeaturedCard({
 }: ExploreFeaturedCardProps) {
   const { width } = useWindowDimensions();
   const cardWidth = featuredCardWidth(width);
-  const isCompleted = item.library?.status === 'completed';
+  const isCompleted = item.isCompleted;
   const minutes = toMinutes(item.content.durationSec);
   const tags = item.content.tags.slice(0, MAX_TOPIC_TAGS);
 

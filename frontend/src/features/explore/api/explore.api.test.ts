@@ -79,6 +79,31 @@ describe('toExploreEntry — 항목 종류(explore-api.md 4.1-1)', () => {
     expect(entry.isCountedToday).toBe(true);
   });
 
+  it('완청은 is_completed 를 따르고, 없으면(옛 서버) library.status 로 읽는다(KAN-249)', () => {
+    // given — 담지 않고 끝까지 들은 편 · 옛 서버의 담아서 완청한 편
+    const unsavedDone = toExploreEntry({
+      content: content(),
+      library: null,
+      is_counted_today: false,
+      is_completed: true,
+    }) as ExploreItem;
+    const legacyDone = toExploreEntry({
+      content: content(),
+      library: { item_id: 'i1', source: 'save', status: 'completed' },
+      is_counted_today: false,
+    }) as ExploreItem;
+    const legacyNot = toExploreEntry({
+      content: content(),
+      library: null,
+      is_counted_today: false,
+    }) as ExploreItem;
+
+    // then
+    expect(unsavedDone.isCompleted).toBe(true);
+    expect(legacyDone.isCompleted).toBe(true);
+    expect(legacyNot.isCompleted).toBe(false);
+  });
+
   it('content.series 가 없으면 null, 있으면 객체로 옮긴다', () => {
     // when
     const withoutField = toExploreEntry({

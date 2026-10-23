@@ -47,3 +47,4 @@
 
 - 2026-10-23 발행(BE — 자동 적립 폐기 영향 검토. 서버 쪽은 #1928·#1934).
 - 2026-10-23 4번 추가 — 미니플레이어 복원 `id` null(BE #1938).
+- 2026-10-23 반영(FE) — ① DTO: 탐색 행·시리즈 편에 `is_completed?`, `ExploreItem.isCompleted` = `is_completed ?? library.status === 'completed'`(옛 서버 폴백). mock 은 폴백으로 충분해 손대지 않았다. ② 판정 교체: 시리즈 편 상태·머리 [재생](`explore.series-episode.ts`) · 연속 재생 스냅샷(`explore.queue.ts`) · `ExploreTile` · `ExploreFeaturedCard`. 라이브러리 화면은 그대로. ④ 복원 대상 `id: string | null`, 치운 복원·삭제 대조를 `content.id` 키로(`useLibraryScreen`). 테스트: 매핑 폴백 · 담지 않은 완청 편 건너뛰기. 반영 날짜 2026-10-23.

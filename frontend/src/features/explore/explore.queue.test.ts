@@ -21,6 +21,7 @@ const item = (id: string, library: ExploreItem['library'] = null): ExploreItem =
   },
   library,
   isCountedToday: false,
+  isCompleted: library?.status === 'completed',
 });
 
 describe('탐색 목록 → 재생 목록 스냅샷(KAN-241)', () => {

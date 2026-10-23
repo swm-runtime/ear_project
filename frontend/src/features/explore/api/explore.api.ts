@@ -107,6 +107,8 @@ const toExploreItem = (dto: ExploreItemDto): ExploreItem => ({
     ? { itemId: dto.library.item_id, source: dto.library.source, status: dto.library.status }
     : null,
   isCountedToday: dto.is_counted_today,
+  // 옛 서버(필드 없음)는 라이브러리 상태로 — 담지 않은 편의 완청은 그 서버에선 알 수 없다
+  isCompleted: dto.is_completed ?? dto.library?.status === 'completed',
 });
 
 const toExploreSeriesItem = (dto: ExploreSeriesCardDto): ExploreEntry => ({
@@ -171,6 +173,7 @@ export const toSeriesDetail = (dto: SeriesDetailResponseDto): SeriesDetail => ({
       content: episode.content,
       library: episode.library,
       is_counted_today: episode.is_counted_today,
+      is_completed: episode.is_completed,
     }),
     progress: episode.progress
       ? {
@@ -322,8 +325,11 @@ export const fetchPublisherSeries = async (input: {
 }): Promise<{ publisherName: string | null; series: ExploreSeries[] }> => {
   const data: PublisherSeriesResponseDto = IS_EXPLORE_API_MOCKED
     ? { publisher_name: null, items: [] }
-    : (await apiClient.get<PublisherSeriesResponseDto>(`/series/${input.seriesId}/publisher-series`))
-        .data;
+    : (
+        await apiClient.get<PublisherSeriesResponseDto>(
+          `/series/${input.seriesId}/publisher-series`,
+        )
+      ).data;
   return {
     publisherName: data.publisher_name?.trim() || null,
     series: toExploreEntries(data.items).flatMap((entry) =>

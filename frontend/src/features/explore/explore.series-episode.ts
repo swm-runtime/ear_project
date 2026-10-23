@@ -3,7 +3,7 @@ import type { SeriesEpisode } from './explore.types';
 
 /**
  * 시리즈 화면 편 행의 내 상태(explore.md 4.7) — **전부 서버 값**에서 옮긴다(담음 = `library != null`, 완청 =
- * `library.status === 'completed'`, 재생 위치 = `progress.position_sec`). 클라이언트가 완청을 다시 판정하지 않는다
+ * `is_completed`(KAN-249 — 담지 않고 끝까지 들은 편 포함, 옛 서버는 `library.status` 폴백), 재생 위치 = `progress.position_sec`). 클라이언트가 완청을 다시 판정하지 않는다
  * (완청 판정의 소유자는 서버 — player.md 4.4)
  */
 export interface SeriesEpisodeState {
@@ -21,7 +21,7 @@ export const toSeriesEpisodeState = (episode: SeriesEpisode): SeriesEpisodeState
   const { durationSec } = episode.item.content;
   const minutes = Math.max(1, Math.round(durationSec / 60));
   const library = episode.item.library;
-  const isCompleted = library?.status === 'completed';
+  const isCompleted = episode.item.isCompleted;
   const positionSec = episode.progress?.positionSec ?? 0;
   const hasPosition = !isCompleted && positionSec > 0 && durationSec > 0;
   return {

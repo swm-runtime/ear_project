@@ -16,7 +16,7 @@ export const toQueueEntry = (item: ExploreItem): QueueEntry => ({
   thumbnailUrl: item.content.thumbnailUrl || null,
   durationSec: item.content.durationSec ?? null,
   isCountedToday: item.isCountedToday,
-  isCompleted: item.library?.status === 'completed',
+  isCompleted: item.isCompleted,
   topicIds: item.content.topicIds,
 });
 
