@@ -9,7 +9,7 @@ afterEach(() => { if (saved.key === undefined) delete process.env.OPENAI_API_KEY
 
 class Fast extends OpenAiExecutor { protected override pollIntervalMs = 1; }
 const SCHEMA = { type: "object", required: ["a"], properties: { a: { type: "string" } } };
-const req = (background: boolean): ExecRequest => ({ prompt: "p", schema: SCHEMA, allowedTools: [], tools: [], cwd: "/tmp", timeoutMs: 60_000, model: "gpt-6.1-sol", background });
+const req = (background: boolean, maxOutputTokens?: number): ExecRequest => ({ prompt: "p", schema: SCHEMA, allowedTools: [], tools: [], cwd: "/tmp", timeoutMs: 60_000, model: "gpt-6.1-sol", background, maxOutputTokens });
 const done = { id: "resp_1", status: "completed", model: "gpt-6.1-sol", output: [{ type: "message", content: [{ type: "output_text", text: JSON.stringify({ a: "ok" }) }] }], usage: { input_tokens: 10, output_tokens: 5 } };
 
 test("background=true 면 요청 본문에 background 가 실리고, queued→in_progress→completed 를 조회해 결과를 돌려준다", async () => {
@@ -49,4 +49,16 @@ test("백그라운드 조회가 시간 초과면 /cancel 을 보내고 던진다
   }) as typeof fetch;
   await assert.rejects(new Fast("gpt-6.1-sol").run({ ...req(true), timeoutMs: 20 }), /시간 초과/);
   assert.ok(posts.some((u) => u.endsWith("/responses/resp_2/cancel")));
+});
+
+test("maxOutputTokens 를 주면 그 값이 max_output_tokens 로 실리고, 상한에 닿아 incomplete 면 사용량을 담아 던진다", async () => {
+  process.env.OPENAI_API_KEY = "k";
+  const sent: any[] = [];
+  const cut = { id: "resp_3", status: "incomplete", incomplete_details: { reason: "max_output_tokens" }, output: [], usage: { input_tokens: 10, output_tokens: 24576, output_tokens_details: { reasoning_tokens: 24500 } } };
+  globalThis.fetch = (async (_url: string, init?: { method?: string; body?: string }) => {
+    if (init?.method === "POST") { sent.push(JSON.parse(init.body!)); return new Response(JSON.stringify({ id: "resp_3", status: "queued" }), { status: 200 }); }
+    return new Response(JSON.stringify(cut), { status: 200 });
+  }) as typeof fetch;
+  await assert.rejects(() => new Fast("gpt-6.1-sol").run(req(true, 24_576)), /응답 미완료 \(incomplete.*max_output_tokens 24576 · 출력 24576 \(생각 24500\)/);
+  assert.equal(sent[0].max_output_tokens, 24_576);
 });

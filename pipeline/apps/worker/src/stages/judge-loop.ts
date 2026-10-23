@@ -26,7 +26,7 @@ import { prepareAssets, workerRev } from "../assets.js";
 import { pullPrefix, pushPrefix, s3Key } from "../storage.js";
 import { scriptStats, twoStageViolationsEn } from "./draft-two-stage.js";
 
-export const JUDGE_LOOP_VERSION = "judge-loop-v1.1";
+export const JUDGE_LOOP_VERSION = "judge-loop-v1.2";
 export const DEFAULT_THRESHOLD = 65;
 const MAX_ROUNDS = 3;
 export const K = ["3.1", "3.2", "3.3", "3.4", "3.5", "3.6", "3.7", "3.8", "3.9", "3.10", "3.11", "3.12"] as const;
@@ -186,22 +186,27 @@ export async function runJudgeLoop(job: Job, ex: Executor) {
   let cost = 0; let model: string | null = null;
   const progress = (phase: string, detail = "") => setJobProgress(job.id, { phase, detail, toolCounts: {}, turns: 0, elapsedMs: 0 }).catch(() => {});
 
-  async function gpt<T>(system: string, prompt: string, schema: object, minutes: number, effort: "high" | "medium"): Promise<T> {
+  // 결과가 작은 JSON 인 채점·검토·수리 호출의 출력 상한(생각 포함). 정상 호출은 생각 몇천~1만 토큰이면 끝난다 — 폭주(2026-10-23: 원판 채점이 65536 까지 13분, 편집자 채점이 20분 시간 초과)를 몇 분 안에 끊고 한 번 다시 부르려고 낮춘다. 재작성은 대본 전체를 내므로 기본값(65536) 그대로
+  const SCORE_MAX_OUT = 24_576;
+  async function gpt<T>(system: string, prompt: string, schema: object, minutes: number, effort: "high" | "medium", maxOutputTokens?: number): Promise<T> {
     for (let attempt = 1; ; attempt++) {
       try {
-        const r = await ex.run<T>({ prompt, systemPrompt: system, schema, allowedTools: [], tools: [], cwd: cfg.workRoot, timeoutMs: minutes * 60_000, effort, background: true }); // 재작성 한 호출이 10분을 넘으면 동기 요청은 끊긴다 — 백그라운드 모드 (types.ts)
+        const r = await ex.run<T>({ prompt, systemPrompt: system, schema, allowedTools: [], tools: [], cwd: cfg.workRoot, timeoutMs: minutes * 60_000, effort, background: true, maxOutputTokens }); // 재작성 한 호출이 10분을 넘으면 동기 요청은 끊긴다 — 백그라운드 모드 (types.ts)
         cost += r.listCostUsd ?? 0; model = r.model ?? model; return r.output;
       } catch (e) {
         const msg = String(e); const transient = /fetch failed|OpenAI (?:0|5\d\d|429)|ECONNRESET|ETIMEDOUT|socket hang up/i.test(msg);
-        if (!transient || attempt >= 4) throw e;
-        log(`  judge_loop ${episodeId}: OpenAI 일시 오류(${attempt}/3) — ${msg.slice(0, 80)} · ${attempt * 30}s 뒤 재시도`); await new Promise((r) => setTimeout(r, attempt * 30_000));
+        // 생각 폭주(출력 상한 도달·시간 초과)는 같은 입력을 다시 불러도 대개 정상으로 끝난다 — 한 번만 더 (비용은 상한만큼)
+        const runaway = /응답 미완료 \(incomplete|요청 시간 초과/.test(msg);
+        if (transient && attempt < 4) { log(`  judge_loop ${episodeId}: OpenAI 일시 오류(${attempt}/3) — ${msg.slice(0, 80)} · ${attempt * 30}s 뒤 재시도`); await new Promise((r) => setTimeout(r, attempt * 30_000)); continue; }
+        if (runaway && attempt < 2) { log(`  judge_loop ${episodeId}: OpenAI 출력 폭주 — ${msg.slice(0, 120)} · 한 번 재시도`); continue; }
+        throw e;
       }
     }
   }
-  const editorOnce = (script: string) => gpt<Editor>(`${editorMd.trim()}\n\nThe two input files are inlined in the next message.\n\n## scoring.md\n${scoringMd.trim()}`, `## script.md\n${fence(blindScript(script))}\n\n${FE}\n\nReturn the JSON object only.`, EDITOR_SCHEMA, 20, "medium");
+  const editorOnce = (script: string) => gpt<Editor>(`${editorMd.trim()}\n\nThe two input files are inlined in the next message.\n\n## scoring.md\n${scoringMd.trim()}`, `## script.md\n${fence(blindScript(script))}\n\n${FE}\n\nReturn the JSON object only.`, EDITOR_SCHEMA, 20, "medium", SCORE_MAX_OUT);
   const editors = (script: string) => Promise.all([1, 2, 3].map(() => editorOnce(script)));
   const korea = (script: string, pron: string) => gpt<Korea>(`${koreaMd.trim()}\n\nThe input files are inlined in the next message.\n\n## house-style.md\n${houseMd.trim()}`,
-    `## script.md\n${fence(blindScript(script))}\n\n## notes.md\n${fence(blindNotes(claims))}\n\n## sources.md\n${fence(blindSources(sources))}\n\n## pronunciations.json\n${fence(pron)}\n\n${FK}\n\nReturn the JSON object only.`, KOREA_SCHEMA, 30, "high");
+    `## script.md\n${fence(blindScript(script))}\n\n## notes.md\n${fence(blindNotes(claims))}\n\n## sources.md\n${fence(blindSources(sources))}\n\n## pronunciations.json\n${fence(pron)}\n\n${FK}\n\nReturn the JSON object only.`, KOREA_SCHEMA, 30, "high", SCORE_MAX_OUT);
   const l0 = (script: string, pron: string, tc: { turn: string; claims: string[] }[]) => twoStageViolationsEn(script, outline, { pronunciations: JSON.parse(pron), notesMd: notesMd(tc) });
   const materials = (pron: string) => `## Outline — outline.md (the contract)\n${fence(outline)}\n\n## Claims — claims.md (every fact you may use)\n${fence(claims)}\n\n## Excerpts — sources.md\n${fence(sources)}\n\n## Pronunciation map — pronunciations.json\n${fence(pron)}`;
   const formatBlock = `## Format (the parser and checks read it exactly)
@@ -265,7 +270,7 @@ ${formatBlock}
     const mustFix = kr.findings.filter((f) => f.kind === "must_fix");
     let repaired: string[] = [];
     if (mustFix.length) {
-      const r = await gpt<RepairOut>(repairSystem, `## Findings (must_fix)\n${fmtFindings(mustFix)}\n\n## Suggested edits (a guide, not a source)\n${fmtEdits(kr.edits)}\n\n## script.md (line format \`[${explainer}] E1 · sentence\` / \`[${host}] Y1 · sentence\`)\n${fence(script)}\n\n## claims.md\n${fence(claims)}\n\n## sources.md\n${fence(sources)}\n\n## pronunciations.json\n${fence(pron)}\n\nRepair and output only the report JSON.`, FIX_SCHEMA, 20, "high");
+      const r = await gpt<RepairOut>(repairSystem, `## Findings (must_fix)\n${fmtFindings(mustFix)}\n\n## Suggested edits (a guide, not a source)\n${fmtEdits(kr.edits)}\n\n## script.md (line format \`[${explainer}] E1 · sentence\` / \`[${host}] Y1 · sentence\`)\n${fence(script)}\n\n## claims.md\n${fence(claims)}\n\n## sources.md\n${fence(sources)}\n\n## pronunciations.json\n${fence(pron)}\n\nRepair and output only the report JSON.`, FIX_SCHEMA, 20, "high", SCORE_MAX_OUT);
       const valid = r.fixes.filter((f) => /^[EY]\d+$/.test(f.turn) && f.after.trim());
       script = applyFixes(script, valid); pron = mergePron(pron, r.pronunciations_added); repaired = valid.map((f) => f.turn);
       v = l0(script, pron, tc);
