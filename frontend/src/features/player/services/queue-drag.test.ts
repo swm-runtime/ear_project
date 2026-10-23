@@ -8,6 +8,7 @@ import {
   isSameKeys,
   minDragIndexOf,
   queueRowKey,
+  retainedBottomInset,
 } from './queue-drag';
 
 const entry = (contentId: string, itemId: string | null = `item-${contentId}`): QueueEntry => ({
@@ -97,5 +98,34 @@ describe('dragShiftOf', () => {
 
   it('끌기가 없으면 0', () => {
     expect(dragShiftOf(2, null, 60)).toBe(0);
+  });
+});
+
+describe('retainedBottomInset', () => {
+  const base = { viewport: 600, contentEnd: 2000, basePadding: 16 };
+
+  it('끝에서 멀리 있으면 원하는 여백(2단 — 안전영역만)으로 바로 줄인다', () => {
+    expect(retainedBottomInset({ ...base, target: 34, offset: 300 })).toBe(34);
+  });
+
+  it('줄이면 스크롤 위치가 끝을 넘을 때는 넘지 않을 만큼만 남긴다 — 목록이 툭 내려앉지 않게', () => {
+    // 1단 여백 400 으로 끝까지 내려 둔 자리(최대 2000 + 16 + 400 - 600 = 1816)에서 2단(34)으로
+    const kept = retainedBottomInset({ ...base, target: 34, offset: 1816 });
+    expect(kept).toBe(400);
+    // 그 여백이면 콘텐츠 높이가 지금 화면 바닥을 덮는다
+    expect(base.contentEnd + base.basePadding + kept).toBeGreaterThanOrEqual(1816 + base.viewport);
+  });
+
+  it('위로 스크롤해 끝에서 멀어지면 남은 몫을 마저 걷는다', () => {
+    expect(retainedBottomInset({ ...base, target: 34, offset: 1500 })).toBe(84);
+    expect(retainedBottomInset({ ...base, target: 34, offset: 1000 })).toBe(34);
+  });
+
+  it('늘릴 때(2단 → 1단)는 원하는 여백 그대로', () => {
+    expect(retainedBottomInset({ ...base, target: 400, offset: 1816 })).toBe(400);
+  });
+
+  it('실측 전이면 원하는 여백', () => {
+    expect(retainedBottomInset({ ...base, viewport: 0, target: 34, offset: 0 })).toBe(34);
   });
 });

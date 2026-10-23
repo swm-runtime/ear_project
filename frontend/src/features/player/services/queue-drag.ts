@@ -65,3 +65,28 @@ export const dragShiftOf = (
   if (hover < from && index >= hover && index < from) return step;
   return 0;
 };
+
+/**
+ * 목록 바닥 여백(KAN-262) — 단계가 원하는 여백(`target`)으로 가되, **줄일 때는 지금 스크롤 위치가 끝을 넘지 않을 만큼만** 줄인다.
+ * 콘텐츠가 짧아져 스크롤 위치가 새 끝을 넘으면 네이티브가 끝으로 당기며 목록이 툭 내려앉는다(PM 2026-10-23 "1단에서 2단으로 갈 때
+ * 갑자기 재생목록이 내려온다"). 남은 몫은 사용자가 끝에서 멀어진 뒤(스크롤이 멈출 때) 마저 걷는다. 늘릴 때는 그대로 늘린다.
+ * `contentEnd` 는 여백을 뺀 내용의 끝(콘텐츠 좌표), `basePadding` 은 여백 앞에 늘 붙는 기본 바닥 패딩
+ */
+export const retainedBottomInset = ({
+  target,
+  offset,
+  viewport,
+  contentEnd,
+  basePadding,
+}: {
+  target: number;
+  offset: number;
+  viewport: number;
+  contentEnd: number;
+  basePadding: number;
+}): number => {
+  // 실측 전이면 원하는 여백 그대로 — 아직 스크롤된 적이 없다
+  if (viewport <= 0 || contentEnd <= 0) return target;
+  const needed = Math.ceil(offset + viewport - contentEnd - basePadding);
+  return Math.max(target, needed);
+};

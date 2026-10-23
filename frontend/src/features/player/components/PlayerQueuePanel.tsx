@@ -20,6 +20,7 @@ import {
   isSameKeys,
   minDragIndexOf,
   queueRowKey,
+  retainedBottomInset,
 } from '../services/queue-drag';
 import { moveInArray } from '../services/queue-order';
 
@@ -92,7 +93,8 @@ interface PlayerQueuePanelProps {
   };
   /**
    * 목록 바닥 여백(KAN-241 "4번") — 시트 틀이 2단 높이로 서 있어 1단에서는 아래가 화면 밖으로 밀려 있다. 그만큼 바닥 여백을 줘
-   * 1단에서도 마지막 줄까지 스크롤된다. 2단에서는 0
+   * 1단에서도 마지막 줄까지 스크롤된다. 2단에서는 안전영역 몫만(KAN-262). 줄어들 때 패널은 스크롤 위치가 끝을 넘지 않을 만큼만
+   * 먼저 줄이고 나머지는 스크롤이 멈출 때 걷는다 — 목록이 툭 내려앉지 않게
    */
   bottomInset?: number;
   /**
@@ -742,7 +744,12 @@ function PlayerQueuePanel({
     : PLAYER_COPY.queuePanel.deleteFromLibraryA11y;
   // 0.3초 안에 오면 빈 패널만 잠깐 보인다 — 스켈레톤이 번쩍이지 않게(common-error-handling.md 5)
   const showSkeleton = useDelayedVisible(isLoading);
-  const listContentStyle = [styles.listContent, { paddingBottom: theme.spacing.md + bottomInset }];
+  /*
+   * 지금 준 바닥 여백 — 부모가 원하는 값(bottomInset)으로 가되, 줄일 때는 스크롤 위치가 끝을 넘지 않을 만큼만 줄이고 남은 몫은
+   * 스크롤이 멈출 때 마저 걷는다(KAN-262, 아래 reconcileInset). 늘릴 때는 바로 늘린다
+   */
+  const [appliedInset, setAppliedInset] = useState(bottomInset);
+  const listContentStyle = [styles.listContent, { paddingBottom: theme.spacing.md + appliedInset }];
 
   /*
    * ── 끌어서 순서 바꾸기 ──
@@ -1200,6 +1207,33 @@ function PlayerQueuePanel({
     if (canReachUpNextEnd) checkUpNextEnd();
   }, [canReachUpNextEnd, checkUpNextEnd]);
 
+  /*
+   * ── 바닥 여백(KAN-262) ──
+   * 시트 틀은 2단 높이로 서 있어 1단에서는 아래 몫이 화면 밖이라 부모가 그만큼 큰 여백을 주고, 2단에서는 안전영역 몫만 준다.
+   * 2단에 앉는 순간 여백을 통째로 빼면 재생 중인 줄로 맞춰 둔 스크롤 위치가 새 끝을 넘어 목록이 툭 내려앉았다(PM 2026-10-23) —
+   * 그래서 **지금 화면 바닥을 덮을 만큼은 남기고** 줄인다(`retainedBottomInset`). 남은 몫은 스크롤이 멈출 때·내용 크기가 바뀔 때
+   * 다시 본다 — 끝에서 멀어졌으면 그때 걷는다(보이지 않는 자리라 움직임이 없다). 스크롤 이벤트마다 보지 않는다(렌더가 잦아진다)
+   */
+  const insetRef = useRef({ target: bottomInset, applied: bottomInset, contentEnd: 0 });
+  const reconcileInset = useCallback(() => {
+    const inset = insetRef.current;
+    const { offset, viewport } = scrollState.current;
+    const next = retainedBottomInset({
+      target: inset.target,
+      offset,
+      viewport,
+      contentEnd: inset.contentEnd,
+      basePadding: theme.spacing.md,
+    });
+    if (next === inset.applied) return;
+    inset.applied = next;
+    setAppliedInset(next);
+  }, []);
+  useEffect(() => {
+    insetRef.current.target = bottomInset;
+    reconcileInset();
+  }, [bottomInset, reconcileInset]);
+
   if (isError) {
     return (
       <View style={styles.panel}>
@@ -1253,9 +1287,21 @@ function PlayerQueuePanel({
             checkUpNextEnd();
           }
         }}
+        // 스크롤이 멈추면 남겨 둔 바닥 여백을 마저 걷을 수 있는지 본다(KAN-262)
+        onScrollEndDrag={(event) => {
+          if (dragRef.current !== null) return;
+          scrollState.current.offset = event.nativeEvent.contentOffset.y;
+          reconcileInset();
+        }}
+        onMomentumScrollEnd={(event) => {
+          if (dragRef.current !== null) return;
+          scrollState.current.offset = event.nativeEvent.contentOffset.y;
+          reconcileInset();
+        }}
         onLayout={(event) => {
           scrollState.current.viewport = event.nativeEvent.layout.height;
           checkUpNextEnd();
+          reconcileInset();
         }}
         onContentSizeChange={(_, height) => {
           scrollState.current.content = height;
@@ -1323,6 +1369,13 @@ function PlayerQueuePanel({
           </View>
         )}
         {upNextSection}
+        {/* 내용의 끝(여백 앞) — 바닥 여백을 얼마나 남겨야 하는지 재는 자리(KAN-262). 높이 0 */}
+        <View
+          onLayout={(event) => {
+            insetRef.current.contentEnd = event.nativeEvent.layout.y;
+            reconcileInset();
+          }}
+        />
       </ScrollView>
     </View>
   );

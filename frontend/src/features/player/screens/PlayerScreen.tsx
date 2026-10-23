@@ -2506,11 +2506,14 @@ export default function PlayerScreen() {
                     onDelete={onQueueDelete}
                     categoryOf={queueCategoryOf}
                     onRetry={onQueueRetry}
-                    // 1단에서는 시트 아래 2단 몫이 화면 밖 — 그만큼 바닥 여백(KAN-241 "4번"). **2단에서도 빼지 않는다**
-                    // (PM 2026-10-23 "1단에서 2단으로 갈 때 갑자기 재생목록이 내려온다") — 2단에 앉는 순간 여백을 빼면 내용이
-                    // 짧아져, 재생 중인 줄로 맞춰 둔 스크롤 위치가 끝을 넘어 목록이 툭 내려앉았다. 대가: 2단에서 마지막 줄 밑에
-                    // 그만큼 빈 자리가 남는다(추천이 끝없이 붙어 바닥에 닿는 일은 드물다)
-                    bottomInset={queueExpandTravel + bottomPadding}
+                    // 1단에서는 시트 아래 2단 몫이 화면 밖 — 그만큼 바닥 여백(KAN-241 "4번"). **2단에 앉으면 안전영역 몫만**
+                    // (KAN-262 — 종전엔 2단에서도 빼지 않아 마지막 줄 밑에 수백 pt 빈 자리가 남았다). 2단에 앉는 순간 통째로
+                    // 빼면 재생 중인 줄로 맞춰 둔 스크롤 위치가 끝을 넘어 목록이 툭 내려앉았다(PM 2026-10-23) — 패널이 지금 화면
+                    // 바닥을 덮을 만큼은 남기고 줄이며, 남은 몫은 스크롤이 멈출 때 걷는다(PlayerQueuePanel reconcileInset).
+                    // 단계는 스프링이 끝난 뒤 바뀐다(queueStage) — 2단 → 1단은 다 내려온 뒤 늘린다(늘리기는 움직임이 없다)
+                    bottomInset={
+                      queueStage === 2 ? bottomPadding : queueExpandTravel + bottomPadding
+                    }
                   />
                 ) : null}
               </Reanimated.View>
