@@ -265,6 +265,12 @@ export default function PlayerScreen() {
     );
   };
   const [mountedPanel, setMountedPanel] = useState<PlayerPanelKind | null>(null);
+  /**
+   * 패널 전환 순번 — 스프링 끝 콜백은 **자기 전환이 마지막일 때만** 마운트·정착을 바꾼다(PM 2026-10-23 "간혹 대본창이 아예
+   * 안 뜬다"). 대본을 닫는 스프링이 끝나는 순간과 다시 여는 탭이 겹치면(여는 모션은 두 프레임 뒤 출발), 늦게 도착한 닫기 끝
+   * 콜백이 방금 붙인 대본 틀을 내렸다 — 히어로만 접히고 대본 자리는 빈 채로 남았다
+   */
+  const panelTransitionRef = useRef(0);
   /*
    * 펼침·접힘 모션은 **상태 변경이 화면에 반영된 뒤에** 출발시킨다(2026-09-21 iOS 실기기 — 커버가 줄어드는
    * 모션이 렉 걸리듯 끊겼다). 이 모션은 높이·위치를 움직여 JS 스레드에서 도는데, 같은 핸들러에서 상태를 바꾸면
@@ -287,6 +293,8 @@ export default function PlayerScreen() {
   };
   const setPanel = (kind: PlayerPanelKind | null) => {
     if (kind !== null && !isPanelAvailable(kind)) return;
+    panelTransitionRef.current += 1;
+    const transition = panelTransitionRef.current;
     if (kind !== null) screen.openPanel(kind);
     else screen.closePanel();
     // 2단에서 닫거나 다른 패널로 가면 2단 몫부터 접는다 — 1단 스프링과 같은 곡선으로 함께 돈다
@@ -321,10 +329,13 @@ export default function PlayerScreen() {
       holdArtLayout();
       springTo(panelProgress, isScriptOpen ? 1 : 0, spring, (finished) => {
         releaseArtLayout();
-        if (!finished) return;
+        // 뒤이은 전환이 있으면 그쪽이 정리한다(panelTransitionRef)
+        if (panelTransitionRef.current !== transition) return;
         if (isScriptOpen) {
+          // 여는 전환이 마지막이면 끊겼어도 정착시킨다 — 정착하지 않으면 대본 요청도 문단도 영영 시작되지 않는다
+          setMountedPanel('script');
           setIsScriptSettled(true);
-        } else {
+        } else if (finished) {
           setMountedPanel(null);
           setIsScriptSettled(false);
         }
@@ -365,8 +376,8 @@ export default function PlayerScreen() {
         holdArtLayout();
         springTo(queueProgress, 0, SEQUENCE_SPRING, (finished) => {
           releaseArtLayout();
-          // 끊겼으면(다른 전환이 이어받음) 대본을 붙이지 않는다 — 다음 setPanel 이 정리한다
-          if (!finished) return;
+          // 끊겼거나 다른 전환이 이어받았으면 대본을 붙이지 않는다 — 다음 setPanel 이 정리한다
+          if (!finished || panelTransitionRef.current !== transition) return;
           setMountedPanel('script');
           // 대본 틀이 붙는 렌더가 끝난 뒤에 히어로를 접는다(아래 두 프레임 뒤 출발과 같은 이유)
           panelMotionFrameRef.current = requestAnimationFrame(() => {
@@ -1234,6 +1245,8 @@ export default function PlayerScreen() {
       // 대본이 펼쳐진 채 손잡이를 끌 때 — 대본만 즉시 내리고 히어로를 편다. setPanel(null) 은 queueProgress 도 0 으로
       // 되돌리는 스프링을 걸어 손가락과 싸웠다(위 setPanel 의 재생 목록 갈래와 같은 이유로 즉시 내린다)
       closeScriptForDrag: () => {
+        // 진행 중인 대본 전환의 끝 콜백이 끌어 내린 뒤에 대본을 도로 붙이지 않게 순번을 넘긴다
+        panelTransitionRef.current += 1;
         screen.closePanel();
         setMountedPanel(null);
         setIsScriptSettled(false);
