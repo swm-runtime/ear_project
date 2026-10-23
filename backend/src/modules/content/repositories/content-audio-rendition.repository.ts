@@ -39,4 +39,19 @@ export class ContentAudioRenditionRepository {
       await repository.insert(rows);
     }
   }
+
+  /**
+   * 한 음질 행만 바꾼다 — 무손실만 교체하는 재발행(KAN-264). 다른 음질 행은 건드리지 않는다. 그 음질 행이 없으면 새로 넣는다
+   */
+  async replaceOne(
+    row: Omit<
+      ContentAudioRendition,
+      'id' | 'content' | 'createdAt' | 'updatedAt'
+    >,
+    manager: EntityManager,
+  ): Promise<void> {
+    const repository = this.scoped(manager);
+    await repository.delete({ contentId: row.contentId, quality: row.quality });
+    await repository.insert(row);
+  }
 }

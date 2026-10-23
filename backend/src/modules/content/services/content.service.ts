@@ -106,6 +106,20 @@ export class ContentService {
   }
 
   /**
+   * 한 음질 행만 바꾼다 — 무손실만 교체하는 재발행(KAN-264). `contents.audio_path`(압축)와 다른 음질 행은 그대로다
+   */
+  async replaceAudioRendition(
+    contentId: string,
+    rendition: AudioRenditionInput,
+    manager: EntityManager,
+  ): Promise<void> {
+    await this.contentAudioRenditionRepository.replaceOne(
+      { contentId, ...rendition },
+      manager,
+    );
+  }
+
+  /**
    * 대본 세그먼트(`player-api.md` 4.7). **없으면 빈 배열** — 스크립트가 없는 콘텐츠는 정상 상태라 404가 아니다.
    * 접근 통제는 호출부(playback `ScriptService`)가 재생 발급과 같은 판정으로 한다 — 여기서는 읽기만.
    */

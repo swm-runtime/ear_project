@@ -370,6 +370,9 @@ export class AdminContentService {
    * 이전 파일을 트랜잭션 전에 지우면 롤백됐을 때 행은 옛 경로를 가리키는데 파일이 없다.
    */
   async republish(command: RepublishContentCommand): Promise<AdminContentView> {
+    if (command.renditionOnly === 'lossless') {
+      return this.republishLosslessOnly(command);
+    }
     const changedParts = this.resolveChangedParts(command);
     if (changedParts.length === 0) {
       // 4.10 — 파트가 하나도 없으면 올릴 버전이 없다. 필드는 기본 파트인 `audio`로 가리킨다
@@ -655,6 +658,145 @@ export class AdminContentService {
     await this.contentTitleEmbeddingService.refresh(content);
 
     return this.withOutcomes(await this.toView(content), enrichment, script);
+  }
+
+  /**
+   * **무손실 파일만 교체하는 재발행**(KAN-264). 파이프라인이 같은 마스터에서 다시 만든 FLAC(1초 간격 SEEKTABLE — iOS 가
+   * 스트리밍 중 위치를 어림하지 않게, 2026-10-23)을 서버 사본에 갈아끼운다. 오디오 내용·길이가 같으니 같은 초가 같은 내용이다 —
+   * **버전을 올리지 않고 재생 위치·대본도 그대로 둔다**(`applyFilesOnly`와 같은 이유). 다른 파일이 이 경로로 들어오지 않게
+   * 길이를 지금 `duration_sec`과 ±1초로 대조한다(음질 간 길이 조건과 같은 값 — domain.md 5.8).
+   *
+   * 다른 파트를 함께 받지 않는다 — 섞이면 "버전을 올리지 않는다"가 성립하지 않는다(압축 오디오) 또는 감사 기록이 흐려진다.
+   * 흐름은 재발행과 같다: 검증 → 저장(트랜잭션 밖) → 행 잠금 트랜잭션 → 성공 시 옛 파일 삭제 / 실패 시 새 파일 삭제.
+   */
+  private async republishLosslessOnly(
+    command: RepublishContentCommand,
+  ): Promise<AdminContentView> {
+    const others = this.resolveChangedParts(command);
+    if (command.audioAac) {
+      others.push('audio_aac');
+    }
+    if (others.length > 0) {
+      throw this.validationFailed(
+        'rendition_only',
+        `무손실만 교체할 때는 audio_lossless 만 보내주세요 (함께 온 파트: ${others.join(', ')})`,
+      );
+    }
+    if (!command.audioLossless) {
+      throw this.validationFailed(
+        'audio_lossless',
+        '교체할 무손실 파일(audio_lossless)을 보내주세요',
+      );
+    }
+    const file: RenditionFile = {
+      quality: AudioQuality.LOSSLESS,
+      file: command.audioLossless,
+      extension: this.resolveExtension(
+        command.audioLossless,
+        LOSSLESS_AUDIO_CONTENT_TYPES,
+        MAX_AUDIO_FILE_BYTES,
+        'audio_lossless',
+      ),
+    };
+
+    // 파일을 올리기 전에 막는다 — 발행 중이 아니면 409, 길이가 다르면 400
+    const target = await this.contentService.getById(command.contentId);
+    this.assertRepublishable(target);
+    const [probed] = await this.probeRenditions([file]);
+    this.assertSameDuration(probed, target.durationSec);
+
+    const uploadedKeys: string[] = [];
+    let rendition: AudioRenditionInput;
+    try {
+      [rendition] = await this.uploadRenditions([probed], uploadedKeys);
+    } catch (error) {
+      await this.storage.remove(uploadedKeys);
+      this.logger.error('lossless republish to storage failed', {
+        content_id: command.contentId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      throw new ExternalServiceException({
+        errorCode: ErrorCode.ADMIN_STORAGE_FAILED,
+        message: '파일 저장에 실패했어요. 다시 시도해 주세요',
+        retryable: true,
+      });
+    }
+
+    const replacedKeys: string[] = [];
+    let content: Content;
+    try {
+      content = await this.dataSource.transaction(async (manager) => {
+        // 올리는 동안 회수·재발행됐을 수 있다 — 행을 잠그고 다시 본다(재발행과 같은 이유)
+        const current = await this.contentService.getByIdForUpdate(
+          command.contentId,
+          manager,
+        );
+        this.assertRepublishable(current);
+        // 잠근 뒤의 길이로 한 번 더 — 그사이 오디오 재발행으로 길이가 바뀌었으면 이 파일은 옛 마스터다
+        this.assertSameDuration(probed, current.durationSec);
+
+        const previous = (
+          await this.contentService.findAudioRenditions(current.id, manager)
+        ).find((row) => row.quality === AudioQuality.LOSSLESS);
+        // 압축 행과 같은 경로를 가리키는 무손실 행은 없지만(형식이 다르다), 혹시라도 압축 파일을 지우지 않게 거른다
+        if (previous && previous.path !== current.audioPath) {
+          replacedKeys.push(previous.path);
+        }
+
+        await this.contentService.replaceAudioRendition(
+          current.id,
+          rendition,
+          manager,
+        );
+
+        await this.auditLogService.record(
+          {
+            actor: command.actorUserId,
+            action: AUDIT_ACTION_CONTENT_REPUBLISH,
+            target: `content:${command.contentId}`,
+            before: { content_version: current.contentVersion },
+            after: {
+              content_version: current.contentVersion,
+              changed_parts: ['audio_lossless'],
+              rendition_only: AudioQuality.LOSSLESS,
+            },
+          },
+          manager,
+        );
+
+        return current;
+      });
+    } catch (error) {
+      await this.storage.remove(uploadedKeys);
+      throw error;
+    }
+
+    // 여기서부터는 실패해도 교체 자체는 성공이다 — 남은 옛 파일은 정리 대상일 뿐이다
+    await this.storage.remove(replacedKeys);
+
+    this.logger.log('lossless rendition replaced', {
+      content_id: content.id,
+      content_version: content.contentVersion,
+      actor: command.actorUserId,
+    });
+
+    return this.toView(content);
+  }
+
+  /** 무손실만 교체할 때 — 새 파일이 지금 오디오와 같은 길이(±1초)인가. 아니면 다른 마스터의 파일이다 */
+  private assertSameDuration(
+    probed: ProbedRendition,
+    durationSec: number,
+  ): void {
+    if (
+      Math.abs(probed.metadata.durationSec - durationSec) >
+      AUDIO_DURATION_TOLERANCE_SEC
+    ) {
+      throw this.validationFailed(
+        'audio_lossless',
+        `지금 오디오와 길이가 달라요 (${probed.metadata.durationSec}초 ↔ ${durationSec}초)`,
+      );
+    }
   }
 
   /**

@@ -74,6 +74,11 @@ export interface RepublishContentCommand {
   /** `audio`와 함께만 받는다 — 오디오를 바꾸는 재발행은 3종을 한 세트로 본다(admin-api.md 4.10) */
   audioAac: UploadedFileInput | null;
   audioLossless: UploadedFileInput | null;
+  /**
+   * `lossless`면 **무손실 파일만 교체**한다(KAN-264) — 같은 마스터에서 다시 만든 FLAC(시크테이블 추가 등)을 갈아끼우는
+   * 경로라 버전을 올리지 않고 재생 위치도 지우지 않는다. 이때 `audioLossless` 말고 다른 파트는 받지 않는다
+   */
+  renditionOnly: 'lossless' | null;
   thumbnail: UploadedFileInput | null;
   /**
    * 추천 메타 파일 — 파트로 인정되므로 **단독 전송을 허용**한다. 단독이면 버전을 올리지
