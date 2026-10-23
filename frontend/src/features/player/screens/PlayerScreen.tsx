@@ -1131,9 +1131,27 @@ export default function PlayerScreen() {
       transform: [{ translateY: interpolate(panel, [0, 1], [40, 0]) }],
     };
   });
-  const controlAreaStyle = useAnimatedStyle(() => ({
-    transform: [{ translateY: heroQueueByTransform ? queueProgress.get() * queueHeroDrop : 0 }],
-  }));
+  /*
+   * 1단 → 2단에서 걷히는 것들(제목·카테고리·재생바·재생 버튼) — **시트 윗변에 밀려 같이 올라가며, 앞 1/3 안에 다 사라진다**
+   * (PM 2026-10-23 "컨트롤들이 겹쳐진다 — 자연스럽게 올라가면서 사라지게, 뒤에 안 비치게"). Material 공유 축(Y) 전환이
+   * 나가는 층을 위로 밀며 앞 1/3 에 걷는 것과 같은 짜임이다. 이동은 시트와 같은 속도라 반투명 시트 밑에 깔리는 순간이 없다 —
+   * 시트가 덮는 자리에 닿기 전에 이미 위로 비켜 있고, 다 걷힌 뒤엔 위치가 상관없다. 사진은 따로 썸네일로 줄어든다(artFrameStyle)
+   */
+  const expandLeaveStyle = useAnimatedStyle(() => {
+    const expand = queueExpand.get();
+    return {
+      opacity: 1 - interpolate(expand, [0, QUEUE_EXPAND_FADE_SPAN], [0, 1], 'clamp'),
+      transform: [{ translateY: -expand * queueExpandTravel }],
+    };
+  });
+  const controlAreaStyle = useAnimatedStyle(() => {
+    const expand = queueExpand.get();
+    const queueDrop = heroQueueByTransform ? queueProgress.get() * queueHeroDrop : 0;
+    return {
+      opacity: 1 - interpolate(expand, [0, QUEUE_EXPAND_FADE_SPAN], [0, 1], 'clamp'),
+      transform: [{ translateY: queueDrop - expand * queueExpandTravel }],
+    };
+  });
   const sectionShiftStyle = useAnimatedStyle(() => ({
     transform: [{ translateY: queueProgress.get() * sectionLift }],
   }));
@@ -1152,10 +1170,6 @@ export default function PlayerScreen() {
   /** 목록 — 닫힘에서는 숨긴다. 틀이 안전영역 밑까지 내려가 닫힌 손잡이 밑으로 첫 줄이 비친다. 끌기 시작하면 바로 보인다 */
   const queueListStyle = useAnimatedStyle(() => ({
     opacity: interpolate(queueProgress.get(), [0, 0.03], [0, 1], 'clamp'),
-  }));
-  /** 2단에서 걷히는 것들(압축된 히어로·컨트롤) — 흐려지기만 한다. 자리는 그대로(레이아웃 불변). 사진은 줄어든다(artFrameStyle) */
-  const queueExpandFadeStyle = useAnimatedStyle(() => ({
-    opacity: 1 - queueExpand.get(),
   }));
   /** 2단에서 앱바 아이콘(접기·수면 타이머·더보기)을 걷는다(PM 2026-10-23) — 내리기는 손잡이로 */
   const appBarExpandFadeStyle = useAnimatedStyle(() => ({
@@ -1954,7 +1968,7 @@ export default function PlayerScreen() {
             pointerEvents={queueStage === 2 ? 'none' : 'auto'}
             {...horizontalSwipeResponder.panHandlers}
           >
-            <Reanimated.View style={[styles.hero, heroHeightStyle, queueExpandFadeStyle]}>
+            <Reanimated.View style={[styles.hero, heroHeightStyle, expandLeaveStyle]}>
               {/* 대본이 펼쳐져 작아진 커버를 탭하면 대본을 접는다(PM 2026-09-26 17:00 스샷). 아트워크는 히어로 **밑**의 형제라
               그 안의 Pressable 은 터치를 못 받는다(#758 실패, 17:15) — 히어로 안 같은 자리에 탭 영역을 둔다. 평소엔 없다 */}
               {activePanel === 'script' ? (
@@ -2053,7 +2067,7 @@ export default function PlayerScreen() {
           ) : null}
 
           <Reanimated.View
-            style={[{ paddingBottom: controlAreaBottom }, controlAreaStyle, queueExpandFadeStyle]}
+            style={[{ paddingBottom: controlAreaBottom }, controlAreaStyle]}
             pointerEvents={queueStage === 2 ? 'none' : 'auto'}
           >
             {/* 지금 듣는 구간 — 시크바 바로 위 한 줄(KAN-127, PM 2026-10-07). 재생 목록이 열리면 사진 위라 걷는다.
@@ -2681,6 +2695,8 @@ function FadeByProgress({
 
 /** 재생 목록 1단을 열 때 구간 카드가 다 걷히는 진행 지점 — 시크바가 그 자리로 올라오기 전에 비운다 */
 const CURRENT_SECTION_FADE_SPAN = 0.3;
+/** 재생 목록 1단 → 2단에서 제목·컨트롤이 다 걷히는 진행 지점 — Material 공유 축 전환의 나가는 층(앞 1/3)과 같다 */
+const QUEUE_EXPAND_FADE_SPAN = 1 / 3;
 /** 재생 목록의 히어로 축소를 transform 으로(hero 주석) — Android 만. iOS 는 종전 레이아웃 그대로 */
 const HERO_QUEUE_BY_TRANSFORM = Platform.OS === 'android';
 /**
