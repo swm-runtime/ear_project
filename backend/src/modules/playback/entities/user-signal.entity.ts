@@ -27,6 +27,12 @@ import { UserSignalAction } from '../playback.enum';
 @Index('idx_user_signals_user_id_created_at', ['userId', 'createdAt'])
 // 보존 기간 배치가 `created_at`만으로 범위 삭제한다 (domain.md 12.1)
 @Index('idx_user_signals_created_at', ['createdAt'])
+// 이 편에 이 행동의 신호가 있는가 — 완청 판정(진행 저장·목록·복원·드립)이 매번 묻는다 (domain.md 6.4, 2026-10-23)
+@Index('idx_user_signals_user_id_content_id_action', [
+  'userId',
+  'contentId',
+  'action',
+])
 export class UserSignal extends BaseEntity {
   @PrimaryGeneratedColumn('increment', { type: 'bigint' })
   id: string;
