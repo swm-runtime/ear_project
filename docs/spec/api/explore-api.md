@@ -169,7 +169,8 @@
 | `content.series` | **시리즈 편이면 `{ id, title, episode_no, total_episodes }`, 단일 콘텐츠면 `null`**(추가 2026-10-17 — KAN-134). `total_episodes`는 시리즈 표(`series.total_episodes` — `domain.md` 5.9)의 값이다. 라이브러리(`library-api.md` 4.1·4.3)·플레이어(`player-api.md` 4.1)·상세(`content-detail-api.md` 4.1)·시리즈 화면(4.7)이 같은 모양을 싣는다. 목록은 시리즈 행을 한 번에 읽는다(항목 수만큼 조회하지 않는다). **추가 필드뿐이라 설치된 앱(1.2.1)은 무시한다.** 4.2·4.2-1·4.5의 행(검색 `fallback.popular_items` 포함)도 같은 항목 모양이라 함께 실린다 |
 | `content.language` | 콘텐츠 언어 `ko` / `en`(추가 2026-10-14 — KAN-188, `global-api.md` 4.7). **표시 전용** — 클라이언트는 이 값으로 목록을 거르지 않는다(시장 필터는 서버가 한다). 4.2·4.2-1·4.5의 행(검색 `fallback.popular_items` 포함)도 같은 항목 모양이라 함께 실린다 |
 | `library` | 이 콘텐츠의 라이브러리 상태. **없으면 `null`** — 라이브러리에 담기지 않은 상태다 |
-| `library.item_id` / `source` / `status` | `library_items` 원값. **더보기 시트의 담기/제거 분기와 완청 체크 마킹**에 쓴다(`explore-uiux.md` 4.1) — 완청은 `status == 'completed'`로 가르며, **행에 담김 표시는 두지 않는다** |
+| `library.item_id` / `source` / `status` | `library_items` 원값. **더보기 시트의 담기/제거 분기**에 쓴다(`explore-uiux.md` 4.1). **행에 담김 표시는 두지 않는다**. 완청 체크 마킹은 `is_completed`로 가른다(개정 2026-10-23 — 종전 `status == 'completed'`, 담지 않은 편의 완청이 빠졌다) |
+| `is_completed` | **완청했는가** — 라이브러리 `completed` 행(삭제분 포함) ∪ 재생 위치의 최대 도달이 기준 이상(`max_reached_sec` ≥ 길이 × 90%, `player.md` 4.4)인 편(추가 2026-10-23 — KAN-248). **담지 않고 끝까지 들은 편도 `true`다** — 탐색 재생은 라이브러리 행을 만들지 않는다(`explore.md` 4.4). 완청 체크 마킹·시리즈 편 상태·연속 재생의 건너뛰기는 `library.status`가 아니라 이 값으로 가른다. **추가 필드뿐이라 설치된 앱은 무시한다**. 4.2·4.2-1·4.5·4.7·관련 콘텐츠(`player-api.md` 4.8)·상세(`content-detail-api.md` 4.1)도 같은 정의로 싣는다 |
 | `is_counted_today` | 이 콘텐츠가 **재청취 창 안**에 있는가 — 최근 15일(당일 포함) 내 차감 행(`play_records.is_counted = true`)이 있어, 재생해도 차감이 없는 상태(개정 2026-08-10 — `paywall.md` 4.3-1 · `library-api.md` 4.1과 같은 필드, 같은 정의). 재생 확인 팝업을 **탭 즉시** 띄우기 위한 힌트다 |
 | `content.source_url` | **`null`이면 더보기 시트(E12)에 [원문 보기]를 노출하지 않는다**(개정 2026-08-24 — 세 화면 더보기 통일(2026-08-10)의 계약 반영. 발급 응답 `player-api.md` 4.1과 같은 규칙). `partner`는 항상 값이 있고(`chk_contents_partner_disclosure` — `domain.md` 5.1), `ai_generated`는 선택 필드라 `null`일 수 있다. 4.2·4.2-1·4.5의 행도 같은 모양이므로 함께 적용된다 |
 
@@ -642,8 +643,9 @@ POST /contents/:content_id/play  (entry_point = "explore" — library-api 4.4)
         "tags": ["CS", "개발"],
         "series": { "id": "7de9…", "title": "키워드로 빠르게 배우는 CS 지식", "episode_no": 1, "total_episodes": 16 }
       },
-      "library": { "item_id": "uuid", "source": "save", "status": "completed" },  // 담지 않았으면 null. 완청 = status "completed"
+      "library": { "item_id": "uuid", "source": "save", "status": "completed" },  // 담지 않았으면 null. 완청은 is_completed로 본다
       "progress": { "position_sec": 372, "max_reached_sec": 372 },             // 재생 위치 행이 없으면 null(0으로 채우지 않는다)
+      "is_completed": true,                                                    // 완청 — 담지 않고 끝까지 들은 편도 true(4.1, KAN-248)
       "is_counted_today": false                                                // 재생 확인 팝업 힌트 — 판정이 아니다
     }
   ]
@@ -656,6 +658,7 @@ POST /contents/:content_id/play  (entry_point = "explore" — library-api 4.4)
 - `series.published_at`은 **발행일자**(ISO 8601 순간)다 — 앨범 화면 하단 발행일(`explore-uiux.md` 4.11). 시리즈 표엔 발행 시각이 없어 **노출 편들의 `contents.published_at` 중 가장 이른 값**을 쓴다(재발행 등으로 편 번호와 발행 순서가 어긋나도 번호가 아니라 최소 시각). 편 목록이 비면 404라 늘 값이 있다. 클라이언트는 기기 시간대 날짜로 그린다(표시 전용). **추가 필드뿐이라 설치된 앱은 무시한다.**
 - `series.publisher_name`은 **발행 이름**(`series.publisher_name` — `domain.md` 5.9, 예: "키워드")이다 — 시리즈 화면 제목 바로 아래 줄(앨범의 아티스트 자리, `explore-uiux.md` 4.11). 관리자가 시리즈 만들기·고치기로 넣고(`admin-api.md`), 없으면 `null`이라 그 줄을 생략한다. 대표 중분류(`topic`)는 그 아래 메타 줄의 첫 칸으로 내려간다. **추가 필드뿐이라 설치된 앱은 무시한다**(추가 2026-10-22).
 - `library`·`progress`·`is_counted_today`는 탐색·라이브러리와 같은 원천이다(편 단위). 시리즈 단위 진행 상태는 두지 않는다.
+- **편 상태 "완청"과 머리 [재생]의 다음 편 고르기는 `is_completed`로 가른다**(4.1과 같은 정의 — 2026-10-23, KAN-248). 종전 `library.status == completed`는 담지 않고 끝까지 들은 편을 "N분 남음"으로 보이게 하고 [재생]이 그 편을 다시 고르게 했다.
 - **두지 않는 것**: `next_episode`(다음 화 듣기 보류) · 페이지(편 수가 수십 단위).
 - 편 하나의 액션(재생·담기·삭제)은 기존 편 단위 계약을 그대로 쓴다(`POST /contents/:id/play` · `POST /contents/:id/save` 등). 시리즈째 담기·빼기·실행 취소는 4.8~4.10이다.
 

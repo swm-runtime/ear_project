@@ -49,6 +49,29 @@ const SOURCES_BY_SOURCE_FILTER: Record<
   ],
 };
 
+/**
+ * **사용자가 완청한 편** — 라이브러리와 무관한 사용자×편의 사실이다(KAN-248). 탐색 재생은 행을 만들지 않으므로
+ * (`explore.md` 4.4) 라이브러리 `completed` 행만으로는 탐색에서 끝까지 들은 편이 빠진다. 둘의 합집합으로 본다.
+ * - 라이브러리 `completed` 행(삭제분 포함 — 들었다는 사실은 목록에서 지운다고 없어지지 않는다. 길이를 몰라
+ *   재생 종료로 완료한 폴백 `library-api.md` 4.5 도 여기로 들어온다)
+ * - 재생 위치의 최대 도달이 기준 이상(`playback_progresses.max_reached_sec` ≥ 길이 × 기준, 길이 > 0 — 재생 위치
+ *   저장의 판정과 같다). 오디오를 바꾸는 재발행은 위치를 지우므로 새 오디오를 다시 들어야 완청이다
+ *
+ * 자리표시자: `$1` = user_id · `$2` = `completed` · `$3` = 기준 비율. `completed(content_id)`를 만든다.
+ */
+const COMPLETED_CONTENT_IDS_CTE = `completed AS (
+  SELECT item.content_id
+    FROM library_items item
+   WHERE item.user_id = $1 AND item.status = $2
+  UNION
+  SELECT progress.content_id
+    FROM playback_progresses progress
+    JOIN contents content ON content.id = progress.content_id
+   WHERE progress.user_id = $1
+     AND content.duration_sec > 0
+     AND progress.max_reached_sec >= content.duration_sec * $3::numeric
+)`;
+
 @Injectable()
 export class LibraryItemRepository {
   constructor(
@@ -389,21 +412,19 @@ export class LibraryItemRepository {
    */
   async findCompletedSeriesMaxEpisodes(
     userId: string,
+    ratio: number,
     manager?: EntityManager,
   ): Promise<Map<string, number>> {
-    const rows = await this.scoped(manager)
-      .createQueryBuilder('item')
-      .withDeleted()
-      .innerJoin('item.content', 'content')
-      .select('content.series_id', 'series_id')
-      .addSelect('MAX(content.episode_no)', 'max_episode_no')
-      .where('item.user_id = :userId', { userId })
-      .andWhere('item.status = :status', {
-        status: LibraryItemStatus.COMPLETED,
-      })
-      .andWhere('content.series_id IS NOT NULL')
-      .groupBy('content.series_id')
-      .getRawMany<{ series_id: string; max_episode_no: number | null }>();
+    const rows: { series_id: string; max_episode_no: number | null }[] =
+      await this.scoped(manager).query(
+        `WITH ${COMPLETED_CONTENT_IDS_CTE}
+         SELECT content.series_id, MAX(content.episode_no) AS max_episode_no
+           FROM completed
+           JOIN contents content ON content.id = completed.content_id
+          WHERE content.series_id IS NOT NULL
+          GROUP BY content.series_id`,
+        [userId, LibraryItemStatus.COMPLETED, ratio],
+      );
 
     return new Map(
       rows
@@ -423,19 +444,39 @@ export class LibraryItemRepository {
    */
   async countCompletedContentsByUserId(
     userId: string,
+    ratio: number,
     manager?: EntityManager,
   ): Promise<number> {
-    const row = await this.scoped(manager)
-      .createQueryBuilder('item')
-      .withDeleted()
-      .select('COUNT(DISTINCT item.content_id)', 'total')
-      .where('item.user_id = :userId', { userId })
-      .andWhere('item.status = :status', {
-        status: LibraryItemStatus.COMPLETED,
-      })
-      .getRawOne<{ total: string }>();
+    const rows: { total: string }[] = await this.scoped(manager).query(
+      `WITH ${COMPLETED_CONTENT_IDS_CTE}
+       SELECT COUNT(*) AS total FROM completed`,
+      [userId, LibraryItemStatus.COMPLETED, ratio],
+    );
 
-    return Number(row?.total ?? 0);
+    return Number(rows[0]?.total ?? 0);
+  }
+
+  /**
+   * 주어진 편 중 이 사용자가 완청한 편의 `content_id` — 탐색·시리즈·상세 응답의 `is_completed`, `replay` 신호 자격.
+   * 완청의 정의는 `COMPLETED_CONTENT_IDS_CTE`를 본다.
+   */
+  async findCompletedContentIds(
+    userId: string,
+    contentIds: string[],
+    ratio: number,
+    manager?: EntityManager,
+  ): Promise<string[]> {
+    if (contentIds.length === 0) {
+      return [];
+    }
+
+    const rows: { content_id: string }[] = await this.scoped(manager).query(
+      `WITH ${COMPLETED_CONTENT_IDS_CTE}
+       SELECT content_id FROM completed WHERE content_id = ANY($4::uuid[])`,
+      [userId, LibraryItemStatus.COMPLETED, ratio, contentIds],
+    );
+
+    return rows.map((row) => row.content_id);
   }
 
   async deleteByUserId(userId: string, manager?: EntityManager): Promise<void> {

@@ -50,6 +50,8 @@ export class ExploreItemDto {
   readonly type?: 'content';
   readonly content: ExploreContentDto;
   readonly library: ExploreLibraryDto | null;
+  /** 완청했는가 — 담지 않고 끝까지 들은 편도 true(KAN-248). 완청 표시는 `library.status`가 아니라 이 값을 본다 */
+  readonly is_completed: boolean;
   /** 재생 확인 팝업을 탭 즉시 띄우기 위한 힌트. **판정이 아니다** */
   readonly is_counted_today: boolean;
 
@@ -82,6 +84,7 @@ export class ExploreItemDto {
             status: view.library.status,
           }
         : null,
+      is_completed: view.isCompleted,
       is_counted_today: view.isCountedToday,
     };
   }

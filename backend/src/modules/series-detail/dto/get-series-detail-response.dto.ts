@@ -70,6 +70,8 @@ export class SeriesEpisodeItemDto {
   readonly library: SeriesEpisodeLibraryDto | null;
   /** 재생 위치. **행이 없으면 null이며 0으로 채우지 않는다**(라이브러리 항목과 같은 규칙) */
   readonly progress: SeriesEpisodeProgressDto | null;
+  /** 완청했는가 — 담지 않고 끝까지 들은 편도 true(KAN-248). 편 상태 "완청"·[재생]의 다음 편 판정은 이 값을 본다 */
+  readonly is_completed: boolean;
   /** 재생 확인 팝업 힌트. **판정이 아니다**(paywall.md 4.3-1) */
   readonly is_counted_today: boolean;
 
@@ -105,6 +107,7 @@ export class SeriesEpisodeItemDto {
             max_reached_sec: view.progress.maxReachedSec,
           }
         : null,
+      is_completed: view.isCompleted,
       is_counted_today: view.isCountedToday,
     };
   }
