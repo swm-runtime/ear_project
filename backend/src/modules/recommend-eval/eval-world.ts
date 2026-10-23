@@ -355,7 +355,7 @@ export class EvalWorld {
     const alreadyCompleted = user.signals.some(
       (signal) =>
         signal.contentId === contentId &&
-        signal.action === UserSignalAction.COMPLETE,
+        signal.action === (UserSignalAction.COMPLETE as string),
     );
 
     if (!alreadyCompleted) {
@@ -786,7 +786,10 @@ export class EvalWorld {
             )
             .map((item) => item.contentId),
           ...user.signals
-            .filter((signal) => signal.action === UserSignalAction.COMPLETE)
+            .filter(
+              (signal) =>
+                signal.action === (UserSignalAction.COMPLETE as string),
+            )
             .map((signal) => signal.contentId),
         ]);
 

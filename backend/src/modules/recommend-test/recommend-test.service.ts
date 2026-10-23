@@ -380,7 +380,7 @@ export class RecommendTestService {
     effects.push(
       saved.libraryItem === null
         ? '끝까지 들음 → 완청 (담지 않은 편 — complete 신호, 이미 있으면 생략)'
-        : saved.libraryItem.status === LibraryItemStatus.COMPLETED
+        : saved.libraryItem.status === (LibraryItemStatus.COMPLETED as string)
           ? '끝까지 들음 → 완청 (complete 신호)'
           : '위치 저장됨 — 완청 전이 없음',
     );
