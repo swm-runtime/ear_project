@@ -365,6 +365,11 @@ export async function insertDiscoveredDomain(d: { domain: string; publisher: str
   );
   return r.rows[0]?.id ?? null;
 }
+/** 보강(모드 B-①) 실행 횟수 — 글로벌판 상한 2회(2026-10-23: 첫 배치 반려 9개 중 7개가 보강 1회 뒤 빈 역할·국문 소스 미달). 한국판은 종전대로 reinforced_at 1회 */
+export async function countReinforceRuns(backlogId: string): Promise<number> {
+  const r = await pool.query("select count(*)::int n from public.runs where backlog_id = $1 and phase = 'sweep' and result like '모드 B-① 보강%'", [backlogId]);
+  return Number(r.rows[0]?.n ?? 0);
+}
 export async function getBacklogFull(id: string): Promise<(BacklogCandidate & { status: string; dedup_note: string | null; reinforced_at: string | null }) | null> {
   const r = await pool.query("select id, mid_topic, title, target_fit, angle, sources, axis, axis_type, gaps, status, dedup_note, reinforced_at from public.backlog where id = $1", [id]);
   const row = r.rows[0]; if (!row) return null;

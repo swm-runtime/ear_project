@@ -307,3 +307,16 @@ test("글로벌 골드 두 편은 지금 L0 문체 검사를 통과한다 — �
     assert.deepEqual(enStyleViolations(parseScriptForTts(g.slice(g.indexOf("---") + 3)).turns), [], `gold-en-${n}`);
   }
 });
+
+
+// 2026-10-23 소스 단계 보수 — 사례 역할 전용 검색 규칙: 기획 검색엔 항상, 보강 검색엔 사례가 빈 역할일 때만
+test("사례 전용 검색 규칙 — 기획 검색 프롬프트에 항상, 보강 검색은 사례가 빈 역할일 때만", () => {
+  const seed = P.buildTopicSeedSearchPromptEn({ id: "C1", topic: "Why Koreans love spicy food", midTopic: "K-Food", hint: null, maxSearches: 8, poolHosts: [] } as any);
+  assert.match(seed, /For the case role, spend at least 2 searches in Korean/);
+  const base = { id: "C2", title: "t", mid_topic: "K-Food", axis: "a", axis_type: "질문", sources: [{ publisher: "p", title: "t", url: "https://x/a" }] };
+  const withCase = P.buildReinforceSearchPromptEn({ candidate: { ...base, gaps: ["사례"] }, maxSearches: 8, poolHosts: [] } as any);
+  const noCase = P.buildReinforceSearchPromptEn({ candidate: { ...base, gaps: ["근거 앵커"] }, maxSearches: 8, poolHosts: [] } as any);
+  assert.match(withCase, /For the case role/);
+  assert.doesNotMatch(noCase, /For the case role/);
+  assert.equal(HANGUL.test(withCase), false);
+});

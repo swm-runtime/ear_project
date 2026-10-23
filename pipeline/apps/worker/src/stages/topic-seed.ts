@@ -6,7 +6,7 @@ import { assetPaths, globalGaps, KOREAN_SOURCE_MIN_EN, buildClusterPromptV2, bui
 import { hostOf, log } from "../util.js";
 import { prepareAssets, workerRev } from "../assets.js";
 import { putFile, s3Key } from "../storage.js";
-import { robotsAllows } from "../sources/fetch.js";
+import { fetchArticle, fetchStatusOf, robotsAllows } from "../sources/fetch.js";
 import { checkCandidateSources } from "./candidate-check.js";
 import { rememberRobotsBlocked } from "../sources/robots-memory.js";
 
@@ -57,6 +57,8 @@ export async function runTopicSeed(job: Job, ex: Executor) {
     const sweptAt = new Date().toISOString();
     const added: typeof found = []; const dropped: string[] = []; const newDomains: string[] = [];
     const seenUrl = new Set<string>();
+    // 글로벌판: 본문 접근 가능성 선검사 (2026-10-23) — 세기 전에 실제로 열리는지 본다. 못 여는 소스는 적재하되(fetch_status 기록) 역할표에는 넣지 않는다. 403 은 우회하지 않는다
+    const bodyOk = en ? new Map(await Promise.all(found.map(async (s) => [s.url, await fetchArticle(0, s.url).catch(() => null)] as const))) : null;
     for (const s of found) {
       if (!/^https?:\/\//.test(s.url) || seenUrl.has(s.url)) continue;
       seenUrl.add(s.url);
@@ -76,6 +78,8 @@ export async function runTopicSeed(job: Job, ex: Executor) {
         if (!d) { dropped.push(`${host} (도메인 등록 실패)`); continue; }
       }
       await upsertSource({ domain_id: d.id, url: s.url, title: s.title, summary: s.summary, author: "", published: s.published, swept_at: sweptAt, origin: "search" });
+      const f = bodyOk?.get(s.url);
+      if (bodyOk && (!f || !f.ok)) { await recordFetchStatus(s.url, f ? fetchStatusOf(f) : "network").catch(() => {}); dropped.push(`${hostOf(s.url)} (본문 ${f ? f.status : "network"})`); continue; }
       added.push(s);
     }
     log(`  topic-seed ${id}: 검색 ${r1.output.queries?.length ?? 0}회 → ${found.length}건 · 적재 ${added.length} · 제외 ${dropped.length} · 새 도메인 ${newDomains.length}`);
