@@ -75,6 +75,10 @@ describe('PlaybackProgressService', () => {
       completeItem: jest
         .fn()
         .mockResolvedValue({ item: buildItem(), transitioned: false }),
+      markPlayStarted: jest.fn().mockResolvedValue({
+        ...buildItem(LibraryItemStatus.IN_PROGRESS),
+        lastPlayedAt: NOW,
+      }),
       isCompletionReached: jest.fn(
         (maxReachedSec: number, durationSec: number | null) =>
           durationSec !== null &&
@@ -269,6 +273,45 @@ describe('PlaybackProgressService', () => {
 
       // then
       expect(libraryService.completeItem).not.toHaveBeenCalled();
+    });
+
+    it('행이 완청으로 바뀌어도 그 편의 완청 신호가 이미 있으면(행 없이 먼저 완청) 다시 쌓지 않는다', async () => {
+      // given
+      libraryService.completeItem.mockResolvedValue({
+        item: buildItem(LibraryItemStatus.COMPLETED),
+        transitioned: true,
+      });
+      playbackService.hasSignal.mockResolvedValue(true);
+
+      // when
+      const result = await service.saveProgress(
+        buildCommand({ maxReachedSec: 950 }),
+      );
+
+      // then
+      expect(result.libraryItem?.status).toBe(LibraryItemStatus.COMPLETED);
+      expect(playbackService.recordSignal).not.toHaveBeenCalled();
+    });
+
+    it('담긴 채 unplayed인 행에 위치가 쌓이면 in_progress로 올린다 — 옛 앱 자동 적립이 재생 시작 전이를 놓친 행', async () => {
+      // given
+      libraryService.findItemWithContentByContentId.mockResolvedValue(
+        buildItem(LibraryItemStatus.UNPLAYED),
+      );
+
+      // when
+      const result = await service.saveProgress(
+        buildCommand({ positionSec: 120, maxReachedSec: 120 }),
+      );
+
+      // then
+      expect(libraryService.markPlayStarted).toHaveBeenCalledWith(
+        USER_ID,
+        CONTENT_ID,
+        NOW,
+        expect.anything(),
+      );
+      expect(result.libraryItem?.status).toBe(LibraryItemStatus.IN_PROGRESS);
     });
 
     describe('라이브러리에 없는 콘텐츠(KAN-248)', () => {

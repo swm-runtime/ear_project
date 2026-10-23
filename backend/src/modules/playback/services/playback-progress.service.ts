@@ -110,6 +110,27 @@ export class PlaybackProgressService {
         manager,
       );
 
+      /*
+       * 담긴 채 아직 `unplayed`인 행에 위치가 쌓이면 `in_progress`로 올린다(2026-10-23 검증). 재생 시작의 전이(`markPlayStarted`)는
+       * 행이 있을 때만 일어나는데, 옛 앱의 자동 적립은 재생 시작 **뒤에** 행을 만들어 그 전이를 놓친다 — 끝까지 듣기 전까지
+       * 라이브러리에 진행 바 없이 "안 들음"으로 남았다
+       */
+      if (
+        libraryItem?.status === LibraryItemStatus.UNPLAYED &&
+        positionSec > 0
+      ) {
+        const started = await this.libraryService.markPlayStarted(
+          command.userId,
+          command.contentId,
+          command.now,
+          manager,
+        );
+        if (started) {
+          libraryItem.status = started.status;
+          libraryItem.lastPlayedAt = started.lastPlayedAt;
+        }
+      }
+
       const completed = libraryItem
         ? await this.completeIfReached(
             command,
@@ -194,6 +215,19 @@ export class PlaybackProgressService {
     // 조건부 전이에서 진 쪽(다른 기기가 먼저 완청)은 신호를 남기지 않는다 — 완청 신호는 1회다
     if (!completion || !completion.transitioned) {
       return null;
+    }
+
+    // 행 없이 이미 완청 신호가 남은 편(KAN-248 — 담기 전 완청 뒤 재발행·다른 기기로 위치가 내려갔다가 다시 넘김)은 다시
+    // 쌓지 않는다 — 완청 신호는 사용자×편당 1회다. 상태 전이는 그대로 한다
+    const recorded = await this.playbackService.hasSignal(
+      command.userId,
+      command.contentId,
+      UserSignalAction.COMPLETE,
+      manager,
+    );
+
+    if (recorded) {
+      return completion.item;
     }
 
     await this.playbackService.recordSignal(
