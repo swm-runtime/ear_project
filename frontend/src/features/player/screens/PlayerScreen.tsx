@@ -2419,18 +2419,26 @@ export default function PlayerScreen() {
                     showHeader={false}
                     mode={isLibraryQueue ? 'library' : 'explore'}
                     sourceLabel={queueSourceLabel ?? undefined}
-                    onSelect={screen.playQueueItem}
+                    // 줄 탭 = 재생 + 시트 닫기 — **화면의 setPanel(null) 로 닫는다**(KAN-250). 훅이 패널 상태만 null 로 바꾸면
+                    // 시트 모션·정착값이 그대로라, 시트는 열린 채 남고 목록 터치·추천 조회가 꺼졌다(스켈레톤에 멈춤)
+                    onSelect={(item) => {
+                      setPanel(null);
+                      screen.playQueueItem(item);
+                    }}
                     onReorder={moveQueueItem}
                     onSave={screen.saveQueueItem}
                     upNext={{
                       items: upNextQuery.items,
-                      // 라이브러리 맥락은 목록을 받기 전엔 부르지 않는다 — 그동안은 목록 스켈레톤이 대신한다
-                      isLoading: upNextQuery.isPending,
+                      // 실제로 받는 중일 때만 — 꺼진 쿼리는 데이터가 없어도 pending 이라 스켈레톤에 묶였다(KAN-250)
+                      isLoading: upNextQuery.isLoading,
                       isFetchingMore: upNextQuery.isFetchingMore,
                       // 열려 있을 때만 다음 장 — 닫힌 채 목록 맞추기(스크롤)로 불리지 않게
                       onEndReached: isQueueOpen ? upNextQuery.fetchMore : undefined,
                     }}
-                    onSelectUpNext={screen.playUpNextItem}
+                    onSelectUpNext={(item) => {
+                      setPanel(null);
+                      screen.playUpNextItem(item);
+                    }}
                     autoplay={{ value: isAutoplayNextOn, onToggle: setAutoplayNextEnabled }}
                     pullDown={listPullDown}
                     onDelete={screen.deleteQueueItem}

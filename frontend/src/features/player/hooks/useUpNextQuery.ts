@@ -73,6 +73,8 @@ export const useUpNextQuery = (
   return {
     items,
     isPending: query.isPending,
+    /** 첫 장을 실제로 받는 중(pending && fetching) — 꺼진 쿼리는 false */
+    isLoading: query.isLoading,
     isFetchingMore: query.isFetchingNextPage,
     hasMore: query.hasNextPage,
     fetchMore: () => {
