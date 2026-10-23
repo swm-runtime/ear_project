@@ -175,8 +175,11 @@ export const usePlayerScreen = () => {
   const blockedState = isActiveSession && session.state === 'blocked' ? session.blocked : null;
   useEffect(() => {
     if (!blockedState) return;
-    // 결제 뒤 다시 틀 콘텐츠 — 세션을 내리기 전에 잡아 둔다(paywall.md 4.5-5)
-    const blockedContentId = usePlaybackStore.getState().session?.contentId ?? contentId;
+    // 결제 뒤 다시 틀 콘텐츠 — 세션을 내리기 전에 잡아 둔다(paywall.md 4.5-5). 재생 목록 맥락도 함께 — 결제 뒤 다시 틀어도
+    // 같은 목록이다(KAN-258 — 빠뜨리면 게이트가 라이브러리 맥락으로 덮는다)
+    const blockedStore = usePlaybackStore.getState();
+    const blockedContentId = blockedStore.session?.contentId ?? contentId;
+    const blockedQueue = blockedStore.queueContext;
     playbackService.clearSession();
     close();
     if (blockedState.kind === 'paywall') {
@@ -184,6 +187,7 @@ export const usePlayerScreen = () => {
       playGate.openPaywall('player', blockedState.message ?? undefined, {
         contentId: blockedContentId,
         isCountedToday: false,
+        queue: blockedQueue,
       });
     } else {
       useLimitNoticeStore
@@ -300,12 +304,14 @@ export const usePlayerScreen = () => {
     if (!isActiveSession) return;
     if (session.state === 'ended') {
       // 완료 상태의 ▶ = 위치 0부터 + replay 신호. 판정은 서버 몫 — 창 밖이면 403이 플레이어로
-      // 돌아온다. 같은 세션의 재청취는 창 내이므로 팝업 힌트는 차감 없음으로 둔다(paywall.md 4.3-1)
+      // 돌아온다. 같은 세션의 재청취는 창 내이므로 팝업 힌트는 차감 없음으로 둔다(paywall.md 4.3-1).
+      // 같은 편을 다시 듣는 것이라 재생 목록 맥락을 그대로 넘긴다(KAN-258 — 빠뜨리면 게이트가 라이브러리 맥락으로 덮는다)
       playGate.requestPlay(
         {
           contentId,
           isCountedToday: true,
           restartFromBeginning: true,
+          queue: usePlaybackStore.getState().queueContext,
           meta: session.meta.title
             ? {
                 title: session.meta.title,

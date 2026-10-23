@@ -18,17 +18,47 @@ const mockNavigation = {
 };
 let mockBlur: () => void;
 let mockContentId = 'content-1';
-const mockSession = {
+const mockRequestPlay = jest.fn();
+const mockOpenPaywall = jest.fn();
+interface MockSession {
+  contentId: string;
+  state: string;
+  isBuffering: boolean;
+  blocked: { kind: 'paywall' | 'paid_limit'; message: string | null } | null;
+  durationSec: number;
+  meta: {
+    title: string;
+    authorName: string | null;
+    sourceName: string | null;
+    thumbnailUrl: string | null;
+    topicIds: string[];
+  };
+}
+const mockSession: MockSession = {
   contentId: 'content-1',
   state: 'ready',
   isBuffering: false,
-  meta: { title: '테스트 콘텐츠' },
+  blocked: null,
+  durationSec: 600,
+  meta: {
+    title: '테스트 콘텐츠',
+    authorName: null,
+    sourceName: null,
+    thumbnailUrl: null,
+    topicIds: [],
+  },
+};
+const EXPLORE_CONTEXT = {
+  kind: 'explore' as const,
+  source: { type: 'search' as const, query: '커리어' },
+  items: [],
 };
 const mockPlaybackState: {
-  session: typeof mockSession | null;
+  session: MockSession | null;
   rate: number;
   isRateHydrated: boolean;
-} = { session: mockSession, rate: 1, isRateHydrated: true };
+  queueContext: { kind: 'library' } | typeof EXPLORE_CONTEXT;
+} = { session: mockSession, rate: 1, isRateHydrated: true, queueContext: { kind: 'library' } };
 
 jest.mock('@react-navigation/native', () => ({
   useNavigation: () => mockNavigation,
@@ -47,7 +77,9 @@ jest.mock('@/features/share', () => ({
     handleSheetDismiss: mockShareDismiss,
   }),
 }));
-jest.mock('./usePlayGate', () => ({ usePlayGate: () => ({}) }));
+jest.mock('./usePlayGate', () => ({
+  usePlayGate: () => ({ requestPlay: mockRequestPlay, openPaywall: mockOpenPaywall }),
+}));
 jest.mock('../store/playback.store', () => ({
   usePlaybackStore: Object.assign(
     (selector: (state: typeof mockPlaybackState) => unknown) => selector(mockPlaybackState),
@@ -76,6 +108,7 @@ beforeEach(() => {
   jest.clearAllMocks();
   mockContentId = 'content-1';
   mockPlaybackState.session = mockSession;
+  mockPlaybackState.queueContext = { kind: 'library' };
   act(() => {
     renderer = create(<Probe />);
   });
@@ -158,5 +191,51 @@ describe('세션 없음의 출구(KAN-257) — 열린 플레이어가 흰 화면
     mockPlaybackState.session = null;
     act(() => renderer.update(<Probe />));
     expect(mockGoBack).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('완료 상태 ▶ 다시 듣기는 재생 목록 맥락을 이어 간다(KAN-258)', () => {
+  const endWith = (queueContext: typeof mockPlaybackState.queueContext) => {
+    mockPlaybackState.session = { ...mockSession, state: 'ended' };
+    mockPlaybackState.queueContext = queueContext;
+    act(() => renderer.update(<Probe />));
+  };
+
+  it('탐색 맥락에서 끝까지 들은 편의 ▶는 그 맥락을 게이트에 넘긴다', () => {
+    endWith(EXPLORE_CONTEXT);
+    act(() => screen.handlePlayPausePress());
+    expect(mockRequestPlay).toHaveBeenCalledTimes(1);
+    expect(mockRequestPlay).toHaveBeenCalledWith(
+      expect.objectContaining({
+        contentId: 'content-1',
+        restartFromBeginning: true,
+        queue: EXPLORE_CONTEXT,
+      }),
+      'player',
+    );
+  });
+
+  it('라이브러리 맥락이면 라이브러리 맥락 그대로다', () => {
+    endWith({ kind: 'library' });
+    act(() => screen.handlePlayPausePress());
+    expect(mockRequestPlay).toHaveBeenCalledWith(
+      expect.objectContaining({ queue: { kind: 'library' } }),
+      'player',
+    );
+  });
+
+  it('플레이어에서 막혀 결제 안내로 갈 때 다시 틀 대상에 그 시점 맥락을 싣는다', () => {
+    mockPlaybackState.queueContext = EXPLORE_CONTEXT;
+    mockPlaybackState.session = {
+      ...mockSession,
+      state: 'blocked',
+      blocked: { kind: 'paywall', message: null },
+    };
+    act(() => renderer.update(<Probe />));
+    expect(mockOpenPaywall).toHaveBeenCalledWith('player', undefined, {
+      contentId: 'content-1',
+      isCountedToday: false,
+      queue: EXPLORE_CONTEXT,
+    });
   });
 });
