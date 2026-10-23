@@ -83,6 +83,12 @@ const SWIPE_OPEN_THRESHOLD = SWIPE_OPEN_DISTANCE / 2;
 const SWIPE_FULL_DISTANCE = 200;
 const SWIPE_DISMISS_DISTANCE = 480;
 const SWIPE_SETTLE_MS = 160;
+/**
+ * 삭제한 줄이 빠져나간 뒤 **줄 높이를 0 으로 접는다** — 아래 줄들이 한 번에 툭 올라오지 않고 같이 미끄러져 올라온다
+ * (PM 2026-10-23 "삭제됐을 때 아래 재생목록이 올라오는 애니메이션이 더 자연스러워야"). 애플 메일처럼 빠져나가기 → 접기 순서,
+ * 접기는 시작·끝이 부드러운 곡선으로
+ */
+const ROW_COLLAPSE_MS = 280;
 const THUMBNAIL_SIZE = 48;
 /** 행 높이는 고정이다 — 끌어 옮길 때 "몇 칸 움직였나"를 거리에서 바로 센다(썸네일 48 + 위아래 sm) */
 const ROW_HEIGHT = THUMBNAIL_SIZE + theme.spacing.sm * 2;
@@ -255,6 +261,9 @@ function QueueRow({
    * 손잡이(순서 변경)는 자기 영역에서 먼저 잡고, 세로 이동은 목록 스크롤에 둔다. 잡은 뒤에는 스크롤·시트 끌기에 내주지 않는다 ──
    */
   const swipeX = useAnimatedValue(0);
+  /** 줄 높이 — 삭제 때만 접힌다(ROW_COLLAPSE_MS). 평소엔 ROW_HEIGHT 고정이라 끌어 옮기기의 칸 계산이 그대로다 */
+  const rowHeight = useAnimatedValue(ROW_HEIGHT);
+  const [isCollapsing, setIsCollapsing] = useState(false);
   /** 열려 머문 쪽 — -1 삭제(왼쪽으로 밀림) · 1 담기 · 0 닫힘. 제스처는 이 자리에서 이어 민다 */
   const openSideRef = useRef<-1 | 0 | 1>(0);
   const [isSwipeOpen, setIsSwipeOpen] = useState(false);
@@ -287,7 +296,17 @@ function QueueRow({
     const runDelete = () => {
       const { onDelete: remove, item: target } = swipeLatest.current;
       setOpenSide(0);
-      animateTo(-SWIPE_DISMISS_DISTANCE, () => remove?.(target));
+      animateTo(-SWIPE_DISMISS_DISTANCE, () => {
+        // 빠져나간 자리를 접는다 — 다 접힌 뒤에 걷어야 걷히는 순간 아래 줄이 튀지 않는다
+        setIsCollapsing(true);
+        Animated.timing(rowHeight, {
+          toValue: 0,
+          duration: ROW_COLLAPSE_MS,
+          easing: motion.easing.easeInOut,
+          // 높이는 레이아웃 속성이라 네이티브 드라이버가 못 다룬다
+          useNativeDriver: false,
+        }).start(() => remove?.(target));
+      });
     };
     const runSave = () => {
       const { onSave: save, item: target } = swipeLatest.current;
@@ -303,7 +322,7 @@ function QueueRow({
       return x;
     };
     return { close, open, runDelete, runSave, positionOf };
-  }, [swipeX]);
+  }, [swipeX, rowHeight]);
   const swipeResponder = useMemo(
     () =>
       // eslint-disable-next-line react-hooks/refs -- 콜백은 렌더가 아니라 제스처 시점에 실행된다(표준 PanResponder 패턴)
@@ -365,7 +384,10 @@ function QueueRow({
         styles.rowWrap,
         isPressed && styles.rowWrapPressed,
         isDragging && styles.rowWrapDragging,
+        // 접는 동안만 잘라 낸다 — 평소에 자르면 끄는 줄의 그림자까지 잘린다
+        isCollapsing && styles.rowWrapCollapsing,
         {
+          height: rowHeight,
           transform: [
             { translateY: isDragging ? dragY : shiftY },
             // 끄는 줄은 살짝 커져 떠 있는 것으로 읽힌다
@@ -971,6 +993,9 @@ const styles = StyleSheet.create({
   // 누르는 동안만 — 불투명 면이 아니라 옅은 흰색이라 바탕의 커버 색이 비친다. 재생 중 줄은 아래 띠(rowCurrentBand)
   rowWrapPressed: {
     backgroundColor: 'rgba(255, 255, 255, 0.08)',
+  },
+  rowWrapCollapsing: {
+    overflow: 'hidden',
   },
   // 끄는 행은 다른 행 위로 뜬다 — 밝은 면 + 그림자. 면은 **불투명**이다: 빠르게 지나갈 때 비켜 주는 행이
   // 한 박자 늦어 잠깐 겹치는데, 반투명이면 밑의 글자가 비쳐 두 제목이 섞여 보인다
