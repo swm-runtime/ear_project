@@ -96,10 +96,10 @@
 - 파일: **마스터(wav)와 배포본을 모두 보관**한다 — 재처리는 항상 마스터에서, 배포본은 마스터에서 **한 번씩만** 인코딩한다(`tts/audio.ts` `encodeRenditions`).
   **배포본 (2026-10-06 음질 확정 — Light·Daily AAC 192k, Pro FLAC, KAN-141·142)**:
   `audio/dist.m4a` = AAC-LC 192k 스테레오, **`-movflags +faststart`**(moov 를 앞에 — 빼면 앞부분만 받아서는 재생이 시작되지 않는다) → 백엔드 `audio`(compressed) 칸 ·
-  `audio/lossless.flac` = FLAC 16bit/44.1kHz(압축 레벨 8, 디코드하면 마스터와 샘플까지 같다) → 백엔드 `audio_lossless` 칸. `aac` 칸에는 올리지 않는다(같은 AAC 를 두 칸에 둘 이유가 없다 —
+  `audio/lossless.flac` = FLAC 16bit/44.1kHz(압축 레벨 8, 디코드하면 마스터와 샘플까지 같다) **+ SEEKTABLE(1초 간격, metaflac)** → 백엔드 `audio_lossless` 칸. SEEKTABLE 은 필수다(2026-10-23 운영 장애): ffmpeg 의 FLAC 먹서는 SEEKTABLE 을 쓰지 않고, iOS 플레이어는 그게 없으면 HTTP 스트리밍 중 위치·길이를 평균 비트레이트로 어림해 자막 타임라인이 어긋나고 중간에 끝난다(Pro·iOS 전원, 2026-10-06 FLAC 전환 뒤 줄곧. Android 는 정확히 찾아가 문제 없음). 워커가 넣고 확인하며(`encodeLossless`), 없으면 TTS 가 실패한다. `aac` 칸에는 올리지 않는다(같은 AAC 를 두 칸에 둘 이유가 없다 —
   Light·Daily 는 상한이 aac 라 "허용·보유 중 최고" 규칙으로 compressed(AAC 192k)를 받는다). 18분 51초 기준 m4a 27.3MB · flac 43.8MB(WAV 199.6MB 의 22% — 목소리가 사실상 모노·16kHz 위가 비어 있어서).
   종전 `dist.mp3`(LAME 192k — 2026-09-22 128k→192k)는 더 만들지 않는다(샘플 합성만 mp3). 그 전 편의 `dist.mp3`는 남아 있고 발행 경로는 m4a 가 없을 때 mp3 를 쓴다.
-  TTS 없이 마스터에서 다시 만드는 것은 `npm run tts:encode -w apps/worker [-- --apply] [-- --ids …]`(기본 대상: 무손실 원본 마스터인데 배포본이 아직 m4a 가 아닌 편).
+  TTS 없이 마스터에서 다시 만드는 것은 `npm run tts:encode -w apps/worker [-- --apply] [-- --ids …]`(기본 대상: 무손실 원본 마스터인데 배포본이 아직 m4a 가 아닌 편). `-- --lossless-only [--apply]`는 무손실 FLAC 만 다시 만들어 올린다(2026-10-23 SEEKTABLE 백필 — dist.m4a·DB·runs 는 그대로. 앱 반영은 백엔드의 무손실 전용 재발행이 필요하다: 오디오를 보내는 재발행은 버전을 올려 재생 위치를 지운다).
   참고(2026-10-06 실측, 목소리 잔차): 서버 ffmpeg 기본 AAC 192k −37.0dB · LAME mp3 192k −47.0dB · AAC 256k −45.8dB — 청감 판정은 사람 블라인드로 했다.
 - **ElevenLabs 원본 포맷** (2026-10-06 Pro 전환, KAN-142): 무손실 44.1kHz 16bit 모노를 먼저 요청한다 — 일반 합성은 `pcm_44100`,
   타임스탬프 합성(화자별 배속 경로 — 사실상 전 편)은 `wav_44100`(base64 JSON 응답을 파일로 써서 ffprobe·강제 정렬에 바로 넘기므로 헤더 있는 wav).
@@ -192,4 +192,4 @@
 - Given 발행된 에피소드의 재처리 필요 / When 재처리한다 / Then 마스터 wav(원본 포맷 기준 — mp3 를 다시 디코드하지 않는다)에서 수행된다
 - Given 징글이 붙는 에피소드 / When 조립한다 / Then 마스터·배포본은 스테레오이고, 징글 구간은 업로드된 징글과 같은 소리(음량 처리 없음 — 원본×게인 대비 잔차 -40dB 이하)이며, 본편만 2패스 linear 로 정규화되고 인트로·아웃트로가 본편보다 크지 않다 (KAN-122)
 - Given ElevenLabs Pro 이상 플랜 / When TTS 를 실행한다 / Then run 결과의 `ElevenLabs 원본`이 무손실(`wav_44100`·`pcm_44100`) 하나뿐이다 — 앞 작업에서 강등됐어도 이번 작업은 무손실부터 시도한다 (KAN-142)
-- Given 새로 렌더한 에피소드 / When 배포본을 본다 / Then `dist.m4a`(AAC 192k, moov 가 mdat 앞)와 `lossless.flac`(디코드하면 마스터와 샘플까지 같다)이 마스터와 같은 길이로 있다 (KAN-142, 2026-10-06)
+- Given 새로 렌더한 에피소드 / When 배포본을 본다 / Then `dist.m4a`(AAC 192k, moov 가 mdat 앞)와 `lossless.flac`(디코드하면 마스터와 샘플까지 같다, SEEKTABLE 있음 — `metaflac --list --block-type=SEEKTABLE`)이 마스터와 같은 길이로 있다 (KAN-142, 2026-10-06 · SEEKTABLE 2026-10-23)

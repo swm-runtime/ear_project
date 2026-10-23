@@ -21,6 +21,18 @@ async function ffmpeg(args: string[]) {
     throw new Error(`ffmpeg 실패: ${(e.stderr || e.message || "").slice(0, 500)}`);
   }
 }
+/** metaflac(flac 패키지) — FLAC 메타데이터 블록 편집. ffmpeg 의 FLAC 먹서는 SEEKTABLE 을 쓰지 않아 따로 넣는다(아래 encodeRenditions) */
+async function metaflac(args: string[]): Promise<string> {
+  try { return (await run("metaflac", args)).stdout; }
+  catch (e: any) {
+    if (e.code === "ENOENT") throw new Error("metaflac 가 없습니다 — 서버 이미지는 flac 패키지(deploy/Dockerfile), 로컬은 brew install flac");
+    throw new Error(`metaflac 실패: ${(e.stderr || e.message || "").slice(0, 500)}`);
+  }
+}
+/** FLAC 에 SEEKTABLE 블록이 있는가 — iOS 플레이어는 이게 없으면 스트리밍 중 위치·길이를 평균 비트레이트로 어림한다(2026-10-23 장애) */
+export async function flacHasSeektable(file: string): Promise<boolean> {
+  return /SEEKTABLE/.test(await metaflac(["--list", "--block-type=SEEKTABLE", file]));
+}
 
 /**
  * 20ms RMS(dB) 궤적에서 "조용한 구간" 중 가장 긴 것 — 문턱은 창 안 최저값 + marginDb (절대 상한 capDb).
@@ -369,7 +381,9 @@ export interface AssembleInput {
  * 마스터 → 배포본 (2026-10-06 음질 확정, KAN-141·142): 마스터에서 **한 번씩만** 인코딩한다 — 압축본을 다시 압축하지 않는다.
  * - `.m4a` = AAC-LC 192k, `+faststart`(moov 를 앞에 — 앞부분만 받아도 재생이 시작된다. 빼면 moov 가 끝에 가서 첫 재생이 늦다)
  * - `.mp3` = LAME 192k (구 배포 형식 — 샘플·재조립 도구)
- * - `.flac` = 무손실(압축 레벨 8, 디코드하면 마스터와 샘플까지 같다)
+ * - `.flac` = 무손실(압축 레벨 8, 디코드하면 마스터와 샘플까지 같다) + **SEEKTABLE(1초 간격)**. ffmpeg 의 FLAC 먹서는 SEEKTABLE 을 쓰지 않는데,
+ *   iOS 플레이어(AVPlayer)는 그게 없으면 HTTP 스트리밍 중 위치·길이를 평균 비트레이트로 어림한다 — 대화 음성은 무음이 많아 비트레이트가 들쭉날쭉해
+ *   자막 타임라인이 어긋나고 끝을 잘못 계산해 중간에 끝난다(2026-10-23 운영 장애, Pro·iOS 전원. Android 는 정확히 찾아가 문제 없음). 2026-10-06 FLAC 전환 뒤 줄곧 그랬다.
  * 조립(assemble)과 TTS 없는 재인코딩(cli/encode.ts)이 같이 쓴다.
  */
 export async function encodeRenditions(masterFile: string, out: { distOut: string; losslessOut?: string }): Promise<void> {
@@ -377,7 +391,13 @@ export async function encodeRenditions(masterFile: string, out: { distOut: strin
   const codec = ext === ".m4a" ? ["-c:a", "aac", "-b:a", "192k", "-movflags", "+faststart"] : ext === ".mp3" ? ["-c:a", "libmp3lame", "-b:a", "192k"] : null;
   if (!codec) throw new Error(`배포본 확장자를 모름: ${out.distOut} (.m4a·.mp3)`);
   await ffmpeg(["-i", masterFile, ...codec, out.distOut]);
-  if (out.losslessOut) await ffmpeg(["-i", masterFile, "-c:a", "flac", "-compression_level", "8", out.losslessOut]);
+  if (out.losslessOut) await encodeLossless(masterFile, out.losslessOut);
+}
+/** 무손실 배포본만 — FLAC 인코딩 뒤 SEEKTABLE(1초 간격)을 넣고 확인한다. cli/encode.ts --lossless-only 가 기존 편의 무손실만 다시 만들 때도 쓴다 */
+export async function encodeLossless(masterFile: string, losslessOut: string): Promise<void> {
+  await ffmpeg(["-i", masterFile, "-c:a", "flac", "-compression_level", "8", losslessOut]);
+  await metaflac(["--add-seekpoint=1s", losslessOut]);
+  if (!(await flacHasSeektable(losslessOut))) throw new Error(`FLAC 에 SEEKTABLE 이 없음: ${losslessOut}`);
 }
 
 /** 본편 라우드니스 목표 (spec/06 7장) — 징글은 여기에 넣지 않는다. 모노로 잰 값이다: 양쪽 같은 스테레오로 바꾸면 BS.1770 측정이 +3dB 라

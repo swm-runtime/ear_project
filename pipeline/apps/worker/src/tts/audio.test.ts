@@ -1,6 +1,11 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { longestQuietRun, speechIslands, guardCutFromIslands, trailingBlip, pcmTrailingBlip } from "./audio.js";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
+import fs from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
+import { longestQuietRun, speechIslands, guardCutFromIslands, trailingBlip, pcmTrailingBlip, encodeRenditions, flacHasSeektable } from "./audio.js";
 
 test("조용한 구간 — 창 최저값 + 12dB 아래로 가장 긴 연속 구간, 짧으면 null", () => {
   // 말(−20) 10칸 · 쉼(−60~−58) 30칸 · 말(−22) 10칸 → 쉼 0.6초(20ms 홉)
@@ -78,4 +83,18 @@ test("덧말 검수 — PCM 끝 1.5초에 바로 적용한다", () => {
   const silence = (sec: number) => Buffer.alloc(Math.round(sec * rate) * 2);
   assert.ok(pcmTrailingBlip(Buffer.concat([tone(1.2), silence(0.25), tone(0.15)])));
   assert.equal(pcmTrailingBlip(Buffer.concat([tone(1.2), silence(0.25)])), null);
+});
+
+
+// 2026-10-23 운영 장애 — ffmpeg 가 만든 FLAC 에는 SEEKTABLE 이 없어 iOS 가 위치·길이를 어림했다. 배포본 FLAC 은 반드시 SEEKTABLE 을 갖는다
+const hasTools = async () => { try { await promisify(execFile)("ffmpeg", ["-version"]); await promisify(execFile)("metaflac", ["--version"]); return true; } catch { return false; } };
+test("무손실 배포본 FLAC 에 SEEKTABLE 이 들어간다 (ffmpeg·metaflac 없으면 건너뜀)", { skip: !(await hasTools()) && "ffmpeg 또는 metaflac 없음" }, async () => {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), "ear-flac-"));
+  try {
+    const master = path.join(dir, "master.wav");
+    await promisify(execFile)("ffmpeg", ["-hide_banner", "-loglevel", "error", "-y", "-f", "lavfi", "-i", "sine=frequency=440:duration=3", "-ar", "44100", "-ac", "2", "-c:a", "pcm_s16le", master]);
+    const dist = path.join(dir, "dist.m4a"), lossless = path.join(dir, "lossless.flac");
+    await encodeRenditions(master, { distOut: dist, losslessOut: lossless });
+    assert.equal(await flacHasSeektable(lossless), true);
+  } finally { await fs.rm(dir, { recursive: true, force: true }); }
 });
