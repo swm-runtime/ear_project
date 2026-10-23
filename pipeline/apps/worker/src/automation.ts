@@ -77,7 +77,7 @@ export async function startPublishPrepIfEnabled(episodeId: string, backlogId: st
   return id;
 }
 
-/** 글로벌판 발행 준비 자동 (2026-10-22, 글로벌 명세 6.10): 에이전트 판정이 발행 가능이고 필수 수정이 전부 fixed 인 qa_passed 편에 tts → thumbnail → package 를 건다. 한 편에 한 번(실패한 tts 작업만 있으면 다시) */
+/** 글로벌판 발행 준비 자동 (2026-10-22, 글로벌 명세 6.10): 에이전트 판정이 발행 가능이고 필수 수정이 전부 fixed 인 qa_passed 편에 tts → thumbnail → package 를 건다. 한 편에 한 번(실패한 tts 작업만 있으면 다시 — 단 30분 간격·자동 3회까지, db.ts listGlobalPrepCandidates. 2026-10-23 발음 누락 편이 12분에 51번 재시도·알림) */
 export function globalPrepBlockers(verdicts: unknown): string[] { return agentGateBlockers(verdicts); }
 let lastGlobalPrep = 0;
 export async function autoPublishPrepGlobal(): Promise<number> {
