@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { applyFixes, applyPronChanges, blindNotes, blindScript, blindSources, buildVerdict, checkpointUsable, editorTotal, fixMeta, inputHash, JUDGE_LOOP_VERSION, medianIndex, medianScores, mergePron, K, type Editor, type Korea, type RoundRec } from "./judge-loop.js";
+import { applyFixes, applyPronChanges, blindNotes, blindScript, blindSources, buildVerdict, checkpointUsable, editorTotal, fixMeta, inputHash, JUDGE_LOOP_VERSION, medianIndex, medianScores, mergePron, roundPublishable, K, type Editor, type Korea, type RoundRec } from "./judge-loop.js";
 
 const ed = (scores: number[], extra: Partial<Editor> = {}): Editor => ({ scores: Object.fromEntries(K.map((k, i) => [k, { score: scores[i] ?? 5, reason: `r${k}` }])), retell: "", findings: [], edits: [], publishable: false, publishable_reason: "", summary_ko: "요약", ...extra });
 const kr = (findings: Korea["findings"] = [], publishable = true): Korea => ({ findings, edits: [], other_changes: [], publishable, publishable_reason: publishable ? "ok" : "범위 변형", summary_ko: "한국어 요약" });
@@ -64,4 +64,11 @@ test("발음 사전 변경 적용 — after 쌍 덮어쓰기, before 에만 있�
   assert.deepEqual(r.resolved, ["E3"]);
   assert.deepEqual(applyPronChanges(pron, [{ file: "script.md", before: "a", after: "b", fixes: [0], reason: "" }], findings).resolved, []);
   assert.deepEqual(applyPronChanges(pron, undefined, findings).resolved, []);
+});
+
+test("0회차 재작성 생략 조건 — 기준 이상·한국어 가·must_fix 0 일 때만", () => {
+  assert.equal(roundPublishable({ total: 60, koreaPub: true, openMustFix: 0 }, 60), true);
+  assert.equal(roundPublishable({ total: 59, koreaPub: true, openMustFix: 0 }, 60), false);
+  assert.equal(roundPublishable({ total: 62, koreaPub: false, openMustFix: 0 }, 60), false);
+  assert.equal(roundPublishable({ total: 62, koreaPub: true, openMustFix: 1 }, 60), false);
 });
