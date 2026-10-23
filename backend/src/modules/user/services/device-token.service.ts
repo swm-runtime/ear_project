@@ -84,6 +84,14 @@ export class DeviceTokenService {
   }
 
   /** 푸시 발송 대상 기기(`notification.md` 4.2) — 판정은 notification 모듈이 하고 여기는 조회만 한다 */
+  /** 이 사용자의 이 기기 — 재생 URL 발급이 플랫폼·앱 버전으로 음질을 가른다(KAN-256). 무효화된 행도 기기 정보는 맞다 */
+  async findByUserIdAndDeviceId(
+    userId: string,
+    deviceId: string,
+  ): Promise<DeviceToken | null> {
+    return this.deviceTokenRepository.findByUserIdAndDeviceId(userId, deviceId);
+  }
+
   async findDeliverableByUserIds(
     userIds: string[],
     manager?: EntityManager,

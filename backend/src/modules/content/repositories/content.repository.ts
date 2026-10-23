@@ -3,12 +3,24 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { EntityManager, In, Repository, SelectQueryBuilder } from 'typeorm';
 
 import { escapeLikePattern } from '@/common/utils/search-text.util';
+import { vectorTransformer } from '@/common/utils/vector.transformer';
 
 import {
   CONTENT_SCOPE_CONDITION,
   contentScopeParameters,
 } from '../content.visibility';
 import {
+  EMBEDDING_MODEL_ID,
+  RELATED_CONTENT_MIN_SIMILARITY,
+  SEARCH_CORRECTION_CANDIDATE_LIMIT,
+  SEARCH_CORRECTION_MAX_LENGTH_DIFF,
+  SEARCH_CORRECTION_MIN_TERM_LENGTH,
+  SEARCH_CORRECTION_PARTICLE_PATTERN,
+  SEARCH_RRF_K,
+  SEARCH_SEMANTIC_MIN_SIMILARITY,
+  SEARCH_SEMANTIC_SCRIPT_MIN_SIMILARITY_WITH_TITLE,
+  SEARCH_SEMANTIC_TITLE_MIN_SIMILARITY,
+  SEARCH_SEMANTIC_TOP_K,
   SEARCH_WEIGHT_AUTHOR,
   SEARCH_WEIGHT_DESCRIPTION,
   SEARCH_WEIGHT_TAG,
@@ -20,18 +32,27 @@ import {
   ContentStatus,
   StatsPeriodType,
 } from '../content.enum';
+import { pickSearchCorrection } from '../content.search-correction';
 import {
   AdminContentPageQuery,
   ContentCandidateQuery,
   ExplorePageQuery,
+  HybridSearchPageQuery,
   PopularPageQuery,
+  RankedHybridContent,
   RankedContent,
   RankedPopularContent,
   RankedSearchContent,
+  RelatedContentQuery,
+  RrfSearchCursorPosition,
+  SearchCorrectionQuery,
+  SearchEngine,
   SearchPageQuery,
 } from '../content.types';
 import { Content } from '../entities/content.entity';
 import { LibraryItemStatus } from '@/modules/library/library.enum';
+import { COMPLETION_REACHED_RATIO } from '@/modules/library/library.constant';
+import { SERIES_HOLD_LISTENING_WINDOW_MS } from '../content.constant';
 import { UserMarket } from '@/modules/user/user.enum';
 
 /** 커서에 담기는 랭킹 값. `content_stats` 조인 결과이지 `contents`의 컬럼이 아니다 */
@@ -128,6 +149,16 @@ const SEARCH_TITLE_SIMILARITY_ALIAS = 'search_title_similarity';
 interface SearchRow extends RankingRow {
   [SEARCH_SCORE_ALIAS]: string | number;
   [SEARCH_TITLE_SIMILARITY_ALIAS]: string | number;
+}
+
+/** 하이브리드 검색의 한 줄(`findHybridSearchPage`) — pg 드라이버는 bigint·double을 문자열로 줄 수 있어 숫자로 다시 읽는다 */
+interface HybridSearchRow {
+  id: string;
+  rrf: string | number;
+  play_count: string | number;
+  matched_keyword: boolean;
+  matched_semantic: boolean;
+  keyword_total: string | number;
 }
 
 @Injectable()
@@ -704,6 +735,419 @@ export class ContentRepository {
   }
 
   /**
+   * 하이브리드 검색 한 페이지(KAN-238 — `explore.md` 4.5-5). 공통 필터(노출·시장·`topic_ids`) 뒤 두 엔진을 CTE로 돌려
+   * RRF(`Σ 1/(k + 엔진 내 순위)`)로 합친다.
+   *
+   * - `keyword` — 종전 부분 일치(제목 > 태그 > 저자 > 주제명 > 설명, 시리즈 제목은 스위치)와 **종전 정렬 키 그대로**
+   *   (가중 합 → 제목 유사도 → 직전 확정 월 재생 수 → 신선도 → id)의 `ROW_NUMBER`. 가중이 전부 양수라 "점수 > 0"이 곧
+   *   "어느 필드든 맞음"이다(`findSearchPage`의 OR 조건과 같은 집합).
+   * - `semantic` — 질의 벡터를 **제목 벡터**(`content_title_embeddings`)와 **대본 벡터**(`content_embeddings`) 둘에 견준다.
+   *   제목 코사인 ≥ `SEARCH_SEMANTIC_TITLE_MIN_SIMILARITY`(0.34)이거나 대본 코사인 ≥ 대본 하한이면 맞음이고, 대본 하한은 그 편에
+   *   유효한 제목 벡터가 있으면 `SEARCH_SEMANTIC_SCRIPT_MIN_SIMILARITY_WITH_TITLE`(0.45), 없으면 종전 `SEARCH_SEMANTIC_MIN_SIMILARITY`
+   *   (0.3)다 — 제목 벡터가 하나도 없는 동안(백필 전·생성 실패) 결과는 종전과 같다. 순서는 **하한을 넘은 폭**(`margin` — 두 벡터
+   *   중 큰 쪽)이고 상위 K. 짧은 질의 ↔ 대본 전문은 코사인이 0.2~0.3대에 몰려 소음이 됐다(2026-10-22 실측 — 상수 주석).
+   *   대본 벡터는 현행 모델이고 대본 버전이 일치하는 행만(domain.md 5.6 — 추천 스코어링과 같은 조건), 제목 벡터는 현행 모델이고
+   *   `source_text`가 지금 제목과 같은 행만이다. 질의 벡터가 없으면(결손) 빈 CTE다. ANN 인덱스 없이 전수 계산한다(수천 편 상한).
+   *
+   * **질의 벡터 없이 시작한 검색은 이 쿼리를 타지 않는다**(KAN-242) — Service가 종전 키워드 검색(`findSearchPage`)에 맡긴다.
+   * 여기서 벡터가 없는 경우는 첫 페이지가 의미 엔진을 썼는데 이번 페이지에서 결손난 커서 페이지뿐이다. 그때 의미 CTE는 비고
+   * RRF는 키워드 순위의 단조 함수다. 동점(두 엔진이 섞일 때만 생긴다)은 인기 → `published_at` → id.
+   *
+   * 키셋은 최종 정렬 키 넷 전부(`rrf`, 재생 수, `published_at`, id)다. **`rrf`는 행 자기 값이 아니라 매칭 집합 안의 순위에서
+   * 나온다** — 페이지 사이에 앞쪽에 편이 발행되면 같은 행의 순위가 밀려 `rrf`가 작아지므로 경계 행이 다시 나오고(중복), 지워지면
+   * 한 행을 건너뛸 수 있다(누락). 의미 엔진을 쓰는 검색에서는 이 미세 흔들림을 감수한다(explore-api.md 4.5). 종전 키워드 커서는
+   * 키가 전부 행 자기 값이라 이 흔들림이 없고, 그래서 벡터 없는 검색은 그쪽에 맡긴다.
+   *
+   * Raw SQL이다(architecture.md 3.4) — 공통 필터는 QueryBuilder로 만들어 같은 조각(`CONTENT_SCOPE_CONDITION`·주제 필터)을
+   * 그대로 쓰고, 그 위에 CTE를 얹는다. 엔티티는 고른 id로 한 번 더 읽는다(최대 `limit + 1`건).
+   */
+  async findHybridSearchPage(
+    query: HybridSearchPageQuery & { cursor: RrfSearchCursorPosition | null },
+    monthPeriodStart: string,
+    manager?: EntityManager,
+  ): Promise<{ items: RankedHybridContent[]; keywordMatched: boolean }> {
+    const score = query.matchSeriesTitle
+      ? SEARCH_SCORE_WITH_SERIES
+      : SEARCH_SCORE;
+    const base = this.applyVisibility(
+      this.scoped(manager)
+        .createQueryBuilder('content')
+        .select('content.id', 'id')
+        .addSelect('content.series_id', 'series_id')
+        .addSelect('content.published_at', 'published_at')
+        .addSelect('content.content_version', 'content_version')
+        .addSelect('content.title', 'title')
+        .addSelect(RANKING_PLAY_COUNT, 'play_count')
+        .addSelect(score, 'kw_score')
+        .addSelect(SEARCH_TITLE_SIMILARITY, 'kw_title_similarity')
+        .leftJoin(
+          'content_stats',
+          'stat',
+          `stat.content_id = content.id
+           AND stat.period_type = :monthPeriod
+           AND stat.period_start = :monthPeriodStart
+           AND stat.is_final = true`,
+          { monthPeriod: StatsPeriodType.MONTH, monthPeriodStart },
+        ),
+      query.now,
+      query.market,
+    ).setParameters({
+      searchQuery: query.normalizedQuery,
+      searchPattern: `%${escapeLikePattern(query.normalizedQuery)}%`,
+    });
+
+    if (query.topicIds.length > 0) {
+      this.applyTopicFilter(base, query.topicIds);
+    }
+
+    const [baseSql, baseParams] = base.getQueryAndParameters();
+    const params: unknown[] = [...(baseParams as unknown[])];
+    const param = (value: unknown): string => {
+      params.push(value);
+      return `$${params.length}`;
+    };
+
+    // 질의 벡터는 pgvector 텍스트 표현(`[0.1,...]`)으로 보내 `::vector`로 캐스팅한다 — 저장 경로(`vectorTransformer`)와 같은 표현
+    const semanticCte = query.queryVector
+      ? (() => {
+          const vector = param(vectorTransformer.to(query.queryVector));
+          const model = param(EMBEDDING_MODEL_ID);
+          return `SELECT scored.id,
+                         ROW_NUMBER() OVER (ORDER BY scored.margin DESC, scored.id DESC) AS rank
+                    FROM (
+                      SELECT matched.id,
+                             GREATEST(matched.title_similarity - ${SEARCH_SEMANTIC_TITLE_MIN_SIMILARITY},
+                                      matched.script_similarity - matched.script_min) AS margin
+                        FROM (
+                          SELECT base.id,
+                                 1 - (title_embedding.embedding <=> ${vector}::vector) AS title_similarity,
+                                 1 - (embedding.embedding <=> ${vector}::vector) AS script_similarity,
+                                 CASE WHEN title_embedding.id IS NULL THEN ${SEARCH_SEMANTIC_MIN_SIMILARITY}
+                                      ELSE ${SEARCH_SEMANTIC_SCRIPT_MIN_SIMILARITY_WITH_TITLE} END AS script_min
+                            FROM base
+                            LEFT JOIN content_embeddings embedding
+                              ON embedding.content_id = base.id
+                             AND embedding.model = ${model}
+                             AND embedding.content_version = base.content_version
+                            LEFT JOIN content_title_embeddings title_embedding
+                              ON title_embedding.content_id = base.id
+                             AND title_embedding.model = ${model}
+                             AND title_embedding.source_text = base.title
+                        ) matched
+                       WHERE matched.title_similarity >= ${SEARCH_SEMANTIC_TITLE_MIN_SIMILARITY}
+                          OR matched.script_similarity >= matched.script_min
+                    ) scored
+                   ORDER BY scored.margin DESC, scored.id DESC
+                   LIMIT ${SEARCH_SEMANTIC_TOP_K}`;
+        })()
+      : 'SELECT NULL::uuid AS id, NULL::bigint AS rank WHERE false';
+
+    const conditions: string[] = [];
+
+    if (query.seriesAnchorsOnly) {
+      conditions.push('(ranked.series_id IS NULL OR ranked.anchor_rank = 1)');
+    }
+
+    if (query.cursor) {
+      conditions.push(
+        `(ranked.rrf, ranked.play_count, ranked.published_at, ranked.id) < (${param(query.cursor.rrf)}::double precision, ${param(query.cursor.playCount)}::bigint, ${param(query.cursor.publishedAt)}::timestamptz, ${param(query.cursor.id)}::uuid)`,
+      );
+    }
+
+    const limit = param(query.limit + 1);
+    // 시리즈 카드는 시리즈를 대표한다 — 어느 엔진에서 왔는가도 접힌 편까지 합친다(꺼져 있으면 편 자기 값)
+    const seriesPartition = query.seriesAnchorsOnly
+      ? 'PARTITION BY COALESCE(fused.series_id, fused.id)'
+      : 'PARTITION BY fused.id';
+
+    const sql = `
+      WITH base AS (${baseSql}),
+      keyword AS (
+        SELECT base.id,
+               ROW_NUMBER() OVER (
+                 ORDER BY base.kw_score DESC, base.kw_title_similarity DESC, base.play_count DESC,
+                          base.published_at DESC, base.id DESC
+               ) AS rank
+          FROM base
+         WHERE base.kw_score > 0
+      ),
+      semantic AS (${semanticCte}),
+      fused AS (
+        SELECT base.id, base.series_id, base.published_at, base.play_count,
+               (COALESCE(1.0::double precision / (${SEARCH_RRF_K} + keyword.rank), 0)
+                + COALESCE(1.0::double precision / (${SEARCH_RRF_K} + semantic.rank), 0))::double precision AS rrf,
+               keyword.rank IS NOT NULL AS by_keyword,
+               semantic.rank IS NOT NULL AS by_semantic
+          FROM base
+          LEFT JOIN keyword ON keyword.id = base.id
+          LEFT JOIN semantic ON semantic.id = base.id
+         WHERE keyword.id IS NOT NULL OR semantic.id IS NOT NULL
+      ),
+      ranked AS (
+        SELECT fused.*,
+               ROW_NUMBER() OVER (
+                 PARTITION BY fused.series_id
+                 ORDER BY fused.rrf DESC, fused.play_count DESC, fused.published_at DESC, fused.id DESC
+               ) AS anchor_rank,
+               bool_or(fused.by_keyword) OVER (${seriesPartition}) AS matched_keyword,
+               bool_or(fused.by_semantic) OVER (${seriesPartition}) AS matched_semantic
+          FROM fused
+      )
+      SELECT ranked.id, ranked.rrf, ranked.play_count, ranked.matched_keyword, ranked.matched_semantic,
+             (SELECT count(*) FROM keyword)::int AS keyword_total
+        FROM ranked
+       ${conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : ''}
+       ORDER BY ranked.rrf DESC, ranked.play_count DESC, ranked.published_at DESC, ranked.id DESC
+       LIMIT ${limit}`;
+
+    const rows = await this.scoped(manager).manager.query<HybridSearchRow[]>(
+      sql,
+      params,
+    );
+
+    // 행이 없으면 키워드도 0건이다 — 키워드가 하나라도 맞으면 `fused`가 비지 않고, 대표 편 접기는 시리즈마다 하나를 남긴다
+    // (커서 페이지의 빈 응답은 목록의 끝이라 교정 판정에 쓰지 않는다)
+    if (rows.length === 0) {
+      return { items: [], keywordMatched: false };
+    }
+
+    const contents = await this.scoped(manager).findBy({
+      id: In(rows.map((row) => row.id)),
+    });
+    const contentById = new Map(
+      contents.map((content) => [content.id, content]),
+    );
+
+    const items = rows.flatMap((row): RankedHybridContent[] => {
+      const content = contentById.get(row.id);
+
+      // 두 읽기 사이에 지워진 행(CASCADE)은 건너뛴다 — 정상 경로에서는 생기지 않는다
+      if (!content) {
+        return [];
+      }
+
+      const matchedBy: SearchEngine[] = [];
+      if (row.matched_keyword) matchedBy.push('keyword');
+      if (row.matched_semantic) matchedBy.push('semantic');
+
+      return [
+        {
+          content,
+          position: {
+            order: 'rrf',
+            rrf: Number(row.rrf),
+            playCount: Number(row.play_count),
+            publishedAt: content.publishedAt,
+            id: content.id,
+          },
+          matchedBy,
+        },
+      ];
+    });
+
+    return { items, keywordMatched: Number(rows[0].keyword_total) > 0 };
+  }
+
+  /**
+   * 노출·시장 조건을 지난 단건 — 없으면 `null`. 회수·만료·다른 시장을 **없음과 구분하지 않는다**(관련 콘텐츠의 기준 편 판정 —
+   * `player-api.md` 4.8). 목록과 같은 `CONTENT_SCOPE_CONDITION`이라 "목록에 보이는 편이면 기준 편이 된다"가 성립한다
+   */
+  async findVisibleById(
+    id: string,
+    now: Date,
+    market: UserMarket,
+    manager?: EntityManager,
+  ): Promise<Content | null> {
+    return this.applyVisibility(
+      this.scoped(manager).createQueryBuilder('content'),
+      now,
+      market,
+    )
+      .andWhere('content.id = :id', { id })
+      .getOne();
+  }
+
+  /**
+   * 관련 콘텐츠(KAN-240 — `player-api.md` 4.8): 기준 편과 **대본 임베딩이 비슷한 편**을 코사인 유사도 내림차순으로.
+   *
+   * - 기준 벡터는 DB의 기준 편 행이다(AI 서버를 부르지 않는다) — `content_embeddings`를 기준 편으로 한 번, 후보로 한 번 읽는
+   *   셀프 조인. 기준 편 행도 **현행 모델 AND `content_version` 일치**여야 한다 — 재발행 후 미갱신 벡터는 없는 것과 같다.
+   *   기준 벡터가 없으면 CROSS JOIN이 비어 결과가 0건이다(200 `items: []`).
+   * - 후보는 목록과 같은 노출·시장 조건(`CONTENT_SCOPE_CONDITION` — 발행·라이선스·시장. 회수·만료는 `published`가 아니다),
+   *   기준 편·`excludeIds` 제외, 후보 벡터도 현행 모델·버전 일치(검색 의미 엔진·추천 스코어링과 같은 조건 — domain.md 5.6).
+   * - 유사도(`1 - (e <=> base)`)가 하한(`RELATED_CONTENT_MIN_SIMILARITY`) **이하면 뺀다.** 동률은 id 내림차순(결정적 순서).
+   * - 시리즈 대표 편 접기를 하지 않는다 — 편 단위 목록이다. ANN 없이 전수 계산(수천 편 상한 — domain.md 5.6).
+   *
+   * Raw SQL이다(architecture.md 3.4) — 후보 필터는 QueryBuilder로 만들어 같은 조각을 쓰고 그 위에 코사인을 얹는다.
+   * 엔티티는 고른 id로 한 번 더 읽어 순서대로 돌려준다(최대 `limit`건).
+   */
+  async findRelated(
+    query: RelatedContentQuery,
+    manager?: EntityManager,
+  ): Promise<Content[]> {
+    const candidates = this.applyVisibility(
+      this.scoped(manager)
+        .createQueryBuilder('content')
+        .select('content.id', 'id')
+        .addSelect('content.content_version', 'content_version'),
+      query.now,
+      query.market,
+    ).andWhere('content.id <> :baseContentId', {
+      baseContentId: query.baseContentId,
+    });
+
+    if (query.excludeIds.length > 0) {
+      candidates.andWhere('content.id NOT IN (:...excludeIds)', {
+        excludeIds: query.excludeIds,
+      });
+    }
+
+    const [candidateSql, candidateParams] = candidates.getQueryAndParameters();
+    const params: unknown[] = [...(candidateParams as unknown[])];
+    const param = (value: unknown): string => {
+      params.push(value);
+      return `$${params.length}`;
+    };
+
+    const baseId = param(query.baseContentId);
+    const model = param(EMBEDDING_MODEL_ID);
+    const limit = param(query.limit);
+
+    const sql = `
+      WITH candidate AS (${candidateSql}),
+      base_embedding AS (
+        SELECT embedding.embedding
+          FROM content_embeddings embedding
+          JOIN contents base_content
+            ON base_content.id = embedding.content_id
+           AND base_content.content_version = embedding.content_version
+         WHERE embedding.content_id = ${baseId}::uuid
+           AND embedding.model = ${model}
+      )
+      SELECT candidate.id
+        FROM candidate
+        JOIN content_embeddings embedding
+          ON embedding.content_id = candidate.id
+         AND embedding.model = ${model}
+         AND embedding.content_version = candidate.content_version
+       CROSS JOIN base_embedding
+       WHERE 1 - (embedding.embedding <=> base_embedding.embedding) > ${RELATED_CONTENT_MIN_SIMILARITY}
+       ORDER BY embedding.embedding <=> base_embedding.embedding, candidate.id DESC
+       LIMIT ${limit}`;
+
+    const rows = await this.scoped(manager).manager.query<{ id: string }[]>(
+      sql,
+      params,
+    );
+
+    if (rows.length === 0) {
+      return [];
+    }
+
+    const contents = await this.scoped(manager).findBy({
+      id: In(rows.map((row) => row.id)),
+    });
+    const contentById = new Map(
+      contents.map((content) => [content.id, content]),
+    );
+
+    // 두 읽기 사이에 지워진 행(CASCADE)은 건너뛴다 — 정상 경로에서는 생기지 않는다
+    return rows.flatMap((row) => {
+      const content = contentById.get(row.id);
+      return content ? [content] : [];
+    });
+  }
+
+  /**
+   * 오타 교정어 하나(KAN-238 — `explore.md` 4.5-5). 어휘 = 사용자 시장 발행 콘텐츠의 태그 항목 ∪ 주제명(노출 주제) ∪
+   * 시리즈 제목(스위치) ∪ 제목 토큰(공백·문장부호로 나누고 끝 조사를 뗀 것, 2자 이상). 원문과 같은 말은 교정어가 아니다.
+   *
+   * 두 단계다. ① SQL — 글자 수가 질의 ±1 안(길이 가드)이고 자모 트라이그램 `similarity`(대칭)가 0보다 큰 어휘를
+   * 유사도순 상한 개수만 ② `pickSearchCorrection` — 자모 편집 유사도로 재채점해 하한 이상 최댓값 하나, 동점은
+   * 태그·주제명 → 빈도 → 길이 차이 → 코드포인트순. 트라이그램만으로는 "겅제"에 대해 경제·거의·정제가 같은 점수라
+   * (자모 다섯 자에 트라이그램이 몇 개 안 된다) 편집 거리로 가른다 — 종전 `word_similarity`(비대칭)는 "거의"를 골랐다.
+   *
+   * 자모 컬럼·인덱스 없이 **질의 시 전수 비교**다 — 어휘는 수백 편 규모라 함수 호출 몇천 번이다(domain.md 5.1).
+   * 어휘가 수만 항목으로 커지면 `search_terms` 머티리얼라이즈드 뷰 + trgm 인덱스를 그때 본다.
+   */
+  async findSearchCorrection(
+    query: SearchCorrectionQuery,
+    manager?: EntityManager,
+  ): Promise<string | null> {
+    const visible = this.applyVisibility(
+      this.scoped(manager)
+        .createQueryBuilder('content')
+        .select('content.id', 'id')
+        .addSelect('content.title', 'title')
+        .addSelect('content.tags', 'tags')
+        .addSelect('content.series_id', 'series_id'),
+      query.now,
+      query.market,
+    );
+    const [visibleSql, visibleParams] = visible.getQueryAndParameters();
+    const params: unknown[] = [...(visibleParams as unknown[])];
+    const param = (value: unknown): string => {
+      params.push(value);
+      return `$${params.length}`;
+    };
+    const q = param(query.normalizedQuery);
+    const particle = param(SEARCH_CORRECTION_PARTICLE_PATTERN);
+    // 우선순위 0 = 태그·주제명, 1 = 시리즈 제목·제목 토큰
+    const seriesTerms = query.includeSeriesTitles
+      ? `UNION ALL
+         SELECT lower(matched_series.title), 1
+           FROM visible JOIN series matched_series ON matched_series.id = visible.series_id`
+      : '';
+
+    const sql = `
+      WITH visible AS (${visibleSql}),
+      terms(term, priority) AS (
+        SELECT lower(tag.value), 0
+          FROM visible, jsonb_array_elements_text(visible.tags) AS tag(value)
+        UNION ALL
+        SELECT lower(topic.name), 0
+          FROM visible
+          JOIN content_topics linked ON linked.content_id = visible.id
+          JOIN topics topic ON topic.id = linked.topic_id AND topic.is_visible = true
+        ${seriesTerms}
+        UNION ALL
+        SELECT regexp_replace(token.value, ${particle}, '\\1'), 1
+          FROM visible,
+               regexp_split_to_table(lower(visible.title), '[[:space:][:punct:]·…‘’“”「」『』]+') AS token(value)
+      ),
+      candidates AS (
+        SELECT term, min(priority) AS priority, count(*) AS frequency
+          FROM terms
+         WHERE char_length(term) >= ${SEARCH_CORRECTION_MIN_TERM_LENGTH}
+           AND abs(char_length(term) - char_length(${q})) <= ${SEARCH_CORRECTION_MAX_LENGTH_DIFF}
+           AND term <> ${q}
+         GROUP BY term
+      )
+      SELECT term, priority, frequency
+        FROM (
+          SELECT term, priority, frequency,
+                 similarity(hangul_to_jamo(${q}), hangul_to_jamo(term)) AS similarity
+            FROM candidates
+        ) scored
+       WHERE similarity > 0
+       ORDER BY similarity DESC, priority ASC, frequency DESC, term ASC
+       LIMIT ${SEARCH_CORRECTION_CANDIDATE_LIMIT}`;
+
+    const rows = await this.scoped(manager).manager.query<
+      { term: string; priority: number; frequency: string | number }[]
+    >(sql, params);
+
+    return pickSearchCorrection(
+      query.normalizedQuery,
+      rows.map((row) => ({
+        term: row.term,
+        priority: Number(row.priority),
+        frequency: Number(row.frequency),
+      })),
+    );
+  }
+
+  /**
    * 관리자 콘텐츠 목록(admin.md 5장) — 상태를 가리지 않고 최신순. 운영 화면이라 offset을
    * 허용한다(convention.md 5.3).
    */
@@ -735,7 +1179,14 @@ export class ContentRepository {
    * 노출 중인 편이 있는지·그 편을 이미 받았는지"를 알 수 없다. 노출 조건은 후보 조회와 같다(시장 포함).
    *
    * 사용자 상태는 후보 필터(`excludeSeenByUserId`)와 같은 원천을 원시 SQL로 본다 — `received`는 라이브러리에 한 번이라도
-   * 들어온 적(소프트 삭제분 포함), `held`는 지금 라이브러리에 있고(삭제 안 됨) 완청 전, `excluded`는 드립 영구 제외.
+   * 들어온 적(소프트 삭제분 포함), `held`는 지금 라이브러리에 있고(삭제 안 됨) 완청 전 **또는 담지 않고 듣던 중**(아래), `excluded`는
+   * 드립 영구 제외.
+   *
+   * **담지 않고 듣던 편도 `held`다**(2026-10-23 — 탐색 재생 자동 적립 폐기). 종전에는 탐색에서 1화를 듣다 나가도 자동 적립 행이
+   * 다음 편을 기다리게 했는데, 행이 없어지자 다음 배치가 2화를 바로 줬다. 위치 > 0 · 완청 아님(위치·라이브러리·완청 신호 —
+   * `COMPLETED_CONTENT_IDS_CTE`와 같은 정의) · 라이브러리에서 지운 적 없음 · **최근 `SERIES_HOLD_LISTENING_WINDOW_MS` 안에
+   * 들었음**. 기간을 두는 이유: 라이브러리 행은 지워서 기다림을 풀 수 있지만 담지 않은 편은 풀 수단이 없다 — 듣다 그만둔
+   * 편이 그 시리즈를 영영 막지 않게 한다.
    */
   async findVisibleSeriesEpisodesForUser(
     seriesIds: string[],
@@ -773,11 +1224,30 @@ export class ContentRepository {
         'received',
       )
       .addSelect(
-        `EXISTS (
+        `(EXISTS (
            SELECT 1 FROM library_items held
            WHERE held.content_id = content.id AND held.user_id = :seriesUserId
              AND held.deleted_at IS NULL AND held.status <> :completedStatus
-         )`,
+         ) OR (
+           EXISTS (
+             SELECT 1 FROM playback_progresses listening
+             WHERE listening.content_id = content.id AND listening.user_id = :seriesUserId
+               AND listening.position_sec > 0
+               AND listening.updated_at > :listeningSince
+               AND NOT (content.duration_sec > 0
+                        AND listening.max_reached_sec >= content.duration_sec * CAST(:completionRatio AS numeric))
+           )
+           AND NOT EXISTS (
+             SELECT 1 FROM library_items done
+             WHERE done.content_id = content.id AND done.user_id = :seriesUserId
+               AND (done.status = :completedStatus OR done.deleted_at IS NOT NULL)
+           )
+           AND NOT EXISTS (
+             SELECT 1 FROM user_signals finished
+             WHERE finished.content_id = content.id AND finished.user_id = :seriesUserId
+               AND finished.action = 'complete'
+           )
+         ))`,
         'held',
       )
       .addSelect(
@@ -791,6 +1261,11 @@ export class ContentRepository {
       .andWhere('content.episode_no IS NOT NULL')
       .setParameter('seriesUserId', userId)
       .setParameter('completedStatus', LibraryItemStatus.COMPLETED)
+      .setParameter('completionRatio', COMPLETION_REACHED_RATIO)
+      .setParameter(
+        'listeningSince',
+        new Date(now.getTime() - SERIES_HOLD_LISTENING_WINDOW_MS),
+      )
       .orderBy('content.series_id', 'ASC')
       .addOrderBy('content.episode_no', 'ASC')
       .getRawMany<{

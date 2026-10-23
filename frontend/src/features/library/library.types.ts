@@ -95,7 +95,11 @@ export interface ResumeContent {
 
 /** 미니플레이어 복원 대상(library-api.md 4.3). 항상 일시정지 상태로 표시만 한다 */
 export interface ResumeTarget {
-  id: string;
+  /**
+   * 라이브러리 항목 id — **담지 않고 듣던 편이면 null**(library-api.md 4.3, BE #1938 — 탐색 재생 자동 적립 폐기 뒤 그런 편도 복원
+   * 대상이다). 숨김·삭제 대조는 이 값이 아니라 `content.id` 로 한다(null 끼리 겹치지 않게 — KAN-249)
+   */
+  id: string | null;
   status: LibraryItemStatus;
   lastPlayedAt: string | null;
   isCountedToday: boolean;

@@ -49,6 +49,49 @@ const SOURCES_BY_SOURCE_FILTER: Record<
   ],
 };
 
+/**
+ * **사용자가 완청한 편** — 라이브러리와 무관한 사용자×편의 사실이다(KAN-248). 탐색 재생은 행을 만들지 않으므로
+ * (`explore.md` 4.4) 라이브러리 `completed` 행만으로는 탐색에서 끝까지 들은 편이 빠진다. 둘의 합집합으로 본다.
+ * - 라이브러리 `completed` 행(삭제분 포함 — 들었다는 사실은 목록에서 지운다고 없어지지 않는다. 길이를 몰라
+ *   재생 종료로 완료한 폴백 `library-api.md` 4.5 도 여기로 들어온다)
+ * - 재생 위치의 최대 도달이 기준 이상(`playback_progresses.max_reached_sec` ≥ 길이 × 기준, 길이 > 0 — 재생 위치
+ *   저장의 판정과 같다). 오디오를 바꾸는 재발행은 위치를 지우므로 새 오디오를 다시 들어야 완청이다
+ *
+ * - **완청 신호(`user_signals.action = 'complete'`)가 남은 편** — 위치는 덮어써지고(다른 기기가 앞부분을 이어 들으면 최대 도달이
+ *   내려간다 — 마지막 쓰기가 이긴다, domain.md 6.2) 오디오 재발행이 지운다. 한 번 완청한 사실은 그래도 남아야 한다(2026-10-23
+ *   검증 — 라이브러리 행이 있는 사용자는 `completed`가 남는데 행이 없는 사용자만 풀렸다). 신호는 180일 보존이다
+ * 자리표시자: `$1` = user_id · `$2` = `completed` · `$3` = 기준 비율. `completed(content_id)`를 만든다.
+ */
+const COMPLETED_CONTENT_IDS_CTE = `completed AS (
+  SELECT item.content_id
+    FROM library_items item
+   WHERE item.user_id = $1 AND item.status = $2
+  UNION
+  SELECT progress.content_id
+    FROM playback_progresses progress
+    JOIN contents content ON content.id = progress.content_id
+   WHERE progress.user_id = $1
+     AND content.duration_sec > 0
+     AND progress.max_reached_sec >= content.duration_sec * $3::numeric
+  UNION
+  SELECT signal.content_id
+    FROM user_signals signal
+   WHERE signal.user_id = $1 AND signal.action = 'complete'
+)`;
+
+/** 일괄 정리용 — 살아 있는 행 중 위치 행 없이 완청 신호만 남은 미완청 행(`$1` = `completed`). 별칭 `item` */
+const SIGNAL_ONLY_COMPLETED_CONDITION = `item.deleted_at IS NULL
+  AND item.status <> $1
+  AND NOT EXISTS (
+    SELECT 1 FROM playback_progresses progress
+     WHERE progress.user_id = item.user_id AND progress.content_id = item.content_id
+  )
+  AND EXISTS (
+    SELECT 1 FROM user_signals signal
+     WHERE signal.user_id = item.user_id AND signal.content_id = item.content_id
+       AND signal.action = 'complete'
+  )`;
+
 @Injectable()
 export class LibraryItemRepository {
   constructor(
@@ -389,21 +432,19 @@ export class LibraryItemRepository {
    */
   async findCompletedSeriesMaxEpisodes(
     userId: string,
+    ratio: number,
     manager?: EntityManager,
   ): Promise<Map<string, number>> {
-    const rows = await this.scoped(manager)
-      .createQueryBuilder('item')
-      .withDeleted()
-      .innerJoin('item.content', 'content')
-      .select('content.series_id', 'series_id')
-      .addSelect('MAX(content.episode_no)', 'max_episode_no')
-      .where('item.user_id = :userId', { userId })
-      .andWhere('item.status = :status', {
-        status: LibraryItemStatus.COMPLETED,
-      })
-      .andWhere('content.series_id IS NOT NULL')
-      .groupBy('content.series_id')
-      .getRawMany<{ series_id: string; max_episode_no: number | null }>();
+    const rows: { series_id: string; max_episode_no: number | null }[] =
+      await this.scoped(manager).query(
+        `WITH ${COMPLETED_CONTENT_IDS_CTE}
+         SELECT content.series_id, MAX(content.episode_no) AS max_episode_no
+           FROM completed
+           JOIN contents content ON content.id = completed.content_id
+          WHERE content.series_id IS NOT NULL
+          GROUP BY content.series_id`,
+        [userId, LibraryItemStatus.COMPLETED, ratio],
+      );
 
     return new Map(
       rows
@@ -423,19 +464,39 @@ export class LibraryItemRepository {
    */
   async countCompletedContentsByUserId(
     userId: string,
+    ratio: number,
     manager?: EntityManager,
   ): Promise<number> {
-    const row = await this.scoped(manager)
-      .createQueryBuilder('item')
-      .withDeleted()
-      .select('COUNT(DISTINCT item.content_id)', 'total')
-      .where('item.user_id = :userId', { userId })
-      .andWhere('item.status = :status', {
-        status: LibraryItemStatus.COMPLETED,
-      })
-      .getRawOne<{ total: string }>();
+    const rows: { total: string }[] = await this.scoped(manager).query(
+      `WITH ${COMPLETED_CONTENT_IDS_CTE}
+       SELECT COUNT(*) AS total FROM completed`,
+      [userId, LibraryItemStatus.COMPLETED, ratio],
+    );
 
-    return Number(row?.total ?? 0);
+    return Number(rows[0]?.total ?? 0);
+  }
+
+  /**
+   * 주어진 편 중 이 사용자가 완청한 편의 `content_id` — 탐색·시리즈·상세 응답의 `is_completed`, `replay` 신호 자격.
+   * 완청의 정의는 `COMPLETED_CONTENT_IDS_CTE`를 본다.
+   */
+  async findCompletedContentIds(
+    userId: string,
+    contentIds: string[],
+    ratio: number,
+    manager?: EntityManager,
+  ): Promise<string[]> {
+    if (contentIds.length === 0) {
+      return [];
+    }
+
+    const rows: { content_id: string }[] = await this.scoped(manager).query(
+      `WITH ${COMPLETED_CONTENT_IDS_CTE}
+       SELECT content_id FROM completed WHERE content_id = ANY($4::uuid[])`,
+      [userId, LibraryItemStatus.COMPLETED, ratio, contentIds],
+    );
+
+    return rows.map((row) => row.content_id);
   }
 
   async deleteByUserId(userId: string, manager?: EntityManager): Promise<void> {
@@ -695,44 +756,93 @@ export class LibraryItemRepository {
   }
 
   /**
-   * 미니플레이어 복원 대상 1건(`library-api.md` 4.3) — 이어 들을 위치가 남아 있는 것 중
-   * 가장 최근에 들은 항목.
+   * 미니플레이어 복원 대상 1건(`library-api.md` 4.3) — 이어 들을 위치가 남아 있는 편 중 가장 최근에 들은 것.
    *
-   * **"위치가 남아 있다"를 `EXISTS`로 본다.** 종전에는 사용자의 시작한 `content_id`를 전부
-   * 읽어 `IN` 목록으로 넘겼는데, 그 목록은 청취 이력만큼 자라고 **앱을 켤 때마다** 만들어진다.
-   * 여기서 필요한 것은 존재 여부 하나이고, `uq_playback_progresses_user_id_content_id`가
-   * 그 검사를 인덱스로 받는다.
+   * **원천은 재생 위치(`playback_progresses`)다**(개정 2026-10-23 — 탐색 재생 자동 적립 폐기). 탐색 재생은 라이브러리
+   * 행을 만들지 않으므로(`explore.md` 4.4) 종전처럼 라이브러리 행에서 고르면 탐색에서만 듣던 편이 영영 복원되지 않는다
+   * (FR-24). 라이브러리 행은 있으면 붙인다 — 응답의 `id`·`status`가 그 행의 값이고, 없으면 `itemId`가 null이다.
+   *
+   * - 위치 > 0 · 노출 중(발행·만료·시장) · **완청 아님**(`COMPLETED_CONTENT_IDS_CTE`와 같은 정의 — 라이브러리
+   *   `completed` 행도, 위치가 기준을 넘은 편도 뺀다)
+   * - **라이브러리에서 지운 편은 대상이 아니다** — 지운 것을 이어들 자리는 없다(`library.md` 4.2). "지운 뒤 다시 들었으면
+   *   대상"으로 두었다가(#1938) 되돌렸다: 지운 뒤에도 재생이 이어지거나 백그라운드 전환의 진행 저장이 한 번 나가면 위치
+   *   갱신 시각이 삭제 시각을 넘어, 지운 편이 다음 실행 때 미니플레이어로 돌아왔다(2026-10-23 검증)
+   * - 최근 = `GREATEST(위치 갱신 시각, 라이브러리 last_played_at)` — 라이브러리에서 연 재생은 시작 시각이, 탐색 재생은
+   *   위치 저장 시각이 남는다
    */
-  async findLatestResumable(
+  async findLatestResumableTarget(
     userId: string,
     now: Date,
     market: UserMarket,
+    ratio: number,
     manager?: EntityManager,
-  ): Promise<LibraryItem | null> {
-    return this.scoped(manager)
-      .createQueryBuilder('item')
-      .innerJoinAndSelect(
-        'item.content',
+  ): Promise<{
+    contentId: string;
+    itemId: string | null;
+    lastPlayedAt: Date;
+  } | null> {
+    const row = await this.scoped(manager)
+      .manager.createQueryBuilder()
+      .select('progress.content_id', 'content_id')
+      .addSelect(
+        'CASE WHEN item.deleted_at IS NULL THEN item.id END',
+        'item_id',
+      )
+      .addSelect(
+        'GREATEST(progress.updated_at, COALESCE(item.last_played_at, progress.updated_at))',
+        'last_played_at',
+      )
+      .from('playback_progresses', 'progress')
+      .innerJoin(
+        'contents',
         'content',
-        CONTENT_SCOPE_CONDITION,
+        `content.id = progress.content_id AND ${CONTENT_SCOPE_CONDITION}`,
         contentScopeParameters(now, market),
       )
-      .where('item.user_id = :userId', { userId })
+      .leftJoin(
+        'library_items',
+        'item',
+        'item.user_id = progress.user_id AND item.content_id = progress.content_id',
+      )
+      .where('progress.user_id = :userId', { userId })
+      .andWhere('progress.position_sec > 0')
       .andWhere(
-        `EXISTS (
-           SELECT 1 FROM playback_progresses progress
-           WHERE progress.content_id = item.content_id
-             AND progress.user_id = item.user_id
-             AND progress.position_sec > 0
+        // 지운 행은 직접 본다 — 위 leftJoin 은 엔티티의 소프트 삭제 조건이 붙어 지운 행을 "행 없음"으로 보이게 한다
+        `NOT EXISTS (
+           SELECT 1 FROM library_items removed
+            WHERE removed.user_id = progress.user_id
+              AND removed.content_id = progress.content_id
+              AND removed.deleted_at IS NOT NULL
          )`,
       )
-      .andWhere('item.status != :completed', {
+      .andWhere('(item.status IS NULL OR item.status != :completed)', {
         completed: LibraryItemStatus.COMPLETED,
       })
-      .andWhere('item.last_played_at IS NOT NULL')
-      .orderBy('item.last_played_at', 'DESC')
+      .andWhere(
+        `NOT (content.duration_sec > 0 AND progress.max_reached_sec >= content.duration_sec * CAST(:ratio AS numeric))
+         AND NOT EXISTS (
+           SELECT 1 FROM user_signals signal
+            WHERE signal.user_id = progress.user_id
+              AND signal.content_id = progress.content_id
+              AND signal.action = 'complete'
+         )`,
+        { ratio },
+      )
+      .orderBy('last_played_at', 'DESC')
       .limit(1)
-      .getOne();
+      .getRawOne<{
+        content_id: string;
+        item_id: string | null;
+        last_played_at: Date;
+      }>();
+
+    return row
+      ? {
+          contentId: row.content_id,
+          itemId: row.item_id,
+          lastPlayedAt: new Date(row.last_played_at),
+        }
+      : null;
   }
 
   async findByIdAndUserId(
@@ -819,6 +929,49 @@ export class LibraryItemRepository {
     });
   }
 
+  /**
+   * 한 시리즈 편들의 살아 있는 내 항목 — 시리즈째 빼기(KAN-245)의 대상. 노출·시장을 가리지 않는다: 만료·다른 시장으로 숨은
+   * 편이 남아 있어도 "시리즈째 뺐다"면 함께 빠져야 한다(회수된 편은 회수 반영이 이미 지웠다).
+   */
+  async findAllActiveByUserIdAndSeriesId(
+    userId: string,
+    seriesId: string,
+    manager?: EntityManager,
+  ): Promise<LibraryItem[]> {
+    return this.scoped(manager)
+      .createQueryBuilder('item')
+      .innerJoin('item.content', 'content')
+      .where('item.user_id = :userId', { userId })
+      .andWhere('content.series_id = :seriesId', { seriesId })
+      .orderBy('content.episode_no', 'ASC')
+      .addOrderBy('item.id', 'ASC')
+      .getMany();
+  }
+
+  /**
+   * 시리즈 빼기 실행 취소(KAN-245)의 대상 — 넘긴 id 중 **내 항목이면서 그 시리즈 편인 것만**(삭제분 포함, 콘텐츠와 함께).
+   * 남의 항목·다른 시리즈 편은 결과에 없다(호출부는 조용히 무시한다).
+   */
+  async findAllByUserIdAndSeriesIdAndIdsWithDeleted(
+    userId: string,
+    seriesId: string,
+    ids: string[],
+    manager?: EntityManager,
+  ): Promise<LibraryItem[]> {
+    if (ids.length === 0) {
+      return [];
+    }
+
+    return this.scoped(manager)
+      .createQueryBuilder('item')
+      .withDeleted()
+      .innerJoinAndSelect('item.content', 'content')
+      .where('item.user_id = :userId', { userId })
+      .andWhere('content.series_id = :seriesId', { seriesId })
+      .andWhere('item.id IN (:...ids)', { ids })
+      .getMany();
+  }
+
   async save(item: LibraryItem, manager?: EntityManager): Promise<LibraryItem> {
     return this.scoped(manager).save(item);
   }
@@ -846,6 +999,225 @@ export class LibraryItemRepository {
     );
 
     return (result.affected ?? 0) > 0;
+  }
+
+  /**
+   * 라이브러리 행의 상태를 **재생 위치에 맞춘다**(KAN-248 · 2026-10-23). 탐색 재생은 행을 만들지 않으므로(`explore.md` 4.4)
+   * 듣고 나서 담는 것이 평소 경로다 — 행은 `unplayed`로 생기는데 이미 들은 편이다. 담기·적립·복구가 끝난 행에 부른다.
+   *
+   * - 최대 도달 ≥ 길이 × `ratio`(길이 > 0 — 재생 위치 저장의 판정과 같다) → `completed`. `completed_at`은 위치 갱신 시각
+   *   (행이 없던 때의 완청 시각은 따로 남지 않는다 — 가장 가까운 값)
+   * - 그 밖에 위치 > 0이고 `unplayed` → `in_progress`(진행 바 — `library.md` 4.3 상태 표)
+   * - `last_played_at`이 비어 있으면 위치 갱신 시각으로 채운다(미니플레이어 복원 순서 — `library-api.md` 4.3)
+   * - `completed`는 내리지 않는다. 신호는 쌓지 않는다 — 완청 신호는 완청 때 이미 남았다(`player-api.md` 4.3)
+   *
+   * @returns 이번에 바뀐 행의 `content_id`·새 상태·시각
+   */
+  async syncStatusWithProgress(
+    userId: string,
+    contentIds: string[],
+    ratio: number,
+    manager?: EntityManager,
+  ): Promise<
+    {
+      contentId: string;
+      status: LibraryItemStatus;
+      completedAt: Date | null;
+      lastPlayedAt: Date | null;
+    }[]
+  > {
+    if (contentIds.length === 0) {
+      return [];
+    }
+
+    const rows: unknown = await this.scoped(manager).query(
+      `UPDATE library_items item
+          SET status = CASE WHEN reached.done THEN $3 ELSE $4 END,
+              completed_at = CASE WHEN reached.done THEN progress.updated_at ELSE item.completed_at END,
+              last_played_at = COALESCE(item.last_played_at, progress.updated_at)
+         FROM playback_progresses progress
+         JOIN contents content ON content.id = progress.content_id
+        CROSS JOIN LATERAL (
+          SELECT (content.duration_sec > 0
+             AND progress.max_reached_sec >= content.duration_sec * $6::numeric)
+             OR EXISTS (
+               SELECT 1 FROM user_signals signal
+                WHERE signal.user_id = progress.user_id
+                  AND signal.content_id = progress.content_id
+                  AND signal.action = 'complete'
+             ) AS done
+        ) reached
+        WHERE item.user_id = $1
+          AND item.content_id = ANY($2::uuid[])
+          AND item.status <> $3
+          AND progress.user_id = item.user_id
+          AND progress.content_id = item.content_id
+          AND (reached.done OR (item.status = $5 AND progress.position_sec > 0))
+        RETURNING item.content_id, item.status, item.completed_at, item.last_played_at`,
+      [
+        userId,
+        contentIds,
+        LibraryItemStatus.COMPLETED,
+        LibraryItemStatus.IN_PROGRESS,
+        LibraryItemStatus.UNPLAYED,
+        ratio,
+      ],
+    );
+
+    // pg 드라이버의 UPDATE … RETURNING 은 [행 목록, affected] 로 온다
+    const returned = (
+      Array.isArray(rows) && Array.isArray(rows[0]) ? rows[0] : rows
+    ) as {
+      content_id: string;
+      status: LibraryItemStatus;
+      completed_at: Date | null;
+      last_played_at: Date | null;
+    }[];
+
+    /*
+     * 위치 행이 없어도 **완청 신호가 있으면 완청**이다(오디오 재발행이 위치를 지운 편 — `COMPLETED_CONTENT_IDS_CTE`와 같은 정의).
+     * 위 갱신은 위치 행과의 조인이라 이 경우를 보지 못한다 — 담긴 행이 `unplayed`로 남아 탐색 `is_completed`와 엇갈리고, 그 행이
+     * 드립 시리즈의 다음 편을 막았다(2026-10-23 검증). `completed_at`은 첫 완청 신호 시각이다
+     */
+    const signalRows: unknown = await this.scoped(manager).query(
+      `UPDATE library_items item
+          SET status = $3,
+              completed_at = done.first_at,
+              last_played_at = COALESCE(item.last_played_at, done.first_at)
+         FROM (
+           SELECT signal.content_id, MIN(signal.created_at) AS first_at
+             FROM user_signals signal
+            WHERE signal.user_id = $1
+              AND signal.content_id = ANY($2::uuid[])
+              AND signal.action = 'complete'
+            GROUP BY signal.content_id
+         ) done
+        WHERE item.user_id = $1
+          AND item.content_id = done.content_id
+          AND item.status <> $3
+        RETURNING item.content_id, item.status, item.completed_at, item.last_played_at`,
+      [userId, contentIds, LibraryItemStatus.COMPLETED],
+    );
+    const signalReturned = (
+      Array.isArray(signalRows) && Array.isArray(signalRows[0])
+        ? signalRows[0]
+        : signalRows
+    ) as typeof returned;
+
+    return [...returned, ...signalReturned].map((row) => ({
+      contentId: row.content_id,
+      status: row.status,
+      completedAt: row.completed_at ? new Date(row.completed_at) : null,
+      lastPlayedAt: row.last_played_at ? new Date(row.last_played_at) : null,
+    }));
+  }
+
+  /**
+   * 전 사용자의 **살아 있는 행** 중 재생 위치와 어긋난 행을 맞춘다 — `syncStatusWithProgress`와 같은 규칙의 일괄판(1회성 정리
+   * 스크립트 `sync-library-status` 전용, 2026-10-23). 탐색 재생 자동 적립 시절의 행은 `unplayed`로 생긴 뒤 라이브러리에서 다시
+   * 틀지 않으면 그대로였다(진행 바 없음). `dryRun`이면 바꾸지 않고 바뀔 수만 센다.
+   */
+  async syncAllStatusWithProgress(
+    ratio: number,
+    dryRun: boolean,
+    manager?: EntityManager,
+  ): Promise<{ toCompleted: number; toInProgress: number }> {
+    // $1 completed · $2 in_progress · $3 unplayed · $4 기준 비율 — 갱신·세기가 같은 조건을 쓴다
+    const params = [
+      LibraryItemStatus.COMPLETED,
+      LibraryItemStatus.IN_PROGRESS,
+      LibraryItemStatus.UNPLAYED,
+      ratio,
+    ];
+    const reached = `CROSS JOIN LATERAL (
+       SELECT (content.duration_sec > 0
+          AND progress.max_reached_sec >= content.duration_sec * $4::numeric)
+          OR EXISTS (
+            SELECT 1 FROM user_signals signal
+             WHERE signal.user_id = progress.user_id
+               AND signal.content_id = progress.content_id
+               AND signal.action = 'complete'
+          ) AS done
+     ) reached`;
+    const outOfSync = `item.deleted_at IS NULL
+       AND item.status <> $1
+       AND (reached.done OR (item.status = $3 AND progress.position_sec > 0))`;
+
+    if (dryRun) {
+      const rows: { to_completed: string; to_in_progress: string }[] =
+        await this.scoped(manager).query(
+          `SELECT count(*) FILTER (WHERE reached.done) AS to_completed,
+                  count(*) FILTER (WHERE NOT reached.done) AS to_in_progress
+             FROM library_items item
+             JOIN playback_progresses progress
+               ON progress.user_id = item.user_id AND progress.content_id = item.content_id
+             JOIN contents content ON content.id = item.content_id
+             ${reached}
+            WHERE ${outOfSync} AND $2::varchar IS NOT NULL`, // $2 는 갱신에만 쓰인다 — 자리표시자를 같게 두려고 형만 맞춘다
+          params,
+        );
+
+      const [signalOnly]: { count: string }[] = await this.scoped(
+        manager,
+      ).query(
+        `SELECT count(*) AS count FROM library_items item
+          WHERE ${SIGNAL_ONLY_COMPLETED_CONDITION}`,
+        [LibraryItemStatus.COMPLETED],
+      );
+
+      return {
+        toCompleted:
+          Number(rows[0]?.to_completed ?? 0) + Number(signalOnly?.count ?? 0),
+        toInProgress: Number(rows[0]?.to_in_progress ?? 0),
+      };
+    }
+
+    const result: unknown = await this.scoped(manager).query(
+      `UPDATE library_items item
+          SET status = CASE WHEN reached.done THEN $1 ELSE $2 END,
+              completed_at = CASE WHEN reached.done THEN progress.updated_at ELSE item.completed_at END,
+              last_played_at = COALESCE(item.last_played_at, progress.updated_at)
+         FROM playback_progresses progress
+         JOIN contents content ON content.id = progress.content_id
+         ${reached}
+        WHERE progress.user_id = item.user_id
+          AND progress.content_id = item.content_id
+          AND ${outOfSync}
+        RETURNING item.status`,
+      params,
+    );
+    const returned = (
+      Array.isArray(result) && Array.isArray(result[0]) ? result[0] : result
+    ) as { status: LibraryItemStatus }[];
+    // 위치 행 없이 완청 신호만 남은 편(재발행이 위치를 지움) — `syncStatusWithProgress`의 두 번째 갱신과 같다
+    const signalResult: unknown = await this.scoped(manager).query(
+      `UPDATE library_items item
+          SET status = $1,
+              completed_at = (SELECT MIN(signal.created_at) FROM user_signals signal
+                               WHERE signal.user_id = item.user_id AND signal.content_id = item.content_id
+                                 AND signal.action = 'complete'),
+              last_played_at = COALESCE(item.last_played_at,
+                (SELECT MIN(signal.created_at) FROM user_signals signal
+                  WHERE signal.user_id = item.user_id AND signal.content_id = item.content_id
+                    AND signal.action = 'complete'))
+        WHERE ${SIGNAL_ONLY_COMPLETED_CONDITION}
+        RETURNING item.status`,
+      [LibraryItemStatus.COMPLETED],
+    );
+    returned.push(
+      ...((Array.isArray(signalResult) && Array.isArray(signalResult[0])
+        ? signalResult[0]
+        : signalResult) as { status: LibraryItemStatus }[]),
+    );
+
+    return {
+      toCompleted: returned.filter(
+        (row) => row.status === LibraryItemStatus.COMPLETED,
+      ).length,
+      toInProgress: returned.filter(
+        (row) => row.status === LibraryItemStatus.IN_PROGRESS,
+      ).length,
+    };
   }
 
   /** 살아 있는 행만 지운다 — affected로 이번 요청이 지웠는지 판정한다(`reactivateById`와 같은 이유) */

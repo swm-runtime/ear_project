@@ -69,3 +69,180 @@ export function parseSearchQuery(raw: string): ParsedSearchQuery {
 export function hasSearchableCharacter(value: string): boolean {
   return /[\p{L}\p{N}]/u.test(value);
 }
+
+const HANGUL_SYLLABLE_START = 0xac00;
+const HANGUL_SYLLABLE_END = 0xd7a3;
+const JUNGSEONG_COUNT = 21;
+const JONGSEONG_COUNT = 28;
+
+/* 겹모음·겹받침은 **치는 순서대로** 푼다 — "과"는 "고" 다음에, "닭"은 "달" 다음에 나온다 */
+const CHOSEONG = [
+  'ㄱ',
+  'ㄲ',
+  'ㄴ',
+  'ㄷ',
+  'ㄸ',
+  'ㄹ',
+  'ㅁ',
+  'ㅂ',
+  'ㅃ',
+  'ㅅ',
+  'ㅆ',
+  'ㅇ',
+  'ㅈ',
+  'ㅉ',
+  'ㅊ',
+  'ㅋ',
+  'ㅌ',
+  'ㅍ',
+  'ㅎ',
+];
+const JUNGSEONG = [
+  'ㅏ',
+  'ㅐ',
+  'ㅑ',
+  'ㅒ',
+  'ㅓ',
+  'ㅔ',
+  'ㅕ',
+  'ㅖ',
+  'ㅗ',
+  'ㅗㅏ',
+  'ㅗㅐ',
+  'ㅗㅣ',
+  'ㅛ',
+  'ㅜ',
+  'ㅜㅓ',
+  'ㅜㅔ',
+  'ㅜㅣ',
+  'ㅠ',
+  'ㅡ',
+  'ㅡㅣ',
+  'ㅣ',
+];
+const JONGSEONG = [
+  '',
+  'ㄱ',
+  'ㄲ',
+  'ㄱㅅ',
+  'ㄴ',
+  'ㄴㅈ',
+  'ㄴㅎ',
+  'ㄷ',
+  'ㄹ',
+  'ㄹㄱ',
+  'ㄹㅁ',
+  'ㄹㅂ',
+  'ㄹㅅ',
+  'ㄹㅌ',
+  'ㄹㅍ',
+  'ㄹㅎ',
+  'ㅁ',
+  'ㅂ',
+  'ㅂㅅ',
+  'ㅅ',
+  'ㅆ',
+  'ㅇ',
+  'ㅈ',
+  'ㅊ',
+  'ㅋ',
+  'ㅌ',
+  'ㅍ',
+  'ㅎ',
+];
+/** 음절로 묶이지 않고 홀로 온 겹자모(조합 중인 "ㅘ"·"ㄳ")도 같은 방식으로 푼다 */
+const COMPOUND_JAMO: Record<string, string> = {
+  ㅘ: 'ㅗㅏ',
+  ㅙ: 'ㅗㅐ',
+  ㅚ: 'ㅗㅣ',
+  ㅝ: 'ㅜㅓ',
+  ㅞ: 'ㅜㅔ',
+  ㅟ: 'ㅜㅣ',
+  ㅢ: 'ㅡㅣ',
+  ㄳ: 'ㄱㅅ',
+  ㄵ: 'ㄴㅈ',
+  ㄶ: 'ㄴㅎ',
+  ㄺ: 'ㄹㄱ',
+  ㄻ: 'ㄹㅁ',
+  ㄼ: 'ㄹㅂ',
+  ㄽ: 'ㄹㅅ',
+  ㄾ: 'ㄹㅌ',
+  ㄿ: 'ㄹㅍ',
+  ㅀ: 'ㄹㅎ',
+  ㅄ: 'ㅂㅅ',
+};
+
+/**
+ * 한글 음절을 호환 자모 열로 푼다. 한글이 아닌 글자는 그대로 둔다 — 질의는 이미 NFC다(`explore.md` 4.5-5).
+ *
+ * 검색 질의 로그의 타이핑 묶음 판정(`isSameTyping` — domain.md 5.7)과 교정어 재채점(`jamoEditSimilarity`)이 쓴다.
+ * **교정어 후보를 거르는 자모 트라이그램은 이 함수가 아니라 SQL 함수 `hangul_to_jamo`(domain.md 5.1)가 푼다** — 질의·어휘
+ * 양쪽을 DB 한 곳에서 풀어 매칭이 갈라지지 않게 한다.
+ * 두 구현의 규칙(겹모음·겹받침을 치는 순서대로, 홀로 온 겹자모도 풂)은 같아야 하고, 그 동치는
+ * `test/search-similar-fallback.e2e-spec.ts`가 실제 DB 위에서 대조한다.
+ */
+export function toJamo(text: string): string {
+  let jamo = '';
+
+  for (const char of text) {
+    const code = char.codePointAt(0)!;
+
+    if (code < HANGUL_SYLLABLE_START || code > HANGUL_SYLLABLE_END) {
+      jamo += COMPOUND_JAMO[char] ?? char;
+      continue;
+    }
+
+    const offset = code - HANGUL_SYLLABLE_START;
+    jamo +=
+      CHOSEONG[Math.floor(offset / (JUNGSEONG_COUNT * JONGSEONG_COUNT))] +
+      JUNGSEONG[Math.floor(offset / JONGSEONG_COUNT) % JUNGSEONG_COUNT] +
+      JONGSEONG[offset % JONGSEONG_COUNT];
+  }
+
+  return jamo;
+}
+
+/**
+ * 두 문자열의 편집 거리(Levenshtein — 한 글자 넣기·빼기·바꾸기를 1로 센다). 코드포인트 단위다.
+ *
+ * 검색 교정어 재채점(`jamoEditSimilarity`)이 자모열에 쓴다. DB에 `fuzzystrmatch`가 없어(확장을 늘리지 않는다)
+ * 애플리케이션에서 잰다 — 교정어 후보는 SQL이 수십 개로 줄여 넘기고 말은 몇 글자라 비용이 없다.
+ */
+export function editDistance(a: string, b: string): number {
+  const left = Array.from(a);
+  const right = Array.from(b);
+  let previous = Array.from({ length: right.length + 1 }, (_, index) => index);
+
+  for (let i = 1; i <= left.length; i += 1) {
+    const current = [i];
+    for (let j = 1; j <= right.length; j += 1) {
+      current[j] = Math.min(
+        previous[j] + 1,
+        current[j - 1] + 1,
+        previous[j - 1] + (left[i - 1] === right[j - 1] ? 0 : 1),
+      );
+    }
+    previous = current;
+  }
+
+  return previous[right.length];
+}
+
+/**
+ * 자모 편집 유사도 — `1 − 자모 편집 거리 / 긴 쪽 자모 수`(0~1, 대칭). 검색 교정어 선택의 점수다(`explore.md` 4.5-5).
+ *
+ * 트라이그램 유사도는 다섯 자 안팎의 자모열에서 **틀린 자모 수를 구분하지 못한다** — "겅제"(ㄱㅓㅇㅈㅔ)에 대해
+ * "경제"(자모 하나 차이)·"거의"·"정제"(둘 차이)가 `similarity` 0.333으로 같다. 편집 거리는 0.8 대 0.6으로 가른다.
+ * 자모 분해는 `toJamo`다 — SQL `hangul_to_jamo`와 같은 규칙이고 동치는 e2e가 실제 DB에서 대조한다.
+ */
+export function jamoEditSimilarity(a: string, b: string): number {
+  const left = toJamo(a);
+  const right = toJamo(b);
+  const longest = Math.max(Array.from(left).length, Array.from(right).length);
+
+  if (longest === 0) {
+    return 1;
+  }
+
+  return 1 - editDistance(left, right) / longest;
+}

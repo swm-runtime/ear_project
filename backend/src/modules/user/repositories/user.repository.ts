@@ -3,7 +3,8 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { EntityManager, In, IsNull, Repository } from 'typeorm';
 
 import { User } from '../entities/user.entity';
-import { SocialProvider, UserMarket, UserRole } from '../user.enum';
+import { SocialProvider, UserMarket, UserRole, UserStatus } from '../user.enum';
+import { UserPlanProfile } from '../user.types';
 
 @Injectable()
 export class UserRepository {
@@ -69,8 +70,9 @@ export class UserRepository {
    * `audit_logs.actor`가 실행할 때마다 갈린다.
    */
   /**
-   * 이메일로 사용자 한 명 — 역할 무관. 편성 미리보기(admin 콘솔 "추천 검증")가 대상 사용자를 고르는
-   * 조회다. `email`은 유니크가 아니라 `findAdminByEmail`과 같은 이유로 정렬을 고정한다.
+   * 이메일로 사용자 한 명 — 역할 무관. 추천 테스트(개발계, `RECOMMEND_TEST_EMAIL`)가 테스트 계정을 찾는 조회다.
+   * 편성 미리보기는 2026-10-22부터 `findPlanProfileById`(가명 `user_id`)를 쓴다.
+   * `email`은 유니크가 아니라 `findAdminByEmail`과 같은 이유로 정렬을 고정한다.
    */
   async findByEmail(email: string): Promise<User | null> {
     return this.repository
@@ -102,6 +104,25 @@ export class UserRepository {
     return this.repository.find({
       select: { id: true, market: true },
       where: { id: In(ids) },
+    });
+  }
+
+  /**
+   * 편성 미리보기(admin, 2026-10-22) — 가명 `user_id`로 편성 계산·화면에 쓰는 열만 읽는다. 역할 무관, 탈퇴(`status ≠ active`)는 null.
+   * **이메일·닉네임·제공자 ID·프로필 사진·직함 열은 SELECT 하지 않는다** — 열람 화면에 신원·연락처가 필요 없다(루트 CLAUDE.md
+   * 개인정보 원칙). 추천 검증(`RecommendInspectorRepository.findProfile`)과 같은 기준이다.
+   */
+  async findPlanProfileById(id: string): Promise<UserPlanProfile | null> {
+    return this.repository.findOne({
+      select: {
+        id: true,
+        tier: true,
+        market: true,
+        jobCategory: true,
+        yearsOfExperience: true,
+        onboardingCompleted: true,
+      },
+      where: { id, status: UserStatus.ACTIVE },
     });
   }
 

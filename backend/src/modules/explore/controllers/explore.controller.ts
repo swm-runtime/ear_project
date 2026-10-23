@@ -104,6 +104,7 @@ export class ExploreController {
           topicIds: query.topic_ids ?? [],
           cursor: query.cursor ?? null,
           limit: query.limit ?? DEFAULT_EXPLORE_PAGE_SIZE,
+          exact: query.exact ?? false,
         },
         new Date(),
         toUserMarket(currentUser.market),

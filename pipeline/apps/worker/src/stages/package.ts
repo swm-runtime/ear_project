@@ -10,6 +10,7 @@ import { log } from "../util.js";
 import { countWords, WORDS_PER_MIN_EN } from "../script-length.js";
 import { parseScriptForTts } from "../tts/script.js";
 import { agentGateBlockers } from "./agent-gate.js";
+import { recentTitlesEn, writeTitleEn, type TitleResult } from "./package-title.js";
 
 /** topics.explainer 가 비었을 때의 해설 — 한국판은 종전 그대로 이음, 글로벌판은 역할 고정이라 첫째 진행자(글로벌 명세 6.4) */
 const defaultExplainer = (): string => (pipelineLocale() === "en" ? speakerNames()[0] : "이음");
@@ -17,7 +18,7 @@ const defaultExplainer = (): string => (pipelineLocale() === "en" ? speakerNames
 /**
  * 패키지 단계 (spec/07 2장) — 발행 메타 upload-meta.json 산출 + 상태 packaged(사람 검수 대기) 전환.
  * 발행 준비 연쇄(tts → thumbnail → package)의 마지막 — 사람의 [발행 준비] 또는 비평 뒤 자동(automation.ts, 2026-09-23).
- * 제목·설명은 초안일 뿐 — 확정은 게이트 2 검수자가 한다.
+ * 제목·설명은 초안일 뿐 — 확정은 게이트 2 검수자가 한다. 글로벌판은 게이트 2 가 자동이라 제목을 여기서 짓는다(package-title.ts, 2026-10-23) — 주제("Why …")를 그대로 쓰지 않는다.
  * 추천 메타(enrich)는 여기서 자동으로 걸지 않는다(2026-09-23 개정) — 발행하지 않을 편까지 뽑는 낭비를 막기 위해 업로드 화면의 [추천 메타 뽑기]로 사람이 건다.
  * payload.enrich === true 일 때만 이어서 건다 (구 경로 호환).
  */
@@ -69,10 +70,22 @@ export async function runPackage(job: Job) {
       : Math.round(md.replace(/[^가-힣A-Za-z0-9]/g, "").length / 341);
   }
 
+  // 글로벌판 제목 — 확정 대본과 최근 제목 10개로 따로 짓는다(글로벌 명세 6.9, 2026-10-23). 한국판은 종전대로 주제 제목안(게이트 2 에서 사람이 확정)
+  let titleEn: TitleResult | null = null;
+  if (pipelineLocale() === "en") {
+    const scriptLocal = localPathOf(ep.script_key);
+    const scriptMd = scriptLocal && (await exists(scriptLocal)) ? await fs.readFile(scriptLocal, "utf-8") : null;
+    if (!scriptMd) throw new Error(`대본이 없어 제목을 지을 수 없음 (${ep.script_key ?? "script_key 없음"})`);
+    const recent = await recentTitlesEn(episodeId);
+    titleEn = await writeTitleEn({ episodeId, topicTitle: cand.title, midTopic: cand.mid_topic, oneLiner: (r.one_liner as string | null) ?? null, scriptMd, recentTitles: recent });
+    log(`  package ${episodeId}: 제목 "${titleEn.title}" (${titleEn.form}${titleEn.attempts > 1 ? ", 2차" : ""}${titleEn.violations.length ? `, 위반 남음: ${titleEn.violations.join("; ")}` : ""}) ← 주제 "${cand.title}"`);
+    await fs.writeFile(path.join(cfg.workRoot, rel, "title.json"), JSON.stringify({ title: titleEn.title, form: titleEn.form, alternatives: titleEn.alternatives, why: titleEn.why, topic_title: cand.title, recent_titles: recent, violations: titleEn.violations, prompt_version: titleEn.promptVersion, model: titleEn.model, at: new Date().toISOString() }, null, 2) + "\n", "utf-8");
+  }
+
   const meta = {
     episode_id: episodeId,
     backlog_id: backlogId,
-    title: cand.title,                       // 초안 — 게이트 2 검수에서 확정 (클릭베이트 금지)
+    title: titleEn?.title ?? cand.title,     // 한국판: 초안 — 게이트 2 검수에서 확정 (클릭베이트 금지) · 글로벌판: 위에서 지은 제목
     // 설명 첫 줄은 한 줄 요약(KAN-50 3-1) — 축 해설(summary)은 백로그의 기획 언어라 청취자에게 그대로 보이기엔 딱딱하다.
     // 요약이 없는 구 에피소드는 종전대로 축 해설만 들어간다
     description: [r.one_liner, r.summary].filter((v) => typeof v === "string" && v.trim()).join("\n\n"),
@@ -107,8 +120,9 @@ export async function runPackage(job: Job) {
   log(`  package ${episodeId}: upload-meta.json → ${metaKey}${r.status === "qa_passed" ? " · 상태 packaged(게이트 2 대기)" : ""}`);
   await insertRun({
     backlog_id: backlogId, phase: "package",
-    result: `패키지 완료 — 제목·설명 초안, 소스 ${meta.sources.length}건, 분량 ${durationMin ?? "?"}분, 오디오 ${r.audio_dist_key ? "있음" : "없음(TTS 전)"}, 썸네일 ${r.thumbnail_key ? "있음" : "없음"} · 게이트 2 검수 대기`,
-    prompt_version: "package-v1 (worker)", artifacts: [metaKey], executed_by: executedBy, worker_rev: workerRev(),
+    result: `패키지 완료 — ${titleEn ? `제목 "${titleEn.title}"(${titleEn.form}${titleEn.violations.length ? `, 규칙 위반 남음: ${titleEn.violations.join("; ")}` : ""}) · ` : "제목·설명 초안, "}소스 ${meta.sources.length}건, 분량 ${durationMin ?? "?"}분, 오디오 ${r.audio_dist_key ? "있음" : "없음(TTS 전)"}, 썸네일 ${r.thumbnail_key ? "있음" : "없음"} · 게이트 2 검수 대기`,
+    prompt_version: titleEn ? `package-v2 (worker) · ${titleEn.promptVersion}` : "package-v1 (worker)", artifacts: [metaKey, ...(titleEn ? [s3Key(`${rel}/title.json`)] : [])], executed_by: executedBy, worker_rev: workerRev(),
+    model: titleEn?.model ?? null, cost_usd: titleEn ? titleEn.costUsd : null,
   });
   // 추천 메타는 요청이 있을 때만 (2026-09-23 개정 — 기본은 업로드 화면에서 사람이 건다, metadata-pipeline 2장)
   const enrichJobId = job.payload.enrich !== true ? null : await enqueue({ type: "enrich", requires_ai: true, payload: { episode_id: episodeId, backlog_id: backlogId }, parent_job_id: job.id }).catch((e) => { log(`  package ${episodeId}: enrich 작업 생성 실패 (${String(e?.message ?? e).slice(0, 80)})`); return null; });

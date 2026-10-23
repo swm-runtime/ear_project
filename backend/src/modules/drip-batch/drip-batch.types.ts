@@ -15,6 +15,7 @@ import {
   ScoringCandidate,
   UserPreferenceWeights,
 } from '@/modules/drip/drip.types';
+import { User } from '@/modules/user/entities/user.entity';
 
 /**
  * 사용자 한 명의 편성 **계산 결과** — 적립(쓰기) 전 단계다.
@@ -84,6 +85,16 @@ export interface UserDripPlan {
   /** 탐험 계산이 던진 경우 — 정규 편성은 영향받지 않는다(4.8) */
   discoveryError: string | null;
 }
+
+/**
+ * 편성 계산(`planForUser`)이 읽는 사용자 필드 — 이것뿐이다. 배치는 `User` 엔티티를 그대로 넘기고, 추천 검증 콘솔
+ * (`RecommendInspectorService`)은 **이메일·닉네임을 조회하지 않고** 이 필드만 골라 읽은 값을 넘긴다(개인정보 최소 조회).
+ * 계산이 다른 필드를 읽게 되면 여기 더해야 컴파일된다 — 콘솔 쪽 조회가 조용히 `undefined`를 넘기는 일이 없다.
+ */
+export type DripPlanUser = Pick<
+  User,
+  'id' | 'tier' | 'market' | 'jobCategory' | 'yearsOfExperience'
+>;
 
 export interface PlanOptions {
   /**
@@ -158,11 +169,11 @@ export interface DripPreviewCandidateView {
 export interface DripPreviewView {
   computedAt: Date;
   serviceDate: string;
+  /** 편성 계산·화면에 쓰는 열만 — 이메일·닉네임 같은 신원·연락처는 조회하지도 싣지도 않는다(2026-10-22) */
   user: {
     id: string;
-    email: string | null;
-    nickname: string | null;
     tier: string;
+    market: string;
     jobCategory: string | null;
     yearsOfExperience: number | null;
     onboardingCompleted: boolean;
@@ -228,3 +239,6 @@ export interface DripPreviewView {
   discoveryError: string | null;
   todayPlaced: DripPreviewContentRef[];
 }
+
+/** 편성 미리보기에서 사용자 신원(`user`)을 뺀 계산 결과 — 추천 검증(서비스 지표)이 이메일·닉네임 없이 쓴다 */
+export type DripExplainView = Omit<DripPreviewView, 'user'>;

@@ -1,4 +1,10 @@
-import { useFocusEffect, useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
+import {
+  StackActions,
+  useFocusEffect,
+  useNavigation,
+  useRoute,
+  type RouteProp,
+} from '@react-navigation/native';
 import { useQueryClient } from '@tanstack/react-query';
 import { useCallback, useMemo, useRef, useState } from 'react';
 import { Linking } from 'react-native';
@@ -17,9 +23,26 @@ import { useDeferredSheetShare } from '@/features/share';
 
 import { exploreKeys } from '../api/explore.api';
 import { EXPLORE_COPY } from '../explore.copy';
-import type { ExploreItem, ExploreLibraryState, SeriesDetail } from '../explore.types';
+import { toQueueSnapshot } from '../explore.queue';
+import { pickSeriesPlayEpisode, seriesEpisodeSubtitle } from '../explore.series-episode';
+import type {
+  ExploreItem,
+  ExploreLibraryState,
+  ExploreSeries,
+  SeriesDetail,
+} from '../explore.types';
 import { useSaveContentMutation } from './useSaveContentMutation';
 import { useSeriesDetailQuery } from './useSeriesDetailQuery';
+import {
+  useOtherSeriesQuery,
+  usePublisherSeriesQuery,
+  useSeriesRelatedQuery,
+} from './useSeriesMoreQueries';
+import {
+  useRestoreSeriesMutation,
+  useSaveSeriesMutation,
+  useUnsaveSeriesMutation,
+} from './useSeriesSaveMutations';
 import { useUnsaveContentMutation } from './useUnsaveContentMutation';
 
 /** 시리즈 화면 라우트 파람의 로컬 선언 — 원본은 app/navigation/types.ts 의 MainStackParamList(feature 는 app 을 import 하지 않는다) */
@@ -42,7 +65,8 @@ const isSeriesNotFound = (error: unknown): boolean =>
 /**
  * 시리즈 화면(E14 — explore.md 4.7) ViewModel. 편 행의 동작은 탐색 행과 **같은 계약·같은 규칙**이다 — 행 탭 = 재생 확인 팝업
  * → 재생(진입점 `explore`, 자동 적립 포함 — explore.md 4.4), [더보기] = 상세 정보·원문 보기·담기/제거(4.3).
- * "다음 화 듣기"·연속 재생은 두지 않는다(KAN-225 결정 — 보류)
+ * 머리 [재생](PM 2026-10-22)은 아직 다 듣지 않은 가장 앞 편 하나를 같은 재생 판정으로 튼다 — 연속 재생은 여전히 없다.
+ * 앱바 캡슐: [공유](시리즈 제목 + 1화 링크) · ⋯ 시리즈 시트(공유 · 소개 전체 보기)
  */
 export const useSeriesScreen = () => {
   const navigation = useNavigation();
@@ -54,6 +78,9 @@ export const useSeriesScreen = () => {
   const detailQuery = useSeriesDetailQuery(seriesId);
   const saveMutation = useSaveContentMutation();
   const unsaveMutation = useUnsaveContentMutation();
+  const saveSeriesMutation = useSaveSeriesMutation();
+  const unsaveSeriesMutation = useUnsaveSeriesMutation();
+  const restoreSeriesMutation = useRestoreSeriesMutation();
 
   /*
    * 플레이어·상세에서 돌아오면 편의 재생 위치·완청이 바뀌었을 수 있다 — 조용히 다시 받는다. 첫 포커스(진입)는 이미 받는 중이라
@@ -116,28 +143,14 @@ export const useSeriesScreen = () => {
       void queryClient.invalidateQueries({ queryKey: exploreKeys.all });
       invalidateLibrary();
     },
-    // 자동 적립(explore-api.md 4.6) — 재생이 실제로 시작됐고 라이브러리에 없을 때만
-    onPlayStarted: (result, target) => {
-      if (result.libraryItem !== null) return;
-      const seq = nextSeq(target.contentId);
-      setCachedLibraryState(target.contentId, {
-        itemId: `optimistic-${target.contentId}`,
-        source: 'save',
-        status: 'in_progress',
-      });
-      saveMutation.mutate(
-        { contentId: target.contentId, clientSeq: seq, reason: 'auto_play' },
-        {
-          onSuccess: () => invalidateLibrary(),
-          // 사용자가 시작하지 않은 실패는 알리지 않는다(common-error-handling.md 4.3)
-          onError: () => undefined,
-        },
-      );
-    },
+    // 재생해도 라이브러리에 담지 않는다 — 탐색 재생 자동 적립은 뺐다(PM 2026-10-23, explore.md 4.4). 담기는 사용자 조작만
   });
 
-  /** 편 행 탭 — 탐색 행과 같은 재생 판정(팝업·페이월·회수) */
-  const handleEpisodePress = (item: ExploreItem) => {
+  /**
+   * 편 행 탭 — 탐색 행과 같은 재생 판정(팝업·페이월·회수). `order`를 주면 재생 목록 스냅샷을 그 순서로(셔플) — 없으면 화수 순
+   */
+  const handleEpisodePress = (item: ExploreItem, order?: ExploreItem[]) => {
+    const current = detailQuery.data;
     playGate.requestPlay(
       {
         contentId: item.content.id,
@@ -151,6 +164,15 @@ export const useSeriesScreen = () => {
           topicIds: item.content.topicIds,
         },
         onWithdrawn: () => hideRow(item.content.id),
+        // 재생 목록 = 이 시리즈의 편 목록(KAN-241). "다음 화 듣기" 유도가 아니다 — 패널은 열람·선택 전용(PM 확인 항목)
+        queue: current
+          ? toQueueSnapshot(
+              (order ?? current.episodes.map((episode) => episode.item)).filter(
+                (episode) => !hiddenContentIds.has(episode.content.id),
+              ),
+              { type: 'series', title: current.series.title },
+            )
+          : undefined,
       },
       'explore',
     );
@@ -210,6 +232,12 @@ export const useSeriesScreen = () => {
       {
         onSuccess: (result) => {
           if (!isLatestSeq(contentId, result.clientSeq)) return;
+          // 서버가 담은 상태로 맞춘다 — 들은 만큼(in_progress·completed)으로 담기므로 낙관 값(unplayed)과 다를 수 있다(KAN-252)
+          setCachedLibraryState(contentId, {
+            itemId: result.libraryItem.itemId,
+            source: result.libraryItem.source,
+            status: result.libraryItem.status,
+          });
           invalidateLibrary();
         },
         onError: (error) => {
@@ -260,6 +288,194 @@ export const useSeriesScreen = () => {
       (detail?.episodes ?? []).filter((episode) => !hiddenContentIds.has(episode.item.content.id)),
     [detail, hiddenContentIds],
   );
+
+  /* ── 머리 [재생] — 아직 다 듣지 않은 가장 앞 편(전부 들었으면 1화). 판정·팝업은 편 행 탭과 같은 길 ── */
+  const playEpisode = pickSeriesPlayEpisode(episodes);
+  const playSeries = () => {
+    if (playEpisode) handleEpisodePress(playEpisode.item);
+  };
+
+  /*
+   * ── 아래 가로 목록 두 줄(PM 2026-10-22 — 애플 뮤직 앨범 화면 아래). "다른 시리즈 더보기" = 같은 주제 목록·탐색 피드의
+   * 시리즈 카드, "좋아할 만한 다른 항목" = 관련 콘텐츠(KAN-240)에서 이 시리즈 편을 뺀 것. 새 API 없음, 비면 줄째 숨는다 ──
+   */
+  // 같은 간행물의 다른 시리즈(PM 2026-10-22 — 애플 뮤직 "○○의 다른 앨범"). 맨 위 줄이고, 아래 "다른 시리즈 더보기"는 겹치는 시리즈를 뺀다
+  const publisherQuery = usePublisherSeriesQuery(seriesId, detail !== undefined);
+  const publisherSeries = publisherQuery.data?.series ?? [];
+  const publisherSeriesIds = new Set(publisherSeries.map((series) => series.id));
+  const otherSeriesQuery = useOtherSeriesQuery(
+    seriesId,
+    detail?.series.topic?.id ?? null,
+    detail !== undefined,
+  );
+  const relatedQuery = useSeriesRelatedQuery(
+    seriesId,
+    episodes[0]?.item.content.id ?? null,
+    episodes.map((episode) => episode.item.content.id),
+  );
+  const relatedItems = (relatedQuery.data ?? []).filter(
+    (item) => !hiddenContentIds.has(item.content.id),
+  );
+  /** 다른 시리즈 카드 탭 — 같은 스택에 시리즈 화면을 하나 더 쌓는다(뒤로 가면 지금 시리즈로) */
+  const openOtherSeries = (series: ExploreSeries) => {
+    navigation.dispatch(StackActions.push('Series', { seriesId: series.id }));
+  };
+  /** 좋아할 만한 항목 탭 — 탐색 타일과 같은 재생 판정. 재생 목록은 이 줄(편 목록이 아니다) */
+  const playRelated = (item: ExploreItem) => {
+    playGate.requestPlay(
+      {
+        contentId: item.content.id,
+        isCountedToday: item.isCountedToday,
+        meta: {
+          title: item.content.title,
+          authorName: item.content.authorName,
+          sourceName: item.content.sourceName,
+          thumbnailUrl: item.content.thumbnailUrl,
+          durationSec: item.content.durationSec,
+          topicIds: item.content.topicIds,
+        },
+        onWithdrawn: () => hideRow(item.content.id),
+        queue: toQueueSnapshot(relatedItems, {
+          type: 'section',
+          title: EXPLORE_COPY.series.youMayLikeTitle,
+        }),
+      },
+      'explore',
+    );
+  };
+
+  /*
+   * ── 셔플(PM 2026-10-22 08:55) — 편 목록을 섞어 맨 앞 편을 재생하고, 재생 목록 패널도 그 섞인 순서다. 자동 다음 재생은 여전히
+   * 없다(FR-24 — 셔플은 "어느 편부터"와 "목록 순서"만 바꾼다). 판정·팝업은 편 행 탭과 같은 길 ──
+   */
+  const shuffleSeries = () => {
+    const items = episodes.map((episode) => episode.item);
+    if (items.length === 0) return;
+    const shuffled = [...items];
+    for (let i = shuffled.length - 1; i > 0; i -= 1) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+    }
+    handleEpisodePress(shuffled[0], shuffled);
+  };
+
+  /*
+   * ── 시리즈째 담기·빼기(KAN-246 — PM 2026-10-22 14:57 "새 편 따라 들어오게") — 서버가 "시리즈째 담았다"를 기록해야 새 편이 따라
+   * 들어온다(explore-api.md 4.8~4.10). [+] = 시리즈 담기 한 번(노출 편 중 없는 편은 서버가 담는다), 🗑 = 시리즈 빼기 한 번(담긴 편
+   * 전부 + 따라오기 중단) + [실행 취소] = 복구. 버튼은 `series.isSaved`로 그린다 — 편이 다 담겼는지와 다르다(편을 하나씩 다 담아도
+   * false, 시리즈째 담은 뒤 편 하나를 따로 빼도 true). 낙관 반영 후 실패면 되돌린다. 순번은 시리즈 단위 키 하나 ──
+   */
+  const isSeriesSaved = detail?.series.isSaved ?? false;
+  const seriesSeqKey = `series:${seriesId}`;
+  const setCachedSeriesSaved = (isSaved: boolean) => {
+    queryClient.setQueryData<SeriesDetail>(exploreKeys.series(seriesId), (old) =>
+      old ? { ...old, series: { ...old.series, isSaved } } : old,
+    );
+  };
+  const refreshSeries = () => {
+    void queryClient.invalidateQueries({ queryKey: exploreKeys.series(seriesId) });
+    invalidateLibrary();
+  };
+
+  const saveSeries = () => {
+    const targets = episodes.map((episode) => episode.item).filter((item) => item.library === null);
+    const seq = nextSeq(seriesSeqKey);
+    setCachedSeriesSaved(true);
+    targets.forEach((item) =>
+      setCachedLibraryState(item.content.id, {
+        itemId: `optimistic-${item.content.id}`,
+        source: 'save',
+        status: 'unplayed',
+      }),
+    );
+    showToast(
+      targets.length > 0
+        ? EXPLORE_COPY.series.saveAllToast(targets.length)
+        : EXPLORE_COPY.series.followToast,
+      { label: EXPLORE_COPY.saveToastAction, onPress: () => goToLibrary() },
+    );
+    saveSeriesMutation.mutate(
+      { seriesId, clientSeq: seq },
+      {
+        onSuccess: () => {
+          if (isLatestSeq(seriesSeqKey, seq)) refreshSeries();
+        },
+        onError: () => {
+          if (!isLatestSeq(seriesSeqKey, seq)) return;
+          setCachedSeriesSaved(false);
+          targets.forEach((item) => setCachedLibraryState(item.content.id, null));
+          showToast(EXPLORE_COPY.saveFailedToast);
+          refreshSeries();
+        },
+      },
+    );
+  };
+
+  const removeSeries = () => {
+    const previous = episodes.flatMap(({ item }) =>
+      item.library ? [{ contentId: item.content.id, library: item.library }] : [],
+    );
+    const seq = nextSeq(seriesSeqKey);
+    const restoreLocal = () => {
+      setCachedSeriesSaved(true);
+      previous.forEach(({ contentId, library }) => setCachedLibraryState(contentId, library));
+    };
+    setCachedSeriesSaved(false);
+    previous.forEach(({ contentId }) => setCachedLibraryState(contentId, null));
+    const request = unsaveSeriesMutation.mutateAsync({ seriesId, clientSeq: seq });
+    request.then(
+      () => {
+        if (isLatestSeq(seriesSeqKey, seq)) refreshSeries();
+      },
+      () => {
+        if (!isLatestSeq(seriesSeqKey, seq)) return;
+        restoreLocal();
+        showToast(EXPLORE_COPY.removeFailedToast);
+      },
+    );
+    showToast(
+      previous.length > 0
+        ? EXPLORE_COPY.series.removeAllToast(previous.length)
+        : EXPLORE_COPY.series.seriesRemovedToast,
+      {
+        label: EXPLORE_COPY.series.undo,
+        // 실행 취소 — 빼기 응답(뺀 항목 id)을 기다렸다가 그대로 복구에 넘긴다. 화면은 먼저 되돌린다
+        onPress: () => {
+          const undoSeq = nextSeq(seriesSeqKey);
+          restoreLocal();
+          request
+            .then((result) =>
+              restoreSeriesMutation.mutateAsync({ seriesId, itemIds: result.removedItemIds }),
+            )
+            .then(() => {
+              if (isLatestSeq(seriesSeqKey, undoSeq)) refreshSeries();
+            })
+            .catch(() => {
+              if (!isLatestSeq(seriesSeqKey, undoSeq)) return;
+              showToast(EXPLORE_COPY.saveFailedToast);
+              refreshSeries();
+            });
+        },
+      },
+    );
+  };
+
+  /*
+   * ── 시리즈 공유 — 시리즈 전용 링크가 아직 없어 **1화(노출 중인 가장 앞 편) 상세 링크**에 시리즈 제목을 싣는다. 받은 사람은
+   * 1화 상세의 시리즈 줄로 이 화면에 온다. 입구는 ⋯ 시트의 [공유] 하나 — 시트가 닫힌 뒤 연다(앱바 공유 아이콘은
+   * 2026-10-22 PM 지시로 뺐다) ──
+   */
+  const seriesShareInput = () => {
+    const first = episodes[0];
+    if (!detail || !first) return null;
+    return { contentId: first.item.content.id, title: detail.series.title, entry: 'series' };
+  };
+  const [isSeriesSheetOpen, setIsSeriesSheetOpen] = useState(false);
+  const shareSeriesFromSheet = () => {
+    setIsSeriesSheetOpen(false);
+    const input = seriesShareInput();
+    if (input) requestShare(input);
+  };
   const isInitialLoading = detailQuery.isPending;
   const showSkeleton = useDelayedVisible(isInitialLoading);
   const isNotFound = !detail && isSeriesNotFound(detailQuery.error);
@@ -280,6 +496,33 @@ export const useSeriesScreen = () => {
     goBack: () => navigation.goBack(),
     // 재생
     handleEpisodePress,
+    playTarget:
+      playEpisode && detail
+        ? {
+            episodeNo: playEpisode.episodeNo,
+            title: seriesEpisodeSubtitle(playEpisode.item.content.title, detail.series.title),
+          }
+        : null,
+    playSeries,
+    // 아래 가로 목록
+    publisherName: publisherQuery.data?.publisherName ?? null,
+    publisherSeries: publisherSeries.map((series) => ({ type: 'series' as const, series })),
+    otherSeries: (otherSeriesQuery.data ?? [])
+      .filter((series) => !publisherSeriesIds.has(series.id))
+      .map((series) => ({ type: 'series' as const, series })),
+    relatedItems,
+    openOtherSeries,
+    playRelated,
+    // [재생] 양옆 — 셔플 · 시리즈 담기/빼기(PM 2026-10-22 08:55 · 14:22)
+    shuffleSeries,
+    saveSeries,
+    removeSeries,
+    isSeriesSaved,
+    // 앱바 ⋯ · 시리즈 시트
+    isSeriesSheetOpen,
+    openSeriesSheet: () => setIsSeriesSheetOpen(true),
+    closeSeriesSheet: () => setIsSeriesSheetOpen(false),
+    shareSeriesFromSheet,
     playConfirm: playGate.confirmState,
     confirmPlay: playGate.confirmPlay,
     cancelPlayConfirm: playGate.cancelConfirm,

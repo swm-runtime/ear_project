@@ -119,6 +119,8 @@ export interface ProgressSaveResult {
     status: PlayedLibraryItemStatus;
     completedAt: string | null;
   } | null;
+  /** 서버 완청 판정(BE #1943 — 담지 않은 편 포함). 옛 서버(필드 없음)면 null */
+  isCompleted: boolean | null;
 }
 
 /**
@@ -202,6 +204,35 @@ export interface ScriptSegment {
  * (architecture.md 4.4)의 방향이 뒤집힌다. 화면이 실제로 그리는 필드만 추려 여기서 선언하고, 변환은
  * 주입하는 쪽(app/bootstrap)이 맡는다.
  */
+/**
+ * 재생 목록 패널이 그리는 한 줄(KAN-241) — 라이브러리 항목(`QueueItem`)이거나 탐색 목록 스냅샷의 편이다.
+ * `itemId` 가 null 이면 **라이브러리에 없는 편**이다 — 탐색 맥락에서만 생기고, 그 줄에만 담기 버튼이 붙는다
+ */
+export interface QueueEntry extends Omit<QueueItem, 'itemId'> {
+  itemId: string | null;
+}
+
+/**
+ * 재생 목록의 출처 라벨(KAN-241) — 탐색 맥락 패널의 헤더·손잡이 글자가 된다. 문구는 copy 가 만든다
+ * ("주간 인기 콘텐츠" / 섹션·주제·시리즈 이름 / 검색어 — 앞머리 없음)
+ */
+export type QueueSourceLabel =
+  | { type: 'section'; title: string }
+  | { type: 'popular'; period: 'week' | 'month' | 'all' }
+  | { type: 'topic'; name: string }
+  | { type: 'search'; query: string }
+  | { type: 'series'; title: string };
+
+/**
+ * 재생 목록의 정체 = **재생을 시작한 맥락**(player.md 4.2-1, KAN-241 — PM 2026-10-22).
+ * - `library`: 종전 그대로 — 필터 없는 라이브러리 첫 페이지(`sort=queue`), 열 때마다 조회, 끌어 순서 변경.
+ * - `explore`: 탐색 목록(피드 섹션·주제·인기·검색·시리즈 화면)의 **콘텐츠 행 스냅샷** — 재생 시작 순간 화면이 불러 둔
+ *   페이지까지, 서버 순서 그대로. 조회·순서 변경 없음. 아래에 "다음에 들어볼 만한" 추천 블록이 붙는다.
+ * 푸시·공유·미니플레이어 복원처럼 맥락을 모르는 진입은 `library` 다. 스토어(메모리)에만 산다 — 앱 재실행 복원은 `library`
+ */
+export type PlayQueueContext =
+  { kind: 'library' } | { kind: 'explore'; source: QueueSourceLabel; items: QueueEntry[] };
+
 export interface QueueItem {
   /** library_items.id */
   itemId: string;

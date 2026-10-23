@@ -3,7 +3,11 @@ import { Fragment, useCallback, useEffect, useState } from "react";
 import type { ReactNode } from "react";
 import { Badge, Panel, Table, Td, Tr, btnCls } from "@/components/ui";
 import { fmtTime } from "@/lib/format";
-import { EarApiError, type EarDripCandidate, type EarDripPreview, getEarDripPreview } from "@/lib/ear";
+import {
+  EarApiError, type EarDripCandidate, type EarDripPreview, type EarInspectorUser,
+  getEarDripPreview, getEarInspectorUsers, isDripPreviewNotDeployed, isUuidLike,
+} from "@/lib/ear";
+import { shortId } from "@/lib/insights-format";
 import { earErrMsg } from "@/app/publish/ear-connect";
 
 /**
@@ -85,19 +89,39 @@ function discoveryParts(c: EarDripCandidate, items: Record<string, number>): Par
   return present.map((k) => ({ key: k, label: DISCOVERY_LABEL[k], color: DISCOVERY_COLOR[k], raw: raw[k]!, weight: items[k] ?? 0, value: ((items[k] ?? 0) * raw[k]!) / wsum }));
 }
 
-export function DripCheck({ defaultEmail }: { defaultEmail: string }) {
-  const [email, setEmail] = useState(defaultEmail);
+/**
+ * 대상 사용자는 가명 `user_id`로만 고른다(2026-10-22) — 전체 uuid 를 붙여 넣거나, 사용자별 추천과 같은 후보 목록(앞 8자)에서 고른다.
+ *
+ * 배포 순서 호환: 콘솔은 dev 머지 즉시 배포되고 운영 API 는 다음 dev→main 릴리스에 들어간다. 그 사이 운영 서버는 `?email=`만 받아
+ * `user_id`에 400 을 돌려주므로 "운영 API 배포 후 사용 가능"으로 안내하고 멈춘다(이메일로 되돌아가 묻지 않는다). 후보 목록 API 가
+ * 아직 없는 서버(404)면 목록만 숨긴다.
+ */
+export function DripCheck({ initialUserId }: { initialUserId: string }) {
+  const [userId, setUserId] = useState(initialUserId);
   const [data, setData] = useState<EarDripPreview | null>(null);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [notDeployed, setNotDeployed] = useState(false);
+  const [candidates, setCandidates] = useState<EarInspectorUser[] | null>(null);
 
   const load = useCallback(async (target: string) => {
-    setLoading(true);
+    const id = target.trim();
     setErr(null);
+    setNotDeployed(false);
+    if (!isUuidLike(id)) {
+      setData(null);
+      setErr("user_id 는 전체 uuid 로 넣거나 아래 후보에서 고르세요");
+      return;
+    }
+    setLoading(true);
     try {
-      setData(await getEarDripPreview(target.trim()));
+      setData(await getEarDripPreview(id));
+      // 새로고침·공유용으로 주소에 남긴다 — 가명 id 뿐이다
+      window.history.replaceState(null, "", `?user_id=${encodeURIComponent(id)}`);
     } catch (e) {
-      if (e instanceof EarApiError && e.status === 404) setErr(e.errorCode === "NOT_FOUND" ? `${target} 사용자를 찾을 수 없어요` : "제품 서버에 편성 미리보기가 아직 배포되지 않았어요 (404)");
+      setData(null);
+      if (isDripPreviewNotDeployed(e)) setNotDeployed(true);
+      else if (e instanceof EarApiError && e.status === 404) setErr(e.errorCode === "NOT_FOUND" ? `${shortId(id)} 사용자를 찾을 수 없어요 (없거나 탈퇴)` : "제품 서버에 편성 미리보기가 아직 배포되지 않았어요 (404)");
       else setErr(earErrMsg(e));
     } finally {
       setLoading(false);
@@ -105,24 +129,43 @@ export function DripCheck({ defaultEmail }: { defaultEmail: string }) {
   }, []);
 
   useEffect(() => {
-    // 마운트 직후 1회 — 효과 안에서 바로 setState 하지 않도록 한 틱 미룬다
-    const timer = setTimeout(() => void load(defaultEmail), 0);
+    // 마운트 직후 1회 — 효과 안에서 바로 setState 하지 않도록 한 틱 미룬다. 후보 목록은 열람 감사 로그가 없는 집계 행이다
+    const timer = setTimeout(() => {
+      getEarInspectorUsers("prod", "listen").then((r) => setCandidates(r.users), () => setCandidates(null));
+      if (initialUserId) void load(initialUserId);
+    }, 0);
     return () => clearTimeout(timer);
-  }, [load, defaultEmail]);
+  }, [load, initialUserId]);
+
+  const pick = (id: string) => { setUserId(id); void load(id); };
 
   return (
     <div className="space-y-5">
       <div className="sticky top-14 z-[5] -mx-6 border-b border-line bg-[#eef1f5]/95 px-6 py-2 backdrop-blur">
         <form
           className="flex flex-wrap items-center gap-2"
-          onSubmit={(e) => { e.preventDefault(); void load(email); }}
+          onSubmit={(e) => { e.preventDefault(); void load(userId); }}
         >
+          {candidates && candidates.length > 0 && (
+            <select
+              value={candidates.some((c) => c.user_id === userId) ? userId : ""}
+              onChange={(e) => { if (e.target.value) pick(e.target.value); }}
+              className="rounded border border-line bg-panel px-2 py-1.5 font-mono text-[12px] text-ink"
+              title="사용자별 추천과 같은 후보(최근 30일 많이 들은 순) — 고르면 바로 계산하고 감사 로그가 남는다"
+            >
+              <option value="">후보에서 고르기</option>
+              {candidates.map((c) => (
+                <option key={c.user_id} value={c.user_id}>{shortId(c.user_id)} · {c.tier} · {c.market.toUpperCase()} · 재생 {c.plays_30d}회</option>
+              ))}
+            </select>
+          )}
           <input
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            type="email"
-            className="w-64 rounded border border-line bg-panel px-2.5 py-1.5 text-[13px] text-ink"
-            placeholder="대상 사용자 이메일"
+            value={userId}
+            onChange={(e) => setUserId(e.target.value)}
+            className="w-80 rounded border border-line bg-panel px-2.5 py-1.5 font-mono text-[12px] text-ink"
+            placeholder="대상 user_id (uuid)"
+            spellCheck={false}
+            autoComplete="off"
           />
           <button type="submit" className={btnCls("primary")} disabled={loading}>
             {loading ? "계산 중…" : "새로고침"}
@@ -143,8 +186,13 @@ export function DripCheck({ defaultEmail }: { defaultEmail: string }) {
         </form>
       </div>
 
+      {notDeployed && (
+        <div className="rounded border border-amber-200 bg-amber-50 px-3 py-2 text-[13px] text-amber-800">
+          운영 API 배포 후 사용 가능 — 지금 운영 서버는 옛 계약(이메일 조회)이라 user_id 를 받지 않아요. 다음 dev→main 릴리스 뒤 다시 열어 주세요. 그 전에는 [사용자별 추천] 화면을 쓰세요(운영 배포 전이면 그 화면도 같은 이유로 비어 있다).
+        </div>
+      )}
       {err && <div className="rounded border border-rose-200 bg-rose-50 px-3 py-2 text-[13px] text-rose-700">{err}</div>}
-      {!data && !err && <p className="text-[13px] text-ink-soft">계산 중…</p>}
+      {!data && !err && !notDeployed && <p className="text-[13px] text-ink-soft">{loading ? "계산 중…" : "대상 사용자를 고르세요 — 후보 목록 또는 전체 user_id"}</p>}
       {data && <Preview data={data} />}
     </div>
   );
@@ -192,7 +240,7 @@ export function Preview({ data }: { data: EarDripPreview }) {
         </div>
 
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-          <Tile label="사용자" value={data.user.nickname ?? "(닉네임 없음)"} sub={`${data.user.email ?? "-"} · ${data.user.tier}${data.user.job_category ? ` · ${data.user.job_category}` : ""}${data.user.years_of_experience != null ? ` ${data.user.years_of_experience}년+` : ""}${data.user.onboarding_completed ? "" : " · 온보딩 미완"}`} />
+          <Tile label="사용자" value={shortId(data.user.id)} sub={`${data.user.tier} · ${data.user.market.toUpperCase()}${data.user.job_category ? ` · ${data.user.job_category}` : ""}${data.user.years_of_experience != null ? ` ${data.user.years_of_experience}년+` : ""}${data.user.onboarding_completed ? "" : " · 온보딩 미완"}`} />
           <Tile
             label="미청취 재고"
             value={`${data.unfinished_count ?? "–"} / ${data.unfinished_limit}`}

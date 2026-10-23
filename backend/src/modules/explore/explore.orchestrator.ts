@@ -9,7 +9,14 @@ import {
   hasSearchableCharacter,
   parseSearchQuery,
 } from '@/common/utils/search-text.util';
-import { ContentTopicView } from '@/modules/content/content.types';
+import {
+  ContentTopicView,
+  HybridSearchCursorPosition,
+  RelatedContentQuery,
+  HybridSearchPage,
+  SearchCursorPosition,
+  SearchEngine,
+} from '@/modules/content/content.types';
 import { Content } from '@/modules/content/entities/content.entity';
 import { ContentService } from '@/modules/content/services/content.service';
 import { SearchQueryLogService } from '@/modules/content/services/search-query-log.service';
@@ -41,10 +48,13 @@ import {
   SERIES_CARD_SECTION_OVERFETCH,
 } from './explore.constant';
 import {
+  DecodedSearchCursor,
+  decodeAnySearchCursor,
   decodeExploreCursor,
   decodePopularCursor,
   decodeSearchCursor,
   encodeExploreCursor,
+  encodeHybridSearchCursor,
   encodePopularCursor,
   encodeSearchCursor,
 } from './explore.cursor';
@@ -66,7 +76,9 @@ import {
   ExploreTopicChipView,
   SaveContentCommand,
   SaveContentResult,
+  SearchMatch,
 } from './explore.types';
+import { QueryEmbeddingClient } from './query-embedding.client';
 import { UserMarket } from '@/modules/user/user.enum';
 
 /**
@@ -98,6 +110,7 @@ export class ExploreOrchestrator {
     private readonly searchQueryLogService: SearchQueryLogService,
     private readonly seriesService: SeriesService,
     configService: ConfigService<EnvironmentVariables, true>,
+    private readonly queryEmbeddingClient: QueryEmbeddingClient,
   ) {
     // **`true`를 명시했을 때만 켠다**(env.validation.ts) — 1.2.x 앱은 `type: "series"` 항목을 모른다. 꺼져 있으면 응답이 이 기능
     // 전과 바이트 단위로 같다(분기는 전부 이 값 하나로 갈린다)
@@ -289,6 +302,20 @@ export class ExploreOrchestrator {
   }
 
   /**
+   * player-api.md 4.8 — 관련 콘텐츠(KAN-240). 코사인 조회·기준 편 판정(404)은 `ContentService`가 하고, 여기서는
+   * **탐색 행과 같은 조립**(`decorate` — 라이브러리 상태·오늘 카운트·주제·시리즈 표시)만 얹는다. 시리즈 카드 스위치와 무관하게
+   * 편 행이다(`decorateGrouped`를 쓰지 않는다 — 추천 블록은 편 단위 목록이다).
+   */
+  async getRelated(
+    userId: string,
+    query: RelatedContentQuery,
+  ): Promise<ExploreItemView[]> {
+    const contents = await this.contentService.findRelatedContents(query);
+
+    return this.decorate(userId, contents, query.now);
+  }
+
+  /**
    * explore-api.md 4.2-1 — 인기 콘텐츠의 구간을 바꿨을 때의 단일 목록.
    *
    * **피드를 다시 부르지 않는다.** 구간만 바뀌었는데 관심사 섹션의 소비 신호 랭킹까지
@@ -400,19 +427,24 @@ export class ExploreOrchestrator {
   }
 
   /**
-   * explore-api.md 4.5 — 키워드 검색(FR-22). 300ms 디바운스 자동 검색과 키보드 [검색]
-   * 제출이 같은 것을 호출한다.
+   * explore-api.md 4.5 — 검색(FR-22). 300ms 디바운스 자동 검색과 키보드 [검색] 제출이 같은 것을 호출한다.
    *
-   * **정규화(NFC·소문자)는 여기서 한 번만 한다** — 조회(`content`)와 커서 지문이 같은
-   * 문자열을 봐야 하고, 규칙이 두 곳에 생기면 매칭 결과가 갈라진다(`explore.md` 4.5-5).
+   * **정규화(NFC·소문자)는 여기서 한 번만 한다** — 조회(`content`)와 커서 지문이 같은 문자열을 봐야 하고, 규칙이 두 곳에
+   * 생기면 매칭 결과가 갈라진다(`explore.md` 4.5-5). **정규화 후 길이를 재검증한다** — NFD 분해형("커" = ㅋ+ㅓ 2 코드포인트)은
+   * NFC 합성 후 1자가 된다(explore-api.md 4.5).
    *
-   * **정규화 후 길이를 재검증한다.** DTO는 원문 기준 2자를 걸렀지만 NFD 분해형("커" =
-   * ㅋ+ㅓ 2 코드포인트)은 NFC 합성 후 1자가 된다 — 클라이언트 필터는 UX이고 판정은
-   * 서버 방어선이다(explore-api.md 4.5).
+   * 흐름(KAN-238 — `explore.md` 4.5-5):
+   * 1. `#`으로 시작하면 **종전 태그 정확 일치 경로**(KAN-218) — 교정·의미 엔진 없음, `exact` 무시, 종전 커서.
+   * 2. 하이브리드(키워드 + 의미, RRF) — 질의 임베딩은 AI 서버(`QueryEmbeddingClient`, 결손이면 키워드만).
+   * 3. `exact`가 아니고 **키워드 엔진 0건**이면 교정어를 찾는다 — 교정어가 있고 **교정어로 키워드 1건 이상**이면 교정어로
+   *    2를 다시 돌려 그 결과를 낸다(`query_used` = 교정어, `corrected_from` = 입력). 아니면 원문 결과 그대로.
+   * 4. 두 엔진 0건이면 종전 빈 결과 `fallback`. 시리즈 카드 접기·회수·시장 제외는 조회 조건 그대로다.
    *
-   * **`#`으로 시작하면 태그 전용 검색이다**(KAN-218). 앞의 `#` 하나를 뗀 검색어로 2자 규칙을 다시 재고(`#a`는 400),
-   * 매칭·관련 주제는 뗀 값으로, 커서 지문·검색 로그는 `#`을 남긴 원문으로 한다 — 태그 검색과 부분 일치 검색의 커서가
-   * 섞이지 않고, 로그로 태그 검색 비율을 셀 수 있다.
+   * 커서 페이지는 커서가 실어 온 검색 상태(교정어·`match`·의미 엔진 사용)로 잇고 교정을 다시 판정하지 않는다.
+   * **종전 커서**(배포 순간 옛 앱이 들고 있던 것)는 종전 키워드 경로로 잇는다 — 오류 없이 다음 페이지가 나온다.
+   *
+   * 응답은 **덧붙이는 필드만** 늘었다(`query_used`·`corrected_from`·`match`·`engines`·`items[].matched_by`) — 옛 앱(1.1.0~1.3.0)은
+   * 모르는 필드를 무시하고 결과를 일반 결과처럼 그린다.
    */
   async search(
     userId: string,
@@ -434,17 +466,224 @@ export class ExploreOrchestrator {
       });
     }
 
-    // 빈 커서(`cursor=`)도 첫 페이지다 — 세 판정(디코드·검색 로그·대체 콘텐츠)이 같은 기준을 써야 한다(2026-10-13)
-    const isFirstPage = !query.cursor;
+    if (tagOnly) {
+      return this.searchKeywordOnly(userId, query, now, market, {
+        normalizedQuery,
+        term,
+        tagOnly: true,
+        cursor: query.cursor
+          ? decodeSearchCursor(query.cursor, normalizedQuery, query.topicIds)
+          : null,
+      });
+    }
 
-    const page = await this.contentService.findSearchPage({
+    // 빈 커서(`cursor=`)도 첫 페이지다 — 세 판정(디코드·검색 로그·대체 콘텐츠)이 같은 기준을 써야 한다(2026-10-13)
+    if (query.cursor) {
+      const decoded = decodeAnySearchCursor(
+        query.cursor,
+        normalizedQuery,
+        query.topicIds,
+        query.exact,
+      );
+
+      return decoded.kind === 'legacy'
+        ? this.searchKeywordOnly(userId, query, now, market, {
+            normalizedQuery,
+            term,
+            tagOnly: false,
+            cursor: decoded.position,
+          })
+        : this.searchHybridNextPage(
+            userId,
+            query,
+            now,
+            market,
+            normalizedQuery,
+            decoded,
+          );
+    }
+
+    return this.searchHybridFirstPage(
+      userId,
+      query,
+      now,
       market,
-      normalizedQuery: term,
-      tagOnly,
+      normalizedQuery,
+    );
+  }
+
+  /** 하이브리드 첫 페이지 — 교정 판정·검색 로그·빈 결과 대체 콘텐츠가 여기서만 돈다 */
+  private async searchHybridFirstPage(
+    userId: string,
+    query: ExploreSearchQuery,
+    now: Date,
+    market: UserMarket,
+    normalizedQuery: string,
+  ): Promise<ExploreSearchResult> {
+    let queryUsed = normalizedQuery;
+    let run = await this.runHybrid(query, now, market, normalizedQuery, true);
+
+    if (!query.exact && !run.page.keywordMatched) {
+      const correction = await this.contentService.findSearchCorrection({
+        market,
+        normalizedQuery,
+        includeSeriesTitles: this.seriesCardsEnabled,
+        now,
+      });
+
+      if (correction) {
+        const corrected = await this.runHybrid(
+          query,
+          now,
+          market,
+          correction,
+          true,
+        );
+
+        // 교정어로도 키워드가 0건이면 교정하지 않는다 — "대신 검색"이 키워드 결과 없는 화면을 만들지 않게(4.5-3)
+        if (corrected.page.keywordMatched) {
+          queryUsed = correction;
+          run = corrected;
+        }
+      }
+    }
+
+    const { page, engines } = run;
+    const matchedBy = page.items.map((ranked) => ranked.matchedBy);
+    const keywordCount = matchedBy.filter((engineList) =>
+      engineList.includes('keyword'),
+    ).length;
+    const match: SearchMatch =
+      page.items.length === 0 || keywordCount > 0 ? 'keyword' : 'related';
+    const correctedFrom =
+      queryUsed !== normalizedQuery ? normalizedQuery : null;
+
+    // 첫 페이지만 남긴다 — 커서 페이지는 같은 질의의 이어 읽기라 새 검색이 아니다(domain.md 5.7).
+    // 디바운스 중간 입력은 서비스가 직전 행에 덮어쓰고, 적재 실패도 거기서 삼켜져 응답에는 영향이 없다
+    await this.searchQueryLogService.record(
+      {
+        userId,
+        normalizedQuery,
+        queryUsed,
+        resultCount: page.items.length,
+        keywordCount,
+        engines,
+        exact: query.exact,
+        hasNext: page.hasNext,
+        topicFilterCount: query.topicIds.length,
+        resultContentIds: page.items.map((ranked) => ranked.content.id),
+      },
+      now,
+    );
+
+    const lastItem = page.items.at(-1);
+
+    return {
+      items: await this.toListItems(
+        userId,
+        page.items.map((ranked) => ranked.content),
+        now,
+        market,
+      ),
+      matchedBy,
+      queryUsed,
+      correctedFrom,
+      match,
+      engines,
+      nextCursor:
+        page.hasNext && lastItem
+          ? encodeHybridSearchCursor(
+              lastItem.position,
+              {
+                queryUsed,
+                corrected: correctedFrom !== null,
+                match,
+                semantic: engines.includes('semantic'),
+              },
+              normalizedQuery,
+              query.topicIds,
+              query.exact,
+            )
+          : null,
+      hasNext: page.hasNext,
+      // **첫 페이지의 빈 결과에만 대체 콘텐츠를 조립한다** — 관련 주제는 입력(원문)으로 찾는다
+      fallback:
+        page.items.length === 0
+          ? await this.buildSearchFallback(userId, normalizedQuery, now, market)
+          : null,
+    };
+  }
+
+  /** 하이브리드 커서 페이지 — 커서의 검색 상태(교정어·`match`·의미 엔진 사용)로 같은 검색을 잇는다 */
+  private async searchHybridNextPage(
+    userId: string,
+    query: ExploreSearchQuery,
+    now: Date,
+    market: UserMarket,
+    normalizedQuery: string,
+    decoded: Extract<DecodedSearchCursor, { kind: 'hybrid' }>,
+  ): Promise<ExploreSearchResult> {
+    const { state, position } = decoded;
+    const { page, engines } = await this.runHybrid(
+      query,
+      now,
+      market,
+      state.queryUsed,
+      state.semantic,
+      position,
+    );
+    const lastItem = page.items.at(-1);
+
+    return {
+      items: await this.toListItems(
+        userId,
+        page.items.map((ranked) => ranked.content),
+        now,
+        market,
+      ),
+      matchedBy: page.items.map((ranked) => ranked.matchedBy),
+      queryUsed: state.queryUsed,
+      correctedFrom: state.corrected ? normalizedQuery : null,
+      match: state.match,
+      engines,
+      nextCursor:
+        page.hasNext && lastItem
+          ? encodeHybridSearchCursor(
+              lastItem.position,
+              // 이번 페이지에서 결손이었어도 첫 페이지 상태(`semantic`)를 그대로 넘긴다 — 다음 페이지는 다시 시도한다
+              state,
+              normalizedQuery,
+              query.topicIds,
+              query.exact,
+            )
+          : null,
+      hasNext: page.hasNext,
+      // 커서 페이지의 빈 응답은 "결과 없음" 화면이 아니라 목록의 끝이다(explore-api.md 4.5)
+      fallback: null,
+    };
+  }
+
+  /**
+   * 하이브리드 한 번 — 질의 임베딩(`useSemantic`이면 AI 서버, 캐시)을 받아 두 엔진을 돌린다. 임베딩이 결손이면 키워드만이고
+   * `engines`에 `semantic`이 없다
+   */
+  private async runHybrid(
+    query: ExploreSearchQuery,
+    now: Date,
+    market: UserMarket,
+    queryUsed: string,
+    useSemantic: boolean,
+    cursor: HybridSearchCursorPosition | null = null,
+  ): Promise<{ page: HybridSearchPage; engines: SearchEngine[] }> {
+    const queryVector = useSemantic
+      ? await this.queryEmbeddingClient.embed(queryUsed)
+      : null;
+    const page = await this.contentService.findHybridSearchPage({
+      market,
+      normalizedQuery: queryUsed,
+      queryVector,
       topicIds: query.topicIds,
-      cursor: query.cursor
-        ? decodeSearchCursor(query.cursor, normalizedQuery, query.topicIds)
-        : null,
+      cursor,
       limit: query.limit,
       now,
       // 시리즈 카드 모드는 시리즈 제목 일치도 묻는다(KAN-134 확정 설계 4번)
@@ -452,14 +691,57 @@ export class ExploreOrchestrator {
       ...this.seriesAnchorsQuery(),
     });
 
-    // 첫 페이지만 남긴다 — 커서 페이지는 같은 질의의 이어 읽기라 새 검색이 아니다(domain.md 5.7).
-    // 디바운스 중간 입력은 서비스가 직전 행에 덮어쓰고, 적재 실패도 거기서 삼켜져 응답에는 영향이 없다
+    return {
+      page,
+      engines: queryVector ? ['keyword', 'semantic'] : ['keyword'],
+    };
+  }
+
+  /**
+   * 종전 키워드 전용 경로 — `#` 태그 정확 일치(KAN-218)와 **종전 커서의 이어 읽기**가 쓴다. 매칭·정렬·커서 모양이 KAN-238 전과
+   * 같고, 덧붙인 응답 필드는 고정값이다(`query_used` = 입력, 교정 없음, `match: "keyword"`, `engines: ["keyword"]`).
+   *
+   * `#` 질의는 앞의 `#` 하나를 뗀 검색어(`term`)로 매칭·관련 주제를 찾고, 커서 지문·검색 로그는 `#`을 남긴 원문으로 한다 —
+   * 태그 검색과 부분 일치 검색의 커서가 섞이지 않고, 로그로 태그 검색 비율을 셀 수 있다.
+   */
+  private async searchKeywordOnly(
+    userId: string,
+    query: ExploreSearchQuery,
+    now: Date,
+    market: UserMarket,
+    keyword: {
+      normalizedQuery: string;
+      term: string;
+      tagOnly: boolean;
+      cursor: SearchCursorPosition | null;
+    },
+  ): Promise<ExploreSearchResult> {
+    const { normalizedQuery, term, tagOnly, cursor } = keyword;
+    const isFirstPage = cursor === null;
+
+    const page = await this.contentService.findSearchPage({
+      market,
+      normalizedQuery: term,
+      tagOnly,
+      topicIds: query.topicIds,
+      cursor,
+      limit: query.limit,
+      now,
+      // 시리즈 카드 모드는 시리즈 제목 일치도 묻는다(KAN-134 확정 설계 4번)
+      ...(this.seriesCardsEnabled && { matchSeriesTitle: true }),
+      ...this.seriesAnchorsQuery(),
+    });
+
     if (isFirstPage) {
       await this.searchQueryLogService.record(
         {
           userId,
           normalizedQuery,
+          queryUsed: normalizedQuery,
           resultCount: page.items.length,
+          keywordCount: page.items.length,
+          engines: ['keyword'],
+          exact: false,
           hasNext: page.hasNext,
           topicFilterCount: query.topicIds.length,
           resultContentIds: page.items.map((ranked) => ranked.content.id),
@@ -468,9 +750,18 @@ export class ExploreOrchestrator {
       );
     }
 
+    const fixed = {
+      queryUsed: normalizedQuery,
+      correctedFrom: null,
+      match: 'keyword' as const,
+      engines: ['keyword' as const],
+    };
+
     if (page.items.length === 0) {
       return {
         items: [],
+        matchedBy: [],
+        ...fixed,
         nextCursor: null,
         hasNext: false,
         // **첫 페이지의 빈 결과에만 대체 콘텐츠를 조립한다.** 커서 페이지의 빈 응답은
@@ -491,6 +782,8 @@ export class ExploreOrchestrator {
 
     return {
       items,
+      matchedBy: page.items.map((): SearchEngine[] => ['keyword']),
+      ...fixed,
       nextCursor:
         page.hasNext && lastItem
           ? encodeSearchCursor(
@@ -906,14 +1199,21 @@ export class ExploreOrchestrator {
     // 같은 콘텐츠가 여러 섹션에 걸쳐 있으므로 중복을 제거하고 조회한다
     const contentIds = [...new Set(contents.map((content) => content.id))];
 
-    const [topicViews, libraryItems, countedContentIds, seriesRefs] =
-      await Promise.all([
-        this.contentService.findTopicViews(contentIds, manager),
-        this.libraryService.findActiveItems(userId, contentIds, manager),
-        this.playbackService.findCountedContentIds(userId, now, manager),
-        // 카드의 시리즈 표시(KAN-134) — 시리즈 행을 한 번에 읽는다. 묶음 카드(type: series)는 아직 없다
-        this.seriesService.findRefs(contents, manager),
-      ]);
+    const [
+      topicViews,
+      libraryItems,
+      countedContentIds,
+      seriesRefs,
+      completedIds,
+    ] = await Promise.all([
+      this.contentService.findTopicViews(contentIds, manager),
+      this.libraryService.findActiveItems(userId, contentIds, manager),
+      this.playbackService.findCountedContentIds(userId, now, manager),
+      // 카드의 시리즈 표시(KAN-134) — 시리즈 행을 한 번에 읽는다. 묶음 카드(type: series)는 아직 없다
+      this.seriesService.findRefs(contents, manager),
+      // 완청 표시(KAN-248) — 담지 않고 끝까지 들은 편도 완청이다
+      this.libraryService.findCompletedContentIds(userId, contentIds, manager),
+    ]);
 
     const topicIdsByContentId = groupTopicIds(topicViews);
     const libraryItemByContentId = new Map<string, LibraryItem>(
@@ -945,6 +1245,7 @@ export class ExploreOrchestrator {
               status: libraryItem.status,
             }
           : null,
+        isCompleted: completedIds.has(content.id),
         isCountedToday: countedContentIds.has(content.id),
       };
     });

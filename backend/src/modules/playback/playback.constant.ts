@@ -17,6 +17,13 @@ export const REPLAY_WINDOW_DAYS = 15;
 export const AUDIO_URL_TTL_SEC = 300;
 
 /**
+ * iOS 에 무손실(FLAC)을 주기 시작하는 앱 버전(KAN-256 — `canPlayLossless`). 이 버전부터 앱이 FLAC 자산을
+ * 정확한 시각 옵션(`AVURLAssetPreferPreciseDurationAndTimingKey`)으로 연다. 1.3.0 스토어 빌드에 싣기로 했다
+ * (2026-10-23) — 그 빌드에 못 실리면 실린 빌드의 버전으로 바꾼다.
+ */
+export const IOS_LOSSLESS_MIN_APP_VERSION = '1.3.0';
+
+/**
  * `listened_sec_delta` 상한 — **서버 구현 재량으로 확정된 값**(`player-api.md` 9장).
  *
  * 이 값은 파트너 정산의 재생 점유율 근거라(`domain.md` 6.3) 조작·버그로 부풀려지면

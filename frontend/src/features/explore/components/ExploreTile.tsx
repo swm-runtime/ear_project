@@ -40,7 +40,7 @@ export default function ExploreTile({
   layout = 'carousel',
 }: ExploreTileProps) {
   const isGrid = layout === 'grid';
-  const isCompleted = item.library?.status === 'completed';
+  const isCompleted = item.isCompleted;
   const minutes = toMinutes(item.content.durationSec);
 
   return (

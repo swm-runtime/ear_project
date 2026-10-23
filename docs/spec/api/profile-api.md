@@ -237,7 +237,7 @@
 
 | 필드 | 정의 | 원천 |
 |---|---|---|
-| `completed_content_count` | **완청한 고유 콘텐츠 수.** 같은 콘텐츠를 여러 번 완청해도 1편. 완청 판정 값은 `player.md` 소유 | `library_items.status = completed` 고유 `content_id` COUNT — `deleted_at` 무관(`domain.md` 6.1) |
+| `completed_content_count` | **완청한 고유 콘텐츠 수.** 같은 콘텐츠를 여러 번 완청해도 1편. 완청 판정 값은 `player.md` 소유 | `library_items.status = completed`(`deleted_at` 무관) ∪ 재생 위치의 최대 도달이 길이 × 90% 이상인 편(`playback_progresses` — `domain.md` 6.1·6.2) ∪ 완청 신호가 남은 편(`user_signals`, 180일 보존)의 고유 `content_id` COUNT. 담지 않고 끝까지 들은 편도 센다(개정 2026-10-23 — KAN-248, 탐색 재생은 행을 만들지 않는다) |
 | `total_listened_sec` | 누적 청취 시간(초). 배속·반복과 무관한 **실제 들은 시간** | `play_records.listened_sec` 총합(`domain.md` 6.3) |
 | `streak_days` | 연속 청취 일수. 서비스 날짜(05시 경계) 기준, 그날 `play_records` 1건 이상이면 "들은 날"(최소 청취 시간 조건 없음 — 확정 2026-08-06) | `play_records.play_date` 연속 구간 |
 

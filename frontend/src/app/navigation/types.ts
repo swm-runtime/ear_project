@@ -8,13 +8,17 @@ import type { OnboardingStackParamList } from '@/features/onboarding';
 import type { PlayEntryPoint, PlaybackStartMeta } from '@/features/player';
 
 /**
- * 탐색 탭 안의 스택(iOS 26 시스템 탭 바 갈래, ExploreStack) — 검색이 탭 안에서 푸시된다.
+ * 탐색 탭 안의 스택(ExploreStack — 두 탭 바 갈래 공통, 2026-10-22) — 시리즈 화면이 탭 안에서 푸시돼 독·미니플레이어가 남는다.
+ * ExploreSearch 는 종전 iOS 26 갈래의 이름이 남은 것이다(지금 검색은 제자리 덮개 — 등록하지 않는다).
+ * 탭 파라미터(applyTopicId·searchQuery)는 홈(ExploreHome)이 받는다 — toTab('Explore', params)가 홈으로 싸서 보낸다.
  * applyTopicId: 검색 빈 결과(E7)의 관련 주제 칩 복귀용 — 그 주제의 단일 목록(E2)으로 전환한다(explore.md 4.5-3).
  * 화면이 처리 후 스스로 소거한다(useExploreScreen)
  */
 export type ExploreStackParamList = {
-  ExploreHome: { applyTopicId?: string } | undefined;
+  ExploreHome: ExploreTabParams | undefined;
   ExploreSearch: undefined;
+  /** 시리즈 화면(E14) — 탭 위(MainStack)의 같은 이름 화면과 파라미터가 같다 */
+  Series: { seriesId: string };
 };
 
 /** 하단 탭 3개 — 라이브러리가 기본이고 설정은 탭이 아니라 프로필 안이다(library.md 2) */

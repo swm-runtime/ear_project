@@ -130,7 +130,7 @@ MVP는 자동 콘텐츠 파이프라인을 운영하지 않는다(PRD 4.2). 대�
 
 ### 4.3 재발행 (콘텐츠 수정)
 
-- 오디오나 메타를 고칠 때 **새 행을 만들지 않고 같은 행의 `content_version`을 올린다**(`domain.md` 5.1).
+- 오디오나 메타를 고칠 때 **새 행을 만들지 않고 같은 행을 갈아끼운다. `content_version`은 오디오를 바꿀 때만 올린다**(`domain.md` 5.1 — 개정 2026-10-20, KAN-236). 썸네일·제목·설명·출처명·출처·주제만 바꾸면 버전도 재생 위치도 그대로다 — 같은 초가 같은 내용이다.
 - `content_id`가 유지되므로 `library_items` · `playback_progresses` · `content_stats` 참조가 끊기지 않는다.
 - 클라이언트는 `content_version`이 달라지면 저장된 재생 위치와 오프라인 파일을 폐기한다(`player.md` 7).
 - **오디오 길이가 바뀌면 재생 위치가 콘텐츠 길이를 넘을 수 있다.** 이 경우 클라이언트가 위치를 0으로 리셋한다.
@@ -195,7 +195,7 @@ MVP는 자동 콘텐츠 파이프라인을 운영하지 않는다(PRD 4.2). 대�
 - **대상 계정은 서버 env `RECOMMEND_TEST_EMAIL` 하나로 고정한다. 요청이 사용자를 고르지 않는다** — 이메일을 받으면 관리자가 임의 사용자의 라이브러리를 조작하는 도구가 된다.
 - **개발 환경에서만 켜진다.** 환경(`SENTRY_ENVIRONMENT`, 비어 있으면 `NODE_ENV`)이 `development`가 아니면 이메일이 있어도 409(`ADMIN_RECOMMEND_TEST_DISABLED`)다. 행동이 실제 `user_signals`·`library_items`·`play_records`·`content_stats`를 쓰기 때문이다 — 편성 미리보기가 운영에 붙을 수 있었던 이유(읽기 전용)가 여기는 성립하지 않는다. 종전 규칙("`production`이면 꺼짐")은 운영 `SENTRY_ENVIRONMENT`가 비거나 오타면 운영에서 콘솔이 열렸다(실패 시 열림) — 테스트 계정은 실사용 계정일 수 있어 실패 시 닫히는 쪽으로 바꿨다(개정 2026-10-13 — PR #1489, 2026-10-13 개발계 라이브러리 초기화 사고 후속).
 - **각 행동은 앱이 부르는 것과 같은 서비스 경로를 탄다**(`PlayService.startPlay` · `PlaybackProgressService.saveProgress` · `ExploreOrchestrator.saveContent/unsaveContent` · `LibraryScreenOrchestrator.deleteItem` · `PlaybackSignalService.recordReplay` · `UserInterestService.replaceManagedSelection` · `UserCareerService.replaceCareer`). **신호를 직접 적재하는 지름길을 두지 않는다** — 두면 "이 행동을 하면 추천이 어떻게 바뀌나"에 앱과 다른 답을 낸다.
-  - `play` — 라이브러리에 없으면 탐색 재생과 같이 `auto_play` 자동 적립 후 재생 시작. **오늘 한도가 차감된다**(테스트 계정 티어 기준). 한도에 막히면 그 에러가 그대로 보인다.
+  - `play` — 탐색 재생과 같이 **담지 않고** 재생 시작(개정 2026-10-23 — 탐색 재생 자동 적립 폐기, `explore.md` 4.4). **오늘 한도가 차감된다**(테스트 계정 티어 기준). 한도에 막히면 그 에러가 그대로 보인다.
   - `complete` — `play` 후 위치를 길이 끝까지 저장 → 완청 판정(90%) → `complete` 신호. 길이 0 콘텐츠는 수동 완료 경로(`library-api.md` 4.5).
   - `replay` — 완료 상태가 아니면 앱과 같이 무시(신호 없음).
 - **행동 직후 신호 파생 상태를 다시 계산해 저장한다**(`DripBatchOrchestrator.refreshDerivedState` — 배치와 같은 함수. 2026-09-30 개명·확장).
@@ -263,6 +263,7 @@ MVP는 자동 콘텐츠 파이프라인을 운영하지 않는다(PRD 4.2). 대�
 - Given **파트너 콘텐츠**의 출처 링크를 비운 채 업로드를 시도한다 / When [업로드]를 누른다 / Then 검증 실패로 막히고 어떤 필드가 문제인지 표시된다 (`origin == ai_generated`는 source_url이 선택이므로 이 검증을 적용하지 않는다 — 3.1·4.2)
 - Given 라이선스 만료일이 지난 파트너 콘텐츠 / When 업로드를 시도한다 / Then 거부된다
 - Given 발행된 콘텐츠의 오디오를 교체한다 / When 재발행한다 / Then `content_id`는 그대로이고 `content_version`만 증가한다
+- Given 재생 위치가 있는 발행 콘텐츠 / When 썸네일만 바꿔 재발행한다 / Then `content_version`과 재생 위치가 그대로고 새 `thumbnail_url`이 내려간다
 - Given 콘텐츠가 3건 배정된 주제 / When 삭제를 시도한다 / Then 삭제되지 않고 숨김 처리를 안내한다
 - Given 주제의 노출을 끈다 / When 사용자가 온보딩 주제 목록을 조회한다 / Then 해당 주제가 노출되지 않는다
 - Given 콘텐츠가 0건이던 주제에 콘텐츠를 업로드한다 / When 사용자 목록을 확인한다 / Then 주제는 **자동으로 노출되지 않고**, 관리자가 노출을 켜야 보인다

@@ -228,9 +228,16 @@ export function republishEarContent(contentId: string, parts: { audio?: File; lo
 export interface EarSeries {
   id: string; title: string; description: string; total_episodes: number; status: "ongoing" | "completed";
   episode_counts: { published: number; withdrawn: number; expired: number }; max_published_episode_no: number | null;
+  cover_url: string | null; // 시리즈 표지 (KAN-234, 2026-10-21) — 없으면 앱이 가장 앞 편 썸네일을 쓴다
   created_at: string; updated_at: string;
 }
 export const listEarSeries = () => earFetch<{ items: EarSeries[] }>("/admin/series");
+/** 시리즈 표지 올리기 (admin-api 4.24 `PUT /admin/series/:id/cover`, KAN-234) — jpg/png/webp ≤5MB, 올리면 탐색 시리즈 카드·시리즈 화면이 이 그림을 쓴다 */
+export function putEarSeriesCover(id: string, cover: File): Promise<EarSeries> {
+  const fd = new FormData();
+  fd.append("cover", cover);
+  return earFetch<EarSeries>(`/admin/series/${id}/cover`, { method: "PUT", body: fd });
+}
 export const createEarSeries = (body: { title: string; description: string; total_episodes: number; status?: "ongoing" | "completed" }) =>
   earFetch<EarSeries>("/admin/series", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
 export const patchEarSeries = (id: string, fields: Partial<{ title: string; description: string; total_episodes: number; status: "ongoing" | "completed" }>) =>
@@ -247,7 +254,7 @@ export function uploadEarContent(payload: UploadPayload, audio: File, thumbnail:
   return earFetch<EarContent>("/admin/contents", { method: "POST", body: fd });
 }
 
-// ── 편성 미리보기 (admin-api `GET /admin/drip/preview` — 추천 검증 콘솔, 2026-09-18) ──
+// ── 편성 미리보기 (admin-api `GET /admin/drip/preview?user_id=` — 추천 검증 콘솔, 2026-09-18 · user_id 조회 2026-10-22) ──
 
 export interface EarDripTopicRef { topic_id: string; name: string | null }
 export interface EarDripWeight { key: string; name: string | null; weight: number }
@@ -274,7 +281,8 @@ export interface EarDripCandidate {
 }
 export interface EarDripPreview {
   computed_at: string; service_date: string;
-  user: { id: string; email: string | null; nickname: string | null; tier: string; job_category: string | null; years_of_experience: number | null; onboarding_completed: boolean };
+  /** 가명 사용자 — 서버가 이메일·닉네임을 조회하지도 싣지도 않는다(2026-10-22, changes/pending/drip-preview-user-id.md) */
+  user: { id: string; tier: string; market: string; job_category: string | null; years_of_experience: number | null; onboarding_completed: boolean };
   skip_reason: "no_interests" | "unfinished_inventory" | "plan_disabled" | null;
   unfinished_count: number | null; unfinished_limit: number; drip_count: number | null; discovery_count: number | null;
   interests: (EarDripTopicRef & { source: string })[]; removed_topics: EarDripTopicRef[];
@@ -297,9 +305,22 @@ export interface EarDripPreview {
   discovery_error: string | null;
   today_placed: { content_id: string; title: string }[];
 }
-/** 매 호출이 서버에서 새로 계산한다(서버도 no-store). 브라우저 캐시도 끈다 */
-export const getEarDripPreview = (email: string, ch: EarChannel = "prod") =>
-  earFetch<EarDripPreview>(`/admin/drip/preview?email=${encodeURIComponent(email)}`, { cache: "no-store" }, ch);
+/** uuid 모양인가 — 입력 형식만 본다(대상 판정은 서버가 한다). 형식이 맞는데 400 이면 옛 계약 서버라는 뜻이다 */
+export const isUuidLike = (v: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v.trim());
+
+/**
+ * 이 서버가 아직 옛 계약(`?email=`만 받음)인가 — 형식이 맞는 `user_id`를 보냈는데 400 `VALIDATION_FAILED`가 오면 그렇다.
+ * 콘솔은 dev 머지 즉시 배포되지만 운영 API 는 다음 dev→main 릴리스에 들어가서, 그 사이 운영은 이 상태다(2026-10-22).
+ */
+export const isDripPreviewNotDeployed = (e: unknown) =>
+  e instanceof EarApiError && e.status === 400 && (e.errorCode === undefined || e.errorCode === "VALIDATION_FAILED");
+
+/**
+ * 매 호출이 서버에서 새로 계산한다(서버도 no-store). 브라우저 캐시도 끈다. 대상은 가명 `user_id`로만 고른다 —
+ * 이메일 조회는 폐기됐다(2026-10-22). 열 때마다 서버가 감사 로그 1행을 남긴다(drip.preview_view)
+ */
+export const getEarDripPreview = (userId: string, ch: EarChannel = "prod") =>
+  earFetch<EarDripPreview>(`/admin/drip/preview?user_id=${encodeURIComponent(userId.trim())}`, { cache: "no-store" }, ch);
 
 // ── 추천 테스트 (admin-api 4.17 — 개발계 전용, changes/pending/admin-api-recommend-test.md) ──
 
@@ -336,7 +357,35 @@ export interface EarExploreFeed {
 const DEV: EarChannel = "dev";
 const json = (body: unknown): RequestInit => ({ headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
 export const getRecommendTestAccount = () => earFetch<RecommendTestAccount>("/admin/recommend-test/account", { cache: "no-store" }, DEV);
-export const getRecommendTestFeed = () => earFetch<EarExploreFeed>("/admin/recommend-test/feed", { cache: "no-store" }, DEV);
+/**
+ * 탐색 피드 — 시리즈 카드 스위치(`SERIES_EXPLORE_CARDS_ENABLED`)가 켜진 서버는 `type: "series"` 행(`content` 없음)을 섞는다.
+ * 이 화면은 편 단위로만 그리므로 시리즈 카드를 "[시리즈] 제목" 한 줄로 바꿔 싣는다(2026-10-22 — 개발계 스위치 켬 뒤
+ * `Cannot read properties of undefined (reading 'id')`). 순위 비교 키는 시리즈 id 다.
+ */
+type RawFeedItem = EarExploreFeed["sections"][number]["items"][number] & {
+  type?: "content" | "series";
+  series?: { id: string; title: string } | null;
+};
+export const getRecommendTestFeed = async (): Promise<EarExploreFeed> => {
+  const feed = await earFetch<EarExploreFeed>("/admin/recommend-test/feed", { cache: "no-store" }, DEV);
+  return {
+    ...feed,
+    sections: feed.sections.map((s) => ({
+      ...s,
+      items: (s.items as RawFeedItem[]).flatMap((it) => {
+        if (it.content) return [it];
+        if (it.type === "series" && it.series) {
+          return [{
+            content: { id: it.series.id, title: `[시리즈] ${it.series.title}`, author_name: null, source_name: "", duration_sec: 0, topic_ids: [] },
+            library: null,
+            is_counted_today: false,
+          }];
+        }
+        return [];
+      }),
+    })),
+  };
+};
 export const postRecommendTestAction = (action: RecommendTestAction, content_id: string) =>
   earFetch<RecommendTestActionResult>("/admin/recommend-test/actions", { method: "POST", ...json({ action, content_id }) }, DEV);
 export const putRecommendTestInterests = (topic_ids: string[]) =>
@@ -453,3 +502,81 @@ export interface EarInsightsSummary {
 /** 열 때 1회 + [새로고침] — 자동 폴링하지 않는다(backend-monitoring.md 3장). 서버도 no-store */
 export const getEarInsightsSummary = (ch: EarChannel, days: number) =>
   earFetch<EarInsightsSummary>(`/admin/insights/summary?days=${days}`, { cache: "no-store" }, ch);
+
+// ── 추천 검증 (서비스 지표 — `GET /admin/insights/recommendations/*`, 2026-10-22) ──
+// 사용자는 user_id 로만 온다 — 서버가 이름·이메일·제공자 ID·프로필 사진을 조회하지도 싣지도 않는다(루트 CLAUDE.md 개인정보 원칙).
+
+export type EarInspectorSort = "listen" | "recent";
+export interface EarInspectorUser {
+  user_id: string; tier: string; signed_up_at: string; market: string; interest_count: number;
+  plays_30d: number; listen_sec_30d: number; completes_30d: number; last_played_at: string | null;
+}
+export interface EarInspectorUsers { sort: EarInspectorSort; since: string; generated_at: string; users: EarInspectorUser[] }
+
+/** 후보 표 한 줄 — 편성 미리보기의 후보 + 점수 순위·편성 여부 */
+export type EarInspectorCandidate = EarDripCandidate & { rank: number; would_place: boolean };
+export interface EarInspectorPick {
+  pick_order: number; content_id: string; title: string; score: number; rank: number;
+  is_series_continuation: boolean; is_outside_interests: boolean | null;
+}
+export interface EarInspectorDetail {
+  user_id: string; generated_at: string;
+  profile: {
+    tier: string; market: string; signed_up_at: string; onboarding_completed: boolean; onboarding_step: string;
+    onboarding_completed_at: string | null; job_category: string | null; years_of_experience: number | null;
+    /** 커리어 적합도를 편성이 쓰는가 — KR 시장만 */
+    career_used: boolean; is_auto_expand_enabled: boolean;
+  };
+  interests: {
+    topic_id: string; name: string | null; source: string; is_active: boolean; is_user_removed: boolean;
+    is_topic_visible: boolean | null; added_at: string; deactivated_at: string | null;
+  }[];
+  listening: {
+    since: string;
+    items: {
+      content_id: string; title: string; topics: EarDripTopicRef[]; duration_sec: number;
+      first_played_at: string | null; last_played_at: string | null; play_days: number; listen_sec: number;
+      complete_count: number; last_completed_at: string | null; saved_at: string | null; max_reached_sec: number | null;
+      listened_ratio: number | null;
+    }[];
+  };
+  deliveries: {
+    since: string;
+    items: {
+      service_date: string; added_at: string; content_id: string; title: string; topics: EarDripTopicRef[];
+      source: string; algorithm_version: string | null; status: string; deleted: boolean;
+      played_after: boolean; completed_after: boolean; feedback_stars: number | null;
+    }[];
+  };
+  /** 현재 시점 재계산 — 점수는 저장되지 않으므로 과거 편성 당시 값이 아니다(`notice`) */
+  explanation: {
+    notice: string; computed_at: string; service_date: string;
+    skip_reason: string | null; unfinished_count: number | null; unfinished_limit: number;
+    drip_count: number | null; discovery_count: number | null;
+    weights: EarDripPreview["weights"];
+    preference: EarDripPreview["preference"] & {
+      signal_total: number; signal_actions: Record<string, number>;
+      signal_counts_by_topic: { topic_id: string; name: string | null; counts: Record<string, number>; total: number }[];
+    };
+    auto_expand: EarDripPreview["auto_expand"];
+    exclusion_sources: { library_contents: number; permanently_excluded: number };
+    regular: {
+      pool_size: number; sql_filters: string[]; excluded_counts: Record<string, number>; candidate_count: number;
+      series: { gated_out: { content_id: string; title: string; reason: string }[]; continuation_count: number };
+      top: EarInspectorCandidate[]; picks: EarInspectorPick[];
+    } | null;
+    discovery: {
+      pool_size: number; sql_filters: string[]; quality_floor: number; typical_complete_rate: number;
+      excluded_counts: Record<string, number>; candidate_count: number;
+      top: EarInspectorCandidate[]; picks: EarInspectorPick[];
+    } | null;
+    discovery_error: string | null;
+    today_placed: { content_id: string; title: string }[];
+  };
+}
+/** 열 때 1회 + [새로고침] — 자동 폴링하지 않는다. 서버도 no-store */
+export const getEarInspectorUsers = (ch: EarChannel, sort: EarInspectorSort, limit = 30) =>
+  earFetch<EarInspectorUsers>(`/admin/insights/recommendations/users?sort=${sort}&limit=${limit}`, { cache: "no-store" }, ch);
+/** 상세는 열 때마다 서버가 감사 로그 1행을 남긴다(insights.recommendation_view) — 사용자를 고를 때만 부른다 */
+export const getEarInspectorDetail = (ch: EarChannel, userId: string) =>
+  earFetch<EarInspectorDetail>(`/admin/insights/recommendations/users/${encodeURIComponent(userId)}`, { cache: "no-store" }, ch);

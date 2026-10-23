@@ -8,12 +8,14 @@ import { ContentService } from '@/modules/content/services/content.service';
 import { SeriesService } from '@/modules/content/services/series.service';
 import { LibraryService } from '@/modules/library/library.service';
 import { PlanService } from '@/modules/subscription/services/plan.service';
+import { DeviceTokenService } from '@/modules/user/services/device-token.service';
 import { UserService } from '@/modules/user/services/user.service';
 import { UserSettingService } from '@/modules/user/services/user-setting.service';
 
 import { AUDIO_URL_ISSUER } from '../audio-url-issuer';
 import type { AudioUrlIssuer } from '../audio-url-issuer';
 import {
+  canPlayLossless,
   resolveAudioQuality,
   sortAudioQualities,
 } from '../audio-quality.policy';
@@ -60,6 +62,7 @@ export class AudioUrlService {
     @Inject(AUDIO_URL_ISSUER)
     private readonly audioUrlIssuer: AudioUrlIssuer,
     private readonly seriesService: SeriesService,
+    private readonly deviceTokenService: DeviceTokenService,
   ) {}
 
   async issue(command: IssueAudioUrlCommand): Promise<AudioUrlResult> {
@@ -86,6 +89,7 @@ export class AudioUrlService {
       renditions,
       decision,
       seriesRefs,
+      device,
     ] = await Promise.all([
       this.libraryService.findItemByContentId(
         command.userId,
@@ -99,10 +103,18 @@ export class AudioUrlService {
       this.decideQuality(command),
       // 플레이어의 시리즈 표시(KAN-134) — 카드·라이브러리 항목과 같은 객체
       this.seriesService.findRefs([content]),
+      this.deviceTokenService.findByUserIdAndDeviceId(
+        command.userId,
+        command.deviceId,
+      ),
     ]);
 
     // 3. 음질 판정(player.md 4.9) — 요청 → 티어 허용 최대 → 콘텐츠가 가진 것. 거절하지 않는다
-    const available = sortAudioQualities(renditions.map((r) => r.quality));
+    // 무손실을 제대로 못 트는 기기(옛 iOS 앱 — KAN-256)에는 그 파일이 없는 것처럼 판정한다
+    const playable = canPlayLossless(device)
+      ? renditions
+      : renditions.filter((r) => r.quality !== AudioQuality.LOSSLESS);
+    const available = sortAudioQualities(playable.map((r) => r.quality));
     const quality = resolveAudioQuality({ ...decision, available });
     /**
      * 경로의 원천: **compressed 는 `contents.audio_path`**, 그 밖의 음질은 그 음질 행. compressed 행의 경로는

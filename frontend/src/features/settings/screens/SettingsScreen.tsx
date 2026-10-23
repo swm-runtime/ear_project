@@ -35,6 +35,7 @@ import SettingsSection from '../components/SettingsSection';
 import SettingsToggleRow from '../components/SettingsToggleRow';
 import SettingsTopSkeleton from '../components/SettingsTopSkeleton';
 import { useSettingsScreen } from '../hooks/useSettingsScreen';
+import { setAutoplayNextEnabled, useAutoplayNextEnabled } from '../settings.autoplay-next';
 import { KAKAO_CHANNEL_URL } from '../settings.constants';
 import { SETTINGS_COPY } from '../settings.copy';
 
@@ -46,6 +47,7 @@ import { SETTINGS_COPY } from '../settings.copy';
  */
 export default function SettingsScreen() {
   const screen = useSettingsScreen();
+  const isAutoplayNextOn = useAutoplayNextEnabled();
   // 0.3초 미만 로딩은 표시하지 않는다(common-error-handling.md 5장)
   const showSkeleton = useDelayedVisible(screen.isInitialLoading);
 
@@ -204,6 +206,13 @@ export default function SettingsScreen() {
               }
               onPress={screen.openRateSheet}
               disabled={!hasControls}
+            />
+            {/* 재생 목록 자동 재생(player.md 4.2-4) — 기기 설정이라 서버 요약(controls)을 기다리지 않는다 */}
+            <SettingsToggleRow
+              label={SETTINGS_COPY.playback.autoplayNext}
+              description={SETTINGS_COPY.playback.autoplayNextDescription}
+              value={isAutoplayNextOn}
+              onToggle={setAutoplayNextEnabled}
             />
             {/* 오프라인 저장 관리는 P1 이연 — 메뉴를 노출하지 않는다(settings.md 4.1) */}
           </SettingsSection>

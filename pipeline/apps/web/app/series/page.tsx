@@ -4,6 +4,7 @@ import { Badge, LinkBtn, PageHeader, Panel, Table, Td } from "@/components/ui";
 import { supabaseServer } from "@/lib/supabase-server";
 import { fmtTime } from "@/lib/format";
 import { SERIES_STATUS_LABEL, type SeriesRow } from "@/lib/series";
+import { ProductSeriesCovers } from "./product-series-covers";
 
 /** 시리즈 목록 (spec/11 9장, KAN-136) — 설계안·승인·편별 진행 */
 export default async function SeriesListPage() {
@@ -37,6 +38,7 @@ export default async function SeriesListPage() {
           })}
         </Table>
       </Panel>
+      <ProductSeriesCovers />
     </div>
   );
 }

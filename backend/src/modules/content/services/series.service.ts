@@ -75,6 +75,7 @@ export class SeriesService {
         description: normalizeStoredText(command.description),
         totalEpisodes: command.totalEpisodes,
         status: command.status,
+        publisherName: command.publisherName,
       }),
       manager,
     );
@@ -137,6 +138,9 @@ export class SeriesService {
     }
     if (command.status !== undefined) {
       series.status = command.status;
+    }
+    if (command.publisherName !== undefined) {
+      series.publisherName = command.publisherName;
     }
 
     return this.seriesRepository.save(series, manager);
@@ -375,6 +379,48 @@ export class SeriesService {
     }
 
     return cards;
+  }
+
+  /**
+   * 같은 간행물의 다른 시리즈(`GET /series/:id/publisher-series` — 애플 뮤직 "○○의 다른 앨범" 자리, 2026-10-22 PM).
+   * 기준 시리즈가 사용자에게 보이지 않으면 시리즈 화면과 같은 404다. 발행 이름이 없으면 빈 목록이다. 카드는 탐색 시리즈 카드와
+   * 같은 재료이고, 노출 편이 사용자 시장에 없는 시리즈는 빠진다(`findCards`). 순서는 만든 순
+   */
+  async findPublisherSiblingCards(
+    seriesId: string,
+    now: Date,
+    market: UserMarket,
+    manager?: EntityManager,
+  ): Promise<{ publisherName: string | null; cards: SeriesCardView[] }> {
+    const { series } = await this.getVisibleForUser(
+      seriesId,
+      now,
+      market,
+      manager,
+    );
+    if (!series.publisherName) {
+      return { publisherName: null, cards: [] };
+    }
+
+    const siblings = (
+      await this.seriesRepository.findByPublisherName(
+        series.publisherName,
+        manager,
+      )
+    ).filter((sibling) => sibling.id !== series.id);
+    const cardById = await this.findCards(
+      siblings.map((sibling) => sibling.id),
+      now,
+      market,
+      manager,
+    );
+
+    return {
+      publisherName: series.publisherName,
+      cards: siblings
+        .map((sibling) => cardById.get(sibling.id))
+        .filter((card): card is SeriesCardView => card !== undefined),
+    };
   }
 
   /**

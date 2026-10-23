@@ -6,7 +6,11 @@ import { EnvironmentVariables } from '@/config/env.validation';
 import { BusinessException } from '@/common/exceptions/business.exception';
 import { ErrorCode } from '@/common/exceptions/error-code.enum';
 import { ContentStatus, StatsPeriodType } from '@/modules/content/content.enum';
-import { RankedPopularContent } from '@/modules/content/content.types';
+import {
+  RankedPopularContent,
+  RrfSearchCursorPosition,
+  SearchEngine,
+} from '@/modules/content/content.types';
 import { Content } from '@/modules/content/entities/content.entity';
 import { ContentService } from '@/modules/content/services/content.service';
 import { SearchQueryLogService } from '@/modules/content/services/search-query-log.service';
@@ -30,15 +34,22 @@ import { UserSignalAction } from '@/modules/playback/playback.enum';
 import { PlaybackService } from '@/modules/playback/services/playback.service';
 
 import {
+  decodeAnySearchCursor,
   decodeExploreCursor,
   decodePopularCursor,
   decodeSearchCursor,
+  encodeHybridSearchCursor,
   encodePopularCursor,
   encodeSearchCursor,
 } from './explore.cursor';
 import { ExploreSectionKey, SaveReason } from './explore.enum';
 import { ExploreOrchestrator } from './explore.orchestrator';
-import { ExploreItemView, ExploreListItemView } from './explore.types';
+import {
+  ExploreItemView,
+  ExploreListItemView,
+  ExploreSearchQuery,
+} from './explore.types';
+import { QueryEmbeddingClient } from './query-embedding.client';
 import { UserMarket } from '@/modules/user/user.enum';
 
 const NOW = new Date('2026-08-05T09:00:00.000Z');
@@ -66,6 +77,21 @@ function buildContent(id: string, overrides: Partial<Content> = {}): Content {
     publishedAt: new Date('2026-08-01T00:00:00.000Z'),
     ...overrides,
   } as Content;
+}
+
+/** 하이브리드 행의 RRF 커서 위치 — `buildContent`의 `published_at`과 같다 */
+function rrfPosition(
+  id: string,
+  rrf: number,
+  playCount: number,
+): RrfSearchCursorPosition {
+  return {
+    order: 'rrf',
+    rrf,
+    playCount,
+    publishedAt: new Date('2026-08-01T00:00:00.000Z'),
+    id,
+  };
 }
 
 /** 인기 목록은 커서 발급 때문에 정렬 키를 함께 돌려준다 */
@@ -147,6 +173,7 @@ describe('ExploreOrchestrator', () => {
   let preferenceVectorService: jest.Mocked<PreferenceVectorService>;
   let searchQueryLogService: jest.Mocked<SearchQueryLogService>;
   let seriesService: jest.Mocked<SeriesService>;
+  let queryEmbeddingClient: jest.Mocked<QueryEmbeddingClient>;
 
   beforeEach(() => {
     contentService = {
@@ -161,6 +188,13 @@ describe('ExploreOrchestrator', () => {
       findSearchPage: jest
         .fn()
         .mockResolvedValue({ items: [], hasNext: false }),
+      findHybridSearchPage: jest.fn().mockResolvedValue({
+        items: [],
+        hasNext: false,
+        keywordMatched: false,
+      }),
+      findSearchCorrection: jest.fn().mockResolvedValue(null),
+      findRelatedContents: jest.fn().mockResolvedValue([]),
       findTopicViews: jest.fn().mockResolvedValue([]),
       findScorableEmbeddings: jest.fn().mockResolvedValue(new Map()),
       getPublishedById: jest.fn().mockResolvedValue(buildContent(CONTENT_ID)),
@@ -174,6 +208,7 @@ describe('ExploreOrchestrator', () => {
         reactivated: false,
       }),
       unsave: jest.fn().mockResolvedValue(true),
+      findCompletedContentIds: jest.fn().mockResolvedValue(new Set()),
       findActiveItems: jest.fn().mockResolvedValue([]),
     } as unknown as jest.Mocked<LibraryService>;
 
@@ -218,6 +253,11 @@ describe('ExploreOrchestrator', () => {
       findRefs: jest.fn().mockResolvedValue(new Map()),
     } as unknown as jest.Mocked<SeriesService>;
 
+    // 기본은 결손(AI 서버 미설정) — 의미 엔진 없이 키워드만
+    queryEmbeddingClient = {
+      embed: jest.fn().mockResolvedValue(null),
+    } as unknown as jest.Mocked<QueryEmbeddingClient>;
+
     orchestrator = new ExploreOrchestrator(
       contentService,
       libraryService,
@@ -232,6 +272,7 @@ describe('ExploreOrchestrator', () => {
       searchQueryLogService,
       seriesService,
       configWith(),
+      queryEmbeddingClient,
     );
   });
 
@@ -961,6 +1002,25 @@ describe('ExploreOrchestrator', () => {
       titleSimilarity: 0.5,
       playCount: 3,
     };
+    const HYBRID_ROW = {
+      content: buildContent(CONTENT_ID),
+      position: rrfPosition(CONTENT_ID, 1 / 61, 3),
+      matchedBy: ['keyword'] as SearchEngine[],
+    };
+    const SEMANTIC_ROW = {
+      content: buildContent(OTHER_CONTENT_ID),
+      position: rrfPosition(OTHER_CONTENT_ID, 1 / 62, 1),
+      matchedBy: ['semantic'] as SearchEngine[],
+    };
+    const VECTOR = [0.1, 0.2];
+    const query = (overrides: Partial<ExploreSearchQuery> = {}) => ({
+      query: '커리어',
+      topicIds: [],
+      cursor: null,
+      limit: 20,
+      exact: false,
+      ...overrides,
+    });
 
     it('NFD 분해형 입력을 NFC로 정규화해 조회한다', async () => {
       // given — "커리"의 NFD 분해형(4 코드포인트). 정규화 없이는 저장 텍스트와 매칭되지 않는다
@@ -969,317 +1029,707 @@ describe('ExploreOrchestrator', () => {
       // when
       await orchestrator.search(
         USER_ID,
-        { query: nfd, topicIds: [], cursor: null, limit: 20 },
+        query({ query: nfd }),
         NOW,
         UserMarket.KR,
       );
 
       // then
-      expect(contentService.findSearchPage).toHaveBeenCalledWith(
+      expect(contentService.findHybridSearchPage).toHaveBeenCalledWith(
         expect.objectContaining({ normalizedQuery: '커리' }),
       );
+      expect(queryEmbeddingClient.embed).toHaveBeenCalledWith('커리');
     });
 
-    it('정규화 후 2자 미만이면 조회 없이 거절한다', async () => {
-      // given — NFD "커"(2 코드포인트)는 원문 길이 검증을 통과하지만 합성하면 1자다
-      const nfd = '커'.normalize('NFD');
-
+    it.each([
+      ['정규화 후 2자 미만(NFD "커")', '커'.normalize('NFD')],
+      ['#을 뗀 뒤 2자 미만(#a)', '#a'],
+      ['특수문자만', '!!??'],
+    ])('%s이면 조회 없이 거절한다', async (_label, raw) => {
       // when
       const error = await catchError(
-        orchestrator.search(
-          USER_ID,
-          { query: nfd, topicIds: [], cursor: null, limit: 20 },
-          NOW,
-          UserMarket.KR,
-        ),
+        orchestrator.search(USER_ID, query({ query: raw }), NOW, UserMarket.KR),
       );
 
       // then
       expect(error.errorCode).toBe(ErrorCode.VALIDATION_FAILED);
       expect(contentService.findSearchPage).not.toHaveBeenCalled();
+      expect(contentService.findHybridSearchPage).not.toHaveBeenCalled();
     });
 
-    it('#으로 시작하면 #을 뗀 검색어로 태그 전용 조회를 하고, 로그에는 #을 남긴다(KAN-218)', async () => {
-      // when
-      await orchestrator.search(
-        USER_ID,
-        { query: '#뱅크런', topicIds: [], cursor: null, limit: 20 },
-        NOW,
-        UserMarket.KR,
-      );
-
-      // then
-      expect(contentService.findSearchPage).toHaveBeenCalledWith(
-        expect.objectContaining({ normalizedQuery: '뱅크런', tagOnly: true }),
-      );
-      expect(searchQueryLogService.record).toHaveBeenCalledWith(
-        expect.objectContaining({ normalizedQuery: '#뱅크런' }),
-        NOW,
-      );
-    });
-
-    it('#을 뗀 뒤 2자 미만이면 조회 없이 거절한다 — #a', async () => {
-      // when
-      const error = await catchError(
-        orchestrator.search(
-          USER_ID,
-          { query: '#a', topicIds: [], cursor: null, limit: 20 },
-          NOW,
-          UserMarket.KR,
-        ),
-      );
-
-      // then
-      expect(error.errorCode).toBe(ErrorCode.VALIDATION_FAILED);
-      expect(contentService.findSearchPage).not.toHaveBeenCalled();
-    });
-
-    it('태그 전용 검색의 빈 결과는 #을 뗀 검색어로 관련 주제를 찾는다', async () => {
-      // given
-      contentService.findSearchPage.mockResolvedValue({
-        items: [],
-        hasNext: false,
-      });
-
-      // when
-      await orchestrator.search(
-        USER_ID,
-        { query: '#커리어', topicIds: [], cursor: null, limit: 20 },
-        NOW,
-        UserMarket.KR,
-      );
-
-      // then
-      expect(topicService.findVisibleRelatedByName).toHaveBeenCalledWith(
-        '커리어',
-        expect.any(Number),
-        UserMarket.KR,
-      );
-    });
-
-    it('특수문자만인 질의는 조회 없이 거절한다', async () => {
-      // given
-      // when
-      const error = await catchError(
-        orchestrator.search(
-          USER_ID,
-          { query: '!!??', topicIds: [], cursor: null, limit: 20 },
-          NOW,
-          UserMarket.KR,
-        ),
-      );
-
-      // then
-      expect(error.errorCode).toBe(ErrorCode.VALIDATION_FAILED);
-      expect(contentService.findSearchPage).not.toHaveBeenCalled();
-    });
-
-    it('첫 페이지 검색은 정규화된 질의와 첫 페이지 건수를 로그로 남긴다', async () => {
-      // given
-      contentService.findSearchPage.mockResolvedValue({
-        items: [SEARCH_ROW],
-        hasNext: true,
-      });
-
-      // when
-      await orchestrator.search(
-        USER_ID,
-        { query: ' 커리어 ', topicIds: [TOPIC_ID], cursor: null, limit: 1 },
-        NOW,
-        UserMarket.KR,
-      );
-
-      // then
-      expect(searchQueryLogService.record).toHaveBeenCalledWith(
-        {
-          userId: USER_ID,
-          normalizedQuery: '커리어',
-          resultCount: 1,
-          hasNext: true,
-          topicFilterCount: 1,
-          resultContentIds: [CONTENT_ID],
-        },
-        NOW,
-      );
-    });
-
-    it('0건으로 끝난 검색도 로그에 남는다 — 미스율의 분자다', async () => {
-      // given
-      contentService.findSearchPage.mockResolvedValue({
-        items: [],
-        hasNext: false,
-      });
-
-      // when
-      await orchestrator.search(
-        USER_ID,
-        { query: '없는말', topicIds: [], cursor: null, limit: 20 },
-        NOW,
-        UserMarket.KR,
-      );
-
-      // then
-      expect(searchQueryLogService.record).toHaveBeenCalledWith(
-        expect.objectContaining({ normalizedQuery: '없는말', resultCount: 0 }),
-        NOW,
-      );
-    });
-
-    it('빈 커서(cursor=)도 첫 페이지로 보고 검색 로그를 남긴다 — 디코드·로그·대체 콘텐츠가 같은 기준이다', async () => {
-      // given
-      contentService.findSearchPage.mockResolvedValue({
-        items: [],
-        hasNext: false,
-      });
-
-      // when
-      const result = await orchestrator.search(
-        USER_ID,
-        { query: '없는말', topicIds: [], cursor: '', limit: 20 },
-        NOW,
-        UserMarket.KR,
-      );
-
-      // then
-      expect(searchQueryLogService.record).toHaveBeenCalledTimes(1);
-      expect(result.fallback).not.toBeNull();
-    });
-
-    it('커서 페이지는 로그를 남기지 않는다 — 같은 질의의 이어 읽기다', async () => {
-      // given
-      contentService.findSearchPage.mockResolvedValue({
-        items: [SEARCH_ROW],
-        hasNext: false,
-      });
-      const cursor = encodeSearchCursor(
-        {
-          score: 8,
-          titleSimilarity: 0.5,
-          playCount: 3,
-          publishedAt: NOW,
-          id: CONTENT_ID,
-        },
-        '커리어',
-        [],
-      );
-
-      // when
-      await orchestrator.search(
-        USER_ID,
-        { query: '커리어', topicIds: [], cursor, limit: 20 },
-        NOW,
-        UserMarket.KR,
-      );
-
-      // then
-      expect(searchQueryLogService.record).not.toHaveBeenCalled();
-    });
-
-    it('결과가 있으면 fallback 없이 행을 돌려준다', async () => {
-      // given
-      contentService.findSearchPage.mockResolvedValue({
-        items: [SEARCH_ROW],
-        hasNext: false,
-      });
-
-      // when
-      const result = await orchestrator.search(
-        USER_ID,
-        { query: '커리어', topicIds: [], cursor: null, limit: 20 },
-        NOW,
-        UserMarket.KR,
-      );
-
-      // then
-      expect(result.items).toHaveLength(1);
-      expect(result.fallback).toBeNull();
-      expect(result.nextCursor).toBeNull();
-    });
-
-    it('다음 페이지가 있으면 마지막 행의 다섯 정렬 키를 담은 커서를 발급한다', async () => {
-      // given
-      contentService.findSearchPage.mockResolvedValue({
-        items: [SEARCH_ROW],
-        hasNext: true,
-      });
-
-      // when
-      const result = await orchestrator.search(
-        USER_ID,
-        { query: '커리어', topicIds: [], cursor: null, limit: 1 },
-        NOW,
-        UserMarket.KR,
-      );
-
-      // then
-      expect(result.hasNext).toBe(true);
-      expect(
-        decodeSearchCursor(result.nextCursor as string, '커리어', []),
-      ).toEqual({
-        score: 8,
-        titleSimilarity: 0.5,
-        playCount: 3,
-        publishedAt: SEARCH_ROW.content.publishedAt,
-        id: CONTENT_ID,
-      });
-    });
-
-    it('첫 페이지의 빈 결과에는 관련 주제와 인기 콘텐츠 fallback을 조립한다', async () => {
-      // given — 초기 콘텐츠 풀이 작아 빈 결과 UX가 중요하다 (explore.md 4.5-3)
-      topicService.findVisibleRelatedByName.mockResolvedValue([
-        { id: TOPIC_ID, name: '커리어' } as Topic,
-      ]);
-      contentService.findPopularPage.mockResolvedValue({
-        items: [buildPopularRow(OTHER_CONTENT_ID)],
-        hasNext: false,
-      });
-
-      // when
-      const result = await orchestrator.search(
-        USER_ID,
-        { query: '없는검색어', topicIds: [], cursor: null, limit: 20 },
-        NOW,
-        UserMarket.KR,
-      );
-
-      // then
-      expect(result.items).toHaveLength(0);
-      expect(result.fallback?.relatedTopics).toEqual([
-        { id: TOPIC_ID, name: '커리어' },
-      ]);
-      expect(result.fallback?.popularItems).toHaveLength(1);
-    });
-
-    it('커서 페이지의 빈 결과에는 fallback을 조립하지 않는다', async () => {
-      // given — 목록의 끝이지 "결과 없음" 화면이 아니다
-      const cursor = await (async () => {
-        contentService.findSearchPage.mockResolvedValueOnce({
+    describe('# 태그 전용 — 종전 경로', () => {
+      it('#을 뗀 검색어로 태그 전용 조회를 하고, 교정·의미 엔진은 돌리지 않으며, 로그에는 #을 남긴다(KAN-218)', async () => {
+        // given
+        contentService.findSearchPage.mockResolvedValue({
           items: [SEARCH_ROW],
-          hasNext: true,
+          hasNext: false,
         });
-        const first = await orchestrator.search(
+
+        // when
+        const result = await orchestrator.search(
           USER_ID,
-          { query: '커리어', topicIds: [], cursor: null, limit: 1 },
+          query({ query: '#뱅크런', exact: true }),
           NOW,
           UserMarket.KR,
         );
-        return first.nextCursor as string;
-      })();
 
-      // when
-      const result = await orchestrator.search(
-        USER_ID,
-        { query: '커리어', topicIds: [], cursor, limit: 1 },
-        NOW,
-        UserMarket.KR,
-      );
+        // then
+        expect(contentService.findSearchPage).toHaveBeenCalledWith(
+          expect.objectContaining({ normalizedQuery: '뱅크런', tagOnly: true }),
+        );
+        expect(contentService.findHybridSearchPage).not.toHaveBeenCalled();
+        expect(contentService.findSearchCorrection).not.toHaveBeenCalled();
+        expect(queryEmbeddingClient.embed).not.toHaveBeenCalled();
+        expect(result).toMatchObject({
+          queryUsed: '#뱅크런',
+          correctedFrom: null,
+          match: 'keyword',
+          engines: ['keyword'],
+          matchedBy: [['keyword']],
+        });
+        expect(searchQueryLogService.record).toHaveBeenCalledWith(
+          expect.objectContaining({
+            normalizedQuery: '#뱅크런',
+            queryUsed: '#뱅크런',
+            engines: ['keyword'],
+          }),
+          NOW,
+        );
+      });
 
-      // then
-      expect(result.items).toHaveLength(0);
-      expect(result.fallback).toBeNull();
-      expect(topicService.findVisibleRelatedByName).not.toHaveBeenCalled();
+      it('빈 결과는 #을 뗀 검색어로 관련 주제를 찾는다', async () => {
+        // when
+        await orchestrator.search(
+          USER_ID,
+          query({ query: '#커리어' }),
+          NOW,
+          UserMarket.KR,
+        );
+
+        // then
+        expect(topicService.findVisibleRelatedByName).toHaveBeenCalledWith(
+          '커리어',
+          expect.any(Number),
+          UserMarket.KR,
+        );
+      });
+
+      it('다음 페이지 커서는 종전 모양(다섯 정렬 키)이다', async () => {
+        // given
+        contentService.findSearchPage.mockResolvedValue({
+          items: [SEARCH_ROW],
+          hasNext: true,
+        });
+
+        // when
+        const result = await orchestrator.search(
+          USER_ID,
+          query({ query: '#커리어', limit: 1 }),
+          NOW,
+          UserMarket.KR,
+        );
+
+        // then
+        expect(
+          decodeSearchCursor(result.nextCursor as string, '#커리어', []),
+        ).toEqual({
+          score: 8,
+          titleSimilarity: 0.5,
+          playCount: 3,
+          publishedAt: SEARCH_ROW.content.publishedAt,
+          id: CONTENT_ID,
+        });
+      });
+    });
+
+    describe('하이브리드', () => {
+      it('질의 벡터를 받아 두 엔진으로 조회하고 engines·matched_by·match를 싣는다', async () => {
+        // given
+        queryEmbeddingClient.embed.mockResolvedValue(VECTOR);
+        contentService.findHybridSearchPage.mockResolvedValue({
+          items: [HYBRID_ROW, SEMANTIC_ROW],
+          hasNext: false,
+          keywordMatched: true,
+        });
+
+        // when
+        const result = await orchestrator.search(
+          USER_ID,
+          query(),
+          NOW,
+          UserMarket.KR,
+        );
+
+        // then
+        expect(contentService.findHybridSearchPage).toHaveBeenCalledWith(
+          expect.objectContaining({
+            normalizedQuery: '커리어',
+            queryVector: VECTOR,
+          }),
+        );
+        expect(result).toMatchObject({
+          queryUsed: '커리어',
+          correctedFrom: null,
+          match: 'keyword',
+          engines: ['keyword', 'semantic'],
+          matchedBy: [['keyword'], ['semantic']],
+          fallback: null,
+        });
+        expect(contentService.findSearchCorrection).not.toHaveBeenCalled();
+      });
+
+      it('AI 서버 결손(벡터 없음)이면 의미 엔진 없이 조회하고 engines에 semantic이 없다', async () => {
+        // given
+        contentService.findHybridSearchPage.mockResolvedValue({
+          items: [HYBRID_ROW],
+          hasNext: false,
+          keywordMatched: true,
+        });
+
+        // when
+        const result = await orchestrator.search(
+          USER_ID,
+          query(),
+          NOW,
+          UserMarket.KR,
+        );
+
+        // then
+        expect(contentService.findHybridSearchPage).toHaveBeenCalledWith(
+          expect.objectContaining({ queryVector: null }),
+        );
+        expect(result.engines).toEqual(['keyword']);
+      });
+
+      it('첫 페이지가 의미 결과뿐이면 match: related', async () => {
+        // given — 교정어도 없다
+        queryEmbeddingClient.embed.mockResolvedValue(VECTOR);
+        contentService.findHybridSearchPage.mockResolvedValue({
+          items: [SEMANTIC_ROW],
+          hasNext: false,
+          keywordMatched: false,
+        });
+
+        // when
+        const result = await orchestrator.search(
+          USER_ID,
+          query({ query: '이직' }),
+          NOW,
+          UserMarket.KR,
+        );
+
+        // then
+        expect(result.match).toBe('related');
+        expect(result.correctedFrom).toBeNull();
+      });
+
+      it('첫 페이지 검색은 입력·실제 검색어·건수·키워드 건수·엔진을 로그로 남긴다', async () => {
+        // given
+        queryEmbeddingClient.embed.mockResolvedValue(VECTOR);
+        contentService.findHybridSearchPage.mockResolvedValue({
+          items: [HYBRID_ROW, SEMANTIC_ROW],
+          hasNext: true,
+          keywordMatched: true,
+        });
+
+        // when
+        await orchestrator.search(
+          USER_ID,
+          query({ query: ' 커리어 ', topicIds: [TOPIC_ID], limit: 2 }),
+          NOW,
+          UserMarket.KR,
+        );
+
+        // then
+        expect(searchQueryLogService.record).toHaveBeenCalledWith(
+          {
+            userId: USER_ID,
+            normalizedQuery: '커리어',
+            queryUsed: '커리어',
+            resultCount: 2,
+            keywordCount: 1,
+            engines: ['keyword', 'semantic'],
+            exact: false,
+            hasNext: true,
+            topicFilterCount: 1,
+            resultContentIds: [CONTENT_ID, OTHER_CONTENT_ID],
+          },
+          NOW,
+        );
+      });
+
+      it('두 엔진 0건·교정어 없음이면 0건으로 로그를 남기고 관련 주제·인기 fallback을 조립한다', async () => {
+        // given — 초기 콘텐츠 풀이 작아 빈 결과 UX가 중요하다 (explore.md 4.5-3)
+        topicService.findVisibleRelatedByName.mockResolvedValue([
+          { id: TOPIC_ID, name: '커리어' } as Topic,
+        ]);
+        contentService.findPopularPage.mockResolvedValue({
+          items: [buildPopularRow(OTHER_CONTENT_ID)],
+          hasNext: false,
+        });
+
+        // when
+        const result = await orchestrator.search(
+          USER_ID,
+          query({ query: '없는검색어' }),
+          NOW,
+          UserMarket.KR,
+        );
+
+        // then
+        expect(result.items).toHaveLength(0);
+        expect(result.match).toBe('keyword');
+        expect(result.fallback?.relatedTopics).toEqual([
+          { id: TOPIC_ID, name: '커리어' },
+        ]);
+        expect(result.fallback?.popularItems).toHaveLength(1);
+        expect(searchQueryLogService.record).toHaveBeenCalledWith(
+          expect.objectContaining({
+            normalizedQuery: '없는검색어',
+            resultCount: 0,
+            keywordCount: 0,
+          }),
+          NOW,
+        );
+      });
+
+      it('빈 커서(cursor=)도 첫 페이지로 보고 검색 로그를 남긴다 — 디코드·로그·대체 콘텐츠가 같은 기준이다', async () => {
+        // when
+        const result = await orchestrator.search(
+          USER_ID,
+          query({ query: '없는말', cursor: '' }),
+          NOW,
+          UserMarket.KR,
+        );
+
+        // then
+        expect(searchQueryLogService.record).toHaveBeenCalledTimes(1);
+        expect(result.fallback).not.toBeNull();
+      });
+
+      it('다음 페이지가 있으면 RRF 키셋과 검색 상태를 담은 커서를 발급한다', async () => {
+        // given
+        queryEmbeddingClient.embed.mockResolvedValue(VECTOR);
+        contentService.findHybridSearchPage.mockResolvedValue({
+          items: [HYBRID_ROW],
+          hasNext: true,
+          keywordMatched: true,
+        });
+
+        // when
+        const result = await orchestrator.search(
+          USER_ID,
+          query({ limit: 1 }),
+          NOW,
+          UserMarket.KR,
+        );
+
+        // then
+        expect(
+          decodeAnySearchCursor(
+            result.nextCursor as string,
+            '커리어',
+            [],
+            false,
+          ),
+        ).toEqual({
+          kind: 'hybrid',
+          position: {
+            order: 'rrf',
+            rrf: 1 / 61,
+            playCount: 3,
+            publishedAt: HYBRID_ROW.content.publishedAt,
+            id: CONTENT_ID,
+          },
+          state: {
+            queryUsed: '커리어',
+            corrected: false,
+            match: 'keyword',
+            semantic: true,
+          },
+        });
+      });
+
+      it('질의 벡터 없이 줄 세운 첫 페이지는 키워드 순서 커서를 발급하고, 다음 페이지는 그 커서로 AI 서버 없이 잇는다(KAN-242)', async () => {
+        // given — 임베딩 결손(기본 mock null). 서비스는 종전 키워드 쿼리 결과를 키워드 순서 위치로 돌려준다
+        const keywordPosition = {
+          order: 'keyword' as const,
+          score: 16,
+          titleSimilarity: 0.5,
+          playCount: 3,
+          publishedAt: HYBRID_ROW.content.publishedAt,
+          id: CONTENT_ID,
+        };
+        contentService.findHybridSearchPage.mockResolvedValue({
+          items: [{ ...HYBRID_ROW, position: keywordPosition }],
+          hasNext: true,
+          keywordMatched: true,
+        });
+
+        // when
+        const first = await orchestrator.search(
+          USER_ID,
+          query({ limit: 1 }),
+          NOW,
+          UserMarket.KR,
+        );
+        queryEmbeddingClient.embed.mockClear();
+        const next = await orchestrator.search(
+          USER_ID,
+          query({ limit: 1, cursor: first.nextCursor as string }),
+          NOW,
+          UserMarket.KR,
+        );
+
+        // then
+        expect(first.engines).toEqual(['keyword']);
+        expect(
+          decodeAnySearchCursor(
+            first.nextCursor as string,
+            '커리어',
+            [],
+            false,
+          ),
+        ).toEqual({
+          kind: 'hybrid',
+          position: keywordPosition,
+          state: {
+            queryUsed: '커리어',
+            corrected: false,
+            match: 'keyword',
+            semantic: false,
+          },
+        });
+        expect(queryEmbeddingClient.embed).not.toHaveBeenCalled();
+        expect(contentService.findHybridSearchPage).toHaveBeenLastCalledWith(
+          expect.objectContaining({
+            queryVector: null,
+            cursor: keywordPosition,
+          }),
+        );
+        expect(next.engines).toEqual(['keyword']);
+      });
+    });
+
+    describe('교정("대신 검색")', () => {
+      it('키워드 0건이면 교정어를 찾고, 교정어로 키워드 1건 이상이면 그 결과를 낸다', async () => {
+        // given
+        contentService.findHybridSearchPage
+          .mockResolvedValueOnce({
+            items: [],
+            hasNext: false,
+            keywordMatched: false,
+          })
+          .mockResolvedValueOnce({
+            items: [HYBRID_ROW],
+            hasNext: false,
+            keywordMatched: true,
+          });
+        contentService.findSearchCorrection.mockResolvedValue('커리어');
+
+        // when
+        const result = await orchestrator.search(
+          USER_ID,
+          query({ query: '커리오' }),
+          NOW,
+          UserMarket.KR,
+        );
+
+        // then
+        expect(contentService.findSearchCorrection).toHaveBeenCalledWith({
+          market: UserMarket.KR,
+          normalizedQuery: '커리오',
+          includeSeriesTitles: false,
+          now: NOW,
+        });
+        expect(contentService.findHybridSearchPage).toHaveBeenLastCalledWith(
+          expect.objectContaining({ normalizedQuery: '커리어' }),
+        );
+        expect(result).toMatchObject({
+          queryUsed: '커리어',
+          correctedFrom: '커리오',
+          match: 'keyword',
+          fallback: null,
+        });
+        expect(searchQueryLogService.record).toHaveBeenCalledWith(
+          expect.objectContaining({
+            normalizedQuery: '커리오',
+            queryUsed: '커리어',
+            keywordCount: 1,
+          }),
+          NOW,
+        );
+      });
+
+      it('교정어로도 키워드가 0건이면 교정하지 않고 원문 결과(의미 결과)를 낸다', async () => {
+        // given
+        queryEmbeddingClient.embed.mockResolvedValue(VECTOR);
+        contentService.findHybridSearchPage
+          .mockResolvedValueOnce({
+            items: [SEMANTIC_ROW],
+            hasNext: false,
+            keywordMatched: false,
+          })
+          .mockResolvedValueOnce({
+            items: [SEMANTIC_ROW],
+            hasNext: false,
+            keywordMatched: false,
+          });
+        contentService.findSearchCorrection.mockResolvedValue('커리어');
+
+        // when
+        const result = await orchestrator.search(
+          USER_ID,
+          query({ query: '커리오' }),
+          NOW,
+          UserMarket.KR,
+        );
+
+        // then
+        expect(result).toMatchObject({
+          queryUsed: '커리오',
+          correctedFrom: null,
+          match: 'related',
+        });
+      });
+
+      it('교정어가 없으면 원문 결과 그대로다', async () => {
+        // when
+        const result = await orchestrator.search(
+          USER_ID,
+          query({ query: '커리오' }),
+          NOW,
+          UserMarket.KR,
+        );
+
+        // then
+        expect(contentService.findSearchCorrection).toHaveBeenCalled();
+        expect(contentService.findHybridSearchPage).toHaveBeenCalledTimes(1);
+        expect(result.correctedFrom).toBeNull();
+      });
+
+      it('exact=true면 키워드 0건이어도 교정어를 찾지 않는다', async () => {
+        // when
+        const result = await orchestrator.search(
+          USER_ID,
+          query({ query: '커리오', exact: true }),
+          NOW,
+          UserMarket.KR,
+        );
+
+        // then
+        expect(contentService.findSearchCorrection).not.toHaveBeenCalled();
+        expect(result.queryUsed).toBe('커리오');
+        expect(searchQueryLogService.record).toHaveBeenCalledWith(
+          expect.objectContaining({ exact: true, queryUsed: '커리오' }),
+          NOW,
+        );
+      });
+
+      it('키워드가 1건이라도 있으면 교정어를 찾지 않는다', async () => {
+        // given
+        contentService.findHybridSearchPage.mockResolvedValue({
+          items: [HYBRID_ROW],
+          hasNext: false,
+          keywordMatched: true,
+        });
+
+        // when
+        await orchestrator.search(USER_ID, query(), NOW, UserMarket.KR);
+
+        // then
+        expect(contentService.findSearchCorrection).not.toHaveBeenCalled();
+      });
+    });
+
+    describe('커서 페이지', () => {
+      const hybridCursor = (
+        state: {
+          queryUsed: string;
+          corrected: boolean;
+          match: 'keyword' | 'related';
+          semantic: boolean;
+        },
+        exact = false,
+      ) =>
+        encodeHybridSearchCursor(
+          {
+            order: 'rrf',
+            rrf: 1 / 61,
+            playCount: 3,
+            publishedAt: NOW,
+            id: CONTENT_ID,
+          },
+          state,
+          '커리오',
+          [],
+          exact,
+        );
+
+      it('커서의 교정어·match로 잇고 교정을 다시 판정하지 않으며 로그를 남기지 않는다', async () => {
+        // given
+        queryEmbeddingClient.embed.mockResolvedValue(VECTOR);
+        contentService.findHybridSearchPage.mockResolvedValue({
+          items: [HYBRID_ROW],
+          hasNext: false,
+          keywordMatched: true,
+        });
+        const cursor = hybridCursor({
+          queryUsed: '커리어',
+          corrected: true,
+          match: 'keyword',
+          semantic: true,
+        });
+
+        // when
+        const result = await orchestrator.search(
+          USER_ID,
+          query({ query: '커리오', cursor }),
+          NOW,
+          UserMarket.KR,
+        );
+
+        // then
+        expect(contentService.findHybridSearchPage).toHaveBeenCalledWith(
+          expect.objectContaining({
+            normalizedQuery: '커리어',
+            queryVector: VECTOR,
+            cursor: {
+              order: 'rrf',
+              rrf: 1 / 61,
+              playCount: 3,
+              publishedAt: NOW,
+              id: CONTENT_ID,
+            },
+          }),
+        );
+        expect(result).toMatchObject({
+          queryUsed: '커리어',
+          correctedFrom: '커리오',
+          match: 'keyword',
+        });
+        expect(contentService.findSearchCorrection).not.toHaveBeenCalled();
+        expect(searchQueryLogService.record).not.toHaveBeenCalled();
+      });
+
+      it('첫 페이지가 의미 엔진 없이 줄 세워졌으면 다음 페이지도 AI 서버를 부르지 않는다', async () => {
+        // given
+        const cursor = hybridCursor({
+          queryUsed: '커리오',
+          corrected: false,
+          match: 'keyword',
+          semantic: false,
+        });
+
+        // when
+        await orchestrator.search(
+          USER_ID,
+          query({ query: '커리오', cursor }),
+          NOW,
+          UserMarket.KR,
+        );
+
+        // then
+        expect(queryEmbeddingClient.embed).not.toHaveBeenCalled();
+        expect(contentService.findHybridSearchPage).toHaveBeenCalledWith(
+          expect.objectContaining({ queryVector: null }),
+        );
+      });
+
+      it('exact가 다른 커서는 EXPLORE_CURSOR_INVALID', async () => {
+        // given
+        const cursor = hybridCursor({
+          queryUsed: '커리오',
+          corrected: false,
+          match: 'keyword',
+          semantic: true,
+        });
+
+        // when
+        const error = await catchError(
+          orchestrator.search(
+            USER_ID,
+            query({ query: '커리오', cursor, exact: true }),
+            NOW,
+            UserMarket.KR,
+          ),
+        );
+
+        // then
+        expect(error.errorCode).toBe(ErrorCode.EXPLORE_CURSOR_INVALID);
+      });
+
+      it('빈 커서 페이지에는 fallback을 조립하지 않는다 — 목록의 끝이다', async () => {
+        // given
+        const cursor = hybridCursor({
+          queryUsed: '커리오',
+          corrected: false,
+          match: 'keyword',
+          semantic: false,
+        });
+
+        // when
+        const result = await orchestrator.search(
+          USER_ID,
+          query({ query: '커리오', cursor }),
+          NOW,
+          UserMarket.KR,
+        );
+
+        // then
+        expect(result.items).toHaveLength(0);
+        expect(result.fallback).toBeNull();
+        expect(topicService.findVisibleRelatedByName).not.toHaveBeenCalled();
+      });
+
+      it('종전 키워드 커서는 거절하지 않고 종전 키워드 경로로 잇는다 — 다음 커서도 종전 모양이다', async () => {
+        // given — 배포 순간 옛 앱이 들고 있던 커서
+        contentService.findSearchPage.mockResolvedValue({
+          items: [SEARCH_ROW],
+          hasNext: true,
+        });
+        const cursor = encodeSearchCursor(
+          {
+            score: 8,
+            titleSimilarity: 0.5,
+            playCount: 3,
+            publishedAt: NOW,
+            id: CONTENT_ID,
+          },
+          '커리어',
+          [],
+        );
+
+        // when
+        const result = await orchestrator.search(
+          USER_ID,
+          query({ cursor, limit: 1 }),
+          NOW,
+          UserMarket.KR,
+        );
+
+        // then
+        expect(contentService.findSearchPage).toHaveBeenCalledWith(
+          expect.objectContaining({
+            normalizedQuery: '커리어',
+            tagOnly: false,
+            cursor: expect.objectContaining({ score: 8 }) as unknown,
+          }),
+        );
+        expect(contentService.findHybridSearchPage).not.toHaveBeenCalled();
+        expect(result).toMatchObject({
+          engines: ['keyword'],
+          correctedFrom: null,
+          matchedBy: [['keyword']],
+        });
+        expect(
+          decodeSearchCursor(result.nextCursor as string, '커리어', []),
+        ).toMatchObject({ id: CONTENT_ID });
+        expect(searchQueryLogService.record).not.toHaveBeenCalled();
+      });
     });
   });
+
   describe('시리즈 카드 스위치 켬(SERIES_EXPLORE_CARDS_ENABLED=true — KAN-134 확정 설계 4번)', () => {
     const SERIES_ID = '77777777-7777-4777-8777-777777777777';
     const E1 = 'e1111111-1111-4111-8111-111111111111';
@@ -1317,7 +1767,39 @@ describe('ExploreOrchestrator', () => {
         searchQueryLogService,
         seriesService,
         configWith('true'),
+        queryEmbeddingClient,
       );
+    });
+
+    it('관련 콘텐츠(KAN-240)는 스위치가 켜져 있어도 시리즈 카드로 접지 않고 편 행(type 키 없음)을 순서대로 낸다', async () => {
+      // given — 같은 시리즈 두 편이 코사인 순으로 온다
+      contentService.findRelatedContents.mockResolvedValue([
+        episode(E2, 2),
+        episode(E1, 1),
+      ]);
+      libraryService.findActiveItems.mockResolvedValue([
+        buildLibraryItem({ contentId: E1 }),
+      ]);
+      playbackService.findCountedContentIds.mockResolvedValue(new Set([E2]));
+      const query = {
+        baseContentId: CONTENT_ID,
+        market: UserMarket.KR,
+        excludeIds: [],
+        limit: 5,
+        now: NOW,
+      };
+
+      // when
+      const items = await cards.getRelated(USER_ID, query);
+
+      // then
+      expect(contentService.findRelatedContents).toHaveBeenCalledWith(query);
+      expect(seriesService.findCards).not.toHaveBeenCalled();
+      expect(items.map((item) => item.content.id)).toEqual([E2, E1]);
+      expect(items.every((item) => item.type === undefined)).toBe(true);
+      expect(items[0]).toMatchObject({ library: null, isCountedToday: true });
+      expect(items[1].library).not.toBeNull();
+      expect(items[1].isCountedToday).toBe(false);
     });
 
     it('주제 목록 — 시리즈 대표 편만 달라고 묻고, 대표 편은 카드로 · 나머지는 type: content 행으로 낸다', async () => {
@@ -1385,36 +1867,53 @@ describe('ExploreOrchestrator', () => {
       });
     });
 
-    it('검색은 시리즈 제목 일치와 대표 편만을 함께 묻는다', async () => {
-      // given
-      contentService.findSearchPage.mockResolvedValue({
-        items: [
-          {
-            content: episode(E1, 1),
-            score: 10,
-            titleSimilarity: 0.9,
-            playCount: 3,
-          },
-        ],
-        hasNext: false,
-      });
+    it('검색은 시리즈 제목 일치와 대표 편만을 함께 묻고, 교정어 어휘에도 시리즈 제목을 넣는다', async () => {
+      // given — 교정 경로까지 밟도록 첫 조회는 키워드 0건
+      contentService.findHybridSearchPage
+        .mockResolvedValueOnce({
+          items: [],
+          hasNext: false,
+          keywordMatched: false,
+        })
+        .mockResolvedValueOnce({
+          items: [
+            {
+              content: episode(E1, 1),
+              position: rrfPosition(E1, 1 / 61, 3),
+              matchedBy: ['keyword'],
+            },
+          ],
+          hasNext: false,
+          keywordMatched: true,
+        });
+      contentService.findSearchCorrection.mockResolvedValue('시리즈');
 
       // when
       const result = await cards.search(
         USER_ID,
-        { query: '시리즈', topicIds: [], cursor: null, limit: 20 },
+        {
+          query: '시리즈즈',
+          topicIds: [],
+          cursor: null,
+          limit: 20,
+          exact: false,
+        },
         NOW,
         UserMarket.KR,
       );
 
       // then
-      expect(contentService.findSearchPage).toHaveBeenCalledWith(
+      expect(contentService.findHybridSearchPage).toHaveBeenCalledWith(
         expect.objectContaining({
           matchSeriesTitle: true,
           seriesAnchorsOnly: true,
         }),
       );
+      expect(contentService.findSearchCorrection).toHaveBeenCalledWith(
+        expect.objectContaining({ includeSeriesTitles: true }),
+      );
       expect(result.items).toEqual([{ type: 'series', card }]);
+      expect(result.matchedBy).toEqual([['keyword']]);
       expect(result.fallback).toBeNull();
     });
 
@@ -1435,7 +1934,7 @@ describe('ExploreOrchestrator', () => {
       // when
       const result = await cards.search(
         USER_ID,
-        { query: '시리즈', topicIds: [], cursor, limit: 20 },
+        { query: '시리즈', topicIds: [], cursor, limit: 20, exact: false },
         NOW,
         UserMarket.KR,
       );
@@ -1450,28 +1949,33 @@ describe('ExploreOrchestrator', () => {
 
     it('스위치가 꺼져 있으면 조회 입력에 시리즈 키가 없고 항목에 type 키가 없다', async () => {
       // given
-      contentService.findSearchPage.mockResolvedValue({
+      contentService.findHybridSearchPage.mockResolvedValue({
         items: [
           {
             content: episode(E1, 1),
-            score: 10,
-            titleSimilarity: 0.9,
-            playCount: 3,
+            position: rrfPosition(E1, 1 / 61, 3),
+            matchedBy: ['keyword'],
           },
           {
             content: episode(E2, 2),
-            score: 10,
-            titleSimilarity: 0.8,
-            playCount: 2,
+            position: rrfPosition(E2, 1 / 62, 2),
+            matchedBy: ['keyword'],
           },
         ],
         hasNext: false,
+        keywordMatched: true,
       });
 
       // when
       const result = await orchestrator.search(
         USER_ID,
-        { query: '시리즈', topicIds: [], cursor: null, limit: 20 },
+        {
+          query: '시리즈',
+          topicIds: [],
+          cursor: null,
+          limit: 20,
+          exact: false,
+        },
         NOW,
         UserMarket.KR,
       );
@@ -1479,7 +1983,7 @@ describe('ExploreOrchestrator', () => {
       // then
       expect(result.items).toHaveLength(2);
       expect(result.items.every((item) => !('type' in item))).toBe(true);
-      const [searchQuery] = contentService.findSearchPage.mock.calls[0];
+      const [searchQuery] = contentService.findHybridSearchPage.mock.calls[0];
       expect(searchQuery).not.toHaveProperty('matchSeriesTitle');
       expect(searchQuery).not.toHaveProperty('seriesAnchorsOnly');
     });

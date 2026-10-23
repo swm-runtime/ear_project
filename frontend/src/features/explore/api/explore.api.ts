@@ -14,6 +14,7 @@ import type {
   ExplorePeriod,
   ExplorePopularPage,
   ExploreSearchPage,
+  ExploreSeries,
   ExploreTopic,
   SaveContentResult,
   SaveReason,
@@ -29,19 +30,28 @@ import type {
   ExplorePopularResponseDto,
   ExploreSearchResponseDto,
   ExploreTopicsResponseDto,
+  PublisherSeriesResponseDto,
+  RelatedContentsResponseDto,
   SaveContentResponseDto,
   SeriesDetailResponseDto,
   UnsaveContentResponseDto,
+  RestoreSeriesResponseDto,
+  SaveSeriesResponseDto,
+  UnsaveSeriesResponseDto,
 } from './explore.dto';
 import {
   mockFetchContents,
   mockFetchFeed,
   mockFetchPopular,
+  mockFetchRelatedContents,
   mockFetchSearch,
   mockFetchSeriesDetail,
   mockFetchTopics,
   mockSaveContent,
   mockUnsaveContent,
+  mockRestoreSeries,
+  mockSaveSeries,
+  mockUnsaveSeries,
 } from './explore.mock';
 
 /* ── Query Key factory(convention.md 4.1) ── */
@@ -49,8 +59,7 @@ import {
 export const exploreKeys = {
   all: ['explore'] as const,
   feed: () => [...exploreKeys.all, 'feed'] as const,
-  contents: (topicIds: string[]) =>
-    [...exploreKeys.all, 'contents', [...topicIds].sort()] as const,
+  contents: (topicIds: string[]) => [...exploreKeys.all, 'contents', [...topicIds].sort()] as const,
   /** 구간별로 키가 갈린다 — 커서가 구간을 넘어 이어지지 않게 하는 구조적 방어다(explore-api.md 4.2-1) */
   popular: (period: ExplorePeriod | null) => [...exploreKeys.all, 'popular', period] as const,
   topics: () => [...exploreKeys.all, 'topics'] as const,
@@ -58,7 +67,8 @@ export const exploreKeys = {
    * 질의별로 키가 갈린다 — 연속 입력 중 늦게 도착한 이전 질의 응답이 최신 질의 화면을
    * 덮지 못하게 하는 구조적 방어다(explore.md 4.5-2). 화면은 현재 질의의 키만 구독한다.
    */
-  search: (query: string) => [...exploreKeys.all, 'search', query] as const,
+  search: (query: string, exact = false) =>
+    [...exploreKeys.all, 'search', query, exact ? 'exact' : 'corrected'] as const,
   /**
    * 시리즈 화면(explore-api.md 4.7) — explore 아래에 둔다: 탐색의 재생·담기 뒤 `exploreKeys.all` 무효화가 시리즈 화면의
    * 편 상태(담음·완청·재생 위치)도 함께 최신화한다
@@ -97,6 +107,8 @@ const toExploreItem = (dto: ExploreItemDto): ExploreItem => ({
     ? { itemId: dto.library.item_id, source: dto.library.source, status: dto.library.status }
     : null,
   isCountedToday: dto.is_counted_today,
+  // 옛 서버(필드 없음)는 라이브러리 상태로 — 담지 않은 편의 완청은 그 서버에선 알 수 없다
+  isCompleted: dto.is_completed ?? dto.library?.status === 'completed',
 });
 
 const toExploreSeriesItem = (dto: ExploreSeriesCardDto): ExploreEntry => ({
@@ -120,10 +132,18 @@ const toExploreSeriesItem = (dto: ExploreSeriesCardDto): ExploreEntry => ({
  */
 export const toExploreEntry = (dto: ExploreEntryDto): ExploreEntry | null => {
   const type: unknown = (dto as { type?: unknown }).type;
-  if (type === undefined || type === 'content') return toExploreItem(dto as ExploreItemDto);
-  if (type === 'series') return toExploreSeriesItem(dto as ExploreSeriesCardDto);
-  logger.debug('[explore] unknown entry type skipped', type);
-  return null;
+  const entry =
+    type === undefined || type === 'content'
+      ? toExploreItem(dto as ExploreItemDto)
+      : type === 'series'
+        ? toExploreSeriesItem(dto as ExploreSeriesCardDto)
+        : null;
+  if (entry === null) {
+    logger.debug('[explore] unknown entry type skipped', type);
+    return null;
+  }
+  // 검색 응답의 엔진 표시(KAN-238) — 있을 때만 붙인다. 피드·주제별·인기 행에는 키 자체가 없다
+  return dto.matched_by ? { ...entry, matchedBy: dto.matched_by } : entry;
 };
 
 const toExploreEntries = (dtos: ExploreEntryDto[]): ExploreEntry[] =>
@@ -138,6 +158,14 @@ export const toSeriesDetail = (dto: SeriesDetailResponseDto): SeriesDetail => ({
     totalEpisodes: dto.series.total_episodes,
     status: dto.series.status,
     thumbnailUrl: dto.series.thumbnail_url,
+    // 대표 중분류 — 추가 필드라 안 오는 서버(구버전)·없는 시리즈는 null 로 읽는다(화면은 줄째 생략)
+    topic: dto.series.topic ?? null,
+    // 발행일자 — 추가 필드라 구버전 서버는 부재 → null(화면은 줄째 생략)
+    publishedAt: dto.series.published_at ?? null,
+    // 발행 이름 — 추가 필드라 구버전 서버는 부재 → null(화면은 줄째 생략)
+    publisherName: dto.series.publisher_name ?? null,
+    // 시리즈째 담김 — 추가 필드라 구버전 서버는 부재 → false
+    isSaved: dto.series.is_saved ?? false,
   },
   episodes: dto.episodes.map((episode) => ({
     episodeNo: episode.episode_no,
@@ -145,6 +173,7 @@ export const toSeriesDetail = (dto: SeriesDetailResponseDto): SeriesDetail => ({
       content: episode.content,
       library: episode.library,
       is_counted_today: episode.is_counted_today,
+      is_completed: episode.is_completed,
     }),
     progress: episode.progress
       ? {
@@ -174,6 +203,10 @@ const toContentsPage = (dto: ExploreContentsResponseDto): ExploreContentsPage =>
   playLimit: toPlayLimitSnapshot(dto),
 });
 
+/**
+ * 검색 페이지 — KAN-238 필드(`query_used`·`corrected_from`·`match`·`engines`·행의 `matched_by`)는 옛 서버가 보내지 않는다.
+ * 없으면 "교정 없음·키워드 결과"로 읽어 종전 화면과 같게 그린다(explore-api.md 4.5 — 덧붙이는 필드만, 옛 앱·옛 서버 호환)
+ */
 const toSearchPage = (dto: ExploreSearchResponseDto): ExploreSearchPage => ({
   items: toExploreEntries(dto.items),
   nextCursor: dto.next_cursor,
@@ -184,6 +217,10 @@ const toSearchPage = (dto: ExploreSearchResponseDto): ExploreSearchPage => ({
         popularItems: toExploreEntries(dto.fallback.popular_items),
       }
     : null,
+  queryUsed: dto.query_used ?? null,
+  correctedFrom: dto.corrected_from ?? null,
+  match: dto.match ?? 'keyword',
+  engines: dto.engines ?? [],
 });
 
 const toPopularPage = (dto: ExplorePopularResponseDto): ExplorePopularPage => ({
@@ -255,12 +292,15 @@ export const fetchExploreTopics = async (): Promise<ExploreTopic[]> => {
 export const fetchExploreSearch = async (input: {
   query: string;
   cursor?: string;
+  /** 교정 끄기(KAN-239 "원본 검색 ‘OO’") — false 면 파라미터를 보내지 않는다(옛 서버에 모르는 키를 보내지 않게) */
+  exact?: boolean;
 }): Promise<ExploreSearchPage> => {
   const params: Record<string, string> = { query: input.query };
   if (input.cursor !== undefined) params.cursor = input.cursor;
+  if (input.exact) params.exact = 'true';
 
   const data = IS_EXPLORE_API_MOCKED
-    ? await mockFetchSearch({ query: input.query, cursor: input.cursor })
+    ? await mockFetchSearch({ query: input.query, cursor: input.cursor, exact: input.exact })
     : (await apiClient.get<ExploreSearchResponseDto>('/explore/search', { params })).data;
   return toSearchPage(data);
 };
@@ -276,6 +316,53 @@ export const fetchSeriesDetail = async (input: { seriesId: string }): Promise<Se
   return toSeriesDetail(data);
 };
 
+/**
+ * 같은 간행물(발행 이름)의 다른 시리즈(explore-api.md 4.7-1 — 2026-10-22). 시리즈 카드만 남긴다(모르는 종류는 변환이 버린다).
+ * 기준 시리즈가 안 보이면 404 — 호출자가 삼킨다. mock 은 빈 목록(간행물 데이터가 없다)
+ */
+export const fetchPublisherSeries = async (input: {
+  seriesId: string;
+}): Promise<{ publisherName: string | null; series: ExploreSeries[] }> => {
+  const data: PublisherSeriesResponseDto = IS_EXPLORE_API_MOCKED
+    ? { publisher_name: null, items: [] }
+    : (
+        await apiClient.get<PublisherSeriesResponseDto>(
+          `/series/${input.seriesId}/publisher-series`,
+        )
+      ).data;
+  return {
+    publisherName: data.publisher_name?.trim() || null,
+    series: toExploreEntries(data.items).flatMap((entry) =>
+      entry.type === 'series' ? [entry.series] : [],
+    ),
+  };
+};
+
+/**
+ * 관련 콘텍츠(player-api.md 4.8 — KAN-240) — 재생 목록 패널 "다음에 들어볼 만한"의 1차 소스. `exclude_ids`는 스냅샷에 이미 있는
+ * 편(최대 50 — 넘으면 앞 50만 보낸다, 서버 400 을 내지 않게). 없는·다른 시장·회수 편은 404 `CONTENT_NOT_FOUND` — 호출자가 삼킨다
+ */
+export const fetchRelatedContents = async (input: {
+  contentId: string;
+  excludeIds: string[];
+  limit?: number;
+}): Promise<ExploreItem[]> => {
+  const excludeIds = input.excludeIds.slice(0, RELATED_EXCLUDE_LIMIT);
+  const params: Record<string, string> = {};
+  if (input.limit !== undefined) params.limit = String(input.limit);
+  if (excludeIds.length > 0) params.exclude_ids = excludeIds.join(',');
+  const data = IS_EXPLORE_API_MOCKED
+    ? await mockFetchRelatedContents({ contentId: input.contentId, excludeIds })
+    : (
+        await apiClient.get<RelatedContentsResponseDto>(`/contents/${input.contentId}/related`, {
+          params,
+        })
+      ).data;
+  return data.items.map(toExploreItem);
+};
+/** 서버 상한(player-api.md 4.8) */
+const RELATED_EXCLUDE_LIMIT = 50;
+
 /** 담기(explore-api.md 4.3) — 횟수 제한이 없고 페이월을 노출하지 않는다(PRD 5.4) */
 export const saveContent = async (input: {
   contentId: string;
@@ -286,9 +373,8 @@ export const saveContent = async (input: {
   track('content_save', { content_id: input.contentId, entry: body.reason });
   const data = IS_EXPLORE_API_MOCKED
     ? await mockSaveContent(input.contentId, body)
-    : (
-        await apiClient.post<SaveContentResponseDto>(`/contents/${input.contentId}/save`, body)
-      ).data;
+    : (await apiClient.post<SaveContentResponseDto>(`/contents/${input.contentId}/save`, body))
+        .data;
   return {
     clientSeq: data.client_seq,
     // 버튼 전환·삭제 호출 재료 — 상세 화면이 응답의 library_item.id를 보관한다(content-detail-api.md 4.2)
@@ -315,4 +401,52 @@ export const unsaveContent = async (input: {
         })
       ).data;
   return { clientSeq: data.client_seq };
+};
+
+/**
+ * 시리즈째 담기(explore-api.md 4.8 — KAN-246) — 노출 편 중 없는 편을 서버가 담고 "시리즈째 담음"을 기록한다(이후 새 편이 따라
+ * 들어온다). 이미 담긴 편은 그대로. 횟수 제한·페이월 없음
+ */
+export const saveSeriesToLibrary = async (input: {
+  seriesId: string;
+  clientSeq: number;
+}): Promise<{ clientSeq: number; addedCount: number }> => {
+  const data: SaveSeriesResponseDto = IS_EXPLORE_API_MOCKED
+    ? await mockSaveSeries(input.seriesId, input.clientSeq)
+    : (
+        await apiClient.post<SaveSeriesResponseDto>(`/series/${input.seriesId}/save`, {
+          client_seq: input.clientSeq,
+        })
+      ).data;
+  return { clientSeq: data.client_seq, addedCount: data.added_count };
+};
+
+/** 시리즈째 빼기(explore-api.md 4.9) — 담긴 편 전부 + 따라오기 중단. `removedItemIds`는 [실행 취소]에 그대로 넘긴다 */
+export const unsaveSeriesFromLibrary = async (input: {
+  seriesId: string;
+  clientSeq: number;
+}): Promise<{ clientSeq: number; removedItemIds: string[] }> => {
+  const data: UnsaveSeriesResponseDto = IS_EXPLORE_API_MOCKED
+    ? await mockUnsaveSeries(input.seriesId, input.clientSeq)
+    : (
+        await apiClient.delete<UnsaveSeriesResponseDto>(`/series/${input.seriesId}/save`, {
+          params: { client_seq: input.clientSeq },
+        })
+      ).data;
+  return { clientSeq: data.client_seq, removedItemIds: data.removed_item_ids };
+};
+
+/** 시리즈째 빼기 실행 취소(explore-api.md 4.10) — 뺀 항목을 자리·상태 그대로 되살리고 시리즈째 담음도 되돌린다 */
+export const restoreSeriesToLibrary = async (input: {
+  seriesId: string;
+  itemIds: string[];
+}): Promise<{ isSaved: boolean }> => {
+  const data: RestoreSeriesResponseDto = IS_EXPLORE_API_MOCKED
+    ? await mockRestoreSeries(input.seriesId, input.itemIds)
+    : (
+        await apiClient.post<RestoreSeriesResponseDto>(`/series/${input.seriesId}/restore`, {
+          item_ids: input.itemIds,
+        })
+      ).data;
+  return { isSaved: data.is_saved };
 };

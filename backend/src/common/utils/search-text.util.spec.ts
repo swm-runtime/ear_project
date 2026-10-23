@@ -1,8 +1,11 @@
 import {
+  editDistance,
   escapeLikePattern,
   hasSearchableCharacter,
+  jamoEditSimilarity,
   normalizeSearchText,
   parseSearchQuery,
+  toJamo,
 } from './search-text.util';
 
 describe('normalizeSearchText', () => {
@@ -96,5 +99,58 @@ describe('parseSearchQuery', () => {
 
     // then
     expect(parsed.term).toBe('#태그');
+  });
+});
+
+describe('toJamo', () => {
+  it.each([
+    ['커리어', 'ㅋㅓㄹㅣㅇㅓ', '받침 없는 음절'],
+    ['면접', 'ㅁㅕㄴㅈㅓㅂ', '홑받침'],
+    ['과자', 'ㄱㅗㅏㅈㅏ', '겹모음은 치는 순서대로(ㅘ=ㅗ+ㅏ)'],
+    ['닭', 'ㄷㅏㄹㄱ', '겹받침은 치는 순서대로(ㄺ=ㄹ+ㄱ)'],
+    ['ㅘㄳ', 'ㅗㅏㄱㅅ', '음절이 아닌 홀겹자모도 푼다'],
+    ['AI 2편!', 'AI 2편!'.replace('편', 'ㅍㅕㄴ'), '한글이 아닌 글자는 그대로'],
+  ])('%s → %s (%s)', (input, expected) => {
+    // given
+    // when
+    const jamo = toJamo(input);
+
+    // then
+    expect(jamo).toBe(expected);
+  });
+});
+
+describe('editDistance', () => {
+  it.each([
+    ['', '', 0],
+    ['abc', '', 3],
+    ['kitten', 'sitting', 3],
+    ['ㄱㅓㅇㅈㅔ', 'ㄱㅕㅇㅈㅔ', 1],
+    ['ㄱㅓㅇㅈㅔ', 'ㄱㅓㅇㅡㅣ', 2],
+  ])('"%s" ↔ "%s" = %d', (a, b, expected) => {
+    // when
+    // then
+    expect(editDistance(a, b)).toBe(expected);
+    expect(editDistance(b, a)).toBe(expected);
+  });
+});
+
+describe('jamoEditSimilarity', () => {
+  it.each([
+    ['겅제', '경제', 0.8],
+    ['겅제', '거의', 0.6],
+    ['네트웍', '네트워크', 1 - 2 / 9],
+    ['커리오', '커리어', 1 - 1 / 6],
+    ['운영체재', '운영체제', 0.9],
+  ])('%s ↔ %s = %d (대칭)', (a, b, expected) => {
+    // when
+    // then
+    expect(jamoEditSimilarity(a, b)).toBeCloseTo(expected);
+    expect(jamoEditSimilarity(b, a)).toBeCloseTo(expected);
+  });
+
+  it('같은 말은 1, 빈 문자열끼리도 1이다', () => {
+    expect(jamoEditSimilarity('경제', '경제')).toBe(1);
+    expect(jamoEditSimilarity('', '')).toBe(1);
   });
 });

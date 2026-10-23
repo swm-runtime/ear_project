@@ -21,6 +21,7 @@ const contentItem = (id: string): ExploreItem => ({
   },
   library: null,
   isCountedToday: false,
+  isCompleted: false,
 });
 
 const seriesItem = (id: string): ExploreSeriesItem => ({

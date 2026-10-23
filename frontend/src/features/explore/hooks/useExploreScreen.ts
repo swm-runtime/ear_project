@@ -21,13 +21,21 @@ import { warmRemoteImages } from '@/shared/ui/RemoteImage';
 import { useToastStore } from '@/shared/ui/toast.store';
 
 import { libraryKeys } from '@/features/library';
-import { sendSourceLinkClick, usePlayGate, usePlayLimitStore } from '@/features/player';
+import {
+  sendSourceLinkClick,
+  usePlayGate,
+  usePlayLimitStore,
+  type PlayQueueContext,
+  type QueueSourceLabel,
+} from '@/features/player';
 import { useDeferredSheetShare } from '@/features/share';
 
 import { exploreKeys } from '../api/explore.api';
 import { EXPLORE_COPY } from '../explore.copy';
 import { exploreEntryThumbnail, isHiddenEntry, withEntryLibraryState } from '../explore.entry';
+import { toQueueSnapshot } from '../explore.queue';
 import { toTagQuery } from '../explore.search-query';
+import { resolveSectionTitle } from '../explore.section-title';
 import type {
   ExploreContentsPage,
   ExploreFeed,
@@ -60,10 +68,11 @@ type EmptyKind = 'none' | 'feed' | 'filtered';
 type ExploreRouteParams = {
   Explore: { applyTopicId?: string } | undefined;
 };
-/** iOS 26 갈래의 탐색 탭 안 스택(app/navigation/ExploreStack) — 원본은 app/navigation/types.ts 의 ExploreStackParamList */
+/** 탐색 탭 안 스택(app/navigation/ExploreStack) — 원본은 app/navigation/types.ts 의 ExploreStackParamList */
 type ExploreStackRouteParams = {
   ExploreHome: { applyTopicId?: string } | undefined;
   ExploreSearch: undefined;
+  Series: { seriesId: string };
 };
 
 const isNetworkError = (error: unknown): boolean =>
@@ -217,25 +226,7 @@ export const useExploreScreen = ({
       void queryClient.invalidateQueries({ queryKey: exploreKeys.all });
       invalidateLibrary();
     },
-    // 자동 적립(explore-api.md 4.6) — 재생이 실제로 시작됐고 라이브러리에 없을 때만
-    onPlayStarted: (result, target) => {
-      if (result.libraryItem !== null) return;
-      const seq = nextSeq(target.contentId);
-      setCachedLibraryState(target.contentId, {
-        itemId: `optimistic-${target.contentId}`,
-        source: 'save',
-        status: 'in_progress',
-      });
-      saveMutation.mutate(
-        { contentId: target.contentId, clientSeq: seq, reason: 'auto_play' },
-        {
-          onSuccess: () => invalidateLibrary(),
-          // 사용자가 시작하지 않은 실패는 알리지 않는다(common-error-handling.md 4.3)
-          // TODO(offline-queue): 큐 인프라 도입 시 재전송 대상으로 적재한다(explore-api.md 4.6)
-          onError: () => undefined,
-        },
-      );
-    },
+    // 재생해도 라이브러리에 담지 않는다 — 탐색 재생 자동 적립은 뺐다(PM 2026-10-23, explore.md 4.4). 담기는 사용자 조작만
   });
 
   /* ── 잔여 재생 표시값 — 서버 응답으로만 덮어쓴다. 신선도 판정은 store 가드가 한다 ── */
@@ -368,10 +359,11 @@ export const useExploreScreen = ({
 
   /**
    * 시리즈 카드 탭 → 시리즈 화면(E14). **"행 탭 = 즉시 재생"의 예외**다(explore.md 4.4) — 카드에는 편 단위 상태가 없어 재생 판정을
-   * 할 수 없다. 화면 등록은 app/navigation 이 한다(라우트 이름으로만 이동 — ContentDetail 과 같은 방식)
+   * 할 수 없다. 화면 등록은 app/navigation 이 한다(라우트 이름으로만 이동). **탭 안 스택에 푸시한다** — 독(탭 바)과 미니플레이어가
+   * 남는다(PM 2026-10-22)
    */
   const openSeries = (series: ExploreSeries) => {
-    navigation.navigate('Main', { screen: 'Series', params: { seriesId: series.id } });
+    exploreStackNavigation.navigate('Series', { seriesId: series.id });
   };
 
   /** E12 [원문 보기](FR-12) — 클릭 기록과 브라우저 열기는 서로를 기다리지 않는다(player-api.md 4.5) */
@@ -419,6 +411,12 @@ export const useExploreScreen = ({
       {
         onSuccess: (result) => {
           if (!isLatestSeq(contentId, result.clientSeq)) return;
+          // 서버가 담은 상태로 맞춘다 — 들은 만큼(in_progress·completed)으로 담기므로 낙관 값(unplayed)과 다를 수 있다(KAN-252)
+          setCachedLibraryState(contentId, {
+            itemId: result.libraryItem.itemId,
+            source: result.libraryItem.source,
+            status: result.libraryItem.status,
+          });
           invalidateLibrary();
         },
         onError: (error) => {
@@ -463,6 +461,33 @@ export const useExploreScreen = ({
     );
   };
 
+  /**
+   * 재생 목록 맥락(KAN-241 — player.md 4.2-1) — 이 편이 **어느 목록에서 눌렸는가**를 스냅샷으로 넘긴다. 주제 필터 중이면
+   * 그 격자, 아니면 그 편이 든 첫 섹션(인기는 구간 라벨, 주제 묶음은 주제 이름, 그 밖은 화면 제목 그대로). 같은 편이
+   * 두 섹션에 있으면 앞 섹션으로 본다 — 타일이 자기 섹션을 모르는 대신 재생 시점의 목록에서 찾는다
+   */
+  const queueContextOf = (item: ExploreItem): PlayQueueContext | undefined => {
+    if (isFiltered) {
+      const names = selectedTopicIds
+        .map((id) => topicsQuery.data?.find((topic) => topic.id === id)?.name)
+        .filter((name): name is string => Boolean(name));
+      return toQueueSnapshot(filteredItems, { type: 'topic', name: names.join(' · ') });
+    }
+    const section = sections.find((candidate) =>
+      candidate.items.some(
+        (entry) => entry.type === 'content' && entry.content.id === item.content.id,
+      ),
+    );
+    if (!section) return undefined;
+    const source: QueueSourceLabel =
+      section.period !== null
+        ? { type: 'popular', period: section.period }
+        : section.topic !== null
+          ? { type: 'topic', name: section.topic.name }
+          : { type: 'section', title: resolveSectionTitle(section) };
+    return toQueueSnapshot(section.items, source);
+  };
+
   /* ── 재생 — 행 본문 탭은 곧장 재생 판정이다(explore-uiux.md 4.1) ── */
   const handleRowPress = (item: ExploreItem) => {
     playGate.requestPlay(
@@ -479,6 +504,7 @@ export const useExploreScreen = ({
           topicIds: item.content.topicIds,
         },
         onWithdrawn: () => hideRow(item.content.id),
+        queue: queueContextOf(item),
       },
       'explore',
     );

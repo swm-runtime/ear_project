@@ -113,8 +113,11 @@ describe('검색 질의 로그 E2E', () => {
       foundBody.items.map((item) => item.content.id),
     );
 
-    // given — 다른 말 "없는말" : 새 행, 0건
-    await search(auth, `${TOKEN} 없는말`).expect(HttpStatus.OK);
+    // given — 다른 말 "없는말" : 새 행, 0건. `exact`로 보낸다 — 교정을 켜 두면 질의 앞부분이 제목 토큰(TOKEN)과 자모로
+    // 닮아 그 토큰으로 "대신 검색"된다(KAN-238). 이 테스트가 보려는 것은 0건 행이 남는가다
+    await search(auth, `${TOKEN} 없는말`, { exact: 'true' }).expect(
+      HttpStatus.OK,
+    );
     rows = await logs.find({ where: { userId }, order: { id: 'ASC' } });
     expect(rows).toHaveLength(2);
     expect(rows[1].query).toBe(`${TOKEN} 없는말`);
@@ -240,10 +243,14 @@ describe('검색 질의 로그 E2E', () => {
     );
   });
 
-  function search(auth: string, query: string) {
+  function search(
+    auth: string,
+    query: string,
+    extra: Record<string, string> = {},
+  ) {
     return request(app.getHttpServer())
       .get(path('/explore/search'))
-      .query({ query })
+      .query({ query, ...extra })
       .set('Authorization', auth);
   }
 

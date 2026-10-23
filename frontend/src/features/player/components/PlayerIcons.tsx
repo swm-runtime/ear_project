@@ -227,6 +227,37 @@ export function ScriptIcon({ size, color }: IconProps) {
  * 순서 변경 손잡이 — 가로줄 두 개(재생 목록 행 오른쪽, 2026-09-18). 잡고 끄는 자리라는 관례 표식이다.
  * 대본 아이콘(길이가 다른 세 줄)과 헷갈리지 않게 같은 길이 두 줄로 둔다
  */
+/** 담기(KAN-241) — 탐색 맥락 재생 목록의 라이브러리에 없는 줄. 더하기 하나, 순서 손잡이와 같은 선 굵기 */
+export function PlusIcon({ size, color }: IconProps) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24">
+      <Path
+        d="M12 5v14M5 12h14"
+        stroke={color}
+        strokeWidth={1.8}
+        strokeLinecap="round"
+        fill="none"
+      />
+    </Svg>
+  );
+}
+
+/** 삭제(재생 목록 줄 스와이프의 동그라미, 2026-10-23) — 휴지통. 시리즈 화면 빼기 아이콘과 같은 모양 */
+export function TrashIcon({ size, color }: IconProps) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24">
+      <Path
+        d="M4 7h16M10 11v6M14 11v6M5.5 7l1 12a2 2 0 0 0 2 1.8h7a2 2 0 0 0 2-1.8l1-12M9 7V4.8A.8.8 0 0 1 9.8 4h4.4a.8.8 0 0 1 .8.8V7"
+        fill="none"
+        stroke={color}
+        strokeWidth={2}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </Svg>
+  );
+}
+
 export function ReorderIcon({ size, color }: IconProps) {
   return (
     <Svg width={size} height={size} viewBox="0 0 24 24">

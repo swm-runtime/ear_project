@@ -89,6 +89,14 @@ export class LibraryService {
       );
     }
 
+    // 담기 전에 들은 편은 들은 만큼의 상태로 들어간다(KAN-248 — 완청·진행은 라이브러리와 무관하다)
+    await this.libraryItemRepository.syncStatusWithProgress(
+      userId,
+      contentIds,
+      COMPLETION_REACHED_RATIO,
+      manager,
+    );
+
     /**
      * **요청 순서로 돌려준다.** `find`는 ORDER BY 가 없어 행 순서가 실행 계획에 달려 있다 — 인덱스가 하나 늘자
      * (`idx_library_items_algorithm_version`, 2026-09-30) 온보딩 e2e 의 `saved_content_ids` 순서가 뒤집혔다.
@@ -153,7 +161,12 @@ export class LibraryService {
           manager,
         );
 
-      return { item: this.assertFound(item), created, reactivated: false };
+      const found = this.assertFound(item);
+      if (created) {
+        await this.syncWithProgress(found, manager);
+      }
+
+      return { item: found, created, reactivated: false };
     }
 
     if (!existing.deletedAt) {
@@ -186,8 +199,61 @@ export class LibraryService {
     existing.deletedAt = null;
     existing.addedAt = now;
     existing.source = LibraryItemSource.SAVE;
+    await this.syncWithProgress(existing, manager);
 
     return { item: existing, created: false, reactivated: true };
+  }
+
+  /**
+   * 행의 상태를 재생 위치에 맞춘다(KAN-248 — `syncStatusWithProgress`). 탐색 재생은 행을 만들지 않으므로(`explore.md` 4.4)
+   * 듣고 나서 담는 것이 평소 경로다 — 그대로 두면 끝까지 들은 편이 "안 들음", 듣던 편이 진행 바 없이 보인다. 지웠다 되살린·
+   * 복구한 행도 같다 — 지워진 동안의 재생은 행에 반영되지 않는다(재생 위치 저장은 살아 있는 행만 본다).
+   */
+  private async syncWithProgress(
+    item: LibraryItem,
+    manager?: EntityManager,
+  ): Promise<void> {
+    if (item.status === LibraryItemStatus.COMPLETED) {
+      return;
+    }
+
+    const [synced] = await this.libraryItemRepository.syncStatusWithProgress(
+      item.userId,
+      [item.contentId],
+      COMPLETION_REACHED_RATIO,
+      manager,
+    );
+
+    if (synced) {
+      item.status = synced.status;
+      item.completedAt = synced.completedAt;
+      item.lastPlayedAt = synced.lastPlayedAt;
+    }
+  }
+
+  /** 전 사용자의 살아 있는 행을 재생 위치에 맞춘다 — 1회성 정리 스크립트(`sync-library-status`) 전용 */
+  async syncAllStatusWithProgress(
+    dryRun: boolean,
+  ): Promise<{ toCompleted: number; toInProgress: number }> {
+    return this.libraryItemRepository.syncAllStatusWithProgress(
+      COMPLETION_REACHED_RATIO,
+      dryRun,
+    );
+  }
+
+  /**
+   * 완청 기준 도달 여부(`library.md` 4.4) — 기준값의 소유자가 이 모듈이라 라이브러리 행이 없는 판정(KAN-248)도
+   * 여기를 부른다. 길이를 모르면(0·null) 위치로는 판정할 수 없다.
+   */
+  isCompletionReached(
+    maxReachedSec: number,
+    durationSec: number | null,
+  ): boolean {
+    return (
+      durationSec !== null &&
+      durationSec > 0 &&
+      maxReachedSec >= durationSec * COMPLETION_REACHED_RATIO
+    );
   }
 
   /**
@@ -268,6 +334,34 @@ export class LibraryService {
     return this.libraryItemRepository.findAllActiveByUserIdAndContentIds(
       userId,
       contentIds,
+      manager,
+    );
+  }
+
+  /** 한 시리즈 편들의 살아 있는 내 항목(편 번호순) — 시리즈째 빼기(KAN-245)의 대상 */
+  async findActiveItemsInSeries(
+    userId: string,
+    seriesId: string,
+    manager?: EntityManager,
+  ): Promise<LibraryItem[]> {
+    return this.libraryItemRepository.findAllActiveByUserIdAndSeriesId(
+      userId,
+      seriesId,
+      manager,
+    );
+  }
+
+  /** 넘긴 id 중 내 항목이면서 그 시리즈 편인 것(삭제분 포함, `content` 관계 포함) — 시리즈 빼기 실행 취소(KAN-245) */
+  async findOwnedItemsInSeriesWithDeleted(
+    userId: string,
+    seriesId: string,
+    itemIds: string[],
+    manager?: EntityManager,
+  ): Promise<LibraryItem[]> {
+    return this.libraryItemRepository.findAllByUserIdAndSeriesIdAndIdsWithDeleted(
+      userId,
+      seriesId,
+      itemIds,
       manager,
     );
   }
@@ -447,16 +541,35 @@ export class LibraryService {
   ): Promise<Map<string, number>> {
     return this.libraryItemRepository.findCompletedSeriesMaxEpisodes(
       userId,
+      COMPLETION_REACHED_RATIO,
       manager,
+    );
+  }
+
+  /**
+   * 주어진 편 중 완청한 편(KAN-248) — 라이브러리 `completed` 행(삭제분 포함) ∪ 재생 위치가 기준을 넘은 편.
+   * 탐색 재생은 행을 만들지 않으므로(`explore.md` 4.4) 행 상태만 보면 끝까지 들은 편이 "안 들음"으로 보인다.
+   */
+  async findCompletedContentIds(
+    userId: string,
+    contentIds: string[],
+    manager?: EntityManager,
+  ): Promise<Set<string>> {
+    return new Set(
+      await this.libraryItemRepository.findCompletedContentIds(
+        userId,
+        contentIds,
+        COMPLETION_REACHED_RATIO,
+        manager,
+      ),
     );
   }
 
   /**
    * 완청한 고유 콘텐츠 수 — 프로필 통계의 `completed_content_count`(`profile.md` 4.5).
    *
-   * 완청 **판정**은 이 모듈이 하지 않는다. `player`가 판정해 `status = completed`로 전이시킨
-   * 결과를 세기만 한다(`profile-api.md` 1장 — 완청 판정 값을 재정의하지 않는다).
-   * 삭제된 항목도 포함한다 — 들었다는 사실은 목록에서 지운다고 없어지지 않는다.
+   * 라이브러리 `completed` 행(삭제분 포함)에 **담지 않고 끝까지 들은 편**을 더한다(KAN-248 — 탐색 재생은 행을
+   * 만들지 않는다). 기준은 재생 위치 저장의 완청 판정과 같은 값이다(`library.md` 4.4).
    */
   async countCompletedContents(
     userId: string,
@@ -464,6 +577,7 @@ export class LibraryService {
   ): Promise<number> {
     return this.libraryItemRepository.countCompletedContentsByUserId(
       userId,
+      COMPLETION_REACHED_RATIO,
       manager,
     );
   }
@@ -516,11 +630,16 @@ export class LibraryService {
     now: Date,
     market: UserMarket,
     manager?: EntityManager,
-  ): Promise<LibraryItem | null> {
-    return this.libraryItemRepository.findLatestResumable(
+  ): Promise<{
+    contentId: string;
+    itemId: string | null;
+    lastPlayedAt: Date;
+  } | null> {
+    return this.libraryItemRepository.findLatestResumableTarget(
       userId,
       now,
       market,
+      COMPLETION_REACHED_RATIO,
       manager,
     );
   }
@@ -691,6 +810,8 @@ export class LibraryService {
 
     await this.libraryItemRepository.restoreById(item.id, manager);
     item.deletedAt = null;
+    // 지워진 사이에 들었으면 그만큼의 상태로 돌아온다(KAN-248)
+    await this.syncWithProgress(item, manager);
 
     return item;
   }

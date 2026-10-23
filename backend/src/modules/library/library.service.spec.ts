@@ -93,6 +93,7 @@ describe('LibraryService', () => {
       findPositionedIdsByUserIdExcluding: jest.fn().mockResolvedValue([]),
       findUnpositionedIdsByUserIdExcluding: jest.fn().mockResolvedValue([]),
       updateQueuePositions: jest.fn().mockResolvedValue(undefined),
+      syncStatusWithProgress: jest.fn().mockResolvedValue([]),
     } as unknown as jest.Mocked<LibraryItemRepository>;
 
     service = new LibraryService(repository);
@@ -399,6 +400,121 @@ describe('LibraryService', () => {
   });
 
   describe('save', () => {
+    describe('들은 편 담기 — 재생 위치에 맞춘 상태(KAN-248)', () => {
+      const PLAYED_AT = new Date('2026-08-05T08:00:00.000Z');
+
+      it('담기 전에 끝까지 들은 편은 새 행이 completed로 들어간다', async () => {
+        // given
+        repository.findByUserIdAndContentIdWithDeleted
+          .mockResolvedValueOnce(null)
+          .mockResolvedValueOnce(
+            buildItem({
+              source: LibraryItemSource.SAVE,
+              status: LibraryItemStatus.UNPLAYED,
+            }),
+          );
+        repository.syncStatusWithProgress.mockResolvedValue([
+          {
+            contentId: CONTENT_ID,
+            status: LibraryItemStatus.COMPLETED,
+            completedAt: PLAYED_AT,
+            lastPlayedAt: PLAYED_AT,
+          },
+        ]);
+
+        // when
+        const result = await service.save(USER_ID, CONTENT_ID, NOW);
+
+        // then
+        expect(repository.syncStatusWithProgress).toHaveBeenCalledWith(
+          USER_ID,
+          [CONTENT_ID],
+          0.9,
+          undefined,
+        );
+        expect(result.item.status).toBe(LibraryItemStatus.COMPLETED);
+        expect(result.item.completedAt).toBe(PLAYED_AT);
+        expect(result.item.lastPlayedAt).toBe(PLAYED_AT);
+      });
+
+      it('지웠다 다시 담은 편도 그 사이 완청했으면 completed로 맞춘다', async () => {
+        // given
+        repository.findByUserIdAndContentIdWithDeleted.mockResolvedValue(
+          buildItem({
+            status: LibraryItemStatus.IN_PROGRESS,
+            deletedAt: new Date('2026-08-04T00:00:00.000Z'),
+          }),
+        );
+        repository.syncStatusWithProgress.mockResolvedValue([
+          {
+            contentId: CONTENT_ID,
+            status: LibraryItemStatus.COMPLETED,
+            completedAt: PLAYED_AT,
+            lastPlayedAt: PLAYED_AT,
+          },
+        ]);
+
+        // when
+        const result = await service.save(USER_ID, CONTENT_ID, NOW);
+
+        // then
+        expect(result.reactivated).toBe(true);
+        expect(result.item.status).toBe(LibraryItemStatus.COMPLETED);
+      });
+
+      it('듣다 만 편은 in_progress로 들어간다 — 진행 바가 보인다', async () => {
+        // given
+        repository.findByUserIdAndContentIdWithDeleted
+          .mockResolvedValueOnce(null)
+          .mockResolvedValueOnce(
+            buildItem({ status: LibraryItemStatus.UNPLAYED }),
+          );
+        repository.syncStatusWithProgress.mockResolvedValue([
+          {
+            contentId: CONTENT_ID,
+            status: LibraryItemStatus.IN_PROGRESS,
+            completedAt: null,
+            lastPlayedAt: PLAYED_AT,
+          },
+        ]);
+
+        // when
+        const result = await service.save(USER_ID, CONTENT_ID, NOW);
+
+        // then
+        expect(result.item.status).toBe(LibraryItemStatus.IN_PROGRESS);
+        expect(result.item.lastPlayedAt).toBe(PLAYED_AT);
+      });
+
+      it('들은 적 없는 편은 상태를 그대로 둔다', async () => {
+        // given
+        repository.findByUserIdAndContentIdWithDeleted
+          .mockResolvedValueOnce(null)
+          .mockResolvedValueOnce(
+            buildItem({ status: LibraryItemStatus.UNPLAYED }),
+          );
+
+        // when
+        const result = await service.save(USER_ID, CONTENT_ID, NOW);
+
+        // then
+        expect(result.item.status).toBe(LibraryItemStatus.UNPLAYED);
+      });
+
+      it('이미 담긴 편에는 손대지 않는다', async () => {
+        // given
+        repository.findByUserIdAndContentIdWithDeleted.mockResolvedValue(
+          buildItem(),
+        );
+
+        // when
+        await service.save(USER_ID, CONTENT_ID, NOW);
+
+        // then
+        expect(repository.syncStatusWithProgress).not.toHaveBeenCalled();
+      });
+    });
+
     it('담긴 적 없는 콘텐츠는 새로 적립하고 새로 담겼음을 알린다', async () => {
       // given — 응답 상태가 201로 갈린다 (explore-api.md 4.3)
       repository.findByUserIdAndContentIdWithDeleted

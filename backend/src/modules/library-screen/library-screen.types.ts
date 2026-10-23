@@ -78,7 +78,12 @@ export interface LibraryListResult {
  * **대상 없음을 404로 응답하지 않는다** — 신규 사용자와 완청만 있는 사용자에게는 대상이
  * 없는 것이 정상이고, 클라이언트는 같은 응답에서 잔여 재생 표시값까지 받아야 한다.
  */
+/** 미니플레이어 복원 대상 — 라이브러리에 없는 편(탐색에서만 듣던 편)이면 `id`가 null이다(library-api.md 4.3, 2026-10-23) */
+export type ResumeTargetView = Omit<LibraryItemView, 'id'> & {
+  id: string | null;
+};
+
 export interface LibraryResumeResult {
-  resumeTarget: LibraryItemView | null;
+  resumeTarget: ResumeTargetView | null;
   quota: DailyPlayQuota;
 }

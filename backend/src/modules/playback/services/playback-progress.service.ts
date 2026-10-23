@@ -74,12 +74,27 @@ export class PlaybackProgressService {
           contentVersion: content.contentVersion,
           contentStatus: content.status,
           libraryItem: toLibraryItemView(libraryItem),
+          isCompleted: await this.isCompleted(
+            command,
+            libraryItem,
+            false,
+            manager,
+          ),
         };
       }
 
       // 경계·배속 타이밍 오차로 길이를 살짝 넘겨 오는 것은 정상이다 — 거부하지 않고 맞춘다
       const positionSec = clamp(command.positionSec, content.durationSec);
       const maxReachedSec = clamp(command.maxReachedSec, content.durationSec);
+
+      // 라이브러리 행 없는 완청의 "처음 도달" 판정용(KAN-248) — 덮어쓰기 전 값
+      const previous = libraryItem
+        ? null
+        : await this.playbackService.findProgress(
+            command.userId,
+            command.contentId,
+            manager,
+          );
 
       const saved = await this.playbackService.saveProgress(
         command.userId,
@@ -101,12 +116,45 @@ export class PlaybackProgressService {
         manager,
       );
 
-      const completed = await this.completeIfReached(
-        command,
-        libraryItem,
-        maxReachedSec,
-        manager,
-      );
+      /*
+       * 담긴 채 아직 `unplayed`인 행에 위치가 쌓이면 `in_progress`로 올린다(2026-10-23 검증). 재생 시작의 전이(`markPlayStarted`)는
+       * 행이 있을 때만 일어나는데, 옛 앱의 자동 적립은 재생 시작 **뒤에** 행을 만들어 그 전이를 놓친다 — 끝까지 듣기 전까지
+       * 라이브러리에 진행 바 없이 "안 들음"으로 남았다
+       */
+      if (
+        libraryItem?.status === LibraryItemStatus.UNPLAYED &&
+        positionSec > 0
+      ) {
+        const started = await this.libraryService.markPlayStarted(
+          command.userId,
+          command.contentId,
+          command.now,
+          manager,
+        );
+        if (started) {
+          libraryItem.status = started.status;
+          libraryItem.lastPlayedAt = started.lastPlayedAt;
+        }
+      }
+
+      const completed = libraryItem
+        ? await this.completeIfReached(
+            command,
+            libraryItem,
+            maxReachedSec,
+            manager,
+          )
+        : null;
+
+      if (!libraryItem) {
+        await this.recordCompleteWithoutLibrary(
+          command,
+          content.durationSec,
+          previous?.maxReachedSec ?? 0,
+          maxReachedSec,
+          manager,
+        );
+      }
 
       return {
         positionSec: saved.positionSec,
@@ -115,6 +163,15 @@ export class PlaybackProgressService {
         // 회수 신호 — 저장은 거부하지 않되(위 주석) 상태를 실어 클라이언트가 중단한다
         contentStatus: content.status,
         libraryItem: toLibraryItemView(completed ?? libraryItem),
+        isCompleted: await this.isCompleted(
+          command,
+          completed ?? libraryItem,
+          this.libraryService.isCompletionReached(
+            maxReachedSec,
+            content.durationSec,
+          ),
+          manager,
+        ),
       };
     });
   }
@@ -123,8 +180,7 @@ export class PlaybackProgressService {
    * 완청 판정(`player.md` 4.4) — 90% 기준값은 `library` 모듈이 소유하므로 그쪽 Service를
    * 호출한다. 기준을 여기서 다시 쓰면 두 곳이 갈라진다.
    *
-   * **라이브러리에 없는 콘텐츠는 진행만 저장한다.** 상태 전이·`complete` 신호는 라이브러리
-   * 행이 전제다. 실제로는 탐색 재생의 자동 적립이 행을 만들어 두므로 경합에서만 나타난다.
+   * 라이브러리 행이 있을 때의 판정이다 — 없으면 `recordCompleteWithoutLibrary`가 신호만 남긴다.
    *
    * **이미 `completed`면 전이도 신호 적재도 반복하지 않는다** — `completed_at`은 최초 값을
    * 유지하고, 완료 후 되감아 들어도 상태는 내려가지 않는다.
@@ -176,6 +232,19 @@ export class PlaybackProgressService {
       return null;
     }
 
+    // 행 없이 이미 완청 신호가 남은 편(KAN-248 — 담기 전 완청 뒤 재발행·다른 기기로 위치가 내려갔다가 다시 넘김)은 다시
+    // 쌓지 않는다 — 완청 신호는 사용자×편당 1회다. 상태 전이는 그대로 한다
+    const recorded = await this.playbackService.hasSignal(
+      command.userId,
+      command.contentId,
+      UserSignalAction.COMPLETE,
+      manager,
+    );
+
+    if (recorded) {
+      return completion.item;
+    }
+
     await this.playbackService.recordSignal(
       command.userId,
       command.contentId,
@@ -184,6 +253,71 @@ export class PlaybackProgressService {
     );
 
     return completion.item;
+  }
+
+  /** 응답의 완청 여부 — 행 상태·이번 도달로 정해지면 조회하지 않고, 아니면 완청 신호까지 본다(같은 트랜잭션) */
+  private async isCompleted(
+    command: SaveProgressCommand,
+    libraryItem: LibraryItem | null,
+    reached: boolean,
+    manager: EntityManager,
+  ): Promise<boolean> {
+    if (reached || libraryItem?.status === LibraryItemStatus.COMPLETED) {
+      return true;
+    }
+
+    return this.playbackService.hasSignal(
+      command.userId,
+      command.contentId,
+      UserSignalAction.COMPLETE,
+      manager,
+    );
+  }
+
+  /**
+   * **라이브러리에 없는 편의 완청도 `complete` 신호로 남긴다**(KAN-248). 탐색 재생은 행을 만들지 않으므로
+   * (`explore.md` 4.4) 이것이 평소 경로다 — 남기지 않으면 탐색에서 끝까지 들은 편이 추천·드립 입력에서 빠진다.
+   * 상태 전이는 할 행이 없다 — 나중에 담으면 담기가 `completed`로 넣는다(`LibraryService.save`).
+   *
+   * **최초 1회.** 이번 저장이 기준을 처음 넘길 때만 본다(덮어쓰기 전 도달이 이미 기준 이상이면 끝) — 그 뒤
+   * 저장마다 신호를 조회하지 않는다. 처음 넘기는 저장이 두 기기에서 동시에 와도 위 진행 upsert가 같은 행을
+   * 잠가 차례로 들어오므로, 뒤에 온 쪽은 앞쪽이 커밋한 신호를 보고 멈춘다. 재발행으로 위치가 지워진 뒤
+   * 다시 넘겨도 같은 편의 신호가 이미 있어 쌓이지 않는다.
+   */
+  private async recordCompleteWithoutLibrary(
+    command: SaveProgressCommand,
+    durationSec: number,
+    previousMaxReachedSec: number,
+    maxReachedSec: number,
+    manager: EntityManager,
+  ): Promise<void> {
+    if (
+      !this.libraryService.isCompletionReached(maxReachedSec, durationSec) ||
+      this.libraryService.isCompletionReached(
+        previousMaxReachedSec,
+        durationSec,
+      )
+    ) {
+      return;
+    }
+
+    const recorded = await this.playbackService.hasSignal(
+      command.userId,
+      command.contentId,
+      UserSignalAction.COMPLETE,
+      manager,
+    );
+
+    if (recorded) {
+      return;
+    }
+
+    await this.playbackService.recordSignal(
+      command.userId,
+      command.contentId,
+      UserSignalAction.COMPLETE,
+      manager,
+    );
   }
 }
 

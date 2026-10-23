@@ -17,6 +17,8 @@ export type { ExploreItem, ExploreTopic } from './explore.types';
  * 재사용한다(content-detail-api.md 4.2 — 재선언하면 같은 엔드포인트의 DTO가 두 벌이 된다).
  */
 export { saveContent } from './api/explore.api';
+/** 재생 목록 맥락(KAN-241) — bootstrap 이 player 브리지에 꽂는 추천 폴백 */
+export { fetchUpNext } from './explore.up-next';
 export type { SaveContentResult, SaveReason } from './explore.types';
 export { default as ExploreFeaturedCard } from './components/ExploreFeaturedCard';
 /** 코치마크가 카드가 아니라 썸네일만 가리킬 때 쓴다 — 기하는 카드가 소유한다 */

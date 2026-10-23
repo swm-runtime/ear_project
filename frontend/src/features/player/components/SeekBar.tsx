@@ -336,10 +336,10 @@ const CHAPTER_HOLD_MS = 2000;
 const NO_CHAPTERS: readonly number[] = [];
 /*
  * 사진 위(재생 목록 열림) 트랙 — 선이 사진 밑변에 걸쳐 위 절반은 사진, 아래 절반은 플레이어의 검정 바탕이다.
- * 반투명 흰색은 두 바탕 모두에서 같은 "어두운 위의 옅은 선"으로 읽힌다(밝은 바탕이던 때는 아래 절반에서
- * 사라져 불투명 색을 썼다 — 2026-09-18 검정 플레이어로 바뀌며 되돌렸다). 채움·썸은 기본과 같은 흰색
+ * 반투명 흰색은 두 바탕 모두에서 같은 "어두운 위의 옅은 선"으로 읽힌다. 평소 트랙도 같은 값이 됐다(2026-10-23 —
+ * 흐린 커버 바탕에서 불투명 회색이 묻혔다). 사진 위 상태를 따로 바꿀 때를 위해 이름은 남긴다
  */
-const ON_IMAGE_TRACK_COLOR = 'rgba(255, 255, 255, 0.35)';
+const ON_IMAGE_TRACK_COLOR = playerColor.track;
 
 const styles = StyleSheet.create({
   touchArea: {
@@ -357,14 +357,14 @@ const styles = StyleSheet.create({
   },
   track: {
     overflow: 'hidden',
-    backgroundColor: playerColor.border,
+    backgroundColor: playerColor.track,
   },
   fill: {
     height: '100%',
     backgroundColor: playerColor.primary,
   },
   fillDisabled: {
-    backgroundColor: playerColor.border,
+    backgroundColor: playerColor.track,
   },
   // 시간 숫자는 히트 영역(44) 아래 여백 안으로 끌어올려 바 바로 밑에 붙인다(PM 2026-10-07 "공백이 너무 많다") —
   // 바 아래 16 → TIME_GAP. 숫자는 누를 수 없어 히트 영역과 겹쳐도 된다

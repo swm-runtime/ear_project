@@ -3,9 +3,10 @@ import { ContentService } from '@/modules/content/services/content.service';
 import { SeriesService } from '@/modules/content/services/series.service';
 import { LibraryService } from '@/modules/library/library.service';
 import { PlanService } from '@/modules/subscription/services/plan.service';
+import { DeviceTokenService } from '@/modules/user/services/device-token.service';
 import { UserService } from '@/modules/user/services/user.service';
 import { UserSettingService } from '@/modules/user/services/user-setting.service';
-import { UserTier } from '@/modules/user/user.enum';
+import { DevicePlatform, UserTier } from '@/modules/user/user.enum';
 
 import type { AudioUrlIssuer } from '../audio-url-issuer';
 import { AudioUrlSigner } from '../audio-url.signer';
@@ -28,6 +29,7 @@ describe('AudioUrlService — 음질(KAN-141)', () => {
   let userSettingService: jest.Mocked<UserSettingService>;
   let planService: jest.Mocked<PlanService>;
   let issuer: jest.Mocked<AudioUrlIssuer>;
+  let deviceTokenService: jest.Mocked<DeviceTokenService>;
 
   const renditions = [
     { quality: AudioQuality.COMPRESSED, path: 'audio/c.mp3' },
@@ -88,6 +90,14 @@ describe('AudioUrlService — 음질(KAN-141)', () => {
       }),
     };
 
+    // 기본은 무손실을 제대로 트는 기기(Android) — iOS 판정은 아래 KAN-256 묶음이 본다
+    deviceTokenService = {
+      findByUserIdAndDeviceId: jest.fn().mockResolvedValue({
+        platform: DevicePlatform.ANDROID,
+        appVersion: '1.2.1',
+      }),
+    } as unknown as jest.Mocked<DeviceTokenService>;
+
     service = new AudioUrlService(
       {
         assertPlayable: jest.fn().mockResolvedValue(undefined),
@@ -106,6 +116,7 @@ describe('AudioUrlService — 음질(KAN-141)', () => {
       { hashIp: jest.fn().mockReturnValue(null) } as unknown as AudioUrlSigner,
       issuer,
       seriesService,
+      deviceTokenService,
     );
   });
 
@@ -246,5 +257,69 @@ describe('AudioUrlService — 음질(KAN-141)', () => {
       expect.objectContaining({ audioPath: 'audio/c.mp3' }),
       NOW,
     );
+  });
+
+  describe('기기별 무손실(KAN-256 — iOS FLAC 시각 어긋남)', () => {
+    beforeEach(() => {
+      planService.getMaxAudioQuality.mockResolvedValue(AudioQuality.LOSSLESS);
+      userSettingService.getSettings.mockResolvedValue({
+        preferredAudioQuality: null,
+      } as never);
+    });
+
+    const onDevice = (platform: DevicePlatform, appVersion: string) =>
+      deviceTokenService.findByUserIdAndDeviceId.mockResolvedValue({
+        platform,
+        appVersion,
+      } as never);
+
+    it('1.3.0 미만 iOS 앱은 Pro 라도 압축으로 내리고 not_available 로 알린다 — 구독 안내를 띄우지 않는다', async () => {
+      onDevice(DevicePlatform.IOS, '1.2.1');
+
+      const result = await issue(AudioQuality.LOSSLESS);
+
+      expect(deviceTokenService.findByUserIdAndDeviceId).toHaveBeenCalledWith(
+        USER_ID,
+        'device-1',
+      );
+      expect(result.audio).toMatchObject({
+        quality: AudioQuality.COMPRESSED,
+        requestedQuality: AudioQuality.LOSSLESS,
+        fallbackReason: 'not_available',
+        availableQualities: [AudioQuality.COMPRESSED],
+      });
+      expect(issuer.sign).toHaveBeenCalledWith(
+        expect.objectContaining({ audioPath: 'audio/c.mp3' }),
+        NOW,
+      );
+    });
+
+    it('1.3.0 이상 iOS 앱은 무손실을 받는다', async () => {
+      onDevice(DevicePlatform.IOS, '1.3.0');
+
+      const result = await issue();
+
+      expect(result.audio.quality).toBe(AudioQuality.LOSSLESS);
+      expect(issuer.sign).toHaveBeenCalledWith(
+        expect.objectContaining({ audioPath: 'audio/l.flac' }),
+        NOW,
+      );
+    });
+
+    it('Android 는 앱 버전과 무관하게 무손실을 받는다', async () => {
+      onDevice(DevicePlatform.ANDROID, '1.1.0');
+
+      const result = await issue();
+
+      expect(result.audio.quality).toBe(AudioQuality.LOSSLESS);
+    });
+
+    it('기기 행이 없거나 버전 형식이 깨졌으면 무손실을 주지 않는다 — 모르면 어긋나지 않는 쪽', async () => {
+      deviceTokenService.findByUserIdAndDeviceId.mockResolvedValueOnce(null);
+      expect((await issue()).audio.quality).toBe(AudioQuality.COMPRESSED);
+
+      onDevice(DevicePlatform.IOS, 'abc');
+      expect((await issue()).audio.quality).toBe(AudioQuality.COMPRESSED);
+    });
   });
 });

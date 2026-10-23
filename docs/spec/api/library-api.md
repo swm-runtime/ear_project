@@ -210,7 +210,7 @@
 | `status` | `unplayed` / `in_progress` / `completed` |
 | `is_counted_today` | 이 콘텐츠가 **재청취 창 안**에 있는가 — 최근 15일(당일 포함) 내 차감 행(`play_records.is_counted = true`)이 있어, 재생해도 차감이 없는 상태(개정 2026-08-10 — `paywall.md` 4.3-1. 필드명은 유지하고 의미를 "오늘 카운트됨"에서 "창 안"으로 확장했다) |
 | `progress` | `playback_progresses` 조인 결과. **행이 없으면 `null`**(0으로 채우지 않는다) |
-| `content.content_version` | 재발행 판정용. 올라갔으면 클라이언트가 저장한 위치·오프라인 파일을 폐기한다(`domain.md` 5.1) |
+| `content.content_version` | **오디오를 바꾼** 재발행 판정용(썸네일·메타만 바꾼 재발행은 버전을 올리지 않는다 — `admin-api.md` 4.10, 2026-10-20). 올라갔으면 클라이언트가 저장한 위치·오프라인 파일을 폐기한다(`domain.md` 5.1) |
 | `content.language` | 콘텐츠 언어 `ko` / `en`(추가 2026-10-14 — KAN-188, `global-api.md` 4.7). **표시 전용** — 클라이언트는 이 값으로 목록을 거르지 않는다(시장 필터는 서버가 한다). 4.3 `resume_target.content`에도 같은 필드가 실린다 |
 | `content.series` | **시리즈 편이면 `{ id, title, episode_no, total_episodes }`, 단일 콘텐츠면 `null`**(추가 2026-10-17 — KAN-134). 탐색(`explore-api.md` 4.1)·플레이어·상세와 같은 모양이고 `total_episodes`는 시리즈 표(`domain.md` 5.9)의 값이다. 목록은 시리즈 행을 한 번에 읽는다. 라이브러리는 시리즈로 묶지 않는다 — 편 단위 그대로다. 4.3 `resume_target.content`에도 같은 필드가 실린다 |
 | `content.source_url` | **`null`이면 더보기 시트(L4)에 [원문 보기]를 노출하지 않는다**(개정 2026-08-24 — 세 화면 더보기 통일(2026-08-10)의 계약 반영. 발급 응답 `player-api.md` 4.1과 같은 규칙). `partner`는 항상 값이 있고(`chk_contents_partner_disclosure` — `domain.md` 5.1), `ai_generated`는 선택 필드라 `null`일 수 있다 |
@@ -295,7 +295,7 @@
 ```json
 {
   "resume_target": {
-    "id": "uuid",
+    "id": "uuid",                 // 라이브러리 항목 id — 담지 않은 편(탐색에서만 듣던 편)이면 null
     "status": "in_progress",
     "last_played_at": "2026-08-04T00:12:30Z",
     "is_counted_today": true,
@@ -323,16 +323,18 @@
 { "resume_target": null, "daily_play_limit": 2, "daily_play_count": 1, "service_date": "2026-08-04" }
 ```
 
-**선정 규칙** — 아래를 모두 만족하는 것 중 `last_played_at`이 가장 최근인 **1건**
+**선정 규칙** — **재생 위치(`playback_progresses`)가 원천이다**(개정 2026-10-23 — 탐색 재생 자동 적립 폐기, FR-24). 아래를 모두 만족하는 편 중 가장 최근에 들은 **1건**. 탐색 재생은 라이브러리 행을 만들지 않으므로(`explore.md` 4.4) 종전처럼 라이브러리 행에서 고르면 탐색에서만 듣던 편이 영영 복원되지 않는다.
 
 | 조건 | 근거 |
 |---|---|
-| `deleted_at IS NULL` | 삭제한 것을 이어들 자리는 없다 |
-| `status != 'completed'` | 이미 끝난 것을 이어들 자리는 없다(`library.md` 4.2) |
-| `contents.status = 'published'` | 회수된 콘텐츠는 미니플레이어에도 띄우지 않는다(`library.md` 7) |
-| `contents.market = users.market` | 다른 시장 콘텐츠는 어떤 응답에도 나오지 않는다(추가 2026-10-14 — KAN-188, `global-api.md` 4.7) |
 | `position_sec > 0` | 위치가 0이면 처음부터 듣는 것과 같다(`library.md` 7) |
+| **완청이 아니다** — 라이브러리 `completed` 행도, 최대 도달이 길이 × 90% 이상인 편도 뺀다 | 이미 끝난 것을 이어들 자리는 없다(`library.md` 4.2). 완청은 라이브러리와 무관한 사실이다(`explore-api.md` 4.1 `is_completed`와 같은 정의) |
+| 라이브러리에서 **지운 편은 지운 뒤 다시 들었을 때만**(`deleted_at` < 위치 갱신 시각) | 지운 것을 이어들 자리는 없다. 다만 지운 뒤 탐색에서 다시 틀었으면 새로 듣는 편이다 |
+| `contents.status = 'published'` · 만료 전 | 회수된 콘텐츠는 미니플레이어에도 띄우지 않는다(`library.md` 7) |
+| `contents.market = users.market` | 다른 시장 콘텐츠는 어떤 응답에도 나오지 않는다(추가 2026-10-14 — KAN-188, `global-api.md` 4.7) |
 
+- **"최근"** = `GREATEST(playback_progresses.updated_at, library_items.last_played_at)`. 라이브러리에서 연 재생은 시작 시각이, 탐색 재생은 위치 저장 시각이 남는다. 위치 저장이 `updated_at`을 갱신한다(2026-10-23 — 종전에는 첫 저장 시각에 머물렀다).
+- **`id`는 라이브러리 항목 id이고, 담지 않은 편이면 `null`이다**(2026-10-23). 그때 `status`는 `in_progress`, `last_played_at`은 위 "최근" 값이다. 클라이언트는 미니플레이어 숨김·삭제 대조를 `content.id`로 한다(옛 앱은 `id`를 숨김 목록 키로만 써 `null`이어도 깨지지 않는다).
 - **`content.series`도 목록 응답(4.1)과 같은 모양이다**(추가 2026-10-17 — KAN-134 — 시리즈 편이면 객체, 단일 콘텐츠면 `null`).
 - **`content.topic_ids`는 목록 응답(4.1)과 같은 출처·같은 모양이다**(2026-09-22 추가 — KAN-91). 미니플레이어가 제목 아래 카테고리 줄을 그리는 데 쓴다. 주제가 없으면 **`null`이 아니라 `[]`** 다.
 - **대상 없음을 404로 응답하지 않는다.** 신규 사용자와 완청만 있는 사용자에게는 대상이 없는 것이 정상이며, 클라이언트는 같은 응답에서 잔여 재생 표시값까지 함께 받아야 한다.
@@ -491,7 +493,7 @@
 ```
 
 - **`added_at`을 유지한다.** 복구를 새 적립으로 처리하면 항목이 목록 맨 위로 올라와 순서가 바뀐다(`library.md` 7). 사용자가 되돌린 것은 삭제이지 적립 시각이 아니다.
-- **`status`도 유지한다.** 듣던 진행률이 그대로 살아 있어야 하며, `playback_progresses`는 애초에 지우지 않았다.
+- **`status`도 유지한다.** 듣던 진행률이 그대로 살아 있어야 하며, `playback_progresses`는 애초에 지우지 않았다. 다만 **지워진 사이에 탐색에서 더 들었으면 그만큼 맞춘다**(2026-10-23 — KAN-248, `explore-api.md` 4.3 담기와 같은 규칙: 위치 ≥ 90%면 `completed`, 위치 > 0이고 `unplayed`면 `in_progress`). `completed`는 내리지 않는다.
 - **`drip_excluded_contents` 행을 삭제하지 않는다.**
   - 그 행은 삭제 이전부터 `played`·`dripped` 사유로 존재했을 수 있고, `reason`은 최초 값을 유지하므로(`domain.md` 7.1) 어느 쪽이었는지 구분할 수 없다. 지우면 **이미 들은 콘텐츠가 드립으로 다시 오게 된다.**
   - 실질적인 차이도 없다. 드립 후보 필터는 `library_items` 행이 존재하기만 하면 제외하므로(`domain.md` 7.1), 복구된 항목은 그 조건으로 이미 제외된다.

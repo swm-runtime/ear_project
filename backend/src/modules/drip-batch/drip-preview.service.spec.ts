@@ -5,8 +5,9 @@ import { ScoreBreakdown } from '@/modules/drip/drip.types';
 import { TopicService } from '@/modules/interest/services/topic.service';
 import { UserInterestService } from '@/modules/interest/services/user-interest.service';
 import { LibraryService } from '@/modules/library/library.service';
+import { AuditLogService } from '@/modules/partner/audit-log.service';
 import { UserService } from '@/modules/user/services/user.service';
-import { UserTier } from '@/modules/user/user.enum';
+import { UserMarket, UserTier } from '@/modules/user/user.enum';
 
 import { DripBatchOrchestrator } from './drip-batch.orchestrator';
 import { UserDripPlan } from './drip-batch.types';
@@ -14,6 +15,8 @@ import { DripPreviewService } from './drip-preview.service';
 
 const NOW = new Date('2026-09-18T09:00:00.000Z'); // KST 18:00 → 서비스 날짜 2026-09-18
 const USER_ID = '11111111-1111-4111-8111-111111111111';
+const ADMIN_ID = '22222222-1111-4111-8111-111111111111';
+const UNKNOWN_ID = '33333333-1111-4111-8111-111111111111';
 const TOPIC_A = 'aaaaaaaa-1111-4111-8111-111111111111';
 const TOPIC_B = 'bbbbbbbb-1111-4111-8111-111111111111';
 
@@ -128,14 +131,14 @@ describe('DripPreviewService', () => {
   let userService: jest.Mocked<UserService>;
   let orchestrator: jest.Mocked<DripBatchOrchestrator>;
   let contentService: jest.Mocked<ContentService>;
+  let auditLogService: jest.Mocked<AuditLogService>;
 
   beforeEach(() => {
     userService = {
-      findByEmail: jest.fn().mockResolvedValue({
+      findPlanProfileById: jest.fn().mockResolvedValue({
         id: USER_ID,
-        email: 'tester@example.com',
-        nickname: '테스터',
         tier: UserTier.LIGHT,
+        market: UserMarket.KR,
         jobCategory: null,
         yearsOfExperience: null,
         onboardingCompleted: true,
@@ -180,6 +183,10 @@ describe('DripPreviewService', () => {
       planForUser: jest.fn().mockResolvedValue(buildPlan()),
     } as unknown as jest.Mocked<DripBatchOrchestrator>;
 
+    auditLogService = {
+      record: jest.fn().mockResolvedValue({}),
+    } as unknown as jest.Mocked<AuditLogService>;
+
     service = new DripPreviewService(
       userService,
       userInterestService,
@@ -187,11 +194,12 @@ describe('DripPreviewService', () => {
       contentService,
       libraryService,
       orchestrator,
+      auditLogService,
     );
   });
 
   it('계산만 하는 옵션으로 오케스트레이터를 부른다 — 취향 캐시 저장 없음, 스킵에서 멈추지 않음', async () => {
-    await service.preview('tester@example.com', NOW);
+    await service.preview(USER_ID, ADMIN_ID, NOW);
 
     expect(orchestrator.planForUser).toHaveBeenCalledWith(
       expect.objectContaining({ id: USER_ID }),
@@ -218,7 +226,7 @@ describe('DripPreviewService', () => {
       },
     });
 
-    const view = await service.preview('tester@example.com', NOW);
+    const view = await service.preview(USER_ID, ADMIN_ID, NOW);
 
     expect(view.autoExpand).toMatchObject({
       action: 'add',
@@ -230,7 +238,7 @@ describe('DripPreviewService', () => {
   });
 
   it('최종 편성분에 순서를 붙이고, 주제·신호 콘텐츠에 이름을 붙인다', async () => {
-    const view = await service.preview('tester@example.com', NOW);
+    const view = await service.preview(USER_ID, ADMIN_ID, NOW);
 
     expect(view.serviceDate).toBe('2026-09-18');
     expect(view.skipReason).toBe('unfinished_inventory');
@@ -264,17 +272,75 @@ describe('DripPreviewService', () => {
   });
 
   it('응답에 오디오 경로를 싣지 않는다', async () => {
-    const view = await service.preview('tester@example.com', NOW);
+    const view = await service.preview(USER_ID, ADMIN_ID, NOW);
 
     expect(JSON.stringify(view)).not.toContain('audio/secret.mp3');
   });
 
-  it('이메일에 해당하는 사용자가 없으면 NOT_FOUND', async () => {
-    userService.findByEmail.mockResolvedValue(null);
+  it('user_id 로 사용자를 찾고, 화면용 사용자에는 tier·market 등 편성 열만 싣는다', async () => {
+    const view = await service.preview(USER_ID, ADMIN_ID, NOW);
+
+    expect(userService.findPlanProfileById).toHaveBeenCalledWith(USER_ID);
+    expect(view.user).toEqual({
+      id: USER_ID,
+      tier: UserTier.LIGHT,
+      market: UserMarket.KR,
+      jobCategory: null,
+      yearsOfExperience: null,
+      onboardingCompleted: true,
+    });
+  });
+
+  it('조회 결과에 이메일·닉네임이 섞여 와도 응답에는 싣지 않는다', async () => {
+    userService.findPlanProfileById.mockResolvedValue({
+      id: USER_ID,
+      tier: UserTier.LIGHT,
+      market: UserMarket.KR,
+      jobCategory: null,
+      yearsOfExperience: null,
+      onboardingCompleted: true,
+      email: 'leak@example.com',
+      nickname: '새는닉네임',
+    } as never);
+
+    const view = await service.preview(USER_ID, ADMIN_ID, NOW);
+    const text = JSON.stringify(view);
+
+    expect(Object.keys(view.user)).not.toContain('email');
+    expect(Object.keys(view.user)).not.toContain('nickname');
+    expect(text).not.toContain('leak@example.com');
+    expect(text).not.toContain('새는닉네임');
+  });
+
+  it('열람 1회마다 감사 로그 drip.preview_view 를 계산 전에 남긴다', async () => {
+    await service.preview(USER_ID, ADMIN_ID, NOW);
+
+    expect(auditLogService.record).toHaveBeenCalledWith({
+      actor: ADMIN_ID,
+      action: 'drip.preview_view',
+      target: `user:${USER_ID}`,
+    });
+    expect(auditLogService.record.mock.invocationCallOrder[0]).toBeLessThan(
+      orchestrator.planForUser.mock.invocationCallOrder[0],
+    );
+  });
+
+  it('감사 로그를 남기지 못하면 계산하지 않고 실패한다', async () => {
+    auditLogService.record.mockRejectedValue(new Error('db down'));
+
+    await expect(service.preview(USER_ID, ADMIN_ID, NOW)).rejects.toThrow(
+      'db down',
+    );
+    expect(orchestrator.planForUser).not.toHaveBeenCalled();
+  });
+
+  it('user_id 에 해당하는 사용자가 없으면 NOT_FOUND — 감사 로그도 남기지 않는다', async () => {
+    userService.findPlanProfileById.mockResolvedValue(null);
 
     await expect(
-      service.preview('nobody@example.com', NOW),
+      service.preview(UNKNOWN_ID, ADMIN_ID, NOW),
     ).rejects.toBeInstanceOf(BusinessException);
     expect(orchestrator.planForUser).not.toHaveBeenCalled();
+    expect(auditLogService.record).not.toHaveBeenCalled();
   });
 });

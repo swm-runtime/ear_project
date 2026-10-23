@@ -1,6 +1,6 @@
 import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
 import { useQueryClient } from '@tanstack/react-query';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Linking } from 'react-native';
 
 import { track } from '@/shared/analytics';
@@ -18,10 +18,16 @@ import { useDeferredSheetShare } from '@/features/share';
 
 import { BUFFERING_INDICATOR_DELAY_MS, PLAYER_DELETE_UNDO_DURATION_MS } from '../player.constants';
 import { PLAYER_COPY } from '../player.copy';
-import type { PlayEntryPoint, PlaybackStartMeta, QueueItem } from '../player.types';
+import type { PlayEntryPoint, PlaybackStartMeta, QueueEntry, QueueItem } from '../player.types';
 import { usePlayGate } from './usePlayGate';
+import { queueKeys } from './useQueueQuery';
 import { playbackService } from '../services/playback.service';
 import { getPlayerLibraryBridge } from '../services/player-library.bridge';
+import {
+  appendToSnapshot,
+  withoutSnapshotItem,
+  withSnapshotItemId,
+} from '../services/queue-context';
 import { useLimitNoticeStore } from '../store/limit-notice.store';
 import { usePlaybackStore } from '../store/playback.store';
 
@@ -58,6 +64,23 @@ export const usePlayerScreen = () => {
   const [activePanel, setActivePanel] = useState<PlayerPanelKind | null>(null);
   const [isMoreSheetVisible, setIsMoreSheetVisible] = useState(false);
   const [pendingDeleteItemId, setPendingDeleteItemId] = useState<string | null>(null);
+  /**
+   * 재생 목록에서 숨겨 둘 라이브러리 항목 — 삭제를 고른 순간부터 **서버 삭제가 끝나고 목록을 다시 받을 때까지**.
+   * 낙관 제거(캐시에서 걷기)만으로는 스낵바 5초 동안의 재조회(시트 단계 이동·다시 열기 — staleTime 0)가 서버에 아직 있는
+   * 항목을 되살려, 지운 줄이 나타났다가 5초 뒤 사라졌다(PM 2026-10-23)
+   */
+  const [hiddenQueueItemIds, setHiddenQueueItemIds] = useState<ReadonlySet<string>>(
+    () => new Set(),
+  );
+  const hideQueueItem = (itemId: string) =>
+    setHiddenQueueItemIds((current) => new Set(current).add(itemId));
+  const unhideQueueItem = (itemId: string) =>
+    setHiddenQueueItemIds((current) => {
+      if (!current.has(itemId)) return current;
+      const next = new Set(current);
+      next.delete(itemId);
+      return next;
+    });
   const deleteTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const rateSeqRef = useRef(0);
   const pendingDetailRef = useRef<string | null>(null);
@@ -70,6 +93,23 @@ export const usePlayerScreen = () => {
   );
 
   const isActiveSession = session !== null && session.contentId === contentId;
+
+  /*
+   * ── 이 화면이 보여 주던 편에서 세션이 다른 편으로 넘어가면 화면도 따라간다 — 재생 목록 자동 재생(player.md 4.2-4)은
+   * 화면 이동 없이 세션만 바꾼다. 따라가지 않으면 화면의 편(route)과 세션이 어긋나 세션 없음으로 읽혀 화면이 까맣게
+   * 비었다(PM 2026-10-23). 직전 세션이 이 화면의 편이었을 때만 따라간다 — 다른 편을 들고 들어온 진입(딥링크·확대)은
+   * 위 진입 효과가 세션을 이 화면의 편으로 바꾸는 쪽이다 ──
+   */
+  const sessionContentId = session?.contentId ?? null;
+  const lastSessionContentIdRef = useRef(sessionContentId);
+  // 그리기 전에 따라간다 — 일반 효과면 어긋난 한 프레임이 빈 화면으로 칠해진다
+  useLayoutEffect(() => {
+    const previous = lastSessionContentIdRef.current;
+    lastSessionContentIdRef.current = sessionContentId;
+    if (previous === contentId && sessionContentId !== null && sessionContentId !== contentId) {
+      navigation.setParams({ contentId: sessionContentId } as never);
+    }
+  }, [sessionContentId, contentId, navigation]);
 
   /* ── 진입 — 게이트를 거치지 않은 경로(미니플레이어 확대·딥링크)만 여기서 시작한다.
         확대는 재생을 시작시키지 않는다(uiux 4.8) — autoplay 기본 false(FR-24) ── */
@@ -134,9 +174,20 @@ export const usePlayerScreen = () => {
     if (!bridge) return;
     bridge
       .deleteItem(itemId)
-      .then(() => bridge.invalidateLibrary())
-      .catch(() => showToast(PLAYER_COPY.deleteSnackbar.failedToast));
+      .then(async () => {
+        bridge.invalidateLibrary();
+        // 재생 목록(라이브러리 첫 페이지) 캐시도 서버와 다시 맞춘다 — 스와이프 삭제의 낙관 제거를 확정한다.
+        // 다시 받은 목록에 그 항목이 없을 때까지 숨김을 유지한다(위 hiddenQueueItemIds)
+        await queryClient.invalidateQueries({ queryKey: queueKeys.all });
+      })
+      .catch(async () => {
+        showToast(PLAYER_COPY.deleteSnackbar.failedToast);
+        await queryClient.invalidateQueries({ queryKey: queueKeys.all });
+      })
+      .finally(() => unhideQueueItem(itemId));
   };
+  /** 스낵바 [실행 취소]가 되돌릴 로컬 변화 — 스와이프 삭제는 목록에서 먼저 걷어 둔 줄을 제자리에 돌려 놓는다 */
+  const undoLocalRef = useRef<(() => void) | null>(null);
 
   const commitDeleteRef = useRef(commitDelete);
   const pendingDeleteRef = useRef<string | null>(null);
@@ -154,20 +205,26 @@ export const usePlayerScreen = () => {
     [],
   );
 
+  /** 삭제 대기 공통 — 스낵바 5초 뒤 서버 삭제. 연속 조작은 이전 대기분을 즉시 확정하고 스낵바를 교체한다 */
+  const startPendingDelete = (itemId: string, undoLocal: (() => void) | null) => {
+    if (deleteTimerRef.current) clearTimeout(deleteTimerRef.current);
+    if (pendingDeleteRef.current) commitDeleteRef.current(pendingDeleteRef.current);
+    undoLocalRef.current = undoLocal;
+    setPendingDeleteItemId(itemId);
+    hideQueueItem(itemId);
+    deleteTimerRef.current = setTimeout(() => {
+      deleteTimerRef.current = null;
+      undoLocalRef.current = null;
+      setPendingDeleteItemId(null);
+      commitDeleteRef.current(itemId);
+    }, PLAYER_DELETE_UNDO_DURATION_MS);
+  };
+
   const requestDelete = () => {
     setIsMoreSheetVisible(false);
     const itemId = session?.libraryItem?.id;
     if (!itemId) return;
-    // 연속 조작 — 이전 대기분을 즉시 확정하고 스낵바를 교체한다
-    if (deleteTimerRef.current) clearTimeout(deleteTimerRef.current);
-    if (pendingDeleteRef.current) commitDeleteRef.current(pendingDeleteRef.current);
-
-    setPendingDeleteItemId(itemId);
-    deleteTimerRef.current = setTimeout(() => {
-      deleteTimerRef.current = null;
-      setPendingDeleteItemId(null);
-      commitDeleteRef.current(itemId);
-    }, PLAYER_DELETE_UNDO_DURATION_MS);
+    startPendingDelete(itemId, null);
   };
 
   /** 스낵바가 떠 있는 동안은 서버 호출이 없었다 — 로컬 취소뿐이다 */
@@ -176,7 +233,40 @@ export const usePlayerScreen = () => {
       clearTimeout(deleteTimerRef.current);
       deleteTimerRef.current = null;
     }
+    undoLocalRef.current?.();
+    undoLocalRef.current = null;
+    if (pendingDeleteItemId !== null) unhideQueueItem(pendingDeleteItemId);
     setPendingDeleteItemId(null);
+  };
+
+  /**
+   * 재생 목록 줄을 왼쪽으로 밀어 삭제(KAN-241 "3번"). 탐색 맥락은 **스냅샷에서 빼기**(로컬, 서버 요청 없음, 실행 취소 없음).
+   * 라이브러리 맥락은 PL7 더보기와 같은 소프트 삭제 — 목록에서 먼저 걷고(낙관) 스낵바 5초 뒤 서버(library.md 4.5), [실행 취소]는
+   * 걷어 둔 줄을 제자리에 돌려 놓는다. 지금 듣는 편은 밀리지 않는다(패널이 막지만 여기서도 지킨다)
+   */
+  const deleteQueueItem = (item: QueueEntry) => {
+    if (item.contentId === contentId) return;
+    const store = usePlaybackStore.getState();
+    if (store.queueContext.kind === 'explore') {
+      store.setQueueContext(withoutSnapshotItem(store.queueContext, item.contentId));
+      return;
+    }
+    const itemId = item.itemId;
+    if (itemId === null) return;
+    const previous = queryClient.getQueryData<QueueItem[]>(queueKeys.all) ?? [];
+    const index = previous.findIndex((entry) => entry.itemId === itemId);
+    const removed = index === -1 ? null : previous[index];
+    queryClient.setQueryData<QueueItem[]>(queueKeys.all, (current = []) =>
+      current.filter((entry) => entry.itemId !== itemId),
+    );
+    startPendingDelete(itemId, () => {
+      if (removed === null) return;
+      queryClient.setQueryData<QueueItem[]>(queueKeys.all, (current = []) =>
+        current.some((entry) => entry.itemId === itemId)
+          ? current
+          : [...current.slice(0, index), removed, ...current.slice(index)],
+      );
+    });
   };
 
   /* ── 컨트롤 ── */
@@ -209,31 +299,81 @@ export const usePlayerScreen = () => {
     playbackService.togglePlayPause();
   };
 
+  const queueEntryTarget = (item: QueueEntry) => ({
+    contentId: item.contentId,
+    isCountedToday: item.isCountedToday,
+    meta: {
+      title: item.title,
+      authorName: item.authorName ?? undefined,
+      sourceName: item.sourceName ?? undefined,
+      thumbnailUrl: item.thumbnailUrl ?? undefined,
+      durationSec: item.durationSec ?? undefined,
+      // 고른 편의 주제 — 빠뜨리면 카테고리 줄이 사라진다(2026-09-18 PM 지적)
+      topicIds: item.topicIds,
+    },
+  });
+
   /**
    * 재생 목록에서 다른 편을 고른다 — **게이트를 거친다.** 재생 진입점이 하나 늘어난 것이므로 여기서
    * playbackService.start 를 직접 부르면 한도 확인 팝업을 건너뛰는 다섯 번째 경로가 생긴다
-   * (paywall.md 4.2 — 모든 경로가 단일 게이트). 진입점은 목록의 정체를 따라 `library`다.
+   * (paywall.md 4.2 — 모든 경로가 단일 게이트). 진입점은 목록의 정체를 따른다 — 라이브러리 맥락 `library`,
+   * 탐색 스냅샷 맥락 `explore`(KAN-241). **맥락은 그대로 넘긴다** — 그 목록 안에서 옮겨 다닌 것이다.
    * 지금 듣고 있는 편을 다시 고르면 아무 일도 하지 않는다 — 재시작이 아니라 오조작이다.
    */
-  const playQueueItem = (item: QueueItem) => {
+  const playQueueItem = (item: QueueEntry) => {
     setActivePanel(null);
     if (item.contentId === contentId) return;
+    const queue = usePlaybackStore.getState().queueContext;
     playGate.requestPlay(
-      {
-        contentId: item.contentId,
-        isCountedToday: item.isCountedToday,
-        meta: {
-          title: item.title,
-          authorName: item.authorName ?? undefined,
-          sourceName: item.sourceName ?? undefined,
-          thumbnailUrl: item.thumbnailUrl ?? undefined,
-          durationSec: item.durationSec ?? undefined,
-          // 고른 편의 주제 — 빠뜨리면 카테고리 줄이 사라진다(2026-09-18 PM 지적)
-          topicIds: item.topicIds,
-        },
-      },
-      'library',
+      { ...queueEntryTarget(item), queue },
+      queue.kind === 'library' ? 'library' : 'explore',
     );
+  };
+
+  /**
+   * "다음에 들어볼 만한"의 줄을 틀었다(player.md 4.2-2) — 맥락은 바뀌지 않고 그 편이 스냅샷(지금 듣는 편 뒤)에 더해진다.
+   * 진입점은 `player`(플레이어 안에서 시작한 재생). 자동 재생이 아니다 — 사용자가 고른 편만 재생된다(FR-24)
+   */
+  const playUpNextItem = (item: QueueEntry) => {
+    setActivePanel(null);
+    if (item.contentId === contentId) return;
+    const current = usePlaybackStore.getState().queueContext;
+    playGate.requestPlay(
+      { ...queueEntryTarget(item), queue: appendToSnapshot(current, item, contentId) },
+      'player',
+    );
+  };
+
+  /**
+   * 탐색 맥락 줄의 담기(KAN-241) — 탐색 타일의 담기와 같은 뜻. 낙관 반영(스냅샷 `itemId` 임시 채움) → 서버 → 실패면 되돌리고
+   * 토스트. 라이브러리 목록 재조회는 브리지가 한다. 담기는 횟수 제한이 없고 페이월을 노출하지 않는다(PRD 5.4)
+   */
+  const saveSeqRef = useRef(new Map<string, number>());
+  const saveQueueItem = (item: QueueEntry) => {
+    if (item.itemId !== null) return;
+    const bridge = getPlayerLibraryBridge();
+    if (!bridge) return;
+    const seq = (saveSeqRef.current.get(item.contentId) ?? 0) + 1;
+    saveSeqRef.current.set(item.contentId, seq);
+    const store = usePlaybackStore.getState();
+    store.setQueueContext(
+      withSnapshotItemId(store.queueContext, item.contentId, `optimistic-${item.contentId}`),
+    );
+    bridge
+      .saveContent(item.contentId, seq)
+      .then((itemId) => {
+        if (saveSeqRef.current.get(item.contentId) !== seq) return;
+        const latest = usePlaybackStore.getState();
+        latest.setQueueContext(withSnapshotItemId(latest.queueContext, item.contentId, itemId));
+        showToast(PLAYER_COPY.queuePanel.saveToast);
+      })
+      .catch((error: unknown) => {
+        if (saveSeqRef.current.get(item.contentId) !== seq) return;
+        logger.warn('[player] queue save failed', error);
+        const latest = usePlaybackStore.getState();
+        latest.setQueueContext(withSnapshotItemId(latest.queueContext, item.contentId, null));
+        showToast(PLAYER_COPY.queuePanel.saveFailedToast);
+      });
   };
 
   /** PL7 [상세 정보] — 시트를 닫고 상세 화면으로 이동한다(player-uiux.md 4.7, 추가 2026-08-23).
@@ -342,6 +482,9 @@ export const usePlayerScreen = () => {
     openPanel: (kind: PlayerPanelKind) => setActivePanel(kind),
     closePanel: () => setActivePanel(null),
     playQueueItem,
+    playUpNextItem,
+    saveQueueItem,
+    deleteQueueItem,
     // 더보기 시트
     isMoreSheetVisible,
     openMoreSheet: () => setIsMoreSheetVisible(true),
@@ -351,6 +494,7 @@ export const usePlayerScreen = () => {
     handleMoreSheetDismiss,
     requestDelete,
     pendingDeleteItemId,
+    hiddenQueueItemIds,
     undoDelete,
     // 재청취 창 밖 ▶의 확인 팝업(플레이어 호스트 — paywall.md 4.2 예외)
     playConfirm: playGate.confirmState,

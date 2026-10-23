@@ -16,6 +16,23 @@ class SeriesDetailSeriesDto {
   readonly status: SeriesStatus;
   /** 표지 — 시리즈 표지(`series.cover_url`, KAN-234)가 있으면 그것, 없으면 노출 중인 가장 앞 편(보통 1화)의 썸네일 */
   readonly thumbnail_url: string;
+  /**
+   * 대표 중분류(주제) — 앨범 화면 제목 아래 카테고리 줄(explore-api.md 4.7). 편들의 주제 중 가장 많은 편에 걸린 하나
+   * (동률은 `display_order` 우선). 노출 편에 주제가 없으면 null
+   */
+  readonly topic: { id: string; name: string } | null;
+  /**
+   * 시리즈째 담았는가(`library_series` 살아 있는 행 — KAN-245). true면 새로 공개되는 편이 라이브러리에 따라 들어온다.
+   * 편이 전부 담겼는지와 다르다 — 편 하나씩 다 담아도 false다. **추가 필드라 설치된 앱은 무시한다**
+   */
+  readonly is_saved: boolean;
+  /** 발행일자(ISO 8601) — 노출 편 중 가장 이른 발행 시각. 앨범 화면 하단 발행일 자리(explore-api.md 4.7) */
+  readonly published_at: string;
+  /**
+   * 발행 이름(`series.publisher_name`, 예: "키워드") — 앨범 화면 제목 아래 아티스트 줄 자리(explore-api.md 4.7, 2026-10-22).
+   * 없으면 null(그 줄 생략). **추가 필드라 설치된 앱은 무시한다**
+   */
+  readonly publisher_name: string | null;
 }
 
 /** 탐색 카드의 `content`와 같은 모양(explore-api.md 4.1) — 화면이 같은 행 컴포넌트를 쓴다 */
@@ -53,6 +70,8 @@ export class SeriesEpisodeItemDto {
   readonly library: SeriesEpisodeLibraryDto | null;
   /** 재생 위치. **행이 없으면 null이며 0으로 채우지 않는다**(라이브러리 항목과 같은 규칙) */
   readonly progress: SeriesEpisodeProgressDto | null;
+  /** 완청했는가 — 담지 않고 끝까지 들은 편도 true(KAN-248). 편 상태 "완청"·[재생]의 다음 편 판정은 이 값을 본다 */
+  readonly is_completed: boolean;
   /** 재생 확인 팝업 힌트. **판정이 아니다**(paywall.md 4.3-1) */
   readonly is_counted_today: boolean;
 
@@ -88,6 +107,7 @@ export class SeriesEpisodeItemDto {
             max_reached_sec: view.progress.maxReachedSec,
           }
         : null,
+      is_completed: view.isCompleted,
       is_counted_today: view.isCountedToday,
     };
   }
@@ -110,6 +130,10 @@ export class GetSeriesDetailResponseDto {
         total_episodes: view.series.totalEpisodes,
         status: view.series.status,
         thumbnail_url: view.coverThumbnailUrl,
+        topic: view.topic,
+        is_saved: view.isSaved,
+        published_at: view.publishedAt.toISOString(),
+        publisher_name: view.series.publisherName ?? null,
       },
       episodes: view.episodes.map((episode) =>
         SeriesEpisodeItemDto.from(episode),

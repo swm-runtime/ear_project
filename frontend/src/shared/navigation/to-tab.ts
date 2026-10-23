@@ -19,14 +19,28 @@ export function toTab(tab: 'Library' | 'Profile'): {
   params: { screen: 'Library' | 'Profile' };
   pop: true;
 };
+/**
+ * 탐색 탭은 안에 스택이 있다(ExploreStack — 2026-10-22). 파라미터는 탭이 아니라 그 홈(`ExploreHome`)이 받으므로 홈으로 싸서
+ * 보내고, 홈 위에 시리즈 화면이 떠 있으면 `pop: true` 로 걷고 홈으로 돌아간다
+ */
 export function toTab(
   tab: 'Explore',
   params?: ExploreTabParams,
-): { screen: 'Tabs'; params: { screen: 'Explore'; params?: ExploreTabParams }; pop: true };
+): {
+  screen: 'Tabs';
+  params: {
+    screen: 'Explore';
+    params?: { screen: 'ExploreHome'; params: ExploreTabParams; pop: true };
+  };
+  pop: true;
+};
 export function toTab(tab: 'Library' | 'Explore' | 'Profile', params?: ExploreTabParams) {
   return {
     screen: 'Tabs' as const,
-    params: params === undefined ? { screen: tab } : { screen: tab, params },
+    params:
+      params === undefined
+        ? { screen: tab }
+        : { screen: tab, params: { screen: 'ExploreHome' as const, params, pop: true as const } },
     pop: true as const,
   };
 }

@@ -271,6 +271,98 @@ export interface SearchPage {
   hasNext: boolean;
 }
 
+/** 검색 엔진 이름(KAN-238 — explore-api.md 4.5 `engines`·`items[].matched_by`) */
+export type SearchEngine = 'keyword' | 'semantic';
+
+/**
+ * 하이브리드 검색 커서 위치 — RRF 순서(KAN-238). 최종 정렬 키 — RRF 점수 → 직전 확정 월 재생 수 → `published_at` → id 를 전부 담는다.
+ * RRF 점수는 SQL에서 `double precision`으로 계산·비교하고 JSON 왕복도 float8 그대로라 키셋 재비교가 어긋나지 않는다
+ */
+export interface RrfSearchCursorPosition {
+  order: 'rrf';
+  rrf: number;
+  playCount: number;
+  publishedAt: Date;
+  id: string;
+}
+
+/**
+ * 하이브리드 검색 커서 위치 — 키워드 순서(KAN-242). 질의 벡터 없이 시작한 검색은 종전 키워드 검색 그대로 줄 세우므로 커서도
+ * 종전 키워드 정렬 키 다섯(`SearchCursorPosition`)을 담는다. 키가 전부 행 자기 값이라 페이지 사이 발행·삭제에도 경계가 밀리지
+ * 않는다(RRF 점수는 매칭 집합 안의 순위라 앞쪽 행이 늘고 줄면 같은 행의 값이 바뀐다)
+ */
+export interface KeywordOrderSearchCursorPosition extends SearchCursorPosition {
+  order: 'keyword';
+}
+
+/** 하이브리드 검색 커서 위치 — 어느 정렬로 이은 페이지인가(`order`)로 가른다 */
+export type HybridSearchCursorPosition =
+  RrfSearchCursorPosition | KeywordOrderSearchCursorPosition;
+
+export interface HybridSearchPageQuery {
+  market: UserMarket;
+  /** 실제 검색어 — 정규화 끝난 값(원문 또는 교정어) */
+  normalizedQuery: string;
+  /**
+   * 질의 임베딩(`EMBEDDING_MODEL_ID` · `EMBEDDING_DIM`). `null`이면 의미 엔진을 생략한다(AI 서버 결손·미설정) —
+   * 그때 커서가 RRF 순서가 아니면 **종전 키워드 검색(`findSearchPage`)에 그대로 맡긴다**(KAN-242 — 결과·순서·커서가 구조적으로 같다)
+   */
+  queryVector: number[] | null;
+  matchSeriesTitle?: boolean;
+  seriesAnchorsOnly?: boolean;
+  topicIds: string[];
+  cursor: HybridSearchCursorPosition | null;
+  limit: number;
+  now: Date;
+}
+
+export interface RankedHybridContent {
+  content: Content;
+  /** 이 행에서 다음 페이지를 잇는 커서 위치 — 페이지를 만든 정렬(RRF·키워드)의 키다 */
+  position: HybridSearchCursorPosition;
+  /** 어느 엔진에서 왔는가 — 시리즈 카드 모드면 같은 시리즈의 접힌 편까지 합친 값이다(카드가 시리즈를 대표한다) */
+  matchedBy: SearchEngine[];
+}
+
+export interface HybridSearchPage {
+  items: RankedHybridContent[];
+  hasNext: boolean;
+  /**
+   * 키워드 엔진이 맞힌 편이 하나라도 있는가(접기 전) — 첫 페이지에서 거짓이면 교정어 탐색의 조건이다. 커서 페이지는 앞 페이지가
+   * 있었다는 뜻이라 교정 판정에 쓰지 않는다
+   */
+  keywordMatched: boolean;
+}
+
+/** 교정어 후보 — SQL이 길이 가드·트라이그램으로 줄여 넘기고 `pickSearchCorrection`이 재채점한다 */
+export interface SearchCorrectionCandidate {
+  term: string;
+  /** 0 = 태그·주제명(깨끗한 명사), 1 = 시리즈 제목·제목 토큰 */
+  priority: number;
+  /** 어휘에 나온 횟수 */
+  frequency: number;
+}
+
+/**
+ * 관련 콘텐츠 조회(KAN-240 — `player-api.md` 4.8). 기준 편은 이미 노출·시장 판정을 통과한 편이다(Service가 먼저 본다)
+ */
+export interface RelatedContentQuery {
+  baseContentId: string;
+  market: UserMarket;
+  /** 결과에서 뺄 편 — 재생 목록 스냅샷에 이미 있는 편. 기준 편은 따로 빠진다 */
+  excludeIds: string[];
+  limit: number;
+  now: Date;
+}
+
+export interface SearchCorrectionQuery {
+  market: UserMarket;
+  normalizedQuery: string;
+  /** 시리즈 제목도 어휘에 넣는다 — 탐색 시리즈 카드 스위치가 켜졌을 때만(키워드 엔진과 같은 조건) */
+  includeSeriesTitles: boolean;
+  now: Date;
+}
+
 /** admin.md 3.1 — 업로드 입력 중 저장소 처리가 끝난 뒤 content 모듈이 받는 값 */
 export interface PublishContentCommand {
   /** 시장·언어(`global-api.md` 4.9) — 노출 격리의 입력. 호출부(admin)가 검증을 끝내고 넘긴다 */
@@ -336,6 +428,10 @@ export interface SearchQueryRank {
   lastResultCount: number;
   /** 가장 최근 검색에서 첫 페이지 뒤에 더 있었는가 — true면 화면은 "N건 이상"으로 읽는다 */
   lastHasNext: boolean;
+  /** 가장 최근 검색이 실제로 쓴 질의(교정어 또는 원문, KAN-238). 옛 행이면 `null` */
+  lastQueryUsed: string | null;
+  /** 가장 최근 검색의 첫 페이지 중 키워드로 맞은 건수. 옛 행이면 `null` */
+  lastKeywordCount: number | null;
   lastSearchedAt: Date;
 }
 
@@ -361,6 +457,16 @@ export interface SearchQueryLogSummary {
     shortQueries: number;
     /** 주제 필터가 걸린 검색 */
     filteredSearches: number;
+    /** 교정된 검색(`query_used <> query` — KAN-238) */
+    corrected: number;
+    /** 교정 직후 10분 안 같은 입력의 원문 재검색(`exact=true`) */
+    correctionRejected: number;
+    /** 키워드 엔진 0건(`keyword_count = 0`) */
+    keywordMisses: number;
+    /** 키워드 0건인데 결과가 있던 검색 — 의미 엔진이 살렸다 */
+    rescued: number;
+    /** 의미 엔진 없이 응답한 검색(`engines`에 `semantic` 없음, 태그 전용 제외) */
+    semanticUnavailable: number;
   };
   daily: SearchQueryDailyCount[];
   /** 0건이 한 번이라도 있던 질의, 0건 수 내림차순 */
@@ -401,6 +507,8 @@ export interface CreateSeriesCommand {
   description: string;
   totalEpisodes: number;
   status: SeriesStatus;
+  /** 발행 이름(예: "키워드") — 없으면 null */
+  publisherName: string | null;
 }
 
 /** 시리즈 수정(`PATCH /admin/series/:id`) — `undefined`는 "안 바꾼다" */
@@ -409,6 +517,8 @@ export interface UpdateSeriesCommand {
   description?: string;
   totalEpisodes?: number;
   status?: SeriesStatus;
+  /** `null`은 "지운다" — 발행 이름은 비울 수 있는 칸이다 */
+  publisherName?: string | null;
 }
 
 /** 시리즈 하나의 편 현황 — 상태별 편 수와 발행 중인 가장 큰 편 번호(관리자 목록) */

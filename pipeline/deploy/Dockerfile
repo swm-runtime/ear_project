@@ -5,7 +5,7 @@
 FROM node:22-alpine
 
 # ffmpeg — TTS 오디오 조립·정규화 (spec/06 7장, apps/worker/src/tts/audio.ts)
-RUN apk add --no-cache ffmpeg
+RUN apk add --no-cache ffmpeg flac  # flac: metaflac — FLAC SEEKTABLE 삽입 (2026-10-23, apps/worker/src/tts/audio.ts encodeLossless)
 
 WORKDIR /srv/pipeline
 

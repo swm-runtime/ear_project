@@ -6,7 +6,7 @@
 | 요청 파트 | 프론트엔드 |
 | 요청자 | 이주호(프론트엔드) |
 | 발행 날짜 | 2026-10-06 |
-| 관련 티켓 | `tickets/frontend/pending/subscription-purchase-screen.md`([KAN-120](https://runtime364.atlassian.net/browse/KAN-120)) — 1단계 코드 반영, 묶음 빌드 대기 |
+| 관련 티켓 | `tickets/frontend/archive/subscription-purchase-screen.md`([KAN-120](https://runtime364.atlassian.net/browse/KAN-120)) — 1단계 코드 반영, 묶음 빌드 대기 |
 
 ## 수정 내용
 

@@ -53,7 +53,19 @@ export interface ExploreItem {
   library: ExploreLibraryState | null;
   /** 재생 확인 팝업을 탭 즉시 띄우기 위한 힌트 — 판정이 아니다(library-api.md 4.1과 동일) */
   isCountedToday: boolean;
+  /**
+   * 완청 — 서버 `is_completed`(KAN-249). 담지 않고 끝까지 들은 편도 true(탐색 재생 자동 적립 폐기 뒤 `library.status` 만으로는
+   * 알 수 없다). 클라이언트가 위치로 다시 판정하지 않는다
+   */
+  isCompleted: boolean;
+  /** 검색 결과에만(KAN-238) — 이 항목을 낸 엔진. 화면은 아직 쓰지 않는다('관련' 꼬리표는 다음 결정) */
+  matchedBy?: ExploreSearchMatchedBy[];
 }
+
+/** 검색 하이브리드(KAN-238)의 엔진·판정 — dto 와 같은 값이고 화면 층에서는 이 이름으로 쓴다 */
+export type ExploreSearchMatchedBy = 'keyword' | 'semantic';
+export type ExploreSearchEngine = 'keyword' | 'semantic';
+export type ExploreSearchMatch = 'keyword' | 'related';
 
 /** 시리즈 상태 — 표시용(ongoing = 연재 중, completed = 완결). 판정에 쓰지 않는다(explore-api.md 4.1-1) */
 export type ExploreSeriesStatus = 'ongoing' | 'completed';
@@ -71,7 +83,7 @@ export interface ExploreSeries {
   /** 지금 사용자 시장에 노출 중인 편 수 — 진행 중 시리즈면 totalEpisodes 보다 적다 */
   episodeCount: number;
   status: ExploreSeriesStatus;
-  /** 표지 = 노출 중인 가장 앞 편(보통 1화)의 썸네일. 따로 표지가 없다(KAN-225 결정) */
+  /** 표지 = 시리즈 표지(관리자가 올린 것)가 있으면 그것, 없으면 노출 중인 가장 앞 편(보통 1화)의 썸네일(KAN-234) */
   thumbnailUrl: string;
   /** 노출 중인 편들의 주제 합집합(처음 나온 순서) — 필터와 무관한 시리즈 전체 값이다 */
   topicIds: string[];
@@ -80,6 +92,8 @@ export interface ExploreSeries {
 export interface ExploreSeriesItem {
   type: 'series';
   series: ExploreSeries;
+  /** 검색 결과에만(KAN-238) — 카드로 접힌 편들을 낸 엔진 */
+  matchedBy?: ExploreSearchMatchedBy[];
 }
 
 /**
@@ -155,6 +169,13 @@ export interface ExploreSearchPage {
   hasNext: boolean;
   /** items가 있으면 null — 빈 결과일 때만 값이 있다 */
   fallback: ExploreSearchFallback | null;
+  /** 실제 검색에 쓴 질의(KAN-238) — 옛 서버는 보내지 않아 null 일 수 있다 */
+  queryUsed: string | null;
+  /** 서버가 오타를 교정해 "대신 검색"했으면 원문 — "혹시 ‘OO’로 검색하고 싶나요?"의 근거(KAN-239). 없으면 null */
+  correctedFrom: string | null;
+  /** 첫 페이지에 키워드로 맞은 편이 없으면 `related` — "‘OO’와 관련된 결과예요"의 유일한 근거. 옛 서버는 `keyword` */
+  match: ExploreSearchMatch;
+  engines: ExploreSearchEngine[];
 }
 
 /**
@@ -208,6 +229,17 @@ export interface SeriesDetail {
     totalEpisodes: number;
     status: ExploreSeriesStatus;
     thumbnailUrl: string;
+    /** 대표 중분류(주제) — 제목 아래 카테고리 줄. 서버가 안 주면 null(줄째 생략) */
+    topic: { id: string; name: string } | null;
+    /** 발행일자(ISO 8601 순간) — 앨범 화면 하단 발행일. 구버전 서버는 안 보내므로 null(줄째 생략) */
+    publishedAt: string | null;
+    /** 발행 이름(예: "키워드") — 제목 바로 아래 줄(애플 뮤직 아티스트 자리). 없거나 구버전 서버면 null(줄째 생략) */
+    publisherName: string | null;
+    /**
+     * 시리즈째 담았는가(KAN-246) — 시리즈 화면 담기/빼기 버튼의 근거. 편이 다 담겼는지와 다르다: 편을 하나씩 다 담아도 false,
+     * 시리즈째 담은 뒤 편 하나를 따로 빼도 true. true 면 새 편이 라이브러리에 따라 들어온다(서버)
+     */
+    isSaved: boolean;
   };
   episodes: SeriesEpisode[];
 }

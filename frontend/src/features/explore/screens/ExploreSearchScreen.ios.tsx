@@ -132,6 +132,44 @@ export default function ExploreSearchScreen({ embedding }: ExploreSearchScreenPr
     return null;
   };
 
+  /*
+   * 검색 안내 2종(KAN-239) — 결과 격자 첫 행 위, 가운데 정렬. 교정은 **한 줄**("‘커리어’로 대신 검색했어요  원본 검색 ‘커리오’" —
+   * PM 2026-10-22, 종전 두 줄)이고 오른쪽이 버튼이다(좁으면 버튼이 다음 줄로 접힌다).
+   *  관련 결과("‘커리오’와 관련된 결과예요")는 한 줄이다. 둘이 같이 뜨는 경우는 없다(서버 규칙)
+   */
+  const renderResultNotice = () => {
+    if (screen.correctedFrom) {
+      return (
+        <View style={[styles.resultNotice, styles.resultNoticeRow]}>
+          <Text style={styles.noticeText}>
+            {EXPLORE_COPY.search.correctedTo(screen.queryUsed ?? '')}
+          </Text>
+          <Pressable
+            style={styles.noticeLinkRow}
+            hitSlop={NOTICE_LINK_HIT_SLOP}
+            onPress={screen.searchInsteadExact}
+            accessibilityRole="button"
+            accessibilityLabel={EXPLORE_COPY.search.searchInsteadA11y(screen.correctedFrom)}
+          >
+            <Text style={styles.noticeLink}>
+              {EXPLORE_COPY.search.searchInsteadFor(screen.correctedFrom)}
+            </Text>
+          </Pressable>
+        </View>
+      );
+    }
+    if (screen.isRelatedResult) {
+      return (
+        <View style={styles.resultNotice}>
+          <Text style={styles.noticeText}>
+            {EXPLORE_COPY.search.relatedResult(screen.activeQuery ?? '')}
+          </Text>
+        </View>
+      );
+    }
+    return null;
+  };
+
   const renderBody = () => {
     // E6 검색 초기 — 최근 검색어 + 추천 키워드. 서버 호출 없음(explore-api.md 6장)
     if (screen.isInitialMode) {
@@ -257,6 +295,7 @@ export default function ExploreSearchScreen({ embedding }: ExploreSearchScreenPr
             )
           }
           ItemSeparatorComponent={() => <View style={styles.gridSeparator} />}
+          ListHeaderComponent={renderResultNotice()}
           ListFooterComponent={renderResultFooter()}
           onEndReached={screen.loadMore}
           onEndReachedThreshold={0.4}
@@ -380,6 +419,44 @@ const styles = StyleSheet.create({
     paddingVertical: theme.spacing.lg,
     gap: theme.spacing.md,
   },
+  // 검색 안내(KAN-239) — 격자 첫 행 위, 좌우 여백은 격자와 같다(gridContent)
+  /*
+   * 검색창 아래 여백(sm)과 격자 위 여백(sm)만으로 안내 글자가 검색창과 16pt 가 되게 위 여백은 0(PM 2026-10-22 06:24·06:31).
+   * 종전 md + xs 에 버튼 최소 높이 44 의 빈 위쪽이 더해져 30pt 넘게 벌어졌다. 아래도 16 — 위아래 같은 간격(가운데)
+   */
+  resultNotice: {
+    alignItems: 'center',
+    paddingTop: 0,
+    // 위(검색창 줄 아래 sm + 격자 위 sm = 16)와 같은 16 — 안내가 검색창과 카드 사이 가운데에 선다(PM 2026-10-22 07:17)
+    paddingBottom: theme.spacing.md,
+  },
+
+  // 교정 안내 한 줄 — 안내 글자 + 버튼을 가운데에 나란히. 좁으면 버튼이 다음 줄 가운데로 접힌다
+  resultNoticeRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    columnGap: theme.spacing.sm,
+    // 아래 여백은 resultNotice 의 것을 그대로 쓴다 — 여기서 0 으로 덮어 카드에 3pt 까지 붙었다(PM 2026-10-22 06:44 스샷)
+  },
+  noticeText: {
+    fontSize: theme.font.size.sm,
+    color: theme.color.textSecondary,
+    textAlign: 'center',
+  },
+  // 버튼 — 높이는 글자만큼(줄 높이가 여백을 벌리지 않게), 누르는 영역은 hitSlop 으로 넓힌다(NOTICE_LINK_HIT_SLOP)
+  noticeLinkRow: {
+    justifyContent: 'center',
+  },
+  /*
+   * 원본 검색은 **보조 선택지**다 — 교정 결과가 주인공이라 링크가 안내 글자보다 튀면 안 된다(PM 2026-10-22 06:24). 안내와 같은
+   * 보조색·같은 굵기에 밑줄만으로 "누를 수 있다"를 말한다. 종전 흰색 굵게는 링크가 주인공처럼 보였다
+   */
+  noticeLink: {
+    fontSize: theme.font.size.sm,
+    color: theme.color.textSecondary,
+    textDecorationLine: 'underline',
+  },
   noResultTitle: {
     fontSize: theme.font.size.md,
     fontWeight: '700',
@@ -451,3 +528,6 @@ const styles = StyleSheet.create({
     color: theme.color.primary,
   },
 });
+
+/** "원본 검색" 링크의 누르는 영역 — 글자 높이(약 20)에 위아래를 더해 44 가까이. 위쪽은 목록 밖(검색창 여백)이라 일부만 닿는다 */
+const NOTICE_LINK_HIT_SLOP = { top: 12, bottom: 12, left: 8, right: 8 };

@@ -5,6 +5,7 @@ import { DripModule } from '@/modules/drip/drip.module';
 import { InterestModule } from '@/modules/interest/interest.module';
 import { LibraryModule } from '@/modules/library/library.module';
 import { NotificationModule } from '@/modules/notification/notification.module';
+import { PartnerModule } from '@/modules/partner/partner.module';
 import { PlaybackModule } from '@/modules/playback/playback.module';
 import { SubscriptionModule } from '@/modules/subscription/subscription.module';
 import { UserModule } from '@/modules/user/user.module';
@@ -35,14 +36,17 @@ import { DripPreviewService } from './drip-preview.service';
     DripModule,
     // 편성 직후 드립 도착 알림(notification.md 4.3) — notification 은 user 만 알아 순환이 없다
     NotificationModule,
+    // 편성 미리보기 열람 감사 로그(`drip.preview_view`, 2026-10-22) — partner 는 audit_logs 만 알아 순환이 없다
+    PartnerModule,
   ],
   controllers: [DripPreviewController],
   providers: [DripBatchOrchestrator, DripBatchScheduler, DripPreviewService],
   /**
    * 추천 테스트 콘솔(`recommend-test`)만 이 모듈을 의존한다(2026-09-29) — 행동 직후 배치가 하는 취향
-   * 캐시 재계산을 같은 함수로 수행해 탐색 피드가 바로 바뀌게 하기 위해서다. 제품 경로에서는 여전히
-   * 어떤 모듈도 이 모듈을 의존하지 않는다.
+   * 캐시 재계산을 같은 함수로 수행해 탐색 피드가 바로 바뀌게 하기 위해서다. 서비스 지표의 추천 검증
+   * (`recommend-inspector`, 2026-10-22)은 `DripPreviewService.explain`(저장 없는 계산)만 쓴다. 제품 경로에서는
+   * 여전히 어떤 모듈도 이 모듈을 의존하지 않는다.
    */
-  exports: [DripBatchOrchestrator],
+  exports: [DripBatchOrchestrator, DripPreviewService],
 })
 export class DripBatchModule {}

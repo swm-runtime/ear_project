@@ -35,6 +35,7 @@ interface SeriesItemBody {
   status: string;
   episode_counts: { published: number; withdrawn: number; expired: number };
   max_published_episode_no: number | null;
+  publisher_name: string | null;
 }
 
 /** 에러 본문 — `details`는 최상위에 펼쳐진다(`field`) */
@@ -58,6 +59,9 @@ interface SeriesDetailBody {
     total_episodes: number;
     status: string;
     thumbnail_url: string;
+    topic: { id: string; name: string } | null;
+    published_at: string;
+    publisher_name: string | null;
   };
   episodes: {
     episode_no: number;
@@ -177,6 +181,8 @@ describe('시리즈 E2E', () => {
       status: 'ongoing',
       episode_counts: { published: 0, withdrawn: 0, expired: 0 },
       max_published_episode_no: null,
+      // 발행 이름을 빼면 없음
+      publisher_name: null,
     });
 
     // 형식 오류는 400 — 빈 제목·편수 0·모르는 상태값·모르는 필드
@@ -276,6 +282,19 @@ describe('시리즈 E2E', () => {
       'series.create',
       'series.update',
     ]);
+
+    // 발행 이름 — 앞뒤 공백은 걷어 넣고, null 이면 지운다. 50자를 넘으면 400
+    const named = await patchSeries(admin, series.id, {
+      publisher_name: '  키워드 ',
+    }).expect(HttpStatus.OK);
+    expect((named.body as SeriesItemBody).publisher_name).toBe('키워드');
+    const cleared = await patchSeries(admin, series.id, {
+      publisher_name: null,
+    }).expect(HttpStatus.OK);
+    expect((cleared.body as SeriesItemBody).publisher_name).toBeNull();
+    await patchSeries(admin, series.id, {
+      publisher_name: 'x'.repeat(51),
+    }).expect(HttpStatus.BAD_REQUEST);
   }, 60_000);
 
   it('업로드 검증 — 없는 시리즈·총 편수 불일치·번호 범위·발행 번호 중복은 400이고, 회수한 번호는 다시 올릴 수 있다', async () => {
@@ -390,6 +409,11 @@ describe('시리즈 E2E', () => {
       `INSERT INTO drip_excluded_contents (user_id, content_id, reason, excluded_at) VALUES ($1, $2, 'played', now())`,
       [listener.userId, ids[3]],
     );
+    // 4화는 탐색에서 담지 않고 듣던 중이다(자동 적립 폐기 — 2026-10-23) — 라이브러리 행 없이도 다음 편을 기다리게 한다
+    await dataSource.query(
+      `INSERT INTO playback_progresses (user_id, content_id, position_sec, max_reached_sec) VALUES ($1, $2, 120, 120)`,
+      [listener.userId, ids[3]],
+    );
     await dataSource
       .getRepository(Content)
       .update({ id: ids[4] }, { status: ContentStatus.WITHDRAWN });
@@ -429,10 +453,24 @@ describe('시리즈 E2E', () => {
         contentId: ids[3],
         episodeNo: 4,
         received: false,
-        held: false,
+        held: true,
         excluded: true,
       },
     ]);
+    // 듣다 그만둔 지 오래면(14일 넘음) 막지 않는다 — 담지 않은 편은 지워서 기다림을 풀 수단이 없다
+    await dataSource.query(
+      `UPDATE playback_progresses SET updated_at = now() - interval '20 days' WHERE user_id = $1 AND content_id = $2`,
+      [listener.userId, ids[3]],
+    );
+    const stale = await app
+      .get(ContentService)
+      .findSeriesEpisodeStates(
+        [series],
+        listener.userId,
+        new Date(),
+        UserMarket.KR,
+      );
+    expect(stale.get(series)?.find((e) => e.episodeNo === 4)?.held).toBe(false);
     // 다른 시장에는 노출 편이 없다
     expect(
       (
@@ -458,6 +496,9 @@ describe('시리즈 E2E', () => {
     );
     const topic = await seedTopic(UserMarket.KR);
     const series = await createSeriesId(admin, 3, `${STAMP} 시리즈 화면`);
+    await patchSeries(admin, series, { publisher_name: '키워드' }).expect(
+      HttpStatus.OK,
+    );
 
     // 3화를 먼저, 1화를 나중에 올린다 — 화면은 발행 순이 아니라 편 번호순이다
     const third = await uploadId(admin, topic.id, series, 3);
@@ -514,10 +555,25 @@ describe('시리즈 E2E', () => {
       progress: { position_sec: 120, max_reached_sec: 150 },
     });
     // 표지 = 노출 중인 가장 앞 편(1화)의 썸네일
-    const firstThumbnail = (
-      await dataSource.getRepository(Content).findOneByOrFail({ id: first })
-    ).thumbnailUrl;
-    expect(body.series.thumbnail_url).toBe(firstThumbnail);
+    const firstContent = await dataSource
+      .getRepository(Content)
+      .findOneByOrFail({ id: first });
+    const thirdContent = await dataSource
+      .getRepository(Content)
+      .findOneByOrFail({ id: third });
+    expect(body.series.thumbnail_url).toBe(firstContent.thumbnailUrl);
+    // 대표 중분류 — 두 편 모두 같은 주제라 그게 제목 아래 카테고리 줄이 된다
+    expect(body.series.topic).toEqual({ id: topic.id, name: topic.name });
+    // 발행일자 — 노출 편(1·3화) 중 가장 이른 발행 시각
+    const earliestPublished = Math.min(
+      firstContent.publishedAt.getTime(),
+      thirdContent.publishedAt.getTime(),
+    );
+    expect(body.series.published_at).toBe(
+      new Date(earliestPublished).toISOString(),
+    );
+    // 발행 이름 — 제목 아래 아티스트 줄 자리
+    expect(body.series.publisher_name).toBe('키워드');
 
     // 다른 시장 사용자에게는 없는 시리즈다 · 없는 id 도 404 · uuid 가 아니면 400
     await request(app.getHttpServer())
@@ -573,6 +629,80 @@ describe('시리즈 E2E', () => {
       .get(path(`/series/${series}`))
       .set('Authorization', listener.auth)
       .expect(HttpStatus.NOT_FOUND);
+  }, 60_000);
+
+  it('같은 간행물의 다른 시리즈 — 발행 이름이 같은 시리즈 카드(자기 자신·노출 편 없는 시리즈 제외), 이름이 없으면 빈 목록, 안 보이는 시리즈는 404', async () => {
+    const { auth: admin } = await createUser('admin-publisher', UserRole.ADMIN);
+    const listener = await createUser('listener-publisher', UserRole.USER);
+    const topic = await seedTopic(UserMarket.KR);
+    // 다른 테스트 데이터와 섞이지 않게 이 실행만의 간행물 이름
+    const publisher = `간행-${Date.now().toString(36)}`;
+
+    const base = await createSeriesId(admin, 2, `${STAMP} 간행 A`);
+    const sibling = await createSeriesId(admin, 2, `${STAMP} 간행 B`);
+    const empty = await createSeriesId(admin, 2, `${STAMP} 간행 C`);
+    const unnamed = await createSeriesId(admin, 2, `${STAMP} 간행 없음`);
+    for (const id of [base, sibling, empty]) {
+      await patchSeries(admin, id, { publisher_name: publisher }).expect(
+        HttpStatus.OK,
+      );
+    }
+    await uploadId(admin, topic.id, base, 1, 2);
+    const siblingFirst = await uploadId(admin, topic.id, sibling, 1, 2);
+    await uploadId(admin, topic.id, unnamed, 1, 2);
+    // empty 는 편이 없다 — 카드로 나오지 않는다
+
+    const listed = await request(app.getHttpServer())
+      .get(path(`/series/${base}/publisher-series`))
+      .set('Authorization', listener.auth)
+      .expect(HttpStatus.OK);
+    const body = listed.body as {
+      publisher_name: string | null;
+      items: {
+        type: string;
+        series: {
+          id: string;
+          total_episodes: number;
+          episode_count: number;
+          thumbnail_url: string;
+          topic_ids: string[];
+        };
+      }[];
+    };
+    expect(body.publisher_name).toBe(publisher);
+    expect(body.items).toHaveLength(1);
+    const siblingThumbnail = (
+      await dataSource
+        .getRepository(Content)
+        .findOneByOrFail({ id: siblingFirst })
+    ).thumbnailUrl;
+    expect(body.items[0]).toEqual({
+      type: 'series',
+      series: expect.objectContaining({
+        id: sibling,
+        total_episodes: 2,
+        episode_count: 1,
+        thumbnail_url: siblingThumbnail,
+        topic_ids: [topic.id],
+      }) as unknown,
+    });
+
+    // 발행 이름이 없는 시리즈 → 빈 목록
+    const none = await request(app.getHttpServer())
+      .get(path(`/series/${unnamed}/publisher-series`))
+      .set('Authorization', listener.auth)
+      .expect(HttpStatus.OK);
+    expect(none.body).toEqual({ publisher_name: null, items: [] });
+
+    // 편이 없어 안 보이는 시리즈 · uuid 아님
+    await request(app.getHttpServer())
+      .get(path(`/series/${empty}/publisher-series`))
+      .set('Authorization', listener.auth)
+      .expect(HttpStatus.NOT_FOUND);
+    await request(app.getHttpServer())
+      .get(path('/series/not-a-uuid/publisher-series'))
+      .set('Authorization', listener.auth)
+      .expect(HttpStatus.BAD_REQUEST);
   }, 60_000);
 
   it('시리즈 표지(KAN-234) — 올리면 시리즈 화면·관리자 목록이 그것을 쓰고, 없으면 1화 썸네일, 형식·크기 위반은 400(cover)', async () => {

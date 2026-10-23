@@ -50,3 +50,4 @@ BE 는 `series` 에 NULL 허용 칸 `cover_url` 을 더하고, 표지를 받는 
 ## 처리 기록
 
 - 2026-10-21 발행(BE — 코드와 같은 PR `feat(be): accept series cover image`).
+- **2026-10-23 반영**(통합 브랜치 `docs(be)/apply-pending-changes`) — 대상 문서 전부 반영, 코드와 대조. 반영 날짜 2026-10-23.

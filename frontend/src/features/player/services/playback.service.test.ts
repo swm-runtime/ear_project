@@ -9,6 +9,7 @@ import { AppState } from 'react-native';
 import type { AudioIssueResult } from '../player.types';
 import { playbackService } from './playback.service';
 import { usePlaybackStore } from '../store/playback.store';
+import { useSleepTimerStore } from '../store/sleep-timer.store';
 
 type StatusListener = (status: Record<string, unknown>) => void;
 
@@ -90,11 +91,13 @@ jest.mock('expo-audio', () => ({
   setAudioModeAsync: () => Promise.resolve(),
 }));
 
+const mockStartPlay = jest.fn((): Promise<unknown> => new Promise(() => undefined));
+const mockSaveProgress = jest.fn((): Promise<unknown> => new Promise(() => undefined));
 jest.mock('../api/player.api', () => ({
   issueAudioUrls: (input: { contentId: string; quality?: string | null }) => mockIssue(input),
   // 재생 시작 기록·위치 저장은 이 테스트의 관심 밖이다 — 끝나지 않게 둔다
-  startPlay: () => new Promise(() => undefined),
-  savePlaybackProgress: () => new Promise(() => undefined),
+  startPlay: () => mockStartPlay(),
+  savePlaybackProgress: () => mockSaveProgress(),
   sendReplaySignal: () => Promise.resolve(),
   sendSourceLinkClick: () => Promise.resolve(),
 }));
@@ -110,7 +113,15 @@ jest.mock('@/shared/lib/logger', () => ({
   },
 }));
 
-jest.mock('./player-library.bridge', () => ({ getPlayerLibraryBridge: () => null }));
+const mockBridge: {
+  current: { fetchUpNext: (seed: string, exclude: string[]) => Promise<unknown[]> } | null;
+} = {
+  current: null,
+};
+jest.mock('./player-library.bridge', () => ({ getPlayerLibraryBridge: () => mockBridge.current }));
+
+const mockAutoplay = { enabled: false };
+jest.mock('@/features/settings', () => ({ isAutoplayNextEnabled: () => mockAutoplay.enabled }));
 
 const CONTENT_ID = 'c0ffee00-0000-4000-8000-000000000001';
 
@@ -154,6 +165,11 @@ beforeEach(() => {
   mockPlayers.length = 0;
   mockIssue.mockReset();
   mockNative.current = null;
+  mockAutoplay.enabled = false;
+  mockStartPlay.mockReset();
+  mockStartPlay.mockImplementation(() => new Promise(() => undefined));
+  mockSaveProgress.mockReset();
+  mockSaveProgress.mockImplementation(() => new Promise(() => undefined));
 });
 
 afterEach(() => {
@@ -356,5 +372,147 @@ describe('백그라운드 재생 — 위치만 바뀐 틱은 화면에 올리지
 
     // then — 화면에 남은 95초가 아니라 실제 위치 150초에서 10초 앞
     expect(player.seekTo).toHaveBeenLastCalledWith(160);
+  });
+});
+
+describe('재생 목록 자동 재생(연속 재생 — player.md 4.2-4)', () => {
+  const NEXT_ID = 'c0ffee00-0000-4000-8000-000000000002';
+  const entryOf = (contentId: string, isCompleted = false) => ({
+    itemId: null,
+    contentId,
+    title: contentId,
+    authorName: null,
+    sourceName: null,
+    thumbnailUrl: null,
+    durationSec: 600,
+    isCountedToday: false,
+    isCompleted,
+    topicIds: [],
+  });
+
+  /** 탐색 맥락 [지금 편, 다음 편](또는 주어진 목록)으로 재생하다가 끝까지 간다 */
+  const playToEnd = async (items = [entryOf(CONTENT_ID), entryOf(NEXT_ID)]): Promise<void> => {
+    mockIssue.mockResolvedValue(issueOf('https://example.com/audio'));
+    const player = await startPlaying(playbackService);
+    usePlaybackStore.getState().setQueueContext({
+      kind: 'explore',
+      source: { type: 'search', query: '커리어' },
+      items,
+    });
+    player.currentTime = 600;
+    player.playing = false;
+    player.emit({
+      didJustFinish: true,
+      currentTime: 600,
+      duration: 600,
+      playing: false,
+      isLoaded: true,
+    });
+    await jest.advanceTimersByTimeAsync(600);
+  };
+
+  afterEach(() => {
+    useSleepTimerStore.getState().set(null, null);
+    mockBridge.current = null;
+  });
+
+  it('켜져 있고 목록이 끝났으면 추천 편으로 이어 가고, 그 편을 스냅샷의 끝난 편 뒤에 더한다', async () => {
+    mockAutoplay.enabled = true;
+    const fetchUpNext = jest.fn(async (_seed: string, _exclude: string[]) => [entryOf(NEXT_ID)]);
+    mockBridge.current = { fetchUpNext };
+    await playToEnd([entryOf(CONTENT_ID)]);
+    expect(fetchUpNext).toHaveBeenCalledWith(CONTENT_ID, [CONTENT_ID]);
+    expect(mockIssue.mock.calls.map(([input]) => input.contentId)).toEqual([CONTENT_ID, NEXT_ID]);
+    const context = usePlaybackStore.getState().queueContext;
+    expect(context.kind === 'explore' ? context.items.map((item) => item.contentId) : []).toEqual([
+      CONTENT_ID,
+      NEXT_ID,
+    ]);
+  });
+
+  it('추천도 비었으면 끝난 자리에 멈춘다', async () => {
+    mockAutoplay.enabled = true;
+    mockBridge.current = { fetchUpNext: jest.fn(async () => []) };
+    await playToEnd([entryOf(CONTENT_ID)]);
+    expect(mockIssue.mock.calls.map(([input]) => input.contentId)).toEqual([CONTENT_ID]);
+  });
+
+  it('꺼져 있으면(기본) 끝난 자리에 멈춘다', async () => {
+    await playToEnd();
+    expect(mockIssue.mock.calls.map(([input]) => input.contentId)).toEqual([CONTENT_ID]);
+    expect(usePlaybackStore.getState().session?.state).toBe('ended');
+  });
+
+  it('켜져 있으면 확인 없이 재생 목록의 다음 편을 튼다 — 맥락은 그대로', async () => {
+    mockAutoplay.enabled = true;
+    await playToEnd();
+    expect(mockIssue.mock.calls.map(([input]) => input.contentId)).toEqual([CONTENT_ID, NEXT_ID]);
+    expect(usePlaybackStore.getState().session?.contentId).toBe(NEXT_ID);
+    expect(usePlaybackStore.getState().queueContext.kind).toBe('explore');
+  });
+
+  it('수면 타이머 "이 에피소드 종료 시"면 켜져 있어도 넘어가지 않는다', async () => {
+    mockAutoplay.enabled = true;
+    useSleepTimerStore.getState().set({ kind: 'endOfEpisode' }, null);
+    await playToEnd();
+    expect(mockIssue.mock.calls.map(([input]) => input.contentId)).toEqual([CONTENT_ID]);
+  });
+});
+
+describe('담지 않은 편의 완청 통지(KAN-252)', () => {
+  it('진행 저장의 is_completed 가 처음 true 가 되면 재조회 신호를 한 번 낸다 — library_item 이 null 이어도', async () => {
+    // given — 담지 않은 편(library_item null)을 끝까지 들었고 서버가 완청이라고 답한다
+    const onServerStateChanged = jest.fn();
+    mockIssue.mockResolvedValue(issueOf('https://example.com/audio'));
+    // 재생 시작 기록이 끝나야 위치 저장이 돈다(player-api.md 4.3)
+    mockStartPlay.mockImplementation(() =>
+      Promise.resolve({
+        libraryItem: null,
+        playLimit: { dailyPlayLimit: null, dailyPlayCount: null, serviceDate: '2026-10-23' },
+      }),
+    );
+    mockSaveProgress.mockImplementation(() =>
+      Promise.resolve({
+        positionSec: 600,
+        maxReachedSec: 600,
+        contentVersion: 1,
+        contentStatus: 'published',
+        libraryItem: null,
+        isCompleted: true,
+      }),
+    );
+    playbackService.start({
+      contentId: CONTENT_ID,
+      entryPoint: 'explore',
+      callbacks: { onServerStateChanged },
+    });
+    await jest.advanceTimersByTimeAsync(600);
+    const player = mockPlayers[mockPlayers.length - 1];
+    // 재생 시작 기록 성공도 재조회 신호를 낸다 — 그 뒤부터 센다
+    player.playing = true;
+    player.emit({
+      didJustFinish: false,
+      currentTime: 1,
+      duration: 600,
+      playing: true,
+      isLoaded: true,
+    });
+    await jest.advanceTimersByTimeAsync(100);
+    const afterStart = onServerStateChanged.mock.calls.length;
+
+    // when — 끝까지 재생(종료 저장) 뒤 저장이 몇 번 더 돌아도
+    player.currentTime = 600;
+    player.playing = false;
+    player.emit({
+      didJustFinish: true,
+      currentTime: 600,
+      duration: 600,
+      playing: false,
+      isLoaded: true,
+    });
+    await jest.advanceTimersByTimeAsync(20_000);
+
+    // then
+    expect(onServerStateChanged.mock.calls.length - afterStart).toBe(1);
   });
 });

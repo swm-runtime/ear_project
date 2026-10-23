@@ -99,7 +99,8 @@ export interface ResumeContentDto {
 }
 
 export interface ResumeTargetDto {
-  id: string;
+  /** 담지 않고 듣던 편이면 null(library-api.md 4.3 — BE #1938) */
+  id: string | null;
   status: LibraryItemStatus;
   last_played_at: string | null;
   is_counted_today: boolean;

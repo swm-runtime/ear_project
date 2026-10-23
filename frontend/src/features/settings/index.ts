@@ -21,3 +21,13 @@ export type { AudioQuality, PlaybackRate } from './settings.types';
  * (`auth.md` 4.4 — 확정 2026-09-07). 값의 원천은 배포 설정이다(settings-api.md 1장 경계 표).
  */
 export { KAKAO_CHANNEL_URL } from './settings.constants';
+/**
+ * 재생 목록 자동 재생(연속 재생 — player.md 4.2-4) 켜짐 여부 — 설정 화면이 토글하고 재생 서비스가 편이 끝날 때 읽는다.
+ * 기기 설정이라 서버로 가지 않는다
+ */
+export {
+  isAutoplayNextEnabled,
+  // 플레이어 재생 목록의 추천 섹션 옆 스위치(player.md 4.2-4) — 설정 화면 토글과 같은 값을 읽고 쓴다
+  setAutoplayNextEnabled,
+  useAutoplayNextEnabled,
+} from './settings.autoplay-next';

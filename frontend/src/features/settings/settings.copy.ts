@@ -97,6 +97,10 @@ const ko = {
     rate: '기본 배속',
     rateValue: (rate: number) => `${rate}×`,
     sheetTitle: '기본 배속',
+    /** 재생 목록 자동 재생(연속 재생 — player.md 4.2-4, PM 2026-10-23). 기본 꺼짐 */
+    autoplayNext: '재생 목록 자동 재생',
+    autoplayNextDescription:
+      '한 편이 끝나면 다음 편을, 목록이 끝나면 비슷한 추천 편을 묻지 않고 바로 틀어요',
   },
 
   /** 음질 섹션(settings-uiux.md 4.1 "음질" — 2026-10-07, KAN-143). 티어명을 쓰지 않는다 */
@@ -280,6 +284,9 @@ const en: LocalizedCopy<typeof ko> = {
     rate: 'Default speed',
     rateValue: (rate: number) => `${rate}×`,
     sheetTitle: 'Default speed',
+    autoplayNext: 'Autoplay up next',
+    autoplayNextDescription:
+      'When an episode ends, play the next one in your queue — then similar ones — without asking',
   },
 
   audioQuality: {

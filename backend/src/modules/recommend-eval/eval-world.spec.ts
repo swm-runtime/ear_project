@@ -143,7 +143,7 @@ describe('EvalWorld', () => {
     expect(world.exposureCount('does-not-matter')).toBe(1);
   });
 
-  it('완청은 라이브러리에 없으면 자동 적립하고 play·complete 신호를 남기며 집계를 올린다', () => {
+  it('완청은 라이브러리에 없어도 행을 만들지 않고 play·complete 신호를 남기며 집계를 1회 올린다', () => {
     const snapshot = buildSyntheticSnapshot(NOW);
     const world = EvalWorld.fromSnapshot(snapshot);
     const target = snapshot.contents[10];
@@ -164,9 +164,9 @@ describe('EvalWorld', () => {
     world.complete('u', target.id, NOW);
     world.complete('u', target.id, NOW);
 
+    // 라이브러리에 없으면 행을 만들지 않는다(자동 적립 폐기 — 2026-10-23). 신호·집계는 1회
     const user = world.user('u');
-    expect(user.library).toHaveLength(1);
-    expect(user.library[0].status).toBe('completed');
+    expect(user.library).toHaveLength(0);
     expect(user.signals.map((signal) => signal.action)).toEqual([
       'play',
       'complete',

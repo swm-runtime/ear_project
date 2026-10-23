@@ -41,8 +41,13 @@ interface ListBody {
   has_next: boolean;
 }
 
-/** 1.2.x 응답의 항목 키 — 스위치가 꺼져 있으면 정확히 이것이다 */
-const LEGACY_ITEM_KEYS = ['content', 'is_counted_today', 'library'];
+/** 1.2.x 응답의 항목 키 + 덧붙인 `is_completed`(KAN-248 — 옛 앱은 모르는 키라 무시한다). 스위치가 꺼져 있으면 정확히 이것이다 */
+const LEGACY_ITEM_KEYS = [
+  'content',
+  'is_completed',
+  'is_counted_today',
+  'library',
+];
 
 /**
  * 탐색 시리즈 카드 E2E(KAN-134 확정 설계 4번 — `SERIES_EXPLORE_CARDS_ENABLED`).
@@ -155,10 +160,16 @@ describe('탐색 시리즈 카드 E2E', () => {
     });
     const popular = await pageAll(offApp, '/explore/popular', { limit: '50' });
 
-    for (const list of [topicList, searched, popular]) {
+    for (const list of [topicList, popular]) {
       for (const item of list.items) {
         expect(Object.keys(item).sort()).toEqual(LEGACY_ITEM_KEYS);
       }
+    }
+    // 검색 행은 종전 키에 `matched_by` 하나만 덧붙는다(KAN-238 — 덧붙이는 필드라 옛 앱은 무시한다). type 키는 여전히 없다
+    for (const item of searched.items) {
+      expect(Object.keys(item).sort()).toEqual(
+        [...LEGACY_ITEM_KEYS, 'matched_by'].sort(),
+      );
     }
     // 시리즈 편 3개가 편마다 따로 나온다
     expect(idsOf(topicList.items).sort()).toEqual(
@@ -172,10 +183,12 @@ describe('탐색 시리즈 카드 E2E', () => {
         .filter((id) => episodeIds.includes(id))
         .sort(),
     ).toEqual([...episodeIds].sort());
-    // 시리즈 제목 일치는 묻지 않는다
+    // 시리즈 제목 일치는 묻지 않는다. `exact`로 교정을 끈다 — 켜 두면 질의 앞부분(STAMP)이 편 제목 토큰과 자모로 닮아 그
+    // 토큰으로 "대신 검색"된다(KAN-238, 꺼짐 모드 어휘에는 시리즈 제목이 없다). 여기서 보려는 것은 키워드 매칭이다
     const seriesWord = await pageAll(offApp, '/explore/search', {
       query: SERIES_WORD,
       limit: '20',
+      exact: 'true',
     });
     expect(seriesWord.items).toEqual([]);
   }, 60_000);
@@ -273,14 +286,18 @@ describe('탐색 시리즈 카드 E2E', () => {
   it('켬 — 시리즈 표지(KAN-234)가 있으면 주제별·인기·검색 카드 표지가 그것이고, 지우면 다시 1화 썸네일이다', async () => {
     const COVER = 'https://example.com/e2e-cards-cover.webp';
     const cardThumbnails = async () => {
-      const lists = await Promise.all([
-        pageAll(onApp, '/explore/contents', {
+      // 차례로 부른다 — 세 목록을 동시에 끝까지 넘기면 테스트 서버 소켓이 끊길 때가 있다(CI ECONNRESET 2026-10-22)
+      const lists = [
+        await pageAll(onApp, '/explore/contents', {
           topic_ids: topicId,
           limit: '20',
         }),
-        pageAll(onApp, '/explore/popular', { limit: '20' }),
-        pageAll(onApp, '/explore/search', { query: SERIES_WORD, limit: '20' }),
-      ]);
+        await pageAll(onApp, '/explore/popular', { limit: '20' }),
+        await pageAll(onApp, '/explore/search', {
+          query: SERIES_WORD,
+          limit: '20',
+        }),
+      ];
       return lists.map(
         (list) =>
           list.items.find(
@@ -418,7 +435,9 @@ describe('탐색 시리즈 카드 E2E', () => {
     );
     seriesId = series.id;
 
-    const base = Date.now() - 3_600_000;
+    // 미래 시각으로 둔다 — 병렬로 도는 다른 e2e 가 "방금" 발행한 편들이 피드 "새로 나온" 섹션(상위 N)에서 이 스위트의
+    // 시리즈를 밀어내지 않게(CI 2026-10-22). 노출 조건은 발행 시각을 보지 않는다(content.visibility.ts)
+    const base = Date.now() + 86_400_000;
     const make = async (
       label: string,
       index: number,

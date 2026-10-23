@@ -14,16 +14,18 @@
  *   조건 밖 후보는 `proposed` 로 남아 사람이 본다. 하루 상한은 두지 않는다 — API 쪽 hard limit 이 상한이다 (2026-09-23 결정).
  *
  * 발행 준비 자동 연쇄: 비평이 끝나면 `tts → thumbnail → package` 를 건다 (사람이 [발행 준비]를 누른 것과 같은 경로, chain.ts).
+ *   글로벌판(2026-10-22)은 같은 스위치로, 비평이 아니라 **에이전트 판정이 발행 가능·필수 수정 전부 반영된 시점**에 건다(명세 6.10 — 패키지 관문과 같은 규칙). 자동 승인도 같은 규칙 v1 로 글로벌에서 켤 수 있다.
  * 패키지는 enrich 를 자동으로 걸지 않는다 — 발행하지 않을 편까지 메타를 뽑는 낭비를 막기 위해 업로드 화면의 [추천 메타 뽑기]로 사람이 건다.
  * 알림은 편마다가 아니라 큐가 다 비었을 때 한 번 (digest.ts). API 한도(429)는 ai-pause.ts 가 집기를 멈춘다.
  */
 import { approveBacklogAuto, enqueue, getSetting, hasActiveDraftJob, seriesPrevReady, hasActiveJob, insertRun, listProposedForAutoApprove } from "./db.js";
+import { agentGateBlockers } from "./stages/agent-gate.js";
 import { executedBy } from "./config.js";
 import { workerRev } from "./assets.js";
 import { log } from "./util.js";
 import { pipelineLocale } from "@ear/pipeline";
 
-export interface AutomationSetting { auto_approve?: boolean; auto_publish_prep?: boolean; rule?: string; server_ai_claim?: boolean }
+export interface AutomationSetting { auto_approve?: boolean; auto_publish_prep?: boolean; rule?: string; server_ai_claim?: boolean; judge_threshold?: number } // judge_threshold: 글로벌 판정 루프의 발행 기준(편집자 GPT 3회 중앙값, 기본 60 — 2026-10-23 박수헌, 종전 65)
 export const AUTO_RULE = "v1";
 
 let cached: { at: number; value: AutomationSetting } | null = null;
@@ -48,8 +50,7 @@ export function autoApproveBlocker(row: AutoApproveRow): string | null {
 
 /** proposed 후보 중 규칙을 통과한 것을 승인하고 draft 작업을 건다. 루프마다 호출 — 승인할 것이 없으면 쿼리 1번 */
 export async function autoApprove(): Promise<number> {
-  // 글로벌판은 설정과 무관하게 자동 승인하지 않는다 — 소스가 풀 밖에서 와 게이트 1은 사람만(글로벌 명세 5장 원칙 6·6.3)
-  if (pipelineLocale() === "en") return 0;
+  // 글로벌판도 같은 스위치·규칙 v1 로 승인한다 (2026-10-22 박수헌 "국내판과 같은 수준으로" — 글로벌 명세 5장 원칙 6·6.3 개정). 보류(held)·조건 밖 후보는 그대로 사람이 본다
   const s = await readAutomation();
   if (!s.auto_approve) return 0;
   let n = 0;
@@ -65,13 +66,18 @@ export async function autoApprove(): Promise<number> {
   return n;
 }
 
-/** 비평 완료 후 발행 준비 연쇄 — 이미 걸려 있으면 건너뛴다 */
-export async function startPublishPrepIfEnabled(episodeId: string, backlogId: string, parentJobId: string): Promise<string | null> {
+/** 발행 준비 연쇄 — 작업이 끝나는 자리에서 **한 번** 건다. 한국판은 비평 끝(source critic), 글로벌판은 판정 루프 끝(source judge, 명세 6.10 — 판정이 발행 가능이고 필수 수정이 전부 반영된 편만).
+ *  이미 걸려 있으면 건너뛴다. 실패하면 멈추고 사람이 콘솔 [발행 준비]로 다시 건다 — 폴링으로 다시 걸지 않는다
+ *  (2026-10-23: 글로벌 1분 폴링(autoPublishPrepGlobal)이 발음 누락 편을 12분에 51번 다시 걸어 폐기. 연결 방식은 한국판과 같게) */
+export async function startPublishPrepIfEnabled(episodeId: string, backlogId: string, parentJobId: string, source: "critic" | "judge" = "critic"): Promise<string | null> {
   const s = await readAutomation();
   if (!s.auto_publish_prep) return null;
+  if ((pipelineLocale() === "en") !== (source === "judge")) return null; // 한국판은 비평 끝에서만, 글로벌판은 판정 끝에서만
   if (await hasActiveJob(["tts", "thumbnail", "package"], episodeId)) return null;
   const id = await enqueue({ type: "tts", requires_ai: false, payload: { episode_id: episodeId, backlog_id: backlogId, chain: ["thumbnail", "package"], auto: true }, parent_job_id: parentJobId });
   log(`  자동 발행 준비: ${episodeId} → tts ${id.slice(0, 8)} (→ thumbnail → package)`);
   return id;
 }
 
+/** 글로벌 판정 통과 편의 발행 준비 차단 사유 — 콘솔 표시용(에이전트 판정 불가·must_fix 미수리). 연쇄 자체는 판정 루프 끝에서 startPublishPrepIfEnabled(…, "judge") 가 건다 */
+export function globalPrepBlockers(verdicts: unknown): string[] { return agentGateBlockers(verdicts); }

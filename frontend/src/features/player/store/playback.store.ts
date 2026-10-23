@@ -7,10 +7,17 @@ import { create } from 'zustand';
 
 import type { PlaybackRate } from '@/features/settings';
 
-import type { PlaybackSession } from '../player.types';
+import type { PlaybackSession, PlayQueueContext } from '../player.types';
+
+const LIBRARY_QUEUE_CONTEXT: PlayQueueContext = { kind: 'library' };
 
 interface PlaybackStore {
   session: PlaybackSession | null;
+  /**
+   * 재생 목록의 맥락(KAN-241) — 게이트가 재생을 시작할 때 쓴다. 메모리뿐이다: 앱을 다시 켜 복원한 재생은
+   * 라이브러리 맥락이다(스냅샷을 디스크에 남기지 않는다 — 낡은 목록이 "지금 들어온 맥락"으로 둔갑하지 않게)
+   */
+  queueContext: PlayQueueContext;
   /**
    * 전역 배속(user_settings.default_playback_rate의 클라이언트 사본).
    * 저장소 진실은 서버다 — 화면 진입 시 settings 조회로 채우고, 변경 시 서버에 비동기 저장한다.
@@ -28,10 +35,12 @@ interface PlaybackStore {
   setRate: (rate: PlaybackRate) => void;
   markRateHydrated: () => void;
   setMiniPlayerDismissed: (dismissed: boolean) => void;
+  setQueueContext: (context: PlayQueueContext) => void;
 }
 
 export const usePlaybackStore = create<PlaybackStore>((set) => ({
   session: null,
+  queueContext: LIBRARY_QUEUE_CONTEXT,
   rate: 1.0,
   isRateHydrated: false,
   isMiniPlayerDismissed: false,
@@ -41,4 +50,5 @@ export const usePlaybackStore = create<PlaybackStore>((set) => ({
   setRate: (rate) => set({ rate, isRateHydrated: true }),
   markRateHydrated: () => set({ isRateHydrated: true }),
   setMiniPlayerDismissed: (dismissed) => set({ isMiniPlayerDismissed: dismissed }),
+  setQueueContext: (queueContext) => set({ queueContext }),
 }));

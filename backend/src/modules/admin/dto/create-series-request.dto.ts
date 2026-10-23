@@ -20,6 +20,14 @@ export const SERIES_DESCRIPTION_MAX_LENGTH = 2000;
  * 나가지 않게 400으로 거절하려는 형식 검사다
  */
 export const SERIES_TOTAL_EPISODES_MAX = 2_147_483_647;
+/** 발행 이름 길이 — `series.publisher_name varchar(50)` */
+export const SERIES_PUBLISHER_NAME_MAX_LENGTH = 50;
+
+/** 발행 이름 정규화 — 앞뒤 공백을 걷고, 비었으면 null(없음)이다 */
+export function normalizePublisherName(value: string | null): string | null {
+  const trimmed = value?.trim() ?? '';
+  return trimmed.length > 0 ? trimmed : null;
+}
 
 /**
  * 시리즈 만들기(KAN-134). 파이프라인 [시리즈 발행]이 첫 편 업로드 전에 부르고(`ai/spec/11-series.md` 7장),
@@ -44,4 +52,10 @@ export class CreateSeriesRequestDto {
   @IsOptional()
   @IsEnum(SeriesStatus)
   readonly status?: SeriesStatus;
+
+  /** 발행 이름(예: "키워드") — 빼거나 null·빈 문자열이면 없음 */
+  @IsOptional()
+  @IsString()
+  @MaxLength(SERIES_PUBLISHER_NAME_MAX_LENGTH)
+  readonly publisher_name?: string | null;
 }

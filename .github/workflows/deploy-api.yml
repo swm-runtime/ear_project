@@ -250,6 +250,9 @@ jobs:
     permissions:
       id-token: write
       contents: read
+    # 실제로 배포했는지 — tag job 이 낡은 커밋(건너뛴 배포)에 운영 태그를 붙이지 않게 본다
+    outputs:
+      deployed: ${{ steps.guard.outputs.ready }}
     env:
       API_HOST: ${{ vars.API_HOST }}
       API_SG_ID: ${{ vars.API_SG_ID }}
@@ -265,8 +268,30 @@ jobs:
             echo "ready=false" >> "$GITHUB_OUTPUT"
             echo "::notice::CI_SSH_KEY_API 또는 Environment 변수(API_HOST·API_SG_ID)가 없다 — 이 환경의 자동 배포가 아직 켜지지 않았다. setup-ci-envs.sh 를 실행할 것"
           else
-            echo "ready=true" >> "$GITHUB_OUTPUT"
-            echo "::notice::환경 ${{ github.ref_name == 'main' && 'api-prod' || 'api-dev' }} → $API_HOST · 이미지 $API_IMAGE"
+            # 브랜치 끝이 이 런의 커밋이 아니면(뒤에 더 새 커밋이 머지됐으면) 배포하지 않는다 — 그 커밋의 런이 배포한다.
+            # 2026-10-22 개발계: 연달아 머지한 #1893·#1895 런이 뒤바뀐 순서로 끝나 옛 커밋 이미지가 새 커밋을 덮어썼다
+            BRANCH_HEAD=$(curl -fsS -H "Authorization: Bearer ${{ github.token }}" -H "Accept: application/vnd.github+json" \
+              "https://api.github.com/repos/${{ github.repository }}/git/ref/heads/${{ github.ref_name }}" \
+              | python3 -c 'import json,sys; print(json.load(sys.stdin)["object"]["sha"])' || echo "")
+            # **뒤 커밋이 push 트리거 경로(backend/** · 이 파일)를 건드렸을 때만** 건너뛴다 — 그때만 뒤 커밋의 런이 뜬다.
+            # FE·문서만 뒤에 머지되면 런이 뜨지 않아, 건너뛰면 아무도 배포하지 않는다(2026-10-23 개발계: #1928 런이
+            # 도는 사이 FE #1929 가 머지돼 KAN-248 이 배포되지 않고 notice 만 남았다). 비교를 못 읽으면 건너뛰지 않는다
+            NEWER_BACKEND=""
+            if [ -n "$BRANCH_HEAD" ] && [ "$BRANCH_HEAD" != "${{ github.sha }}" ]; then
+              NEWER_BACKEND=$(curl -fsS -H "Authorization: Bearer ${{ github.token }}" -H "Accept: application/vnd.github+json" \
+                "https://api.github.com/repos/${{ github.repository }}/compare/${{ github.sha }}...$BRANCH_HEAD?per_page=300" \
+                | python3 -c 'import json,sys; files=[f["filename"] for f in json.load(sys.stdin).get("files",[])]; print("yes" if any(f.startswith("backend/") or f==".github/workflows/deploy-api.yml" for f in files) else "")' \
+                || echo "")
+            fi
+            if [ -n "$NEWER_BACKEND" ]; then
+              echo "ready=false" >> "$GITHUB_OUTPUT"
+              echo "::notice::${{ github.ref_name }} 끝 ${BRANCH_HEAD:0:8} 까지 백엔드 변경이 더 있다 — 이 런(${GITHUB_SHA:0:8})은 배포를 건너뛴다(새 커밋의 런이 배포한다)"
+            else
+              [ "$BRANCH_HEAD" = "${{ github.sha }}" ] || [ -z "$BRANCH_HEAD" ] || echo "::notice::${{ github.ref_name }} 끝 ${BRANCH_HEAD:0:8} 은 앞서 있지만 백엔드 변경이 없다 — 이 런이 배포한다"
+              [ -n "$BRANCH_HEAD" ] || echo "::warning::브랜치 끝을 읽지 못했다 — 최신 여부 확인 없이 배포한다"
+              echo "ready=true" >> "$GITHUB_OUTPUT"
+              echo "::notice::환경 ${{ github.ref_name == 'main' && 'api-prod' || 'api-dev' }} → $API_HOST · 이미지 $API_IMAGE"
+            fi
           fi
 
       - uses: actions/checkout@v4
@@ -338,7 +363,8 @@ jobs:
   tag:
     name: 운영 배포 태그
     needs: [deploy, build-push]
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    # 배포를 건너뛴 낡은 커밋 런(deployed != true)에는 태그를 붙이지 않는다
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.deploy.outputs.deployed == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:

@@ -9,6 +9,10 @@ import { ErrorCode } from '@/common/exceptions/error-code.enum';
 import { DripExclusionReason } from '@/modules/drip/drip.enum';
 import { DripExclusionService } from '@/modules/drip/services/drip-exclusion.service';
 import { LibraryItem } from '@/modules/library/library-item.entity';
+import {
+  LibraryItemSource,
+  LibraryItemStatus,
+} from '@/modules/library/library.enum';
 import { LibraryTopicView } from '@/modules/library/library.types';
 import { UserSignalAction } from '@/modules/playback/playback.enum';
 import { ProgressView } from '@/modules/playback/playback.types';
@@ -157,18 +161,50 @@ export class LibraryScreenOrchestrator {
     now: Date,
     market: UserMarket,
   ): Promise<LibraryResumeResult> {
-    const [item, quota] = await Promise.all([
+    const [target, quota] = await Promise.all([
       this.libraryService.findResumeTarget(userId, now, market),
       this.playbackService.buildQuotaForUser(userId, now),
     ]);
 
-    if (!item) {
+    if (!target) {
       return { resumeTarget: null, quota };
     }
 
-    const [resumeTarget] = await this.toItemViews(userId, [item], now);
+    const item = target.itemId
+      ? await this.libraryService.findItemWithContentByContentId(
+          userId,
+          target.contentId,
+        )
+      : null;
 
-    return { resumeTarget, quota };
+    /*
+     * 라이브러리 행이 없는 편(탐색에서만 듣던 편 — 2026-10-23)은 그 자리를 콘텐츠로 채운 임시 행으로 같은 조립을 탄다.
+     * 저장하지 않는 값이고, 응답에서 `id`는 null · `status`는 `in_progress`다(library-api.md 4.3)
+     */
+    const row =
+      item ??
+      ({
+        id: '',
+        userId,
+        contentId: target.contentId,
+        content: await this.contentService.getById(target.contentId),
+        source: LibraryItemSource.SAVE,
+        status: LibraryItemStatus.IN_PROGRESS,
+        addedAt: target.lastPlayedAt,
+        lastPlayedAt: target.lastPlayedAt,
+        completedAt: null,
+      } as unknown as LibraryItem);
+
+    const [view] = await this.toItemViews(userId, [row], now);
+
+    return {
+      resumeTarget: {
+        ...view,
+        id: item ? view.id : null,
+        lastPlayedAt: target.lastPlayedAt,
+      },
+      quota,
+    };
   }
 
   /**

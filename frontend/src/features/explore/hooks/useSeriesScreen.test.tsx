@@ -10,6 +10,7 @@ import { useSeriesScreen } from './useSeriesScreen';
 const mockRequestPlay = jest.fn();
 const mockNavigate = jest.fn();
 const mockGoBack = jest.fn();
+const mockSaveSeriesMutate = jest.fn();
 let mockQueryState: {
   data: SeriesDetail | undefined;
   error: unknown;
@@ -60,6 +61,16 @@ jest.mock('./useSaveContentMutation', () => ({
 jest.mock('./useUnsaveContentMutation', () => ({
   useUnsaveContentMutation: () => ({ mutate: jest.fn() }),
 }));
+jest.mock('./useSeriesSaveMutations', () => ({
+  useSaveSeriesMutation: () => ({ mutate: mockSaveSeriesMutate }),
+  useUnsaveSeriesMutation: () => ({ mutateAsync: jest.fn() }),
+  useRestoreSeriesMutation: () => ({ mutateAsync: jest.fn() }),
+}));
+jest.mock('./useSeriesMoreQueries', () => ({
+  usePublisherSeriesQuery: () => ({ data: { publisherName: null, series: [] } }),
+  useOtherSeriesQuery: () => ({ data: [] }),
+  useSeriesRelatedQuery: () => ({ data: [] }),
+}));
 
 const { act, create } = jest.requireActual<{
   act(callback: () => void | Promise<void>): Promise<void> | void;
@@ -95,6 +106,7 @@ const episode = (episodeNo: number, isCountedToday = false): SeriesEpisode => ({
     },
     library: null,
     isCountedToday,
+    isCompleted: false,
   },
   progress: null,
 });
@@ -107,6 +119,10 @@ const detail = (episodes: SeriesEpisode[]): SeriesDetail => ({
     totalEpisodes: 16,
     status: 'ongoing',
     thumbnailUrl: 'https://example.com/1.webp',
+    topic: { id: 't1', name: 'IT·테크' },
+    publishedAt: '2026-10-01T00:00:00.000Z',
+    publisherName: '키워드',
+    isSaved: false,
   },
   episodes,
 });
@@ -203,5 +219,41 @@ describe('useSeriesScreen — 시리즈 화면(E14, explore.md 4.7)', () => {
     expect(screen.isNotFound).toBe(false);
     expect(screen.isFullError).toBe(true);
     expect(screen.isFullErrorNetwork).toBe(true);
+  });
+});
+
+describe('useSeriesScreen — 시리즈째 담기(KAN-246, explore-api.md 4.8)', () => {
+  it('[+]는 편마다가 아니라 시리즈 담기를 한 번 부른다', async () => {
+    // given — 3편 중 아무것도 안 담김
+    mockQueryState = {
+      data: detail([episode(1), episode(2), episode(3)]),
+      error: null,
+      isError: false,
+      isPending: false,
+    };
+    await render();
+
+    // when
+    await act(() => screen.saveSeries());
+
+    // then
+    expect(mockSaveSeriesMutate).toHaveBeenCalledTimes(1);
+    expect(mockSaveSeriesMutate.mock.calls[0][0]).toEqual({ seriesId: 's1', clientSeq: 1 });
+  });
+
+  it('버튼은 편이 다 담겼는지가 아니라 series.isSaved 를 따른다', async () => {
+    // given — 편은 전부 담겼지만 시리즈째 담은 적은 없다
+    const saved = { itemId: 'li', source: 'save' as const, status: 'unplayed' as const };
+    const allSaved = [episode(1), episode(2)].map((e) => ({
+      ...e,
+      item: { ...e.item, library: saved },
+    }));
+    mockQueryState = { data: detail(allSaved), error: null, isError: false, isPending: false };
+
+    // when
+    await render();
+
+    // then
+    expect(screen.isSeriesSaved).toBe(false);
   });
 });

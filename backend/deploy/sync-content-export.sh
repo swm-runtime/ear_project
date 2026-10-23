@@ -19,17 +19,20 @@
 #   실행하도록 묶여 있다(forced command) — 운영이 개발계에서 할 수 있는 일은 그것뿐이다.
 #   알림이 실패해도 덤프는 이미 올라가 있고, 개발계의 안전망 크론(하루 1회)이 다음에 받아 간다.
 #
-# 표: topics · series · contents · content_topics · content_sources · content_embeddings · content_stats · content_scripts · content_audio_renditions
+# 표: topics · series · contents · content_topics · content_sources · content_embeddings · content_title_embeddings · content_stats · content_scripts · content_audio_renditions
 #     (사용자 표는 절대 넣지 않는다. content_scripts 는 2026-09-20 추가 — KAN-83, 개발계 앱에서 대본을 못 보던 원인.
 #      content_audio_renditions 는 2026-10-07 추가 — 음질 3종(KAN-141) 뒤 발급이 이 표의 경로를 쓰는데 개발계 행이 옛
 #      mp3 를 가리켜 재생이 안 되던 원인. 이 표를 빼면 contents.audio_path 와 어긋난다.
 #      series 는 2026-10-17 추가 — KAN-134. contents.series_id 가 FK(fk_contents_series)로 가리키므로 빠지면 운영에서 만든
-#      시리즈의 편이 개발계 들여오기에서 FK 위반으로 통째로 막힌다)
+#      시리즈의 편이 개발계 들여오기에서 FK 위반으로 통째로 막힌다.
+#      content_title_embeddings 는 2026-10-22 추가 — 검색 의미 엔진의 제목 벡터. 개발계에서 다시 만들지 않고 운영 값을 받는다:
+#      동기화로 들어온 편은 발행 훅을 타지 않아 개발계에 행이 생기지 않고, 제목이 운영과 같으니 운영 벡터가 그대로 유효하다
+#      (유효 조건 = 모델 + source_text = 지금 제목). 다시 만들면 동기화마다 AI 서버 호출 비용이 든다)
 set -euo pipefail
 # 크론은 PATH 가 짧다 — aws CLI(/usr/local/bin)를 못 찾는 경우를 막는다
 export PATH="/usr/local/bin:/usr/bin:/bin:${PATH:-}"
 
-TABLES=(topics series contents content_topics content_sources content_embeddings content_stats content_scripts content_audio_renditions)
+TABLES=(topics series contents content_topics content_sources content_embeddings content_title_embeddings content_stats content_scripts content_audio_renditions)
 LOCK=/tmp/ear-content-export.lock
 # 지난번 내보낸 내용의 지문. 이 파일이 없으면(첫 실행·서버 교체) 한 번 내보내고 다시 적는다
 FINGERPRINT_FILE=/opt/ear/backend/.content-sync-fingerprint

@@ -76,6 +76,10 @@
 | 4 | DELETE | `/contents/:content_id/save` | 담기 해제 — 소프트 삭제 + 드립 영구 제외(`unsave`) | 필요 | |
 | 5 | GET | `/explore/search` | 키워드 검색 — **MVP 포함**(합의 2026-08-23) | 필요 | |
 | 6 | GET | `/series/:series_id` | 시리즈 화면 — 시리즈 정보 + 노출 중인 편 목록(편마다 담김·재생 위치) (추가 2026-10-17 — KAN-134) | 필요 | |
+| 7 | POST | `/series/:series_id/save` | 시리즈째 담기 — `library_series` + 노출 편 편 담기, 이후 새 편 자동 적립 (추가 2026-10-22 — KAN-245) | 필요 | |
+| 8 | DELETE | `/series/:series_id/save` | 시리즈째 빼기 — 담긴 편 전부 편 해제 + 따라오기 중단 (추가 2026-10-22 — KAN-245) | 필요 | |
+| 9 | POST | `/series/:series_id/restore` | 시리즈째 빼기 실행 취소 (추가 2026-10-22 — KAN-245) | 필요 | |
+| 10 | GET | `/series/:series_id/publisher-series` | 같은 간행물(발행 이름)의 다른 시리즈 카드 — 시리즈 화면 아래 "○○의 다른 시리즈" 줄 (추가 2026-10-22) | 필요 | |
 
 **설계 메모**
 
@@ -165,7 +169,8 @@
 | `content.series` | **시리즈 편이면 `{ id, title, episode_no, total_episodes }`, 단일 콘텐츠면 `null`**(추가 2026-10-17 — KAN-134). `total_episodes`는 시리즈 표(`series.total_episodes` — `domain.md` 5.9)의 값이다. 라이브러리(`library-api.md` 4.1·4.3)·플레이어(`player-api.md` 4.1)·상세(`content-detail-api.md` 4.1)·시리즈 화면(4.7)이 같은 모양을 싣는다. 목록은 시리즈 행을 한 번에 읽는다(항목 수만큼 조회하지 않는다). **추가 필드뿐이라 설치된 앱(1.2.1)은 무시한다.** 4.2·4.2-1·4.5의 행(검색 `fallback.popular_items` 포함)도 같은 항목 모양이라 함께 실린다 |
 | `content.language` | 콘텐츠 언어 `ko` / `en`(추가 2026-10-14 — KAN-188, `global-api.md` 4.7). **표시 전용** — 클라이언트는 이 값으로 목록을 거르지 않는다(시장 필터는 서버가 한다). 4.2·4.2-1·4.5의 행(검색 `fallback.popular_items` 포함)도 같은 항목 모양이라 함께 실린다 |
 | `library` | 이 콘텐츠의 라이브러리 상태. **없으면 `null`** — 라이브러리에 담기지 않은 상태다 |
-| `library.item_id` / `source` / `status` | `library_items` 원값. **더보기 시트의 담기/제거 분기와 완청 체크 마킹**에 쓴다(`explore-uiux.md` 4.1) — 완청은 `status == 'completed'`로 가르며, **행에 담김 표시는 두지 않는다** |
+| `library.item_id` / `source` / `status` | `library_items` 원값. **더보기 시트의 담기/제거 분기**에 쓴다(`explore-uiux.md` 4.1). **행에 담김 표시는 두지 않는다**. 완청 체크 마킹은 `is_completed`로 가른다(개정 2026-10-23 — 종전 `status == 'completed'`, 담지 않은 편의 완청이 빠졌다) |
+| `is_completed` | **완청했는가** — 라이브러리 `completed` 행(삭제분 포함) ∪ 재생 위치의 최대 도달이 기준 이상(`max_reached_sec` ≥ 길이 × 90%, `player.md` 4.4)인 편 ∪ **완청 신호(`user_signals.action = 'complete'`, 180일 보존)가 남은 편**(추가 2026-10-23 — KAN-248. 신호는 같은 날 추가 — 위치는 다른 기기의 저장이 덮어쓰고 오디오 재발행이 지워 완청이 풀렸다). **담지 않고 끝까지 들은 편도 `true`다** — 탐색 재생은 라이브러리 행을 만들지 않는다(`explore.md` 4.4). 완청 체크 마킹·시리즈 편 상태·연속 재생의 건너뛰기는 `library.status`가 아니라 이 값으로 가른다. **추가 필드뿐이라 설치된 앱은 무시한다**. 4.2·4.2-1·4.5·4.7·관련 콘텐츠(`player-api.md` 4.8)·상세(`content-detail-api.md` 4.1)도 같은 정의로 싣는다 |
 | `is_counted_today` | 이 콘텐츠가 **재청취 창 안**에 있는가 — 최근 15일(당일 포함) 내 차감 행(`play_records.is_counted = true`)이 있어, 재생해도 차감이 없는 상태(개정 2026-08-10 — `paywall.md` 4.3-1 · `library-api.md` 4.1과 같은 필드, 같은 정의). 재생 확인 팝업을 **탭 즉시** 띄우기 위한 힌트다 |
 | `content.source_url` | **`null`이면 더보기 시트(E12)에 [원문 보기]를 노출하지 않는다**(개정 2026-08-24 — 세 화면 더보기 통일(2026-08-10)의 계약 반영. 발급 응답 `player-api.md` 4.1과 같은 규칙). `partner`는 항상 값이 있고(`chk_contents_partner_disclosure` — `domain.md` 5.1), `ai_generated`는 선택 필드라 `null`일 수 있다. 4.2·4.2-1·4.5의 행도 같은 모양이므로 함께 적용된다 |
 
@@ -222,12 +227,13 @@
     "total_episodes": 16,     // 계획 편수(시리즈 표)
     "episode_count": 16,      // 지금 사용자 시장에 노출 중인 편 수 — 진행 중 시리즈면 total_episodes 보다 적다
     "status": "completed",    // ongoing | completed — 표시용
-    "thumbnail_url": "https://…/1화.webp",   // 표지 = 노출 중인 가장 앞 편(보통 1화)의 썸네일
+    "thumbnail_url": "https://…/표지.webp",   // 표지 = 시리즈 표지(관리자가 올린 것)가 있으면 그것, 없으면 노출 중인 가장 앞 편(보통 1화)의 썸네일
     "topic_ids": ["uuid", "uuid"]            // 노출 중인 편들의 주제 합집합(처음 나온 순서)
   }
 }
 ```
 
+- **표지(`thumbnail_url`)** — 시리즈 표지(`series.cover_url` — `domain.md` 5.9, 관리자 `PUT /admin/series/:id/cover`)가 있으면 그것, 없으면 노출 중인 가장 앞 편(보통 1화)의 썸네일이다(개정 2026-10-21 — KAN-234). **필드 이름·모양은 그대로**라 설치된 앱은 바꿀 것이 없다. 4.7 시리즈 화면의 `series.thumbnail_url`도 같은 규칙이다.
 - 카드를 탭하면 `GET /series/:series_id`(4.7)로 시리즈 화면을 연다 — "행 탭 = 즉시 재생"(`explore.md` 4.4)의 예외. 카드에는 편 단위 상태(`library`·`is_counted_today`)가 없다 — 시리즈 화면이 편마다 준다.
 - **카드의 자리(순위) = 그 시리즈 편 중 순위가 가장 높은 편의 자리**(= 편 점수의 최댓값). 그 목록의 정렬 규칙(인기·추천 랭킹·검색 점수)을 바꾸지 않고, 순위순으로 훑다가 시리즈를 처음 만난 편에서 카드를 낸다. 카드 순위의 별도 점수식은 두지 않는다.
 - **한 목록(페이지를 넘어도)에 같은 시리즈 카드는 한 번**이다. 피드는 **섹션마다** 접는다 — 같은 시리즈가 인기·새로 나온 콘텐츠 두 섹션에 각각 카드로 나올 수 있다(콘텐츠가 섹션마다 겹쳐 나오는 것과 같다).
@@ -430,6 +436,7 @@
    - **행이 없으면**: `source = save`, `status = unplayed`, `added_at = now()`로 생성 → 201
    - **살아 있는 행이 있으면**: **아무것도 바꾸지 않고** 현재 상태를 반환 → 200. `added_at`을 갱신하지 않는다 — 이미 담긴 것을 다시 담아도 목록 순서가 바뀌면 안 된다
    - **삭제된 행(`deleted_at IS NOT NULL`)이 있으면**: `deleted_at = null`, `added_at = now()`, `source = save`로 재활성 → 200. 재담기는 새 담기 조작이므로 적립 시각을 새로 찍는다(삭제 실행 취소의 복구와 다르다 — 그쪽은 `added_at` 유지, `library-api.md` 4.7)
+   - **이미 들은 편이면 들은 만큼의 상태로 넣는다**(새로 만들거나 되살린 행 — 2026-10-23, KAN-248). 최대 도달 ≥ 길이 × 90%(길이 > 0)면 `status = completed`·`completed_at` = 위치 갱신 시각, 그 밖에 위치 > 0이면 `in_progress`(진행 바). `last_played_at`이 비면 위치 갱신 시각. 탐색 재생이 행을 만들지 않아(`explore.md` 4.4) 듣고 나서 담는 것이 평소 경로다. 완청 신호는 완청 때 이미 남았으므로(`player-api.md` 4.3) 더 쌓지 않는다. 드립·온보딩 적립(`addItems`)·삭제 실행 취소(`library-api.md` 4.7)·시리즈째 담기·복구도 같다
 3. `reason = user_save`이고 **2번에서 라이브러리 상태가 실제로 바뀐 경우에만** `user_signals`에 `action = 'save'` 적재(`explore.md` 4.3 확정 — FR-15, `domain.md` 6.4)
 
 **2번의 세 갈래와 신호 적재 여부**
@@ -501,6 +508,7 @@
 | topic_ids | string (uuid 콤마 구분) | 선택 | 검색 결과에 주제 필터를 겹칠 때 |
 | cursor | string(opaque) | 선택 | 직전 응답의 `next_cursor` |
 | limit | int | 선택(기본 `20`, 최대 `50`) | 페이지 단위 20건(`explore.md` 4.5-3). 상한을 서버가 강제한다(`architecture.md` 9.3) |
+| exact | boolean(`true`·`false`) | 선택(기본 `false`) | **`true`면 교정을 하지 않는다**(추가 2026-10-22 — KAN-238). 교정 안내의 "혹시 ‘OO’로 검색하고 싶나요?" 탭이 보내는 값(`explore.md` 4.5-2). `#` 질의에는 의미가 없다(무시). 그 밖의 값은 `VALIDATION_FAILED` |
 
 - **앞뒤 공백을 무시한(트림한) 뒤 2자 미만이거나 특수문자·이모지만인 쿼리는 클라이언트가 요청 자체를 보내지 않는다**("검색어를 입력해주세요" 유지 — `explore.md` 4.5-2 · 7장). 서버도 같은 기준으로 방어해 `VALIDATION_FAILED`(400)를 반환한다 — 클라이언트 필터는 UX이고 판정은 서버 방어선이다.
 - **NFC 정규화·소문자 통일은 서버가 한다**(질의·저장 텍스트 양쪽, 애플리케이션 계층 — `explore.md` 4.5-5 · `domain.md` 5.1). 클라이언트는 입력을 트림 외에 가공하지 않고 그대로 보낸다 — 정규화 규칙이 양쪽에 생기면 버전마다 매칭 결과가 갈라진다.
@@ -509,10 +517,14 @@
 
 ```json
 {
-  "items": [ { "content": { "...": "4.1과 같은 모양" }, "library": null, "is_counted_today": false } ],
-  "next_cursor": "eyJw...",
+  "items": [ { "content": { "...": "4.1과 같은 모양" }, "library": null, "is_counted_today": false, "matched_by": ["keyword", "semantic"] } ],
+  "next_cursor": "eyJ2...",
   "has_next": false,
-  "fallback": null
+  "fallback": null,
+  "query_used": "커리어",
+  "corrected_from": "커리오",
+  "match": "keyword",
+  "engines": ["keyword", "semantic"]
 }
 ```
 
@@ -526,14 +538,32 @@
   "fallback": {
     "related_topics": [ { "id": "uuid", "name": "커리어" } ],
     "popular_items": [ { "content": { "...": "동일" }, "library": null, "is_counted_today": false } ]
-  }
+  },
+  "query_used": "없는말",
+  "corrected_from": null,
+  "match": "keyword",
+  "engines": ["keyword", "semantic"]
 }
 ```
+
+**응답 최상위·행에 덧붙는 필드**(추가 2026-10-22 — KAN-238, 규칙은 `explore.md` 4.5-5)
+
+| 필드 | 타입 | 비고 |
+|---|---|---|
+| `query_used` | string | 실제 검색에 쓴 정규화 질의. 교정 없으면 입력의 정규화 값(`#` 질의는 `#` 포함 그대로) |
+| `corrected_from` | string \| null | 교정했으면 원문(정규화 값) — 화면의 "혹시 ‘OO’로" 자리. 교정 없으면 `null` |
+| `match` | `"keyword"` \| `"related"` | 첫 페이지에 키워드로 맞은 편이 하나라도 있으면 `keyword`, 없으면 `related`. `items`가 비면 `keyword`. 교정된 응답은 항상 `keyword`. 다음 페이지도 첫 페이지 값을 반복한다 |
+| `engines` | (`"keyword"` \| `"semantic"`)[] | 이 응답을 만든 엔진 — 진단·로그 대조용. AI 서버 결손이면 `["keyword"]`, `#` 질의는 항상 `["keyword"]` |
+| `items[].matched_by` | (`"keyword"` \| `"semantic"`)[] | 그 행이 어느 엔진에서 왔는가. 시리즈 카드는 접힌 편까지 합친 값. 화면은 지금 쓰지 않는다(나중에 '관련' 꼬리표의 근거). `fallback.popular_items`에는 없다 |
+
+- **덧붙이는 필드만이다** — 종전 네 필드(`items`·`next_cursor`·`has_next`·`fallback`)의 모양·의미는 그대로라 옛 앱(1.1.0·1.2.x·1.3.0)은 새 필드를 무시하고 결과를 일반 결과처럼 그린다(교정어로 검색된 것도 모른다 — 0건보다 낫다고 보고 호환으로 둔다).
+- **커서**: 하이브리드 커서는 실제 검색어(교정어)·`exact`·RRF 점수와 정렬 키셋을 담는다. 다음 페이지는 같은 교정어·같은 질의 벡터(서버 캐시)로 이어 가고, 응답마다 `query_used`·`corrected_from`·`match`를 반복한다. 질의 벡터 캐시가 사라졌거나 AI 서버가 그 순간 결손이면 다시 계산하거나 키워드만으로 잇는다 — **미세한 순서 흔들림을 감수한다.** 발급 시점과 `query`·`topic_ids`·`exact`가 다르면 `EXPLORE_CURSOR_INVALID`. 의미 엔진 없이 시작한 검색(첫 페이지 `engines: ["keyword"]`)의 커서는 **종전 키워드 정렬 키셋**을 담는다 — 결과·순서·페이지 경계가 종전 키워드 검색과 같고, 페이지 사이 발행·삭제에도 중복·누락이 없다. 의미 엔진을 쓴 검색의 RRF 키셋은 순위에서 나오므로 **페이지 사이 발행·삭제로 경계가 한 행 안팎 흔들릴 수 있다 — 감수한다**(개정 2026-10-22 — KAN-242).
+- **종전 커서**(2026-10-22 전 서버가 발급한 키워드 전용 커서 — 배포 순간 옛 앱이 들고 있던 것)는 거절하지 않고 **종전 키워드 경로로 잇는다**(교정·의미 엔진 없음, `engines: ["keyword"]`). `#` 질의의 커서는 종전 모양 그대로다.
 
 - **빈 결과에 `fallback`을 같은 응답으로 내려준다**(`explore.md` 4.5 — 초기 콘텐츠 풀이 작아 빈 결과 UX가 중요하다). 대체 콘텐츠를 별도 호출로 나누면 빈 화면이 한 박자 늦게 채워진다.
   - `related_topics`: 쿼리와 유사한 주제(칩으로 노출, 탭 시 4.2 호출). `popular_items`: 인기 콘텐츠(직전 확정 구간 기준 — `domain.md` 5.4).
 - `items`가 있으면 `fallback: null`이다.
-- **정렬은 서버가 소유하며 정렬 파라미터를 두지 않는다.** 기준은 관련도 — 매칭 필드 가중이며, 우선순위는 **제목 > 태그 > 저자 > 주제명 > 설명**(태그 전용 검색은 필드 가중 없이 동점 규칙만), 동점은 **제목 유사도 → 인기(직전 확정 구간) → `published_at` 최신순**으로 푼다(`explore.md` 4.5-5 확정 2026-08-23 — `pg_trgm` 부분 일치·NFC 정규화 포함, 이 문서는 재정의하지 않는다). **가중 계수 값은 서버 구현이 소유한다** — 계약에 박지 않는다. 계수를 계약에 두면 랭킹 튜닝마다 문서 개정·클라이언트 검증이 따라붙는데, 클라이언트는 어차피 순서를 재배열하지 않는다(4.5-3).
+- **정렬은 서버가 소유하며 정렬 파라미터를 두지 않는다.** 기준은 **키워드 엔진과 의미 엔진의 RRF 합산**이고(개정 2026-10-22 — `explore.md` 4.5-5. k·임계값·K·교정어 선택은 그 문서와 서버가 소유하고 이 문서는 재정의하지 않는다), 키워드 엔진 안의 순위가 매칭 필드 가중이며, 우선순위는 **제목 > 태그 > 저자 > 주제명 > 설명**(태그 전용 검색은 필드 가중 없이 동점 규칙만), 동점은 **제목 유사도 → 인기(직전 확정 구간) → `published_at` 최신순**으로 푼다(`explore.md` 4.5-5 확정 2026-08-23 — `pg_trgm` 부분 일치·NFC 정규화 포함, 이 문서는 재정의하지 않는다). **가중 계수 값은 서버 구현이 소유한다** — 계약에 박지 않는다. 계수를 계약에 두면 랭킹 튜닝마다 문서 개정·클라이언트 검증이 따라붙는데, 클라이언트는 어차피 순서를 재배열하지 않는다(4.5-3).
 - 행 모양은 4.1의 `items[]`와 **완전히 같다**(`explore.md` 4.5-3 — "피드 행과 같은 문법"). 검색 결과만 다른 행 타입을 쓰면 담기·재생 처리가 두 벌이 된다.
 - **스위치 `SERIES_EXPLORE_CARDS_ENABLED`가 켜졌을 때만** 결과·`fallback.popular_items`의 같은 시리즈 편이 시리즈 카드 하나로 접히고(`type` 붙음), **시리즈 제목이 맞는 편도 결과에 든다**(가중은 제목과 같다, 태그 전용 검색은 제외 — 4.1-1). 꺼져 있으면 종전 그대로다(추가 2026-10-17 — KAN-134).
 - **회수 콘텐츠(`contents.status != 'published'`)는 피드와 동일하게 서버 단계에서 제외한다**(`explore.md` 4.5-3 — FR-32). **사용자 시장이 아닌 콘텐츠도 같은 단계에서 제외한다**(추가 2026-10-14 — KAN-188).
@@ -546,12 +576,14 @@
 
 | 코드 | HTTP | 상황 |
 |---|---|---|
-| `EXPLORE_CURSOR_INVALID` | 400 | 커서 형식 오류, 또는 발급 시점과 다른 `query`·`topic_ids`(`#태그`와 `태그`는 다른 질의다) |
-| `VALIDATION_FAILED` | 400 | `query` 누락·트림 후 2자 미만(`#` 질의는 `#`을 뗀 뒤 2자 미만 — `#`·`#a`)·100자 초과·특수문자만, `limit` 범위 초과 |
+| `EXPLORE_CURSOR_INVALID` | 400 | 커서 형식 오류, 또는 발급 시점과 다른 `query`·`topic_ids`·`exact`(`#태그`와 `태그`는 다른 질의다) |
+| `VALIDATION_FAILED` | 400 | `query` 누락·트림 후 2자 미만(`#` 질의는 `#`을 뗀 뒤 2자 미만 — `#`·`#a`)·100자 초과·특수문자만, `limit` 범위 초과, `exact`가 `true`·`false`가 아님 |
 
 ---
 
 ### 4.6 탐색 재생 — 자동 적립의 호출 순서
+
+> **폐기(2026-10-23 — `explore.md` 4.4 개정).** 탐색 재생은 더 이상 `save(auto_play)`를 호출하지 않는다 — 재생 후 라이브러리에 담기지 않는다. 아래는 종전 흐름의 기록이다. `reason = auto_play` 값은 서버에 남아 있으나 앱은 보내지 않는다.
 
 재생 엔드포인트는 이 문서 소유가 아니다. 탐색 고유의 것은 **재생이 실제로 시작된 뒤의 자동 적립**뿐이다(`explore.md` 4.4).
 
@@ -588,7 +620,11 @@ POST /contents/:content_id/play  (entry_point = "explore" — library-api 4.4)
     "description": "소프트웨어 개발부터 …",
     "total_episodes": 16,            // 계획 편수. episodes 는 노출 중인 편만이라 이보다 적을 수 있다
     "status": "completed",           // ongoing | completed — 표시용
-    "thumbnail_url": "https://…/1화.webp"   // 표지 = 노출 중인 가장 앞 편(보통 1화)의 썸네일
+    "thumbnail_url": "https://…/표지.webp",  // 표지 = 시리즈 표지(관리자가 올린 것)가 있으면 그것, 없으면 노출 중인 가장 앞 편(보통 1화)의 썸네일
+    "topic": { "id": "uuid", "name": "IT·테크" },  // 대표 중분류 — 제목 아래 카테고리 줄. 주제 없으면 null (추가 2026-10-22)
+    "is_saved": true,                // 시리즈째 담았는가(library_series) — 새 편이 따라 들어온다 (추가 2026-10-22 — KAN-245)
+    "published_at": "2026-09-01T00:00:00Z",  // 발행일자 = 노출 편 중 가장 이른 published_at — 앨범 하단 발행일 (추가 2026-10-22)
+    "publisher_name": "키워드"       // 발행 이름 — 제목 아래 줄(앨범의 아티스트 자리). 없으면 null (추가 2026-10-22)
   },
   "episodes": [                      // 노출 중인 편만(published·라이선스 유효·사용자 시장), episode_no 오름차순
     {
@@ -607,18 +643,24 @@ POST /contents/:content_id/play  (entry_point = "explore" — library-api 4.4)
         "tags": ["CS", "개발"],
         "series": { "id": "7de9…", "title": "키워드로 빠르게 배우는 CS 지식", "episode_no": 1, "total_episodes": 16 }
       },
-      "library": { "item_id": "uuid", "source": "save", "status": "completed" },  // 담지 않았으면 null. 완청 = status "completed"
+      "library": { "item_id": "uuid", "source": "save", "status": "completed" },  // 담지 않았으면 null. 완청은 is_completed로 본다
       "progress": { "position_sec": 372, "max_reached_sec": 372 },             // 재생 위치 행이 없으면 null(0으로 채우지 않는다)
+      "is_completed": true,                                                    // 완청 — 담지 않고 끝까지 들은 편도 true(4.1, KAN-248)
       "is_counted_today": false                                                // 재생 확인 팝업 힌트 — 판정이 아니다
     }
   ]
 }
 ```
 
-- 회수된 편은 목록에서 빠진다 — 1화가 회수돼 있으면 표지도 그다음 노출 편이다.
+- 회수된 편은 목록에서 빠진다 — 표지를 올리지 않은 시리즈는 1화가 회수돼 있으면 표지도 그다음 노출 편이다. `series.thumbnail_url`은 4.1-1 카드와 같은 규칙(시리즈 표지가 있으면 그것 — 2026-10-21, KAN-234)이고 필드 이름·모양은 그대로다.
+- `series.topic`은 **대표 중분류(주제)** 다 — 앨범 화면 제목 아래 카테고리 줄(`explore-uiux.md` 4.11). 시리즈 표엔 주제 칸이 없어 **노출 편들의 `content_topics`에서 뽑는다**: 가장 많은 편에 걸린 주제, 동률이면 `topics.display_order` 우선. 노출 편에 주제가 하나도 없으면 `null`이고 화면은 줄째 생략한다. **추가 필드뿐이라 설치된 앱은 무시한다**(없으면 종전과 같다).
+- `series.is_saved`는 **시리즈째 담기 기록**(`library_series`의 살아 있는 행 — `domain.md` 6.1-1)이다(추가 2026-10-22 — KAN-245). 편이 전부 담겼는지와 다르다 — 편을 하나씩 다 담아도 `false`이고, 시리즈째 담은 뒤 편 하나를 따로 빼도 `true`다. 시리즈 화면의 담기/빼기 버튼은 이 값으로 그린다. **추가 필드뿐이라 설치된 앱은 무시한다.**
+- `series.published_at`은 **발행일자**(ISO 8601 순간)다 — 앨범 화면 하단 발행일(`explore-uiux.md` 4.11). 시리즈 표엔 발행 시각이 없어 **노출 편들의 `contents.published_at` 중 가장 이른 값**을 쓴다(재발행 등으로 편 번호와 발행 순서가 어긋나도 번호가 아니라 최소 시각). 편 목록이 비면 404라 늘 값이 있다. 클라이언트는 기기 시간대 날짜로 그린다(표시 전용). **추가 필드뿐이라 설치된 앱은 무시한다.**
+- `series.publisher_name`은 **발행 이름**(`series.publisher_name` — `domain.md` 5.9, 예: "키워드")이다 — 시리즈 화면 제목 바로 아래 줄(앨범의 아티스트 자리, `explore-uiux.md` 4.11). 관리자가 시리즈 만들기·고치기로 넣고(`admin-api.md`), 없으면 `null`이라 그 줄을 생략한다. 대표 중분류(`topic`)는 그 아래 메타 줄의 첫 칸으로 내려간다. **추가 필드뿐이라 설치된 앱은 무시한다**(추가 2026-10-22).
 - `library`·`progress`·`is_counted_today`는 탐색·라이브러리와 같은 원천이다(편 단위). 시리즈 단위 진행 상태는 두지 않는다.
-- **두지 않는 것**: `next_episode`(다음 화 듣기 보류) · 시리즈 구독 · 페이지(편 수가 수십 단위).
-- 액션(재생·담기·삭제)은 전부 기존 편 단위 계약을 그대로 쓴다(`POST /contents/:id/play` · `POST /contents/:id/save` 등).
+- **편 상태 "완청"과 머리 [재생]의 다음 편 고르기는 `is_completed`로 가른다**(4.1과 같은 정의 — 2026-10-23, KAN-248). 종전 `library.status == completed`는 담지 않고 끝까지 들은 편을 "N분 남음"으로 보이게 하고 [재생]이 그 편을 다시 고르게 했다.
+- **두지 않는 것**: `next_episode`(다음 화 듣기 보류) · 페이지(편 수가 수십 단위).
+- 편 하나의 액션(재생·담기·삭제)은 기존 편 단위 계약을 그대로 쓴다(`POST /contents/:id/play` · `POST /contents/:id/save` 등). 시리즈째 담기·빼기·실행 취소는 4.8~4.10이다.
 
 **에러**
 
@@ -627,6 +669,147 @@ POST /contents/:content_id/play  (entry_point = "explore" — library-api 4.4)
 | `VALIDATION_FAILED` | 400 | `series_id`가 uuid가 아님 |
 | `NOT_FOUND` | 404 | **없는 시리즈 / 다른 시장의 시리즈 / 노출 중인 편이 하나도 없는 시리즈(전 편 회수)** — "시리즈를 찾을 수 없어요". 다른 시장 시리즈의 존재를 드러내지 않는다 |
 | `UNAUTHORIZED` | 401 | 토큰 없음·만료 |
+
+---
+
+### 4.7-1 `GET /series/:series_id/publisher-series` — 같은 간행물의 다른 시리즈 (추가 2026-10-22)
+
+시리즈 화면 아래 맨 위 줄 **"{발행 이름}의 다른 시리즈"**(애플 뮤직 "○○의 다른 앨범" 자리 — `explore-uiux.md` 4.11)의 재료다. 간행물 = 시리즈의 발행 이름(`series.publisher_name` — `domain.md` 5.9, 4.7 `publisher_name`).
+
+```jsonc
+// 200
+{
+  "publisher_name": "키워드",   // 기준 시리즈의 발행 이름. 없으면 null(그때 items 는 빈 배열)
+  "items": [                    // 탐색 시리즈 카드(4.1-1)와 같은 모양
+    {
+      "type": "series",
+      "series": {
+        "id": "uuid", "title": "키워드로 빠르게 배우는 CS 지식", "description": "…",
+        "total_episodes": 16, "episode_count": 16, "status": "completed",
+        "thumbnail_url": "https://…", "topic_ids": ["uuid"]
+      }
+    }
+  ]
+}
+```
+
+- 같은 `publisher_name`을 가진 **다른** 시리즈를 **만든 순**으로 낸다. 기준 시리즈 자신과 **사용자 시장에 노출 중인 편이 없는 시리즈는 빠진다**(카드 재료는 4.1-1과 같다). 페이지 없음 — 시리즈는 수십 단위다.
+- 기준 시리즈가 사용자에게 보이지 않으면(없음·다른 시장·노출 편 0개) 4.7과 같은 404 `NOT_FOUND`. uuid 가 아니면 400 `VALIDATION_FAILED`.
+- 서버 스위치(`SERIES_EXPLORE_CARDS_ENABLED`)와 무관하다 — 시리즈 화면이 스위치와 무관하게 열려 있는 것과 같다.
+- 클라이언트는 보조 목록으로 다룬다 — 실패(구버전 서버의 404 포함)는 알리지 않고 줄째 숨긴다.
+
+### 4.8 `POST /series/:series_id/save` — 시리즈째 담기 (추가 2026-10-22 — KAN-245)
+
+시리즈 화면의 담기. **시리즈째 담은 사용자에게는 이후 공개되는 편이 라이브러리에 따라 들어온다**(4.11). 라이브러리는 편 단위 그대로다 — 시리즈 카드로 묶지 않는다. 횟수 제한·페이월 없음(편 담기 4.3과 같다).
+
+**Request**
+
+```json
+{ "client_seq": 3 }
+```
+
+| 필드 | 타입 | 필수 | 비고 |
+|---|---|---|---|
+| client_seq | int | 필수 | 이 시리즈에 대한 담기·빼기 조작의 클라이언트 단조 증가 순번. 의미는 4.3과 같다 — **서버는 저장·판정하지 않고 응답에 그대로 되돌린다** |
+
+**Response 200** — 새로 담긴 편이 있든 없든 200이다
+
+```json
+{ "series_id": "uuid", "added_count": 5, "client_seq": 3 }
+```
+
+- `added_count` = 이번 요청으로 라이브러리에 **새로 들어온**(생성·되살림) 편 수. 이미 담겨 있던 편은 세지 않는다. 다시 보내면 `0`.
+
+**서버 처리** — 하나의 트랜잭션에서 수행한다.
+
+1. 사용자 시장의 노출 편을 읽는다 — 없으면 404(없는 시리즈·다른 시장·노출 편 0 — 4.7과 같은 판정)
+2. `library_series` upsert — 행이 없으면 생성, **삭제분이면 되살리고 `added_at`을 새로**, 살아 있으면 그대로(`domain.md` 6.1-1)
+3. 노출 편마다 **편 담기 규칙 그대로**(4.3 2·3번) — 없으면 `source = save`로 생성, 삭제분이면 되살리고 `added_at` 새로·`queue_position` NULL, 살아 있으면 그대로. **라이브러리 상태가 바뀐 편에만** `user_signals(save)`. `drip_excluded_contents`는 지우지 않는다(재담기 규칙)
+
+**에러**
+
+| 코드 | HTTP | 상황 |
+|---|---|---|
+| `VALIDATION_FAILED` | 400 | `series_id`가 uuid가 아님 · `client_seq` 누락·형식 오류 |
+| `NOT_FOUND` | 404 | 없는 시리즈 / 다른 시장의 시리즈 / 노출 중인 편이 하나도 없는 시리즈 |
+
+---
+
+### 4.9 `DELETE /series/:series_id/save` — 시리즈째 빼기 (추가 2026-10-22 — KAN-245)
+
+담긴 편 전부 + 시리즈째 담기 기록을 함께 뺀다 → **새 편이 더 따라오지 않는다.**
+
+**Request** — 쿼리 파라미터 `?client_seq=4` (의미는 4.8과 같다 · 편 해제 4.4와 같은 꼴)
+
+**Response 200**
+
+```json
+{ "series_id": "uuid", "removed_item_ids": ["uuid", "uuid"], "client_seq": 4 }
+```
+
+- `removed_item_ids` = 이번 요청으로 뺀 라이브러리 항목 id. [실행 취소] 때 4.10에 그대로 보낸다.
+
+**서버 처리** — 하나의 트랜잭션에서 수행한다.
+
+1. `library_series` 소프트 삭제(살아 있는 행이 있으면)
+2. 그 시리즈 편의 **살아 있는 내 `library_items` 전부**를 **편 해제 규칙 그대로**(4.4) — 소프트 삭제 · `drip_excluded_contents(unsave)` · `user_signals(unsave)`. 노출·시장을 가리지 않는다(만료로 숨은 편도 함께 뺀다)
+
+- **뺄 것이 없어도 200이다**(오프라인 큐 재전송 — 이미 빠진 편에는 제외·신호를 다시 쌓지 않는다). 노출 편이 없는 시리즈(전 편 회수)도 뺄 수 있다.
+- 시리즈째 담지 않고 편 단위로 담은 편도 함께 빠진다 — 버튼의 뜻이 "이 시리즈를 라이브러리에서 뺀다"다.
+
+**에러**
+
+| 코드 | HTTP | 상황 |
+|---|---|---|
+| `VALIDATION_FAILED` | 400 | `series_id`가 uuid가 아님 · `client_seq` 누락·형식 오류 |
+| `NOT_FOUND` | 404 | 없는 시리즈 |
+
+---
+
+### 4.10 `POST /series/:series_id/restore` — 시리즈째 빼기 실행 취소 (추가 2026-10-22 — KAN-245)
+
+**Request**
+
+```json
+{ "item_ids": ["uuid", "uuid"] }
+```
+
+| 필드 | 타입 | 필수 | 비고 |
+|---|---|---|---|
+| item_ids | uuid[] | 필수(빈 배열 허용, 500개 이하) | 4.9 응답의 `removed_item_ids` |
+
+**Response 200**
+
+```json
+{ "series_id": "uuid", "restored_item_ids": ["uuid", "uuid"], "is_saved": true }
+```
+
+**서버 처리** — 하나의 트랜잭션에서 수행한다.
+
+1. `library_series` 되살림 — **`added_at` 그대로**(새 담기가 아니다). 삭제된 행이 없으면 아무것도 하지 않는다
+2. 넘긴 항목 중 **내 항목이면서 그 시리즈 편인 것만** 편 복구(`library-api.md` 4.7)와 같게 되살린다 — `added_at`·`status`·`queue_position` 유지, `drip_excluded_contents` 유지
+
+- **남의 항목·다른 시리즈 편은 조용히 무시한다**(존재를 드러내지 않는다). 빼 둔 사이 회수·만료된 편도 건너뛴다 — 편 복구(4.7)는 403이지만 여러 편을 한 번에 되돌리는 실행 취소에서 한 편 때문에 전부를 실패시키지 않는다.
+- 서버는 실행 취소 창(5초)을 강제하지 않는다(`library-api.md` 4.7과 같은 이유).
+
+**에러**
+
+| 코드 | HTTP | 상황 |
+|---|---|---|
+| `VALIDATION_FAILED` | 400 | `series_id`·`item_ids` 원소가 uuid가 아님 · 500개 초과 |
+| `NOT_FOUND` | 404 | 없는 시리즈 |
+
+---
+
+### 4.11 새 편 자동 적립 — 시리즈째 담은 사용자에게 (추가 2026-10-22 — KAN-245)
+
+엔드포인트가 아니라 발행 경로의 서버 동작이다(`domain.md` 6.1-1).
+
+- **언제** — 시리즈 편이 **처음 공개될 때**(관리자 업로드 = 즉시 발행 `admin-api.md` 4.6). 재발행(같은 행 교체)·회수 복구(되살림)는 새 공개가 아니라 적립하지 않는다. 예약 발행·라이선스 시작일은 없다.
+- **누구에게** — 그 시리즈의 `library_series` 살아 있는 행의 사용자 중 **편과 같은 시장**이고, 그 편의 `library_items` 행이 **없는**(삭제 이력도 없는) 사용자. 시리즈째 뺀 사용자·편 하나씩만 담은 사용자에게는 오지 않는다.
+- **어떻게** — `INSERT … SELECT` 한 문장, `source = save` · `status = unplayed` · `added_at = 적립 시각`(라이브러리 맨 위 · 재생 목록 순서 미지정 = 맨 위). `uq_library_items_user_id_content_id`가 중복을 막는다. 사용자의 담기 조작이 아니라 `user_signals`를 남기지 않는다.
+- **실패해도 발행은 성공이다** — 발행 트랜잭션이 커밋된 뒤 따로 돌고, 실패는 로그로 남긴다. 놓친 편은 시리즈 화면의 담기(4.8)로 다시 들어온다.
+- 새 편 푸시 알림은 두지 않는다(범위 밖). 라이브러리 탭 배지(드립 도착)에도 세지 않는다 — `source = save`다.
 
 ---
 
@@ -640,7 +823,7 @@ POST /contents/:content_id/play  (entry_point = "explore" — library-api 4.4)
 | `VALIDATION_FAILED` | 400 | false | 요청을 수정해야 한다. 사용자에게는 일반 오류로 표시 |
 | `CONTENT_WITHDRAWN` | 403 | false | "제공이 종료된 콘텐츠예요" + 카드를 목록에서 제거 |
 | `CONTENT_NOT_FOUND` | 404 | false | 카드를 목록에서 제거 |
-| `NOT_FOUND` | 404 | false | 4.7 — 없는·다른 시장의·노출 편이 없는 시리즈. 공용 코드라 클라이언트 동작은 `common-error-handling.md` 9장 표를 따른다(추가 2026-10-17 — KAN-134) |
+| `NOT_FOUND` | 404 | false | 4.7·4.8 — 없는·다른 시장의·노출 편이 없는 시리즈, 4.9·4.10 — 없는 시리즈. 공용 코드라 클라이언트 동작은 `common-error-handling.md` 9장 표를 따른다(추가 2026-10-17 — KAN-134 · 2026-10-22 KAN-245) |
 | `PLAY_LIMIT_EXCEEDED` 등 재생 계열 | — | — | `library-api.md` 5장을 따른다. 이 문서가 재정의하지 않는다 |
 
 - 401·429·5xx 처리는 `common-error-handling.md` 4.1~4.2의 공통 규칙을 따른다.
@@ -705,6 +888,7 @@ GET /explore/feed                       → 섹션형 피드 + daily_play_limit/
 | `playback_progresses` — 시리즈 화면(4.7)의 편별 `progress` | 6.2 |
 | `content_stats` — 인기 섹션·인기 목록(4.2-1)·검색 fallback. **`week` · `month`는 직전 확정 구간(`is_final = true`)만, `all`은 조건 없이** | 5.4 |
 | `library_items` — 담기·해제. `(user_id, content_id)` 유니크가 중복 방어선 | 6.1 |
+| `library_series` — 시리즈째 담기·빼기·실행 취소(4.8~4.10)·`series.is_saved`(4.7)·새 편 자동 적립(4.11) (추가 2026-10-22 — KAN-245) | 6.1-1 |
 | `play_records` — `daily_play_count` · `is_counted_today` 집계 | 6.3 |
 | `user_signals` — `save` · `unsave` 적재(자동 적립은 제외) | 6.4 |
 | `user_interests` — 관심사 기반 섹션·**주제 칩 정렬**(4.2-2) 입력 | 4.2 |

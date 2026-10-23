@@ -25,8 +25,8 @@ const ko = {
     body: '재생하면 1회가 차감돼요.',
     cancel: '취소',
     play: '재생하기',
-    /* TODO(카피 재검토 — uiux 9장): 라벨이 "재생 없이 닫기"로 읽힌다. 후보 "재생하고 오늘은 그만 묻기" */
-    suppressToday: '오늘은 그만 보기',
+    /** 체크 칸 라벨(PM 2026-10-23) — 체크하고 [재생하기]를 눌러야 억제가 걸린다. 종전 즉시 재생 글자 버튼 "오늘은 그만 보기" */
+    suppressToday: '오늘은 보지 않기',
   },
 
   /** L13 회수 안내 — 오류 톤·재시도 유도를 붙이지 않는다(library-uiux.md 4.11) */
@@ -68,6 +68,10 @@ const ko = {
     queueHandle: '재생 목록',
     queueHandleA11y: '다음 재생 목록 열기',
     queueCollapseA11y: '재생 목록 접기',
+    queueExpandA11y: '재생 목록 전체 화면으로',
+    queueShrinkA11y: '재생 목록 줄이기',
+    /** 2단(전체 화면 재생 목록)의 맨 위 한 줄 재생 바 */
+    nowPlayingBarA11y: (title: string) => `지금 재생 중, ${title}`,
     /** 재생 버튼 라벨 — 상태별로 다르다. 완료의 ▶가 "재생"으로만 읽히면 이어듣기로 오해된다 */
     playA11y: '재생',
     pauseA11y: '일시정지',
@@ -98,6 +102,32 @@ const ko = {
    */
   queuePanel: {
     title: '재생 목록',
+    /**
+     * 탐색 맥락의 출처 한 줄(KAN-241 — player.md 4.2-1). 헤더와 바닥 손잡이 글자가 같은 값이다.
+     * 섹션은 화면에 보이던 제목 그대로("새로 나온 콘텐츠")
+     */
+    /** "탐색 · "·"주제 · "·"검색"·"시리즈 · " 머리는 뺐다 — 이름만 남긴다(PM 2026-10-23) */
+    sourceSection: (title: string) => title,
+    sourcePopular: (period: 'week' | 'month' | 'all') =>
+      `${{ week: '주간', month: '월간', all: '전체' }[period]} 인기 콘텐츠`,
+    sourceTopic: (name: string) => name,
+    sourceSearch: (query: string) => query,
+    sourceSeries: (title: string) => title,
+    /** 탐색 맥락 목록 아래 추천 블록(player.md 4.2-2) — 자동 재생은 없다, 목록일 뿐 */
+    upNextTitle: '다음에 들어볼 만한',
+    /** 추천 섹션 제목 옆 자동 재생 스위치(player.md 4.2-4) — 설정의 [재생 목록 자동 재생]과 같은 값이다 */
+    autoplayLabel: '자동 재생',
+    autoplayHint: '한 편이 끝나면 다음 편을, 목록이 끝나면 추천 편을 이어서 틀어요',
+    /** 라이브러리에 없는 줄의 담기 버튼(탐색 맥락만) — 탐색 타일의 담기와 같은 말 */
+    saveA11y: '라이브러리에 담기',
+    saveToast: '라이브러리에 담았어요',
+    saveFailedToast: '담지 못했어요. 다시 시도해주세요',
+    /**
+     * 줄 스와이프(KAN-241 "3번", 2026-10-23 동그라미 아이콘으로 개정 — 글자 없음) — 왼쪽으로 밀면 삭제, 오른쪽으로 밀면 담기. 아래는
+     * 낭독기 대체 액션. 삭제는 맥락에 따라 "라이브러리에서 삭제"(서버 소프트 삭제) / "목록에서 빼기"(스냅샷 로컬)
+     */
+    deleteFromLibraryA11y: '라이브러리에서 삭제',
+    removeFromListA11y: '목록에서 빼기',
     /** 지금 재생 중인 줄에 붙는 낭독 꼬리표 — 시각 표시(굵게)만으로는 전달되지 않는다 */
     nowPlayingA11y: '재생 중',
     completedA11y: '완청함',
@@ -210,7 +240,7 @@ const en: LocalizedCopy<typeof ko> = {
     body: 'Playing will use 1 play.',
     cancel: 'Cancel',
     play: 'Play',
-    suppressToday: "Don't ask again today",
+    suppressToday: "Don't show again today",
   },
 
   withdrawnToast: 'This content is no longer available',
@@ -237,6 +267,9 @@ const en: LocalizedCopy<typeof ko> = {
     queueHandle: 'Up next',
     queueHandleA11y: 'Open up next',
     queueCollapseA11y: 'Close up next',
+    queueExpandA11y: 'Expand up next to full screen',
+    queueShrinkA11y: 'Shrink up next',
+    nowPlayingBarA11y: (title: string) => `Now playing, ${title}`,
     playA11y: 'Play',
     pauseA11y: 'Pause',
     replayA11y: 'Play from the beginning',
@@ -256,6 +289,20 @@ const en: LocalizedCopy<typeof ko> = {
 
   queuePanel: {
     title: 'Up next',
+    sourceSection: (title: string) => title,
+    sourcePopular: (period: 'week' | 'month' | 'all') =>
+      `Popular ${{ week: 'this week', month: 'this month', all: 'all time' }[period]}`,
+    sourceTopic: (name: string) => name,
+    sourceSearch: (query: string) => query,
+    sourceSeries: (title: string) => title,
+    upNextTitle: 'Up next for you',
+    autoplayLabel: 'Autoplay',
+    autoplayHint: 'Plays the next episode, then similar ones when your queue ends',
+    saveA11y: 'Save to library',
+    saveToast: 'Saved to your library',
+    saveFailedToast: "Couldn't save. Please try again.",
+    deleteFromLibraryA11y: 'Delete from library',
+    removeFromListA11y: 'Remove from list',
     nowPlayingA11y: 'Now playing',
     completedA11y: 'Finished',
     empty: 'Your library is empty',

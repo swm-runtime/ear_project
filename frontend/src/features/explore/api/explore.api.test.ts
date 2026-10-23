@@ -1,7 +1,12 @@
 import { beforeEach, describe, expect, it, jest } from '@jest/globals';
 
 import type { ExploreItem, ExploreSeriesItem } from '../explore.types';
-import { fetchExploreFeed, fetchSeriesDetail, toExploreEntry } from './explore.api';
+import {
+  fetchExploreFeed,
+  fetchPublisherSeries,
+  fetchSeriesDetail,
+  toExploreEntry,
+} from './explore.api';
 import type { ExploreContentDto, ExploreEntryDto } from './explore.dto';
 
 // 실서버 경로의 변환을 본다 — 테스트 환경은 __DEV__ 라 mock 플래그를 끈다
@@ -72,6 +77,31 @@ describe('toExploreEntry — 항목 종류(explore-api.md 4.1-1)', () => {
     expect(entry.type).toBe('content');
     expect(entry.content.id).toBe('c1');
     expect(entry.isCountedToday).toBe(true);
+  });
+
+  it('완청은 is_completed 를 따르고, 없으면(옛 서버) library.status 로 읽는다(KAN-249)', () => {
+    // given — 담지 않고 끝까지 들은 편 · 옛 서버의 담아서 완청한 편
+    const unsavedDone = toExploreEntry({
+      content: content(),
+      library: null,
+      is_counted_today: false,
+      is_completed: true,
+    }) as ExploreItem;
+    const legacyDone = toExploreEntry({
+      content: content(),
+      library: { item_id: 'i1', source: 'save', status: 'completed' },
+      is_counted_today: false,
+    }) as ExploreItem;
+    const legacyNot = toExploreEntry({
+      content: content(),
+      library: null,
+      is_counted_today: false,
+    }) as ExploreItem;
+
+    // then
+    expect(unsavedDone.isCompleted).toBe(true);
+    expect(legacyDone.isCompleted).toBe(true);
+    expect(legacyNot.isCompleted).toBe(false);
   });
 
   it('content.series 가 없으면 null, 있으면 객체로 옮긴다', () => {
@@ -213,5 +243,73 @@ describe('fetchSeriesDetail — GET /series/:series_id(explore-api.md 4.7)', () 
     expect(detail.episodes[0].progress).toEqual({ positionSec: 372, maxReachedSec: 372 });
     expect(detail.episodes[1].item.library).toBeNull();
     expect(detail.episodes[1].progress).toBeNull();
+    // 대표 중분류를 안 보낸 응답(구버전·없는 시리즈) → null 로 읽는다(화면은 카테고리 줄 생략)
+    expect(detail.series.topic).toBeNull();
+    // 발행일자도 안 보낸 응답(구버전) → null(화면은 발행일 줄 생략)
+    expect(detail.series.publishedAt).toBeNull();
+    // 발행 이름도 안 보낸 응답(구버전) → null(화면은 제목 아래 줄 생략)
+    expect(detail.series.publisherName).toBeNull();
+  });
+
+  it('대표 중분류(topic)를 보내면 그대로 옮긴다 — 제목 아래 카테고리 줄', async () => {
+    // given
+    mockGet.mockResolvedValue({
+      data: {
+        series: {
+          id: 's1',
+          title: '키워드로 빠르게 배우는 CS 지식',
+          description: '',
+          total_episodes: 16,
+          status: 'completed',
+          thumbnail_url: 'https://example.com/1.webp',
+          topic: { id: 't1', name: 'IT·테크' },
+          published_at: '2026-10-01T00:00:00.000Z',
+          is_saved: true,
+          publisher_name: '키워드',
+        },
+        episodes: [],
+      },
+    });
+
+    // when
+    const detail = await fetchSeriesDetail({ seriesId: 's1' });
+
+    // then
+    expect(detail.series.topic).toEqual({ id: 't1', name: 'IT·테크' });
+    // 시리즈째 담김(KAN-246) — 버튼의 근거
+    expect(detail.series.isSaved).toBe(true);
+    // 발행일자(ISO 순간)를 그대로 옮긴다 — 화면에서 기기 시간대 날짜로 그린다
+    expect(detail.series.publishedAt).toBe('2026-10-01T00:00:00.000Z');
+    // 발행 이름 — 제목 아래 줄
+    expect(detail.series.publisherName).toBe('키워드');
+  });
+});
+
+describe('fetchPublisherSeries — GET /series/:series_id/publisher-series(explore-api.md 4.7-1)', () => {
+  it('발행 이름과 시리즈 카드만 옮긴다 — 모르는 종류는 버린다', async () => {
+    // given
+    mockGet.mockResolvedValue({
+      data: { publisher_name: '키워드', items: [seriesCard, unknownEntry] },
+    });
+
+    // when
+    const result = await fetchPublisherSeries({ seriesId: 's0' });
+
+    // then
+    expect(mockGet).toHaveBeenCalledWith('/series/s0/publisher-series');
+    expect(result.publisherName).toBe('키워드');
+    expect(result.series.map((series) => series.id)).toEqual(['s1']);
+    expect(result.series[0]).toMatchObject({ totalEpisodes: 16, episodeCount: 10 });
+  });
+
+  it('발행 이름이 없으면 null 이다', async () => {
+    // given
+    mockGet.mockResolvedValue({ data: { publisher_name: null, items: [] } });
+
+    // when
+    const result = await fetchPublisherSeries({ seriesId: 's0' });
+
+    // then
+    expect(result).toEqual({ publisherName: null, series: [] });
   });
 });

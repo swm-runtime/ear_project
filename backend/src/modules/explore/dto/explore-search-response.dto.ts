@@ -1,4 +1,10 @@
-import { ExploreSearchFallback, ExploreSearchResult } from '../explore.types';
+import { SearchEngine } from '@/modules/content/content.types';
+
+import {
+  ExploreSearchFallback,
+  ExploreSearchResult,
+  SearchMatch,
+} from '../explore.types';
 import { ExploreItemDto, ExploreListItemDto } from './explore-item.dto';
 
 class SearchRelatedTopicDto {
@@ -37,19 +43,39 @@ class SearchFallbackDto {
  * `fallback: null`, 빈 결과면 같은 응답의 `fallback`으로 대체 콘텐츠를 내려준다.
  */
 export class ExploreSearchResponseDto {
-  readonly items: ExploreListItemDto[];
+  /** 행마다 `matched_by`(어느 엔진에서 왔는가 — KAN-238)가 붙는다. 화면은 아직 쓰지 않는다 */
+  readonly items: (ExploreListItemDto & { matched_by: SearchEngine[] })[];
   readonly next_cursor: string | null;
   readonly has_next: boolean;
   readonly fallback: SearchFallbackDto | null;
+  /** 실제 검색에 쓴 정규화 질의 — 교정어 또는 입력의 정규화 값(KAN-238) */
+  readonly query_used: string;
+  /** 교정했으면 입력의 정규화 값("혹시 ‘OO’로" 자리), 아니면 `null` */
+  readonly corrected_from: string | null;
+  /** 첫 페이지에 키워드로 맞은 편이 있으면 `keyword`, 의미 결과만이면 `related`(`items`가 비면 `keyword`) */
+  readonly match: SearchMatch;
+  /** 이 응답을 만든 엔진 — 진단·로그 대조용 */
+  readonly engines: SearchEngine[];
 
+  /**
+   * **덧붙이는 필드만** 늘었다 — 종전 네 필드(`items`·`next_cursor`·`has_next`·`fallback`)의 모양·의미는 그대로라 옛 앱
+   * (1.1.0~1.3.0)은 새 필드를 무시한다
+   */
   static from(result: ExploreSearchResult): ExploreSearchResponseDto {
     return {
-      items: result.items.map((item) => ExploreItemDto.from(item)),
+      items: result.items.map((item, index) => ({
+        ...ExploreItemDto.from(item),
+        matched_by: result.matchedBy[index] ?? ['keyword'],
+      })),
       next_cursor: result.nextCursor,
       has_next: result.hasNext,
       fallback: result.fallback
         ? SearchFallbackDto.from(result.fallback)
         : null,
+      query_used: result.queryUsed,
+      corrected_from: result.correctedFrom,
+      match: result.match,
+      engines: result.engines,
     };
   }
 }

@@ -67,7 +67,12 @@ export class PlaybackProgressRepository {
       .insert()
       .into(PlaybackProgress)
       .values({ userId, contentId, positionSec, maxReachedSec })
-      .orUpdate(['position_sec', 'max_reached_sec'], ['user_id', 'content_id'])
+      // updated_at 을 명시한다 — 미니플레이어 복원이 "가장 최근에 들은 편"을 이 값으로 고른다(library-api.md 4.3, 2026-10-23).
+      // TypeORM 이 덮어쓰기 목록에 `updated_at = DEFAULT`를 자동으로 붙여 종전에도 갱신됐지만, 그 동작에 기대지 않는다
+      .orUpdate(
+        ['position_sec', 'max_reached_sec', 'updated_at'],
+        ['user_id', 'content_id'],
+      )
       .execute();
   }
 

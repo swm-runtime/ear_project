@@ -1,0 +1,34 @@
+# 탐색 재생 자동 적립 폐기 — 남은 문서·서버 정리
+
+| 항목 | 값 |
+|---|---|
+| 발행 날짜 | 2026-10-23 |
+| 발행 | FE (PM 지시 "시청하면 왜 자동으로 라이브러리에 담겨? 그거 없애") |
+| 대상 문서 | `spec/api/player-api.md` 4.3 · `spec/api/library-api.md` 4.4 · `backend/` 완청 판정 서술 |
+
+## 무엇이 바뀌었나
+
+앱이 탐색 재생(탐색 홈·검색·시리즈·콘텐츠 상세) 뒤에 보내던 `POST /contents/:id/save { reason: "auto_play" }`를 뺐다. `explore.md` 4.4·`explore-api.md` 4.6은 같은 PR에서 고쳤다.
+
+## 남은 것 — 서버 규칙과의 어긋남
+
+`player-api.md` 4.3: "**라이브러리에 없는 콘텐츠는 진행만 저장한다.** 상태 전이·`complete` 신호는 라이브러리 행이 전제다. 실제로는 탐색 재생의 자동 적립이 행을 만들어 두므로 이 분기는 경합에서만 나타난다."
+
+- 이제 이 분기가 **경합이 아니라 평소 경로**다 — 담지 않고 끝까지 들은 편은 `complete` 신호가 쌓이지 않는다(추천·드립 입력에서 빠진다). `play` 신호·`play_records`·재생 한도 차감은 그대로다.
+- 플레이어의 끝남 화면은 위치로 판정해 영향이 없다(앱 확인).
+
+## 결정 항목
+
+1. 담기지 않은 편의 완청도 `complete` 신호로 남길지(서버 — `playback_progresses` 기준으로 판정) — BE 결정
+2. 남긴다면 `player-api.md` 4.3 서술 개정, 안 남긴다면 "경합에서만" 문구만 정리
+
+## 완료 조건
+
+- Given 담지 않은 편을 탐색에서 재생해 90%를 넘긴다 / When 진행이 저장된다 / Then 결정 1에 따른 동작이 `player-api.md` 4.3에 적혀 있고 서버가 그대로 동작한다
+- Given 탐색에서 재생한다 / Then 라이브러리 목록에 그 편이 생기지 않는다
+
+## 처리 기록
+
+- 2026-10-23 서버 쪽은 BE 티켓 `tickets/backend/pending/complete-signal-without-library.md`(KAN-248)로 넘김.
+- 2026-10-23 발행 — FE 코드·`explore.md` 4.4·`explore-api.md` 4.6 반영(브랜치 `fix(fe)/no-auto-save-on-play`). 서버 쪽 결정 대기.
+- **2026-10-23 반영** — 결정(사용자 2026-10-23 "라이브러리에 안 담아도 완청하면 완청으로 판정, 나중에 담으면 완료로"): 1 = 남긴다, 3 = 나중에 담으면 `completed`. `player-api.md` 4.3 · `explore-api.md` 4.3 개정, 코드는 KAN-248 PR(`feat(be)/complete-signal-without-library`). 반영 날짜 2026-10-23.

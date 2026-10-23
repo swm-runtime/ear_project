@@ -115,6 +115,7 @@ const toProgressSaveResult = (dto: PlaybackProgressPutResponseDto): ProgressSave
         completedAt: dto.library_item.completed_at,
       }
     : null,
+  isCompleted: dto.is_completed ?? null,
 });
 
 /* ── 엔드포인트 — mock 분기는 각 함수 진입점 한 곳에서만 한다 ── */
