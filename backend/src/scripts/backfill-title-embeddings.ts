@@ -12,6 +12,7 @@
  *   npm run embeddings:backfill-titles -- --limit 50         # 최근 50편만
  *   운영 컨테이너: node dist/scripts/backfill-title-embeddings.js [--dry-run] [--limit N] [--delay-ms N]
  */
+import './one-off-script';
 import 'dotenv/config';
 
 import { NestFactory } from '@nestjs/core';

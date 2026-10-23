@@ -13,6 +13,7 @@
  *   npm run library:sync-status -- --dry-run      # 바뀔 수만 출력
  *   운영 컨테이너: node dist/scripts/sync-library-status.js [--dry-run]
  */
+import './one-off-script';
 import 'dotenv/config';
 
 import { NestFactory } from '@nestjs/core';

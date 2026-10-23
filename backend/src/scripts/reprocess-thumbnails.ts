@@ -16,6 +16,7 @@
  *   npm run thumbnails:reprocess                  # 실제 교체
  *   운영 컨테이너: node dist/scripts/reprocess-thumbnails.js [--dry-run]
  */
+import './one-off-script';
 import 'dotenv/config';
 
 import { randomUUID } from 'node:crypto';
