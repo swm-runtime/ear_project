@@ -84,3 +84,4 @@
   - 문서: `features/player.md` 4.7-1 · `spec/uiux/player-uiux.md` 4.6-1 "순서 변경".
   - 테스트: `services/queue-order.test.ts`(`reorderSubset` — 숨긴 줄 제자리·세운 줄 건너뜀·연달아 확정) · `services/queue-drag.test.ts`(키 순서 입히기·맨 위 칸·칸 계산) · `services/queue-context.test.ts`(`withSnapshotOrder`).
   - 완료 조건 다섯 개는 손 조작(빠른 20회 반복·튐 프레임·접히는 중 끌기·세운 줄)이라 **기기 확인 대기** — 탐색·라이브러리 맥락 각각.
+- 2026-10-24 **재발 → 재수정**(PM 실기기 build 48 — "빠르게 연달아 끌면 아직도 겹친다"). 진짜 원인: RN 0.86 Fabric 은 JS 구동 Animated 값을 setNativeProps 로 화면에 직접 쓰고 React 기록은 마지막 프레임 48ms 뒤에 맞춘다(`createAnimatedPropsHook` — shouldUseSetNativePropsInFabric 기본 켜짐). 줄 위치(translateY)·배율·그림자를 애니메이션 값과 숫자 사이에서 바꿔 끼우던 코드는 그 48ms 안에 숫자로 바뀌면 React 가 "같은 값"으로 보고 넘겨 화면이 옛 자리에 남았다(#2002 의 memo 가 줄 재렌더를 줄여 더 자주 났다). 수정: 줄을 목록 틀 안에 **절대 배치**하고 세로 위치를 줄마다 **위치 값 하나**(네이티브 드라이버)로만 정한다(`QueueRowSlot`) — React 순서는 위치에 영향이 없고, 놓는 순간 순서를 확정한다. 떠 있는 모습(배율·면·그림자)도 늘 같은 값. 삭제 뒤 아래 줄 올라오기는 줄 높이 접기 대신 위치 값 미끄러짐(280ms). 기기 확인 대기.
