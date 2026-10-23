@@ -6,8 +6,11 @@ import { usePlayerScreen } from './usePlayerScreen';
 const mockNavigate = jest.fn();
 const mockShareDismiss = jest.fn();
 const mockRequestShare = jest.fn();
+const mockGoBack = jest.fn();
 const mockNavigation = {
   navigate: mockNavigate,
+  goBack: mockGoBack,
+  setParams: jest.fn(),
   addListener: jest.fn((_event: string, callback: () => void) => {
     mockBlur = callback;
     return jest.fn();
@@ -21,11 +24,16 @@ const mockSession = {
   isBuffering: false,
   meta: { title: '테스트 콘텐츠' },
 };
-const mockPlaybackState = { session: mockSession, rate: 1, isRateHydrated: true };
+const mockPlaybackState: {
+  session: typeof mockSession | null;
+  rate: number;
+  isRateHydrated: boolean;
+} = { session: mockSession, rate: 1, isRateHydrated: true };
 
 jest.mock('@react-navigation/native', () => ({
   useNavigation: () => mockNavigation,
   useRoute: () => ({ params: { contentId: mockContentId } }),
+  useIsFocused: () => true,
 }));
 jest.mock('@tanstack/react-query', () => ({
   useQueryClient: () => ({ invalidateQueries: jest.fn() }),
@@ -47,7 +55,7 @@ jest.mock('../store/playback.store', () => ({
   ),
 }));
 jest.mock('../services/playback.service', () => ({
-  playbackService: { start: jest.fn(), flushProgress: jest.fn() },
+  playbackService: { start: jest.fn(), flushProgress: jest.fn(), clearSession: jest.fn() },
 }));
 
 const { act, create } = jest.requireActual<{
@@ -67,6 +75,7 @@ function Probe() {
 beforeEach(() => {
   jest.clearAllMocks();
   mockContentId = 'content-1';
+  mockPlaybackState.session = mockSession;
   act(() => {
     renderer = create(<Probe />);
   });
@@ -122,5 +131,32 @@ describe('플레이어 상세 이동 — 더보기 메뉴 닫힘 완료를 기�
     act(() => renderer.update(<Probe />));
     act(() => screen.handleMoreSheetDismiss());
     expect(mockNavigate).not.toHaveBeenCalled();
+  });
+});
+
+describe('세션 없음의 출구(KAN-257) — 열린 플레이어가 흰 화면에 갇히지 않는다', () => {
+  it('보던 세션이 사라지면 플레이어를 한 번 닫는다', () => {
+    mockPlaybackState.session = null;
+    act(() => renderer.update(<Probe />));
+    expect(mockGoBack).toHaveBeenCalledTimes(1);
+    act(() => renderer.update(<Probe />));
+    expect(mockGoBack).toHaveBeenCalledTimes(1);
+  });
+
+  it('세션을 한 번도 보지 못한 첫 프레임(미니플레이어 확대·딥링크 진입)에는 닫지 않는다', () => {
+    act(() => renderer.unmount());
+    mockPlaybackState.session = null;
+    act(() => {
+      renderer = create(<Probe />);
+    });
+    expect(mockGoBack).not.toHaveBeenCalled();
+  });
+
+  it('축소로 이미 닫는 중이면 세션이 사라져도 다시 닫지 않는다', () => {
+    act(() => screen.collapse());
+    expect(mockGoBack).toHaveBeenCalledTimes(1);
+    mockPlaybackState.session = null;
+    act(() => renderer.update(<Probe />));
+    expect(mockGoBack).toHaveBeenCalledTimes(1);
   });
 });

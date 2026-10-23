@@ -1,4 +1,4 @@
-import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
+import { useIsFocused, useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
 import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Linking } from 'react-native';
@@ -111,6 +111,31 @@ export const usePlayerScreen = () => {
     }
   }, [sessionContentId, contentId, navigation]);
 
+  /*
+   * ── 세션 없음의 출구(KAN-257) — 열린 플레이어에서 세션이 사라지면 화면을 닫는다. 종전엔 "세션 정리 직후의 한 프레임"만
+   * 가정해 빈 화면을 그렸고, 닫는 쪽이 따로 없는 정리(발급 먼저 경로의 회수·404 정리, 확인 팝업 [취소], 로그아웃 등)면 닫기
+   * 수단 없이 흰 화면에 갇혔다. 한 번이라도 세션을 본 뒤에만 닫는다 — 미니플레이어 확대·딥링크는 첫 프레임에 세션이 없다(아래
+   * 진입 효과가 세운다). 이미 닫는 중이면(차단 전환·PL9 [닫기]·축소) 다시 부르지 않고, 위에 다른 화면(상세)이 쌓여 있으면
+   * 돌아왔을 때 닫는다 ──
+   */
+  const hasSession = session !== null;
+  const hadSessionRef = useRef(hasSession);
+  const isClosingRef = useRef(false);
+  const isFocused = useIsFocused();
+  const close = () => {
+    isClosingRef.current = true;
+    navigation.goBack();
+  };
+  useEffect(() => {
+    if (hasSession) {
+      hadSessionRef.current = true;
+      return;
+    }
+    if (!hadSessionRef.current || isClosingRef.current || !isFocused) return;
+    close();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- close 는 ref·navigation 만 쓴다
+  }, [hasSession, isFocused]);
+
   /* ── 진입 — 게이트를 거치지 않은 경로(미니플레이어 확대·딥링크)만 여기서 시작한다.
         확대는 재생을 시작시키지 않는다(uiux 4.8) — autoplay 기본 false(FR-24) ── */
   useEffect(() => {
@@ -153,7 +178,7 @@ export const usePlayerScreen = () => {
     // 결제 뒤 다시 틀 콘텐츠 — 세션을 내리기 전에 잡아 둔다(paywall.md 4.5-5)
     const blockedContentId = usePlaybackStore.getState().session?.contentId ?? contentId;
     playbackService.clearSession();
-    navigation.goBack();
+    close();
     if (blockedState.kind === 'paywall') {
       // 세션이 어디서 왔든 사용자가 본 것은 플레이어 화면이다
       playGate.openPaywall('player', blockedState.message ?? undefined, {
@@ -439,10 +464,10 @@ export const usePlayerScreen = () => {
   /* ── PL9 회수 [닫기] — 세션을 내리고 원래 화면으로 복귀. 목록 정리는 라이브러리 소유 ── */
   const closeWithdrawn = () => {
     playbackService.clearSession();
-    navigation.goBack();
+    close();
   };
 
-  const collapse = () => navigation.goBack();
+  const collapse = close;
 
   const isLoading = isActiveSession && session.state === 'loading';
   const isBuffering = isActiveSession && session.state === 'ready' && session.isBuffering;
