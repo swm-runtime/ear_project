@@ -44,7 +44,10 @@ export interface PlayGateTarget {
   queue?: PlayQueueContext;
 }
 
-/** 게이트가 재생을 시작하는 두 경로(즉시·발급 뒤)가 같은 순간에 맥락을 쓴다 — 재생이 바뀌지 않으면 맥락도 바뀌지 않는다 */
+/**
+ * 게이트가 재생을 시작하는 두 경로(즉시·발급 뒤)가 **재생이 바뀌는 순간에** 맥락을 쓴다 — 재생이 바뀌지 않으면 맥락도 바뀌지
+ * 않는다. 즉시 경로는 시작 직전, 발급 먼저 경로는 서비스가 세션을 갈아 끼우는 순간(`onBecameCurrent`)이다
+ */
 const applyQueueContext = (target: PlayGateTarget) => {
   usePlaybackStore.getState().setQueueContext(target.queue ?? { kind: 'library' });
 };
@@ -184,14 +187,18 @@ export const usePlayGate = (options?: PlayGateOptions) => {
       playbackService.playWhenReady();
       openPlayer(target.contentId);
     };
-    applyQueueContext(target);
     playbackService.start({
       contentId: target.contentId,
       entryPoint,
       autoplay: false,
       restartFromBeginning: target.restartFromBeginning,
       meta: target.meta,
+      // 듣던 편이 있으면(플레이어 안의 재생 목록·미니플레이어가 떠 있는 채) 발급 결과가 나올 때까지 내리지 않는다 — 한도
+      // 403 이면 듣던 편은 그대로 두고 안내만 뜬다(KAN-257). 종전엔 먼저 내려 플레이어가 세션 없이 흰 화면에 갇혔다
+      keepCurrentUntilIssued: true,
       callbacks: {
+        // 맥락은 재생이 실제로 바뀌는 순간에 쓴다 — 막혀서 듣던 편을 지키면 맥락도 그대로다
+        onBecameCurrent: () => applyQueueContext(target),
         onPlayStarted: options?.onPlayStarted
           ? (result) => options.onPlayStarted?.(result, target)
           : undefined,

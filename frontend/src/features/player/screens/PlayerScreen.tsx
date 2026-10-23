@@ -1679,7 +1679,8 @@ export default function PlayerScreen() {
   );
 
   if (!session) {
-    // 세션 정리 직후(차단 전환·회수 닫기)의 한 프레임 — 아무것도 그리지 않는다
+    // 세션 정리 직후(차단 전환·회수 닫기)의 한 프레임 — 아무것도 그리지 않는다. 여기 머물지 않는다: 세션을 본 뒤 사라졌으면
+    // usePlayerScreen 의 "세션 없음의 출구"가 화면을 닫는다(KAN-257 — 종전엔 닫는 쪽이 없는 정리면 흰 화면에 갇혔다)
     return <View style={containerStyle} />;
   }
 

@@ -94,6 +94,26 @@ export const withSnapshotItemId = (
 };
 
 /**
+ * 담기 결과를 추천 블록("다음에 들어볼 만한")의 장들에 반영한다(KAN-259) — 추천 줄은 스냅샷이 아니라 추천 쿼리(장마다 줄 목록)에서
+ * 온다. 그 편이 어느 장에도 없으면 같은 참조를 돌려준다(캐시를 건드리지 않는다)
+ */
+export const withPagesItemId = (
+  pages: QueueEntry[][],
+  contentId: string,
+  itemId: string | null,
+): QueueEntry[][] => {
+  let changed = false;
+  const next = pages.map((page) => {
+    if (!page.some((entry) => entry.contentId === contentId && entry.itemId !== itemId)) {
+      return page;
+    }
+    changed = true;
+    return page.map((entry) => (entry.contentId === contentId ? { ...entry, itemId } : entry));
+  });
+  return changed ? next : pages;
+};
+
+/**
  * 자동 재생(연속 재생 — player.md 4.2-4)으로 다음에 틀 편 — 지금 듣는 편 **뒤의 첫 번째 안 들은 편**. 다 들은 편은
  * 건너뛴다(같은 편을 또 틀지 않는다). 지금 듣는 편이 목록에 없거나 뒤에 남은 편이 없으면 null — 거기서 멈춘다
  */
