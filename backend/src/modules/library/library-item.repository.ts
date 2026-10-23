@@ -744,8 +744,9 @@ export class LibraryItemRepository {
    *
    * - 위치 > 0 · 노출 중(발행·만료·시장) · **완청 아님**(`COMPLETED_CONTENT_IDS_CTE`와 같은 정의 — 라이브러리
    *   `completed` 행도, 위치가 기준을 넘은 편도 뺀다)
-   * - **라이브러리에서 지운 편은 지운 뒤 다시 들었을 때만** 대상이다 — 지운 것을 이어들 자리는 없지만(`library.md` 4.2),
-   *   지운 뒤 탐색에서 다시 틀었으면 새로 듣는 편이다. 그때 `itemId`는 null(살아 있는 행이 아니다)
+   * - **라이브러리에서 지운 편은 대상이 아니다** — 지운 것을 이어들 자리는 없다(`library.md` 4.2). "지운 뒤 다시 들었으면
+   *   대상"으로 두었다가(#1938) 되돌렸다: 지운 뒤에도 재생이 이어지거나 백그라운드 전환의 진행 저장이 한 번 나가면 위치
+   *   갱신 시각이 삭제 시각을 넘어, 지운 편이 다음 실행 때 미니플레이어로 돌아왔다(2026-10-23 검증)
    * - 최근 = `GREATEST(위치 갱신 시각, 라이브러리 last_played_at)` — 라이브러리에서 연 재생은 시작 시각이, 탐색 재생은
    *   위치 저장 시각이 남는다
    */
@@ -786,7 +787,13 @@ export class LibraryItemRepository {
       .where('progress.user_id = :userId', { userId })
       .andWhere('progress.position_sec > 0')
       .andWhere(
-        '(item.id IS NULL OR item.deleted_at IS NULL OR item.deleted_at < progress.updated_at)',
+        // 지운 행은 직접 본다 — 위 leftJoin 은 엔티티의 소프트 삭제 조건이 붙어 지운 행을 "행 없음"으로 보이게 한다
+        `NOT EXISTS (
+           SELECT 1 FROM library_items removed
+            WHERE removed.user_id = progress.user_id
+              AND removed.content_id = progress.content_id
+              AND removed.deleted_at IS NOT NULL
+         )`,
       )
       .andWhere('(item.status IS NULL OR item.status != :completed)', {
         completed: LibraryItemStatus.COMPLETED,
