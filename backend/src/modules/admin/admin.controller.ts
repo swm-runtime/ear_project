@@ -494,6 +494,7 @@ export class AdminController {
       audioLossless: files.audio_lossless?.[0]
         ? toFileInput(files.audio_lossless[0])
         : null,
+      renditionOnly: form.rendition_only ?? null,
       thumbnail: thumbnail ? toFileInput(thumbnail) : null,
       enrichment: files.enrichment_file?.[0]
         ? toFileInput(files.enrichment_file[0])

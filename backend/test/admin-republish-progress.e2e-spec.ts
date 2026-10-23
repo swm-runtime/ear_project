@@ -243,6 +243,122 @@ describe('재발행 재생 위치 E2E', () => {
     expect(afterAudio.content.content_version).toBe(2);
   });
 
+  it('무손실만 교체하면 무손실 행만 바뀌고 버전·재생 위치·대본·압축 행은 그대로다(KAN-264)', async () => {
+    // given — 압축·무손실 두 벌로 발행되고 대본이 있는 콘텐츠, 그 콘텐츠를 120초까지 들은 사용자
+    const topic = await seedTopic();
+    const { auth: admin } = await createUser('admin-ll', UserRole.ADMIN);
+    const { auth: listener } = await createUser('listener-ll', UserRole.USER);
+
+    const uploaded = await request(app.getHttpServer())
+      .post(path('/admin/contents'))
+      .set('Authorization', admin)
+      .field(
+        'payload',
+        JSON.stringify({
+          title: `${STAMP} 무손실 편`,
+          description: 'e2e 전용',
+          origin: 'ai_generated',
+          source_name: '참고한 자료: E2E',
+          topic_ids: [topic.id],
+          sources: [{ title: 'E2E 소스' }],
+          review_confirmed: true,
+          market: 'kr',
+          language: 'ko',
+        }),
+      )
+      .attach('audio', Buffer.from('fake-audio'), {
+        filename: 'ep.mp3',
+        contentType: 'audio/mpeg',
+      })
+      .attach('audio_lossless', Buffer.from('fake-flac'), {
+        filename: 'ep.flac',
+        contentType: 'audio/flac',
+      })
+      .attach('thumbnail', Buffer.from('fake-image'), {
+        filename: 'thumb.png',
+        contentType: 'image/png',
+      })
+      .expect(HttpStatus.CREATED);
+    const contentId = (uploaded.body as AdminContentBody).id;
+    contentIds.push(contentId);
+    await dataSource.transaction((manager) =>
+      app.get(ContentService).saveScript(
+        contentId,
+        {
+          segments: [
+            { start_sec: 0, end_sec: 5, speaker: '윤아', text: '안녕하세요' },
+          ],
+          sections: [],
+        },
+        manager,
+      ),
+    );
+    await saveProgress(listener, contentId, 120, 1).expect(HttpStatus.OK);
+    const before = await renditionPaths(contentId);
+
+    // when — 무손실 파일만 rendition_only=lossless 로 보낸다
+    const replaced = await request(app.getHttpServer())
+      .patch(path(`/admin/contents/${contentId}`))
+      .set('Authorization', admin)
+      .field('rendition_only', 'lossless')
+      .attach('audio_lossless', Buffer.from('new-flac'), {
+        filename: 'ep.flac',
+        contentType: 'audio/flac',
+      })
+      .expect(HttpStatus.OK);
+
+    // then — 버전 그대로·대본 그대로, 무손실 경로만 바뀌고 압축 경로는 그대로
+    expect(replaced.body as AdminContentBody).toMatchObject({
+      content_version: 1,
+      has_script: true,
+    });
+    const after = await renditionPaths(contentId);
+    expect(after.compressed).toBe(before.compressed);
+    expect(after.lossless).toBeDefined();
+    expect(after.lossless).not.toBe(before.lossless);
+
+    // then — 재생 위치가 남아 있다
+    expect((await issue(listener, contentId)).progress).toEqual({
+      position_sec: 120,
+      max_reached_sec: 120,
+    });
+
+    // then — 다른 파트를 섞으면 400, rendition_only 없이 무손실만 보내면 종전대로 400(audio)
+    const mixed = await request(app.getHttpServer())
+      .patch(path(`/admin/contents/${contentId}`))
+      .set('Authorization', admin)
+      .field('rendition_only', 'lossless')
+      .attach('audio_lossless', Buffer.from('new-flac'), {
+        filename: 'ep.flac',
+        contentType: 'audio/flac',
+      })
+      .attach('thumbnail', Buffer.from('new-image'), {
+        filename: 'thumb.png',
+        contentType: 'image/png',
+      })
+      .expect(HttpStatus.BAD_REQUEST);
+    expect(mixed.body).toMatchObject({ field: 'rendition_only' });
+    const withoutFlag = await request(app.getHttpServer())
+      .patch(path(`/admin/contents/${contentId}`))
+      .set('Authorization', admin)
+      .attach('audio_lossless', Buffer.from('new-flac'), {
+        filename: 'ep.flac',
+        contentType: 'audio/flac',
+      })
+      .expect(HttpStatus.BAD_REQUEST);
+    expect(withoutFlag.body).toMatchObject({ field: 'audio' });
+  });
+
+  async function renditionPaths(
+    contentId: string,
+  ): Promise<Record<string, string>> {
+    const rows: { quality: string; path: string }[] = await dataSource.query(
+      `SELECT quality, path FROM content_audio_renditions WHERE content_id = $1`,
+      [contentId],
+    );
+    return Object.fromEntries(rows.map((row) => [row.quality, row.path]));
+  }
+
   function saveProgress(
     auth: string,
     contentId: string,

@@ -13,7 +13,7 @@
 | 선행 | 없음 · 관련 FE [KAN-256](https://runtime364.atlassian.net/browse/KAN-256)(iOS 정확한 시각 옵션 — 1.3.0 빌드) · BE 게이트(iOS 1.3.0 미만 무손실 대신 AAC, PR #1975·#1898 운영 반영) |
 | 근거 문서 | `spec/api/admin-api.md` 4.10 · `docs/ai/spec/06-audio.md`(FLAC SEEKTABLE, 2026-10-23) · `backend/domain.md` 5.1-1 |
 | 중요도 | Medium |
-| 상태 | 발행 |
+| 상태 | 반영 — BE 경로 완료(파이프라인 190편 전송은 AI 몫) |
 
 ## 문제
 
@@ -53,3 +53,4 @@
 ## 처리 기록
 
 - 2026-10-23 작성(박수헌 결정 "백엔드 무손실 전용 재발행으로") · 같은 날 Jira KAN-264 발행(Slack 알림 없음 — 박수헌 지시). 파이프라인 S3 190편 교체는 같은 날 완료.
+- 2026-10-23 **BE 반영**(박준현, `feat(be)/lossless-only-republish`). `PATCH /admin/contents/:contentId` 에 텍스트 필드 `rendition_only=lossless` + `audio_lossless` 하나 → `lossless` 행만 교체(`ContentService.replaceAudioRendition`), `content_version`·재생 위치·대본·압축/AAC 행 그대로. 검증: 다른 파트가 섞이면 400 `rendition_only` · 파일 없으면 400 `audio_lossless` · 길이 ±1초 밖이면 400 `audio_lossless`(올리기 전·행 잠근 뒤 두 번) · 발행 중 아니면 409. `audit_logs` `content.republish`(버전 n→n, `changed_parts: ["audio_lossless"]`, `rendition_only: "lossless"`). 옛 무손실 파일은 트랜잭션 성공 뒤 삭제. 테스트: 단위 7건 · E2E 1건(실DB — 버전 1 유지·위치 120초 유지·대본 유지·압축 경로 그대로·무손실 경로만 바뀜·섞으면 400·플래그 없이 400 `audio`). 문서는 `changes/pending/lossless-only-republish.md`(admin-api.md 4.10 · domain.md 5.8). 완료 조건 4번째(190편 전송 뒤 iOS 확인)는 파이프라인 스크립트 몫이다. 반영 날짜 2026-10-23.
