@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Animated, PanResponder, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import { useAnimatedValue } from '@/shared/hooks/useAnimatedValue';
@@ -43,8 +43,17 @@ interface PlayerQueuePanelProps {
   sourceLabel?: string;
   /** 라이브러리에 없는 줄의 담기(탐색 맥락) — 낙관 반영·토스트는 부모 몫 */
   onSave?: (item: QueueEntry) => void;
-  /** "다음에 들어볼 만한"(player.md 4.2-2) — 탐색 맥락만. 비면 섹션을 그리지 않는다 */
-  upNext?: { items: QueueEntry[]; isLoading: boolean };
+  /**
+   * "다음에 들어볼 만한"(player.md 4.2-2) — 라이브러리·탐색 맥락 모두, 목록 **아래**에 붙는다. 비면 섹션을 그리지 않는다.
+   * 끝이 없다(PM 2026-10-23 "유튜브 뮤직처럼 무한으로") — 바닥 가까이 내리면 `onEndReached` 로 다음 장을 부른다
+   */
+  upNext?: {
+    items: QueueEntry[];
+    isLoading: boolean;
+    /** 다음 장을 받는 중 — 바닥에 줄 스켈레톤 */
+    isFetchingMore?: boolean;
+    onEndReached?: () => void;
+  };
   onSelectUpNext?: (item: QueueEntry) => void;
   /**
    * 목록 바닥 여백(KAN-241 "4번") — 시트 틀이 2단 높이로 서 있어 1단에서는 아래가 화면 밖으로 밀려 있다. 그만큼 바닥 여백을 줘
@@ -120,6 +129,8 @@ const speedOf = (depth: number): number =>
 const SKELETON_ROW_COUNT = 5;
 /** 추천 블록 스켈레톤 — 목록 아래라 둘이면 "뭔가 온다"는 단서로 충분하다 */
 const UP_NEXT_SKELETON_ROW_COUNT = 2;
+/** 바닥에서 이 줄 수만큼 남으면 추천 다음 장을 부른다 — 닿기 전에 받아 두어 끊기지 않게 */
+const UP_NEXT_PREFETCH_ROWS = 4;
 
 /**
  * 대기열 로딩 스켈레톤 — 실제 행과 같은 높이·여백(썸네일 48 + 제목 줄 + 보조 줄). 손잡이 자리는 비워 둔다.
@@ -798,30 +809,34 @@ export default function PlayerQueuePanel({
     </Text>
   ) : null;
 
+  const upNextSkeleton = (
+    <SkeletonGroup style={styles.rows} color={playerColor.skeleton}>
+      {Array.from({ length: UP_NEXT_SKELETON_ROW_COUNT }, (_, index) => (
+        <View key={index} style={styles.rowWrap}>
+          <View style={styles.row}>
+            <SkeletonBlock width={THUMBNAIL_SIZE} height={THUMBNAIL_SIZE} radius="sm" />
+            <View style={styles.skeletonMeta}>
+              <SkeletonLine width="72%" height={theme.font.size.md} />
+              <SkeletonLine width="36%" height={theme.font.size.xs} />
+            </View>
+          </View>
+        </View>
+      ))}
+    </SkeletonGroup>
+  );
   /*
-   * "다음에 들어볼 만한"(player.md 4.2-2) — 탐색 맥락 목록 아래 두 번째 섹션. 로딩은 줄 스켈레톤 둘, 0건·실패는 섹션 자체를
-   * 그리지 않는다(목록은 멀쩡하다 — 패널 안 오류 표시 없음). 자동 재생은 없다 — 줄 탭이 재생 시작(게이트)이다
+   * "다음에 들어볼 만한"(player.md 4.2-2) — 목록 아래 두 번째 섹션(라이브러리·탐색 맥락 모두 — PM 2026-10-23 "항상 켜 두자").
+   * 로딩은 줄 스켈레톤 둘, 0건·실패는 섹션 자체를 그리지 않는다(목록은 멀쩡하다 — 패널 안 오류 표시 없음). 다음 장을 받는 동안은
+   * 바닥에 스켈레톤 둘. 자동 재생은 없다 — 줄 탭이 재생 시작(게이트)이다
    */
   const upNextSection =
-    isExplore && upNext && (upNext.isLoading || upNext.items.length > 0) ? (
+    upNext && (upNext.isLoading || upNext.items.length > 0) ? (
       <View style={styles.upNext}>
         <Text style={styles.upNextTitle} accessibilityRole="header">
           {PLAYER_COPY.queuePanel.upNextTitle}
         </Text>
         {upNext.isLoading && upNext.items.length === 0 ? (
-          <SkeletonGroup style={styles.rows} color={playerColor.skeleton}>
-            {Array.from({ length: UP_NEXT_SKELETON_ROW_COUNT }, (_, index) => (
-              <View key={index} style={styles.rowWrap}>
-                <View style={styles.row}>
-                  <SkeletonBlock width={THUMBNAIL_SIZE} height={THUMBNAIL_SIZE} radius="sm" />
-                  <View style={styles.skeletonMeta}>
-                    <SkeletonLine width="72%" height={theme.font.size.md} />
-                    <SkeletonLine width="36%" height={theme.font.size.xs} />
-                  </View>
-                </View>
-              </View>
-            ))}
-          </SkeletonGroup>
+          upNextSkeleton
         ) : (
           <View style={styles.rows}>
             {upNext.items.map((item, index) => (
@@ -853,8 +868,22 @@ export default function PlayerQueuePanel({
             ))}
           </View>
         )}
+        {upNext.isFetchingMore && upNext.items.length > 0 ? upNextSkeleton : null}
       </View>
     ) : null;
+  // 바닥 가까이 왔으면 추천 다음 장 — 스크롤·내용 크기·화면 크기가 바뀔 때마다 본다(목록이 짧아 스크롤이 없어도 부른다)
+  const onUpNextEnd = upNext?.onEndReached;
+  const upNextCount = upNext?.items.length ?? 0;
+  const checkUpNextEnd = useCallback(() => {
+    if (!onUpNextEnd) return;
+    const { offset, viewport, content } = scrollState.current;
+    if (viewport <= 0 || content <= 0) return;
+    if (offset + viewport >= content - UP_NEXT_PREFETCH_ROWS * ROW_STEP) onUpNextEnd();
+  }, [onUpNextEnd]);
+  // 시트가 열린 순간(부를 수 있게 된 순간)·장이 붙은 뒤에도 한 번 본다 — 스크롤 없이 바닥이 보이는 짧은 목록
+  useEffect(() => {
+    checkUpNextEnd();
+  }, [checkUpNextEnd, upNextCount]);
 
   if (isError) {
     return (
@@ -902,13 +931,16 @@ export default function PlayerQueuePanel({
           // 끄는 중에는 자동 스크롤이 직접 적는 값이 기준이다(이벤트는 한 박자 늦다)
           if (dragRef.current === null) {
             scrollState.current.offset = event.nativeEvent.contentOffset.y;
+            checkUpNextEnd();
           }
         }}
         onLayout={(event) => {
           scrollState.current.viewport = event.nativeEvent.layout.height;
+          checkUpNextEnd();
         }}
         onContentSizeChange={(_, height) => {
           scrollState.current.content = height;
+          checkUpNextEnd();
         }}
       >
         {header}
