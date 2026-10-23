@@ -54,3 +54,4 @@
 
 - 2026-10-23 발행(박준현 — 마크다운 + Jira KAN-256, 담당 이주호). 진단: 팀원 iOS 1.2.1 무손실 재현·압축 정상·Android 무손실 정상, 서버 데이터(개발계 사본) 정상.
 - 2026-10-23 **1.3.0 빌드에 함께 싣기로**(박준현 — 1.3.0 아직 심사 전). 기한을 빌드·심사 마일스톤 10-24로, BE 기준 버전 1.3.0.
+- 2026-10-24 **코드 반영**(이 PR) — `patches/expo-audio+57.0.3.patch` iOS `AudioUtils.createAVPlayerItem` 이 `EarAudioStream.prefersPreciseTiming` 으로 판정해 `AVURLAssetPreferPreciseDurationAndTimingKey: true` 를 넣는다. 음질을 네이티브에 넘기는 방법(1번)은 **JS 를 바꾸지 않는 쪽**으로 골랐다 — 고정 스트림 주소(`ear-audio://`)는 JS 가 플레이어를 만들기 전에 표에 넣는 서명 URL 의 확장자(`.flac`)로 본다. 그래서 **runtimeVersion 은 36 그대로**다(2번과 다름 — 올리면 rt 36 기기에 OTA 가 끊기는데, JS 가 같아 올릴 이유가 없다. app.json 노트에 이력). Android 무변경. **남은 것**: iOS 1.3.0 새 빌드·심사 제출(KAN-198), 실기기 완료 조건 확인, 셀룰러 탭→소리 측정(3번) — 그때까지 pending 에 둔다.
