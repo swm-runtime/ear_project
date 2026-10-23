@@ -180,36 +180,50 @@ export default function PlayerScreen() {
           ),
     [queueOrder.orderedItems, hiddenQueueItemIds],
   );
-  const queueItems: QueueEntry[] = isLibraryQueue ? libraryQueueItems : snapshotItems;
+  /*
+   * 라이브러리 맥락도 지금 듣는 편이 목록에 없으면 맨 위에 세운다(탐색 맥락과 같은 규칙 — player.md 4.2-1). 추천 줄을 틀면
+   * (2026-10-23 라이브러리 맥락에도 추천) 그 편은 라이브러리 첫 페이지에 없다 — 재생 중인 줄이 목록 어디에도 없게 된다
+   */
+  const libraryShownItems = useMemo(
+    () =>
+      queueQuery.data === undefined
+        ? libraryQueueItems
+        : withCurrentFirst(libraryQueueItems, session ? entryFromSession(session) : null),
+    [libraryQueueItems, queueQuery.data, session],
+  );
+  const queueItems: QueueEntry[] = isLibraryQueue ? libraryShownItems : snapshotItems;
   // 줄 손잡이 끌기 — 라이브러리 맥락은 서버 순서 저장, 탐색 맥락은 스냅샷만 바꾼다(PM 2026-10-23, 로컬뿐)
   const moveQueueItem = useCallback(
     (from: number, to: number) => {
       if (isLibraryQueue) {
         // 패널의 자리는 숨긴 줄을 뺀 목록 기준 — 캐시 목록의 자리로 옮겨 적는다
         const full = queueOrder.orderedItems;
-        const fromIndex = full.indexOf(libraryQueueItems[from]);
-        const toIndex = full.indexOf(libraryQueueItems[to]);
+        // 맨 위에 세운 지금 듣는 편(라이브러리 첫 페이지 밖)은 캐시 목록에 없다 — 옮기지 않는다
+        const fromIndex = full.findIndex((item) => item === libraryShownItems[from]);
+        const toIndex = full.findIndex((item) => item === libraryShownItems[to]);
         if (fromIndex === -1 || toIndex === -1) return;
         return queueOrder.move(fromIndex, toIndex);
       }
       const store = usePlaybackStore.getState();
       store.setQueueContext(withSnapshotMoved(store.queueContext, snapshotItems, from, to));
     },
-    [isLibraryQueue, queueOrder, libraryQueueItems, snapshotItems],
+    [isLibraryQueue, queueOrder, libraryShownItems, snapshotItems],
   );
   const queueSourceLabel = useMemo(
     () => (queueContext.kind === 'explore' ? sourceLabelOf(queueContext.source) : null),
     [queueContext],
   );
-  // "다음에 들어볼 만한"(player.md 4.2-2) — 탐색 맥락에서만, 시트가 앉은 뒤. 지금 듣는 편·스냅샷은 뺀다
-  const upNextExcludeIds = useMemo(
-    () => snapshotItems.map((item) => item.contentId),
-    [snapshotItems],
-  );
+  /*
+   * "다음에 들어볼 만한"(player.md 4.2-2) — **라이브러리·탐색 맥락 모두**(PM 2026-10-23 "항상 켜 두자, 유튜브 뮤직처럼 무한으로"),
+   * 시트가 앉은 뒤. 지금 듣는 편·목록에 있는 편은 뺀다 — 라이브러리 맥락은 목록을 받은 뒤에 부른다(받기 전엔 뺄 목록을 모른다)
+   */
+  const upNextExcludeIds = useMemo(() => queueItems.map((item) => item.contentId), [queueItems]);
   const upNextQuery = useUpNextQuery(
     session?.contentId ?? null,
     upNextExcludeIds,
-    screen.activePanel === 'queue' && isQueueSettled && !isLibraryQueue,
+    screen.activePanel === 'queue' &&
+      isQueueSettled &&
+      (!isLibraryQueue || queueQuery.data !== undefined),
   );
   const isPanelAvailable = (kind: PlayerPanelKind) =>
     kind === 'script' ? isScriptAvailable : true;
@@ -2366,14 +2380,14 @@ export default function PlayerScreen() {
                     onSelect={screen.playQueueItem}
                     onReorder={moveQueueItem}
                     onSave={screen.saveQueueItem}
-                    upNext={
-                      isLibraryQueue
-                        ? undefined
-                        : {
-                            items: upNextQuery.data ?? EMPTY_QUEUE,
-                            isLoading: upNextQuery.isPending,
-                          }
-                    }
+                    upNext={{
+                      items: upNextQuery.items,
+                      // 라이브러리 맥락은 목록을 받기 전엔 부르지 않는다 — 그동안은 목록 스켈레톤이 대신한다
+                      isLoading: upNextQuery.isPending,
+                      isFetchingMore: upNextQuery.isFetchingMore,
+                      // 열려 있을 때만 다음 장 — 닫힌 채 목록 맞추기(스크롤)로 불리지 않게
+                      onEndReached: isQueueOpen ? upNextQuery.fetchMore : undefined,
+                    }}
                     onSelectUpNext={screen.playUpNextItem}
                     onDelete={screen.deleteQueueItem}
                     categoryOf={queueCategoryOf}

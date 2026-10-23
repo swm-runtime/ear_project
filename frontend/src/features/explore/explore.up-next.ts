@@ -8,13 +8,13 @@ import { exploreKeys, fetchExploreFeed, fetchRelatedContents } from './api/explo
 import { toQueueEntry } from './explore.queue';
 import type { ExploreFeed, ExploreItem } from './explore.types';
 
-/** 추천 블록 길이(player.md 4.2-2 "3~5편") */
-const UP_NEXT_LIMIT = 5;
+/** 추천 블록 한 장의 길이 — 끝까지 내리면 다음 장을 받는다(player.md 4.2-2, 2026-10-23 끝없는 추천). 서버 상한 10 */
+const UP_NEXT_LIMIT = 10;
 /** 피드 캐시를 새것으로 보는 시간 — 탐색 피드 쿼리(useExploreFeedQuery)와 같은 값 */
 const FEED_STALE_MS = 5 * 60 * 1000;
 
 /**
- * "다음에 들어볼 만한"의 폴백 소스(player.md 4.2-2 ②, KAN-241) — 탐색 `interest` 섹션에서 지금 듣는 편·스냅샷을 뺀 앞 5편.
+ * "다음에 들어볼 만한"의 폴백 소스(player.md 4.2-2 ②, KAN-241) — 탐색 `interest` 섹션에서 지금 듣는 편·스냅샷을 뺀 앞 10편.
  * 탐색 화면이 받아 둔 피드 캐시를 그대로 쓴다(같은 키·같은 queryFn) — 없거나 낡았으면 그때 한 번 받는다
  */
 export const fetchInterestUpNext = async (
