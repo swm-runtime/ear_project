@@ -115,9 +115,10 @@ const ko = {
     sourceSeries: (title: string) => title,
     /** 탐색 맥락 목록 아래 추천 블록(player.md 4.2-2) — 자동 재생은 없다, 목록일 뿐 */
     upNextTitle: '다음에 들어볼 만한',
-    /** 추천 섹션 제목 옆 자동 재생 스위치(player.md 4.2-4) — 설정의 [재생 목록 자동 재생]과 같은 값이다 */
+    /** 추천 섹션 제목 옆 [자동 재생] 스위치(player.md 4.2-4) — 추천 이어 틀기만 켜고 끈다. 설정의 [재생 목록 자동 재생]이 켜져야 눌린다 */
     autoplayLabel: '자동 재생',
-    autoplayHint: '한 편이 끝나면 다음 편을, 목록이 끝나면 추천 편을 이어서 틀어요',
+    autoplayHint: '재생 목록이 끝나면 비슷한 추천 편을 이어서 틀어요',
+    autoplayDisabledHint: '설정에서 재생 목록 자동 재생을 켜면 쓸 수 있어요',
     /** 라이브러리에 없는 줄의 담기 버튼(탐색 맥락만) — 탐색 타일의 담기와 같은 말 */
     saveA11y: '라이브러리에 담기',
     saveToast: '라이브러리에 담았어요',
@@ -297,7 +298,8 @@ const en: LocalizedCopy<typeof ko> = {
     sourceSeries: (title: string) => title,
     upNextTitle: 'Up next for you',
     autoplayLabel: 'Autoplay',
-    autoplayHint: 'Plays the next episode, then similar ones when your queue ends',
+    autoplayHint: 'Plays similar episodes when your queue ends',
+    autoplayDisabledHint: 'Turn on Autoplay up next in Settings to use this',
     saveA11y: 'Save to library',
     saveToast: 'Saved to your library',
     saveFailedToast: "Couldn't save. Please try again.",
