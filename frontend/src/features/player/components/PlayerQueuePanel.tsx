@@ -12,7 +12,7 @@ import { PLAYER_COPY } from '../player.copy';
 import { formatPlaybackTime } from '../player.format';
 import { playerColor } from '../player.theme';
 import type { QueueEntry } from '../player.types';
-import { PlusIcon, ReorderIcon } from './PlayerIcons';
+import { PlusIcon, ReorderIcon, TrashIcon } from './PlayerIcons';
 
 /** 목록의 정체(player.md 4.2-1, KAN-241) — 라이브러리(조회·끌기) / 탐색 스냅샷(담기·추천 블록) */
 export type QueuePanelMode = 'library' | 'explore';
@@ -57,24 +57,22 @@ interface PlayerQueuePanelProps {
 const rowKey = (item: QueueEntry): string => item.itemId ?? `content-${item.contentId}`;
 
 /*
- * 줄 스와이프(KAN-241 "3번") — 가로 이동이 세로의 1.5배를 넘고 몇 px 움직였을 때 잡는다(목록 스크롤과 가른다). 72px 넘게 밀고
- * 놓으면 실행, 96px 부터는 고무줄. 삭제는 줄이 왼쪽으로 빠져나간 뒤 부모가 걷고, 담기는 제자리로 돌아오며 실행된다
+ * 줄 스와이프(KAN-241 "3번" → 동그라미, PM 2026-10-23 "동그라미로 삭제·보관, 아이콘으로") — 애플 메일 문법. 가로 이동이 세로의
+ * 1.5배를 넘고 몇 px 움직였을 때 잡는다(목록 스크롤과 가른다). 왼쪽으로 밀면 오른쪽 끝에 **삭제 동그라미**, 오른쪽으로 밀면
+ * 왼쪽 끝에 **담기 동그라미**가 드러난다. 열린 자리의 절반 넘게 밀고 놓으면 열린 채 머물고(동그라미 탭 = 실행, 줄 탭 = 닫기),
+ * **끝까지 밀고 놓으면 바로 실행**한다. 삭제는 줄이 왼쪽으로 빠져나간 뒤 부모가 걷고, 담기는 제자리로 돌아오며 실행된다
  */
 const SWIPE_AXIS_RATIO = 1.5;
 const SWIPE_CLAIM_DISTANCE = 8;
-const SWIPE_ACTION_DISTANCE = 72;
-const SWIPE_MAX_DISTANCE = 96;
-const SWIPE_RUBBER_BAND = 0.25;
+const SWIPE_CIRCLE_SIZE = 44;
+const SWIPE_ICON_SIZE = 22;
+/** 열린 자리 — 동그라미 + 좌우 여백 md */
+const SWIPE_OPEN_DISTANCE = SWIPE_CIRCLE_SIZE + theme.spacing.md * 2;
+const SWIPE_OPEN_THRESHOLD = SWIPE_OPEN_DISTANCE / 2;
+/** 이만큼 넘게 밀고 놓으면 열지 않고 바로 실행(끝까지 밀기) */
+const SWIPE_FULL_DISTANCE = 200;
 const SWIPE_DISMISS_DISTANCE = 480;
 const SWIPE_SETTLE_MS = 160;
-const rubberBand = (dx: number): number => {
-  const magnitude = Math.abs(dx);
-  const eased =
-    magnitude <= SWIPE_MAX_DISTANCE
-      ? magnitude
-      : SWIPE_MAX_DISTANCE + (magnitude - SWIPE_MAX_DISTANCE) * SWIPE_RUBBER_BAND;
-  return Math.sign(dx) * eased;
-};
 const THUMBNAIL_SIZE = 48;
 /** 행 높이는 고정이다 — 끌어 옮길 때 "몇 칸 움직였나"를 거리에서 바로 센다(썸네일 48 + 위아래 sm) */
 const ROW_HEIGHT = THUMBNAIL_SIZE + theme.spacing.sm * 2;
@@ -239,21 +237,55 @@ function QueueRow({
    * 손잡이(순서 변경)는 자기 영역에서 먼저 잡고, 세로 이동은 목록 스크롤에 둔다. 잡은 뒤에는 스크롤·시트 끌기에 내주지 않는다 ──
    */
   const swipeX = useAnimatedValue(0);
+  /** 열려 머문 쪽 — -1 삭제(왼쪽으로 밀림) · 1 담기 · 0 닫힘. 제스처는 이 자리에서 이어 민다 */
+  const openSideRef = useRef<-1 | 0 | 1>(0);
+  const [isSwipeOpen, setIsSwipeOpen] = useState(false);
   const swipeLatest = useRef({ canDelete, canSave, onDelete, onSave, item });
   useEffect(() => {
     swipeLatest.current = { canDelete, canSave, onDelete, onSave, item };
   });
-  const settleSwipe = useMemo(
-    () => () =>
+  const swipeActions = useMemo(() => {
+    const animateTo = (toValue: number, done?: () => void) =>
       Animated.timing(swipeX, {
-        toValue: 0,
+        toValue,
         duration: SWIPE_SETTLE_MS,
         easing: motion.easing.easeOut,
         // 가로 이동만 있는 값이지만 같은 뷰의 translateY 가 JS 값(dragY·shiftY)이라 드라이버를 맞춘다(위 shiftY 주석)
         useNativeDriver: false,
-      }).start(),
-    [swipeX],
-  );
+      }).start(done);
+    const setOpenSide = (side: -1 | 0 | 1) => {
+      openSideRef.current = side;
+      setIsSwipeOpen(side !== 0);
+    };
+    const close = () => {
+      setOpenSide(0);
+      animateTo(0);
+    };
+    const open = (side: -1 | 1) => {
+      setOpenSide(side);
+      animateTo(side * SWIPE_OPEN_DISTANCE);
+    };
+    // 줄이 왼쪽으로 빠져나간 뒤 부모가 목록에서 걷는다 — 걷히면 이 줄은 마운트 해제된다
+    const runDelete = () => {
+      const { onDelete: remove, item: target } = swipeLatest.current;
+      setOpenSide(0);
+      animateTo(-SWIPE_DISMISS_DISTANCE, () => remove?.(target));
+    };
+    const runSave = () => {
+      const { onSave: save, item: target } = swipeLatest.current;
+      close();
+      save?.(target);
+    };
+    /** 열린 자리에서 이어 민 위치 — 막힌 쪽(삭제·담기 불가)으로는 0 에서 멈춘다 */
+    const positionOf = (dx: number): number => {
+      const { canDelete: deletable, canSave: savable } = swipeLatest.current;
+      const x = openSideRef.current * SWIPE_OPEN_DISTANCE + dx;
+      if (x < 0 && !deletable) return 0;
+      if (x > 0 && !savable) return 0;
+      return x;
+    };
+    return { close, open, runDelete, runSave, positionOf };
+  }, [swipeX]);
   const swipeResponder = useMemo(
     () =>
       // eslint-disable-next-line react-hooks/refs -- 콜백은 렌더가 아니라 제스처 시점에 실행된다(표준 PanResponder 패턴)
@@ -265,49 +297,43 @@ function QueueRow({
           const { canDelete: deletable, canSave: savable } = swipeLatest.current;
           if (Math.abs(gesture.dx) < SWIPE_CLAIM_DISTANCE) return false;
           if (Math.abs(gesture.dx) < Math.abs(gesture.dy) * SWIPE_AXIS_RATIO) return false;
+          // 열려 있으면 어느 쪽이든 잡는다 — 닫는 끌기도 같은 제스처다
+          if (openSideRef.current !== 0) return true;
           return gesture.dx < 0 ? deletable : savable;
         },
         onPanResponderTerminationRequest: () => false,
         onShouldBlockNativeResponder: () => true,
-        onPanResponderMove: (_, gesture) => {
-          const { canDelete: deletable, canSave: savable } = swipeLatest.current;
-          const allowed = gesture.dx < 0 ? deletable : savable;
-          swipeX.setValue(allowed ? rubberBand(gesture.dx) : 0);
-        },
+        onPanResponderMove: (_, gesture) => swipeX.setValue(swipeActions.positionOf(gesture.dx)),
         onPanResponderRelease: (_, gesture) => {
-          const {
-            canDelete: deletable,
-            canSave: savable,
-            onDelete: remove,
-            onSave: save,
-            item: target,
-          } = swipeLatest.current;
-          if (deletable && gesture.dx <= -SWIPE_ACTION_DISTANCE) {
-            // 줄이 왼쪽으로 빠져나간 뒤 부모가 목록에서 걷는다 — 걷히면 이 줄은 마운트 해제된다
-            Animated.timing(swipeX, {
-              toValue: -SWIPE_DISMISS_DISTANCE,
-              duration: SWIPE_SETTLE_MS,
-              easing: motion.easing.easeOut,
-              useNativeDriver: false,
-            }).start(() => remove?.(target));
-            return;
-          }
-          if (savable && gesture.dx >= SWIPE_ACTION_DISTANCE) save?.(target);
-          settleSwipe();
+          const x = swipeActions.positionOf(gesture.dx);
+          if (x <= -SWIPE_FULL_DISTANCE) swipeActions.runDelete();
+          else if (x >= SWIPE_FULL_DISTANCE) swipeActions.runSave();
+          else if (x <= -SWIPE_OPEN_THRESHOLD) swipeActions.open(-1);
+          else if (x >= SWIPE_OPEN_THRESHOLD) swipeActions.open(1);
+          else swipeActions.close();
         },
-        onPanResponderTerminate: () => settleSwipe(),
+        onPanResponderTerminate: () => swipeActions.close(),
       }),
-    [swipeX, settleSwipe],
+    [swipeX, swipeActions],
   );
-  const saveFaceOpacity = swipeX.interpolate({
-    inputRange: [0, SWIPE_ACTION_DISTANCE],
+  // 동그라미는 열린 자리까지 밀리는 동안 커지며 나타난다
+  const saveCircleProgress = swipeX.interpolate({
+    inputRange: [0, SWIPE_OPEN_DISTANCE],
     outputRange: [0, 1],
     extrapolate: 'clamp',
   });
-  const deleteFaceOpacity = swipeX.interpolate({
-    inputRange: [-SWIPE_ACTION_DISTANCE, 0],
+  const deleteCircleProgress = swipeX.interpolate({
+    inputRange: [-SWIPE_OPEN_DISTANCE, 0],
     outputRange: [1, 0],
     extrapolate: 'clamp',
+  });
+  const saveCircleScale = saveCircleProgress.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0.6, 1],
+  });
+  const deleteCircleScale = deleteCircleProgress.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0.6, 1],
   });
   // 낭독기 — 스와이프 대신 줄의 액션으로 같은 일을 한다
   const rowActions = [
@@ -333,22 +359,44 @@ function QueueRow({
       {/* 재생 중인 줄의 띠 — 화면 폭 전체(유튜브 뮤직, PM 2026-10-23). 줄 사이 틈의 절반씩 위아래로 넓혀 띠가 줄에 꼭 맞지 않고
         여유 있게 감싼다. 굵기·낭독 꼬리표는 그대로 둔다(색만으로 구분하지 않는다) */}
       {isCurrent ? <View style={styles.rowCurrentBand} pointerEvents="none" /> : null}
-      {/* 스와이프로 드러나는 면 — 왼쪽은 담기(오른쬭으로 밀 때), 오른쪽은 삭제(왼쪽으로 밀 때). 줄 뒤에 깔린다 */}
+      {/* 스와이프로 드러나는 동그라미 — 왼쪽 끝은 담기(오른쪽으로 밀 때), 오른쪽 끝은 삭제(왼쪽으로 밀 때). 줄 뒤에 깔리고, 줄이
+        밀려나 드러난 자리에서만 탭이 닿는다. 낭독기는 줄의 액션으로 같은 일을 한다(동그라미는 낭독 대상에서 뺀다) */}
       {canSave || canDelete ? (
-        <View style={styles.swipeFaces} pointerEvents="none">
+        <View style={styles.swipeFaces} pointerEvents={isSwipeOpen ? 'box-none' : 'none'}>
           {canSave ? (
             <Animated.View
-              style={[styles.swipeFace, styles.swipeFaceSave, { opacity: saveFaceOpacity }]}
+              style={[
+                styles.swipeCircleSlot,
+                styles.swipeCircleSlotSave,
+                { opacity: saveCircleProgress, transform: [{ scale: saveCircleScale }] },
+              ]}
             >
-              <PlusIcon size={REORDER_ICON_SIZE} color={playerColor.onPrimary} />
-              <Text style={styles.swipeFaceLabelSave}>{PLAYER_COPY.queuePanel.swipeSave}</Text>
+              <Pressable
+                style={[styles.swipeCircle, styles.swipeCircleSave]}
+                onPress={swipeActions.runSave}
+                accessibilityElementsHidden
+                importantForAccessibility="no-hide-descendants"
+              >
+                <PlusIcon size={SWIPE_ICON_SIZE} color={playerColor.onPrimary} />
+              </Pressable>
             </Animated.View>
           ) : null}
           {canDelete ? (
             <Animated.View
-              style={[styles.swipeFace, styles.swipeFaceDelete, { opacity: deleteFaceOpacity }]}
+              style={[
+                styles.swipeCircleSlot,
+                styles.swipeCircleSlotDelete,
+                { opacity: deleteCircleProgress, transform: [{ scale: deleteCircleScale }] },
+              ]}
             >
-              <Text style={styles.swipeFaceLabelDelete}>{PLAYER_COPY.queuePanel.swipeDelete}</Text>
+              <Pressable
+                style={[styles.swipeCircle, styles.swipeCircleDelete]}
+                onPress={swipeActions.runDelete}
+                accessibilityElementsHidden
+                importantForAccessibility="no-hide-descendants"
+              >
+                <TrashIcon size={SWIPE_ICON_SIZE} color="#FFFFFF" />
+              </Pressable>
             </Animated.View>
           ) : null}
         </View>
@@ -359,7 +407,8 @@ function QueueRow({
       >
         <Pressable
           style={styles.row}
-          onPress={() => onSelect(item)}
+          // 열려 있으면 줄 탭은 재생이 아니라 닫기다(애플 메일과 같다)
+          onPress={() => (isSwipeOpen ? swipeActions.close() : onSelect(item))}
           onPressIn={() => setIsPressed(true)}
           onPressOut={() => setIsPressed(false)}
           accessibilityRole="button"
@@ -884,45 +933,36 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     height: ROW_HEIGHT,
   },
-  // 드러나는 면 — 행 본문과 같은 둥근 사각(좌우 여백 md 안쪽). 담기는 흰 면·검은 글자(주 동작), 삭제는 위험색
+  // 드러나는 동그라미의 자리 — 줄 높이 전체, 화면 끝에서 여백 md 안쪽
   swipeFaces: {
+    ...StyleSheet.absoluteFill,
+  },
+  swipeCircleSlot: {
     position: 'absolute',
     top: 0,
     bottom: 0,
+    width: SWIPE_CIRCLE_SIZE,
+    justifyContent: 'center',
+  },
+  swipeCircleSlotSave: {
     left: theme.spacing.md,
+  },
+  swipeCircleSlotDelete: {
     right: theme.spacing.md,
-    borderRadius: theme.radius.md,
-    borderCurve: 'continuous',
-    overflow: 'hidden',
   },
-  swipeFace: {
-    position: 'absolute',
-    top: 0,
-    bottom: 0,
-    left: 0,
-    right: 0,
-    flexDirection: 'row',
+  swipeCircle: {
+    width: SWIPE_CIRCLE_SIZE,
+    height: SWIPE_CIRCLE_SIZE,
+    borderRadius: SWIPE_CIRCLE_SIZE / 2,
     alignItems: 'center',
-    gap: theme.spacing.xs,
-    paddingHorizontal: theme.spacing.md,
+    justifyContent: 'center',
   },
-  swipeFaceSave: {
-    justifyContent: 'flex-start',
+  // 담기는 흰 동그라미·검은 더하기(주 동작), 삭제는 위험색·흰 휴지통
+  swipeCircleSave: {
     backgroundColor: playerColor.primary,
   },
-  swipeFaceDelete: {
-    justifyContent: 'flex-end',
+  swipeCircleDelete: {
     backgroundColor: playerColor.danger,
-  },
-  swipeFaceLabelSave: {
-    fontSize: theme.font.size.sm,
-    fontWeight: '600',
-    color: playerColor.onPrimary,
-  },
-  swipeFaceLabelDelete: {
-    fontSize: theme.font.size.sm,
-    fontWeight: '600',
-    color: '#FFFFFF',
   },
   // 추천 블록(KAN-241) — 목록과 여백 lg 로 가른다. 제목은 패널 제목과 같은 꼴
   upNext: {
