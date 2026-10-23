@@ -13,7 +13,8 @@
 | 선행 | [KAN-264](https://runtime364.atlassian.net/browse/KAN-264) BE 경로(완료 — PR #1993, 개발계 배포됨) · **운영은 다음 dev→main 릴리스 뒤**(그 전 운영에 보내면 400 `audio` — 경로가 없다) |
 | 근거 문서 | `tickets/backend/archive/lossless-only-republish.md` · `changes/pending/lossless-only-republish.md`(admin-api.md 4.10 등재 예정) · `docs/ai/spec/06-audio.md` |
 | 중요도 | Medium |
-| 상태 | 발행 |
+| 상태 | 완료 |
+| 반영 날짜 | 2026-10-23 |
 
 ## 왜
 
@@ -46,3 +47,7 @@ iOS 는 SEEKTABLE 없는 FLAC 의 재생 위치를 비트레이트로 어림해 
 ## 처리 기록
 
 - 2026-10-23 발행(박준현).
+- 2026-10-23 22:47 반영(박수헌) — 스크립트 `apps/worker/src/cli/lossless-backfill.ts`(PR #1996, `npm run tts:lossless-backfill -w apps/worker -- [--apply] [--dev] [--only ..]`). 서버 worker-io 컨테이너에서 실행, 제품 SSO 비밀은 web 컨테이너 env 에서 실행 시점에 전달.
+  - **운영**(release #1995 → deploy-api 22:30 성공 뒤): 점검 3편 → `--only` 1편(S261003-016, content_version v2 유지 확인) → 전체. **대상 161 · 교체 161 · 건너뜀 0 · 실패 0 · content_version 변동 경고 0**(약 3분). `publish_log` 에 action `backfill`·parts `audio_lossless` 161건. 발행 대기 29편은 발행 때 새 FLAC 이 올라가므로 대상 아님.
+  - **개발계**: 제품 개발계 서버에 콘솔 관리자 이메일의 계정이 없어 SSO 403 — 개발계 단계는 생략하고 운영으로 진행(운영 1편 선검증으로 대체).
+  - 재생 확인(iOS 게이트 꺼진 테스트 기기 또는 1.3.0 빌드)은 박수헌이 진행.
