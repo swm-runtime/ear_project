@@ -86,9 +86,19 @@ export async function requestGlobalTopicPlan(input: { topics: string[]; title: s
   return { ok: true, jobId };
 }
 
-/** 작업 요청 (사람 트리거): sweep · tts · thumbnail · package · cluster 재실행. requested_by 는 트리거가 찍는다. */
-export async function enqueueJob(type: "sweep" | "cluster" | "tts" | "thumbnail" | "package" | "domain_check" | "series_plan", payload: Record<string, unknown>) {
+/** 작업 요청 (사람 트리거): sweep · tts · thumbnail · package · cluster 재실행 · judge_loop(글로벌 [재판정], 2026-10-23). requested_by 는 트리거가 찍는다. */
+export async function enqueueJob(type: "sweep" | "cluster" | "tts" | "thumbnail" | "package" | "domain_check" | "series_plan" | "judge_loop", payload: Record<string, unknown>) {
   const sb = await supabaseServer();
+  // 글로벌 [재판정](명세 6.10): qa_passed 편에만, 이미 큐·실행 중이면 거부. 현재 script.md(이전 루프의 최고판)에서 0회차부터 다시 돈다
+  if (type === "judge_loop") {
+    if (pipelineLocale() !== "en") throw new Error("판정 루프는 글로벌 파이프라인에만 있습니다");
+    if (typeof payload.episode_id !== "string" || typeof payload.backlog_id !== "string") throw new Error("episode_id·backlog_id 가 필요합니다");
+    const { data: b } = await sb.from("backlog").select("status").eq("id", payload.backlog_id).single();
+    if (b?.status !== "qa_passed") throw new Error(`재판정은 qa_passed 에서만 (현재: ${b?.status ?? "없음"})`);
+    const { count } = await sb.from("jobs").select("id", { count: "exact", head: true }).eq("type", "judge_loop").eq("payload->>episode_id", payload.episode_id).in("status", ["queued", "claimed", "running"]);
+    if (count) throw new Error("이미 판정 루프가 큐·실행 중입니다");
+    payload = { ...payload, rejudge: true };
+  }
   // 글로벌판(명세 6.10): 패키지로 이어지는 작업은 에이전트 판정이 발행 가능이고 필수 수정이 전부 반영된 편만 — 화면이 버튼을 막고, 여기서 다시 검사한다. 발행된 편의 재발행 준비는 막지 않는다. 한국판은 타지 않는다
   const toPackage = type === "package" || (Array.isArray(payload.chain) && payload.chain.includes("package"));
   if (toPackage && pipelineLocale() === "en" && typeof payload.episode_id === "string") {
@@ -98,7 +108,7 @@ export async function enqueueJob(type: "sweep" | "cluster" | "tts" | "thumbnail"
     const g = agentGate(ep.critic_verdicts);
     if (b?.status !== "published" && !g.ok) throw new Error(`발행 준비를 시작할 수 없습니다 — ${g.blockers.join(" · ")}`);
   }
-  const requires_ai = type === "cluster" || type === "series_plan" || (type === "sweep" && (payload.mode === "B" || payload.mode === "B2" || payload.mode === "P")); // P: 소스 풀 채우기(2026-10-21) — 웹 검색 실행기 // series_plan: 시리즈 설계안(0029) — 단발 AI 호출 // 보강 스윕(모드 B-①)·주제 기획(B-②)은 WebSearch 를 쓰는 AI 실행
+  const requires_ai = type === "cluster" || type === "series_plan" || type === "judge_loop" || (type === "sweep" && (payload.mode === "B" || payload.mode === "B2" || payload.mode === "P")); // P: 소스 풀 채우기(2026-10-21) — 웹 검색 실행기 // series_plan: 시리즈 설계안(0029) — 단발 AI 호출 // 보강 스윕(모드 B-①)·주제 기획(B-②)은 WebSearch 를 쓰는 AI 실행
   const { data, error } = await sb.from("jobs").insert({ type, requires_ai, payload, status: "queued" }).select("id").single();
   if (error) throw new Error(error.message);
   revalidatePath("/"); revalidatePath("/sweep"); revalidatePath("/episodes");

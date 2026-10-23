@@ -4,6 +4,7 @@ import { supabaseServer } from "@/lib/supabase-server";
 import { parseCriticReport, parseCriticScores, parseScript, readArtifact } from "@/lib/artifacts";
 import { allSpeakerNames, pipelineLocale } from "@/lib/locale";
 import { agentBlock, agentGate } from "@/lib/agent-verdict";
+import { RejudgeButton } from "./rejudge-button";
 import { fmtTime, fmtTokens, fmtUsd, label, jobRoundLabel } from "@/lib/format";
 import { JudgeView } from "./judge-view";
 import { VerdictForm } from "./verdict-form";
@@ -99,6 +100,11 @@ export default async function EpisodePage({ params, searchParams }: { params: Pr
             {agentReportUrl && <> · <a className="text-brand-ink underline" href={agentReportUrl} target="_blank" rel="noreferrer">요약 리포트</a></>}
             <span className="text-ink-soft"> · 판정 화면의 사람 칸에 에이전트 판정이 들어 있습니다</span>
           </>}
+          {bl?.status === "qa_passed" && (
+            <span className="ml-3 inline-flex align-middle">
+              <RejudgeButton episodeId={ep.id} backlogId={ep.backlog_id} disabled={activeJobs.some((j) => j.type === "judge_loop" || j.type === "tts" || j.type === "thumbnail" || j.type === "package")} reason="판정 루프 또는 발행 준비가 진행 중" />
+            </span>
+          )}
         </div>
       )}
       {activeJobs.map((j) => (
