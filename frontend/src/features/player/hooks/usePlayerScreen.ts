@@ -1,5 +1,5 @@
 import { useIsFocused, useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQueryClient, type InfiniteData } from '@tanstack/react-query';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Linking } from 'react-native';
 
@@ -21,11 +21,13 @@ import { PLAYER_COPY } from '../player.copy';
 import type { PlayEntryPoint, PlaybackStartMeta, QueueEntry, QueueItem } from '../player.types';
 import { usePlayGate } from './usePlayGate';
 import { queueKeys } from './useQueueQuery';
+import { upNextKeys } from './useUpNextQuery';
 import { playbackService } from '../services/playback.service';
 import { getPlayerLibraryBridge } from '../services/player-library.bridge';
 import {
   appendToSnapshot,
   withoutSnapshotItem,
+  withPagesItemId,
   withSnapshotItemId,
 } from '../services/queue-context';
 import { useLimitNoticeStore } from '../store/limit-notice.store';
@@ -376,33 +378,49 @@ export const usePlayerScreen = () => {
   };
 
   /**
-   * 탐색 맥락 줄의 담기(KAN-241) — 탐색 타일의 담기와 같은 뜻. 낙관 반영(스냅샷 `itemId` 임시 채움) → 서버 → 실패면 되돌리고
-   * 토스트. 라이브러리 목록 재조회는 브리지가 한다. 담기는 횟수 제한이 없고 페이월을 노출하지 않는다(PRD 5.4)
+   * 탐색 맥락 줄·추천 줄의 담기(KAN-241) — 탐색 타일의 담기와 같은 뜻. 낙관 반영(스냅샷·추천 캐시 `itemId` 임시 채움) → 서버 →
+   * 실패면 되돌리고 토스트. 같은 편을 연달아 담으면 마지막 요청의 결과만 쓴다(`saveSeqRef`). 라이브러리 목록 재조회는 브리지가,
+   * 라이브러리 맥락 재생 목록 재조회는 여기서 한다. 담기는 횟수 제한이 없고 페이월을 노출하지 않는다(PRD 5.4)
    */
   const saveSeqRef = useRef(new Map<string, number>());
+  /**
+   * 담기 결과를 줄이 온 두 곳에 함께 쓴다 — 탐색 맥락 스냅샷과 추천 블록 캐시(KAN-259). 추천 줄은 스냅샷이 아니라 추천 쿼리에서
+   * 오므로 스냅샷만 고치면 담기 면이 다시 드러났다. 그 편이 없는 쪽은 그대로다
+   */
+  const reflectSavedItemId = (contentId: string, itemId: string | null) => {
+    const latest = usePlaybackStore.getState();
+    latest.setQueueContext(withSnapshotItemId(latest.queueContext, contentId, itemId));
+    queryClient.setQueriesData<InfiniteData<QueueEntry[]>>(
+      { queryKey: upNextKeys.all },
+      (data) => {
+        if (data === undefined) return data;
+        const pages = withPagesItemId(data.pages, contentId, itemId);
+        return pages === data.pages ? data : { ...data, pages };
+      },
+    );
+  };
   const saveQueueItem = (item: QueueEntry) => {
     if (item.itemId !== null) return;
     const bridge = getPlayerLibraryBridge();
     if (!bridge) return;
     const seq = (saveSeqRef.current.get(item.contentId) ?? 0) + 1;
     saveSeqRef.current.set(item.contentId, seq);
-    const store = usePlaybackStore.getState();
-    store.setQueueContext(
-      withSnapshotItemId(store.queueContext, item.contentId, `optimistic-${item.contentId}`),
-    );
+    reflectSavedItemId(item.contentId, `optimistic-${item.contentId}`);
     bridge
       .saveContent(item.contentId, seq)
       .then((itemId) => {
         if (saveSeqRef.current.get(item.contentId) !== seq) return;
-        const latest = usePlaybackStore.getState();
-        latest.setQueueContext(withSnapshotItemId(latest.queueContext, item.contentId, itemId));
+        reflectSavedItemId(item.contentId, itemId);
         showToast(PLAYER_COPY.queuePanel.saveToast);
+        // 라이브러리 맥락의 재생 목록은 서버 목록(라이브러리 첫 페이지)이다 — 담은 편이 들어가도록 다시 맞춘다
+        if (usePlaybackStore.getState().queueContext.kind === 'library') {
+          void queryClient.invalidateQueries({ queryKey: queueKeys.all });
+        }
       })
       .catch((error: unknown) => {
         if (saveSeqRef.current.get(item.contentId) !== seq) return;
         logger.warn('[player] queue save failed', error);
-        const latest = usePlaybackStore.getState();
-        latest.setQueueContext(withSnapshotItemId(latest.queueContext, item.contentId, null));
+        reflectSavedItemId(item.contentId, null);
         showToast(PLAYER_COPY.queuePanel.saveFailedToast);
       });
   };

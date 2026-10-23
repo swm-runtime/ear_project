@@ -6,6 +6,7 @@ import {
   nextAutoplayEntry,
   withCurrentFirst,
   withoutSnapshotItem,
+  withPagesItemId,
   withSnapshotItemId,
   withSnapshotMoved,
 } from './queue-context';
@@ -111,5 +112,26 @@ describe('자동 재생(연속 재생 — player.md 4.2-4) — 다음 편 고르
 
   it('지금 듣는 편이 목록에 없으면 멈춘다(null) — 엉뚱한 편을 틀지 않는다', () => {
     expect(nextAutoplayEntry([entry('a'), entry('b')], 'x')).toBeNull();
+  });
+});
+
+describe('추천 블록 담기 반영(KAN-259) — 장들의 itemId', () => {
+  it('그 편이 든 장만 새로 만들어 itemId 를 채운다', () => {
+    const untouched = [entry('a'), entry('b')];
+    const pages = [untouched, [entry('c'), entry('d')]];
+    const result = withPagesItemId(pages, 'c', 'item-c');
+    expect(result[0]).toBe(untouched);
+    expect(result[1].map((item) => item.itemId)).toEqual(['item-c', null]);
+  });
+
+  it('실패 복구는 null 로 되돌린다', () => {
+    const pages = [[entry('a', 'optimistic-a')]];
+    expect(withPagesItemId(pages, 'a', null)[0][0].itemId).toBeNull();
+  });
+
+  it('그 편이 없거나 값이 같으면 같은 참조를 돌려준다', () => {
+    const pages = [[entry('a', 'item-a')]];
+    expect(withPagesItemId(pages, 'z', 'item-z')).toBe(pages);
+    expect(withPagesItemId(pages, 'a', 'item-a')).toBe(pages);
   });
 });

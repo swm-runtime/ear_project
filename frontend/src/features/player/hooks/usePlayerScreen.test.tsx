@@ -1,7 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, jest } from '@jest/globals';
+import type { QueryClient as QueryClientType } from '@tanstack/react-query';
 import { useEffect, type ReactNode } from 'react';
 
+
+import type { QueueEntry } from '../player.types';
 import { usePlayerScreen } from './usePlayerScreen';
+import { queueKeys } from './useQueueQuery';
+import { upNextKeys } from './useUpNextQuery';
 
 const mockNavigate = jest.fn();
 const mockShareDismiss = jest.fn();
@@ -19,6 +24,9 @@ const mockNavigation = {
 let mockBlur: () => void;
 let mockContentId = 'content-1';
 const mockRequestPlay = jest.fn();
+const mockShowToast = jest.fn();
+const mockSaveContent = jest.fn<(contentId: string, seq: number) => Promise<string>>();
+let mockQueryClient: QueryClientType;
 const mockOpenPaywall = jest.fn();
 interface MockSession {
   contentId: string;
@@ -58,7 +66,16 @@ const mockPlaybackState: {
   rate: number;
   isRateHydrated: boolean;
   queueContext: { kind: 'library' } | typeof EXPLORE_CONTEXT;
-} = { session: mockSession, rate: 1, isRateHydrated: true, queueContext: { kind: 'library' } };
+  setQueueContext: (context: { kind: 'library' } | typeof EXPLORE_CONTEXT) => void;
+} = {
+  session: mockSession,
+  rate: 1,
+  isRateHydrated: true,
+  queueContext: { kind: 'library' },
+  setQueueContext: (context) => {
+    mockPlaybackState.queueContext = context;
+  },
+};
 
 jest.mock('@react-navigation/native', () => ({
   useNavigation: () => mockNavigation,
@@ -66,7 +83,15 @@ jest.mock('@react-navigation/native', () => ({
   useIsFocused: () => true,
 }));
 jest.mock('@tanstack/react-query', () => ({
-  useQueryClient: () => ({ invalidateQueries: jest.fn() }),
+  useQueryClient: () => mockQueryClient,
+}));
+jest.mock('@/shared/ui/toast.store', () => ({
+  useToastStore: (selector: (state: { show: typeof mockShowToast }) => unknown) =>
+    selector({ show: mockShowToast }),
+}));
+jest.mock('@/shared/lib/logger', () => ({ logger: { warn: () => undefined } }));
+jest.mock('../services/player-library.bridge', () => ({
+  getPlayerLibraryBridge: () => ({ saveContent: mockSaveContent }),
 }));
 jest.mock('@/shared/analytics', () => ({ track: jest.fn() }));
 jest.mock('@/shared/hooks/useDelayedVisible', () => ({ useDelayedVisible: () => false }));
@@ -106,6 +131,10 @@ function Probe() {
 
 beforeEach(() => {
   jest.clearAllMocks();
+  const { QueryClient } = jest.requireActual<{ QueryClient: new () => QueryClientType }>(
+    '@tanstack/react-query',
+  );
+  mockQueryClient = new QueryClient();
   mockContentId = 'content-1';
   mockPlaybackState.session = mockSession;
   mockPlaybackState.queueContext = { kind: 'library' };
@@ -116,6 +145,7 @@ beforeEach(() => {
 });
 afterEach(() => {
   act(() => renderer.unmount());
+  mockQueryClient.clear();
 });
 
 describe('플레이어 상세 이동 — 더보기 메뉴 닫힘 완료를 기다린다', () => {
@@ -237,5 +267,97 @@ describe('완료 상태 ▶ 다시 듣기는 재생 목록 맥락을 이어 간�
       isCountedToday: false,
       queue: EXPLORE_CONTEXT,
     });
+  });
+});
+
+describe('추천 줄 담기는 추천 캐시에 반영된다(KAN-259)', () => {
+  const recommended = (contentId: string): QueueEntry => ({
+    itemId: null,
+    contentId,
+    title: contentId,
+    authorName: null,
+    sourceName: null,
+    thumbnailUrl: null,
+    durationSec: 600,
+    isCountedToday: false,
+    isCompleted: false,
+    topicIds: [],
+  });
+  const UP_NEXT_KEY = upNextKeys.of('content-1', []);
+  const upNextItemIdOf = (contentId: string) =>
+    mockQueryClient
+      .getQueryData<{ pages: QueueEntry[][] }>(UP_NEXT_KEY)
+      ?.pages.flat()
+      .find((item) => item.contentId === contentId)?.itemId;
+  const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
+  const deferred = () => {
+    let resolve: (value: string) => void = () => undefined;
+    let reject: (error: unknown) => void = () => undefined;
+    const promise = new Promise<string>((res, rej) => {
+      resolve = res;
+      reject = rej;
+    });
+    return { promise, resolve, reject };
+  };
+
+  beforeEach(() => {
+    mockQueryClient.setQueryData(UP_NEXT_KEY, {
+      pages: [[recommended('rec-1'), recommended('rec-2')]],
+      pageParams: [{ seeds: ['content-1'], shownIds: [] }],
+    });
+  });
+
+  it('탐색 맥락 — 밀어 담으면 그 줄의 itemId 가 바로 채워지고 성공하면 실제 값이 된다', async () => {
+    mockPlaybackState.queueContext = EXPLORE_CONTEXT;
+    const save = deferred();
+    mockSaveContent.mockReturnValueOnce(save.promise);
+    const invalidate = jest.spyOn(mockQueryClient, 'invalidateQueries');
+
+    act(() => screen.saveQueueItem(recommended('rec-1')));
+    // 낙관 반영 — 다시 밀어도 담기 면이 드러나지 않는다(canSave = itemId === null)
+    expect(upNextItemIdOf('rec-1')).toBe('optimistic-rec-1');
+    expect(upNextItemIdOf('rec-2')).toBeNull();
+
+    save.resolve('item-1');
+    await flush();
+    expect(upNextItemIdOf('rec-1')).toBe('item-1');
+    expect(mockShowToast).toHaveBeenCalledWith('라이브러리에 담았어요');
+    expect(invalidate).not.toHaveBeenCalledWith({ queryKey: queueKeys.all });
+  });
+
+  it('라이브러리 맥락 — 성공 뒤 재생 목록 캐시를 다시 받는다', async () => {
+    mockSaveContent.mockResolvedValueOnce('item-1');
+    const invalidate = jest.spyOn(mockQueryClient, 'invalidateQueries');
+
+    act(() => screen.saveQueueItem(recommended('rec-1')));
+    await flush();
+    expect(upNextItemIdOf('rec-1')).toBe('item-1');
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: queueKeys.all });
+  });
+
+  it('실패하면 담기 면이 다시 드러나고(itemId null) 실패 토스트가 뜬다', async () => {
+    mockSaveContent.mockRejectedValueOnce(new Error('network'));
+
+    act(() => screen.saveQueueItem(recommended('rec-1')));
+    await flush();
+    expect(upNextItemIdOf('rec-1')).toBeNull();
+    expect(mockShowToast).toHaveBeenCalledWith('담지 못했어요. 다시 시도해주세요');
+  });
+
+  it('같은 편을 다시 담으면 앞 요청의 늦은 결과는 버린다(saveSeqRef)', async () => {
+    const first = deferred();
+    const second = deferred();
+    mockSaveContent.mockReturnValueOnce(first.promise).mockReturnValueOnce(second.promise);
+
+    act(() => screen.saveQueueItem(recommended('rec-1')));
+    act(() => screen.saveQueueItem(recommended('rec-1')));
+    first.reject(new Error('late'));
+    await flush();
+    expect(upNextItemIdOf('rec-1')).toBe('optimistic-rec-1');
+    expect(mockShowToast).not.toHaveBeenCalled();
+
+    second.resolve('item-1');
+    await flush();
+    expect(upNextItemIdOf('rec-1')).toBe('item-1');
   });
 });
