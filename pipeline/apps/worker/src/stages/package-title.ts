@@ -1,4 +1,4 @@
-import { buildTitlePromptPartsEn, TITLE_PROMPT_VERSION_EN, TITLE_SCHEMA_EN, titleViolationsEn } from "@ear/pipeline";
+import { buildTitlePromptPartsEn, TITLE_PROMPT_VERSION_EN, TITLE_SCHEMA_EN, titleCaseEn, titleViolationsEn } from "@ear/pipeline";
 import { cfg } from "../config.js";
 import { pool } from "../db.js";
 import { makeExecutor } from "../executors/index.js";
@@ -43,9 +43,9 @@ export async function writeTitleEn(a: { episodeId: string; topicTitle: string; m
   };
   const pick = (o: { title: string; form: string; alternatives: string[]; why: string }) => {
     const v = titleViolationsEn(o.title, a.recentTitles);
-    if (!v.length) return { ...o, violations: v, title: o.title.trim() };
+    if (!v.length) return { ...o, violations: v, title: titleCaseEn(o.title) };
     const alt = (o.alternatives ?? []).find((t) => !titleViolationsEn(t, a.recentTitles).length);
-    return alt ? { ...o, title: alt.trim(), form: "alternative", violations: [] as string[] } : { ...o, violations: v };
+    return alt ? { ...o, title: titleCaseEn(alt), form: "alternative", violations: [] as string[] } : { ...o, title: titleCaseEn(o.title), violations: v };
   };
   let out = pick(await ask());
   let attempts = 1;
