@@ -72,6 +72,8 @@ export class GetContentDetailResponseDto {
   /** `null`이면 미담김 → [담기], 값이 있으면 [삭제] — 별도 불리언을 두지 않는다 */
   readonly library_item: ContentDetailLibraryItemDto | null;
   /** 재청취 창 안인가 — 팝업 힌트이며 판정이 아니다 (paywall.md 4.3-1) */
+  /** 완청했는가 — 담지 않고 끝까지 들은 편도 true(KAN-248) */
+  readonly is_completed: boolean;
   readonly is_counted_today: boolean;
 
   static from(view: ContentDetailView): GetContentDetailResponseDto {
@@ -120,6 +122,7 @@ export class GetContentDetailResponseDto {
             status: view.libraryItem.status,
           }
         : null,
+      is_completed: view.isCompleted,
       is_counted_today: view.isCountedToday,
     };
   }

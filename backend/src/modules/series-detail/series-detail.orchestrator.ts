@@ -67,16 +67,24 @@ export class SeriesDetailOrchestrator {
     );
     const contentIds = episodes.map((content) => content.id);
 
-    const [topicViews, libraryItems, progresses, countedContentIds, isSaved] =
-      await Promise.all([
-        this.contentService.findTopicViews(contentIds),
-        this.libraryService.findActiveItems(userId, contentIds),
-        this.playbackService.findProgresses(userId, contentIds),
-        // 탐색 행·상세와 같은 조립 경로 — 재생 확인 팝업 힌트가 화면마다 어긋나지 않게(paywall.md 4.3-1)
-        this.playbackService.findCountedContentIds(userId, now),
-        // 시리즈째 담기 기록(KAN-245) — 편이 전부 담겼는지가 아니라 "새 편이 따라오는가"다
-        this.librarySeriesService.isFollowing(userId, seriesId),
-      ]);
+    const [
+      topicViews,
+      libraryItems,
+      progresses,
+      countedContentIds,
+      isSaved,
+      completedIds,
+    ] = await Promise.all([
+      this.contentService.findTopicViews(contentIds),
+      this.libraryService.findActiveItems(userId, contentIds),
+      this.playbackService.findProgresses(userId, contentIds),
+      // 탐색 행·상세와 같은 조립 경로 — 재생 확인 팝업 힌트가 화면마다 어긋나지 않게(paywall.md 4.3-1)
+      this.playbackService.findCountedContentIds(userId, now),
+      // 시리즈째 담기 기록(KAN-245) — 편이 전부 담겼는지가 아니라 "새 편이 따라오는가"다
+      this.librarySeriesService.isFollowing(userId, seriesId),
+      // 편 상태 "완청"·[재생]의 다음 편 고르기(KAN-248) — 담지 않고 끝까지 들은 편도 완청이다
+      this.libraryService.findCompletedContentIds(userId, contentIds),
+    ]);
 
     const topicIdsByContentId = new Map<string, string[]>();
     // 대표 중분류 집계 — 편마다의 주제를 모아 가장 많은 편에 걸린 주제를 고른다. 동률이면 topic.display_order 우선인데,
@@ -144,6 +152,7 @@ export class SeriesDetailOrchestrator {
         series: toSeriesRef(series, content.episodeNo as number),
         libraryItem: libraryItemByContentId.get(content.id) ?? null,
         progress: progressByContentId.get(content.id) ?? null,
+        isCompleted: completedIds.has(content.id),
         isCountedToday: countedContentIds.has(content.id),
       })),
     };

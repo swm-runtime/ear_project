@@ -208,6 +208,7 @@ describe('ExploreOrchestrator', () => {
         reactivated: false,
       }),
       unsave: jest.fn().mockResolvedValue(true),
+      findCompletedContentIds: jest.fn().mockResolvedValue(new Set()),
       findActiveItems: jest.fn().mockResolvedValue([]),
     } as unknown as jest.Mocked<LibraryService>;
 

@@ -15,6 +15,8 @@ export interface SeriesEpisodeView {
   libraryItem: LibraryItem | null;
   /** 재생 위치 행. 없으면 null — 0으로 채우지 않는다 */
   progress: ProgressView | null;
+  /** 완청했는가 — 라이브러리 `completed` ∪ 재생 위치가 기준 이상(KAN-248). 담지 않고 끝까지 들은 편도 true */
+  isCompleted: boolean;
   isCountedToday: boolean;
 }
 

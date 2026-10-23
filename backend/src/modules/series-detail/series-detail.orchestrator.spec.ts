@@ -74,6 +74,7 @@ describe('SeriesDetailOrchestrator', () => {
         .mockResolvedValue([{ contentId: 'c1', topicId: 't1', name: 'CS' }]),
     } as unknown as jest.Mocked<ContentService>;
     libraryService = {
+      findCompletedContentIds: jest.fn().mockResolvedValue(new Set()),
       findActiveItems: jest.fn().mockResolvedValue([
         {
           id: 'item-1',

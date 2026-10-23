@@ -51,21 +51,28 @@ export class ContentDetailOrchestrator {
       market,
     );
 
-    const [topicViews, libraryItems, countedContentIds, sources, seriesRefs] =
-      await Promise.all([
-        this.contentService.findTopicViews([contentId]),
-        this.libraryService.findActiveItems(userId, [contentId]),
-        // 목록 행의 `is_counted_today`와 **같은 조립 경로**를 쓴다 — 단건이라고 판정을
-        // 새로 만들면 행 탭과 상세의 팝업 힌트가 어긋난다(paywall.md 4.3-1)
-        this.playbackService.findCountedContentIds(userId, now),
-        // `partner`는 `content_sources`에 행이 없으므로(domain.md 5.5) 조회하지 않고
-        // `null`로 계약을 표현한다(content-detail-api.md 4.1 — 확정 2026-08-24)
-        content.origin === ContentOrigin.AI_GENERATED
-          ? this.contentService.findSourcesByContentId(contentId)
-          : Promise.resolve(null),
-        // "N부작 중 M화" 줄 — 총 편수는 시리즈 표가 기준이다(KAN-134)
-        this.seriesService.findRefs([content]),
-      ]);
+    const [
+      topicViews,
+      libraryItems,
+      countedContentIds,
+      sources,
+      seriesRefs,
+      completedIds,
+    ] = await Promise.all([
+      this.contentService.findTopicViews([contentId]),
+      this.libraryService.findActiveItems(userId, [contentId]),
+      // 목록 행의 `is_counted_today`와 **같은 조립 경로**를 쓴다 — 단건이라고 판정을
+      // 새로 만들면 행 탭과 상세의 팝업 힌트가 어긋난다(paywall.md 4.3-1)
+      this.playbackService.findCountedContentIds(userId, now),
+      // `partner`는 `content_sources`에 행이 없으므로(domain.md 5.5) 조회하지 않고
+      // `null`로 계약을 표현한다(content-detail-api.md 4.1 — 확정 2026-08-24)
+      content.origin === ContentOrigin.AI_GENERATED
+        ? this.contentService.findSourcesByContentId(contentId)
+        : Promise.resolve(null),
+      // "N부작 중 M화" 줄 — 총 편수는 시리즈 표가 기준이다(KAN-134)
+      this.seriesService.findRefs([content]),
+      this.libraryService.findCompletedContentIds(userId, [contentId]),
+    ]);
 
     return {
       content,
@@ -73,6 +80,7 @@ export class ContentDetailOrchestrator {
       sources,
       series: seriesRefs.get(content.id) ?? null,
       libraryItem: libraryItems[0] ?? null,
+      isCompleted: completedIds.has(contentId),
       isCountedToday: countedContentIds.has(contentId),
     };
   }

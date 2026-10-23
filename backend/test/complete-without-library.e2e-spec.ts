@@ -127,6 +127,38 @@ describe('담지 않은 편의 완청 E2E', () => {
     expect(await countCompleteSignals(userId, contentId)).toBe(0);
   });
 
+  it('담지 않고 끝까지 들은 편은 상세·프로필에서 완청으로 보인다', async () => {
+    // given
+    const contentId = await seedContent();
+    const other = await seedContent();
+    const { auth } = await createUser('display');
+    await saveProgress(auth, contentId, 560);
+    await saveProgress(auth, other, 300);
+
+    // when
+    const detail = await request(app.getHttpServer())
+      .get(path(`/contents/${contentId}`))
+      .set('Authorization', auth)
+      .expect(HttpStatus.OK);
+    const partial = await request(app.getHttpServer())
+      .get(path(`/contents/${other}`))
+      .set('Authorization', auth)
+      .expect(HttpStatus.OK);
+    const profile = await request(app.getHttpServer())
+      .get(path('/users/me/profile'))
+      .set('Authorization', auth)
+      .expect(HttpStatus.OK);
+
+    // then — 라이브러리 행이 없어도 완청은 완청이다
+    expect((detail.body as { is_completed: boolean }).is_completed).toBe(true);
+    expect((partial.body as { is_completed: boolean }).is_completed).toBe(
+      false,
+    );
+    expect(JSON.stringify(profile.body)).toContain(
+      '"completed_content_count":1',
+    );
+  });
+
   async function saveProgress(
     auth: string,
     contentId: string,
