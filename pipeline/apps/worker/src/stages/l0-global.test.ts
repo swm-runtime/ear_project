@@ -274,6 +274,18 @@ test("출처 이름 계수 — 일반 명사·대문자 이름·대명사로 부
   assert.match(v, /sources named in lines: "Kimjang" 5 \(E1, E2\)/);
 });
 
+// 2026-10-23 (G261023-024 E9): 대명사 출처 꼴은 바로 앞 문장이 출처일 때만 — 관용구·사물을 받는 It 은 출처가 아니다
+test("대명사 출처 꼴(It connects…)은 앞 문장이 출처 문장일 때만 세고, 혼자 서 있으면 세지 않는다", () => {
+  en();
+  const S = (id: string, text: string, topic = "Boknal") => ({ speaker: "Yuna", id, text, section: "Body", topic });
+  const alone = enStyleViolations([S("E9", "The traditional purpose of eating hot food is to drive away summer heat. The expression is iyeolchiyeol. It connects traditional belief in five elements with the hottest days.")]).join("\n");
+  assert.doesNotMatch(alone, /sources named in lines/);
+  const after = enStyleViolations([S("E8", "A food writer describes the line outside. It connects the soup with the calendar. She adds the date."), S("E9", "It dates the custom to the Joseon period.")]).join("\n");
+  assert.match(after, /sources named in lines: "Boknal" 4 \(E8, E9\)/);
+  const nextSection = enStyleViolations([S("E8", "A food writer describes the line outside.", "Lines"), S("E9", "It connects the soup with the calendar.", "Calendar")]).join("\n");
+  assert.match(nextSection, /"Lines" 1 \(E8\)/); assert.doesNotMatch(nextSection, /"Calendar"/);
+});
+
 // ── full-en-v0.9 (2026-10-17 — G261017-004~006 에이전트 판정: 한 문장 Imagine 장면 · 구성안 문구 유출) ──
 test("Imagine 으로 시작하는 해설 문장이 셋 이상이면 문체 위반, 둘까지는 통과(템플릿 턴은 뺀다)", () => {
   en();
