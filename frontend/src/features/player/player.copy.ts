@@ -25,8 +25,8 @@ const ko = {
     body: '재생하면 1회가 차감돼요.',
     cancel: '취소',
     play: '재생하기',
-    /* TODO(카피 재검토 — uiux 9장): 라벨이 "재생 없이 닫기"로 읽힌다. 후보 "재생하고 오늘은 그만 묻기" */
-    suppressToday: '오늘은 그만 보기',
+    /** 체크 칸 라벨(PM 2026-10-23) — 체크하고 [재생하기]를 눌러야 억제가 걸린다. 종전 즉시 재생 글자 버튼 "오늘은 그만 보기" */
+    suppressToday: '오늘은 보지 않기',
   },
 
   /** L13 회수 안내 — 오류 톤·재시도 유도를 붙이지 않는다(library-uiux.md 4.11) */
@@ -239,7 +239,7 @@ const en: LocalizedCopy<typeof ko> = {
     body: 'Playing will use 1 play.',
     cancel: 'Cancel',
     play: 'Play',
-    suppressToday: "Don't ask again today",
+    suppressToday: "Don't show again today",
   },
 
   withdrawnToast: 'This content is no longer available',
