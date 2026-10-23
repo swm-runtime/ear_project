@@ -1,6 +1,6 @@
 import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
 import { useQueryClient } from '@tanstack/react-query';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Linking } from 'react-native';
 
 import { track } from '@/shared/analytics';
@@ -76,6 +76,23 @@ export const usePlayerScreen = () => {
   );
 
   const isActiveSession = session !== null && session.contentId === contentId;
+
+  /*
+   * ── 이 화면이 보여 주던 편에서 세션이 다른 편으로 넘어가면 화면도 따라간다 — 재생 목록 자동 재생(player.md 4.2-4)은
+   * 화면 이동 없이 세션만 바꾼다. 따라가지 않으면 화면의 편(route)과 세션이 어긋나 세션 없음으로 읽혀 화면이 까맣게
+   * 비었다(PM 2026-10-23). 직전 세션이 이 화면의 편이었을 때만 따라간다 — 다른 편을 들고 들어온 진입(딥링크·확대)은
+   * 위 진입 효과가 세션을 이 화면의 편으로 바꾸는 쪽이다 ──
+   */
+  const sessionContentId = session?.contentId ?? null;
+  const lastSessionContentIdRef = useRef(sessionContentId);
+  // 그리기 전에 따라간다 — 일반 효과면 어긋난 한 프레임이 빈 화면으로 칠해진다
+  useLayoutEffect(() => {
+    const previous = lastSessionContentIdRef.current;
+    lastSessionContentIdRef.current = sessionContentId;
+    if (previous === contentId && sessionContentId !== null && sessionContentId !== contentId) {
+      navigation.setParams({ contentId: sessionContentId } as never);
+    }
+  }, [sessionContentId, contentId, navigation]);
 
   /* ── 진입 — 게이트를 거치지 않은 경로(미니플레이어 확대·딥링크)만 여기서 시작한다.
         확대는 재생을 시작시키지 않는다(uiux 4.8) — autoplay 기본 false(FR-24) ── */
