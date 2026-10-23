@@ -120,11 +120,9 @@ const ko = {
     saveToast: '라이브러리에 담았어요',
     saveFailedToast: '담지 못했어요. 다시 시도해주세요',
     /**
-     * 줄 스와이프(KAN-241 "3번", PM 2026-10-22) — 왼쪽으로 밀면 삭제, 오른쪽으로 밀면 담기. 드러나는 면의 글자와
+     * 줄 스와이프(KAN-241 "3번", 2026-10-23 동그라미 아이콘으로 개정 — 글자 없음) — 왼쪽으로 밀면 삭제, 오른쪽으로 밀면 담기. 아래는
      * 낭독기 대체 액션. 삭제는 맥락에 따라 "라이브러리에서 삭제"(서버 소프트 삭제) / "목록에서 빼기"(스냅샷 로컬)
      */
-    swipeDelete: '삭제',
-    swipeSave: '담기',
     deleteFromLibraryA11y: '라이브러리에서 삭제',
     removeFromListA11y: '목록에서 빼기',
     /** 지금 재생 중인 줄에 붙는 낭독 꼬리표 — 시각 표시(굵게)만으로는 전달되지 않는다 */
@@ -298,8 +296,6 @@ const en: LocalizedCopy<typeof ko> = {
     saveA11y: 'Save to library',
     saveToast: 'Saved to your library',
     saveFailedToast: "Couldn't save. Please try again.",
-    swipeDelete: 'Delete',
-    swipeSave: 'Save',
     deleteFromLibraryA11y: 'Delete from library',
     removeFromListA11y: 'Remove from list',
     nowPlayingA11y: 'Now playing',
