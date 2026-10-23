@@ -409,6 +409,11 @@ describe('시리즈 E2E', () => {
       `INSERT INTO drip_excluded_contents (user_id, content_id, reason, excluded_at) VALUES ($1, $2, 'played', now())`,
       [listener.userId, ids[3]],
     );
+    // 4화는 탐색에서 담지 않고 듣던 중이다(자동 적립 폐기 — 2026-10-23) — 라이브러리 행 없이도 다음 편을 기다리게 한다
+    await dataSource.query(
+      `INSERT INTO playback_progresses (user_id, content_id, position_sec, max_reached_sec) VALUES ($1, $2, 120, 120)`,
+      [listener.userId, ids[3]],
+    );
     await dataSource
       .getRepository(Content)
       .update({ id: ids[4] }, { status: ContentStatus.WITHDRAWN });
@@ -448,10 +453,24 @@ describe('시리즈 E2E', () => {
         contentId: ids[3],
         episodeNo: 4,
         received: false,
-        held: false,
+        held: true,
         excluded: true,
       },
     ]);
+    // 듣다 그만둔 지 오래면(14일 넘음) 막지 않는다 — 담지 않은 편은 지워서 기다림을 풀 수단이 없다
+    await dataSource.query(
+      `UPDATE playback_progresses SET updated_at = now() - interval '20 days' WHERE user_id = $1 AND content_id = $2`,
+      [listener.userId, ids[3]],
+    );
+    const stale = await app
+      .get(ContentService)
+      .findSeriesEpisodeStates(
+        [series],
+        listener.userId,
+        new Date(),
+        UserMarket.KR,
+      );
+    expect(stale.get(series)?.find((e) => e.episodeNo === 4)?.held).toBe(false);
     // 다른 시장에는 노출 편이 없다
     expect(
       (

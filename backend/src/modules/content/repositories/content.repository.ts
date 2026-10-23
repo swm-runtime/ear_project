@@ -51,6 +51,8 @@ import {
 } from '../content.types';
 import { Content } from '../entities/content.entity';
 import { LibraryItemStatus } from '@/modules/library/library.enum';
+import { COMPLETION_REACHED_RATIO } from '@/modules/library/library.constant';
+import { SERIES_HOLD_LISTENING_WINDOW_MS } from '../content.constant';
 import { UserMarket } from '@/modules/user/user.enum';
 
 /** 커서에 담기는 랭킹 값. `content_stats` 조인 결과이지 `contents`의 컬럼이 아니다 */
@@ -1177,7 +1179,14 @@ export class ContentRepository {
    * 노출 중인 편이 있는지·그 편을 이미 받았는지"를 알 수 없다. 노출 조건은 후보 조회와 같다(시장 포함).
    *
    * 사용자 상태는 후보 필터(`excludeSeenByUserId`)와 같은 원천을 원시 SQL로 본다 — `received`는 라이브러리에 한 번이라도
-   * 들어온 적(소프트 삭제분 포함), `held`는 지금 라이브러리에 있고(삭제 안 됨) 완청 전, `excluded`는 드립 영구 제외.
+   * 들어온 적(소프트 삭제분 포함), `held`는 지금 라이브러리에 있고(삭제 안 됨) 완청 전 **또는 담지 않고 듣던 중**(아래), `excluded`는
+   * 드립 영구 제외.
+   *
+   * **담지 않고 듣던 편도 `held`다**(2026-10-23 — 탐색 재생 자동 적립 폐기). 종전에는 탐색에서 1화를 듣다 나가도 자동 적립 행이
+   * 다음 편을 기다리게 했는데, 행이 없어지자 다음 배치가 2화를 바로 줬다. 위치 > 0 · 완청 아님(위치·라이브러리·완청 신호 —
+   * `COMPLETED_CONTENT_IDS_CTE`와 같은 정의) · 라이브러리에서 지운 적 없음 · **최근 `SERIES_HOLD_LISTENING_WINDOW_MS` 안에
+   * 들었음**. 기간을 두는 이유: 라이브러리 행은 지워서 기다림을 풀 수 있지만 담지 않은 편은 풀 수단이 없다 — 듣다 그만둔
+   * 편이 그 시리즈를 영영 막지 않게 한다.
    */
   async findVisibleSeriesEpisodesForUser(
     seriesIds: string[],
@@ -1215,11 +1224,30 @@ export class ContentRepository {
         'received',
       )
       .addSelect(
-        `EXISTS (
+        `(EXISTS (
            SELECT 1 FROM library_items held
            WHERE held.content_id = content.id AND held.user_id = :seriesUserId
              AND held.deleted_at IS NULL AND held.status <> :completedStatus
-         )`,
+         ) OR (
+           EXISTS (
+             SELECT 1 FROM playback_progresses listening
+             WHERE listening.content_id = content.id AND listening.user_id = :seriesUserId
+               AND listening.position_sec > 0
+               AND listening.updated_at > :listeningSince
+               AND NOT (content.duration_sec > 0
+                        AND listening.max_reached_sec >= content.duration_sec * CAST(:completionRatio AS numeric))
+           )
+           AND NOT EXISTS (
+             SELECT 1 FROM library_items done
+             WHERE done.content_id = content.id AND done.user_id = :seriesUserId
+               AND (done.status = :completedStatus OR done.deleted_at IS NOT NULL)
+           )
+           AND NOT EXISTS (
+             SELECT 1 FROM user_signals finished
+             WHERE finished.content_id = content.id AND finished.user_id = :seriesUserId
+               AND finished.action = 'complete'
+           )
+         ))`,
         'held',
       )
       .addSelect(
@@ -1233,6 +1261,11 @@ export class ContentRepository {
       .andWhere('content.episode_no IS NOT NULL')
       .setParameter('seriesUserId', userId)
       .setParameter('completedStatus', LibraryItemStatus.COMPLETED)
+      .setParameter('completionRatio', COMPLETION_REACHED_RATIO)
+      .setParameter(
+        'listeningSince',
+        new Date(now.getTime() - SERIES_HOLD_LISTENING_WINDOW_MS),
+      )
       .orderBy('content.series_id', 'ASC')
       .addOrderBy('content.episode_no', 'ASC')
       .getRawMany<{
