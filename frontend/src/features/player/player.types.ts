@@ -119,6 +119,8 @@ export interface ProgressSaveResult {
     status: PlayedLibraryItemStatus;
     completedAt: string | null;
   } | null;
+  /** 서버 완청 판정(BE #1943 — 담지 않은 편 포함). 옛 서버(필드 없음)면 null */
+  isCompleted: boolean | null;
 }
 
 /**

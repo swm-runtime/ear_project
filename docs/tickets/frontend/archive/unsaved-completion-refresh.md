@@ -35,3 +35,4 @@
 ## 처리 기록
 
 - 2026-10-23 발행(BE — 재검증 FE 항목).
+- 2026-10-23 반영(FE) — ① 진행 저장 응답 `is_completed?` 를 받아(`ProgressSaveResult.isCompleted`, 옛 서버 null) 처음 true 가 되면 `onServerStateChanged` 재조회 신호를 낸다 — 담은 편 갈래(`library_item` completed 전이)와 합쳐 세션당 한 번(`hasNotifiedCompleted`). ② 탐색·시리즈 화면 단건 담기 성공 시 응답 `library_item`(id·source·**status**)으로 캐시를 맞춘다(낙관 값 `unplayed` 를 서버의 `in_progress`/`completed` 로). 시리즈 전체 담기는 성공 시 이미 시리즈를 다시 받는다. ③ `content_save` — 앱은 #1905 이후 `reason: 'auto_play'` 로 담기를 부르는 곳이 없다(코드 확인 — `saveContent` 호출부 전부 `user_save`). 이벤트는 직접 담기만 센다. **단절 시점 = #1905 의 운영 릴리스 날짜**(데이터 담당 공유는 Jira 코멘트로 남김). 테스트: 담지 않은 편 완청 통지 1회. 반영 날짜 2026-10-23.

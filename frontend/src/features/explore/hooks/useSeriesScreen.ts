@@ -232,6 +232,12 @@ export const useSeriesScreen = () => {
       {
         onSuccess: (result) => {
           if (!isLatestSeq(contentId, result.clientSeq)) return;
+          // 서버가 담은 상태로 맞춘다 — 들은 만큼(in_progress·completed)으로 담기므로 낙관 값(unplayed)과 다를 수 있다(KAN-252)
+          setCachedLibraryState(contentId, {
+            itemId: result.libraryItem.itemId,
+            source: result.libraryItem.source,
+            status: result.libraryItem.status,
+          });
           invalidateLibrary();
         },
         onError: (error) => {

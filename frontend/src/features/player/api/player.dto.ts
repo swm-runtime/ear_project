@@ -111,4 +111,9 @@ export interface PlaybackProgressPutResponseDto {
     status: PlayedLibraryItemStatus;
     completed_at: string | null;
   } | null;
+  /**
+   * 완청 여부(player-api.md 4.3 — BE #1943) — 담지 않은 편도 서버가 판정한다(`library_item` 이 null 이어도). 추가 필드라 옛 서버는
+   * 없다 → 종전 `library_item.status` 갈래만
+   */
+  is_completed?: boolean;
 }
