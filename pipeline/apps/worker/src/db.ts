@@ -142,7 +142,11 @@ export async function setCriticVerdicts(episodeId: string, v: Record<string, unk
 /** 글로벌 발행 준비 자동 후보 (automation.ts autoPublishPrepGlobal) — 에이전트 판정이 있는 qa_passed 편 중 tts 작업이 아직 없는(실패만 있는) 편. 판정 통과 여부는 순수 함수가 가른다 */
 export async function listGlobalPrepCandidates(): Promise<{ episode_id: string; backlog_id: string; critic_verdicts: unknown }[]> {
   const r = await pool.query(
-    "select e.id as episode_id, b.id as backlog_id, e.critic_verdicts from public.episodes e join public.backlog b on b.id = e.backlog_id where b.status = 'qa_passed' and e.critic_verdicts->'agent' is not null and not exists (select 1 from public.jobs j where j.type = 'tts' and j.payload->>'episode_id' = e.id and j.status <> 'failed') order by e.id",
+    // 실패한 tts 만 있으면 다시 걸되, 같은 원인으로 바로 또 실패하는 편(발음 누락 등 결정적 실패)은 30분 간격·최대 3회까지만 — 2026-10-23 G261023-013 이 "Marché" 발음 누락으로 12분에 51번 실패·알림
+    "select e.id as episode_id, b.id as backlog_id, e.critic_verdicts from public.episodes e join public.backlog b on b.id = e.backlog_id where b.status = 'qa_passed' and e.critic_verdicts->'agent' is not null"
+    + " and not exists (select 1 from public.jobs j where j.type = 'tts' and j.payload->>'episode_id' = e.id and j.status <> 'failed')"
+    + " and (select count(*) from public.jobs j where j.type = 'tts' and j.payload->>'episode_id' = e.id and j.status = 'failed' and j.payload->>'auto' = 'true') < 3"
+    + " and not exists (select 1 from public.jobs j where j.type = 'tts' and j.payload->>'episode_id' = e.id and j.status = 'failed' and j.created_at > now() - interval '30 minutes') order by e.id",
   );
   return r.rows;
 }
