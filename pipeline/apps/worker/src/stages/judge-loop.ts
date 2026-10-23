@@ -234,12 +234,15 @@ export async function runJudgeLoop(job: Job, ex: Executor) {
   const FIX_MAX_OUT = 12_288; // v1.9: must_fix 수리 — 출력은 고친 턴 몇 개뿐. 생각 1만 토큰이면 끝난다
   async function gpt<T>(label: string, system: string, prompt: string, schema: object, minutes: number, effort: "high" | "medium", maxOutputTokens?: number): Promise<T> {
     for (let attempt = 1; ; attempt++) {
+      // 배경 응답의 OpenAI 쪽 상태 — queued(대기열) 가 얼마나 길었는지, 생성(in_progress) 이 언제 시작됐는지. 17분 걸린 호출이 대기열인지 생각인지 가르려고(2026-10-23 G261023-023 0회차)
+      const t0 = Date.now(); let queuedMs = 0; let startedMs = -1;
+      const onProgress = (p: { detail?: string }) => { const d = String(p.detail ?? ""); if (/백그라운드 queued/.test(d)) queuedMs = Date.now() - t0; else if (/백그라운드 in_progress/.test(d) && startedMs < 0) startedMs = Date.now() - t0; };
       try {
-        const r = await ex.run<T>({ prompt, systemPrompt: system, schema, allowedTools: [], tools: [], cwd: cfg.workRoot, timeoutMs: minutes * 60_000, effort, background: true, maxOutputTokens }); // 재작성 한 호출이 10분을 넘으면 동기 요청은 끊긴다 — 백그라운드 모드 (types.ts)
+        const r = await ex.run<T>({ prompt, systemPrompt: system, schema, allowedTools: [], tools: [], cwd: cfg.workRoot, timeoutMs: minutes * 60_000, effort, background: true, maxOutputTokens, onProgress }); // 재작성 한 호출이 10분을 넘으면 동기 요청은 끊긴다 — 백그라운드 모드 (types.ts)
         cost += r.listCostUsd ?? 0; model = r.model ?? model;
         // 호출별 기록(2026-10-23 박수헌 "그 호출 뭐가 느린지") — 검토·채점 네 호출이 병렬이라 단계 시간만으로는 느린 호출을 가릴 수 없다. 출력 토큰은 생각 포함
         const us = (r.raw as { usage?: { output_tokens?: number; output_tokens_details?: { thinking_tokens?: number } } } | undefined)?.usage;
-        log(`  judge_loop ${episodeId} 호출 ${label}${attempt > 1 ? ` (${attempt}번째)` : ""} ${effort} — ${Math.round((r.durationMs ?? 0) / 1000)}s · 출력 ${us?.output_tokens ?? "?"}${us?.output_tokens_details?.thinking_tokens != null ? ` (생각 ${us.output_tokens_details.thinking_tokens})` : ""} · $${(r.listCostUsd ?? 0).toFixed(2)}`);
+        log(`  judge_loop ${episodeId} 호출 ${label}${attempt > 1 ? ` (${attempt}번째)` : ""} ${effort} — ${Math.round((r.durationMs ?? 0) / 1000)}s · 출력 ${us?.output_tokens ?? "?"}${us?.output_tokens_details?.thinking_tokens != null ? ` (생각 ${us.output_tokens_details.thinking_tokens})` : ""} · $${(r.listCostUsd ?? 0).toFixed(2)}${queuedMs > 5_000 ? ` · 대기열 ${Math.round(queuedMs / 1000)}s` : ""}${startedMs > 5_000 ? ` · 생성 시작 ${Math.round(startedMs / 1000)}s` : ""}`);
         return r.output;
       } catch (e) {
         const msg = String(e); const transient = /fetch failed|OpenAI (?:0|5\d\d|429)|ECONNRESET|ETIMEDOUT|socket hang up/i.test(msg);
