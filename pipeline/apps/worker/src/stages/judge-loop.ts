@@ -28,7 +28,7 @@ import { pullPrefix, pushPrefix, s3Key } from "../storage.js";
 import { createHash } from "node:crypto";
 import { scriptStats, twoStageViolationsEn } from "./draft-two-stage.js";
 
-export const JUDGE_LOOP_VERSION = "judge-loop-v1.8"; // v1.8 (2026-10-23): 기본값 검토 medium·상한 2(실험 A/B — README 6.3) · 0회차 원판이 발행 조건을 채우면 재작성 생략(env JUDGE_SKIP_REWRITE_IF_PUBLISHABLE, 작업 knob skip_rewrite_if_publishable). v1.7 (2026-10-23): 단계별 시간 기록 · 작업별 effort/회차 덮어쓰기 · 실험 모드(대본·판정 미반영). 기본값은 종전 그대로. v1.6 (2026-10-23): 0회차 수리본은 L0 지적이 있어도 쓴다(회차 안과 같은 정책). v1.5: 회차 체크포인트 — 끊긴 루프는 다음 회차부터 잇는다. v1.4: // v1.4 (2026-10-23): 발음 관문(빈 읽기를 채우고 남으면 발행 불가) + 발행 준비 연쇄를 여기서 한 번 건다(한국판 비평 끝과 같은 함수). v1.3: // v1.3 (2026-10-23): 0회차 원판도 한국어 must_fix 를 수리한다 — 최고판이 원판에 머문 편(G261023-010·018·020, 60~61점)이 must_fix 미수리로만 막혔다
+export const JUDGE_LOOP_VERSION = "judge-loop-v1.9"; // v1.9 (2026-10-23): 수리·L0 수정 호출은 medium + 출력 상한 12,288/24,576 — "지적된 턴만 최소 변경" 작업에 high 가 필요 없고, 10회차에 1번꼴로 10분씩 폭주했다(013 r1 수리 11.7분, 008-A r2 L0 14.8분). v1.8 (2026-10-23): 기본값 검토 medium·상한 2(실험 A/B — README 6.3) · 0회차 원판이 발행 조건을 채우면 재작성 생략(env JUDGE_SKIP_REWRITE_IF_PUBLISHABLE, 작업 knob skip_rewrite_if_publishable). v1.7 (2026-10-23): 단계별 시간 기록 · 작업별 effort/회차 덮어쓰기 · 실험 모드(대본·판정 미반영). 기본값은 종전 그대로. v1.6 (2026-10-23): 0회차 수리본은 L0 지적이 있어도 쓴다(회차 안과 같은 정책). v1.5: 회차 체크포인트 — 끊긴 루프는 다음 회차부터 잇는다. v1.4: // v1.4 (2026-10-23): 발음 관문(빈 읽기를 채우고 남으면 발행 불가) + 발행 준비 연쇄를 여기서 한 번 건다(한국판 비평 끝과 같은 함수). v1.3: // v1.3 (2026-10-23): 0회차 원판도 한국어 must_fix 를 수리한다 — 최고판이 원판에 머문 편(G261023-010·018·020, 60~61점)이 must_fix 미수리로만 막혔다
 export const DEFAULT_THRESHOLD = 60; // 2026-10-23 박수헌: 65 → 60 (첫 배치 28편 중 6편 통과. 60~64 편의 편집자 평은 "필수 수정 없이 발행 가능, 장면보다 설명이 많다"로 66~70 편과 같은 지적 — 정확성 아닌 연출 밀도 차이). 한국어·사실 must_fix 관문은 그대로
 const MAX_ROUNDS = 3;
 /** 발행 조건(README 6.3): 편집자 중앙값 합계 ≥ 기준 · 한국어·사실 검토 가 · 한국어 must_fix 전부 수리. 0회차 재작성 생략 판단과 같은 식 */
@@ -231,6 +231,7 @@ export async function runJudgeLoop(job: Job, ex: Executor) {
 
   // 결과가 작은 JSON 인 채점·검토·수리 호출의 출력 상한(생각 포함). 정상 호출은 생각 몇천~1만 토큰이면 끝난다 — 폭주(2026-10-23: 원판 채점이 65536 까지 13분, 편집자 채점이 20분 시간 초과)를 몇 분 안에 끊고 한 번 다시 부르려고 낮춘다. 재작성은 대본 전체를 내므로 기본값(65536) 그대로
   const SCORE_MAX_OUT = 24_576;
+  const FIX_MAX_OUT = 12_288; // v1.9: must_fix 수리 — 출력은 고친 턴 몇 개뿐. 생각 1만 토큰이면 끝난다
   async function gpt<T>(system: string, prompt: string, schema: object, minutes: number, effort: "high" | "medium", maxOutputTokens?: number): Promise<T> {
     for (let attempt = 1; ; attempt++) {
       try {
@@ -285,7 +286,7 @@ ${formatBlock}
   // 한국어 must_fix 수리 — 지적된 턴만의 최소 변경(README 6.2). 회차 안에서도, 0회차 원판에도 같은 수리를 쓴다
   const repairMustFix = async (script: string, pron: string, kr: Korea): Promise<{ script: string; pron: string; repaired: string[] }> => {
     const mustFix = kr.findings.filter((f) => f.kind === "must_fix");
-    const r = await gpt<RepairOut>(repairSystem, `## Findings (must_fix)\n${fmtFindings(mustFix)}\n\n## Suggested edits (a guide, not a source)\n${fmtEdits(kr.edits)}\n\n## script.md (line format \`[${explainer}] E1 · sentence\` / \`[${host}] Y1 · sentence\`)\n${fence(script)}\n\n## claims.md\n${fence(claims)}\n\n## sources.md\n${fence(sources)}\n\n## pronunciations.json\n${fence(pron)}\n\nRepair and output only the report JSON.`, FIX_SCHEMA, 20, "high", SCORE_MAX_OUT);
+    const r = await gpt<RepairOut>(repairSystem, `## Findings (must_fix)\n${fmtFindings(mustFix)}\n\n## Suggested edits (a guide, not a source)\n${fmtEdits(kr.edits)}\n\n## script.md (line format \`[${explainer}] E1 · sentence\` / \`[${host}] Y1 · sentence\`)\n${fence(script)}\n\n## claims.md\n${fence(claims)}\n\n## sources.md\n${fence(sources)}\n\n## pronunciations.json\n${fence(pron)}\n\nRepair and output only the report JSON.`, FIX_SCHEMA, 20, "medium", FIX_MAX_OUT);
     const valid = r.fixes.filter((f) => /^[EY]\d+$/.test(f.turn) && f.after.trim());
     // 발음 사전 쪽 must_fix 는 검토자의 other_changes 로 고친다(턴 교체로는 못 고친다) — 적용된 변경이 가리키는 턴은 수리된 것으로
     const pc = applyPronChanges(mergePron(pron, r.pronunciations_added), kr.other_changes, kr.findings);
@@ -351,7 +352,7 @@ ${formatBlock}
     let script = fixMeta(o, base.script); let pron = mergePron(base.pron, o.pronunciations_added); let tc = o.turn_claims;
     let v = l0(script, pron, tc);
     if (v.length) {
-      const o2 = await gpt<RewriteOut>(baseSystem(mode), `## Format check (L0) findings on your revision — resolve all, change nothing else, and return the full script again\n${v.map((x, i) => `${i + 1}. ${x}`).join("\n")}\n\n## Your revision — script.md\n${fence(script)}\n\n${materials(pron)}\n\nFix by the rules above and output only the report JSON (same fields; plan may repeat the previous plan).`, OUT_SCHEMA, 40, effort);
+      const o2 = await gpt<RewriteOut>(baseSystem(mode), `## Format check (L0) findings on your revision — resolve all, change nothing else, and return the full script again\n${v.map((x, i) => `${i + 1}. ${x}`).join("\n")}\n\n## Your revision — script.md\n${fence(script)}\n\n${materials(pron)}\n\nFix by the rules above and output only the report JSON (same fields; plan may repeat the previous plan).`, OUT_SCHEMA, 40, "medium", SCORE_MAX_OUT); // v1.9: L0 수정은 위반만 고치는 작업 — medium, 상한 24,576(대본 전체를 다시 내므로 수리보다 넉넉히)
       script = fixMeta(o2, script); pron = mergePron(pron, o2.pronunciations_added); tc = o2.turn_claims; v = l0(script, pron, tc); o = { ...o2, plan: o.plan || o2.plan };
       ms.l0fix = Date.now() - tk; tk = Date.now();
     }
