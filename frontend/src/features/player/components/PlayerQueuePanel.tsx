@@ -921,6 +921,10 @@ export default function PlayerQueuePanel({
     <View style={styles.panel}>
       <ScrollView
         ref={scrollRef}
+        // 끝에서 고무줄처럼 늘어나지 않는다(PM 2026-10-23 "올라가는 게 왜 끝도 없이 돼? 빈 공간이 나오고") — 시트 안 목록이라
+        // 맨 위에서 끌어내리면 목록 위로 빈 바탕이 한없이 드러났다. 시트 단계 이동은 손잡이가 맡는다
+        bounces={false}
+        overScrollMode="never"
         style={styles.list}
         contentContainerStyle={listContentStyle}
         showsVerticalScrollIndicator={false}
