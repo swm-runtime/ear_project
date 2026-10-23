@@ -2305,10 +2305,10 @@ export default function PlayerScreen() {
             */}
                 {isQueueOpen || queueQuery.data !== undefined || !isLibraryQueue ? (
                   <PlayerQueuePanel
-                    // 모션 중에는 앞 몇 줄만 — 앉은 뒤 나머지가 올라온다(위 isQueueSettled 주석)
-                    items={
-                      isQueueSettled ? queueItems : queueItems.slice(0, QUEUE_MOTION_PREVIEW_COUNT)
-                    }
+                    // 모션 중(닫힘 포함)에는 재생 중인 줄부터 몇 줄만 — 앉은 뒤 나머지가 올라온다(위 isQueueSettled 주석)
+                    items={queueItems}
+                    previewCount={isQueueSettled ? undefined : QUEUE_MOTION_PREVIEW_COUNT}
+                    isOpen={isQueueOpen}
                     // 첫 응답 전에는 모션 중의 요청 대기도 로딩으로 본다.
                     // 캐시가 있으면 재조회 중에도 목록을 유지하고, 성공한 빈 응답만 빈 상태를 그린다.
                     // 탐색 스냅샷은 조회가 없다 — 로딩·오류가 없다

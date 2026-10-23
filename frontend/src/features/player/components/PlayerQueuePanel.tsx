@@ -51,6 +51,16 @@ interface PlayerQueuePanelProps {
    * 1단에서도 마지막 줄까지 스크롤된다. 2단에서는 0
    */
   bottomInset?: number;
+  /**
+   * 시트가 열려 있는가(기본 true). **닫혀 있는 동안 목록을 지금 재생 중인 줄로 맞춰 둔다**(PM 2026-10-23 "열었을 때 재생 중인 콘텐츠로
+   * 포커싱돼야지 맨 앞을 띄우면 어떡해") — 탭으로 열든 끌어 올리든 처음부터 그 줄이 맨 위다. 열려 있는 동안은 보던 자리를 건드리지 않는다
+   */
+  isOpen?: boolean;
+  /**
+   * 시트 모션 중 그릴 줄 수 — 주면 **재생 중인 줄부터** 이만큼만 그리고 나머지는 같은 높이의 빈 자리로 둔다(행 수십 개를 모션 중에
+   * 마운트하면 프레임이 밀린다 — PlayerScreen isQueueSettled). 앞 몇 줄이 아니라 재생 중인 줄 주변이라, 맞춰 둔 스크롤 위치에서 비지 않는다
+   */
+  previewCount?: number;
 }
 
 /** 줄의 키 — 라이브러리 항목 id 가 없는(담기지 않은) 스냅샷 줄은 콘텐츠 id 로 */
@@ -80,6 +90,8 @@ const ROW_GAP = theme.spacing.xs;
 const ROW_STEP = ROW_HEIGHT + ROW_GAP;
 /** 놓은 뒤 새 순서를 기다리는 상한 — 보통은 다음 틱에 온다 */
 const SETTLE_FALLBACK_MS = 600;
+/** 닫힌 뒤 재생 중인 줄로 다시 맞추기까지 — 닫힘 스프링(약 0.45초)이 끝나 목록이 숨은 뒤에 옮긴다(움직이는 게 보이지 않게) */
+const CLOSED_REFOCUS_DELAY_MS = 500;
 /** 두 목록이 같은 줄을 같은 순서로 담았는지 */
 const isSameOrder = (a: QueueEntry[], b: QueueEntry[]): boolean =>
   a === b || (a.length === b.length && a.every((item, index) => rowKey(item) === rowKey(b[index])));
@@ -508,6 +520,8 @@ export default function PlayerQueuePanel({
   upNext,
   onSelectUpNext,
   bottomInset = 0,
+  isOpen = true,
+  previewCount,
 }: PlayerQueuePanelProps) {
   const isExplore = mode === 'explore';
   // 담기 스와이프는 탐색 맥락의 라이브러리에 없는 줄만(라이브러리 맥락은 전부 담긴 편)
@@ -544,11 +558,22 @@ export default function PlayerQueuePanel({
   const countRef = useRef(items.length);
   const itemsRef = useRef(items);
   const onReorderRef = useRef(onReorder);
+  const currentIdRef = useRef(currentContentId);
+  const isOpenRef = useRef(isOpen);
   useEffect(() => {
     countRef.current = items.length;
     itemsRef.current = items;
     onReorderRef.current = onReorder;
+    currentIdRef.current = currentContentId;
+    isOpenRef.current = isOpen;
   });
+  const currentIndex = items.findIndex((item) => item.contentId === currentContentId);
+  // 모션 중 그릴 창 — 재생 중인 줄부터(끝 근처면 끝에서 previewCount 만큼). 창 밖은 같은 높이의 빈 자리
+  const windowStart =
+    previewCount === undefined
+      ? 0
+      : Math.max(0, Math.min(Math.max(currentIndex, 0), items.length - previewCount));
+  const windowEnd = previewCount === undefined ? items.length : windowStart + previewCount;
   /*
    * 붙잡은 기록은 잠시 뒤 지운다 — 새 순서가 그려지는 렌더에서는 위 shownDrag 가 이미 null 이라 화면엔 영향이 없고, 순서가 끝내 안
    * 바뀌어 오면(저장 실패로 되돌림 등) 이때 붙잡은 모습이 풀린다. 그새 다음 끌기가 시작됐으면 그 끌기의 dragY 는 건드리지 않는다
@@ -572,10 +597,46 @@ export default function PlayerQueuePanel({
     startOffset: 0, // 끌기 시작 때의 스크롤 위치
     viewport: 0, // 목록 뷰포트 높이
     content: 0, // 목록 콘텐츠 높이
-    rowsTop: 0, // 첫 행의 콘텐츠 기준 y(패딩·제목 아래)
+    rowsTop: -1, // 첫 행의 콘텐츠 기준 y(패딩·제목 아래). 실측 전 -1
     lastDy: 0, // 마지막 손가락 이동량
     frame: 0 as number | 0, // 자동 스크롤 루프(requestAnimationFrame id)
   });
+
+  /*
+   * 재생 중인 줄을 뷰포트 맨 위로 — 줄 위치는 실측(rowsTop) + 칸 수라, 실측 전이면 false(나중에 다시). 목록 끝 근처면 끝까지만 내린다
+   */
+  const pendingFocusRef = useRef(true);
+  const focusCurrent = (): boolean => {
+    const state = scrollState.current;
+    if (state.rowsTop < 0) return false;
+    const index = itemsRef.current.findIndex((item) => item.contentId === currentIdRef.current);
+    if (index < 0) return itemsRef.current.length > 0;
+    const maxScroll =
+      state.content > 0 && state.viewport > 0 ? Math.max(0, state.content - state.viewport) : null;
+    // 위 여백(sm)만큼 덜 내려 첫 줄일 때와 같은 숨 쉴 자리를 둔다
+    const target = Math.max(0, state.rowsTop + index * ROW_STEP - theme.spacing.sm);
+    const y = maxScroll === null ? target : Math.min(target, maxScroll);
+    scrollRef.current?.scrollTo({ y, animated: false });
+    state.offset = y;
+    return true;
+  };
+  const focusCurrentRef = useRef(focusCurrent);
+  useEffect(() => {
+    focusCurrentRef.current = focusCurrent;
+  });
+  useEffect(() => {
+    if (isOpen) {
+      // 처음 열자마자 마운트된 경우(닫힌 채로는 아직 목록이 없었다) — 실측되면 한 번 맞춘다(아래 rows onLayout)
+      if (pendingFocusRef.current && focusCurrentRef.current()) pendingFocusRef.current = false;
+      return;
+    }
+    // 닫힘 — 다 내려가 목록이 숨은 뒤 재생 중인 줄로 맞춰 둔다. 닫힌 채 다음 편으로 넘어가도 다시 맞춘다
+    pendingFocusRef.current = true;
+    const timer = setTimeout(() => {
+      if (focusCurrentRef.current()) pendingFocusRef.current = false;
+    }, CLOSED_REFOCUS_DELAY_MS);
+    return () => clearTimeout(timer);
+  }, [isOpen, currentContentId]);
 
   const applyRef = useRef<() => number>(() => 0);
   // 화면이 걷히는 중에 끌기가 남아 있어도 루프가 돌지 않게 한다
@@ -806,37 +867,48 @@ export default function PlayerQueuePanel({
             style={styles.rows}
             onLayout={(event) => {
               scrollState.current.rowsTop = event.nativeEvent.layout.y;
+              // 열면서 처음 마운트됐다 — 실측이 끝난 지금 재생 중인 줄로(닫힌 채 맞추기는 위 타이머 몫)
+              if (isOpenRef.current && pendingFocusRef.current && focusCurrentRef.current()) {
+                pendingFocusRef.current = false;
+              }
             }}
           >
-            {items.map((item, index) => (
-              <QueueRow
-                key={rowKey(item)}
-                item={item}
-                category={categoryOf ? categoryOf(item) : null}
-                index={index}
-                total={items.length}
-                isCurrent={item.contentId === currentContentId}
-                trailing="reorder"
-                canSave={canSaveOf(item)}
-                onSave={onSave}
-                // 지금 듣는 줄은 밀리지 않는다(재생 중인 것을 목록에서 지우는 조작은 없다). 라이브러리 항목이 없는 줄은
-                // 라이브러리 맥락에서 올 일이 없다(전부 담긴 편) — 탐색 맥락은 스냅샷 빼기라 itemId 와 무관
-                canDelete={
-                  item.contentId !== currentContentId && (isExplore || item.itemId !== null)
-                }
-                deleteA11yLabel={deleteA11yLabel}
-                onDelete={onDelete}
-                isDragging={shownDrag !== null && shownDrag.from === index}
-                shift={shiftOf(index)}
-                animateShift={drag !== null}
-                dragY={dragY}
-                onSelect={onSelect}
-                onDragStart={handlers.start}
-                onDragMove={handlers.move}
-                onDragEnd={handlers.end}
-                onNudge={handlers.nudge}
-              />
-            ))}
+            {windowStart > 0 ? <View style={{ height: windowStart * ROW_STEP - ROW_GAP }} /> : null}
+            {items.slice(windowStart, windowEnd).map((item, offset) => {
+              const index = windowStart + offset;
+              return (
+                <QueueRow
+                  key={rowKey(item)}
+                  item={item}
+                  category={categoryOf ? categoryOf(item) : null}
+                  index={index}
+                  total={items.length}
+                  isCurrent={item.contentId === currentContentId}
+                  trailing="reorder"
+                  canSave={canSaveOf(item)}
+                  onSave={onSave}
+                  // 지금 듣는 줄은 밀리지 않는다(재생 중인 것을 목록에서 지우는 조작은 없다). 라이브러리 항목이 없는 줄은
+                  // 라이브러리 맥락에서 올 일이 없다(전부 담긴 편) — 탐색 맥락은 스냅샷 빼기라 itemId 와 무관
+                  canDelete={
+                    item.contentId !== currentContentId && (isExplore || item.itemId !== null)
+                  }
+                  deleteA11yLabel={deleteA11yLabel}
+                  onDelete={onDelete}
+                  isDragging={shownDrag !== null && shownDrag.from === index}
+                  shift={shiftOf(index)}
+                  animateShift={drag !== null}
+                  dragY={dragY}
+                  onSelect={onSelect}
+                  onDragStart={handlers.start}
+                  onDragMove={handlers.move}
+                  onDragEnd={handlers.end}
+                  onNudge={handlers.nudge}
+                />
+              );
+            })}
+            {windowEnd < items.length ? (
+              <View style={{ height: (items.length - windowEnd) * ROW_STEP - ROW_GAP }} />
+            ) : null}
           </View>
         )}
         {upNextSection}
