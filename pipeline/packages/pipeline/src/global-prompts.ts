@@ -766,14 +766,14 @@ export function judgeToInternal<T extends { candidates?: { axis_type: string; ve
 // 주제(백로그 제목안)는 기획 언어라 "Why …" 질문 형식으로 두고, 청취자가 보는 제목은 대본이 확정된 뒤 패키지 단계에서 따로 짓는다.
 // 종전에는 upload-meta 제목이 주제를 그대로 받아 글로벌 편 전부가 "Why …"로 시작했다(한국판은 게이트 2 에서 사람이 고치지만 글로벌 게이트 2 는 자동).
 // 최근 제목을 함께 주어 형태 반복을 막는다 — 썸네일 장면의 [최근 장면]과 같은 방식. 규칙은 GPT 가 읽는 단문, 근거는 이 주석과 글로벌 명세 6.9.
-export const TITLE_PROMPT_VERSION_EN = "title-en-v1";
+export const TITLE_PROMPT_VERSION_EN = "title-en-v1.1"; // v1.1 (2026-10-23): 인용형 제한(제목 전체 따옴표·로마자 한국어 단독 금지), Title Case 의 소문자 단어 명시 — 첫 12편에서 “Bap Meogeosseoyo”·“Before The Goodbye”·And/The 대문자가 나왔다
 export const TITLE_RULES_EN = `# Episode title
 
 You write the published title of one ear episode. The topic line is the planning question. The title is what a listener sees in a list beside other titles, so it must read differently from the recent titles.
 
-1. Eight words or fewer. Title Case.
-2. Name the concrete thing in the script: the word, the dish, the gesture, the scene. Not the category.
-3. Pick a form the recent titles do not use: a statement, a noun phrase, a contrast ("A, yet B"), a quoted phrase from the script, or a question.
+1. Eight words or fewer. Title Case: capitalize the main words; keep a, an, the, and, but, or, of, on, in, to, at, for, with lowercase unless first or last.
+2. Name the concrete thing in the script: the word, the dish, the gesture, the scene. Not the category. A listener who knows nothing about Korea must see what the episode is about from the title alone.
+3. Pick a form the recent titles do not use: a statement, a noun phrase, a contrast ("A, yet B"), a quoted phrase, or a question. A quoted phrase is a short English phrase from the script, at most one pair of quotation marks, and words outside the quotes say what it is about; never put the whole title in quotation marks. A romanized Korean word never stands alone as the title; if it is the subject, the title also says what it means in English.
 4. If any of the last three recent titles starts with "Why", do not start with "Why". If any of the last three ends with "?", do not write a question.
 5. "Korea", "Korean", "Koreans", or "Seoul" may appear in at most one of the last three titles, counting yours.
 6. No colon or dash subtitle. No clickbait: no superlatives, no "secret", "truth", "really", "actually". Nothing the script does not answer.
@@ -798,11 +798,28 @@ export const TITLE_SCHEMA_EN = {
   },
 } as const;
 
-/** 규칙 1·4·5·6 을 코드가 다시 센다 — 어기면 사유 목록. 비면 통과. recent 는 최신순 */
+/** 규칙 1 의 Title Case 를 코드가 맞춘다 — 관사·접속사·전치사는 첫·끝 단어와 여는 따옴표 바로 뒤가 아니면 소문자 (모델이 And·The·On 까지 대문자로 쓴다, 2026-10-23) */
+const SMALL_WORDS_EN = new Set(["a", "an", "the", "and", "but", "or", "nor", "of", "on", "in", "to", "at", "for", "with", "as", "by", "vs"]);
+export function titleCaseEn(title: string): string {
+  const words = title.trim().split(/\s+/);
+  return words.map((w, i) => {
+    const m = w.match(/^([“"'(]*)([A-Za-z][a-z]*)(.*)$/);
+    if (!m) return w;
+    const core = m[2];
+    const small = SMALL_WORDS_EN.has(core.toLowerCase());
+    if (i === 0 || i === words.length - 1 || m[1] || !small) return w;
+    return `${m[1]}${core.toLowerCase()}${m[3]}`;
+  }).join(" ");
+}
+
+/** 규칙 1·3·4·5·6 을 코드가 다시 센다 — 어기면 사유 목록. 비면 통과. recent 는 최신순 */
 export function titleViolationsEn(title: string, recent: string[]): string[] {
   const out: string[] = [];
   const t = title.trim();
   if (!t) return ["empty title"];
+  const quotes = (t.match(/[“”"]/g) ?? []).length;
+  if (quotes > 2) out.push("more than one quoted phrase");
+  if (/^[“"].*[”"]$/.test(t) && quotes === 2) out.push("the whole title is in quotation marks — words outside the quotes must say what it is about");
   const words = t.split(/\s+/).filter(Boolean).length;
   if (words > 8) out.push(`${words} words — eight or fewer`);
   if (/[:—]|\s[-–]\s/.test(t)) out.push("colon or dash subtitle");
