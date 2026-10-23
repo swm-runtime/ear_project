@@ -34,3 +34,4 @@ KAN-237 코드 PR이 두 가지를 더했다. 하나는 항목의 `market` 칸�
 ## 처리 기록
 
 - 2026-10-21 발행. 코드: `AdminTopicItemDto`에 `market`을 더했고, `AdminTopicQueryRequestDto`(`@IsOptional` `@IsEnum(UserMarket)`)를 새로 만들었다. 필터는 `TopicRepository.findAll({ market })`에서 DB 조건으로 건다. 단위 테스트(`admin-topic.service.spec.ts`)와 E2E(`test/topic-exposure.e2e-spec.ts` "주제 시장 칸·필터" — 항목 `market` · `?market=global`/`kr` · 틀린 값 400 `VALIDATION_FAILED`)를 붙였다(BE — 브랜치 `feat(be)/admin-topics-market`).
+- **2026-10-23 반영**(통합 브랜치 `docs(be)/apply-pending-changes`) — 대상 문서 전부 반영, 코드와 대조. 반영 날짜 2026-10-23.

@@ -83,3 +83,4 @@ KAN-238 하이브리드 검색의 의미 엔진은 질의 벡터를 **대본 전
 ## 처리 기록
 
 - 2026-10-22 발행. 코드: 마이그레이션 `1791650000000-AddContentTitleEmbeddings`, `ContentTitleEmbeddingService`(`refresh` — 발행·재발행 훅, `backfill`), `TextEmbeddingClient`(타임아웃 10초 · 캐시 없음), `ContentRepository.findHybridSearchPage`의 의미 CTE, 상수 `SEARCH_SEMANTIC_TITLE_MIN_SIMILARITY = 0.34` · `SEARCH_SEMANTIC_SCRIPT_MIN_SIMILARITY_WITH_TITLE = 0.45`, 백필 `src/scripts/backfill-title-embeddings.ts`, 동기화 표 목록. 단위 테스트(`content-title-embedding.service.spec.ts` · `text-embedding.client.spec.ts` · `admin-content.service.spec.ts` "제목 임베딩 훅")와 E2E(`test/search-title-embeddings.e2e-spec.ts`)를 붙였다(BE — 브랜치 `feat(be)/search-title-embeddings`).
+- **2026-10-23 반영**(통합 브랜치 `docs(be)/apply-pending-changes`) — 대상 문서 전부 반영, 코드와 대조. 반영 날짜 2026-10-23.
