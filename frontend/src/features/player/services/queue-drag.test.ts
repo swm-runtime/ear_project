@@ -125,6 +125,10 @@ describe('retainedBottomInset', () => {
     expect(retainedBottomInset({ ...base, target: 400, offset: 1816 })).toBe(400);
   });
 
+  it('내용이 화면보다 짧으면(로딩 중 등) 맨 위에서 바로 줄인다 — 2단이 벌어지지 않게', () => {
+    expect(retainedBottomInset({ ...base, contentEnd: 300, target: 34, offset: 0 })).toBe(34);
+  });
+
   it('실측 전이면 원하는 여백', () => {
     expect(retainedBottomInset({ ...base, viewport: 0, target: 34, offset: 0 })).toBe(34);
   });

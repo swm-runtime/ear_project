@@ -871,7 +871,16 @@ function PlayerQueuePanel({
   useLayoutEffect(() => {
     reconcile(itemKeys);
   }, [itemKeys, reconcile]);
+  const lastListCountRef = useRef(items.length);
   useEffect(() => {
+    const previousCount = lastListCountRef.current;
+    lastListCountRef.current = items.length;
+    // 비어 있다가 처음 채워질 때(로딩 끝)는 바로 그 높이다 — 0 에서 벌어지며 아래 추천 섹션을 밀어 내리지 않게(PM 2026-10-24
+    // "로드가 다 안 됐을 때 2단으로 펼치면 벌어짐"). 줄이 빠지거나 더해질 때만 미끄러진다
+    if (previousCount === 0 || items.length === 0) {
+      listHeight.setValue(listHeightOf(items.length));
+      return;
+    }
     Animated.timing(listHeight, {
       toValue: listHeightOf(items.length),
       duration: ROW_REFLOW_MS,
@@ -1269,6 +1278,7 @@ function PlayerQueuePanel({
     });
     if (
       next > inset.target &&
+      // retainedBottomInset 이 남긴 몫은 지금 위치가 새 끝을 넘을 때뿐이다 — 그때만 내린다
       dragRef.current === null &&
       insetSettleTimerRef.current === null &&
       viewport > 0 &&
