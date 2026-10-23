@@ -28,9 +28,11 @@ import { pullPrefix, pushPrefix, s3Key } from "../storage.js";
 import { createHash } from "node:crypto";
 import { scriptStats, twoStageViolationsEn } from "./draft-two-stage.js";
 
-export const JUDGE_LOOP_VERSION = "judge-loop-v1.7"; // v1.7 (2026-10-23): 단계별 시간 기록 · 작업별 effort/회차 덮어쓰기 · 실험 모드(대본·판정 미반영). 기본값은 종전 그대로. v1.6 (2026-10-23): 0회차 수리본은 L0 지적이 있어도 쓴다(회차 안과 같은 정책). v1.5: 회차 체크포인트 — 끊긴 루프는 다음 회차부터 잇는다. v1.4: // v1.4 (2026-10-23): 발음 관문(빈 읽기를 채우고 남으면 발행 불가) + 발행 준비 연쇄를 여기서 한 번 건다(한국판 비평 끝과 같은 함수). v1.3: // v1.3 (2026-10-23): 0회차 원판도 한국어 must_fix 를 수리한다 — 최고판이 원판에 머문 편(G261023-010·018·020, 60~61점)이 must_fix 미수리로만 막혔다
+export const JUDGE_LOOP_VERSION = "judge-loop-v1.8"; // v1.8 (2026-10-23): 기본값 검토 medium·상한 2(실험 A/B — README 6.3) · 0회차 원판이 발행 조건을 채우면 재작성 생략(env JUDGE_SKIP_REWRITE_IF_PUBLISHABLE, 작업 knob skip_rewrite_if_publishable). v1.7 (2026-10-23): 단계별 시간 기록 · 작업별 effort/회차 덮어쓰기 · 실험 모드(대본·판정 미반영). 기본값은 종전 그대로. v1.6 (2026-10-23): 0회차 수리본은 L0 지적이 있어도 쓴다(회차 안과 같은 정책). v1.5: 회차 체크포인트 — 끊긴 루프는 다음 회차부터 잇는다. v1.4: // v1.4 (2026-10-23): 발음 관문(빈 읽기를 채우고 남으면 발행 불가) + 발행 준비 연쇄를 여기서 한 번 건다(한국판 비평 끝과 같은 함수). v1.3: // v1.3 (2026-10-23): 0회차 원판도 한국어 must_fix 를 수리한다 — 최고판이 원판에 머문 편(G261023-010·018·020, 60~61점)이 must_fix 미수리로만 막혔다
 export const DEFAULT_THRESHOLD = 60; // 2026-10-23 박수헌: 65 → 60 (첫 배치 28편 중 6편 통과. 60~64 편의 편집자 평은 "필수 수정 없이 발행 가능, 장면보다 설명이 많다"로 66~70 편과 같은 지적 — 정확성 아닌 연출 밀도 차이). 한국어·사실 must_fix 관문은 그대로
 const MAX_ROUNDS = 3;
+/** 발행 조건(README 6.3): 편집자 중앙값 합계 ≥ 기준 · 한국어·사실 검토 가 · 한국어 must_fix 전부 수리. 0회차 재작성 생략 판단과 같은 식 */
+export function roundPublishable(r: { total: number; koreaPub: boolean; openMustFix: number }, threshold: number): boolean { return r.total >= threshold && r.koreaPub && r.openMustFix === 0; }
 /** 회차 체크포인트 (v1.5, 2026-10-23) — 배포가 워커를 재생성하면 진행 중 루프가 끊기고 15분 뒤 처음부터 다시 돌았다(하루 10회, 약 $15).
  *  회차가 끝날 때마다 judge/checkpoint.json 을 S3 에 올리고, 같은 입력(script.md·pronunciations.json 해시)으로 다시 집히면 그 다음 회차부터 잇는다.
  *  루프가 끝나면 done 으로 바꿔 두어 완료된 편의 재판정은 처음부터 돈다 */
@@ -206,8 +208,8 @@ export async function runJudgeLoop(job: Job, ex: Executor) {
   const st = (await getBacklogStatus(backlogId))?.status;
   if (st !== "qa_passed") throw new Error(`판정 루프는 qa_passed 에서만 (현재: ${st})`); // 불변 원칙 6 — QA 통과본 기준
   // 작업별 덮어쓰기(실험 A/B, 2026-10-23): payload.judge = { rewrite_effort_structure, rewrite_effort_detail, korea_effort, max_rounds }
-  const ov = (job.payload.judge ?? {}) as Partial<{ rewrite_effort_structure: "high" | "medium"; rewrite_effort_detail: "high" | "medium"; korea_effort: "high" | "medium"; max_rounds: number }>;
-  const knobs = { structure: ov.rewrite_effort_structure ?? cfg.judgeRewriteEffortStructure, detail: ov.rewrite_effort_detail ?? cfg.judgeRewriteEffortDetail, korea: ov.korea_effort ?? cfg.judgeKoreaEffort, maxRounds: Number(ov.max_rounds ?? cfg.judgeMaxRounds) };
+  const ov = (job.payload.judge ?? {}) as Partial<{ rewrite_effort_structure: "high" | "medium"; rewrite_effort_detail: "high" | "medium"; korea_effort: "high" | "medium"; max_rounds: number; skip_rewrite_if_publishable: boolean }>;
+  const knobs = { structure: ov.rewrite_effort_structure ?? cfg.judgeRewriteEffortStructure, detail: ov.rewrite_effort_detail ?? cfg.judgeRewriteEffortDetail, korea: ov.korea_effort ?? cfg.judgeKoreaEffort, maxRounds: Number(ov.max_rounds ?? cfg.judgeMaxRounds), skipIfPublishable: ov.skip_rewrite_if_publishable ?? cfg.judgeSkipRewriteIfPublishable };
   // 실험 모드: payload.experiment = "<라벨>" — 대본·발음·판정(critic_verdicts)·발행 준비를 건드리지 않고 judge-exp-<라벨>/ 에만 기록한다. 같은 원판에서 설정을 달리해 동시에 돌릴 수 있다
   const experiment = typeof job.payload.experiment === "string" && job.payload.experiment ? String(job.payload.experiment).replace(/[^A-Za-z0-9_-]/g, "") : null;
   const rel = `episodes/${episodeId}`; const dir = path.join(cfg.workRoot, rel); const jdirName = experiment ? `judge-exp-${experiment}` : "judge"; const jdir = path.join(dir, jdirName);
@@ -302,7 +304,7 @@ ${formatBlock}
     await save("checkpoint.json", JSON.stringify({ version: JUDGE_LOOP_VERSION, script_hash: scriptHash, at: new Date().toISOString(), ...c }, null, 1));
     await pushPrefix(`${rel}/${jdirName}/`).catch((e) => log(`  judge_loop ${episodeId}: 체크포인트 업로드 실패 (계속): ${e?.message ?? e}`));
   };
-  let rounds: RoundRec[]; let base: State; let best: State & { total: number; struct: number }; let mode: "structure" | "detail" = "structure"; let startT = 1; let resumedStopped = false;
+  let rounds: RoundRec[]; let base: State; let best: State & { total: number; struct: number }; let mode: "structure" | "detail" = "structure"; let startT = 1; let resumedStopped = false; let skippedRewrite = false;
   if (ck) {
     rounds = ck.rounds; base = ck.base as State; best = ck.best as State & { total: number; struct: number }; mode = ck.mode; cost = ck.cost; model = ck.model; startT = ck.t + 1; resumedStopped = ck.stopped;
     log(`  judge_loop ${episodeId} 체크포인트에서 재개 — ${ck.t}회차까지 끝남(${ck.at}), 최고판 ${best.round}회차 ${best.total}점${resumedStopped ? " · 이미 중단 판정" : ""}`);
@@ -333,10 +335,13 @@ ${formatBlock}
   base = { script: script0, pron: pron0, eds: eds0, korea: kr0, repaired: repaired0, round: 0 };
   best = { ...base, total: rounds[0].total, struct: rounds[0].struct };
   log(`  judge_loop ${episodeId} 0회차 — GPT ${rounds[0].totals.join("·")} 중앙 ${rounds[0].total} (구조 ${rounds[0].struct}/32) · 한국어 ${kr0.publishable ? "가" : "불가"} mf${rounds[0].koreaMf} 수리 ${repaired0.length} · 시간 검토 ${Math.round(ms0.review / 1000)}s${ms0.repair ? ` 수리 ${Math.round(ms0.repair / 1000)}s` : ""}`);
-  await saveCheckpoint({ t: 0, stopped: false, rounds, base, best, mode, cost, model });
+  // v1.8: 원판이 이미 발행 조건을 채우면 재작성을 건너뛴다 — 첫 배치 17편 중 4편(G261023-010·013·018·020)이 원판 60 이상이었고, 그 편은 재작성 2회차(약 20분)로 2~4점을 더 얻을 뿐이었다. 발음 관문은 아래에서 그대로 돈다
+  skippedRewrite = knobs.skipIfPublishable && roundPublishable({ total: best.total, koreaPub: kr0.publishable, openMustFix: openMustFix(best) }, threshold);
+  if (skippedRewrite) log(`  judge_loop ${episodeId} 0회차 발행 가능 (${best.total} ≥ ${threshold} · 한국어 가 · must_fix 0) — 재작성 생략`);
+  await saveCheckpoint({ t: 0, stopped: skippedRewrite, rounds, base, best, mode, cost, model });
   }
 
-  for (let t = startT; t <= Math.min(MAX_ROUNDS, knobs.maxRounds) && !resumedStopped; t++) {
+  for (let t = startT; t <= Math.min(MAX_ROUNDS, knobs.maxRounds) && !resumedStopped && !skippedRewrite; t++) {
     const c0 = cost;
     await progress(`판정 루프 ${t}회차 — ${mode === "structure" ? "구조" : "세부"} 재작성`);
     const effort = mode === "structure" ? knobs.structure : knobs.detail;
@@ -429,11 +434,11 @@ ${formatBlock}
   if (prepJobId) log(`  judge_loop ${episodeId}: 자동 발행 준비 → tts ${prepJobId.slice(0, 8)} (→ thumbnail → package)`);
   await insertRun({
     backlog_id: backlogId, phase: "judge", attempt: 1,
-    result: `판정 루프 ${JUDGE_LOOP_VERSION} — ${verdict.agent.publishable ? "발행 가능" : "발행 불가"}: ${verdict.agent.publishable_reason}. GPT ${rounds.map((r) => `${r.t}:${r.total}`).join(" ")} · 최고판 ${best.round}회차 · 시간 ${timing}`,
+    result: `판정 루프 ${JUDGE_LOOP_VERSION} — ${verdict.agent.publishable ? "발행 가능" : "발행 불가"}: ${verdict.agent.publishable_reason}. GPT ${rounds.map((r) => `${r.t}:${r.total}`).join(" ")} · 최고판 ${best.round}회차${skippedRewrite ? " (원판 발행 가능 — 재작성 생략)" : ""} · 시간 ${timing}`,
     prompt_version: `${JUDGE_LOOP_VERSION} (worker)`, artifacts: [reportKey], executed_by: executedBy, model, cost_usd: cost, worker_rev: workerRev(),
   });
   log(`  judge_loop ${episodeId} 끝 — ${verdict.agent.publishable ? "발행 가능" : "발행 불가"} (${verdict.agent.publishable_reason}) · $${cost.toFixed(2)}`);
-  return { episode_id: episodeId, publishable: verdict.agent.publishable, reason: verdict.agent.publishable_reason, best_round: best.round, totals: rounds.map((r) => r.total), threshold, cost_usd: cost, model, pron_filled: pronFilled, prep_job_id: prepJobId };
+  return { episode_id: episodeId, publishable: verdict.agent.publishable, reason: verdict.agent.publishable_reason, best_round: best.round, skipped_rewrite: skippedRewrite, totals: rounds.map((r) => r.total), threshold, cost_usd: cost, model, pron_filled: pronFilled, prep_job_id: prepJobId };
 }
 
 /** 비평 뒤 연결 (critic.ts) — 글로벌 인스턴스에서만, 이미 걸려 있으면 건너뛴다 */
