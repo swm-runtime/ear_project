@@ -74,6 +74,12 @@ export class PlaybackProgressService {
           contentVersion: content.contentVersion,
           contentStatus: content.status,
           libraryItem: toLibraryItemView(libraryItem),
+          isCompleted: await this.isCompleted(
+            command,
+            libraryItem,
+            false,
+            manager,
+          ),
         };
       }
 
@@ -157,6 +163,15 @@ export class PlaybackProgressService {
         // 회수 신호 — 저장은 거부하지 않되(위 주석) 상태를 실어 클라이언트가 중단한다
         contentStatus: content.status,
         libraryItem: toLibraryItemView(completed ?? libraryItem),
+        isCompleted: await this.isCompleted(
+          command,
+          completed ?? libraryItem,
+          this.libraryService.isCompletionReached(
+            maxReachedSec,
+            content.durationSec,
+          ),
+          manager,
+        ),
       };
     });
   }
@@ -238,6 +253,25 @@ export class PlaybackProgressService {
     );
 
     return completion.item;
+  }
+
+  /** 응답의 완청 여부 — 행 상태·이번 도달로 정해지면 조회하지 않고, 아니면 완청 신호까지 본다(같은 트랜잭션) */
+  private async isCompleted(
+    command: SaveProgressCommand,
+    libraryItem: LibraryItem | null,
+    reached: boolean,
+    manager: EntityManager,
+  ): Promise<boolean> {
+    if (reached || libraryItem?.status === LibraryItemStatus.COMPLETED) {
+      return true;
+    }
+
+    return this.playbackService.hasSignal(
+      command.userId,
+      command.contentId,
+      UserSignalAction.COMPLETE,
+      manager,
+    );
   }
 
   /**

@@ -19,6 +19,7 @@ import { SocialProvider, UserMarket, UserRole } from '@/modules/user/user.enum';
 
 interface SaveProgressBody {
   library_item: { status: string; completed_at: string | null } | null;
+  is_completed: boolean;
 }
 
 interface SaveContentBody {
@@ -317,6 +318,34 @@ describe('담지 않은 편의 완청 E2E', () => {
       .expect(HttpStatus.OK);
 
     // then
+    expect(
+      (resume.body as { resume_target: unknown }).resume_target,
+    ).toBeNull();
+  });
+
+  it('진행 저장 응답이 완청을 알리고, 다른 기기가 앞부분을 이어 들어 위치가 내려가도 완청은 풀리지 않는다', async () => {
+    // given
+    const contentId = await seedContent();
+    const { auth } = await createUser('durable');
+
+    // when — 끝까지 들었다가, 다른 기기에서 30% 지점을 이어 들었다
+    const below = await saveProgress(auth, contentId, 300);
+    const crossed = await saveProgress(auth, contentId, 560);
+    const rolledBack = await saveProgress(auth, contentId, 180);
+    const detail = await request(app.getHttpServer())
+      .get(path(`/contents/${contentId}`))
+      .set('Authorization', auth)
+      .expect(HttpStatus.OK);
+    const resume = await request(app.getHttpServer())
+      .get(path('/users/me/library-items/resume'))
+      .set('Authorization', auth)
+      .expect(HttpStatus.OK);
+
+    // then
+    expect(below.is_completed).toBe(false);
+    expect(crossed.is_completed).toBe(true);
+    expect(rolledBack.is_completed).toBe(true);
+    expect((detail.body as { is_completed: boolean }).is_completed).toBe(true);
     expect(
       (resume.body as { resume_target: unknown }).resume_target,
     ).toBeNull();

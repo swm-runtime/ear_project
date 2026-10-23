@@ -57,6 +57,9 @@ const SOURCES_BY_SOURCE_FILTER: Record<
  * - 재생 위치의 최대 도달이 기준 이상(`playback_progresses.max_reached_sec` ≥ 길이 × 기준, 길이 > 0 — 재생 위치
  *   저장의 판정과 같다). 오디오를 바꾸는 재발행은 위치를 지우므로 새 오디오를 다시 들어야 완청이다
  *
+ * - **완청 신호(`user_signals.action = 'complete'`)가 남은 편** — 위치는 덮어써지고(다른 기기가 앞부분을 이어 들으면 최대 도달이
+ *   내려간다 — 마지막 쓰기가 이긴다, domain.md 6.2) 오디오 재발행이 지운다. 한 번 완청한 사실은 그래도 남아야 한다(2026-10-23
+ *   검증 — 라이브러리 행이 있는 사용자는 `completed`가 남는데 행이 없는 사용자만 풀렸다). 신호는 180일 보존이다
  * 자리표시자: `$1` = user_id · `$2` = `completed` · `$3` = 기준 비율. `completed(content_id)`를 만든다.
  */
 const COMPLETED_CONTENT_IDS_CTE = `completed AS (
@@ -70,6 +73,10 @@ const COMPLETED_CONTENT_IDS_CTE = `completed AS (
    WHERE progress.user_id = $1
      AND content.duration_sec > 0
      AND progress.max_reached_sec >= content.duration_sec * $3::numeric
+  UNION
+  SELECT signal.content_id
+    FROM user_signals signal
+   WHERE signal.user_id = $1 AND signal.action = 'complete'
 )`;
 
 @Injectable()
@@ -799,7 +806,13 @@ export class LibraryItemRepository {
         completed: LibraryItemStatus.COMPLETED,
       })
       .andWhere(
-        'NOT (content.duration_sec > 0 AND progress.max_reached_sec >= content.duration_sec * CAST(:ratio AS numeric))',
+        `NOT (content.duration_sec > 0 AND progress.max_reached_sec >= content.duration_sec * CAST(:ratio AS numeric))
+         AND NOT EXISTS (
+           SELECT 1 FROM user_signals signal
+            WHERE signal.user_id = progress.user_id
+              AND signal.content_id = progress.content_id
+              AND signal.action = 'complete'
+         )`,
         { ratio },
       )
       .orderBy('last_played_at', 'DESC')
@@ -1012,8 +1025,14 @@ export class LibraryItemRepository {
          FROM playback_progresses progress
          JOIN contents content ON content.id = progress.content_id
         CROSS JOIN LATERAL (
-          SELECT content.duration_sec > 0
-             AND progress.max_reached_sec >= content.duration_sec * $6::numeric AS done
+          SELECT (content.duration_sec > 0
+             AND progress.max_reached_sec >= content.duration_sec * $6::numeric)
+             OR EXISTS (
+               SELECT 1 FROM user_signals signal
+                WHERE signal.user_id = progress.user_id
+                  AND signal.content_id = progress.content_id
+                  AND signal.action = 'complete'
+             ) AS done
         ) reached
         WHERE item.user_id = $1
           AND item.content_id = ANY($2::uuid[])
@@ -1068,8 +1087,14 @@ export class LibraryItemRepository {
       ratio,
     ];
     const reached = `CROSS JOIN LATERAL (
-       SELECT content.duration_sec > 0
-          AND progress.max_reached_sec >= content.duration_sec * $4::numeric AS done
+       SELECT (content.duration_sec > 0
+          AND progress.max_reached_sec >= content.duration_sec * $4::numeric)
+          OR EXISTS (
+            SELECT 1 FROM user_signals signal
+             WHERE signal.user_id = progress.user_id
+               AND signal.content_id = progress.content_id
+               AND signal.action = 'complete'
+          ) AS done
      ) reached`;
     const outOfSync = `item.deleted_at IS NULL
        AND item.status <> $1
