@@ -8,7 +8,16 @@ import {
   useState,
   type ReactNode,
 } from 'react';
-import { Animated, PanResponder, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import {
+  Animated,
+  PanResponder,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  View,
+  type StyleProp,
+  type ViewStyle,
+} from 'react-native';
 
 import { useAnimatedValue } from '@/shared/hooks/useAnimatedValue';
 import { useDelayedVisible } from '@/shared/hooks/useDelayedVisible';
@@ -174,7 +183,10 @@ const speedOf = (depth: number): number =>
   Math.max(2, Math.min(AUTO_SCROLL_MAX_SPEED, (depth / AUTO_SCROLL_EDGE) * AUTO_SCROLL_MAX_SPEED));
 
 /** 로딩 스켈레톤 행 수 — 패널을 연 첫 화면을 채울 만큼 */
-const SKELETON_ROW_COUNT = 5;
+// 2단 화면을 다 덮을 만큼(PM 2026-10-24 "로딩이 안 되면 스켈레톤") — 5줄이면 2단에서 아래가 비었다. 반짝임은 영역 하나라 줄 수와 무관
+const SKELETON_ROW_COUNT = 10;
+/** 모션 중 그리지 않은 줄 자리의 스켈레톤 상한 — 화면 한 장이면 된다(창은 재생 중인 줄 근처라 그 밖은 대개 화면 밖) */
+const WINDOW_SKELETON_MAX_ROWS = 10;
 /** 추천 블록 스켈레톤 — 목록 아래라 둘이면 "뭔가 온다"는 단서로 충분하다 */
 const UP_NEXT_SKELETON_ROW_COUNT = 2;
 /** 바닥에서 이 줄 수만큼 남으면 추천 다음 장을 부른다 — 닿기 전에 받아 두어 끊기지 않게 */
@@ -227,10 +239,16 @@ function AutoplaySwitch({ value }: { value: boolean }) {
  * 대기열 로딩 스켈레톤 — 실제 행과 같은 높이·여백(썸네일 48 + 제목 줄 + 보조 줄). 손잡이 자리는 비워 둔다.
  * 면 색은 플레이어 토큰(`playerColor.skeleton`)이다 — 바탕이 어둡고 커버 색이 비친다.
  */
-function QueueSkeleton() {
+function QueueSkeleton({
+  count = SKELETON_ROW_COUNT,
+  style,
+}: {
+  count?: number;
+  style?: StyleProp<ViewStyle>;
+}) {
   return (
-    <SkeletonGroup style={styles.rows} color={playerColor.skeleton}>
-      {Array.from({ length: SKELETON_ROW_COUNT }, (_, index) => (
+    <SkeletonGroup style={[styles.rows, style]} color={playerColor.skeleton}>
+      {Array.from({ length: count }, (_, index) => (
         <View key={index} style={styles.rowWrap}>
           <View style={styles.row}>
             <SkeletonBlock width={THUMBNAIL_SIZE} height={THUMBNAIL_SIZE} radius="sm" />
@@ -1405,6 +1423,27 @@ function PlayerQueuePanel({
               }
             }}
           >
+            {/*
+              모션 중 아직 그리지 않은 줄 자리 — 빈칸 대신 스켈레톤(PM 2026-10-24 "로딩이 안 되면 스켈레톤을 넣어"). 시트가 앉으면
+              창이 풀려 진짜 줄로 바뀐다. 창 위는 창에 붙은 쪽부터 화면 한 장만큼, 아래도 화면 한 장만큼
+            */}
+            {windowStart > 0 ? (
+              <QueueSkeleton
+                count={Math.min(windowStart, WINDOW_SKELETON_MAX_ROWS)}
+                style={[
+                  styles.windowSkeleton,
+                  {
+                    top: (windowStart - Math.min(windowStart, WINDOW_SKELETON_MAX_ROWS)) * ROW_STEP,
+                  },
+                ]}
+              />
+            ) : null}
+            {windowEnd < items.length ? (
+              <QueueSkeleton
+                count={Math.min(items.length - windowEnd, WINDOW_SKELETON_MAX_ROWS)}
+                style={[styles.windowSkeleton, { top: windowEnd * ROW_STEP }]}
+              />
+            ) : null}
             {items.slice(windowStart, windowEnd).map((item, offset) => {
               const index = windowStart + offset;
               const key = itemKeys[index];
@@ -1492,6 +1531,12 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     height: ROW_HEIGHT,
+  },
+  // 그리지 않은 줄 자리의 스켈레톤 — 줄 칸과 같은 좌표계(절대 배치)
+  windowSkeleton: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
   },
   rowSlotLifted: {
     zIndex: 1,
