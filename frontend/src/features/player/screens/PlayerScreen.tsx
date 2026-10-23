@@ -5,7 +5,6 @@ import type { LayoutChangeEvent, ViewProps } from 'react-native';
 import {
   ActivityIndicator,
   Animated,
-  Image,
   PanResponder,
   Platform,
   Pressable,
@@ -56,6 +55,7 @@ import {
   MINI_THUMB_SIZE,
 } from '../components/MiniPlayer';
 import PlayConfirmDialog from '../components/PlayConfirmDialog';
+import { CrossfadeArtwork, CrossfadeBackdrop } from '../components/PlayerCrossfade';
 import PlayerCurrentSection from '../components/PlayerCurrentSection';
 import {
   MoreIcon,
@@ -1785,13 +1785,12 @@ export default function PlayerScreen() {
         */}
         {session.meta.thumbnailUrl ? (
           <Animated.View style={[styles.backdrop, { opacity: morph.backdropOpacity }]}>
-            <Image
-              source={{ uri: session.meta.thumbnailUrl }}
-              style={styles.backdropImage}
-              // 흐린 바탕만은 기본 Image 로 둔다(KAN-78) — expo-image 의 blurRadius 는 세기 기준이 달라
-              // 맞춰 둔 톤이 바뀐다. 같은 URL 을 한 번 더 받는 비용은 작다(768px WebP)
+            {/* 흐린 바탕만은 기본 Image 로 둔다(KAN-78) — expo-image 의 blurRadius 는 세기 기준이 달라 맞춰 둔 톤이 바뀐다.
+                같은 URL 을 한 번 더 받는 비용은 작다(768px WebP). 편이 바뀌면 커버와 같은 길이로 교차 페이드한다 */}
+            <CrossfadeBackdrop
+              uri={session.meta.thumbnailUrl}
+              imageStyle={styles.backdropImage}
               blurRadius={BACKDROP_BLUR_RADIUS}
-              resizeMode="cover"
             />
             <View style={styles.backdropScrim} />
           </Animated.View>
@@ -1887,27 +1886,15 @@ export default function PlayerScreen() {
                     artImageFlipStyle,
                   ]}
                 >
-                  {session.meta.thumbnailUrl ? (
-                    <RemoteImage
-                      key={session.meta.thumbnailUrl}
-                      uri={session.meta.thumbnailUrl}
-                      style={styles.artwork}
-                      isResized
-                    />
-                  ) : (
-                    <View style={[styles.artwork, styles.artworkPlaceholder]} />
-                  )}
+                  {/* 편이 바뀌면(자동 재생) 앞 사진 위로 새 사진이 페이드로 덮인다(PlayerCrossfade) */}
+                  <CrossfadeArtwork
+                    uri={session.meta.thumbnailUrl ?? null}
+                    style={styles.artwork}
+                  />
                 </Reanimated.View>
-              ) : session.meta.thumbnailUrl ? (
-                <RemoteImage
-                  // 잠긴 뷰는 주소가 바뀌어도 다시 불러오지 않는다 — 콘텐츠가 바뀌면 새로 만든다
-                  key={session.meta.thumbnailUrl}
-                  uri={session.meta.thumbnailUrl}
-                  style={styles.artwork}
-                  isResized
-                />
               ) : (
-                <View style={[styles.artwork, styles.artworkPlaceholder]} />
+                // 잠긴 뷰는 주소가 바뀌어도 다시 불러오지 않는다 — 겹마다 주소를 키로 새로 만들고 교차 페이드한다
+                <CrossfadeArtwork uri={session.meta.thumbnailUrl ?? null} style={styles.artwork} />
               )}
               {/* 완청 표식은 얹지 않는다(player-uiux.md 4.x 개정 2026-09-22 — 라이브러리 체크 마킹 폐기와 같이. 코드는 09-26 17:07 에 뒤늦게 뺐다) */}
               {/* 사진 위 글자·시크바 대비용 어두운 막 — 열린 만큼만 */}
