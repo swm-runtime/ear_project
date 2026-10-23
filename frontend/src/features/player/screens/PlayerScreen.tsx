@@ -2233,6 +2233,16 @@ export default function PlayerScreen() {
             </Pressable>
           </Reanimated.View>
 
+          {/* 2단 시트 면의 바닥 이음 — content 는 안전영역(홈 인디케이터) 위에서 끝나 시트 면 밑에 바탕 띠가 남았다(PM 2026-10-23
+            스샷). 틀을 내리면 닫힘에서 목록 첫 줄이 손잡이 밑으로 비치므로 틀은 두고 그 띠만 같은 면으로 채운다 */}
+          <FadeByProgress
+            progress={queueExpand}
+            pointerEvents="none"
+            style={[
+              styles.queueSheetBottomFill,
+              { top: contentSize.height, height: bottomPadding },
+            ]}
+          />
           <View style={[styles.queueSheetFrame, { top: queueFullTop }]} pointerEvents="box-none">
             <Reanimated.View style={[styles.queueSheet, queueSheetStyle]}>
               {/* 2단의 시트 면 — 위 모서리가 둥근 한 단 올라온 면(유튜브 뮤직). 1단은 종전처럼 면 없이 흐린 바탕 위다 */}
@@ -3035,6 +3045,12 @@ const styles = StyleSheet.create({
   },
   queueSheet: {
     flex: 1,
+  },
+  queueSheetBottomFill: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    backgroundColor: playerColor.surface,
   },
   queueSheetSurface: {
     backgroundColor: playerColor.surface,
