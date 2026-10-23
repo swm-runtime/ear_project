@@ -147,6 +147,8 @@ const THUMBNAIL_SIZE = 48;
 const ROW_HEIGHT = THUMBNAIL_SIZE + theme.spacing.sm * 2;
 const ROW_GAP = theme.spacing.xs;
 const ROW_STEP = ROW_HEIGHT + ROW_GAP;
+/** 2단 바닥 여백을 걷기 전에 목록을 새 끝까지 내리는 시간 — 스크롤 애니메이션(약 0.3초)이 끝난 뒤 걷는다(KAN-262) */
+const INSET_SETTLE_MS = 360;
 /** 놓은 뒤 새 순서를 기다리는 상한 — 보통은 다음 틱에 온다. 끝내 안 오면(저장 실패로 되돌림 등) 부모 순서로 돌아간다 */
 const SETTLE_FALLBACK_MS = 600;
 /** 닫힌 뒤 재생 중인 줄로 다시 맞추기까지 — 닫힘 스프링(약 0.45초)이 끝나 목록이 숨은 뒤에 옮긴다(움직이는 게 보이지 않게) */
@@ -1247,20 +1249,56 @@ function PlayerQueuePanel({
    * 다시 본다 — 끝에서 멀어졌으면 그때 걷는다(보이지 않는 자리라 움직임이 없다). 스크롤 이벤트마다 보지 않는다(렌더가 잦아진다)
    */
   const insetRef = useRef({ target: bottomInset, applied: bottomInset, contentEnd: 0 });
+  /*
+   * 끝 근처라 여백을 바로 못 걷을 때 — **목록을 새 끝까지 부드럽게 내린 뒤 걷는다**(KAN-262 재발, PM 2026-10-24 "262 안됨"). 종전엔
+   * "지금 화면 바닥을 덮는 여백은 남긴다"만 있어서, 빈 자리가 보이는(= 끝에 머문) 동안엔 영영 걷히지 않았다. 내리는 동안 줄이
+   * 미끄러져 내려와 빈 자리를 메운다(툭 내려앉지 않게 animated)
+   */
+  const insetSettleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const reconcileInsetRef = useRef<() => void>(() => {});
   const reconcileInset = useCallback(() => {
     const inset = insetRef.current;
     const { offset, viewport } = scrollState.current;
+    const basePadding = theme.spacing.md;
     const next = retainedBottomInset({
       target: inset.target,
       offset,
       viewport,
       contentEnd: inset.contentEnd,
-      basePadding: theme.spacing.md,
+      basePadding,
     });
+    if (
+      next > inset.target &&
+      dragRef.current === null &&
+      insetSettleTimerRef.current === null &&
+      viewport > 0 &&
+      inset.contentEnd > 0
+    ) {
+      const settledEnd = Math.max(
+        0,
+        Math.ceil(inset.contentEnd + basePadding + inset.target - viewport),
+      );
+      scrollRef.current?.scrollTo({ y: settledEnd, animated: true });
+      insetSettleTimerRef.current = setTimeout(() => {
+        insetSettleTimerRef.current = null;
+        // 내리는 중 스크롤 이벤트가 위치를 따라왔다 — 이제 새 끝 안쪽이라 여백을 걷을 수 있다
+        scrollState.current.offset = Math.min(scrollState.current.offset, settledEnd);
+        reconcileInsetRef.current();
+      }, INSET_SETTLE_MS);
+    }
     if (next === inset.applied) return;
     inset.applied = next;
     setAppliedInset(next);
   }, []);
+  useEffect(() => {
+    reconcileInsetRef.current = reconcileInset;
+  }, [reconcileInset]);
+  useEffect(
+    () => () => {
+      if (insetSettleTimerRef.current !== null) clearTimeout(insetSettleTimerRef.current);
+    },
+    [],
+  );
   useEffect(() => {
     insetRef.current.target = bottomInset;
     reconcileInset();
