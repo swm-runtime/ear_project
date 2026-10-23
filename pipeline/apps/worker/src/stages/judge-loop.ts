@@ -28,7 +28,7 @@ import { pullPrefix, pushPrefix, s3Key } from "../storage.js";
 import { createHash } from "node:crypto";
 import { scriptStats, twoStageViolationsEn } from "./draft-two-stage.js";
 
-export const JUDGE_LOOP_VERSION = "judge-loop-v1.9"; // v1.9 (2026-10-23): 수리·L0 수정 호출은 medium + 출력 상한 12,288/24,576 — "지적된 턴만 최소 변경" 작업에 high 가 필요 없고, 10회차에 1번꼴로 10분씩 폭주했다(013 r1 수리 11.7분, 008-A r2 L0 14.8분). v1.8 (2026-10-23): 기본값 검토 medium·상한 2(실험 A/B — README 6.3) · 0회차 원판이 발행 조건을 채우면 재작성 생략(env JUDGE_SKIP_REWRITE_IF_PUBLISHABLE, 작업 knob skip_rewrite_if_publishable). v1.7 (2026-10-23): 단계별 시간 기록 · 작업별 effort/회차 덮어쓰기 · 실험 모드(대본·판정 미반영). 기본값은 종전 그대로. v1.6 (2026-10-23): 0회차 수리본은 L0 지적이 있어도 쓴다(회차 안과 같은 정책). v1.5: 회차 체크포인트 — 끊긴 루프는 다음 회차부터 잇는다. v1.4: // v1.4 (2026-10-23): 발음 관문(빈 읽기를 채우고 남으면 발행 불가) + 발행 준비 연쇄를 여기서 한 번 건다(한국판 비평 끝과 같은 함수). v1.3: // v1.3 (2026-10-23): 0회차 원판도 한국어 must_fix 를 수리한다 — 최고판이 원판에 머문 편(G261023-010·018·020, 60~61점)이 must_fix 미수리로만 막혔다
+export const JUDGE_LOOP_VERSION = "judge-loop-v1.10"; // v1.10 (2026-10-23 박수헌 "발행 조건 채우면 멈추도록"): 어느 회차든 발행 조건(중앙값 ≥ 기준 · 한국어 가 · must_fix 0)을 채우면 멈춘다 — 1회차에 넘긴 8편이 전부 2회차(11분)를 더 돌았고 그 회차가 최고판이 된 적이 없다(최근 3일 32회). 호출별 로그(라벨·소요·토큰·대기열). v1.9 (2026-10-23): 수리·L0 수정 호출은 medium + 출력 상한 12,288/24,576 — "지적된 턴만 최소 변경" 작업에 high 가 필요 없고, 10회차에 1번꼴로 10분씩 폭주했다(013 r1 수리 11.7분, 008-A r2 L0 14.8분). v1.8 (2026-10-23): 기본값 검토 medium·상한 2(실험 A/B — README 6.3) · 0회차 원판이 발행 조건을 채우면 재작성 생략(env JUDGE_SKIP_REWRITE_IF_PUBLISHABLE, 작업 knob skip_rewrite_if_publishable). v1.7 (2026-10-23): 단계별 시간 기록 · 작업별 effort/회차 덮어쓰기 · 실험 모드(대본·판정 미반영). 기본값은 종전 그대로. v1.6 (2026-10-23): 0회차 수리본은 L0 지적이 있어도 쓴다(회차 안과 같은 정책). v1.5: 회차 체크포인트 — 끊긴 루프는 다음 회차부터 잇는다. v1.4: // v1.4 (2026-10-23): 발음 관문(빈 읽기를 채우고 남으면 발행 불가) + 발행 준비 연쇄를 여기서 한 번 건다(한국판 비평 끝과 같은 함수). v1.3: // v1.3 (2026-10-23): 0회차 원판도 한국어 must_fix 를 수리한다 — 최고판이 원판에 머문 편(G261023-010·018·020, 60~61점)이 must_fix 미수리로만 막혔다
 export const DEFAULT_THRESHOLD = 60; // 2026-10-23 박수헌: 65 → 60 (첫 배치 28편 중 6편 통과. 60~64 편의 편집자 평은 "필수 수정 없이 발행 가능, 장면보다 설명이 많다"로 66~70 편과 같은 지적 — 정확성 아닌 연출 밀도 차이). 한국어·사실 must_fix 관문은 그대로
 const MAX_ROUNDS = 3;
 /** 발행 조건(README 6.3): 편집자 중앙값 합계 ≥ 기준 · 한국어·사실 검토 가 · 한국어 must_fix 전부 수리. 0회차 재작성 생략 판단과 같은 식 */
@@ -208,8 +208,8 @@ export async function runJudgeLoop(job: Job, ex: Executor) {
   const st = (await getBacklogStatus(backlogId))?.status;
   if (st !== "qa_passed") throw new Error(`판정 루프는 qa_passed 에서만 (현재: ${st})`); // 불변 원칙 6 — QA 통과본 기준
   // 작업별 덮어쓰기(실험 A/B, 2026-10-23): payload.judge = { rewrite_effort_structure, rewrite_effort_detail, korea_effort, max_rounds }
-  const ov = (job.payload.judge ?? {}) as Partial<{ rewrite_effort_structure: "high" | "medium"; rewrite_effort_detail: "high" | "medium"; korea_effort: "high" | "medium"; max_rounds: number; skip_rewrite_if_publishable: boolean }>;
-  const knobs = { structure: ov.rewrite_effort_structure ?? cfg.judgeRewriteEffortStructure, detail: ov.rewrite_effort_detail ?? cfg.judgeRewriteEffortDetail, korea: ov.korea_effort ?? cfg.judgeKoreaEffort, maxRounds: Number(ov.max_rounds ?? cfg.judgeMaxRounds), skipIfPublishable: ov.skip_rewrite_if_publishable ?? cfg.judgeSkipRewriteIfPublishable };
+  const ov = (job.payload.judge ?? {}) as Partial<{ rewrite_effort_structure: "high" | "medium"; rewrite_effort_detail: "high" | "medium"; korea_effort: "high" | "medium"; max_rounds: number; skip_rewrite_if_publishable: boolean; stop_when_publishable: boolean }>;
+  const knobs = { structure: ov.rewrite_effort_structure ?? cfg.judgeRewriteEffortStructure, detail: ov.rewrite_effort_detail ?? cfg.judgeRewriteEffortDetail, korea: ov.korea_effort ?? cfg.judgeKoreaEffort, maxRounds: Number(ov.max_rounds ?? cfg.judgeMaxRounds), skipIfPublishable: ov.skip_rewrite_if_publishable ?? cfg.judgeSkipRewriteIfPublishable, stopWhenPublishable: ov.stop_when_publishable ?? cfg.judgeStopWhenPublishable };
   // 실험 모드: payload.experiment = "<라벨>" — 대본·발음·판정(critic_verdicts)·발행 준비를 건드리지 않고 judge-exp-<라벨>/ 에만 기록한다. 같은 원판에서 설정을 달리해 동시에 돌릴 수 있다
   const experiment = typeof job.payload.experiment === "string" && job.payload.experiment ? String(job.payload.experiment).replace(/[^A-Za-z0-9_-]/g, "") : null;
   const rel = `episodes/${episodeId}`; const dir = path.join(cfg.workRoot, rel); const jdirName = experiment ? `judge-exp-${experiment}` : "judge"; const jdir = path.join(dir, jdirName);
@@ -232,11 +232,18 @@ export async function runJudgeLoop(job: Job, ex: Executor) {
   // 결과가 작은 JSON 인 채점·검토·수리 호출의 출력 상한(생각 포함). 정상 호출은 생각 몇천~1만 토큰이면 끝난다 — 폭주(2026-10-23: 원판 채점이 65536 까지 13분, 편집자 채점이 20분 시간 초과)를 몇 분 안에 끊고 한 번 다시 부르려고 낮춘다. 재작성은 대본 전체를 내므로 기본값(65536) 그대로
   const SCORE_MAX_OUT = 24_576;
   const FIX_MAX_OUT = 12_288; // v1.9: must_fix 수리 — 출력은 고친 턴 몇 개뿐. 생각 1만 토큰이면 끝난다
-  async function gpt<T>(system: string, prompt: string, schema: object, minutes: number, effort: "high" | "medium", maxOutputTokens?: number): Promise<T> {
+  async function gpt<T>(label: string, system: string, prompt: string, schema: object, minutes: number, effort: "high" | "medium", maxOutputTokens?: number): Promise<T> {
     for (let attempt = 1; ; attempt++) {
+      // 배경 응답의 OpenAI 쪽 상태 — queued(대기열) 가 얼마나 길었는지, 생성(in_progress) 이 언제 시작됐는지. 17분 걸린 호출이 대기열인지 생각인지 가르려고(2026-10-23 G261023-023 0회차)
+      const t0 = Date.now(); let queuedMs = 0; let startedMs = -1;
+      const onProgress = (p: { detail?: string }) => { const d = String(p.detail ?? ""); if (/백그라운드 queued/.test(d)) queuedMs = Date.now() - t0; else if (/백그라운드 in_progress/.test(d) && startedMs < 0) startedMs = Date.now() - t0; };
       try {
-        const r = await ex.run<T>({ prompt, systemPrompt: system, schema, allowedTools: [], tools: [], cwd: cfg.workRoot, timeoutMs: minutes * 60_000, effort, background: true, maxOutputTokens }); // 재작성 한 호출이 10분을 넘으면 동기 요청은 끊긴다 — 백그라운드 모드 (types.ts)
-        cost += r.listCostUsd ?? 0; model = r.model ?? model; return r.output;
+        const r = await ex.run<T>({ prompt, systemPrompt: system, schema, allowedTools: [], tools: [], cwd: cfg.workRoot, timeoutMs: minutes * 60_000, effort, background: true, maxOutputTokens, onProgress }); // 재작성 한 호출이 10분을 넘으면 동기 요청은 끊긴다 — 백그라운드 모드 (types.ts)
+        cost += r.listCostUsd ?? 0; model = r.model ?? model;
+        // 호출별 기록(2026-10-23 박수헌 "그 호출 뭐가 느린지") — 검토·채점 네 호출이 병렬이라 단계 시간만으로는 느린 호출을 가릴 수 없다. 출력 토큰은 생각 포함
+        const us = (r.raw as { usage?: { output_tokens?: number; output_tokens_details?: { thinking_tokens?: number } } } | undefined)?.usage;
+        log(`  judge_loop ${episodeId} 호출 ${label}${attempt > 1 ? ` (${attempt}번째)` : ""} ${effort} — ${Math.round((r.durationMs ?? 0) / 1000)}s · 출력 ${us?.output_tokens ?? "?"}${us?.output_tokens_details?.thinking_tokens != null ? ` (생각 ${us.output_tokens_details.thinking_tokens})` : ""} · $${(r.listCostUsd ?? 0).toFixed(2)}${queuedMs > 5_000 ? ` · 대기열 ${Math.round(queuedMs / 1000)}s` : ""}${startedMs > 5_000 ? ` · 생성 시작 ${Math.round(startedMs / 1000)}s` : ""}`);
+        return r.output;
       } catch (e) {
         const msg = String(e); const transient = /fetch failed|OpenAI (?:0|5\d\d|429)|ECONNRESET|ETIMEDOUT|socket hang up/i.test(msg);
         // 생각 폭주(출력 상한 도달·시간 초과)는 같은 입력을 다시 불러도 대개 정상으로 끝난다 — 한 번만 더 (비용은 상한만큼)
@@ -247,9 +254,9 @@ export async function runJudgeLoop(job: Job, ex: Executor) {
       }
     }
   }
-  const editorOnce = (script: string) => gpt<Editor>(`${editorMd.trim()}\n\nThe two input files are inlined in the next message.\n\n## scoring.md\n${scoringMd.trim()}`, `## script.md\n${fence(blindScript(script))}\n\n${FE}\n\nReturn the JSON object only.`, EDITOR_SCHEMA, 20, "medium", SCORE_MAX_OUT);
-  const editors = (script: string) => Promise.all([1, 2, 3].map(() => editorOnce(script)));
-  const korea = (script: string, pron: string) => gpt<Korea>(`${koreaMd.trim()}\n\nThe input files are inlined in the next message.\n\n## house-style.md\n${houseMd.trim()}`,
+  const editorOnce = (script: string, i = 0) => gpt<Editor>(`editor${i}`, `${editorMd.trim()}\n\nThe two input files are inlined in the next message.\n\n## scoring.md\n${scoringMd.trim()}`, `## script.md\n${fence(blindScript(script))}\n\n${FE}\n\nReturn the JSON object only.`, EDITOR_SCHEMA, 20, "medium", SCORE_MAX_OUT);
+  const editors = (script: string) => Promise.all([1, 2, 3].map((i) => editorOnce(script, i)));
+  const korea = (script: string, pron: string) => gpt<Korea>("korea", `${koreaMd.trim()}\n\nThe input files are inlined in the next message.\n\n## house-style.md\n${houseMd.trim()}`,
     `## script.md\n${fence(blindScript(script))}\n\n## notes.md\n${fence(blindNotes(claims))}\n\n## sources.md\n${fence(blindSources(sources))}\n\n## pronunciations.json\n${fence(pron)}\n\n${FK}\n\nReturn the JSON object only.`, KOREA_SCHEMA, 30, knobs.korea, SCORE_MAX_OUT);
   const l0 = (script: string, pron: string, tc: { turn: string; claims: string[] }[]) => twoStageViolationsEn(script, outline, { pronunciations: JSON.parse(pron), notesMd: notesMd(tc) });
   const materials = (pron: string) => `## Outline — outline.md (the contract)\n${fence(outline)}\n\n## Claims — claims.md (every fact you may use)\n${fence(claims)}\n\n## Excerpts — sources.md\n${fence(sources)}\n\n## Pronunciation map — pronunciations.json\n${fence(pron)}`;
@@ -286,7 +293,7 @@ ${formatBlock}
   // 한국어 must_fix 수리 — 지적된 턴만의 최소 변경(README 6.2). 회차 안에서도, 0회차 원판에도 같은 수리를 쓴다
   const repairMustFix = async (script: string, pron: string, kr: Korea): Promise<{ script: string; pron: string; repaired: string[] }> => {
     const mustFix = kr.findings.filter((f) => f.kind === "must_fix");
-    const r = await gpt<RepairOut>(repairSystem, `## Findings (must_fix)\n${fmtFindings(mustFix)}\n\n## Suggested edits (a guide, not a source)\n${fmtEdits(kr.edits)}\n\n## script.md (line format \`[${explainer}] E1 · sentence\` / \`[${host}] Y1 · sentence\`)\n${fence(script)}\n\n## claims.md\n${fence(claims)}\n\n## sources.md\n${fence(sources)}\n\n## pronunciations.json\n${fence(pron)}\n\nRepair and output only the report JSON.`, FIX_SCHEMA, 20, "medium", FIX_MAX_OUT);
+    const r = await gpt<RepairOut>("repair", repairSystem, `## Findings (must_fix)\n${fmtFindings(mustFix)}\n\n## Suggested edits (a guide, not a source)\n${fmtEdits(kr.edits)}\n\n## script.md (line format \`[${explainer}] E1 · sentence\` / \`[${host}] Y1 · sentence\`)\n${fence(script)}\n\n## claims.md\n${fence(claims)}\n\n## sources.md\n${fence(sources)}\n\n## pronunciations.json\n${fence(pron)}\n\nRepair and output only the report JSON.`, FIX_SCHEMA, 20, "medium", FIX_MAX_OUT);
     const valid = r.fixes.filter((f) => /^[EY]\d+$/.test(f.turn) && f.after.trim());
     // 발음 사전 쪽 must_fix 는 검토자의 other_changes 로 고친다(턴 교체로는 못 고친다) — 적용된 변경이 가리키는 턴은 수리된 것으로
     const pc = applyPronChanges(mergePron(pron, r.pronunciations_added), kr.other_changes, kr.findings);
@@ -305,7 +312,7 @@ ${formatBlock}
     await save("checkpoint.json", JSON.stringify({ version: JUDGE_LOOP_VERSION, script_hash: scriptHash, at: new Date().toISOString(), ...c }, null, 1));
     await pushPrefix(`${rel}/${jdirName}/`).catch((e) => log(`  judge_loop ${episodeId}: 체크포인트 업로드 실패 (계속): ${e?.message ?? e}`));
   };
-  let rounds: RoundRec[]; let base: State; let best: State & { total: number; struct: number }; let mode: "structure" | "detail" = "structure"; let startT = 1; let resumedStopped = false; let skippedRewrite = false;
+  let rounds: RoundRec[]; let base: State; let best: State & { total: number; struct: number }; let mode: "structure" | "detail" = "structure"; let startT = 1; let resumedStopped = false; let skippedRewrite = false; let stoppedAt = -1;
   if (ck) {
     rounds = ck.rounds; base = ck.base as State; best = ck.best as State & { total: number; struct: number }; mode = ck.mode; cost = ck.cost; model = ck.model; startT = ck.t + 1; resumedStopped = ck.stopped;
     log(`  judge_loop ${episodeId} 체크포인트에서 재개 — ${ck.t}회차까지 끝남(${ck.at}), 최고판 ${best.round}회차 ${best.total}점${resumedStopped ? " · 이미 중단 판정" : ""}`);
@@ -347,12 +354,12 @@ ${formatBlock}
     await progress(`판정 루프 ${t}회차 — ${mode === "structure" ? "구조" : "세부"} 재작성`);
     const effort = mode === "structure" ? knobs.structure : knobs.detail;
     const ms = { rewrite: 0, l0fix: 0, review: 0, repair: 0 }; let tk = Date.now();
-    let o = await gpt<RewriteOut>(baseSystem(mode), userPrompt(base.script, base.eds, base.korea, base.repaired, base.pron), OUT_SCHEMA, 40, effort);
+    let o = await gpt<RewriteOut>(`rewrite-${mode}`, baseSystem(mode), userPrompt(base.script, base.eds, base.korea, base.repaired, base.pron), OUT_SCHEMA, 40, effort);
     ms.rewrite = Date.now() - tk; tk = Date.now();
     let script = fixMeta(o, base.script); let pron = mergePron(base.pron, o.pronunciations_added); let tc = o.turn_claims;
     let v = l0(script, pron, tc);
     if (v.length) {
-      const o2 = await gpt<RewriteOut>(baseSystem(mode), `## Format check (L0) findings on your revision — resolve all, change nothing else, and return the full script again\n${v.map((x, i) => `${i + 1}. ${x}`).join("\n")}\n\n## Your revision — script.md\n${fence(script)}\n\n${materials(pron)}\n\nFix by the rules above and output only the report JSON (same fields; plan may repeat the previous plan).`, OUT_SCHEMA, 40, "medium", SCORE_MAX_OUT); // v1.9: L0 수정은 위반만 고치는 작업 — medium, 상한 24,576(대본 전체를 다시 내므로 수리보다 넉넉히)
+      const o2 = await gpt<RewriteOut>("l0fix", baseSystem(mode), `## Format check (L0) findings on your revision — resolve all, change nothing else, and return the full script again\n${v.map((x, i) => `${i + 1}. ${x}`).join("\n")}\n\n## Your revision — script.md\n${fence(script)}\n\n${materials(pron)}\n\nFix by the rules above and output only the report JSON (same fields; plan may repeat the previous plan).`, OUT_SCHEMA, 40, "medium", SCORE_MAX_OUT); // v1.9: L0 수정은 위반만 고치는 작업 — medium, 상한 24,576(대본 전체를 다시 내므로 수리보다 넉넉히)
       script = fixMeta(o2, script); pron = mergePron(pron, o2.pronunciations_added); tc = o2.turn_claims; v = l0(script, pron, tc); o = { ...o2, plan: o.plan || o2.plan };
       ms.l0fix = Date.now() - tk; tk = Date.now();
     }
@@ -381,9 +388,12 @@ ${formatBlock}
     // 최고판 갱신: 점수가 오르면. 동점이면 한국어 must_fix 가 덜 남은 판(발행 가능에 더 가까운 판) — G261023-020 이 0·1·2회차 61점 동점에서 수리가 끝난 2회차를 버리고 must_fix 1건 남은 원판에 머물렀다(2026-10-23)
     const gained = totalT > prev.total || (totalT === prev.total && openMustFix(cur) < openMustFix(best));
     if (gained) best = { ...cur, total: totalT, struct: structT };
+    // v1.10: 최고판이 발행 조건을 채우면 멈춘다 — 다음 회차는 점수를 더 올릴 수도 있지만 11분을 쓰고, 통과 편수는 같다(README 6.2)
+    const passed = knobs.stopWhenPublishable && roundPublishable({ total: best.total, koreaPub: best.korea.publishable, openMustFix: openMustFix(best) }, threshold);
+    if (passed) { stoppedAt = t; log(`  judge_loop ${episodeId} ${t}회차 — 발행 조건 충족 (${best.total} ≥ ${threshold} · 한국어 가 · must_fix 0) → 멈춤`); }
     // 중단: 세부 단계에서 이득이 없으면, 그리고 2회차부터는 단계와 무관하게 이득이 없으면 다음 회차를 돌리지 않는다
     // (2026-10-23 조기 종료 — G261023-001 이 1회차 66 → 2회차 66 → 3회차 64 로 세 번째 회차는 비용·20분만 썼다)
-    const stop = !gained && (mode === "detail" || t >= 2);
+    const stop = passed || (!gained && (mode === "detail" || t >= 2));
     if (!stop && mode === "structure" && structT < prev.struct + 1) mode = "detail";
     if (!stop) base = gained || mode === "structure" ? cur : { ...best };
     await saveCheckpoint({ t, stopped: stop, rounds, base, best, mode, cost, model });
@@ -397,7 +407,7 @@ ${formatBlock}
   let pronFilled = 0;
   if (missing.length) {
     await progress("판정 루프 — 발음 읽기 채우기");
-    const fill = await gpt<{ readings: { term: string; reading: string }[] }>(PRON_SYSTEM, `## Terms with no reading\n${missing.map((m) => `- ${m}`).join("\n")}\n\n## script.md (context)\n${fence(best.script)}\n\nReturn the JSON object only.`, PRON_SCHEMA, 5, "medium", 8192);
+    const fill = await gpt<{ readings: { term: string; reading: string }[] }>("pron", PRON_SYSTEM, `## Terms with no reading\n${missing.map((m) => `- ${m}`).join("\n")}\n\n## script.md (context)\n${fence(best.script)}\n\nReturn the JSON object only.`, PRON_SCHEMA, 5, "medium", 8192);
     const cur = JSON.parse(best.pron) as Record<string, string>;
     for (const r of fill.readings ?? []) if (missing.includes(r.term) && /[가-힣]/.test(r.reading) && !(cur[r.term] ?? "").trim()) { cur[r.term] = r.reading.trim(); pronFilled++; }
     best = { ...best, pron: JSON.stringify(cur, null, 2) };
@@ -435,7 +445,7 @@ ${formatBlock}
   if (prepJobId) log(`  judge_loop ${episodeId}: 자동 발행 준비 → tts ${prepJobId.slice(0, 8)} (→ thumbnail → package)`);
   await insertRun({
     backlog_id: backlogId, phase: "judge", attempt: 1,
-    result: `판정 루프 ${JUDGE_LOOP_VERSION} — ${verdict.agent.publishable ? "발행 가능" : "발행 불가"}: ${verdict.agent.publishable_reason}. GPT ${rounds.map((r) => `${r.t}:${r.total}`).join(" ")} · 최고판 ${best.round}회차${skippedRewrite ? " (원판 발행 가능 — 재작성 생략)" : ""} · 시간 ${timing}`,
+    result: `판정 루프 ${JUDGE_LOOP_VERSION} — ${verdict.agent.publishable ? "발행 가능" : "발행 불가"}: ${verdict.agent.publishable_reason}. GPT ${rounds.map((r) => `${r.t}:${r.total}`).join(" ")} · 최고판 ${best.round}회차${skippedRewrite ? " (원판 발행 가능 — 재작성 생략)" : stoppedAt > 0 ? ` (${stoppedAt}회차 발행 조건 충족 — 멈춤)` : ""} · 시간 ${timing}`,
     prompt_version: `${JUDGE_LOOP_VERSION} (worker)`, artifacts: [reportKey], executed_by: executedBy, model, cost_usd: cost, worker_rev: workerRev(),
   });
   log(`  judge_loop ${episodeId} 끝 — ${verdict.agent.publishable ? "발행 가능" : "발행 불가"} (${verdict.agent.publishable_reason}) · $${cost.toFixed(2)}`);
