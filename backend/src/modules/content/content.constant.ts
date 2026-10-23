@@ -163,3 +163,10 @@ export const SEARCH_QUERY_LOG_REFETCH_WINDOW_MS = 10 * 60_000;
 /** 어드민 요약(`admin-api.md` 4.21)의 집계 창 — 기본·상한. 보존이 90일이라 그 이상은 어차피 없다 */
 export const SEARCH_QUERY_LOG_SUMMARY_DEFAULT_DAYS = 14;
 export const SEARCH_QUERY_LOG_SUMMARY_MAX_DAYS = 90;
+
+/**
+ * 드립 시리즈 순서 — **담지 않고 듣던 편**이 다음 편을 기다리게 하는 기간(2026-10-23, `ContentRepository.findVisibleSeriesEpisodesForUser`).
+ * 라이브러리 행은 지워서 기다림을 풀 수 있지만 담지 않은 편은 풀 수단이 없어, 이 기간 동안 다시 듣지 않으면 막지 않는다.
+ * 14일 = 드립 신규(14일) 창과 같은 길이
+ */
+export const SERIES_HOLD_LISTENING_WINDOW_MS = 14 * 24 * 60 * 60 * 1000;
