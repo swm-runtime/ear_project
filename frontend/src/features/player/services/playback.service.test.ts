@@ -120,8 +120,11 @@ const mockBridge: {
 };
 jest.mock('./player-library.bridge', () => ({ getPlayerLibraryBridge: () => mockBridge.current }));
 
-const mockAutoplay = { enabled: false };
-jest.mock('@/features/settings', () => ({ isAutoplayNextEnabled: () => mockAutoplay.enabled }));
+const mockAutoplay = { enabled: false, recommended: true };
+jest.mock('@/features/settings', () => ({
+  isAutoplayNextEnabled: () => mockAutoplay.enabled,
+  isAutoplayRecommendedEnabled: () => mockAutoplay.recommended,
+}));
 
 const CONTENT_ID = 'c0ffee00-0000-4000-8000-000000000001';
 
@@ -166,6 +169,7 @@ beforeEach(() => {
   mockIssue.mockReset();
   mockNative.current = null;
   mockAutoplay.enabled = false;
+  mockAutoplay.recommended = true;
   mockStartPlay.mockReset();
   mockStartPlay.mockImplementation(() => new Promise(() => undefined));
   mockSaveProgress.mockReset();
@@ -428,6 +432,16 @@ describe('재생 목록 자동 재생(연속 재생 — player.md 4.2-4)', () =>
       CONTENT_ID,
       NEXT_ID,
     ]);
+  });
+
+  it('추천 이어 틀기(플레이어 칩)가 꺼져 있으면 목록 끝에서 멈추고 추천을 받지 않는다', async () => {
+    mockAutoplay.enabled = true;
+    mockAutoplay.recommended = false;
+    const fetchUpNext = jest.fn(async () => [entryOf(NEXT_ID)]);
+    mockBridge.current = { fetchUpNext };
+    await playToEnd([entryOf(CONTENT_ID)]);
+    expect(fetchUpNext).not.toHaveBeenCalled();
+    expect(mockIssue.mock.calls.map(([input]) => input.contentId)).toEqual([CONTENT_ID]);
   });
 
   it('추천도 비었으면 끝난 자리에 멈춘다', async () => {

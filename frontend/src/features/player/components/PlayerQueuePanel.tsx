@@ -56,10 +56,11 @@ interface PlayerQueuePanelProps {
   };
   onSelectUpNext?: (item: QueueEntry) => void;
   /**
-   * 추천 섹션 제목 옆 자동 재생 스위치(player.md 4.2-4, PM 2026-10-23 "그 옆에 toggle, 유튜브 뮤직처럼") — 설정의 [재생 목록 자동
-   * 재생]과 같은 값. 없으면 스위치를 그리지 않는다
+   * 추천 섹션 제목 옆 [자동 재생] 스위치(player.md 4.2-4, PM 2026-10-23 "그 옆에 toggle, 유튜브 뮤직처럼") — **추천 이어 틀기**만
+   * 켜고 끈다(PM 2026-10-23 "횟수 쓰는 자동 재생이 아니라 추천만 자동 재생 켜는 스위치"). 설정의 [재생 목록 자동 재생]이 꺼져
+   * 있으면 `disabled` — 흐리게 그리고 눌리지 않는다. 없으면 스위치를 그리지 않는다
    */
-  autoplay?: { value: boolean; onToggle: (value: boolean) => void };
+  autoplay?: { value: boolean; disabled: boolean; onToggle: (value: boolean) => void };
   /**
    * 목록 맨 위에서 아래로 끌기 — 시트 단계를 내린다(PM 2026-10-23 "2단 목록 맨 위에서 끌면 1단으로", 유튜브 뮤직). `enabled` 일 때만
    * (2단) 목록이 맨 위이고 아래로 끄는 세로 움직임을 가로챈다. 이동량(dy)은 부모가 시트 진행값으로 옮긴다
@@ -926,12 +927,17 @@ export default function PlayerQueuePanel({
           </Text>
           {autoplay ? (
             <Pressable
-              style={styles.autoplayToggle}
+              style={[styles.autoplayToggle, autoplay.disabled && styles.autoplayToggleDisabled]}
               onPress={() => autoplay.onToggle(!autoplay.value)}
+              disabled={autoplay.disabled}
               accessibilityRole="switch"
               accessibilityLabel={PLAYER_COPY.queuePanel.autoplayLabel}
-              accessibilityHint={PLAYER_COPY.queuePanel.autoplayHint}
-              accessibilityState={{ checked: autoplay.value }}
+              accessibilityHint={
+                autoplay.disabled
+                  ? PLAYER_COPY.queuePanel.autoplayDisabledHint
+                  : PLAYER_COPY.queuePanel.autoplayHint
+              }
+              accessibilityState={{ checked: autoplay.value, disabled: autoplay.disabled }}
             >
               <Text style={styles.autoplayLabel}>{PLAYER_COPY.queuePanel.autoplayLabel}</Text>
               <AutoplaySwitch value={autoplay.value} />
@@ -1301,6 +1307,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: theme.spacing.sm,
     minHeight: theme.touchTarget.minHeight,
+  },
+  // 설정의 [재생 목록 자동 재생]이 꺼져 있을 때 — 값은 그대로 보이되 흐리다(iOS 비활성 스위치)
+  autoplayToggleDisabled: {
+    opacity: 0.4,
   },
   autoplayLabel: {
     fontSize: theme.font.size.xs,

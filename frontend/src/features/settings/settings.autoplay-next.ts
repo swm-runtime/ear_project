@@ -36,3 +36,38 @@ export const setAutoplayNextEnabled = (enabled: boolean): void => {
     // 저장 실패 — 이번 실행에만 적용된다
   }
 };
+
+/**
+ * **추천 이어 틀기**(player.md 4.2-4, PM 2026-10-23 "플레이어의 자동 재생 칩은 추천만 자동 재생 켜는 스위치") — 재생 목록이 끝났을 때
+ * 비슷한 추천 편으로 넘어갈지. 플레이어 재생 목록의 추천 섹션 옆 [자동 재생] 스위치가 토글한다. **위 [재생 목록 자동 재생]이
+ * 켜져 있을 때만 의미가 있다**(꺼져 있으면 스위치가 흐려지고 눌리지 않는다). **기본은 켜짐** — 연속 재생을 일부러 켠 사람은
+ * 끊기지 않기를 원했다고 본다. 기기 설정이다
+ */
+const RECOMMENDED_STORAGE_KEY = 'ear.autoplayRecommended';
+
+const readRecommendedStored = (): boolean => {
+  try {
+    return SecureStore.getItem(RECOMMENDED_STORAGE_KEY) !== 'off';
+  } catch {
+    return true;
+  }
+};
+
+const useAutoplayRecommendedStore = create<AutoplayNextState>(() => ({
+  enabled: readRecommendedStored(),
+}));
+
+export const isAutoplayRecommendedEnabled = (): boolean =>
+  useAutoplayRecommendedStore.getState().enabled;
+
+export const useAutoplayRecommendedEnabled = (): boolean =>
+  useAutoplayRecommendedStore((s) => s.enabled);
+
+export const setAutoplayRecommendedEnabled = (enabled: boolean): void => {
+  useAutoplayRecommendedStore.setState({ enabled });
+  try {
+    SecureStore.setItem(RECOMMENDED_STORAGE_KEY, enabled ? 'on' : 'off');
+  } catch {
+    // 저장 실패 — 이번 실행에만 적용된다
+  }
+};
