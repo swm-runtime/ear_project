@@ -969,46 +969,151 @@ export class LibraryItemRepository {
   }
 
   /**
-   * 이미 완청한 편을 담으면 `completed`로 맞춘다(KAN-248). 완청은 라이브러리와 무관한 사용자×편의 사실이고,
-   * 그 원천은 `playback_progresses.max_reached_sec`이다 — 담기 전에 끝까지 들은 편이 "안 들음"으로 보이면 안 된다.
-   * 조건은 재생 위치 저장의 판정과 같다(`duration_sec > 0` · 도달 ≥ 길이 × `ratio`). `completed_at`은 담은 시각 —
-   * 행이 없던 때의 완청 시각은 어디에도 남지 않는다. 신호는 완청 때 이미 남았으므로 여기서 쌓지 않는다.
+   * 라이브러리 행의 상태를 **재생 위치에 맞춘다**(KAN-248 · 2026-10-23). 탐색 재생은 행을 만들지 않으므로(`explore.md` 4.4)
+   * 듣고 나서 담는 것이 평소 경로다 — 행은 `unplayed`로 생기는데 이미 들은 편이다. 담기·적립·복구가 끝난 행에 부른다.
    *
-   * @returns 이번에 `completed`로 바뀐 편의 `content_id`
+   * - 최대 도달 ≥ 길이 × `ratio`(길이 > 0 — 재생 위치 저장의 판정과 같다) → `completed`. `completed_at`은 위치 갱신 시각
+   *   (행이 없던 때의 완청 시각은 따로 남지 않는다 — 가장 가까운 값)
+   * - 그 밖에 위치 > 0이고 `unplayed` → `in_progress`(진행 바 — `library.md` 4.3 상태 표)
+   * - `last_played_at`이 비어 있으면 위치 갱신 시각으로 채운다(미니플레이어 복원 순서 — `library-api.md` 4.3)
+   * - `completed`는 내리지 않는다. 신호는 쌓지 않는다 — 완청 신호는 완청 때 이미 남았다(`player-api.md` 4.3)
+   *
+   * @returns 이번에 바뀐 행의 `content_id`·새 상태·시각
    */
-  async completeReachedByProgress(
+  async syncStatusWithProgress(
     userId: string,
     contentIds: string[],
-    completedAt: Date,
     ratio: number,
     manager?: EntityManager,
-  ): Promise<string[]> {
+  ): Promise<
+    {
+      contentId: string;
+      status: LibraryItemStatus;
+      completedAt: Date | null;
+      lastPlayedAt: Date | null;
+    }[]
+  > {
     if (contentIds.length === 0) {
       return [];
     }
 
     const rows: unknown = await this.scoped(manager).query(
       `UPDATE library_items item
-          SET status = $4, completed_at = $3
-         FROM playback_progresses progress, contents content
+          SET status = CASE WHEN reached.done THEN $3 ELSE $4 END,
+              completed_at = CASE WHEN reached.done THEN progress.updated_at ELSE item.completed_at END,
+              last_played_at = COALESCE(item.last_played_at, progress.updated_at)
+         FROM playback_progresses progress
+         JOIN contents content ON content.id = progress.content_id
+        CROSS JOIN LATERAL (
+          SELECT content.duration_sec > 0
+             AND progress.max_reached_sec >= content.duration_sec * $6::numeric AS done
+        ) reached
         WHERE item.user_id = $1
           AND item.content_id = ANY($2::uuid[])
-          AND item.status <> $4
+          AND item.status <> $3
           AND progress.user_id = item.user_id
           AND progress.content_id = item.content_id
-          AND content.id = item.content_id
-          AND content.duration_sec > 0
-          AND progress.max_reached_sec >= content.duration_sec * $5::numeric
-        RETURNING item.content_id`,
-      [userId, contentIds, completedAt, LibraryItemStatus.COMPLETED, ratio],
+          AND (reached.done OR (item.status = $5 AND progress.position_sec > 0))
+        RETURNING item.content_id, item.status, item.completed_at, item.last_played_at`,
+      [
+        userId,
+        contentIds,
+        LibraryItemStatus.COMPLETED,
+        LibraryItemStatus.IN_PROGRESS,
+        LibraryItemStatus.UNPLAYED,
+        ratio,
+      ],
     );
 
     // pg 드라이버의 UPDATE … RETURNING 은 [행 목록, affected] 로 온다
     const returned = (
       Array.isArray(rows) && Array.isArray(rows[0]) ? rows[0] : rows
-    ) as { content_id: string }[];
+    ) as {
+      content_id: string;
+      status: LibraryItemStatus;
+      completed_at: Date | null;
+      last_played_at: Date | null;
+    }[];
 
-    return returned.map((row) => row.content_id);
+    return returned.map((row) => ({
+      contentId: row.content_id,
+      status: row.status,
+      completedAt: row.completed_at ? new Date(row.completed_at) : null,
+      lastPlayedAt: row.last_played_at ? new Date(row.last_played_at) : null,
+    }));
+  }
+
+  /**
+   * 전 사용자의 **살아 있는 행** 중 재생 위치와 어긋난 행을 맞춘다 — `syncStatusWithProgress`와 같은 규칙의 일괄판(1회성 정리
+   * 스크립트 `sync-library-status` 전용, 2026-10-23). 탐색 재생 자동 적립 시절의 행은 `unplayed`로 생긴 뒤 라이브러리에서 다시
+   * 틀지 않으면 그대로였다(진행 바 없음). `dryRun`이면 바꾸지 않고 바뀔 수만 센다.
+   */
+  async syncAllStatusWithProgress(
+    ratio: number,
+    dryRun: boolean,
+    manager?: EntityManager,
+  ): Promise<{ toCompleted: number; toInProgress: number }> {
+    // $1 completed · $2 in_progress · $3 unplayed · $4 기준 비율 — 갱신·세기가 같은 조건을 쓴다
+    const params = [
+      LibraryItemStatus.COMPLETED,
+      LibraryItemStatus.IN_PROGRESS,
+      LibraryItemStatus.UNPLAYED,
+      ratio,
+    ];
+    const reached = `CROSS JOIN LATERAL (
+       SELECT content.duration_sec > 0
+          AND progress.max_reached_sec >= content.duration_sec * $4::numeric AS done
+     ) reached`;
+    const outOfSync = `item.deleted_at IS NULL
+       AND item.status <> $1
+       AND (reached.done OR (item.status = $3 AND progress.position_sec > 0))`;
+
+    if (dryRun) {
+      const rows: { to_completed: string; to_in_progress: string }[] =
+        await this.scoped(manager).query(
+          `SELECT count(*) FILTER (WHERE reached.done) AS to_completed,
+                  count(*) FILTER (WHERE NOT reached.done) AS to_in_progress
+             FROM library_items item
+             JOIN playback_progresses progress
+               ON progress.user_id = item.user_id AND progress.content_id = item.content_id
+             JOIN contents content ON content.id = item.content_id
+             ${reached}
+            WHERE ${outOfSync} AND $2::varchar IS NOT NULL`, // $2 는 갱신에만 쓰인다 — 자리표시자를 같게 두려고 형만 맞춘다
+          params,
+        );
+
+      return {
+        toCompleted: Number(rows[0]?.to_completed ?? 0),
+        toInProgress: Number(rows[0]?.to_in_progress ?? 0),
+      };
+    }
+
+    const result: unknown = await this.scoped(manager).query(
+      `UPDATE library_items item
+          SET status = CASE WHEN reached.done THEN $1 ELSE $2 END,
+              completed_at = CASE WHEN reached.done THEN progress.updated_at ELSE item.completed_at END,
+              last_played_at = COALESCE(item.last_played_at, progress.updated_at)
+         FROM playback_progresses progress
+         JOIN contents content ON content.id = progress.content_id
+         ${reached}
+        WHERE progress.user_id = item.user_id
+          AND progress.content_id = item.content_id
+          AND ${outOfSync}
+        RETURNING item.status`,
+      params,
+    );
+    const returned = (
+      Array.isArray(result) && Array.isArray(result[0]) ? result[0] : result
+    ) as { status: LibraryItemStatus }[];
+
+    return {
+      toCompleted: returned.filter(
+        (row) => row.status === LibraryItemStatus.COMPLETED,
+      ).length,
+      toInProgress: returned.filter(
+        (row) => row.status === LibraryItemStatus.IN_PROGRESS,
+      ).length,
+    };
   }
 
   /** 살아 있는 행만 지운다 — affected로 이번 요청이 지웠는지 판정한다(`reactivateById`와 같은 이유) */

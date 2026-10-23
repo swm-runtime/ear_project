@@ -13,6 +13,7 @@ import { ContentOrigin, ContentStatus } from '@/modules/content/content.enum';
 import { ContentTopic } from '@/modules/content/entities/content-topic.entity';
 import { Content } from '@/modules/content/entities/content.entity';
 import { Topic } from '@/modules/interest/entities/topic.entity';
+import { LibraryService } from '@/modules/library/library.service';
 import { User } from '@/modules/user/entities/user.entity';
 import { SocialProvider, UserMarket, UserRole } from '@/modules/user/user.enum';
 
@@ -221,6 +222,74 @@ describe('담지 않은 편의 완청 E2E', () => {
       resume.body as { resume_target: { id: string | null } | null }
     ).resume_target;
     expect(typeof target?.id).toBe('string');
+  });
+
+  it('듣다 만 편을 담으면 in_progress로 들어가 진행 바가 보이고, 지웠다 복구해도 그 사이 들은 만큼 맞춘다', async () => {
+    // given — 탐색에서 절반쯤 들었다
+    const contentId = await seedContent();
+    const { userId, auth } = await createUser('half');
+    await saveProgress(auth, contentId, 250);
+
+    // when — 담는다
+    const saved = await request(app.getHttpServer())
+      .post(path(`/contents/${contentId}/save`))
+      .set('Authorization', auth)
+      .send({ client_seq: 1, reason: 'user_save' })
+      .expect(HttpStatus.CREATED);
+
+    // then
+    expect((saved.body as SaveContentBody).library_item.status).toBe(
+      'in_progress',
+    );
+
+    // when — 지운 뒤 탐색에서 끝까지 듣고, 삭제를 실행 취소한다
+    const itemId = (saved.body as { library_item: { id: string } }).library_item
+      .id;
+    await request(app.getHttpServer())
+      .delete(path(`/users/me/library-items/${itemId}`))
+      .set('Authorization', auth)
+      .expect(HttpStatus.NO_CONTENT);
+    await saveProgress(auth, contentId, 570);
+    await request(app.getHttpServer())
+      .post(path(`/users/me/library-items/${itemId}/restore`))
+      .set('Authorization', auth)
+      .expect((res) => expect([200, 201]).toContain(res.status));
+
+    // then — 완청으로 돌아온다
+    const rows: { status: string }[] = await dataSource.query(
+      `SELECT status FROM library_items WHERE user_id = $1 AND content_id = $2`,
+      [userId, contentId],
+    );
+    expect(rows[0].status).toBe('completed');
+  });
+
+  it('일괄 정리(dry-run)는 어긋난 옛 행을 센다 — 자동 적립 시절 unplayed 행', async () => {
+    // given — 옛 앱 자동 적립처럼 행을 먼저 만들고(unplayed), 위치만 쌓였다
+    const contentId = await seedContent();
+    const { userId } = await createUser('legacy');
+    await dataSource.query(
+      `INSERT INTO library_items (user_id, content_id, source, status, added_at)
+       VALUES ($1, $2, 'save', 'unplayed', now())`,
+      [userId, contentId],
+    );
+    await dataSource.query(
+      `INSERT INTO playback_progresses (user_id, content_id, position_sec, max_reached_sec)
+       VALUES ($1, $2, 120, 120)`,
+      [userId, contentId],
+    );
+
+    // when
+    const counts = await app
+      .get(LibraryService)
+      .syncAllStatusWithProgress(true);
+
+    // then — 바꾸지 않고 센다
+    expect(counts.toInProgress).toBeGreaterThanOrEqual(1);
+    const rows: { status: string }[] = await dataSource.query(
+      `SELECT status FROM library_items WHERE user_id = $1 AND content_id = $2`,
+      [userId, contentId],
+    );
+    expect(rows[0].status).toBe('unplayed');
   });
 
   async function saveProgress(
