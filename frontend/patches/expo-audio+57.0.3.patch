@@ -107,11 +107,20 @@ index d265606..77d5d7f 100644
        registry.removeAllPreloadedPlayers()
        registry.removeAll()
 diff --git a/node_modules/expo-audio/ios/AudioUtils.swift b/node_modules/expo-audio/ios/AudioUtils.swift
-index 79c7c0b..6cfe5d2 100644
+index 79c7c0b..6bded63 100644
 --- a/node_modules/expo-audio/ios/AudioUtils.swift
 +++ b/node_modules/expo-audio/ios/AudioUtils.swift
-@@ -90,6 +90,8 @@ struct AudioUtils {
+@@ -88,8 +88,17 @@ struct AudioUtils {
+     if let headers = source.headers {
+       options = ["AVURLAssetHTTPHeaderFieldsKey": headers]
      }
++    // [ear patch] KAN-256 — 무손실(FLAC)은 정확한 시각 계산으로 연다. 스트리밍 FLAC 은 시각↔바이트를 평균 비트레이트로
++    // 어림해 무음이 많은 대화 음성에서 위치·길이가 틀렸다(대본 어긋남·중간에 끝남). 압축(m4a)은 이미 정확해 켜지 않는다
++    if EarAudioStream.prefersPreciseTiming(finalUrl) {
++      var precise = options ?? [:]
++      precise[AVURLAssetPreferPreciseDurationAndTimingKey] = true
++      options = precise
++    }
  
      let asset = AVURLAsset(url: finalUrl, options: options)
 +    // [ear patch] KAN-124 — ear-audio:// 는 리소스 로더가 최신 서명 URL 로 채운다 (EarAudioStream.swift)
@@ -121,10 +130,10 @@ index 79c7c0b..6cfe5d2 100644
  
 diff --git a/node_modules/expo-audio/ios/EarAudioStream.swift b/node_modules/expo-audio/ios/EarAudioStream.swift
 new file mode 100644
-index 0000000..bb1ba1e
+index 0000000..9335861
 --- /dev/null
 +++ b/node_modules/expo-audio/ios/EarAudioStream.swift
-@@ -0,0 +1,438 @@
+@@ -0,0 +1,445 @@
 +import AVFoundation
 +import Foundation
 +import UniformTypeIdentifiers
@@ -186,6 +195,13 @@ index 0000000..bb1ba1e
 +    lock.lock()
 +    defer { lock.unlock() }
 +    return urls[key]
++  }
++
++  /// [KAN-256] 이 주소가 무손실(FLAC)인가 — 고정 스트림 주소는 표에 든 서명 URL 의 확장자로 본다(JS 가 플레이어를 만들기
++  /// 전에 표를 채운다). JS 를 바꾸지 않아 옛 빌드·새 빌드 모두 같은 번들로 돈다
++  static func prefersPreciseTiming(_ url: URL) -> Bool {
++    let resolved = key(of: url).flatMap { currentUrl(forKey: $0) } ?? url
++    return resolved.pathExtension.lowercased() == "flac"
 +  }
 +
 +  /// `ear-audio://` 자산이면 리소스 로더를 붙인다. 다른 스킴이면 아무것도 하지 않는다.
