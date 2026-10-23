@@ -53,6 +53,11 @@ export interface ConfirmDialogProps {
    */
   dismissOnBackdrop?: boolean;
   /**
+   * 작고 촘촘한 팝업(재생 확인 L3 — PM 2026-10-23 "너무 크다, 밀집되게"). 폭 상한 300 · 여백·간격·버튼(44)을 줄인다.
+   * 매번 지나가는 확인이라 화면을 덜 덮게 한다. 기본(false)은 종전 크기 그대로
+   */
+  compact?: boolean;
+  /**
    * 왼쪽 보조 액션([닫기]·[취소]). **알리기만 하는 팝업은 생략한다** — 그때는 주 액션 하나가 버튼 줄을 채운다
    * (HIG Alerts: 정보 전달 알림은 버튼 하나. 가입 체험 안내 P11 — profile-uiux.md 4.11). 고를 것이 없는데 [취소]를
    * 세우면 "무엇을 취소하나"로 읽힌다
@@ -88,6 +93,7 @@ export default function ConfirmDialog({
   icon,
   titleAccessory,
   dismissOnBackdrop = true,
+  compact = false,
   secondaryAction,
   primaryAction,
   onCloseRequest,
@@ -118,6 +124,7 @@ export default function ConfirmDialog({
           pillButton.base,
           pillButton.secondary,
           styles.button,
+          compact && styles.buttonCompact,
           isStacked && styles.buttonStacked,
           HAS_LIQUID_GLASS && styles.buttonOnGlass,
           secondaryDisabled && styles.buttonDisabled,
@@ -144,6 +151,7 @@ export default function ConfirmDialog({
         pillButton.base,
         isDestructive ? pillButton.destructive : pillButton.primary,
         styles.button,
+        compact && styles.buttonCompact,
         isStacked && styles.buttonStacked,
         primaryDisabled && styles.buttonDisabled,
       ]}
@@ -176,10 +184,19 @@ export default function ConfirmDialog({
         onPress={dismissOnBackdrop ? onCloseRequest : undefined}
         accessible={false}
       >
-        <Pressable accessible={false} style={styles.dialogWrap}>
-          <View style={styles.dialogFrame} accessibilityViewIsModal>
+        <Pressable accessible={false} style={[styles.dialogWrap, compact && styles.dialogWrapCompact]}>
+          <View
+            style={[styles.dialogFrame, compact && styles.dialogFrameCompact]}
+            accessibilityViewIsModal
+          >
             {HAS_LIQUID_GLASS ? <GlassSurface style={StyleSheet.absoluteFill} /> : null}
-            <View style={[styles.dialog, centered && styles.dialogCentered]}>
+            <View
+              style={[
+                styles.dialog,
+                compact && styles.dialogCompact,
+                centered && styles.dialogCentered,
+              ]}
+            >
               {icon !== undefined ? (
                 <View accessibilityElementsHidden importantForAccessibility="no">
                   {icon}
@@ -198,7 +215,11 @@ export default function ConfirmDialog({
               ) : null}
               {children}
               <View
-                style={[styles.actions, isStacked && styles.actionsStacked]}
+                style={[
+                  styles.actions,
+                  compact && styles.actionsCompact,
+                  isStacked && styles.actionsStacked,
+                ]}
                 testID="confirm-dialog-actions"
               >
                 {/* 가로: 보조 왼쪽 · 주 오른쪽. 세로: 주 위 · 보조 아래(시스템 알림의 쌓인 버튼 순서) */}
@@ -217,6 +238,10 @@ export default function ConfirmDialog({
 const DIALOG_RADIUS = 32;
 /** 버튼 높이 — 시스템 알림 캡슐 버튼과 같은 48 */
 const BUTTON_HEIGHT = 48;
+/** 작은 팝업(compact) — 폭 상한 · 곡률 · 버튼 높이(터치 최소 44 그대로) */
+const COMPACT_MAX_WIDTH = 300;
+const COMPACT_RADIUS = 26;
+const COMPACT_BUTTON_HEIGHT = 44;
 
 const styles = StyleSheet.create({
   backdrop: {
@@ -228,6 +253,27 @@ const styles = StyleSheet.create({
   },
   dialogWrap: {
     alignSelf: 'stretch',
+  },
+  // 작은 팝업 — 화면 폭을 다 쓰지 않고 가운데 300 까지만
+  dialogWrapCompact: {
+    alignSelf: 'center',
+    width: '100%',
+    maxWidth: COMPACT_MAX_WIDTH,
+  },
+  dialogFrameCompact: {
+    borderRadius: COMPACT_RADIUS,
+  },
+  dialogCompact: {
+    paddingHorizontal: theme.spacing.md + theme.spacing.xs,
+    paddingTop: theme.spacing.md + theme.spacing.xs,
+    paddingBottom: theme.spacing.md,
+    gap: theme.spacing.xs,
+  },
+  actionsCompact: {
+    marginTop: theme.spacing.sm,
+  },
+  buttonCompact: {
+    minHeight: COMPACT_BUTTON_HEIGHT,
   },
   // 면 — iOS 26 은 글라스가 깔리고(투명 바탕), 그 밑은 흰 면. 곡률은 시스템 알림처럼 크게(32)
   dialogFrame: {
