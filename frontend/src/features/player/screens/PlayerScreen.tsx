@@ -2268,7 +2268,11 @@ export default function PlayerScreen() {
                 progress={queueExpand}
                 pointerEvents="none"
                 style={[StyleSheet.absoluteFill, styles.queueSheetSurface]}
-              />
+              >
+                {/* 위 테두리 빛 — 둥근 모서리를 따라 1pt 옅은 흰 선(iOS 재질의 밝은 윗변). 반투명 면이 바탕에 묻혀 경계가 흐릿하게
+                    끝나 보였다(PM 2026-10-23 "곡률 더 자연스럽게"). 모서리 높이만큼만 — 아래로 옆선이 이어지지 않는다 */}
+                <View style={styles.queueSheetHighlight} />
+              </FadeByProgress>
               {
                 // 드래그 핸들러는 감싼 View에 — Pressable은 자기 press 응답자로 panHandlers를 덮어쓴다
                 <View
@@ -2717,6 +2721,8 @@ const BACKDROP_BLUR_RADIUS = 60;
 const BACKDROP_SCRIM_COLOR = 'rgba(23, 23, 26, 0.72)';
 /** 2단 재생 목록 시트 면 — 흐린 커버 바탕 위 흰 7%(재생 중 줄 띠 흰 10% 와 한 단 차이) */
 const QUEUE_SHEET_SURFACE_COLOR = 'rgba(255, 255, 255, 0.07)';
+/** 2단 시트의 위 테두리 빛 — 흰 12% */
+const QUEUE_SHEET_HIGHLIGHT_COLOR = 'rgba(255, 255, 255, 0.12)';
 /** 미니플레이어 카드의 내부 치수(MiniPlayer.tsx 스타일과 같아야 한다) — 진행바 2 · 썸네일(import) · 버튼 44 · 카드 높이(import) */
 const MINI_PROGRESS_HEIGHT = 2;
 const MINI_BUTTON_WIDTH = 44;
@@ -3075,6 +3081,20 @@ const styles = StyleSheet.create({
     // 반투명 흰 면 — 뒤의 흐린 커버 색이 비쳐 곡마다 시트 색이 따라간다(PM 2026-10-23 "색깔 기준" → ㄱㄱ). 종전 불투명
     // surface(#26262B)는 커버와 상관없는 회색이라 위쪽(커버 색)과 따로 놀았다. 한 단 올라온 면으로 읽히는 밝기는 남긴다
     backgroundColor: QUEUE_SHEET_SURFACE_COLOR,
+    borderTopLeftRadius: theme.radius.lg,
+    borderTopRightRadius: theme.radius.lg,
+    borderCurve: 'continuous',
+  },
+  queueSheetHighlight: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: theme.radius.lg,
+    borderTopWidth: 1,
+    borderLeftWidth: 1,
+    borderRightWidth: 1,
+    borderColor: QUEUE_SHEET_HIGHLIGHT_COLOR,
     borderTopLeftRadius: theme.radius.lg,
     borderTopRightRadius: theme.radius.lg,
     borderCurve: 'continuous',
