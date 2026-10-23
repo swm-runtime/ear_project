@@ -761,3 +761,56 @@ export function judgeToInternal<T extends { candidates?: { axis_type: string; ve
     })),
   };
 }
+
+// ── 발행 제목 (2026-10-23, 박수헌 결정) ─────────────────────────────────────────────────────────────
+// 주제(백로그 제목안)는 기획 언어라 "Why …" 질문 형식으로 두고, 청취자가 보는 제목은 대본이 확정된 뒤 패키지 단계에서 따로 짓는다.
+// 종전에는 upload-meta 제목이 주제를 그대로 받아 글로벌 편 전부가 "Why …"로 시작했다(한국판은 게이트 2 에서 사람이 고치지만 글로벌 게이트 2 는 자동).
+// 최근 제목을 함께 주어 형태 반복을 막는다 — 썸네일 장면의 [최근 장면]과 같은 방식. 규칙은 GPT 가 읽는 단문, 근거는 이 주석과 글로벌 명세 6.9.
+export const TITLE_PROMPT_VERSION_EN = "title-en-v1";
+export const TITLE_RULES_EN = `# Episode title
+
+You write the published title of one ear episode. The topic line is the planning question. The title is what a listener sees in a list beside other titles, so it must read differently from the recent titles.
+
+1. Eight words or fewer. Title Case.
+2. Name the concrete thing in the script: the word, the dish, the gesture, the scene. Not the category.
+3. Pick a form the recent titles do not use: a statement, a noun phrase, a contrast ("A, yet B"), a quoted phrase from the script, or a question.
+4. If any of the last three recent titles starts with "Why", do not start with "Why". If any of the last three ends with "?", do not write a question.
+5. "Korea", "Korean", "Koreans", or "Seoul" may appear in at most one of the last three titles, counting yours.
+6. No colon or dash subtitle. No clickbait: no superlatives, no "secret", "truth", "really", "actually". Nothing the script does not answer.
+7. Return the title, its form, two alternatives in other forms, and one line on why this title fits the script.`;
+
+export interface TitleInputEn { episodeId: string; topicTitle: string; midTopic: string; oneLiner: string | null; scriptMd: string; recentTitles: string[]; violations?: string[]; previous?: string }
+export function buildTitlePromptPartsEn(i: TitleInputEn): PromptParts {
+  const recent = i.recentTitles.length ? i.recentTitles.map((t, n) => `${n + 1}. ${t}`).join("\n") : "(none yet)";
+  const retry = i.violations?.length ? `\n\n## Your previous title broke the rules — write a different one\n- Previous: "${i.previous ?? ""}"\n${i.violations.map((v) => `- ${v}`).join("\n")}` : "";
+  return {
+    system: TITLE_RULES_EN,
+    user: `## Episode\n- Episode ID: ${i.episodeId} · topic: ${i.midTopic}\n- Topic line (planning question, not the title): ${i.topicTitle}\n- One-line summary: ${i.oneLiner ?? "(none)"}\n\n## Recent titles (newest first)\n${recent}\n\n## script.md\n\`\`\`markdown\n${i.scriptMd}\n\`\`\`${retry}\n\nReturn the JSON object only.`,
+  };
+}
+export const TITLE_SCHEMA_EN = {
+  type: "object", additionalProperties: false, required: ["title", "form", "alternatives", "why"],
+  properties: {
+    title: { type: "string" },
+    form: { type: "string", enum: ["statement", "noun_phrase", "contrast", "quote", "question"] },
+    alternatives: { type: "array", items: { type: "string" }, description: "Two alternatives in forms other than the title's" },
+    why: { type: "string", description: "One line" },
+  },
+} as const;
+
+/** 규칙 1·4·5·6 을 코드가 다시 센다 — 어기면 사유 목록. 비면 통과. recent 는 최신순 */
+export function titleViolationsEn(title: string, recent: string[]): string[] {
+  const out: string[] = [];
+  const t = title.trim();
+  if (!t) return ["empty title"];
+  const words = t.split(/\s+/).filter(Boolean).length;
+  if (words > 8) out.push(`${words} words — eight or fewer`);
+  if (/[:—]|\s[-–]\s/.test(t)) out.push("colon or dash subtitle");
+  const last3 = recent.slice(0, 3);
+  if (/^why\b/i.test(t) && last3.some((r) => /^why\b/i.test(r.trim()))) out.push('starts with "Why" like one of the last three titles');
+  if (/\?\s*$/.test(t) && last3.some((r) => /\?\s*$/.test(r.trim()))) out.push("a question like one of the last three titles");
+  const kr = /\b(Korea|Korean|Koreans|Seoul)\b/i;
+  if (kr.test(t) && recent.slice(0, 2).some((r) => kr.test(r))) out.push('"Korea/Korean/Seoul" appears in one of the last two titles already');
+  if (/\b(secret|truth|really|actually|ultimate|shocking)\b/i.test(t)) out.push("clickbait word");
+  return out;
+}

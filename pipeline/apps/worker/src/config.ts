@@ -170,7 +170,8 @@ export const cfg = {
    */
   thumbnailAnchorKey: process.env.THUMBNAIL_ANCHOR_KEY || "",
   /** 장면 쓰기 모델 (KAN-138 thumb-v4, 2026-10-07) — OpenAI 실행기로 부른다(키는 썸네일과 같은 OPENAI_API_KEY). 편당 1센트 안팎 */
-  thumbnailSceneModel: process.env.THUMBNAIL_SCENE_MODEL || "gpt-6.1-sol", // 2026-10-09 gpt-5.6-terra → gpt-6.1-sol (GPT 전부 6.1-sol)
+  thumbnailSceneModel: process.env.THUMBNAIL_SCENE_MODEL || "gpt-6.1-sol",
+  packageTitleModel: process.env.PACKAGE_TITLE_MODEL || "gpt-6.1-sol", // 글로벌 발행 제목(package-title.ts, 2026-10-23) — 한국판은 쓰지 않는다 // 2026-10-09 gpt-5.6-terra → gpt-6.1-sol (GPT 전부 6.1-sol)
   /** 구간 요약 모델 (KAN-152, 2026-10-07) — OpenAI 실행기(키는 OPENAI_API_KEY). 한 편에 한 번 호출, 1센트 안팎. 키가 없으면 요약 없이 구간만 낸다 */
   sectionSummaryModel: process.env.SECTION_SUMMARY_MODEL || "gpt-6.1-sol", // 2026-10-09 gpt-5.6-terra → gpt-6.1-sol
   /** 1장당 USD — runs.cost_usd 환산용. 모델·품질을 바꾸면 THUMBNAIL_USD_PER_IMAGE 로 덮는다 */
