@@ -1,4 +1,4 @@
-import { useInfiniteQuery } from '@tanstack/react-query';
+import { keepPreviousData, useInfiniteQuery } from '@tanstack/react-query';
 import { useMemo } from 'react';
 
 import type { QueueEntry } from '../player.types';
@@ -68,8 +68,20 @@ export const useUpNextQuery = (
     enabled: enabled && contentId !== null,
     staleTime: 5 * 60 * 1000,
     retry: false,
+    /*
+     * 지금 듣는 편이 바뀌어(자동 재생) 새로 받는 동안 **앞 편의 추천을 그대로 둔다**(PM 2026-10-23 "자동 재생할 때 재생 목록이
+     * 넘어가는 것도 자연스럽게") — 종전엔 키가 바뀌는 순간 섹션이 스켈레톤으로 비었다가 새 추천으로 통째 바뀌었다. 앞 편 추천 중
+     * 이제 목록에 든 편·지금 듣는 편은 아래에서 거른다
+     */
+    placeholderData: keepPreviousData,
   });
-  const items = useMemo(() => query.data?.pages.flat() ?? [], [query.data]);
+  const isPlaceholder = query.isPlaceholderData;
+  const items = useMemo(() => {
+    const pages = query.data?.pages.flat() ?? [];
+    if (!isPlaceholder) return pages;
+    const hidden = new Set([contentId, ...excludeIds]);
+    return pages.filter((item) => !hidden.has(item.contentId));
+  }, [query.data, isPlaceholder, contentId, excludeIds]);
   return {
     items,
     isPending: query.isPending,
@@ -78,7 +90,9 @@ export const useUpNextQuery = (
     isFetchingMore: query.isFetchingNextPage,
     hasMore: query.hasNextPage,
     fetchMore: () => {
-      if (query.hasNextPage && !query.isFetchingNextPage) void query.fetchNextPage();
+      // 앞 편 추천을 잠시 보여 주는 중엔 이어 받지 않는다 — 새 편의 첫 장이 오면 그때부터
+      if (!isPlaceholder && query.hasNextPage && !query.isFetchingNextPage)
+        void query.fetchNextPage();
     },
   };
 };
