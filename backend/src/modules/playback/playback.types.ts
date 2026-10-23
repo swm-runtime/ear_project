@@ -151,6 +151,11 @@ export interface SaveProgressResult {
    * 재생 중 주기적으로 도는 왕복이라, 회수를 알리는 가장 빠른 채널이다).
    */
   contentStatus: string;
+  /**
+   * 완청했는가 — 라이브러리 `completed` ∪ 위치 ≥ 90% ∪ 완청 신호(KAN-248, `explore-api.md` 4.1 `is_completed`와 같은 정의).
+   * 담지 않은 편은 `libraryItem`이 null이라 이 값이 화면을 다시 받을 근거다(2026-10-23)
+   */
+  isCompleted: boolean;
   /** 이 저장으로 완청이 판정되면 `completed`. 라이브러리에 없는 콘텐츠면 `null` */
   libraryItem: {
     id: string;

@@ -25,6 +25,11 @@ export class SaveProgressResponseDto {
   readonly content_status: string;
   /** 라이브러리에 없는 콘텐츠면 `null` */
   readonly library_item: ProgressLibraryItemDto | null;
+  /**
+   * 완청했는가 — **담지 않은 편도 true**(2026-10-23 — `explore-api.md` 4.1 `is_completed`와 같은 정의). 담지 않은 편은
+   * `library_item`이 null이라, 탐색·시리즈 화면을 다시 받을 근거는 이 값이다. 추가 필드뿐이라 설치된 앱은 무시한다
+   */
+  readonly is_completed: boolean;
 
   static from(result: SaveProgressResult): SaveProgressResponseDto {
     return {
@@ -39,6 +44,7 @@ export class SaveProgressResponseDto {
             completed_at: result.libraryItem.completedAt?.toISOString() ?? null,
           }
         : null,
+      is_completed: result.isCompleted,
     };
   }
 }
