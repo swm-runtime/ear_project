@@ -87,6 +87,9 @@ export const retainedBottomInset = ({
 }): number => {
   // 실측 전이면 원하는 여백 그대로 — 아직 스크롤된 적이 없다
   if (viewport <= 0 || contentEnd <= 0) return target;
-  const needed = Math.ceil(offset + viewport - contentEnd - basePadding);
-  return Math.max(target, needed);
+  // 줄여도 지금 위치가 새 끝 안쪽이면 바로 줄인다 — 내용이 화면보다 짧을 때(로딩 중 등)도 여기다. 종전엔 "화면 바닥에 보이는 여백은
+  // 남긴다"라 짧은 목록에서 큰 여백이 그대로 남아 2단이 벌어졌다(PM 2026-10-24 "로드가 다 안 됐을 때 2단으로 펼치면 벌어짐")
+  const settledMax = Math.max(0, contentEnd + basePadding + target - viewport);
+  if (offset <= settledMax) return target;
+  return Math.max(target, Math.ceil(offset + viewport - contentEnd - basePadding));
 };
