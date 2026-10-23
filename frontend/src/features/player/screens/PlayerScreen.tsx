@@ -1131,6 +1131,10 @@ export default function PlayerScreen() {
       },
     ],
   }));
+  /** 목록 — 닫힘에서는 숨긴다. 틀이 안전영역 밑까지 내려가 닫힌 손잡이 밑으로 첫 줄이 비친다. 끌기 시작하면 바로 보인다 */
+  const queueListStyle = useAnimatedStyle(() => ({
+    opacity: interpolate(queueProgress.get(), [0, 0.03], [0, 1], 'clamp'),
+  }));
   /** 2단에서 걷히는 것들(압축된 히어로·컨트롤) — 흐려지기만 한다. 자리는 그대로(레이아웃 불변). 사진은 줄어든다(artFrameStyle) */
   const queueExpandFadeStyle = useAnimatedStyle(() => ({
     opacity: 1 - queueExpand.get(),
@@ -2233,17 +2237,13 @@ export default function PlayerScreen() {
             </Pressable>
           </Reanimated.View>
 
-          {/* 2단 시트 면의 바닥 이음 — content 는 안전영역(홈 인디케이터) 위에서 끝나 시트 면 밑에 바탕 띠가 남았다(PM 2026-10-23
-            스샷). 틀을 내리면 닫힘에서 목록 첫 줄이 손잡이 밑으로 비치므로 틀은 두고 그 띠만 같은 면으로 채운다 */}
-          <FadeByProgress
-            progress={queueExpand}
-            pointerEvents="none"
-            style={[
-              styles.queueSheetBottomFill,
-              { top: contentSize.height, height: bottomPadding },
-            ]}
-          />
-          <View style={[styles.queueSheetFrame, { top: queueFullTop }]} pointerEvents="box-none">
+          {/* 틀 아래를 화면 맨 아래(홈 인디케이터 밑)까지 내린다 — content 가 안전영역 몫(bottomPadding)만큼 위에서 끝나 목록이
+            거기서 잘리고 바닥에 띠가 남았다(PM 2026-10-23 "아래 하단에 띠, 못 없애?"). 목록은 그 밑까지 흘러가고(유튜브 뮤직),
+            바닥 여백을 그만큼 더 줘 마지막 줄은 인디케이터 위에서 멈춘다. 닫힘에서 손잡이 밑으로 비치는 목록은 아래 queueListStyle 이 숨긴다 */}
+          <View
+            style={[styles.queueSheetFrame, { top: queueFullTop, bottom: -bottomPadding }]}
+            pointerEvents="box-none"
+          >
             <Reanimated.View style={[styles.queueSheet, queueSheetStyle]}>
               {/* 2단의 시트 면 — 위 모서리가 둥근 한 단 올라온 면(유튜브 뮤직). 1단은 종전처럼 면 없이 흐린 바탕 위다 */}
               <FadeByProgress
@@ -2293,7 +2293,11 @@ export default function PlayerScreen() {
                 </View>
               }
               {/* 목록 위에서 시작한 세로 끌기는 축소 제스처가 가로채지 않는다(위 `isTouchOnScrollAreaRef`) */}
-              <View style={styles.queuePanelWrap} {...scrollAreaTouchHandlers}>
+              <Reanimated.View
+                style={[styles.queuePanelWrap, queueListStyle]}
+                pointerEvents={isQueueOpen ? 'auto' : 'none'}
+                {...scrollAreaTouchHandlers}
+              >
                 {/*
               닫혀 있고 아직 받은 목록이 없으면 패널 내용을 그리지 않는다.
               열린 뒤에는 시트 모션 때문에 요청을 미루는 구간도 로딩이다 — 조회 전을 빈 목록으로 표시하면 안 된다.
@@ -2330,10 +2334,10 @@ export default function PlayerScreen() {
                     categoryOf={queueCategoryOf}
                     onRetry={() => void queueQuery.refetch()}
                     // 1단에서는 시트 아래 2단 몫이 화면 밖 — 그만큼 바닥 여백(KAN-241 "4번")
-                    bottomInset={queueStage === 1 ? queueExpandTravel : 0}
+                    bottomInset={(queueStage === 1 ? queueExpandTravel : 0) + bottomPadding}
                   />
                 ) : null}
-              </View>
+              </Reanimated.View>
             </Reanimated.View>
           </View>
         </Animated.View>
@@ -3045,12 +3049,6 @@ const styles = StyleSheet.create({
   },
   queueSheet: {
     flex: 1,
-  },
-  queueSheetBottomFill: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    backgroundColor: playerColor.surface,
   },
   queueSheetSurface: {
     backgroundColor: playerColor.surface,
