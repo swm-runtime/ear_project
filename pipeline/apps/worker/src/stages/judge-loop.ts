@@ -189,7 +189,7 @@ export async function runJudgeLoop(job: Job, ex: Executor) {
   async function gpt<T>(system: string, prompt: string, schema: object, minutes: number, effort: "high" | "medium"): Promise<T> {
     for (let attempt = 1; ; attempt++) {
       try {
-        const r = await ex.run<T>({ prompt, systemPrompt: system, schema, allowedTools: [], tools: [], cwd: cfg.workRoot, timeoutMs: minutes * 60_000, effort });
+        const r = await ex.run<T>({ prompt, systemPrompt: system, schema, allowedTools: [], tools: [], cwd: cfg.workRoot, timeoutMs: minutes * 60_000, effort, background: true }); // 재작성 한 호출이 10분을 넘으면 동기 요청은 끊긴다 — 백그라운드 모드 (types.ts)
         cost += r.listCostUsd ?? 0; model = r.model ?? model; return r.output;
       } catch (e) {
         const msg = String(e); const transient = /fetch failed|OpenAI (?:0|5\d\d|429)|ECONNRESET|ETIMEDOUT|socket hang up/i.test(msg);

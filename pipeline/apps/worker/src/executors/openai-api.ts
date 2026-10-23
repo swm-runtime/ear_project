@@ -92,6 +92,7 @@ export class OpenAiExecutor implements Executor {
       text: { format: { type: "json_schema", name: "result", strict: true, schema } },
     };
     if (req.effort) body.reasoning = { effort: EFFORT[req.effort] ?? "medium" };
+    if (req.background) body.background = true; // 장시간 호출 — 아래 pollBackground 로 끝을 기다린다 (store 는 그대로 false: 완료 뒤 10분 안에 조회하면 된다)
     // 출력 길이 성향 (GPT-5 계열 text.verbosity, 기본 medium). Claude 엔 없는 축이라 2026-09-19 첫 짝 비교 때 빠져 있었다 — 대본이 일관되게 짧았던 원인 후보
     const verbosity = process.env.OPENAI_VERBOSITY || "";
     if (/^(low|medium|high)$/.test(verbosity)) body.text.verbosity = verbosity;
@@ -110,7 +111,8 @@ export class OpenAiExecutor implements Executor {
       if (res.status === 400 && /verbosity/i.test(res.text) && body.text.verbosity) { delete body.text.verbosity; res = await this.call(key, body, req.timeoutMs); }
       if (res.status === 429) throw classifyLimit(res.text); // 한도 — 작업 실패가 아니라 워커 멈춤 (util.ts ApiLimit, index.ts)
       if (res.status !== 200) throw new Error(`OpenAI ${res.status}: ${res.text.slice(0, 600)}`);
-      const data = JSON.parse(res.text);
+      let data = JSON.parse(res.text);
+      if (body.background && (data.status === "queued" || data.status === "in_progress")) data = await this.pollBackground(key, String(data.id), req.timeoutMs - (Date.now() - started), (d) => { progress.detail = d; req.onProgress?.({ ...progress }); });
       if (data.status && data.status !== "completed") throw new Error(`OpenAI 응답 미완료 (${data.status}: ${JSON.stringify(data.incomplete_details ?? {}).slice(0, 200)}) — max_output_tokens 확인`);
       const msg = (data.output ?? []).find((o: any) => o.type === "message");
       const part = msg?.content?.find((c: any) => c.type === "output_text") ?? msg?.content?.[0];
@@ -129,6 +131,34 @@ export class OpenAiExecutor implements Executor {
     } finally { clearInterval(tick); }
   }
 
+  /** 백그라운드 응답 조회 간격 — 테스트가 줄인다 */
+  protected pollIntervalMs = 10_000;
+  /** background=true 로 받은 응답이 끝날 때까지 GET /responses/{id} 를 반복한다. 시간 초과·작업 취소면 /cancel 을 보내고 던진다. 조회 자체의 일시 오류는 6번까지 넘긴다 */
+  protected async pollBackground(key: string, id: string, remainingMs: number, onDetail: (d: string) => void): Promise<any> {
+    const base = (process.env.OPENAI_BASE_URL || "https://api.openai.com/v1").replace(/\/$/, "");
+    const headers = { authorization: `Bearer ${key}` };
+    const deadline = Date.now() + Math.max(remainingMs, 0);
+    const cancel = () => fetch(`${base}/responses/${id}/cancel`, { method: "POST", headers }).catch(() => {});
+    let fails = 0; const t0 = Date.now();
+    while (true) {
+      await new Promise((r) => setTimeout(r, this.pollIntervalMs));
+      if (jobAbortSignal()?.aborted) { await cancel(); throw Object.assign(new Error("작업이 취소됨 (콘솔) — OpenAI 백그라운드 응답 취소"), { name: "JobCancelled" }); }
+      if (Date.now() > deadline) { await cancel(); throw new Error(`OpenAI 요청 시간 초과 (백그라운드 ${Math.round((Date.now() - t0) / 1000)}s)`); }
+      try {
+        const r = await fetch(`${base}/responses/${id}`, { headers });
+        if (r.status === 200) {
+          const d = JSON.parse(await r.text());
+          if (d.status !== "queued" && d.status !== "in_progress") return d;
+          fails = 0; onDetail(`OpenAI 백그라운드 ${d.status} (${Math.round((Date.now() - t0) / 1000)}s)`); continue;
+        }
+        if (r.status !== 429 && r.status < 500) throw new Error(`OpenAI ${r.status}: ${(await r.text()).slice(0, 300)}`);
+        fails++;
+      } catch (e: any) {
+        if (/^OpenAI \d{3}:/.test(String(e?.message))) throw e;
+        if (++fails >= 6) throw new Error(`OpenAI 0: 백그라운드 조회 실패 — ${String(e?.message ?? e).slice(0, 200)}`);
+      }
+    }
+  }
   /** 429·5xx 는 최대 3회 지수 대기. 작업 취소·타임아웃은 AbortSignal 로 */
   protected async call(key: string, body: any, timeoutMs: number): Promise<{ status: number; text: string }> {
     const base = (process.env.OPENAI_BASE_URL || "https://api.openai.com/v1").replace(/\/$/, "");

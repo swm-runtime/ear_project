@@ -25,6 +25,9 @@ export interface ExecRequest {
   addDirs?: string[];
   cwd: string;
   timeoutMs: number;
+  /** OpenAI 백그라운드 모드 (2026-10-23): 요청을 background=true 로 넣고 GET /responses/{id} 로 끝날 때까지 조회한다. 한 호출이 10분을 넘는 재작성(글로벌 judge_loop)은
+   *  동기 요청이 연결 끊김("fetch failed")으로 번번이 실패했다(G261023-013·016, 두 번 다 같은 단계). Claude 실행기는 무시한다 */
+  background?: boolean;
   model?: string;
   /** 생각(thinking) 토큰 상한 — Claude Code 의 MAX_THINKING_TOKENS 로 전달. 판정·대조 작업은 생각이 출력 비용의 절반을 차지한다 (2026-09-08 실측: QA opus 3.5만→1.9만, $1.89→$1.16) */
   maxThinkingTokens?: number;
