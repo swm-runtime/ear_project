@@ -115,6 +115,9 @@ const ko = {
     sourceSeries: (title: string) => title,
     /** 탐색 맥락 목록 아래 추천 블록(player.md 4.2-2) — 자동 재생은 없다, 목록일 뿐 */
     upNextTitle: '다음에 들어볼 만한',
+    /** 추천 섹션 제목 옆 자동 재생 스위치(player.md 4.2-4) — 설정의 [재생 목록 자동 재생]과 같은 값이다 */
+    autoplayLabel: '자동 재생',
+    autoplayHint: '한 편이 끝나면 다음 편을, 목록이 끝나면 추천 편을 이어서 틀어요',
     /** 라이브러리에 없는 줄의 담기 버튼(탐색 맥락만) — 탐색 타일의 담기와 같은 말 */
     saveA11y: '라이브러리에 담기',
     saveToast: '라이브러리에 담았어요',
@@ -293,6 +296,8 @@ const en: LocalizedCopy<typeof ko> = {
     sourceSearch: (query: string) => query,
     sourceSeries: (title: string) => title,
     upNextTitle: 'Up next for you',
+    autoplayLabel: 'Autoplay',
+    autoplayHint: 'Plays the next episode, then similar ones when your queue ends',
     saveA11y: 'Save to library',
     saveToast: 'Saved to your library',
     saveFailedToast: "Couldn't save. Please try again.",

@@ -42,6 +42,7 @@ import Snackbar from '@/shared/ui/Snackbar';
 import { Text, AnimatedText } from '@/shared/ui/Typography';
 
 import { useTopicsQuery } from '@/features/interest';
+import { setAutoplayNextEnabled, useAutoplayNextEnabled } from '@/features/settings';
 
 import { createAndroidPlayerZoom } from '../components/android-player-zoom';
 import {
@@ -1282,6 +1283,34 @@ export default function PlayerScreen() {
    * 2단 ↔ 1단만 움직이고, 닫힘까지는 1단에서 다시 끌어야 간다
    */
   const handleExpandStartRef = useRef<number | null>(null);
+  /*
+   * 2단 목록 맨 위에서 끌어내리기(PM 2026-10-23 "ㄱㄱ" — 유튜브 뮤직) — 손잡이의 2단 끌기와 같은 규칙이다: 손가락만큼 2단 몫이
+   * 줄고, 놓으면 35%·속도 임계로 1단 아니면 2단. 1단 아래로는 안 간다(단계별). 목록이 가로채는 조건은 패널 몫(pullDown)
+   */
+  const listPullDown = {
+    enabled: activePanel === 'queue' && queueStage === 2,
+    onStart: () => {
+      handleDraggedRef.current = true;
+      queueGestureRef.current.holdArtLayout();
+    },
+    onMove: (dy: number) => {
+      const { expandTravel } = queueGestureRef.current;
+      queueExpand.set(Math.min(1, Math.max(0, 1 - dy / Math.max(1, expandTravel))));
+      queueProgress.set(1);
+    },
+    onRelease: (dy: number, vy: number) => {
+      const { expandTravel, expand, shrink, releaseArtLayout: release } = queueGestureRef.current;
+      release();
+      if (vy > QUEUE_COMMIT_VELOCITY) return shrink();
+      if (vy < -QUEUE_COMMIT_VELOCITY) return expand();
+      return dy / Math.max(1, expandTravel) > QUEUE_COMMIT_RATIO ? shrink() : expand();
+    },
+    onTerminate: () => {
+      queueGestureRef.current.releaseArtLayout();
+      queueGestureRef.current.expand();
+    },
+  };
+  const isAutoplayNextOn = useAutoplayNextEnabled();
   const handlePanResponder = useMemo(
     () =>
       // eslint-disable-next-line react-hooks/refs -- 콜백은 렌더가 아니라 제스처 시점에 실행된다(표준 PanResponder 패턴)
@@ -2402,6 +2431,8 @@ export default function PlayerScreen() {
                       onEndReached: isQueueOpen ? upNextQuery.fetchMore : undefined,
                     }}
                     onSelectUpNext={screen.playUpNextItem}
+                    autoplay={{ value: isAutoplayNextOn, onToggle: setAutoplayNextEnabled }}
+                    pullDown={listPullDown}
                     onDelete={screen.deleteQueueItem}
                     categoryOf={queueCategoryOf}
                     onRetry={() => void queueQuery.refetch()}
