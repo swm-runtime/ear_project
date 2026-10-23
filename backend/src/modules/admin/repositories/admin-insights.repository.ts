@@ -299,9 +299,12 @@ export class AdminInsightsRepository {
         where action = 'complete' and ($1::timestamptz is null or created_at >= $1)`,
       [since],
     );
+    // 담기 = **사용자가 직접 담은 수**(`user_signals.save`). 종전 `library_items.source = save`는 탐색 재생 자동 적립 행도 같은
+    // 출처라 섞였고, 새 앱(자동 적립 폐기 — 2026-10-23)이 나가면 그만큼 급락해 추이가 끊긴다. 신호는 직접 담기에만 남는다
+    // (explore-api.md 4.3). 신호는 180일 보존이라 전 기간 값도 그 안이다
     const [save] = await this.dataSource.query<CountRow[]>(
-      `select count(*)::int as count from library_items
-        where source = 'save' and ($1::timestamptz is null or added_at >= $1)`,
+      `select count(*)::int as count from user_signals
+        where action = 'save' and ($1::timestamptz is null or created_at >= $1)`,
       [since],
     );
 
@@ -501,9 +504,9 @@ export class AdminInsightsRepository {
               and ($2::timestamptz is null or s.created_at >= $2)
          ) x on true
          left join lateral (
-           select count(*)::int as saves from library_items i
-            where i.content_id = r.content_id and i.source = 'save'
-              and ($2::timestamptz is null or i.added_at >= $2)
+           select count(*)::int as saves from user_signals i
+            where i.content_id = r.content_id and i.action = 'save'
+              and ($2::timestamptz is null or i.created_at >= $2)
          ) v on true
         order by ${order('r.')}`,
       [limit, since],
