@@ -1,4 +1,13 @@
-import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import {
+  memo,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react';
 import { Animated, PanResponder, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import { useAnimatedValue } from '@/shared/hooks/useAnimatedValue';
@@ -15,9 +24,7 @@ import type { QueueEntry } from '../player.types';
 import { PlusIcon, ReorderIcon, TrashIcon } from './PlayerIcons';
 import {
   applyKeyOrder,
-  dragShiftOf,
   hoverIndexOf,
-  isSameKeys,
   minDragIndexOf,
   queueRowKey,
   retainedBottomInset,
@@ -130,11 +137,11 @@ const SWIPE_FULL_DISTANCE = 200;
 const SWIPE_DISMISS_DISTANCE = 480;
 const SWIPE_SETTLE_MS = 160;
 /**
- * 삭제한 줄이 빠져나간 뒤 **줄 높이를 0 으로 접는다** — 아래 줄들이 한 번에 툭 올라오지 않고 같이 미끄러져 올라온다
- * (PM 2026-10-23 "삭제됐을 때 아래 재생목록이 올라오는 애니메이션이 더 자연스러워야"). 애플 메일처럼 빠져나가기 → 접기 순서,
- * 접기는 시작·끝이 부드러운 곡선으로
+ * 줄 구성이 바뀔 때(삭제·추가·되돌림) 줄들이 새 칸으로 미끄러지는 시간 — 삭제한 줄이 빠져나간 뒤 아래 줄들이 툭 올라오지 않고 같이
+ * 미끄러져 올라온다(PM 2026-10-23 "삭제됐을 때 아래 재생목록이 올라오는 애니메이션이 더 자연스러워야"). 애플 메일처럼 빠져나가기 →
+ * 메우기 순서, 시작·끝이 부드러운 곡선으로
  */
-const ROW_COLLAPSE_MS = 280;
+const ROW_REFLOW_MS = 280;
 const THUMBNAIL_SIZE = 48;
 /** 행 높이는 고정이다 — 끌어 옮길 때 "몇 칸 움직였나"를 거리에서 바로 센다(썸네일 48 + 위아래 sm) */
 const ROW_HEIGHT = THUMBNAIL_SIZE + theme.spacing.sm * 2;
@@ -262,14 +269,10 @@ interface QueueRowProps {
   deleteA11yLabel: string;
   onDelete?: (item: QueueEntry) => void;
   /**
-   * 이 행이 지금 끌려가는 중이면 그 끌기의 값 — `y` 손가락 이동량, `lift` 떠 있는 정도(1 떠 있음 → 0 내려앉음 — 확대·면·그림자가
-   * 이 값으로 같이 내려앉는다). 끄는 줄만 받는다 — 나머지 줄은 null 이라 끌기가 시작돼도 다시 그려지지 않는다(memo)
+   * 이 줄을 지금 끄는 중인가 — 떠 있는 모습(확대·불투명 면·그림자)만 맡는다. **위치는 줄이 정하지 않는다** — 패널이 줄마다 가진
+   * 위치 값(QueueRowSlot)이 정한다. 놓으면 떠 있던 값이 내려앉는다
    */
-  drag: { y: Animated.Value; lift: Animated.Value } | null;
-  /** 끌려가는 행에게 자리를 비켜 주는 이동량(px). 끄는 중이 아니면 0 */
-  shift: number;
-  /** 비켜 주기를 애니메이션할지 — 순서가 확정돼 레이아웃이 바뀌는 순간에는 즉시 0 으로 돌린다 */
-  animateShift: boolean;
+  isLifted: boolean;
   onSelect: (item: QueueEntry) => void;
   /**
    * 끌기 콜백 — **줄 키로** 부른다(KAN-255). 인덱스로 부르면 앞 끌기의 순서가 반영되는 사이 같은 인덱스가 다른 줄을 가리켰다.
@@ -279,7 +282,7 @@ interface QueueRowProps {
   onDragMove: (key: string, dy: number) => void;
   onDragEnd: (key: string) => void;
   onNudge: (key: string, direction: -1 | 1) => void;
-  /** 삭제로 줄이 접히기 시작했다(true)·끝나 걷혔다(false) — 접히는 동안 패널은 끌기를 받지 않는다(KAN-254 원인 3) */
+  /** 삭제로 줄이 빠져나가기 시작했다(true)·걷혔다(false) — 그동안 패널은 끌기를 받지 않는다(KAN-254 원인 3) */
   onCollapseChange?: (key: string, isCollapsing: boolean) => void;
 }
 
@@ -300,9 +303,7 @@ function QueueRowBase({
   canDelete,
   deleteA11yLabel,
   onDelete,
-  drag,
-  shift,
-  animateShift,
+  isLifted,
   onSelect,
   onDragStart,
   onDragMove,
@@ -311,10 +312,8 @@ function QueueRowBase({
   onCollapseChange,
 }: QueueRowProps) {
   const key = rowKey(item);
-  const isDragging = drag !== null;
   // 눌림 표시는 본문이 아니라 **줄 전체**(손잡이 포함)에 깐다 — 본문만 밝히면 줄이 알약과 아이콘으로 쪼개져 보인다
   const [isPressed, setIsPressed] = useState(false);
-  const shiftY = useAnimatedValue(0);
   const bandOpacity = useAnimatedValue(isCurrent ? 1 : 0);
   useEffect(() => {
     const animation = Animated.timing(bandOpacity, {
@@ -326,24 +325,27 @@ function QueueRowBase({
     animation.start();
     return () => animation.stop();
   }, [isCurrent, bandOpacity]);
-  // 그리기 전에 맞춘다(useLayoutEffect) — 놓아서 순서가 바뀐 렌더에서 비켜 줬던 몫이 한 프레임 남으면 줄이 두 칸 튀어 깜박였다
-  useLayoutEffect(() => {
-    if (!animateShift) {
-      shiftY.setValue(shift);
+  /*
+   * 떠 있는 정도(1 떠 있음 → 0 내려앉음) — 확대·면·그림자가 이 값 하나로 같이 움직인다. **늘 같은 애니메이션 값이다** — 숫자와 바꿔
+   * 끼우지 않는다(Fabric 은 JS 구동 값을 화면에 직접 쓰고 React 기록은 48ms 뒤에 맞춘다. 그 사이 숫자로 바꾸면 React 가 같은 값으로
+   * 보고 넘겨 화면이 옛 값에 남았다 — KAN-254 재발 원인)
+   */
+  const lift = useAnimatedValue(isLifted ? 1 : 0);
+  useEffect(() => {
+    if (isLifted) {
+      lift.setValue(1);
       return;
     }
-    const animation = Animated.timing(shiftY, {
-      toValue: shift,
-      duration: ROW_SHIFT_MS,
+    const animation = Animated.timing(lift, {
+      toValue: 0,
+      duration: ROW_SETTLE_MS,
       easing: motion.easing.easeOut,
-      // JS 드라이버 — 같은 뷰의 translateY 가 끄는 동안엔 dragY(손가락마다 setValue 하는 JS 값)로 바뀐다.
-      // 이 값을 네이티브로 돌리면 뷰가 네이티브 구동으로 넘어가 **JS 값의 변화가 화면에 반영되지 않는다** —
-      // 실기기에서 줄이 들리기만 하고 손가락을 따라오지 않았다(2026-09-19 아이폰). 웹엔 네이티브 드라이버가 없어 안 잡혔다
+      // 그림자·elevation 은 네이티브 드라이버가 못 다룬다
       useNativeDriver: false,
     });
     animation.start();
     return () => animation.stop();
-  }, [shift, animateShift, shiftY]);
+  }, [isLifted, lift]);
 
   // 제스처 콜백은 생성 시점 값을 캡처한다 — 최신 값은 ref 로 읽는다
   const latest = useRef({ key, onDragStart, onDragMove, onDragEnd });
@@ -378,9 +380,6 @@ function QueueRowBase({
    * 손잡이(순서 변경)는 자기 영역에서 먼저 잡고, 세로 이동은 목록 스크롤에 둔다. 잡은 뒤에는 스크롤·시트 끌기에 내주지 않는다 ──
    */
   const swipeX = useAnimatedValue(0);
-  /** 줄 높이 — 삭제 때만 접힌다(ROW_COLLAPSE_MS). 평소엔 ROW_HEIGHT 고정이라 끌어 옮기기의 칸 계산이 그대로다 */
-  const rowHeight = useAnimatedValue(ROW_HEIGHT);
-  const [isCollapsing, setIsCollapsing] = useState(false);
   /** 열려 머문 쪽 — -1 삭제(왼쪽으로 밀림) · 1 담기 · 0 닫힘. 제스처는 이 자리에서 이어 민다 */
   const openSideRef = useRef<-1 | 0 | 1>(0);
   const [isSwipeOpen, setIsSwipeOpen] = useState(false);
@@ -440,24 +439,15 @@ function QueueRowBase({
         notify?.(rowId, true);
       }
       animateTo(-SWIPE_DISMISS_DISTANCE, () => {
-        // 빠져나간 자리를 접는다 — 다 접힌 뒤에 걷어야 걷히는 순간 아래 줄이 튀지 않는다
-        setIsCollapsing(true);
-        Animated.timing(rowHeight, {
-          toValue: 0,
-          duration: ROW_COLLAPSE_MS,
-          easing: motion.easing.easeInOut,
-          // 높이는 레이아웃 속성이라 네이티브 드라이버가 못 다룬다
-          useNativeDriver: false,
-        }).start(() => {
-          remove?.(target);
-          const collapse = collapseRef.current;
-          if (collapse !== null && collapse.timer === null) {
-            collapse.timer = setTimeout(() => {
-              collapseRef.current = null;
-              swipeLatest.current.onCollapseChange?.(rowId, false);
-            }, SETTLE_FALLBACK_MS);
-          }
-        });
+        // 빠져나간 뒤 걷는다 — 아래 줄들은 패널이 새 칸으로 미끄러뜨린다(ROW_REFLOW_MS, 위치 값)
+        remove?.(target);
+        const collapse = collapseRef.current;
+        if (collapse !== null && collapse.timer === null) {
+          collapse.timer = setTimeout(() => {
+            collapseRef.current = null;
+            swipeLatest.current.onCollapseChange?.(rowId, false);
+          }, SETTLE_FALLBACK_MS);
+        }
       });
     };
     const runSave = () => {
@@ -474,7 +464,7 @@ function QueueRowBase({
       return x;
     };
     return { close, open, runDelete, runSave, positionOf };
-  }, [swipeX, rowHeight]);
+  }, [swipeX]);
   const swipeResponder = useMemo(
     () =>
       // eslint-disable-next-line react-hooks/refs -- 콜백은 렌더가 아니라 제스처 시점에 실행된다(표준 PanResponder 패턴)
@@ -525,17 +515,14 @@ function QueueRowBase({
       deleteScale: deleteProgress.interpolate({ inputRange: [0, 1], outputRange: [0.6, 1] }),
     };
   }, [swipeX]);
-  // 끄는 줄의 그림자·배율 — 끌기 값이 바뀔 때만(끄는 줄만) 만든다
+  // 떠 있는 모습 — 보간 노드는 한 번만 만든다(늘 같은 노드라 숫자와 바꿔 끼우는 순간이 없다)
   const lifted = useMemo(
-    () =>
-      drag === null
-        ? null
-        : {
-            shadowOpacity: drag.lift.interpolate({ inputRange: [0, 1], outputRange: [0, 0.35] }),
-            elevation: drag.lift.interpolate({ inputRange: [0, 1], outputRange: [0, 6] }),
-            scale: drag.lift.interpolate({ inputRange: [0, 1], outputRange: [1, DRAG_SCALE] }),
-          },
-    [drag],
+    () => ({
+      shadowOpacity: lift.interpolate({ inputRange: [0, 1], outputRange: [0, 0.35] }),
+      elevation: lift.interpolate({ inputRange: [0, 1], outputRange: [0, 6] }),
+      scale: lift.interpolate({ inputRange: [0, 1], outputRange: [1, DRAG_SCALE] }),
+    }),
+    [lift],
   );
   // 낭독기 — 스와이프 대신 줄의 액션으로 같은 일을 한다
   const rowActions = [
@@ -548,32 +535,18 @@ function QueueRowBase({
       style={[
         styles.rowWrap,
         isPressed && styles.rowWrapPressed,
-        isDragging && styles.rowWrapDragging,
-        lifted !== null && {
+        styles.rowWrapLiftable,
+        {
           // 그림자도 떠 있는 만큼 — 놓을 때 한 번에 꺼지면 줄이 번쩍인다(PM 2026-10-23 "놓으면 깜박인다")
           shadowOpacity: lifted.shadowOpacity,
           elevation: lifted.elevation,
-        },
-        // 접는 동안만 잘라 낸다 — 평소에 자르면 끄는 줄의 그림자까지 잘린다
-        isCollapsing && styles.rowWrapCollapsing,
-        {
-          height: rowHeight,
-          transform: [
-            // 비켜 주기를 애니메이션하지 않을 때는 **숫자 그대로** 준다 — 애니메이션 값을 effect 에서 맞추면 새 순서가 그려진
-            // 프레임과 어긋나 한 프레임 동안 줄이 한 칸 더 밀려 보였다. 숫자면 순서와 같은 렌더에 들어간다
-            { translateY: drag !== null ? drag.y : animateShift ? shiftY : shift },
-            // 끄는 줄은 살짝 커져 떠 있는 것으로 읽힌다 — 놓으면 내려앉으며 제 크기로
-            {
-              scale: lifted !== null ? lifted.scale : 1,
-            },
-          ],
+          // 끄는 줄은 살짝 커져 떠 있는 것으로 읽힌다 — 놓으면 내려앉으며 제 크기로. 위치(세로)는 감싼 칸(QueueRowSlot) 몫
+          transform: [{ scale: lifted.scale }],
         },
       ]}
     >
-      {/* 끄는 줄의 면 — 불투명(아래 rowWrapDragging 주석). 떠 있는 만큼 보이고 내려앉으며 걷힌다 */}
-      {drag !== null ? (
-        <Animated.View style={[styles.dragSurface, { opacity: drag.lift }]} pointerEvents="none" />
-      ) : null}
+      {/* 끄는 줄의 면 — 불투명(아래 rowWrapLiftable 주석). 떠 있는 만큼 보이고 내려앉으며 걷힌다 */}
+      <Animated.View style={[styles.dragSurface, { opacity: lift }]} pointerEvents="none" />
       {/* 재생 중인 줄의 띠 — 화면 폭 전체(유튜브 뮤직, PM 2026-10-23). 줄 사이 틈의 절반씩 위아래로 넓혀 띠가 줄에 꼭 맞지 않고
         여유 있게 감싼다. 굵기·낭독 꼬리표는 그대로 둔다(색만으로 구분하지 않는다) */}
       <Animated.View
@@ -699,6 +672,43 @@ function QueueRowBase({
 const QueueRow = memo(QueueRowBase);
 
 /**
+ * 줄 하나의 칸 — 목록 틀 안에 절대 배치하고 세로 위치를 **위치 값 하나**로만 정한다(KAN-254·255 재발 수정, 2026-10-24). React 가
+ * 그리는 순서는 위치에 영향이 없어, 순서 데이터가 언제 따라와도 화면이 튀지 않는다. 값은 마운트될 때 패널 표에 올리고 내려갈 때 지운다
+ */
+function QueueRowSlot({
+  slotKey,
+  position,
+  positions,
+  isLifted,
+  children,
+}: {
+  slotKey: string;
+  position: Animated.Value;
+  positions: Map<string, Animated.Value>;
+  isLifted: boolean;
+  children: ReactNode;
+}) {
+  useEffect(() => {
+    positions.set(slotKey, position);
+    return () => {
+      if (positions.get(slotKey) === position) positions.delete(slotKey);
+    };
+  }, [slotKey, position, positions]);
+  return (
+    <Animated.View
+      style={[
+        styles.rowSlot,
+        // 끄는 줄은 다른 줄 위로 뜬다
+        isLifted && styles.rowSlotLifted,
+        { transform: [{ translateY: position }] },
+      ]}
+    >
+      {children}
+    </Animated.View>
+  );
+}
+
+/**
  * 재생 목록 패널(2026-09-16) — 바닥 손잡이를 끌어올리면 아트워크가 압축되고 이 패널이 남은 높이를
  * 채운다(스크립트 패널과 같은 자리·같은 전환).
  *
@@ -753,45 +763,37 @@ function PlayerQueuePanel({
 
   /*
    * ── 끌어서 순서 바꾸기 ──
-   * 끄는 행은 손가락을 그대로 따라가고(dragY), 지나친 행들은 한 칸씩 비켜 준다(shift). 놓으면 끄는 행을 목표 칸에 앉힌 뒤 순서를
-   * 확정한다 — 확정 순간 레이아웃이 바뀌므로 이동량을 애니메이션 없이 0 으로 돌린다.
+   * **줄 위치는 줄마다 위치 값 하나(칸 번호 × ROW_STEP)로만 정한다**(PM 2026-10-24 "왜 아직도 이래" — KAN-254·255 재발). 줄은 목록 틀
+   * 안에 절대 배치되고(QueueRowSlot), React 가 그리는 순서는 위치에 영향이 없다. 끄는 줄은 손가락을 따라 값이 바로 바뀌고, 지나친 줄들은
+   * 새 칸으로 값이 미끄러지며, 놓으면 끄는 줄이 목표 칸으로 내려앉는 동시에 순서를 넘긴다 — 순서 데이터가 따라와도 위치는 이미 같다.
+   * 놓자마자 다른 줄을 잡아도 앞 끌기는 이미 확정돼 있어 겹칠 틈이 없다.
    *
-   * **끌기는 한 번에 하나, 줄 키로 잡는다**(KAN-254·255). 종전엔 놓은 줄이 내려앉는 120ms 사이에 다음 끌기를 잡으면, 끊긴 앞
-   * 애니메이션의 끝 콜백이 새 끌기 도중에 앞 순서를 확정하고 끌기 표시를 지웠다 — 다른 줄이 손가락을 따라오고 줄이 겹쳤다.
-   * 이제 ① 끝 콜백은 자기 끌기가 아직 마지막일 때만(순번 `token`) 확정하고, ② 내려앉는 중에 다음 손잡이를 잡으면 **앞 끌기를 그
-   * 자리에서 먼저 확정**한 뒤 새 순서 기준으로 시작한다. ③ 시작점(`from`)은 잡은 줄의 키를 지금 그리는 순서에서 찾은 칸이다
-   */
-  /*
-   * 끄는 줄의 값(손가락 이동량 y · 떠 있는 정도 lift) — **두 벌을 번갈아 쓴다.** 앞 줄이 내려앉는 중에 다음 끌기를 잡으면 새 끌기의
-   * 값을 0·1 로 놓는데, 한 벌이면 그 순간(새 순서가 그려지기 전) 앞 줄이 원래 자리로 튀고 다시 떠올랐다. 앞 줄은 제 벌을 쥔 채
-   * 새 순서 렌더에서 놓인다
-   */
-  const [dragSlots] = useState(() => [
-    { y: new Animated.Value(0), lift: new Animated.Value(0) },
-    { y: new Animated.Value(0), lift: new Animated.Value(0) },
-  ]);
-  /**
-   * 진행 중인 끌기 — `order` 는 시작할 때 그리던 순서(줄 키), `released` 는 손을 떼 내려앉는 중, `token` 은 끌기 순번.
-   * `hasMoved` 는 한 칸이라도 넘어갔는가 — 그 전에는 비켜 주기를 애니메이션하지 않는다: 앞 끌기를 확정하며 시작한 렌더는 줄들이
-   * 새 자리로 옮겨 앉는 렌더라, 애니메이션 값(effect 에서 맞춤)으로 그리면 한 프레임 동안 옛 이동량이 남아 줄이 한 칸 더 밀려 보였다
+   * 종전(#2002 까지)엔 위치를 애니메이션 값과 숫자 사이에서 바꿔 끼웠다. RN 0.86 Fabric 은 JS 구동 애니메이션을 화면에 직접 쓰고
+   * (setNativeProps) React 기록은 마지막 프레임 48ms 뒤에야 맞춘다 — 그 사이 숫자로 바뀌면 React 가 "같은 값"으로 보고 넘겨 줄이 옛
+   * 자리에 남았다(겹침·빈칸, 빠르게 연달아 끌 때만). 이제 위치는 늘 같은 값(네이티브 드라이버)이라 바꿔 끼우는 순간이 없다
    */
   type DragState = {
     key: string;
     from: number;
     hover: number;
+    /** 시작할 때의 순서(줄 키) */
     order: readonly string[];
-    released: boolean;
+    /** 지금 손가락 자리로 옮겼을 때의 순서 — 지나친 줄들이 가 있는 칸 */
+    preview: readonly string[];
     token: number;
-    hasMoved: boolean;
   };
-  const [drag, setDrag] = useState<DragState | null>(null);
   const dragRef = useRef<DragState | null>(null);
   const dragTokenRef = useRef(0);
+  /** 지금 끄는 줄 — 그 줄만 떠 있고 위층이다. 끄는 동안 목록 스크롤도 끈다 */
+  const [liftedKey, setLiftedKey] = useState<string | null>(null);
+  /** 줄 키 → 위치 값(px). 칸이 마운트될 때 올리고 내려갈 때 지운다(QueueRowSlot) */
+  const [positions] = useState(() => new Map<string, Animated.Value>());
+  /** 위치 값들이 가리키는 순서(줄 키) — 화면에 보이는 순서의 원본 */
+  const orderRef = useRef<readonly string[]>([]);
   /*
-   * 놓은 순서를 부모의 새 순서보다 먼저 그린다(KAN-254 원인 2, PM 2026-10-23 "위에다 놓으면 깜박인다"). 라이브러리 맥락의 순서는
-   * 쿼리 캐시라 다음 틱에, 탐색 맥락은 스토어 구독(동기 레인)이라 오히려 끌기 표시 해제보다 먼저 온다 — 어느 쪽이 먼저 그려져도 같은
-   * 모습이 되게, 패널이 확정한 순서(줄 키)를 들고 있다가 부모 목록에 입혀 그린다(`applyKeyOrder`). 부모가 따라오면 같은 배열이
-   * 되고, 끝내 안 오면(저장 실패로 되돌림 등) 잠시 뒤 놓는다
+   * 놓은 순서를 부모의 새 순서가 올 때까지 들고 있다(KAN-254 원인 2) — 라이브러리 맥락의 순서는 쿼리 캐시라 다음 틱에, 탐색 맥락은 스토어
+   * 구독이라 먼저 온다. 그 사이 부모의 옛 순서로 위치를 되돌렸다 다시 옮기지 않게 부모 목록에 입혀 그린다(`applyKeyOrder`). 부모가
+   * 따라오면 같은 배열이 되고, 끝내 안 오면(저장 실패로 되돌림 등) 잠시 뒤 놓는다 — 그때 줄들이 부모 순서로 미끄러져 돌아간다
    */
   const [pendingOrder, setPendingOrder] = useState<readonly string[] | null>(null);
   const items = useMemo(
@@ -802,8 +804,12 @@ function PlayerQueuePanel({
     [parentItems, pendingOrder],
   );
   const itemKeys = useMemo(() => items.map(rowKey), [items]);
-  // 끌기 표시는 **그 끌기가 시작된 순서로 그릴 때만** 입힌다 — 순서가 먼저 바뀐 렌더에서 다른 줄에 붙지 않는다(KAN-254 원인 2)
-  const shownDrag = drag !== null && isSameKeys(drag.order, itemKeys) ? drag : null;
+  /** 칸의 위치 값 — 처음 그리는 줄은 제 칸에서 시작한다(마운트 때 표에 올린다) */
+  const positionOf = (key: string, index: number): Animated.Value =>
+    positions.get(key) ?? new Animated.Value(index * ROW_STEP);
+  /** 목록 틀 높이 — 줄 수가 바뀌면 같이 미끄러진다(아래 추천 섹션이 툭 올라오지 않게) */
+  const listHeightOf = (count: number) => Math.max(0, count * ROW_STEP - ROW_GAP);
+  const [listHeight] = useState(() => new Animated.Value(listHeightOf(parentItems.length)));
   const minIndex = minDragIndexOf(items, pinnedContentId);
   useEffect(() => {
     if (pendingOrder === null) return;
@@ -811,6 +817,8 @@ function PlayerQueuePanel({
     return () => clearTimeout(timer);
   }, [pendingOrder]);
   const itemsRef = useRef(items);
+  // 부모가 준 그대로의 목록 — 옮기기가 막혔을 때 돌아갈 순서
+  const parentItemsRef = useRef(parentItems);
   const itemKeysRef = useRef(itemKeys);
   const minIndexRef = useRef(minIndex);
   const onReorderRef = useRef(onReorder);
@@ -818,13 +826,59 @@ function PlayerQueuePanel({
   const isOpenRef = useRef(isOpen);
   useEffect(() => {
     itemsRef.current = items;
+    parentItemsRef.current = parentItems;
     itemKeysRef.current = itemKeys;
     minIndexRef.current = minIndex;
     onReorderRef.current = onReorder;
     currentIdRef.current = currentContentId;
     isOpenRef.current = isOpen;
   });
-  /** 삭제로 접히는 중인 줄 — 하나라도 있으면 끌기를 받지 않는다(KAN-254 원인 3) */
+  /** 위치 값을 칸으로 미끄러뜨린다 — 네이티브 드라이버(손가락 끌기의 setValue 와 섞여도 같은 값이다) */
+  const slideTo = useCallback(
+    (value: Animated.Value, index: number, duration: number) =>
+      Animated.timing(value, {
+        toValue: index * ROW_STEP,
+        duration,
+        easing: motion.easing.easeInOut,
+        useNativeDriver: true,
+      }).start(),
+    [],
+  );
+  /**
+   * 위치 값들을 이 순서로 맞춘다 — 칸이 바뀐 줄만 미끄러진다. 끄는 중이면 미뤘다가 놓을 때 한다(손가락의 줄을 빼앗지 않는다)
+   */
+  const deferredReconcileRef = useRef(false);
+  const reconcile = useCallback(
+    (keys: readonly string[]) => {
+      if (dragRef.current !== null) {
+        deferredReconcileRef.current = true;
+        return;
+      }
+      const previous = orderRef.current;
+      orderRef.current = keys;
+      keys.forEach((key, index) => {
+        const value = positions.get(key);
+        // 아직 마운트 전(창 밖) — 그릴 때 제 칸에서 시작한다
+        if (value === undefined) return;
+        if (previous.indexOf(key) === index) return;
+        slideTo(value, index, ROW_REFLOW_MS);
+      });
+    },
+    [positions, slideTo],
+  );
+  useLayoutEffect(() => {
+    reconcile(itemKeys);
+  }, [itemKeys, reconcile]);
+  useEffect(() => {
+    Animated.timing(listHeight, {
+      toValue: listHeightOf(items.length),
+      duration: ROW_REFLOW_MS,
+      easing: motion.easing.easeInOut,
+      // 높이는 레이아웃 속성이라 네이티브 드라이버가 못 다룬다
+      useNativeDriver: false,
+    }).start();
+  }, [items.length, listHeight]);
+  /** 삭제로 빠져나가는 중인 줄 — 하나라도 있으면 끌기를 받지 않는다(KAN-254 원인 3) */
   const collapsingRef = useRef(new Set<string>());
   const onCollapseChange = useCallback((key: string, isCollapsing: boolean) => {
     if (isCollapsing) collapsingRef.current.add(key);
@@ -935,13 +989,12 @@ function PlayerQueuePanel({
   }, []);
 
   const handlers = useMemo(() => {
-    const slotOf = (token: number) => dragSlots[token % 2];
     /**
-     * `order`(줄 키)에서 `from` 칸의 줄을 `to` 칸으로 옮겨 부모에 넘기고, 이제 그릴 순서를 돌려준다. 부모가 옮기지 못했으면(false)
-     * 붙잡지 않는다 — 놓은 모습에 머물지 않고 바로 부모 순서로 돌아간다(KAN-254 원인 5: 종전엔 0.6초 멈췄다 되돌아갔다)
+     * `order`(줄 키)에서 `from` 칸의 줄을 `to` 칸으로 옮겨 부모에 넘긴다. 부모가 옮기지 못했으면(false) 붙잡지 않고 false —
+     * 부르는 쪽이 부모 순서로 미끄러뜨려 돌려놓는다(KAN-254 원인 5: 종전엔 0.6초 멈췄다 되돌아갔다)
      */
-    const commitMove = (order: readonly string[], from: number, to: number): readonly string[] => {
-      if (from === to) return order;
+    const commitMove = (order: readonly string[], from: number, to: number): boolean => {
+      if (from === to) return true;
       const nextKeys = moveInArray(order, from, to);
       const byKey = new Map(itemsRef.current.map((item) => [rowKey(item), item]));
       const ordered = nextKeys.flatMap((key) => {
@@ -949,68 +1002,51 @@ function PlayerQueuePanel({
         return item === undefined ? [] : [item];
       });
       // 그새 줄 구성이 바뀌었다(삭제·새로 받기) — 엉뚱한 목록을 넘기지 않는다
-      if (ordered.length !== nextKeys.length) return order;
+      if (ordered.length !== nextKeys.length) return false;
       if (onReorderRef.current(ordered) === false) {
         setPendingOrder(null);
-        return order;
+        return false;
       }
       setPendingOrder(nextKeys);
-      return nextKeys;
+      return true;
     };
-    /** 끌기를 확정한다 — 순서가 바뀌었으면 넘기고, 끌기 표시를 걷는다. 새 순서와 표시 해제는 같은 렌더에 그려진다(위 pendingOrder) */
-    const finish = (current: DragState) => {
-      dragRef.current = null;
-      const isMoved = current.hover !== current.from;
-      if (isMoved) commitMove(current.order, current.from, current.hover);
-      setDrag(null);
-      // 제자리 놓기만 값을 되돌린다 — 옮겼으면 끌던 줄이 아직 이 값으로 목표 칸에 그려져 있다(새 순서 렌더에서 놓인다)
-      if (!isMoved) slotOf(current.token).y.setValue(0);
+    /** 손가락 자리로 옮긴 순서대로 다른 줄들을 미끄러뜨린다(끄는 줄은 손가락 몫) */
+    const slidePreview = (
+      previous: readonly string[],
+      next: readonly string[],
+      skipKey: string | null,
+    ) => {
+      next.forEach((key, index) => {
+        if (key === skipKey || previous.indexOf(key) === index) return;
+        const value = positions.get(key);
+        if (value !== undefined) slideTo(value, index, ROW_SHIFT_MS);
+      });
     };
     return {
       start: (key: string) => {
-        // 삭제로 접히는 줄이 있는 동안은 받지 않는다(KAN-254 원인 3) — 칸 계산이 줄 높이를 늘 ROW_STEP 으로 본다
+        // 삭제로 빠져나가는 줄이 있는 동안은 받지 않는다(KAN-254 원인 3)
         if (collapsingRef.current.size > 0) return;
-        const previous = dragRef.current;
-        // 다른 손잡이를 이미 끄는 중 — 끌기는 한 번에 하나
-        if (previous !== null && !previous.released) return;
-        let order: readonly string[] = itemKeysRef.current;
-        if (previous !== null) {
-          // 앞 끌기가 내려앉는 중 — 그 자리에서 먼저 확정하고 새 순서 기준으로 시작한다(KAN-255). 앞 애니메이션은 제 값(앞 벌)을
-          // 끝까지 움직이지만, 끝 콜백은 순번이 달라 아무것도 하지 않는다
-          dragRef.current = null;
-          order =
-            previous.hover === previous.from
-              ? previous.order
-              : commitMove(previous.order, previous.from, previous.hover);
-        }
+        // 끌기는 한 번에 하나 — 앞 끌기는 놓는 순간 이미 확정됐다(아래 end)
+        if (dragRef.current !== null) return;
+        const order = orderRef.current;
         const from = order.indexOf(key);
         // 잡은 줄이 없거나(그새 걷혔다) 옮길 수 없는 맨 위 줄이다
-        if (from < 0 || from < minIndexRef.current) {
-          if (previous !== null) setDrag(null);
-          return;
-        }
+        if (from < 0 || from < minIndexRef.current) return;
+        const value = positions.get(key);
+        if (value === undefined) return;
+        // 내려앉는 중이었으면 그 자리에서 멈추고 손가락을 따른다
+        value.stopAnimation();
         dragTokenRef.current += 1;
         const token = dragTokenRef.current;
-        const { y, lift } = slotOf(token);
-        y.setValue(0);
-        lift.setValue(1);
-        dragRef.current = {
-          key,
-          from,
-          hover: from,
-          order,
-          released: false,
-          token,
-          hasMoved: false,
-        };
-        setDrag(dragRef.current);
+        dragRef.current = { key, from, hover: from, order, preview: order, token };
+        setLiftedKey(key);
         const state = scrollState.current;
         state.startOffset = state.offset;
         state.lastDy = 0;
         // 자동 스크롤 루프 — 끄는 동안 프레임마다 가장자리 근접을 본다
         const tick = () => {
           const current = dragRef.current;
-          if (!current || current.token !== token || current.released) return;
+          if (!current || current.token !== token) return;
           const offset = apply();
           const rowTop = state.rowsTop + current.from * ROW_STEP + offset - state.offset;
           const rowBottom = rowTop + ROW_HEIGHT;
@@ -1028,21 +1064,22 @@ function PlayerQueuePanel({
           }
           state.frame = requestAnimationFrame(tick);
         };
-        // 끄는 행의 이동량을 다시 계산해 반영하고 돌려준다
+        // 끄는 줄의 위치를 손가락(+그동안 스크롤된 거리)에 맞추고, 지나친 칸이 바뀌면 다른 줄들을 비켜 세운다. 이동량을 돌려준다
         const apply = (): number => {
           const current = dragRef.current;
-          if (!current || current.token !== token || current.released) return 0;
+          if (!current || current.token !== token) return 0;
           const count = current.order.length;
           // 목록 밖으로는 끌려 나가지 않는다 — 맨 위에 세운 줄 위로도(KAN-254 원인 5)
           const min = (minIndexRef.current - current.from) * ROW_STEP;
           const max = (count - 1 - current.from) * ROW_STEP;
           const raw = state.lastDy + (state.offset - state.startOffset);
           const clamped = Math.max(min, Math.min(max, raw));
-          y.setValue(clamped);
+          value.setValue(current.from * ROW_STEP + clamped);
           const hover = hoverIndexOf(current.from, clamped, count, minIndexRef.current, ROW_STEP);
           if (hover !== current.hover) {
-            dragRef.current = { ...current, hover, hasMoved: true };
-            setDrag(dragRef.current);
+            const preview = moveInArray(current.order, current.from, hover);
+            slidePreview(current.preview, preview, current.key);
+            dragRef.current = { ...current, hover, preview };
           }
           return clamped;
         };
@@ -1051,50 +1088,47 @@ function PlayerQueuePanel({
       },
       move: (key: string, dy: number) => {
         const current = dragRef.current;
-        if (!current || current.key !== key || current.released) return;
+        if (!current || current.key !== key) return;
         scrollState.current.lastDy = dy;
         applyRef.current();
       },
       end: (key: string) => {
         const current = dragRef.current;
         // 이 손잡이의 끌기가 아니다(막힌 잡기의 손을 뗐다 등)
-        if (!current || current.key !== key || current.released) return;
+        if (!current || current.key !== key) return;
         cancelAnimationFrame(scrollState.current.frame);
-        const settling: DragState = { ...current, released: true };
-        dragRef.current = settling;
-        const { y, lift } = slotOf(settling.token);
-        // 목표 칸으로 가면서 같이 내려앉는다(확대·면·그림자) — 다 앉은 뒤 순서를 확정하므로 확정 순간엔 보이는 변화가 없다
-        Animated.parallel([
-          Animated.timing(y, {
-            toValue: (settling.hover - settling.from) * ROW_STEP,
-            duration: ROW_SETTLE_MS,
-            easing: motion.easing.easeOut,
-            // 위 shiftY 와 같은 이유 — 끄는 값은 끄는 내내 JS 에서 직접 움직이는 값이다
-            useNativeDriver: false,
-          }),
-          Animated.timing(lift, {
-            toValue: 0,
-            duration: ROW_SETTLE_MS,
-            easing: motion.easing.easeOut,
-            useNativeDriver: false,
-          }),
-        ]).start(() => {
-          // **자기 끌기가 아직 마지막일 때만** 확정한다(KAN-254·255 원인 1) — 그새 다음 끌기가 시작됐으면 그쪽이 이 끌기를 이미
-          // 확정했다. 종전엔 finished 도 순번도 보지 않아, 끊긴 애니메이션의 콜백이 새 끌기 도중에 앞 순서를 확정하고 표시를 지웠다
-          if (dragRef.current?.token !== settling.token) return;
-          finish(settling);
-        });
+        // **놓는 순간 확정한다** — 위치가 순서와 따로라 내려앉기를 기다릴 이유가 없다. 바로 다음 끌기를 잡아도 이 순서 위에서 시작한다
+        dragRef.current = null;
+        setLiftedKey(null);
+        const value = positions.get(key);
+        if (value !== undefined) slideTo(value, current.hover, ROW_SETTLE_MS);
+        orderRef.current = current.preview;
+        const isMoved = current.hover !== current.from;
+        const isCommitted = commitMove(current.order, current.from, current.hover);
+        if (!isCommitted) {
+          // 부모가 못 옮겼다 — 부모 순서로 미끄러뜨려 돌려놓는다
+          deferredReconcileRef.current = false;
+          reconcile(parentItemsRef.current.map(rowKey));
+        } else if (deferredReconcileRef.current) {
+          // 끄는 사이 목록이 바뀌었다 — 옮겼으면 놓은 순서가 그려지는 다음 렌더가 맞춘다(지금 옛 목록으로 맞추면 줄들이 되돌아갔다
+          // 다시 온다). 제자리 놓기면 지금 그린 목록으로 맞춘다
+          deferredReconcileRef.current = false;
+          if (!isMoved) reconcile(itemKeysRef.current);
+        }
       },
       nudge: (key: string, direction: -1 | 1) => {
         if (dragRef.current !== null) return;
-        const order = itemKeysRef.current;
+        const order = orderRef.current;
         const from = order.indexOf(key);
         const to = from + direction;
         if (from < minIndexRef.current || to < minIndexRef.current || to >= order.length) return;
-        commitMove(order, from, to);
+        const next = moveInArray(order, from, to);
+        slidePreview(order, next, null);
+        orderRef.current = next;
+        if (!commitMove(order, from, to)) reconcile(parentItemsRef.current.map(rowKey));
       },
     };
-  }, [dragSlots]);
+  }, [positions, reconcile, slideTo]);
 
   const header = showHeader ? (
     <Text style={styles.title} accessibilityRole="header" numberOfLines={1}>
@@ -1168,9 +1202,7 @@ function PlayerQueuePanel({
                 // 추천 줄은 목록이 아니라 지우지 않는다 — 오른쬭(담기)만
                 canDelete={false}
                 deleteA11yLabel={deleteA11yLabel}
-                drag={null}
-                shift={0}
-                animateShift={false}
+                isLifted={false}
                 // 줄마다 새 함수를 만들지 않는다(KAN-260) — memo 된 줄이 패널 렌더마다 다시 그려졌다
                 onSelect={onSelectUpNext ?? noop}
                 onDragStart={noop}
@@ -1278,7 +1310,7 @@ function PlayerQueuePanel({
         contentContainerStyle={listContentStyle}
         showsVerticalScrollIndicator={false}
         // 끄는 동안 목록이 같이 스크롤되면 손가락과 행이 어긋난다 — 가장자리 자동 스크롤만 직접 옮긴다
-        scrollEnabled={drag === null}
+        scrollEnabled={liftedKey === null}
         scrollEventThrottle={16}
         onScroll={(event) => {
           // 끄는 중에는 자동 스크롤이 직접 적는 값이 기준이다(이벤트는 한 박자 늦다)
@@ -1314,8 +1346,9 @@ function PlayerQueuePanel({
             <Text style={styles.placeholderText}>{PLAYER_COPY.queuePanel.empty}</Text>
           </View>
         ) : (
-          <View
-            style={styles.rows}
+          <Animated.View
+            // 줄은 이 틀 안에 절대 배치된다(QueueRowSlot) — 높이는 줄 수만큼, 바뀌면 같이 미끄러진다
+            style={[styles.rowsBox, { height: listHeight }]}
             onLayout={(event) => {
               scrollState.current.rowsTop = event.nativeEvent.layout.y;
               // 열면서 처음 마운트됐다 — 실측이 끝난 지금 재생 중인 줄로(닫힌 채 맞추기는 위 타이머 몫)
@@ -1324,49 +1357,46 @@ function PlayerQueuePanel({
               }
             }}
           >
-            {windowStart > 0 ? <View style={{ height: windowStart * ROW_STEP - ROW_GAP }} /> : null}
             {items.slice(windowStart, windowEnd).map((item, offset) => {
               const index = windowStart + offset;
+              const key = itemKeys[index];
               return (
-                <QueueRow
-                  key={rowKey(item)}
-                  item={item}
-                  category={categoryOf ? categoryOf(item) : null}
-                  index={index}
-                  total={items.length}
-                  isCurrent={item.contentId === currentContentId}
-                  // 맨 위에 세운 줄(옮길 수 없다 — KAN-254 원인 5)은 손잡이를 감춘다 — 자리만 비운다
-                  trailing={index < minIndex ? 'none' : 'reorder'}
-                  canSave={canSaveOf(item)}
-                  onSave={onSave}
-                  // 지금 듣는 줄은 밀리지 않는다(재생 중인 것을 목록에서 지우는 조작은 없다). 라이브러리 항목이 없는 줄은
-                  // 라이브러리 맥락에서 올 일이 없다(전부 담긴 편) — 탐색 맥락은 스냅샷 빼기라 itemId 와 무관
-                  canDelete={
-                    item.contentId !== currentContentId && (isExplore || item.itemId !== null)
-                  }
-                  deleteA11yLabel={deleteA11yLabel}
-                  onDelete={onDelete}
-                  // 끄는 줄은 키로 찾는다 — 끌기 표시는 그 끌기가 시작된 순서로 그릴 때만 있다(위 shownDrag)
-                  drag={
-                    shownDrag !== null && shownDrag.key === itemKeys[index]
-                      ? dragSlots[shownDrag.token % 2]
-                      : null
-                  }
-                  shift={dragShiftOf(index, shownDrag, ROW_STEP)}
-                  animateShift={shownDrag !== null && shownDrag.hasMoved}
-                  onSelect={onSelect}
-                  onDragStart={handlers.start}
-                  onDragMove={handlers.move}
-                  onDragEnd={handlers.end}
-                  onNudge={handlers.nudge}
-                  onCollapseChange={onCollapseChange}
-                />
+                <QueueRowSlot
+                  key={key}
+                  slotKey={key}
+                  position={positionOf(key, index)}
+                  positions={positions}
+                  isLifted={liftedKey === key}
+                >
+                  <QueueRow
+                    item={item}
+                    category={categoryOf ? categoryOf(item) : null}
+                    index={index}
+                    total={items.length}
+                    isCurrent={item.contentId === currentContentId}
+                    // 맨 위에 세운 줄(옮길 수 없다 — KAN-254 원인 5)은 손잡이를 감춘다 — 자리만 비운다
+                    trailing={index < minIndex ? 'none' : 'reorder'}
+                    canSave={canSaveOf(item)}
+                    onSave={onSave}
+                    // 지금 듣는 줄은 밀리지 않는다(재생 중인 것을 목록에서 지우는 조작은 없다). 라이브러리 항목이 없는 줄은
+                    // 라이브러리 맥락에서 올 일이 없다(전부 담긴 편) — 탐색 맥락은 스냅샷 빼기라 itemId 와 무관
+                    canDelete={
+                      item.contentId !== currentContentId && (isExplore || item.itemId !== null)
+                    }
+                    deleteA11yLabel={deleteA11yLabel}
+                    onDelete={onDelete}
+                    isLifted={liftedKey === key}
+                    onSelect={onSelect}
+                    onDragStart={handlers.start}
+                    onDragMove={handlers.move}
+                    onDragEnd={handlers.end}
+                    onNudge={handlers.nudge}
+                    onCollapseChange={onCollapseChange}
+                  />
+                </QueueRowSlot>
               );
             })}
-            {windowEnd < items.length ? (
-              <View style={{ height: (items.length - windowEnd) * ROW_STEP - ROW_GAP }} />
-            ) : null}
-          </View>
+          </Animated.View>
         )}
         {upNextSection}
         {/* 내용의 끝(여백 앞) — 바닥 여백을 얼마나 남겨야 하는지 재는 자리(KAN-262). 높이 0 */}
@@ -1403,6 +1433,20 @@ const styles = StyleSheet.create({
   },
   rows: {
     gap: ROW_GAP,
+  },
+  // 재생 목록 줄의 틀 — 줄은 절대 배치(rowSlot), 높이는 줄 수만큼(listHeight)
+  rowsBox: {
+    position: 'relative',
+  },
+  rowSlot: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: ROW_HEIGHT,
+  },
+  rowSlotLifted: {
+    zIndex: 1,
   },
   title: {
     fontSize: theme.font.size.xs,
@@ -1442,14 +1486,10 @@ const styles = StyleSheet.create({
   rowWrapPressed: {
     backgroundColor: 'rgba(255, 255, 255, 0.08)',
   },
-  rowWrapCollapsing: {
-    overflow: 'hidden',
-  },
   // 끄는 행은 다른 행 위로 뜬다 — 밝은 면 + 그림자. 면은 **불투명**이다: 빠르게 지나갈 때 비켜 주는 행이
   // 한 박자 늦어 잠깐 겹치는데, 반투명이면 밑의 글자가 비쳐 두 제목이 섞여 보인다
-  // 면·그림자 세기·배율은 dragLift 로 움직인다(놓을 때 내려앉게) — 여기는 고정값만
-  rowWrapDragging: {
-    zIndex: 1,
+  // 면·그림자 세기·배율은 줄의 lift 로 움직인다(놓을 때 내려앉게, 평소 0) — 여기는 고정값만
+  rowWrapLiftable: {
     shadowColor: '#000000',
     shadowRadius: 12,
     shadowOffset: { width: 0, height: 6 },
