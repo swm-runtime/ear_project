@@ -108,7 +108,7 @@ function randomSimpleSyllables(n: number): string {
  *
  * AI 서버 스텁: `POST /embeddings`가 `X-Internal-Token`을 확인하고, 질의별로 정해 둔 벡터를 돌려준다(정해 두지 않은 질의는
  * 질의 축과 직교하는 벡터 — 의미 결과 없음). 질의에 표식이 있으면 실패를 흉내 낸다: `boom` 500 · `devstub` 모델 `dev-stub` ·
- * `shortdim` 3차원 · `slowq` 응답 지연(예산 400ms 초과). 타임아웃 뒤에는 클라이언트가 30초 쉬므로 그 테스트는 맨 끝이다.
+ * `shortdim` 3차원 · `slowq` 응답 지연(예산 800ms 초과). 타임아웃이 연달아 나면 클라이언트가 30초 쉬므로 그 테스트는 맨 끝이다.
  *
  * 공유 로컬 DB의 다른 콘텐츠와 섞이지 않게 질의마다 이 실행만의 무작위 한글 토큰을 쓴다.
  */
@@ -1035,9 +1035,9 @@ describe('하이브리드 검색·오타 교정 E2E', () => {
     });
   });
 
-  // 타임아웃 뒤 클라이언트가 30초 동안 AI 서버를 부르지 않는다 — 다른 테스트에 번지지 않게 맨 끝에 둔다
+  // 타임아웃이 연달아 나면 클라이언트가 30초 동안 AI 서버를 부르지 않는다 — 다른 테스트에 번지지 않게 맨 끝에 둔다
   describe('AI 서버 예산 초과', () => {
-    it('예산(400ms)을 넘기면 200, 키워드 결과, engines에 semantic 없음 — 교정 흐름은 그대로', async () => {
+    it('예산(800ms)을 넘기면 200, 키워드 결과, engines에 semantic 없음 — 교정 흐름은 그대로', async () => {
       // given
       const { auth } = await createUser('timeout');
       const query = `${randomPlainSyllables(3)}slowq`;
@@ -1057,7 +1057,8 @@ describe('하이브리드 검색·오타 교정 E2E', () => {
       expect(body.items.map((item) => item.content.id)).toEqual([id]);
       expect(corrected.corrected_from).toBe(PARTICLE_TYPO);
       expect(corrected.query_used).toBe(PARTICLE_WORD);
-      expect(corrected.engines).toEqual(['keyword']);
+      // 한 번 늦은 것으로는 쉬지 않는다 — 다음 검색은 의미 엔진을 다시 쓴다(연속 3번이어야 쉰다, 2026-10-23)
+      expect(corrected.engines).toEqual(['keyword', 'semantic']);
     });
   });
 
@@ -1080,7 +1081,7 @@ describe('하이브리드 검색·오타 교정 E2E', () => {
     stubCalls.push(text);
 
     if (text.includes('slowq')) {
-      await new Promise((resolve) => setTimeout(resolve, 900));
+      await new Promise((resolve) => setTimeout(resolve, 1_500));
     }
     if (text.includes('boom')) {
       res.writeHead(500).end();

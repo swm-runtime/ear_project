@@ -10,7 +10,7 @@ import { parseEmbeddingResponse } from './embedding-response';
  * 콘텐츠 쪽 텍스트 임베딩(제목 임베딩 생성 — `ContentTitleEmbeddingService`). AI 서버 `POST /embeddings`(`X-Internal-Token`)를
  * 부른다 — 질의 임베딩(`QueryEmbeddingClient`, explore 모듈)과 같은 엔드포인트·같은 응답 검증(`parseEmbeddingResponse`)이다.
  *
- * 질의 클라이언트와 나눈 이유: 그쪽은 검색 요청 안에서 400ms 예산·LRU 캐시·실패 냉각을 갖는다. 이쪽은 발행 뒤·백필에서
+ * 질의 클라이언트와 나눈 이유: 그쪽은 검색 요청 안에서 800ms 예산·LRU 캐시·실패 냉각을 갖는다. 이쪽은 발행 뒤·백필에서
  * 한 편에 한 번 부르는 경로라 캐시가 쓸모없고, 예산은 넉넉해야 하며(`TITLE_EMBEDDING_TIMEOUT_MS`), 냉각이 끼면 백필이 멈춘다.
  * 또 explore 모듈이 content 모듈을 import 하므로 content 쪽이 explore의 클라이언트를 가져다 쓸 수 없다.
  *

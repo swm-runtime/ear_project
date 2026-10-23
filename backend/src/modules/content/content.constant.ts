@@ -57,7 +57,7 @@ export const SEARCH_SEMANTIC_TITLE_MIN_SIMILARITY = 0.34;
 export const SEARCH_SEMANTIC_SCRIPT_MIN_SIMILARITY_WITH_TITLE = 0.45;
 
 /**
- * 제목 임베딩 생성 요청(발행·재발행 훅, 백필)의 타임아웃. 질의 임베딩(400ms)과 달리 사용자를 기다리게 하지 않는 경로라 넉넉히 둔다 —
+ * 제목 임베딩 생성 요청(발행·재발행 훅, 백필)의 타임아웃. 질의 임베딩(800ms)과 달리 사용자를 기다리게 하지 않는 경로라 넉넉히 둔다 —
  * 넘기면 그 편은 행 없이 남고(검색은 대본 벡터만 본다) 백필이 다시 채운다
  */
 export const TITLE_EMBEDDING_TIMEOUT_MS = 10_000;
