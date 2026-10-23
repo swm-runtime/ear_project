@@ -1,3 +1,5 @@
+import { isAutoplayNextEnabled } from '@/features/settings';
+
 import { playbackService } from './playback.service';
 import { remainingSecOf, type SleepTimerChoice } from './sleep-timer';
 import { usePlaybackStore } from '../store/playback.store';
@@ -12,9 +14,11 @@ const FADE_OUT_MS = 4000;
  * 수면 타이머(FR-25 P1 — `player.md` 4.7).
  *
  * - 분 단위: 만료 시각까지 1초마다 남은 시간을 갱신하고, 만료되면 **페이드아웃 후 일시정지**한다. 앱은 종료하지 않는다.
- * - "이 에피소드 종료 시": 셀 시간이 없다. 편이 끝나면(완청) 재생은 스스로 멈추므로 타이머만 해제한다 —
- *   연속 재생이 없는 지금은 표시상의 약속이고, 연속 재생이 생기면 "다음 편으로 넘어가지 않는다"가 된다.
+ * - "이 에피소드 종료 시": 셀 시간이 없다. 편이 끝나면(완청) 타이머만 해제한다 — 자동 재생(연속 재생, 4.2-4)을 켰어도
+ *   **다음 편으로 넘어가지 않는다**(재생 서비스가 끝나는 순간 이 선택을 읽고 넘기지 않는다).
  * - 만료와 완청이 겹치면 완청이 우선이다(7장) — 세션이 끝나면 타이머를 먼저 걷어 페이드·일시정지를 하지 않는다.
+ *   **단 자동 재생이 켜져 있으면 분 단위 타이머는 걷지 않는다** — 다음 편으로 이어 가며 계속 센다(30분 타이머가 첫 편이
+ *   끝났다고 사라지면 밤새 이어 재생된다). 다음 편이 없어 멈춘 채 만료되면 아무 일도 하지 않는다(이미 멈춰 있다).
  * - 재생을 멈춰 둔 동안에도 시간은 간다(벽시계 기준). 만료 때 이미 멈춰 있으면 아무 일도 하지 않는다.
  *
  * 만료 판정에 기기 시각을 쓴다 — 서비스 정책(한도·만료) 판정이 아니라 사용자가 건 알람이라 허용된다.
@@ -69,7 +73,14 @@ class SleepTimerService {
     if (this.unsubscribePlayback !== null) return;
     this.unsubscribePlayback = usePlaybackStore.subscribe((state) => {
       const session = state.session;
-      if (session === null || session.state === 'ended') this.clear();
+      if (session === null) {
+        this.clear();
+        return;
+      }
+      if (session.state !== 'ended') return;
+      const choice = useSleepTimerStore.getState().choice;
+      if (choice?.kind === 'minutes' && isAutoplayNextEnabled()) return;
+      this.clear();
     });
   }
 }

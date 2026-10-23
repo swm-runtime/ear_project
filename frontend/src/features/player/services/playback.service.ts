@@ -22,7 +22,7 @@ import { ERROR_CODES } from '@/shared/api/error-codes';
 import { generateId } from '@/shared/lib/generate-id';
 import { logger } from '@/shared/lib/logger';
 
-import type { AudioQuality } from '@/features/settings';
+import { isAutoplayNextEnabled, type AudioQuality } from '@/features/settings';
 
 import {
   issueAudioUrls,
@@ -42,6 +42,7 @@ import type {
   PlayEntryPoint,
   PlaybackStartMeta,
   PlayStartResult,
+  QueueEntry,
 } from '../player.types';
 import {
   clearStreamUrl,
@@ -58,8 +59,10 @@ import {
   type PlaybackTrackingState,
 } from './playback-tracking';
 import { getPlayerLibraryBridge } from './player-library.bridge';
+import { entryFromSession, nextAutoplayEntry, withCurrentFirst } from './queue-context';
 import { usePlayLimitStore } from '../store/play-limit.store';
 import { usePlaybackStore } from '../store/playback.store';
+import { useSleepTimerStore } from '../store/sleep-timer.store';
 
 /** 재생 시작 기록 실패(네트워크) 후 재시도까지의 간격 — TODO(offline-queue): 큐 도입 시 대체 */
 const PLAY_REPORT_RETRY_DELAY_MS = 3_000;
@@ -784,6 +787,9 @@ class PlaybackService {
     const ctx = this.ctx;
     if (!ctx || ctx.isEnded) return;
     ctx.isEnded = true;
+    // 수면 타이머 "이 에피소드 종료 시"는 다음 편으로 넘어가지 않는다는 약속이다(player.md 4.7) — 'ended' 를 쓰는 순간
+    // 타이머 서비스가 걷어 가므로 그 전에 읽는다
+    const stopsAtEpisodeEnd = useSleepTimerStore.getState().choice?.kind === 'endOfEpisode';
     track('play_complete', {
       content_id: ctx.contentId,
       listen_sec: Math.round(ctx.durationSec > 0 ? ctx.durationSec : this.currentPositionSec()),
@@ -806,6 +812,70 @@ class PlaybackService {
         ?.completeItem(itemId)
         .catch((error) => logger.debug('[player] complete fallback failed', error));
     }
+
+    if (isAutoplayNextEnabled() && !stopsAtEpisodeEnd) void this.advanceToNext(ctx);
+  }
+
+  /**
+   * 재생 목록 자동 재생(연속 재생 — player.md 4.2-4, 설정에서 켠 사용자만). 편이 끝나면 **지금 재생 목록의 다음 안 들은 편**을
+   * 확인 팝업 없이 튼다 — 설정을 켠 것이 "묻지 않고 틀어도 된다"는 동의다(paywall.md 4.2 예외). 재생 판정·차감은 그대로
+   * 서버가 한다(`POST /play`).
+   *
+   * - 목록: 라이브러리 맥락은 재생 목록 순서(브리지로 새로 받는다), 탐색 맥락은 스냅샷(지금 편이 없으면 맨 위에 세운 모양)
+   * - 맥락은 바뀌지 않는다 — 같은 목록 안에서 다음 줄로 옮겨 간 것이다. 진입점은 `player`
+   * - 오늘 남은 횟수 힌트가 0이고 다음 편이 오늘 차감 전이면 넘어가지 않는다 — 듣는 도중(화면 밖일 수도 있다)에 페이월을
+   *   들이밀지 않는다. 힌트가 틀려 서버가 막으면 종전 차단 처리를 그대로 탄다
+   * - 받는 사이 사용자가 다른 편을 틀었거나 다시 듣기를 눌렀으면 아무것도 하지 않는다
+   */
+  private async advanceToNext(ended: SessionContext): Promise<void> {
+    const generation = this.generation;
+    const isStillEnded = () =>
+      generation === this.generation &&
+      this.ctx === ended &&
+      ended.isEnded &&
+      store.getState().session?.state === 'ended';
+
+    const session = store.getState().session;
+    if (session === null) return;
+    const queue = store.getState().queueContext;
+    let items: readonly QueueEntry[];
+    if (queue.kind === 'explore') {
+      items = withCurrentFirst(queue.items, entryFromSession(session));
+    } else {
+      try {
+        items = (await getPlayerLibraryBridge()?.fetchQueue()) ?? [];
+      } catch (error) {
+        logger.debug('[player] autoplay queue fetch failed', error);
+        return;
+      }
+    }
+    if (!isStillEnded()) return;
+
+    const next = nextAutoplayEntry(items, ended.contentId);
+    if (next === null) return;
+    const { playLimit: limit } = usePlayLimitStore.getState();
+    const isExhausted =
+      limit !== null &&
+      limit.dailyPlayLimit !== null &&
+      limit.dailyPlayCount !== null &&
+      limit.dailyPlayLimit - limit.dailyPlayCount <= 0;
+    if (isExhausted && !next.isCountedToday) return;
+
+    this.start({
+      contentId: next.contentId,
+      entryPoint: 'player',
+      autoplay: true,
+      meta: {
+        title: next.title,
+        authorName: next.authorName ?? undefined,
+        sourceName: next.sourceName ?? undefined,
+        thumbnailUrl: next.thumbnailUrl ?? undefined,
+        durationSec: next.durationSec ?? undefined,
+        topicIds: next.topicIds,
+      },
+      // 처음 진입한 화면의 재조회만 이어 받는다 — 회수·404 정리는 그 편 몫이라 넘기지 않는다
+      callbacks: { onServerStateChanged: ended.callbacks.onServerStateChanged },
+    });
   }
 
   /** 완료 화면 ▶ — 위치 0부터 재생 + 재생 시작 기록 + replay 신호(허용 판정은 서버 몫) */
