@@ -90,6 +90,22 @@ export function applyFixes(script: string, fixes: { turn: string; after: string 
   }
   return s;
 }
+/** 한국어 검토의 other_changes 중 발음 사전(pronunciations.json) 변경을 적용한다 (v1.7, 2026-10-23) — G261023-013 의 must_fix E3 "발음 파일의 잘못된 표기"는 턴 교체로 못 고쳐 영영 남았다.
+ *  after 에서 "term": "reading" 쌍을 읽어 덮어쓰고, before 에만 있는 키는 지운다. 그 변경이 가리키는(fixes 순번) must_fix 턴을 수리된 것으로 돌려준다 */
+export function applyPronChanges(pron: string, other: Korea["other_changes"] | undefined, findings: Finding[]): { pron: string; resolved: string[] } {
+  const cur = JSON.parse(pron) as Record<string, string>;
+  const resolved: string[] = [];
+  const pairs = (t: string) => [...(t ?? "").matchAll(/"([^"\n]+)"\s*:\s*"([^"\n]*)"/g)].map((m) => [m[1], m[2]] as const);
+  for (const c of other ?? []) {
+    if (!/pronunciation/i.test(c.file ?? "")) continue;
+    const before = pairs(c.before), after = pairs(c.after);
+    if (!before.length && !after.length) continue;
+    for (const [k] of before) if (!after.some(([ak]) => ak === k)) delete cur[k];
+    for (const [k, v] of after) cur[k] = v;
+    for (const i of c.fixes ?? []) { const f = findings[i]; if (f && f.kind === "must_fix" && !resolved.includes(f.turn)) resolved.push(f.turn); }
+  }
+  return { pron: JSON.stringify(cur, null, 2), resolved };
+}
 export function mergePron(pron: string, added: { term: string; reading: string }[] | undefined): string {
   const cur = JSON.parse(pron) as Record<string, string>;
   for (const p of added ?? []) if (p.term && !(p.term in cur)) cur[p.term] = p.reading ?? "";
@@ -269,7 +285,11 @@ ${formatBlock}
     const mustFix = kr.findings.filter((f) => f.kind === "must_fix");
     const r = await gpt<RepairOut>(repairSystem, `## Findings (must_fix)\n${fmtFindings(mustFix)}\n\n## Suggested edits (a guide, not a source)\n${fmtEdits(kr.edits)}\n\n## script.md (line format \`[${explainer}] E1 · sentence\` / \`[${host}] Y1 · sentence\`)\n${fence(script)}\n\n## claims.md\n${fence(claims)}\n\n## sources.md\n${fence(sources)}\n\n## pronunciations.json\n${fence(pron)}\n\nRepair and output only the report JSON.`, FIX_SCHEMA, 20, "high", SCORE_MAX_OUT);
     const valid = r.fixes.filter((f) => /^[EY]\d+$/.test(f.turn) && f.after.trim());
-    return { script: applyFixes(script, valid), pron: mergePron(pron, r.pronunciations_added), repaired: valid.map((f) => f.turn) };
+    // 발음 사전 쪽 must_fix 는 검토자의 other_changes 로 고친다(턴 교체로는 못 고친다) — 적용된 변경이 가리키는 턴은 수리된 것으로
+    const pc = applyPronChanges(mergePron(pron, r.pronunciations_added), kr.other_changes, kr.findings);
+    const repairedTurns = [...new Set([...valid.map((f) => f.turn), ...pc.resolved])];
+    if (pc.resolved.length) log(`  judge_loop ${episodeId}: 발음 사전 변경으로 must_fix 수리 ${pc.resolved.join("·")}`);
+    return { script: applyFixes(script, valid), pron: pc.pron, repaired: repairedTurns };
   };
 
   type State = { script: string; pron: string; eds: Editor[]; korea: Korea; repaired: string[]; round: number };
