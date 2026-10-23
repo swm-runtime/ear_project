@@ -2738,8 +2738,8 @@ const HERO_COMPACT_HEIGHT = 72;
 const HERO_COMPACT_META_TOP = 12;
 /** 아트워크가 이보다 작아지면 그림이 아니라 아이콘이다 — 짧은 화면의 하한 */
 const HERO_MIN_ARTWORK = 120;
-/** 바닥 손잡이 높이(터치 타깃 44 + 아래 여백 8) */
-const SCRIPT_HANDLE_HEIGHT = 52;
+/** 바닥 손잡이 높이 초기값(위 여백 8 + 막대 4 + 12 + 글자 줄 + 아래 여백 8 ≈ 48) — 실측으로 바뀐다 */
+const SCRIPT_HANDLE_HEIGHT = 48;
 /**
  * 플레이어 바닥 여백 상한 — 손잡이 글자가 홈 인디케이터(바닥 ~13pt)·Android 제스처 핸들 위로 ~9pt 뜬다(손잡이 자체
  * 아래 여백 8 포함). 이보다 낮추면 손잡이를 위로 끄는 손가락이 시스템 홈 제스처와 겹친다
@@ -3050,10 +3050,11 @@ const styles = StyleSheet.create({
   queueSheet: {
     flex: 1,
   },
+  // 위 모서리 — xl(24)은 둥글어 보였다(PM 2026-10-23 "곡률 줄여봐") → lg(16)
   queueSheetSurface: {
     backgroundColor: playerColor.surface,
-    borderTopLeftRadius: theme.radius.xl,
-    borderTopRightRadius: theme.radius.xl,
+    borderTopLeftRadius: theme.radius.lg,
+    borderTopRightRadius: theme.radius.lg,
     borderCurve: 'continuous',
   },
   scriptHandleWrap: {},
@@ -3110,6 +3111,9 @@ const styles = StyleSheet.create({
     // 막대(4pt)와 "재생 목록" 사이 — 4 는 붙어 보였고(PM 2026-10-07) 8 도 좁았다(PM 2026-10-23 "거리 조금만 더") → 12.
     // 내용(4 + 12 + 글자 줄 + 아래 8)이 44 안에 들어가 손잡이 높이는 그대로다
     gap: theme.spacing.sm + theme.spacing.xs,
+    // 막대 위 여백(PM 2026-10-23 "팁 위에 공백") — 2단 시트에서 막대가 면 위 모서리에 붙어 보였다. 손잡이 높이는 실측이라
+    // 늘어난 만큼 시트·히어로 계산이 따라간다
+    paddingTop: theme.spacing.sm,
     paddingBottom: theme.spacing.sm,
   },
   // 손잡이 막대·글자 — 흐린 커버 바탕에서 불투명 회색(border · textSecondary)이 묻혀 반투명 흰색으로(PM 2026-10-23)
