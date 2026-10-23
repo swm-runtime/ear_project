@@ -173,6 +173,8 @@ interface QueueRowProps {
   animateShift: boolean;
   /** 끌려가는 행의 손가락 이동량 */
   dragY: Animated.Value;
+  /** 끌려가는 행이 떠 있는 정도(1 떠 있음 → 0 내려앉음) — 확대·면·그림자가 이 값으로 같이 내려앉는다 */
+  dragLift: Animated.Value;
   onSelect: (item: QueueEntry) => void;
   onDragStart: (index: number) => void;
   onDragMove: (dy: number) => void;
@@ -201,6 +203,7 @@ function QueueRow({
   shift,
   animateShift,
   dragY,
+  dragLift,
   onSelect,
   onDragStart,
   onDragMove,
@@ -384,18 +387,33 @@ function QueueRow({
         styles.rowWrap,
         isPressed && styles.rowWrapPressed,
         isDragging && styles.rowWrapDragging,
+        isDragging && {
+          // 그림자도 떠 있는 만큼 — 놓을 때 한 번에 꺼지면 줄이 번쩍인다(PM 2026-10-23 "놓으면 깜박인다")
+          shadowOpacity: dragLift.interpolate({ inputRange: [0, 1], outputRange: [0, 0.35] }),
+          elevation: dragLift.interpolate({ inputRange: [0, 1], outputRange: [0, 6] }),
+        },
         // 접는 동안만 잘라 낸다 — 평소에 자르면 끄는 줄의 그림자까지 잘린다
         isCollapsing && styles.rowWrapCollapsing,
         {
           height: rowHeight,
           transform: [
-            { translateY: isDragging ? dragY : shiftY },
-            // 끄는 줄은 살짝 커져 떠 있는 것으로 읽힌다
-            { scale: isDragging ? DRAG_SCALE : 1 },
+            // 비켜 주기를 애니메이션하지 않을 때는 **숫자 그대로** 준다 — 애니메이션 값을 effect 에서 맞추면 새 순서가 그려진
+            // 프레임과 어긋나 한 프레임 동안 줄이 한 칸 더 밀려 보였다. 숫자면 순서와 같은 렌더에 들어간다
+            { translateY: isDragging ? dragY : animateShift ? shiftY : shift },
+            // 끄는 줄은 살짝 커져 떠 있는 것으로 읽힌다 — 놓으면 내려앉으며 제 크기로
+            {
+              scale: isDragging
+                ? dragLift.interpolate({ inputRange: [0, 1], outputRange: [1, DRAG_SCALE] })
+                : 1,
+            },
           ],
         },
       ]}
     >
+      {/* 끄는 줄의 면 — 불투명(아래 rowWrapDragging 주석). 떠 있는 만큼 보이고 내려앉으며 걷힌다 */}
+      {isDragging ? (
+        <Animated.View style={[styles.dragSurface, { opacity: dragLift }]} pointerEvents="none" />
+      ) : null}
       {/* 재생 중인 줄의 띠 — 화면 폭 전체(유튜브 뮤직, PM 2026-10-23). 줄 사이 틈의 절반씩 위아래로 넓혀 띠가 줄에 꼭 맞지 않고
         여유 있게 감싼다. 굵기·낭독 꼬리표는 그대로 둔다(색만으로 구분하지 않는다) */}
       {isCurrent ? <View style={styles.rowCurrentBand} pointerEvents="none" /> : null}
@@ -562,6 +580,7 @@ export default function PlayerQueuePanel({
    * 목표 칸에 앉힌 뒤 순서를 확정한다 — 확정 순간 레이아웃이 바뀌므로 이동량을 애니메이션 없이 0 으로 돌린다
    */
   const dragY = useAnimatedValue(0);
+  const dragLift = useAnimatedValue(0);
   const [drag, setDrag] = useState<{ from: number; hover: number } | null>(null);
   const dragRef = useRef<{ from: number; hover: number } | null>(null);
   /*
@@ -671,6 +690,7 @@ export default function PlayerQueuePanel({
     () => ({
       start: (index: number) => {
         dragY.setValue(0);
+        dragLift.setValue(1);
         dragRef.current = { from: index, hover: index };
         setDrag(dragRef.current);
         const state = scrollState.current;
@@ -726,13 +746,22 @@ export default function PlayerQueuePanel({
         if (!current) return;
         dragRef.current = null;
         cancelAnimationFrame(scrollState.current.frame);
-        Animated.timing(dragY, {
-          toValue: (current.hover - current.from) * ROW_STEP,
-          duration: ROW_SETTLE_MS,
-          easing: motion.easing.easeOut,
-          // 위 shiftY 와 같은 이유 — dragY 는 끄는 내내 JS 에서 직접 움직이는 값이다
-          useNativeDriver: false,
-        }).start(() => {
+        // 목표 칸으로 가면서 같이 내려앉는다(확대·면·그림자) — 다 앉은 뒤 순서를 확정하므로 확정 순간엔 보이는 변화가 없다
+        Animated.parallel([
+          Animated.timing(dragY, {
+            toValue: (current.hover - current.from) * ROW_STEP,
+            duration: ROW_SETTLE_MS,
+            easing: motion.easing.easeOut,
+            // 위 shiftY 와 같은 이유 — dragY 는 끄는 내내 JS 에서 직접 움직이는 값이다
+            useNativeDriver: false,
+          }),
+          Animated.timing(dragLift, {
+            toValue: 0,
+            duration: ROW_SETTLE_MS,
+            easing: motion.easing.easeOut,
+            useNativeDriver: false,
+          }),
+        ]).start(() => {
           if (current.hover !== current.from) {
             // 끌던 모습을 붙잡은 채 순서를 넘긴다 — 새 순서가 그려질 때 함께 놓는다(위 settle)
             setSettle({ ...current, items: itemsRef.current });
@@ -750,7 +779,7 @@ export default function PlayerQueuePanel({
         onReorderRef.current(index, target);
       },
     }),
-    [dragY],
+    [dragY, dragLift],
   );
 
   const shiftOf = (index: number): number => {
@@ -812,6 +841,7 @@ export default function PlayerQueuePanel({
                 shift={0}
                 animateShift={false}
                 dragY={dragY}
+                dragLift={dragLift}
                 onSelect={(selected) => onSelectUpNext?.(selected)}
                 onDragStart={() => undefined}
                 onDragMove={() => undefined}
@@ -920,6 +950,7 @@ export default function PlayerQueuePanel({
                   shift={shiftOf(index)}
                   animateShift={drag !== null}
                   dragY={dragY}
+                  dragLift={dragLift}
                   onSelect={onSelect}
                   onDragStart={handlers.start}
                   onDragMove={handlers.move}
@@ -999,14 +1030,20 @@ const styles = StyleSheet.create({
   },
   // 끄는 행은 다른 행 위로 뜬다 — 밝은 면 + 그림자. 면은 **불투명**이다: 빠르게 지나갈 때 비켜 주는 행이
   // 한 박자 늦어 잠깐 겹치는데, 반투명이면 밑의 글자가 비쳐 두 제목이 섞여 보인다
+  // 면·그림자 세기·배율은 dragLift 로 움직인다(놓을 때 내려앉게) — 여기는 고정값만
   rowWrapDragging: {
     zIndex: 1,
-    elevation: 6,
-    backgroundColor: DRAG_SURFACE_COLOR,
     shadowColor: '#000000',
-    shadowOpacity: 0.35,
     shadowRadius: 12,
     shadowOffset: { width: 0, height: 6 },
+  },
+  dragSurface: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: DRAG_SURFACE_COLOR,
   },
   // 재생 중 줄의 띠 — 반투명 흰색(fill 10%)이라 1단(흐린 커버)·2단(시트 면) 어느 바탕에서도 한 단 밝게 읽힌다
   rowCurrentBand: {
