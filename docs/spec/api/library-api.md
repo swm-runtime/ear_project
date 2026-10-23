@@ -295,7 +295,7 @@
 ```json
 {
   "resume_target": {
-    "id": "uuid",
+    "id": "uuid",                 // 라이브러리 항목 id — 담지 않은 편(탐색에서만 듣던 편)이면 null
     "status": "in_progress",
     "last_played_at": "2026-08-04T00:12:30Z",
     "is_counted_today": true,
@@ -323,16 +323,18 @@
 { "resume_target": null, "daily_play_limit": 2, "daily_play_count": 1, "service_date": "2026-08-04" }
 ```
 
-**선정 규칙** — 아래를 모두 만족하는 것 중 `last_played_at`이 가장 최근인 **1건**
+**선정 규칙** — **재생 위치(`playback_progresses`)가 원천이다**(개정 2026-10-23 — 탐색 재생 자동 적립 폐기, FR-24). 아래를 모두 만족하는 편 중 가장 최근에 들은 **1건**. 탐색 재생은 라이브러리 행을 만들지 않으므로(`explore.md` 4.4) 종전처럼 라이브러리 행에서 고르면 탐색에서만 듣던 편이 영영 복원되지 않는다.
 
 | 조건 | 근거 |
 |---|---|
-| `deleted_at IS NULL` | 삭제한 것을 이어들 자리는 없다 |
-| `status != 'completed'` | 이미 끝난 것을 이어들 자리는 없다(`library.md` 4.2) |
-| `contents.status = 'published'` | 회수된 콘텐츠는 미니플레이어에도 띄우지 않는다(`library.md` 7) |
-| `contents.market = users.market` | 다른 시장 콘텐츠는 어떤 응답에도 나오지 않는다(추가 2026-10-14 — KAN-188, `global-api.md` 4.7) |
 | `position_sec > 0` | 위치가 0이면 처음부터 듣는 것과 같다(`library.md` 7) |
+| **완청이 아니다** — 라이브러리 `completed` 행도, 최대 도달이 길이 × 90% 이상인 편도 뺀다 | 이미 끝난 것을 이어들 자리는 없다(`library.md` 4.2). 완청은 라이브러리와 무관한 사실이다(`explore-api.md` 4.1 `is_completed`와 같은 정의) |
+| 라이브러리에서 **지운 편은 지운 뒤 다시 들었을 때만**(`deleted_at` < 위치 갱신 시각) | 지운 것을 이어들 자리는 없다. 다만 지운 뒤 탐색에서 다시 틀었으면 새로 듣는 편이다 |
+| `contents.status = 'published'` · 만료 전 | 회수된 콘텐츠는 미니플레이어에도 띄우지 않는다(`library.md` 7) |
+| `contents.market = users.market` | 다른 시장 콘텐츠는 어떤 응답에도 나오지 않는다(추가 2026-10-14 — KAN-188, `global-api.md` 4.7) |
 
+- **"최근"** = `GREATEST(playback_progresses.updated_at, library_items.last_played_at)`. 라이브러리에서 연 재생은 시작 시각이, 탐색 재생은 위치 저장 시각이 남는다. 위치 저장이 `updated_at`을 갱신한다(2026-10-23 — 종전에는 첫 저장 시각에 머물렀다).
+- **`id`는 라이브러리 항목 id이고, 담지 않은 편이면 `null`이다**(2026-10-23). 그때 `status`는 `in_progress`, `last_played_at`은 위 "최근" 값이다. 클라이언트는 미니플레이어 숨김·삭제 대조를 `content.id`로 한다(옛 앱은 `id`를 숨김 목록 키로만 써 `null`이어도 깨지지 않는다).
 - **`content.series`도 목록 응답(4.1)과 같은 모양이다**(추가 2026-10-17 — KAN-134 — 시리즈 편이면 객체, 단일 콘텐츠면 `null`).
 - **`content.topic_ids`는 목록 응답(4.1)과 같은 출처·같은 모양이다**(2026-09-22 추가 — KAN-91). 미니플레이어가 제목 아래 카테고리 줄을 그리는 데 쓴다. 주제가 없으면 **`null`이 아니라 `[]`** 다.
 - **대상 없음을 404로 응답하지 않는다.** 신규 사용자와 완청만 있는 사용자에게는 대상이 없는 것이 정상이며, 클라이언트는 같은 응답에서 잔여 재생 표시값까지 함께 받아야 한다.

@@ -623,11 +623,16 @@ export class LibraryService {
     now: Date,
     market: UserMarket,
     manager?: EntityManager,
-  ): Promise<LibraryItem | null> {
-    return this.libraryItemRepository.findLatestResumable(
+  ): Promise<{
+    contentId: string;
+    itemId: string | null;
+    lastPlayedAt: Date;
+  } | null> {
+    return this.libraryItemRepository.findLatestResumableTarget(
       userId,
       now,
       market,
+      COMPLETION_REACHED_RATIO,
       manager,
     );
   }

@@ -67,7 +67,12 @@ export class PlaybackProgressRepository {
       .insert()
       .into(PlaybackProgress)
       .values({ userId, contentId, positionSec, maxReachedSec })
-      .orUpdate(['position_sec', 'max_reached_sec'], ['user_id', 'content_id'])
+      // updated_at 도 갱신한다 — 미니플레이어 복원이 "가장 최근에 들은 편"을 이 값으로 고른다(library-api.md 4.3, 2026-10-23).
+      // 종전에는 두 칸만 덮어써 첫 저장 시각에 머물렀다
+      .orUpdate(
+        ['position_sec', 'max_reached_sec', 'updated_at'],
+        ['user_id', 'content_id'],
+      )
       .execute();
   }
 

@@ -144,8 +144,8 @@ describe('라이브러리 E2E', () => {
       is_counted_today: true,
     });
 
-    // when — 90% 지점까지 도달한 상태를 만든다(재생 위치는 player-api 소유)
-    await saveProgress(userId, first.content.id, 0.95);
+    // when — 절반쯤 듣다 나갔다(재생 위치는 player-api 소유)
+    await saveProgress(userId, first.content.id, 0.5);
 
     // then — 미니플레이어 복원 대상이 된다. **자동 재생 지시는 응답에 없다**
     const resume = await get('/users/me/library-items/resume', auth).expect(
@@ -159,7 +159,9 @@ describe('라이브러리 E2E', () => {
     expect(resumeBody.resume_target?.progress?.position_sec).toBeGreaterThan(0);
     expect(resumeBody).not.toHaveProperty('auto_play');
 
-    // when — 완청 처리
+    // when — 90% 지점까지 도달한 뒤 완청 처리. 위치가 기준을 넘은 편은 완청 처리 전에도 복원 대상이 아니다
+    // (완청은 라이브러리 상태와 무관한 사실 — KAN-248, library-api.md 4.3)
+    await saveProgress(userId, first.content.id, 0.95);
     const completed = await post(
       `/users/me/library-items/${first.id}/complete`,
       auth,
@@ -708,12 +710,13 @@ describe('라이브러리 E2E', () => {
       .findOneByOrFail({ id: contentId });
     const reached = Math.floor(content.durationSec * ratio);
 
-    await dataSource.getRepository(PlaybackProgress).save({
-      userId,
-      contentId,
-      positionSec: reached,
-      maxReachedSec: reached,
-    });
+    // 같은 편을 다시 심을 수 있게 upsert 한다(한 시나리오에서 절반 → 90% 로 두 번 심는다)
+    await dataSource
+      .getRepository(PlaybackProgress)
+      .upsert(
+        { userId, contentId, positionSec: reached, maxReachedSec: reached },
+        ['userId', 'contentId'],
+      );
   }
 
   /**

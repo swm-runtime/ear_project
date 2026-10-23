@@ -736,44 +736,80 @@ export class LibraryItemRepository {
   }
 
   /**
-   * 미니플레이어 복원 대상 1건(`library-api.md` 4.3) — 이어 들을 위치가 남아 있는 것 중
-   * 가장 최근에 들은 항목.
+   * 미니플레이어 복원 대상 1건(`library-api.md` 4.3) — 이어 들을 위치가 남아 있는 편 중 가장 최근에 들은 것.
    *
-   * **"위치가 남아 있다"를 `EXISTS`로 본다.** 종전에는 사용자의 시작한 `content_id`를 전부
-   * 읽어 `IN` 목록으로 넘겼는데, 그 목록은 청취 이력만큼 자라고 **앱을 켤 때마다** 만들어진다.
-   * 여기서 필요한 것은 존재 여부 하나이고, `uq_playback_progresses_user_id_content_id`가
-   * 그 검사를 인덱스로 받는다.
+   * **원천은 재생 위치(`playback_progresses`)다**(개정 2026-10-23 — 탐색 재생 자동 적립 폐기). 탐색 재생은 라이브러리
+   * 행을 만들지 않으므로(`explore.md` 4.4) 종전처럼 라이브러리 행에서 고르면 탐색에서만 듣던 편이 영영 복원되지 않는다
+   * (FR-24). 라이브러리 행은 있으면 붙인다 — 응답의 `id`·`status`가 그 행의 값이고, 없으면 `itemId`가 null이다.
+   *
+   * - 위치 > 0 · 노출 중(발행·만료·시장) · **완청 아님**(`COMPLETED_CONTENT_IDS_CTE`와 같은 정의 — 라이브러리
+   *   `completed` 행도, 위치가 기준을 넘은 편도 뺀다)
+   * - **라이브러리에서 지운 편은 지운 뒤 다시 들었을 때만** 대상이다 — 지운 것을 이어들 자리는 없지만(`library.md` 4.2),
+   *   지운 뒤 탐색에서 다시 틀었으면 새로 듣는 편이다. 그때 `itemId`는 null(살아 있는 행이 아니다)
+   * - 최근 = `GREATEST(위치 갱신 시각, 라이브러리 last_played_at)` — 라이브러리에서 연 재생은 시작 시각이, 탐색 재생은
+   *   위치 저장 시각이 남는다
    */
-  async findLatestResumable(
+  async findLatestResumableTarget(
     userId: string,
     now: Date,
     market: UserMarket,
+    ratio: number,
     manager?: EntityManager,
-  ): Promise<LibraryItem | null> {
-    return this.scoped(manager)
-      .createQueryBuilder('item')
-      .innerJoinAndSelect(
-        'item.content',
+  ): Promise<{
+    contentId: string;
+    itemId: string | null;
+    lastPlayedAt: Date;
+  } | null> {
+    const row = await this.scoped(manager)
+      .manager.createQueryBuilder()
+      .select('progress.content_id', 'content_id')
+      .addSelect(
+        'CASE WHEN item.deleted_at IS NULL THEN item.id END',
+        'item_id',
+      )
+      .addSelect(
+        'GREATEST(progress.updated_at, COALESCE(item.last_played_at, progress.updated_at))',
+        'last_played_at',
+      )
+      .from('playback_progresses', 'progress')
+      .innerJoin(
+        'contents',
         'content',
-        CONTENT_SCOPE_CONDITION,
+        `content.id = progress.content_id AND ${CONTENT_SCOPE_CONDITION}`,
         contentScopeParameters(now, market),
       )
-      .where('item.user_id = :userId', { userId })
-      .andWhere(
-        `EXISTS (
-           SELECT 1 FROM playback_progresses progress
-           WHERE progress.content_id = item.content_id
-             AND progress.user_id = item.user_id
-             AND progress.position_sec > 0
-         )`,
+      .leftJoin(
+        'library_items',
+        'item',
+        'item.user_id = progress.user_id AND item.content_id = progress.content_id',
       )
-      .andWhere('item.status != :completed', {
+      .where('progress.user_id = :userId', { userId })
+      .andWhere('progress.position_sec > 0')
+      .andWhere(
+        '(item.id IS NULL OR item.deleted_at IS NULL OR item.deleted_at < progress.updated_at)',
+      )
+      .andWhere('(item.status IS NULL OR item.status != :completed)', {
         completed: LibraryItemStatus.COMPLETED,
       })
-      .andWhere('item.last_played_at IS NOT NULL')
-      .orderBy('item.last_played_at', 'DESC')
+      .andWhere(
+        'NOT (content.duration_sec > 0 AND progress.max_reached_sec >= content.duration_sec * CAST(:ratio AS numeric))',
+        { ratio },
+      )
+      .orderBy('last_played_at', 'DESC')
       .limit(1)
-      .getOne();
+      .getRawOne<{
+        content_id: string;
+        item_id: string | null;
+        last_played_at: Date;
+      }>();
+
+    return row
+      ? {
+          contentId: row.content_id,
+          itemId: row.item_id,
+          lastPlayedAt: new Date(row.last_played_at),
+        }
+      : null;
   }
 
   async findByIdAndUserId(
