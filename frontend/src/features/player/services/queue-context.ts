@@ -92,3 +92,16 @@ export const withSnapshotItemId = (
     ),
   };
 };
+
+/**
+ * 자동 재생(연속 재생 — player.md 4.2-4)으로 다음에 틀 편 — 지금 듣는 편 **뒤의 첫 번째 안 들은 편**. 다 들은 편은
+ * 건너뛴다(같은 편을 또 틀지 않는다). 지금 듣는 편이 목록에 없거나 뒤에 남은 편이 없으면 null — 거기서 멈춘다
+ */
+export const nextAutoplayEntry = (
+  items: readonly QueueEntry[],
+  currentContentId: string,
+): QueueEntry | null => {
+  const index = items.findIndex((item) => item.contentId === currentContentId);
+  if (index === -1) return null;
+  return items.slice(index + 1).find((item) => !item.isCompleted) ?? null;
+};

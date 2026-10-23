@@ -3,6 +3,7 @@ import { describe, expect, it } from '@jest/globals';
 import type { PlayQueueContext, QueueEntry } from '../player.types';
 import {
   appendToSnapshot,
+  nextAutoplayEntry,
   withCurrentFirst,
   withoutSnapshotItem,
   withSnapshotItemId,
@@ -89,5 +90,26 @@ describe('재생 목록 맥락(KAN-241) — 순수 계산', () => {
     const reverted = withSnapshotItemId(saved, 'b', null);
     if (reverted.kind !== 'explore') throw new Error('explore 맥락이어야 한다');
     expect(reverted.items[1].itemId).toBeNull();
+  });
+});
+
+describe('자동 재생(연속 재생 — player.md 4.2-4) — 다음 편 고르기', () => {
+  it('지금 듣는 편 바로 뒤의 편을 고른다', () => {
+    expect(nextAutoplayEntry([entry('a'), entry('b'), entry('c')], 'b')?.contentId).toBe('c');
+  });
+
+  it('다 들은 편은 건너뛴다', () => {
+    const done = { ...entry('b'), isCompleted: true };
+    expect(nextAutoplayEntry([entry('a'), done, entry('c')], 'a')?.contentId).toBe('c');
+  });
+
+  it('뒤에 남은 안 들은 편이 없으면 멈춘다(null)', () => {
+    const done = { ...entry('b'), isCompleted: true };
+    expect(nextAutoplayEntry([entry('a'), done], 'a')).toBeNull();
+    expect(nextAutoplayEntry([entry('a')], 'a')).toBeNull();
+  });
+
+  it('지금 듣는 편이 목록에 없으면 멈춘다(null) — 엉뚱한 편을 틀지 않는다', () => {
+    expect(nextAutoplayEntry([entry('a'), entry('b')], 'x')).toBeNull();
   });
 });
