@@ -267,6 +267,7 @@ ${formatBlock}
   const rounds: RoundRec[] = [{ t: 0, mode: "original", totals: eds0.map(editorTotal), median: med0, total: sumOf(med0), struct: sumOf(med0, STRUCT), koreaPub: kr0.publishable, koreaMf: kr0.findings.filter((f) => f.kind === "must_fix").length, repaired: repaired0, l0: l00, words: scriptStats(script0).words ?? 0, cost: Math.round(cost * 1000) / 1000 }];
   await save("round0.json", JSON.stringify({ editors: eds0, korea: kr0 }, null, 1));
   type State = { script: string; pron: string; eds: Editor[]; korea: Korea; repaired: string[]; round: number };
+  const openMustFix = (st: State) => st.korea.findings.filter((f) => f.kind === "must_fix" && !st.repaired.includes(f.turn)).length;
   let base: State = { script: script0, pron: pron0, eds: eds0, korea: kr0, repaired: repaired0, round: 0 };
   let best: State & { total: number; struct: number } = { ...base, total: rounds[0].total, struct: rounds[0].struct };
   let mode: "structure" | "detail" = "structure";
@@ -300,7 +301,9 @@ ${formatBlock}
     log(`  judge_loop ${episodeId} ${t}회차(${mode}) — GPT ${eds.map(editorTotal).join("·")} 중앙 ${totalT} (구조 ${structT}/32) · 한국어 ${kr.publishable ? "가" : "불가"} mf${mustFix.length} 수리 ${repaired.length} · L0 ${v.length}`);
     // 단계 전환·중단·최고판
     const cur: State = { script, pron, eds, korea: kr, repaired, round: t };
-    const prev = { total: best.total, struct: best.struct }; const gained = totalT > prev.total;
+    const prev = { total: best.total, struct: best.struct };
+    // 최고판 갱신: 점수가 오르면. 동점이면 한국어 must_fix 가 덜 남은 판(발행 가능에 더 가까운 판) — G261023-020 이 0·1·2회차 61점 동점에서 수리가 끝난 2회차를 버리고 must_fix 1건 남은 원판에 머물렀다(2026-10-23)
+    const gained = totalT > prev.total || (totalT === prev.total && openMustFix(cur) < openMustFix(best));
     if (gained) best = { ...cur, total: totalT, struct: structT };
     // 중단: 세부 단계에서 이득이 없으면, 그리고 2회차부터는 단계와 무관하게 이득이 없으면 다음 회차를 돌리지 않는다
     // (2026-10-23 조기 종료 — G261023-001 이 1회차 66 → 2회차 66 → 3회차 64 로 세 번째 회차는 비용·20분만 썼다)
