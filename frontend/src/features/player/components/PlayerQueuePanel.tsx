@@ -1,13 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import {
-  Animated,
-  PanResponder,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Switch,
-  View,
-} from 'react-native';
+import { Animated, PanResponder, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import { useAnimatedValue } from '@/shared/hooks/useAnimatedValue';
 import { useDelayedVisible } from '@/shared/hooks/useDelayedVisible';
@@ -157,6 +149,47 @@ const UP_NEXT_SKELETON_ROW_COUNT = 2;
 const UP_NEXT_PREFETCH_ROWS = 4;
 /** 맨 위에서 끌어내리기를 시트 끌기로 가로채는 거리 — 손잡이(4)보다 조금 길게: 줄 탭의 손떨림을 끌기로 읽지 않게 */
 const PULL_DOWN_CLAIM_DISTANCE = 8;
+/*
+ * 추천 섹션 자동 재생 스위치의 크기 — **직접 그린다**(PM 2026-10-23 "스위치 중심 맞춰라"). RN 기본 Switch 는 iOS 26 에서 시스템
+ * 스위치(63×28)가 RN 이 잡는 틀(51×31)과 크기가 달라 틀 안에서 어긋나게 그려졌고, 글자 줄보다 약 8pt 위에 떴다(스샷 실측).
+ * 직접 그리면 틀 = 보이는 모양이라 줄 가운데에 그대로 선다
+ */
+const SWITCH_WIDTH = 44;
+const SWITCH_HEIGHT = 24;
+const SWITCH_INSET = 2;
+const SWITCH_THUMB = SWITCH_HEIGHT - SWITCH_INSET * 2;
+const SWITCH_TRAVEL = SWITCH_WIDTH - SWITCH_THUMB - SWITCH_INSET * 2;
+
+/** 자동 재생 스위치 모양 — 누르기·낭독은 감싼 Pressable(행 전체)이 맡는다. 켜짐 트랙 흰색 · 손잡이 바탕색(반전), 꺼짐 흰 10% · 흰 손잡이 */
+function AutoplaySwitch({ value }: { value: boolean }) {
+  const on = useAnimatedValue(value ? 1 : 0);
+  useEffect(() => {
+    Animated.spring(on, {
+      toValue: value ? 1 : 0,
+      ...motion.spring.snappy,
+      useNativeDriver: true,
+    }).start();
+  }, [on, value]);
+  return (
+    <View style={styles.switchTrack} pointerEvents="none">
+      <Animated.View style={[styles.switchTrackOn, { opacity: on }]} />
+      <Animated.View
+        style={[
+          styles.switchThumb,
+          {
+            transform: [
+              {
+                translateX: on.interpolate({ inputRange: [0, 1], outputRange: [0, SWITCH_TRAVEL] }),
+              },
+            ],
+          },
+        ]}
+      >
+        <Animated.View style={[styles.switchThumbOn, { opacity: on }]} />
+      </Animated.View>
+    </View>
+  );
+}
 
 /**
  * 대기열 로딩 스켈레톤 — 실제 행과 같은 높이·여백(썸네일 48 + 제목 줄 + 보조 줄). 손잡이 자리는 비워 둔다.
@@ -901,16 +934,7 @@ export default function PlayerQueuePanel({
               accessibilityState={{ checked: autoplay.value }}
             >
               <Text style={styles.autoplayLabel}>{PLAYER_COPY.queuePanel.autoplayLabel}</Text>
-              <Switch
-                value={autoplay.value}
-                onValueChange={autoplay.onToggle}
-                trackColor={{ false: playerColor.fill, true: playerColor.textPrimary }}
-                thumbColor={autoplay.value ? playerColor.background : playerColor.textPrimary}
-                ios_backgroundColor={playerColor.fill}
-                style={styles.autoplaySwitch}
-                accessibilityElementsHidden
-                importantForAccessibility="no-hide-descendants"
-              />
+              <AutoplaySwitch value={autoplay.value} />
             </Pressable>
           ) : null}
         </View>
@@ -1283,8 +1307,38 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: playerColor.textSecondary,
   },
-  // 기본 스위치는 줄에 비해 크다 — 0.8 배(iOS 51×31 → 41×25)
-  autoplaySwitch: {
-    transform: [{ scale: 0.8 }],
+  // 직접 그린 스위치(AutoplaySwitch) — 흰 10% 트랙 위에 켜짐 흰 트랙이 겹쳐 나타나고, 손잡이가 오른쪽으로 간다
+  switchTrack: {
+    width: SWITCH_WIDTH,
+    height: SWITCH_HEIGHT,
+    borderRadius: SWITCH_HEIGHT / 2,
+    backgroundColor: playerColor.fill,
+    justifyContent: 'center',
+  },
+  switchTrackOn: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
+    borderRadius: SWITCH_HEIGHT / 2,
+    backgroundColor: playerColor.textPrimary,
+  },
+  switchThumb: {
+    position: 'absolute',
+    left: SWITCH_INSET,
+    width: SWITCH_THUMB,
+    height: SWITCH_THUMB,
+    borderRadius: SWITCH_THUMB / 2,
+    backgroundColor: playerColor.textPrimary,
+  },
+  switchThumbOn: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
+    borderRadius: SWITCH_THUMB / 2,
+    backgroundColor: playerColor.background,
   },
 });
