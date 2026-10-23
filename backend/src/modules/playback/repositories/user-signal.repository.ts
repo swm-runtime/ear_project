@@ -63,4 +63,17 @@ export class UserSignalRepository {
   ): Promise<number> {
     return this.scoped(manager).countBy({ userId, action });
   }
+
+  /**
+   * 그 편에 이 행동의 신호가 이미 있는가 — 라이브러리 행이 없는 완청(KAN-248)의 "최초 1회" 판정용.
+   * `idx_user_signals_user_id_created_at`의 선두 `user_id`로 그 사용자 행만 읽는다.
+   */
+  async existsByUserIdContentIdAndAction(
+    userId: string,
+    contentId: string,
+    action: UserSignalAction,
+    manager?: EntityManager,
+  ): Promise<boolean> {
+    return this.scoped(manager).existsBy({ userId, contentId, action });
+  }
 }

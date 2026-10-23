@@ -60,6 +60,7 @@ describe('PlaybackProgressService', () => {
       addListenedSec: jest.fn().mockResolvedValue(true),
       recordSignal: jest.fn(),
       findProgress: jest.fn().mockResolvedValue(null),
+      hasSignal: jest.fn().mockResolvedValue(false),
     } as unknown as jest.Mocked<PlaybackService>;
 
     contentService = {
@@ -74,6 +75,12 @@ describe('PlaybackProgressService', () => {
       completeItem: jest
         .fn()
         .mockResolvedValue({ item: buildItem(), transitioned: false }),
+      isCompletionReached: jest.fn(
+        (maxReachedSec: number, durationSec: number | null) =>
+          durationSec !== null &&
+          durationSec > 0 &&
+          maxReachedSec >= durationSec * 0.9,
+      ),
     } as unknown as jest.Mocked<LibraryService>;
 
     const dataSource = {
@@ -264,19 +271,87 @@ describe('PlaybackProgressService', () => {
       expect(libraryService.completeItem).not.toHaveBeenCalled();
     });
 
-    it('라이브러리에 없는 콘텐츠는 진행만 저장한다', async () => {
-      // given — 상태 전이·complete 신호는 라이브러리 행이 전제다
-      libraryService.findItemWithContentByContentId.mockResolvedValue(null);
+    describe('라이브러리에 없는 콘텐츠(KAN-248)', () => {
+      beforeEach(() => {
+        libraryService.findItemWithContentByContentId.mockResolvedValue(null);
+      });
 
-      // when
-      const result = await service.saveProgress(
-        buildCommand({ maxReachedSec: 950 }),
-      );
+      it('90%를 처음 넘기면 행 없이 complete 신호를 1건 남긴다', async () => {
+        // given — 덮어쓰기 전 도달은 기준 미만
+        playbackService.findProgress.mockResolvedValue({
+          contentId: CONTENT_ID,
+          positionSec: 800,
+          maxReachedSec: 800,
+        });
 
-      // then
-      expect(result.libraryItem).toBeNull();
-      expect(playbackService.saveProgress).toHaveBeenCalled();
-      expect(playbackService.recordSignal).not.toHaveBeenCalled();
+        // when
+        const result = await service.saveProgress(
+          buildCommand({ maxReachedSec: 950 }),
+        );
+
+        // then
+        expect(result.libraryItem).toBeNull();
+        expect(libraryService.completeItem).not.toHaveBeenCalled();
+        expect(playbackService.recordSignal).toHaveBeenCalledWith(
+          USER_ID,
+          CONTENT_ID,
+          UserSignalAction.COMPLETE,
+          expect.anything(),
+        );
+      });
+
+      it('이미 기준을 넘긴 뒤의 저장은 신호를 조회하지도 남기지도 않는다', async () => {
+        // given
+        playbackService.findProgress.mockResolvedValue({
+          contentId: CONTENT_ID,
+          positionSec: 920,
+          maxReachedSec: 920,
+        });
+
+        // when
+        await service.saveProgress(buildCommand({ maxReachedSec: 980 }));
+
+        // then
+        expect(playbackService.hasSignal).not.toHaveBeenCalled();
+        expect(playbackService.recordSignal).not.toHaveBeenCalled();
+      });
+
+      it('같은 편의 완청 신호가 이미 있으면(재발행 뒤 다시 넘김·동시 저장) 쌓지 않는다', async () => {
+        // given
+        playbackService.hasSignal.mockResolvedValue(true);
+
+        // when
+        await service.saveProgress(buildCommand({ maxReachedSec: 950 }));
+
+        // then
+        expect(playbackService.recordSignal).not.toHaveBeenCalled();
+      });
+
+      it('기준에 못 미치면 진행만 저장한다', async () => {
+        // when
+        const result = await service.saveProgress(
+          buildCommand({ maxReachedSec: 899 }),
+        );
+
+        // then
+        expect(result.libraryItem).toBeNull();
+        expect(playbackService.saveProgress).toHaveBeenCalled();
+        expect(playbackService.recordSignal).not.toHaveBeenCalled();
+      });
+
+      it('길이를 모르는 콘텐츠는 완청으로 판정하지 않는다', async () => {
+        // given
+        contentService.getById.mockResolvedValue({
+          durationSec: 0,
+          contentVersion: 1,
+        } as never);
+
+        // when
+        await service.saveProgress(buildCommand({ maxReachedSec: 950 }));
+
+        // then
+        expect(playbackService.recordSignal).not.toHaveBeenCalled();
+      });
     });
   });
 });
