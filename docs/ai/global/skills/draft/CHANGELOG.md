@@ -2,6 +2,13 @@
 
 > 대상: `guidelines.gpt.md`(글로벌 DB `prompt_assets` 가 진실 — 이 폴더는 시딩·검토용 git 사본). 규칙 본문은 모델이 읽는 영어이고, 근거·출처·이전 판 문구는 이 파일에만 둔다(한국판 규칙 자산 원칙과 같음).
 
+## L0 정밀도 (2026-10-23 밤) — 규칙 판은 그대로(full-en-v0.22)
+
+원천: 끝까지 추적 테스트 G261023-024(복날) E9 — "The expression is iyeolchiyeol… **It connects** traditional belief in five elements with…". L0 의 출처 호명 검사(규칙 42)가 v0.7 부터 "It/She/He/They + says·argues·connects·dates…"·"Its warning…" 꼴을 세는데(10-17 사례: "A Korea JoongAng Daily report describes… It dates… She connects…"), 정규식은 선행사를 모르므로 관용구를 받는 It 도 출처로 세었다. 초안 L0 수정이 3회 돌아도 못 풀고 QA 로 넘어갔고, 판정 0회차에도 기록됐다.
+
+- **검사만 바꿈**(`draft-two-stage.ts enStyleViolations`): 대명사 꼴은 **바로 앞 문장이 출처 문장일 때만** 센다(같은 구간 안, 대명사 문장이 이어지면 계속). 혼자 서 있는 "It connects…" 는 세지 않는다. 10-17 사례는 그대로 잡힌다(회귀 테스트 유지 + 새 테스트).
+- 규칙 본문·QA·골드는 변경 없음 → 자산 버전 유지.
+
 ## full-en-v0.22 (2026-10-23) — 규칙 9 진행 턴 질문 비율 폭 · 추측의 범위
 
 원천: 첫 운영 배치(C69~C97) 중 C76 응원봉이 QA 3회 연속 실패로 `review_required`. 세 번 모두 **항목 8**(진행자가 설명자의 결론을 먼저 말함) 하나에 매번 다른 턴이 걸렸고 나머지는 전부 통과였다. 경과: QA 지적 턴 하나를 고침 → L0 가 "질문 79%, 50~67% 안이어야" 로 되돌림 → 질문을 추측으로 바꿈 → 그 추측이 다시 항목 8 → 반복.
