@@ -88,7 +88,7 @@ export class OpenAiExecutor implements Executor {
     input.push({ role: "user", content: req.prompt });
     const body: any = {
       model, input, store: false,
-      max_output_tokens: Number(process.env.OPENAI_MAX_OUTPUT_TOKENS || 65536),
+      max_output_tokens: req.maxOutputTokens ?? Number(process.env.OPENAI_MAX_OUTPUT_TOKENS || 65536),
       text: { format: { type: "json_schema", name: "result", strict: true, schema } },
     };
     if (req.effort) body.reasoning = { effort: EFFORT[req.effort] ?? "medium" };
@@ -113,7 +113,7 @@ export class OpenAiExecutor implements Executor {
       if (res.status !== 200) throw new Error(`OpenAI ${res.status}: ${res.text.slice(0, 600)}`);
       let data = JSON.parse(res.text);
       if (body.background && (data.status === "queued" || data.status === "in_progress")) data = await this.pollBackground(key, String(data.id), req.timeoutMs - (Date.now() - started), (d) => { progress.detail = d; req.onProgress?.({ ...progress }); });
-      if (data.status && data.status !== "completed") throw new Error(`OpenAI 응답 미완료 (${data.status}: ${JSON.stringify(data.incomplete_details ?? {}).slice(0, 200)}) — max_output_tokens 확인`);
+      if (data.status && data.status !== "completed") { const du = data.usage ?? {}; throw new Error(`OpenAI 응답 미완료 (${data.status}: ${JSON.stringify(data.incomplete_details ?? {}).slice(0, 200)}) — max_output_tokens ${body.max_output_tokens} · 출력 ${du.output_tokens ?? "?"} (생각 ${du.output_tokens_details?.reasoning_tokens ?? "?"})`); }
       const msg = (data.output ?? []).find((o: any) => o.type === "message");
       const part = msg?.content?.find((c: any) => c.type === "output_text") ?? msg?.content?.[0];
       if (!part) { const refusal = msg?.content?.find((c: any) => c.type === "refusal"); throw new Error(refusal ? `OpenAI 거부: ${String(refusal.refusal).slice(0, 300)}` : `OpenAI 출력에 message 가 없음: ${JSON.stringify(data.output ?? []).slice(0, 300)}`); }
