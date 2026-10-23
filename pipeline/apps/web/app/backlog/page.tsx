@@ -120,7 +120,7 @@ export default async function BacklogPage({ searchParams }: { searchParams: Prom
                     </Td>
                     <Td className="whitespace-nowrap">
                       <div className="flex flex-col items-start gap-1">
-                        <GateButtons id={r.id} status={r.status} reinforce={{ eligible: (r.status === "held" || r.status === "proposed") && !r.reinforced_at, running: reinforcing.has(r.id) }} />
+                        <GateButtons id={r.id} status={r.status} reinforce={{ eligible: (r.status === "held" || r.status === "proposed") && (en ? (Number(r.reinforce_note?.match(/^보강 (\d+)회/)?.[1] ?? 0) < 2) : !r.reinforced_at), running: reinforcing.has(r.id), limit: en ? 2 : 1 }} />
                         {epOf.get(r.id) && <Link href={`/episodes/${epOf.get(r.id)}`} className="whitespace-nowrap text-[11px] underline">{epOf.get(r.id)} →</Link>}
                       </div>
                     </Td>

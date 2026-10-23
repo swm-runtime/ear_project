@@ -603,6 +603,8 @@ The only tool is web search. Do not read page bodies; judge from the sites, titl
 ## Report — output only the requested JSON. sources: at most 15 items, each with url (a page of that site you actually saw in the results — the home page or one article), publisher, category (one of: public institution / research institute / university / society or journal / company official blog / specialist magazine / non-profit media / commercial press), feed_url (only when an RSS or Atom address appeared in the results; otherwise null — never invent one), why (one line on why this site covers the topic regularly, naming an article title you saw), coverage (which of the topics above the site covers). queries: the searches you actually ran. notes: what kinds you could not find and why.`;
 }
 
+/** 사례 역할 전용 검색 규칙 (2026-10-23) — 첫 배치 반려 7개 중 사례 역할이 빈 채 남은 것이 셋. 사례는 설명문이 아니라 사람의 순간이라 검색어도 달라야 한다 */
+export const CASE_SEARCH_EN = `- For the case role, spend at least 2 searches in Korean on a person's own moment, with Korean terms for interview, first-hand account, memoir, field report, "a day of", and review. Return pages that quote what someone said or did. A survey, a statistic, an explainer, or a listicle is never a case.`;
 export function buildTopicSeedSearchPromptEn(i: TopicSeedSearchInput): string {
   const history = false; // 주제 이름만으로는 사건형인지 모른다 — 아래 조건부 안내로 대신한다
   return `You find sources for "ear", an audio service that makes two-person English episodes about Korean culture for listeners mostly in Southeast Asia and Japan. A person chose one episode topic. Find sources for it by web search.
@@ -619,6 +621,7 @@ The worker recounts: at least 3 sources · at least 3 publishers · no publisher
 ## Search rules
 - At most ${i.maxSearches} searches. Use them all unless every role is filled with strong sources. Korean institutions and Korean-language sources often hold the best material on Korean culture; English sources show how it is explained to outsiders.
 ${QUERY_PLAN_EN}
+${CASE_SEARCH_EN}
 - Any publisher is fine if it fits. Prefer Korean public institutions and research bodies (national museums, heritage, language, and tourism agencies), universities, open-access journals, museums, and archives; then specialist and nonprofit media; then commercial news.${i.poolHosts.length ? `\n- Pool sites (known to be readable): ${i.poolHosts.slice(0, 40).join(", ")}` : "\n- The pool list is empty; do not use site:."}
 - If the topic is a list ("10 words", "5 dishes"), find sources that explain the items one by one (dictionary entries, explainers on each item) and sources on what ties them together. Keep the list.
 ${SEARCH_EXCLUDE_EN}
@@ -647,7 +650,7 @@ The only tool is web search. Do not read pages. Return what the results show: ti
 
 ## Search rules
 - At most ${i.maxSearches} searches, in English and Korean.
-${QUERY_PLAN_EN}
+${QUERY_PLAN_EN}${roles.includes("case") ? `\n${CASE_SEARCH_EN}` : ""}
 - Pool sites (known to be readable): ${i.poolHosts.join(", ") || "(none yet — do not use site:)"}
 - Results from other sites are fine; return them with in_pool=false. The worker registers their domains for a person to judge and uses the sources.
 ${SEARCH_EXCLUDE_EN}
