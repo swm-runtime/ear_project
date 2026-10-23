@@ -79,6 +79,19 @@ const COMPLETED_CONTENT_IDS_CTE = `completed AS (
    WHERE signal.user_id = $1 AND signal.action = 'complete'
 )`;
 
+/** 일괄 정리용 — 살아 있는 행 중 위치 행 없이 완청 신호만 남은 미완청 행(`$1` = `completed`). 별칭 `item` */
+const SIGNAL_ONLY_COMPLETED_CONDITION = `item.deleted_at IS NULL
+  AND item.status <> $1
+  AND NOT EXISTS (
+    SELECT 1 FROM playback_progresses progress
+     WHERE progress.user_id = item.user_id AND progress.content_id = item.content_id
+  )
+  AND EXISTS (
+    SELECT 1 FROM user_signals signal
+     WHERE signal.user_id = item.user_id AND signal.content_id = item.content_id
+       AND signal.action = 'complete'
+  )`;
+
 @Injectable()
 export class LibraryItemRepository {
   constructor(
@@ -1061,7 +1074,37 @@ export class LibraryItemRepository {
       last_played_at: Date | null;
     }[];
 
-    return returned.map((row) => ({
+    /*
+     * 위치 행이 없어도 **완청 신호가 있으면 완청**이다(오디오 재발행이 위치를 지운 편 — `COMPLETED_CONTENT_IDS_CTE`와 같은 정의).
+     * 위 갱신은 위치 행과의 조인이라 이 경우를 보지 못한다 — 담긴 행이 `unplayed`로 남아 탐색 `is_completed`와 엇갈리고, 그 행이
+     * 드립 시리즈의 다음 편을 막았다(2026-10-23 검증). `completed_at`은 첫 완청 신호 시각이다
+     */
+    const signalRows: unknown = await this.scoped(manager).query(
+      `UPDATE library_items item
+          SET status = $3,
+              completed_at = done.first_at,
+              last_played_at = COALESCE(item.last_played_at, done.first_at)
+         FROM (
+           SELECT signal.content_id, MIN(signal.created_at) AS first_at
+             FROM user_signals signal
+            WHERE signal.user_id = $1
+              AND signal.content_id = ANY($2::uuid[])
+              AND signal.action = 'complete'
+            GROUP BY signal.content_id
+         ) done
+        WHERE item.user_id = $1
+          AND item.content_id = done.content_id
+          AND item.status <> $3
+        RETURNING item.content_id, item.status, item.completed_at, item.last_played_at`,
+      [userId, contentIds, LibraryItemStatus.COMPLETED],
+    );
+    const signalReturned = (
+      Array.isArray(signalRows) && Array.isArray(signalRows[0])
+        ? signalRows[0]
+        : signalRows
+    ) as typeof returned;
+
+    return [...returned, ...signalReturned].map((row) => ({
       contentId: row.content_id,
       status: row.status,
       completedAt: row.completed_at ? new Date(row.completed_at) : null,
@@ -1114,8 +1157,17 @@ export class LibraryItemRepository {
           params,
         );
 
+      const [signalOnly]: { count: string }[] = await this.scoped(
+        manager,
+      ).query(
+        `SELECT count(*) AS count FROM library_items item
+          WHERE ${SIGNAL_ONLY_COMPLETED_CONDITION}`,
+        [LibraryItemStatus.COMPLETED],
+      );
+
       return {
-        toCompleted: Number(rows[0]?.to_completed ?? 0),
+        toCompleted:
+          Number(rows[0]?.to_completed ?? 0) + Number(signalOnly?.count ?? 0),
         toInProgress: Number(rows[0]?.to_in_progress ?? 0),
       };
     }
@@ -1137,6 +1189,26 @@ export class LibraryItemRepository {
     const returned = (
       Array.isArray(result) && Array.isArray(result[0]) ? result[0] : result
     ) as { status: LibraryItemStatus }[];
+    // 위치 행 없이 완청 신호만 남은 편(재발행이 위치를 지움) — `syncStatusWithProgress`의 두 번째 갱신과 같다
+    const signalResult: unknown = await this.scoped(manager).query(
+      `UPDATE library_items item
+          SET status = $1,
+              completed_at = (SELECT MIN(signal.created_at) FROM user_signals signal
+                               WHERE signal.user_id = item.user_id AND signal.content_id = item.content_id
+                                 AND signal.action = 'complete'),
+              last_played_at = COALESCE(item.last_played_at,
+                (SELECT MIN(signal.created_at) FROM user_signals signal
+                  WHERE signal.user_id = item.user_id AND signal.content_id = item.content_id
+                    AND signal.action = 'complete'))
+        WHERE ${SIGNAL_ONLY_COMPLETED_CONDITION}
+        RETURNING item.status`,
+      [LibraryItemStatus.COMPLETED],
+    );
+    returned.push(
+      ...((Array.isArray(signalResult) && Array.isArray(signalResult[0])
+        ? signalResult[0]
+        : signalResult) as { status: LibraryItemStatus }[]),
+    );
 
     return {
       toCompleted: returned.filter(

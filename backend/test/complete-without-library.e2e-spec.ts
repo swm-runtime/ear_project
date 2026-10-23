@@ -351,6 +351,34 @@ describe('담지 않은 편의 완청 E2E', () => {
     ).toBeNull();
   });
 
+  it('끝까지 들은 뒤 재발행으로 위치가 지워진 편을 담아도 완청으로 들어간다(완청 신호 기준)', async () => {
+    // given — 담지 않고 끝까지 들었고, 오디오 재발행이 위치를 지웠다
+    const contentId = await seedContent();
+    const { userId, auth } = await createUser('republished');
+    await saveProgress(auth, contentId, 560);
+    await dataSource.query(
+      `DELETE FROM playback_progresses WHERE user_id = $1 AND content_id = $2`,
+      [userId, contentId],
+    );
+
+    // when
+    const saved = await request(app.getHttpServer())
+      .post(path(`/contents/${contentId}/save`))
+      .set('Authorization', auth)
+      .send({ client_seq: 1, reason: 'user_save' })
+      .expect(HttpStatus.CREATED);
+
+    // then — 행도 완청이고, 탐색·상세와 같다
+    expect((saved.body as SaveContentBody).library_item.status).toBe(
+      'completed',
+    );
+    const detail = await request(app.getHttpServer())
+      .get(path(`/contents/${contentId}`))
+      .set('Authorization', auth)
+      .expect(HttpStatus.OK);
+    expect((detail.body as { is_completed: boolean }).is_completed).toBe(true);
+  });
+
   async function saveProgress(
     auth: string,
     contentId: string,
