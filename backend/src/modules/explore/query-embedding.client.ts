@@ -10,6 +10,7 @@ import {
   QUERY_EMBEDDING_CACHE_TTL_MS,
   QUERY_EMBEDDING_FAILURE_COOLDOWN_MS,
   QUERY_EMBEDDING_TIMEOUT_MS,
+  QUERY_EMBEDDING_TIMEOUT_STREAK,
 } from './explore.constant';
 
 /** 결손 사유 — WARN 로그에 이것만 남긴다(질의 본문·토큰은 남기지 않는다) */
@@ -52,6 +53,8 @@ export class QueryEmbeddingClient {
   /** `Map`의 삽입 순서를 LRU 순서로 쓴다 — 읽을 때 지웠다 다시 넣어 맨 뒤(최근)로 옮긴다 */
   private readonly cache = new Map<string, CacheEntry>();
   private cooldownUntil = 0;
+  /** 연속 타임아웃 수 — 성공·다른 결과면 0 */
+  private timeoutStreak = 0;
 
   constructor(configService: ConfigService<EnvironmentVariables, true>) {
     const baseUrl =
@@ -129,6 +132,9 @@ export class QueryEmbeddingClient {
         signal: controller.signal,
       });
 
+      // 응답이 왔다 — 늦지 않았다
+      this.timeoutStreak = 0;
+
       if (!response.ok) {
         // 본문은 읽지 않는다 — 연결을 붙잡지 않게 버린다
         void response.body?.cancel().catch(() => undefined);
@@ -147,12 +153,16 @@ export class QueryEmbeddingClient {
 
       return this.validate(body);
     } catch {
-      // 연결이 늦거나 끊긴 것 — 잠시 부르지 않는다(보안 그룹이 패킷을 버리면 매 검색이 예산만큼 늦어진다)
-      this.cooldownUntil = now + QUERY_EMBEDDING_FAILURE_COOLDOWN_MS;
+      const isTimeout = controller.signal.aborted;
+      this.timeoutStreak = isTimeout ? this.timeoutStreak + 1 : 0;
+      // 끊긴 연결, 또는 연달아 늦은 것 — 잠시 부르지 않는다(보안 그룹이 패킷을 버리면 매 검색이 예산만큼 늦어진다).
+      // 한 번 늦은 것은 쉬지 않는다 — 쉬면 그동안의 검색이 전부 키워드만이 된다(explore.constant.ts)
+      if (!isTimeout || this.timeoutStreak >= QUERY_EMBEDDING_TIMEOUT_STREAK) {
+        this.cooldownUntil = now + QUERY_EMBEDDING_FAILURE_COOLDOWN_MS;
+        this.timeoutStreak = 0;
+      }
 
-      return this.unavailable(
-        controller.signal.aborted ? 'timeout' : 'network',
-      );
+      return this.unavailable(isTimeout ? 'timeout' : 'network');
     } finally {
       clearTimeout(timer);
     }

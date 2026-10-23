@@ -69,10 +69,13 @@ export const MAX_EXPLORE_TOPIC_FILTER_SIZE = 50;
 
 /**
  * 질의 임베딩(AI 서버 `POST /embeddings` — KAN-238)의 **타임아웃 예산**. 넘기면 그 요청은 의미 엔진 없이 키워드만으로
- * 응답한다(결손). 디바운스 300ms 자동 검색의 체감 지연 상한에 맞춘 시작값이다(티켓 제안값) — 실측(요약 4.21의
- * `semantic_unavailable` 비율)으로 조정한다
+ * 응답한다(결손).
+ *
+ * **800ms**(개정 2026-10-23 — 시작값 400ms). 개발계 실측: 평소 190~260ms인데 한동안 호출이 없다가 처음 부르면 400ms를
+ * 넘겼다(578ms — AI 서버가 OpenAI에 매번 새 연결을 연다). 400ms에서는 그 한 번이 쉼(아래)을 걸어 검색 128건 중 80건(62%)이
+ * 키워드만으로 돌았다. 디바운스 300ms 뒤 최악 0.8초 — 결과가 아예 비는 것보다 낫다
  */
-export const QUERY_EMBEDDING_TIMEOUT_MS = 400;
+export const QUERY_EMBEDDING_TIMEOUT_MS = 800;
 
 /**
  * 질의 임베딩 캐시 TTL — **커서 수명(10분) 이상**이어야 다음 페이지가 같은 벡터로 이어진다(explore-api.md 4.5).
@@ -84,10 +87,14 @@ export const QUERY_EMBEDDING_CACHE_TTL_MS = 30 * 60_000;
 export const QUERY_EMBEDDING_CACHE_MAX_ENTRIES = 500;
 
 /**
- * 타임아웃·네트워크 오류 뒤 AI 서버를 부르지 않는 시간. 보안 그룹이 패킷을 버리면 매 검색이 예산(400ms)만큼 늦어지므로
- * 잠시 끊는다 — 그동안 검색은 키워드만으로 즉시 응답한다
+ * 연결 오류 뒤, 또는 **타임아웃이 연달아 `QUERY_EMBEDDING_TIMEOUT_STREAK`번** 난 뒤 AI 서버를 부르지 않는 시간. 보안 그룹이
+ * 패킷을 버리면 매 검색이 예산만큼 늦어지므로 잠시 끊는다 — 그동안 검색은 키워드만으로 즉시 응답한다.
+ * 타임아웃 한 번(가끔 늦은 응답)으로는 쉬지 않는다(2026-10-23 — 한 번에 쉬면 그 30초의 검색이 전부 키워드만이 됐다)
  */
 export const QUERY_EMBEDDING_FAILURE_COOLDOWN_MS = 30_000;
+
+/** 쉼을 거는 연속 타임아웃 횟수(위 주석). 성공하면 0으로 돌아간다 */
+export const QUERY_EMBEDDING_TIMEOUT_STREAK = 3;
 
 /**
  * 섹션 제목. **화면에 그대로 그리는 문자열이다**(`explore-uiux.md` 4.1) —
