@@ -2699,6 +2699,8 @@ const sourceLabelOf = (source: QueueSourceLabel): string => {
       return PLAYER_COPY.queuePanel.sourceSearch(source.query);
     case 'series':
       return PLAYER_COPY.queuePanel.sourceSeries(source.title);
+    case 'recommended':
+      return PLAYER_COPY.queuePanel.sourceRecommended;
   }
 };
 /** 모션 아트워크의 도착 시점 — 0.92 에 풀 화면 자리에 서고 교차(0.94~1) 동안 움직이지 않는다 */

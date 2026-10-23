@@ -420,17 +420,25 @@ describe('재생 목록 자동 재생(연속 재생 — player.md 4.2-4)', () =>
     mockBridge.current = null;
   });
 
-  it('켜져 있고 목록이 끝났으면 추천 편으로 이어 가고, 그 편을 스냅샷의 끝난 편 뒤에 더한다', async () => {
+  it('켜져 있고 목록이 끝났으면 추천 편들로 만든 새 재생 목록으로 갈아타 첫 안 들은 편을 튼다', async () => {
     mockAutoplay.enabled = true;
-    const fetchUpNext = jest.fn(async (_seed: string, _exclude: string[]) => [entryOf(NEXT_ID)]);
+    const DONE_ID = 'c0ffee00-0000-4000-8000-000000000003';
+    const LATER_ID = 'c0ffee00-0000-4000-8000-000000000004';
+    const fetchUpNext = jest.fn(async (_seed: string, _exclude: string[]) => [
+      entryOf(DONE_ID, true),
+      entryOf(NEXT_ID),
+      entryOf(LATER_ID),
+    ]);
     mockBridge.current = { fetchUpNext };
     await playToEnd([entryOf(CONTENT_ID)]);
     expect(fetchUpNext).toHaveBeenCalledWith(CONTENT_ID, [CONTENT_ID]);
     expect(mockIssue.mock.calls.map(([input]) => input.contentId)).toEqual([CONTENT_ID, NEXT_ID]);
     const context = usePlaybackStore.getState().queueContext;
+    expect(context.kind === 'explore' ? context.source : null).toEqual({ type: 'recommended' });
+    // 옛 목록은 남지 않는다 — 다 들은 추천 편도 뺀다
     expect(context.kind === 'explore' ? context.items.map((item) => item.contentId) : []).toEqual([
-      CONTENT_ID,
       NEXT_ID,
+      LATER_ID,
     ]);
   });
 

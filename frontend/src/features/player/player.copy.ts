@@ -113,6 +113,8 @@ const ko = {
     sourceTopic: (name: string) => name,
     sourceSearch: (query: string) => query,
     sourceSeries: (title: string) => title,
+    /** 목록이 끝나 자동 재생이 갈아탄 추천 재생 목록(player.md 4.2-4) */
+    sourceRecommended: '추천 재생 목록',
     /** 탐색 맥락 목록 아래 추천 블록(player.md 4.2-2) — 자동 재생은 없다, 목록일 뿐 */
     upNextTitle: '다음에 들어볼 만한',
     /** 추천 섹션 제목 옆 [자동 재생] 스위치(player.md 4.2-4) — 추천 이어 틀기만 켜고 끈다. 설정의 [재생 목록 자동 재생]이 켜져야 눌린다 */
@@ -296,6 +298,7 @@ const en: LocalizedCopy<typeof ko> = {
     sourceTopic: (name: string) => name,
     sourceSearch: (query: string) => query,
     sourceSeries: (title: string) => title,
+    sourceRecommended: 'Recommended for you',
     upNextTitle: 'Up next for you',
     autoplayLabel: 'Autoplay',
     autoplayHint: 'Plays similar episodes when your queue ends',
