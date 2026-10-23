@@ -111,7 +111,12 @@ jest.mock('@/shared/lib/logger', () => ({
   },
 }));
 
-jest.mock('./player-library.bridge', () => ({ getPlayerLibraryBridge: () => null }));
+const mockBridge: {
+  current: { fetchUpNext: (seed: string, exclude: string[]) => Promise<unknown[]> } | null;
+} = {
+  current: null,
+};
+jest.mock('./player-library.bridge', () => ({ getPlayerLibraryBridge: () => mockBridge.current }));
 
 const mockAutoplay = { enabled: false };
 jest.mock('@/features/settings', () => ({ isAutoplayNextEnabled: () => mockAutoplay.enabled }));
@@ -379,14 +384,14 @@ describe('재생 목록 자동 재생(연속 재생 — player.md 4.2-4)', () =>
     topicIds: [],
   });
 
-  /** 탐색 맥락 [지금 편, 다음 편]으로 재생하다가 끝까지 간다 */
-  const playToEnd = async (): Promise<void> => {
+  /** 탐색 맥락 [지금 편, 다음 편](또는 주어진 목록)으로 재생하다가 끝까지 간다 */
+  const playToEnd = async (items = [entryOf(CONTENT_ID), entryOf(NEXT_ID)]): Promise<void> => {
     mockIssue.mockResolvedValue(issueOf('https://example.com/audio'));
     const player = await startPlaying(playbackService);
     usePlaybackStore.getState().setQueueContext({
       kind: 'explore',
       source: { type: 'search', query: '커리어' },
-      items: [entryOf(CONTENT_ID), entryOf(NEXT_ID)],
+      items,
     });
     player.currentTime = 600;
     player.playing = false;
@@ -402,6 +407,28 @@ describe('재생 목록 자동 재생(연속 재생 — player.md 4.2-4)', () =>
 
   afterEach(() => {
     useSleepTimerStore.getState().set(null, null);
+    mockBridge.current = null;
+  });
+
+  it('켜져 있고 목록이 끝났으면 추천 편으로 이어 가고, 그 편을 스냅샷의 끝난 편 뒤에 더한다', async () => {
+    mockAutoplay.enabled = true;
+    const fetchUpNext = jest.fn(async (_seed: string, _exclude: string[]) => [entryOf(NEXT_ID)]);
+    mockBridge.current = { fetchUpNext };
+    await playToEnd([entryOf(CONTENT_ID)]);
+    expect(fetchUpNext).toHaveBeenCalledWith(CONTENT_ID, [CONTENT_ID]);
+    expect(mockIssue.mock.calls.map(([input]) => input.contentId)).toEqual([CONTENT_ID, NEXT_ID]);
+    const context = usePlaybackStore.getState().queueContext;
+    expect(context.kind === 'explore' ? context.items.map((item) => item.contentId) : []).toEqual([
+      CONTENT_ID,
+      NEXT_ID,
+    ]);
+  });
+
+  it('추천도 비었으면 끝난 자리에 멈춘다', async () => {
+    mockAutoplay.enabled = true;
+    mockBridge.current = { fetchUpNext: jest.fn(async () => []) };
+    await playToEnd([entryOf(CONTENT_ID)]);
+    expect(mockIssue.mock.calls.map(([input]) => input.contentId)).toEqual([CONTENT_ID]);
   });
 
   it('꺼져 있으면(기본) 끝난 자리에 멈춘다', async () => {

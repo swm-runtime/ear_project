@@ -1,5 +1,13 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { Animated, PanResponder, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import {
+  Animated,
+  PanResponder,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Switch,
+  View,
+} from 'react-native';
 
 import { useAnimatedValue } from '@/shared/hooks/useAnimatedValue';
 import { useDelayedVisible } from '@/shared/hooks/useDelayedVisible';
@@ -55,6 +63,22 @@ interface PlayerQueuePanelProps {
     onEndReached?: () => void;
   };
   onSelectUpNext?: (item: QueueEntry) => void;
+  /**
+   * 추천 섹션 제목 옆 자동 재생 스위치(player.md 4.2-4, PM 2026-10-23 "그 옆에 toggle, 유튜브 뮤직처럼") — 설정의 [재생 목록 자동
+   * 재생]과 같은 값. 없으면 스위치를 그리지 않는다
+   */
+  autoplay?: { value: boolean; onToggle: (value: boolean) => void };
+  /**
+   * 목록 맨 위에서 아래로 끌기 — 시트 단계를 내린다(PM 2026-10-23 "2단 목록 맨 위에서 끌면 1단으로", 유튜브 뮤직). `enabled` 일 때만
+   * (2단) 목록이 맨 위이고 아래로 끄는 세로 움직임을 가로챈다. 이동량(dy)은 부모가 시트 진행값으로 옮긴다
+   */
+  pullDown?: {
+    enabled: boolean;
+    onStart: () => void;
+    onMove: (dy: number) => void;
+    onRelease: (dy: number, vy: number) => void;
+    onTerminate: () => void;
+  };
   /**
    * 목록 바닥 여백(KAN-241 "4번") — 시트 틀이 2단 높이로 서 있어 1단에서는 아래가 화면 밖으로 밀려 있다. 그만큼 바닥 여백을 줘
    * 1단에서도 마지막 줄까지 스크롤된다. 2단에서는 0
@@ -131,6 +155,8 @@ const SKELETON_ROW_COUNT = 5;
 const UP_NEXT_SKELETON_ROW_COUNT = 2;
 /** 바닥에서 이 줄 수만큼 남으면 추천 다음 장을 부른다 — 닿기 전에 받아 두어 끊기지 않게 */
 const UP_NEXT_PREFETCH_ROWS = 4;
+/** 맨 위에서 끌어내리기를 시트 끌기로 가로채는 거리 — 손잡이(4)보다 조금 길게: 줄 탭의 손떨림을 끌기로 읽지 않게 */
+const PULL_DOWN_CLAIM_DISTANCE = 8;
 
 /**
  * 대기열 로딩 스켈레톤 — 실제 행과 같은 높이·여백(썸네일 48 + 제목 줄 + 보조 줄). 손잡이 자리는 비워 둔다.
@@ -570,6 +596,8 @@ export default function PlayerQueuePanel({
   onSave,
   upNext,
   onSelectUpNext,
+  autoplay,
+  pullDown,
   bottomInset = 0,
   isOpen = true,
   previewCount,
@@ -674,6 +702,33 @@ export default function PlayerQueuePanel({
     state.offset = y;
     return true;
   };
+  /*
+   * 맨 위에서 끌어내리기 → 시트 단계 내림(props pullDown). 캡처 단계에서 가로챈다 — 줄의 Pressable·스와이프보다 먼저 받아야
+   * 손가락이 줄에 묶이지 않는다. 목록이 맨 위(스크롤 0)이고 아래로·세로로 움직일 때만 — 그 밖은 평소 스크롤·스와이프다
+   */
+  const pullDownRef = useRef(pullDown);
+  useEffect(() => {
+    pullDownRef.current = pullDown;
+  });
+  const pullResponder = useMemo(
+    () =>
+      // eslint-disable-next-line react-hooks/refs -- 콜백은 렌더가 아니라 제스처 시점에 실행된다(표준 PanResponder 패턴)
+      PanResponder.create({
+        onMoveShouldSetPanResponderCapture: (_, gesture) =>
+          pullDownRef.current?.enabled === true &&
+          dragRef.current === null &&
+          scrollState.current.offset <= 0 &&
+          gesture.dy > PULL_DOWN_CLAIM_DISTANCE &&
+          gesture.dy > Math.abs(gesture.dx) * 1.5,
+        onPanResponderGrant: () => pullDownRef.current?.onStart(),
+        onPanResponderMove: (_, gesture) => pullDownRef.current?.onMove(Math.max(0, gesture.dy)),
+        onPanResponderRelease: (_, gesture) =>
+          pullDownRef.current?.onRelease(Math.max(0, gesture.dy), gesture.vy),
+        onPanResponderTerminate: () => pullDownRef.current?.onTerminate(),
+        onPanResponderTerminationRequest: () => false,
+      }),
+    [],
+  );
   const focusCurrentRef = useRef(focusCurrent);
   useEffect(() => {
     focusCurrentRef.current = focusCurrent;
@@ -832,9 +887,33 @@ export default function PlayerQueuePanel({
   const upNextSection =
     upNext && (upNext.isLoading || upNext.items.length > 0) ? (
       <View style={styles.upNext}>
-        <Text style={styles.upNextTitle} accessibilityRole="header">
-          {PLAYER_COPY.queuePanel.upNextTitle}
-        </Text>
+        <View style={styles.upNextHeader}>
+          <Text style={styles.upNextTitle} accessibilityRole="header">
+            {PLAYER_COPY.queuePanel.upNextTitle}
+          </Text>
+          {autoplay ? (
+            <Pressable
+              style={styles.autoplayToggle}
+              onPress={() => autoplay.onToggle(!autoplay.value)}
+              accessibilityRole="switch"
+              accessibilityLabel={PLAYER_COPY.queuePanel.autoplayLabel}
+              accessibilityHint={PLAYER_COPY.queuePanel.autoplayHint}
+              accessibilityState={{ checked: autoplay.value }}
+            >
+              <Text style={styles.autoplayLabel}>{PLAYER_COPY.queuePanel.autoplayLabel}</Text>
+              <Switch
+                value={autoplay.value}
+                onValueChange={autoplay.onToggle}
+                trackColor={{ false: playerColor.fill, true: playerColor.textPrimary }}
+                thumbColor={autoplay.value ? playerColor.background : playerColor.textPrimary}
+                ios_backgroundColor={playerColor.fill}
+                style={styles.autoplaySwitch}
+                accessibilityElementsHidden
+                importantForAccessibility="no-hide-descendants"
+              />
+            </Pressable>
+          ) : null}
+        </View>
         {upNext.isLoading && upNext.items.length === 0 ? (
           upNextSkeleton
         ) : (
@@ -918,7 +997,7 @@ export default function PlayerQueuePanel({
   }
 
   return (
-    <View style={styles.panel}>
+    <View style={styles.panel} {...pullResponder.panHandlers}>
       <ScrollView
         ref={scrollRef}
         // 끝에서 고무줄처럼 늘어나지 않는다(PM 2026-10-23 "올라가는 게 왜 끝도 없이 돼? 빈 공간이 나오고") — 시트 안 목록이라
@@ -1180,11 +1259,32 @@ const styles = StyleSheet.create({
   upNext: {
     paddingTop: theme.spacing.lg,
   },
+  // 제목 왼쪽 · 자동 재생 스위치 오른쪽(유튜브 뮤직) — 스위치가 있어도 제목 줄 높이가 튀지 않게 가운데 정렬
+  upNextHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: theme.spacing.lg,
+    paddingBottom: theme.spacing.xs,
+  },
   upNextTitle: {
     fontSize: theme.font.size.xs,
     fontWeight: '600',
     color: playerColor.textSecondary,
-    paddingHorizontal: theme.spacing.lg,
-    paddingBottom: theme.spacing.xs,
+  },
+  autoplayToggle: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.sm,
+    minHeight: theme.touchTarget.minHeight,
+  },
+  autoplayLabel: {
+    fontSize: theme.font.size.xs,
+    fontWeight: '600',
+    color: playerColor.textSecondary,
+  },
+  // 기본 스위치는 줄에 비해 크다 — 0.8 배(iOS 51×31 → 41×25)
+  autoplaySwitch: {
+    transform: [{ scale: 0.8 }],
   },
 });
