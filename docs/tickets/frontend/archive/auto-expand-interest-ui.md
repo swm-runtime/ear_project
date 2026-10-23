@@ -59,3 +59,4 @@
   - 문서: uiux 4.8·§1·§2·§8·§9 / settings.md 2.1·4.1 / settings-api 4.1 / interest-management 1·4.1·5·미결 / interest-management-api 4.1·4.4·6·9 정리.
   - frontend `npm run typecheck`·eslint(변경 파일) 통과. 프론트 CI 게이트는 backend 변경에만 돌아(deploy-api 검증 잡) 이 PR엔 적용 안 됨. 커밋·PR·dev 머지는 이어서.
 - 2026-10-15 상태 정정 — PR #1499 dev 머지, 릴리즈 #1509(dev → main, 2026-10-14)로 운영 반영. 앞의 5개 완료 조건은 코드로 충족. **남은 것**: BE 가 운영 `AUTO_EXPAND_ENABLED` 를 켠 뒤 운영 앱에서 빗금·N/3·토글을 실측(마지막 완료 조건) → 확인되면 archive·Jira 완료.
+- 2026-10-24 **archive 로 옮김(반영 날짜 2026-10-24)** — Jira KAN-181 은 이미 완료다. 한쪽만 움직인 상태를 맞춘다. 앞의 5개 완료 조건은 코드로 충족(운영 반영 #1509). **남은 마지막 조건(BE 가 운영 `AUTO_EXPAND_ENABLED` 를 켠 뒤 운영 앱 실측 — 1.3.0 출시 순서 ④)은 KAN-198(`pending/global-build-store-submission.md`)로 이관했다.**
