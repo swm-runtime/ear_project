@@ -1161,11 +1161,17 @@ export default function PlayerScreen() {
   const appBarExpandFadeStyle = useAnimatedStyle(() => ({
     opacity: 1 - queueExpand.get(),
   }));
-  /** 2단의 한 줄 재생 바 — 시트가 거의 다 올라온 뒤에 나타난다(겹쳐 보이지 않게 뒤쪽 절반에서만 페이드) */
-  const nowPlayingBarStyle = useAnimatedStyle(() => ({
-    opacity: interpolate(queueExpand.get(), [0.5, 1], [0, 1], 'clamp'),
-    transform: [{ translateY: (1 - queueExpand.get()) * theme.spacing.sm }],
-  }));
+  /**
+   * 2단의 한 줄 재생 바 — 시트가 거의 다 올라온 뒤(뒤쪽 절반) **위에서 내려오며** 나타난다(PM 2026-10-23 "위에서 내려오게").
+   * 종전엔 아래에서 8pt 올라왔다. 커버와 겹치는 글자는 그리는 순서로 커버 뒤에 숨는다(JSX 주석)
+   */
+  const nowPlayingBarStyle = useAnimatedStyle(() => {
+    const shown = interpolate(queueExpand.get(), [0.5, 1], [0, 1], 'clamp');
+    return {
+      opacity: shown,
+      transform: [{ translateY: (1 - shown) * -NOW_PLAYING_BAR_DROP }],
+    };
+  });
   /** 사진 위에 얹히는 순간 색이 바뀌는 요소 — 어두운 것과 흰 것을 겹쳐 두고 재생 목록 진행값으로 교차한다 */
   const dualTone = (dark: ReactNode, light: ReactNode) => (
     <View>
@@ -1734,6 +1740,48 @@ export default function PlayerScreen() {
           onLayout={onContentLayout}
           {...collapsePanResponder.panHandlers}
         >
+          {/* 2단의 한 줄 재생 바(KAN-241 "4번") — 앱바 자리. 시트가 거의 다 올라왔을 때 위에서 내려오며 보이고 눌린다.
+            **아트워크보다 먼저(밑에) 그린다** — 커버가 썸네일 자리로 줄어 내려앉는 동안 글자와 겹치면 글자가 커버 뒤로 숨는다
+            (PM 2026-10-23 "겹치면 글자를 뒤에"). 2단에서 위의 층(아트워크·앱바·히어로·컨트롤)은 전부 터치를 끄므로 바가 눌린다 */}
+          <Reanimated.View
+            style={[styles.nowPlayingBar, nowPlayingBarStyle]}
+            pointerEvents={queueStage === 2 ? 'auto' : 'none'}
+            accessibilityElementsHidden={queueStage !== 2}
+            importantForAccessibility={queueStage === 2 ? 'auto' : 'no-hide-descendants'}
+          >
+            {/* 썸네일 자리만 — 줄어든 커버 사진이 여기 앉는다(artFrameStyle) */}
+            <View style={styles.nowPlayingThumbSlot} />
+            {/* 제목 + 카테고리 두 줄(유튜브 뮤직의 곡명 + 아티스트) */}
+            <View style={styles.nowPlayingMeta}>
+              <Text
+                style={styles.nowPlayingTitle}
+                numberOfLines={1}
+                accessibilityLabel={PLAYER_COPY.screen.nowPlayingBarA11y(session.meta.title ?? '')}
+              >
+                {session.meta.title ?? ''}
+              </Text>
+              {categoryLabel !== null ? (
+                <Text style={styles.nowPlayingCategory} numberOfLines={1}>
+                  {categoryLabel}
+                </Text>
+              ) : null}
+            </View>
+            <Pressable
+              style={styles.nowPlayingButton}
+              onPress={screen.handlePlayPausePress}
+              disabled={isControlDisabled}
+              accessibilityRole="button"
+              accessibilityLabel={playButtonA11y}
+              hitSlop={theme.spacing.xs}
+            >
+              <PlayPauseSymbol
+                kind={session.isPlaying && !isEnded ? 'pause' : 'play'}
+                size={NOW_PLAYING_BUTTON_ICON}
+                color={playerColor.textPrimary}
+              />
+            </Pressable>
+          </Reanimated.View>
+
           {/*
           아트워크 — 히어로 밖, content 기준 절대 배치(2026-09-17 PM). 재생 목록이 올라오면 **이 아트워크가
           그대로 확대**돼 화면 가로를 꽉 채우고 위로는 앱바까지, 아래로는 시크바 시간 라벨 밑변까지 덮는다.
@@ -2215,45 +2263,6 @@ export default function PlayerScreen() {
 
           {/* 재생 목록 시트 — 화면 바닥에서 올라온다(2026-09-17 PM). 닫힘엔 손잡이만 보이고, 위로 끌면 시트가
             따라 올라오며 위의 플레이어가 세로 구조 그대로 공백을 접는다. 목록은 컨트롤 아래에 선다 */}
-          {/* 2단의 한 줄 재생 바(KAN-241 "4번") — 앱바 바로 아래. 시트가 거의 다 올라왔을 때만 보이고 눌린다 */}
-          <Reanimated.View
-            style={[styles.nowPlayingBar, nowPlayingBarStyle]}
-            pointerEvents={queueStage === 2 ? 'auto' : 'none'}
-            accessibilityElementsHidden={queueStage !== 2}
-            importantForAccessibility={queueStage === 2 ? 'auto' : 'no-hide-descendants'}
-          >
-            {/* 썸네일 자리만 — 줄어든 커버 사진이 여기 앉는다(artFrameStyle) */}
-            <View style={styles.nowPlayingThumbSlot} />
-            {/* 제목 + 카테고리 두 줄(유튜브 뮤직의 곡명 + 아티스트) */}
-            <View style={styles.nowPlayingMeta}>
-              <Text
-                style={styles.nowPlayingTitle}
-                numberOfLines={1}
-                accessibilityLabel={PLAYER_COPY.screen.nowPlayingBarA11y(session.meta.title ?? '')}
-              >
-                {session.meta.title ?? ''}
-              </Text>
-              {categoryLabel !== null ? (
-                <Text style={styles.nowPlayingCategory} numberOfLines={1}>
-                  {categoryLabel}
-                </Text>
-              ) : null}
-            </View>
-            <Pressable
-              style={styles.nowPlayingButton}
-              onPress={screen.handlePlayPausePress}
-              disabled={isControlDisabled}
-              accessibilityRole="button"
-              accessibilityLabel={playButtonA11y}
-              hitSlop={theme.spacing.xs}
-            >
-              <PlayPauseSymbol
-                kind={session.isPlaying && !isEnded ? 'pause' : 'play'}
-                size={NOW_PLAYING_BUTTON_ICON}
-                color={playerColor.textPrimary}
-              />
-            </Pressable>
-          </Reanimated.View>
 
           {/* 틀 아래를 화면 맨 아래(홈 인디케이터 밑)까지 내린다 — content 가 안전영역 몫(bottomPadding)만큼 위에서 끝나 목록이
             거기서 잘리고 바닥에 띠가 남았다(PM 2026-10-23 "아래 하단에 띠, 못 없애?"). 목록은 그 밑까지 흘러가고(유튜브 뮤직),
@@ -2565,6 +2574,8 @@ const QUEUE_BANNER_HEIGHT = 232;
 /** 2단 한 줄 바 — 썸네일 56 + 위아래 8(유튜브 뮤직 스샷, PM 2026-10-23. 종전 바 56 · 썸네일 40) */
 const QUEUE_NOW_BAR_HEIGHT = 72;
 const NOW_PLAYING_THUMB_SIZE = 56;
+/** 한 줄 재생 바가 내려오는 거리 — 바 높이의 절반쯤 위에서 시작한다 */
+const NOW_PLAYING_BAR_DROP = 32;
 const NOW_PLAYING_BUTTON_ICON = 22;
 /** 사진 아래쪽 그라데이션 높이 — 제목·카테고리 블록과 재생바를 넉넉히 덮는다 */
 const QUEUE_ART_FADE_HEIGHT = 160;
