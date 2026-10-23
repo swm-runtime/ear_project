@@ -28,7 +28,7 @@ import { pullPrefix, pushPrefix, s3Key } from "../storage.js";
 import { createHash } from "node:crypto";
 import { scriptStats, twoStageViolationsEn } from "./draft-two-stage.js";
 
-export const JUDGE_LOOP_VERSION = "judge-loop-v1.5"; // v1.5 (2026-10-23): 회차 체크포인트 — 끊긴 루프는 다음 회차부터 잇는다. v1.4: // v1.4 (2026-10-23): 발음 관문(빈 읽기를 채우고 남으면 발행 불가) + 발행 준비 연쇄를 여기서 한 번 건다(한국판 비평 끝과 같은 함수). v1.3: // v1.3 (2026-10-23): 0회차 원판도 한국어 must_fix 를 수리한다 — 최고판이 원판에 머문 편(G261023-010·018·020, 60~61점)이 must_fix 미수리로만 막혔다
+export const JUDGE_LOOP_VERSION = "judge-loop-v1.6"; // v1.6 (2026-10-23): 0회차 수리본은 L0 지적이 있어도 쓴다(회차 안과 같은 정책). v1.5: 회차 체크포인트 — 끊긴 루프는 다음 회차부터 잇는다. v1.4: // v1.4 (2026-10-23): 발음 관문(빈 읽기를 채우고 남으면 발행 불가) + 발행 준비 연쇄를 여기서 한 번 건다(한국판 비평 끝과 같은 함수). v1.3: // v1.3 (2026-10-23): 0회차 원판도 한국어 must_fix 를 수리한다 — 최고판이 원판에 머문 편(G261023-010·018·020, 60~61점)이 must_fix 미수리로만 막혔다
 export const DEFAULT_THRESHOLD = 60; // 2026-10-23 박수헌: 65 → 60 (첫 배치 28편 중 6편 통과. 60~64 편의 편집자 평은 "필수 수정 없이 발행 가능, 장면보다 설명이 많다"로 66~70 편과 같은 지적 — 정확성 아닌 연출 밀도 차이). 한국어·사실 must_fix 관문은 그대로
 const MAX_ROUNDS = 3;
 /** 회차 체크포인트 (v1.5, 2026-10-23) — 배포가 워커를 재생성하면 진행 중 루프가 끊기고 15분 뒤 처음부터 다시 돌았다(하루 10회, 약 $15).
@@ -294,8 +294,9 @@ ${formatBlock}
     await progress("판정 루프 0회차 — 원판 필수 수정 수리");
     const rp = await repairMustFix(script0, pron0, kr0);
     const v0 = twoStageViolationsEn(rp.script, outline, { pronunciations: JSON.parse(rp.pron), notesMd: notes0 || undefined });
-    if (v0.length) log(`  judge_loop ${episodeId} 0회차 수리본 L0 ${v0.length}건 — 수리를 버리고 원판 유지: ${v0[0].slice(0, 120)}`);
-    else { script0 = rp.script; pron0 = rp.pron; repaired0 = rp.repaired; }
+    // 회차 안 수리와 같은 정책 — L0 지적은 기록만 하고 수리본을 쓴다(v1.6, 2026-10-23: v1.3 은 L0 가 하나라도 나오면 수리를 버려 G261023-013 이 60점·must_fix 4건 미수리로 막혔다. 회차 안 수리는 L0 1~2건에도 판을 유지한다)
+    if (v0.length) log(`  judge_loop ${episodeId} 0회차 수리본 L0 ${v0.length}건(기록만): ${v0[0].slice(0, 120)}`);
+    script0 = rp.script; pron0 = rp.pron; repaired0 = rp.repaired;
     l00 = v0.length;
   }
   rounds = [{ t: 0, mode: "original", totals: eds0.map(editorTotal), median: med0, total: sumOf(med0), struct: sumOf(med0, STRUCT), koreaPub: kr0.publishable, koreaMf: kr0.findings.filter((f) => f.kind === "must_fix").length, repaired: repaired0, l0: l00, words: scriptStats(script0).words ?? 0, cost: Math.round(cost * 1000) / 1000 }];
