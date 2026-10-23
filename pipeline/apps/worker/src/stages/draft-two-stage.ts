@@ -470,14 +470,19 @@ export function enStyleViolations(turns: ScriptTurn[]): string[] {
   // full-en-v0.6 (G261017-001): 주어 꼴만 세니 "According to KEL"·"In KEL's account"·"KEL presents" 처럼 이름을 붙인 문장이 #4 에서 여덟 번 나와도 빠져나갔다 — 이름 붙이기 꼴도 같이 센다.
   // 대문자 약어 주어(KEL)만 고유명사로 본다 — 첫 글자만 대문자인 주어는 한국어 표현("Jeongi deulda describes…")과 가를 수 없다
   // full-en-v0.7 (G261017-002·003): "In the essay's explanation"·"according to the report"·"Its warning…"·"It argues…" 처럼 일반 명사·대명사로 출처를 부르는 꼴도 센다
-  const srcRef = /^(?:[Aa]ccording to (?:the |this |that )?(?:[A-Z]|(?:essay|report|article|guide|column|study|survey|union|records?)\b)|[Ii]n (?:(?:the|this|that) )?(?:[A-Z][\w-]*|its|their|guide|article|essay|report|column|study|survey|union|records?)(?:'s|’s)? (?:[a-z]+ )?(?:article|guide|account|description|view|guidance|report|explanation|example|warning)\b|[A-Z]{2,}\b[^.?!]{0,20}?\b(?:says|advises|presents|describes|explains|warns|notes|argues|lists|gives|calls|treats|recommends|rejects|allows)\b|(?:It|She|He|They) (?:says|argues|points|describes|reports|connects|warns|dates|explains|notes|suggests|adds|lists|calls)\b|Its (?:explanation|warning|account|view|description|guidance|claim|argument)\b)/;
+  const srcRef = /^(?:[Aa]ccording to (?:the |this |that )?(?:[A-Z]|(?:essay|report|article|guide|column|study|survey|union|records?)\b)|[Ii]n (?:(?:the|this|that) )?(?:[A-Z][\w-]*|its|their|guide|article|essay|report|column|study|survey|union|records?)(?:'s|’s)? (?:[a-z]+ )?(?:article|guide|account|description|view|guidance|report|explanation|example|warning)\b|[A-Z]{2,}\b[^.?!]{0,20}?\b(?:says|advises|presents|describes|explains|warns|notes|argues|lists|gives|calls|treats|recommends|rejects|allows)\b)/;
+  // 대명사로 출처를 부르는 꼴(v0.7 의 "It argues…"·"Its warning…")은 **바로 앞 문장이 출처 문장일 때만** 센다(2026-10-23 — G261023-024 E9 "The expression is iyeolchiyeol… It connects traditional belief…" 의 It 은 관용구인데 출처로 세어져 초안 L0 수정 3회를 허비했다). 정규식은 선행사를 모르므로 앞 문장으로 가늠한다 — 앞 문장이 출처면 대명사 문장도 출처, 그 다음 대명사 문장도 이어진다
+  const srcPron = /^(?:(?:It|She|He|They) (?:says|argues|points|describes|reports|connects|warns|dates|explains|notes|suggests|adds|lists|calls)\b|Its (?:explanation|warning|account|view|description|guidance|claim|argument)\b)/;
   // full-en-v0.13 (G261018-006~008): 이름이 빠지자 출처 종류·연도가 그 자리를 차지했다 — "A drama commentator reads…"·"For a food writer"·"that 2017 description"·"A sociologist speaking in 2026"·"In 2026, guest lists had become".
   // 문장 머리의 보유자 종류, 연도를 붙인 자료 명사, "<분사> in 연도", 연도로 연 과거완료 문장을 센다. 통계의 자료 연도("about 18 percent in 2022")는 세지 않는다
   const srcKind = /^(?:(?:For|To) )?(?:a|an|one|the|another|that|this) (?:[a-z]+ )?(?:commentator|critic|writer|reporter|columnist|researcher|scholar|sociologist|historian|journalist|blogger|author|professor|expert)s?\b|\b(?:a|an|the|that|this|one) (?:19|20)\d{2} (?:description|report|account|article|guide|survey|study|column|essay|explanation|interview|list)\b|\b(?:described|given|written|speaking|reported|published|listed) in (?:19|20)\d{2}\b|^In (?:19|20)\d{2},? [^.?!]*\bhad (?:become|been|grown|shrunk|moved|changed|started|turned)\b|^(?:One|Another|A) (?:common |main |key |major )?(?:concern|assessment|criticism|critique|complaint|worry|proposal|argument|view) (?:is|was) that\b|^Another proposal is\b|\b(?:respondents|buyers surveyed|people surveyed)\b/i;
   const perSection = new Map<string, string[]>();
+  let prevSrc: boolean = false; let prevTopic: string | undefined;
   for (const t of turns) {
     if (!expl(t) || t.section !== zones.body) continue;
-    const n = t.text.split(/(?<=[.!?])\s+/).filter((x) => srcSubj.test(x.trim()) || srcRef.test(x.trim()) || srcKind.test(x.trim())).length;
+    if ((t.topic ?? t.section) !== prevTopic) { prevSrc = false; prevTopic = t.topic ?? t.section; } // 구간이 바뀌면 선행사도 끊긴다
+    let n = 0;
+    for (const raw of t.text.split(/(?<=[.!?])\s+/)) { const x = raw.trim(); const direct = srcSubj.test(x) || srcRef.test(x) || srcKind.test(x); const pron: boolean = !direct && prevSrc && srcPron.test(x); if (direct || pron) n++; prevSrc = direct || pron; }
     for (let k = 0; k < n; k++) perSection.set(t.topic ?? t.section, [...(perSection.get(t.topic ?? t.section) ?? []), label(t)]);
   }
   // full-en-v0.12 (G261018-001~003, 박수헌 2026-10-18 "귀속 빼"): 출처는 앱이 보여 준다 — 대사에서 출처를 부르는 문장은 하나도 두지 않는다
@@ -538,7 +543,8 @@ export function enStyleViolations(turns: ScriptTurn[]): string[] {
   if (bodyY.length >= 6) {
     const q = bodyY.filter((t) => t.text.includes("?")).length;
     const r = q / bodyY.length;
-    if (r < 0.5 || r > 2 / 3) v.push(`${EN_STYLE_MARK} ${q} of ${bodyY.length} Body host turns are questions (${Math.round(r * 100)}%) — between half and two-thirds are questions; the rest are guesses or doubts (rule 9)`);
+    // 폭 40~75% (full-en-v0.22, 2026-10-23 — 종전 50~67%): 14턴이면 7~9개만 허용돼 QA 가 턴 하나를 고치게 할 때마다 비율에 걸리고, 비율을 맞추려 넣은 추측 턴이 다시 QA 항목 8(결론 선점)에 걸려 C76 이 3회 헛돌았다
+    if (r < 0.4 || r > 0.75) v.push(`${EN_STYLE_MARK} ${q} of ${bodyY.length} Body host turns are questions (${Math.round(r * 100)}%) — between two in five and three in four are questions; the rest are guesses, doubts, or observations (rule 9)`);
   }
   return v;
 }

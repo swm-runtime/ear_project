@@ -215,13 +215,22 @@ export async function materialize(b: AssetBundle): Promise<string> {
   const dir = path.join(cfg.workRoot, "assets", b.hash);
   const marker = path.join(dir, ".complete.json");
   if (await exists(marker)) return dir;
+  // 임시 디렉터리에 다 쓴 뒤 한 번에 이름을 바꾼다 — 워커 여러 개(글로벌 4개)가 같은 WORK_ROOT 를 쓰면 한쪽이 파일을 쓰는 동안 다른 쪽이 반쯤 된 디렉터리를
+  // 읽을 수 있다(2026-10-23 G261023-001 judge_loop ENOENT guidelines, 재시도는 성공). rename 은 원자적이라 완성된 디렉터리만 보인다. 먼저 끝낸 쪽이 이기고 나머지는 버린다
+  const tmp = `${dir}.tmp-${process.pid}-${Date.now()}`;
   for (const [key, content] of Object.entries(b.contents)) {
-    const p = path.join(dir, key);
+    const p = path.join(tmp, key);
     await fs.mkdir(path.dirname(p), { recursive: true });
     await fs.writeFile(p, content, "utf8");
   }
-  await fs.writeFile(marker, JSON.stringify({ versions: b.versions, spec_digest: b.specDigest, worker_rev: workerRev(), at: new Date().toISOString() }, null, 1));
-  log(`  자산 스냅샷 ${b.hash} 생성 — ${Object.entries(b.versions).map(([k, v]) => `${path.basename(k)}@${v}`).join(" · ")} · spec ${b.specDigest}`);
+  await fs.writeFile(path.join(tmp, ".complete.json"), JSON.stringify({ versions: b.versions, spec_digest: b.specDigest, worker_rev: workerRev(), at: new Date().toISOString() }, null, 1));
+  try {
+    await fs.rename(tmp, dir);
+    log(`  자산 스냅샷 ${b.hash} 생성 — ${Object.entries(b.versions).map(([k, v]) => `${path.basename(k)}@${v}`).join(" · ")} · spec ${b.specDigest}`);
+  } catch (e: any) {
+    if (!(await exists(marker))) throw e; // 남이 먼저 만든 게 아니면 진짜 오류
+    await fs.rm(tmp, { recursive: true, force: true });
+  }
   return dir;
 }
 

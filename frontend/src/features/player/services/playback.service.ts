@@ -22,7 +22,11 @@ import { ERROR_CODES } from '@/shared/api/error-codes';
 import { generateId } from '@/shared/lib/generate-id';
 import { logger } from '@/shared/lib/logger';
 
-import { isAutoplayNextEnabled, type AudioQuality } from '@/features/settings';
+import {
+  isAutoplayNextEnabled,
+  isAutoplayRecommendedEnabled,
+  type AudioQuality,
+} from '@/features/settings';
 
 import {
   issueAudioUrls,
@@ -59,12 +63,7 @@ import {
   type PlaybackTrackingState,
 } from './playback-tracking';
 import { getPlayerLibraryBridge } from './player-library.bridge';
-import {
-  appendToSnapshot,
-  entryFromSession,
-  nextAutoplayEntry,
-  withCurrentFirst,
-} from './queue-context';
+import { entryFromSession, nextAutoplayEntry, withCurrentFirst } from './queue-context';
 import { usePlayLimitStore } from '../store/play-limit.store';
 import { usePlaybackStore } from '../store/playback.store';
 import { useSleepTimerStore } from '../store/sleep-timer.store';
@@ -834,10 +833,12 @@ class PlaybackService {
    * - 오늘 남은 횟수 힌트가 0이고 다음 편이 오늘 차감 전이면 넘어가지 않는다 — 듣는 도중(화면 밖일 수도 있다)에 페이월을
    *   들이밀지 않는다. 힌트가 틀려 서버가 막으면 종전 차단 처리를 그대로 탄다
    * - 받는 사이 사용자가 다른 편을 틀었거나 다시 듣기를 눌렀으면 아무것도 하지 않는다
-   * - **목록이 끝나면 추천 편으로 이어 간다**(PM 2026-10-23 "유튜브 뮤직처럼") — 뒤에 남은 안 들은 편이 없거나 지금 편이 목록에
-   *   없으면, 끝난 편과 비슷한 편(재생 목록 아래 "다음에 들어볼 만한"과 같은 소스 — 목록 편은 뺀다) 중 첫 안 들은 편을 튼다.
-   *   탐색 맥락은 그 편을 스냅샷의 끝난 편 뒤에 더하고(추천 줄을 탭한 것과 같다), 라이브러리 맥락은 목록을 건드리지 않는다
-   *   (패널이 지금 편을 맨 위에 세운다). 그다음 편부터는 같은 규칙으로 계속 추천을 따라간다
+   * - **목록이 끝나면 추천 편으로 이어 간다**(PM 2026-10-23 "유튜브 뮤직처럼") — 플레이어 [자동 재생] 칩(추천 이어 틀기, 기본 켜짐)이
+   *   켜져 있을 때만. 뒤에 남은 안 들은 편이 없거나 지금 편이 목록에
+   *   없으면, 끝난 편과 비슷한 편(재생 목록 아래 "다음에 들어볼 만한"과 같은 소스 — 목록 편은 뺀다)의 안 들은 편들로
+   *   **새 추천 재생 목록**을 만들어 갈아타고 그 첫 편을 튼다(PM 2026-10-23 "새로운 추천 재생목록으로 넘어가야지" — 종전엔
+   *   라이브러리 맥락이 옛 목록에 그 편만 맨 위로 얹어 "처음 목록으로 돌아간" 것처럼 보였다). 맥락은 탐색 스냅샷(출처
+   *   "추천")이 되고, 그 목록이 끝나면 같은 규칙으로 다음 추천 목록으로 갈아탄다
    */
   private async advanceToNext(ended: SessionContext): Promise<void> {
     const generation = this.generation;
@@ -864,16 +865,17 @@ class PlaybackService {
     if (!isStillEnded()) return;
 
     let next = nextAutoplayEntry(items, ended.contentId);
-    let isRecommended = false;
-    if (next === null) {
+    let recommendedQueue: QueueEntry[] | null = null;
+    // 추천으로 이어 가기는 플레이어의 [자동 재생] 칩(추천 이어 틀기)이 켜져 있을 때만(PM 2026-10-23)
+    if (next === null && isAutoplayRecommendedEnabled()) {
       try {
         const recommended =
           (await getPlayerLibraryBridge()?.fetchUpNext(
             ended.contentId,
             items.map((item) => item.contentId),
           )) ?? [];
-        next = recommended.find((item) => !item.isCompleted) ?? null;
-        isRecommended = true;
+        recommendedQueue = recommended.filter((item) => !item.isCompleted);
+        next = recommendedQueue[0] ?? null;
       } catch (error) {
         logger.debug('[player] autoplay up-next fetch failed', error);
         return;
@@ -888,9 +890,12 @@ class PlaybackService {
       limit.dailyPlayCount !== null &&
       limit.dailyPlayLimit - limit.dailyPlayCount <= 0;
     if (isExhausted && !next.isCountedToday) return;
-    if (isRecommended) {
-      const latest = store.getState().queueContext;
-      store.getState().setQueueContext(appendToSnapshot(latest, next, ended.contentId));
+    if (recommendedQueue !== null) {
+      store.getState().setQueueContext({
+        kind: 'explore',
+        source: { type: 'recommended' },
+        items: recommendedQueue,
+      });
     }
 
     this.start({

@@ -105,6 +105,7 @@ function buildRepublishCommand(
     audio: buildFile('ep.mp3'),
     audioAac: null,
     audioLossless: null,
+    renditionOnly: null,
     thumbnail: null,
     enrichment: null,
     script: null,
@@ -175,6 +176,7 @@ describe('AdminContentService', () => {
         status: ContentStatus.PUBLISHED,
       }),
       replaceAudioRenditions: jest.fn().mockResolvedValue(undefined),
+      replaceAudioRendition: jest.fn().mockResolvedValue(undefined),
       findAudioRenditions: jest.fn().mockResolvedValue([]),
       getById: jest.fn().mockResolvedValue({
         id: CONTENT_ID,
@@ -510,6 +512,135 @@ describe('AdminContentService', () => {
       expect(storage.remove).toHaveBeenCalledWith(
         expect.arrayContaining(['audio/old.mp3', 'audio/old.wav']),
       );
+    });
+  });
+
+  describe('republish — 무손실만 교체(KAN-264)', () => {
+    const PUBLISHED_600 = {
+      id: CONTENT_ID,
+      status: ContentStatus.PUBLISHED,
+      origin: ContentOrigin.AI_GENERATED,
+      contentVersion: 2,
+      durationSec: 600,
+      audioPath: 'audio/old.mp3',
+      thumbnailUrl: `${CDN_BASE_URL}/thumb/old.png`,
+    };
+    const losslessOnly = (overrides: Partial<RepublishContentCommand> = {}) =>
+      buildRepublishCommand({
+        audio: null,
+        audioLossless: buildFile('ep.flac'),
+        renditionOnly: 'lossless',
+        ...overrides,
+      });
+
+    beforeEach(() => {
+      contentService.getById.mockResolvedValue(PUBLISHED_600 as never);
+      contentService.getByIdForUpdate.mockResolvedValue(PUBLISHED_600 as never);
+      storage.putAudio.mockResolvedValue('audio/new.flac');
+      audioProbe.readMetadata.mockResolvedValue({
+        durationSec: 600,
+        codec: 'flac',
+        bitrateKbps: 300,
+        channels: 2,
+        sampleRateHz: 44100,
+      });
+      contentService.findAudioRenditions.mockResolvedValue([
+        { quality: AudioQuality.COMPRESSED, path: 'audio/old.mp3' },
+        { quality: AudioQuality.LOSSLESS, path: 'audio/old.flac' },
+      ] as never);
+    });
+
+    it('무손실 행만 바꾸고 버전·재생 위치·대본·압축 행은 그대로 둔다 — 옛 무손실 파일만 지운다', async () => {
+      const result = await service.republish(losslessOnly());
+
+      expect(contentService.replaceAudioRendition).toHaveBeenCalledWith(
+        CONTENT_ID,
+        expect.objectContaining({
+          quality: AudioQuality.LOSSLESS,
+          path: 'audio/new.flac',
+          durationSec: 600,
+        }),
+        manager,
+      );
+      expect(contentService.republish).not.toHaveBeenCalled();
+      expect(contentService.replaceAudioRenditions).not.toHaveBeenCalled();
+      expect(
+        playbackService.deleteProgressesByContentId,
+      ).not.toHaveBeenCalled();
+      expect(contentService.deleteScript).not.toHaveBeenCalled();
+      expect(storage.remove).toHaveBeenCalledWith(['audio/old.flac']);
+      const [audit] = auditLogService.record.mock.calls[0];
+      expect(audit.before).toEqual({ content_version: 2 });
+      expect(audit.after).toMatchObject({
+        content_version: 2,
+        changed_parts: ['audio_lossless'],
+      });
+      expect(result.content.id).toBe(CONTENT_ID);
+    });
+
+    it('길이가 지금 오디오와 ±1초를 넘게 다르면 400 — 올리지도 바꾸지도 않는다', async () => {
+      audioProbe.readMetadata.mockResolvedValue({
+        durationSec: 598,
+        codec: 'flac',
+        bitrateKbps: 300,
+        channels: 2,
+        sampleRateHz: 44100,
+      });
+
+      await expect(service.republish(losslessOnly())).rejects.toMatchObject({
+        errorCode: ErrorCode.VALIDATION_FAILED,
+        details: { field: 'audio_lossless' },
+      });
+      expect(storage.putAudio).not.toHaveBeenCalled();
+      expect(auditLogService.record).not.toHaveBeenCalled();
+    });
+
+    it('다른 파트가 함께 오면 400 — 버전을 올리지 않는 경로에 섞이지 않게', async () => {
+      await expect(
+        service.republish(losslessOnly({ title: '새 제목' })),
+      ).rejects.toMatchObject({
+        errorCode: ErrorCode.VALIDATION_FAILED,
+        details: { field: 'rendition_only' },
+      });
+      await expect(
+        service.republish(losslessOnly({ audio: buildFile('ep.mp3') })),
+      ).rejects.toMatchObject({ details: { field: 'rendition_only' } });
+      expect(storage.putAudio).not.toHaveBeenCalled();
+    });
+
+    it('무손실 파일이 없으면 400', async () => {
+      await expect(
+        service.republish(losslessOnly({ audioLossless: null })),
+      ).rejects.toMatchObject({ details: { field: 'audio_lossless' } });
+    });
+
+    it('발행 중이 아니면 409 — 올리기 전에 막는다', async () => {
+      contentService.getById.mockResolvedValue({
+        ...PUBLISHED_600,
+        status: ContentStatus.WITHDRAWN,
+      } as never);
+
+      await expect(service.republish(losslessOnly())).rejects.toMatchObject({
+        errorCode: ErrorCode.CONFLICT,
+      });
+      expect(storage.putAudio).not.toHaveBeenCalled();
+    });
+
+    it('rendition_only 없이 무손실만 보내면 종전대로 400(audio)', async () => {
+      await expect(
+        service.republish(losslessOnly({ renditionOnly: null })),
+      ).rejects.toMatchObject({ details: { field: 'audio' } });
+    });
+
+    it('트랜잭션이 실패하면 새로 올린 파일을 지운다', async () => {
+      contentService.replaceAudioRendition.mockRejectedValue(
+        new Error('db down'),
+      );
+
+      await expect(service.republish(losslessOnly())).rejects.toThrow(
+        'db down',
+      );
+      expect(storage.remove).toHaveBeenCalledWith(['audio/new.flac']);
     });
   });
 

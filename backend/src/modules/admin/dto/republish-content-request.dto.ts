@@ -3,6 +3,7 @@ import {
   ArrayMaxSize,
   ArrayNotEmpty,
   IsArray,
+  IsIn,
   IsOptional,
   IsString,
   IsUUID,
@@ -62,4 +63,12 @@ export class RepublishContentFormRequestDto {
   @IsString()
   @MaxLength(20000)
   readonly payload?: string;
+
+  /**
+   * `lossless` — **무손실 파일만 교체**(KAN-264). `audio_lossless` 하나만 함께 보낸다. 버전·재생 위치를 그대로 둔다 —
+   * 새 파일 길이가 지금 길이와 ±1초 안이어야 한다(같은 내용의 다시 만든 파일만 이 경로로 들어온다)
+   */
+  @IsOptional()
+  @IsIn(['lossless'])
+  readonly rendition_only?: 'lossless';
 }

@@ -1,10 +1,10 @@
 import fs from "node:fs/promises";
 import { cfg, executedBy } from "../config.js";
-import { blockedTierHosts, domainTierByHost, existingBacklogTitles, findDomainForUrl, getBacklogFull, insertCandidateDomain, insertRun, majorOfMidTopic, midsOfMajor, poolDomainsForTopics, recentSourcesForTopics, setBacklogStatus, setJobProgress, upsertSource, type Job, tierOfUrl } from "../db.js";
+import { blockedTierHosts, domainTierByHost, existingBacklogTitles, findDomainForUrl, getBacklogFull, insertCandidateDomain, insertRun, majorOfMidTopic, midsOfMajor, poolDomainsForTopics, recentSourcesForTopics, setBacklogStatus, setJobProgress, upsertSource, type Job, tierOfUrl, countReinforceRuns, recordFetchStatus } from "../db.js";
 import type { Executor } from "../executors/index.js";
 import { assetPaths, globalGaps, KOREAN_SOURCE_MIN_EN, GLOBAL_ROLES, buildClusterPromptV2, buildReinforceSearchPrompt, buildReinforceSearchPromptEn, buildTopicJudgePromptEn, CLUSTER_SCHEMA_V2, CLUSTER_SCHEMA_V2_EN, judgeToInternal, pipelineLocale, REINFORCE_SEARCH_SCHEMA, REINFORCE_SEARCH_SCHEMA_EN, SOURCE_ROLES, todayKst } from "@ear/pipeline";
 import { hostOf, log } from "../util.js";
-import { robotsAllows } from "../sources/fetch.js";
+import { fetchArticle, fetchStatusOf, robotsAllows } from "../sources/fetch.js";
 import { rememberRobotsBlocked } from "../sources/robots-memory.js";
 import { prepareAssets, workerRev } from "../assets.js";
 import { putFile, s3Key } from "../storage.js";
@@ -28,7 +28,10 @@ export async function runReinforce(job: Job, ex: Executor) {
   const cand = await getBacklogFull(backlogId);
   if (!cand) throw new Error(`후보 ${backlogId} 없음`);
   if (!["held", "proposed"].includes(cand.status)) throw new Error(`후보 ${backlogId} 는 ${cand.status} — held/proposed 만 보강한다`);
-  if (cand.reinforced_at && !job.payload.force) throw new Error(`후보 ${backlogId} 는 이미 보강했다 (${String(cand.reinforced_at).slice(0, 10)}) — 상한 1회`);
+  // 상한: 한국판 1회(reinforced_at, 종전 그대로) · 글로벌판 2회(2026-10-23 — 첫 배치 반려 9개 중 7개가 1회 뒤 빈 역할·국문 소스 미달. 두 번째는 사례·국문 소스에 집중한다)
+  const REINFORCE_MAX = pipelineLocale() === "en" ? 2 : 1;
+  const prior = pipelineLocale() === "en" ? await countReinforceRuns(backlogId) : (cand.reinforced_at ? 1 : 0);
+  if (prior >= REINFORCE_MAX && !job.payload.force) throw new Error(`후보 ${backlogId} 는 이미 ${prior}회 보강했다${cand.reinforced_at ? ` (${String(cand.reinforced_at).slice(0, 10)})` : ""} — 상한 ${REINFORCE_MAX}회`);
   const major = await majorOfMidTopic(cand.mid_topic);
   const mids = major ? await midsOfMajor(major) : [cand.mid_topic];
   const poolDomains = await poolDomainsForTopics(mids);
@@ -48,6 +51,9 @@ export async function runReinforce(job: Job, ex: Executor) {
   const sweptAt = new Date().toISOString();
   const added: string[] = []; const outside: string[] = []; const dup: string[] = []; const newDomains: string[] = [];
   const existingUrls = new Set(cand.sources.map((s) => s.url));
+  // 글로벌판: 본문 접근 가능성 선검사 (2026-10-23) — 검색 결과를 세기 전에 실제로 열리는지 본다. 403·500·빈 본문은 적재는 하되(fetch_status 기록 → 군집화 제외) 역할표에는 넣지 않는다.
+  // 첫 배치에서 소스 10건을 모아 놓고 설계 단계에서 2건만 열려 자동 반려된 편이 2개였다. 403 은 우회하지 않는다 — 세지 않을 뿐이다
+  const bodyOk = en ? new Map(await Promise.all(found.map(async (s) => [s.url, await fetchArticle(0, s.url).catch(() => null)] as const))) : null;
   for (const s of found) {
     if (!/^https?:\/\//.test(s.url) || existingUrls.has(s.url)) { dup.push(s.url); continue; }
     let d = await findDomainForUrl(s.url);
@@ -69,6 +75,8 @@ export async function runReinforce(job: Job, ex: Executor) {
     }
     if (d && d.tier !== "blocked" && !d.fetch_blocked_at) {
       await upsertSource({ domain_id: d.id, url: s.url, title: s.title, summary: s.summary, author: "", published: s.published, swept_at: sweptAt, origin: "search" });
+      const f = bodyOk?.get(s.url);
+      if (bodyOk && (!f || !f.ok)) { await recordFetchStatus(s.url, f ? fetchStatusOf(f) : "network").catch(() => {}); outside.push(`${hostOf(s.url)} (본문 ${f ? f.status : "network"})`); continue; }
       added.push(s.url);
     } else if (!d) {
       const host = hostOf(s.url).replace(/^www\./, "");
@@ -111,7 +119,7 @@ export async function runReinforce(job: Job, ex: Executor) {
   const newGaps = Array.from(new Set([...(enRoles ? globalGaps(c.gaps) : c.gaps), ...missingCore]));
   const ok = c.verdict === "성립" && problems.length === 0;
   const filled = gaps.filter((g) => roleSet.has(g));
-  const summary = `보강 1회 ${todayKst()}: 검색 ${r1.output.queries?.length ?? 0}회 · 새 소스 ${added.length}건(풀 밖 ${outside.length})${droppedBlocked.length ? ` · 차단 소스 ${droppedBlocked.length}건 제외` : ""} · 채운 역할 ${filled.join("·") || "없음"}${newGaps.length ? ` · 여전히 빈 역할 ${newGaps.join("·")}` : ""}${problems.length ? ` · ${problems.join(", ")}` : ""} → ${ok ? "성립" : "보류 유지"}`;
+  const summary = `보강 ${prior + 1}회 ${todayKst()}: 검색 ${r1.output.queries?.length ?? 0}회 · 새 소스 ${added.length}건(풀 밖 ${outside.length})${droppedBlocked.length ? ` · 차단 소스 ${droppedBlocked.length}건 제외` : ""} · 채운 역할 ${filled.join("·") || "없음"}${newGaps.length ? ` · 여전히 빈 역할 ${newGaps.join("·")}` : ""}${problems.length ? ` · ${problems.join(", ")}` : ""} → ${ok ? "성립" : "보류 유지"}`;
   await setBacklogStatus(cand.id, ok ? "proposed" : "held", {
     sources: JSON.stringify(srcs.map((s) => ({ url: s.url, tier: tierOfUrl(tiers, s.url, s.domain) ?? "candidate", title: s.title, backbone: s.roles.includes("근거 앵커"), published: s.published, publisher: s.publisher || s.domain, roles: s.roles, role_why: s.why }))),
     gaps: ok ? [] : newGaps, reinforced_at: sweptAt, reinforce_note: summary,

@@ -42,7 +42,11 @@ import Snackbar from '@/shared/ui/Snackbar';
 import { Text, AnimatedText } from '@/shared/ui/Typography';
 
 import { useTopicsQuery } from '@/features/interest';
-import { setAutoplayNextEnabled, useAutoplayNextEnabled } from '@/features/settings';
+import {
+  setAutoplayRecommendedEnabled,
+  useAutoplayNextEnabled,
+  useAutoplayRecommendedEnabled,
+} from '@/features/settings';
 
 import { createAndroidPlayerZoom } from '../components/android-player-zoom';
 import {
@@ -1310,7 +1314,9 @@ export default function PlayerScreen() {
       queueGestureRef.current.expand();
     },
   };
+  // 칩은 추천 이어 틀기만 토글한다 — 설정의 연속 재생이 꺼져 있으면 흐리게(player.md 4.2-4)
   const isAutoplayNextOn = useAutoplayNextEnabled();
+  const isAutoplayRecommendedOn = useAutoplayRecommendedEnabled();
   const handlePanResponder = useMemo(
     () =>
       // eslint-disable-next-line react-hooks/refs -- 콜백은 렌더가 아니라 제스처 시점에 실행된다(표준 PanResponder 패턴)
@@ -2439,7 +2445,11 @@ export default function PlayerScreen() {
                       setPanel(null);
                       screen.playUpNextItem(item);
                     }}
-                    autoplay={{ value: isAutoplayNextOn, onToggle: setAutoplayNextEnabled }}
+                    autoplay={{
+                      value: isAutoplayRecommendedOn,
+                      disabled: !isAutoplayNextOn,
+                      onToggle: setAutoplayRecommendedEnabled,
+                    }}
                     pullDown={listPullDown}
                     onDelete={screen.deleteQueueItem}
                     categoryOf={queueCategoryOf}
@@ -2689,6 +2699,8 @@ const sourceLabelOf = (source: QueueSourceLabel): string => {
       return PLAYER_COPY.queuePanel.sourceSearch(source.query);
     case 'series':
       return PLAYER_COPY.queuePanel.sourceSeries(source.title);
+    case 'recommended':
+      return PLAYER_COPY.queuePanel.sourceRecommended;
   }
 };
 /** 모션 아트워크의 도착 시점 — 0.92 에 풀 화면 자리에 서고 교차(0.94~1) 동안 움직이지 않는다 */

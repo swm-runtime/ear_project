@@ -27,7 +27,9 @@ export { KAKAO_CHANNEL_URL } from './settings.constants';
  */
 export {
   isAutoplayNextEnabled,
-  // 플레이어 재생 목록의 추천 섹션 옆 스위치(player.md 4.2-4) — 설정 화면 토글과 같은 값을 읽고 쓴다
-  setAutoplayNextEnabled,
   useAutoplayNextEnabled,
+  // 추천 이어 틀기(player.md 4.2-4) — 플레이어 재생 목록의 추천 섹션 옆 [자동 재생] 스위치가 토글한다. 위 값이 켜져 있을 때만 쓴다
+  isAutoplayRecommendedEnabled,
+  setAutoplayRecommendedEnabled,
+  useAutoplayRecommendedEnabled,
 } from './settings.autoplay-next';
