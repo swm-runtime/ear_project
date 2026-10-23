@@ -970,7 +970,8 @@ export default function PlayerScreen() {
    * 단계마다 바꾸지 않으려는 것이다(레이아웃 애니메이션 금지 — 위 Android 주석). 대가: 1단에서 시트 아래 queueExpandTravel 만큼이
    * 화면 밖이라 패널에 그만큼 바닥 여백을 준다(bottomInset)
    */
-  const queueFullTop = Math.min(queueOpenTop, appBarHeight + QUEUE_NOW_BAR_HEIGHT);
+  // 2단의 한 줄 바는 앱바 자리(맨 위)에 앉는다 — 2단에선 앱바 아이콘이 걷혀 그 줄이 비어 있었다(PM 2026-10-23 유튜브 뮤직 스샷)
+  const queueFullTop = Math.min(queueOpenTop, QUEUE_NOW_BAR_HEIGHT);
   const queueExpandTravel = Math.max(0, queueOpenTop - queueFullTop);
 
   /*
@@ -987,10 +988,10 @@ export default function PlayerScreen() {
   /*
    * 2단(queueExpand)에서 사진은 흐려지지 않고 **한 줄 재생 바의 썸네일 자리로 줄어든다**(PM 2026-10-23 "앨범커버는 그대로
    * 줄어들고"). 다 올라오면 이 사진이 곧 바의 썸네일이다 — 바 안의 썸네일은 자리만 잡고 그리지 않는다(같은 사진이 두 겹이면
-   * 바가 페이드·이동하는 동안 어긋나 보인다). 좌표는 content 기준(바는 top: appBarHeight)
+   * 바가 페이드·이동하는 동안 어긋나 보인다). 좌표는 content 기준(바는 top: 0 — 앱바 자리)
    */
   const nowThumbLeft = theme.spacing.lg;
-  const nowThumbTop = appBarHeight + (QUEUE_NOW_BAR_HEIGHT - NOW_PLAYING_THUMB_SIZE) / 2;
+  const nowThumbTop = (QUEUE_NOW_BAR_HEIGHT - NOW_PLAYING_THUMB_SIZE) / 2;
   const artFrameStyle = useAnimatedStyle(() => {
     const panel = panelProgress.get();
     const queue = queueProgress.get();
@@ -2194,20 +2195,28 @@ export default function PlayerScreen() {
             따라 올라오며 위의 플레이어가 세로 구조 그대로 공백을 접는다. 목록은 컨트롤 아래에 선다 */}
           {/* 2단의 한 줄 재생 바(KAN-241 "4번") — 앱바 바로 아래. 시트가 거의 다 올라왔을 때만 보이고 눌린다 */}
           <Reanimated.View
-            style={[styles.nowPlayingBar, { top: appBarHeight }, nowPlayingBarStyle]}
+            style={[styles.nowPlayingBar, nowPlayingBarStyle]}
             pointerEvents={queueStage === 2 ? 'auto' : 'none'}
             accessibilityElementsHidden={queueStage !== 2}
             importantForAccessibility={queueStage === 2 ? 'auto' : 'no-hide-descendants'}
           >
             {/* 썸네일 자리만 — 줄어든 커버 사진이 여기 앉는다(artFrameStyle) */}
             <View style={styles.nowPlayingThumbSlot} />
-            <Text
-              style={styles.nowPlayingTitle}
-              numberOfLines={1}
-              accessibilityLabel={PLAYER_COPY.screen.nowPlayingBarA11y(session.meta.title ?? '')}
-            >
-              {session.meta.title ?? ''}
-            </Text>
+            {/* 제목 + 카테고리 두 줄(유튜브 뮤직의 곡명 + 아티스트) */}
+            <View style={styles.nowPlayingMeta}>
+              <Text
+                style={styles.nowPlayingTitle}
+                numberOfLines={1}
+                accessibilityLabel={PLAYER_COPY.screen.nowPlayingBarA11y(session.meta.title ?? '')}
+              >
+                {session.meta.title ?? ''}
+              </Text>
+              {categoryLabel !== null ? (
+                <Text style={styles.nowPlayingCategory} numberOfLines={1}>
+                  {categoryLabel}
+                </Text>
+              ) : null}
+            </View>
             <Pressable
               style={styles.nowPlayingButton}
               onPress={screen.handlePlayPausePress}
@@ -2226,6 +2235,12 @@ export default function PlayerScreen() {
 
           <View style={[styles.queueSheetFrame, { top: queueFullTop }]} pointerEvents="box-none">
             <Reanimated.View style={[styles.queueSheet, queueSheetStyle]}>
+              {/* 2단의 시트 면 — 위 모서리가 둥근 한 단 올라온 면(유튜브 뮤직). 1단은 종전처럼 면 없이 흐린 바탕 위다 */}
+              <FadeByProgress
+                progress={queueExpand}
+                pointerEvents="none"
+                style={[StyleSheet.absoluteFill, styles.queueSheetSurface]}
+              />
               {
                 // 드래그 핸들러는 감싼 View에 — Pressable은 자기 press 응답자로 panHandlers를 덮어쓴다
                 <View
@@ -2511,8 +2526,9 @@ const QUEUE_MOTION_PREVIEW_COUNT = 8;
  */
 const QUEUE_BANNER_HEIGHT = 232;
 /** 2단 재생 목록의 한 줄 재생 바(KAN-241 "4번") — 썸네일 40 + 위아래 sm */
-const QUEUE_NOW_BAR_HEIGHT = 56;
-const NOW_PLAYING_THUMB_SIZE = 40;
+/** 2단 한 줄 바 — 썸네일 56 + 위아래 8(유튜브 뮤직 스샷, PM 2026-10-23. 종전 바 56 · 썸네일 40) */
+const QUEUE_NOW_BAR_HEIGHT = 72;
+const NOW_PLAYING_THUMB_SIZE = 56;
 const NOW_PLAYING_BUTTON_ICON = 22;
 /** 사진 아래쪽 그라데이션 높이 — 제목·카테고리 블록과 재생바를 넉넉히 덮는다 */
 const QUEUE_ART_FADE_HEIGHT = 160;
@@ -2982,9 +2998,10 @@ const styles = StyleSheet.create({
     bottom: 0,
     overflow: 'hidden',
   },
-  // 2단의 한 줄 재생 바 — 앱바 바로 아래, 좌우 여백은 손잡이 줄과 같다(lg). 면을 칠하지 않는다(흐린 바탕 위)
+  // 2단의 한 줄 재생 바 — 앱바 자리(맨 위), 좌우 여백은 손잡이 줄과 같다(lg). 면을 칠하지 않는다(흐린 바탕 위)
   nowPlayingBar: {
     position: 'absolute',
+    top: 0,
     left: 0,
     right: 0,
     height: QUEUE_NOW_BAR_HEIGHT,
@@ -2997,11 +3014,18 @@ const styles = StyleSheet.create({
     width: NOW_PLAYING_THUMB_SIZE,
     height: NOW_PLAYING_THUMB_SIZE,
   },
-  nowPlayingTitle: {
+  nowPlayingMeta: {
     flex: 1,
-    fontSize: theme.font.size.sm,
+    gap: 2,
+  },
+  nowPlayingTitle: {
+    fontSize: theme.font.size.md,
     fontWeight: '600',
     color: playerColor.textPrimary,
+  },
+  nowPlayingCategory: {
+    fontSize: theme.font.size.sm,
+    color: playerColor.textSecondary,
   },
   nowPlayingButton: {
     width: theme.touchTarget.minWidth,
@@ -3011,6 +3035,12 @@ const styles = StyleSheet.create({
   },
   queueSheet: {
     flex: 1,
+  },
+  queueSheetSurface: {
+    backgroundColor: playerColor.surface,
+    borderTopLeftRadius: theme.radius.xl,
+    borderTopRightRadius: theme.radius.xl,
+    borderCurve: 'continuous',
   },
   scriptHandleWrap: {},
   // 재생 목록 패널의 자리 — 패널 루트(flex 1)를 그대로 채운다. 터치 시작을 듣기 위한 래퍼다
