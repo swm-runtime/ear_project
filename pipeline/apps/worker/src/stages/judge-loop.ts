@@ -232,11 +232,15 @@ export async function runJudgeLoop(job: Job, ex: Executor) {
   // 결과가 작은 JSON 인 채점·검토·수리 호출의 출력 상한(생각 포함). 정상 호출은 생각 몇천~1만 토큰이면 끝난다 — 폭주(2026-10-23: 원판 채점이 65536 까지 13분, 편집자 채점이 20분 시간 초과)를 몇 분 안에 끊고 한 번 다시 부르려고 낮춘다. 재작성은 대본 전체를 내므로 기본값(65536) 그대로
   const SCORE_MAX_OUT = 24_576;
   const FIX_MAX_OUT = 12_288; // v1.9: must_fix 수리 — 출력은 고친 턴 몇 개뿐. 생각 1만 토큰이면 끝난다
-  async function gpt<T>(system: string, prompt: string, schema: object, minutes: number, effort: "high" | "medium", maxOutputTokens?: number): Promise<T> {
+  async function gpt<T>(label: string, system: string, prompt: string, schema: object, minutes: number, effort: "high" | "medium", maxOutputTokens?: number): Promise<T> {
     for (let attempt = 1; ; attempt++) {
       try {
         const r = await ex.run<T>({ prompt, systemPrompt: system, schema, allowedTools: [], tools: [], cwd: cfg.workRoot, timeoutMs: minutes * 60_000, effort, background: true, maxOutputTokens }); // 재작성 한 호출이 10분을 넘으면 동기 요청은 끊긴다 — 백그라운드 모드 (types.ts)
-        cost += r.listCostUsd ?? 0; model = r.model ?? model; return r.output;
+        cost += r.listCostUsd ?? 0; model = r.model ?? model;
+        // 호출별 기록(2026-10-23 박수헌 "그 호출 뭐가 느린지") — 검토·채점 네 호출이 병렬이라 단계 시간만으로는 느린 호출을 가릴 수 없다. 출력 토큰은 생각 포함
+        const us = (r.raw as { usage?: { output_tokens?: number; output_tokens_details?: { thinking_tokens?: number } } } | undefined)?.usage;
+        log(`  judge_loop ${episodeId} 호출 ${label}${attempt > 1 ? ` (${attempt}번째)` : ""} ${effort} — ${Math.round((r.durationMs ?? 0) / 1000)}s · 출력 ${us?.output_tokens ?? "?"}${us?.output_tokens_details?.thinking_tokens != null ? ` (생각 ${us.output_tokens_details.thinking_tokens})` : ""} · $${(r.listCostUsd ?? 0).toFixed(2)}`);
+        return r.output;
       } catch (e) {
         const msg = String(e); const transient = /fetch failed|OpenAI (?:0|5\d\d|429)|ECONNRESET|ETIMEDOUT|socket hang up/i.test(msg);
         // 생각 폭주(출력 상한 도달·시간 초과)는 같은 입력을 다시 불러도 대개 정상으로 끝난다 — 한 번만 더 (비용은 상한만큼)
@@ -247,9 +251,9 @@ export async function runJudgeLoop(job: Job, ex: Executor) {
       }
     }
   }
-  const editorOnce = (script: string) => gpt<Editor>(`${editorMd.trim()}\n\nThe two input files are inlined in the next message.\n\n## scoring.md\n${scoringMd.trim()}`, `## script.md\n${fence(blindScript(script))}\n\n${FE}\n\nReturn the JSON object only.`, EDITOR_SCHEMA, 20, "medium", SCORE_MAX_OUT);
-  const editors = (script: string) => Promise.all([1, 2, 3].map(() => editorOnce(script)));
-  const korea = (script: string, pron: string) => gpt<Korea>(`${koreaMd.trim()}\n\nThe input files are inlined in the next message.\n\n## house-style.md\n${houseMd.trim()}`,
+  const editorOnce = (script: string, i = 0) => gpt<Editor>(`editor${i}`, `${editorMd.trim()}\n\nThe two input files are inlined in the next message.\n\n## scoring.md\n${scoringMd.trim()}`, `## script.md\n${fence(blindScript(script))}\n\n${FE}\n\nReturn the JSON object only.`, EDITOR_SCHEMA, 20, "medium", SCORE_MAX_OUT);
+  const editors = (script: string) => Promise.all([1, 2, 3].map((i) => editorOnce(script, i)));
+  const korea = (script: string, pron: string) => gpt<Korea>("korea", `${koreaMd.trim()}\n\nThe input files are inlined in the next message.\n\n## house-style.md\n${houseMd.trim()}`,
     `## script.md\n${fence(blindScript(script))}\n\n## notes.md\n${fence(blindNotes(claims))}\n\n## sources.md\n${fence(blindSources(sources))}\n\n## pronunciations.json\n${fence(pron)}\n\n${FK}\n\nReturn the JSON object only.`, KOREA_SCHEMA, 30, knobs.korea, SCORE_MAX_OUT);
   const l0 = (script: string, pron: string, tc: { turn: string; claims: string[] }[]) => twoStageViolationsEn(script, outline, { pronunciations: JSON.parse(pron), notesMd: notesMd(tc) });
   const materials = (pron: string) => `## Outline — outline.md (the contract)\n${fence(outline)}\n\n## Claims — claims.md (every fact you may use)\n${fence(claims)}\n\n## Excerpts — sources.md\n${fence(sources)}\n\n## Pronunciation map — pronunciations.json\n${fence(pron)}`;
@@ -286,7 +290,7 @@ ${formatBlock}
   // 한국어 must_fix 수리 — 지적된 턴만의 최소 변경(README 6.2). 회차 안에서도, 0회차 원판에도 같은 수리를 쓴다
   const repairMustFix = async (script: string, pron: string, kr: Korea): Promise<{ script: string; pron: string; repaired: string[] }> => {
     const mustFix = kr.findings.filter((f) => f.kind === "must_fix");
-    const r = await gpt<RepairOut>(repairSystem, `## Findings (must_fix)\n${fmtFindings(mustFix)}\n\n## Suggested edits (a guide, not a source)\n${fmtEdits(kr.edits)}\n\n## script.md (line format \`[${explainer}] E1 · sentence\` / \`[${host}] Y1 · sentence\`)\n${fence(script)}\n\n## claims.md\n${fence(claims)}\n\n## sources.md\n${fence(sources)}\n\n## pronunciations.json\n${fence(pron)}\n\nRepair and output only the report JSON.`, FIX_SCHEMA, 20, "medium", FIX_MAX_OUT);
+    const r = await gpt<RepairOut>("repair", repairSystem, `## Findings (must_fix)\n${fmtFindings(mustFix)}\n\n## Suggested edits (a guide, not a source)\n${fmtEdits(kr.edits)}\n\n## script.md (line format \`[${explainer}] E1 · sentence\` / \`[${host}] Y1 · sentence\`)\n${fence(script)}\n\n## claims.md\n${fence(claims)}\n\n## sources.md\n${fence(sources)}\n\n## pronunciations.json\n${fence(pron)}\n\nRepair and output only the report JSON.`, FIX_SCHEMA, 20, "medium", FIX_MAX_OUT);
     const valid = r.fixes.filter((f) => /^[EY]\d+$/.test(f.turn) && f.after.trim());
     // 발음 사전 쪽 must_fix 는 검토자의 other_changes 로 고친다(턴 교체로는 못 고친다) — 적용된 변경이 가리키는 턴은 수리된 것으로
     const pc = applyPronChanges(mergePron(pron, r.pronunciations_added), kr.other_changes, kr.findings);
@@ -347,12 +351,12 @@ ${formatBlock}
     await progress(`판정 루프 ${t}회차 — ${mode === "structure" ? "구조" : "세부"} 재작성`);
     const effort = mode === "structure" ? knobs.structure : knobs.detail;
     const ms = { rewrite: 0, l0fix: 0, review: 0, repair: 0 }; let tk = Date.now();
-    let o = await gpt<RewriteOut>(baseSystem(mode), userPrompt(base.script, base.eds, base.korea, base.repaired, base.pron), OUT_SCHEMA, 40, effort);
+    let o = await gpt<RewriteOut>(`rewrite-${mode}`, baseSystem(mode), userPrompt(base.script, base.eds, base.korea, base.repaired, base.pron), OUT_SCHEMA, 40, effort);
     ms.rewrite = Date.now() - tk; tk = Date.now();
     let script = fixMeta(o, base.script); let pron = mergePron(base.pron, o.pronunciations_added); let tc = o.turn_claims;
     let v = l0(script, pron, tc);
     if (v.length) {
-      const o2 = await gpt<RewriteOut>(baseSystem(mode), `## Format check (L0) findings on your revision — resolve all, change nothing else, and return the full script again\n${v.map((x, i) => `${i + 1}. ${x}`).join("\n")}\n\n## Your revision — script.md\n${fence(script)}\n\n${materials(pron)}\n\nFix by the rules above and output only the report JSON (same fields; plan may repeat the previous plan).`, OUT_SCHEMA, 40, "medium", SCORE_MAX_OUT); // v1.9: L0 수정은 위반만 고치는 작업 — medium, 상한 24,576(대본 전체를 다시 내므로 수리보다 넉넉히)
+      const o2 = await gpt<RewriteOut>("l0fix", baseSystem(mode), `## Format check (L0) findings on your revision — resolve all, change nothing else, and return the full script again\n${v.map((x, i) => `${i + 1}. ${x}`).join("\n")}\n\n## Your revision — script.md\n${fence(script)}\n\n${materials(pron)}\n\nFix by the rules above and output only the report JSON (same fields; plan may repeat the previous plan).`, OUT_SCHEMA, 40, "medium", SCORE_MAX_OUT); // v1.9: L0 수정은 위반만 고치는 작업 — medium, 상한 24,576(대본 전체를 다시 내므로 수리보다 넉넉히)
       script = fixMeta(o2, script); pron = mergePron(pron, o2.pronunciations_added); tc = o2.turn_claims; v = l0(script, pron, tc); o = { ...o2, plan: o.plan || o2.plan };
       ms.l0fix = Date.now() - tk; tk = Date.now();
     }
@@ -397,7 +401,7 @@ ${formatBlock}
   let pronFilled = 0;
   if (missing.length) {
     await progress("판정 루프 — 발음 읽기 채우기");
-    const fill = await gpt<{ readings: { term: string; reading: string }[] }>(PRON_SYSTEM, `## Terms with no reading\n${missing.map((m) => `- ${m}`).join("\n")}\n\n## script.md (context)\n${fence(best.script)}\n\nReturn the JSON object only.`, PRON_SCHEMA, 5, "medium", 8192);
+    const fill = await gpt<{ readings: { term: string; reading: string }[] }>("pron", PRON_SYSTEM, `## Terms with no reading\n${missing.map((m) => `- ${m}`).join("\n")}\n\n## script.md (context)\n${fence(best.script)}\n\nReturn the JSON object only.`, PRON_SCHEMA, 5, "medium", 8192);
     const cur = JSON.parse(best.pron) as Record<string, string>;
     for (const r of fill.readings ?? []) if (missing.includes(r.term) && /[가-힣]/.test(r.reading) && !(cur[r.term] ?? "").trim()) { cur[r.term] = r.reading.trim(); pronFilled++; }
     best = { ...best, pron: JSON.stringify(cur, null, 2) };
