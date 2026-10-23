@@ -28,7 +28,7 @@ import { pullPrefix, pushPrefix, s3Key } from "../storage.js";
 import { createHash } from "node:crypto";
 import { scriptStats, twoStageViolationsEn } from "./draft-two-stage.js";
 
-export const JUDGE_LOOP_VERSION = "judge-loop-v1.10"; // v1.10 (2026-10-23 박수헌 "발행 조건 채우면 멈추도록"): 어느 회차든 발행 조건(중앙값 ≥ 기준 · 한국어 가 · must_fix 0)을 채우면 멈춘다 — 1회차에 넘긴 8편이 전부 2회차(11분)를 더 돌았고 그 회차가 최고판이 된 적이 없다(최근 3일 32회). 호출별 로그(라벨·소요·토큰·대기열). v1.9 (2026-10-23): 수리·L0 수정 호출은 medium + 출력 상한 12,288/24,576 — "지적된 턴만 최소 변경" 작업에 high 가 필요 없고, 10회차에 1번꼴로 10분씩 폭주했다(013 r1 수리 11.7분, 008-A r2 L0 14.8분). v1.8 (2026-10-23): 기본값 검토 medium·상한 2(실험 A/B — README 6.3) · 0회차 원판이 발행 조건을 채우면 재작성 생략(env JUDGE_SKIP_REWRITE_IF_PUBLISHABLE, 작업 knob skip_rewrite_if_publishable). v1.7 (2026-10-23): 단계별 시간 기록 · 작업별 effort/회차 덮어쓰기 · 실험 모드(대본·판정 미반영). 기본값은 종전 그대로. v1.6 (2026-10-23): 0회차 수리본은 L0 지적이 있어도 쓴다(회차 안과 같은 정책). v1.5: 회차 체크포인트 — 끊긴 루프는 다음 회차부터 잇는다. v1.4: // v1.4 (2026-10-23): 발음 관문(빈 읽기를 채우고 남으면 발행 불가) + 발행 준비 연쇄를 여기서 한 번 건다(한국판 비평 끝과 같은 함수). v1.3: // v1.3 (2026-10-23): 0회차 원판도 한국어 must_fix 를 수리한다 — 최고판이 원판에 머문 편(G261023-010·018·020, 60~61점)이 must_fix 미수리로만 막혔다
+export const JUDGE_LOOP_VERSION = "judge-loop-v1.11"; // v1.11 (2026-10-23 밤): 채점·검토·L0 수정 출력 상한 24,576 → 12,288 — G261023-028 editor2 가 생각 1,034 토큰에 답 JSON 을 2만 토큰 넘게 늘어놓는 출력 폭주로 5분 15초 뒤 상한에 닿았다(정상 3.7~6.6k). 반으로 내리면 2분 반 안에 끊고 재시도. v1.10 (2026-10-23 박수헌 "발행 조건 채우면 멈추도록"): 어느 회차든 발행 조건(중앙값 ≥ 기준 · 한국어 가 · must_fix 0)을 채우면 멈춘다 — 1회차에 넘긴 8편이 전부 2회차(11분)를 더 돌았고 그 회차가 최고판이 된 적이 없다(최근 3일 32회). 호출별 로그(라벨·소요·토큰·대기열). v1.9 (2026-10-23): 수리·L0 수정 호출은 medium + 출력 상한 12,288/24,576 — "지적된 턴만 최소 변경" 작업에 high 가 필요 없고, 10회차에 1번꼴로 10분씩 폭주했다(013 r1 수리 11.7분, 008-A r2 L0 14.8분). v1.8 (2026-10-23): 기본값 검토 medium·상한 2(실험 A/B — README 6.3) · 0회차 원판이 발행 조건을 채우면 재작성 생략(env JUDGE_SKIP_REWRITE_IF_PUBLISHABLE, 작업 knob skip_rewrite_if_publishable). v1.7 (2026-10-23): 단계별 시간 기록 · 작업별 effort/회차 덮어쓰기 · 실험 모드(대본·판정 미반영). 기본값은 종전 그대로. v1.6 (2026-10-23): 0회차 수리본은 L0 지적이 있어도 쓴다(회차 안과 같은 정책). v1.5: 회차 체크포인트 — 끊긴 루프는 다음 회차부터 잇는다. v1.4: // v1.4 (2026-10-23): 발음 관문(빈 읽기를 채우고 남으면 발행 불가) + 발행 준비 연쇄를 여기서 한 번 건다(한국판 비평 끝과 같은 함수). v1.3: // v1.3 (2026-10-23): 0회차 원판도 한국어 must_fix 를 수리한다 — 최고판이 원판에 머문 편(G261023-010·018·020, 60~61점)이 must_fix 미수리로만 막혔다
 export const DEFAULT_THRESHOLD = 60; // 2026-10-23 박수헌: 65 → 60 (첫 배치 28편 중 6편 통과. 60~64 편의 편집자 평은 "필수 수정 없이 발행 가능, 장면보다 설명이 많다"로 66~70 편과 같은 지적 — 정확성 아닌 연출 밀도 차이). 한국어·사실 must_fix 관문은 그대로
 const MAX_ROUNDS = 3;
 /** 발행 조건(README 6.3): 편집자 중앙값 합계 ≥ 기준 · 한국어·사실 검토 가 · 한국어 must_fix 전부 수리. 0회차 재작성 생략 판단과 같은 식 */
@@ -230,7 +230,7 @@ export async function runJudgeLoop(job: Job, ex: Executor) {
   const progress = (phase: string, detail = "") => setJobProgress(job.id, { phase, detail, toolCounts: {}, turns: 0, elapsedMs: 0 }).catch(() => {});
 
   // 결과가 작은 JSON 인 채점·검토·수리 호출의 출력 상한(생각 포함). 정상 호출은 생각 몇천~1만 토큰이면 끝난다 — 폭주(2026-10-23: 원판 채점이 65536 까지 13분, 편집자 채점이 20분 시간 초과)를 몇 분 안에 끊고 한 번 다시 부르려고 낮춘다. 재작성은 대본 전체를 내므로 기본값(65536) 그대로
-  const SCORE_MAX_OUT = 24_576;
+  const SCORE_MAX_OUT = 12_288; // v1.11: 정상 채점 출력 3.7~6.6k(생각 1~3k 포함)·검토 0.9~4.4k·L0 수정 2.5k — 두 배 여유. 종전 24,576 은 출력 폭주를 5분 넘게 기다렸다
   const FIX_MAX_OUT = 12_288; // v1.9: must_fix 수리 — 출력은 고친 턴 몇 개뿐. 생각 1만 토큰이면 끝난다
   async function gpt<T>(label: string, system: string, prompt: string, schema: object, minutes: number, effort: "high" | "medium", maxOutputTokens?: number): Promise<T> {
     for (let attempt = 1; ; attempt++) {
