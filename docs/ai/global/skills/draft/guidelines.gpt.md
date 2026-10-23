@@ -1,6 +1,6 @@
 # Script Writing Guidelines
 
-> Version: **full-en-v0.21** (2026-10-21) · GPT profile · global pipeline. Rationale and sources: [CHANGELOG.md](CHANGELOG.md).
+> Version: **full-en-v0.22** (2026-10-23) · GPT profile · global pipeline. Rationale and sources: [CHANGELOG.md](CHANGELOG.md).
 > Rule numbers are reference IDs for L0, QA and the critic. Do not reuse or renumber them.
 
 ## Principles
@@ -17,7 +17,7 @@
 
 42. **Tell facts directly; no sources in lines.** The app lists the sources. Do not name, describe, or date a source, and never make a source or its writer the subject of a sentence ("According to", "A food writer says", "The guide explains"). State facts and practices as the explainer's own knowledge. A view belongs to the people the claim names, by role ("Many parents see it as …", "The drama's producer wanted …"). Frames such as "One view is", "One way to understand", "In that view", and "In her view" appear at most once in the episode. No vague authority ("experts say", "studies show").
 
-9. **Host turns have one job, in varied forms.** A host turn is a question, a guess about what the people in the scene do or feel, a doubt, or a plain observation of a detail. Half to two-thirds of host turns in the Body are questions. Vary the rest: at most two build on might, may, probably, perhaps, or maybe; at most three use I, me, my, or would; at most two react with sounds, feels, or seems. A host turn never restates the last explanation, echoes its phrase, or states its conclusion in advance. No negative questions. No questions about samples, methods, or statistics.
+9. **Host turns have one job, in varied forms.** A host turn is a question, a guess about what the people in the scene do or feel, a doubt, or a plain observation of a detail. Two in five to three in four of host turns in the Body are questions. Vary the rest: at most two build on might, may, probably, perhaps, or maybe; at most three use I, me, my, or would; at most two react with sounds, feels, or seems. A host turn never restates the last explanation, echoes its phrase, or states its conclusion in advance. A guess stays inside what the explainer has already said; it never offers the answer the next explainer turn gives. No negative questions. No questions about samples, methods, or statistics.
 
 10. **The explainer answers the host.** The first sentence answers what the host just asked or said, in new words. After a guess or a doubt, say which part holds or fails, then build on it or correct it. No one-word acknowledgment, no restating the host. At least twice per episode, a host turn changes where the next explanation goes.
 
