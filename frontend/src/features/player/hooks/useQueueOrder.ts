@@ -3,7 +3,7 @@ import { useCallback } from 'react';
 
 import { queueKeys } from './useQueueQuery';
 import type { QueueItem } from '../player.types';
-import { moveInArray } from '../services/queue-order';
+import { reorderSubset } from '../services/queue-order';
 import { saveQueueOrder } from '../services/queue-order-sync.service';
 
 /**
@@ -13,15 +13,25 @@ import { saveQueueOrder } from '../services/queue-order-sync.service';
 export const useQueueOrder = (items: QueueItem[]) => {
   const queryClient = useQueryClient();
 
-  /** 보이는 목록에서 `from` 줄을 `to` 줄로 옮긴다 — 지금 보이는 전체 순서를 그대로 저장한다 */
-  const move = useCallback(
-    (from: number, to: number) => {
-      const next = moveInArray(items, from, to);
+  /**
+   * 패널이 보여 준 순서(줄 키 = 라이브러리 항목 id)를 캐시 목록에 입히고 저장한다 — 옮겼으면 true, 옮길 게 없었으면 false.
+   * **인덱스가 아니라 키로, 렌더 시점 목록이 아니라 지금 캐시로 계산한다**(KAN-254·255) — 연달아 끌면 앞 끌기의 캐시 반영이
+   * 아직 렌더되지 않은 채 다음 끌기가 확정된다. 렌더 시점 목록으로 옮기면 앞 끌기가 지워지거나 엉뚱한 줄이 옮겨졌다.
+   * 진행 중인 목록 조회는 먼저 취소한다(KAN-254 원인 4) — 삭제 확정 뒤 무효화로 나간 GET 이 PUT 보다 늦게 와 옛 순서로 덮었다
+   */
+  const reorder = useCallback(
+    (shownKeys: readonly string[]): boolean => {
+      const current = queryClient.getQueryData<QueueItem[]>(queueKeys.all);
+      if (current === undefined) return false;
+      const next = reorderSubset(current, (item) => item.itemId, shownKeys);
+      if (next === null) return false;
+      void queryClient.cancelQueries({ queryKey: queueKeys.all });
       queryClient.setQueryData<QueueItem[]>(queueKeys.all, next);
       saveQueueOrder(next.map((item) => item.itemId));
+      return true;
     },
-    [items, queryClient],
+    [queryClient],
   );
 
-  return { orderedItems: items, move };
+  return { orderedItems: items, reorder };
 };

@@ -21,6 +21,34 @@ export const moveInArray = <T>(list: readonly T[], from: number, to: number): T[
   return next;
 };
 
+/**
+ * 패널이 보여 준 순서(`shownKeys`)를 전체 목록에 입힌다(KAN-254 원인 1·5) — 패널 목록은 전체 캐시와 다를 수 있다: 삭제 대기
+ * 줄은 빠져 있고(숨김), 라이브러리 첫 페이지 밖의 지금 듣는 편은 맨 위에 더해져 있다. **보인 줄이 차지하던 자리에만** 새 순서를
+ * 차례로 채우고, 숨긴 줄은 제자리, 전체에 없는 키는 건너뛴다. 인덱스가 아니라 키로 옮기므로 앞 끌기의 순서가 아직 렌더에
+ * 반영되지 않았어도 엉뚱한 줄을 옮기지 않는다. 순서가 그대로면 null
+ */
+export const reorderSubset = <T>(
+  full: readonly T[],
+  keyOf: (item: T) => string,
+  shownKeys: readonly string[],
+): T[] | null => {
+  const indexOf = new Map(full.map((item, index) => [keyOf(item), index]));
+  const seen = new Set<string>();
+  const sequence: T[] = [];
+  for (const key of shownKeys) {
+    const index = indexOf.get(key);
+    if (index === undefined || seen.has(key)) continue;
+    seen.add(key);
+    sequence.push(full[index]);
+  }
+  const slots = full.flatMap((item, index) => (seen.has(keyOf(item)) ? [index] : []));
+  const next = [...full];
+  slots.forEach((slot, order) => {
+    next[slot] = sequence[order];
+  });
+  return next.every((item, index) => item === full[index]) ? null : next;
+};
+
 /** 서버로 보낼 id 목록 — 중복을 걷고 상한에서 자른다. 어기면 400 이다(4.8) */
 export const toQueueOrderPayload = (ids: readonly string[]): string[] =>
   [...new Set(ids)].slice(0, QUEUE_ORDER_MAX_IDS);

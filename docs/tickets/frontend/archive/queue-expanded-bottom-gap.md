@@ -41,3 +41,10 @@ iOS 도 같은 계산이다 — 같이 확인한다(Android 에서 먼저 보고
 ## 처리 기록
 
 - 2026-10-23 발행(박준현 — Android 실측. 코드 확인: `PlayerScreen.tsx` 패널 `bottomInset` 주석의 "대가").
+- 2026-10-24 반영(FE, 반영 날짜 2026-10-24). 제안 1번 방향을 레이아웃 애니메이션 없이 구현:
+  - `PlayerScreen.tsx` — 패널 `bottomInset` 을 단계별로: 1단 `queueExpandTravel + bottomPadding`(종전), **2단(스프링이 끝나 `queueStage === 2`) `bottomPadding`**.
+  - `PlayerQueuePanel.tsx` — 여백이 줄어들 때 **지금 스크롤 위치가 새 끝을 넘지 않을 만큼만** 먼저 줄인다(`retainedBottomInset` — 콘텐츠 높이 ≥ 스크롤 위치 + 뷰포트). 그래서 네이티브가 스크롤 위치를 끝으로 당기는 일이 없어 1→2단에서 목록이 내려앉지 않는다. 남겨 둔 몫은 스크롤이 멈출 때(`onScrollEndDrag`·`onMomentumScrollEnd`)·내용 크기가 바뀔 때(내용 끝 실측 뷰) 다시 보고 끝에서 멀어졌으면 걷는다(보이지 않는 자리라 움직임 없음). 늘어날 때(2→1단)는 바로 늘린다. 스크롤 이벤트마다 상태를 바꾸지 않는다.
+  - 남는 경우: 1단에서 목록 끝 근처를 보다 2단으로 올리면 그 순간 보이던 바닥 빈 자리는 위로 한 번 스크롤할 때까지 남는다(내려앉힘을 막는 대가 — 걷으려면 목록을 움직여야 한다).
+  - 문서: `spec/uiux/player-uiux.md` 4.6-1 2단(바닥 여백).
+  - 테스트: `services/queue-drag.test.ts`(`retainedBottomInset` — 끝에서 멀면 바로 줄임 / 넘을 땐 남김 / 스크롤 뒤 걷음 / 늘릴 땐 그대로).
+  - 완료 조건 4개(2단 바닥 여백 · 1단 마지막 줄 · 1→2단 내려앉음 없음 · iOS·Android)는 **기기 확인 대기**.
