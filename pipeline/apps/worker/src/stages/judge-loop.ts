@@ -26,7 +26,7 @@ import { prepareAssets, workerRev } from "../assets.js";
 import { pullPrefix, pushPrefix, s3Key } from "../storage.js";
 import { scriptStats, twoStageViolationsEn } from "./draft-two-stage.js";
 
-export const JUDGE_LOOP_VERSION = "judge-loop-v1.2";
+export const JUDGE_LOOP_VERSION = "judge-loop-v1.3"; // v1.3 (2026-10-23): 0회차 원판도 한국어 must_fix 를 수리한다 — 최고판이 원판에 머문 편(G261023-010·018·020, 60~61점)이 must_fix 미수리로만 막혔다
 export const DEFAULT_THRESHOLD = 60; // 2026-10-23 박수헌: 65 → 60 (첫 배치 28편 중 6편 통과. 60~64 편의 편집자 평은 "필수 수정 없이 발행 가능, 장면보다 설명이 많다"로 66~70 편과 같은 지적 — 정확성 아닌 연출 밀도 차이). 한국어·사실 must_fix 관문은 그대로
 const MAX_ROUNDS = 3;
 export const K = ["3.1", "3.2", "3.3", "3.4", "3.5", "3.6", "3.7", "3.8", "3.9", "3.10", "3.11", "3.12"] as const;
@@ -174,7 +174,8 @@ export async function runJudgeLoop(job: Job, ex: Executor) {
   await fs.mkdir(jdir, { recursive: true });
   await pullPrefix(`${rel}/`); // S3 가 원본
   const rd = (f: string) => fs.readFile(path.join(dir, f), "utf8");
-  const [script0, claims, sources, outline, pron0] = await Promise.all([rd("script.md"), rd("claims.md"), rd("sources.md"), rd("outline.md"), rd("pronunciations.json")]);
+  const [script0raw, claims, sources, outline, pron0raw, notes0] = await Promise.all([rd("script.md"), rd("claims.md"), rd("sources.md"), rd("outline.md"), rd("pronunciations.json"), rd("script-notes.md").catch(() => "")]);
+  let script0 = script0raw; let pron0 = pron0raw;
   const meta = script0.split("\n")[0].split(" · "); const [explainer, host] = (meta[3] ?? "").split("/");
   if (!explainer || !host) throw new Error("대본 메타 줄에서 화자를 읽지 못했다");
   const { assetRoot, bundle } = await prepareAssets(ep.asset_versions ?? null);
@@ -239,18 +240,37 @@ ${formatBlock}
   };
   const save = async (name: string, body: string) => fs.writeFile(path.join(jdir, name), body, "utf8");
 
+  // 한국어 must_fix 수리 — 지적된 턴만의 최소 변경(README 6.2). 회차 안에서도, 0회차 원판에도 같은 수리를 쓴다
+  const repairMustFix = async (script: string, pron: string, kr: Korea): Promise<{ script: string; pron: string; repaired: string[] }> => {
+    const mustFix = kr.findings.filter((f) => f.kind === "must_fix");
+    const r = await gpt<RepairOut>(repairSystem, `## Findings (must_fix)\n${fmtFindings(mustFix)}\n\n## Suggested edits (a guide, not a source)\n${fmtEdits(kr.edits)}\n\n## script.md (line format \`[${explainer}] E1 · sentence\` / \`[${host}] Y1 · sentence\`)\n${fence(script)}\n\n## claims.md\n${fence(claims)}\n\n## sources.md\n${fence(sources)}\n\n## pronunciations.json\n${fence(pron)}\n\nRepair and output only the report JSON.`, FIX_SCHEMA, 20, "high", SCORE_MAX_OUT);
+    const valid = r.fixes.filter((f) => /^[EY]\d+$/.test(f.turn) && f.after.trim());
+    return { script: applyFixes(script, valid), pron: mergePron(pron, r.pronunciations_added), repaired: valid.map((f) => f.turn) };
+  };
+
   // 0회차 — 원판의 GPT 기준선 (루프의 비교는 GPT 점수끼리)
   await progress("판정 루프 0회차 — 원판 채점");
   log(`  judge_loop ${episodeId} 시작 (기준 ${threshold})`);
   const [eds0, kr0] = await Promise.all([editors(script0), korea(script0, pron0)]);
   const med0 = medianScores(eds0);
-  const rounds: RoundRec[] = [{ t: 0, mode: "original", totals: eds0.map(editorTotal), median: med0, total: sumOf(med0), struct: sumOf(med0, STRUCT), koreaPub: kr0.publishable, koreaMf: kr0.findings.filter((f) => f.kind === "must_fix").length, repaired: [], l0: 0, words: scriptStats(script0).words ?? 0, cost: Math.round(cost * 1000) / 1000 }];
+  // v1.3: 원판의 must_fix 도 여기서 수리한다. 종전에는 회차 안에서만 수리해, 최고판이 원판에 머문 편은 점수가 기준을 넘어도 must_fix 미수리로 막혔다(G261023-010·018·020).
+  // 편집자 점수는 수리 전 판의 것 — 수리는 지적 턴만의 최소 변경이라 점수를 바꾸지 않는 것으로 본다(회차 안 수리와 같은 전제). L0 는 초안의 script-notes.md(턴별 claims)로 다시 돈다
+  let repaired0: string[] = []; let l00 = 0;
+  if (kr0.findings.some((f) => f.kind === "must_fix")) {
+    await progress("판정 루프 0회차 — 원판 필수 수정 수리");
+    const rp = await repairMustFix(script0, pron0, kr0);
+    const v0 = twoStageViolationsEn(rp.script, outline, { pronunciations: JSON.parse(rp.pron), notesMd: notes0 || undefined });
+    if (v0.length) log(`  judge_loop ${episodeId} 0회차 수리본 L0 ${v0.length}건 — 수리를 버리고 원판 유지: ${v0[0].slice(0, 120)}`);
+    else { script0 = rp.script; pron0 = rp.pron; repaired0 = rp.repaired; }
+    l00 = v0.length;
+  }
+  const rounds: RoundRec[] = [{ t: 0, mode: "original", totals: eds0.map(editorTotal), median: med0, total: sumOf(med0), struct: sumOf(med0, STRUCT), koreaPub: kr0.publishable, koreaMf: kr0.findings.filter((f) => f.kind === "must_fix").length, repaired: repaired0, l0: l00, words: scriptStats(script0).words ?? 0, cost: Math.round(cost * 1000) / 1000 }];
   await save("round0.json", JSON.stringify({ editors: eds0, korea: kr0 }, null, 1));
   type State = { script: string; pron: string; eds: Editor[]; korea: Korea; repaired: string[]; round: number };
-  let base: State = { script: script0, pron: pron0, eds: eds0, korea: kr0, repaired: [], round: 0 };
+  let base: State = { script: script0, pron: pron0, eds: eds0, korea: kr0, repaired: repaired0, round: 0 };
   let best: State & { total: number; struct: number } = { ...base, total: rounds[0].total, struct: rounds[0].struct };
   let mode: "structure" | "detail" = "structure";
-  log(`  judge_loop ${episodeId} 0회차 — GPT ${rounds[0].totals.join("·")} 중앙 ${rounds[0].total} (구조 ${rounds[0].struct}/32) · 한국어 ${kr0.publishable ? "가" : "불가"} mf${rounds[0].koreaMf}`);
+  log(`  judge_loop ${episodeId} 0회차 — GPT ${rounds[0].totals.join("·")} 중앙 ${rounds[0].total} (구조 ${rounds[0].struct}/32) · 한국어 ${kr0.publishable ? "가" : "불가"} mf${rounds[0].koreaMf} 수리 ${repaired0.length}`);
 
   for (let t = 1; t <= MAX_ROUNDS; t++) {
     const c0 = cost;
@@ -270,9 +290,8 @@ ${formatBlock}
     const mustFix = kr.findings.filter((f) => f.kind === "must_fix");
     let repaired: string[] = [];
     if (mustFix.length) {
-      const r = await gpt<RepairOut>(repairSystem, `## Findings (must_fix)\n${fmtFindings(mustFix)}\n\n## Suggested edits (a guide, not a source)\n${fmtEdits(kr.edits)}\n\n## script.md (line format \`[${explainer}] E1 · sentence\` / \`[${host}] Y1 · sentence\`)\n${fence(script)}\n\n## claims.md\n${fence(claims)}\n\n## sources.md\n${fence(sources)}\n\n## pronunciations.json\n${fence(pron)}\n\nRepair and output only the report JSON.`, FIX_SCHEMA, 20, "high", SCORE_MAX_OUT);
-      const valid = r.fixes.filter((f) => /^[EY]\d+$/.test(f.turn) && f.after.trim());
-      script = applyFixes(script, valid); pron = mergePron(pron, r.pronunciations_added); repaired = valid.map((f) => f.turn);
+      const rp = await repairMustFix(script, pron, kr);
+      script = rp.script; pron = rp.pron; repaired = rp.repaired;
       v = l0(script, pron, tc);
     }
     const med = medianScores(eds); const totalT = sumOf(med), structT = sumOf(med, STRUCT);
@@ -293,7 +312,7 @@ ${formatBlock}
   // 최고판 → 대본·발음 사전 덮어쓰기(원판이면 그대로) · 판정 저장 · 보고서
   const reportKey = s3Key(`${rel}/agent-verdict.md`);
   const verdict = buildVerdict({ episodeId, rounds, bestRound: best.round, eds: best.eds, korea: best.korea, repaired: best.repaired, threshold, model: model ?? "gpt", reportKey, cost });
-  if (best.round > 0) { await fs.writeFile(path.join(dir, "script.md"), best.script, "utf8"); await fs.writeFile(path.join(dir, "pronunciations.json"), best.pron, "utf8"); }
+  if (best.round > 0 || best.repaired.length) { await fs.writeFile(path.join(dir, "script.md"), best.script, "utf8"); await fs.writeFile(path.join(dir, "pronunciations.json"), best.pron, "utf8"); } // 원판이 최고판이어도 must_fix 수리본이면 덮어쓴다(v1.3)
   await fs.writeFile(path.join(dir, "agent-verdict.md"), reportMd({ episodeId, title: cand.title, verdict, rounds, eds: best.eds, korea: best.korea }), "utf8");
   await save("summary.json", JSON.stringify({ episodeId, rounds, best: best.round, threshold, cost: Math.round(cost * 1000) / 1000 }, null, 1));
   await pushPrefix(`${rel}/`); // 대본(버저닝)·judge/·보고서 — 먼저 S3 에
