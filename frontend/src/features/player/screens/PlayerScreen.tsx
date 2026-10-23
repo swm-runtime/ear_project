@@ -2405,8 +2405,11 @@ export default function PlayerScreen() {
                     onDelete={screen.deleteQueueItem}
                     categoryOf={queueCategoryOf}
                     onRetry={() => void queueQuery.refetch()}
-                    // 1단에서는 시트 아래 2단 몫이 화면 밖 — 그만큼 바닥 여백(KAN-241 "4번")
-                    bottomInset={(queueStage === 1 ? queueExpandTravel : 0) + bottomPadding}
+                    // 1단에서는 시트 아래 2단 몫이 화면 밖 — 그만큼 바닥 여백(KAN-241 "4번"). **2단에서도 빼지 않는다**
+                    // (PM 2026-10-23 "1단에서 2단으로 갈 때 갑자기 재생목록이 내려온다") — 2단에 앉는 순간 여백을 빼면 내용이
+                    // 짧아져, 재생 중인 줄로 맞춰 둔 스크롤 위치가 끝을 넘어 목록이 툭 내려앉았다. 대가: 2단에서 마지막 줄 밑에
+                    // 그만큼 빈 자리가 남는다(추천이 끝없이 붙어 바닥에 닿는 일은 드물다)
+                    bottomInset={queueExpandTravel + bottomPadding}
                   />
                 ) : null}
               </Reanimated.View>
