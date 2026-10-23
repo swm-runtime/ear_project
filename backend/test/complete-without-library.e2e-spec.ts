@@ -159,6 +159,70 @@ describe('담지 않은 편의 완청 E2E', () => {
     );
   });
 
+  it('담지 않고 듣던 편이 미니플레이어 복원 대상이 되고(id null), 끝까지 들으면 빠진다', async () => {
+    // given — 탐색에서 듣다 나갔다(라이브러리 행 없음)
+    const contentId = await seedContent();
+    const { auth } = await createUser('resume');
+    await saveProgress(auth, contentId, 200);
+
+    // when
+    const resume = await request(app.getHttpServer())
+      .get(path('/users/me/library-items/resume'))
+      .set('Authorization', auth)
+      .expect(HttpStatus.OK);
+
+    // then
+    const target = (
+      resume.body as {
+        resume_target: {
+          id: string | null;
+          status: string;
+          content: { id: string };
+          progress: { position_sec: number } | null;
+        } | null;
+      }
+    ).resume_target;
+    expect(target).not.toBeNull();
+    expect(target?.id).toBeNull();
+    expect(target?.status).toBe('in_progress');
+    expect(target?.content.id).toBe(contentId);
+    expect(target?.progress?.position_sec).toBe(200);
+
+    // when — 끝까지 들었다
+    await saveProgress(auth, contentId, 560);
+    const after = await request(app.getHttpServer())
+      .get(path('/users/me/library-items/resume'))
+      .set('Authorization', auth)
+      .expect(HttpStatus.OK);
+
+    // then — 완청한 편을 이어 들을 자리는 없다
+    expect((after.body as { resume_target: unknown }).resume_target).toBeNull();
+  });
+
+  it('담은 편이면 복원 대상의 id가 라이브러리 항목 id다', async () => {
+    // given
+    const contentId = await seedContent();
+    const { auth } = await createUser('resume-saved');
+    await request(app.getHttpServer())
+      .post(path(`/contents/${contentId}/save`))
+      .set('Authorization', auth)
+      .send({ client_seq: 1, reason: 'user_save' })
+      .expect(HttpStatus.CREATED);
+    await saveProgress(auth, contentId, 120);
+
+    // when
+    const resume = await request(app.getHttpServer())
+      .get(path('/users/me/library-items/resume'))
+      .set('Authorization', auth)
+      .expect(HttpStatus.OK);
+
+    // then
+    const target = (
+      resume.body as { resume_target: { id: string | null } | null }
+    ).resume_target;
+    expect(typeof target?.id).toBe('string');
+  });
+
   async function saveProgress(
     auth: string,
     contentId: string,

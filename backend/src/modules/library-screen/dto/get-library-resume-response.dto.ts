@@ -1,6 +1,6 @@
 import { LibraryItemStatus } from '@/modules/library/library.enum';
 
-import { LibraryItemView, LibraryResumeResult } from '../library-screen.types';
+import { LibraryResumeResult, ResumeTargetView } from '../library-screen.types';
 import { ContentLanguage } from '@/modules/content/content.enum';
 import { ContentSeriesDto } from '@/modules/content/dto/content-series.dto';
 
@@ -29,7 +29,8 @@ class ResumeProgressDto {
 }
 
 class ResumeTargetDto {
-  readonly id: string;
+  /** 라이브러리 항목 id. **담지 않은 편(탐색에서만 듣던 편)이면 null**(2026-10-23) — 옛 앱은 이 값을 숨김 목록 키로만 쓴다 */
+  readonly id: string | null;
   readonly status: LibraryItemStatus;
   readonly last_played_at: string | null;
   readonly is_counted_today: boolean;
@@ -63,7 +64,7 @@ export class GetLibraryResumeResponseDto {
   }
 }
 
-function toResumeTarget(view: LibraryItemView): ResumeTargetDto {
+function toResumeTarget(view: ResumeTargetView): ResumeTargetDto {
   return {
     id: view.id,
     status: view.status,
