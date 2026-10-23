@@ -25,11 +25,25 @@ import { log } from "../util.js";
 import { loadTtsDict, prepareAssets, workerRev } from "../assets.js";
 import { missingPronunciations } from "../tts/normalize.js";
 import { pullPrefix, pushPrefix, s3Key } from "../storage.js";
+import { createHash } from "node:crypto";
 import { scriptStats, twoStageViolationsEn } from "./draft-two-stage.js";
 
-export const JUDGE_LOOP_VERSION = "judge-loop-v1.4"; // v1.4 (2026-10-23): 발음 관문(빈 읽기를 채우고 남으면 발행 불가) + 발행 준비 연쇄를 여기서 한 번 건다(한국판 비평 끝과 같은 함수). v1.3: // v1.3 (2026-10-23): 0회차 원판도 한국어 must_fix 를 수리한다 — 최고판이 원판에 머문 편(G261023-010·018·020, 60~61점)이 must_fix 미수리로만 막혔다
+export const JUDGE_LOOP_VERSION = "judge-loop-v1.5"; // v1.5 (2026-10-23): 회차 체크포인트 — 끊긴 루프는 다음 회차부터 잇는다. v1.4: // v1.4 (2026-10-23): 발음 관문(빈 읽기를 채우고 남으면 발행 불가) + 발행 준비 연쇄를 여기서 한 번 건다(한국판 비평 끝과 같은 함수). v1.3: // v1.3 (2026-10-23): 0회차 원판도 한국어 must_fix 를 수리한다 — 최고판이 원판에 머문 편(G261023-010·018·020, 60~61점)이 must_fix 미수리로만 막혔다
 export const DEFAULT_THRESHOLD = 60; // 2026-10-23 박수헌: 65 → 60 (첫 배치 28편 중 6편 통과. 60~64 편의 편집자 평은 "필수 수정 없이 발행 가능, 장면보다 설명이 많다"로 66~70 편과 같은 지적 — 정확성 아닌 연출 밀도 차이). 한국어·사실 must_fix 관문은 그대로
 const MAX_ROUNDS = 3;
+/** 회차 체크포인트 (v1.5, 2026-10-23) — 배포가 워커를 재생성하면 진행 중 루프가 끊기고 15분 뒤 처음부터 다시 돌았다(하루 10회, 약 $15).
+ *  회차가 끝날 때마다 judge/checkpoint.json 을 S3 에 올리고, 같은 입력(script.md·pronunciations.json 해시)으로 다시 집히면 그 다음 회차부터 잇는다.
+ *  루프가 끝나면 done 으로 바꿔 두어 완료된 편의 재판정은 처음부터 돈다 */
+export interface JudgeCheckpoint { version: string; script_hash: string; t: number; stopped: boolean; done?: boolean; at: string; rounds: RoundRec[]; base: unknown; best: unknown; mode: "structure" | "detail"; cost: number; model: string | null }
+export const CHECKPOINT_MAX_AGE_MS = 12 * 60 * 60_000;
+export const inputHash = (script: string, pron: string) => createHash("sha256").update(script).update("\n--\n").update(pron).digest("hex").slice(0, 16);
+/** 이어 돌 수 있는 체크포인트인가 — 같은 루프 버전·같은 입력·끝나지 않음·12시간 안 */
+export function checkpointUsable(ck: Partial<JudgeCheckpoint> | null | undefined, scriptHash: string, now = Date.now()): ck is JudgeCheckpoint {
+  if (!ck || ck.done || ck.version !== JUDGE_LOOP_VERSION || ck.script_hash !== scriptHash) return false;
+  if (!Array.isArray(ck.rounds) || !ck.rounds.length || typeof ck.t !== "number" || !ck.base || !ck.best || !ck.mode) return false;
+  const at = Date.parse(String(ck.at ?? ""));
+  return Number.isFinite(at) && now - at < CHECKPOINT_MAX_AGE_MS;
+}
 export const K = ["3.1", "3.2", "3.3", "3.4", "3.5", "3.6", "3.7", "3.8", "3.9", "3.10", "3.11", "3.12"] as const;
 const STRUCT = ["3.1", "3.5", "3.6", "3.7"];
 
@@ -253,6 +267,21 @@ ${formatBlock}
     return { script: applyFixes(script, valid), pron: mergePron(pron, r.pronunciations_added), repaired: valid.map((f) => f.turn) };
   };
 
+  type State = { script: string; pron: string; eds: Editor[]; korea: Korea; repaired: string[]; round: number };
+  const openMustFix = (st: State) => st.korea.findings.filter((f) => f.kind === "must_fix" && !st.repaired.includes(f.turn)).length;
+  // 체크포인트 (v1.5) — 같은 입력으로 끊긴 루프가 있으면 그 다음 회차부터
+  const scriptHash = inputHash(script0raw, pron0raw);
+  const ckRaw = await fs.readFile(path.join(jdir, "checkpoint.json"), "utf8").then((x) => JSON.parse(x) as Partial<JudgeCheckpoint>).catch(() => null);
+  const ck = checkpointUsable(ckRaw, scriptHash) ? ckRaw : null;
+  const saveCheckpoint = async (c: Omit<JudgeCheckpoint, "version" | "script_hash" | "at">) => {
+    await save("checkpoint.json", JSON.stringify({ version: JUDGE_LOOP_VERSION, script_hash: scriptHash, at: new Date().toISOString(), ...c }, null, 1));
+    await pushPrefix(`${rel}/judge/`).catch((e) => log(`  judge_loop ${episodeId}: 체크포인트 업로드 실패 (계속): ${e?.message ?? e}`));
+  };
+  let rounds: RoundRec[]; let base: State; let best: State & { total: number; struct: number }; let mode: "structure" | "detail" = "structure"; let startT = 1; let resumedStopped = false;
+  if (ck) {
+    rounds = ck.rounds; base = ck.base as State; best = ck.best as State & { total: number; struct: number }; mode = ck.mode; cost = ck.cost; model = ck.model; startT = ck.t + 1; resumedStopped = ck.stopped;
+    log(`  judge_loop ${episodeId} 체크포인트에서 재개 — ${ck.t}회차까지 끝남(${ck.at}), 최고판 ${best.round}회차 ${best.total}점${resumedStopped ? " · 이미 중단 판정" : ""}`);
+  } else {
   // 0회차 — 원판의 GPT 기준선 (루프의 비교는 GPT 점수끼리)
   await progress("판정 루프 0회차 — 원판 채점");
   log(`  judge_loop ${episodeId} 시작 (기준 ${threshold})`);
@@ -269,16 +298,15 @@ ${formatBlock}
     else { script0 = rp.script; pron0 = rp.pron; repaired0 = rp.repaired; }
     l00 = v0.length;
   }
-  const rounds: RoundRec[] = [{ t: 0, mode: "original", totals: eds0.map(editorTotal), median: med0, total: sumOf(med0), struct: sumOf(med0, STRUCT), koreaPub: kr0.publishable, koreaMf: kr0.findings.filter((f) => f.kind === "must_fix").length, repaired: repaired0, l0: l00, words: scriptStats(script0).words ?? 0, cost: Math.round(cost * 1000) / 1000 }];
+  rounds = [{ t: 0, mode: "original", totals: eds0.map(editorTotal), median: med0, total: sumOf(med0), struct: sumOf(med0, STRUCT), koreaPub: kr0.publishable, koreaMf: kr0.findings.filter((f) => f.kind === "must_fix").length, repaired: repaired0, l0: l00, words: scriptStats(script0).words ?? 0, cost: Math.round(cost * 1000) / 1000 }];
   await save("round0.json", JSON.stringify({ editors: eds0, korea: kr0 }, null, 1));
-  type State = { script: string; pron: string; eds: Editor[]; korea: Korea; repaired: string[]; round: number };
-  const openMustFix = (st: State) => st.korea.findings.filter((f) => f.kind === "must_fix" && !st.repaired.includes(f.turn)).length;
-  let base: State = { script: script0, pron: pron0, eds: eds0, korea: kr0, repaired: repaired0, round: 0 };
-  let best: State & { total: number; struct: number } = { ...base, total: rounds[0].total, struct: rounds[0].struct };
-  let mode: "structure" | "detail" = "structure";
+  base = { script: script0, pron: pron0, eds: eds0, korea: kr0, repaired: repaired0, round: 0 };
+  best = { ...base, total: rounds[0].total, struct: rounds[0].struct };
   log(`  judge_loop ${episodeId} 0회차 — GPT ${rounds[0].totals.join("·")} 중앙 ${rounds[0].total} (구조 ${rounds[0].struct}/32) · 한국어 ${kr0.publishable ? "가" : "불가"} mf${rounds[0].koreaMf} 수리 ${repaired0.length}`);
+  await saveCheckpoint({ t: 0, stopped: false, rounds, base, best, mode, cost, model });
+  }
 
-  for (let t = 1; t <= MAX_ROUNDS; t++) {
+  for (let t = startT; t <= MAX_ROUNDS && !resumedStopped; t++) {
     const c0 = cost;
     await progress(`판정 루프 ${t}회차 — ${mode === "structure" ? "구조" : "세부"} 재작성`);
     let o = await gpt<RewriteOut>(baseSystem(mode), userPrompt(base.script, base.eds, base.korea, base.repaired, base.pron), OUT_SCHEMA, 40, "high");
@@ -312,9 +340,11 @@ ${formatBlock}
     if (gained) best = { ...cur, total: totalT, struct: structT };
     // 중단: 세부 단계에서 이득이 없으면, 그리고 2회차부터는 단계와 무관하게 이득이 없으면 다음 회차를 돌리지 않는다
     // (2026-10-23 조기 종료 — G261023-001 이 1회차 66 → 2회차 66 → 3회차 64 로 세 번째 회차는 비용·20분만 썼다)
-    if (!gained && (mode === "detail" || t >= 2)) break;
-    if (mode === "structure" && structT < prev.struct + 1) mode = "detail";
-    base = gained || mode === "structure" ? cur : { ...best };
+    const stop = !gained && (mode === "detail" || t >= 2);
+    if (!stop && mode === "structure" && structT < prev.struct + 1) mode = "detail";
+    if (!stop) base = gained || mode === "structure" ? cur : { ...best };
+    await saveCheckpoint({ t, stopped: stop, rounds, base, best, mode, cost, model });
+    if (stop) break;
   }
 
   // 발음 관문 (v1.4, 명세 6.7·6.10) — 발음 맵의 빈 읽기를 여기서 채운다. 종전에는 TTS 가 "발음 누락"으로 실패했고(G261023-013 "Marché"), 그 확인은 한국판에서 게이트 2 의 사람 몫이었다.
@@ -339,6 +369,7 @@ ${formatBlock}
   if (best.round > 0 || best.repaired.length || pronFilled) { await fs.writeFile(path.join(dir, "script.md"), best.script, "utf8"); await fs.writeFile(path.join(dir, "pronunciations.json"), best.pron, "utf8"); } // 원판이 최고판이어도 must_fix 수리본이면 덮어쓴다(v1.3)
   await fs.writeFile(path.join(dir, "agent-verdict.md"), reportMd({ episodeId, title: cand.title, verdict, rounds, eds: best.eds, korea: best.korea }), "utf8");
   await save("summary.json", JSON.stringify({ episodeId, rounds, best: best.round, threshold, cost: Math.round(cost * 1000) / 1000 }, null, 1));
+  await save("checkpoint.json", JSON.stringify({ version: JUDGE_LOOP_VERSION, script_hash: scriptHash, done: true, t: rounds.length - 1, at: new Date().toISOString() }, null, 1)); // 완료 — 재판정은 처음부터
   await pushPrefix(`${rel}/`); // 대본(버저닝)·judge/·보고서 — 먼저 S3 에
   await setCriticVerdicts(episodeId, verdict);
   // 발행 준비 연쇄 — 여기서 한 번(한국판의 비평 끝과 같은 함수·같은 조건). 실패하면 멈추고 콘솔 [발행 준비]로 다시 건다

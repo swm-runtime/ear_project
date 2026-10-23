@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { applyFixes, blindNotes, blindScript, blindSources, buildVerdict, editorTotal, fixMeta, medianIndex, medianScores, mergePron, K, type Editor, type Korea, type RoundRec } from "./judge-loop.js";
+import { applyFixes, blindNotes, blindScript, blindSources, buildVerdict, checkpointUsable, editorTotal, fixMeta, inputHash, JUDGE_LOOP_VERSION, medianIndex, medianScores, mergePron, K, type Editor, type Korea, type RoundRec } from "./judge-loop.js";
 
 const ed = (scores: number[], extra: Partial<Editor> = {}): Editor => ({ scores: Object.fromEntries(K.map((k, i) => [k, { score: scores[i] ?? 5, reason: `r${k}` }])), retell: "", findings: [], edits: [], publishable: false, publishable_reason: "", summary_ko: "요약", ...extra });
 const kr = (findings: Korea["findings"] = [], publishable = true): Korea => ({ findings, edits: [], other_changes: [], publishable, publishable_reason: publishable ? "ok" : "범위 변형", summary_ko: "한국어 요약" });
@@ -35,4 +35,19 @@ test("판정 — 기준 미달·한국어 불가·미수리 must_fix 는 발행 
   assert.equal(v.agent.publishable, false);
   assert.match(v.agent.publishable_reason, /60 < 기준 65/); assert.match(v.agent.publishable_reason, /발행 불가/); assert.match(v.agent.publishable_reason, /미수리/);
   assert.equal(v.agent.must_fix[0].status, "open");
+});
+
+
+// v1.5 (2026-10-23) — 회차 체크포인트: 같은 루프 버전·같은 입력·끝나지 않음·12시간 안일 때만 잇는다
+test("체크포인트 — 버전·입력 해시·done·나이로 이어 돌 수 있는지 가른다", () => {
+  const h = inputHash("script", "{}");
+  const now = Date.parse("2026-10-23T06:00:00Z");
+  const ck = { version: JUDGE_LOOP_VERSION, script_hash: h, t: 1, stopped: false, at: "2026-10-23T05:00:00Z", rounds, base: {}, best: {}, mode: "structure" as const, cost: 1, model: "gpt" };
+  assert.equal(checkpointUsable(ck, h, now), true);
+  assert.equal(checkpointUsable({ ...ck, done: true }, h, now), false);
+  assert.equal(checkpointUsable({ ...ck, version: "judge-loop-v0.9" }, h, now), false);
+  assert.equal(checkpointUsable(ck, inputHash("script", "{\"a\":\"b\"}"), now), false);
+  assert.equal(checkpointUsable({ ...ck, at: "2026-10-22T05:00:00Z" }, h, now), false);
+  assert.equal(checkpointUsable(null, h, now), false);
+  assert.notEqual(inputHash("a", "{}"), inputHash("b", "{}"));
 });
