@@ -4,7 +4,7 @@ import path from "node:path";
 import { enqueue, insertRun, pool } from "../db.js";
 import { putFile, s3Key, storage } from "../storage.js";
 import { workerRev } from "../assets.js";
-import { encodeRenditions, probeDurationSec } from "../tts/audio.js";
+import { encodeLossless, encodeRenditions, flacHasSeektable, probeDurationSec } from "../tts/audio.js";
 
 /**
  * 배포본 재인코딩 (2026-10-06 KAN-142 — 음질 확정: Light·Daily AAC 192k, Pro FLAC) — TTS 없이 S3 의 master.wav 에서
@@ -15,17 +15,23 @@ import { encodeRenditions, probeDurationSec } from "../tts/audio.js";
  * 점검(기본): 로컬에서 만들고 길이·형식만 확인한다. --apply: 두 파일을 올리고 episodes.audio_dist_key 를 dist.m4a 로 바꾸고,
  *   runs 에 phase tts 를 남기고(콘솔 재발행 판정 — 발행 뒤 TTS 실행이 있으면 오디오 교체), 패키지를 다시 건다(upload-meta 가 새 키를 가리키게).
  *   옛 dist.mp3 는 지우지 않는다 — 되돌릴 때 쓴다.
+ *
+ * --lossless-only (2026-10-23 운영 장애): 무손실 FLAC 만 master.wav 에서 다시 만든다 — SEEKTABLE 이 없던 FLAC(2026-10-06~10-23 생성분 전부)을 교체.
+ *   대상(기본): lossless.flac 을 만든 TTS 실행이 있는 편 전부(run 결과 "FLAC"). dist.m4a·DB·runs 는 건드리지 않고, --apply 면 lossless.flac 만 올린다.
+ *   앱 반영은 백엔드의 무손실 전용 재발행(버전·재생 위치 유지)이 필요하다 — 오디오를 보내는 재발행은 버전을 올려 재생 위치를 지운다.
  */
 const args = process.argv.slice(2);
 const apply = args.includes("--apply");
 const opt = (k: string) => args.find((a) => a.startsWith(`--${k}=`))?.split("=")[1] ?? (args.includes(`--${k}`) ? args[args.indexOf(`--${k}`) + 1] : undefined);
 const onlyIds = opt("ids")?.split(",").map((s) => s.trim()).filter(Boolean);
+const losslessOnly = args.includes("--lossless-only");
 
 const rows = (await pool.query<{ id: string; backlog_id: string; audio_master_key: string; status: string }>(
   `select e.id, e.backlog_id, e.audio_master_key, b.status
      from public.episodes e join public.backlog b on b.id = e.backlog_id
     where e.audio_master_key is not null
-      ${onlyIds ? "and e.id = any($1)" : `and coalesce(e.audio_dist_key, '') not like '%/dist.m4a'
+      ${onlyIds ? "and e.id = any($1)" : losslessOnly ? `and (select r.result from public.runs r where r.backlog_id = e.backlog_id and r.phase = 'tts' order by r.executed_at desc limit 1) like '%FLAC%'
+      and b.status in ('published', 'packaged', 'qa_passed')` : `and coalesce(e.audio_dist_key, '') not like '%/dist.m4a'
       and (select r.result from public.runs r where r.backlog_id = e.backlog_id and r.phase = 'tts' order by r.executed_at desc limit 1) like '%ElevenLabs 원본 wav_44100%'`}
     order by e.id`,
   onlyIds ? [onlyIds] : [],
@@ -53,6 +59,18 @@ for (const r of rows) {
   try {
     const master = path.join(dir, "master.wav"), dist = path.join(dir, "dist.m4a"), lossless = path.join(dir, "lossless.flac");
     await fs.writeFile(master, await storage().get(r.audio_master_key.replace(/^(s3|local):/, "")));
+    if (losslessOnly) {
+      await encodeLossless(master, lossless);
+      const [m, l] = await Promise.all([probeDurationSec(master), probeDurationSec(lossless)]);
+      if (Math.abs(l - m) > 0.01) throw new Error(`길이 불일치 master ${m.toFixed(3)} · flac ${l.toFixed(3)}`);
+      if (!(await flacHasSeektable(lossless))) throw new Error("SEEKTABLE 없음");
+      const ls = await fs.stat(lossless);
+      const note = `${(m / 60).toFixed(1)}분 · flac ${(ls.size / 1e6).toFixed(1)}MB · SEEKTABLE 있음`;
+      if (apply) await putFile(`${rel}/audio/lossless.flac`, await fs.readFile(lossless));
+      done++;
+      console.log(`${r.id} ${note}${apply ? " · lossless.flac 교체" : ""}`);
+      continue;
+    }
     await encodeRenditions(master, { distOut: dist, losslessOut: lossless });
     const [m, d, l] = await Promise.all([probeDurationSec(master), probeDurationSec(dist), probeDurationSec(lossless)]);
     if (Math.abs(d - m) > 0.1 || Math.abs(l - m) > 0.01) throw new Error(`길이 불일치 master ${m.toFixed(3)} · m4a ${d.toFixed(3)} · flac ${l.toFixed(3)}`);
