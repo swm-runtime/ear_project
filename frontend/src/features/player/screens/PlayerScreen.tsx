@@ -87,7 +87,8 @@ import { PLAYER_COPY } from '../player.copy';
 import { playerColor } from '../player.theme';
 import type { QueueEntry, QueueItem, QueueSourceLabel } from '../player.types';
 import { playbackService } from '../services/playback.service';
-import { entryFromSession, withCurrentFirst, withSnapshotMoved } from '../services/queue-context';
+import { entryFromSession, withCurrentFirst, withSnapshotOrder } from '../services/queue-context';
+import { queueRowKey } from '../services/queue-drag';
 import {
   formatSleepTimerRemaining,
   formatSleepTimerRemainingA11y,
@@ -197,22 +198,28 @@ export default function PlayerScreen() {
     [libraryQueueItems, queueQuery.data, session],
   );
   const queueItems: QueueEntry[] = isLibraryQueue ? libraryShownItems : snapshotItems;
-  // 줄 손잡이 끌기 — 라이브러리 맥락은 서버 순서 저장, 탐색 맥락은 스냅샷만 바꾼다(PM 2026-10-23, 로컬뿐)
+  /*
+   * 맨 위에 세운 지금 듣는 편(라이브러리 첫 페이지 밖 — 위 libraryShownItems)은 서버 순서에 자리가 없어 옮길 수 없다(KAN-254 원인 5).
+   * 패널이 그 줄의 손잡이를 감추고 다른 줄도 그 위로는 못 가게 막는다. 탐색 맥락은 세운 줄도 스냅샷에 함께 들어가 옮길 수 있다
+   */
+  const queuePinnedContentId =
+    isLibraryQueue && libraryShownItems !== libraryQueueItems
+      ? (libraryShownItems[0]?.contentId ?? null)
+      : null;
+  const { reorder: reorderLibraryQueue } = queueOrder;
+  /*
+   * 줄 손잡이 끌기 — 라이브러리 맥락은 서버 순서 저장, 탐색 맥락은 스냅샷만 바꾼다(PM 2026-10-23, 로컬뿐). 패널은 옮긴 뒤의
+   * **목록 전체**를 넘긴다(KAN-254·255 — 인덱스는 연달아 끌 때 렌더 시점 목록과 어긋났다). 옮기지 못했으면 false — 패널이
+   * 붙잡지 않고 바로 되돌린다
+   */
   const moveQueueItem = useCallback(
-    (from: number, to: number) => {
-      if (isLibraryQueue) {
-        // 패널의 자리는 숨긴 줄을 뺀 목록 기준 — 캐시 목록의 자리로 옮겨 적는다
-        const full = queueOrder.orderedItems;
-        // 맨 위에 세운 지금 듣는 편(라이브러리 첫 페이지 밖)은 캐시 목록에 없다 — 옮기지 않는다
-        const fromIndex = full.findIndex((item) => item === libraryShownItems[from]);
-        const toIndex = full.findIndex((item) => item === libraryShownItems[to]);
-        if (fromIndex === -1 || toIndex === -1) return;
-        return queueOrder.move(fromIndex, toIndex);
-      }
+    (ordered: readonly QueueEntry[]): boolean => {
+      if (isLibraryQueue) return reorderLibraryQueue(ordered.map(queueRowKey));
       const store = usePlaybackStore.getState();
-      store.setQueueContext(withSnapshotMoved(store.queueContext, snapshotItems, from, to));
+      store.setQueueContext(withSnapshotOrder(store.queueContext, ordered));
+      return true;
     },
-    [isLibraryQueue, queueOrder, libraryShownItems, snapshotItems],
+    [isLibraryQueue, reorderLibraryQueue],
   );
   const queueSourceLabel = useMemo(
     () => (queueContext.kind === 'explore' ? sourceLabelOf(queueContext.source) : null),
@@ -2420,6 +2427,7 @@ export default function PlayerScreen() {
                       screen.playQueueItem(item);
                     }}
                     onReorder={moveQueueItem}
+                    pinnedContentId={queuePinnedContentId}
                     onSave={screen.saveQueueItem}
                     upNext={{
                       items: upNextQuery.items,

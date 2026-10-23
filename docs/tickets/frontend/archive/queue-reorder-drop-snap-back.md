@@ -75,3 +75,12 @@
 ## 처리 기록
 
 - 2026-10-23 발행(FE 담당 요청으로 대신 발행 — 원인은 코드 정독 추정이라 기기 재현으로 확인 필요).
+- 2026-10-24 반영(FE, 반영 날짜 2026-10-24 — KAN-255와 같은 PR). 의심 원인 1~5 **모두** 코드에서 막았다(원인 1만 고친 것이 아니다):
+  - 원인 1 — 끝 콜백은 끌기 순번(`token`)이 아직 마지막일 때만 확정. 내려앉는 중 다음 끌기는 앞 끌기를 먼저 즉시 확정한 뒤 시작. 끌기는 줄 키로 잡고, 끄는 값은 두 벌을 번갈아 쓴다(`PlayerQueuePanel.tsx` `handlers`).
+  - 원인 2 — 패널이 놓은 순서(줄 키)를 들고 있다가 부모 목록에 입혀 그린다(`pendingOrder` · `applyKeyOrder`). 끌기 표시는 **그 끌기가 시작된 순서로 그릴 때만** 입힌다 — 탐색 맥락처럼 새 순서가 끌기 해제보다 먼저 렌더돼도 그 렌더는 이미 "놓인" 모습이다. 새 끌기가 한 칸이라도 넘어가기 전에는 비켜 주기를 애니메이션 값이 아니라 숫자로 그린다(앞 끌기를 확정하며 시작한 렌더에서 옛 이동량이 한 프레임 남지 않게).
+  - 원인 3 — 스와이프 삭제로 줄이 빠져나가기 시작해 걷힐 때까지(`onCollapseChange`) 손잡이 잡기를 받지 않는다.
+  - 원인 4 — 라이브러리 맥락 확정 때 `queryClient.cancelQueries({ queryKey: queueKeys.all })` 를 먼저 부른다(`useQueueOrder.reorder`). 이어서 캐시를 렌더 시점 목록이 아니라 지금 캐시에 키로 입힌다.
+  - 원인 5 — 맨 위에 세운 줄은 손잡이를 감추고, 다른 줄도 그 칸 위로는 못 간다(`pinnedContentId` · `minDragIndexOf`, 낭독기 위로 이동 포함). 부모가 옮기지 못하면(`onReorder` false) 0.6초 기다리지 않고 바로 부모 순서로 돌아간다.
+  - 문서: `features/player.md` 4.7-1 · `spec/uiux/player-uiux.md` 4.6-1 "순서 변경".
+  - 테스트: `services/queue-order.test.ts`(`reorderSubset` — 숨긴 줄 제자리·세운 줄 건너뜀·연달아 확정) · `services/queue-drag.test.ts`(키 순서 입히기·맨 위 칸·칸 계산) · `services/queue-context.test.ts`(`withSnapshotOrder`).
+  - 완료 조건 다섯 개는 손 조작(빠른 20회 반복·튐 프레임·접히는 중 끌기·세운 줄)이라 **기기 확인 대기** — 탐색·라이브러리 맥락 각각.
