@@ -3093,8 +3093,9 @@ const styles = StyleSheet.create({
     minHeight: theme.touchTarget.minHeight,
     alignItems: 'center',
     justifyContent: 'center',
-    // 막대(4pt)와 "재생 목록" 사이 — 4 는 붙어 보였다(PM 2026-10-07). 내용이 44 안에 들어가 손잡이 높이는 그대로다
-    gap: theme.spacing.sm,
+    // 막대(4pt)와 "재생 목록" 사이 — 4 는 붙어 보였고(PM 2026-10-07) 8 도 좁았다(PM 2026-10-23 "거리 조금만 더") → 12.
+    // 내용(4 + 12 + 글자 줄 + 아래 8)이 44 안에 들어가 손잡이 높이는 그대로다
+    gap: theme.spacing.sm + theme.spacing.xs,
     paddingBottom: theme.spacing.sm,
   },
   // 손잡이 막대·글자 — 흐린 커버 바탕에서 불투명 회색(border · textSecondary)이 묻혀 반투명 흰색으로(PM 2026-10-23)
