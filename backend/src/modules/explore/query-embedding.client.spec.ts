@@ -13,6 +13,7 @@ import {
   QUERY_EMBEDDING_CACHE_MAX_ENTRIES,
   QUERY_EMBEDDING_CACHE_TTL_MS,
   QUERY_EMBEDDING_FAILURE_COOLDOWN_MS,
+  QUERY_EMBEDDING_TIMEOUT_STREAK,
 } from './explore.constant';
 import { QueryEmbeddingClient } from './query-embedding.client';
 
@@ -226,34 +227,58 @@ describe('QueryEmbeddingClient', () => {
     },
   );
 
-  it('예산(400ms)을 넘기면 끊고 null이다 — 그 뒤 쉬는 동안은 부르지 않는다', async () => {
-    // given — 응답을 1초 늦춘다
-    reply = (_req, res) => {
-      const timer = setTimeout(() => {
-        if (!res.destroyed)
-          ok({ model: EMBEDDING_MODEL_ID, dim: EMBEDDING_DIM, vector: VECTOR })(
-            _req,
-            res,
-          );
-      }, 1_000);
-      res.on('close', () => clearTimeout(timer));
-    };
+  const slowReply = (): Reply => (_req, res) => {
+    const timer = setTimeout(() => {
+      if (!res.destroyed)
+        ok({ model: EMBEDDING_MODEL_ID, dim: EMBEDDING_DIM, vector: VECTOR })(
+          _req,
+          res,
+        );
+    }, 2_000);
+    res.on('close', () => clearTimeout(timer));
+  };
+
+  it('예산(800ms)을 넘기면 끊고 null이다 — 한 번 늦은 것으로는 쉬지 않고 다음 검색은 다시 부른다', async () => {
+    // given — 응답을 2초 늦춘다
+    reply = slowReply();
     const embedder = client();
     const startedAt = Date.now();
 
     // when
     const vector = await embedder.embed('이직', startedAt);
     const elapsed = Date.now() - startedAt;
-    const duringCooldown = await embedder.embed('면접', startedAt + 1_000);
+    reply = ok({
+      model: EMBEDDING_MODEL_ID,
+      dim: EMBEDDING_DIM,
+      vector: VECTOR,
+    });
+    const next = await embedder.embed('면접', startedAt + 1_000);
 
     // then
     expect(vector).toBeNull();
-    expect(elapsed).toBeLessThan(900);
+    expect(elapsed).toBeLessThan(1_500);
     expect(warn).toHaveBeenCalledWith('query embedding unavailable', {
       reason: 'timeout',
     });
+    expect(next).toEqual(VECTOR);
+    expect(calls).toHaveLength(2);
+  }, 10_000);
+
+  it(`타임아웃이 ${QUERY_EMBEDDING_TIMEOUT_STREAK}번 연달아 나면 쉬는 동안 부르지 않고, 쉬는 시간이 지나면 다시 부른다`, async () => {
+    // given
+    reply = slowReply();
+    const embedder = client();
+    const startedAt = Date.now();
+
+    // when — 연달아 늦는다
+    for (let i = 0; i < QUERY_EMBEDDING_TIMEOUT_STREAK; i++) {
+      await embedder.embed(`질의${i}`, startedAt + i);
+    }
+    const duringCooldown = await embedder.embed('면접', startedAt + 1_000);
+
+    // then
     expect(duringCooldown).toBeNull();
-    expect(calls).toHaveLength(1);
+    expect(calls).toHaveLength(QUERY_EMBEDDING_TIMEOUT_STREAK);
 
     // when — 쉬는 시간이 지나면 다시 부른다
     reply = ok({
@@ -263,11 +288,62 @@ describe('QueryEmbeddingClient', () => {
     });
     const after = await embedder.embed(
       '면접',
-      startedAt + QUERY_EMBEDDING_FAILURE_COOLDOWN_MS + 1,
+      startedAt +
+        QUERY_EMBEDDING_TIMEOUT_STREAK +
+        QUERY_EMBEDDING_FAILURE_COOLDOWN_MS,
     );
 
     // then
     expect(after).toEqual(VECTOR);
+  }, 15_000);
+
+  it('중간에 한 번 응답이 오면 연속 횟수가 처음부터 다시 센다', async () => {
+    // given
+    const embedder = client();
+    const startedAt = Date.now();
+
+    // when — 늦음 → 정상 → 늦음 × (연속 기준 - 1)
+    reply = slowReply();
+    await embedder.embed('a', startedAt);
+    reply = ok({
+      model: EMBEDDING_MODEL_ID,
+      dim: EMBEDDING_DIM,
+      vector: VECTOR,
+    });
+    await embedder.embed('b', startedAt + 1);
+    reply = slowReply();
+    for (let i = 0; i < QUERY_EMBEDDING_TIMEOUT_STREAK - 1; i++) {
+      await embedder.embed(`c${i}`, startedAt + 2 + i);
+    }
+    reply = ok({
+      model: EMBEDDING_MODEL_ID,
+      dim: EMBEDDING_DIM,
+      vector: VECTOR,
+    });
+    const after = await embedder.embed('d', startedAt + 100);
+
+    // then — 쉬지 않았다
+    expect(after).toEqual(VECTOR);
+  }, 15_000);
+
+  it('연결 오류는 한 번으로 쉰다(서버 다운·보안 그룹)', async () => {
+    // given — 아무도 듣지 않는 포트
+    const down = new QueryEmbeddingClient(
+      configWith({
+        AI_SERVER_URL: 'http://127.0.0.1:1',
+        AI_SERVER_INTERNAL_TOKEN: TOKEN,
+      }),
+    );
+    const startedAt = Date.now();
+    await down.embed('이직', startedAt);
+    warn.mockClear();
+
+    // when
+    const during = await down.embed('면접', startedAt + 1_000);
+
+    // then — 부르지 않았으니 경고도 없다
+    expect(during).toBeNull();
+    expect(warn).not.toHaveBeenCalled();
   });
 
   it('연결이 거부되면(서버 다운) null이다', async () => {
