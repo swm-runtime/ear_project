@@ -89,11 +89,10 @@ export class LibraryService {
       );
     }
 
-    // 담기 전에 끝까지 들은 편은 `completed`로 들어간다(KAN-248 — 완청은 라이브러리와 무관하다)
-    await this.libraryItemRepository.completeReachedByProgress(
+    // 담기 전에 들은 편은 들은 만큼의 상태로 들어간다(KAN-248 — 완청·진행은 라이브러리와 무관하다)
+    await this.libraryItemRepository.syncStatusWithProgress(
       userId,
       contentIds,
-      now,
       COMPLETION_REACHED_RATIO,
       manager,
     );
@@ -164,7 +163,7 @@ export class LibraryService {
 
       const found = this.assertFound(item);
       if (created) {
-        await this.completeIfAlreadyReached(found, now, manager);
+        await this.syncWithProgress(found, manager);
       }
 
       return { item: found, created, reactivated: false };
@@ -200,38 +199,46 @@ export class LibraryService {
     existing.deletedAt = null;
     existing.addedAt = now;
     existing.source = LibraryItemSource.SAVE;
-    await this.completeIfAlreadyReached(existing, now, manager);
+    await this.syncWithProgress(existing, manager);
 
     return { item: existing, created: false, reactivated: true };
   }
 
   /**
-   * 담기 전에 이미 완청한 편이면 `completed`로 맞춘다(KAN-248). 탐색 재생은 행을 만들지 않으므로(`explore.md` 4.4)
-   * 끝까지 들은 뒤 담는 것이 평소 경로다 — 그대로 두면 담긴 편이 "안 들음"으로 보인다. 지웠다 다시 담은 행도 같다 —
-   * 지워진 동안의 완청은 행에 반영되지 않는다(재생 위치 저장은 살아 있는 행만 본다).
+   * 행의 상태를 재생 위치에 맞춘다(KAN-248 — `syncStatusWithProgress`). 탐색 재생은 행을 만들지 않으므로(`explore.md` 4.4)
+   * 듣고 나서 담는 것이 평소 경로다 — 그대로 두면 끝까지 들은 편이 "안 들음", 듣던 편이 진행 바 없이 보인다. 지웠다 되살린·
+   * 복구한 행도 같다 — 지워진 동안의 재생은 행에 반영되지 않는다(재생 위치 저장은 살아 있는 행만 본다).
    */
-  private async completeIfAlreadyReached(
+  private async syncWithProgress(
     item: LibraryItem,
-    now: Date,
     manager?: EntityManager,
   ): Promise<void> {
     if (item.status === LibraryItemStatus.COMPLETED) {
       return;
     }
 
-    const completed =
-      await this.libraryItemRepository.completeReachedByProgress(
-        item.userId,
-        [item.contentId],
-        now,
-        COMPLETION_REACHED_RATIO,
-        manager,
-      );
+    const [synced] = await this.libraryItemRepository.syncStatusWithProgress(
+      item.userId,
+      [item.contentId],
+      COMPLETION_REACHED_RATIO,
+      manager,
+    );
 
-    if (completed.length > 0) {
-      item.status = LibraryItemStatus.COMPLETED;
-      item.completedAt = now;
+    if (synced) {
+      item.status = synced.status;
+      item.completedAt = synced.completedAt;
+      item.lastPlayedAt = synced.lastPlayedAt;
     }
+  }
+
+  /** 전 사용자의 살아 있는 행을 재생 위치에 맞춘다 — 1회성 정리 스크립트(`sync-library-status`) 전용 */
+  async syncAllStatusWithProgress(
+    dryRun: boolean,
+  ): Promise<{ toCompleted: number; toInProgress: number }> {
+    return this.libraryItemRepository.syncAllStatusWithProgress(
+      COMPLETION_REACHED_RATIO,
+      dryRun,
+    );
   }
 
   /**
@@ -803,6 +810,8 @@ export class LibraryService {
 
     await this.libraryItemRepository.restoreById(item.id, manager);
     item.deletedAt = null;
+    // 지워진 사이에 들었으면 그만큼의 상태로 돌아온다(KAN-248)
+    await this.syncWithProgress(item, manager);
 
     return item;
   }

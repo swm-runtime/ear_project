@@ -30,6 +30,7 @@
     "seed:mock": "node -r ts-node/register/transpile-only -r tsconfig-paths/register src/database/seeds/seed-mock-onboarding.ts",
     "drip:scenarios": "node -r ts-node/register/transpile-only -r tsconfig-paths/register src/database/seeds/drip-scenarios.ts",
     "thumbnails:reprocess": "node -r ts-node/register/transpile-only -r tsconfig-paths/register src/scripts/reprocess-thumbnails.ts",
+    "library:sync-status": "ts-node -r tsconfig-paths/register src/scripts/sync-library-status.ts",
     "embeddings:backfill-titles": "node -r ts-node/register/transpile-only -r tsconfig-paths/register src/scripts/backfill-title-embeddings.ts"
   },
   "dependencies": {

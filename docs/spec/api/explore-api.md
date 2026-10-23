@@ -436,7 +436,7 @@
    - **행이 없으면**: `source = save`, `status = unplayed`, `added_at = now()`로 생성 → 201
    - **살아 있는 행이 있으면**: **아무것도 바꾸지 않고** 현재 상태를 반환 → 200. `added_at`을 갱신하지 않는다 — 이미 담긴 것을 다시 담아도 목록 순서가 바뀌면 안 된다
    - **삭제된 행(`deleted_at IS NOT NULL`)이 있으면**: `deleted_at = null`, `added_at = now()`, `source = save`로 재활성 → 200. 재담기는 새 담기 조작이므로 적립 시각을 새로 찍는다(삭제 실행 취소의 복구와 다르다 — 그쪽은 `added_at` 유지, `library-api.md` 4.7)
-   - **이미 완청한 편이면**(새로 만들거나 되살린 행 — `playback_progresses.max_reached_sec` ≥ 길이 × 90%, 길이 > 0) `status = completed`, `completed_at = now()`로 넣는다(2026-10-23 — KAN-248). 탐색 재생이 행을 만들지 않아 끝까지 들은 뒤 담는 것이 평소 경로이고, 그대로 두면 담긴 편이 "안 들음"으로 보인다. 행이 없던 때의 완청 시각은 남지 않으므로 담은 시각을 쓴다. 완청 신호는 완청 때 이미 남았으므로(`player-api.md` 4.3) 더 쌓지 않는다. 드립·온보딩 적립(`addItems`)도 같다
+   - **이미 들은 편이면 들은 만큼의 상태로 넣는다**(새로 만들거나 되살린 행 — 2026-10-23, KAN-248). 최대 도달 ≥ 길이 × 90%(길이 > 0)면 `status = completed`·`completed_at` = 위치 갱신 시각, 그 밖에 위치 > 0이면 `in_progress`(진행 바). `last_played_at`이 비면 위치 갱신 시각. 탐색 재생이 행을 만들지 않아(`explore.md` 4.4) 듣고 나서 담는 것이 평소 경로다. 완청 신호는 완청 때 이미 남았으므로(`player-api.md` 4.3) 더 쌓지 않는다. 드립·온보딩 적립(`addItems`)·삭제 실행 취소(`library-api.md` 4.7)·시리즈째 담기·복구도 같다
 3. `reason = user_save`이고 **2번에서 라이브러리 상태가 실제로 바뀐 경우에만** `user_signals`에 `action = 'save'` 적재(`explore.md` 4.3 확정 — FR-15, `domain.md` 6.4)
 
 **2번의 세 갈래와 신호 적재 여부**

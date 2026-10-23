@@ -93,7 +93,7 @@ describe('LibraryService', () => {
       findPositionedIdsByUserIdExcluding: jest.fn().mockResolvedValue([]),
       findUnpositionedIdsByUserIdExcluding: jest.fn().mockResolvedValue([]),
       updateQueuePositions: jest.fn().mockResolvedValue(undefined),
-      completeReachedByProgress: jest.fn().mockResolvedValue([]),
+      syncStatusWithProgress: jest.fn().mockResolvedValue([]),
     } as unknown as jest.Mocked<LibraryItemRepository>;
 
     service = new LibraryService(repository);
@@ -400,7 +400,9 @@ describe('LibraryService', () => {
   });
 
   describe('save', () => {
-    describe('이미 완청한 편 담기(KAN-248)', () => {
+    describe('들은 편 담기 — 재생 위치에 맞춘 상태(KAN-248)', () => {
+      const PLAYED_AT = new Date('2026-08-05T08:00:00.000Z');
+
       it('담기 전에 끝까지 들은 편은 새 행이 completed로 들어간다', async () => {
         // given
         repository.findByUserIdAndContentIdWithDeleted
@@ -411,21 +413,28 @@ describe('LibraryService', () => {
               status: LibraryItemStatus.UNPLAYED,
             }),
           );
-        repository.completeReachedByProgress.mockResolvedValue([CONTENT_ID]);
+        repository.syncStatusWithProgress.mockResolvedValue([
+          {
+            contentId: CONTENT_ID,
+            status: LibraryItemStatus.COMPLETED,
+            completedAt: PLAYED_AT,
+            lastPlayedAt: PLAYED_AT,
+          },
+        ]);
 
         // when
         const result = await service.save(USER_ID, CONTENT_ID, NOW);
 
         // then
-        expect(repository.completeReachedByProgress).toHaveBeenCalledWith(
+        expect(repository.syncStatusWithProgress).toHaveBeenCalledWith(
           USER_ID,
           [CONTENT_ID],
-          NOW,
           0.9,
           undefined,
         );
         expect(result.item.status).toBe(LibraryItemStatus.COMPLETED);
-        expect(result.item.completedAt).toBe(NOW);
+        expect(result.item.completedAt).toBe(PLAYED_AT);
+        expect(result.item.lastPlayedAt).toBe(PLAYED_AT);
       });
 
       it('지웠다 다시 담은 편도 그 사이 완청했으면 completed로 맞춘다', async () => {
@@ -436,7 +445,14 @@ describe('LibraryService', () => {
             deletedAt: new Date('2026-08-04T00:00:00.000Z'),
           }),
         );
-        repository.completeReachedByProgress.mockResolvedValue([CONTENT_ID]);
+        repository.syncStatusWithProgress.mockResolvedValue([
+          {
+            contentId: CONTENT_ID,
+            status: LibraryItemStatus.COMPLETED,
+            completedAt: PLAYED_AT,
+            lastPlayedAt: PLAYED_AT,
+          },
+        ]);
 
         // when
         const result = await service.save(USER_ID, CONTENT_ID, NOW);
@@ -446,7 +462,31 @@ describe('LibraryService', () => {
         expect(result.item.status).toBe(LibraryItemStatus.COMPLETED);
       });
 
-      it('기준에 못 미친 편은 상태를 그대로 둔다', async () => {
+      it('듣다 만 편은 in_progress로 들어간다 — 진행 바가 보인다', async () => {
+        // given
+        repository.findByUserIdAndContentIdWithDeleted
+          .mockResolvedValueOnce(null)
+          .mockResolvedValueOnce(
+            buildItem({ status: LibraryItemStatus.UNPLAYED }),
+          );
+        repository.syncStatusWithProgress.mockResolvedValue([
+          {
+            contentId: CONTENT_ID,
+            status: LibraryItemStatus.IN_PROGRESS,
+            completedAt: null,
+            lastPlayedAt: PLAYED_AT,
+          },
+        ]);
+
+        // when
+        const result = await service.save(USER_ID, CONTENT_ID, NOW);
+
+        // then
+        expect(result.item.status).toBe(LibraryItemStatus.IN_PROGRESS);
+        expect(result.item.lastPlayedAt).toBe(PLAYED_AT);
+      });
+
+      it('들은 적 없는 편은 상태를 그대로 둔다', async () => {
         // given
         repository.findByUserIdAndContentIdWithDeleted
           .mockResolvedValueOnce(null)
@@ -471,7 +511,7 @@ describe('LibraryService', () => {
         await service.save(USER_ID, CONTENT_ID, NOW);
 
         // then
-        expect(repository.completeReachedByProgress).not.toHaveBeenCalled();
+        expect(repository.syncStatusWithProgress).not.toHaveBeenCalled();
       });
     });
 
