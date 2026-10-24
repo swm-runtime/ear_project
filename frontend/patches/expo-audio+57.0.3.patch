@@ -106,6 +106,25 @@ index d265606..77d5d7f 100644
      OnDestroy {
        registry.removeAllPreloadedPlayers()
        registry.removeAll()
+diff --git a/node_modules/expo-audio/ios/AudioPlayer.swift b/node_modules/expo-audio/ios/AudioPlayer.swift
+index 0742943..d524074 100644
+--- a/node_modules/expo-audio/ios/AudioPlayer.swift
++++ b/node_modules/expo-audio/ios/AudioPlayer.swift
+@@ -69,10 +69,10 @@ public class AudioPlayer: SharedRef<AVPlayer>, Playable {
+   }
+ 
+   var currentOffsetFromLive: Double? {
+-    guard let currentDate = ref.currentItem?.currentDate() else {
+-      return nil
+-    }
+-    return Date().timeIntervalSince1970 - currentDate.timeIntervalSince1970
++    // ear: 늘 nil 이다(라이브 스트림이 없다 — 앱이 이 값을 읽지 않는다). 원본은 `currentItem?.currentDate()` 를 불렀는데, 이건
++    // 미디어 서버에 동기 XPC 로 묻는 호출이라 0.5초 상태 틱(메인 스레드)이 시크 중인 무손실(정밀 타이밍) 항목에서 부르면 응답이 올
++    // 때까지 메인 스레드가 굳었다(Sentry EAR-APP-E App Hanging, 2026-10-24 — 10초 넘기기 연타로 화면 멈춤)
++    return nil
+   }
+ 
+   init(_ ref: AVPlayer, interval: Double, source: AudioSource? = nil) {
 diff --git a/node_modules/expo-audio/ios/AudioUtils.swift b/node_modules/expo-audio/ios/AudioUtils.swift
 index 79c7c0b..6bded63 100644
 --- a/node_modules/expo-audio/ios/AudioUtils.swift
