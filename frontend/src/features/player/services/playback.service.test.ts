@@ -26,6 +26,7 @@ interface FakePlayer {
   setActiveForLockScreen: jest.Mock<() => void>;
   clearLockScreenControls: jest.Mock<() => void>;
   remove: jest.Mock<() => void>;
+  release: jest.Mock<() => void>;
   addListener: (event: string, listener: StatusListener) => { remove: () => void };
   emit: StatusListener;
   currentTime: number;
@@ -68,6 +69,7 @@ const mockCreatePlayer = (source: { uri: string }): FakePlayer => {
     setActiveForLockScreen: jest.fn(),
     clearLockScreenControls: jest.fn(),
     remove: jest.fn(),
+    release: jest.fn(),
     addListener: (_event, next) => {
       listener = next;
       return { remove: () => undefined };
@@ -183,6 +185,35 @@ afterEach(() => {
   // 싱글턴이다 — 다음 테스트가 앞 세션의 플레이어·타이머를 물려받지 않게 내린다
   playbackService.clearSession();
   jest.useRealTimers();
+});
+
+describe('플레이어 정리', () => {
+  it('세션을 내리면 네이티브 플레이어를 목록에서 빼는 데 그치지 않고 놓는다', async () => {
+    mockIssue.mockResolvedValue(issueOf('https://example.com/audio'));
+    const player = await startPlaying(playbackService);
+    playbackService.clearSession();
+    expect(player.remove).toHaveBeenCalledTimes(1);
+    expect(player.release).toHaveBeenCalledTimes(1);
+  });
+
+  it('수면 타이머 페이드 중 편이 바뀌면 놓인 플레이어의 음량을 건드리지 않는다', async () => {
+    mockIssue.mockResolvedValue(issueOf('https://example.com/audio'));
+    const player = await startPlaying(playbackService);
+    usePlaybackStore.getState().patchSession({ isPlaying: true });
+    playbackService.fadeOutAndPause(10_000);
+    await jest.advanceTimersByTimeAsync(500);
+    // 페이드가 실제로 돌고 있다
+    expect(player.volume).toBeLessThan(1);
+    playbackService.clearSession();
+    // 놓인 네이티브 객체는 만지면 던진다 — 페이드 타이머가 건드리면 이 테스트가 터진다
+    const volumeAfterTeardown = player.volume;
+    const setVolume = jest.fn(() => {
+      throw new Error('released');
+    });
+    Object.defineProperty(player, 'volume', { set: setVolume, get: () => volumeAfterTeardown });
+    await jest.advanceTimersByTimeAsync(1_000);
+    expect(setVolume).not.toHaveBeenCalled();
+  });
 });
 
 describe('재생 시작 기록 재시도', () => {

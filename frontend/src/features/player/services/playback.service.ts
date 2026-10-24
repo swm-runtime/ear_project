@@ -826,8 +826,13 @@ class PlaybackService {
     const startedAt = Date.now();
     const timer = setInterval(() => {
       const current = store.getState().session;
-      // 도중에 세션이 바뀌었거나 사용자가 직접 멈췄다 — 페이드를 접고 음량만 되돌린다
-      if (this.player !== player || !current || !current.isPlaying) {
+      // 도중에 세션이 바뀌었다 — 그 플레이어는 이미 놓였다(teardown 의 release). 만지면 타이머 안에서 예외가 나 앱이 죽는다
+      if (this.player !== player) {
+        clearInterval(timer);
+        return;
+      }
+      // 사용자가 직접 멈췄다 — 페이드를 접고 음량만 되돌린다
+      if (!current || !current.isPlaying) {
         clearInterval(timer);
         player.volume = startVolume;
         return;
@@ -1255,6 +1260,8 @@ class PlaybackService {
     player.replace({ uri: this.bindStreamSource(ctx.contentId, url) });
     player.setPlaybackRate(store.getState().rate, 'high');
     await player.seekTo(positionSec);
+    // 시크를 기다리는 사이 다른 편으로 넘어갔다 — 이 플레이어는 놓였다. 재생시키면 멈출 수 없는 소리가 겹쳤다(2026-10-24 전수조사)
+    if (this.player !== player) return;
     ctx.tracking = markSeek(ctx.tracking, positionSec);
     if (shouldResume) player.play();
   }
@@ -1394,6 +1401,16 @@ class PlaybackService {
         this.player.remove();
       } catch (error) {
         logger.debug('[player] teardown failed', error);
+      }
+      /*
+       * **네이티브 플레이어를 실제로 놓는다**(2026-10-24 전수조사). `remove()` 는 모듈의 목록에서 빼기만 하고 ExoPlayer·AVPlayer·
+       * 미디어 세션·버퍼는 JS 객체가 GC 될 때까지 남았다 — 자동 재생으로 편을 넘길 때마다 쌓여 Android 힙 바닥이 올라갔다
+       * (복귀 OOM EAR-APP-K 후보). 놓은 객체를 늦게 만지는 곳(페이드·소스 교체)은 `this.player !== player` 로 걸러 둔다
+       */
+      try {
+        this.player.release();
+      } catch (error) {
+        logger.debug('[player] release failed', error);
       }
       this.player = null;
     }
