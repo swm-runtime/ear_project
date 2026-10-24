@@ -320,6 +320,17 @@ const ko = {
             main: `이번 주 ${highlight.count}개 주제`,
             a11y: `이번 주 ${highlight.count}개 주제를 들었어요`,
           };
+        // 요일을 골랐을 때(KAN-268 — PM 2026-10-24 "일 선택했을 때도")
+        case 'dayStreak':
+          return {
+            main: `${highlight.days}일 연속 1위`,
+            a11y: `그날까지 ${highlight.days}일 연속 1위`,
+          };
+        case 'dayTopicCount':
+          return {
+            main: `그날 ${highlight.count}개 주제`,
+            a11y: `그날 ${highlight.count}개 주제를 들었어요`,
+          };
       }
     },
     topicHighlightHint: '탐색에서 이 주제 보기',
@@ -624,6 +635,16 @@ const en: LocalizedCopy<typeof ko> = {
           return {
             main: `${enCount(highlight.count, 'topic', 'topics')} this week`,
             a11y: `You listened to ${enCount(highlight.count, 'topic', 'topics')} this week`,
+          };
+        case 'dayStreak':
+          return {
+            main: `#1 for ${enCount(highlight.days, 'day', 'days')}`,
+            a11y: `Number one for ${enCount(highlight.days, 'day', 'days')} in a row`,
+          };
+        case 'dayTopicCount':
+          return {
+            main: `${enCount(highlight.count, 'topic', 'topics')} that day`,
+            a11y: `You listened to ${enCount(highlight.count, 'topic', 'topics')} that day`,
           };
       }
     },
