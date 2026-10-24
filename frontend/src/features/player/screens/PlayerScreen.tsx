@@ -28,7 +28,6 @@ import { useAnimatedValue } from '@/shared/hooks/useAnimatedValue';
 import { androidNavigationModeOf } from '@/shared/lib/android-navigation';
 import { traceJs } from '@/shared/monitoring/js-trace';
 import {
-  dismissPlayerNatively,
   notePlayerMounted,
   setPlayerZoomDismissBlocked,
   SYSTEM_INTERACTIVE_DISMISS,
@@ -745,7 +744,7 @@ export default function PlayerScreen() {
       // UIKit 이 먼저 닫는다(줌 축소) — 라우트 pop 은 닫힘 완료 뒤 RNS 의 onDismissed 가 한다. JS 가 먼저 pop 하면 RNS 의
       // 스냅샷 교체와 줌 dismiss 가 충돌해 앱이 굳었다(2026-09-27). 네이티브가 못 닫으면 종전대로 goBack
       traceJs('player collapse → native dismiss');
-      void dismissPlayerNatively().then((dismissed) => {
+      void screen.dismissNatively().then((dismissed) => {
         if (dismissed) return;
         traceJs('player collapse → goBack (fallback)');
         screen.collapse();

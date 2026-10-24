@@ -6,6 +6,8 @@ import { Linking } from 'react-native';
 import { track } from '@/shared/analytics';
 import { useDelayedVisible } from '@/shared/hooks/useDelayedVisible';
 import { logger } from '@/shared/lib/logger';
+import { traceJs } from '@/shared/monitoring/js-trace';
+import { dismissPlayerNatively, USE_NATIVE_PLAYER_ZOOM } from '@/shared/navigation/zoom-transition';
 import { useToastStore } from '@/shared/ui/toast.store';
 
 import {
@@ -128,6 +130,40 @@ export const usePlayerScreen = () => {
     isClosingRef.current = true;
     navigation.goBack();
   };
+
+  /*
+   * ── iOS 26 줌 갈래: 플레이어 라우트가 **JS 로 먼저 빠지지 않게** 한다(2026-10-24 전수조사) ──
+   * 줌으로 띄운 모달을 JS 가 먼저 걷으면 RNS 가 화면 뷰를 스냅샷으로 갈아끼우고 UIKit dismiss 가 그 위에서 끝나지 못해 화면 전체
+   * 터치가 죽었다(2026-09-27). 셰브론·끌어내리기는 네이티브 닫기를 먼저 탔지만, 나머지 길 — PL9 [닫기]·한도 403 자동 닫기·세션
+   * 없음 닫기·플레이어 위에서 푸시·탭 이동(toTab) — 은 goBack/navigate 로 바로 걷었다. 라우트가 빠지기 직전(beforeRemove)에 가로채
+   * UIKit 닫기를 먼저 시작하고, 그다음 원래 동작을 보낸다 — dismiss 중인 모달의 JS pop 은 RNS 가 전환 끝까지 기다린다(안전).
+   * 건너뛰는 경우: 이미 네이티브 닫기를 시작했다(그 완료가 보내는 pop 이다) · 플레이어가 맨 위가 아니다(상세가 위에 있으면 네이티브는
+   * 상세를 닫는다) · 플레이어 위에 시트·팝업이 떠 있다(네이티브가 그 RN 모달을 대신 닫아 장부가 어긋난다) — 셋 다 종전대로 걷는다
+   */
+  const isNativeDismissStartedRef = useRef(false);
+  const hasOverlayRef = useRef(false);
+  const hasOverlay =
+    isRateSheetVisible ||
+    isSleepTimerSheetVisible ||
+    isMoreSheetVisible ||
+    playGate.confirmState !== null;
+  useEffect(() => {
+    hasOverlayRef.current = hasOverlay;
+  }, [hasOverlay]);
+  const dismissNatively = (): Promise<boolean> => {
+    isNativeDismissStartedRef.current = true;
+    return dismissPlayerNatively();
+  };
+  useEffect(() => {
+    if (!USE_NATIVE_PLAYER_ZOOM) return undefined;
+    return navigation.addListener('beforeRemove', (event) => {
+      if (isNativeDismissStartedRef.current || hasOverlayRef.current || !navigation.isFocused())
+        return;
+      event.preventDefault();
+      traceJs('player remove → native dismiss first');
+      void dismissNatively().then(() => navigation.dispatch(event.data.action));
+    });
+  }, [navigation]);
   useEffect(() => {
     if (hasSession) {
       hadSessionRef.current = true;
@@ -512,6 +548,8 @@ export const usePlayerScreen = () => {
     seekForward: () => playbackService.seekForward(),
     seekTo: (sec: number) => playbackService.seekTo(sec),
     collapse,
+    /** iOS 26 줌 갈래의 셰브론·끌어내리기 — UIKit 이 먼저 닫는다(위 beforeRemove 주석). 못 닫으면 false */
+    dismissNatively,
     // 원문·배너
     openSourceLink,
     retryLoad: () => playbackService.retryLoad(),
