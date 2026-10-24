@@ -6,6 +6,7 @@ import {
   toDailyListeningHighlights,
   toListeningHighlight,
   toPlanTrial,
+  toTopicHighlight,
 } from './profile.api';
 import type { ProfilePlanDto, ProfileSummaryResponseDto, WeeklyListeningDto } from './profile.dto';
 
@@ -258,5 +259,61 @@ describe('PROFILE_COPY.stats.dayHighlight', () => {
     expect(
       PROFILE_COPY.stats.dayHighlight({ kind: 'listenedContents', count: 2 }, 4, true),
     ).toMatchObject({ lead: '그날', main: '2편 들었어요' });
+  });
+});
+
+describe('profile.api 주제 한 줄 변환(KAN-267)', () => {
+  const week = (extra: Partial<WeeklyListeningDto>): WeeklyListeningDto => ({
+    week_start: '2026-10-19',
+    daily_listened_sec: [600, 0, 0, 0, 0, 0, 0],
+    previous_week_start: null,
+    next_week_start: null,
+    ...extra,
+  });
+
+  it('서버가 고른 네 종류를 그대로 옮긴다', () => {
+    expect(
+      toTopicHighlight(
+        week({ topic_highlight: { kind: 'unexplored_topic', topic_id: 't-1', name: '역사' } }),
+      ),
+    ).toEqual({ kind: 'unexplored', topicId: 't-1', name: '역사' });
+    expect(
+      toTopicHighlight(
+        week({ topic_highlight: { kind: 'peer_top_topic', topic_id: 't-2', name: '경제' } }),
+      ),
+    ).toEqual({ kind: 'peerTop', topicId: 't-2', name: '경제' });
+    expect(
+      toTopicHighlight(week({ topic_highlight: { kind: 'top_topic_streak', weeks: 3 } })),
+    ).toEqual({ kind: 'topStreak', weeks: 3 });
+    expect(toTopicHighlight(week({ topic_highlight: { kind: 'topic_count', count: 4 } }))).toEqual({
+      kind: 'topicCount',
+      count: 4,
+    });
+  });
+
+  it('null · 필드 없는 서버 · 모르는 종류는 그리지 않는다', () => {
+    expect(toTopicHighlight(week({ topic_highlight: null }))).toBeNull();
+    expect(toTopicHighlight(week({}))).toBeNull();
+    const unknownKind = week({
+      topic_highlight: { kind: 'future_kind' } as unknown as WeeklyListeningDto['topic_highlight'],
+    });
+    expect(toTopicHighlight(unknownKind)).toBeNull();
+  });
+});
+
+describe('PROFILE_COPY.stats.topicHighlight', () => {
+  it('옆자리 문구는 짧게, 낭독은 쉼표로 읽는다(profile-uiux.md 4.6)', () => {
+    expect(
+      PROFILE_COPY.stats.topicHighlight({ kind: 'unexplored', topicId: 't', name: '심리학' }),
+    ).toEqual({ main: '안 들어본 주제 · 심리학 ›', a11y: '아직 안 들어본 주제, 심리학' });
+    expect(
+      PROFILE_COPY.stats.topicHighlight({ kind: 'peerTop', topicId: 't', name: '경제' }).main,
+    ).toBe('같은 직군 1위 · 경제');
+    expect(PROFILE_COPY.stats.topicHighlight({ kind: 'topStreak', weeks: 3 }).main).toBe(
+      '3주 연속 1위',
+    );
+    expect(PROFILE_COPY.stats.topicHighlight({ kind: 'topicCount', count: 4 }).main).toBe(
+      '이번 주 4개 주제',
+    );
   });
 });

@@ -7,6 +7,7 @@ import { toPlanGrant } from '@/features/subscription';
 import { IS_PROFILE_API_MOCKED } from '../profile.constants';
 import type {
   DailyListeningHighlight,
+  TopicHighlight,
   ListeningHighlight,
   PlanTrial,
   ProfileSummary,
@@ -93,6 +94,24 @@ export const toDailyListeningHighlights = (
     ? dto.daily_listening_highlight.map(toDailyListeningHighlight)
     : null;
 
+/** 주제 한 줄(KAN-266) — 필드가 없거나(반영 전 서버) 모르는 kind 면 그리지 않는다 */
+export const toTopicHighlight = (dto: WeeklyListeningDto): TopicHighlight | null => {
+  const highlight = dto.topic_highlight;
+  if (highlight == null) return null;
+  switch (highlight.kind) {
+    case 'unexplored_topic':
+      return { kind: 'unexplored', topicId: highlight.topic_id, name: highlight.name };
+    case 'peer_top_topic':
+      return { kind: 'peerTop', topicId: highlight.topic_id, name: highlight.name };
+    case 'top_topic_streak':
+      return { kind: 'topStreak', weeks: highlight.weeks };
+    case 'topic_count':
+      return { kind: 'topicCount', count: highlight.count };
+    default:
+      return null;
+  }
+};
+
 const toWeeklyListening = (dto: WeeklyListeningDto): WeeklyListening => ({
   weekStart: dto.week_start,
   dailyListenedSec: dto.daily_listened_sec,
@@ -101,6 +120,7 @@ const toWeeklyListening = (dto: WeeklyListeningDto): WeeklyListening => ({
   listeningTopPercent: dto.listening_top_percent ?? null,
   listeningHighlight: toListeningHighlight(dto),
   dailyListeningHighlights: toDailyListeningHighlights(dto),
+  topicHighlight: toTopicHighlight(dto),
   ...(dto.topic_distribution
     ? { topicDistribution: toTopicDistribution(dto.topic_distribution) }
     : {}),

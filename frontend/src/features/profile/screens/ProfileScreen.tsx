@@ -187,7 +187,15 @@ export default function ProfileScreen() {
                         );
                       }
                       if (week?.topicDistribution) {
-                        return <TopicDonut distribution={week.topicDistribution} embedded />;
+                        // 주제 한 줄은 고른 주의 분포에서만 — 요일을 골랐을 땐 위 갈래라 숨는다(profile.md 4.7-1)
+                        return (
+                          <TopicDonut
+                            distribution={week.topicDistribution}
+                            embedded
+                            highlight={week.topicHighlight}
+                            onUnexploredPress={screen.openUnexploredTopic}
+                          />
+                        );
                       }
                       return (
                         <TopicDonut

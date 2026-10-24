@@ -115,7 +115,18 @@ export interface WeeklyListeningDto {
    * 들은 편 수)로 하나 또는 null. 반영 전 서버면 없다(요일을 골라도 비워 둔다)
    */
   daily_listening_highlight?: (DailyListeningHighlightDto | null)[] | null;
+  /**
+   * "가장 많이 들은 주제" 옆 한 줄(KAN-266, profile-api.md 4.1 `topic_highlight`) — 이번 주에만, 서버가 하나 고른다.
+   * 지난 주·기록 없음·판정 실패면 null, 반영 전 서버면 없다 → 둘 다 그리지 않는다
+   */
+  topic_highlight?: TopicHighlightDto | null;
 }
+
+export type TopicHighlightDto =
+  | { kind: 'unexplored_topic'; topic_id: string; name: string }
+  | { kind: 'peer_top_topic'; topic_id: string; name: string }
+  | { kind: 'top_topic_streak'; weeks: number }
+  | { kind: 'topic_count'; count: number };
 
 export type DailyListeningHighlightDto =
   | { kind: 'more_than_last_week'; diff_sec: number }

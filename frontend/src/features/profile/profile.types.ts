@@ -105,7 +105,19 @@ export interface WeeklyListening {
   listeningHighlight: ListeningHighlight | null;
   /** 요일별 한 줄(KAN-171) — 월~일 7칸, 칸이 null 이면 그날은 비워 둔다. 반영 전 서버면 null */
   dailyListeningHighlights: (DailyListeningHighlight | null)[] | null;
+  /**
+   * "가장 많이 들은 주제" 옆 한 줄(profile.md 4.7-1, KAN-267) — 서버가 청취 상태로 고른 하나. 이번 주에만 오고 지난 주·
+   * 반영 전 서버는 null → 그리지 않는다
+   */
+  topicHighlight: TopicHighlight | null;
 }
+
+/** 서버가 고른 주제 한 줄 — 안 들어본 주제만 탭할 수 있다(탐색의 그 주제 목록) */
+export type TopicHighlight =
+  | { kind: 'unexplored'; topicId: string; name: string }
+  | { kind: 'peerTop'; topicId: string; name: string }
+  | { kind: 'topStreak'; weeks: number }
+  | { kind: 'topicCount'; count: number };
 
 /** 서버가 고른 주간 한 줄 — 종류 판정은 서버 몫, 앱은 종류대로 문구만 고른다 */
 export type ListeningHighlight =
