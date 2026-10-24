@@ -455,6 +455,12 @@ describe('재생 목록 자동 재생(연속 재생 — player.md 4.2-4)', () =>
     expect(mockIssue.mock.calls.map(([input]) => input.contentId)).toEqual([CONTENT_ID]);
   });
 
+  it('다음 줄이 다 들은 편이어도 건너뛰지 않고 그 편을 튼다(PM 2026-10-24)', async () => {
+    mockAutoplay.enabled = true;
+    await playToEnd([entryOf(CONTENT_ID), entryOf(NEXT_ID, true)]);
+    expect(mockIssue.mock.calls.map(([input]) => input.contentId)).toEqual([CONTENT_ID, NEXT_ID]);
+  });
+
   it('추천도 비었으면 끝난 자리에 멈춘다', async () => {
     mockAutoplay.enabled = true;
     mockBridge.current = { fetchUpNext: jest.fn(async () => []) };

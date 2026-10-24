@@ -103,14 +103,12 @@ describe('자동 재생(연속 재생 — player.md 4.2-4) — 다음 편 고르
     expect(nextAutoplayEntry([entry('a'), entry('b'), entry('c')], 'b')?.contentId).toBe('c');
   });
 
-  it('다 들은 편은 건너뛴다', () => {
+  it('다 들은 편도 건너뛰지 않는다 — 화면의 다음 줄 그대로', () => {
     const done = { ...entry('b'), isCompleted: true };
-    expect(nextAutoplayEntry([entry('a'), done, entry('c')], 'a')?.contentId).toBe('c');
+    expect(nextAutoplayEntry([entry('a'), done, entry('c')], 'a')?.contentId).toBe('b');
   });
 
-  it('뒤에 남은 안 들은 편이 없으면 멈춘다(null)', () => {
-    const done = { ...entry('b'), isCompleted: true };
-    expect(nextAutoplayEntry([entry('a'), done], 'a')).toBeNull();
+  it('마지막 줄이면 null', () => {
     expect(nextAutoplayEntry([entry('a')], 'a')).toBeNull();
   });
 

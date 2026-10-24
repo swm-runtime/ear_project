@@ -118,8 +118,10 @@ export const withPagesItemId = (
 };
 
 /**
- * 자동 재생(연속 재생 — player.md 4.2-4)으로 다음에 틀 편 — 지금 듣는 편 **뒤의 첫 번째 안 들은 편**. 다 들은 편은
- * 건너뛴다(같은 편을 또 틀지 않는다). 지금 듣는 편이 목록에 없거나 뒤에 남은 편이 없으면 null — 거기서 멈춘다
+ * 자동 재생(연속 재생 — player.md 4.2-4)으로 다음에 틀 편 — 지금 듣는 편 **바로 다음 줄**. 다 들은 편도 건너뛰지 않는다
+ * (PM 2026-10-24 "다음 편이 아니라 훨씬 뒤 편으로 넘어가 이상하다" — 종전엔 다 들은 편을 건너뛰어 화면의 다음 줄과 어긋났다.
+ * 유튜브 뮤직처럼 목록 순서 그대로 간다). 다 들은 편은 호출자가 처음부터 튼다. 지금 듣는 편이 목록에 없거나 마지막 줄이면
+ * null — 거기서 추천으로 넘어가거나 멈춘다
  */
 export const nextAutoplayEntry = (
   items: readonly QueueEntry[],
@@ -127,5 +129,5 @@ export const nextAutoplayEntry = (
 ): QueueEntry | null => {
   const index = items.findIndex((item) => item.contentId === currentContentId);
   if (index === -1) return null;
-  return items.slice(index + 1).find((item) => !item.isCompleted) ?? null;
+  return items[index + 1] ?? null;
 };
