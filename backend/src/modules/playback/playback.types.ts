@@ -224,6 +224,18 @@ export interface ContentListenedSecView {
   listenedSec: number;
 }
 
+/**
+ * 여러 사용자를 묶어 집계할 때의 범위 — 프로필 주제 한 줄(`profile.md` 4.7-1)의 "같은 직군 1위"·"안 들어본 주제" 순위.
+ * 시장은 늘 같게 둔다(카탈로그가 시장마다 다르다 — KAN-188 과 같은 이유).
+ */
+export interface ListenerCohortView {
+  market: UserMarket;
+  /** 있으면 `users.job_category`가 같은 사용자만 */
+  jobCategory?: string;
+  /** 있으면 그 사용자를 뺀다 — "다른 사람"의 집계에 나를 섞지 않는다 */
+  excludeUserId?: string;
+}
+
 /** 콘텐츠 × 서비스 날짜별 청취 시간 — 주간 카드의 주·요일별 주제 분포 원천(`profile.md` 4.7) */
 export interface ContentDailyListenedSecView extends ContentListenedSecView {
   /** `YYYY-MM-DD` 서비스 날짜(05시 경계, domain.md 1.2) */
