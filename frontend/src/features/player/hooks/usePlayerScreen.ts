@@ -104,24 +104,36 @@ export const usePlayerScreen = () => {
     [contentId],
   );
 
-  const isActiveSession = session !== null && session.contentId === contentId;
-
   /*
    * ── 이 화면이 보여 주던 편에서 세션이 다른 편으로 넘어가면 화면도 따라간다 — 재생 목록 자동 재생(player.md 4.2-4)은
    * 화면 이동 없이 세션만 바꾼다. 따라가지 않으면 화면의 편(route)과 세션이 어긋나 세션 없음으로 읽혀 화면이 까맣게
-   * 비었다(PM 2026-10-23). 직전 세션이 이 화면의 편이었을 때만 따라간다 — 다른 편을 들고 들어온 진입(딥링크·확대)은
-   * 위 진입 효과가 세션을 이 화면의 편으로 바꾸는 쪽이다 ──
+   * 비었다(PM 2026-10-23). 직전 세션이 이 화면의 편(이거나 이미 따라가던 편)이었을 때만 따라간다 — 다른 편을 들고 들어온
+   * 진입(딥링크·확대)은 아래 진입 효과가 세션을 이 화면의 편으로 바꾸는 쪽이다 ──
+   *
+   * "따라가는 중"은 **렌더 안에서** 정한다(React 의 파생 상태 갱신 — 커밋 전에 다시 그린다). 종전엔 route 를 layout effect 의
+   * setParams 로만 맞춰, 세션이 바뀐 그 렌더 하나는 "세션 없음"이라 화면 트리 전체가 빈 View 로 바뀌었다가 다시 마운트됐다 —
+   * 그때 끌던 시트·시크바·재생 목록 손잡이의 제스처가 끝 신호를 못 받고 중간에 멈췄다(2026-10-24 전수조사)
    */
   const sessionContentId = session?.contentId ?? null;
-  const lastSessionContentIdRef = useRef(sessionContentId);
-  // 그리기 전에 따라간다 — 일반 효과면 어긋난 한 프레임이 빈 화면으로 칠해진다
+  const [sessionSeen, setSessionSeen] = useState({ id: sessionContentId, isFollowing: false });
+  if (sessionSeen.id !== sessionContentId) {
+    setSessionSeen({
+      id: sessionContentId,
+      isFollowing:
+        sessionContentId !== null &&
+        sessionContentId !== contentId &&
+        (sessionSeen.id === contentId || sessionSeen.isFollowing),
+    });
+  }
+  const isFollowingSession = sessionSeen.id === sessionContentId && sessionSeen.isFollowing;
+  const isActiveSession =
+    session !== null && (session.contentId === contentId || isFollowingSession);
+  // route 도 그리기 전에 맞춘다 — 저장·삭제·이탈 판정이 route 의 편을 본다
   useLayoutEffect(() => {
-    const previous = lastSessionContentIdRef.current;
-    lastSessionContentIdRef.current = sessionContentId;
-    if (previous === contentId && sessionContentId !== null && sessionContentId !== contentId) {
+    if (isFollowingSession && sessionContentId !== null && sessionContentId !== contentId) {
       navigation.setParams({ contentId: sessionContentId } as never);
     }
-  }, [sessionContentId, contentId, navigation]);
+  }, [isFollowingSession, sessionContentId, contentId, navigation]);
 
   /*
    * ── 세션 없음의 출구(KAN-257) — 열린 플레이어에서 세션이 사라지면 화면을 닫는다. 종전엔 "세션 정리 직후의 한 프레임"만
