@@ -302,6 +302,8 @@ interface QueueRowProps {
   onDragStart: (key: string) => void;
   onDragMove: (key: string, dy: number) => void;
   onDragEnd: (key: string) => void;
+  /** 끄는 도중 이 줄이 걷혔다(아래 QueueRowBase 언마운트) — 순서를 확정하지 않고 끌기만 푼다 */
+  onDragCancel?: (key: string) => void;
   onNudge: (key: string, direction: -1 | 1) => void;
   /** 삭제로 줄이 빠져나가기 시작했다(true)·걷혔다(false) — 그동안 패널은 끌기를 받지 않는다(KAN-254 원인 3) */
   onCollapseChange?: (key: string, isCollapsing: boolean) => void;
@@ -329,6 +331,7 @@ function QueueRowBase({
   onDragStart,
   onDragMove,
   onDragEnd,
+  onDragCancel,
   onNudge,
   onCollapseChange,
 }: QueueRowProps) {
@@ -369,10 +372,19 @@ function QueueRowBase({
   }, [isLifted, lift]);
 
   // 제스처 콜백은 생성 시점 값을 캡처한다 — 최신 값은 ref 로 읽는다
-  const latest = useRef({ key, onDragStart, onDragMove, onDragEnd });
+  const latest = useRef({ key, onDragStart, onDragMove, onDragEnd, onDragCancel });
   useEffect(() => {
-    latest.current = { key, onDragStart, onDragMove, onDragEnd };
+    latest.current = { key, onDragStart, onDragMove, onDragEnd, onDragCancel };
   });
+  /*
+   * 끄는 도중 이 줄이 걷히면 RN 은 release·terminate 를 보내지 않는다(응답자 뷰가 사라졌다) — 패널이 "끄는 중"에 갇혀 목록 스크롤·
+   * 다른 끌기·끌어내리기가 잠겼다(2026-10-24 전수조사). 담기 직후 줄 키가 바뀌거나(content-→optimistic-→실제 id) 재조회로 줄이
+   * 첫 장 밖으로 밀리면 그랬다. 걷히는 줄이 끄던 줄이면 여기서 끌기를 푼다(그 줄의 끌기가 아니면 패널이 무시한다)
+   */
+  useEffect(() => {
+    const ref = latest;
+    return () => ref.current.onDragCancel?.(ref.current.key);
+  }, []);
   const handleResponder = useMemo(
     () =>
       // eslint-disable-next-line react-hooks/refs -- 콜백은 렌더가 아니라 제스처 시점에 실행된다(표준 PanResponder 패턴)
@@ -1148,6 +1160,16 @@ function PlayerQueuePanel({
           if (!isMoved) reconcile(itemKeysRef.current);
         }
       },
+      cancel: (key: string) => {
+        const current = dragRef.current;
+        if (!current || current.key !== key) return;
+        cancelAnimationFrame(scrollState.current.frame);
+        dragRef.current = null;
+        setLiftedKey(null);
+        // 순서는 확정하지 않는다 — 비켜 서 있던 줄들을 지금 그린 목록 순서로 되돌린다
+        deferredReconcileRef.current = false;
+        reconcile(itemKeysRef.current);
+      },
       nudge: (key: string, direction: -1 | 1) => {
         if (dragRef.current !== null) return;
         const order = orderRef.current;
@@ -1480,6 +1502,7 @@ function PlayerQueuePanel({
                     onDragStart={handlers.start}
                     onDragMove={handlers.move}
                     onDragEnd={handlers.end}
+                    onDragCancel={handlers.cancel}
                     onNudge={handlers.nudge}
                     onCollapseChange={onCollapseChange}
                   />
