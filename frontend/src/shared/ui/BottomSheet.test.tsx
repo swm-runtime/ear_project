@@ -144,6 +144,24 @@ describe('BottomSheet — 모달 표시와 모션 시작 순서', () => {
     expect(onHidden).toHaveBeenCalledTimes(1);
   });
 
+  it('닫히는 중에 시트를 건드려도 다시 올라오지 않고 끝까지 닫힌다', () => {
+    measure();
+    show();
+    finish(0);
+    // 딤 Pressable 도 응답자 prop 을 갖는다 — 끌기 capture 를 가진 쪽이 시트다
+    const handlers = () => host('onMoveShouldSetResponderCapture').props;
+    expect((handlers().onStartShouldSetResponder as (e: unknown) => boolean)({})).toBe(true);
+    update(false);
+    // 닫힘 모션(0.24초) 도중의 탭 — 종전엔 응답자를 잡고 놓을 때 되돌림 스프링이 닫힘을 끊어 시트가 굳었다
+    expect((handlers().onStartShouldSetResponder as (e: unknown) => boolean)({})).toBe(false);
+    act(() => (handlers().onResponderRelease as (e: unknown) => void)({}));
+    act(() => (handlers().onResponderTerminate as (e: unknown) => void)({}));
+    expect(animations).toHaveLength(2);
+    expect(animations[1].stop).not.toHaveBeenCalled();
+    finish(1);
+    expect(onHidden).toHaveBeenCalledTimes(1);
+  });
+
   it('표시 준비 전에 닫힌 메뉴는 애니메이션 없이 숨긴다', () => {
     measure();
     update(false);
