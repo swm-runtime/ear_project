@@ -426,7 +426,7 @@ export default function ExploreScreen() {
                   <ExploreFeaturedCard
                     item={item}
                     topicNames={topicNamesOf(item.content.topicIds)}
-                    onPress={screen.handleRowPress}
+                    onPress={(pressed) => screen.handleRowPress(pressed, section)}
                     onMorePress={screen.openMoreSheet}
                     onTagPress={screen.openTagSearch}
                   />
@@ -434,7 +434,7 @@ export default function ExploreScreen() {
               ) : (
                 <ExploreEntryTile
                   entry={item}
-                  onPress={screen.handleRowPress}
+                  onPress={(pressed) => screen.handleRowPress(pressed, section)}
                   onMorePress={screen.openMoreSheet}
                   onSeriesPress={screen.openSeries}
                 />

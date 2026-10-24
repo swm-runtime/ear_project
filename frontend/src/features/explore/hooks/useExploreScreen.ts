@@ -43,6 +43,7 @@ import type {
   ExploreLibraryState,
   ExplorePeriod,
   ExplorePopularPage,
+  ExploreSection,
   ExploreSeries,
 } from '../explore.types';
 import { useExploreContentsQuery } from './useExploreContentsQuery';
@@ -463,21 +464,27 @@ export const useExploreScreen = ({
 
   /**
    * 재생 목록 맥락(KAN-241 — player.md 4.2-1) — 이 편이 **어느 목록에서 눌렸는가**를 스냅샷으로 넘긴다. 주제 필터 중이면
-   * 그 격자, 아니면 그 편이 든 첫 섹션(인기는 구간 라벨, 주제 묶음은 주제 이름, 그 밖은 화면 제목 그대로). 같은 편이
-   * 두 섹션에 있으면 앞 섹션으로 본다 — 타일이 자기 섹션을 모르는 대신 재생 시점의 목록에서 찾는다
+   * 그 격자, 아니면 **탭한 타일이 든 섹션**(인기는 구간 라벨, 주제 묶음은 주제 이름, 그 밖은 화면 제목 그대로). 화면이
+   * 섹션을 넘긴다 — 종전엔 그 편이 든 첫 섹션을 찾아, 같은 편이 앞의 인기 섹션에도 있으면 "IT·개발" 줄에서 눌러도
+   * "월간 인기 콘텐츠"가 됐다(PM 2026-10-24). 섹션을 모르는 호출만 첫 섹션으로 찾는다
    */
-  const queueContextOf = (item: ExploreItem): PlayQueueContext | undefined => {
+  const queueContextOf = (
+    item: ExploreItem,
+    tappedSection?: ExploreSection,
+  ): PlayQueueContext | undefined => {
     if (isFiltered) {
       const names = selectedTopicIds
         .map((id) => topicsQuery.data?.find((topic) => topic.id === id)?.name)
         .filter((name): name is string => Boolean(name));
       return toQueueSnapshot(filteredItems, { type: 'topic', name: names.join(' · ') });
     }
-    const section = sections.find((candidate) =>
-      candidate.items.some(
-        (entry) => entry.type === 'content' && entry.content.id === item.content.id,
-      ),
-    );
+    const section =
+      tappedSection ??
+      sections.find((candidate) =>
+        candidate.items.some(
+          (entry) => entry.type === 'content' && entry.content.id === item.content.id,
+        ),
+      );
     if (!section) return undefined;
     const source: QueueSourceLabel =
       section.period !== null
@@ -489,7 +496,8 @@ export const useExploreScreen = ({
   };
 
   /* ── 재생 — 행 본문 탭은 곧장 재생 판정이다(explore-uiux.md 4.1) ── */
-  const handleRowPress = (item: ExploreItem) => {
+  /** `section` — 피드 섹션의 타일이면 그 섹션(재생 목록 출처·순서가 된다). 격자·섹션 밖이면 비운다 */
+  const handleRowPress = (item: ExploreItem, section?: ExploreSection) => {
     playGate.requestPlay(
       {
         contentId: item.content.id,
@@ -504,7 +512,7 @@ export const useExploreScreen = ({
           topicIds: item.content.topicIds,
         },
         onWithdrawn: () => hideRow(item.content.id),
-        queue: queueContextOf(item),
+        queue: queueContextOf(item, section),
       },
       'explore',
     );
