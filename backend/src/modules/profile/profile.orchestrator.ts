@@ -29,6 +29,7 @@ import { UserMarket } from '@/modules/user/user.enum';
 
 import {
   PEER_TOP_TOPIC_MIN_LISTENERS,
+  TOP_TOPIC_DAY_STREAK_MIN_DAYS,
   TOP_TOPIC_LIMIT,
   TOP_TOPIC_STREAK_LOOKBACK_WEEKS,
   TOP_TOPIC_STREAK_MIN_WEEKS,
@@ -43,6 +44,7 @@ import {
   calculateListeningTopPercent,
   calculateStreakDays,
   countDailyListenedContents,
+  countTopTopicDayStreak,
   countTopTopicStreak,
   isTopicConcentrated,
   pickDailyListeningHighlights,
@@ -51,6 +53,7 @@ import {
   rankTopicsByListenedSec,
 } from './profile.stats';
 import {
+  DailyTopicHighlightView,
   ProfileCareerView,
   ProfileStatsSummaryView,
   ProfileSummaryResult,
@@ -288,23 +291,29 @@ export class ProfileOrchestrator {
     );
 
     // 이번 주에만 — 부가 한 줄이라 실패해도 주간 카드를 막지 않는다(`profile.md` 4.7-1)
-    const topicHighlight =
+    const noTopicHighlights = {
+      weekly: null,
+      daily: Array<DailyTopicHighlightView | null>(
+        WEEKLY_LISTENING_DAY_COUNT,
+      ).fill(null),
+    };
+    const topicHighlights =
       weekStart === currentWeekStart
-        ? await this.buildTopicHighlight(
+        ? await this.buildTopicHighlights(
             user,
             now,
             weekStart,
+            weekDates,
             listenedByContentAndDate,
-            topicDistributions.topicViews,
-            topicDistributions.weekly,
+            topicDistributions,
           ).catch((error: unknown) => {
             this.logger.warn('profile topic highlight failed', {
               user_id: user.id,
               reason: error instanceof Error ? error.message : 'unknown',
             });
-            return null;
+            return noTopicHighlights;
           })
-        : null;
+        : noTopicHighlights;
 
     return {
       weekStart,
@@ -312,7 +321,8 @@ export class ProfileOrchestrator {
       listeningTopPercent,
       listeningHighlight,
       dailyListeningHighlight,
-      topicHighlight,
+      topicHighlight: topicHighlights.weekly,
+      dailyTopicHighlight: topicHighlights.daily,
       topicDistribution: topicDistributions.weekly,
       dailyTopicDistribution: topicDistributions.daily,
       // 가입 주보다 앞이면 이전 주가 없다 — 가입 전 주는 조회할 것도 없다
@@ -320,6 +330,130 @@ export class ProfileOrchestrator {
       // 이번 주를 넘어가는 주는 존재하지 않는다
       nextWeekStart: nextWeekStart > currentWeekStart ? null : nextWeekStart,
     };
+  }
+
+  /**
+   * 주간 한 줄과 요일별 한 줄을 함께 만든다. 안 들어본 주제·같은 직군 1위는 **한 번만** 조회해 주간·요일이 나눠 쓴다
+   * (필요해질 때 처음 조회한다 — 앞 순위에서 정해지면 조회하지 않는다).
+   */
+  private async buildTopicHighlights(
+    user: User,
+    now: Date,
+    weekStart: string,
+    weekDates: string[],
+    listenedByContentAndDate: ContentDailyListenedSecView[],
+    distributions: {
+      weekly: TopicDistributionView;
+      daily: TopicDistributionView[];
+      topicViews: ContentTopicView[];
+    },
+  ): Promise<{
+    weekly: TopicHighlightView | null;
+    daily: (DailyTopicHighlightView | null)[];
+  }> {
+    const today = toServiceDate(now);
+    const windowDates = Array.from(
+      { length: TOPIC_HIGHLIGHT_WINDOW_DAYS },
+      (_, index) =>
+        shiftServiceDate(today, index - (TOPIC_HIGHLIGHT_WINDOW_DAYS - 1)),
+    );
+    const lookups: TopicHighlightLookups = {
+      unexplored: once(() => this.findUnexploredTopic(user, windowDates)),
+      peerTop: once(() => this.findPeerTopTopic(user, windowDates)),
+    };
+
+    const weekly = await this.buildTopicHighlight(
+      user,
+      weekStart,
+      listenedByContentAndDate,
+      distributions.topicViews,
+      distributions.weekly,
+      lookups,
+    );
+    const daily = await this.buildDailyTopicHighlights(
+      weekDates,
+      listenedByContentAndDate,
+      distributions.topicViews,
+      distributions.daily,
+      lookups,
+    );
+
+    return { weekly, daily };
+  }
+
+  /**
+   * 요일별 주제 한 줄 — 그날 분포로 주간과 같은 순서를 밟는다. 연속은 "N일 연속 1위"(그 주 안), 주제 수는 그날 것이다.
+   *
+   * 1. 그날 쏠렸으면 → 안 들어본 주제(주간과 같은 값)
+   * 2. 같은 직군 1위가 그날 1위와 다르면 → 같은 직군 1위(주간과 같은 값)
+   * 3. 그날 1위가 2일 이상 연속 1위면 → N일 연속 1위
+   * 4. 그날 들은 주제가 2개 이상이면 → 그날 N개 주제
+   * 5. 그래도 없으면(1에서 안 봤을 때만) → 안 들어본 주제, 없으면 `null`
+   */
+  private async buildDailyTopicHighlights(
+    weekDates: string[],
+    listenedByContentAndDate: ContentDailyListenedSecView[],
+    weekTopicViews: ContentTopicView[],
+    dailyDistributions: TopicDistributionView[],
+    lookups: TopicHighlightLookups,
+  ): Promise<(DailyTopicHighlightView | null)[]> {
+    const dailyTopTopicIds = dailyDistributions.map(
+      (distribution) => distribution.topics[0]?.topicId ?? null,
+    );
+    const result: (DailyTopicHighlightView | null)[] = [];
+
+    for (const [dayIndex, date] of weekDates.entries()) {
+      const dayTop = dailyDistributions[dayIndex]?.topics[0];
+      if (dayTop === undefined) {
+        result.push(null);
+        continue;
+      }
+      const topicCount = rankTopicsByListenedSec(
+        listenedByContentAndDate.filter((row) => row.playDate === date),
+        weekTopicViews,
+      ).length;
+      const concentrated = isTopicConcentrated(
+        dailyDistributions[dayIndex],
+        topicCount,
+      );
+
+      result.push(
+        await pickHighlightInOrder<DailyTopicHighlightView>([
+          async () => {
+            if (!concentrated) return null;
+            const unexplored = await lookups.unexplored();
+            return unexplored && { kind: 'unexplored_topic', ...unexplored };
+          },
+          async () => {
+            const peerTop = await lookups.peerTop();
+            return peerTop && peerTop.topicId !== dayTop.topicId
+              ? { kind: 'peer_top_topic', ...peerTop }
+              : null;
+          },
+          () => {
+            const days = countTopTopicDayStreak(dailyTopTopicIds, dayIndex);
+            return Promise.resolve(
+              days >= TOP_TOPIC_DAY_STREAK_MIN_DAYS
+                ? { kind: 'top_topic_day_streak', days }
+                : null,
+            );
+          },
+          () =>
+            Promise.resolve(
+              topicCount >= 2
+                ? { kind: 'topic_count', count: topicCount }
+                : null,
+            ),
+          async () => {
+            if (concentrated) return null;
+            const unexplored = await lookups.unexplored();
+            return unexplored && { kind: 'unexplored_topic', ...unexplored };
+          },
+        ]),
+      );
+    }
+
+    return result;
   }
 
   /**
@@ -336,11 +470,11 @@ export class ProfileOrchestrator {
    */
   private async buildTopicHighlight(
     user: User,
-    now: Date,
     weekStart: string,
     listenedByContentAndDate: ContentDailyListenedSecView[],
     weekTopicViews: ContentTopicView[],
     weekly: TopicDistributionView,
+    lookups: TopicHighlightLookups,
   ): Promise<TopicHighlightView | null> {
     const myTop = weekly.topics[0];
     if (myTop === undefined) {
@@ -351,22 +485,16 @@ export class ProfileOrchestrator {
       listenedByContentAndDate,
       weekTopicViews,
     ).length;
-    const today = toServiceDate(now);
-    const windowDates = Array.from(
-      { length: TOPIC_HIGHLIGHT_WINDOW_DAYS },
-      (_, index) =>
-        shiftServiceDate(today, index - (TOPIC_HIGHLIGHT_WINDOW_DAYS - 1)),
-    );
     const concentrated = isTopicConcentrated(weekly, topicCount);
 
     if (concentrated) {
-      const unexplored = await this.findUnexploredTopic(user, windowDates);
+      const unexplored = await lookups.unexplored();
       if (unexplored !== null) {
         return { kind: 'unexplored_topic', ...unexplored };
       }
     }
 
-    const peerTop = await this.findPeerTopTopic(user, windowDates);
+    const peerTop = await lookups.peerTop();
     if (peerTop !== null && peerTop.topicId !== myTop.topicId) {
       return { kind: 'peer_top_topic', ...peerTop };
     }
@@ -385,7 +513,7 @@ export class ProfileOrchestrator {
     }
 
     if (!concentrated) {
-      const unexplored = await this.findUnexploredTopic(user, windowDates);
+      const unexplored = await lookups.unexplored();
       if (unexplored !== null) {
         return { kind: 'unexplored_topic', ...unexplored };
       }
@@ -664,6 +792,34 @@ export class ProfileOrchestrator {
       reason: error instanceof Error ? error.message : 'unknown',
     });
   }
+}
+
+/** 주간·요일 한 줄이 나눠 쓰는 조회 — 처음 부를 때 한 번만 조회한다 */
+interface TopicHighlightLookups {
+  unexplored: () => Promise<TopicRefView | null>;
+  peerTop: () => Promise<TopicRefView | null>;
+}
+
+/** 처음 부를 때 한 번만 돌리고 이후엔 같은 결과를 돌려준다 */
+function once<T>(load: () => Promise<T>): () => Promise<T> {
+  let pending: Promise<T> | undefined;
+  return () => {
+    pending ??= load();
+    return pending;
+  };
+}
+
+/** 순서대로 시도해 처음으로 값이 나온 것 — 뒤 단계는 부르지 않는다 */
+async function pickHighlightInOrder<T>(
+  steps: (() => Promise<T | null>)[],
+): Promise<T | null> {
+  for (const step of steps) {
+    const value = await step();
+    if (value !== null) {
+      return value;
+    }
+  }
+  return null;
 }
 
 function toUserView(user: User): ProfileUserView {

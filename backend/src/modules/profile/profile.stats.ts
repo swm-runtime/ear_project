@@ -449,6 +449,17 @@ export function pickUnexploredTopic(
 }
 
 /**
+ * 그날 1위 주제가 **그 주 안에서 며칠 연속** 1위였는지 — `dailyTopTopicIds`는 월~일 각 요일 1위(기록 없는 날 `null`),
+ * `dayIndex`부터 월요일 쪽으로 거슬러 센다. 그날 1위가 없으면 0. 지난 주 일요일까지 넘어가지 않는다
+ */
+export function countTopTopicDayStreak(
+  dailyTopTopicIds: readonly (string | null)[],
+  dayIndex: number,
+): number {
+  return countTopTopicStreak(dailyTopTopicIds.slice(0, dayIndex + 1).reverse());
+}
+
+/**
  * 그 주 1위 주제가 **몇 주 연속** 1위였는지 — `weeklyTopTopicIds`는 이번 주부터 거슬러 간 주별 1위(기록 없는 주는 `null`).
  * 이번 주 1위가 없으면 0이다.
  */

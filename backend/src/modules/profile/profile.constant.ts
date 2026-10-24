@@ -52,5 +52,8 @@ export const PEER_TOP_TOPIC_MIN_LISTENERS = 5;
 /** "N주 연속 1위"를 거슬러 보는 주 수(이번 주 포함). 화면 문구가 이 값을 넘지 않는다 */
 export const TOP_TOPIC_STREAK_LOOKBACK_WEEKS = 8;
 
+/** "N일 연속 1위"(요일 한 줄)를 내려주는 최소 일 수 — 그 주 안에서만 센다 */
+export const TOP_TOPIC_DAY_STREAK_MIN_DAYS = 2;
+
 /** "N주 연속 1위"를 내려주는 최소 주 수 — 1주는 연속이 아니다 */
 export const TOP_TOPIC_STREAK_MIN_WEEKS = 2;

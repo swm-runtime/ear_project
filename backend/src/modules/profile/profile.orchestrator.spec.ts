@@ -681,6 +681,60 @@ describe('ProfileOrchestrator', () => {
       expect(result.failedSections).toEqual([]);
       expect(result.weeklyListening?.topicDistribution.topics).toHaveLength(1);
       expect(result.weeklyListening?.topicHighlight).toBeNull();
+      expect(result.weeklyListening?.dailyTopicHighlight).toEqual(
+        Array(7).fill(null),
+      );
+    });
+
+    it('요일마다 그날 분포로 한 줄을 고르고, 안 들어본 주제 조회는 주간과 나눠 한 번만 한다', async () => {
+      // given — 월: 커리어만(쏠림) · 화: IT 200 · 커리어 150 · 경제 150(고루, 1위 IT) · 수: IT 200 · 커리어 150(1위 IT, 화요일부터 연속)
+      playbackService.sumListenedSecByDates.mockResolvedValue(
+        new Map([['2026-08-03', 1]]),
+      );
+      const thisWeek = [
+        { contentId: C_CAREER, playDate: '2026-08-03', listenedSec: 600 },
+        { contentId: C_IT, playDate: '2026-08-04', listenedSec: 200 },
+        { contentId: C_CAREER, playDate: '2026-08-04', listenedSec: 150 },
+        { contentId: C_ECON, playDate: '2026-08-04', listenedSec: 150 },
+        { contentId: C_IT, playDate: '2026-08-05', listenedSec: 200 },
+        { contentId: C_CAREER, playDate: '2026-08-05', listenedSec: 150 },
+      ];
+      playbackService.sumListenedSecByContentAndDates.mockImplementation(
+        (_userId, dates) =>
+          Promise.resolve(
+            dates.includes('2026-08-03')
+              ? thisWeek.filter((row) => dates.includes(row.playDate))
+              : [],
+          ),
+      );
+      playbackService.sumListenedSecByContent.mockResolvedValue([
+        { contentId: C_CAREER, listenedSec: 900 },
+        { contentId: C_IT, listenedSec: 400 },
+        { contentId: C_ECON, listenedSec: 150 },
+      ]);
+      playbackService.sumListenedSecByContentForCohort.mockResolvedValue([
+        { contentId: C_HISTORY, listenedSec: 900 },
+      ]);
+
+      // when
+      const result = await orchestrator.getSummary(USER_ID, NOW);
+
+      // then — 주간은 커리어 900/1450(62%) 쏠림이라 안 들어본 주제
+      const history = { topicId: T_HISTORY, name: '역사' };
+      expect(result.weeklyListening?.topicHighlight).toEqual({
+        kind: 'unexplored_topic',
+        ...history,
+      });
+      expect(result.weeklyListening?.dailyTopicHighlight).toEqual([
+        { kind: 'unexplored_topic', ...history },
+        { kind: 'topic_count', count: 3 },
+        { kind: 'top_topic_day_streak', days: 2 },
+        null,
+        null,
+        null,
+        null,
+      ]);
+      expect(topicService.findAllVisible).toHaveBeenCalledTimes(1);
     });
 
     it('지난 주(4.2)에는 싣지 않는다', async () => {
@@ -696,6 +750,7 @@ describe('ProfileOrchestrator', () => {
 
       // then
       expect(result.topicHighlight).toBeNull();
+      expect(result.dailyTopicHighlight).toEqual(Array(7).fill(null));
       expect(topicService.findAllVisible).not.toHaveBeenCalled();
     });
   });
