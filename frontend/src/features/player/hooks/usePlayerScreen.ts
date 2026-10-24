@@ -7,7 +7,11 @@ import { track } from '@/shared/analytics';
 import { useDelayedVisible } from '@/shared/hooks/useDelayedVisible';
 import { logger } from '@/shared/lib/logger';
 import { traceJs } from '@/shared/monitoring/js-trace';
-import { dismissPlayerNatively, USE_NATIVE_PLAYER_ZOOM } from '@/shared/navigation/zoom-transition';
+import {
+  dismissPlayerNatively,
+  USE_NATIVE_PLAYER_ZOOM,
+  type NativeDismissResult,
+} from '@/shared/navigation/zoom-transition';
 import { useToastStore } from '@/shared/ui/toast.store';
 
 import {
@@ -48,6 +52,10 @@ type PlayerRouteParams = {
 /** PL1~PL10 화면 로직 전부 — Screen은 이 훅이 준 상태를 배치만 한다(convention.md 3.1) */
 /** 플레이어 안에서 펼쳐지는 패널의 종류 — 하나만 열린다 */
 export type PlayerPanelKind = 'script' | 'queue';
+
+/** 줌 모달이 뜨는 중이라 네이티브가 `busy` 로 답할 때 다시 닫아 보는 횟수·간격 — 확대 모션(≈0.5초)을 넘기면 된다 */
+const NATIVE_DISMISS_BUSY_RETRIES = 4;
+const NATIVE_DISMISS_BUSY_RETRY_MS = 300;
 
 export const usePlayerScreen = () => {
   const navigation = useNavigation();
@@ -150,9 +158,16 @@ export const usePlayerScreen = () => {
   useEffect(() => {
     hasOverlayRef.current = hasOverlay;
   }, [hasOverlay]);
-  const dismissNatively = (): Promise<boolean> => {
+  const dismissNatively = async (): Promise<NativeDismissResult> => {
     isNativeDismissStartedRef.current = true;
-    return dismissPlayerNatively();
+    const result = await dismissPlayerNatively();
+    // 못 닫았다(전환 중·맨 위가 플레이어 아님 — 새 네이티브만 이렇게 답한다) — 다음 시도를 받는다
+    if (result === 'busy' || result === 'not-screen') isNativeDismissStartedRef.current = false;
+    return result;
+  };
+  /** UIKit 이 닫기를 조용히 무시했다(옛 네이티브는 그래도 `dismissed` 라 답한다) — 화면 워치독이 다시 닫을 수 있게 푼다 */
+  const resetNativeDismiss = () => {
+    isNativeDismissStartedRef.current = false;
   };
   useEffect(() => {
     if (!USE_NATIVE_PLAYER_ZOOM) return undefined;
@@ -161,7 +176,17 @@ export const usePlayerScreen = () => {
         return;
       event.preventDefault();
       traceJs('player remove → native dismiss first');
-      void dismissNatively().then(() => navigation.dispatch(event.data.action));
+      // 뜨는 중(줌 확대 0.5초)이면 UIKit 이 닫기를 무시한다 — 잠깐 뒤 다시 닫는다. 끝내 못 닫으면 종전대로 걷는다
+      const attempt = (count: number) => {
+        void dismissNatively().then((result) => {
+          if (result === 'busy' && count < NATIVE_DISMISS_BUSY_RETRIES) {
+            setTimeout(() => attempt(count + 1), NATIVE_DISMISS_BUSY_RETRY_MS);
+            return;
+          }
+          navigation.dispatch(event.data.action);
+        });
+      };
+      attempt(0);
     });
   }, [navigation]);
   useEffect(() => {
@@ -550,6 +575,7 @@ export const usePlayerScreen = () => {
     collapse,
     /** iOS 26 줌 갈래의 셰브론·끌어내리기 — UIKit 이 먼저 닫는다(위 beforeRemove 주석). 못 닫으면 false */
     dismissNatively,
+    resetNativeDismiss,
     // 원문·배너
     openSourceLink,
     retryLoad: () => playbackService.retryLoad(),
