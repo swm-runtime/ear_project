@@ -470,6 +470,16 @@ export default function PlayerScreen() {
       panelMotionFrameRef.current = requestAnimationFrame(startMotion);
     });
   };
+  /*
+   * 대본을 펼친 채 **대본 없는 편으로 넘어가면 접는다**(2026-10-24 전수조사) — 자동 재생·재생 목록 탭으로 편이 바뀌면 화면의
+   * 패널(activePanel)은 "대본 없음"이라 비지만 펼침 모션 값·대본 틀은 그대로 남아, 압축된 헤더와 끝없는 스켈레톤 위에서 대본 버튼이
+   * 사라져 닫을 길이 없었다. 발급이 끝나 대본 여부가 정해진 뒤에만 본다(발급 전엔 대본 없음으로 읽혀 매번 접혔다 펴진다)
+   */
+  const isScriptOrphaned =
+    screen.activePanel === 'script' &&
+    session !== null &&
+    session.state !== 'loading' &&
+    !isScriptAvailable;
   // 헤더 애니메이션의 기준 치수 — 화면 폭·컨트롤 높이는 실측한다(기기마다 다르다)
   const [contentSize, setContentSize] = useState({ width: 0, height: 0 });
   /*
@@ -559,6 +569,13 @@ export default function PlayerScreen() {
     if (artLayoutHoldRef.current === 0 && heroArtLatestRef.current !== null)
       setHeroArtBox(heroArtLatestRef.current);
   };
+  // 고아가 된 대본 패널 접기(위 isScriptOrphaned) — 다음 프레임에 평소 닫기와 같은 길(setPanel)로 접는다
+  useEffect(() => {
+    if (!isScriptOrphaned) return undefined;
+    const frame = requestAnimationFrame(() => setPanel(null));
+    return () => cancelAnimationFrame(frame);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- 고아가 되는 전이에만 반응한다(setPanel 은 렌더마다 새 함수)
+  }, [isScriptOrphaned]);
   const onHeroArtLayout = (event: LayoutChangeEvent) => {
     const { x, y, width, height } = event.nativeEvent.layout;
     heroArtLatestRef.current = { x, y, width, height };
