@@ -13,7 +13,7 @@
 | 선행 | `tickets/backend/archive/profile-topic-highlight.md`(KAN-266) — 완료 |
 | 근거 문서 | `features/profile.md` 4.7-1 · `spec/api/profile-api.md` 4.1 `daily_topic_highlight` |
 | 중요도 | Medium |
-| 상태 | 발행 |
+| 상태 | 반영 — 개발계 배포(PR #2038), 운영은 다음 dev→main 릴리스 |
 
 ## 왜
 
@@ -37,3 +37,4 @@ KAN-266 은 요일 막대를 고르면 주제 한 줄을 숨겼다(주 기준 �
 ## 처리 기록
 
 - 2026-10-24 발행(PM 23:28).
+- 2026-10-24 **반영 확인·BE 리뷰**(박준현). 코드 PR #2038(dev 머지 23:38, 개발계 배포 `d63307d7`). 리뷰 막힘 없음 — 요일 우선순위(쏠림→안 들어본 주제 · 같은 직군 1위 · N일 연속 1위(그날까지, 기록 없는 날에서 끊김) · 그날 N개 주제 · 안 들어본 주제), 미래·기록 없는 요일 `null`, 지난 주·판정 실패 7칸 `null`, 안 들어본 주제·직군 집계는 주간과 한 번만 조회(`once`). 확인: profile·playback 유닛 197 통과, e2e cohort 통과, lint·tsc 통과, 개발계 `GET /users/me/profile` 200 · `daily_topic_highlight` 7칸(본인 계정 이번 주 청취 없음 → 전부 `null`, 계약대로) · `failed_sections` 없음 · 실패 로그 0. 운영은 다음 dev→main 릴리스. 반영 날짜 2026-10-24.
