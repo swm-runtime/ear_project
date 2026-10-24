@@ -1677,145 +1677,180 @@ export default function PlayerScreen() {
    * 커지며 대각선으로 날아 "그림이 따로 논다"고 보였다. 열릴 땐 같은 곡선을 거꾸로 간다
    */
   const artRideOffset = (mini.y * (MORPH_ART_ARRIVE - MORPH_ART_SHRINK_END)) / MORPH_ART_ARRIVE;
-  const morph = {
-    /*
-     * 아트워크는 교차가 시작되기 **전에** 풀 화면 자리에 도착해 있어야 한다(2026-09-19 PM 지적). 끝(1)에서야
-     * 도착하면, 모션 레이어와 실제 히어로가 바뀌는 구간(0.94~1)에 모션 아트워크가 아직 덜 커진 채로 겹쳐
-     * 그림이 두 장으로 보인다. 콘텐츠가 제자리에 서는 0.92 에 맞춰 도착시키고 그 뒤로는 움직이지 않는다
-     */
-    artLeft: openProgress.interpolate({
-      inputRange: MORPH_ART_INPUT,
-      outputRange: [miniThumbLeft, fullArt.left, fullArt.left, fullArt.left],
-    }),
-    artTop: openProgress.interpolate({
-      inputRange: MORPH_ART_INPUT,
-      outputRange: [miniThumbTop, fullArt.top + artRideOffset, fullArt.top, fullArt.top],
-    }),
-    artWidth: openProgress.interpolate({
-      inputRange: MORPH_ART_INPUT,
-      outputRange: [miniThumbSize, fullArt.width, fullArt.width, fullArt.width],
-    }),
-    artHeight: openProgress.interpolate({
-      inputRange: MORPH_ART_INPUT,
-      outputRange: [miniThumbSize, fullArt.height, fullArt.height, fullArt.height],
-    }),
-    artRadius: openProgress.interpolate({
-      inputRange: MORPH_ART_INPUT,
-      outputRange: [theme.radius.sm, fullArtRadius, fullArtRadius, fullArtRadius],
-    }),
-    /*
-     * 제목은 날지 않는다(2026-09-18 PM — 제자리 페이드). 미니 자리(썸네일 옆 14px)에서 풀 화면 자리(아트워크
-     * 아래 28px)까지 대각선으로 날며 크기까지 바뀌면 커지는 아트워크와 경로가 겹치고, 손으로 끌 때 글자만 따로
-     * 논다. 미니 제목은 제자리에서 초반에 사라지고(▶ 와 같은 구간), 풀 화면 제목은 컨트롤·시크바와 한 덩어리로
-     * 시트를 따라 올라오며 나타난다(contentOpacity·contentTranslateY). 움직이는 건 아트워크와 시트뿐이다
-     */
-    miniTitleOpacity: openProgress.interpolate({
-      inputRange: [0, 0.12, 1],
-      outputRange: [1, 0, 0],
-    }),
-    /*
-     * 교차 페이드를 쓰지 않는다(2026-09-17 PM — "애플처럼"). 미니플레이어 쪽 끝에서 모션 레이어를 투명하게
-     * 하면 뒤의 진짜 미니플레이어와 몇 px 어긋난 잔상이 겹쳐 보였다. 대신 모션 레이어는 도착까지 불투명하고,
-     * 착지 좌표를 미니플레이어 실측값으로 맞춰 화면을 바꿔치는 순간이 보이지 않게 한다.
-     * 풀 화면 쪽 끝(0.96~1)만 실제 히어로와 교차한다 — 같은 좌표라 겹쳐도 한 장으로 보인다
-     */
-    layerOpacity: openProgress.interpolate({
-      inputRange: [0, 0.94, 1],
-      outputRange: [1, 1, 0],
-    }),
-    // 히어로(큰 아트워크·제목)는 모션 레이어가 대신 그린다 — 둘이 같이 보이면 아트워크가 두 장이 된다
-    heroOpacity: openProgress.interpolate({ inputRange: [0, 0.94, 1], outputRange: [0, 0, 1] }),
-    // 컨트롤·시크바·앱바는 시트와 함께 아래로 내려가며 중간에 사라진다 — 카드가 통째로 접히는 느낌
-    contentOpacity: openProgress.interpolate({
-      inputRange: [0, 0.45, 0.8, 1],
-      outputRange: [0, 0, 1, 1],
-    }),
-    // 마지막 8%는 제자리 — 히어로와 모션 레이어가 교차하는 동안 콘텐츠가 움직이면 같은 좌표가 아니게 된다
-    contentTranslateY: openProgress.interpolate({
-      inputRange: [0, MORPH_ART_ARRIVE, 1],
-      outputRange: [mini.y, 0, 0],
-    }),
-    // 미니플레이어 ▶ — 시트가 자라기 시작하면 바로 사라진다(닫힐 땐 마지막 12%에서 나타난다)
-    miniButtonOpacity: openProgress.interpolate({
-      inputRange: [0, 0.12, 1],
-      outputRange: [1, 0, 0],
-    }),
-    // 시트 — 미니플레이어 카드(회색, 바닥 한 줄)가 그대로 자라 풀 화면(흰색)이 된다.
-    // 배경을 통째로 페이드하면 그림만 떠다니는 것처럼 보인다
-    sheetTop: openProgress.interpolate({ inputRange: [0, 1], outputRange: [mini.y, 0] }),
-    sheetLeft: openProgress.interpolate({ inputRange: [0, 1], outputRange: [mini.x, 0] }),
-    sheetWidth: openProgress.interpolate({
-      inputRange: [0, 1],
-      outputRange: [mini.width, windowWidth],
-    }),
-    // 높이는 내려가는 동안 화면 높이 그대로다 — 카드가 줄어드는 게 아니라 **미끄러져 내려간다**(아트워크가 풀 사이즈로
-    // 실려 있는 동안 시트 밖으로 삐져나오지 않는다). 아트워크가 줄어드는 마지막 구간에서만 미니 높이로 접힌다
-    sheetHeight: openProgress.interpolate({
-      inputRange: [0, MORPH_ART_SHRINK_END, 1],
-      outputRange: [mini.height, windowHeight, windowHeight],
-    }),
-    // 출발은 미니플레이어 카드의 모서리(22) — 0 이면 착지 순간 둥근 카드 밖으로 각진 귀가 비친다(2026-09-23)
-    sheetRadius: openProgress.interpolate({
-      inputRange: [0, 0.3, 1],
-      outputRange: [MINI_CARD_RADIUS, 20, 0],
-    }),
-    /*
-     * 출발은 뒤의 진짜 미니플레이어(밝은 theme.surface), 도착은 플레이어의 검정. 끝까지 고르게 섞으면 중간이
-     * 탁한 회색 판으로 오래 보인다 — 미니 제목·▶ 이 사라지는 12%까지만 밝게 두고, 40%에서 이미 검정에
-     * 닿게 해 회색 구간을 짧게 지난다(2026-09-18)
-     */
-    sheetColor: openProgress.interpolate({
-      inputRange: [0, 0.12, 0.4, 1],
-      outputRange: [
-        miniSurfaceColor,
-        miniSurfaceColor,
-        playerColor.background,
-        playerColor.background,
-      ],
-    }),
-    // 흐린 커버 바탕 — 시트가 검정으로 넘어가는 구간에 함께 나타난다(그 전엔 밝은 미니플레이어 색이어야 한다)
-    backdropOpacity: openProgress.interpolate({
-      inputRange: [0, 0.12, 0.4, 1],
-      outputRange: [0, 0, 1, 1],
-    }),
-    // 뒤의 라이브러리는 살짝 가라앉는다 — 시트가 그 위에 얹혔다는 층 감각
-    dimOpacity: openProgress.interpolate({ inputRange: [0, 1], outputRange: [0, 0.35] }),
-  };
-
   /*
-   * **Android 줌 전환**(PM 2026-09-29 00:55 "플레이어 나오는 거 iOS 와 최대한 유사하게", Android 전용). iOS 26 은 시스템 줌
-   * 전환 — 미니플레이어 카드가 그대로 부풀어 풀 화면이 되고, 그 안의 플레이어는 처음부터 완성된 모습이 비율대로 커진다.
-   * 종전 Android 모션(아트워크만 날아오르고 컨트롤은 아래서 올라옴)을 이것으로 바꾼다: 시트(카드 자리 → 풀 화면)가 자라는
-   * 동안 플레이어 전체를 **카드 폭에 맞춘 배율로 축소해 그 안에 잘라 넣고** 1 까지 키운다. 끌어내리기도 같은 값을 되감는다
+   * 보간 노드는 **치수가 바뀔 때만 새로 만든다**(2026-10-24 전수조사). 종전엔 렌더마다 interpolate 를 스무 개 넘게 새로 만들었다 —
+   * Android 는 openProgress 가 네이티브 드라이버라 렌더마다 네이티브 Animated 노드가 생기고 붙었다 떨어진다. 백그라운드에서도
+   * 상태 전이(버퍼링·자동 재생·배너)로 렌더가 이어지면 그 작업이 쌓였다가 복귀 첫 프레임에 한꺼번에 실행됐다(복귀 OOM
+   * EAR-APP-H·K 와 같은 모양). 재생 위치·상태만 바뀌는 렌더에서는 같은 노드를 그대로 쓴다
    */
-  if (ANDROID_ZOOM) {
-    Object.assign(morph, {
-      sheetHeight: openProgress.interpolate({
-        inputRange: [0, 1],
-        outputRange: [mini.height, windowHeight],
+  const morph = useMemo(() => {
+    const value = {
+      /*
+       * 아트워크는 교차가 시작되기 **전에** 풀 화면 자리에 도착해 있어야 한다(2026-09-19 PM 지적). 끝(1)에서야
+       * 도착하면, 모션 레이어와 실제 히어로가 바뀌는 구간(0.94~1)에 모션 아트워크가 아직 덜 커진 채로 겹쳐
+       * 그림이 두 장으로 보인다. 콘텐츠가 제자리에 서는 0.92 에 맞춰 도착시키고 그 뒤로는 움직이지 않는다
+       */
+      artLeft: openProgress.interpolate({
+        inputRange: MORPH_ART_INPUT,
+        outputRange: [miniThumbLeft, fullArt.left, fullArt.left, fullArt.left],
       }),
-      sheetRadius: openProgress.interpolate({
-        inputRange: [0, 0.85, 1],
-        outputRange: [MINI_CARD_RADIUS, ANDROID_ZOOM_CORNER, 0],
+      artTop: openProgress.interpolate({
+        inputRange: MORPH_ART_INPUT,
+        outputRange: [miniThumbTop, fullArt.top + artRideOffset, fullArt.top, fullArt.top],
       }),
-      // 카드 색에서 플레이어 색으로 — 시작 직후 짧게 넘어간다(회색 판이 오래 보이지 않게)
-      sheetColor: openProgress.interpolate({
-        inputRange: [0, 0.15, 1],
-        outputRange: [miniSurfaceColor, playerColor.background, playerColor.background],
+      artWidth: openProgress.interpolate({
+        inputRange: MORPH_ART_INPUT,
+        outputRange: [miniThumbSize, fullArt.width, fullArt.width, fullArt.width],
       }),
-      backdropOpacity: openProgress.interpolate({
-        inputRange: [0, 0.15, 1],
-        outputRange: [0, 1, 1],
+      artHeight: openProgress.interpolate({
+        inputRange: MORPH_ART_INPUT,
+        outputRange: [miniThumbSize, fullArt.height, fullArt.height, fullArt.height],
       }),
-      // 플레이어는 처음부터 제자리에 완성돼 있고, 카드 내용과 교차하며 드러난다
+      artRadius: openProgress.interpolate({
+        inputRange: MORPH_ART_INPUT,
+        outputRange: [theme.radius.sm, fullArtRadius, fullArtRadius, fullArtRadius],
+      }),
+      /*
+       * 제목은 날지 않는다(2026-09-18 PM — 제자리 페이드). 미니 자리(썸네일 옆 14px)에서 풀 화면 자리(아트워크
+       * 아래 28px)까지 대각선으로 날며 크기까지 바뀌면 커지는 아트워크와 경로가 겹치고, 손으로 끌 때 글자만 따로
+       * 논다. 미니 제목은 제자리에서 초반에 사라지고(▶ 와 같은 구간), 풀 화면 제목은 컨트롤·시크바와 한 덩어리로
+       * 시트를 따라 올라오며 나타난다(contentOpacity·contentTranslateY). 움직이는 건 아트워크와 시트뿐이다
+       */
+      miniTitleOpacity: openProgress.interpolate({
+        inputRange: [0, 0.12, 1],
+        outputRange: [1, 0, 0],
+      }),
+      /*
+       * 교차 페이드를 쓰지 않는다(2026-09-17 PM — "애플처럼"). 미니플레이어 쪽 끝에서 모션 레이어를 투명하게
+       * 하면 뒤의 진짜 미니플레이어와 몇 px 어긋난 잔상이 겹쳐 보였다. 대신 모션 레이어는 도착까지 불투명하고,
+       * 착지 좌표를 미니플레이어 실측값으로 맞춰 화면을 바꿔치는 순간이 보이지 않게 한다.
+       * 풀 화면 쪽 끝(0.96~1)만 실제 히어로와 교차한다 — 같은 좌표라 겹쳐도 한 장으로 보인다
+       */
+      layerOpacity: openProgress.interpolate({
+        inputRange: [0, 0.94, 1],
+        outputRange: [1, 1, 0],
+      }),
+      // 히어로(큰 아트워크·제목)는 모션 레이어가 대신 그린다 — 둘이 같이 보이면 아트워크가 두 장이 된다
+      heroOpacity: openProgress.interpolate({ inputRange: [0, 0.94, 1], outputRange: [0, 0, 1] }),
+      // 컨트롤·시크바·앱바는 시트와 함께 아래로 내려가며 중간에 사라진다 — 카드가 통째로 접히는 느낌
       contentOpacity: openProgress.interpolate({
-        inputRange: [0, 0.15, 1],
-        outputRange: [0, 1, 1],
+        inputRange: [0, 0.45, 0.8, 1],
+        outputRange: [0, 0, 1, 1],
       }),
-      contentTranslateY: 0,
-      heroOpacity: 1,
-    });
-  }
+      // 마지막 8%는 제자리 — 히어로와 모션 레이어가 교차하는 동안 콘텐츠가 움직이면 같은 좌표가 아니게 된다
+      contentTranslateY: openProgress.interpolate({
+        inputRange: [0, MORPH_ART_ARRIVE, 1],
+        outputRange: [mini.y, 0, 0],
+      }),
+      // 미니플레이어 ▶ — 시트가 자라기 시작하면 바로 사라진다(닫힐 땐 마지막 12%에서 나타난다)
+      miniButtonOpacity: openProgress.interpolate({
+        inputRange: [0, 0.12, 1],
+        outputRange: [1, 0, 0],
+      }),
+      // 시트 — 미니플레이어 카드(회색, 바닥 한 줄)가 그대로 자라 풀 화면(흰색)이 된다.
+      // 배경을 통째로 페이드하면 그림만 떠다니는 것처럼 보인다
+      sheetTop: openProgress.interpolate({ inputRange: [0, 1], outputRange: [mini.y, 0] }),
+      sheetLeft: openProgress.interpolate({ inputRange: [0, 1], outputRange: [mini.x, 0] }),
+      sheetWidth: openProgress.interpolate({
+        inputRange: [0, 1],
+        outputRange: [mini.width, windowWidth],
+      }),
+      // 높이는 내려가는 동안 화면 높이 그대로다 — 카드가 줄어드는 게 아니라 **미끄러져 내려간다**(아트워크가 풀 사이즈로
+      // 실려 있는 동안 시트 밖으로 삐져나오지 않는다). 아트워크가 줄어드는 마지막 구간에서만 미니 높이로 접힌다
+      sheetHeight: openProgress.interpolate({
+        inputRange: [0, MORPH_ART_SHRINK_END, 1],
+        outputRange: [mini.height, windowHeight, windowHeight],
+      }),
+      // 출발은 미니플레이어 카드의 모서리(22) — 0 이면 착지 순간 둥근 카드 밖으로 각진 귀가 비친다(2026-09-23)
+      sheetRadius: openProgress.interpolate({
+        inputRange: [0, 0.3, 1],
+        outputRange: [MINI_CARD_RADIUS, 20, 0],
+      }),
+      /*
+       * 출발은 뒤의 진짜 미니플레이어(밝은 theme.surface), 도착은 플레이어의 검정. 끝까지 고르게 섞으면 중간이
+       * 탁한 회색 판으로 오래 보인다 — 미니 제목·▶ 이 사라지는 12%까지만 밝게 두고, 40%에서 이미 검정에
+       * 닿게 해 회색 구간을 짧게 지난다(2026-09-18)
+       */
+      sheetColor: openProgress.interpolate({
+        inputRange: [0, 0.12, 0.4, 1],
+        outputRange: [
+          miniSurfaceColor,
+          miniSurfaceColor,
+          playerColor.background,
+          playerColor.background,
+        ],
+      }),
+      // 흐린 커버 바탕 — 시트가 검정으로 넘어가는 구간에 함께 나타난다(그 전엔 밝은 미니플레이어 색이어야 한다)
+      backdropOpacity: openProgress.interpolate({
+        inputRange: [0, 0.12, 0.4, 1],
+        outputRange: [0, 0, 1, 1],
+      }),
+      // 뒤의 라이브러리는 살짝 가라앉는다 — 시트가 그 위에 얹혔다는 층 감각
+      dimOpacity: openProgress.interpolate({ inputRange: [0, 1], outputRange: [0, 0.35] }),
+    };
+
+    /*
+     * **Android 줌 전환**(PM 2026-09-29 00:55 "플레이어 나오는 거 iOS 와 최대한 유사하게", Android 전용). iOS 26 은 시스템 줌
+     * 전환 — 미니플레이어 카드가 그대로 부풀어 풀 화면이 되고, 그 안의 플레이어는 처음부터 완성된 모습이 비율대로 커진다.
+     * 종전 Android 모션(아트워크만 날아오르고 컨트롤은 아래서 올라옴)을 이것으로 바꾼다: 시트(카드 자리 → 풀 화면)가 자라는
+     * 동안 플레이어 전체를 **카드 폭에 맞춘 배율로 축소해 그 안에 잘라 넣고** 1 까지 키운다. 끌어내리기도 같은 값을 되감는다
+     */
+    if (ANDROID_ZOOM) {
+      Object.assign(value, {
+        sheetHeight: openProgress.interpolate({
+          inputRange: [0, 1],
+          outputRange: [mini.height, windowHeight],
+        }),
+        sheetRadius: openProgress.interpolate({
+          inputRange: [0, 0.85, 1],
+          outputRange: [MINI_CARD_RADIUS, ANDROID_ZOOM_CORNER, 0],
+        }),
+        // 카드 색에서 플레이어 색으로 — 시작 직후 짧게 넘어간다(회색 판이 오래 보이지 않게)
+        sheetColor: openProgress.interpolate({
+          inputRange: [0, 0.15, 1],
+          outputRange: [miniSurfaceColor, playerColor.background, playerColor.background],
+        }),
+        backdropOpacity: openProgress.interpolate({
+          inputRange: [0, 0.15, 1],
+          outputRange: [0, 1, 1],
+        }),
+        // 플레이어는 처음부터 제자리에 완성돼 있고, 카드 내용과 교차하며 드러난다
+        contentOpacity: openProgress.interpolate({
+          inputRange: [0, 0.15, 1],
+          outputRange: [0, 1, 1],
+        }),
+        contentTranslateY: 0,
+        heroOpacity: 1,
+      });
+    }
+    return value;
+  }, [
+    openProgress,
+    miniThumbLeft,
+    miniThumbTop,
+    miniThumbSize,
+    fullArt.left,
+    fullArt.top,
+    fullArt.width,
+    fullArt.height,
+    artRideOffset,
+    fullArtRadius,
+    mini.x,
+    mini.y,
+    mini.width,
+    mini.height,
+    windowWidth,
+    windowHeight,
+    miniSurfaceColor,
+  ]);
+  // 뒤 화면 딤 — Android 는 끌어내리는 만큼 같이 걷힌다. 노드는 위와 같은 이유로 고정한다
+  const dimLayerOpacity = useMemo(
+    () =>
+      ANDROID_ZOOM
+        ? Animated.multiply(morph.dimOpacity, Animated.subtract(1, dismissProgress))
+        : morph.dimOpacity,
+    [morph, dismissProgress],
+  );
   const androidZoom = useMemo(
     () =>
       createAndroidPlayerZoom(
@@ -1892,15 +1927,7 @@ export default function PlayerScreen() {
       <StatusBar style="light" />
       {/* 뒤 화면 딤 + 미니플레이어 자리에서 자라나는 시트 — 0일 때는 카드 그 자체, 1일 때 풀 화면 */}
       <Animated.View
-        style={[
-          StyleSheet.absoluteFill,
-          styles.dim,
-          {
-            opacity: ANDROID_ZOOM
-              ? Animated.multiply(morph.dimOpacity, Animated.subtract(1, dismissProgress))
-              : morph.dimOpacity,
-          },
-        ]}
+        style={[StyleSheet.absoluteFill, styles.dim, { opacity: dimLayerOpacity }]}
         pointerEvents="none"
       />
       <Animated.View
