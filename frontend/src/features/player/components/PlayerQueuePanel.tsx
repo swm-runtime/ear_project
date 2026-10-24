@@ -21,6 +21,7 @@ import {
 
 import { useAnimatedValue } from '@/shared/hooks/useAnimatedValue';
 import { useDelayedVisible } from '@/shared/hooks/useDelayedVisible';
+import { tickHaptic } from '@/shared/lib/haptics';
 import { motion, theme } from '@/shared/theme';
 import RemoteImage from '@/shared/ui/RemoteImage';
 import { SkeletonBlock, SkeletonGroup, SkeletonLine } from '@/shared/ui/Skeleton';
@@ -1106,6 +1107,8 @@ function PlayerQueuePanel({
           value.setValue(current.from * ROW_STEP + clamped);
           const hover = hoverIndexOf(current.from, clamped, count, minIndexRef.current, ROW_STEP);
           if (hover !== current.hover) {
+            // 다른 줄을 지나 칸이 바뀔 때마다 약한 눈금 진동(PM 2026-10-24 — 애플 뮤직 재생 목록 끌기)
+            tickHaptic();
             const preview = moveInArray(current.order, current.from, hover);
             slidePreview(current.preview, preview, current.key);
             dragRef.current = { ...current, hover, preview };
