@@ -119,6 +119,12 @@
       null, null, null, null
     ],
     "topic_highlight": { "kind": "peer_top_topic", "topic_id": "uuid", "name": "경제" },
+    "daily_topic_highlight": [
+      { "kind": "top_topic_day_streak", "days": 2 },
+      null,
+      { "kind": "topic_count", "count": 3 },
+      null, null, null, null
+    ],
     "previous_week_start": "2026-07-27",
     "next_week_start": null,
     "topic_distribution": {
@@ -302,6 +308,18 @@
   - 다주제 콘텐츠는 각 주제에 청취 시간을 그대로 더한다(4.7 분포와 같은 규칙).
   - **부가 한 줄이라 판정이 실패해도 주간 카드·통계 섹션은 실패하지 않는다** — 이 값만 `null`이다.
   - 60% · 28일 · 5명 · 2주 · 8주는 **초깃값**이다(PM 2026-10-24 "청취 상태로 서버가 판정" — 데이터를 보고 조정). 바뀌어도 필드·`null` 의미는 같다.
+- **`daily_topic_highlight` — 요일을 골랐을 때의 주제 한 줄**(신설 2026-10-24 — PM "일 선택했을 때도 리텐션 넣자"). **월~일 7개 고정 배열**(`daily_listened_sec`와 같은 순서), **이번 주에만** 싣는다(지난 주·판정 실패는 7칸 모두 `null`). 각 칸은 **그날 분포**(`daily_topic_distribution`의 그 요일)로 아래 순서의 첫 번째 하나 또는 `null`이다.
+
+  | 순위 | `kind` | 조건 | 값 |
+  |---|---|---|---|
+  | 1 | `unexplored_topic` | 그날 쏠렸다(그날 주제 1개 또는 그날 1위 60% 이상) · 후보가 있다 | `topic_highlight`의 안 들어본 주제와 **같은 값** |
+  | 2 | `peer_top_topic` | 같은 직군 1위가 있고(`topic_highlight`와 같은 조건·값) **그날 1위와 다르다** | `topic_id` · `name` |
+  | 3 | `top_topic_day_streak` | 그날 1위가 **그 주 안에서 그날까지 2일 이상 연속** 1위(기록 없는 날에서 끊긴다, 지난 주 일요일로 넘어가지 않는다) | `days` = 연속 일 수 |
+  | 4 | `topic_count` | 그날 들은 주제가 2개 이상 | `count` = 그날 청취 > 0 인 주제 수 |
+  | 5 | `unexplored_topic` | 1에서 보지 않았고 후보가 있다 | 1과 같다 |
+  | — | `null` | 그날 주제 기록 없음(아직 오지 않은 요일 포함) | — |
+
+  - 안 들어본 주제·같은 직군 집계는 주간과 **한 번만 조회해 나눠 쓴다** — 요일마다 다시 고르지 않는다.
 - **`topic_distribution` — 그 주의 주제 분포**(신설 2026-09-28, KAN-113 — PM 결정 "주마다 · 비율만"). 모양은 아래 최상위 `topic_distribution`과 **같고**, 집계 기간만 **그 주**(월요일 05:00 ~ 다음 월요일 05:00, `daily_listened_sec`와 같은 경계)다. 상위 5 · 기타 · 합 100 · 비율만 · 다주제 콘텐츠 그대로 가산 · 숨김 주제 포함 규칙도 같다. 그 주 기록이 없으면 `topics: []` · `others_ratio: 0`. 주간 카드의 주제 구획은 이 값을 그린다.
 - **`daily_topic_distribution` — 요일별 주제 분포**(신설 2026-09-28, 같은 티켓). **월~일 7개 고정 배열**이고 각 원소는 `topic_distribution`과 같은 모양이며, 집계 기간은 그 서비스 날짜(05:00 ~ 다음 날 05:00)다. 기록 없는 요일·아직 오지 않은 요일도 `{ "topics": [], "others_ratio": 0 }`으로 자리를 지킨다(생략 없음) — 막대를 탭하면 그날의 분포를 보여주는 데 쓴다.
 
@@ -375,6 +393,7 @@
     { "kind": "listened_contents", "count": 1 }
   ],
   "topic_highlight": null,
+  "daily_topic_highlight": [null, null, null, null, null, null, null],
   "previous_week_start": "2026-07-20",
   "next_week_start": "2026-08-03",
   "topic_distribution": {
@@ -393,7 +412,7 @@
 }
 ```
 
-- 4.1의 `weekly_listening` 오브젝트와 **같은 모양**이다. 두 응답이 다른 행 타입을 쓰면 그래프 렌더가 두 벌이 된다. `topic_distribution`(그 주) · `daily_topic_distribution`(요일별 7개)의 규칙도 4.1과 같다(신설 2026-09-28, KAN-113). **`topic_highlight`는 지난 주에 싣지 않아 늘 `null`이다**(4.1 — 지난 주에 "안 들어본 주제"를 권하면 어색하다. 이번 주를 4.2로 다시 받으면 4.1과 같이 싣는다). `listening_top_percent`·`listening_highlight`·`daily_listening_highlight`도 4.1과 같은 규칙으로 **그 주 기준**으로 계산한다(2026-10-10 KAN-168 · 2026-10-11 KAN-170·171 — 끝난 주라 주간 비교 대상은 직전 주 7일 합, 요일별은 직전 주 같은 요일).
+- 4.1의 `weekly_listening` 오브젝트와 **같은 모양**이다. 두 응답이 다른 행 타입을 쓰면 그래프 렌더가 두 벌이 된다. `topic_distribution`(그 주) · `daily_topic_distribution`(요일별 7개)의 규칙도 4.1과 같다(신설 2026-09-28, KAN-113). **`topic_highlight`는 지난 주에 싣지 않아 늘 `null`이고 `daily_topic_highlight`는 7칸 모두 `null`이다**(4.1 — 지난 주에 "안 들어본 주제"를 권하면 어색하다. 이번 주를 4.2로 다시 받으면 4.1과 같이 싣는다). `listening_top_percent`·`listening_highlight`·`daily_listening_highlight`도 4.1과 같은 규칙으로 **그 주 기준**으로 계산한다(2026-10-10 KAN-168 · 2026-10-11 KAN-170·171 — 끝난 주라 주간 비교 대상은 직전 주 7일 합, 요일별은 직전 주 같은 요일).
 - **가입 주면 `previous_week_start = null`** → [◀] 비활성(`profile.md` 4.6 — 가입 주까지 거슬러 갈 수 있다). "가입 주" 판정은 서버가 한다 — 클라이언트는 `null` 여부만 본다.
 - `next_week_start`는 한 주 뒤의 라벨이다(이번 주를 벗어나지 않는다). 이번 주 라벨을 이 엔드포인트로 다시 조회하는 것도 허용한다 — 다만 첫 진입 표시는 4.1이 담당한다.
 - 한 번 받은 주는 화면을 벗어나기 전까지 재조회하지 않는다(클라이언트 캐시 — `profile.md` 4.6). 미리 받은 이웃 주도 같은 캐시에 담긴다.

@@ -11,6 +11,7 @@ import {
   calculateListeningTopPercent,
   calculateStreakDays,
   countDailyListenedContents,
+  countTopTopicDayStreak,
   countTopTopicStreak,
   isTopicConcentrated,
   pickDailyListeningHighlights,
@@ -639,5 +640,29 @@ describe('주제 한 줄 판정(profile.md 4.7-1)', () => {
     it('이번 주 1위가 없으면 0이다', () => {
       expect(countTopTopicStreak([null, T1])).toBe(0);
     });
+  });
+});
+
+describe('countTopTopicDayStreak(profile.md 4.7-1 요일 한 줄)', () => {
+  const A = 'cccccccc-1111-4111-8111-111111111111';
+  const B = 'cccccccc-2222-4222-8222-222222222222';
+
+  it('그날부터 월요일 쪽으로 같은 1위가 이어진 날 수를 센다', () => {
+    expect(countTopTopicDayStreak([A, B, B, B, null, null, null], 3)).toBe(3);
+  });
+
+  it('기록 없는 날에서 끊기고, 월요일보다 앞으로 넘어가지 않는다', () => {
+    expect(
+      countTopTopicDayStreak([A, null, A, null, null, null, null], 2),
+    ).toBe(1);
+    expect(
+      countTopTopicDayStreak([A, A, null, null, null, null, null], 0),
+    ).toBe(1);
+  });
+
+  it('그날 1위가 없으면 0이다', () => {
+    expect(
+      countTopTopicDayStreak([A, null, null, null, null, null, null], 1),
+    ).toBe(0);
   });
 });
