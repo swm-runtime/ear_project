@@ -101,9 +101,18 @@ export default function BottomSheet({
    */
   const closeVelocityRef = useRef(0);
 
+  /*
+   * 지금 열려 있어야 하는가 — 제스처 콜백이 읽는다. **닫히는 중에는 끌기가 `progress` 를 건드리지 않는다**(2026-10-24 전수조사).
+   * 닫힘 모션(0.24초) 도중 시트를 탭·끌면 `setValue`·되돌림 스프링이 닫힘 모션을 끊고(finished:false → 모달을 내리지 않음)
+   * 시트를 다시 1 로 올렸다. 화면은 이미 닫힌 상태라 딤 탭·뒤로가기가 "닫기를 또 닫기"가 되어 아무것도 못 눌렀다(앱 종료만 답)
+   */
+  const isVisibleRef = useRef(isVisible);
   useEffect(() => {
     closeRef.current = onRequestClose;
   }, [onRequestClose]);
+  useEffect(() => {
+    isVisibleRef.current = isVisible;
+  }, [isVisible]);
 
   // 열리는 순간 **렌더 중에** 붙인다(React 가 권하는 파생 상태 갱신) — effect 로 미루면 한 프레임 늦게 붙어
   // 첫 스프링이 잘린다. 닫는 쪽은 나가는 모션이 끝난 뒤라 아래 effect 가 맡는다
@@ -191,17 +200,23 @@ export default function BottomSheet({
       // eslint-disable-next-line react-hooks/refs
       PanResponder.create({
         // 버튼이 아닌 자리(손잡이·제목·여백)는 시작부터 시트가 받는다 — 위 1번
-        onStartShouldSetPanResponder: () => true,
+        // 닫히는 중에는 받지 않는다(위 isVisibleRef)
+        onStartShouldSetPanResponder: () => isVisibleRef.current,
         // 버튼 위에서 시작한 끌기는 capture 로 빼앗는다 — 위 2번. 탭·좌우 스와이프는 훔치지 않는다
         onMoveShouldSetPanResponderCapture: (_event, gesture) =>
-          gesture.dy > DRAG_START_SLOP && Math.abs(gesture.dy) > Math.abs(gesture.dx),
+          isVisibleRef.current &&
+          gesture.dy > DRAG_START_SLOP &&
+          Math.abs(gesture.dy) > Math.abs(gesture.dx),
         onPanResponderMove: (_event, gesture) => {
+          // 끄는 도중 화면이 닫았으면(옵션 선택 등) 닫힘 모션에 맡긴다 — 여기서 값을 넣으면 그 모션이 끊긴다
+          if (!isVisibleRef.current) return;
           const sheetHeight = heightRef.current;
           if (sheetHeight <= 0) return;
           const next = 1 - Math.max(0, gesture.dy) / sheetHeight;
           progress.setValue(Math.max(0, Math.min(1, next)));
         },
         onPanResponderRelease: (_event, gesture) => {
+          if (!isVisibleRef.current) return;
           const sheetHeight = heightRef.current;
           // 높이의 1/4(최소 80pt)을 넘겼거나 빠르게 던졌으면 닫는다 — 아니면 제자리로
           const shouldClose =
@@ -225,6 +240,7 @@ export default function BottomSheet({
           }).start();
         },
         onPanResponderTerminate: () => {
+          if (!isVisibleRef.current) return;
           Animated.spring(progress, {
             toValue: 1,
             useNativeDriver: true,
