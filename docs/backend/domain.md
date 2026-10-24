@@ -922,6 +922,7 @@ uq_content_audio_renditions_content_id_quality (content_id, quality)
 - **`compressed` 행은 항상 있다**(발행의 필수 파트). `aac` · `lossless`는 있을 때만 있다 — 2026-10-06 기준 발행분 40편은 `compressed`만 있고, 마이그레이션이 `contents.audio_path`에서 그 행을 만든다(코덱 `mp3`, 나머지 부속값 NULL).
 - 메타(코덱·비트레이트·채널·샘플레이트·크기)는 **업로드 때 서버가 파일에서 읽어 채운다**(`audio-probe`). 수동 입력을 받지 않는다 — `duration_sec`과 같은 이유다(불일치하면 판정이 깨진다).
 - 재생 URL 발급은 이 표에서 **허용·보유 음질 가운데 가장 높은 것**을 고른다(`player.md` 4.9). 어떤 응답에도 `path`는 실리지 않는다.
+- **한 음질 행만 바뀌는 경우가 있다** — 무손실만 교체하는 재발행(`admin-api.md` 4.10 `rendition_only`, 2026-10-23 — KAN-264). 그때도 `duration_sec`은 압축 음질과 ±1초 안이다(같은 검증). `contents.audio_path`·다른 음질 행·`content_version`은 그대로다.
 
 ### 5.9 `series` *(신설 2026-10-17 — KAN-134 시리즈)*
 
@@ -1168,6 +1169,7 @@ idx_audio_access_logs_user_id_issued_at (user_id, issued_at DESC)
 - **`signed_url`을 저장하지 않는다.** 서명 URL을 DB에 남기면 그 자체가 유출 경로가 된다(`architecture.md` 9.4). 발급 사실만 기록한다.
 - FR-33 무단 재배포 방지의 이상 탐지·감사 근거다.
 - **`ip_hash`는 NULL 허용이다**(명시 2026-09-08). 프록시 설정(`TRUST_PROXY_HOPS`)에 따라 클라이언트 IP를 읽지 못하는 배포가 있고, 그때 빈 값을 해싱해 실제와 구분되지 않는 값을 남기지 않는다.
+- **`device_id`는 기록·이상 탐지의 축이고 재생 허용 여부를 가르지 않는다** — 다만 발급 때 같은 `device_id`의 `device_tokens`(3.6) 행으로 **음질은 가른다**(무손실 기기 조건 — iOS 앱 1.3.0 미만 제외, `player.md` 4.9, 2026-10-23).
 - **탈퇴 시 즉시 파기한다**([12.3](#123-회원-탈퇴-처리) — 목록에 추가 2026-09-08). `user_id` FK의 `ON DELETE CASCADE`가 집행한다.
 
 ### 6.6 `source_link_clicks`
