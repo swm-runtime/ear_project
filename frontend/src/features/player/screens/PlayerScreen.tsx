@@ -733,6 +733,8 @@ export default function PlayerScreen() {
   };
   // goBack 은 한 번만 — 놓기·중단·구독이 겹쳐 두 번 부르면 닫히는 중인 모달을 또 닫으려다 RNS 가 굳는다
   const isCollapsingRef = useRef(false);
+  const collapseWatchdogRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  useEffect(() => () => clearTimeout(collapseWatchdogRef.current), []);
   const dismissPlayer = () => {
     // 줌 전환 갈래: 화면을 걷으면 시스템이 미니플레이어 자리로 줄이는 모션을 그린다
     if (USE_NATIVE_PLAYER_ZOOM) {
@@ -744,8 +746,27 @@ export default function PlayerScreen() {
       // UIKit 이 먼저 닫는다(줌 축소) — 라우트 pop 은 닫힘 완료 뒤 RNS 의 onDismissed 가 한다. JS 가 먼저 pop 하면 RNS 의
       // 스냅샷 교체와 줌 dismiss 가 충돌해 앱이 굳었다(2026-09-27). 네이티브가 못 닫으면 종전대로 goBack
       traceJs('player collapse → native dismiss');
-      void screen.dismissNatively().then((dismissed) => {
-        if (dismissed) return;
+      void screen.dismissNatively().then((result) => {
+        if (result === 'dismissed') {
+          /*
+           * 워치독(2026-10-24 전수조사) — 뜨는 중(줌 확대)에 닫으면 UIKit 이 dismiss 를 조용히 무시하고 완료도 안 부른다. 옛 네이티브는
+           * 그래도 `dismissed` 라 답해 이 가드가 영영 켜진 채 셰브론·끌어내리기가 죽었다(시스템 드래그 닫기도 꺼져 있어 앱 종료만 답).
+           * 닫혔으면 그 전에 이 화면이 내려가 타이머가 지워진다
+           */
+          clearTimeout(collapseWatchdogRef.current);
+          collapseWatchdogRef.current = setTimeout(() => {
+            traceJs('player collapse ignored → guard reset');
+            isCollapsingRef.current = false;
+            screen.resetNativeDismiss();
+          }, COLLAPSE_WATCHDOG_MS);
+          return;
+        }
+        if (result === 'busy' || result === 'not-screen') {
+          // 지금은 못 닫는다(새 네이티브) — 다음 셰브론·끌어내리기를 받는다
+          traceJs(`player collapse → ${result}, guard reset`);
+          isCollapsingRef.current = false;
+          return;
+        }
         traceJs('player collapse → goBack (fallback)');
         screen.collapse();
       });
@@ -2938,6 +2959,8 @@ interface LayoutBox {
 const MINI_FALLBACK_BOTTOM = 130;
 /** 모션 레이어 아트워크 로드를 기다리는 상한 — 보통은 onLoad가 먼저 온다(캐시). 실패·지연 시 이 뒤엔 그냥 출발 */
 const MORPH_IMAGE_WAIT_MS = 800;
+/** 네이티브 닫기 뒤 이만큼 지나도 화면이 남아 있으면 UIKit 이 무시한 것으로 본다 — 닫힘 모션(≈0.35초)의 여러 배 */
+const COLLAPSE_WATCHDOG_MS = 2_000;
 /** 앱바 높이(터치 타깃 44) — 히어로가 쓸 수 있는 높이를 셈할 때 뺀다 */
 const APP_BAR_HEIGHT = 44;
 const PLAY_BUTTON_SIZE = 72;

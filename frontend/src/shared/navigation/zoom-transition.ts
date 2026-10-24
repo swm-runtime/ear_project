@@ -45,14 +45,25 @@ export const armPlayerZoom = async (): Promise<void> => {
 };
 
 /**
+ * 네이티브 닫기 결과.
+ * - `dismissed` — UIKit 이 닫기를 시작했다(라우트 pop 은 RNS 의 onDismissed)
+ * - `busy` — 뜨는 중·닫히는 중·다른 전환 중이라 닫지 않았다(UIKit 은 이때 dismiss 를 조용히 무시하고 완료도 안 부른다)
+ * - `not-screen` — 맨 위가 플레이어 화면이 아니다(RN 시트·팝업 등) — 그걸 대신 닫지 않았다
+ * - 그 밖(`none` 떠 있는 모달 없음 · `no-native` · `unavailable` · `error:…`) — 호출부가 goBack 으로 대신한다
+ *
+ * `busy`·`not-screen` 은 다음 빌드(2026-10-24 이후)의 네이티브만 답한다 — 옛 네이티브는 무시돼도 `dismissed` 라 답하므로 화면이
+ * 워치독으로 다시 닫을 수 있게 푼다
+ */
+export type NativeDismissResult = string;
+
+/**
  * 줌으로 띄운 플레이어를 닫는다 — **UIKit 이 먼저 닫고, 라우트 pop 은 RNS 의 onDismissed 가 한다.** JS 가 먼저 goBack 하면
  * RNS 가 dismiss 전에 화면 뷰를 스냅샷으로 갈아끼우고 줌 dismiss 가 그 위에서 끝나지 못해 앱이 굳었다(2026-09-27 02:57 실험:
- * 줌 등록만 끄면 안 굳는다). 네이티브가 없거나 떠 있는 모달을 못 찾으면 false — 호출부가 goBack 으로 대신한다
+ * 줌 등록만 끄면 안 굳는다). 결과는 위 `NativeDismissResult`
  */
-export const dismissPlayerNatively = async (): Promise<boolean> => {
-  if (!USE_NATIVE_PLAYER_ZOOM) return false;
-  const result = await dismissPresentedScreenNatively(PLAYER_DISMISS_MODE);
-  return result === 'dismissed';
+export const dismissPlayerNatively = async (): Promise<NativeDismissResult> => {
+  if (!USE_NATIVE_PLAYER_ZOOM) return 'unavailable';
+  return dismissPresentedScreenNatively(PLAYER_DISMISS_MODE);
 };
 
 /**
