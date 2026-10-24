@@ -296,7 +296,7 @@ class PlaybackService {
         return;
       }
       if ((request.autoplay ?? true) && session.state === 'ready' && !session.isPlaying) {
-        this.player?.play();
+        this.playNative();
       }
       request.callbacks?.onIssued?.({ isReusedSession: true });
       return;
@@ -582,12 +582,15 @@ class PlaybackService {
       const { startPositionSec, autoplay } = this.pendingSetup;
       this.pendingSetup = null;
       if (startPositionSec > 0) {
+        const generation = this.generation;
         await this.player?.seekTo(startPositionSec);
+        // 시크를 기다리는 사이 다른 편이 시작됐다 — 그 편을 준비됨으로 만들거나 동의 없이 재생시키지 않는다(2026-10-24 전수조사)
+        if (generation !== this.generation) return;
         ctx.tracking = markSeek(ctx.tracking, startPositionSec);
       }
       store.getState().patchSession({ state: 'ready', positionSec: startPositionSec });
       this.activateLockScreen();
-      if (autoplay) this.player?.play();
+      if (autoplay) this.playNative();
       return;
     }
 
@@ -789,7 +792,21 @@ class PlaybackService {
     }
     const session = store.getState().session;
     if (session?.state === 'ready' && (!session.isPlaying || session.banner === 'network')) {
-      this.player?.play();
+      this.playNative();
+    }
+  }
+
+  /**
+   * 네이티브 재생 — **동기로 던질 수 있다**: iOS 는 play 가 오디오 세션을 켜는데(`setActive(true)`) 전화·보이스톡 통화 중 등엔
+   * 실패해 예외가 난다. 버튼 핸들러까지 올라가면 잡는 곳이 없어 앱이 죽었다(2026-10-24 전수조사). 실패는 "재생 안 됨"으로 남긴다
+   */
+  private playNative(player: AudioPlayer | null = this.player): void {
+    if (!player) return;
+    try {
+      player.play();
+    } catch (error) {
+      logger.warn('[player] native play failed', error);
+      if (store.getState().session) store.getState().patchSession({ isPlaying: false });
     }
   }
 
@@ -804,7 +821,7 @@ class PlaybackService {
     if (session.isPlaying) {
       this.pause();
     } else {
-      this.player?.play();
+      this.playNative();
     }
   }
 
@@ -1067,8 +1084,10 @@ class PlaybackService {
     ctx.replayIdempotencyKey = null;
     ctx.tracking = markSeek(ctx.tracking, 0);
     store.getState().patchSession({ state: 'ready', positionSec: 0 });
-    await this.player.seekTo(0);
-    this.player.play();
+    const player = this.player;
+    await player.seekTo(0);
+    if (this.player !== player) return;
+    this.playNative(player);
   }
 
   /* ── 위치 저장 ── */
@@ -1263,7 +1282,7 @@ class PlaybackService {
     // 시크를 기다리는 사이 다른 편으로 넘어갔다 — 이 플레이어는 놓였다. 재생시키면 멈출 수 없는 소리가 겹쳤다(2026-10-24 전수조사)
     if (this.player !== player) return;
     ctx.tracking = markSeek(ctx.tracking, positionSec);
-    if (shouldResume) player.play();
+    if (shouldResume) this.playNative(player);
   }
 
   /**
