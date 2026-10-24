@@ -1,11 +1,17 @@
-import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
-import { useQueryClient } from '@tanstack/react-query';
+import { useIsFocused, useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
+import { useQueryClient, type InfiniteData } from '@tanstack/react-query';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Linking } from 'react-native';
 
 import { track } from '@/shared/analytics';
 import { useDelayedVisible } from '@/shared/hooks/useDelayedVisible';
 import { logger } from '@/shared/lib/logger';
+import { traceJs } from '@/shared/monitoring/js-trace';
+import {
+  dismissPlayerNatively,
+  USE_NATIVE_PLAYER_ZOOM,
+  type NativeDismissResult,
+} from '@/shared/navigation/zoom-transition';
 import { useToastStore } from '@/shared/ui/toast.store';
 
 import {
@@ -21,11 +27,13 @@ import { PLAYER_COPY } from '../player.copy';
 import type { PlayEntryPoint, PlaybackStartMeta, QueueEntry, QueueItem } from '../player.types';
 import { usePlayGate } from './usePlayGate';
 import { queueKeys } from './useQueueQuery';
+import { upNextKeys } from './useUpNextQuery';
 import { playbackService } from '../services/playback.service';
 import { getPlayerLibraryBridge } from '../services/player-library.bridge';
 import {
   appendToSnapshot,
   withoutSnapshotItem,
+  withPagesItemId,
   withSnapshotItemId,
 } from '../services/queue-context';
 import { useLimitNoticeStore } from '../store/limit-notice.store';
@@ -44,6 +52,10 @@ type PlayerRouteParams = {
 /** PL1~PL10 화면 로직 전부 — Screen은 이 훅이 준 상태를 배치만 한다(convention.md 3.1) */
 /** 플레이어 안에서 펼쳐지는 패널의 종류 — 하나만 열린다 */
 export type PlayerPanelKind = 'script' | 'queue';
+
+/** 줌 모달이 뜨는 중이라 네이티브가 `busy` 로 답할 때 다시 닫아 보는 횟수·간격 — 확대 모션(≈0.5초)을 넘기면 된다 */
+const NATIVE_DISMISS_BUSY_RETRIES = 4;
+const NATIVE_DISMISS_BUSY_RETRY_MS = 300;
 
 export const usePlayerScreen = () => {
   const navigation = useNavigation();
@@ -92,24 +104,112 @@ export const usePlayerScreen = () => {
     [contentId],
   );
 
-  const isActiveSession = session !== null && session.contentId === contentId;
-
   /*
    * ── 이 화면이 보여 주던 편에서 세션이 다른 편으로 넘어가면 화면도 따라간다 — 재생 목록 자동 재생(player.md 4.2-4)은
    * 화면 이동 없이 세션만 바꾼다. 따라가지 않으면 화면의 편(route)과 세션이 어긋나 세션 없음으로 읽혀 화면이 까맣게
-   * 비었다(PM 2026-10-23). 직전 세션이 이 화면의 편이었을 때만 따라간다 — 다른 편을 들고 들어온 진입(딥링크·확대)은
-   * 위 진입 효과가 세션을 이 화면의 편으로 바꾸는 쪽이다 ──
+   * 비었다(PM 2026-10-23). 직전 세션이 이 화면의 편(이거나 이미 따라가던 편)이었을 때만 따라간다 — 다른 편을 들고 들어온
+   * 진입(딥링크·확대)은 아래 진입 효과가 세션을 이 화면의 편으로 바꾸는 쪽이다 ──
+   *
+   * "따라가는 중"은 **렌더 안에서** 정한다(React 의 파생 상태 갱신 — 커밋 전에 다시 그린다). 종전엔 route 를 layout effect 의
+   * setParams 로만 맞춰, 세션이 바뀐 그 렌더 하나는 "세션 없음"이라 화면 트리 전체가 빈 View 로 바뀌었다가 다시 마운트됐다 —
+   * 그때 끌던 시트·시크바·재생 목록 손잡이의 제스처가 끝 신호를 못 받고 중간에 멈췄다(2026-10-24 전수조사)
    */
   const sessionContentId = session?.contentId ?? null;
-  const lastSessionContentIdRef = useRef(sessionContentId);
-  // 그리기 전에 따라간다 — 일반 효과면 어긋난 한 프레임이 빈 화면으로 칠해진다
+  const [sessionSeen, setSessionSeen] = useState({ id: sessionContentId, isFollowing: false });
+  if (sessionSeen.id !== sessionContentId) {
+    setSessionSeen({
+      id: sessionContentId,
+      isFollowing:
+        sessionContentId !== null &&
+        sessionContentId !== contentId &&
+        (sessionSeen.id === contentId || sessionSeen.isFollowing),
+    });
+  }
+  const isFollowingSession = sessionSeen.id === sessionContentId && sessionSeen.isFollowing;
+  const isActiveSession =
+    session !== null && (session.contentId === contentId || isFollowingSession);
+  // route 도 그리기 전에 맞춘다 — 저장·삭제·이탈 판정이 route 의 편을 본다
   useLayoutEffect(() => {
-    const previous = lastSessionContentIdRef.current;
-    lastSessionContentIdRef.current = sessionContentId;
-    if (previous === contentId && sessionContentId !== null && sessionContentId !== contentId) {
+    if (isFollowingSession && sessionContentId !== null && sessionContentId !== contentId) {
       navigation.setParams({ contentId: sessionContentId } as never);
     }
-  }, [sessionContentId, contentId, navigation]);
+  }, [isFollowingSession, sessionContentId, contentId, navigation]);
+
+  /*
+   * ── 세션 없음의 출구(KAN-257) — 열린 플레이어에서 세션이 사라지면 화면을 닫는다. 종전엔 "세션 정리 직후의 한 프레임"만
+   * 가정해 빈 화면을 그렸고, 닫는 쪽이 따로 없는 정리(발급 먼저 경로의 회수·404 정리, 확인 팝업 [취소], 로그아웃 등)면 닫기
+   * 수단 없이 흰 화면에 갇혔다. 한 번이라도 세션을 본 뒤에만 닫는다 — 미니플레이어 확대·딥링크는 첫 프레임에 세션이 없다(아래
+   * 진입 효과가 세운다). 이미 닫는 중이면(차단 전환·PL9 [닫기]·축소) 다시 부르지 않고, 위에 다른 화면(상세)이 쌓여 있으면
+   * 돌아왔을 때 닫는다 ──
+   */
+  const hasSession = session !== null;
+  const hadSessionRef = useRef(hasSession);
+  const isClosingRef = useRef(false);
+  const isFocused = useIsFocused();
+  const close = () => {
+    isClosingRef.current = true;
+    navigation.goBack();
+  };
+
+  /*
+   * ── iOS 26 줌 갈래: 플레이어 라우트가 **JS 로 먼저 빠지지 않게** 한다(2026-10-24 전수조사) ──
+   * 줌으로 띄운 모달을 JS 가 먼저 걷으면 RNS 가 화면 뷰를 스냅샷으로 갈아끼우고 UIKit dismiss 가 그 위에서 끝나지 못해 화면 전체
+   * 터치가 죽었다(2026-09-27). 셰브론·끌어내리기는 네이티브 닫기를 먼저 탔지만, 나머지 길 — PL9 [닫기]·한도 403 자동 닫기·세션
+   * 없음 닫기·플레이어 위에서 푸시·탭 이동(toTab) — 은 goBack/navigate 로 바로 걷었다. 라우트가 빠지기 직전(beforeRemove)에 가로채
+   * UIKit 닫기를 먼저 시작하고, 그다음 원래 동작을 보낸다 — dismiss 중인 모달의 JS pop 은 RNS 가 전환 끝까지 기다린다(안전).
+   * 건너뛰는 경우: 이미 네이티브 닫기를 시작했다(그 완료가 보내는 pop 이다) · 플레이어가 맨 위가 아니다(상세가 위에 있으면 네이티브는
+   * 상세를 닫는다) · 플레이어 위에 시트·팝업이 떠 있다(네이티브가 그 RN 모달을 대신 닫아 장부가 어긋난다) — 셋 다 종전대로 걷는다
+   */
+  const isNativeDismissStartedRef = useRef(false);
+  const hasOverlayRef = useRef(false);
+  const hasOverlay =
+    isRateSheetVisible ||
+    isSleepTimerSheetVisible ||
+    isMoreSheetVisible ||
+    playGate.confirmState !== null;
+  useEffect(() => {
+    hasOverlayRef.current = hasOverlay;
+  }, [hasOverlay]);
+  const dismissNatively = async (): Promise<NativeDismissResult> => {
+    isNativeDismissStartedRef.current = true;
+    const result = await dismissPlayerNatively();
+    // 못 닫았다(전환 중·맨 위가 플레이어 아님 — 새 네이티브만 이렇게 답한다) — 다음 시도를 받는다
+    if (result === 'busy' || result === 'not-screen') isNativeDismissStartedRef.current = false;
+    return result;
+  };
+  /** UIKit 이 닫기를 조용히 무시했다(옛 네이티브는 그래도 `dismissed` 라 답한다) — 화면 워치독이 다시 닫을 수 있게 푼다 */
+  const resetNativeDismiss = () => {
+    isNativeDismissStartedRef.current = false;
+  };
+  useEffect(() => {
+    if (!USE_NATIVE_PLAYER_ZOOM) return undefined;
+    return navigation.addListener('beforeRemove', (event) => {
+      if (isNativeDismissStartedRef.current || hasOverlayRef.current || !navigation.isFocused())
+        return;
+      event.preventDefault();
+      traceJs('player remove → native dismiss first');
+      // 뜨는 중(줌 확대 0.5초)이면 UIKit 이 닫기를 무시한다 — 잠깐 뒤 다시 닫는다. 끝내 못 닫으면 종전대로 걷는다
+      const attempt = (count: number) => {
+        void dismissNatively().then((result) => {
+          if (result === 'busy' && count < NATIVE_DISMISS_BUSY_RETRIES) {
+            setTimeout(() => attempt(count + 1), NATIVE_DISMISS_BUSY_RETRY_MS);
+            return;
+          }
+          navigation.dispatch(event.data.action);
+        });
+      };
+      attempt(0);
+    });
+  }, [navigation]);
+  useEffect(() => {
+    if (hasSession) {
+      hadSessionRef.current = true;
+      return;
+    }
+    if (!hadSessionRef.current || isClosingRef.current || !isFocused) return;
+    close();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- close 는 ref·navigation 만 쓴다
+  }, [hasSession, isFocused]);
 
   /* ── 진입 — 게이트를 거치지 않은 경로(미니플레이어 확대·딥링크)만 여기서 시작한다.
         확대는 재생을 시작시키지 않는다(uiux 4.8) — autoplay 기본 false(FR-24) ── */
@@ -150,15 +250,19 @@ export const usePlayerScreen = () => {
   const blockedState = isActiveSession && session.state === 'blocked' ? session.blocked : null;
   useEffect(() => {
     if (!blockedState) return;
-    // 결제 뒤 다시 틀 콘텐츠 — 세션을 내리기 전에 잡아 둔다(paywall.md 4.5-5)
-    const blockedContentId = usePlaybackStore.getState().session?.contentId ?? contentId;
+    // 결제 뒤 다시 틀 콘텐츠 — 세션을 내리기 전에 잡아 둔다(paywall.md 4.5-5). 재생 목록 맥락도 함께 — 결제 뒤 다시 틀어도
+    // 같은 목록이다(KAN-258 — 빠뜨리면 게이트가 라이브러리 맥락으로 덮는다)
+    const blockedStore = usePlaybackStore.getState();
+    const blockedContentId = blockedStore.session?.contentId ?? contentId;
+    const blockedQueue = blockedStore.queueContext;
     playbackService.clearSession();
-    navigation.goBack();
+    close();
     if (blockedState.kind === 'paywall') {
       // 세션이 어디서 왔든 사용자가 본 것은 플레이어 화면이다
       playGate.openPaywall('player', blockedState.message ?? undefined, {
         contentId: blockedContentId,
         isCountedToday: false,
+        queue: blockedQueue,
       });
     } else {
       useLimitNoticeStore
@@ -275,12 +379,14 @@ export const usePlayerScreen = () => {
     if (!isActiveSession) return;
     if (session.state === 'ended') {
       // 완료 상태의 ▶ = 위치 0부터 + replay 신호. 판정은 서버 몫 — 창 밖이면 403이 플레이어로
-      // 돌아온다. 같은 세션의 재청취는 창 내이므로 팝업 힌트는 차감 없음으로 둔다(paywall.md 4.3-1)
+      // 돌아온다. 같은 세션의 재청취는 창 내이므로 팝업 힌트는 차감 없음으로 둔다(paywall.md 4.3-1).
+      // 같은 편을 다시 듣는 것이라 재생 목록 맥락을 그대로 넘긴다(KAN-258 — 빠뜨리면 게이트가 라이브러리 맥락으로 덮는다)
       playGate.requestPlay(
         {
           contentId,
           isCountedToday: true,
           restartFromBeginning: true,
+          queue: usePlaybackStore.getState().queueContext,
           meta: session.meta.title
             ? {
                 title: session.meta.title,
@@ -345,33 +451,49 @@ export const usePlayerScreen = () => {
   };
 
   /**
-   * 탐색 맥락 줄의 담기(KAN-241) — 탐색 타일의 담기와 같은 뜻. 낙관 반영(스냅샷 `itemId` 임시 채움) → 서버 → 실패면 되돌리고
-   * 토스트. 라이브러리 목록 재조회는 브리지가 한다. 담기는 횟수 제한이 없고 페이월을 노출하지 않는다(PRD 5.4)
+   * 탐색 맥락 줄·추천 줄의 담기(KAN-241) — 탐색 타일의 담기와 같은 뜻. 낙관 반영(스냅샷·추천 캐시 `itemId` 임시 채움) → 서버 →
+   * 실패면 되돌리고 토스트. 같은 편을 연달아 담으면 마지막 요청의 결과만 쓴다(`saveSeqRef`). 라이브러리 목록 재조회는 브리지가,
+   * 라이브러리 맥락 재생 목록 재조회는 여기서 한다. 담기는 횟수 제한이 없고 페이월을 노출하지 않는다(PRD 5.4)
    */
   const saveSeqRef = useRef(new Map<string, number>());
+  /**
+   * 담기 결과를 줄이 온 두 곳에 함께 쓴다 — 탐색 맥락 스냅샷과 추천 블록 캐시(KAN-259). 추천 줄은 스냅샷이 아니라 추천 쿼리에서
+   * 오므로 스냅샷만 고치면 담기 면이 다시 드러났다. 그 편이 없는 쪽은 그대로다
+   */
+  const reflectSavedItemId = (contentId: string, itemId: string | null) => {
+    const latest = usePlaybackStore.getState();
+    latest.setQueueContext(withSnapshotItemId(latest.queueContext, contentId, itemId));
+    queryClient.setQueriesData<InfiniteData<QueueEntry[]>>(
+      { queryKey: upNextKeys.all },
+      (data) => {
+        if (data === undefined) return data;
+        const pages = withPagesItemId(data.pages, contentId, itemId);
+        return pages === data.pages ? data : { ...data, pages };
+      },
+    );
+  };
   const saveQueueItem = (item: QueueEntry) => {
     if (item.itemId !== null) return;
     const bridge = getPlayerLibraryBridge();
     if (!bridge) return;
     const seq = (saveSeqRef.current.get(item.contentId) ?? 0) + 1;
     saveSeqRef.current.set(item.contentId, seq);
-    const store = usePlaybackStore.getState();
-    store.setQueueContext(
-      withSnapshotItemId(store.queueContext, item.contentId, `optimistic-${item.contentId}`),
-    );
+    reflectSavedItemId(item.contentId, `optimistic-${item.contentId}`);
     bridge
       .saveContent(item.contentId, seq)
       .then((itemId) => {
         if (saveSeqRef.current.get(item.contentId) !== seq) return;
-        const latest = usePlaybackStore.getState();
-        latest.setQueueContext(withSnapshotItemId(latest.queueContext, item.contentId, itemId));
+        reflectSavedItemId(item.contentId, itemId);
         showToast(PLAYER_COPY.queuePanel.saveToast);
+        // 라이브러리 맥락의 재생 목록은 서버 목록(라이브러리 첫 페이지)이다 — 담은 편이 들어가도록 다시 맞춘다
+        if (usePlaybackStore.getState().queueContext.kind === 'library') {
+          void queryClient.invalidateQueries({ queryKey: queueKeys.all });
+        }
       })
       .catch((error: unknown) => {
         if (saveSeqRef.current.get(item.contentId) !== seq) return;
         logger.warn('[player] queue save failed', error);
-        const latest = usePlaybackStore.getState();
-        latest.setQueueContext(withSnapshotItemId(latest.queueContext, item.contentId, null));
+        reflectSavedItemId(item.contentId, null);
         showToast(PLAYER_COPY.queuePanel.saveFailedToast);
       });
   };
@@ -439,10 +561,10 @@ export const usePlayerScreen = () => {
   /* ── PL9 회수 [닫기] — 세션을 내리고 원래 화면으로 복귀. 목록 정리는 라이브러리 소유 ── */
   const closeWithdrawn = () => {
     playbackService.clearSession();
-    navigation.goBack();
+    close();
   };
 
-  const collapse = () => navigation.goBack();
+  const collapse = close;
 
   const isLoading = isActiveSession && session.state === 'loading';
   const isBuffering = isActiveSession && session.state === 'ready' && session.isBuffering;
@@ -463,6 +585,9 @@ export const usePlayerScreen = () => {
     seekForward: () => playbackService.seekForward(),
     seekTo: (sec: number) => playbackService.seekTo(sec),
     collapse,
+    /** iOS 26 줌 갈래의 셰브론·끌어내리기 — UIKit 이 먼저 닫는다(위 beforeRemove 주석). 못 닫으면 false */
+    dismissNatively,
+    resetNativeDismiss,
     // 원문·배너
     openSourceLink,
     retryLoad: () => playbackService.retryLoad(),

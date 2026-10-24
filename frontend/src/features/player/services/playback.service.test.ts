@@ -6,6 +6,9 @@
 import { afterEach, beforeEach, describe, expect, it, jest } from '@jest/globals';
 import { AppState } from 'react-native';
 
+import { ApiError } from '@/shared/api/api-error';
+import { ERROR_CODES } from '@/shared/api/error-codes';
+
 import type { AudioIssueResult } from '../player.types';
 import { playbackService } from './playback.service';
 import { usePlaybackStore } from '../store/playback.store';
@@ -23,6 +26,7 @@ interface FakePlayer {
   setActiveForLockScreen: jest.Mock<() => void>;
   clearLockScreenControls: jest.Mock<() => void>;
   remove: jest.Mock<() => void>;
+  release: jest.Mock<() => void>;
   addListener: (event: string, listener: StatusListener) => { remove: () => void };
   emit: StatusListener;
   currentTime: number;
@@ -65,6 +69,7 @@ const mockCreatePlayer = (source: { uri: string }): FakePlayer => {
     setActiveForLockScreen: jest.fn(),
     clearLockScreenControls: jest.fn(),
     remove: jest.fn(),
+    release: jest.fn(),
     addListener: (_event, next) => {
       listener = next;
       return { remove: () => undefined };
@@ -180,6 +185,66 @@ afterEach(() => {
   // 싱글턴이다 — 다음 테스트가 앞 세션의 플레이어·타이머를 물려받지 않게 내린다
   playbackService.clearSession();
   jest.useRealTimers();
+});
+
+describe('플레이어 정리', () => {
+  it('세션을 내리면 네이티브 플레이어를 목록에서 빼는 데 그치지 않고 놓는다', async () => {
+    mockIssue.mockResolvedValue(issueOf('https://example.com/audio'));
+    const player = await startPlaying(playbackService);
+    playbackService.clearSession();
+    expect(player.remove).toHaveBeenCalledTimes(1);
+    expect(player.release).toHaveBeenCalledTimes(1);
+  });
+
+  it('수면 타이머 페이드 중 편이 바뀌면 놓인 플레이어의 음량을 건드리지 않는다', async () => {
+    mockIssue.mockResolvedValue(issueOf('https://example.com/audio'));
+    const player = await startPlaying(playbackService);
+    usePlaybackStore.getState().patchSession({ isPlaying: true });
+    playbackService.fadeOutAndPause(10_000);
+    await jest.advanceTimersByTimeAsync(500);
+    // 페이드가 실제로 돌고 있다
+    expect(player.volume).toBeLessThan(1);
+    playbackService.clearSession();
+    // 놓인 네이티브 객체는 만지면 던진다 — 페이드 타이머가 건드리면 이 테스트가 터진다
+    const volumeAfterTeardown = player.volume;
+    const setVolume = jest.fn(() => {
+      throw new Error('released');
+    });
+    Object.defineProperty(player, 'volume', { set: setVolume, get: () => volumeAfterTeardown });
+    await jest.advanceTimersByTimeAsync(1_000);
+    expect(setVolume).not.toHaveBeenCalled();
+  });
+});
+
+describe('네이티브 재생 실패', () => {
+  it('play 가 던져도(iOS 통화 중 오디오 세션 실패) ▶ 핸들러로 올라가지 않고 재생 안 됨으로 남는다', async () => {
+    mockIssue.mockResolvedValue(issueOf('https://example.com/audio'));
+    const player = await startPlaying(playbackService);
+    playbackService.pause();
+    usePlaybackStore.getState().patchSession({ isPlaying: false });
+    player.play.mockImplementation(() => {
+      throw new Error('Session activation failed');
+    });
+    expect(() => playbackService.togglePlayPause()).not.toThrow();
+    expect(() => playbackService.playWhenReady()).not.toThrow();
+    expect(usePlaybackStore.getState().session?.isPlaying).toBe(false);
+  });
+});
+
+describe('재생 시작 기록 재시도', () => {
+  it('실패하면 3초 뒤에 다시 보낸다 — 그 사이 상태 틱이 연달아 보내지 않는다', async () => {
+    mockIssue.mockResolvedValue(issueOf('https://example.com/audio'));
+    mockStartPlay.mockImplementation(() => Promise.reject(new Error('offline')));
+    await startPlaying(playbackService);
+    // 재생이 시작된 뒤 첫 상태 틱이 처음 보낸다
+    await jest.advanceTimersByTimeAsync(500);
+    expect(mockStartPlay).toHaveBeenCalledTimes(1);
+    // 0.5초 폴링 틱이 여러 번 돌아도(종전엔 틱마다 다시 보냈다) 재시도 전까지는 그대로다
+    await jest.advanceTimersByTimeAsync(2_000);
+    expect(mockStartPlay).toHaveBeenCalledTimes(1);
+    await jest.advanceTimersByTimeAsync(1_500);
+    expect(mockStartPlay).toHaveBeenCalledTimes(2);
+  });
 });
 
 describe('서명 URL 갱신 — 고정 스트림(패치된 빌드)', () => {
@@ -379,6 +444,64 @@ describe('백그라운드 재생 — 위치만 바뀐 틱은 화면에 올리지
   });
 });
 
+describe('±10초 연타 — 네이티브 시크는 한 번에 하나(PM 2026-10-24 iOS 벽돌)', () => {
+  beforeEach(() => {
+    Object.defineProperty(AppState, 'currentState', { get: () => 'active', configurable: true });
+  });
+
+  it('도는 시크가 끝나기 전 탭은 쌓지 않고, 끝나면 마지막 목표로 한 번만 더 보낸다', async () => {
+    mockIssue.mockResolvedValue(issueOf('https://example.com/audio'));
+    const player = await startPlaying(playbackService);
+    // 첫 로드 틱은 시작 위치 맞추기(setup)가 먹는다 — 두 번째 틱부터 위치가 올라간다
+    player.emit({ currentTime: 0, duration: 600, playing: true, isLoaded: true });
+    await jest.advanceTimersByTimeAsync(0);
+    player.currentTime = 100;
+    player.emit({ currentTime: 100, duration: 600, playing: true, isLoaded: true });
+    await jest.advanceTimersByTimeAsync(0);
+    expect(usePlaybackStore.getState().session?.positionSec).toBe(100);
+    let finishSeek: () => void = () => undefined;
+    player.seekTo.mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          finishSeek = resolve;
+        }),
+    );
+    const before = player.seekTo.mock.calls.length;
+
+    playbackService.seekBackward();
+    playbackService.seekBackward();
+    playbackService.seekBackward();
+
+    // 화면 위치는 탭마다 바로 간다 — 네이티브엔 첫 시크만
+    expect(usePlaybackStore.getState().session?.positionSec).toBe(70);
+    expect(player.seekTo.mock.calls.slice(before)).toEqual([[90]]);
+
+    finishSeek();
+    await jest.advanceTimersByTimeAsync(0);
+    expect(player.seekTo.mock.calls.slice(before)).toEqual([[90], [70]]);
+  });
+
+  it('네이티브가 끝을 알리지 않아도 시간이 지나면 다음 시크를 보낸다', async () => {
+    mockIssue.mockResolvedValue(issueOf('https://example.com/audio'));
+    const player = await startPlaying(playbackService);
+    // 첫 로드 틱은 시작 위치 맞추기(setup)가 먹는다 — 두 번째 틱부터 위치가 올라간다
+    player.emit({ currentTime: 0, duration: 600, playing: true, isLoaded: true });
+    await jest.advanceTimersByTimeAsync(0);
+    player.currentTime = 100;
+    player.emit({ currentTime: 100, duration: 600, playing: true, isLoaded: true });
+    await jest.advanceTimersByTimeAsync(0);
+    expect(usePlaybackStore.getState().session?.positionSec).toBe(100);
+    player.seekTo.mockImplementation(() => new Promise<void>(() => undefined));
+    const before = player.seekTo.mock.calls.length;
+
+    playbackService.seekBackward();
+    await jest.advanceTimersByTimeAsync(2_100);
+    playbackService.seekBackward();
+
+    expect(player.seekTo.mock.calls.slice(before)).toEqual([[90], [80]]);
+  });
+});
+
 describe('재생 목록 자동 재생(연속 재생 — player.md 4.2-4)', () => {
   const NEXT_ID = 'c0ffee00-0000-4000-8000-000000000002';
   const entryOf = (contentId: string, isCompleted = false) => ({
@@ -450,6 +573,12 @@ describe('재생 목록 자동 재생(연속 재생 — player.md 4.2-4)', () =>
     await playToEnd([entryOf(CONTENT_ID)]);
     expect(fetchUpNext).not.toHaveBeenCalled();
     expect(mockIssue.mock.calls.map(([input]) => input.contentId)).toEqual([CONTENT_ID]);
+  });
+
+  it('다음 줄이 다 들은 편이어도 건너뛰지 않고 그 편을 튼다(PM 2026-10-24)', async () => {
+    mockAutoplay.enabled = true;
+    await playToEnd([entryOf(CONTENT_ID), entryOf(NEXT_ID, true)]);
+    expect(mockIssue.mock.calls.map(([input]) => input.contentId)).toEqual([CONTENT_ID, NEXT_ID]);
   });
 
   it('추천도 비었으면 끝난 자리에 멈춘다', async () => {
@@ -536,5 +665,124 @@ describe('담지 않은 편의 완청 통지(KAN-252)', () => {
 
     // then
     expect(onServerStateChanged.mock.calls.length - afterStart).toBe(1);
+  });
+});
+
+describe('듣던 편을 지키는 시작(KAN-257 — keepCurrentUntilIssued)', () => {
+  const OTHER_ID = 'c0ffee00-0000-4000-8000-000000000009';
+  const limitError = () =>
+    new ApiError(
+      ERROR_CODES.PLAY_LIMIT_EXCEEDED,
+      '오늘 청취 한도를 모두 사용했어요',
+      false,
+      null,
+      null,
+      403,
+    );
+
+  it('발급이 한도 403 이면 듣던 세션·음원을 그대로 두고 onIssueBlocked 만 부른다', async () => {
+    // given — 한 편을 듣는 중
+    mockIssue.mockResolvedValue(issueOf('https://example.com/audio'));
+    const player = await startPlaying(playbackService);
+    const onIssueBlocked = jest.fn();
+    const onBecameCurrent = jest.fn();
+    mockIssue.mockRejectedValueOnce(limitError());
+
+    // when — 다른 편을 듣던 편을 지키며 시작한다
+    playbackService.start({
+      contentId: OTHER_ID,
+      entryPoint: 'explore',
+      autoplay: false,
+      keepCurrentUntilIssued: true,
+      callbacks: { onIssueBlocked, onBecameCurrent },
+    });
+    await jest.advanceTimersByTimeAsync(0);
+
+    // then
+    expect(onIssueBlocked).toHaveBeenCalledWith({
+      kind: 'paywall',
+      message: '오늘 청취 한도를 모두 사용했어요',
+    });
+    expect(onBecameCurrent).not.toHaveBeenCalled();
+    expect(usePlaybackStore.getState().session?.contentId).toBe(CONTENT_ID);
+    expect(usePlaybackStore.getState().session?.state).toBe('ready');
+    expect(player.pause).not.toHaveBeenCalled();
+    expect(player.remove).not.toHaveBeenCalled();
+  });
+
+  it('허용이면 발급이 끝난 뒤에 갈아 끼운다 — 그 전까지는 듣던 편이 세션이다', async () => {
+    mockIssue.mockResolvedValue(issueOf('https://example.com/audio'));
+    const player = await startPlaying(playbackService);
+    let resolveIssue: (value: AudioIssueResult) => void = () => undefined;
+    mockIssue.mockImplementationOnce(
+      () =>
+        new Promise<AudioIssueResult>((resolve) => {
+          resolveIssue = resolve;
+        }),
+    );
+    const onBecameCurrent = jest.fn();
+    const onIssued = jest.fn();
+
+    playbackService.start({
+      contentId: OTHER_ID,
+      entryPoint: 'explore',
+      autoplay: false,
+      keepCurrentUntilIssued: true,
+      callbacks: { onBecameCurrent, onIssued },
+    });
+    await jest.advanceTimersByTimeAsync(0);
+    expect(usePlaybackStore.getState().session?.contentId).toBe(CONTENT_ID);
+    expect(onBecameCurrent).not.toHaveBeenCalled();
+
+    resolveIssue(issueOf('https://example.com/other'));
+    await jest.advanceTimersByTimeAsync(0);
+    expect(onBecameCurrent).toHaveBeenCalledTimes(1);
+    expect(onIssued).toHaveBeenCalledWith({ isReusedSession: false });
+    expect(usePlaybackStore.getState().session?.contentId).toBe(OTHER_ID);
+    expect(player.remove).toHaveBeenCalled();
+  });
+
+  it('기다리는 사이 다른 재생이 시작되면 늦게 온 발급 결과는 버린다', async () => {
+    mockIssue.mockResolvedValue(issueOf('https://example.com/audio'));
+    await startPlaying(playbackService);
+    let rejectIssue: (error: unknown) => void = () => undefined;
+    mockIssue.mockImplementationOnce(
+      () =>
+        new Promise<AudioIssueResult>((_resolve, reject) => {
+          rejectIssue = reject;
+        }),
+    );
+    const onIssueBlocked = jest.fn();
+    playbackService.start({
+      contentId: OTHER_ID,
+      entryPoint: 'explore',
+      autoplay: false,
+      keepCurrentUntilIssued: true,
+      callbacks: { onIssueBlocked },
+    });
+    // 그 사이 다른 편을 바로 튼다(종전 경로)
+    const THIRD_ID = 'c0ffee00-0000-4000-8000-00000000000a';
+    playbackService.start({ contentId: THIRD_ID, entryPoint: 'library' });
+    await jest.advanceTimersByTimeAsync(600);
+
+    rejectIssue(limitError());
+    await jest.advanceTimersByTimeAsync(0);
+    expect(onIssueBlocked).not.toHaveBeenCalled();
+    expect(usePlaybackStore.getState().session?.contentId).toBe(THIRD_ID);
+  });
+
+  it('듣던 세션이 없으면 종전대로 세션을 내리고 onIssueBlocked 를 부른다', async () => {
+    const onIssueBlocked = jest.fn();
+    mockIssue.mockRejectedValueOnce(limitError());
+    playbackService.start({
+      contentId: OTHER_ID,
+      entryPoint: 'library',
+      autoplay: false,
+      keepCurrentUntilIssued: true,
+      callbacks: { onIssueBlocked },
+    });
+    await jest.advanceTimersByTimeAsync(0);
+    expect(onIssueBlocked).toHaveBeenCalledTimes(1);
+    expect(usePlaybackStore.getState().session).toBeNull();
   });
 });

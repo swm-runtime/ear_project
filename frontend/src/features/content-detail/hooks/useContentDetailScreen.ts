@@ -137,7 +137,8 @@ export const useContentDetailScreen = () => {
     // 현재 재생 중인 콘텐츠면 새 재생 없이 플레이어로 복귀한다 — 판정·차감이 다시 일어나지
     // 않는다(content-detail.md 4.4). 플레이어에서 진입한 경우가 대표 경로다
     if (playingContentId === contentId) {
-      navigation.navigate('Main', { screen: 'Player', params: { contentId } });
+      // 아래에 있는 플레이어로 돌아간다(`pop`) — 새로 쌓으면 플레이어가 두 장이 됐다(2026-10-24 전수조사)
+      navigation.navigate('Main', { screen: 'Player', params: { contentId }, pop: true });
       return;
     }
     playGate.requestPlay(

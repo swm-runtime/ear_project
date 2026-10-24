@@ -42,6 +42,7 @@ import {
   SEEK_STEP_SEC,
 } from '../player.constants';
 import type {
+  AudioIssueResult,
   PlaybackSession,
   PlayEntryPoint,
   PlaybackStartMeta,
@@ -117,6 +118,12 @@ export interface PlaybackCallbacks {
    * 페이월·한도 안내를 직접 띄운다. 안 넘기면 종전대로 세션을 `blocked`로 두고 플레이어 화면이 처리한다.
    */
   onIssueBlocked?: (blocked: { kind: 'paywall' | 'paid_limit'; message: string | null }) => void;
+  /**
+   * 이 요청이 **지금 세션이 되는 순간** — 새 세션을 세우거나 같은 편의 살아 있는 세션을 넘겨받을 때. 듣던 편을 지키는
+   * 시작(`keepCurrentUntilIssued`)은 발급 결과가 나온 뒤에야 세션을 바꾸므로, 재생 목록 맥락처럼 "재생이 바뀔 때 같이
+   * 바뀌어야 하는 것"을 진입점이 여기서 쓴다. 한도 403 으로 듣던 편을 지킨 경우엔 부르지 않는다(재생이 바뀌지 않았다)
+   */
+  onBecameCurrent?: () => void;
 }
 
 export interface StartPlaybackRequest {
@@ -128,6 +135,13 @@ export interface StartPlaybackRequest {
   restartFromBeginning?: boolean;
   /** 목록에서 이미 들고 온 메타 — 진입과 동시에 그린다(player-uiux.md 4.3) */
   meta?: PlaybackStartMeta;
+  /**
+   * **듣던 편을 발급 결과가 나올 때까지 내리지 않는다**(KAN-257). 기본은 시작 즉시 듣던 세션을 내리고 발급을 받는다.
+   * 켜면 발급이 끝난 뒤에 갈아 끼우고, 발급이 한도 403 이고 `onIssueBlocked` 가 있으면 **듣던 편을 그대로 둔 채** 그것만
+   * 부른다 — 소진 힌트로 발급부터 받는 재생(게이트 `startDeferred`)이 플레이어 안·미니플레이어가 떠 있는 채로 막혀도 듣던 편이
+   * 끊기지 않는다. 그 밖의 실패(회수·404·네트워크)는 종전처럼 새 편으로 갈아 끼운 뒤 처리한다. 듣던 세션이 없으면 효과가 없다
+   */
+  keepCurrentUntilIssued?: boolean;
   callbacks?: PlaybackCallbacks;
 }
 
@@ -160,6 +174,18 @@ interface SessionContext {
 }
 
 const store = usePlaybackStore;
+
+/** 발급 실패가 한도 403 이면 그 종류 — `handleIssueError` 의 한도 분기와 같은 판별이다 */
+const issueLimitBlockOf = (
+  error: unknown,
+): { kind: 'paywall' | 'paid_limit'; message: string | null } | null => {
+  if (!isApiError(error)) return null;
+  if (error.errorCode === ERROR_CODES.PLAY_LIMIT_EXCEEDED)
+    return { kind: 'paywall', message: error.message };
+  if (error.errorCode === ERROR_CODES.PLAY_LIMIT_REACHED)
+    return { kind: 'paid_limit', message: error.message };
+  return null;
+};
 
 const initialSession = (request: StartPlaybackRequest): PlaybackSession => ({
   contentId: request.contentId,
@@ -194,6 +220,8 @@ class PlaybackService {
   private ctx: SessionContext | null = null;
   /** start 경합·teardown 이후 도착하는 비동기 완료를 무시하기 위한 세대 토큰 */
   private generation = 0;
+  /** 듣던 편을 지키며 발급을 기다리는 시작(`startKeepingCurrent`)의 순번 — 뒤에 온 요청이 앞 결과를 버리게 한다 */
+  private pendingIssueSeq = 0;
   private syncTimer: ReturnType<typeof setInterval> | null = null;
   private uiTickTimer: ReturnType<typeof setInterval> | null = null;
   /**
@@ -223,6 +251,14 @@ class PlaybackService {
    */
   private pendingSeek: { targetSec: number; until: number } | null = null;
   /**
+   * 네이티브 시크는 **한 번에 하나만** 보낸다(PM 2026-10-24 "10초 뒤로 빠르게 누르니까 앱이 벽돌" — iOS). 연타하면 탭마다
+   * 시크가 겹쳐 들어갔다 — 무손실(FLAC)은 정밀 시크로 열어(KAN-256) 한 번이 무겁다. 도는 중에 온 목표는 마지막 것만 남겨 두고,
+   * 앞 시크가 끝나면 그 목표로 한 번 더 보낸다(애플 QA1820 "smooth seeking"). 화면 위치는 탭마다 바로 바뀐다(store).
+   * 네이티브가 끝을 알리지 않아도 SEEK_SETTLE_TIMEOUT_MS 뒤엔 다음 시크를 보낸다 — 시크가 영영 막히지 않게
+   */
+  private seekInFlight: { player: AudioPlayer; startedAt: number } | null = null;
+  private queuedSeekSec: number | null = null;
+  /**
    * 지금 플레이어에 준 고정 스트림 주소(`ear-audio://…` — audio-stream.ts). null 이면 서명 URL 을 직접 준
    * 플레이어다(패치 없는 옛 빌드·표 갱신 실패) — 그 플레이어의 URL 갱신은 종전대로 `replace` 다
    */
@@ -238,6 +274,8 @@ class PlaybackService {
   /* ── 시작 ── */
 
   start(request: StartPlaybackRequest): void {
+    // 새 요청이 왔다 — 듣던 편을 지키며 발급을 기다리던 앞 요청의 결과는 버린다
+    this.pendingIssueSeq += 1;
     const session = store.getState().session;
     const isSameContent =
       this.ctx !== null && session !== null && session.contentId === request.contentId;
@@ -252,12 +290,13 @@ class PlaybackService {
         entryPoint: request.entryPoint,
         callbacks: request.callbacks ?? {},
       };
+      request.callbacks?.onBecameCurrent?.();
       if (request.restartFromBeginning) {
         void this.restartFromBeginning();
         return;
       }
       if ((request.autoplay ?? true) && session.state === 'ready' && !session.isPlaying) {
-        this.player?.play();
+        this.playNative();
       }
       request.callbacks?.onIssued?.({ isReusedSession: true });
       return;
@@ -296,7 +335,8 @@ class PlaybackService {
     track('play_abandon', { content_id: ctx.contentId, percent, reason });
   }
 
-  private async startFresh(request: StartPlaybackRequest): Promise<void> {
+  /** 듣던 세션을 내리고 새 세션을 세운다 — 발급 전 화면(loading)까지. 새 세대 토큰을 돌려준다 */
+  private beginSession(request: StartPlaybackRequest, notify: boolean): number {
     // 이전 세션의 미저장분을 흘리지 않는다 — 값 캡처 후 정리(응답은 기다리지 않는다)
     this.trackAbandon('switch');
     this.flushProgress('switch');
@@ -324,61 +364,111 @@ class PlaybackService {
       isRefreshingUrl: false,
       reportedProgress: new Set(),
     };
+    if (notify) request.callbacks?.onBecameCurrent?.();
     store.setState({ session: initialSession(request), isMiniPlayerDismissed: false });
 
     this.ensureAudioMode();
     this.ensureAppStateListener();
     this.ensureSyncTimer();
+    return generation;
+  }
 
+  /** 발급 응답을 세션에 싣고 플레이어를 세운다 */
+  private applyIssue(
+    issue: AudioIssueResult,
+    request: StartPlaybackRequest,
+    generation: number,
+  ): void {
+    if (!this.ctx) return;
+    this.ctx.contentVersion = issue.content.contentVersion;
+    this.ctx.audioQuality = issue.audio.quality;
+    this.ctx.durationSec = issue.content.durationSec;
+    this.ctx.libraryItemId = issue.libraryItem?.id ?? null;
+
+    let startPositionSec = request.restartFromBeginning ? 0 : (issue.progress?.positionSec ?? 0);
+    // 재발행으로 길이가 줄어 위치가 길이를 넘으면 0부터 재생한다(player.md 7).
+    // 길이가 늘어난 재발행은 걸리지 않는다 — 그쪽은 서버가 위치를 정리해야 한다
+    // (docs/tickets/backend/pending/republish-stale-playback-position.md)
+    if (issue.content.durationSec > 0 && startPositionSec >= issue.content.durationSec) {
+      startPositionSec = 0;
+    }
+    this.ctx.tracking = createTrackingState(issue.progress?.maxReachedSec ?? 0);
+
+    store.getState().patchSession({
+      meta: {
+        title: issue.content.title,
+        authorName: issue.content.authorName,
+        sourceName: issue.content.sourceName,
+        sourceUrl: issue.content.sourceUrl,
+        thumbnailUrl: issue.content.thumbnailUrl,
+        contentVersion: issue.content.contentVersion,
+        // 발급 응답의 주제가 원천이다(player-api.md 4.1). 옛 서버라 없으면 진입 목록이 넘긴 값을 둔다
+        topicIds: issue.topicIds ?? store.getState().session?.meta.topicIds ?? [],
+      },
+      libraryItem: issue.libraryItem,
+      hasScript: issue.hasScript,
+      sections: issue.sections,
+      durationSec: issue.content.durationSec,
+      positionSec: startPositionSec,
+    });
+
+    this.createPlayer(issue.audio.url, startPositionSec, request.autoplay ?? true, generation);
+    this.scheduleUrlRefresh(issue.audio.expiresInSec);
+    this.ctx.callbacks.onIssued?.({ isReusedSession: false });
+  }
+
+  /** `notify` 가 false 면 `onBecameCurrent` 를 부르지 않는다 — 같은 편의 [다시 시도]는 새로 지금 세션이 된 것이 아니다 */
+  private async startFresh(request: StartPlaybackRequest, notify = true): Promise<void> {
+    if (request.keepCurrentUntilIssued === true && this.ctx !== null) {
+      await this.startKeepingCurrent(request);
+      return;
+    }
+    const generation = this.beginSession(request, notify);
     try {
       const issue = await issueAudioUrls({ contentId: request.contentId });
       if (generation !== this.generation || !this.ctx) return;
-
-      this.ctx.contentVersion = issue.content.contentVersion;
-      this.ctx.audioQuality = issue.audio.quality;
-      this.ctx.durationSec = issue.content.durationSec;
-      this.ctx.libraryItemId = issue.libraryItem?.id ?? null;
-
-      let startPositionSec = request.restartFromBeginning ? 0 : (issue.progress?.positionSec ?? 0);
-      // 재발행으로 길이가 줄어 위치가 길이를 넘으면 0부터 재생한다(player.md 7).
-      // 길이가 늘어난 재발행은 걸리지 않는다 — 그쪽은 서버가 위치를 정리해야 한다
-      // (docs/tickets/backend/pending/republish-stale-playback-position.md)
-      if (issue.content.durationSec > 0 && startPositionSec >= issue.content.durationSec) {
-        startPositionSec = 0;
-      }
-      this.ctx.tracking = createTrackingState(issue.progress?.maxReachedSec ?? 0);
-
-      store.getState().patchSession({
-        meta: {
-          title: issue.content.title,
-          authorName: issue.content.authorName,
-          sourceName: issue.content.sourceName,
-          sourceUrl: issue.content.sourceUrl,
-          thumbnailUrl: issue.content.thumbnailUrl,
-          contentVersion: issue.content.contentVersion,
-          // 발급 응답의 주제가 원천이다(player-api.md 4.1). 옛 서버라 없으면 진입 목록이 넘긴 값을 둔다
-          topicIds: issue.topicIds ?? store.getState().session?.meta.topicIds ?? [],
-        },
-        libraryItem: issue.libraryItem,
-        hasScript: issue.hasScript,
-        sections: issue.sections,
-        durationSec: issue.content.durationSec,
-        positionSec: startPositionSec,
-      });
-
-      this.createPlayer(issue.audio.url, startPositionSec, request.autoplay ?? true, generation);
-      this.scheduleUrlRefresh(issue.audio.expiresInSec);
-      this.ctx.callbacks.onIssued?.({ isReusedSession: false });
+      this.applyIssue(issue, request, generation);
     } catch (error) {
       if (generation !== this.generation) return;
       this.handleIssueError(error);
     }
   }
 
+  /**
+   * 듣던 편을 지키는 시작(KAN-257 — `keepCurrentUntilIssued`). 발급을 먼저 받고, **한도 403 이면 듣던 세션을 건드리지 않은 채**
+   * 진입점(`onIssueBlocked` — 페이월·한도 안내)에 넘긴다. 허용이면 그때 갈아 끼운다. 기다리는 동안 다른 시작·세션 정리가
+   * 있었으면 이 결과는 버린다(요청 순번 + 세대 토큰 — 듣던 세션의 상태 이벤트는 그대로 돌아야 해서 세대를 미리 올리지 않는다)
+   */
+  private async startKeepingCurrent(request: StartPlaybackRequest): Promise<void> {
+    const seq = this.pendingIssueSeq;
+    const generation = this.generation;
+    const isStale = () => seq !== this.pendingIssueSeq || generation !== this.generation;
+    let issue: AudioIssueResult;
+    try {
+      issue = await issueAudioUrls({ contentId: request.contentId });
+    } catch (error) {
+      if (isStale()) return;
+      const blocked = issueLimitBlockOf(error);
+      const onIssueBlocked = request.callbacks?.onIssueBlocked;
+      if (blocked !== null && onIssueBlocked) {
+        onIssueBlocked(blocked);
+        return;
+      }
+      // 한도 밖의 실패(회수·404·네트워크)는 새 편의 몫이다 — 갈아 끼운 뒤 종전 분기를 탄다
+      this.beginSession(request, true);
+      this.handleIssueError(error);
+      return;
+    }
+    if (isStale()) return;
+    const switched = this.beginSession(request, true);
+    this.applyIssue(issue, request, switched);
+  }
+
   /** PL8 [다시 시도] — 발급부터 다시. 이 시점에는 차감되지 않았다(paywall.md 4.3) */
   retryLoad(): void {
     if (!this.ctx) return;
-    void this.startFresh(this.ctx.request);
+    // 같은 편을 다시 받는다 — 지킬 듣던 편이 없다(실패한 이 세션이 그 편이다)
+    void this.startFresh({ ...this.ctx.request, keepCurrentUntilIssued: false }, false);
   }
 
   /** 발급(audio-urls) 실패 분기 — 에러 코드로만 가른다(convention.md 5.3) */
@@ -428,6 +518,10 @@ class PlaybackService {
     );
     this.player = player;
     this.pendingSetup = { startPositionSec, autoplay };
+    // 앞 플레이어의 시크 보류·대기 목표는 새 편과 무관하다 — 남기면 새 편의 위치 틱이 최대 2초 묶였다
+    this.pendingSeek = null;
+    this.seekInFlight = null;
+    this.queuedSeekSec = null;
     player.setPlaybackRate(store.getState().rate, 'high');
     this.statusSubscription = player.addListener('playbackStatusUpdate', (status) => {
       if (generation !== this.generation) return;
@@ -488,12 +582,15 @@ class PlaybackService {
       const { startPositionSec, autoplay } = this.pendingSetup;
       this.pendingSetup = null;
       if (startPositionSec > 0) {
+        const generation = this.generation;
         await this.player?.seekTo(startPositionSec);
+        // 시크를 기다리는 사이 다른 편이 시작됐다 — 그 편을 준비됨으로 만들거나 동의 없이 재생시키지 않는다(2026-10-24 전수조사)
+        if (generation !== this.generation) return;
         ctx.tracking = markSeek(ctx.tracking, startPositionSec);
       }
       store.getState().patchSession({ state: 'ready', positionSec: startPositionSec });
       this.activateLockScreen();
-      if (autoplay) this.player?.play();
+      if (autoplay) this.playNative();
       return;
     }
 
@@ -602,6 +699,11 @@ class PlaybackService {
     if (!ctx || ctx.hasReportedPlayStart || ctx.isReportingPlayStart) return;
     ctx.isReportingPlayStart = true;
     const generation = this.generation;
+    /*
+     * 재시도 예약 중에는 "보내는 중" 표시를 유지한다 — 재시도 타이머가 푼다(2026-10-24 전수조사). 종전엔 finally 가 곧바로 풀어
+     * 다음 상태 틱(이벤트 + 0.5초 폴링)이 다시 보내, 오프라인·5xx 에서 POST /play 가 초당 2~4회 쏟아졌다(3초 간격이 무력)
+     */
+    let isRetryScheduled = false;
 
     try {
       const result = await startPlay({ contentId: ctx.contentId, entryPoint: ctx.entryPoint });
@@ -659,6 +761,8 @@ class PlaybackService {
       // 소비 신호는 유실하지 않는다 — 재생은 유지한 채 재시도한다.
       // TODO(offline-queue): 큐 인프라 도입 시 발생 시각 순서 보존 전송으로 대체(architecture.md 5.4)
       logger.debug('[player] play start report failed, will retry');
+      isRetryScheduled = true;
+      if (this.playReportRetryTimer) clearTimeout(this.playReportRetryTimer);
       this.playReportRetryTimer = setTimeout(() => {
         this.playReportRetryTimer = null;
         const current = this.ctx;
@@ -669,7 +773,8 @@ class PlaybackService {
       }, PLAY_REPORT_RETRY_DELAY_MS);
       return;
     } finally {
-      if (this.ctx) this.ctx.isReportingPlayStart = false;
+      // 이 요청을 보낸 세션의 표시만 푼다 — `this.ctx` 는 그새 다음 편일 수 있다(그 편의 보내는 중 표시를 풀면 중복 POST)
+      if (!isRetryScheduled) ctx.isReportingPlayStart = false;
     }
   }
 
@@ -687,7 +792,21 @@ class PlaybackService {
     }
     const session = store.getState().session;
     if (session?.state === 'ready' && (!session.isPlaying || session.banner === 'network')) {
-      this.player?.play();
+      this.playNative();
+    }
+  }
+
+  /**
+   * 네이티브 재생 — **동기로 던질 수 있다**: iOS 는 play 가 오디오 세션을 켜는데(`setActive(true)`) 전화·보이스톡 통화 중 등엔
+   * 실패해 예외가 난다. 버튼 핸들러까지 올라가면 잡는 곳이 없어 앱이 죽었다(2026-10-24 전수조사). 실패는 "재생 안 됨"으로 남긴다
+   */
+  private playNative(player: AudioPlayer | null = this.player): void {
+    if (!player) return;
+    try {
+      player.play();
+    } catch (error) {
+      logger.warn('[player] native play failed', error);
+      if (store.getState().session) store.getState().patchSession({ isPlaying: false });
     }
   }
 
@@ -702,7 +821,7 @@ class PlaybackService {
     if (session.isPlaying) {
       this.pause();
     } else {
-      this.player?.play();
+      this.playNative();
     }
   }
 
@@ -724,8 +843,13 @@ class PlaybackService {
     const startedAt = Date.now();
     const timer = setInterval(() => {
       const current = store.getState().session;
-      // 도중에 세션이 바뀌었거나 사용자가 직접 멈췄다 — 페이드를 접고 음량만 되돌린다
-      if (this.player !== player || !current || !current.isPlaying) {
+      // 도중에 세션이 바뀌었다 — 그 플레이어는 이미 놓였다(teardown 의 release). 만지면 타이머 안에서 예외가 나 앱이 죽는다
+      if (this.player !== player) {
+        clearInterval(timer);
+        return;
+      }
+      // 사용자가 직접 멈췄다 — 페이드를 접고 음량만 되돌린다
+      if (!current || !current.isPlaying) {
         clearInterval(timer);
         player.volume = startVolume;
         return;
@@ -759,7 +883,36 @@ class PlaybackService {
     ctx.tracking = markSeek(ctx.tracking, clamped);
     store.getState().patchSession({ positionSec: clamped });
     this.pendingSeek = { targetSec: clamped, until: Date.now() + SEEK_SETTLE_TIMEOUT_MS };
-    void this.player?.seekTo(clamped);
+    this.sendSeek(clamped);
+  }
+
+  /** 시크바·±10초의 네이티브 시크 — 한 번에 하나, 도는 중에 온 목표는 마지막 것만(위 seekInFlight) */
+  private sendSeek(targetSec: number): void {
+    const player = this.player;
+    if (!player) return;
+    const inFlight = this.seekInFlight;
+    if (
+      inFlight !== null &&
+      inFlight.player === player &&
+      Date.now() - inFlight.startedAt < SEEK_SETTLE_TIMEOUT_MS
+    ) {
+      this.queuedSeekSec = targetSec;
+      return;
+    }
+    const flight = { player, startedAt: Date.now() };
+    this.seekInFlight = flight;
+    this.queuedSeekSec = null;
+    player
+      .seekTo(targetSec)
+      .catch((error: unknown) => logger.debug('[player] seek failed', error))
+      .finally(() => {
+        // 시간 초과로 다음 시크가 이미 나갔거나 플레이어가 바뀌었으면 손대지 않는다
+        if (this.seekInFlight !== flight) return;
+        this.seekInFlight = null;
+        const queued = this.queuedSeekSec;
+        this.queuedSeekSec = null;
+        if (queued !== null && this.player === player) this.sendSeek(queued);
+      });
   }
 
   /**
@@ -824,8 +977,8 @@ class PlaybackService {
   }
 
   /**
-   * 재생 목록 자동 재생(연속 재생 — player.md 4.2-4, 설정에서 켠 사용자만). 편이 끝나면 **지금 재생 목록의 다음 안 들은 편**을
-   * 확인 팝업 없이 튼다 — 설정을 켠 것이 "묻지 않고 틀어도 된다"는 동의다(paywall.md 4.2 예외). 재생 판정·차감은 그대로
+   * 재생 목록 자동 재생(연속 재생 — player.md 4.2-4, 설정에서 켠 사용자만). 편이 끝나면 **지금 재생 목록의 바로 다음 편**을
+   * 확인 팝업 없이 튼다(다 들은 편이면 처음부터 — PM 2026-10-24) — 설정을 켠 것이 "묻지 않고 틀어도 된다"는 동의다(paywall.md 4.2 예외). 재생 판정·차감은 그대로
    * 서버가 한다(`POST /play`).
    *
    * - 목록: 라이브러리 맥락은 재생 목록 순서(브리지로 새로 받는다), 탐색 맥락은 스냅샷(지금 편이 없으면 맨 위에 세운 모양)
@@ -834,7 +987,7 @@ class PlaybackService {
    *   들이밀지 않는다. 힌트가 틀려 서버가 막으면 종전 차단 처리를 그대로 탄다
    * - 받는 사이 사용자가 다른 편을 틀었거나 다시 듣기를 눌렀으면 아무것도 하지 않는다
    * - **목록이 끝나면 추천 편으로 이어 간다**(PM 2026-10-23 "유튜브 뮤직처럼") — 플레이어 [자동 재생] 칩(추천 이어 틀기, 기본 켜짐)이
-   *   켜져 있을 때만. 뒤에 남은 안 들은 편이 없거나 지금 편이 목록에
+   *   켜져 있을 때만. 지금 편이 목록의 마지막 줄이거나 목록에
    *   없으면, 끝난 편과 비슷한 편(재생 목록 아래 "다음에 들어볼 만한"과 같은 소스 — 목록 편은 뺀다)의 안 들은 편들로
    *   **새 추천 재생 목록**을 만들어 갈아타고 그 첫 편을 튼다(PM 2026-10-23 "새로운 추천 재생목록으로 넘어가야지" — 종전엔
    *   라이브러리 맥락이 옛 목록에 그 편만 맨 위로 얹어 "처음 목록으로 돌아간" 것처럼 보였다). 맥락은 탐색 스냅샷(출처
@@ -902,6 +1055,8 @@ class PlaybackService {
       contentId: next.contentId,
       entryPoint: 'player',
       autoplay: true,
+      // 다 들은 편은 마지막 위치(끝 근처)가 아니라 처음부터 — 몇 초 만에 또 끝나 줄줄이 넘어가지 않게
+      restartFromBeginning: next.isCompleted,
       meta: {
         title: next.title,
         authorName: next.authorName ?? undefined,
@@ -929,8 +1084,10 @@ class PlaybackService {
     ctx.replayIdempotencyKey = null;
     ctx.tracking = markSeek(ctx.tracking, 0);
     store.getState().patchSession({ state: 'ready', positionSec: 0 });
-    await this.player.seekTo(0);
-    this.player.play();
+    const player = this.player;
+    await player.seekTo(0);
+    if (this.player !== player) return;
+    this.playNative(player);
   }
 
   /* ── 위치 저장 ── */
@@ -1102,7 +1259,8 @@ class PlaybackService {
       store.getState().patchSession({ banner: 'refresh_failed' });
       this.refreshTimer = setTimeout(() => void this.refreshAudioUrl(), URL_REFRESH_RETRY_DELAY_MS);
     } finally {
-      if (this.ctx) this.ctx.isRefreshingUrl = false;
+      // 이 요청을 보낸 세션의 표시만 푼다(위 reportPlayStart 와 같은 이유)
+      ctx.isRefreshingUrl = false;
     }
   }
 
@@ -1121,8 +1279,10 @@ class PlaybackService {
     player.replace({ uri: this.bindStreamSource(ctx.contentId, url) });
     player.setPlaybackRate(store.getState().rate, 'high');
     await player.seekTo(positionSec);
+    // 시크를 기다리는 사이 다른 편으로 넘어갔다 — 이 플레이어는 놓였다. 재생시키면 멈출 수 없는 소리가 겹쳤다(2026-10-24 전수조사)
+    if (this.player !== player) return;
     ctx.tracking = markSeek(ctx.tracking, positionSec);
-    if (shouldResume) player.play();
+    if (shouldResume) this.playNative(player);
   }
 
   /**
@@ -1260,6 +1420,16 @@ class PlaybackService {
         this.player.remove();
       } catch (error) {
         logger.debug('[player] teardown failed', error);
+      }
+      /*
+       * **네이티브 플레이어를 실제로 놓는다**(2026-10-24 전수조사). `remove()` 는 모듈의 목록에서 빼기만 하고 ExoPlayer·AVPlayer·
+       * 미디어 세션·버퍼는 JS 객체가 GC 될 때까지 남았다 — 자동 재생으로 편을 넘길 때마다 쌓여 Android 힙 바닥이 올라갔다
+       * (복귀 OOM EAR-APP-K 후보). 놓은 객체를 늦게 만지는 곳(페이드·소스 교체)은 `this.player !== player` 로 걸러 둔다
+       */
+      try {
+        this.player.release();
+      } catch (error) {
+        logger.debug('[player] release failed', error);
       }
       this.player = null;
     }

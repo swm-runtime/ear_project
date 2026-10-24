@@ -96,11 +96,18 @@ public class ZoomTransitionModule: Module {
     // 줌으로 띄운 모달을 **UIKit 이 먼저** 닫는다(2026-09-27 02:57 실험으로 확정: JS 가 먼저 pop 하면 react-native-screens 가
     // dismiss 전에 화면 뷰를 스냅샷으로 갈아끼우고, 줌 dismiss 는 그 스냅샷 위에서 끝나지 못해 앱이 굳는다). 닫힘이 끝나면
     // RNS 가 viewDidDisappear 에서 JS 에 onDismissed 를 보내 라우트가 pop 되고, 그때 뷰는 이미 창 밖이라 스냅샷을 안 만든다.
-    // 반환: "dismissed" | "none"(떠 있는 모달 없음)
+    // 반환: "dismissed" | "none"(떠 있는 모달 없음) | "busy"(전환 중) | "not-screen"(맨 위가 RNS 화면이 아님)
     // mode: "zoom"(줌 축소) | "slide"(닫을 때만 줌 훅을 빼 기본 슬라이드) — 2026-09-27 04:35 실험 스위치(JS 상수로 OTA 전환).
     // 프록시 소스로도 닫힌 뒤 탭 전환 잔상이 남아, 줌 dismiss 자체가 남기는 이미지인지 가른다
     AsyncFunction("dismissPresentedScreen") { (mode: String) -> String in
       guard let top = Self.topPresentedViewController(), top.presentingViewController != nil else { return "none" }
+      // 뜨는 중·닫히는 중·다른 전환 중이면 UIKit 은 dismiss 를 조용히 무시하고 완료 블록도 부르지 않는다 — 종전엔 그래도
+      // "dismissed" 라 답해 JS 의 닫기 가드가 영영 켜진 채 닫을 수 없었다(2026-10-24 전수조사). JS 가 잠깐 뒤 다시 닫는다
+      if top.isBeingPresented || top.isBeingDismissed || top.transitionCoordinator != nil { return "busy" }
+      // 맨 위가 RNS 화면이 아니다 — RN Modal(시트·확인 팝업, RCT…)이 떠 있다. 그걸 여기서 닫으면 RN 의 모달 장부가 어긋난다
+      // (RNS 모달은 `RNSScreen` 컨트롤러를 그대로 present 한다 — RNSScreenStack `modalControllers`. 클래스 이름 문자열 대신 isKind 로
+      // 본다: KVO 가 붙으면 동적 하위 클래스 이름이 된다)
+      if let screenClass = NSClassFromString("RNSScreen"), !top.isKind(of: screenClass) { return "not-screen" }
       if mode == "slide", #available(iOS 18.0, *) { top.preferredTransition = nil }
       // 닫기 **전에** 이 VC 를 감싼 UIKit 래퍼들을 적어 둔다 — 닫히고 나면 `top.view` 가 계층에서 빠져 위로 못 올라간다
       let containers = Self.presentationContainers(of: top)

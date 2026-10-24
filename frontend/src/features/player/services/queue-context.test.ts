@@ -6,8 +6,9 @@ import {
   nextAutoplayEntry,
   withCurrentFirst,
   withoutSnapshotItem,
+  withPagesItemId,
   withSnapshotItemId,
-  withSnapshotMoved,
+  withSnapshotOrder,
 } from './queue-context';
 
 const entry = (contentId: string, itemId: string | null = null): QueueEntry => ({
@@ -67,20 +68,24 @@ describe('재생 목록 맥락(KAN-241) — 순수 계산', () => {
 
   it('손잡이로 옮긴 순서가 스냅샷이 된다 — 맨 위에 세운 지금 듣는 편도 함께 들어간다', () => {
     const context = exploreContext(['a', 'b']);
-    const displayed = withCurrentFirst([entry('a'), entry('b')], entry('x'));
-    const moved = withSnapshotMoved(context, displayed, 0, 2);
+    const moved = withSnapshotOrder(context, [entry('a'), entry('b'), entry('x')]);
     if (moved.kind !== 'explore') throw new Error('explore 맥락이어야 한다');
     expect(moved.items.map((item) => item.contentId)).toEqual(['a', 'b', 'x']);
     expect(moved.source).toEqual({ type: 'search', query: '커리어' });
   });
 
-  it('같은 자리·범위 밖 이동과 라이브러리 맥락은 그대로 둔다', () => {
+  it('스냅샷에 있는 편은 스냅샷의 줄 객체를 쓴다 — 그사이 담긴 itemId 를 잃지 않는다', () => {
+    const saved = withSnapshotItemId(exploreContext(['a', 'b']), 'b', 'item-b');
+    const moved = withSnapshotOrder(saved, [entry('b'), entry('a')]);
+    if (moved.kind !== 'explore') throw new Error('explore 맥락이어야 한다');
+    expect(moved.items.map((item) => item.itemId)).toEqual(['item-b', null]);
+  });
+
+  it('순서가 그대로면 맥락을 그대로 두고, 라이브러리 맥락은 건드리지 않는다', () => {
     const context = exploreContext(['a', 'b']);
-    const displayed = [entry('a'), entry('b')];
-    expect(withSnapshotMoved(context, displayed, 1, 1)).toBe(context);
-    expect(withSnapshotMoved(context, displayed, 0, 5)).toBe(context);
+    expect(withSnapshotOrder(context, [entry('a'), entry('b')])).toBe(context);
     const library: PlayQueueContext = { kind: 'library' };
-    expect(withSnapshotMoved(library, displayed, 0, 1)).toBe(library);
+    expect(withSnapshotOrder(library, [entry('b'), entry('a')])).toBe(library);
   });
 
   it('담기 결과는 그 줄의 itemId 만 채운다 — 실패 복구는 null 로 되돌린다', () => {
@@ -98,18 +103,37 @@ describe('자동 재생(연속 재생 — player.md 4.2-4) — 다음 편 고르
     expect(nextAutoplayEntry([entry('a'), entry('b'), entry('c')], 'b')?.contentId).toBe('c');
   });
 
-  it('다 들은 편은 건너뛴다', () => {
+  it('다 들은 편도 건너뛰지 않는다 — 화면의 다음 줄 그대로', () => {
     const done = { ...entry('b'), isCompleted: true };
-    expect(nextAutoplayEntry([entry('a'), done, entry('c')], 'a')?.contentId).toBe('c');
+    expect(nextAutoplayEntry([entry('a'), done, entry('c')], 'a')?.contentId).toBe('b');
   });
 
-  it('뒤에 남은 안 들은 편이 없으면 멈춘다(null)', () => {
-    const done = { ...entry('b'), isCompleted: true };
-    expect(nextAutoplayEntry([entry('a'), done], 'a')).toBeNull();
+  it('마지막 줄이면 null', () => {
     expect(nextAutoplayEntry([entry('a')], 'a')).toBeNull();
   });
 
   it('지금 듣는 편이 목록에 없으면 멈춘다(null) — 엉뚱한 편을 틀지 않는다', () => {
     expect(nextAutoplayEntry([entry('a'), entry('b')], 'x')).toBeNull();
+  });
+});
+
+describe('추천 블록 담기 반영(KAN-259) — 장들의 itemId', () => {
+  it('그 편이 든 장만 새로 만들어 itemId 를 채운다', () => {
+    const untouched = [entry('a'), entry('b')];
+    const pages = [untouched, [entry('c'), entry('d')]];
+    const result = withPagesItemId(pages, 'c', 'item-c');
+    expect(result[0]).toBe(untouched);
+    expect(result[1].map((item) => item.itemId)).toEqual(['item-c', null]);
+  });
+
+  it('실패 복구는 null 로 되돌린다', () => {
+    const pages = [[entry('a', 'optimistic-a')]];
+    expect(withPagesItemId(pages, 'a', null)[0][0].itemId).toBeNull();
+  });
+
+  it('그 편이 없거나 값이 같으면 같은 참조를 돌려준다', () => {
+    const pages = [[entry('a', 'item-a')]];
+    expect(withPagesItemId(pages, 'z', 'item-z')).toBe(pages);
+    expect(withPagesItemId(pages, 'a', 'item-a')).toBe(pages);
   });
 });

@@ -5,7 +5,7 @@ import type { LayoutChangeEvent, ViewProps } from 'react-native';
 import {
   ActivityIndicator,
   Animated,
-  Image,
+  AppState,
   PanResponder,
   Platform,
   Pressable,
@@ -28,7 +28,6 @@ import { useAnimatedValue } from '@/shared/hooks/useAnimatedValue';
 import { androidNavigationModeOf } from '@/shared/lib/android-navigation';
 import { traceJs } from '@/shared/monitoring/js-trace';
 import {
-  dismissPlayerNatively,
   notePlayerMounted,
   setPlayerZoomDismissBlocked,
   SYSTEM_INTERACTIVE_DISMISS,
@@ -56,6 +55,7 @@ import {
   MINI_THUMB_SIZE,
 } from '../components/MiniPlayer';
 import PlayConfirmDialog from '../components/PlayConfirmDialog';
+import { CrossfadeArtwork, CrossfadeBackdrop } from '../components/PlayerCrossfade';
 import PlayerCurrentSection from '../components/PlayerCurrentSection';
 import {
   MoreIcon,
@@ -77,6 +77,7 @@ import type { PlayerPanelKind } from '../hooks/usePlayerScreen';
 import { useQueueOrder } from '../hooks/useQueueOrder';
 import { useQueueQuery } from '../hooks/useQueueQuery';
 import { useScriptQuery } from '../hooks/useScriptQuery';
+import { useStableCallback } from '../hooks/useStableCallback';
 import { useUpNextQuery } from '../hooks/useUpNextQuery';
 import {
   PLAYER_COLLAPSE_DISTANCE_RATIO,
@@ -87,7 +88,8 @@ import { PLAYER_COPY } from '../player.copy';
 import { playerColor } from '../player.theme';
 import type { QueueEntry, QueueItem, QueueSourceLabel } from '../player.types';
 import { playbackService } from '../services/playback.service';
-import { entryFromSession, withCurrentFirst, withSnapshotMoved } from '../services/queue-context';
+import { entryFromSession, withCurrentFirst, withSnapshotOrder } from '../services/queue-context';
+import { queueRowKey } from '../services/queue-drag';
 import {
   formatSleepTimerRemaining,
   formatSleepTimerRemainingA11y,
@@ -167,12 +169,32 @@ export default function PlayerScreen() {
   );
   // 사용자가 손잡이로 바꾼 순서를 기기에 저장해 두고 받아 온 목록 위에 입힌다(2026-09-18)
   const queueOrder = useQueueOrder(queueQuery.data ?? EMPTY_QUEUE);
+  /*
+   * 맨 위에 세울 지금 듣는 편의 줄 — **세션 전체가 아니라 줄에 드는 필드로만** 메모한다(KAN-260). 세션은 재생 위치가 0.5초마다 바뀌어
+   * 새 객체가 되는데, 그때마다 목록 배열이 새로 만들어져 재생 목록 패널·모든 줄이 다시 그려졌다(추천이 길어지면 플레이어가 멈췄다)
+   */
+  const sessionContentId = session?.contentId ?? null;
+  const sessionMeta = session?.meta;
+  const sessionLibraryItem = session?.libraryItem ?? null;
+  const sessionDurationSec = session?.durationSec ?? 0;
+  const sessionEntry = useMemo(
+    () =>
+      sessionContentId === null || sessionMeta === undefined
+        ? null
+        : entryFromSession({
+            contentId: sessionContentId,
+            meta: sessionMeta,
+            libraryItem: sessionLibraryItem,
+            durationSec: sessionDurationSec,
+          }),
+    [sessionContentId, sessionMeta, sessionLibraryItem, sessionDurationSec],
+  );
   const snapshotItems = useMemo(
     () =>
       queueContext.kind === 'explore'
-        ? withCurrentFirst(queueContext.items, session ? entryFromSession(session) : null)
+        ? withCurrentFirst(queueContext.items, sessionEntry)
         : EMPTY_QUEUE,
-    [queueContext, session],
+    [queueContext, sessionEntry],
   );
   // 삭제 대기·진행 중인 줄은 서버 목록에 아직 있어도 그리지 않는다(usePlayerScreen hiddenQueueItemIds)
   const hiddenQueueItemIds = screen.hiddenQueueItemIds;
@@ -193,26 +215,32 @@ export default function PlayerScreen() {
     () =>
       queueQuery.data === undefined
         ? libraryQueueItems
-        : withCurrentFirst(libraryQueueItems, session ? entryFromSession(session) : null),
-    [libraryQueueItems, queueQuery.data, session],
+        : withCurrentFirst(libraryQueueItems, sessionEntry),
+    [libraryQueueItems, queueQuery.data, sessionEntry],
   );
   const queueItems: QueueEntry[] = isLibraryQueue ? libraryShownItems : snapshotItems;
-  // 줄 손잡이 끌기 — 라이브러리 맥락은 서버 순서 저장, 탐색 맥락은 스냅샷만 바꾼다(PM 2026-10-23, 로컬뿐)
+  /*
+   * 맨 위에 세운 지금 듣는 편(라이브러리 첫 페이지 밖 — 위 libraryShownItems)은 서버 순서에 자리가 없어 옮길 수 없다(KAN-254 원인 5).
+   * 패널이 그 줄의 손잡이를 감추고 다른 줄도 그 위로는 못 가게 막는다. 탐색 맥락은 세운 줄도 스냅샷에 함께 들어가 옮길 수 있다
+   */
+  const queuePinnedContentId =
+    isLibraryQueue && libraryShownItems !== libraryQueueItems
+      ? (libraryShownItems[0]?.contentId ?? null)
+      : null;
+  const { reorder: reorderLibraryQueue } = queueOrder;
+  /*
+   * 줄 손잡이 끌기 — 라이브러리 맥락은 서버 순서 저장, 탐색 맥락은 스냅샷만 바꾼다(PM 2026-10-23, 로컬뿐). 패널은 옮긴 뒤의
+   * **목록 전체**를 넘긴다(KAN-254·255 — 인덱스는 연달아 끌 때 렌더 시점 목록과 어긋났다). 옮기지 못했으면 false — 패널이
+   * 붙잡지 않고 바로 되돌린다
+   */
   const moveQueueItem = useCallback(
-    (from: number, to: number) => {
-      if (isLibraryQueue) {
-        // 패널의 자리는 숨긴 줄을 뺀 목록 기준 — 캐시 목록의 자리로 옮겨 적는다
-        const full = queueOrder.orderedItems;
-        // 맨 위에 세운 지금 듣는 편(라이브러리 첫 페이지 밖)은 캐시 목록에 없다 — 옮기지 않는다
-        const fromIndex = full.findIndex((item) => item === libraryShownItems[from]);
-        const toIndex = full.findIndex((item) => item === libraryShownItems[to]);
-        if (fromIndex === -1 || toIndex === -1) return;
-        return queueOrder.move(fromIndex, toIndex);
-      }
+    (ordered: readonly QueueEntry[]): boolean => {
+      if (isLibraryQueue) return reorderLibraryQueue(ordered.map(queueRowKey));
       const store = usePlaybackStore.getState();
-      store.setQueueContext(withSnapshotMoved(store.queueContext, snapshotItems, from, to));
+      store.setQueueContext(withSnapshotOrder(store.queueContext, ordered));
+      return true;
     },
-    [isLibraryQueue, queueOrder, libraryShownItems, snapshotItems],
+    [isLibraryQueue, reorderLibraryQueue],
   );
   const queueSourceLabel = useMemo(
     () => (queueContext.kind === 'explore' ? sourceLabelOf(queueContext.source) : null),
@@ -306,8 +334,16 @@ export default function PlayerScreen() {
   /** 2단 ↔ 1단(KAN-241 "4번") — 시트만 움직인다. 1단 전환은 setPanel 이 맡는다 */
   const setQueueStageTo = (stage: 1 | 2) => {
     playbackService.holdPositionUpdates(SCRIPT_TOGGLE_DURATION_MS);
+    const transition = panelTransitionRef.current;
     springTo(queueExpand, stage === 2 ? 1 : 0, motion.spring.smooth, (finished) => {
-      if (finished) setQueueStage(stage);
+      if (!finished) return;
+      setQueueStage(stage);
+      /*
+       * 단계 이동이 끝났으면 목록도 앉은 것이다(KAN-262 재발 3차, PM 2026-10-24 스샷 — 8줄 아래가 빈칸). 열리는 도중에 손잡이를
+       * 잡아 올리면 끌기가 열림 스프링을 끊어(queueProgress.set) "앉음"이 영영 오지 않았다 — 모션용 앞 8줄만 그려진 채 나머지가
+       * 빈 자리로 남고, 앉음에 걸린 목록·추천 조회도 출발하지 않았다. 그 사이 패널이 바뀌었으면(닫힘·대본) 그쪽이 정리한다
+       */
+      if (panelTransitionRef.current === transition) setIsQueueSettled(true);
     });
   };
   const setPanel = (kind: PlayerPanelKind | null) => {
@@ -434,6 +470,16 @@ export default function PlayerScreen() {
       panelMotionFrameRef.current = requestAnimationFrame(startMotion);
     });
   };
+  /*
+   * 대본을 펼친 채 **대본 없는 편으로 넘어가면 접는다**(2026-10-24 전수조사) — 자동 재생·재생 목록 탭으로 편이 바뀌면 화면의
+   * 패널(activePanel)은 "대본 없음"이라 비지만 펼침 모션 값·대본 틀은 그대로 남아, 압축된 헤더와 끝없는 스켈레톤 위에서 대본 버튼이
+   * 사라져 닫을 길이 없었다. 발급이 끝나 대본 여부가 정해진 뒤에만 본다(발급 전엔 대본 없음으로 읽혀 매번 접혔다 펴진다)
+   */
+  const isScriptOrphaned =
+    screen.activePanel === 'script' &&
+    session !== null &&
+    session.state !== 'loading' &&
+    !isScriptAvailable;
   // 헤더 애니메이션의 기준 치수 — 화면 폭·컨트롤 높이는 실측한다(기기마다 다르다)
   const [contentSize, setContentSize] = useState({ width: 0, height: 0 });
   /*
@@ -523,6 +569,13 @@ export default function PlayerScreen() {
     if (artLayoutHoldRef.current === 0 && heroArtLatestRef.current !== null)
       setHeroArtBox(heroArtLatestRef.current);
   };
+  // 고아가 된 대본 패널 접기(위 isScriptOrphaned) — 다음 프레임에 평소 닫기와 같은 길(setPanel)로 접는다
+  useEffect(() => {
+    if (!isScriptOrphaned) return undefined;
+    const frame = requestAnimationFrame(() => setPanel(null));
+    return () => cancelAnimationFrame(frame);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- 고아가 되는 전이에만 반응한다(setPanel 은 렌더마다 새 함수)
+  }, [isScriptOrphaned]);
   const onHeroArtLayout = (event: LayoutChangeEvent) => {
     const { x, y, width, height } = event.nativeEvent.layout;
     heroArtLatestRef.current = { x, y, width, height };
@@ -620,6 +673,31 @@ export default function PlayerScreen() {
   const hasOpenedRef = useRef(false);
   const miniLayout = useMiniPlayerLayoutStore((s) => s.layout);
   const isMeasured = contentSize.height > 0 && controlsHeight > 0;
+  /*
+   * 진단(개발계만 — traceJs 가 운영에선 꺼진다) — 백그라운드에서 돌아오면 화면이 뒤죽박죽(PM 2026-10-24). 복귀 때 화면 크기·
+   * 안전영역·실측값이 바뀌는지, 안 바뀌는데 깨지는지를 가른다. 설정 > 스택 라우트 줄에 `app …` 과 `layout …` 이 남는다
+   */
+  useEffect(() => {
+    traceJs(
+      `layout win ${Math.round(windowWidth)}x${Math.round(windowHeight)} in ${Math.round(insets.top)}/${Math.round(insets.bottom)} ` +
+        `ct ${Math.round(contentSize.width)}x${Math.round(contentSize.height)} bar ${Math.round(appBarHeight)} ` +
+        `hd ${Math.round(handleHeight)} ctl ${Math.round(controlsHeight)}`,
+    );
+  }, [
+    windowWidth,
+    windowHeight,
+    insets.top,
+    insets.bottom,
+    contentSize.width,
+    contentSize.height,
+    appBarHeight,
+    handleHeight,
+    controlsHeight,
+  ]);
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (state) => traceJs(`app ${state}`));
+    return () => subscription.remove();
+  }, []);
   // 모션 레이어의 아트워크가 뜨기 전에 출발하면 첫 프레임이 회색 빈 사각이다 — 로드(또는 짧은 대기) 뒤 출발.
   // 그때까지 화면 전체를 감춰 두면 뒤의 미니플레이어가 그대로 보여 이음새가 없다
   // Android 줌은 날아가는 아트워크 레이어가 없다 — 기다릴 그림이 없으니 바로 준비
@@ -672,6 +750,8 @@ export default function PlayerScreen() {
   };
   // goBack 은 한 번만 — 놓기·중단·구독이 겹쳐 두 번 부르면 닫히는 중인 모달을 또 닫으려다 RNS 가 굳는다
   const isCollapsingRef = useRef(false);
+  const collapseWatchdogRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  useEffect(() => () => clearTimeout(collapseWatchdogRef.current), []);
   const dismissPlayer = () => {
     // 줌 전환 갈래: 화면을 걷으면 시스템이 미니플레이어 자리로 줄이는 모션을 그린다
     if (USE_NATIVE_PLAYER_ZOOM) {
@@ -683,8 +763,27 @@ export default function PlayerScreen() {
       // UIKit 이 먼저 닫는다(줌 축소) — 라우트 pop 은 닫힘 완료 뒤 RNS 의 onDismissed 가 한다. JS 가 먼저 pop 하면 RNS 의
       // 스냅샷 교체와 줌 dismiss 가 충돌해 앱이 굳었다(2026-09-27). 네이티브가 못 닫으면 종전대로 goBack
       traceJs('player collapse → native dismiss');
-      void dismissPlayerNatively().then((dismissed) => {
-        if (dismissed) return;
+      void screen.dismissNatively().then((result) => {
+        if (result === 'dismissed') {
+          /*
+           * 워치독(2026-10-24 전수조사) — 뜨는 중(줌 확대)에 닫으면 UIKit 이 dismiss 를 조용히 무시하고 완료도 안 부른다. 옛 네이티브는
+           * 그래도 `dismissed` 라 답해 이 가드가 영영 켜진 채 셰브론·끌어내리기가 죽었다(시스템 드래그 닫기도 꺼져 있어 앱 종료만 답).
+           * 닫혔으면 그 전에 이 화면이 내려가 타이머가 지워진다
+           */
+          clearTimeout(collapseWatchdogRef.current);
+          collapseWatchdogRef.current = setTimeout(() => {
+            traceJs('player collapse ignored → guard reset');
+            isCollapsingRef.current = false;
+            screen.resetNativeDismiss();
+          }, COLLAPSE_WATCHDOG_MS);
+          return;
+        }
+        if (result === 'busy' || result === 'not-screen') {
+          // 지금은 못 닫는다(새 네이티브) — 다음 셰브론·끌어내리기를 받는다
+          traceJs(`player collapse → ${result}, guard reset`);
+          isCollapsingRef.current = false;
+          return;
+        }
         traceJs('player collapse → goBack (fallback)');
         screen.collapse();
       });
@@ -1291,32 +1390,92 @@ export default function PlayerScreen() {
    * 2단 목록 맨 위에서 끌어내리기(PM 2026-10-23 "ㄱㄱ" — 유튜브 뮤직) — 손잡이의 2단 끌기와 같은 규칙이다: 손가락만큼 2단 몫이
    * 줄고, 놓으면 35%·속도 임계로 1단 아니면 2단. 1단 아래로는 안 간다(단계별). 목록이 가로채는 조건은 패널 몫(pullDown)
    */
-  const listPullDown = {
-    enabled: activePanel === 'queue' && queueStage === 2,
-    onStart: () => {
-      handleDraggedRef.current = true;
-      queueGestureRef.current.holdArtLayout();
-    },
-    onMove: (dy: number) => {
-      const { expandTravel } = queueGestureRef.current;
-      queueExpand.set(Math.min(1, Math.max(0, 1 - dy / Math.max(1, expandTravel))));
-      queueProgress.set(1);
-    },
-    onRelease: (dy: number, vy: number) => {
-      const { expandTravel, expand, shrink, releaseArtLayout: release } = queueGestureRef.current;
-      release();
-      if (vy > QUEUE_COMMIT_VELOCITY) return shrink();
-      if (vy < -QUEUE_COMMIT_VELOCITY) return expand();
-      return dy / Math.max(1, expandTravel) > QUEUE_COMMIT_RATIO ? shrink() : expand();
-    },
-    onTerminate: () => {
-      queueGestureRef.current.releaseArtLayout();
-      queueGestureRef.current.expand();
-    },
-  };
+  // 패널에 넘기는 객체라 단계가 바뀔 때만 새로 만든다(KAN-260 — 패널 memo). 안의 값은 전부 ref·공유 값이라 늘 최신이다
+  const isListPullDownEnabled = activePanel === 'queue' && queueStage === 2;
+  const listPullDown = useMemo(
+    () => ({
+      enabled: isListPullDownEnabled,
+      onStart: () => {
+        handleDraggedRef.current = true;
+        queueGestureRef.current.holdArtLayout();
+      },
+      onMove: (dy: number) => {
+        const { expandTravel } = queueGestureRef.current;
+        queueExpand.set(Math.min(1, Math.max(0, 1 - dy / Math.max(1, expandTravel))));
+        queueProgress.set(1);
+      },
+      onRelease: (dy: number, vy: number) => {
+        const { expandTravel, expand, shrink, releaseArtLayout: release } = queueGestureRef.current;
+        release();
+        if (vy > QUEUE_COMMIT_VELOCITY) return shrink();
+        if (vy < -QUEUE_COMMIT_VELOCITY) return expand();
+        return dy / Math.max(1, expandTravel) > QUEUE_COMMIT_RATIO ? shrink() : expand();
+      },
+      onTerminate: () => {
+        queueGestureRef.current.releaseArtLayout();
+        queueGestureRef.current.expand();
+      },
+    }),
+    [isListPullDownEnabled, queueExpand, queueProgress],
+  );
   // 칩은 추천 이어 틀기만 토글한다 — 설정의 연속 재생이 꺼져 있으면 흐리게(player.md 4.2-4)
   const isAutoplayNextOn = useAutoplayNextEnabled();
   const isAutoplayRecommendedOn = useAutoplayRecommendedEnabled();
+  /*
+   * ── 재생 목록 패널에 넘기는 콜백·객체 — 늘 같은 참조다(KAN-260) ──
+   * 패널과 줄은 memo 다. 재생 위치가 0.5초마다 바뀌어 이 화면이 다시 그려질 때 인라인 콜백·객체를 넘기면 패널과 모든 줄(추천 포함)이
+   * 따라 다시 그려졌고, 추천이 길어지면 플레이어가 멈췄다. 콜백은 useStableCallback(부를 때 최신 값), 객체는 값이 바뀔 때만
+   */
+  const onQueueSelect = useStableCallback((item: QueueEntry) => {
+    // 줄 탭 = 재생 + 시트 닫기 — **화면의 setPanel(null) 로 닫는다**(KAN-250). 훅이 패널 상태만 null 로 바꾸면
+    // 시트 모션·정착값이 그대로라, 시트는 열린 채 남고 목록 터치·추천 조회가 꺼졌다(스켈레톤에 멈춤)
+    setPanel(null);
+    screen.playQueueItem(item);
+  });
+  const onQueueSelectUpNext = useStableCallback((item: QueueEntry) => {
+    setPanel(null);
+    screen.playUpNextItem(item);
+  });
+  const onQueueSave = useStableCallback((item: QueueEntry) => screen.saveQueueItem(item));
+  const onQueueDelete = useStableCallback((item: QueueEntry) => screen.deleteQueueItem(item));
+  const onQueueRetry = useStableCallback(() => void queueQuery.refetch());
+  // 재생 목록 줄의 카테고리 — 플레이어 제목 아래 줄과 같은 규칙(주제 이름 앞 두 개). 이름을 못 찾으면 null
+  const topicItems = topicsQuery.data?.items;
+  const queueCategoryOf = useCallback(
+    (item: QueueEntry): string | null => {
+      const names = item.topicIds
+        .map((id) => topicItems?.find((topic) => topic.topicId === id)?.name)
+        .filter((name): name is string => Boolean(name));
+      return names.length > 0 ? names.slice(0, 2).join(' · ') : null;
+    },
+    [topicItems],
+  );
+  const {
+    items: upNextItems,
+    isLoading: isUpNextLoading,
+    isFetchingMore: isUpNextFetchingMore,
+    fetchMore: fetchMoreUpNext,
+  } = upNextQuery;
+  const isQueuePanelOpen = activePanel === 'queue';
+  const queueUpNext = useMemo(
+    () => ({
+      items: upNextItems,
+      // 실제로 받는 중일 때만 — 꺼진 쿼리는 데이터가 없어도 pending 이라 스켈레톤에 묶였다(KAN-250)
+      isLoading: isUpNextLoading,
+      isFetchingMore: isUpNextFetchingMore,
+      // 열려 있을 때만 다음 장 — 닫힌 채 목록 맞추기(스크롤)로 불리지 않게
+      onEndReached: isQueuePanelOpen ? fetchMoreUpNext : undefined,
+    }),
+    [upNextItems, isUpNextLoading, isUpNextFetchingMore, isQueuePanelOpen, fetchMoreUpNext],
+  );
+  const queueAutoplay = useMemo(
+    () => ({
+      value: isAutoplayRecommendedOn,
+      disabled: !isAutoplayNextOn,
+      onToggle: setAutoplayRecommendedEnabled,
+    }),
+    [isAutoplayRecommendedOn, isAutoplayNextOn],
+  );
   const handlePanResponder = useMemo(
     () =>
       // eslint-disable-next-line react-hooks/refs -- 콜백은 렌더가 아니라 제스처 시점에 실행된다(표준 PanResponder 패턴)
@@ -1518,145 +1677,180 @@ export default function PlayerScreen() {
    * 커지며 대각선으로 날아 "그림이 따로 논다"고 보였다. 열릴 땐 같은 곡선을 거꾸로 간다
    */
   const artRideOffset = (mini.y * (MORPH_ART_ARRIVE - MORPH_ART_SHRINK_END)) / MORPH_ART_ARRIVE;
-  const morph = {
-    /*
-     * 아트워크는 교차가 시작되기 **전에** 풀 화면 자리에 도착해 있어야 한다(2026-09-19 PM 지적). 끝(1)에서야
-     * 도착하면, 모션 레이어와 실제 히어로가 바뀌는 구간(0.94~1)에 모션 아트워크가 아직 덜 커진 채로 겹쳐
-     * 그림이 두 장으로 보인다. 콘텐츠가 제자리에 서는 0.92 에 맞춰 도착시키고 그 뒤로는 움직이지 않는다
-     */
-    artLeft: openProgress.interpolate({
-      inputRange: MORPH_ART_INPUT,
-      outputRange: [miniThumbLeft, fullArt.left, fullArt.left, fullArt.left],
-    }),
-    artTop: openProgress.interpolate({
-      inputRange: MORPH_ART_INPUT,
-      outputRange: [miniThumbTop, fullArt.top + artRideOffset, fullArt.top, fullArt.top],
-    }),
-    artWidth: openProgress.interpolate({
-      inputRange: MORPH_ART_INPUT,
-      outputRange: [miniThumbSize, fullArt.width, fullArt.width, fullArt.width],
-    }),
-    artHeight: openProgress.interpolate({
-      inputRange: MORPH_ART_INPUT,
-      outputRange: [miniThumbSize, fullArt.height, fullArt.height, fullArt.height],
-    }),
-    artRadius: openProgress.interpolate({
-      inputRange: MORPH_ART_INPUT,
-      outputRange: [theme.radius.sm, fullArtRadius, fullArtRadius, fullArtRadius],
-    }),
-    /*
-     * 제목은 날지 않는다(2026-09-18 PM — 제자리 페이드). 미니 자리(썸네일 옆 14px)에서 풀 화면 자리(아트워크
-     * 아래 28px)까지 대각선으로 날며 크기까지 바뀌면 커지는 아트워크와 경로가 겹치고, 손으로 끌 때 글자만 따로
-     * 논다. 미니 제목은 제자리에서 초반에 사라지고(▶ 와 같은 구간), 풀 화면 제목은 컨트롤·시크바와 한 덩어리로
-     * 시트를 따라 올라오며 나타난다(contentOpacity·contentTranslateY). 움직이는 건 아트워크와 시트뿐이다
-     */
-    miniTitleOpacity: openProgress.interpolate({
-      inputRange: [0, 0.12, 1],
-      outputRange: [1, 0, 0],
-    }),
-    /*
-     * 교차 페이드를 쓰지 않는다(2026-09-17 PM — "애플처럼"). 미니플레이어 쪽 끝에서 모션 레이어를 투명하게
-     * 하면 뒤의 진짜 미니플레이어와 몇 px 어긋난 잔상이 겹쳐 보였다. 대신 모션 레이어는 도착까지 불투명하고,
-     * 착지 좌표를 미니플레이어 실측값으로 맞춰 화면을 바꿔치는 순간이 보이지 않게 한다.
-     * 풀 화면 쪽 끝(0.96~1)만 실제 히어로와 교차한다 — 같은 좌표라 겹쳐도 한 장으로 보인다
-     */
-    layerOpacity: openProgress.interpolate({
-      inputRange: [0, 0.94, 1],
-      outputRange: [1, 1, 0],
-    }),
-    // 히어로(큰 아트워크·제목)는 모션 레이어가 대신 그린다 — 둘이 같이 보이면 아트워크가 두 장이 된다
-    heroOpacity: openProgress.interpolate({ inputRange: [0, 0.94, 1], outputRange: [0, 0, 1] }),
-    // 컨트롤·시크바·앱바는 시트와 함께 아래로 내려가며 중간에 사라진다 — 카드가 통째로 접히는 느낌
-    contentOpacity: openProgress.interpolate({
-      inputRange: [0, 0.45, 0.8, 1],
-      outputRange: [0, 0, 1, 1],
-    }),
-    // 마지막 8%는 제자리 — 히어로와 모션 레이어가 교차하는 동안 콘텐츠가 움직이면 같은 좌표가 아니게 된다
-    contentTranslateY: openProgress.interpolate({
-      inputRange: [0, MORPH_ART_ARRIVE, 1],
-      outputRange: [mini.y, 0, 0],
-    }),
-    // 미니플레이어 ▶ — 시트가 자라기 시작하면 바로 사라진다(닫힐 땐 마지막 12%에서 나타난다)
-    miniButtonOpacity: openProgress.interpolate({
-      inputRange: [0, 0.12, 1],
-      outputRange: [1, 0, 0],
-    }),
-    // 시트 — 미니플레이어 카드(회색, 바닥 한 줄)가 그대로 자라 풀 화면(흰색)이 된다.
-    // 배경을 통째로 페이드하면 그림만 떠다니는 것처럼 보인다
-    sheetTop: openProgress.interpolate({ inputRange: [0, 1], outputRange: [mini.y, 0] }),
-    sheetLeft: openProgress.interpolate({ inputRange: [0, 1], outputRange: [mini.x, 0] }),
-    sheetWidth: openProgress.interpolate({
-      inputRange: [0, 1],
-      outputRange: [mini.width, windowWidth],
-    }),
-    // 높이는 내려가는 동안 화면 높이 그대로다 — 카드가 줄어드는 게 아니라 **미끄러져 내려간다**(아트워크가 풀 사이즈로
-    // 실려 있는 동안 시트 밖으로 삐져나오지 않는다). 아트워크가 줄어드는 마지막 구간에서만 미니 높이로 접힌다
-    sheetHeight: openProgress.interpolate({
-      inputRange: [0, MORPH_ART_SHRINK_END, 1],
-      outputRange: [mini.height, windowHeight, windowHeight],
-    }),
-    // 출발은 미니플레이어 카드의 모서리(22) — 0 이면 착지 순간 둥근 카드 밖으로 각진 귀가 비친다(2026-09-23)
-    sheetRadius: openProgress.interpolate({
-      inputRange: [0, 0.3, 1],
-      outputRange: [MINI_CARD_RADIUS, 20, 0],
-    }),
-    /*
-     * 출발은 뒤의 진짜 미니플레이어(밝은 theme.surface), 도착은 플레이어의 검정. 끝까지 고르게 섞으면 중간이
-     * 탁한 회색 판으로 오래 보인다 — 미니 제목·▶ 이 사라지는 12%까지만 밝게 두고, 40%에서 이미 검정에
-     * 닿게 해 회색 구간을 짧게 지난다(2026-09-18)
-     */
-    sheetColor: openProgress.interpolate({
-      inputRange: [0, 0.12, 0.4, 1],
-      outputRange: [
-        miniSurfaceColor,
-        miniSurfaceColor,
-        playerColor.background,
-        playerColor.background,
-      ],
-    }),
-    // 흐린 커버 바탕 — 시트가 검정으로 넘어가는 구간에 함께 나타난다(그 전엔 밝은 미니플레이어 색이어야 한다)
-    backdropOpacity: openProgress.interpolate({
-      inputRange: [0, 0.12, 0.4, 1],
-      outputRange: [0, 0, 1, 1],
-    }),
-    // 뒤의 라이브러리는 살짝 가라앉는다 — 시트가 그 위에 얹혔다는 층 감각
-    dimOpacity: openProgress.interpolate({ inputRange: [0, 1], outputRange: [0, 0.35] }),
-  };
-
   /*
-   * **Android 줌 전환**(PM 2026-09-29 00:55 "플레이어 나오는 거 iOS 와 최대한 유사하게", Android 전용). iOS 26 은 시스템 줌
-   * 전환 — 미니플레이어 카드가 그대로 부풀어 풀 화면이 되고, 그 안의 플레이어는 처음부터 완성된 모습이 비율대로 커진다.
-   * 종전 Android 모션(아트워크만 날아오르고 컨트롤은 아래서 올라옴)을 이것으로 바꾼다: 시트(카드 자리 → 풀 화면)가 자라는
-   * 동안 플레이어 전체를 **카드 폭에 맞춘 배율로 축소해 그 안에 잘라 넣고** 1 까지 키운다. 끌어내리기도 같은 값을 되감는다
+   * 보간 노드는 **치수가 바뀔 때만 새로 만든다**(2026-10-24 전수조사). 종전엔 렌더마다 interpolate 를 스무 개 넘게 새로 만들었다 —
+   * Android 는 openProgress 가 네이티브 드라이버라 렌더마다 네이티브 Animated 노드가 생기고 붙었다 떨어진다. 백그라운드에서도
+   * 상태 전이(버퍼링·자동 재생·배너)로 렌더가 이어지면 그 작업이 쌓였다가 복귀 첫 프레임에 한꺼번에 실행됐다(복귀 OOM
+   * EAR-APP-H·K 와 같은 모양). 재생 위치·상태만 바뀌는 렌더에서는 같은 노드를 그대로 쓴다
    */
-  if (ANDROID_ZOOM) {
-    Object.assign(morph, {
-      sheetHeight: openProgress.interpolate({
-        inputRange: [0, 1],
-        outputRange: [mini.height, windowHeight],
+  const morph = useMemo(() => {
+    const value = {
+      /*
+       * 아트워크는 교차가 시작되기 **전에** 풀 화면 자리에 도착해 있어야 한다(2026-09-19 PM 지적). 끝(1)에서야
+       * 도착하면, 모션 레이어와 실제 히어로가 바뀌는 구간(0.94~1)에 모션 아트워크가 아직 덜 커진 채로 겹쳐
+       * 그림이 두 장으로 보인다. 콘텐츠가 제자리에 서는 0.92 에 맞춰 도착시키고 그 뒤로는 움직이지 않는다
+       */
+      artLeft: openProgress.interpolate({
+        inputRange: MORPH_ART_INPUT,
+        outputRange: [miniThumbLeft, fullArt.left, fullArt.left, fullArt.left],
       }),
-      sheetRadius: openProgress.interpolate({
-        inputRange: [0, 0.85, 1],
-        outputRange: [MINI_CARD_RADIUS, ANDROID_ZOOM_CORNER, 0],
+      artTop: openProgress.interpolate({
+        inputRange: MORPH_ART_INPUT,
+        outputRange: [miniThumbTop, fullArt.top + artRideOffset, fullArt.top, fullArt.top],
       }),
-      // 카드 색에서 플레이어 색으로 — 시작 직후 짧게 넘어간다(회색 판이 오래 보이지 않게)
-      sheetColor: openProgress.interpolate({
-        inputRange: [0, 0.15, 1],
-        outputRange: [miniSurfaceColor, playerColor.background, playerColor.background],
+      artWidth: openProgress.interpolate({
+        inputRange: MORPH_ART_INPUT,
+        outputRange: [miniThumbSize, fullArt.width, fullArt.width, fullArt.width],
       }),
-      backdropOpacity: openProgress.interpolate({
-        inputRange: [0, 0.15, 1],
-        outputRange: [0, 1, 1],
+      artHeight: openProgress.interpolate({
+        inputRange: MORPH_ART_INPUT,
+        outputRange: [miniThumbSize, fullArt.height, fullArt.height, fullArt.height],
       }),
-      // 플레이어는 처음부터 제자리에 완성돼 있고, 카드 내용과 교차하며 드러난다
+      artRadius: openProgress.interpolate({
+        inputRange: MORPH_ART_INPUT,
+        outputRange: [theme.radius.sm, fullArtRadius, fullArtRadius, fullArtRadius],
+      }),
+      /*
+       * 제목은 날지 않는다(2026-09-18 PM — 제자리 페이드). 미니 자리(썸네일 옆 14px)에서 풀 화면 자리(아트워크
+       * 아래 28px)까지 대각선으로 날며 크기까지 바뀌면 커지는 아트워크와 경로가 겹치고, 손으로 끌 때 글자만 따로
+       * 논다. 미니 제목은 제자리에서 초반에 사라지고(▶ 와 같은 구간), 풀 화면 제목은 컨트롤·시크바와 한 덩어리로
+       * 시트를 따라 올라오며 나타난다(contentOpacity·contentTranslateY). 움직이는 건 아트워크와 시트뿐이다
+       */
+      miniTitleOpacity: openProgress.interpolate({
+        inputRange: [0, 0.12, 1],
+        outputRange: [1, 0, 0],
+      }),
+      /*
+       * 교차 페이드를 쓰지 않는다(2026-09-17 PM — "애플처럼"). 미니플레이어 쪽 끝에서 모션 레이어를 투명하게
+       * 하면 뒤의 진짜 미니플레이어와 몇 px 어긋난 잔상이 겹쳐 보였다. 대신 모션 레이어는 도착까지 불투명하고,
+       * 착지 좌표를 미니플레이어 실측값으로 맞춰 화면을 바꿔치는 순간이 보이지 않게 한다.
+       * 풀 화면 쪽 끝(0.96~1)만 실제 히어로와 교차한다 — 같은 좌표라 겹쳐도 한 장으로 보인다
+       */
+      layerOpacity: openProgress.interpolate({
+        inputRange: [0, 0.94, 1],
+        outputRange: [1, 1, 0],
+      }),
+      // 히어로(큰 아트워크·제목)는 모션 레이어가 대신 그린다 — 둘이 같이 보이면 아트워크가 두 장이 된다
+      heroOpacity: openProgress.interpolate({ inputRange: [0, 0.94, 1], outputRange: [0, 0, 1] }),
+      // 컨트롤·시크바·앱바는 시트와 함께 아래로 내려가며 중간에 사라진다 — 카드가 통째로 접히는 느낌
       contentOpacity: openProgress.interpolate({
-        inputRange: [0, 0.15, 1],
-        outputRange: [0, 1, 1],
+        inputRange: [0, 0.45, 0.8, 1],
+        outputRange: [0, 0, 1, 1],
       }),
-      contentTranslateY: 0,
-      heroOpacity: 1,
-    });
-  }
+      // 마지막 8%는 제자리 — 히어로와 모션 레이어가 교차하는 동안 콘텐츠가 움직이면 같은 좌표가 아니게 된다
+      contentTranslateY: openProgress.interpolate({
+        inputRange: [0, MORPH_ART_ARRIVE, 1],
+        outputRange: [mini.y, 0, 0],
+      }),
+      // 미니플레이어 ▶ — 시트가 자라기 시작하면 바로 사라진다(닫힐 땐 마지막 12%에서 나타난다)
+      miniButtonOpacity: openProgress.interpolate({
+        inputRange: [0, 0.12, 1],
+        outputRange: [1, 0, 0],
+      }),
+      // 시트 — 미니플레이어 카드(회색, 바닥 한 줄)가 그대로 자라 풀 화면(흰색)이 된다.
+      // 배경을 통째로 페이드하면 그림만 떠다니는 것처럼 보인다
+      sheetTop: openProgress.interpolate({ inputRange: [0, 1], outputRange: [mini.y, 0] }),
+      sheetLeft: openProgress.interpolate({ inputRange: [0, 1], outputRange: [mini.x, 0] }),
+      sheetWidth: openProgress.interpolate({
+        inputRange: [0, 1],
+        outputRange: [mini.width, windowWidth],
+      }),
+      // 높이는 내려가는 동안 화면 높이 그대로다 — 카드가 줄어드는 게 아니라 **미끄러져 내려간다**(아트워크가 풀 사이즈로
+      // 실려 있는 동안 시트 밖으로 삐져나오지 않는다). 아트워크가 줄어드는 마지막 구간에서만 미니 높이로 접힌다
+      sheetHeight: openProgress.interpolate({
+        inputRange: [0, MORPH_ART_SHRINK_END, 1],
+        outputRange: [mini.height, windowHeight, windowHeight],
+      }),
+      // 출발은 미니플레이어 카드의 모서리(22) — 0 이면 착지 순간 둥근 카드 밖으로 각진 귀가 비친다(2026-09-23)
+      sheetRadius: openProgress.interpolate({
+        inputRange: [0, 0.3, 1],
+        outputRange: [MINI_CARD_RADIUS, 20, 0],
+      }),
+      /*
+       * 출발은 뒤의 진짜 미니플레이어(밝은 theme.surface), 도착은 플레이어의 검정. 끝까지 고르게 섞으면 중간이
+       * 탁한 회색 판으로 오래 보인다 — 미니 제목·▶ 이 사라지는 12%까지만 밝게 두고, 40%에서 이미 검정에
+       * 닿게 해 회색 구간을 짧게 지난다(2026-09-18)
+       */
+      sheetColor: openProgress.interpolate({
+        inputRange: [0, 0.12, 0.4, 1],
+        outputRange: [
+          miniSurfaceColor,
+          miniSurfaceColor,
+          playerColor.background,
+          playerColor.background,
+        ],
+      }),
+      // 흐린 커버 바탕 — 시트가 검정으로 넘어가는 구간에 함께 나타난다(그 전엔 밝은 미니플레이어 색이어야 한다)
+      backdropOpacity: openProgress.interpolate({
+        inputRange: [0, 0.12, 0.4, 1],
+        outputRange: [0, 0, 1, 1],
+      }),
+      // 뒤의 라이브러리는 살짝 가라앉는다 — 시트가 그 위에 얹혔다는 층 감각
+      dimOpacity: openProgress.interpolate({ inputRange: [0, 1], outputRange: [0, 0.35] }),
+    };
+
+    /*
+     * **Android 줌 전환**(PM 2026-09-29 00:55 "플레이어 나오는 거 iOS 와 최대한 유사하게", Android 전용). iOS 26 은 시스템 줌
+     * 전환 — 미니플레이어 카드가 그대로 부풀어 풀 화면이 되고, 그 안의 플레이어는 처음부터 완성된 모습이 비율대로 커진다.
+     * 종전 Android 모션(아트워크만 날아오르고 컨트롤은 아래서 올라옴)을 이것으로 바꾼다: 시트(카드 자리 → 풀 화면)가 자라는
+     * 동안 플레이어 전체를 **카드 폭에 맞춘 배율로 축소해 그 안에 잘라 넣고** 1 까지 키운다. 끌어내리기도 같은 값을 되감는다
+     */
+    if (ANDROID_ZOOM) {
+      Object.assign(value, {
+        sheetHeight: openProgress.interpolate({
+          inputRange: [0, 1],
+          outputRange: [mini.height, windowHeight],
+        }),
+        sheetRadius: openProgress.interpolate({
+          inputRange: [0, 0.85, 1],
+          outputRange: [MINI_CARD_RADIUS, ANDROID_ZOOM_CORNER, 0],
+        }),
+        // 카드 색에서 플레이어 색으로 — 시작 직후 짧게 넘어간다(회색 판이 오래 보이지 않게)
+        sheetColor: openProgress.interpolate({
+          inputRange: [0, 0.15, 1],
+          outputRange: [miniSurfaceColor, playerColor.background, playerColor.background],
+        }),
+        backdropOpacity: openProgress.interpolate({
+          inputRange: [0, 0.15, 1],
+          outputRange: [0, 1, 1],
+        }),
+        // 플레이어는 처음부터 제자리에 완성돼 있고, 카드 내용과 교차하며 드러난다
+        contentOpacity: openProgress.interpolate({
+          inputRange: [0, 0.15, 1],
+          outputRange: [0, 1, 1],
+        }),
+        contentTranslateY: 0,
+        heroOpacity: 1,
+      });
+    }
+    return value;
+  }, [
+    openProgress,
+    miniThumbLeft,
+    miniThumbTop,
+    miniThumbSize,
+    fullArt.left,
+    fullArt.top,
+    fullArt.width,
+    fullArt.height,
+    artRideOffset,
+    fullArtRadius,
+    mini.x,
+    mini.y,
+    mini.width,
+    mini.height,
+    windowWidth,
+    windowHeight,
+    miniSurfaceColor,
+  ]);
+  // 뒤 화면 딤 — Android 는 끌어내리는 만큼 같이 걷힌다. 노드는 위와 같은 이유로 고정한다
+  const dimLayerOpacity = useMemo(
+    () =>
+      ANDROID_ZOOM
+        ? Animated.multiply(morph.dimOpacity, Animated.subtract(1, dismissProgress))
+        : morph.dimOpacity,
+    [morph, dismissProgress],
+  );
   const androidZoom = useMemo(
     () =>
       createAndroidPlayerZoom(
@@ -1679,7 +1873,8 @@ export default function PlayerScreen() {
   );
 
   if (!session) {
-    // 세션 정리 직후(차단 전환·회수 닫기)의 한 프레임 — 아무것도 그리지 않는다
+    // 세션 정리 직후(차단 전환·회수 닫기)의 한 프레임 — 아무것도 그리지 않는다. 여기 머물지 않는다: 세션을 본 뒤 사라졌으면
+    // usePlayerScreen 의 "세션 없음의 출구"가 화면을 닫는다(KAN-257 — 종전엔 닫는 쪽이 없는 정리면 흰 화면에 갇혔다)
     return <View style={containerStyle} />;
   }
 
@@ -1716,13 +1911,6 @@ export default function PlayerScreen() {
     .filter((name): name is string => name !== undefined);
   // 이름을 못 찾으면(목록 미도착·모르는 id) 자리도 남기지 않는다. 최대 두 개까지만 — 그 이상은 제목을 밀어낸다
   const categoryLabel = topicNames.length > 0 ? topicNames.slice(0, 2).join(' · ') : null;
-  // 재생 목록 줄의 카테고리 — 플레이어 제목 아래 줄과 같은 규칙(주제 이름 앞 두 개). 이름을 못 찾으면 null
-  const queueCategoryOf = (item: QueueEntry): string | null => {
-    const names = item.topicIds
-      .map((id) => topicsQuery.data?.items.find((topic) => topic.topicId === id)?.name)
-      .filter((name): name is string => Boolean(name));
-    return names.length > 0 ? names.slice(0, 2).join(' · ') : null;
-  };
 
   const isEnded = session.state === 'ended';
   const isControlDisabled = session.state === 'loading' || hasPlaybackError;
@@ -1739,15 +1927,7 @@ export default function PlayerScreen() {
       <StatusBar style="light" />
       {/* 뒤 화면 딤 + 미니플레이어 자리에서 자라나는 시트 — 0일 때는 카드 그 자체, 1일 때 풀 화면 */}
       <Animated.View
-        style={[
-          StyleSheet.absoluteFill,
-          styles.dim,
-          {
-            opacity: ANDROID_ZOOM
-              ? Animated.multiply(morph.dimOpacity, Animated.subtract(1, dismissProgress))
-              : morph.dimOpacity,
-          },
-        ]}
+        style={[StyleSheet.absoluteFill, styles.dim, { opacity: dimLayerOpacity }]}
         pointerEvents="none"
       />
       <Animated.View
@@ -1785,13 +1965,12 @@ export default function PlayerScreen() {
         */}
         {session.meta.thumbnailUrl ? (
           <Animated.View style={[styles.backdrop, { opacity: morph.backdropOpacity }]}>
-            <Image
-              source={{ uri: session.meta.thumbnailUrl }}
-              style={styles.backdropImage}
-              // 흐린 바탕만은 기본 Image 로 둔다(KAN-78) — expo-image 의 blurRadius 는 세기 기준이 달라
-              // 맞춰 둔 톤이 바뀐다. 같은 URL 을 한 번 더 받는 비용은 작다(768px WebP)
+            {/* 흐린 바탕만은 기본 Image 로 둔다(KAN-78) — expo-image 의 blurRadius 는 세기 기준이 달라 맞춰 둔 톤이 바뀐다.
+                같은 URL 을 한 번 더 받는 비용은 작다(768px WebP). 편이 바뀌면 커버와 같은 길이로 교차 페이드한다 */}
+            <CrossfadeBackdrop
+              uri={session.meta.thumbnailUrl}
+              imageStyle={styles.backdropImage}
               blurRadius={BACKDROP_BLUR_RADIUS}
-              resizeMode="cover"
             />
             <View style={styles.backdropScrim} />
           </Animated.View>
@@ -1887,27 +2066,15 @@ export default function PlayerScreen() {
                     artImageFlipStyle,
                   ]}
                 >
-                  {session.meta.thumbnailUrl ? (
-                    <RemoteImage
-                      key={session.meta.thumbnailUrl}
-                      uri={session.meta.thumbnailUrl}
-                      style={styles.artwork}
-                      isResized
-                    />
-                  ) : (
-                    <View style={[styles.artwork, styles.artworkPlaceholder]} />
-                  )}
+                  {/* 편이 바뀌면(자동 재생) 앞 사진 위로 새 사진이 페이드로 덮인다(PlayerCrossfade) */}
+                  <CrossfadeArtwork
+                    uri={session.meta.thumbnailUrl ?? null}
+                    style={styles.artwork}
+                  />
                 </Reanimated.View>
-              ) : session.meta.thumbnailUrl ? (
-                <RemoteImage
-                  // 잠긴 뷰는 주소가 바뀌어도 다시 불러오지 않는다 — 콘텐츠가 바뀌면 새로 만든다
-                  key={session.meta.thumbnailUrl}
-                  uri={session.meta.thumbnailUrl}
-                  style={styles.artwork}
-                  isResized
-                />
               ) : (
-                <View style={[styles.artwork, styles.artworkPlaceholder]} />
+                // 잠긴 뷰는 주소가 바뀌어도 다시 불러오지 않는다 — 겹마다 주소를 키로 새로 만들고 교차 페이드한다
+                <CrossfadeArtwork uri={session.meta.thumbnailUrl ?? null} style={styles.artwork} />
               )}
               {/* 완청 표식은 얹지 않는다(player-uiux.md 4.x 개정 2026-09-22 — 라이브러리 체크 마킹 폐기와 같이. 코드는 09-26 17:07 에 뒤늦게 뺐다) */}
               {/* 사진 위 글자·시크바 대비용 어두운 막 — 열린 만큼만 */}
@@ -2425,40 +2592,26 @@ export default function PlayerScreen() {
                     showHeader={false}
                     mode={isLibraryQueue ? 'library' : 'explore'}
                     sourceLabel={queueSourceLabel ?? undefined}
-                    // 줄 탭 = 재생 + 시트 닫기 — **화면의 setPanel(null) 로 닫는다**(KAN-250). 훅이 패널 상태만 null 로 바꾸면
-                    // 시트 모션·정착값이 그대로라, 시트는 열린 채 남고 목록 터치·추천 조회가 꺼졌다(스켈레톤에 멈춤)
-                    onSelect={(item) => {
-                      setPanel(null);
-                      screen.playQueueItem(item);
-                    }}
+                    // 넘기는 콜백·객체는 전부 안정된 참조다(위 "재생 목록 패널에 넘기는 콜백·객체", KAN-260)
+                    onSelect={onQueueSelect}
                     onReorder={moveQueueItem}
-                    onSave={screen.saveQueueItem}
-                    upNext={{
-                      items: upNextQuery.items,
-                      // 실제로 받는 중일 때만 — 꺼진 쿼리는 데이터가 없어도 pending 이라 스켈레톤에 묶였다(KAN-250)
-                      isLoading: upNextQuery.isLoading,
-                      isFetchingMore: upNextQuery.isFetchingMore,
-                      // 열려 있을 때만 다음 장 — 닫힌 채 목록 맞추기(스크롤)로 불리지 않게
-                      onEndReached: isQueueOpen ? upNextQuery.fetchMore : undefined,
-                    }}
-                    onSelectUpNext={(item) => {
-                      setPanel(null);
-                      screen.playUpNextItem(item);
-                    }}
-                    autoplay={{
-                      value: isAutoplayRecommendedOn,
-                      disabled: !isAutoplayNextOn,
-                      onToggle: setAutoplayRecommendedEnabled,
-                    }}
+                    pinnedContentId={queuePinnedContentId}
+                    onSave={onQueueSave}
+                    upNext={queueUpNext}
+                    onSelectUpNext={onQueueSelectUpNext}
+                    autoplay={queueAutoplay}
                     pullDown={listPullDown}
-                    onDelete={screen.deleteQueueItem}
+                    onDelete={onQueueDelete}
                     categoryOf={queueCategoryOf}
-                    onRetry={() => void queueQuery.refetch()}
-                    // 1단에서는 시트 아래 2단 몫이 화면 밖 — 그만큼 바닥 여백(KAN-241 "4번"). **2단에서도 빼지 않는다**
-                    // (PM 2026-10-23 "1단에서 2단으로 갈 때 갑자기 재생목록이 내려온다") — 2단에 앉는 순간 여백을 빼면 내용이
-                    // 짧아져, 재생 중인 줄로 맞춰 둔 스크롤 위치가 끝을 넘어 목록이 툭 내려앉았다. 대가: 2단에서 마지막 줄 밑에
-                    // 그만큼 빈 자리가 남는다(추천이 끝없이 붙어 바닥에 닿는 일은 드물다)
-                    bottomInset={queueExpandTravel + bottomPadding}
+                    onRetry={onQueueRetry}
+                    // 1단에서는 시트 아래 2단 몫이 화면 밖 — 그만큼 바닥 여백(KAN-241 "4번"). **2단에 앉으면 안전영역 몫만**
+                    // (KAN-262 — 종전엔 2단에서도 빼지 않아 마지막 줄 밑에 수백 pt 빈 자리가 남았다). 2단에 앉는 순간 통째로
+                    // 빼면 재생 중인 줄로 맞춰 둔 스크롤 위치가 끝을 넘어 목록이 툭 내려앉았다(PM 2026-10-23) — 패널이 지금 화면
+                    // 바닥을 덮을 만큼은 남기고 줄이며, 남은 몫은 스크롤이 멈출 때 걷는다(PlayerQueuePanel reconcileInset).
+                    // 단계는 스프링이 끝난 뒤 바뀐다(queueStage) — 2단 → 1단은 다 내려온 뒤 늘린다(늘리기는 움직임이 없다)
+                    bottomInset={
+                      queueStage === 2 ? bottomPadding : queueExpandTravel + bottomPadding
+                    }
                   />
                 ) : null}
               </Reanimated.View>
@@ -2850,6 +3003,8 @@ interface LayoutBox {
 const MINI_FALLBACK_BOTTOM = 130;
 /** 모션 레이어 아트워크 로드를 기다리는 상한 — 보통은 onLoad가 먼저 온다(캐시). 실패·지연 시 이 뒤엔 그냥 출발 */
 const MORPH_IMAGE_WAIT_MS = 800;
+/** 네이티브 닫기 뒤 이만큼 지나도 화면이 남아 있으면 UIKit 이 무시한 것으로 본다 — 닫힘 모션(≈0.35초)의 여러 배 */
+const COLLAPSE_WATCHDOG_MS = 2_000;
 /** 앱바 높이(터치 타깃 44) — 히어로가 쓸 수 있는 높이를 셈할 때 뺀다 */
 const APP_BAR_HEIGHT = 44;
 const PLAY_BUTTON_SIZE = 72;

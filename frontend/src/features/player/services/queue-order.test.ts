@@ -4,8 +4,52 @@ import {
   QUEUE_ORDER_MAX_IDS,
   moveInArray,
   parseQueueOrder,
+  reorderSubset,
   toQueueOrderPayload,
 } from './queue-order';
+
+describe('reorderSubset', () => {
+  const keyOf = (item: string) => item;
+
+  it('보인 줄의 새 순서를 전체 목록에 입힌다', () => {
+    expect(reorderSubset(['a', 'b', 'c', 'd'], keyOf, ['c', 'a', 'b', 'd'])).toEqual([
+      'c',
+      'a',
+      'b',
+      'd',
+    ]);
+  });
+
+  it('숨긴 줄(삭제 대기)은 제자리에 두고 보인 줄의 자리에만 채운다', () => {
+    // b 는 패널에 없다(숨김) — a 와 d 만 자리를 바꾼다
+    expect(reorderSubset(['a', 'b', 'c', 'd'], keyOf, ['d', 'c', 'a'])).toEqual([
+      'd',
+      'b',
+      'c',
+      'a',
+    ]);
+  });
+
+  it('전체에 없는 키(맨 위에 세운 지금 듣는 편)는 건너뛴다', () => {
+    expect(reorderSubset(['a', 'b', 'c'], keyOf, ['pinned', 'c', 'a', 'b'])).toEqual([
+      'c',
+      'a',
+      'b',
+    ]);
+  });
+
+  it('순서가 그대로면 null — 맨 위에 세운 줄만 옮긴 경우 포함', () => {
+    expect(reorderSubset(['a', 'b', 'c'], keyOf, ['a', 'b', 'c'])).toBeNull();
+    expect(reorderSubset(['a', 'b', 'c'], keyOf, ['a', 'pinned', 'b', 'c'])).toBeNull();
+  });
+
+  it('앞 끌기가 렌더에 반영되기 전에 다음 끌기를 확정해도 두 번 모두 남는다(KAN-255)', () => {
+    // 첫 끌기 a → 끝, 캐시는 이미 [b, c, a]. 패널은 같은 순서에서 c 를 맨 위로 옮겼다
+    const afterFirst = reorderSubset(['a', 'b', 'c'], keyOf, ['b', 'c', 'a']);
+    expect(afterFirst).toEqual(['b', 'c', 'a']);
+    expect(reorderSubset(afterFirst ?? [], keyOf, ['c', 'b', 'a'])).toEqual(['c', 'b', 'a']);
+  });
+});
 
 describe('moveInArray', () => {
   it('아래로 옮긴다', () => {
