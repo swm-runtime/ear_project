@@ -5,6 +5,7 @@ import type { LayoutChangeEvent, ViewProps } from 'react-native';
 import {
   ActivityIndicator,
   Animated,
+  AppState,
   PanResponder,
   Platform,
   Pressable,
@@ -656,6 +657,31 @@ export default function PlayerScreen() {
   const hasOpenedRef = useRef(false);
   const miniLayout = useMiniPlayerLayoutStore((s) => s.layout);
   const isMeasured = contentSize.height > 0 && controlsHeight > 0;
+  /*
+   * 진단(개발계만 — traceJs 가 운영에선 꺼진다) — 백그라운드에서 돌아오면 화면이 뒤죽박죽(PM 2026-10-24). 복귀 때 화면 크기·
+   * 안전영역·실측값이 바뀌는지, 안 바뀌는데 깨지는지를 가른다. 설정 > 스택 라우트 줄에 `app …` 과 `layout …` 이 남는다
+   */
+  useEffect(() => {
+    traceJs(
+      `layout win ${Math.round(windowWidth)}x${Math.round(windowHeight)} in ${Math.round(insets.top)}/${Math.round(insets.bottom)} ` +
+        `ct ${Math.round(contentSize.width)}x${Math.round(contentSize.height)} bar ${Math.round(appBarHeight)} ` +
+        `hd ${Math.round(handleHeight)} ctl ${Math.round(controlsHeight)}`,
+    );
+  }, [
+    windowWidth,
+    windowHeight,
+    insets.top,
+    insets.bottom,
+    contentSize.width,
+    contentSize.height,
+    appBarHeight,
+    handleHeight,
+    controlsHeight,
+  ]);
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (state) => traceJs(`app ${state}`));
+    return () => subscription.remove();
+  }, []);
   // 모션 레이어의 아트워크가 뜨기 전에 출발하면 첫 프레임이 회색 빈 사각이다 — 로드(또는 짧은 대기) 뒤 출발.
   // 그때까지 화면 전체를 감춰 두면 뒤의 미니플레이어가 그대로 보여 이음새가 없다
   // Android 줌은 날아가는 아트워크 레이어가 없다 — 기다릴 그림이 없으니 바로 준비
