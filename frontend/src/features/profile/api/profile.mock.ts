@@ -109,6 +109,19 @@ const toWeeklyDtoAt = (index: number): WeeklyListeningResponseDto => {
             topic_id: 'mock-history',
             name: '역사',
           }),
+    // 요일 주제 한 줄(KAN-268) — 이번 주에만. 들은 날마다 세 종류를 돌려 쓴다
+    daily_topic_highlight:
+      index !== 0
+        ? week.daily.map(() => null)
+        : week.daily.map((sec, dayIndex) => {
+            if (sec === 0) return null;
+            const kinds = [
+              { kind: 'unexplored_topic', topic_id: 'mock-history', name: '역사' },
+              { kind: 'top_topic_day_streak', days: 2 },
+              { kind: 'topic_count', count: 3 },
+            ] as const;
+            return kinds[dayIndex % 3];
+          }),
     // 요일별 한 줄(KAN-171) — 세 종류가 한 주 안에 다 보이게 돌려 쓴다. 0초인 날은 null
     daily_listening_highlight: week.daily.map((sec, dayIndex) => {
       if (sec === 0) return null;

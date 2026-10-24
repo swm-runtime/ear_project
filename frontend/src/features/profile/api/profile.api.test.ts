@@ -6,6 +6,7 @@ import {
   toDailyListeningHighlights,
   toListeningHighlight,
   toPlanTrial,
+  toDailyTopicHighlights,
   toTopicHighlight,
 } from './profile.api';
 import type { ProfilePlanDto, ProfileSummaryResponseDto, WeeklyListeningDto } from './profile.dto';
@@ -314,6 +315,54 @@ describe('PROFILE_COPY.stats.topicHighlight', () => {
     );
     expect(PROFILE_COPY.stats.topicHighlight({ kind: 'topicCount', count: 4 }).main).toBe(
       '이번 주 4개 주제',
+    );
+  });
+});
+
+describe('profile.api 요일 주제 한 줄 변환(KAN-268)', () => {
+  const week = (extra: Partial<WeeklyListeningDto>): WeeklyListeningDto => ({
+    week_start: '2026-10-19',
+    daily_listened_sec: [600, 600, 0, 0, 0, 0, 0],
+    previous_week_start: null,
+    next_week_start: null,
+    ...extra,
+  });
+
+  it('7칸을 그대로 옮기고 요일 전용 종류는 그날 문구 종류로 바꾼다', () => {
+    const dto = week({
+      daily_topic_highlight: [
+        { kind: 'unexplored_topic', topic_id: 't-1', name: '역사' },
+        { kind: 'top_topic_day_streak', days: 2 },
+        { kind: 'topic_count', count: 3 },
+        null,
+        null,
+        null,
+        null,
+      ],
+    });
+
+    expect(toDailyTopicHighlights(dto)).toEqual([
+      { kind: 'unexplored', topicId: 't-1', name: '역사' },
+      { kind: 'dayStreak', days: 2 },
+      { kind: 'dayTopicCount', count: 3 },
+      null,
+      null,
+      null,
+      null,
+    ]);
+  });
+
+  it('필드 없는 서버 · 7칸이 아니면 통째로 없다', () => {
+    expect(toDailyTopicHighlights(week({}))).toBeNull();
+    expect(toDailyTopicHighlights(week({ daily_topic_highlight: [null, null] }))).toBeNull();
+  });
+
+  it('그날 문구 — "N일 연속 1위" · "그날 N개 주제"', () => {
+    expect(PROFILE_COPY.stats.topicHighlight({ kind: 'dayStreak', days: 2 }).main).toBe(
+      '2일 연속 1위',
+    );
+    expect(PROFILE_COPY.stats.topicHighlight({ kind: 'dayTopicCount', count: 3 }).main).toBe(
+      '그날 3개 주제',
     );
   });
 });

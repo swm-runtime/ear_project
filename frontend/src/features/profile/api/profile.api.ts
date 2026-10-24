@@ -16,6 +16,7 @@ import type {
 } from '../profile.types';
 import type {
   DailyListeningHighlightDto,
+  DailyTopicHighlightDto,
   ProfilePlanTrialDto,
   ProfileSummaryResponseDto,
   TopicDistributionDto,
@@ -112,6 +113,30 @@ export const toTopicHighlight = (dto: WeeklyListeningDto): TopicHighlight | null
   }
 };
 
+const toDailyTopicHighlight = (dto: DailyTopicHighlightDto | null): TopicHighlight | null => {
+  if (dto === null) return null;
+  switch (dto.kind) {
+    case 'unexplored_topic':
+      return { kind: 'unexplored', topicId: dto.topic_id, name: dto.name };
+    case 'peer_top_topic':
+      return { kind: 'peerTop', topicId: dto.topic_id, name: dto.name };
+    case 'top_topic_day_streak':
+      return { kind: 'dayStreak', days: dto.days };
+    case 'topic_count':
+      return { kind: 'dayTopicCount', count: dto.count };
+    default:
+      return null;
+  }
+};
+
+/** 요일 주제 한 줄(KAN-268) — 7칸이 아니면(반영 전·결함) 통째로 그리지 않는다. 모르는 kind 칸은 그날만 비운다 */
+export const toDailyTopicHighlights = (
+  dto: WeeklyListeningDto,
+): (TopicHighlight | null)[] | null =>
+  dto.daily_topic_highlight?.length === 7
+    ? dto.daily_topic_highlight.map(toDailyTopicHighlight)
+    : null;
+
 const toWeeklyListening = (dto: WeeklyListeningDto): WeeklyListening => ({
   weekStart: dto.week_start,
   dailyListenedSec: dto.daily_listened_sec,
@@ -121,6 +146,7 @@ const toWeeklyListening = (dto: WeeklyListeningDto): WeeklyListening => ({
   listeningHighlight: toListeningHighlight(dto),
   dailyListeningHighlights: toDailyListeningHighlights(dto),
   topicHighlight: toTopicHighlight(dto),
+  dailyTopicHighlights: toDailyTopicHighlights(dto),
   ...(dto.topic_distribution
     ? { topicDistribution: toTopicDistribution(dto.topic_distribution) }
     : {}),

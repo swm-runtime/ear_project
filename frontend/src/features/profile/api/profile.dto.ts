@@ -120,7 +120,15 @@ export interface WeeklyListeningDto {
    * 지난 주·기록 없음·판정 실패면 null, 반영 전 서버면 없다 → 둘 다 그리지 않는다
    */
   topic_highlight?: TopicHighlightDto | null;
+  /** 요일 주제 한 줄(KAN-268) — 월~일 7칸, 이번 주에만. 반영 전 서버면 없다 */
+  daily_topic_highlight?: (DailyTopicHighlightDto | null)[] | null;
 }
+
+export type DailyTopicHighlightDto =
+  | { kind: 'unexplored_topic'; topic_id: string; name: string }
+  | { kind: 'peer_top_topic'; topic_id: string; name: string }
+  | { kind: 'top_topic_day_streak'; days: number }
+  | { kind: 'topic_count'; count: number };
 
 export type TopicHighlightDto =
   | { kind: 'unexplored_topic'; topic_id: string; name: string }
