@@ -105,8 +105,13 @@ export const usePlayGate = (options?: PlayGateOptions) => {
     showPaywall(message, blocked ? () => requestPlay(blocked, entry) : null);
   };
 
+  /*
+   * 스택에 플레이어가 이미 있으면(플레이어 → 상세 → [재생]) **그 플레이어로 돌아간다**(`pop`) — 종전엔 React Navigation 7 의 navigate 가
+   * 지금 화면이 플레이어가 아니면 새로 쌓아 [플레이어, 상세, 플레이어]가 됐다. 닫으면 또 플레이어가 나왔고, 두 인스턴스가 한도 403 에
+   * 각자 닫기·페이월을 불렀다(2026-10-24 전수조사). 없으면 종전대로 새로 띄운다
+   */
   const openPlayer = (contentId: string) => {
-    navigation.navigate('Main', { screen: 'Player', params: { contentId } });
+    navigation.navigate('Main', { screen: 'Player', params: { contentId }, pop: true });
   };
 
   const startPlayback = (target: PlayGateTarget, entryPoint: PlayEntryPoint) => {
