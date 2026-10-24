@@ -216,6 +216,21 @@ describe('플레이어 정리', () => {
   });
 });
 
+describe('네이티브 재생 실패', () => {
+  it('play 가 던져도(iOS 통화 중 오디오 세션 실패) ▶ 핸들러로 올라가지 않고 재생 안 됨으로 남는다', async () => {
+    mockIssue.mockResolvedValue(issueOf('https://example.com/audio'));
+    const player = await startPlaying(playbackService);
+    playbackService.pause();
+    usePlaybackStore.getState().patchSession({ isPlaying: false });
+    player.play.mockImplementation(() => {
+      throw new Error('Session activation failed');
+    });
+    expect(() => playbackService.togglePlayPause()).not.toThrow();
+    expect(() => playbackService.playWhenReady()).not.toThrow();
+    expect(usePlaybackStore.getState().session?.isPlaying).toBe(false);
+  });
+});
+
 describe('재생 시작 기록 재시도', () => {
   it('실패하면 3초 뒤에 다시 보낸다 — 그 사이 상태 틱이 연달아 보내지 않는다', async () => {
     mockIssue.mockResolvedValue(issueOf('https://example.com/audio'));
