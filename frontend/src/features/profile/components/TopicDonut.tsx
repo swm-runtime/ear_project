@@ -1,12 +1,12 @@
 import { useEffect } from 'react';
-import { Animated, StyleSheet, View } from 'react-native';
+import { Animated, PixelRatio, Pressable, StyleSheet, View } from 'react-native';
 
 import { useAnimatedValue } from '@/shared/hooks/useAnimatedValue';
 import { motion, theme, useThemePalette } from '@/shared/theme';
 import { Text } from '@/shared/ui/Typography';
 
 import { PROFILE_COPY } from '../profile.copy';
-import type { TopicDistribution } from '../profile.types';
+import type { TopicDistribution, TopicHighlight } from '../profile.types';
 
 interface TopicDonutProps {
   distribution: TopicDistribution;
@@ -20,6 +20,63 @@ interface TopicDonutProps {
    * 서버가 주별 분포를 아직 안 보내면 "… · 전체 기간". 없으면 기본 라벨
    */
   label?: string;
+  /**
+   * 헤드라인 옆 한 줄(profile.md 4.7-1 — PM 2026-10-24 "아래가 아니라 옆"). 서버가 고른 값 그대로, 없으면 그리지 않는다.
+   * 이번 주 분포에서만 넘긴다 — 요일을 골랐거나 전체 기간 대체 분포일 땐 호출부가 넘기지 않는다
+   */
+  highlight?: TopicHighlight | null;
+  /** 안 들어본 주제 탭 — 탐색의 그 주제 목록으로. 나머지 종류는 표시 전용이라 부르지 않는다 */
+  onUnexploredPress?: (topicId: string) => void;
+}
+
+/** 큰 글씨(요약 3지표가 세로로 쌓이는 같은 기준)면 옆 자리가 없어 헤드라인 아래로 내린다 */
+const STACKED_FONT_SCALE = 1.5;
+/** 한 줄(보조 글씨) 높이를 누르는 자리 44pt 로 넓히는 위아래 여유 */
+const HIGHLIGHT_HIT_SLOP = { top: 12, bottom: 12, left: 8, right: 8 };
+
+function HighlightLine({
+  highlight,
+  stacked,
+  onUnexploredPress,
+}: {
+  highlight: TopicHighlight;
+  stacked: boolean;
+  onUnexploredPress?: (topicId: string) => void;
+}) {
+  const copy = PROFILE_COPY.stats.topicHighlight(highlight);
+  const textStyle = [styles.highlightText, stacked && styles.highlightTextStacked];
+  if (highlight.kind === 'unexplored' && onUnexploredPress) {
+    const { topicId } = highlight;
+    return (
+      <Pressable
+        style={({ pressed }) => [
+          styles.highlight,
+          stacked && styles.highlightStacked,
+          pressed && styles.pressed,
+        ]}
+        hitSlop={HIGHLIGHT_HIT_SLOP}
+        onPress={() => onUnexploredPress(topicId)}
+        accessibilityRole="button"
+        accessibilityLabel={copy.a11y}
+        accessibilityHint={PROFILE_COPY.stats.topicHighlightHint}
+      >
+        <Text style={textStyle} numberOfLines={2}>
+          {copy.main}
+        </Text>
+      </Pressable>
+    );
+  }
+  return (
+    <View
+      style={[styles.highlight, stacked && styles.highlightStacked]}
+      accessible
+      accessibilityLabel={copy.a11y}
+    >
+      <Text style={textStyle} numberOfLines={2}>
+        {copy.main}
+      </Text>
+    </View>
+  );
 }
 
 interface LegendEntry {
@@ -74,7 +131,10 @@ export default function TopicDonut({
   distribution,
   embedded = false,
   label = PROFILE_COPY.stats.topTopicLabel,
+  highlight = null,
+  onUnexploredPress,
 }: TopicDonutProps) {
+  const isStacked = PixelRatio.getFontScale() >= STACKED_FONT_SCALE;
   const entries = toLegendEntries(distribution, useThemePalette().chart);
   const grow = useAnimatedValue(0);
   // 분포가 바뀌면(주 이동 — PM 2026-09-28 04:15 "주마다") 막대가 0 에서 다시 자란다. 같은 분포면 다시 그리지 않는다
@@ -97,29 +157,51 @@ export default function TopicDonut({
           <Text style={styles.emptyText}>{PROFILE_COPY.stats.emptyState}</Text>
         </View>
       ) : (
-        <View
-          style={embedded ? styles.embeddedBody : styles.card}
-          accessible
-          // 목록이 곧 대체 텍스트 — "커리어 38%, …, 기타 6%" 순서로 읽힌다(profile-uiux.md 7장)
-          accessibilityLabel={PROFILE_COPY.stats.legendA11y(entries)}
-        >
+        <View style={embedded ? styles.embeddedBody : styles.card}>
+          {/*
+           * 낭독: 헤드라인 하나가 목록 전체를 읽고("커리어 38%, …, 기타 6%" — profile-uiux.md 7장) 막대·줄은 숨긴다.
+           * 종전엔 몸통 전체가 한 요소였는데, 그러면 옆 한 줄(버튼)이 그 안에 묻혀 따로 누를 수 없다
+           */}
           {top ? (
-            <View style={styles.headline}>
-              <Text style={styles.headlineLabel}>{label}</Text>
-              <Text style={styles.headlineValue} numberOfLines={1}>
-                {top.name}{' '}
-                <Text style={styles.headlineRatio}>{PROFILE_COPY.stats.ratioValue(top.ratio)}</Text>
-              </Text>
+            <View style={[styles.headlineRow, isStacked && styles.headlineRowStacked]}>
+              <View
+                style={[styles.headline, !isStacked && highlight ? styles.headlineBeside : null]}
+                accessible
+                accessibilityLabel={PROFILE_COPY.stats.legendA11y(entries)}
+              >
+                <Text style={styles.headlineLabel}>{label}</Text>
+                <Text style={styles.headlineValue} numberOfLines={1}>
+                  {top.name}{' '}
+                  <Text style={styles.headlineRatio}>
+                    {PROFILE_COPY.stats.ratioValue(top.ratio)}
+                  </Text>
+                </Text>
+              </View>
+              {highlight ? (
+                <HighlightLine
+                  highlight={highlight}
+                  stacked={isStacked}
+                  onUnexploredPress={onUnexploredPress}
+                />
+              ) : null}
             </View>
           ) : null}
 
-          <Animated.View style={[styles.stack, growStyle]}>
+          <Animated.View
+            style={[styles.stack, growStyle]}
+            accessibilityElementsHidden
+            importantForAccessibility="no-hide-descendants"
+          >
             {entries.map((entry) => (
               <View key={entry.key} style={{ flex: entry.ratio, backgroundColor: entry.color }} />
             ))}
           </Animated.View>
 
-          <View style={styles.rows}>
+          <View
+            style={styles.rows}
+            accessibilityElementsHidden
+            importantForAccessibility="no-hide-descendants"
+          >
             {entries.map((entry) => (
               <View key={entry.key} style={styles.row}>
                 <View style={styles.rowHead}>
@@ -160,8 +242,44 @@ const styles = StyleSheet.create({
     padding: theme.spacing.md,
     gap: theme.spacing.md,
   },
+  // 헤드라인 줄 — 왼쪽 "커리어 38%", 오른쪽 끝에 주제 한 줄(값 줄 바닥에 맞춘다)
+  headlineRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    gap: theme.spacing.sm,
+  },
+  headlineRowStacked: {
+    flexDirection: 'column',
+    alignItems: 'stretch',
+    gap: theme.spacing.xs,
+  },
   headline: {
     gap: 2,
+  },
+  // 옆 한 줄이 있을 때 — 헤드라인은 한 줄 그대로 두되 긴 주제명이 옆 자리를 다 먹지 않게 상한을 둔다
+  headlineBeside: {
+    flexShrink: 1,
+    maxWidth: '62%',
+  },
+  highlight: {
+    flex: 1,
+    minWidth: 0,
+    alignItems: 'flex-end',
+  },
+  highlightStacked: {
+    flex: 0,
+    alignItems: 'flex-start',
+  },
+  highlightText: {
+    fontSize: theme.font.size.sm,
+    color: theme.color.textSecondary,
+    textAlign: 'right',
+  },
+  highlightTextStacked: {
+    textAlign: 'left',
+  },
+  pressed: {
+    opacity: 0.5,
   },
   headlineLabel: {
     fontSize: theme.font.size.xs,

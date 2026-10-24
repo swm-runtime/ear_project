@@ -3,7 +3,9 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useCallback, useMemo, useRef, useState } from 'react';
 import { Linking } from 'react-native';
 
+import { track } from '@/shared/analytics';
 import { logger } from '@/shared/lib/logger';
+import { toTab } from '@/shared/navigation/to-tab';
 
 import { selectMarket, useSessionStore } from '@/features/auth';
 import { isCareerEntryVisible } from '@/features/career';
@@ -239,6 +241,14 @@ export const useProfileScreen = () => {
     refresh,
     isManualRefreshing,
     openSettings: () => openDestination('Settings'),
+    /**
+     * 주제 한 줄의 안 들어본 주제 → 탐색 탭의 그 주제 목록(profile.md 4.7-1). 검색 빈 결과의 관련 주제 칩과 같은 경로다.
+     * 프로필은 서버에 쓰지 않는다 — 이동만. 돌아오면 다시 조회해도 된다(그새 들었을 수 있다)
+     */
+    openUnexploredTopic: (topicId: string) => {
+      track('profile_topic_highlight_tap', { kind: 'unexplored' });
+      navigation.navigate('Main', toTab('Explore', { applyTopicId: topicId }));
+    },
     openPlan: () => openDestination('Subscription'),
     // A10의 "현재 이메일" 표시 값을 실어 보낸다 — 설정 경로와 같은 방식(auth.md 4.5 공통 화면).
     // 인증이 끝난 주소는 앱에서 바꿀 수 없어 인증 화면으로 보내지 않는다(auth.md 4.4).

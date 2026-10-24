@@ -1225,6 +1225,11 @@ exports[`한국어 카피 회귀 — i18n 전환 전과 1:1 PROFILE_COPY 1`] = `
       "가장 많이 들은 주제 · ",
     ],
     "topTopicLabel": "가장 많이 들은 주제",
+    "topicHighlight": [
+      undefined,
+      undefined,
+    ],
+    "topicHighlightHint": "탐색에서 이 주제 보기",
     "weekRange": [
       "[throws]",
       "NaN월 NaN일 – NaN월 NaN일",
