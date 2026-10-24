@@ -6,6 +6,7 @@ import {
 } from '@/modules/playback/playback.types';
 
 import {
+  TOPIC_HIGHLIGHT_CONCENTRATED_RATIO,
   LISTENING_HIGHLIGHT_MIN_DIFF_SEC,
   LISTENING_TOP_PERCENT_MAX,
   TOPIC_DISTRIBUTION_TOP_LIMIT,
@@ -17,6 +18,7 @@ import {
   ListeningHighlightView,
   TopicDistributionItemView,
   TopicDistributionView,
+  TopicRefView,
 } from './profile.types';
 
 /**
@@ -371,4 +373,98 @@ export function countDailyListenedContents(
           .map((row) => row.contentId),
       ).size,
   );
+}
+
+// --- 주제 한 줄(`profile.md` 4.7-1) ---
+
+/** 주제별 청취 합(내림차순) — 여러 주제에 속한 콘텐츠는 각 주제에 그대로 더한다(4.7 분포와 같은 규칙) */
+export function rankTopicsByListenedSec(
+  listenedByContent: readonly ContentListenedSecView[],
+  topicViews: readonly ContentTopicView[],
+): (TopicRefView & { listenedSec: number })[] {
+  const secByContent = new Map<string, number>();
+  for (const row of listenedByContent) {
+    secByContent.set(
+      row.contentId,
+      (secByContent.get(row.contentId) ?? 0) + row.listenedSec,
+    );
+  }
+
+  const byTopic = new Map<string, TopicRefView & { listenedSec: number }>();
+  for (const view of topicViews) {
+    const sec = secByContent.get(view.contentId) ?? 0;
+    if (sec <= 0) {
+      continue;
+    }
+    const entry = byTopic.get(view.topicId) ?? {
+      topicId: view.topicId,
+      name: view.name,
+      listenedSec: 0,
+    };
+    entry.listenedSec += sec;
+    byTopic.set(view.topicId, entry);
+  }
+
+  // 동률은 topicId 순 — 같은 입력이면 같은 결과
+  return [...byTopic.values()].sort(
+    (a, b) =>
+      b.listenedSec - a.listenedSec || a.topicId.localeCompare(b.topicId),
+  );
+}
+
+/**
+ * 그 주가 **한 주제에 쏠렸는지** — 들은 주제가 하나뿐이거나 1위 비율이 하한 이상이면.
+ * 쏠린 사용자에게 먼저 "안 들어본 주제"를 권한다.
+ */
+export function isTopicConcentrated(
+  weekly: TopicDistributionView,
+  topicCount: number,
+): boolean {
+  const top = weekly.topics[0];
+  if (top === undefined) {
+    return false;
+  }
+  return topicCount <= 1 || top.ratio >= TOPIC_HIGHLIGHT_CONCENTRATED_RATIO;
+}
+
+/**
+ * 안 들어본 주제 하나 — 후보(노출 주제 중 한 번도 안 들은 · 직접 해제하지 않은 것, 노출 순서대로) 가운데
+ * 그 시장에서 최근 가장 많이 들린 주제. 시장 청취가 하나도 없으면 후보의 첫 번째(노출 순서)다.
+ */
+export function pickUnexploredTopic(
+  candidates: readonly TopicRefView[],
+  marketRanking: readonly (TopicRefView & { listenedSec: number })[],
+): TopicRefView | null {
+  if (candidates.length === 0) {
+    return null;
+  }
+  const candidateIds = new Set(candidates.map((topic) => topic.topicId));
+  const popular = marketRanking.find((topic) =>
+    candidateIds.has(topic.topicId),
+  );
+  if (popular !== undefined) {
+    return { topicId: popular.topicId, name: popular.name };
+  }
+  return candidates[0];
+}
+
+/**
+ * 그 주 1위 주제가 **몇 주 연속** 1위였는지 — `weeklyTopTopicIds`는 이번 주부터 거슬러 간 주별 1위(기록 없는 주는 `null`).
+ * 이번 주 1위가 없으면 0이다.
+ */
+export function countTopTopicStreak(
+  weeklyTopTopicIds: readonly (string | null)[],
+): number {
+  const current = weeklyTopTopicIds[0];
+  if (current === null || current === undefined) {
+    return 0;
+  }
+  let weeks = 0;
+  for (const topicId of weeklyTopTopicIds) {
+    if (topicId !== current) {
+      break;
+    }
+    weeks += 1;
+  }
+  return weeks;
 }

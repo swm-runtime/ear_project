@@ -1,6 +1,7 @@
 import { BusinessException } from '@/common/exceptions/business.exception';
 import { ErrorCode } from '@/common/exceptions/error-code.enum';
 import { ContentService } from '@/modules/content/services/content.service';
+import { TopicService } from '@/modules/interest/services/topic.service';
 import { UserInterestService } from '@/modules/interest/services/user-interest.service';
 import { LibraryService } from '@/modules/library/library.service';
 import { PlaybackService } from '@/modules/playback/services/playback.service';
@@ -63,8 +64,9 @@ describe('ProfileOrchestrator', () => {
     Pick<SubscriptionService, 'buildPlanView'>
   >;
   let userInterestService: jest.Mocked<
-    Pick<UserInterestService, 'buildSummary'>
+    Pick<UserInterestService, 'buildSummary' | 'findUserRemovedTopicIds'>
   >;
+  let topicService: jest.Mocked<Pick<TopicService, 'findAllVisible'>>;
   let libraryService: jest.Mocked<
     Pick<LibraryService, 'countCompletedContents'>
   >;
@@ -77,6 +79,8 @@ describe('ProfileOrchestrator', () => {
       | 'sumListenedSecByContent'
       | 'sumListenedSecByContentAndDates'
       | 'countUsersListenedMoreByDates'
+      | 'sumListenedSecByContentForCohort'
+      | 'countListenersForCohort'
     >
   >;
   let contentService: jest.Mocked<Pick<ContentService, 'findTopicViews'>>;
@@ -91,7 +95,9 @@ describe('ProfileOrchestrator', () => {
     };
     userInterestService = {
       buildSummary: jest.fn().mockResolvedValue({ count: 0, topTopics: [] }),
+      findUserRemovedTopicIds: jest.fn().mockResolvedValue([]),
     };
+    topicService = { findAllVisible: jest.fn().mockResolvedValue([]) };
     libraryService = { countCompletedContents: jest.fn().mockResolvedValue(0) };
     playbackService = {
       sumListenedSec: jest.fn().mockResolvedValue(0),
@@ -100,6 +106,8 @@ describe('ProfileOrchestrator', () => {
       sumListenedSecByContent: jest.fn().mockResolvedValue([]),
       sumListenedSecByContentAndDates: jest.fn().mockResolvedValue([]),
       countUsersListenedMoreByDates: jest.fn().mockResolvedValue(0),
+      sumListenedSecByContentForCohort: jest.fn().mockResolvedValue([]),
+      countListenersForCohort: jest.fn().mockResolvedValue(0),
     };
     contentService = { findTopicViews: jest.fn().mockResolvedValue([]) };
 
@@ -110,6 +118,7 @@ describe('ProfileOrchestrator', () => {
       libraryService as unknown as LibraryService,
       playbackService as unknown as PlaybackService,
       contentService as unknown as ContentService,
+      topicService as unknown as TopicService,
     );
   });
 
@@ -453,6 +462,241 @@ describe('ProfileOrchestrator', () => {
 
       // then — 화살표 활성 여부를 서버가 정한다
       expect(result.weeklyListening?.previousWeekStart).toBeNull();
+    });
+  });
+
+  describe('getSummary — 주제 한 줄(profile.md 4.7-1)', () => {
+    const T_CAREER = 'cccccccc-1111-4111-8111-111111111111';
+    const T_IT = 'cccccccc-2222-4222-8222-222222222222';
+    const T_ECON = 'cccccccc-3333-4333-8333-333333333333';
+    const T_HISTORY = 'cccccccc-4444-4444-8444-444444444444';
+    const C_CAREER = 'aaaaaaaa-1111-4111-8111-111111111111';
+    const C_IT = 'aaaaaaaa-2222-4222-8222-222222222222';
+    const C_ECON = 'aaaaaaaa-3333-4333-8333-333333333333';
+    const C_HISTORY = 'aaaaaaaa-4444-4444-8444-444444444444';
+    const TOPIC_OF: Record<string, { topicId: string; name: string }> = {
+      [C_CAREER]: { topicId: T_CAREER, name: '커리어' },
+      [C_IT]: { topicId: T_IT, name: 'IT·개발' },
+      [C_ECON]: { topicId: T_ECON, name: '경제' },
+      [C_HISTORY]: { topicId: T_HISTORY, name: '역사' },
+    };
+    const VISIBLE = [
+      { id: T_CAREER, name: '커리어' },
+      { id: T_IT, name: 'IT·개발' },
+      { id: T_ECON, name: '경제' },
+      { id: T_HISTORY, name: '역사' },
+    ];
+
+    /** 이번 주(8-03~) 청취와 지난 주들 청취를 날짜로 갈라 돌려준다 */
+    function givenListening(
+      thisWeek: { contentId: string; listenedSec: number }[],
+      previousWeeks: {
+        contentId: string;
+        playDate: string;
+        listenedSec: number;
+      }[] = [],
+    ): void {
+      playbackService.sumListenedSecByDates.mockResolvedValue(
+        new Map([['2026-08-03', 1]]),
+      );
+      playbackService.sumListenedSecByContentAndDates.mockImplementation(
+        (_userId, dates) =>
+          Promise.resolve(
+            dates.includes('2026-08-03')
+              ? thisWeek.map((row) => ({ ...row, playDate: '2026-08-03' }))
+              : previousWeeks.filter((row) => dates.includes(row.playDate)),
+          ),
+      );
+      playbackService.sumListenedSecByContent.mockResolvedValue(
+        thisWeek.map((row) => ({ ...row })),
+      );
+    }
+
+    beforeEach(() => {
+      contentService.findTopicViews.mockImplementation((contentIds) =>
+        Promise.resolve(
+          contentIds
+            .filter((id) => TOPIC_OF[id] !== undefined)
+            .map((id) => ({ contentId: id, ...TOPIC_OF[id] })),
+        ),
+      );
+      topicService.findAllVisible.mockResolvedValue(VISIBLE as never);
+    });
+
+    it('한 주제에 쏠렸으면 안 들어본 주제 중 그 시장에서 최근 가장 많이 들린 주제를 권한다', async () => {
+      // given — 이번 주 커리어만, 시장에서는 역사 > 경제
+      givenListening([{ contentId: C_CAREER, listenedSec: 600 }]);
+      playbackService.sumListenedSecByContentForCohort.mockResolvedValue([
+        { contentId: C_ECON, listenedSec: 100 },
+        { contentId: C_HISTORY, listenedSec: 900 },
+      ]);
+
+      // when
+      const result = await orchestrator.getSummary(USER_ID, NOW);
+
+      // then — 시장 전체 범위로 28일을 센다
+      expect(result.weeklyListening?.topicHighlight).toEqual({
+        kind: 'unexplored_topic',
+        topicId: T_HISTORY,
+        name: '역사',
+      });
+      const [dates, cohort] =
+        playbackService.sumListenedSecByContentForCohort.mock.calls[0];
+      expect(dates).toHaveLength(28);
+      expect(dates[27]).toBe('2026-08-08');
+      expect(cohort).toEqual({ market: UserMarket.KR });
+    });
+
+    it('직접 해제한 주제는 안 들어본 주제로 권하지 않는다', async () => {
+      // given — 역사를 해제했다
+      givenListening([{ contentId: C_CAREER, listenedSec: 600 }]);
+      userInterestService.findUserRemovedTopicIds.mockResolvedValue([
+        T_HISTORY,
+      ]);
+      playbackService.sumListenedSecByContentForCohort.mockResolvedValue([
+        { contentId: C_HISTORY, listenedSec: 900 },
+        { contentId: C_ECON, listenedSec: 100 },
+      ]);
+
+      // when
+      const result = await orchestrator.getSummary(USER_ID, NOW);
+
+      // then
+      expect(result.weeklyListening?.topicHighlight).toMatchObject({
+        kind: 'unexplored_topic',
+        topicId: T_ECON,
+      });
+    });
+
+    it('고루 들었고 같은 직군 인원이 충분하면 같은 직군 1위를 보여준다(나는 빼고 센다)', async () => {
+      // given — 커리어 50 · IT 50, 같은 직군은 경제를 가장 많이 들었다
+      givenListening([
+        { contentId: C_CAREER, listenedSec: 500 },
+        { contentId: C_IT, listenedSec: 500 },
+      ]);
+      playbackService.countListenersForCohort.mockResolvedValue(5);
+      playbackService.sumListenedSecByContentForCohort.mockResolvedValue([
+        { contentId: C_ECON, listenedSec: 900 },
+        { contentId: C_CAREER, listenedSec: 100 },
+      ]);
+
+      // when
+      const result = await orchestrator.getSummary(USER_ID, NOW);
+
+      // then
+      expect(result.weeklyListening?.topicHighlight).toEqual({
+        kind: 'peer_top_topic',
+        topicId: T_ECON,
+        name: '경제',
+      });
+      expect(playbackService.countListenersForCohort.mock.calls[0][1]).toEqual({
+        market: UserMarket.KR,
+        jobCategory: '기획',
+        excludeUserId: USER_ID,
+      });
+    });
+
+    it('같은 직군 인원이 적으면 직군 집계를 보여주지 않고 들은 주제 수로 넘어간다', async () => {
+      // given — 같은 직군 4명
+      givenListening([
+        { contentId: C_CAREER, listenedSec: 500 },
+        { contentId: C_IT, listenedSec: 500 },
+      ]);
+      playbackService.countListenersForCohort.mockResolvedValue(4);
+
+      // when
+      const result = await orchestrator.getSummary(USER_ID, NOW);
+
+      // then
+      expect(result.weeklyListening?.topicHighlight).toEqual({
+        kind: 'topic_count',
+        count: 2,
+      });
+      expect(
+        playbackService.sumListenedSecByContentForCohort,
+      ).not.toHaveBeenCalled();
+    });
+
+    it('커리어 직군이 없으면 직군 집계를 조회하지 않는다', async () => {
+      // given
+      userService.getById.mockResolvedValue(buildUser({ jobCategory: null }));
+      givenListening([
+        { contentId: C_CAREER, listenedSec: 500 },
+        { contentId: C_IT, listenedSec: 500 },
+      ]);
+
+      // when
+      const result = await orchestrator.getSummary(USER_ID, NOW);
+
+      // then
+      expect(result.weeklyListening?.topicHighlight?.kind).toBe('topic_count');
+      expect(playbackService.countListenersForCohort).not.toHaveBeenCalled();
+    });
+
+    it('같은 직군 1위가 내 1위와 같으면 건너뛰고, 1위가 지난 주에도 1위면 연속 주 수를 보여준다', async () => {
+      // given — 이번 주 커리어 55 · IT 45, 지난 주(7-27~)도 커리어 1위, 같은 직군 1위도 커리어
+      givenListening(
+        [
+          { contentId: C_CAREER, listenedSec: 550 },
+          { contentId: C_IT, listenedSec: 450 },
+        ],
+        [
+          { contentId: C_CAREER, playDate: '2026-07-29', listenedSec: 300 },
+          { contentId: C_IT, playDate: '2026-07-30', listenedSec: 100 },
+        ],
+      );
+      playbackService.countListenersForCohort.mockResolvedValue(9);
+      playbackService.sumListenedSecByContentForCohort.mockResolvedValue([
+        { contentId: C_CAREER, listenedSec: 900 },
+      ]);
+
+      // when
+      const result = await orchestrator.getSummary(USER_ID, NOW);
+
+      // then — 가입 주(7-27)까지만 거슬러 2주
+      expect(result.weeklyListening?.topicHighlight).toEqual({
+        kind: 'top_topic_streak',
+        weeks: 2,
+      });
+    });
+
+    it('이번 주 주제 기록이 없으면 null 이다', async () => {
+      // given / when
+      const result = await orchestrator.getSummary(USER_ID, NOW);
+
+      // then
+      expect(result.weeklyListening?.topicHighlight).toBeNull();
+      expect(topicService.findAllVisible).not.toHaveBeenCalled();
+    });
+
+    it('판정이 실패해도 주간 카드는 그대로 내려가고 한 줄만 null 이다', async () => {
+      // given
+      givenListening([{ contentId: C_CAREER, listenedSec: 600 }]);
+      topicService.findAllVisible.mockRejectedValue(new Error('db down'));
+
+      // when
+      const result = await orchestrator.getSummary(USER_ID, NOW);
+
+      // then
+      expect(result.failedSections).toEqual([]);
+      expect(result.weeklyListening?.topicDistribution.topics).toHaveLength(1);
+      expect(result.weeklyListening?.topicHighlight).toBeNull();
+    });
+
+    it('지난 주(4.2)에는 싣지 않는다', async () => {
+      // given
+      givenListening([{ contentId: C_CAREER, listenedSec: 600 }]);
+
+      // when
+      const result = await orchestrator.getWeeklyListening(
+        USER_ID,
+        '2026-07-27',
+        NOW,
+      );
+
+      // then
+      expect(result.topicHighlight).toBeNull();
+      expect(topicService.findAllVisible).not.toHaveBeenCalled();
     });
   });
 

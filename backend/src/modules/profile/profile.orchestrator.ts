@@ -5,15 +5,21 @@ import { ErrorCode } from '@/common/exceptions/error-code.enum';
 import {
   isWeekStartLabel,
   serviceDateStart,
+  shiftServiceDate,
   shiftWeekStart,
   toCurrentWeekStart,
   toServiceDate,
   toWeekDates,
 } from '@/common/utils/service-date.util';
+import { ContentTopicView } from '@/modules/content/content.types';
 import { ContentService } from '@/modules/content/services/content.service';
+import { TopicService } from '@/modules/interest/services/topic.service';
 import { UserInterestService } from '@/modules/interest/services/user-interest.service';
 import { LibraryService } from '@/modules/library/library.service';
-import { ContentDailyListenedSecView } from '@/modules/playback/playback.types';
+import {
+  ContentDailyListenedSecView,
+  ListenerCohortView,
+} from '@/modules/playback/playback.types';
 import { PlaybackService } from '@/modules/playback/services/playback.service';
 import { SubscriptionService } from '@/modules/subscription/services/subscription.service';
 import { User } from '@/modules/user/entities/user.entity';
@@ -22,7 +28,11 @@ import { toYearsOfExperienceRange } from '@/modules/user/user.constant';
 import { UserMarket } from '@/modules/user/user.enum';
 
 import {
+  PEER_TOP_TOPIC_MIN_LISTENERS,
   TOP_TOPIC_LIMIT,
+  TOP_TOPIC_STREAK_LOOKBACK_WEEKS,
+  TOP_TOPIC_STREAK_MIN_WEEKS,
+  TOPIC_HIGHLIGHT_WINDOW_DAYS,
   WEEKLY_LISTENING_DAY_COUNT,
 } from './profile.constant';
 import { ProfileSection } from './profile.enum';
@@ -33,8 +43,12 @@ import {
   calculateListeningTopPercent,
   calculateStreakDays,
   countDailyListenedContents,
+  countTopTopicStreak,
+  isTopicConcentrated,
   pickDailyListeningHighlights,
   pickListeningHighlight,
+  pickUnexploredTopic,
+  rankTopicsByListenedSec,
 } from './profile.stats';
 import {
   ProfileCareerView,
@@ -42,6 +56,8 @@ import {
   ProfileSummaryResult,
   ProfileUserView,
   TopicDistributionView,
+  TopicHighlightView,
+  TopicRefView,
   WeeklyListeningView,
 } from './profile.types';
 
@@ -68,6 +84,7 @@ export class ProfileOrchestrator {
     private readonly libraryService: LibraryService,
     private readonly playbackService: PlaybackService,
     private readonly contentService: ContentService,
+    private readonly topicService: TopicService,
   ) {}
 
   /**
@@ -270,12 +287,32 @@ export class ProfileOrchestrator {
       previousDailyListenedSec,
     );
 
+    // 이번 주에만 — 부가 한 줄이라 실패해도 주간 카드를 막지 않는다(`profile.md` 4.7-1)
+    const topicHighlight =
+      weekStart === currentWeekStart
+        ? await this.buildTopicHighlight(
+            user,
+            now,
+            weekStart,
+            listenedByContentAndDate,
+            topicDistributions.topicViews,
+            topicDistributions.weekly,
+          ).catch((error: unknown) => {
+            this.logger.warn('profile topic highlight failed', {
+              user_id: user.id,
+              reason: error instanceof Error ? error.message : 'unknown',
+            });
+            return null;
+          })
+        : null;
+
     return {
       weekStart,
       dailyListenedSec,
       listeningTopPercent,
       listeningHighlight,
       dailyListeningHighlight,
+      topicHighlight,
       topicDistribution: topicDistributions.weekly,
       dailyTopicDistribution: topicDistributions.daily,
       // 가입 주보다 앞이면 이전 주가 없다 — 가입 전 주는 조회할 것도 없다
@@ -283,6 +320,221 @@ export class ProfileOrchestrator {
       // 이번 주를 넘어가는 주는 존재하지 않는다
       nextWeekStart: nextWeekStart > currentWeekStart ? null : nextWeekStart,
     };
+  }
+
+  /**
+   * "가장 많이 들은 주제" 옆 한 줄(`profile.md` 4.7-1) — **첫 번째로 해당하는 하나**만 고르고, 앞에서 정해지면 뒤의
+   * 조회는 하지 않는다.
+   *
+   * 1. 한 주제에 쏠렸으면(`isTopicConcentrated`) → 안 들어본 주제
+   * 2. 커리어 직군이 있고 같은 직군 집계 인원이 충분하며 그 1위가 내 1위와 다르면 → 같은 직군 1위
+   * 3. 이번 주 1위가 2주 이상 연속 1위면 → N주 연속 1위
+   * 4. 들은 주제가 2개 이상이면 → 이번 주 N개 주제
+   * 5. 그래도 없으면(1에서 안 봤을 때만) → 안 들어본 주제, 없으면 `null`
+   *
+   * 그 주 주제 기록이 없으면 `null` — 옆에 붙을 헤드라인이 없다.
+   */
+  private async buildTopicHighlight(
+    user: User,
+    now: Date,
+    weekStart: string,
+    listenedByContentAndDate: ContentDailyListenedSecView[],
+    weekTopicViews: ContentTopicView[],
+    weekly: TopicDistributionView,
+  ): Promise<TopicHighlightView | null> {
+    const myTop = weekly.topics[0];
+    if (myTop === undefined) {
+      return null;
+    }
+
+    const topicCount = rankTopicsByListenedSec(
+      listenedByContentAndDate,
+      weekTopicViews,
+    ).length;
+    const today = toServiceDate(now);
+    const windowDates = Array.from(
+      { length: TOPIC_HIGHLIGHT_WINDOW_DAYS },
+      (_, index) =>
+        shiftServiceDate(today, index - (TOPIC_HIGHLIGHT_WINDOW_DAYS - 1)),
+    );
+    const concentrated = isTopicConcentrated(weekly, topicCount);
+
+    if (concentrated) {
+      const unexplored = await this.findUnexploredTopic(user, windowDates);
+      if (unexplored !== null) {
+        return { kind: 'unexplored_topic', ...unexplored };
+      }
+    }
+
+    const peerTop = await this.findPeerTopTopic(user, windowDates);
+    if (peerTop !== null && peerTop.topicId !== myTop.topicId) {
+      return { kind: 'peer_top_topic', ...peerTop };
+    }
+
+    const streakWeeks = await this.countTopTopicStreakWeeks(
+      user,
+      weekStart,
+      myTop.topicId,
+    );
+    if (streakWeeks >= TOP_TOPIC_STREAK_MIN_WEEKS) {
+      return { kind: 'top_topic_streak', weeks: streakWeeks };
+    }
+
+    if (topicCount >= 2) {
+      return { kind: 'topic_count', count: topicCount };
+    }
+
+    if (!concentrated) {
+      const unexplored = await this.findUnexploredTopic(user, windowDates);
+      if (unexplored !== null) {
+        return { kind: 'unexplored_topic', ...unexplored };
+      }
+    }
+
+    return null;
+  }
+
+  /**
+   * 안 들어본 주제 — 그 시장 노출 주제 중 **한 번도 안 들었고 직접 해제하지도 않은** 주제에서, 최근 그 시장에서
+   * 가장 많이 들린 것. 탭하면 탐색의 그 주제 목록으로 가므로 노출 주제만 고른다.
+   */
+  private async findUnexploredTopic(
+    user: User,
+    windowDates: string[],
+  ): Promise<TopicRefView | null> {
+    const [visibleTopics, removedTopicIds, listenedByContent] =
+      await Promise.all([
+        this.topicService.findAllVisible(user.market),
+        this.userInterestService.findUserRemovedTopicIds(user.id),
+        this.playbackService.sumListenedSecByContent(user.id),
+      ]);
+    const listenedTopicViews =
+      listenedByContent.length === 0
+        ? []
+        : await this.contentService.findTopicViews(
+            listenedByContent.map((row) => row.contentId),
+            undefined,
+            user.market,
+          );
+    const excluded = new Set([
+      ...removedTopicIds,
+      ...rankTopicsByListenedSec(listenedByContent, listenedTopicViews).map(
+        (topic) => topic.topicId,
+      ),
+    ]);
+    const candidates = visibleTopics
+      .filter((topic) => !excluded.has(topic.id))
+      .map((topic) => ({ topicId: topic.id, name: topic.name }));
+
+    if (candidates.length === 0) {
+      return null;
+    }
+
+    const marketRanking = await this.rankCohortTopics(windowDates, {
+      market: user.market,
+    });
+
+    return pickUnexploredTopic(candidates, marketRanking);
+  }
+
+  /**
+   * 같은 직군(나 제외) 사용자들이 최근 가장 많이 들은 노출 주제. 직군이 없거나 그 기간에 들은 같은 직군 인원이
+   * `PEER_TOP_TOPIC_MIN_LISTENERS`보다 적으면 `null` — 몇 사람의 취향을 그대로 드러내지 않는다.
+   */
+  private async findPeerTopTopic(
+    user: User,
+    windowDates: string[],
+  ): Promise<TopicRefView | null> {
+    if (!user.jobCategory) {
+      return null;
+    }
+
+    const cohort: ListenerCohortView = {
+      market: user.market,
+      jobCategory: user.jobCategory,
+      excludeUserId: user.id,
+    };
+    const listeners = await this.playbackService.countListenersForCohort(
+      windowDates,
+      cohort,
+    );
+    if (listeners < PEER_TOP_TOPIC_MIN_LISTENERS) {
+      return null;
+    }
+
+    const [ranking, visibleTopics] = await Promise.all([
+      this.rankCohortTopics(windowDates, cohort),
+      this.topicService.findAllVisible(user.market),
+    ]);
+    const visibleIds = new Set(visibleTopics.map((topic) => topic.id));
+    const top = ranking.find((topic) => visibleIds.has(topic.topicId));
+
+    return top === undefined ? null : { topicId: top.topicId, name: top.name };
+  }
+
+  /** 한 범위의 주제별 청취 합(내림차순) — 콘텐츠 축 집계 + 주제 매핑, 두 번의 조회 */
+  private async rankCohortTopics(
+    windowDates: string[],
+    cohort: ListenerCohortView,
+  ): Promise<(TopicRefView & { listenedSec: number })[]> {
+    const listenedByContent =
+      await this.playbackService.sumListenedSecByContentForCohort(
+        windowDates,
+        cohort,
+      );
+    if (listenedByContent.length === 0) {
+      return [];
+    }
+    const topicViews = await this.contentService.findTopicViews(
+      listenedByContent.map((row) => row.contentId),
+      undefined,
+      cohort.market,
+    );
+    return rankTopicsByListenedSec(listenedByContent, topicViews);
+  }
+
+  /**
+   * 이번 주 1위가 몇 주 연속 1위인지 — 이번 주 포함 `TOP_TOPIC_STREAK_LOOKBACK_WEEKS`주까지만 본다. 지난 주들의 청취는
+   * 한 번에 받는다. 가입 주보다 앞은 보지 않는다.
+   */
+  private async countTopTopicStreakWeeks(
+    user: User,
+    weekStart: string,
+    currentTopTopicId: string,
+  ): Promise<number> {
+    const joinedWeekStart = toCurrentWeekStart(user.createdAt);
+    const previousWeekStarts = Array.from(
+      { length: TOP_TOPIC_STREAK_LOOKBACK_WEEKS - 1 },
+      (_, index) => shiftWeekStart(weekStart, -(index + 1)),
+    ).filter((start) => start >= joinedWeekStart);
+
+    if (previousWeekStarts.length === 0) {
+      return 1;
+    }
+
+    const datesByWeek = previousWeekStarts.map((start) => toWeekDates(start));
+    const rows = await this.playbackService.sumListenedSecByContentAndDates(
+      user.id,
+      datesByWeek.flat(),
+    );
+    const topicViews =
+      rows.length === 0
+        ? []
+        : await this.contentService.findTopicViews(
+            [...new Set(rows.map((row) => row.contentId))],
+            undefined,
+            user.market,
+          );
+    const weeklyTops = datesByWeek.map((dates) => {
+      const dateSet = new Set(dates);
+      const ranked = rankTopicsByListenedSec(
+        rows.filter((row) => dateSet.has(row.playDate)),
+        topicViews,
+      );
+      return ranked[0]?.topicId ?? null;
+    });
+
+    return countTopTopicStreak([currentTopTopicId, ...weeklyTops]);
   }
 
   /**
@@ -351,9 +603,13 @@ export class ProfileOrchestrator {
   ): Promise<{
     weekly: TopicDistributionView;
     daily: TopicDistributionView[];
+    topicViews: ContentTopicView[];
   }> {
     if (listenedByContentAndDate.length === 0) {
-      return buildWeeklyTopicDistributions(weekDates, [], []);
+      return {
+        ...buildWeeklyTopicDistributions(weekDates, [], []),
+        topicViews: [],
+      };
     }
 
     const contentIds = [
@@ -365,11 +621,14 @@ export class ProfileOrchestrator {
       market,
     );
 
-    return buildWeeklyTopicDistributions(
-      weekDates,
-      listenedByContentAndDate,
+    return {
+      ...buildWeeklyTopicDistributions(
+        weekDates,
+        listenedByContentAndDate,
+        topicViews,
+      ),
       topicViews,
-    );
+    };
   }
 
   /** 주제는 현재 시장의 것만 — 시장을 바꾼 사용자에게 이전 시장 주제 이름이 섞이지 않게(`global-api.md` 4.11) */

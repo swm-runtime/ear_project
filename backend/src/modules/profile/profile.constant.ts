@@ -33,3 +33,24 @@ export const LISTENING_TOP_PERCENT_MAX = 50;
  * 티켓 제안값이며 PM 확정 전이다(2026-10-11).
  */
 export const LISTENING_HIGHLIGHT_MIN_DIFF_SEC = 60;
+
+/**
+ * 주제 한 줄(`profile.md` 4.7-1)에서 **한 주제에 쏠렸다**고 보는 1위 비율(%) 하한. 이 이상이면 "안 들어본 주제"를
+ * 먼저 권한다. 초깃값이며 데이터를 보고 조정한다(PM 2026-10-24 "청취 상태로 서버가 판정").
+ */
+export const TOPIC_HIGHLIGHT_CONCENTRATED_RATIO = 60;
+
+/** 주제 한 줄의 "같은 직군 1위"·"안 들어본 주제" 순위를 세는 기간(서비스 날짜 수, 오늘 포함) */
+export const TOPIC_HIGHLIGHT_WINDOW_DAYS = 28;
+
+/**
+ * "같은 직군 1위"를 보여 주는 **최소 인원**(그 기간에 들은 같은 직군 사용자, 나 제외). 이보다 적으면 집계가 몇 사람의
+ * 취향을 그대로 드러낸다 — 내려주지 않는다. 초깃값.
+ */
+export const PEER_TOP_TOPIC_MIN_LISTENERS = 5;
+
+/** "N주 연속 1위"를 거슬러 보는 주 수(이번 주 포함). 화면 문구가 이 값을 넘지 않는다 */
+export const TOP_TOPIC_STREAK_LOOKBACK_WEEKS = 8;
+
+/** "N주 연속 1위"를 내려주는 최소 주 수 — 1주는 연속이 아니다 */
+export const TOP_TOPIC_STREAK_MIN_WEEKS = 2;

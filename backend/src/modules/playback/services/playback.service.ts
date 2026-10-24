@@ -19,6 +19,7 @@ import { UserSignalAction } from '../playback.enum';
 import {
   ContentDailyListenedSecView,
   ContentListenedSecView,
+  ListenerCohortView,
   DailyPlayQuota,
   ProgressView,
   UserSignalView,
@@ -226,6 +227,35 @@ export class PlaybackService {
     return this.playRecordRepository.sumListenedSecGroupByContentIdAndPlayDate(
       userId,
       playDates,
+      manager,
+    );
+  }
+
+  /**
+   * 한 범위(시장 · 직군) 사용자들의 콘텐츠별 청취 합 — 프로필 주제 한 줄(`profile.md` 4.7-1)의 주제 순위 원천.
+   * 누가 들었는지는 내려주지 않는다(집계만).
+   */
+  async sumListenedSecByContentForCohort(
+    playDates: string[],
+    cohort: ListenerCohortView,
+    manager?: EntityManager,
+  ): Promise<ContentListenedSecView[]> {
+    return this.playRecordRepository.sumListenedSecGroupByContentIdForCohort(
+      playDates,
+      cohort,
+      manager,
+    );
+  }
+
+  /** 한 범위(시장 · 직군)에서 지정한 날짜에 들은 사용자 수 — 집계를 보여 줘도 되는 인원인지 판정하는 입력 */
+  async countListenersForCohort(
+    playDates: string[],
+    cohort: ListenerCohortView,
+    manager?: EntityManager,
+  ): Promise<number> {
+    return this.playRecordRepository.countListenersForCohort(
+      playDates,
+      cohort,
       manager,
     );
   }

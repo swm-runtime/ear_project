@@ -47,6 +47,22 @@ export type DailyListeningHighlightView =
   | { kind: 'best_day' }
   | { kind: 'listened_contents'; count: number };
 
+/** 주제 하나의 표시용 참조 — 주제 한 줄이 이름을 그리고, 탭하면 그 주제로 간다 */
+export interface TopicRefView {
+  topicId: string;
+  name: string;
+}
+
+/**
+ * 주간 카드 "가장 많이 들은 주제" 옆 한 줄의 종류(`profile.md` 4.7-1) — 우선순위는
+ * `ProfileOrchestrator.buildTopicHighlight`가 정한다(쏠림이면 안 들어본 주제 > 같은 직군 1위 > 연속 1위 > 들은 주제 수)
+ */
+export type TopicHighlightView =
+  | ({ kind: 'unexplored_topic' } & TopicRefView)
+  | ({ kind: 'peer_top_topic' } & TopicRefView)
+  | { kind: 'top_topic_streak'; weeks: number }
+  | { kind: 'topic_count'; count: number };
+
 /** 주간 그래프 한 주(`profile.md` 4.6). 4.1과 4.2가 **같은 모양**을 쓴다 */
 export interface WeeklyListeningView {
   /** 그 주 월요일의 `YYYY-MM-DD` 라벨 */
@@ -68,6 +84,11 @@ export interface WeeklyListeningView {
    * 더 > 가장 많이 들은 날 > 들은 편 수 중 첫 번째로 해당하는 하나. 그날 0초면 `null`
    */
   dailyListeningHighlight: (DailyListeningHighlightView | null)[];
+  /**
+   * "가장 많이 들은 주제" 옆 한 줄(`profile.md` 4.7-1). **이번 주에만** 싣는다 — 지난 주에 "안 들어본 주제"를
+   * 권하면 어색하다. 그 주 주제 기록이 없거나, 지난 주거나, 판정이 실패하면 `null`
+   */
+  topicHighlight: TopicHighlightView | null;
   /** `null`이면 이전 주가 없다(가입 주) → 화면이 [◀]를 비활성화한다 */
   previousWeekStart: string | null;
   /** `null`이면 이번 주다 → [다음 주 ▶] 비활성 */
