@@ -13,7 +13,7 @@
 | 선행 | 없음 |
 | 근거 문서 | `features/profile.md` 4.7-1 · `spec/api/profile-api.md` 4.1 `topic_highlight` · `changes/archive/profile-topic-highlight.md` |
 | 중요도 | Medium |
-| 상태 | 발행 |
+| 상태 | 반영 — 개발계 배포(PR #2035), 운영은 다음 dev→main 릴리스 |
 
 ## 왜
 
@@ -51,3 +51,4 @@ PM(2026-10-24): "가장 많이 들은 주제 옆에 리텐션을 넣자 — 어�
 ## 처리 기록
 
 - 2026-10-24 발행(PM 22:41 "ㄱㄱ").
+- 2026-10-24 **반영 확인·BE 리뷰**(박준현). 코드는 PR #2035(dev 머지 23:03, 개발계 배포 `828c025c`). 리뷰 결과 막힘 없음 — 우선순위 1~5·직군 5명 하한(4명이면 순위 조회 안 함)·나 제외·0초 제외·시장 한정·판정 실패 `null`(warn) 모두 계약대로. 확인: profile·playback 유닛 193 통과, e2e `profile-topic-highlight-cohort` 통과(로컬 DB), lint 통과, 개발계 `GET /users/me/profile` 200·`failed_sections` 비어 있음·`profile topic highlight failed` 0건(본인 계정은 이번 주 청취가 없어 `topic_highlight = null` — 계약대로). 참고(막힘 아님): 프로필 조회마다 시장 28일 콘텐츠별 합계 조회가 최대 2번 더 돈다 — 지금 규모(28일 `play_records` 수천 행, `idx_play_records_play_date_user_id`)에선 문제없고, 커지면 `scale-readiness-design.md` 캐시 후보. 운영은 다음 dev→main 릴리스. 반영 날짜 2026-10-24.
