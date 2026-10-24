@@ -382,6 +382,64 @@ describe('백그라운드 재생 — 위치만 바뀐 틱은 화면에 올리지
   });
 });
 
+describe('±10초 연타 — 네이티브 시크는 한 번에 하나(PM 2026-10-24 iOS 벽돌)', () => {
+  beforeEach(() => {
+    Object.defineProperty(AppState, 'currentState', { get: () => 'active', configurable: true });
+  });
+
+  it('도는 시크가 끝나기 전 탭은 쌓지 않고, 끝나면 마지막 목표로 한 번만 더 보낸다', async () => {
+    mockIssue.mockResolvedValue(issueOf('https://example.com/audio'));
+    const player = await startPlaying(playbackService);
+    // 첫 로드 틱은 시작 위치 맞추기(setup)가 먹는다 — 두 번째 틱부터 위치가 올라간다
+    player.emit({ currentTime: 0, duration: 600, playing: true, isLoaded: true });
+    await jest.advanceTimersByTimeAsync(0);
+    player.currentTime = 100;
+    player.emit({ currentTime: 100, duration: 600, playing: true, isLoaded: true });
+    await jest.advanceTimersByTimeAsync(0);
+    expect(usePlaybackStore.getState().session?.positionSec).toBe(100);
+    let finishSeek: () => void = () => undefined;
+    player.seekTo.mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          finishSeek = resolve;
+        }),
+    );
+    const before = player.seekTo.mock.calls.length;
+
+    playbackService.seekBackward();
+    playbackService.seekBackward();
+    playbackService.seekBackward();
+
+    // 화면 위치는 탭마다 바로 간다 — 네이티브엔 첫 시크만
+    expect(usePlaybackStore.getState().session?.positionSec).toBe(70);
+    expect(player.seekTo.mock.calls.slice(before)).toEqual([[90]]);
+
+    finishSeek();
+    await jest.advanceTimersByTimeAsync(0);
+    expect(player.seekTo.mock.calls.slice(before)).toEqual([[90], [70]]);
+  });
+
+  it('네이티브가 끝을 알리지 않아도 시간이 지나면 다음 시크를 보낸다', async () => {
+    mockIssue.mockResolvedValue(issueOf('https://example.com/audio'));
+    const player = await startPlaying(playbackService);
+    // 첫 로드 틱은 시작 위치 맞추기(setup)가 먹는다 — 두 번째 틱부터 위치가 올라간다
+    player.emit({ currentTime: 0, duration: 600, playing: true, isLoaded: true });
+    await jest.advanceTimersByTimeAsync(0);
+    player.currentTime = 100;
+    player.emit({ currentTime: 100, duration: 600, playing: true, isLoaded: true });
+    await jest.advanceTimersByTimeAsync(0);
+    expect(usePlaybackStore.getState().session?.positionSec).toBe(100);
+    player.seekTo.mockImplementation(() => new Promise<void>(() => undefined));
+    const before = player.seekTo.mock.calls.length;
+
+    playbackService.seekBackward();
+    await jest.advanceTimersByTimeAsync(2_100);
+    playbackService.seekBackward();
+
+    expect(player.seekTo.mock.calls.slice(before)).toEqual([[90], [80]]);
+  });
+});
+
 describe('재생 목록 자동 재생(연속 재생 — player.md 4.2-4)', () => {
   const NEXT_ID = 'c0ffee00-0000-4000-8000-000000000002';
   const entryOf = (contentId: string, isCompleted = false) => ({

@@ -251,6 +251,14 @@ class PlaybackService {
    */
   private pendingSeek: { targetSec: number; until: number } | null = null;
   /**
+   * 네이티브 시크는 **한 번에 하나만** 보낸다(PM 2026-10-24 "10초 뒤로 빠르게 누르니까 앱이 벽돌" — iOS). 연타하면 탭마다
+   * 시크가 겹쳐 들어갔다 — 무손실(FLAC)은 정밀 시크로 열어(KAN-256) 한 번이 무겁다. 도는 중에 온 목표는 마지막 것만 남겨 두고,
+   * 앞 시크가 끝나면 그 목표로 한 번 더 보낸다(애플 QA1820 "smooth seeking"). 화면 위치는 탭마다 바로 바뀐다(store).
+   * 네이티브가 끝을 알리지 않아도 SEEK_SETTLE_TIMEOUT_MS 뒤엔 다음 시크를 보낸다 — 시크가 영영 막히지 않게
+   */
+  private seekInFlight: { player: AudioPlayer; startedAt: number } | null = null;
+  private queuedSeekSec: number | null = null;
+  /**
    * 지금 플레이어에 준 고정 스트림 주소(`ear-audio://…` — audio-stream.ts). null 이면 서명 URL 을 직접 준
    * 플레이어다(패치 없는 옛 빌드·표 갱신 실패) — 그 플레이어의 URL 갱신은 종전대로 `replace` 다
    */
@@ -510,6 +518,10 @@ class PlaybackService {
     );
     this.player = player;
     this.pendingSetup = { startPositionSec, autoplay };
+    // 앞 플레이어의 시크 보류·대기 목표는 새 편과 무관하다 — 남기면 새 편의 위치 틱이 최대 2초 묶였다
+    this.pendingSeek = null;
+    this.seekInFlight = null;
+    this.queuedSeekSec = null;
     player.setPlaybackRate(store.getState().rate, 'high');
     this.statusSubscription = player.addListener('playbackStatusUpdate', (status) => {
       if (generation !== this.generation) return;
@@ -841,7 +853,36 @@ class PlaybackService {
     ctx.tracking = markSeek(ctx.tracking, clamped);
     store.getState().patchSession({ positionSec: clamped });
     this.pendingSeek = { targetSec: clamped, until: Date.now() + SEEK_SETTLE_TIMEOUT_MS };
-    void this.player?.seekTo(clamped);
+    this.sendSeek(clamped);
+  }
+
+  /** 시크바·±10초의 네이티브 시크 — 한 번에 하나, 도는 중에 온 목표는 마지막 것만(위 seekInFlight) */
+  private sendSeek(targetSec: number): void {
+    const player = this.player;
+    if (!player) return;
+    const inFlight = this.seekInFlight;
+    if (
+      inFlight !== null &&
+      inFlight.player === player &&
+      Date.now() - inFlight.startedAt < SEEK_SETTLE_TIMEOUT_MS
+    ) {
+      this.queuedSeekSec = targetSec;
+      return;
+    }
+    const flight = { player, startedAt: Date.now() };
+    this.seekInFlight = flight;
+    this.queuedSeekSec = null;
+    player
+      .seekTo(targetSec)
+      .catch((error: unknown) => logger.debug('[player] seek failed', error))
+      .finally(() => {
+        // 시간 초과로 다음 시크가 이미 나갔거나 플레이어가 바뀌었으면 손대지 않는다
+        if (this.seekInFlight !== flight) return;
+        this.seekInFlight = null;
+        const queued = this.queuedSeekSec;
+        this.queuedSeekSec = null;
+        if (queued !== null && this.player === player) this.sendSeek(queued);
+      });
   }
 
   /**
