@@ -197,6 +197,27 @@ describe('플레이어 상세 이동 — 더보기 메뉴 닫힘 완료를 기�
   });
 });
 
+describe('자동 재생으로 편이 넘어가면 화면이 따라간다', () => {
+  it('세션이 다음 편으로 바뀐 그 렌더에도 세션을 그대로 준다 — 화면 트리를 비웠다 다시 그리지 않는다', () => {
+    mockPlaybackState.session = { ...mockSession, contentId: 'content-2' };
+    act(() => renderer.update(<Probe />));
+    // route 는 아직 content-1 이다(목업 route 는 setParams 로 안 바뀐다) — 종전엔 여기서 null 이라 빈 화면이었다
+    expect(screen.session?.contentId).toBe('content-2');
+    expect(mockNavigation.setParams).toHaveBeenCalledWith({ contentId: 'content-2' });
+    expect(mockGoBack).not.toHaveBeenCalled();
+  });
+
+  it('다른 편을 들고 들어온 화면은 듣던 세션을 따라가지 않는다', () => {
+    act(() => renderer.unmount());
+    mockContentId = 'content-9';
+    act(() => {
+      renderer = create(<Probe />);
+    });
+    expect(screen.session).toBeNull();
+    expect(mockNavigation.setParams).not.toHaveBeenCalled();
+  });
+});
+
 describe('세션 없음의 출구(KAN-257) — 열린 플레이어가 흰 화면에 갇히지 않는다', () => {
   it('보던 세션이 사라지면 플레이어를 한 번 닫는다', () => {
     mockPlaybackState.session = null;
