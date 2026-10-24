@@ -696,6 +696,11 @@ class PlaybackService {
     if (!ctx || ctx.hasReportedPlayStart || ctx.isReportingPlayStart) return;
     ctx.isReportingPlayStart = true;
     const generation = this.generation;
+    /*
+     * 재시도 예약 중에는 "보내는 중" 표시를 유지한다 — 재시도 타이머가 푼다(2026-10-24 전수조사). 종전엔 finally 가 곧바로 풀어
+     * 다음 상태 틱(이벤트 + 0.5초 폴링)이 다시 보내, 오프라인·5xx 에서 POST /play 가 초당 2~4회 쏟아졌다(3초 간격이 무력)
+     */
+    let isRetryScheduled = false;
 
     try {
       const result = await startPlay({ contentId: ctx.contentId, entryPoint: ctx.entryPoint });
@@ -753,6 +758,8 @@ class PlaybackService {
       // 소비 신호는 유실하지 않는다 — 재생은 유지한 채 재시도한다.
       // TODO(offline-queue): 큐 인프라 도입 시 발생 시각 순서 보존 전송으로 대체(architecture.md 5.4)
       logger.debug('[player] play start report failed, will retry');
+      isRetryScheduled = true;
+      if (this.playReportRetryTimer) clearTimeout(this.playReportRetryTimer);
       this.playReportRetryTimer = setTimeout(() => {
         this.playReportRetryTimer = null;
         const current = this.ctx;
@@ -763,7 +770,8 @@ class PlaybackService {
       }, PLAY_REPORT_RETRY_DELAY_MS);
       return;
     } finally {
-      if (this.ctx) this.ctx.isReportingPlayStart = false;
+      // 이 요청을 보낸 세션의 표시만 푼다 — `this.ctx` 는 그새 다음 편일 수 있다(그 편의 보내는 중 표시를 풀면 중복 POST)
+      if (!isRetryScheduled) ctx.isReportingPlayStart = false;
     }
   }
 
@@ -1232,7 +1240,8 @@ class PlaybackService {
       store.getState().patchSession({ banner: 'refresh_failed' });
       this.refreshTimer = setTimeout(() => void this.refreshAudioUrl(), URL_REFRESH_RETRY_DELAY_MS);
     } finally {
-      if (this.ctx) this.ctx.isRefreshingUrl = false;
+      // 이 요청을 보낸 세션의 표시만 푼다(위 reportPlayStart 와 같은 이유)
+      ctx.isRefreshingUrl = false;
     }
   }
 

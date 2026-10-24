@@ -216,6 +216,22 @@ describe('플레이어 정리', () => {
   });
 });
 
+describe('재생 시작 기록 재시도', () => {
+  it('실패하면 3초 뒤에 다시 보낸다 — 그 사이 상태 틱이 연달아 보내지 않는다', async () => {
+    mockIssue.mockResolvedValue(issueOf('https://example.com/audio'));
+    mockStartPlay.mockImplementation(() => Promise.reject(new Error('offline')));
+    await startPlaying(playbackService);
+    // 재생이 시작된 뒤 첫 상태 틱이 처음 보낸다
+    await jest.advanceTimersByTimeAsync(500);
+    expect(mockStartPlay).toHaveBeenCalledTimes(1);
+    // 0.5초 폴링 틱이 여러 번 돌아도(종전엔 틱마다 다시 보냈다) 재시도 전까지는 그대로다
+    await jest.advanceTimersByTimeAsync(2_000);
+    expect(mockStartPlay).toHaveBeenCalledTimes(1);
+    await jest.advanceTimersByTimeAsync(1_500);
+    expect(mockStartPlay).toHaveBeenCalledTimes(2);
+  });
+});
+
 describe('서명 URL 갱신 — 고정 스트림(패치된 빌드)', () => {
   it('네트워크 중단의 수동 재개는 현재 음원을 이어 재생하고 발급·위치를 초기화하지 않는다', async () => {
     mockIssue.mockResolvedValue(issueOf('https://example.com/audio'));
