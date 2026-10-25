@@ -10,13 +10,14 @@
  *   keyword — 키워드 시리즈 디자인(워커 `thumbnail-series.ts`: 라벨 · 손글씨 큰 단어 · 박스 · 편 번호, 표지는 "전 N편"). 큰 단어(`series.thumb_word`)가 있어야 한다
  *   scene   — 일반 편과 같은 장면 썸네일. 연대기(네 시대 세로 패널)는 워커 디자인이 아직 없어 scene 으로 둔다(기존 철학 시리즈 썸네일은 2026-10-22 손으로 합성한 것)
  */
-import type { PipelineLocale } from "./locale.js";
+/** locale.ts 의 PipelineLocale 과 같은 값 — 이 파일은 콘솔 브라우저 번들에도 들어가므로(`@ear/pipeline/publication`) node 전용 모듈을 import 하는 locale.ts 를 끌어오지 않는다 */
+export type PublicationLocale = "ko" | "en";
 
 export type PublicationStyle = "keyword" | "scene";
 export interface Publication {
   /** 저장 키 — 바꾸지 않는다 */
   key: string;
-  locale: PipelineLocale;
+  locale: PublicationLocale;
   /** 서버 `publisher_name` 으로 보내는 글자 — 앱에 그대로 나간다 */
   name: string;
   style: PublicationStyle;
@@ -31,7 +32,7 @@ export const PUBLICATIONS: readonly Publication[] = [
 ];
 
 /** 이 판(인스턴스)에서 고를 수 있는 간행물 */
-export function publicationsFor(locale: PipelineLocale): Publication[] {
+export function publicationsFor(locale: PublicationLocale): Publication[] {
   return PUBLICATIONS.filter((p) => p.locale === locale);
 }
 /** 키 → 간행물. 없음·모르는 키는 null */
@@ -44,7 +45,7 @@ export function publicationStyle(key: string | null | undefined): PublicationSty
   return publicationOf(key)?.style ?? "scene";
 }
 /** 서버가 돌려준 발행 이름 → 간행물(제품 시리즈 표가 현재 값을 선택지에 맞출 때). 목록에 없는 이름은 null */
-export function publicationByName(name: string | null | undefined, locale?: PipelineLocale): Publication | null {
+export function publicationByName(name: string | null | undefined, locale?: PublicationLocale): Publication | null {
   const n = (name ?? "").trim();
   if (!n) return null;
   return PUBLICATIONS.find((p) => p.name === n && (!locale || p.locale === locale)) ?? null;

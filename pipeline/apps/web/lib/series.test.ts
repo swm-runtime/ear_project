@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { cleanPlan, cleanSeriesThumb, seriesEpisodeHint, type SeriesEpisode } from "./series";
-import { publicationByName, publicationOf, publicationsFor, publicationStyle } from "@ear/pipeline";
+import { publicationByName, publicationOf, publicationsFor, publicationStyle } from "@ear/pipeline/publication";
 
 // 2026-10-17 KAN-136 — 시리즈 설계안 검증·편별 힌트 (spec/11 3·4장)
 const ep = (title: string, scope: string, extra: Partial<SeriesEpisode> = {}): SeriesEpisode => ({ no: 0, title, scope, carries: "", only_here: "", minutes: 0, ...extra });

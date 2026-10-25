@@ -1,7 +1,7 @@
 "use client";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { publicationOf } from "@ear/pipeline";
+import { publicationOf } from "@ear/pipeline/publication";
 import { Badge, Panel, btnCls } from "@/components/ui";
 import { createEarSeries, EarTopic, listEarSeries, patchEarSeries, uploadEarContent, withdrawEarContent } from "@/lib/ear";
 import { listConsoleTopics } from "@/lib/console-topics";

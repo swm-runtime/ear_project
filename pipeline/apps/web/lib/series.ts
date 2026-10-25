@@ -1,7 +1,8 @@
 /**
  * 기획 시리즈 (spec/11 · 글로벌 명세 6.11, KAN-136) — 콘솔 쪽 형식·검증·편별 힌트. 워커 @ear/pipeline series.ts 의 SeriesPlanEpisode 와 같은 모양이다(바꾸면 둘 다).
  */
-import { publicationOf, type PipelineLocale } from "@ear/pipeline";
+import { publicationOf } from "@ear/pipeline/publication";
+import type { PipelineLocale } from "./locale";
 
 export interface SeriesEpisode { no: number; title: string; scope: string; carries: string; only_here: string; minutes: number }
 export interface SeriesRow {
