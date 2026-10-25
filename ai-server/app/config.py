@@ -22,6 +22,10 @@ STUB_DEFAULT_DIM = 256
 
 DEFAULT_CHUNK_CHARS = 4000
 
+#: OpenAI 연결을 깨워 두는 주기(초). 0이면 끈다. KAN-253(2026-10-25) — 몇 분 쉰 뒤 첫 호출이 1.5초(새 TLS 연결)라
+#: 백엔드 검색 예산(800ms)을 넘겼다. 연결 풀(keep-alive)에 더해 유휴 중에도 가벼운 GET /models 로 연결을 살려 둔다.
+DEFAULT_KEEPALIVE_SEC = 55
+
 
 class ConfigError(RuntimeError):
     """환경 변수 누락·형식 오류 — uvicorn 기동이 이 예외로 중단된다."""
@@ -36,6 +40,7 @@ class Settings:
     internal_auth_token: str
     openai_api_key: str | None
     openai_base_url: str
+    keepalive_sec: int = DEFAULT_KEEPALIVE_SEC
 
 
 def load_settings() -> Settings:
@@ -75,6 +80,9 @@ def load_settings() -> Settings:
     if provider == PROVIDER_OPENAI and not openai_api_key:
         raise ConfigError("OPENAI_API_KEY is required when EMBEDDING_PROVIDER=openai")
 
+    keepalive_sec = _read_non_negative_int("EMBEDDING_KEEPALIVE_SEC", default=DEFAULT_KEEPALIVE_SEC)
+    assert keepalive_sec is not None
+
     return Settings(
         provider=provider,
         model=model,
@@ -83,7 +91,25 @@ def load_settings() -> Settings:
         internal_auth_token=internal_auth_token,
         openai_api_key=openai_api_key,
         openai_base_url=os.environ.get("OPENAI_BASE_URL", "https://api.openai.com/v1").rstrip("/"),
+        keepalive_sec=keepalive_sec,
     )
+
+
+def _read_non_negative_int(name: str, default: int) -> int:
+    raw = os.environ.get(name, "").strip()
+
+    if not raw:
+        return default
+
+    try:
+        value = int(raw)
+    except ValueError as error:
+        raise ConfigError(f"{name} must be an integer, got '{raw}'") from error
+
+    if value < 0:
+        raise ConfigError(f"{name} must be 0 or positive, got {value}")
+
+    return value
 
 
 def _read_positive_int(name: str, default: int | None) -> int | None:

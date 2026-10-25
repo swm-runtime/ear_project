@@ -43,3 +43,4 @@
 ## 처리 기록
 
 - 2026-10-23 발행(BE — 실측·원인 후보까지).
+- 2026-10-25 구현(PR 제출) — ① `OpenAiEmbeddingClient` 가 프로세스 수명의 `httpx.Client`(keep-alive 풀, 유휴 보존 600초 — httpx 기본 5초로는 "몇 분 쉰 뒤"가 늘 새 연결) 를 쓰고 `build_client` 를 `lru_cache` 로 묶어 라우터가 요청마다 불러도 풀은 하나다 ② 유휴 중 깨우기 — 데몬 스레드가 `EMBEDDING_KEEPALIVE_SEC`(기본 55, 0이면 끔) 주기로 `GET /models`(과금 없음)를 보내 OpenAI 쪽 유휴 종료 전에 연결을 살려 둔다(2번 항목을 측정 전에 함께 넣었다 — 풀만으로는 상대 서버의 유휴 종료를 막을 수 없어서). 타임아웃 30초 그대로. 단위 테스트 5건(MockTransport — 요청 경로·헤더·dimensions·index 재정렬·깨우기 실패 무해·스레드 off·인스턴스 공유·설정 파싱). 남은 것: 배포 뒤 재측정(③) — 몇 분 쉰 뒤 `POST /embeddings` 첫 호출 400ms 안, 다음 날 `search_query_logs` semantic 비율.
