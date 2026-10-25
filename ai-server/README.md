@@ -36,6 +36,7 @@ env 검증은 기동 시점에 하고, 누락이면 **기동을 실패시킨다*
 | `EMBEDDING_DIM` | 선택 | 벡터 차원. `openai`에서 주면 `dimensions`로 전달(차원 축소), `stub` 기본 256 |
 | `EMBEDDING_CHUNK_CHARS` | 기본 4000 | 청킹 문자 한도 — 초과 시 청크 임베딩 후 평균→정규화(`docs/ai/metadata-pipeline.md` 4.3) |
 | `OPENAI_API_KEY` / `OPENAI_BASE_URL` | `openai`면 ✅ / 선택 | 제공자 자격·엔드포인트 |
+| `EMBEDDING_KEEPALIVE_SEC` | 기본 55 | OpenAI 연결을 깨워 두는 주기(초). `0`이면 끈다. 연결은 프로세스 수명의 keep-alive 풀을 쓰고, 유휴 중에는 이 주기로 `GET /models`(과금 없음)를 보내 몇 분 쉰 뒤 첫 호출이 새 TLS 연결(약 1.5초)이 되지 않게 한다(KAN-253, 2026-10-25) |
 
 ## 경계
 

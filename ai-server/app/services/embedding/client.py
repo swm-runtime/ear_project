@@ -7,12 +7,20 @@
   의미 유사도가 없으므로 **운영 저장 대상이 아니다**(`docs/ai/metadata-pipeline.md` 4.3).
 - `openai`: OpenAI 호환 `/embeddings` 호출. `EMBEDDING_DIM`이 있으면 `dimensions`로 전달한다
   (text-embedding-3 계열의 차원 축소).
+
+연결 수명(KAN-253, 2026-10-25): 요청마다 `httpx.post`로 새 TLS 연결을 열던 것을 **프로세스 수명의 `httpx.Client`
+(keep-alive 풀)** 로 바꿨다. 몇 분 쉰 뒤 첫 호출이 1.5초라 백엔드 검색 예산(800ms)을 넘겼기 때문이다. 유휴 중에도
+연결이 끊기지 않도록 `EMBEDDING_KEEPALIVE_SEC` 주기로 가벼운 `GET /models`(과금 없음)를 보낸다. `build_client` 는
+같은 설정에 같은 인스턴스를 돌려준다(lru_cache) — 라우터가 요청마다 불러도 풀은 하나다.
 """
 
 from __future__ import annotations
 
 import hashlib
+import logging
 import struct
+import threading
+from functools import lru_cache
 from typing import Protocol
 
 import httpx
@@ -20,6 +28,11 @@ import httpx
 from app.config import PROVIDER_OPENAI, PROVIDER_STUB, Settings
 
 REQUEST_TIMEOUT_SEC = 30.0
+#: 풀의 유휴 연결 보존 시간. httpx 기본값 5초로는 "몇 분 쉰 뒤" 호출마다 새 연결이다
+KEEPALIVE_EXPIRY_SEC = 600.0
+WARM_TIMEOUT_SEC = 10.0
+
+log = logging.getLogger(__name__)
 
 
 class EmbeddingClient(Protocol):
@@ -57,11 +70,24 @@ class StubEmbeddingClient:
 
 
 class OpenAiEmbeddingClient:
-    def __init__(self, settings: Settings) -> None:
+    def __init__(self, settings: Settings, transport: httpx.BaseTransport | None = None) -> None:
         self.model = settings.model
         self._dim = settings.dim
-        self._base_url = settings.openai_base_url
-        self._api_key = settings.openai_api_key
+        self._http = httpx.Client(
+            base_url=settings.openai_base_url,
+            headers={"Authorization": f"Bearer {settings.openai_api_key}"},
+            timeout=REQUEST_TIMEOUT_SEC,
+            limits=httpx.Limits(max_connections=10, max_keepalive_connections=5, keepalive_expiry=KEEPALIVE_EXPIRY_SEC),
+            transport=transport,
+        )
+        self.warm_count = 0  # 깨우기 호출 횟수 — 테스트·진단용
+        self._warm_every = settings.keepalive_sec
+        self._stop = threading.Event()
+        self._warmer: threading.Thread | None = None
+
+        if self._warm_every > 0:
+            self._warmer = threading.Thread(target=self._warm_loop, name="embedding-keepalive", daemon=True)
+            self._warmer.start()
 
     def embed(self, texts: list[str]) -> list[list[float]]:
         payload: dict = {"model": self.model, "input": texts}
@@ -69,12 +95,7 @@ class OpenAiEmbeddingClient:
         if self._dim is not None:
             payload["dimensions"] = self._dim
 
-        response = httpx.post(
-            f"{self._base_url}/embeddings",
-            json=payload,
-            headers={"Authorization": f"Bearer {self._api_key}"},
-            timeout=REQUEST_TIMEOUT_SEC,
-        )
+        response = self._http.post("/embeddings", json=payload)
         response.raise_for_status()
 
         data = response.json()["data"]
@@ -83,8 +104,28 @@ class OpenAiEmbeddingClient:
 
         return [item["embedding"] for item in ordered]
 
+    def warm(self) -> bool:
+        """유휴 연결을 살려 두는 한 번의 가벼운 호출 — `GET /models` 는 과금이 없다. 실패해도 다음 embed 가 새로 연결한다."""
+        try:
+            self._http.get("/models", timeout=WARM_TIMEOUT_SEC).raise_for_status()
+            self.warm_count += 1
+            return True
+        except Exception as error:  # noqa: BLE001 — 깨우기 실패는 서비스 오류가 아니다
+            log.debug("embedding keepalive failed: %s", error)
+            return False
 
+    def _warm_loop(self) -> None:
+        while not self._stop.wait(self._warm_every):
+            self.warm()
+
+    def close(self) -> None:
+        self._stop.set()
+        self._http.close()
+
+
+@lru_cache(maxsize=8)
 def build_client(settings: Settings) -> EmbeddingClient:
+    """설정이 같으면 같은 인스턴스 — 연결 풀과 깨우기 스레드를 프로세스에 하나만 둔다."""
     if settings.provider == PROVIDER_STUB:
         assert settings.dim is not None  # config가 보장한다
         return StubEmbeddingClient(model=settings.model, dim=settings.dim)
