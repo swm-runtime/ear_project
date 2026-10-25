@@ -2,7 +2,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { markPublished } from "../../actions";
+import { episodeJudgeScores, markPublished } from "../../actions";
+import type { AgentScore } from "@/lib/agent-verdict";
 import { EarTopic, uploadEarContent } from "@/lib/ear";
 import { listConsoleTopics } from "@/lib/console-topics";
 import { episodePublishFiles } from "@/lib/publish-episode";
@@ -24,6 +25,19 @@ interface Detail {
 }
 type Row = PendingEpisode & { d?: Detail; topic?: EarTopic; block?: string; err?: string };
 
+/** 판정 점수 표기 — "판정 69 (원판 58 → 1회차) · 필수 수정 4/4 수리". 기준(60) 아래면 주황 */
+function JudgeScore({ s }: { s: AgentScore | null | undefined }) {
+  if (s === undefined) return <span className="text-ink-soft">판정 읽는 중…</span>;
+  if (s === null) return <span className="text-ink-soft">판정 점수 없음</span>;
+  const low = s.threshold != null && s.score < s.threshold;
+  const trail = s.totals.length > 1 ? ` (원판 ${s.original} → ${s.bestRound}회차)` : " (원판 그대로)";
+  return (
+    <span className={low ? "font-medium text-amber-700" : "font-medium text-emerald-700"} title={`편집자 중앙값 회차별 ${s.totals.join(" · ")}${s.threshold != null ? ` · 기준 ${s.threshold}` : ""}`}>
+      판정 {s.score}{trail}{s.mustFix ? ` · 필수 수정 ${s.fixed}/${s.mustFix} 수리` : " · 필수 수정 없음"}
+    </span>
+  );
+}
+
 const CHECKLIST = [
   "사실·출처 — 선택한 편마다 claims 표본을 발췌와 대조했다 (게이트 2 #1)",
   "소스 적법 — 전 소스 계층 판정 완료, 차단 도메인 없음 (#2)",
@@ -35,7 +49,9 @@ export function BulkPublish({ pending, onDone }: { pending: PendingEpisode[]; on
   const router = useRouter();
   const [rows, setRows] = useState<Row[]>(() => pending.map((p) => ({ ...p })));
   const [topics, setTopics] = useState<EarTopic[] | null>(null);
+  const [scores, setScores] = useState<Record<string, AgentScore | null> | null>(null); // 에이전트 판정 점수 — 한 번에 읽는다
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  useEffect(() => { episodeJudgeScores(pending.map((p) => p.id)).then(setScores).catch(() => setScores({})); }, [pending]);
   const [checks, setChecks] = useState([false, false, false, false]);
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState<string | null>(null);
@@ -154,6 +170,7 @@ export function BulkPublish({ pending, onDone }: { pending: PendingEpisode[]; on
                   </div>
                   {d && d.meta.title !== r.title && <div className="text-[11px] text-ink-soft">주제: {r.title}</div>}
                   {d && <div className="text-[11px] text-ink-soft">{d.meta.duration_min_estimate ?? "?"}분 · 소스 {(d.meta.sources ?? []).length}건 · {d.has_enrichment ? `추천 메타 v${d.enrichment_version ?? 1}` : "추천 메타 없음"} · {d.has_script ? `자막 ${d.script_segments ?? 0}건` : "자막 없음"} · 제품 주제 {r.topic?.name ?? "—"}</div>}
+                  <div className="text-[11px]"><JudgeScore s={scores === null ? undefined : scores[r.id] ?? null} /></div>
                   {(r.block || r.err) && <div className="text-[11px] text-amber-700">{r.block ?? r.err}</div>}
                 </div>
                 <div className="flex shrink-0 items-center gap-1 text-[11px]">

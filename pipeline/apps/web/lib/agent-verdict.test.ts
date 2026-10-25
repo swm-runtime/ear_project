@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { agentGate, judgeState } from "./agent-verdict";
+import { agentGate, agentScore, judgeState } from "./agent-verdict";
 
 // 2026-10-16 글로벌 명세 6.10 — 에이전트 판정이 발행 가능이고 필수 수정이 전부 반영된 편만 발행 준비·패키지가 열린다
 const v = (agent: unknown) => ({ flags: {}, stars: {}, judged_by: "agent:claude-opus-5-5", agent });
@@ -45,4 +45,14 @@ test("judgeState — 상태별 라벨", () => {
   assert.deepEqual(judgeState(mf, "done", "qa_passed"), { label: "판정 미달 — 필수 수정 2건 미수리", tone: "held" });
   assert.deepEqual(judgeState(pub, "done", "qa_passed"), { label: "판정 통과 — 발행 준비 대기", tone: "ok" });
   assert.deepEqual(judgeState(pub, "done", "packaged"), { label: "발행 준비 완료", tone: "ok" });
+});
+
+// 2026-10-25 발행 대기 목록의 판정 점수 — judge_loop 의 agent.loop 에서 최고판·회차·필수 수정 수리 수를 읽는다
+test("agentScore — 최고판 점수·원판·회차·필수 수정 수리 수, loop 가 없으면 null", () => {
+  const loop = { best: 1, threshold: 60, rounds: [{ t: 0, total: 55 }, { t: 1, total: 63 }] };
+  const s = agentScore(v({ publishable: true, loop, must_fix: [{ id: "M1", status: "fixed" }, { id: "M2", status: "open" }] }));
+  assert.deepEqual(s, { score: 63, original: 55, bestRound: 1, totals: [55, 63], threshold: 60, mustFix: 2, fixed: 1, publishable: true });
+  assert.equal(agentScore(v({ publishable: true })), null);
+  assert.equal(agentScore(null), null);
+  assert.equal(agentScore(v({ publishable: false, loop: { rounds: [{ t: 0, total: 58 }, { t: 1, total: 57 }] } }))?.score, 58); // best 가 없으면 최고 점수 회차
 });
