@@ -476,18 +476,27 @@ export function enStyleViolations(turns: ScriptTurn[]): string[] {
   // full-en-v0.13 (G261018-006~008): 이름이 빠지자 출처 종류·연도가 그 자리를 차지했다 — "A drama commentator reads…"·"For a food writer"·"that 2017 description"·"A sociologist speaking in 2026"·"In 2026, guest lists had become".
   // 문장 머리의 보유자 종류, 연도를 붙인 자료 명사, "<분사> in 연도", 연도로 연 과거완료 문장을 센다. 통계의 자료 연도("about 18 percent in 2022")는 세지 않는다
   const srcKind = /^(?:(?:For|To) )?(?:a|an|one|the|another|that|this) (?:[a-z]+ )?(?:commentator|critic|writer|reporter|columnist|researcher|scholar|sociologist|historian|journalist|blogger|author|professor|expert)s?\b|\b(?:a|an|the|that|this|one) (?:19|20)\d{2} (?:description|report|account|article|guide|survey|study|column|essay|explanation|interview|list)\b|\b(?:described|given|written|speaking|reported|published|listed) in (?:19|20)\d{2}\b|^In (?:19|20)\d{2},? [^.?!]*\bhad (?:become|been|grown|shrunk|moved|changed|started|turned)\b|^(?:One|Another|A) (?:common |main |key |major )?(?:concern|assessment|criticism|critique|complaint|worry|proposal|argument|view) (?:is|was) that\b|^Another proposal is\b|\b(?:respondents|buyers surveyed|people surveyed)\b/i;
+  // full-en-v0.23 (2026-10-25 — 10-22~25 운영 83편: 한국어·사실 필수 수정 38건·24편이 문장 가운데의 출처 지칭): "in a food researcher's view"·"in a survey"·"the same survey"·
+  // "as Kakao's co-chief executive explained"·"At a press interview"·"interviewed"·"a music critic calls it". 문장 머리만 보던 srcKind 가 놓친 자리다 — 관찰자 역할 + 견해 명사, 자료 명사 앞의 전치사, 취재 동사를 센다.
+  // 관행 속 역할(parent·fan·shop owner)은 세지 않고, 관찰자 명사도 "a professor" 단독(실제 교수가 관행의 인물일 때)은 세지 않는다 — 견해 명사나 전달 동사가 붙을 때만
+  const OBSERVER = "(?:researcher|professor|critic|journalist|reporter|columnist|curator|publisher|commentator|scholar|historian|sociologist|anthropologist|economist|analyst|expert|executive|spokesperson|official|interviewee)s?";
+  const srcMid = new RegExp(
+    `\\b(?:in|from|per|according to) (?:a|an|the|one|another|that|this|the same) (?:[a-z]+ )?(?:survey|poll|study|report|interview|press interview|article|column|essay|paper)\\b` +
+    `|\\b(?:a|an|the|one|another|that|this|[A-Z][\\w-]*'s) (?:[a-z-]+ )?${OBSERVER}(?:'|’)s? (?:view|views|opinion|words|account|estimate|explanation|reading|interpretation|description|assessment|telling)\\b` +
+    `|\\b(?:a|an|the|one|another|[A-Z][\\w-]*'s) (?:[a-z-]+ )?${OBSERVER} (?:explained|explains|said|says|argued|argues|noted|notes|described|describes|pointed out|points out|put it|puts it|estimated|estimates|wrote|writes|warned|warns|told|tells|called|calls|found|finds)\\b` +
+    `|\\b(?:interviewed|surveyed)\\b|\\bin an? (?:[a-z]+ )?interview\\b|\\bat a press (?:interview|conference|briefing)\\b|\\btold (?:a|the) (?:reporter|newspaper|magazine|interviewer|broadcaster)\\b`, "i");
   const perSection = new Map<string, string[]>();
   let prevSrc: boolean = false; let prevTopic: string | undefined;
   for (const t of turns) {
     if (!expl(t) || t.section !== zones.body) continue;
     if ((t.topic ?? t.section) !== prevTopic) { prevSrc = false; prevTopic = t.topic ?? t.section; } // 구간이 바뀌면 선행사도 끊긴다
     let n = 0;
-    for (const raw of t.text.split(/(?<=[.!?])\s+/)) { const x = raw.trim(); const direct = srcSubj.test(x) || srcRef.test(x) || srcKind.test(x); const pron: boolean = !direct && prevSrc && srcPron.test(x); if (direct || pron) n++; prevSrc = direct || pron; }
+    for (const raw of t.text.split(/(?<=[.!?])\s+/)) { const x = raw.trim(); const direct = srcSubj.test(x) || srcRef.test(x) || srcKind.test(x) || srcMid.test(x); const pron: boolean = !direct && prevSrc && srcPron.test(x); if (direct || pron) n++; prevSrc = direct || pron; }
     for (let k = 0; k < n; k++) perSection.set(t.topic ?? t.section, [...(perSection.get(t.topic ?? t.section) ?? []), label(t)]);
   }
   // full-en-v0.12 (G261018-001~003, 박수헌 2026-10-18 "귀속 빼"): 출처는 앱이 보여 준다 — 대사에서 출처를 부르는 문장은 하나도 두지 않는다
   const srcLoops = [...perSection].filter(([, ids]) => ids.length > 0).map(([sec, ids]) => `"${sec}" ${ids.length} (${[...new Set(ids)].join(", ")})`);
-  if (srcLoops.length) v.push(`${EN_STYLE_MARK} sources named in lines: ${srcLoops.join("; ")} — the app lists sources; do not name them or point to them by kind or year, tell the content directly as an insider; "According to" and "In … account" count too; give a view to the people the claim names, by role (rule 42)`);
+  if (srcLoops.length) v.push(`${EN_STYLE_MARK} sources named in lines: ${srcLoops.join("; ")} — the app lists sources; do not name them or point to them by kind or year, tell the content directly as an insider; "According to", "In … account", "in a researcher's view", "in a survey", "interviewed", and "a critic calls it" count too; give a view to the people the claim names, by a role in the practice, not an observer (rule 42)`);
   // full-en-v0.21 (15회차 세 편 모두 내부자 3.11 2 — "One view is that"·"In her view"·"One interpretation" 거리두기 틀이 턴마다): 해설 문장의 견해 틀은 에피소드에 한 번까지
   const viewFrame = /\b(?:One (?:view|interpretation|reading|explanation|way to (?:understand|see|read|think about))|Another (?:view|interpretation|way to (?:understand|see))|In (?:that|this|her|his|their|one|its [a-z]+'s|the [a-z]+'s) (?:view|interpretation|reading))\b/i;
   const frames = turns.flatMap((t, i) => (!isTemplate(i) && expl(t) ? t.text.split(/(?<=[.!?])\s+/).filter((x) => viewFrame.test(x)).map(() => label(t)) : []));
