@@ -2,7 +2,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { cfg, executedBy } from "../config.js";
 import { getBacklog, getEpisode, getSeries, getSetting, insertRun, majorOfMidTopic, pool, setJobProgress, type Job } from "../db.js";
-import { pipelineLocale, promptBody } from "@ear/pipeline";
+import { pipelineLocale, promptBody, publicationOf, publicationStyle } from "@ear/pipeline";
 import { SERIES_THUMBNAIL_PROMPT_KEY, THUMBNAIL_ANCHOR_PROMPT_KEY, THUMBNAIL_PROMPT_KEY, THUMBNAIL_SCENE_PROMPT_KEY, workerRev } from "../assets.js";
 import { makeExecutor } from "../executors/index.js";
 import { bookmarkFile, composeBookmark, composeCorner, cornerContrast } from "./thumbnail-compose.js";
@@ -106,11 +106,12 @@ export async function runThumbnail(job: Job) {
 
   // 시리즈 편 — 시리즈 바탕 그림 한 장에 번호만 얹는다(2026-10-20, thumbnail-series.ts). 장면 경로를 타지 않는다
   const sr = await pool.query("select series_id, series_no from public.backlog where id = $1", [backlogId]);
-  // 2026-10-20 박수헌·팀원: 시리즈 디자인은 시리즈마다 따로 정한다(자동화하지 않는다) — 이 디자인은 글자 칸(thumb_word)을 채운 시리즈(키워드 시리즈)에만.
-  // 칸이 빈 시리즈의 편은 일반 편처럼 장면 썸네일로 간다
-  const seriesWord = sr.rows[0]?.series_id ? (await pool.query("select thumb_word from public.series where id = $1", [sr.rows[0].series_id])).rows[0]?.thumb_word as string | null : null;
-  if (sr.rows[0]?.series_id && seriesWord?.trim()) {
-    return runSeriesThumbnail({ job, episodeId, backlogId, rel, outFile, progress, seriesId: sr.rows[0].series_id as string, no: sr.rows[0].series_no as number, rebase: !!job.payload.rebase });
+  // 2026-10-20 박수헌·팀원: 시리즈 디자인은 시리즈마다 따로 정한다(자동화하지 않는다). 2026-10-26 KAN-247: 디자인은 **간행물**(series.publication, @ear/pipeline publication.ts)이 정한다 —
+  // 종전 "큰 단어(thumb_word)를 채웠나" 판정을 대체. keyword 스타일(키워드·Phrasebook)은 이 경로, 없음·scene 스타일(연대기)은 일반 편처럼 장면 썸네일
+  const series = sr.rows[0]?.series_id ? await getSeries(sr.rows[0].series_id as string) : null;
+  if (series && publicationStyle(series.publication) === "keyword") {
+    if (!series.thumb_word?.trim()) throw new Error(`시리즈 "${series.name}" 는 간행물 ${publicationOf(series.publication)?.name ?? series.publication}(키워드 디자인)인데 썸네일 큰 단어(thumb_word)가 비었다 — 시리즈 화면에서 채운 뒤 다시 건다`);
+    return runSeriesThumbnail({ job, episodeId, backlogId, rel, outFile, progress, seriesId: series.id, no: sr.rows[0].series_no as number, rebase: !!job.payload.rebase });
   }
 
   // ── 슬롯 재료 ──

@@ -27,10 +27,10 @@ test("이어서 올리기 — 이미 올린 편은 검수 없이 건너뛰고, �
   assert.deepEqual(seriesUploadQueue(eps).map((e) => e.no), [2, 3]);
 });
 
-test("시리즈 썸네일 글자 칸 — 큰 단어는 영문 소문자, 라벨은 대문자, 길이 상한", async () => {
+test("시리즈 썸네일 글자 칸 — 큰 단어는 영문 소문자, 라벨은 대문자, 길이 상한 (간행물 keyword 기준, KAN-247)", async () => {
   const { cleanSeriesThumb } = await import("./series");
-  assert.deepEqual(cleanSeriesThumb({ word: " Keyword ", label: "keyword series", box: "경제편" }), { word: "keyword", label: "KEYWORD SERIES", box: "경제편", problems: [] });
-  assert.match(cleanSeriesThumb({ word: "경제", label: "", box: "" }).problems.join(), /영문/);
-  assert.deepEqual(cleanSeriesThumb({ word: "", label: "", box: "" }).problems, []); // 비우면 이 디자인을 쓰지 않는다
-  assert.match(cleanSeriesThumb({ word: "basics", label: "", box: "아주 긴 박스 글자입니다요" }).problems.join(), /12자/);
+  assert.deepEqual(cleanSeriesThumb({ publication: "keyword", word: " Keyword ", label: "keyword series", box: "경제편" }, "ko"), { publication: "keyword", word: "keyword", label: "KEYWORD SERIES", box: "경제편", problems: [] });
+  assert.match(cleanSeriesThumb({ publication: "keyword", word: "경제", label: "", box: "" }, "ko").problems.join(), /영문/);
+  assert.deepEqual(cleanSeriesThumb({ publication: null, word: "", label: "", box: "" }, "ko").problems, []); // 간행물 없음 = 이 디자인을 쓰지 않는다
+  assert.match(cleanSeriesThumb({ publication: "keyword", word: "basics", label: "", box: "아주 긴 박스 글자입니다요" }, "ko").problems.join(), /12자/);
 });

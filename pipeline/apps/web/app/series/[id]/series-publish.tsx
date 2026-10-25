@@ -1,6 +1,7 @@
 "use client";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { publicationOf } from "@ear/pipeline";
 import { Badge, Panel, btnCls } from "@/components/ui";
 import { createEarSeries, EarTopic, listEarSeries, patchEarSeries, uploadEarContent, withdrawEarContent } from "@/lib/ear";
 import { listConsoleTopics } from "@/lib/console-topics";
@@ -23,11 +24,11 @@ const inp = "w-full rounded border border-line px-2 py-1 text-[12.5px] outline-n
  * 1) 제품 시리즈가 없으면 POST /admin/series 로 만들고 id 를 파이프라인에 남긴다 2) 1화부터 순서대로 업로드(series_id·episode_no·total_episodes)
  * 3) 도중에 실패하면 멈추고, 다시 누르면 이미 올린 편(published_content_ref)은 건너뛴다 4) 다 올라가면 제품 시리즈를 completed 로.
  */
-export function SeriesPublish(props: { id: string; name: string; introLine: string; total: number; status: SeriesStatus; productSeriesId: string | null; episodes: SeriesPublishEpisode[] }) {
+export function SeriesPublish(props: { id: string; name: string; introLine: string; total: number; status: SeriesStatus; productSeriesId: string | null; publication: string | null; episodes: SeriesPublishEpisode[] }) {
   return <EarGate><SeriesPublishInner {...props} /></EarGate>;
 }
 
-function SeriesPublishInner({ id, name, introLine, total, status, productSeriesId, episodes }: { id: string; name: string; introLine: string; total: number; status: SeriesStatus; productSeriesId: string | null; episodes: SeriesPublishEpisode[] }) {
+function SeriesPublishInner({ id, name, introLine, total, status, productSeriesId, publication, episodes }: { id: string; name: string; introLine: string; total: number; status: SeriesStatus; productSeriesId: string | null; publication: string | null; episodes: SeriesPublishEpisode[] }) {
   const router = useRouter();
   const [topics, setTopics] = useState<EarTopic[]>([]);
   const [rows, setRows] = useState<Record<string, Row>>({});
@@ -74,10 +75,14 @@ function SeriesPublishInner({ id, name, introLine, total, status, productSeriesI
       let sid = productSeriesId;
       if (!sid) {
         const prev = (await listEarSeries()).items.find((x) => x.title === name.trim() && x.total_episodes === total && x.episode_counts.published + x.episode_counts.withdrawn + x.episode_counts.expired === 0);
-        const made = prev ?? (await createEarSeries({ title: name.trim(), description: introLine.trim(), total_episodes: total, status: "ongoing" }));
+        // 간행물(KAN-247) → 발행 이름. 재사용하는 시리즈도 같은 이름으로 맞춘다
+        const publisherName = publicationOf(publication)?.name ?? null;
+        const made = prev
+          ? (prev.publisher_name ?? null) === publisherName ? prev : await patchEarSeries(prev.id, { publisher_name: publisherName })
+          : await createEarSeries({ title: name.trim(), description: introLine.trim(), total_episodes: total, status: "ongoing", publisher_name: publisherName });
         const r = await recordProductSeries(id, made.id);
         if (!r.ok) throw new Error(`제품 시리즈 ${made.id} 를 ${prev ? "찾았지만" : "만들었지만"} 기록하지 못했어요: ${r.reason}`);
-        sid = made.id; say(`제품 시리즈 ${prev ? "재사용" : "생성"} — ${sid}`);
+        sid = made.id; say(`제품 시리즈 ${prev ? "재사용" : "생성"} — ${sid}${publisherName ? ` · 발행 이름 ${publisherName}` : " · 발행 이름 없음"}`);
       }
       // 2) 1화부터 순서대로 — 실패하면 그 자리에서 멈춘다
       for (const e of todo) {

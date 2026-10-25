@@ -4,6 +4,7 @@ import { AutoRefresh } from "@/components/auto-refresh";
 import { Badge, PageHeader, Panel, Table, Td } from "@/components/ui";
 import { supabaseServer } from "@/lib/supabase-server";
 import { fmtTime } from "@/lib/format";
+import { pipelineLocale } from "@/lib/locale";
 import { SERIES_STATUS_LABEL, type SeriesRow } from "@/lib/series";
 import { SeriesEditor } from "./series-editor";
 import { SeriesPublish } from "./series-publish";
@@ -36,7 +37,7 @@ export default async function SeriesPage({ params }: { params: Promise<{ id: str
         </div>
       )}
       <Panel title="범위 (관리자 입력)" className="text-[13px] whitespace-pre-wrap">{s.scope_note ?? "-"}</Panel>
-      {!["cancelled", "withdrawn"].includes(s.status) && <SeriesThumb id={s.id} word={s.thumb_word ?? ""} label={s.thumb_label ?? ""} box={s.thumb_box ?? ""} hasBase={!!s.thumb_base_key} />}
+      {!["cancelled", "withdrawn"].includes(s.status) && <SeriesThumb id={s.id} locale={pipelineLocale()} publication={s.publication ?? null} word={s.thumb_word ?? ""} label={s.thumb_label ?? ""} box={s.thumb_box ?? ""} hasBase={!!s.thumb_base_key} productSeriesId={s.published_series_id ?? null} />}
       <SeriesEditor id={s.id} status={s.status} name={s.name} introLine={s.intro_line ?? ""} plan={Array.isArray(s.plan) ? s.plan : []} />
       {!planning && (
         <Panel title={`편 후보 (${eps?.length ?? 0}/${s.total_episodes ?? "-"})`} flush>
@@ -54,7 +55,7 @@ export default async function SeriesPage({ params }: { params: Promise<{ id: str
         </Panel>
       )}
       {["approved", "published"].includes(s.status) && s.total_episodes && (
-        <SeriesPublish id={s.id} name={s.name} introLine={s.intro_line ?? ""} total={s.total_episodes} status={s.status} productSeriesId={s.published_series_id ?? null} episodes={pubEps} />
+        <SeriesPublish id={s.id} name={s.name} introLine={s.intro_line ?? ""} total={s.total_episodes} status={s.status} productSeriesId={s.published_series_id ?? null} publication={s.publication ?? null} episodes={pubEps} />
       )}
     </div>
   );
