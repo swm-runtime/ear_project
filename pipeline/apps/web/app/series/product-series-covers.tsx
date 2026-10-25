@@ -1,6 +1,7 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
-import { publicationByName, publicationOf, publicationsFor, type PipelineLocale } from "@ear/pipeline";
+import { publicationByName, publicationOf, publicationsFor } from "@ear/pipeline/publication";
+import type { PipelineLocale } from "@/lib/locale";
 import { EarSeries, listEarSeries, patchEarSeries, putEarSeriesCover } from "@/lib/ear";
 import { EarGate, earErrMsg } from "@/app/publish/ear-connect";
 import { btnCls, Panel, Table, Td } from "@/components/ui";

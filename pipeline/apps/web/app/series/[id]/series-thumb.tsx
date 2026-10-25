@@ -1,7 +1,8 @@
 "use client";
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { publicationOf, publicationsFor, type PipelineLocale } from "@ear/pipeline";
+import { publicationOf, publicationsFor } from "@ear/pipeline/publication";
+import type { PipelineLocale } from "@/lib/locale";
 import { btnCls, Panel } from "@/components/ui";
 import { patchEarSeries } from "@/lib/ear";
 import { earErrMsg } from "@/app/publish/ear-connect";
