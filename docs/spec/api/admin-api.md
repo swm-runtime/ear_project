@@ -611,11 +611,13 @@
 
 **Query** — `days` (선택, 정수 1~90, 기본 14): 추이(`daily`·`weekday`·`hourly`)와 창 집계(`listening.window`)의 일수. `now - days` 이후의 행만 센다. 누적 카드·순위·구조 표는 창과 무관하게 **전 기간**이다(최근 24시간 순위 `recent_top_contents`와 코호트 리텐션 `retention_cohorts`도 창과 무관하다 — 아래).
 
+**Query** — `market` (선택, `kr` · `global`, 추가 2026-10-25): 사용자의 **지금 시장**(`users.market`)으로 모든 집계를 좁힌다 — 시장을 옮긴 사람의 지난 기록도 새 시장으로 센다. 없으면 통합(종전과 같은 결과). 그 밖의 값은 400 `VALIDATION_FAILED`. **`by_market`은 이 값과 무관하게 늘 두 시장이다**(통합 화면의 비교표 원천).
+
 **Response 200** (값은 예시 — `daily[].active_users`·`weekday`·`active_users_since`·`recent_*`·`retention_cohorts`는 2026-10-18 실측 기준 예시라 `since`·`generated_at`과 날짜가 맞지 않는다)
 
 ```json
 {
-  "days": 14, "since": "2026-09-24T03:00:00.000Z", "generated_at": "2026-10-08T03:00:00.000Z",
+  "days": 14, "market": null, "since": "2026-09-24T03:00:00.000Z", "generated_at": "2026-10-08T03:00:00.000Z",
   "users": {
     "total_signups": 259, "current": 225, "withdrawals": 34, "withdrawal_rate": 0.131,
     "onboarding_completed": 208, "onboarding_rate": 0.924, "trial_active": 139,
@@ -679,6 +681,12 @@
 }
 ```
 
+- `market`(추가 2026-10-25)은 요청한 시장(`kr` · `global`), 통합이면 `null`이다. 시장을 고르면:
+  - 사용자 축(가입·활성·청취·일별·시간대·순위·리텐션·코호트·주제 수요)은 **지금 시장의 현재 계정**만 센다.
+  - **탈퇴**(합계·일별·사유)는 `withdrawal_logs.market`(**탈퇴 당시 시장** — 계정이 지워져 지금 시장이 없다)으로 가른다.
+  - **`listening.all_time`의 `listen_sec`·`plays`·`completes`**는 `play_daily_totals`(줄지 않는 누적)에 시장 열이 없어 재생 행(`play_records`, 현재 계정 기준)으로 센다 — 탈퇴자 몫이 빠져 통합보다 작게 나올 수 있다.
+  - **`daily[].active_users`의 저장 표 몫**은 그날의 시장 행(`daily_active_users.market`)이다 — 그날 시장 기준이라 지금 시장 기준과 전환자만큼 다를 수 있다.
+  - `topic_supply`는 그 시장 주제만이다.
 - **개인 식별 정보는 어떤 필드에도 없다** — 사용자 순위는 `user_id`·티어·가입일·마지막 재생뿐이다(루트 CLAUDE.md 개인정보 원칙). 화면도 `user_id` 앞 8자만 적는다.
 - `total_signups` = `current`(`users` 행 수 — 탈퇴 행은 지워져 없으므로 `status` 필터를 두지 않는다) + `withdrawals`(`withdrawal_logs` 행 수). 탈퇴는 `users` 행을 지우므로(`domain.md` 12.3) 둘을 더해야 "가입한 적 있는 사람"이다. `withdrawal_rate` = `withdrawals / total_signups`.
 - `tiers`는 `users.tier` 캐시 기준이라 **초대 코드 이벤트로 받은 요금제도 들어 있다**(`domain.md` 8.6). `tier_events`는 그중 이벤트로 그 티어인 계정 수다 — 지금 지급 중인 요금제가 그 티어이고 같은 티어 이상의 살아 있는 구독이 없는 계정(결제와 겹치면 결제로 센다, 2026-10-10). 콘솔은 "Pro 30명 (이벤트 11명)"으로 그린다. `paid_active`는 결제만 세므로 이벤트 계정이 들어가지 않는다.
