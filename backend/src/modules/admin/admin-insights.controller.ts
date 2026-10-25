@@ -22,7 +22,11 @@ export class AdminInsightsController {
     @Query() query: AdminInsightsSummaryQueryRequestDto,
   ): Promise<AdminInsightsSummaryResponseDto> {
     return AdminInsightsSummaryResponseDto.from(
-      await this.adminInsightsService.summarize(query.days, new Date()),
+      await this.adminInsightsService.summarize(
+        query.days,
+        new Date(),
+        query.market ?? null,
+      ),
       query.days,
     );
   }
