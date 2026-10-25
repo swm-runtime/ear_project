@@ -7,6 +7,7 @@ import { toPlanGrant } from '@/features/subscription';
 import { IS_PROFILE_API_MOCKED } from '../profile.constants';
 import type {
   DailyListeningHighlight,
+  TopicHighlight,
   ListeningHighlight,
   PlanTrial,
   ProfileSummary,
@@ -15,6 +16,7 @@ import type {
 } from '../profile.types';
 import type {
   DailyListeningHighlightDto,
+  DailyTopicHighlightDto,
   ProfilePlanTrialDto,
   ProfileSummaryResponseDto,
   TopicDistributionDto,
@@ -93,6 +95,48 @@ export const toDailyListeningHighlights = (
     ? dto.daily_listening_highlight.map(toDailyListeningHighlight)
     : null;
 
+/** 주제 한 줄(KAN-266) — 필드가 없거나(반영 전 서버) 모르는 kind 면 그리지 않는다 */
+export const toTopicHighlight = (dto: WeeklyListeningDto): TopicHighlight | null => {
+  const highlight = dto.topic_highlight;
+  if (highlight == null) return null;
+  switch (highlight.kind) {
+    case 'unexplored_topic':
+      return { kind: 'unexplored', topicId: highlight.topic_id, name: highlight.name };
+    case 'peer_top_topic':
+      return { kind: 'peerTop', topicId: highlight.topic_id, name: highlight.name };
+    case 'top_topic_streak':
+      return { kind: 'topStreak', weeks: highlight.weeks };
+    case 'topic_count':
+      return { kind: 'topicCount', count: highlight.count };
+    default:
+      return null;
+  }
+};
+
+const toDailyTopicHighlight = (dto: DailyTopicHighlightDto | null): TopicHighlight | null => {
+  if (dto === null) return null;
+  switch (dto.kind) {
+    case 'unexplored_topic':
+      return { kind: 'unexplored', topicId: dto.topic_id, name: dto.name };
+    case 'peer_top_topic':
+      return { kind: 'peerTop', topicId: dto.topic_id, name: dto.name };
+    case 'top_topic_day_streak':
+      return { kind: 'dayStreak', days: dto.days };
+    case 'topic_count':
+      return { kind: 'dayTopicCount', count: dto.count };
+    default:
+      return null;
+  }
+};
+
+/** 요일 주제 한 줄(KAN-268) — 7칸이 아니면(반영 전·결함) 통째로 그리지 않는다. 모르는 kind 칸은 그날만 비운다 */
+export const toDailyTopicHighlights = (
+  dto: WeeklyListeningDto,
+): (TopicHighlight | null)[] | null =>
+  dto.daily_topic_highlight?.length === 7
+    ? dto.daily_topic_highlight.map(toDailyTopicHighlight)
+    : null;
+
 const toWeeklyListening = (dto: WeeklyListeningDto): WeeklyListening => ({
   weekStart: dto.week_start,
   dailyListenedSec: dto.daily_listened_sec,
@@ -101,6 +145,8 @@ const toWeeklyListening = (dto: WeeklyListeningDto): WeeklyListening => ({
   listeningTopPercent: dto.listening_top_percent ?? null,
   listeningHighlight: toListeningHighlight(dto),
   dailyListeningHighlights: toDailyListeningHighlights(dto),
+  topicHighlight: toTopicHighlight(dto),
+  dailyTopicHighlights: toDailyTopicHighlights(dto),
   ...(dto.topic_distribution
     ? { topicDistribution: toTopicDistribution(dto.topic_distribution) }
     : {}),

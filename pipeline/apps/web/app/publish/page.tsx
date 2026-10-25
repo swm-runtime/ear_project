@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { EarContent, listEarContents, listEarJobCategories, restoreEarContent, withdrawEarContent } from "@/lib/ear";
-import { enrichStates, latestPublishEvents, logPublishEvent, republishPlans, requestEnrich, requestScriptAlign, scriptAlignStates, type PublishAction, type RepublishPlan } from "../actions";
+import { enrichStates, latestPublishEvents, listPublishableEpisodes, logPublishEvent, republishPlans, requestEnrich, requestScriptAlign, scriptAlignStates, type PublishAction, type RepublishPlan } from "../actions";
 import { EnrichCell, isStale, type EnrichState } from "./enrich-cell";
 import { ScriptCell, type ScriptState } from "./script-cell";
 import { StaleNote, StaleRepublishButton } from "./stale-republish";
@@ -50,6 +50,8 @@ function ContentList() {
     } catch (e) { setErr(earErrMsg(e)); }
   }, [status, offset, staleOnly]);
   useEffect(() => { listEarJobCategories().then((r) => setJobCats(r.items.map((x) => x.name))).catch(() => setJobCats([])); }, []);
+  const [pendingN, setPendingN] = useState<number | null>(null); // 발행 대기(패키지·오디오 완료·미발행) 편수 — 업로드 화면 진입 버튼에 표시 (2026-10-25 일괄 발행)
+  useEffect(() => { listPublishableEpisodes().then((r) => setPendingN(r.length)).catch(() => setPendingN(null)); }, []);
   useEffect(() => { // 재부여 작업이 도는 동안 상태를 20초마다 갱신
     const running = Object.values(enrich).some((s) => ["queued", "claimed", "running"].includes(s.status)) || Object.values(scripts).some((s) => ["queued", "claimed", "running"].includes(s.status));
     if (!running || !data) return;
@@ -67,7 +69,7 @@ function ContentList() {
   return (
     <>
       <Toolbar
-        right={<LinkBtn kind="primary" href="/publish/upload">수동 업로드</LinkBtn>}>
+        right={<LinkBtn kind="primary" href="/publish/upload">{pendingN ? `발행 대기 ${pendingN}편 · 업로드` : "발행 대기 · 업로드"}</LinkBtn>}>
         <select className="rounded border border-line bg-white px-2 py-1.5 text-xs" value={status}
           onChange={(e) => { setStatus(e.target.value); setOffset(0); }}>
           <option value="">전체 상태</option>

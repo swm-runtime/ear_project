@@ -23,10 +23,16 @@ import { InviteCode } from '@/modules/subscription/entities/invite-code.entity';
 import { User } from '@/modules/user/entities/user.entity';
 import { PlayDailyTotalRepository } from '@/modules/playback/repositories/play-daily-total.repository';
 import { WithdrawalLog } from '@/modules/user/entities/withdrawal-log.entity';
-import { SocialProvider, UserRole, UserTier } from '@/modules/user/user.enum';
+import {
+  SocialProvider,
+  UserMarket,
+  UserRole,
+  UserTier,
+} from '@/modules/user/user.enum';
 
 interface SummaryBody {
   days: number;
+  market: string | null;
   users: {
     total_signups: number;
     current: number;
@@ -720,6 +726,78 @@ describe('서비스 지표 요약 E2E', () => {
       expect(m.listeners_7d).toBeLessThanOrEqual(m.users);
       expect(m.paid_active).toBeLessThanOrEqual(m.users);
     }
+  }, 60_000);
+
+  it('시장을 고르면 그 시장 사용자만 센다 — 글로벌 청취자는 글로벌에만, 한국 청취자는 한국에만 잡히고 시장 비교와 맞는다', async () => {
+    // given — 글로벌·한국 청취자 하나씩(전 기간 순위에 들도록 큰 청취 시간)
+    const adminAuth = await createUser('admin-filter', UserRole.ADMIN);
+    const globalId = await createUserId('global-listener');
+    const krId = await createUserId('kr-listener');
+    await dataSource.query(`UPDATE users SET market = 'global' WHERE id = $1`, [
+      globalId,
+    ]);
+    const contentId = await seedContent();
+    const now = new Date();
+    const playRecords = dataSource.getRepository(PlayRecord);
+    await playRecords.save(
+      [globalId, krId].map((userId) =>
+        playRecords.create({
+          userId,
+          contentId,
+          playDate: toServiceDate(now),
+          playedAt: now,
+          isCounted: true,
+          listenedSec: 50_000_000,
+        }),
+      ),
+    );
+    const summaryOf = async (query: string) =>
+      (
+        await request(app.getHttpServer())
+          .get(path(`/admin/insights/summary${query}`))
+          .set('Authorization', adminAuth)
+          .expect(HttpStatus.OK)
+      ).body as SummaryBody;
+
+    // when
+    const global = await summaryOf('?market=global');
+    const kr = await summaryOf('?market=kr');
+    const all = await summaryOf('');
+
+    // then — 고른 시장을 되돌려 주고, 비교표는 늘 두 시장이다
+    expect(global.market).toBe(UserMarket.GLOBAL);
+    expect(kr.market).toBe(UserMarket.KR);
+    expect(all.market).toBeNull();
+    expect(global.by_market.map((m) => m.market)).toEqual(['kr', 'global']);
+
+    // then — 순위는 그 시장 사람만
+    const ids = (b: SummaryBody) => b.top_users.map((u) => u.user_id);
+    expect(ids(global)).toContain(globalId);
+    expect(ids(global)).not.toContain(krId);
+    expect(ids(kr)).toContain(krId);
+    expect(ids(kr)).not.toContain(globalId);
+    expect(ids(all)).toEqual(expect.arrayContaining([globalId, krId]));
+
+    // then — 창 청취 시간에 이 테스트가 심은 청취가 그 시장에 들어 있다. 같은 응답의 `by_market`과 같은 값인지는 보지 않는다 —
+    // 두 값을 다른 시각에 세는 사이 병렬 스위트가 사용자·재생을 넣고 지워(CI 2026-10-25 #2049: 가입자 40 ↔ 41) 우연히만 같다
+    for (const body of [global, kr]) {
+      expect(body.users.current).toBeGreaterThanOrEqual(1);
+      expect(body.listening.window.listen_sec).toBeGreaterThanOrEqual(
+        50_000_000,
+      );
+    }
+    // then — 오늘 막대의 청취 시간에도 시장이 갈린다(이 테스트의 50,000,000초가 그 시장 막대에만)
+    const todayOf = (b: SummaryBody) => b.daily[b.daily.length - 1].listen_sec;
+    expect(todayOf(global)).toBeGreaterThanOrEqual(50_000_000);
+    expect(todayOf(all)).toBeGreaterThanOrEqual(todayOf(global) + 50_000_000);
+  }, 60_000);
+
+  it('모르는 시장 값은 400 이다', async () => {
+    const adminAuth = await createUser('admin-bad-market', UserRole.ADMIN);
+    await request(app.getHttpServer())
+      .get(path('/admin/insights/summary?market=jp'))
+      .set('Authorization', adminAuth)
+      .expect(HttpStatus.BAD_REQUEST);
   }, 60_000);
 
   async function createUserId(

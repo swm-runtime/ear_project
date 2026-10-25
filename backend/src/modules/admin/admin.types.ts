@@ -416,6 +416,8 @@ export interface InsightsMarketTotals {
 }
 
 export interface InsightsSummary {
+  /** 고른 시장 — null 이면 통합 */
+  market: UserMarket | null;
   since: Date;
   generatedAt: Date;
   users: InsightsUserTotals;

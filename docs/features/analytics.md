@@ -112,6 +112,12 @@
 | `withdrawal` | `reason` (선택지 키) | 탈퇴 완료 |
 | `settings_toggle` | `key`: `drip_notification` \| `marketing_consent` · `value`(bool) | 설정 토글 — 서버 호출이 나가는 시점(권한 미결정으로 막힌 탭은 세지 않는다) |
 
+**프로필** (`profile.md`)
+
+| 이벤트 | 파라미터 | 시점 |
+|---|---|---|
+| `profile_topic_highlight_tap` | `kind`: `unexplored` | 주간 카드 "가장 많이 들은 주제" 옆 한 줄의 안 들어본 주제 탭 → 탐색 그 주제 목록(신설 2026-10-24, KAN-267 — `profile.md` 4.7-1). 주제 이름·id는 싣지 않는다. 노출은 세지 않는다 |
+
 ### 3.5 광고 측정 (Meta, 신설 2026-09-24 — KAN-94)
 
 `track()` 은 GA4 로 보낸 뒤 **Meta 로도** 보낸다 — 단 아래 세 이벤트만. 코드는 `shared/analytics/meta.ts`(`analytics.ts` 의 `track()` 이 `forwardToMeta` 호출), 플러그인은 `app.json`(`react-native-fbsdk-next`), 개발계 끔은 `app.config.js`.

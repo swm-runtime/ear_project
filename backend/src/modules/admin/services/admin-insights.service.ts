@@ -35,14 +35,21 @@ const KST_OFFSET_MS = 9 * 60 * 60 * 1000;
 export class AdminInsightsService {
   constructor(private readonly repository: AdminInsightsRepository) {}
 
-  /** `days`는 DTO 가 1~상한으로 검증한다. 창의 시작은 `now - days` */
-  async summarize(days: number, now: Date): Promise<InsightsSummary> {
+  /**
+   * `days`는 DTO 가 1~상한으로 검증한다. 창의 시작은 `now - days`. `market`이 있으면 시장 비교(`byMarket`)를 뺀 모든 집계를
+   * 그 시장 사용자로 좁힌다(지금 시장 기준 — 2026-10-25)
+   */
+  async summarize(
+    days: number,
+    now: Date,
+    market: UserMarket | null = null,
+  ): Promise<InsightsSummary> {
     const clamped = Math.min(Math.max(1, days), INSIGHTS_SUMMARY_MAX_DAYS);
     const since = new Date(now.getTime() - clamped * DAY_MS);
 
-    const users = await this.repository.userTotals(now);
-    const allTime = await this.repository.listeningTotals(null);
-    const window = await this.repository.listeningTotals(since);
+    const users = await this.repository.userTotals(now, market);
+    const allTime = await this.repository.listeningTotals(null, market);
+    const window = await this.repository.listeningTotals(since, market);
     // 세션이 온전히 남아 있는 첫 날 — 그 앞은 저장 표에 있어야만 접속자를 안다
     const liveFrom = kstDateLabel(
       new Date(now.getTime() - INSIGHTS_LIVE_ACTIVE_DAYS * DAY_MS),
@@ -50,11 +57,23 @@ export class AdminInsightsService {
     // 일별 추이는 첫날도 온전한 하루로 센다 — `since`(지금 - days)가 걸친 날의 KST 자정부터. 그러지 않으면 첫 막대가
     // `since` 시각 뒤만 잡혀 코호트 표의 같은 날 가입자보다 적게 보인다(2026-10-22 운영 10-08 가입 39 vs 48)
     const dailySince = kstMidnightOf(since);
-    const dailyRows = await this.repository.dailyRows(dailySince, liveFrom);
+    const dailyRows = await this.repository.dailyRows(
+      dailySince,
+      liveFrom,
+      market,
+    );
     const firstStored = await this.repository.activeUsersFirstDate();
-    const hourly = await this.repository.hourly(since);
-    const topUsers = await this.repository.topUsers(INSIGHTS_RANK_LIMIT);
-    const topContents = await this.repository.topContents(INSIGHTS_RANK_LIMIT);
+    const hourly = await this.repository.hourly(since, market);
+    const topUsers = await this.repository.topUsers(
+      INSIGHTS_RANK_LIMIT,
+      market,
+    );
+    const topContents = await this.repository.topContents(
+      INSIGHTS_RANK_LIMIT,
+      null,
+      'listen_sec',
+      market,
+    );
     const recentSince = new Date(
       now.getTime() - INSIGHTS_RECENT_CONTENT_HOURS * 60 * 60 * 1000,
     );
@@ -62,13 +81,15 @@ export class AdminInsightsService {
       INSIGHTS_RANK_LIMIT,
       recentSince,
       'listeners',
+      market,
     );
-    const withdrawalReasons = await this.repository.withdrawalReasons();
+    const withdrawalReasons = await this.repository.withdrawalReasons(market);
     const retention = await this.repository.retention(
       INSIGHTS_RETENTION_DAYS,
       now,
+      market,
     );
-    const topicSupply = await this.repository.topicSupply(since, now);
+    const topicSupply = await this.repository.topicSupply(since, now, market);
     const byMarket = await this.repository.marketTotals(since, now);
 
     const today = kstDateLabel(now);
@@ -85,17 +106,20 @@ export class AdminInsightsService {
       today,
       INSIGHTS_COHORT_DAILY.span,
       INSIGHTS_COHORT_DAILY.offsets,
+      market,
     );
     const weeklyCohorts = await this.repository.cohortRetention(
       weeklyStarts[weeklyStarts.length - 1],
       addDays(today, 1),
       INSIGHTS_COHORT_WEEKLY.span,
       INSIGHTS_COHORT_WEEKLY.offsets,
+      market,
     );
 
     const daily = fillDailySeries(dailySince, now, dailyRows, liveFrom);
 
     return {
+      market,
       since,
       generatedAt: now,
       users,

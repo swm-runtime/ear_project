@@ -324,6 +324,7 @@
 |---|---|---|
 | `audio` | 압축 음질 mp3 / m4a, ≤200MB — 4.6과 같다(정정 2026-10-10 — 320MB 상향은 되돌렸다) | 선택 |
 | `audio_aac` · `audio_lossless` | 4.6과 같다. **오디오를 바꾸는 재발행은 3종을 한 세트로 본다** — `audio`를 보내면서 안 보낸 음질의 행은 지운다(버전이 다른 음질이 섞이지 않게, `domain.md` 5.1-1). `audio` 없이 `audio_aac`·`audio_lossless`만 보내는 것은 400(`details.field = "audio"`) | 선택 (2026-10-06) |
+| `rendition_only` | 텍스트 필드. 값 `lossless` 하나 — **무손실 파일만 교체**(2026-10-23, KAN-264). `audio_lossless` 하나만 함께 보낸다. 다른 파트(`audio`·`audio_aac`·`thumbnail`·`payload`·`enrichment_file`·`script_file`)가 섞이면 400 `VALIDATION_FAILED`(`details.field = "rendition_only"`), `audio_lossless`가 없으면 400(`audio_lossless`) | 선택 |
 | `thumbnail` | jpg / png / webp, ≤5MB — 4.6 과 같이 서버가 WebP 768px 로 다시 쓴다 | 선택 |
 | `payload` | JSON 문자열 — 4.6 `payload`의 부분집합(`title` `description` `source_name` `topic_ids` `sources`). 넘긴 키만 바꾼다 | 선택 |
 | `enrichment_file` | `enrichment.json` — 규격·검증·응답 필드는 4.6과 같다 | 선택 (등재 2026-09-08) |
@@ -331,6 +332,7 @@
 
 - **오디오를 교체하면 `duration_sec`을 다시 추출**한다(4.6과 동일 — 클라이언트 값을 받지 않는다). 이전 파일은 새 파일 저장·트랜잭션 성공 후 지운다.
 - **`content_version`은 오디오(`audio` — 3종 한 세트)를 바꿀 때만 1 오른다**(개정 2026-10-20 — KAN-236, 종전 "파트가 무엇이든 1 증가"). 썸네일·`payload`(제목·설명·출처명·주제·출처)·`enrichment_file`·`script_file`만 보내는 전송은 버전을 올리지 않고 아래 재생 위치 폐기도 없다 — 오디오가 그대로면 같은 초가 같은 내용이다. 버전은 클라이언트에게 "오디오가 바뀌었다"는 신호이고(`player-api.md` 4.1·4.3 — 바뀌면 재생 중 세션 위치를 폐기한다), 메타만 바꾼 재발행에서 올리면 재생 중이던 사람의 위치가 0으로 돌아간다. 추천 메타·대본 단독 전송의 감사 로그 구분은 그대로다 — 대본 단독은 `content.script`, 추천 메타 단독(기존 발행분 소급 부여가 이 경로를 쓴다)은 `content.enrich`(2026-09-08 · 2026-09-19). 썸네일·메타가 섞인 전송은 `content.republish`로 남는다(이전·이후 버전이 같을 수 있다).
+- **무손실만 교체(`rendition_only=lossless`)는 버전을 올리지 않고 재생 위치·대본을 그대로 둔다**(2026-10-23, KAN-264) — 같은 마스터에서 다시 만든 파일(예: SEEKTABLE 추가)이라 같은 초가 같은 내용이다. 새 파일 길이가 지금 `duration_sec`과 ±1초 안이어야 한다(아니면 400 `audio_lossless` — 다른 내용의 파일은 이 경로로 못 들어온다. 업로드 전과 행 잠금 뒤 두 번 본다). `lossless` 행만 바뀌고 `contents.audio_path`·다른 음질 행은 그대로다. 옛 무손실 파일은 트랜잭션 성공 뒤 지운다. `audit_logs`는 `content.republish`(이전·이후 버전 같음, `changed_parts: ["audio_lossless"]`, `rendition_only: "lossless"`).
 - `origin` · `partner_id` · `series_id` · `episode_no` · `total_episodes` · `license_expires_at`은 **바꾸지 않는다** — 발행 단위의 정체성이라 필요하면 회수 후 새로 올린다.
 - `status`가 `published`가 아니면 **409 `CONFLICT`** (회수·만료 상태에서는 재발행하지 않는다 — `admin.md` 4.6 "만료 상태에서는 재발행을 막는다").
 - `topic_ids`를 넘기면 전체 교체다(빈 배열 불가 — 최소 1개, 4.6과 동일). **대상 콘텐츠의 시장과 같은 시장의 주제만 받는다** — 아니면 400 `VALIDATION_FAILED`(`details.field = "topic_ids"`). **시장(`market`·`language`)은 재발행이 바꾸지 않는다** — 바꾸려면 회수 후 새로 올린다(추가 2026-10-14 — KAN-190).
@@ -609,11 +611,13 @@
 
 **Query** — `days` (선택, 정수 1~90, 기본 14): 추이(`daily`·`weekday`·`hourly`)와 창 집계(`listening.window`)의 일수. `now - days` 이후의 행만 센다. 누적 카드·순위·구조 표는 창과 무관하게 **전 기간**이다(최근 24시간 순위 `recent_top_contents`와 코호트 리텐션 `retention_cohorts`도 창과 무관하다 — 아래).
 
+**Query** — `market` (선택, `kr` · `global`, 추가 2026-10-25): 사용자의 **지금 시장**(`users.market`)으로 모든 집계를 좁힌다 — 시장을 옮긴 사람의 지난 기록도 새 시장으로 센다. 없으면 통합(종전과 같은 결과). 그 밖의 값은 400 `VALIDATION_FAILED`. **`by_market`은 이 값과 무관하게 늘 두 시장이다**(통합 화면의 비교표 원천).
+
 **Response 200** (값은 예시 — `daily[].active_users`·`weekday`·`active_users_since`·`recent_*`·`retention_cohorts`는 2026-10-18 실측 기준 예시라 `since`·`generated_at`과 날짜가 맞지 않는다)
 
 ```json
 {
-  "days": 14, "since": "2026-09-24T03:00:00.000Z", "generated_at": "2026-10-08T03:00:00.000Z",
+  "days": 14, "market": null, "since": "2026-09-24T03:00:00.000Z", "generated_at": "2026-10-08T03:00:00.000Z",
   "users": {
     "total_signups": 259, "current": 225, "withdrawals": 34, "withdrawal_rate": 0.131,
     "onboarding_completed": 208, "onboarding_rate": 0.924, "trial_active": 139,
@@ -677,6 +681,12 @@
 }
 ```
 
+- `market`(추가 2026-10-25)은 요청한 시장(`kr` · `global`), 통합이면 `null`이다. 시장을 고르면:
+  - 사용자 축(가입·활성·청취·일별·시간대·순위·리텐션·코호트·주제 수요)은 **지금 시장의 현재 계정**만 센다.
+  - **탈퇴**(합계·일별·사유)는 `withdrawal_logs.market`(**탈퇴 당시 시장** — 계정이 지워져 지금 시장이 없다)으로 가른다.
+  - **`listening.all_time`의 `listen_sec`·`plays`·`completes`**는 `play_daily_totals`(줄지 않는 누적)에 시장 열이 없어 재생 행(`play_records`, 현재 계정 기준)으로 센다 — 탈퇴자 몫이 빠져 통합보다 작게 나올 수 있다.
+  - **`daily[].active_users`의 저장 표 몫**은 그날의 시장 행(`daily_active_users.market`)이다 — 그날 시장 기준이라 지금 시장 기준과 전환자만큼 다를 수 있다.
+  - `topic_supply`는 그 시장 주제만이다.
 - **개인 식별 정보는 어떤 필드에도 없다** — 사용자 순위는 `user_id`·티어·가입일·마지막 재생뿐이다(루트 CLAUDE.md 개인정보 원칙). 화면도 `user_id` 앞 8자만 적는다.
 - `total_signups` = `current`(`users` 행 수 — 탈퇴 행은 지워져 없으므로 `status` 필터를 두지 않는다) + `withdrawals`(`withdrawal_logs` 행 수). 탈퇴는 `users` 행을 지우므로(`domain.md` 12.3) 둘을 더해야 "가입한 적 있는 사람"이다. `withdrawal_rate` = `withdrawals / total_signups`.
 - `tiers`는 `users.tier` 캐시 기준이라 **초대 코드 이벤트로 받은 요금제도 들어 있다**(`domain.md` 8.6). `tier_events`는 그중 이벤트로 그 티어인 계정 수다 — 지금 지급 중인 요금제가 그 티어이고 같은 티어 이상의 살아 있는 구독이 없는 계정(결제와 겹치면 결제로 센다, 2026-10-10). 콘솔은 "Pro 30명 (이벤트 11명)"으로 그린다. `paid_active`는 결제만 세므로 이벤트 계정이 들어가지 않는다.

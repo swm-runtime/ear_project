@@ -72,6 +72,9 @@ export interface AnalyticsEvents {
   sign_up: { method: AuthMethod };
   logout: Record<string, never>;
   withdrawal: { reason: string };
+  // 프로필
+  /** 주제 한 줄 탭(profile.md 4.7-1) — 지금은 안 들어본 주제만 버튼이다. 주제 이름은 싣지 않는다 */
+  profile_topic_highlight_tap: { kind: 'unexplored' };
   settings_toggle: {
     key: 'drip_notification' | 'marketing_consent' | 'auto_expand';
     value: boolean;

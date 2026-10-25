@@ -129,6 +129,17 @@ const kstDateExpr = (column: string): string =>
   `to_char((${column} at time zone 'Asia/Seoul')::date, 'YYYY-MM-DD')`;
 
 /**
+ * 시장 필터(`admin-api.md` 4.22 `market`, 2026-10-25) — 바인딩 `param`이 null 이면 전체다. 사용자 축은 **지금 시장**
+ * (`users.market`)으로 가른다: 시장을 옮긴 사람의 지난 기록도 새 시장으로 셈한다(전환은 드물다 — 결정 2026-10-25).
+ * 쿼리 상수 조각이라 인자는 이 파일의 리터럴(열 이름·`$n`)뿐이다.
+ */
+const marketIs = (column: string, param: string): string =>
+  `(${param}::varchar is null or ${column} = ${param})`;
+/** `userIdColumn`의 사용자가 그 시장인가 — `users`를 직접 읽지 않는 표(재생·세션·신호·구독)용 */
+const userInMarket = (userIdColumn: string, param: string): string =>
+  `(${param}::varchar is null or ${userIdColumn} in (select mu.id from users mu where mu.market = ${param}))`;
+
+/**
  * 서비스 지표 요약(`admin-api.md` 4.22)의 집계 — 로그 콘솔 "서비스 지표" 탭이 읽는다.
  *
  * Raw SQL 이다(architecture.md 3.4 — Repository 안에서만, 결과를 타입으로 정의해 반환). 여러 모듈의 테이블을
@@ -154,7 +165,7 @@ const kstDateExpr = (column: string): string =>
 const EVENT_TIER_COUNT = (
   tier: 'daily' | 'pro',
 ): string => `(select count(*) from users u
-           where u.tier = '${tier}'
+           where u.tier = '${tier}' and ${marketIs('u.market', '$2')}
              and exists (select 1 from invite_code_redemptions r
                          where r.user_id = u.id and r.tier = '${tier}' and r.starts_at <= $1 and r.ends_at > $1)
              and not exists (select 1 from subscriptions s
@@ -165,31 +176,39 @@ const EVENT_TIER_COUNT = (
 export class AdminInsightsRepository {
   constructor(private readonly dataSource: DataSource) {}
 
-  async userTotals(now: Date): Promise<InsightsUserTotals> {
+  async userTotals(
+    now: Date,
+    market: UserMarket | null = null,
+  ): Promise<InsightsUserTotals> {
+    const u = marketIs('market', '$2');
+    const byUser = userInMarket('user_id', '$2');
     const [row] = await this.dataSource.query<UserTotalsRow[]>(
       `select
-         (select count(*) from users)::int as current,
-         (select count(*) from withdrawal_logs)::int as withdrawals,
-         (select count(*) from users where onboarding_completed)::int as onboarding_completed,
-         (select count(*) from users where trial_ends_at > $1)::int as trial_active,
-         (select count(*) from users where tier = 'light')::int as tier_light,
-         (select count(*) from users where tier = 'daily')::int as tier_daily,
-         (select count(*) from users where tier = 'pro')::int as tier_pro,
+         (select count(*) from users where ${u})::int as current,
+         (select count(*) from withdrawal_logs where ${u})::int as withdrawals,
+         (select count(*) from users where onboarding_completed and ${u})::int as onboarding_completed,
+         (select count(*) from users where trial_ends_at > $1 and ${u})::int as trial_active,
+         (select count(*) from users where tier = 'light' and ${u})::int as tier_light,
+         (select count(*) from users where tier = 'daily' and ${u})::int as tier_daily,
+         (select count(*) from users where tier = 'pro' and ${u})::int as tier_pro,
          ${EVENT_TIER_COUNT('daily')} as tier_daily_event,
          ${EVENT_TIER_COUNT('pro')} as tier_pro_event,
          (select count(distinct user_id) from subscriptions
-           where status in ('active', 'grace', 'cancelled') and environment = 'production' and expires_at > $1)::int as paid_active,
-         (select count(distinct user_id) from play_records)::int as activated,
-         (select count(distinct user_id) from sessions where issued_at >= $1::timestamptz - interval '1 day')::int as active_1d,
-         (select count(distinct user_id) from sessions where issued_at >= $1::timestamptz - interval '7 days')::int as active_7d,
-         (select count(distinct user_id) from sessions where issued_at >= $1::timestamptz - interval '30 days')::int as active_30d,
-         (select count(distinct user_id) from play_records where played_at >= $1::timestamptz - interval '1 day')::int as listeners_1d,
-         (select count(distinct user_id) from play_records where played_at >= $1::timestamptz - interval '7 days')::int as listeners_7d,
-         (select count(distinct user_id) from play_records where played_at >= $1::timestamptz - interval '30 days')::int as listeners_30d`,
-      [now],
+           where status in ('active', 'grace', 'cancelled') and environment = 'production' and expires_at > $1
+             and ${byUser})::int as paid_active,
+         (select count(distinct user_id) from play_records where ${byUser})::int as activated,
+         (select count(distinct user_id) from sessions where issued_at >= $1::timestamptz - interval '1 day' and ${byUser})::int as active_1d,
+         (select count(distinct user_id) from sessions where issued_at >= $1::timestamptz - interval '7 days' and ${byUser})::int as active_7d,
+         (select count(distinct user_id) from sessions where issued_at >= $1::timestamptz - interval '30 days' and ${byUser})::int as active_30d,
+         (select count(distinct user_id) from play_records where played_at >= $1::timestamptz - interval '1 day' and ${byUser})::int as listeners_1d,
+         (select count(distinct user_id) from play_records where played_at >= $1::timestamptz - interval '7 days' and ${byUser})::int as listeners_7d,
+         (select count(distinct user_id) from play_records where played_at >= $1::timestamptz - interval '30 days' and ${byUser})::int as listeners_30d`,
+      [now, market],
     );
     const byProvider = await this.dataSource.query<ProviderRow[]>(
-      `select provider, count(*)::int as count from users group by provider order by count desc, provider`,
+      `select provider, count(*)::int as count from users where ${marketIs('market', '$1')}
+        group by provider order by count desc, provider`,
+      [market],
     );
 
     return {
@@ -271,17 +290,22 @@ export class AdminInsightsRepository {
    * `since`가 null 이면 전 기간. 전 기간의 재생 수·청취 시간·완청 수는 `play_daily_totals`(줄지 않는 누적)이고, 청취자 수·담기는
    * 사람 단위 원천이라 현재 계정 기준이다(탈퇴하면 빠진다)
    */
-  async listeningTotals(since: Date | null): Promise<InsightsListeningTotals> {
+  async listeningTotals(
+    since: Date | null,
+    market: UserMarket | null = null,
+  ): Promise<InsightsListeningTotals> {
+    const byUser = userInMarket('user_id', '$2');
     const [play] = await this.dataSource.query<ListeningRow[]>(
       `select coalesce(sum(listened_sec), 0)::float8 as listen_sec,
               count(*)::int as plays,
               count(distinct user_id)::int as listeners
          from play_records
-        where $1::timestamptz is null or played_at >= $1`,
-      [since],
+        where ($1::timestamptz is null or played_at >= $1) and ${byUser}`,
+      [since, market],
     );
     let allTimeCompletes: number | null = null;
-    if (since === null) {
+    // 줄지 않는 누적(`play_daily_totals`)은 시장 열이 없다 — 시장을 고르면 전 기간도 재생 행(현재 계정 기준)으로 센다
+    if (since === null && market === null) {
       const [total] = await this.dataSource.query<
         (Pick<ListeningRow, 'listen_sec' | 'plays'> & { completes: number })[]
       >(
@@ -296,16 +320,16 @@ export class AdminInsightsRepository {
     }
     const [complete] = await this.dataSource.query<CountRow[]>(
       `select count(*)::int as count from user_signals
-        where action = 'complete' and ($1::timestamptz is null or created_at >= $1)`,
-      [since],
+        where action = 'complete' and ($1::timestamptz is null or created_at >= $1) and ${byUser}`,
+      [since, market],
     );
     // 담기 = **사용자가 직접 담은 수**(`user_signals.save`). 종전 `library_items.source = save`는 탐색 재생 자동 적립 행도 같은
     // 출처라 섞였고, 새 앱(자동 적립 폐기 — 2026-10-23)이 나가면 그만큼 급락해 추이가 끊긴다. 신호는 직접 담기에만 남는다
     // (explore-api.md 4.3). 신호는 180일 보존이라 전 기간 값도 그 안이다
     const [save] = await this.dataSource.query<CountRow[]>(
       `select count(*)::int as count from user_signals
-        where action = 'save' and ($1::timestamptz is null or created_at >= $1)`,
-      [since],
+        where action = 'save' and ($1::timestamptz is null or created_at >= $1) and ${byUser}`,
+      [since, market],
     );
 
     return {
@@ -325,44 +349,51 @@ export class AdminInsightsRepository {
    * 세션 바로 세기는 `liveFrom`(KST `YYYY-MM-DD`, 세션이 온전히 남아 있는 첫 날)부터다. 어느 쪽을 쓸지는 Service 가 고른다.
    * 접속자는 시장을 나누지 않는다(한 사용자는 한 시장이라 시장 합 = 전체 distinct).
    */
-  async dailyRows(since: Date, liveFrom: string): Promise<InsightsDailyRows> {
+  async dailyRows(
+    since: Date,
+    liveFrom: string,
+    market: UserMarket | null = null,
+  ): Promise<InsightsDailyRows> {
+    const byUser = userInMarket('user_id', '$2');
     const signups = await this.dataSource.query<DateCountRow[]>(
       `select ${kstDateExpr('created_at')} as date, count(*)::int as count
-         from users where created_at >= $1 group by 1 order by 1`,
-      [since],
+         from users where created_at >= $1 and ${marketIs('market', '$2')} group by 1 order by 1`,
+      [since, market],
     );
+    // 탈퇴는 탈퇴 당시 시장(`withdrawal_logs.market` — 계정이 지워져 지금 시장이 없다)
     const withdrawals = await this.dataSource.query<DateCountRow[]>(
       `select ${kstDateExpr('withdrawn_at')} as date, count(*)::int as count
-         from withdrawal_logs where withdrawn_at >= $1 group by 1 order by 1`,
-      [since],
+         from withdrawal_logs where withdrawn_at >= $1 and ${marketIs('market', '$2')} group by 1 order by 1`,
+      [since, market],
     );
     const plays = await this.dataSource.query<DatePlaysRow[]>(
       `select ${kstDateExpr('played_at')} as date,
               count(*)::int as plays,
               count(distinct user_id)::int as listeners,
               coalesce(sum(listened_sec), 0)::float8 as listen_sec
-         from play_records where played_at >= $1 group by 1 order by 1`,
-      [since],
+         from play_records where played_at >= $1 and ${byUser} group by 1 order by 1`,
+      [since, market],
     );
     const completes = await this.dataSource.query<DateCountRow[]>(
       `select ${kstDateExpr('created_at')} as date, count(*)::int as count
-         from user_signals where action = 'complete' and created_at >= $1 group by 1 order by 1`,
-      [since],
+         from user_signals where action = 'complete' and created_at >= $1 and ${byUser} group by 1 order by 1`,
+      [since, market],
     );
 
+    // 저장 표는 그날의 시장별 행이다(그날 시장 기준) — 시장을 고르면 그 행만
     const activeUsersStored = await this.dataSource.query<DateCountRow[]>(
       `select to_char(active_date, 'YYYY-MM-DD') as date, sum(active_users)::int as count
          from daily_active_users
-        where active_date >= ($1::timestamptz at time zone 'Asia/Seoul')::date
+        where active_date >= ($1::timestamptz at time zone 'Asia/Seoul')::date and ${marketIs('market', '$2')}
         group by active_date order by active_date`,
-      [since],
+      [since, market],
     );
     const activeUsersLive = await this.dataSource.query<DateCountRow[]>(
       `select ${kstDateExpr('issued_at')} as date, count(distinct user_id)::int as count
          from sessions
-        where issued_at >= ($1::date)::timestamp at time zone 'Asia/Seoul'
+        where issued_at >= ($1::date)::timestamp at time zone 'Asia/Seoul' and ${byUser}
         group by 1 order by 1`,
-      [liveFrom],
+      [liveFrom, market],
     );
 
     return {
@@ -400,13 +431,16 @@ export class AdminInsightsRepository {
   }
 
   /** 창 안 재생의 KST 시간대 분포 — 재생이 없던 시간대는 Service 가 0 으로 채운다 */
-  async hourly(since: Date): Promise<InsightsHourly[]> {
+  async hourly(
+    since: Date,
+    market: UserMarket | null = null,
+  ): Promise<InsightsHourly[]> {
     const rows = await this.dataSource.query<HourlyRow[]>(
       `select extract(hour from played_at at time zone 'Asia/Seoul')::int as hour,
               count(*)::int as plays,
               coalesce(sum(listened_sec), 0)::float8 as listen_sec
-         from play_records where played_at >= $1 group by 1 order by 1`,
-      [since],
+         from play_records where played_at >= $1 and ${userInMarket('user_id', '$2')} group by 1 order by 1`,
+      [since, market],
     );
     return rows.map((r) => ({
       hour: r.hour,
@@ -420,7 +454,10 @@ export class AdminInsightsRepository {
    * 수는 상위 N 명을 고른 **뒤에** 그 사람들 것만 집계한다(2026-10-09 전체 검증) — 종전에는 select 목록의 상관
    * 서브쿼리가 재생 기록이 있는 **모든** 사용자마다 돌아, 사용자 수에 비례해 질의 수가 늘었다
    */
-  async topUsers(limit: number): Promise<InsightsTopUser[]> {
+  async topUsers(
+    limit: number,
+    market: UserMarket | null = null,
+  ): Promise<InsightsTopUser[]> {
     const rows = await this.dataSource.query<TopUserRow[]>(
       `with ranked as (
          select p.user_id,
@@ -428,6 +465,7 @@ export class AdminInsightsRepository {
                 count(*)::int as plays,
                 max(p.played_at) as last_played_at
            from play_records p
+          where ${userInMarket('p.user_id', '$2')}
           group by p.user_id
           order by listen_sec desc, plays desc, last_played_at desc
           limit $1
@@ -446,7 +484,7 @@ export class AdminInsightsRepository {
             where s.user_id = r.user_id and s.action = 'complete'
          ) c on true
         order by r.listen_sec desc, r.plays desc, r.last_played_at desc`,
-      [limit],
+      [limit, market],
     );
     return rows.map((r) => ({
       userId: r.user_id,
@@ -468,6 +506,7 @@ export class AdminInsightsRepository {
     limit: number,
     since: Date | null = null,
     rankBy: 'listen_sec' | 'listeners' = 'listen_sec',
+    market: UserMarket | null = null,
   ): Promise<InsightsTopContent[]> {
     // 안쪽(집계 열)과 바깥(`r.` 접두사) 두 번 쓴다 — 바깥 조인이 순서를 보장하지 않는다
     const keys =
@@ -483,7 +522,7 @@ export class AdminInsightsRepository {
                 count(*)::int as plays,
                 count(distinct p.user_id)::int as listeners
            from play_records p
-          where $2::timestamptz is null or p.played_at >= $2
+          where ($2::timestamptz is null or p.played_at >= $2) and ${userInMarket('p.user_id', '$3')}
           group by p.content_id
           order by ${order('')}
           limit $1
@@ -501,15 +540,15 @@ export class AdminInsightsRepository {
          left join lateral (
            select count(*)::int as completes from user_signals s
             where s.content_id = r.content_id and s.action = 'complete'
-              and ($2::timestamptz is null or s.created_at >= $2)
+              and ($2::timestamptz is null or s.created_at >= $2) and ${userInMarket('s.user_id', '$3')}
          ) x on true
          left join lateral (
            select count(*)::int as saves from user_signals i
             where i.content_id = r.content_id and i.action = 'save'
-              and ($2::timestamptz is null or i.created_at >= $2)
+              and ($2::timestamptz is null or i.created_at >= $2) and ${userInMarket('i.user_id', '$3')}
          ) v on true
         order by ${order('r.')}`,
-      [limit, since],
+      [limit, since, market],
     );
     return rows.map((r) => ({
       contentId: r.content_id,
@@ -523,10 +562,14 @@ export class AdminInsightsRepository {
     }));
   }
 
-  async withdrawalReasons(): Promise<InsightsWithdrawalReason[]> {
+  async withdrawalReasons(
+    market: UserMarket | null = null,
+  ): Promise<InsightsWithdrawalReason[]> {
     const rows = await this.dataSource.query<ReasonRow[]>(
       `select reason_code, count(*)::int as count from withdrawal_logs
+        where ${marketIs('market', '$1')}
         group by reason_code order by count desc, reason_code`,
+      [market],
     );
     return rows.map((r) => ({ reasonCode: r.reason_code, count: r.count }));
   }
@@ -540,6 +583,7 @@ export class AdminInsightsRepository {
   async retention(
     days: readonly number[],
     now: Date,
+    market: UserMarket | null = null,
   ): Promise<InsightsRetention[]> {
     const rows = await this.dataSource.query<RetentionRow[]>(
       `select n.day::int as day,
@@ -555,9 +599,10 @@ export class AdminInsightsRepository {
               ))::int as returned
          from unnest($1::int[]) as n(day)
          left join users u on u.created_at <= $2::timestamptz - make_interval(days => n.day)
+                          and ${marketIs('u.market', '$3')}
         group by n.day
         order by n.day`,
-      [days, now],
+      [days, now, market],
     );
     return rows.map((r) => ({
       day: r.day,
@@ -580,14 +625,17 @@ export class AdminInsightsRepository {
     to: string,
     span: number,
     offsets: readonly number[],
+    market: UserMarket | null = null,
   ): Promise<InsightsCohortCounts> {
-    const cohort = `
+    // 크기 질의는 `$4`(offsets)를 쓰지 않아 시장 자리가 다르다 — 쓰지 않는 자리를 두면 형 추론이 실패한다
+    const cohort = (marketParam: string) => `
       cohort as (
         select u.id,
                (u.created_at at time zone 'Asia/Seoul')::date as d
           from users u
          where u.created_at >= ($1::date)::timestamp at time zone 'Asia/Seoul'
            and u.created_at < ($2::date)::timestamp at time zone 'Asia/Seoul'
+           and ${marketIs('u.market', marketParam)}
       ),
       keyed as (
         select c.id, c.d,
@@ -595,14 +643,14 @@ export class AdminInsightsRepository {
           from cohort c
       )`;
     const sizes = await this.dataSource.query<InsightsCohortCounts['sizes']>(
-      `with ${cohort}
+      `with ${cohort('$4')}
        select to_char(k.start, 'YYYY-MM-DD') as start, count(*)::int as users
          from keyed k
         group by k.start`,
-      [from, to, span],
+      [from, to, span, market],
     );
     const hits = await this.dataSource.query<CohortHitRow[]>(
-      `with ${cohort},
+      `with ${cohort('$5')},
        activity as (
          select a.user_id, a.active_date
            from user_active_dates a join cohort c on c.id = a.user_id
@@ -623,7 +671,7 @@ export class AdminInsightsRepository {
           and a.active_date >= k.d + o.n * $3::int
           and a.active_date < k.d + (o.n + 1) * $3::int
         group by k.start, o.n`,
-      [from, to, span, offsets],
+      [from, to, span, offsets, market],
     );
     return {
       sizes,
@@ -642,7 +690,11 @@ export class AdminInsightsRepository {
    *
    * 노출 중인 주제와, 숨김이어도 관심 사용자가 남아 있는 주제를 싣는다. 관심 사용자가 많은 순으로 정렬한다(같으면 발행 편수가 적은 쪽 먼저 — 2026-10-13 사용자 요청).
    */
-  async topicSupply(since: Date, now: Date): Promise<InsightsTopicSupply[]> {
+  async topicSupply(
+    since: Date,
+    now: Date,
+    market: UserMarket | null = null,
+  ): Promise<InsightsTopicSupply[]> {
     const rows = await this.dataSource.query<TopicSupplyRow[]>(
       `with visible as (
          select ct.topic_id, c.id as content_id, c.published_at
@@ -655,7 +707,7 @@ export class AdminInsightsRepository {
          select ui.topic_id, ui.user_id
            from user_interests ui
            join users u on u.id = ui.user_id
-          where ui.is_active and u.onboarding_completed
+          where ui.is_active and u.onboarding_completed and ${marketIs('u.market', '$3')}
        ),
        remaining as (
          select d.topic_id, d.user_id,
@@ -695,11 +747,11 @@ export class AdminInsightsRepository {
          from topics t
          left join supply s on s.topic_id = t.id
          left join per_topic p on p.topic_id = t.id
-        where t.is_visible or p.interested_users > 0
+        where (t.is_visible or p.interested_users > 0) and ${marketIs('t.market', '$3')}
         order by coalesce(p.interested_users, 0) desc,
                  coalesce(s.published, 0),
                  t.display_order`,
-      [since, now],
+      [since, now, market],
     );
     return rows.map((r) => ({
       topicId: r.topic_id,

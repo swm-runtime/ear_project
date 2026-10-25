@@ -6,8 +6,9 @@ import { backlogSeries, markPublished, listPublishableEpisodes, requestEpisodeEn
 import { EarTopic, uploadEarContent } from "@/lib/ear";
 import { listConsoleTopics } from "@/lib/console-topics";
 import { episodePublishFiles } from "@/lib/publish-episode";
-import { Badge, PageHeader, Panel, btnCls } from "@/components/ui";
+import { PageHeader, Panel, btnCls } from "@/components/ui";
 import { EarGate, EarSession, earErrMsg } from "../ear-connect";
+import { BulkPublish, type PendingEpisode } from "./bulk-publish";
 
 interface UploadMeta {
   episode_id: string; backlog_id: string; title: string; description: string;
@@ -66,14 +67,15 @@ function UploadForm({ episodeId }: { episodeId: string | null }) {
   const [checks, setChecks] = useState([false, false, false, false]);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ kind: "ok" | "bad"; text: string } | null>(null);
-  const [pending, setPending] = useState<{ id: string; title: string; mid_topic: string; created_at: string }[] | null>(null);
+  const [pending, setPending] = useState<PendingEpisode[] | null>(null);
   const [seriesOf, setSeriesOf] = useState<{ series_id: string; series_no: number } | null>(null); // 시리즈 편 — 개별 발행 없음(spec/11 7장)
 
-  // 발행 대기 목록 — episode 미지정일 때만 (오디오 완료·미발행). 고르면 ?episode=<id> 로 이동해 프리필된다.
+  // 발행 대기 목록 — episode 미지정일 때만 (오디오 완료·미발행). 행에서 [단일 발행]을 고르면 ?episode=<id> 로 이동해 프리필되고, 체크해 모으면 일괄 발행(bulk-publish.tsx)
+  const loadPending = useCallback(() => listPublishableEpisodes().then(setPending).catch(() => setPending([])), []);
   useEffect(() => {
     if (episodeId) { setPending(null); return; }
-    void listPublishableEpisodes().then(setPending).catch(() => setPending([]));
-  }, [episodeId]);
+    void loadPending();
+  }, [episodeId, loadPending]);
 
   // 프리필 — 패키지 메타 + 제품 주제 목록
   useEffect(() => {
@@ -169,26 +171,9 @@ function UploadForm({ episodeId }: { episodeId: string | null }) {
       <div className="space-y-4">
         {episodeId && <Link href="/publish/upload" className="inline-block text-xs text-ink-soft underline hover:text-ink">← 발행 대기 목록</Link>}
         {!episodeId && (
-          <Panel title="발행 대기 — 패키지 · 오디오 완료 (미발행)">
-            {pending === null ? (
-              <p className="text-[13px] text-ink-soft">불러오는 중…</p>
-            ) : pending.length === 0 ? (
-              <p className="text-[13px] text-ink-soft">발행 대기 중인(패키지·오디오 완료·미발행) 에피소드가 없어요. 아래에서 파일을 직접 올려도 됩니다.</p>
-            ) : (
-              <div className="divide-y divide-line">
-                {pending.map((e) => (
-                  <button key={e.id} onClick={() => router.push(`/publish/upload?episode=${e.id}`)}
-                    className="flex w-full items-center gap-3 rounded px-1 py-2 text-left text-[13px] hover:bg-[#f7f9fb]">
-                    <span className="font-medium text-ink">{e.title}</span>
-                    <span className="text-[11px] text-ink-soft">{e.mid_topic}</span>
-                    <span className="ml-auto font-mono text-[11px] text-ink-soft">{e.id}</span>
-                    <Badge tone="done">발행 준비</Badge>
-                  </button>
-                ))}
-              </div>
-            )}
-            <p className="mt-2 text-[11px] text-ink-soft">고르면 그 에피소드의 배포본(dist.m4a)·메타가 자동으로 채워져요. 목록에 없으면 아래에서 파일을 직접 올리면 됩니다.</p>
-          </Panel>
+          pending === null
+            ? <Panel title="발행 대기 — 패키지 · 오디오 완료 (미발행)"><p className="text-[13px] text-ink-soft">불러오는 중…</p></Panel>
+            : <BulkPublish key={pending.map((p) => p.id).join(",")} pending={pending} onDone={() => void loadPending()} />
         )}
         <Panel title="발행 메타">
           <div className="space-y-3 text-[13px]">

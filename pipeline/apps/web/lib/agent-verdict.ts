@@ -15,6 +15,20 @@ export function agentBlock(verdicts: unknown): AgentBlock | null {
   return a && typeof a === "object" ? (a as AgentBlock) : null;
 }
 
+/** 판정 점수 한 줄 (발행 대기 목록, 2026-10-25 박수헌 "AI 채점 점수도 볼 수 있게") — judge_loop 가 남긴 `agent.loop` 에서 최고판 편집자 중앙값·회차별 점수·필수 수정 수리 수를 읽는다.
+ *  loop 가 없는 옛 판정(파일럿)은 agent.editor_score 류가 없으므로 null — 화면은 "판정 점수 없음"으로 둔다 */
+export interface AgentScore { score: number; original: number; bestRound: number; totals: number[]; threshold: number | null; mustFix: number; fixed: number; publishable: boolean }
+export function agentScore(verdicts: unknown): AgentScore | null {
+  const a = agentBlock(verdicts) as (AgentBlock & { loop?: { best?: number; threshold?: number; rounds?: { t?: number; total?: number }[] } }) | null;
+  const rounds = a?.loop?.rounds;
+  if (!a || !Array.isArray(rounds) || rounds.length === 0) return null;
+  const totals = rounds.map((r) => Number(r.total)).filter((n) => Number.isFinite(n));
+  if (!totals.length) return null;
+  const best = typeof a.loop?.best === "number" && a.loop.best < totals.length ? a.loop.best : totals.indexOf(Math.max(...totals));
+  const mf = Array.isArray(a.must_fix) ? a.must_fix : [];
+  return { score: totals[best], original: totals[0], bestRound: best, totals, threshold: typeof a.loop?.threshold === "number" ? a.loop.threshold : null, mustFix: mf.length, fixed: mf.filter((m) => m.status === "fixed").length, publishable: a.publishable === true };
+}
+
 export function agentGate(verdicts: unknown): AgentGateResult {
   const a = agentBlock(verdicts);
   if (!a) return { ok: false, blockers: ["에이전트 판정이 아직 없습니다"], openFixes: [] };

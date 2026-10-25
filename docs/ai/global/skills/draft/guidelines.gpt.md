@@ -1,6 +1,6 @@
 # Script Writing Guidelines
 
-> Version: **full-en-v0.22** (2026-10-23) · GPT profile · global pipeline. Rationale and sources: [CHANGELOG.md](CHANGELOG.md).
+> Version: **full-en-v0.23** (2026-10-25) · GPT profile · global pipeline. Rationale and sources: [CHANGELOG.md](CHANGELOG.md).
 > Rule numbers are reference IDs for L0, QA and the critic. Do not reuse or renumber them.
 
 ## Principles
@@ -15,7 +15,7 @@
 
 1. **The explainer is a Korean insider.** The explainer tells how things are done in Korea in their own voice: the Korean name people use, an everyday practice, how people around them do it. Use the outline's Insider detail inside what people do or say. Every statement about how Koreans live or think comes from the claims, in the general present tense. Do not use "we" for Koreans or claim authority from being Korean.
 
-42. **Tell facts directly; no sources in lines.** The app lists the sources. Do not name, describe, or date a source, and never make a source or its writer the subject of a sentence ("According to", "A food writer says", "The guide explains"). State facts and practices as the explainer's own knowledge. A view belongs to the people the claim names, by role ("Many parents see it as …", "The drama's producer wanted …"). Frames such as "One view is", "One way to understand", "In that view", and "In her view" appear at most once in the episode. No vague authority ("experts say", "studies show").
+42. **Tell facts directly; no sources in lines.** The app lists the sources. Do not name, describe, or date a source, and never make a source or its writer the subject of a sentence ("According to", "A food writer says", "The guide explains"). State facts and practices as the explainer's own knowledge. A view belongs to the people the claim names, by role ("Many parents see it as …", "The drama's producer wanted …"). A role is a part in the practice: a parent, a fan, a shop owner, a trainee. Someone who observes the practice from outside it is a source, not a role: a researcher, a professor, a critic, a journalist, a curator, an official, a company executive, survey respondents. Do not say "in a researcher's view", "in a survey", "interviewed", or "a critic calls it"; state what they found as the explainer's own knowledge, or as what some people think. Frames such as "One view is", "One way to understand", "In that view", and "In her view" appear at most once in the episode. No vague authority ("experts say", "studies show").
 
 9. **Host turns have one job, in varied forms.** A host turn is a question, a guess about what the people in the scene do or feel, a doubt, or a plain observation of a detail. Two in five to three in four of host turns in the Body are questions. Vary the rest: at most two build on might, may, probably, perhaps, or maybe; at most three use I, me, my, or would; at most two react with sounds, feels, or seems. A host turn never restates the last explanation, echoes its phrase, or states its conclusion in advance. A guess stays inside what the explainer has already said; it never offers the answer the next explainer turn gives. No negative questions. No questions about samples, methods, or statistics.
 
@@ -57,11 +57,11 @@
 
 ## Spoken English
 
-17. **Plain words.** Use words a B2 learner knows and common one-word verbs; avoid phrasal verbs with a non-literal meaning. Use the outline's Terms: one plain name per thing, every time. A place keeps its romanized name plus what it is (Gochang County), or its established English name (Seoul). Explain a common word only when it has a different sense here. Never define a word with itself.
+17. **Plain words.** Use words a B2 learner knows and common one-word verbs; avoid phrasal verbs with a non-literal meaning. Use the outline's Terms: one plain name per thing, every time. A place keeps its romanized name plus what it is (Gochang County), or its established English name (Seoul). Use a common word only in its most common sense (company is a business, chew is the action, fixed is repaired, cheap is a low price); when the meaning you need is another sense, use a different word. Explain a common word only when it has a different sense here. Never define a word with itself, and never explain a term with another term the listener may not know.
 
 18. **Nothing that depends on native culture.** No idioms, slang, sports metaphors, irony, wordplay, or references to American or British TV, holidays, or school life.
 
-19, 20, 22. **Speech rhythm.** One idea per sentence, main point first, reason in the next sentence. Use contractions. Explainer turns have 2 to 5 sentences, never more than 6; host turns have 1 or 2. Sometimes the explainer answers in one line and stops. No turn trails off.
+19, 20, 22. **Speech rhythm.** One idea per sentence, main point first, reason in the next sentence. The subject and its verb come first; a describing clause follows the noun it describes, never another noun. Use contractions. Explainer turns have 2 to 5 sentences, never more than 6; host turns have 1 or 2. Sometimes the explainer answers in one line and stops. No turn trails off.
 
 21. **Punctuation for the ear.** Periods, commas, and question marks. No dashes, semicolons, or parentheses. A colon only in a clock time. "..." at most twice per episode, only for a pause to choose a word.
 
@@ -77,7 +77,7 @@
 
 ## Length and format
 
-34. **Length.** Count spoken words. The target is the outline's minutes × 146 words, within 10 percent, never below 730. If short, use unused claims; never pad or invent. If the materials cannot reach the floor, say so in notes.
+34. **Length.** Count spoken words. The target is the outline's minutes × 146 words, within 10 percent, never below 730. Write at least 760 words even when the target is lower, so that a later edit cannot take the script under 730. If short, use unused claims; never pad or invent. If the materials cannot reach the floor, say so in notes.
 
 35. **Zones and lines.** Zones `## [Intro]`, `## [Opening]`, `## [Body]`, `## [Closing]`, once each, in order. Body sections are `### #n Title` with the outline's numbers. Turns are `[Name] E1 · text` and `[Name] Y1 · text`, numbered from 1, with the exact speaker names. The first line follows the prompt's meta format.
 
@@ -87,7 +87,7 @@
 
 ## Facts
 
-41. **Facts come only from the claims,** in explainer turns only. Never raise a claim's strength, scope, or certainty. Keep every condition it states: who, to whom, where, when, which ones, how many (some, most, only, especially), a contrast with another country, past or present. A practice of one person or place stays theirs. A named set keeps every item; a partial list stays partial. A guide's instruction stays advice: who it is for and what it advises. List the claim IDs of each explainer turn in turn_claims.
+41. **Facts come only from the claims,** in explainer turns only. Never raise a claim's strength, scope, or certainty. Keep every condition it states: who, to whom, where, when, which ones, how many (some, most, only, especially), a contrast with another country, past or present. A practice of one person or place stays theirs. A named set keeps every item; a partial list stays partial. A guide's instruction stays advice: who it is for and what it advises. An observation the claim dates keeps its year and its past tense; use the present only for a practice the claim states as current. List the claim IDs of each explainer turn in turn_claims.
 
 43, 44. **Claims stay in place; no footnotes.** Use each claim in its outline section. Do not say sample sizes, methods, or journal names; describe a study by who it looked at and what it found. Paraphrase quotes, except the short words said in a scene. Give the year for statistics about Korean society.
 

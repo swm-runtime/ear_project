@@ -74,3 +74,95 @@ class TestLoadSettings:
         assert settings.provider == "stub"
         assert settings.model == "dev-stub"
         assert settings.dim == 256
+
+
+class TestOpenAiClient:
+    """KAN-253 — 연결 재사용. 실제 OpenAI 를 부르지 않고 MockTransport 로 요청을 센다."""
+
+    def _settings(self, keepalive_sec: int):
+        from app.config import Settings
+
+        return Settings(
+            provider="openai", model="text-embedding-3-small", dim=4, chunk_chars=4000,
+            internal_auth_token="t", openai_api_key="sk-test", openai_base_url="https://example.test/v1",
+            keepalive_sec=keepalive_sec,
+        )
+
+    def test_같은_클라이언트가_요청을_모두_보내고_index_순서로_돌려준다(self):
+        import httpx
+
+        from app.services.embedding.client import OpenAiEmbeddingClient
+
+        seen: list[httpx.Request] = []
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            seen.append(request)
+            # 응답을 일부러 뒤집어 보낸다 — index 로 재정렬해야 한다
+            return httpx.Response(200, json={"data": [{"index": 1, "embedding": [0, 0, 0, 1]}, {"index": 0, "embedding": [1, 0, 0, 0]}]})
+
+        client = OpenAiEmbeddingClient(self._settings(keepalive_sec=0), transport=httpx.MockTransport(handler))
+        try:
+            assert client.embed(["a", "b"]) == [[1, 0, 0, 0], [0, 0, 0, 1]]
+            client.embed(["c"])
+        finally:
+            client.close()
+
+        assert len(seen) == 2
+        assert all(r.url.path == "/v1/embeddings" for r in seen)
+        assert seen[0].headers["authorization"] == "Bearer sk-test"
+        body = seen[0].read()
+        assert b'"dimensions":4' in body or b'"dimensions": 4' in body
+
+    def test_깨우기는_GET_models_이고_실패해도_예외가_나지_않는다(self):
+        import httpx
+
+        from app.services.embedding.client import OpenAiEmbeddingClient
+
+        calls: list[str] = []
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            calls.append(request.url.path)
+            return httpx.Response(500) if len(calls) > 1 else httpx.Response(200, json={"data": []})
+
+        client = OpenAiEmbeddingClient(self._settings(keepalive_sec=0), transport=httpx.MockTransport(handler))
+        try:
+            assert client.warm() is True
+            assert client.warm() is False
+        finally:
+            client.close()
+
+        assert calls == ["/v1/models", "/v1/models"]
+        assert client.warm_count == 1
+
+    def test_keepalive_0이면_스레드를_띄우지_않는다(self):
+        import httpx
+
+        from app.services.embedding.client import OpenAiEmbeddingClient
+
+        client = OpenAiEmbeddingClient(self._settings(keepalive_sec=0), transport=httpx.MockTransport(lambda r: httpx.Response(200, json={"data": []})))
+        try:
+            assert client._warmer is None
+        finally:
+            client.close()
+
+    def test_build_client는_같은_설정에_같은_인스턴스를_돌려준다(self):
+        from app.services.embedding.client import build_client
+
+        settings = self._settings(keepalive_sec=0)
+        assert build_client(settings) is build_client(settings)
+        build_client.cache_clear()
+
+
+class TestKeepaliveConfig:
+    def test_기본값과_0_허용_음수_거부(self, monkeypatch):
+        monkeypatch.setenv("INTERNAL_AUTH_TOKEN", "t")
+        monkeypatch.setenv("EMBEDDING_PROVIDER", "stub")
+        monkeypatch.delenv("EMBEDDING_KEEPALIVE_SEC", raising=False)
+        assert load_settings().keepalive_sec == 55
+
+        monkeypatch.setenv("EMBEDDING_KEEPALIVE_SEC", "0")
+        assert load_settings().keepalive_sec == 0
+
+        monkeypatch.setenv("EMBEDDING_KEEPALIVE_SEC", "-1")
+        with pytest.raises(ConfigError):
+            load_settings()

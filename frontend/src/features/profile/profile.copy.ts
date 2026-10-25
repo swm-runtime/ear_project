@@ -18,6 +18,7 @@ import { toListenedDayParts, toListenedSummaryParts, toWeekRangeParts } from './
 import type {
   DailyListeningHighlight,
   ListeningHighlight,
+  TopicHighlight,
   YearsOfExperience,
 } from './profile.types';
 
@@ -296,6 +297,43 @@ const ko = {
     distributionTitle: '주로 듣는 주제',
     /** 1위 주제 헤드라인 앞 라벨 — "가장 많이 들은 주제"(PM 2026-09-27 23:42, 스크린 타임 "가장 많이 사용함" 자리) */
     topTopicLabel: '가장 많이 들은 주제',
+    /**
+     * "가장 많이 들은 주제" 옆 한 줄(profile-uiux.md 4.6 — PM 2026-10-24). 종류는 서버가 고른다. main = 화면(옆자리가 좁아
+     * 짧게), a11y = 낭독(가운뎃점 대신 쉼표). 안 들어본 주제만 버튼이라 "›"가 붙는다
+     */
+    topicHighlight: (highlight: TopicHighlight) => {
+      switch (highlight.kind) {
+        case 'unexplored':
+          return {
+            main: `안 들어본 주제 · ${highlight.name} ›`,
+            a11y: `아직 안 들어본 주제, ${highlight.name}`,
+          };
+        case 'peerTop':
+          return {
+            main: `같은 직군 1위 · ${highlight.name}`,
+            a11y: `같은 직군 1위, ${highlight.name}`,
+          };
+        case 'topStreak':
+          return { main: `${highlight.weeks}주 연속 1위`, a11y: `${highlight.weeks}주 연속 1위` };
+        case 'topicCount':
+          return {
+            main: `이번 주 ${highlight.count}개 주제`,
+            a11y: `이번 주 ${highlight.count}개 주제를 들었어요`,
+          };
+        // 요일을 골랐을 때(KAN-268 — PM 2026-10-24 "일 선택했을 때도")
+        case 'dayStreak':
+          return {
+            main: `${highlight.days}일 연속 1위`,
+            a11y: `그날까지 ${highlight.days}일 연속 1위`,
+          };
+        case 'dayTopicCount':
+          return {
+            main: `그날 ${highlight.count}개 주제`,
+            a11y: `그날 ${highlight.count}개 주제를 들었어요`,
+          };
+      }
+    },
+    topicHighlightHint: '탐색에서 이 주제 보기',
     /**
      * 주간 청취 카드 안에 합친 뒤의 라벨 — 주별 주제 집계가 서버에 생기기 전까지는 전체 기간 값이라 기간을 밝힌다.
      * 위 차트는 선택한 주라, 안 밝히면 주를 넘겨도 주제가 그대로인 것이 고장으로 읽힌다
@@ -576,6 +614,41 @@ const en: LocalizedCopy<typeof ko> = {
 
     distributionTitle: 'Top topics',
     topTopicLabel: 'Most played topic',
+    topicHighlight: (highlight: TopicHighlight) => {
+      switch (highlight.kind) {
+        case 'unexplored':
+          return {
+            main: `New to you · ${highlight.name} ›`,
+            a11y: `Not listened yet, ${highlight.name}`,
+          };
+        case 'peerTop':
+          return {
+            main: `Top in your field · ${highlight.name}`,
+            a11y: `Top in your field, ${highlight.name}`,
+          };
+        case 'topStreak':
+          return {
+            main: `#1 for ${highlight.weeks} weeks`,
+            a11y: `Number one for ${highlight.weeks} weeks in a row`,
+          };
+        case 'topicCount':
+          return {
+            main: `${enCount(highlight.count, 'topic', 'topics')} this week`,
+            a11y: `You listened to ${enCount(highlight.count, 'topic', 'topics')} this week`,
+          };
+        case 'dayStreak':
+          return {
+            main: `#1 for ${enCount(highlight.days, 'day', 'days')}`,
+            a11y: `Number one for ${enCount(highlight.days, 'day', 'days')} in a row`,
+          };
+        case 'dayTopicCount':
+          return {
+            main: `${enCount(highlight.count, 'topic', 'topics')} that day`,
+            a11y: `You listened to ${enCount(highlight.count, 'topic', 'topics')} that day`,
+          };
+      }
+    },
+    topicHighlightHint: 'Opens this topic in Explore',
     topTopicAllTimeLabel: 'Most played topic · All time',
     topTopicDayLabel: (dayIndex: number) =>
       `Most played topic · ${EN_DAY_FULL_NAMES[dayIndex] ?? ''}`,

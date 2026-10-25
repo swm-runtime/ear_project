@@ -7,7 +7,7 @@ import { deletePrefix, getBytes, getText, putBytes, putText } from "@/lib/storag
 import { readScriptFileBody } from "@/lib/script-file";
 import { majorOrder, majorTopicsFor } from "@/lib/taxonomy";
 import { ensureEmbedding } from "@/lib/embedding";
-import { agentGate } from "@/lib/agent-verdict";
+import { agentGate, agentScore, type AgentScore } from "@/lib/agent-verdict";
 import { screenGlobalTopic } from "@/lib/topic-screen";
 
 /** 음차 사전·발음 맵 공통 형식 검증 — {"표기": "발음"} 객체, 값은 비어 있지 않은 문자열 (spec/06 6장).
@@ -223,6 +223,15 @@ export async function backlogSeries(backlogId: string): Promise<{ series_id: str
   const sb = await supabaseServer();
   const { data } = await sb.from("backlog").select("series_id,series_no").eq("id", backlogId).maybeSingle();
   return data?.series_id ? { series_id: data.series_id as string, series_no: data.series_no as number } : null;
+}
+
+/** 발행 대기 목록의 판정 점수 (2026-10-25) — 에피소드별 agent.loop 최고판 점수·회차·필수 수정 수리 수. 판정 없는 편(한국판·파일럿)은 null */
+export async function episodeJudgeScores(episodeIds: string[]): Promise<Record<string, AgentScore | null>> {
+  if (!episodeIds.length) return {};
+  const sb = await supabaseServer();
+  const { data, error } = await sb.from("episodes").select("id,critic_verdicts").in("id", episodeIds);
+  if (error) throw new Error(error.message);
+  return Object.fromEntries((data ?? []).map((e) => [e.id as string, agentScore(e.critic_verdicts)]));
 }
 
 export async function listPublishableEpisodes(): Promise<{ id: string; title: string; mid_topic: string; created_at: string }[]> {

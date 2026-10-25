@@ -20,6 +20,7 @@
  * - stats-error          stats 섹션만 실패 — P10 변형 B
  * - weekly-error         '2026-07-20' 주 첫 조회만 실패(재시도는 성공) — P9 인라인 에러
  * - weekly-out-of-range  가입 주 이전 토큰이 내려와 STATS_WEEK_OUT_OF_RANGE — 무노출·표시 주 유지 검증
+ * - topic-peer / topic-streak / topic-count  주제 한 줄(KAN-266)의 다른 종류. 기본은 안 들어본 주제(역사)
  */
 import { ApiError } from '@/shared/api/api-error';
 import { ERROR_CODES } from '@/shared/api/error-codes';
@@ -84,13 +85,43 @@ const toWeeklyDtoAt = (index: number): WeeklyListeningResponseDto => {
     // 주간 한 줄(KAN-170) — 상위 % · 전주보다 더 · 들은 날 수가 주마다 하나씩 보이게. 빈 주는 null
     listening_highlight: week.daily.every((sec) => sec === 0)
       ? null
-      : ([
-          { kind: 'top_percent', percent: 12 },
-          { kind: 'more_than_previous', diff_sec: 4260 },
-          { kind: 'listened_days', days: 5 },
-          null,
-          { kind: 'listened_days', days: 2 },
-        ] as const)[index] ?? null,
+      : ((
+          [
+            { kind: 'top_percent', percent: 12 },
+            { kind: 'more_than_previous', diff_sec: 4260 },
+            { kind: 'listened_days', days: 5 },
+            null,
+            { kind: 'listened_days', days: 2 },
+          ] as const
+        )[index] ?? null),
+    // 주제 한 줄(KAN-266) — 이번 주에만 온다. 시나리오로 종류를 고른다(기본은 안 들어본 주제)
+    topic_highlight:
+      index !== 0 || week.daily.every((sec) => sec === 0)
+        ? null
+        : ((
+            {
+              'topic-peer': { kind: 'peer_top_topic', topic_id: 'mock-econ', name: '경제' },
+              'topic-streak': { kind: 'top_topic_streak', weeks: 3 },
+              'topic-count': { kind: 'topic_count', count: 4 },
+            } as const
+          )[SCENARIO as 'topic-peer' | 'topic-streak' | 'topic-count'] ?? {
+            kind: 'unexplored_topic',
+            topic_id: 'mock-history',
+            name: '역사',
+          }),
+    // 요일 주제 한 줄(KAN-268) — 이번 주에만. 들은 날마다 세 종류를 돌려 쓴다
+    daily_topic_highlight:
+      index !== 0
+        ? week.daily.map(() => null)
+        : week.daily.map((sec, dayIndex) => {
+            if (sec === 0) return null;
+            const kinds = [
+              { kind: 'unexplored_topic', topic_id: 'mock-history', name: '역사' },
+              { kind: 'top_topic_day_streak', days: 2 },
+              { kind: 'topic_count', count: 3 },
+            ] as const;
+            return kinds[dayIndex % 3];
+          }),
     // 요일별 한 줄(KAN-171) — 세 종류가 한 주 안에 다 보이게 돌려 쓴다. 0초인 날은 null
     daily_listening_highlight: week.daily.map((sec, dayIndex) => {
       if (sec === 0) return null;

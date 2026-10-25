@@ -183,11 +183,22 @@ export default function ProfileScreen() {
                             distribution={dayDistribution}
                             embedded
                             label={PROFILE_COPY.stats.topTopicDayLabel(day)}
+                            // 요일을 고르면 그날의 한 줄(KAN-268 — 종전엔 숨겼다)
+                            highlight={week?.dailyTopicHighlights?.[day] ?? null}
+                            onUnexploredPress={screen.openUnexploredTopic}
                           />
                         );
                       }
                       if (week?.topicDistribution) {
-                        return <TopicDonut distribution={week.topicDistribution} embedded />;
+                        // 고른 주의 분포 — 주간 한 줄(요일을 골랐으면 위 갈래의 그날 한 줄, profile.md 4.7-1)
+                        return (
+                          <TopicDonut
+                            distribution={week.topicDistribution}
+                            embedded
+                            highlight={week.topicHighlight}
+                            onUnexploredPress={screen.openUnexploredTopic}
+                          />
+                        );
                       }
                       return (
                         <TopicDonut

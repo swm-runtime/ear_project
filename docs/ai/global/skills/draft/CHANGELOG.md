@@ -2,6 +2,30 @@
 
 > 대상: `guidelines.gpt.md`(글로벌 DB `prompt_assets` 가 진실 — 이 폴더는 시딩·검토용 git 사본). 규칙 본문은 모델이 읽는 영어이고, 근거·출처·이전 판 문구는 이 파일에만 둔다(한국판 규칙 자산 원칙과 같음).
 
+## full-en-v0.23 (2026-10-25) — 규칙 42 관찰자 역할 + L0 · 규칙 41 시점 · 규칙 34 760단어 · 규칙 17 중의어 · 규칙 19 어순
+
+원천: 같은 83편 전수(아래 「판정 문서 정합」과 같은 자료). 판정을 가르는 것은 장면이고 그 누수는 판정 문서 쪽에서 막았다. 이 판은 규칙은 있는데 지켜지지 않아 필수 수정·재생성으로 반복되는 네 가지를 규칙 문장 하나씩과 L0 로 올린다. 비평·QA 는 그대로(critic-en-v0.13 · qa-en-v0.11). 국내판은 그대로.
+
+- **규칙 42 · L0** — 관찰자는 출처다. "역할로 말하라"를 모델이 researcher · professor · critic · journalist · curator · executive · "in a survey" · "interviewed" 까지로 읽어 한국어·사실 필수 수정 38건 · 24편(미달 편 47% vs 통과 편 26%)이 문장 가운데의 출처 지칭이었다. 문장 머리만 보던 L0(srcKind)에 관찰자 명사 + 견해 명사("in a food researcher's view") · 자료 명사 앞 전치사("in the same survey") · 취재 동사("interviewed", "at a press interview") · 관찰자 + 전달 동사("a music critic calls it")를 더했다(srcMid). 관행 속 역할(parent · fan · shop owner)과 "a professor" 단독은 세지 않는다.
+- **규칙 41** — 날짜 있는 관찰은 그 해와 과거형을 지킨다. 2014·2019년 관찰을 현재형으로 옮긴 필수 수정 14건.
+- **규칙 34** — 작성 목표 760단어 이상. QA 수정으로 723~726단어가 되어 하한 730을 4~7단어 모자라고, 보충하면 다시 QA 로 가는 핑퐁이 3편(G261024-004 · G261025-016 · G261025-025 — 마지막은 review_required). L0 하한 730은 그대로.
+- **규칙 17** — 흔한 낱말은 가장 흔한 뜻으로만. 편집자 필수 수정 90건 중 25건이 company(동행) · chew(식감) · fixed(조작) · cheap(천박) · flight(도주) · standing(지위) · sports coat 처럼 B2 청자가 다른 뜻으로 듣는 낱말이었고, 10건이 낯선 말을 다른 낯선 말(bench coats · disparaging · social cost)로 푼 자리였다.
+- **규칙 19** — 주어·동사 먼저, 관계절은 꾸미는 명사 바로 뒤. 편집자 지적 12건이 "hoods that reach the knees"(후드가 무릎까지) · "people gathered … gave"(절로 들림) · 주어 후치였다.
+
+올리지 않은 것: QA 항목 8(실패의 66%지만 한 회차 더 돌면 풀리고 판정 점수와 무관 — 구조적 자리 둘은 qa-en-v0.11 에서 처리) · L0 가 같은 턴을 5회 재지적한 G261024-006 E18 과 "지적 문구가 턴에 없다" 2건(오탐 조사 뒤) · 로마자 표기 오류 17건(korea-check 가 수리) · 분야별 원판 격차(Beauty 54.5 · Drama 55.8 vs Language · History 59 — 설계 재료 문제).
+
+## 판정 문서 정합 (2026-10-25) — 규칙 판은 그대로(full-en-v0.22) · QA qa-en-v0.11
+
+원천: 10-22~10-25 운영 83편(v0.22 60편) 전수 — 편집자 지적 90건 · 한국어·사실 필수 수정 211건 · QA 실패 210건 · 재생성 227건 · 비평·판정 요약 81편. 판정 78편(통과 61 · 미달 17)에서 통과를 가른 것은 장면이었다(비평 "장면 부재" 미달 71% vs 통과 30% · 편집자 "구조 개편 필요" 71% vs 5%). 반복·기계적 리듬·문어체·영어 중의어는 통과 편에 더 많아 변별력이 없다. 그런데 규칙·QA와 판정 문서가 서로 다른 말을 해 장면을 지우고 루프를 허비하는 자리가 넷 있었다. 규칙 본문은 바꾸지 않고 판정 문서(저장소 파일)와 QA 프롬프트만 맞춘다.
+
+- **house-style 「People」** — 발췌의 사적 인물은 익명 사례다. 규칙 6과 QA 항목 11(qa-en-v0.9)은 허용하는데 house-style 은 "실존 인물은 공적 활동만"이라 한국어·사실 검토가 16편에서 익명 사례(스킨케어 루틴·한강 산책·스크린골프 동창 모임·헤어롤)를 필수 수정으로 지웠다. 점수는 삭제 전 대본에 매기므로 발행본이 판정받은 판보다 장면이 적어진다. korea-check 에도 "finding 아님"으로 명시.
+- **house-style 「Romanization」 뜻풀이 위치** — 규칙 48(첫 사용 + 두 구간 뒤 재등장)과 house-style("바로 뒤에 항상")이 달라 재등장 단어(gwaenchanayo 4회 · pojangmacha 6회)가 29편에서 지적됐다. 규칙 48에 맞춘다.
+- **house-style · korea-check 4항 Seoul** — 규칙 49는 영어 이름이 굳은 지명을 발음 목록에 넣지 않는데 korea-check 는 "발화된 한국어 전부"를 요구해 "Seoul 누락"이 8편에서 반복됐다. 굳은 영어 이름은 항목 불필요.
+- **house-style · korea-check 1항 · QA** — 영어 일반어의 사전적 뜻(scallions are green onions · dementia · charcoal briquettes)은 claim 이 필요 없다. QA 항목 2 실패 35건 중 16건(v0.22 15건), korea-check 14건이 이 유형인데 편집자는 미설명 용어 10건을 필수 수정으로 요구했다. qa-en-v0.10 이 한국어 뜻풀이에 둔 면제를 영어 일반어로 넓힌다.
+- **QA 항목 2·8·중복 계상** — 발췌가 뒷받침하면 claims 매핑이 없어도 통과(G261025-025 가 항목 4 → 항목 2 로 3회 전부 실패, review_required) · 도입부 첫 해설 전 진행 턴은 인트로의 관행과 바깥에서 보이는 모습까지 허용(Y2 4편 · "My guess is" 5편 구조적 실패) · 한 표현은 한 번만 실패(G261023-014 항목 8·9·3 중복).
+
+올리지 않은 것(다음 판 full-en-v0.23 후보): 규칙 42 관찰자 역할(researcher · critic · survey · interviewed — 필수 수정 38건 · 24편, 미달 편 47% vs 통과 26%) + L0 확장 · 규칙 41 시점 조건(14건) · 규칙 34 작성 목표 760단어(QA 수정 뒤 723~726 → 하한 730 핑퐁 3편) · 규칙 17 중의어(편집자 지적 25건).
+
 ## L0 정밀도 (2026-10-23 밤) — 규칙 판은 그대로(full-en-v0.22)
 
 원천: 끝까지 추적 테스트 G261023-024(복날) E9 — "The expression is iyeolchiyeol… **It connects** traditional belief in five elements with…". L0 의 출처 호명 검사(규칙 42)가 v0.7 부터 "It/She/He/They + says·argues·connects·dates…"·"Its warning…" 꼴을 세는데(10-17 사례: "A Korea JoongAng Daily report describes… It dates… She connects…"), 정규식은 선행사를 모르므로 관용구를 받는 It 도 출처로 세었다. 초안 L0 수정이 3회 돌아도 못 풀고 QA 로 넘어갔고, 판정 0회차에도 기록됐다.

@@ -11,8 +11,13 @@ import {
   calculateListeningTopPercent,
   calculateStreakDays,
   countDailyListenedContents,
+  countTopTopicDayStreak,
+  countTopTopicStreak,
+  isTopicConcentrated,
   pickDailyListeningHighlights,
   pickListeningHighlight,
+  pickUnexploredTopic,
+  rankTopicsByListenedSec,
 } from './profile.stats';
 
 const CONTENT_A = 'aaaaaaaa-1111-4111-8111-111111111111';
@@ -525,5 +530,139 @@ describe('profile.stats', () => {
         2, 0, 0, 0, 0, 0, 0,
       ]);
     });
+  });
+});
+
+describe('주제 한 줄 판정(profile.md 4.7-1)', () => {
+  const T1 = 'cccccccc-1111-4111-8111-111111111111';
+  const T2 = 'cccccccc-2222-4222-8222-222222222222';
+  const T3 = 'cccccccc-3333-4333-8333-333333333333';
+
+  describe('rankTopicsByListenedSec', () => {
+    it('여러 주제에 속한 콘텐츠는 각 주제에 청취 시간을 그대로 더하고 많이 들은 순으로 둔다', () => {
+      const ranked = rankTopicsByListenedSec(
+        [
+          { contentId: CONTENT_A, listenedSec: 300 },
+          { contentId: CONTENT_B, listenedSec: 500 },
+        ],
+        [
+          { contentId: CONTENT_A, topicId: T1, name: '커리어' },
+          { contentId: CONTENT_A, topicId: T2, name: 'IT' },
+          { contentId: CONTENT_B, topicId: T2, name: 'IT' },
+        ],
+      );
+
+      expect(ranked).toEqual([
+        { topicId: T2, name: 'IT', listenedSec: 800 },
+        { topicId: T1, name: '커리어', listenedSec: 300 },
+      ]);
+    });
+
+    it('0초 콘텐츠의 주제는 들은 주제로 세지 않는다', () => {
+      expect(
+        rankTopicsByListenedSec(
+          [{ contentId: CONTENT_A, listenedSec: 0 }],
+          [{ contentId: CONTENT_A, topicId: T1, name: '커리어' }],
+        ),
+      ).toEqual([]);
+    });
+  });
+
+  describe('isTopicConcentrated', () => {
+    it('들은 주제가 하나뿐이면 쏠림이다', () => {
+      expect(
+        isTopicConcentrated(
+          {
+            topics: [{ topicId: T1, name: '커리어', ratio: 100 }],
+            othersRatio: 0,
+          },
+          1,
+        ),
+      ).toBe(true);
+    });
+
+    it('1위가 60% 이상이면 쏠림이고 미만이면 아니다', () => {
+      const of = (ratio: number) => ({
+        topics: [
+          { topicId: T1, name: '커리어', ratio },
+          { topicId: T2, name: 'IT', ratio: 100 - ratio },
+        ],
+        othersRatio: 0,
+      });
+      expect(isTopicConcentrated(of(60), 2)).toBe(true);
+      expect(isTopicConcentrated(of(59), 2)).toBe(false);
+    });
+
+    it('기록이 없으면 쏠림이 아니다', () => {
+      expect(isTopicConcentrated({ topics: [], othersRatio: 0 }, 0)).toBe(
+        false,
+      );
+    });
+  });
+
+  describe('pickUnexploredTopic', () => {
+    const candidates = [
+      { topicId: T2, name: 'IT' },
+      { topicId: T3, name: '역사' },
+    ];
+
+    it('후보 중 시장 순위가 가장 높은 주제를 고른다', () => {
+      expect(
+        pickUnexploredTopic(candidates, [
+          { topicId: T1, name: '커리어', listenedSec: 999 },
+          { topicId: T3, name: '역사', listenedSec: 500 },
+          { topicId: T2, name: 'IT', listenedSec: 100 },
+        ]),
+      ).toEqual({ topicId: T3, name: '역사' });
+    });
+
+    it('시장 청취가 없으면 노출 순서의 첫 후보다', () => {
+      expect(pickUnexploredTopic(candidates, [])).toEqual({
+        topicId: T2,
+        name: 'IT',
+      });
+    });
+
+    it('후보가 없으면 null 이다', () => {
+      expect(pickUnexploredTopic([], [])).toBeNull();
+    });
+  });
+
+  describe('countTopTopicStreak', () => {
+    it('이번 주부터 같은 1위가 이어진 주 수를 센다', () => {
+      expect(countTopTopicStreak([T1, T1, T1, T2, T1])).toBe(3);
+    });
+
+    it('지난 주 기록이 없으면 연속이 끊긴다', () => {
+      expect(countTopTopicStreak([T1, null, T1])).toBe(1);
+    });
+
+    it('이번 주 1위가 없으면 0이다', () => {
+      expect(countTopTopicStreak([null, T1])).toBe(0);
+    });
+  });
+});
+
+describe('countTopTopicDayStreak(profile.md 4.7-1 요일 한 줄)', () => {
+  const A = 'cccccccc-1111-4111-8111-111111111111';
+  const B = 'cccccccc-2222-4222-8222-222222222222';
+
+  it('그날부터 월요일 쪽으로 같은 1위가 이어진 날 수를 센다', () => {
+    expect(countTopTopicDayStreak([A, B, B, B, null, null, null], 3)).toBe(3);
+  });
+
+  it('기록 없는 날에서 끊기고, 월요일보다 앞으로 넘어가지 않는다', () => {
+    expect(
+      countTopTopicDayStreak([A, null, A, null, null, null, null], 2),
+    ).toBe(1);
+    expect(
+      countTopTopicDayStreak([A, A, null, null, null, null, null], 0),
+    ).toBe(1);
+  });
+
+  it('그날 1위가 없으면 0이다', () => {
+    expect(
+      countTopTopicDayStreak([A, null, null, null, null, null, null], 1),
+    ).toBe(0);
   });
 });

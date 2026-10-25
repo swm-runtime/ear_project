@@ -2,6 +2,8 @@ import {
   DailyListeningHighlightView,
   ListeningHighlightView,
   TopicDistributionView,
+  DailyTopicHighlightView,
+  TopicHighlightView,
   WeeklyListeningView,
 } from '../profile.types';
 
@@ -37,6 +39,54 @@ function toDailyListeningHighlightDto(
   return view.kind === 'more_than_last_week'
     ? { kind: view.kind, diff_sec: view.diffSec }
     : view;
+}
+
+/** "가장 많이 들은 주제" 옆 한 줄(`profile-api.md` 4.1 `topic_highlight`) — `kind`마다 값 필드가 다르다 */
+type TopicHighlightDto =
+  | { kind: 'unexplored_topic'; topic_id: string; name: string }
+  | { kind: 'peer_top_topic'; topic_id: string; name: string }
+  | { kind: 'top_topic_streak'; weeks: number }
+  | { kind: 'topic_count'; count: number };
+
+function toTopicHighlightDto(
+  view: TopicHighlightView | null,
+): TopicHighlightDto | null {
+  if (view === null) {
+    return null;
+  }
+  switch (view.kind) {
+    case 'unexplored_topic':
+    case 'peer_top_topic':
+      return { kind: view.kind, topic_id: view.topicId, name: view.name };
+    case 'top_topic_streak':
+      return { kind: view.kind, weeks: view.weeks };
+    case 'topic_count':
+      return { kind: view.kind, count: view.count };
+  }
+}
+
+/** 요일 주제 한 줄(`profile-api.md` 4.1 `daily_topic_highlight`) */
+type DailyTopicHighlightDto =
+  | { kind: 'unexplored_topic'; topic_id: string; name: string }
+  | { kind: 'peer_top_topic'; topic_id: string; name: string }
+  | { kind: 'top_topic_day_streak'; days: number }
+  | { kind: 'topic_count'; count: number };
+
+function toDailyTopicHighlightDto(
+  view: DailyTopicHighlightView | null,
+): DailyTopicHighlightDto | null {
+  if (view === null) {
+    return null;
+  }
+  switch (view.kind) {
+    case 'unexplored_topic':
+    case 'peer_top_topic':
+      return { kind: view.kind, topic_id: view.topicId, name: view.name };
+    case 'top_topic_day_streak':
+      return { kind: view.kind, days: view.days };
+    case 'topic_count':
+      return { kind: view.kind, count: view.count };
+  }
 }
 
 class TopicDistributionItemDto {
@@ -81,6 +131,13 @@ export class WeeklyListeningResponseDto {
   readonly listening_highlight: ListeningHighlightDto | null;
   /** 월~일 7개 고정 — 요일을 골랐을 때의 그날 한 줄. 지난주 같은 요일보다 더 > 가장 많이 들은 날 > 들은 편 수, 0초면 `null`(KAN-171) */
   readonly daily_listening_highlight: (DailyListeningHighlightDto | null)[];
+  /**
+   * "가장 많이 들은 주제" 옆 한 줄 — 쏠렸으면 안 들어본 주제 > 같은 직군 1위 > N주 연속 1위 > 이번 주 N개 주제.
+   * **이번 주에만** 싣고 지난 주·기록 없는 주는 `null`(`profile.md` 4.7-1)
+   */
+  readonly topic_highlight: TopicHighlightDto | null;
+  /** 월~일 7개 고정 — 요일을 골랐을 때의 주제 한 줄(N일 연속 1위 · 그날 N개 주제). 이번 주에만, 없는 날 `null` */
+  readonly daily_topic_highlight: (DailyTopicHighlightDto | null)[];
   /** `null`이면 이전 주가 없다(가입 주) → [◀] 비활성 */
   readonly previous_week_start: string | null;
   /** `null`이면 이번 주다 → [다음 주 ▶] 비활성 */
@@ -98,6 +155,10 @@ export class WeeklyListeningResponseDto {
       listening_highlight: toListeningHighlightDto(view.listeningHighlight),
       daily_listening_highlight: view.dailyListeningHighlight.map((day) =>
         toDailyListeningHighlightDto(day),
+      ),
+      topic_highlight: toTopicHighlightDto(view.topicHighlight),
+      daily_topic_highlight: view.dailyTopicHighlight.map((day) =>
+        toDailyTopicHighlightDto(day),
       ),
       previous_week_start: view.previousWeekStart,
       next_week_start: view.nextWeekStart,

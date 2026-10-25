@@ -1,3 +1,5 @@
+import { UserMarket } from '@/modules/user/user.enum';
+
 import {
   InsightsCohortTable,
   InsightsListeningTotals,
@@ -91,6 +93,8 @@ interface ListeningTotalsItem {
 /** `GET /admin/insights/summary` (admin-api.md 4.22) — 집계값과 `user_id`만. 이름·이메일은 없다 */
 export class AdminInsightsSummaryResponseDto {
   readonly days: number;
+  /** 고른 시장(`kr` · `global`) — 통합이면 null. `by_market`은 이 값과 무관하게 전 시장이다 */
+  readonly market: UserMarket | null;
   readonly since: string;
   readonly generated_at: string;
   readonly users: {
@@ -226,6 +230,7 @@ export class AdminInsightsSummaryResponseDto {
 
     return {
       days,
+      market: summary.market,
       since: summary.since.toISOString(),
       generated_at: summary.generatedAt.toISOString(),
       users: {

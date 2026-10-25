@@ -1,10 +1,11 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { EntityManager, Repository } from 'typeorm';
+import { EntityManager, Repository, SelectQueryBuilder } from 'typeorm';
 
 import { UserMarket } from '@/modules/user/user.enum';
 
 import { PlayRecord } from '../entities/play-record.entity';
+import { ListenerCohortView } from '../playback.types';
 
 /**
  * `play_date`는 `date` 컬럼이라 Entity에서는 문자열이지만, **raw 조회에서는 드라이버가
@@ -22,6 +23,27 @@ function toPlayDateLabel(value: string | Date): string {
   const day = String(value.getDate()).padStart(2, '0');
 
   return `${year}-${month}-${day}`;
+}
+
+/** 범위 조건을 붙인다 — 시장은 늘, 직군·제외 사용자는 있을 때만 */
+function applyCohort(
+  query: SelectQueryBuilder<PlayRecord>,
+  cohort: ListenerCohortView,
+): void {
+  const jobFilter =
+    cohort.jobCategory === undefined
+      ? ''
+      : ' AND u.job_category = :jobCategory';
+  query.andWhere(
+    `EXISTS (SELECT 1 FROM users u WHERE u.id = record.user_id AND u.market = :market${jobFilter})`,
+    { market: cohort.market, jobCategory: cohort.jobCategory },
+  );
+
+  if (cohort.excludeUserId !== undefined) {
+    query.andWhere('record.user_id <> :excludeUserId', {
+      excludeUserId: cohort.excludeUserId,
+    });
+  }
 }
 
 @Injectable()
@@ -301,6 +323,59 @@ export class PlayRecordRepository {
       playDate: toPlayDateLabel(row.play_date),
       listenedSec: Number(row.total),
     }));
+  }
+
+  /**
+   * 한 범위(시장 · 직군)의 사용자들이 지정한 서비스 날짜에 들은 **콘텐츠별** 청취 합 — 프로필 주제 한 줄
+   * (`profile.md` 4.7-1)의 주제 순위 원천. 사용자 축은 여기서 접는다(누가 들었는지는 내려주지 않는다).
+   * 주제는 위 `sumListenedSecGroupByContentId`와 같은 이유로 조인하지 않는다.
+   */
+  async sumListenedSecGroupByContentIdForCohort(
+    playDates: string[],
+    cohort: ListenerCohortView,
+    manager?: EntityManager,
+  ): Promise<{ contentId: string; listenedSec: number }[]> {
+    if (playDates.length === 0) {
+      return [];
+    }
+
+    const query = this.scoped(manager)
+      .createQueryBuilder('record')
+      .select('record.content_id', 'content_id')
+      .addSelect('COALESCE(SUM(record.listened_sec), 0)', 'total')
+      .where('record.play_date IN (:...playDates)', { playDates });
+    applyCohort(query, cohort);
+
+    const rows = await query
+      .groupBy('record.content_id')
+      .getRawMany<{ content_id: string; total: string }>();
+
+    return rows.map((row) => ({
+      contentId: row.content_id,
+      listenedSec: Number(row.total),
+    }));
+  }
+
+  /** 한 범위(시장 · 직군)에서 지정한 서비스 날짜에 1초라도 들은 **사용자 수** — 집계를 보여 줘도 되는 인원인지 본다 */
+  async countListenersForCohort(
+    playDates: string[],
+    cohort: ListenerCohortView,
+    manager?: EntityManager,
+  ): Promise<number> {
+    if (playDates.length === 0) {
+      return 0;
+    }
+
+    const query = this.scoped(manager)
+      .createQueryBuilder('record')
+      .select('COUNT(DISTINCT record.user_id)', 'count')
+      .where('record.play_date IN (:...playDates)', { playDates })
+      .andWhere('record.listened_sec > 0');
+    applyCohort(query, cohort);
+
+    const row = await query.getRawOne<{ count: string }>();
+
+    return Number(row?.count ?? 0);
   }
 
   /**
