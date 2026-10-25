@@ -286,6 +286,23 @@ test("대명사 출처 꼴(It connects…)은 앞 문장이 출처 문장일 때
   assert.match(nextSection, /"Lines" 1 \(E8\)/); assert.doesNotMatch(nextSection, /"Calendar"/);
 });
 
+// ── full-en-v0.23 (2026-10-25 — 10-22~25 운영 83편 한국어·사실 필수 수정 38건: 문장 가운데의 출처 지칭) ──
+test("문장 가운데의 출처 지칭(in a researcher's view · in a survey · interviewed · a critic calls it · executive explained)도 센다, 관행 속 역할은 세지 않는다", () => {
+  en();
+  const S = (id: string, text: string, topic = "Chopsticks") => ({ speaker: "Yuna", id, text, section: "Body", topic });
+  const v = enStyleViolations([
+    S("E1", "Flat metal pairs were more practical than wooden ones, in a food researcher's view. About 40 percent of people in a survey ate alone."),
+    S("E2", "As Kakao's co-chief executive explained the failure, a fire hit one data center. The organizers, interviewed in Seoul, send rice instead of flowers."),
+    S("E3", "At a press interview the actor described the schedule. A music critic calls the challenge fun. In the same survey, half had no plan."),
+  ]).join("\n");
+  assert.match(v, /sources named in lines: "Chopsticks" 7 \(E1, E2, E3\)/);
+  const roles = enStyleViolations([
+    S("E4", "Students bow to a professor in the hallway. Many parents see the coat as insurance. The shop owner cuts the noodles with scissors."),
+    S("E5", "A trainee practices the dance for a year. Students wait next to the professor's room."), // 문장 머리의 "The professor…" 는 v0.13 srcKind 가 이미 센다
+  ]).join("\n");
+  assert.doesNotMatch(roles, /sources named in lines/);
+});
+
 // ── full-en-v0.9 (2026-10-17 — G261017-004~006 에이전트 판정: 한 문장 Imagine 장면 · 구성안 문구 유출) ──
 test("Imagine 으로 시작하는 해설 문장이 셋 이상이면 문체 위반, 둘까지는 통과(템플릿 턴은 뺀다)", () => {
   en();
