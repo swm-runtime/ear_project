@@ -34,3 +34,4 @@
 ## 처리 기록
 
 - 2026-10-25 발행(박준현).
+- 2026-10-25 **반영**(박준현, `docs(be)/apply-insights-market-filter`) — 고칠 내용 1~4를 `admin-api.md` 4.22(Query `market` · 응답 `market` · 시장별 기준 각주) · `backend-monitoring.md` 서비스 지표 행에 넣었다. 반영 날짜 2026-10-25.
