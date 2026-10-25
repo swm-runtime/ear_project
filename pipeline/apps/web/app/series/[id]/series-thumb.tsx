@@ -27,6 +27,7 @@ export function SeriesThumb({ id, locale, publication: p0, word: w0, label: l0, 
   const options = publicationsFor(locale);
   const pub = publicationOf(publication || null);
   const keyword = pub?.style === "keyword";
+  const phrasebook = pub?.style === "phrasebook";
   const dirty = publication !== (p0 ?? "") || word !== w0 || label !== l0 || box !== b0;
   const save = (regenerate: boolean, redraw = false) => start(async () => {
     const r = await saveSeriesThumb(id, { publication: publication || null, word, label, box }, regenerate, redraw);
@@ -55,24 +56,24 @@ export function SeriesThumb({ id, locale, publication: p0, word: w0, label: l0, 
             {pub ? <>앱 시리즈 화면 제목 아래에 <b>{pub.name}</b>이 나가고, 같은 간행물의 시리즈끼리 &quot;{pub.name}의 다른 시리즈&quot;로 묶인다. {pub.hint}.</> : "발행 이름이 없으면 앱은 그 줄을 생략하고 다른 시리즈와 묶지 않는다. 목록에 없는 간행물은 코드(@ear/pipeline publication.ts)에 더한다."}
           </p>
         </div>
-        {keyword && (
+        {(keyword || phrasebook) && (
           <div className="grid gap-2 md:grid-cols-3">
-            <label className="block"><span className="mb-1 block text-xs font-semibold text-ink-soft">큰 단어 (영문 — 손글씨 폰트로 얹는다)</span><input className={inp} value={word} maxLength={16} onChange={(e) => setWord(e.target.value)} placeholder="keyword" /></label>
-            <label className="block"><span className="mb-1 block text-xs font-semibold text-ink-soft">오른쪽 위 라벨</span><input className={inp} value={label} maxLength={24} onChange={(e) => setLabel(e.target.value)} placeholder="KEYWORD SERIES" /></label>
-            <label className="block"><span className="mb-1 block text-xs font-semibold text-ink-soft">왼쪽 아래 박스</span><input className={inp} value={box} maxLength={12} onChange={(e) => setBox(e.target.value)} placeholder="경제편" /></label>
+            <label className="block"><span className="mb-1 block text-xs font-semibold text-ink-soft">{phrasebook ? "표지 손글씨 (영문 — 비면 annyeong)" : "큰 단어 (영문 — 손글씨 폰트로 얹는다)"}</span><input className={inp} value={word} maxLength={16} onChange={(e) => setWord(e.target.value)} placeholder={phrasebook ? "annyeong" : "keyword"} /></label>
+            <label className="block"><span className="mb-1 block text-xs font-semibold text-ink-soft">{phrasebook ? "오른쪽 위 라벨 (비면 PHRASEBOOK SERIES)" : "오른쪽 위 라벨"}</span><input className={inp} value={label} maxLength={24} onChange={(e) => setLabel(e.target.value)} placeholder={phrasebook ? "PHRASEBOOK SERIES" : "KEYWORD SERIES"} /></label>
+            <label className="block"><span className="mb-1 block text-xs font-semibold text-ink-soft">{phrasebook ? "책 머리글 (뒤에 KOREAN 이 붙는다)" : "왼쪽 아래 박스"}</span><input className={inp} value={box} maxLength={12} onChange={(e) => setBox(e.target.value)} placeholder={phrasebook ? "K-Drama" : "경제편"} /></label>
           </div>
         )}
         <p className="text-[11px] text-ink-soft">
           {keyword
             ? <>키워드 시리즈 디자인 — 편 썸네일(왼쪽 아래 번호 01·02…)과 표지(라벨 아래 편수)를 같은 바탕에 만든다. 큰 단어가 비어 있으면 편 썸네일 작업이 실패한다.</>
-            : <>{pub ? `${pub.name} 전용 썸네일 디자인은 아직 워커에 없다 — ` : ""}편 썸네일은 일반 편과 같은 장면 썸네일이다. 디자인이 생기면 간행물에 스타일로 붙인다(spec/11 7장).</>}
+            : phrasebook
+              ? <>회화집 디자인 — 작은 책 표지에 그 편의 표현(로마자·한글)과 뜻을 쓰고 책갈피 리본에 번호를 단다. 이미지 모델 없이 코드가 그려 편마다 결과가 같고 비용이 없다. 한글 표기는 썸네일 작업 때 텍스트 모델이 제목을 보고 써 준다.</>
+              : <>{pub ? `${pub.name} 전용 썸네일 디자인은 아직 워커에 없다 — ` : ""}편 썸네일은 일반 편과 같은 장면 썸네일이다. 디자인이 생기면 간행물에 스타일로 붙인다(spec/11 7장).</>}
         </p>
         <div className="flex flex-wrap items-center gap-2">
           <button className={btnCls()} disabled={pending || !dirty} onClick={() => save(false)}>저장</button>
-          {keyword && <>
-            <button className={btnCls("primary")} disabled={pending} onClick={() => { if (confirm("이 시리즈에서 썸네일이 있는 편을 전부 다시 만들까요?\n바탕은 그대로 두고 글자만 다시 얹는다(이미지 생성 없음).")) save(true); }}>저장하고 편 썸네일 다시 만들기</button>
-            <button className={btnCls()} disabled={pending} onClick={() => { if (confirm("바탕 그림(아이콘 셋)을 새로 그리고 편 썸네일을 전부 다시 만들까요? 이미지 1장을 새로 만든다.")) save(true, true); }}>바탕 그림도 새로 그리기</button>
-          </>}
+          {(keyword || phrasebook) && <button className={btnCls("primary")} disabled={pending} onClick={() => { if (confirm(phrasebook ? "이 시리즈에서 썸네일이 있는 편을 전부 다시 만들까요?\n책 표지를 코드로 다시 그린다(이미지 생성 없음, 한글 표기만 텍스트 모델)." : "이 시리즈에서 썸네일이 있는 편을 전부 다시 만들까요?\n바탕은 그대로 두고 글자만 다시 얹는다(이미지 생성 없음).")) save(true); }}>저장하고 편 썸네일 다시 만들기</button>}
+          {keyword && <button className={btnCls()} disabled={pending} onClick={() => { if (confirm("바탕 그림(아이콘 셋)을 새로 그리고 편 썸네일을 전부 다시 만들까요? 이미지 1장을 새로 만든다.")) save(true, true); }}>바탕 그림도 새로 그리기</button>}
           {msg && <span className={`text-[12px] ${msg.bad ? "text-rose-700" : "text-emerald-700"}`}>{msg.text}</span>}
         </div>
       </div>

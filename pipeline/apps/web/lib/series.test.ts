@@ -36,6 +36,7 @@ test("간행물 목록은 판마다 — 키·이름·스타일 (KAN-247)", () =>
   assert.deepEqual(publicationsFor("en").map((p) => p.name), ["Phrasebook"]);
   assert.equal(publicationOf("keyword")?.style, "keyword");
   assert.equal(publicationStyle("chronicle"), "scene", "연대기는 전용 디자인이 아직 없어 장면 썸네일");
+  assert.equal(publicationStyle("phrasebook"), "phrasebook", "회화집 디자인 (2026-10-26)");
   assert.equal(publicationStyle(null), "scene");
   assert.equal(publicationStyle("nope"), "scene");
   assert.equal(publicationByName(" 키워드 ", "ko")?.key, "keyword");

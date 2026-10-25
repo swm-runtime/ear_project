@@ -8,12 +8,13 @@
  *
  * 스타일:
  *   keyword — 키워드 시리즈 디자인(워커 `thumbnail-series.ts`: 라벨 · 손글씨 큰 단어 · 박스 · 편 번호, 표지는 "전 N편"). 큰 단어(`series.thumb_word`)가 있어야 한다
+ *   phrasebook — 회화집 디자인(워커 `thumbnail-phrasebook.ts`: 작은 책 표지에 그 편의 표현 로마자·한글·뜻, 책갈피 리본에 번호). 이미지 모델 없이 코드만 — 글자 칸은 머리글(`thumb_box`)·라벨만 쓴다
  *   scene   — 일반 편과 같은 장면 썸네일. 연대기(네 시대 세로 패널)는 워커 디자인이 아직 없어 scene 으로 둔다(기존 철학 시리즈 썸네일은 2026-10-22 손으로 합성한 것)
  */
 /** locale.ts 의 PipelineLocale 과 같은 값 — 이 파일은 콘솔 브라우저 번들에도 들어가므로(`@ear/pipeline/publication`) node 전용 모듈을 import 하는 locale.ts 를 끌어오지 않는다 */
 export type PublicationLocale = "ko" | "en";
 
-export type PublicationStyle = "keyword" | "scene";
+export type PublicationStyle = "keyword" | "phrasebook" | "scene";
 export interface Publication {
   /** 저장 키 — 바꾸지 않는다 */
   key: string;
@@ -28,7 +29,7 @@ export interface Publication {
 export const PUBLICATIONS: readonly Publication[] = [
   { key: "keyword", locale: "ko", name: "키워드", style: "keyword", hint: "용어 하나씩 훑는 형식 — CS 지식 · 경제 상식" },
   { key: "chronicle", locale: "ko", name: "연대기", style: "scene", hint: "시대 순으로 흐름을 잡는 형식 — 서양·동양 철학 (전용 썸네일 디자인은 아직 없어 장면 썸네일)" },
-  { key: "phrasebook", locale: "en", name: "Phrasebook", style: "keyword", hint: "Two or three related Korean expressions per episode — K-drama expressions" },
+  { key: "phrasebook", locale: "en", name: "Phrasebook", style: "phrasebook", hint: "Two or three related Korean expressions per episode — pocket phrasebook thumbnail (2026-10-26)" },
 ];
 
 /** 이 판(인스턴스)에서 고를 수 있는 간행물 */
