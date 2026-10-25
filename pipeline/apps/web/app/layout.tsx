@@ -3,6 +3,7 @@ import "./globals.css";
 import { Sidebar } from "@/components/sidebar";
 import { pipelineLocale } from "@/lib/locale";
 import { Topbar } from "@/components/topbar";
+import { DeployBanner } from "@/components/deploy-banner";
 import { currentUser, supabaseServer } from "@/lib/supabase-server";
 
 /** 탭 제목으로도 두 인스턴스를 가른다 — 한국판·글로벌판 콘솔을 나란히 열어 둘 때 */
@@ -39,6 +40,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           <>
             <Sidebar pending={pending} locale={pipelineLocale()} />
             <div className="pl-[188px]">
+              <DeployBanner />
               <Topbar email={user.email ?? null} workers={workers} queuedAi={queuedAi} />
               <main className="px-6 py-6">{children}</main>
             </div>
