@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { cleanPlan, seriesEpisodeHint, type SeriesEpisode } from "./series";
+import { cleanPlan, cleanSeriesThumb, seriesEpisodeHint, type SeriesEpisode } from "./series";
+import { publicationByName, publicationOf, publicationsFor, publicationStyle } from "@ear/pipeline";
 
 // 2026-10-17 KAN-136 — 시리즈 설계안 검증·편별 힌트 (spec/11 3·4장)
 const ep = (title: string, scope: string, extra: Partial<SeriesEpisode> = {}): SeriesEpisode => ({ no: 0, title, scope, carries: "", only_here: "", minutes: 0, ...extra });
@@ -27,4 +28,31 @@ test("편별 힌트 — 이 편 범위와 형제 편 범위를 싣는다(한국�
   assert.match(ko, /중심으로 삼지 않을 것: 1\. 설계 \(UML\)/);
   assert.match(seriesEpisodeHint(s, 1, true), /^Series "CS 지식" episode 1 of 2\./);
   assert.throws(() => seriesEpisodeHint(s, 3, false), /3화가 없다/);
+});
+
+// 2026-10-26 KAN-247 — 간행물(발행 이름·썸네일 스타일)
+test("간행물 목록은 판마다 — 키·이름·스타일 (KAN-247)", () => {
+  assert.deepEqual(publicationsFor("ko").map((p) => p.name), ["키워드", "연대기"]);
+  assert.deepEqual(publicationsFor("en").map((p) => p.name), ["Phrasebook"]);
+  assert.equal(publicationOf("keyword")?.style, "keyword");
+  assert.equal(publicationStyle("chronicle"), "scene", "연대기는 전용 디자인이 아직 없어 장면 썸네일");
+  assert.equal(publicationStyle(null), "scene");
+  assert.equal(publicationStyle("nope"), "scene");
+  assert.equal(publicationByName(" 키워드 ", "ko")?.key, "keyword");
+  assert.equal(publicationByName("키워드 시리즈", "ko"), null, "글자가 다르면 다른 간행물");
+  assert.equal(publicationByName("키워드", "en"), null, "다른 판의 이름은 안 맞춘다");
+});
+
+test("간행물·글자 칸 검증 — keyword 디자인은 큰 단어 필수, 없음은 글자 칸 없이도 된다", () => {
+  assert.deepEqual(cleanSeriesThumb({ publication: null, word: "", label: "", box: "" }, "ko").problems, []);
+  assert.deepEqual(cleanSeriesThumb({ publication: "chronicle", word: "", label: "", box: "" }, "ko").problems, []);
+  const k = cleanSeriesThumb({ publication: "keyword", word: "", label: "keyword series", box: "경제편" }, "ko");
+  assert.equal(k.problems.length, 1);
+  assert.match(k.problems[0], /큰 단어가 필요/);
+  const ok = cleanSeriesThumb({ publication: "keyword", word: " Keyword ", label: "keyword series", box: "경제편" }, "ko");
+  assert.deepEqual(ok.problems, []);
+  assert.equal(ok.word, "keyword");
+  assert.equal(ok.label, "KEYWORD SERIES");
+  assert.match(cleanSeriesThumb({ publication: "phrasebook", word: "phrase", label: "", box: "" }, "ko").problems[0], /이 판의 목록에 없다/);
+  assert.match(cleanSeriesThumb({ publication: "keyword", word: "한글", label: "", box: "" }, "ko").problems[0], /영문 2~16자/);
 });

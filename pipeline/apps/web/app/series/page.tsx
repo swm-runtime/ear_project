@@ -3,6 +3,7 @@ import { AutoRefresh } from "@/components/auto-refresh";
 import { Badge, LinkBtn, PageHeader, Panel, Table, Td } from "@/components/ui";
 import { supabaseServer } from "@/lib/supabase-server";
 import { fmtTime } from "@/lib/format";
+import { pipelineLocale } from "@/lib/locale";
 import { SERIES_STATUS_LABEL, type SeriesRow } from "@/lib/series";
 import { ProductSeriesCovers } from "./product-series-covers";
 
@@ -38,7 +39,7 @@ export default async function SeriesListPage() {
           })}
         </Table>
       </Panel>
-      <ProductSeriesCovers />
+      <ProductSeriesCovers locale={pipelineLocale()} />
     </div>
   );
 }

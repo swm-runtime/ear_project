@@ -58,6 +58,7 @@ create table if not exists series (
   thumb_label         text,                                -- 오른쪽 위 라벨(코드가 얹는다) · 0031
   thumb_box           text,                                -- 왼쪽 아래 박스 글자(코드가 얹는다) · 0031
   thumb_base_key      text,                                -- 시리즈 바탕 그림 s3 키 — 편마다 재사용 · 0031
+  publication         text,                                -- 간행물 키(@ear/pipeline publication.ts — 발행 이름·썸네일 스타일) · null = 없음 · 0034
   created_at          timestamptz not null default now(),
   updated_at          timestamptz not null default now()
 );
