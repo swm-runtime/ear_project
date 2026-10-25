@@ -12,6 +12,7 @@ import { aiPaused, pauseForLimit, serverClaimOff, ttsPaused } from "./ai-pause.j
 import { onDraftFailed } from "./stages/draft.js";
 import { autoApprove } from "./automation.js";
 import { maybeSendDigest } from "./digest.js";
+import { maybeCheckTtsQuota } from "./tts/quota.js";
 import { evictEpisodeAudio } from "./disk.js";
 
 /**
@@ -91,6 +92,7 @@ async function main() {
         if (once) { log("대기 중인 작업 없음"); break; }
         if (drain && (await listApprovedBacklog()).length === 0) { log("큐 비움 — drain 종료"); break; }
         await maybeSendDigest().catch((e) => log(`요약 알림 오류 (계속 진행): ${e?.message ?? e}`)); // 큐가 비었을 때 한 번 — digest.ts
+        if (canTts) await maybeCheckTtsQuota(); // ElevenLabs 잔량 — 30분에 한 번, 20%·5% 아래면 Slack (KAN-204, tts/quota.ts)
         await sleep(cfg.pollIntervalMs);
         continue;
       }
@@ -104,6 +106,7 @@ async function main() {
         const result = await withJobSpeakers(job, () => runStage(job, ex));
         await finishJob(job.id, result);
         if (ac.signal.aborted) log(`⏹ ${job.type} ${job.id.slice(0, 8)} 취소됨 (단계는 끝났으나 결과는 버림)`); else log(`✔ ${job.type} ${job.id.slice(0, 8)} 완료`);
+        if (job.type === "tts") await maybeCheckTtsQuota({ force: true }); // 편이 끝날 때마다 잔량 갱신 (KAN-204)
       } catch (e: any) {
         if (ac.signal.aborted || e?.name === "JobCancelled") {
           log(`⏹ ${job.type} ${job.id.slice(0, 8)} 취소 처리 완료`);
