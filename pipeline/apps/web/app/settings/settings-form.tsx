@@ -5,7 +5,7 @@ import { Panel, btnCls } from "@/components/ui";
 
 const inp = "rounded border border-line px-2.5 py-1.5 text-[13px] outline-none focus:border-brand";
 
-export function SettingsForm({ tts, worker, templates, thumbnail, anchor, automation, aiPaused, ttsPaused, meta, speakers, locale, majors }: { speakers: readonly [string, string]; locale: "ko" | "en"; majors: readonly string[]; tts: any; worker: any; templates: any; thumbnail: any; anchor: any; automation: { auto_approve?: boolean; auto_publish_prep?: boolean; rule?: string; server_ai_claim?: boolean } | null; aiPaused: { paused?: boolean; reason?: string; at?: string; job?: string } | null; ttsPaused: { paused?: boolean; reason?: string; at?: string; job?: string } | null; meta: any }) {
+export function SettingsForm({ tts, worker, templates, thumbnail, anchor, automation, aiPaused, ttsPaused, ttsQuota, meta, speakers, locale, majors }: { speakers: readonly [string, string]; locale: "ko" | "en"; majors: readonly string[]; tts: any; worker: any; templates: any; thumbnail: any; anchor: any; automation: { auto_approve?: boolean; auto_publish_prep?: boolean; rule?: string; server_ai_claim?: boolean } | null; aiPaused: { paused?: boolean; reason?: string; at?: string; job?: string } | null; ttsPaused: { paused?: boolean; reason?: string; at?: string; job?: string } | null; ttsQuota: { remaining?: number; character_limit?: number; ratio?: number; reset_at?: string | null; checked_at?: string; avg_credits?: number | null; episodes_left?: number | null; tier?: string | null } | null; meta: any }) {
   const [t, setT] = useState({ voices: { [speakers[0]]: "", [speakers[1]]: "" }, speed: { [speakers[0]]: 1, [speakers[1]]: 1 }, mode: "per-turn", model: "eleven_v3", ...tts });
   const [w, setW] = useState({ default_model: "", ...worker });
   const [tpl, setTpl] = useState({ version: "tpl-v1", intro: "", closing: "", closing_signoff: "", major_lines: {} as Record<string, string>, ...templates });
@@ -72,6 +72,17 @@ export function SettingsForm({ tts, worker, templates, thumbnail, anchor, automa
                 </button>
               </>
             : <>ElevenLabs 한도 차단기: 크레딧 소진(quota_exceeded)이면 여기 멈춤으로 표시되고 [TTS 재개] 버튼이 나타나요. 분당 한도(429)는 5분 뒤 자동 재개. 초안·QA·비평은 영향 없음.</>}
+          {/* 잔량 (KAN-204, 2026-10-25): 워커가 30분마다·TTS 작업 뒤 GET /user/subscription 을 읽어 settings."tts.quota" 에 적는다. 계정은 두 인스턴스 공용 — 어느 콘솔에서 봐도 같은 잔량 */}
+          {ttsQuota && typeof ttsQuota.remaining === "number" && typeof ttsQuota.character_limit === "number"
+            ? <div className={`mt-1.5 border-t border-line/60 pt-1.5 ${(ttsQuota.ratio ?? 1) <= 0.05 ? "font-semibold text-red-700" : (ttsQuota.ratio ?? 1) <= 0.2 ? "font-semibold text-amber-700" : ""}`}>
+                잔량 <b className="tabular-nums">{ttsQuota.remaining.toLocaleString()}</b> / {ttsQuota.character_limit.toLocaleString()} 크레딧 ({Math.round((ttsQuota.ratio ?? ttsQuota.remaining / ttsQuota.character_limit) * 100)}%)
+                {ttsQuota.episodes_left != null ? ` · 이 인스턴스 평균 ${ttsQuota.avg_credits?.toLocaleString()}크레딧/편으로 약 ${ttsQuota.episodes_left}편` : ""}
+                {ttsQuota.reset_at ? ` · 리셋 ${new Date(ttsQuota.reset_at).toLocaleDateString("ko-KR")}` : ""}
+                {ttsQuota.tier ? ` · ${ttsQuota.tier}` : ""}
+                {ttsQuota.checked_at ? ` · 확인 ${new Date(ttsQuota.checked_at).toLocaleString("ko-KR")}` : ""}
+                <span className="font-normal text-ink-soft"> — 한국판·글로벌판 공용 계정. 20%·5% 아래로 내려가면 Slack 알림.</span>
+              </div>
+            : <div className="mt-1.5 border-t border-line/60 pt-1.5">잔량: 아직 조회 전 — 워커가 큐가 비었을 때 30분마다, TTS 작업 뒤에 갱신해요.</div>}
         </div>
       </Panel>
       <Panel title="썸네일 — 대분류 띠 색 (KAN-50)" className="text-[13px]">
