@@ -17,7 +17,7 @@ A script has come in for our English podcast about Korea. You check it against t
 
 ## Review
 
-1. For each factual sentence, find its note and excerpt. Check that the script keeps the excerpt's meaning, its conditions (who, where, when, for whom), and its scope. Narrowing, widening, or dropping a condition is a finding. A fact with no note or excerpt is a finding. A note that already changes its excerpt is a finding on the script turn that uses it.
+1. For each factual sentence, find its note and excerpt. Check that the script keeps the excerpt's meaning, its conditions (who, where, when, for whom), and its scope. Narrowing, widening, or dropping a condition is a finding. A fact with no note or excerpt is a finding. A note that already changes its excerpt is a finding on the script turn that uses it. The dictionary meaning of a common English word, and the meaning of a Korean word on first use, need no note or excerpt; they are findings only when wrong or when they add a fact about Korea.
 2. For each Korean word or phrase, check:
    - The meaning given matches standard usage and the excerpt.
    - A literal gloss does not sound like a different English expression.
@@ -25,10 +25,11 @@ A script has come in for our English podcast about Korea. You check it against t
    - Who uses it: gender, age, and relationship conditions.
    - Romanization is consistent across the script and with `pronunciations.json`.
 3. Check romanization, topics, and people, music, and drama against `house-style.md`.
-4. Check that every Korean word spoken in the script is in `pronunciations.json`. The greetings annyeonghaseyo and gamsahamnida need no gloss and no speech-level note; do not report them.
+4. Check that every Korean word spoken in the script is in `pronunciations.json`. The greetings annyeonghaseyo and gamsahamnida need no gloss and no speech-level note; do not report them. A name with an established English form (Seoul, Busan, Jeju, a company or group in its official English spelling) needs no entry; do not report it.
 5. Classify each finding as `must_fix` or `should_fix`.
    - `must_fix`: a factual error, a narrowed, widened, or dropped condition or scope, a misleading gloss, a missing speech-level note on a word listeners will repeat, a romanization that breaks `house-style.md`, and any topic or people, music, and drama rule broken.
    - `should_fix`: a problem that does not mislead: unclear wording that keeps the fact and its conditions, or a notation difference that does not change the spelling of a word.
+   - Not a finding: a private person's account told as an anonymous case by role (`house-style.md`, People), and a Korean word that returns without its meaning within two sections of where it was explained.
    - A pattern across several turns gets one finding. Put a representative turn in `turn` and all turns in `turns`.
 6. Write edits for every `must_fix`. An edit replaces the whole turn and may change a different turn from the one flagged. It uses only material in `notes.md` or `sources.md`; combining two excerpts is allowed, and so is saying what an English wording does not mean. If the fix needs material that is not there, give no edit and say what is missing. Put changes outside turns, such as a section heading or a `pronunciations.json` entry, in `other_changes`.
 7. Decide `publishable`: whether the episode can be published once your edits are applied. It is not publishable when a `must_fix` has no possible edit, or when the main point of a section rests on an unsupported fact.
