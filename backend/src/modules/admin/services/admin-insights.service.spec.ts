@@ -384,15 +384,19 @@ describe('AdminInsightsService.summarize', () => {
 
     expect(summary.since.toISOString()).toBe('2026-10-01T03:00:00.000Z');
     expect(summary.generatedAt).toBe(now);
-    expect(repository.listeningTotals).toHaveBeenNthCalledWith(1, null);
+    expect(repository.listeningTotals).toHaveBeenNthCalledWith(1, null, null);
     expect(repository.listeningTotals).toHaveBeenNthCalledWith(
       2,
       summary.since,
+      null,
     );
-    expect(repository.topUsers).toHaveBeenCalledWith(INSIGHTS_RANK_LIMIT);
+    expect(repository.topUsers).toHaveBeenCalledWith(INSIGHTS_RANK_LIMIT, null);
     expect(repository.topContents).toHaveBeenNthCalledWith(
       1,
       INSIGHTS_RANK_LIMIT,
+      null,
+      'listen_sec',
+      null,
     );
     // 최근 하루 인기 — 지금 - 24시간부터, 청취자 수 순
     expect(repository.topContents).toHaveBeenNthCalledWith(
@@ -400,11 +404,13 @@ describe('AdminInsightsService.summarize', () => {
       INSIGHTS_RANK_LIMIT,
       new Date('2026-10-07T03:00:00.000Z'),
       'listeners',
+      null,
     );
     expect(summary.recentSince.toISOString()).toBe('2026-10-07T03:00:00.000Z');
     expect(repository.retention).toHaveBeenCalledWith(
       INSIGHTS_RETENTION_DAYS,
       now,
+      null,
     );
     // 빈 재료라도 날짜 축(10-01 ~ 10-08 KST = 8칸)과 24시간은 채워진다
     expect(summary.daily).toHaveLength(8);
@@ -426,6 +432,7 @@ describe('AdminInsightsService.summarize', () => {
     expect(repository.dailyRows).toHaveBeenCalledWith(
       new Date('2026-10-03T15:00:00.000Z'),
       '2026-09-19',
+      null,
     );
     expect(empty.activeUsersSince).toBe('2026-09-19');
 
@@ -458,6 +465,7 @@ describe('AdminInsightsService.summarize', () => {
       '2026-10-18',
       1,
       [1, 7],
+      null,
     );
     expect(repository.cohortRetention).toHaveBeenNthCalledWith(
       2,
@@ -465,6 +473,7 @@ describe('AdminInsightsService.summarize', () => {
       '2026-10-19',
       7,
       [1, 2, 3, 4],
+      null,
     );
     expect(summary.retentionCohorts.daily.rows).toHaveLength(14);
     expect(summary.retentionCohorts.weekly.rows).toHaveLength(8);
@@ -480,5 +489,33 @@ describe('AdminInsightsService.summarize', () => {
     expect((now.getTime() - summary.since.getTime()) / 86_400_000).toBe(
       INSIGHTS_SUMMARY_MAX_DAYS,
     );
+  });
+
+  it('시장을 고르면 시장 비교를 뺀 모든 집계를 그 시장으로 좁히고, 고른 시장을 응답에 싣는다', async () => {
+    const repository = makeRepository();
+    const service = new AdminInsightsService(repository as never);
+    const now = new Date('2026-10-25T03:00:00.000Z');
+
+    const summary = await service.summarize(14, now, UserMarket.GLOBAL);
+
+    expect(summary.market).toBe(UserMarket.GLOBAL);
+    const lastArg = (mock: jest.Mock) =>
+      mock.mock.calls.map((call: unknown[]) => call[call.length - 1]);
+    for (const mock of [
+      repository.userTotals,
+      repository.listeningTotals,
+      repository.dailyRows,
+      repository.hourly,
+      repository.topUsers,
+      repository.topContents,
+      repository.withdrawalReasons,
+      repository.retention,
+      repository.topicSupply,
+      repository.cohortRetention,
+    ]) {
+      expect(lastArg(mock).every((m) => m === UserMarket.GLOBAL)).toBe(true);
+    }
+    // 시장 비교표는 늘 전 시장이다
+    expect(repository.marketTotals).toHaveBeenCalledWith(summary.since, now);
   });
 });

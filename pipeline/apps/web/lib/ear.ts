@@ -463,8 +463,19 @@ export interface EarInsightsCohortTable {
   rows: { start: string; users: number; cells: EarInsightsCohortCell[] }[];
 }
 export interface EarInsightsTopContent { content_id: string; title: string; duration_sec: number; listen_sec: number; plays: number; listeners: number; completes: number; complete_rate: number | null; saves: number }
+/** 서비스 지표 시장 필터 — null 이면 통합(admin-api 4.22 `market`, 2026-10-25) */
+export type EarInsightsMarket = "kr" | "global";
+/** 시장별 비교 한 줄(`by_market`) — 고른 시장과 무관하게 늘 두 시장이 온다 */
+export interface EarInsightsMarketRow {
+  market: EarInsightsMarket; users: number; signups_in_window: number; onboarding_completed: number;
+  active_7d: number; listeners_7d: number; listen_sec: number; plays: number; paid_active: number;
+}
 export interface EarInsightsSummary {
   days: number; since: string; generated_at: string;
+  /** 고른 시장 — 통합이면 null. 시장 필터를 모르는 옛 서버면 없다 */
+  market?: EarInsightsMarket | null;
+  /** 시장별 비교(global-api 4.10) — 배포 전 서버면 없다 */
+  by_market?: EarInsightsMarketRow[];
   users: {
     total_signups: number; current: number; withdrawals: number; withdrawal_rate: number | null;
     onboarding_completed: number; onboarding_rate: number | null; trial_active: number;
@@ -500,8 +511,8 @@ export interface EarInsightsSummary {
   topic_supply?: { topic_id: string; name: string; is_visible: boolean; published: number; published_in_window: number; interested_users: number; median_remaining: number; exhausted_users: number; low_users: number }[];
 }
 /** 열 때 1회 + [새로고침] — 자동 폴링하지 않는다(backend-monitoring.md 3장). 서버도 no-store */
-export const getEarInsightsSummary = (ch: EarChannel, days: number) =>
-  earFetch<EarInsightsSummary>(`/admin/insights/summary?days=${days}`, { cache: "no-store" }, ch);
+export const getEarInsightsSummary = (ch: EarChannel, days: number, market: EarInsightsMarket | null = null) =>
+  earFetch<EarInsightsSummary>(`/admin/insights/summary?days=${days}${market ? `&market=${market}` : ""}`, { cache: "no-store" }, ch);
 
 // ── 추천 검증 (서비스 지표 — `GET /admin/insights/recommendations/*`, 2026-10-22) ──
 // 사용자는 user_id 로만 온다 — 서버가 이름·이메일·제공자 ID·프로필 사진을 조회하지도 싣지도 않는다(루트 CLAUDE.md 개인정보 원칙).

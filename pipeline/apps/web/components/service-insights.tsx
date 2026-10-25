@@ -1,7 +1,7 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
 import { Panel, Stat, Table, Td, Tr, btnCls } from "@/components/ui";
-import { EarApiError, type EarChannel, type EarInsightsCohortTable, type EarInsightsSummary, type EarInsightsWeekday, earChannelLabel, getEarInsightsSummary } from "@/lib/ear";
+import { EarApiError, type EarChannel, type EarInsightsCohortTable, type EarInsightsMarket, type EarInsightsMarketRow, type EarInsightsSummary, type EarInsightsWeekday, earChannelLabel, getEarInsightsSummary } from "@/lib/ear";
 import { EarGate, EarSession, earErrMsg } from "@/app/publish/ear-connect";
 import { fmtTime } from "@/lib/format";
 import {
@@ -10,6 +10,22 @@ import {
 } from "@/lib/insights-format";
 
 const DAY_OPTIONS = [7, 14, 30, 90] as const;
+/**
+ * 시장 선택(2026-10-25) — 통합은 전 시장, 국내·글로벌은 화면 전체를 그 시장 사용자(**지금 시장** 기준)로 다시 센다.
+ * 통합에서만 맨 위에 시장 비교표를 둔다. 고른 값은 주소(`?market=`)에 남겨 새로고침·링크 공유에도 유지한다
+ */
+const MARKET_OPTIONS = [
+  { value: null, label: "통합" },
+  { value: "kr", label: "국내" },
+  { value: "global", label: "글로벌" },
+] as const satisfies readonly { value: EarInsightsMarket | null; label: string }[];
+const MARKET_LABEL: Record<EarInsightsMarket, string> = { kr: "국내", global: "글로벌" };
+
+const marketFromUrl = (): EarInsightsMarket | null => {
+  if (typeof window === "undefined") return null;
+  const v = new URLSearchParams(window.location.search).get("market");
+  return v === "kr" || v === "global" ? v : null;
+};
 
 /**
  * 그래프 패널을 그리드 줄 높이만큼 채운다 — 옆 패널(각주가 붙은 그래프·7행 표)이 더 길면 그리드가 이 패널을 늘리는데, 그래프가
@@ -26,6 +42,19 @@ const FILL_PANEL = "flex flex-col [&>div]:flex [&>div]:flex-1 [&>div]:flex-col";
 export function ServiceInsights() {
   const [channel, setChannel] = useState<EarChannel>("prod");
   const [days, setDays] = useState<number>(14);
+  const [market, setMarketState] = useState<EarInsightsMarket | null>(null);
+  // 주소의 `?market=`은 마운트 뒤에 읽는다 — 서버 렌더와 첫 화면이 어긋나지 않게
+  useEffect(() => {
+    const timer = setTimeout(() => setMarketState(marketFromUrl()), 0);
+    return () => clearTimeout(timer);
+  }, []);
+  const setMarket = (next: EarInsightsMarket | null) => {
+    setMarketState(next);
+    const url = new URL(window.location.href);
+    if (next) url.searchParams.set("market", next);
+    else url.searchParams.delete("market");
+    window.history.replaceState(null, "", url);
+  };
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center gap-2">
@@ -40,10 +69,16 @@ export function ServiceInsights() {
             최근 {d}일
           </button>
         ))}
+        <span className="mx-1 h-4 w-px bg-line" aria-hidden="true" />
+        {MARKET_OPTIONS.map((m) => (
+          <button key={m.label} type="button" onClick={() => setMarket(m.value)} aria-pressed={market === m.value} className={`rounded-full border px-3 py-1 text-xs ${market === m.value ? "border-brand bg-brand text-white" : "border-line bg-white text-ink hover:bg-[#f7f9fb]"}`}>
+            {m.label}
+          </button>
+        ))}
         <span className="ml-auto"><EarSession channel={channel} /></span>
       </div>
       <EarGate key={channel} channel={channel}>
-        <InsightsView channel={channel} days={days} onSwitchToDev={channel === "prod" ? () => setChannel("dev") : undefined} />
+        <InsightsView channel={channel} days={days} market={market} onSwitchToDev={channel === "prod" ? () => setChannel("dev") : undefined} />
       </EarGate>
     </div>
   );
@@ -55,12 +90,14 @@ export function ServiceInsights() {
 /** 주제별 수요·공급 표에 먼저 보이는 행 수 — 나머지는 [더보기]. 주제가 30개 가까워 화면을 다 덮는다 */
 const TOPIC_SUPPLY_PREVIEW = 10;
 
-function InsightsView({ channel, days, onSwitchToDev }: { channel: EarChannel; days: number; onSwitchToDev?: () => void }) {
+function InsightsView({ channel, days, market, onSwitchToDev }: { channel: EarChannel; days: number; market: EarInsightsMarket | null; onSwitchToDev?: () => void }) {
   const [data, setData] = useState<EarInsightsSummary | null>(null);
   const [err, setErr] = useState<string | null>(null);
   // 404 = 이 서버에 엔드포인트가 아직 없다(dev 머지로 개발계에 먼저 나가고 운영은 다음 main 배포 때 들어감).
   // 서버 메시지("찾을 수 없어요")만 띄우면 고장으로 읽혀서 별도 안내로 그린다(2026-10-08) — backend-metrics 라우트의 404 처리와 같은 취지
   const [notDeployed, setNotDeployed] = useState(false);
+  // 시장을 골랐는데 400 = 그 서버가 시장 필터(2026-10-25)를 아직 모른다 — 웹은 dev 머지로 바로 나가고 운영 API 는 다음 main 배포 때 바뀐다
+  const [marketUnsupported, setMarketUnsupported] = useState(false);
   const [loading, setLoading] = useState(false);
   const [loadedAt, setLoadedAt] = useState<Date | null>(null);
   const [showAllTopics, setShowAllTopics] = useState(false);
@@ -69,16 +106,18 @@ function InsightsView({ channel, days, onSwitchToDev }: { channel: EarChannel; d
     setLoading(true);
     setErr(null);
     setNotDeployed(false);
+    setMarketUnsupported(false);
     try {
-      setData(await getEarInsightsSummary(channel, days));
+      setData(await getEarInsightsSummary(channel, days, market));
       setLoadedAt(new Date());
     } catch (e) {
       if (e instanceof EarApiError && e.status === 404) setNotDeployed(true);
+      else if (e instanceof EarApiError && e.status === 400 && market) setMarketUnsupported(true);
       else setErr(earErrMsg(e));
     } finally {
       setLoading(false);
     }
-  }, [channel, days]);
+  }, [channel, days, market]);
 
   useEffect(() => {
     // 마운트 직후·창 변경 시 1회 — 효과 안에서 바로 setState 하지 않도록 한 틱 미룬다
@@ -106,6 +145,19 @@ function InsightsView({ channel, days, onSwitchToDev }: { channel: EarChannel; d
       </div>
     );
   }
+  if (marketUnsupported) {
+    return (
+      <div className="space-y-2">
+        <p className="text-[13px] text-amber-800">
+          이 서버({earChannelLabel(channel)})는 시장별 지표를 아직 몰라요 — 개발계에 먼저 나가고 운영은 다음 main 배포 때 들어갑니다. [통합]은 지금도 볼 수 있어요.
+        </p>
+        <div className="flex flex-wrap items-center gap-2">
+          {onSwitchToDev && <button type="button" className={btnCls("primary")} onClick={onSwitchToDev}>개발계로 보기</button>}
+          {refresh}
+        </div>
+      </div>
+    );
+  }
   if (err) return <div className="space-y-2"><p className="text-[13px] text-rose-700">{err}</p>{refresh}</div>;
   if (!data) return <p className="text-[13px] text-ink-soft">불러오는 중…</p>;
 
@@ -117,7 +169,18 @@ function InsightsView({ channel, days, onSwitchToDev }: { channel: EarChannel; d
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center justify-end">{refresh}</div>
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-xs text-ink-soft">
+          {data.market ? `${MARKET_LABEL[data.market]} 사용자만 — 지금 시장 기준(시장을 옮긴 사람은 새 시장으로 셉니다)` : "통합 — 전 시장"}
+        </span>
+        {refresh}
+      </div>
+
+      {!data.market && data.by_market && data.by_market.length > 0 && (
+        <Panel title={`시장 비교 — 활성·청취자는 최근 7일, 가입·청취는 ${winLabel}`} flush>
+          <MarketTable rows={data.by_market} />
+        </Panel>
+      )}
 
       {/* ── 사용자 ── */}
       <SectionTitle>사용자</SectionTitle>
@@ -338,6 +401,28 @@ function InsightsView({ channel, days, onSwitchToDev }: { channel: EarChannel; d
           </ul>
       </Panel>
     </div>
+  );
+}
+
+/** 통합 화면 맨 위 시장 비교 — 전체 대비 비율은 현재 가입자 기준 */
+function MarketTable({ rows }: { rows: EarInsightsMarketRow[] }) {
+  const total = rows.reduce((sum, r) => sum + r.users, 0);
+  return (
+    <Table head={["시장", "가입자", "기간 가입", "온보딩 완료", "7일 활성", "7일 청취자", "기간 청취", "기간 재생", "유료"]}>
+      {rows.map((r) => (
+        <Tr key={r.market}>
+          <Td className="font-medium">{MARKET_LABEL[r.market] ?? r.market}</Td>
+          <Td className="tabular-nums">{fmtInt(r.users)} <span className="text-ink-soft">· {fmtPct(r.users / Math.max(1, total), 0)}</span></Td>
+          <Td className="tabular-nums">{fmtInt(r.signups_in_window)}</Td>
+          <Td className="tabular-nums">{fmtInt(r.onboarding_completed)}</Td>
+          <Td className="tabular-nums">{fmtInt(r.active_7d)}</Td>
+          <Td className="tabular-nums">{fmtInt(r.listeners_7d)}</Td>
+          <Td className="tabular-nums">{fmtListenSec(r.listen_sec)}</Td>
+          <Td className="tabular-nums">{fmtInt(r.plays)}</Td>
+          <Td className="tabular-nums">{fmtInt(r.paid_active)}</Td>
+        </Tr>
+      ))}
+    </Table>
   );
 }
 
