@@ -59,9 +59,31 @@ describe('DripBatchScheduler — 재시작 시 미완료 실행 재개', () => {
     // then
     expect(orchestrator.run.mock.calls.map(([, , group]) => group)).toEqual([
       DripGroup.ASIA,
+      DripGroup.SOUTHEAST_ASIA,
       DripGroup.EUROPE,
       DripGroup.AMERICAS,
     ]);
+  });
+
+  it('동남아 그룹은 싱가포르 현지 05:00 편성 · 07:00 알림 크론이 있다(2026-10-26)', async () => {
+    // given
+    const orchestrator = buildOrchestrator(Object.values(DripGroup));
+    const scheduler = new DripBatchScheduler(orchestrator);
+
+    // when
+    await scheduler.runSoutheastAsiaBatch();
+    await scheduler.pushSoutheastAsiaArrivals();
+
+    // then
+    expect(orchestrator.run).toHaveBeenCalledWith(
+      expect.any(Date),
+      'scheduled',
+      DripGroup.SOUTHEAST_ASIA,
+    );
+    expect(orchestrator.notifyTodayArrivals).toHaveBeenCalledWith(
+      expect.any(Date),
+      DripGroup.SOUTHEAST_ASIA,
+    );
   });
 
   it('05:00 정규 실행은 scheduled 모드의 기본 그룹이다', async () => {

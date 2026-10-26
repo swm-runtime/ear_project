@@ -24,8 +24,18 @@ describe('dripGroupOf — 발송 그룹 판정', () => {
   });
 
   it.each([
-    ['Asia/Kolkata', DripGroup.ASIA], // +5:30
-    ['Asia/Tokyo', DripGroup.ASIA],
+    ['Asia/Tokyo', DripGroup.ASIA], // +9
+    ['Asia/Seoul', DripGroup.ASIA], // GLOBAL 인데 한국 시간대
+    // 1차 공개 동남아·홍콩(2026-10-26) — 싱가포르 기준 그룹
+    ['Asia/Singapore', DripGroup.SOUTHEAST_ASIA], // +8
+    ['Asia/Kuala_Lumpur', DripGroup.SOUTHEAST_ASIA],
+    ['Asia/Manila', DripGroup.SOUTHEAST_ASIA],
+    ['Asia/Hong_Kong', DripGroup.SOUTHEAST_ASIA],
+    ['Asia/Bangkok', DripGroup.SOUTHEAST_ASIA], // +7
+    ['Asia/Jakarta', DripGroup.SOUTHEAST_ASIA], // +7(서부)
+    ['Asia/Makassar', DripGroup.SOUTHEAST_ASIA], // +8(인도네시아 중부)
+    ['Asia/Jayapura', DripGroup.ASIA], // +9(인도네시아 동부) — 한국과 같은 시각
+    ['Asia/Kolkata', DripGroup.SOUTHEAST_ASIA], // +5:30 — 하한 +5
     ['Pacific/Auckland', DripGroup.ASIA], // +13 — 그룹 하한만 보므로 동쪽 끝도 asia
     ['Asia/Dubai', DripGroup.EUROPE], // +4
     ['Europe/London', DripGroup.EUROPE], // 0

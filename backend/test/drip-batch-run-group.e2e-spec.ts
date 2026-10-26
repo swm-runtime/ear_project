@@ -64,6 +64,8 @@ describe('드립 실행 기록 그룹 축 E2E', () => {
       'americas',
       'asia',
       'europe',
+      // varchar(16) 에 14자 — 마이그레이션 없이 들어간다(2026-10-26)
+      'southeast_asia',
     ]);
   });
 
