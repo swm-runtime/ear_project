@@ -1,7 +1,6 @@
 import { ConfigService } from '@nestjs/config';
 
 import { EnvironmentVariables } from '@/config/env.validation';
-import { SlackAlertService } from '@/modules/alert/slack-alert.service';
 import { DripGroup } from '@/modules/drip/drip.enum';
 import { TargetedPushService } from '@/modules/notification/services/targeted-push.service';
 import { UserMarket } from '@/modules/user/user.enum';
@@ -13,8 +12,8 @@ import {
 } from './retention-push.repository';
 import {
   countStreak,
-  formatSlackSummary,
   RetentionPushService,
+  sampleCopies,
 } from './retention-push.service';
 
 // 2026-10-27(화) 18:00 KST
@@ -41,17 +40,11 @@ function facts(
 describe('RetentionPushService', () => {
   let repository: jest.Mocked<RetentionPushRepository>;
   let targetedPushService: jest.Mocked<TargetedPushService>;
-  let slackAlertService: jest.Mocked<SlackAlertService>;
 
   const build = (env: Record<string, string>): RetentionPushService =>
-    new RetentionPushService(
-      repository,
-      targetedPushService,
-      slackAlertService,
-      {
-        get: (key: string) => env[key],
-      } as unknown as ConfigService<EnvironmentVariables, true>,
-    );
+    new RetentionPushService(repository, targetedPushService, {
+      get: (key: string) => env[key],
+    } as unknown as ConfigService<EnvironmentVariables, true>);
 
   beforeEach(() => {
     repository = {
@@ -85,10 +78,6 @@ describe('RetentionPushService', () => {
       findSentHistory: jest.fn().mockResolvedValue([]),
       send: jest.fn().mockResolvedValue({ sent: 1, failed: 0, noDevice: 0 }),
     } as unknown as jest.Mocked<TargetedPushService>;
-
-    slackAlertService = {
-      notify: jest.fn(),
-    } as unknown as jest.Mocked<SlackAlertService>;
   });
 
   it('스위치가 없으면 꺼져 있다 — 어느 그룹도 돌지 않는다', () => {
@@ -98,7 +87,7 @@ describe('RetentionPushService', () => {
     expect(service.isGroupActive(DripGroup.ASIA)).toBe(false);
   });
 
-  it('dry_run 은 알림을 정하고 Slack 에 남기지만 보내지 않는다', async () => {
+  it('dry_run 은 알림을 정하지만 보내지 않는다', async () => {
     // given
     const service = build({ RETENTION_PUSH_MODE: 'dry_run' });
 
@@ -109,10 +98,6 @@ describe('RetentionPushService', () => {
     expect(summary.audience).toBe(2);
     expect(summary.byRule).toEqual({ [RetentionRuleKey.STREAK_KEEP]: 2 });
     expect(targetedPushService.send).not.toHaveBeenCalled();
-    expect(slackAlertService.notify).toHaveBeenCalledWith(
-      'retention push',
-      expect.stringContaining('드라이런'),
-    );
   });
 
   it('on 이면 retention.<규칙>.<변형> 종류로 보낸다', async () => {
@@ -178,32 +163,24 @@ describe('countStreak', () => {
   });
 });
 
-describe('formatSlackSummary', () => {
-  it('규칙별 건수와 예시 문구만 싣고 사용자 id 는 싣지 않는다', () => {
-    const text = formatSlackSummary(
-      DripGroup.ASIA,
-      RetentionPushMode.DRY_RUN,
-      {
-        audience: 5,
-        planned: 1,
-        byRule: { [RetentionRuleKey.STREAK_KEEP]: 1 },
-        sent: 0,
-        failed: 0,
-      },
-      [
-        {
-          userId: KR_USER,
-          ruleKey: RetentionRuleKey.STREAK_KEEP,
-          variant: 0,
-          title: '(광고) 2일 연속으로 듣고 있어요',
-          body: '오늘도 이어 가면 3일째예요\n수신거부: 설정 > 알림',
-          deepLink: 'ear://library',
-        },
-      ],
-    );
+describe('sampleCopies', () => {
+  it('규칙마다 문구 예시 1개만 싣고 사용자 id 는 싣지 않는다', () => {
+    const plan = {
+      userId: KR_USER,
+      ruleKey: RetentionRuleKey.STREAK_KEEP,
+      variant: 0,
+      title: '(광고) 2일 연속으로 듣고 있어요',
+      body: '오늘도 이어 가면 3일째예요\n수신거부: 설정 > 알림',
+      deepLink: 'ear://library',
+    };
 
-    expect(text).toContain('streak_keep: 1건');
-    expect(text).toContain('(광고) 2일 연속으로 듣고 있어요');
-    expect(text).not.toContain(KR_USER);
+    const samples = sampleCopies([plan, { ...plan, userId: GLOBAL_USER }]);
+
+    expect(samples).toEqual({
+      [RetentionRuleKey.STREAK_KEEP]: [
+        '(광고) 2일 연속으로 듣고 있어요 / 오늘도 이어 가면 3일째예요 / 수신거부: 설정 > 알림',
+      ],
+    });
+    expect(JSON.stringify(samples)).not.toContain(KR_USER);
   });
 });

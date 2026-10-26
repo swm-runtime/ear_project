@@ -10,7 +10,6 @@ import {
   toServiceDate,
   toWeekDates,
 } from '@/common/utils/service-date.util';
-import { SlackAlertService } from '@/modules/alert/slack-alert.service';
 import {
   DEFAULT_DRIP_GROUP,
   dripGroupOf,
@@ -55,7 +54,9 @@ const STREAK_LOOKBACK_DAYS = 60;
  * 저녁 리텐션 알림(`notification.md` 4.6, KAN-272) — 그룹의 현지 18:00에 한 번 돈다.
  *
  * 대상(마케팅 동의 · 온보딩 완료 · 보낼 기기) → 사용자별 사실과 시장 집계 → 규칙 판정(`retention-push.policy.ts`) →
- * `RETENTION_PUSH_MODE`가 `on`이면 보내고, `dry_run`이면 보내지 않고 규칙별 건수·예시를 Slack 에 남긴다.
+ * `RETENTION_PUSH_MODE`가 `on`이면 보내고, `dry_run`이면 보내지 않는다. 결과는 로그 한 줄로만 남긴다(규칙별 건수 —
+ * `dry_run`이면 규칙마다 문구 예시까지). 팀 채널로 보내지 않는다 — 켜기 전 몇 번만 사람이 로그로 확인하면 되고, 그 뒤 성과는
+ * `notification_logs`(종류 = 규칙·변형)로 본다(2026-10-26 결정)
  *
  * 같은 그룹이 두 번 돌아도(재시작 등) 최근 20시간 1건 제한이 두 번째를 막는다 — 실행 기록 표를 따로 두지 않는다.
  */
@@ -68,7 +69,6 @@ export class RetentionPushService {
   constructor(
     private readonly repository: RetentionPushRepository,
     private readonly targetedPushService: TargetedPushService,
-    private readonly slackAlertService: SlackAlertService,
     configService: ConfigService<EnvironmentVariables, true>,
   ) {
     this.mode = toMode(
@@ -126,11 +126,10 @@ export class RetentionPushService {
       by_rule: summary.byRule,
       sent: summary.sent,
       failed: summary.failed,
+      ...(this.mode === RetentionPushMode.DRY_RUN
+        ? { samples: sampleCopies(plans.items) }
+        : {}),
     });
-    this.slackAlertService.notify(
-      'retention push',
-      formatSlackSummary(group, this.mode, summary, plans.items),
-    );
 
     return summary;
   }
@@ -339,38 +338,23 @@ function countByRule(
   return counts;
 }
 
-/** 규칙별 건수 + 규칙마다 문구 예시 1개. 사용자 식별값은 싣지 않는다 */
-export function formatSlackSummary(
-  group: DripGroup,
-  mode: RetentionPushMode,
-  summary: RetentionPushSummary,
+/**
+ * 규칙마다 문구 예시 — dry_run 로그에서 실제로 나갈 문구를 확인하려고 싣는다. 사용자 식별값은 싣지 않는다
+ * (듣던 콘텐츠 제목은 콘텐츠 정보라 개인 식별값이 아니다).
+ */
+export function sampleCopies(
   plans: RetentionPushPlan[],
-): string {
-  const header =
-    mode === RetentionPushMode.DRY_RUN
-      ? `:test_tube: 저녁 리텐션 알림 드라이런 (${group}) — 보내지 않음`
-      : `:bell: 저녁 리텐션 알림 (${group}) — 발송 ${summary.sent} · 실패 ${summary.failed}`;
-  const lines = [
-    header,
-    `대상 ${summary.audience}명(마케팅 동의 · 기기 있음) → 알림 ${summary.planned}건`,
-  ];
+): Partial<Record<RetentionRuleKey, string[]>> {
+  const samples: Partial<Record<RetentionRuleKey, string[]>> = {};
 
-  for (const ruleKey of Object.values(RetentionRuleKey)) {
-    const count = summary.byRule[ruleKey];
+  for (const plan of plans) {
+    const list = samples[plan.ruleKey] ?? [];
 
-    if (!count) {
-      continue;
-    }
-
-    lines.push(`• ${ruleKey}: ${count}건`);
-
-    for (const plan of plans
-      .filter((item) => item.ruleKey === ruleKey)
-      .slice(0, RETENTION_DRY_RUN_SAMPLES_PER_RULE)) {
-      // 듣던 콘텐츠 제목은 콘텐츠 정보라 개인 식별값이 아니다 — 그대로 싣는다
-      lines.push(`   > ${plan.title} / ${plan.body.replace(/\n/g, ' / ')}`);
+    if (list.length < RETENTION_DRY_RUN_SAMPLES_PER_RULE) {
+      list.push(`${plan.title} / ${plan.body.replace(/\n/g, ' / ')}`);
+      samples[plan.ruleKey] = list;
     }
   }
 
-  return lines.join('\n');
+  return samples;
 }

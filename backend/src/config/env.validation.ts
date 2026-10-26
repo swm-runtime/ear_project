@@ -261,7 +261,7 @@ export class EnvironmentVariables {
 
   /**
    * 저녁 리텐션 알림(`notification.md` 4.6, KAN-272)의 서버 스위치. `off`(기본·빈 값) · `dry_run` · `on`.
-   * `dry_run`은 대상·문구까지 정하고 **보내지 않는다** — 규칙별 건수와 문구 예시를 Slack 에 남긴다(임계값을 실제
+   * `dry_run`은 대상·문구까지 정하고 **보내지 않는다** — 규칙별 건수와 문구 예시를 API 로그에 남긴다(임계값을 실제
    * 숫자로 맞춰 보는 단계). `on`은 마케팅 수신 동의자에게 그룹 현지 18:00에 보낸다.
    */
   @IsOptional()
