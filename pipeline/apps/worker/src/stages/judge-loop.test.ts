@@ -4,7 +4,7 @@ import { applyFixes, applyPronChanges, blindNotes, blindScript, blindSources, bu
 
 const ed = (scores: number[], extra: Partial<Editor> = {}): Editor => ({ scores: Object.fromEntries(K.map((k, i) => [k, { score: scores[i] ?? 5, reason: `r${k}` }])), retell: "", findings: [], edits: [], publishable: false, publishable_reason: "", summary_ko: "요약", ...extra });
 const kr = (findings: Korea["findings"] = [], publishable = true): Korea => ({ findings, edits: [], other_changes: [], publishable, publishable_reason: publishable ? "ok" : "범위 변형", summary_ko: "한국어 요약" });
-const rounds: RoundRec[] = [{ t: 0, mode: "original", totals: [50, 52, 51], median: {}, total: 51, struct: 18, koreaPub: true, koreaMf: 2, repaired: [], l0: 0, words: 800, cost: 0.3 }];
+const rounds: RoundRec[] = [{ t: 0, mode: "original", totals: [50, 52, 51], median: {}, total: 51, critic: 58, struct: 18, koreaPub: true, koreaMf: 2, repaired: [], l0: 0, words: 800, cost: 0.3 }];
 
 test("눈가림 — 메타 줄은 제목·주제만, 노트는 QA 절·인용 블록 제거, 발췌는 Gist 줄 제거", () => {
   assert.equal(blindScript("G1 · Title · Topic · A/B · full-en-v0.21(gpt) · S1\n## [Intro]").split("\n")[0], "Title · Topic");
@@ -24,16 +24,16 @@ test("메타 줄 보정·발음 사전 병합", () => {
   assert.equal(fixMeta({ title: "New", script: "## [Intro]\n[Y] Y1 · hi" }, "G1 · Old · T · A/B · v · S1\nx").split("\n")[0], "G1 · New · T · A/B · v · S1");
   assert.equal(JSON.parse(mergePron("{\"a\":\"ㄱ\"}", [{ term: "b", reading: "ㄴ" }, { term: "a", reading: "x" }])).b, "ㄴ");
 });
-test("판정 — 중앙값 ≥ 기준 · 한국어 가 · must_fix 전부 수리면 발행 가능", () => {
+test("판정 — 비평 ≥ 기준 · 한국어 가 · must_fix 전부 수리면 발행 가능 (v1.12: 관문 점수는 비평, 편집자 중앙값은 기록)", () => {
   const eds = [ed(Array(12).fill(6)), ed(Array(12).fill(5)), ed(Array(12).fill(6))]; // 중앙 72
-  const v = buildVerdict({ episodeId: "G1", rounds, bestRound: 1, eds, korea: kr([{ turn: "E3", quote: "q", problem: "p", kind: "must_fix" }]), repaired: ["E3"], threshold: 65, model: "gpt-6.1-sol", reportKey: "s3:episodes/G1/agent-verdict.md", cost: 1.2 });
-  assert.equal(v.agent.publishable, true); assert.equal(v.agent.must_fix[0].status, "fixed"); assert.equal(v.judged_by, "agent:gpt-6.1-sol"); assert.equal(v.scores["3.1"].human, "6");
+  const v = buildVerdict({ episodeId: "G1", rounds, bestRound: 1, critic: 66, eds, korea: kr([{ turn: "E3", quote: "q", problem: "p", kind: "must_fix" }]), repaired: ["E3"], threshold: 65, model: "gpt-6.1-sol", reportKey: "s3:episodes/G1/agent-verdict.md", cost: 1.2 });
+  assert.equal(v.agent.publishable, true); assert.match(v.agent.publishable_reason, /비평 66 ≥ 65/); assert.equal(v.agent.critic_total, 66); assert.equal(v.agent.editor_median, 72); assert.equal(v.agent.must_fix[0].status, "fixed"); assert.equal(v.judged_by, "agent:gpt-6.1-sol"); assert.equal(v.scores["3.1"].human, "6");
 });
 test("판정 — 기준 미달·한국어 불가·미수리 must_fix 는 발행 불가 사유로 남는다", () => {
   const eds = [ed(Array(12).fill(5)), ed(Array(12).fill(5)), ed(Array(12).fill(5))]; // 60
-  const v = buildVerdict({ episodeId: "G1", rounds, bestRound: 0, eds, korea: kr([{ turn: "E3", quote: "q", problem: "p", kind: "must_fix" }], false), repaired: [], threshold: 65, model: "gpt", reportKey: "s3:x", cost: 0 });
+  const v = buildVerdict({ episodeId: "G1", rounds, bestRound: 0, critic: 58, eds, korea: kr([{ turn: "E3", quote: "q", problem: "p", kind: "must_fix" }], false), repaired: [], threshold: 65, model: "gpt", reportKey: "s3:x", cost: 0 });
   assert.equal(v.agent.publishable, false);
-  assert.match(v.agent.publishable_reason, /60 < 기준 65/); assert.match(v.agent.publishable_reason, /발행 불가/); assert.match(v.agent.publishable_reason, /미수리/);
+  assert.match(v.agent.publishable_reason, /비평 58 < 기준 65/); assert.match(v.agent.publishable_reason, /발행 불가/); assert.match(v.agent.publishable_reason, /미수리/);
   assert.equal(v.agent.must_fix[0].status, "open");
 });
 
@@ -66,9 +66,9 @@ test("발음 사전 변경 적용 — after 쌍 덮어쓰기, before 에만 있�
   assert.deepEqual(applyPronChanges(pron, undefined, findings).resolved, []);
 });
 
-test("0회차 재작성 생략 조건 — 기준 이상·한국어 가·must_fix 0 일 때만", () => {
-  assert.equal(roundPublishable({ total: 60, koreaPub: true, openMustFix: 0 }, 60), true);
-  assert.equal(roundPublishable({ total: 59, koreaPub: true, openMustFix: 0 }, 60), false);
-  assert.equal(roundPublishable({ total: 62, koreaPub: false, openMustFix: 0 }, 60), false);
-  assert.equal(roundPublishable({ total: 62, koreaPub: true, openMustFix: 1 }, 60), false);
+test("0회차 재작성 생략 조건 — 비평 기준 이상·한국어 가·must_fix 0 일 때만 (v1.12)", () => {
+  assert.equal(roundPublishable({ critic: 60, koreaPub: true, openMustFix: 0 }, 60), true);
+  assert.equal(roundPublishable({ critic: 59, koreaPub: true, openMustFix: 0 }, 60), false);
+  assert.equal(roundPublishable({ critic: 62, koreaPub: false, openMustFix: 0 }, 60), false);
+  assert.equal(roundPublishable({ critic: 62, koreaPub: true, openMustFix: 1 }, 60), false);
 });

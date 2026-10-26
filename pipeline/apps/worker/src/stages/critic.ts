@@ -146,6 +146,7 @@ async function runCriticV2(job: Job, ex: Executor, e: { episodeId: string; backl
   // 자동화 (2026-09-23): 비평까지 끝나면 발행 준비 연쇄(tts → thumbnail → package)를 바로 건다 — settings.automation.auto_publish_prep 이 켜져 있을 때만
   const prepJobId = await startPublishPrepIfEnabled(e.episodeId, e.backlogId, job.id).catch((err) => { log(`  자동 발행 준비 걸기 실패: ${err?.message ?? err}`); return null; });
   // 글로벌판(2026-10-22, 명세 6.10): 비평 뒤 판정·재작성 루프를 워커가 잇는다 — 판정이 발행 가능이면 자동 발행 준비(스위치)가 그다음을 건다
-  const judgeJobId = await enqueueJudgeLoop(e.episodeId, e.backlogId, job.id).catch((err) => { log(`  판정 루프 걸기 실패: ${err?.message ?? err}`); return null; });
+  // 2026-10-26: 발행 관문이 비평 v2 합계로 바뀌어(judge-loop-v1.12) 원판 점수를 payload 로 넘긴다 — 같은 대본이라 루프가 다시 재지 않는다
+  const judgeJobId = await enqueueJudgeLoop(e.episodeId, e.backlogId, job.id, { critic_total: total }).catch((err) => { log(`  판정 루프 걸기 실패: ${err?.message ?? err}`); return null; });
   return { episode_id: e.episodeId, rubric: "v2", pre_template: preTemplate, judge_loop_job_id: judgeJobId, scores: s, sums: sum, total, violations: o.violations, suspects: o.suspects, stars: o.stars, summary: o.summary, model: r.model, publish_prep_job_id: prepJobId };
 }
