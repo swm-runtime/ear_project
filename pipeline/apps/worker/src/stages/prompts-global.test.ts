@@ -124,11 +124,11 @@ test("글로벌 규칙 자산 — 버전 라벨 full-en-v0.22, 모델에 가는 
   assert.deepEqual(JSON.parse(await fs.readFile(path.join(root, "skills/tts/pronunciation.json"), "utf8")), { annyeonghaseyo: "안녕하세요", gamsahamnida: "감사합니다" }); // 인트로 인사(tpl-en-v2)·끝인사(v3) — 한글로 읽힌다
 });
 
-test("QA(en) — 영어 지시문·스키마, 자산 본문 한글 없음·버전 qa-en-v0.12, 이전 회차 실패는 check 번호로, 시리즈 틀 문장은 절로", async () => {
+test("QA(en) — 영어 지시문·스키마, 자산 본문 한글 없음·버전 qa-en-v0.13, 이전 회차 실패는 check 번호로, 시리즈 틀 문장은 절로", async () => {
   const { versionOf } = await import("../assets.js");
   const root = path.resolve(import.meta.dirname, "../../../../../docs/ai/global");
   const qa = await fs.readFile(path.join(root, "skills/qa/prompt.md"), "utf8");
-  assert.equal(versionOf("skills/qa/prompt.md", qa), "qa-en-v0.12");
+  assert.equal(versionOf("skills/qa/prompt.md", qa), "qa-en-v0.13");
   const body = P.promptBody(qa);
   assert.doesNotMatch(body, HANGUL);
   assert.doesNotMatch(body, /Change history/); // --- 아래 이력은 모델에 가지 않는다
@@ -143,7 +143,7 @@ test("QA(en) — 영어 지시문·스키마, 자산 본문 한글 없음·버�
   assert.match(ps.user, /### Series frames — sentences given to the writer/);
   assert.match(ps.user, /episode 2 of 26 in the series "Korean Expressions You Hear in K-Dramas"/);
   assert.match(ps.user, /recall episode 1, "Daebak, Jjang, Heol"\. Its support is claim C19/);
-  assert.match(ps.user, /Sign-off first sentence, inside the first \{slot\}: "Next time, we'll talk about Jinjja, Jeongmal, Neomu\."/);
+  assert.match(ps.user, /Sign-off: the sentence right before the fixed sign-off line, in the same host turn: "Next time, we'll talk about Jinjja, Jeongmal, Neomu\."/);
   const p1 = P.buildQaPromptInlinePartsEn({ episodeId: "G3", attempt: 1, qaPromptMd: body, specQaMd: spec, scriptMd: "s", claimsMd: "c", sourcesMd: "x", seriesFrames: { name: "S", no: 1, total: 3, introSentence: "i", closingSentence: "c", recapClaimId: null, prevTitle: null } });
   assert.doesNotMatch(p1.user, /Recap:/); // 1화는 회상 없음
   assert.doesNotMatch(JSON.stringify(P.QA_INLINE_SCHEMA_EN), HANGUL);

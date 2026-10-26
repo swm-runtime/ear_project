@@ -104,7 +104,7 @@ export function seriesViolations(scriptMd: string, notesMd: string | undefined, 
   const norm = (s: string) => s.replace(/\s+/g, " ").trim();
   const first = turns[0], last = turns[turns.length - 1];
   if (!first || !norm(first.text).includes(norm(links.intro_sentence))) v.push(en ? `Series intro line missing from the intro turn ${first?.id ?? ""} — the {topic_line} slot is exactly: "${links.intro_sentence}"` : `인트로 턴 ${first?.id ?? ""}에 시리즈 줄이 없다 — {대주제 한 줄} 자리는 정확히 "${links.intro_sentence}"`);
-  if (!last || !norm(last.text).includes(norm(links.closing_sentence))) v.push(en ? `Series sentence missing from the sign-off turn ${last?.id ?? ""} — its first {slot} begins with exactly: "${links.closing_sentence}"` : `클로징 인사 턴 ${last?.id ?? ""}에 시리즈 문장이 없다 — 첫 {슬롯}은 정확히 "${links.closing_sentence}"로 시작한다`);
+  if (!last || !norm(last.text).includes(norm(links.closing_sentence))) v.push(en ? `Series sentence missing from the sign-off turn ${last?.id ?? ""} — that turn starts with exactly "${links.closing_sentence}" and then keeps the sign-off line word for word (both in one turn; do not drop either)` : `클로징 인사 턴 ${last?.id ?? ""}에 시리즈 문장이 없다 — 첫 {슬롯}은 정확히 "${links.closing_sentence}"로 시작한다`);
   if (links.recap_claim_id) {
     const leadZone = turns.find((t) => t.id?.startsWith("E") && t.section !== turns[0]?.section);
     const firstE = turns.find((t) => t.id?.startsWith("E"));
