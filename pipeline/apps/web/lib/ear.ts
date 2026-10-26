@@ -428,11 +428,25 @@ export async function downloadEarEvalSnapshot(ch: EarChannel): Promise<{ filenam
 export interface EarSearchQueryRank { query: string; searches: number; misses: number; clicked: number | null; result_count: number | null; has_more: boolean; last_searched_at: string }
 export interface EarSearchQueryLogSummary {
   days: number; since: string;
-  totals: { searches: number; misses: number; miss_rate: number | null; clicked: number | null; users: number; short_queries: number; filtered_searches: number };
-  daily: { date: string; searches: number; misses: number; clicked: number }[];
+  totals: {
+    searches: number; misses: number; miss_rate: number | null; clicked: number | null; users: number; short_queries: number; filtered_searches: number;
+    /** 하이브리드·교정(KAN-238) — 옛 서버는 없다(null) */
+    corrected?: number | null; correction_rejected?: number | null; keyword_misses?: number | null; rescued?: number | null; semantic_unavailable?: number | null;
+  };
+  daily: { date: string; searches: number; misses: number; clicked: number; rescued: number }[];
   missed: EarSearchQueryRank[];
   top: EarSearchQueryRank[];
+  /** 의미 검색만으로 결과가 나온 질의(2026-10-27) — 옛 서버는 null(표를 숨긴다) */
+  semantic: EarSearchSemanticRank[] | null;
+  /** 오타 교정(2026-10-27) — 옛 서버는 null */
+  corrections: EarSearchCorrectionRank[] | null;
 }
+export interface EarSearchSemanticRank {
+  query: string; searches: number; clicked: number;
+  contents: { content_id: string; title: string; topics: string[] }[];
+  last_searched_at: string;
+}
+export interface EarSearchCorrectionRank { query: string; query_used: string; searches: number; rejected: number; clicked: number; last_searched_at: string }
 /** 옛 서버 응답(필드 없음)도 화면이 읽을 수 있게 채운다 — 규칙은 `search-query-log-normalize.ts` */
 export const getEarSearchQueryLogSummary = async (ch: EarChannel, days: number): Promise<EarSearchQueryLogSummary> =>
   normalizeSearchQueryLogSummary(await earFetch<RawSearchQueryLogSummary>(`/admin/search-query-logs/summary?days=${days}`, { cache: "no-store" }, ch));
