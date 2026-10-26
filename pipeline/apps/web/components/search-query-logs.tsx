@@ -88,11 +88,11 @@ function SummaryView({ channel, days }: { channel: EarChannel; days: number }) {
 
       <div className="grid grid-cols-2 gap-3 md:grid-cols-6">
         <Stat label="검색" value={t ? t.searches.toLocaleString() : "…"} sub={t ? `사용자 ${t.users.toLocaleString()}명 · 타이핑 묶음 단위` : undefined} />
-        <Stat label="결과 없음 비율" value={t ? pct(missRate) : "…"} sub={t ? <>{small ? `결과 없음 ${t.misses}회 — 표본 ${t.searches}회, 참고만` : `결과 없음 ${t.misses.toLocaleString()}회 ÷ 검색`}{keywordMissRate != null && hybridMissRate != null && <><br />의미 검색 도입 뒤 {hybridSearches?.toLocaleString()}회: 키워드만이면 <b>{pct(keywordMissRate)}</b> → 실제 <b>{pct(hybridMissRate)}</b></>}</> : undefined} tone={missTone} />
+        <Stat label="결과 없음 비율" value={t ? pct(missRate) : "…"} sub={t ? <>{small ? `결과 없음 ${t.misses}회 — 표본 ${t.searches}회, 참고만` : `결과 없음 ${t.misses.toLocaleString()}회 ÷ 검색`}{keywordMissRate != null && hybridMissRate != null ? <><br />의미 검색 도입 뒤 {hybridSearches?.toLocaleString()}회: 키워드만이면 <b>{pct(keywordMissRate)}</b> → 실제 <b>{pct(hybridMissRate)}</b></> : t.keyword_misses != null && <><br /><span className="text-ink-soft/80">키워드만 대비 비교는 이 서버 배포 뒤 표시</span></>}</> : undefined} tone={missTone} />
         <Stat
           label="의미 검색이 살림"
           value={t ? (t.rescued == null ? "-" : `${t.rescued.toLocaleString()}회`) : "…"}
-          sub={t && t.rescued != null ? <>키워드로는 0건이던 {(t.keyword_misses ?? 0).toLocaleString()}회 중 결과를 냄 · <span className={(semanticDownRate ?? 0) >= 0.05 ? "font-semibold text-rose-700" : ""} title="AI 서버가 늦거나(0.8초 초과) 꺼져 의미 검색 없이 키워드만으로 답한 검색 비율">AI 서버 응답 실패 {semanticDownRate == null ? "-" : pct(semanticDownRate)}</span></> : "이 서버는 아직 집계하지 않는다"}
+          sub={t && t.rescued != null ? <>키워드로는 0건이던 {(t.keyword_misses ?? 0).toLocaleString()}회 중 결과를 냄 · <span className={(semanticDownRate ?? 0) >= 0.05 ? "font-semibold text-rose-700" : ""} title="AI 서버가 늦거나(0.8초 초과) 꺼져 의미 검색 없이 키워드만으로 답한 검색 비율">AI 서버 응답 실패 {semanticDownRate == null ? "— 이 서버 배포 뒤 표시" : pct(semanticDownRate)}</span></> : "이 서버는 아직 집계하지 않는다"}
           tone="text-sky-700"
         />
         <Stat label="콘텐츠 클릭" value={t ? (t.clicked == null ? "-" : `${t.clicked.toLocaleString()}회`) : "…"} sub={t && t.clicked == null ? "이 서버는 아직 집계하지 않는다 — 배포 대기" : "검색 뒤 10분 안에 결과를 재생·담은 검색"} />
