@@ -20,7 +20,9 @@ export async function scoreCriticV2En(ex: Executor, e: { episodeId: string; titl
   const ap = assetPaths(e.assetRoot, cfg.workRoot);
   const [rubricV2Md, guidelines] = await Promise.all([ap.criticRubricV2, ap.guidelines].map((p) => readFile(p, "utf8")));
   const parts = buildCriticPromptInlinePartsEn({ episodeId: e.episodeId, title: e.title, midTopic: e.midTopic, rubricV2Md, guidelines, scriptMd: e.scriptMd });
-  const r = await ex.run<CriticV2Scores>({ prompt: parts.user, systemPrompt: parts.system, schema: CRITIC_INLINE_SCHEMA_EN, tools: [], allowedTools: [], cwd: cfg.workRoot, timeoutMs: (e.timeoutMin ?? 30) * 60_000, model: cfg.criticModel, maxThinkingTokens: cfg.thinkingCritic, effort: cfg.effortCritic, background: true });
+  const run = (background: boolean) => ex.run<CriticV2Scores>({ prompt: parts.user, systemPrompt: parts.system, schema: CRITIC_INLINE_SCHEMA_EN, tools: [], allowedTools: [], cwd: cfg.workRoot, timeoutMs: (e.timeoutMin ?? 30) * 60_000, model: cfg.criticModel, maxThinkingTokens: cfg.thinkingCritic, effort: cfg.effortCritic, background });
+  // 백그라운드 응답이 대기열에서 안 움직여 시간 초과면 동기로 한 번 더 (2026-10-27, judge-loop 의 gpt 헬퍼와 같은 정책)
+  const r = await run(cfg.judgeBackground).catch((err) => { if (cfg.judgeBackground && /요청 시간 초과 \(백그라운드/.test(String(err))) return run(false); throw err; });
   const sums = criticV2Sums(r.output.scores);
   return { total: sums.total, sums, model: r.model ?? null, costUsd: r.listCostUsd ?? 0, durationMs: r.durationMs ?? 0 };
 }
