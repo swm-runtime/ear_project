@@ -205,6 +205,10 @@ function InsightsView({ channel, days, market, onSwitchToDev }: { channel: EarCh
   const all = data.listening.all_time;
   const win = data.listening.window;
   const winLabel = `최근 ${data.days}일`;
+  // 사유 필수(1.3.0) 전 옛 앱의 사유 없는 탈퇴는 비율에서 뺀다 — 섞으면 실제 사유 비중이 묽어진다
+  const reasoned = data.withdrawal_reasons.filter((r) => r.reason_code !== null);
+  const reasonTotal = reasoned.reduce((sum, r) => sum + r.count, 0);
+  const unreasoned = data.withdrawal_reasons.filter((r) => r.reason_code === null).reduce((sum, r) => sum + r.count, 0);
   const hourlyMax = maxOf(data.hourly, (r) => r.plays);
 
   return (
@@ -401,16 +405,29 @@ function InsightsView({ channel, days, market, onSwitchToDev }: { channel: EarCh
             {" "}<b>목표</b> = MWM Retention Benchmarks 미국 2025 Q3 미디어·엔터테인먼트 카테고리 중앙값(팟캐스트 전용 수치가 아니다). <b>N일째 하루</b>가 목표 이상이면 <span className="text-emerald-700">초록</span>, 미달이면 <span className="text-rose-700">빨강</span>. 탈퇴자는 분모에 없어 우리 값이 실제보다 조금 높고, 표본이 적으면 색이 크게 흔들린다.
           </p>
         </Panel>
-        <Panel title={`탈퇴 사유 (전 기간 ${fmtInt(u.withdrawals)}건)`} flush>
+        <Panel title={`탈퇴 사유 (전 기간 사유 있는 ${fmtInt(reasonTotal)}건)`} flush>
           <Table head={["사유", "건수", "비율"]} empty="탈퇴 기록이 없다">
-            {data.withdrawal_reasons.map((r) => (
-              <Tr key={r.reason_code ?? "null"}>
-                <Td className="font-medium">{labelOf(REASON_LABEL, r.reason_code)}</Td>
-                <Td className="tabular-nums">{r.count}건</Td>
-                <Td className="tabular-nums text-ink-soft">{fmtPct(r.count / Math.max(1, u.withdrawals), 0)}</Td>
-              </Tr>
-            ))}
+            {reasoned.map((r) => {
+              const share = r.count / Math.max(1, reasonTotal);
+              return (
+                <Tr key={r.reason_code ?? "null"}>
+                  <Td className="font-medium">{labelOf(REASON_LABEL, r.reason_code)}</Td>
+                  <Td className="tabular-nums">{r.count}건</Td>
+                  <Td className="tabular-nums font-medium">
+                    <div className="flex items-center gap-2">
+                      <div className="h-2 w-24 overflow-hidden rounded-full bg-line"><div className="h-full rounded-full bg-brand" style={{ width: `${Math.round(share * 1000) / 10}%` }} /></div>
+                      {fmtPct(share, 1)}
+                    </div>
+                  </Td>
+                </Tr>
+              );
+            })}
           </Table>
+          {unreasoned > 0 && (
+            <p className="px-3 py-2 text-xs text-ink-soft">
+              사유 필수 입력(앱 1.3.0 — 최소 지원 버전 2026-10-25) 전 옛 앱에서 사유 없이 탈퇴한 {fmtInt(unreasoned)}건은 뺐다. 비율은 사유가 있는 탈퇴 중의 비율이다.
+            </p>
+          )}
         </Panel>
       </div>
       {data.push_reactions && (
