@@ -113,6 +113,10 @@ export class AdminInsightsSummaryResponseDto {
     paid_active: number;
     /** `paid_active / current` */
     paid_rate: number | null;
+    /** 실결제를 한 번이라도 한 현재 계정 수(해지·만료 포함, 환불·시험 결제 제외 — 2026-10-26) */
+    paid_ever: number;
+    /** `paid_ever / current` — 유료 전환 성공지표 */
+    paid_ever_rate: number | null;
     activated: number;
     /** `activated / current` — 가입자 중 한 번이라도 재생한 비율 */
     activation_rate: number | null;
@@ -174,12 +178,33 @@ export class AdminInsightsSummaryResponseDto {
   /** `recent_top_contents`의 창 시작(ISO) — 지금 - 24시간 */
   readonly recent_since: string;
   readonly withdrawal_reasons: { reason_code: string | null; count: number }[];
+  /**
+   * 창 안에 보낸 알림의 종류별 반응(2026-10-26) — `type`이 `retention.<규칙>.<변형>`이면 `rule`·`variant`가 채워진다
+   * (`drip_arrival`은 둘 다 null — 비교 기준선). 반응 = 보낸 뒤 2시간 안 재생
+   */
+  readonly push_reactions: {
+    type: string;
+    rule: string | null;
+    variant: string | null;
+    sent: number;
+    reacted: number;
+    /** `reacted / sent` */
+    reaction_rate: number | null;
+  }[];
+  /**
+   * 언바운디드(`cohort_size`·`returned`·`rate` — 가입 N일 뒤 이후 아무 때나)와 바운디드(`bounded_*` — 정확히 가입 N일째 하루,
+   * 벤치마크와 같은 정의, 2026-10-26)를 한 줄에 싣는다. 바운디드 분모는 N일째가 다 지났고 접속 기록을 믿을 수 있는 가입자만이다
+   */
   readonly retention: {
     day: number;
     cohort_size: number;
     returned: number;
     /** `returned / cohort_size` */
     rate: number | null;
+    bounded_cohort_size: number;
+    bounded_returned: number;
+    /** `bounded_returned / bounded_cohort_size` */
+    bounded_rate: number | null;
   }[];
   /** 코호트 리텐션 — 가입일별 D1·D7, 가입 주별 W1~W4(절대수치·비율 함께) */
   readonly retention_cohorts: {
@@ -245,6 +270,8 @@ export class AdminInsightsSummaryResponseDto {
         tier_events: u.tierEvents,
         paid_active: u.paidActive,
         paid_rate: ratio(u.paidActive, u.current),
+        paid_ever: u.paidEver,
+        paid_ever_rate: ratio(u.paidEver, u.current),
         activated: u.activated,
         activation_rate: ratio(u.activated, u.current),
         active_1d: u.active1d,
@@ -299,16 +326,39 @@ export class AdminInsightsSummaryResponseDto {
       top_contents: summary.topContents.map(toTopContent),
       recent_top_contents: summary.recentTopContents.map(toTopContent),
       recent_since: summary.recentSince.toISOString(),
+      push_reactions: summary.pushReactions.map((r) => {
+        const [, rule = null, variant = null] = r.type.startsWith('retention.')
+          ? r.type.split('.')
+          : [];
+
+        return {
+          type: r.type,
+          rule,
+          variant,
+          sent: r.sent,
+          reacted: r.reacted,
+          reaction_rate: ratio(r.reacted, r.sent),
+        };
+      }),
       withdrawal_reasons: summary.withdrawalReasons.map((r) => ({
         reason_code: r.reasonCode,
         count: r.count,
       })),
-      retention: summary.retention.map((r) => ({
-        day: r.day,
-        cohort_size: r.cohortSize,
-        returned: r.returned,
-        rate: ratio(r.returned, r.cohortSize),
-      })),
+      retention: summary.retention.map((r) => {
+        const bounded = summary.boundedRetention.find((b) => b.day === r.day);
+        const boundedCohortSize = bounded?.cohortSize ?? 0;
+        const boundedReturned = bounded?.returned ?? 0;
+
+        return {
+          day: r.day,
+          cohort_size: r.cohortSize,
+          returned: r.returned,
+          rate: ratio(r.returned, r.cohortSize),
+          bounded_cohort_size: boundedCohortSize,
+          bounded_returned: boundedReturned,
+          bounded_rate: ratio(boundedReturned, boundedCohortSize),
+        };
+      }),
       retention_cohorts: {
         daily: toCohortTable(summary.retentionCohorts.daily),
         weekly: toCohortTable(summary.retentionCohorts.weekly),

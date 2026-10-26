@@ -229,6 +229,7 @@ export interface EarSeries {
   id: string; title: string; description: string; total_episodes: number; status: "ongoing" | "completed";
   episode_counts: { published: number; withdrawn: number; expired: number }; max_published_episode_no: number | null;
   cover_url: string | null; // 시리즈 표지 (KAN-234, 2026-10-21) — 없으면 앱이 가장 앞 편 썸네일을 쓴다
+  publisher_name: string | null; // 발행 이름 = 간행물 (BE #1883, KAN-247) — 앱 시리즈 화면 제목 아래 줄. 콘솔은 @ear/pipeline PUBLICATIONS 의 name 만 보낸다
   created_at: string; updated_at: string;
 }
 export const listEarSeries = () => earFetch<{ items: EarSeries[] }>("/admin/series");
@@ -238,9 +239,9 @@ export function putEarSeriesCover(id: string, cover: File): Promise<EarSeries> {
   fd.append("cover", cover);
   return earFetch<EarSeries>(`/admin/series/${id}/cover`, { method: "PUT", body: fd });
 }
-export const createEarSeries = (body: { title: string; description: string; total_episodes: number; status?: "ongoing" | "completed" }) =>
+export const createEarSeries = (body: { title: string; description: string; total_episodes: number; status?: "ongoing" | "completed"; publisher_name?: string | null }) =>
   earFetch<EarSeries>("/admin/series", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
-export const patchEarSeries = (id: string, fields: Partial<{ title: string; description: string; total_episodes: number; status: "ongoing" | "completed" }>) =>
+export const patchEarSeries = (id: string, fields: Partial<{ title: string; description: string; total_episodes: number; status: "ongoing" | "completed"; publisher_name: string | null }>) =>
   earFetch<EarSeries>(`/admin/series/${id}`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify(fields) });
 
 export function uploadEarContent(payload: UploadPayload, audio: File, thumbnail: File, enrichment?: File | null, script?: File | null, lossless?: File | null): Promise<EarContent> {
@@ -483,6 +484,8 @@ export interface EarInsightsSummary {
     /** 초대 코드 이벤트로 그 티어인 계정 수 — 운영 API 가 아직 모르면 없다(2026-10-10 추가) */
     tier_events?: { daily: number; pro: number };
     paid_active: number; paid_rate: number | null;
+    /** 실결제를 한 번이라도 한 현재 계정(2026-10-26) — 옛 서버는 없다 */
+    paid_ever?: number; paid_ever_rate?: number | null;
     activated: number; activation_rate: number | null;
     active_1d: number; active_7d: number; active_30d: number; stickiness: number | null;
     listeners_1d: number; listeners_7d: number; listeners_30d: number;
@@ -504,7 +507,25 @@ export interface EarInsightsSummary {
   /** `recent_top_contents`의 창 시작(ISO) — 지금 - 24시간 */
   recent_since?: string;
   withdrawal_reasons: { reason_code: string | null; count: number }[];
-  retention: { day: number; cohort_size: number; returned: number; rate: number | null }[];
+  /** 알림 종류별 반응(보낸 뒤 2시간 안 재생, 2026-10-26) — 옛 서버는 없다 */
+  push_reactions?: {
+    type: string;
+    rule: string | null;
+    variant: string | null;
+    sent: number;
+    reacted: number;
+    reaction_rate: number | null;
+  }[];
+  /** `bounded_*` = 정확히 가입 N일째 하루(바운디드, 2026-10-26) — 옛 서버는 없다 */
+  retention: {
+    day: number;
+    cohort_size: number;
+    returned: number;
+    rate: number | null;
+    bounded_cohort_size?: number;
+    bounded_returned?: number;
+    bounded_rate?: number | null;
+  }[];
   /** 코호트 리텐션 — 일별 D1·D7 · 주별 W1~W4. 배포 전 서버면 없다(2026-10-18 추가) */
   retention_cohorts?: { daily: EarInsightsCohortTable; weekly: EarInsightsCohortTable };
   /** 주제별 수요·공급 — 관심 사용자가 많은 순(admin-api 4.22). 배포 전 서버면 없다 */

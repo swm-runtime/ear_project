@@ -190,7 +190,7 @@ export function seriesWriteBlock(s: SeriesDraftContext | undefined, en: boolean)
   if (en) return `\n\n## Series episode — ${s.name}, episode ${s.no} of ${s.total}
 ${s.rules}
 - Intro: the {topic_line} slot is exactly: "${s.introSentence}"
-${s.prev && s.recapClaimId ? `- Recap: the first explainer turn of the Opening starts with one or two sentences that recall episode ${s.no - 1}, "${s.prev.title}". Use only claim ${s.recapClaimId}. List ${s.recapClaimId} in that turn's turn_claims.\n` : ""}- Sign-off: the first {slot} of the sign-off begins with this exact sentence: "${s.closingSentence}"
+${s.prev && s.recapClaimId ? `- Recap: the first explainer turn of the Opening starts with one or two sentences that recall episode ${s.no - 1}, "${s.prev.title}". Use only claim ${s.recapClaimId}. List ${s.recapClaimId} in that turn's turn_claims.\n` : ""}- Sign-off: the last host turn is this exact sentence, then the sign-off line word for word, in one turn: "${s.closingSentence}" + the sign-off line. Do not drop either half.
 - Other episodes cover these; do not explain them in depth here: ${others}`;
   return `\n\n## 시리즈 편 — ${s.name} ${s.total}편 중 ${s.no}화
 ${s.rules}

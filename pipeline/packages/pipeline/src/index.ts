@@ -10,6 +10,7 @@ import { otherSpeaker, pipelineLocale, speakerNames } from "./locale.js";
 export * from "./locale.js";
 export * from "./global-prompts.js";
 export * from "./series.js";
+export * from "./publication.js";
 import { seriesDesignBlock, seriesWriteBlock, type SeriesDraftContext } from "./series.js";
 import { INTRO_STYLES_EN } from "./global-prompts.js";
 

@@ -1,41 +1,79 @@
 "use client";
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { publicationOf, publicationsFor } from "@ear/pipeline/publication";
+import type { PipelineLocale } from "@/lib/locale";
 import { btnCls, Panel } from "@/components/ui";
+import { patchEarSeries } from "@/lib/ear";
+import { earErrMsg } from "@/app/publish/ear-connect";
 import { saveSeriesThumb } from "../actions";
 
 const inp = "w-full rounded border border-line px-2 py-1 text-[12.5px] outline-none focus:border-brand";
 
 /**
- * 시리즈 썸네일 글자 칸 (2026-10-20, KAN-136) — 시리즈의 모든 편이 같은 그림에 번호만 다르다(레퍼런스 "이어 · KEYWORD SERIES · keyword · 경제편 · 01").
+ * 간행물 · 시리즈 썸네일 (2026-10-20 KAN-136 · 2026-10-26 KAN-247) — 간행물이 발행 이름(앱 시리즈 화면 제목 아래 줄, "○○의 다른 시리즈" 묶음)과 편 썸네일 디자인을 한 번에 정한다.
+ * 키워드 시리즈 디자인(keyword 스타일): 시리즈의 모든 편이 같은 그림에 번호만 다르다(레퍼런스 "이어 · KEYWORD SERIES · keyword · 경제편 · 01").
  * 바탕(아이콘 셋)은 이미지 모델이 시리즈당 한 번 그리고, 로고·라벨·큰 단어(손글씨 폰트)·박스·번호·표지 편수는 코드가 얹는다.
+ * 이미 발행된 시리즈(productSeriesId)는 간행물을 바꾸면 서버의 발행 이름도 같이 바꾼다(PATCH /admin/series/:id publisher_name).
  */
-export function SeriesThumb({ id, word: w0, label: l0, box: b0, hasBase }: { id: string; word: string; label: string; box: string; hasBase: boolean }) {
+export function SeriesThumb({ id, locale, publication: p0, word: w0, label: l0, box: b0, hasBase, productSeriesId }: { id: string; locale: PipelineLocale; publication: string | null; word: string; label: string; box: string; hasBase: boolean; productSeriesId: string | null }) {
   const router = useRouter();
+  const [publication, setPublication] = useState(p0 ?? "");
   const [word, setWord] = useState(w0);
   const [label, setLabel] = useState(l0);
   const [box, setBox] = useState(b0);
   const [msg, setMsg] = useState<{ text: string; bad: boolean } | null>(null);
   const [pending, start] = useTransition();
-  const dirty = word !== w0 || label !== l0 || box !== b0;
+  const options = publicationsFor(locale);
+  const pub = publicationOf(publication || null);
+  const keyword = pub?.style === "keyword";
+  const phrasebook = pub?.style === "phrasebook";
+  const dirty = publication !== (p0 ?? "") || word !== w0 || label !== l0 || box !== b0;
   const save = (regenerate: boolean, redraw = false) => start(async () => {
-    const r = await saveSeriesThumb(id, { word, label, box }, regenerate, redraw);
-    setMsg(r.ok ? { text: regenerate ? `저장 · 편 썸네일 ${r.queued}개 다시 만들기 작업을 걸었다${redraw ? " — 바탕 그림을 새로 그린다(이미지 1장)" : " — 바탕은 그대로, 글자만 다시 얹는다"}` : "저장", bad: false } : { text: r.reason, bad: true });
-    if (r.ok) router.refresh();
+    const r = await saveSeriesThumb(id, { publication: publication || null, word, label, box }, regenerate, redraw);
+    if (!r.ok) { setMsg({ text: r.reason, bad: true }); return; }
+    let text = regenerate ? `저장 · 편 썸네일 ${r.queued}개 다시 만들기 작업을 걸었다${redraw ? " — 바탕 그림을 새로 그린다(이미지 1장)" : " — 바탕은 그대로, 글자만 다시 얹는다"}` : "저장";
+    // 발행된 시리즈 — 서버의 발행 이름도 맞춘다. 실패해도 파이프라인 저장은 유지되고, 아래 "제품 시리즈" 표에서 다시 바꿀 수 있다
+    if (productSeriesId && publication !== (p0 ?? "")) {
+      try { await patchEarSeries(productSeriesId, { publisher_name: pub?.name ?? null }); text += ` · 제품 시리즈 발행 이름 → ${pub?.name ?? "없음"}`; }
+      catch (e) { setMsg({ text: `${text} · 제품 시리즈 발행 이름 갱신 실패: ${earErrMsg(e)} — /series 아래 제품 시리즈 표에서 바꾼다`, bad: true }); router.refresh(); return; }
+    }
+    setMsg({ text, bad: false });
+    router.refresh();
   });
   return (
-    <Panel title="시리즈 썸네일 (키워드 시리즈 디자인)" right={<span className="text-[11px] text-ink-soft">{hasBase ? "바탕 그림 있음 — 편마다 번호만 얹는다" : "바탕 그림 없음 — 첫 편 썸네일이 그린다"}</span>}>
+    <Panel title="간행물 · 시리즈 썸네일" right={<span className="text-[11px] text-ink-soft">{keyword ? (hasBase ? "바탕 그림 있음 — 편마다 번호만 얹는다" : "바탕 그림 없음 — 첫 편 썸네일이 그린다") : "편마다 일반 장면 썸네일"}</span>}>
       <div className="space-y-2 text-[13px]">
-        <div className="grid gap-2 md:grid-cols-3">
-          <label className="block"><span className="mb-1 block text-xs font-semibold text-ink-soft">큰 단어 (영문 — 손글씨 폰트로 얹는다)</span><input className={inp} value={word} maxLength={16} onChange={(e) => setWord(e.target.value)} placeholder="keyword" /></label>
-          <label className="block"><span className="mb-1 block text-xs font-semibold text-ink-soft">오른쪽 위 라벨</span><input className={inp} value={label} maxLength={24} onChange={(e) => setLabel(e.target.value)} placeholder="KEYWORD SERIES" /></label>
-          <label className="block"><span className="mb-1 block text-xs font-semibold text-ink-soft">왼쪽 아래 박스</span><input className={inp} value={box} maxLength={12} onChange={(e) => setBox(e.target.value)} placeholder="경제편" /></label>
+        <div className="grid gap-2 md:grid-cols-[14rem_1fr]">
+          <label className="block">
+            <span className="mb-1 block text-xs font-semibold text-ink-soft">간행물 (발행 이름)</span>
+            <select className={inp} value={publication} onChange={(e) => setPublication(e.target.value)}>
+              <option value="">없음 — 발행 이름 없이, 장면 썸네일</option>
+              {options.map((o) => <option key={o.key} value={o.key}>{o.name}</option>)}
+            </select>
+          </label>
+          <p className="self-end pb-1 text-[11px] text-ink-soft">
+            {pub ? <>앱 시리즈 화면 제목 아래에 <b>{pub.name}</b>이 나가고, 같은 간행물의 시리즈끼리 &quot;{pub.name}의 다른 시리즈&quot;로 묶인다. {pub.hint}.</> : "발행 이름이 없으면 앱은 그 줄을 생략하고 다른 시리즈와 묶지 않는다. 목록에 없는 간행물은 코드(@ear/pipeline publication.ts)에 더한다."}
+          </p>
         </div>
-        <p className="text-[11px] text-ink-soft">키워드 시리즈 디자인 — 큰 단어를 채운 시리즈만 이 디자인으로 편 썸네일(왼쪽 아래 번호 01·02…)과 표지(라벨 아래 편수)를 만든다. 비워 두면 편마다 일반 썸네일이다. 다른 시리즈 디자인은 따로 만든다.</p>
+        {(keyword || phrasebook) && (
+          <div className="grid gap-2 md:grid-cols-3">
+            <label className="block"><span className="mb-1 block text-xs font-semibold text-ink-soft">{phrasebook ? "표지 손글씨 (영문 — 비면 annyeong)" : "큰 단어 (영문 — 손글씨 폰트로 얹는다)"}</span><input className={inp} value={word} maxLength={16} onChange={(e) => setWord(e.target.value)} placeholder={phrasebook ? "annyeong" : "keyword"} /></label>
+            <label className="block"><span className="mb-1 block text-xs font-semibold text-ink-soft">{phrasebook ? "오른쪽 위 라벨 (비면 PHRASEBOOK SERIES)" : "오른쪽 위 라벨"}</span><input className={inp} value={label} maxLength={24} onChange={(e) => setLabel(e.target.value)} placeholder={phrasebook ? "PHRASEBOOK SERIES" : "KEYWORD SERIES"} /></label>
+            <label className="block"><span className="mb-1 block text-xs font-semibold text-ink-soft">{phrasebook ? "책 머리글 (뒤에 KOREAN 이 붙는다)" : "왼쪽 아래 박스"}</span><input className={inp} value={box} maxLength={12} onChange={(e) => setBox(e.target.value)} placeholder={phrasebook ? "K-Drama" : "경제편"} /></label>
+          </div>
+        )}
+        <p className="text-[11px] text-ink-soft">
+          {keyword
+            ? <>키워드 시리즈 디자인 — 편 썸네일(왼쪽 아래 번호 01·02…)과 표지(라벨 아래 편수)를 같은 바탕에 만든다. 큰 단어가 비어 있으면 편 썸네일 작업이 실패한다.</>
+            : phrasebook
+              ? <>회화집 디자인 — 작은 책 표지에 그 편의 표현(로마자·한글)과 뜻을 쓰고 책갈피 리본에 번호를 단다. 이미지 모델 없이 코드가 그려 편마다 결과가 같고 비용이 없다. 한글 표기는 썸네일 작업 때 텍스트 모델이 제목을 보고 써 준다.</>
+              : <>{pub ? `${pub.name} 전용 썸네일 디자인은 아직 워커에 없다 — ` : ""}편 썸네일은 일반 편과 같은 장면 썸네일이다. 디자인이 생기면 간행물에 스타일로 붙인다(spec/11 7장).</>}
+        </p>
         <div className="flex flex-wrap items-center gap-2">
           <button className={btnCls()} disabled={pending || !dirty} onClick={() => save(false)}>저장</button>
-          <button className={btnCls("primary")} disabled={pending} onClick={() => { if (confirm("이 시리즈에서 썸네일이 있는 편을 전부 다시 만들까요?\n바탕은 그대로 두고 글자만 다시 얹는다(이미지 생성 없음).")) save(true); }}>저장하고 편 썸네일 다시 만들기</button>
-          <button className={btnCls()} disabled={pending} onClick={() => { if (confirm("바탕 그림(아이콘 셋)을 새로 그리고 편 썸네일을 전부 다시 만들까요? 이미지 1장을 새로 만든다.")) save(true, true); }}>바탕 그림도 새로 그리기</button>
+          {(keyword || phrasebook) && <button className={btnCls("primary")} disabled={pending} onClick={() => { if (confirm(phrasebook ? "이 시리즈에서 썸네일이 있는 편을 전부 다시 만들까요?\n책 표지를 코드로 다시 그린다(이미지 생성 없음, 한글 표기만 텍스트 모델)." : "이 시리즈에서 썸네일이 있는 편을 전부 다시 만들까요?\n바탕은 그대로 두고 글자만 다시 얹는다(이미지 생성 없음).")) save(true); }}>저장하고 편 썸네일 다시 만들기</button>}
+          {keyword && <button className={btnCls()} disabled={pending} onClick={() => { if (confirm("바탕 그림(아이콘 셋)을 새로 그리고 편 썸네일을 전부 다시 만들까요? 이미지 1장을 새로 만든다.")) save(true, true); }}>바탕 그림도 새로 그리기</button>}
           {msg && <span className={`text-[12px] ${msg.bad ? "text-rose-700" : "text-emerald-700"}`}>{msg.text}</span>}
         </div>
       </div>

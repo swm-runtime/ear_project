@@ -260,6 +260,15 @@ export class EnvironmentVariables {
   DRIP_TIMEZONE_GROUPS_ENABLED?: string;
 
   /**
+   * 저녁 리텐션 알림(`notification.md` 4.6, KAN-272)의 서버 스위치. `off`(기본·빈 값) · `dry_run` · `on`.
+   * `dry_run`은 대상·문구까지 정하고 **보내지 않는다** — 규칙별 건수와 문구 예시를 API 로그에 남긴다(임계값을 실제
+   * 숫자로 맞춰 보는 단계). `on`은 마케팅 수신 동의자에게 그룹 현지 18:00에 보낸다.
+   */
+  @IsOptional()
+  @IsIn(['off', 'dry_run', 'on', ''])
+  RETENTION_PUSH_MODE?: string;
+
+  /**
    * 가입 체험(`subscription.md` 4.8)의 서버 스위치. `true`일 때만 **새로 가입하는 계정**에 체험을 준다.
    * 비우거나 `false`면 주지 않는다(환경과 무관하게 명시적으로 켜야 한다).
    *

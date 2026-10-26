@@ -1551,7 +1551,7 @@ idx_invite_code_redemptions_unreleased_ends_at (ends_at) WHERE tier_released_at 
 notification_logs
   id                        bigserial       PK
   user_id                   uuid            FK → users
-  type                      varchar
+  type                      varchar(40)     `drip_arrival` 또는 `retention.<규칙>.<변형>`(저녁 리텐션 알림 — `notification.md` 4.6, 2026-10-26)
   deep_link                 varchar         NULL
   scheduled_at              timestamptz
   sent_at                   timestamptz     NULL

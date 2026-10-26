@@ -9,6 +9,7 @@ import {
   InsightsHourly,
   InsightsListeningTotals,
   InsightsMarketTotals,
+  InsightsPushReaction,
   InsightsRetention,
   InsightsTopContent,
   InsightsTopicSupply,
@@ -29,6 +30,7 @@ interface UserTotalsRow {
   tier_daily_event: number;
   tier_pro_event: number;
   paid_active: number;
+  paid_ever: number;
   activated: number;
   active_1d: number;
   active_7d: number;
@@ -196,6 +198,9 @@ export class AdminInsightsRepository {
          (select count(distinct user_id) from subscriptions
            where status in ('active', 'grace', 'cancelled') and environment = 'production' and expires_at > $1
              and ${byUser})::int as paid_active,
+         (select count(distinct user_id) from subscriptions
+           where status <> 'refunded' and environment = 'production'
+             and ${byUser})::int as paid_ever,
          (select count(distinct user_id) from play_records where ${byUser})::int as activated,
          (select count(distinct user_id) from sessions where issued_at >= $1::timestamptz - interval '1 day' and ${byUser})::int as active_1d,
          (select count(distinct user_id) from sessions where issued_at >= $1::timestamptz - interval '7 days' and ${byUser})::int as active_7d,
@@ -227,6 +232,7 @@ export class AdminInsightsRepository {
         pro: row.tier_pro_event,
       },
       paidActive: row.paid_active,
+      paidEver: row.paid_ever,
       activated: row.activated,
       active1d: row.active_1d,
       active7d: row.active_7d,
@@ -562,6 +568,46 @@ export class AdminInsightsRepository {
     }));
   }
 
+  /**
+   * 알림 반응(2026-10-26 — `notification.md` 4.6 성과). 창(`since` 이후) 안에 **보낸**(`sent`) 드립 도착·리텐션 알림을
+   * 종류(`notification_logs.type` — 리텐션은 `retention.<규칙>.<변형>`)별로 세고, 그중 **보낸 뒤 2시간 안에 재생**한 건을 센다.
+   * 재생 = 그 사이 새 재생 행(`play_records.played_at`) 또는 재생 위치 저장(`playback_progresses.updated_at`). 앱이 알림 탭을
+   * 서버에 알리지 않아(`opened_at`은 비어 있다) 탭 대신 재생으로 역산한다 — 탭 없이 앱을 열어 들은 것도 반응으로 잡히고,
+   * 2시간 안에 들은 뒤 더 늦게 다시 들어 위치 저장 시각이 밀린 경우는 새 재생 행이 없으면 빠진다(근사).
+   */
+  async pushReactions(
+    since: Date,
+    market: UserMarket | null = null,
+  ): Promise<InsightsPushReaction[]> {
+    const rows = await this.dataSource.query<
+      { type: string; sent: number; reacted: number }[]
+    >(
+      `select l.type,
+              count(*)::int as sent,
+              count(*) filter (where exists (
+                select 1 from play_records p
+                 where p.user_id = l.user_id
+                   and p.played_at >= l.sent_at and p.played_at < l.sent_at + interval '2 hours'
+              ) or exists (
+                select 1 from playback_progresses pp
+                 where pp.user_id = l.user_id
+                   and pp.updated_at >= l.sent_at and pp.updated_at < l.sent_at + interval '2 hours'
+              ))::int as reacted
+         from notification_logs l
+        where l.status = 'sent' and l.sent_at >= $1
+          and (l.type = 'drip_arrival' or l.type like 'retention.%')
+          and ${userInMarket('l.user_id', '$2')}
+        group by l.type
+        order by l.type`,
+      [since, market],
+    );
+    return rows.map((r) => ({
+      type: r.type,
+      sent: r.sent,
+      reacted: r.reacted,
+    }));
+  }
+
   async withdrawalReasons(
     market: UserMarket | null = null,
   ): Promise<InsightsWithdrawalReason[]> {
@@ -603,6 +649,59 @@ export class AdminInsightsRepository {
         group by n.day
         order by n.day`,
       [days, now, market],
+    );
+    return rows.map((r) => ({
+      day: r.day,
+      cohortSize: r.cohort_size,
+      returned: r.returned,
+    }));
+  }
+
+  /**
+   * **바운디드 N일 리텐션**(classic N-day — 업계 벤치마크와 같은 정의, 2026-10-26). 가입한 KST 달력일 `d`의 현재 계정 중
+   * **정확히 `d + N`일 하루 안에** 앱을 쓴(접속 또는 재생) 사람. 접속 원천은 코호트 표와 같다(`user_active_dates` · 남은
+   * `sessions` · `play_records`) — 이 값은 코호트 표 D1·D7 칸을 전 기간 묶음에 대해 가중 평균한 것과 같다.
+   *
+   * 분모는 `d + N`일이 **다 지났고**(`< today`) 그날 접속 기록을 **믿을 수 있는**(`>= reliableSince`) 가입자만이다 — 아직 오지
+   * 않은 날, 세션이 지워져 재생만 남은 날을 분모에 넣으면 낮게 나온다. 탈퇴자는 `users`에 없어 빠진다(생존 편향 — 다른 리텐션과 같다).
+   */
+  async boundedRetention(
+    days: readonly number[],
+    today: string,
+    reliableSince: string,
+    market: UserMarket | null = null,
+  ): Promise<InsightsRetention[]> {
+    const rows = await this.dataSource.query<RetentionRow[]>(
+      `with cohort as (
+         select u.id, n.day,
+                (u.created_at at time zone 'Asia/Seoul')::date + n.day as target
+           from unnest($1::int[]) as n(day)
+           join users u
+             on (u.created_at at time zone 'Asia/Seoul')::date + n.day < $2::date
+            and (u.created_at at time zone 'Asia/Seoul')::date + n.day >= $3::date
+            and ${marketIs('u.market', '$4')}
+       )
+       select n.day::int as day,
+              count(c.id)::int as cohort_size,
+              count(c.id) filter (where exists (
+                select 1 from user_active_dates a
+                 where a.user_id = c.id and a.active_date = c.target
+              ) or exists (
+                select 1 from sessions s
+                 where s.user_id = c.id
+                   and s.issued_at >= c.target::timestamp at time zone 'Asia/Seoul'
+                   and s.issued_at < (c.target + 1)::timestamp at time zone 'Asia/Seoul'
+              ) or exists (
+                select 1 from play_records p
+                 where p.user_id = c.id
+                   and p.played_at >= c.target::timestamp at time zone 'Asia/Seoul'
+                   and p.played_at < (c.target + 1)::timestamp at time zone 'Asia/Seoul'
+              ))::int as returned
+         from unnest($1::int[]) as n(day)
+         left join cohort c on c.day = n.day
+        group by n.day
+        order by n.day`,
+      [days, today, reliableSince, market],
     );
     return rows.map((r) => ({
       day: r.day,

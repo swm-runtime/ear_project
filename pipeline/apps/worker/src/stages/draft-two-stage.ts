@@ -324,7 +324,7 @@ export function twoStageViolationsEn(scriptMd: string, outlineMd: string, opts: 
     const last = p.turns[p.turns.length - 1];
     const text = last?.text.replace(/\s+/g, " ") ?? "";
     if (!last?.id?.startsWith("Y")) v.push(`The last turn is not a host (Y) turn (${last?.id ?? "none"}) — after the explainer's wrap-up, the host closes with one sign-off turn ("${heads[0]} …")`);
-    else if (!heads.some((h) => text.includes(h))) v.push(`The last turn ${last.id} lacks the sign-off frame ("${heads[0]}"${heads.length > 1 ? ` or ${heads.length - 1} other${heads.length > 2 ? "s" : ""}` : ""}) — keep the template frame as is and fill only the {slots}`);
+    else if (!heads.some((h) => text.includes(h))) v.push(`The last turn ${last.id} lacks the sign-off frame ("${heads[0]}"${heads.length > 1 ? ` or ${heads.length - 1} other${heads.length > 2 ? "s" : ""}` : ""}) — keep the sign-off line word for word as the end of that turn; a series sentence, if the episode has one, comes right before it in the same turn`);
   }
   // 클로징 도입 칸 (tpl-en-v4, 2026-10-18): {episode_recap} 은 인트로의 {episode_line} 과 같은 주제를 다른 말로 — 같은 단어면 인트로 되풀이다(G261018-001~003)
   {

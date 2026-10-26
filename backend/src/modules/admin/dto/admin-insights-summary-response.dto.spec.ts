@@ -30,6 +30,7 @@ const summary = (): InsightsSummary => ({
     tiers: { light: 225, daily: 0, pro: 0 },
     tierEvents: { daily: 0, pro: 0 },
     paidActive: 0,
+    paidEver: 9,
     activated: 149,
     active1d: 63,
     active7d: 190,
@@ -132,6 +133,14 @@ const summary = (): InsightsSummary => ({
     { day: 1, cohortSize: 200, returned: 50 },
     { day: 30, cohortSize: 0, returned: 0 },
   ],
+  pushReactions: [
+    { type: 'drip_arrival', sent: 40, reacted: 10 },
+    { type: 'retention.weekly_rank_gap.b', sent: 8, reacted: 2 },
+  ],
+  boundedRetention: [
+    { day: 1, cohortSize: 180, returned: 27 },
+    { day: 30, cohortSize: 0, returned: 0 },
+  ],
   retentionCohorts: {
     daily: {
       span: 1,
@@ -213,6 +222,9 @@ describe('AdminInsightsSummaryResponseDto', () => {
     expect(dto.users.listener_rate_1d).toBeCloseTo(52 / 63);
     expect(dto.users.listener_rate_7d).toBeCloseTo(130 / 190);
     expect(dto.users.paid_rate).toBe(0);
+    // 유료 경험(해지·만료 포함)은 지금 유료와 따로 센다 — 분모는 같은 현재 가입자
+    expect(dto.users.paid_ever).toBe(9);
+    expect(dto.users.paid_ever_rate).toBe(0.04);
     expect(dto.listening.all_time.complete_rate).toBeCloseTo(54 / 373);
     expect(dto.listening.all_time.avg_listen_sec_per_play).toBeCloseTo(
       122_642 / 373,
@@ -244,7 +256,33 @@ describe('AdminInsightsSummaryResponseDto', () => {
     expect(dto.recent_since).toBe('2026-10-07T00:00:00.000Z');
     expect(dto.retention[0].rate).toBe(0.25);
     expect(dto.retention[1].rate).toBeNull();
+    // 바운디드는 같은 줄에 따로 싣는다 — 분모가 다르다(N일째가 다 지났고 기록을 믿을 수 있는 가입자)
+    expect(dto.retention[0]).toMatchObject({
+      bounded_cohort_size: 180,
+      bounded_returned: 27,
+      bounded_rate: 0.15,
+    });
+    expect(dto.retention[1].bounded_rate).toBeNull();
     expect(dto.withdrawal_reasons[0]).toEqual({ reason_code: null, count: 3 });
+    // 리텐션 알림은 종류에서 규칙·변형을 풀어 싣는다 — 드립 도착은 기준선이라 둘 다 null
+    expect(dto.push_reactions).toEqual([
+      {
+        type: 'drip_arrival',
+        rule: null,
+        variant: null,
+        sent: 40,
+        reacted: 10,
+        reaction_rate: 0.25,
+      },
+      {
+        type: 'retention.weekly_rank_gap.b',
+        rule: 'weekly_rank_gap',
+        variant: 'b',
+        sent: 8,
+        reacted: 2,
+        reaction_rate: 0.25,
+      },
+    ]);
     expect(dto.topic_supply[0]).toEqual({
       topic_id: 'topic-1',
       name: '경제 상식',

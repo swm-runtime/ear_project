@@ -1,6 +1,6 @@
 import fs from "node:fs/promises";
 import { cfg, canAi, canTts, canThumbnail, executedBy } from "./config.js";
-import { claimJob, enqueue, failJob, getBacklog, finishJob, getSetting, hasActiveDraftJob, seriesPrevReady, heartbeat, listApprovedBacklog, pool, requeueJob, startJob } from "./db.js";
+import { claimJob, enqueue, failJob, getBacklog, finishJob, getSetting, hasActiveDraftJob, hasOtherActiveEpisodeJob, seriesPrevReady, heartbeat, listApprovedBacklog, pool, requeueJob, startJob } from "./db.js";
 import { workerRev, workerRevTime } from "./assets.js";
 import { probeStorage } from "./storage.js";
 import { executorHandlesWebSearch, makeExecutor, setJobAbort } from "./executors/index.js";
@@ -12,6 +12,7 @@ import { aiPaused, pauseForLimit, serverClaimOff, ttsPaused } from "./ai-pause.j
 import { onDraftFailed } from "./stages/draft.js";
 import { autoApprove } from "./automation.js";
 import { maybeSendDigest } from "./digest.js";
+import { maybeCheckTtsQuota } from "./tts/quota.js";
 import { evictEpisodeAudio } from "./disk.js";
 
 /**
@@ -91,6 +92,7 @@ async function main() {
         if (once) { log("대기 중인 작업 없음"); break; }
         if (drain && (await listApprovedBacklog()).length === 0) { log("큐 비움 — drain 종료"); break; }
         await maybeSendDigest().catch((e) => log(`요약 알림 오류 (계속 진행): ${e?.message ?? e}`)); // 큐가 비었을 때 한 번 — digest.ts
+        if (canTts) await maybeCheckTtsQuota(); // ElevenLabs 잔량 — 30분에 한 번, 20%·5% 아래면 Slack (KAN-204, tts/quota.ts)
         await sleep(cfg.pollIntervalMs);
         continue;
       }
@@ -104,6 +106,7 @@ async function main() {
         const result = await withJobSpeakers(job, () => runStage(job, ex));
         await finishJob(job.id, result);
         if (ac.signal.aborted) log(`⏹ ${job.type} ${job.id.slice(0, 8)} 취소됨 (단계는 끝났으나 결과는 버림)`); else log(`✔ ${job.type} ${job.id.slice(0, 8)} 완료`);
+        if (job.type === "tts") await maybeCheckTtsQuota({ force: true }); // 편이 끝날 때마다 잔량 갱신 (KAN-204)
       } catch (e: any) {
         if (ac.signal.aborted || e?.name === "JobCancelled") {
           log(`⏹ ${job.type} ${job.id.slice(0, 8)} 취소 처리 완료`);
@@ -130,7 +133,11 @@ async function main() {
         clearInterval(hb);
         setJobAbort(null);
         current = null;
-        await evictEpisodeAudio(job.payload).catch((e) => log(`오디오 캐시 정리 실패 (계속 진행): ${e?.message ?? e}`)); // disk.ts — 디스크 20GB, S3 가 원본
+        // disk.ts — 디스크 20GB, S3 가 원본. 복제 워커가 /work 를 공유하므로 같은 에피소드를 다른 작업이 돌리는 중이면 지우지 않는다 (2026-10-26 자막 정렬 ENOENT 2건)
+        const epId = String(job.payload?.episode_id ?? "");
+        const busy = epId ? await hasOtherActiveEpisodeJob(epId, job.id).catch(() => true) : false;
+        if (busy) log(`  오디오 캐시 유지 — ${epId} 를 다른 작업이 돌리는 중`);
+        else await evictEpisodeAudio(job.payload).catch((e) => log(`오디오 캐시 정리 실패 (계속 진행): ${e?.message ?? e}`));
       }
       if (once) break;
     } catch (e: any) {

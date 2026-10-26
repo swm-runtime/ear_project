@@ -1,6 +1,9 @@
 /**
  * 기획 시리즈 (spec/11 · 글로벌 명세 6.11, KAN-136) — 콘솔 쪽 형식·검증·편별 힌트. 워커 @ear/pipeline series.ts 의 SeriesPlanEpisode 와 같은 모양이다(바꾸면 둘 다).
  */
+import { publicationOf } from "@ear/pipeline/publication";
+import type { PipelineLocale } from "./locale";
+
 export interface SeriesEpisode { no: number; title: string; scope: string; carries: string; only_here: string; minutes: number }
 export interface SeriesRow {
   id: string; name: string; mid_topic: string; intro_line: string | null; scope_note: string | null; plan: SeriesEpisode[];
@@ -9,17 +12,23 @@ export interface SeriesRow {
   published_series_id: string | null;
   /** 시리즈 썸네일 글자 칸(0031, 2026-10-20) — 큰 단어는 이미지 모델이 바탕에 그리고, 라벨·박스는 코드가 얹는다. thumb_base_key = 바탕 그림 s3 키 */
   thumb_word: string | null; thumb_label: string | null; thumb_box: string | null; thumb_base_key: string | null;
+  /** 간행물 키(0034, KAN-247 — @ear/pipeline publication.ts) — 발행 이름(서버 publisher_name)과 썸네일 스타일. null = 없음 */
+  publication: string | null;
 }
 
-/** 썸네일 글자 칸 검증 — 큰 단어는 영문(손글씨로 그린다), 라벨·박스는 짧게(코드가 한 줄로 얹는다) */
-export function cleanSeriesThumb(v: { word: string; label: string; box: string }): { word: string; label: string; box: string; problems: string[] } {
+/** 간행물·썸네일 글자 칸 검증 (KAN-247) — 간행물은 이 판의 목록에서만, keyword 스타일 간행물은 큰 단어가 필요하다. 큰 단어는 영문(손글씨로 얹는다), 라벨·박스는 짧게(코드가 한 줄로 얹는다) */
+export function cleanSeriesThumb(v: { publication: string | null; word: string; label: string; box: string }, locale: PipelineLocale): { publication: string | null; word: string; label: string; box: string; problems: string[] } {
   const word = v.word.trim().toLowerCase(), label = v.label.trim().toUpperCase(), box = v.box.trim();
+  const publication = v.publication || null;
   const problems: string[] = [];
-  // 큰 단어를 비우면 이 디자인을 쓰지 않는다(편마다 일반 썸네일) — 시리즈 디자인은 시리즈마다 따로 정한다(2026-10-20)
+  const pub = publicationOf(publication);
+  if (publication && (!pub || pub.locale !== locale)) problems.push(`간행물 "${publication}" 은 이 판의 목록에 없다`);
+  // 종전(2026-10-20) "큰 단어를 비우면 일반 썸네일" 판정은 간행물이 대신한다 — keyword 디자인 간행물은 큰 단어가 있어야 편 썸네일을 만들 수 있다
+  if (pub?.style === "keyword" && !word) problems.push(`간행물 "${pub.name}" 은 키워드 시리즈 디자인이라 큰 단어가 필요하다`);
   if (word && !/^[a-z][a-z' -]{1,15}$/.test(word)) problems.push("큰 단어는 영문 2~16자다(손글씨 글꼴로 얹는다)");
   if (label.length > 24) problems.push("라벨은 24자 이내다");
   if (box.length > 12) problems.push("박스 글자는 12자 이내다");
-  return { word, label, box, problems };
+  return { publication, word, label, box, problems };
 }
 export type SeriesStatus = "planning" | "approved" | "published" | "withdrawn" | "cancelled";
 export const SERIES_STATUS_LABEL: Record<SeriesStatus, string> = { planning: "기획 중", approved: "승인", published: "발행", withdrawn: "회수", cancelled: "중단" };

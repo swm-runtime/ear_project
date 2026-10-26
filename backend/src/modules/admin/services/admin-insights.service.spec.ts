@@ -368,7 +368,9 @@ describe('AdminInsightsService.summarize', () => {
     topUsers: jest.fn().mockResolvedValue([]),
     topContents: jest.fn().mockResolvedValue([]),
     withdrawalReasons: jest.fn().mockResolvedValue([]),
+    pushReactions: jest.fn().mockResolvedValue([]),
     retention: jest.fn().mockResolvedValue([]),
+    boundedRetention: jest.fn().mockResolvedValue([]),
     cohortRetention: jest.fn().mockResolvedValue({ sizes: [], hits: [] }),
     activeDatesFirstRecordedAt: jest.fn().mockResolvedValue(null),
     topicSupply: jest.fn().mockResolvedValue([]),
@@ -410,6 +412,13 @@ describe('AdminInsightsService.summarize', () => {
     expect(repository.retention).toHaveBeenCalledWith(
       INSIGHTS_RETENTION_DAYS,
       now,
+      null,
+    );
+    // 바운디드는 KST 오늘과 코호트 표와 같은 신뢰 경계로 센다
+    expect(repository.boundedRetention).toHaveBeenCalledWith(
+      INSIGHTS_RETENTION_DAYS,
+      '2026-10-08',
+      expect.any(String),
       null,
     );
     // 빈 재료라도 날짜 축(10-01 ~ 10-08 KST = 8칸)과 24시간은 채워진다

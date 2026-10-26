@@ -214,6 +214,11 @@ export interface InsightsUserTotals {
   tierEvents: { daily: number; pro: number };
   /** 실결제 구독이 유효한 사용자 수(`subscriptions` active·grace·cancelled(해지 예약, 만료일까지 유효) · production · 미만료) */
   paidActive: number;
+  /**
+   * 실결제를 **한 번이라도 한** 현재 계정 수(`subscriptions` production · 환불 아님 — 해지·만료 포함, 2026-10-26). 유료 전환
+   * 성공지표의 분자다. 탈퇴자의 결제 이력은 법정 보존용 아카이브에만 있어 지표에 쓰지 않는다(목적 외 이용) — 분모도 현재 가입자다
+   */
+  paidEver: number;
   /** 재생을 한 번이라도 한 사용자 수 — 활성화(activation) */
   activated: number;
   /**
@@ -307,6 +312,14 @@ export interface InsightsWithdrawalReason {
   /** `withdrawal_logs.reason_code` — null 은 사유 미선택 */
   reasonCode: string | null;
   count: number;
+}
+
+/** 알림 종류 하나의 반응 — `type`은 `drip_arrival` 또는 `retention.<규칙>.<변형>` */
+export interface InsightsPushReaction {
+  type: string;
+  sent: number;
+  /** 보낸 뒤 2시간 안에 재생한 건 */
+  reacted: number;
 }
 
 export interface InsightsRetention {
@@ -438,7 +451,11 @@ export interface InsightsSummary {
   /** `recentTopContents`의 창 시작 시각 */
   recentSince: Date;
   withdrawalReasons: InsightsWithdrawalReason[];
+  /** 창 안에 보낸 알림의 종류별 반응(보낸 뒤 2시간 안 재생) — 드립 도착은 비교 기준선 */
+  pushReactions: InsightsPushReaction[];
   retention: InsightsRetention[];
+  /** 바운디드 N일 리텐션(정확히 가입 N일째 하루) — `retention`과 같은 일수 순서. 벤치마크와 비교하는 값(2026-10-26) */
+  boundedRetention: InsightsRetention[];
   /** 코호트 리텐션 — 가입일·가입 주로 묶은 D1·D7 · W1~W4 */
   retentionCohorts: { daily: InsightsCohortTable; weekly: InsightsCohortTable };
   topicSupply: InsightsTopicSupply[];

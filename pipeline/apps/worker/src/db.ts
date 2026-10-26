@@ -145,6 +145,11 @@ export async function approveBacklogAuto(id: string, by: string): Promise<boolea
   const r = await pool.query("update public.backlog set status = 'approved', approved_by = $2, approved_at = now(), updated_at = now() where id = $1 and status = 'proposed' returning id", [id, by]);
   return (r.rowCount ?? 0) > 0;
 }
+/** 같은 에피소드를 다른 작업(다른 복제 워커)이 지금 돌리고 있는가 — 오디오 캐시 정리(disk.ts) 전에 본다 (2026-10-26: 글로벌 워커 복제 4개가 /work 를 공유해 썸네일이 끝나며 자막 정렬 중인 dist.m4a 를 지웠다) */
+export async function hasOtherActiveEpisodeJob(episodeId: string, exceptJobId: string): Promise<boolean> {
+  const r = await pool.query("select 1 from public.jobs where status in ('claimed','running') and id <> $2 and payload->>'episode_id' = $1 limit 1", [episodeId, exceptJobId]);
+  return (r.rowCount ?? 0) > 0;
+}
 export async function hasActiveDraftJob(backlogId: string): Promise<boolean> {
   const r = await pool.query("select 1 from public.jobs where type = 'draft' and status in ('queued','claimed','running') and payload->>'backlog_id' = $1 limit 1", [backlogId]);
   return (r.rowCount ?? 0) > 0;
@@ -407,9 +412,9 @@ export async function domainTierByHost(): Promise<Map<string, string>> {
 }
 
 // ── 기획 시리즈 (0029, spec/11 · 글로벌 명세 6.11) ──
-export interface SeriesRow { id: string; name: string; mid_topic: string; intro_line: string | null; scope_note: string | null; plan: unknown; total_episodes: number | null; status: string; thumb_word: string | null; thumb_label: string | null; thumb_box: string | null; thumb_base_key: string | null }
+export interface SeriesRow { id: string; name: string; mid_topic: string; intro_line: string | null; scope_note: string | null; plan: unknown; total_episodes: number | null; status: string; thumb_word: string | null; thumb_label: string | null; thumb_box: string | null; thumb_base_key: string | null; /** 간행물 키(0034, KAN-247) — null = 없음 */ publication: string | null }
 export async function getSeries(id: string): Promise<SeriesRow | null> {
-  const r = await pool.query("select id, name, mid_topic, intro_line, scope_note, plan, total_episodes, status, thumb_word, thumb_label, thumb_box, thumb_base_key from public.series where id = $1", [id]);
+  const r = await pool.query("select id, name, mid_topic, intro_line, scope_note, plan, total_episodes, status, thumb_word, thumb_label, thumb_box, thumb_base_key, publication from public.series where id = $1", [id]);
   return r.rows[0] ?? null;
 }
 /** 설계안 저장 — 기획 중(planning)일 때만. 사람이 그 사이 승인·중단했으면 덮어쓰지 않는다 */

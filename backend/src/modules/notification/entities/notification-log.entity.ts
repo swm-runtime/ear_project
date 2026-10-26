@@ -41,8 +41,12 @@ export class NotificationLog extends BaseEntity {
   })
   user: User;
 
+  /**
+   * `NotificationType`(드립 도착) 또는 리텐션 알림의 `retention.<규칙>.<변형>`(`notification.md` 4.6) — 규칙·변형이
+   * 늘어도 컬럼을 바꾸지 않으려고 varchar 다. 40자 안에 든다(`retention-push.enum.ts` 규칙 이름은 짧게 둔다)
+   */
   @Column({ name: 'type', type: 'varchar', length: 40 })
-  type: NotificationType;
+  type: NotificationType | `retention.${string}`;
 
   @Column({ name: 'deep_link', type: 'varchar', length: 2048, nullable: true })
   deepLink: string | null;

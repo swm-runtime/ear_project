@@ -2,11 +2,12 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { cfg, executedBy } from "../config.js";
 import { getBacklog, getEpisode, getSeries, getSetting, insertRun, majorOfMidTopic, pool, setJobProgress, type Job } from "../db.js";
-import { pipelineLocale, promptBody } from "@ear/pipeline";
+import { pipelineLocale, promptBody, publicationOf, publicationStyle } from "@ear/pipeline";
 import { SERIES_THUMBNAIL_PROMPT_KEY, THUMBNAIL_ANCHOR_PROMPT_KEY, THUMBNAIL_PROMPT_KEY, THUMBNAIL_SCENE_PROMPT_KEY, workerRev } from "../assets.js";
 import { makeExecutor } from "../executors/index.js";
 import { bookmarkFile, composeBookmark, composeCorner, cornerContrast } from "./thumbnail-compose.js";
 import { composeSeriesThumb, seriesCountText } from "./thumbnail-series.js";
+import { buildPhrasebookTextPrompt, composePhrasebookThumb, expressionLines, PHRASEBOOK_TEXT_SCHEMA, titleLines } from "./thumbnail-phrasebook.js";
 import { buildScenePrompt, buildScenePromptEn, recentScenes, SCENE_FILE, SCENE_SCHEMA, type ThumbnailScene } from "./thumbnail-scene.js";
 import { advanceChain } from "../chain.js";
 import { exists, localPathOf, pullPrefix, pushPrefix, s3Key } from "../storage.js";
@@ -106,11 +107,16 @@ export async function runThumbnail(job: Job) {
 
   // 시리즈 편 — 시리즈 바탕 그림 한 장에 번호만 얹는다(2026-10-20, thumbnail-series.ts). 장면 경로를 타지 않는다
   const sr = await pool.query("select series_id, series_no from public.backlog where id = $1", [backlogId]);
-  // 2026-10-20 박수헌·팀원: 시리즈 디자인은 시리즈마다 따로 정한다(자동화하지 않는다) — 이 디자인은 글자 칸(thumb_word)을 채운 시리즈(키워드 시리즈)에만.
-  // 칸이 빈 시리즈의 편은 일반 편처럼 장면 썸네일로 간다
-  const seriesWord = sr.rows[0]?.series_id ? (await pool.query("select thumb_word from public.series where id = $1", [sr.rows[0].series_id])).rows[0]?.thumb_word as string | null : null;
-  if (sr.rows[0]?.series_id && seriesWord?.trim()) {
-    return runSeriesThumbnail({ job, episodeId, backlogId, rel, outFile, progress, seriesId: sr.rows[0].series_id as string, no: sr.rows[0].series_no as number, rebase: !!job.payload.rebase });
+  // 2026-10-20 박수헌·팀원: 시리즈 디자인은 시리즈마다 따로 정한다(자동화하지 않는다). 2026-10-26 KAN-247: 디자인은 **간행물**(series.publication, @ear/pipeline publication.ts)이 정한다 —
+  // 종전 "큰 단어(thumb_word)를 채웠나" 판정을 대체. keyword 스타일(키워드·Phrasebook)은 이 경로, 없음·scene 스타일(연대기)은 일반 편처럼 장면 썸네일
+  const series = sr.rows[0]?.series_id ? await getSeries(sr.rows[0].series_id as string) : null;
+  const style = series ? publicationStyle(series.publication) : "scene";
+  if (series && style === "phrasebook") {
+    return runPhrasebookThumbnail({ job, episodeId, backlogId, rel, outFile, progress, seriesId: series.id, no: sr.rows[0].series_no as number, title: cand.title, oneLiner: firstNonEmpty(row.rows[0]?.one_liner, cand.axis) });
+  }
+  if (series && style === "keyword") {
+    if (!series.thumb_word?.trim()) throw new Error(`시리즈 "${series.name}" 는 간행물 ${publicationOf(series.publication)?.name ?? series.publication}(키워드 디자인)인데 썸네일 큰 단어(thumb_word)가 비었다 — 시리즈 화면에서 채운 뒤 다시 건다`);
+    return runSeriesThumbnail({ job, episodeId, backlogId, rel, outFile, progress, seriesId: series.id, no: sr.rows[0].series_no as number, rebase: !!job.payload.rebase });
   }
 
   // ── 슬롯 재료 ──
@@ -302,6 +308,51 @@ async function runSeriesThumbnail(a: { job: Job; episodeId: string; backlogId: s
   });
   const next = await advanceChain(a.job);
   return { episode_id: a.episodeId, thumbnail_key: key, series_id: a.seriesId, no: a.no, base_generated: !!generated, next: next?.type ?? null };
+}
+
+/**
+ * 회화집 경로 (KAN-247 후속, 2026-10-26 — 간행물 phrasebook) — 이미지 모델 없이 코드가 작은 책을 그린다(thumbnail-phrasebook.ts).
+ * 편마다 다른 글자: 로마자(편 제목) · 한글·뜻(텍스트 모델이 제목·한 줄 요약을 보고 한 번 써 준다 — 설계안 제목은 로마자뿐이라 한글 표기가 어디에도 없다).
+ * 표지(datasets/series/<id>/thumb-cover.png)는 편마다 같이 다시 그린다 — 싸고(코드), 시리즈 이름·편수가 바뀌면 따라간다.
+ */
+async function runPhrasebookThumbnail(a: { job: Job; episodeId: string; backlogId: string; rel: string; outFile: string; progress: (detail: string) => Promise<unknown>; seriesId: string; no: number; title: string; oneLiner: string | null }) {
+  const s = await getSeries(a.seriesId);
+  if (!s) throw new Error(`시리즈 ${a.seriesId} 없음`);
+  const en = pipelineLocale() === "en";
+  const baseRel = `datasets/series/${a.seriesId}`;
+  const coverFile = path.join(cfg.workRoot, baseRel, "thumb-cover.png");
+  await fs.mkdir(path.dirname(coverFile), { recursive: true });
+
+  await a.progress(`한글 표기 · ${cfg.thumbnailSceneModel}`);
+  const started = Date.now();
+  const tr = await makeExecutor("openai").run<{ hangul: string; subtitle: string }>({
+    prompt: buildPhrasebookTextPrompt({ title: a.title, oneLiner: a.oneLiner, seriesName: s.name }),
+    systemPrompt: "You write Korean spelling for romanized expressions and a very short English subtitle. Answer only with the JSON.",
+    schema: PHRASEBOOK_TEXT_SCHEMA, allowedTools: [], tools: [], cwd: cfg.workRoot, timeoutMs: 60_000, model: cfg.thumbnailSceneModel,
+  });
+  const text = tr.output;
+
+  await a.progress("책 표지 합성");
+  const size = Number(String(cfg.thumbnailSize).split("x")[0]) || 1024;
+  const label = (s.thumb_label ?? "").trim() || "PHRASEBOOK SERIES";
+  const head = `${(s.thumb_box ?? "").trim() || ""} Korean`.trim();
+  await fs.writeFile(a.outFile, await composePhrasebookThumb({ lines: expressionLines(a.title), hangul: text.hangul, subtitle: text.subtitle, head, label, no: a.no }, size));
+  if (s.total_episodes) await fs.writeFile(coverFile, await composePhrasebookThumb({ lines: titleLines(s.name), hangul: "", subtitle: "", head: seriesCountText(s.total_episodes, en), label, no: null, handword: s.thumb_word ?? "" }, size));
+  await a.progress("S3 업로드");
+  await pushPrefix(`${a.rel}/`);
+  await pushPrefix(`${baseRel}/`);
+  const key = s3Key(`${a.rel}/thumbnail.png`);
+  await pool.query("update public.episodes set thumbnail_key = $2, updated_at = now() where id = $1", [a.episodeId, key]);
+
+  const result = `썸네일(회화집) — ${s.name} ${a.no}화 · ${expressionLines(a.title).join(" / ")} · 한글 "${text.hangul}" · 뜻 "${text.subtitle}" (${cfg.thumbnailSceneModel}, ${((Date.now() - started) / 1000).toFixed(1)}초) · 코드 합성, 이미지 모델 없음 · 사람 확인 대기`;
+  log(`  thumbnail ${a.episodeId}: ${key} (회화집 ${a.no}화 · ${text.hangul})`);
+  await insertRun({
+    backlog_id: a.backlogId, phase: "thumbnail", result, prompt_version: "phrasebook-v1 (worker)",
+    artifacts: [key, s3Key(`${baseRel}/thumb-cover.png`)], executed_by: executedBy,
+    model: tr.model ?? cfg.thumbnailSceneModel, cost_usd: tr.listCostUsd ?? null, tokens: { images: 0, series_id: a.seriesId, no: a.no, hangul: text.hangul, subtitle: text.subtitle }, worker_rev: workerRev(),
+  });
+  const next = await advanceChain(a.job);
+  return { episode_id: a.episodeId, thumbnail_key: key, series_id: a.seriesId, no: a.no, base_generated: false, next: next?.type ?? null };
 }
 
 /** 프롬프트의 진실은 DB 다 (spec/10 3.2) — git 사본으로 조용히 폴백하지 않는다. 시딩: npm run assets:import */
