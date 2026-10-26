@@ -9,6 +9,7 @@ import {
   InsightsHourly,
   InsightsListeningTotals,
   InsightsMarketTotals,
+  InsightsPushReaction,
   InsightsRetention,
   InsightsTopContent,
   InsightsTopicSupply,
@@ -564,6 +565,46 @@ export class AdminInsightsRepository {
       listeners: r.listeners,
       completes: r.completes,
       saves: r.saves,
+    }));
+  }
+
+  /**
+   * 알림 반응(2026-10-26 — `notification.md` 4.6 성과). 창(`since` 이후) 안에 **보낸**(`sent`) 드립 도착·리텐션 알림을
+   * 종류(`notification_logs.type` — 리텐션은 `retention.<규칙>.<변형>`)별로 세고, 그중 **보낸 뒤 2시간 안에 재생**한 건을 센다.
+   * 재생 = 그 사이 새 재생 행(`play_records.played_at`) 또는 재생 위치 저장(`playback_progresses.updated_at`). 앱이 알림 탭을
+   * 서버에 알리지 않아(`opened_at`은 비어 있다) 탭 대신 재생으로 역산한다 — 탭 없이 앱을 열어 들은 것도 반응으로 잡히고,
+   * 2시간 안에 들은 뒤 더 늦게 다시 들어 위치 저장 시각이 밀린 경우는 새 재생 행이 없으면 빠진다(근사).
+   */
+  async pushReactions(
+    since: Date,
+    market: UserMarket | null = null,
+  ): Promise<InsightsPushReaction[]> {
+    const rows = await this.dataSource.query<
+      { type: string; sent: number; reacted: number }[]
+    >(
+      `select l.type,
+              count(*)::int as sent,
+              count(*) filter (where exists (
+                select 1 from play_records p
+                 where p.user_id = l.user_id
+                   and p.played_at >= l.sent_at and p.played_at < l.sent_at + interval '2 hours'
+              ) or exists (
+                select 1 from playback_progresses pp
+                 where pp.user_id = l.user_id
+                   and pp.updated_at >= l.sent_at and pp.updated_at < l.sent_at + interval '2 hours'
+              ))::int as reacted
+         from notification_logs l
+        where l.status = 'sent' and l.sent_at >= $1
+          and (l.type = 'drip_arrival' or l.type like 'retention.%')
+          and ${userInMarket('l.user_id', '$2')}
+        group by l.type
+        order by l.type`,
+      [since, market],
+    );
+    return rows.map((r) => ({
+      type: r.type,
+      sent: r.sent,
+      reacted: r.reacted,
     }));
   }
 

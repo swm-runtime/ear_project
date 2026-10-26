@@ -179,6 +179,19 @@ export class AdminInsightsSummaryResponseDto {
   readonly recent_since: string;
   readonly withdrawal_reasons: { reason_code: string | null; count: number }[];
   /**
+   * 창 안에 보낸 알림의 종류별 반응(2026-10-26) — `type`이 `retention.<규칙>.<변형>`이면 `rule`·`variant`가 채워진다
+   * (`drip_arrival`은 둘 다 null — 비교 기준선). 반응 = 보낸 뒤 2시간 안 재생
+   */
+  readonly push_reactions: {
+    type: string;
+    rule: string | null;
+    variant: string | null;
+    sent: number;
+    reacted: number;
+    /** `reacted / sent` */
+    reaction_rate: number | null;
+  }[];
+  /**
    * 언바운디드(`cohort_size`·`returned`·`rate` — 가입 N일 뒤 이후 아무 때나)와 바운디드(`bounded_*` — 정확히 가입 N일째 하루,
    * 벤치마크와 같은 정의, 2026-10-26)를 한 줄에 싣는다. 바운디드 분모는 N일째가 다 지났고 접속 기록을 믿을 수 있는 가입자만이다
    */
@@ -313,6 +326,20 @@ export class AdminInsightsSummaryResponseDto {
       top_contents: summary.topContents.map(toTopContent),
       recent_top_contents: summary.recentTopContents.map(toTopContent),
       recent_since: summary.recentSince.toISOString(),
+      push_reactions: summary.pushReactions.map((r) => {
+        const [, rule = null, variant = null] = r.type.startsWith('retention.')
+          ? r.type.split('.')
+          : [];
+
+        return {
+          type: r.type,
+          rule,
+          variant,
+          sent: r.sent,
+          reacted: r.reacted,
+          reaction_rate: ratio(r.reacted, r.sent),
+        };
+      }),
       withdrawal_reasons: summary.withdrawalReasons.map((r) => ({
         reason_code: r.reasonCode,
         count: r.count,

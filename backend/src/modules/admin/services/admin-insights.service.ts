@@ -84,6 +84,7 @@ export class AdminInsightsService {
       market,
     );
     const withdrawalReasons = await this.repository.withdrawalReasons(market);
+    const pushReactions = await this.repository.pushReactions(since, market);
     const retention = await this.repository.retention(
       INSIGHTS_RETENTION_DAYS,
       now,
@@ -140,6 +141,7 @@ export class AdminInsightsService {
       recentTopContents,
       recentSince,
       withdrawalReasons,
+      pushReactions,
       retention,
       boundedRetention,
       retentionCohorts: {

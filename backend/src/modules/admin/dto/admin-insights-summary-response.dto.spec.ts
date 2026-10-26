@@ -133,6 +133,10 @@ const summary = (): InsightsSummary => ({
     { day: 1, cohortSize: 200, returned: 50 },
     { day: 30, cohortSize: 0, returned: 0 },
   ],
+  pushReactions: [
+    { type: 'drip_arrival', sent: 40, reacted: 10 },
+    { type: 'retention.weekly_rank_gap.b', sent: 8, reacted: 2 },
+  ],
   boundedRetention: [
     { day: 1, cohortSize: 180, returned: 27 },
     { day: 30, cohortSize: 0, returned: 0 },
@@ -260,6 +264,25 @@ describe('AdminInsightsSummaryResponseDto', () => {
     });
     expect(dto.retention[1].bounded_rate).toBeNull();
     expect(dto.withdrawal_reasons[0]).toEqual({ reason_code: null, count: 3 });
+    // 리텐션 알림은 종류에서 규칙·변형을 풀어 싣는다 — 드립 도착은 기준선이라 둘 다 null
+    expect(dto.push_reactions).toEqual([
+      {
+        type: 'drip_arrival',
+        rule: null,
+        variant: null,
+        sent: 40,
+        reacted: 10,
+        reaction_rate: 0.25,
+      },
+      {
+        type: 'retention.weekly_rank_gap.b',
+        rule: 'weekly_rank_gap',
+        variant: 'b',
+        sent: 8,
+        reacted: 2,
+        reaction_rate: 0.25,
+      },
+    ]);
     expect(dto.topic_supply[0]).toEqual({
       topic_id: 'topic-1',
       name: '경제 상식',
