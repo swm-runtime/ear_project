@@ -91,26 +91,35 @@ export function ServiceInsights() {
 const TOPIC_SUPPLY_PREVIEW = 10;
 
 /**
- * 성공지표 목표(2026-10-26 박준현) — 업계 값을 목표로 두고 달성이면 초록, 미달이면 빨강으로 칠한다. 출처가 바뀌면 각주도 함께.
- * - 리텐션: MWM Retention Benchmarks 미국 미디어·엔터테인먼트 앱 중앙값 2026-04(2차 인용 — 2025 Q3 값은 24.9·8.0·3.4%).
- *   **바운디드(N일째 하루)** 와 비교한다 — 벤치마크가 그 정의다
+ * 성공지표 목표(2026-10-26 박준현) — 달성이면 초록, 미달이면 빨강. 출처가 바뀌면 각주도 함께.
+ * - 리텐션: MWM Retention Benchmarks — 미국 2025 Q3 **미디어·엔터테인먼트** 카테고리 중앙값(원문 mwm.ai/glossary/retention).
+ *   스토어 카테고리는 교육이지만 교육·지식(24.9·8.6·3.6%)과 차이가 작아 동종 콘텐츠 앱인 미디어·엔터로 둔다.
+ *   **바운디드(N일째 하루)** 와 비교한다 — 벤치마크가 strict N-day 정의다
  * - 고착도: 오디오·음악 앱 DAU/MAU 경험치 25~40%의 하단(회사 발표 수치가 아닌 약한 근거)
- * - 유료 전환: RevenueCat State of Subscription Apps 2025 — 프리미엄(무료+유료) 앱 다운로드→유료 중앙값 2.18%
+ * - 유료 전환: RevenueCat State of Subscription Apps 2025 — 프리미엄(무료+유료) 앱 다운로드→유료 중앙값 2.18%.
+ *   우리 값은 유료 경험(해지·만료 포함) ÷ 현재 가입자 — 분모가 다운로드보다 작아 조금 유리하게 나온다
+ * - 탈퇴율(낮을수록 좋다): 공개 벤치마크가 없어 **운영 실측 기준선**(2026-10-26 누적 5.6%)에서 상대 10% 개선한 5.0% 이하
  */
 const SUCCESS_TARGETS = {
-  retention: { 1: 0.273, 7: 0.092, 30: 0.039 } as Record<number, number>,
+  retention: { 1: 0.249, 7: 0.08, 30: 0.034 } as Record<number, number>,
   stickiness: 0.25,
   paidRate: 0.0218,
+  withdrawalRateMax: 0.05,
 };
 
-/** 목표 대비 색 — 값이 없으면 칠하지 않는다 */
-const targetTone = (value: number | null | undefined, target: number | undefined): string =>
-  value == null || target === undefined ? "text-ink" : value >= target ? "text-emerald-700" : "text-rose-700";
+/** 목표 대비 색 — 값이 없으면 칠하지 않는다. `lowerIsBetter`면 목표 이하가 달성이다(탈퇴율) */
+const targetTone = (value: number | null | undefined, target: number | undefined, lowerIsBetter = false): string =>
+  value == null || target === undefined
+    ? "text-ink"
+    : (lowerIsBetter ? value <= target : value >= target)
+      ? "text-emerald-700"
+      : "text-rose-700";
 
-function TargetMark({ value, target }: { value: number | null | undefined; target: number }) {
-  if (value == null) return <span className="text-ink-soft">목표 {fmtPct(target, 1)}</span>;
-  const met = value >= target;
-  return <span className={met ? "text-emerald-700" : "text-rose-700"}>목표 {fmtPct(target, 1)} {met ? "달성" : "미달"}</span>;
+function TargetMark({ value, target, lowerIsBetter = false }: { value: number | null | undefined; target: number; lowerIsBetter?: boolean }) {
+  const label = `목표 ${fmtPct(target, 1)}${lowerIsBetter ? " 이하" : ""}`;
+  if (value == null) return <span className="text-ink-soft">{label}</span>;
+  const met = lowerIsBetter ? value <= target : value >= target;
+  return <span className={met ? "text-emerald-700" : "text-rose-700"}>{label} {met ? "달성" : "미달"}</span>;
 }
 
 function InsightsView({ channel, days, market, onSwitchToDev }: { channel: EarChannel; days: number; market: EarInsightsMarket | null; onSwitchToDev?: () => void }) {
@@ -210,8 +219,19 @@ function InsightsView({ channel, days, market, onSwitchToDev }: { channel: EarCh
       <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-6">
         <Stat label="누적 가입 (탈퇴 포함)" value={fmtInt(u.total_signups)} sub="현재 계정 + 탈퇴 기록" />
         <Stat label="현재 가입자" value={fmtInt(u.current)} sub={`온보딩 완료 ${fmtInt(u.onboarding_completed)}명 · ${fmtPct(u.onboarding_rate)}`} tone="text-brand-ink" />
-        <Stat label="탈퇴 · 탈퇴율" value={`${fmtInt(u.withdrawals)}명 · ${fmtPct(u.withdrawal_rate)}`} sub="탈퇴 ÷ 누적 가입" tone={(u.withdrawal_rate ?? 0) >= 0.2 ? "text-rose-700" : "text-ink"} />
-        <Stat label="체험 중 · 유료" value={`${fmtInt(u.trial_active)} · ${fmtInt(u.paid_active)}`} sub={<>유료 전환 <span className={`font-semibold ${targetTone(u.paid_rate, SUCCESS_TARGETS.paidRate)}`}>{fmtPct(u.paid_rate, 2)}</span> (<TargetMark value={u.paid_rate} target={SUCCESS_TARGETS.paidRate} />) · 무료 {fmtInt(u.tiers.light)}명 · {tierWithEvent("Daily", u.tiers.daily, u.tier_events?.daily)} · {tierWithEvent("Pro", u.tiers.pro, u.tier_events?.pro)}</>} />
+        <Stat label="탈퇴 · 탈퇴율" value={`${fmtInt(u.withdrawals)}명 · ${fmtPct(u.withdrawal_rate)}`} sub={<>탈퇴 ÷ 누적 가입 · <TargetMark value={u.withdrawal_rate} target={SUCCESS_TARGETS.withdrawalRateMax} lowerIsBetter /></>} tone={targetTone(u.withdrawal_rate, SUCCESS_TARGETS.withdrawalRateMax, true)} />
+        <Stat
+          label="체험 중 · 유료"
+          value={`${fmtInt(u.trial_active)} · ${fmtInt(u.paid_active)}`}
+          sub={<>
+            {u.paid_ever_rate === undefined ? (
+              <>지금 유료 {fmtPct(u.paid_rate)}</>
+            ) : (
+              <>유료 전환 <span className={`font-semibold ${targetTone(u.paid_ever_rate, SUCCESS_TARGETS.paidRate)}`}>{fmtPct(u.paid_ever_rate, 2)}</span> (유료 경험 {fmtInt(u.paid_ever ?? 0)}명 · <TargetMark value={u.paid_ever_rate} target={SUCCESS_TARGETS.paidRate} />)</>
+            )}
+            {" "}· 무료 {fmtInt(u.tiers.light)}명 · {tierWithEvent("Daily", u.tiers.daily, u.tier_events?.daily)} · {tierWithEvent("Pro", u.tiers.pro, u.tier_events?.pro)}
+          </>}
+        />
         <Stat label="활성화율" value={fmtPct(u.activation_rate)} sub={`한 번이라도 재생 ${fmtInt(u.activated)}명 ÷ 현재 가입자`} />
         <Stat label="가입 경로" value={u.by_provider.length ? `${labelOf(PROVIDER_LABEL, u.by_provider[0].provider)} ${fmtPct(u.by_provider[0].count / Math.max(1, u.current), 0)}` : "-"} sub={u.by_provider.map((p) => `${labelOf(PROVIDER_LABEL, p.provider)} ${p.count}`).join(" · ")} />
       </div>
@@ -370,7 +390,7 @@ function InsightsView({ channel, days, market, onSwitchToDev }: { channel: EarCh
           <p className="px-3 py-2 text-xs text-ink-soft">
             <b>이후 언제든</b> = 가입 N일 뒤부터 지금까지 한 번이라도(언바운디드 — 오래된 가입자일수록 높아진다 — 완전히 떠나지 않은 비율).
             {" "}<b>N일째 하루</b> = 가입한 날 다음 N번째 날(KST) 하루 안에 앱을 씀(바운디드 — 업계 벤치마크와 같은 정의, 아래 코호트 표 칸의 전 기간 평균). N일째가 다 지났고 접속 기록을 믿을 수 있는 가입자만 센다.
-            {" "}<b>목표</b> = MWM Retention Benchmarks 미국 미디어·엔터테인먼트 앱 중앙값(2026-04 갱신값 — 팟캐스트 전용 수치가 아니다). <b>N일째 하루</b>가 목표 이상이면 <span className="text-emerald-700">초록</span>, 미달이면 <span className="text-rose-700">빨강</span>. 탈퇴자는 분모에 없어 우리 값이 실제보다 조금 높고, 표본이 적으면 색이 크게 흔들린다.
+            {" "}<b>목표</b> = MWM Retention Benchmarks 미국 2025 Q3 미디어·엔터테인먼트 카테고리 중앙값(팟캐스트 전용 수치가 아니다). <b>N일째 하루</b>가 목표 이상이면 <span className="text-emerald-700">초록</span>, 미달이면 <span className="text-rose-700">빨강</span>. 탈퇴자는 분모에 없어 우리 값이 실제보다 조금 높고, 표본이 적으면 색이 크게 흔들린다.
           </p>
         </Panel>
         <Panel title={`탈퇴 사유 (전 기간 ${fmtInt(u.withdrawals)}건)`} flush>
@@ -430,7 +450,14 @@ function InsightsView({ channel, days, market, onSwitchToDev }: { channel: EarCh
             <li><b>활성 사용자(DAU/WAU/MAU)</b>는 앱을 써서 서버 토큰을 갱신한 사람이다 — 액세스 토큰이 30분짜리라 앱을 열면 거의 매번 갱신이 일어나므로 &quot;앱 실행&quot;에 가장 가까운 서버 신호다(30분 안의 재실행은 안 잡힌다). 그중 <b>재생</b>까지 간 사람을 함께 적어 켜고 안 듣는 비율을 본다. <b>완청</b>은 서버의 90% 판정 신호다.</li>
             <li><b>접속자</b>는 그날(KST 달력일 0~24시) 앱을 열어 서버 토큰을 갱신한 사람이다 — 위 <b>활성 사용자</b>와 같은 신호를 하루 단위로 센 것이다. 지난날은 매일 00:10 에 저장한 값, 오늘은 지금까지 센 값이다. <b>요일별 평균</b>은 창 안의 온전한 날(첫날 부분일·오늘 제외)만 그 요일의 날 수로 나눈다 — 날 수가 1~2일이면 한 주의 사정이 그대로 드러나니 30·90일 창으로 본다.</li>
             <li><b>코호트 리텐션</b>은 가입한 날(최근 14일)·주(최근 8주, 월요일 시작)로 묶어, 가입 뒤 그 구간에 앱을 쓴 사람을 <b>인원과 비율</b>로 적는다 — 위의 언바운디드 리텐션과 달리 <b>그 구간 안</b>만 본다(바운디드). 광고로 유입을 늘릴 때 최근 묶음의 D1·W1 이 떨어지면 들어온 사람이 새고 있는 것이다. 사람마다 접속한 날을 매일 00:10 에 따로 저장해(<code>user_active_dates</code>) 세션이 30일 뒤 지워져도 W4 를 셀 수 있다. 탈퇴자는 분모·분자 모두에서 빠진다.</li>
-            <li><b>성공지표 목표</b>(초록 = 달성 · 빨강 = 미달) — 리텐션은 <b>N일째 하루</b>(바운디드)를 MWM 미국 미디어·엔터 앱 중앙값(2026-04: D1 27.3% · D7 9.2% · D30 3.9%)과, 고착도는 오디오·음악 앱 DAU/MAU 경험치 25~40%의 하단 25%와, 유료 전환은 RevenueCat State of Subscription Apps 2025의 프리미엄 앱 다운로드→유료 중앙값 2.18%와 비교한다. 유료 전환은 정의가 조금 다르다 — 우리 값은 <b>지금 유료인 계정 ÷ 현재 가입자</b>(해지·탈퇴한 유료 경험자는 빠진다), 벤치마크는 다운로드한 사람 중 유료로 전환한 비율이다.</li>
+            <li><b>성공지표 목표</b>(초록 = 달성 · 빨강 = 미달)
+              <ul className="ml-4 list-disc">
+                <li><b>리텐션</b> — <b>N일째 하루</b>(바운디드)를 MWM 미국 2025 Q3 미디어·엔터테인먼트 카테고리 중앙값(D1 24.9% · D7 8.0% · D30 3.4%)과 비교. 스토어 카테고리는 교육이지만 교육·지식(24.9 · 8.6 · 3.6%)과 차이가 작아 동종 콘텐츠 앱 기준으로 둔다.</li>
+                <li><b>고착도</b> — 오디오·음악 앱 DAU/MAU 경험치 25~40%의 하단 25%(약한 근거).</li>
+                <li><b>유료 전환</b> — 실결제를 한 번이라도 한 현재 계정(해지·만료 포함, 환불·시험 결제·초대 이벤트 제외) ÷ 현재 가입자를 RevenueCat State of Subscription Apps 2025 프리미엄 앱 다운로드→유료 중앙값 2.18%와 비교. 벤치마크 분모는 다운로드라 우리 값(분모 = 가입자)이 조금 유리하게 나온다. 탈퇴자의 결제 이력은 법정 보존용이라 세지 않는다.</li>
+                <li><b>탈퇴율</b>(낮을수록 좋음) — 회원 탈퇴율은 공개 벤치마크가 없다(업계가 공개하는 것은 앱 삭제율·구독 해지율로 정의가 다르다). 그래서 <b>운영 실측을 기준선</b>으로 둔다: 2026-10-26 누적 5.6% → 목표 <b>5.0% 이하</b>(상대 10% 개선). 누적값이라 천천히 움직이므로 분기 단위로 보고, 광고로 신규 유입이 몰리면 단기 탈퇴가 늘어 잠시 오를 수 있다 — 그때는 아래 코호트별 흐름과 탈퇴 사유를 함께 본다.</li>
+              </ul>
+            </li>
             <li><b>리텐션</b>은 가입한 지 N일이 지난 현재 계정 중 N일 뒤 이후 아무 때나 앱을 쓴(토큰 갱신 또는 재생) 사람의 비율(언바운디드)이다. 탈퇴자는 분모에 없어 실제보다 높게 나오고(생존 편향), 같은 이유로 <b>일별 가입</b>에서도 그날 가입했다가 탈퇴한 사람은 빠진다.</li>
             <li><b>최근 24시간 인기 콘텐츠</b>는 지금부터 24시간 전까지(달력일이 아니다) 시작된 재생을 콘텐츠별로 센다 — 청취자(서로 다른 사람) 수 순이라 한 사람이 오래 들은 편이 위로 오지 않는다. 완청·담기도 그 24시간 안에 생긴 것만이다(재생은 그날 첫 시작 시각, 완청은 완청한 시각 기준이라 서비스 날짜 경계를 걸친 편은 완청률이 드물게 높게 나온다).</li>
             <li><b>날짜</b>는 KST 달력일이다(앱의 서비스 날짜 04/05시 경계가 아니다 — 운영자가 읽는 단위). 창 버튼은 추이·&quot;최근 N일&quot; 값에만 걸리고 누적·순위는 전 기간이다.</li>

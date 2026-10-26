@@ -30,6 +30,7 @@ const summary = (): InsightsSummary => ({
     tiers: { light: 225, daily: 0, pro: 0 },
     tierEvents: { daily: 0, pro: 0 },
     paidActive: 0,
+    paidEver: 9,
     activated: 149,
     active1d: 63,
     active7d: 190,
@@ -217,6 +218,9 @@ describe('AdminInsightsSummaryResponseDto', () => {
     expect(dto.users.listener_rate_1d).toBeCloseTo(52 / 63);
     expect(dto.users.listener_rate_7d).toBeCloseTo(130 / 190);
     expect(dto.users.paid_rate).toBe(0);
+    // 유료 경험(해지·만료 포함)은 지금 유료와 따로 센다 — 분모는 같은 현재 가입자
+    expect(dto.users.paid_ever).toBe(9);
+    expect(dto.users.paid_ever_rate).toBe(0.04);
     expect(dto.listening.all_time.complete_rate).toBeCloseTo(54 / 373);
     expect(dto.listening.all_time.avg_listen_sec_per_play).toBeCloseTo(
       122_642 / 373,

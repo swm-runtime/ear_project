@@ -113,6 +113,10 @@ export class AdminInsightsSummaryResponseDto {
     paid_active: number;
     /** `paid_active / current` */
     paid_rate: number | null;
+    /** 실결제를 한 번이라도 한 현재 계정 수(해지·만료 포함, 환불·시험 결제 제외 — 2026-10-26) */
+    paid_ever: number;
+    /** `paid_ever / current` — 유료 전환 성공지표 */
+    paid_ever_rate: number | null;
     activated: number;
     /** `activated / current` — 가입자 중 한 번이라도 재생한 비율 */
     activation_rate: number | null;
@@ -253,6 +257,8 @@ export class AdminInsightsSummaryResponseDto {
         tier_events: u.tierEvents,
         paid_active: u.paidActive,
         paid_rate: ratio(u.paidActive, u.current),
+        paid_ever: u.paidEver,
+        paid_ever_rate: ratio(u.paidEver, u.current),
         activated: u.activated,
         activation_rate: ratio(u.activated, u.current),
         active_1d: u.active1d,
