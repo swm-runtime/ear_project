@@ -19,5 +19,5 @@ export const RETENTION_PUSH_TTL_SEC = 3 * 60 * 60;
 /** `notification_logs.type` 머리 — `retention.<규칙>.<변형>`(예: `retention.weekly_rank_gap.b`) */
 export const RETENTION_LOG_TYPE_PREFIX = 'retention.';
 
-/** dry_run 의 Slack 요약에 규칙마다 싣는 문구 예시 수 */
+/** dry_run 로그에 규칙마다 싣는 문구 예시 수 */
 export const RETENTION_DRY_RUN_SAMPLES_PER_RULE = 1;

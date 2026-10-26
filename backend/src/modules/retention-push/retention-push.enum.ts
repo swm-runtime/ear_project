@@ -14,7 +14,7 @@ export enum RetentionRuleKey {
 export enum RetentionPushMode {
   /** 아무것도 하지 않는다(기본) */
   OFF = 'off',
-  /** 대상·문구까지 정하고 보내지 않는다 — 규칙별 건수와 예시를 Slack 에 남긴다 */
+  /** 대상·문구까지 정하고 보내지 않는다 — 규칙별 건수와 문구 예시를 로그에 남긴다 */
   DRY_RUN = 'dry_run',
   /** 보낸다 */
   ON = 'on',
