@@ -17,7 +17,8 @@ export async function freeGb(dir = cfg.workRoot): Promise<number> {
 /**
  * 작업이 끝나면(성공·실패 모두) 그 에피소드의 오디오 캐시를 지운다 — 원본은 S3 다(spec/10 3.3). 오디오만 지우는 이유: 대본·리포트는 작고,
  * 오디오는 TTS·패키지·자막 정렬만 쓰며 각 단계가 시작할 때 다시 내려받는다. 실패한 합성의 미업로드분이 다음 push 로 올라가는 것도 막는다.
- * 워커는 작업을 한 번에 하나만 돌리므로 다른 작업과 겹치지 않는다.
+ * 워커 프로세스 하나는 작업을 한 번에 하나만 돌리지만, 글로벌은 복제 워커 여러 개가 /work 를 공유한다(docker-compose replicas) — 호출 측(index.ts)이
+ * 같은 에피소드를 다른 작업이 돌리는 중이면 건너뛴다 (2026-10-26: 썸네일이 끝나며 자막 정렬 중인 dist.m4a 를 지워 ENOENT).
  */
 export async function evictEpisodeAudio(payload: Record<string, unknown> | null | undefined): Promise<void> {
   const id = String(payload?.episode_id ?? "");

@@ -145,6 +145,11 @@ export async function approveBacklogAuto(id: string, by: string): Promise<boolea
   const r = await pool.query("update public.backlog set status = 'approved', approved_by = $2, approved_at = now(), updated_at = now() where id = $1 and status = 'proposed' returning id", [id, by]);
   return (r.rowCount ?? 0) > 0;
 }
+/** 같은 에피소드를 다른 작업(다른 복제 워커)이 지금 돌리고 있는가 — 오디오 캐시 정리(disk.ts) 전에 본다 (2026-10-26: 글로벌 워커 복제 4개가 /work 를 공유해 썸네일이 끝나며 자막 정렬 중인 dist.m4a 를 지웠다) */
+export async function hasOtherActiveEpisodeJob(episodeId: string, exceptJobId: string): Promise<boolean> {
+  const r = await pool.query("select 1 from public.jobs where status in ('claimed','running') and id <> $2 and payload->>'episode_id' = $1 limit 1", [episodeId, exceptJobId]);
+  return (r.rowCount ?? 0) > 0;
+}
 export async function hasActiveDraftJob(backlogId: string): Promise<boolean> {
   const r = await pool.query("select 1 from public.jobs where type = 'draft' and status in ('queued','claimed','running') and payload->>'backlog_id' = $1 limit 1", [backlogId]);
   return (r.rowCount ?? 0) > 0;

@@ -1,6 +1,6 @@
 import fs from "node:fs/promises";
 import { cfg, canAi, canTts, canThumbnail, executedBy } from "./config.js";
-import { claimJob, enqueue, failJob, getBacklog, finishJob, getSetting, hasActiveDraftJob, seriesPrevReady, heartbeat, listApprovedBacklog, pool, requeueJob, startJob } from "./db.js";
+import { claimJob, enqueue, failJob, getBacklog, finishJob, getSetting, hasActiveDraftJob, hasOtherActiveEpisodeJob, seriesPrevReady, heartbeat, listApprovedBacklog, pool, requeueJob, startJob } from "./db.js";
 import { workerRev, workerRevTime } from "./assets.js";
 import { probeStorage } from "./storage.js";
 import { executorHandlesWebSearch, makeExecutor, setJobAbort } from "./executors/index.js";
@@ -133,7 +133,11 @@ async function main() {
         clearInterval(hb);
         setJobAbort(null);
         current = null;
-        await evictEpisodeAudio(job.payload).catch((e) => log(`오디오 캐시 정리 실패 (계속 진행): ${e?.message ?? e}`)); // disk.ts — 디스크 20GB, S3 가 원본
+        // disk.ts — 디스크 20GB, S3 가 원본. 복제 워커가 /work 를 공유하므로 같은 에피소드를 다른 작업이 돌리는 중이면 지우지 않는다 (2026-10-26 자막 정렬 ENOENT 2건)
+        const epId = String(job.payload?.episode_id ?? "");
+        const busy = epId ? await hasOtherActiveEpisodeJob(epId, job.id).catch(() => true) : false;
+        if (busy) log(`  오디오 캐시 유지 — ${epId} 를 다른 작업이 돌리는 중`);
+        else await evictEpisodeAudio(job.payload).catch((e) => log(`오디오 캐시 정리 실패 (계속 진행): ${e?.message ?? e}`));
       }
       if (once) break;
     } catch (e: any) {
