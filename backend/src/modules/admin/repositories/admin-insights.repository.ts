@@ -29,6 +29,7 @@ interface UserTotalsRow {
   tier_daily_event: number;
   tier_pro_event: number;
   paid_active: number;
+  paid_ever: number;
   activated: number;
   active_1d: number;
   active_7d: number;
@@ -196,6 +197,9 @@ export class AdminInsightsRepository {
          (select count(distinct user_id) from subscriptions
            where status in ('active', 'grace', 'cancelled') and environment = 'production' and expires_at > $1
              and ${byUser})::int as paid_active,
+         (select count(distinct user_id) from subscriptions
+           where status <> 'refunded' and environment = 'production'
+             and ${byUser})::int as paid_ever,
          (select count(distinct user_id) from play_records where ${byUser})::int as activated,
          (select count(distinct user_id) from sessions where issued_at >= $1::timestamptz - interval '1 day' and ${byUser})::int as active_1d,
          (select count(distinct user_id) from sessions where issued_at >= $1::timestamptz - interval '7 days' and ${byUser})::int as active_7d,
@@ -227,6 +231,7 @@ export class AdminInsightsRepository {
         pro: row.tier_pro_event,
       },
       paidActive: row.paid_active,
+      paidEver: row.paid_ever,
       activated: row.activated,
       active1d: row.active_1d,
       active7d: row.active_7d,

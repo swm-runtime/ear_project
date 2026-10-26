@@ -214,6 +214,11 @@ export interface InsightsUserTotals {
   tierEvents: { daily: number; pro: number };
   /** 실결제 구독이 유효한 사용자 수(`subscriptions` active·grace·cancelled(해지 예약, 만료일까지 유효) · production · 미만료) */
   paidActive: number;
+  /**
+   * 실결제를 **한 번이라도 한** 현재 계정 수(`subscriptions` production · 환불 아님 — 해지·만료 포함, 2026-10-26). 유료 전환
+   * 성공지표의 분자다. 탈퇴자의 결제 이력은 법정 보존용 아카이브에만 있어 지표에 쓰지 않는다(목적 외 이용) — 분모도 현재 가입자다
+   */
+  paidEver: number;
   /** 재생을 한 번이라도 한 사용자 수 — 활성화(activation) */
   activated: number;
   /**

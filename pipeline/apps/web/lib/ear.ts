@@ -484,6 +484,8 @@ export interface EarInsightsSummary {
     /** 초대 코드 이벤트로 그 티어인 계정 수 — 운영 API 가 아직 모르면 없다(2026-10-10 추가) */
     tier_events?: { daily: number; pro: number };
     paid_active: number; paid_rate: number | null;
+    /** 실결제를 한 번이라도 한 현재 계정(2026-10-26) — 옛 서버는 없다 */
+    paid_ever?: number; paid_ever_rate?: number | null;
     activated: number; activation_rate: number | null;
     active_1d: number; active_7d: number; active_30d: number; stickiness: number | null;
     listeners_1d: number; listeners_7d: number; listeners_30d: number;
