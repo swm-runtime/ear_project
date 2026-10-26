@@ -142,6 +142,12 @@ function SeriesPublishInner({ id, name, introLine, total, status, productSeriesI
       <div className="space-y-3 text-[13px]">
         {status !== "published" && todo.length > 0 && (
           <div className="overflow-x-auto">
+            {/* 일괄 조작 (2026-10-26 박수헌 "편마다 체크박스 네 개씩 다 하라고?") — 체크는 저장하지 않는 브라우저 상태라 검수를 마친 뒤 한 번에 켠다. 추천 메타도 없는 편 전부 한 번에 */}
+            <div className="mb-2 flex flex-wrap items-center gap-2">
+              <button className={btnCls()} disabled={busy} title="전 편의 게이트 2 검수 네 항목을 한 번에 체크한다 — 대본·출처·오디오·제목 검수를 마친 뒤 누른다" onClick={() => setRows((prev) => Object.fromEntries(Object.entries(prev).map(([k, r]) => [k, { ...r, checks: r.checks.map(() => true) }])))}>전 편 검수 확인 체크</button>
+              <button className={btnCls()} disabled={busy || !todo.some((e) => e.episode_id && rows[e.backlog_id] && !rows[e.backlog_id].enrichment)} title="추천 메타가 없는 편 전부에 메타 작업을 넣는다 — 끝나면 새로고침" onClick={() => { void (async () => { let n = 0; for (const e of todo) { const r = rows[e.backlog_id]; if (!e.episode_id || !r || r.enrichment) continue; await requestEpisodeEnrich(e.episode_id, e.backlog_id); n++; } say(`추천 메타 요청 ${n}편 — 끝나면 새로고침`); })(); }}>추천 메타 없는 편 전부 뽑기</button>
+              <span className="text-[11px] text-ink-soft">체크 {todo.filter((e) => rows[e.backlog_id]?.checks.every(Boolean)).length}/{todo.length}편 · 추천 메타 {todo.filter((e) => rows[e.backlog_id]?.enrichment).length}/{todo.length}편</span>
+            </div>
             <table className="w-full min-w-[60rem] text-[12px]">
               <thead className="text-left text-[11px] text-ink-soft"><tr><th className="w-10 py-1">화</th><th className="py-1">제목 · 설명</th><th className="w-40 py-1">파일</th><th className="w-48 py-1">게이트 2 검수</th></tr></thead>
               <tbody className="divide-y divide-line align-top">
