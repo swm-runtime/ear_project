@@ -827,6 +827,61 @@ describe('서비스 지표 요약 E2E', () => {
       .expect(HttpStatus.BAD_REQUEST);
   }, 60_000);
 
+  it('알림 반응 — 보낸 뒤 2시간 안에 재생한 알림만 반응으로 센다(종류별 · 리텐션은 규칙·변형으로 풀린다)', async () => {
+    // given — 다른 스위트와 겹치지 않는 이 테스트만의 리텐션 종류. A 는 1시간 뒤 재생, B 는 3시간 뒤 재생, C 는 재생 없음
+    const type = `retention.e2e${Date.now() % 100000}.b`;
+    const sentAt = new Date(Date.now() - 6 * 60 * 60 * 1000);
+    const [a, b, c] = await Promise.all([
+      createUserId('push-react-a'),
+      createUserId('push-react-b'),
+      createUserId('push-react-c'),
+    ]);
+    for (const userId of [a, b, c]) {
+      await dataSource.query(
+        `INSERT INTO notification_logs (user_id, type, deep_link, scheduled_at, sent_at, status)
+         VALUES ($1, $2, 'ear://library', $3, $3, 'sent')`,
+        [userId, type, sentAt],
+      );
+    }
+    const contentId = await seedContent();
+    const playRecords = dataSource.getRepository(PlayRecord);
+    for (const [userId, hours] of [
+      [a, 1],
+      [b, 3],
+    ] as const) {
+      const playedAt = new Date(sentAt.getTime() + hours * 60 * 60 * 1000);
+      await playRecords.save(
+        playRecords.create({
+          userId,
+          contentId,
+          playDate: toServiceDate(playedAt),
+          playedAt,
+          isCounted: true,
+          listenedSec: 60,
+        }),
+      );
+    }
+    const repository = app.get(AdminInsightsRepository);
+
+    // when
+    const rows = await repository.pushReactions(
+      new Date(sentAt.getTime() - 60 * 1000),
+    );
+
+    // then
+    expect(rows.find((row) => row.type === type)).toEqual({
+      type,
+      sent: 3,
+      reacted: 1,
+    });
+    // 창보다 앞에 보낸 것은 세지 않는다
+    expect(
+      (await repository.pushReactions(new Date(sentAt.getTime() + 1000))).find(
+        (row) => row.type === type,
+      ),
+    ).toBeUndefined();
+  });
+
   async function createUserId(
     label: string,
     role: UserRole = UserRole.USER,

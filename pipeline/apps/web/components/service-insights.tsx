@@ -90,6 +90,14 @@ export function ServiceInsights() {
 /** 주제별 수요·공급 표에 먼저 보이는 행 수 — 나머지는 [더보기]. 주제가 30개 가까워 화면을 다 덮는다 */
 const TOPIC_SUPPLY_PREVIEW = 10;
 
+/** 저녁 리텐션 알림 규칙(`notification.md` 4.6) — 서버 `RetentionRuleKey` 값. 모르는 규칙은 키 그대로 */
+const RETENTION_RULE_LABEL: Record<string, string> = {
+  weekly_rank_gap: "주간 순위 근접",
+  streak_keep: "연속 기록",
+  resume_content: "듣던 콘텐츠",
+  peers_listening: "지금 듣는 사람",
+};
+
 /**
  * 성공지표 목표(2026-10-26 박준현) — 달성이면 초록, 미달이면 빨강. 출처가 바뀌면 각주도 함께.
  * - 리텐션: MWM Retention Benchmarks — 미국 2025 Q3 **미디어·엔터테인먼트** 카테고리 중앙값(원문 mwm.ai/glossary/retention).
@@ -405,6 +413,24 @@ function InsightsView({ channel, days, market, onSwitchToDev }: { channel: EarCh
           </Table>
         </Panel>
       </div>
+      {data.push_reactions && (
+        <Panel title={`알림 반응 — 보낸 뒤 2시간 안에 재생 (${winLabel})`} flush>
+          <Table head={["알림", "문구", "발송", "반응", "반응률"]} empty="이 기간에 보낸 알림이 없다">
+            {data.push_reactions.map((r) => (
+              <Tr key={r.type}>
+                <Td className="font-medium">{r.rule ? labelOf(RETENTION_RULE_LABEL, r.rule) : "드립 도착 (기준선)"}</Td>
+                <Td className="text-ink-soft">{r.variant ? `변형 ${r.variant.toUpperCase()}` : "-"}</Td>
+                <Td className="tabular-nums">{fmtInt(r.sent)}건</Td>
+                <Td className="tabular-nums">{fmtInt(r.reacted)}건</Td>
+                <Td className="tabular-nums font-medium">{fmtPct(r.reaction_rate, 1)}{isSmall(r.sent) ? <span className="ml-1 text-xs font-normal text-ink-soft">표본 적음</span> : null}</Td>
+              </Tr>
+            ))}
+          </Table>
+          <p className="px-3 py-2 text-xs text-ink-soft">
+            저녁 리텐션 알림(현지 18:00, 마케팅 동의자)을 규칙·문구 변형별로, 아침 드립 도착 알림(07:00)을 비교 기준선으로 센다. <b>반응</b> = 알림을 보낸 뒤 2시간 안에 그 사용자가 재생함 — 앱이 알림 탭을 서버에 알리지 않아 탭 대신 재생으로 역산한다(알림을 안 누르고 앱을 열어 들은 것도 잡힌다). 같은 규칙의 변형 A·B 반응률을 비교해 문구를 고른다.
+          </p>
+        </Panel>
+      )}
       {data.retention_cohorts && (
         <Panel title="코호트 리텐션 — 가입한 날·주로 묶어 그 뒤에도 앱을 쓴 사람 (명 · 비율)">
           <div className="grid gap-4 lg:grid-cols-2">

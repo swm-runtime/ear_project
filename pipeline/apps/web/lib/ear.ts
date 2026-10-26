@@ -507,6 +507,15 @@ export interface EarInsightsSummary {
   /** `recent_top_contents`의 창 시작(ISO) — 지금 - 24시간 */
   recent_since?: string;
   withdrawal_reasons: { reason_code: string | null; count: number }[];
+  /** 알림 종류별 반응(보낸 뒤 2시간 안 재생, 2026-10-26) — 옛 서버는 없다 */
+  push_reactions?: {
+    type: string;
+    rule: string | null;
+    variant: string | null;
+    sent: number;
+    reacted: number;
+    reaction_rate: number | null;
+  }[];
   /** `bounded_*` = 정확히 가입 N일째 하루(바운디드, 2026-10-26) — 옛 서버는 없다 */
   retention: {
     day: number;

@@ -314,6 +314,14 @@ export interface InsightsWithdrawalReason {
   count: number;
 }
 
+/** 알림 종류 하나의 반응 — `type`은 `drip_arrival` 또는 `retention.<규칙>.<변형>` */
+export interface InsightsPushReaction {
+  type: string;
+  sent: number;
+  /** 보낸 뒤 2시간 안에 재생한 건 */
+  reacted: number;
+}
+
 export interface InsightsRetention {
   /** 가입 뒤 일수(1·7·30) */
   day: number;
@@ -443,6 +451,8 @@ export interface InsightsSummary {
   /** `recentTopContents`의 창 시작 시각 */
   recentSince: Date;
   withdrawalReasons: InsightsWithdrawalReason[];
+  /** 창 안에 보낸 알림의 종류별 반응(보낸 뒤 2시간 안 재생) — 드립 도착은 비교 기준선 */
+  pushReactions: InsightsPushReaction[];
   retention: InsightsRetention[];
   /** 바운디드 N일 리텐션(정확히 가입 N일째 하루) — `retention`과 같은 일수 순서. 벤치마크와 비교하는 값(2026-10-26) */
   boundedRetention: InsightsRetention[];

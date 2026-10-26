@@ -368,6 +368,7 @@ describe('AdminInsightsService.summarize', () => {
     topUsers: jest.fn().mockResolvedValue([]),
     topContents: jest.fn().mockResolvedValue([]),
     withdrawalReasons: jest.fn().mockResolvedValue([]),
+    pushReactions: jest.fn().mockResolvedValue([]),
     retention: jest.fn().mockResolvedValue([]),
     boundedRetention: jest.fn().mockResolvedValue([]),
     cohortRetention: jest.fn().mockResolvedValue({ sizes: [], hits: [] }),
