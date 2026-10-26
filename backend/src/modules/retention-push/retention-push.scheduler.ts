@@ -28,6 +28,14 @@ export class RetentionPushScheduler {
   }
 
   @Cron(RETENTION_PUSH_CRON, {
+    name: 'retention-push-southeast-asia',
+    timeZone: DRIP_GROUP_SCHEDULES[DripGroup.SOUTHEAST_ASIA].timeZone,
+  })
+  async runSoutheastAsia(): Promise<void> {
+    await this.runGroup(DripGroup.SOUTHEAST_ASIA);
+  }
+
+  @Cron(RETENTION_PUSH_CRON, {
     name: 'retention-push-europe',
     timeZone: DRIP_GROUP_SCHEDULES[DripGroup.EUROPE].timeZone,
   })
