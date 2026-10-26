@@ -505,7 +505,16 @@ export interface EarInsightsSummary {
   /** `recent_top_contents`의 창 시작(ISO) — 지금 - 24시간 */
   recent_since?: string;
   withdrawal_reasons: { reason_code: string | null; count: number }[];
-  retention: { day: number; cohort_size: number; returned: number; rate: number | null }[];
+  /** `bounded_*` = 정확히 가입 N일째 하루(바운디드, 2026-10-26) — 옛 서버는 없다 */
+  retention: {
+    day: number;
+    cohort_size: number;
+    returned: number;
+    rate: number | null;
+    bounded_cohort_size?: number;
+    bounded_returned?: number;
+    bounded_rate?: number | null;
+  }[];
   /** 코호트 리텐션 — 일별 D1·D7 · 주별 W1~W4. 배포 전 서버면 없다(2026-10-18 추가) */
   retention_cohorts?: { daily: EarInsightsCohortTable; weekly: EarInsightsCohortTable };
   /** 주제별 수요·공급 — 관심 사용자가 많은 순(admin-api 4.22). 배포 전 서버면 없다 */
