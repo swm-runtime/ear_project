@@ -76,8 +76,11 @@ function SummaryView({ channel, days }: { channel: EarChannel; days: number }) {
   const missTone = missRate == null ? "text-ink" : missRate >= 0.3 ? "text-rose-700" : missRate >= 0.15 ? "text-amber-700" : "text-ink";
   const maxDaily = Math.max(1, ...(data?.daily ?? []).map((d) => d.searches));
   // 의미 검색(KAN-238 하이브리드) — 키워드만이었다면 결과 없음이었을 비율과 실제 비율의 차이가 의미 검색 몫이다
-  const keywordMissRate = t?.keyword_misses == null ? null : ratio(t.keyword_misses, t.searches);
-  const semanticDownRate = t?.semantic_unavailable == null ? null : ratio(t.semantic_unavailable, t.searches);
+  // 분모는 하이브리드 기록이 있는 검색(2026-10-22 뒤)만 — 전체 검색으로 나누면 옛 행만큼 작게 나온다(2026-10-27 정정)
+  const hybridSearches = t?.hybrid_searches ?? null;
+  const keywordMissRate = t?.keyword_misses == null || hybridSearches == null ? null : ratio(t.keyword_misses, hybridSearches);
+  const hybridMissRate = t?.hybrid_misses == null || hybridSearches == null ? null : ratio(t.hybrid_misses, hybridSearches);
+  const semanticDownRate = t?.semantic_unavailable == null || hybridSearches == null ? null : ratio(t.semantic_unavailable, hybridSearches);
 
   return (
     <div className="space-y-3">
@@ -85,11 +88,11 @@ function SummaryView({ channel, days }: { channel: EarChannel; days: number }) {
 
       <div className="grid grid-cols-2 gap-3 md:grid-cols-6">
         <Stat label="검색" value={t ? t.searches.toLocaleString() : "…"} sub={t ? `사용자 ${t.users.toLocaleString()}명 · 타이핑 묶음 단위` : undefined} />
-        <Stat label="결과 없음 비율" value={t ? pct(missRate) : "…"} sub={t ? <>{small ? `결과 없음 ${t.misses}회 — 표본 ${t.searches}회, 참고만` : `결과 없음 ${t.misses.toLocaleString()}회 ÷ 검색`}{keywordMissRate != null && <><br />키워드만이었다면 <b>{pct(keywordMissRate)}</b></>}</> : undefined} tone={missTone} />
+        <Stat label="결과 없음 비율" value={t ? pct(missRate) : "…"} sub={t ? <>{small ? `결과 없음 ${t.misses}회 — 표본 ${t.searches}회, 참고만` : `결과 없음 ${t.misses.toLocaleString()}회 ÷ 검색`}{keywordMissRate != null && hybridMissRate != null && <><br />의미 검색 도입 뒤 {hybridSearches?.toLocaleString()}회: 키워드만이면 <b>{pct(keywordMissRate)}</b> → 실제 <b>{pct(hybridMissRate)}</b></>}</> : undefined} tone={missTone} />
         <Stat
           label="의미 검색이 살림"
           value={t ? (t.rescued == null ? "-" : `${t.rescued.toLocaleString()}회`) : "…"}
-          sub={t && t.rescued != null ? <>키워드 0건 {(t.keyword_misses ?? 0).toLocaleString()}회 중 결과를 냄 · <span className={(semanticDownRate ?? 0) >= 0.05 ? "font-semibold text-rose-700" : ""}>의미 엔진 결손 {pct(semanticDownRate)}</span></> : "이 서버는 아직 집계하지 않는다"}
+          sub={t && t.rescued != null ? <>키워드로는 0건이던 {(t.keyword_misses ?? 0).toLocaleString()}회 중 결과를 냄 · <span className={(semanticDownRate ?? 0) >= 0.05 ? "font-semibold text-rose-700" : ""} title="AI 서버가 늦거나(0.8초 초과) 꺼져 의미 검색 없이 키워드만으로 답한 검색 비율">AI 서버 응답 실패 {semanticDownRate == null ? "-" : pct(semanticDownRate)}</span></> : "이 서버는 아직 집계하지 않는다"}
           tone="text-sky-700"
         />
         <Stat label="콘텐츠 클릭" value={t ? (t.clicked == null ? "-" : `${t.clicked.toLocaleString()}회`) : "…"} sub={t && t.clicked == null ? "이 서버는 아직 집계하지 않는다 — 배포 대기" : "검색 뒤 10분 안에 결과를 재생·담은 검색"} />
@@ -155,6 +158,11 @@ function SummaryView({ channel, days }: { channel: EarChannel; days: number }) {
         </Panel>
       </div>
 
+      {data && data.semantic === null && (
+        <p className="rounded-md border border-dashed border-line px-3 py-2 text-[13px] text-ink-soft">
+          <b>의미 검색으로 찾은 검색어</b>·<b>오타 교정</b> 표는 이 서버({earChannelLabel(channel)})가 아직 집계하지 않는다 — 제품 API 가 배포되면(운영은 main 배포 뒤) 여기에 나온다. 지금 보려면 위에서 개발계를 고른다.
+        </p>
+      )}
       {(data?.semantic || data?.corrections) && (
         <div className="grid gap-3 lg:grid-cols-2">
           {data?.semantic && (
@@ -192,7 +200,7 @@ function SummaryView({ channel, days }: { channel: EarChannel; days: number }) {
       )}
 
       <p className="text-xs text-ink-soft">
-        한 행은 사용자가 치다가 멈춘 질의 하나다 — 디바운스 자동 검색의 중간 입력(‘커’ → ‘커리’ → ‘커리어’)과 한 글자 고침은 서버가 10초 창 안에서 마지막 것으로 접는다. <b>나온 콘텐츠</b>는 그 검색어를 가장 최근에 쳤을 때 나온 수다 — 서버가 첫 페이지(20건)까지만 세므로 그보다 많으면 ‘20건+’로 적는다. <b>결과 없음</b>은 그 검색어가 콘텐츠 0건으로 끝난 횟수다. <b>콘텐츠 클릭</b>은 검색 뒤 10분 안에 결과 중 하나를 재생하거나 담은 횟수다 — 앱이 탭을 보내는 게 아니라 서버가 재생·담기 기록에서 역산한다(재생 한도에 막힌 탭·상세만 본 탭은 안 잡힌다). 그래서 클릭이 없는 검색을 비율로 만들지 않고, 검색어별로 ‘눌린 적이 있나’만 본다. 결과 없는 검색어가 콘텐츠가 없는 주제면 제작 쪽 수요이고, 콘텐츠가 나왔는데 클릭이 한 번도 없는 검색어는 매칭이 엉뚱한지(explore.md 4.5-5) 볼 후보다. <b>의미 검색이 살림</b>은 키워드로는 0건이었는데 의미 검색(질의 임베딩)이 결과를 낸 검색이다 — 의미 검색이 없었다면 결과 없음이었다(“키워드만이었다면”과 실제 결과 없음 비율의 차이). <b>의미 검색으로 찾은 검색어</b>는 그런 검색만 모아 무엇을 찾아 줬는지(가장 최근 결과 앞 3편과 그 주제) 보인다 — 키워드가 하나도 안 맞았으니 결과가 전부 의미 검색 몫이다. 클릭이 <b>없음</b>인 줄은 결과는 나왔지만 안 눌린 것이라, 의미가 엉뚱하게 이어졌는지 먼저 볼 후보다. 키워드와 의미 결과가 섞인 검색은 어느 편이 의미 몫인지 기록이 없어 이 표에 넣지 않는다. <b>의미 엔진 결손</b>은 AI 서버가 늦거나 꺼져 키워드만으로 답한 검색 비율이다(5% 이상 빨강). <b>오타 교정</b>의 ‘원문으로 다시’는 교정 결과를 보고 원래 입력으로 다시 찾은 횟수다 — 잦으면 그 교정이 틀렸다는 뜻이다. 보존 90일.
+        한 행은 사용자가 치다가 멈춘 질의 하나다 — 디바운스 자동 검색의 중간 입력(‘커’ → ‘커리’ → ‘커리어’)과 한 글자 고침은 서버가 10초 창 안에서 마지막 것으로 접는다. <b>나온 콘텐츠</b>는 그 검색어를 가장 최근에 쳤을 때 나온 수다 — 서버가 첫 페이지(20건)까지만 세므로 그보다 많으면 ‘20건+’로 적는다. <b>결과 없음</b>은 그 검색어가 콘텐츠 0건으로 끝난 횟수다. <b>콘텐츠 클릭</b>은 검색 뒤 10분 안에 결과 중 하나를 재생하거나 담은 횟수다 — 앱이 탭을 보내는 게 아니라 서버가 재생·담기 기록에서 역산한다(재생 한도에 막힌 탭·상세만 본 탭은 안 잡힌다). 그래서 클릭이 없는 검색을 비율로 만들지 않고, 검색어별로 ‘눌린 적이 있나’만 본다. 결과 없는 검색어가 콘텐츠가 없는 주제면 제작 쪽 수요이고, 콘텐츠가 나왔는데 클릭이 한 번도 없는 검색어는 매칭이 엉뚱한지(explore.md 4.5-5) 볼 후보다. <b>의미 검색이 살림</b>은 키워드로는 0건이었는데 의미 검색(질의 임베딩)이 결과를 낸 검색이다 — 의미 검색이 없었다면 결과 없음이었다(“키워드만이었다면”과 실제 결과 없음 비율의 차이). <b>의미 검색으로 찾은 검색어</b>는 그런 검색만 모아 무엇을 찾아 줬는지(가장 최근 결과 앞 3편과 그 주제) 보인다 — 키워드가 하나도 안 맞았으니 결과가 전부 의미 검색 몫이다. 클릭이 <b>없음</b>인 줄은 결과는 나왔지만 안 눌린 것이라, 의미가 엉뚱하게 이어졌는지 먼저 볼 후보다. 키워드와 의미 결과가 섞인 검색은 어느 편이 의미 몫인지 기록이 없어 이 표에 넣지 않는다. <b>AI 서버 응답 실패</b>는 의미 검색에 필요한 검색어 임베딩을 AI 서버가 늦게(0.8초 초과) 주거나 못 줘서 키워드만으로 답한 검색 비율이다(5% 이상 빨강 — 높으면 AI 서버를 본다). 위 비율들의 분모는 의미 검색이 들어간 2026-10-22 뒤의 검색이다. <b>오타 교정</b>의 ‘원문으로 다시’는 교정 결과를 보고 원래 입력으로 다시 찾은 횟수다 — 잦으면 그 교정이 틀렸다는 뜻이다. 보존 90일.
       </p>
     </div>
   );

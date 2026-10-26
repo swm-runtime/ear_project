@@ -492,6 +492,10 @@ export interface SearchQueryLogSummary {
     rescued: number;
     /** 의미 엔진 없이 응답한 검색(`engines`에 `semantic` 없음, 태그 전용 제외) */
     semanticUnavailable: number;
+    /** 하이브리드 기록이 있는 검색(`keyword_count` 있음 — 2026-10-22 뒤) — 위 셋의 비율 분모 */
+    hybridSearches: number;
+    /** 그중 결과 없음 — `keywordMisses`와 같은 분모로 비교하는 실제 결과 없음 */
+    hybridMisses: number;
   };
   daily: SearchQueryDailyCount[];
   /** 0건이 한 번이라도 있던 질의, 0건 수 내림차순 */

@@ -38,6 +38,8 @@ interface TotalsRow {
   keyword_misses: number;
   rescued: number;
   semantic_unavailable: number;
+  hybrid_searches: number;
+  hybrid_misses: number;
 }
 
 interface DailyRow {
@@ -200,6 +202,9 @@ export class SearchQueryLogRepository {
               count(*) filter (where correction_rejected)::int as correction_rejected,
               count(*) filter (where keyword_count = 0)::int as keyword_misses,
               count(*) filter (where keyword_count = 0 and result_count > 0)::int as rescued,
+              -- 위 비율의 분모 — KAN-238 컬럼이 있는 행(하이브리드 뒤)만. 전체 검색으로 나누면 옛 행만큼 작게 나온다(2026-10-27)
+              count(*) filter (where keyword_count is not null)::int as hybrid_searches,
+              count(*) filter (where keyword_count is not null and result_count = 0)::int as hybrid_misses,
               -- 태그 전용(#)은 의미 엔진을 돌리지 않는 경로라 결손이 아니다
               count(*) filter (where engines is not null and not ('semantic' = any (engines)) and query not like '#%')::int as semantic_unavailable
          from scoped`,
@@ -376,6 +381,8 @@ export class SearchQueryLogRepository {
         keywordMisses: totals?.keyword_misses ?? 0,
         rescued: totals?.rescued ?? 0,
         semanticUnavailable: totals?.semantic_unavailable ?? 0,
+        hybridSearches: totals?.hybrid_searches ?? 0,
+        hybridMisses: totals?.hybrid_misses ?? 0,
       },
       daily: daily.map(toDaily),
       missed: missed.map(toRank),

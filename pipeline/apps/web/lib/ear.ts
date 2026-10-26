@@ -432,6 +432,8 @@ export interface EarSearchQueryLogSummary {
     searches: number; misses: number; miss_rate: number | null; clicked: number | null; users: number; short_queries: number; filtered_searches: number;
     /** 하이브리드·교정(KAN-238) — 옛 서버는 없다(null) */
     corrected?: number | null; correction_rejected?: number | null; keyword_misses?: number | null; rescued?: number | null; semantic_unavailable?: number | null;
+    /** 하이브리드 기록이 있는 검색과 그중 결과 없음(2026-10-27) — 위 비율의 분모. 옛 서버는 없다 */
+    hybrid_searches?: number | null; hybrid_misses?: number | null;
   };
   daily: { date: string; searches: number; misses: number; clicked: number; rescued: number }[];
   missed: EarSearchQueryRank[];
