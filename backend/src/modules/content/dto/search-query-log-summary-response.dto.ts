@@ -43,6 +43,13 @@ export class SearchQueryLogSummaryResponseDto {
     rescued: number;
     /** 의미 엔진 없이 응답한 검색(AI 서버 결손·미설정, 태그 전용 제외) */
     semantic_unavailable: number;
+    /**
+     * 하이브리드 기록이 있는 검색(2026-10-22 뒤) — `keyword_misses`·`rescued`·`semantic_unavailable` 비율의 **분모**.
+     * 전체 `searches`로 나누면 그 전 옛 행만큼 작게 나온다(2026-10-27)
+     */
+    hybrid_searches: number;
+    /** 그중 결과 없음 — "키워드만이었다면"(`keyword_misses / hybrid_searches`)과 같은 분모의 실제 결과 없음 */
+    hybrid_misses: number;
   };
   readonly daily: {
     date: string;
@@ -109,6 +116,8 @@ export class SearchQueryLogSummaryResponseDto {
         keyword_misses: summary.totals.keywordMisses,
         rescued: summary.totals.rescued,
         semantic_unavailable: summary.totals.semanticUnavailable,
+        hybrid_searches: summary.totals.hybridSearches,
+        hybrid_misses: summary.totals.hybridMisses,
       },
       daily: summary.daily,
       missed: summary.missed.map(toItem),

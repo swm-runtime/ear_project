@@ -40,6 +40,8 @@ interface SummaryBody {
     keyword_misses: number;
     rescued: number;
     semantic_unavailable: number;
+    hybrid_searches: number;
+    hybrid_misses: number;
   };
   missed: {
     query: string;
@@ -1043,6 +1045,11 @@ describe('하이브리드 검색·오타 교정 E2E', () => {
       expect(summary.totals.keyword_misses).toBeGreaterThanOrEqual(2);
       expect(summary.totals.rescued).toBeGreaterThanOrEqual(1);
       expect(typeof summary.totals.semantic_unavailable).toBe('number');
+      // "키워드만이었다면"의 분모는 하이브리드 기록이 있는 검색이다 — 키워드 0건은 그 실제 결과 없음보다 작을 수 없다
+      expect(summary.totals.hybrid_searches).toBeGreaterThanOrEqual(3);
+      expect(summary.totals.keyword_misses).toBeGreaterThanOrEqual(
+        summary.totals.hybrid_misses,
+      );
       const missed = summary.missed.find((row) => row.query === TYPO);
       expect(missed).toMatchObject({ query_used: TYPO, keyword_count: 0 });
       // 의미 검색만으로 나온 질의 — 결과가 전부 의미 엔진 몫이라 나온 콘텐츠를 그대로 보인다(2026-10-27)
