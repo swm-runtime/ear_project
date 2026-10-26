@@ -47,7 +47,7 @@ ${fence(t.closing)}
   - {episode_recap} = the same topic as {episode_line} in one line, in different words. Do not reuse the intro's wording. Name the topic, not the answer.
   - {host_remark} = one question in the host's own words that asks the explainer to bring the episode together around the axis question: why people do it. Not a feeling, a reaction, or a request for advice; do not repeat the intro's line.
   - After it, one explainer wrap-up turn that answers that question (guidelines, Closing rule).${signoff ? `
-- **Sign-off template** (the last turn of the script, by the host; fixed text, say it word for word and add nothing):
+- **Sign-off template** (the last turn of the script, by the host; fixed text, say it word for word and add nothing after it; a series episode puts its series sentence right before it, in the same turn):
 ${fence(signoff)}` : ""}`;
 }
 
@@ -414,7 +414,7 @@ Rules:
 ### Series frames — sentences given to the writer (template frames, not sources)
 - This script is episode ${i.seriesFrames.no} of ${i.seriesFrames.total} in the series "${i.seriesFrames.name}".
 - Intro series line, inside {topic_line}: "${i.seriesFrames.introSentence}"
-${i.seriesFrames.recapClaimId && i.seriesFrames.prevTitle ? `- Recap: the first explainer turn may open with one or two sentences that recall episode ${i.seriesFrames.no - 1}, "${i.seriesFrames.prevTitle}". Its support is claim ${i.seriesFrames.recapClaimId} (the row marked Series) and the "Series link" section of sources.md.\n` : ""}- Sign-off first sentence, inside the first {slot}: "${i.seriesFrames.closingSentence}"
+${i.seriesFrames.recapClaimId && i.seriesFrames.prevTitle ? `- Recap: the first explainer turn may open with one or two sentences that recall episode ${i.seriesFrames.no - 1}, "${i.seriesFrames.prevTitle}". Its support is claim ${i.seriesFrames.recapClaimId} (the row marked Series) and the "Series link" section of sources.md.\n` : ""}- Sign-off: the sentence right before the fixed sign-off line, in the same host turn: "${i.seriesFrames.closingSentence}"
 ` : "";
   const system = `You are the QA checker for "ear", an audio service. You verify that the script says only what the sources say, and no more. You know nothing about how the script was made; that is the rule.
 
