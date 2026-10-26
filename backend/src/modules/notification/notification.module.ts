@@ -17,6 +17,7 @@ import { PushReceiptScheduler } from './push-receipt.scheduler';
 import { NotificationLogRepository } from './repositories/notification-log.repository';
 import { DripArrivalNotificationService } from './services/drip-arrival-notification.service';
 import { PushReceiptService } from './services/push-receipt.service';
+import { TargetedPushService } from './services/targeted-push.service';
 import { UninstallEstimateService } from './services/uninstall-estimate.service';
 
 /**
@@ -33,6 +34,7 @@ import { UninstallEstimateService } from './services/uninstall-estimate.service'
     PushReceiptService,
     PushReceiptScheduler,
     UninstallEstimateService,
+    TargetedPushService,
     {
       provide: PushClient,
       inject: [ConfigService],
@@ -60,6 +62,6 @@ import { UninstallEstimateService } from './services/uninstall-estimate.service'
       },
     },
   ],
-  exports: [DripArrivalNotificationService],
+  exports: [DripArrivalNotificationService, TargetedPushService],
 })
 export class NotificationModule {}
