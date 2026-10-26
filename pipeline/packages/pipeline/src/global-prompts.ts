@@ -385,7 +385,10 @@ export const REVISION_INLINE_SCHEMA_EN = {
 
 // ── QA ────────────────────────────────────────────────────────────────
 
-export interface QaInlineInputEn { episodeId: string; attempt: number; qaPromptMd: string; specQaMd: string; scriptMd: string; claimsMd: string; sourcesMd: string; priorFailures?: { location: string; item: string; reason: string }[]; fixes?: { location: string; before: string; after: string }[]; humanRevision?: boolean }
+/** 시리즈 편의 틀 문장 (qa-en-v0.12, 2026-10-26) — 작성기에 준 인트로 시리즈 줄·앞 편 회상 행·클로징 첫 문장. QA 는 이것을 사실이 아니라 틀로 본다 */
+export interface QaSeriesFrames { name: string; no: number; total: number; introSentence: string; closingSentence: string; recapClaimId: string | null; prevTitle: string | null }
+
+export interface QaInlineInputEn { episodeId: string; attempt: number; qaPromptMd: string; specQaMd: string; scriptMd: string; claimsMd: string; sourcesMd: string; priorFailures?: { location: string; item: string; reason: string }[]; fixes?: { location: string; before: string; after: string }[]; humanRevision?: boolean; seriesFrames?: QaSeriesFrames | null }
 
 /** 실패 항목 표기 — QA 는 번호("8"), L0 는 이름("L0 format contract")을 낸다 */
 const itemLabel = (item: string) => (/^\d+$/.test(item.trim()) ? `check ${item.trim()}` : item);
@@ -407,6 +410,12 @@ Rules:
 3. New or changed sentences get the same strictness as round 1.`
     : "";
   const human = i.humanRevision ? "\n(A person edited this script and asked for QA again. Human edits can add errors too; check everything with round-1 strictness.)" : "";
+  const series = i.seriesFrames ? `
+### Series frames — sentences given to the writer (template frames, not sources)
+- This script is episode ${i.seriesFrames.no} of ${i.seriesFrames.total} in the series "${i.seriesFrames.name}".
+- Intro series line, inside {topic_line}: "${i.seriesFrames.introSentence}"
+${i.seriesFrames.recapClaimId && i.seriesFrames.prevTitle ? `- Recap: the first explainer turn may open with one or two sentences that recall episode ${i.seriesFrames.no - 1}, "${i.seriesFrames.prevTitle}". Its support is claim ${i.seriesFrames.recapClaimId} (the row marked Series) and the "Series link" section of sources.md.\n` : ""}- Sign-off first sentence, inside the first {slot}: "${i.seriesFrames.closingSentence}"
+` : "";
   const system = `You are the QA checker for "ear", an audio service. You verify that the script says only what the sources say, and no more. You know nothing about how the script was made; that is the rule.
 
 There are no tools. Everything is below. Do not read files or open URLs. The excerpts are the final reference.
@@ -420,8 +429,7 @@ ${fence(i.specQaMd)}
 ## 3. Report — output only the requested JSON. In report_md, write in markdown: "### Checks" (a table with 11 rows: #, check, verdict pass/fail/hold, one-line basis) · "### Failures" (a table: #, location as "Y7 · first words", check, reason; "none" if none) · "### Notes — borderline cases not failed" · "### Verdict". The failures array and the failures table hold the same items. No text before the JSON.`;
   const user = `## Under check — ${i.episodeId} attempt ${i.attempt}${human}
 Speakers (check 10): explainer ${explainerEn()} (E turns), host ${otherSpeaker(explainerEn())} (Y turns).
-${prior}
-
+${prior}${series}
 ### Script — script.md
 ${fence(i.scriptMd)}
 
