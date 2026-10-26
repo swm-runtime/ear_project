@@ -120,7 +120,7 @@
 | 보관 시한 | `ttl` 3시간 — 밤사이 꺼져 있던 기기에 다음 날 아침 "지금 듣는 중"이 뜨지 않게 |
 | 기록 | `notification_logs.type = retention.<규칙>.<변형>`(예: `retention.weekly_rank_gap.b`, `domain.md` 9.1). 보낸 것만 `sent`/`failed`로 남긴다 — 성립하지 않은 사용자는 기록이 없다 |
 | 페이로드 `data` | `{ "type": "retention.<규칙>.<변형>", "deep_link": "..." }` — 앱은 `deep_link`만 쓴다(드립 도착과 같은 탭 처리 4.4) |
-| 서버 스위치 | `RETENTION_PUSH_MODE` = `off`(기본) · `dry_run`(대상·문구까지 정하고 보내지 않음 — 규칙별 건수·예시 1개를 Slack 에, 사용자 식별값 없음) · `on`. 기준값을 실제 숫자로 맞춘 뒤 켠다 |
+| 서버 스위치 | `RETENTION_PUSH_MODE` = `off`(기본) · `dry_run`(대상·문구까지 정하고 보내지 않음 — 규칙별 건수·예시 1개를 API 로그 `retention push processed`에, 사용자 식별값 없음. 팀 채널로는 보내지 않는다 — 2026-10-26). 성과는 서비스 지표 탭 알림 반응 표(`backend-monitoring.md`)로 본다 · `on`. 기준값을 실제 숫자로 맞춘 뒤 켠다 |
 
 **규칙(초깃값 — 데이터를 보고 조정한다)**
 
