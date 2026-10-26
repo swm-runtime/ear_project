@@ -92,7 +92,13 @@ interface SummaryBody {
     listeners: number;
     completes: number;
   }[];
-  retention: { day: number; cohort_size: number; returned: number }[];
+  retention: {
+    day: number;
+    cohort_size: number;
+    returned: number;
+    bounded_cohort_size: number;
+    bounded_returned: number;
+  }[];
   retention_cohorts: Record<
     'daily' | 'weekly',
     {
@@ -359,6 +365,8 @@ describe('서비스 지표 요약 E2E', () => {
     ).toBeGreaterThanOrEqual(2);
     expect(body.listening.window.plays).toBeGreaterThanOrEqual(2);
     expect(body.retention.map((r) => r.day)).toEqual([1, 7, 30]);
+    expect(typeof body.retention[0].bounded_cohort_size).toBe('number');
+    expect(typeof body.retention[0].bounded_returned).toBe('number');
 
     // then — 창 밖 값은 거절, 일반 계정은 403, 토큰 없으면 401
     await request(app.getHttpServer())
@@ -607,6 +615,25 @@ describe('서비스 지표 요약 E2E', () => {
       { start: '2001-03-05', offset: 1, returned: 1 },
       { start: '2001-03-05', offset: 2, returned: 2 },
     ]);
+
+    // when — 바운디드 N일 리텐션: 오늘 03-14(N일째가 03-13까지 다 지난 가입자), 기록을 믿을 수 있는 첫 날 03-06
+    const bounded = await repository.boundedRetention(
+      [1, 7, 30],
+      '2001-03-14',
+      '2001-03-06',
+    );
+
+    // then — 코호트 표 칸의 합과 같다. D1: A·B·C 중 A(03-06 접속 기록)만 — B 의 03-05·03-07, C 의 가입 당일은 D1 이 아니다.
+    //        D7: 03-12 가 7일째인 A·B 중 B(03-12 세션)만 — C 의 7일째(03-18)는 아직 오지 않아 분모에 없다. D30: 해당 없음
+    expect(bounded).toEqual([
+      { day: 1, cohortSize: 3, returned: 1 },
+      { day: 7, cohortSize: 2, returned: 1 },
+      { day: 30, cohortSize: 0, returned: 0 },
+    ]);
+    // 기록을 믿을 수 있는 첫 날보다 앞선 N일째는 분모에서 빠진다(03-06 D1 인 A·B 가 빠지고 C 만 남는다)
+    expect(
+      (await repository.boundedRetention([1], '2001-03-14', '2001-03-07'))[0],
+    ).toEqual({ day: 1, cohortSize: 1, returned: 0 });
   });
 
   it('요약 응답에 코호트 표 두 장(일별 14행 D1·D7 · 주별 8행 W1~W4)이 실린다', async () => {

@@ -99,6 +99,13 @@ export class AdminInsightsService {
       await this.repository.activeDatesFirstRecordedAt(),
       liveFrom,
     );
+    // 코호트 표와 같은 원천·같은 신뢰 경계 — 코호트 표 D1·D7 칸의 전 기간 가중 평균이 된다
+    const boundedRetention = await this.repository.boundedRetention(
+      INSIGHTS_RETENTION_DAYS,
+      today,
+      cohortSince,
+      market,
+    );
     const dailyStarts = cohortStarts(today, INSIGHTS_COHORT_DAILY);
     const weeklyStarts = cohortStarts(today, INSIGHTS_COHORT_WEEKLY);
     const dailyCohorts = await this.repository.cohortRetention(
@@ -134,6 +141,7 @@ export class AdminInsightsService {
       recentSince,
       withdrawalReasons,
       retention,
+      boundedRetention,
       retentionCohorts: {
         daily: buildCohortTable(
           dailyCohorts,

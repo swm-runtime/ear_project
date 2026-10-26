@@ -1,5 +1,6 @@
 import { ConfigService } from '@nestjs/config';
 
+import { EnvironmentVariables } from '@/config/env.validation';
 import { SlackAlertService } from '@/modules/alert/slack-alert.service';
 import { DripGroup } from '@/modules/drip/drip.enum';
 import { TargetedPushService } from '@/modules/notification/services/targeted-push.service';
@@ -49,7 +50,7 @@ describe('RetentionPushService', () => {
       slackAlertService,
       {
         get: (key: string) => env[key],
-      } as unknown as ConfigService,
+      } as unknown as ConfigService<EnvironmentVariables, true>,
     );
 
   beforeEach(() => {

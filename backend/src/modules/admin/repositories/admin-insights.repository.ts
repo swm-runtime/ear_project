@@ -612,6 +612,59 @@ export class AdminInsightsRepository {
   }
 
   /**
+   * **바운디드 N일 리텐션**(classic N-day — 업계 벤치마크와 같은 정의, 2026-10-26). 가입한 KST 달력일 `d`의 현재 계정 중
+   * **정확히 `d + N`일 하루 안에** 앱을 쓴(접속 또는 재생) 사람. 접속 원천은 코호트 표와 같다(`user_active_dates` · 남은
+   * `sessions` · `play_records`) — 이 값은 코호트 표 D1·D7 칸을 전 기간 묶음에 대해 가중 평균한 것과 같다.
+   *
+   * 분모는 `d + N`일이 **다 지났고**(`< today`) 그날 접속 기록을 **믿을 수 있는**(`>= reliableSince`) 가입자만이다 — 아직 오지
+   * 않은 날, 세션이 지워져 재생만 남은 날을 분모에 넣으면 낮게 나온다. 탈퇴자는 `users`에 없어 빠진다(생존 편향 — 다른 리텐션과 같다).
+   */
+  async boundedRetention(
+    days: readonly number[],
+    today: string,
+    reliableSince: string,
+    market: UserMarket | null = null,
+  ): Promise<InsightsRetention[]> {
+    const rows = await this.dataSource.query<RetentionRow[]>(
+      `with cohort as (
+         select u.id, n.day,
+                (u.created_at at time zone 'Asia/Seoul')::date + n.day as target
+           from unnest($1::int[]) as n(day)
+           join users u
+             on (u.created_at at time zone 'Asia/Seoul')::date + n.day < $2::date
+            and (u.created_at at time zone 'Asia/Seoul')::date + n.day >= $3::date
+            and ${marketIs('u.market', '$4')}
+       )
+       select n.day::int as day,
+              count(c.id)::int as cohort_size,
+              count(c.id) filter (where exists (
+                select 1 from user_active_dates a
+                 where a.user_id = c.id and a.active_date = c.target
+              ) or exists (
+                select 1 from sessions s
+                 where s.user_id = c.id
+                   and s.issued_at >= c.target::timestamp at time zone 'Asia/Seoul'
+                   and s.issued_at < (c.target + 1)::timestamp at time zone 'Asia/Seoul'
+              ) or exists (
+                select 1 from play_records p
+                 where p.user_id = c.id
+                   and p.played_at >= c.target::timestamp at time zone 'Asia/Seoul'
+                   and p.played_at < (c.target + 1)::timestamp at time zone 'Asia/Seoul'
+              ))::int as returned
+         from unnest($1::int[]) as n(day)
+         left join cohort c on c.day = n.day
+        group by n.day
+        order by n.day`,
+      [days, today, reliableSince, market],
+    );
+    return rows.map((r) => ({
+      day: r.day,
+      cohortSize: r.cohort_size,
+      returned: r.returned,
+    }));
+  }
+
+  /**
    * 코호트 리텐션의 재료 — 가입한 KST 달력일 `[from, to)`의 현재 계정을 `span`일 단위(1 = 일별, 7 = ISO 주, 월요일 시작)로 묶고,
    * 묶음마다 가입자 수와 "가입 뒤 `offset` 구간에 앱을 쓴 사람 수"를 센다. 구간은 **사람마다 자기 가입일 기준**이다 —
    * `offset`번째 구간 = 가입일 + `offset × span`일부터 `span`일(D1 = 가입 다음 날 하루, W1 = 가입 7~13일 뒤).

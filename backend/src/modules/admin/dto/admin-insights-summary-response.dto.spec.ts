@@ -132,6 +132,10 @@ const summary = (): InsightsSummary => ({
     { day: 1, cohortSize: 200, returned: 50 },
     { day: 30, cohortSize: 0, returned: 0 },
   ],
+  boundedRetention: [
+    { day: 1, cohortSize: 180, returned: 27 },
+    { day: 30, cohortSize: 0, returned: 0 },
+  ],
   retentionCohorts: {
     daily: {
       span: 1,
@@ -244,6 +248,13 @@ describe('AdminInsightsSummaryResponseDto', () => {
     expect(dto.recent_since).toBe('2026-10-07T00:00:00.000Z');
     expect(dto.retention[0].rate).toBe(0.25);
     expect(dto.retention[1].rate).toBeNull();
+    // 바운디드는 같은 줄에 따로 싣는다 — 분모가 다르다(N일째가 다 지났고 기록을 믿을 수 있는 가입자)
+    expect(dto.retention[0]).toMatchObject({
+      bounded_cohort_size: 180,
+      bounded_returned: 27,
+      bounded_rate: 0.15,
+    });
+    expect(dto.retention[1].bounded_rate).toBeNull();
     expect(dto.withdrawal_reasons[0]).toEqual({ reason_code: null, count: 3 });
     expect(dto.topic_supply[0]).toEqual({
       topic_id: 'topic-1',

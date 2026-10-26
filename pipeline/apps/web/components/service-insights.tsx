@@ -90,6 +90,9 @@ export function ServiceInsights() {
 /** 주제별 수요·공급 표에 먼저 보이는 행 수 — 나머지는 [더보기]. 주제가 30개 가까워 화면을 다 덮는다 */
 const TOPIC_SUPPLY_PREVIEW = 10;
 
+/** 바운디드 N일 리텐션 비교값 — MWM Retention Benchmarks, 미국 미디어·엔터테인먼트 앱 중앙값(2025 Q3). 출처가 바뀌면 각주도 함께 */
+const RETENTION_BENCHMARK: Record<number, number> = { 1: 0.249, 7: 0.08, 30: 0.034 };
+
 function InsightsView({ channel, days, market, onSwitchToDev }: { channel: EarChannel; days: number; market: EarInsightsMarket | null; onSwitchToDev?: () => void }) {
   const [data, setData] = useState<EarInsightsSummary | null>(null);
   const [err, setErr] = useState<string | null>(null);
@@ -325,16 +328,30 @@ function InsightsView({ channel, days, market, onSwitchToDev }: { channel: EarCh
       {/* ── 리텐션·탈퇴 ── */}
       <div className="grid gap-3 lg:grid-cols-2">
         <Panel title="리텐션 — 가입 N일 뒤에도 앱 사용" flush>
-          <Table head={["기준", "대상", "돌아옴", "비율"]} empty="-">
+          <Table head={["기준", "대상", "돌아옴", "이후 언제든", "N일째 하루", "업계 중앙값"]} empty="-">
             {data.retention.map((r) => (
               <Tr key={r.day}>
                 <Td className="font-medium">D{r.day}</Td>
                 <Td className="tabular-nums text-ink-soft">{fmtInt(r.cohort_size)}명</Td>
                 <Td className="tabular-nums">{fmtInt(r.returned)}명</Td>
                 <Td className="tabular-nums font-medium">{fmtPct(r.rate, 0)}{isSmall(r.cohort_size) ? <span className="ml-1 text-xs font-normal text-ink-soft">표본 적음</span> : null}</Td>
+                <Td className="tabular-nums font-medium">
+                  {r.bounded_cohort_size === undefined ? "-" : (
+                    <>
+                      {fmtPct(r.bounded_rate ?? null, 1)}
+                      <span className="ml-1 text-xs font-normal text-ink-soft">{fmtInt(r.bounded_returned ?? 0)}/{fmtInt(r.bounded_cohort_size)}명{isSmall(r.bounded_cohort_size) ? " · 표본 적음" : ""}</span>
+                    </>
+                  )}
+                </Td>
+                <Td className="tabular-nums text-ink-soft">{RETENTION_BENCHMARK[r.day] === undefined ? "-" : fmtPct(RETENTION_BENCHMARK[r.day], 1)}</Td>
               </Tr>
             ))}
           </Table>
+          <p className="px-3 py-2 text-xs text-ink-soft">
+            <b>이후 언제든</b> = 가입 N일 뒤부터 지금까지 한 번이라도(언바운디드 — 오래된 가입자일수록 높아진다 — 완전히 떠나지 않은 비율).
+            {" "}<b>N일째 하루</b> = 가입한 날 다음 N번째 날(KST) 하루 안에 앱을 씀(바운디드 — 업계 벤치마크와 같은 정의, 아래 코호트 표 칸의 전 기간 평균). N일째가 다 지났고 접속 기록을 믿을 수 있는 가입자만 센다.
+            {" "}<b>업계 중앙값</b> = MWM Retention Benchmarks, 미국 미디어·엔터테인먼트 앱, 2025년 3분기 — 팟캐스트 전용 수치가 아니다. 탈퇴자는 분모에 없어 우리 값이 실제보다 조금 높다.
+          </p>
         </Panel>
         <Panel title={`탈퇴 사유 (전 기간 ${fmtInt(u.withdrawals)}건)`} flush>
           <Table head={["사유", "건수", "비율"]} empty="탈퇴 기록이 없다">

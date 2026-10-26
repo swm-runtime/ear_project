@@ -439,6 +439,8 @@ export interface InsightsSummary {
   recentSince: Date;
   withdrawalReasons: InsightsWithdrawalReason[];
   retention: InsightsRetention[];
+  /** 바운디드 N일 리텐션(정확히 가입 N일째 하루) — `retention`과 같은 일수 순서. 벤치마크와 비교하는 값(2026-10-26) */
+  boundedRetention: InsightsRetention[];
   /** 코호트 리텐션 — 가입일·가입 주로 묶은 D1·D7 · W1~W4 */
   retentionCohorts: { daily: InsightsCohortTable; weekly: InsightsCohortTable };
   topicSupply: InsightsTopicSupply[];
