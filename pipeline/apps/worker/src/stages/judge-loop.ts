@@ -234,12 +234,13 @@ export async function runJudgeLoop(job: Job, ex: Executor) {
   const SCORE_MAX_OUT = 12_288; // v1.11: 정상 채점 출력 3.7~6.6k(생각 1~3k 포함)·검토 0.9~4.4k·L0 수정 2.5k — 두 배 여유. 종전 24,576 은 출력 폭주를 5분 넘게 기다렸다
   const FIX_MAX_OUT = 12_288; // v1.9: must_fix 수리 — 출력은 고친 턴 몇 개뿐. 생각 1만 토큰이면 끝난다
   async function gpt<T>(label: string, system: string, prompt: string, schema: object, minutes: number, effort: "high" | "medium", maxOutputTokens?: number): Promise<T> {
+    let background = cfg.judgeBackground; // 백그라운드 시간 초과면 동기 호출로 한 번 더 (2026-10-27)
     for (let attempt = 1; ; attempt++) {
       // 배경 응답의 OpenAI 쪽 상태 — queued(대기열) 가 얼마나 길었는지, 생성(in_progress) 이 언제 시작됐는지. 17분 걸린 호출이 대기열인지 생각인지 가르려고(2026-10-23 G261023-023 0회차)
       const t0 = Date.now(); let queuedMs = 0; let startedMs = -1;
       const onProgress = (p: { detail?: string }) => { const d = String(p.detail ?? ""); if (/백그라운드 queued/.test(d)) queuedMs = Date.now() - t0; else if (/백그라운드 in_progress/.test(d) && startedMs < 0) startedMs = Date.now() - t0; };
       try {
-        const r = await ex.run<T>({ prompt, systemPrompt: system, schema, allowedTools: [], tools: [], cwd: cfg.workRoot, timeoutMs: minutes * 60_000, effort, background: true, maxOutputTokens, onProgress }); // 재작성 한 호출이 10분을 넘으면 동기 요청은 끊긴다 — 백그라운드 모드 (types.ts)
+        const r = await ex.run<T>({ prompt, systemPrompt: system, schema, allowedTools: [], tools: [], cwd: cfg.workRoot, timeoutMs: minutes * 60_000, effort, background, maxOutputTokens, onProgress }); // 재작성 한 호출이 10분을 넘으면 동기 요청은 끊긴다 — 백그라운드 모드 (types.ts)
         cost += r.listCostUsd ?? 0; model = r.model ?? model;
         // 호출별 기록(2026-10-23 박수헌 "그 호출 뭐가 느린지") — 검토·채점 네 호출이 병렬이라 단계 시간만으로는 느린 호출을 가릴 수 없다. 출력 토큰은 생각 포함
         const us = (r.raw as { usage?: { output_tokens?: number; output_tokens_details?: { thinking_tokens?: number } } } | undefined)?.usage;
@@ -249,6 +250,8 @@ export async function runJudgeLoop(job: Job, ex: Executor) {
         const msg = String(e); const transient = /fetch failed|OpenAI (?:0|5\d\d|429)|ECONNRESET|ETIMEDOUT|socket hang up/i.test(msg);
         // 생각 폭주(출력 상한 도달·시간 초과)는 같은 입력을 다시 불러도 대개 정상으로 끝난다 — 한 번만 더 (비용은 상한만큼)
         const runaway = /응답 미완료 \(incomplete|요청 시간 초과/.test(msg);
+        // 2026-10-27: 백그라운드 응답이 대기열에서 안 움직여 시간 초과면(OpenAI 쪽 큐 적체) 같은 호출을 동기로 한 번 — 동기 호출은 생성이 바로 시작된다
+        if (background && /요청 시간 초과 \(백그라운드/.test(msg)) { background = false; log(`  judge_loop ${episodeId}: 백그라운드 응답 시간 초과 — ${label} 를 동기 호출로 다시 부른다`); continue; }
         if (transient && attempt < 4) { log(`  judge_loop ${episodeId}: OpenAI 일시 오류(${attempt}/3) — ${msg.slice(0, 80)} · ${attempt * 30}s 뒤 재시도`); await new Promise((r) => setTimeout(r, attempt * 30_000)); continue; }
         if (runaway && attempt < 2) { log(`  judge_loop ${episodeId}: OpenAI 출력 폭주 — ${msg.slice(0, 120)} · 한 번 재시도`); continue; }
         throw e;
