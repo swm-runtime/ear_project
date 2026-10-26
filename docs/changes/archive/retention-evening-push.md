@@ -72,3 +72,4 @@ KAN-272(10월 5주차 — PM 이주호 요청 "다른 사용자와의 비교로 
 ## 처리 기록
 
 - 2026-10-26 발행(박준현).
+- 2026-10-26 **반영**(박준현) — `notification.md` 3 `type`·4.6 신설·6 데이터 모델 `consents` 행·미결 닫기 · `domain.md` 9.1 `type varchar(40)` 값 · `settings.md` 4.1 마케팅 수신 동의 행 한 줄 — 규칙 표는 `retention-push.rules.ts`(cooldown 72·48·48·72h, 최소 인원 20·10, ttl 3h)와 대조함. 반영 날짜 2026-10-26.

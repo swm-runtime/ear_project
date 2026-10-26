@@ -652,7 +652,7 @@
   "recent_since": "2026-10-17T03:00:00.000Z",
   "recent_top_contents": [ { "content_id": "…", "title": "…", "duration_sec": 612, "listen_sec": 4380, "plays": 11, "listeners": 9, "completes": 4, "complete_rate": 0.364, "saves": 2 } ],
   "withdrawal_reasons": [ { "reason_code": "low_usage", "count": 9 }, { "reason_code": null, "count": 3 } ],
-  "retention": [ { "day": 1, "cohort_size": 200, "returned": 50, "rate": 0.25 }, { "day": 7, "cohort_size": 150, "returned": 30, "rate": 0.2 }, { "day": 30, "cohort_size": 0, "returned": 0, "rate": null } ],
+  "retention": [ { "day": 1, "cohort_size": 200, "returned": 50, "rate": 0.25, "bounded_cohort_size": 180, "bounded_returned": 27, "bounded_rate": 0.15 }, { "day": 7, "cohort_size": 150, "returned": 30, "rate": 0.2, "bounded_cohort_size": 120, "bounded_returned": 9, "bounded_rate": 0.075 }, { "day": 30, "cohort_size": 0, "returned": 0, "rate": null, "bounded_cohort_size": 0, "bounded_returned": 0, "bounded_rate": null } ],
   "retention_cohorts": {
     "daily": {
       "span": 1, "offsets": [1, 7], "reliable_since": "2026-09-19",
@@ -717,7 +717,8 @@
   - 최대 15편이다(`top_contents`와 같은 길이). 창 안에 재생이 없으면 빈 배열이다.
   - 현재 계정 기준이다. 탈퇴자의 재생은 빠진다(`top_contents`와 같다). 담기는 나중에 지운 것(`deleted_at`)도 센다(전 기간 순위와 같은 관례).
   - **`complete_rate`는 드물게 높게 나올 수 있다.** 재생은 `play_records`(사용자·콘텐츠·서비스 날짜당 1행)의 첫 시작 시각으로, 완청은 신호 시각으로 창에 넣기 때문이다. 서비스 날짜 경계(05:00)를 걸쳐 들은 편은 재생은 창 밖이고 완청만 창 안일 수 있다.
-- `retention`은 D1·D7·D30 — `cohort_size`는 가입한 지 `day`일이 지난 **현재 계정** 수, `returned`는 그중 가입 `day`일 뒤 이후 아무 때나 **앱을 쓴** 사람(토큰 갱신 `sessions.issued_at` 또는 재생 `play_records` — 세션 행은 30일만 보존되므로 영구 보존되는 재생을 합친다. 언바운디드). 탈퇴자는 분모에 없어 실제보다 높게 나온다(생존 편향). 하루만 보는(bounded) 방식은 수백 명 규모에서 표본이 너무 작아 쓰지 않는다.
+- `retention`은 D1·D7·D30 — `cohort_size`는 가입한 지 `day`일이 지난 **현재 계정** 수, `returned`는 그중 가입 `day`일 뒤 이후 아무 때나 **앱을 쓴** 사람(토큰 갱신 `sessions.issued_at` 또는 재생 `play_records` — 세션 행은 30일만 보존되므로 영구 보존되는 재생을 합친다. 언바운디드). 탈퇴자는 분모에 없어 실제보다 높게 나온다(생존 편향). 시간이 지날수록 커져 업계 벤치마크와 비교할 수 없다 — 비교는 아래 `bounded_*`로 한다.
+  - **`bounded_cohort_size` · `bounded_returned` · `bounded_rate`**(추가 2026-10-26 — 업계 벤치마크와 같은 classic N-day 정의, `changes/archive/insights-bounded-retention.md`): 가입한 KST 달력일 `d`에서 **`d + N`일이 다 지났고**(어제까지) 그날 접속 기록을 믿을 수 있는(`retention_cohorts.*.reliable_since` 이후) 현재 계정 수 · 그중 **정확히 `d + N`일 하루**(KST)에 앱을 쓴(접속 — `user_active_dates`·남은 `sessions` — 또는 재생) 사람 수 · 비율(분모 0이면 null). 원천·신뢰 경계가 `retention_cohorts`와 같아 코호트 표 D1·D7 칸의 전 기간 평균이 된다. `market` 필터를 따르고, 탈퇴자는 분모에 없다(생존 편향).
 - `retention_cohorts`(추가 2026-10-18 — 멘토 조언 "D1·D7, W1~4를 절대수치와 비율로 같이", `domain.md` 3.3-2)는 가입일·가입 주로 묶은 **바운디드** 코호트 리텐션이다. `daily`(D1·D7)와 `weekly`(W1~W4) 두 표이고, 각 표는 `span`(1 = 일별 · 7 = 주별)·`offsets`·`reliable_since`·`rows`다. 기존 언바운디드 `retention`은 그대로 두고 화면에 함께 보인다.
   - **묶음**: 현재 계정을 가입한 KST 달력일로 묶는다. `daily`는 최근 14일(어제부터, 오늘 제외), `weekly`는 최근 8주(이번 주 포함, ISO 주 월요일 시작 — `start`는 그 주 월요일)다. 최근 묶음이 먼저 온다. 가입 0명인 묶음도 행을 둔다. **창(`days`)과 무관하다.**
   - **구간**: **사람마다 자기 가입일 기준**이다. `offset`번째 구간은 가입일 + `offset × span`일부터 `span`일이다 — D1 = 가입 다음 날 하루, D7 = 가입 7일 뒤 하루(가입일 + 7), W1 = 7~13일, W2 = 14~20일, W3 = 21~27일, W4 = 28~34일 뒤.
