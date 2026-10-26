@@ -49,9 +49,31 @@ export class SearchQueryLogSummaryResponseDto {
     searches: number;
     misses: number;
     clicked: number;
+    /** 키워드 0건인데 결과가 있던 검색(의미 엔진이 살렸다, 2026-10-27) */
+    rescued: number;
   }[];
   readonly missed: RankItem[];
   readonly top: RankItem[];
+  /**
+   * 의미 검색만으로 결과가 나온 질의(2026-10-27) — 키워드 0건이라 결과가 전부 의미 엔진 몫이다. `query`는 실제 쓴 질의(교정어 포함).
+   * `contents`는 가장 최근 검색의 첫 페이지 앞 3편과 그 주제. `clicked`는 10분 안 재생·담기(다른 표와 같은 정의)
+   */
+  readonly semantic: {
+    query: string;
+    searches: number;
+    clicked: number;
+    contents: { content_id: string; title: string; topics: string[] }[];
+    last_searched_at: string;
+  }[];
+  /** 오타 교정(KAN-238) — 입력 → 교정어, `rejected` = 교정 직후 10분 안 같은 입력의 원문 재검색 */
+  readonly corrections: {
+    query: string;
+    query_used: string;
+    searches: number;
+    rejected: number;
+    clicked: number;
+    last_searched_at: string;
+  }[];
 
   static from(
     summary: SearchQueryLogSummary,
@@ -91,6 +113,25 @@ export class SearchQueryLogSummaryResponseDto {
       daily: summary.daily,
       missed: summary.missed.map(toItem),
       top: summary.top.map(toItem),
+      semantic: summary.semantic.map((row) => ({
+        query: row.query,
+        searches: row.searches,
+        clicked: row.clicked,
+        contents: row.contents.map((content) => ({
+          content_id: content.contentId,
+          title: content.title,
+          topics: content.topics,
+        })),
+        last_searched_at: row.lastSearchedAt.toISOString(),
+      })),
+      corrections: summary.corrections.map((row) => ({
+        query: row.query,
+        query_used: row.queryUsed,
+        searches: row.searches,
+        rejected: row.rejected,
+        clicked: row.clicked,
+        last_searched_at: row.lastSearchedAt.toISOString(),
+      })),
     };
   }
 }

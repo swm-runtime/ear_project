@@ -46,6 +46,19 @@ interface SummaryBody {
     query_used: string | null;
     keyword_count: number | null;
   }[];
+  daily: { rescued: number }[];
+  semantic: {
+    query: string;
+    searches: number;
+    clicked: number;
+    contents: { content_id: string; title: string; topics: string[] }[];
+  }[];
+  corrections: {
+    query: string;
+    query_used: string;
+    searches: number;
+    rejected: number;
+  }[];
 }
 
 const STUB_TOKEN = 'e2e-internal-token';
@@ -1032,6 +1045,25 @@ describe('하이브리드 검색·오타 교정 E2E', () => {
       expect(typeof summary.totals.semantic_unavailable).toBe('number');
       const missed = summary.missed.find((row) => row.query === TYPO);
       expect(missed).toMatchObject({ query_used: TYPO, keyword_count: 0 });
+      // 의미 검색만으로 나온 질의 — 결과가 전부 의미 엔진 몫이라 나온 콘텐츠를 그대로 보인다(2026-10-27)
+      const semantic = summary.semantic.find(
+        (row) => row.query === RELATED_QUERY,
+      );
+      expect(semantic?.searches).toBeGreaterThanOrEqual(1);
+      expect(semantic?.contents.length).toBeGreaterThan(0);
+      expect(semantic?.contents.length).toBeLessThanOrEqual(3);
+      expect(
+        semantic?.contents.every((content) =>
+          rows[2].resultContentIds.includes(content.content_id),
+        ),
+      ).toBe(true);
+      // 교정 목록 — 입력 → 교정어, 교정 직후 원문 재검색이 거절로 잡힌다
+      expect(
+        summary.corrections.find((row) => row.query === TYPO),
+      ).toMatchObject({ query_used: WORD, rejected: 1 });
+      expect(
+        summary.daily.reduce((sum, day) => sum + day.rescued, 0),
+      ).toBeGreaterThanOrEqual(1);
     });
   });
 

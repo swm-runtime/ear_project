@@ -44,3 +44,41 @@ test("목록이 통째로 없어도 빈 배열이다", () => {
   const s = normalizeSearchQueryLogSummary({ ...OLD_SERVER, daily: null, missed: undefined, top: null });
   assert.deepEqual([s.daily, s.missed, s.top], [[], [], []]);
 });
+
+test("의미 검색·교정 표를 모르는 옛 서버면 null 로 두고(표를 숨긴다), 일별 rescued 는 0 으로 채운다", () => {
+  // given — 2026-10-27 전 서버: semantic·corrections·daily[].rescued 가 없다
+  const raw = {
+    days: 14,
+    since: "2026-10-13T00:00:00.000Z",
+    totals: { searches: 3, misses: 1, miss_rate: 1 / 3, clicked: 1, users: 2, short_queries: 0, filtered_searches: 0 },
+    daily: [{ date: "2026-10-26", searches: 3, misses: 1, clicked: 1 }],
+    missed: [],
+    top: [],
+  } as RawSearchQueryLogSummary;
+
+  // when
+  const summary = normalizeSearchQueryLogSummary(raw);
+
+  // then
+  assert.equal(summary.semantic, null);
+  assert.equal(summary.corrections, null);
+  assert.equal(summary.daily[0].rescued, 0);
+});
+
+test("의미 검색 표가 빈 배열이면 그대로 둔다 — '없음'과 '모름'은 다르다", () => {
+  const raw = {
+    days: 14,
+    since: "2026-10-13T00:00:00.000Z",
+    totals: { searches: 0, misses: 0, miss_rate: null, clicked: 0, users: 0, short_queries: 0, filtered_searches: 0 },
+    daily: [],
+    missed: [],
+    top: [],
+    semantic: [],
+    corrections: [],
+  } as RawSearchQueryLogSummary;
+
+  const summary = normalizeSearchQueryLogSummary(raw);
+
+  assert.deepEqual(summary.semantic, []);
+  assert.deepEqual(summary.corrections, []);
+});

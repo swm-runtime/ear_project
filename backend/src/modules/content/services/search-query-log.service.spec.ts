@@ -306,6 +306,8 @@ describe('SearchQueryLogService', () => {
         daily: [],
         missed: [],
         top: [],
+        semantic: [],
+        corrections: [],
       });
 
       // when
@@ -338,6 +340,8 @@ describe('SearchQueryLogService', () => {
         daily: [],
         missed: [],
         top: [],
+        semantic: [],
+        corrections: [],
       });
 
       // when

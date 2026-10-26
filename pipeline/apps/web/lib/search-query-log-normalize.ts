@@ -11,11 +11,13 @@ import type { EarSearchQueryLogSummary, EarSearchQueryRank } from "./ear";
 type Maybe<T> = { [K in keyof T]?: T[K] | null };
 type RawRank = Omit<EarSearchQueryRank, "clicked" | "result_count" | "has_more"> & Maybe<Pick<EarSearchQueryRank, "clicked" | "result_count" | "has_more">>;
 
-export type RawSearchQueryLogSummary = Omit<EarSearchQueryLogSummary, "totals" | "daily" | "missed" | "top"> & {
+export type RawSearchQueryLogSummary = Omit<EarSearchQueryLogSummary, "totals" | "daily" | "missed" | "top" | "semantic" | "corrections"> & {
   totals: Omit<EarSearchQueryLogSummary["totals"], "clicked"> & { clicked?: number | null };
-  daily?: (Omit<EarSearchQueryLogSummary["daily"][number], "clicked"> & { clicked?: number | null })[] | null;
+  daily?: (Omit<EarSearchQueryLogSummary["daily"][number], "clicked" | "rescued"> & { clicked?: number | null; rescued?: number | null })[] | null;
   missed?: RawRank[] | null;
   top?: RawRank[] | null;
+  semantic?: EarSearchQueryLogSummary["semantic"];
+  corrections?: EarSearchQueryLogSummary["corrections"];
 };
 
 const toRank = (r: RawRank): EarSearchQueryRank => ({
@@ -30,8 +32,11 @@ export function normalizeSearchQueryLogSummary(raw: RawSearchQueryLogSummary): E
     ...raw,
     totals: { ...raw.totals, clicked: raw.totals.clicked ?? null },
     // 일별 막대의 초록(클릭) 높이 계산용 — 모르는 날은 0으로 그린다(막대만 안 칠해진다)
-    daily: (raw.daily ?? []).map((d) => ({ ...d, clicked: d.clicked ?? 0 })),
+    daily: (raw.daily ?? []).map((d) => ({ ...d, clicked: d.clicked ?? 0, rescued: d.rescued ?? 0 })),
     missed: (raw.missed ?? []).map(toRank),
     top: (raw.top ?? []).map(toRank),
+    // 의미 검색·교정 표(2026-10-27) — 모르는 서버는 null 로 두어 표를 숨긴다("없음"과 "모름"은 다르다)
+    semantic: raw.semantic ?? null,
+    corrections: raw.corrections ?? null,
   };
 }
