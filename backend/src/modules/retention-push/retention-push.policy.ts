@@ -1,6 +1,7 @@
 import {
   buildContentDeepLink,
   DEEP_LINK_LIBRARY,
+  DEEP_LINK_PROFILE,
 } from '@/modules/notification/notification.constant';
 import { MessageLanguage } from '@/modules/user/user.enum';
 
@@ -127,7 +128,8 @@ function evaluateRule(
           return {
             ruleKey: key,
             vars: { gap: Math.max(1, Math.ceil(gap / 60)), percent },
-            deepLink: DEEP_LINK_LIBRARY,
+            // 순위는 프로필의 이번 주 청취·상위 % 카드에서 보인다 — 알림이 말한 숫자를 그 자리에서 확인하게
+            deepLink: DEEP_LINK_PROFILE,
           };
         }
       }

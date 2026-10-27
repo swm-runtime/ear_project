@@ -118,7 +118,8 @@ describe('evaluateCandidates', () => {
     expect(candidates[0]).toEqual({
       ruleKey: RetentionRuleKey.WEEKLY_RANK_GAP,
       vars: { gap: 10, percent: 10 },
-      deepLink: 'ear://library',
+      // 순위는 프로필 카드에서 보인다 — 연속 기록·지금 듣는 사람은 바로 들을 수 있는 라이브러리
+      deepLink: 'ear://profile',
     });
   });
 
