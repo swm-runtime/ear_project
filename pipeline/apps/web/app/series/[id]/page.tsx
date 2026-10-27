@@ -24,6 +24,10 @@ export default async function SeriesPage({ params }: { params: Promise<{ id: str
     sb.from("jobs").select("id,status,error,created_at,finished_at").eq("type", "series_plan").eq("payload->>series_id", id).order("created_at", { ascending: false }).limit(3),
   ]);
   const planJob = jobs?.[0];
+  // 반려된 옛 후보는 그 화에 살아 있는 후보가 있으면 숨긴다(2026-10-27 — [다시 기획] 뒤 한 화에 두 줄로 보여 혼란). 살아 있는 후보가 없는 화의 반려 행만 남겨 [다시 기획]·[보류로]를 쓸 수 있게 한다
+  const liveNos = new Set((eps ?? []).filter((e) => e.status !== "rejected").map((e) => e.series_no));
+  const shown = (eps ?? []).filter((e) => e.status !== "rejected" || !liveNos.has(e.series_no));
+  const hidden = (eps?.length ?? 0) - shown.length;
   const pubEps = ["approved", "published"].includes(s.status) ? await seriesPublishEpisodes(id) : [];
   const planning = s.status === "planning";
   return (
@@ -43,7 +47,7 @@ export default async function SeriesPage({ params }: { params: Promise<{ id: str
       {!planning && (
         <Panel title={`편 후보 (${(eps ?? []).filter((e) => e.status !== "rejected").length}/${s.total_episodes ?? "-"})`} flush>
           <Table head={["화", "후보", "상태", "메모", ""]} empty="아직 후보가 없다 — 승인하면 편마다 주제 기획 작업이 걸린다">
-            {(eps ?? []).map((e) => (
+            {shown.map((e) => (
               <tr key={e.id} className="align-top">
                 <Td className="whitespace-nowrap font-mono text-xs">{e.series_no}화</Td>
                 <Td><Link className="underline-offset-2 hover:underline" href={`/backlog?q=${e.id}`}>{e.id}</Link> <span className="text-ink">{e.title}</span></Td>
@@ -53,7 +57,7 @@ export default async function SeriesPage({ params }: { params: Promise<{ id: str
               </tr>
             ))}
           </Table>
-          <p className="px-4 py-2 text-[11px] text-ink-soft">게이트 1은 편마다 백로그에서 승인한다. 승인해도 k화 초안은 k-1화 초안이 끝난 뒤에 시작한다(spec/11 5.3). 반려·보류된 편은 [다시 기획]으로 같은 화 번호에 후보를 새로 만들거나, 반려를 [보류로] 되돌려 백로그에서 [보강]한다 — 반려된 편이 남아 있으면 뒤 편 초안이 시작되지 않는다. 시리즈 편에는 개별 [발행]이 없다 — 전 편이 패키지까지 끝나면 아래 [시리즈 발행]으로 한꺼번에 올린다(7장).</p>
+          <p className="px-4 py-2 text-[11px] text-ink-soft">게이트 1은 편마다 백로그에서 승인한다. 승인해도 k화 초안은 k-1화 초안이 끝난 뒤에 시작한다(spec/11 5.3). 반려·보류된 편은 [다시 기획]으로 같은 화 번호에 후보를 새로 만들거나, 반려를 [보류로] 되돌려 백로그에서 [보강]한다 — 반려된 편이 남아 있으면 뒤 편 초안이 시작되지 않는다. 시리즈 편에는 개별 [발행]이 없다 — 전 편이 패키지까지 끝나면 아래 [시리즈 발행]으로 한꺼번에 올린다(7장).{hidden > 0 && ` 다시 기획으로 대체된 반려 후보 ${hidden}건은 숨겼다(백로그 종료 탭에 있다).`}</p>
         </Panel>
       )}
       {["approved", "published"].includes(s.status) && s.total_episodes && (
