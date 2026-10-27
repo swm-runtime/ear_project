@@ -9,6 +9,7 @@ import { listConsoleTopics } from "@/lib/console-topics";
 import { episodePublishFiles } from "@/lib/publish-episode";
 import { Badge, Panel, btnCls } from "@/components/ui";
 import { earErrMsg } from "../ear-connect";
+import { clampSources } from "@/lib/sources-clamp";
 
 /**
  * 발행 대기 일괄 발행 (2026-10-25 박수헌 — "검수만 쭉 하고 나서 일괄 발행").
@@ -122,7 +123,7 @@ export function BulkPublish({ pending, onDone }: { pending: PendingEpisode[]; on
       setProgress(`발행 중 ${i + 1}/${targets.length} — ${m.title.slice(0, 40)}`);
       try {
         const f = await episodePublishFiles(t.id, { enrichment: !!t.d!.has_enrichment, script: !!t.d!.has_script });
-        const sources = (m.sources ?? []).filter((s) => s.title?.trim()).map((s) => ({ title: s.title.trim(), ...(s.publisher?.trim() ? { author: s.publisher.trim() } : {}), ...(s.url?.trim() ? { url: s.url.trim() } : {}) }));
+        const sources = clampSources(m.sources); // 제품 API 한도(author 100 등) — 2026-10-27 발행처 149자로 400
         const sourceName = `참고한 자료: ${[...new Set((m.sources ?? []).map((s) => s.publisher).filter(Boolean))].join(", ")}`.slice(0, 100);
         const content = await uploadEarContent({
           title: m.title.trim(), description: m.description.trim(), origin: "ai_generated",

@@ -7,6 +7,7 @@ import { createEarSeries, EarTopic, listEarSeries, patchEarSeries, uploadEarCont
 import { listConsoleTopics } from "@/lib/console-topics";
 import { episodePublishFiles } from "@/lib/publish-episode";
 import { seriesContentTitle, seriesPublishBlockers, seriesUploadQueue, type SeriesPublishEpisode, type SeriesStatus } from "@/lib/series";
+import { clampSources } from "@/lib/sources-clamp";
 import { logPublishEvent, markPublished, requestEpisodeEnrich } from "../../actions";
 import { EarGate, earErrMsg } from "../../publish/ear-connect";
 import { finishSeriesPublish, markSeriesWithdrawn, recordProductSeries } from "../actions";
@@ -93,7 +94,7 @@ function SeriesPublishInner({ id, name, introLine, total, status, productSeriesI
         const c = await uploadEarContent({
           title: r.title.trim(), description: r.description.trim(), origin: "ai_generated",
           source_name: `참고한 자료: ${[...new Set(r.meta.sources.map((s) => s.publisher))].join(", ")}`, topic_ids: r.topicIds,
-          sources: r.meta.sources.filter((s) => s.title.trim()).map((s) => ({ title: s.title.trim(), ...(s.publisher ? { author: s.publisher } : {}), ...(s.url ? { url: s.url } : {}) })),
+          sources: clampSources(r.meta.sources), // 제품 API 한도 — lib/sources-clamp.ts
           series_id: sid, episode_no: e.no, total_episodes: total, review_confirmed: true,
         }, f.audio, f.thumbnail, f.enrichment, f.script, f.lossless);
         // 이어서 올리기는 이 기록(published_content_ref)으로 올린 편을 가른다 — 실패하면 멈춘다(다시 올리면 서버가 같은 번호를 400 으로 막는다)
