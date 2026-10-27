@@ -9,6 +9,7 @@ import { episodePublishFiles } from "@/lib/publish-episode";
 import { PageHeader, Panel, btnCls } from "@/components/ui";
 import { EarGate, EarSession, earErrMsg } from "../ear-connect";
 import { BulkPublish, type PendingEpisode } from "./bulk-publish";
+import { clampSources } from "@/lib/sources-clamp";
 
 interface UploadMeta {
   episode_id: string; backlog_id: string; title: string; description: string;
@@ -143,9 +144,7 @@ function UploadForm({ episodeId }: { episodeId: string | null }) {
       const content = await uploadEarContent({
         title: title.trim(), description: description.trim(), origin: "ai_generated",
         source_name: sourceName.trim(), topic_ids: topicIds,
-        sources: sources.filter((s) => s.title.trim()).map((s) => ({
-          title: s.title.trim(), ...(s.author.trim() ? { author: s.author.trim() } : {}), ...(s.url.trim() ? { url: s.url.trim() } : {}),
-        })),
+        sources: clampSources(sources), // 제품 API 한도(author 100 등) — lib/sources-clamp.ts
         review_confirmed: true,
       }, f.audio, f.thumbnail, enrichment, script, f.lossless);
       await markPublished(meta?.backlog_id ?? null, content.id, content.content_version, content.published_at, { action: "publish", parts: ["audio", "thumbnail", "title", "description", "source_name", "topic_ids", ...(enrichment ? ["enrichment"] : []), ...(script ? ["script"] : [])], episodeId: episodeId ?? undefined }).catch(() => undefined); // 파이프라인에 content_id·버전·이력 기록 — 실패해도 발행은 성립 (spec/07 5장)
