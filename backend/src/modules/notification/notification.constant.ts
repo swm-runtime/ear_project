@@ -60,6 +60,11 @@ export const EXPO_PUSH_TOKEN_PATTERN = /^Expo(nent)?PushToken\[.+\]$/;
  * 라이브러리는 웹 주소가 없고, 콘텐츠도 앱 안 이동이라 공유 링크(유니버설 링크)를 거칠 이유가 없다.
  */
 export const DEEP_LINK_LIBRARY = 'ear://library';
+/**
+ * 프로필 — 이번 주 청취·상위 % 카드가 있는 곳(리텐션 주간 순위 근접 알림, 2026-10-27). 이 목적지를 모르는 옛 앱은 라이브러리로
+ * 폴백한다(앱 `parsePushDeepLink` — 모르는 형식은 null → 라이브러리)
+ */
+export const DEEP_LINK_PROFILE = 'ear://profile';
 export const buildContentDeepLink = (contentId: string): string =>
   `ear://contents/${contentId}`;
 
