@@ -33,8 +33,17 @@ export interface AnalyticsEvents {
   };
   // 알림
   push_permission: { result: PermissionResult; source: 'onboarding' | 'settings' };
-  push_open: { target: PushTarget; app_state: 'background' | 'killed' };
+  push_open: {
+    target: PushTarget;
+    app_state: 'background' | 'killed';
+    /** 알림 종류(notification.md 4.3 · 4.6) */
+    push_type: 'drip_arrival' | 'retention';
+    /** 리텐션의 `<규칙>.<변형>` — 드립이면 없다 */
+    push_rule?: string;
+  };
   push_foreground_banner: { action: 'view' | 'tap' };
+  /** 앱을 켠 동안 온 리텐션 알림을 숨겼다(notification.md 4.5) — 반응률 분모에서 뺀다 */
+  push_foreground_suppressed: { push_type: 'retention'; push_rule?: string };
   // 드립
   drip_arrival_view: { count: number; hours_since_arrival: number };
   drip_play: { content_id: string; slot: 'regular' | 'discovery'; hours_since_arrival: number };

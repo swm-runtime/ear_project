@@ -441,6 +441,31 @@ export interface SearchQueryDailyCount {
   searches: number;
   misses: number;
   clicked: number;
+  /** 키워드 0건인데 결과가 있던 검색 — 의미 엔진이 살렸다(2026-10-27) */
+  rescued: number;
+}
+
+/**
+ * 의미 검색만으로 결과가 나온 질의 한 줄(2026-10-27) — 키워드 0건(`keyword_count = 0`)인데 결과가 있던 검색을 실제 질의
+ * (`query_used`)로 묶는다. 이 행들의 결과는 **전부 의미 엔진 몫**이라 "무엇을 찾아 줬는지"를 그대로 보여 줄 수 있다
+ */
+export interface SearchSemanticRank {
+  query: string;
+  searches: number;
+  clicked: number;
+  /** 가장 최근 검색의 첫 페이지 앞 몇 편 — 제목과 그 콘텐츠의 주제들 */
+  contents: { contentId: string; title: string; topics: string[] }[];
+  lastSearchedAt: Date;
+}
+
+/** 오타 교정 한 줄(KAN-238) — 입력 → 교정어, 교정 직후 원문 재검색(거절) 수 */
+export interface SearchCorrectionRank {
+  query: string;
+  queryUsed: string;
+  searches: number;
+  rejected: number;
+  clicked: number;
+  lastSearchedAt: Date;
 }
 
 /** `GET /admin/search-query-logs/summary` (admin-api.md 4.21) */
@@ -467,10 +492,18 @@ export interface SearchQueryLogSummary {
     rescued: number;
     /** 의미 엔진 없이 응답한 검색(`engines`에 `semantic` 없음, 태그 전용 제외) */
     semanticUnavailable: number;
+    /** 하이브리드 기록이 있는 검색(`keyword_count` 있음 — 2026-10-22 뒤) — 위 셋의 비율 분모 */
+    hybridSearches: number;
+    /** 그중 결과 없음 — `keywordMisses`와 같은 분모로 비교하는 실제 결과 없음 */
+    hybridMisses: number;
   };
   daily: SearchQueryDailyCount[];
   /** 0건이 한 번이라도 있던 질의, 0건 수 내림차순 */
   missed: SearchQueryRank[];
+  /** 의미 검색만으로 결과가 나온 질의, 검색 수 내림차순 */
+  semantic: SearchSemanticRank[];
+  /** 교정된 입력, 검색 수 내림차순 */
+  corrections: SearchCorrectionRank[];
   /** 검색 수 내림차순 */
   top: SearchQueryRank[];
 }

@@ -13,7 +13,8 @@
 | 선행 | FE [KAN-198](https://runtime364.atlassian.net/browse/KAN-198) 1.3.0 두 OS 심사 통과·공개(Jira blocks) · AI [KAN-204](https://runtime364.atlassian.net/browse/KAN-204) GLOBAL 콘텐츠 운영 발행(글로벌 스위치만 — Jira blocks) · 사람 손: dev → main 운영 릴리스 #1688 머지·배포(대기) · 운영 GLOBAL 주제 노출(대기 — 글로벌 스위치만) |
 | 근거 문서 | KAN-198 댓글(2026-10-17·18 출시 순서) · `docs/infra/runbook.md`(스위치·강제 업데이트 절) · `spec/api/global-api.md` 4.11 · `features/drip-scheduling.md` 4.5 |
 | 중요도 | Low |
-| 상태 | 발행 |
+| 상태 | **완료**(2026-10-27) — 3·4·5번 실행(10-24·25)과 완료 조건 확인 끝 |
+| 반영 날짜 | 2026-10-27 |
 
 ## 왜
 
@@ -65,3 +66,14 @@
 
 - 2026-10-19 발행(마크다운 + Jira KAN-229 — 시작 날짜·기한·blocks 링크 KAN-198·KAN-204, relates KAN-193·KAN-134). 운영 스위치 5개 꺼짐·최소 지원 `1.0.0` 실측.
 - 2026-10-20 완료 조건 정정(i18n 검증) — 4번의 "미리보기가 `market_unavailable` 외의 응답"은 4번만으로는 만족할 수 없었다(`isTargetOpen`이 GLOBAL 대상에 `GLOBAL_SIGNUP_ENABLED`를 요구 — 운영에 GLOBAL 계정이 없어 KR→GLOBAL만 시험할 수 있다). 4번은 컨테이너 env 확인으로, 미리보기 확인은 5번으로 옮겼다. 5번의 "영어 기기 가입"은 A21 English 선택(`preferred_language`)으로 바로잡았다. runbook 4장에 `MARKET_CHANGE_ENABLED`·`DRIP_TIMEZONE_GROUPS_ENABLED` 절을 더했다(브랜치 `docs(be)/i18n-runbook-tickets`).
+- 2026-10-24 16:34 KST **`GLOBAL_SIGNUP_ENABLED=true` 먼저 켬**(1.3.0 심사 제출 전 — 영어 스토어 설명과 심사관 English 가입 결과를 맞추려고). 근거: 최근 14일 운영 가입 1,226건 전부 `language_code` 없음 — 1.2.x 는 locale 을 보내지 않아 기본값 `kr`로 가입한다(켜도 1.2.x 는 전원 KR). `.env.prod`만 수정(SM `ear/prod/api`에 이 키 없음 — 배포 뒤 유지), 백업 `.env.prod.bak-20261024-global`, `API_IMAGE` 고정 재생성(`d248bbe0`), 헬스 200.
+- 2026-10-24 **`MARKET_CHANGE_ENABLED=true` 먼저 켬**(심사 메모에 "설정 > 콘텐츠 언어에서 바꿀 수 있다"를 넣어 심사관이 눌렀을 때 동작해야 해서). 1.2.x 에는 전환 화면이 없어 영향 없음. `.env.prod`만, 백업 `.env.prod.bak-20261024-market`, `d248bbe0` 고정 재생성, 헬스 200·ERROR 0.
+- 2026-10-25 19:13 KST **3·4·5번 실행** — 두 스토어 1.3.0 공개(10-24 저녁) 뒤 운영 `.env.prod`를 한 번에 바꿈: `MIN_SUPPORTED_APP_VERSION_IOS/ANDROID=1.3.0` · `LATEST_APP_VERSION_IOS/ANDROID=1.3.0` · `SERIES_EXPLORE_CARDS_ENABLED` · `AUTO_EXPAND_ENABLED` · `DRIP_TIMEZONE_GROUPS_ENABLED`=true. SM 에 키 없음, 백업 `.env.prod.bak-20261025-release`, `d248bbe0` 고정 재생성, 헬스 200.
+- 2026-10-27 **완료 조건 확인 → 완료.**
+  - 강제 업데이트 ✅(10-25): `/app/version` 1.2.1·1.2.0(iOS·Android) → 426 `APP_UPDATE_REQUIRED`, 1.3.0 → 200. 재시작 뒤 1분 실제 426 5건, ERROR 0.
+  - 탐색 시리즈 카드 ✅(10-27): 운영 앱에서 탐색 `type: "series"` 카드 확인(박준현 직접).
+  - 자동 확장 ✅: 10-26 이후 운영 로그 `auto expanded` 5건.
+  - 시장 전환 스위치 ✅(10-24). KR→GLOBAL 미리보기: 운영 로그에 KR→GLOBAL 전환(되돌리기) 성공 2건(10-26 · 10-27) — 전환은 미리보기와 같은 "옮겨 갈 시장이 열려 있는가"(`isTargetAvailable`) 판정을 통과해야 하므로 `market_unavailable`이 아니다.
+  - English 가입 → `global` ✅: 10-24 이후 가입 시장 판정(`source: preferred`) 로그에 `global` 5건 · `kr` 35건(같은 시각 요청 로그가 섞여 정확한 가입자 수는 아니다).
+  - 그룹 배치 ✅: 운영 `drip batch finished`가 10-26부터 asia 05:00 · europe 14:00 · americas 19:00 매일.
+  - 참고: 운영 시장 전환 6건 — GLOBAL→KR 4건(그중 2건은 몇 분 안에 되돌림). 동남아 그룹(#2071)은 이 티켓 밖 — 릴리스 #2081.

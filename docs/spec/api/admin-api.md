@@ -621,7 +621,7 @@
   "users": {
     "total_signups": 259, "current": 225, "withdrawals": 34, "withdrawal_rate": 0.131,
     "onboarding_completed": 208, "onboarding_rate": 0.924, "trial_active": 139,
-    "tiers": { "light": 225, "daily": 0, "pro": 0 }, "tier_events": { "daily": 0, "pro": 0 }, "paid_active": 0, "paid_rate": 0,
+    "tiers": { "light": 225, "daily": 0, "pro": 0 }, "tier_events": { "daily": 0, "pro": 0 }, "paid_active": 0, "paid_rate": 0, "paid_ever": 4, "paid_ever_rate": 0.0178,
     "activated": 149, "activation_rate": 0.662,
     "active_1d": 63, "active_7d": 190, "active_30d": 220, "stickiness": 0.286,
     "listeners_1d": 52, "listeners_7d": 130, "listeners_30d": 149,
@@ -652,6 +652,7 @@
   "recent_since": "2026-10-17T03:00:00.000Z",
   "recent_top_contents": [ { "content_id": "…", "title": "…", "duration_sec": 612, "listen_sec": 4380, "plays": 11, "listeners": 9, "completes": 4, "complete_rate": 0.364, "saves": 2 } ],
   "withdrawal_reasons": [ { "reason_code": "low_usage", "count": 9 }, { "reason_code": null, "count": 3 } ],
+  "push_reactions": [ { "type": "drip_arrival", "rule": null, "variant": null, "sent": 210, "reacted": 52, "reaction_rate": 0.2476 }, { "type": "retention.weekly_rank_gap.a", "rule": "weekly_rank_gap", "variant": "a", "sent": 18, "reacted": 5, "reaction_rate": 0.2778 } ],
   "retention": [ { "day": 1, "cohort_size": 200, "returned": 50, "rate": 0.25, "bounded_cohort_size": 180, "bounded_returned": 27, "bounded_rate": 0.15 }, { "day": 7, "cohort_size": 150, "returned": 30, "rate": 0.2, "bounded_cohort_size": 120, "bounded_returned": 9, "bounded_rate": 0.075 }, { "day": 30, "cohort_size": 0, "returned": 0, "rate": null, "bounded_cohort_size": 0, "bounded_returned": 0, "bounded_rate": null } ],
   "retention_cohorts": {
     "daily": {
@@ -691,6 +692,7 @@
 - `total_signups` = `current`(`users` 행 수 — 탈퇴 행은 지워져 없으므로 `status` 필터를 두지 않는다) + `withdrawals`(`withdrawal_logs` 행 수). 탈퇴는 `users` 행을 지우므로(`domain.md` 12.3) 둘을 더해야 "가입한 적 있는 사람"이다. `withdrawal_rate` = `withdrawals / total_signups`.
 - `tiers`는 `users.tier` 캐시 기준이라 **초대 코드 이벤트로 받은 요금제도 들어 있다**(`domain.md` 8.6). `tier_events`는 그중 이벤트로 그 티어인 계정 수다 — 지금 지급 중인 요금제가 그 티어이고 같은 티어 이상의 살아 있는 구독이 없는 계정(결제와 겹치면 결제로 센다, 2026-10-10). 콘솔은 "Pro 30명 (이벤트 11명)"으로 그린다. `paid_active`는 결제만 세므로 이벤트 계정이 들어가지 않는다.
 - `paid_active`는 `subscriptions`의 `status in (active, grace, cancelled)`(해지 예약은 만료일까지 유효 — `domain.md` 8.2) · `environment = production` · 미만료인 **사용자 수**(distinct)다. 샌드박스 결제는 세지 않는다. `trial_active`는 `users.trial_ends_at > now`.
+- `paid_ever` · `paid_ever_rate`(추가 2026-10-26 — 유료 전환 성공지표, `changes/archive/insights-paid-conversion-targets.md`): 실결제를 **한 번이라도 한 현재 계정** 수(`subscriptions` `environment = production` · `status <> refunded` — 해지·만료 포함, distinct)와 그것을 현재 가입자(`current`)로 나눈 값(분모 0이면 null). 탈퇴자의 결제 이력은 법정 보존용 아카이브(`archived_subscriptions`)에만 있어 세지 않는다(목적 외 이용) — 분자·분모 모두 현재 계정이다. 초대 코드 이벤트·체험은 구독 행이 없어 들어가지 않는다.
 - `active_1d/7d/30d`는 **앱 사용 기준 DAU·WAU·MAU** — 그 창 안에 `sessions.issued_at`이 있는 사용자 수(distinct). 액세스 토큰이 30분(`ACCESS_TOKEN_TTL_SEC`)이라 앱을 열면 거의 매번 리프레시 회전으로 세션 행이 새로 생기므로, 서버가 가진 신호 중 "앱 실행"에 가장 가깝다(30분 안의 재실행은 안 잡히고, 세션 행 보존 30일이 창의 상한). `stickiness` = `active_1d / active_30d`.
 - `activated`는 `play_records`에 행이 하나라도 있는 사용자 수, `listeners_1d/7d/30d`는 그 창 안에 `played_at`이 있는 사용자 수(**재생** 기준). `listener_rate_*` = `listeners_* / active_*` — 활성 사용자 중 청취까지 간 비율(켜고 안 듣는 사람을 가른다).
 - **`listening.all_time`의 `listen_sec`·`plays`·`completes`는 `play_daily_totals` 합계다**(2026-10-17 — `domain.md` 6.3-1). **탈퇴·보존 삭제로 줄지 않는 누적**이다. `all_time.listeners`·`saves`와 `window.*`는 종전대로 원천 기준이다(현재 계정 — 탈퇴하면 빠진다).
@@ -719,6 +721,7 @@
   - **`complete_rate`는 드물게 높게 나올 수 있다.** 재생은 `play_records`(사용자·콘텐츠·서비스 날짜당 1행)의 첫 시작 시각으로, 완청은 신호 시각으로 창에 넣기 때문이다. 서비스 날짜 경계(05:00)를 걸쳐 들은 편은 재생은 창 밖이고 완청만 창 안일 수 있다.
 - `retention`은 D1·D7·D30 — `cohort_size`는 가입한 지 `day`일이 지난 **현재 계정** 수, `returned`는 그중 가입 `day`일 뒤 이후 아무 때나 **앱을 쓴** 사람(토큰 갱신 `sessions.issued_at` 또는 재생 `play_records` — 세션 행은 30일만 보존되므로 영구 보존되는 재생을 합친다. 언바운디드). 탈퇴자는 분모에 없어 실제보다 높게 나온다(생존 편향). 시간이 지날수록 커져 업계 벤치마크와 비교할 수 없다 — 비교는 아래 `bounded_*`로 한다.
   - **`bounded_cohort_size` · `bounded_returned` · `bounded_rate`**(추가 2026-10-26 — 업계 벤치마크와 같은 classic N-day 정의, `changes/archive/insights-bounded-retention.md`): 가입한 KST 달력일 `d`에서 **`d + N`일이 다 지났고**(어제까지) 그날 접속 기록을 믿을 수 있는(`retention_cohorts.*.reliable_since` 이후) 현재 계정 수 · 그중 **정확히 `d + N`일 하루**(KST)에 앱을 쓴(접속 — `user_active_dates`·남은 `sessions` — 또는 재생) 사람 수 · 비율(분모 0이면 null). 원천·신뢰 경계가 `retention_cohorts`와 같아 코호트 표 D1·D7 칸의 전 기간 평균이 된다. `market` 필터를 따르고, 탈퇴자는 분모에 없다(생존 편향).
+- `push_reactions[]`(추가 2026-10-26 — 저녁 리텐션 알림 성과, `changes/archive/insights-push-reactions.md`)는 창(`days`) 안에 **보낸**(`notification_logs.status = sent`) 알림의 종류별 반응이다. 행: `type`(`drip_arrival` 또는 `retention.<규칙>.<변형>`) · `rule`·`variant`(리텐션만 — 드립은 null, 비교 기준선) · `sent` · `reacted`(보낸 뒤 **2시간 안에** 그 사용자의 새 재생 행 `play_records.played_at` 또는 재생 위치 저장 `playback_progresses.updated_at`이 있음) · `reaction_rate`(`reacted / sent`, 분모 0이면 null). `market` 필터(지금 시장)를 따른다. 앱이 알림 탭을 서버에 알리지 않아(`opened_at` 미기록) 탭 대신 재생으로 역산한 근사다 — 알림 없이 앱을 열어 들은 것도 잡히고, 그 뒤 다시 들어 위치 저장 시각이 밀리면 빠질 수 있다.
 - `retention_cohorts`(추가 2026-10-18 — 멘토 조언 "D1·D7, W1~4를 절대수치와 비율로 같이", `domain.md` 3.3-2)는 가입일·가입 주로 묶은 **바운디드** 코호트 리텐션이다. `daily`(D1·D7)와 `weekly`(W1~W4) 두 표이고, 각 표는 `span`(1 = 일별 · 7 = 주별)·`offsets`·`reliable_since`·`rows`다. 기존 언바운디드 `retention`은 그대로 두고 화면에 함께 보인다.
   - **묶음**: 현재 계정을 가입한 KST 달력일로 묶는다. `daily`는 최근 14일(어제부터, 오늘 제외), `weekly`는 최근 8주(이번 주 포함, ISO 주 월요일 시작 — `start`는 그 주 월요일)다. 최근 묶음이 먼저 온다. 가입 0명인 묶음도 행을 둔다. **창(`days`)과 무관하다.**
   - **구간**: **사람마다 자기 가입일 기준**이다. `offset`번째 구간은 가입일 + `offset × span`일부터 `span`일이다 — D1 = 가입 다음 날 하루, D7 = 가입 7일 뒤 하루(가입일 + 7), W1 = 7~13일, W2 = 14~20일, W3 = 21~27일, W4 = 28~34일 뒤.

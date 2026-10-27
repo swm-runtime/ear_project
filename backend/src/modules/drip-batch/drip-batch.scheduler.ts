@@ -54,6 +54,14 @@ export class DripBatchScheduler implements OnApplicationBootstrap {
   }
 
   @Cron(DAILY_DRIP_CRON, {
+    name: 'daily-drip-batch-southeast-asia',
+    timeZone: DRIP_GROUP_SCHEDULES[DripGroup.SOUTHEAST_ASIA].timeZone,
+  })
+  async runSoutheastAsiaBatch(): Promise<void> {
+    await this.runGroupBatch(DripGroup.SOUTHEAST_ASIA);
+  }
+
+  @Cron(DAILY_DRIP_CRON, {
     name: 'daily-drip-batch-europe',
     timeZone: DRIP_GROUP_SCHEDULES[DripGroup.EUROPE].timeZone,
   })
@@ -75,6 +83,14 @@ export class DripBatchScheduler implements OnApplicationBootstrap {
   })
   async pushDripArrivals(): Promise<void> {
     await this.pushGroupArrivals(DripGroup.ASIA);
+  }
+
+  @Cron(DRIP_ARRIVAL_PUSH_CRON, {
+    name: 'drip-arrival-push-southeast-asia',
+    timeZone: DRIP_GROUP_SCHEDULES[DripGroup.SOUTHEAST_ASIA].timeZone,
+  })
+  async pushSoutheastAsiaArrivals(): Promise<void> {
+    await this.pushGroupArrivals(DripGroup.SOUTHEAST_ASIA);
   }
 
   @Cron(DRIP_ARRIVAL_PUSH_CRON, {

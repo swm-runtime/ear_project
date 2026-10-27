@@ -40,11 +40,26 @@ interface SummaryBody {
     keyword_misses: number;
     rescued: number;
     semantic_unavailable: number;
+    hybrid_searches: number;
+    hybrid_misses: number;
   };
   missed: {
     query: string;
     query_used: string | null;
     keyword_count: number | null;
+  }[];
+  daily: { rescued: number }[];
+  semantic: {
+    query: string;
+    searches: number;
+    clicked: number;
+    contents: { content_id: string; title: string; topics: string[] }[];
+  }[];
+  corrections: {
+    query: string;
+    query_used: string;
+    searches: number;
+    rejected: number;
   }[];
 }
 
@@ -1030,8 +1045,32 @@ describe('하이브리드 검색·오타 교정 E2E', () => {
       expect(summary.totals.keyword_misses).toBeGreaterThanOrEqual(2);
       expect(summary.totals.rescued).toBeGreaterThanOrEqual(1);
       expect(typeof summary.totals.semantic_unavailable).toBe('number');
+      // "키워드만이었다면"의 분모는 하이브리드 기록이 있는 검색이다 — 키워드 0건은 그 실제 결과 없음보다 작을 수 없다
+      expect(summary.totals.hybrid_searches).toBeGreaterThanOrEqual(3);
+      expect(summary.totals.keyword_misses).toBeGreaterThanOrEqual(
+        summary.totals.hybrid_misses,
+      );
       const missed = summary.missed.find((row) => row.query === TYPO);
       expect(missed).toMatchObject({ query_used: TYPO, keyword_count: 0 });
+      // 의미 검색만으로 나온 질의 — 결과가 전부 의미 엔진 몫이라 나온 콘텐츠를 그대로 보인다(2026-10-27)
+      const semantic = summary.semantic.find(
+        (row) => row.query === RELATED_QUERY,
+      );
+      expect(semantic?.searches).toBeGreaterThanOrEqual(1);
+      expect(semantic?.contents.length).toBeGreaterThan(0);
+      expect(semantic?.contents.length).toBeLessThanOrEqual(3);
+      expect(
+        semantic?.contents.every((content) =>
+          rows[2].resultContentIds.includes(content.content_id),
+        ),
+      ).toBe(true);
+      // 교정 목록 — 입력 → 교정어, 교정 직후 원문 재검색이 거절로 잡힌다
+      expect(
+        summary.corrections.find((row) => row.query === TYPO),
+      ).toMatchObject({ query_used: WORD, rejected: 1 });
+      expect(
+        summary.daily.reduce((sum, day) => sum + day.rescued, 0),
+      ).toBeGreaterThanOrEqual(1);
     });
   });
 

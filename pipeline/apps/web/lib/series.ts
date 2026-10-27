@@ -57,6 +57,20 @@ export function seriesEpisodeHint(s: Pick<SeriesRow, "name" | "intro_line" | "pl
     : `시리즈 "${s.name}" ${s.plan.length}편 중 ${no}화. ${s.intro_line ?? ""}\n이 편의 범위: ${ep.scope}${ep.only_here ? ` · 이 편에서만 자세히: ${ep.only_here}` : ""}${ep.carries ? ` · 앞 편에서 이어받음: ${ep.carries}` : ""}\n다른 편이 다루므로 이 편의 중심으로 삼지 않을 것: ${others}`;
 }
 
+// ── [이 편 다시 기획] (spec/11 4장, 2026-10-27) ─────────────────────────────
+
+/**
+ * 반려·보류된 편을 같은 화 번호로 다시 기획해도 되는지 — 사유를 돌려주면 막는다.
+ * 승인된 시리즈(첫 발행 전)에서만, 그 화 번호의 후보가 전부 반려·보류·제안 상태이고(초안에 들어간 후보가 있으면 안 된다), 그 화의 기획·보강 작업이 돌고 있지 않을 때.
+ */
+export function seriesReplanBlocker(s: Pick<SeriesRow, "status">, no: number, candidates: { id: string; status: string }[], activeJob: boolean): string | null {
+  if (s.status !== "approved") return `승인된 시리즈(첫 발행 전)에서만 다시 기획한다 (${s.status})`;
+  const busy = candidates.filter((c) => !["rejected", "held", "proposed"].includes(c.status));
+  if (busy.length) return `${no}화 ${busy.map((c) => `${c.id}(${c.status})`).join(", ")} 가 이미 초안 이후다 — 편 변경은 재작성 흐름(3장)으로`;
+  if (activeJob) return `${no}화 기획·보강 작업이 이미 큐·실행 중이다`;
+  return null;
+}
+
 // ── [시리즈 발행] (spec/11 7장, KAN-136 6단계) ─────────────────────────────
 
 /** 발행 화면이 보는 편 하나 — 백로그 후보 + 그 편의 최신 에피소드 */

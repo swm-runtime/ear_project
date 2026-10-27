@@ -427,6 +427,14 @@ export async function saveSeriesPlan(id: string, v: { name: string; intro_line: 
     [id, v.name, v.intro_line, JSON.stringify(v.plan), v.thumb_word ?? "", v.thumb_label ?? "", v.thumb_box ?? ""]);
   return (r.rowCount ?? 0) > 0;
 }
+/** 같은 화 번호의 살아 있는 후보(보류·제안)를 반려로 비운다 — 한 화에 살아 있는 후보는 하나(0035). 앞선 기획 시도가 남긴 "검색 진행 중" 행, 콘솔 [다시 기획]이 못 정리한 행이 대상. 초안 이후 후보는 건드리지 않는다(그때는 유니크가 막는다) */
+export async function retireSeriesEpisodeCandidates(seriesId: string, no: number, keepId: string): Promise<string[]> {
+  const r = await pool.query(
+    "update public.backlog set status = 'rejected', updated_at = now(), dedup_note = '↩︎ 대체됨 — 같은 화 번호로 다시 기획 (' || $3 || ') | ' || coalesce(dedup_note, '') where series_id = $1 and series_no = $2 and id <> $3 and status in ('held', 'proposed') returning id",
+    [seriesId, no, keepId],
+  );
+  return r.rows.map((x) => x.id as string);
+}
 /** 같은 시리즈의 다른 편 후보 ID — 주제 판정에 "기존 후보"로 넣지 않는다(형제 편은 겹침이 아니라 설계된 이웃이다) */
 export async function seriesSiblingIds(seriesId: string): Promise<string[]> {
   const r = await pool.query("select id from public.backlog where series_id = $1", [seriesId]);
@@ -434,19 +442,19 @@ export async function seriesSiblingIds(seriesId: string): Promise<string[]> {
 }
 /** 앞 편(series_no)의 에피소드 ID — 대본이 만들어진(script_key 가 있는) 가장 최근 행 */
 export async function seriesPrevEpisodeId(seriesId: string, no: number): Promise<string | null> {
-  const r = await pool.query("select e.id from public.episodes e join public.backlog b on b.id = e.backlog_id where b.series_id = $1 and b.series_no = $2 and e.script_key is not null order by e.created_at desc limit 1", [seriesId, no]);
+  const r = await pool.query("select e.id from public.episodes e join public.backlog b on b.id = e.backlog_id where b.series_id = $1 and b.series_no = $2 and b.status <> 'rejected' and e.script_key is not null order by e.created_at desc limit 1", [seriesId, no]); // 반려된 후보는 뺀다 — 콘솔 [이 편 다시 기획] 뒤 같은 화 번호에 후보가 둘일 수 있다(2026-10-27)
   return r.rows[0]?.id ?? null;
 }
 /** 집기 순서 (spec/11 5.3) — k화 초안은 k-1화 구성안이 있을 때만. 앞 편이 초안을 마친 상태(drafted 이후)면 구성안이 있다. 일반 편·1화는 늘 참 */
 export const SERIES_PREV_READY = ["drafted", "qa_passed", "review_required", "packaged", "published"];
 export async function seriesPrevReady(backlogId: string): Promise<boolean> {
   const r = await pool.query(
-    "select b.series_no, p.status from public.backlog b left join public.backlog p on p.series_id = b.series_id and p.series_no = b.series_no - 1 where b.id = $1",
+    "select b.series_no, p.status from public.backlog b left join public.backlog p on p.series_id = b.series_id and p.series_no = b.series_no - 1 and p.status <> 'rejected' where b.id = $1",
     [backlogId],
-  );
+  ); // 반려된 앞 편 후보는 빼고 본다 — 콘솔 [이 편 다시 기획] 뒤 같은 화 번호에 후보가 둘일 수 있다(2026-10-27). 살아 있는 후보 중 하나라도 초안을 마쳤으면 참
   const row = r.rows[0];
   if (!row || !row.series_no || row.series_no <= 1) return true;
-  return SERIES_PREV_READY.includes(row.status);
+  return r.rows.some((x) => SERIES_PREV_READY.includes(x.status));
 }
 /** DB 가 진실인 프롬프트 자산의 active 본 (spec/10 3.2) — git 사본으로 폴백하지 않는다 */
 export async function activePromptAsset(key: string): Promise<{ version: string; content: string }> {

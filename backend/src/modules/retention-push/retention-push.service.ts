@@ -65,6 +65,8 @@ export class RetentionPushService {
   private readonly logger = new Logger(RetentionPushService.name);
   private readonly mode: RetentionPushMode;
   private readonly timezoneGroupsEnabled: boolean;
+  /** `dry_run`에서도 실제로 보내는 시험 대상 — 비면 `dry_run`은 아무에게도 보내지 않는다 */
+  private readonly testUserIds: ReadonlySet<string>;
 
   constructor(
     private readonly repository: RetentionPushRepository,
@@ -78,6 +80,9 @@ export class RetentionPushService {
       configService
         .get('DRIP_TIMEZONE_GROUPS_ENABLED', { infer: true })
         ?.trim() === 'true';
+    this.testUserIds = parseTestUserIds(
+      configService.get('RETENTION_PUSH_TEST_USER_IDS', { infer: true }),
+    );
   }
 
   get currentMode(): RetentionPushMode {
@@ -102,9 +107,17 @@ export class RetentionPushService {
       failed: 0,
     };
 
-    if (this.mode === RetentionPushMode.ON && plans.items.length > 0) {
+    // on 이면 전원, dry_run 이면 시험 대상만 실제로 보낸다 — 시험 대상 판정도 전원과 같은 규칙·빈도 제한을 거친다
+    const sending =
+      this.mode === RetentionPushMode.ON
+        ? plans.items
+        : this.mode === RetentionPushMode.DRY_RUN
+          ? plans.items.filter((plan) => this.testUserIds.has(plan.userId))
+          : [];
+
+    if (sending.length > 0) {
       const result = await this.targetedPushService.send(
-        plans.items.map((plan) => ({
+        sending.map((plan) => ({
           userId: plan.userId,
           type: retentionLogType(plan.ruleKey, plan.variant),
           title: plan.title,
@@ -127,7 +140,12 @@ export class RetentionPushService {
       sent: summary.sent,
       failed: summary.failed,
       ...(this.mode === RetentionPushMode.DRY_RUN
-        ? { samples: sampleCopies(plans.items) }
+        ? {
+            samples: sampleCopies(plans.items),
+            // 시험 대상 수와 그중 이번에 보내려 한(규칙 성립) 수만 — 사용자 id 는 싣지 않는다
+            test_users: this.testUserIds.size,
+            test_sending: sending.length,
+          }
         : {}),
     });
 
@@ -324,6 +342,19 @@ function toMode(value: string | undefined): RetentionPushMode {
   )
     ? (normalized as RetentionPushMode)
     : RetentionPushMode.OFF;
+}
+
+const UUID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** 쉼표로 구분한 사용자 id — uuid 형식이 아닌 값은 버린다(오타로 엉뚱한 사람에게 가지 않게, 형식만 본다) */
+export function parseTestUserIds(value: string | undefined): Set<string> {
+  return new Set(
+    (value ?? '')
+      .split(',')
+      .map((id) => id.trim().toLowerCase())
+      .filter((id) => UUID_PATTERN.test(id)),
+  );
 }
 
 function countByRule(

@@ -31,5 +31,8 @@ export const IS_OS_PERMISSION_STUBBED = Platform.OS === 'web' || IS_NOTIFICATION
  */
 export const ANDROID_DEFAULT_CHANNEL_ID = 'default';
 
-/** 서버 페이로드의 `data.type`(notification.md 3장) — MVP는 이 하나다 */
+/** 서버 페이로드의 `data.type`(notification.md 3장) — 드립 도착 */
 export const PUSH_TYPE_DRIP_ARRIVAL = 'drip_arrival';
+
+/** 저녁 리텐션 알림(notification.md 4.6) — `data.type` 이 `retention.<규칙>.<변형>` 이다 */
+export const PUSH_TYPE_RETENTION_PREFIX = 'retention.';

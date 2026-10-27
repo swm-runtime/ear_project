@@ -6,9 +6,11 @@ import { UserMarket } from '@/modules/user/user.enum';
 
 import { SearchQueryLog } from '../entities/search-query-log.entity';
 import {
+  SearchCorrectionRank,
   SearchQueryDailyCount,
   SearchQueryLogSummary,
   SearchQueryRank,
+  SearchSemanticRank,
 } from '../content.types';
 
 export type SearchQueryLogDraft = Pick<
@@ -36,6 +38,8 @@ interface TotalsRow {
   keyword_misses: number;
   rescued: number;
   semantic_unavailable: number;
+  hybrid_searches: number;
+  hybrid_misses: number;
 }
 
 interface DailyRow {
@@ -43,6 +47,24 @@ interface DailyRow {
   searches: number;
   misses: number;
   clicked: number;
+  rescued: number;
+}
+
+interface SemanticRow {
+  query: string;
+  searches: number;
+  clicked: number;
+  last_content_ids: string[];
+  last_searched_at: Date;
+}
+
+interface CorrectionRow {
+  query: string;
+  query_used: string;
+  searches: number;
+  rejected: number;
+  clicked: number;
+  last_searched_at: Date;
 }
 
 interface RankRow {
@@ -59,6 +81,8 @@ interface RankRow {
 
 /** 어드민 요약의 질의 순위 길이 — 화면 한 표에 보이는 만큼 */
 const RANK_LIMIT = 50;
+/** 의미 검색 표에 질의마다 보이는 결과 편수 — 첫 페이지 앞에서부터 */
+const SEMANTIC_PREVIEW_CONTENTS = 3;
 /** 결과 반응으로 인정하는 창 — 묶음 시작부터 마지막 질의 뒤 이만큼까지의 재생·담기(domain.md 5.7). SQL interval 리터럴 */
 const CLICK_WINDOW = '10 minutes';
 
@@ -178,6 +202,9 @@ export class SearchQueryLogRepository {
               count(*) filter (where correction_rejected)::int as correction_rejected,
               count(*) filter (where keyword_count = 0)::int as keyword_misses,
               count(*) filter (where keyword_count = 0 and result_count > 0)::int as rescued,
+              -- 위 비율의 분모 — KAN-238 컬럼이 있는 행(하이브리드 뒤)만. 전체 검색으로 나누면 옛 행만큼 작게 나온다(2026-10-27)
+              count(*) filter (where keyword_count is not null)::int as hybrid_searches,
+              count(*) filter (where keyword_count is not null and result_count = 0)::int as hybrid_misses,
               -- 태그 전용(#)은 의미 엔진을 돌리지 않는 경로라 결손이 아니다
               count(*) filter (where engines is not null and not ('semantic' = any (engines)) and query not like '#%')::int as semantic_unavailable
          from scoped`,
@@ -189,7 +216,8 @@ export class SearchQueryLogRepository {
        select to_char((created_at at time zone 'Asia/Seoul')::date, 'YYYY-MM-DD') as date,
               count(*)::int as searches,
               count(*) filter (where result_count = 0)::int as misses,
-              count(*) filter (where clicked)::int as clicked
+              count(*) filter (where clicked)::int as clicked,
+              count(*) filter (where keyword_count = 0 and result_count > 0)::int as rescued
          from scoped
         group by 1
         order by 1`,
@@ -225,6 +253,73 @@ export class SearchQueryLogRepository {
       [since, market, RANK_LIMIT],
     );
 
+    // 의미 검색만으로 결과가 나온 검색 — 결과가 전부 의미 엔진 몫이다(키워드 0건). 실제 쓴 질의(교정어 포함)로 묶는다
+    const semanticRows = await query.query<SemanticRow[]>(
+      // 결과 id 배열은 array_agg 로 모으면 2차원이 돼 [1]이 원소를 못 꺼낸다 — 가장 최근 행 id 를 고른 뒤 그 행의 배열을 붙인다
+      `with scoped as (${scoped}),
+       grouped as (
+         select coalesce(query_used, query) as query,
+                count(*)::int as searches,
+                count(*) filter (where clicked)::int as clicked,
+                (array_agg(id order by updated_at desc, id desc))[1] as last_id,
+                max(updated_at) as last_searched_at
+           from scoped
+          where keyword_count = 0 and result_count > 0
+          group by 1
+       )
+       select g.query, g.searches, g.clicked, g.last_searched_at,
+              l.result_content_ids as last_content_ids
+         from grouped g
+         join search_query_logs l on l.id = g.last_id
+        order by g.searches desc, g.last_searched_at desc
+        limit $3`,
+      [since, market, RANK_LIMIT],
+    );
+    const previewIds = [
+      ...new Set(
+        semanticRows.flatMap((row) =>
+          (row.last_content_ids ?? []).slice(0, SEMANTIC_PREVIEW_CONTENTS),
+        ),
+      ),
+    ];
+    // 회수·만료된 콘텐츠도 보인다 — 그때 무엇을 찾아 줬는지가 궁금한 것이다(제목은 남아 있다)
+    const previews =
+      previewIds.length === 0
+        ? []
+        : await query.query<
+            { id: string; title: string; topics: string[] | null }[]
+          >(
+            `select c.id, c.title,
+                    array_remove(array_agg(t.name order by t.name), null) as topics
+               from contents c
+               left join content_topics ct on ct.content_id = c.id
+               left join topics t on t.id = ct.topic_id
+              where c.id = any ($1::uuid[])
+              group by c.id, c.title`,
+            [previewIds],
+          );
+    const previewById = new Map(previews.map((row) => [row.id, row]));
+
+    const corrections = await query.query<CorrectionRow[]>(
+      `with scoped as (${scoped}),
+       corrected as (
+         select query, query_used, clicked, updated_at
+           from scoped
+          where query_used is not null and query_used <> query
+       )
+       select c.query, c.query_used,
+              count(*)::int as searches,
+              count(*) filter (where c.clicked)::int as clicked,
+              (select count(*) from scoped r
+                where r.correction_rejected and r.query = c.query)::int as rejected,
+              max(c.updated_at) as last_searched_at
+         from corrected c
+        group by c.query, c.query_used
+        order by searches desc, last_searched_at desc
+        limit $3`,
+      [since, market, RANK_LIMIT],
+    );
+
     const toRank = (row: RankRow): SearchQueryRank => ({
       query: row.query,
       searches: row.searches,
@@ -241,6 +336,35 @@ export class SearchQueryLogRepository {
       searches: row.searches,
       misses: row.misses,
       clicked: row.clicked,
+      rescued: row.rescued,
+    });
+    const toSemantic = (row: SemanticRow): SearchSemanticRank => ({
+      query: row.query,
+      searches: row.searches,
+      clicked: row.clicked,
+      contents: (row.last_content_ids ?? [])
+        .slice(0, SEMANTIC_PREVIEW_CONTENTS)
+        .flatMap((id) => {
+          const preview = previewById.get(id);
+          return preview
+            ? [
+                {
+                  contentId: id,
+                  title: preview.title,
+                  topics: preview.topics ?? [],
+                },
+              ]
+            : [];
+        }),
+      lastSearchedAt: row.last_searched_at,
+    });
+    const toCorrection = (row: CorrectionRow): SearchCorrectionRank => ({
+      query: row.query,
+      queryUsed: row.query_used,
+      searches: row.searches,
+      rejected: row.rejected,
+      clicked: row.clicked,
+      lastSearchedAt: row.last_searched_at,
     });
 
     return {
@@ -257,10 +381,14 @@ export class SearchQueryLogRepository {
         keywordMisses: totals?.keyword_misses ?? 0,
         rescued: totals?.rescued ?? 0,
         semanticUnavailable: totals?.semantic_unavailable ?? 0,
+        hybridSearches: totals?.hybrid_searches ?? 0,
+        hybridMisses: totals?.hybrid_misses ?? 0,
       },
       daily: daily.map(toDaily),
       missed: missed.map(toRank),
       top: top.map(toRank),
+      semantic: semanticRows.map(toSemantic),
+      corrections: corrections.map(toCorrection),
     };
   }
 }

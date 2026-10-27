@@ -302,10 +302,14 @@ describe('SearchQueryLogService', () => {
           keywordMisses: 0,
           rescued: 0,
           semanticUnavailable: 0,
+          hybridSearches: 0,
+          hybridMisses: 0,
         },
         daily: [],
         missed: [],
         top: [],
+        semantic: [],
+        corrections: [],
       });
 
       // when
@@ -334,10 +338,14 @@ describe('SearchQueryLogService', () => {
           keywordMisses: 0,
           rescued: 0,
           semanticUnavailable: 0,
+          hybridSearches: 0,
+          hybridMisses: 0,
         },
         daily: [],
         missed: [],
         top: [],
+        semantic: [],
+        corrections: [],
       });
 
       // when

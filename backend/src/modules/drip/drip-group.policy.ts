@@ -20,7 +20,7 @@ interface DripGroupSchedule {
 
 /**
  * 발송 그룹 정의(`global-api.md` 2.4 · 9장 미결 #3 기본값). **`DripGroup` 선언 순서대로** 오프셋 하한을 판정해 모든
- * 오프셋이 정확히 한 그룹에 든다 — asia UTC+5 이상 · europe UTC−1 이상 · americas 그 아래.
+ * 오프셋이 정확히 한 그룹에 든다 — asia UTC+9 이상 · southeast_asia UTC+5 이상 · europe UTC−1 이상 · americas 그 아래.
  *
  * 기준 시간대의 현지 05:00·07:00은 **같은 KST 서비스 날짜 안**에 있어야 한다(05:00 KST 경계 — 하루 1건 알림 판정과
  * `already_placed`가 서비스 날짜 기준이다). 서머타임까지 포함한 실측은 `drip-group.policy.spec.ts`가 지킨다.
@@ -28,7 +28,16 @@ interface DripGroupSchedule {
 export const DRIP_GROUP_SCHEDULES: Readonly<
   Record<DripGroup, DripGroupSchedule>
 > = {
-  [DripGroup.ASIA]: { timeZone: 'Asia/Seoul', minUtcOffsetMinutes: 5 * 60 },
+  [DripGroup.ASIA]: { timeZone: 'Asia/Seoul', minUtcOffsetMinutes: 9 * 60 },
+  /**
+   * 1차 공개 7개국 중 한국을 뺀 6개국(싱가포르·말레이시아·필리핀·홍콩 UTC+8 · 태국·인도네시아 서부 UTC+7)이 여기다
+   * (2026-10-26). 기준을 싱가포르(+8)로 두어 +8 나라는 현지 07:00, +7 나라는 06:00에 알림을 받는다 — 그룹 하나로 묶는다.
+   * 싱가포르 05:00 = KST 06:00 이라 같은 KST 서비스 날짜 안이다
+   */
+  [DripGroup.SOUTHEAST_ASIA]: {
+    timeZone: 'Asia/Singapore',
+    minUtcOffsetMinutes: 5 * 60,
+  },
   [DripGroup.EUROPE]: { timeZone: 'Europe/London', minUtcOffsetMinutes: -60 },
   [DripGroup.AMERICAS]: {
     timeZone: 'America/Chicago',

@@ -71,6 +71,8 @@ export const RETRYABLE_FIRST_DRIP_STATUSES: readonly FirstDripJobStatus[] = [
  */
 export enum DripGroup {
   ASIA = 'asia',
+  /** 1차 공개 동남아·홍콩(UTC+7·+8)의 GLOBAL 사용자 — 2026-10-26 신설. 종전에는 asia(KST)라 현지 05~06시에 알림을 받았다 */
+  SOUTHEAST_ASIA = 'southeast_asia',
   EUROPE = 'europe',
   AMERICAS = 'americas',
 }

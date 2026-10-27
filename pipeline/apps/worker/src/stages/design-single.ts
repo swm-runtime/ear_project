@@ -237,6 +237,8 @@ export async function runDesignSingle(a: { job: Job; ex: Executor; episodeId: st
   const missing = outlineRefs.filter((c) => !claimIds.has(c));
   if (missing.length) await fail(`구성안이 claims 에 없는 ID 를 참조: ${missing.slice(0, 10).join(", ")}`);
   // full-v7 (2026-09-15): 소스는 한 구간에만 — 축 소스 하나만 도입·착지 두 구간. 실측 3편 모두 구성안이 소스를 4~5구간에 흩뿌린 것이 재식별·귀속 과밀의 원인이었다
+  // 2026-10-27: 설계 모델이 구간을 하나도 내지 않고 claims 만 돌려주는 출력 이상(C156·C213·C275·C285 "section #n 이 구성안 구간에 없음 (구간 )") — 재료 부족으로 분류해 메모에 사유가 남게 한다. 재시도로 풀리는 편도 있고 아닌 편도 있다
+  if (!o.sections.length) await fail(`재료 부족 — 구성안 구간 없음(설계 모델이 구간을 내지 않음, claims ${o.claims.length}건). ${String(o.notes ?? "").replace(/\s+/g, " ").slice(0, 200)}`);
   const sectionNs = new Set(o.sections.map((s) => s.n));
   const axisRaw = (o.axis_source ?? "").trim();
   const axis = axisRaw ? parseAxisSource(axisRaw, sources) : null;

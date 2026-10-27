@@ -118,6 +118,46 @@ describe('RetentionPushService', () => {
     );
   });
 
+  it('dry_run 에 시험 대상이 있으면 그 사용자에게만 실제로 보낸다', async () => {
+    // given — 대문자·공백·형식이 틀린 값이 섞여도 uuid 만 쓴다
+    const service = build({
+      RETENTION_PUSH_MODE: 'dry_run',
+      RETENTION_PUSH_TEST_USER_IDS: ` ${GLOBAL_USER.toUpperCase()} , not-a-uuid,`,
+    });
+
+    // when
+    const summary = await service.run(DripGroup.ASIA, NOW);
+
+    // then — 판정은 전원(2명)이지만 보내는 것은 시험 대상 1명
+    expect(summary.planned).toBe(2);
+    const pushes = targetedPushService.send.mock.calls[0][0];
+    expect(pushes.map((push) => push.userId)).toEqual([GLOBAL_USER]);
+    expect(pushes[0].title).toBe("(Ad) You've listened 2 days in a row");
+  });
+
+  it('시험 대상이라도 규칙이 성립하지 않거나 기기가 없으면 보내지 않는다', async () => {
+    // given — 기기 없는 사용자를 시험 대상으로
+    const service = build({
+      RETENTION_PUSH_MODE: 'dry_run',
+      RETENTION_PUSH_TEST_USER_IDS: NO_DEVICE_USER,
+    });
+
+    // when
+    await service.run(DripGroup.ASIA, NOW);
+
+    // then
+    expect(targetedPushService.send).not.toHaveBeenCalled();
+  });
+
+  it('off 에서는 시험 대상이 있어도 돌지 않는다', () => {
+    const service = build({
+      RETENTION_PUSH_MODE: 'off',
+      RETENTION_PUSH_TEST_USER_IDS: KR_USER,
+    });
+
+    expect(service.isGroupActive(DripGroup.ASIA)).toBe(false);
+  });
+
   it('시간대 그룹이 켜져 있으면 그 그룹의 사용자만 본다', async () => {
     // given
     const service = build({
