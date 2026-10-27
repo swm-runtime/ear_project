@@ -1,6 +1,6 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
-import { publicationByName, publicationOf, publicationsFor } from "@ear/pipeline/publication";
+import { publicationByName, publicationOf, publicationsFor, type Publication } from "@ear/pipeline/publication";
 import type { PipelineLocale } from "@/lib/locale";
 import { EarSeries, listEarSeries, patchEarSeries, putEarSeriesCover } from "@/lib/ear";
 import { EarGate, earErrMsg } from "@/app/publish/ear-connect";
@@ -12,15 +12,15 @@ import { btnCls, Panel, Table, Td } from "@/components/ui";
  * 파이프라인 밖에서 묶인 시리즈(CS 16편 · 경제 상식 · 철학 — BE 일회성 마이그레이션)는 [시리즈 발행]을 거치지 않아 표지·간행물을 손볼 곳이 여기뿐이다.
  * 표지가 없으면 앱은 가장 앞 편 썸네일을 쓴다 — 편 썸네일에 번호("01")가 찍히는 디자인이면 표지를 따로 올려야 한다(spec/11 7장).
  */
-export function ProductSeriesCovers({ locale }: { locale: PipelineLocale }) {
+export function ProductSeriesCovers({ locale, publications }: { locale: PipelineLocale; publications: Publication[] }) {
   return (
     <Panel title="제품 시리즈 — 간행물 · 표지 (운영)" right={<span className="text-[11px] text-ink-soft">간행물 = 앱 시리즈 화면 제목 아래 발행 이름 · 표지가 없으면 앱은 가장 앞 편 썸네일을 쓴다</span>}>
-      <EarGate><CoverTable locale={locale} /></EarGate>
+      <EarGate><CoverTable locale={locale} publications={publications} /></EarGate>
     </Panel>
   );
 }
 
-function CoverTable({ locale }: { locale: PipelineLocale }) {
+function CoverTable({ locale, publications }: { locale: PipelineLocale; publications: Publication[] }) {
   const [items, setItems] = useState<EarSeries[] | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const load = useCallback(async () => {
@@ -31,18 +31,18 @@ function CoverTable({ locale }: { locale: PipelineLocale }) {
   if (!items) return <p className="text-[12.5px] text-ink-soft">시리즈 목록 읽는 중…</p>;
   return (
     <Table head={["시리즈", "편수", "상태", "간행물", "표지", ""]} empty="제품에 시리즈가 없다">
-      {items.map((s) => <CoverRow key={s.id} s={s} locale={locale} onChange={(next) => setItems((cur) => (cur ?? []).map((x) => (x.id === next.id ? next : x)))} />)}
+      {items.map((s) => <CoverRow key={s.id} s={s} locale={locale} publications={publications} onChange={(next) => setItems((cur) => (cur ?? []).map((x) => (x.id === next.id ? next : x)))} />)}
     </Table>
   );
 }
 
-function CoverRow({ s, locale, onChange }: { s: EarSeries; locale: PipelineLocale; onChange: (s: EarSeries) => void }) {
+function CoverRow({ s, locale, publications, onChange }: { s: EarSeries; locale: PipelineLocale; publications: Publication[]; onChange: (s: EarSeries) => void }) {
   const [file, setFile] = useState<File | null>(null);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ text: string; bad: boolean } | null>(null);
   const c = s.episode_counts;
-  const options = publicationsFor(locale);
-  const current = publicationByName(s.publisher_name, locale);
+  const options = publicationsFor(locale, publications);
+  const current = publicationByName(s.publisher_name, locale, publications);
   const unknown = !!s.publisher_name?.trim() && !current; // 목록에 없는 발행 이름(다른 판·옛 값) — 그대로 보여 주고, 바꾸면 목록 값으로만
   async function upload() {
     if (!file) return;
@@ -56,7 +56,7 @@ function CoverRow({ s, locale, onChange }: { s: EarSeries; locale: PipelineLocal
     finally { setBusy(false); }
   }
   async function setPublication(key: string) {
-    const pub = publicationOf(key || null);
+    const pub = publicationOf(key || null, publications);
     const name = pub?.name ?? null;
     if ((s.publisher_name ?? null) === name) return;
     if (!confirm(`"${s.title}" 의 간행물을 ${name ?? "없음"}으로 바꿀까요?\n앱 시리즈 화면 제목 아래 줄과 "${name ?? "…"}의 다른 시리즈" 묶음에 바로 반영됩니다. 편 썸네일은 바뀌지 않습니다.`)) return;

@@ -1,12 +1,12 @@
 "use client";
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { publicationOf, publicationsFor } from "@ear/pipeline/publication";
+import { PUBLICATION_STYLES, publicationOf, publicationsFor, type Publication, type PublicationStyle } from "@ear/pipeline/publication";
 import type { PipelineLocale } from "@/lib/locale";
 import { btnCls, Panel } from "@/components/ui";
 import { patchEarSeries } from "@/lib/ear";
 import { earErrMsg } from "@/app/publish/ear-connect";
-import { saveSeriesThumb } from "../actions";
+import { createPublication, saveSeriesThumb } from "../actions";
 
 const inp = "w-full rounded border border-line px-2 py-1 text-[12.5px] outline-none focus:border-brand";
 
@@ -16,7 +16,7 @@ const inp = "w-full rounded border border-line px-2 py-1 text-[12.5px] outline-n
  * 바탕(아이콘 셋)은 이미지 모델이 시리즈당 한 번 그리고, 로고·라벨·큰 단어(손글씨 폰트)·박스·번호·표지 편수는 코드가 얹는다.
  * 이미 발행된 시리즈(productSeriesId)는 간행물을 바꾸면 서버의 발행 이름도 같이 바꾼다(PATCH /admin/series/:id publisher_name).
  */
-export function SeriesThumb({ id, locale, publication: p0, word: w0, label: l0, box: b0, hasBase, productSeriesId }: { id: string; locale: PipelineLocale; publication: string | null; word: string; label: string; box: string; hasBase: boolean; productSeriesId: string | null }) {
+export function SeriesThumb({ id, locale, publication: p0, word: w0, label: l0, box: b0, hasBase, productSeriesId, publications }: { id: string; locale: PipelineLocale; publication: string | null; word: string; label: string; box: string; hasBase: boolean; productSeriesId: string | null; publications: Publication[] }) {
   const router = useRouter();
   const [publication, setPublication] = useState(p0 ?? "");
   const [word, setWord] = useState(w0);
@@ -24,8 +24,10 @@ export function SeriesThumb({ id, locale, publication: p0, word: w0, label: l0, 
   const [box, setBox] = useState(b0);
   const [msg, setMsg] = useState<{ text: string; bad: boolean } | null>(null);
   const [pending, start] = useTransition();
-  const options = publicationsFor(locale);
-  const pub = publicationOf(publication || null);
+  const options = publicationsFor(locale, publications);
+  const pub = publicationOf(publication || null, publications);
+  const [creating, setCreating] = useState(false);
+  const [np, setNp] = useState<{ name: string; style: PublicationStyle; hint: string }>({ name: "", style: "scene", hint: "" });
   const keyword = pub?.style === "keyword";
   const phrasebook = pub?.style === "phrasebook";
   const dirty = publication !== (p0 ?? "") || word !== w0 || label !== l0 || box !== b0;
@@ -53,9 +55,32 @@ export function SeriesThumb({ id, locale, publication: p0, word: w0, label: l0, 
             </select>
           </label>
           <p className="self-end pb-1 text-[11px] text-ink-soft">
-            {pub ? <>앱 시리즈 화면 제목 아래에 <b>{pub.name}</b>이 나가고, 같은 간행물의 시리즈끼리 &quot;{pub.name}의 다른 시리즈&quot;로 묶인다. {pub.hint}.</> : "발행 이름이 없으면 앱은 그 줄을 생략하고 다른 시리즈와 묶지 않는다. 목록에 없는 간행물은 코드(@ear/pipeline publication.ts)에 더한다."}
+            {pub ? <>앱 시리즈 화면 제목 아래에 <b>{pub.name}</b>이 나가고, 같은 간행물의 시리즈끼리 &quot;{pub.name}의 다른 시리즈&quot;로 묶인다. {pub.hint}.</> : "발행 이름이 없으면 앱은 그 줄을 생략하고 다른 시리즈와 묶지 않는다."}
+            {" "}<button type="button" className="underline underline-offset-2 hover:text-ink" onClick={() => setCreating((c) => !c)}>{creating ? "새 간행물 닫기" : "+ 새 간행물"}</button>
           </p>
         </div>
+        {creating && (
+          <div className="rounded border border-line bg-panel p-3">
+            <div className="grid gap-2 md:grid-cols-[14rem_14rem_1fr]">
+              <label className="block"><span className="mb-1 block text-xs font-semibold text-ink-soft">이름 (앱에 그대로 나간다)</span><input className={inp} value={np.name} maxLength={24} placeholder={locale === "en" ? "e.g. Field Notes" : "예: 탑다운"} onChange={(e) => setNp({ ...np, name: e.target.value })} /></label>
+              <label className="block"><span className="mb-1 block text-xs font-semibold text-ink-soft">썸네일 디자인</span>
+                <select className={inp} value={np.style} onChange={(e) => setNp({ ...np, style: e.target.value as PublicationStyle })}>
+                  {PUBLICATION_STYLES.map((s) => <option key={s.style} value={s.style}>{s.label}</option>)}
+                </select>
+              </label>
+              <label className="block"><span className="mb-1 block text-xs font-semibold text-ink-soft">설명 (콘솔 선택지에만)</span><input className={inp} value={np.hint} maxLength={80} placeholder="어떤 형식의 시리즈를 담나" onChange={(e) => setNp({ ...np, hint: e.target.value })} /></label>
+            </div>
+            <p className="mt-2 text-[11px] text-ink-soft">{PUBLICATION_STYLES.find((s) => s.style === np.style)?.desc}. 이름은 주제가 아니라 형식을 가리키게 짓는다 — 다른 주제의 시리즈도 담을 수 있게. 디자인은 워커에 있는 셋 중 하나만 고를 수 있고, 새 디자인은 코드로 더한다.</p>
+            <div className="mt-2 flex items-center gap-2">
+              <button className={btnCls("primary")} disabled={pending || np.name.trim().length < 2} onClick={() => start(async () => {
+                const r = await createPublication(np);
+                if (!r.ok) { setMsg({ text: r.reason, bad: true }); return; }
+                setPublication(r.key); setCreating(false); setMsg({ text: `간행물 "${np.name.trim()}" 을 만들었다 — [저장]으로 이 시리즈에 적용`, bad: false }); router.refresh();
+              })}>간행물 만들기</button>
+              <span className="text-[11px] text-ink-soft">만든 뒤 이 시리즈에 바로 선택된다. 아래 [저장]을 눌러야 적용된다.</span>
+            </div>
+          </div>
+        )}
         {(keyword || phrasebook) && (
           <div className="grid gap-2 md:grid-cols-3">
             <label className="block"><span className="mb-1 block text-xs font-semibold text-ink-soft">{phrasebook ? "표지 손글씨 (영문 — 비면 annyeong)" : "큰 단어 (영문 — 손글씨 폰트로 얹는다)"}</span><input className={inp} value={word} maxLength={16} onChange={(e) => setWord(e.target.value)} placeholder={phrasebook ? "annyeong" : "keyword"} /></label>

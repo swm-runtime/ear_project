@@ -30,12 +30,18 @@ interface PlaybackStore {
    * 때까지 복원 폴백도 다시 띄우지 않는다. 다음 실행의 복원 판정에는 영향이 없다(로컬 비영속).
    */
   isMiniPlayerDismissed: boolean;
+  /**
+   * **멈춘 채 연 푸시 콘텐츠**(KAN-273) — 발급만 받아 두고 아직 소리가 난 적 없는 편. 이 편의 첫 ▶는 바로 재생하지 않고
+   * 재생 게이트의 확인 팝업을 거친다(차감되는 재생이면). 소리가 나면(서비스) 지운다
+   */
+  confirmBeforePlayContentId: string | null;
   setSession: (session: PlaybackSession | null) => void;
   patchSession: (patch: Partial<PlaybackSession>) => void;
   setRate: (rate: PlaybackRate) => void;
   markRateHydrated: () => void;
   setMiniPlayerDismissed: (dismissed: boolean) => void;
   setQueueContext: (context: PlayQueueContext) => void;
+  setConfirmBeforePlay: (contentId: string | null) => void;
 }
 
 export const usePlaybackStore = create<PlaybackStore>((set) => ({
@@ -44,6 +50,7 @@ export const usePlaybackStore = create<PlaybackStore>((set) => ({
   rate: 1.0,
   isRateHydrated: false,
   isMiniPlayerDismissed: false,
+  confirmBeforePlayContentId: null,
   setSession: (session) => set({ session }),
   patchSession: (patch) =>
     set((prev) => (prev.session ? { session: { ...prev.session, ...patch } } : prev)),
@@ -51,4 +58,5 @@ export const usePlaybackStore = create<PlaybackStore>((set) => ({
   markRateHydrated: () => set({ isRateHydrated: true }),
   setMiniPlayerDismissed: (dismissed) => set({ isMiniPlayerDismissed: dismissed }),
   setQueueContext: (queueContext) => set({ queueContext }),
+  setConfirmBeforePlay: (confirmBeforePlayContentId) => set({ confirmBeforePlayContentId }),
 }));

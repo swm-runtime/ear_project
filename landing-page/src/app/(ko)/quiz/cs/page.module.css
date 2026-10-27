@@ -1,0 +1,297 @@
+/* CS 지식 테스트 — 카톡 인앱 브라우저(좁은 폭)에서 먼저 보이는 화면이라 한 열 카드로 둔다. */
+
+.wrap {
+  padding: clamp(40px, 8vw, 96px) 0 clamp(64px, 10vw, 120px);
+}
+
+.card {
+  max-width: 560px;
+  margin: 0 auto;
+  padding: clamp(24px, 5vw, 40px);
+  border: 1px solid var(--line);
+  border-radius: var(--r-xl);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+  text-align: center;
+}
+
+.eyebrow {
+  font-family: var(--mono);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  color: var(--brand-600);
+}
+
+.title {
+  margin-top: 14px;
+  font-size: clamp(28px, 7vw, 40px);
+}
+
+.lede {
+  margin: 16px auto 0;
+  max-width: 40ch;
+  color: var(--text-2);
+  font-size: 16px;
+  line-height: 1.7;
+}
+
+.facts {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  margin: 24px 0 28px;
+  list-style: none;
+  padding: 0;
+}
+
+.facts li {
+  padding: 6px 12px;
+  border-radius: var(--r-pill);
+  background: var(--paper-2);
+  color: var(--text-2);
+  font-size: 13.5px;
+  font-weight: 600;
+}
+
+.source {
+  margin-top: 20px;
+  color: var(--text-3);
+  font-size: 13.5px;
+  line-height: 1.6;
+}
+
+/* --- 문제 --- */
+
+.progressRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 14px;
+}
+
+.keyword {
+  font-weight: 700;
+  color: var(--text);
+}
+
+.count {
+  font-family: var(--mono);
+  color: var(--text-3);
+}
+
+.progress {
+  height: 4px;
+  margin-top: 10px;
+  border-radius: var(--r-pill);
+  background: var(--paper-2);
+  overflow: hidden;
+}
+
+.progress span {
+  display: block;
+  height: 100%;
+  background: var(--brand-700);
+  transition: width 0.25s ease;
+}
+
+.question {
+  margin-top: 24px;
+  font-family: var(--sans);
+  font-size: clamp(19px, 4.6vw, 22px);
+  font-weight: 700;
+  line-height: 1.5;
+  text-align: left;
+  word-break: keep-all;
+}
+
+.options {
+  display: grid;
+  gap: 10px;
+  margin-top: 20px;
+  padding: 0;
+  list-style: none;
+}
+
+.option {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 56px;
+  padding: 12px 16px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-md);
+  background: var(--paper);
+  color: var(--text);
+  font: inherit;
+  font-size: 16px;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background-color 0.15s ease, color 0.15s ease;
+}
+
+.option:hover:not(:disabled) {
+  border-color: var(--brand-700);
+}
+
+.option:disabled {
+  cursor: default;
+}
+
+.option[data-state="correct"] {
+  border-color: var(--brand-700);
+  background: var(--brand-700);
+  color: var(--brand-300);
+}
+
+.option[data-state="wrong"] {
+  border-style: dashed;
+  border-color: var(--ink-400);
+  color: var(--text-2);
+}
+
+.option[data-state="dim"] {
+  color: var(--text-3);
+}
+
+.mark {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 1px solid currentColor;
+  font-family: var(--mono);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.optionText {
+  flex: 1;
+  line-height: 1.45;
+  word-break: keep-all;
+}
+
+.tag {
+  flex: none;
+  font-size: 12.5px;
+  font-weight: 700;
+}
+
+.explain {
+  margin-top: 20px;
+  padding: 18px;
+  border-radius: var(--r-md);
+  background: var(--paper-2);
+  text-align: left;
+}
+
+.verdict {
+  font-weight: 800;
+  font-size: 17px;
+}
+
+.explainText {
+  margin-top: 8px;
+  color: var(--text-2);
+  font-size: 15px;
+  line-height: 1.7;
+  word-break: keep-all;
+}
+
+.explain :global(.btn) {
+  width: 100%;
+  margin-top: 16px;
+}
+
+/* --- 결과 --- */
+
+.levelTitle {
+  margin-top: 12px;
+  font-size: clamp(32px, 8vw, 44px);
+}
+
+.score {
+  margin-top: 6px;
+  font-family: var(--mono);
+  color: var(--text-3);
+  font-size: 16px;
+}
+
+.score strong {
+  color: var(--text);
+  font-size: 22px;
+}
+
+.cta {
+  margin-top: 28px;
+  padding-top: 24px;
+  border-top: 1px solid var(--line);
+}
+
+.ctaText {
+  margin: 0 auto 16px;
+  max-width: 40ch;
+  color: var(--text-2);
+  font-size: 15px;
+  line-height: 1.7;
+  word-break: keep-all;
+}
+
+.share {
+  margin-top: 28px;
+  padding-top: 24px;
+  border-top: 1px solid var(--line);
+}
+
+.shareTitle {
+  font-weight: 800;
+}
+
+.shareActions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+/* 카카오 공유 버튼은 카카오 디자인 가이드의 노란 바탕·검정 글자를 쓴다. */
+.kakao {
+  background: #fee500;
+  color: rgba(0, 0, 0, 0.85);
+}
+
+.kakao:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.manualCopy {
+  margin-top: 12px;
+  color: var(--text-3);
+  font-size: 13.5px;
+  line-height: 1.6;
+}
+
+.manualUrl {
+  user-select: all;
+  word-break: break-all;
+  color: var(--text);
+}
+
+.retry {
+  margin-top: 24px;
+  padding: 8px 12px;
+  border: 0;
+  background: none;
+  color: var(--text-3);
+  font: inherit;
+  font-size: 14px;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}

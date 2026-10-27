@@ -1,7 +1,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import { cfg, executedBy } from "../config.js";
-import { seriesPrevReady, claimApprovedBacklog, deleteEpisode, enqueue, getBacklog, getBacklogStatus, getEpisode, getSetting, insertRun, majorOfMidTopic, nextEpisodeId, setBacklogStatus, setJobProgress, updateJobPayload, upsertEpisode, pool, type Job } from "../db.js";
+import { seriesPrevReady, claimApprovedBacklog, hasOtherActiveDraftJob, deleteEpisode, enqueue, getBacklog, getBacklogStatus, getEpisode, getSetting, insertRun, majorOfMidTopic, nextEpisodeId, setBacklogStatus, setJobProgress, updateJobPayload, upsertEpisode, pool, type Job } from "../db.js";
 import type { Executor } from "../executors/index.js";
 import { buildDraftPrompt, buildDraftRevisionPrompt, DRAFT_SCHEMA, DRAFT_REVISION_SCHEMA, episodeDatePrefix, episodeIdLetter, pickIntroStyle, pipelineLocale, signoffVariants, speakerNames, type Templates } from "@ear/pipeline";
 import { exists, hostOf, log, RetryLater } from "../util.js";
@@ -38,11 +38,17 @@ export async function runDraft(job: Job, ex: Executor) {
     //   · 다른 작업이 집었거나 승인이 철회됨 → 실패가 아니라 건너뜀 (실패로 던지면 onDraftFailed 가 남의 후보를 proposed 로 되돌린다)
     if (!(await claimApprovedBacklog(backlogId, cfg.workerName))) {
       const bs = await getBacklogStatus(backlogId);
-      const resuming = bs?.status === "claimed" && !!job.payload.episode_id;
+      // 선점만 남기고 죽은 작업(2026-10-27 C585 — 배포 재시작이 선점 직후를 끊어 payload 에 episode_id 가 없었다): claimed 인데 이 작업 말고 활성 초안 작업이 없으면 이 작업이 그 선점의 주인이다 — 건너뛰면 후보가 영영 claimed 로 남는다
+      const orphanClaim = bs?.status === "claimed" && !job.payload.episode_id && !(await hasOtherActiveDraftJob(backlogId, job.id));
+      const resuming = bs?.status === "claimed" && (!!job.payload.episode_id || orphanClaim);
       if (!resuming) {
         const why = bs ? `backlog 상태 ${bs.status}${bs.claimed_by ? ` (집은 워커 ${bs.claimed_by})` : ""}` : "backlog 없음";
         log(`  draft ${backlogId}: 선점 실패 — ${why}. 중복 작업으로 보고 건너뜀`);
         return { backlog_id: backlogId, skipped: true, reason: `선점 실패 — ${why}` };
+      }
+      if (orphanClaim) {
+        log(`  draft ${backlogId}: 선점만 남은 후보를 이어받음 (활성 초안 작업 없음) — 대본 없는 에피소드 행은 지우고 새로 집는다`);
+        await pool.query("delete from public.episodes where backlog_id = $1 and script_key is null", [backlogId]).catch(() => {});
       }
     }
     // 재집기(워커 사망 후 회수) 시 같은 에피소드를 이어받도록 작업 payload 에 ID 를 고정한다

@@ -1,7 +1,7 @@
 /**
  * 기획 시리즈 (spec/11 · 글로벌 명세 6.11, KAN-136) — 콘솔 쪽 형식·검증·편별 힌트. 워커 @ear/pipeline series.ts 의 SeriesPlanEpisode 와 같은 모양이다(바꾸면 둘 다).
  */
-import { publicationOf } from "@ear/pipeline/publication";
+import { publicationOf, type Publication } from "@ear/pipeline/publication";
 import type { PipelineLocale } from "./locale";
 
 export interface SeriesEpisode { no: number; title: string; scope: string; carries: string; only_here: string; minutes: number }
@@ -17,11 +17,11 @@ export interface SeriesRow {
 }
 
 /** 간행물·썸네일 글자 칸 검증 (KAN-247) — 간행물은 이 판의 목록에서만, keyword 스타일 간행물은 큰 단어가 필요하다. 큰 단어는 영문(손글씨로 얹는다), 라벨·박스는 짧게(코드가 한 줄로 얹는다) */
-export function cleanSeriesThumb(v: { publication: string | null; word: string; label: string; box: string }, locale: PipelineLocale): { publication: string | null; word: string; label: string; box: string; problems: string[] } {
+export function cleanSeriesThumb(v: { publication: string | null; word: string; label: string; box: string }, locale: PipelineLocale, list?: readonly Publication[]): { publication: string | null; word: string; label: string; box: string; problems: string[] } {
   const word = v.word.trim().toLowerCase(), label = v.label.trim().toUpperCase(), box = v.box.trim();
   const publication = v.publication || null;
   const problems: string[] = [];
-  const pub = publicationOf(publication);
+  const pub = publicationOf(publication, list);
   if (publication && (!pub || pub.locale !== locale)) problems.push(`간행물 "${publication}" 은 이 판의 목록에 없다`);
   // 종전(2026-10-20) "큰 단어를 비우면 일반 썸네일" 판정은 간행물이 대신한다 — keyword 디자인 간행물은 큰 단어가 있어야 편 썸네일을 만들 수 있다
   if (pub?.style === "keyword" && !word) problems.push(`간행물 "${pub.name}" 은 키워드 시리즈 디자인이라 큰 단어가 필요하다`);

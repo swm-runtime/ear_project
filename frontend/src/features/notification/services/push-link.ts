@@ -5,7 +5,8 @@ const SCHEME = 'ear://';
 const CONTENT_PREFIX = 'contents/';
 
 /**
- * 푸시 `data.deep_link` 해석(notification.md 3장) — `ear://library` · `ear://contents/{content_id}`.
+ * 푸시 `data.deep_link` 해석(notification.md 3장) — `ear://library` · `ear://profile`(주간 순위 알림, KAN-273) ·
+ * `ear://contents/{content_id}`.
  * 모르는 형식은 `null`이다. 서버가 새 목적지를 먼저 보내기 시작해도 옛 앱이 엉뚱한 화면을
  * 열지 않는다 — 호출부가 라이브러리로 폴백한다.
  */
@@ -13,6 +14,7 @@ export const parsePushDeepLink = (deepLink: unknown): PushTarget | null => {
   if (typeof deepLink !== 'string' || !deepLink.startsWith(SCHEME)) return null;
   const path = deepLink.slice(SCHEME.length).split(/[?#]/)[0].replace(/\/+$/, '');
   if (path === 'library') return { kind: 'library' };
+  if (path === 'profile') return { kind: 'profile' };
   if (path.startsWith(CONTENT_PREFIX)) {
     const contentId = path.slice(CONTENT_PREFIX.length);
     if (contentId.length > 0 && !contentId.includes('/')) return { kind: 'content', contentId };
