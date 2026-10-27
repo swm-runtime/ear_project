@@ -12,6 +12,9 @@ import { buildMetadata } from "@/lib/seo";
  * 문제·결과 문구는 `content/quiz-cs.ts`, 화면과 공유는 `CsQuiz.tsx`. 공유 미리보기 이미지는
  * `scripts/og-pages.mjs`의 `quiz-cs.png`다.
  *
+ * 사이트 헤더·바닥글 없이 퀴즈 전용 루트 레이아웃(`(quiz)/layout.tsx`)으로 그린다 — 시작부터 광고처럼 보이면
+ * 풀기 전에 닫으므로, 앱 안내는 결과 화면 한 곳에만 둔다.
+ *
  * `/app/`처럼 `routes.ts`에 넣지 않는다 — 내비·사이트맵에 나올 페이지가 아니고 색인 대상도 아니다.
  * 공유 미리보기(og:*)는 색인과 무관하게 나간다.
  */

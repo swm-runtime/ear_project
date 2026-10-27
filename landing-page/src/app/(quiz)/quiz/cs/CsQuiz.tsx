@@ -205,7 +205,6 @@ export function CsQuiz() {
             <button type="button" className="btn btnPrimary" onClick={start}>
               테스트 시작
             </button>
-            <p className={s.source}>문제는 이어 「{csQuiz.series}」 시리즈에서 나왔어요.</p>
           </section>
         )}
 
