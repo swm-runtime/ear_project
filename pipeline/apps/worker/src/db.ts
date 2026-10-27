@@ -427,6 +427,14 @@ export async function saveSeriesPlan(id: string, v: { name: string; intro_line: 
     [id, v.name, v.intro_line, JSON.stringify(v.plan), v.thumb_word ?? "", v.thumb_label ?? "", v.thumb_box ?? ""]);
   return (r.rowCount ?? 0) > 0;
 }
+/** 같은 화 번호의 살아 있는 후보(보류·제안)를 반려로 비운다 — 한 화에 살아 있는 후보는 하나(0035). 앞선 기획 시도가 남긴 "검색 진행 중" 행, 콘솔 [다시 기획]이 못 정리한 행이 대상. 초안 이후 후보는 건드리지 않는다(그때는 유니크가 막는다) */
+export async function retireSeriesEpisodeCandidates(seriesId: string, no: number, keepId: string): Promise<string[]> {
+  const r = await pool.query(
+    "update public.backlog set status = 'rejected', updated_at = now(), dedup_note = '↩︎ 대체됨 — 같은 화 번호로 다시 기획 (' || $3 || ') | ' || coalesce(dedup_note, '') where series_id = $1 and series_no = $2 and id <> $3 and status in ('held', 'proposed') returning id",
+    [seriesId, no, keepId],
+  );
+  return r.rows.map((x) => x.id as string);
+}
 /** 같은 시리즈의 다른 편 후보 ID — 주제 판정에 "기존 후보"로 넣지 않는다(형제 편은 겹침이 아니라 설계된 이웃이다) */
 export async function seriesSiblingIds(seriesId: string): Promise<string[]> {
   const r = await pool.query("select id from public.backlog where series_id = $1", [seriesId]);
