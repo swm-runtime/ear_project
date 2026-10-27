@@ -5,7 +5,7 @@ import { buildSeriesPlanPrompt, buildSeriesPlanPromptEn, normalizeSeriesPlan, pi
 import { log } from "../util.js";
 import { workerRev } from "../assets.js";
 
-export const SERIES_PLAN_VERSION = "series-plan-v1";
+export const SERIES_PLAN_VERSION = "series-plan-v1.1"; // v1.1 (2026-10-27): scope·only_here 는 개념만, 사례는 "예:"
 
 /**
  * 시리즈 설계안 (spec/11 3장 · 글로벌 명세 6.11, KAN-136) — payload: { series_id, episodes? }.
