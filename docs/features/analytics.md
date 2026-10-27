@@ -61,7 +61,7 @@
 | 이벤트 | 파라미터 | 시점 |
 |---|---|---|
 | `push_permission` | `result`: `granted` \| `denied` · `source`: `onboarding` \| `settings` | OS 다이얼로그 결과 |
-| `push_open` | `target`: `library` \| `content` · `app_state`: `background` \| `killed` | 알림 탭으로 진입 |
+| `push_open` | `target`: `library` \| `content` · `app_state`: `background` \| `killed` · `push_type`: `drip_arrival` \| `retention` · `push_rule`(리텐션만 — `<규칙>.<변형>`, 예 `weekly_rank_gap.b`. 2026-10-27 KAN-273) | 알림 탭으로 진입 |
 | `push_foreground_banner` | `action`: `view` \| `tap` | 인앱 배너 |
 
 **드립** (`drip-scheduling.md` · `library.md`)

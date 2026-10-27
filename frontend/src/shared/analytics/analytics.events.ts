@@ -33,7 +33,14 @@ export interface AnalyticsEvents {
   };
   // 알림
   push_permission: { result: PermissionResult; source: 'onboarding' | 'settings' };
-  push_open: { target: PushTarget; app_state: 'background' | 'killed' };
+  push_open: {
+    target: PushTarget;
+    app_state: 'background' | 'killed';
+    /** 알림 종류(notification.md 4.3 · 4.6) */
+    push_type: 'drip_arrival' | 'retention';
+    /** 리텐션의 `<규칙>.<변형>` — 드립이면 없다 */
+    push_rule?: string;
+  };
   push_foreground_banner: { action: 'view' | 'tap' };
   // 드립
   drip_arrival_view: { count: number; hours_since_arrival: number };

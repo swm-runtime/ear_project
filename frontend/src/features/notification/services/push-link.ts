@@ -1,5 +1,5 @@
-import { PUSH_TYPE_DRIP_ARRIVAL } from '../notification.constants';
-import type { PushArrival, PushTarget } from '../notification.types';
+import { PUSH_TYPE_DRIP_ARRIVAL, PUSH_TYPE_RETENTION_PREFIX } from '../notification.constants';
+import type { PushMessage, PushTarget } from '../notification.types';
 
 const SCHEME = 'ear://';
 const CONTENT_PREFIX = 'contents/';
@@ -21,17 +21,28 @@ export const parsePushDeepLink = (deepLink: unknown): PushTarget | null => {
 };
 
 /**
- * 푸시 `data` → 도착 통지. **우리 알림이 아니면 `null`** — 다른 종류가 생기기 전까지
- * `drip_arrival`만 다룬다. 목적지를 못 읽으면 라이브러리다(도착한 것은 어쨌든 거기 있다).
+ * 푸시 `data` → 우리 알림. **우리 알림이 아니면 `null`** — 드립 도착(`drip_arrival`)과
+ * 저녁 리텐션(`retention.<규칙>.<변형>`, 4.6)을 다룬다. 둘 다 목적지를 못 읽으면 라이브러리다
+ * (도착한 것도, 리텐션이 가리키는 기록도 어쨌든 거기서 보인다).
  */
-export const parsePushData = (data: unknown): PushArrival | null => {
+export const parsePushData = (data: unknown): PushMessage | null => {
   if (typeof data !== 'object' || data === null) return null;
   const record = data as Record<string, unknown>;
-  if (record.type !== PUSH_TYPE_DRIP_ARRIVAL) return null;
-  // Expo Push는 data를 JSON으로 실어 오지만 경로에 따라 숫자가 문자열로 올 수 있다
-  const count = Number(record.content_count);
-  return {
-    target: parsePushDeepLink(record.deep_link) ?? { kind: 'library' },
-    contentCount: Number.isFinite(count) && count > 0 ? Math.floor(count) : null,
-  };
+  const target = parsePushDeepLink(record.deep_link) ?? { kind: 'library' as const };
+  if (record.type === PUSH_TYPE_DRIP_ARRIVAL) {
+    // Expo Push는 data를 JSON으로 실어 오지만 경로에 따라 숫자가 문자열로 올 수 있다
+    const count = Number(record.content_count);
+    return {
+      type: 'drip_arrival',
+      target,
+      contentCount: Number.isFinite(count) && count > 0 ? Math.floor(count) : null,
+      rule: null,
+    };
+  }
+  if (typeof record.type === 'string' && record.type.startsWith(PUSH_TYPE_RETENTION_PREFIX)) {
+    const rule = record.type.slice(PUSH_TYPE_RETENTION_PREFIX.length);
+    if (rule.length === 0) return null;
+    return { type: 'retention', target, contentCount: null, rule };
+  }
+  return null;
 };

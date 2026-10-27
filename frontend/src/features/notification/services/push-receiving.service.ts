@@ -36,15 +36,19 @@ const handleResponse = (
   if (id === lastHandledResponseId) return;
   lastHandledResponseId = id;
 
-  const arrival = parsePushData(response.notification.request.content.data);
-  if (arrival === null) return;
-  logger.debug('[notification] push tapped', arrival.target.kind);
+  const message = parsePushData(response.notification.request.content.data);
+  if (message === null) return;
+  logger.debug('[notification] push tapped', message.type, message.target.kind);
   track('push_open', {
-    target: arrival.target.kind,
+    target: message.target.kind,
     app_state: appState,
+    push_type: message.type,
+    // 리텐션만 — 드립이면 undefined 라 파라미터에서 빠진다
+    push_rule: message.rule ?? undefined,
   });
+  // 탭 처리는 종류와 상관없이 같다(4.4 — 스플래시 판정 뒤 목적지, 콘텐츠면 플레이어)
   const store = useNotificationStore.getState();
-  store.setPendingPushTarget(arrival.target);
+  store.setPendingPushTarget(message.target);
   /*
    * 처리한 탭은 OS 쪽 기록에서도 지운다. 남겨 두면 앱이 다시 뜰 때(`getLastNotificationResponse`)
    * **이미 처리한 옛 알림을 한 번 더 처리한다** — 어제 탭한 콘텐츠의 플레이어가 오늘 앱을 켜자마자 열린다.
@@ -67,11 +71,11 @@ export const startPushReceiving = (options: PushReceivingOptions): void => {
    *
    * 포그라운드의 드립 도착은 OS 배너를 띄우지 않는다 — 라이브러리 탭 배지가 대신한다(4.5).
    * 알림 센터에도 남기지 않는다: 이미 앱 안에서 본 통지가 나중에 또 보이면 새 도착으로 읽힌다.
-   * 우리 것이 아닌 알림은 OS 기본대로 보여 준다.
+   * **리텐션 알림(4.6)은 도착이 아니라** 배지가 대신할 것이 없다 — 우리 것이 아닌 알림처럼 OS 기본대로 보여 준다.
    */
   Notifications.setNotificationHandler({
     handleNotification: async (notification) => {
-      const isArrival = parsePushData(notification.request.content.data) !== null;
+      const isArrival = parsePushData(notification.request.content.data)?.type === 'drip_arrival';
       const isReplacedInApp = isArrival && AppState.currentState === 'active';
       return {
         shouldShowBanner: !isReplacedInApp,
@@ -85,8 +89,8 @@ export const startPushReceiving = (options: PushReceivingOptions): void => {
   Notifications.addNotificationReceivedListener((notification) => {
     // 백그라운드에서 깨어나 받은 것은 OS 가 이미 배너를 띄웠다 — 인앱 배너는 포그라운드 전용이다
     if (AppState.currentState !== 'active') return;
-    const arrival = parsePushData(notification.request.content.data);
-    if (arrival === null) return;
+    // 도착 배지는 드립 도착만 — 리텐션은 새로 편성된 것이 없다
+    if (parsePushData(notification.request.content.data)?.type !== 'drip_arrival') return;
     track('push_foreground_banner', { action: 'view' });
     options.onForegroundArrival();
   });
