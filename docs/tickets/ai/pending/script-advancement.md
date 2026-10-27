@@ -11,7 +11,7 @@
 | 시작 날짜 | 2026-10-26 |
 | 기한 | 2026-10-30 (Low — 이번 주 금요일) |
 | 선행 | 없음 |
-| 관련 | `content-pipeline-audit-spoken-style.md`(KAN-173) |
+| 관련 | `archive/content-pipeline-audit-spoken-style.md`(KAN-173 — 2026-10-27 완료) |
 | 중요도 | Low — PM 지정(2026-10-26). 마감이 안 맞으면 등급을 내리지 말고 사유를 적는다 |
 | 상태 | 대기 |
 
@@ -26,3 +26,7 @@
 
 - Given 착수 / When 이 문서를 본다 / Then 고도화 대상과 측정 기준이 적혀 있다
 - Given 반영 뒤 / When 처리 기록을 본다 / Then 기준선 대비 측정치와 바꾼 파일(프롬프트·스펙)이 적혀 있다
+
+## 처리 기록
+
+- 2026-10-27 KAN-173 실측에서 넘어온 것: **해설 문장 호흡이 줄지 않았다**(평균 11.3→10.8어절, 골드 8.6~9.8) · **다체 0%로 해요체 쏠림**(골드 0~11%) · **한국판 비평 점수가 연쇄를 막지 않는다**(글로벌판은 ≥60). 기준선과 측정법은 `docs/tickets/ai/archive/content-pipeline-audit-spoken-style.md`. 논문 근거로 착수 — PodBench(arXiv 2601.14903) Stage 2 루브릭으로 v9.10 기준선 채점 중.
