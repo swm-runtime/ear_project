@@ -35,4 +35,5 @@
   - 드립 도착 전용 처리와 분리: 포그라운드에서 OS 배너를 숨기는 것·라이브러리 탭 배지 갱신·`push_foreground_banner`는 `drip_arrival`만.
   - 분석 `push_open`에 `push_type`·`push_rule`(`analytics.md` 갱신).
   - 테스트: 리텐션 변환(규칙·변형·목적지·폴백·잘못된 type).
-  - **남은 것: 실기기** — 개발계는 `dry_run`이라 실제 발송이 없다. 개발계 기기에 `type: retention.resume_content.a` 테스트 푸시를 보내 탭 → 플레이어, 앱을 켠 상태에서 OS 배너가 뜨는지 본다. 확인되면 `archive/` + Jira 완료, BE는 운영 OTA 뒤 `RETENTION_PUSH_MODE=on`.
+  - **남은 것: 실기기** — 개발계는 `dry_run`이라 실제 발송이 없다. 개발계 기기에 `type: retention.resume_content.a` 테스트 푸시를 보내 탭 → 플레이어, 앱을 켠 상태에서는 안 보이는지(아래 정정) 본다. 확인되면 `archive/` + Jira 완료, BE는 운영 OTA 뒤 `RETENTION_PUSH_MODE=on`.
+- 2026-10-27 **정정 반영**(박준현 Jira 댓글 18:54 — 10-26 댓글 2번을 바꿈): 포그라운드 리텐션 알림은 **OS 배너도 숨기고 앱 안 표시도 없다**. 숨긴 것은 `push_foreground_suppressed { push_type, push_rule }`(반응률 분모 제외용 — `analytics.md`·`notification.md` 4.5 갱신). 백그라운드·종료 상태의 탭 이동과 `push_open` 파라미터는 그대로. 브랜치 `fix(fe)/retention-push-foreground` — 릴리스 #2081 전에 dev로.

@@ -71,15 +71,24 @@ export const startPushReceiving = (options: PushReceivingOptions): void => {
    *
    * 포그라운드의 드립 도착은 OS 배너를 띄우지 않는다 — 라이브러리 탭 배지가 대신한다(4.5).
    * 알림 센터에도 남기지 않는다: 이미 앱 안에서 본 통지가 나중에 또 보이면 새 도착으로 읽힌다.
-   * **리텐션 알림(4.6)은 도착이 아니라** 배지가 대신할 것이 없다 — 우리 것이 아닌 알림처럼 OS 기본대로 보여 준다.
+   * **리텐션 알림(4.6)도 포그라운드면 숨긴다** — 앱으로 다시 오게 하는 알림이라 이미 쓰는 사람에겐 필요 없고,
+   * 듣는 중에 "(광고)" 배너가 내려오면 방해만 된다(박준현 2026-10-27). 앱 안 대체 표시도 없다 — 도착이 아니다.
+   * 우리 것이 아닌 알림은 OS 기본대로 보여 준다.
    */
   Notifications.setNotificationHandler({
     handleNotification: async (notification) => {
-      const isArrival = parsePushData(notification.request.content.data)?.type === 'drip_arrival';
-      const isReplacedInApp = isArrival && AppState.currentState === 'active';
+      const message = parsePushData(notification.request.content.data);
+      const isHidden = message !== null && AppState.currentState === 'active';
+      // 반응률 분모에서 "안 보여 준 것"을 빼려고 남긴다 — 드립은 push_foreground_banner 가 센다
+      if (isHidden && message.type === 'retention') {
+        track('push_foreground_suppressed', {
+          push_type: message.type,
+          push_rule: message.rule ?? undefined,
+        });
+      }
       return {
-        shouldShowBanner: !isReplacedInApp,
-        shouldShowList: !isReplacedInApp,
+        shouldShowBanner: !isHidden,
+        shouldShowList: !isHidden,
         shouldPlaySound: false,
         shouldSetBadge: false,
       };
