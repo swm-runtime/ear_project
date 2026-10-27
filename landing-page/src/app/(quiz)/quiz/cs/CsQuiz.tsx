@@ -13,7 +13,8 @@ import { KAKAO_JS_KEY, SITE_URL } from "@/content/site";
  * (`quiz_start`·`quiz_complete`·`quiz_share`·`quiz_app_click`)뿐이다.
  *
  * 공유 링크에는 `utm_source=kakao|link|native`를 붙인다. GA4 세션 소스로 "공유로 들어온 방문"을 세기 위해서다.
- * 앱 받기는 `/app/?src=quiz_cs` — 스토어 쪽 출처 집계 규칙은 `app/AppStoreRedirect.tsx`.
+ * 앱 받기는 `/app/?src=quiz_cs_<들어온 utm_source>` — 채널별로 퀴즈 링크를 나눠 올리면(`?utm_source=everytime`)
+ * 설치도 채널별로 갈린다(2026-10-27). 스토어 쪽 출처 집계 규칙은 `app/AppStoreRedirect.tsx`.
  */
 
 /** 카카오 SDK — 버전과 무결성 해시를 함께 고정한다(kakaocdn 원본 파일의 sha384, 2026-10-27 확인). */
@@ -47,6 +48,18 @@ function shareUrl(source: "kakao" | "link" | "native"): string {
     utm_campaign: `quiz_${csQuiz.id}`,
   });
   return `${SITE_URL}${csQuiz.path}?${query}`;
+}
+
+/**
+ * 앱 받기 출처(`/app/?src=`) — 들어온 링크의 `utm_source`를 붙여 채널별 설치를 나눈다(`quiz_cs_everytime`).
+ * `utm_source`가 없거나 스토어 출처 형식(`AppStoreRedirect.tsx` — 소문자·숫자·`_`·`-` 40자)에 맞지 않으면 `quiz_cs`.
+ * 퀴즈 결과를 공유받아 들어온 사람은 `quiz_cs_kakao`처럼 공유 방식이 붙는다.
+ */
+function appSourceFor(search: string): string {
+  const base = csQuiz.appSource;
+  const channel = new URLSearchParams(search).get("utm_source")?.toLowerCase() ?? "";
+  const source = `${base}_${channel}`;
+  return /^[a-z0-9_-]+$/.test(channel) && source.length <= 40 ? source : base;
 }
 
 function track(event: string, params: Record<string, string | number> = {}) {
@@ -84,6 +97,12 @@ export function CsQuiz() {
     () => typeof navigator.share === "function",
     () => false,
   );
+  // 들어온 링크의 쿼리(채널 UTM). 서버 HTML에는 없으므로 빈 값으로 그리고 브라우저에서 다시 읽는다.
+  const search = useSyncExternalStore(
+    noSubscribe,
+    () => window.location.search,
+    () => "",
+  );
   const topRef = useRef<HTMLDivElement>(null);
   const nextRef = useRef<HTMLButtonElement>(null);
 
@@ -93,7 +112,8 @@ export function CsQuiz() {
   const answered = picked !== undefined;
   const score = csQuestions.filter((q, i) => picks[i] === q.answer).length;
   const level = levelFor(score);
-  const appHref = `/app/?src=${csQuiz.appSource}`;
+  const appSource = appSourceFor(search);
+  const appHref = `/app/?src=${appSource}`;
 
   // 문제가 바뀌면 카드 머리로 올린다 — 휴대폰에서는 풀이를 읽느라 내려간 화면이 그대로 남는다.
   useEffect(() => {
@@ -293,7 +313,7 @@ export function CsQuiz() {
               <a
                 className="btn btnPrimary"
                 href={appHref}
-                onClick={() => track("quiz_app_click", { placement: "result" })}
+                onClick={() => track("quiz_app_click", { placement: "result", app_source: appSource })}
               >
                 이어에서 무료로 듣기
               </a>
