@@ -292,6 +292,7 @@ export function twoStageViolations(scriptMd: string, outlineMd: string, opts: { 
   v.push(...v98Violations(scriptMd, p.turns));
   v.push(...v99Violations(p.turns));
   v.push(...v910Violations(p.turns));
+  v.push(...v911Violations(p.turns));
   // full-v7 (2026-09-15): 귀속 표현 턴 비율 검사는 폐지 — 32~36% 인 편에서도 소스 순회(재식별 15건)가 있었다. 구조 검사로 대체
   v.push(...attributionViolations(scriptMd, p.turns, opts));
   return v;
@@ -573,6 +574,8 @@ export const RATIO_RULE_MARKS = ["셋 중 하나가 상한이다", "질문은 �
   "명사절 감싸기는 편에 넷까지다", "\"~적인·~적으로\"는 편에 일곱 번까지다",
   // v9.10 (2026-10-14): 진행자의 추측을 맞장구 한마디로 받는 곳 — 주고받기 문체 규칙
   "추측을 맞장구 한마디로 받는 곳은 편에 한 번까지다",
+  // v9.11 (2026-10-27, KAN-269 — PodBench 기준선): 리듬·진행 반응·도입 예고 문체 규칙. 같은 화자 해설 연속은 형식이라 여기 넣지 않는다(한도 뒤 실패)
+  "같은 문장 수의 해설 턴은 다섯 턴 연속까지다", "진행자의 \"것 같아요\"는 편에 다섯 번까지다", "도입에서 구분을 예고하지 않는다",
   // 글로벌판 문체 위반(enStyleViolations) — 한국판 메시지와 겹치지 않는 영어 머리
   "Style limit:",
   // 시리즈 범위 검사(spec/11 6장, 2026-10-17) — 다른 편 몫을 풀어 쓴 곳. 판단 검사라 한도 뒤엔 QA 로
@@ -966,5 +969,47 @@ export function v910Violations(turns: ScriptTurn[]): string[] {
     if (bareRe.test(first)) hits.push(e);
   }
   if (hits.length >= 2) v.push(`진행자의 추측 뒤 해설 턴 ${hits.length}개가 맞장구 한마디로 시작함 (${hits.slice(0, 10).map((t) => t.id ?? "?").join(", ")}) — ${RATIO_RULE_MARKS[6]}. 이 턴들의 첫 문장을 진행자 말의 어느 부분이 맞는지 내용으로 짚는 문장으로 바꾸거나, 빠진 조건을 더한다. 뒤 설명은 그 말에서 잇는다 (규칙 4)`);
+  return v;
+}
+
+
+/**
+ * v9.11 리듬 검사 (2026-10-27, KAN-269) — PodBench(arXiv 2601.14903) Stage 2 기준선(v9.10 8편 54.1점 · 골드 79)의 최저 칸
+ * 리듬·긴장 41% 에서 문형으로 잡히는 것만 L0 로 둔다. 기준은 받아 둔 운영 대본 408편(v9.10 249 · 이전 158 · 골드 T260918-001)으로 맞췄다.
+ * - 같은 화자 해설 연속: 한 구간 안에서 해설 턴이 진행 턴 없이 같은 화자로 이어진다 — v9.10 19% · 이전 51% · 골드 0. 형식 결함이라 한도 뒤 실패
+ * - 같은 문장 수: 본문 해설 턴 문장 수가 같은 값으로 여섯 턴 이상 이어진다(규칙 9) — 최장 연속 평균 v9.10 11.2턴 · 골드 5턴, 여섯 이상 v9.10 81% · 골드 0
+ * - 진행자 "것 같아요": 편에 여섯 번부터(규칙 3) — v9.10 89% 가 여섯 번 이상 · 골드 3회
+ * - 도입 구분 예고: 도입에서 "나눠 보다·나누어 묻다"로 답의 틀을 미리 말한다(규칙 13) — v9.10 19% · 골드 0
+ * 뺀 것: "짧은 교환 구간마다"(골드도 본문 2문장 이하 해설 턴 0 — 리듬의 원인이 아니었다) · "다른 질문이에요"로 맺는 턴(편당 0.6회로 드물다 — 규칙 29·critic 이 본다)
+ */
+export function v911Violations(turns: ScriptTurn[]): string[] {
+  const v: string[] = [];
+  const sents = (t: string) => t.replace(/\.{3}|…/g, " ").split(/(?<=[.?!])\s+/).map((s) => s.trim()).filter(Boolean);
+  const isE = (t: ScriptTurn) => !!t.id?.startsWith("E");
+  const isY = (t: ScriptTurn) => !!t.id?.startsWith("Y");
+  const ids = (xs: ScriptTurn[], n = 10) => xs.slice(0, n).map((t) => t.id ?? "?").join(", ");
+  // 같은 화자 해설 연속 — 구간 경계(헤더 바로 다음 턴)는 규칙 1 의 "해설자가 한 문장으로 다음 내용을 연다"라 뺀다
+  const runOn: ScriptTurn[] = [];
+  for (let i = 1; i < turns.length; i++) {
+    const a = turns[i - 1], b = turns[i];
+    if (isE(a) && isE(b) && a.section === b.section && !b.blockStart && a.speaker === b.speaker) runOn.push(b);
+  }
+  if (runOn.length) v.push(`해설 턴이 진행 턴 없이 같은 화자로 이어짐 (${ids(runOn)}) — 앞 턴과 한 턴으로 합치거나, 사이에 진행자가 앞 해설의 막힌 지점을 묻는 한 문장을 둔다 (규칙 11)`);
+  // 같은 문장 수 여섯 턴 연속 — 본문 해설 턴만
+  const bodyE = turns.filter((t) => t.section === "본문" && isE(t));
+  const starts: ScriptTurn[] = [];
+  let runStart = 0;
+  for (let i = 1; i <= bodyE.length; i++) {
+    const same = i < bodyE.length && sents(bodyE[i].text).length === sents(bodyE[i - 1].text).length;
+    if (!same) { if (i - runStart >= 6) starts.push(bodyE[runStart]); runStart = i; }
+  }
+  if (starts.length) v.push(`본문 해설 턴 문장 수가 같은 값으로 여섯 턴 이상 이어짐 (${ids(starts)}부터) — ${RATIO_RULE_MARKS[7]}. 그 구간에서 의외의 결과를 말하는 턴은 한두 문장으로 짧게, 원리·맥락을 펴는 턴은 충분히 길게 해 길이를 벌린다. 설명을 빼서 줄이지 않는다 (규칙 9)`);
+  // 진행자 "것 같아요"
+  const guessY = turns.filter((t) => isY(t) && t.section !== "인트로" && /것 같(아요|은데요|네요|습니다)/.test(t.text));
+  if (guessY.length >= 6) v.push(`진행 턴 ${guessY.length}개가 "것 같아요"로 자기 처지를 대입함 (${ids(guessY, 12)}) — ${RATIO_RULE_MARKS[8]}. 이 가운데 ${guessY.length - 5}개 이상을 짧은 수긍이나 의외라는 반응, 막힌 지점의 되물음으로 바꾼다 (규칙 3)`);
+  // 도입 구분 예고
+  const previewRe = /나눠(서)? (보|살펴|물어|짚어|따져)|나누어 (보|살펴|물어|짚어)|둘로 나눠/;
+  const preview = turns.filter((t) => t.section === "도입" && previewRe.test(t.text));
+  if (preview.length) v.push(`도입 턴 ${preview.length}개가 답의 틀을 미리 말함 (${ids(preview)}) — ${RATIO_RULE_MARKS[9]}. "나눠 보자" 대신 청취자가 처음 품을 질문 하나로 열고, 구분은 본문의 결과로 드러나게 한다 (규칙 13)`);
   return v;
 }
