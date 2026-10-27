@@ -36,6 +36,15 @@ export const SITE_URL =
  */
 export const GA_MEASUREMENT_ID = "G-92D7LE95GX";
 
+/**
+ * 카카오 JavaScript 키 — 퀴즈 결과의 [카카오톡으로 공유](`Kakao.Share`)가 쓴다(2026-10-27 — KAN-281).
+ *
+ * GA 측정 ID와 같은 이유로 상수로 둔다. 브라우저에 그대로 실리는 공개값이고, 남용은 키가 아니라
+ * 카카오 디벨로퍼스 앱의 **플랫폼 → Web → 사이트 도메인** 등록(`https://earcast.co.kr`, 로컬 확인용
+ * `http://localhost:3000`)이 막는다. `null`이면 카카오 버튼을 숨기고 링크 복사만 남긴다.
+ */
+export const KAKAO_JS_KEY: string | null = "c8ed8c6e559ee3db3407886a0631f2ac";
+
 export const site = {
   name: "이어",
   nameEn: "ear",
