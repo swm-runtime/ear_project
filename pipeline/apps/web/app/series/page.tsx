@@ -6,6 +6,7 @@ import { fmtTime } from "@/lib/format";
 import { pipelineLocale } from "@/lib/locale";
 import { SERIES_STATUS_LABEL, type SeriesRow } from "@/lib/series";
 import { ProductSeriesCovers } from "./product-series-covers";
+import { loadPublications } from "@/lib/publications-server";
 
 /** 시리즈 목록 (spec/11 9장, KAN-136) — 설계안·승인·편별 진행 */
 export default async function SeriesListPage() {
@@ -14,6 +15,7 @@ export default async function SeriesListPage() {
     sb.from("series").select("*").order("created_at", { ascending: false }).limit(100),
     sb.from("backlog").select("series_id,status").not("series_id", "is", null),
   ]);
+  const publications = await loadPublications();
   const prog = new Map<string, Record<string, number>>();
   for (const e of eps ?? []) { const m = prog.get(e.series_id) ?? {}; m[e.status] = (m[e.status] ?? 0) + 1; prog.set(e.series_id, m); }
   return (
@@ -39,7 +41,7 @@ export default async function SeriesListPage() {
           })}
         </Table>
       </Panel>
-      <ProductSeriesCovers locale={pipelineLocale()} />
+      <ProductSeriesCovers locale={pipelineLocale()} publications={publications} />
     </div>
   );
 }

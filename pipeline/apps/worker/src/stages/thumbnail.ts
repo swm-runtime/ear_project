@@ -1,8 +1,8 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import { cfg, executedBy } from "../config.js";
-import { getBacklog, getEpisode, getSeries, getSetting, insertRun, majorOfMidTopic, pool, setJobProgress, type Job } from "../db.js";
-import { pipelineLocale, promptBody, publicationOf, publicationStyle } from "@ear/pipeline";
+import { getBacklog, getEpisode, getSeries, getSetting, insertRun, majorOfMidTopic, pool, setJobProgress, type Job, listPublications } from "../db.js";
+import { mergePublications, pipelineLocale, promptBody, publicationOf, publicationStyle } from "@ear/pipeline";
 import { SERIES_THUMBNAIL_PROMPT_KEY, THUMBNAIL_ANCHOR_PROMPT_KEY, THUMBNAIL_PROMPT_KEY, THUMBNAIL_SCENE_PROMPT_KEY, workerRev } from "../assets.js";
 import { makeExecutor } from "../executors/index.js";
 import { bookmarkFile, composeBookmark, composeCorner, cornerContrast } from "./thumbnail-compose.js";
@@ -110,12 +110,13 @@ export async function runThumbnail(job: Job) {
   // 2026-10-20 박수헌·팀원: 시리즈 디자인은 시리즈마다 따로 정한다(자동화하지 않는다). 2026-10-26 KAN-247: 디자인은 **간행물**(series.publication, @ear/pipeline publication.ts)이 정한다 —
   // 종전 "큰 단어(thumb_word)를 채웠나" 판정을 대체. keyword 스타일(키워드·Phrasebook)은 이 경로, 없음·scene 스타일(연대기)은 일반 편처럼 장면 썸네일
   const series = sr.rows[0]?.series_id ? await getSeries(sr.rows[0].series_id as string) : null;
-  const style = series ? publicationStyle(series.publication) : "scene";
+  const pubs = series ? mergePublications(await listPublications()) : []; // 상수 + 콘솔에서 만든 간행물(0036)
+  const style = series ? publicationStyle(series.publication, pubs) : "scene";
   if (series && style === "phrasebook") {
     return runPhrasebookThumbnail({ job, episodeId, backlogId, rel, outFile, progress, seriesId: series.id, no: sr.rows[0].series_no as number, title: cand.title, oneLiner: firstNonEmpty(row.rows[0]?.one_liner, cand.axis) });
   }
   if (series && style === "keyword") {
-    if (!series.thumb_word?.trim()) throw new Error(`시리즈 "${series.name}" 는 간행물 ${publicationOf(series.publication)?.name ?? series.publication}(키워드 디자인)인데 썸네일 큰 단어(thumb_word)가 비었다 — 시리즈 화면에서 채운 뒤 다시 건다`);
+    if (!series.thumb_word?.trim()) throw new Error(`시리즈 "${series.name}" 는 간행물 ${publicationOf(series.publication, pubs)?.name ?? series.publication}(키워드 디자인)인데 썸네일 큰 단어(thumb_word)가 비었다 — 시리즈 화면에서 채운 뒤 다시 건다`);
     return runSeriesThumbnail({ job, episodeId, backlogId, rel, outFile, progress, seriesId: series.id, no: sr.rows[0].series_no as number, rebase: !!job.payload.rebase });
   }
 
