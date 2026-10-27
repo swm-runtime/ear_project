@@ -637,6 +637,10 @@ class PlaybackService {
     if (!ctx.hasReportedPlayStart && status.playing) {
       void this.reportPlayStart();
     }
+    // 멈춘 채 연 푸시 콘텐츠(KAN-273)가 소리를 냈다 — 이제부터 ▶·⏸는 평소대로다
+    if (status.playing && store.getState().confirmBeforePlayContentId === ctx.contentId) {
+      store.getState().setConfirmBeforePlay(null);
+    }
 
     // 구간 통과 — 25·50·75 를 한 세션에 각 1회. 완청 판정(서버)과 별개의 제품 분석 값이다
     if (durationSec > 0 && ctx.hasReportedPlayStart) {

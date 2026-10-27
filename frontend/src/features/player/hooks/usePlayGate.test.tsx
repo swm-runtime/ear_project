@@ -111,3 +111,75 @@ describe('소진 힌트의 발급 먼저 재생 — 듣던 편을 지킨다(KAN-
     expect(usePlaybackStore.getState().queueContext).toEqual({ kind: 'library' });
   });
 });
+
+describe('푸시 콘텐츠는 멈춘 플레이어로 연다 — ▶에서 확인 팝업(KAN-273)', () => {
+  const actAsync = act as unknown as (callback: () => Promise<void>) => Promise<void>;
+  const flush = () => actAsync(() => new Promise((resolve) => setTimeout(resolve, 0)));
+  const setSession = (contentId: string) =>
+    usePlaybackStore.getState().setSession({ contentId } as never);
+
+  beforeEach(() => {
+    // 오늘 2회 중 0회 — 차감되는 재생이면 팝업이 뜬다
+    usePlayLimitStore.setState({
+      playLimit: { dailyPlayLimit: 2, dailyPlayCount: 0, serviceDate: '2026-10-27' },
+      suppressedServiceDate: null,
+    });
+    usePlaybackStore.getState().setConfirmBeforePlay(null);
+  });
+
+  it('발급이 되면 소리 없이 플레이어만 열고, 첫 ▶를 기다린다', () => {
+    act(() =>
+      gate.requestPlay(
+        { contentId: 'content-9', isCountedToday: false, openAfterIssue: true, openPaused: true },
+        'push',
+      ),
+    );
+    const request = mockStart.mock.calls[0][0];
+    expect(request.autoplay).toBe(false);
+
+    act(() => request.callbacks?.onIssued?.({ isReusedSession: false }));
+
+    expect(mockNavigate).toHaveBeenCalledTimes(1);
+    expect(gate.confirmState).toBeNull();
+    expect(usePlaybackStore.getState().confirmBeforePlayContentId).toBe('content-9');
+  });
+
+  it('첫 ▶가 차감되는 재생이면 팝업 — [취소]해도 세션을 내리지 않고, [재생하기]면 재생한다', async () => {
+    const { playbackService } = jest.requireMock<{
+      playbackService: { playWhenReady: jest.Mock; clearSession: jest.Mock };
+    }>('../services/playback.service');
+    setSession('content-9');
+    usePlaybackStore.getState().setConfirmBeforePlay('content-9');
+
+    act(() => gate.requestHeldPlay('content-9', 'push'));
+    await flush();
+    expect(gate.confirmState?.remaining).toBe(2);
+    expect(playbackService.playWhenReady).not.toHaveBeenCalled();
+
+    act(() => gate.cancelConfirm());
+    expect(playbackService.clearSession).not.toHaveBeenCalled();
+    expect(usePlaybackStore.getState().confirmBeforePlayContentId).toBe('content-9');
+
+    act(() => gate.requestHeldPlay('content-9', 'push'));
+    await flush();
+    act(() => gate.confirmPlay());
+    expect(playbackService.playWhenReady).toHaveBeenCalledTimes(1);
+    expect(usePlaybackStore.getState().confirmBeforePlayContentId).toBeNull();
+  });
+
+  it('차감되지 않는 재생이면(오늘 팝업 끄기) 첫 ▶에 바로 재생한다', async () => {
+    const { playbackService } = jest.requireMock<{
+      playbackService: { playWhenReady: jest.Mock };
+    }>('../services/playback.service');
+    usePlayLimitStore.setState({ suppressedServiceDate: '2026-10-27' });
+    setSession('content-9');
+    usePlaybackStore.getState().setConfirmBeforePlay('content-9');
+
+    act(() => gate.requestHeldPlay('content-9', 'push'));
+    await flush();
+
+    expect(gate.confirmState).toBeNull();
+    expect(playbackService.playWhenReady).toHaveBeenCalledTimes(1);
+    expect(usePlaybackStore.getState().confirmBeforePlayContentId).toBeNull();
+  });
+});
