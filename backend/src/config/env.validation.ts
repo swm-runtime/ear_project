@@ -269,6 +269,15 @@ export class EnvironmentVariables {
   RETENTION_PUSH_MODE?: string;
 
   /**
+   * 리텐션 알림 시험 대상(`notification.md` 4.6) — 쉼표로 구분한 사용자 id(uuid). `RETENTION_PUSH_MODE=dry_run`일 때 **이 사용자에게만
+   * 실제로 보낸다**(나머지는 종전처럼 로그만). 켜기 전에 운영에서 실제 문구·도착을 본인 기기로 확인하려고 둔다. 대상 조건(마케팅 동의 ·
+   * 보낼 기기)과 규칙 판정은 그대로라, 성립하는 규칙이 없으면 시험 대상도 받지 않는다. `on`·`off`에서는 쓰지 않는다
+   */
+  @IsOptional()
+  @IsString()
+  RETENTION_PUSH_TEST_USER_IDS?: string;
+
+  /**
    * 가입 체험(`subscription.md` 4.8)의 서버 스위치. `true`일 때만 **새로 가입하는 계정**에 체험을 준다.
    * 비우거나 `false`면 주지 않는다(환경과 무관하게 명시적으로 켜야 한다).
    *
