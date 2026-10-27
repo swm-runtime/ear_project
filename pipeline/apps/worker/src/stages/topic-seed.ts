@@ -63,8 +63,9 @@ export async function runTopicSeed(job: Job, ex: Executor) {
     const sweptAt = new Date().toISOString();
     const added: typeof found = []; const dropped: string[] = []; const newDomains: string[] = [];
     const seenUrl = new Set<string>();
-    // 글로벌판: 본문 접근 가능성 선검사 (2026-10-23) — 세기 전에 실제로 열리는지 본다. 못 여는 소스는 적재하되(fetch_status 기록) 역할표에는 넣지 않는다. 403 은 우회하지 않는다
-    const bodyOk = en ? new Map(await Promise.all(found.map(async (s) => [s.url, await fetchArticle(0, s.url).catch(() => null)] as const))) : null;
+    // 본문 접근 가능성 선검사 (글로벌 2026-10-23 → 한국판도 2026-10-27) — 세기 전에 실제로 열리는지 본다. 못 여는 소스는 적재하되(fetch_status 기록) 역할표에는 넣지 않는다. 403 은 우회하지 않는다.
+    // 한국판은 이 검사가 없어 초안 설계에서 "소스 본문 3건 미달"로 자동 반려됐다(10-26·27 창업·마케팅 1화 — 403 소스 3건)
+    const bodyOk = new Map(await Promise.all(found.map(async (s) => [s.url, await fetchArticle(0, s.url).catch(() => null)] as const)));
     for (const s of found) {
       if (!/^https?:\/\//.test(s.url) || seenUrl.has(s.url)) continue;
       seenUrl.add(s.url);

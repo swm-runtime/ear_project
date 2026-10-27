@@ -53,7 +53,7 @@ export async function runReinforce(job: Job, ex: Executor) {
   const existingUrls = new Set(cand.sources.map((s) => s.url));
   // 글로벌판: 본문 접근 가능성 선검사 (2026-10-23) — 검색 결과를 세기 전에 실제로 열리는지 본다. 403·500·빈 본문은 적재는 하되(fetch_status 기록 → 군집화 제외) 역할표에는 넣지 않는다.
   // 첫 배치에서 소스 10건을 모아 놓고 설계 단계에서 2건만 열려 자동 반려된 편이 2개였다. 403 은 우회하지 않는다 — 세지 않을 뿐이다
-  const bodyOk = en ? new Map(await Promise.all(found.map(async (s) => [s.url, await fetchArticle(0, s.url).catch(() => null)] as const))) : null;
+  const bodyOk = new Map(await Promise.all(found.map(async (s) => [s.url, await fetchArticle(0, s.url).catch(() => null)] as const))); // 한국판도 선검사 (2026-10-27 — topic-seed 와 같은 이유)
   for (const s of found) {
     if (!/^https?:\/\//.test(s.url) || existingUrls.has(s.url)) { dup.push(s.url); continue; }
     let d = await findDomainForUrl(s.url);
