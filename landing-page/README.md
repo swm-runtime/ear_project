@@ -31,7 +31,7 @@ npm run build    # out/ 에 정적 파일 생성 (prebuild가 og:image를 먼저
 
 글로벌 스토어 심사용 **필수 4페이지만** 영어로 둔다(2026-10-15 — KAN-199): `/en/`(소개) · `/en/terms/` · `/en/privacy/` · `/en/account-deletion/`. 랜딩 전면 영어화는 범위 밖이다.
 
-- **루트 레이아웃이 둘이다.** 한국어 페이지는 `src/app/(ko)/`(주소에 `(ko)`는 나오지 않는다), 영어는 `src/app/en/`이 각자 `<html lang>`과 헤더를 그린다. 맨 위 레이아웃이 없어서 없는 주소의 404는 `src/app/global-not-found.tsx`가 그린다(`next.config.ts` `experimental.globalNotFound`). 두 레이아웃 사이 이동은 전체 새로고침이다.
+- **루트 레이아웃이 둘이다.** 한국어 페이지는 `src/app/(ko)/`(주소에 `(ko)`는 나오지 않는다), 영어는 `src/app/en/`이 각자 `<html lang>`과 헤더를 그린다. 맨 위 레이아웃이 없어서 없는 주소의 404는 `src/app/global-not-found.tsx`가 그린다(`next.config.ts` `experimental.globalNotFound`). 두 레이아웃 사이 이동은 전체 새로고침이다. (퀴즈 페이지는 헤더·바닥글 없는 세 번째 루트 레이아웃 `src/app/(quiz)/`를 쓴다 — 아래 "사이트맵 밖의 주소")
 - 영어 경로·메타는 `src/content/en/routes.ts`, 문구는 `src/content/en/`(`site.ts` 소개 · `account-deletion.ts` 계정 삭제)와 `src/content/legal-en.ts`(약관·처리방침 — PR #1584). **`/en` 화면에는 한국어 글자를 넣지 않는다** — 예외는 바닥글의 언어 전환 링크 이름 "한국어" 하나.
 - 영어판이 있는 페이지는 양쪽이 같은 `hreflang` 묶음(ko · en · x-default=ko)을 `<head>`와 사이트맵에 낸다(`lib/seo.ts` `languageAlternates`).
 - 영어 약관·처리방침(`legal-en.ts`)은 한국어 번역이 아니라 **글로벌 시장용으로 따로 쓴 초안**이다(동남아 개인정보법·CCPA/CPRA·Apple 3.1.2). 법무 검토 전이라 **noindex·nofollow이고 사이트맵에 넣지 않는다**(`content/en/routes.ts`의 `indexable: false` — 검토가 끝나면 true로). `hreflang`은 그대로 단다.
@@ -43,7 +43,7 @@ npm run build    # out/ 에 정적 파일 생성 (prebuild가 og:image를 먼저
 |---|---|
 | `/contents/<id>/` | 앱 공유 링크 수신 — 앱 열기 버튼과 스토어 버튼(`src/app/contents/`) |
 | `/app/` | **앱 받기 링크** — 휴대폰이면 기기에 맞는 스토어로 바로 이동(아이폰 → App Store, 안드로이드 → Google Play), PC 는 두 스토어 버튼. 인스타그램 프로필처럼 링크를 하나만 걸 수 있는 곳에 쓴다(2026-10-04). `?src=ig_bio` 처럼 출처를 붙이면 Google Play 는 UTM 으로 넘겨 Play Console 획득 보고서에 잡히고, App Store 는 제공자 토큰(`AppStoreRedirect.tsx`의 `APP_STORE_PROVIDER_TOKEN`, 2026-10-04 등록)으로 캠페인 링크(`pt`·`ct`)로 넘겨 App Store Connect 앱 분석 → 획득 → 캠페인에 잡힌다(앱 개발자와 데이터 공유에 동의한 사용자만). 출처 값은 소문자·숫자·`_`·`-` 40자까지 |
-| `/quiz/cs/` | **CS 지식 테스트**(2026-10-27 — KAN-281 홍보용 참여형 콘텐츠). 카톡·메신저로 주고받는 10문제 퀴즈 — 결과(레벨)에서 「키워드로 빠르게 배우는 CS 지식」 시리즈 안내와 앱 받기(`/app/?src=quiz_cs`)로 잇는다. 문제는 `src/content/quiz-cs.ts`, 공유 카드는 `og-pages.mjs`의 `quiz-cs.png`. 카카오톡 공유 버튼은 `site.ts`의 `KAKAO_JS_KEY`가 있을 때만 보인다(카카오 디벨로퍼스 앱에 사이트 도메인 등록 필요). GA4 이벤트 `quiz_start`·`quiz_complete`·`quiz_share`·`quiz_app_click`, 공유 링크는 `utm_medium=share` |
+| `/quiz/cs/` | **CS 지식 테스트**(2026-10-27 — KAN-281 홍보용 참여형 콘텐츠). 카톡·메신저로 주고받는 10문제 퀴즈. **사이트 헤더·바닥글 없이** 퀴즈 전용 루트 레이아웃(`src/app/(quiz)/layout.tsx`)으로 그린다 — 시작부터 광고처럼 보이지 않게 앱 안내는 결과 화면에만 둔다. 결과(레벨)에서 「키워드로 빠르게 배우는 CS 지식」 시리즈 안내와 앱 받기(`/app/?src=quiz_cs`)로 잇는다. 문제는 `src/content/quiz-cs.ts`, 공유 카드는 `og-pages.mjs`의 `quiz-cs.png`. 카카오톡 공유 버튼은 `site.ts`의 `KAKAO_JS_KEY`가 있을 때만 보인다(카카오 디벨로퍼스 앱에 사이트 도메인 등록 필요). GA4 이벤트 `quiz_start`·`quiz_complete`·`quiz_share`·`quiz_app_click`, 공유 링크는 `utm_medium=share` |
 
 세 주소 모두 `noindex`이고 `routes.ts`에 넣지 않는다 — 내비·사이트맵에 나올 페이지가 아니다.
 
@@ -105,7 +105,8 @@ src/
       features/ pricing/ faq/ privacy/ terms/ account-deletion/ ...   각 page.tsx
       blog/page.tsx       목록
     en/                 영어 4페이지 + 영어 루트 레이아웃(`<html lang="en">`)
-    global-not-found.tsx  없는 주소의 404(루트 레이아웃이 둘이라 레이아웃 없이 그린다)
+    (quiz)/             퀴즈 페이지(/quiz/…) — 헤더·바닥글 없는 루트 레이아웃
+    global-not-found.tsx  없는 주소의 404(루트 레이아웃이 여럿이라 레이아웃 없이 그린다)
     globals.css         디자인 토큰 + 공용 클래스(container/section/btn/eyebrow)
     icon.png  manifest.ts  robots.ts  sitemap.ts
   components/           섹션·공용 컴포넌트 + 같은 이름의 *.module.css
