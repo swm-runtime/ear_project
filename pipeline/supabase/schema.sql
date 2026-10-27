@@ -93,7 +93,7 @@ create table if not exists backlog (
   sub_topic   text,                            -- 0028: 글로벌판 보조 주제(대표는 mid_topic) — 한국판은 null
   gate1_checks jsonb,                          -- 0028: 글로벌판 게이트 1 기록 {screen, warnings_confirmed} — 한국판은 null
   series_id   uuid references series(id),      -- 0029: 기획 시리즈 편이면 그 시리즈 — 일반 편은 null
-  series_no   int,                             -- 0029: 화 번호(1부터). series_id 와 함께 있거나 함께 없다 (backlog_series_pair_check · 부분 유니크 backlog_series_no_uq)
+  series_no   int,                             -- 0029: 화 번호(1부터). series_id 와 함께 있거나 함께 없다 (backlog_series_pair_check · 부분 유니크 backlog_series_no_uq — 0035: 반려된 후보는 빼고 센다, 한 화에 살아 있는 후보 하나)
   created_at  timestamptz not null default now(),
   updated_at  timestamptz not null default now()
 );

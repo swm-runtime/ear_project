@@ -1,6 +1,6 @@
 import fs from "node:fs/promises";
 import { cfg, executedBy } from "../config.js";
-import { seriesSiblingIds, domainTierByHost, existingBacklogTitles, findDomainForUrl, insertBacklogAlloc, insertCandidateDomain, insertRun, majorOfMidTopic, midsOfMajor, poolDomainsForTopics, recentSourcesForTopics, recordFetchStatus, setBacklogStatus, setJobProgress, upsertSource, type Job, allTopicMids, tierOfUrl } from "../db.js";
+import { seriesSiblingIds, retireSeriesEpisodeCandidates, domainTierByHost, existingBacklogTitles, findDomainForUrl, insertBacklogAlloc, insertCandidateDomain, insertRun, majorOfMidTopic, midsOfMajor, poolDomainsForTopics, recentSourcesForTopics, recordFetchStatus, setBacklogStatus, setJobProgress, upsertSource, type Job, allTopicMids, tierOfUrl } from "../db.js";
 import type { Executor } from "../executors/index.js";
 import { assetPaths, globalGaps, KOREAN_SOURCE_MIN_EN, buildClusterPromptV2, buildTopicJudgePromptEn, buildTopicSeedSearchPrompt, buildTopicSeedSearchPromptEn, CLUSTER_SCHEMA_V2, CLUSTER_SCHEMA_V2_EN, judgeToInternal, REINFORCE_SEARCH_SCHEMA, REINFORCE_SEARCH_SCHEMA_EN, todayKst, pipelineLocale } from "@ear/pipeline";
 import { hostOf, log } from "../util.js";
@@ -40,7 +40,13 @@ export async function runTopicSeed(job: Job, ex: Executor) {
   if (job.payload.sub_topic || job.payload.screen) await setBacklogStatus(id, "held", { ...(job.payload.sub_topic ? { sub_topic: String(job.payload.sub_topic) } : {}), ...(job.payload.screen ? { gate1_checks: JSON.stringify({ screen: job.payload.screen }) } : {}) });
   // 시리즈 편 (0029, spec/11 4장): 시리즈 승인이 편마다 건 작업 — 후보에 시리즈·화 번호를 단다
   const seriesId = job.payload.series_id ? String(job.payload.series_id) : null;
-  if (seriesId) await setBacklogStatus(id, "held", { series_id: seriesId, series_no: Number(job.payload.series_no) });
+  if (seriesId) {
+    const no = Number(job.payload.series_no);
+    // 같은 화 번호의 살아 있는 후보는 반려로 비운다(0035, 2026-10-27) — 앞선 시도가 남긴 "검색 진행 중" 행·[다시 기획] 전의 보류 행이 자리를 차지해 duplicate key 로 실패했다. 초안 이후 후보가 있으면 유니크가 막아 이 작업이 실패한다(그 화는 재작성 흐름)
+    const retired = await retireSeriesEpisodeCandidates(seriesId, no, id);
+    if (retired.length) log(`  topic-seed ${id}: ${no}화 앞선 후보 ${retired.join(", ")} 를 대체(반려)`);
+    await setBacklogStatus(id, "held", { series_id: seriesId, series_no: no });
+  }
   log(`  topic-seed ${id}: "${topic}" (${midTopic}) — 검색 시작`);
   try {
     // ── 1. 검색
