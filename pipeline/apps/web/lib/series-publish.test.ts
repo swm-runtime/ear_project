@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { seriesContentTitle, seriesPublishBlockers, seriesUploadQueue, type SeriesPublishEpisode } from "./series";
+import { seriesContentTitle, seriesPublishBlockers, seriesReplanBlocker, seriesUploadQueue, type SeriesPublishEpisode } from "./series";
 
 const ep = (no: number, status: string, extra: Partial<SeriesPublishEpisode> = {}): SeriesPublishEpisode => ({ no, backlog_id: `C${no}`, status, episode_id: `S1-00${no}`, content_id: null, ...extra });
 const ok = { reviewed: true, enrichment: true };
@@ -33,4 +33,12 @@ test("시리즈 썸네일 글자 칸 — 큰 단어는 영문 소문자, 라벨�
   assert.match(cleanSeriesThumb({ publication: "keyword", word: "경제", label: "", box: "" }, "ko").problems.join(), /영문/);
   assert.deepEqual(cleanSeriesThumb({ publication: null, word: "", label: "", box: "" }, "ko").problems, []); // 간행물 없음 = 이 디자인을 쓰지 않는다
   assert.match(cleanSeriesThumb({ publication: "keyword", word: "basics", label: "", box: "아주 긴 박스 글자입니다요" }, "ko").problems.join(), /12자/);
+});
+
+test("[이 편 다시 기획] — 승인된 시리즈에서, 그 화 후보가 전부 반려·보류·제안이고 작업이 없을 때만", () => {
+  assert.equal(seriesReplanBlocker({ status: "approved" }, 3, [{ id: "C3", status: "rejected" }], false), null);
+  assert.equal(seriesReplanBlocker({ status: "approved" }, 3, [{ id: "C3", status: "rejected" }, { id: "C9", status: "held" }], false), null);
+  assert.match(seriesReplanBlocker({ status: "approved" }, 3, [{ id: "C3", status: "drafted" }], false)!, /C3\(drafted\) 가 이미 초안 이후/);
+  assert.match(seriesReplanBlocker({ status: "approved" }, 3, [{ id: "C3", status: "rejected" }], true)!, /이미 큐·실행 중/);
+  assert.match(seriesReplanBlocker({ status: "published" }, 3, [], false)!, /승인된 시리즈/);
 });

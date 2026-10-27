@@ -49,8 +49,8 @@ async function seriesPrevReadyWeb(id: string): Promise<boolean> {
   const sb = await supabaseServer();
   const { data: b } = await sb.from("backlog").select("series_id,series_no").eq("id", id).single();
   if (!b?.series_id || !b.series_no || b.series_no <= 1) return true;
-  const { data: p } = await sb.from("backlog").select("status").eq("series_id", b.series_id).eq("series_no", b.series_no - 1).maybeSingle();
-  return !!p && SERIES_PREV_READY.includes(p.status);
+  const { data: p } = await sb.from("backlog").select("status").eq("series_id", b.series_id).eq("series_no", b.series_no - 1).neq("status", "rejected"); // 반려된 후보는 뺀다 — [이 편 다시 기획] 뒤 같은 화 번호에 후보가 둘일 수 있다(2026-10-27)
+  return (p ?? []).some((x) => SERIES_PREV_READY.includes(x.status));
 }
 
 /** 글로벌판 보조 주제 변경 — 후보 구성 뒤 더하거나 뺀다(명세 2장). 대표 주제(mid_topic)와 같으면 거부, 빈 값은 지움 */

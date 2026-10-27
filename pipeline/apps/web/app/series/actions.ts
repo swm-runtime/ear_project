@@ -4,7 +4,7 @@ import { supabaseServer } from "@/lib/supabase-server";
 import { pipelineLocale } from "@/lib/locale";
 import { majorTopicsFor } from "@/lib/taxonomy";
 import { screenGlobalTopic } from "@/lib/topic-screen";
-import { cleanPlan, cleanSeriesThumb, seriesEpisodeHint, type SeriesEpisode, type SeriesPublishEpisode, type SeriesRow } from "@/lib/series";
+import { cleanPlan, cleanSeriesThumb, seriesEpisodeHint, seriesReplanBlocker, type SeriesEpisode, type SeriesPublishEpisode, type SeriesRow } from "@/lib/series";
 import { enqueueJob } from "../actions";
 
 /**
@@ -101,6 +101,56 @@ export async function approveSeries(id: string): Promise<Result<{ queued: number
   return { ok: true, queued: plan.length };
 }
 
+/**
+ * [이 편 다시 기획] (spec/11 4장, 2026-10-27) — 반려·보류된 편을 같은 화 번호로 다시 기획한다. 승인 때 건 것과 같은 B-② 작업(설계안 제목·범위·형제 편 힌트, 글로벌판은 배제 주제 재판정)을
+ * 하나 더 건다. 그 화의 남은 후보(보류·제안)는 반려로 정리해 한 화에 살아 있는 후보가 하나만 남게 한다 — 앞 편 조회·발행 목록은 반려를 빼고 본다.
+ */
+export async function replanSeriesEpisode(id: string, no: number): Promise<Result<{ rejected: number }>> {
+  const s = await loadSeries(id);
+  if (!s) return { ok: false, reason: "시리즈가 없다" };
+  const ep = (s.plan ?? []).find((e) => e.no === no);
+  if (!ep) return { ok: false, reason: `설계안에 ${no}화가 없다` };
+  const sb = await supabaseServer();
+  const { data: cands, error: e0 } = await sb.from("backlog").select("id,status").eq("series_id", id).eq("series_no", no);
+  if (e0) return { ok: false, reason: e0.message };
+  const { data: jobs } = await sb.from("jobs").select("id,payload").eq("type", "sweep").in("status", ["queued", "claimed", "running"]).eq("payload->>series_id", id);
+  const ids = new Set((cands ?? []).map((c) => c.id));
+  const active = (jobs ?? []).some((j) => { const p = j.payload as { series_no?: number; backlog_id?: string }; return Number(p.series_no) === no || (p.backlog_id ? ids.has(p.backlog_id) : false); });
+  const blocker = seriesReplanBlocker(s, no, cands ?? [], active);
+  if (blocker) return { ok: false, reason: blocker };
+  const en = pipelineLocale() === "en";
+  let screen: unknown = undefined;
+  if (en) {
+    try {
+      const sc = await screenGlobalTopic({ topics: [s.mid_topic], title: ep.title, hint: ep.scope });
+      if (sc.excluded) return { ok: false, reason: `${no}화 "${ep.title}" 배제 주제 — ${sc.reason}` };
+      screen = sc;
+    } catch (e: any) { return { ok: false, reason: String(e?.message ?? e) }; }
+  }
+  const live = (cands ?? []).filter((c) => c.status !== "rejected").map((c) => c.id);
+  if (live.length) {
+    const { error: e1 } = await sb.from("backlog").update({ status: "rejected" }).in("id", live);
+    if (e1) return { ok: false, reason: e1.message };
+  }
+  await enqueueJob("sweep", { mode: "B2", mid_topic: s.mid_topic, topic: ep.title, hint: seriesEpisodeHint(s, no, en), series_id: id, series_no: no, replan: true, ...(en ? { screen } : {}) });
+  revalidatePath(`/series/${id}`); revalidatePath("/backlog");
+  return { ok: true, rejected: live.length };
+}
+
+/** 반려된 편 후보를 보류로 되돌린다 — 소스만 더 찾으면 되는 편은 백로그의 [보강]·[승인]으로 살린다. 그 화에 살아 있는 다른 후보가 있으면 거부 */
+export async function restoreSeriesEpisode(id: string, backlogId: string): Promise<Result> {
+  const sb = await supabaseServer();
+  const { data: b } = await sb.from("backlog").select("id,status,series_id,series_no").eq("id", backlogId).maybeSingle();
+  if (!b || b.series_id !== id) return { ok: false, reason: "이 시리즈의 편 후보가 아니다" };
+  if (b.status !== "rejected") return { ok: false, reason: `반려 상태가 아니다 (${b.status})` };
+  const { data: others } = await sb.from("backlog").select("id,status").eq("series_id", id).eq("series_no", b.series_no).neq("id", backlogId).neq("status", "rejected");
+  if (others?.length) return { ok: false, reason: `${b.series_no}화에 살아 있는 후보 ${others.map((o) => `${o.id}(${o.status})`).join(", ")} 가 있다` };
+  const { error } = await sb.from("backlog").update({ status: "held" }).eq("id", backlogId).eq("status", "rejected");
+  if (error) return { ok: false, reason: error.message };
+  revalidatePath(`/series/${id}`); revalidatePath("/backlog");
+  return { ok: true };
+}
+
 /** [시리즈 중단] — 발행 전만. 아직 초안에 들어가지 않은 편 후보는 반려하고, 이미 만든 편은 보관만 한다(회상·예고가 있어 단일 편으로 내지 않는다) */
 export async function cancelSeries(id: string): Promise<Result<{ rejected: number }>> {
   const s = await loadSeries(id);
@@ -120,7 +170,7 @@ export async function cancelSeries(id: string): Promise<Result<{ rejected: numbe
 /** 발행 화면의 편 목록 — 후보(화 순서) + 편마다 오디오가 있는 최신 에피소드 */
 export async function seriesPublishEpisodes(id: string): Promise<SeriesPublishEpisode[]> {
   const sb = await supabaseServer();
-  const { data: bls, error } = await sb.from("backlog").select("id,status,series_no,published_content_ref").eq("series_id", id).order("series_no");
+  const { data: bls, error } = await sb.from("backlog").select("id,status,series_no,published_content_ref").eq("series_id", id).neq("status", "rejected").order("series_no"); // 반려된 후보는 뺀다 — [이 편 다시 기획]으로 같은 화 번호에 후보가 둘일 수 있다(2026-10-27)
   if (error) throw new Error(error.message);
   const ids = (bls ?? []).map((b) => b.id);
   const { data: eps } = ids.length
