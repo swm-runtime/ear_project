@@ -13,7 +13,7 @@
 | 선행 | `tickets/backend/pending/profile-topic-highlight.md`(KAN-266) — **실기기 확인만** 그 배포 뒤. 코드는 필드가 없어도 안 깨지게 먼저 나간다 |
 | 근거 문서 | `features/profile.md` 4.7-1 · `spec/uiux/profile-uiux.md` 4.6 "주제 한 줄" · `spec/api/profile-api.md` 4.1 `topic_highlight` |
 | 중요도 | Medium |
-| 상태 | 발행 |
+| 상태 | 반영 완료 |
 
 ## 왜
 
@@ -51,3 +51,4 @@ PM(2026-10-24): 주제 쪽 리텐션 — "가장 많이 들은 주제 옆에", �
   - 테스트: 변환 · 문구 · 컴포넌트(버튼 탭 id · 표시 전용 · 없음 · 낭독 분리). ko 스냅샷 갱신. tsc·eslint·jest 991 통과.
   - **남은 것: 개발계 실기기**(BE #2035 dev 머지 `828c025c` · 개발계 배포 진행 중). 확인되면 이 md 와 BE md 를 `archive/`로, Jira KAN-266·267 완료.
 - 2026-10-24 23:28 **범위 추가**(PM "일 선택했을 때도 리텐션 넣자") — 요일 막대를 고르면 숨기던 것을 **그날의 한 줄**(`daily_topic_highlight[요일]`, BE [KAN-268](https://runtime364.atlassian.net/browse/KAN-268))로 바꾼다. 문구 "N일 연속 1위" · "그날 N개 주제"(+ en). 완료 조건의 "요일 막대 탭 → 숨는다"는 "그날 한 줄로 바뀐다(그날 값 없으면 없음)"로 읽는다.
+- 2026-10-27 **반영 날짜** — PM 개발계 실기기 확인("확인함"). `archive/`로 옮기고 Jira KAN-267 완료(BE KAN-266·268은 이미 완료).
