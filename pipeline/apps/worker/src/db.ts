@@ -150,6 +150,11 @@ export async function hasOtherActiveEpisodeJob(episodeId: string, exceptJobId: s
   const r = await pool.query("select 1 from public.jobs where status in ('claimed','running') and id <> $2 and payload->>'episode_id' = $1 limit 1", [episodeId, exceptJobId]);
   return (r.rowCount ?? 0) > 0;
 }
+/** 이 작업 말고 이 후보를 집고 있는 초안 작업이 있나 — 선점만 남기고 죽은 작업의 재집기 판정(draft.ts, 2026-10-27) */
+export async function hasOtherActiveDraftJob(backlogId: string, exceptJobId: string): Promise<boolean> {
+  const r = await pool.query("select 1 from public.jobs where type = 'draft' and status in ('queued','claimed','running') and id <> $2 and payload->>'backlog_id' = $1 limit 1", [backlogId, exceptJobId]);
+  return (r.rowCount ?? 0) > 0;
+}
 export async function hasActiveDraftJob(backlogId: string): Promise<boolean> {
   const r = await pool.query("select 1 from public.jobs where type = 'draft' and status in ('queued','claimed','running') and payload->>'backlog_id' = $1 limit 1", [backlogId]);
   return (r.rowCount ?? 0) > 0;
