@@ -31,7 +31,10 @@ export type QuizLevel = {
 export const csQuiz = {
   id: "cs",
   path: "/quiz/cs/",
-  /** 앱 받기 링크의 유입 출처(`/app/?src=`) — Play Console·App Store Connect 에서 이 값으로 본다. */
+  /**
+   * 앱 받기 링크의 유입 출처(`/app/?src=`) — Play Console·App Store Connect 에서 이 값으로 본다.
+   * 퀴즈 링크에 `utm_source`가 있으면 뒤에 붙는다(`quiz_cs_everytime`) — 규칙은 `CsQuiz.tsx`의 `appSourceFor`.
+   */
   appSource: "quiz_cs",
   title: "당신의 CS 지식 수준은?",
   description:
