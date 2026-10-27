@@ -369,6 +369,11 @@ export default function MiniPlayer({
             openPlayer({ contentId: session.contentId });
             return;
           }
+          // 멈춘 채 연 푸시 콘텐츠의 첫 ▶도 확인 팝업이 필요하다 — 팝업 호스트인 플레이어로(KAN-273)
+          if (usePlaybackStore.getState().confirmBeforePlayContentId === session.contentId) {
+            openPlayer({ contentId: session.contentId });
+            return;
+          }
           playbackService.togglePlayPause();
         },
       }

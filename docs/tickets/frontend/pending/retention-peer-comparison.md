@@ -37,3 +37,9 @@
   - 테스트: 리텐션 변환(규칙·변형·목적지·폴백·잘못된 type).
   - **남은 것: 실기기** — 개발계는 `dry_run`이라 실제 발송이 없다. 개발계 기기에 `type: retention.resume_content.a` 테스트 푸시를 보내 탭 → 플레이어, 앱을 켠 상태에서는 안 보이는지(아래 정정) 본다. 확인되면 `archive/` + Jira 완료, BE는 운영 OTA 뒤 `RETENTION_PUSH_MODE=on`.
 - 2026-10-27 **정정 반영**(박준현 Jira 댓글 18:54 — 10-26 댓글 2번을 바꿈): 포그라운드 리텐션 알림은 **OS 배너도 숨기고 앱 안 표시도 없다**. 숨긴 것은 `push_foreground_suppressed { push_type, push_rule }`(반응률 분모 제외용 — `analytics.md`·`notification.md` 4.5 갱신). 백그라운드·종료 상태의 탭 이동과 `push_open` 파라미터는 그대로. 브랜치 `fix(fe)/retention-push-foreground` — 릴리스 #2081 전에 dev로.
+- 2026-10-27 **추가 요청 2건 반영**(박준현 Jira 댓글 19:32 · 19:42) — 브랜치 `feat(fe)/push-profile-paused-open`:
+  - **주간 순위 알림 → 프로필 탭**: `parsePushDeepLink`가 `ear://profile`을 `{ kind: 'profile' }`로 읽고, `usePushLinkGate`가 관문 통과 뒤 `toTab('Profile')`. 모르는 목적지는 그대로 라이브러리 폴백. `push_open.target`에 `profile` 추가(`analytics.md`).
+  - **콘텐츠 알림 → 멈춘 플레이어**: 발급 뒤 소리 없이 플레이어만 연다(`openPaused`). 첫 ▶는 게이트의 `requestHeldPlay`로 — 차감되는 재생이면 확인 팝업([취소]해도 플레이어·세션 유지), 아니면 바로 재생. 미니플레이어 ▶는 플레이어를 연다(팝업 호스트). 소리가 나면 표시(`confirmBeforePlayContentId`)를 지운다. 403·404·한도 403은 그대로.
+  - 문서: `notification.md` 3장 deep_link · 4.4-3 · 4.6 규칙 표(주간 순위 딥링크 프로필).
+  - 테스트: `push-link.test`(profile) · `usePlayGate.test`(멈춘 채 열기 · 첫 ▶ 팝업/취소 유지/바로 재생).
+  - **남은 것: 실기기** — 앱 끈 상태·백그라운드에서 ① `ear://profile` 탭 → 프로필 탭 ② `ear://contents/{id}` 탭 → 멈춘 플레이어(소리 없음) → ▶ → 팝업(차감되는 재생이면) → 재생.

@@ -61,7 +61,7 @@
 | 이벤트 | 파라미터 | 시점 |
 |---|---|---|
 | `push_permission` | `result`: `granted` \| `denied` · `source`: `onboarding` \| `settings` | OS 다이얼로그 결과 |
-| `push_open` | `target`: `library` \| `content` · `app_state`: `background` \| `killed` · `push_type`: `drip_arrival` \| `retention` · `push_rule`(리텐션만 — `<규칙>.<변형>`, 예 `weekly_rank_gap.b`. 2026-10-27 KAN-273) | 알림 탭으로 진입 |
+| `push_open` | `target`: `library` \| `profile`(주간 순위 알림 — 2026-10-27 KAN-273) \| `content` · `app_state`: `background` \| `killed` · `push_type`: `drip_arrival` \| `retention` · `push_rule`(리텐션만 — `<규칙>.<변형>`, 예 `weekly_rank_gap.b`. 2026-10-27 KAN-273) | 알림 탭으로 진입 |
 | `push_foreground_banner` | `action`: `view` \| `tap` | 인앱 배너 |
 | `push_foreground_suppressed` | `push_type`: `retention` · `push_rule`(`<규칙>.<변형>`) | 앱을 켠 동안 온 리텐션 알림을 숨겼을 때 — 반응률 분모에서 뺀다(2026-10-27 KAN-273) |
 

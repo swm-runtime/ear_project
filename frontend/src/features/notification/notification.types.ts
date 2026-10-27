@@ -5,7 +5,8 @@
 export type OsPermissionStatus = 'granted' | 'denied' | 'undetermined';
 
 /** 푸시가 가리키는 목적지(notification.md 3장 `deep_link`) */
-export type PushTarget = { kind: 'library' } | { kind: 'content'; contentId: string };
+export type PushTarget =
+  { kind: 'library' } | { kind: 'profile' } | { kind: 'content'; contentId: string };
 
 /** 우리 알림의 종류(notification.md 3장 `type`) — 드립 도착(4.3) · 저녁 리텐션(4.6) */
 export type PushType = 'drip_arrival' | 'retention';

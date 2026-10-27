@@ -402,6 +402,15 @@ export const usePlayerScreen = () => {
       );
       return;
     }
+    // 멈춘 채 연 푸시 콘텐츠의 첫 ▶ — 확인 팝업(차감되는 재생이면)을 거친다(KAN-273)
+    if (
+      session.state === 'ready' &&
+      !session.isPlaying &&
+      usePlaybackStore.getState().confirmBeforePlayContentId === contentId
+    ) {
+      playGate.requestHeldPlay(contentId, 'push');
+      return;
+    }
     playbackService.togglePlayPause();
   };
 

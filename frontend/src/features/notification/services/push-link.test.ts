@@ -3,6 +3,11 @@ import { describe, expect, it } from '@jest/globals';
 import { parsePushData, parsePushDeepLink } from './push-link';
 
 describe('parsePushDeepLink', () => {
+  it('ear://profile 은 프로필 탭이다(주간 순위 알림 — KAN-273)', () => {
+    expect(parsePushDeepLink('ear://profile')).toEqual({ kind: 'profile' });
+    expect(parsePushDeepLink('ear://profile/')).toEqual({ kind: 'profile' });
+  });
+
   it('ear://library 는 라이브러리다', () => {
     expect(parsePushDeepLink('ear://library')).toEqual({ kind: 'library' });
     expect(parsePushDeepLink('ear://library/')).toEqual({ kind: 'library' });

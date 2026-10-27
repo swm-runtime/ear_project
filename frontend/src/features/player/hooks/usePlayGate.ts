@@ -38,6 +38,11 @@ export interface PlayGateTarget {
    */
   openAfterIssue?: boolean;
   /**
+   * **발급 뒤 멈춘 플레이어를 연다**(푸시 콘텐츠 — KAN-273, `openAfterIssue`와 함께). 소리를 내지 않고 확인 팝업도 띄우지 않는다 —
+   * 사용자가 플레이어에서 ▶를 누를 때 `requestHeldPlay`가 팝업(차감되는 재생이면)을 거쳐 재생한다
+   */
+  openPaused?: boolean;
+  /**
    * 재생 목록의 맥락(KAN-241 — player.md 4.2-1). 탐색 목록에서 시작한 재생은 그 목록의 스냅샷을 넘기고, 재생 목록 패널·추천
    * 줄은 현재 맥락을 그대로 넘긴다. **넘기지 않으면 라이브러리 맥락**이다 — 라이브러리·푸시·공유·미니플레이어 복원
    */
@@ -75,6 +80,8 @@ interface ConfirmState {
    * 세션을 재생하며, [취소]는 그 세션을 내린다(미니플레이어에 남기지 않는다).
    */
   isIssued: boolean;
+  /** 멈춘 채 연 플레이어의 ▶에서 뜬 팝업 — [취소]해도 세션을 내리지 않는다(플레이어가 그대로 떠 있다) */
+  keepOnCancel?: boolean;
 }
 
 /**
@@ -221,6 +228,14 @@ export const usePlayGate = (options?: PlayGateOptions) => {
           else showLimitNotice(blocked.message ?? PLAYER_COPY.paidLimitReachedToast);
         },
         onIssued: ({ isReusedSession }) => {
+          // 멈춘 채 연다(KAN-273) — 차감 여부는 ▶를 누를 때 본다. 이미 재생을 기록한 세션이면 그대로 둔다
+          if (target.openPaused === true) {
+            if (!isReusedSession) {
+              usePlaybackStore.getState().setConfirmBeforePlay(target.contentId);
+            }
+            openPlayer(target.contentId);
+            return;
+          }
           // 이미 재생을 기록한 세션을 이어 듣는 것이면 새로 차감되지 않는다 — 묻지 않는다
           if (isReusedSession) {
             playIssued();
@@ -259,9 +274,36 @@ export const usePlayGate = (options?: PlayGateOptions) => {
     startPlayback(target, entryPoint);
   };
 
+  /**
+   * 멈춘 채 연 푸시 콘텐츠의 첫 ▶(KAN-273) — 차감되는 재생이면 확인 팝업, 아니면 바로 재생. 판정 힌트는 다른 진입점과 같다
+   * (재생 목록에서 오늘 들었는지 찾고, 못 찾으면 "아직"으로 본다). 차감 판정은 소리가 난 시점의 서버다
+   */
+  const requestHeldPlay = (contentId: string, entryPoint: PlayEntryPoint) => {
+    void lookUpIsCountedToday(contentId).then((isCountedToday) => {
+      // 찾는 사이에 다른 편으로 넘어갔으면 이 ▶의 몫은 끝났다
+      if (usePlaybackStore.getState().session?.contentId !== contentId) return;
+      const remaining = remainingIfDeducting(isCountedToday);
+      if (remaining === null) {
+        usePlaybackStore.getState().setConfirmBeforePlay(null);
+        playbackService.playWhenReady();
+        return;
+      }
+      setConfirmState({
+        target: { contentId, isCountedToday },
+        entryPoint,
+        remaining,
+        isIssued: true,
+        keepOnCancel: true,
+      });
+    });
+  };
+
   /** 팝업을 통과한 재생 — 발급을 받아 둔 재생이면 그 세션을 재생하고, 아니면 지금 시작한다 */
   const proceed = (state: ConfirmState) => {
     if (state.isIssued) {
+      if (usePlaybackStore.getState().confirmBeforePlayContentId === state.target.contentId) {
+        usePlaybackStore.getState().setConfirmBeforePlay(null);
+      }
       playbackService.playWhenReady();
       openPlayer(state.target.contentId);
       return;
@@ -282,7 +324,7 @@ export const usePlayGate = (options?: PlayGateOptions) => {
     if (!confirmState) return;
     track('play_confirm', { action: 'cancel', remaining: confirmState.remaining });
     // 발급만 받아 둔 세션은 내린다 — 듣지 않기로 한 콘텐츠가 미니플레이어에 남지 않게
-    if (confirmState.isIssued) playbackService.clearSession();
+    if (confirmState.isIssued && confirmState.keepOnCancel !== true) playbackService.clearSession();
     setConfirmState(null);
   };
 
@@ -298,6 +340,7 @@ export const usePlayGate = (options?: PlayGateOptions) => {
   return {
     confirmState,
     requestPlay,
+    requestHeldPlay,
     confirmPlay,
     cancelConfirm,
     suppressAndPlay,
