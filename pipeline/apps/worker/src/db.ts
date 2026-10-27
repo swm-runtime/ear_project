@@ -435,6 +435,13 @@ export async function retireSeriesEpisodeCandidates(seriesId: string, no: number
   );
   return r.rows.map((x) => x.id as string);
 }
+/** 콘솔에서 만든 간행물(0036) — 상수와 합쳐 쓴다(@ear/pipeline mergePublications). 테이블이 없으면(마이그레이션 전) 빈 목록 */
+export async function listPublications(): Promise<{ key: string; locale: "ko" | "en"; name: string; style: "keyword" | "phrasebook" | "scene"; hint: string }[]> {
+  try {
+    const r = await pool.query("select key, locale, name, style, coalesce(hint, '') hint from public.publications order by created_at");
+    return r.rows;
+  } catch { return []; }
+}
 /** 같은 시리즈의 다른 편 후보 ID — 주제 판정에 "기존 후보"로 넣지 않는다(형제 편은 겹침이 아니라 설계된 이웃이다) */
 export async function seriesSiblingIds(seriesId: string): Promise<string[]> {
   const r = await pool.query("select id from public.backlog where series_id = $1", [seriesId]);

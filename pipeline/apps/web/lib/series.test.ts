@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { cleanPlan, cleanSeriesThumb, seriesEpisodeHint, type SeriesEpisode } from "./series";
-import { publicationByName, publicationOf, publicationsFor, publicationStyle } from "@ear/pipeline/publication";
+import { mergePublications, newPublicationBlocker, publicationByName, publicationOf, publicationsFor, publicationStyle } from "@ear/pipeline/publication";
 
 // 2026-10-17 KAN-136 — 시리즈 설계안 검증·편별 힌트 (spec/11 3·4장)
 const ep = (title: string, scope: string, extra: Partial<SeriesEpisode> = {}): SeriesEpisode => ({ no: 0, title, scope, carries: "", only_here: "", minutes: 0, ...extra });
@@ -42,6 +42,20 @@ test("간행물 목록은 판마다 — 키·이름·스타일 (KAN-247)", () =>
   assert.equal(publicationByName(" 키워드 ", "ko")?.key, "keyword");
   assert.equal(publicationByName("키워드 시리즈", "ko"), null, "글자가 다르면 다른 간행물");
   assert.equal(publicationByName("키워드", "en"), null, "다른 판의 이름은 안 맞춘다");
+});
+
+// 2026-10-27 — 콘솔에서 만든 간행물(publications 표)을 상수와 합쳐 쓴다
+test("새 간행물 — 표 행을 상수와 합치고, 이름 중복·길이·모르는 디자인은 막는다", () => {
+  const list = mergePublications([{ key: "p-abc", locale: "ko", name: "탑다운", style: "keyword", hint: "" }, { key: "keyword", locale: "ko", name: "덮어쓰기 시도", style: "scene", hint: "" }]);
+  assert.deepEqual(publicationsFor("ko", list).map((p) => p.name), ["키워드", "연대기", "탑다운"], "상수가 먼저, 겹치는 키는 상수가 이긴다");
+  assert.equal(publicationStyle("p-abc", list), "keyword");
+  assert.equal(publicationByName("탑다운", "ko", list)?.key, "p-abc");
+  assert.equal(newPublicationBlocker({ name: "탑다운", style: "scene" }, "ko", list), "같은 이름의 간행물이 이미 있다 (탑다운)");
+  assert.equal(newPublicationBlocker({ name: "키 워드", style: "scene" }, "ko", list), "같은 이름의 간행물이 이미 있다 (키워드)", "공백만 다른 이름도 같은 것으로 본다");
+  assert.match(newPublicationBlocker({ name: "탑", style: "scene" }, "ko", list)!, /2~24자/);
+  assert.match(newPublicationBlocker({ name: "새 이름", style: "neon" }, "ko", list)!, /모르는 디자인/);
+  assert.equal(newPublicationBlocker({ name: "새 이름", style: "scene" }, "ko", list), null);
+  assert.equal(newPublicationBlocker({ name: "탑다운", style: "scene" }, "en", list), null, "다른 판의 이름과는 겹치지 않는다");
 });
 
 test("간행물·글자 칸 검증 — keyword 디자인은 큰 단어 필수, 없음은 글자 칸 없이도 된다", () => {

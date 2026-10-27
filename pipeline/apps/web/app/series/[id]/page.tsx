@@ -11,6 +11,8 @@ import { SeriesEpisodeActions } from "./series-episode-actions";
 import { SeriesPublish } from "./series-publish";
 import { SeriesThumb } from "./series-thumb";
 import { seriesPublishEpisodes } from "../actions";
+import { loadPublications } from "@/lib/publications-server";
+import { publicationOf } from "@ear/pipeline/publication";
 
 /** 시리즈 화면 (spec/11 9장, KAN-136) — 설계안 편집 · [승인](게이트 S) · 편별 진행 · [시리즈 중단] · [시리즈 발행]·[시리즈 회수](7장, 6단계) */
 export default async function SeriesPage({ params }: { params: Promise<{ id: string }> }) {
@@ -24,6 +26,7 @@ export default async function SeriesPage({ params }: { params: Promise<{ id: str
     sb.from("jobs").select("id,status,error,created_at,finished_at").eq("type", "series_plan").eq("payload->>series_id", id).order("created_at", { ascending: false }).limit(3),
   ]);
   const planJob = jobs?.[0];
+  const publications = await loadPublications(); // 상수 + 콘솔에서 만든 간행물(0036)
   // 반려된 옛 후보는 그 화에 살아 있는 후보가 있으면 숨긴다(2026-10-27 — [다시 기획] 뒤 한 화에 두 줄로 보여 혼란). 살아 있는 후보가 없는 화의 반려 행만 남겨 [다시 기획]·[보류로]를 쓸 수 있게 한다
   const liveNos = new Set((eps ?? []).filter((e) => e.status !== "rejected").map((e) => e.series_no));
   const shown = (eps ?? []).filter((e) => e.status !== "rejected" || !liveNos.has(e.series_no));
@@ -42,7 +45,7 @@ export default async function SeriesPage({ params }: { params: Promise<{ id: str
         </div>
       )}
       <Panel title="범위 (관리자 입력)" className="text-[13px] whitespace-pre-wrap">{s.scope_note ?? "-"}</Panel>
-      {!["cancelled", "withdrawn"].includes(s.status) && <SeriesThumb id={s.id} locale={pipelineLocale()} publication={s.publication ?? null} word={s.thumb_word ?? ""} label={s.thumb_label ?? ""} box={s.thumb_box ?? ""} hasBase={!!s.thumb_base_key} productSeriesId={s.published_series_id ?? null} />}
+      {!["cancelled", "withdrawn"].includes(s.status) && <SeriesThumb id={s.id} locale={pipelineLocale()} publication={s.publication ?? null} word={s.thumb_word ?? ""} label={s.thumb_label ?? ""} box={s.thumb_box ?? ""} hasBase={!!s.thumb_base_key} productSeriesId={s.published_series_id ?? null} publications={publications} />}
       <SeriesEditor id={s.id} status={s.status} name={s.name} introLine={s.intro_line ?? ""} plan={Array.isArray(s.plan) ? s.plan : []} />
       {!planning && (
         <Panel title={`편 후보 (${(eps ?? []).filter((e) => e.status !== "rejected").length}/${s.total_episodes ?? "-"})`} flush>
@@ -61,7 +64,7 @@ export default async function SeriesPage({ params }: { params: Promise<{ id: str
         </Panel>
       )}
       {["approved", "published"].includes(s.status) && s.total_episodes && (
-        <SeriesPublish id={s.id} name={s.name} introLine={s.intro_line ?? ""} total={s.total_episodes} status={s.status} productSeriesId={s.published_series_id ?? null} publication={s.publication ?? null} episodes={pubEps} />
+        <SeriesPublish id={s.id} name={s.name} introLine={s.intro_line ?? ""} total={s.total_episodes} status={s.status} productSeriesId={s.published_series_id ?? null} publisherName={publicationOf(s.publication ?? null, publications)?.name ?? null} episodes={pubEps} />
       )}
     </div>
   );

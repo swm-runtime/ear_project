@@ -6,6 +6,8 @@ import { majorTopicsFor } from "@/lib/taxonomy";
 import { screenGlobalTopic } from "@/lib/topic-screen";
 import { cleanPlan, cleanSeriesThumb, seriesEpisodeHint, seriesReplanBlocker, type SeriesEpisode, type SeriesPublishEpisode, type SeriesRow } from "@/lib/series";
 import { enqueueJob } from "../actions";
+import { loadPublications } from "@/lib/publications-server";
+import { newPublicationBlocker, type PublicationStyle } from "@ear/pipeline/publication";
 
 /**
  * 기획 시리즈 (spec/11 3·4·9장 · 글로벌 명세 6.11, KAN-136). 거부는 throw 가 아니라 반환값으로 — 운영 빌드는 서버 액션 오류 문구를 가린다.
@@ -137,6 +139,23 @@ export async function replanSeriesEpisode(id: string, no: number): Promise<Resul
   return { ok: true, rejected: live.length };
 }
 
+/**
+ * 새 간행물 (2026-10-27) — 이름 + 워커에 있는 디자인(키워드·장면·회화집) 중 하나. `publications` 테이블(0036)에 이 판(locale)으로 넣는다.
+ * 키는 바꾸지 않는 저장 값이라 자동 생성(`p-<시각36진수>`), 서버에는 이름이 나간다. 상수 셋과 같은 이름은 거부(글자가 같으면 앱이 같은 간행물로 묶는다).
+ */
+export async function createPublication(v: { name: string; style: PublicationStyle; hint: string }): Promise<Result<{ key: string }>> {
+  const locale = pipelineLocale();
+  const list = await loadPublications();
+  const blocker = newPublicationBlocker(v, locale, list);
+  if (blocker) return { ok: false, reason: blocker };
+  const key = `p-${Date.now().toString(36)}`;
+  const sb = await supabaseServer();
+  const { error } = await sb.from("publications").insert({ key, locale, name: v.name.trim(), style: v.style, hint: v.hint.trim() || null });
+  if (error) return { ok: false, reason: /publications/.test(error.message) && /does not exist|schema cache/.test(error.message) ? "publications 테이블이 아직 없다 — 마이그레이션 0036 적용 뒤에 만들 수 있다" : error.message };
+  revalidatePath("/series");
+  return { ok: true, key };
+}
+
 /** 반려된 편 후보를 보류로 되돌린다 — 소스만 더 찾으면 되는 편은 백로그의 [보강]·[승인]으로 살린다. 그 화에 살아 있는 다른 후보가 있으면 거부 */
 export async function restoreSeriesEpisode(id: string, backlogId: string): Promise<Result> {
   const sb = await supabaseServer();
@@ -222,7 +241,7 @@ export async function saveSeriesThumb(id: string, v: { publication: string | nul
   const s = await loadSeries(id);
   if (!s) return { ok: false, reason: "시리즈가 없다" };
   if (["cancelled", "withdrawn"].includes(s.status)) return { ok: false, reason: `${s.status} 시리즈는 고치지 않는다` };
-  const t = cleanSeriesThumb(v, pipelineLocale());
+  const t = cleanSeriesThumb(v, pipelineLocale(), await loadPublications());
   if (t.problems.length) return { ok: false, reason: t.problems.join(" · ") };
   const sb = await supabaseServer();
   // seriesthumb-v3 부터 큰 단어는 코드가 얹는다 — 글자 칸을 바꿔도 바탕은 그대로 두고, 바탕은 [바탕 그림도 새로 그리기]로만 버린다
