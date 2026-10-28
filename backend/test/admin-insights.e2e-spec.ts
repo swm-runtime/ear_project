@@ -33,6 +33,7 @@ import {
 interface SummaryBody {
   days: number;
   market: string | null;
+  by_region: { region: string; users: number }[];
   users: {
     total_signups: number;
     current: number;
@@ -767,9 +768,10 @@ describe('서비스 지표 요약 E2E', () => {
     const adminAuth = await createUser('admin-filter', UserRole.ADMIN);
     const globalId = await createUserId('global-listener');
     const krId = await createUserId('kr-listener');
-    await dataSource.query(`UPDATE users SET market = 'global' WHERE id = $1`, [
-      globalId,
-    ]);
+    await dataSource.query(
+      `UPDATE users SET market = 'global', region_code = 'PH' WHERE id = $1`,
+      [globalId],
+    );
     const contentId = await seedContent();
     const now = new Date();
     const playRecords = dataSource.getRepository(PlayRecord);
@@ -803,6 +805,14 @@ describe('서비스 지표 요약 E2E', () => {
     expect(kr.market).toBe(UserMarket.KR);
     expect(all.market).toBeNull();
     expect(global.by_market.map((m) => m.market)).toEqual(['kr', 'global']);
+
+    // then — 나라별은 글로벌에서만, 그 시장 계정만 나라로 나눈다(합 = 그 시장 가입자). 국내·통합은 빈 배열
+    expect(global.by_region.map((r) => r.region)).toContain('PH');
+    expect(global.by_region.reduce((n, r) => n + r.users, 0)).toBe(
+      global.users.current,
+    );
+    expect(kr.by_region).toEqual([]);
+    expect(all.by_region).toEqual([]);
 
     // then — 순위는 그 시장 사람만
     const ids = (b: SummaryBody) => b.top_users.map((u) => u.user_id);

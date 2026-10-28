@@ -433,6 +433,14 @@ export interface InsightsMarketTotals {
   paidActive: number;
 }
 
+/**
+ * 나라별 같은 지표(2026-10-29, 글로벌 탭 맨 위) — 나라는 `users.region_code`(기기 지역 ISO 3166-1 alpha-2, 가입·로그인마다
+ * 갱신 — 지금 나라). 값이 없으면 `unknown`
+ */
+export type InsightsRegionTotals = Omit<InsightsMarketTotals, 'market'> & {
+  region: string;
+};
+
 export interface InsightsSummary {
   /** 고른 시장 — null 이면 통합 */
   market: UserMarket | null;
@@ -465,6 +473,8 @@ export interface InsightsSummary {
   retentionCohorts: { daily: InsightsCohortTable; weekly: InsightsCohortTable };
   topicSupply: InsightsTopicSupply[];
   byMarket: InsightsMarketTotals[];
+  /** 나라별 — 글로벌을 골랐을 때만 채운다(그 밖은 빈 배열). 가입자 많은 나라 먼저 */
+  byRegion: InsightsRegionTotals[];
 }
 
 /** 초대 코드(프로모션) 묶음 하나의 지표(2026-10-28) — 집계값만, 개인 식별값 없음 */

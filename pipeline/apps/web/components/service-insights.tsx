@@ -226,6 +226,12 @@ function InsightsView({ channel, days, market, onSwitchToDev }: { channel: EarCh
         </Panel>
       )}
 
+      {data.market === "global" && data.by_region && data.by_region.length > 0 && (
+        <Panel title={`나라별 — 활성·청취자는 최근 7일, 가입·청취는 ${winLabel}`} flush>
+          <RegionTable rows={data.by_region} />
+        </Panel>
+      )}
+
       {/* ── 사용자 ── */}
       <SectionTitle>사용자</SectionTitle>
       <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-6">
@@ -532,6 +538,51 @@ function MarketTable({ rows }: { rows: EarInsightsMarketRow[] }) {
       ))}
     </Table>
   );
+}
+
+/**
+ * 글로벌 화면 맨 위 나라별 표(2026-10-29) — 시장 비교표와 같은 열. 나라는 기기 지역(`region_code`, 가입·로그인마다 갱신)이라
+ * "지금 있는 나라"다. 이름은 브라우저 `Intl.DisplayNames`(한국어)로 바꾸고, 모르는 코드는 그대로 둔다
+ */
+function RegionTable({ rows }: { rows: NonNullable<EarInsightsSummary["by_region"]> }) {
+  const total = rows.reduce((sum, r) => sum + r.users, 0);
+  return (
+    <Table head={["나라", "가입자", "기간 가입", "온보딩 완료", "7일 활성", "7일 청취자", "기간 청취", "기간 재생", "유료"]}>
+      {rows.map((r) => (
+        <Tr key={r.region}>
+          <Td className="font-medium">{regionLabel(r.region)}</Td>
+          <Td className="tabular-nums">{fmtInt(r.users)} <span className="text-ink-soft">· {fmtPct(r.users / Math.max(1, total), 0)}</span></Td>
+          <Td className="tabular-nums">{fmtInt(r.signups_in_window)}</Td>
+          <Td className="tabular-nums">{fmtInt(r.onboarding_completed)}</Td>
+          <Td className="tabular-nums">{fmtInt(r.active_7d)}</Td>
+          <Td className="tabular-nums">{fmtInt(r.listeners_7d)}</Td>
+          <Td className="tabular-nums">{fmtListenSec(r.listen_sec)}</Td>
+          <Td className="tabular-nums">{fmtInt(r.plays)}</Td>
+          <Td className="tabular-nums">{fmtInt(r.paid_active)}</Td>
+        </Tr>
+      ))}
+    </Table>
+  );
+}
+
+const REGION_NAMES = (() => {
+  try {
+    return new Intl.DisplayNames(["ko"], { type: "region" });
+  } catch {
+    return null;
+  }
+})();
+
+/** `PH` → "필리핀 (PH)", `unknown` → "모름" */
+function regionLabel(code: string): string {
+  if (code === "unknown") return "모름";
+  let name: string | undefined;
+  try {
+    name = REGION_NAMES?.of(code);
+  } catch {
+    name = undefined;
+  }
+  return name && name !== code ? `${name} (${code})` : code;
 }
 
 function SectionTitle({ children }: { children: React.ReactNode }) {

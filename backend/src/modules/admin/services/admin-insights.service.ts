@@ -217,6 +217,11 @@ export class AdminInsightsService {
     );
     const topicSupply = await this.repository.topicSupply(since, now, market);
     const byMarket = await this.repository.marketTotals(since, now);
+    // 나라별은 글로벌 탭에서만 — 국내는 거의 전부 KR 이고, 통합은 시장 비교가 맨 위에 있다
+    const byRegion =
+      market === UserMarket.GLOBAL
+        ? await this.repository.regionTotals(since, now, market)
+        : [];
 
     const today = kstDateLabel(now);
     const activeUsersSince =
@@ -287,6 +292,7 @@ export class AdminInsightsService {
       },
       topicSupply,
       byMarket: fillMarkets(byMarket),
+      byRegion,
     };
   }
 }

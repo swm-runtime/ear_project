@@ -375,6 +375,7 @@ describe('AdminInsightsService.summarize', () => {
     activeDatesFirstRecordedAt: jest.fn().mockResolvedValue(null),
     topicSupply: jest.fn().mockResolvedValue([]),
     marketTotals: jest.fn().mockResolvedValue([]),
+    regionTotals: jest.fn().mockResolvedValue([]),
   });
 
   it('창은 now - days 이고, 전 기간(null)·창 두 번의 청취 합계를 부르며, 순위는 상수 길이로 부른다', async () => {
@@ -526,5 +527,11 @@ describe('AdminInsightsService.summarize', () => {
     }
     // 시장 비교표는 늘 전 시장이다
     expect(repository.marketTotals).toHaveBeenCalledWith(summary.since, now);
+    // 나라별은 글로벌을 골랐을 때만 그 시장으로 센다
+    expect(repository.regionTotals).toHaveBeenCalledWith(
+      summary.since,
+      now,
+      UserMarket.GLOBAL,
+    );
   });
 });
