@@ -220,6 +220,23 @@ export class AdminInsightsRepository {
       [market],
     );
 
+    // 플랫폼 — 사용자마다 가장 최근에 갱신된 기기 행 하나(두 기기를 쓰면 마지막 기기). 기기 행이 없으면 unknown
+    const byPlatform = await this.dataSource.query<
+      { platform: string; count: number }[]
+    >(
+      `select coalesce(d.platform::text, 'unknown') as platform, count(*)::int as count
+         from users u
+         left join lateral (
+           select t.platform from device_tokens t
+            where t.user_id = u.id
+            order by t.updated_at desc
+            limit 1
+         ) d on true
+        where ${marketIs('u.market', '$1')}
+        group by 1 order by count desc, platform`,
+      [market],
+    );
+
     return {
       totalSignups: row.current + row.withdrawals,
       current: row.current,
@@ -246,6 +263,10 @@ export class AdminInsightsRepository {
       listeners30d: row.listeners_30d,
       byProvider: byProvider.map((p) => ({
         provider: p.provider,
+        count: p.count,
+      })),
+      byPlatform: byPlatform.map((p) => ({
+        platform: p.platform,
         count: p.count,
       })),
     };

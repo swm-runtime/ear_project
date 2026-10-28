@@ -515,6 +515,8 @@ export interface EarInsightsSummary {
     listeners_1d: number; listeners_7d: number; listeners_30d: number;
     listener_rate_1d: number | null; listener_rate_7d: number | null; listener_rate_30d: number | null;
     by_provider: { provider: string; count: number }[];
+    /** 현재 계정의 기기 플랫폼(ios·android·unknown) — 옛 서버면 없다 */
+    by_platform?: { platform: string; count: number }[];
   };
   listening: { all_time: EarInsightsListening; window: EarInsightsListening };
   /** `active_users` — 그날 접속자(토큰 갱신한 사람). 기록이 없는 날은 null, 배포 전 서버면 키가 없다(2026-10-18 추가) */

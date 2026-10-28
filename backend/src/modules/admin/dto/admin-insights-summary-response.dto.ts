@@ -135,6 +135,8 @@ export class AdminInsightsSummaryResponseDto {
     listener_rate_7d: number | null;
     listener_rate_30d: number | null;
     by_provider: { provider: string; count: number }[];
+    /** 현재 계정의 기기 플랫폼(`ios`·`android`·`unknown` = 기기 행 없음) — 사용자마다 가장 최근 기기 */
+    by_platform: { platform: string; count: number }[];
   };
   readonly listening: {
     all_time: ListeningTotalsItem;
@@ -285,6 +287,7 @@ export class AdminInsightsSummaryResponseDto {
         listener_rate_7d: ratio(u.listeners7d, u.active7d),
         listener_rate_30d: ratio(u.listeners30d, u.active30d),
         by_provider: u.byProvider,
+        by_platform: u.byPlatform,
       },
       listening: {
         all_time: toListening(summary.listening.allTime),

@@ -39,6 +39,10 @@ const summary = (): InsightsSummary => ({
     listeners7d: 130,
     listeners30d: 149,
     byProvider: [{ provider: 'kakao', count: 200 }],
+    byPlatform: [
+      { platform: 'ios', count: 150 },
+      { platform: 'android', count: 50 },
+    ],
   },
   listening: {
     allTime: listening({
