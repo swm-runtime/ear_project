@@ -501,6 +501,8 @@ export interface EarInsightsSummary {
   market?: EarInsightsMarket | null;
   /** 시장별 비교(global-api 4.10) — 배포 전 서버면 없다 */
   by_market?: EarInsightsMarketRow[];
+  /** 나라별(`users.region_code`, 없으면 unknown) — 글로벌을 골랐을 때만 채워진다. 배포 전 서버면 없다(2026-10-29) */
+  by_region?: (Omit<EarInsightsMarketRow, "market"> & { region: string })[];
   users: {
     total_signups: number; current: number; withdrawals: number; withdrawal_rate: number | null;
     onboarding_completed: number; onboarding_rate: number | null; trial_active: number;

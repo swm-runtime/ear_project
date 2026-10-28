@@ -238,6 +238,18 @@ export class AdminInsightsSummaryResponseDto {
     plays: number;
     paid_active: number;
   }[];
+  /** 나라별(`users.region_code`, 없으면 unknown) — 글로벌을 골랐을 때만, 그 밖은 빈 배열. 가입자 많은 나라 먼저 */
+  readonly by_region: {
+    region: string;
+    users: number;
+    signups_in_window: number;
+    onboarding_completed: number;
+    active_7d: number;
+    listeners_7d: number;
+    listen_sec: number;
+    plays: number;
+    paid_active: number;
+  }[];
 
   static from(
     summary: InsightsSummary,
@@ -379,6 +391,17 @@ export class AdminInsightsSummaryResponseDto {
       })),
       by_market: summary.byMarket.map((m) => ({
         market: m.market,
+        users: m.users,
+        signups_in_window: m.signupsInWindow,
+        onboarding_completed: m.onboardingCompleted,
+        active_7d: m.active7d,
+        listeners_7d: m.listeners7d,
+        listen_sec: m.listenSec,
+        plays: m.plays,
+        paid_active: m.paidActive,
+      })),
+      by_region: summary.byRegion.map((m) => ({
+        region: m.region,
         users: m.users,
         signups_in_window: m.signupsInWindow,
         onboarding_completed: m.onboardingCompleted,

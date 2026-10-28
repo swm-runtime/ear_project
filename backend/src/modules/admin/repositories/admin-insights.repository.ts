@@ -13,6 +13,7 @@ import {
   InsightsInviteCodeCohort,
   InsightsListeningTotals,
   InsightsMarketTotals,
+  InsightsRegionTotals,
   InsightsPushReaction,
   InsightsRetention,
   InsightsTopContent,
@@ -116,6 +117,18 @@ interface MarketTotalsRow {
   plays: number;
   paid_active: number;
 }
+
+/** 시장·나라 비교 한 줄의 공통 값 */
+const toTotals = (r: Omit<MarketTotalsRow, 'market'>) => ({
+  users: r.users,
+  signupsInWindow: r.signups_in_window,
+  onboardingCompleted: r.onboarding_completed,
+  active7d: r.active_7d,
+  listeners7d: r.listeners_7d,
+  listenSec: r.listen_sec,
+  plays: r.plays,
+  paidActive: r.paid_active,
+});
 
 interface RetentionRow {
   day: number;
@@ -277,8 +290,44 @@ export class AdminInsightsRepository {
    * 나눈 것이다 — 사용자 행을 한 번 훑으며 사용자마다 존재 여부만 본다. 계정이 없는 시장은 행이 없다(Service 가 0 으로 채운다).
    */
   async marketTotals(since: Date, now: Date): Promise<InsightsMarketTotals[]> {
-    const rows = await this.dataSource.query<MarketTotalsRow[]>(
-      `select u.market,
+    const rows = await this.groupedUserTotals<MarketTotalsRow>(
+      'u.market',
+      since,
+      now,
+      null,
+    );
+
+    return rows.map((r) => ({ market: r.market, ...toTotals(r) }));
+  }
+
+  /**
+   * 나라별 같은 지표(2026-10-29, 글로벌 탭 맨 위) — `marketTotals`와 같은 정의를 `users.region_code`(지금 기기 지역)로 나눈다.
+   * `market`이 있으면 그 시장 계정만. 지역이 없으면 `unknown`. 가입자 많은 나라 먼저
+   */
+  async regionTotals(
+    since: Date,
+    now: Date,
+    market: UserMarket | null,
+  ): Promise<InsightsRegionTotals[]> {
+    const rows = await this.groupedUserTotals<
+      Omit<MarketTotalsRow, 'market'> & { region: string }
+    >("coalesce(u.region_code, 'unknown')", since, now, market);
+
+    return rows
+      .map((r) => ({ region: r.region, ...toTotals(r) }))
+      .sort((a, b) => b.users - a.users || a.region.localeCompare(b.region));
+  }
+
+  /** 시장·나라 비교의 공통 질의 — `groupBy` 식마다 한 줄. 별칭은 `market`(시장) 또는 `region`(나라) */
+  private groupedUserTotals<T>(
+    groupBy: 'u.market' | "coalesce(u.region_code, 'unknown')",
+    since: Date,
+    now: Date,
+    market: UserMarket | null,
+  ): Promise<T[]> {
+    const alias = groupBy === 'u.market' ? 'market' : 'region';
+    return this.dataSource.query<T[]>(
+      `select ${groupBy} as ${alias},
               count(*)::int as users,
               count(*) filter (where u.created_at >= $2)::int as signups_in_window,
               count(*) filter (where u.onboarding_completed)::int as onboarding_completed,
@@ -300,21 +349,10 @@ export class AdminInsightsRepository {
              from play_records p
             where p.user_id = u.id and p.played_at >= $2
          ) w on true
-        group by u.market`,
-      [now, since],
+        where ${marketIs('u.market', '$3')}
+        group by 1`,
+      [now, since, market],
     );
-
-    return rows.map((r) => ({
-      market: r.market,
-      users: r.users,
-      signupsInWindow: r.signups_in_window,
-      onboardingCompleted: r.onboarding_completed,
-      active7d: r.active_7d,
-      listeners7d: r.listeners_7d,
-      listenSec: r.listen_sec,
-      plays: r.plays,
-      paidActive: r.paid_active,
-    }));
   }
 
   /**

@@ -207,6 +207,19 @@ const summary = (): InsightsSummary => ({
       paidActive: 0,
     },
   ],
+  byRegion: [
+    {
+      region: 'PH',
+      users: 23,
+      signupsInWindow: 20,
+      onboardingCompleted: 21,
+      active7d: 15,
+      listeners7d: 9,
+      listenSec: 1200,
+      plays: 30,
+      paidActive: 0,
+    },
+  ],
 });
 
 describe('AdminInsightsSummaryResponseDto', () => {
@@ -341,6 +354,19 @@ describe('AdminInsightsSummaryResponseDto', () => {
         listeners_7d: 130,
         listen_sec: 70844,
         plays: 233,
+        paid_active: 0,
+      },
+    ]);
+    expect(dto.by_region).toEqual([
+      {
+        region: 'PH',
+        users: 23,
+        signups_in_window: 20,
+        onboarding_completed: 21,
+        active_7d: 15,
+        listeners_7d: 9,
+        listen_sec: 1200,
+        plays: 30,
         paid_active: 0,
       },
     ]);
