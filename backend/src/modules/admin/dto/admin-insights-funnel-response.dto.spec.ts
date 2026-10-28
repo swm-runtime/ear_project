@@ -7,7 +7,22 @@ const funnel = (): InsightsFunnel => ({
   generatedAt: new Date('2026-10-28T03:00:00.000Z'),
   reliableSince: '2026-09-20',
   largestDropStep: 'first_play_24h',
-  steps: [{ key: 'signups', matureCohorts: 1, rate: null, drop: null }],
+  steps: [
+    {
+      key: 'signups',
+      matureCohorts: 1,
+      rate: null,
+      rateOfSignups: null,
+      drop: null,
+    },
+    {
+      key: 'onboarding_completed',
+      matureCohorts: 1,
+      rate: 0.8,
+      rateOfSignups: 0.8,
+      drop: 0.2,
+    },
+  ],
   cohorts: [
     {
       weekStart: '2026-10-19',
@@ -57,6 +72,7 @@ describe('AdminInsightsFunnelResponseDto', () => {
     expect(dto.habit_min_play_days).toBe(3);
     expect(dto.largest_drop_step).toBe('first_play_24h');
     expect(dto.reliable_since).toBe('2026-09-20');
+    expect(dto.steps[1]).toMatchObject({ rate: 0.8, rate_of_signups: 0.8 });
     expect(JSON.stringify(dto)).not.toMatch(/user_id|email|nickname/);
   });
 });

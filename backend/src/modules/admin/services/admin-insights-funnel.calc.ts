@@ -87,7 +87,8 @@ export function funnelStepValue(
 /**
  * 단계별 전환율 — **성숙한 묶음만 합쳐서**(`Σ 이 단계 / Σ 앞 단계`) 낸다. 묶음이 수십 명이라 묶음별 비율의 평균은 작은 묶음에
  * 흔들린다. 성숙 = 진행 중인 가입 주가 아니고, 이 단계와 앞 단계가 둘 다 판정됐고(null 아님), 앞 단계가 1명 이상.
- * 단계는 엄밀히 포함 관계가 아니라(첫 24시간에 안 듣고 나중에 완청할 수 있다) 비율이 1 을 넘을 수 있다 — 이탈은 0 아래로 내리지 않는다.
+ * 단계는 Repository 가 깔때기로 센다(앞 단계를 모두 통과한 사람만) — 비율은 1 을 넘지 않는다. 이탈은 0 아래로 내리지 않는다(방어).
+ * `rateOfSignups`는 같은 성숙 묶음의 `Σ 이 단계 / Σ 가입` — 가입자 전체 기준으로 몇 %가 여기까지 왔나.
  * 가장 큰 이탈 = `drop`이 가장 큰 단계(같으면 앞 단계).
  */
 export function summarizeFunnelSteps(
@@ -102,12 +103,14 @@ export function summarizeFunnelSteps(
         key,
         matureCohorts: cohorts.filter((c) => !c.inProgress).length,
         rate: null,
+        rateOfSignups: null,
         drop: null,
       };
     }
     const prevKey = FUNNEL_STEP_KEYS[i - 1];
     let cur = 0;
     let prev = 0;
+    let signups = 0;
     let mature = 0;
     for (const c of cohorts) {
       if (c.inProgress) continue;
@@ -116,6 +119,7 @@ export function summarizeFunnelSteps(
       if (value === null || prevValue === null || prevValue <= 0) continue;
       cur += value;
       prev += prevValue;
+      signups += c.signups;
       mature += 1;
     }
     const rate = prev > 0 ? cur / prev : null;
@@ -123,6 +127,7 @@ export function summarizeFunnelSteps(
       key,
       matureCohorts: mature,
       rate,
+      rateOfSignups: signups > 0 ? cur / signups : null,
       drop: rate === null ? null : Math.max(0, 1 - rate),
     };
   });

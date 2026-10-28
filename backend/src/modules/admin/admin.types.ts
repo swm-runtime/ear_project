@@ -545,6 +545,8 @@ export interface InsightsFunnelStep {
   matureCohorts: number;
   /** 성숙한 묶음을 합쳐 `이 단계 / 앞 단계` — 첫 단계는 null */
   rate: number | null;
+  /** 같은 성숙 묶음의 `이 단계 / 가입` — 첫 단계는 null */
+  rateOfSignups: number | null;
   /** `1 - rate`(0 아래는 0) — 첫 단계·판정 묶음 없음은 null */
   drop: number | null;
 }

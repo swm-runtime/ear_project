@@ -14,14 +14,15 @@ const MARKET_OPTIONS = [
 const MARKET_LABEL: Record<EarInsightsMarket, string> = { kr: "국내", global: "글로벌" };
 
 /** 퍼널 단계 — 이름과 "다음에 고칠 곳". 순서는 서버 `steps` 순서를 따른다 */
-const STEP_META: Record<EarFunnelStepKey, { label: string; short: string; hint: string }> = {
-  signups: { label: "가입", short: "가입", hint: "유입 — 광고 소재·스토어 리스팅" },
-  onboarding_completed: { label: "온보딩 완료", short: "온보딩", hint: "로그인 → 온보딩 — 주제 선택·커리어 단계 수, 건너뛰기, 로그인 직후 첫 화면" },
-  first_play_24h: { label: "24시간 안 첫 재생", short: "24h 재생", hint: "첫 드립 도착 전 첫 화면 — 온보딩 직후 바로 들을 한 편이 보이는가, 첫 드립이 늦지 않은가" },
-  first_complete: { label: "첫 완청", short: "첫 완청", hint: "첫 편 선택과 앞부분 — 첫 추천 편의 주제·길이, 앞 30초 도입" },
-  w1_return: { label: "W1 복귀 (가입 7~13일째)", short: "W1", hint: "둘째 주 복귀 — 리텐션 알림 대상·발송 시각, 주제 다양화" },
-  habit_14d: { label: "14일 안 3일 이상 청취", short: "14일 습관", hint: "습관 — 드립 품질(매일 들을 만한 편이 오는가)·편성 시각" },
-  paid_ever: { label: "결제", short: "결제", hint: "페이월 — 노출 시점·가격·체험 종료 안내" },
+/** `who` = 이 단계에 이른 사람을 부르는 말 — 다음 단계 상자가 "온보딩 완료자 중 74%"처럼 기준을 적는다 */
+const STEP_META: Record<EarFunnelStepKey, { label: string; short: string; who: string; hint: string }> = {
+  signups: { label: "가입", short: "가입", who: "가입자", hint: "유입 — 광고 소재·스토어 리스팅" },
+  onboarding_completed: { label: "온보딩 완료", short: "온보딩", who: "온보딩 완료자", hint: "로그인 → 온보딩 — 주제 선택·커리어 단계 수, 건너뛰기, 로그인 직후 첫 화면" },
+  first_play_24h: { label: "24시간 안 첫 재생", short: "24h 재생", who: "24시간 안 재생한 사람", hint: "첫 드립 도착 전 첫 화면 — 온보딩 직후 바로 들을 한 편이 보이는가, 첫 드립이 늦지 않은가" },
+  first_complete: { label: "첫 완청", short: "첫 완청", who: "첫 완청한 사람", hint: "첫 편 선택과 앞부분 — 첫 추천 편의 주제·길이, 앞 30초 도입" },
+  w1_return: { label: "W1 복귀 (가입 7~13일째)", short: "W1", who: "W1 복귀자", hint: "둘째 주 복귀 — 리텐션 알림 대상·발송 시각, 주제 다양화" },
+  habit_14d: { label: "14일 안 3일 이상 청취", short: "14일 습관", who: "14일 습관 사용자", hint: "습관 — 드립 품질(매일 들을 만한 편이 오는가)·편성 시각" },
+  paid_ever: { label: "결제", short: "결제", who: "결제자", hint: "페이월 — 노출 시점·가격·체험 종료 안내" },
 };
 
 const chip = (on: boolean, tone: "brand" | "ink" = "brand") =>
@@ -143,9 +144,19 @@ function FunnelView({ channel, weeks, market, onSwitchToDev }: { channel: EarCha
               {i > 0 && <span className="text-ink-soft" aria-hidden="true">→</span>}
               <div className={`rounded border px-2.5 py-1.5 ${isWorst ? "border-rose-300 bg-rose-50" : "border-line bg-white"}`} title={STEP_META[s.key].hint}>
                 <div className="text-[11px] font-semibold text-ink-soft">{STEP_META[s.key].label}</div>
-                <div className={`text-sm font-semibold tabular-nums ${isWorst ? "text-rose-700" : "text-ink"}`}>
-                  {i === 0 ? "기준" : s.rate == null ? "판정 전" : `${fmtPct(s.rate, 0)} 남음`}
-                </div>
+                {i === 0 ? (
+                  <div className="text-sm font-semibold text-ink">기준 (100%)</div>
+                ) : s.rate == null ? (
+                  <div className="text-sm font-semibold text-ink-soft">판정 전</div>
+                ) : (
+                  <>
+                    {/* 큰 숫자 = 바로 앞 단계 기준, 작은 줄 = 가입자 전체 기준 — 기준을 글로 적어 둘을 헷갈리지 않게 */}
+                    <div className={`text-sm font-semibold tabular-nums ${isWorst ? "text-rose-700" : "text-ink"}`}>
+                      <span className="text-[11px] font-normal text-ink-soft">{STEP_META[data.steps[i - 1].key].who} 중 </span>{fmtPct(s.rate, 0)}
+                    </div>
+                    <div className="text-[10px] tabular-nums text-ink-soft">가입자 대비 {fmtPct(s.rate_of_signups, 0)}</div>
+                  </>
+                )}
                 {i > 0 && <div className="text-[10px] text-ink-soft">끝난 묶음 {s.mature_cohorts}개{isWorst ? " · 가장 많이 빠짐" : ""}</div>}
               </div>
             </div>
@@ -187,8 +198,8 @@ function FunnelView({ channel, weeks, market, onSwitchToDev }: { channel: EarCha
         </Table>
       </div>
       <p className="text-xs text-ink-soft">
-        위 줄의 &quot;남음&quot; = 끝난 묶음만 합쳐 낸 <b>앞 단계 대비</b> 비율이고, 빨간 단계가 가장 많이 빠지는 곳이다. 표의 칸 = 그 단계에 이른 사람 수와 <b>가입자 대비</b> 비율.
-        단계는 엄밀한 포함 관계가 아니다(24시간 안에 안 듣고 나중에 완청할 수 있다). &quot;집계 중&quot; = 묶음의 마지막 가입자 기준으로 아직 끝나지 않은 단계.
+        위 상자의 큰 숫자 = 끝난 묶음만 합쳐 낸 <b>바로 앞 단계 기준</b> 비율(&quot;온보딩 완료자 중 74%&quot;), 작은 줄 = <b>가입자 전체 기준</b>. 빨간 단계가 가장 많이 빠지는 곳이다. 표의 칸 = 그 단계에 이른 사람 수와 가입자 대비 비율.
+        <b>깔때기다</b> — 각 단계는 앞 단계를 모두 통과한 사람만 센다(W1 복귀 = 24시간 안에 듣고 첫 완청까지 한 사람 중 돌아온 사람). 24시간 안에 안 듣고 나중에 완청한 사람은 첫 완청에 들지 않는다 — 그런 사람까지 보려면 &quot;첫 재생(전체)&quot; 열을 본다. &quot;집계 중&quot; = 묶음의 마지막 가입자 기준으로 아직 끝나지 않은 단계.
         24시간 첫 재생 = 가입 뒤 24시간 안 재생 · 첫 완청 = 완청 신호가 한 번이라도(180일 보존) · W1 = 가입 7~13일째(KST) 접속 또는 재생 · 14일 습관 = 가입 뒤 14일 안에 서로 다른 날 {data.habit_min_play_days}일 이상 청취 · 결제 = 실결제 경험(환불·시험 결제 제외).
         &quot;부분&quot; = W1 이 {fmtMonthDay(data.reliable_since)} 접속 기록 시작 전이라 재생만 잡혔다(가장 큰 이탈 판정에서 뺀다). 이름·이메일·user_id 는 서버가 싣지 않는다.
       </p>

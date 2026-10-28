@@ -589,7 +589,8 @@ export interface EarFunnelCohort {
 export interface EarSignupFunnel {
   weeks: number; market: EarInsightsMarket | null; generated_at: string;
   habit_min_play_days: number; reliable_since: string;
-  steps: { key: EarFunnelStepKey; mature_cohorts: number; rate: number | null; drop: number | null }[];
+  /** `rate` = 바로 앞 단계 기준(깔때기), `rate_of_signups` = 가입자 전체 기준 */
+  steps: { key: EarFunnelStepKey; mature_cohorts: number; rate: number | null; rate_of_signups?: number | null; drop: number | null }[];
   largest_drop_step: EarFunnelStepKey | null;
   /** 최근 가입 주 먼저 */
   cohorts: EarFunnelCohort[];

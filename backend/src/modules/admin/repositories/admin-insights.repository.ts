@@ -988,6 +988,10 @@ export class AdminInsightsRepository {
    * - 첫 14일 습관: 가입 시각 + `habitDays`일 안에 들은(`listened_sec > 0`) 서로 다른 `play_date`가 `minPlayDays`일 이상.
    * - 결제: 실결제(`environment = production`, 환불 제외)가 한 번이라도.
    *
+   * **단계는 깔때기다** — 각 단계는 앞 단계를 모두 통과한 사람만 센다(예: W1 복귀 = 24시간 안에 듣고 첫 완청까지 한 사람 중 복귀).
+   * 처음에는 단계마다 따로 셌는데, 그러면 "첫 완청 → W1 75%"가 완청 안 한 복귀자까지 분자에 넣은 값이 되어 "완청한 사람의 75%가
+   * 돌아왔다"로 잘못 읽혔다(실제 16%, 2026-10-28). 첫 재생 전체(`first_play_ever`)는 단계가 아닌 참고 값이라 따로 센다.
+   *
    * 아직 끝나지 않은 단계를 가리는 것은 Service 다 — 여기서는 있는 대로 센다. 탈퇴자는 `users`에 없어 빠진다(생존 편향).
    */
   async funnelCohorts(
@@ -1046,13 +1050,14 @@ export class AdminInsightsRepository {
        )
        select w.week_start,
               count(f.id)::int as signups,
+              -- 단계는 앞 단계를 모두 통과한 사람만 센다(깔때기) — 각 단계 = 앞 단계 AND 이 단계
               count(f.id) filter (where f.onboarding_completed)::int as onboarding_completed,
-              count(f.id) filter (where f.play_24h)::int as first_play_24h,
+              count(f.id) filter (where f.onboarding_completed and f.play_24h)::int as first_play_24h,
               count(f.id) filter (where f.play_ever)::int as first_play_ever,
-              count(f.id) filter (where f.completed)::int as first_complete,
-              count(f.id) filter (where f.w1)::int as w1_return,
-              count(f.id) filter (where f.habit)::int as habit_14d,
-              count(f.id) filter (where f.paid)::int as paid_ever
+              count(f.id) filter (where f.onboarding_completed and f.play_24h and f.completed)::int as first_complete,
+              count(f.id) filter (where f.onboarding_completed and f.play_24h and f.completed and f.w1)::int as w1_return,
+              count(f.id) filter (where f.onboarding_completed and f.play_24h and f.completed and f.w1 and f.habit)::int as habit_14d,
+              count(f.id) filter (where f.onboarding_completed and f.play_24h and f.completed and f.w1 and f.habit and f.paid)::int as paid_ever
          from w
          left join flags f on f.week_start = w.week_start
         group by w.week_start
