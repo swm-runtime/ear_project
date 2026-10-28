@@ -5,6 +5,8 @@ import { JwtAuthGuard } from '@/common/guards/jwt-auth.guard';
 
 import { AdminInsightsSummaryQueryRequestDto } from './dto/admin-insights-summary-query-request.dto';
 import { AdminInsightsSummaryResponseDto } from './dto/admin-insights-summary-response.dto';
+import { AdminInviteCodeCohortsQueryRequestDto } from './dto/admin-invite-code-cohorts-query-request.dto';
+import { AdminInviteCodeCohortsResponseDto } from './dto/admin-invite-code-cohorts-response.dto';
 import { AdminInsightsService } from './services/admin-insights.service';
 
 /**
@@ -28,6 +30,21 @@ export class AdminInsightsController {
         query.market ?? null,
       ),
       query.days,
+    );
+  }
+
+  /** 프로모션(초대 코드)별 묶음 지표 — 로그 콘솔 "프로모션" 탭(2026-10-28). 읽기 전용 · 열 때 1회 */
+  @Get('invite-codes')
+  @Header('Cache-Control', 'no-store')
+  async inviteCodes(
+    @Query() query: AdminInviteCodeCohortsQueryRequestDto,
+  ): Promise<AdminInviteCodeCohortsResponseDto> {
+    const now = new Date();
+
+    return AdminInviteCodeCohortsResponseDto.from(
+      await this.adminInsightsService.inviteCodeCohorts(query.days, now),
+      query.days,
+      now,
     );
   }
 }

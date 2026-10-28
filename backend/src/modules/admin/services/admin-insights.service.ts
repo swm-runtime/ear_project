@@ -18,6 +18,8 @@ import {
   InsightsDaily,
   InsightsDailyRows,
   InsightsHourly,
+  InsightsInviteCodeBaseline,
+  InsightsInviteCodeCohort,
   InsightsMarketTotals,
   InsightsSummary,
   InsightsWeekday,
@@ -39,6 +41,20 @@ export class AdminInsightsService {
    * `days`는 DTO 가 1~상한으로 검증한다. 창의 시작은 `now - days`. `market`이 있으면 시장 비교(`byMarket`)를 뺀 모든 집계를
    * 그 시장 사용자로 좁힌다(지금 시장 기준 — 2026-10-25)
    */
+  /** 프로모션(초대 코드)별 묶음 지표 — 창은 `now - days`(청취 시간만 창을 따른다, 활성·청취자는 최근 7일 고정) */
+  async inviteCodeCohorts(
+    days: number,
+    now: Date,
+  ): Promise<{
+    since: Date;
+    codes: InsightsInviteCodeCohort[];
+    baseline: InsightsInviteCodeBaseline;
+  }> {
+    const since = new Date(now.getTime() - days * DAY_MS);
+
+    return { since, ...(await this.repository.inviteCodeCohorts(since, now)) };
+  }
+
   async summarize(
     days: number,
     now: Date,

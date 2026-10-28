@@ -461,3 +461,36 @@ export interface InsightsSummary {
   topicSupply: InsightsTopicSupply[];
   byMarket: InsightsMarketTotals[];
 }
+
+/** 초대 코드(프로모션) 묶음 하나의 지표(2026-10-28) — 집계값만, 개인 식별값 없음 */
+export interface InsightsInviteCodeCohort {
+  code: string;
+  name: string;
+  tier: string;
+  grantDays: number | null;
+  grantUntilDate: string | null;
+  isActive: boolean;
+  /** 지금까지 입력한 계정 수(탈퇴해도 줄지 않는다 — `invite_codes.redeemed_count`) */
+  redeemed: number;
+  /** 그중 지금 남은 계정 — 탈퇴하면 입력 기록이 함께 지워진다 */
+  current: number;
+  /** 지급 중인 계정 */
+  activeGrants: number;
+  /** 지급이 끝난 계정 */
+  endedGrants: number;
+  active7d: number;
+  listeners7d: number;
+  /** 창 안 청취 시간 합(초) */
+  listenSec: number;
+  /** 코드를 입력한 뒤 실결제를 시작한 계정(환불·시험 결제 제외) */
+  paidAfterStart: number;
+}
+
+/** 코드를 입력한 적 없는 현재 계정 — 비교 기준선 */
+export interface InsightsInviteCodeBaseline {
+  current: number;
+  active7d: number;
+  listeners7d: number;
+  listenSec: number;
+  paidEver: number;
+}
