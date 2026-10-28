@@ -238,7 +238,7 @@ export class AdminInsightsSummaryResponseDto {
     plays: number;
     paid_active: number;
   }[];
-  /** 나라별(`users.region_code`, 없으면 unknown) — 글로벌을 골랐을 때만, 그 밖은 빈 배열. 가입자 많은 나라 먼저 */
+  /** 나라별(기기 시간대에서 추정, 없으면 unknown · 모르는 시간대는 그 이름) — 글로벌을 골랐을 때만, 그 밖은 빈 배열. 가입자 많은 나라 먼저 */
   readonly by_region: {
     region: string;
     users: number;

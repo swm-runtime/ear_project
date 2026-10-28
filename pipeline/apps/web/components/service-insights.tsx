@@ -227,7 +227,7 @@ function InsightsView({ channel, days, market, onSwitchToDev }: { channel: EarCh
       )}
 
       {data.market === "global" && data.by_region && data.by_region.length > 0 && (
-        <Panel title={`나라별 — 활성·청취자는 최근 7일, 가입·청취는 ${winLabel}`} flush>
+        <Panel title={`나라별(기기 시간대 기준) — 활성·청취자는 최근 7일, 가입·청취는 ${winLabel}`} flush>
           <RegionTable rows={data.by_region} />
         </Panel>
       )}
@@ -541,8 +541,9 @@ function MarketTable({ rows }: { rows: EarInsightsMarketRow[] }) {
 }
 
 /**
- * 글로벌 화면 맨 위 나라별 표(2026-10-29) — 시장 비교표와 같은 열. 나라는 기기 지역(`region_code`, 가입·로그인마다 갱신)이라
- * "지금 있는 나라"다. 이름은 브라우저 `Intl.DisplayNames`(한국어)로 바꾸고, 모르는 코드는 그대로 둔다
+ * 글로벌 화면 맨 위 나라별 표(2026-10-29) — 시장 비교표와 같은 열. 나라는 서버가 **기기 시간대**에서 추정한 코드다
+ * (기기 언어 지역은 필리핀의 en-GB 폰을 영국으로 잡았다). 이름은 브라우저 `Intl.DisplayNames`(한국어)로 바꾸고, 표에 없는
+ * 시간대(예: Africa/Lagos)는 서버가 보낸 이름 그대로 둔다
  */
 function RegionTable({ rows }: { rows: NonNullable<EarInsightsSummary["by_region"]> }) {
   const total = rows.reduce((sum, r) => sum + r.users, 0);
