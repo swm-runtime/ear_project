@@ -577,6 +577,49 @@ export interface EarPromotionSummary {
 export const getEarPromotionSummary = (ch: EarChannel, days: number) =>
   earFetch<EarPromotionSummary>(`/admin/insights/invite-codes?days=${days}`, { cache: "no-store" }, ch);
 
+// ── 가입 퍼널 (실험 지표 탭 — `GET /admin/insights/funnel`, 2026-10-28) ── 집계값만 온다(user_id·이름·이메일 없음)
+export type EarFunnelStepKey = "signups" | "onboarding_completed" | "first_play_24h" | "first_complete" | "w1_return" | "habit_14d" | "paid_ever";
+export interface EarFunnelCohort {
+  week_start: string; in_progress: boolean; signups: number; onboarding_completed: number;
+  /** 끝나지 않은 단계는 null(집계 중) */
+  first_play_24h: number | null; first_play_ever: number; first_complete: number;
+  w1_return: number | null; w1_partial: boolean; habit_14d: number | null; paid_ever: number;
+  rates: Partial<Record<EarFunnelStepKey, { count: number | null; of_prev: number | null; of_signups: number | null }>>;
+}
+export interface EarSignupFunnel {
+  weeks: number; market: EarInsightsMarket | null; generated_at: string;
+  habit_min_play_days: number; reliable_since: string;
+  steps: { key: EarFunnelStepKey; mature_cohorts: number; rate: number | null; drop: number | null }[];
+  largest_drop_step: EarFunnelStepKey | null;
+  /** 최근 가입 주 먼저 */
+  cohorts: EarFunnelCohort[];
+}
+export const getEarSignupFunnel = (ch: EarChannel, weeks: number, market: EarInsightsMarket | null = null) =>
+  earFetch<EarSignupFunnel>(`/admin/insights/funnel?weeks=${weeks}${market ? `&market=${market}` : ""}`, { cache: "no-store" }, ch);
+
+// ── 길이별 완청률 (실험 지표 탭 — `GET /admin/insights/completion-by-length`, 2026-10-28) ── 편 단위 집계(사용자는 수로만)
+export interface EarCompletionContent {
+  content_id: string; title: string; duration_sec: number; starters: number; completers: number;
+  /** 날것 `completers / starters` */
+  raw_rate: number;
+  /** 경험적 베이즈 축소값 — 시작한 사람이 적은 편은 전체 평균 쪽으로 당겨진다 */
+  shrunk_rate: number;
+}
+export interface EarCompletionByLength {
+  generated_at: string; content_market: string; min_age_hours: number;
+  overall_rate: number | null; prior_strength: number | null; starters: number; completers: number;
+  /** 길이 짧은 편 먼저 */
+  contents: EarCompletionContent[];
+  /** 로지스틱 회귀 추세 — 편이 적으면 null */
+  trend: {
+    slope_step_min: number; odds_ratio_per_step: number; odds_ratio_low: number; odds_ratio_high: number;
+    direction: "down" | "up" | "flat"; dispersion: number;
+    curve: { minute: number; rate: number; low: number; high: number }[];
+  } | null;
+}
+export const getEarCompletionByLength = (ch: EarChannel) =>
+  earFetch<EarCompletionByLength>("/admin/insights/completion-by-length", { cache: "no-store" }, ch);
+
 // ── 추천 검증 (서비스 지표 — `GET /admin/insights/recommendations/*`, 2026-10-22) ──
 // 사용자는 user_id 로만 온다 — 서버가 이름·이메일·제공자 ID·프로필 사진을 조회하지도 싣지도 않는다(루트 CLAUDE.md 개인정보 원칙).
 

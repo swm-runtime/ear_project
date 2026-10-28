@@ -5,7 +5,9 @@ import { UserMarket } from '@/modules/user/user.enum';
 
 import {
   InsightsCohortCounts,
+  InsightsCompletionContentRow,
   InsightsDailyRows,
+  InsightsFunnelCohortCounts,
   InsightsHourly,
   InsightsInviteCodeBaseline,
   InsightsInviteCodeCohort,
@@ -973,6 +975,166 @@ export class AdminInsightsRepository {
       medianRemaining: r.median_remaining,
       exhaustedUsers: r.exhausted_users,
       lowUsers: r.low_users,
+    }));
+  }
+
+  /**
+   * 가입 주 코호트 퍼널 재료(`GET /admin/insights/funnel`) — 묶음마다 `[startAt, endAt)`에 가입한 현재 계정 수와 단계별 도달자 수. 묶음 경계는
+   * Service 가 서비스 주(월 05:00)를 시각으로 바꿔 넘긴다(`serviceDateStart` — 04:00 → 05:00 전환을 이 파일이 다시 계산하지 않게).
+   *
+   * - 첫 재생 24h: 가입 시각 + `firstPlayHours` 안의 재생 행(0초 포함 — "눌러 봤다"). 첫 재생 전체: 재생 행이 하나라도.
+   * - 첫 완청: 완청 신호(`user_signals.action = complete`)가 하나라도 — 신호는 180일 보존이라 그보다 오래된 완청은 빠질 수 있다.
+   * - W1 복귀: 가입 KST 달력일 + 7 ~ +13일에 접속(`user_active_dates` · 남은 `sessions`) 또는 재생 — 코호트 리텐션 표 W1 과 같은 정의.
+   * - 첫 14일 습관: 가입 시각 + `habitDays`일 안에 들은(`listened_sec > 0`) 서로 다른 `play_date`가 `minPlayDays`일 이상.
+   * - 결제: 실결제(`environment = production`, 환불 제외)가 한 번이라도.
+   *
+   * 아직 끝나지 않은 단계를 가리는 것은 Service 다 — 여기서는 있는 대로 센다. 탈퇴자는 `users`에 없어 빠진다(생존 편향).
+   */
+  async funnelCohorts(
+    cohorts: readonly { weekStart: string; startAt: Date; endAt: Date }[],
+    options: { firstPlayHours: number; habitDays: number; minPlayDays: number },
+    market: UserMarket | null = null,
+  ): Promise<InsightsFunnelCohortCounts[]> {
+    const rows = await this.dataSource.query<
+      {
+        week_start: string;
+        signups: number;
+        onboarding_completed: number;
+        first_play_24h: number;
+        first_play_ever: number;
+        first_complete: number;
+        w1_return: number;
+        habit_14d: number;
+        paid_ever: number;
+      }[]
+    >(
+      `with w as (
+         select * from unnest($1::text[], $2::timestamptz[], $3::timestamptz[]) as w(week_start, start_at, end_at)
+       ),
+       cohort as (
+         select w.week_start, u.id, u.created_at, u.onboarding_completed,
+                (u.created_at at time zone 'Asia/Seoul')::date as d
+           from w
+           join users u on u.created_at >= w.start_at and u.created_at < w.end_at
+                       and ${marketIs('u.market', '$7')}
+       ),
+       flags as (
+         select c.week_start, c.id, c.onboarding_completed,
+                exists (select 1 from play_records p
+                         where p.user_id = c.id
+                           and p.played_at < c.created_at + make_interval(hours => $4::int)) as play_24h,
+                exists (select 1 from play_records p where p.user_id = c.id) as play_ever,
+                exists (select 1 from user_signals s
+                         where s.user_id = c.id and s.action = 'complete') as completed,
+                (exists (select 1 from user_active_dates a
+                          where a.user_id = c.id and a.active_date >= c.d + 7 and a.active_date < c.d + 14)
+                 or exists (select 1 from sessions s
+                             where s.user_id = c.id
+                               and s.issued_at >= (c.d + 7)::timestamp at time zone 'Asia/Seoul'
+                               and s.issued_at < (c.d + 14)::timestamp at time zone 'Asia/Seoul')
+                 or exists (select 1 from play_records p
+                             where p.user_id = c.id
+                               and p.played_at >= (c.d + 7)::timestamp at time zone 'Asia/Seoul'
+                               and p.played_at < (c.d + 14)::timestamp at time zone 'Asia/Seoul')) as w1,
+                (select count(distinct p.play_date) from play_records p
+                  where p.user_id = c.id and p.listened_sec > 0
+                    and p.played_at >= c.created_at
+                    and p.played_at < c.created_at + make_interval(days => $5::int)) >= $6::int as habit,
+                exists (select 1 from subscriptions s
+                         where s.user_id = c.id and s.environment = 'production' and s.status <> 'refunded') as paid
+           from cohort c
+       )
+       select w.week_start,
+              count(f.id)::int as signups,
+              count(f.id) filter (where f.onboarding_completed)::int as onboarding_completed,
+              count(f.id) filter (where f.play_24h)::int as first_play_24h,
+              count(f.id) filter (where f.play_ever)::int as first_play_ever,
+              count(f.id) filter (where f.completed)::int as first_complete,
+              count(f.id) filter (where f.w1)::int as w1_return,
+              count(f.id) filter (where f.habit)::int as habit_14d,
+              count(f.id) filter (where f.paid)::int as paid_ever
+         from w
+         left join flags f on f.week_start = w.week_start
+        group by w.week_start
+        order by w.week_start desc`,
+      [
+        cohorts.map((c) => c.weekStart),
+        cohorts.map((c) => c.startAt),
+        cohorts.map((c) => c.endAt),
+        options.firstPlayHours,
+        options.habitDays,
+        options.minPlayDays,
+        market,
+      ],
+    );
+    return rows.map((r) => ({
+      weekStart: r.week_start,
+      signups: r.signups,
+      onboardingCompleted: r.onboarding_completed,
+      firstPlay24h: r.first_play_24h,
+      firstPlayEver: r.first_play_ever,
+      firstComplete: r.first_complete,
+      w1Return: r.w1_return,
+      habit14d: r.habit_14d,
+      paidEver: r.paid_ever,
+    }));
+  }
+
+  /**
+   * 길이별 완청률 재료 — 편마다 들어 본 사람(0초가 아닌 재생 행이 있는 사용자)과 그중 완청한 사람. 단위는 (사용자, 편)이다.
+   * 완청은 공용 정의(`LibraryItemRepository` 완청 CTE · `domain.md` 6장)와 같다 — 라이브러리 `completed` · 최대 도달 ≥ 길이 × 기준 ·
+   * 완청 신호 중 하나. `market` 콘텐츠만, 길이가 있는 편만, 첫 재생이 `minAgeHours` 전인 (사용자, 편)만 센다(방금 시작한 사람 제외).
+   * 편 제목은 싣지만 사용자는 수만 낸다.
+   */
+  async completionByContent(
+    now: Date,
+    options: { market: string; minAgeHours: number; reachedRatio: number },
+  ): Promise<InsightsCompletionContentRow[]> {
+    const rows = await this.dataSource.query<
+      {
+        content_id: string;
+        title: string;
+        duration_sec: number;
+        starters: number;
+        completers: number;
+      }[]
+    >(
+      `with starts as (
+         select p.user_id, p.content_id
+           from play_records p
+           join contents c on c.id = p.content_id
+          where p.listened_sec > 0 and c.market = $1 and c.duration_sec > 0
+          group by p.user_id, p.content_id
+         having min(p.played_at) < $2::timestamptz - make_interval(hours => $3::int)
+       ),
+       flagged as (
+         select s.content_id,
+                (exists (select 1 from library_items i
+                          where i.user_id = s.user_id and i.content_id = s.content_id and i.status = 'completed')
+                 or exists (select 1 from playback_progresses g
+                             join contents c on c.id = g.content_id
+                             where g.user_id = s.user_id and g.content_id = s.content_id
+                               and g.max_reached_sec >= c.duration_sec * $4::numeric)
+                 or exists (select 1 from user_signals u
+                             where u.user_id = s.user_id and u.content_id = s.content_id and u.action = 'complete')
+                ) as completed
+           from starts s
+       )
+       select c.id as content_id, c.title, c.duration_sec,
+              count(*)::int as starters,
+              count(*) filter (where f.completed)::int as completers
+         from flagged f
+         join contents c on c.id = f.content_id
+        group by c.id, c.title, c.duration_sec
+        order by c.duration_sec, c.id`,
+      [options.market, now, options.minAgeHours, options.reachedRatio],
+    );
+    return rows.map((r) => ({
+      contentId: r.content_id,
+      title: r.title,
+      durationSec: r.duration_sec,
+      starters: r.starters,
+      completers: r.completers,
     }));
   }
 }
