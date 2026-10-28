@@ -234,6 +234,11 @@ export interface InsightsUserTotals {
   listeners7d: number;
   listeners30d: number;
   byProvider: { provider: string; count: number }[];
+  /**
+   * 현재 계정을 기기 플랫폼으로 나눈 수(2026-10-29) — 사용자마다 가장 최근에 갱신된 `device_tokens` 행의 `platform`.
+   * 기기 행이 없으면 `unknown`(앱에서 토큰 등록 전·웹 가입 등). 탈퇴자는 기기 행이 지워져 셀 수 없다
+   */
+  byPlatform: { platform: string; count: number }[];
 }
 
 export interface InsightsListeningTotals {

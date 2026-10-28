@@ -229,8 +229,8 @@ function InsightsView({ channel, days, market, onSwitchToDev }: { channel: EarCh
       {/* ── 사용자 ── */}
       <SectionTitle>사용자</SectionTitle>
       <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-6">
-        <Stat label="누적 가입 (탈퇴 포함)" value={fmtInt(u.total_signups)} sub="현재 계정 + 탈퇴 기록" />
-        <Stat label="현재 가입자" value={fmtInt(u.current)} sub={`온보딩 완료 ${fmtInt(u.onboarding_completed)}명 · ${fmtPct(u.onboarding_rate)}`} tone="text-brand-ink" />
+        <Stat label="누적 가입 (탈퇴 포함)" value={fmtInt(u.total_signups)} sub={<>현재 계정 + 탈퇴 기록<PlatformLine rows={u.by_platform} extra={u.withdrawals > 0 ? `탈퇴 ${fmtInt(u.withdrawals)}(기기 모름)` : undefined} /></>} />
+        <Stat label="현재 가입자" value={fmtInt(u.current)} sub={<>온보딩 완료 {fmtInt(u.onboarding_completed)}명 · {fmtPct(u.onboarding_rate)}<PlatformLine rows={u.by_platform} /></>} tone="text-brand-ink" />
         <Stat label="탈퇴 · 탈퇴율" value={`${fmtInt(u.withdrawals)}명 · ${fmtPct(u.withdrawal_rate)}`} sub={<>탈퇴 ÷ 누적 가입 · <TargetMark value={u.withdrawal_rate} target={SUCCESS_TARGETS.withdrawalRateMax} lowerIsBetter /></>} tone={targetTone(u.withdrawal_rate, SUCCESS_TARGETS.withdrawalRateMax, true)} />
         <Stat
           label="체험 중 · 유료"
@@ -684,4 +684,20 @@ function CohortTable({ table }: { table: EarInsightsCohortTable }) {
 /** "Pro 30명 (이벤트 11명)" — 이벤트가 0이거나 값이 없으면(옛 API) 괄호를 뺀다. 유료 수(`paid_active`)는 결제만 센다 */
 function tierWithEvent(label: string, count: number, eventCount: number | undefined): string {
   return eventCount ? `${label} ${fmtInt(count)}명 (이벤트 ${fmtInt(eventCount)}명)` : `${label} ${fmtInt(count)}명`;
+}
+
+const PLATFORM_LABEL: Record<string, string> = { ios: "iOS", android: "Android", unknown: "기기 없음" };
+const PLATFORM_ORDER = ["ios", "android", "unknown"];
+
+/**
+ * 플랫폼 작은 줄(2026-10-29) — 현재 계정을 가장 최근 기기의 플랫폼으로 나눈 수(`users.by_platform`). 탈퇴자는 기기 행이
+ * 지워져 플랫폼을 모르므로 누적 가입 칸에서는 `extra`로 따로 적는다. 옛 서버 응답(필드 없음)이면 그리지 않는다
+ */
+function PlatformLine({ rows, extra }: { rows?: { platform: string; count: number }[]; extra?: string }) {
+  if (!rows || rows.length === 0) return null;
+  const rank = (p: string) => (PLATFORM_ORDER.includes(p) ? PLATFORM_ORDER.indexOf(p) : PLATFORM_ORDER.length);
+  const sorted = [...rows].sort((x, y) => rank(x.platform) - rank(y.platform));
+  const parts = sorted.filter((r) => r.count > 0).map((r) => `${PLATFORM_LABEL[r.platform] ?? r.platform} ${fmtInt(r.count)}`);
+  if (extra) parts.push(extra);
+  return <span className="mt-0.5 block text-[11px] text-ink-soft">{parts.join(" · ")}</span>;
 }
