@@ -13,6 +13,7 @@ import {
   InsightsInviteCodeCohort,
   InsightsListeningTotals,
   InsightsMarketTotals,
+  InsightsRegionTotals,
   InsightsPushReaction,
   InsightsRetention,
   InsightsTopContent,
@@ -117,6 +118,18 @@ interface MarketTotalsRow {
   paid_active: number;
 }
 
+/** 시장·나라 비교 한 줄의 공통 값 */
+const toTotals = (r: Omit<MarketTotalsRow, 'market'>) => ({
+  users: r.users,
+  signupsInWindow: r.signups_in_window,
+  onboardingCompleted: r.onboarding_completed,
+  active7d: r.active_7d,
+  listeners7d: r.listeners_7d,
+  listenSec: r.listen_sec,
+  plays: r.plays,
+  paidActive: r.paid_active,
+});
+
 interface RetentionRow {
   day: number;
   cohort_size: number;
@@ -220,6 +233,23 @@ export class AdminInsightsRepository {
       [market],
     );
 
+    // 플랫폼 — 사용자마다 가장 최근에 갱신된 기기 행 하나(두 기기를 쓰면 마지막 기기). 기기 행이 없으면 unknown
+    const byPlatform = await this.dataSource.query<
+      { platform: string; count: number }[]
+    >(
+      `select coalesce(d.platform::text, 'unknown') as platform, count(*)::int as count
+         from users u
+         left join lateral (
+           select t.platform from device_tokens t
+            where t.user_id = u.id
+            order by t.updated_at desc
+            limit 1
+         ) d on true
+        where ${marketIs('u.market', '$1')}
+        group by 1 order by count desc, platform`,
+      [market],
+    );
+
     return {
       totalSignups: row.current + row.withdrawals,
       current: row.current,
@@ -248,6 +278,10 @@ export class AdminInsightsRepository {
         provider: p.provider,
         count: p.count,
       })),
+      byPlatform: byPlatform.map((p) => ({
+        platform: p.platform,
+        count: p.count,
+      })),
     };
   }
 
@@ -256,8 +290,44 @@ export class AdminInsightsRepository {
    * 나눈 것이다 — 사용자 행을 한 번 훑으며 사용자마다 존재 여부만 본다. 계정이 없는 시장은 행이 없다(Service 가 0 으로 채운다).
    */
   async marketTotals(since: Date, now: Date): Promise<InsightsMarketTotals[]> {
-    const rows = await this.dataSource.query<MarketTotalsRow[]>(
-      `select u.market,
+    const rows = await this.groupedUserTotals<MarketTotalsRow>(
+      'u.market',
+      since,
+      now,
+      null,
+    );
+
+    return rows.map((r) => ({ market: r.market, ...toTotals(r) }));
+  }
+
+  /**
+   * 나라별 같은 지표(2026-10-29, 글로벌 탭 맨 위) — `marketTotals`와 같은 정의를 `users.region_code`(지금 기기 지역)로 나눈다.
+   * `market`이 있으면 그 시장 계정만. 지역이 없으면 `unknown`. 가입자 많은 나라 먼저
+   */
+  async regionTotals(
+    since: Date,
+    now: Date,
+    market: UserMarket | null,
+  ): Promise<InsightsRegionTotals[]> {
+    const rows = await this.groupedUserTotals<
+      Omit<MarketTotalsRow, 'market'> & { region: string }
+    >("coalesce(u.region_code, 'unknown')", since, now, market);
+
+    return rows
+      .map((r) => ({ region: r.region, ...toTotals(r) }))
+      .sort((a, b) => b.users - a.users || a.region.localeCompare(b.region));
+  }
+
+  /** 시장·나라 비교의 공통 질의 — `groupBy` 식마다 한 줄. 별칭은 `market`(시장) 또는 `region`(나라) */
+  private groupedUserTotals<T>(
+    groupBy: 'u.market' | "coalesce(u.region_code, 'unknown')",
+    since: Date,
+    now: Date,
+    market: UserMarket | null,
+  ): Promise<T[]> {
+    const alias = groupBy === 'u.market' ? 'market' : 'region';
+    return this.dataSource.query<T[]>(
+      `select ${groupBy} as ${alias},
               count(*)::int as users,
               count(*) filter (where u.created_at >= $2)::int as signups_in_window,
               count(*) filter (where u.onboarding_completed)::int as onboarding_completed,
@@ -279,21 +349,10 @@ export class AdminInsightsRepository {
              from play_records p
             where p.user_id = u.id and p.played_at >= $2
          ) w on true
-        group by u.market`,
-      [now, since],
+        where ${marketIs('u.market', '$3')}
+        group by 1`,
+      [now, since, market],
     );
-
-    return rows.map((r) => ({
-      market: r.market,
-      users: r.users,
-      signupsInWindow: r.signups_in_window,
-      onboardingCompleted: r.onboarding_completed,
-      active7d: r.active_7d,
-      listeners7d: r.listeners_7d,
-      listenSec: r.listen_sec,
-      plays: r.plays,
-      paidActive: r.paid_active,
-    }));
   }
 
   /**
@@ -988,6 +1047,10 @@ export class AdminInsightsRepository {
    * - 첫 14일 습관: 가입 시각 + `habitDays`일 안에 들은(`listened_sec > 0`) 서로 다른 `play_date`가 `minPlayDays`일 이상.
    * - 결제: 실결제(`environment = production`, 환불 제외)가 한 번이라도.
    *
+   * **단계는 깔때기다** — 각 단계는 앞 단계를 모두 통과한 사람만 센다(예: W1 복귀 = 24시간 안에 듣고 첫 완청까지 한 사람 중 복귀).
+   * 처음에는 단계마다 따로 셌는데, 그러면 "첫 완청 → W1 75%"가 완청 안 한 복귀자까지 분자에 넣은 값이 되어 "완청한 사람의 75%가
+   * 돌아왔다"로 잘못 읽혔다(실제 16%, 2026-10-28). 첫 재생 전체(`first_play_ever`)는 단계가 아닌 참고 값이라 따로 센다.
+   *
    * 아직 끝나지 않은 단계를 가리는 것은 Service 다 — 여기서는 있는 대로 센다. 탈퇴자는 `users`에 없어 빠진다(생존 편향).
    */
   async funnelCohorts(
@@ -1046,13 +1109,14 @@ export class AdminInsightsRepository {
        )
        select w.week_start,
               count(f.id)::int as signups,
+              -- 단계는 앞 단계를 모두 통과한 사람만 센다(깔때기) — 각 단계 = 앞 단계 AND 이 단계
               count(f.id) filter (where f.onboarding_completed)::int as onboarding_completed,
-              count(f.id) filter (where f.play_24h)::int as first_play_24h,
+              count(f.id) filter (where f.onboarding_completed and f.play_24h)::int as first_play_24h,
               count(f.id) filter (where f.play_ever)::int as first_play_ever,
-              count(f.id) filter (where f.completed)::int as first_complete,
-              count(f.id) filter (where f.w1)::int as w1_return,
-              count(f.id) filter (where f.habit)::int as habit_14d,
-              count(f.id) filter (where f.paid)::int as paid_ever
+              count(f.id) filter (where f.onboarding_completed and f.play_24h and f.completed)::int as first_complete,
+              count(f.id) filter (where f.onboarding_completed and f.play_24h and f.completed and f.w1)::int as w1_return,
+              count(f.id) filter (where f.onboarding_completed and f.play_24h and f.completed and f.w1 and f.habit)::int as habit_14d,
+              count(f.id) filter (where f.onboarding_completed and f.play_24h and f.completed and f.w1 and f.habit and f.paid)::int as paid_ever
          from w
          left join flags f on f.week_start = w.week_start
         group by w.week_start

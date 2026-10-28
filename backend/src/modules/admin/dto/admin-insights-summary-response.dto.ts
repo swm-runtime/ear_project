@@ -135,6 +135,8 @@ export class AdminInsightsSummaryResponseDto {
     listener_rate_7d: number | null;
     listener_rate_30d: number | null;
     by_provider: { provider: string; count: number }[];
+    /** 현재 계정의 기기 플랫폼(`ios`·`android`·`unknown` = 기기 행 없음) — 사용자마다 가장 최근 기기 */
+    by_platform: { platform: string; count: number }[];
   };
   readonly listening: {
     all_time: ListeningTotalsItem;
@@ -236,6 +238,18 @@ export class AdminInsightsSummaryResponseDto {
     plays: number;
     paid_active: number;
   }[];
+  /** 나라별(`users.region_code`, 없으면 unknown) — 글로벌을 골랐을 때만, 그 밖은 빈 배열. 가입자 많은 나라 먼저 */
+  readonly by_region: {
+    region: string;
+    users: number;
+    signups_in_window: number;
+    onboarding_completed: number;
+    active_7d: number;
+    listeners_7d: number;
+    listen_sec: number;
+    plays: number;
+    paid_active: number;
+  }[];
 
   static from(
     summary: InsightsSummary,
@@ -285,6 +299,7 @@ export class AdminInsightsSummaryResponseDto {
         listener_rate_7d: ratio(u.listeners7d, u.active7d),
         listener_rate_30d: ratio(u.listeners30d, u.active30d),
         by_provider: u.byProvider,
+        by_platform: u.byPlatform,
       },
       listening: {
         all_time: toListening(summary.listening.allTime),
@@ -376,6 +391,17 @@ export class AdminInsightsSummaryResponseDto {
       })),
       by_market: summary.byMarket.map((m) => ({
         market: m.market,
+        users: m.users,
+        signups_in_window: m.signupsInWindow,
+        onboarding_completed: m.onboardingCompleted,
+        active_7d: m.active7d,
+        listeners_7d: m.listeners7d,
+        listen_sec: m.listenSec,
+        plays: m.plays,
+        paid_active: m.paidActive,
+      })),
+      by_region: summary.byRegion.map((m) => ({
+        region: m.region,
         users: m.users,
         signups_in_window: m.signupsInWindow,
         onboarding_completed: m.onboardingCompleted,

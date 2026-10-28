@@ -82,6 +82,8 @@ export class AdminInsightsFunnelResponseDto {
     key: InsightsFunnelStepKey;
     mature_cohorts: number;
     rate: number | null;
+    /** 같은 성숙 묶음 기준 가입자 대비 */
+    rate_of_signups: number | null;
     drop: number | null;
   }[];
   readonly largest_drop_step: InsightsFunnelStepKey | null;
@@ -102,6 +104,7 @@ export class AdminInsightsFunnelResponseDto {
         key: s.key,
         mature_cohorts: s.matureCohorts,
         rate: s.rate,
+        rate_of_signups: s.rateOfSignups,
         drop: s.drop,
       })),
       largest_drop_step: f.largestDropStep,

@@ -226,11 +226,17 @@ function InsightsView({ channel, days, market, onSwitchToDev }: { channel: EarCh
         </Panel>
       )}
 
+      {data.market === "global" && data.by_region && data.by_region.length > 0 && (
+        <Panel title={`나라별 — 활성·청취자는 최근 7일, 가입·청취는 ${winLabel}`} flush>
+          <RegionTable rows={data.by_region} />
+        </Panel>
+      )}
+
       {/* ── 사용자 ── */}
       <SectionTitle>사용자</SectionTitle>
       <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-6">
-        <Stat label="누적 가입 (탈퇴 포함)" value={fmtInt(u.total_signups)} sub="현재 계정 + 탈퇴 기록" />
-        <Stat label="현재 가입자" value={fmtInt(u.current)} sub={`온보딩 완료 ${fmtInt(u.onboarding_completed)}명 · ${fmtPct(u.onboarding_rate)}`} tone="text-brand-ink" />
+        <Stat label="누적 가입 (탈퇴 포함)" value={fmtInt(u.total_signups)} sub={<>현재 계정 + 탈퇴 기록<PlatformLine rows={u.by_platform} extra={u.withdrawals > 0 ? `탈퇴 ${fmtInt(u.withdrawals)}(기기 모름)` : undefined} /></>} />
+        <Stat label="현재 가입자" value={fmtInt(u.current)} sub={<>온보딩 완료 {fmtInt(u.onboarding_completed)}명 · {fmtPct(u.onboarding_rate)}<PlatformLine rows={u.by_platform} /></>} tone="text-brand-ink" />
         <Stat label="탈퇴 · 탈퇴율" value={`${fmtInt(u.withdrawals)}명 · ${fmtPct(u.withdrawal_rate)}`} sub={<>탈퇴 ÷ 누적 가입 · <TargetMark value={u.withdrawal_rate} target={SUCCESS_TARGETS.withdrawalRateMax} lowerIsBetter /></>} tone={targetTone(u.withdrawal_rate, SUCCESS_TARGETS.withdrawalRateMax, true)} />
         <Stat
           label="체험 중 · 유료"
@@ -534,6 +540,51 @@ function MarketTable({ rows }: { rows: EarInsightsMarketRow[] }) {
   );
 }
 
+/**
+ * 글로벌 화면 맨 위 나라별 표(2026-10-29) — 시장 비교표와 같은 열. 나라는 기기 지역(`region_code`, 가입·로그인마다 갱신)이라
+ * "지금 있는 나라"다. 이름은 브라우저 `Intl.DisplayNames`(한국어)로 바꾸고, 모르는 코드는 그대로 둔다
+ */
+function RegionTable({ rows }: { rows: NonNullable<EarInsightsSummary["by_region"]> }) {
+  const total = rows.reduce((sum, r) => sum + r.users, 0);
+  return (
+    <Table head={["나라", "가입자", "기간 가입", "온보딩 완료", "7일 활성", "7일 청취자", "기간 청취", "기간 재생", "유료"]}>
+      {rows.map((r) => (
+        <Tr key={r.region}>
+          <Td className="font-medium">{regionLabel(r.region)}</Td>
+          <Td className="tabular-nums">{fmtInt(r.users)} <span className="text-ink-soft">· {fmtPct(r.users / Math.max(1, total), 0)}</span></Td>
+          <Td className="tabular-nums">{fmtInt(r.signups_in_window)}</Td>
+          <Td className="tabular-nums">{fmtInt(r.onboarding_completed)}</Td>
+          <Td className="tabular-nums">{fmtInt(r.active_7d)}</Td>
+          <Td className="tabular-nums">{fmtInt(r.listeners_7d)}</Td>
+          <Td className="tabular-nums">{fmtListenSec(r.listen_sec)}</Td>
+          <Td className="tabular-nums">{fmtInt(r.plays)}</Td>
+          <Td className="tabular-nums">{fmtInt(r.paid_active)}</Td>
+        </Tr>
+      ))}
+    </Table>
+  );
+}
+
+const REGION_NAMES = (() => {
+  try {
+    return new Intl.DisplayNames(["ko"], { type: "region" });
+  } catch {
+    return null;
+  }
+})();
+
+/** `PH` → "필리핀 (PH)", `unknown` → "모름" */
+function regionLabel(code: string): string {
+  if (code === "unknown") return "모름";
+  let name: string | undefined;
+  try {
+    name = REGION_NAMES?.of(code);
+  } catch {
+    name = undefined;
+  }
+  return name && name !== code ? `${name} (${code})` : code;
+}
+
 function SectionTitle({ children }: { children: React.ReactNode }) {
   return <h2 className="mt-1 text-[12px] font-semibold uppercase tracking-wide text-ink-soft">{children}</h2>;
 }
@@ -684,4 +735,20 @@ function CohortTable({ table }: { table: EarInsightsCohortTable }) {
 /** "Pro 30명 (이벤트 11명)" — 이벤트가 0이거나 값이 없으면(옛 API) 괄호를 뺀다. 유료 수(`paid_active`)는 결제만 센다 */
 function tierWithEvent(label: string, count: number, eventCount: number | undefined): string {
   return eventCount ? `${label} ${fmtInt(count)}명 (이벤트 ${fmtInt(eventCount)}명)` : `${label} ${fmtInt(count)}명`;
+}
+
+const PLATFORM_LABEL: Record<string, string> = { ios: "iOS", android: "Android", unknown: "기기 없음" };
+const PLATFORM_ORDER = ["ios", "android", "unknown"];
+
+/**
+ * 플랫폼 작은 줄(2026-10-29) — 현재 계정을 가장 최근 기기의 플랫폼으로 나눈 수(`users.by_platform`). 탈퇴자는 기기 행이
+ * 지워져 플랫폼을 모르므로 누적 가입 칸에서는 `extra`로 따로 적는다. 옛 서버 응답(필드 없음)이면 그리지 않는다
+ */
+function PlatformLine({ rows, extra }: { rows?: { platform: string; count: number }[]; extra?: string }) {
+  if (!rows || rows.length === 0) return null;
+  const rank = (p: string) => (PLATFORM_ORDER.includes(p) ? PLATFORM_ORDER.indexOf(p) : PLATFORM_ORDER.length);
+  const sorted = [...rows].sort((x, y) => rank(x.platform) - rank(y.platform));
+  const parts = sorted.filter((r) => r.count > 0).map((r) => `${PLATFORM_LABEL[r.platform] ?? r.platform} ${fmtInt(r.count)}`);
+  if (extra) parts.push(extra);
+  return <span className="mt-0.5 block text-[11px] text-ink-soft">{parts.join(" · ")}</span>;
 }

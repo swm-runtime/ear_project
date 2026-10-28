@@ -501,6 +501,8 @@ export interface EarInsightsSummary {
   market?: EarInsightsMarket | null;
   /** 시장별 비교(global-api 4.10) — 배포 전 서버면 없다 */
   by_market?: EarInsightsMarketRow[];
+  /** 나라별(`users.region_code`, 없으면 unknown) — 글로벌을 골랐을 때만 채워진다. 배포 전 서버면 없다(2026-10-29) */
+  by_region?: (Omit<EarInsightsMarketRow, "market"> & { region: string })[];
   users: {
     total_signups: number; current: number; withdrawals: number; withdrawal_rate: number | null;
     onboarding_completed: number; onboarding_rate: number | null; trial_active: number;
@@ -515,6 +517,8 @@ export interface EarInsightsSummary {
     listeners_1d: number; listeners_7d: number; listeners_30d: number;
     listener_rate_1d: number | null; listener_rate_7d: number | null; listener_rate_30d: number | null;
     by_provider: { provider: string; count: number }[];
+    /** 현재 계정의 기기 플랫폼(ios·android·unknown) — 옛 서버면 없다 */
+    by_platform?: { platform: string; count: number }[];
   };
   listening: { all_time: EarInsightsListening; window: EarInsightsListening };
   /** `active_users` — 그날 접속자(토큰 갱신한 사람). 기록이 없는 날은 null, 배포 전 서버면 키가 없다(2026-10-18 추가) */
@@ -589,7 +593,8 @@ export interface EarFunnelCohort {
 export interface EarSignupFunnel {
   weeks: number; market: EarInsightsMarket | null; generated_at: string;
   habit_min_play_days: number; reliable_since: string;
-  steps: { key: EarFunnelStepKey; mature_cohorts: number; rate: number | null; drop: number | null }[];
+  /** `rate` = 바로 앞 단계 기준(깔때기), `rate_of_signups` = 가입자 전체 기준 */
+  steps: { key: EarFunnelStepKey; mature_cohorts: number; rate: number | null; rate_of_signups?: number | null; drop: number | null }[];
   largest_drop_step: EarFunnelStepKey | null;
   /** 최근 가입 주 먼저 */
   cohorts: EarFunnelCohort[];

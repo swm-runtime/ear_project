@@ -33,9 +33,11 @@ import {
 interface SummaryBody {
   days: number;
   market: string | null;
+  by_region: { region: string; users: number }[];
   users: {
     total_signups: number;
     current: number;
+    by_platform: { platform: string; count: number }[];
     withdrawals: number;
     withdrawal_rate: number | null;
     activated: number;
@@ -301,6 +303,10 @@ describe('서비스 지표 요약 E2E', () => {
       body.users.current + body.users.withdrawals,
     );
     expect(body.users.withdrawals).toBeGreaterThanOrEqual(1);
+    // 플랫폼 칸은 현재 계정을 빠짐없이 한 번씩 나눈다(기기 없음 포함)
+    expect(body.users.by_platform.reduce((n, p) => n + p.count, 0)).toBe(
+      body.users.current,
+    );
     // 이벤트 인원은 그 티어 인원의 일부다 — 이 테스트가 심은 이벤트 Pro 1명이 들어 있다
     expect(body.users.tier_events.pro).toBeGreaterThanOrEqual(1);
     expect(body.users.tier_events.pro).toBeLessThanOrEqual(
@@ -762,9 +768,10 @@ describe('서비스 지표 요약 E2E', () => {
     const adminAuth = await createUser('admin-filter', UserRole.ADMIN);
     const globalId = await createUserId('global-listener');
     const krId = await createUserId('kr-listener');
-    await dataSource.query(`UPDATE users SET market = 'global' WHERE id = $1`, [
-      globalId,
-    ]);
+    await dataSource.query(
+      `UPDATE users SET market = 'global', region_code = 'PH' WHERE id = $1`,
+      [globalId],
+    );
     const contentId = await seedContent();
     const now = new Date();
     const playRecords = dataSource.getRepository(PlayRecord);
@@ -798,6 +805,14 @@ describe('서비스 지표 요약 E2E', () => {
     expect(kr.market).toBe(UserMarket.KR);
     expect(all.market).toBeNull();
     expect(global.by_market.map((m) => m.market)).toEqual(['kr', 'global']);
+
+    // then — 나라별은 글로벌에서만, 그 시장 계정만 나라로 나눈다(합 = 그 시장 가입자). 국내·통합은 빈 배열
+    expect(global.by_region.map((r) => r.region)).toContain('PH');
+    expect(global.by_region.reduce((n, r) => n + r.users, 0)).toBe(
+      global.users.current,
+    );
+    expect(kr.by_region).toEqual([]);
+    expect(all.by_region).toEqual([]);
 
     // then — 순위는 그 시장 사람만
     const ids = (b: SummaryBody) => b.top_users.map((u) => u.user_id);
@@ -1014,7 +1029,7 @@ describe('서비스 지표 요약 E2E', () => {
      * 1995-03-06(월) 서비스 주 가입 A·B·C + 그 주 월요일 KST 03:00 가입 D(04:00 경계 전이라 지난 서비스 주다).
      * - A: 가입 2시간 뒤 첫 재생 · 3일 연속 청취 · 완청 · W1(가입 8일째) 세션 · 실결제
      * - B: 가입 이틀 뒤 첫 재생(24시간 밖) · 완청 없음
-     * - D: 03-27 청취·완청
+     * - D: 03-27 청취·완청 — 24시간 안 재생이 없어 깔때기에서는 첫 완청에 들지 않는다(첫 재생 전체에는 든다)
      */
     async function seedCohort(): Promise<
       Record<'a' | 'b' | 'c' | 'd', string>
@@ -1068,7 +1083,7 @@ describe('서비스 지표 요약 E2E', () => {
       ]);
     });
 
-    it('가입 주 퍼널 — 서비스 주로 묶고 단계마다 도달자를 센다(월요일 04시 전 가입은 지난 주)', async () => {
+    it('가입 주 퍼널 — 서비스 주로 묶고, 앞 단계를 모두 통과한 사람만 다음 단계에 센다(월요일 04시 전 가입은 지난 주)', async () => {
       // given — beforeAll 이 심은 4명
       const repository = app.get(AdminInsightsRepository);
 
@@ -1108,7 +1123,7 @@ describe('서비스 지표 요약 E2E', () => {
           onboardingCompleted: 1,
           firstPlay24h: 0,
           firstPlayEver: 1,
-          firstComplete: 1,
+          firstComplete: 0,
           w1Return: 0,
           habit14d: 0,
           paidEver: 0,

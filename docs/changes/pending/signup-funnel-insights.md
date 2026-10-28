@@ -23,7 +23,7 @@
 - 요청: `weeks` 4~12(기본 8, 이번 주 포함 가입 주 수) · `market` `kr`|`global`|없음(통합 — 요약 4.22와 같은 "지금 시장" 규칙). 범위 밖·모르는 값은 400
 - 가입 주 = **서비스 주**(월요일 05:00 KST 시작, `service-date.util` — 전환 전 시각은 04:00). `users.created_at`으로 묶는다. 현재 계정만(탈퇴자 제외)
 - 응답: `weeks` · `market` · `generated_at` · `habit_min_play_days`(백엔드 상수 `FUNNEL_HABIT_MIN_PLAY_DAYS = 3`) · `reliable_since`(접속 기록을 믿을 수 있는 첫 날 — 코호트 리텐션 표와 같은 `cohortReliableSince`)
-  - `steps[]`(퍼널 순서): `signups` → `onboarding_completed` → `first_play_24h` → `first_complete` → `w1_return` → `habit_14d` → `paid_ever`. 각 `key` · `mature_cohorts` · `rate`(성숙한 묶음 합산 `Σ이 단계 / Σ앞 단계`) · `drop`(`1 - rate`, 0 아래는 0). 첫 단계는 `rate`·`drop` null
+  - `steps[]`(퍼널 순서): `signups` → `onboarding_completed` → `first_play_24h` → `first_complete` → `w1_return` → `habit_14d` → `paid_ever`. 각 `key` · `mature_cohorts` · `rate`(성숙한 묶음 합산 `Σ이 단계 / Σ앞 단계`) · `rate_of_signups`(같은 성숙 묶음의 `Σ이 단계 / Σ가입`) · `drop`(`1 - rate`, 0 아래는 0). 첫 단계는 `rate`·`rate_of_signups`·`drop` null
   - `largest_drop_step`: `drop`이 가장 큰 단계(같으면 앞 단계), 판정할 단계가 없으면 null
   - `cohorts[]`(최근 가입 주 먼저): `week_start` · `in_progress` · `signups` · `onboarding_completed` · `first_play_24h` · `first_play_ever`(참고 값, 단계 아님) · `first_complete` · `w1_return` · `w1_partial` · `habit_14d` · `paid_ever` · `rates.<단계>` = `{ count, of_prev, of_signups }`
 - 단계 정의
@@ -32,7 +32,7 @@
   - `w1_return`: 가입 KST 달력일 + 7~13일에 접속(`user_active_dates` · 남은 `sessions`) 또는 재생 — 코호트 리텐션 W1과 같은 정의. `week_start + 20일 < 오늘(KST)` 전에는 null. `week_start + 7일 < reliable_since`면 `w1_partial`(재생만 잡혀 낮다 — 가장 큰 이탈 판정에서 뺀다)
   - `habit_14d`: 가입 시각 + 14일 안에 들은(`listened_sec > 0`) 서로 다른 `play_date`가 `habit_min_play_days`일 이상. 묶음 끝 + 14일 전에는 null
   - `paid_ever`: 실결제(`subscriptions.environment = production`, `status <> refunded`)가 한 번이라도
-- 단계는 엄밀한 포함 관계가 아니다 — 비율이 1을 넘을 수 있다
+- **단계는 깔때기다** — 각 단계는 앞 단계를 모두 통과한 사람만 센다(예: `w1_return` = 온보딩·24시간 첫 재생·첫 완청을 모두 한 사람 중 복귀). 비율은 1을 넘지 않는다. `first_play_ever`만 단계가 아닌 참고 값(가입자 중 재생 전체). 처음(2026-10-28 #2120)에는 단계를 따로 세어 "첫 완청 → W1 75%"가 완청 안 한 복귀자까지 넣은 값이 됐다 — 실제 완청자 중 W1 복귀는 16%(9/57). 같은 날 깔때기로 고쳤다
 - 성숙 = `in_progress`가 아니고 이 단계·앞 단계가 둘 다 숫자(W1 partial 은 null 취급)이며 앞 단계가 1명 이상
 
 ### 1-2. `admin-api.md` — `GET /admin/insights/completion-by-length`

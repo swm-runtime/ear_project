@@ -38,9 +38,9 @@ const cohort = (
   firstPlay24h: 60,
   firstPlayEver: 70,
   firstComplete: 30,
-  w1Return: 40,
+  w1Return: 20,
   w1Partial: false,
-  habit14d: 20,
+  habit14d: 10,
   paidEver: 2,
   ...over,
 });
@@ -129,8 +129,8 @@ describe('가입 퍼널 순수 계산', () => {
           onboardingCompleted: 60,
           firstPlay24h: 30,
           firstComplete: 20,
-          w1Return: 30,
-          habit14d: 10,
+          w1Return: 8,
+          habit14d: 4,
           paidEver: 0,
         }),
         // 진행 중인 주 — 어떤 단계에도 들지 않는다
@@ -141,16 +141,18 @@ describe('가입 퍼널 순수 계산', () => {
         key: 'signups',
         matureCohorts: 2,
         rate: null,
+        rateOfSignups: null,
         drop: null,
       });
       expect(byKey.onboarding_completed.rate).toBeCloseTo(140 / 200);
       expect(byKey.first_play_24h.rate).toBeCloseTo(90 / 140);
       expect(byKey.first_complete.rate).toBeCloseTo(50 / 90);
-      // W1 은 앞 단계(완청)보다 많을 수 있다 — 이탈은 0 으로 자른다
-      expect(byKey.w1_return.rate).toBeCloseTo(70 / 50);
-      expect(byKey.w1_return.drop).toBe(0);
-      expect(byKey.paid_ever.rate).toBeCloseTo(2 / 30);
-      // 결제 단계 이탈(1 - 2/30 ≈ 0.93)이 가장 크다
+      // 깔때기 — W1 은 완청한 사람 중 복귀(28/50), 가입자 대비로는 28/200
+      expect(byKey.w1_return.rate).toBeCloseTo(28 / 50);
+      expect(byKey.w1_return.rateOfSignups).toBeCloseTo(28 / 200);
+      expect(byKey.habit_14d.rate).toBeCloseTo(14 / 28);
+      expect(byKey.paid_ever.rate).toBeCloseTo(2 / 14);
+      // 결제 단계 이탈(1 - 2/14 ≈ 0.86)이 가장 크다
       expect(largestDropStep).toBe('paid_ever');
     });
 
@@ -158,7 +160,7 @@ describe('가입 퍼널 순수 계산', () => {
       const { steps } = summarizeFunnelSteps([
         cohort({ w1Return: null, habit14d: null }),
         cohort({ w1Partial: true }),
-        cohort({ firstComplete: 0, w1Return: 5 }),
+        cohort({ firstComplete: 0, w1Return: 0, habit14d: 0, paidEver: 0 }),
       ]);
       const byKey = Object.fromEntries(steps.map((s) => [s.key, s]));
       // w1: 첫째 null · 둘째 partial · 셋째 앞 단계 0 → 판정 묶음 없음
@@ -167,9 +169,10 @@ describe('가입 퍼널 순수 계산', () => {
         rate: null,
         drop: null,
       });
-      // habit: 앞 단계(W1)가 판정된 묶음은 셋째뿐
-      expect(byKey.habit_14d.matureCohorts).toBe(1);
-      expect(byKey.habit_14d.rate).toBeCloseTo(20 / 5);
+      // habit: 첫째 null · 둘째 앞 단계(W1) partial · 셋째 앞 단계 0 → 판정 묶음 없음
+      expect(byKey.habit_14d).toMatchObject({ matureCohorts: 0, rate: null });
+      // 완청: 셋째는 판정되지만 0명 — 비율에는 들어간다
+      expect(byKey.first_complete.matureCohorts).toBe(3);
     });
 
     it('판정할 단계가 하나도 없으면 가장 큰 이탈은 null 이다', () => {

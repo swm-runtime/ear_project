@@ -234,6 +234,11 @@ export interface InsightsUserTotals {
   listeners7d: number;
   listeners30d: number;
   byProvider: { provider: string; count: number }[];
+  /**
+   * 현재 계정을 기기 플랫폼으로 나눈 수(2026-10-29) — 사용자마다 가장 최근에 갱신된 `device_tokens` 행의 `platform`.
+   * 기기 행이 없으면 `unknown`(앱에서 토큰 등록 전·웹 가입 등). 탈퇴자는 기기 행이 지워져 셀 수 없다
+   */
+  byPlatform: { platform: string; count: number }[];
 }
 
 export interface InsightsListeningTotals {
@@ -428,6 +433,14 @@ export interface InsightsMarketTotals {
   paidActive: number;
 }
 
+/**
+ * 나라별 같은 지표(2026-10-29, 글로벌 탭 맨 위) — 나라는 `users.region_code`(기기 지역 ISO 3166-1 alpha-2, 가입·로그인마다
+ * 갱신 — 지금 나라). 값이 없으면 `unknown`
+ */
+export type InsightsRegionTotals = Omit<InsightsMarketTotals, 'market'> & {
+  region: string;
+};
+
 export interface InsightsSummary {
   /** 고른 시장 — null 이면 통합 */
   market: UserMarket | null;
@@ -460,6 +473,8 @@ export interface InsightsSummary {
   retentionCohorts: { daily: InsightsCohortTable; weekly: InsightsCohortTable };
   topicSupply: InsightsTopicSupply[];
   byMarket: InsightsMarketTotals[];
+  /** 나라별 — 글로벌을 골랐을 때만 채운다(그 밖은 빈 배열). 가입자 많은 나라 먼저 */
+  byRegion: InsightsRegionTotals[];
 }
 
 /** 초대 코드(프로모션) 묶음 하나의 지표(2026-10-28) — 집계값만, 개인 식별값 없음 */
@@ -545,6 +560,8 @@ export interface InsightsFunnelStep {
   matureCohorts: number;
   /** 성숙한 묶음을 합쳐 `이 단계 / 앞 단계` — 첫 단계는 null */
   rate: number | null;
+  /** 같은 성숙 묶음의 `이 단계 / 가입` — 첫 단계는 null */
+  rateOfSignups: number | null;
   /** `1 - rate`(0 아래는 0) — 첫 단계·판정 묶음 없음은 null */
   drop: number | null;
 }
