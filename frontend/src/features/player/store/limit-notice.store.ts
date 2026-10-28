@@ -14,10 +14,19 @@ interface LimitNoticeStore {
    * 결제 쪽(subscription)은 이 함수의 내용을 모른다. [닫기]하면 버린다(blocked_content_id 폐기)
    */
   resume: (() => void) | null;
+  /**
+   * 잔여 링을 눌러 열었고 아직 남은 횟수가 있다 — 시트가 "N회 더 들을 수 있어요" 갈래로 그린다(2026-10-28).
+   * 한도 소진·재생 차단으로 열리면 null(종전 "모두 사용했어요")
+   */
+  remaining: { remaining: number; limit: number } | null;
   /** 이메일 인증을 다녀오는 동안 내려 둔 상태 — 다시 열면 같은 페이월(막힌 콘텐츠 포함)이 뜬다 */
   isSuspended: boolean;
   show: (message?: string | null) => void;
-  showPaywall: (message?: string | null, resume?: (() => void) | null) => void;
+  showPaywall: (
+    message?: string | null,
+    resume?: (() => void) | null,
+    remaining?: { remaining: number; limit: number } | null,
+  ) => void;
   hide: () => void;
   suspend: () => void;
   reopen: () => void;
@@ -32,6 +41,7 @@ export const useLimitNoticeStore = create<LimitNoticeStore>((set) => ({
   message: null,
   isPaywall: false,
   resume: null,
+  remaining: null,
   isSuspended: false,
   show: (message) =>
     set({
@@ -39,14 +49,16 @@ export const useLimitNoticeStore = create<LimitNoticeStore>((set) => ({
       message: message ?? null,
       isPaywall: false,
       resume: null,
+      remaining: null,
       isSuspended: false,
     }),
-  showPaywall: (message, resume) =>
+  showPaywall: (message, resume, remaining) =>
     set({
       isVisible: true,
       message: message ?? null,
       isPaywall: true,
       resume: resume ?? null,
+      remaining: remaining ?? null,
       isSuspended: false,
     }),
   hide: () => set({ isVisible: false, resume: null, isSuspended: false }),

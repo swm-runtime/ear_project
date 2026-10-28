@@ -163,7 +163,7 @@ export default function ExploreScreen() {
     <RemainingPlaysIndicator
       remaining={screen.remainingDisplay.remaining}
       limit={screen.remainingDisplay.limit}
-      onExhaustedPress={() => screen.openPaywall('explore')}
+      onRingPress={() => screen.openPaywall('explore')}
     />
   ) : null;
 
@@ -183,12 +183,12 @@ export default function ExploreScreen() {
       remainingValue !== undefined && remainingLimit !== undefined
         ? { remaining: remainingValue, limit: remainingLimit }
         : null;
-    const onExhaustedPress = () => screenRef.current.openPaywall('explore');
+    const onRingPress = () => screenRef.current.openPaywall('explore');
     if (isSearching) {
       return (
         <SearchToolbar
           remaining={remaining}
-          onExhaustedPress={onExhaustedPress}
+          onRingPress={onRingPress}
           onClose={() => setIsClosingSearch(true)}
           isOpen={!isClosingSearch}
         />
@@ -198,7 +198,7 @@ export default function ExploreScreen() {
       <ExploreRingPill
         remaining={remaining.remaining}
         limit={remaining.limit}
-        onExhaustedPress={onExhaustedPress}
+        onRingPress={onRingPress}
       />
     ) : null;
   }, [isSearching, isClosingSearch, remainingValue, remainingLimit]);
@@ -221,7 +221,7 @@ export default function ExploreScreen() {
           remaining: screen.remainingDisplay
             ? { remaining: screen.remainingDisplay.remaining, limit: screen.remainingDisplay.limit }
             : null,
-          onExhaustedPress: () => screen.openPaywall('explore'),
+          onRingPress: () => screen.openPaywall('explore'),
           isClosing: isClosingSearch,
           searchRequest: inlineSearchRequest,
           onRequestClose: () => setIsClosingSearch(true),
@@ -578,7 +578,7 @@ export default function ExploreScreen() {
                   <ExploreRingPill
                     remaining={screen.remainingDisplay.remaining}
                     limit={screen.remainingDisplay.limit}
-                    onExhaustedPress={() => screen.openPaywall('explore')}
+                    onRingPress={() => screen.openPaywall('explore')}
                   />
                 ) : null
               }

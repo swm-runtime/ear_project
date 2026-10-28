@@ -7,7 +7,7 @@ import LibraryFilterButton from './LibraryFilterButton';
 interface LibraryToolbarProps {
   /** null 이면 링 칸을 두지 않는다(무제한·캐시·값 없음 — uiux 4.3) */
   remaining: { remaining: number; limit: number } | null;
-  onExhaustedPress: () => void;
+  onRingPress: () => void;
   activeFilterCount: number;
   onFilterPress: () => void;
 }
@@ -21,7 +21,7 @@ interface LibraryToolbarProps {
  */
 export default function LibraryToolbar({
   remaining,
-  onExhaustedPress,
+  onRingPress,
   activeFilterCount,
   onFilterPress,
 }: LibraryToolbarProps) {
@@ -33,7 +33,7 @@ export default function LibraryToolbar({
           <RemainingPlaysIndicator
             remaining={remaining.remaining}
             limit={remaining.limit}
-            onExhaustedPress={onExhaustedPress}
+            onRingPress={onRingPress}
             bare
           />
         ) : null

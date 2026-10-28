@@ -139,7 +139,7 @@ export default function LibraryScreen() {
       showTabBar ? (
         <LibraryToolbar
           remaining={remainingDisplay}
-          onExhaustedPress={() => screenRef.current.openPaywall('library')}
+          onRingPress={() => screenRef.current.openPaywall('library')}
           activeFilterCount={topicFilterCount}
           onFilterPress={() => screenRef.current.openTopicSheet()}
         />

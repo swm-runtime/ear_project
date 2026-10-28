@@ -109,7 +109,15 @@ export const usePlayGate = (options?: PlayGateOptions) => {
   const openPaywall = (entry: PlayEntryPoint, message?: string, blocked?: PlayGateTarget) => {
     // 노출 자체가 퍼널의 끝점이다 — 바텀시트로 바뀌어도 같은 이벤트(analytics.md 3.4)
     track('paywall_view', { entry });
-    showPaywall(message, blocked ? () => requestPlay(blocked, entry) : null);
+    // 막힌 콘텐츠 없이 열렸고(잔여 링 탭) 아직 남았으면 시트가 남은 횟수를 말한다 — 표시값(힌트)일 뿐 판정이 아니다
+    const limit = playLimit?.dailyPlayLimit ?? null;
+    const count = playLimit?.dailyPlayCount ?? null;
+    const left = limit !== null && count !== null ? Math.max(0, limit - count) : 0;
+    showPaywall(
+      message,
+      blocked ? () => requestPlay(blocked, entry) : null,
+      blocked === undefined && limit !== null && left > 0 ? { remaining: left, limit } : null,
+    );
   };
 
   /*

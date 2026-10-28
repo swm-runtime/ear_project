@@ -354,7 +354,7 @@ export default function ExploreSearchScreen({ embedding }: ExploreSearchScreenPr
               trailing={
                 <SearchToolbar
                   remaining={embedding.remaining}
-                  onExhaustedPress={embedding.onExhaustedPress}
+                  onRingPress={embedding.onRingPress}
                   onClose={requestClose ?? screen.cancel}
                   isOpen={!closeRequested}
                 />
