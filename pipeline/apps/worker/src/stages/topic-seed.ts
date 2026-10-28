@@ -6,7 +6,7 @@ import { assetPaths, globalGaps, KOREAN_SOURCE_MIN_EN, buildClusterPromptV2, bui
 import { hostOf, log } from "../util.js";
 import { prepareAssets, workerRev } from "../assets.js";
 import { putFile, s3Key } from "../storage.js";
-import { fetchArticle, fetchStatusOf, robotsAllows } from "../sources/fetch.js";
+import { fetchArticle, fetchStatusOf, hasBody, robotsAllows } from "../sources/fetch.js";
 import { checkCandidateSources } from "./candidate-check.js";
 import { rememberRobotsBlocked } from "../sources/robots-memory.js";
 
@@ -86,7 +86,7 @@ export async function runTopicSeed(job: Job, ex: Executor) {
       }
       await upsertSource({ domain_id: d.id, url: s.url, title: s.title, summary: s.summary, author: "", published: s.published, swept_at: sweptAt, origin: "search" });
       const f = bodyOk?.get(s.url);
-      if (bodyOk && (!f || !f.ok)) { await recordFetchStatus(s.url, f ? fetchStatusOf(f) : "network").catch(() => {}); dropped.push(`${hostOf(s.url)} (본문 ${f ? f.status : "network"})`); continue; }
+      if (bodyOk && !hasBody(f)) { if (!f?.ok) await recordFetchStatus(s.url, f ? fetchStatusOf(f) : "network").catch(() => {}); dropped.push(`${hostOf(s.url)} (본문 ${f ? (f.ok ? `${f.chars}자 — 짧음` : f.status) : "network"})`); continue; } // 열려도 본문이 짧으면 세지 않는다(MIN_BODY_CHARS)
       added.push(s);
     }
     log(`  topic-seed ${id}: 검색 ${r1.output.queries?.length ?? 0}회 → ${found.length}건 · 적재 ${added.length} · 제외 ${dropped.length} · 새 도메인 ${newDomains.length}`);

@@ -75,6 +75,10 @@ export function fetchStatusOf(f: FetchedSource): "ok" | "robots" | "blocked" | "
   return "empty";
 }
 
+/** 선검사가 "본문 있음"으로 세는 최소 글자 수 (2026-10-28): 열리지만 미리보기·초록만 나오는 글(HBR 유료벽·Springer 초록 등)은 설계 모델이 "충분한 본문"으로 보지 않아 재료 부족을 냈다. 설계와 같은 눈으로 세기 위한 하한 */
+export const MIN_BODY_CHARS = 1200;
+export function hasBody(f: FetchedSource | null | undefined): boolean { return !!f && f.ok && f.chars >= MIN_BODY_CHARS; }
+
 export async function fetchArticle(n: number, url: string): Promise<FetchedSource> {
   const base = { n, url, title: null as string | null, byline: null as string | null, blocks: [] as { id: string; text: string }[], chars: 0, note: null as string | null };
   let u: URL;
