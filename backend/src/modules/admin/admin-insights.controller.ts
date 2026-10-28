@@ -5,8 +5,11 @@ import { JwtAuthGuard } from '@/common/guards/jwt-auth.guard';
 
 import { AdminInsightsSummaryQueryRequestDto } from './dto/admin-insights-summary-query-request.dto';
 import { AdminInsightsSummaryResponseDto } from './dto/admin-insights-summary-response.dto';
+import { AdminInsightsV2QueryRequestDto } from './dto/admin-insights-v2-query-request.dto';
+import { AdminInsightsV2ResponseDto } from './dto/admin-insights-v2-response.dto';
 import { AdminInviteCodeCohortsQueryRequestDto } from './dto/admin-invite-code-cohorts-query-request.dto';
 import { AdminInviteCodeCohortsResponseDto } from './dto/admin-invite-code-cohorts-response.dto';
+import { INSIGHTS_V2_LAPSE_WINDOW_DAYS } from './admin.constant';
 import { AdminInsightsService } from './services/admin-insights.service';
 
 /**
@@ -45,6 +48,25 @@ export class AdminInsightsController {
       await this.adminInsightsService.inviteCodeCohorts(query.days, now),
       query.days,
       now,
+    );
+  }
+
+  /**
+   * 서비스 지표 v2(2026-10-28) — 질문형 패널 셋(① 습관 사용자 ② 가입 주 퍼널 ③ 안 듣는 세그먼트)의 재료. 로그 콘솔
+   * "서비스 지표 v2" 탭이 열 때 1회 + [새로고침]으로 읽는다. 읽기 전용 · 집계값만(개인 식별 정보 없음)
+   */
+  @Get('v2')
+  @Header('Cache-Control', 'no-store')
+  async v2(
+    @Query() query: AdminInsightsV2QueryRequestDto,
+  ): Promise<AdminInsightsV2ResponseDto> {
+    return AdminInsightsV2ResponseDto.from(
+      await this.adminInsightsService.insightsV2(
+        query.weeks,
+        new Date(),
+        query.market ?? null,
+      ),
+      INSIGHTS_V2_LAPSE_WINDOW_DAYS,
     );
   }
 }
