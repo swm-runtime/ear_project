@@ -11,17 +11,21 @@
  * 스타일:
  *   keyword — 키워드 시리즈 디자인(워커 `thumbnail-series.ts`: 라벨 · 손글씨 큰 단어 · 박스 · 편 번호, 표지는 "전 N편"). 큰 단어(`series.thumb_word`)가 있어야 한다
  *   phrasebook — 회화집 디자인(워커 `thumbnail-phrasebook.ts`: 작은 책 표지에 그 편의 표현 로마자·한글·뜻, 책갈피 리본에 번호). 이미지 모델 없이 코드만 — 글자 칸은 머리글(`thumb_box`)·라벨만 쓴다
+ *   tv      — TV 정지 화면(워커 `thumbnail-code.ts`): 편 제목(설계안)을 화면에, 채널 번호 = 편 번호. 2026-10-28 "광고로 읽는 마케팅"
+ *   notes   — 포스트잇 벽(같은 파일): 제목·번호·시리즈명 메모지 세 장. 2026-10-28 "사례로 알아보는 창업"
  *   scene   — 일반 편과 같은 장면 썸네일. 연대기(네 시대 세로 패널)는 워커 디자인이 아직 없어 scene 으로 둔다(기존 철학 시리즈 썸네일은 2026-10-22 손으로 합성한 것)
  */
 /** locale.ts 의 PipelineLocale 과 같은 값 — 이 파일은 콘솔 브라우저 번들에도 들어가므로(`@ear/pipeline/publication`) node 전용 모듈을 import 하는 locale.ts 를 끌어오지 않는다 */
 export type PublicationLocale = "ko" | "en";
 
-export type PublicationStyle = "keyword" | "phrasebook" | "scene";
+export type PublicationStyle = "keyword" | "phrasebook" | "scene" | "tv" | "notes";
 /** 콘솔 "새 간행물"이 고르는 디자인 — 워커에 있는 디자인만 */
 export const PUBLICATION_STYLES: readonly { style: PublicationStyle; label: string; desc: string }[] = [
   { style: "keyword", label: "키워드 디자인", desc: "같은 바탕 그림에 라벨·손글씨 큰 단어·박스·편 번호 (CS 지식·경제 상식). 큰 단어가 필요하다" },
   { style: "scene", label: "장면 썸네일", desc: "일반 편과 같은 장면 썸네일 — 발행 이름만 붙는다 (연대기)" },
   { style: "phrasebook", label: "회화집 디자인", desc: "작은 책 표지에 그 편의 표현(로마자·한글)과 뜻 — 영어판 표현 시리즈용" },
+  { style: "tv", label: "TV 정지 화면", desc: "어두운 바탕의 옛 TV 화면에 편 제목, 채널 번호 = 편 번호 (광고로 읽는 마케팅)" },
+  { style: "notes", label: "포스트잇 벽", desc: "노랑(제목)·분홍(번호)·민트(시리즈명) 메모지 세 장 (사례로 알아보는 창업)" },
 ];
 export interface Publication {
   /** 저장 키 — 바꾸지 않는다 */
@@ -38,6 +42,8 @@ export const PUBLICATIONS: readonly Publication[] = [
   { key: "keyword", locale: "ko", name: "키워드", style: "keyword", hint: "용어 하나씩 훑는 형식 — CS 지식 · 경제 상식" },
   { key: "chronicle", locale: "ko", name: "연대기", style: "scene", hint: "시대 순으로 흐름을 잡는 형식 — 서양·동양 철학 (전용 썸네일 디자인은 아직 없어 장면 썸네일)" },
   { key: "phrasebook", locale: "en", name: "Phrasebook", style: "phrasebook", hint: "Two or three related Korean expressions per episode — pocket phrasebook thumbnail (2026-10-26)" },
+  { key: "adread", locale: "ko", name: "광고로 읽는", style: "tv", hint: "광고 한 편씩 뜯어보며 배우는 형식 — TV 정지 화면 썸네일 (2026-10-28)" },
+  { key: "casebook", locale: "ko", name: "케이스", style: "notes", hint: "사례 하나씩 따라가는 형식 — 포스트잇 벽 썸네일 (2026-10-28)" },
 ];
 
 /** 상수 + `publications` 테이블 행(콘솔에서 만든 간행물) — 키가 겹치면 상수가 이긴다 */
