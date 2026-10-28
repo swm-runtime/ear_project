@@ -1,4 +1,5 @@
 import { PageHeader, Panel } from "@/components/ui";
+import { SignupFunnel } from "@/components/signup-funnel";
 
 export const dynamic = "force-dynamic";
 
@@ -22,6 +23,10 @@ export const dynamic = "force-dynamic";
  * | `note` |  | 메모 — 기준값, 참고할 점, 한계 등 |
  *
  * 실제 숫자(현재값)는 관리자 API 로 붙인다. 그 전까지는 아래 `EXPERIMENT_METRICS` 에 카드 정의만 둔다.
+ * 숫자를 붙인 지표는 패널로 그리고, 패널 위에 같은 정보(보는 이유·추가한 사람·정의)를 `MetricInfo`로 적는다.
+ *
+ * ## 숫자가 붙은 지표
+ * - 가입 퍼널(`GET /admin/insights/funnel`, 2026-10-28) — 가입한 사람이 어느 단계에서 가장 많이 빠지나. `components/signup-funnel.tsx`
  */
 interface ExperimentMetric {
   name: string;
@@ -77,6 +82,15 @@ export default function ExperimentMetricsPage() {
         </ul>
       </Panel>
 
+      <Panel title="가입 퍼널 — 가입한 사람은 어느 단계에서 가장 많이 빠지나">
+        <MetricInfo
+          why="가입 뒤 어느 단계에서 가장 많이 빠지는지 보고, 실험할 곳을 고른다. 실험 뒤에는 그 단계의 남는 비율이 올랐는지 본다"
+          owner="박준현"
+          definition="가입 주(월 05시 시작) 묶음별로 온보딩 완료 → 24시간 안 첫 재생 → 첫 완청 → W1 복귀 → 14일 습관 → 결제에 이른 사람 수. 끝난 묶음만 합쳐 앞 단계 대비 남는 비율을 낸다(현재 계정 기준)"
+        />
+        <div className="mt-3"><SignupFunnel /></div>
+      </Panel>
+
       <Panel title={`등록된 지표 ${EXPERIMENT_METRICS.length}개`}>
         {EXPERIMENT_METRICS.length === 0 ? (
           <p className="text-[13px] text-ink-soft">아직 등록된 지표가 없다. 보고 싶은 지표가 생기면 여기에 카드로 추가한다.</p>
@@ -99,5 +113,19 @@ export default function ExperimentMetricsPage() {
         )}
       </Panel>
     </div>
+  );
+}
+
+/** 숫자가 붙은 지표 패널 위에 두는 정보 줄 — 카드와 같은 항목(보는 이유·추가한 사람·정의) */
+function MetricInfo({ why, owner, definition }: Pick<ExperimentMetric, "why" | "owner" | "definition">) {
+  return (
+    <dl className="grid gap-1 text-[13px]">
+      {([["보는 이유", why], ["추가한 사람", owner], ["정의", definition]] as const).map(([label, value]) => (
+        <div key={label} className="flex gap-2">
+          <dt className="w-20 shrink-0 text-ink-soft">{label}</dt>
+          <dd>{value}</dd>
+        </div>
+      ))}
+    </dl>
   );
 }

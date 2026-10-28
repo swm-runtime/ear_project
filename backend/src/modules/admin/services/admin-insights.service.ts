@@ -1,8 +1,18 @@
 import { Injectable } from '@nestjs/common';
 
+import {
+  serviceDateStart,
+  shiftWeekStart,
+  toCurrentWeekStart,
+} from '@/common/utils/service-date.util';
 import { UserMarket } from '@/modules/user/user.enum';
 
 import {
+  FUNNEL_FIRST_PLAY_HOURS,
+  FUNNEL_HABIT_MIN_PLAY_DAYS,
+  FUNNEL_HABIT_WINDOW_DAYS,
+  FUNNEL_MAX_WEEKS,
+  FUNNEL_MIN_WEEKS,
   INSIGHTS_COHORT_DAILY,
   INSIGHTS_COHORT_WEEKLY,
   INSIGHTS_LIVE_ACTIVE_DAYS,
@@ -17,6 +27,7 @@ import {
   InsightsCohortTable,
   InsightsDaily,
   InsightsDailyRows,
+  InsightsFunnel,
   InsightsHourly,
   InsightsInviteCodeBaseline,
   InsightsInviteCodeCohort,
@@ -25,6 +36,10 @@ import {
   InsightsWeekday,
 } from '../admin.types';
 import { AdminInsightsRepository } from '../repositories/admin-insights.repository';
+import {
+  buildFunnelCohort,
+  summarizeFunnelSteps,
+} from './admin-insights-funnel.calc';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const KST_OFFSET_MS = 9 * 60 * 60 * 1000;
@@ -53,6 +68,76 @@ export class AdminInsightsService {
     const since = new Date(now.getTime() - days * DAY_MS);
 
     return { since, ...(await this.repository.inviteCodeCohorts(since, now)) };
+  }
+
+  /**
+   * 가입 퍼널(`GET /admin/insights/funnel`, 로그 콘솔 "실험 지표" 탭, 2026-10-28) — 가입한 사람이 어느 단계에서 가장 많이 빠지나.
+   * 가입 주(서비스 주 — 월 05:00 KST ~, `service-date.util`)로 `weeks`개(이번 주 포함) 묶고, 끝나지 않은 단계는 null 로 가린 뒤
+   * 성숙한 묶음만 합쳐 단계별 전환율과 가장 큰 이탈 단계를 낸다.
+   */
+  async signupFunnel(
+    weeks: number,
+    now: Date,
+    market: UserMarket | null = null,
+  ): Promise<InsightsFunnel> {
+    const count = Math.min(Math.max(FUNNEL_MIN_WEEKS, weeks), FUNNEL_MAX_WEEKS);
+    const currentWeek = toCurrentWeekStart(now);
+    const windows = {
+      firstPlayHours: FUNNEL_FIRST_PLAY_HOURS,
+      habitDays: FUNNEL_HABIT_WINDOW_DAYS,
+    };
+    // 최근 묶음 먼저
+    const cohortRanges = Array.from({ length: count }, (_, i) => {
+      const weekStart = shiftWeekStart(currentWeek, -i);
+      return {
+        weekStart,
+        startAt: serviceDateStart(weekStart),
+        endAt: serviceDateStart(shiftWeekStart(weekStart, 1)),
+      };
+    });
+    const funnelCounts = await this.repository.funnelCohorts(
+      cohortRanges,
+      { ...windows, minPlayDays: FUNNEL_HABIT_MIN_PLAY_DAYS },
+      market,
+    );
+    const liveFrom = kstDateLabel(
+      new Date(now.getTime() - INSIGHTS_LIVE_ACTIVE_DAYS * DAY_MS),
+    );
+    const reliableSince = cohortReliableSince(
+      await this.repository.activeDatesFirstRecordedAt(),
+      liveFrom,
+    );
+    const todayKst = kstDateLabel(now);
+    const countsByWeek = new Map(funnelCounts.map((c) => [c.weekStart, c]));
+    const cohorts = cohortRanges.map(({ weekStart, endAt }) =>
+      buildFunnelCohort(
+        countsByWeek.get(weekStart) ?? {
+          weekStart,
+          signups: 0,
+          onboardingCompleted: 0,
+          firstPlay24h: 0,
+          firstPlayEver: 0,
+          firstComplete: 0,
+          w1Return: 0,
+          habit14d: 0,
+          paidEver: 0,
+        },
+        endAt,
+        now,
+        todayKst,
+        reliableSince,
+        windows,
+      ),
+    );
+
+    return {
+      market,
+      weeks: count,
+      generatedAt: now,
+      reliableSince,
+      cohorts,
+      ...summarizeFunnelSteps(cohorts),
+    };
   }
 
   async summarize(

@@ -3,6 +3,9 @@ import { Controller, Get, Header, Query, UseGuards } from '@nestjs/common';
 import { AdminRoleGuard } from '@/common/guards/admin-role.guard';
 import { JwtAuthGuard } from '@/common/guards/jwt-auth.guard';
 
+import { FUNNEL_HABIT_MIN_PLAY_DAYS } from './admin.constant';
+import { AdminInsightsFunnelQueryRequestDto } from './dto/admin-insights-funnel-query-request.dto';
+import { AdminInsightsFunnelResponseDto } from './dto/admin-insights-funnel-response.dto';
 import { AdminInsightsSummaryQueryRequestDto } from './dto/admin-insights-summary-query-request.dto';
 import { AdminInsightsSummaryResponseDto } from './dto/admin-insights-summary-response.dto';
 import { AdminInviteCodeCohortsQueryRequestDto } from './dto/admin-invite-code-cohorts-query-request.dto';
@@ -45,6 +48,25 @@ export class AdminInsightsController {
       await this.adminInsightsService.inviteCodeCohorts(query.days, now),
       query.days,
       now,
+    );
+  }
+
+  /**
+   * 가입 주 코호트 퍼널 — 로그 콘솔 "실험 지표" 탭(2026-10-28). 가입한 사람이 어느 단계에서 가장 많이 빠지나.
+   * 읽기 전용 · 집계값만(개인 식별 정보 없음) · 열 때 1회 + [새로고침]
+   */
+  @Get('funnel')
+  @Header('Cache-Control', 'no-store')
+  async funnel(
+    @Query() query: AdminInsightsFunnelQueryRequestDto,
+  ): Promise<AdminInsightsFunnelResponseDto> {
+    return AdminInsightsFunnelResponseDto.from(
+      await this.adminInsightsService.signupFunnel(
+        query.weeks,
+        new Date(),
+        query.market ?? null,
+      ),
+      FUNNEL_HABIT_MIN_PLAY_DAYS,
     );
   }
 }

@@ -494,3 +494,69 @@ export interface InsightsInviteCodeBaseline {
   listenSec: number;
   paidEver: number;
 }
+
+/* ───────────── 가입 퍼널 (`GET /admin/insights/funnel`, 2026-10-28) ───────────── */
+
+/** 가입 주 묶음 퍼널 원본(Repository) — 사람 수만. 성숙 판정은 Service 가 한다 */
+export interface InsightsFunnelCohortCounts {
+  weekStart: string;
+  signups: number;
+  onboardingCompleted: number;
+  firstPlay24h: number;
+  firstPlayEver: number;
+  firstComplete: number;
+  w1Return: number;
+  habit14d: number;
+  paidEver: number;
+}
+
+/** 퍼널 단계 — 순서가 곧 퍼널 순서다(첫 재생 전체 `firstPlayEver`는 단계가 아니라 참고 값) */
+export type InsightsFunnelStepKey =
+  | 'signups'
+  | 'onboarding_completed'
+  | 'first_play_24h'
+  | 'first_complete'
+  | 'w1_return'
+  | 'habit_14d'
+  | 'paid_ever';
+
+export interface InsightsFunnelCohort {
+  weekStart: string;
+  /** 가입 주가 아직 끝나지 않았다 — 가입자가 계속 는다 */
+  inProgress: boolean;
+  signups: number;
+  onboardingCompleted: number;
+  /** 묶음의 마지막 가입자까지 24시간이 지나지 않았으면 null */
+  firstPlay24h: number | null;
+  firstPlayEver: number;
+  firstComplete: number;
+  /** 묶음의 마지막 가입자의 가입 7~13일째(KST)가 다 지나지 않았으면 null */
+  w1Return: number | null;
+  /** W1 구간이 접속 기록을 믿을 수 있는 첫 날 앞에서 시작한다 — 재생만 잡혀 낮다 */
+  w1Partial: boolean;
+  /** 묶음의 마지막 가입자의 가입 뒤 14일이 지나지 않았으면 null */
+  habit14d: number | null;
+  paidEver: number;
+}
+
+export interface InsightsFunnelStep {
+  key: InsightsFunnelStepKey;
+  /** 이 단계를 판정할 수 있었던(성숙한) 묶음 수 */
+  matureCohorts: number;
+  /** 성숙한 묶음을 합쳐 `이 단계 / 앞 단계` — 첫 단계는 null */
+  rate: number | null;
+  /** `1 - rate`(0 아래는 0) — 첫 단계·판정 묶음 없음은 null */
+  drop: number | null;
+}
+
+export interface InsightsFunnel {
+  market: UserMarket | null;
+  weeks: number;
+  generatedAt: Date;
+  reliableSince: string;
+  /** 최근 묶음 먼저 */
+  cohorts: InsightsFunnelCohort[];
+  steps: InsightsFunnelStep[];
+  /** 가장 많이 새는 단계 — 판정할 단계가 없으면 null */
+  largestDropStep: InsightsFunnelStepKey | null;
+}

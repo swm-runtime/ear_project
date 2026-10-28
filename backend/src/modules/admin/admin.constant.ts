@@ -189,3 +189,17 @@ export const INSIGHTS_WEEKDAY_LABELS: readonly string[] = [
   '토',
   '일',
 ];
+
+/**
+ * 가입 퍼널(`GET /admin/insights/funnel`, 로그 콘솔 "실험 지표" 탭, 2026-10-28) 의 정의값 — "가입한 사람은 어느 단계에서 가장 많이
+ * 빠지나". 정의를 바꾸려면 여기 한 곳만 고친다 — 화면은 응답의 `habit_min_play_days`를 그대로 읽는다.
+ */
+/** 가입 주 묶음 수 — 기본 8주(이번 주 포함), 4~12 */
+export const FUNNEL_DEFAULT_WEEKS = 8;
+export const FUNNEL_MIN_WEEKS = 4;
+export const FUNNEL_MAX_WEEKS = 12;
+/** "가입 뒤 첫 재생"의 빠른 창(시간) */
+export const FUNNEL_FIRST_PLAY_HOURS = 24;
+/** "첫 14일 습관" — 가입 뒤 이 일수(×24시간) 안에 서로 다른 서비스 날짜 `FUNNEL_HABIT_MIN_PLAY_DAYS`일 이상 들었다 */
+export const FUNNEL_HABIT_WINDOW_DAYS = 14;
+export const FUNNEL_HABIT_MIN_PLAY_DAYS = 3;

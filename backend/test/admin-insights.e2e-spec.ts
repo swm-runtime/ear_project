@@ -967,6 +967,212 @@ describe('서비스 지표 요약 E2E', () => {
     }
   });
 
+  describe('가입 퍼널 (GET /admin/insights/funnel)', () => {
+    // 다른 스위트·같은 스위트의 2001 년 행과도 겹치지 않게 1995 년에 심는다
+    const p = (at: string) => new Date(at);
+    let seeded: Record<'a' | 'b' | 'c' | 'd', string>;
+
+    async function play(
+      userId: string,
+      contentId: string,
+      playedAt: Date,
+      listenedSec = 60,
+    ): Promise<void> {
+      const repository = dataSource.getRepository(PlayRecord);
+      await repository.save(
+        repository.create({
+          userId,
+          contentId,
+          playDate: toServiceDate(playedAt),
+          playedAt,
+          isCounted: true,
+          listenedSec,
+        }),
+      );
+    }
+
+    async function complete(
+      userId: string,
+      contentId: string,
+      at: Date,
+    ): Promise<void> {
+      await dataSource.query(
+        `INSERT INTO user_signals (user_id, content_id, action, position_sec, max_reached_sec, created_at)
+         VALUES ($1, $2, 'complete', 600, 600, $3)`,
+        [userId, contentId, at],
+      );
+    }
+
+    async function signedUpAt(userId: string, at: Date): Promise<void> {
+      await dataSource.query(`UPDATE users SET created_at = $1 WHERE id = $2`, [
+        at,
+        userId,
+      ]);
+    }
+
+    /**
+     * 1995-03-06(월) 서비스 주 가입 A·B·C + 그 주 월요일 KST 03:00 가입 D(04:00 경계 전이라 지난 서비스 주다).
+     * - A: 가입 2시간 뒤 첫 재생 · 3일 연속 청취 · 완청 · W1(가입 8일째) 세션 · 실결제
+     * - B: 가입 이틀 뒤 첫 재생(24시간 밖) · 완청 없음
+     * - D: 03-27 청취·완청
+     */
+    async function seedCohort(): Promise<
+      Record<'a' | 'b' | 'c' | 'd', string>
+    > {
+      const contentId = await seedContent();
+      const a = await createUserId('funnel-a');
+      const b = await createUserId('funnel-b');
+      const c = await createUserId('funnel-c');
+      const d = await createUserId('funnel-d');
+      await signedUpAt(a, p('1995-03-06T03:00:00.000Z'));
+      await signedUpAt(b, p('1995-03-07T03:00:00.000Z'));
+      await signedUpAt(c, p('1995-03-08T03:00:00.000Z'));
+      await signedUpAt(d, p('1995-03-05T18:00:00.000Z'));
+      await dataSource.query(
+        `UPDATE users SET onboarding_completed = false WHERE id = $1`,
+        [c],
+      );
+
+      await play(a, contentId, p('1995-03-06T05:00:00.000Z'));
+      await play(a, contentId, p('1995-03-07T05:00:00.000Z'));
+      await play(a, contentId, p('1995-03-08T05:00:00.000Z'));
+      await complete(a, contentId, p('1995-03-06T06:00:00.000Z'));
+      await seedSession(a, p('1995-03-14T03:00:00.000Z'));
+      await dataSource.query(
+        `INSERT INTO subscriptions (user_id, tier, store, original_transaction_id, latest_receipt, status,
+                                    is_auto_renew, started_at, expires_at, environment)
+         VALUES ($1, 'pro', 'play_store', $2, 'e2e', 'expired', false, $3, $4, 'production')`,
+        [
+          a,
+          `${TOKEN}-funnel-sub`,
+          p('1995-03-10T00:00:00.000Z'),
+          p('1995-04-10T00:00:00.000Z'),
+        ],
+      );
+      await play(a, contentId, p('1995-03-22T05:00:00.000Z'));
+
+      await play(b, contentId, p('1995-03-09T05:00:00.000Z'), 30);
+
+      await play(d, contentId, p('1995-03-27T05:00:00.000Z'));
+      await complete(d, contentId, p('1995-03-27T06:00:00.000Z'));
+      return { a, b, c, d };
+    }
+
+    beforeAll(async () => {
+      seeded = await seedCohort();
+    });
+
+    afterAll(async () => {
+      await dataSource.query(`DELETE FROM subscriptions WHERE user_id = $1`, [
+        seeded.a,
+      ]);
+    });
+
+    it('가입 주 퍼널 — 서비스 주로 묶고 단계마다 도달자를 센다(월요일 04시 전 가입은 지난 주)', async () => {
+      // given — beforeAll 이 심은 4명
+      const repository = app.get(AdminInsightsRepository);
+
+      // when — 03-06 주(04:00 KST 경계 — 로컬 env 에 05:00 전환 시각이 있어도 1995 년은 전환 전이다)와 그 앞 주
+      const rows = await repository.funnelCohorts(
+        [
+          {
+            weekStart: '1995-03-06',
+            startAt: p('1995-03-05T19:00:00.000Z'),
+            endAt: p('1995-03-12T19:00:00.000Z'),
+          },
+          {
+            weekStart: '1995-02-27',
+            startAt: p('1995-02-26T19:00:00.000Z'),
+            endAt: p('1995-03-05T19:00:00.000Z'),
+          },
+        ],
+        { firstPlayHours: 24, habitDays: 14, minPlayDays: 3 },
+      );
+
+      // then
+      expect(rows).toEqual([
+        {
+          weekStart: '1995-03-06',
+          signups: 3,
+          onboardingCompleted: 2,
+          firstPlay24h: 1,
+          firstPlayEver: 2,
+          firstComplete: 1,
+          w1Return: 1,
+          habit14d: 1,
+          paidEver: 1,
+        },
+        {
+          weekStart: '1995-02-27',
+          signups: 1,
+          onboardingCompleted: 1,
+          firstPlay24h: 0,
+          firstPlayEver: 1,
+          firstComplete: 1,
+          w1Return: 0,
+          habit14d: 0,
+          paidEver: 0,
+        },
+      ]);
+    });
+
+    it('응답에 퍼널 단계·묶음이 실리고, 주 수 범위 밖이면 400, 관리자 아니면 403, 개인 식별 정보는 없다', async () => {
+      // given
+      const adminAuth = await createUser('admin-funnel', UserRole.ADMIN);
+
+      // when
+      const res = await request(app.getHttpServer())
+        .get(path('/admin/insights/funnel?weeks=6&market=kr'))
+        .set('Authorization', adminAuth)
+        .expect(HttpStatus.OK);
+      const body = res.body as {
+        weeks: number;
+        market: string | null;
+        habit_min_play_days: number;
+        steps: { key: string }[];
+        cohorts: { week_start: string; in_progress: boolean }[];
+        largest_drop_step: string | null;
+      };
+
+      // then
+      expect(res.headers['cache-control']).toBe('no-store');
+      expect(body.weeks).toBe(6);
+      expect(body.market).toBe('kr');
+      expect(body.habit_min_play_days).toBe(3);
+      expect(body.cohorts).toHaveLength(6);
+      expect(body.cohorts[0].in_progress).toBe(true);
+      expect(body.cohorts.filter((c) => c.in_progress)).toHaveLength(1);
+      expect(body.steps.map((s) => s.key)).toEqual([
+        'signups',
+        'onboarding_completed',
+        'first_play_24h',
+        'first_complete',
+        'w1_return',
+        'habit_14d',
+        'paid_ever',
+      ]);
+      expect(JSON.stringify(body)).not.toMatch(
+        /"email"|"nickname"|"user_id"|"provider_user_id"/,
+      );
+
+      for (const weeks of ['3', '13', 'abc']) {
+        await request(app.getHttpServer())
+          .get(path(`/admin/insights/funnel?weeks=${weeks}`))
+          .set('Authorization', adminAuth)
+          .expect(HttpStatus.BAD_REQUEST);
+      }
+      await request(app.getHttpServer())
+        .get(path('/admin/insights/funnel?market=jp'))
+        .set('Authorization', adminAuth)
+        .expect(HttpStatus.BAD_REQUEST);
+      const userAuth = await createUser('user-funnel', UserRole.USER);
+      await request(app.getHttpServer())
+        .get(path('/admin/insights/funnel'))
+        .set('Authorization', userAuth)
+        .expect(HttpStatus.FORBIDDEN);
+    }, 60_000);
+  });
+
   async function createUserId(
     label: string,
     role: UserRole = UserRole.USER,
