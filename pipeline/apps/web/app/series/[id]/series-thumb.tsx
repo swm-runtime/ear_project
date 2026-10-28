@@ -30,6 +30,8 @@ export function SeriesThumb({ id, locale, publication: p0, word: w0, label: l0, 
   const [np, setNp] = useState<{ name: string; style: PublicationStyle; hint: string }>({ name: "", style: "scene", hint: "" });
   const keyword = pub?.style === "keyword";
   const phrasebook = pub?.style === "phrasebook";
+  const coded = pub?.style === "tv" || pub?.style === "notes"; // 코드 합성 2종(2026-10-28) — 글자 칸은 라벨만 쓴다
+  const drawn = keyword || phrasebook || coded; // 편 썸네일·표지를 워커가 그리는 디자인
   const dirty = publication !== (p0 ?? "") || word !== w0 || label !== l0 || box !== b0;
   const save = (regenerate: boolean, redraw = false) => start(async () => {
     const r = await saveSeriesThumb(id, { publication: publication || null, word, label, box }, regenerate, redraw);
@@ -81,6 +83,11 @@ export function SeriesThumb({ id, locale, publication: p0, word: w0, label: l0, 
             </div>
           </div>
         )}
+        {coded && (
+          <div className="grid gap-2 md:grid-cols-3">
+            <label className="block"><span className="mb-1 block text-xs font-semibold text-ink-soft">오른쪽 위 라벨 (비면 {pub?.style === "tv" ? "AD SERIES" : "CASE SERIES"})</span><input className={inp} value={label} maxLength={24} onChange={(e) => setLabel(e.target.value)} /></label>
+          </div>
+        )}
         {(keyword || phrasebook) && (
           <div className="grid gap-2 md:grid-cols-3">
             <label className="block"><span className="mb-1 block text-xs font-semibold text-ink-soft">{phrasebook ? "표지 손글씨 (영문 — 비면 annyeong)" : "큰 단어 (영문 — 손글씨 폰트로 얹는다)"}</span><input className={inp} value={word} maxLength={16} onChange={(e) => setWord(e.target.value)} placeholder={phrasebook ? "annyeong" : "keyword"} /></label>
@@ -93,13 +100,15 @@ export function SeriesThumb({ id, locale, publication: p0, word: w0, label: l0, 
             ? <>키워드 시리즈 디자인 — 편 썸네일(왼쪽 아래 번호 01·02…)과 표지(라벨 아래 편수)를 같은 바탕에 만든다. 큰 단어가 비어 있으면 편 썸네일 작업이 실패한다.</>
             : phrasebook
               ? <>회화집 디자인 — 작은 책 표지에 그 편의 표현(로마자·한글)과 뜻을 쓰고 책갈피 리본에 번호를 단다. 이미지 모델 없이 코드가 그려 편마다 결과가 같고 비용이 없다. 한글 표기는 썸네일 작업 때 텍스트 모델이 제목을 보고 써 준다.</>
+              : coded
+                ? <>{pub?.style === "tv" ? "TV 정지 화면 — 어두운 바탕의 옛 TV 화면에 설계안의 편 제목을 쓰고 채널 번호에 편 번호를 단다." : "포스트잇 벽 — 노랑(설계안 편 제목)·분홍(번호)·민트(시리즈명) 메모지 세 장."} 이미지·텍스트 모델 없이 코드가 그려 비용이 없고 편마다 결과가 같다. 표지는 제목 자리에 시리즈 이름, 번호 자리에 편수.</>
               : <>{pub ? `${pub.name} 전용 썸네일 디자인은 아직 워커에 없다 — ` : ""}편 썸네일은 일반 편과 같은 장면 썸네일이다. 디자인이 생기면 간행물에 스타일로 붙인다(spec/11 7장).</>}
         </p>
         <div className="flex flex-wrap items-center gap-2">
           <button className={btnCls()} disabled={pending || !dirty} onClick={() => save(false)}>저장</button>
-          {(keyword || phrasebook) && <button className={btnCls("primary")} disabled={pending} onClick={() => { if (confirm(phrasebook ? "이 시리즈에서 썸네일이 있는 편을 전부 다시 만들까요?\n책 표지를 코드로 다시 그린다(이미지 생성 없음, 한글 표기만 텍스트 모델)." : "이 시리즈에서 썸네일이 있는 편을 전부 다시 만들까요?\n바탕은 그대로 두고 글자만 다시 얹는다(이미지 생성 없음).")) save(true); }}>저장하고 편 썸네일 다시 만들기</button>}
+          {drawn && <button className={btnCls("primary")} disabled={pending} onClick={() => { if (confirm(phrasebook || coded ? "이 시리즈에서 썸네일이 있는 편을 전부 다시 만들까요?\n책 표지를 코드로 다시 그린다(이미지 생성 없음, 한글 표기만 텍스트 모델)." : "이 시리즈에서 썸네일이 있는 편을 전부 다시 만들까요?\n바탕은 그대로 두고 글자만 다시 얹는다(이미지 생성 없음).")) save(true); }}>저장하고 편 썸네일 다시 만들기</button>}
           {keyword && <button className={btnCls()} disabled={pending} onClick={() => { if (confirm("바탕 그림(아이콘 셋)을 새로 그리고 편 썸네일을 전부 다시 만들까요? 이미지 1장을 새로 만든다.")) save(true, true); }}>바탕 그림도 새로 그리기</button>}
-          {productSeriesId && (keyword || phrasebook) && (
+          {productSeriesId && drawn && (
             <button className={btnCls()} disabled={pending} title="파이프라인이 만든 표지(thumb-cover.png)를 제품 시리즈 표지로 올린다 — 표지가 없으면 앱이 1화 썸네일을 쓴다"
               onClick={() => { if (confirm("파이프라인 표지를 제품 시리즈 표지로 올릴까요? 탐색 시리즈 카드와 시리즈 화면에 바로 반영됩니다.")) start(async () => {
                 try { const c = await uploadPipelineSeriesCover(id, productSeriesId); setMsg(c ? { text: "표지를 서버에 올렸다", bad: false } : { text: "표지 파일이 없다 — 편 썸네일을 다시 만든 뒤 다시 시도", bad: true }); }
