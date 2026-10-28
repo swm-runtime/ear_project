@@ -132,6 +132,8 @@ function CompletionView({ channel, onSwitchToDev }: { channel: EarChannel; onSwi
 
 const fmtMinutes = (sec: number) => `${Math.floor(sec / 60)}분 ${String(sec % 60).padStart(2, "0")}초`;
 
+// 그래프는 이 크기(px)보다 크게 늘리지 않는다 — viewBox 를 화면 너비에 맞춰 늘리면 넓은 화면에서 높이·글자까지 같이 커져
+// 패널을 꽉 채운다(2026-10-28). 좁은 화면에서는 같은 비율로 줄어든다
 const W = 720;
 const H = 300;
 const PAD = { top: 12, right: 16, bottom: 36, left: 44 };
@@ -158,7 +160,7 @@ function Chart({ data }: { data: EarCompletionByLength }) {
   const line = curve.length > 1 ? `M${curve.map((p) => `${x(p.minute)},${y(p.rate)}`).join("L")}` : null;
 
   return (
-    <div className="relative">
+    <div className="relative w-full max-w-[720px]">
       <svg viewBox={`0 0 ${W} ${H}`} className="w-full" role="img" aria-label="콘텐츠 길이(분)별 완청률 — 편별 점과 추세선">
         {yTicks.map((r) => (
           <g key={r}>
