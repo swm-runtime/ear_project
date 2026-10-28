@@ -107,7 +107,7 @@ describe('Android 탐색 제자리 검색', () => {
     const back = jest.spyOn(BackHandler, 'addEventListener');
     const embedding = {
       remaining: { remaining: 3, limit: 5 },
-      onExhaustedPress: jest.fn(),
+      onRingPress: jest.fn(),
       onExit: jest.fn(),
       onOpenTopic: jest.fn(),
       onRequestClose: close,
@@ -154,7 +154,7 @@ describe('Android 탐색 제자리 검색', () => {
         <ExploreSearchScreen
           embedding={{
             remaining: null,
-            onExhaustedPress: jest.fn(),
+            onRingPress: jest.fn(),
             onExit: jest.fn(),
             onOpenTopic: jest.fn(),
             isClosing: true,
@@ -194,7 +194,7 @@ describe('Android 탐색 제자리 검색', () => {
         <ExploreSearchScreen
           embedding={{
             remaining: null,
-            onExhaustedPress: jest.fn(),
+            onRingPress: jest.fn(),
             onExit: jest.fn(),
             onOpenTopic: jest.fn(),
           }}

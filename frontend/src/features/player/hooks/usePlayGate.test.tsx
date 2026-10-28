@@ -183,3 +183,29 @@ describe('푸시 콘텐츠는 멈춘 플레이어로 연다 — ▶에서 확인
     expect(usePlaybackStore.getState().confirmBeforePlayContentId).toBeNull();
   });
 });
+
+describe('잔여 링 탭으로 연 페이월(2026-10-28)', () => {
+  it('남은 횟수가 있으면 시트에 남은/한도를 넘긴다', () => {
+    // given — 오늘 2회 중 1회 남음
+    act(() =>
+      usePlayLimitStore.setState({
+        playLimit: { dailyPlayLimit: 2, dailyPlayCount: 1, serviceDate: '2026-10-28' },
+      }),
+    );
+
+    // when
+    act(() => gate.openPaywall('library'));
+
+    // then
+    const notice = useLimitNoticeStore.getState();
+    expect(notice.isPaywall).toBe(true);
+    expect(notice.remaining).toEqual({ remaining: 1, limit: 2 });
+  });
+
+  it('소진이면 남은 횟수를 넘기지 않아 종전 "모두 사용했어요" 시트다', () => {
+    act(() => gate.openPaywall('library'));
+
+    expect(useLimitNoticeStore.getState().isPaywall).toBe(true);
+    expect(useLimitNoticeStore.getState().remaining).toBeNull();
+  });
+});

@@ -3,6 +3,7 @@ import path from "node:path";
 import { cfg, executedBy } from "../config.js";
 import { getBacklog, getEpisode, getSeries, getSetting, insertRun, majorOfMidTopic, pool, setJobProgress, type Job, listPublications } from "../db.js";
 import { mergePublications, pipelineLocale, promptBody, publicationOf, publicationStyle } from "@ear/pipeline";
+import { CODE_STYLE_LABEL, composeNotesThumb, composeTvThumb, nameLines, titleToLines } from "./thumbnail-code.js";
 import { SERIES_THUMBNAIL_PROMPT_KEY, THUMBNAIL_ANCHOR_PROMPT_KEY, THUMBNAIL_PROMPT_KEY, THUMBNAIL_SCENE_PROMPT_KEY, workerRev } from "../assets.js";
 import { makeExecutor } from "../executors/index.js";
 import { bookmarkFile, composeBookmark, composeCorner, cornerContrast } from "./thumbnail-compose.js";
@@ -112,6 +113,9 @@ export async function runThumbnail(job: Job) {
   const series = sr.rows[0]?.series_id ? await getSeries(sr.rows[0].series_id as string) : null;
   const pubs = series ? mergePublications(await listPublications()) : []; // 상수 + 콘솔에서 만든 간행물(0036)
   const style = series ? publicationStyle(series.publication, pubs) : "scene";
+  if (series && (style === "tv" || style === "notes")) {
+    return runCodeSeriesThumbnail({ job, episodeId, backlogId, rel, outFile, progress, series, style, no: sr.rows[0].series_no as number, candTitle: cand.title });
+  }
   if (series && style === "phrasebook") {
     return runPhrasebookThumbnail({ job, episodeId, backlogId, rel, outFile, progress, seriesId: series.id, no: sr.rows[0].series_no as number, title: cand.title, oneLiner: firstNonEmpty(row.rows[0]?.one_liner, cand.axis) });
   }
@@ -354,6 +358,41 @@ async function runPhrasebookThumbnail(a: { job: Job; episodeId: string; backlogI
   });
   const next = await advanceChain(a.job);
   return { episode_id: a.episodeId, thumbnail_key: key, series_id: a.seriesId, no: a.no, base_generated: false, next: next?.type ?? null };
+}
+
+/**
+ * 코드 합성 시리즈 디자인 2종 — tv·notes (2026-10-28, thumbnail-code.ts). 이미지 모델·텍스트 모델 없음.
+ * 편 글자는 설계안(series.plan)의 편 제목. 없으면 백로그 제목에서 "시리즈 N — " 머리와 ": 부제"를 뗀 것. 표지는 편마다 같이 다시 그린다(회화집과 같음).
+ */
+async function runCodeSeriesThumbnail(a: { job: Job; episodeId: string; backlogId: string; rel: string; outFile: string; progress: (detail: string) => Promise<unknown>; series: NonNullable<Awaited<ReturnType<typeof getSeries>>>; style: "tv" | "notes"; no: number; candTitle: string }) {
+  const s = a.series;
+  const baseRel = `datasets/series/${s.id}`;
+  const coverFile = path.join(cfg.workRoot, baseRel, "thumb-cover.png");
+  await fs.mkdir(path.dirname(coverFile), { recursive: true });
+  const plan = (Array.isArray(s.plan) ? s.plan : []) as { no: number; title: string }[];
+  const planTitle = plan.find((e) => e.no === a.no)?.title?.trim();
+  const fallback = a.candTitle.replace(/^.*?\d+\s*[—–-]\s*/, "").split(/[:：]/)[0].trim();
+  const title = planTitle || fallback || a.candTitle;
+  const pubs = mergePublications(await listPublications());
+  const pub = publicationOf(s.publication, pubs);
+  const pubName = pub?.name ?? "";
+  const label = (s.thumb_label ?? "").trim() || CODE_STYLE_LABEL[a.style].defaultLabel;
+  const compose = a.style === "tv" ? composeTvThumb : composeNotesThumb;
+  await a.progress(`${CODE_STYLE_LABEL[a.style].name} 합성`);
+  const size = Number(String(cfg.thumbnailSize).split("x")[0]) || 1024;
+  const started = Date.now();
+  await fs.writeFile(a.outFile, await compose({ lines: titleToLines(title, a.style === "tv" ? 2 : 3), no: a.no, seriesName: s.name, pubName, label }, size));
+  if (s.total_episodes) await fs.writeFile(coverFile, await compose({ lines: nameLines(s.name), no: null, total: s.total_episodes, seriesName: s.name, pubName, label }, size));
+  await a.progress("S3 업로드");
+  await pushPrefix(`${a.rel}/`);
+  await pushPrefix(`${baseRel}/`);
+  const key = s3Key(`${a.rel}/thumbnail.png`);
+  await pool.query("update public.episodes set thumbnail_key = $2, updated_at = now() where id = $1", [a.episodeId, key]);
+  const result = `썸네일(${CODE_STYLE_LABEL[a.style].name}) — ${s.name} ${a.no}화 · "${title}" (${((Date.now() - started) / 1000).toFixed(1)}초) · 코드 합성, 모델 호출 없음 · 사람 확인 대기`;
+  log(`  thumbnail ${a.episodeId}: ${key} (${a.style} ${a.no}화 · ${title})`);
+  await insertRun({ backlog_id: a.backlogId, phase: "thumbnail", result, prompt_version: `${a.style}-v1 (worker)`, artifacts: [key, s3Key(`${baseRel}/thumb-cover.png`)], executed_by: executedBy, model: null, cost_usd: 0, tokens: { images: 0, series_id: s.id, no: a.no, title }, worker_rev: workerRev() });
+  const next = await advanceChain(a.job);
+  return { episode_id: a.episodeId, thumbnail_key: key, series_id: s.id, no: a.no, base_generated: false, next: next?.type ?? null };
 }
 
 /** 프롬프트의 진실은 DB 다 (spec/10 3.2) — git 사본으로 조용히 폴백하지 않는다. 시딩: npm run assets:import */

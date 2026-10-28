@@ -20,8 +20,11 @@ const RING_CIRCUMFERENCE = 2 * Math.PI * RING_RADIUS;
 interface RemainingPlaysIndicatorProps {
   remaining: number;
   limit: number;
-  /** 소진 상태에서만 탭 → 페이월(library-uiux.md 4.3). N > 0이면 탭 대상이 아니다 */
-  onExhaustedPress: () => void;
+  /**
+   * 탭 → 페이월(paywall.md 5장). 소진이면 늘 눌리고, N > 0 이면 **구독 UI 가 켜진 바이너리에서만** 눌린다(PM 2026-10-28
+   * "몇 회 남았는지 보이는 원형 누르면 페이월") — 꺼진 바이너리는 팔 것이 없어 N > 0 탭이 열 시트가 없다
+   */
+  onRingPress: () => void;
   /**
    * 유리 원 없이 링만 — 호스트가 다른 버튼과 **한 유리 캡슐**에 묶을 때(라이브러리 링 + 필터, 2026-09-25 PM
    * "유리 조각이 셋"). 기본은 36 유리 원(탐색)
@@ -41,7 +44,7 @@ interface RemainingPlaysIndicatorProps {
 export default function RemainingPlaysIndicator({
   remaining,
   limit,
-  onExhaustedPress,
+  onRingPress,
   bare = false,
 }: RemainingPlaysIndicatorProps) {
   const isExhausted = remaining === 0;
@@ -84,7 +87,7 @@ export default function RemainingPlaysIndicator({
     </Frame>
   );
 
-  if (!isExhausted) {
+  if (!isExhausted && !IS_SUBSCRIPTION_UI_ENABLED) {
     return (
       <View
         style={styles.row}
@@ -98,13 +101,15 @@ export default function RemainingPlaysIndicator({
 
   return (
     <Pressable
-      style={[styles.row, styles.exhaustedButton]}
-      onPress={onExhaustedPress}
+      style={[styles.row, styles.pressable]}
+      onPress={onRingPress}
       accessibilityRole="button"
       accessibilityLabel={
-        IS_SUBSCRIPTION_UI_ENABLED
-          ? PLAYER_COPY.remaining.a11yLabelExhaustedWithPaywall
-          : PLAYER_COPY.remaining.a11yLabelExhausted
+        !isExhausted
+          ? PLAYER_COPY.remaining.a11yLabelWithPaywall(remaining, limit)
+          : IS_SUBSCRIPTION_UI_ENABLED
+            ? PLAYER_COPY.remaining.a11yLabelExhaustedWithPaywall
+            : PLAYER_COPY.remaining.a11yLabelExhausted
       }
     >
       {gauge}
@@ -148,8 +153,8 @@ const styles = StyleSheet.create({
   countExhausted: {
     color: theme.color.danger,
   },
-  // 소진 상태만 눌린다 — 히트 영역을 44pt로 채운다(uiux 7)
-  exhaustedButton: {
+  // 눌리는 링 — 히트 영역을 44pt로 채운다(uiux 7)
+  pressable: {
     minHeight: theme.touchTarget.minHeight,
     minWidth: theme.touchTarget.minWidth,
   },

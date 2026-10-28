@@ -68,7 +68,7 @@ create table if not exists public.publications (
   key        text primary key,
   locale     text not null check (locale in ('ko', 'en')),
   name       text not null,
-  style      text not null check (style in ('keyword', 'phrasebook', 'scene')),
+  style      text not null check (style in ('keyword', 'phrasebook', 'scene', 'tv', 'notes')), -- 0037: tv·notes (코드 합성 시리즈 디자인)
   hint       text,
   created_at timestamptz not null default now(),
   unique (locale, name)

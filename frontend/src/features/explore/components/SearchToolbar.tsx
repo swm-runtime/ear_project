@@ -13,7 +13,7 @@ import { EXPLORE_COPY } from '../explore.copy';
 interface SearchToolbarProps {
   /** null 이면 링 칸을 두지 않는다(무제한·캐시·값 없음 — uiux 4.3) — 그땐 닫기 원만 남는다 */
   remaining: { remaining: number; limit: number } | null;
-  onExhaustedPress: () => void;
+  onRingPress: () => void;
   onClose: () => void;
   /**
    * 닫기 칸이 펼쳐져 있는가 — 들어올 때 false → true 로 링 옆에서 **닫기 칸이 자라나며** 알약이 늘어나고(PM 2026-09-27 23:01
@@ -28,7 +28,7 @@ interface SearchToolbarProps {
  */
 export default function SearchToolbar({
   remaining,
-  onExhaustedPress,
+  onRingPress,
   onClose,
   isOpen = true,
 }: SearchToolbarProps) {
@@ -63,7 +63,7 @@ export default function SearchToolbar({
             <RemainingPlaysIndicator
               remaining={remaining.remaining}
               limit={remaining.limit}
-              onExhaustedPress={onExhaustedPress}
+              onRingPress={onRingPress}
               bare
             />
           </View>

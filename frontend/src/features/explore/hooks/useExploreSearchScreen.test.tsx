@@ -89,7 +89,7 @@ const embeddingWith = (searchRequest: ExploreSearchRequest | null): ExploreSearc
   onExit: jest.fn(),
   onOpenTopic: jest.fn(),
   remaining: null,
-  onExhaustedPress: jest.fn(),
+  onRingPress: jest.fn(),
   searchRequest,
 });
 

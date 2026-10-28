@@ -15,6 +15,8 @@ import { useLimitNoticeStore } from '../store/limit-notice.store';
 
 const RING_SIZE = 56;
 const RING_STROKE = 5;
+const RING_RADIUS = (RING_SIZE - RING_STROKE) / 2;
+const RING_CIRCUMFERENCE = 2 * Math.PI * RING_RADIUS;
 /** 요금제 비교가 얹히면 시트가 길어진다 — 화면 위쪽을 남기고 안에서 스크롤한다 */
 const PAYWALL_MAX_HEIGHT = Dimensions.get('window').height * 0.72;
 /**
@@ -37,10 +39,14 @@ export default function LimitNoticeSheet() {
   const isVisible = useLimitNoticeStore((s) => s.isVisible);
   const message = useLimitNoticeStore((s) => s.message);
   const isPaywall = useLimitNoticeStore((s) => s.isPaywall);
+  const remaining = useLimitNoticeStore((s) => s.remaining);
   const hide = useLimitNoticeStore((s) => s.hide);
   const suspend = useLimitNoticeStore((s) => s.suspend);
   const isPurchasing = useIsPurchaseInProgress();
   const showPlans = isPaywall && IS_SUBSCRIPTION_UI_ENABLED;
+  /** 잔여 링을 눌러 열었고 아직 남았다 — 링을 채우고 "N회 더" 제목(2026-10-28). 없으면 종전 소진 모양 */
+  const left = remaining !== null && remaining.remaining > 0 ? remaining : null;
+  const ratio = left !== null && left.limit > 0 ? Math.min(1, left.remaining / left.limit) : 0;
   /** iOS — 시트가 완전히 내려간 뒤 부를 재생 요청 */
   const pendingResumeRef = useRef<(() => void) | null>(null);
 
@@ -79,19 +85,39 @@ export default function LimitNoticeSheet() {
           <Circle
             cx={RING_SIZE / 2}
             cy={RING_SIZE / 2}
-            r={(RING_SIZE - RING_STROKE) / 2}
-            stroke={theme.color.danger}
+            r={RING_RADIUS}
+            stroke={left !== null ? theme.color.border : theme.color.danger}
             strokeWidth={RING_STROKE}
             fill="none"
           />
+          {/* 잔여 표시 링과 같은 문법 — 12시에서 시계 방향으로 남은/한도만큼 */}
+          {ratio > 0 ? (
+            <Circle
+              cx={RING_SIZE / 2}
+              cy={RING_SIZE / 2}
+              r={RING_RADIUS}
+              stroke={theme.color.textPrimary}
+              strokeWidth={RING_STROKE}
+              strokeLinecap="round"
+              strokeDasharray={`${RING_CIRCUMFERENCE} ${RING_CIRCUMFERENCE}`}
+              strokeDashoffset={RING_CIRCUMFERENCE * (1 - ratio)}
+              fill="none"
+              rotation={-90}
+              origin={`${RING_SIZE / 2}, ${RING_SIZE / 2}`}
+            />
+          ) : null}
         </Svg>
         {/* 숫자는 줄 높이가 아니라 가운데 정렬 틀로 맞춘다 — lineHeight 로는 글꼴 위아래 여백 때문에 위로 떴다(00:24 PM) */}
         <View style={styles.ringCenter}>
-          <Text style={styles.ringValue}>0</Text>
+          <Text style={[styles.ringValue, left !== null && styles.ringValueLeft]}>
+            {left !== null ? left.remaining : 0}
+          </Text>
         </View>
       </View>
       <Text style={styles.title} accessibilityRole="header">
-        {message ?? PLAYER_COPY.limitNotice.title}
+        {left !== null
+          ? PLAYER_COPY.limitNotice.remainingTitle(left.remaining)
+          : (message ?? PLAYER_COPY.limitNotice.title)}
       </Text>
       <Text style={styles.description}>{PLAYER_COPY.limitNotice.description}</Text>
       {showPlans ? (
@@ -174,6 +200,9 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: theme.color.danger,
     fontVariant: ['tabular-nums'],
+  },
+  ringValueLeft: {
+    color: theme.color.textPrimary,
   },
   title: {
     marginTop: theme.spacing.xs,
