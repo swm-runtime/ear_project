@@ -189,3 +189,8 @@ export const INSIGHTS_WEEKDAY_LABELS: readonly string[] = [
   '토',
   '일',
 ];
+
+/** 프로모션 상세의 입력일 기준 N일째 재방문 칸(2026-10-28) */
+export const INVITE_CODE_DETAIL_RETENTION_DAYS: readonly number[] = [
+  1, 3, 7, 14,
+];

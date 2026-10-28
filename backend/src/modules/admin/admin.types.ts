@@ -494,3 +494,49 @@ export interface InsightsInviteCodeBaseline {
   listenSec: number;
   paidEver: number;
 }
+
+/** 초대 코드 하나의 상세(2026-10-28 — 프로모션 탭에서 코드를 누르면). 집계값만 */
+export interface InsightsInviteCodeDetail {
+  code: string;
+  name: string;
+  /** 사람별 창 안 청취 시간(초)을 정렬한 값의 가운데 — 평균이 소수에 끌려가는 것을 보완 */
+  medianListenSec: number;
+  /** 창 안 청취량 구간별 인원: 0분 · 10분 미만 · 10~60분 · 60분 이상 */
+  listenBuckets: {
+    none: number;
+    under10m: number;
+    under60m: number;
+    over60m: number;
+  };
+  /** 입력 전 7일과 입력 뒤(오늘까지)의 하루 평균 — 1인 1일당 청취 초 · 접속한 날의 비율 */
+  beforeAfter: {
+    beforeListenSecPerDay: number | null;
+    afterListenSecPerDay: number | null;
+    beforeActiveDayRate: number | null;
+    afterActiveDayRate: number | null;
+  };
+  /** 입력한 서비스 날짜를 0일째로 N일째 하루에 접속·재생한 사람(그날이 다 지난 사람만 분모) */
+  retention: { day: number; eligible: number; returned: number }[];
+  daily: {
+    date: string;
+    active: number;
+    listeners: number;
+    listenSec: number;
+    plays: number;
+  }[];
+  /** 창 안 재생·완청 — 기준선(코드 없는 사용자)과 함께 */
+  completion: {
+    plays: number;
+    completes: number;
+    baselinePlays: number;
+    baselineCompletes: number;
+  };
+  topContents: {
+    title: string;
+    listeners: number;
+    plays: number;
+    listenSec: number;
+  }[];
+  /** 지급이 끝난 사람과 그중 입력 뒤 실결제를 시작한 사람 */
+  conversion: { ended: number; paidAfterEnd: number };
+}

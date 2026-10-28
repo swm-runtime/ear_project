@@ -967,6 +967,106 @@ describe('서비스 지표 요약 E2E', () => {
     }
   });
 
+  it('프로모션 상세 — 중앙값·청취 구간·입력 전후·N일째 재방문·많이 들은 콘텐츠를 집계값으로 싣고, 없는 코드는 404', async () => {
+    // given — 3일 전 입력한 A(입력 전 1일 120초 · 입력 1일째 접속 · 어제 600초 청취), 오늘 입력한 B(활동 없음)
+    const code = `E2D${Date.now() % 1000000}`;
+    const now = Date.now();
+    const [{ id: codeId }] = await dataSource.query<{ id: string }[]>(
+      `INSERT INTO invite_codes (code, name, tier, grant_days, redeemed_count)
+       VALUES ($1, 'E2E 상세', 'pro', 7, 2) RETURNING id`,
+      [code],
+    );
+    const [a, b] = await Promise.all([
+      createUserId('promo-detail-a'),
+      createUserId('promo-detail-b'),
+    ]);
+    const startedA = new Date(now - 3 * DAY);
+    await dataSource.query(
+      `INSERT INTO invite_code_redemptions (invite_code_id, user_id, tier, starts_at, ends_at)
+       VALUES ($1, $2, 'pro', $3, $4), ($1, $5, 'pro', $6, $7)`,
+      [
+        codeId,
+        a,
+        startedA,
+        new Date(now + 4 * DAY),
+        b,
+        new Date(now - 60_000),
+        new Date(now + 7 * DAY),
+      ],
+    );
+    await seedSession(a, new Date(startedA.getTime() + DAY));
+    const contentId = await seedContent();
+    const playRecords = dataSource.getRepository(PlayRecord);
+    for (const [playedAt, listenedSec] of [
+      [new Date(startedA.getTime() - DAY), 120],
+      [new Date(now - DAY), 600],
+    ] as const) {
+      await playRecords.save(
+        playRecords.create({
+          userId: a,
+          contentId,
+          playDate: toServiceDate(playedAt),
+          playedAt,
+          isCounted: true,
+          listenedSec,
+        }),
+      );
+    }
+    const adminAuth = await createUser('admin-promo-detail', UserRole.ADMIN);
+
+    try {
+      // when
+      const body = (
+        await request(app.getHttpServer())
+          .get(path(`/admin/insights/invite-codes/${code.toLowerCase()}`))
+          .query({ days: 14 })
+          .set('Authorization', adminAuth)
+          .expect(HttpStatus.OK)
+      ).body as Record<string, unknown> & {
+        retention: { day: number; eligible: number; returned: number }[];
+        daily: { listen_sec: number }[];
+        top_contents: { listeners: number; plays: number }[];
+      };
+
+      // then — 창(14일) 청취 A 720초 · B 0초 → 중앙값 360, 구간 0분 1 · 10~60분 1
+      expect(body).toMatchObject({
+        code,
+        name: 'E2E 상세',
+        median_listen_sec: 360,
+        listen_buckets: { none: 1, under_10m: 0, under_60m: 1, over_60m: 0 },
+        before_after: {
+          // 입력 전 7일: A 120초 · B 0초 → 120 / (2명 × 7일)
+          before_listen_sec_per_day: 120 / 14,
+        },
+        conversion: { ended: 0, paid: 0 },
+      });
+      // 1일째: A 만 지났고(B 는 오늘 입력) 그날 세션이 있다
+      expect(body.retention.find((r) => r.day === 1)).toEqual({
+        day: 1,
+        eligible: 1,
+        returned: 1,
+        rate: 1,
+      });
+      expect(body.retention.find((r) => r.day === 7)?.eligible).toBe(0);
+      expect(body.daily.reduce((sum, d) => sum + d.listen_sec, 0)).toBe(720);
+      expect(body.top_contents[0]).toMatchObject({ listeners: 1, plays: 2 });
+      expect(JSON.stringify(body)).not.toMatch(/"email"|"nickname"|"user_id"/);
+
+      await request(app.getHttpServer())
+        .get(path('/admin/insights/invite-codes/NOPE-NOT-A-CODE'))
+        .set('Authorization', adminAuth)
+        .expect(HttpStatus.NOT_FOUND);
+    } finally {
+      await dataSource.query(
+        `DELETE FROM invite_code_redemptions WHERE invite_code_id = $1`,
+        [codeId],
+      );
+      await dataSource.query(`DELETE FROM invite_codes WHERE id = $1`, [
+        codeId,
+      ]);
+    }
+  });
+
   async function createUserId(
     label: string,
     role: UserRole = UserRole.USER,

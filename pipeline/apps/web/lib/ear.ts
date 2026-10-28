@@ -574,6 +574,20 @@ export interface EarPromotionSummary {
   codes: EarPromotionCode[];
   baseline: EarPromotionMetrics & { paid_ever: number; paid_ever_rate: number | null };
 }
+/** 코드 하나의 상세(2026-10-28) — 집계값만. 사람별 값은 중앙값·구간으로만 온다 */
+export interface EarPromotionDetail {
+  days: number; since: string; generated_at: string; code: string; name: string;
+  median_listen_sec: number;
+  listen_buckets: { none: number; under_10m: number; under_60m: number; over_60m: number };
+  before_after: { before_listen_sec_per_day: number | null; after_listen_sec_per_day: number | null; before_active_day_rate: number | null; after_active_day_rate: number | null };
+  retention: { day: number; eligible: number; returned: number; rate: number | null }[];
+  daily: { date: string; active: number; listeners: number; listen_sec: number; plays: number }[];
+  completion: { plays: number; completes: number; complete_rate: number | null; baseline_complete_rate: number | null };
+  top_contents: { title: string; listeners: number; plays: number; listen_sec: number }[];
+  conversion: { ended: number; paid: number; rate: number | null };
+}
+export const getEarPromotionDetail = (ch: EarChannel, code: string, days: number) =>
+  earFetch<EarPromotionDetail>(`/admin/insights/invite-codes/${encodeURIComponent(code)}?days=${days}`, { cache: "no-store" }, ch);
 export const getEarPromotionSummary = (ch: EarChannel, days: number) =>
   earFetch<EarPromotionSummary>(`/admin/insights/invite-codes?days=${days}`, { cache: "no-store" }, ch);
 

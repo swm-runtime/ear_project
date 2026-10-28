@@ -9,6 +9,7 @@ import {
   InsightsHourly,
   InsightsInviteCodeBaseline,
   InsightsInviteCodeCohort,
+  InsightsInviteCodeDetail,
   InsightsListeningTotals,
   InsightsMarketTotals,
   InsightsPushReaction,
@@ -715,6 +716,215 @@ export class AdminInsightsRepository {
         listeners7d: baseline?.listeners_7d ?? 0,
         listenSec: Number(baseline?.listen_sec ?? 0),
         paidEver: baseline?.paid_ever ?? 0,
+      },
+    };
+  }
+
+  /**
+   * 초대 코드 하나의 상세(2026-10-28). 묶음 = 그 코드를 입력한 **현재 계정**. 접속은 코호트 리텐션과 같은 원천
+   * (`user_active_dates` ∪ 남은 `sessions` ∪ `play_records`, KST 달력일), 청취는 재생 행의 `played_at` 기준.
+   * 코드가 없으면 null. 개인을 가리키는 값(user_id)은 내보내지 않는다 — 사람별 값은 중앙값·구간 계산에만 쓴다.
+   */
+  async inviteCodeDetail(
+    code: string,
+    since: Date,
+    now: Date,
+    retentionDays: readonly number[],
+  ): Promise<InsightsInviteCodeDetail | null> {
+    const [head] = await this.dataSource.query<
+      { id: string; code: string; name: string }[]
+    >(`select id, code, name from invite_codes where code = $1`, [code]);
+    if (!head) return null;
+
+    const cohort = `cohort as (
+         select r.user_id, r.starts_at, r.ends_at,
+                (r.starts_at at time zone 'Asia/Seoul')::date as d0
+           from invite_code_redemptions r
+          where r.invite_code_id = $1
+       ),
+       activity as (
+         select a.user_id, a.active_date as d from user_active_dates a join cohort c on c.user_id = a.user_id
+         union
+         select s.user_id, (s.issued_at at time zone 'Asia/Seoul')::date from sessions s join cohort c on c.user_id = s.user_id
+         union
+         select p.user_id, (p.played_at at time zone 'Asia/Seoul')::date from play_records p join cohort c on c.user_id = p.user_id
+       )`;
+
+    const perUser = await this.dataSource.query<
+      {
+        window_sec: number;
+        before_sec: number;
+        after_sec: number;
+        after_days: number;
+        before_active: number;
+        after_active: number;
+      }[]
+    >(
+      `with ${cohort}
+       select coalesce((select sum(p.listened_sec) from play_records p
+                         where p.user_id = c.user_id and p.played_at >= $2), 0)::float8 as window_sec,
+              coalesce((select sum(p.listened_sec) from play_records p
+                         where p.user_id = c.user_id and p.played_at >= c.starts_at - interval '7 days'
+                           and p.played_at < c.starts_at), 0)::float8 as before_sec,
+              coalesce((select sum(p.listened_sec) from play_records p
+                         where p.user_id = c.user_id and p.played_at >= c.starts_at), 0)::float8 as after_sec,
+              greatest(1, ($3::timestamptz at time zone 'Asia/Seoul')::date - c.d0 + 1)::int as after_days,
+              (select count(*) from activity a where a.user_id = c.user_id and a.d >= c.d0 - 7 and a.d < c.d0)::int as before_active,
+              (select count(*) from activity a where a.user_id = c.user_id and a.d >= c.d0)::int as after_active
+         from cohort c`,
+      [head.id, since, now],
+    );
+
+    const retention = await this.dataSource.query<
+      { day: number; eligible: number; returned: number }[]
+    >(
+      `with ${cohort}
+       select n.day::int as day,
+              count(c.user_id) filter (where c.d0 + n.day < ($2::timestamptz at time zone 'Asia/Seoul')::date)::int as eligible,
+              count(c.user_id) filter (where c.d0 + n.day < ($2::timestamptz at time zone 'Asia/Seoul')::date
+                and exists (select 1 from activity a where a.user_id = c.user_id and a.d = c.d0 + n.day))::int as returned
+         from unnest($3::int[]) as n(day)
+         cross join cohort c
+        group by n.day
+        order by n.day`,
+      [head.id, now, retentionDays],
+    );
+
+    const daily = await this.dataSource.query<
+      {
+        date: string;
+        active: number;
+        listeners: number;
+        listen_sec: number;
+        plays: number;
+      }[]
+    >(
+      `with ${cohort},
+       days as (
+         select generate_series(($2::timestamptz at time zone 'Asia/Seoul')::date,
+                                ($3::timestamptz at time zone 'Asia/Seoul')::date, interval '1 day')::date as d
+       )
+       select to_char(days.d, 'YYYY-MM-DD') as date,
+              (select count(distinct a.user_id) from activity a where a.d = days.d)::int as active,
+              (select count(distinct p.user_id) from play_records p join cohort c on c.user_id = p.user_id
+                where (p.played_at at time zone 'Asia/Seoul')::date = days.d)::int as listeners,
+              coalesce((select sum(p.listened_sec) from play_records p join cohort c on c.user_id = p.user_id
+                where (p.played_at at time zone 'Asia/Seoul')::date = days.d), 0)::float8 as listen_sec,
+              (select count(*) from play_records p join cohort c on c.user_id = p.user_id
+                where (p.played_at at time zone 'Asia/Seoul')::date = days.d)::int as plays
+         from days
+        order by days.d`,
+      [head.id, since, now],
+    );
+
+    const [completion] = await this.dataSource.query<
+      {
+        plays: number;
+        completes: number;
+        baseline_plays: number;
+        baseline_completes: number;
+      }[]
+    >(
+      `with ${cohort},
+       outside as (
+         select u.id from users u where not exists (select 1 from invite_code_redemptions r where r.user_id = u.id)
+       )
+       select (select count(*) from play_records p join cohort c on c.user_id = p.user_id where p.played_at >= $2)::int as plays,
+              (select count(*) from user_signals s join cohort c on c.user_id = s.user_id
+                where s.action = 'complete' and s.created_at >= $2)::int as completes,
+              (select count(*) from play_records p join outside o on o.id = p.user_id where p.played_at >= $2)::int as baseline_plays,
+              (select count(*) from user_signals s join outside o on o.id = s.user_id
+                where s.action = 'complete' and s.created_at >= $2)::int as baseline_completes`,
+      [head.id, since],
+    );
+
+    const topContents = await this.dataSource.query<
+      { title: string; listeners: number; plays: number; listen_sec: number }[]
+    >(
+      `with ${cohort}
+       select ct.title, count(distinct p.user_id)::int as listeners, count(*)::int as plays,
+              coalesce(sum(p.listened_sec), 0)::float8 as listen_sec
+         from play_records p
+         join cohort c on c.user_id = p.user_id
+         join contents ct on ct.id = p.content_id
+        where p.played_at >= $2
+        group by ct.id, ct.title
+        order by listeners desc, listen_sec desc
+        limit 10`,
+      [head.id, since],
+    );
+
+    const [conversion] = await this.dataSource.query<
+      { ended: number; paid_after_end: number }[]
+    >(
+      `with ${cohort}
+       select count(*) filter (where c.ends_at <= $2)::int as ended,
+              count(*) filter (where c.ends_at <= $2 and exists (
+                select 1 from subscriptions sub
+                 where sub.user_id = c.user_id and sub.environment = 'production'
+                   and sub.status <> 'refunded' and sub.started_at >= c.starts_at
+              ))::int as paid_after_end
+         from cohort c`,
+      [head.id, now],
+    );
+
+    const sorted = perUser
+      .map((r) => Number(r.window_sec))
+      .sort((a, b) => a - b);
+    const median =
+      sorted.length === 0
+        ? 0
+        : sorted.length % 2 === 1
+          ? sorted[(sorted.length - 1) / 2]
+          : (sorted[sorted.length / 2 - 1] + sorted[sorted.length / 2]) / 2;
+    const sum = (pick: (r: (typeof perUser)[number]) => number) =>
+      perUser.reduce((total, r) => total + Number(pick(r)), 0);
+    const users = perUser.length;
+    const afterDays = sum((r) => r.after_days);
+
+    return {
+      code: head.code,
+      name: head.name,
+      medianListenSec: median,
+      listenBuckets: {
+        none: sorted.filter((v) => v <= 0).length,
+        under10m: sorted.filter((v) => v > 0 && v < 600).length,
+        under60m: sorted.filter((v) => v >= 600 && v < 3600).length,
+        over60m: sorted.filter((v) => v >= 3600).length,
+      },
+      beforeAfter: {
+        beforeListenSecPerDay:
+          users > 0 ? sum((r) => r.before_sec) / (users * 7) : null,
+        afterListenSecPerDay:
+          afterDays > 0 ? sum((r) => r.after_sec) / afterDays : null,
+        beforeActiveDayRate:
+          users > 0 ? sum((r) => r.before_active) / (users * 7) : null,
+        afterActiveDayRate:
+          afterDays > 0 ? sum((r) => r.after_active) / afterDays : null,
+      },
+      retention,
+      daily: daily.map((d) => ({
+        date: d.date,
+        active: d.active,
+        listeners: d.listeners,
+        listenSec: Number(d.listen_sec),
+        plays: d.plays,
+      })),
+      completion: {
+        plays: completion?.plays ?? 0,
+        completes: completion?.completes ?? 0,
+        baselinePlays: completion?.baseline_plays ?? 0,
+        baselineCompletes: completion?.baseline_completes ?? 0,
+      },
+      topContents: topContents.map((t) => ({
+        title: t.title,
+        listeners: t.listeners,
+        plays: t.plays,
+        listenSec: Number(t.listen_sec),
+      })),
+      conversion: {
+        ended: conversion?.ended ?? 0,
+        paidAfterEnd: conversion?.paid_after_end ?? 0,
       },
     };
   }

@@ -20,7 +20,8 @@ SANKUN(Pro, 12-10까지) 같은 프로모션 사용자만 따로 지표를 보�
    - `codes[]`(초대 코드마다, 입력 수 많은 순): `code` · `name` · `tier` · `grant_days` · `grant_until_date` · `is_active` · `redeemed`(누적 — `invite_codes.redeemed_count`) · `current`(지금 남은 입력 계정) · `withdrawn`(`redeemed - current`) · `active_grants`(지급 중) · `ended_grants`(지급 끝) · `active_7d`(세션 기준 — 지표 탭 `active_7d`와 같다) · `listeners_7d`(재생) · `listen_sec`(창 안) · `listen_sec_per_user` · `active_7d_rate` · `paid_after_start`(입력 뒤 실결제 시작 — production · 환불 제외) · `paid_after_start_rate`.
    - `baseline`: 코드를 입력한 적 없는 현재 계정의 같은 값 + `paid_ever` · `paid_ever_rate`.
    - 집계값만 — 이름·이메일·user_id 없음. 탈퇴하면 입력 기록이 함께 지워져(CASCADE) 지표는 지금 남은 계정 기준이다.
-2. `backend-monitoring.md` 탭 표 — "프로모션 | `/backend-logs/promotions` | 초대 코드별 묶음(입력·지금·탈퇴 · 지급 중·끝 · 7일 활성·청취자와 기준선 대비 %p · 1인당 청취 · 입력 뒤 결제). 실배포·개발계 토글, 열 때 1회" 추가.
+1-1. 같은 절에 **`GET /admin/insights/invite-codes/:code?days=`**(2026-10-28 — 코드 상세, 없는 코드 404 `NOT_FOUND`, 코드는 대문자로 맞춰 찾는다): `median_listen_sec`(창 안 사람별 청취의 중앙값) · `listen_buckets`(0분 · 10분 미만 · 10~60분 · 60분 이상 인원) · `before_after`(입력 전 7일 vs 입력 뒤 오늘까지 — 1인 1일당 청취 초 · 접속한 날 비율, 사람마다 자기 입력 시각 기준) · `retention[]`(입력 서비스 날짜 = 0일째, D1·D3·D7·D14 그날 하루 접속·재생 — 그날이 다 지난 사람만 분모, 원천은 코호트 리텐션과 같다) · `daily[]`(접속자 · 청취자 · 청취 시간 · 재생) · `completion`(창 안 완청률과 기준선) · `top_contents[]`(묶음이 많이 들은 콘텐츠 10편 — 제목·청취자·재생·청취 시간) · `conversion`(지급 끝난 사람 · 그중 입력 뒤 실결제). 사람별 값은 중앙값·구간으로만 나가고 user_id 는 없다.
+2. `backend-monitoring.md` 탭 표 — "프로모션 | `/backend-logs/promotions` | 초대 코드별 묶음(입력·지금·탈퇴 · 지급 중·끝 · 7일 활성·청취자와 기준선 대비 %p · 1인당 청취 · 입력 뒤 결제) + 코드별 [상세](입력 전후 하루 청취·접속 · 중앙값 · 청취 구간 · N일째 재방문 · 일별 · 완청률 · 많이 들은 콘텐츠 · 지급 끝 뒤 결제). 실배포·개발계 토글, 열 때 1회" 추가.
 
 ## 완료 조건
 

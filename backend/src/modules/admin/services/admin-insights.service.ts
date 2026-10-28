@@ -4,6 +4,7 @@ import { UserMarket } from '@/modules/user/user.enum';
 
 import {
   INSIGHTS_COHORT_DAILY,
+  INVITE_CODE_DETAIL_RETENTION_DAYS,
   INSIGHTS_COHORT_WEEKLY,
   INSIGHTS_LIVE_ACTIVE_DAYS,
   INSIGHTS_RANK_LIMIT,
@@ -20,6 +21,7 @@ import {
   InsightsHourly,
   InsightsInviteCodeBaseline,
   InsightsInviteCodeCohort,
+  InsightsInviteCodeDetail,
   InsightsMarketTotals,
   InsightsSummary,
   InsightsWeekday,
@@ -53,6 +55,23 @@ export class AdminInsightsService {
     const since = new Date(now.getTime() - days * DAY_MS);
 
     return { since, ...(await this.repository.inviteCodeCohorts(since, now)) };
+  }
+
+  /** 초대 코드 하나의 상세 — 없는 코드면 null(컨트롤러가 404). 코드는 저장 규칙대로 대문자로 맞춰 찾는다 */
+  async inviteCodeDetail(
+    code: string,
+    days: number,
+    now: Date,
+  ): Promise<{ since: Date; detail: InsightsInviteCodeDetail } | null> {
+    const since = new Date(now.getTime() - days * DAY_MS);
+    const detail = await this.repository.inviteCodeDetail(
+      code.trim().toUpperCase(),
+      since,
+      now,
+      INVITE_CODE_DETAIL_RETENTION_DAYS,
+    );
+
+    return detail === null ? null : { since, detail };
   }
 
   async summarize(
