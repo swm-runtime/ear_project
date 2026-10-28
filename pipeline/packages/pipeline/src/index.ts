@@ -907,6 +907,8 @@ export interface QaInlineInput {
   fixes?: { location: string; before: string; after: string }[];
   /** 사람 수정 후 재QA (웹 [재QA 요청]) */
   humanRevision?: boolean;
+  /** 시리즈 편(spec/11, 2026-10-28): 작성기에 준 틀 문장 — 인트로 시리즈 줄·회상·클로징 예고/맺음. 사실이 아니라 틀이라 QA 에 알린다(글로벌 qa-en-v0.12 와 같은 절). 단일 편은 null */
+  seriesFrames?: { name: string; no: number; total: number; introSentence: string; closingSentence: string; recapClaimId: string | null; prevTitle: string | null } | null;
 }
 
 export function buildQaPromptInlineParts(i: QaInlineInput): PromptParts {
@@ -926,6 +928,14 @@ ${(i.fixes ?? []).map((f, n) => `${n + 1}. ${f.location}\n   전: ${f.before}\n 
 3. 수정으로 새로 생긴 문장·바뀐 문장은 1회차와 같은 엄격함으로 본다.`
     : "";
   const human = i.humanRevision ? `\n(이 대본은 사람이 웹에서 수정한 뒤 재QA를 요청한 것이다 — 사람 수정도 환각·중복을 만들 수 있으므로 1회차와 같은 엄격함으로 전수 검사한다.)` : "";
+  // 시리즈 틀 문장 (2026-10-28 — 한국판 시리즈 4개 가동 뒤 QA 가 클로징 예고 문장을 "소스 없는 사실 주장"으로 잡아 검수 필요로 멈췄다, C534. 글로벌 qa-en-v0.12(#2058) 와 같은 절)
+  const series = i.seriesFrames ? `
+### 시리즈 틀 문장 — 작성기에 준 문장 (템플릿이지 소스가 아니다)
+- 이 대본은 시리즈 "${i.seriesFrames.name}" ${i.seriesFrames.total}편 중 ${i.seriesFrames.no}화다.
+- 인트로 시리즈 줄({topic_line} 안): "${i.seriesFrames.introSentence}"
+${i.seriesFrames.recapClaimId && i.seriesFrames.prevTitle ? `- 회상: 도입의 첫 해설 턴이 ${i.seriesFrames.no - 1}화 "${i.seriesFrames.prevTitle}"를 한두 문장으로 되짚을 수 있다. 근거는 claims 의 ${i.seriesFrames.recapClaimId} 행(시리즈 표시)과 sources.md 의 "시리즈 연결 재료" 절이다.\n` : ""}- 클로징: 고정 인사 바로 앞 문장(같은 진행 턴)은 다음 화 제목 예고 또는 맺음 문장이다: "${i.seriesFrames.closingSentence}"
+- 이 문장들은 사실 주장이 아니라 틀이다. 소스 발췌에 없다는 이유로 실패(항목 2·3)로 잡지 않는다. 틀 문장이 소스를 넘어 내용을 덧붙였을 때만 그 덧붙인 부분을 본다.
+` : "";
   const system = `당신은 오디오 콘텐츠 서비스 "이어(ear)"의 QA 검수자다. 대본의 사실 무결성을 독립 검증한다. 생성 맥락은 일절 모른 채 검사하는 것이 원칙이다.
 
 이 실행에는 도구가 없다. 필요한 것은 전부 아래에 있다 — 파일을 읽거나 원문 URL 에 접속하지 않는다. 검증 기준은 소스 발췌가 최종이다.
@@ -943,7 +953,7 @@ ${QA_ITEM6_NOTE}
 
 ## 3. 완료 보고 — 반드시 요청된 JSON 스키마 형식으로만 출력한다. report_md 에는 QA 프롬프트 자산의 출력 규격대로 "### 항목별 판정" 표(10행) · "### 실패 상세" 표 · "### 비고 — 실패로 잡지 않은 경계 사례" · "### 종합 판정"을 마크다운으로 넣는다 (파일 헤더·attempt 헤더는 워커가 붙인다). failures 배열과 실패 상세 표는 같은 내용이어야 한다. 완료 보고 전에 다른 텍스트를 출력하지 않는다.`;
   const user = `## 검사 대상 — ${i.episodeId} attempt ${i.attempt}${human}
-${prior}
+${prior}${series}
 
 ### 대본 script.md
 ${fence(i.scriptMd)}
