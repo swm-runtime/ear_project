@@ -138,6 +138,7 @@ idx_idempotency_keys_expires_at
 | `playback` | `playback_progresses`, `play_records`, `play_daily_totals`, `user_signals`, `audio_access_logs`, `source_link_clicks` |
 | `drip` | `drip_excluded_contents`, `user_preference_vectors`, `drip_batch_runs`, `first_drip_jobs` |
 | `subscription` | `plans`, `subscriptions`, `purchase_intents`, `store_notification_logs` |
+| `content-review` | `content_reviews`, `promotions`(2026-10-28 — KAN-279, [6.8](#68-content_reviews-신설-2026-10-28--kan-279-콘텐츠-후기)·[8.7](#87-promotions--후기-참여-프로모션-2026-10-28--kan-279)). 프로모션 **사용**(지급)은 결제 반영 경로라 `billing`이 이 모듈의 Service와 `subscription`·`user`를 한 트랜잭션에서 조합한다 — 이 모듈은 `billing`·`subscription`을 의존하지 않는다 |
 | `notification` | `notification_logs` |
 | `notice` | `notices` — 공지사항 게시판(신설 2026-09-17, [9.2](#92-notices)). 다른 모듈을 의존하지 않는다 |
 | `partner` | `partners`, `content_control_requests`, `audit_logs` — `partners`는 테이블만 있고(마이그레이션 1786700000000) 엔티티는 아직 없어 `contents` FK로 읽기만 한다(2026-09-26) |
@@ -156,6 +157,7 @@ idx_idempotency_keys_expires_at
 | `subscription` | `user` | |
 | `notification` | `user` | |
 | `partner` | `content` | |
+| `content-review` | `content`, `library`, `playback`, `user` | 쓸 수 있는 편(재생 시작 · 완청) 판정과 먼저 묻기 상태(`user_settings`)에 필요하다. **어떤 추천 모듈(`drip` · `explore`)도 이 모듈을 의존하지 않는다** — 후기는 추천 입력이 아니다 |
 
 **유스케이스 모듈은 위 두 표에 없다.** `onboarding` · `library-screen` · `market-change`(2026-10-19)는 Entity를 소유하지 않고 각 소유 모듈의 Service만 조합한다. 이 장은 Entity 소유 모듈의 표이므로, 그쪽 의존 방향은 `architecture.md` 4.5가 관리한다.
 
@@ -392,6 +394,8 @@ user_settings
   is_drip_notification_enabled boolean      DEFAULT true   (FR-19)
   drip_feedback_muted_until   date          NULL           ★추천 별점 팝업 [이번 주 그만 보기] 종료 서비스 날짜 (2026-09-30, KAN-116)
   drip_feedback_last_prompted_date date     NULL           ★마지막으로 별점을 물은 편성분의 서비스 날짜 — 이 날짜 + 7일 전의 편성분은 묻지 않는다(사람 단위 7일 간격) (2026-09-30, 개정 2026-10-16)
+  content_review_last_prompted_date date    NULL           ★마지막으로 후기를 먼저 물은 서비스 날짜 — 이 날짜 + 5 서비스 날짜 전에는 다시 묻지 않는다 (2026-10-28, KAN-279)
+  content_review_muted_until date           NULL           ★후기 먼저 묻기 [이번 주 그만 보기] 종료 서비스 날짜(다음 주 월요일 라벨) (2026-10-28, KAN-279)
   preferred_audio_quality     enum          NULL           ★1.3-1 — 사용자가 고른 음질 (2026-10-06, KAN-141). **NULL = 고른 적 없음** → 티어가 허용하는 가장 높은 선택지로 판정(Pro 는 lossless). 종전 DEFAULT 'compressed' 는 "직접 압축을 고름"과 구분되지 않아 같은 날 NULL 로 바꿨다. 서버에 두는 이유: 기기 간 같은 선택을 보장하고, 발급 때 서버가 바로 읽는다
 
 uq_user_settings_user_id (user_id)
@@ -404,6 +408,7 @@ uq_user_settings_user_id (user_id)
 - **마케팅 수신 동의 토글 컬럼을 두지 않는다.** 그 상태의 소유자는 `consents`다([3.2](#32-consents) — 합의 2026-08-06). 설정 화면의 토글은 표시·철회 경로일 뿐 저장소가 아니다.
 - **방해금지(야간 발송 제한) 설정 컬럼은 없다 — 없음을 유지한다**(합의 2026-08-06 — `notification.md` 4.3, 방해금지 개념 자체 폐기). 드립 도착은 순수 정보성 알림이라 전역·사용자별 야간 제한을 두지 않는다.
 - `drip_feedback_last_prompted_date`는 별점을 보내거나 팝업을 닫을 때 그 편성분 날짜로 갱신되고 뒤로 가지 않는다(`drip-feedback.md` 4.1). 이 날짜 + 7일 전의 편성분은 묻지 않는다(사람 단위 7일 간격 — 개정 2026-10-16).
+- **`content_review_last_prompted_date` · `content_review_muted_until`**(2026-10-28, KAN-279 — `content-review.md` 4.3)은 위 추천 별점 두 칸과 **따로 둔다**(4.8 — 두 팝업은 서로를 대신하지 않는다). `last_prompted_date`는 **편 날짜가 아니라 물은 날(서비스 날짜)**이다 — 시트를 닫거나([닫기] · 보낸 뒤 닫힘) 그만 보기를 누를 때 오늘 서비스 날짜로 적고, 뒤로 가지 않는다. 오늘 ≥ 이 날짜 + 5일이어야 다시 묻는다(4일째는 묻지 않는다). `muted_until`은 그만 보기를 누른 서비스 주의 다음 주 월요일 라벨이고 오늘 < 이 값이면 묻지 않는다. 둘 다 설정 화면 응답에는 싣지 않는다.
 - `drip_feedback_muted_until`은 서비스 날짜 **라벨**이다(다음 주 월요일). 팝업 노출 판정(`drip-feedback.md` 4.1)이 오늘 서비스 날짜와 문자열 비교한다. 설정 화면 응답에는 싣지 않는다 — 사용자가 켜고 끄는 설정이 아니라 팝업의 억제 상태다.
 - `is_drip_notification_enabled`의 **사용자 노출 명칭은 "이어 PICK 알림"이다**(합의 2026-08-06 — `settings.md` 4.1). 화면 이름만 바뀐 것이므로 **컬럼명은 유지한다** — "드립"은 내부 용어라는 결정이지 데이터 의미가 바뀐 것이 아니다.
 - **`sleep_timer_last_choice`의 값 집합은 아직 정하지 않았다.** 수면 타이머가 P1이라(FR-25) 선택지가 확정되지 않았다. 위 표기 `enum`은 논리 타입이며 **물리 컬럼은 `varchar`다**(`convention.md` 4.2 — DB enum 타입을 쓰지 않는다). 값이 없으므로 TypeScript enum도 두지 않고 타입은 `string | null`이다. **값의 소유는 `player.md`이며**, 수면 타이머 구현 시 값을 정하고 타입을 좁힌다 — 그때 `varchar(20)`을 넘는 값이 나오면 길이도 함께 본다. **설정 API는 이 컬럼을 조회·변경 모두 하지 않는다**(`settings-api.md` 8장 — 플레이어 소관).
@@ -1215,6 +1220,35 @@ idx_drip_feedbacks_algorithm_version_created_at (algorithm_version, created_at D
 - 같은 콘텐츠의 재전송은 `stars`만 덮어쓴다(upsert).
 - 탈퇴 시 즉시 파기(12.3).
 
+### 6.8 `content_reviews` *(신설 2026-10-28 — KAN-279 콘텐츠 후기)*
+
+```
+content_reviews
+  id                        uuid            PK
+  user_id                   uuid            FK → users (ON DELETE CASCADE)
+  content_id                uuid            FK → contents (ON DELETE CASCADE)
+  stars                     smallint        1~5 (CHECK)
+  text                      varchar(500)    NULL   앞뒤 공백을 뺀 글. 빈 값은 NULL로 저장한다(= 글 없음)
+  is_completed              boolean         후기를 쓴(고친) 시점에 그 편을 끝까지 들었는가
+  content_version           int             후기를 쓴(고친) 시점의 `contents.content_version`
+  market                    enum            kr | global   후기를 쓴(고친) 시점의 `users.market`
+
+uq_content_reviews_user_id_content_id (user_id, content_id)
+idx_content_reviews_content_id_updated_at (content_id, updated_at DESC, id DESC)   관리자 편별 글 목록
+idx_content_reviews_updated_at (updated_at DESC, id DESC)                          관리자 전체 글 목록 · 일일 보고
+ck_content_reviews_stars  stars BETWEEN 1 AND 5
+```
+
+- **편 자체의 평가다**(`content-review.md`). 추천 별점(6.7 `drip_feedbacks`)과 **표 · 집계 · 팝업을 모두 따로 둔다** — 같은 편에 둘 다 있어도 서로를 대신하지 않는다.
+- **추천 입력이 아니다** — `user_signals`(6.4)와 달리 편성 · 탐색 랭킹 · 선호 벡터 어느 것도 이 표를 읽지 않는다(4.8 — 반영하면 알고리즘 버전별 비교가 흐려진다). `DRIP_ALGORITHM_VERSION`을 올릴 일이 없다.
+- **(사용자, 편)당 한 행**이다. 다시 보내면 `stars` · `text` · `is_completed` · `content_version` · `market` · `updated_at`을 **그 시점 값으로** 덮어쓴다(upsert). `created_at`은 처음 쓴 시각이다. 수정 이력은 남기지 않는다.
+- **쓸 수 있는 편**(서버 판정 — 4.1): 그 사용자의 `playback_progresses`(6.2) 또는 `play_records`(6.3) 행이 있는 편(재생을 시작한 적 있음) · 현재 시장의 편 · 노출 조건(5.1 — `published` + 라이선스 유효)을 만족하는 편. 회수 · 만료된 편은 새 후기 · 수정을 받지 않지만 **이미 있는 행은 지우지 않는다**(관리자 집계에 회수 표시와 함께 남는다).
+- **`is_completed`의 "끝까지 들음"은 완청의 공용 정의**를 쓴다 — `library_items.status = completed` · `playback_progresses.max_reached_sec ≥ duration_sec × 90%` · `user_signals.action = complete` 중 하나(`LibraryItemRepository`의 완청 CTE와 같은 정의). 화면이 보낸 값이 아니라 서버가 저장 시점에 판정한다.
+- `content_version`을 남기는 이유: 재발행(오디오 교체)은 같은 행의 버전을 올리므로(5.1) 재합성 전후의 후기를 이 값으로 가른다.
+- `market`을 남기는 이유: 관리자 글 목록의 "시장" 표시다. 시장 전환(3.4-1) 뒤에도 쓴 때의 시장이 남는다.
+- **글 원문은 이 표와 관리자 API에만 있다** — 로그 · Slack · 파이프라인 Supabase로 옮기지 않는다(`content-review.md` 4.7 · `convention.md` 8.4).
+- 보존: 결제 기록이 아니므로 탈퇴 시 **즉시 파기**(12.3 — FK CASCADE).
+
 ---
 
 ## 7. 편성(드립)
@@ -1515,6 +1549,7 @@ ck_invite_codes_grant_period — grant_days 와 grant_until_date 중 정확히 �
 - **코드 하나가 캠페인 하나다.** 제휴·PoC가 여럿이라 코드도 여럿이고 코드마다 지급 요금제·기간·한도가 다르다.
 - `redeemed_count`를 두는 이유: 한도 판정을 **코드 행 잠금 하나**로 끝내려고 — 같은 코드에 동시에 들어온 입력이 한도를 넘지 않는다.
 - 만든 뒤 바꿀 수 있는 것은 이름·켜기/끄기·한도·입력 기간뿐이다. 코드 값·지급 요금제·기간은 바꾸지 않는다(이미 받은 사람과 조건이 갈린다).
+- **내부 캠페인 행 `REVIEW-REWARD`**(2026-10-28 — KAN-279, 8.6 · 8.7): 후기 참여 프로모션의 지급이 가리키는 행 하나를 마이그레이션이 넣는다 — `code = 'REVIEW-REWARD'` · `name = '후기 참여'` · `tier = pro` · `grant_days = 7` · `max_redemptions = NULL` · `redeemable_from/until = NULL` · **`is_active = false`**. 사용자가 입력할 수 없어야 하므로 **코드 입력 경로(`subscription-api.md` 4.8-1)는 `is_active`와 무관하게 이 코드를 "없는 코드"(404 `INVITE_CODE_NOT_FOUND`)로 본다** — 운영자가 실수로 켜도 열리지 않는다. 프로모션 사용 경로만 이 행으로 지급을 만들며 `is_active` · 입력 기간 판정을 건너뛴다(다른 지급 진행 중 판정은 그대로 한다). `redeemed_count`는 사용 수만큼 오른다. 관리자 콘솔에서 이 행의 수정은 거부한다(`changes/pending/content-review-contract.md` — `admin-api.md` 4.23 후속).
 
 ### 8.6 `invite_code_redemptions` — 초대 코드 사용·지급 기간 (2026-10-10)
 
@@ -1540,6 +1575,35 @@ idx_invite_code_redemptions_unreleased_ends_at (ends_at) WHERE tier_released_at 
 - **지급 기간 중 결제**: 입력 때 구독이 없던 지급(`subscribed_at_start = false`)인데 살아 있는 구독이 생기면 결제 반영이 지급을 끝낸다(`ends_at`·`tier_released_at` = 그 시각). 구독 행의 생성 시각으로 판정하지 않는다 — App Store 재구독·끝난 구독의 계정 이전은 옛 행을 되살려 생성 시각이 지급보다 앞선다. 입력 때 이미 구독 중이었으면 그 구독의 갱신·변경은 지급을 끝내지 않는다(그 구독이 끝난 뒤 다시 결제해도 끝내지 않는다 — 알려진 한계).
 - **잠금 순서**: 구독 행 → 사용자 행 → 지급·코드 행. 캐시를 맞추는 함수(`syncUserTier`)가 사용자 행을 먼저 잠그고 읽고, 코드 입력도 사용자 행을 먼저 잠근다(같은 계정의 동시 입력 두 건이 "지급은 하나"를 둘 다 통과하지 않게).
 - 지급 끝 시각은 **입력 시점의 경계 규칙**으로 저장한다 — 서비스 날짜 경계를 05:00으로 옮기면 그 전에 받은 지급은 마지막 날 04:00에 끝난다(가입 체험과 같다).
+- **후기 참여 프로모션의 지급도 이 표에 쌓인다**(2026-10-28 — KAN-279, 8.7). 내부 캠페인 행 `REVIEW-REWARD`(8.5)를 가리키는 행이며, 새 지급 규칙을 만들지 않는다 — 지급 기간(7 서비스 날짜 · 05:00 경계) · `subscribed_at_start` · 결제 시 지급 종료 · `users.tier` 동기화(`syncUserTier`) · 만료 배치가 초대 코드와 **같다.** `uq_invite_code_redemptions_code_user`가 계정당 한 번을 한 번 더 막는다. 지급 중 표시 이름(`plan.grant.name`)은 코드 행의 `name`("후기 참여")이고, GLOBAL 사용자에게는 조립 함수가 **"Review"**로 바꿔 싣는다(`invite_codes`에 언어별 이름 칸이 없어 이 행만 코드 상수로 처리한다 — `content-review-api.md` 4.7).
+
+### 8.7 `promotions` — 후기 참여 프로모션 (2026-10-28 — KAN-279)
+
+```
+promotions
+  id                        uuid            PK
+  user_id                   uuid            FK → users (ON DELETE CASCADE)
+  kind                      enum            review_reward   (지금은 한 값. 물리 컬럼 varchar(30))
+  tier                      enum            pro             지급 요금제 (CHECK daily | pro)
+  grant_days                int             7               쓴 서비스 날짜를 1일째로 센 지급 일수(≥1)
+  issued_at                 timestamptz     발급 시각
+  expires_at                timestamptz     소멸 시각(배타 경계 — 서비스 날짜 경계)
+  redeemed_at               timestamptz     NULL — 사용한 시각
+  invite_code_redemption_id uuid            NULL — FK → invite_code_redemptions (ON DELETE SET NULL). 사용으로 생긴 지급 행
+
+uq_promotions_user_id_kind (user_id, kind)       계정당 종류별 1회 — 동시 발급에도 1장
+uq_promotions_invite_code_redemption_id (invite_code_redemption_id) WHERE invite_code_redemption_id IS NOT NULL
+ck_promotions_grant_days  grant_days >= 1
+```
+
+- **발급해 두고 사용자가 원할 때 쓰는 보상**이다(`content-review.md` 4.4 · 4.5). 발급은 지급이 아니다 — 쓰기 전에는 `users.tier`도 `invite_code_redemptions`도 건드리지 않는다.
+- **발급 조건**: 이 사용자의 `content_reviews` 중 `is_completed = true`이고 `text`의 공백(유니코드 공백 전부)을 뺀 글자 수(코드 포인트)가 10 이상인 행이 **서로 다른 편 3개**가 되는 저장에서 발급한다(`CONTENT_REVIEW_REWARD_REQUIRED = 3` · `CONTENT_REVIEW_REWARD_MIN_TEXT = 10`, 서버 상수). `INSERT … ON CONFLICT (user_id, kind) DO NOTHING`이라 두 기기의 동시 3번째 후기에도 1장이고, 행을 만든 요청만 "이번 저장으로 발급됨"을 응답한다. 서버 스위치 `CONTENT_REVIEW_REWARD_ENABLED`가 꺼져 있으면 발급하지 않는다.
+- **계정당 전체 1회**: 쓰거나 소멸해도 행을 지우지 않는다 — 유니크가 재발급을 막는다. 발급 뒤 후기를 고치거나 글을 지워도 거두지 않는다.
+- **`expires_at`**: 발급한 서비스 날짜의 **3개월 뒤 같은 날짜**의 서비스 날짜 시작(05:00 KST). 그 달에 같은 날짜가 없으면 그 달 마지막 날이다(예: 10-28 발급 → 2027-01-28 05:00 · 11-30 발급 → 2027-02-28 05:00). 쓸 수 있는 마지막 서비스 날짜는 그 전날이다(응답 `last_usable_date`). **소멸은 상태 컬럼이 아니라 판정이다** — 조회 · 사용 시점에 `now ≥ expires_at`이면 소멸이고 배치가 없다.
+- **사용**: `redeemed_at`과 `invite_code_redemption_id`를 지급 행 생성과 **한 트랜잭션**에서 채운다. 사용자 행 → 프로모션 행(`FOR UPDATE`) 순으로 잠가 두 기기의 동시 사용이 한 번만 지급된다(8.6 잠금 순서의 "지급 · 코드 행" 자리에 프로모션 행이 먼저 온다). 판정 순서와 거부 사유는 `content-review-api.md` 4.7.
+- `tier` · `grant_days`는 발급 때의 값을 사본으로 둔다 — 나중에 상수를 바꿔도 이미 받은 사람의 조건이 바뀌지 않는다.
+- 운영 집계(발급 · 사용 · 소멸 건수)는 이 표에서 센다 — 소멸 = `redeemed_at IS NULL AND expires_at ≤ now`.
+- 보존: 결제 기록이 아니므로 탈퇴 시 **즉시 파기**(12.3 — FK CASCADE). 탈퇴 후 재가입하면 다시 받을 수 있다(식별자를 파기해 같은 사람인지 알 수 없다 — 가입 체험과 같은 한계).
 
 ---
 
@@ -1895,7 +1959,7 @@ idx_archived_subscriptions_archived_at
 | 처리 | 대상 |
 |---|---|
 | **아카이브 후 파기** (5년) | `users` → `archived_users`, `consents` → `archived_consents`, `subscriptions` → `archived_subscriptions` |
-| **즉시 파기** | `library_items`, `library_series`(FK CASCADE — 2026-10-22), `playback_progresses`, `play_records`, `user_signals`, `audio_access_logs`, `source_link_clicks`, `search_query_logs`, `user_interests`, `user_settings`, `device_tokens`, `sessions`, `user_active_dates`(FK CASCADE — 2026-10-18), `user_market_changes`(FK CASCADE — 2026-10-19), `user_preference_vectors`, `drip_excluded_contents`, `drip_feedbacks`, `purchase_intents`, `notification_logs`, `email_verifications`, `first_drip_jobs`, `idempotency_keys`(해당 사용자 `owner_key`) |
+| **즉시 파기** | `library_items`, `library_series`(FK CASCADE — 2026-10-22), `playback_progresses`, `play_records`, `user_signals`, `audio_access_logs`, `source_link_clicks`, `search_query_logs`, `user_interests`, `user_settings`, `device_tokens`, `sessions`, `user_active_dates`(FK CASCADE — 2026-10-18), `user_market_changes`(FK CASCADE — 2026-10-19), `user_preference_vectors`, `drip_excluded_contents`, `drip_feedbacks`, `content_reviews`(FK CASCADE — 2026-10-28), `promotions`(FK CASCADE — 2026-10-28), `purchase_intents`, `notification_logs`, `email_verifications`, `first_drip_jobs`, `idempotency_keys`(해당 사용자 `owner_key`) |
 | **그대로 유지** | `withdrawal_logs`(원래 해시만), `store_notification_logs`(개인 식별자 없음), `content_stats`(집계값), `play_daily_totals`(집계값 — 2026-10-17), `daily_active_users`(집계값 — 2026-10-18) |
 
 **결제 이력이 없는 사용자 — 아카이브 없이 전량 즉시 파기**
