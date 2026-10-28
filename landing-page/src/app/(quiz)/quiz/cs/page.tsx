@@ -16,7 +16,8 @@ import { buildMetadata } from "@/lib/seo";
  * 풀기 전에 닫으므로, 앱 안내는 결과 화면 한 곳에만 둔다.
  *
  * `/app/`처럼 `routes.ts`에 넣지 않는다 — 내비·사이트맵에 나올 페이지가 아니고 색인 대상도 아니다.
- * 공유 미리보기(og:*)는 색인과 무관하게 나간다.
+ * 공유 미리보기(og:*)는 색인과 무관하게 나간다. 제목에는 `| 이어`를 붙이지 않는다(`bareTitle`) —
+ * 카톡 카드 제목에 브랜드가 붙으면 퀴즈가 아니라 광고로 읽힌다.
  */
 export const metadata: Metadata = {
   ...buildMetadata({
@@ -24,6 +25,7 @@ export const metadata: Metadata = {
     title: csQuiz.title,
     description: csQuiz.description,
     image: { url: "/og/quiz-cs.png", alt: "키워드 10문제로 보는 당신의 CS 지식 수준" },
+    bareTitle: true,
   }),
   robots: { index: false, follow: true },
 };
