@@ -63,6 +63,7 @@ ${i.scopeNote}
 - 교재·시험 범위 같은 자료는 범위 확인용으로만 쓴다. 문장·예시·목차 순서를 옮기지 않는다.
 - 시리즈 이름은 짧은 명사구다. 콘텐츠 제목은 "{시리즈 이름} N - {편 제목}"이 된다. 이름안이 좋으면 그대로 쓴다.
 - 한 줄 소개는 이 시리즈가 무엇을 다루는지 말하는 한 문장이다. 인트로에서 읽는다.
+- scope 와 only_here 에는 개념만 적는다. 기업·캠페인·사건 같은 사례는 "예: ○○" 로만 적고 필수로 못 박지 않는다. 사례는 소스 본문에 있을 때만 쓰고, 없으면 소스에 있는 다른 사례로 바뀐다.
 
 ## 출력 — 요청한 JSON만
 - episodes: 1화부터 순서대로. no 는 1부터 이어지는 번호다.
@@ -93,6 +94,7 @@ ${i.scopeNote}
 - The series name is a short noun phrase. Content titles become "{series name} N - {episode title}". Keep the working name if it works.
 - The intro line is one sentence that says what the series covers. The host reads it in the intro.
 - Write every value in English. Korean words use Revised Romanization.
+- scope and only_here hold concepts only. Name companies, campaigns, or events only as "e.g. X" and never as a requirement. A case is used only when a source body covers it; otherwise another case from the sources takes its place.
 
 ## Output — only the requested JSON
 - episodes: in order from episode 1. no counts up from 1.
@@ -174,11 +176,13 @@ export function seriesDesignBlock(s: SeriesDraftContext | undefined, en: boolean
     ? `\n\n## Series episode — ${s.name}, episode ${s.no} of ${s.total}
 ${s.rules}
 - This episode covers: ${s.scope}${s.onlyHere ? `\n- Only this episode covers in depth: ${s.onlyHere}` : ""}${s.carries ? `\n- Builds on earlier episodes: ${s.carries}` : ""}
+- "Only this episode covers in depth" is a concept boundary. A case named there is used only when a source body covers it; otherwise use a case from the sources and keep the concept scope.
 - Other episodes cover these in depth. Do not build a section on them; name one in a sentence at most when needed:
 ${others}`
     : `\n\n## 시리즈 편 — ${s.name} ${s.total}편 중 ${s.no}화
 ${s.rules}
 - 이 편의 범위: ${s.scope}${s.onlyHere ? `\n- 이 편에서만 자세히 다룰 것: ${s.onlyHere}` : ""}${s.carries ? `\n- 앞 편에서 이어받는 것: ${s.carries}` : ""}
+- "이 편에서만 자세히 다룰 것"은 개념 경계다. 거기 적힌 사례는 소스 본문에 있을 때만 쓰고, 없으면 소스에 있는 사례로 대체한다. 개념 범위는 유지한다.
 - 다른 편이 자세히 다루는 것. 구간으로 잡지 않고, 필요하면 한 문장으로 부르고 넘어간다:
 ${others}`;
 }

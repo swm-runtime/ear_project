@@ -4,7 +4,7 @@ import { blockedTierHosts, domainTierByHost, existingBacklogTitles, findDomainFo
 import type { Executor } from "../executors/index.js";
 import { assetPaths, globalGaps, KOREAN_SOURCE_MIN_EN, GLOBAL_ROLES, buildClusterPromptV2, buildReinforceSearchPrompt, buildReinforceSearchPromptEn, buildTopicJudgePromptEn, CLUSTER_SCHEMA_V2, CLUSTER_SCHEMA_V2_EN, judgeToInternal, pipelineLocale, REINFORCE_SEARCH_SCHEMA, REINFORCE_SEARCH_SCHEMA_EN, SOURCE_ROLES, todayKst } from "@ear/pipeline";
 import { hostOf, log } from "../util.js";
-import { fetchArticle, fetchStatusOf, robotsAllows } from "../sources/fetch.js";
+import { fetchArticle, fetchStatusOf, hasBody, robotsAllows } from "../sources/fetch.js";
 import { rememberRobotsBlocked } from "../sources/robots-memory.js";
 import { prepareAssets, workerRev } from "../assets.js";
 import { putFile, s3Key } from "../storage.js";
@@ -53,7 +53,7 @@ export async function runReinforce(job: Job, ex: Executor) {
   const existingUrls = new Set(cand.sources.map((s) => s.url));
   // 글로벌판: 본문 접근 가능성 선검사 (2026-10-23) — 검색 결과를 세기 전에 실제로 열리는지 본다. 403·500·빈 본문은 적재는 하되(fetch_status 기록 → 군집화 제외) 역할표에는 넣지 않는다.
   // 첫 배치에서 소스 10건을 모아 놓고 설계 단계에서 2건만 열려 자동 반려된 편이 2개였다. 403 은 우회하지 않는다 — 세지 않을 뿐이다
-  const bodyOk = en ? new Map(await Promise.all(found.map(async (s) => [s.url, await fetchArticle(0, s.url).catch(() => null)] as const))) : null;
+  const bodyOk = new Map(await Promise.all(found.map(async (s) => [s.url, await fetchArticle(0, s.url).catch(() => null)] as const))); // 한국판도 선검사 (2026-10-27 — topic-seed 와 같은 이유)
   for (const s of found) {
     if (!/^https?:\/\//.test(s.url) || existingUrls.has(s.url)) { dup.push(s.url); continue; }
     let d = await findDomainForUrl(s.url);
@@ -76,7 +76,7 @@ export async function runReinforce(job: Job, ex: Executor) {
     if (d && d.tier !== "blocked" && !d.fetch_blocked_at) {
       await upsertSource({ domain_id: d.id, url: s.url, title: s.title, summary: s.summary, author: "", published: s.published, swept_at: sweptAt, origin: "search" });
       const f = bodyOk?.get(s.url);
-      if (bodyOk && (!f || !f.ok)) { await recordFetchStatus(s.url, f ? fetchStatusOf(f) : "network").catch(() => {}); outside.push(`${hostOf(s.url)} (본문 ${f ? f.status : "network"})`); continue; }
+      if (bodyOk && !hasBody(f)) { if (!f?.ok) await recordFetchStatus(s.url, f ? fetchStatusOf(f) : "network").catch(() => {}); outside.push(`${hostOf(s.url)} (본문 ${f ? (f.ok ? `${f.chars}자 — 짧음` : f.status) : "network"})`); continue; } // 열려도 본문이 짧으면 세지 않는다(MIN_BODY_CHARS)
       added.push(s.url);
     } else if (!d) {
       const host = hostOf(s.url).replace(/^www\./, "");
@@ -100,7 +100,15 @@ export async function runReinforce(job: Job, ex: Executor) {
   const blockedHosts = await blockedTierHosts();
   const isBlockedTier = (url: string) => { try { const u = new URL(url); const h = u.hostname.replace(/^www\./, ""); const seg = u.pathname.split("/").filter(Boolean)[0]; return blockedHosts.has(h) || (!!seg && blockedHosts.has(`${h}/${seg}`)); } catch { return false; } };
   const droppedBlocked = cand.sources.filter((s) => isBlockedTier(s.url)).map((s) => hostOf(s.url));
-  for (const s of cand.sources) if (!isBlockedTier(s.url)) push({ url: s.url, title: s.title, summary: null, publisher: s.publisher, domain: hostOf(s.url), published: s.published ?? null }); // 차단 도메인 소스는 재판정 목록에서 뺀다 — 보강이 차단 소스를 걷어내는 통로
+  // 기존 소스도 본문 접근을 다시 본다 (2026-10-28): 선검사 전에 적재된 소스(403·robots·406·추출 실패)가 재판정에서 그대로 세어져 "성립"이 났고, 초안 설계가 "본문 3건 미달"로 다시 반려됐다(마케팅 5화 C544 — 5건 중 1건만 열림). 못 여는 소스는 재판정 목록에서 빼고 fetch_status 에 남긴다. 403 은 우회하지 않는다
+  const keepExisting = cand.sources.filter((s) => !isBlockedTier(s.url));
+  const existOk = new Map(await Promise.all(keepExisting.map(async (s) => [s.url, await fetchArticle(0, s.url).catch(() => null)] as const)));
+  const droppedUnreadable: string[] = [];
+  for (const s of keepExisting) {
+    const f = existOk.get(s.url);
+    if (!hasBody(f)) { if (!f?.ok) await recordFetchStatus(s.url, f ? fetchStatusOf(f) : "network").catch(() => {}); droppedUnreadable.push(`${hostOf(s.url)} (본문 ${f ? (f.ok ? `${f.chars}자 — 짧음` : f.status) : "network"})`); continue; }
+    push({ url: s.url, title: s.title, summary: null, publisher: s.publisher, domain: hostOf(s.url), published: s.published ?? null }); // 차단 도메인·못 여는 소스는 재판정 목록에서 뺀다 — 보강이 그 소스를 걷어내는 통로
+  }
   const currentM = meta.map((m) => `M${m.n}`);
   for (const s of found) if (added.includes(s.url)) push({ url: s.url, title: s.title, summary: s.summary, publisher: s.publisher, domain: hostOf(s.url), published: s.published });
   // 같은 주제 영역의 최근 풀 소스는 한국판만 — 글로벌판은 이 후보의 소스와 이번 검색 결과만 (박수헌 2026-10-15)
@@ -119,7 +127,7 @@ export async function runReinforce(job: Job, ex: Executor) {
   const newGaps = Array.from(new Set([...(enRoles ? globalGaps(c.gaps) : c.gaps), ...missingCore]));
   const ok = c.verdict === "성립" && problems.length === 0;
   const filled = gaps.filter((g) => roleSet.has(g));
-  const summary = `보강 ${prior + 1}회 ${todayKst()}: 검색 ${r1.output.queries?.length ?? 0}회 · 새 소스 ${added.length}건(풀 밖 ${outside.length})${droppedBlocked.length ? ` · 차단 소스 ${droppedBlocked.length}건 제외` : ""} · 채운 역할 ${filled.join("·") || "없음"}${newGaps.length ? ` · 여전히 빈 역할 ${newGaps.join("·")}` : ""}${problems.length ? ` · ${problems.join(", ")}` : ""} → ${ok ? "성립" : "보류 유지"}`;
+  const summary = `보강 ${prior + 1}회 ${todayKst()}: 검색 ${r1.output.queries?.length ?? 0}회 · 새 소스 ${added.length}건(풀 밖 ${outside.length})${droppedBlocked.length ? ` · 차단 소스 ${droppedBlocked.length}건 제외` : ""}${droppedUnreadable.length ? ` · 못 여는 기존 소스 ${droppedUnreadable.length}건 제외(${droppedUnreadable.join(", ").slice(0, 120)})` : ""} · 채운 역할 ${filled.join("·") || "없음"}${newGaps.length ? ` · 여전히 빈 역할 ${newGaps.join("·")}` : ""}${problems.length ? ` · ${problems.join(", ")}` : ""} → ${ok ? "성립" : "보류 유지"}`;
   await setBacklogStatus(cand.id, ok ? "proposed" : "held", {
     sources: JSON.stringify(srcs.map((s) => ({ url: s.url, tier: tierOfUrl(tiers, s.url, s.domain) ?? "candidate", title: s.title, backbone: s.roles.includes("근거 앵커"), published: s.published, publisher: s.publisher || s.domain, roles: s.roles, role_why: s.why }))),
     gaps: ok ? [] : newGaps, reinforced_at: sweptAt, reinforce_note: summary,

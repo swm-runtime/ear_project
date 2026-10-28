@@ -36,13 +36,13 @@ export async function runQa(job: Job, ex: Executor) {
     const [scriptMd, claimsMd, sourcesMd] = await Promise.all([read(scriptFile ?? path.join(dir, "script.md")), read(path.join(dir, "claims.md")), read(path.join(dir, "sources.md"))]);
     const en = pipelineLocale() === "en"; // 글로벌판: 영어 QA 프롬프트·스키마 (global-prompts.ts, spec/05 global)
     if (en && !bundle.contents["skills/qa/prompt.md"]) throw new Error("글로벌 DB 에 QA 자산(skills/qa/prompt.md)이 없다 — assets-global import 로 시딩 (KAN-201)");
-    // 글로벌 시리즈 편(qa-en-v0.12, 2026-10-26): 작성기에 준 틀 문장(인트로 시리즈 줄·회상 행·클로징 첫 문장)을 QA 에 알린다 — 사실이 아니라 틀. 한국판은 그대로
-    const links = en ? await readSeriesLinks(dir) : null;
+    // 시리즈 편: 작성기에 준 틀 문장(인트로 시리즈 줄·회상 행·클로징 첫 문장)을 QA 에 알린다 — 사실이 아니라 틀. 글로벌 qa-en-v0.12(2026-10-26) → 한국판도 2026-10-28(C534 가 예고 문장으로 검수 필요에 멈춤)
+    const links = await readSeriesLinks(dir);
     const seriesFrames = links ? { name: links.name ?? "", no: links.no, total: links.total, introSentence: links.intro_sentence, closingSentence: links.closing_sentence, recapClaimId: links.recap_claim_id, prevTitle: links.prev?.title ?? null } : null;
     const parts = (en ? buildQaPromptInlinePartsEn : buildQaPromptInlineParts)({
       episodeId, attempt, qaPromptMd: bundle.contents["skills/qa/prompt.md"], specQaMd: bundle.contents["spec/05-qa.md"], scriptMd, claimsMd, sourcesMd,
       priorFailures: (job.payload.prior_failures ?? []) as QaOut["failures"], fixes: (job.payload.fixes ?? []) as { location: string; before: string; after: string }[],
-      humanRevision: !!job.payload.human_revision, ...(en ? { seriesFrames } : {}),
+      humanRevision: !!job.payload.human_revision, seriesFrames,
     });
     log(`  qa ${episodeId} attempt ${attempt} (단발, 공유 ${Math.round(parts.system.length / 1000)}K + 편별 ${Math.round(parts.user.length / 1000)}K자)`);
     const ri = await ex.run<QaInlineOut>({

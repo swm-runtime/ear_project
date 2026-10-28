@@ -1,7 +1,11 @@
 /* CS 지식 테스트 — 카톡 인앱 브라우저(좁은 폭)에서 먼저 보이는 화면이라 한 열 카드로 둔다. */
 
+/* 사이트 헤더가 없는 레이아웃(`(quiz)/layout.tsx`)이라 카드를 화면 세로 가운데 쪽에 둔다. */
 .wrap {
-  padding: clamp(40px, 8vw, 96px) 0 clamp(64px, 10vw, 120px);
+  display: grid;
+  align-items: center;
+  min-height: 100svh;
+  padding: clamp(24px, 6vw, 72px) 0;
 }
 
 .card {
@@ -53,13 +57,6 @@
   color: var(--text-2);
   font-size: 13.5px;
   font-weight: 600;
-}
-
-.source {
-  margin-top: 20px;
-  color: var(--text-3);
-  font-size: 13.5px;
-  line-height: 1.6;
 }
 
 /* --- 문제 --- */
@@ -210,12 +207,83 @@
 /* --- 결과 --- */
 
 .levelTitle {
-  margin-top: 12px;
-  font-size: clamp(32px, 8vw, 44px);
+  margin-top: 10px;
+  font-size: clamp(22px, 5.6vw, 28px);
+}
+
+/* 레벨 그림(`LevelArt.tsx`) — 선은 글자색, 면은 흰색·회색 두 단계만 쓴다. */
+.art {
+  display: block;
+  width: clamp(150px, 44vw, 200px);
+  height: auto;
+  margin: 14px auto 0;
+  fill: none;
+  stroke: var(--ink-900);
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  animation: art-in 0.45s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+.artBg {
+  fill: var(--paper-2);
+  stroke: none;
+}
+
+.artShadow {
+  fill: var(--line);
+  stroke: none;
+}
+
+.artFill {
+  fill: var(--paper);
+}
+
+.artSoft {
+  fill: var(--line);
+}
+
+.artDark {
+  fill: var(--ink-900);
+}
+
+.artOnDark {
+  stroke: var(--paper);
+}
+
+.artFaint {
+  stroke: var(--line-2);
+  stroke-width: 2;
+}
+
+.artGround {
+  stroke: var(--line-2);
+}
+
+.artLimb {
+  stroke-width: 12;
+}
+
+.artLimbFill {
+  stroke: var(--line);
+  stroke-width: 6;
+}
+
+@keyframes art-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.96);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .art {
+    animation: none;
+  }
 }
 
 .score {
-  margin-top: 6px;
+  margin-top: 8px;
   font-family: var(--mono);
   color: var(--text-3);
   font-size: 16px;
@@ -251,12 +319,22 @@
   font-weight: 800;
 }
 
+/* 공유 버튼은 폭을 맞춘다 — 좁은 화면(카톡 인앱 브라우저)에서는 한 줄에 안 들어가 위아래로 쌓고,
+   넓은 화면에서는 나란히 둔다. 폭이 다른 버튼이 엇갈려 줄바꿈되면 배치가 밀려 보인다. */
 .shareActions {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
+  display: grid;
+  grid-template-columns: 1fr;
   gap: 10px;
-  margin-top: 14px;
+  width: fit-content;
+  margin: 14px auto 0;
+}
+
+@media (min-width: 440px) {
+  .shareActions {
+    grid-template-columns: none;
+    grid-auto-flow: column;
+    grid-auto-columns: 1fr;
+  }
 }
 
 /* 카카오 공유 버튼은 카카오 디자인 가이드의 노란 바탕·검정 글자를 쓴다. */

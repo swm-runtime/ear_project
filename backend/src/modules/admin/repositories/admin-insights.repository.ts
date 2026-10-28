@@ -7,6 +7,8 @@ import {
   InsightsCohortCounts,
   InsightsDailyRows,
   InsightsHourly,
+  InsightsInviteCodeBaseline,
+  InsightsInviteCodeCohort,
   InsightsListeningTotals,
   InsightsMarketTotals,
   InsightsPushReaction,
@@ -606,6 +608,115 @@ export class AdminInsightsRepository {
       sent: r.sent,
       reacted: r.reacted,
     }));
+  }
+
+  /**
+   * 초대 코드(프로모션)별 묶음 지표(2026-10-28 — 로그 콘솔 "프로모션" 탭). 코드를 입력한 **현재 계정**을 코드마다 묶고, 코드를 한 번도
+   * 입력하지 않은 현재 계정을 기준선으로 함께 센다. 활성은 세션(`sessions.issued_at`, 지표 탭 `active_7d`와 같다), 청취는 재생 행,
+   * 결제는 실결제(`production`, 환불 제외). 탈퇴하면 입력 기록이 함께 지워져(CASCADE) 탈퇴자는 `redeemed - current`로만 보인다.
+   */
+  async inviteCodeCohorts(
+    since: Date,
+    now: Date,
+  ): Promise<{
+    codes: InsightsInviteCodeCohort[];
+    baseline: InsightsInviteCodeBaseline;
+  }> {
+    // `left join` 쪽(코드 묶음)은 입력 기록이 없는 코드도 한 줄이라 `count(r.user_id)`로 센다 — `count(*)`면 빈 코드가 1로 나온다
+    const metrics = (userColumn: string, counted: string) => `
+              count(${counted}) filter (where exists (
+                select 1 from sessions s
+                 where s.user_id = ${userColumn} and s.issued_at >= $2::timestamptz - interval '7 days'
+              ))::int as active_7d,
+              count(${counted}) filter (where exists (
+                select 1 from play_records p
+                 where p.user_id = ${userColumn} and p.played_at >= $2::timestamptz - interval '7 days'
+              ))::int as listeners_7d,
+              coalesce(sum((
+                select sum(p.listened_sec) from play_records p
+                 where p.user_id = ${userColumn} and p.played_at >= $1
+              )), 0)::float8 as listen_sec`;
+    const codes = await this.dataSource.query<
+      {
+        code: string;
+        name: string;
+        tier: string;
+        grant_days: number | null;
+        grant_until_date: string | null;
+        is_active: boolean;
+        redeemed: number;
+        current: number;
+        active_grants: number;
+        ended_grants: number;
+        active_7d: number;
+        listeners_7d: number;
+        listen_sec: number;
+        paid_after_start: number;
+      }[]
+    >(
+      `select c.code, c.name, c.tier::text as tier, c.grant_days,
+              to_char(c.grant_until_date, 'YYYY-MM-DD') as grant_until_date,
+              c.is_active, c.redeemed_count::int as redeemed,
+              count(r.user_id)::int as current,
+              count(r.user_id) filter (where r.starts_at <= $2 and r.ends_at > $2)::int as active_grants,
+              count(r.user_id) filter (where r.ends_at <= $2)::int as ended_grants,
+              ${metrics('r.user_id', 'r.user_id')},
+              count(r.user_id) filter (where exists (
+                select 1 from subscriptions sub
+                 where sub.user_id = r.user_id and sub.environment = 'production'
+                   and sub.status <> 'refunded' and sub.started_at >= r.starts_at
+              ))::int as paid_after_start
+         from invite_codes c
+         left join invite_code_redemptions r on r.invite_code_id = c.id
+        group by c.id
+        order by c.redeemed_count desc, c.code`,
+      [since, now],
+    );
+    const [baseline] = await this.dataSource.query<
+      {
+        current: number;
+        active_7d: number;
+        listeners_7d: number;
+        listen_sec: number;
+        paid_ever: number;
+      }[]
+    >(
+      `select count(*)::int as current,
+              ${metrics('u.id', '*')},
+              count(*) filter (where exists (
+                select 1 from subscriptions sub
+                 where sub.user_id = u.id and sub.environment = 'production' and sub.status <> 'refunded'
+              ))::int as paid_ever
+         from users u
+        where not exists (select 1 from invite_code_redemptions r where r.user_id = u.id)`,
+      [since, now],
+    );
+
+    return {
+      codes: codes.map((row) => ({
+        code: row.code,
+        name: row.name,
+        tier: row.tier,
+        grantDays: row.grant_days,
+        grantUntilDate: row.grant_until_date,
+        isActive: row.is_active,
+        redeemed: row.redeemed,
+        current: row.current,
+        activeGrants: row.active_grants,
+        endedGrants: row.ended_grants,
+        active7d: row.active_7d,
+        listeners7d: row.listeners_7d,
+        listenSec: Number(row.listen_sec),
+        paidAfterStart: row.paid_after_start,
+      })),
+      baseline: {
+        current: baseline?.current ?? 0,
+        active7d: baseline?.active_7d ?? 0,
+        listeners7d: baseline?.listeners_7d ?? 0,
+        listenSec: Number(baseline?.listen_sec ?? 0),
+        paidEver: baseline?.paid_ever ?? 0,
+      },
+    };
   }
 
   async withdrawalReasons(
