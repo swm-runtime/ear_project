@@ -239,6 +239,14 @@ export function putEarSeriesCover(id: string, cover: File): Promise<EarSeries> {
   fd.append("cover", cover);
   return earFetch<EarSeries>(`/admin/series/${id}/cover`, { method: "PUT", body: fd });
 }
+/** 파이프라인 표지(datasets/series/<id>/thumb-cover.png)를 제품 시리즈 표지로 올린다 (2026-10-28). 표지 파일이 없으면 null — 호출 쪽이 건너뛴다 */
+export async function uploadPipelineSeriesCover(pipelineSeriesId: string, productSeriesId: string): Promise<EarSeries | null> {
+  const res = await fetch(`/api/series/${pipelineSeriesId}?cover=1`);
+  if (res.status === 404) return null;
+  if (!res.ok) throw new Error(`표지 파일을 읽지 못했어요 (${res.status})`);
+  const cover = new File([await res.blob()], `series-${pipelineSeriesId}-cover.png`, { type: "image/png" });
+  return putEarSeriesCover(productSeriesId, cover);
+}
 export const createEarSeries = (body: { title: string; description: string; total_episodes: number; status?: "ongoing" | "completed"; publisher_name?: string | null }) =>
   earFetch<EarSeries>("/admin/series", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
 export const patchEarSeries = (id: string, fields: Partial<{ title: string; description: string; total_episodes: number; status: "ongoing" | "completed"; publisher_name: string | null }>) =>
