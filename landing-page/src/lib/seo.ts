@@ -40,6 +40,11 @@ type PageMetaInput = {
    * 한쪽에만 적으면 검색엔진이 무시하므로 **양쪽 페이지에 같은 묶음**을 넣는다 — `languageAlternates()`가 만든다.
    */
   languages?: Record<string, string>;
+  /**
+   * 제목 뒤에 `| 이어`를 붙이지 않는다 — `<title>`·OG·트위터 제목 모두(2026-10-28 — KAN-281).
+   * 링크를 주고받는 퀴즈처럼, 공유 카드 제목에 브랜드가 붙으면 광고로 읽히는 페이지에만 쓴다.
+   */
+  bareTitle?: boolean;
 };
 
 export function buildMetadata({
@@ -54,14 +59,16 @@ export function buildMetadata({
   siteName = site.name,
   locale = site.locale,
   languages,
+  bareTitle = false,
 }: PageMetaInput): Metadata {
   const og = toOgImage(image);
   // 홈(한국어 `/`, 영어 `/en/`)은 제목에 브랜드가 이미 들어 있어 OG 제목에 다시 붙이지 않는다.
   const isHome = path === "/" || path === "/en/";
-  const ogTitle = isHome ? title : `${title} | ${siteName}`;
+  const ogTitle = isHome || bareTitle ? title : `${title} | ${siteName}`;
 
   return {
-    title,
+    // `absolute`는 레이아웃의 `title.template`(`%s | 이어`)을 건너뛴다.
+    title: bareTitle ? { absolute: title } : title,
     description,
     ...(keywords ? { keywords } : {}),
     alternates: { canonical: path, ...(languages ? { languages } : {}) },
