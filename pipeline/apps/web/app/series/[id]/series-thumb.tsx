@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { PUBLICATION_STYLES, publicationOf, publicationsFor, type Publication, type PublicationStyle } from "@ear/pipeline/publication";
 import type { PipelineLocale } from "@/lib/locale";
 import { btnCls, Panel } from "@/components/ui";
-import { patchEarSeries } from "@/lib/ear";
+import { patchEarSeries, uploadPipelineSeriesCover } from "@/lib/ear";
 import { earErrMsg } from "@/app/publish/ear-connect";
 import { createPublication, saveSeriesThumb } from "../actions";
 
@@ -99,6 +99,13 @@ export function SeriesThumb({ id, locale, publication: p0, word: w0, label: l0, 
           <button className={btnCls()} disabled={pending || !dirty} onClick={() => save(false)}>저장</button>
           {(keyword || phrasebook) && <button className={btnCls("primary")} disabled={pending} onClick={() => { if (confirm(phrasebook ? "이 시리즈에서 썸네일이 있는 편을 전부 다시 만들까요?\n책 표지를 코드로 다시 그린다(이미지 생성 없음, 한글 표기만 텍스트 모델)." : "이 시리즈에서 썸네일이 있는 편을 전부 다시 만들까요?\n바탕은 그대로 두고 글자만 다시 얹는다(이미지 생성 없음).")) save(true); }}>저장하고 편 썸네일 다시 만들기</button>}
           {keyword && <button className={btnCls()} disabled={pending} onClick={() => { if (confirm("바탕 그림(아이콘 셋)을 새로 그리고 편 썸네일을 전부 다시 만들까요? 이미지 1장을 새로 만든다.")) save(true, true); }}>바탕 그림도 새로 그리기</button>}
+          {productSeriesId && (keyword || phrasebook) && (
+            <button className={btnCls()} disabled={pending} title="파이프라인이 만든 표지(thumb-cover.png)를 제품 시리즈 표지로 올린다 — 표지가 없으면 앱이 1화 썸네일을 쓴다"
+              onClick={() => { if (confirm("파이프라인 표지를 제품 시리즈 표지로 올릴까요? 탐색 시리즈 카드와 시리즈 화면에 바로 반영됩니다.")) start(async () => {
+                try { const c = await uploadPipelineSeriesCover(id, productSeriesId); setMsg(c ? { text: "표지를 서버에 올렸다", bad: false } : { text: "표지 파일이 없다 — 편 썸네일을 다시 만든 뒤 다시 시도", bad: true }); }
+                catch (e) { setMsg({ text: `표지 업로드 실패: ${earErrMsg(e)}`, bad: true }); }
+              }); }}>표지 서버에 올리기</button>
+          )}
           {msg && <span className={`text-[12px] ${msg.bad ? "text-rose-700" : "text-emerald-700"}`}>{msg.text}</span>}
         </div>
       </div>

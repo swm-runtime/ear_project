@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Badge, Panel, btnCls } from "@/components/ui";
-import { createEarSeries, EarTopic, listEarSeries, patchEarSeries, uploadEarContent, withdrawEarContent } from "@/lib/ear";
+import { createEarSeries, EarTopic, listEarSeries, patchEarSeries, uploadEarContent, uploadPipelineSeriesCover, withdrawEarContent } from "@/lib/ear";
 import { listConsoleTopics } from "@/lib/console-topics";
 import { episodePublishFiles } from "@/lib/publish-episode";
 import { seriesContentTitle, seriesPublishBlockers, seriesUploadQueue, type SeriesPublishEpisode, type SeriesStatus } from "@/lib/series";
@@ -82,6 +82,9 @@ function SeriesPublishInner({ id, name, introLine, total, status, productSeriesI
         const r = await recordProductSeries(id, made.id);
         if (!r.ok) throw new Error(`제품 시리즈 ${made.id} 를 ${prev ? "찾았지만" : "만들었지만"} 기록하지 못했어요: ${r.reason}`);
         sid = made.id; say(`제품 시리즈 ${prev ? "재사용" : "생성"} — ${sid}${publisherName ? ` · 발행 이름 ${publisherName}` : " · 발행 이름 없음"}`);
+        // 표지 (spec/11 7장, 2026-10-28): 파이프라인 표지가 있으면 바로 올린다 — 없으면 앱이 1화 썸네일을 쓴다(글로벌 S01 이 그렇게 나갔다). 실패해도 발행은 계속하고, 시리즈 화면 [표지 서버에 올리기]로 뒤에 올린다
+        try { const c = await uploadPipelineSeriesCover(id, sid); say(c ? "시리즈 표지 올림" : "시리즈 표지 파일 없음 — 1화 썸네일로 나간다(키워드·회화집 디자인이면 시리즈 화면에서 다시 만들기 뒤 [표지 서버에 올리기])"); }
+        catch (e) { say(`시리즈 표지 업로드 실패: ${earErrMsg(e)} — 발행은 계속, 시리즈 화면 [표지 서버에 올리기]로 다시`, true); }
       }
       // 2) 1화부터 순서대로 — 실패하면 그 자리에서 멈춘다
       for (const e of todo) {
