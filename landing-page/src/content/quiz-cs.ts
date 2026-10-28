@@ -21,11 +21,15 @@ export type QuizQuestion = {
   episode: { no: number; title: string };
 };
 
+/** 결과 화면에 레벨과 함께 그리는 그림(`app/(quiz)/quiz/cs/LevelArt.tsx`). */
+export type LevelArtKind = "robot" | "laptop" | "study" | "bottle";
+
 export type QuizLevel = {
   /** 이 점수 이상이면 이 레벨이다. 높은 레벨부터 적는다. */
   min: number;
   title: string;
   summary: string;
+  art: LevelArtKind;
 };
 
 export const csQuiz = {
@@ -156,21 +160,25 @@ export const csLevels: readonly QuizLevel[] = [
     min: 9,
     title: "CS 마스터",
     summary: "이 정도면 자랑해도 돼요. 근데 주변 개발자들도 다 이 정도일까요? 확인해 볼 차례예요.",
+    art: "robot",
   },
   {
     min: 7,
     title: "시니어 개발자",
     summary: "꽤 하시네요. 다른 개발자들의 수준이 궁금하지 않나요? 주변에 공유해보세요.",
+    art: "laptop",
   },
   {
     min: 4,
     title: "주니어 개발자",
     summary: "들어는 봤는데, 설명까지는 어려운 단계예요. 옆자리 동료는 다 맞혔을지도...?",
+    art: "study",
   },
   {
     min: 0,
     title: "CS 새싹",
     summary: "키워드가 꽤 낯설었죠? 괜찮아요, 상대적으로 부족하지만 지금 시작해도 늦지 않아요.",
+    art: "bottle",
   },
 ];
 

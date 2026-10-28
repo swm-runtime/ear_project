@@ -3,6 +3,7 @@
 import Script from "next/script";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import s from "./page.module.css";
+import { LevelArt } from "./LevelArt";
 import { csQuestions, csQuiz, levelFor } from "@/content/quiz-cs";
 import { KAKAO_JS_KEY, SITE_URL } from "@/content/site";
 
@@ -12,7 +13,7 @@ import { KAKAO_JS_KEY, SITE_URL } from "@/content/site";
  * 점수는 이 화면 안에서만 센다. 서버로 보내지 않고 저장하지도 않는다 — 측정은 GA4 이벤트
  * (`quiz_start`·`quiz_complete`·`quiz_share`·`quiz_app_click`)뿐이다.
  *
- * 공유 링크에는 `utm_source=kakao|link|native`를 붙인다. GA4 세션 소스로 "공유로 들어온 방문"을 세기 위해서다.
+ * 공유 링크에는 `utm_source=kakao|link`를 붙인다. GA4 세션 소스로 "공유로 들어온 방문"을 세기 위해서다.
  * 앱 받기는 `/app/?src=quiz_cs_<들어온 utm_source>` — 채널별로 퀴즈 링크를 나눠 올리면(`?utm_source=everytime`)
  * 설치도 채널별로 갈린다(2026-10-27). 스토어 쪽 출처 집계 규칙은 `app/AppStoreRedirect.tsx`.
  */
@@ -41,7 +42,7 @@ type Phase = "intro" | "quiz" | "result";
 /** 바뀔 일이 없는 브라우저 기능 값을 `useSyncExternalStore`로 읽을 때 쓰는 빈 구독. */
 const noSubscribe = () => () => {};
 
-function shareUrl(source: "kakao" | "link" | "native"): string {
+function shareUrl(source: "kakao" | "link"): string {
   const query = new URLSearchParams({
     utm_source: source,
     utm_medium: "share",
@@ -91,12 +92,6 @@ export function CsQuiz() {
   const [picks, setPicks] = useState<number[]>([]);
   const [copyState, setCopyState] = useState<"idle" | "copied" | "manual">("idle");
   const [kakaoReady, setKakaoReady] = useState(false);
-  // 공유 시트(navigator.share) 지원 여부. 서버 HTML에서는 false로 그려 첫 렌더를 맞추고, 브라우저에서 다시 본다.
-  const canNativeShare = useSyncExternalStore(
-    noSubscribe,
-    () => typeof navigator.share === "function",
-    () => false,
-  );
   // 들어온 링크의 쿼리(채널 UTM). 서버 HTML에는 없으므로 빈 값으로 그리고 브라우저에서 다시 읽는다.
   const search = useSyncExternalStore(
     noSubscribe,
@@ -169,19 +164,6 @@ export function CsQuiz() {
       buttons: [{ title: "나도 풀어 보기", link: { mobileWebUrl: url, webUrl: url } }],
     });
     track("quiz_share", { method: "kakao" });
-  }
-
-  async function shareNative() {
-    try {
-      await navigator.share({
-        title: csQuiz.title,
-        text: `나의 CS 지식 레벨은 ${level.title} (${score}/${total}). 너도 풀어 볼래?`,
-        url: shareUrl("native"),
-      });
-      track("quiz_share", { method: "native" });
-    } catch {
-      // 공유 시트를 닫은 경우다. 따로 알릴 것이 없다.
-    }
   }
 
   async function copyLink() {
@@ -301,6 +283,7 @@ export function CsQuiz() {
           <section className={s.card}>
             <p className={s.eyebrow}>나의 CS 지식 레벨</p>
             <h1 className={s.levelTitle}>{level.title}</h1>
+            <LevelArt kind={level.art} />
             <p className={s.score}>
               <strong>{score}</strong> / {total}
             </p>
@@ -330,11 +313,6 @@ export function CsQuiz() {
                     disabled={!kakaoReady}
                   >
                     카카오톡으로 공유
-                  </button>
-                )}
-                {canNativeShare && (
-                  <button type="button" className="btn btnGhost" onClick={shareNative}>
-                    다른 앱으로 공유
                   </button>
                 )}
                 <button type="button" className="btn btnGhost" onClick={copyLink}>
