@@ -45,7 +45,7 @@ export default async function SeriesPage({ params }: { params: Promise<{ id: str
         </div>
       )}
       <Panel title="범위 (관리자 입력)" className="text-[13px] whitespace-pre-wrap">{s.scope_note ?? "-"}</Panel>
-      {!["cancelled", "withdrawn"].includes(s.status) && <SeriesThumb id={s.id} locale={pipelineLocale()} publication={s.publication ?? null} word={s.thumb_word ?? ""} label={s.thumb_label ?? ""} box={s.thumb_box ?? ""} hasBase={!!s.thumb_base_key} productSeriesId={s.published_series_id ?? null} publications={publications} />}
+      {!["cancelled", "withdrawn"].includes(s.status) && <SeriesThumb id={s.id} locale={pipelineLocale()} publication={s.publication ?? null} word={s.thumb_word ?? ""} label={s.thumb_label ?? ""} box={s.thumb_box ?? ""} hasBase={!!s.thumb_base_key} productSeriesId={s.published_series_id ?? null} publications={publications} layers={s.thumb_layers ?? ""} />}
       <SeriesEditor id={s.id} status={s.status} name={s.name} introLine={s.intro_line ?? ""} plan={Array.isArray(s.plan) ? s.plan : []} />
       {!planning && (
         <Panel title={`편 후보 (${(eps ?? []).filter((e) => e.status !== "rejected").length}/${s.total_episodes ?? "-"})`} flush>

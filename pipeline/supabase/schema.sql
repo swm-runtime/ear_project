@@ -59,6 +59,7 @@ create table if not exists series (
   thumb_box           text,                                -- 왼쪽 아래 박스 글자(코드가 얹는다) · 0031
   thumb_base_key      text,                                -- 시리즈 바탕 그림 s3 키 — 편마다 재사용 · 0031
   publication         text,                                -- 간행물 키(@ear/pipeline publication.ts 상수 또는 publications.key — 발행 이름·썸네일 스타일) · null = 없음 · 0034·0036
+  thumb_layers        text,                                -- 계층 쌓기 디자인의 층 "이름:시작-끝, …" · 0038
   created_at          timestamptz not null default now(),
   updated_at          timestamptz not null default now()
 );
@@ -68,7 +69,7 @@ create table if not exists public.publications (
   key        text primary key,
   locale     text not null check (locale in ('ko', 'en')),
   name       text not null,
-  style      text not null check (style in ('keyword', 'phrasebook', 'scene', 'tv', 'notes')), -- 0037: tv·notes (코드 합성 시리즈 디자인)
+  style      text not null check (style in ('keyword', 'phrasebook', 'scene', 'tv', 'notes', 'layers')), -- 0037: tv·notes · 0038: layers (코드 합성 시리즈 디자인)
   hint       text,
   created_at timestamptz not null default now(),
   unique (locale, name)
