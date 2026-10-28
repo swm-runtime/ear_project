@@ -57,10 +57,11 @@ export function normalizeForTts(text: string, dict: Record<string, string>, loca
   // 1) 오디오 태그 보호
   const tags: string[] = [];
   let t = text.replace(AUDIO_TAG, (m) => { tags.push(m); return `⟦${encIdx(tags.length - 1)}⟧`; }); // ⟦⟧: 사전·숫자·공백 단계가 건드리지 않는 전용 괄호
-  // 2) 음차 사전 (긴 항목 우선, 단어 경계 — 영문은 앞뒤가 영숫자가 아닐 때만)
+  // 2) 음차 사전 (긴 항목 우선, 단어 경계 — 영문은 앞뒤가 영문이 아닐 때만. 앞의 숫자는 허용한다: "100MB"·"5G" 같은 단위 표기가 사전에 "MB"·"G" 로 있어도 걸리게 — 2026-10-28, S261028-008 이 "MB" 를 맵에 두고도 잔존으로 멈췄다)
   for (const [k, v] of Object.entries(dict).sort((a, b) => b[0].length - a[0].length)) {
     const esc = k.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    t = t.replace(new RegExp(`(?<![A-Za-z0-9])${esc}(?![A-Za-z0-9])`, "g"), v);
+    const lead = /^[A-Za-z]/.test(k) ? "(?<![A-Za-z])" : "(?<![A-Za-z0-9])"; // 영문으로 시작하는 표제어는 숫자 뒤에서도 치환 — 숫자로 시작하는 표제어("3D")는 종전대로 숫자 뒤를 막는다("13D" 오치환 방지)
+    t = t.replace(new RegExp(`${lead}${esc}(?![A-Za-z0-9])`, "g"), v);
   }
   // 3) 단위·기호
   t = t.replace(/%/g, "퍼센트").replace(/&/g, " 앤 ").replace(/\+/g, " 플러스 ");
