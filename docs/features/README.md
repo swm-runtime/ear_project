@@ -34,6 +34,7 @@
 | [player.md](player.md) | 즉시 재생, 배속·구간 이동, 스크립트, 수면 타이머, 출처 고지 | FR-23, FR-24, FR-25, FR-12 |
 | [content-detail.md](content-detail.md) | 콘텐츠 상세 — 더보기 시트 [상세 정보] 진입, 메타데이터 + [재생]·[담기/삭제](신설 2026-08-23) | FR-40, FR-12 |
 | [drip-feedback.md](drip-feedback.md) | 추천 별점(온라인 평가) — "최근 추천 어떠셨나요?" 팝업(가입 4일째부터 7일에 한 번), 별 1~5, 이번 주 그만 보기, 알고리즘 버전별 집계(신설 2026-09-30) | FR-41 |
+| [content-review.md](content-review.md) | 콘텐츠 후기 — 더보기 시트 [후기]·상세 "내 후기", 별 1~5 + 글, 라이브러리 진입 시 5일에 한 번 묻기, **후기 참여 프로모션**(Pro 7일 · 계정당 1회 · 3개월 안에 설정 › 프로모션에서 사용)(신설 2026-10-28 — KAN-278) | FR-49 |
 | [share.md](share.md) | 공유 — OS 공유 시트, 콘텐츠 상세 연결 링크 **(P1 — MVP 미노출)**(신설 2026-08-25, `explore.md` 4.6에서 소유 이전) | FR-27 |
 
 ### 클라이언트 — 수익화
@@ -89,6 +90,7 @@
 | FR-18 | drip-scheduling | FR-36 | common-error-handling, splash |
 | FR-40 | content-detail, library, explore | FR-37 | admin, content-pipeline |
 | FR-41 | drip-feedback | FR-38 | admin, interest-management, onboarding |
+| FR-49 | content-review, subscription, settings | | |
 | FR-42 | global-api 2.1·4.1·4.4 (임시), auth, onboarding | FR-39 | auth, paywall, subscription, profile, settings |
 | FR-43 | global-api 4.5·4.7·4.8 (임시), explore, library | | |
 | FR-44 | global-api 2.1·4.1 (임시), auth | | |
@@ -97,7 +99,7 @@
 | FR-47 | global-api 2.4 (임시), drip-scheduling, notification | | |
 | FR-48 | global-api 4.9·4.10 (임시), admin, backend-monitoring | | |
 
-FR-01 ~ FR-41 전부 커버됨. FR-42 ~ FR-48(글로벌)은 `features/` 문서 없이 `spec/api/global-api.md`가 임시로 맡는다. FR-42 ~ FR-48의 P0/P1은 PM 확인 대기다(PRD 6장 머리말, 2026-10-20).
+FR-01 ~ FR-41 전부 커버됨. FR-42 ~ FR-48(글로벌)은 `features/` 문서 없이 `spec/api/global-api.md`가 임시로 맡는다. FR-42 ~ FR-48의 P0/P1은 PM 확인 대기다(PRD 6장 머리말, 2026-10-20). FR-49(콘텐츠 후기)는 `content-review.md`가 맡는다 — P1은 제안값, PM 확인 대기(2026-10-28).
 
 ## 명세를 쓰면서 드러난 PRD 결정 포인트
 
@@ -184,6 +186,7 @@ FR-01 ~ FR-41 전부 커버됨. FR-42 ~ FR-48(글로벌)은 `features/` 문서 �
 | 65 | **GLOBAL 요금제·USD 가격 보류**(2026-10-14 보류 · 2026-10-16 이름만 영어) | 같은 상품을 스토어 현지가로 판다. GLOBAL 전용 행·상품 없음, `name_en`·`description_en`만. 다른 가격·혜택을 둘 때 재개(KAN-192) | PRD FR-46·4.1, global-api 4.6·9장 #4 |
 | 66 | **시간대별 드립 그룹**(2026-10-14, KAN-191) | asia·europe·americas 3그룹, 그룹 현지 05:00 편성 · 07:00 도착 알림. 서비스 날짜는 전 시장 05:00 KST 단일. 스위치 `DRIP_TIMEZONE_GROUPS_ENABLED` 꺼짐이면 전원 asia. 경계·그룹 수는 미결(global-api 9장 #3) | PRD FR-47, global-api 2.4, drip-scheduling |
 | 67 | **운영 — 업로드 시장 필수·지표 시장 분리**(2026-10-14~10-19) | 업로드 `market`·`language` 필수(2026-10-19, KAN-190 2단계 — 기본값 `kr` 채우지 않음). 어드민 `by_market`·검색 로그 시장 필터·일일 Slack 보고 시장별 가입·청취·탈퇴·시장 전환 줄. 집계는 현재 시장 기준 | PRD FR-48, global-api 4.9·4.10, admin, backend-monitoring |
+| 68 | **콘텐츠 후기 · 후기 참여 프로모션**(2026-10-28 — KAN-278, PM 검토 대기) | 들어 본 편에 별점 + 글. 추천 별점(FR-41)과 표·집계·팝업 분리, 추천 입력 아님, 원문은 관리자 콘솔에서 작성자 없이. 보상은 **보관 후 원할 때 사용** — 끝까지 들은 편 3개 + 글 10자 → Pro 7일 **계정당 1회**, 사용 기한 3개월, Pro 구독 중엔 사용 불가(결제일 연장 안 함). 사용은 초대 코드 지급 경로 재사용, 설정 S12를 [프로모션]으로 개편 | PRD FR-49, content-review, subscription 4.9, settings |
    
 
 ## 개발 착수 순서 제안
