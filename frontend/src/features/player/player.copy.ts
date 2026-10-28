@@ -17,6 +17,9 @@ const ko = {
     a11yLabelExhausted: '오늘 재생 0회 남음',
     /** 구독 UI 가 켜진 빌드에서만(feature-flags.ts) — library-uiux.md 7장 원문 */
     a11yLabelExhaustedWithPaywall: '오늘 재생 0회 남음, 구독 안내 열기',
+    /** 남은 횟수가 있어도 링을 누르면 페이월(구독 UI 켜진 빌드만, 2026-10-28) */
+    a11yLabelWithPaywall: (remaining: number, limit: number) =>
+      `오늘 재생 ${limit}회 중 ${remaining}회 남음, 구독 안내 열기`,
   },
 
   /** L3 재생 확인 팝업(library-uiux.md 4.6) — 탐색 E4도 같은 팝업이다(explore-uiux.md 4.5) */
@@ -46,6 +49,8 @@ const ko = {
     confirm: '확인',
     /** 페이월(요금제 비교가 얹힌 시트)의 닫기 — 재생은 시작되지 않는다(paywall.md 4.5-6) */
     close: '닫기',
+    /** 남은 횟수가 있을 때 링을 눌러 연 페이월의 제목(2026-10-28) — "모두 사용했어요"는 사실이 아니다 */
+    remainingTitle: (remaining: number) => `오늘 ${remaining}회 더 들을 수 있어요`,
   },
 
   /** 재생 시작 실패의 공통 폴백 — 서버 message가 없을 때만 쓴다 */
@@ -236,6 +241,8 @@ const en: LocalizedCopy<typeof ko> = {
       `${remaining} of ${plural(limit, 'play', 'plays')} left today`,
     a11yLabelExhausted: 'No plays left today',
     a11yLabelExhaustedWithPaywall: 'No plays left today, view subscription options',
+    a11yLabelWithPaywall: (remaining: number, limit: number) =>
+      `${remaining} of ${plural(limit, 'play', 'plays')} left today, view subscription options`,
   },
 
   playConfirm: {
@@ -256,6 +263,7 @@ const en: LocalizedCopy<typeof ko> = {
     description: 'Your plays refill every day at 5:00 AM',
     confirm: 'OK',
     close: 'Close',
+    remainingTitle: (remaining: number) => `${plural(remaining, 'play', 'plays')} left today`,
   },
 
   playFailedToast: 'Please try again in a moment',
