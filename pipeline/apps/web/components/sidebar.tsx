@@ -33,6 +33,8 @@ const LOG_NAV: NavItem[] = [
   { href: "/backend-logs/insights", label: "서비스 지표", icon: Chart, note: "실배포" },
   // 프로모션 — 초대 코드(예: SANKUN)를 입력한 사람만 묶어 활성·청취·결제를 코드 없는 사람과 비교(2026-10-28)
   { href: "/backend-logs/promotions", label: "프로모션", icon: Chart, note: "실배포" },
+  // 실험 지표 — 발표 전 2주 실험마다 필요한 지표를 모으는 자리(2026-10-28, 지금은 틀만)
+  { href: "/backend-logs/experiments", label: "실험 지표", icon: Chart, note: "실배포" },
 ];
 
 /**
