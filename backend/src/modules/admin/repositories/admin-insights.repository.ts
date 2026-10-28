@@ -22,6 +22,7 @@ import {
   InsightsUserTotals,
   InsightsWithdrawalReason,
 } from '../admin.types';
+import { countryOfTimezone } from '../timezone-country';
 
 /** 합계는 `::float8`로 받는다 — pg 드라이버가 `bigint`(sum 의 기본 타입)는 문자열로 돌려준다 */
 interface UserTotalsRow {
@@ -301,8 +302,10 @@ export class AdminInsightsRepository {
   }
 
   /**
-   * 나라별 같은 지표(2026-10-29, 글로벌 탭 맨 위) — `marketTotals`와 같은 정의를 `users.region_code`(지금 기기 지역)로 나눈다.
-   * `market`이 있으면 그 시장 계정만. 지역이 없으면 `unknown`. 가입자 많은 나라 먼저
+   * 나라별 같은 지표(2026-10-29, 글로벌 탭 맨 위) — `marketTotals`와 같은 정의를 **기기 시간대에서 추정한 나라**로 나눈다
+   * (`countryOfTimezone` — 기기 언어 지역 `region_code`는 필리핀의 en-GB·en-US 기기를 영국·미국으로 잡아 버렸다).
+   * 질의는 시간대별로 세고, 같은 나라의 시간대(예: 말레이시아 Kuala_Lumpur·Kuching)를 여기서 더한다 — 값이 전부 사람 수·합이라
+   * 더해도 같다. `market`이 있으면 그 시장 계정만. 시간대가 없으면 `unknown`. 가입자 많은 나라 먼저
    */
   async regionTotals(
     since: Date,
@@ -311,16 +314,39 @@ export class AdminInsightsRepository {
   ): Promise<InsightsRegionTotals[]> {
     const rows = await this.groupedUserTotals<
       Omit<MarketTotalsRow, 'market'> & { region: string }
-    >("coalesce(u.region_code, 'unknown')", since, now, market);
+    >("coalesce(u.timezone, 'unknown')", since, now, market);
 
-    return rows
-      .map((r) => ({ region: r.region, ...toTotals(r) }))
-      .sort((a, b) => b.users - a.users || a.region.localeCompare(b.region));
+    const byCountry = new Map<string, InsightsRegionTotals>();
+    for (const r of rows) {
+      const region = countryOfTimezone(r.region);
+      const t = toTotals(r);
+      const prev = byCountry.get(region);
+      byCountry.set(
+        region,
+        prev
+          ? {
+              region,
+              users: prev.users + t.users,
+              signupsInWindow: prev.signupsInWindow + t.signupsInWindow,
+              onboardingCompleted:
+                prev.onboardingCompleted + t.onboardingCompleted,
+              active7d: prev.active7d + t.active7d,
+              listeners7d: prev.listeners7d + t.listeners7d,
+              listenSec: prev.listenSec + t.listenSec,
+              plays: prev.plays + t.plays,
+              paidActive: prev.paidActive + t.paidActive,
+            }
+          : { region, ...t },
+      );
+    }
+    return [...byCountry.values()].sort(
+      (a, b) => b.users - a.users || a.region.localeCompare(b.region),
+    );
   }
 
   /** 시장·나라 비교의 공통 질의 — `groupBy` 식마다 한 줄. 별칭은 `market`(시장) 또는 `region`(나라) */
   private groupedUserTotals<T>(
-    groupBy: 'u.market' | "coalesce(u.region_code, 'unknown')",
+    groupBy: 'u.market' | "coalesce(u.timezone, 'unknown')",
     since: Date,
     now: Date,
     market: UserMarket | null,

@@ -769,7 +769,7 @@ describe('서비스 지표 요약 E2E', () => {
     const globalId = await createUserId('global-listener');
     const krId = await createUserId('kr-listener');
     await dataSource.query(
-      `UPDATE users SET market = 'global', region_code = 'PH' WHERE id = $1`,
+      `UPDATE users SET market = 'global', region_code = 'GB', timezone = 'Asia/Manila' WHERE id = $1`,
       [globalId],
     );
     const contentId = await seedContent();
@@ -806,7 +806,8 @@ describe('서비스 지표 요약 E2E', () => {
     expect(all.market).toBeNull();
     expect(global.by_market.map((m) => m.market)).toEqual(['kr', 'global']);
 
-    // then — 나라별은 글로벌에서만, 그 시장 계정만 나라로 나눈다(합 = 그 시장 가입자). 국내·통합은 빈 배열
+    // then — 나라별은 글로벌에서만, 그 시장 계정만 **시간대로** 나눈다(합 = 그 시장 가입자). 국내·통합은 빈 배열.
+    // 기기 언어 지역이 GB 여도 마닐라 시간대면 필리핀이다
     expect(global.by_region.map((r) => r.region)).toContain('PH');
     expect(global.by_region.reduce((n, r) => n + r.users, 0)).toBe(
       global.users.current,

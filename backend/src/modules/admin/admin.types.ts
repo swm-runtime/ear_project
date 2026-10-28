@@ -434,8 +434,8 @@ export interface InsightsMarketTotals {
 }
 
 /**
- * 나라별 같은 지표(2026-10-29, 글로벌 탭 맨 위) — 나라는 `users.region_code`(기기 지역 ISO 3166-1 alpha-2, 가입·로그인마다
- * 갱신 — 지금 나라). 값이 없으면 `unknown`
+ * 나라별 같은 지표(2026-10-29, 글로벌 탭 맨 위) — 나라는 기기 시간대(`users.timezone`)에서 추정한 ISO 3166-1 alpha-2
+ * (`timezone-country.ts`). 시간대가 없으면 `unknown`, 표에 없는 시간대는 시간대 이름 그대로
  */
 export type InsightsRegionTotals = Omit<InsightsMarketTotals, 'market'> & {
   region: string;
