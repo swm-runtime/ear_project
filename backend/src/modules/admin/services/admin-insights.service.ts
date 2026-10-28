@@ -7,7 +7,13 @@ import {
 } from '@/common/utils/service-date.util';
 import { UserMarket } from '@/modules/user/user.enum';
 
+import { COMPLETION_REACHED_RATIO } from '@/modules/library/library.constant';
+
 import {
+  COMPLETION_LENGTH_CONTENT_MARKET,
+  COMPLETION_LENGTH_MIN_AGE_HOURS,
+  COMPLETION_LENGTH_MIN_CONTENTS,
+  COMPLETION_LENGTH_SLOPE_STEP_MIN,
   FUNNEL_FIRST_PLAY_HOURS,
   FUNNEL_HABIT_MIN_PLAY_DAYS,
   FUNNEL_HABIT_WINDOW_DAYS,
@@ -25,6 +31,7 @@ import {
 import {
   InsightsCohortCounts,
   InsightsCohortTable,
+  InsightsCompletionByLength,
   InsightsDaily,
   InsightsDailyRows,
   InsightsFunnel,
@@ -36,6 +43,7 @@ import {
   InsightsWeekday,
 } from '../admin.types';
 import { AdminInsightsRepository } from '../repositories/admin-insights.repository';
+import { summarizeCompletionByLength } from './admin-insights-completion.calc';
 import {
   buildFunnelCohort,
   summarizeFunnelSteps,
@@ -138,6 +146,22 @@ export class AdminInsightsService {
       cohorts,
       ...summarizeFunnelSteps(cohorts),
     };
+  }
+
+  /**
+   * 길이별 완청률(`GET /admin/insights/completion-by-length`, 실험 지표 탭, 2026-10-28) — 한국 콘텐츠의 편별 시작·완청 수를 읽어
+   * 로지스틱 회귀 추세와 경험적 베이즈 축소값을 붙인다(`admin-insights-completion.calc.ts`).
+   */
+  async completionByLength(now: Date): Promise<InsightsCompletionByLength> {
+    const rows = await this.repository.completionByContent(now, {
+      market: COMPLETION_LENGTH_CONTENT_MARKET,
+      minAgeHours: COMPLETION_LENGTH_MIN_AGE_HOURS,
+      reachedRatio: COMPLETION_REACHED_RATIO,
+    });
+    return summarizeCompletionByLength(rows, now, {
+      slopeStepMin: COMPLETION_LENGTH_SLOPE_STEP_MIN,
+      minContents: COMPLETION_LENGTH_MIN_CONTENTS,
+    });
   }
 
   async summarize(

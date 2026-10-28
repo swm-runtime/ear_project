@@ -203,3 +203,17 @@ export const FUNNEL_FIRST_PLAY_HOURS = 24;
 /** "첫 14일 습관" — 가입 뒤 이 일수(×24시간) 안에 서로 다른 서비스 날짜 `FUNNEL_HABIT_MIN_PLAY_DAYS`일 이상 들었다 */
 export const FUNNEL_HABIT_WINDOW_DAYS = 14;
 export const FUNNEL_HABIT_MIN_PLAY_DAYS = 3;
+
+/**
+ * 길이별 완청률(`GET /admin/insights/completion-by-length`, 로그 콘솔 "실험 지표" 탭, 2026-10-28) — "길수록 진짜 덜 끝까지 듣나".
+ * 편마다 시작한 사람이 적어(11분짜리 한 편에 2명이 시작해 0명 완청 → 0%) 날것의 비율은 흔들린다. 그래서 추세는 로지스틱 회귀로,
+ * 편별 점은 경험적 베이즈 축소로 보인다.
+ */
+/** 한국 콘텐츠만 본다 — 글로벌 콘텐츠는 듣는 사람·길이 규칙이 달라 섞으면 추세가 흐려진다 */
+export const COMPLETION_LENGTH_CONTENT_MARKET = 'kr';
+/** 시작한 지 이만큼 지난 (사용자, 편)만 센다 — 방금 시작한 사람은 아직 끝까지 들을 시간이 없었다 */
+export const COMPLETION_LENGTH_MIN_AGE_HOURS = 24;
+/** 추세 기울기를 읽는 단위(분) — "이 분만큼 길어지면 완청 오즈가 몇 배" */
+export const COMPLETION_LENGTH_SLOPE_STEP_MIN = 5;
+/** 추세를 낼 최소 편 수 — 이보다 적으면 선을 긋지 않는다 */
+export const COMPLETION_LENGTH_MIN_CONTENTS = 5;

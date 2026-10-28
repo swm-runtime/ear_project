@@ -5,6 +5,7 @@ import { UserMarket } from '@/modules/user/user.enum';
 
 import {
   InsightsCohortCounts,
+  InsightsCompletionContentRow,
   InsightsDailyRows,
   InsightsFunnelCohortCounts,
   InsightsHourly,
@@ -1076,6 +1077,64 @@ export class AdminInsightsRepository {
       w1Return: r.w1_return,
       habit14d: r.habit_14d,
       paidEver: r.paid_ever,
+    }));
+  }
+
+  /**
+   * 길이별 완청률 재료 — 편마다 들어 본 사람(0초가 아닌 재생 행이 있는 사용자)과 그중 완청한 사람. 단위는 (사용자, 편)이다.
+   * 완청은 공용 정의(`LibraryItemRepository` 완청 CTE · `domain.md` 6장)와 같다 — 라이브러리 `completed` · 최대 도달 ≥ 길이 × 기준 ·
+   * 완청 신호 중 하나. `market` 콘텐츠만, 길이가 있는 편만, 첫 재생이 `minAgeHours` 전인 (사용자, 편)만 센다(방금 시작한 사람 제외).
+   * 편 제목은 싣지만 사용자는 수만 낸다.
+   */
+  async completionByContent(
+    now: Date,
+    options: { market: string; minAgeHours: number; reachedRatio: number },
+  ): Promise<InsightsCompletionContentRow[]> {
+    const rows = await this.dataSource.query<
+      {
+        content_id: string;
+        title: string;
+        duration_sec: number;
+        starters: number;
+        completers: number;
+      }[]
+    >(
+      `with starts as (
+         select p.user_id, p.content_id
+           from play_records p
+           join contents c on c.id = p.content_id
+          where p.listened_sec > 0 and c.market = $1 and c.duration_sec > 0
+          group by p.user_id, p.content_id
+         having min(p.played_at) < $2::timestamptz - make_interval(hours => $3::int)
+       ),
+       flagged as (
+         select s.content_id,
+                (exists (select 1 from library_items i
+                          where i.user_id = s.user_id and i.content_id = s.content_id and i.status = 'completed')
+                 or exists (select 1 from playback_progresses g
+                             join contents c on c.id = g.content_id
+                             where g.user_id = s.user_id and g.content_id = s.content_id
+                               and g.max_reached_sec >= c.duration_sec * $4::numeric)
+                 or exists (select 1 from user_signals u
+                             where u.user_id = s.user_id and u.content_id = s.content_id and u.action = 'complete')
+                ) as completed
+           from starts s
+       )
+       select c.id as content_id, c.title, c.duration_sec,
+              count(*)::int as starters,
+              count(*) filter (where f.completed)::int as completers
+         from flagged f
+         join contents c on c.id = f.content_id
+        group by c.id, c.title, c.duration_sec
+        order by c.duration_sec, c.id`,
+      [options.market, now, options.minAgeHours, options.reachedRatio],
+    );
+    return rows.map((r) => ({
+      contentId: r.content_id,
+      title: r.title,
+      durationSec: r.duration_sec,
+      starters: r.starters,
+      completers: r.completers,
     }));
   }
 }

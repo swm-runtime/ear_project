@@ -560,3 +560,49 @@ export interface InsightsFunnel {
   /** 가장 많이 새는 단계 — 판정할 단계가 없으면 null */
   largestDropStep: InsightsFunnelStepKey | null;
 }
+
+/* ───────────── 길이별 완청률 (`GET /admin/insights/completion-by-length`, 2026-10-28) ───────────── */
+
+/** 편 하나의 원본(Repository) — 시작한 사람·완청한 사람 수(사용자 × 편 단위) */
+export interface InsightsCompletionContentRow {
+  contentId: string;
+  title: string;
+  durationSec: number;
+  starters: number;
+  completers: number;
+}
+
+export interface InsightsCompletionContentPoint extends InsightsCompletionContentRow {
+  /** `completers / starters` — 시작한 사람이 적으면 흔들린다 */
+  rawRate: number;
+  /** 경험적 베이즈 축소값 — `(completers + k·p0) / (starters + k)` */
+  shrunkRate: number;
+}
+
+/** 추세 방향 — 기울기 95% 구간이 1(변화 없음)을 넘지 않으면 down/up, 걸치면 flat */
+export type InsightsCompletionTrendDirection = 'down' | 'up' | 'flat';
+
+export interface InsightsCompletionTrend {
+  /** `COMPLETION_LENGTH_SLOPE_STEP_MIN`분 길어질 때 완청 오즈의 배수와 95% 구간 */
+  oddsRatioPerStep: number;
+  oddsRatioLow: number;
+  oddsRatioHigh: number;
+  direction: InsightsCompletionTrendDirection;
+  /** 과분산 보정 계수(피어슨 χ² / 자유도, 1 아래는 1) — 편끼리 주제·품질이 달라 생기는 흔들림만큼 구간을 넓힌다 */
+  dispersion: number;
+  /** 분 단위 예측 완청률과 95% 구간 */
+  curve: { minute: number; rate: number; low: number; high: number }[];
+}
+
+export interface InsightsCompletionByLength {
+  generatedAt: Date;
+  /** 전체 완청률 p0 — 축소의 기준점 */
+  overallRate: number | null;
+  /** 축소 강도 k(가상의 시작자 수) — 편별 비율의 실제 퍼짐에서 추정한다 */
+  priorStrength: number | null;
+  starters: number;
+  completers: number;
+  contents: InsightsCompletionContentPoint[];
+  /** 편이 적거나 길이가 다 같으면 null */
+  trend: InsightsCompletionTrend | null;
+}

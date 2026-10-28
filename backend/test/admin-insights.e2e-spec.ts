@@ -1173,6 +1173,109 @@ describe('서비스 지표 요약 E2E', () => {
     }, 60_000);
   });
 
+  describe('길이별 완청률 (GET /admin/insights/completion-by-length)', () => {
+    /**
+     * 한국 편 K(600초)에 6명: 라이브러리 completed · 최대 도달 90% · 완청 신호 · 도달 50%(미완청) · 0초 재생만(시작 아님) ·
+     * 방금 시작(24시간 안 — 제외). 글로벌 편 G 에는 완청 1명 — 결과에 나오면 안 된다.
+     */
+    it('한국 편만, 0초가 아닌 재생을 시작으로 보고, 완청 공용 정의(라이브러리·도달 90%·신호)로 센다 — 방금 시작은 뺀다', async () => {
+      // given
+      const kr = await seedContent();
+      const global = await seedContent();
+      await dataSource.query(
+        `UPDATE contents SET market = 'global', language = 'en' WHERE id = $1`,
+        [global],
+      );
+      const old = new Date(Date.now() - 3 * 86_400_000);
+      const users = await Promise.all(
+        ['lib', 'reach', 'signal', 'half', 'zero', 'fresh', 'glob'].map((l) =>
+          createUserId(`comp-${l}`),
+        ),
+      );
+      const [lib, reach, signal, half, zero, fresh, glob] = users;
+      const playRepository = dataSource.getRepository(PlayRecord);
+      const play = (userId: string, contentId: string, at: Date, sec = 60) =>
+        playRepository.save(
+          playRepository.create({
+            userId,
+            contentId,
+            playDate: toServiceDate(at),
+            playedAt: at,
+            isCounted: true,
+            listenedSec: sec,
+          }),
+        );
+      for (const u of [lib, reach, signal, half]) await play(u, kr, old);
+      await play(zero, kr, old, 0);
+      await play(fresh, kr, new Date());
+      await play(glob, global, old);
+      await dataSource.query(
+        `INSERT INTO library_items (user_id, content_id, source, status, added_at)
+         VALUES ($1, $2, 'save', 'completed', $3)`,
+        [lib, kr, old],
+      );
+      await dataSource.query(
+        `INSERT INTO playback_progresses (user_id, content_id, position_sec, max_reached_sec)
+         VALUES ($1, $3, 540, 540), ($2, $3, 300, 300), ($4, $5, 600, 600)`,
+        [reach, half, kr, glob, global],
+      );
+      await dataSource.query(
+        `INSERT INTO user_signals (user_id, content_id, action, position_sec, max_reached_sec, created_at)
+         VALUES ($1, $2, 'complete', 600, 600, $3)`,
+        [signal, kr, old],
+      );
+
+      // when
+      const rows = await app
+        .get(AdminInsightsRepository)
+        .completionByContent(new Date(), {
+          market: 'kr',
+          minAgeHours: 24,
+          reachedRatio: 0.9,
+        });
+
+      // then
+      expect(rows.find((r) => r.contentId === kr)).toEqual({
+        contentId: kr,
+        title: `${TOKEN} 콘텐츠`,
+        durationSec: 600,
+        starters: 4,
+        completers: 3,
+      });
+      expect(rows.find((r) => r.contentId === global)).toBeUndefined();
+    });
+
+    it('응답은 편 단위 집계와 추세뿐이고, 관리자 아니면 403 이다', async () => {
+      // given
+      const adminAuth = await createUser('admin-comp', UserRole.ADMIN);
+
+      // when
+      const res = await request(app.getHttpServer())
+        .get(path('/admin/insights/completion-by-length'))
+        .set('Authorization', adminAuth)
+        .expect(HttpStatus.OK);
+      const body = res.body as {
+        content_market: string;
+        min_age_hours: number;
+        contents: { duration_sec: number; shrunk_rate: number }[];
+      };
+
+      // then
+      expect(res.headers['cache-control']).toBe('no-store');
+      expect(body.content_market).toBe('kr');
+      expect(body.min_age_hours).toBe(24);
+      expect(body.contents.length).toBeGreaterThan(0);
+      expect(JSON.stringify(body)).not.toMatch(
+        /"email"|"nickname"|"user_id"|"provider_user_id"/,
+      );
+      const userAuth = await createUser('user-comp', UserRole.USER);
+      await request(app.getHttpServer())
+        .get(path('/admin/insights/completion-by-length'))
+        .set('Authorization', userAuth)
+        .expect(HttpStatus.FORBIDDEN);
+    });
+  });
+
   async function createUserId(
     label: string,
     role: UserRole = UserRole.USER,

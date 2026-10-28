@@ -1,4 +1,5 @@
 import { PageHeader, Panel } from "@/components/ui";
+import { CompletionByLength } from "@/components/completion-by-length";
 import { SignupFunnel } from "@/components/signup-funnel";
 
 export const dynamic = "force-dynamic";
@@ -27,6 +28,7 @@ export const dynamic = "force-dynamic";
  *
  * ## 숫자가 붙은 지표
  * - 가입 퍼널(`GET /admin/insights/funnel`, 2026-10-28) — 가입한 사람이 어느 단계에서 가장 많이 빠지나. `components/signup-funnel.tsx`
+ * - 길이별 완청률(`GET /admin/insights/completion-by-length`, 2026-10-28) — 길수록 진짜 덜 끝까지 듣나(한국 콘텐츠). `components/completion-by-length.tsx`
  */
 interface ExperimentMetric {
   name: string;
@@ -89,6 +91,15 @@ export default function ExperimentMetricsPage() {
           definition="가입 주(월 05시 시작) 묶음별로 온보딩 완료 → 24시간 안 첫 재생 → 첫 완청 → W1 복귀 → 14일 습관 → 결제에 이른 사람 수. 끝난 묶음만 합쳐 앞 단계 대비 남는 비율을 낸다(현재 계정 기준)"
         />
         <div className="mt-3"><SignupFunnel /></div>
+      </Panel>
+
+      <Panel title="길이별 완청률 — 길수록 진짜 덜 끝까지 듣나">
+        <MetricInfo
+          why="완청률이 길이 구간마다 다르게 보이는데(10~15분 26% · 20분 이상 14%), 편마다 시작한 사람이 적어 우연인지 추세인지 가리려고 본다. 떨어지는 추세가 분명하면 목표 길이를 줄이는 실험을 한다"
+          owner="박준현"
+          definition="한국 콘텐츠, 0초가 아닌 재생을 시작한 (사용자, 편) 중 완청(라이브러리 완료 · 90% 도달 · 완청 신호)한 비율. 시작한 지 24시간 지난 것만. 추세는 로지스틱 회귀, 편별 점은 경험적 베이즈로 축소한 값"
+        />
+        <div className="mt-3"><CompletionByLength /></div>
       </Panel>
 
       <Panel title={`등록된 지표 ${EXPERIMENT_METRICS.length}개`}>

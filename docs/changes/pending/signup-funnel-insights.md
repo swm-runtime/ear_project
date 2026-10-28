@@ -1,8 +1,8 @@
-# 로그 콘솔 "실험 지표" 탭 가입 퍼널 — `GET /admin/insights/funnel`
+# 로그 콘솔 "실험 지표" 탭 가입 퍼널·길이별 완청률 — `GET /admin/insights/funnel` · `GET /admin/insights/completion-by-length`
 
 | 항목 | 값 |
 |---|---|
-| 대상 문서 | `spec/api/admin-api.md`(4.22 다음에 `GET /admin/insights/funnel` 신설) · `features/backend-monitoring.md`(탭 표에 "실험 지표" 행) |
+| 대상 문서 | `spec/api/admin-api.md`(4.22 다음에 `GET /admin/insights/funnel` · `GET /admin/insights/completion-by-length` 신설) · `features/backend-monitoring.md`(탭 표에 "실험 지표" 행) |
 | 요청 파트 | 백엔드 |
 | 발행 날짜 | 2026-10-28 |
 | 시작 날짜 | 2026-10-28 |
@@ -35,13 +35,25 @@
 - 단계는 엄밀한 포함 관계가 아니다 — 비율이 1을 넘을 수 있다
 - 성숙 = `in_progress`가 아니고 이 단계·앞 단계가 둘 다 숫자(W1 partial 은 null 취급)이며 앞 단계가 1명 이상
 
+### 1-2. `admin-api.md` — `GET /admin/insights/completion-by-length`
+
+관리자 전용, 읽기 전용, `Cache-Control: no-store`, 요청 파라미터 없음. 편 단위 집계 — 사용자는 수로만(`user_id`·이름·이메일 없음).
+
+- 대상: **한국 콘텐츠**(`contents.market = kr`, 백엔드 상수 `COMPLETION_LENGTH_CONTENT_MARKET`)·길이가 있는 편. 단위는 (사용자, 편) — 0초가 아닌 재생 행이 있으면 "시작", 첫 재생이 24시간(`COMPLETION_LENGTH_MIN_AGE_HOURS`) 전인 것만
+- 완청 = 공용 정의(`domain.md` 6장 — 라이브러리 `completed` · 최대 도달 ≥ 길이 × 90% · 완청 신호)
+- 응답: `generated_at` · `content_market` · `min_age_hours` · `overall_rate`(p0) · `prior_strength`(k) · `starters` · `completers`
+  - `contents[]`(짧은 편 먼저): `content_id` · `title` · `duration_sec` · `starters` · `completers` · `raw_rate` · `shrunk_rate`
+  - `shrunk_rate` = 경험적 베이즈 축소 `(completers + k·p0) / (starters + k)`. k 는 시작자 수로 가중한 편별 비율 분산에서 이항 잡음 몫을 뺀 값으로 적률 추정(2~500)
+  - `trend`(편 5개 미만·길이가 다 같음·전원 완청/미완청이면 null): (사용자, 편) 단위 로지스틱 회귀 `logit p = b0 + b1·분`. `slope_step_min`(5) · `odds_ratio_per_step` = `exp(5·b1)` · `odds_ratio_low/high`(95%, 과분산 보정 — 피어슨 χ²/자유도, 1 아래는 1) · `direction`(구간 상한 < 1 → `down`, 하한 > 1 → `up`, 아니면 `flat`) · `dispersion` · `curve[]`(분 단위 `minute`·`rate`·`low`·`high`)
+
 ### 2. `backend-monitoring.md` 탭 표
 
-"실험 지표 | `/backend-logs/experiments` | 누구나 보고 싶은 지표를 추가해 보는 비공식 지표 모음(공식 지표는 '서비스 지표'). 지표마다 보는 이유·추가한 사람·정의(+ 관련 실험·메모)를 함께 적는다. 숫자가 붙은 지표: 가입 퍼널(가입 주 코호트, 가장 많이 빠지는 단계 강조 + '다음에 고칠 곳'). 실배포·개발계 토글 · 시장 [통합|국내|글로벌] · 4/8/12주, 열 때 1회 + [새로고침]. 옛 서버(404)는 안내" 추가.
+"실험 지표 | `/backend-logs/experiments` | 누구나 보고 싶은 지표를 추가해 보는 비공식 지표 모음(공식 지표는 '서비스 지표'). 지표마다 보는 이유·추가한 사람·정의(+ 관련 실험·메모)를 함께 적는다. 숫자가 붙은 지표: 가입 퍼널(가입 주 코호트, 가장 많이 빠지는 단계 강조 + '다음에 고칠 곳') · 길이별 완청률(한국 콘텐츠 편별 축소 비율 점 + 로지스틱 추세선·95% 띠, 추세 판정 한 줄, 편별 표). 실배포·개발계 토글 · 시장 [통합|국내|글로벌] · 4/8/12주, 열 때 1회 + [새로고침]. 옛 서버(404)는 안내" 추가.
 
 ## 완료 조건
 
 - Given 위 두 문서 / When `GET /admin/insights/funnel` 절과 탭 표를 읽으면 / Then 요청 파라미터·응답 필드·단계 정의(24시간 · W1 7~13일 · 14일 습관 3일 · 성숙/부분 규칙)가 적혀 있고 `AdminInsightsRepository.funnelCohorts`와 `admin-insights-funnel.calc.ts`의 판정과 같다
+- Given 같은 문서 / When `GET /admin/insights/completion-by-length` 절을 읽으면 / Then 대상(한국 콘텐츠·24시간)·완청 정의·축소식·회귀와 과분산 보정·판정 기준이 적혀 있고 `AdminInsightsRepository.completionByContent`와 `admin-insights-completion.calc.ts`의 계산과 같다
 
 ## 처리 기록
 
