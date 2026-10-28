@@ -11,10 +11,11 @@
 | 시작 날짜 | 2026-10-26 |
 | 기한 | 2026-10-30 (Low — 이번 주 금요일) |
 | 선행 | 없음 |
-| 후속 | `backend/pending/content-rating-feedback.md`(KAN-279) · `frontend/pending/content-rating-feedback.md`(KAN-280) |
+| 후속 | `backend/pending/content-rating-feedback.md`(KAN-279) · `frontend/pending/content-rating-feedback.md`(KAN-280) · `ai/pending/content-review-console.md`(KAN-284) · `frontend/pending/privacy-content-review.md`(KAN-285) |
+| 산출물 | `features/content-review.md`(확정본 2026-10-28) |
 | 관련 | KAN-116(추천 별점) |
 | 중요도 | Low — PM 지정(2026-10-26). 마감이 안 맞으면 등급을 내리지 말고 사유를 적는다 |
-| 상태 | 대기 |
+| 상태 | 진행 — 확정본 작성(2026-10-28), PM 검토 대기 |
 
 ## 요청
 
@@ -33,3 +34,11 @@
 
 - Given 기능 명세 초안 / When 8항목 템플릿과 대조한다 / Then 빠진 항목이 없다
 - Given 같은 초안 / When 보상 절을 본다 / Then 지급 조건·수단·계정당 횟수·구독자/지급 중 계정 처리가 정해져 있고 PM이 검토했다
+
+## 처리 기록
+
+- 2026-10-28 **확정본 작성** — `features/content-review.md`(박수헌 · Claude). 완료 조건 1(8항목 대조)은 채웠다. 완료 조건 2의 "PM이 검토했다"가 남아 `pending/`에 둔다.
+  - 6가지 질문의 답: ① 더보기 시트 [후기] · 상세 "내 후기" · 라이브러리 진입 시 5일에 한 번(플레이어 · 완청 순간 제외) ② 들어 본 편 · 별 1~5 필수 · 글 500자 선택 ③ 끝까지 들은 편 3개 + 별점 + 글 10자 → **계정당 전체 1회** ④ **후기 참여 프로모션(Pro 7일)** — 보관했다가 설정 › 프로모션에서 사용, 초대 코드 지급 경로 재사용, 사용 기한 3개월, Pro 구독 · 다른 지급 중엔 사용 불가, 결제일 연장 안 함, 상시 운영 ⑤ 추천 별점과 분리 ⑥ 원문은 관리자 콘솔에서만(작성자 계정 없이), Slack은 건수 · 평균만.
+  - 함께 고친 문서: PRD FR-49(P1 제안 · PM 확인 대기) · `features/README.md`(목록 · FR 커버리지 · 결정 #68) · `subscription.md` 4.9(지급 출처) · `settings.md` 4.1(S12 행).
+  - 후속 티켓: KAN-279 · KAN-280 요청 · 완료 조건 전면 갱신(종전 "Pro 7일 지급" → "발급 후 사용"). 새 티켓 2건 — `ai/pending/content-review-console.md` · `frontend/pending/privacy-content-review.md`.
+  - **Jira 반영(같은 날)**: 새 이슈 KAN-284(AI 콘솔 · 박수헌) · KAN-285(처리방침 · 이주호) — Low · 시작 10-28 · 기한 10-30. KAN-279 · 280 제목 · 본문을 갱신하고 코멘트를 남겼다. 링크는 KAN-279 blocks KAN-284 · KAN-278 relates KAN-284 · KAN-285 · KAN-279 relates KAN-285. KAN-278은 "진행 중"으로 넘겼다. Slack 알림은 보내지 않았다(박수헌 결정).
