@@ -31,8 +31,6 @@ const LOG_NAV: NavItem[] = [
   { href: "/backend-logs/search", label: "검색 로그", icon: Search, note: "실배포" },
   // 서비스 지표 — 가입·탈퇴·청취·순위·리텐션. 검색 로그처럼 제품 API 의 DB 를 읽는다(admin-api 4.22, 2026-10-08)
   { href: "/backend-logs/insights", label: "서비스 지표", icon: Chart, note: "실배포" },
-  // 서비스 지표 v2 — 질문형 패널 셋(습관 사용자 · 가입 주 퍼널 · 안 듣는 사람), 기존 탭은 그대로(2026-10-28)
-  { href: "/backend-logs/insights-v2", label: "서비스 지표 v2", icon: Chart, note: "실배포" },
   // 프로모션 — 초대 코드(예: SANKUN)를 입력한 사람만 묶어 활성·청취·결제를 코드 없는 사람과 비교(2026-10-28)
   { href: "/backend-logs/promotions", label: "프로모션", icon: Chart, note: "실배포" },
   // 실험 지표 — 발표 전 2주 실험마다 필요한 지표를 모으는 자리(2026-10-28, 지금은 틀만)
@@ -81,9 +79,7 @@ const NAV_EN: (NavItem | typeof DIVIDER)[] = NAV.map((n) => ("href" in n && n.hr
 /** locale 은 서버(layout)가 lib/locale.ts 로 읽어 넘긴다 — 브라우저는 env 를 못 읽는다 */
 export function Sidebar({ pending, locale = "ko" }: { pending?: { backlog?: number; review?: number }; locale?: "ko" | "en" }) {
   const path = usePathname();
-  // 경로 조각 단위로 맞춘다 — `/backend-logs/insights`가 `/backend-logs/insights-v2`까지 켜지 않게(2026-10-28)
-  const under = (href: string) => path === href || path.startsWith(`${href}/`);
-  const on = (href: string, exact?: boolean) => (exact ? path === href : under(href));
+  const on = (href: string, exact?: boolean) => (exact ? path === href : path.startsWith(href));
   const [consoleOpen, setConsoleOpen] = useState(false);
   const [opened, setOpened] = useState<string | null>(null); // 사람이 펼친 부모 메뉴 (하위 경로에 있으면 자동 펼침)
   const isLogsConsole = path.startsWith("/backend-logs");
@@ -138,7 +134,7 @@ export function Sidebar({ pending, locale = "ko" }: { pending?: { backlog?: numb
                 {open && (
                   <div className="ml-4 mt-0.5 space-y-0.5 border-l border-side-soft/60 pl-2">
                     {n.children.map((c) => {
-                      const ca = c.exact ? path === c.href : under(c.href);
+                      const ca = c.exact ? path === c.href : path.startsWith(c.href);
                       return <Link key={c.href} href={c.href} className={`block rounded px-3 py-1.5 text-[12.5px] transition ${ca ? "bg-brand text-white" : "hover:bg-side-soft hover:text-white"}`}>{c.label}</Link>;
                     })}
                   </div>
