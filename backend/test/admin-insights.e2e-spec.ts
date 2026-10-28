@@ -124,6 +124,8 @@ interface SummaryBody {
  * 서비스 지표 요약 E2E(`admin-api.md` 4.22) — 실제 DB 위에서 이 테스트가 심은 재생·완청·탈퇴 기록이 합계·순위·추이에
  * 나타나는지 본다. 합계는 전 사용자 값이라 공유 로컬 DB 의 다른 행과 섞이므로 **차이와 포함 여부**로 대조한다.
  */
+const DAY = 24 * 60 * 60 * 1000;
+
 describe('서비스 지표 요약 E2E', () => {
   let app: INestApplication<App>;
   let dataSource: DataSource;
@@ -880,6 +882,89 @@ describe('서비스 지표 요약 E2E', () => {
         (row) => row.type === type,
       ),
     ).toBeUndefined();
+  });
+
+  it('프로모션 — 초대 코드마다 입력한 현재 계정의 지급·활성·청취를 세고, 코드 없는 계정을 기준선으로 싣는다', async () => {
+    // given — 이 테스트만의 코드. A 는 지급 중·어제 접속·1시간 전 120초 청취, B 는 지급 끝·활동 없음
+    const code = `E2E${Date.now() % 1000000}`;
+    const now = Date.now();
+    const [{ id: codeId }] = await dataSource.query<{ id: string }[]>(
+      `INSERT INTO invite_codes (code, name, tier, grant_days, redeemed_count)
+       VALUES ($1, 'E2E 프로모션', 'pro', 7, 3) RETURNING id`,
+      [code],
+    );
+    const [a, b] = await Promise.all([
+      createUserId('promo-a'),
+      createUserId('promo-b'),
+    ]);
+    await dataSource.query(
+      `INSERT INTO invite_code_redemptions (invite_code_id, user_id, tier, starts_at, ends_at)
+       VALUES ($1, $2, 'pro', $3, $4), ($1, $5, 'pro', $6, $7)`,
+      [
+        codeId,
+        a,
+        new Date(now - 2 * DAY),
+        new Date(now + 5 * DAY),
+        b,
+        new Date(now - 10 * DAY),
+        new Date(now - 3 * DAY),
+      ],
+    );
+    await seedSession(a, new Date(now - DAY));
+    const contentId = await seedContent();
+    const playedAt = new Date(now - 60 * 60 * 1000);
+    const playRecords = dataSource.getRepository(PlayRecord);
+    await playRecords.save(
+      playRecords.create({
+        userId: a,
+        contentId,
+        playDate: toServiceDate(playedAt),
+        playedAt,
+        isCounted: true,
+        listenedSec: 120,
+      }),
+    );
+    const adminAuth = await createUser('admin-promo', UserRole.ADMIN);
+
+    try {
+      // when
+      const body = (
+        await request(app.getHttpServer())
+          .get(path('/admin/insights/invite-codes'))
+          .query({ days: 7 })
+          .set('Authorization', adminAuth)
+          .expect(HttpStatus.OK)
+      ).body as {
+        codes: Record<string, unknown>[];
+        baseline: { current: number };
+      };
+
+      // then — 입력 3(그중 1명 탈퇴) · 현재 2 · 지급 중 1 · 끝 1 · 7일 활성 1 · 청취자 1 · 청취 120초
+      expect(body.codes.find((row) => row.code === code)).toMatchObject({
+        name: 'E2E 프로모션',
+        tier: 'pro',
+        redeemed: 3,
+        current: 2,
+        withdrawn: 1,
+        active_grants: 1,
+        ended_grants: 1,
+        active_7d: 1,
+        listeners_7d: 1,
+        listen_sec: 120,
+        listen_sec_per_user: 60,
+        paid_after_start: 0,
+      });
+      expect(body.baseline.current).toBeGreaterThan(0);
+      expect(JSON.stringify(body)).not.toMatch(/"email"|"nickname"|"user_id"/);
+    } finally {
+      await dataSource.query(
+        `DELETE FROM invite_code_redemptions WHERE invite_code_id = $1`,
+        [codeId],
+      );
+      await dataSource.query(`DELETE FROM invite_codes WHERE id = $1`, [
+        codeId,
+      ]);
+    }
   });
 
   async function createUserId(

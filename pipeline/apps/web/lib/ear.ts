@@ -551,6 +551,24 @@ export interface EarInsightsSummary {
 export const getEarInsightsSummary = (ch: EarChannel, days: number, market: EarInsightsMarket | null = null) =>
   earFetch<EarInsightsSummary>(`/admin/insights/summary?days=${days}${market ? `&market=${market}` : ""}`, { cache: "no-store" }, ch);
 
+// ── 프로모션 (초대 코드별 묶음 — `GET /admin/insights/invite-codes`, 2026-10-28) ── 집계값만 온다(user_id 없음)
+export interface EarPromotionMetrics {
+  current: number; active_7d: number; listeners_7d: number; listen_sec: number;
+  listen_sec_per_user: number | null; active_7d_rate: number | null;
+}
+export interface EarPromotionCode extends EarPromotionMetrics {
+  code: string; name: string; tier: string; grant_days: number | null; grant_until_date: string | null; is_active: boolean;
+  redeemed: number; withdrawn: number; active_grants: number; ended_grants: number;
+  paid_after_start: number; paid_after_start_rate: number | null;
+}
+export interface EarPromotionSummary {
+  days: number; since: string; generated_at: string;
+  codes: EarPromotionCode[];
+  baseline: EarPromotionMetrics & { paid_ever: number; paid_ever_rate: number | null };
+}
+export const getEarPromotionSummary = (ch: EarChannel, days: number) =>
+  earFetch<EarPromotionSummary>(`/admin/insights/invite-codes?days=${days}`, { cache: "no-store" }, ch);
+
 // ── 추천 검증 (서비스 지표 — `GET /admin/insights/recommendations/*`, 2026-10-22) ──
 // 사용자는 user_id 로만 온다 — 서버가 이름·이메일·제공자 ID·프로필 사진을 조회하지도 싣지도 않는다(루트 CLAUDE.md 개인정보 원칙).
 

@@ -31,6 +31,8 @@ const LOG_NAV: NavItem[] = [
   { href: "/backend-logs/search", label: "검색 로그", icon: Search, note: "실배포" },
   // 서비스 지표 — 가입·탈퇴·청취·순위·리텐션. 검색 로그처럼 제품 API 의 DB 를 읽는다(admin-api 4.22, 2026-10-08)
   { href: "/backend-logs/insights", label: "서비스 지표", icon: Chart, note: "실배포" },
+  // 프로모션 — 초대 코드(예: SANKUN)를 입력한 사람만 묶어 활성·청취·결제를 코드 없는 사람과 비교(2026-10-28)
+  { href: "/backend-logs/promotions", label: "프로모션", icon: Chart, note: "실배포" },
 ];
 
 /**
