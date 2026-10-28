@@ -33,6 +33,25 @@ export function Panel({ title, right, children, className = "", flush }: { title
   );
 }
 
+/**
+ * 접을 수 있는 패널 — 제목 줄의 화살표를 누르면 접히고 다시 누르면 펼쳐진다(실험 지표 탭, 2026-10-28). 브라우저 기본
+ * `<details>`라 스크립트 없이 동작하고 키보드(Enter·Space)·스크린 리더가 그대로 된다. 접어도 내용은 그대로 살아 있어 다시
+ * 펼칠 때 다시 불러오지 않는다. 기본은 펼침(`defaultOpen`).
+ */
+export function CollapsiblePanel({ title, children, defaultOpen = true }: { title: string; children: ReactNode; defaultOpen?: boolean }) {
+  return (
+    <details open={defaultOpen} className="group rounded-md border border-line bg-panel shadow-[0_1px_2px_rgba(38,49,61,0.04)]">
+      <summary className="flex cursor-pointer list-none items-center gap-2 px-4 py-3 group-open:border-b group-open:border-line [&::-webkit-details-marker]:hidden">
+        <svg viewBox="0 0 16 16" aria-hidden="true" className="h-3.5 w-3.5 shrink-0 text-ink-soft transition-transform group-open:rotate-90">
+          <path d="M6 3.5 10.5 8 6 12.5" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+        <h2 className="text-[13px] font-semibold text-ink">{title}</h2>
+      </summary>
+      <div className="p-4">{children}</div>
+    </details>
+  );
+}
+
 /** 툴바 — 주 액션 + 필터 (레퍼런스의 액션 바) */
 export function Toolbar({ children, right }: { children?: ReactNode; right?: ReactNode }) {
   return (
