@@ -1014,7 +1014,7 @@ describe('서비스 지표 요약 E2E', () => {
      * 1995-03-06(월) 서비스 주 가입 A·B·C + 그 주 월요일 KST 03:00 가입 D(04:00 경계 전이라 지난 서비스 주다).
      * - A: 가입 2시간 뒤 첫 재생 · 3일 연속 청취 · 완청 · W1(가입 8일째) 세션 · 실결제
      * - B: 가입 이틀 뒤 첫 재생(24시간 밖) · 완청 없음
-     * - D: 03-27 청취·완청
+     * - D: 03-27 청취·완청 — 24시간 안 재생이 없어 깔때기에서는 첫 완청에 들지 않는다(첫 재생 전체에는 든다)
      */
     async function seedCohort(): Promise<
       Record<'a' | 'b' | 'c' | 'd', string>
@@ -1068,7 +1068,7 @@ describe('서비스 지표 요약 E2E', () => {
       ]);
     });
 
-    it('가입 주 퍼널 — 서비스 주로 묶고 단계마다 도달자를 센다(월요일 04시 전 가입은 지난 주)', async () => {
+    it('가입 주 퍼널 — 서비스 주로 묶고, 앞 단계를 모두 통과한 사람만 다음 단계에 센다(월요일 04시 전 가입은 지난 주)', async () => {
       // given — beforeAll 이 심은 4명
       const repository = app.get(AdminInsightsRepository);
 
@@ -1108,7 +1108,7 @@ describe('서비스 지표 요약 E2E', () => {
           onboardingCompleted: 1,
           firstPlay24h: 0,
           firstPlayEver: 1,
-          firstComplete: 1,
+          firstComplete: 0,
           w1Return: 0,
           habit14d: 0,
           paidEver: 0,
