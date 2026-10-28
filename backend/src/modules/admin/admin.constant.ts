@@ -189,3 +189,25 @@ export const INSIGHTS_WEEKDAY_LABELS: readonly string[] = [
   '토',
   '일',
 ];
+
+/**
+ * 서비스 지표 v2(`GET /admin/insights/v2`, 2026-10-28 멘토 피드백 — "숫자가 가설·행동으로 이어지지 않는다") 의 정의값.
+ * 정의를 바꾸려면 여기 한 곳만 고친다 — 화면은 응답의 `min_play_days`를 그대로 읽는다.
+ */
+/** North Star "습관 사용자" — 한 서비스 주(월 05:00 ~)에 서로 다른 서비스 날짜 이 일수 이상 들은 사람 */
+export const NORTH_STAR_MIN_PLAY_DAYS = 3;
+/** 주 수 — 기본 8주(이번 주 포함), 4~12 */
+export const INSIGHTS_V2_DEFAULT_WEEKS = 8;
+export const INSIGHTS_V2_MIN_WEEKS = 4;
+export const INSIGHTS_V2_MAX_WEEKS = 12;
+/** 퍼널 "가입 뒤 첫 재생"의 빠른 창(시간) */
+export const INSIGHTS_V2_FIRST_PLAY_HOURS = 24;
+/** 퍼널 "첫 14일 습관" — 가입 뒤 이 일수(×24시간) 안에 서로 다른 서비스 날짜 `NORTH_STAR_MIN_PLAY_DAYS`일 이상 */
+export const INSIGHTS_V2_HABIT_WINDOW_DAYS = 14;
+/** 세그먼트 "재생 0"은 가입한 지 이 일수가 지난 사람만 — 방금 가입한 사람을 빼려고 */
+export const INSIGHTS_V2_NO_PLAY_MIN_AGE_DAYS = 1;
+/** 세그먼트 "이탈 직전"의 굴러가는 창(일) — [지금-2창, 지금-1창) 청취 · [지금-1창, 지금) 청취 0 */
+export const INSIGHTS_V2_LAPSE_WINDOW_DAYS = 7;
+/** 분해 칸 강조 — 세그먼트 안 비율이 전체 비율과 이만큼(비율, 0.15 = 15%p) 이상 다르고, 칸에 이만큼 이상 있을 때 */
+export const INSIGHTS_V2_NOTABLE_GAP = 0.15;
+export const INSIGHTS_V2_NOTABLE_MIN_COUNT = 5;

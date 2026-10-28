@@ -967,6 +967,302 @@ describe('서비스 지표 요약 E2E', () => {
     }
   });
 
+  describe('서비스 지표 v2 (GET /admin/insights/v2)', () => {
+    // 다른 스위트·같은 스위트의 2001 년 행과도 겹치지 않게 1995 년에 심는다 — 세그먼트는 "at 전에 가입한 전원"이라
+    // at 을 1995 로 두면 이 테스트가 심은 4명만 모집단이다
+    const p = (at: string) => new Date(at);
+    let seeded: Record<'a' | 'b' | 'c' | 'd', string>;
+
+    async function play(
+      userId: string,
+      contentId: string,
+      playedAt: Date,
+      listenedSec = 60,
+    ): Promise<void> {
+      const repository = dataSource.getRepository(PlayRecord);
+      await repository.save(
+        repository.create({
+          userId,
+          contentId,
+          playDate: toServiceDate(playedAt),
+          playedAt,
+          isCounted: true,
+          listenedSec,
+        }),
+      );
+    }
+
+    async function complete(
+      userId: string,
+      contentId: string,
+      at: Date,
+    ): Promise<void> {
+      await dataSource.query(
+        `INSERT INTO user_signals (user_id, content_id, action, position_sec, max_reached_sec, created_at)
+         VALUES ($1, $2, 'complete', 600, 600, $3)`,
+        [userId, contentId, at],
+      );
+    }
+
+    async function signedUpAt(userId: string, at: Date): Promise<void> {
+      await dataSource.query(`UPDATE users SET created_at = $1 WHERE id = $2`, [
+        at,
+        userId,
+      ]);
+    }
+
+    /**
+     * 1995-03-06(월) 서비스 주 가입 A·B·C + 그 주 월요일 KST 03:00 가입 D(04:00 경계 전이라 지난 서비스 주다).
+     * - A: 가입 2시간 뒤 첫 재생 · 3일 연속 청취 · 완청 · W1(가입 8일째) 세션 · 실결제 · 03-22 청취(이탈 직전)
+     * - B: 가입 이틀 뒤 첫 재생(24시간 밖) · 완청 없음
+     * - C: 온보딩 미완료 · 재생 없음 · 알림 받을 수 있는 기기
+     * - D: 03-27 청취·완청(지금 창 청취자)
+     */
+    async function seedCohort(): Promise<
+      Record<'a' | 'b' | 'c' | 'd', string>
+    > {
+      const contentId = await seedContent();
+      const a = await createUserId('v2-a');
+      const b = await createUserId('v2-b');
+      const c = await createUserId('v2-c');
+      const d = await createUserId('v2-d');
+      await signedUpAt(a, p('1995-03-06T03:00:00.000Z'));
+      await signedUpAt(b, p('1995-03-07T03:00:00.000Z'));
+      await signedUpAt(c, p('1995-03-08T03:00:00.000Z'));
+      await signedUpAt(d, p('1995-03-05T18:00:00.000Z'));
+      await dataSource.query(
+        `UPDATE users SET onboarding_completed = false WHERE id = $1`,
+        [c],
+      );
+
+      await play(a, contentId, p('1995-03-06T05:00:00.000Z'));
+      await play(a, contentId, p('1995-03-07T05:00:00.000Z'));
+      await play(a, contentId, p('1995-03-08T05:00:00.000Z'));
+      await complete(a, contentId, p('1995-03-06T06:00:00.000Z'));
+      await seedSession(a, p('1995-03-14T03:00:00.000Z'));
+      await dataSource.query(
+        `INSERT INTO subscriptions (user_id, tier, store, original_transaction_id, latest_receipt, status,
+                                    is_auto_renew, started_at, expires_at, environment)
+         VALUES ($1, 'pro', 'play_store', $2, 'e2e', 'expired', false, $3, $4, 'production')`,
+        [
+          a,
+          `${TOKEN}-v2-sub`,
+          p('1995-03-10T00:00:00.000Z'),
+          p('1995-04-10T00:00:00.000Z'),
+        ],
+      );
+      await play(a, contentId, p('1995-03-22T05:00:00.000Z'));
+
+      await play(b, contentId, p('1995-03-09T05:00:00.000Z'), 30);
+
+      await dataSource.query(
+        `INSERT INTO device_tokens (user_id, device_id, token, platform, is_os_permission_granted, app_version)
+         VALUES ($1, $2, $3, 'android', true, '1.3.0')`,
+        [c, `${TOKEN}-v2-device`, `${TOKEN}-v2-token`],
+      );
+
+      await play(d, contentId, p('1995-03-27T05:00:00.000Z'));
+      await complete(d, contentId, p('1995-03-27T06:00:00.000Z'));
+      return { a, b, c, d };
+    }
+
+    beforeAll(async () => {
+      seeded = await seedCohort();
+    });
+
+    afterAll(async () => {
+      await dataSource.query(`DELETE FROM subscriptions WHERE user_id = $1`, [
+        seeded.a,
+      ]);
+    });
+
+    it('가입 주 퍼널 — 서비스 주로 묶고 단계마다 도달자를 센다(월요일 04시 전 가입은 지난 주)', async () => {
+      // given — beforeAll 이 심은 4명
+      const repository = app.get(AdminInsightsRepository);
+
+      // when — 03-06 주(04:00 KST 경계 — 로컬 env 에 05:00 전환 시각이 있어도 1995 년은 전환 전이다)와 그 앞 주
+      const rows = await repository.funnelCohorts(
+        [
+          {
+            weekStart: '1995-03-06',
+            startAt: p('1995-03-05T19:00:00.000Z'),
+            endAt: p('1995-03-12T19:00:00.000Z'),
+          },
+          {
+            weekStart: '1995-02-27',
+            startAt: p('1995-02-26T19:00:00.000Z'),
+            endAt: p('1995-03-05T19:00:00.000Z'),
+          },
+        ],
+        { firstPlayHours: 24, habitDays: 14, minPlayDays: 3 },
+      );
+
+      // then
+      expect(rows).toEqual([
+        {
+          weekStart: '1995-03-06',
+          signups: 3,
+          onboardingCompleted: 2,
+          firstPlay24h: 1,
+          firstPlayEver: 2,
+          firstComplete: 1,
+          w1Return: 1,
+          habit14d: 1,
+          paidEver: 1,
+        },
+        {
+          weekStart: '1995-02-27',
+          signups: 1,
+          onboardingCompleted: 1,
+          firstPlay24h: 0,
+          firstPlayEver: 1,
+          firstComplete: 1,
+          w1Return: 0,
+          habit14d: 0,
+          paidEver: 0,
+        },
+      ]);
+
+      // when — North Star: 03-06 주 청취자 A·B, 습관(3일 이상) A. 같은 시점(첫 2일)이면 A 만 청취자
+      const weeks = await repository.northStarWeeks('1995-03-06', 2, 3);
+      const firstWeek = weeks.find((w) => w.weekStart === '1995-03-06');
+      expect(firstWeek).toEqual({
+        weekStart: '1995-03-06',
+        listeners: 2,
+        habitUsers: 1,
+        listenersSoFar: 1,
+        habitSoFar: 0,
+      });
+    });
+
+    it('세그먼트 — 재생 0·완청 0·이탈 직전을 가르고, 1주 전 시점·분해 칸을 같은 정의로 센다', async () => {
+      // given — beforeAll 이 심은 4명
+      const repository = app.get(AdminInsightsRepository);
+      const options = { noPlayMinAgeDays: 1, lapseWindowDays: 7 };
+
+      // when
+      const now = await repository.segmentCounts(
+        p('1995-03-30T03:00:00.000Z'),
+        options,
+      );
+      const weekAgo = await repository.segmentCounts(
+        p('1995-03-23T03:00:00.000Z'),
+        options,
+      );
+
+      // then — 지금: 재생 0 = C, 완청 0 = B(재생한 A·B·D 중), 이탈 직전 = A(03-22 청취 뒤 7일 0)
+      const total = now.find((r) => r.dimension === 'total');
+      expect(total).toMatchObject({
+        population: 4,
+        noPlay: 1,
+        noPlayBase: 4,
+        noComplete: 1,
+        noCompleteBase: 3,
+        lapsing: 1,
+        lapsingBase: 1,
+      });
+      // 1주 전: D 는 아직 재생 전(재생 0 = C·D), 완청 0 = B(재생한 A·B 중),
+      //         이탈 직전 = B(앞 창 03-09 청취 · 03-16~23 청취 0 — A 는 03-22 에 들었다)
+      expect(weekAgo.find((r) => r.dimension === 'total')).toMatchObject({
+        population: 4,
+        noPlay: 2,
+        noPlayBase: 4,
+        noComplete: 1,
+        noCompleteBase: 2,
+        lapsing: 1,
+        lapsingBase: 1,
+      });
+      // 분해 — 알림 받을 수 있는 사람(C)이 곧 재생 0 전원, 온보딩 미완료(C)도
+      expect(
+        now.find((r) => r.dimension === 'push' && r.key === 'yes'),
+      ).toMatchObject({ population: 1, noPlay: 1, noComplete: 0 });
+      expect(
+        now.find(
+          (r) => r.dimension === 'onboarding' && r.key === 'not_completed',
+        ),
+      ).toMatchObject({ population: 1, noPlay: 1 });
+      expect(
+        now.find((r) => r.dimension === 'marketing' && r.key === 'not_agreed'),
+      ).toMatchObject({ population: 4 });
+      expect(
+        now.find((r) => r.dimension === 'provider' && r.key === 'kakao'),
+      ).toMatchObject({ population: 4 });
+    });
+
+    it('응답에 세 패널이 실리고, 주 수 범위 밖이면 400, 개인 식별 정보는 없다', async () => {
+      // given
+      const adminAuth = await createUser('admin-v2', UserRole.ADMIN);
+
+      // when
+      const res = await request(app.getHttpServer())
+        .get(path('/admin/insights/v2?weeks=6&market=kr'))
+        .set('Authorization', adminAuth)
+        .expect(HttpStatus.OK);
+      const body = res.body as {
+        weeks: number;
+        market: string | null;
+        north_star: {
+          min_play_days: number;
+          weeks: { week_start: string; partial: boolean }[];
+          last_week_same_point: { days: number };
+        };
+        funnel: {
+          steps: { key: string }[];
+          cohorts: { week_start: string; in_progress: boolean }[];
+          largest_drop_step: string | null;
+        };
+        segments: { items: { key: string; breakdown: unknown[] }[] };
+      };
+
+      // then
+      expect(res.headers['cache-control']).toBe('no-store');
+      expect(body.weeks).toBe(6);
+      expect(body.market).toBe('kr');
+      expect(body.north_star.min_play_days).toBe(3);
+      expect(body.north_star.weeks).toHaveLength(6);
+      expect(body.north_star.weeks.at(-1)?.partial).toBe(true);
+      expect(body.north_star.weeks.filter((w) => w.partial)).toHaveLength(1);
+      expect(body.funnel.cohorts).toHaveLength(6);
+      expect(body.funnel.cohorts[0].in_progress).toBe(true);
+      expect(body.funnel.cohorts[0].week_start).toBe(
+        body.north_star.weeks.at(-1)?.week_start,
+      );
+      expect(body.funnel.steps.map((s) => s.key)).toEqual([
+        'signups',
+        'onboarding_completed',
+        'first_play_24h',
+        'first_complete',
+        'w1_return',
+        'habit_14d',
+        'paid_ever',
+      ]);
+      expect(body.segments.items.map((s) => s.key)).toEqual([
+        'no_play',
+        'no_complete',
+        'lapsing',
+      ]);
+      expect(JSON.stringify(body)).not.toMatch(
+        /"email"|"nickname"|"user_id"|"provider_user_id"/,
+      );
+
+      for (const weeks of ['3', '13', 'abc']) {
+        await request(app.getHttpServer())
+          .get(path(`/admin/insights/v2?weeks=${weeks}`))
+          .set('Authorization', adminAuth)
+          .expect(HttpStatus.BAD_REQUEST);
+      }
+      await request(app.getHttpServer())
+        .get(path('/admin/insights/v2?market=jp'))
+        .set('Authorization', adminAuth)
+        .expect(HttpStatus.BAD_REQUEST);
+      const userAuth = await createUser('user-v2', UserRole.USER);
+      await request(app.getHttpServer())
+        .get(path('/admin/insights/v2'))
+        .set('Authorization', userAuth)
+        .expect(HttpStatus.FORBIDDEN);
+    }, 60_000);
+  });
+
   async function createUserId(
     label: string,
     role: UserRole = UserRole.USER,

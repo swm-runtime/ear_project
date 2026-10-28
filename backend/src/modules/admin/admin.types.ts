@@ -494,3 +494,157 @@ export interface InsightsInviteCodeBaseline {
   listenSec: number;
   paidEver: number;
 }
+
+/* ───────────── 서비스 지표 v2 (`GET /admin/insights/v2`, 2026-10-28) ───────────── */
+
+/** North Star 주간 집계 원본(Repository) — 서비스 주(월 05:00 경계) 시작일별. 청취가 없던 주는 행이 없다 */
+export interface InsightsNorthStarWeekRow {
+  weekStart: string;
+  /** 그 주에 1일 이상 들은(`listened_sec > 0`) 사람 */
+  listeners: number;
+  /** 그 주에 서로 다른 서비스 날짜 `NORTH_STAR_MIN_PLAY_DAYS`일 이상 들은 사람 */
+  habitUsers: number;
+  /** 같은 기준을 그 주의 첫 `daysSoFar`일로만 센 값 — 진행 중인 주와 같은 시점 비교용 */
+  listenersSoFar: number;
+  habitSoFar: number;
+}
+
+export interface InsightsNorthStarWeek {
+  weekStart: string;
+  listeners: number;
+  habitUsers: number;
+  /** 진행 중인 주 — 아직 끝나지 않아 낮게 나온다 */
+  partial: boolean;
+}
+
+export interface InsightsNorthStar {
+  minPlayDays: number;
+  currentWeekStart: string;
+  /** 이번 주에 지난(오늘 포함) 서비스 날짜 수 1~7 */
+  daysElapsed: number;
+  /** 오래된 주 먼저, 마지막이 이번 주(partial) */
+  weeks: InsightsNorthStarWeek[];
+  /** 지난주를 이번 주와 같은 요일까지(첫 `daysElapsed`일)만 센 값 */
+  lastWeekSamePoint: {
+    weekStart: string;
+    listeners: number;
+    habitUsers: number;
+  };
+}
+
+/** 가입 주 코호트 퍼널 원본(Repository) — 사람 수만. 성숙 판정은 Service 가 한다 */
+export interface InsightsFunnelCohortCounts {
+  weekStart: string;
+  signups: number;
+  onboardingCompleted: number;
+  firstPlay24h: number;
+  firstPlayEver: number;
+  firstComplete: number;
+  w1Return: number;
+  habit14d: number;
+  paidEver: number;
+}
+
+/** 퍼널 단계 — 순서가 곧 퍼널 순서다(첫 재생 전체 `firstPlayEver`는 단계가 아니라 참고 값) */
+export type InsightsFunnelStepKey =
+  | 'signups'
+  | 'onboarding_completed'
+  | 'first_play_24h'
+  | 'first_complete'
+  | 'w1_return'
+  | 'habit_14d'
+  | 'paid_ever';
+
+export interface InsightsFunnelCohort {
+  weekStart: string;
+  /** 가입 주가 아직 끝나지 않았다 — 가입자가 계속 는다 */
+  inProgress: boolean;
+  signups: number;
+  onboardingCompleted: number;
+  /** 묶음의 마지막 가입자까지 24시간이 지나지 않았으면 null */
+  firstPlay24h: number | null;
+  firstPlayEver: number;
+  firstComplete: number;
+  /** 묶음의 마지막 가입자의 가입 7~13일째(KST)가 다 지나지 않았으면 null */
+  w1Return: number | null;
+  /** W1 구간이 접속 기록을 믿을 수 있는 첫 날 앞에서 시작한다 — 재생만 잡혀 낮다 */
+  w1Partial: boolean;
+  /** 묶음의 마지막 가입자의 가입 뒤 14일이 지나지 않았으면 null */
+  habit14d: number | null;
+  paidEver: number;
+}
+
+export interface InsightsFunnelStep {
+  key: InsightsFunnelStepKey;
+  /** 이 단계를 판정할 수 있었던(성숙한) 묶음 수 */
+  matureCohorts: number;
+  /** 성숙한 묶음을 합쳐 `이 단계 / 앞 단계` — 첫 단계는 null */
+  rate: number | null;
+  /** `1 - rate`(0 아래는 0) — 첫 단계·판정 묶음 없음은 null */
+  drop: number | null;
+}
+
+export interface InsightsFunnel {
+  reliableSince: string;
+  /** 최근 묶음 먼저 */
+  cohorts: InsightsFunnelCohort[];
+  steps: InsightsFunnelStep[];
+  /** 가장 많이 새는 단계 — 판정할 단계가 없으면 null */
+  largestDropStep: InsightsFunnelStepKey | null;
+}
+
+export type InsightsSegmentKey = 'no_play' | 'no_complete' | 'lapsing';
+export type InsightsBreakdownDimension =
+  'market' | 'push' | 'provider' | 'marketing' | 'onboarding';
+
+/** 세그먼트 집계 한 줄 — 분해 차원 하나의 한 값(`dimension = total`이면 전체) */
+export interface InsightsSegmentCountsRow {
+  dimension: InsightsBreakdownDimension | 'total';
+  key: string;
+  /** 그 칸의 현재 계정 수(비교 기준 모집단) */
+  population: number;
+  noPlay: number;
+  noPlayBase: number;
+  noComplete: number;
+  noCompleteBase: number;
+  lapsing: number;
+  lapsingBase: number;
+}
+
+export interface InsightsSegmentBreakdownCell {
+  dimension: InsightsBreakdownDimension;
+  key: string;
+  count: number;
+  population: number;
+  /** 세그먼트 안에서 이 칸의 비율 */
+  share: number | null;
+  /** 전체 현재 계정 안에서 이 칸의 비율 */
+  populationShare: number | null;
+  /** `share - populationShare` */
+  gap: number | null;
+  /** 차이가 커서 눈여겨볼 칸 */
+  notable: boolean;
+}
+
+export interface InsightsSegment {
+  key: InsightsSegmentKey;
+  count: number;
+  /** 세그먼트가 될 수 있었던 사람(재생 0 = 가입 1일 지난 사람 · 완청 0 = 재생한 사람 · 이탈 직전 = 앞 7일 청취자) */
+  base: number;
+  weekAgo: { count: number; base: number };
+  breakdown: InsightsSegmentBreakdownCell[];
+}
+
+export interface InsightsSegments {
+  population: number;
+  items: InsightsSegment[];
+}
+
+export interface InsightsV2 {
+  market: UserMarket | null;
+  weeks: number;
+  generatedAt: Date;
+  northStar: InsightsNorthStar;
+  funnel: InsightsFunnel;
+  segments: InsightsSegments;
+}

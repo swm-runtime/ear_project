@@ -1,5 +1,11 @@
 import { Injectable } from '@nestjs/common';
 
+import {
+  serviceDateStart,
+  shiftWeekStart,
+  toCurrentWeekStart,
+  toServiceDate,
+} from '@/common/utils/service-date.util';
 import { UserMarket } from '@/modules/user/user.enum';
 
 import {
@@ -10,7 +16,14 @@ import {
   INSIGHTS_RECENT_CONTENT_HOURS,
   INSIGHTS_RETENTION_DAYS,
   INSIGHTS_SUMMARY_MAX_DAYS,
+  INSIGHTS_V2_FIRST_PLAY_HOURS,
+  INSIGHTS_V2_HABIT_WINDOW_DAYS,
+  INSIGHTS_V2_LAPSE_WINDOW_DAYS,
+  INSIGHTS_V2_MAX_WEEKS,
+  INSIGHTS_V2_MIN_WEEKS,
+  INSIGHTS_V2_NO_PLAY_MIN_AGE_DAYS,
   INSIGHTS_WEEKDAY_LABELS,
+  NORTH_STAR_MIN_PLAY_DAYS,
 } from '../admin.constant';
 import {
   InsightsCohortCounts,
@@ -22,9 +35,17 @@ import {
   InsightsInviteCodeCohort,
   InsightsMarketTotals,
   InsightsSummary,
+  InsightsV2,
   InsightsWeekday,
 } from '../admin.types';
 import { AdminInsightsRepository } from '../repositories/admin-insights.repository';
+import {
+  buildFunnelCohort,
+  buildNorthStar,
+  buildSegments,
+  daysElapsedInWeek,
+  summarizeFunnelSteps,
+} from './admin-insights-v2.calc';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const KST_OFFSET_MS = 9 * 60 * 60 * 1000;
@@ -53,6 +74,111 @@ export class AdminInsightsService {
     const since = new Date(now.getTime() - days * DAY_MS);
 
     return { since, ...(await this.repository.inviteCodeCohorts(since, now)) };
+  }
+
+  /**
+   * 서비스 지표 v2(`GET /admin/insights/v2`, 2026-10-28) — 질문 셋에 답하는 집계. 주는 **서비스 주**(월 05:00 KST ~,
+   * `service-date.util`)이고 `weeks`개(이번 주 포함). 질의는 순차다(요약과 같은 이유).
+   *
+   * ① North Star: 주마다 습관 사용자(`NORTH_STAR_MIN_PLAY_DAYS`일 이상 들은 사람)·청취자. 이번 주는 partial, 지난주는 같은 요일까지 값도.
+   * ② 가입 주 코호트 퍼널: 끝나지 않은 단계는 null, 성숙한 묶음만 합쳐 단계별 전환율과 가장 큰 이탈 단계.
+   * ③ 안 듣는 세그먼트 셋: 지금과 7일 전(같은 정의를 `now - 7일` 시점으로) · 분해 칸 강조.
+   */
+  async insightsV2(
+    weeks: number,
+    now: Date,
+    market: UserMarket | null = null,
+  ): Promise<InsightsV2> {
+    const count = Math.min(
+      Math.max(INSIGHTS_V2_MIN_WEEKS, weeks),
+      INSIGHTS_V2_MAX_WEEKS,
+    );
+    const currentWeek = toCurrentWeekStart(now);
+    // 오래된 주 먼저 — 마지막이 이번 주
+    const weekStarts = Array.from({ length: count }, (_, i) =>
+      shiftWeekStart(currentWeek, i - (count - 1)),
+    );
+    const daysElapsed = daysElapsedInWeek(currentWeek, toServiceDate(now));
+
+    const northStarRows = await this.repository.northStarWeeks(
+      weekStarts[0],
+      daysElapsed,
+      NORTH_STAR_MIN_PLAY_DAYS,
+      market,
+    );
+
+    const windows = {
+      firstPlayHours: INSIGHTS_V2_FIRST_PLAY_HOURS,
+      habitDays: INSIGHTS_V2_HABIT_WINDOW_DAYS,
+    };
+    const cohortRanges = [...weekStarts].reverse().map((weekStart) => ({
+      weekStart,
+      startAt: serviceDateStart(weekStart),
+      endAt: serviceDateStart(shiftWeekStart(weekStart, 1)),
+    }));
+    const funnelCounts = await this.repository.funnelCohorts(
+      cohortRanges,
+      { ...windows, minPlayDays: NORTH_STAR_MIN_PLAY_DAYS },
+      market,
+    );
+    const liveFrom = kstDateLabel(
+      new Date(now.getTime() - INSIGHTS_LIVE_ACTIVE_DAYS * DAY_MS),
+    );
+    const reliableSince = cohortReliableSince(
+      await this.repository.activeDatesFirstRecordedAt(),
+      liveFrom,
+    );
+    const todayKst = kstDateLabel(now);
+    const countsByWeek = new Map(funnelCounts.map((c) => [c.weekStart, c]));
+    const cohorts = cohortRanges.map(({ weekStart, endAt }) =>
+      buildFunnelCohort(
+        countsByWeek.get(weekStart) ?? {
+          weekStart,
+          signups: 0,
+          onboardingCompleted: 0,
+          firstPlay24h: 0,
+          firstPlayEver: 0,
+          firstComplete: 0,
+          w1Return: 0,
+          habit14d: 0,
+          paidEver: 0,
+        },
+        endAt,
+        now,
+        todayKst,
+        reliableSince,
+        windows,
+      ),
+    );
+
+    const segmentOptions = {
+      noPlayMinAgeDays: INSIGHTS_V2_NO_PLAY_MIN_AGE_DAYS,
+      lapseWindowDays: INSIGHTS_V2_LAPSE_WINDOW_DAYS,
+    };
+    const segmentsNow = await this.repository.segmentCounts(
+      now,
+      segmentOptions,
+      market,
+    );
+    const segmentsWeekAgo = await this.repository.segmentCounts(
+      new Date(now.getTime() - 7 * DAY_MS),
+      segmentOptions,
+      market,
+    );
+
+    return {
+      market,
+      weeks: count,
+      generatedAt: now,
+      northStar: buildNorthStar(
+        northStarRows,
+        weekStarts,
+        daysElapsed,
+        NORTH_STAR_MIN_PLAY_DAYS,
+      ),
+      funnel: { reliableSince, cohorts, ...summarizeFunnelSteps(cohorts) },
+      segments: buildSegments(segmentsNow, segmentsWeekAgo),
+    };
   }
 
   async summarize(
