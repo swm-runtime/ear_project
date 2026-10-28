@@ -7,7 +7,7 @@ import { screenGlobalTopic } from "@/lib/topic-screen";
 import { cleanPlan, cleanSeriesThumb, seriesEpisodeHint, seriesReplanBlocker, type SeriesEpisode, type SeriesPublishEpisode, type SeriesRow } from "@/lib/series";
 import { enqueueJob } from "../actions";
 import { loadPublications } from "@/lib/publications-server";
-import { newPublicationBlocker, type PublicationStyle } from "@ear/pipeline/publication";
+import { layersBlocker, newPublicationBlocker, publicationOf, type PublicationStyle } from "@ear/pipeline/publication";
 
 /**
  * 기획 시리즈 (spec/11 3·4·9장 · 글로벌 명세 6.11, KAN-136). 거부는 throw 가 아니라 반환값으로 — 운영 빌드는 서버 액션 오류 문구를 가린다.
@@ -237,16 +237,19 @@ export async function markSeriesWithdrawn(id: string): Promise<Result> {
  * 시리즈 썸네일 글자 칸 저장 (2026-10-20) — 기획·승인·발행 중 언제든. 글자는 전부 코드가 얹으므로 바탕은 그대로다. redrawBase 면 바탕 그림을 버린다(다음 썸네일이 새로 그린다).
  * regenerate = 썸네일이 이미 있는 편마다 [썸네일 다시 만들기] 작업을 건다 — 바탕은 워커가 시리즈 잠금 안에서 한 번만 그리고 나머지는 번호만 다시 얹는다
  */
-export async function saveSeriesThumb(id: string, v: { publication: string | null; word: string; label: string; box: string }, regenerate: boolean, redrawBase = false): Promise<Result<{ queued: number }>> {
+export async function saveSeriesThumb(id: string, v: { publication: string | null; word: string; label: string; box: string; layers?: string }, regenerate: boolean, redrawBase = false): Promise<Result<{ queued: number }>> {
   const s = await loadSeries(id);
   if (!s) return { ok: false, reason: "시리즈가 없다" };
   if (["cancelled", "withdrawn"].includes(s.status)) return { ok: false, reason: `${s.status} 시리즈는 고치지 않는다` };
-  const t = cleanSeriesThumb(v, pipelineLocale(), await loadPublications());
+  const pubs = await loadPublications();
+  const t = cleanSeriesThumb(v, pipelineLocale(), pubs);
   if (t.problems.length) return { ok: false, reason: t.problems.join(" · ") };
+  const layersText = (v.layers ?? "").trim();
+  if (publicationOf(t.publication, pubs)?.style === "layers") { const b = layersBlocker(layersText, s.total_episodes ?? (Array.isArray(s.plan) ? s.plan.length : null)); if (b) return { ok: false, reason: `층: ${b}` }; }
   const sb = await supabaseServer();
   // seriesthumb-v3 부터 큰 단어는 코드가 얹는다 — 글자 칸을 바꿔도 바탕은 그대로 두고, 바탕은 [바탕 그림도 새로 그리기]로만 버린다
   const rebase = redrawBase;
-  const { error } = await sb.from("series").update({ publication: t.publication, thumb_word: t.word || null, thumb_label: t.label || null, thumb_box: t.box || null, ...(rebase || regenerate ? { thumb_base_key: rebase ? null : s.thumb_base_key } : {}) }).eq("id", id);
+  const { error } = await sb.from("series").update({ publication: t.publication, thumb_word: t.word || null, thumb_label: t.label || null, thumb_box: t.box || null, thumb_layers: layersText || null, ...(rebase || regenerate ? { thumb_base_key: rebase ? null : s.thumb_base_key } : {}) }).eq("id", id);
   if (error) return { ok: false, reason: error.message };
   let queued = 0;
   if (regenerate) {

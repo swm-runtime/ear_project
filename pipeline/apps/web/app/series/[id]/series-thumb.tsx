@@ -16,12 +16,13 @@ const inp = "w-full rounded border border-line px-2 py-1 text-[12.5px] outline-n
  * 바탕(아이콘 셋)은 이미지 모델이 시리즈당 한 번 그리고, 로고·라벨·큰 단어(손글씨 폰트)·박스·번호·표지 편수는 코드가 얹는다.
  * 이미 발행된 시리즈(productSeriesId)는 간행물을 바꾸면 서버의 발행 이름도 같이 바꾼다(PATCH /admin/series/:id publisher_name).
  */
-export function SeriesThumb({ id, locale, publication: p0, word: w0, label: l0, box: b0, hasBase, productSeriesId, publications }: { id: string; locale: PipelineLocale; publication: string | null; word: string; label: string; box: string; hasBase: boolean; productSeriesId: string | null; publications: Publication[] }) {
+export function SeriesThumb({ id, locale, publication: p0, word: w0, label: l0, box: b0, hasBase, productSeriesId, publications, layers: ly0 = "" }: { id: string; locale: PipelineLocale; publication: string | null; word: string; label: string; box: string; hasBase: boolean; productSeriesId: string | null; publications: Publication[]; layers?: string }) {
   const router = useRouter();
   const [publication, setPublication] = useState(p0 ?? "");
   const [word, setWord] = useState(w0);
   const [label, setLabel] = useState(l0);
   const [box, setBox] = useState(b0);
+  const [layers, setLayers] = useState(ly0);
   const [msg, setMsg] = useState<{ text: string; bad: boolean } | null>(null);
   const [pending, start] = useTransition();
   const options = publicationsFor(locale, publications);
@@ -30,11 +31,12 @@ export function SeriesThumb({ id, locale, publication: p0, word: w0, label: l0, 
   const [np, setNp] = useState<{ name: string; style: PublicationStyle; hint: string }>({ name: "", style: "scene", hint: "" });
   const keyword = pub?.style === "keyword";
   const phrasebook = pub?.style === "phrasebook";
-  const coded = pub?.style === "tv" || pub?.style === "notes"; // 코드 합성 2종(2026-10-28) — 글자 칸은 라벨만 쓴다
+  const coded = pub?.style === "tv" || pub?.style === "notes" || pub?.style === "layers"; // 코드 합성(2026-10-28·29) — 글자 칸은 라벨(+층)만 쓴다
+  const layered = pub?.style === "layers";
   const drawn = keyword || phrasebook || coded; // 편 썸네일·표지를 워커가 그리는 디자인
-  const dirty = publication !== (p0 ?? "") || word !== w0 || label !== l0 || box !== b0;
+  const dirty = publication !== (p0 ?? "") || word !== w0 || label !== l0 || box !== b0 || layers !== ly0;
   const save = (regenerate: boolean, redraw = false) => start(async () => {
-    const r = await saveSeriesThumb(id, { publication: publication || null, word, label, box }, regenerate, redraw);
+    const r = await saveSeriesThumb(id, { publication: publication || null, word, label, box, layers }, regenerate, redraw);
     if (!r.ok) { setMsg({ text: r.reason, bad: true }); return; }
     let text = regenerate ? `저장 · 편 썸네일 ${r.queued}개 다시 만들기 작업을 걸었다${redraw ? " — 바탕 그림을 새로 그린다(이미지 1장)" : " — 바탕은 그대로, 글자만 다시 얹는다"}` : "저장";
     // 발행된 시리즈 — 서버의 발행 이름도 맞춘다. 실패해도 파이프라인 저장은 유지되고, 아래 "제품 시리즈" 표에서 다시 바꿀 수 있다
@@ -85,7 +87,8 @@ export function SeriesThumb({ id, locale, publication: p0, word: w0, label: l0, 
         )}
         {coded && (
           <div className="grid gap-2 md:grid-cols-3">
-            <label className="block"><span className="mb-1 block text-xs font-semibold text-ink-soft">오른쪽 위 라벨 (비면 {pub?.style === "tv" ? "AD SERIES" : "CASE SERIES"})</span><input className={inp} value={label} maxLength={24} onChange={(e) => setLabel(e.target.value)} /></label>
+            <label className="block"><span className="mb-1 block text-xs font-semibold text-ink-soft">오른쪽 위 라벨 (비면 {pub?.style === "tv" ? "AD SERIES" : pub?.style === "notes" ? "CASE SERIES" : "TOP-DOWN SERIES"})</span><input className={inp} value={label} maxLength={24} onChange={(e) => setLabel(e.target.value)} /></label>
+            {layered && <label className="block md:col-span-2"><span className="mb-1 block text-xs font-semibold text-ink-soft">층 — 이름:시작-끝 을 쉼표로 (2~6개, 1화부터 마지막 화까지 빈틈 없이)</span><input className={inp} value={layers} placeholder="연결:1-6, 처리:7-9, 데이터:10-18, 운영:19-26" onChange={(e) => setLayers(e.target.value)} /></label>}
           </div>
         )}
         {(keyword || phrasebook) && (
@@ -101,7 +104,7 @@ export function SeriesThumb({ id, locale, publication: p0, word: w0, label: l0, 
             : phrasebook
               ? <>회화집 디자인 — 작은 책 표지에 그 편의 표현(로마자·한글)과 뜻을 쓰고 책갈피 리본에 번호를 단다. 이미지 모델 없이 코드가 그려 편마다 결과가 같고 비용이 없다. 한글 표기는 썸네일 작업 때 텍스트 모델이 제목을 보고 써 준다.</>
               : coded
-                ? <>{pub?.style === "tv" ? "TV 정지 화면 — 어두운 바탕의 옛 TV 화면에 설계안의 편 제목을 쓰고 채널 번호에 편 번호를 단다." : "포스트잇 벽 — 노랑(설계안 편 제목)·분홍(번호)·민트(시리즈명) 메모지 세 장."} 이미지·텍스트 모델 없이 코드가 그려 비용이 없고 편마다 결과가 같다. 표지는 제목 자리에 시리즈 이름, 번호 자리에 편수.</>
+                ? <>{pub?.style === "tv" ? "TV 정지 화면 — 어두운 바탕의 옛 TV 화면에 설계안의 편 제목을 쓰고 채널 번호에 편 번호를 단다." : pub?.style === "notes" ? "포스트잇 벽 — 노랑(설계안 편 제목)·분홍(번호)·민트(시리즈명) 메모지 세 장." : "계층 쌓기 — 층을 세로로 쌓고 이번 편이 속한 층만 밝게, 그 안에 설계안 편 제목."} 이미지·텍스트 모델 없이 코드가 그려 비용이 없고 편마다 결과가 같다. 표지는 제목 자리에 시리즈 이름, 번호 자리에 편수.</>
               : <>{pub ? `${pub.name} 전용 썸네일 디자인은 아직 워커에 없다 — ` : ""}편 썸네일은 일반 편과 같은 장면 썸네일이다. 디자인이 생기면 간행물에 스타일로 붙인다(spec/11 7장).</>}
         </p>
         <div className="flex flex-wrap items-center gap-2">

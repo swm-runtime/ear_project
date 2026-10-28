@@ -12,6 +12,8 @@ export interface SeriesRow {
   published_series_id: string | null;
   /** 시리즈 썸네일 글자 칸(0031, 2026-10-20) — 큰 단어는 이미지 모델이 바탕에 그리고, 라벨·박스는 코드가 얹는다. thumb_base_key = 바탕 그림 s3 키 */
   thumb_word: string | null; thumb_label: string | null; thumb_box: string | null; thumb_base_key: string | null;
+  /** 계층 쌓기(layers) 디자인의 층 "이름:시작-끝, …"(0038, 2026-10-29) */
+  thumb_layers?: string | null;
   /** 간행물 키(0034, KAN-247 — @ear/pipeline publication.ts) — 발행 이름(서버 publisher_name)과 썸네일 스타일. null = 없음 */
   publication: string | null;
 }

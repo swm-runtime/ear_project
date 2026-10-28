@@ -162,8 +162,51 @@ export async function composeNotesThumb(t: CodeThumbText, size = 1024): Promise<
   return sharp(Buffer.from(svg)).png().toBuffer();
 }
 
-export const CODE_STYLE_LABEL: Record<"tv" | "notes", { name: string; defaultLabel: string }> = {
+/** 계층 쌓기 — 층을 세로로 쌓고 이번 편(또는 표지는 맨 위)의 층만 밝게. 정사각 PNG */
+export async function composeLayersThumb(t: CodeThumbText & { layers: { name: string; from: number; to: number }[] }, size = 1024): Promise<Buffer> {
+  const { bold, heavy, display } = loadFonts();
+  const S = size;
+  const cover = t.no == null;
+  const BG = "#0E3B3C", LINE = "rgba(255,255,255,0.38)", DIMTXT = "rgba(255,255,255,0.6)", ON = "#7FE0C8", ONTXT = "#0E3B3C", LABEL = "#CFE8E2";
+  const logo = await logoSvg(S, true);
+  const label = t.label.trim() ? `<path d="${rightAligned(bold, t.label.trim().toUpperCase(), S * 0.948, S * 0.082, S * 0.034, 0.12)}" fill="${LABEL}"/>` : "";
+  const layers = t.layers.length ? t.layers : [{ name: "", from: 1, to: t.total ?? 999 }];
+  const onIdx = cover ? 0 : Math.max(0, layers.findIndex((l) => (t.no ?? 0) >= l.from && (t.no ?? 0) <= l.to));
+  const area = { x: S * 0.10, y: S * 0.19, w: S * 0.80, h: S * 0.69 };
+  const gap = S * 0.016;
+  const weights = layers.map((_, i) => (i === onIdx ? 2.6 : 1));
+  const unit = (area.h - gap * (layers.length - 1)) / weights.reduce((a, b) => a + b, 0);
+  let y = area.y; let parts = "";
+  const lines = t.lines.length ? t.lines : [""];
+  layers.forEach((l, i) => {
+    const h = unit * weights[i];
+    if (i === onIdx) {
+      parts += `<rect x="${area.x}" y="${y}" width="${area.w}" height="${h}" rx="${S * 0.012}" fill="${ON}"/>`;
+      const k = cover ? `전 ${t.total ?? 0}편` : `${String(t.no).padStart(2, "0")} / ${String(t.total ?? 0).padStart(2, "0")}${l.name ? ` · ${l.name}` : ""}`;
+      const kSize = S * 0.028;
+      const maxW = area.w - S * 0.08;
+      const big = Math.min(...lines.map((ln) => fitSize(display, ln, maxW, S * 0.08)));
+      const lh = big * 1.08;
+      const blockH = kSize * 1.6 + lh * (lines.length - 1) + big;
+      const y0 = y + h / 2 - blockH / 2;
+      parts += `<path d="${textPath(bold, k, area.x + S * 0.04, y0 + kSize, kSize, 0.14).d}" fill="${ONTXT}" opacity="0.75"/>`;
+      lines.forEach((ln, j) => { parts += `<path d="${textPath(display, ln, area.x + S * 0.04, y0 + kSize * 1.6 + big * 0.82 + j * lh, big).d}" fill="${ONTXT}"/>`; });
+    } else {
+      parts += `<rect x="${area.x}" y="${y}" width="${area.w}" height="${h}" rx="${S * 0.012}" fill="none" stroke="${LINE}" stroke-width="${S * 0.005}"/>`;
+      if (l.name) parts += `<path d="${textPath(bold, l.name, area.x + S * 0.04, y + h / 2 + S * 0.012, Math.min(S * 0.032, h * 0.5), 0.1).d}" fill="${DIMTXT}"/>`;
+    }
+    y += h + gap;
+  });
+  const small = cover ? t.pubName : t.seriesName;
+  const foot = `<path d="${textPath(bold, small, S * 0.10, S * 0.955, fitSize(bold, small, S * 0.5, S * 0.03), 0.12).d}" fill="${LABEL}"/>`;
+  const no = cover ? "" : `<path d="${rightAligned(heavy, String(t.no), S * 0.90, S * 0.96, S * 0.07)}" fill="${ON}"/>`;
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${S}" height="${S}"><rect width="${S}" height="${S}" fill="${BG}"/>${logo}${label}${parts}${foot}${no}</svg>`;
+  return sharp(Buffer.from(svg)).png().toBuffer();
+}
+
+export const CODE_STYLE_LABEL: Record<"tv" | "notes" | "layers", { name: string; defaultLabel: string }> = {
   tv: { name: "TV 정지 화면", defaultLabel: "AD SERIES" },
   notes: { name: "포스트잇 벽", defaultLabel: "CASE SERIES" },
+  layers: { name: "계층 쌓기", defaultLabel: "TOP-DOWN SERIES" },
 };
 
