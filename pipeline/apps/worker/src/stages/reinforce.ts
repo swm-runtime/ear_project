@@ -4,7 +4,7 @@ import { blockedTierHosts, domainTierByHost, existingBacklogTitles, findDomainFo
 import type { Executor } from "../executors/index.js";
 import { assetPaths, globalGaps, KOREAN_SOURCE_MIN_EN, GLOBAL_ROLES, buildClusterPromptV2, buildReinforceSearchPrompt, buildReinforceSearchPromptEn, buildTopicJudgePromptEn, CLUSTER_SCHEMA_V2, CLUSTER_SCHEMA_V2_EN, judgeToInternal, pipelineLocale, REINFORCE_SEARCH_SCHEMA, REINFORCE_SEARCH_SCHEMA_EN, SOURCE_ROLES, todayKst } from "@ear/pipeline";
 import { hostOf, log } from "../util.js";
-import { fetchArticle, fetchStatusOf, robotsAllows } from "../sources/fetch.js";
+import { fetchArticle, fetchStatusOf, hasBody, robotsAllows } from "../sources/fetch.js";
 import { rememberRobotsBlocked } from "../sources/robots-memory.js";
 import { prepareAssets, workerRev } from "../assets.js";
 import { putFile, s3Key } from "../storage.js";
@@ -76,7 +76,7 @@ export async function runReinforce(job: Job, ex: Executor) {
     if (d && d.tier !== "blocked" && !d.fetch_blocked_at) {
       await upsertSource({ domain_id: d.id, url: s.url, title: s.title, summary: s.summary, author: "", published: s.published, swept_at: sweptAt, origin: "search" });
       const f = bodyOk?.get(s.url);
-      if (bodyOk && (!f || !f.ok)) { await recordFetchStatus(s.url, f ? fetchStatusOf(f) : "network").catch(() => {}); outside.push(`${hostOf(s.url)} (본문 ${f ? f.status : "network"})`); continue; }
+      if (bodyOk && !hasBody(f)) { if (!f?.ok) await recordFetchStatus(s.url, f ? fetchStatusOf(f) : "network").catch(() => {}); outside.push(`${hostOf(s.url)} (본문 ${f ? (f.ok ? `${f.chars}자 — 짧음` : f.status) : "network"})`); continue; } // 열려도 본문이 짧으면 세지 않는다(MIN_BODY_CHARS)
       added.push(s.url);
     } else if (!d) {
       const host = hostOf(s.url).replace(/^www\./, "");
@@ -106,7 +106,7 @@ export async function runReinforce(job: Job, ex: Executor) {
   const droppedUnreadable: string[] = [];
   for (const s of keepExisting) {
     const f = existOk.get(s.url);
-    if (!f || !f.ok) { await recordFetchStatus(s.url, f ? fetchStatusOf(f) : "network").catch(() => {}); droppedUnreadable.push(`${hostOf(s.url)} (본문 ${f ? f.status : "network"})`); continue; }
+    if (!hasBody(f)) { if (!f?.ok) await recordFetchStatus(s.url, f ? fetchStatusOf(f) : "network").catch(() => {}); droppedUnreadable.push(`${hostOf(s.url)} (본문 ${f ? (f.ok ? `${f.chars}자 — 짧음` : f.status) : "network"})`); continue; }
     push({ url: s.url, title: s.title, summary: null, publisher: s.publisher, domain: hostOf(s.url), published: s.published ?? null }); // 차단 도메인·못 여는 소스는 재판정 목록에서 뺀다 — 보강이 그 소스를 걷어내는 통로
   }
   const currentM = meta.map((m) => `M${m.n}`);
