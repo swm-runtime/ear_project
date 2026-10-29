@@ -258,6 +258,39 @@ describe('온보딩 E2E', () => {
     expect(items.every((item) => item.source === LibraryItemSource.DRIP)).toBe(
       true,
     );
+
+    // 온보딩 직후 열 편(experiments-api.md 4.1) — 첫 드립 편 중 짧은 편이 먼저다
+    const dripped = await dataSource
+      .getRepository(Content)
+      .findBy(items.map((item) => ({ id: item.contentId })));
+    const [shortest, longer] = [...dripped].sort(
+      (a, b) => a.durationSec - b.durationSec || a.id.localeCompare(b.id),
+    );
+    expect(firstDrip.first_content_id).toBe(shortest.id);
+
+    // 지운 편은 건너뛴다
+    await dataSource
+      .getRepository(LibraryItem)
+      .softDelete({ userId, contentId: shortest.id });
+    const afterDelete = await get('/onboarding/first-drip', auth).expect(
+      HttpStatus.OK,
+    );
+    expect((afterDelete.body as FirstDripBody).first_content_id).toBe(
+      longer.id,
+    );
+
+    // 이미 재생한 편(재생 위치가 남은 편)도 건너뛰고, 남은 편이 없으면 null이다
+    await dataSource.query(
+      `INSERT INTO playback_progresses (user_id, content_id, position_sec, max_reached_sec) VALUES ($1, $2, 30, 30)`,
+      [userId, longer.id],
+    );
+    const afterPlay = await get('/onboarding/first-drip', auth).expect(
+      HttpStatus.OK,
+    );
+    expect(afterPlay.body).toMatchObject({
+      status: 'completed',
+      first_content_id: null,
+    });
   }, 60_000);
 
   it('커리어를 입력하면 구간값이 그대로 왕복한다', async () => {
@@ -433,6 +466,7 @@ describe('온보딩 E2E', () => {
   interface FirstDripBody {
     status: string;
     library_item_count: number;
+    first_content_id: string | null;
   }
 
   interface AuthUserBody {

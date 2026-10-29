@@ -111,6 +111,7 @@ describe('OnboardingOrchestrator', () => {
     libraryService = {
       addItems: jest.fn().mockResolvedValue([]),
       countBySource: jest.fn().mockResolvedValue(0),
+      findFirstDripOpenContentId: jest.fn().mockResolvedValue(null),
     } as unknown as jest.Mocked<LibraryService>;
 
     firstDripService = {
@@ -357,7 +358,7 @@ describe('OnboardingOrchestrator', () => {
 
       // when / then
       await expect(
-        orchestrator.getFirstDripState(USER_ID),
+        orchestrator.getFirstDripState(USER_ID, NOW),
       ).rejects.toMatchObject({
         errorCode: ErrorCode.ONBOARDING_NOT_COMPLETED,
       });
@@ -369,10 +370,56 @@ describe('OnboardingOrchestrator', () => {
       firstDripService.findState.mockResolvedValue(null);
 
       // when
-      const state = await orchestrator.getFirstDripState(USER_ID);
+      const state = await orchestrator.getFirstDripState(USER_ID, NOW);
 
       // then
       expect(state.status).toBe(FirstDripJobStatus.QUEUED);
+      expect(state.firstContentId).toBeNull();
+    });
+
+    it('완료면 첫 드립 적립 시각으로 열 편을 찾아 싣는다', async () => {
+      // given — 첫 드립은 적립 행의 added_at을 작업의 completed_at과 같은 시각으로 쓴다
+      user.onboardingCompleted = true;
+      const completedAt = new Date('2026-10-29T09:12:03Z');
+      firstDripService.findState.mockResolvedValue({
+        status: FirstDripJobStatus.COMPLETED,
+        itemCount: 2,
+        completedAt,
+      });
+      libraryService.findFirstDripOpenContentId.mockResolvedValue('content-9');
+
+      // when
+      const state = await orchestrator.getFirstDripState(USER_ID, NOW);
+
+      // then
+      expect(state.firstContentId).toBe('content-9');
+      expect(libraryService.findFirstDripOpenContentId).toHaveBeenCalledWith(
+        USER_ID,
+        completedAt,
+        NOW,
+        user.market,
+      );
+    });
+
+    it.each([
+      FirstDripJobStatus.PENDING,
+      FirstDripJobStatus.NO_CANDIDATES,
+      FirstDripJobStatus.QUEUED,
+    ])('%s면 열 편을 찾지 않고 null이다', async (status) => {
+      // given
+      user.onboardingCompleted = true;
+      firstDripService.findState.mockResolvedValue({
+        status,
+        itemCount: 0,
+        completedAt: null,
+      });
+
+      // when
+      const state = await orchestrator.getFirstDripState(USER_ID, NOW);
+
+      // then
+      expect(state.firstContentId).toBeNull();
+      expect(libraryService.findFirstDripOpenContentId).not.toHaveBeenCalled();
     });
   });
 

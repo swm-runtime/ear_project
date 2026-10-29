@@ -151,7 +151,10 @@ export class OnboardingController {
     @CurrentUser() currentUser: AuthenticatedUser,
   ): Promise<GetFirstDripResponseDto> {
     return GetFirstDripResponseDto.from(
-      await this.onboardingOrchestrator.getFirstDripState(currentUser.id),
+      await this.onboardingOrchestrator.getFirstDripState(
+        currentUser.id,
+        new Date(),
+      ),
     );
   }
 }
