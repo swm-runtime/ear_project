@@ -8,7 +8,9 @@
  */
 export type LengthProfile = "standard" | "short";
 export const LENGTH_PROFILES: readonly LengthProfile[] = ["standard", "short"];
-export const CHARS_PER_MIN_KO = 341; // eleven_v4 실측(2026-10-08) — draft-two-stage.ts scriptStats 와 같은 값
+export const CHARS_PER_MIN_KO = 341;
+/** 짧은 판 발행 준비 관문 — 비평 v2 합계가 이 값 미만이면 TTS 를 걸지 않고 사람 검토(review_required)로 둔다 (2026-10-29 박수헌: short 에만 65). standard 는 관문 없음 */
+export const SHORT_CRITIC_THRESHOLD = 65; // eleven_v4 실측(2026-10-08) — draft-two-stage.ts scriptStats 와 같은 값
 
 export interface LengthSpec {
   key: LengthProfile;

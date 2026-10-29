@@ -1,9 +1,9 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import { cfg, executedBy } from "../config.js";
-import { getBacklog, getEpisode, insertRun, setJobProgress, upsertEpisode, type Job } from "../db.js";
+import { getBacklog, getEpisode, insertRun, setBacklogStatus, setJobProgress, upsertEpisode, type Job } from "../db.js";
 import type { Executor } from "../executors/index.js";
-import { assetPaths, buildCriticPrompt, buildCriticPromptInlineParts, buildCriticPromptInlinePartsEn, CRITIC_INLINE_SCHEMA, CRITIC_INLINE_SCHEMA_EN, CRITIC_SCHEMA, CRITIC_SCHEMA_V2, pipelineLocale } from "@ear/pipeline";
+import { assetPaths, buildCriticPrompt, buildCriticPromptInlineParts, buildCriticPromptInlinePartsEn, CRITIC_INLINE_SCHEMA, CRITIC_INLINE_SCHEMA_EN, CRITIC_SCHEMA, CRITIC_SCHEMA_V2, lengthProfileOf, pipelineLocale, SHORT_CRITIC_THRESHOLD } from "@ear/pipeline";
 import { readFile } from "node:fs/promises";
 import { startPublishPrepIfEnabled } from "../automation.js";
 import { enqueueJudgeLoop } from "./judge-loop.js";
@@ -143,6 +143,12 @@ async function runCriticV2(job: Job, ex: Executor, e: { episodeId: string; backl
     result: `비평 v2 완료 (앵커 없음 기준선${preTemplate ? " · tpl 이전 세대" : ""}). 합계 ${total}/100 — 내용 ${sum.content}/35 · 구성 ${sum.structure}/20 · 자연 ${sum.naturalness}/20 · 몰입 ${sum.immersion}/15 · 페르소나 ${sum.persona}/10. 플래그 위반 ${o.violations}·의심 ${o.suspects}, ⭐${o.stars}. ${o.summary} · 사람 판정 대기`,
     prompt_version: `${e.bundle.labels.criticV2} (worker)`, artifacts: [reportKey], executed_by: executedBy, model: r.model, cost_usd: r.listCostUsd, tokens: (r.raw as { usage?: unknown } | undefined)?.usage, worker_rev: workerRev(),
   });
+  // 짧은 판 관문 (2026-10-29 박수헌, KAN-296): short 프로필은 비평 합계 < 65 면 발행 준비를 걸지 않고 사람 검토로 둔다 — TTS 비용을 아끼고 실험 탭에 사유가 보인다. standard 는 종전대로 관문 없음(게이트 2 에서 사람이 본다)
+  if (pipelineLocale() === "ko" && lengthProfileOf(e.lengthProfile) === "short" && total < SHORT_CRITIC_THRESHOLD) {
+    await setBacklogStatus(e.backlogId, "review_required");
+    log(`  critic v2 ${e.episodeId}: 짧은 판 관문 미달 — 비평 ${total} < ${SHORT_CRITIC_THRESHOLD} → 사람 검토 (발행 준비 안 걺)`);
+    return { episode_id: e.episodeId, rubric: "v2", pre_template: preTemplate, short_gate: `비평 ${total} < ${SHORT_CRITIC_THRESHOLD}`, scores: s, sums: sum, total, violations: o.violations, suspects: o.suspects, stars: o.stars, summary: o.summary, model: r.model };
+  }
   // 자동화 (2026-09-23): 비평까지 끝나면 발행 준비 연쇄(tts → thumbnail → package)를 바로 건다 — settings.automation.auto_publish_prep 이 켜져 있을 때만
   const prepJobId = await startPublishPrepIfEnabled(e.episodeId, e.backlogId, job.id).catch((err) => { log(`  자동 발행 준비 걸기 실패: ${err?.message ?? err}`); return null; });
   // 글로벌판(2026-10-22, 명세 6.10): 비평 뒤 판정·재작성 루프를 워커가 잇는다 — 판정이 발행 가능이면 자동 발행 준비(스위치)가 그다음을 건다

@@ -33,6 +33,8 @@ export default async function ExperimentsPage({ searchParams }: { searchParams: 
     remakeIds.length ? sb.from("jobs").select("type,status,attempt,error,result,created_at,payload").in("type", ["draft", "qa", "critic", "tts", "package"]).order("created_at", { ascending: false }).limit(2000) : Promise.resolve({ data: [] as any[] }),
     origIds.length ? sb.from("episodes").select("id,backlog_id,created_at").in("backlog_id", origIds).order("created_at", { ascending: false }) : Promise.resolve({ data: [] as any[] }),
   ]);
+  const gateOf = new Map<string, string>(); // 짧은 판 관문 미달(비평 < 65) — critic 작업 결과의 short_gate
+  for (const j of (jobs ?? []) as (JobRow & { result: { short_gate?: string } | null })[]) { const id = String(j.payload?.episode_id ?? ""); if (id && j.type === "critic" && j.result?.short_gate && !gateOf.has(id)) gateOf.set(id, j.result.short_gate); }
   const jobsOf = new Map<string, JobRow[]>();
   for (const j of (jobs ?? []) as JobRow[]) { const id = String(j.payload?.episode_id ?? ""); if (id) jobsOf.set(id, [...(jobsOf.get(id) ?? []), j]); }
   const epOf = new Map<string, any>(); for (const e of eps ?? []) if (!epOf.has(e.backlog_id)) epOf.set(e.backlog_id, e);
@@ -54,7 +56,7 @@ export default async function ExperimentsPage({ searchParams }: { searchParams: 
     <div className="space-y-6">
       <AutoRefresh seconds={20} />
       <PageHeader title="실험 — 짧은 판" breadcrumb={["파이프라인", "실험"]}
-        desc={`발행된 단편의 주제·소스로 ${s.floorMin}~${s.maxMin}분(본문 구간 ${s.sections[0]}~${s.sections[1]}개, 선취 훅) 짧은 판을 다시 만든다(KAN-296). 설계는 원본 구성안을 보지 않고 소스만 받아 새로 짜고, 축은 원본과 같은 질문을 유지한다. 제목·썸네일은 원본 그대로. 짧은 판은 새 앱 배포 뒤 가입한 사용자에게만 나가므로(BE 코호트 분리) 백로그·일반 발행 목록에는 보이지 않는다 — 발행 준비까지 ${done}/${remakeIds.length}편.`} />
+        desc={`발행된 단편의 주제·소스로 ${s.floorMin}~${s.maxMin}분(본문 구간 ${s.sections[0]}~${s.sections[1]}개, 선취 훅) 짧은 판을 다시 만든다(KAN-296). 설계는 원본 구성안을 보지 않고 소스만 받아 새로 짜고, 축은 원본과 같은 질문을 유지한다. 비평 합계 65 미만이면 발행 준비를 걸지 않고 사람 검토로 둔다(짧은 판에만 있는 관문). 제목·썸네일은 원본 그대로. 짧은 판은 새 앱 배포 뒤 가입한 사용자에게만 나가므로(BE 코호트 분리) 백로그·일반 발행 목록에는 보이지 않는다 — 발행 준비까지 ${done}/${remakeIds.length}편.`} />
 
       <Panel title={`짧은 판 진행 (${remakeIds.length})`} flush>
         <Table head={["원본 → 짧은 판", "상태", "진행", "막힌 곳 · 다음 행동", "만든 시각", ""]} empty="아직 짧은 판이 없다 — 아래 발행된 편에서 고른다">
@@ -71,7 +73,7 @@ export default async function ExperimentsPage({ searchParams }: { searchParams: 
                 </Td>
                 <Td><Badge value={r.status} /></Td>
                 <Td>{st ? <StageTrack stages={st.stages} /> : <span className="text-[11px] text-ink-soft">초안 대기</span>}</Td>
-                <Td className="min-w-[220px] text-[12px]">{st?.problem ? <ProblemLine p={st.problem} /> : <span className="text-ink-soft">—</span>}</Td>
+                <Td className="min-w-[220px] text-[12px]">{e && gateOf.has(e.id) ? <span className="text-rose-700">{gateOf.get(e.id)} — 관문 미달, 사람 검토(에피소드 화면에서 보고 반려하거나 대본을 고친 뒤 [발행 준비])</span> : st?.problem ? <ProblemLine p={st.problem} /> : <span className="text-ink-soft">—</span>}</Td>
                 <Td className="whitespace-nowrap text-ink-soft">{fmtTime(r.created_at)}</Td>
                 <Td><RemakeRowActions id={r.id} status={r.status} /></Td>
               </tr>
