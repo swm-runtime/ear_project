@@ -37,6 +37,12 @@ export interface Plan {
    * 선택 필드라 테스트·목에서 생략해도 된다(생략 = null 과 같다)
    */
   isFree?: boolean | null;
+  /**
+   * 정가 취소선 표시(KAN-299 — experiments-api.md 4.4). **서버가 할인이라고 판정한(`is_discounted`) 요금제만** 정가(원)가
+   * 있고, 그 밖은 null. 결제 가격은 언제나 스토어 `displayPrice` 다 — 이 값으로 할인율·가격을 계산하지 않는다.
+   * 선택 필드(생략 = 할인 아님)
+   */
+  discountOriginalPriceKrw?: number | null;
   entitlements: Entitlements;
   action: PlanAction;
 }

@@ -8,6 +8,7 @@ import {
   formatInstantMonthDay,
   formatLocaleOf,
   formatMonthDay,
+  groupThousands,
   parseDateLabel,
   selectPlural,
   toLocalDate,
@@ -108,5 +109,14 @@ describe('복수형 — Intl.PluralRules', () => {
     } finally {
       intl.PluralRules = original;
     }
+  });
+});
+
+describe('groupThousands — 서버 원화 금액 표기(KAN-299)', () => {
+  it('세 자리마다 쉼표를 넣고 Intl 에 기대지 않는다', () => {
+    expect(groupThousands(0)).toBe('0');
+    expect(groupThousands(900)).toBe('900');
+    expect(groupThousands(3900)).toBe('3,900');
+    expect(groupThousands(1234567)).toBe('1,234,567');
   });
 });
