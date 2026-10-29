@@ -24,7 +24,10 @@ import { BusinessException } from '@/common/exceptions/business.exception';
 import { ErrorCode } from '@/common/exceptions/error-code.enum';
 import { AdminRoleGuard } from '@/common/guards/admin-role.guard';
 import { JwtAuthGuard } from '@/common/guards/jwt-auth.guard';
-import { SeriesStatus } from '@/modules/content/content.enum';
+import {
+  ContentLengthProfile,
+  SeriesStatus,
+} from '@/modules/content/content.enum';
 
 import {
   AdminSeriesItemDto,
@@ -96,6 +99,8 @@ export class AdminSeriesController {
         totalEpisodes: request.total_episodes,
         status: request.status ?? SeriesStatus.ONGOING,
         publisherName: normalizePublisherName(request.publisher_name ?? null),
+        lengthProfile: request.length_profile ?? ContentLengthProfile.STANDARD,
+        variantOfSeriesId: request.variant_of_series_id ?? null,
       }),
     );
   }

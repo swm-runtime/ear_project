@@ -7,6 +7,7 @@ import {
   ContentDifficulty,
   ContentFormat,
   ContentLanguage,
+  ContentLengthProfile,
   ContentOrigin,
   ContentStatus,
   SeriesStatus,
@@ -391,6 +392,9 @@ export interface PublishContentCommand {
   topicIds: string[];
   /** `ai_generated`만. 배열 순서가 곧 `position`이다 (domain.md 5.5) */
   sources: { title: string; author: string | null; url: string | null }[];
+  /** 길이 프로필·짧은 판의 원본(KAN-298) — 호출부(admin)가 검증을 끝내고 넘긴다 */
+  lengthProfile: ContentLengthProfile;
+  variantOfContentId: string | null;
 }
 
 /**
@@ -548,6 +552,10 @@ export interface CreateSeriesCommand {
   status: SeriesStatus;
   /** 발행 이름(예: "키워드") — 없으면 null */
   publisherName: string | null;
+  /** 길이 프로필(KAN-298) — 없으면 standard */
+  lengthProfile: ContentLengthProfile;
+  /** 짧은 시리즈의 원본 시리즈 — short면 필수, standard면 null */
+  variantOfSeriesId: string | null;
 }
 
 /** 시리즈 수정(`PATCH /admin/series/:id`) — `undefined`는 "안 바꾼다" */
@@ -588,4 +596,6 @@ export interface SeriesEpisodeUpload {
   episodeNo: number;
   totalEpisodes: number;
   market: UserMarket;
+  /** 편의 길이 프로필(KAN-298). null = 보내지 않음 — 시리즈의 값을 따른다. 값이 있으면 시리즈와 같아야 한다 */
+  lengthProfile: ContentLengthProfile | null;
 }

@@ -1,6 +1,7 @@
 import {
   IsEnum,
   IsInt,
+  IsUUID,
   IsOptional,
   IsString,
   Matches,
@@ -9,7 +10,10 @@ import {
   Min,
 } from 'class-validator';
 
-import { SeriesStatus } from '@/modules/content/content.enum';
+import {
+  ContentLengthProfile,
+  SeriesStatus,
+} from '@/modules/content/content.enum';
 
 /** 공백만 있는 제목은 1자로 세지 않는다 — 빈 제목의 시리즈가 화면에 뜨는 것을 막는다 */
 export const NOT_BLANK = /\S/;
@@ -58,4 +62,14 @@ export class CreateSeriesRequestDto {
   @IsString()
   @MaxLength(SERIES_PUBLISHER_NAME_MAX_LENGTH)
   readonly publisher_name?: string | null;
+
+  /** 길이 프로필(KAN-298) — 생략하면 standard. 짧은 시리즈(short)의 편은 전부 short로 올린다. 만든 뒤 바꾸지 않는다 */
+  @IsOptional()
+  @IsEnum(ContentLengthProfile)
+  readonly length_profile?: ContentLengthProfile;
+
+  /** 짧은 시리즈의 원본 시리즈 id(KAN-298) — short면 필수, standard면 넣지 않는다. 원본은 standard 시리즈여야 한다 */
+  @IsOptional()
+  @IsUUID()
+  readonly variant_of_series_id?: string;
 }

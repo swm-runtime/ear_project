@@ -18,6 +18,17 @@ export enum SeriesStatus {
   COMPLETED = 'completed',
 }
 
+/**
+ * 길이 프로필(KAN-298 — 단기 실험 ④ 짧은 판 코호트, 2026-10-29). `standard`: 종전 편(13분 이상) · `short`: 기존 발행 편의
+ * 주제를 재활용해 5~12분으로 다시 만든 **짧은 판**(파이프라인 KAN-296). 노출은 가입 시점 코호트로 갈린다 — `short` 코호트는
+ * `short`만, `standard` 코호트는 `standard`만 본다(`content-cohort.policy.ts`). 짧은 판은 원본을 가리킨다
+ * (`contents.variant_of_content_id` · `series.variant_of_series_id`)
+ */
+export enum ContentLengthProfile {
+  STANDARD = 'standard',
+  SHORT = 'short',
+}
+
 export enum ContentOrigin {
   PARTNER = 'partner',
   AI_GENERATED = 'ai_generated',

@@ -245,5 +245,7 @@ function snapshot(series: Series): Record<string, unknown> {
     status: series.status,
     cover_url: series.coverUrl ?? null,
     publisher_name: series.publisherName ?? null,
+    length_profile: series.lengthProfile,
+    variant_of_series_id: series.variantOfSeriesId ?? null,
   };
 }
