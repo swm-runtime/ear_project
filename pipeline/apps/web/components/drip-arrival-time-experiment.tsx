@@ -3,7 +3,8 @@ import { useCallback, useEffect, useState } from "react";
 import { btnCls } from "@/components/ui";
 import { EarApiError, type EarChannel, type EarDripArrivalTime, type EarDripArrivalTimeArm, type EarInsightsMarket, earChannelLabel, getEarDripArrivalTime } from "@/lib/ear";
 import { EarGate, EarSession, earErrMsg } from "@/app/publish/ear-connect";
-import { fmtInt, fmtKstDate, fmtPct } from "@/lib/insights-format";
+import { ExperimentCompareTable, type CompareColumn, type CompareRow } from "@/components/experiment-compare-table";
+import { fmtKstDate } from "@/lib/insights-format";
 
 const MARKET_OPTIONS = [
   { value: null, label: "통합" },
@@ -127,57 +128,19 @@ function DripArrivalTimeView({ channel, market, days, onSwitchToDev }: { channel
 }
 
 function ArmTable({ arms, minSample, reactionHours }: { arms: EarDripArrivalTimeArm[]; minSample: number; reactionHours: number }) {
-  return (
-    <div className="overflow-x-auto">
-      <table className="w-full text-xs">
-        <thead>
-          <tr className="text-left text-[11px] text-ink-soft">
-            <th className="py-1 font-semibold">발송 시각</th>
-            <th className="py-1 text-right font-semibold">보낸 알림</th>
-            <th className="py-1 text-right font-semibold">받은 사람</th>
-            <th className="py-1 text-right font-semibold">{reactionHours}시간 재생률</th>
-            <th className="py-1 text-right font-semibold">당일 재생률</th>
-            <th className="py-1 text-right font-semibold">보낸 기간</th>
-          </tr>
-        </thead>
-        <tbody>
-          {arms.map((a) => {
-            const small = a.sent > 0 && a.sent < minSample;
-            return (
-              <tr key={a.key} className="border-t border-line">
-                <td className="py-1 pr-2">
-                  <b className="tabular-nums">{a.send_time}</b>
-                  <span className="ml-1 text-[11px] text-ink-soft">{ARM_LABEL[a.key] ?? a.key}</span>
-                </td>
-                <td className="py-1 text-right tabular-nums">
-                  {fmtInt(a.sent)}
-                  {small && <span className="ml-1 rounded bg-amber-100 px-1 text-[10px] text-amber-900">표본 작음</span>}
-                </td>
-                <td className="py-1 text-right tabular-nums">{fmtInt(a.users)}</td>
-                <RateCell rate={a.play_rate_2h} count={a.played_2h} />
-                <RateCell rate={a.play_rate_same_day} count={a.played_same_day} />
-                <td className="py-1 text-right tabular-nums text-ink-soft">
-                  {a.first_sent_at ? `${fmtKstDate(a.first_sent_at)} ~ ${fmtKstDate(a.last_sent_at)}` : "보낸 기록 없음"}
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
-    </div>
-  );
-}
-
-function RateCell({ rate, count }: { rate: number | null; count: number }) {
-  return (
-    <td className="py-1 text-right tabular-nums">
-      <span className="inline-flex items-center justify-end gap-1">
-        <span className="inline-block h-1.5 w-14 overflow-hidden rounded bg-line" aria-hidden="true">
-          <span className="block h-full bg-brand" style={{ width: `${Math.round((rate ?? 0) * 100)}%` }} />
-        </span>
-        {fmtPct(rate, 1)}
-        <span className="text-ink-soft">({fmtInt(count)})</span>
-      </span>
-    </td>
-  );
+  if (arms.length === 0) return null;
+  const columns: CompareColumn[] = arms.map((a) => ({
+    key: a.key,
+    title: a.send_time,
+    subtitle: ARM_LABEL[a.key] ?? a.key,
+    smallSample: a.sent > 0 && a.sent < minSample,
+  }));
+  const rows: CompareRow[] = [
+    { kind: "rate", label: `${reactionHours}시간 안 재생률`, better: "higher", cells: arms.map((a) => ({ rate: a.play_rate_2h, count: a.played_2h })) },
+    { kind: "rate", label: "당일 재생률", better: "higher", cells: arms.map((a) => ({ rate: a.play_rate_same_day, count: a.played_same_day })) },
+    { kind: "count", label: "보낸 알림", cells: arms.map((a) => a.sent) },
+    { kind: "count", label: "받은 사람", cells: arms.map((a) => a.users) },
+    { kind: "text", label: "보낸 기간", cells: arms.map((a) => (a.first_sent_at ? `${fmtKstDate(a.first_sent_at)} ~ ${fmtKstDate(a.last_sent_at)}` : "보낸 기록 없음")) },
+  ];
+  return <ExperimentCompareTable columns={columns} rows={rows} />;
 }
