@@ -1,7 +1,8 @@
 "use client";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
-import { EarContent, listEarContents, listEarJobCategories, restoreEarContent, withdrawEarContent } from "@/lib/ear";
+import { EarContent, getEarReviewSummary, listEarContents, listEarJobCategories, restoreEarContent, withdrawEarContent, type EarReviewSummaryItem } from "@/lib/ear";
+import { fmtStars, REVIEW_SMALL_N } from "./review-panel";
 import { enrichStates, latestPublishEvents, listPublishableEpisodes, logPublishEvent, republishPlans, requestEnrich, requestScriptAlign, scriptAlignStates, type PublishAction, type RepublishPlan } from "../actions";
 import { EnrichCell, isStale, type EnrichState } from "./enrich-cell";
 import { ScriptCell, type ScriptState } from "./script-cell";
@@ -38,6 +39,7 @@ function ContentList() {
   const [scripts, setScripts] = useState<Record<string, ScriptState>>({}); // KAN-72 소급: 자막 정렬 작업 상태
   const [plans, setPlans] = useState<Record<string, RepublishPlan>>({}); // 발행본 구형 판정 (구형 전체 재발행)
   const [jobCats, setJobCats] = useState<string[]>([]);
+  const [reviews, setReviews] = useState<Record<string, EarReviewSummaryItem> | null>(null); // KAN-284: 편별 후기 집계 — API 가 없는 서버(운영 배포 전)면 null 로 열을 비운다
 
   const load = useCallback(async (st = status, off = offset, stale = staleOnly) => {
     try {
@@ -47,6 +49,7 @@ function ContentList() {
       setEnrich(await enrichStates(shown.items.map((c) => c.id)).catch(() => ({})));
       setScripts(await scriptAlignStates(shown.items.map((c) => c.id)).catch(() => ({})));
       setPlans(await republishPlans(shown.items.map((c) => c.id)).catch(() => ({})));
+      setReviews(await getEarReviewSummary().then((r) => Object.fromEntries(r.items.map((x) => [x.content_id, x]))).catch(() => null));
     } catch (e) { setErr(earErrMsg(e)); }
   }, [status, offset, staleOnly]);
   useEffect(() => { listEarJobCategories().then((r) => setJobCats(r.items.map((x) => x.name))).catch(() => setJobCats([])); }, []);
@@ -102,7 +105,7 @@ function ContentList() {
         <table className="w-full text-[13px]">
           <thead>
             <tr className="border-b border-line text-left text-[11px] uppercase tracking-wide text-ink-soft">
-              {["콘텐츠", "주제", "길이", "최근 발행", "추천 메타", "자막", "상태", ""].map((h) => <th key={h} className="px-4 py-2.5 font-semibold">{h}</th>)}
+              {["콘텐츠", "주제", "길이", "후기", "최근 발행", "추천 메타", "자막", "상태", ""].map((h) => <th key={h} className="px-4 py-2.5 font-semibold">{h}</th>)}
             </tr>
           </thead>
           <tbody className="divide-y divide-line">
@@ -120,6 +123,7 @@ function ContentList() {
                 </td>
                 <td className="px-4 py-2.5 text-ink-soft">{c.topics.map((t) => t.name).join(", ")}</td>
                 <td className="px-4 py-2.5 tabular-nums text-ink-soft">{Math.floor(c.duration_sec / 60)}:{String(c.duration_sec % 60).padStart(2, "0")}</td>
+                <td className="px-4 py-2.5"><ReviewCell r={reviews ? reviews[c.id] ?? null : undefined} /></td>
                 <td className="px-4 py-2.5 text-ink-soft"><LatestCell c={c} ev={latest[c.id]} /><StaleNote c={c} p={plans[c.id]} /></td>
                 <td className="px-4 py-2.5"><EnrichCell c={c} st={enrich[c.id]} jobCategories={jobCats} onChange={() => void load()} /></td>
                 <td className="px-4 py-2.5"><ScriptCell c={c} st={scripts[c.id]} onChange={() => void load()} /></td>
@@ -144,7 +148,7 @@ function ContentList() {
               </tr>
             ))}
             {data && data.items.length === 0 && (
-              <tr><td colSpan={7} className="px-4 py-8 text-center text-ink-soft">{staleOnly ? "구형·없음 메타인 콘텐츠가 없습니다." : "콘텐츠가 없습니다."}</td></tr>
+              <tr><td colSpan={9} className="px-4 py-8 text-center text-ink-soft">{staleOnly ? "구형·없음 메타인 콘텐츠가 없습니다." : "콘텐츠가 없습니다."}</td></tr>
             )}
           </tbody>
         </table>
@@ -176,6 +180,19 @@ function LatestCell({ c, ev }: { c: EarContent; ev?: { at: string; action: Publi
       <div>{fmtTime(ev?.at ?? c.published_at)}{ev?.action === "republish" && <span className="ml-1 text-[10px] text-brand-ink">재발행</span>}</div>
       {ev && ev.at !== c.published_at && <div className="text-[10.5px] text-ink-soft">최초 {fmtTime(c.published_at)}</div>}
       {outside && <div className="text-[10.5px] text-amber-700" title="파이프라인 이력에 없는 버전 변경 — 제품 API 를 직접 호출한 재발행">v{c.content_version} 콘솔 밖 재발행</div>}
+    </div>
+  );
+}
+
+/** 후기 칸 (KAN-284) — 수 · 평균 · 글 수. 표본이 작으면(5건 미만) 흐리게. undefined = 집계를 못 읽음(API 없는 서버) */
+function ReviewCell({ r }: { r: EarReviewSummaryItem | null | undefined }) {
+  if (r === undefined) return <span className="text-[11px] text-slate-300">-</span>;
+  if (!r) return <span className="text-[11px] text-ink-soft">없음</span>;
+  const small = r.reviews < REVIEW_SMALL_N;
+  return (
+    <div className="leading-tight" title={small ? `후기 ${r.reviews}건 — ${REVIEW_SMALL_N}건 미만이라 평균을 믿기 어렵다` : undefined}>
+      <div className={`tabular-nums ${small ? "text-ink-soft opacity-60" : ""}`}>★ {fmtStars(r.average_stars)}</div>
+      <div className="text-[10.5px] text-ink-soft">{r.reviews}건 · 글 {r.text_reviews}</div>
     </div>
   );
 }
