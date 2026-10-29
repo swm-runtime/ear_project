@@ -23,6 +23,14 @@ export class PlaybackProgressRepository {
     return this.scoped(manager).findOneBy({ userId, contentId });
   }
 
+  async existsByUserIdAndContentId(
+    userId: string,
+    contentId: string,
+    manager?: EntityManager,
+  ): Promise<boolean> {
+    return this.scoped(manager).existsBy({ userId, contentId });
+  }
+
   /**
    * 목록 20건에 위치 조회가 20번 붙지 않게 한 번에 읽는다
    * (architecture.md 3.4 — Service에서 루프 조회하지 않는다).

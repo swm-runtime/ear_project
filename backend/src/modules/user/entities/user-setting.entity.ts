@@ -89,6 +89,26 @@ export class UserSetting extends BaseEntity {
   dripFeedbackLastPromptedDate: string | null;
 
   /**
+   * 마지막으로 후기를 먼저 물은 서비스 날짜(domain.md 3.5 — KAN-279, `content-review.md` 4.3). 편 날짜가 아니라 **물은 날**이다 —
+   * 시트를 닫거나 그만 보기를 누를 때 오늘 서비스 날짜로 적고, 뒤로 가지 않는다. 이 날짜 + 5일 전에는 다시 묻지 않는다.
+   * 추천 별점의 두 칸과 따로 둔다(두 팝업은 서로를 대신하지 않는다). NULL = 물은 적 없음
+   */
+  @Column({
+    name: 'content_review_last_prompted_date',
+    type: 'date',
+    nullable: true,
+  })
+  contentReviewLastPromptedDate: string | null;
+
+  /** 후기 먼저 묻기 [이번 주 그만 보기] 종료 서비스 날짜(다음 주 월요일 라벨 — domain.md 3.5). 오늘 < 이 값이면 묻지 않는다 */
+  @Column({
+    name: 'content_review_muted_until',
+    type: 'date',
+    nullable: true,
+  })
+  contentReviewMutedUntil: string | null;
+
+  /**
    * 사용자가 고른 음질(domain.md 3.5 — KAN-141). **`null` = 고른 적 없음** → 티어가 허용하는 가장 높은 선택지로 판정한다
    * (`defaultAudioQualityFor`, 2026-10-06). 허용 밖 값도 저장한다 — 재생은 서버가 깎는다(player.md 4.9)
    */

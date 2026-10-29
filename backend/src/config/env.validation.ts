@@ -270,6 +270,15 @@ export class EnvironmentVariables {
   FIRST_DRIP_RANDOM_ENABLED?: string;
 
   /**
+   * 콘텐츠 후기(`content-review-api.md` 2.1 — KAN-279)의 서버 스위치. `true`/`false`. **`true`를 명시했을 때만 켜진다.**
+   * 꺼져 있으면 후기 저장은 409 `CONTENT_REVIEW_DISABLED`, 먼저 묻기는 `show=false`, 모든 후기 응답의 `enabled=false`다.
+   * 받은 후기·프로모션은 그대로다. **개인정보 처리방침 시행일 이후에 켠다**(KAN-285)
+   */
+  @IsOptional()
+  @IsIn(['true', 'false', ''])
+  CONTENT_REVIEW_ENABLED?: string;
+
+  /**
    * 저녁 리텐션 알림(`notification.md` 4.6, KAN-272)의 서버 스위치. `off`(기본·빈 값) · `dry_run` · `on`.
    * `dry_run`은 대상·문구까지 정하고 **보내지 않는다** — 규칙별 건수와 문구 예시를 API 로그에 남긴다(임계값을 실제
    * 숫자로 맞춰 보는 단계). `on`은 마케팅 수신 동의자에게 그룹 현지 18:00에 보낸다.
