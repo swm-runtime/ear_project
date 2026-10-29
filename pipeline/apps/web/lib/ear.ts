@@ -745,3 +745,36 @@ export const getEarInspectorUsers = (ch: EarChannel, sort: EarInspectorSort, lim
 /** 상세는 열 때마다 서버가 감사 로그 1행을 남긴다(insights.recommendation_view) — 사용자를 고를 때만 부른다 */
 export const getEarInspectorDetail = (ch: EarChannel, userId: string) =>
   earFetch<EarInspectorDetail>(`/admin/insights/recommendations/users/${encodeURIComponent(userId)}`, { cache: "no-store" }, ch);
+
+// ── 콘텐츠 후기 (KAN-284 ↔ BE KAN-279, spec/api/content-review-api.md 4.8 · 4.9) ──
+// 작성자 계정(user_id)·닉네임·이메일은 API 가 주지 않는다. 원문은 이 응답으로만 읽어 화면에 그리고, 파이프라인 Supabase·로그에 남기지 않는다(content-review.md 4.7)
+export type EarReviewMarket = "kr" | "global";
+export interface EarReviewSummaryItem {
+  content_id: string; title: string; market: EarReviewMarket; status: string; content_version: number;
+  reviews: number; average_stars: number | null; distribution: Record<"1" | "2" | "3" | "4" | "5", number>;
+  text_reviews: number; completed_reviews: number; last_reviewed_at: string | null;
+  by_version: { content_version: number; reviews: number; average_stars: number | null }[];
+}
+export interface EarReviewSummary {
+  totals: { reviews: number; average_stars: number | null; text_reviews: number; reviewed_contents: number };
+  promotions: { issued: number; redeemed: number; expired: number; unused: number };
+  items: EarReviewSummaryItem[];
+}
+export interface EarReview {
+  id: string; content_id: string; content_title: string; content_status: string;
+  stars: number; text: string | null; is_completed: boolean; content_version: number; market: EarReviewMarket;
+  created_date: string; updated_date: string;
+}
+const reviewQs = (q: Record<string, string | number | boolean | undefined | null>) => {
+  const u = new URLSearchParams();
+  for (const [k, v] of Object.entries(q)) if (v !== undefined && v !== null && v !== "") u.set(k, String(v));
+  const s = u.toString(); return s ? `?${s}` : "";
+};
+/** 편별 집계 · 프로모션 건수 (4.8) — content_id 를 주면 그 편만 */
+export function getEarReviewSummary(q: { content_id?: string; market?: EarReviewMarket } = {}, ch: EarChannel = "prod") {
+  return earFetch<EarReviewSummary>(`/admin/content-reviews/summary${reviewQs(q)}`, {}, ch);
+}
+/** 후기 글 목록 (4.9) — 마지막으로 고친 순 최신순, 커서 페이지 */
+export function listEarReviews(q: { content_id?: string; market?: EarReviewMarket; has_text?: boolean; cursor?: string | null; limit?: number } = {}, ch: EarChannel = "prod") {
+  return earFetch<{ items: EarReview[]; next_cursor: string | null }>(`/admin/content-reviews${reviewQs(q)}`, {}, ch);
+}
