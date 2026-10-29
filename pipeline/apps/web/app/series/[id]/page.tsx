@@ -63,7 +63,12 @@ export default async function SeriesPage({ params }: { params: Promise<{ id: str
           <p className="px-4 py-2 text-[11px] text-ink-soft">게이트 1은 편마다 백로그에서 승인한다. 승인해도 k화 초안은 k-1화 초안이 끝난 뒤에 시작한다(spec/11 5.3). 반려·보류된 편은 [다시 기획]으로 같은 화 번호에 후보를 새로 만들거나, 반려를 [보류로] 되돌려 백로그에서 [보강]한다 — 반려된 편이 남아 있으면 뒤 편 초안이 시작되지 않는다. 시리즈 편에는 개별 [발행]이 없다 — 전 편이 패키지까지 끝나면 아래 [시리즈 발행]으로 한꺼번에 올린다(7장).{hidden > 0 && ` 다시 기획으로 대체된 반려 후보 ${hidden}건은 숨겼다(백로그 종료 탭에 있다).`}</p>
         </Panel>
       )}
-      {["approved", "published"].includes(s.status) && s.total_episodes && (
+      {s.length_profile === "short" && (
+        <Panel title="짧은 판 시리즈 (KAN-296 실험)">
+          <p className="text-[12.5px] leading-relaxed text-ink-soft">발행된 시리즈 <Link href={`/series/${s.remake_of}`} className="text-brand-ink underline">원본</Link>을 5~12분 편으로 다시 만든 시리즈다. 새 앱 배포 뒤 가입한 사용자에게만 나가야 해서, 백엔드의 코호트 분리·변형 필드(KAN-298)가 생기기 전에는 [시리즈 발행]을 막아 둔다. 진행은 <Link href="/experiments" className="text-brand-ink underline">실험 탭</Link>에서도 본다.</p>
+        </Panel>
+      )}
+      {["approved", "published"].includes(s.status) && s.total_episodes && s.length_profile !== "short" && (
         <SeriesPublish id={s.id} name={s.name} introLine={s.intro_line ?? ""} total={s.total_episodes} status={s.status} productSeriesId={s.published_series_id ?? null} publisherName={publicationOf(s.publication ?? null, publications)?.name ?? null} episodes={pubEps} />
       )}
     </div>

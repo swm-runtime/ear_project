@@ -7,7 +7,7 @@ import { setBacklogStatus } from "../actions";
 export function RemakeRowActions({ id, status }: { id: string; status: string }) {
   const [pending, start] = useTransition();
   if (["rejected", "published"].includes(status)) return null;
-  const go = (s: "approved" | "rejected", msg: string) => { if (confirm(msg)) start(async () => { try { await setBacklogStatus(id, s); } catch (e: any) { alert(e.message); } }); };
+  const go = (s: "approved" | "rejected", msg: string) => { if (confirm(msg)) start(async () => { try { await setBacklogStatus(id, s); } catch (e) { alert(e instanceof Error ? e.message : String(e)); } }); };
   return (
     <div className="flex gap-1">
       {status === "proposed" && <button className={btnCls("primary")} disabled={pending} onClick={() => go("approved", `${id} 초안을 다시 겁니다(같은 소스·짧은 판 규격).`)}>다시 초안</button>}

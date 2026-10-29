@@ -10,6 +10,7 @@ import { pipelineLocale } from "@/lib/locale";
 import { LENGTH_SPECS } from "@ear/pipeline/length-profile";
 import { RemakePicker, type OriginalRow } from "./remake-picker";
 import { RemakeRowActions } from "./remake-row-actions";
+import { SeriesRemakeButton } from "./series-remake-button";
 
 /**
  * 실험 탭 (0040, KAN-296 단기 실험 ④ — 2026-10-29 박수헌): 발행된 단편을 골라 **짧은 판**(5~12분·구간 2~3개·선취 훅)을 다시 만든다.
@@ -23,23 +24,36 @@ export default async function ExperimentsPage({ searchParams }: { searchParams: 
   const sb = await supabaseServer();
   const [{ data: originals }, { data: remakes }, { data: rjobs }, { data: autoRow }] = await Promise.all([
     sb.from("backlog").select("id,title,mid_topic,published_at").eq("status", "published").is("series_id", null).is("remake_of", null).order("published_at", { ascending: false }),
-    sb.from("backlog").select("id,title,mid_topic,status,remake_of,created_at,published_content_ref").not("remake_of", "is", null).order("created_at", { ascending: false }),
+    sb.from("backlog").select("id,title,mid_topic,status,remake_of,created_at,published_content_ref").not("remake_of", "is", null).is("series_id", null).order("created_at", { ascending: false }), // 시리즈 편은 아래 시리즈 표에서
     sb.from("jobs").select("payload,status,error,created_at").eq("type", "remake").order("created_at", { ascending: false }).limit(300),
     sb.from("settings").select("value").eq("key", "automation").maybeSingle(),
   ]);
+  // 시리즈 짧은 판 (0041) — 발행된 원본 시리즈와 짧은 판 시리즈, 편 진행
+  const [{ data: allSeries }, { data: seriesEps }, { data: sjobs }] = await Promise.all([
+    sb.from("series").select("id,name,status,total_episodes,remake_of,created_at").in("status", ["approved", "published"]),
+    sb.from("backlog").select("series_id,status").not("series_id", "is", null).not("remake_of", "is", null),
+    sb.from("jobs").select("payload,status,error,created_at").eq("type", "remake").not("payload->>series_id", "is", null).order("created_at", { ascending: false }).limit(50),
+  ]);
+  const shortSeries = (allSeries ?? []).filter((x) => x.remake_of);
+  const origSeries = (allSeries ?? []).filter((x) => !x.remake_of && x.status === "published");
+  const shortOf = new Map(shortSeries.map((x) => [x.remake_of as string, x]));
+  const seriesProg = new Map<string, Record<string, number>>();
+  for (const e of seriesEps ?? []) { const m = seriesProg.get(e.series_id) ?? {}; m[e.status] = (m[e.status] ?? 0) + 1; seriesProg.set(e.series_id, m); }
+  const seriesQueued = new Set((sjobs ?? []).filter((j) => ["queued", "claimed", "running"].includes(j.status)).map((j) => String((j.payload as { series_id?: string }).series_id)));
+  const seriesFailed = (sjobs ?? []).filter((j) => j.status === "failed").map((j) => ({ id: String((j.payload as { series_id?: string }).series_id), error: (j.error ?? "").split("\n")[0].slice(0, 140) })).filter((f) => !shortOf.has(f.id));
   const shortTh = (autoRow?.value as { short_threshold?: number } | null)?.short_threshold; // 짧은 판 관문(settings.automation.short_threshold) — 없으면 기록만(루브릭 보정 중)
   const remakeIds = (remakes ?? []).map((r) => r.id);
   const origIds = (originals ?? []).map((r) => r.id);
   const [{ data: eps }, { data: jobs }, { data: origEps }] = await Promise.all([
-    remakeIds.length ? sb.from("episodes").select("id,backlog_id,script_key,qa_report_key,critic_report_key,audio_dist_key,critic_verdicts,created_at").in("backlog_id", remakeIds).order("created_at", { ascending: false }) : Promise.resolve({ data: [] as any[] }),
-    remakeIds.length ? sb.from("jobs").select("type,status,attempt,error,result,created_at,payload").in("type", ["draft", "qa", "critic", "tts", "package"]).order("created_at", { ascending: false }).limit(2000) : Promise.resolve({ data: [] as any[] }),
-    origIds.length ? sb.from("episodes").select("id,backlog_id,created_at").in("backlog_id", origIds).order("created_at", { ascending: false }) : Promise.resolve({ data: [] as any[] }),
+    remakeIds.length ? sb.from("episodes").select("id,backlog_id,script_key,qa_report_key,critic_report_key,audio_dist_key,critic_verdicts,created_at").in("backlog_id", remakeIds).order("created_at", { ascending: false }) : Promise.resolve({ data: [] as never[] }),
+    remakeIds.length ? sb.from("jobs").select("type,status,attempt,error,result,created_at,payload").in("type", ["draft", "qa", "critic", "tts", "package"]).order("created_at", { ascending: false }).limit(2000) : Promise.resolve({ data: [] as never[] }),
+    origIds.length ? sb.from("episodes").select("id,backlog_id,created_at").in("backlog_id", origIds).order("created_at", { ascending: false }) : Promise.resolve({ data: [] as never[] }),
   ]);
   const gateOf = new Map<string, string>(); // 짧은 판 관문 미달(비평 < 65) — critic 작업 결과의 short_gate
   for (const j of (jobs ?? []) as (JobRow & { result: { short_gate?: string } | null })[]) { const id = String(j.payload?.episode_id ?? ""); if (id && j.type === "critic" && j.result?.short_gate && !gateOf.has(id)) gateOf.set(id, j.result.short_gate); }
   const jobsOf = new Map<string, JobRow[]>();
   for (const j of (jobs ?? []) as JobRow[]) { const id = String(j.payload?.episode_id ?? ""); if (id) jobsOf.set(id, [...(jobsOf.get(id) ?? []), j]); }
-  const epOf = new Map<string, any>(); for (const e of eps ?? []) if (!epOf.has(e.backlog_id)) epOf.set(e.backlog_id, e);
+  const epOf = new Map<string, NonNullable<typeof eps>[number]>(); for (const e of eps ?? []) if (!epOf.has(e.backlog_id)) epOf.set(e.backlog_id, e);
   const origEpOf = new Map<string, string>(); for (const e of origEps ?? []) if (!origEpOf.has(e.backlog_id)) origEpOf.set(e.backlog_id, e.id);
   const titleOf = new Map((originals ?? []).map((o) => [o.id, o.title]));
   // 원본별 짧은 판(살아 있는 것) · 큐에 든 요청 · 실패한 요청
@@ -87,6 +101,27 @@ export default async function ExperimentsPage({ searchParams }: { searchParams: 
             요청 실패 {failedReq.length}건: {failedReq.map((f) => <span key={f.id} className="mr-3"><span className="font-mono">{f.id}</span> {titleOf.get(f.id) ? `"${titleOf.get(f.id)}"` : ""} — {f.error}</span>)}
           </div>
         )}
+      </Panel>
+
+      <Panel title={`시리즈 짧은 판 (${shortSeries.length}/${origSeries.length})`} flush>
+        <Table head={["원본 시리즈", "편수", "짧은 판", "편 진행", ""]} empty="발행된 파이프라인 시리즈가 없다">
+          {origSeries.map((o) => {
+            const sh = shortOf.get(o.id);
+            const p = sh ? seriesProg.get(sh.id) ?? {} : {};
+            const ready = (p.packaged ?? 0) + (p.published ?? 0);
+            return (
+              <tr key={o.id} className="hover:bg-[#f7f9fb]">
+                <Td className="min-w-[220px]"><Link href={`/series/${o.id}`} className="font-medium text-ink hover:underline">{o.name}</Link></Td>
+                <Td className="whitespace-nowrap">{o.total_episodes}편</Td>
+                <Td>{sh ? <Link href={`/series/${sh.id}`} className="text-brand-ink underline">짧은 판 시리즈</Link> : seriesQueued.has(o.id) ? <Badge tone="running">요청됨</Badge> : <span className="text-ink-soft">없음</span>}</Td>
+                <Td className="text-[12px] text-ink-soft">{sh ? <>발행 준비 {ready}/{sh.total_episodes} · {Object.entries(p).map(([k, n]) => `${k} ${n}`).join(" · ")}</> : "-"}</Td>
+                <Td>{!sh && !seriesQueued.has(o.id) && <SeriesRemakeButton id={o.id} name={o.name} total={o.total_episodes ?? 0} />}</Td>
+              </tr>
+            );
+          })}
+        </Table>
+        {seriesFailed.length > 0 && <div className="border-t border-line px-4 py-2 text-[12px] text-rose-700">요청 실패: {seriesFailed.map((f) => <span key={f.id + f.error} className="mr-3">{origSeries.find((x) => x.id === f.id)?.name ?? f.id} — {f.error}</span>)}</div>}
+        <p className="border-t border-line px-4 py-2 text-[11px] text-ink-soft">파이프라인에서 만든 시리즈만 대상이다(편마다 백로그·소스가 있어야 한다). 짧은 판 시리즈는 원본과 같은 이름·설계안·간행물·썸네일을 쓰고, 편은 화 순서대로 만들어진다. 발행은 백엔드 코호트 분리(KAN-298) 뒤.</p>
       </Panel>
 
       <Panel title={`발행된 편 (${rows.length}/${(originals ?? []).length})`} flush>
