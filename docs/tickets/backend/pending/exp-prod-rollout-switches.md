@@ -36,7 +36,7 @@
 | `SHORT_CONTENT_COHORT_SINCE` | 새 앱 스토어 배포 시각(ISO) | ④ 짧은 판 KAN-298 | 심사 통과·배포 시각. **짧은 판 재고를 먼저 채운다**(폴백 없음) | 구현 중 |
 | `CONTENT_REVIEW_ENABLED` | `true` | 콘텐츠 후기 KAN-279 | 개인정보 처리방침 시행일(KAN-285) 이후 + FE KAN-280 배포 | 꺼짐 |
 | `CONTENT_REVIEW_REWARD_ENABLED` | `true` | 후기 보상 KAN-279 | 위와 함께 | 꺼짐 |
-| `SERIES_PAYWALL_ENABLED` · `SERIES_FREE_EPISODES` | `true` · `3`(비우면 3, 1~99) | ⑤ 시리즈 4편부터 프로 KAN-290 | 구현됨(2026-10-30 — `feat(be)/series-paywall`). FE KAN-294(잠금 표시·PW2 시트) 배포와 함께 켠다(구버전 앱 대응은 하지 않기로 함 — KAN-290 결정. KAN-294가 없는 앱은 `is_locked`를 몰라 잠긴 편을 탭하면 403 에러만 본다). 켜면 응답 `is_locked`·재생 403 `SERIES_EPISODE_LOCKED`·드립 4편 차단·리텐션 "듣던 콘텐츠" 제외가 함께 바뀐다(앱 배포 없이 끄면 되돌아간다). 켠 시각을 KAN-290 처리 기록에 남긴다 | 꺼짐(키 없음) |
+| `SERIES_PAYWALL_ENABLED` · `SERIES_FREE_EPISODES` | `true` · `3`(비우면 3, 1~99) | ⑤ 시리즈 4편부터 프로 KAN-290 | 구현됨(2026-10-30 — `feat(be)/series-paywall`). FE KAN-294(잠금 표시·PW2 시트) 배포와 함께 켠다(구버전 앱 대응은 하지 않기로 함 — KAN-290 결정. KAN-294가 없는 앱은 `is_locked`를 몰라 잠긴 편을 탭하면 403 에러만 본다). 켜면 응답 `is_locked`·재생 403 `SERIES_EPISODE_LOCKED`·드립 4편 차단·리텐션 "듣던 콘텐츠" 제외가 함께 바뀐다(앱 배포 없이 끄면 되돌아간다). **켜기 직전에 운영 스냅샷으로 추천 평가를 돌린다**(`recommendation-evaluation.md` 7장 — `eval:recommend --snapshot <운영 스냅샷> --series-paywall` 를 같은 스냅샷 · 같은 옵션의 기준선과 비교. 시리즈를 따라가던 무료 사용자 중 4편을 못 받게 되는 수 · 편성이 비는 수를 보고 켠다 — 2026-10-30 개발계는 합성 카탈로그로만 통과). 켠 시각을 KAN-290 처리 기록에 남긴다 | 꺼짐(키 없음) |
 
 - 키는 운영 Secrets `ear/prod/api`에 넣으면 배포(`push.sh` 선택 키 목록)가 `.env.prod`에 반영한다. 배포 없이 바꾸면 `.env.prod`를 백업하고 고친 뒤 API를 재생성한다.
 
