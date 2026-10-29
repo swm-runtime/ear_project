@@ -9,6 +9,7 @@ import { fmtTime } from "@/lib/format";
 import { pipelineLocale } from "@/lib/locale";
 import { LENGTH_SPECS } from "@ear/pipeline/length-profile";
 import { RemakePicker, type OriginalRow } from "./remake-picker";
+import { RemakeRowActions } from "./remake-row-actions";
 
 /**
  * 실험 탭 (0040, KAN-296 단기 실험 ④ — 2026-10-29 박수헌): 발행된 단편을 골라 **짧은 판**(5~12분·구간 2~3개·선취 훅)을 다시 만든다.
@@ -56,7 +57,7 @@ export default async function ExperimentsPage({ searchParams }: { searchParams: 
         desc={`발행된 단편의 주제·소스로 ${s.floorMin}~${s.maxMin}분(본문 구간 ${s.sections[0]}~${s.sections[1]}개, 선취 훅) 짧은 판을 다시 만든다(KAN-296). 설계는 원본 구성안을 보지 않고 소스만 받아 새로 짜고, 축은 원본과 같은 질문을 유지한다. 제목·썸네일은 원본 그대로. 짧은 판은 새 앱 배포 뒤 가입한 사용자에게만 나가므로(BE 코호트 분리) 백로그·일반 발행 목록에는 보이지 않는다 — 발행 준비까지 ${done}/${remakeIds.length}편.`} />
 
       <Panel title={`짧은 판 진행 (${remakeIds.length})`} flush>
-        <Table head={["원본 → 짧은 판", "상태", "진행", "막힌 곳 · 다음 행동", "만든 시각"]} empty="아직 짧은 판이 없다 — 아래 발행된 편에서 고른다">
+        <Table head={["원본 → 짧은 판", "상태", "진행", "막힌 곳 · 다음 행동", "만든 시각", ""]} empty="아직 짧은 판이 없다 — 아래 발행된 편에서 고른다">
           {(remakes ?? []).map((r) => {
             const e = epOf.get(r.id);
             const st = e ? computeStages(e, { id: r.id, status: r.status, published_content_ref: r.published_content_ref ?? null }, jobsOf.get(e.id) ?? []) : null;
@@ -72,6 +73,7 @@ export default async function ExperimentsPage({ searchParams }: { searchParams: 
                 <Td>{st ? <StageTrack stages={st.stages} /> : <span className="text-[11px] text-ink-soft">초안 대기</span>}</Td>
                 <Td className="min-w-[220px] text-[12px]">{st?.problem ? <ProblemLine p={st.problem} /> : <span className="text-ink-soft">—</span>}</Td>
                 <Td className="whitespace-nowrap text-ink-soft">{fmtTime(r.created_at)}</Td>
+                <Td><RemakeRowActions id={r.id} status={r.status} /></Td>
               </tr>
             );
           })}
