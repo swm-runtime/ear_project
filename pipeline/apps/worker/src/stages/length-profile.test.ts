@@ -55,3 +55,7 @@ test("lengthSpecOf — short 규격 수치", () => {
   assert.deepEqual([s.floorMin, s.targetMin, s.maxMin, s.floorChars, s.maxChars, [...s.sections]], [5, 9, 12, 1700, 4100, [2, 3]]);
   assert.equal(P.lengthSpecOf(null).key, "standard");
 });
+
+test("짧은 판 발행 준비 관문 — 비평 65 (standard 는 관문 없음)", () => {
+  assert.equal(P.SHORT_CRITIC_THRESHOLD, 65);
+});
