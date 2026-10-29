@@ -11,7 +11,7 @@ import { composeSeriesThumb, seriesCountText } from "./thumbnail-series.js";
 import { buildPhrasebookTextPrompt, composePhrasebookThumb, expressionLines, PHRASEBOOK_TEXT_SCHEMA, titleLines } from "./thumbnail-phrasebook.js";
 import { buildScenePrompt, buildScenePromptEn, recentScenes, SCENE_FILE, SCENE_SCHEMA, type ThumbnailScene } from "./thumbnail-scene.js";
 import { advanceChain } from "../chain.js";
-import { exists, localPathOf, pullPrefix, pushPrefix, s3Key } from "../storage.js";
+import { exists, localPathOf, pullPrefix, pushPrefix, s3Key, storage } from "../storage.js";
 import { log } from "../util.js";
 
 /**
@@ -96,6 +96,17 @@ export async function runThumbnail(job: Job) {
     [episodeId],
   );
   const existingKey = row.rows[0]?.thumbnail_key as string | null;
+  // 0040 (KAN-296): 짧은 판 재제작 편은 원본 편의 썸네일을 그대로 쓴다 — 비교 변수를 길이 하나로 남긴다. 원본에 썸네일이 없으면 종전 경로로 새로 만든다
+  if (cand.remake_of) {
+    const copied = await copyOriginalThumbnail(cand.remake_of, rel, outFile).catch((e) => { log(`  thumbnail ${episodeId}: 원본 복사 실패 (${String(e?.message ?? e).slice(0, 120)}) — 새로 만든다`); return null; });
+    if (copied) {
+      await pool.query("update public.episodes set thumbnail_key = $2, updated_at = now() where id = $1", [episodeId, copied.key]);
+      await insertRun({ backlog_id: backlogId, phase: "thumbnail", result: `썸네일 — 원본 ${cand.remake_of} (${copied.from}) 복사 · 짧은 판은 원본 그림을 그대로 쓴다`, prompt_version: "remake-copy (worker)", artifacts: [copied.key], executed_by: executedBy, model: null, cost_usd: 0, tokens: { images: 0, remake_of: cand.remake_of }, worker_rev: workerRev() });
+      log(`  thumbnail ${episodeId}: 원본 ${cand.remake_of} 썸네일 복사 (${copied.from})`);
+      const next = await advanceChain(job);
+      return { episode_id: episodeId, thumbnail_key: copied.key, copied_from: copied.from, next: next?.type ?? null };
+    }
+  }
   if (!force && existingKey && (await exists(outFile))) {
     log(`  thumbnail ${episodeId}: 이미 있음 — 건너뜀 (${existingKey})`);
     // 건너뛰어도 연쇄는 이어진다 — 여기서 멈추면 [발행 준비]가 패키지에 닿지 못한다
@@ -508,4 +519,15 @@ async function decodeImage(res: ImageResponse): Promise<Buffer> {
 function firstNonEmpty(...values: (string | null | undefined)[]): string | null {
   for (const v of values) if (typeof v === "string" && v.trim()) return v.trim();
   return null;
+}
+
+/** 원본 후보의 최신 편 썸네일을 이 편의 자리(episodes/<id>/thumbnail.png)로 복사한다. 원본 썸네일이 없으면 null */
+async function copyOriginalThumbnail(originalBacklogId: string, rel: string, outFile: string): Promise<{ key: string; from: string } | null> {
+  const r = await pool.query("select e.id, e.thumbnail_key from public.episodes e where e.backlog_id = $1 and e.thumbnail_key is not null order by e.created_at desc limit 1", [originalBacklogId]);
+  const src = r.rows[0] as { id: string; thumbnail_key: string } | undefined;
+  if (!src) return null;
+  const buf = await storage().get(src.thumbnail_key.replace(/^(s3|local):/, ""));
+  await fs.writeFile(outFile, buf);
+  await pushPrefix(`${rel}/`);
+  return { key: s3Key(`${rel}/thumbnail.png`), from: src.id };
 }

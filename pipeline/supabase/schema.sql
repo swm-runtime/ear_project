@@ -106,6 +106,8 @@ create table if not exists backlog (
   gate1_checks jsonb,                          -- 0028: 글로벌판 게이트 1 기록 {screen, warnings_confirmed} — 한국판은 null
   series_id   uuid references series(id),      -- 0029: 기획 시리즈 편이면 그 시리즈 — 일반 편은 null
   series_no   int,                             -- 0029: 화 번호(1부터). series_id 와 함께 있거나 함께 없다 (backlog_series_pair_check · 부분 유니크 backlog_series_no_uq — 0035: 반려된 후보는 빼고 센다, 한 화에 살아 있는 후보 하나)
+  length_profile text not null default 'standard' check (length_profile in ('standard', 'short')), -- 0040 (KAN-296): standard = 13분 하한 규격 · short = 5~12분 짧은 판(재제작 후보)
+  remake_of   text references backlog(id),     -- 0040: 발행된 편의 짧은 판이면 원본 후보 id — 주제·소스를 물려받는다. 일반 편은 null
   created_at  timestamptz not null default now(),
   updated_at  timestamptz not null default now()
 );
@@ -172,7 +174,7 @@ alter table runs    enable row level security;
 
 create table if not exists public.jobs (
   id uuid primary key default gen_random_uuid(),
-  type text not null check (type in ('sweep','cluster','draft','qa','critic','tts','package','domain_check','thumbnail','critic_measure','enrich','script_align','series_plan')), -- 0029: series_plan(시리즈 설계안) · 0007: domain_check(스냅샷 누락분 정정) · 0018: thumbnail · 0020: critic_measure(루브릭 개정안 측정) · 0021: enrich(추천 메타)
+  type text not null check (type in ('sweep','cluster','draft','qa','critic','tts','package','domain_check','thumbnail','critic_measure','enrich','script_align','series_plan','judge_loop','remake')), -- 0040: remake(짧은 판 재제작 후보 생성) · 0033: judge_loop · 0029: series_plan(시리즈 설계안) · 0007: domain_check(스냅샷 누락분 정정) · 0018: thumbnail · 0020: critic_measure(루브릭 개정안 측정) · 0021: enrich(추천 메타)
   requires_ai boolean not null,
   payload jsonb not null default '{}'::jsonb,
   status text not null default 'queued' check (status in ('queued','claimed','running','done','failed','cancelled')),

@@ -87,7 +87,7 @@ export async function requestGlobalTopicPlan(input: { topics: string[]; title: s
 }
 
 /** 작업 요청 (사람 트리거): sweep · tts · thumbnail · package · cluster 재실행 · judge_loop(글로벌 [재판정], 2026-10-23). requested_by 는 트리거가 찍는다. */
-export async function enqueueJob(type: "sweep" | "cluster" | "tts" | "thumbnail" | "package" | "domain_check" | "series_plan" | "judge_loop", payload: Record<string, unknown>) {
+export async function enqueueJob(type: "sweep" | "cluster" | "tts" | "thumbnail" | "package" | "domain_check" | "series_plan" | "judge_loop" | "remake", payload: Record<string, unknown>) {
   const sb = await supabaseServer();
   // 글로벌 [재판정](명세 6.10): qa_passed 편에만, 이미 큐·실행 중이면 거부. 현재 script.md(이전 루프의 최고판)에서 0회차부터 다시 돈다
   if (type === "judge_loop") {
@@ -240,10 +240,10 @@ export async function listPublishableEpisodes(): Promise<{ id: string; title: st
   if (error) throw new Error(error.message);
   const ids = [...new Set((eps ?? []).map((e) => e.backlog_id))];
   if (ids.length === 0) return [];
-  const { data: bls } = await sb.from("backlog").select("id,title,mid_topic,status,series_id").in("id", ids);
+  const { data: bls } = await sb.from("backlog").select("id,title,mid_topic,status,series_id,remake_of").in("id", ids);
   const bl = Object.fromEntries((bls ?? []).map((b) => [b.id, b]));
   return (eps ?? [])
-    .filter((e) => bl[e.backlog_id]?.status === "packaged" && !bl[e.backlog_id]?.series_id) // 시리즈 편은 시리즈 화면의 [시리즈 발행]으로만 (spec/11 7장)
+    .filter((e) => bl[e.backlog_id]?.status === "packaged" && !bl[e.backlog_id]?.series_id && !bl[e.backlog_id]?.remake_of) // 시리즈 편은 시리즈 화면의 [시리즈 발행]으로만 (spec/11 7장) · 짧은 판(0040)은 실험 탭에서만 — 신규 코호트 전용이라 일반 발행에 섞지 않는다 // 시리즈 편은 시리즈 화면의 [시리즈 발행]으로만 (spec/11 7장)
     .map((e) => ({ id: e.id, title: bl[e.backlog_id]?.title ?? e.id, mid_topic: bl[e.backlog_id]?.mid_topic ?? "", created_at: e.created_at as string }));
 }
 

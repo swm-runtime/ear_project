@@ -12,6 +12,7 @@ import { exists, hostOf, log } from "../util.js";
 import { parseScriptForTts, type ScriptTurn } from "../tts/script.js";
 import { runDesignSingle } from "./design-single.js";
 import { countWords, MIN_MINUTES_EN, MIN_WORDS_EN, WORDS_PER_MIN_EN } from "../script-length.js";
+import { lengthSpecOf } from "@ear/pipeline";
 import { addPronunciations } from "../tts/normalize.js";
 
 /**
@@ -32,6 +33,8 @@ export interface TwoStageArgs {
   signoffSeed?: number;
   /** 실험 no-gold (2026-09-15): 설계·대본 프롬프트에서 골드 예시를 뺀다 — settings.experiments.no_gold_backlog_ids 에 든 후보만 */
   noGold?: boolean;
+  /** 재제작 원본(0040, KAN-296) — short 프로필 편이면 원본 제목·축. 설계가 같은 질문을 유지하게 한다 */
+  remakeOf?: { title: string; axis?: string | null } | null;
   /** 시리즈 편(spec/11 5장) — 설계·작성 블록, 설계 뒤 연결 재료 */
   series?: SeriesDraftContext;
   seriesId?: string;
@@ -53,7 +56,7 @@ export async function runTwoStageDraft(a: TwoStageArgs): Promise<TwoStageResult>
     designSummary = "설계 이어받기(기존 산출물)";
   } else if (cfg.designMode === "single") {
     log(`  draft ${episodeId} ← ${cand.id} "${cand.title}" · 1/2 설계 (단발, 소스 ${cand.sources.length})`);
-    const d = await runDesignSingle({ job, ex, episodeId, candidate: cand, dir, assetRoot: a.assetRoot, promptVersion: a.promptVersion, noGold: a.noGold || pipelineLocale() === "en", series: a.series }); // 글로벌판 설계는 골드를 쓰지 않는다(대본 단계만)
+    const d = await runDesignSingle({ job, ex, episodeId, candidate: cand, dir, assetRoot: a.assetRoot, promptVersion: a.promptVersion, noGold: a.noGold || pipelineLocale() === "en", series: a.series, remakeOf: a.remakeOf }); // 글로벌판 설계는 골드를 쓰지 않는다(대본 단계만)
     design = d.design; designCost = d.costUsd; designTokens = d.tokens; designModel = d.model;
     designSummary = `설계(단발): 축 [${design.axis_type}] ${design.axis} · 구간 ${design.sections.length} (착지 #${design.landing_section}) · 발췌 ${design.excerpts}·claims ${design.claims} · 예상 ${design.estimated_minutes}분 · 본문 ${d.fetched.filter((f) => f.ok).length}/${d.fetched.length}${design.gaps.length ? ` · 빈 역할 ${design.gaps.join("/")}` : ""}${design.sources_excluded.length ? ` · 제외 ${design.sources_excluded.map((x) => `${hostOf(x.url)} ${x.reason}`).join("; ").slice(0, 200)}` : ""}${design.split_proposal ? ` · ⚠ 분할 제안: ${design.split_proposal.slice(0, 200)}` : ""}`;
   } else {
@@ -76,7 +79,7 @@ export async function runTwoStageDraft(a: TwoStageArgs): Promise<TwoStageResult>
     const missing: string[] = [];
     for (const f of DESIGN_FILES) if (!(await exists(path.join(dir, f)))) missing.push(f);
     if (missing.length) throw new Error(`설계 산출물 누락: ${missing.join(", ")} — 모델은 완료 보고를 냈으나 파일 없음 (turns=${r.numTurns ?? "?"}, notes="${design.notes.slice(0, 160)}")`);
-    const floorMin = pipelineLocale() === "en" ? MIN_MINUTES_EN : 13;
+    const floorMin = pipelineLocale() === "en" ? MIN_MINUTES_EN : lengthSpecOf(cand.length_profile).floorMin; // 0040: short 프로필은 5분
     if (design.estimated_minutes && design.estimated_minutes < floorMin) {
       throw new Error(`재료 부족 — 설계 예상 분량 ${design.estimated_minutes}분 < 하한 ${floorMin}분. ${design.notes.slice(0, 200)}`);
     }
@@ -176,15 +179,17 @@ export function scriptStats(md: string): { turns: number; chars: number; minutes
 /** 2단계 L0 — 구성안 계약(구간 수·순서)과 분량 하한(13분 ≈ 4,300자)을 기계로 검사한다. 위반은 재생성 연쇄로. 하한은 2026-10-08 박수헌: eleven_v4 말 속도(실측 341자/분)에 맞춰 4,000 → 4,300 */
 /** @param opts.signoffHeads 템플릿 클로징 인사 골격들의 고정 머리(첫 {슬롯} 앞 문구, tpl-v2). 있으면 마지막 턴이 진행(Y) 턴이고 그중 하나를 담아야 한다 */
 export interface L0AttributionInput { claimsMd?: string; sourcesMd?: string; notesMd?: string; pronunciations?: Record<string, string> }
-export function twoStageViolations(scriptMd: string, outlineMd: string, opts: { signoffHeads?: string[] } & L0AttributionInput = {}): string[] {
+export function twoStageViolations(scriptMd: string, outlineMd: string, opts: { signoffHeads?: string[]; /** 0040: short 면 하한 1,700자·상한 4,100자 */ lengthProfile?: string | null } & L0AttributionInput = {}): string[] {
   if (pipelineLocale() === "en") return twoStageViolationsEn(scriptMd, outlineMd, opts);
   const v: string[] = [];
+  const spec = lengthSpecOf(opts.lengthProfile);
   const planned = [...outlineMd.matchAll(/^구간 #(\d+)/gm)].map((m) => Number(m[1]));
   const written = [...scriptMd.matchAll(/^### #(\d+)/gm)].map((m) => Number(m[1]));
   if (planned.length && written.length !== planned.length) v.push(`구성안 구간 ${planned.length}개인데 대본의 "### #n" 헤더가 ${written.length}개 — 구간 계약 위반 (outline.md 순서대로 전 구간을 써야 한다)`);
   else if (planned.length && written.some((n, i) => n !== planned[i])) v.push(`구간 번호 순서가 구성안과 다름 (구성안 ${planned.join(",")} / 대본 ${written.join(",")})`);
   const s = scriptStats(scriptMd);
-  if (s.chars < 4300) v.push(`분량 ${s.chars}자(약 ${s.minutes}분) — 하한 13분(약 4,300자) 미달. 채우기 없이 구성안 재료(예비 재료·역사 맥락)를 더 실행해 늘린다`);
+  if (s.chars < spec.floorChars) v.push(`분량 ${s.chars}자(약 ${s.minutes}분) — 하한 ${spec.floorMin}분(약 ${spec.floorChars.toLocaleString()}자) 미달. 채우기 없이 구성안 재료(예비 재료·역사 맥락)를 더 실행해 늘린다`);
+  if (spec.maxChars && s.chars > spec.maxChars) v.push(`분량 ${s.chars}자(약 ${s.minutes}분) — ${spec.label} 상한 ${spec.maxMin}분(약 ${spec.maxChars.toLocaleString()}자) 초과. 재료를 빼지 말고 해설 턴의 풀어 쓰기를 줄인다`);
   // 과다 분량: 설계 예상의 1.6배를 넘으면 풀어 쓰기가 길어진 것 (T260908-001: 예상 17분 → 31분). 초과 구간의 긴 해설 턴을 줄이는 방향으로 재생성
   const est = Number(outlineMd.match(/^예상 분량:\s*(\d+(?:\.\d+)?)\s*분/m)?.[1]);
   if (est && s.minutes > est * 1.6) v.push(`분량 ${s.chars}자(약 ${s.minutes}분) — 구성안 예상 ${est}분의 1.6배 초과. 재료를 빼지 말고 해설 턴의 풀어 쓰기를 줄여 예상 분량(±15%)에 맞춘다 (긴 턴부터: 7문장 이상 턴, 같은 말의 재서술)`);

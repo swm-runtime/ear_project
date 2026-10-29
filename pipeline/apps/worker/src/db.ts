@@ -7,7 +7,7 @@ export const pool = new pg.Pool({ connectionString: cfg.databaseUrl, max: 3, idl
 // Supabase 풀러가 유휴 연결을 끊으면 풀이 'error' 를 낸다 — 받지 않으면 EventEmitter 규칙상 프로세스가 죽는다 (2026-08-31 워커 사망 원인 후보)
 pool.on("error", (e) => console.error(`[pg pool] 연결 오류 (무시하고 재연결): ${e.message}`));
 
-export type JobType = "sweep" | "cluster" | "draft" | "qa" | "critic" | "tts" | "package" | "domain_check" | "thumbnail" | "critic_measure" | "enrich" | "script_align" | "series_plan" | "judge_loop"; // judge_loop: 글로벌 판정·재작성 루프 (0033, 명세 6.10)
+export type JobType = "sweep" | "cluster" | "draft" | "qa" | "critic" | "tts" | "package" | "domain_check" | "thumbnail" | "critic_measure" | "enrich" | "script_align" | "series_plan" | "judge_loop" | "remake"; // remake: 짧은 판 재제작 후보 생성 (0040, KAN-296) // judge_loop: 글로벌 판정·재작성 루프 (0033, 명세 6.10)
 export interface Job {
   id: string;
   type: JobType;
@@ -103,7 +103,7 @@ export async function sweepClusterState(jobId: string, major: string): Promise<{
   } catch (e) { await c.query("rollback").catch(() => {}); throw e; } finally { c.release(); }
 }
 export async function getBacklog(id: string): Promise<BacklogCandidate | null> {
-  const r = await pool.query("select id, mid_topic, title, target_fit, angle, sources, axis, axis_type, gaps, series_id, series_no from public.backlog where id = $1", [id]);
+  const r = await pool.query("select id, mid_topic, title, target_fit, angle, sources, axis, axis_type, gaps, series_id, series_no, length_profile, remake_of from public.backlog where id = $1", [id]);
   if (!r.rows[0]) return null;
   const row = r.rows[0];
   return { id: row.id, mid_topic: row.mid_topic, title: row.title, target_fit: row.target_fit, angle: row.angle, sources: (row.sources ?? []) as SourceRef[], axis: row.axis, axis_type: row.axis_type, gaps: row.gaps ?? [], series_id: row.series_id ?? null, series_no: row.series_no ?? null };
@@ -253,16 +253,17 @@ export async function liveCandidateSources(): Promise<Map<string, string[]>> {
   return m;
 }
 /** 이 URL 들을 소스로 쓴 **다른 후보의 에피소드** (설계 산출물이 있는 것만): 설계 단계가 그 편의 발췌 문단을 제외한다 — 같은 소스를 써도 같은 대목은 두 번 풀지 않게 */
-export async function priorEpisodesUsingUrls(urls: string[], excludeBacklogId: string): Promise<{ episode_id: string; backlog_id: string; title: string; sources_key: string | null; urls: string[] }[]> {
+export async function priorEpisodesUsingUrls(urls: string[], excludeBacklogId: string | string[]): Promise<{ episode_id: string; backlog_id: string; title: string; sources_key: string | null; urls: string[] }[]> {
   if (!urls.length) return [];
+  const exclude = Array.isArray(excludeBacklogId) ? excludeBacklogId : [excludeBacklogId]; // 0040: 재제작 후보는 원본 편의 문단도 쓸 수 있어야 한다
   const r = await pool.query(
     `select e.id as episode_id, b.id as backlog_id, b.title, e.sources_key,
             array(select s->>'url' from jsonb_array_elements(b.sources) s where s->>'url' = any($1)) as urls
        from public.episodes e join public.backlog b on b.id = e.backlog_id
-      where b.id <> $2 and b.status not in ('rejected','expired') and e.sources_key is not null
+      where b.id <> all($2) and b.status not in ('rejected','expired') and e.sources_key is not null
         and exists (select 1 from jsonb_array_elements(b.sources) s where s->>'url' = any($1))
       order by e.id`,
-    [urls, excludeBacklogId],
+    [urls, exclude],
   );
   return r.rows;
 }
