@@ -1,7 +1,14 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import * as P from "@ear/pipeline";
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { twoStageViolations } from "./draft-two-stage.js";
+
+const SKILLS = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../../../docs/ai/skills");
+const rules = P.parseShortRules(P.promptBody(fs.readFileSync(path.join(SKILLS, "draft/short.md"), "utf8")), "short-v1");
+const rubricShort = P.promptBody(fs.readFileSync(path.join(SKILLS, "critic/rubric-short.md"), "utf8"));
 
 // 0040 (KAN-296, 2026-10-29) — 길이 프로필. standard 경로는 프롬프트·검사가 글자 하나 바뀌지 않고, short 에만 블록·수치가 붙는다
 const cand = { id: "C1", mid_topic: "경제 상식", title: "제목", target_fit: null, angle: null, sources: [{ url: "https://a.example/1", title: "t", publisher: "p" }] };
@@ -20,31 +27,47 @@ test("길이 프로필 — standard·null·모르는 값은 설계·대본 프�
   assert.match(w.user, /하한 13분/);
 });
 
-test("길이 프로필 — short 는 설계에 구간 2~3·5~12분·원본 축 블록, 대본에 선취 훅 블록, 비평에 규격 알림이 붙는다", () => {
-  const d = P.buildDesignPromptInlineParts({ episodeId: "T1", candidate: { ...cand, length_profile: "short", remake_of: "C0" }, promptVersion: "v", guidelines: "g", specScript: "s", goldFullEum: "", goldFullYuna: "", sources: [], remakeOf: { title: "원본 제목", axis: "A인데 B" } });
-  assert.match(d.user, /## 짧은 판/);
+test("길이 프로필 — short 는 설계·대본에 숫자 줄(코드)과 짧은 판 규칙 자산 절이, 비평에 짧은 판 루브릭이 붙는다", () => {
+  const d = P.buildDesignPromptInlineParts({ episodeId: "T1", candidate: { ...cand, length_profile: "short", remake_of: "C0" }, promptVersion: "v", guidelines: "g", specScript: "s", goldFullEum: "", goldFullYuna: "", sources: [], remakeOf: { title: "원본 제목", axis: "A인데 B" }, shortRules: rules });
   assert.ok(d.user.startsWith("**이 편은 짧은 판이다"), "짧은 판 표지가 설계 프롬프트 맨 앞에 온다");
-  assert.match(P.shortTrimFeedback(16, 5), /예상 16분 · 본문 구간 5개/);
+  assert.match(d.user, /## 짧은 판 — .*short-v1/);
   assert.match(d.user, /본문 구간은 2~3개/);
-  assert.match(d.user, /착지 구간 안의 한두 턴/);
+  assert.match(d.user, /사용 소스 하한은 2건/);
   assert.match(d.user, /상한 12분/);
   assert.match(d.user, /"원본 제목"의 짧은 판/);
   assert.match(d.user, /원본의 축: A인데 B/);
-  const w = write({ length_profile: "short" });
+  assert.match(d.user, /축 소스는 모든 구간에 배정할 수 있다/, "자산의 설계 절");
+  assert.doesNotMatch(d.user, /도입 훅 — /, "훅 절은 설계에 붙지 않는다");
+  assert.throws(() => P.buildDesignPromptInlineParts({ episodeId: "T1", candidate: { ...cand, length_profile: "short" }, promptVersion: "v", guidelines: "g", specScript: "s", goldFullEum: "", goldFullYuna: "", sources: [] }), /짧은 판 규칙/);
+  assert.match(P.shortTrimFeedback(16, 5), /예상 16분 · 본문 구간 5개/);
+  const wr = (hook?: P.ShortHook) => P.buildWritePromptParts({ episodeId: "T1", candidate: { ...cand, length_profile: "short" }, introStyle: P.INTRO_STYLES[0], promptVersion: "v", guidelines: "g", specScript: "s", goldFullEum: "", goldFullYuna: "", sourcesMd: "", claimsMd: "", outlineMd: "", pronunciationsJson: "{}", shortHook: hook, shortRules: rules });
+  const w = wr();
   assert.match(w.user, /선취형 훅/);
+  assert.match(w.user, /### 도입 훅 — 선취형/);
+  assert.match(w.user, /수치는 1개 이상 2개 이하/);
+  assert.doesNotMatch(w.user, /### 도입 훅 — 약속형/);
   assert.doesNotMatch(w.user, /진입 방식: \*\*/, "short 편은 진입 방식 로테이션 줄이 빠진다");
   assert.match(w.user, /상한 12분\(약 4,100자\)/);
-  const w2 = P.buildWritePromptParts({ episodeId: "T1", candidate: { ...cand, length_profile: "short" }, introStyle: P.INTRO_STYLES[0], promptVersion: "v", guidelines: "g", specScript: "s", goldFullEum: "", goldFullYuna: "", sourcesMd: "", claimsMd: "", outlineMd: "", pronunciationsJson: "{}", shortHook: P.pickShortHook(1) });
-  assert.match(w2.user, /약속형 훅/);
-  assert.match(w2.user, /무엇이 달라지는지/);
+  assert.match(w.user, /골드 예시는 말투와 주고받기만 따른다/, "자산의 대본 절");
+  const w2 = wr(P.pickShortHook(1));
+  assert.match(w2.user, /### 도입 훅 — 약속형/);
   assert.match(w2.user, /구체적인 상황 하나/);
-  assert.match(w.user, /한 문장, 수치 1~2개/);
-  assert.match(w.user, /열거 금지/);
   assert.equal(P.pickShortHook(600).key, "payoff"); assert.equal(P.pickShortHook(601).key, "promise");
-  const c = P.buildCriticPromptInlineParts({ episodeId: "T1", title: "t", midTopic: "경제 상식" as never, rubricV2Md: "r", guidelines: "g", goldFullEum: "", goldFullYuna: "", scriptMd: "s", lengthProfile: "short" });
-  assert.match(c.system, /규격 알림 — 짧은 판/);
+  const c = P.buildCriticPromptInlineParts({ episodeId: "T1", title: "t", midTopic: "경제 상식" as never, rubricV2Md: "r", guidelines: "g", goldFullEum: "", goldFullYuna: "", scriptMd: "s", lengthProfile: "short", rubricShortMd: rubricShort });
+  assert.match(c.system, /## 짧은 판 채점 — 위 1절 비평 루브릭 v2 의 3장\(점수\) 대신/);
+  assert.match(c.system, /3\.5 첫 30초 \(10\)/);
+  const cNoRubric = P.buildCriticPromptInlineParts({ episodeId: "T1", title: "t", midTopic: "경제 상식" as never, rubricV2Md: "r", guidelines: "g", goldFullEum: "", goldFullYuna: "", scriptMd: "s", lengthProfile: "short" });
+  assert.match(cNoRubric.system, /규격 알림 — 짧은 판/);
   const c0 = P.buildCriticPromptInlineParts({ episodeId: "T1", title: "t", midTopic: "경제 상식" as never, rubricV2Md: "r", guidelines: "g", goldFullEum: "", goldFullYuna: "", scriptMd: "s" });
-  assert.doesNotMatch(c0.system, /규격 알림/);
+  assert.doesNotMatch(c0.system, /짧은 판/);
+});
+
+test("짧은 판 규칙 자산 — 절이 빠지면 멈춘다 · 루브릭 배점 합 100", () => {
+  assert.throws(() => P.parseShortRules("## 설계\n- a\n## 대본\n- b", "short-v0"), /도입 훅 — 선취형/);
+  const pts = [...rubricShort.matchAll(/^## 3\.\d+ [^(]+\((\d+)\)/gm)].map((m) => Number(m[1]));
+  assert.equal(pts.length, 12);
+  assert.equal(pts.reduce((a, b) => a + b, 0), 100);
+  const ax = P.SHORT_CRITIC_AXIS_MAX; assert.equal(ax.content + ax.structure + ax.naturalness + ax.immersion + ax.persona, 100);
 });
 
 test("L0 분량 — standard 는 4,300자 하한 그대로, short 는 1,700자 하한·4,100자 상한", () => {
@@ -63,10 +86,7 @@ test("L0 분량 — standard 는 4,300자 하한 그대로, short 는 1,700자 �
 
 test("lengthSpecOf — short 규격 수치", () => {
   const s = P.lengthSpecOf("short");
-  assert.deepEqual([s.floorMin, s.targetMin, s.maxMin, s.floorChars, s.maxChars, [...s.sections]], [5, 9, 12, 1700, 4100, [2, 3]]);
+  assert.deepEqual([s.floorMin, s.targetMin, s.maxMin, s.floorChars, s.maxChars, [...s.sections], s.minSources], [5, 9, 12, 1700, 4100, [2, 3], 2]);
+  assert.equal(P.lengthSpecOf("standard").minSources, 3);
   assert.equal(P.lengthSpecOf(null).key, "standard");
-});
-
-test("짧은 판 발행 준비 관문 — 비평 65 (standard 는 관문 없음)", () => {
-  assert.equal(P.SHORT_CRITIC_THRESHOLD, 65);
 });

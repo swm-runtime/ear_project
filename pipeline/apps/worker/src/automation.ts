@@ -25,7 +25,7 @@ import { workerRev } from "./assets.js";
 import { log } from "./util.js";
 import { pipelineLocale } from "@ear/pipeline";
 
-export interface AutomationSetting { auto_approve?: boolean; auto_publish_prep?: boolean; rule?: string; server_ai_claim?: boolean; judge_threshold?: number } // judge_threshold: 글로벌 판정 루프의 발행 기준(편집자 GPT 3회 중앙값, 기본 60 — 2026-10-23 박수헌, 종전 65)
+export interface AutomationSetting { auto_approve?: boolean; auto_publish_prep?: boolean; rule?: string; server_ai_claim?: boolean; judge_threshold?: number; /** 짧은 판 비평 관문(KAN-296) — 짧은 판 루브릭 합계가 이 값 미만이면 발행 준비를 걸지 않는다. 없으면 기록만(루브릭 보정 중, 2026-10-30) */ short_threshold?: number } // judge_threshold: 글로벌 판정 루프의 발행 기준(편집자 GPT 3회 중앙값, 기본 60 — 2026-10-23 박수헌, 종전 65)
 export const AUTO_RULE = "v1";
 
 let cached: { at: number; value: AutomationSetting } | null = null;
