@@ -3,7 +3,13 @@ import { UserMarket } from '@/modules/user/user.enum';
 
 import {
   DRIP_ARRIVAL_PUSH_LOCAL_HOUR,
+  DRIP_ARRIVAL_SLOT_TIMES,
   DRIP_BATCH_LOCAL_HOUR,
+  DripArrivalSlot,
+  dripArrivalBucketOf,
+  dripArrivalSlotOf,
+  dripArrivalVariantOf,
+  isArrivalSlotActive,
   DRIP_GROUP_SCHEDULES,
   dripGroupOf,
   isAfterArrivalPushTime,
@@ -118,6 +124,13 @@ describe('DRIP_GROUP_SCHEDULES — 현지 05:00 편성과 07:00 알림이 같은
     expect(localDate(timeZone, batchAt)).toBe(date);
     expect(toServiceDate(batchAt)).toBe(date);
     expect(toServiceDate(pushAt)).toBe(date);
+    // 시각 A/B의 가장 늦은 시각(08:00)도 같은 서비스 날짜다(KAN-289) — 하루 1건 판정이 서비스 날짜 기준이다
+    const latestPushAt = localTime(
+      timeZone,
+      date,
+      DRIP_ARRIVAL_SLOT_TIMES[DripArrivalSlot.H0800].hour,
+    );
+    expect(toServiceDate(latestPushAt)).toBe(date);
   });
 });
 
@@ -147,5 +160,79 @@ describe('nextDripBatchAt — 그룹의 다음 편성 배치(알림 보관 시�
     ],
   ])('%s %s → %s', (now, group, expected) => {
     expect(nextDripBatchAt(group, new Date(now)).toISOString()).toBe(expected);
+  });
+});
+
+describe('도착 알림 시각 A/B(KAN-289)', () => {
+  const ids = Array.from({ length: 2000 }, (_, i) => `user-${i}`);
+
+  it('스위치가 꺼져 있으면 전원 07:00 이고 기록에 그룹 표기가 없다', () => {
+    for (const id of ids.slice(0, 50)) {
+      expect(dripArrivalSlotOf(id, false)).toBe(DripArrivalSlot.H0700);
+    }
+    expect(isArrivalSlotActive(DripArrivalSlot.H0700, false)).toBe(true);
+    expect(isArrivalSlotActive(DripArrivalSlot.H0730, false)).toBe(false);
+    expect(isArrivalSlotActive(DripArrivalSlot.H0800, false)).toBe(false);
+    expect(dripArrivalVariantOf(DripArrivalSlot.H0700, false)).toBeNull();
+  });
+
+  it('스위치가 켜져 있으면 A 그룹은 07:30 · B 그룹은 08:00 이고 07:00 은 쉰다', () => {
+    for (const id of ids.slice(0, 50)) {
+      expect(dripArrivalSlotOf(id, true)).toBe(
+        dripArrivalBucketOf(id) === 0
+          ? DripArrivalSlot.H0730
+          : DripArrivalSlot.H0800,
+      );
+    }
+    expect(isArrivalSlotActive(DripArrivalSlot.H0700, true)).toBe(false);
+    expect(isArrivalSlotActive(DripArrivalSlot.H0730, true)).toBe(true);
+    expect(isArrivalSlotActive(DripArrivalSlot.H0800, true)).toBe(true);
+    expect(dripArrivalVariantOf(DripArrivalSlot.H0730, true)).toBe('a');
+    expect(dripArrivalVariantOf(DripArrivalSlot.H0800, true)).toBe('b');
+  });
+
+  it('같은 사용자는 늘 같은 그룹이고, 전체는 거의 반반이다', () => {
+    const inA = ids.filter((id) => dripArrivalBucketOf(id) === 0).length;
+
+    expect(ids.map(dripArrivalBucketOf)).toEqual(ids.map(dripArrivalBucketOf));
+    expect(inA / ids.length).toBeGreaterThan(0.45);
+    expect(inA / ids.length).toBeLessThan(0.55);
+  });
+
+  it('isAfterArrivalPushTime 은 시각마다 분 단위로 판정한다', () => {
+    /** 2026-08-27 07:29 · 07:30 · 07:59 · 08:00 KST */
+    const kst = (hhmm: string) => new Date(`2026-08-27T${hhmm}:00+09:00`);
+
+    expect(
+      isAfterArrivalPushTime(
+        kst('07:29'),
+        DripGroup.ASIA,
+        DripArrivalSlot.H0730,
+      ),
+    ).toBe(false);
+    expect(
+      isAfterArrivalPushTime(
+        kst('07:30'),
+        DripGroup.ASIA,
+        DripArrivalSlot.H0730,
+      ),
+    ).toBe(true);
+    expect(
+      isAfterArrivalPushTime(
+        kst('07:59'),
+        DripGroup.ASIA,
+        DripArrivalSlot.H0800,
+      ),
+    ).toBe(false);
+    expect(
+      isAfterArrivalPushTime(
+        kst('08:00'),
+        DripGroup.ASIA,
+        DripArrivalSlot.H0800,
+      ),
+    ).toBe(true);
+    // 기본은 종전 07:00
+    expect(isAfterArrivalPushTime(kst('07:00'), DripGroup.ASIA)).toBe(true);
+    expect(isAfterArrivalPushTime(kst('06:59'), DripGroup.ASIA)).toBe(false);
   });
 });

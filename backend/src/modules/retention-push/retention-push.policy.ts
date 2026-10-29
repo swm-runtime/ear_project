@@ -1,3 +1,4 @@
+import { fnv1a32 } from '@/common/utils/experiment-bucket.util';
 import {
   buildContentDeepLink,
   DEEP_LINK_LIBRARY,
@@ -234,15 +235,9 @@ export function assignVariant(
     return 0;
   }
 
-  // FNV-1a 32bit
-  let hash = 0x811c9dc5;
-
-  for (const char of `${userId}|${ruleKey}|${weekStart}`) {
-    hash ^= char.charCodeAt(0);
-    hash = Math.imul(hash, 0x01000193) >>> 0;
-  }
-
-  return hash % variantCount;
+  // FNV-1a 32bit 그대로(마무리 섞기 없음) — 이미 돌고 있는 변형 배정을 바꾸지 않는다. 새 실험은 `experimentBucket`을 쓴다
+  // (FNV-1a `% 2`는 글자 홀짝 합이라 규칙끼리 배정이 맞물린다 — 같은 주 같은 사용자의 규칙 간 비교에는 쓰지 않는다)
+  return fnv1a32(`${userId}|${ruleKey}|${weekStart}`) % variantCount;
 }
 
 /** `{변수}`를 채운다. 없는 변수는 그대로 남는다 — 테스트가 남은 `{`를 잡는다 */

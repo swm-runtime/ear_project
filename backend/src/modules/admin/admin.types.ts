@@ -328,7 +328,7 @@ export interface InsightsWithdrawalReason {
   count: number;
 }
 
-/** 알림 종류 하나의 반응 — `type`은 `drip_arrival` 또는 `retention.<규칙>.<변형>` */
+/** 알림 종류 하나의 반응 — `type`은 `drip_arrival` · `drip_arrival.<그룹>`(시각 A/B) · `retention.<규칙>.<변형>` */
 export interface InsightsPushReaction {
   type: string;
   sent: number;

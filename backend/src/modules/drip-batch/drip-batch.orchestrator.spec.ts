@@ -8,6 +8,10 @@ import { DripBatchRunService } from '@/modules/drip/services/drip-batch-run.serv
 import { DripPlacementService } from '@/modules/drip/services/drip-placement.service';
 import { DripScoringService } from '@/modules/drip/services/drip-scoring.service';
 import { PreferenceVectorService } from '@/modules/drip/services/preference-vector.service';
+import {
+  DripArrivalSlot,
+  dripArrivalBucketOf,
+} from '@/modules/drip/drip-group.policy';
 import { DripGroup } from '@/modules/drip/drip.enum';
 import { DripBatchRun } from '@/modules/drip/entities/drip-batch-run.entity';
 import { UserInterest } from '@/modules/interest/entities/user-interest.entity';
@@ -1280,6 +1284,168 @@ describe('DripBatchOrchestrator', () => {
         // then
         expect(dripArrivalNotificationService.notify).not.toHaveBeenCalled();
       });
+    });
+  });
+
+  describe('도착 알림 시각 A/B(KAN-289 — DRIP_ARRIVAL_AB_ENABLED)', () => {
+    /** 2026-08-27 05:00 KST */
+    const AT_0500 = new Date('2026-08-26T20:00:00.000Z');
+    const AT_0700 = new Date('2026-08-26T22:00:00.000Z');
+    const AT_0730 = new Date('2026-08-26T22:30:00.000Z');
+    const AT_0800 = new Date('2026-08-26T23:00:00.000Z');
+    /** 그룹 A(07:30)·B(08:00)에 드는 사용자 id 를 하나씩 고른다 — 해시라 값으로 고정하지 않고 찾는다 */
+    const userInBucket = (bucket: number) =>
+      Array.from({ length: 100 }, (_, i) => `user-${i}`).find(
+        (id) => dripArrivalBucketOf(id) === bucket,
+      ) as string;
+    const USER_A = userInBucket(0);
+    const USER_B = userInBucket(1);
+    const placement = (userId: string, contentId: string) =>
+      ({
+        userId,
+        contentId,
+        source: LibraryItemSource.DRIP,
+        content: { title: `제목 ${contentId}` },
+      }) as never;
+    const notifiedUsers = () =>
+      dripArrivalNotificationService.notify.mock.calls.map(
+        ([arrivals, , , variant]) => [
+          arrivals.map((arrival) => arrival.userId),
+          variant,
+        ],
+      );
+
+    beforeEach(() => {
+      libraryService.findPlacementsAddedBetween.mockResolvedValue([
+        placement(USER_A, 'r1'),
+        placement(USER_B, 'r2'),
+      ]);
+    });
+
+    afterEach(() => {
+      jest.useRealTimers();
+    });
+
+    it('스위치가 꺼져 있으면 07:00 크론이 전원에게 보내고(종류 그대로) 07:30·08:00 크론은 아무것도 하지 않는다', async () => {
+      // given
+      orchestrator = createOrchestrator({});
+
+      // when
+      await orchestrator.notifyTodayArrivals(
+        AT_0730,
+        DripGroup.ASIA,
+        DripArrivalSlot.H0730,
+      );
+      await orchestrator.notifyTodayArrivals(
+        AT_0800,
+        DripGroup.ASIA,
+        DripArrivalSlot.H0800,
+      );
+      expect(dripBatchRunService.findByRunDateAndGroup).not.toHaveBeenCalled();
+      await orchestrator.notifyTodayArrivals(AT_0700);
+
+      // then
+      expect(notifiedUsers()).toEqual([[[USER_A, USER_B], null]]);
+    });
+
+    it('스위치가 켜져 있으면 07:00 크론은 쉬고, 07:30 은 A 그룹 · 08:00 은 B 그룹에게만 그룹 표기와 함께 보낸다', async () => {
+      // given
+      orchestrator = createOrchestrator({ DRIP_ARRIVAL_AB_ENABLED: 'true' });
+
+      // when
+      await orchestrator.notifyTodayArrivals(AT_0700);
+      await orchestrator.notifyTodayArrivals(
+        AT_0730,
+        DripGroup.ASIA,
+        DripArrivalSlot.H0730,
+      );
+      await orchestrator.notifyTodayArrivals(
+        AT_0800,
+        DripGroup.ASIA,
+        DripArrivalSlot.H0800,
+      );
+
+      // then
+      expect(notifiedUsers()).toEqual([
+        [[USER_A], 'a'],
+        [[USER_B], 'b'],
+      ]);
+    });
+
+    it('`true` 가 아니면(빈 값·false·대소문자 다름) 꺼짐이다', async () => {
+      for (const value of ['', 'false', 'TRUE']) {
+        dripArrivalNotificationService.notify.mockClear();
+        orchestrator = createOrchestrator({ DRIP_ARRIVAL_AB_ENABLED: value });
+
+        await orchestrator.notifyTodayArrivals(
+          AT_0730,
+          DripGroup.ASIA,
+          DripArrivalSlot.H0730,
+        );
+
+        expect(dripArrivalNotificationService.notify).not.toHaveBeenCalled();
+      }
+    });
+
+    it('07:30 과 08:00 사이에 끝난 배치는 끝나자마자 A 그룹을 보내고, B 그룹은 08:00 크론에 남긴다', async () => {
+      // given — 대상 조회 중에 시계가 07:45 로 넘어간다
+      orchestrator = createOrchestrator({ DRIP_ARRIVAL_AB_ENABLED: 'true' });
+      jest
+        .useFakeTimers({ doNotFake: ['nextTick', 'setImmediate'] })
+        .setSystemTime(AT_0500);
+      const finishedAt = new Date(AT_0730.getTime() + 15 * 60_000);
+      userService.findDripTargetsPage
+        .mockReset()
+        .mockImplementationOnce(() => {
+          jest.setSystemTime(finishedAt);
+          return Promise.resolve([buildUser()]);
+        })
+        .mockResolvedValue([]);
+
+      // when — 배치 종료
+      await orchestrator.run(AT_0500);
+
+      // then — A 그룹만
+      expect(notifiedUsers()).toEqual([[[USER_A], 'a']]);
+
+      // when — 크론: 07:30 은 배치가 맡았으니 건너뛰고, 08:00 은 B 그룹을 보낸다
+      dripBatchRunService.findByRunDateAndGroup.mockResolvedValue({
+        ...run,
+        finishedAt,
+      });
+      await orchestrator.notifyTodayArrivals(
+        AT_0730,
+        DripGroup.ASIA,
+        DripArrivalSlot.H0730,
+      );
+      await orchestrator.notifyTodayArrivals(
+        AT_0800,
+        DripGroup.ASIA,
+        DripArrivalSlot.H0800,
+      );
+
+      // then
+      expect(notifiedUsers()).toEqual([
+        [[USER_A], 'a'],
+        [[USER_B], 'b'],
+      ]);
+    });
+
+    it('08:00 뒤에 끝난 배치는 두 그룹을 끝나자마자 각자의 표기로 보낸다', async () => {
+      // given
+      orchestrator = createOrchestrator({ DRIP_ARRIVAL_AB_ENABLED: 'true' });
+      jest
+        .useFakeTimers({ doNotFake: ['nextTick', 'setImmediate'] })
+        .setSystemTime(new Date(AT_0800.getTime() + 60_000));
+
+      // when
+      await orchestrator.run(AT_0800);
+
+      // then
+      expect(notifiedUsers()).toEqual([
+        [[USER_A], 'a'],
+        [[USER_B], 'b'],
+      ]);
     });
   });
 
