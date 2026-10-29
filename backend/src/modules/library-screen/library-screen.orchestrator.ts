@@ -17,6 +17,8 @@ import { LibraryTopicView } from '@/modules/library/library.types';
 import { UserSignalAction } from '@/modules/playback/playback.enum';
 import { ProgressView } from '@/modules/playback/playback.types';
 import { PlaybackService } from '@/modules/playback/services/playback.service';
+import { PlayPolicyService } from '@/modules/playback/services/play-policy.service';
+import { isSeriesEpisodeLocked } from '@/modules/subscription/policies/series-paywall.policy';
 import { LibraryService } from '@/modules/library/library.service';
 
 import {
@@ -57,6 +59,7 @@ export class LibraryScreenOrchestrator {
     private readonly dripExclusionService: DripExclusionService,
     private readonly dataSource: DataSource,
     private readonly seriesService: SeriesService,
+    private readonly playPolicyService: PlayPolicyService,
   ) {}
 
   /**
@@ -335,14 +338,21 @@ export class LibraryScreenOrchestrator {
 
     const contentIds = items.map((item) => item.contentId);
 
-    const [topicViews, progresses, countedContentIds, seriesRefs] =
-      await Promise.all([
-        this.contentService.findTopicViews(contentIds),
-        this.playbackService.findProgresses(userId, contentIds),
-        this.playbackService.findCountedContentIds(userId, now),
-        // 항목의 시리즈 표시(KAN-134) — 묶어 보여 주기는 FE가 이 객체로 한다(라이브러리 "시리즈 항목" 종류는 두지 않는다)
-        this.seriesService.findRefs(items.map((item) => item.content)),
-      ]);
+    const [
+      topicViews,
+      progresses,
+      countedContentIds,
+      seriesRefs,
+      seriesAccess,
+    ] = await Promise.all([
+      this.contentService.findTopicViews(contentIds),
+      this.playbackService.findProgresses(userId, contentIds),
+      this.playbackService.findCountedContentIds(userId, now),
+      // 항목의 시리즈 표시(KAN-134) — 묶어 보여 주기는 FE가 이 객체로 한다(라이브러리 "시리즈 항목" 종류는 두지 않는다)
+      this.seriesService.findRefs(items.map((item) => item.content)),
+      // 잠금 표시(KAN-290) — 요청당 한 번 판정하고 항목마다 비교만 한다. 이미 담긴 4편 이후도 잠긴다(예외 없음)
+      this.playPolicyService.resolveSeriesAccess(userId, now),
+    ]);
 
     const topicIdsByContentId = new Map<string, string[]>();
     for (const view of topicViews) {
@@ -375,6 +385,7 @@ export class LibraryScreenOrchestrator {
         contentVersion: item.content.contentVersion,
         topicIds: topicIdsByContentId.get(item.contentId) ?? [],
         series: seriesRefs.get(item.contentId) ?? null,
+        isLocked: isSeriesEpisodeLocked(item.content, seriesAccess),
       },
       progress: progressByContentId.get(item.contentId) ?? null,
     }));

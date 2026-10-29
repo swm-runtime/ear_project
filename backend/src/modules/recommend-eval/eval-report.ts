@@ -81,6 +81,9 @@ export function buildVerdict(
   const mismatched = [
     baseline.options.autoExpandFeature !== report.options.autoExpandFeature &&
       `자동 확장 ${baseline.options.autoExpandFeature ? 'ON' : 'OFF'} → ${report.options.autoExpandFeature ? 'ON' : 'OFF'}`,
+    (baseline.options.seriesPaywall ?? false) !==
+      (report.options.seriesPaywall ?? false) &&
+      `시리즈 유료화 ${baseline.options.seriesPaywall ? 'ON' : 'OFF'} → ${report.options.seriesPaywall ? 'ON' : 'OFF'}`,
     baseline.options.simulationDays !== report.options.simulationDays &&
       `시뮬레이션 ${baseline.options.simulationDays}일 → ${report.options.simulationDays}일`,
   ].filter((line): line is string => typeof line === 'string');
@@ -199,7 +202,7 @@ export function formatReport(
   lines.push('');
   lines.push(
     `스냅샷 ${report.snapshot.environment} · ${report.snapshot.exportedAt} · 콘텐츠 ${report.snapshot.contents} · 주제 ${report.snapshot.topics} · 사용자 ${report.snapshot.users}` +
-      ` | 코드 ${report.gitSha ?? '?'} | 시뮬레이션 ${report.options.simulationDays}일 · 자동 확장 ${report.options.autoExpandFeature ? '켬' : '끔'}` +
+      ` | 코드 ${report.gitSha ?? '?'} | 시뮬레이션 ${report.options.simulationDays}일 · 자동 확장 ${report.options.autoExpandFeature ? '켬' : '끔'} · 시리즈 유료화 ${report.options.seriesPaywall ? '켬' : '끔'}` +
       (baseline
         ? ` | 기준선 ${baseline.gitSha ?? '?'}`
         : givenBaseline

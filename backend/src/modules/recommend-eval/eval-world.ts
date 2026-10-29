@@ -20,8 +20,9 @@ import {
   LibraryItemStatus,
 } from '@/modules/library/library.enum';
 import { UserSignalAction } from '@/modules/playback/playback.enum';
+import { SeriesPaywallService } from '@/modules/subscription/services/series-paywall.service';
 import { User } from '@/modules/user/entities/user.entity';
-import { UserMarket } from '@/modules/user/user.enum';
+import { UserMarket, UserTier } from '@/modules/user/user.enum';
 
 import { EvalSnapshot } from './recommend-eval.types';
 
@@ -406,7 +407,10 @@ export class EvalWorld {
    * 이 세계를 데이터 원천으로 삼는 **제품 편성기**. 적립·알림·배치 기록 쪽 의존은 비워 둔다 —
    * `planForUser`는 그것들을 부르지 않는다.
    */
-  planner(autoExpandFeature: boolean): DripBatchOrchestrator {
+  planner(
+    autoExpandFeature: boolean,
+    seriesPaywall = false,
+  ): DripBatchOrchestrator {
     const preferenceVectorService = new PreferenceVectorService({
       upsert: () => Promise.resolve(),
     } as never);
@@ -436,6 +440,16 @@ export class EvalWorld {
       new ContentCohortService({ get: () => undefined } as never),
       // 아침 알림(KAN-288) — `planForUser`는 부르지 않는다
       {} as never,
+      // 시리즈 유료화(KAN-290) — 제품 판정 그대로. 스위치만 평가 옵션으로 바꾼다(무료 편수는 기본 3)
+      new SeriesPaywallService(
+        {
+          get: (name: string) =>
+            name === 'SERIES_PAYWALL_ENABLED'
+              ? String(seriesPaywall)
+              : undefined,
+        } as never,
+        this.planService() as never,
+      ),
     );
   }
 
@@ -446,17 +460,26 @@ export class EvalWorld {
   async plan(
     key: string,
     now: Date,
-    options: { commit: boolean; autoExpandFeature: boolean },
+    options: {
+      commit: boolean;
+      autoExpandFeature: boolean;
+      seriesPaywall?: boolean;
+    },
   ): Promise<UserDripPlan> {
     const user = this.user(key);
 
-    return this.planner(options.autoExpandFeature).planForUser(
+    return this.planner(
+      options.autoExpandFeature,
+      options.seriesPaywall ?? false,
+    ).planForUser(
       {
         id: key,
         tier: user.tier,
         market: user.market,
         jobCategory: user.jobCategory,
         yearsOfExperience: user.yearsOfExperience,
+        // 평가 세계는 가입 체험을 두지 않는다 — 시리즈 유료화는 티어로만 갈린다
+        trialEndsAt: null,
       } as unknown as User,
       now,
       new Map(),
@@ -572,6 +595,12 @@ export class EvalWorld {
       getDailyDripCount: (tier: string) => Promise.resolve(counts(tier).drip),
       getDailyDiscoveryCount: (tier: string) =>
         Promise.resolve(counts(tier).discovery),
+      // 시리즈 유료화(KAN-290)의 "최상위 요금제" — 평가 세계의 요금제는 편수만 들고 있어 최상위를 pro로 둔다(운영 요금제 순서와 같다)
+      getPlayLimitPolicy: (tier: string) =>
+        Promise.resolve({
+          dailyPlayLimit: null,
+          isTopTier: tier === (UserTier.PRO as string),
+        }),
     };
   }
 

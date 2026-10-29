@@ -247,6 +247,28 @@ describe('validateEnv', () => {
     }
   });
 
+  it('SERIES_PAYWALL_ENABLED 는 true·false·빈 값만, SERIES_FREE_EPISODES 는 1~99 정수이거나 빈 값이다(KAN-290)', () => {
+    expect(() =>
+      validateEnv({ ...validEnv, SERIES_PAYWALL_ENABLED: 'on' }),
+    ).toThrow(/SERIES_PAYWALL_ENABLED/);
+    for (const value of ['true', 'false', '']) {
+      expect(() =>
+        validateEnv({ ...validEnv, SERIES_PAYWALL_ENABLED: value }),
+      ).not.toThrow();
+    }
+    // 0이면 1편(탐험·첫 드립이 주는 시리즈 도입부)까지 잠긴다 — 받지 않는다
+    for (const value of ['0', '-1', '3.5', 'three', '100']) {
+      expect(() =>
+        validateEnv({ ...validEnv, SERIES_FREE_EPISODES: value }),
+      ).toThrow(/SERIES_FREE_EPISODES/);
+    }
+    for (const value of ['1', '3', '99', '']) {
+      expect(() =>
+        validateEnv({ ...validEnv, SERIES_FREE_EPISODES: value }),
+      ).not.toThrow();
+    }
+  });
+
   it('PLAN_DISCOUNT_* — 스위치는 true·false·빈 값만, 정가는 양의 정수이거나 빈 값이다(KAN-286)', () => {
     expect(() =>
       validateEnv({ ...validEnv, PLAN_DISCOUNT_DISPLAY_ENABLED: 'yes' }),

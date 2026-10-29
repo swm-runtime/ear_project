@@ -109,6 +109,11 @@ describe('ContentDetailOrchestrator', () => {
       libraryService,
       playbackService,
       seriesService,
+      {
+        resolveSeriesAccess: jest
+          .fn()
+          .mockResolvedValue({ lockedAfterEpisodeNo: null }),
+      } as never,
     );
   });
 

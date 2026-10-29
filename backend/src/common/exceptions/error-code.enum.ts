@@ -162,6 +162,12 @@ export enum ErrorCode {
   PLAY_LIMIT_EXCEEDED = 'PLAY_LIMIT_EXCEEDED',
   /** 최상위 티어의 한도 소진 → 페이월이 아니라 한도 안내. 더 팔 것이 없다 */
   PLAY_LIMIT_REACHED = 'PLAY_LIMIT_REACHED',
+  /**
+   * 시리즈 유료화(KAN-290 — `experiments-api.md` 4.2-3) — 이 사용자에게 잠긴 시리즈 편(무료 편수 뒤 편)이다.
+   * 클라이언트는 **잠금 차단 시트**를 연다. 재생 한도 판정보다 먼저 보고 차감하지 않는다 — 둘 다 해당하면 이 코드가 이긴다.
+   * 한도 코드와 합치지 않는다 — "오늘 다 들었다"와 "이 편은 프로 전용"은 화면·카피가 다르다
+   */
+  SERIES_EPISODE_LOCKED = 'SERIES_EPISODE_LOCKED',
 
   // --- 관리자 (admin.md 4.2 · 4.5) ---
   /** 오디오 길이를 추출할 수 없거나 0초 — 완청 판정(90%)이 불가능해 업로드를 거부한다(admin.md 7) */

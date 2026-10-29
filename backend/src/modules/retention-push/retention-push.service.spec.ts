@@ -16,6 +16,7 @@ import {
   RetentionPushService,
   sampleCopies,
 } from './retention-push.service';
+import { SeriesPaywallService } from '@/modules/subscription/services/series-paywall.service';
 
 // 2026-10-27(화) 18:00 KST
 const NOW = new Date('2026-10-27T09:00:00.000Z');
@@ -52,6 +53,10 @@ describe('RetentionPushService', () => {
       new ContentCohortService({
         get: (key: string) => env[key],
       } as never),
+      new SeriesPaywallService(
+        { get: (key: string) => env[key] } as never,
+        {} as never,
+      ),
     );
 
   beforeEach(() => {

@@ -37,6 +37,8 @@ import { LibraryItem } from '@/modules/library/library-item.entity';
 import { LibraryService } from '@/modules/library/library.service';
 import { UserSignalAction } from '@/modules/playback/playback.enum';
 import { PlaybackService } from '@/modules/playback/services/playback.service';
+import { PlayPolicyService } from '@/modules/playback/services/play-policy.service';
+import { isSeriesEpisodeLocked } from '@/modules/subscription/policies/series-paywall.policy';
 
 import {
   DEFAULT_POPULAR_PERIOD,
@@ -112,6 +114,7 @@ export class ExploreOrchestrator {
     private readonly seriesService: SeriesService,
     configService: ConfigService<EnvironmentVariables, true>,
     private readonly queryEmbeddingClient: QueryEmbeddingClient,
+    private readonly playPolicyService: PlayPolicyService,
   ) {
     // **`true`를 명시했을 때만 켠다**(env.validation.ts) — 1.2.x 앱은 `type: "series"` 항목을 모른다. 꺼져 있으면 응답이 이 기능
     // 전과 바이트 단위로 같다(분기는 전부 이 값 하나로 갈린다)
@@ -1270,6 +1273,7 @@ export class ExploreOrchestrator {
       countedContentIds,
       seriesRefs,
       completedIds,
+      seriesAccess,
     ] = await Promise.all([
       this.contentService.findTopicViews(contentIds, manager),
       this.libraryService.findActiveItems(userId, contentIds, manager),
@@ -1278,6 +1282,8 @@ export class ExploreOrchestrator {
       this.seriesService.findRefs(contents, manager),
       // 완청 표시(KAN-248) — 담지 않고 끝까지 들은 편도 완청이다
       this.libraryService.findCompletedContentIds(userId, contentIds, manager),
+      // 잠금 표시(KAN-290) — 요청당 한 번 판정하고 편마다 비교만 한다
+      this.playPolicyService.resolveSeriesAccess(userId, now, manager),
     ]);
 
     const topicIdsByContentId = groupTopicIds(topicViews);
@@ -1312,6 +1318,7 @@ export class ExploreOrchestrator {
           : null,
         isCompleted: completedIds.has(content.id),
         isCountedToday: countedContentIds.has(content.id),
+        isLocked: isSeriesEpisodeLocked(content, seriesAccess),
       };
     });
   }

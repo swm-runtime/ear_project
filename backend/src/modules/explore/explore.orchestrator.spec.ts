@@ -277,6 +277,11 @@ describe('ExploreOrchestrator', () => {
       seriesService,
       configWith(),
       queryEmbeddingClient,
+      {
+        resolveSeriesAccess: jest
+          .fn()
+          .mockResolvedValue({ lockedAfterEpisodeNo: null }),
+      } as never,
     );
   });
 
@@ -1914,6 +1919,11 @@ describe('ExploreOrchestrator', () => {
         seriesService,
         configWith('true'),
         queryEmbeddingClient,
+        {
+          resolveSeriesAccess: jest
+            .fn()
+            .mockResolvedValue({ lockedAfterEpisodeNo: null }),
+        } as never,
       );
     });
 

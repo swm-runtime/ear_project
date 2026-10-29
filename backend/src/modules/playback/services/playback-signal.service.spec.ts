@@ -90,6 +90,8 @@ function setup() {
     world.contentService as unknown as ContentService,
     world.libraryService as unknown as LibraryService,
     world.sourceLinkClickRepository as unknown as SourceLinkClickRepository,
+    // 시리즈 잠금(KAN-290)은 play-policy.service.spec 이 본다 — 여기서는 늘 열려 있다
+    { assertSeriesEpisodeUnlocked: () => Promise.resolve() } as never,
   );
   return { world, service };
 }

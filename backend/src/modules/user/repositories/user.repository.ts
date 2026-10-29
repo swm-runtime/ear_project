@@ -122,6 +122,7 @@ export class UserRepository {
         yearsOfExperience: true,
         onboardingCompleted: true,
         createdAt: true,
+        trialEndsAt: true,
       },
       where: { id, status: UserStatus.ACTIVE },
     });

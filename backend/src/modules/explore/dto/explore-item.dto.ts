@@ -26,6 +26,11 @@ class ExploreContentDto {
   readonly tags: string[];
   /** 속한 시리즈 `{ id, title, episode_no, total_episodes }` — 단일 콘텐츠는 null (KAN-134, 추가 필드) */
   readonly series: ContentSeriesDto | null;
+  /**
+   * 이 사용자에게 잠긴 시리즈 편인가(KAN-290 — `experiments-api.md` 4.2-2 "모든 콘텐츠 객체"). 사용자마다 다르다.
+   * 시리즈가 아닌 콘텐츠·무료 편은 늘 false
+   */
+  readonly is_locked: boolean;
 }
 
 /**
@@ -76,6 +81,7 @@ export class ExploreItemDto {
         topic_ids: view.content.topicIds,
         tags: view.content.tags,
         series: ContentSeriesDto.from(view.content.series),
+        is_locked: view.isLocked,
       },
       library: view.library
         ? {

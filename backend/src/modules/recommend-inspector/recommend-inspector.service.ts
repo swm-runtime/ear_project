@@ -134,6 +134,7 @@ export class RecommendInspectorService {
         yearsOfExperience: profile.yearsOfExperience,
         // 짧은 판 코호트(KAN-298) 판정 입력 — 배치와 같은 후보를 보려면 가입 시각이 필요하다
         createdAt: profile.signedUpAt,
+        trialEndsAt: profile.trialEndsAt,
       },
       now,
     );

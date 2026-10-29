@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { DataSource } from 'typeorm';
 
 import { cohortLengthProfileSql } from '@/modules/content/content-cohort.policy';
+import { seriesEpisodeUnlockedSql } from '@/modules/subscription/policies/series-paywall.policy';
 import { UserMarket } from '@/modules/user/user.enum';
 
 import {
@@ -83,6 +84,16 @@ export class RetentionPushRepository {
     resumeSince: Date;
     /** 짧은 판 코호트 경계(`SHORT_CONTENT_COHORT_SINCE`) — null이면 전원 standard */
     shortCohortSince: Date | null;
+    /**
+     * 시리즈 유료화(KAN-290) 판정 입력(`SeriesPaywallService.resolveSqlParams`) — 이 사용자에게 잠긴 편은 "듣던 콘텐츠"가 아니다.
+     * 빠지면(옛 호출) 잠그지 않는다
+     */
+    seriesLock?: {
+      lockedAfterEpisodeNo: number | null;
+      unlockedTiers: string[];
+    };
+    /** 체험 판정 시각(시리즈 유료화 — 체험 중이면 열림) */
+    now?: Date;
   }): Promise<RetentionUserFactRow[]> {
     if (params.userIds.length === 0) {
       return [];
@@ -135,6 +146,16 @@ export class RetentionPushRepository {
               and c.length_profile = ${cohortLengthProfileSql('u.created_at', '$8')}
               and pp.updated_at >= $5
               and c.duration_sec - pp.position_sec between $6 and $7
+              -- 시리즈 유료화(KAN-290) — 규칙은 series-paywall.policy.ts 한 곳(SQL판)
+              and ${seriesEpisodeUnlockedSql({
+                seriesId: 'c.series_id',
+                episodeNo: 'c.episode_no',
+                userTier: 'u.tier',
+                userTrialEndsAt: 'u.trial_ends_at',
+                lockedAfterParam: '$9',
+                unlockedTiersParam: '$10',
+                nowParam: '$11',
+              })}
             order by pp.updated_at desc
             limit 1
          ) resume on true
@@ -148,6 +169,9 @@ export class RetentionPushRepository {
         RESUME_CONTENT_MIN_REMAINING_SEC,
         RESUME_CONTENT_MAX_REMAINING_SEC,
         params.shortCohortSince,
+        params.seriesLock?.lockedAfterEpisodeNo ?? null,
+        params.seriesLock?.unlockedTiers ?? [],
+        params.now ?? new Date(),
       ],
     );
 

@@ -24,6 +24,8 @@ export interface InspectorProfileRow {
   tier: string;
   market: string;
   signedUpAt: Date;
+  /** 가입 체험 종료 시각 — 시리즈 유료화(KAN-290) 판정 입력(편성 계산기가 배치와 같은 시리즈 편 후보를 보려면 필요하다) */
+  trialEndsAt: Date | null;
   onboardingCompleted: boolean;
   onboardingStep: string;
   onboardingCompletedAt: Date | null;
