@@ -70,6 +70,8 @@ export interface FirstDripResponseDto {
   status: FirstDripStatus;
   library_item_count: number | null;
   completed_at: string | null;
+  /** experiments-api.md 4.1 — `completed`일 때만 값. 옛 서버는 필드가 없다 */
+  first_content_id?: string | null;
 }
 
 // 기기 동기화 DTO(onboarding-api.md 4.9)는 notification feature로 이관됐다(architecture.md 4.4)

@@ -18,7 +18,8 @@ export interface PlaybackProgressDto {
 
 /** POST /contents/:content_id/play (library-api.md 4.4) */
 export interface PlayStartRequestDto {
-  entry_point: PlayEntryPoint;
+  /** 서버 enum 에 없는 분석 전용 값(`onboarding`)은 보내지 않는다 — `toServerEntryPoint` */
+  entry_point: Exclude<PlayEntryPoint, 'onboarding'>;
 }
 
 export interface PlayStartResponseDto extends PlayLimitFieldsDto {
