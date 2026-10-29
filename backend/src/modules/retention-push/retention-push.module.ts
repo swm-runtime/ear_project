@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 
 import { ContentModule } from '@/modules/content/content.module';
 import { NotificationModule } from '@/modules/notification/notification.module';
+import { SubscriptionModule } from '@/modules/subscription/subscription.module';
 
 import { MorningPushService } from './morning-push.service';
 import { RetentionPushRepository } from './retention-push.repository';
@@ -14,7 +15,8 @@ import { RetentionPushService } from './retention-push.service';
  */
 @Module({
   // ContentModule — 짧은 판 코호트 경계(`ContentCohortService`, KAN-298)만 쓴다
-  imports: [NotificationModule, ContentModule],
+  // SubscriptionModule — 시리즈 유료화(`SeriesPaywallService`, KAN-290) 판정만 쓴다. subscription 은 다른 모듈을 import 하지 않아 순환이 없다
+  imports: [NotificationModule, ContentModule, SubscriptionModule],
   providers: [
     RetentionPushRepository,
     RetentionPushService,

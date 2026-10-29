@@ -24,6 +24,8 @@ class LibraryItemContentDto {
   readonly topic_ids: string[];
   /** 속한 시리즈 `{ id, title, episode_no, total_episodes }` — 단일 콘텐츠는 null (KAN-134, 추가 필드) */
   readonly series: ContentSeriesDto | null;
+  /** 이 사용자에게 잠긴 시리즈 편인가(KAN-290 — `experiments-api.md` 4.2-2). 이미 담긴 편도 잠긴다 */
+  readonly is_locked: boolean;
 }
 
 class LibraryProgressDto {
@@ -66,6 +68,7 @@ export class LibraryItemDto {
         content_version: view.content.contentVersion,
         topic_ids: view.content.topicIds,
         series: ContentSeriesDto.from(view.content.series),
+        is_locked: view.content.isLocked,
       },
       progress: view.progress
         ? {

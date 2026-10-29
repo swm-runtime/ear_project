@@ -15,6 +15,8 @@ import { LibrarySeriesService } from '@/modules/library/library-series.service';
 import { LibraryService } from '@/modules/library/library.service';
 import { UserSignalAction } from '@/modules/playback/playback.enum';
 import { PlaybackService } from '@/modules/playback/services/playback.service';
+import { PlayPolicyService } from '@/modules/playback/services/play-policy.service';
+import { isSeriesEpisodeLocked } from '@/modules/subscription/policies/series-paywall.policy';
 import { UserMarket } from '@/modules/user/user.enum';
 
 import {
@@ -44,6 +46,7 @@ export class SeriesDetailOrchestrator {
     private readonly librarySeriesService: LibrarySeriesService,
     private readonly dripExclusionService: DripExclusionService,
     private readonly dataSource: DataSource,
+    private readonly playPolicyService: PlayPolicyService,
   ) {}
 
   /** 같은 간행물의 다른 시리즈 — 사용자 상태가 없는 카드라 콘텐츠 모듈 판정을 그대로 넘긴다(기준 시리즈가 안 보이면 404) */
@@ -85,6 +88,7 @@ export class SeriesDetailOrchestrator {
       countedContentIds,
       isSaved,
       completedIds,
+      seriesAccess,
     ] = await Promise.all([
       this.contentService.findTopicViews(contentIds),
       this.libraryService.findActiveItems(userId, contentIds),
@@ -95,6 +99,8 @@ export class SeriesDetailOrchestrator {
       this.librarySeriesService.isFollowing(userId, seriesId),
       // 편 상태 "완청"·[재생]의 다음 편 고르기(KAN-248) — 담지 않고 끝까지 들은 편도 완청이다
       this.libraryService.findCompletedContentIds(userId, contentIds),
+      // 편마다의 잠금 표시(KAN-290) — 요청당 한 번 판정하고 편마다 비교만 한다
+      this.playPolicyService.resolveSeriesAccess(userId, now),
     ]);
 
     const topicIdsByContentId = new Map<string, string[]>();
@@ -165,6 +171,7 @@ export class SeriesDetailOrchestrator {
         progress: progressByContentId.get(content.id) ?? null,
         isCompleted: completedIds.has(content.id),
         isCountedToday: countedContentIds.has(content.id),
+        isLocked: isSeriesEpisodeLocked(content, seriesAccess),
       })),
     };
   }

@@ -41,7 +41,7 @@ export class PlayService {
   async startPlay(command: StartPlayCommand): Promise<StartPlayResult> {
     return this.dataSource.transaction(async (manager) => {
       // 1. 회수 여부는 목록에서 걸러도 이미 화면에 떠 있는 항목이 탭될 수 있다
-      await this.contentService.getPublishedById(
+      const content = await this.contentService.getPublishedById(
         command.contentId,
         manager,
         command.now,
@@ -50,9 +50,10 @@ export class PlayService {
 
       // 2. 한도 판정 — 클라이언트가 보낸 잔여 횟수·티어·진입점은 쓰지 않는다.
       //    **발급(audio-urls)과 같은 함수를 쓴다**(`player-api.md` 3장 설계 메모)
+      //    시리즈 잠금(KAN-290)도 여기서 한도보다 먼저 본다 — 막히면 아래 적재(차감)까지 가지 않는다
       const permission = await this.playPolicyService.assertPlayable(
         command.userId,
-        command.contentId,
+        content,
         command.now,
         manager,
       );

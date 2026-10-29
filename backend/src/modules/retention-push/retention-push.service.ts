@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 
 import { ContentCohortService } from '@/modules/content/services/content-cohort.service';
+import { SeriesPaywallService } from '@/modules/subscription/services/series-paywall.service';
 import { EnvironmentVariables } from '@/config/env.validation';
 import {
   serviceDateStart,
@@ -75,6 +76,7 @@ export class RetentionPushService {
     private readonly targetedPushService: TargetedPushService,
     configService: ConfigService<EnvironmentVariables, true>,
     private readonly contentCohortService: ContentCohortService,
+    private readonly seriesPaywallService: SeriesPaywallService,
   ) {
     this.mode = toMode(
       configService.get('RETENTION_PUSH_MODE', { infer: true }),
@@ -278,6 +280,8 @@ export class RetentionPushService {
       string,
       Awaited<ReturnType<RetentionPushRepository['findUserFacts']>>[number]
     >();
+    // 시리즈 유료화(KAN-290 — `experiments-api.md` 4.2-4) — "듣던 콘텐츠"는 이 사용자에게 잠긴 편을 고르지 않는다. 판정 입력은 실행당 한 번
+    const seriesLock = await this.seriesPaywallService.resolveSqlParams();
 
     for (let i = 0; i < userIds.length; i += FACTS_CHUNK_SIZE) {
       const rows = await this.repository.findUserFacts({
@@ -290,6 +294,8 @@ export class RetentionPushService {
         ),
         // 짧은 판 코호트(KAN-298) — "듣던 콘텐츠"는 사용자 코호트와 같은 길이 프로필만 고른다
         shortCohortSince: this.contentCohortService.cohortSince(),
+        seriesLock,
+        now,
       });
 
       for (const row of rows) {

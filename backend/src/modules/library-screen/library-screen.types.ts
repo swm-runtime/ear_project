@@ -30,6 +30,8 @@ export interface LibraryContentView {
   topicIds: string[];
   /** 속한 시리즈(KAN-134). 단일 콘텐츠는 null */
   series: ContentSeriesRef | null;
+  /** 이 사용자에게 잠긴 시리즈 편인가(KAN-290 — `experiments-api.md` 4.2-2). 재생 게이트와 같은 판정 */
+  isLocked: boolean;
 }
 
 export interface LibraryItemView {

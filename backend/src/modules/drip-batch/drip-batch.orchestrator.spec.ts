@@ -30,8 +30,13 @@ import { UserSettingService } from '@/modules/user/services/user-setting.service
 import { UserService } from '@/modules/user/services/user.service';
 import { UserMarket, UserTier } from '@/modules/user/user.enum';
 
-import { DripBatchOrchestrator } from './drip-batch.orchestrator';
+import {
+  DripBatchOrchestrator,
+  lockSeriesEpisodes,
+} from './drip-batch.orchestrator';
+import { pickSeriesEpisode } from '@/modules/drip/services/drip-scoring.service';
 import { READ_ONLY_PLAN_OPTIONS } from './drip-preview.service';
+import { SeriesPaywallService } from '@/modules/subscription/services/series-paywall.service';
 
 const NOW = new Date('2026-08-27T05:00:00.000Z');
 const USER_ID = '11111111-1111-4111-8111-111111111111';
@@ -260,6 +265,10 @@ describe('DripBatchOrchestrator', () => {
         get: (key: string) => env[key],
       } as never),
       morningPushService,
+      new SeriesPaywallService(
+        { get: (key: string) => env[key] } as never,
+        planService,
+      ),
     );
   }
 
@@ -596,6 +605,7 @@ describe('DripBatchOrchestrator', () => {
           jobCategory: null,
           yearsOfExperience: null,
           createdAt: NOW,
+          trialEndsAt: null,
         },
         NOW,
         new Map(),
@@ -663,6 +673,10 @@ describe('DripBatchOrchestrator', () => {
         } as never,
         new ContentCohortService({ get: () => undefined } as never),
         morningPushService,
+        new SeriesPaywallService(
+          { get: () => undefined } as never,
+          planService,
+        ),
       );
 
       const plan = await production.planForUser(buildUser(), NOW, new Map(), {
@@ -1740,5 +1754,51 @@ describe('DripBatchOrchestrator', () => {
         jest.useRealTimers();
       }
     });
+  });
+});
+
+describe('lockSeriesEpisodes — 시리즈 유료화(KAN-290 · experiments-api.md 4.2-4)', () => {
+  const SERIES = 'series-1';
+  const episodes = [1, 2, 3, 4, 5].map((episodeNo) => ({
+    contentId: `c${episodeNo}`,
+    episodeNo,
+    received: episodeNo <= 3,
+    held: false,
+    excluded: false,
+  }));
+
+  it('3편까지 완청한 무료 사용자에게 4편이 다음 편으로 뽑히지 않는다', () => {
+    const locked = lockSeriesEpisodes(new Map([[SERIES, episodes]]), {
+      lockedAfterEpisodeNo: 3,
+    });
+
+    expect(pickSeriesEpisode(3, locked.get(SERIES)!)).toBeNull();
+    // 잠금이 없으면 종전대로 4편이다
+    expect(pickSeriesEpisode(3, episodes)).toEqual({
+      episodeNo: 4,
+      kind: 'next',
+    });
+  });
+
+  it('앞쪽 빈 편(무료 편)은 여전히 메운다', () => {
+    const withGap = episodes.map((episode) =>
+      episode.episodeNo === 1 ? { ...episode, received: false } : episode,
+    );
+    const locked = lockSeriesEpisodes(new Map([[SERIES, withGap]]), {
+      lockedAfterEpisodeNo: 3,
+    });
+
+    expect(pickSeriesEpisode(3, locked.get(SERIES)!)).toEqual({
+      episodeNo: 1,
+      kind: 'gap',
+    });
+  });
+
+  it('잠그지 않는 접근이면 입력을 그대로 돌려준다', () => {
+    const input = new Map([[SERIES, episodes]]);
+
+    expect(lockSeriesEpisodes(input, { lockedAfterEpisodeNo: null })).toBe(
+      input,
+    );
   });
 });

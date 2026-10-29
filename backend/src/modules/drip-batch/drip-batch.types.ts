@@ -93,7 +93,14 @@ export interface UserDripPlan {
  */
 export type DripPlanUser = Pick<
   User,
-  'id' | 'tier' | 'market' | 'jobCategory' | 'yearsOfExperience' | 'createdAt'
+  | 'id'
+  | 'tier'
+  | 'market'
+  | 'jobCategory'
+  | 'yearsOfExperience'
+  | 'createdAt'
+  // 가입 체험 종료 시각 — 시리즈 유료화(KAN-290)의 "체험 중이면 열림" 판정 입력
+  | 'trialEndsAt'
 >;
 
 export interface PlanOptions {

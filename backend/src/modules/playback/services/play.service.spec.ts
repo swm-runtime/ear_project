@@ -212,7 +212,8 @@ describe('PlayService', () => {
       // then
       expect(playPolicyService.assertPlayable).toHaveBeenCalledWith(
         USER_ID,
-        CONTENT_ID,
+        // 시리즈 잠금(KAN-290)에 편 번호가 필요해 콘텐츠를 넘긴다
+        expect.objectContaining({ id: CONTENT_ID }),
         NOW,
         expect.anything(),
       );

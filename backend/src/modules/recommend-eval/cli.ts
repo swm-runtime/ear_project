@@ -71,6 +71,8 @@ async function main(): Promise<void> {
     simulationDays: Number(arg('days') ?? DEFAULT_EVAL_OPTIONS.simulationDays),
     // 기본은 켬 — 운영도 곧 켠다. 끈 조건은 --no-auto-expand(--auto-expand 는 기본과 같아 받기만 한다)
     autoExpandFeature: !flag('no-auto-expand'),
+    // 시리즈 유료화(KAN-290) — 기본은 끔(운영 스위치가 꺼진 동안은 운영과 같은 조건). 켠 조건은 --series-paywall
+    seriesPaywall: flag('series-paywall'),
     gitSha: gitSha(),
     baseline,
   });

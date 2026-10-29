@@ -49,6 +49,8 @@ class SeriesEpisodeContentDto {
   readonly topic_ids: string[];
   readonly tags: string[];
   readonly series: ContentSeriesDto | null;
+  /** 이 사용자에게 잠긴 편인가(KAN-290 — `experiments-api.md` 4.2-2). 탐색 행의 `content.is_locked`와 같은 판정 */
+  readonly is_locked: boolean;
 }
 
 /** 탐색 카드의 `library`와 같은 모양 — 안 담았으면 null */
@@ -93,6 +95,7 @@ export class SeriesEpisodeItemDto {
         topic_ids: view.topicIds,
         tags: content.tags ?? [],
         series: ContentSeriesDto.from(view.series),
+        is_locked: view.isLocked,
       },
       library: view.libraryItem
         ? {

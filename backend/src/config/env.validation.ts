@@ -288,6 +288,25 @@ export class EnvironmentVariables {
   PLAN_DISCOUNT_DISPLAY_ENABLED?: string;
 
   /**
+   * 시리즈 유료화(KAN-290 — 단기 실험 ⑤, `experiments-api.md` 4.2)의 서버 스위치. `true`/`false`. **`true`를 명시했을 때만 켜진다.**
+   * 꺼져 있으면 모든 응답의 `is_locked = false`이고 `SERIES_EPISODE_LOCKED`도 나지 않는다(종전과 같다). 켜면 시리즈의
+   * `SERIES_FREE_EPISODES`편 뒤 편을 최상위 유료 요금제(pro — 초대 코드 Pro 포함)·가입 체험 중이 아닌 사용자에게 잠근다
+   */
+  @IsOptional()
+  @IsIn(['true', 'false', ''])
+  SERIES_PAYWALL_ENABLED?: string;
+
+  /**
+   * 시리즈 유료화의 무료 편수(양의 정수, 1~99). 비우면 3 — 1~3편은 누구나, 4편부터 잠긴다. 시리즈별로 다르게 두지 않는다.
+   * **1 이상이다** — 1편(탐험·첫 드립이 주는 시리즈 도입부)은 늘 열려 있다. **문자열로 받는다**(`SIGNUP_TRIAL_DAYS`와 같은 이유 — 빈 값 선언)
+   */
+  @IsOptional()
+  @Matches(/^$|^[1-9]\d?$/, {
+    message: 'SERIES_FREE_EPISODES must be an integer between 1 and 99',
+  })
+  SERIES_FREE_EPISODES?: string;
+
+  /**
    * 할인 표시의 정가(원, 양의 정수) — daily·pro 티어별. 비우면 그 티어는 정가가 없어 할인 표시를 하지 않는다.
    * 정가가 `plans.price_krw` 이하이면 할인이 아니다. **문자열로 받는다**(`SIGNUP_TRIAL_DAYS`와 같은 이유 — 빈 값 선언)
    */

@@ -77,7 +77,7 @@ export class AudioUrlService {
     // 2. 목록에서 걸렀어도 다시 확인한다. 차감은 하지 않는다
     await this.playPolicyService.assertPlayable(
       command.userId,
-      command.contentId,
+      content,
       command.now,
     );
 

@@ -125,6 +125,8 @@ import { PlaybackService } from './services/playback.service';
     PlayService,
     PlaybackProgressService,
     PlaybackSignalService,
+    // 시리즈 유료화(KAN-290) — 목록 응답(탐색·시리즈·상세·라이브러리)의 `is_locked`가 재생 게이트와 같은 판정을 쓴다
+    PlayPolicyService,
   ],
 })
 export class PlaybackModule {}

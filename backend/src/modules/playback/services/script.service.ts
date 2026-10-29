@@ -36,7 +36,7 @@ export class ScriptService {
   ) {}
 
   async get(command: GetScriptCommand): Promise<ScriptResult> {
-    await this.contentService.getPublishedById(
+    const content = await this.contentService.getPublishedById(
       command.contentId,
       undefined,
       command.now,
@@ -44,7 +44,7 @@ export class ScriptService {
     );
     await this.playPolicyService.assertPlayable(
       command.userId,
-      command.contentId,
+      content,
       command.now,
     );
 

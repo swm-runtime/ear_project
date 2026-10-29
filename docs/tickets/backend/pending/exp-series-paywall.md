@@ -54,3 +54,10 @@
 
 - 2026-10-29 발행(마크다운 + Jira KAN-290).
 - 2026-10-29 결정 반영(Jira 댓글).
+- 2026-10-30 서버 구현(브랜치 `feat(be)/series-paywall`, PR: PR_URL_PLACEHOLDER). **pending 유지** — 개발계 확인(스위치 켜고 무료·프로 계정으로 시리즈 화면·재생·다음 날 드립)이 남았다. 운영 스위치는 KAN-300 표.
+  - 판정 한 곳: `subscription/policies/series-paywall.policy.ts`(규칙·SQL판) + `SeriesPaywallService`(설정·요금제). "열리는 사람" = 저장 티어가 **최상위 유료 요금제**(`plans` 데이터의 `isTopTier` — 현재 pro, 초대 코드 Pro 포함) 또는 가입 체험 중. 데일리는 잠긴다. 스위치 `SERIES_PAYWALL_ENABLED`(true 명시만) · `SERIES_FREE_EPISODES`(1~99, 비우면 3).
+  - 재생 게이트: `PlayPolicyService.assertPlayable`의 첫 단계(한도·재청취 창보다 먼저 → 차감 없음, 한도와 겹치면 잠금이 이김). 오디오 URL·재생 시작·대본이 공유하고, `replay`(한도 판정 없음)는 같은 `assertSeriesEpisodeUnlocked`를 부른다. 403 `SERIES_EPISODE_LOCKED`(retryable false, "이 편은 프로 구독에서 들을 수 있어요").
+  - `is_locked`: 탐색 피드·주제·인기·검색·관련(`content.is_locked`) · `GET /series/:id` 편(`content.is_locked`) · `GET /contents/:id`(최상위 + `content`) · 라이브러리 목록·미니플레이어 복원(`content.is_locked`). 요청당 한 번 판정(`PlayPolicyService.resolveSeriesAccess`) 후 편마다 비교.
+  - 드립: 정규 편성 후보에서 잠긴 편을 빼고 다음 편 판정에서 "줄 수 없는 편"으로 표시(`lockSeriesEpisodes`) — 3편 완청 뒤 4편 안 감, 앞쪽 빈 무료 편은 메움. 리텐션 "듣던 콘텐츠" SQL에 같은 규칙.
+  - 추천 평가: 불변식 `series-paywall` 추가, `--series-paywall` 옵션(기본 끔), 합성 시리즈 3→5부작, `series-follower` 검사 추가. `npm run eval:recommend` 끔·켬 둘 다 통과(합성 카탈로그 — 실사용자 스냅샷은 로컬에 없어 미실행).
+  - 문서 세부는 `changes/pending/exp-series-paywall.md`.

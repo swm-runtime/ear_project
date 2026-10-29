@@ -8,6 +8,7 @@ import { ContentLengthProfile } from '@/modules/content/content.enum';
 import { ContentCohortService } from '@/modules/content/services/content-cohort.service';
 import { ContentService } from '@/modules/content/services/content.service';
 import { ContentStatService } from '@/modules/content/services/content-stat.service';
+import { SeriesEpisodeState } from '@/modules/content/content.types';
 import { Content } from '@/modules/content/entities/content.entity';
 import {
   COLD_START_COMPLETE_THRESHOLD,
@@ -60,7 +61,15 @@ import { DripArrival } from '@/modules/notification/notification.types';
 import { DripArrivalNotificationService } from '@/modules/notification/services/drip-arrival-notification.service';
 import { UserSignalAction } from '@/modules/playback/playback.enum';
 import { PlaybackService } from '@/modules/playback/services/playback.service';
+import {
+  SeriesEpisodeAccess,
+  isSeriesEpisodeLocked,
+} from '@/modules/subscription/policies/series-paywall.policy';
 import { PlanService } from '@/modules/subscription/services/plan.service';
+import {
+  SeriesPaywallService,
+  SeriesTopTierCache,
+} from '@/modules/subscription/services/series-paywall.service';
 import { User } from '@/modules/user/entities/user.entity';
 import { UserSettingService } from '@/modules/user/services/user-setting.service';
 import { UserService } from '@/modules/user/services/user.service';
@@ -130,6 +139,14 @@ export class DripBatchOrchestrator {
   private readonly autoExpandEnabled: boolean;
   /** 시간대 그룹 스위치(`DRIP_TIMEZONE_GROUPS_ENABLED`) — 꺼져 있으면 전원이 기본 그룹(05:00 KST)이다 */
   private readonly timezoneGroupsEnabled: boolean;
+  /**
+   * 시리즈 유료화(KAN-290)의 "최상위 요금제인가" 캐시 — **실행 1회(`PlanCountCache` 하나)마다 따로 둔다.** 편수 캐시와 같은 수명이라
+   * 사용자마다 요금제를 다시 읽지 않고, 실행이 끝나면 함께 버려진다
+   */
+  private readonly seriesTopTierCaches = new WeakMap<
+    PlanCountCache,
+    SeriesTopTierCache
+  >();
 
   constructor(
     private readonly userService: UserService,
@@ -149,6 +166,7 @@ export class DripBatchOrchestrator {
     private readonly configService: ConfigService<EnvironmentVariables, true>,
     private readonly contentCohortService: ContentCohortService,
     private readonly morningPushService: MorningPushService,
+    private readonly seriesPaywallService: SeriesPaywallService,
   ) {
     // **`true`를 명시했을 때만 켠다**(2026-10-14). 종전 "운영(SENTRY_ENVIRONMENT=production)만 기본 꺼짐"은 운영의
     // 환경 이름이 비거나 오타면 자동 확장이 조용히 켜지는 구조였다 — 추천 테스트 콘솔과 같은 함정(2026-10-13 수정).
@@ -776,6 +794,14 @@ export class DripBatchOrchestrator {
     plan.completedEpisodesBySeries =
       await this.libraryService.findCompletedSeriesMaxEpisodes(user.id);
 
+    // 시리즈 유료화(KAN-290 — `experiments-api.md` 4.2-4) — 잠긴 편은 비프로 사용자에게 드립으로 주지 않는다(3편 완청 → 4편 안 옴)
+    const seriesAccess = await this.seriesPaywallService.resolveAccess(
+      user,
+      now,
+      undefined,
+      this.seriesTopTierCacheOf(planCounts),
+    );
+
     // 짧은 판 코호트(KAN-298) — 정규·탐험 편성 모두 가입 시점 코호트와 같은 길이 프로필의 콘텐츠만 후보다(폴백 없음 — 재고가
     // 없으면 그날은 고갈이다). 시리즈 연속 편도 이 후보 풀에서 나온다
     const lengthProfile = this.contentCohortService.resolve(user.createdAt);
@@ -794,6 +820,7 @@ export class DripBatchOrchestrator {
         dripCount,
         loadRecentDripTopics: options.loadRecentDripTopics,
         now,
+        seriesAccess,
       });
     }
 
@@ -824,6 +851,17 @@ export class DripBatchOrchestrator {
     }
 
     return plan;
+  }
+
+  private seriesTopTierCacheOf(planCounts: PlanCountCache): SeriesTopTierCache {
+    let cache = this.seriesTopTierCaches.get(planCounts);
+
+    if (!cache) {
+      cache = new Map();
+      this.seriesTopTierCaches.set(planCounts, cache);
+    }
+
+    return cache;
   }
 
   private async resolvePlanCounts(
@@ -1120,9 +1158,11 @@ export class DripBatchOrchestrator {
       now: Date;
       market: UserMarket;
       lengthProfile: ContentLengthProfile;
+      /** 시리즈 유료화(KAN-290) — 이 사용자에게 잠긴 편은 후보가 아니다 */
+      seriesAccess: SeriesEpisodeAccess;
     },
   ): Promise<RegularPlan> {
-    const pool = await this.contentService.findCandidates({
+    const fetched = await this.contentService.findCandidates({
       market: input.market,
       lengthProfile: input.lengthProfile,
       includeTopicIds: input.activeTopicIds,
@@ -1132,10 +1172,14 @@ export class DripBatchOrchestrator {
       limit: SCORING_POOL_LIMIT,
       now: input.now,
     });
+    // 잠긴 편(KAN-290)은 후보에서 뺀다 — 시리즈 순서 판정은 아래 편 상태에서 잠긴 편을 "줄 수 없는 편"으로 본다
+    const pool = fetched.filter(
+      (content) => !isSeriesEpisodeLocked(content, input.seriesAccess),
+    );
 
     const candidates = await this.buildScoringCandidates(pool);
     // 다음 편 판정은 풀이 아니라 카탈로그의 노출 중인 편과 사용자 상태로 한다(KAN-134 규칙 ②′) — 풀은 상한으로 잘리고 본 편을 뺀다
-    const seriesEpisodesBySeries =
+    const seriesEpisodesBySeries = lockSeriesEpisodes(
       await this.contentService.findSeriesEpisodeStates(
         pool
           .map((content) => content.seriesId)
@@ -1143,7 +1187,9 @@ export class DripBatchOrchestrator {
         userId,
         input.now,
         input.market,
-      );
+      ),
+      input.seriesAccess,
+    );
     const gated = this.dripScoringService.filterEpisodeOrder(
       candidates,
       input.completedEpisodesBySeries,
@@ -1445,4 +1491,32 @@ function groupArrivals(items: LibraryItem[]): DripArrival[] {
   }
 
   return [...byUser.values()];
+}
+
+/**
+ * 시리즈 유료화(KAN-290) — 잠긴 편을 **줄 수 없는 편**(`excluded`)으로 표시한다. 다음 편 고르기(`pickSeriesEpisode`)가 잠긴 편을
+ * 건너뛰므로, 3편까지 완청한 무료 사용자에게는 4편이 "다음 편"으로 뽑히지 않고(앞쪽 빈 편이 있으면 그 편이 간다), 시리즈가
+ * 그날 아무 편도 내지 않는다. 잠금이 없으면(스위치 꺼짐·열리는 사람) 입력을 그대로 돌려준다
+ */
+export function lockSeriesEpisodes(
+  bySeries: Map<string, SeriesEpisodeState[]>,
+  access: SeriesEpisodeAccess,
+): Map<string, SeriesEpisodeState[]> {
+  if (access.lockedAfterEpisodeNo === null) {
+    return bySeries;
+  }
+
+  return new Map(
+    [...bySeries].map(([seriesId, episodes]) => [
+      seriesId,
+      episodes.map((episode) =>
+        isSeriesEpisodeLocked(
+          { seriesId, episodeNo: episode.episodeNo },
+          access,
+        )
+          ? { ...episode, excluded: true }
+          : episode,
+      ),
+    ]),
+  );
 }

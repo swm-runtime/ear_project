@@ -34,7 +34,7 @@ const uuid = (kind: number, index: number) =>
 export const syntheticTopicId = (index: number) => uuid(0xa, index);
 
 /**
- * **합성 카탈로그** — 실데이터 없이 평가기를 돌리기 위한 고정 세계(KR 주제 6 × 콘텐츠 14, 3부작 시리즈 하나 +
+ * **합성 카탈로그** — 실데이터 없이 평가기를 돌리기 위한 고정 세계(KR 주제 6 × 콘텐츠 14, 5부작 시리즈 하나 +
  * GLOBAL 주제 3 × 콘텐츠 8). GLOBAL 몫은 KR 몫 **뒤에** 만들어 KR 카탈로그는 GLOBAL 추가 전과 같은 값이다.
  *
  * CI가 PR마다 이 위에서 페르소나를 돌려 **불변식**(관심 밖 콘텐츠가 정규에 섞이지 않는다, 본 것을 다시 주지
@@ -55,8 +55,8 @@ export function buildSyntheticSnapshot(now: Date): EvalSnapshot {
         dim === topic ? 1 : (random() - 0.5) * 0.35,
       );
       const playCount = Math.floor(random() * 60);
-      // 주제 0의 앞 세 편은 3부작 시리즈다
-      const inSeries = topic === 0 && index < 3;
+      // 주제 0의 앞 다섯 편은 5부작 시리즈다 — 시리즈 유료화(KAN-290, 4편부터 프로)가 실제로 갈리는 길이
+      const inSeries = topic === 0 && index < 5;
 
       contents.push({
         id: uuid(0xc, serial),

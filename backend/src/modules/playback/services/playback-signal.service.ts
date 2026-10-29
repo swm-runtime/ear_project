@@ -6,6 +6,7 @@ import { LibraryService } from '@/modules/library/library.service';
 import { UserSignalAction } from '../playback.enum';
 import { SourceLinkClickRepository } from '../repositories/source-link-click.repository';
 import { PlaybackService } from './playback.service';
+import { PlayPolicyService } from './play-policy.service';
 
 /**
  * 클라이언트가 직접 보내는 적재 요청 둘 — `replay`(`player-api.md` 4.4)와 원문 유입
@@ -26,6 +27,7 @@ export class PlaybackSignalService {
     private readonly contentService: ContentService,
     private readonly libraryService: LibraryService,
     private readonly sourceLinkClickRepository: SourceLinkClickRepository,
+    private readonly playPolicyService: PlayPolicyService,
   ) {}
 
   /**
@@ -35,11 +37,22 @@ export class PlaybackSignalService {
    * 정의에 없는 신호라 스코어링을 왜곡하고(domain.md 6.4는 스코어링 입력 전용이다),
    * 백그라운드 신호라 오류를 노출할 이유도 없다(`common-error-handling.md` 4.3).
    *
-   * **재생 허용·차감과 무관하다** — 그 판정은 재생 시작(4.2)이 이미 담당했다.
+   * **재생 한도·차감과 무관하다** — 그 판정은 재생 시작(4.2)이 이미 담당했다. 단 **시리즈 잠금(KAN-290)은 본다** —
+   * 잠긴 편의 다시 듣기는 403 `SERIES_EPISODE_LOCKED`다(`experiments-api.md` 4.2-3). 재생 게이트와 같은 판정 함수를 쓴다
    */
-  async recordReplay(userId: string, contentId: string): Promise<void> {
+  async recordReplay(
+    userId: string,
+    contentId: string,
+    now: Date = new Date(),
+  ): Promise<void> {
     // 회수 여부는 보지 않는다 — 없는 콘텐츠만 404다(`player-api.md` 4.4 에러 표)
-    await this.contentService.getById(contentId);
+    const content = await this.contentService.getById(contentId);
+
+    await this.playPolicyService.assertSeriesEpisodeUnlocked(
+      userId,
+      content,
+      now,
+    );
 
     // 완청은 라이브러리 행과 무관하다(KAN-248) — 담지 않고 끝까지 들은 편의 다시 듣기도 `replay`다
     const completed = await this.libraryService.findCompletedContentIds(

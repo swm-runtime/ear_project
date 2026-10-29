@@ -155,7 +155,11 @@ export class PlayController {
     @CurrentUser() currentUser: AuthenticatedUser,
     @Param('contentId', ParseUUIDPipe) contentId: string,
   ): Promise<void> {
-    await this.playbackSignalService.recordReplay(currentUser.id, contentId);
+    await this.playbackSignalService.recordReplay(
+      currentUser.id,
+      contentId,
+      new Date(),
+    );
   }
 
   /**

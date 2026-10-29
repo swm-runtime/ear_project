@@ -15,6 +15,7 @@ import { SubscriptionRepository } from './repositories/subscription.repository';
 import { InviteCodeService } from './services/invite-code.service';
 import { PlanService } from './services/plan.service';
 import { PurchaseIntentService } from './services/purchase-intent.service';
+import { SeriesPaywallService } from './services/series-paywall.service';
 import { StoreNotificationLogService } from './services/store-notification-log.service';
 import { SubscriptionService } from './services/subscription.service';
 
@@ -40,6 +41,7 @@ import { SubscriptionService } from './services/subscription.service';
     PurchaseIntentService,
     StoreNotificationLogService,
     InviteCodeService,
+    SeriesPaywallService,
   ],
   exports: [
     SubscriptionService,
@@ -47,6 +49,8 @@ import { SubscriptionService } from './services/subscription.service';
     PurchaseIntentService,
     StoreNotificationLogService,
     InviteCodeService,
+    // 시리즈 유료화(KAN-290) — 재생 게이트(playback)·드립 편성(drip-batch)·리텐션 알림(retention-push)이 같은 판정을 쓴다
+    SeriesPaywallService,
   ],
 })
 export class SubscriptionModule {}

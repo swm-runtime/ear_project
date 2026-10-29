@@ -33,6 +33,7 @@ function view(topicIds: string[]): LibraryItemView {
       contentVersion: 1,
       topicIds,
       series: null,
+      isLocked: false,
     },
     progress: { contentId: 'content-1', positionSec: 372, maxReachedSec: 372 },
   };

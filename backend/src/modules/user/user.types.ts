@@ -30,6 +30,8 @@ export type UserPlanProfile = Pick<
   | 'onboardingCompleted'
   // 가입 시각 — 짧은 판 코호트(KAN-298) 판정 입력. 편성 미리보기가 배치와 같은 후보를 보려면 필요하다
   | 'createdAt'
+  // 가입 체험 종료 시각 — 시리즈 유료화(KAN-290) 판정 입력. 미리보기가 배치와 같은 시리즈 편 후보를 보려면 필요하다
+  | 'trialEndsAt'
 >;
 
 /** 소셜 프로필에서 환산한 계정 생성 입력 (auth.md 4.1) */
