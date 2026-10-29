@@ -21,6 +21,7 @@ import { messageLanguageOf } from '@/modules/user/policies/market.policy';
 import { UserMarket } from '@/modules/user/user.enum';
 
 import {
+  MORNING_PUSH_LOG_TYPE_PREFIX,
   RETENTION_DRY_RUN_SAMPLES_PER_RULE,
   RETENTION_LOG_TYPE_PREFIX,
   RETENTION_PUSH_LISTENED_WINDOW_HOURS,
@@ -241,6 +242,11 @@ export class RetentionPushService {
     const byUser = new Map<string, RetentionSentRecord[]>();
 
     for (const row of rows) {
+      // 아침 알림(KAN-288)은 저녁 상한(20시간 1건 · 주 3건)에 세지 않는다 — 08:00 알림이 같은 날 18:00을 막지 않게(결정 2026-10-29)
+      if (row.type.startsWith(MORNING_PUSH_LOG_TYPE_PREFIX)) {
+        continue;
+      }
+
       const ruleKey = parseRetentionLogType(row.type);
 
       // 지운 규칙의 지난 기록도 하루·주간 상한에는 센다 — 쿨다운만 의미가 없다
@@ -338,7 +344,7 @@ export function countStreak(
   return streak;
 }
 
-function toMode(value: string | undefined): RetentionPushMode {
+export function toMode(value: string | undefined): RetentionPushMode {
   const normalized = value?.trim();
 
   return (Object.values(RetentionPushMode) as string[]).includes(

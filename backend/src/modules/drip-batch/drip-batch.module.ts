@@ -7,6 +7,7 @@ import { LibraryModule } from '@/modules/library/library.module';
 import { NotificationModule } from '@/modules/notification/notification.module';
 import { PartnerModule } from '@/modules/partner/partner.module';
 import { PlaybackModule } from '@/modules/playback/playback.module';
+import { RetentionPushModule } from '@/modules/retention-push/retention-push.module';
 import { SubscriptionModule } from '@/modules/subscription/subscription.module';
 import { UserModule } from '@/modules/user/user.module';
 
@@ -38,6 +39,8 @@ import { DripPreviewService } from './drip-preview.service';
     NotificationModule,
     // 편성 미리보기 열람 감사 로그(`drip.preview_view`, 2026-10-22) — partner 는 audit_logs 만 알아 순환이 없다
     PartnerModule,
+    // 아침 알림(KAN-288 — 드립이 없는 날 08:00) — 도착 알림 크론 안에서 부른다. retention-push 는 notification·content 만 알아 순환이 없다
+    RetentionPushModule,
   ],
   controllers: [DripPreviewController],
   providers: [DripBatchOrchestrator, DripBatchScheduler, DripPreviewService],

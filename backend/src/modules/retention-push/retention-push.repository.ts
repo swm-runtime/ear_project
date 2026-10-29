@@ -15,6 +15,15 @@ export interface RetentionAudienceRow {
   timezone: string | null;
 }
 
+export interface MorningFactRow {
+  userId: string;
+  /** `addedSince` 이후 받은(드립·탐험) 아직 안 들은(`unplayed`) 편 수 — 라이브러리에 살아 있고 같은 시장 공개 콘텐츠만 */
+  unplayedCount: number;
+  /** 그 편이 1편이면 그 편, 아니면 null */
+  single: { contentId: string; title: string } | null;
+  listenedRecently: boolean;
+}
+
 export interface RetentionUserFactRow {
   userId: string;
   listenedRecently: boolean;
@@ -155,6 +164,67 @@ export class RetentionPushRepository {
               remainingSec: Number(row.resume_remaining_sec),
             }
           : null,
+    }));
+  }
+
+  /**
+   * 아침 알림(KAN-288)의 사용자별 사실 — 최근 받은 미청취 편 수·1편이면 그 편·오늘 들었는지. 사용자당 한 행이고
+   * `library_items`(user, deleted_at, added_at)·`playback_progresses`(user) 인덱스를 탄다. 담은 편(`save`·`onboarding`)은 세지
+   * 않는다 — "추천받은 콘텐츠"를 말하는 알림이라 이어가 보낸 편(드립·탐험)만이다.
+   */
+  async findMorningFacts(params: {
+    userIds: string[];
+    addedSince: Date;
+    listenedSince: Date;
+  }): Promise<MorningFactRow[]> {
+    if (params.userIds.length === 0) {
+      return [];
+    }
+
+    const rows = await this.dataSource.query<
+      {
+        user_id: string;
+        unplayed_count: number;
+        single_content_id: string | null;
+        single_title: string | null;
+        listened_recently: boolean;
+      }[]
+    >(
+      `select u.id as user_id,
+              coalesce(unplayed.count, 0)::int as unplayed_count,
+              case when unplayed.count = 1 then unplayed.content_id end as single_content_id,
+              case when unplayed.count = 1 then unplayed.title end as single_title,
+              exists (
+                select 1 from playback_progresses pp
+                 where pp.user_id = u.id and pp.updated_at >= $3
+              ) as listened_recently
+         from users u
+         left join lateral (
+           select count(*)::int as count,
+                  (array_agg(c.id order by li.added_at desc))[1] as content_id,
+                  (array_agg(c.title order by li.added_at desc))[1] as title
+             from library_items li
+             join contents c on c.id = li.content_id
+            where li.user_id = u.id
+              and li.deleted_at is null
+              and li.source in ('drip', 'discovery')
+              and li.status = 'unplayed'
+              and li.added_at >= $2
+              and c.status = 'published'
+              and c.market = u.market
+         ) unplayed on true
+        where u.id = any($1::uuid[])`,
+      [params.userIds, params.addedSince, params.listenedSince],
+    );
+
+    return rows.map((row) => ({
+      userId: row.user_id,
+      unplayedCount: Number(row.unplayed_count),
+      single:
+        row.single_content_id && row.single_title !== null
+          ? { contentId: row.single_content_id, title: row.single_title }
+          : null,
+      listenedRecently: row.listened_recently,
     }));
   }
 
