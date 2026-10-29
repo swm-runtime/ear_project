@@ -9,6 +9,8 @@ import {
   InsightsCohortCounts,
   InsightsCompletionContentRow,
   InsightsDailyRows,
+  InsightsDripArrivalTimeKey,
+  InsightsDripArrivalTimeRow,
   InsightsFunnelCohortCounts,
   InsightsHourly,
   InsightsInviteCodeBaseline,
@@ -163,6 +165,28 @@ const marketIs = (column: string, param: string): string =>
 /** `userIdColumn`의 사용자가 그 시장인가 — `users`를 직접 읽지 않는 표(재생·세션·신호·구독)용 */
 const userInMarket = (userIdColumn: string, param: string): string =>
   `(${param}::varchar is null or ${userIdColumn} in (select mu.id from users mu where mu.market = ${param}))`;
+
+/**
+ * 알림 뒤 재생 판정(알림 반응 · 도착 알림 시각 실험 공용) — `[from, to)` 사이에 그 사용자의 새 재생 행(`play_records.played_at`)
+ * 또는 재생 위치 저장(`playback_progresses.updated_at`)이 있는가. 앱이 알림 탭을 서버에 알리지 않아(`opened_at` 비어 있음)
+ * 탭 대신 재생으로 역산한다. 인자는 이 파일의 리터럴(열 이름·SQL 식)뿐이다.
+ */
+const playedBetween = (
+  userIdColumn: string,
+  from: string,
+  to: string,
+): string =>
+  `(exists (
+     select 1 from play_records p
+      where p.user_id = ${userIdColumn}
+        and p.played_at >= ${from} and p.played_at < ${to}
+   ) or exists (
+     select 1 from playback_progresses pp
+      where pp.user_id = ${userIdColumn}
+        and pp.updated_at >= ${from} and pp.updated_at < ${to}
+   ))`;
+/** 알림 반응 창의 끝 — 보낸 뒤 2시간(`DRIP_ARRIVAL_TIME_REACTION_HOURS`와 같은 값) */
+const PUSH_REACTION_END = `l.sent_at + interval '2 hours'`;
 
 /**
  * 서비스 지표 요약(`admin-api.md` 4.22)의 집계 — 로그 콘솔 "서비스 지표" 탭이 읽는다.
@@ -678,15 +702,7 @@ export class AdminInsightsRepository {
     >(
       `select l.type,
               count(*)::int as sent,
-              count(*) filter (where exists (
-                select 1 from play_records p
-                 where p.user_id = l.user_id
-                   and p.played_at >= l.sent_at and p.played_at < l.sent_at + interval '2 hours'
-              ) or exists (
-                select 1 from playback_progresses pp
-                 where pp.user_id = l.user_id
-                   and pp.updated_at >= l.sent_at and pp.updated_at < l.sent_at + interval '2 hours'
-              ))::int as reacted
+              count(*) filter (where ${playedBetween('l.user_id', 'l.sent_at', PUSH_REACTION_END)})::int as reacted
          from notification_logs l
         where l.status = 'sent' and l.sent_at >= $1
           and (l.type = 'drip_arrival' or l.type like 'drip_arrival.%' or l.type like 'retention.%')
@@ -699,6 +715,83 @@ export class AdminInsightsRepository {
       type: r.type,
       sent: r.sent,
       reacted: r.reacted,
+    }));
+  }
+
+  /**
+   * 도착 알림 시각 실험 재료(KAN-289, 2026-10-30) — 창(`since` 이후) 안에 **보낸**(`sent`) 알림을 묶음별로 센다.
+   * - 묶음: `baseline` = `drip_arrival`(07:00) · `a` = `drip_arrival.a`(07:30) · `b` = `drip_arrival.b`(08:00) ·
+   *   `morning` = `retention.morning.*`(참고 행). 종류 문자열은 Service 가 정책 함수로 만들어 넘긴다.
+   * - 2시간 재생 = 알림 반응(`pushReactions`)과 같은 조각(`playedBetween`) · 보낸 뒤 2시간.
+   * - 당일 재생 = 같은 조각 · 보낸 시각부터 **그 서비스 날짜의 끝**까지. 날짜 경계(04:00 → 05:00 전환)는 Service 가
+   *   `toServiceDayRange`로 계산한 `[start, end)` 배열로 넘긴다 — 이 파일이 경계를 다시 계산하지 않는다.
+   * - `market`은 사용자의 지금 시장(`userInMarket`). 사용자는 수로만 낸다.
+   */
+  async dripArrivalTimeRows(
+    since: Date,
+    options: {
+      market: UserMarket | null;
+      types: { baseline: string; a: string; b: string; morningPrefix: string };
+      serviceDays: { start: Date; end: Date }[];
+    },
+  ): Promise<InsightsDripArrivalTimeRow[]> {
+    const rows = await this.dataSource.query<
+      {
+        key: InsightsDripArrivalTimeKey;
+        sent: number;
+        users: number;
+        played_2h: number;
+        played_same_day: number;
+        first_sent_at: Date;
+        last_sent_at: Date;
+      }[]
+    >(
+      `with days as (
+         select * from unnest($7::timestamptz[], $8::timestamptz[]) as d(start_at, end_at)
+       ),
+       l as (
+         select n.user_id, n.sent_at, d.end_at as day_end,
+                case
+                  when n.type = $3 then 'baseline'
+                  when n.type = $4 then 'a'
+                  when n.type = $5 then 'b'
+                  else 'morning'
+                end as key
+           from notification_logs n
+           join days d on n.sent_at >= d.start_at and n.sent_at < d.end_at
+          where n.status = 'sent' and n.sent_at >= $1
+            and (n.type in ($3, $4, $5) or n.type like $6 || '%')
+            and ${userInMarket('n.user_id', '$2')}
+       )
+       select l.key,
+              count(*)::int as sent,
+              count(distinct l.user_id)::int as users,
+              count(*) filter (where ${playedBetween('l.user_id', 'l.sent_at', PUSH_REACTION_END)})::int as played_2h,
+              count(*) filter (where ${playedBetween('l.user_id', 'l.sent_at', 'l.day_end')})::int as played_same_day,
+              min(l.sent_at) as first_sent_at,
+              max(l.sent_at) as last_sent_at
+         from l
+        group by l.key
+        order by l.key`,
+      [
+        since,
+        options.market,
+        options.types.baseline,
+        options.types.a,
+        options.types.b,
+        options.types.morningPrefix,
+        options.serviceDays.map((d) => d.start),
+        options.serviceDays.map((d) => d.end),
+      ],
+    );
+    return rows.map((r) => ({
+      key: r.key,
+      sent: r.sent,
+      users: r.users,
+      played2h: r.played_2h,
+      playedSameDay: r.played_same_day,
+      firstSentAt: r.first_sent_at,
+      lastSentAt: r.last_sent_at,
     }));
   }
 

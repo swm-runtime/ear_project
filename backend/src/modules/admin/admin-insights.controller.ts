@@ -8,6 +8,8 @@ import {
   COMPLETION_LENGTH_CONTENT_MARKET,
   COMPLETION_LENGTH_MIN_AGE_HOURS,
   COMPLETION_LENGTH_SLOPE_STEP_MIN,
+  DRIP_ARRIVAL_TIME_MIN_SAMPLE,
+  DRIP_ARRIVAL_TIME_REACTION_HOURS,
   FUNNEL_HABIT_MIN_PLAY_DAYS,
   SERIES_EPISODES_MIN_AGE_HOURS,
   SHORT_VARIANT_DROP_10_SEC,
@@ -17,6 +19,8 @@ import {
   SHORT_VARIANT_MIN_SAMPLE,
 } from './admin.constant';
 import { AdminInsightsCompletionByLengthResponseDto } from './dto/admin-insights-completion-by-length-response.dto';
+import { AdminInsightsDripArrivalTimeQueryRequestDto } from './dto/admin-insights-drip-arrival-time-query-request.dto';
+import { AdminInsightsDripArrivalTimeResponseDto } from './dto/admin-insights-drip-arrival-time-response.dto';
 import { AdminInsightsFunnelQueryRequestDto } from './dto/admin-insights-funnel-query-request.dto';
 import { AdminInsightsFunnelResponseDto } from './dto/admin-insights-funnel-response.dto';
 import { AdminInsightsSummaryQueryRequestDto } from './dto/admin-insights-summary-query-request.dto';
@@ -149,6 +153,28 @@ export class AdminInsightsController {
           SHORT_VARIANT_DROP_30_SEC,
           SHORT_VARIANT_DROP_60_SEC,
         ],
+      },
+    );
+  }
+
+  /**
+   * 도착 알림 시각 실험 — 로그 콘솔 "실험 지표" 탭(KAN-289, 2026-10-30). 07:00 기준선 · 07:30(A) · 08:00(B)의 2시간·당일
+   * 재생률과 참고 행(아침 알림). 읽기 전용 · 집계값만(사용자는 수로만) · 열 때 1회 + [새로고침]
+   */
+  @Get('drip-arrival-time')
+  @Header('Cache-Control', 'no-store')
+  async dripArrivalTime(
+    @Query() query: AdminInsightsDripArrivalTimeQueryRequestDto,
+  ): Promise<AdminInsightsDripArrivalTimeResponseDto> {
+    return AdminInsightsDripArrivalTimeResponseDto.from(
+      await this.adminInsightsService.dripArrivalTime(
+        new Date(),
+        query.days,
+        query.market ?? null,
+      ),
+      {
+        minSample: DRIP_ARRIVAL_TIME_MIN_SAMPLE,
+        reactionWindowHours: DRIP_ARRIVAL_TIME_REACTION_HOURS,
       },
     );
   }
