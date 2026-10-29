@@ -95,6 +95,15 @@ export class PlayRecordRepository {
       .getExists();
   }
 
+  /** 이 편의 재생 기록이 하나라도 있는가 — 후기를 쓸 수 있는 편 판정(domain.md 6.8 "재생을 시작한 적 있음") */
+  async existsByUserIdAndContentId(
+    userId: string,
+    contentId: string,
+    manager?: EntityManager,
+  ): Promise<boolean> {
+    return this.scoped(manager).existsBy({ userId, contentId });
+  }
+
   /**
    * `listened_sec` 적산 대상 — 그 (user, content)의 **가장 최근 행**(`player-api.md` 4.3).
    *

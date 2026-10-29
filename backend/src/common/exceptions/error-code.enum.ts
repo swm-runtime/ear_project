@@ -216,6 +216,12 @@ export enum ErrorCode {
   /** 관리자 — 같은 값의 코드가 이미 있다 */
   INVITE_CODE_DUPLICATE = 'INVITE_CODE_DUPLICATE',
 
+  // --- 콘텐츠 후기 (content-review-api.md 5장, 2026-10-29 — KAN-279) ---
+  /** 후기 기능 서버 스위치(`CONTENT_REVIEW_ENABLED`)가 꺼져 있다 — 앱은 [후기]를 숨기고 큐의 후기를 버린다 */
+  CONTENT_REVIEW_DISABLED = 'CONTENT_REVIEW_DISABLED',
+  /** 재생을 시작한 적 없는 편이다 — 들어 본 편에만 후기를 남길 수 있다 */
+  CONTENT_REVIEW_NOT_PLAYED = 'CONTENT_REVIEW_NOT_PLAYED',
+
   // --- 콘텐츠 (공용 — common-error-handling.md 4.1) ---
   /** 담기 등에서 **건별 결과**로도 전달된다 (onboarding-api.md 4.6 `failed[]`) */
   CONTENT_NOT_FOUND = 'CONTENT_NOT_FOUND',

@@ -37,6 +37,8 @@ describe('UserSettingService', () => {
         isDripNotificationEnabled: true,
         dripFeedbackMutedUntil: null,
         dripFeedbackLastPromptedDate: null,
+        contentReviewLastPromptedDate: null,
+        contentReviewMutedUntil: null,
         preferredAudioQuality: null,
       });
       expect(repository.upsert).not.toHaveBeenCalled();

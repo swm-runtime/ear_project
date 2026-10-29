@@ -64,6 +64,13 @@ export class UserSettingService {
       changes.dripFeedbackLastPromptedDate =
         command.dripFeedbackLastPromptedDate;
     }
+    if (command.contentReviewLastPromptedDate !== undefined) {
+      changes.contentReviewLastPromptedDate =
+        command.contentReviewLastPromptedDate;
+    }
+    if (command.contentReviewMutedUntil !== undefined) {
+      changes.contentReviewMutedUntil = command.contentReviewMutedUntil;
+    }
     if (command.preferredAudioQuality !== undefined) {
       changes.preferredAudioQuality = command.preferredAudioQuality;
     }
@@ -106,6 +113,8 @@ function toView(setting: UserSetting): UserSettingView {
     isDripNotificationEnabled: setting.isDripNotificationEnabled,
     dripFeedbackMutedUntil: setting.dripFeedbackMutedUntil,
     dripFeedbackLastPromptedDate: setting.dripFeedbackLastPromptedDate,
+    contentReviewLastPromptedDate: setting.contentReviewLastPromptedDate,
+    contentReviewMutedUntil: setting.contentReviewMutedUntil,
     preferredAudioQuality: setting.preferredAudioQuality,
   };
 }
@@ -118,6 +127,8 @@ function buildDefaults(): UserSettingView {
     isDripNotificationEnabled: true,
     dripFeedbackMutedUntil: null,
     dripFeedbackLastPromptedDate: null,
+    contentReviewLastPromptedDate: null,
+    contentReviewMutedUntil: null,
     preferredAudioQuality: null,
   };
 }
