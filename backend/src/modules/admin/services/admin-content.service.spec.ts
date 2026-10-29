@@ -138,6 +138,7 @@ function buildCommand(
     language: ContentLanguage.KO,
     lengthProfile: null,
     variantOfContentId: null,
+    introVersion: null,
     audio: buildFile('ep.mp3'),
     audioAac: null,
     audioLossless: null,
@@ -1015,6 +1016,32 @@ describe('AdminContentService', () => {
         expect(
           contentService.assertVariantOriginContent,
         ).not.toHaveBeenCalled();
+      });
+
+      it('intro_version은 받은 그대로 발행·감사 로그에 남기고, 생략하면 null(기존 도입부)이다', async () => {
+        // when
+        await service.upload(buildCommand({ introVersion: 'hook-v2' }), NOW);
+        await service.upload(buildCommand(), NOW);
+
+        // then
+        expect(contentService.publish).toHaveBeenNthCalledWith(
+          1,
+          containing({ introVersion: 'hook-v2' }),
+          NOW,
+          manager,
+        );
+        expect(contentService.publish).toHaveBeenNthCalledWith(
+          2,
+          containing({ introVersion: null }),
+          NOW,
+          manager,
+        );
+        expect(auditLogService.record).toHaveBeenCalledWith(
+          containing({
+            after: containing({ intro_version: 'hook-v2' }),
+          }),
+          manager,
+        );
       });
 
       it('short 단편은 원본을 확인한 뒤 원본 id와 함께 발행한다', async () => {

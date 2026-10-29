@@ -797,6 +797,7 @@ export class ContentService {
       language: command.language,
       lengthProfile: command.lengthProfile,
       variantOfContentId: command.variantOfContentId,
+      introVersion: command.introVersion,
     });
     const [saved] = await this.contentRepository.saveAll([content], manager);
 

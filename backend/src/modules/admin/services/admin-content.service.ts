@@ -251,6 +251,7 @@ export class AdminContentService {
             language: command.language,
             lengthProfile,
             variantOfContentId: command.variantOfContentId,
+            introVersion: command.introVersion,
           },
           now,
           manager,
@@ -294,6 +295,7 @@ export class AdminContentService {
               duration_sec: durationSec,
               length_profile: lengthProfile,
               variant_of_content_id: command.variantOfContentId,
+              intro_version: command.introVersion,
               ...(enrichment && {
                 enrichment_applied: enrichment.data !== null,
               }),

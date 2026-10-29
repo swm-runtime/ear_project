@@ -53,6 +53,8 @@ export interface UploadContentCommand {
   lengthProfile: ContentLengthProfile | null;
   /** 짧은 판의 원본 콘텐츠 — short 단편이면 필수, 짧은 시리즈 편이면 선택, standard면 없어야 한다 */
   variantOfContentId: string | null;
+  /** 도입부 버전(KAN-298 범위 추가) — 지표 전용. null = 보내지 않음 = 기존 도입부 */
+  introVersion: string | null;
   /** 압축 음질(`compressed`) — 필수 */
   audio: UploadedFileInput;
   /** 고음질(`aac`) · 무손실(`lossless`) — 선택(admin-api.md 4.6, KAN-141). 길이가 `audio`와 ±1초 안이어야 한다 */

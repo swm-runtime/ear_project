@@ -193,4 +193,17 @@ export class Content extends BaseEntity {
    */
   @Column({ name: 'variant_of_content_id', type: 'uuid', nullable: true })
   variantOfContentId: string | null;
+
+  /**
+   * 도입부 버전(KAN-298 범위 추가 — 2026-10-29). **지표 전용** — 실험 지표 탭이 초반 이탈(10초·30초·1분)을 이 값으로 묶는다.
+   * 노출 규칙은 `length_profile`만 본다. NULL = 기존 도입부(그 전에 발행한 전부). 형식은 `INTRO_VERSION_PATTERN`
+   * (CHECK `ck_contents_intro_version`). 사용자 응답에 싣지 않는다
+   */
+  @Column({
+    name: 'intro_version',
+    type: 'varchar',
+    length: 32,
+    nullable: true,
+  })
+  introVersion: string | null;
 }

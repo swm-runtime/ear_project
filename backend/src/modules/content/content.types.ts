@@ -430,6 +430,8 @@ export interface PublishContentCommand {
   /** 길이 프로필·짧은 판의 원본(KAN-298) — 호출부(admin)가 검증을 끝내고 넘긴다 */
   lengthProfile: ContentLengthProfile;
   variantOfContentId: string | null;
+  /** 도입부 버전 — 지표 전용(노출 무관). null = 기존 도입부 */
+  introVersion: string | null;
 }
 
 /**

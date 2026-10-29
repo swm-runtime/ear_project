@@ -418,6 +418,7 @@ export class AdminController {
         language: payload.language,
         lengthProfile: payload.length_profile ?? null,
         variantOfContentId: payload.variant_of_content_id ?? null,
+        introVersion: payload.intro_version ?? null,
         audio: toFileInput(audio),
         audioAac: files.audio_aac?.[0] ? toFileInput(files.audio_aac[0]) : null,
         audioLossless: files.audio_lossless?.[0]
