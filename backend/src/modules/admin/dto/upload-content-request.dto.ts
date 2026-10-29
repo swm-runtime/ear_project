@@ -11,6 +11,7 @@ import {
   IsOptional,
   IsString,
   IsUUID,
+  Matches,
   MaxLength,
   Min,
   ValidateNested,
@@ -21,6 +22,7 @@ import {
   ContentLengthProfile,
   ContentOrigin,
 } from '@/modules/content/content.enum';
+import { INTRO_VERSION_PATTERN } from '@/modules/content/content-variant.policy';
 import { UserMarket } from '@/modules/user/user.enum';
 
 /** admin.md 3.1 `sources[]` — 소스마다 제목(필수) · 저자(선택) · 링크(선택) */
@@ -140,6 +142,17 @@ export class UploadContentRequestDto {
   @IsOptional()
   @IsUUID()
   readonly variant_of_content_id?: string;
+
+  /**
+   * 도입부 버전(KAN-298 범위 추가 — `experiments-api.md` 4.3-4). **지표 전용**이고 노출에 쓰지 않는다. 생략하면 NULL(기존
+   * 도입부)이다. 32자 이하, 소문자·숫자로 시작하고 소문자·숫자·`.`·`_`·`-`만(`INTRO_VERSION_PATTERN`). 값 이름은 파이프라인이
+   * 정한다(예 `hook-v2`)
+   */
+  @IsOptional()
+  @IsString()
+  @MaxLength(32)
+  @Matches(INTRO_VERSION_PATTERN)
+  readonly intro_version?: string;
 }
 
 /** multipart 본문의 텍스트 필드. 파일은 여기 오지 않는다 */

@@ -28,6 +28,7 @@ interface ContentItemBody {
   id: string;
   length_profile: string;
   variant_of_content_id: string | null;
+  intro_version: string | null;
 }
 
 interface SeriesItemBody {
@@ -107,6 +108,13 @@ describe('짧은 판 E2E', () => {
         userId,
       ]);
       await dataSource.query(`DELETE FROM users WHERE id = $1`, [userId]);
+    }
+    // 병렬로 도는 다른 e2e(드립 배치)가 이 파일의 발행분을 편성해 FK 행(CASCADE 아님)을 남길 수 있다 — 먼저 지운다
+    for (const table of ['drip_excluded_contents', 'library_items']) {
+      await dataSource.query(
+        `DELETE FROM ${table} WHERE content_id IN (SELECT id FROM contents WHERE title LIKE $1)`,
+        [`${STAMP}%`],
+      );
     }
     // 짧은 판이 원본을 FK(RESTRICT)로 가리킨다 — 짧은 판부터 지운다
     await dataSource.query(
@@ -192,6 +200,55 @@ describe('짧은 판 E2E', () => {
     await upload(admin, topic.id, 'bad-profile', {
       length_profile: 'medium',
     }).expect(HttpStatus.BAD_REQUEST);
+  }, 60_000);
+
+  it('업로드 — intro_version은 받은 그대로 저장하고, 생략하면 NULL(기존 도입부)이며, 형식이 틀리면 400', async () => {
+    const admin = await createAdmin('intro');
+    const topic = await seedTopic();
+
+    // 생략 → NULL
+    const plain = (
+      await upload(admin, topic.id, 'intro-omitted', {}).expect(
+        HttpStatus.CREATED,
+      )
+    ).body as ContentItemBody;
+    expect(plain.intro_version).toBeNull();
+
+    // 값 → 그대로 저장(길이 프로필과 독립 — standard 편에도 새 도입부가 들어갈 수 있다)
+    const hooked = (
+      await upload(admin, topic.id, 'intro-hook', {
+        intro_version: 'hook-v2',
+      }).expect(HttpStatus.CREATED)
+    ).body as ContentItemBody;
+    expect(hooked).toMatchObject({
+      length_profile: 'standard',
+      intro_version: 'hook-v2',
+    });
+
+    const rows = await dataSource.query<
+      { id: string; intro_version: string | null }[]
+    >(`SELECT id, intro_version FROM contents WHERE id = ANY($1)`, [
+      [plain.id, hooked.id],
+    ]);
+    expect(
+      Object.fromEntries(rows.map((row) => [row.id, row.intro_version])),
+    ).toEqual({ [plain.id]: null, [hooked.id]: 'hook-v2' });
+
+    // 형식 오류 — 대문자 · 33자
+    await upload(admin, topic.id, 'intro-upper', {
+      intro_version: 'Hook-V2',
+    }).expect(HttpStatus.BAD_REQUEST);
+    await upload(admin, topic.id, 'intro-long', {
+      intro_version: 'a'.repeat(33),
+    }).expect(HttpStatus.BAD_REQUEST);
+
+    // DB CHECK도 같은 규칙이다 — 업로드를 우회한 쓰기도 막힌다
+    await expect(
+      dataSource.query(
+        `UPDATE contents SET intro_version = 'Bad Value' WHERE id = $1`,
+        [plain.id],
+      ),
+    ).rejects.toThrow(/ck_contents_intro_version/);
   }, 60_000);
 
   it('시리즈 — 짧은 시리즈는 원본 시리즈와 함께 만들고, 편은 시리즈의 길이 프로필을 따른다', async () => {

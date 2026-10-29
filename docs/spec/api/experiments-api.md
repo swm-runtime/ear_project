@@ -151,6 +151,22 @@
 
 - 파이프라인 `upload-meta.json`의 `remake_of_content_ref`(원본 제품 content_id)는 업로드 payload에서 **`variant_of_content_id`** 로 보낸다.
 
+### 4.3-4 도입부 버전 `intro_version` (지표 전용, 2026-10-29 범위 추가)
+
+짧은 판은 길이와 함께 새 도입부(훅)를 쓴다. 나중에 standard 편에도 새 도입부가 들어갈 수 있어, `length_profile`만으로는 초반 이탈의 원인(길이인가 도입부인가)을 가를 수 없다 — 그래서 도입부를 따로 기록한다.
+
+| 항목 | 값 |
+|---|---|
+| 칸 | `contents.intro_version` — 문자열, NULL 허용(기본값 없음) |
+| NULL | **기존 도입부** — 이 칸 이전에 발행한 전부, 그리고 값을 보내지 않은 업로드 |
+| 업로드 | `POST /admin/contents` payload `intro_version`(선택). 값 이름은 파이프라인이 정한다(예 `hook-v2`) |
+| 검증 | 32자 이하 · `^[a-z0-9][a-z0-9._-]{0,31}$`(소문자·숫자로 시작, 소문자·숫자·`.`·`_`·`-`). 어기면 400 `VALIDATION_FAILED`. DB CHECK `ck_contents_intro_version`도 같은 식 |
+| 재발행 | `PATCH`는 이 칸을 받지 않는다(보내면 모르는 필드 400) — **기존 값 유지**, `length_profile`과 같은 규칙. 바꾸려면 회수하고 새로 올린다 |
+| 쓰임 | **지표 전용.** 실험 지표 탭이 초반 이탈(10초·30초·1분)을 이 값으로 묶는다. **노출 규칙은 `length_profile`만 본다** — 이 칸으로 거르지 않는다 |
+| 응답 | 사용자 응답에 싣지 않는다. 관리자 `AdminContentItem`·감사 로그 `content.upload` `after`에만 있다 |
+
+- 파이프라인은 `UploadPayload`에 `intro_version`을 실어 보낸다(KAN-296). 보내지 않으면 기존 도입부로 집계된다.
+
 ---
 
 ## 4.4 `GET /plans` — 정가·할인 표시 필드 추가 (KAN-286 ↔ FE 티켓 발행 예정)

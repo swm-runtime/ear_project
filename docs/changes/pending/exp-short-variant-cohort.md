@@ -97,11 +97,27 @@ fk_series_variant_of_series  variant_of_series_id → series.id  ON DELETE RESTR
 
 - 노출 조건에 코호트 항을 더하고, 주제 칩·주제 목록은 코호트로 거르지 않는다는 점(짧은 판이 없는 주제는 목록이 빈다)을 적는다.
 
+### 11. 도입부 버전 `intro_version`(2026-10-29 범위 추가 — 마이그레이션 `1792200000000-AddContentIntroVersion`)
+
+- `domain.md` 5.1 `contents`:
+
+```
+  intro_version             varchar(32)     NULL 허용 — 도입부 버전(지표 전용). NULL = 기존 도입부  ★KAN-298
+
+ck_contents_intro_version  CHECK (intro_version IS NULL OR intro_version ~ '^[a-z0-9][a-z0-9._-]{0,31}$')
+```
+
+  - 노출 조건에 쓰지 않는다(노출은 `length_profile`만). 실험 지표 탭의 초반 이탈 묶음 기준이다. 인덱스 없음.
+- `admin-api.md` 4.6 `POST /admin/contents` `payload`: `"intro_version": "hook-v2"` — 선택, 생략 시 NULL. 형식 위반은 400 `VALIDATION_FAILED`. 감사 로그 `content.upload` `after`에 `intro_version`.
+- `admin-api.md` 4.10 재발행: 받지 않는다(기존 값 유지 — 4항과 같은 규칙).
+- `admin-api.md` 8장 `AdminContentItem`: `intro_version`(string | null).
+- 계약 원본은 `experiments-api.md` 4.3-4.
+
 ## 완료 조건
 
-- Given 위 문서들 / When 각 절을 읽으면 / Then 두 테이블의 칸·제약과 업로드·시리즈 만들기의 필드·400 표가 이 문서와 같고, 재발행이 두 필드를 받지 않는다고 적혀 있다
+- Given 위 문서들 / When 각 절을 읽으면 / Then 두 테이블의 칸·제약(11항 `intro_version` 포함)과 업로드·시리즈 만들기의 필드·400 표가 이 문서와 같고, 재발행이 길이 프로필·원본·도입부 버전을 받지 않는다고 적혀 있다
 - Given `domain.md` 5.1 · `drip-scheduling.md` · `explore.md` / When 노출 조건을 읽으면 / Then 코호트 항이 걸리는 곳·안 걸리는 곳과 폴백 없음이 7·8·10과 같고, `architecture.md` 9.1에 `signed_up_at` 클레임이 있으며, `experiments-api.md` 4.3은 "통합됨"으로 표시되거나 지워져 있다
 
 ## 처리 기록
 
-- 2026-10-29 발행(KAN-298 구현 PR #2147과 함께) · 같은 날 노출 분리 절(7~10) 추가(후속 PR).
+- 2026-10-29 발행(KAN-298 구현 PR #2147과 함께) · 같은 날 노출 분리 절(7~10) 추가(후속 PR #2150) · 같은 날 도입부 버전 절(11) 추가(#2150 위에 쌓은 PR).

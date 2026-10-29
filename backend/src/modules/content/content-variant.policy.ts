@@ -6,6 +6,13 @@ import { ErrorCode } from '@/common/exceptions/error-code.enum';
 import { ContentLengthProfile } from './content.enum';
 
 /**
+ * 도입부 버전(`contents.intro_version`, KAN-298 범위 추가 — 2026-10-29) 형식. 값의 이름은 파이프라인이 정한다(예 `hook-v2`).
+ * 서버는 길이(≤ 32)와 안전한 문자(소문자·숫자로 시작, 소문자·숫자·`.`·`_`·`-`)만 본다. 같은 식이 마이그레이션의 CHECK
+ * `ck_contents_intro_version`에도 있다 — 바꾸려면 둘을 함께 바꾼다
+ */
+export const INTRO_VERSION_PATTERN = /^[a-z0-9][a-z0-9._-]{0,31}$/;
+
+/**
  * 짧은 판의 원본 연결 규칙(KAN-298) — 콘텐츠 업로드(`variant_of_content_id`)와 시리즈 만들기(`variant_of_series_id`)가 같은
  * 규칙을 쓴다. 400 `VALIDATION_FAILED`이고 `details.field`가 칸 이름이다(`admin-api.md` 4.6의 다른 필드 오류와 같은 표기).
  *
