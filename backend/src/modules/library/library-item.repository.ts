@@ -258,6 +258,53 @@ export class LibraryItemRepository {
   }
 
   /**
+   * 한 적립 시각에 들어온 행 중 **아직 손대지 않은 편**을 짧은 순으로 1건(`experiments-api.md` 4.1 — 온보딩 직후 열 편).
+   *
+   * "이미 재생함"은 세 신호 중 하나라도 있으면이다 — 행 상태가 `unplayed`가 아니거나, `last_played_at`이 찍혔거나,
+   * 재생 위치(`playback_progresses`)가 0초를 넘었다. 탐색 재생은 행을 바꾸지 않고 위치만 남기므로(`explore.md` 4.4)
+   * 행만 보면 들은 편이 새 편으로 보인다. 소프트 삭제분은 엔티티 조건으로 빠지고, 회수·만료·다른 시장 편은 노출 조건이 뺀다.
+   */
+  async findShortestUntouchedContentIdAddedAt(
+    userId: string,
+    source: LibraryItemSource,
+    addedAt: Date,
+    now: Date,
+    market: UserMarket,
+    manager?: EntityManager,
+  ): Promise<string | null> {
+    const row = await this.scoped(manager)
+      .createQueryBuilder('item')
+      .innerJoin(
+        'item.content',
+        'content',
+        CONTENT_SCOPE_CONDITION,
+        contentScopeParameters(now, market),
+      )
+      .select('item.content_id', 'content_id')
+      .where('item.user_id = :userId', { userId })
+      .andWhere('item.source = :source', { source })
+      .andWhere('item.added_at = :addedAt', { addedAt })
+      .andWhere('item.status = :unplayed', {
+        unplayed: LibraryItemStatus.UNPLAYED,
+      })
+      .andWhere('item.last_played_at IS NULL')
+      .andWhere(
+        `NOT EXISTS (
+           SELECT 1 FROM playback_progresses progress
+            WHERE progress.user_id = item.user_id
+              AND progress.content_id = item.content_id
+              AND (progress.position_sec > 0 OR progress.max_reached_sec > 0)
+         )`,
+      )
+      .orderBy('content.duration_sec', 'ASC')
+      .addOrderBy('content.id', 'ASC')
+      .limit(1)
+      .getRawOne<{ content_id: string }>();
+
+    return row?.content_id ?? null;
+  }
+
+  /**
    * 기간 안에 적립된 편성분(정규·탐험) 전체 — 07:00 도착 알림이 05:00 배치 결과를 다시 읽는 경로다.
    * 소프트 삭제된 항목은 빠진다(알림 전에 지운 편은 알리지 않는다). 사용자 → 적립 순.
    */

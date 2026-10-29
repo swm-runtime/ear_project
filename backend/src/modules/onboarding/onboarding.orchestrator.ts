@@ -4,7 +4,6 @@ import { DataSource } from 'typeorm';
 import { BusinessException } from '@/common/exceptions/business.exception';
 import { ErrorCode } from '@/common/exceptions/error-code.enum';
 import { FirstDripJobStatus } from '@/modules/drip/drip.enum';
-import { FirstDripState } from '@/modules/drip/drip.types';
 import { FirstDripService } from '@/modules/drip/services/first-drip.service';
 import { Content } from '@/modules/content/entities/content.entity';
 import { ContentService } from '@/modules/content/services/content.service';
@@ -34,6 +33,7 @@ import {
 import { RecommendationSectionType } from './onboarding.enum';
 import {
   CompleteResult,
+  FirstDripView,
   OnboardingState,
   PickResult,
   RecommendationItem,
@@ -381,8 +381,11 @@ export class OnboardingOrchestrator {
     };
   }
 
-  /** onboarding-api.md 4.8 — 0건 담기 경로에서 완료 화면을 언제 띄울지 판정한다 */
-  async getFirstDripState(userId: string): Promise<FirstDripState> {
+  /**
+   * onboarding-api.md 4.8 — 0건 담기 경로에서 완료 화면을 언제 띄울지 판정한다.
+   * `completed`면 온보딩 직후 열 편을 함께 정한다(`experiments-api.md` 4.1 — KAN-292).
+   */
+  async getFirstDripState(userId: string, now: Date): Promise<FirstDripView> {
     const user = await this.userOnboardingService.getUser(userId);
     this.userOnboardingService.assertCompleted(user);
 
@@ -399,10 +402,21 @@ export class OnboardingOrchestrator {
         status: FirstDripJobStatus.QUEUED,
         itemCount: 0,
         completedAt: null,
+        firstContentId: null,
       };
     }
 
-    return state;
+    const firstContentId =
+      state.status === FirstDripJobStatus.COMPLETED && state.completedAt
+        ? await this.libraryService.findFirstDripOpenContentId(
+            userId,
+            state.completedAt,
+            now,
+            user.market,
+          )
+        : null;
+
+    return { ...state, firstContentId };
   }
 
   /**

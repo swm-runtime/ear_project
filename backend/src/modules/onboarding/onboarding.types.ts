@@ -1,5 +1,6 @@
 import { ErrorCode } from '@/common/exceptions/error-code.enum';
 import { FirstDripJobStatus } from '@/modules/drip/drip.enum';
+import { FirstDripState } from '@/modules/drip/drip.types';
 import {
   OnboardingStep,
   YearsOfExperienceRange,
@@ -59,4 +60,10 @@ export interface CompleteResult {
   /** `true`면 클라이언트는 완료 화면 대신 로딩 화면을 띄우고 첫 드립 상태를 폴링한다 */
   awaitsFirstDrip: boolean;
   firstDripStatus: FirstDripJobStatus;
+}
+
+/** onboarding-api.md 4.8 + `experiments-api.md` 4.1 — 첫 드립 상태와 온보딩 직후 열 편 */
+export interface FirstDripView extends FirstDripState {
+  /** `completed`일 때만 값이 있다. 열 편의 제안이지 재생 허가가 아니다 */
+  firstContentId: string | null;
 }
