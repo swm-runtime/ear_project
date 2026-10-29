@@ -21,11 +21,13 @@ export default async function ExperimentsPage({ searchParams }: { searchParams: 
   const topic = sp.topic ?? ""; const q = (sp.q ?? "").trim().toLowerCase();
   if (pipelineLocale() !== "ko") return <div><PageHeader title="실험" breadcrumb={["파이프라인", "실험"]} desc="짧은 판 실험은 한국판 파이프라인에만 있다." /></div>;
   const sb = await supabaseServer();
-  const [{ data: originals }, { data: remakes }, { data: rjobs }] = await Promise.all([
+  const [{ data: originals }, { data: remakes }, { data: rjobs }, { data: autoRow }] = await Promise.all([
     sb.from("backlog").select("id,title,mid_topic,published_at").eq("status", "published").is("series_id", null).is("remake_of", null).order("published_at", { ascending: false }),
     sb.from("backlog").select("id,title,mid_topic,status,remake_of,created_at,published_content_ref").not("remake_of", "is", null).order("created_at", { ascending: false }),
     sb.from("jobs").select("payload,status,error,created_at").eq("type", "remake").order("created_at", { ascending: false }).limit(300),
+    sb.from("settings").select("value").eq("key", "automation").maybeSingle(),
   ]);
+  const shortTh = (autoRow?.value as { short_threshold?: number } | null)?.short_threshold; // 짧은 판 관문(settings.automation.short_threshold) — 없으면 기록만(루브릭 보정 중)
   const remakeIds = (remakes ?? []).map((r) => r.id);
   const origIds = (originals ?? []).map((r) => r.id);
   const [{ data: eps }, { data: jobs }, { data: origEps }] = await Promise.all([
@@ -56,7 +58,7 @@ export default async function ExperimentsPage({ searchParams }: { searchParams: 
     <div className="space-y-6">
       <AutoRefresh seconds={20} />
       <PageHeader title="실험 — 짧은 판" breadcrumb={["파이프라인", "실험"]}
-        desc={`발행된 단편의 주제·소스로 ${s.floorMin}~${s.maxMin}분(본문 구간 ${s.sections[0]}~${s.sections[1]}개, 선취 훅) 짧은 판을 다시 만든다(KAN-296). 설계는 원본 구성안을 보지 않고 소스만 받아 새로 짜고, 축은 원본과 같은 질문을 유지한다. 비평 합계 65 미만이면 발행 준비를 걸지 않고 사람 검토로 둔다(짧은 판에만 있는 관문). 제목·썸네일은 원본 그대로. 짧은 판은 새 앱 배포 뒤 가입한 사용자에게만 나가므로(BE 코호트 분리) 백로그·일반 발행 목록에는 보이지 않는다 — 발행 준비까지 ${done}/${remakeIds.length}편.`} />
+        desc={`발행된 단편의 주제·소스로 ${s.floorMin}~${s.maxMin}분(본문 구간 ${s.sections[0]}~${s.sections[1]}개, 선취 훅) 짧은 판을 다시 만든다(KAN-296). 설계는 원본 구성안을 보지 않고 소스만 받아 새로 짜고, 축은 원본과 같은 질문을 유지한다. 규칙은 자산 skills/draft/short.md, 비평은 짧은 판 루브릭(skills/critic/rubric-short.md)으로 채점한다. ${typeof shortTh === "number" ? `비평 합계 ${shortTh} 미만이면 발행 준비를 걸지 않고 사람 검토로 둔다.` : "관문 기준은 아직 없다 — 루브릭을 사람 판정 3편으로 보정하는 중이라 점수는 기록만 하고 발행 준비로 넘긴다."} 제목·썸네일은 원본 그대로. 짧은 판은 새 앱 배포 뒤 가입한 사용자에게만 나가므로(BE 코호트 분리) 백로그·일반 발행 목록에는 보이지 않는다 — 발행 준비까지 ${done}/${remakeIds.length}편.`} />
 
       <Panel title={`짧은 판 진행 (${remakeIds.length})`} flush>
         <Table head={["원본 → 짧은 판", "상태", "진행", "막힌 곳 · 다음 행동", "만든 시각", ""]} empty="아직 짧은 판이 없다 — 아래 발행된 편에서 고른다">

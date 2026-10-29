@@ -43,3 +43,11 @@ KAN-296(단기 실험 ④) — 짧은 길이와 새 도입 훅이 완청률을 �
 ## 완료 조건
 
 - Given 위 네 문서 / When 다음 통합 / Then 분량 규칙이 프로필별로 적혀 있고, `remake` 작업 유형과 실험 탭이 spec/10 에 있다.
+
+## 추가 (2026-10-30) — 짧은 판 전용 규칙·루브릭 자산
+
+- `spec/10-webapp.md` 3.2 자산 목록에 15·16번째 DB 자산: `skills/draft/short.md`(short-v1, 짧은 판 설계·작성) · `skills/critic/rubric-short.md`(shortcritic-v1, 짧은 판 비평 3장 대체). 둘 다 번들 밖·항상 active(시리즈 규칙과 같은 방식).
+- `spec/04-script.md` 짧은 판 절: 사용 소스 하한 2건(후보 단계 3건 규칙은 그대로) · 축 소스는 모든 구간에 배정 가능 · 질적 규칙은 short.md 가 진실.
+- `spec/09-quality-cycle.md`: 짧은 판은 짧은 판 루브릭으로 채점 · 관문 기준 `settings.automation.short_threshold`(보정 전 비움) · 사람 판정 3편으로 보정.
+- 근거: `docs/ai/skills/draft/CHANGELOG.md` short-v1.
+
