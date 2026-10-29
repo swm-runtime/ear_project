@@ -2,6 +2,7 @@ import { Controller, Get, Header, Query, UseGuards } from '@nestjs/common';
 
 import { AdminRoleGuard } from '@/common/guards/admin-role.guard';
 import { JwtAuthGuard } from '@/common/guards/jwt-auth.guard';
+import { ContentCohortService } from '@/modules/content/services/content-cohort.service';
 
 import {
   COMPLETION_LENGTH_CONTENT_MARKET,
@@ -9,6 +10,11 @@ import {
   COMPLETION_LENGTH_SLOPE_STEP_MIN,
   FUNNEL_HABIT_MIN_PLAY_DAYS,
   SERIES_EPISODES_MIN_AGE_HOURS,
+  SHORT_VARIANT_DROP_10_SEC,
+  SHORT_VARIANT_DROP_30_SEC,
+  SHORT_VARIANT_DROP_60_SEC,
+  SHORT_VARIANT_MIN_AGE_HOURS,
+  SHORT_VARIANT_MIN_SAMPLE,
 } from './admin.constant';
 import { AdminInsightsCompletionByLengthResponseDto } from './dto/admin-insights-completion-by-length-response.dto';
 import { AdminInsightsFunnelQueryRequestDto } from './dto/admin-insights-funnel-query-request.dto';
@@ -17,6 +23,8 @@ import { AdminInsightsSummaryQueryRequestDto } from './dto/admin-insights-summar
 import { AdminInsightsSummaryResponseDto } from './dto/admin-insights-summary-response.dto';
 import { AdminInsightsSeriesEpisodesQueryRequestDto } from './dto/admin-insights-series-episodes-query-request.dto';
 import { AdminInsightsSeriesEpisodesResponseDto } from './dto/admin-insights-series-episodes-response.dto';
+import { AdminInsightsShortVariantQueryRequestDto } from './dto/admin-insights-short-variant-query-request.dto';
+import { AdminInsightsShortVariantResponseDto } from './dto/admin-insights-short-variant-response.dto';
 import { AdminInviteCodeCohortsQueryRequestDto } from './dto/admin-invite-code-cohorts-query-request.dto';
 import { AdminInviteCodeCohortsResponseDto } from './dto/admin-invite-code-cohorts-response.dto';
 import { AdminInsightsService } from './services/admin-insights.service';
@@ -28,7 +36,11 @@ import { AdminInsightsService } from './services/admin-insights.service';
 @Controller('admin/insights')
 @UseGuards(JwtAuthGuard, AdminRoleGuard)
 export class AdminInsightsController {
-  constructor(private readonly adminInsightsService: AdminInsightsService) {}
+  constructor(
+    private readonly adminInsightsService: AdminInsightsService,
+    // 짧은 판 실험의 코호트 경계 — 판정 규칙의 한 곳(KAN-298)에서 읽는다
+    private readonly contentCohortService: ContentCohortService,
+  ) {}
 
   @Get('summary')
   @Header('Cache-Control', 'no-store')
@@ -111,6 +123,33 @@ export class AdminInsightsController {
         query.market ?? null,
       ),
       { minAgeHours: SERIES_EPISODES_MIN_AGE_HOURS },
+    );
+  }
+
+  /**
+   * 짧은 판·도입부 실험 — 로그 콘솔 "실험 지표" 탭(KAN-298 · KAN-296, 2026-10-29). 기존 판 vs 짧은 판 완청률, 기존 도입부 vs
+   * 바뀐 도입부의 10초·30초·1분 이탈. 읽기 전용 · 집계값만(사용자는 수로만) · 열 때 1회 + [새로고침]
+   */
+  @Get('short-variant')
+  @Header('Cache-Control', 'no-store')
+  async shortVariant(
+    @Query() query: AdminInsightsShortVariantQueryRequestDto,
+  ): Promise<AdminInsightsShortVariantResponseDto> {
+    return AdminInsightsShortVariantResponseDto.from(
+      await this.adminInsightsService.shortVariant(
+        new Date(),
+        this.contentCohortService.cohortSince(),
+        query.market ?? null,
+      ),
+      {
+        minAgeHours: SHORT_VARIANT_MIN_AGE_HOURS,
+        minSample: SHORT_VARIANT_MIN_SAMPLE,
+        dropSec: [
+          SHORT_VARIANT_DROP_10_SEC,
+          SHORT_VARIANT_DROP_30_SEC,
+          SHORT_VARIANT_DROP_60_SEC,
+        ],
+      },
     );
   }
 }

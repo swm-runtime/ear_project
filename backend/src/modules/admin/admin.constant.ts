@@ -225,3 +225,16 @@ export const COMPLETION_LENGTH_MIN_CONTENTS = 5;
  */
 /** 이 편을 시작한 지 이만큼 지난 (사용자, 편)만 센다 — 길이별 완청률과 같은 값(방금 시작한 사람은 끝까지 들을 시간이 없었다) */
 export const SERIES_EPISODES_MIN_AGE_HOURS = COMPLETION_LENGTH_MIN_AGE_HOURS;
+
+/**
+ * 짧은 판·도입부 실험(`GET /admin/insights/short-variant`, KAN-298 · KAN-296, 2026-10-29) — 기존 판 vs 짧은 판 완청률,
+ * 기존 도입부 vs 바뀐 도입부의 초반 이탈. 시작·완청 정의는 길이별 완청률과 같다.
+ */
+/** 시작한 지 이만큼 지난 (사용자, 편)만 센다 — 길이별 완청률과 같은 값 */
+export const SHORT_VARIANT_MIN_AGE_HOURS = COMPLETION_LENGTH_MIN_AGE_HOURS;
+/** 초반 이탈 기준(초) — 그 (사용자, 편)의 청취 합이 이 값 이하면 이탈. "첫 편 1분 안 이탈 54%" 분석과 같은 정의 */
+export const SHORT_VARIANT_DROP_10_SEC = 10;
+export const SHORT_VARIANT_DROP_30_SEC = 30;
+export const SHORT_VARIANT_DROP_60_SEC = 60;
+/** 시작자가 이보다 적은 행은 콘솔이 "표본 작음"으로 표시한다 */
+export const SHORT_VARIANT_MIN_SAMPLE = 20;

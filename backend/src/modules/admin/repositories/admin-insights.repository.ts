@@ -1,6 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { DataSource } from 'typeorm';
 
+import { cohortLengthProfileSql } from '@/modules/content/content-cohort.policy';
+import { ContentLengthProfile } from '@/modules/content/content.enum';
 import { UserMarket } from '@/modules/user/user.enum';
 
 import {
@@ -17,6 +19,8 @@ import {
   InsightsPushReaction,
   InsightsRetention,
   InsightsSeriesEpisodeRow,
+  InsightsShortVariantPairRow,
+  InsightsShortVariantRow,
   InsightsTopContent,
   InsightsTopicSupply,
   InsightsTopUser,
@@ -1340,6 +1344,155 @@ export class AdminInsightsRepository {
       completers: r.completers,
       nextStartedOfStarters: r.next_started_of_starters,
       nextStartedOfCompleters: r.next_started_of_completers,
+    }));
+  }
+
+  /**
+   * 짧은 판·도입부 실험 재료(KAN-298 · KAN-296) — (콘텐츠, 가입 코호트, 첫 편 여부)마다 (사용자, 편)의 시작·완청·초반 이탈 수.
+   * - 시작·완청은 `completionByContent`와 같다(0초가 아닌 재생 · 첫 재생이 `minAgeHours` 전 · 완청 공용 정의).
+   * - 초반 이탈 = 그 (사용자, 편)의 청취 합(`play_records.listened_sec` 합)이 10·30·60초 이하.
+   * - 첫 편 = 그 사용자가 처음 0초 아닌 재생을 한 편(시장·시점 무관). "첫 편 제외" 비교용이다.
+   * - 코호트는 `content-cohort.policy.ts`의 SQL판으로 가른다. 경계(`cohortSince`)가 없으면 전부 null. 비교를 공정하게 하려고
+   *   경계 전 코호트는 **경계 직전 같은 길이 창**(지금 − 경계)에 가입한 사람만, 두 코호트 모두 **가입 뒤 같은 길이 안에** 시작한
+   *   편만 넣는다(오래된 사용자·오래 쓴 뒤의 재생이 섞이지 않게). 창 밖은 null — 콘텐츠 단위 비교에만 들어간다.
+   * - `market`이 있으면 그 시장 콘텐츠만. 사용자는 수만 낸다.
+   */
+  async shortVariantRows(
+    now: Date,
+    options: {
+      market: UserMarket | null;
+      minAgeHours: number;
+      reachedRatio: number;
+      cohortSince: Date | null;
+      dropSec: [number, number, number];
+    },
+  ): Promise<InsightsShortVariantRow[]> {
+    const rows = await this.dataSource.query<
+      {
+        content_id: string;
+        length_profile: string;
+        intro_version: string | null;
+        cohort: 'standard' | 'short' | null;
+        is_first: boolean;
+        starters: number;
+        completers: number;
+        drop_10: number;
+        drop_30: number;
+        drop_60: number;
+      }[]
+    >(
+      `with pairs as (
+         select p.user_id, p.content_id, min(p.played_at) as first_played_at, sum(p.listened_sec)::int as listened
+           from play_records p
+           join contents c on c.id = p.content_id
+          where p.listened_sec > 0 and c.duration_sec > 0
+            and ($1::varchar is null or c.market = $1)
+          group by p.user_id, p.content_id
+         having min(p.played_at) < $2::timestamptz - make_interval(hours => $3::int)
+       ),
+       firsts as (
+         select distinct on (p.user_id) p.user_id, p.content_id
+           from play_records p
+          where p.listened_sec > 0 and p.user_id in (select user_id from pairs)
+          order by p.user_id, p.played_at, p.content_id
+       ),
+       flagged as (
+         select s.content_id, s.listened,
+                coalesce(f.content_id = s.content_id, false) as is_first,
+                (exists (select 1 from library_items i
+                          where i.user_id = s.user_id and i.content_id = s.content_id and i.status = 'completed')
+                 or exists (select 1 from playback_progresses g
+                             join contents c on c.id = g.content_id
+                             where g.user_id = s.user_id and g.content_id = s.content_id
+                               and g.max_reached_sec >= c.duration_sec * $4::numeric)
+                 or exists (select 1 from user_signals x
+                             where x.user_id = s.user_id and x.content_id = s.content_id and x.action = 'complete')
+                ) as completed,
+                case
+                  when $5::timestamptz is null then null
+                  when ${cohortLengthProfileSql('u.created_at', '$5')} = '${ContentLengthProfile.SHORT}'
+                    then '${ContentLengthProfile.SHORT}'
+                  when u.created_at >= $5::timestamptz - ($2::timestamptz - $5::timestamptz)
+                   and s.first_played_at < u.created_at + ($2::timestamptz - $5::timestamptz)
+                    then '${ContentLengthProfile.STANDARD}'
+                  else null
+                end as cohort
+           from pairs s
+           join users u on u.id = s.user_id
+           left join firsts f on f.user_id = s.user_id
+       )
+       select c.id as content_id, c.length_profile, c.intro_version, f.cohort, f.is_first,
+              count(*)::int as starters,
+              count(*) filter (where f.completed)::int as completers,
+              count(*) filter (where f.listened <= $6::int)::int as drop_10,
+              count(*) filter (where f.listened <= $7::int)::int as drop_30,
+              count(*) filter (where f.listened <= $8::int)::int as drop_60
+         from flagged f
+         join contents c on c.id = f.content_id
+        group by c.id, c.length_profile, c.intro_version, f.cohort, f.is_first
+        order by c.id, f.cohort, f.is_first`,
+      [
+        options.market,
+        now,
+        options.minAgeHours,
+        options.reachedRatio,
+        options.cohortSince,
+        ...options.dropSec,
+      ],
+    );
+    return rows.map((r) => ({
+      contentId: r.content_id,
+      lengthProfile: r.length_profile,
+      introVersion: r.intro_version,
+      cohort: r.cohort,
+      isFirst: r.is_first,
+      starters: r.starters,
+      completers: r.completers,
+      drop10: r.drop_10,
+      drop30: r.drop_30,
+      drop60: r.drop_60,
+    }));
+  }
+
+  /**
+   * 짧은 판 ↔ 원본 짝(KAN-298) — 원본(`variant_of_content_id`)이 있는 short 편 전부(상태 무관 — 회수된 편도 지난 재생은 남는다).
+   * `market`은 짧은 판의 시장으로 거른다.
+   */
+  async shortVariantPairs(
+    market: UserMarket | null,
+  ): Promise<InsightsShortVariantPairRow[]> {
+    const rows = await this.dataSource.query<
+      {
+        short_id: string;
+        short_title: string;
+        short_duration_sec: number;
+        short_intro_version: string | null;
+        original_id: string;
+        original_title: string;
+        original_duration_sec: number;
+        original_intro_version: string | null;
+      }[]
+    >(
+      `select s.id as short_id, s.title as short_title, s.duration_sec as short_duration_sec,
+              s.intro_version as short_intro_version,
+              o.id as original_id, o.title as original_title, o.duration_sec as original_duration_sec,
+              o.intro_version as original_intro_version
+         from contents s
+         join contents o on o.id = s.variant_of_content_id
+        where s.length_profile = '${ContentLengthProfile.SHORT}'
+          and ($1::varchar is null or s.market = $1)
+        order by s.created_at, s.id`,
+      [market],
+    );
+    return rows.map((r) => ({
+      shortContentId: r.short_id,
+      shortTitle: r.short_title,
+      shortDurationSec: r.short_duration_sec,
+      shortIntroVersion: r.short_intro_version,
+      originalContentId: r.original_id,
+      originalTitle: r.original_title,
+      originalDurationSec: r.original_duration_sec,
+      originalIntroVersion: r.original_intro_version,
     }));
   }
 }
