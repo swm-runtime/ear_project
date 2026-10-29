@@ -1,3 +1,5 @@
+import { UserMarket } from '@/modules/user/user.enum';
+
 /** `created`로 남은 결제 의도의 보관 기간(domain.md 8.3) */
 export const PURCHASE_INTENT_RETENTION_DAYS = 30;
 
@@ -16,3 +18,19 @@ export const RECONCILE_OVERDUE_MS = 60 * 60 * 1000;
  * 그 뒤에는 늦은 갱신 알림이 올 가능성이 없다. 유예 기간은 이미 `expires_at`에 들어 있어 여기에 더하지 않는다.
  */
 export const RECONCILE_FORCE_EXPIRE_MS = 7 * 24 * 60 * 60 * 1000;
+
+/**
+ * 후기 참여 프로모션의 지급이 가리키는 **내부 캠페인 행**(domain.md 8.5 — KAN-279). 마이그레이션 `1792000000000`이 넣는다.
+ * 사용자가 입력할 수 없어야 하므로 코드 입력은 `is_active`와 무관하게 이 코드를 없는 코드로 보고, 관리자 수정은 거부한다.
+ */
+export const REVIEW_REWARD_INVITE_CODE = 'REVIEW-REWARD';
+
+/**
+ * 후기 참여 지급의 표시 이름(`plan.grant.name` · 프로모션 `name` — `content-review-api.md` 4.7). 사용자 시장의 언어다.
+ * `invite_codes`에 언어별 이름 칸이 없어 이 행만 코드 상수로 처리한다(domain.md 8.6). "후기 참여 프로모션"으로 두면 화면 문자열이
+ * "프로모션 프로모션"이 된다
+ */
+export const REVIEW_REWARD_GRANT_NAME: Readonly<Record<UserMarket, string>> = {
+  [UserMarket.KR]: '후기 참여',
+  [UserMarket.GLOBAL]: 'Review',
+};

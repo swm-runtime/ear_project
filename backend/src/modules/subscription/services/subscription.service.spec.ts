@@ -149,13 +149,14 @@ describe('SubscriptionService', () => {
           nameEn: 'Free trial',
         }),
       };
-      const grantOf = (tier: UserTier) => ({
+      const grantOf = (tier: UserTier, code = 'SANGUN') => ({
         redemption: {
           tier,
           startsAt: new Date('2026-08-01T00:00:00.000Z'),
           endsAt: GRANT_ENDS_AT,
         } as InviteCodeRedemption,
-        codeName: '산군 PoC',
+        codeName: code === 'REVIEW-REWARD' ? '후기 참여' : '산군 PoC',
+        code,
       });
 
       beforeEach(() => {
@@ -185,6 +186,40 @@ describe('SubscriptionService', () => {
             lastDate: '2026-09-09',
           },
         });
+      });
+
+      it.each([
+        [UserMarket.KR, '후기 참여'],
+        [UserMarket.GLOBAL, 'Review'],
+      ])(
+        '후기 참여 지급(REVIEW-REWARD)의 이름은 사용자 시장의 언어다 — %s 는 %s (content-review-api 4.7)',
+        async (market, name) => {
+          subscriptionRepository.findAllByUserId.mockResolvedValue([]);
+          inviteCodeService.findActiveGrant.mockResolvedValue(
+            grantOf(UserTier.PRO, 'REVIEW-REWARD'),
+          );
+
+          const plan = await service.buildPlanView(USER_ID, {
+            ...NO_TRIAL,
+            market,
+          });
+
+          expect(plan.grant?.name).toBe(name);
+        },
+      );
+
+      it('초대 코드 지급의 이름은 시장과 무관하게 코드 행의 이름이다', async () => {
+        subscriptionRepository.findAllByUserId.mockResolvedValue([]);
+        inviteCodeService.findActiveGrant.mockResolvedValue(
+          grantOf(UserTier.PRO),
+        );
+
+        const plan = await service.buildPlanView(USER_ID, {
+          ...NO_TRIAL,
+          market: UserMarket.GLOBAL,
+        });
+
+        expect(plan.grant?.name).toBe('산군 PoC');
       });
 
       it('지급이 구독보다 낮으면 구독 표시를 그대로 두고 grant만 싣는다', async () => {
@@ -393,6 +428,7 @@ describe('SubscriptionService', () => {
           endsAt: new Date('2026-09-09T19:00:00.000Z'),
         } as InviteCodeRedemption,
         codeName: '산군 PoC',
+        code: 'SANGUN',
       });
 
       // when

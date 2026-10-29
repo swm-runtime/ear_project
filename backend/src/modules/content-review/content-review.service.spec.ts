@@ -58,6 +58,13 @@ describe('ContentReviewService', () => {
     findPromptCandidate: jest.Mock;
     summarizeByContent: jest.Mock;
     findAdminPage: jest.Mock;
+    findCompletedWithTextByUserId: jest.Mock;
+  };
+  let promotionService: {
+    isRewardEnabled: jest.Mock;
+    hasIssued: jest.Mock;
+    issueReviewReward: jest.Mock;
+    countReviewRewards: jest.Mock;
   };
   let contentService: { getById: jest.Mock; getPublishedById: jest.Mock };
   let libraryService: { findCompletedContentIds: jest.Mock };
@@ -77,6 +84,19 @@ describe('ContentReviewService', () => {
       findPromptCandidate: jest.fn().mockResolvedValue(null),
       summarizeByContent: jest.fn().mockResolvedValue([]),
       findAdminPage: jest.fn(),
+      findCompletedWithTextByUserId: jest.fn().mockResolvedValue([]),
+    };
+    // 기본은 발급 스위치 꺼짐 — 1단계(후기만)의 동작
+    promotionService = {
+      isRewardEnabled: jest.fn().mockReturnValue(false),
+      hasIssued: jest.fn().mockResolvedValue(false),
+      issueReviewReward: jest.fn(),
+      countReviewRewards: jest.fn().mockResolvedValue({
+        issued: 2,
+        redeemed: 1,
+        expired: 0,
+        unused: 1,
+      }),
     };
     contentService = {
       getById: jest.fn().mockResolvedValue(content()),
@@ -115,6 +135,7 @@ describe('ContentReviewService', () => {
       playbackService as never,
       userService as never,
       userSettingService as never,
+      promotionService as never,
       configService as never,
       dataSource as never,
     );
@@ -335,6 +356,129 @@ describe('ContentReviewService', () => {
     });
   });
 
+  describe('보상 발급 · 진행 (4.4)', () => {
+    const eligible = { isCompleted: true, text: '가나다라마바사아자차' };
+    const issuedRow = {
+      id: 'promotion-1',
+      expiresAt: new Date('2027-01-28T20:00:00.000Z'),
+    };
+    const save = () =>
+      service.save({
+        userId: USER_ID,
+        contentId: CONTENT_ID,
+        market: UserMarket.KR,
+        stars: 5,
+        text: '가나다라마바사아자차',
+        now: NOW,
+      });
+
+    beforeEach(() => {
+      promotionService.isRewardEnabled.mockReturnValue(true);
+    });
+
+    it('보상으로 치는 후기가 3개가 되는 저장에서 같은 트랜잭션으로 1장을 발급하고, 진행은 null 이다', async () => {
+      repository.findCompletedWithTextByUserId.mockResolvedValue([
+        eligible,
+        eligible,
+        eligible,
+      ]);
+      promotionService.issueReviewReward.mockResolvedValue(issuedRow);
+      // 발급 뒤 진행을 다시 볼 때는 받은 계정이다
+      promotionService.hasIssued
+        .mockResolvedValueOnce(false)
+        .mockResolvedValue(true);
+
+      const result = await save();
+
+      expect(promotionService.issueReviewReward).toHaveBeenCalledWith(
+        USER_ID,
+        NOW,
+        expect.anything(),
+      );
+      expect(result.issuedPromotion).toBe(issuedRow);
+      expect(result.rewardProgress).toBeNull();
+    });
+
+    it('2개면 발급하지 않고 진행 2/3 을 준다 — 별점만 · 끝까지 안 들은 후기 · 9자 글은 세지 않는다', async () => {
+      repository.findCompletedWithTextByUserId.mockResolvedValue([
+        eligible,
+        eligible,
+        { isCompleted: true, text: '가 나 다 라 마 바 사 아 자' },
+        { isCompleted: true, text: null },
+        { isCompleted: false, text: '가나다라마바사아자차' },
+      ]);
+
+      const result = await save();
+
+      expect(promotionService.issueReviewReward).not.toHaveBeenCalled();
+      expect(result.issuedPromotion).toBeNull();
+      expect(result.rewardProgress).toEqual({ current: 2, required: 3 });
+    });
+
+    it('받은 적 있는 계정(사용 · 소멸 포함)은 다시 발급하지 않고 진행도 null 이다', async () => {
+      promotionService.hasIssued.mockResolvedValue(true);
+      repository.findCompletedWithTextByUserId.mockResolvedValue([
+        eligible,
+        eligible,
+        eligible,
+        eligible,
+      ]);
+
+      const result = await save();
+
+      expect(promotionService.issueReviewReward).not.toHaveBeenCalled();
+      expect(result).toMatchObject({
+        issuedPromotion: null,
+        rewardProgress: null,
+      });
+    });
+
+    it('동시 저장의 늦은 쪽처럼 유니크에 막혀 행을 못 만들면 발급 응답이 없다', async () => {
+      repository.findCompletedWithTextByUserId.mockResolvedValue([
+        eligible,
+        eligible,
+        eligible,
+      ]);
+      promotionService.issueReviewReward.mockResolvedValue(null);
+
+      expect((await save()).issuedPromotion).toBeNull();
+    });
+
+    it('발급 스위치가 꺼져 있으면 3개가 차도 발급하지 않고 진행도 null 이다', async () => {
+      promotionService.isRewardEnabled.mockReturnValue(false);
+      repository.findCompletedWithTextByUserId.mockResolvedValue([
+        eligible,
+        eligible,
+        eligible,
+      ]);
+
+      const result = await save();
+
+      expect(promotionService.issueReviewReward).not.toHaveBeenCalled();
+      expect(result.rewardProgress).toBeNull();
+    });
+
+    it('후기 스위치가 꺼져 있으면 진행은 null 이다(발급 스위치와 무관)', async () => {
+      enabledValue = 'false';
+
+      expect(await service.getRewardProgress(USER_ID)).toBeNull();
+    });
+
+    it('진행은 required 를 넘지 않는다', async () => {
+      repository.findCompletedWithTextByUserId.mockResolvedValue([
+        eligible,
+        eligible,
+        eligible,
+        eligible,
+      ]);
+
+      expect(await service.getRewardProgress(USER_ID)).toEqual({
+        current: 3,
+        required: 3,
+      });
+    });
+  });
+
   describe('getPrompt (4.3)', () => {
     it('스위치가 꺼져 있으면 enabled=false · show=false 이고 아무것도 조회하지 않는다', async () => {
       enabledValue = 'false';
@@ -444,10 +588,10 @@ describe('ContentReviewService', () => {
         { reviews: 1, starsSum: 1, textReviews: 1 },
       ]);
 
-      const summary = await service.getAdminSummary({
-        contentId: null,
-        market: null,
-      });
+      const summary = await service.getAdminSummary(
+        { contentId: null, market: null },
+        NOW,
+      );
 
       expect(summary.totals).toEqual({
         reviews: 4,
@@ -456,18 +600,19 @@ describe('ContentReviewService', () => {
         reviewedContents: 2,
       });
       expect(summary.promotions).toEqual({
-        issued: 0,
-        redeemed: 0,
+        issued: 2,
+        redeemed: 1,
         expired: 0,
-        unused: 0,
+        unused: 1,
       });
+      expect(promotionService.countReviewRewards).toHaveBeenCalledWith(NOW);
     });
 
     it('후기가 없으면 평균은 null', async () => {
-      const summary = await service.getAdminSummary({
-        contentId: null,
-        market: null,
-      });
+      const summary = await service.getAdminSummary(
+        { contentId: null, market: null },
+        NOW,
+      );
 
       expect(summary.totals.averageStars).toBeNull();
     });

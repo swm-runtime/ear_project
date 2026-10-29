@@ -1,6 +1,6 @@
 import { HttpStatus, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { DataSource } from 'typeorm';
+import { DataSource, EntityManager } from 'typeorm';
 
 import { BusinessException } from '@/common/exceptions/business.exception';
 import { BusinessNotFoundException } from '@/common/exceptions/business-not-found.exception';
@@ -23,7 +23,6 @@ import {
   AdminContentReviewPage,
   AdminContentReviewSummary,
   AdminContentReviewSummaryFilter,
-  AdminPromotionCounts,
   ContentReviewPromptView,
   ContentReviewSheetView,
   ContentReviewView,
@@ -31,6 +30,7 @@ import {
   SaveContentReviewCommand,
 } from './content-review.types';
 import { ContentReview } from './entities/content-review.entity';
+import { Promotion } from './entities/promotion.entity';
 import {
   nextLastPromptedDate,
   normalizeReviewText,
@@ -39,13 +39,22 @@ import {
   resolvePromptGate,
   resolveUnreviewableReason,
 } from './policies/content-review.policy';
+import {
+  hasReachedReward,
+  isRewardEligibleReview,
+  toRewardProgress,
+} from './policies/promotion.policy';
+import { PromotionService } from './promotion.service';
 
 /** 4.2 저장 결과 */
 export interface SaveContentReviewResult {
   review: ContentReviewView;
   rewardProgress: RewardProgressView | null;
-  /** 이번 저장으로 발급된 프로모션 — 보상 단계(KAN-279 2단계) 전에는 늘 `null` */
-  issuedPromotion: null;
+  /**
+   * **이번 저장으로** 발급된 프로모션 행 — 없으면 `null`. 화면용 모양(쓸 수 있는지 · 요금제 이름)은 구독 상태가 필요해
+   * `billing`이 조립한다(이 모듈은 `subscription`을 모른다)
+   */
+  issuedPromotion: Promotion | null;
 }
 
 /**
@@ -66,11 +75,12 @@ export class ContentReviewService {
     private readonly playbackService: PlaybackService,
     private readonly userService: UserService,
     private readonly userSettingService: UserSettingService,
+    private readonly promotionService: PromotionService,
     private readonly configService: ConfigService<EnvironmentVariables, true>,
     private readonly dataSource: DataSource,
   ) {}
 
-  /** 후기 기능 스위치(2.1) — 값이 정확히 `true`일 때만 켜진다. 요청마다 읽는다(재기동 없이 Secrets 반영 뒤 따라간다) */
+  /** 후기 기능 스위치(2.1) — 값이 정확히 `true`일 때만 켜진다. 요청마다 읽는다 */
   isEnabled(): boolean {
     return (
       this.configService
@@ -108,7 +118,7 @@ export class ContentReviewService {
       reviewable: reason === null,
       reason,
       review: review ? toReviewView(review) : null,
-      rewardProgress: await this.buildRewardProgress(),
+      rewardProgress: await this.getRewardProgress(userId),
     };
   }
 
@@ -117,7 +127,10 @@ export class ContentReviewService {
    * 형식 검증(400)은 DTO 가 먼저 한다.
    *
    * `is_completed` · `content_version` · `market`은 **이 저장 시점의 값으로** 서버가 다시 적는다. 사용자 행을 잠그고 저장한다 —
-   * 같은 계정의 두 기기 저장이 직렬로 돌아, 보상 단계의 "서로 다른 편 3개" 셈이 둘 다 2로 보고 지나치지 않게 한다.
+   * 같은 계정의 두 기기 저장이 직렬로 돌아, "서로 다른 편 3개" 셈이 둘 다 2로 보고 지나치지 않게 한다.
+   *
+   * **발급**(4.4): 발급 스위치가 켜져 있고 받은 적 없는 계정이면, 같은 트랜잭션에서 보상으로 치는 후기를 세어 3개가 되는
+   * 저장에서 1장을 만든다. 발급 뒤 후기를 고치거나 글을 지워도 거두지 않는다.
    */
   async save(
     command: SaveContentReviewCommand,
@@ -150,29 +163,36 @@ export class ContentReviewService {
     }
 
     const text = normalizeReviewText(command.text);
-    const saved = await this.dataSource.transaction(async (manager) => {
-      await this.userService.getByIdForUpdate(userId, manager);
-      const isCompleted = (
-        await this.libraryService.findCompletedContentIds(
-          userId,
-          [contentId],
-          manager,
-        )
-      ).has(contentId);
+    const { saved, issued } = await this.dataSource.transaction(
+      async (manager) => {
+        await this.userService.getByIdForUpdate(userId, manager);
+        const isCompleted = (
+          await this.libraryService.findCompletedContentIds(
+            userId,
+            [contentId],
+            manager,
+          )
+        ).has(contentId);
 
-      return this.contentReviewRepository.upsert(
-        {
-          userId,
-          contentId,
-          stars: command.stars,
-          text,
-          isCompleted,
-          contentVersion: content.contentVersion,
-          market,
-        },
-        manager,
-      );
-    });
+        const review = await this.contentReviewRepository.upsert(
+          {
+            userId,
+            contentId,
+            stars: command.stars,
+            text,
+            isCompleted,
+            contentVersion: content.contentVersion,
+            market,
+          },
+          manager,
+        );
+
+        return {
+          saved: review,
+          issued: await this.issueRewardIfReached(userId, now, manager),
+        };
+      },
+    );
 
     // 글 원문은 남기지 않는다 — 유무만
     this.logger.log('content review saved', {
@@ -184,10 +204,19 @@ export class ContentReviewService {
       content_version: saved.contentVersion,
     });
 
+    if (issued !== null) {
+      this.logger.log('review reward promotion issued', {
+        user_id: userId,
+        promotion_id: issued.id,
+        expires_at: issued.expiresAt.toISOString(),
+      });
+    }
+
     return {
       review: toReviewView(saved),
-      rewardProgress: await this.buildRewardProgress(),
-      issuedPromotion: null,
+      // 이번에 발급됐으면 받은 계정이라 null 이다
+      rewardProgress: await this.getRewardProgress(userId),
+      issuedPromotion: issued,
     };
   }
 
@@ -211,7 +240,7 @@ export class ContentReviewService {
     }
 
     const settings = await this.userSettingService.getSettings(userId);
-    const rewardProgress = await this.buildRewardProgress();
+    const rewardProgress = await this.getRewardProgress(userId);
     const gate = resolvePromptGate({
       today: toServiceDate(now),
       mutedUntil: settings.contentReviewMutedUntil,
@@ -289,6 +318,7 @@ export class ContentReviewService {
   /** 4.8 — 관리자 편별 집계. 전체 평균은 편 평균의 평균이 아니라 후기 단위 가중 평균이다 */
   async getAdminSummary(
     filter: AdminContentReviewSummaryFilter,
+    now: Date,
   ): Promise<AdminContentReviewSummary> {
     const items = await this.contentReviewRepository.summarizeByContent(filter);
     const reviews = items.reduce((sum, item) => sum + item.reviews, 0);
@@ -302,7 +332,7 @@ export class ContentReviewService {
         textReviews: items.reduce((sum, item) => sum + item.textReviews, 0),
         reviewedContents: items.length,
       },
-      promotions: await this.countPromotions(),
+      promotions: await this.promotionService.countReviewRewards(now),
       items,
     };
   }
@@ -317,16 +347,51 @@ export class ContentReviewService {
   }
 
   /**
-   * 발급까지의 진행(2.2). **보상 단계(KAN-279 2단계 — `CONTENT_REVIEW_REWARD_ENABLED`) 전에는 늘 `null`**이다 — 앱은
-   * `null`이면 보상 줄을 그리지 않는다.
+   * 발급까지의 진행(2.2) — **`null`이면 보상 줄을 그리지 않는다**: 후기 스위치 꺼짐 · 발급 스위치 꺼짐 · 이미 받은 계정(사용 ·
+   * 소멸 포함). 그 밖에는 보상으로 치는 후기 수를 `required`로 잘라 준다. S12(`billing`)도 이 값을 그대로 싣는다.
    */
-  private buildRewardProgress(): Promise<RewardProgressView | null> {
-    return Promise.resolve(null);
+  async getRewardProgress(
+    userId: string,
+    manager?: EntityManager,
+  ): Promise<RewardProgressView | null> {
+    if (
+      !this.isEnabled() ||
+      !this.promotionService.isRewardEnabled() ||
+      (await this.promotionService.hasIssued(userId, manager))
+    ) {
+      return null;
+    }
+
+    return toRewardProgress(await this.countRewardEligible(userId, manager));
   }
 
-  /** 후기 참여 프로모션 건수(4.8) — 프로모션 표(`promotions`)가 생기기 전에는 0 이다 */
-  private countPromotions(): Promise<AdminPromotionCounts> {
-    return Promise.resolve({ issued: 0, redeemed: 0, expired: 0, unused: 0 });
+  /** 4.4 — 3개가 찼으면 1장 발급. 스위치 꺼짐 · 이미 받음 · 덜 참이면 `null` */
+  private async issueRewardIfReached(
+    userId: string,
+    now: Date,
+    manager: EntityManager,
+  ): Promise<Promotion | null> {
+    if (
+      !this.promotionService.isRewardEnabled() ||
+      (await this.promotionService.hasIssued(userId, manager)) ||
+      !hasReachedReward(await this.countRewardEligible(userId, manager))
+    ) {
+      return null;
+    }
+
+    return this.promotionService.issueReviewReward(userId, now, manager);
+  }
+
+  private async countRewardEligible(
+    userId: string,
+    manager?: EntityManager,
+  ): Promise<number> {
+    return (
+      await this.contentReviewRepository.findCompletedWithTextByUserId(
+        userId,
+        manager,
+      )
+    ).filter(isRewardEligibleReview).length;
   }
 
   /** 없는 편 · 다른 시장 편은 같은 404 다 — 존재 여부를 시장 밖으로 알리지 않는다(`global-api.md` 4.7). 회수는 여기서 가르지 않는다 */

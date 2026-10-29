@@ -105,6 +105,8 @@ describe('콘텐츠 후기 E2E', () => {
 
   beforeEach(() => {
     configService.set('CONTENT_REVIEW_ENABLED', 'true');
+    // 보상은 content-review-reward.e2e-spec.ts 가 본다 — 여기서는 꺼 둬 reward_progress 가 늘 null 이다
+    configService.set('CONTENT_REVIEW_REWARD_ENABLED', '');
   });
 
   afterAll(async () => {
@@ -530,12 +532,10 @@ describe('콘텐츠 후기 E2E', () => {
       text_reviews: 1,
       reviewed_contents: 1,
     });
-    expect(summary.promotions).toEqual({
-      issued: 0,
-      redeemed: 0,
-      expired: 0,
-      unused: 0,
-    });
+    // 프로모션 건수는 필터와 무관한 전체 값이다 — 모양만 본다(값은 content-review-reward.e2e-spec.ts)
+    expect(Object.keys(summary.promotions).sort()).toEqual(
+      ['expired', 'issued', 'redeemed', 'unused'].sort(),
+    );
     expect(summary.items).toHaveLength(1);
     expect(summary.items[0]).toMatchObject({
       content_id: contentA,

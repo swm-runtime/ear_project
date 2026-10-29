@@ -2,7 +2,7 @@
 
 | 항목 | 값 |
 |---|---|
-| 대상 문서 | `spec/api/content-review-api.md` (4.1 · 4.3 · 4.4 · 4.8 · 4.9) · `features/content-review.md` 4.3 |
+| 대상 문서 | `spec/api/content-review-api.md` (4.1~4.9) · `features/content-review.md` 4.3 · `backend/architecture.md` 4.5 |
 | 요청 파트 | 백엔드 — 박준현 (KAN-279) |
 | 발행 날짜 | 2026-10-29 |
 | 시작 날짜 | 2026-10-29 |
@@ -25,10 +25,23 @@ KAN-279 서버 구현 중 계약(`content-review-api.md`)이 값을 정하지 �
 7. **4.2 동시 저장** — 저장 트랜잭션은 사용자 행을 먼저 잠근다(같은 계정의 두 기기 저장을 직렬로). 보상 단계의 "서로 다른 편 3개" 셈이 둘 다 2로 보고 지나치지 않게 한다.
 8. **`market`(6.8)** — access token 의 `market`으로 적는다(계약 2장 "시장은 token 의 market" — 편 시장 판정과 같은 값).
 
+## 반영할 것 — 2단계(보상)
+
+9. **후기 저장(4.2)은 `billing` 모듈이 받는다**(`ContentReviewSaveController`) — 응답의 `issued_promotion`(쓸 수 있는지 · 사유 · 요금제 이름 · 체험 겹침)이 구독 · 지급 상태로 조립되는데, `content-review`는 `subscription`을 의존하지 않는다(`domain.md` 2장). 저장 판정 · 발급은 `ContentReviewService`가 그대로 한다. 시트 열기(GET 같은 경로) · 먼저 묻기 · 관리자는 `content-review`에 남는다. → `backend/architecture.md` 4.5 의존 표에 **`Billing → ContentReview`**(+ `ContentReview`: Content · Library · Playback · User 행)를 더한다.
+10. **`promotions` 엔티티가 지급 표 엔티티(`InviteCodeRedemption`)를 FK 선언용으로만 참조한다** — 스키마 비교(`migration:generate`)가 FK · 부분 유니크를 지우지 않게. 그 표를 읽고 쓰는 일은 `billing`이 `InviteCodeService`로 한다.
+11. **`REVIEW-REWARD` 행의 관리자 수정(PATCH)은 409 `CONFLICT`**(공용 코드 — 신설하지 않음). 코드 입력은 `is_active`와 무관하게 404 `INVITE_CODE_NOT_FOUND`.
+12. **프로모션 `name` · `plan_name` · `plan.grant.name`의 언어는 `users.market`**(구독 조회의 요금제 이름 규칙과 같은 값). 후기 시장 판정만 token 의 `market`이다.
+13. **보상 셈의 공백** — JS `\s`(유니코드 공백 전부 — NBSP · 전각 공백 포함)를 뺀 코드 포인트 수. DB 로케일에 맡기지 않는다.
+14. **`reward_progress`는 세 곳(시트 · 저장 · 먼저 묻기 · S12)이 한 함수**다 — 후기 스위치 · 발급 스위치가 모두 켜져 있고 받은 적 없을 때만 값. 후기 스위치가 꺼지면 S12 에서도 `null`.
+15. **사용의 "쓸 때 구독 중"(`subscribed_at_start`)** — `SubscriptionService.findEntitled`(해지 예약 · 유예 포함)로 본다(초대 코드 입력과 같은 술어). Pro 구독 중 판정도 같은 행의 티어다(다운그레이드 예약은 지금 Pro 라 거부).
+16. **관리자 프로모션 건수는 필터와 무관한 전체**(계약 그대로), 탈퇴로 지워진 행은 세지 않는다.
+17. **마이그레이션 `down`** — `REVIEW-REWARD`를 가리키는 지급이 있으면 코드 행을 남긴다(지급 기록을 지우면서 되돌리지 않는다).
+
 ## 완료 조건
 
-- Given 위 1~8 / When 통합에서 계약을 검토한다 / Then 각 항목이 `content-review-api.md`에 적혀 있거나, 다르게 정했으면 서버 수정 티켓이 `tickets/backend/pending/`에 있다
+- Given 위 1~17 / When 통합에서 계약을 검토한다 / Then 각 항목이 `content-review-api.md`에 적혀 있거나, 다르게 정했으면 서버 수정 티켓이 `tickets/backend/pending/`에 있다
 
 ## 처리 기록
 
-- 2026-10-29 발행 — 1단계(후기 API) 구현과 함께(KAN-279)
+- 2026-10-29 발행 — 1단계(후기 API) 구현과 함께(KAN-279, PR #2141)
+- 2026-10-29 2단계(보상) 결정 9~17 추가

@@ -545,6 +545,17 @@ export class BillingOrchestrator {
   }
 
   /** 4.2의 본문 — 영수증 제출·복원도 같은 것을 돌려준다(클라이언트가 다시 조회하지 않는다) */
+  /**
+   * 구독 조회 본문(4.2)을 보정 없이 조립한다 — 같은 모듈의 다른 유스케이스(후기 참여 프로모션 사용 · S12 — `PromotionOrchestrator`)가
+   * 초대 코드 입력과 같은 응답 · 같은 `plan.grant`를 내보내려고 쓴다.
+   */
+  async buildSubscriptionView(
+    userId: string,
+    now: Date,
+  ): Promise<SubscriptionView> {
+    return this.buildView(userId, now);
+  }
+
   private async buildView(
     userId: string,
     now: Date,

@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { EntityManager, Repository } from 'typeorm';
+import { EntityManager, IsNull, Not, Repository } from 'typeorm';
 
 import { ContentStatus } from '@/modules/content/content.enum';
 import { LibraryItemStatus } from '@/modules/library/library.enum';
@@ -122,6 +122,20 @@ export class ContentReviewRepository {
     return repository.findOneByOrFail({
       userId: draft.userId,
       contentId: draft.contentId,
+    });
+  }
+
+  /**
+   * 보상 셈의 후보 — 저장 시점에 끝까지 들었고 글이 있는 이 사용자의 후기(글 길이 판정은 정책이 한다 — 유니코드 공백 처리를
+   * DB 로케일에 맡기지 않는다). 한 사람의 후기 수는 작다.
+   */
+  async findCompletedWithTextByUserId(
+    userId: string,
+    manager?: EntityManager,
+  ): Promise<Pick<ContentReview, 'isCompleted' | 'text'>[]> {
+    return this.scoped(manager).find({
+      select: { isCompleted: true, text: true },
+      where: { userId, isCompleted: true, text: Not(IsNull()) },
     });
   }
 

@@ -512,6 +512,7 @@ export class BillingTestWorld {
       startsAt?: Date;
       endsAt?: Date;
       name?: string;
+      code?: string;
       subscribedAtStart?: boolean;
     } = {},
   ): ActiveInviteGrant {
@@ -528,6 +529,7 @@ export class BillingTestWorld {
         subscribedAtStart: options.subscribedAtStart ?? false,
       } as InviteCodeRedemption,
       codeName: options.name ?? '테스트 PoC',
+      code: options.code ?? 'TEST-POC',
     };
     this.inviteGrants.push(grant);
     return grant;

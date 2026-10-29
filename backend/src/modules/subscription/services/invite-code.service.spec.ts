@@ -284,3 +284,78 @@ describe('InviteCodeService — 관리자 코드 생성·수정(admin-api.md 4.2
     });
   });
 });
+
+describe('InviteCodeService — 내부 캠페인 REVIEW-REWARD(domain.md 8.5 — KAN-279)', () => {
+  const reviewReward = {
+    code: 'REVIEW-REWARD',
+    name: '후기 참여',
+    grantDays: 7,
+    isActive: false,
+  };
+
+  it('코드 입력은 is_active 와 무관하게 없는 코드(404)로 본다 — 운영자가 켜도 열리지 않는다', async () => {
+    const { service, addCode, repository } = setup();
+    await addCode({ ...reviewReward, isActive: true });
+
+    await expectInviteError(
+      service.redeem('user-a', ' review-reward ', false, NOW, MANAGER),
+      ErrorCode.INVITE_CODE_NOT_FOUND,
+      HttpStatus.NOT_FOUND,
+    );
+    expect(repository.redemptions).toHaveLength(0);
+  });
+
+  it('관리자 수정은 409 CONFLICT 로 거부한다', async () => {
+    const { service, addCode } = setup();
+    const code = await addCode(reviewReward);
+
+    await expectInviteError(
+      service.update(code.id, { isActive: true }, MANAGER),
+      ErrorCode.CONFLICT,
+      HttpStatus.CONFLICT,
+    );
+    expect(code.isActive).toBe(false);
+  });
+
+  it('프로모션 사용의 지급은 꺼진 코드 행으로도 만들어지고, 초대 코드와 같은 05:00 경계 · 사용 수 규칙을 따른다', async () => {
+    const { service, addCode } = setup();
+    const code = await addCode(reviewReward);
+
+    const grant = await service.grantReviewReward(
+      'user-a',
+      { tier: UserTier.PRO, grantDays: 7 },
+      true,
+      NOW,
+      MANAGER,
+    );
+
+    expect(grant).toMatchObject({
+      codeName: '후기 참여',
+      code: 'REVIEW-REWARD',
+    });
+    expect(grant.redemption).toMatchObject({
+      inviteCodeId: code.id,
+      userId: 'user-a',
+      tier: UserTier.PRO,
+      startsAt: NOW,
+      subscribedAtStart: true,
+    });
+    // 10-10 을 1일째로 7일 → 10-17 서비스 날짜 시작(이 테스트는 04:00 경계)
+    expect(grant.redemption.endsAt).toEqual(new Date('2026-10-16T19:00:00Z'));
+    expect(code.redeemedCount).toBe(1);
+  });
+
+  it('코드 행이 없으면(마이그레이션 누락) 지급을 만들지 않고 실패한다', async () => {
+    const { service } = setup();
+
+    await expect(
+      service.grantReviewReward(
+        'user-a',
+        { tier: UserTier.PRO, grantDays: 7 },
+        false,
+        NOW,
+        MANAGER,
+      ),
+    ).rejects.toThrow('REVIEW-REWARD');
+  });
+});
