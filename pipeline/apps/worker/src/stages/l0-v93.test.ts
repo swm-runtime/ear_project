@@ -12,10 +12,17 @@ test("L0 v9.3 — 표본 수·편수 낭독을 잡는다", () => {
   assert.ok(!has(ok, /표본 수/), ok.join("\n"));
 });
 
-test("L0 v9.3 — 한 턴 수치 5개 이상, 주어형 귀속 4턴, 정리 턴 1문장", () => {
+test("L0 v9.3 — 한 턴 수치 5개 이상, 주어형 귀속(v9.12: 2턴), 정리 턴 1문장", () => {
   const v = twoStageViolations(wrap("[이음] E1 · 자유가 37.0%, 원하는 일 29.1%, 돈 18.9%, 자금 38.7%, 정보 37.5%였어요.\n\n[윤아] Y2 · 네.\n\n[이음] E2 · 이 글은 거절이 핵심이라고 해요.\n\n[윤아] Y3 · 네.\n\n[이음] E3 · 저자는 시간 부채를 말합니다.\n\n[윤아] Y4 · 네.\n\n[이음] E4 · 연구진은 그렇게 봤어요.\n\n[윤아] Y5 · 네.\n\n[이음] E5 · 이 연구에서는 그 관계가 약했습니다."), "");
   assert.ok(has(v, /수치가 5개 이상 \(E1: 5개\)/), v.join("\n"));
   assert.ok(has(v, /주어형 귀속.*\(E2, E3, E4, E5\)/), v.join("\n"));
   const short = twoStageViolations(wrap("[이음] E1 · 내용이에요.").replace("첫째는 이것이었습니다. 그래서 둘째가 따라왔죠. 결국 축은 이겁니다.", "결국 축은 이겁니다."), "");
   assert.ok(has(short, /마무리 정리 턴 E9 이 1문장/), short.join("\n"));
+});
+
+test("L0 v9.12 — 주어형 귀속은 해설 턴 2개부터 잡고 1개는 통과", () => {
+  const one = twoStageViolations(wrap("[이음] E1 · 이 글은 거절이 핵심이라고 해요.\n\n[윤아] Y2 · 네.\n\n[이음] E2 · 거절이 시간을 지켜요."), "");
+  assert.ok(!has(one, /주어형 귀속/), one.join("\n"));
+  const two = twoStageViolations(wrap("[이음] E1 · 이 글은 거절이 핵심이라고 해요.\n\n[윤아] Y2 · 네.\n\n[이음] E2 · 저자는 시간 부채를 말합니다."), "");
+  assert.ok(has(two, /주어형 귀속.*\(E1, E2\)/), two.join("\n"));
 });
