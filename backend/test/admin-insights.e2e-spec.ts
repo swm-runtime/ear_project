@@ -1292,6 +1292,213 @@ describe('서비스 지표 요약 E2E', () => {
     });
   });
 
+  describe('시리즈 편별 완청·이탈 (GET /admin/insights/series-episodes)', () => {
+    let seriesId: string;
+    const episodeIds: string[] = [];
+    let singleId: string;
+
+    /**
+     * 시리즈 S(1·2·3화, 600초)와 단일 콘텐츠 X.
+     * - 1화: a(완청·2화 방금 시작) · b(미완청·2화 시작) · c(미완청·여기서 멈춤) · d(방금 시작 — 제외)
+     * - 2화: b 완청(a 는 방금 시작이라 2화 시작자에서 빠지지만 1화의 "다음 편 진행"에는 든다)
+     * - 3화: 아무도 안 들음 — 행은 나오고 마지막 편이라 진행률 null
+     * - X: 완청 1명 — 시리즈가 아니라 결과에 없어야 한다
+     */
+    beforeAll(async () => {
+      const [{ id }] = await dataSource.query<{ id: string }[]>(
+        `INSERT INTO series (title, description, total_episodes, status)
+         VALUES ($1, 'e2e 전용', 3, 'completed') RETURNING id`,
+        [`${TOKEN} 시리즈`],
+      );
+      seriesId = id;
+      for (const no of [1, 2, 3]) {
+        const contentId = await seedContent();
+        await dataSource.query(
+          `UPDATE contents SET series_id = $1, episode_no = $2, total_episodes = 3, title = $3 WHERE id = $4`,
+          [seriesId, no, `${TOKEN} ${no}화`, contentId],
+        );
+        episodeIds.push(contentId);
+      }
+      singleId = await seedContent();
+
+      const [ep1, ep2] = episodeIds;
+      const old = new Date(Date.now() - 3 * 86_400_000);
+      const fresh = new Date();
+      const [a, b, c, d, x] = await Promise.all(
+        ['a', 'b', 'c', 'd', 'x'].map((l) => createUserId(`series-${l}`)),
+      );
+      const playRepository = dataSource.getRepository(PlayRecord);
+      const play = (userId: string, contentId: string, at: Date) =>
+        playRepository.save(
+          playRepository.create({
+            userId,
+            contentId,
+            playDate: toServiceDate(at),
+            playedAt: at,
+            isCounted: true,
+            listenedSec: 60,
+          }),
+        );
+      for (const u of [a, b, c]) await play(u, ep1, old);
+      await play(d, ep1, fresh);
+      await play(a, ep2, fresh);
+      await play(b, ep2, old);
+      await play(x, singleId, old);
+      await dataSource.query(
+        `INSERT INTO library_items (user_id, content_id, source, status, added_at)
+         VALUES ($1, $2, 'save', 'completed', $3), ($4, $5, 'save', 'completed', $3)`,
+        [a, ep1, old, x, singleId],
+      );
+      await dataSource.query(
+        `INSERT INTO playback_progresses (user_id, content_id, position_sec, max_reached_sec)
+         VALUES ($1, $3, 300, 300), ($2, $3, 100, 100)`,
+        [b, c, ep1],
+      );
+      await dataSource.query(
+        `INSERT INTO user_signals (user_id, content_id, action, position_sec, max_reached_sec, created_at)
+         VALUES ($1, $2, 'complete', 600, 600, $3)`,
+        [b, ep2, old],
+      );
+    }, 60_000);
+
+    afterAll(async () => {
+      const ids = [...episodeIds, singleId];
+      for (const table of [
+        'play_records',
+        'library_items',
+        'playback_progresses',
+        'user_signals',
+      ]) {
+        await dataSource.query(
+          `DELETE FROM ${table} WHERE content_id = ANY($1::uuid[])`,
+          [ids],
+        );
+      }
+      await dataSource.query(
+        `DELETE FROM contents WHERE id = ANY($1::uuid[])`,
+        [ids],
+      );
+      await dataSource.query(`DELETE FROM series WHERE id = $1`, [seriesId]);
+    }, 60_000);
+
+    it('편마다 시작·완청·다음 편 진행을 세고, 시리즈가 아닌 콘텐츠는 섞이지 않는다', async () => {
+      // when
+      const rows = await app
+        .get(AdminInsightsRepository)
+        .seriesEpisodes(new Date(), {
+          market: null,
+          minAgeHours: 24,
+          reachedRatio: 0.9,
+        });
+
+      // then
+      const mine = rows.filter((r) => r.seriesId === seriesId);
+      expect(
+        mine.map((r) => ({
+          episodeNo: r.episodeNo,
+          contentId: r.contentId,
+          nextEpisodeNo: r.nextEpisodeNo,
+          starters: r.starters,
+          completers: r.completers,
+          nextStartedOfStarters: r.nextStartedOfStarters,
+          nextStartedOfCompleters: r.nextStartedOfCompleters,
+        })),
+      ).toEqual([
+        {
+          episodeNo: 1,
+          contentId: episodeIds[0],
+          nextEpisodeNo: 2,
+          starters: 3,
+          completers: 1,
+          nextStartedOfStarters: 2,
+          nextStartedOfCompleters: 1,
+        },
+        {
+          episodeNo: 2,
+          contentId: episodeIds[1],
+          nextEpisodeNo: 3,
+          starters: 1,
+          completers: 1,
+          nextStartedOfStarters: 0,
+          nextStartedOfCompleters: 0,
+        },
+        {
+          episodeNo: 3,
+          contentId: episodeIds[2],
+          nextEpisodeNo: null,
+          starters: 0,
+          completers: 0,
+          nextStartedOfStarters: 0,
+          nextStartedOfCompleters: 0,
+        },
+      ]);
+      expect(mine[0]).toMatchObject({
+        seriesTitle: `${TOKEN} 시리즈`,
+        totalEpisodes: 3,
+        market: 'kr',
+      });
+      expect(rows.find((r) => r.contentId === singleId)).toBeUndefined();
+    });
+
+    it('응답은 시리즈·편 단위 집계뿐이고, 시장으로 거르며, 관리자 아니면 403 이다', async () => {
+      // given
+      const adminAuth = await createUser('admin-series', UserRole.ADMIN);
+      type Body = {
+        market: string | null;
+        min_age_hours: number;
+        series: {
+          series_id: string;
+          first_episode_starters: number;
+          episodes: {
+            content_id: string;
+            completion_rate: number | null;
+            next_rate_of_starters: number | null;
+            next_rate_of_completers: number | null;
+          }[];
+        }[];
+      };
+
+      // when
+      const res = await request(app.getHttpServer())
+        .get(path('/admin/insights/series-episodes?market=kr'))
+        .set('Authorization', adminAuth)
+        .expect(HttpStatus.OK);
+      const body = res.body as Body;
+      const global = await request(app.getHttpServer())
+        .get(path('/admin/insights/series-episodes?market=global'))
+        .set('Authorization', adminAuth)
+        .expect(HttpStatus.OK);
+
+      // then
+      expect(res.headers['cache-control']).toBe('no-store');
+      expect(body.market).toBe('kr');
+      expect(body.min_age_hours).toBe(24);
+      const mine = body.series.find((s) => s.series_id === seriesId);
+      expect(mine?.first_episode_starters).toBe(3);
+      expect(mine?.episodes[0].completion_rate).toBeCloseTo(1 / 3);
+      expect(mine?.episodes[0].next_rate_of_starters).toBeCloseTo(2 / 3);
+      expect(mine?.episodes[0].next_rate_of_completers).toBe(1);
+      expect(mine?.episodes[2].next_rate_of_starters).toBeNull();
+      expect(JSON.stringify(body)).not.toContain(singleId);
+      expect(JSON.stringify(body)).not.toMatch(
+        /"email"|"nickname"|"user_id"|"provider_user_id"/,
+      );
+      expect(
+        (global.body as Body).series.find((s) => s.series_id === seriesId),
+      ).toBeUndefined();
+
+      await request(app.getHttpServer())
+        .get(path('/admin/insights/series-episodes?market=mars'))
+        .set('Authorization', adminAuth)
+        .expect(HttpStatus.BAD_REQUEST);
+      const userAuth = await createUser('user-series', UserRole.USER);
+      await request(app.getHttpServer())
+        .get(path('/admin/insights/series-episodes'))
+        .set('Authorization', userAuth)
+        .expect(HttpStatus.FORBIDDEN);
+    });
+  });
+
   async function createUserId(
     label: string,
     role: UserRole = UserRole.USER,

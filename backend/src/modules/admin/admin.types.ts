@@ -623,3 +623,56 @@ export interface InsightsCompletionByLength {
   /** 편이 적거나 길이가 다 같으면 null */
   trend: InsightsCompletionTrend | null;
 }
+
+/* ───────────── 시리즈 편별 완청·이탈 (`GET /admin/insights/series-episodes`, KAN-293, 2026-10-29) ───────────── */
+
+/**
+ * 편 하나의 원본(Repository) — (시리즈, 편 번호) 단위. 같은 편 번호에 콘텐츠 행이 여럿이면(철회 뒤 다시 올림) 사람을 합쳐 센다.
+ * 사용자는 수로만 들어 있다.
+ */
+export interface InsightsSeriesEpisodeRow {
+  seriesId: string;
+  seriesTitle: string;
+  totalEpisodes: number;
+  episodeNo: number;
+  /** 대표 콘텐츠 — 발행 중인 행, 없으면 가장 최근 행 */
+  contentId: string;
+  title: string;
+  durationSec: number;
+  market: string;
+  status: string;
+  /** 이 시리즈에서 이 편 다음으로 있는 편 번호 — 없으면 null(마지막 편) */
+  nextEpisodeNo: number | null;
+  starters: number;
+  completers: number;
+  /** 이 편을 시작한 사람 중 다음 편을 시작한 사람 */
+  nextStartedOfStarters: number;
+  /** 이 편을 완청한 사람 중 다음 편을 시작한 사람 */
+  nextStartedOfCompleters: number;
+}
+
+export interface InsightsSeriesEpisode extends InsightsSeriesEpisodeRow {
+  /** `completers / starters` — 시작자 0이면 null */
+  completionRate: number | null;
+  /** `nextStartedOfStarters / starters` — 다음 편이 없거나 시작자 0이면 null */
+  nextRateOfStarters: number | null;
+  /** `nextStartedOfCompleters / completers` — 다음 편이 없거나 완청자 0이면 null */
+  nextRateOfCompleters: number | null;
+}
+
+export interface InsightsSeriesEpisodesSeries {
+  seriesId: string;
+  title: string;
+  market: string;
+  totalEpisodes: number;
+  /** 가장 앞 편의 시작자 — 시리즈 정렬 기준 */
+  firstEpisodeStarters: number;
+  /** 편 번호 순 */
+  episodes: InsightsSeriesEpisode[];
+}
+
+export interface InsightsSeriesEpisodes {
+  generatedAt: Date;
+  market: UserMarket | null;
+  series: InsightsSeriesEpisodesSeries[];
+}

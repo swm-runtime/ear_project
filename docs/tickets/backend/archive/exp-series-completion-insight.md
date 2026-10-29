@@ -13,7 +13,7 @@
 | 선행 | 없음 |
 | 근거 문서 | `spec/api/admin-api.md` · `features/backend-monitoring.md` |
 | 중요도 | High |
-| 상태 | 발행 |
+| 상태 | 완료(2026-10-29) |
 
 > 단기 실험 8종(2026-10-29 확정) 중 하나다. A/B 그룹별 지표를 어드민 "실험 지표" 탭에서 보는 일은 실험 전체에 걸친 별도 정리 대상이다(아직 티켓 없음).
 
@@ -40,3 +40,7 @@ IT 특화 실험의 근거는 CS 시리즈 완청률이다. 편별 완청률(`/a
 ## 처리 기록
 
 - 2026-10-29 발행(마크다운 + Jira KAN-293).
+- 2026-10-29 구현 — 이 PR(`feat(be)/exp-series-completion-insight`) · 반영 날짜 2026-10-29.
+  - `GET /admin/insights/series-episodes?market=` 신설 — 시리즈 편마다 시작·완청·완청률·다음 편 진행(시작자 중·완청자 중). 시작·완청 정의는 길이별 완청률과 같다(0초 아닌 재생 · 첫 재생 24시간 전 · 완청 공용 정의 90%). 단일 콘텐츠는 나오지 않는다.
+  - 문서 반영은 `changes/pending/exp-series-completion-insight.md`.
+  - **하지 않음**: IT 커뮤니티별 초대 코드 발급은 운영 작업으로 남는다(코드 변경 없음 — 발급 뒤 `/admin/insights/invite-codes`로 본다).

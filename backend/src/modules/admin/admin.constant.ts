@@ -217,3 +217,11 @@ export const COMPLETION_LENGTH_MIN_AGE_HOURS = 24;
 export const COMPLETION_LENGTH_SLOPE_STEP_MIN = 5;
 /** 추세를 낼 최소 편 수 — 이보다 적으면 선을 긋지 않는다 */
 export const COMPLETION_LENGTH_MIN_CONTENTS = 5;
+
+/**
+ * 시리즈 편별 완청·이탈(`GET /admin/insights/series-episodes`, KAN-293, 2026-10-29) — "몇 편에서 빠지는가".
+ * 시작·완청 정의는 길이별 완청률과 같다(0초가 아닌 재생 = 시작 · 완청 공용 정의). 다음 편 진행은 시작 시점을 따지지 않는다 —
+ * 다음 편을 방금 시작한 사람도 "넘어간 사람"이다.
+ */
+/** 이 편을 시작한 지 이만큼 지난 (사용자, 편)만 센다 — 길이별 완청률과 같은 값(방금 시작한 사람은 끝까지 들을 시간이 없었다) */
+export const SERIES_EPISODES_MIN_AGE_HOURS = COMPLETION_LENGTH_MIN_AGE_HOURS;

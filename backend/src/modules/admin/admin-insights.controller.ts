@@ -8,12 +8,15 @@ import {
   COMPLETION_LENGTH_MIN_AGE_HOURS,
   COMPLETION_LENGTH_SLOPE_STEP_MIN,
   FUNNEL_HABIT_MIN_PLAY_DAYS,
+  SERIES_EPISODES_MIN_AGE_HOURS,
 } from './admin.constant';
 import { AdminInsightsCompletionByLengthResponseDto } from './dto/admin-insights-completion-by-length-response.dto';
 import { AdminInsightsFunnelQueryRequestDto } from './dto/admin-insights-funnel-query-request.dto';
 import { AdminInsightsFunnelResponseDto } from './dto/admin-insights-funnel-response.dto';
 import { AdminInsightsSummaryQueryRequestDto } from './dto/admin-insights-summary-query-request.dto';
 import { AdminInsightsSummaryResponseDto } from './dto/admin-insights-summary-response.dto';
+import { AdminInsightsSeriesEpisodesQueryRequestDto } from './dto/admin-insights-series-episodes-query-request.dto';
+import { AdminInsightsSeriesEpisodesResponseDto } from './dto/admin-insights-series-episodes-response.dto';
 import { AdminInviteCodeCohortsQueryRequestDto } from './dto/admin-invite-code-cohorts-query-request.dto';
 import { AdminInviteCodeCohortsResponseDto } from './dto/admin-invite-code-cohorts-response.dto';
 import { AdminInsightsService } from './services/admin-insights.service';
@@ -90,6 +93,24 @@ export class AdminInsightsController {
         minAgeHours: COMPLETION_LENGTH_MIN_AGE_HOURS,
         slopeStepMin: COMPLETION_LENGTH_SLOPE_STEP_MIN,
       },
+    );
+  }
+
+  /**
+   * 시리즈 편별 완청·이탈 — "몇 편에서 빠지는가"(KAN-293, 2026-10-29). 시리즈 편만(단일 콘텐츠 제외), 편마다 시작·완청·다음 편 진행.
+   * 읽기 전용 · 편 단위 집계(사용자는 수로만) · 열 때 1회 + [새로고침]
+   */
+  @Get('series-episodes')
+  @Header('Cache-Control', 'no-store')
+  async seriesEpisodes(
+    @Query() query: AdminInsightsSeriesEpisodesQueryRequestDto,
+  ): Promise<AdminInsightsSeriesEpisodesResponseDto> {
+    return AdminInsightsSeriesEpisodesResponseDto.from(
+      await this.adminInsightsService.seriesEpisodes(
+        new Date(),
+        query.market ?? null,
+      ),
+      { minAgeHours: SERIES_EPISODES_MIN_AGE_HOURS },
     );
   }
 }
