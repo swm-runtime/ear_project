@@ -155,6 +155,8 @@ export const useSeriesScreen = () => {
       {
         contentId: item.content.id,
         isCountedToday: item.isCountedToday,
+        // 서버가 잠갔다고 준 편이면 게이트가 발급 없이 잠금 시트를 띄운다(KAN-294)
+        isLocked: item.content.isLocked,
         meta: {
           title: item.content.title,
           authorName: item.content.authorName,
@@ -326,6 +328,8 @@ export const useSeriesScreen = () => {
       {
         contentId: item.content.id,
         isCountedToday: item.isCountedToday,
+        // 서버가 잠갔다고 준 편이면 게이트가 발급 없이 잠금 시트를 띄운다(KAN-294)
+        isLocked: item.content.isLocked,
         meta: {
           title: item.content.title,
           authorName: item.content.authorName,
@@ -356,6 +360,13 @@ export const useSeriesScreen = () => {
       const j = Math.floor(Math.random() * (i + 1));
       [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
     }
+    // 섞인 순서에서 **잠기지 않은 첫 편**부터 튼다(KAN-294 — 셔플이 잠금 시트로 끝나지 않게). 전부 잠겼으면 맨 앞 편 → 잠금 시트
+    const startIndex = Math.max(
+      0,
+      shuffled.findIndex((item) => !item.content.isLocked),
+    );
+    const [start] = shuffled.splice(startIndex, 1);
+    shuffled.unshift(start);
     handleEpisodePress(shuffled[0], shuffled);
   };
 
@@ -501,6 +512,8 @@ export const useSeriesScreen = () => {
         ? {
             episodeNo: playEpisode.episodeNo,
             title: seriesEpisodeSubtitle(playEpisode.item.content.title, detail.series.title),
+            // 틀 편이 잠겼으면(1~3화를 다 들은 비구독자 등) 알약이 자물쇠로 — 누르면 게이트가 잠금 시트(KAN-294)
+            isLocked: playEpisode.item.content.isLocked,
           }
         : null,
     playSeries,

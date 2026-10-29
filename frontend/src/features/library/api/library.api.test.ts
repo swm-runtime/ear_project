@@ -72,3 +72,28 @@ describe('library.api — 콘텐츠 language(global-api.md 4.7 · KAN-196)', () 
     ]);
   });
 });
+
+describe('library.api — 잠긴 편 is_locked(experiments-api.md 4.2-2 · KAN-294)', () => {
+  it('항목 콘텐츠의 is_locked 가 true 면 잠금, 없거나(옛 서버) false 면 잠기지 않은 것으로 읽는다', async () => {
+    // given
+    const locked = item('locked-1');
+    locked.content.is_locked = true;
+    const open = item('open-1');
+    open.content.is_locked = false;
+    const dto: LibraryItemsResponseDto = {
+      items: [locked, open, item('old-1')],
+      next_cursor: null,
+      has_next: false,
+      daily_play_limit: 2,
+      daily_play_count: 0,
+      service_date: '2026-10-29',
+    };
+    mockGet.mockResolvedValue({ data: dto });
+
+    // when
+    const page = await fetchLibraryItems({ filter: 'all', topicIds: [], sourceFilter: null });
+
+    // then
+    expect(page.items.map((row) => row.content.isLocked)).toEqual([true, false, false]);
+  });
+});

@@ -17,6 +17,7 @@ const item = (id: string, seriesId: string | null = null): ExploreItem => ({
     topicIds: ['t1'],
     tags: [],
     language: null,
+    isLocked: false,
     series: seriesId ? { id: seriesId, title: '시리즈', episodeNo: 1, totalEpisodes: 3 } : null,
   },
   library: null,

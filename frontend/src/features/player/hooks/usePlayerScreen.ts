@@ -246,7 +246,7 @@ export const usePlayerScreen = () => {
     playbackService.applyRate(serverRate);
   }, [serverRate]);
 
-  /* ── 발급·재생 시작의 한도 403 — 플레이어를 닫고 페이월/한도 안내로 전환(player-api.md 5장) ── */
+  /* ── 발급·재생 시작의 한도·잠금 403 — 플레이어를 닫고 페이월/한도 안내/잠금 시트로 전환(player-api.md 5장 · experiments-api.md 4.2-3) ── */
   const blockedState = isActiveSession && session.state === 'blocked' ? session.blocked : null;
   useEffect(() => {
     if (!blockedState) return;
@@ -257,7 +257,14 @@ export const usePlayerScreen = () => {
     const blockedQueue = blockedStore.queueContext;
     playbackService.clearSession();
     close();
-    if (blockedState.kind === 'paywall') {
+    if (blockedState.kind === 'series_locked') {
+      // 잠긴 편(KAN-294) — 한도 시트가 아니라 잠금 시트. 결제 뒤 다시 틀 편은 페이월과 같이 넘긴다
+      playGate.openSeriesLock('player', blockedState.message ?? undefined, {
+        contentId: blockedContentId,
+        isCountedToday: false,
+        queue: blockedQueue,
+      });
+    } else if (blockedState.kind === 'paywall') {
       // 세션이 어디서 왔든 사용자가 본 것은 플레이어 화면이다
       playGate.openPaywall('player', blockedState.message ?? undefined, {
         contentId: blockedContentId,
@@ -417,6 +424,8 @@ export const usePlayerScreen = () => {
   const queueEntryTarget = (item: QueueEntry) => ({
     contentId: item.contentId,
     isCountedToday: item.isCountedToday,
+    // 잠긴 줄은 게이트가 잠금 시트로 받는다(KAN-294) — 듣던 편은 그대로다
+    isLocked: item.isLocked,
     meta: {
       title: item.title,
       authorName: item.authorName ?? undefined,

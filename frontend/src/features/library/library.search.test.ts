@@ -14,6 +14,7 @@ const content = (overrides: Partial<LibraryContent>): LibraryContent => ({
   contentVersion: 1,
   topicIds: [],
   language: null,
+  isLocked: false,
   ...overrides,
 });
 

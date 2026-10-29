@@ -53,6 +53,18 @@ const ko = {
     remainingTitle: (remaining: number) => `오늘 ${remaining}회 더 들을 수 있어요`,
   },
 
+  /**
+   * 잠금 시트(subscription-uiux.md 4.6-1 PW2 — KAN-294). 시리즈 잠긴 편을 눌렀거나 서버가 `SERIES_EPISODE_LOCKED` 로 막았을 때.
+   * **티어명을 적지 않는다** — 어떤 요금제에서 열리는지는 서버 문구(있으면 제목)와 아래 요금제 카드가 말한다. 구독 UI 가 꺼진
+   * 빌드는 구독을 언급하지 않는 `unavailable*` 만 쓴다(App Store 2.1(b) — 서버 문구도 쓰지 않는다)
+   */
+  seriesLock: {
+    title: '이 편은 구독하면 들을 수 있어요',
+    description: '구독하고 시리즈를 끝까지 들어 보세요',
+    unavailableTitle: '지금은 들을 수 없는 편이에요',
+    unavailableDescription: '다른 콘텐츠는 지금처럼 들을 수 있어요',
+  },
+
   /** 재생 시작 실패의 공통 폴백 — 서버 message가 없을 때만 쓴다 */
   playFailedToast: '잠시 후 다시 시도해주세요',
 
@@ -264,6 +276,13 @@ const en: LocalizedCopy<typeof ko> = {
     confirm: 'OK',
     close: 'Close',
     remainingTitle: (remaining: number) => `${plural(remaining, 'play', 'plays')} left today`,
+  },
+
+  seriesLock: {
+    title: 'Subscribe to listen to this episode',
+    description: 'Subscribe to hear the whole series',
+    unavailableTitle: "This episode isn't available right now",
+    unavailableDescription: 'You can keep listening to everything else',
   },
 
   playFailedToast: 'Please try again in a moment',

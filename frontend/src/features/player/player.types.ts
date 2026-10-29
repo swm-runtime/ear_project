@@ -130,13 +130,16 @@ export interface ProgressSaveResult {
  * - ended: PL3 재생 끝 도달(자동 이탈 없음). 완청(90%) 판정은 서버 몫이라 별개다
  * - load_failed: PL8 로드 실패
  * - withdrawn: PL9 회수
- * - blocked: 발급·재생 시작 시점의 한도 403 — 화면이 닫고 페이월로 전환한다(player-api.md 5장)
+ * - blocked: 발급·재생 시작 시점의 한도·잠금 403 — 화면이 닫고 페이월·잠금 시트로 전환한다(player-api.md 5장 · experiments-api.md 4.2-3)
  */
 export type PlaybackScreenState =
   'loading' | 'ready' | 'ended' | 'load_failed' | 'withdrawn' | 'blocked';
 
-/** 한도 403의 두 갈래(common-error-handling.md 9장) — 페이월인지 안내인지 화면이 가른다 */
-export type PlaybackBlockedKind = 'paywall' | 'paid_limit';
+/**
+ * 재생 차단의 갈래 — 한도 403 두 갈래(common-error-handling.md 9장 — 페이월인지 안내인지)와 시리즈 잠긴 편(`SERIES_EPISODE_LOCKED`,
+ * experiments-api.md 4.2-3 — KAN-294). 잠금은 한도와 화면이 다르다: 남은 횟수 링 없는 **잠금 시트**(+ 구독 UI 가 켜진 빌드면 요금제)
+ */
+export type PlaybackBlockedKind = 'paywall' | 'paid_limit' | 'series_locked';
 
 /** 컨트롤 아래 배너 자리(player-uiux.md 5장) — 한 곳에 한 종류만 */
 export type PlaybackBannerKind = 'network' | 'refresh_failed';
@@ -249,4 +252,9 @@ export interface QueueItem {
   isCompleted: boolean;
   /** 주제 — 이 편을 골라 재생할 때 플레이어의 카테고리 줄이 된다(세션 메타로 넘긴다) */
   topicIds: string[];
+  /**
+   * 이 사용자에게 잠긴 편인가(서버 `content.is_locked` — experiments-api.md 4.2-2, KAN-294). 표시·자동 재생 멈춤의 힌트일 뿐 판정이
+   * 아니다 — 서버가 재생 요청을 다시 판정한다. 없으면(옛 서버·세션에서 만든 줄) 잠기지 않은 것으로 본다
+   */
+  isLocked?: boolean;
 }

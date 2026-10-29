@@ -207,6 +207,8 @@ export const bootstrapApp = (): void => {
         isCountedToday: item.isCountedToday,
         isCompleted: item.status === 'completed',
         topicIds: item.content.topicIds,
+        // 잠긴 편 — 패널 탭은 잠금 시트, 자동 재생은 여기서 멈춘다(KAN-294)
+        isLocked: item.content.isLocked,
       }));
     },
     saveQueueOrder: (itemIds) => saveQueueOrder({ itemIds }),

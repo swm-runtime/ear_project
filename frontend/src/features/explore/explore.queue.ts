@@ -18,6 +18,7 @@ export const toQueueEntry = (item: ExploreItem): QueueEntry => ({
   isCountedToday: item.isCountedToday,
   isCompleted: item.isCompleted,
   topicIds: item.content.topicIds,
+  isLocked: item.content.isLocked,
 });
 
 export const toQueueSnapshot = (

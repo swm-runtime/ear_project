@@ -1,5 +1,11 @@
 import { create } from 'zustand';
 
+/**
+ * 시트가 왜 열렸는가 — `play_limit` 은 종전 한도 안내·페이월(잔여 링), `series_locked` 는 시리즈 잠긴 편의 **잠금 시트**
+ * (KAN-294 — 남은 횟수 링 대신 자물쇠, 제목·설명이 다르다. 요금제 비교·결제·복원은 같은 자리를 그대로 쓴다)
+ */
+export type LimitNoticeReason = 'play_limit' | 'series_locked';
+
 interface LimitNoticeStore {
   isVisible: boolean;
   /** 서버가 준 안내 문구(있으면) — 없으면 확정 카피 */
@@ -9,6 +15,7 @@ interface LimitNoticeStore {
    * 요금제 비교를 얹지 않는다. 구독 UI 가 꺼진 바이너리에서는 어느 쪽이든 한도 안내만 보인다
    */
   isPaywall: boolean;
+  reason: LimitNoticeReason;
   /**
    * 결제 후 막혔던 콘텐츠를 다시 트는 함수(paywall.md 4.5-5 · architecture.md 6.5) — 재생 게이트가 넣는다.
    * 결제 쪽(subscription)은 이 함수의 내용을 모른다. [닫기]하면 버린다(blocked_content_id 폐기)
@@ -27,6 +34,11 @@ interface LimitNoticeStore {
     resume?: (() => void) | null,
     remaining?: { remaining: number; limit: number } | null,
   ) => void;
+  /**
+   * 잠금 시트(KAN-294) — 페이월 자리(`isPaywall`)로 연다: 구독 UI 가 켜진 빌드면 요금제가 얹히고, 꺼진 빌드면 구독을 언급하지
+   * 않는 잠금 안내만 남는다. 결제가 확정되면 `resume` 으로 막혔던 편을 다시 요청한다(서버가 다시 판정)
+   */
+  showSeriesLock: (message?: string | null, resume?: (() => void) | null) => void;
   hide: () => void;
   suspend: () => void;
   reopen: () => void;
@@ -40,6 +52,7 @@ export const useLimitNoticeStore = create<LimitNoticeStore>((set) => ({
   isVisible: false,
   message: null,
   isPaywall: false,
+  reason: 'play_limit',
   resume: null,
   remaining: null,
   isSuspended: false,
@@ -48,6 +61,7 @@ export const useLimitNoticeStore = create<LimitNoticeStore>((set) => ({
       isVisible: true,
       message: message ?? null,
       isPaywall: false,
+      reason: 'play_limit',
       resume: null,
       remaining: null,
       isSuspended: false,
@@ -57,8 +71,19 @@ export const useLimitNoticeStore = create<LimitNoticeStore>((set) => ({
       isVisible: true,
       message: message ?? null,
       isPaywall: true,
+      reason: 'play_limit',
       resume: resume ?? null,
       remaining: remaining ?? null,
+      isSuspended: false,
+    }),
+  showSeriesLock: (message, resume) =>
+    set({
+      isVisible: true,
+      message: message ?? null,
+      isPaywall: true,
+      reason: 'series_locked',
+      resume: resume ?? null,
+      remaining: null,
       isSuspended: false,
     }),
   hide: () => set({ isVisible: false, resume: null, isSuspended: false }),

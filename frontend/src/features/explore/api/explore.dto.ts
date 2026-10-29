@@ -37,6 +37,11 @@ export interface ExploreContentDto {
    * 추가 필드라 아직 안 보내는 서버에서는 없다 — 없으면 null 로 읽는다
    */
   series?: ExploreContentSeriesDto | null;
+  /**
+   * 이 사용자에게 잠긴 편인가(experiments-api.md 4.2-2 — KAN-290 ↔ KAN-294). 사용자마다 값이 다르다(같은 편이라도 프로면 false).
+   * 피드·주제·인기·검색·시리즈 편·관련 콘텐츠의 콘텐츠 객체 공통. 추가 필드라 옛 서버는 없다 → false
+   */
+  is_locked?: boolean;
 }
 
 export interface ExploreContentSeriesDto {

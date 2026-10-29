@@ -17,6 +17,7 @@ const contentItem = (id: string): ExploreItem => ({
     topicIds: [],
     tags: [],
     language: null,
+    isLocked: false,
     series: null,
   },
   library: null,

@@ -75,4 +75,6 @@ export interface ContentDetail {
   libraryItem: ContentDetailLibraryItem | null;
   /** 재청취 창 힌트 — [재생] 확인 팝업을 탭 즉시 띄우기 위한 값이며 판정이 아니다 */
   isCountedToday: boolean;
+  /** 서버가 잠갔다고 준 편(KAN-294) — [재생]이 발급 없이 잠금 시트를 띄우는 힌트. 판정은 서버다 */
+  isLocked: boolean;
 }

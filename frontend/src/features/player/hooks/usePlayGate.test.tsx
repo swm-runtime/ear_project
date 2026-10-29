@@ -21,7 +21,10 @@ jest.mock('@react-navigation/native', () => ({
 jest.mock('@tanstack/react-query', () => ({
   useQueryClient: () => ({ fetchQuery: () => Promise.resolve([]) }),
 }));
-jest.mock('@/shared/analytics', () => ({ track: () => undefined }));
+const mockTrack = jest.fn<(name: string, params: unknown) => void>();
+jest.mock('@/shared/analytics', () => ({
+  track: (name: string, params: unknown) => mockTrack(name, params),
+}));
 jest.mock('./useQueueQuery', () => ({ queueKeys: { all: ['queue'] }, fetchQueueItems: jest.fn() }));
 jest.mock('../services/play-confirm-suppression.service', () => ({
   suppressPlayConfirmForToday: () => Promise.resolve(),
@@ -207,5 +210,114 @@ describe('잔여 링 탭으로 연 페이월(2026-10-28)', () => {
 
     expect(useLimitNoticeStore.getState().isPaywall).toBe(true);
     expect(useLimitNoticeStore.getState().remaining).toBeNull();
+  });
+});
+
+describe('시리즈 잠긴 편 — 잠금 시트(KAN-294)', () => {
+  beforeEach(() => {
+    // 오늘 2회 중 0회 — 잠금이 아니면 확인 팝업이 뜰 재생이다(잠금이 팝업보다 먼저인지 본다)
+    usePlayLimitStore.setState({
+      playLimit: { dailyPlayLimit: 2, dailyPlayCount: 0, serviceDate: '2026-10-29' },
+      suppressedServiceDate: null,
+    });
+  });
+
+  it('서버가 잠갔다고 준 편을 누르면 발급·팝업·플레이어 없이 잠금 시트만 뜬다 — 소리가 나지 않는다', () => {
+    // when
+    act(() =>
+      gate.requestPlay({ contentId: 'locked-4', isCountedToday: false, isLocked: true }, 'explore'),
+    );
+
+    // then
+    expect(mockStart).not.toHaveBeenCalled();
+    expect(mockNavigate).not.toHaveBeenCalled();
+    expect(gate.confirmState).toBeNull();
+    const notice = useLimitNoticeStore.getState();
+    expect(notice.isVisible).toBe(true);
+    expect(notice.isPaywall).toBe(true);
+    expect(notice.reason).toBe('series_locked');
+    expect(notice.remaining).toBeNull();
+    expect(mockTrack).toHaveBeenCalledWith('paywall_view', {
+      entry: 'explore',
+      reason: 'series_locked',
+    });
+  });
+
+  it('잠금 필드가 false·없음이면 종전 그대로 확인 팝업을 거친다', () => {
+    // when
+    act(() =>
+      gate.requestPlay({ contentId: 'open-1', isCountedToday: false, isLocked: false }, 'explore'),
+    );
+
+    // then
+    expect(gate.confirmState?.target.contentId).toBe('open-1');
+    expect(useLimitNoticeStore.getState().isVisible).toBe(false);
+  });
+
+  it('결제 뒤 다시 요청은 잠금 힌트를 떼고 서버에 묻는다 — 같은 시트가 다시 뜨지 않는다', () => {
+    // given
+    usePlayLimitStore.setState({
+      playLimit: { dailyPlayLimit: null, dailyPlayCount: null, serviceDate: '2026-10-29' },
+      suppressedServiceDate: null,
+    });
+    act(() =>
+      gate.requestPlay({ contentId: 'locked-4', isCountedToday: false, isLocked: true }, 'explore'),
+    );
+    const resume = useLimitNoticeStore.getState().resume;
+
+    // when
+    act(() => {
+      useLimitNoticeStore.getState().hide();
+      resume?.();
+    });
+
+    // then
+    expect(mockStart).toHaveBeenCalledTimes(1);
+    expect(mockStart.mock.calls[0][0].contentId).toBe('locked-4');
+    expect(useLimitNoticeStore.getState().isVisible).toBe(false);
+  });
+
+  it('발급 먼저 경로에서 서버가 잠금으로 막으면 한도 시트가 아니라 잠금 시트를 연다', () => {
+    // given — 소진 힌트라 발급부터 받는다
+    usePlayLimitStore.setState({
+      playLimit: { dailyPlayLimit: 2, dailyPlayCount: 2, serviceDate: '2026-10-29' },
+      suppressedServiceDate: null,
+    });
+    act(() => gate.requestPlay({ contentId: 'locked-5', isCountedToday: false }, 'library'));
+    const request = mockStart.mock.calls[0][0];
+
+    // when
+    act(() =>
+      request.callbacks?.onIssueBlocked?.({
+        kind: 'series_locked',
+        message: '이 편은 프로 구독에서 들을 수 있어요',
+      }),
+    );
+
+    // then
+    const notice = useLimitNoticeStore.getState();
+    expect(notice.reason).toBe('series_locked');
+    expect(notice.message).toBe('이 편은 프로 구독에서 들을 수 있어요');
+    expect(mockTrack).toHaveBeenCalledWith('paywall_view', {
+      entry: 'library',
+      reason: 'series_locked',
+    });
+  });
+
+  it('한도로 막혀 연 페이월은 reason play_limit, 잔여 링 탭은 ring_tap 으로 센다', () => {
+    // when
+    act(() => gate.openPaywall('library', undefined, { contentId: 'c', isCountedToday: false }));
+    act(() => gate.openPaywall('explore'));
+
+    // then
+    expect(mockTrack).toHaveBeenCalledWith('paywall_view', {
+      entry: 'library',
+      reason: 'play_limit',
+    });
+    expect(mockTrack).toHaveBeenCalledWith('paywall_view', {
+      entry: 'explore',
+      reason: 'ring_tap',
+    });
+    expect(useLimitNoticeStore.getState().reason).toBe('play_limit');
   });
 });

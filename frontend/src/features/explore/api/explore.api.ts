@@ -98,6 +98,8 @@ const toExploreContent = (dto: ExploreContentDto): ExploreContent => ({
         totalEpisodes: dto.series.total_episodes,
       }
     : null,
+  // 잠긴 편(KAN-294) — 옛 서버(필드 없음)는 잠기지 않은 것으로 읽는다. true 만 잠금이다
+  isLocked: dto.is_locked === true,
 });
 
 const toExploreItem = (dto: ExploreItemDto): ExploreItem => ({

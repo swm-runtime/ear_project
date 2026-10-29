@@ -413,6 +413,8 @@ export const useExploreSearchScreen = (embedding?: ExploreSearchEmbedding) => {
       {
         contentId: item.content.id,
         isCountedToday: item.isCountedToday,
+        // 서버가 잠갔다고 준 편이면 게이트가 발급 없이 잠금 시트를 띄운다(KAN-294)
+        isLocked: item.content.isLocked,
         meta: {
           title: item.content.title,
           authorName: item.content.authorName,

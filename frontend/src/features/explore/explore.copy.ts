@@ -114,12 +114,15 @@ const ko = {
     moreA11y: '더보기, 담기·제거',
     /** 완청 체크는 색이 아니라 형태 단서 + 스크린리더 텍스트로 전달한다(library 카드와 동일) */
     completedA11y: '완청한 콘텐츠',
+    /** 잠긴 편(KAN-294 — 서버 `is_locked`) — 자물쇠는 장식이라 낭독하지 않고 이 글자가 대신 말한다(색·모양만으로 말하지 않는다) */
+    lockedA11y: '잠김',
     /** 행은 하나의 탭 영역으로 읽힌다 — 값과 동작을 한 문장으로(uiux 7) */
-    a11yLabel: (parts: { title: string; minutes: number; completed: boolean }) =>
+    a11yLabel: (parts: { title: string; minutes: number; completed: boolean; locked?: boolean }) =>
       [
         parts.title,
         `${parts.minutes}분`,
         ...(parts.completed ? ['완청한 콘텐츠'] : []),
+        ...(parts.locked === true ? ['잠김'] : []),
         '재생',
       ].join(', '),
   },
@@ -165,6 +168,8 @@ const ko = {
     /** 머리 [재생] — 아직 다 듣지 않은 가장 앞 편(전부 들었으면 1화). 낭독은 어느 편인지까지 */
     play: '재생',
     playA11y: (episodeNo: number, title: string) => `재생, ${episodeNo}화 ${title}`,
+    /** 머리 [재생]이 틀 편이 잠긴 편(KAN-294) — 누르면 잠금 시트다. 알약의 아이콘이 자물쇠로 바뀌고 낭독은 끝에 "잠김" */
+    playLockedA11y: (episodeNo: number, title: string) => `재생, ${episodeNo}화 ${title}, 잠김`,
     /**
      * [재생] 양옆 원 버튼(PM 2026-10-22 08:55 — 애플 뮤직 앨범 화면). 셔플 = 무작위 한 편 재생 + 재생 목록 순서 섞기(자동 다음 재생은
      * 여전히 없다). 담기 = 시리즈 편 전부를 라이브러리에 편 단위로 담는다(새로 공개될 편은 들어오지 않는다 — 구독 아님)
@@ -194,6 +199,8 @@ const ko = {
       completed: '완청',
       saved: '담음',
       remaining: (minutes: number) => `${minutes}분 남음`,
+      /** 잠긴 편(KAN-294) — 화면엔 자물쇠, 낭독은 이 글자 */
+      locked: '잠김',
     },
     rowA11y: (parts: { episodeNo: number; title: string; minutes: number; state: string | null }) =>
       [
@@ -297,10 +304,15 @@ const en: LocalizedCopy<typeof ko> = {
     durationAfterTags: (minutes: number) => `· ${minutes} min`,
     moreA11y: 'More, add or remove',
     completedA11y: 'Played',
-    a11yLabel: (parts: { title: string; minutes: number; completed: boolean }) =>
-      [parts.title, `${parts.minutes} min`, ...(parts.completed ? ['Played'] : []), 'Play'].join(
-        ', ',
-      ),
+    lockedA11y: 'Locked',
+    a11yLabel: (parts: { title: string; minutes: number; completed: boolean; locked?: boolean }) =>
+      [
+        parts.title,
+        `${parts.minutes} min`,
+        ...(parts.completed ? ['Played'] : []),
+        ...(parts.locked === true ? ['Locked'] : []),
+        'Play',
+      ].join(', '),
   },
 
   chips: {
@@ -351,12 +363,15 @@ const en: LocalizedCopy<typeof ko> = {
     nowPlaying: 'Now playing',
     play: 'Play',
     playA11y: (episodeNo: number, title: string) => `Play, episode ${episodeNo}, ${title}`,
+    playLockedA11y: (episodeNo: number, title: string) =>
+      `Play, episode ${episodeNo}, ${title}, locked`,
     moreA11y: 'More for this series',
     aboutAction: 'Show description',
     state: {
       completed: 'Played',
       saved: 'In Library',
       remaining: (minutes: number) => `${minutes} min left`,
+      locked: 'Locked',
     },
     rowA11y: (parts: { episodeNo: number; title: string; minutes: number; state: string | null }) =>
       [
