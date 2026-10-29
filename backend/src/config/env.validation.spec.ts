@@ -214,6 +214,17 @@ describe('validateEnv', () => {
     expect(() => validateEnv(validEnv)).not.toThrow();
   });
 
+  it('FIRST_DRIP_RANDOM_ENABLED 는 true·false·빈 값만 받는다 — 오타로 실험이 조용히 켜지거나 꺼지지 않게', () => {
+    expect(() =>
+      validateEnv({ ...validEnv, FIRST_DRIP_RANDOM_ENABLED: 'on' }),
+    ).toThrow(/FIRST_DRIP_RANDOM_ENABLED/);
+    for (const value of ['true', 'false', '']) {
+      expect(() =>
+        validateEnv({ ...validEnv, FIRST_DRIP_RANDOM_ENABLED: value }),
+      ).not.toThrow();
+    }
+  });
+
   it('SIGNUP_TRIAL_DAYS 는 1~30 정수이고 비워도 된다 — 배포 스크립트가 빈 값으로 선언해 둔다', () => {
     for (const value of ['0', '31', '7.5', 'week', '-1']) {
       expect(() =>

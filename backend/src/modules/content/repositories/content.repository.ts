@@ -416,6 +416,11 @@ export class ContentRepository {
       );
     }
 
+    if (query.randomOrder) {
+      // 첫 드립 무작위 실험(KAN-291) — 인기순 상한이 무작위 범위를 좁히지 않게 자르는 기준을 무작위로 둔다
+      return builder.orderBy('RANDOM()').limit(query.limit).getMany();
+    }
+
     if (query.lowExposureFirst) {
       /**
        * 탐험 슬롯 전용 정렬(`drip-scheduling.md` 4.8-2) — **덜 재생된 것부터.**
