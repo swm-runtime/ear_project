@@ -174,3 +174,10 @@ export const formatEnCount = (
   forms: { one: string; other: string },
   locale: string = formatLocaleOf('en'),
 ): string => `${count} ${selectPlural(count, locale) === 'one' ? forms.one : forms.other}`;
+
+/**
+ * 정수에 세 자리마다 쉼표 — `3900` → `"3,900"`. 서버가 준 원화 금액(요금제 정가 `original_price_krw`, KAN-299)을 그릴 때
+ * 쓴다. `Intl.NumberFormat` 을 쓰지 않는다 — 기기마다 ICU 데이터가 달라 한국어 표기가 흔들릴 수 있다(날짜와 같은 이유)
+ */
+export const groupThousands = (value: number): string =>
+  String(Math.trunc(value)).replace(/\B(?=(\d{3})+(?!\d))/g, ',');

@@ -90,6 +90,59 @@ describe('요금제 카드 병합 — 가격은 스토어 현지 가격만', () 
   });
 });
 
+describe('할인 표시 — 서버 판정을 옮기기만 한다(KAN-299 · experiments-api.md 4.4)', () => {
+  it('서버가 할인이라고 준 요금제는 정가를 싣고, 결제 가격은 그대로 스토어 가격이다', () => {
+    // given
+    const plans = [
+      plan({ planId: 'light', storeProductId: null, action: 'current', isFree: true }),
+      plan({ discountOriginalPriceKrw: 3900 }),
+    ];
+
+    // when
+    const cards = mergePlanPrices(
+      plans,
+      [{ productId: 'daily.monthly', displayPrice: '₩1,900', currency: 'KRW' }],
+      '무료',
+    );
+
+    // then — 앱은 할인율·가격을 계산하지 않는다(정가는 서버 값, 가격은 스토어 값 그대로)
+    expect(cards?.map((c) => [c.priceLabel, c.originalPriceKrw])).toEqual([
+      ['무료', null],
+      ['₩1,900', 3900],
+    ]);
+  });
+
+  it('서버가 할인이 아니라고 하면(옛 서버 포함) 정가를 싣지 않는다 — 지금과 같은 표시', () => {
+    const cards = mergePlanPrices(
+      [plan({ discountOriginalPriceKrw: null }), plan({ planId: 'legacy' })],
+      [{ productId: 'daily.monthly', displayPrice: '₩1,900', currency: 'KRW' }],
+      '무료',
+    );
+    expect(cards?.map((c) => c.originalPriceKrw)).toEqual([null, null]);
+  });
+
+  it('스토어 가격이 원화가 아니거나 통화를 모르면 원화 정가 취소선을 긋지 않는다', () => {
+    // given — 서버 판정은 시장 무관이라 GLOBAL 스토어 계정에도 true 가 올 수 있다
+    const plans = [plan({ discountOriginalPriceKrw: 3900 })];
+
+    // when
+    const usd = mergePlanPrices(
+      plans,
+      [{ productId: 'daily.monthly', displayPrice: '$1.99', currency: 'USD' }],
+      'Free',
+    );
+    const unknown = mergePlanPrices(
+      plans,
+      [{ productId: 'daily.monthly', displayPrice: '₩1,900' }],
+      '무료',
+    );
+
+    // then
+    expect(usd?.[0]).toMatchObject({ priceLabel: '$1.99', originalPriceKrw: null });
+    expect(unknown?.[0]).toMatchObject({ priceLabel: '₩1,900', originalPriceKrw: null });
+  });
+});
+
 describe('무료 요금제 판정 — 서버 is_free 우선(KAN-226)', () => {
   it('is_free: true 면 action none(다른 스토어 구독자)이어도 무료이고 카드에 "무료"가 붙는다', () => {
     // given — 다른 스토어 구독자: 모든 행이 none, 이 플랫폼 상품도 없다

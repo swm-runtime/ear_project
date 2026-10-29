@@ -431,3 +431,58 @@ describe('PlanList — 요금제 카드(KAN-146)', () => {
     act(() => renderer.unmount());
   });
 });
+
+describe('PlanList — 할인 표시(KAN-299 · experiments-api.md 4.4)', () => {
+  const discounted = (originalPriceKrw: number | null): PlanCardVM => ({
+    ...makeCard(
+      {
+        tier: 'daily',
+        name: '매일',
+        description: '하루 5편까지 들을 수 있어요',
+        storeProductId: 'daily.monthly',
+        action: 'purchase',
+      },
+      '₩1,900',
+    ),
+    originalPriceKrw,
+  });
+
+  it('서버가 할인이라고 준 요금제는 취소선 정가 + 스토어 가격 + [지금 할인 중] 배지를 그린다', () => {
+    // when
+    const renderer = renderList([FREE_CURRENT, discounted(3900)]);
+
+    // then — 정가는 취소선, 결제 가격은 스토어 값 그대로("/월")
+    const original = textNodes(renderer, '₩3,900');
+    expect(original).toHaveLength(1);
+    expect(flat(original[0].props.style).textDecorationLine).toBe('line-through');
+    expect(textNodes(renderer, SUBSCRIPTION_COPY.plans.perMonth('₩1,900'))).toHaveLength(1);
+    const badge = textNodes(renderer, SUBSCRIPTION_COPY.plans.onSale);
+    expect(badge).toHaveLength(1);
+    expect(flat(badge[0].props.style).color).toBe(theme.color.onPrimary);
+    // 할인율·종료일은 그리지 않는다
+    expect(allText(renderer).some((text) => text.includes('%'))).toBe(false);
+    // 취소선은 낭독되지 않으므로 라벨이 "정가 … 지금 … 할인 중"으로 말한다
+    expect(radioOf(renderer, '매일').props.accessibilityLabel).toBe(
+      '매일, 정가 3,900원, 지금 ₩1,900/월, 할인 중, 하루 5편까지 들을 수 있어요',
+    );
+    act(() => renderer.unmount());
+  });
+
+  it('할인이 아니면(정가 없음·옛 서버) 지금과 같은 가격 표시다', () => {
+    // when
+    const renderer = renderList([FREE_CURRENT, discounted(null), PAID_UPGRADE]);
+
+    // then
+    expect(textNodes(renderer, SUBSCRIPTION_COPY.plans.onSale)).toHaveLength(0);
+    expect(
+      renderer.root.findAll(
+        (node) =>
+          node.type === RNText && flat(node.props.style).textDecorationLine === 'line-through',
+      ),
+    ).toHaveLength(0);
+    expect(radioOf(renderer, '매일').props.accessibilityLabel).toBe(
+      '매일, ₩1,900/월, 하루 5편까지 들을 수 있어요',
+    );
+    act(() => renderer.unmount());
+  });
+});
