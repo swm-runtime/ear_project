@@ -84,9 +84,12 @@ describe('짧은 판 코호트 노출 E2E', () => {
   }
 
   beforeAll(async () => {
-    // 경계 설정은 실제 env 경로(ConfigService)로 읽힌다
-    process.env.SHORT_CONTENT_COHORT_SINCE = SINCE;
-    app = await createApp();
+    // 경계 설정은 판정기에 직접 넣는다 — CI 는 .env.example 을 그대로 복사해 `SHORT_CONTENT_COHORT_SINCE=`(빈 값)가
+    // 설정에 먼저 들어가므로, 실행 중에 process.env 를 바꿔도 ConfigService 는 빈 값을 돌려준다(2026-10-29 CI 실패).
+    // env 문자열 → 시각 파싱은 content-cohort 단위 테스트가 본다
+    app = await createApp(
+      new ContentCohortService({ get: () => SINCE } as never),
+    );
     // 롤백 앱 — 설정이 빈 것과 같은 판정기
     rollbackApp = await createApp(
       new ContentCohortService({ get: () => '' } as never),
@@ -126,7 +129,6 @@ describe('짧은 판 코호트 노출 E2E', () => {
       contentIds,
     ]);
     await dataSource.query(`DELETE FROM topics WHERE id = ANY($1)`, [topicIds]);
-    delete process.env.SHORT_CONTENT_COHORT_SINCE;
     await rollbackApp.close();
     await app.close();
   }, 60_000);
