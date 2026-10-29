@@ -99,7 +99,7 @@ describe('content-review.policy', () => {
       ).toEqual({ open: true });
     });
 
-    it('10-28에 물었으면 11-01(4일째)은 닫히고 11-02(5일째)부터 열린다', () => {
+    it('10-28에 물었으면 10-29(다음 날)는 닫히고 10-30(2일째)부터 열린다', () => {
       const at = (today: string) =>
         resolvePromptGate({
           today,
@@ -108,8 +108,8 @@ describe('content-review.policy', () => {
         });
 
       expect(at('2026-10-28')).toEqual({ open: false, mutedUntil: null });
-      expect(at('2026-11-01')).toEqual({ open: false, mutedUntil: null });
-      expect(at('2026-11-02')).toEqual({ open: true });
+      expect(at('2026-10-29')).toEqual({ open: false, mutedUntil: null });
+      expect(at('2026-10-30')).toEqual({ open: true });
     });
 
     it('그만 보기 중이면(오늘 < 종료 라벨) 닫히고 종료 라벨을 돌려준다 — 종료 날짜부터 다시 연다', () => {
@@ -129,12 +129,12 @@ describe('content-review.policy', () => {
       ).toEqual({ open: true });
     });
 
-    it('그만 보기가 끝나도 5일 간격이 남아 있으면 닫힌다', () => {
+    it('그만 보기가 끝나도 2일 간격이 남아 있으면 닫힌다', () => {
       expect(
         resolvePromptGate({
           today: '2026-11-02',
           mutedUntil: '2026-11-02',
-          lastPromptedDate: '2026-10-30',
+          lastPromptedDate: '2026-11-01',
         }),
       ).toEqual({ open: false, mutedUntil: null });
     });

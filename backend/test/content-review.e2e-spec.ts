@@ -371,7 +371,7 @@ describe('콘텐츠 후기 E2E', () => {
     );
   }, 60_000);
 
-  it('먼저 묻기 — 최근 끝까지 들은 후기 없는 편을 묻고, 닫으면 5 서비스 날짜 동안 묻지 않는다', async () => {
+  it('먼저 묻기 — 최근 끝까지 들은 후기 없는 편을 묻고, 닫으면 2 서비스 날짜 동안 묻지 않는다', async () => {
     const { userId, auth } = await createUser('prompt');
     const [older, latest, stale, reviewed] = await seedContents(4);
     for (const id of [older, latest, stale, reviewed]) {
@@ -421,15 +421,15 @@ describe('콘텐츠 후기 E2E', () => {
     ).body as PromptBody;
     expect(closed).toMatchObject({ enabled: true, show: false, item: null });
 
-    // 물은 지 4일 — 묻지 않는다 · 5일 — 묻는다
-    await setLastPrompted(userId, shiftServiceDate(today, -4));
+    // 물은 지 1일 — 묻지 않는다 · 2일 — 묻는다
+    await setLastPrompted(userId, shiftServiceDate(today, -1));
     expect(
       (
         (await get('/users/me/content-review/prompt', auth).expect(200))
           .body as PromptBody
       ).show,
     ).toBe(false);
-    await setLastPrompted(userId, shiftServiceDate(today, -5));
+    await setLastPrompted(userId, shiftServiceDate(today, -2));
     const again = (
       await get('/users/me/content-review/prompt', auth).expect(200)
     ).body as PromptBody;
