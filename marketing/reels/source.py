@@ -157,5 +157,6 @@ def episode_material(episode_id: str) -> dict:
         "sections": sections,
         "keywords": keywords,
         "audio_key": audio_key(episode_id),
-        "thumbnail_key": f"{base}/thumbnail.png" if exists(f"{base}/thumbnail.png") else None,
+        # 글자 없는 원본 그림을 먼저 — 시리즈 표지(thumbnail.png)는 글자가 9:16 으로 잘려 자막과 겹친다
+        "thumbnail_key": next((f"{base}/{n}" for n in ("thumbnail-raw.png", "thumbnail.png") if exists(f"{base}/{n}")), None),
     }

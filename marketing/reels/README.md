@@ -8,7 +8,7 @@ GitHub Actions(reels-daily, 매일 08:00)
   build ─ 발행된 편 고르기(파이프라인 Supabase: backlog.status=published, 안 쓴 편 중 최근 발행)
         ─ 재료 받기(파이프라인 S3 episodes/<id>/: script-segments.json · script-sections.json · audio/dist.m4a · thumbnail.png)
         ─ 구간·문구 고르기(OpenAI 텍스트 모델 — 인트로·마무리 제외, 앞 맥락 없이 이해되는 25~60초)
-        ─ 그림 3장(OpenAI 이미지 모델, 브랜드 색·글자 없음) — 실패하면 편 썸네일
+        ─ 그림 3장(OpenAI 이미지 모델, 브랜드 색·글자 없음) — 실패하면 편 원본 그림(thumbnail-raw.png, 없으면 thumbnail.png)
         ─ 합성(ffmpeg: 천천히 확대되는 그림 + 제목 + 화자별 자막 + 파형 + 끝 카드)
         ─ S3 marketing/reels/<날짜>/ 업로드 → Slack 미리보기(12시간 링크 + 승인 링크)
   publish ─ 환경 reels-publish 승인 대기 → 인스타 릴스 게시 → Slack 에 게시 주소
@@ -52,7 +52,9 @@ GitHub Actions(reels-daily, 매일 08:00)
   pip install -r requirements.txt
   python main.py build --local --episode X260919-001 --no-ai     # 모델 없이 첫 본문 단락, 썸네일 배경
   OPENAI_API_KEY=... python main.py build --local --episode X260919-001   # 모델이 구간·문구·그림
+  python main.py build --local --episode S261003-012 --pick pick.json   # 사람이 고른 구간·문구
   ```
+  `pick.json` 은 `{start_idx, end_idx, title, caption, reason}` — 줄 번호는 `script-segments.json` 순서다.
   결과는 `out/<날짜>/reel.mp4` (커밋하지 않는다).
 
 ## 조절 값 (환경 변수)
