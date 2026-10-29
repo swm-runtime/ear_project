@@ -1,4 +1,7 @@
-import { SeriesStatus } from '@/modules/content/content.enum';
+import {
+  ContentLengthProfile,
+  SeriesStatus,
+} from '@/modules/content/content.enum';
 import { SeriesWithCounts } from '@/modules/content/services/series.service';
 
 class AdminSeriesEpisodeCountsDto {
@@ -27,6 +30,9 @@ export class AdminSeriesItemDto {
   readonly cover_url: string | null;
   /** 발행 이름(예: "키워드") — 없으면 null */
   readonly publisher_name: string | null;
+  /** 길이 프로필(KAN-298) · 짧은 시리즈의 원본 시리즈(standard면 null) */
+  readonly length_profile: ContentLengthProfile;
+  readonly variant_of_series_id: string | null;
   readonly created_at: string;
   readonly updated_at: string;
 
@@ -46,6 +52,8 @@ export class AdminSeriesItemDto {
       // 빈 문자열(저장소가 URL을 못 준 경우)은 없는 것으로 낸다 — 앱 응답의 표지 해석(`resolveSeriesCover`)과 같은 판정
       cover_url: series.coverUrl || null,
       publisher_name: series.publisherName ?? null,
+      length_profile: series.lengthProfile ?? ContentLengthProfile.STANDARD,
+      variant_of_series_id: series.variantOfSeriesId ?? null,
       created_at: series.createdAt.toISOString(),
       updated_at: series.updatedAt.toISOString(),
     };

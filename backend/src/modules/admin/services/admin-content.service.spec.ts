@@ -10,9 +10,11 @@ import { ErrorCode } from '@/common/exceptions/error-code.enum';
 import {
   AudioQuality,
   ContentLanguage,
+  ContentLengthProfile,
   ContentOrigin,
   ContentStatus,
 } from '@/modules/content/content.enum';
+import { Series } from '@/modules/content/entities/series.entity';
 import { ContentTitleEmbeddingService } from '@/modules/content/services/content-title-embedding.service';
 import { ContentService } from '@/modules/content/services/content.service';
 import { SeriesService } from '@/modules/content/services/series.service';
@@ -134,6 +136,8 @@ function buildCommand(
     reviewConfirmed: true,
     market: UserMarket.KR,
     language: ContentLanguage.KO,
+    lengthProfile: null,
+    variantOfContentId: null,
     audio: buildFile('ep.mp3'),
     audioAac: null,
     audioLossless: null,
@@ -176,6 +180,7 @@ describe('AdminContentService', () => {
         status: ContentStatus.PUBLISHED,
       }),
       replaceAudioRenditions: jest.fn().mockResolvedValue(undefined),
+      assertVariantOriginContent: jest.fn().mockResolvedValue(undefined),
       replaceAudioRendition: jest.fn().mockResolvedValue(undefined),
       findAudioRenditions: jest.fn().mockResolvedValue([]),
       getById: jest.fn().mockResolvedValue({
@@ -990,6 +995,133 @@ describe('AdminContentService', () => {
       });
     });
 
+    describe('짧은 판 필드(KAN-298)', () => {
+      const ORIGIN_ID = '77777777-7777-4777-8777-777777777777';
+      const SERIES_ID = '55555555-5555-4555-8555-555555555555';
+
+      it('length_profile을 생략한 단편은 standard·원본 없음으로 발행한다', async () => {
+        // when
+        await service.upload(buildCommand(), NOW);
+
+        // then
+        expect(contentService.publish).toHaveBeenCalledWith(
+          containing({
+            lengthProfile: ContentLengthProfile.STANDARD,
+            variantOfContentId: null,
+          }),
+          NOW,
+          manager,
+        );
+        expect(
+          contentService.assertVariantOriginContent,
+        ).not.toHaveBeenCalled();
+      });
+
+      it('short 단편은 원본을 확인한 뒤 원본 id와 함께 발행한다', async () => {
+        // when
+        await service.upload(
+          buildCommand({
+            lengthProfile: ContentLengthProfile.SHORT,
+            variantOfContentId: ORIGIN_ID,
+          }),
+          NOW,
+        );
+
+        // then
+        expect(contentService.assertVariantOriginContent).toHaveBeenCalledWith(
+          ORIGIN_ID,
+        );
+        expect(contentService.publish).toHaveBeenCalledWith(
+          containing({
+            lengthProfile: ContentLengthProfile.SHORT,
+            variantOfContentId: ORIGIN_ID,
+          }),
+          NOW,
+          manager,
+        );
+      });
+
+      it('short 단편에 원본 id가 없으면 저장소에 올리기 전에 400(variant_of_content_id)', async () => {
+        // when
+        const act = service.upload(
+          buildCommand({ lengthProfile: ContentLengthProfile.SHORT }),
+          NOW,
+        );
+
+        // then
+        await expect(act).rejects.toMatchObject({
+          errorCode: ErrorCode.VALIDATION_FAILED,
+          details: { field: 'variant_of_content_id' },
+        });
+        expect(storage.putAudio).not.toHaveBeenCalled();
+      });
+
+      it('standard인데 원본 id가 있으면 400(variant_of_content_id)', async () => {
+        // when
+        const act = service.upload(
+          buildCommand({ variantOfContentId: ORIGIN_ID }),
+          NOW,
+        );
+
+        // then
+        await expect(act).rejects.toMatchObject({
+          details: { field: 'variant_of_content_id' },
+        });
+        expect(contentService.publish).not.toHaveBeenCalled();
+      });
+
+      it('원본 확인이 거절하면(없음·원본이 짧은 판) 저장소에 아무것도 올리지 않는다', async () => {
+        // given
+        contentService.assertVariantOriginContent.mockRejectedValueOnce(
+          new BusinessException({
+            status: 400,
+            errorCode: ErrorCode.VALIDATION_FAILED,
+            message: '원본을 찾을 수 없어요',
+            details: { field: 'variant_of_content_id' },
+          }),
+        );
+
+        // when
+        const act = service.upload(
+          buildCommand({
+            lengthProfile: ContentLengthProfile.SHORT,
+            variantOfContentId: ORIGIN_ID,
+          }),
+          NOW,
+        );
+
+        // then
+        await expect(act).rejects.toMatchObject({
+          details: { field: 'variant_of_content_id' },
+        });
+        expect(storage.putAudio).not.toHaveBeenCalled();
+      });
+
+      it('짧은 시리즈의 편은 length_profile을 생략해도 시리즈 값(short)을 따르고 원본 화는 선택이다', async () => {
+        // given
+        seriesService.assertEpisodeUploadable.mockResolvedValue({
+          id: SERIES_ID,
+          lengthProfile: ContentLengthProfile.SHORT,
+        } as Series);
+
+        // when
+        await service.upload(
+          buildCommand({ seriesId: SERIES_ID, episodeNo: 1, totalEpisodes: 3 }),
+          NOW,
+        );
+
+        // then
+        expect(contentService.publish).toHaveBeenCalledWith(
+          containing({
+            lengthProfile: ContentLengthProfile.SHORT,
+            variantOfContentId: null,
+          }),
+          NOW,
+          manager,
+        );
+      });
+    });
+
     describe('시리즈 편(KAN-134)', () => {
       const SERIES_ID = '55555555-5555-4555-8555-555555555555';
       const seriesCommand = () =>
@@ -1005,6 +1137,7 @@ describe('AdminContentService', () => {
           episodeNo: 2,
           totalEpisodes: 3,
           market: UserMarket.KR,
+          lengthProfile: null,
         };
         expect(seriesService.assertEpisodeUploadable).toHaveBeenNthCalledWith(
           1,

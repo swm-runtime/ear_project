@@ -2,7 +2,7 @@ import { Column, Entity, PrimaryGeneratedColumn } from 'typeorm';
 
 import { BaseEntity } from '@/database/base.entity';
 
-import { SeriesStatus } from '../content.enum';
+import { ContentLengthProfile, SeriesStatus } from '../content.enum';
 
 /**
  * 시리즈(KAN-134 확정 설계 1번, 2026-10-17) — 처음부터 N편으로 기획한 콘텐츠 묶음의 주인.
@@ -55,4 +55,20 @@ export class Series extends BaseEntity {
     nullable: true,
   })
   publisherName: string | null;
+
+  /**
+   * 길이 프로필(KAN-298) — 짧은 시리즈(`short`)는 원본 시리즈를 짧게 다시 만든 묶음이다. 편(`contents.length_profile`)은
+   * 이 값과 같아야 한다(업로드가 막는다). 만든 뒤 바꾸지 않는다
+   */
+  @Column({
+    name: 'length_profile',
+    type: 'varchar',
+    length: 16,
+    default: ContentLengthProfile.STANDARD,
+  })
+  lengthProfile: ContentLengthProfile;
+
+  /** 짧은 시리즈의 원본 시리즈(KAN-298) — `short`면 필수, `standard`면 null. FK `fk_series_variant_of_series`는 마이그레이션 소유 */
+  @Column({ name: 'variant_of_series_id', type: 'uuid', nullable: true })
+  variantOfSeriesId: string | null;
 }
