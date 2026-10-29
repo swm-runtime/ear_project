@@ -66,7 +66,7 @@ beforeEach(() => {
 });
 
 describe('LimitNoticeSheet — 잠금 시트(KAN-294)', () => {
-  it('구독 UI 가 켜진 빌드면 자물쇠 + 서버 문구 제목 + 잠금 설명 + 요금제가 얹히고 남은 횟수 링은 없다', () => {
+  it('구독 UI 가 켜진 빌드면 자물쇠 + 앱 카피 제목 + 잠금 설명 + 요금제가 얹히고 서버 문구·남은 횟수 링은 없다', () => {
     // given
     act(() =>
       useLimitNoticeStore.getState().showSeriesLock('이 편은 프로 구독에서 들을 수 있어요', null),
@@ -78,7 +78,8 @@ describe('LimitNoticeSheet — 잠금 시트(KAN-294)', () => {
     // then
     expect(byTestId(renderer, 'limit-notice-lock')).toHaveLength(1);
     const shown = texts(renderer);
-    expect(shown).toContain('이 편은 프로 구독에서 들을 수 있어요');
+    expect(shown).toContain(PLAYER_COPY.seriesLock.title);
+    expect(shown).not.toContain('이 편은 프로 구독에서 들을 수 있어요');
     expect(shown).toContain(PLAYER_COPY.seriesLock.description);
     expect(shown).toContain('PLANS');
     expect(shown).not.toContain(PLAYER_COPY.limitNotice.title);

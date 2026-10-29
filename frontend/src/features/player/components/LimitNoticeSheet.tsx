@@ -40,7 +40,9 @@ const ANDROID_RESUME_DELAY_MS = 400;
  *
  * **잠금 시트(PW2 — KAN-294)** 도 이 자리다(`reason = series_locked`): 시리즈 잠긴 편. 머리의 잔여 링 대신 **자물쇠 원**, 제목·설명은
  * 잠금 문구다 — 한도 시트를 그대로 쓰면 남은 횟수 링이 "횟수가 모자라서 막혔다"로 읽힌다. 요금제 비교·결제·복원·[닫기]는 페이월과
- * 같다. 구독 UI 가 꺼진 빌드는 구독을 언급하지 않는 문구 + [확인] 뿐이다(서버 문구도 쓰지 않는다 — "프로 구독" 이 들어 있다).
+ * 같다. 구독 UI 가 꺼진 빌드는 구독을 언급하지 않는 문구 + [확인] 뿐이다.
+ * 제목은 **늘 앱 카피**다 — 서버 `message` 를 쓰지 않는다(PM 2026-10-29 "하나로 맞춰"). 목록에서 미리 막을 때와 서버 403 으로
+ * 막힐 때 같은 문장이 보여야 하고, 서버 문구에는 티어명("프로 구독")이 들어 있다.
  */
 export default function LimitNoticeSheet() {
   const isVisible = useLimitNoticeStore((s) => s.isVisible);
@@ -95,7 +97,7 @@ export default function LimitNoticeSheet() {
       </View>
       <Text style={styles.title} accessibilityRole="header">
         {showPlans
-          ? (message ?? PLAYER_COPY.seriesLock.title)
+          ? PLAYER_COPY.seriesLock.title
           : PLAYER_COPY.seriesLock.unavailableTitle}
       </Text>
       <Text style={styles.description}>
