@@ -418,9 +418,9 @@ export async function domainTierByHost(): Promise<Map<string, string>> {
 }
 
 // ── 기획 시리즈 (0029, spec/11 · 글로벌 명세 6.11) ──
-export interface SeriesRow { id: string; name: string; mid_topic: string; intro_line: string | null; scope_note: string | null; plan: unknown; total_episodes: number | null; status: string; thumb_word: string | null; thumb_label: string | null; thumb_box: string | null; thumb_base_key: string | null; /** 간행물 키(0034, KAN-247) — null = 없음 */ publication: string | null; thumb_layers: string | null }
+export interface SeriesRow { id: string; name: string; mid_topic: string; intro_line: string | null; scope_note: string | null; plan: unknown; total_episodes: number | null; status: string; thumb_word: string | null; thumb_label: string | null; thumb_box: string | null; thumb_base_key: string | null; /** 간행물 키(0034, KAN-247) — null = 없음 */ publication: string | null; thumb_layers: string | null; /** 0041 짧은 판 시리즈 */ length_profile: string; remake_of: string | null }
 export async function getSeries(id: string): Promise<SeriesRow | null> {
-  const r = await pool.query("select id, name, mid_topic, intro_line, scope_note, plan, total_episodes, status, thumb_word, thumb_label, thumb_box, thumb_base_key, publication, thumb_layers from public.series where id = $1", [id]);
+  const r = await pool.query("select id, name, mid_topic, intro_line, scope_note, plan, total_episodes, status, thumb_word, thumb_label, thumb_box, thumb_base_key, publication, thumb_layers, length_profile, remake_of from public.series where id = $1", [id]);
   return r.rows[0] ?? null;
 }
 /** 설계안 저장 — 기획 중(planning)일 때만. 사람이 그 사이 승인·중단했으면 덮어쓰지 않는다 */

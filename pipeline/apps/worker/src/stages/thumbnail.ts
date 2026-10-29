@@ -97,7 +97,9 @@ export async function runThumbnail(job: Job) {
   );
   const existingKey = row.rows[0]?.thumbnail_key as string | null;
   // 0040 (KAN-296): 짧은 판 재제작 편은 원본 편의 썸네일을 그대로 쓴다 — 비교 변수를 길이 하나로 남긴다. 원본에 썸네일이 없으면 종전 경로로 새로 만든다
-  if (cand.remake_of) {
+  // 짧은 판 시리즈(0041)는 편을 나눠 화 번호·편수가 원본과 다르다 — 화 번호를 그리는 코드 합성 디자인(tv·notes·layers·wave)은 복사하지 않고 아래 시리즈 경로로 새 번호를 그린다(비용 0). 장면·키워드 디자인은 원본 그림을 복사한다
+  const remakeCodeStyle = cand.remake_of && cand.series_id ? await getSeries(cand.series_id).then(async (ser) => (ser ? ["tv", "notes", "layers", "wave"].includes(publicationStyle(ser.publication, mergePublications(await listPublications()))) : false)) : false;
+  if (cand.remake_of && !remakeCodeStyle) {
     const copied = await copyOriginalThumbnail(cand.remake_of, rel, outFile).catch((e) => { log(`  thumbnail ${episodeId}: 원본 복사 실패 (${String(e?.message ?? e).slice(0, 120)}) — 새로 만든다`); return null; });
     if (copied) {
       await pool.query("update public.episodes set thumbnail_key = $2, updated_at = now() where id = $1", [episodeId, copied.key]);

@@ -1,7 +1,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import { cfg, executedBy } from "../config.js";
-import { blockedTierHosts, insertRun, priorEpisodesUsingUrls, recordFetchStatus, refreshDomainFetchBlock, setJobProgress, type Job } from "../db.js";
+import { blockedTierHosts, insertRun, pool, priorEpisodesUsingUrls, recordFetchStatus, refreshDomainFetchBlock, setJobProgress, type Job } from "../db.js";
 import { getFile } from "../storage.js";
 import type { Executor } from "../executors/index.js";
 import { assetPaths, AXIS_CHECK_SCHEMA, AXIS_CHECK_SCHEMA_EN, buildAxisCheckPromptParts, buildAxisCheckPromptPartsEn, buildDesignPromptInlineParts, buildDesignPromptInlinePartsEn, DESIGN_INLINE_SCHEMA, DESIGN_INLINE_SCHEMA_EN, designAxisRejectEn, designMissingQuestionsEn, isHistoryCandidateEn, lengthSpecOf, pipelineLocale, shortTrimFeedback, type ShortRules, type BacklogCandidate, type InlineSource, type SeriesDraftContext } from "@ear/pipeline";
@@ -118,7 +118,10 @@ export async function runDesignSingle(a: { job: Job; ex: Executor; episodeId: st
   // 이미 쓴 문단 제외 (2026-09-10, T260910-005↔013 — 같은 소스 2건에서 같은 문단을 골라 두 편의 구간이 거의 같은 대사가 됐다):
   // 다른 후보의 편이 같은 URL 에서 발췌한 문단은 프롬프트에서 본문을 빼고 자리만 남긴다 — 모델은 고를 수 없고, 남은 대목이 얇으면 그 소스를 제외한다.
   // 소스 단위로 막지 않는 이유: 풀이 작은 대분류는 소스 금지가 곧 편수 제한이다. 막는 단위는 문단이다.
-  const prior = await priorEpisodesUsingUrls(cand.sources.map((s) => s.url), cand.remake_of ? [cand.id, cand.remake_of] : cand.id).catch((e) => { log(`  design ${episodeId}: 이전 편 조회 실패 (${String(e?.message ?? e).slice(0, 80)}) — 문단 제외 없이 진행`); return []; });
+  // 짧은 판(0040·0041): 원본 편의 문단은 쓸 수 있다. 짧은 판 시리즈는 원본 편 하나를 1~3편으로 나눠 형제 편이 같은 소스를 쓰므로, 형제 편끼리도 막지 않는다 —
+  // 막으면 먼저 설계한 편이 넉넉히 발췌한 문단 때문에 뒤 편이 재료 부족으로 멈춘다. 형제 편의 겹침은 설계안의 "이 편에서만" 경계와 시리즈 겹침 검사(L1)가 막는다
+  const exemptIds = cand.remake_of ? [cand.id, cand.remake_of, ...(cand.series_id ? (await pool.query("select id from public.backlog where series_id = $1 and remake_of = $2 and id <> $3", [cand.series_id, cand.remake_of, cand.id])).rows.map((r) => r.id as string) : [])] : [cand.id];
+  const prior = await priorEpisodesUsingUrls(cand.sources.map((s) => s.url), exemptIds.length > 1 ? exemptIds : cand.id).catch((e) => { log(`  design ${episodeId}: 이전 편 조회 실패 (${String(e?.message ?? e).slice(0, 80)}) — 문단 제외 없이 진행`); return []; });
   const usedByUrl = new Map<string, { episode: string; title: string; texts: string[] }[]>();
   for (const pe of prior) {
     const md = pe.sources_key ? await getFile(pe.sources_key) : null;

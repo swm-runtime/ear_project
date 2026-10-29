@@ -46,7 +46,7 @@ export default async function SeriesPage({ params }: { params: Promise<{ id: str
       )}
       <Panel title="범위 (관리자 입력)" className="text-[13px] whitespace-pre-wrap">{s.scope_note ?? "-"}</Panel>
       {!["cancelled", "withdrawn"].includes(s.status) && <SeriesThumb id={s.id} locale={pipelineLocale()} publication={s.publication ?? null} word={s.thumb_word ?? ""} label={s.thumb_label ?? ""} box={s.thumb_box ?? ""} hasBase={!!s.thumb_base_key} productSeriesId={s.published_series_id ?? null} publications={publications} layers={s.thumb_layers ?? ""} />}
-      <SeriesEditor id={s.id} status={s.status} name={s.name} introLine={s.intro_line ?? ""} plan={Array.isArray(s.plan) ? s.plan : []} />
+      <SeriesEditor id={s.id} status={s.status} name={s.name} introLine={s.intro_line ?? ""} plan={Array.isArray(s.plan) ? s.plan : []} short={s.length_profile === "short"} />
       {!planning && (
         <Panel title={`편 후보 (${(eps ?? []).filter((e) => e.status !== "rejected").length}/${s.total_episodes ?? "-"})`} flush>
           <Table head={["화", "후보", "상태", "메모", ""]} empty="아직 후보가 없다 — 승인하면 편마다 주제 기획 작업이 걸린다">
@@ -65,7 +65,7 @@ export default async function SeriesPage({ params }: { params: Promise<{ id: str
       )}
       {s.length_profile === "short" && (
         <Panel title="짧은 판 시리즈 (KAN-296 실험)">
-          <p className="text-[12.5px] leading-relaxed text-ink-soft">발행된 시리즈 <Link href={`/series/${s.remake_of}`} className="text-brand-ink underline">원본</Link>을 5~12분 편으로 다시 만든 시리즈다. 새 앱 배포 뒤 가입한 사용자에게만 나가야 해서, 백엔드의 코호트 분리·변형 필드(KAN-298)가 생기기 전에는 [시리즈 발행]을 막아 둔다. 진행은 <Link href="/experiments" className="text-brand-ink underline">실험 탭</Link>에서도 본다.</p>
+          <p className="text-[12.5px] leading-relaxed text-ink-soft">발행된 시리즈 <Link href={`/series/${s.remake_of}`} className="text-brand-ink underline">원본</Link>을 5~12분 편으로 다시 만든 시리즈다. 원본 편 하나를 개념 단위로 1~3편으로 나눈 설계안을 워커가 짠다 — 위 설계안의 원본 열이 각 편이 소스를 물려받는 원본 편이다. 설계안을 보고 [승인]하면 편 후보가 생기고 1화부터 순서대로 초안이 돈다. 새 앱 배포 뒤 가입한 사용자에게만 나가야 해서, 백엔드의 코호트 분리·변형 필드(KAN-298)가 생기기 전에는 [시리즈 발행]을 막아 둔다. 진행은 <Link href="/experiments" className="text-brand-ink underline">실험 탭</Link>에서도 본다.</p>
         </Panel>
       )}
       {["approved", "published"].includes(s.status) && s.total_episodes && s.length_profile !== "short" && (

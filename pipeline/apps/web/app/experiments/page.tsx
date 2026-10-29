@@ -30,12 +30,13 @@ export default async function ExperimentsPage({ searchParams }: { searchParams: 
   ]);
   // 시리즈 짧은 판 (0041) — 발행된 원본 시리즈와 짧은 판 시리즈, 편 진행
   const [{ data: allSeries }, { data: seriesEps }, { data: sjobs }] = await Promise.all([
-    sb.from("series").select("id,name,status,total_episodes,remake_of,created_at").in("status", ["approved", "published"]),
+    sb.from("series").select("id,name,status,total_episodes,remake_of,created_at").in("status", ["planning", "approved", "published"]),
     sb.from("backlog").select("series_id,status").not("series_id", "is", null).not("remake_of", "is", null),
     sb.from("jobs").select("payload,status,error,created_at").eq("type", "remake").not("payload->>series_id", "is", null).order("created_at", { ascending: false }).limit(50),
   ]);
   const shortSeries = (allSeries ?? []).filter((x) => x.remake_of);
   const origSeries = (allSeries ?? []).filter((x) => !x.remake_of && x.status === "published");
+  // 짧은 판 시리즈는 기획 중(설계안 검토)·승인·발행 — 중단·회수된 것은 shortOf 에서 빠져 다시 만들 수 있다
   const shortOf = new Map(shortSeries.map((x) => [x.remake_of as string, x]));
   const seriesProg = new Map<string, Record<string, number>>();
   for (const e of seriesEps ?? []) { const m = seriesProg.get(e.series_id) ?? {}; m[e.status] = (m[e.status] ?? 0) + 1; seriesProg.set(e.series_id, m); }
@@ -114,14 +115,14 @@ export default async function ExperimentsPage({ searchParams }: { searchParams: 
                 <Td className="min-w-[220px]"><Link href={`/series/${o.id}`} className="font-medium text-ink hover:underline">{o.name}</Link></Td>
                 <Td className="whitespace-nowrap">{o.total_episodes}편</Td>
                 <Td>{sh ? <Link href={`/series/${sh.id}`} className="text-brand-ink underline">짧은 판 시리즈</Link> : seriesQueued.has(o.id) ? <Badge tone="running">요청됨</Badge> : <span className="text-ink-soft">없음</span>}</Td>
-                <Td className="text-[12px] text-ink-soft">{sh ? <>발행 준비 {ready}/{sh.total_episodes} · {Object.entries(p).map(([k, n]) => `${k} ${n}`).join(" · ")}</> : "-"}</Td>
+                <Td className="text-[12px] text-ink-soft">{!sh ? "-" : sh.status === "planning" ? <Link href={`/series/${sh.id}`} className="text-amber-700 underline">설계안 검토 대기 — 시리즈 화면에서 [승인]</Link> : <>발행 준비 {ready}/{sh.total_episodes} · {Object.entries(p).map(([k, n]) => `${k} ${n}`).join(" · ")}</>}</Td>
                 <Td>{!sh && !seriesQueued.has(o.id) && <SeriesRemakeButton id={o.id} name={o.name} total={o.total_episodes ?? 0} />}</Td>
               </tr>
             );
           })}
         </Table>
         {seriesFailed.length > 0 && <div className="border-t border-line px-4 py-2 text-[12px] text-rose-700">요청 실패: {seriesFailed.map((f) => <span key={f.id + f.error} className="mr-3">{origSeries.find((x) => x.id === f.id)?.name ?? f.id} — {f.error}</span>)}</div>}
-        <p className="border-t border-line px-4 py-2 text-[11px] text-ink-soft">파이프라인에서 만든 시리즈만 대상이다(편마다 백로그·소스가 있어야 한다). 짧은 판 시리즈는 원본과 같은 이름·설계안·간행물·썸네일을 쓰고, 편은 화 순서대로 만들어진다. 발행은 백엔드 코호트 분리(KAN-298) 뒤.</p>
+        <p className="border-t border-line px-4 py-2 text-[11px] text-ink-soft">파이프라인에서 만든 시리즈만 대상이다(편마다 백로그·소스가 있어야 한다). 원본 편 하나를 개념 단위로 1~3편으로 나눈 설계안을 워커가 짜고, 시리즈 화면에서 검토·[승인]하면 편 후보가 생겨 화 순서대로 만들어진다. 이름·간행물·썸네일 설정은 원본 그대로. 발행은 백엔드 코호트 분리(KAN-298) 뒤.</p>
       </Panel>
 
       <Panel title={`발행된 편 (${rows.length}/${(originals ?? []).length})`} flush>

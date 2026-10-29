@@ -80,6 +80,7 @@ export async function approveSeries(id: string): Promise<Result<{ queued: number
   if (s.status !== "planning") return { ok: false, reason: `기획 중이 아니다 (${s.status})` };
   const { plan, problems } = cleanPlan(s.plan ?? []);
   if (problems.length) return { ok: false, reason: `설계안을 먼저 고쳐 달라 — ${problems.join(" · ")}` };
+  if (s.length_profile === "short" && plan.some((e) => !e.from_no)) return { ok: false, reason: `짧은 판 시리즈는 편마다 원본 편 번호가 있어야 한다 — 없는 편: ${plan.filter((e) => !e.from_no).map((e) => `${e.no}화`).join(", ")} (새로 더한 편은 [설계안 다시 만들기]로)` };
   const en = pipelineLocale() === "en";
   const screens = new Map<number, unknown>();
   if (en) {
@@ -95,6 +96,12 @@ export async function approveSeries(id: string): Promise<Result<{ queued: number
   const { data: done, error } = await sb.from("series").update({ status: "approved", total_episodes: plan.length, plan }).eq("id", id).eq("status", "planning").select("id");
   if (error) return { ok: false, reason: error.message };
   if (!done?.length) return { ok: false, reason: "그 사이 다른 사람이 상태를 바꿨다" };
+  // 짧은 판 시리즈(0041): 편마다 주제 기획(스윕) 대신 원본 편(from_no)의 소스를 물려받은 후보를 워커가 만든다(stages/remake.ts materialize)
+  if (s.length_profile === "short") {
+    await enqueueJob("remake", { series_id: id, materialize: true });
+    revalidatePath(`/series/${id}`); revalidatePath("/experiments");
+    return { ok: true, queued: plan.length };
+  }
   const row = { ...s, plan };
   for (const ep of plan) {
     await enqueueJob("sweep", { mode: "B2", mid_topic: s.mid_topic, topic: ep.title, hint: seriesEpisodeHint(row, ep.no, en), series_id: id, series_no: ep.no, ...(en ? { screen: screens.get(ep.no) } : {}) });

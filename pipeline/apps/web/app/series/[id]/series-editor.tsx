@@ -9,7 +9,7 @@ const inp = "w-full rounded border border-line px-2 py-1 text-[12.5px] outline-n
 const blank = (): SeriesEpisode => ({ no: 0, title: "", scope: "", carries: "", only_here: "", minutes: 0 });
 
 /** 설계안 편집 (spec/11 3장) — 이름·한 줄 소개·편 목록. 기획 중일 때만 고치고, [승인] = 편수 확정(상한 없음) */
-export function SeriesEditor({ id, status, name: name0, introLine, plan: plan0 }: { id: string; status: SeriesStatus; name: string; introLine: string; plan: SeriesEpisode[] }) {
+export function SeriesEditor({ id, status, name: name0, introLine, plan: plan0, short = false }: { id: string; status: SeriesStatus; name: string; introLine: string; plan: SeriesEpisode[]; /** 짧은 판 시리즈(0041) — 원본 편 열·승인 문구 */ short?: boolean }) {
   const router = useRouter();
   const editable = status === "planning";
   const [name, setName] = useState(name0);
@@ -36,12 +36,13 @@ export function SeriesEditor({ id, status, name: name0, introLine, plan: plan0 }
         <div className="overflow-x-auto">
           <table className="w-full min-w-[56rem] text-[12px]">
             <thead className="text-left text-[11px] text-ink-soft">
-              <tr><th className="w-10 py-1">화</th><th className="py-1">제목</th><th className="py-1">범위</th><th className="py-1">앞 편에서 이어받음</th><th className="py-1">이 편에서만 자세히</th><th className="w-16 py-1">분</th>{editable && <th className="w-20" />}</tr>
+              <tr><th className="w-10 py-1">화</th>{short && <th className="w-14 py-1">원본</th>}<th className="py-1">제목</th><th className="py-1">범위</th><th className="py-1">앞 편에서 이어받음</th><th className="py-1">이 편에서만 자세히</th><th className="w-16 py-1">분</th>{editable && <th className="w-20" />}</tr>
             </thead>
             <tbody>
               {plan.map((e, k) => (
                 <tr key={k} className="align-top">
                   <td className="py-1 font-mono text-ink-soft">{k + 1}</td>
+                  {short && <td className="py-1 font-mono text-ink-soft" title="이 편이 나온 원본 편 — 그 편의 소스를 물려받는다">{e.from_no ? `${e.from_no}화` : <span className="text-rose-600">없음</span>}</td>}
                   <td className="py-1 pr-1"><input className={inp} value={e.title} disabled={!editable} onChange={(v) => set(k, "title", v.target.value)} /></td>
                   <td className="py-1 pr-1"><textarea className={inp} rows={2} value={e.scope} disabled={!editable} onChange={(v) => set(k, "scope", v.target.value)} /></td>
                   <td className="py-1 pr-1"><textarea className={inp} rows={2} value={k === 0 ? "" : e.carries} disabled={!editable || k === 0} onChange={(v) => set(k, "carries", v.target.value)} /></td>
@@ -71,7 +72,7 @@ export function SeriesEditor({ id, status, name: name0, introLine, plan: plan0 }
             <button className={btnCls("danger")} disabled={pending} onClick={() => { if (confirm("시리즈를 중단합니다. 되돌릴 수 없습니다.")) run(() => cancelSeries(id), (r) => `중단 — 반려한 편 후보 ${r.rejected}건`); }}>중단</button>
             <button className={btnCls("primary")} disabled={pending || dirty || !plan.length}
               title={dirty ? "먼저 저장" : "편수를 확정하고 편마다 주제 기획 후보를 만든다"}
-              onClick={() => { if (confirm(`${plan.length}편으로 승인합니다.\n\n승인하면 편수가 확정되고, 편마다 주제 기획 작업이 걸려 후보가 생깁니다.`)) run(() => approveSeries(id), (r) => `승인 — 편 후보 작업 ${r.queued}건`); }}>{plan.length}편으로 승인</button>
+              onClick={() => { if (confirm(short ? `${plan.length}편으로 승인합니다.\n\n짧은 판 시리즈라 편마다 원본 편의 소스를 물려받은 후보가 생기고, 초안은 1화부터 순서대로 돕니다.` : `${plan.length}편으로 승인합니다.\n\n승인하면 편수가 확정되고, 편마다 주제 기획 작업이 걸려 후보가 생깁니다.`)) run(() => approveSeries(id), (r) => `승인 — 편 후보 작업 ${r.queued}건`); }}>{plan.length}편으로 승인</button>
           </div>
         )}
         {!editable && status === "approved" && (
