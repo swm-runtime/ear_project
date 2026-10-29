@@ -774,3 +774,51 @@ export interface InsightsShortVariant {
   /** 짧은 판 시작자 많은 순 */
   pairs: InsightsVariantPair[];
 }
+
+/* ───────────── 도착 알림 시각 실험 (`GET /admin/insights/drip-arrival-time`, KAN-289, 2026-10-30) ───────────── */
+
+/**
+ * 비교 묶음 — `baseline` 07:00(스위치 꺼짐 · `drip_arrival`) · `a` 07:30(`drip_arrival.a`) · `b` 08:00(`drip_arrival.b`) ·
+ * `morning` 참고 행(아침 알림 `retention.morning.*` — 드립 없는 날에만 가서 대상이 다르다. A/B 비교가 아니다)
+ */
+export type InsightsDripArrivalTimeKey = 'baseline' | 'a' | 'b' | 'morning';
+
+/** 원본(Repository) — 묶음마다 보낸 알림 수·받은 사람 수·재생으로 이어진 알림 수. 사용자는 수로만 들어 있다 */
+export interface InsightsDripArrivalTimeRow {
+  key: InsightsDripArrivalTimeKey;
+  sent: number;
+  users: number;
+  /** 보낸 뒤 2시간 안 재생 */
+  played2h: number;
+  /** 보낸 뒤 같은 서비스 날짜 안 재생 */
+  playedSameDay: number;
+  firstSentAt: Date;
+  lastSentAt: Date;
+}
+
+export interface InsightsDripArrivalTimeArm {
+  key: InsightsDripArrivalTimeKey;
+  /** 그룹 현지 발송 시각(`HH:MM`) — 서버 정책값 */
+  sendTime: string;
+  /** true = 참고 행(A/B 비교 아님) */
+  reference: boolean;
+  sent: number;
+  users: number;
+  played2h: number;
+  playedSameDay: number;
+  /** 분모(보낸 알림)가 0이면 null */
+  playRate2h: number | null;
+  playRateSameDay: number | null;
+  /** 창 안에서 처음·마지막으로 보낸 시각 — 보낸 게 없으면 null. 07:00은 스위치 전 기간이라 묶음마다 기간이 다르다 */
+  firstSentAt: Date | null;
+  lastSentAt: Date | null;
+}
+
+export interface InsightsDripArrivalTime {
+  generatedAt: Date;
+  market: UserMarket | null;
+  days: number;
+  since: Date;
+  /** baseline · a · b · morning 순서로 늘 네 행 */
+  arms: InsightsDripArrivalTimeArm[];
+}

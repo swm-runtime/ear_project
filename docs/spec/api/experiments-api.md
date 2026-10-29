@@ -9,6 +9,7 @@
 | 4.3 | ④ 짧은 판 코호트 — 가입 시점으로 노출 분리 | KAN-298 | 없음(앱 변경 없음) · 업로드 필드는 파이프라인(KAN-296) |
 | 4.4 | ① 구독 가격 인하 — 할인 표시(정가 취소선 + "지금 할인 중") | KAN-286 | FE 티켓(발행 예정) |
 | 4.5 | ④ 짧은 판·도입부 — 실험 지표 조회 `GET /admin/insights/short-variant` | KAN-298 · KAN-296 | 없음(관리자 콘솔 "실험 지표" 탭 — 같은 PR) |
+| 4.6 | ③-1 도착 알림 시각 — 실험 지표 조회 `GET /admin/insights/drip-arrival-time` | KAN-289 | 없음(관리자 콘솔 "실험 지표" 탭 — 같은 PR) |
 
 판정은 서버가 한다 — 앱은 서버가 준 값(`first_content_id`, `is_locked`, 에러 코드)으로만 그린다. 티어명으로 분기하지 않는다(루트 `CLAUDE.md`).
 
@@ -268,6 +269,51 @@
 
 - 콘텐츠 단위 묶음(`by_length_profile` · `by_intro_version` · `pairs`)은 코호트와 무관하게 전 사용자 값이다. 짝은 상태를 따지지 않는다(회수된 편도 지난 재생은 남는다). `market`은 짧은 판의 시장으로 거른다.
 - **한계** — 코호트 비교는 같은 날 시작한 다른 실험과 섞인다(위 "첫 편"). 짝 비교도 두 편을 듣는 사람(코호트)이 달라 사람 차이가 남는다. 인과 판정이 아니라 방향 확인용이다.
+
+---
+
+## 4.6 `GET /admin/insights/drip-arrival-time` — 도착 알림 시각 실험 지표 (KAN-289, 2026-10-30)
+
+드립 도착 알림 시각 A/B(`DRIP_ARRIVAL_AB_ENABLED` — A 07:30 · B 08:00, 꺼지면 전원 07:00)를 읽는 관리자 조회다. **재생률만** 낸다 — 앱이 알림 탭을 서버에 알리지 않아 `notification_logs.opened_at`이 비어 있으므로 클릭률(열람률)은 싣지 않는다. 관리자 전용(`JwtAuthGuard` + `AdminRoleGuard`, 아니면 403), 읽기 전용, `Cache-Control: no-store`. 집계뿐이다 — 사용자는 수로만 들어 있고 `user_id`·이름·이메일은 없다. 로그 콘솔 "실험 지표" 탭이 열 때 1회 + [새로고침]으로 읽는다.
+
+**요청** — `days` 1~90(기본 14, 창 = 지금 − `days`) · `market` `kr` | `global` | 없음(통합). 시장은 **사용자의 지금 시장**(`users.market`)으로 거른다 — 요약(`admin-api.md` 4.22)의 알림 반응과 같다. 범위 밖·모르는 값은 400 `VALIDATION_FAILED`.
+
+**정의**
+
+| 항목 | 정의 |
+|---|---|
+| 대상 | 창 안에 **보낸**(`status = 'sent'`, `sent_at ≥ 창 시작`) 알림 |
+| 묶음 | `baseline` 07:00 = `type = 'drip_arrival'`(스위치 꺼짐 기간) · `a` 07:30 = `drip_arrival.a` · `b` 08:00 = `drip_arrival.b` · `morning` 참고 행 = `retention.morning.*`(아침 알림 KAN-288 — 드립 없는 날에만 가서 **대상이 달라 A/B 비교가 아니다**) |
+| 보낸 알림 · 받은 사람 | 행 수 · 서로 다른 `user_id` 수 |
+| 2시간 재생 | 보낸 시각부터 2시간 안(`[sent_at, sent_at + 2h)`)에 그 사용자의 새 재생 행(`play_records.played_at`) 또는 재생 위치 저장(`playback_progresses.updated_at`)이 있다 — 알림 반응(`push_reactions`)과 같은 판정(쿼리 조각 하나를 함께 쓴다) |
+| 당일 재생 | 같은 판정 · 보낸 시각부터 **그 서비스 날짜의 끝**까지(05:00 KST 경계, 전환 전 시각은 04:00 — `toServiceDayRange`) |
+| 재생률 | 2시간 · 당일 각각 재생으로 이어진 알림 ÷ 보낸 알림. 보낸 알림이 0이면 `null` |
+| 기간 | 묶음마다 `first_sent_at`·`last_sent_at`을 낸다. **07:00은 스위치를 켜기 전 기간이라 A·B와 기간이 다르다** — 요일·계절 차이가 섞인다 |
+
+**Response 200**
+
+```jsonc
+{
+  "generated_at": "2026-10-30T09:00:00.000Z",
+  "market": null,                 // 요청값, 없으면 null
+  "days": 14,
+  "since": "2026-10-16T09:00:00.000Z",
+  "min_sample": 100,              // 보낸 알림이 이보다 적은 행은 콘솔이 "표본 작음"으로 표시
+  "reaction_window_hours": 2,
+  "arms": [                       // 늘 네 행 · 이 순서
+    { "key": "baseline", "send_time": "07:00", "reference": false, "sent": 600, "users": 540,
+      "played_2h": 66, "played_same_day": 120, "play_rate_2h": 0.11, "play_rate_same_day": 0.2,
+      "first_sent_at": "2026-10-16T22:00:03.000Z", "last_sent_at": "2026-10-29T22:00:05.000Z" },
+    { "key": "a", "send_time": "07:30", "reference": false, "sent": 0, "users": 0, "played_2h": 0, "played_same_day": 0,
+      "play_rate_2h": null, "play_rate_same_day": null, "first_sent_at": null, "last_sent_at": null },
+    { "key": "b", "send_time": "08:00", "reference": false, ... },
+    { "key": "morning", "send_time": "08:00", "reference": true, ... }
+  ]
+}
+```
+
+- `send_time`은 그룹 현지 시각(서버 정책값 `DRIP_ARRIVAL_SLOT_TIMES`)이다. 콘솔은 이 값을 그대로 표시한다.
+- **한계** — 재생은 알림 탭이 아니라 "그 사이 들었다"로 역산한다(탭 없이 앱을 열어 들은 것도 든다). 07:00 기준선과 A·B는 기간이 달라 인과 판정이 아니라 방향 확인용이다. A·B끼리는 같은 기간·해시 분할이라 직접 비교할 수 있다.
 
 ---
 

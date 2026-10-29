@@ -1,5 +1,6 @@
 import { CollapsiblePanel, PageHeader } from "@/components/ui";
 import { CompletionByLength } from "@/components/completion-by-length";
+import { DripArrivalTimeExperiment } from "@/components/drip-arrival-time-experiment";
 import { ShortVariantExperiment } from "@/components/short-variant-experiment";
 import { SignupFunnel } from "@/components/signup-funnel";
 
@@ -31,6 +32,7 @@ export const dynamic = "force-dynamic";
  * - 가입 퍼널(`GET /admin/insights/funnel`, 2026-10-28) — 가입한 사람이 어느 단계에서 가장 많이 빠지나. `components/signup-funnel.tsx`
  * - 길이별 완청률(`GET /admin/insights/completion-by-length`, 2026-10-28) — 길수록 진짜 덜 끝까지 듣나(한국 콘텐츠). `components/completion-by-length.tsx`
  * - 짧은 판·도입부 실험(`GET /admin/insights/short-variant`, KAN-298 · KAN-296, 2026-10-29) — 기존 판 vs 짧은 판 완청률, 기존 vs 바뀐 도입부의 초반 이탈. `components/short-variant-experiment.tsx`
+ * - 도착 알림 시각 실험(`GET /admin/insights/drip-arrival-time`, KAN-289, 2026-10-30) — 07:00 기준선 · 07:30(A) · 08:00(B) 재생률. `components/drip-arrival-time-experiment.tsx`
  */
 interface ExperimentMetric {
   name: string;
@@ -111,6 +113,15 @@ export default function ExperimentMetricsPage() {
           definition="(사용자, 편) 단위 — 0초가 아닌 재생으로 시작하고 시작한 지 24시간 지난 것. 완청 = 라이브러리 완료 · 90% 도달 · 완청 신호. 이탈 = 그 편 청취 합 10·30·60초 이하. 가입 코호트(SHORT_CONTENT_COHORT_SINCE 전·뒤, 같은 길이 창) · 콘텐츠 길이 프로필 · 도입부 버전(비면 기존) · 짧은 판↔원본 짝으로 나눈다. 첫 편 제외 = 사용자마다 처음 시작한 편을 뺀 값"
         />
         <div className="mt-3"><ShortVariantExperiment /></div>
+      </CollapsiblePanel>
+
+      <CollapsiblePanel title="도착 알림 시각 실험 — 07:00 · 07:30 · 08:00 재생률 비교">
+        <MetricInfo
+          why="드립 도착 알림을 07:30(A)·08:00(B)에 보내면 07:00보다 그날 더 듣는지 본다. 결과로 도착 알림 시각을 옮길지 정한다"
+          owner="박준현"
+          definition="창(최근 N일) 안에 보낸(status=sent) 도착 알림 — 07:00 = drip_arrival(스위치 전 기간), 07:30 = drip_arrival.a, 08:00 = drip_arrival.b. 2시간 재생률 = 보낸 뒤 2시간 안에 새 재생·위치 저장이 있는 알림 ÷ 보낸 알림. 당일 재생률 = 보낸 뒤 그 서비스 날짜(05:00 경계) 끝까지 같은 판정. 받은 사람 = 서로 다른 사용자 수. 클릭률은 기록이 없어 보지 않는다. 아침 알림(retention.morning.*)은 대상이 달라 참고 행으로만 둔다"
+        />
+        <div className="mt-3"><DripArrivalTimeExperiment /></div>
       </CollapsiblePanel>
 
       <CollapsiblePanel title={`등록된 지표 ${EXPERIMENT_METRICS.length}개`}>
