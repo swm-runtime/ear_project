@@ -1575,6 +1575,11 @@ exports[`한국어 카피 회귀 — i18n 전환 전과 1:1 SUBSCRIPTION_COPY 1`
       "3 유지",
       "가나다 유지",
     ],
+    "onSale": "지금 할인 중",
+    "originalPrice": [
+      "₩3",
+      "₩NaN",
+    ],
     "perMonth": [
       "3/월",
       "가나다/월",
