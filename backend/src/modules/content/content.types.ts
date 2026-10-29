@@ -51,6 +51,12 @@ export interface ContentCandidateQuery {
    * 콘텐츠는 후보에 들어오지도 못한다 — 4.8이 깨려던 콘텐츠 콜드스타트 고리가 그대로 남는다.
    */
   lowExposureFirst?: boolean;
+  /**
+   * **무작위로 자른다**(KAN-291 — 첫 드립 무작위 실험, `FIRST_DRIP_RANDOM_ENABLED`). 기본 정렬은 인기순이라 `limit`으로
+   * 자르면 카탈로그가 상한을 넘는 순간 인기 하위 편은 무작위 선정의 후보에 들어오지도 못한다. 켜면 `ORDER BY random()`으로
+   * 자른다 — 결과 순서는 의미가 없고, 최종 선정은 호출자가 주입한 난수로 한다. `lowExposureFirst`와 함께 쓰지 않는다
+   */
+  randomOrder?: boolean;
   limit: number;
   now: Date;
 }
