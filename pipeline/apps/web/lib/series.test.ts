@@ -81,3 +81,11 @@ test("층 파서·검증 — 이름:시작-끝, 빈틈 없이 1화부터 편수�
   assert.match(layersBlocker("", 9)!, /층을 적어/);
   assert.match(layersBlocker("아주긴층이름입니다:1-9, 둘:10-12", 12)!, /6자 이내/);
 });
+
+test("cleanPlan — 짧은 판 시리즈의 from_no 는 남기고, 일반 설계안은 모양이 그대로다 (0041)", () => {
+  const base = { no: 0, title: "제목", scope: "범위", carries: "이음", only_here: "여기만", minutes: 9 };
+  const std = cleanPlan([base, { ...base, title: "둘째" }]).plan;
+  assert.deepEqual(Object.keys(std[0]).sort(), ["carries", "minutes", "no", "only_here", "scope", "title"], "일반 설계안에는 from_no 칸이 생기지 않는다");
+  const short = cleanPlan([{ ...base, from_no: 2 }, { ...base, title: "", scope: "" }, { ...base, title: "셋째", from_no: 3 }]).plan;
+  assert.deepEqual(short.map((e) => [e.no, e.from_no]), [[1, 2], [2, 3]], "빈 편을 걸러도 from_no 가 제 편에 남는다");
+});

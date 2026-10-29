@@ -4,7 +4,7 @@
 import { publicationOf, type Publication } from "@ear/pipeline/publication";
 import type { PipelineLocale } from "./locale";
 
-export interface SeriesEpisode { no: number; title: string; scope: string; carries: string; only_here: string; minutes: number }
+export interface SeriesEpisode { no: number; title: string; scope: string; carries: string; only_here: string; minutes: number; /** 짧은 판 시리즈(0041): 이 편이 나온 원본 편 번호 — 일반 시리즈는 없다 */ from_no?: number }
 export interface SeriesRow {
   id: string; name: string; mid_topic: string; intro_line: string | null; scope_note: string | null; plan: SeriesEpisode[];
   total_episodes: number | null; status: SeriesStatus; approved_by: string | null; approved_at: string | null; published_at: string | null; created_at: string; updated_at: string;
@@ -39,9 +39,10 @@ export type SeriesStatus = "planning" | "approved" | "published" | "withdrawn" |
 export const SERIES_STATUS_LABEL: Record<SeriesStatus, string> = { planning: "기획 중", approved: "승인", published: "발행", withdrawn: "회수", cancelled: "중단" };
 
 /** 저장·승인 전 검증 — 편이 1개 이상, 제목이 비어 있지 않고 서로 다르다. 번호는 순서대로 다시 매긴다(편수 상한 없음) */
+/** from_no(짧은 판 시리즈, 0041)는 있을 때만 남긴다 — 일반 시리즈 설계안은 결과 모양이 그대로다 */
 export function cleanPlan(plan: SeriesEpisode[]): { plan: SeriesEpisode[]; problems: string[] } {
   const out = plan
-    .map((e) => ({ title: String(e.title ?? "").trim(), scope: String(e.scope ?? "").trim(), carries: String(e.carries ?? "").trim(), only_here: String(e.only_here ?? "").trim(), minutes: Number(e.minutes) > 0 ? Math.round(Number(e.minutes)) : 0 }))
+    .map((e) => ({ title: String(e.title ?? "").trim(), scope: String(e.scope ?? "").trim(), carries: String(e.carries ?? "").trim(), only_here: String(e.only_here ?? "").trim(), minutes: Number(e.minutes) > 0 ? Math.round(Number(e.minutes)) : 0 , ...(Number(e.from_no) >= 1 ? { from_no: Math.round(Number(e.from_no)) } : {}) }))
     .filter((e) => e.title || e.scope)
     .map((e, k) => ({ no: k + 1, ...e, carries: k === 0 ? "" : e.carries }));
   const problems: string[] = [];

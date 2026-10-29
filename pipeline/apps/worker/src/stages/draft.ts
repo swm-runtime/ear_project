@@ -105,7 +105,7 @@ export async function runDraft(job: Job, ex: Executor) {
     const intro = pickIntroStyle(seed);
     const [templates, majorTopic] = await Promise.all([getSetting<Templates>("templates"), majorOfMidTopic(cand.mid_topic)]);
     const series = await buildSeriesContext(cand, templates); // 시리즈 편(spec/11 5장) — 일반 편은 undefined 라 프롬프트가 그대로다
-    const remakeOf = cand.remake_of ? await getBacklog(cand.remake_of).then((o) => (o ? { title: o.title, axis: o.axis ?? null } : null)) : null; // 0040: 짧은 판은 원본 편의 질문을 유지한다
+    const remakeOf = cand.remake_of && !cand.series_id ? await getBacklog(cand.remake_of).then((o) => (o ? { title: o.title, axis: o.axis ?? null } : null)) : null; // 0040: 짧은 판 단편은 원본 편의 질문을 유지한다. 짧은 판 시리즈 편(0041)은 원본 편을 나눈 것이라 원본 축 대신 시리즈 블록(이 편 범위)이 이끈다
     // 짧은 판 규칙 자산(short-v1, 2026-10-30) — 항상 active. 일반 편은 읽지 않는다
     const shortRules = pipelineLocale() === "ko" && lengthProfileOf(cand.length_profile) === "short" ? await activePromptAsset(SHORT_PROMPT_KEY).then((a) => parseShortRules(promptBody(a.content), a.version)) : undefined;
     const t = await runTwoStageDraft({ job, ex, episodeId, candidate: cand, dir, rel, assetRoot, promptVersion, noGold, templates, majorTopic: majorTopic ?? undefined, introStyle: intro, fileTools, signoffSeed: Number(cand.id.replace(/\D/g, "")) || seed, series, seriesId: cand.series_id ?? undefined, remakeOf, shortRules }); // 클로징 골격은 후보 번호로 돌린다 — 같은 시각에 시작한 3편이 같은 에피소드 수를 받아 골격이 겹쳤다 (T260909-005·007·009)
