@@ -213,8 +213,8 @@ export function CsQuiz() {
         {phase === "quiz" && (
           <section className={s.card} aria-labelledby="quiz-question">
             <div className={s.progressRow}>
-              {/* 키워드는 곧 정답인 경우가 많아(#ARP) 문제 위에는 편 주제를 단다. */}
-              <span className={s.keyword}>{current.episode.title}</span>
+              {/* 키워드는 곧 정답인 경우가 많아(#ARP) 문제 위에는 편 주제를, 상황형에는 상황 이름을 단다. */}
+              <span className={s.keyword}>{current.title ?? current.episode?.title}</span>
               <span className={s.count}>
                 {index + 1} / {total}
               </span>
@@ -230,6 +230,7 @@ export function CsQuiz() {
               <span style={{ width: `${((index + (answered ? 1 : 0)) / total) * 100}%` }} />
             </div>
 
+            {current.situation && <p className={s.situation}>{current.situation}</p>}
             <h1 id="quiz-question" className={s.question}>
               {current.question}
             </h1>

@@ -21,6 +21,10 @@ import { GA_MEASUREMENT_ID } from "@/content/site";
  * 인라인 스크립트에 `id`가 필요한 건 Next가 중복 실행을 막는 열쇠로 쓰기 때문이다.
  */
 export function Analytics() {
+  // 개발 서버(`next dev`)에서는 붙이지 않는다. 측정 ID가 운영 것 하나라, 로컬에서 눌러 본 기록이
+  // 운영 통계(퀴즈 정답·완료 수 등)에 섞인다(2026-10-29).
+  if (process.env.NODE_ENV !== "production") return null;
+
   return (
     <>
       <Script
