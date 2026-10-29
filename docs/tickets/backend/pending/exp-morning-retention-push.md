@@ -60,3 +60,4 @@
   - 상한: 저녁 판정(`RetentionPushService.findHistory`)이 `retention.morning.*`을 빼고 센다 — 아침·저녁이 서로를 막지 않는다. 아침 자체 주간 상한 없음.
   - 문서 수정은 `changes/pending/exp-morning-push.md`.
   - 남은 일: 개발계 `RETENTION_MORNING_PUSH_MODE=dry_run`으로 08:00 로그(`retention morning push processed` — 사유별 건수·예시) 확인 → 시험 대상 본인 기기 수신 확인 → 운영 켠 시각 기록. 개발계 확인 전까지 `pending/`에 둔다.
+- 2026-10-29 PR [#2165](https://github.com/swm-runtime/ear_project/pull/2165) → dev(미머지, #2164 KAN-289 먼저 머지).
