@@ -22,7 +22,12 @@ export { fetchLibraryItems, saveQueueOrder } from './api/library.api';
  * 미전송 보관함 재전송·세션 초기화는 app/bootstrap 이 포그라운드 복귀·로그아웃에 건다
  */
 export { default as DripFeedbackPrompt } from './components/DripFeedbackPrompt';
-export { selectIsDripFeedbackVisible, useDripFeedbackStore } from './store/drip-feedback.store';
+export {
+  selectIsDripFeedbackSettled,
+  selectIsDripFeedbackVisible,
+  selectWasDripFeedbackShown,
+  useDripFeedbackStore,
+} from './store/drip-feedback.store';
 export {
   resetDripFeedbackSession,
   startDripFeedbackOutboxSync,

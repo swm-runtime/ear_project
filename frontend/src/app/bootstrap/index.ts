@@ -19,6 +19,7 @@ import {
   useSessionStore,
 } from '@/features/auth';
 import { registerCareerSavedListener } from '@/features/career';
+import { resetContentReviewSession, startContentReviewOutboxSync } from '@/features/content-review';
 import { fetchUpNext, saveContent } from '@/features/explore';
 import { registerInterestSavedListener } from '@/features/interest';
 import {
@@ -248,6 +249,10 @@ export const bootstrapApp = (): void => {
   startDripFeedbackOutboxSync(() =>
     isSignedIn() ? (useSessionStore.getState().user?.id ?? null) : null,
   );
+  // 콘텐츠 후기의 미전송 보관함(KAN-280) — 추천 별점과 같은 규칙. 진입 때의 재전송은 판정 조회 직전에 서비스가 한다
+  startContentReviewOutboxSync(() =>
+    isSignedIn() ? (useSessionStore.getState().user?.id ?? null) : null,
+  );
 
   /*
    * 구독 동기화(subscription.md 4.3 · KAN-120) — 포그라운드 복귀마다 미완료 거래 제출 + 구독 상태 재조회.
@@ -310,6 +315,8 @@ export const bootstrapApp = (): void => {
       useLibraryArrivalStore.getState().reset();
       // 추천 별점 팝업은 계정마다 이번 세션에 한 번 — 다음 계정은 새로 묻는다
       resetDripFeedbackSession();
+      // 콘텐츠 후기의 켜짐 여부 · 먼저 묻기도 계정마다 이번 세션에 한 번 — 다음 계정은 새로 묻는다
+      resetContentReviewSession();
       resetDeviceSync();
       // 반영이 미뤄진 거래의 재시도를 멈춘다 — 다음 계정의 세션으로 앞 사용자의 거래를 제출하지 않는다
       stopSubscriptionSync();

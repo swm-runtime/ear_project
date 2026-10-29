@@ -1,11 +1,12 @@
 import { useState } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { Platform, Pressable, StyleSheet, View } from 'react-native';
 
 import { theme } from '@/shared/theme';
 import BottomSheet from '@/shared/ui/BottomSheet';
 import RemoteImage from '@/shared/ui/RemoteImage';
 import { Text } from '@/shared/ui/Typography';
 
+import { CONTENT_REVIEW_COPY } from '@/features/content-review';
 import { useTopicsQuery } from '@/features/interest';
 import { IS_SHARE_ENABLED, SHARE_COPY } from '@/features/share';
 
@@ -15,12 +16,14 @@ import type { ExploreItem } from '../explore.types';
 interface ExploreMoreSheetProps {
   item: ExploreItem | null;
   onDetail: (item: ExploreItem) => void;
+  /** [후기](KAN-280) — 서버가 후기 기능을 켜 줬을 때만 준다. 없으면 행을 그리지 않는다 */
+  onReview?: (item: ExploreItem) => void;
   onSourceLink: (item: ExploreItem) => void;
   onSave: (item: ExploreItem) => void;
   onRemove: (item: ExploreItem) => void;
   onShare: (item: ExploreItem) => void;
   onDismiss: () => void;
-  /** 시트가 완전히 닫힌 뒤(iOS Modal onDismiss) — 보류된 공유 실행용(useDeferredSheetShare) */
+  /** 시트가 완전히 닫힌 뒤(iOS Modal onDismiss · Android 숨김 커밋) — 보류된 공유 · 후기 시트 실행용 */
   onDismissed: () => void;
 }
 
@@ -35,6 +38,7 @@ interface ExploreMoreSheetProps {
 export default function ExploreMoreSheet({
   item,
   onDetail,
+  onReview,
   onSourceLink,
   onSave,
   onRemove,
@@ -71,7 +75,9 @@ export default function ExploreMoreSheet({
     <BottomSheet
       isVisible={item !== null}
       onRequestClose={onDismiss}
-      onClosed={onDismissed}
+      // iOS 는 모달 dismiss 완료, Android 는 숨김 커밋 뒤 — 다음 모달(후기 시트)을 겹치지 않게(PL7 과 같다)
+      onClosed={Platform.OS === 'ios' ? onDismissed : undefined}
+      onHidden={Platform.OS !== 'ios' ? onDismissed : undefined}
       sheetStyle={styles.sheet}
     >
       <View accessibilityViewIsModal>
@@ -96,6 +102,17 @@ export default function ExploreMoreSheet({
             >
               <Text style={styles.actionLabel}>{EXPLORE_COPY.sheet.detail}</Text>
             </Pressable>
+            {/* [후기] — [상세 정보] 아래(content-review.md 2.1). 후기 기능이 꺼져 있으면 행이 없다 */}
+            {onReview ? (
+              <Pressable
+                style={styles.action}
+                onPress={() => onReview(shown)}
+                accessibilityRole="button"
+                accessibilityLabel={CONTENT_REVIEW_COPY.moreSheetAction}
+              >
+                <Text style={styles.actionLabel}>{CONTENT_REVIEW_COPY.moreSheetAction}</Text>
+              </Pressable>
+            ) : null}
             {shown.content.sourceUrl !== null ? (
               <Pressable
                 style={styles.action}

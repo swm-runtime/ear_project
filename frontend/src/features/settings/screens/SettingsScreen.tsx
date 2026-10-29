@@ -141,7 +141,7 @@ export default function SettingsScreen() {
               </SettingsSection>
 
               {/* 구독 섹션 — 결제 구현 전 MVP 바이너리에서는 그리지 않는다(KAN-66, feature-flags.ts).
-                  예외: 초대 코드 지급 중이면 그 바이너리에서도 이벤트 줄을 이동 없는 정보 카드로 보인다(KAN-182 — 세 곳 표시는
+                  예외: 초대 코드 지급 중이면 그 바이너리에서도 프로모션 줄을 이동 없는 정보 카드로 보인다(KAN-182 — 세 곳 표시는
                   결제 UI 플래그와 무관하다) */}
               {IS_SUBSCRIPTION_UI_ENABLED ? (
                 <SettingsSection title={SETTINGS_COPY.sections.subscription}>
@@ -184,8 +184,18 @@ export default function SettingsScreen() {
             {screen.isCareerVisible ? (
               <SettingsRow label={SETTINGS_COPY.content.career} onPress={screen.openCareer} />
             ) : null}
-            {/* 이벤트(초대) 코드 입력(KAN-182) — 결제 UI 플래그와 무관하게 항상 있다. 지급은 스토어 결제가 아니다 */}
-            <SettingsRow label={SETTINGS_COPY.content.inviteCode} onPress={screen.openInviteCode} />
+            {/* S12 프로모션(KAN-280 — 종전 프로모션 코드 입력 KAN-182) — 결제 UI 플래그와 무관하게 항상 있다. 지급은 스토어 결제가 아니다.
+              쓰지 않은 프로모션이 있으면 점 배지(서버 has_unused) — 점은 색만이라 낭독 라벨에 이어 읽힌다 */}
+            <SettingsRow
+              label={SETTINGS_COPY.content.promotions}
+              onPress={screen.openPromotions}
+              hasDot={screen.hasUnusedPromotion}
+              a11yLabel={
+                screen.hasUnusedPromotion
+                  ? `${SETTINGS_COPY.content.promotions}, ${SETTINGS_COPY.content.promotionsUnusedA11y}`
+                  : undefined
+              }
+            />
             {/* 주제 자동 확장 토글(FR-06, KAN-181) — 즉시 저장(settings-api.md 4.2). 조회 값이 기준이라 실패 시 비활성 */}
             <SettingsToggleRow
               label={SETTINGS_COPY.content.autoExpand}

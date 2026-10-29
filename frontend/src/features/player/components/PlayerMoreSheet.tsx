@@ -5,6 +5,7 @@ import BottomSheet from '@/shared/ui/BottomSheet';
 import RemoteImage from '@/shared/ui/RemoteImage';
 import { Text } from '@/shared/ui/Typography';
 
+import { CONTENT_REVIEW_COPY } from '@/features/content-review';
 import { IS_SHARE_ENABLED, SHARE_COPY } from '@/features/share';
 
 import { PLAYER_COPY } from '../player.copy';
@@ -25,6 +26,8 @@ interface PlayerMoreSheetProps {
   /** 라이브러리에 없는 콘텐츠면 삭제 행을 그리지 않는다 */
   canDelete: boolean;
   onDetailPress: () => void;
+  /** [후기](KAN-280) — 서버가 후기 기능을 켜 줬을 때만 준다. 없으면 행을 그리지 않는다 */
+  onReviewPress?: () => void;
   onSourceLinkPress: () => void;
   onDeletePress: () => void;
   onSharePress: () => void;
@@ -47,6 +50,7 @@ export default function PlayerMoreSheet({
   sourceUrl,
   canDelete,
   onDetailPress,
+  onReviewPress,
   onSourceLinkPress,
   onDeletePress,
   onSharePress,
@@ -94,6 +98,17 @@ export default function PlayerMoreSheet({
           >
             <Text style={styles.actionLabel}>{PLAYER_COPY.moreSheet.detail}</Text>
           </Pressable>
+          {/* [후기] — [상세 정보] 아래(content-review.md 2.1). 후기 기능이 꺼져 있으면 행이 없다 */}
+          {onReviewPress ? (
+            <Pressable
+              style={({ pressed }) => [styles.action, pressed && styles.actionPressed]}
+              onPress={onReviewPress}
+              accessibilityRole="button"
+              accessibilityLabel={CONTENT_REVIEW_COPY.moreSheetAction}
+            >
+              <Text style={styles.actionLabel}>{CONTENT_REVIEW_COPY.moreSheetAction}</Text>
+            </Pressable>
+          ) : null}
           {sourceUrl !== null ? (
             <Pressable
               style={({ pressed }) => [styles.action, pressed && styles.actionPressed]}

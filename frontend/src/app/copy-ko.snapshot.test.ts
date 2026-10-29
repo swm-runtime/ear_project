@@ -8,6 +8,7 @@ import { APP_UPDATE_COPY } from '@/features/app-update/app-update.copy';
 import { AUTH_COPY } from '@/features/auth/auth.copy';
 import { CAREER_COPY } from '@/features/career/career.copy';
 import { CONTENT_DETAIL_COPY } from '@/features/content-detail/content-detail.copy';
+import { CONTENT_REVIEW_COPY } from '@/features/content-review/content-review.copy';
 import { EXPLORE_COPY } from '@/features/explore/explore.copy';
 import { INTEREST_COPY } from '@/features/interest/interest.copy';
 import { LIBRARY_COPY } from '@/features/library/library.copy';
@@ -61,6 +62,7 @@ const COPIES = {
   AUTH_COPY,
   CAREER_COPY,
   CONTENT_DETAIL_COPY,
+  CONTENT_REVIEW_COPY,
   EXPLORE_COPY,
   INTEREST_COPY,
   LIBRARY_COPY,

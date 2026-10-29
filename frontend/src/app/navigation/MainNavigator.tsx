@@ -18,12 +18,20 @@ import {
 } from '@/features/auth';
 import { CareerInfoScreen } from '@/features/career';
 import { ContentDetailScreen } from '@/features/content-detail';
+import {
+  ContentReviewPrompt,
+  PromotionsScreen,
+  selectIsContentReviewPromptVisible,
+  useContentReviewStore,
+} from '@/features/content-review';
 import { ExploreSearchScreen, SeriesScreen } from '@/features/explore';
 import { InterestManagementScreen } from '@/features/interest';
 import {
   DripFeedbackPrompt,
   LibraryScreen,
+  selectIsDripFeedbackSettled,
   selectIsDripFeedbackVisible,
+  selectWasDripFeedbackShown,
   useDripFeedbackStore,
   useLibraryArrivalBadge,
 } from '@/features/library';
@@ -38,12 +46,16 @@ import { PlayConfirmDialog, PlayerScreen, useLimitNoticeStore } from '@/features
 import { ProfileScreen, SignupTrialNotice } from '@/features/profile';
 import { SettingsScreen } from '@/features/settings';
 import { useShareLinkLanding } from '@/features/share';
-import { InviteCodeScreen, SubscriptionScreen } from '@/features/subscription';
+import { SubscriptionScreen } from '@/features/subscription';
 
 import CapsuleTabBar from './CapsuleTabBar';
 import ExploreStack from './ExploreStack';
 import { rememberTab, takePrimedTab, type RestorableTab } from './last-tab';
-import { isDripFeedbackPromptReady, isSignupTrialNoticeReady } from './launch-dialog-gate';
+import {
+  isContentReviewPromptReady,
+  isDripFeedbackPromptReady,
+  isSignupTrialNoticeReady,
+} from './launch-dialog-gate';
 import NativeMainTabs from './NativeMainTabs';
 import PlaceholderScreen from './PlaceholderScreen';
 import type { MainStackParamList, MainTabParamList } from './types';
@@ -156,6 +168,10 @@ export default function MainNavigator() {
   const isLimitNoticeVisible = useLimitNoticeStore((s) => s.isVisible);
   // 추천 별점 팝업(KAN-224)과 P11 은 서로 겹치지 않는다 — 먼저 뜬 쪽이 끝난 뒤다(launch-dialog-gate 의 비대칭 규칙)
   const isDripFeedbackVisible = useDripFeedbackStore(selectIsDripFeedbackVisible);
+  const isDripFeedbackSettled = useDripFeedbackStore(selectIsDripFeedbackSettled);
+  const wasDripFeedbackShown = useDripFeedbackStore(selectWasDripFeedbackShown);
+  // 콘텐츠 후기의 먼저 묻는 시트(L18, KAN-280) — 떠 있으면 P11 이 기다린다(추천 별점 팝업과 같은 자리)
+  const isContentReviewPromptVisible = useContentReviewStore(selectIsContentReviewPromptVisible);
   const [isSignupTrialActive, setIsSignupTrialActive] = useState(false);
   const isSignupTrialReady = isSignupTrialNoticeReady({
     isPrePromptPending,
@@ -163,6 +179,7 @@ export default function MainNavigator() {
     isPushPlayConfirmVisible: pushGate.confirmState !== null,
     isLimitNoticeVisible,
     isDripFeedbackVisible,
+    isContentReviewPromptVisible,
     isPlayerOpen,
   });
   const isDripFeedbackReady = isDripFeedbackPromptReady({
@@ -171,6 +188,15 @@ export default function MainNavigator() {
     isPushPlayConfirmVisible: pushGate.confirmState !== null,
     isLimitNoticeVisible,
     isSignupTrialNoticeActive: isSignupTrialActive,
+    isPlayerOpen,
+  });
+  const isContentReviewReady = isContentReviewPromptReady({
+    isPrePromptPending,
+    isUpdateRecommendVisible,
+    isPushPlayConfirmVisible: pushGate.confirmState !== null,
+    isLimitNoticeVisible,
+    isSignupTrialNoticeActive: isSignupTrialActive,
+    isDripFeedbackVisible,
     isPlayerOpen,
   });
 
@@ -240,11 +266,12 @@ export default function MainNavigator() {
             options={{ headerShown: true, headerTitle: '', headerBackTitle: COPY.profile }}
           />
         )}
-        {/* 이벤트 코드 입력(KAN-182) — 결제 UI 플래그와 **무관하게** 등록한다(지급은 스토어 결제가 아니다).
-          설정 하위 화면이라 설정과 같은 푸시 화면 상단(iOS 26 시스템 큰 제목, 그 외는 화면이 앱바를 그린다) */}
+        {/* S12 프로모션(KAN-280 — 종전 프로모션 코드 입력 KAN-182) — 결제 UI 플래그와 **무관하게** 등록한다(지급은 스토어 결제가 아니다).
+          설정 하위 화면이라 설정과 같은 푸시 화면 상단(iOS 26 시스템 큰 제목, 그 외는 화면이 앱바를 그린다).
+          후기 발급 안내 [지금 쓰기]도 여기로 온다 — 플레이어 위에서 열면 상세처럼 그 위에 쌓인다 */}
         <MainStack.Screen
-          name="InviteCode"
-          component={InviteCodeScreen}
+          name="Promotions"
+          component={PromotionsScreen}
           options={PUSHED_SCREEN_HEADER}
         />
         {/* 이메일 인증 — 앱바(뒤로 + 타이틀)를 화면이 직접 그린다(auth-uiux.md 4.7~4.10).
@@ -302,6 +329,16 @@ export default function MainNavigator() {
         여기서는 다른 앱 시작 팝업이 없을 때 그린다 — 가입 체험 안내가 뜰 차례면 그 뒤다
       */}
       <DripFeedbackPrompt isReady={isDripFeedbackReady} />
+
+      {/*
+        콘텐츠 후기의 먼저 묻는 시트(L18 — KAN-280). 판정 조회는 라이브러리 진입 때 한 세션에 한 번 하고(show=true 일 때만 차례가 온다),
+        여기서는 추천 별점 판정이 끝난 뒤 · 다른 앱 시작 팝업과 플레이어가 없을 때 그린다. **같은 세션에 추천 별점이 떴으면 띄우지 않는다**
+      */}
+      <ContentReviewPrompt
+        isReady={isContentReviewReady}
+        isDripFeedbackSettled={isDripFeedbackSettled}
+        wasDripFeedbackShown={wasDripFeedbackShown}
+      />
 
       {/* 푸시 딥링크 재생의 확인 팝업 — 딥링크도 팝업 규칙의 예외가 아니다(paywall.md 4.2) */}
       <PlayConfirmDialog

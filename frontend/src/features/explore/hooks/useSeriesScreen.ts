@@ -17,6 +17,7 @@ import { logger } from '@/shared/lib/logger';
 import { toTab } from '@/shared/navigation/to-tab';
 import { useToastStore } from '@/shared/ui/toast.store';
 
+import { useContentReviewLauncher } from '@/features/content-review';
 import { libraryKeys } from '@/features/library';
 import { sendSourceLinkClick, usePlayGate } from '@/features/player';
 import { useDeferredSheetShare } from '@/features/share';
@@ -205,7 +206,26 @@ export const useSeriesScreen = () => {
   };
 
   /** [공유](SH1, P1) — 시트가 닫힌 뒤 연다(useDeferredSheetShare — 탐색과 같은 우회) */
-  const { requestShare, handleSheetDismiss } = useDeferredSheetShare();
+  const { requestShare, handleSheetDismiss: handleShareSheetDismiss } = useDeferredSheetShare();
+  // E12 [후기] → 후기 시트(L17) · 발급 안내(L19) — 이 화면 안에 그린다(KAN-280)
+  const reviewLauncher = useContentReviewLauncher();
+  /** 더보기 시트가 완전히 내려갔다 — 보류된 공유 · 후기 시트를 이 뒤에 연다(모달 둘을 겹치지 않는다) */
+  const handleSheetDismiss = () => {
+    handleShareSheetDismiss();
+    reviewLauncher.handleHostSheetClosed();
+  };
+  /** E12 [후기](KAN-280) — 시트를 닫고, 닫힘이 끝나면 후기 시트를 연다. 쓸 수 있는 편인지는 서버가 정한다 */
+  const openReview = (item: ExploreItem) => {
+    setMoreSheetItem(null);
+    reviewLauncher.request(
+      {
+        contentId: item.content.id,
+        title: item.content.title,
+        thumbnailUrl: item.content.thumbnailUrl,
+      },
+      { afterHostSheetClosed: true },
+    );
+  };
   const shareItem = (item: ExploreItem) => {
     setMoreSheetItem(null);
     requestShare({ contentId: item.content.id, title: item.content.title });
@@ -548,6 +568,9 @@ export const useSeriesScreen = () => {
     openSourceLink,
     shareItem,
     handleSheetDismiss,
+    /** [후기] 행 — 서버가 후기 기능을 켜 줬을 때만 그린다(받은 적 없거나 실패면 없음) */
+    openReview: reviewLauncher.isEnabled ? openReview : undefined,
+    reviewLauncher,
     requestSave,
     requestRemove,
   };

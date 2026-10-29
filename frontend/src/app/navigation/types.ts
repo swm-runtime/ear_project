@@ -69,8 +69,11 @@ export type MainStackParamList = {
   Settings: undefined;
   /** 요금제 관리(subscription.md · KAN-120) — 설정 "요금제 관리" 카드·프로필 [구독 알아보기]의 목적지 */
   Subscription: undefined;
-  /** 이벤트 코드 입력(KAN-182 — subscription.md 4.9) — 설정 > [이벤트 코드 입력]의 목적지. 결제 UI 플래그와 무관하다 */
-  InviteCode: undefined;
+  /**
+   * S12 프로모션(KAN-280 — 종전 "프로모션 코드 입력" `InviteCode`, KAN-182). 설정 > [프로모션] · 후기 발급 안내 [지금 쓰기]의 목적지.
+   * 이용 중 · 사용 가능한 프로모션 · 코드 입력. 결제 UI 플래그와 무관하다
+   */
+  Promotions: undefined;
   /**
    * 이메일 인증(A 계열, auth.md 4.4~4.5) — [등록]·[인증하기]·[변경]·프로필 헤더의 공통 목적지.
    * currentEmail은 A10의 "현재 이메일" 표시용이다 — 진입 화면(설정·프로필)이 실어 보낸다

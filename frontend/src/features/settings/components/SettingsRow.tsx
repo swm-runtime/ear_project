@@ -6,6 +6,8 @@ import ChevronIcon, { chevronTrailingGutter } from '@/shared/ui/ChevronIcon';
 import { Text } from '@/shared/ui/Typography';
 
 const CHEVRON_SIZE = 16;
+/** 점 배지 지름 — 탭 아이콘 배지(16)보다 작게, 글자 없는 점(iOS 설정의 빨간 점) */
+const DOT_SIZE = 8;
 
 interface SettingsRowProps {
   label: string;
@@ -13,6 +15,11 @@ interface SettingsRowProps {
   value?: string | null;
   /** 배지(미인증·업데이트) — 색 + 텍스트. 색만으로 구분하지 않는다(settings-uiux.md 5장) */
   badge?: string | null;
+  /**
+   * 점 배지(쓰지 않은 프로모션 — KAN-280). 글자 없이 셰브론 앞 작은 점이다 — 색만이라 **`a11yLabel`에 뜻을 이어 붙인다**
+   * (settings-uiux.md 7장). iOS 설정의 업데이트 점과 같은 문법
+   */
+  hasDot?: boolean;
   /** 우측 커스텀 슬롯(버튼 묶음 등) — value·셰브론 대신 그린다 */
   rightSlot?: ReactNode;
   onPress?: () => void;
@@ -36,6 +43,7 @@ export default function SettingsRow({
   label,
   value,
   badge,
+  hasDot = false,
   rightSlot,
   onPress,
   disabled = false,
@@ -73,6 +81,14 @@ export default function SettingsRow({
           </View>
         ) : null}
         {value !== undefined && value !== null ? <Text style={styles.value}>{value}</Text> : null}
+        {hasDot ? (
+          <View
+            style={styles.dot}
+            pointerEvents="none"
+            accessibilityElementsHidden
+            importantForAccessibility="no"
+          />
+        ) : null}
         {rightSlot}
         {onPress !== undefined && rightSlot === undefined ? (
           <View style={styles.chevron} accessibilityElementsHidden importantForAccessibility="no">
@@ -149,6 +165,12 @@ const styles = StyleSheet.create({
     backgroundColor: theme.color.background,
     paddingHorizontal: theme.spacing.sm,
     paddingVertical: theme.spacing.xs,
+  },
+  dot: {
+    width: DOT_SIZE,
+    height: DOT_SIZE,
+    borderRadius: DOT_SIZE / 2,
+    backgroundColor: theme.color.danger,
   },
   badgeText: {
     fontSize: theme.font.size.xs,

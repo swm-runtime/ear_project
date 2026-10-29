@@ -316,6 +316,110 @@ exports[`한국어 카피 회귀 — i18n 전환 전과 1:1 CONTENT_DETAIL_COPY 
 }
 `;
 
+exports[`한국어 카피 회귀 — i18n 전환 전과 1:1 CONTENT_REVIEW_COPY 1`] = `
+{
+  "detail": {
+    "edit": "수정",
+    "label": "내 후기",
+    "starsA11y": [
+      "내 별점 3개",
+      "내 별점 가나다개",
+    ],
+    "write": "후기 남기기",
+  },
+  "issued": {
+    "body": [
+      "[throws]",
+      "가나다 2026-10-15T00:00:00.000Z일 · undefined월 undefined일까지 설정 › 프로모션에서 쓸 수 있어요",
+    ],
+    "later": "나중에",
+    "title": [
+      "3 프로모션을 받았어요",
+      "가나다 프로모션을 받았어요",
+    ],
+    "useNow": "지금 쓰기",
+  },
+  "moreSheetAction": "후기",
+  "promotions": {
+    "activeSection": "이용 중",
+    "availableSection": "사용 가능한 프로모션",
+    "backA11y": "뒤로 가기",
+    "cardDetail": [
+      "[throws]",
+      "가나다 2026-10-15T00:00:00.000Z일 · undefined월 undefined일까지 사용",
+    ],
+    "cardTitle": [
+      "3 프로모션",
+      "가나다 프로모션",
+    ],
+    "codeSection": "프로모션 코드",
+    "confirmBody": [
+      "[throws]",
+      "오늘부터 가나다 2026-10-15T00:00:00.000Z일 · undefined월 undefined일까지",
+    ],
+    "confirmCancel": "취소",
+    "confirmOk": "쓰기",
+    "confirmTitle": [
+      "3 프로모션을 쓸까요?",
+      "가나다 프로모션을 쓸까요?",
+    ],
+    "confirmTrialNote": "체험 중엔 재생 한도가 이미 풀려 있어요. 체험이 끝난 뒤 쓰면 더 오래 누릴 수 있어요",
+    "earnSection": "받을 수 있는 프로모션",
+    "errorExpired": "사용 기한이 지난 프로모션이에요",
+    "errorNetwork": "네트워크 연결을 확인해주세요",
+    "errorUnknown": "프로모션을 쓰지 못했어요. 잠시 후 다시 시도해주세요",
+    "loadFailed": "프로모션을 불러오지 못했어요",
+    "reasonGrantActive": "이용 중인 프로모션이 끝난 뒤 쓸 수 있어요",
+    "reasonProSubscribed": [
+      "3 구독 중에는 쓸 수 없어요. 구독이 끝난 뒤 쓸 수 있어요",
+      "가나다 구독 중에는 쓸 수 없어요. 구독이 끝난 뒤 쓸 수 있어요",
+    ],
+    "reasonUnknown": "지금은 쓸 수 없어요",
+    "redeem": "사용하기",
+    "retry": "다시 시도",
+    "title": "프로모션",
+  },
+  "sheet": {
+    "close": "닫기",
+    "counter": [
+      "3/3",
+      "가나다/2026-10-15T00:00:00.000Z",
+    ],
+    "counterA11y": [
+      "3자 중 3자",
+      "2026-10-15T00:00:00.000Z자 중 가나다자",
+    ],
+    "muteThisWeek": "이번 주 그만 보기",
+    "placeholder": "좋았던 점, 아쉬웠던 점을 들려주세요",
+    "promptTitle": "다 들은 편, 어떠셨어요?",
+    "ratingGroupA11y": [
+      "3 별점",
+      "가나다 별점",
+    ],
+    "retry": "다시 시도",
+    "rewardLine": [
+      "끝까지 들은 편 3개에 후기를 남기면 프로모션을 드려요 · 지금 3/3",
+      "끝까지 들은 편 2026-10-15T00:00:00.000Z개에 후기를 남기면 프로모션을 드려요 · 지금 가나다/2026-10-15T00:00:00.000Z",
+    ],
+    "send": "보내기",
+    "sendFailed": "보내지 못했어요. 다시 시도해주세요",
+    "starA11y": [
+      "별 3개",
+      "별 가나다개",
+    ],
+    "textA11y": "후기 글",
+    "title": "후기 남기기",
+    "update": "수정하기",
+  },
+  "toast": {
+    "loadFailed": "후기를 불러오지 못했어요. 잠시 후 다시 시도해주세요",
+    "notPlayed": "들어 본 편에만 후기를 남길 수 있어요",
+    "thanks": "후기 고마워요",
+    "unavailable": "이 편에는 후기를 남길 수 없어요",
+  },
+}
+`;
+
 exports[`한국어 카피 회귀 — i18n 전환 전과 1:1 EXPLORE_COPY 1`] = `
 {
   "chips": {
@@ -1310,7 +1414,8 @@ exports[`한국어 카피 회귀 — i18n 전환 전과 1:1 SETTINGS_COPY 1`] = 
       "3개 선택",
       "가나다개 선택",
     ],
-    "inviteCode": "프로모션 코드 입력",
+    "promotions": "프로모션",
+    "promotionsUnusedA11y": "쓰지 않은 프로모션 있음",
   },
   "contentLanguageSection": {
     "footer": "듣는 에피소드와 주제의 언어예요. 바꾸면 관심 주제를 다시 고르고, 하루에 한 번 바꿀 수 있어요.",
@@ -1487,7 +1592,6 @@ exports[`한국어 카피 회귀 — i18n 전환 전과 1:1 SUBSCRIPTION_COPY 1`
   },
   "invite": {
     "alreadyUsed": "이미 사용한 코드예요",
-    "backA11y": "뒤로 가기",
     "description": "받은 프로모션 코드를 입력하면 요금제 혜택이 바로 적용돼요",
     "exhausted": "선착순이 마감된 코드예요",
     "expired": "사용 기간이 지난 코드예요",
@@ -1511,7 +1615,6 @@ exports[`한국어 카피 회귀 — i18n 전환 전과 1:1 SUBSCRIPTION_COPY 1`
       "가나다 프로모션이 시작됐어요 · 2026-10-15T00:00:00.000Z · NaN월 NaN일까지",
     ],
     "successFallback": "프로모션 코드가 적용됐어요",
-    "title": "프로모션 코드 입력",
     "unknown": "코드를 확인하지 못했어요. 잠시 후 다시 시도해주세요",
   },
   "legal": {

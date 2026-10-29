@@ -25,6 +25,7 @@ import { HAS_NATIVE_TAB_BAR } from '@/shared/ui/GlassSurface';
 import LargeTitleRow from '@/shared/ui/LargeTitleRow';
 import { Text } from '@/shared/ui/Typography';
 
+import { ContentReviewSheets } from '@/features/content-review';
 import {
   DOCK_SCROLL_PROPS,
   PlayConfirmDialog,
@@ -424,12 +425,16 @@ export default function LibraryScreen() {
       <MoreActionsSheet
         item={screen.moreSheetItem}
         onDetail={screen.openDetail}
+        onReview={screen.openReview}
         onSourceLink={screen.openSourceLink}
         onDelete={screen.requestDelete}
         onShare={screen.shareItem}
         onDismiss={screen.closeMoreSheet}
         onDismissed={screen.handleSheetDismiss}
       />
+
+      {/* 후기 시트(L17) · 발급 안내(L19) — 더보기 시트가 내려간 뒤에 열린다(KAN-280) */}
+      <ContentReviewSheets launcher={screen.reviewLauncher} />
 
       <PlayConfirmDialog
         visible={screen.playConfirm !== null}
