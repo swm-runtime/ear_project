@@ -8,6 +8,11 @@
   line-height: 1.75;
 }
 
+/* 개정 공지가 둘 이상 겹칠 때(`PrivacyAmendmentNotice`) */
+.notice + .notice {
+  margin-top: 12px;
+}
+
 .meta {
   display: flex;
   flex-wrap: wrap;
