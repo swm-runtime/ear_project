@@ -1,3 +1,4 @@
+import { ContentCohortService } from '@/modules/content/services/content-cohort.service';
 import { ConfigService } from '@nestjs/config';
 
 import { EnvironmentVariables } from '@/config/env.validation';
@@ -42,9 +43,16 @@ describe('RetentionPushService', () => {
   let targetedPushService: jest.Mocked<TargetedPushService>;
 
   const build = (env: Record<string, string>): RetentionPushService =>
-    new RetentionPushService(repository, targetedPushService, {
-      get: (key: string) => env[key],
-    } as unknown as ConfigService<EnvironmentVariables, true>);
+    new RetentionPushService(
+      repository,
+      targetedPushService,
+      {
+        get: (key: string) => env[key],
+      } as unknown as ConfigService<EnvironmentVariables, true>,
+      new ContentCohortService({
+        get: (key: string) => env[key],
+      } as never),
+    );
 
   beforeEach(() => {
     repository = {

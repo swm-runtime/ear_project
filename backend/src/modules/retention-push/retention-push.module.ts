@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 
+import { ContentModule } from '@/modules/content/content.module';
 import { NotificationModule } from '@/modules/notification/notification.module';
 
 import { RetentionPushRepository } from './retention-push.repository';
@@ -11,7 +12,8 @@ import { RetentionPushService } from './retention-push.service';
  * 발송·기록은 `notification`이 맡는다(`notification_logs.type = retention.<규칙>.<변형>`).
  */
 @Module({
-  imports: [NotificationModule],
+  // ContentModule — 짧은 판 코호트 경계(`ContentCohortService`, KAN-298)만 쓴다
+  imports: [NotificationModule, ContentModule],
   providers: [
     RetentionPushRepository,
     RetentionPushService,

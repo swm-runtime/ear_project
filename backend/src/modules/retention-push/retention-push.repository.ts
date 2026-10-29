@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { DataSource } from 'typeorm';
 
+import { cohortLengthProfileSql } from '@/modules/content/content-cohort.policy';
 import { UserMarket } from '@/modules/user/user.enum';
 
 import {
@@ -71,6 +72,8 @@ export class RetentionPushRepository {
     listenedSince: Date;
     playDatesSince: string;
     resumeSince: Date;
+    /** 짧은 판 코호트 경계(`SHORT_CONTENT_COHORT_SINCE`) — null이면 전원 standard */
+    shortCohortSince: Date | null;
   }): Promise<RetentionUserFactRow[]> {
     if (params.userIds.length === 0) {
       return [];
@@ -119,6 +122,8 @@ export class RetentionPushRepository {
               and li.status = 'in_progress'
               and c.status = 'published'
               and c.market = u.market
+              -- 짧은 판 코호트(KAN-298) — 규칙은 content-cohort.policy.ts 한 곳(SQL판)
+              and c.length_profile = ${cohortLengthProfileSql('u.created_at', '$8')}
               and pp.updated_at >= $5
               and c.duration_sec - pp.position_sec between $6 and $7
             order by pp.updated_at desc
@@ -133,6 +138,7 @@ export class RetentionPushRepository {
         params.resumeSince,
         RESUME_CONTENT_MIN_REMAINING_SEC,
         RESUME_CONTENT_MAX_REMAINING_SEC,
+        params.shortCohortSince,
       ],
     );
 

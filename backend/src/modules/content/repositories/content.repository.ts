@@ -5,10 +5,7 @@ import { EntityManager, In, Repository, SelectQueryBuilder } from 'typeorm';
 import { escapeLikePattern } from '@/common/utils/search-text.util';
 import { vectorTransformer } from '@/common/utils/vector.transformer';
 
-import {
-  CONTENT_SCOPE_CONDITION,
-  contentScopeParameters,
-} from '../content.visibility';
+import { contentExposureScope } from '../content.visibility';
 import {
   EMBEDDING_MODEL_ID,
   RELATED_CONTENT_MIN_SIMILARITY,
@@ -29,6 +26,7 @@ import {
 } from '../content.constant';
 import {
   ALL_TIME_PERIOD_START,
+  ContentLengthProfile,
   ContentStatus,
   StatsPeriodType,
 } from '../content.enum';
@@ -180,11 +178,14 @@ export class ContentRepository {
     builder: SelectQueryBuilder<Content>,
     now: Date,
     market: UserMarket,
+    /**
+     * 짧은 판 코호트(KAN-298) — 노출면은 사용자 코호트의 길이 프로필을 넘기고, 단건·이미 가진 것(상세·시리즈 화면)은 `null`이다.
+     * 위치 인자로 **필수**다 — 새 조회가 생기면 컴파일러가 어느 쪽인지 정하게 한다(빠뜨리면 standard 사용자에게 짧은 판이 샌다)
+     */
+    lengthProfile: ContentLengthProfile | null,
   ): SelectQueryBuilder<Content> {
-    return builder.where(
-      CONTENT_SCOPE_CONDITION,
-      contentScopeParameters(now, market),
-    );
+    const scope = contentExposureScope(now, market, lengthProfile);
+    return builder.where(scope.condition, scope.parameters);
   }
 
   /** 주제 필터는 **OR 조합**이다 — 다중 선택의 의도는 "이 중 아무거나"다 */
@@ -354,6 +355,7 @@ export class ContentRepository {
         ),
       query.now,
       query.market,
+      query.lengthProfile,
     );
 
     if (query.seriesStartOnly) {
@@ -454,6 +456,8 @@ export class ContentRepository {
     limit: number,
     now: Date,
     market: UserMarket,
+    /** 짧은 판 코호트(KAN-298) — 사용자 코호트의 길이 프로필 */
+    lengthProfile: ContentLengthProfile,
     manager?: EntityManager,
     /** 시리즈 카드 모드 — 시리즈마다 가장 최신 편 하나만(`applySeriesAnchors`) */
     seriesAnchorsOnly = false,
@@ -463,6 +467,7 @@ export class ContentRepository {
         this.scoped(manager).createQueryBuilder('content'),
         now,
         market,
+        lengthProfile,
       );
     const builder = base();
 
@@ -525,6 +530,7 @@ export class ContentRepository {
           .addSelect(RANKING_COMPLETE_COUNT, RANKING_COMPLETE_COUNT_ALIAS),
         query.now,
         query.market,
+        query.lengthProfile,
       );
     const builder = base();
 
@@ -597,6 +603,7 @@ export class ContentRepository {
           .addSelect(RANKING_PLAY_COUNT, RANKING_PLAY_COUNT_ALIAS),
         query.now,
         query.market,
+        query.lengthProfile,
       );
       this.applyTopicFilter(filtered, query.topicIds);
       return filtered;
@@ -677,6 +684,7 @@ export class ContentRepository {
           .addSelect(RANKING_PLAY_COUNT, RANKING_PLAY_COUNT_ALIAS),
         query.now,
         query.market,
+        query.lengthProfile,
       ).andWhere(
         query.tagOnly
           ? SEARCH_MATCH_TAG_EXACT
@@ -796,6 +804,7 @@ export class ContentRepository {
         ),
       query.now,
       query.market,
+      query.lengthProfile,
     ).setParameters({
       searchQuery: query.normalizedQuery,
       searchPattern: `%${escapeLikePattern(query.normalizedQuery)}%`,
@@ -963,10 +972,12 @@ export class ContentRepository {
     market: UserMarket,
     manager?: EntityManager,
   ): Promise<Content | null> {
+    // 단건(관련 콘텐츠의 기준 편)이다 — 공유 링크로 연 상세처럼 길이 프로필로 막지 않는다(KAN-298)
     return this.applyVisibility(
       this.scoped(manager).createQueryBuilder('content'),
       now,
       market,
+      null,
     )
       .andWhere('content.id = :id', { id })
       .getOne();
@@ -997,6 +1008,7 @@ export class ContentRepository {
         .addSelect('content.content_version', 'content_version'),
       query.now,
       query.market,
+      query.lengthProfile,
     ).andWhere('content.id <> :baseContentId', {
       baseContentId: query.baseContentId,
     });
@@ -1088,6 +1100,7 @@ export class ContentRepository {
         .addSelect('content.series_id', 'series_id'),
       query.now,
       query.market,
+      query.lengthProfile,
     );
     const [visibleSql, visibleParams] = visible.getQueryAndParameters();
     const params: unknown[] = [...(visibleParams as unknown[])];
@@ -1213,10 +1226,13 @@ export class ContentRepository {
       return [];
     }
 
+    // 길이 프로필로 거르지 않는다(KAN-298) — 대상 시리즈는 이미 코호트로 거른 후보 풀에서 왔고, 시리즈의 편은 시리즈와 같은
+    // 프로필이다(업로드가 맞춘다). 다음 편 판정은 그 시리즈 안의 순서만 본다
     const rows = await this.applyVisibility(
       this.scoped(manager).createQueryBuilder('content'),
       now,
       market,
+      null,
     )
       .select('content.series_id', 'series_id')
       .addSelect('content.id', 'content_id')
@@ -1299,7 +1315,8 @@ export class ContentRepository {
     market: UserMarket,
     manager?: EntityManager,
   ): Promise<Content[]> {
-    return this.findVisibleBySeriesIds([seriesId], now, market, manager);
+    // 시리즈 화면은 직접 여는 화면이다(공유 링크·라이브러리에서) — 콘텐츠 상세처럼 길이 프로필로 막지 않는다(KAN-298)
+    return this.findVisibleBySeriesIds([seriesId], now, market, null, manager);
   }
 
   /** 여러 시리즈의 노출 중인 편 — 시리즈 → 편 번호순. 탐색 시리즈 카드(표지·편 수·주제)의 재료를 한 번에 읽는다 */
@@ -1307,6 +1324,8 @@ export class ContentRepository {
     seriesIds: string[],
     now: Date,
     market: UserMarket,
+    /** 짧은 판 코호트(KAN-298) — 시리즈 목록(카드)은 코호트 값, 시리즈 화면은 `null`(막지 않는다) */
+    lengthProfile: ContentLengthProfile | null,
     manager?: EntityManager,
   ): Promise<Content[]> {
     if (seriesIds.length === 0) {
@@ -1317,6 +1336,7 @@ export class ContentRepository {
       this.scoped(manager).createQueryBuilder('content'),
       now,
       market,
+      lengthProfile,
     )
       .andWhere('content.series_id IN (:...seriesIds)', { seriesIds })
       .andWhere('content.episode_no IS NOT NULL')

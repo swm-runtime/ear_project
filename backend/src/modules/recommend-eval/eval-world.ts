@@ -1,10 +1,14 @@
 import { toServiceDayRange } from '@/common/utils/service-date.util';
-import { ContentStatus } from '@/modules/content/content.enum';
+import {
+  ContentLengthProfile,
+  ContentStatus,
+} from '@/modules/content/content.enum';
 import {
   ContentCandidateQuery,
   SeriesEpisodeState,
 } from '@/modules/content/content.types';
 import { Content } from '@/modules/content/entities/content.entity';
+import { ContentCohortService } from '@/modules/content/services/content-cohort.service';
 import { DripBatchOrchestrator } from '@/modules/drip-batch/drip-batch.orchestrator';
 import { UserDripPlan } from '@/modules/drip-batch/drip-batch.types';
 import { DripScoringService } from '@/modules/drip/services/drip-scoring.service';
@@ -428,6 +432,8 @@ export class EvalWorld {
             ? String(autoExpandFeature)
             : undefined,
       } as never,
+      // 짧은 판 코호트(KAN-298) — 평가는 경계 설정 없이(전원 standard) 돈다. 페르소나·백테스트 카탈로그는 전부 standard다
+      new ContentCohortService({ get: () => undefined } as never),
     );
   }
 
@@ -593,6 +599,9 @@ export class EvalWorld {
           .filter(
             ({ content, topicIds }) =>
               content.market === query.market &&
+              // 짧은 판 코호트(KAN-298) — SQL의 `content.length_profile = :lengthProfile`. 칸이 없는 픽스처는 standard
+              (content.lengthProfile ?? ContentLengthProfile.STANDARD) ===
+                query.lengthProfile &&
               (!query.seriesStartOnly ||
                 content.episodeNo === null ||
                 content.episodeNo === 1) &&

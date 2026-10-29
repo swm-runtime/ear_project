@@ -29,6 +29,34 @@ function buildService(secret: string | undefined): TokenService {
 }
 
 describe('TokenService', () => {
+  describe('issueAccessToken — 가입 시각 클레임(KAN-298)', () => {
+    it('가입 시각을 ms로 싣는다 — 짧은 판 코호트 판정은 요청 때 이 값으로 한다', () => {
+      // given
+      const jwtService = new JwtService({ secret: 'access-secret' });
+      const configService = {
+        get: jest.fn(),
+      } as unknown as ConfigService<EnvironmentVariables, true>;
+      const service = new TokenService(jwtService, configService);
+      const createdAt = new Date('2026-11-05T01:00:00.000Z');
+
+      // when
+      const issued = service.issueAccessToken(
+        {
+          id: 'user-1',
+          role: 'user',
+          market: 'kr',
+          createdAt,
+        } as unknown as Parameters<TokenService['issueAccessToken']>[0],
+        createdAt,
+      );
+
+      // then
+      expect(
+        jwtService.verify<{ signed_up_at: number }>(issued.token).signed_up_at,
+      ).toBe(createdAt.getTime());
+    });
+  });
+
   describe('verifyPipelineAssertion', () => {
     it('서명·타입·유효 기간이 맞으면 이메일을 돌려준다', () => {
       // given

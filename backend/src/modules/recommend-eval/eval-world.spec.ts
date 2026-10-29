@@ -1,3 +1,4 @@
+import { ContentLengthProfile } from '@/modules/content/content.enum';
 import { LibraryItemSource } from '@/modules/library/library.enum';
 
 import { EvalWorld } from './eval-world';
@@ -90,6 +91,7 @@ describe('EvalWorld', () => {
 
     const pool = await world['contentService']().findCandidates({
       market: UserMarket.KR,
+      lengthProfile: ContentLengthProfile.STANDARD,
       includeTopicIds: [topic],
       excludeSeenByUserId: 'u1',
       seriesStartOnly: true,

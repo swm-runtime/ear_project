@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { DataSource } from 'typeorm';
 
+import { ContentLengthProfile } from '@/modules/content/content.enum';
 import { isContentVisibleAt } from '@/modules/content/content.visibility';
 import { ContentService } from '@/modules/content/services/content.service';
 import {
@@ -46,8 +47,18 @@ export class SeriesDetailOrchestrator {
   ) {}
 
   /** 같은 간행물의 다른 시리즈 — 사용자 상태가 없는 카드라 콘텐츠 모듈 판정을 그대로 넘긴다(기준 시리즈가 안 보이면 404) */
-  async getPublisherSeries(seriesId: string, now: Date, market: UserMarket) {
-    return this.seriesService.findPublisherSiblingCards(seriesId, now, market);
+  async getPublisherSeries(
+    seriesId: string,
+    now: Date,
+    market: UserMarket,
+    lengthProfile: ContentLengthProfile,
+  ) {
+    return this.seriesService.findPublisherSiblingCards(
+      seriesId,
+      now,
+      market,
+      lengthProfile,
+    );
   }
 
   /**

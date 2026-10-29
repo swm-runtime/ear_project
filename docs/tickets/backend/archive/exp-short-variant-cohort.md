@@ -5,7 +5,7 @@
 | 대상 | `POST /admin/contents`·`POST /admin/series` DTO·`contents`·`series` 스키마 · 드립(첫 드립·일일 편성·시리즈 연속)·탐색·검색·추천·시리즈 목록 노출 |
 | 요청 파트 | 백엔드 |
 | 요청자 | 박수헌(AI) |
-| 담당 | 백엔드(미정) |
+| 담당 | 백엔드(박준현) |
 | Jira | [KAN-298](https://runtime364.atlassian.net/browse/KAN-298) |
 | 발행 날짜 | 2026-10-29 |
 | 시작 날짜 | 2026-10-29 |
@@ -13,7 +13,8 @@
 | 선행 | 없음 — 파이프라인 쪽(길이 프로필·재제작·실험 탭, PR #2142)은 배포 완료. **후행**: 파이프라인의 짧은 판 발행은 이 티켓의 업로드 필드가 생긴 뒤에만 한다 |
 | 근거 문서 | `tickets/ai/pending/exp-script-length-hook.md`(KAN-296 처리 기록 2026-10-29) · `spec/api/admin-api.md` 4.6 · `spec/api/experiments-api.md` · `features/drip-scheduling.md` · `backend/domain.md` 5.1 |
 | 중요도 | Medium |
-| 상태 | 발행 |
+| 상태 | 반영 |
+| 반영 날짜 | 2026-10-29 |
 
 > 단기 실험 8종(2026-10-29) 중 ④ 콘텐츠 길이 단축의 **BE 몫**이다. KAN-296 본문은 "순차 비교"였으나 2026-10-29 박수헌·백엔드 합의로 **코호트 분리**로 바뀌었다: 테스트 기능들을 넣은 새 앱이 심사를 통과해 배포되는 시점부터 가입하는 사용자에게는 **짧은 판만** 노출한다. 짧은 판은 기존 발행 편(단편·시리즈 모두)의 주제를 재활용한 5~12분 재제작이고(파이프라인이 만든다), 도입부 변경도 짧은 판에만 적용된다. 짧은 판 재고는 앱 배포 전에 파이프라인이 최대한 채운다 — 재고가 없어 폴백하는 경우를 두지 않는다.
 
@@ -49,3 +50,8 @@
 ## 처리 기록
 
 - 2026-10-29 발행(마크다운). 시리즈도 짧은 판으로 다시 만들어 같은 규칙으로 분리한다 · 지표 측정은 범위 밖 · 재고 폴백 없음(배포 전 재고를 채운다) — 박수헌.
+- 2026-10-29 반영(백엔드) — 2개 PR로 나눴다.
+  - **#2147 스키마 + 업로드 필드**(dev 머지): 마이그레이션 `1792100000000-AddContentLengthProfile`(`contents.length_profile`·`variant_of_content_id`, `series.length_profile`·`variant_of_series_id`, CHECK·같은 표 FK). `POST /admin/contents`·`POST /admin/series` 필드와 400 판정(원본 없음·원본이 short·standard에 원본 → `variant_of_*`, 시리즈 편 프로필 불일치 → `length_profile`). **재발행은 두 필드를 받지 않는다** — 본문 "(및 재발행)"을 "재발행이 값을 유지한다"로 풀었다(`series_*`와 같은 발행 단위의 정체성).
+  - **후속 PR 코호트 + 노출 분리**: 판정 `ContentCohortService`/`content-cohort.policy.ts` 한 곳, env `SHORT_CONTENT_COHORT_SINCE`(비면 전원 standard). 요청 경로는 access token 가입 시각 클레임 `signed_up_at`(코호트가 아니라 가입 시각 — 롤백이 토큰 수명을 기다리지 않는다). 노출면은 저장소 `applyVisibility`의 필수 인자로 거른다 — 첫 드립·정규·탐험(시리즈 연속 편 포함)·리텐션 "듣던 콘텐츠"·탐색 피드/목록/인기/새로 나온·검색(키워드·의미·교정어·대체)·관련 콘텐츠 후보·온보딩 추천·시리즈 카드·같은 간행물의 다른 시리즈. 라이브러리·상세·시리즈 화면·재생은 막지 않는다. 계약은 `spec/api/experiments-api.md` 4.3, 문서 반영은 `changes/pending/exp-short-variant-cohort.md`.
+  - 파이프라인 정렬: 업로드 payload에 `length_profile` · **`variant_of_content_id`**(= `upload-meta.json`의 `remake_of_content_ref`)를 실어야 한다. 시리즈는 `POST /admin/series`에 `length_profile`·`variant_of_series_id`.
+  - 남은 것: `SHORT_CONTENT_COHORT_SINCE` 값(운영 — KAN-300 체크리스트), 주제 칩은 코호트로 거르지 않는다(짧은 판 없는 주제는 목록이 빈다 — 재고 전제).

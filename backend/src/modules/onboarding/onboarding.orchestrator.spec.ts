@@ -1,3 +1,4 @@
+import { ContentCohortService } from '@/modules/content/services/content-cohort.service';
 import { DataSource } from 'typeorm';
 
 import { ErrorCode } from '@/common/exceptions/error-code.enum';
@@ -139,6 +140,7 @@ describe('OnboardingOrchestrator', () => {
       libraryService,
       firstDripService,
       dataSource,
+      new ContentCohortService({ get: () => undefined } as never),
     );
   });
 

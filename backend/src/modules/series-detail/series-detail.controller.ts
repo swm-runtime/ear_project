@@ -15,6 +15,7 @@ import {
 import type { AuthenticatedUser } from '@/common/decorators/current-user.decorator';
 import { CurrentUser } from '@/common/decorators/current-user.decorator';
 import { JwtAuthGuard } from '@/common/guards/jwt-auth.guard';
+import { ContentCohortService } from '@/modules/content/services/content-cohort.service';
 import { toUserMarket } from '@/modules/user/policies/market.policy';
 
 import { GetPublisherSeriesResponseDto } from './dto/get-publisher-series-response.dto';
@@ -42,6 +43,7 @@ import { SeriesDetailOrchestrator } from './series-detail.orchestrator';
 export class SeriesDetailController {
   constructor(
     private readonly seriesDetailOrchestrator: SeriesDetailOrchestrator,
+    private readonly contentCohortService: ContentCohortService,
   ) {}
 
   @Get(':seriesId')
@@ -73,6 +75,8 @@ export class SeriesDetailController {
         seriesId,
         new Date(),
         toUserMarket(currentUser.market),
+        // 다른 시리즈 목록은 노출면이다 — 짧은 판 코호트로 거른다(KAN-298). 기준 시리즈 화면 자체는 막지 않는다
+        this.contentCohortService.resolve(currentUser.signedUpAt),
       ),
     );
   }

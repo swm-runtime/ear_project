@@ -3,7 +3,7 @@ import { toPreviousFinalMonthStart } from '@/common/utils/service-date.util';
 import { UserMarket } from '@/modules/user/user.enum';
 
 import { ContentService } from './content.service';
-import { ContentStatus } from '../content.enum';
+import { ContentLengthProfile, ContentStatus } from '../content.enum';
 import { Content } from '../entities/content.entity';
 import { ContentRepository } from '../repositories/content.repository';
 import { ContentEmbeddingRepository } from '../repositories/content-embedding.repository';
@@ -120,6 +120,7 @@ describe('ContentService', () => {
     const query = {
       baseContentId: CONTENT_ID,
       market: UserMarket.KR,
+      lengthProfile: ContentLengthProfile.STANDARD,
       excludeIds: ['44444444-4444-4444-8444-444444444444'],
       limit: 5,
       now: NOW,
@@ -297,6 +298,7 @@ describe('ContentService', () => {
     const PUBLISHED_AT = new Date('2026-09-01T00:00:00.000Z');
     const base = {
       market: UserMarket.KR,
+      lengthProfile: ContentLengthProfile.STANDARD,
       normalizedQuery: '커리어',
       topicIds: ['t1'],
       limit: 1,
@@ -329,6 +331,7 @@ describe('ContentService', () => {
       expect(contentRepository.findSearchPage).toHaveBeenCalledWith(
         {
           market: UserMarket.KR,
+          lengthProfile: ContentLengthProfile.STANDARD,
           normalizedQuery: '커리어',
           tagOnly: false,
           matchSeriesTitle: true,

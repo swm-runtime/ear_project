@@ -4,6 +4,8 @@ import { ConfigService } from '@nestjs/config';
 import { EnvironmentVariables } from '@/config/env.validation';
 
 import { toServiceDate } from '@/common/utils/service-date.util';
+import { ContentLengthProfile } from '@/modules/content/content.enum';
+import { ContentCohortService } from '@/modules/content/services/content-cohort.service';
 import { ContentService } from '@/modules/content/services/content.service';
 import { ContentStatService } from '@/modules/content/services/content-stat.service';
 import { Content } from '@/modules/content/entities/content.entity';
@@ -140,6 +142,7 @@ export class DripBatchOrchestrator {
     private readonly topicService: TopicService,
     private readonly userSettingService: UserSettingService,
     configService: ConfigService<EnvironmentVariables, true>,
+    private readonly contentCohortService: ContentCohortService,
   ) {
     // **`true`를 명시했을 때만 켠다**(2026-10-14). 종전 "운영(SENTRY_ENVIRONMENT=production)만 기본 꺼짐"은 운영의
     // 환경 이름이 비거나 오타면 자동 확장이 조용히 켜지는 구조였다 — 추천 테스트 콘솔과 같은 함정(2026-10-13 수정).
@@ -648,9 +651,14 @@ export class DripBatchOrchestrator {
     plan.completedEpisodesBySeries =
       await this.libraryService.findCompletedSeriesMaxEpisodes(user.id);
 
+    // 짧은 판 코호트(KAN-298) — 정규·탐험 편성 모두 가입 시점 코호트와 같은 길이 프로필의 콘텐츠만 후보다(폴백 없음 — 재고가
+    // 없으면 그날은 고갈이다). 시리즈 연속 편도 이 후보 풀에서 나온다
+    const lengthProfile = this.contentCohortService.resolve(user.createdAt);
+
     if (dripCount > 0) {
       plan.regular = await this.planRegular(user.id, {
         market: user.market,
+        lengthProfile,
         activeTopicIds: plan.activeTopicIds,
         completedEpisodesBySeries: plan.completedEpisodesBySeries,
         preference: plan.preference,
@@ -671,6 +679,7 @@ export class DripBatchOrchestrator {
 
         plan.discovery = await this.planDiscovery(user.id, {
           market: user.market,
+          lengthProfile,
           activeTopicIds: plan.activeTopicIds,
           // 방금 뽑은 정규 편성분만 넘긴다 — 누적 이력은 SQL의 NOT EXISTS가 본다
           alreadyPickedIds: regularPicks.map((pick) => pick.content.id),
@@ -985,10 +994,12 @@ export class DripBatchOrchestrator {
       loadRecentDripTopics: boolean;
       now: Date;
       market: UserMarket;
+      lengthProfile: ContentLengthProfile;
     },
   ): Promise<RegularPlan> {
     const pool = await this.contentService.findCandidates({
       market: input.market,
+      lengthProfile: input.lengthProfile,
       includeTopicIds: input.activeTopicIds,
       excludeSeenByUserId: userId,
       // 시리즈 순서는 아래 filterEpisodeOrder가 판정한다 — 완청한 다음 편은 허용해야 한다
@@ -1073,10 +1084,12 @@ export class DripBatchOrchestrator {
       discoveryCount: number;
       now: Date;
       market: UserMarket;
+      lengthProfile: ContentLengthProfile;
     },
   ): Promise<DiscoveryPlan> {
     const pool = await this.contentService.findCandidates({
       market: input.market,
+      lengthProfile: input.lengthProfile,
       excludeSeenByUserId: userId,
       excludeContentIds: input.alreadyPickedIds,
       // 탐험 편은 시리즈 도입부만 — 처음 보는 주제를 3편부터 줄 이유가 없다

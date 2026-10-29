@@ -401,6 +401,7 @@ describe('SeriesService', () => {
         [SERIES_ID, SERIES_ID, OTHER_SERIES_ID],
         NOW,
         UserMarket.KR,
+        ContentLengthProfile.STANDARD,
       );
 
       // then — 노출 편이 없는 시리즈는 맵에 없다
@@ -414,6 +415,7 @@ describe('SeriesService', () => {
         [SERIES_ID, OTHER_SERIES_ID],
         NOW,
         UserMarket.KR,
+        ContentLengthProfile.STANDARD,
         undefined,
       );
     });
@@ -428,7 +430,12 @@ describe('SeriesService', () => {
       ] as Content[]);
 
       // when
-      const cards = await service.findCards([SERIES_ID], NOW, UserMarket.KR);
+      const cards = await service.findCards(
+        [SERIES_ID],
+        NOW,
+        UserMarket.KR,
+        ContentLengthProfile.STANDARD,
+      );
 
       // then
       expect(cards.get(SERIES_ID)?.coverThumbnailUrl).toBe(
@@ -508,6 +515,7 @@ describe('SeriesService', () => {
         SERIES_ID,
         NOW,
         UserMarket.KR,
+        ContentLengthProfile.STANDARD,
       );
 
       // then
@@ -523,6 +531,7 @@ describe('SeriesService', () => {
         [OTHER_SERIES_ID, THIRD_SERIES_ID],
         NOW,
         UserMarket.KR,
+        ContentLengthProfile.STANDARD,
         undefined,
       );
     });
@@ -538,6 +547,7 @@ describe('SeriesService', () => {
         SERIES_ID,
         NOW,
         UserMarket.KR,
+        ContentLengthProfile.STANDARD,
       );
 
       // then
@@ -554,6 +564,7 @@ describe('SeriesService', () => {
         SERIES_ID,
         NOW,
         UserMarket.GLOBAL,
+        ContentLengthProfile.STANDARD,
       );
 
       // then
