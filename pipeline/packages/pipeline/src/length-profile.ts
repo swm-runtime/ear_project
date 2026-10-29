@@ -52,17 +52,39 @@ export function lengthDesignBlock(profile: LengthProfile, original?: { title: st
   return `\n\n## 짧은 판 — 이 편의 분량 규칙은 아래가 우선한다 (KAN-296 실험)
 - 이 편은 **하한 ${s.floorMin}분(약 ${s.floorChars.toLocaleString()}자) · 목표 ${s.targetMin}분 · 상한 ${s.maxMin}분(약 ${s.maxChars!.toLocaleString()}자)**이다. 위 "분량 규칙"의 13분 하한·26분 분할은 이 편에 적용하지 않는다. 재료가 ${s.maxMin}분을 넘으면 분할안을 적지 말고 구간을 덜어낸다. 예상 분량은 ${s.floorMin}~${s.maxMin}분 사이의 실제 재료량으로 적는다.
 - **본문 구간은 ${s.sections[0]}~${s.sections[1]}개**다. 축의 하위 질문도 그 수만큼만 편다. 반론·한계, 역사·맥락처럼 축을 넓히는 구간은 두지 않고 축을 바로 증명하는 구간만 남긴다. 역할표의 그 역할은 "없음"으로 적어도 된다.
+- **예상 분량은 구간에 실제로 담은 재료만으로 계산한다** — 제외한 재료·소스는 세지 않는다. 재료 총량이 16분이어도 구간 3개에 담은 만큼이 9분이면 예상 분량은 9분이다.
 - 소스는 구간 수에 맞춰 줄어든다 — 역할이 없는 소스는 "역할 없는 소스"로 제외한다. 소스 3건 하한은 그대로다.
 - 구간당 사례·일화는 하나, 수치는 가장 의외인 것 하나를 고른다. 재료를 압축해 담지 않는다 — 담지 못하는 재료는 뺀다.${original ? `\n- **축은 원본 편과 같은 질문을 유지한다**: 이 편은 발행된 편 "${original.title}"의 짧은 판이다.${original.axis ? ` 원본의 축: ${original.axis}` : ""} 축 문장을 다시 쓰더라도 같은 질문에 답해야 한다 — 다른 질문으로 옮기면 실험 조건이 깨진다.` : ""}`;
 }
 
-/** 대본 프롬프트에 덧붙이는 블록 (short 만) — 분량 목표와 짧은 판 도입 훅 */
-export function lengthWriteBlock(profile: LengthProfile): string {
+/** 짧은 판 도입 훅 형태 (2026-10-29 박수헌) — 편마다 번갈아 쓰고 실행 기록에 남겨 형태별 초반 이탈을 비교한다. 형태를 더하면 여기에 한 줄씩 */
+export interface ShortHook { key: string; label: string; rule: string }
+export const SHORT_HOOKS: readonly ShortHook[] = [
+  { key: "payoff", label: "선취형", rule: "인트로의 주제 선언 바로 뒤 첫 해설 턴이 이 편에서 가장 의외인 **결과 하나**(claims 의 수치·장면)를 한두 문장으로 먼저 말한다. 결과는 claims 에 있는 그대로(헤지 유지). 그 결과가 속한 구간에서는 같은 문장을 되풀이하지 않고 기제를 설명한다." },
+  { key: "promise", label: "약속형", rule: "인트로의 주제 선언 바로 뒤 첫 해설 턴이 이 편을 다 들으면 청취자에게 **무엇이 달라지는지**를 한두 문장으로 건다 — 예: 면접 편이면 \"이걸 듣고 나면 면접에서 떨 이유가 없어져요\". 약속은 본문이 실제로 증명하는 범위 안에서만 하고(claims 밖의 효능·수치를 붙이지 않는다), 마무리 정리 턴이 그 약속을 한 문장으로 회수한다. 청취자에게 시키는 말(\"~해 보세요\")은 아니다." },
+];
+/** 편마다 번갈아 — 후보 번호(또는 시드)로 고른다 */
+export function pickShortHook(seed: number): ShortHook { return SHORT_HOOKS[Math.abs(Math.trunc(seed)) % SHORT_HOOKS.length]; }
+
+/** 설계 프롬프트 맨 앞에 두는 한 줄 표지 (short 만) — 시스템 프롬프트의 기본 분량 규칙(13분·구간 4~6)보다 먼저 읽히게. 2026-10-29 C601·C602: 끝에 붙인 블록만으로는 모델이 16분·15분 구성안을 냈다 */
+export function lengthDesignBanner(profile: LengthProfile): string {
+  if (profile !== "short") return "";
+  const s = LENGTH_SPECS.short;
+  return `**이 편은 짧은 판이다 — 분량·구간 수는 아래 "짧은 판" 절이 우선한다: ${s.floorMin}~${s.maxMin}분 · 본문 구간 ${s.sections[0]}~${s.sections[1]}개 · 분할 없음 · 예상 분량은 담은 재료만으로.**\n\n`;
+}
+/** 짧은 판 분량·구간 초과 시 재설계 피드백 (design-single) — 축·발췌·claims 는 유지하고 구간을 덜어낸다 */
+export function shortTrimFeedback(est: number | null | undefined, sections: number): string {
+  const s = LENGTH_SPECS.short;
+  return `\n\n## 짧은 판 분량 반려 — 1차 구성안 (KAN-296)\n1차 구성안은 예상 ${est ?? "?"}분 · 본문 구간 ${sections}개다. 이 편의 규격은 **${s.floorMin}~${s.maxMin}분 · 구간 ${s.sections[0]}~${s.sections[1]}개**다. 축·발췌·claims 는 그대로 두고 **구간을 덜어낸다**: 축을 바로 증명하는 구간 ${s.sections[1]}개 이하만 남기고, 뺀 구간의 소스는 "역할 없는 소스"로 옮긴다(3건 하한만 지킨다). 예상 분량은 남긴 구간에 담은 재료만으로 다시 계산해 ${s.maxMin}분 이하로 적는다. 같은 형식으로 구성안을 다시 낸다.`;
+}
+
+/** 대본 프롬프트에 덧붙이는 블록 (short 만) — 분량 목표와 짧은 판 도입 훅. 기존 "진입 방식" 로테이션 줄은 short 편에서 빠진다(buildWritePromptParts) */
+export function lengthWriteBlock(profile: LengthProfile, hook: ShortHook = SHORT_HOOKS[0]): string {
   if (profile !== "short") return "";
   const s = LENGTH_SPECS.short;
   return `\n\n## 짧은 판 — 분량과 도입 (KAN-296 실험, 이 편에 한해 위 규칙보다 우선)
 - 분량: 하한 ${s.floorMin}분(약 ${s.floorChars.toLocaleString()}자)·상한 ${s.maxMin}분(약 ${s.maxChars!.toLocaleString()}자). 위 "분량"의 13분 하한은 이 편에 적용하지 않는다. 목표는 구성안의 예상 분량이다. 상한을 넘기면 해설 턴의 풀어 쓰기를 줄인다 — 재료를 더 넣지 않는다.
-- 도입(규칙 13)을 **선취 훅**으로 쓴다: 인트로의 주제 선언 바로 뒤 첫 해설 턴이 이 편에서 가장 의외인 **결과 하나**(claims 의 수치·장면)를 한두 문장으로 먼저 말하고, 진행 턴 하나가 "왜"를 묻고, 바로 본문 구간 #1 로 들어간다. [도입] 구역은 그 두 턴이 전부다 — 경험담·사물·되받기 장면을 세우지 않는다. 결과는 claims 에 있는 그대로이고(헤지 유지), "보통은 이렇게 생각하지만 실은 반대"식 통념 반전 틀은 쓰지 않는다(규칙 13). 그 결과가 속한 구간에서는 같은 문장을 되풀이하지 않고 기제를 설명한다.
+- 도입(규칙 13)은 이 편에서 **${hook.label} 훅**으로 쓴다: ${hook.rule} 그다음 진행 턴 하나가 "왜"(또는 "그게 왜 가능한지")를 묻고 바로 본문 구간 #1 로 들어간다. [도입] 구역은 그 두 턴이 전부다 — 경험담·사물·되받기 장면을 세우지 않는다. "보통은 이렇게 생각하지만 실은 반대"식 통념 반전 틀은 쓰지 않는다(규칙 13).
 - 본문: 구간마다 해설 턴은 짧게, 진행 턴은 한 문장. 마무리 정리 턴은 구간 수만큼의 줄로만 수렴한다.`;
 }
 

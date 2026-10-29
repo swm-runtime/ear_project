@@ -13,7 +13,8 @@ export * from "./series.js";
 export * from "./publication.js";
 export * from "./length-profile.js";
 import { seriesDesignBlock, seriesWriteBlock, type SeriesDraftContext } from "./series.js";
-import { lengthCriticNote, lengthDesignBlock, lengthProfileOf, lengthWriteBlock } from "./length-profile.js";
+import { lengthCriticNote, lengthDesignBanner, lengthDesignBlock, lengthProfileOf, lengthWriteBlock, SHORT_HOOKS, type ShortHook } from "./length-profile.js";
+const SHORT_HOOKS_DEFAULT = SHORT_HOOKS[0];
 import { INTRO_STYLES_EN } from "./global-prompts.js";
 
 export type MidTopic = string;
@@ -753,6 +754,8 @@ export interface WriteInput {
   estimatedMinutes?: number;
   /** 시리즈 편(spec/11 5장) — 시리즈 블록·회상·예고. 일반 편은 없다 */
   series?: SeriesDraftContext;
+  /** 짧은 판 도입 훅 형태(0040, KAN-296) — short 편만. 없으면 선취형 */
+  shortHook?: ShortHook;
   /** 인라인 반입 — 이 단계는 파일을 읽지 않는다 (도구 없음) */
   guidelines: string;
   specScript: string;
@@ -853,8 +856,8 @@ ${WRITE_FACT_RULES}
 - 해설: **${explainer}** / 진행: **${host}** — 역할 고정, 페르소나는 spec/04 3장.
 - 제목은 구성안의 축에 맞게 새로 지어도 된다 (클릭베이트 금지).
 ${templateBlock({ templates: i.templates, majorTopic: i.majorTopic, signoffSeed: i.signoffSeed, series: i.series } as DraftInput)}
-- 도입 (규칙 13): 주제 선언 뒤 첫 해설 턴 사이에 청취자가 "대화에 앉는" 두세 턴. 주제를 다시 발견하는 척 금지. 이 에피소드의 진입 방식: **${i.introStyle.label}** — ${i.introStyle.hint}${isHistoryTopic(i.candidate.mid_topic) ? "\n" + HISTORY_WRITE_RULE : ""}
-- **이 에피소드의 목표: 약 ${i.estimatedMinutes ?? 15}분 = 공백·기호 제외 약 ${Math.round((i.estimatedMinutes ?? 15) * 341)}자 (±15%)** — 구성안의 "예상 분량"이다 (341자/분). 하한 13분(약 4,300자)은 필수이고 상한을 규칙으로 두지는 않지만, **예상 분량은 설계가 재료 총량으로 이미 정한 크기다** — 그보다 크게 쓰는 것은 재료가 많아서가 아니라 풀어 쓰기가 길어진 것이다.${seriesWriteBlock(i.series, false)}${lengthWriteBlock(lengthProfileOf(i.candidate.length_profile))}
+${lengthProfileOf(i.candidate.length_profile) === "short" ? `- 도입 (규칙 13): 이 편은 짧은 판이다 — 아래 "짧은 판" 블록의 **${(i.shortHook ?? SHORT_HOOKS_DEFAULT).label} 훅** 두 턴이 도입의 전부다(진입 방식 로테이션은 쓰지 않는다).` : `- 도입 (규칙 13): 주제 선언 뒤 첫 해설 턴 사이에 청취자가 "대화에 앉는" 두세 턴. 주제를 다시 발견하는 척 금지. 이 에피소드의 진입 방식: **${i.introStyle.label}** — ${i.introStyle.hint}`}${isHistoryTopic(i.candidate.mid_topic) ? "\n" + HISTORY_WRITE_RULE : ""}
+- **이 에피소드의 목표: 약 ${i.estimatedMinutes ?? 15}분 = 공백·기호 제외 약 ${Math.round((i.estimatedMinutes ?? 15) * 341)}자 (±15%)** — 구성안의 "예상 분량"이다 (341자/분). 하한 13분(약 4,300자)은 필수이고 상한을 규칙으로 두지는 않지만, **예상 분량은 설계가 재료 총량으로 이미 정한 크기다** — 그보다 크게 쓰는 것은 재료가 많아서가 아니라 풀어 쓰기가 길어진 것이다.${seriesWriteBlock(i.series, false)}${lengthWriteBlock(lengthProfileOf(i.candidate.length_profile), i.shortHook)}
 
 ## 이 에피소드의 재료
 ### 구성안 — outline.md (계약: 구간 순서·목적·재료·진행자 질문·전환 장치를 그대로 실행한다)
@@ -1134,7 +1137,7 @@ ${fence(explainer === "이음" ? i.goldFullEum : i.goldFullYuna)}` : `### 1.3 �
 ### d) pronunciations — 대본에 등장할 모든 비한글 표기(영문 용어·인명·기관·매체) → 한글 발음. 없으면 빈 배열.
 
 ## 3. 완료 보고 — 반드시 요청된 JSON 스키마 형식으로만 출력한다. 완료 보고 전에 다른 텍스트를 출력하지 않는다.`;
-  const user = `${history ? HISTORY_DESIGN_RULE + "\n\n" : ""}## 에피소드 정보 (백로그 ${i.candidate.id}, 게이트1 승인 완료)
+  const user = `${lengthDesignBanner(lengthProfileOf(i.candidate.length_profile))}${history ? HISTORY_DESIGN_RULE + "\n\n" : ""}## 에피소드 정보 (백로그 ${i.candidate.id}, 게이트1 승인 완료)
 - 에피소드 ID: ${i.episodeId} · 제목(가): "${i.candidate.title}" · 중분류: ${i.candidate.mid_topic}
 - outline_md 첫 줄은 정확히 "# 구성안 — ${i.episodeId}" 로 쓴다.
 - 해설: **${explainer}** / 진행: **${host}** — 역할 고정

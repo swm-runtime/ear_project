@@ -23,13 +23,20 @@ test("길이 프로필 — standard·null·모르는 값은 설계·대본 프�
 test("길이 프로필 — short 는 설계에 구간 2~3·5~12분·원본 축 블록, 대본에 선취 훅 블록, 비평에 규격 알림이 붙는다", () => {
   const d = P.buildDesignPromptInlineParts({ episodeId: "T1", candidate: { ...cand, length_profile: "short", remake_of: "C0" }, promptVersion: "v", guidelines: "g", specScript: "s", goldFullEum: "", goldFullYuna: "", sources: [], remakeOf: { title: "원본 제목", axis: "A인데 B" } });
   assert.match(d.user, /## 짧은 판/);
+  assert.ok(d.user.startsWith("**이 편은 짧은 판이다"), "짧은 판 표지가 설계 프롬프트 맨 앞에 온다");
+  assert.match(P.shortTrimFeedback(16, 5), /예상 16분 · 본문 구간 5개/);
   assert.match(d.user, /본문 구간은 2~3개/);
   assert.match(d.user, /상한 12분/);
   assert.match(d.user, /"원본 제목"의 짧은 판/);
   assert.match(d.user, /원본의 축: A인데 B/);
   const w = write({ length_profile: "short" });
-  assert.match(w.user, /선취 훅/);
+  assert.match(w.user, /선취형 훅/);
+  assert.doesNotMatch(w.user, /진입 방식: \*\*/, "short 편은 진입 방식 로테이션 줄이 빠진다");
   assert.match(w.user, /상한 12분\(약 4,100자\)/);
+  const w2 = P.buildWritePromptParts({ episodeId: "T1", candidate: { ...cand, length_profile: "short" }, introStyle: P.INTRO_STYLES[0], promptVersion: "v", guidelines: "g", specScript: "s", goldFullEum: "", goldFullYuna: "", sourcesMd: "", claimsMd: "", outlineMd: "", pronunciationsJson: "{}", shortHook: P.pickShortHook(1) });
+  assert.match(w2.user, /약속형 훅/);
+  assert.match(w2.user, /무엇이 달라지는지/);
+  assert.equal(P.pickShortHook(600).key, "payoff"); assert.equal(P.pickShortHook(601).key, "promise");
   const c = P.buildCriticPromptInlineParts({ episodeId: "T1", title: "t", midTopic: "경제 상식" as never, rubricV2Md: "r", guidelines: "g", goldFullEum: "", goldFullYuna: "", scriptMd: "s", lengthProfile: "short" });
   assert.match(c.system, /규격 알림 — 짧은 판/);
   const c0 = P.buildCriticPromptInlineParts({ episodeId: "T1", title: "t", midTopic: "경제 상식" as never, rubricV2Md: "r", guidelines: "g", goldFullEum: "", goldFullYuna: "", scriptMd: "s" });
