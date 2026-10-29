@@ -41,6 +41,11 @@ export interface LibraryContent {
   topicIds: string[];
   /** 콘텐츠 언어(BCP 47 primary — `ko` · `en`). 표시 전용 — 이 값으로 거르지 않는다(global-api.md 4.7). 모르면 null */
   language: string | null;
+  /**
+   * 서버가 이 사용자에게 잠갔다고 준 편(`is_locked` — experiments-api.md 4.2-2, KAN-294). 재생 게이트의 미리 막기·재생 목록 자동 재생
+   * 멈춤에만 쓴다 — 판정은 서버다. 옛 서버(필드 없음)는 false
+   */
+  isLocked: boolean;
 }
 
 export interface LibraryProgress {

@@ -1,6 +1,7 @@
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { theme } from '@/shared/theme';
+import LockIcon from '@/shared/ui/LockIcon';
 import MoreIcon from '@/shared/ui/MoreIcon';
 import { Text } from '@/shared/ui/Typography';
 
@@ -17,6 +18,8 @@ import NowPlayingBars from './NowPlayingBars';
 export const SERIES_EPISODE_NUMBER_WIDTH = 32;
 /** 번호 칸과 제목 사이 — 구분선 시작선 계산에도 쓴다 */
 export const SERIES_EPISODE_NUMBER_GAP = 12;
+/** 메타 줄 앞 자물쇠 — 메타 글자(xs)와 같은 높이(애플 팟캐스트 구독자 전용 편의 작은 자물쇠) */
+const LOCK_ICON_SIZE = 11;
 
 interface SeriesEpisodeRowProps {
   episode: SeriesEpisode;
@@ -52,7 +55,13 @@ export default function SeriesEpisodeRow({
   const stateLabel = seriesEpisodeStateLabel(state);
   const durationLabel = EXPLORE_COPY.row.durationLabel(state.minutes);
   const title = seriesEpisodeSubtitle(item.content.title, seriesTitle);
-  const a11yState = [isNowPlaying ? EXPLORE_COPY.series.nowPlaying : null, stateLabel]
+  // 잠긴 편(KAN-294) — 서버 `is_locked` 그대로. 화수로 앱이 다시 계산하지 않는다
+  const isLocked = item.content.isLocked;
+  const a11yState = [
+    isNowPlaying ? EXPLORE_COPY.series.nowPlaying : null,
+    isLocked ? EXPLORE_COPY.series.state.locked : null,
+    stateLabel,
+  ]
     .filter((part): part is string => part !== null)
     .join(', ');
 
@@ -81,9 +90,21 @@ export default function SeriesEpisodeRow({
           <Text style={[styles.title, isNowPlaying && styles.titleNowPlaying]} numberOfLines={1}>
             {title}
           </Text>
-          <Text style={styles.meta} numberOfLines={1}>
-            {stateLabel ? `${durationLabel} · ${stateLabel}` : durationLabel}
-          </Text>
+          <View style={styles.metaRow}>
+            {/* 잠긴 편 — 메타 줄 앞 작은 자물쇠(장식 — 낭독은 행 라벨의 "잠김"이 한다) */}
+            {isLocked ? (
+              <View
+                testID="series-episode-lock"
+                accessibilityElementsHidden
+                importantForAccessibility="no-hide-descendants"
+              >
+                <LockIcon size={LOCK_ICON_SIZE} color={theme.color.textSecondary} />
+              </View>
+            ) : null}
+            <Text style={styles.meta} numberOfLines={1}>
+              {stateLabel ? `${durationLabel} · ${stateLabel}` : durationLabel}
+            </Text>
+          </View>
         </View>
       </Pressable>
       <Pressable
@@ -140,7 +161,13 @@ const styles = StyleSheet.create({
   titleNowPlaying: {
     fontWeight: '600',
   },
+  metaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.xs,
+  },
   meta: {
+    flexShrink: 1,
     fontSize: theme.font.size.xs,
     color: theme.color.textSecondary,
   },

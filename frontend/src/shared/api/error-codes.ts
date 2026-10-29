@@ -46,6 +46,11 @@ export const ERROR_CODES = {
   /** 무료 티어 한도 소진 → 페이월. PLAY_LIMIT_REACHED(유료 한도 안내)와 화면이 다르다 */
   PLAY_LIMIT_EXCEEDED: 'PLAY_LIMIT_EXCEEDED',
   PLAY_LIMIT_REACHED: 'PLAY_LIMIT_REACHED',
+  /**
+   * 시리즈 유료화(experiments-api.md 4.2-3 — KAN-290 ↔ KAN-294) — 잠긴 편의 발급·재생·재청취·대본 403. 차감하지 않고
+   * 한도(`PLAY_LIMIT_*`)보다 먼저 본다. 화면은 한도 시트가 아니라 **잠금 시트**다(남은 횟수 링이 오해를 만든다)
+   */
+  SERIES_EPISODE_LOCKED: 'SERIES_EPISODE_LOCKED',
 
   // explore-api.md 5장
   EXPLORE_CURSOR_INVALID: 'EXPLORE_CURSOR_INVALID',

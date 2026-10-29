@@ -61,6 +61,8 @@ export const ERROR_MESSAGES_EN: Readonly<Record<string, string>> = {
   LIBRARY_COMPLETION_NOT_REACHED: 'Keep listening to finish this episode.',
   PLAY_LIMIT_EXCEEDED: "You've used today's listens.",
   PLAY_LIMIT_REACHED: "You've used today's listens.",
+  // experiments-api.md 4.2-3 — 시리즈 잠긴 편(KAN-294). 9장 등재는 changes/pending/exp-contracts.md
+  SERIES_EPISODE_LOCKED: 'This episode is available with a subscription.',
   // 9.6 탐색 · 9.7 프로필
   EXPLORE_CURSOR_INVALID: 'Something went wrong. Please try again.',
   STATS_WEEK_OUT_OF_RANGE: "That week isn't available.",

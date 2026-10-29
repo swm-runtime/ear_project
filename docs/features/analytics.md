@@ -82,7 +82,7 @@
 | `play_abandon` | `content_id` · `percent`(정수) · `reason`: `pause_timeout` \| `switch` \| `background` | 완청 전 이탈 |
 | `play_rate_change` | `from` · `to` | 배속 변경 |
 | `play_limit_hit` | `remaining`: 0 | 한도 소진으로 재생 거부 |
-| `paywall_view` | `entry` | 페이월(MVP는 한도 안내) 노출 |
+| `paywall_view` | `entry` · `reason`: `play_limit` \| `ring_tap` \| `series_locked` | 페이월(MVP는 한도 안내)·잠금 시트 노출 |
 | `play_confirm` | `action`: `confirm` \| `cancel` \| `suppress_today` · `remaining` | 재생 확인 팝업 |
 
 **탐색·검색** (`explore.md`)
@@ -189,7 +189,7 @@
 - `drip_arrival_view` — 라이브러리 탭 배지에 새 편성 수가 더해지는 시점(2026-10-11, 종전 배너 노출). `hours_since_arrival`은 가장 최근 편성 `addedAt` 기준.
 - `push_foreground_banner` — 이벤트 이름은 분석 호환을 위해 유지한다. `view`는 포그라운드 푸시 수신, `tap`은 도착 배지가 있는 라이브러리 탭을 눌러 확인한 시점이다(2026-10-11).
 - `play_abandon` `background` — **멈춘 채** 앱을 떠났을 때만(소리가 나는 채로 나간 것은 이탈이 아니다). 세션당 한 번이라 나중에 교체(`switch`)해도 다시 세지 않는다. `pause_timeout`은 **타이머 자체가 없어 보내지 않는다** — 재생 서비스에 일시정지 만료 로직이 생기면 그때 붙인다.
-- `paywall_view` — MVP는 안내 토스트지만 노출 자체를 센다. `entry`는 연 화면(`library`·`explore`·`player`, 푸시 지연 경로는 그 진입점).
+- `paywall_view` — MVP는 안내 토스트지만 노출 자체를 센다. `entry`는 연 화면(`library`·`explore`·`player`, 푸시 지연 경로는 그 진입점). `reason`(2026-10-29 — KAN-294 단기 실험 ⑤)은 왜 열렸나: `play_limit` = 한도 403·소진 힌트로 막힌 재생, `ring_tap` = 잔여 표시 탭(막힌 콘텐츠 없음 — 남은 횟수가 있어도), `series_locked` = 시리즈 잠긴 편의 잠금 시트(PW2 — 서버 `is_locked` 미리 막기와 `SERIES_EPISODE_LOCKED` 둘 다).
 - `onboarding_step` `notification` — 온보딩 경로의 프리프롬프트에서만(설정에서 다시 연 것은 `push_permission`만).
 - `onboarding_complete` `elapsed_sec` — 1단계 화면이 처음 뜬 시각부터 완료 응답까지. `career_filled`는 [다음]으로 한 필드라도 보냈는가. 재시도 성공도 한 번만.
 - `withdrawal` `reason` — 선택지 키만(`none`이면 미선택). 자유 입력 문장은 싣지 않는다.

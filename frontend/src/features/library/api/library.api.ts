@@ -68,6 +68,8 @@ const toLibraryItem = (dto: LibraryItemDto): LibraryItem => ({
     contentVersion: dto.content.content_version,
     topicIds: dto.content.topic_ids,
     language: dto.content.language ?? null,
+    // 잠긴 편(KAN-294) — 옛 서버(필드 없음)는 잠기지 않은 것으로 읽는다
+    isLocked: dto.content.is_locked === true,
   },
   progress: toProgress(dto.progress),
 });

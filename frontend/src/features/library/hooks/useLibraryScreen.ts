@@ -346,6 +346,8 @@ export const useLibraryScreen = () => {
       {
         contentId: item.content.id,
         isCountedToday: item.isCountedToday,
+        // 서버가 잠갔다고 준 편이면 게이트가 발급 없이 잠금 시트를 띄운다(KAN-294)
+        isLocked: item.content.isLocked,
         // 목록이 이미 아는 메타 — 플레이어가 진입과 동시에 그린다(player-uiux.md 4.3)
         meta: {
           title: item.content.title,

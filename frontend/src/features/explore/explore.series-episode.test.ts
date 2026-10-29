@@ -28,6 +28,7 @@ const episode = (
       topicIds: [],
       tags: [],
       language: 'ko',
+      isLocked: false,
       series: {
         id: 's1',
         title: '키워드로 빠르게 배우는 CS 지식',

@@ -71,7 +71,11 @@ export interface AnalyticsEvents {
   };
   play_rate_change: { from: number; to: number };
   play_limit_hit: { remaining: 0 };
-  paywall_view: { entry: PlayEntry };
+  /**
+   * reason = 왜 열렸나(analytics.md 3.4 — KAN-294): play_limit(한도 403·소진 힌트로 막힘) · ring_tap(잔여 표시 탭, 막힌 콘텐츠 없음) ·
+   * series_locked(시리즈 잠긴 편의 잠금 시트)
+   */
+  paywall_view: { entry: PlayEntry; reason: 'play_limit' | 'ring_tap' | 'series_locked' };
   play_confirm: { action: 'confirm' | 'cancel' | 'suppress_today'; remaining: number };
   // 탐색·검색
   explore_period_change: { period: Period };

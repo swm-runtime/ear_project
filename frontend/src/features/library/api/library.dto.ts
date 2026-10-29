@@ -32,6 +32,8 @@ export interface LibraryContentDto {
    * 아직 안 보내는 서버에서는 없다 — 없으면 null 로 읽는다
    */
   language?: string | null;
+  /** 이 사용자에게 잠긴 편인가(experiments-api.md 4.2-2 — KAN-294). 추가 필드라 옛 서버는 없다 → false */
+  is_locked?: boolean;
 }
 
 export interface LibraryProgressDto {

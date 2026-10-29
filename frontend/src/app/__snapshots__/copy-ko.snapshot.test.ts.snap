@@ -383,6 +383,7 @@ exports[`한국어 카피 회귀 — i18n 전환 전과 1:1 EXPLORE_COPY 1`] = `
       "[throws]",
       "[throws]",
     ],
+    "lockedA11y": "잠김",
     "metaWithTags": [
       "3분",
       "[throws]",
@@ -468,6 +469,10 @@ exports[`한국어 카피 회귀 — i18n 전환 전과 1:1 EXPLORE_COPY 1`] = `
       "재생, 3화 3",
       "재생, 가나다화 2026-10-15T00:00:00.000Z",
     ],
+    "playLockedA11y": [
+      "재생, 3화 3, 잠김",
+      "재생, 가나다화 2026-10-15T00:00:00.000Z, 잠김",
+    ],
     "publishedAt": [
       "1970년 1월 1일",
       "NaN년 NaN월 NaN일",
@@ -494,6 +499,7 @@ exports[`한국어 카피 회귀 — i18n 전환 전과 1:1 EXPLORE_COPY 1`] = `
     "shuffleA11y": "셔플 재생",
     "state": {
       "completed": "완청",
+      "locked": "잠김",
       "remaining": [
         "3분 남음",
         "가나다분 남음",
@@ -828,6 +834,10 @@ exports[`한국어 카피 회귀 — i18n 전환 전과 1:1 PLAYER_COPY 1`] = `
     "close": "닫기",
     "confirm": "확인",
     "description": "매일 새벽 5시에 다시 채워져요",
+    "remainingTitle": [
+      "오늘 3회 더 들을 수 있어요",
+      "오늘 가나다회 더 들을 수 있어요",
+    ],
     "title": "오늘 청취 한도를 모두 사용했어요",
   },
   "loadFailed": {
@@ -943,6 +953,10 @@ exports[`한국어 카피 회귀 — i18n 전환 전과 1:1 PLAYER_COPY 1`] = `
     ],
     "a11yLabelExhausted": "오늘 재생 0회 남음",
     "a11yLabelExhaustedWithPaywall": "오늘 재생 0회 남음, 구독 안내 열기",
+    "a11yLabelWithPaywall": [
+      "오늘 재생 3회 중 3회 남음, 구독 안내 열기",
+      "오늘 재생 2026-10-15T00:00:00.000Z회 중 가나다회 남음, 구독 안내 열기",
+    ],
     "label": [
       "3/3",
       "가나다/2026-10-15T00:00:00.000Z",
@@ -1009,6 +1023,12 @@ exports[`한국어 카피 회귀 — i18n 전환 전과 1:1 PLAYER_COPY 1`] = `
       "가나다, 2026-10-15T00:00:00.000Z, 이 구간부터 재생",
     ],
     "title": "스크립트",
+  },
+  "seriesLock": {
+    "description": "구독하고 시리즈를 끝까지 들어 보세요",
+    "title": "이 편은 구독하면 들을 수 있어요",
+    "unavailableDescription": "다른 콘텐츠는 지금처럼 들을 수 있어요",
+    "unavailableTitle": "지금은 들을 수 없는 편이에요",
   },
   "sleepTimerSheet": {
     "endOfEpisode": "이 에피소드 종료 시",
@@ -1554,6 +1574,11 @@ exports[`한국어 카피 회귀 — i18n 전환 전과 1:1 SUBSCRIPTION_COPY 1`
     "keepCurrent": [
       "3 유지",
       "가나다 유지",
+    ],
+    "onSale": "지금 할인 중",
+    "originalPrice": [
+      "₩3",
+      "₩NaN",
     ],
     "perMonth": [
       "3/월",

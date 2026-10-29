@@ -5,6 +5,7 @@ import Svg, { Circle } from 'react-native-svg';
 import { IS_SUBSCRIPTION_UI_ENABLED } from '@/shared/lib/feature-flags';
 import { theme } from '@/shared/theme';
 import BottomSheet from '@/shared/ui/BottomSheet';
+import LockIcon from '@/shared/ui/LockIcon';
 import { pillButton } from '@/shared/ui/pill-button.styles';
 import { Text } from '@/shared/ui/Typography';
 
@@ -17,6 +18,8 @@ const RING_SIZE = 56;
 const RING_STROKE = 5;
 const RING_RADIUS = (RING_SIZE - RING_STROKE) / 2;
 const RING_CIRCUMFERENCE = 2 * Math.PI * RING_RADIUS;
+/** 잠금 시트의 자물쇠 — 링과 같은 56 자리의 옅은 원 안에 둔다(남은 횟수가 아니라는 것을 모양이 먼저 말한다) */
+const LOCK_GLYPH_SIZE = 24;
 /** 요금제 비교가 얹히면 시트가 길어진다 — 화면 위쪽을 남기고 안에서 스크롤한다 */
 const PAYWALL_MAX_HEIGHT = Dimensions.get('window').height * 0.72;
 /**
@@ -34,16 +37,22 @@ const ANDROID_RESUME_DELAY_MS = 400;
  * 언급하지 않는다(App Store 2.1(b)). 판정은 서버 — 이 시트는 표시만 한다.
  *
  * 결제가 확정되면 시트를 닫고 막혔던 콘텐츠를 게이트가 다시 요청한다(store 의 resume — 결제 쪽은 player 를 모른다).
+ *
+ * **잠금 시트(PW2 — KAN-294)** 도 이 자리다(`reason = series_locked`): 시리즈 잠긴 편. 머리의 잔여 링 대신 **자물쇠 원**, 제목·설명은
+ * 잠금 문구다 — 한도 시트를 그대로 쓰면 남은 횟수 링이 "횟수가 모자라서 막혔다"로 읽힌다. 요금제 비교·결제·복원·[닫기]는 페이월과
+ * 같다. 구독 UI 가 꺼진 빌드는 구독을 언급하지 않는 문구 + [확인] 뿐이다(서버 문구도 쓰지 않는다 — "프로 구독" 이 들어 있다).
  */
 export default function LimitNoticeSheet() {
   const isVisible = useLimitNoticeStore((s) => s.isVisible);
   const message = useLimitNoticeStore((s) => s.message);
   const isPaywall = useLimitNoticeStore((s) => s.isPaywall);
   const remaining = useLimitNoticeStore((s) => s.remaining);
+  const reason = useLimitNoticeStore((s) => s.reason);
   const hide = useLimitNoticeStore((s) => s.hide);
   const suspend = useLimitNoticeStore((s) => s.suspend);
   const isPurchasing = useIsPurchaseInProgress();
   const showPlans = isPaywall && IS_SUBSCRIPTION_UI_ENABLED;
+  const isSeriesLock = reason === 'series_locked';
   /** 잔여 링을 눌러 열었고 아직 남았다 — 링을 채우고 "N회 더" 제목(2026-10-28). 없으면 종전 소진 모양 */
   const left = remaining !== null && remaining.remaining > 0 ? remaining : null;
   const ratio = left !== null && left.limit > 0 ? Math.min(1, left.remaining / left.limit) : 0;
@@ -74,8 +83,31 @@ export default function LimitNoticeSheet() {
     resume?.();
   };
 
-  const body = (
-    <View style={styles.body} accessibilityViewIsModal>
+  const lockHeader = (
+    <>
+      <View
+        style={styles.lockCircle}
+        testID="limit-notice-lock"
+        accessibilityElementsHidden
+        importantForAccessibility="no-hide-descendants"
+      >
+        <LockIcon size={LOCK_GLYPH_SIZE} color={theme.color.textPrimary} />
+      </View>
+      <Text style={styles.title} accessibilityRole="header">
+        {showPlans
+          ? (message ?? PLAYER_COPY.seriesLock.title)
+          : PLAYER_COPY.seriesLock.unavailableTitle}
+      </Text>
+      <Text style={styles.description}>
+        {showPlans
+          ? PLAYER_COPY.seriesLock.description
+          : PLAYER_COPY.seriesLock.unavailableDescription}
+      </Text>
+    </>
+  );
+
+  const limitHeader = (
+    <>
       <View
         style={styles.ring}
         accessibilityElementsHidden
@@ -120,6 +152,12 @@ export default function LimitNoticeSheet() {
           : (message ?? PLAYER_COPY.limitNotice.title)}
       </Text>
       <Text style={styles.description}>{PLAYER_COPY.limitNotice.description}</Text>
+    </>
+  );
+
+  const body = (
+    <View style={styles.body} accessibilityViewIsModal>
+      {isSeriesLock ? lockHeader : limitHeader}
       {showPlans ? (
         <PaywallPlansSection onEntitled={handleEntitled} onDelayed={hide} onEmailGate={suspend} />
       ) : null}
@@ -203,6 +241,15 @@ const styles = StyleSheet.create({
   },
   ringValueLeft: {
     color: theme.color.textPrimary,
+  },
+  // 잔여 링과 같은 자리·크기 — 채운 옅은 회색 원(iOS tertiarySystemFill). 주의색을 쓰지 않는다: 소진·실패가 아니다(design.md §1)
+  lockCircle: {
+    width: RING_SIZE,
+    height: RING_SIZE,
+    borderRadius: RING_SIZE / 2,
+    backgroundColor: theme.color.fillTertiary,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   title: {
     marginTop: theme.spacing.xs,

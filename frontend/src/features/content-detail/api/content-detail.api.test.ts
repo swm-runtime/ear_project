@@ -120,3 +120,29 @@ describe('content-detail.api — 시리즈 줄의 데이터 출처(KAN-225 · co
     });
   });
 });
+
+describe('content-detail.api — 잠긴 편 is_locked(experiments-api.md 4.2-2 · KAN-294)', () => {
+  it('최상위 is_locked 가 true 면 잠금이다', async () => {
+    mockGet.mockResolvedValue({ data: { ...response(content()), is_locked: true } });
+
+    const detail = await fetchContentDetail({ contentId: 'c1' });
+
+    expect(detail.isLocked).toBe(true);
+  });
+
+  it('콘텐츠 객체의 is_locked 로 와도 잠금이다(계약 위치가 확정되기 전이라 둘 다 읽는다)', async () => {
+    mockGet.mockResolvedValue({ data: response(content({ is_locked: true })) });
+
+    const detail = await fetchContentDetail({ contentId: 'c1' });
+
+    expect(detail.isLocked).toBe(true);
+  });
+
+  it('필드가 없으면(옛 서버) 잠기지 않은 것으로 읽는다', async () => {
+    mockGet.mockResolvedValue({ data: response(content()) });
+
+    const detail = await fetchContentDetail({ contentId: 'c1' });
+
+    expect(detail.isLocked).toBe(false);
+  });
+});

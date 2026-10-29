@@ -49,6 +49,8 @@ const toContentDetail = (dto: ContentDetailResponseDto): ContentDetail => ({
       }
     : null,
   isCountedToday: dto.is_counted_today,
+  // 잠긴 편(KAN-294) — 최상위·콘텐츠 객체 어느 쪽이든 true 면 잠금. 옛 서버(둘 다 없음)는 false
+  isLocked: dto.is_locked === true || dto.content.is_locked === true,
 });
 
 /* ── 엔드포인트 — mock 분기는 각 함수 진입점 한 곳에서만 한다 ── */

@@ -1,6 +1,7 @@
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { motion, theme } from '@/shared/theme';
+import LockIcon from '@/shared/ui/LockIcon';
 import MoreIcon from '@/shared/ui/MoreIcon';
 import RemoteImage from '@/shared/ui/RemoteImage';
 import { Text } from '@/shared/ui/Typography';
@@ -10,6 +11,8 @@ import type { ExploreItem } from '../explore.types';
 
 /** 카드 하단 줄에 싣는 해시태그 수 — 한 줄에 길이와 함께 들어가야 한다 */
 const MAX_CARD_TAGS = 2;
+/** 메타 줄 앞 자물쇠 — 메타 글자(xs)와 같은 높이. 사진 위에 얹지 않는다(design.md §3 사진 위 스티커 금지) */
+const LOCK_ICON_SIZE = 11;
 
 interface ExploreTileProps {
   item: ExploreItem;
@@ -52,6 +55,7 @@ export default function ExploreTile({
           title: item.content.title,
           minutes,
           completed: isCompleted,
+          locked: item.content.isLocked,
         })}
       >
         <View style={isGrid ? styles.gridArtworkFrame : styles.artworkFrame}>
@@ -73,9 +77,21 @@ export default function ExploreTile({
           히트 영역을 주면 서로·제목·카드 탭(재생)과 겹친다. 오탭이 재생 판정으로 이어지는 쪽이 더 비싸다. 태그 검색은 대표 카드와
           콘텐츠 상세(⋯ → 상세 정보)에서 연다
         */}
-        <Text style={styles.meta} numberOfLines={1}>
-          {EXPLORE_COPY.row.metaWithTags(item.content.tags.slice(0, MAX_CARD_TAGS), minutes)}
-        </Text>
+        <View style={styles.metaRow}>
+          {/* 잠긴 편(KAN-294 — 서버 `is_locked`) — 메타 줄 앞 작은 자물쇠. 장식이라 낭독은 타일 라벨의 "잠김"이 한다 */}
+          {item.content.isLocked ? (
+            <View
+              testID="explore-tile-lock"
+              accessibilityElementsHidden
+              importantForAccessibility="no-hide-descendants"
+            >
+              <LockIcon size={LOCK_ICON_SIZE} color={theme.color.textSecondary} />
+            </View>
+          ) : null}
+          <Text style={styles.meta} numberOfLines={1}>
+            {EXPLORE_COPY.row.metaWithTags(item.content.tags.slice(0, MAX_CARD_TAGS), minutes)}
+          </Text>
+        </View>
       </Pressable>
 
       <Pressable
@@ -133,8 +149,14 @@ const styles = StyleSheet.create({
     // 제목 줄 수가 달라도 타일 높이가 같아야 캐러셀이 들쭉날쭉하지 않다
     minHeight: theme.font.size.sm * 1.35 * 2,
   },
-  meta: {
+  metaRow: {
     marginTop: theme.spacing.xs,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.xs,
+  },
+  meta: {
+    flexShrink: 1,
     fontSize: theme.font.size.xs,
     color: theme.color.textSecondary,
   },

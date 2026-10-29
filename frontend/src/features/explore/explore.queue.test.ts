@@ -17,6 +17,7 @@ const item = (id: string, library: ExploreItem['library'] = null): ExploreItem =
     topicIds: ['t1'],
     tags: [],
     language: null,
+    isLocked: false,
     series: null,
   },
   library,
