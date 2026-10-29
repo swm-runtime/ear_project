@@ -60,3 +60,4 @@
   - 기록: 스키마 변경 없이 `notification_logs.type` = `drip_arrival.a` / `drip_arrival.b`(꺼짐이면 `drip_arrival`). 앱으로 가는 푸시 `data.type`은 `drip_arrival` 그대로다 — 앱(`push-link.ts`)은 `data.type === 'drip_arrival'`로 비교하므로 기록 종류만 바꾸면 앱 변경이 없다. 하루 1건 판정은 `type = 'drip_arrival' OR type LIKE 'drip_arrival.%'`, 어드민 알림 반응은 `drip_arrival.%`도 세고 `variant`에 그룹을 싣는다(관리자 웹은 "드립 도착 (기준선) · 변형 A"로 보인다).
   - 문서 수정은 `changes/pending/exp-drip-arrival-ab.md`.
   - 남은 일: 개발계에서 스위치 켜고 07:30·08:00 로그(`drip arrival push done` · `user_count_by_slot`) 확인 → 운영 켠 시각을 여기에 기록. 개발계 확인 전까지 `pending/`에 둔다.
+- 2026-10-29 PR [#2164](https://github.com/swm-runtime/ear_project/pull/2164) → dev(미머지). 아침 알림(KAN-288)은 #2165가 이 위에 쌓였다.
