@@ -106,7 +106,7 @@ export async function getBacklog(id: string): Promise<BacklogCandidate | null> {
   const r = await pool.query("select id, mid_topic, title, target_fit, angle, sources, axis, axis_type, gaps, series_id, series_no, length_profile, remake_of from public.backlog where id = $1", [id]);
   if (!r.rows[0]) return null;
   const row = r.rows[0];
-  return { id: row.id, mid_topic: row.mid_topic, title: row.title, target_fit: row.target_fit, angle: row.angle, sources: (row.sources ?? []) as SourceRef[], axis: row.axis, axis_type: row.axis_type, gaps: row.gaps ?? [], series_id: row.series_id ?? null, series_no: row.series_no ?? null };
+  return { id: row.id, mid_topic: row.mid_topic, title: row.title, target_fit: row.target_fit, angle: row.angle, sources: (row.sources ?? []) as SourceRef[], axis: row.axis, axis_type: row.axis_type, gaps: row.gaps ?? [], series_id: row.series_id ?? null, series_no: row.series_no ?? null, length_profile: row.length_profile ?? "standard", remake_of: row.remake_of ?? null }; // 0040: 명시 매핑이라 컬럼을 더하면 여기도 더한다 — 2026-10-29 첫 재제작 3편이 standard 로 돌아간 원인
 }
 export async function setBacklogStatus(id: string, status: string, extra: Record<string, unknown> = {}) {
   const sets = ["status = $2", "updated_at = now()"];
@@ -382,9 +382,9 @@ export async function countReinforceRuns(backlogId: string): Promise<number> {
   return Number(r.rows[0]?.n ?? 0);
 }
 export async function getBacklogFull(id: string): Promise<(BacklogCandidate & { status: string; dedup_note: string | null; reinforced_at: string | null }) | null> {
-  const r = await pool.query("select id, mid_topic, title, target_fit, angle, sources, axis, axis_type, gaps, status, dedup_note, reinforced_at from public.backlog where id = $1", [id]);
+  const r = await pool.query("select id, mid_topic, title, target_fit, angle, sources, axis, axis_type, gaps, status, dedup_note, reinforced_at, length_profile, remake_of from public.backlog where id = $1", [id]);
   const row = r.rows[0]; if (!row) return null;
-  return { id: row.id, mid_topic: row.mid_topic, title: row.title, target_fit: row.target_fit, angle: row.angle, sources: (row.sources ?? []) as SourceRef[], axis: row.axis, axis_type: row.axis_type, gaps: row.gaps ?? [], status: row.status, dedup_note: row.dedup_note, reinforced_at: row.reinforced_at };
+  return { id: row.id, mid_topic: row.mid_topic, title: row.title, target_fit: row.target_fit, angle: row.angle, sources: (row.sources ?? []) as SourceRef[], axis: row.axis, axis_type: row.axis_type, gaps: row.gaps ?? [], status: row.status, dedup_note: row.dedup_note, reinforced_at: row.reinforced_at , length_profile: row.length_profile ?? "standard", remake_of: row.remake_of ?? null };
 }
 export async function recentSourcesForTopic(midTopic: string, days: number, limit: number) {
   const r = await pool.query(

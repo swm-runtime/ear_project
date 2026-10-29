@@ -40,7 +40,7 @@ export async function setBacklogStatus(id: string, status: "approved" | "rejecte
       if (e2) throw new Error(`승인은 됐지만 초안 작업 등록 실패: ${e2.message}`);
     }
   }
-  revalidatePath("/backlog"); revalidatePath("/"); revalidatePath("/episodes");
+  revalidatePath("/backlog"); revalidatePath("/"); revalidatePath("/episodes"); revalidatePath("/experiments");
 }
 
 /** 시리즈 편 집기 순서 (spec/11 5.3, 워커 db.ts seriesPrevReady 와 같은 규칙) — 일반 편·1화는 참, k화는 k-1화가 초안을 마쳤을 때(drafted 이후) */
