@@ -23,6 +23,7 @@ import InlineNotice from '@/shared/ui/InlineNotice';
 import LargeTitleRow from '@/shared/ui/LargeTitleRow';
 import { Text } from '@/shared/ui/Typography';
 
+import { ContentReviewSheets } from '@/features/content-review';
 import {
   DOCK_SCROLL_PROPS,
   MiniPlayer,
@@ -410,6 +411,7 @@ export default function ExploreSearchScreen({ embedding }: ExploreSearchScreenPr
       <ExploreMoreSheet
         item={screen.moreSheetItem}
         onDetail={screen.openDetail}
+        onReview={screen.openReview}
         onSourceLink={screen.openSourceLink}
         onSave={screen.requestSave}
         onRemove={screen.requestRemove}
@@ -417,6 +419,9 @@ export default function ExploreSearchScreen({ embedding }: ExploreSearchScreenPr
         onDismiss={screen.closeMoreSheet}
         onDismissed={screen.handleSheetDismiss}
       />
+
+      {/* 후기 시트(L17) · 발급 안내(L19) — 더보기 시트가 내려간 뒤에 열린다(KAN-280) */}
+      <ContentReviewSheets launcher={screen.reviewLauncher} />
 
       {/* 재생 확인 팝업 — 표시(잔여 숫자)를 숨긴 것이지 판정·팝업 규칙을 뺀 것이 아니다(explore.md 7장) */}
       <PlayConfirmDialog

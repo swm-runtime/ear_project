@@ -67,7 +67,7 @@ export interface StatsVM {
 }
 
 /**
- * eventLine — 초대 코드 지급 중이면 "{이름} 이벤트 이용 중 · {요금제} · N월 N일까지"(KAN-182), 아니면 null.
+ * eventLine — 초대 코드 지급 중이면 "{이름} 프로모션 이용 중 · {요금제} · N월 N일까지"(KAN-182), 아니면 null.
  * 설정 요약·요금제 관리와 **같은 함수**(subscription 공개 API `formatPlanGrantLine`)로 만든다
  */
 export type PlanCardVM = PlanCardStatusVM & { eventLine: string | null };

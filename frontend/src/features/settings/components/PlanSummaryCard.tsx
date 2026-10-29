@@ -22,8 +22,8 @@ interface PlanSummaryCardProps {
 }
 
 /**
- * 카드에 그릴 줄들 — 초대 코드 지급 중이면 이벤트 줄을 더한다(KAN-182). **구독 없이(무료) 지급 중이면 이벤트 줄 하나만**
- * 그린다 — "무료 이용 중"과 "Pro 이벤트 이용 중"이 함께 보이면 서로 어긋난다. 구독 중이면 구독 줄 밑에 이벤트 줄
+ * 카드에 그릴 줄들 — 초대 코드 지급 중이면 프로모션 줄을 더한다(KAN-182). **구독 없이(무료) 지급 중이면 프로모션 줄 하나만**
+ * 그린다 — "무료 이용 중"과 "Pro 프로모션 이용 중"이 함께 보이면 서로 어긋난다. 구독 중이면 구독 줄 밑에 프로모션 줄
  */
 export const planLines = (vm: PlanRowVM): string[] => {
   if (vm.eventLine === null) return [valueText(vm)];
@@ -173,7 +173,7 @@ const styles = StyleSheet.create({
     color: theme.color.textPrimary,
     flexShrink: 1,
   },
-  /** 이벤트 줄(KAN-182) — 구독 줄 밑의 보조 정보 */
+  /** 프로모션 줄(KAN-182) — 구독 줄 밑의 보조 정보 */
   subValue: {
     fontSize: theme.font.size.sm,
     color: theme.color.textSecondary,

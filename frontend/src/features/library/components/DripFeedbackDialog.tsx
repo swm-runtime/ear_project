@@ -3,11 +3,11 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import { theme } from '@/shared/theme';
 import ConfirmDialog from '@/shared/ui/ConfirmDialog';
 import RemoteImage from '@/shared/ui/RemoteImage';
+import StarIcon from '@/shared/ui/StarIcon';
 import { Text } from '@/shared/ui/Typography';
 
 import { LIBRARY_COPY } from '../library.copy';
 import type { DripFeedbackItem } from '../library.types';
-import StarIcon from './StarIcon';
 
 /** 별 1~5 — drip-feedback-api.md 4.2 `stars` 범위 */
 export const DRIP_FEEDBACK_STAR_VALUES = [1, 2, 3, 4, 5] as const;

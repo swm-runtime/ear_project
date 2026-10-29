@@ -31,6 +31,7 @@ import {
   type ContentLanguage,
 } from '@/features/auth';
 import { isCareerEntryVisible } from '@/features/career';
+import { useHasUnusedPromotion } from '@/features/content-review';
 import { getOsPermissionStatus, type OsPermissionStatus } from '@/features/notification';
 import { formatPlanGrantLine } from '@/features/subscription';
 
@@ -71,7 +72,7 @@ export type PlanRowStatusVM =
   | { kind: 'grace'; planName: string };
 
 /**
- * eventLine — 초대 코드 지급 중이면 "{이름} 이벤트 이용 중 · {요금제} · N월 N일까지"(KAN-182), 아니면 null.
+ * eventLine — 프로모션 지급 중이면 "{이름} 프로모션 이용 중 · {요금제} · N월 N일까지"(KAN-182 · 후기 참여 KAN-280), 아니면 null.
  * 프로필 플랜 줄·요금제 관리와 **같은 함수**(subscription 공개 API `formatPlanGrantLine`)로 만든다
  */
 export type PlanRowVM = PlanRowStatusVM & { eventLine: string | null };
@@ -125,7 +126,7 @@ const toPlanRowStatusVM = (plan: SettingsPlan): PlanRowStatusVM => {
 /** 메뉴 항목의 목적지 — 전부 MainStack 위에 얹히는 화면들이다(일부는 아직 placeholder) */
 type SettingsDestination =
   | 'Subscription'
-  | 'InviteCode'
+  | 'Promotions'
   | 'EmailVerification'
   | 'InterestManagement'
   | 'Career'
@@ -144,6 +145,8 @@ interface OptimisticOverlay {
 
 export const useSettingsScreen = () => {
   const navigation = useNavigation();
+  // S12 [프로모션] 행의 점 배지 — S12 와 같은 캐시(api 4.6). 화면에 들어올 때마다 새로 받는다
+  const hasUnusedPromotion = useHasUnusedPromotion();
   const queryClient = useQueryClient();
   const query = useSettingsQuery();
   const showToast = useToastStore((s) => s.show);
@@ -634,8 +637,10 @@ export const useSettingsScreen = () => {
 
     goBack: () => navigation.goBack(),
     openPlan: () => openDestination('Subscription'),
-    /** 이벤트 코드 입력(KAN-182) — 결제 UI 플래그와 무관하게 항상 있는 행 */
-    openInviteCode: () => openDestination('InviteCode'),
+    /** S12 프로모션(KAN-280 — 종전 프로모션 코드 입력 KAN-182) — 결제 UI 플래그와 무관하게 항상 있는 행 */
+    openPromotions: () => openDestination('Promotions'),
+    /** 쓰지 않은 프로모션이 있다 — [프로모션] 행의 점 배지(서버 `has_unused`, 받지 못했으면 없음) */
+    hasUnusedPromotion,
     // A10의 "현재 이메일" 표시 값을 실어 보낸다 — 인증 화면이 요약을 재조회하지 않게 한다.
     // 인증이 끝난 주소는 앱에서 바꿀 수 없으므로 인증 화면으로 보내지 않고 안내만 한다(auth.md 4.4)
     openEmail: () => {

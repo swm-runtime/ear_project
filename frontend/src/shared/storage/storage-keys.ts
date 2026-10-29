@@ -48,6 +48,12 @@ export const STORAGE_KEYS = {
    */
   LIBRARY_DRIP_FEEDBACK_OUTBOX: 'library.drip_feedback_outbox',
   /**
+   * 콘텐츠 후기(KAN-280)의 미전송 요청 — 망이 끊겨 못 보낸 후기 · 먼저 묻는 시트의 닫기 · 그만 보기(JSON 배열, 최대 몇 건).
+   * 계정 id 를 접미사로 붙인다. 추천 별점 보관함과 같은 규칙이다 — 다음 진입 · 포그라운드 복귀에 다시 보내고, 보내면 지운다.
+   * 쓸 수 없는 편(`CONTENT_REVIEW_NOT_PLAYED` · 회수 등) · 기능 꺼짐(`CONTENT_REVIEW_DISABLED`)은 버린다(content-review-api.md 6장)
+   */
+  CONTENT_REVIEW_OUTBOX: 'content_review.outbox',
+  /**
    * 재생 목록의 사용자 지정 순서 — `library_items.id` 의 나열(JSON). 기기 로컬 전용이다: 재생 목록의 원천이
    * 라이브러리 첫 페이지라 서버에 순서를 둘 자리가 없다(player/services/queue-order.ts). 판정이 아니라
    * 표시 순서다. 로그아웃 때 지우지 않는다 — 다른 계정의 목록에는 이 id 들이 없어 저절로 무시된다.

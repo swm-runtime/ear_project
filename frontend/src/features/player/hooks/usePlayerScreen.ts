@@ -14,6 +14,7 @@ import {
 } from '@/shared/navigation/zoom-transition';
 import { useToastStore } from '@/shared/ui/toast.store';
 
+import { useContentReviewLauncher } from '@/features/content-review';
 import {
   settingsKeys,
   updateUserSettings,
@@ -531,6 +532,8 @@ export const usePlayerScreen = () => {
       공유는 시트가 닫힌 뒤 열린다 — iOS의
       Modal dismiss ↔ 시스템 시트 present 경합 우회(useDeferredSheetShare) */
   const { requestShare, handleSheetDismiss } = useDeferredSheetShare();
+  // PL7 [후기] → 후기 시트(L17) · 발급 안내(L19) — 플레이어(네이티브 모달) 안에 그려 같은 층에 뜬다(KAN-280)
+  const reviewLauncher = useContentReviewLauncher();
   const handleMoreSheetDismiss = () => {
     const detailContentId = pendingDetailRef.current;
     pendingDetailRef.current = null;
@@ -542,6 +545,17 @@ export const usePlayerScreen = () => {
       return;
     }
     handleSheetDismiss();
+    reviewLauncher.handleHostSheetClosed();
+  };
+  /** PL7 [후기](KAN-280) — 시트를 닫고 닫힘이 끝나면 후기 시트를 연다. 제목이 아직 없으면 열지 않는다(공유와 같은 원칙) */
+  const openReview = () => {
+    const meta = session?.meta;
+    if (!meta?.title) return;
+    setIsMoreSheetVisible(false);
+    reviewLauncher.request(
+      { contentId, title: meta.title, thumbnailUrl: meta.thumbnailUrl ?? null },
+      { afterHostSheetClosed: true },
+    );
   };
   const sharePress = () => {
     const meta = session?.meta;
@@ -635,6 +649,9 @@ export const usePlayerScreen = () => {
     openDetail,
     sharePress,
     handleMoreSheetDismiss,
+    /** [후기] 행 — 서버가 후기 기능을 켜 줬을 때만 그린다(받은 적 없거나 실패면 없음) */
+    openReview: reviewLauncher.isEnabled ? openReview : undefined,
+    reviewLauncher,
     requestDelete,
     pendingDeleteItemId,
     hiddenQueueItemIds,

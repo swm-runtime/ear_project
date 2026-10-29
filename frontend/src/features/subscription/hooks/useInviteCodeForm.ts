@@ -1,4 +1,3 @@
-import { useNavigation } from '@react-navigation/native';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { Alert } from 'react-native';
@@ -10,7 +9,7 @@ import { useToastStore } from '@/shared/ui/toast.store';
 import { fetchMySubscription, submitInviteCode, subscriptionKeys } from '../api/subscription.api';
 import { notifySubscriptionChanged } from '../services/subscription-sync';
 import { SUBSCRIPTION_COPY } from '../subscription.copy';
-import type { MySubscription } from '../subscription.types';
+import type { MySubscription, PlanGrant } from '../subscription.types';
 
 const COPY = SUBSCRIPTION_COPY.invite;
 
@@ -43,13 +42,15 @@ export const inviteErrorMessage = (error: unknown): string => {
   }
 };
 
-/** 성공 안내 — 응답의 grant 로 만든다. grant 가 없으면(서버가 표시를 바꾸지 않았다) 짧은 안내 */
-export const inviteSuccessMessage = (subscription: MySubscription): string => {
-  const grant = subscription.plan.grant;
-  return grant === null
-    ? COPY.successFallback
-    : COPY.success(grant.name, grant.planName, grant.lastDate);
-};
+/**
+ * 성공 안내 — 지급(grant)으로 만든다. grant 가 없으면(서버가 표시를 바꾸지 않았다) 짧은 안내.
+ * 후기 참여 프로모션 사용 성공도 같은 문자열이다("후기 참여 프로모션이 시작됐어요 · Pro · N월 N일까지" — KAN-280)
+ */
+export const grantStartedMessage = (grant: PlanGrant | null): string =>
+  grant === null ? COPY.successFallback : COPY.success(grant.name, grant.planName, grant.lastDate);
+
+export const inviteSuccessMessage = (subscription: MySubscription): string =>
+  grantStartedMessage(subscription.plan.grant);
 
 /**
  * 넣기 전에 "이미 구독 중" 확인을 띄울지(2026-10-19 PM 결정) — 유료 구독이 살아 있고(`status` free 아님 — 해지 예약·결제 유예 포함)
@@ -60,12 +61,15 @@ export const subscriberConfirmPlanName = (me: MySubscription | undefined): strin
   me !== undefined && me.plan.status !== 'free' && me.plan.grant === null ? me.plan.planName : null;
 
 /**
- * 이벤트 코드 입력 화면(KAN-182)의 로직 소유자. 결제 UI 플래그와 무관하다 — 지급은 스토어 결제가 아니다.
+ * 프로모션 코드 입력(KAN-182)의 로직 소유자 — S12 프로모션 화면(KAN-280, content-review 소유)의 [코드 입력] 칸이 쓴다.
+ * 결제 UI 플래그와 무관하다 — 지급은 스토어 결제가 아니다. **코드는 즉시 적용**이다(보관하지 않는다).
  * 성공하면 응답 본문으로 구독 캐시를 갱신하고(앱이 4.2 를 다시 부르지 않는다) 프로필·설정·라이브러리 요약을 다시 받는다
- * (결제·복원과 같은 배선 — notifySubscriptionChanged). 실패하면 입력값을 남긴 채 문구만 보인다
+ * (결제·복원과 같은 배선 — notifySubscriptionChanged). 입력을 비우고 토스트를 띄운 뒤 `onApplied`로 화면에 알린다(이용 중 섹션 갱신).
+ * 실패하면 입력값을 남긴 채 문구만 보인다
  */
-export const useInviteCodeScreen = () => {
-  const navigation = useNavigation();
+export const useInviteCodeForm = ({
+  onApplied,
+}: { onApplied?: (subscription: MySubscription) => void } = {}) => {
   const showToast = useToastStore((s) => s.show);
   const [code, setCode] = useState('');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -80,7 +84,8 @@ export const useInviteCodeScreen = () => {
     onSuccess: (subscription) => {
       notifySubscriptionChanged(subscription);
       showToast(inviteSuccessMessage(subscription));
-      navigation.goBack();
+      setCode('');
+      onApplied?.(subscription);
     },
     onError: (error) => setErrorMessage(inviteErrorMessage(error)),
   });
@@ -123,6 +128,5 @@ export const useInviteCodeScreen = () => {
     canSubmit,
     isSubmitting: mutation.isPending,
     errorMessage,
-    goBack: () => navigation.goBack(),
   };
 };

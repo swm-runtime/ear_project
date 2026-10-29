@@ -99,6 +99,13 @@ export const ERROR_MESSAGES_EN: Readonly<Record<string, string>> = {
   INVITE_CODE_EXHAUSTED: 'This code has reached its limit.',
   INVITE_CODE_ALREADY_USED: "You've already used this code.",
   INVITE_GRANT_ALREADY_ACTIVE: 'Another code is still active on your account.',
+  // 콘텐츠 후기 · 후기 참여 프로모션(content-review-api.md 5장 — KAN-280). 화면은 자기 문구를 쓰고, 이 값은 폴백이다
+  CONTENT_REVIEW_DISABLED: "Reviews aren't available right now.",
+  CONTENT_REVIEW_NOT_PLAYED: "You can only review episodes you've listened to.",
+  PROMOTION_NOT_FOUND: "This promotion can't be found.",
+  PROMOTION_ALREADY_USED: "You've already used this promotion.",
+  PROMOTION_EXPIRED: 'This promotion has expired.',
+  PROMOTION_PRO_SUBSCRIBED: "You can't use this promotion while subscribed.",
 };
 
 /** 표에 없는 코드(새로 생겼는데 앱이 아직 모름)에 쓰는 문구 — 한국어 서버 문구 대신 */

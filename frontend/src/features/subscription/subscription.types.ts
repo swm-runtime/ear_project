@@ -63,7 +63,7 @@ export type SubscriptionStatus = 'free' | 'subscribed' | 'cancel_scheduled' | 'g
  * 지급은 구독이 아니다 — `status` 는 구독 상태 그대로이고, 지급 요금제가 더 높으면 서버가 tier·planName 을 지급 값으로 준다
  */
 export interface PlanGrant {
-  /** 코드(캠페인) 이름 — "{name} 이벤트 이용 중"에 그대로 쓴다(KAN-182) */
+  /** 코드(캠페인) 이름 — "{name} 프로모션 이용 중"에 그대로 쓴다(KAN-182) */
   name: string;
   tier: string;
   planName: string;

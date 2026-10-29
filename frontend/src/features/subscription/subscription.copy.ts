@@ -242,9 +242,11 @@ const ko = {
     purchaseConfirmCancel: '취소',
   },
 
-  /** 프로모션 코드 입력 화면(KAN-182) — 설정 > [프로모션 코드 입력]. 결제 UI 플래그와 무관하게 항상 있다 */
+  /**
+   * 프로모션 코드 입력 칸(KAN-182) — S12 프로모션 화면(KAN-280)의 "프로모션 코드" 섹션. 결제 UI 플래그와 무관하게 항상 있다.
+   * 화면 제목 · 행 이름("프로모션")은 content-review · settings 카피가 갖는다
+   */
   invite: {
-    title: '프로모션 코드 입력',
     description: '받은 프로모션 코드를 입력하면 요금제 혜택이 바로 적용돼요',
     placeholder: '코드 입력',
     inputA11y: '프로모션 코드',
@@ -273,7 +275,6 @@ const ko = {
       '코드를 넣어도 지금 구독은 그대로 이어져요. 코드 혜택이 지금 요금제보다 높을 때만 바로 바뀌고, 아니면 구독이 끝난 뒤 프로모션 기간까지 혜택이 이어져요',
     subscriberConfirmOk: '입력하기',
     subscriberConfirmCancel: '취소',
-    backA11y: '뒤로 가기',
   },
 
   /** 실패 — subscription-api.md 5장 문구 */
@@ -453,7 +454,6 @@ const en: LocalizedCopy<typeof ko> = {
   },
 
   invite: {
-    title: 'Enter promo code',
     description: 'Enter your promo code to get plan benefits right away',
     placeholder: 'Enter code',
     inputA11y: 'Promo code',
@@ -475,7 +475,6 @@ const en: LocalizedCopy<typeof ko> = {
       'Your current subscription stays as it is. The code’s benefits apply right away only if they’re above your current plan; otherwise they continue after your subscription ends, until the promotion ends',
     subscriberConfirmOk: 'Apply',
     subscriberConfirmCancel: 'Cancel',
-    backA11y: 'Back',
   },
 
   error: {

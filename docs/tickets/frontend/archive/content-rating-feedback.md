@@ -14,7 +14,7 @@
 | 근거 문서 | `features/content-review.md` 2 · 4.3 · 4.6 · 5장 · `features/drip-feedback.md` 5장(오프라인 재전송 · 세션 1회 선례) · `spec/uiux/settings-uiux.md` 4.8(현 S12) |
 | 갱신 | 2026-10-28 — 기획 확정 반영. 요청 · 완료 조건을 전면 갱신했다(종전 "보상 안내" → **발급 안내 + 설정 › 프로모션에서 사용**) |
 | 중요도 | Low — PM 지정(2026-10-26). 마감이 안 맞으면 등급을 내리지 말고 사유를 적는다 |
-| 상태 | 대기 |
+| 상태 | 완료 — 2026-10-30 반영(#2171). 실기기 확인 항목은 처리 기록 |
 
 ## 요지 (Jira 본문용)
 
@@ -62,3 +62,12 @@
 - Given GLOBAL 계정 / Then 같은 화면이 영어로 나온다
 
 ## 처리 기록
+
+- 2026-10-30 반영: #2171 — 요청 1~8 반영, 9 지킴.
+  - 화면: `features/content-review` 신설 — 후기 시트(L17) · 먼저 묻는 시트(L18) · 발급 안내(L19) · S12 프로모션(+ 사용 확인 S13). 세 더보기 시트(L4 · E12 · PL7 · 시리즈 편) [상세 정보] 아래 [후기], 콘텐츠 상세 "내 후기". 켜짐 여부는 먼저 묻기 판정의 `enabled`(받은 적 없음 · 실패 → 그리지 않음 — `content-review-api.md` 2.1). 설정 행 [프로모션] + 쓰지 않은 프로모션 점 배지(`has_unused`). 라우트 `InviteCode` → `Promotions`, 코드 입력은 `subscription` 의 `InviteCodeForm` 섹션(동작 그대로 — 즉시 적용, 성공 뒤 S12 에 머문다).
+  - 오프라인 보관: 추천 별점과 같은 규칙(SecureStore 계정별, 같은 편은 마지막 값만) — 다음 진입 · 포그라운드 복귀에 재전송. 프로모션 사용은 보관하지 않는다.
+  - mock: `api/content-review.mock.ts` · `IS_CONTENT_REVIEW_API_MOCKED`(`EXPO_PUBLIC_CONTENT_REVIEW_API=real`) · `EXPO_PUBLIC_CONTENT_REVIEW_MOCK_SCENARIO` = `almost`(발급 직전 2/3) · `issued`(발급됨) · `pro`(Pro 구독 중) · `grant_active`(다른 프로모션 이용 중) · `trial`(체험 중) · `disabled`(스위치 꺼짐) · `not_played`(안 들은 편), 기본 `default`.
+  - 문서: `spec/uiux` library(L4 · L17 · L18 · L19 확정 카피) · explore(E12) · player(PL7) · content-detail(4.6) · settings(4.8 S12 개편 · S13 · 행 · 접근성) · profile(4장 문구), `frontend/architecture.md` 4.4 · 5.4. 문구 정리(요청 8)는 `profile-uiux.md` · `plan-grant.ts` · `useSettingsScreen.ts` · `PlanSummaryCard.test.tsx` 외 같은 잔재 주석까지.
+  - 검사: typecheck · 변경 파일 eslint · jest 전체(138 suites / 1125 tests) 통과.
+  - **완료 조건과 다르게 한 것** — ① 요청 4 "추천 별점이 떴으면 **조회** · 표시하지 않는다" → 조회는 하고 표시만 하지 않는다(켜짐 여부가 같은 응답에 있어 조회를 건너뛰면 그 세션에 [후기]가 사라진다 — 계약 4.3 "true 여도 띄우지 않는다"와 같다). ② 보상 줄에서 "Pro 7일"을 뺐다 — `reward_progress`에 요금제 · 일수가 없어 앱이 박아야 한다(티어명 하드코딩 금지). BE 가 진행에 `plan_name` · `grant_days`를 실으면 되살린다(`library-uiux.md` 9장 미결).
+  - **실기기 확인 남음**(운영은 `CONTENT_REVIEW_ENABLED` 꺼짐 — 개발계 서버 스위치를 켜거나 mock 으로): iOS 더보기 → 후기 시트 · 플레이어 위 시트 · [지금 쓰기] → S12 전환에서 모달 겹침 · 굳음 없음 / 키보드가 시트를 가리지 않음(iOS · Android 제스처 · 버튼 내비) / 글 칸 안 아래 끌기가 시트를 닫는지 / Android L4 · E12 닫힘 콜백으로 후기 시트가 열림 / 설정 점 배지 · 낭독.

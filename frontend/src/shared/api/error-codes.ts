@@ -91,6 +91,17 @@ export const ERROR_CODES = {
   /** drip-feedback-api.md 4.2 — 내 편성분이 아니거나 접수 기간(7일)이 지난 별점. 조용히 버린다(common-error-handling.md 9장) */
   DRIP_FEEDBACK_NOT_RATEABLE: 'DRIP_FEEDBACK_NOT_RATEABLE',
 
+  /**
+   * 콘텐츠 후기 · 후기 참여 프로모션(content-review-api.md 5장 — KAN-279/280). 후기의 두 코드는 큐의 후기를 버리고,
+   * 프로모션 코드는 S12 를 다시 받는다. 다른 지급 이용 중은 기존 `INVITE_GRANT_ALREADY_ACTIVE` 다
+   */
+  CONTENT_REVIEW_DISABLED: 'CONTENT_REVIEW_DISABLED',
+  CONTENT_REVIEW_NOT_PLAYED: 'CONTENT_REVIEW_NOT_PLAYED',
+  PROMOTION_NOT_FOUND: 'PROMOTION_NOT_FOUND',
+  PROMOTION_ALREADY_USED: 'PROMOTION_ALREADY_USED',
+  PROMOTION_EXPIRED: 'PROMOTION_EXPIRED',
+  PROMOTION_PRO_SUBSCRIBED: 'PROMOTION_PRO_SUBSCRIBED',
+
   // 공용 코드(common-error-handling.md 4.1)
   VALIDATION_FAILED: 'VALIDATION_FAILED',
   /** 9.1 기반 404 — 라우터에 없는 경로(구 서버의 미구현 엔드포인트)도 이 코드다 */

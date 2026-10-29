@@ -8,6 +8,7 @@ import { HEADER_CONTROL_HEIGHT } from '@/shared/ui/GlassCapsule';
 import GlassIconButton from '@/shared/ui/GlassIconButton';
 import { Text } from '@/shared/ui/Typography';
 
+import { ContentReviewSheets, MyContentReviewRow } from '@/features/content-review';
 import { PlayConfirmDialog } from '@/features/player';
 import { IS_SHARE_ENABLED, SHARE_COPY, ShareIcon } from '@/features/share';
 
@@ -75,6 +76,8 @@ export default function ContentDetailScreen() {
             메타 아래에는 구분선을 두지 않는다 — 출처 영역을 뺐다(KAN-221) */}
         <View style={styles.divider} />
         <ContentDetailMeta content={content} onSeriesPress={screen.openSeries} />
+        {/* 내 후기(KAN-280 — uiux 4.6) — 메타 밑 한 줄. 후기 기능이 꺼져 있으면 줄이 없다 */}
+        <MyContentReviewRow contentId={screen.contentId} onOpen={screen.openReview} />
       </ScrollView>
     );
   };
@@ -111,6 +114,9 @@ export default function ContentDetailScreen() {
         onCancel={screen.cancelPlayConfirm}
         onSuppressToday={screen.suppressAndPlay}
       />
+
+      {/* 후기 시트(L17) · 발급 안내(L19) — library-uiux.md 4.13 · 4.15 와 같은 시트 */}
+      <ContentReviewSheets launcher={screen.reviewLauncher} />
     </SafeAreaView>
   );
 }
