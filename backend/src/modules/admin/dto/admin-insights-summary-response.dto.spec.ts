@@ -139,6 +139,7 @@ const summary = (): InsightsSummary => ({
   ],
   pushReactions: [
     { type: 'drip_arrival', sent: 40, reacted: 10 },
+    { type: 'drip_arrival.a', sent: 20, reacted: 5 },
     { type: 'retention.weekly_rank_gap.b', sent: 8, reacted: 2 },
   ],
   boundedRetention: [
@@ -289,6 +290,15 @@ describe('AdminInsightsSummaryResponseDto', () => {
         variant: null,
         sent: 40,
         reacted: 10,
+        reaction_rate: 0.25,
+      },
+      // 도착 알림 시각 A/B(KAN-289) — 규칙은 null(드립 도착), 그룹만 변형으로
+      {
+        type: 'drip_arrival.a',
+        rule: null,
+        variant: 'a',
+        sent: 20,
+        reacted: 5,
         reaction_rate: 0.25,
       },
       {

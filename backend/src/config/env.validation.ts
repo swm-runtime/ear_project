@@ -270,6 +270,15 @@ export class EnvironmentVariables {
   FIRST_DRIP_RANDOM_ENABLED?: string;
 
   /**
+   * 드립 도착 알림 시각 A/B(KAN-289 — 단기 실험 ③-1)의 서버 스위치. `true`/`false`. **`true`를 명시했을 때만 켜진다.**
+   * 꺼져 있으면 종전과 같다(그룹 현지 07:00 전원). 켜면 **전 사용자**를 사용자 id 해시로 A/B에 나눠 A는 07:30 · B는 08:00(그룹 현지)에
+   * 보내고, `notification_logs.type`을 `drip_arrival.a`·`.b`로 남긴다(앱으로 가는 `data.type`은 `drip_arrival` 그대로). 대상·문구는 같다
+   */
+  @IsOptional()
+  @IsIn(['true', 'false', ''])
+  DRIP_ARRIVAL_AB_ENABLED?: string;
+
+  /**
    * 요금제 할인 표시(KAN-286 — 단기 실험 ① 가격 인하, `experiments-api.md` 4.4)의 서버 스위치. `true`/`false`.
    * **`true`를 명시했을 때만 켜진다.** 켜면 `GET /plans`의 유료 요금제에 정가(`original_price_krw`)와
    * `is_discounted`를 실어 앱이 정가 취소선 + "지금 할인 중"을 그린다. 끄면 앱 배포 없이 할인 표시가 사라진다
