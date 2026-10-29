@@ -12,7 +12,7 @@ import { exists, hostOf, log } from "../util.js";
 import { parseScriptForTts, type ScriptTurn } from "../tts/script.js";
 import { runDesignSingle } from "./design-single.js";
 import { countWords, MIN_MINUTES_EN, MIN_WORDS_EN, WORDS_PER_MIN_EN } from "../script-length.js";
-import { lengthSpecOf } from "@ear/pipeline";
+import { lengthProfileOf, lengthSpecOf, pickShortHook } from "@ear/pipeline";
 import { addPronunciations } from "../tts/normalize.js";
 
 /**
@@ -104,7 +104,8 @@ export async function runTwoStageDraft(a: TwoStageArgs): Promise<TwoStageResult>
   const pronunciationsJson = (await exists(pronFile)) ? await read(pronFile) : "{}";
   const estimatedMinutes = design?.estimated_minutes || Number(outlineMd.match(outlineMarks().estimate)?.[1]) || 15; // 설계 이어받기면 outline.md 에서 읽는다
   const en = pipelineLocale() === "en"; // 글로벌판: 영어 대본 프롬프트·스키마 (global-prompts.ts)
-  const parts = (en ? buildWritePromptPartsEn : buildWritePromptParts)({ episodeId, candidate: cand, introStyle: a.introStyle, promptVersion: a.promptVersion, templates: a.templates, majorTopic: a.majorTopic, signoffSeed: a.signoffSeed, estimatedMinutes, guidelines, specScript, goldFullEum, goldFullYuna, sourcesMd, claimsMd, outlineMd, pronunciationsJson, series });
+  const shortHook = !en && lengthProfileOf(cand.length_profile) === "short" ? pickShortHook(Number(cand.id.replace(/\D/g, "")) || 0) : undefined; // 0040: 짧은 판 도입 훅 — 후보 번호로 번갈아(선취형·약속형)
+  const parts = (en ? buildWritePromptPartsEn : buildWritePromptParts)({ episodeId, candidate: cand, introStyle: a.introStyle, promptVersion: a.promptVersion, templates: a.templates, majorTopic: a.majorTopic, signoffSeed: a.signoffSeed, estimatedMinutes, guidelines, specScript, goldFullEum, goldFullYuna, sourcesMd, claimsMd, outlineMd, pronunciationsJson, series, shortHook });
   log(`  draft ${episodeId} · 2/2 대본 (단발, 공유 ${Math.round(parts.system.length / 1000)}K + 편별 ${Math.round(parts.user.length / 1000)}K자)`);
   let w: Awaited<ReturnType<typeof ex.run<WriteOut>>>;
   try {
@@ -156,7 +157,7 @@ export async function runTwoStageDraft(a: TwoStageArgs): Promise<TwoStageResult>
 
   const stats = scriptStats(o.script);
   const writeCost = w.listCostUsd ?? 0;
-  const summary = `${episodeId} 초안 완료 (2단계 · ${ex.kind}, 도입 ${a.introStyle.label}, 템플릿 ${a.templates?.version ?? "미적용"}). ${designSummary}. 대본: "${o.title}" ${stats.turns}턴·${stats.words !== undefined ? `${stats.words}단어` : `${stats.chars}자`}·약 ${stats.minutes}분 · claims 대응 턴 ${o.turn_claims.length} · 새 연결 ${o.bridges.length} · 자기 점검 수정 ${o.self_check_fixes.length}건 · 구간 준수 ${o.sections_followed ? "예" : "아니오"}. 비용 설계 $${designCost.toFixed(2)} + 대본 $${writeCost.toFixed(2)} (effort ${cfg.effortDesign ?? "기본"}/${cfg.effortWrite ?? "기본"}). ${o.notes}`;
+  const summary = `${episodeId} 초안 완료 (2단계 · ${ex.kind}, 도입 ${shortHook ? `짧은 판 ${shortHook.label} 훅` : a.introStyle.label}, 템플릿 ${a.templates?.version ?? "미적용"}). ${designSummary}. 대본: "${o.title}" ${stats.turns}턴·${stats.words !== undefined ? `${stats.words}단어` : `${stats.chars}자`}·약 ${stats.minutes}분 · claims 대응 턴 ${o.turn_claims.length} · 새 연결 ${o.bridges.length} · 자기 점검 수정 ${o.self_check_fixes.length}건 · 구간 준수 ${o.sections_followed ? "예" : "아니오"}. 비용 설계 $${designCost.toFixed(2)} + 대본 $${writeCost.toFixed(2)} (effort ${cfg.effortDesign ?? "기본"}/${cfg.effortWrite ?? "기본"}). ${o.notes}`;
   return {
     summary, model: w.model ?? designModel, costUsd: designCost + writeCost,
     tokens: { design: designTokens, write: (w.raw as { usage?: unknown } | undefined)?.usage, design_model: designModel, write_model: w.model },

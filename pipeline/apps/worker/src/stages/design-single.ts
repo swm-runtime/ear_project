@@ -4,7 +4,7 @@ import { cfg, executedBy } from "../config.js";
 import { blockedTierHosts, insertRun, priorEpisodesUsingUrls, recordFetchStatus, refreshDomainFetchBlock, setJobProgress, type Job } from "../db.js";
 import { getFile } from "../storage.js";
 import type { Executor } from "../executors/index.js";
-import { assetPaths, AXIS_CHECK_SCHEMA, AXIS_CHECK_SCHEMA_EN, buildAxisCheckPromptParts, buildAxisCheckPromptPartsEn, buildDesignPromptInlineParts, buildDesignPromptInlinePartsEn, DESIGN_INLINE_SCHEMA, DESIGN_INLINE_SCHEMA_EN, designAxisRejectEn, designMissingQuestionsEn, isHistoryCandidateEn, lengthSpecOf, pipelineLocale, type BacklogCandidate, type InlineSource, type SeriesDraftContext } from "@ear/pipeline";
+import { assetPaths, AXIS_CHECK_SCHEMA, AXIS_CHECK_SCHEMA_EN, buildAxisCheckPromptParts, buildAxisCheckPromptPartsEn, buildDesignPromptInlineParts, buildDesignPromptInlinePartsEn, DESIGN_INLINE_SCHEMA, DESIGN_INLINE_SCHEMA_EN, designAxisRejectEn, designMissingQuestionsEn, isHistoryCandidateEn, lengthSpecOf, pipelineLocale, shortTrimFeedback, type BacklogCandidate, type InlineSource, type SeriesDraftContext } from "@ear/pipeline";
 import { fetchArticle, fetchStatusOf, type FetchedSource } from "../sources/fetch.js";
 import { log } from "../util.js";
 import { addPronunciations } from "../tts/normalize.js";
@@ -194,6 +194,18 @@ export async function runDesignSingle(a: { job: Job; ex: Executor; episodeId: st
     o = { ...r.output, outline_md: normOutline(r.output.outline_md) };
     q = countQ(o.outline_md);
   }
+  // 짧은 판 (0040, KAN-296 — 2026-10-29 C601·C602): 예상 분량·구간 수가 규격을 넘으면 실패 대신 "덜어내라" 피드백으로 한 번 재설계. 그래도 넘으면 아래 fail
+  const spec = lengthSpecOf(cand.length_profile);
+  if (!en && spec.key === "short") {
+    const over = (o.estimated_minutes && spec.maxMin && o.estimated_minutes > spec.maxMin) || o.sections.length > spec.sections[1];
+    if (over) {
+      log(`  design ${episodeId}: 짧은 판 초과 — 예상 ${o.estimated_minutes}분 · 구간 ${o.sections.length}개 (규격 ${spec.floorMin}~${spec.maxMin}분 · ${spec.sections[0]}~${spec.sections[1]}개) — 재설계 1회`);
+      extraCost += r.listCostUsd ?? 0;
+      r = await runDesign(parts.user + shortTrimFeedback(o.estimated_minutes, o.sections.length), "설계 1/2 — 짧은 판 분량 초과 → 재설계 (단발)");
+      o = { ...r.output, outline_md: normOutline(r.output.outline_md) };
+      q = countQ(o.outline_md);
+    }
+  }
   // 검증 실패도 비용이 든 실행이다 — 원본 출력을 남기고 runs 에 기록한 뒤 실패시킨다 (재현·진단용. 이전엔 흔적 없이 버려졌다)
   const fail = async (msg: string): Promise<never> => {
     await fs.mkdir(dir, { recursive: true }).catch(() => {});
@@ -264,8 +276,7 @@ export async function runDesignSingle(a: { job: Job; ex: Executor; episodeId: st
     if (used < 3 || /보류/.test(o.outline_md.slice(0, 200))) await fail(`소스 본문 ${used}건 — 3건 하한 미달 (설계 판단: ${(o.notes || o.outline_md).replace(/\s+/g, " ").slice(0, 200)})`);
     await fail(`outline_md 형식 위반 — ${en ? "'Axis:' 또는 'Section #1'" : "'축:' 또는 '구간 #1'"} 줄이 없음 (정규화 후). 앞부분: ${o.outline_md.replace(/\s+/g, " ").slice(0, 160)}`);
   }
-  const spec = lengthSpecOf(cand.length_profile); // 0040: short 프로필은 5~12분 (한국판만 — 글로벌은 MIN_MINUTES_EN)
-  const floorMin = en ? MIN_MINUTES_EN : spec.floorMin;
+  const floorMin = en ? MIN_MINUTES_EN : spec.floorMin; // 0040: short 프로필은 5~12분 (한국판만 — 글로벌은 MIN_MINUTES_EN)
   if (o.estimated_minutes && o.estimated_minutes < floorMin) await fail(`재료 부족 — 설계 예상 분량 ${o.estimated_minutes}분 < 하한 ${floorMin}분. ${o.notes.slice(0, 200)}`);
   if (!en && spec.key === "short") { // standard 는 종전 검사 그대로(구간 수·상한 검사 없음)
     if (spec.maxMin && o.estimated_minutes && o.estimated_minutes > spec.maxMin) await fail(`분량 초과 — 설계 예상 분량 ${o.estimated_minutes}분 > 상한 ${spec.maxMin}분 (${spec.label}). 구간을 덜어내 다시 설계한다`);
