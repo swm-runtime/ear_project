@@ -166,8 +166,8 @@ describe('구독·인앱 결제 E2E', () => {
     ).toEqual([
       // 구독이 없으면 무료 요금제가 "이용 중"이다(KAN-147)
       ['light', 0, true, null, 2, true, 'current'],
-      ['daily', 3900, false, PRODUCT_DAILY, 5, false, 'purchase'],
-      ['pro', 9900, false, PRODUCT_PRO, null, false, 'purchase'],
+      ['daily', 1900, false, PRODUCT_DAILY, 5, false, 'purchase'],
+      ['pro', 3900, false, PRODUCT_PRO, null, false, 'purchase'],
     ]);
 
     // Android 는 구현 전 — 상품 ID 가 없고 살 수 없다
