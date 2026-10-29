@@ -303,10 +303,12 @@ describe('서비스 지표 요약 E2E', () => {
       body.users.current + body.users.withdrawals,
     );
     expect(body.users.withdrawals).toBeGreaterThanOrEqual(1);
-    // 플랫폼 칸은 현재 계정을 빠짐없이 한 번씩 나눈다(기기 없음 포함)
-    expect(body.users.by_platform.reduce((n, p) => n + p.count, 0)).toBe(
-      body.users.current,
-    );
+    // 플랫폼 칸 — 아는 값만 오고 칸마다 1명 이상이다. 합이 현재 가입자와 같은지는 보지 않는다: 두 값을 다른 질의로 세는
+    // 사이 병렬 스위트가 사용자를 넣고 지워 우연히만 같다(CI 2026-10-29 #2152: 5 ↔ 6 — 위 #2049 와 같은 이유)
+    for (const p of body.users.by_platform) {
+      expect(['ios', 'android', 'web', 'unknown']).toContain(p.platform);
+      expect(p.count).toBeGreaterThanOrEqual(1);
+    }
     // 이벤트 인원은 그 티어 인원의 일부다 — 이 테스트가 심은 이벤트 Pro 1명이 들어 있다
     expect(body.users.tier_events.pro).toBeGreaterThanOrEqual(1);
     expect(body.users.tier_events.pro).toBeLessThanOrEqual(
