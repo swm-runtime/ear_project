@@ -1,3 +1,5 @@
+import { ContentLengthProfile } from '@/modules/content/content.enum';
+import { ContentCohortService } from '@/modules/content/services/content-cohort.service';
 import { Content } from '@/modules/content/entities/content.entity';
 import { ContentService } from '@/modules/content/services/content.service';
 import { ContentStatService } from '@/modules/content/services/content-stat.service';
@@ -240,6 +242,9 @@ describe('DripBatchOrchestrator', () => {
       topicService,
       userSettingService,
       { get: jest.fn((key: string) => env[key]) } as never,
+      new ContentCohortService({
+        get: (key: string) => env[key],
+      } as never),
     );
   }
 
@@ -449,6 +454,61 @@ describe('DripBatchOrchestrator', () => {
       expect(regularQuery?.includeTopicIds).toEqual([TOPIC_A, TOPIC_B]);
     });
 
+    describe('짧은 판 코호트(KAN-298)', () => {
+      const SINCE = '2026-09-01T00:00:00+09:00';
+      const lengthProfilesQueried = () =>
+        contentService.findCandidates.mock.calls.map(
+          ([query]) => query.lengthProfile,
+        );
+      const plan = (createdAt: Date, env: Record<string, string>) =>
+        createOrchestrator({ AUTO_EXPAND_ENABLED: 'true', ...env }).planForUser(
+          { ...buildUser(), createdAt },
+          NOW,
+          new Map(),
+          {
+            persistPreference: false,
+            persistAutoExpand: false,
+            stopAtSkip: false,
+            loadRecentDripTopics: false,
+          },
+        );
+
+      it('경계 이후 가입자는 정규·탐험 후보를 short로만 조회한다', async () => {
+        givenOutsideInterestListener();
+
+        await plan(new Date('2026-09-02T00:00:00.000Z'), {
+          SHORT_CONTENT_COHORT_SINCE: SINCE,
+        });
+
+        expect(lengthProfilesQueried().length).toBeGreaterThan(0);
+        expect(new Set(lengthProfilesQueried())).toEqual(
+          new Set([ContentLengthProfile.SHORT]),
+        );
+      });
+
+      it('경계 전 가입자는 standard로만 조회한다', async () => {
+        givenOutsideInterestListener();
+
+        await plan(new Date('2026-08-01T00:00:00.000Z'), {
+          SHORT_CONTENT_COHORT_SINCE: SINCE,
+        });
+
+        expect(new Set(lengthProfilesQueried())).toEqual(
+          new Set([ContentLengthProfile.STANDARD]),
+        );
+      });
+
+      it('경계 설정이 비면 경계 이후 가입자도 standard다 — 롤백 스위치', async () => {
+        givenOutsideInterestListener();
+
+        await plan(new Date('2026-09-02T00:00:00.000Z'), {});
+
+        expect(new Set(lengthProfilesQueried())).toEqual(
+          new Set([ContentLengthProfile.STANDARD]),
+        );
+      });
+    });
+
     it('미리보기는 저장하지 않고 판정만 싣되, 편성은 바뀐 관심 주제로 계산한다', async () => {
       givenOutsideInterestListener();
 
@@ -520,6 +580,7 @@ describe('DripBatchOrchestrator', () => {
           market: UserMarket.KR,
           jobCategory: null,
           yearsOfExperience: null,
+          createdAt: NOW,
         },
         NOW,
         new Map(),
@@ -585,6 +646,7 @@ describe('DripBatchOrchestrator', () => {
             key === 'SENTRY_ENVIRONMENT' ? 'development' : undefined,
           ),
         } as never,
+        new ContentCohortService({ get: () => undefined } as never),
       );
 
       const plan = await production.planForUser(buildUser(), NOW, new Map(), {

@@ -26,6 +26,7 @@ import { ContentTopicRepository } from './repositories/content-topic.repository'
 import { SearchQueryLogRepository } from './repositories/search-query-log.repository';
 import { ContentExpiryScheduler } from './content-expiry.scheduler';
 import { SearchQueryLogAdminController } from './search-query-log-admin.controller';
+import { ContentCohortService } from './services/content-cohort.service';
 import { ContentService } from './services/content.service';
 import { ContentStatService } from './services/content-stat.service';
 import { ContentTitleEmbeddingService } from './services/content-title-embedding.service';
@@ -68,6 +69,7 @@ import { TextEmbeddingClient } from './text-embedding.client';
     ContentExpiryScheduler,
     TextEmbeddingClient,
     ContentTitleEmbeddingService,
+    ContentCohortService,
   ],
   exports: [
     ContentService,
@@ -76,6 +78,8 @@ import { TextEmbeddingClient } from './text-embedding.client';
     ContentTitleEmbeddingService,
     SearchQueryLogService,
     SeriesService,
+    // 짧은 판 코호트(KAN-298) — 노출면이 사용자 코호트를 여기서만 묻는다
+    ContentCohortService,
   ],
 })
 export class ContentModule {}

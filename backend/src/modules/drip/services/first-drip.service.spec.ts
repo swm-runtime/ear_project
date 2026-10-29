@@ -1,3 +1,4 @@
+import { ContentCohortService } from '@/modules/content/services/content-cohort.service';
 import { ConfigService } from '@nestjs/config';
 import { DataSource } from 'typeorm';
 
@@ -100,6 +101,7 @@ describe('FirstDripService', () => {
       libraryService,
       dataSource,
       configOf(env),
+      new ContentCohortService(configOf(env)),
       random,
     );
   }

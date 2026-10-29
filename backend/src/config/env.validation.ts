@@ -382,6 +382,22 @@ export class EnvironmentVariables {
   SERVICE_DAY_BOUNDARY_05_FROM?: string;
 
   /**
+   * 짧은 판 코호트 경계(KAN-298 — 단기 실험 ④). 이 시각(ISO 8601, 예 `2026-11-05T10:00:00+09:00`) **이후** 가입한 사용자에게는
+   * 짧은 판(`length_profile = short`)만, 그 전 가입자에게는 기존 편(`standard`)만 노출한다(`content-cohort.policy.ts`).
+   * **비우면 전원 standard** — 롤백 스위치다. 값은 새 앱의 스토어 배포 시각으로 운영이 넣는다.
+   * 날짜만 적은 값은 거부한다 — `new Date('2026-11-05')`는 UTC 자정(KST 09:00)으로 조용히 해석된다
+   */
+  @IsOptional()
+  @Matches(
+    /^$|^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:\d{2})$/,
+    {
+      message:
+        'SHORT_CONTENT_COHORT_SINCE must be an ISO 8601 datetime with offset (e.g. 2026-11-05T10:00:00+09:00)',
+    },
+  )
+  SHORT_CONTENT_COHORT_SINCE?: string;
+
+  /**
    * App Store 인앱 결제 검증(`subscription-api.md` 7장 — KAN-106). **전부 선택이고, `APP_STORE_BUNDLE_ID`나
    * `APP_STORE_ENVIRONMENTS`가 비면 iOS 결제가 꺼진다**(결제 의도 생성이 `SUBSCRIPTION_PLAN_UNAVAILABLE`로
    * 막힌다 — 결제부터 시키고 검증을 못 하는 상태를 만들지 않는다).

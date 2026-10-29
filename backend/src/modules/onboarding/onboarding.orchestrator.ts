@@ -6,6 +6,8 @@ import { ErrorCode } from '@/common/exceptions/error-code.enum';
 import { FirstDripJobStatus } from '@/modules/drip/drip.enum';
 import { FirstDripService } from '@/modules/drip/services/first-drip.service';
 import { Content } from '@/modules/content/entities/content.entity';
+import { ContentLengthProfile } from '@/modules/content/content.enum';
+import { ContentCohortService } from '@/modules/content/services/content-cohort.service';
 import { ContentService } from '@/modules/content/services/content.service';
 import { ContentStatService } from '@/modules/content/services/content-stat.service';
 import { TopicListResult } from '@/modules/interest/interest.types';
@@ -64,6 +66,7 @@ export class OnboardingOrchestrator {
     private readonly libraryService: LibraryService,
     private readonly firstDripService: FirstDripService,
     private readonly dataSource: DataSource,
+    private readonly contentCohortService: ContentCohortService,
   ) {}
 
   /**
@@ -239,10 +242,13 @@ export class OnboardingOrchestrator {
       });
     }
 
+    // 온보딩 추천(담기)도 노출면이다 — 짧은 판 코호트와 같은 길이 프로필만 권한다(KAN-298)
+    const lengthProfile = this.contentCohortService.resolve(user.createdAt);
     const interestContents = await this.selectInterestContents(
       topicIds,
       now,
       user.market,
+      lengthProfile,
     );
     const discoverySize = RECOMMENDATION_TOTAL_SIZE - interestContents.length;
     const { contents: discoveryContents, sectionType } =
@@ -253,6 +259,7 @@ export class OnboardingOrchestrator {
         discoverySize,
         now,
         user.market,
+        lengthProfile,
       );
 
     const sections = await this.toSections(
@@ -427,6 +434,7 @@ export class OnboardingOrchestrator {
     topicIds: string[],
     now: Date,
     market: UserMarket,
+    lengthProfile: ContentLengthProfile,
   ): Promise<Content[]> {
     const quotaPerTopic = Math.max(
       1,
@@ -441,6 +449,7 @@ export class OnboardingOrchestrator {
 
       const contents = await this.contentService.findCandidates({
         market,
+        lengthProfile,
         includeTopicIds: [topicId],
         excludeContentIds: selected.map((content) => content.id),
         // 1편을 듣지 않은 신규 사용자에게 시리즈 중간 편을 권하지 않는다
@@ -458,6 +467,7 @@ export class OnboardingOrchestrator {
 
     const filler = await this.contentService.findCandidates({
       market,
+      lengthProfile,
       includeTopicIds: topicIds,
       excludeContentIds: selected.map((content) => content.id),
       seriesStartOnly: true,
@@ -481,6 +491,7 @@ export class OnboardingOrchestrator {
     size: number,
     now: Date,
     market: UserMarket,
+    lengthProfile: ContentLengthProfile,
   ): Promise<{ contents: Content[]; sectionType: RecommendationSectionType }> {
     if (size <= 0) {
       return {
@@ -491,6 +502,7 @@ export class OnboardingOrchestrator {
 
     const pool = await this.contentService.findCandidates({
       market,
+      lengthProfile,
       excludeTopicIds: interestTopicIds,
       excludeContentIds,
       seriesStartOnly: true,

@@ -17,6 +17,7 @@ import { isContentVisibleAt } from '../content.visibility';
 import { assertVariantOrigin } from '../content-variant.policy';
 import {
   ALL_TIME_PERIOD_START,
+  ContentLengthProfile,
   ContentStatus,
   StatsPeriodType,
 } from '../content.enum';
@@ -366,6 +367,8 @@ export class ContentService {
     limit: number,
     now: Date,
     market: UserMarket,
+    /** 짧은 판 코호트(KAN-298) — 사용자 코호트의 길이 프로필 */
+    lengthProfile: ContentLengthProfile,
     manager?: EntityManager,
     /** 시리즈 카드 모드(KAN-134) — 시리즈마다 가장 최신 편 하나만 */
     seriesAnchorsOnly = false,
@@ -374,6 +377,7 @@ export class ContentService {
       limit,
       now,
       market,
+      lengthProfile,
       manager,
       seriesAnchorsOnly,
     );
@@ -505,6 +509,7 @@ export class ContentService {
     const rows = await this.contentRepository.findSearchPage(
       {
         market: query.market,
+        lengthProfile: query.lengthProfile,
         normalizedQuery: query.normalizedQuery,
         tagOnly: false,
         matchSeriesTitle: query.matchSeriesTitle,

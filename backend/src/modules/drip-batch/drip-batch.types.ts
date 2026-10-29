@@ -93,7 +93,7 @@ export interface UserDripPlan {
  */
 export type DripPlanUser = Pick<
   User,
-  'id' | 'tier' | 'market' | 'jobCategory' | 'yearsOfExperience'
+  'id' | 'tier' | 'market' | 'jobCategory' | 'yearsOfExperience' | 'createdAt'
 >;
 
 export interface PlanOptions {

@@ -52,6 +52,9 @@ export class TokenService {
         sub: user.id,
         role: user.role,
         market: user.market,
+        // 가입 시각(ms) — 짧은 판 코호트(KAN-298) 판정 입력. 코호트 자체가 아니라 가입 시각을 실어 판정은 요청 때 한다:
+        // 경계 설정(`SHORT_CONTENT_COHORT_SINCE`)을 비우는 롤백이 토큰 수명을 기다리지 않고 바로 먹는다
+        signed_up_at: user.createdAt?.getTime(),
         typ: ACCESS_TOKEN_TYPE,
       },
       { expiresIn: ACCESS_TOKEN_TTL_SEC },

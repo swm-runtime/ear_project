@@ -28,6 +28,8 @@ export type UserPlanProfile = Pick<
   | 'jobCategory'
   | 'yearsOfExperience'
   | 'onboardingCompleted'
+  // 가입 시각 — 짧은 판 코호트(KAN-298) 판정 입력. 편성 미리보기가 배치와 같은 후보를 보려면 필요하다
+  | 'createdAt'
 >;
 
 /** 소셜 프로필에서 환산한 계정 생성 입력 (auth.md 4.1) */

@@ -13,6 +13,11 @@ export interface AuthenticatedUser {
    * 조회의 필터 입력이다. 클레임이 없는 옛 토큰은 `kr`로 본다(토큰 수명이 짧아 배포 뒤 곧 사라진다)
    */
   market: string;
+  /**
+   * 가입 시각(access token 클레임 `signed_up_at`) — 짧은 판 코호트(KAN-298) 판정 입력이다. 판정은 content 모듈
+   * `ContentCohortService`가 한다(`common/`은 규칙을 모른다). 클레임이 없는 옛 토큰·테스트 대역은 null/생략 — standard로 본다
+   */
+  signedUpAt?: Date | null;
 }
 
 export interface AuthenticatedRequest extends Request {

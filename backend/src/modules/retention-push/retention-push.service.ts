@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 
+import { ContentCohortService } from '@/modules/content/services/content-cohort.service';
 import { EnvironmentVariables } from '@/config/env.validation';
 import {
   serviceDateStart,
@@ -72,6 +73,7 @@ export class RetentionPushService {
     private readonly repository: RetentionPushRepository,
     private readonly targetedPushService: TargetedPushService,
     configService: ConfigService<EnvironmentVariables, true>,
+    private readonly contentCohortService: ContentCohortService,
   ) {
     this.mode = toMode(
       configService.get('RETENTION_PUSH_MODE', { infer: true }),
@@ -280,6 +282,8 @@ export class RetentionPushService {
         resumeSince: new Date(
           now.getTime() - RESUME_CONTENT_RECENT_DAYS * 24 * HOUR_MS,
         ),
+        // 짧은 판 코호트(KAN-298) — "듣던 콘텐츠"는 사용자 코호트와 같은 길이 프로필만 고른다
+        shortCohortSince: this.contentCohortService.cohortSince(),
       });
 
       for (const row of rows) {

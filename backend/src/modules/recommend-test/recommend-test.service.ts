@@ -5,6 +5,7 @@ import { DataSource, EntityManager } from 'typeorm';
 import { BusinessException } from '@/common/exceptions/business.exception';
 import { ErrorCode } from '@/common/exceptions/error-code.enum';
 import { EnvironmentVariables } from '@/config/env.validation';
+import { ContentCohortService } from '@/modules/content/services/content-cohort.service';
 import { ContentService } from '@/modules/content/services/content.service';
 import { DripBatchOrchestrator } from '@/modules/drip-batch/drip-batch.orchestrator';
 import { DripExcludedContent } from '@/modules/drip/entities/drip-excluded-content.entity';
@@ -79,6 +80,7 @@ export class RecommendTestService {
     private readonly userCareerService: UserCareerService,
     private readonly topicService: TopicService,
     private readonly contentService: ContentService,
+    private readonly contentCohortService: ContentCohortService,
     private readonly libraryService: LibraryService,
     private readonly playService: PlayService,
     private readonly playbackProgressService: PlaybackProgressService,
@@ -145,7 +147,12 @@ export class RecommendTestService {
   async getFeed(now: Date): Promise<ExploreFeedResult> {
     const user = await this.getTestUser();
 
-    return this.exploreOrchestrator.getFeed(user.id, now, user.market);
+    return this.exploreOrchestrator.getFeed(
+      user.id,
+      now,
+      user.market,
+      this.contentCohortService.resolve(user.createdAt),
+    );
   }
 
   async perform(

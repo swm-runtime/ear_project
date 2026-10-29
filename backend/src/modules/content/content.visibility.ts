@@ -1,4 +1,4 @@
-import { ContentStatus } from './content.enum';
+import { ContentLengthProfile, ContentStatus } from './content.enum';
 import { Content } from './entities/content.entity';
 import { UserMarket } from '@/modules/user/user.enum';
 
@@ -44,6 +44,30 @@ export function contentScopeParameters(
   return {
     ...contentVisibilityParameters(now),
     ...contentMarketParameters(market),
+  };
+}
+
+/**
+ * 짧은 판 코호트(KAN-298) — **노출면(발견 경로)에만** 붙는 세 번째 조건. 사용자 코호트(`ContentCohortService`)와 같은 길이
+ * 프로필의 콘텐츠만 남긴다. `null`이면 걸지 않는다 — 라이브러리·공유 링크 상세·재생처럼 **이미 손에 든 콘텐츠**는 막지 않는다
+ * (노출 실험이지 접근 제한이 아니다). 시리즈 편은 시리즈와 같은 프로필이라(업로드가 맞춘다) 편 조건 하나로 시리즈 노출도 갈린다
+ */
+export const CONTENT_LENGTH_PROFILE_CONDITION =
+  'content.length_profile = :lengthProfile';
+
+/** 노출 + 시장 + (주면) 길이 프로필 — 노출면 조회가 쓰는 조건과 파라미터를 한 번에 만든다 */
+export function contentExposureScope(
+  now: Date,
+  market: UserMarket,
+  lengthProfile: ContentLengthProfile | null,
+): { condition: string; parameters: Record<string, unknown> } {
+  const scope = contentScopeParameters(now, market);
+  if (lengthProfile === null) {
+    return { condition: CONTENT_SCOPE_CONDITION, parameters: scope };
+  }
+  return {
+    condition: `(${CONTENT_SCOPE_CONDITION} AND ${CONTENT_LENGTH_PROFILE_CONDITION})`,
+    parameters: { ...scope, lengthProfile },
   };
 }
 

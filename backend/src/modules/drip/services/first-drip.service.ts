@@ -6,6 +6,7 @@ import { EnvironmentVariables } from '@/config/env.validation';
 
 import { Content } from '@/modules/content/entities/content.entity';
 import { ContentStatService } from '@/modules/content/services/content-stat.service';
+import { ContentCohortService } from '@/modules/content/services/content-cohort.service';
 import { ContentService } from '@/modules/content/services/content.service';
 import { UserInterestService } from '@/modules/interest/services/user-interest.service';
 import { LibraryItemSource } from '@/modules/library/library.enum';
@@ -60,6 +61,7 @@ export class FirstDripService {
     private readonly libraryService: LibraryService,
     private readonly dataSource: DataSource,
     configService: ConfigService<EnvironmentVariables, true>,
+    private readonly contentCohortService: ContentCohortService,
     @Optional()
     @Inject(FIRST_DRIP_RANDOM_SOURCE)
     random?: RandomSource,
@@ -303,8 +305,11 @@ export class FirstDripService {
       return [];
     }
 
+    // 짧은 판 코호트(KAN-298) — 첫 드립·인기 대체 편성 모두 같은 길이 프로필 안에서만 고른다(standard로 폴백하지 않는다)
+    const lengthProfile = this.contentCohortService.resolve(user.createdAt);
     const pool = await this.contentService.findCandidates({
       market: user.market,
+      lengthProfile,
       includeTopicIds: topicIds,
       excludeSeenByUserId: userId,
       seriesStartOnly: true,
@@ -324,6 +329,7 @@ export class FirstDripService {
 
     const fallback = await this.contentService.findCandidates({
       market: user.market,
+      lengthProfile,
       excludeSeenByUserId: userId,
       // 방금 뽑은 것만 넘긴다 — 누적 이력은 위와 같은 NOT EXISTS가 본다
       excludeContentIds: selected,

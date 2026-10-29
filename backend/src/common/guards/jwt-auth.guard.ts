@@ -17,6 +17,8 @@ interface AccessTokenPayload {
   typ: string;
   /** 시장 클레임 — 배포 전 발급된 토큰에는 없다 */
   market?: string;
+  /** 가입 시각(epoch ms) — KAN-298 배포 전 발급된 토큰에는 없다 */
+  signed_up_at?: number;
 }
 
 const DEFAULT_MARKET = 'kr';
@@ -51,6 +53,11 @@ export class JwtAuthGuard implements CanActivate {
       id: payload.sub,
       role: payload.role,
       market: payload.market ?? DEFAULT_MARKET,
+      signedUpAt:
+        typeof payload.signed_up_at === 'number' &&
+        Number.isFinite(payload.signed_up_at)
+          ? new Date(payload.signed_up_at)
+          : null,
     };
     return true;
   }
