@@ -33,7 +33,7 @@ export async function runCritic(job: Job, ex: Executor) {
   if (!ep.asset_versions) await upsertEpisode({ id: episodeId, backlog_id: backlogId, prompt_version: ep.prompt_version, asset_versions: bundle.versions });
 
   const rubric: "v1" | "v2" = job.payload.rubric === "v1" ? "v1" : job.payload.rubric === "v2" ? "v2" : cfg.criticRubric; // 지정 없으면 설정 기본(v2)
-  if (rubric === "v2") return runCriticV2(job, ex, { episodeId, backlogId, rel, dir, scriptFile, title: cand.title, midTopic: cand.mid_topic, assetRoot, bundle });
+  if (rubric === "v2") return runCriticV2(job, ex, { episodeId, backlogId, rel, dir, scriptFile, title: cand.title, midTopic: cand.mid_topic, assetRoot, bundle, lengthProfile: cand.length_profile });
 
   const prompt = buildCriticPrompt({ assetRoot, workRoot: cfg.workRoot, episodeId, title: cand.title, midTopic: cand.mid_topic, scriptFile });
   log(`  critic ${episodeId}`);
@@ -79,11 +79,11 @@ export async function runCriticMeasure(job: Job, ex: Executor) {
   const { assetRoot, bundle } = await prepareAssets({ ...(ep.asset_versions ?? {}), "skills/critic/rubric-v2.md": rubricVersion });
   const variant = `${job.payload.mode === "single" ? "-single" : ""}${job.payload.effort ? `-${String(job.payload.effort)}` : ""}`; // 실행 형태·effort 측정 (2026-09-16)
   const reportFile = `critic-measure-${rubricVersion.replace(/[^A-Za-z0-9.-]+/g, "_")}${variant}.md`;
-  return runCriticV2(job, ex, { episodeId, backlogId, rel, dir, scriptFile, title: cand.title, midTopic: cand.mid_topic, assetRoot, bundle, measure: { rubricVersion: rubricVersion + variant, reportFile } });
+  return runCriticV2(job, ex, { episodeId, backlogId, rel, dir, scriptFile, title: cand.title, midTopic: cand.mid_topic, assetRoot, bundle, measure: { rubricVersion: rubricVersion + variant, reportFile }, lengthProfile: cand.length_profile });
 }
 
 /** critic-v2 초안 실행 (spec/09 v2 · rubric-v2.md). 리포트는 critic-report-v2.md — v1 스냅샷은 보존. 앵커 없음 기준선. measure 가 있으면 측정 모드(위) */
-async function runCriticV2(job: Job, ex: Executor, e: { episodeId: string; backlogId: string; rel: string; dir: string; scriptFile?: string; title: string; midTopic: string; assetRoot: string; bundle: AssetBundle; measure?: { rubricVersion: string; reportFile: string } }) {
+async function runCriticV2(job: Job, ex: Executor, e: { episodeId: string; backlogId: string; rel: string; dir: string; scriptFile?: string; title: string; midTopic: string; assetRoot: string; bundle: AssetBundle; measure?: { rubricVersion: string; reportFile: string }; /** 0040: short 면 규격 알림 한 절 */ lengthProfile?: string | null }) {
   const scriptPath = e.scriptFile ?? path.join(e.dir, "script.md");
   const scriptText = await readFile(scriptPath, "utf8").catch(() => "");
   const preTemplate = /\{인트로[^}]*\}|\{클로징[^}]*\}/.test(scriptText); // tpl-v1 이전 세대: 자리표기 감점 금지
@@ -97,7 +97,7 @@ async function runCriticV2(job: Job, ex: Executor, e: { episodeId: string; backl
     const en = pipelineLocale() === "en"; // 글로벌판: 영어 루브릭·프롬프트, 골드 없음 (global-prompts.ts, 글로벌 명세 6.6)
     if (en && !e.bundle.contents["skills/critic/rubric-v2.md"]) throw new Error("글로벌 DB 에 비평 루브릭(skills/critic/rubric-v2.md)이 없다 — assets-global import 로 시딩 (KAN-201)");
     const [rubricV2Md, guidelines, goldFullEum, goldFullYuna] = await Promise.all([ap.criticRubricV2, ap.guidelines, ...(en ? [] : [ap.goldFullEum, ap.goldFullYuna])].map((p) => readFile(p, "utf8")));
-    const parts = en ? buildCriticPromptInlinePartsEn({ episodeId: e.episodeId, title: e.title, midTopic: e.midTopic, rubricV2Md, guidelines, scriptMd: scriptText }) : buildCriticPromptInlineParts({ episodeId: e.episodeId, title: e.title, midTopic: e.midTopic as never, rubricV2Md, guidelines, goldFullEum, goldFullYuna, scriptMd: scriptText, preTemplate });
+    const parts = en ? buildCriticPromptInlinePartsEn({ episodeId: e.episodeId, title: e.title, midTopic: e.midTopic, rubricV2Md, guidelines, scriptMd: scriptText }) : buildCriticPromptInlineParts({ episodeId: e.episodeId, title: e.title, midTopic: e.midTopic as never, rubricV2Md, guidelines, goldFullEum, goldFullYuna, scriptMd: scriptText, preTemplate, lengthProfile: e.lengthProfile });
     log(`  critic v2 ${e.episodeId} (단발, 공유 ${Math.round(parts.system.length / 1000)}K + 편별 ${Math.round(parts.user.length / 1000)}K자${preTemplate ? " · tpl 이전 세대" : ""}${e.measure ? ` · 측정 ${e.measure.rubricVersion}` : ""})`);
     r = await ex.run<CriticV2Out>({
       prompt: parts.user, systemPrompt: parts.system, schema: en ? CRITIC_INLINE_SCHEMA_EN : CRITIC_INLINE_SCHEMA, tools: [], allowedTools: [], cwd: cfg.workRoot, timeoutMs: 45 * 60_000, model: cfg.criticModel, maxThinkingTokens: cfg.thinkingCritic, effort,

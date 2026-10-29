@@ -4,7 +4,7 @@ import { cfg, executedBy } from "../config.js";
 import { blockedTierHosts, insertRun, priorEpisodesUsingUrls, recordFetchStatus, refreshDomainFetchBlock, setJobProgress, type Job } from "../db.js";
 import { getFile } from "../storage.js";
 import type { Executor } from "../executors/index.js";
-import { assetPaths, AXIS_CHECK_SCHEMA, AXIS_CHECK_SCHEMA_EN, buildAxisCheckPromptParts, buildAxisCheckPromptPartsEn, buildDesignPromptInlineParts, buildDesignPromptInlinePartsEn, DESIGN_INLINE_SCHEMA, DESIGN_INLINE_SCHEMA_EN, designAxisRejectEn, designMissingQuestionsEn, isHistoryCandidateEn, pipelineLocale, type BacklogCandidate, type InlineSource, type SeriesDraftContext } from "@ear/pipeline";
+import { assetPaths, AXIS_CHECK_SCHEMA, AXIS_CHECK_SCHEMA_EN, buildAxisCheckPromptParts, buildAxisCheckPromptPartsEn, buildDesignPromptInlineParts, buildDesignPromptInlinePartsEn, DESIGN_INLINE_SCHEMA, DESIGN_INLINE_SCHEMA_EN, designAxisRejectEn, designMissingQuestionsEn, isHistoryCandidateEn, lengthSpecOf, pipelineLocale, type BacklogCandidate, type InlineSource, type SeriesDraftContext } from "@ear/pipeline";
 import { fetchArticle, fetchStatusOf, type FetchedSource } from "../sources/fetch.js";
 import { log } from "../util.js";
 import { addPronunciations } from "../tts/normalize.js";
@@ -97,7 +97,7 @@ export function isUsedBlock(text: string, used: string[]): boolean {
   return used.some((u) => { const b = normText(u); return b.length >= 40 && (a === b || a.includes(b) || b.includes(a)); });
 }
 
-export async function runDesignSingle(a: { job: Job; ex: Executor; episodeId: string; candidate: BacklogCandidate; dir: string; assetRoot: string; promptVersion: string; noGold?: boolean; series?: SeriesDraftContext }):
+export async function runDesignSingle(a: { job: Job; ex: Executor; episodeId: string; candidate: BacklogCandidate; dir: string; assetRoot: string; promptVersion: string; noGold?: boolean; series?: SeriesDraftContext; /** 재제작 원본(0040) — short 프로필 편의 축을 원본 질문에 묶는다 */ remakeOf?: { title: string; axis?: string | null } | null }):
   Promise<{ design: DesignOut; model: string | null; costUsd: number; tokens: unknown; fetched: FetchedSource[] }> {
   const { job, ex, episodeId, candidate: cand, dir } = a;
   await setJobProgress(job.id, { phase: "설계 1/2 — 소스 본문 가져오기", detail: `${cand.sources.length}건 fetch`, toolCounts: {}, turns: 0, elapsedMs: 0 }).catch(() => {});
@@ -117,7 +117,7 @@ export async function runDesignSingle(a: { job: Job; ex: Executor; episodeId: st
   // 이미 쓴 문단 제외 (2026-09-10, T260910-005↔013 — 같은 소스 2건에서 같은 문단을 골라 두 편의 구간이 거의 같은 대사가 됐다):
   // 다른 후보의 편이 같은 URL 에서 발췌한 문단은 프롬프트에서 본문을 빼고 자리만 남긴다 — 모델은 고를 수 없고, 남은 대목이 얇으면 그 소스를 제외한다.
   // 소스 단위로 막지 않는 이유: 풀이 작은 대분류는 소스 금지가 곧 편수 제한이다. 막는 단위는 문단이다.
-  const prior = await priorEpisodesUsingUrls(cand.sources.map((s) => s.url), cand.id).catch((e) => { log(`  design ${episodeId}: 이전 편 조회 실패 (${String(e?.message ?? e).slice(0, 80)}) — 문단 제외 없이 진행`); return []; });
+  const prior = await priorEpisodesUsingUrls(cand.sources.map((s) => s.url), cand.remake_of ? [cand.id, cand.remake_of] : cand.id).catch((e) => { log(`  design ${episodeId}: 이전 편 조회 실패 (${String(e?.message ?? e).slice(0, 80)}) — 문단 제외 없이 진행`); return []; });
   const usedByUrl = new Map<string, { episode: string; title: string; texts: string[] }[]>();
   for (const pe of prior) {
     const md = pe.sources_key ? await getFile(pe.sources_key) : null;
@@ -142,7 +142,7 @@ export async function runDesignSingle(a: { job: Job; ex: Executor; episodeId: st
   const sources: InlineSource[] = fetched.map((f, i) => ({ n: f.n, url: f.url, publisher: cand.sources[i].publisher, title: cand.sources[i].title || f.title || "", published: cand.sources[i].published, backbone: cand.sources[i].backbone, ok: f.ok, byline: f.byline, note: f.note,
     blocks: f.blocks.filter((b) => !usedBlocks.has(b.id)), usedBlocks: f.blocks.filter((b) => usedBlocks.has(b.id)).map((b) => ({ id: b.id, by: usedBlocks.get(b.id)! })) }));
   const en = pipelineLocale() === "en"; // 글로벌판: 영어 설계 프롬프트·스키마·산출물 표기 (global-prompts.ts, KAN-201)
-  const parts = (en ? buildDesignPromptInlinePartsEn : buildDesignPromptInlineParts)({ episodeId, candidate: cand, promptVersion: a.promptVersion, guidelines, specScript, goldFullEum, goldFullYuna, sources, series: a.series });
+  const parts = (en ? buildDesignPromptInlinePartsEn : buildDesignPromptInlineParts)({ episodeId, candidate: cand, promptVersion: a.promptVersion, guidelines, specScript, goldFullEum, goldFullYuna, sources, series: a.series, remakeOf: a.remakeOf });
   const normOutline = en ? normalizeOutlineEn : normalizeOutline;
   log(`  design ${episodeId}: 단발 호출 (공유 ${Math.round(parts.system.length / 1000)}K + 편별 ${Math.round(parts.user.length / 1000)}K자)`);
   const runDesign = (userPrompt: string, phase: string) => ex.run<DesignInlineOut>({
@@ -264,8 +264,13 @@ export async function runDesignSingle(a: { job: Job; ex: Executor; episodeId: st
     if (used < 3 || /보류/.test(o.outline_md.slice(0, 200))) await fail(`소스 본문 ${used}건 — 3건 하한 미달 (설계 판단: ${(o.notes || o.outline_md).replace(/\s+/g, " ").slice(0, 200)})`);
     await fail(`outline_md 형식 위반 — ${en ? "'Axis:' 또는 'Section #1'" : "'축:' 또는 '구간 #1'"} 줄이 없음 (정규화 후). 앞부분: ${o.outline_md.replace(/\s+/g, " ").slice(0, 160)}`);
   }
-  const floorMin = en ? MIN_MINUTES_EN : 13;
+  const spec = lengthSpecOf(cand.length_profile); // 0040: short 프로필은 5~12분 (한국판만 — 글로벌은 MIN_MINUTES_EN)
+  const floorMin = en ? MIN_MINUTES_EN : spec.floorMin;
   if (o.estimated_minutes && o.estimated_minutes < floorMin) await fail(`재료 부족 — 설계 예상 분량 ${o.estimated_minutes}분 < 하한 ${floorMin}분. ${o.notes.slice(0, 200)}`);
+  if (!en && spec.key === "short") { // standard 는 종전 검사 그대로(구간 수·상한 검사 없음)
+    if (spec.maxMin && o.estimated_minutes && o.estimated_minutes > spec.maxMin) await fail(`분량 초과 — 설계 예상 분량 ${o.estimated_minutes}분 > 상한 ${spec.maxMin}분 (${spec.label}). 구간을 덜어내 다시 설계한다`);
+    if (o.sections.length > spec.sections[1]) await fail(`구간 ${o.sections.length}개 — ${spec.label} 규격 상한 ${spec.sections[1]}개 초과. 축을 바로 증명하는 구간만 남긴다`);
+  }
 
   if (en) await writeDesignArtifactsEn({ dir, episodeId, cand, fetched, o, chosen, priorNotes, attribution, sectionsOf, axis });
   else {

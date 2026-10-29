@@ -104,7 +104,8 @@ export async function runDraft(job: Job, ex: Executor) {
     const intro = pickIntroStyle(seed);
     const [templates, majorTopic] = await Promise.all([getSetting<Templates>("templates"), majorOfMidTopic(cand.mid_topic)]);
     const series = await buildSeriesContext(cand, templates); // 시리즈 편(spec/11 5장) — 일반 편은 undefined 라 프롬프트가 그대로다
-    const t = await runTwoStageDraft({ job, ex, episodeId, candidate: cand, dir, rel, assetRoot, promptVersion, noGold, templates, majorTopic: majorTopic ?? undefined, introStyle: intro, fileTools, signoffSeed: Number(cand.id.replace(/\D/g, "")) || seed, series, seriesId: cand.series_id ?? undefined }); // 클로징 골격은 후보 번호로 돌린다 — 같은 시각에 시작한 3편이 같은 에피소드 수를 받아 골격이 겹쳤다 (T260909-005·007·009)
+    const remakeOf = cand.remake_of ? await getBacklog(cand.remake_of).then((o) => (o ? { title: o.title, axis: o.axis ?? null } : null)) : null; // 0040: 짧은 판은 원본 편의 질문을 유지한다
+    const t = await runTwoStageDraft({ job, ex, episodeId, candidate: cand, dir, rel, assetRoot, promptVersion, noGold, templates, majorTopic: majorTopic ?? undefined, introStyle: intro, fileTools, signoffSeed: Number(cand.id.replace(/\D/g, "")) || seed, series, seriesId: cand.series_id ?? undefined, remakeOf }); // 클로징 골격은 후보 번호로 돌린다 — 같은 시각에 시작한 3편이 같은 에피소드 수를 받아 골격이 겹쳤다 (T260909-005·007·009)
     out = { turns: t.stats.turns, chars: t.stats.chars, minutes: t.stats.minutes, sources_used: t.design?.sources_used ?? [], sources_excluded: t.design?.sources_excluded ?? [], self_check_fixes: t.write.self_check_fixes, notes: t.write.notes };
     oneLiner = t.write.one_liner?.trim() || null; // KAN-50 3-1 — 썸네일 {핵심 개념}·발행 메타 설명 첫 줄
     model = t.model; costUsd = t.costUsd; tokens = t.tokens; summary = t.summary;
@@ -192,7 +193,7 @@ export async function runDraft(job: Job, ex: Executor) {
   const seriesLinks = await readSeriesLinks(dir); // 시리즈 편(spec/11 6장) — series-links.json 이 없으면 시리즈 검사 없음
   const overlap = await seriesOverlapViolations(ex, scriptMd, seriesLinks); // 범위 검사(L1 겹침 항목) — 형제 편 몫을 풀어 쓴 곳. 한도 뒤엔 QA 로
   if (overlap.costUsd) costUsd = (costUsd ?? 0) + overlap.costUsd;
-  const violations = [...formatViolations(scriptMd), ...((await exists(outlineFile)) ? twoStageViolations(scriptMd, await fs.readFile(outlineFile, "utf8"), { signoffHeads, claimsMd, sourcesMd, notesMd, pronunciations }) : []), ...seriesViolations(scriptMd, notesMd, seriesLinks), ...overlap.violations];
+  const violations = [...formatViolations(scriptMd), ...((await exists(outlineFile)) ? twoStageViolations(scriptMd, await fs.readFile(outlineFile, "utf8"), { signoffHeads, claimsMd, sourcesMd, notesMd, pronunciations, lengthProfile: cand.length_profile }) : []), ...seriesViolations(scriptMd, notesMd, seriesLinks), ...overlap.violations];
   // L0 수정은 QA 회차와 별도로 센다 (2026-09-09): 같은 카운터를 쓰니 시점 표현 1건 고치는 데 QA 회차 하나가 사라졌고, QA 수정본이 통계 용어로 L0 에 걸리자 attempt 3 한도에 막혀 검토 대기로 빠졌다(T260909-009)
   // 한도 3회 · 한도 뒤 비율 위반만 남으면 QA 로 넘긴다 (2026-10-07 — v9.7 이후 최종 실패 12편 중 7편, 남은 위반이 턴 한두 개짜리 비율·이름 소개였다)
   const l0Fixes = Number(job.payload.l0_fixes ?? 0);

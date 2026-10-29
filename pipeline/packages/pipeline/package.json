@@ -5,7 +5,8 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
-    "./publication": "./src/publication.ts"
+    "./publication": "./src/publication.ts",
+    "./length-profile": "./src/length-profile.ts"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",

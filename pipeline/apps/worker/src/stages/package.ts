@@ -97,6 +97,9 @@ export async function runPackage(job: Job) {
     explainer,
     host: otherSpeaker(explainer),
     duration_min_estimate: durationMin,
+    // 0040 (KAN-296): 길이 프로필과 재제작 원본 — short 는 새 앱 배포 뒤 가입 코호트에만 나간다(BE 분리). 원본의 제품 content_id 를 함께 싣는다(BE 변형 연결용)
+    length_profile: cand.length_profile ?? "standard",
+    ...(cand.remake_of ? { remake_of: cand.remake_of, remake_of_content_ref: (await pool.query("select published_content_ref from public.backlog where id = $1", [cand.remake_of])).rows[0]?.published_content_ref ?? null } : {}),
     sources: cand.sources.map((s) => ({ publisher: s.publisher, title: s.title, url: s.url })), // 노출 표기 규격은 미결 #16
     // 업로드 화면이 썸네일을 미리 채울 때 쓴다(KAN-50 4번). 실제 바이트는 /api/publish 가 S3 에서 중계한다
     thumbnail_key: r.thumbnail_key ?? null,
