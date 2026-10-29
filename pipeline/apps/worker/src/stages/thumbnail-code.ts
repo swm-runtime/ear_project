@@ -4,9 +4,11 @@ import opentype from "opentype.js";
 import sharp from "sharp";
 
 /**
- * 코드 합성 시리즈 썸네일 2종 (2026-10-28 박수헌 확정 — 시리즈마다 톤을 다르게 가져가는 원칙, spec/11 7장).
- *   tv    — "광고로 읽는 마케팅": 어두운 바탕의 옛 TV 정지 화면. 화면 안에 편 제목(굵은 한글 디스플레이), 오른쪽 위 채널 번호 = 편 번호. 표지는 채널 자리에 편수.
- *   notes — "사례로 알아보는 창업": 회의실 벽의 포스트잇 세 장. 노랑(제목)·분홍(번호)·민트(시리즈명). 표지는 제목 자리에 시리즈 이름, 번호 자리에 편수.
+ * 코드 합성 시리즈 썸네일 (2026-10-28 박수헌 확정 — 시리즈마다 톤을 다르게 가져가는 원칙, spec/11 7장).
+ *   tv     — "광고로 읽는 마케팅": 어두운 바탕의 옛 TV 정지 화면. 화면 안에 편 제목(굵은 한글 디스플레이), 오른쪽 위 채널 번호 = 편 번호. 표지는 채널 자리에 편수.
+ *   notes  — "사례로 알아보는 창업": 회의실 벽의 포스트잇 세 장. 노랑(제목)·분홍(번호)·민트(시리즈명). 표지는 제목 자리에 시리즈 이름, 번호 자리에 편수.
+ *   layers — "탑다운 백엔드": 층을 쌓고 이번 편의 층만 밝게 (2026-10-29).
+ *   wave   — "계층마다 보는 네트워크": 오실로스코프 — 편마다 채널(파형) 하나, 이번 편 채널만 밝게 (2026-10-29).
  * 회화집(thumbnail-phrasebook.ts)과 같은 방식 — 이미지 모델을 부르지 않고 글꼴 윤곽을 SVG 경로로 그려 sharp 로 래스터화한다. 편마다 결과가 흔들리지 않고 비용이 0.
  * 편마다 다른 글자는 설계안(series.plan)의 편 제목이다 — 백로그 제목("시리즈 N — 제목: 부제")이 아니라 짧은 주제 이름.
  */
@@ -204,9 +206,55 @@ export async function composeLayersThumb(t: CodeThumbText & { layers: { name: st
   return sharp(Buffer.from(svg)).png().toBuffer();
 }
 
-export const CODE_STYLE_LABEL: Record<"tv" | "notes" | "layers", { name: string; defaultLabel: string }> = {
+/** 파형 채널 색 — 편 번호 순으로 돌려 쓴다(6색: 주황·황·녹·파랑·보라·핑크) */
+const WAVE_COLORS = ["#E0562B", "#F2A900", "#2E9E6B", "#1F7AE0", "#7B4FD1", "#E23E7A"];
+
+/**
+ * 파형 그래프(오실로스코프) — 정사각 PNG. 인디고 바탕에 희미한 격자, 편마다 채널(사인 파형) 하나를 위에서 아래로 쌓고 이번 편 채널만 굵고 밝게(글로우).
+ * 표지는 전 채널을 밝게. 채널 수 = 편수(12 넘으면 12줄에 겹쳐 돌린다). 왼쪽 아래에 "CH 04 / 06" 과 편 제목, 표지는 "전 N편 · CH 1–N" 과 시리즈 이름.
+ */
+export async function composeWaveThumb(t: CodeThumbText, size = 1024): Promise<Buffer> {
+  const { bold, display } = loadFonts();
+  const S = size;
+  const cover = t.no == null;
+  const BG = "#14123A", GRID = "#FFFFFF", TEXT = "#FFFFFF", DIM = "rgba(255,255,255,0.75)", LABEL = "rgba(255,255,255,0.6)";
+  const logo = await logoSvg(S, true);
+  const label = t.label.trim() ? `<path d="${rightAligned(bold, t.label.trim().toUpperCase(), S * 0.948, S * 0.082, S * 0.034, 0.12)}" fill="${LABEL}"/>` : "";
+  const grid = [...Array.from({ length: 9 }, (_, i) => `<line x1="0" y1="${(i + 1) * S * 0.1}" x2="${S}" y2="${(i + 1) * S * 0.1}"/>`), ...Array.from({ length: 9 }, (_, i) => `<line x1="${(i + 1) * S * 0.1}" y1="0" x2="${(i + 1) * S * 0.1}" y2="${S}"/>`)].join("");
+  const total = Math.max(1, t.total ?? t.no ?? 1);
+  const rows = Math.min(total, 12);
+  const top = S * 0.22, bottom = S * 0.66;
+  const step = rows > 1 ? (bottom - top) / (rows - 1) : 0;
+  let waves = "";
+  for (let k = 1; k <= total; k++) {
+    const on = cover || k === t.no;
+    const y0 = top + ((k - 1) % rows) * step;
+    const amp = (on && !cover ? 0.055 : 0.032) * S;
+    const f = 0.9 + k * 0.25, ph = k * 1.3;
+    const pts: string[] = [];
+    for (let x = 0; x <= 100; x += 2) pts.push(`${(x / 100) * S} ${(y0 + amp * Math.sin((x * f * 3.6 + ph * 57) * Math.PI / 180)).toFixed(1)}`);
+    const d = "M" + pts.join(" L");
+    const col = WAVE_COLORS[(k - 1) % WAVE_COLORS.length];
+    if (on && !cover) waves += `<path d="${d}" stroke="${col}" stroke-width="${S * 0.035}" stroke-opacity="0.35" fill="none"/><path d="${d}" stroke="${col}" stroke-width="${S * 0.016}" fill="none"/>`;
+    else waves += `<path d="${d}" stroke="${col}" stroke-width="${S * 0.009}" stroke-opacity="${cover ? 0.9 : 0.35}" fill="none"/>`;
+  }
+  const k = cover ? `전 ${total}편 · CH 1–${total}` : `CH ${String(t.no).padStart(2, "0")} / ${String(total).padStart(2, "0")}`;
+  const lines = t.lines.length ? t.lines : [""];
+  const maxW = S * 0.88;
+  const big = Math.min(...lines.map((l) => fitSize(display, l, maxW, S * 0.1)));
+  const lh = big * 1.02;
+  const baseY = S * 0.94 - big * 0.18;
+  const head = lines.map((l, i) => `<path d="${textPath(display, l, S * 0.06, baseY - (lines.length - 1 - i) * lh, big).d}" fill="${TEXT}"/>`).join("");
+  const kY = baseY - (lines.length - 1) * lh - big * 0.82 - S * 0.018;
+  const kPath = `<path d="${textPath(bold, k, S * 0.06, kY, S * 0.03, 0.1).d}" fill="${DIM}"/>`;
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${S}" height="${S}"><rect width="${S}" height="${S}" fill="${BG}"/><g stroke="${GRID}" stroke-opacity="0.08" stroke-width="${S * 0.003}">${grid}</g>${waves}${logo}${label}${kPath}${head}</svg>`;
+  return sharp(Buffer.from(svg)).png().toBuffer();
+}
+
+export const CODE_STYLE_LABEL: Record<"tv" | "notes" | "layers" | "wave", { name: string; defaultLabel: string }> = {
   tv: { name: "TV 정지 화면", defaultLabel: "AD SERIES" },
   notes: { name: "포스트잇 벽", defaultLabel: "CASE SERIES" },
   layers: { name: "계층 쌓기", defaultLabel: "TOP-DOWN SERIES" },
+  wave: { name: "파형 그래프", defaultLabel: "NETWORK" },
 };
 

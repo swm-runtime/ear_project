@@ -32,7 +32,7 @@ test("편별 힌트 — 이 편 범위와 형제 편 범위를 싣는다(한국�
 
 // 2026-10-26 KAN-247 — 간행물(발행 이름·썸네일 스타일)
 test("간행물 목록은 판마다 — 키·이름·스타일 (KAN-247)", () => {
-  assert.deepEqual(publicationsFor("ko").map((p) => p.name), ["키워드", "연대기", "광고로 읽는", "케이스", "탑다운"]);
+  assert.deepEqual(publicationsFor("ko").map((p) => p.name), ["키워드", "연대기", "광고로 읽는", "케이스", "탑다운", "네트워크"]);
   assert.deepEqual(publicationsFor("en").map((p) => p.name), ["Phrasebook"]);
   assert.equal(publicationOf("keyword")?.style, "keyword");
   assert.equal(publicationStyle("chronicle"), "scene", "연대기는 전용 디자인이 아직 없어 장면 썸네일");
@@ -47,7 +47,7 @@ test("간행물 목록은 판마다 — 키·이름·스타일 (KAN-247)", () =>
 // 2026-10-27 — 콘솔에서 만든 간행물(publications 표)을 상수와 합쳐 쓴다
 test("새 간행물 — 표 행을 상수와 합치고, 이름 중복·길이·모르는 디자인은 막는다", () => {
   const list = mergePublications([{ key: "p-abc", locale: "ko", name: "스케치", style: "keyword", hint: "" }, { key: "keyword", locale: "ko", name: "덮어쓰기 시도", style: "scene", hint: "" }]);
-  assert.deepEqual(publicationsFor("ko", list).map((p) => p.name), ["키워드", "연대기", "광고로 읽는", "케이스", "탑다운", "스케치"], "상수가 먼저, 겹치는 키는 상수가 이긴다");
+  assert.deepEqual(publicationsFor("ko", list).map((p) => p.name), ["키워드", "연대기", "광고로 읽는", "케이스", "탑다운", "네트워크", "스케치"], "상수가 먼저, 겹치는 키는 상수가 이긴다");
   assert.equal(publicationStyle("p-abc", list), "keyword");
   assert.equal(publicationByName("스케치", "ko", list)?.key, "p-abc");
   assert.equal(newPublicationBlocker({ name: "스케치", style: "scene" }, "ko", list), "같은 이름의 간행물이 이미 있다 (스케치)");
