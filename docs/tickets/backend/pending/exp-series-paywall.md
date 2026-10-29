@@ -54,7 +54,7 @@
 
 - 2026-10-29 발행(마크다운 + Jira KAN-290).
 - 2026-10-29 결정 반영(Jira 댓글).
-- 2026-10-30 서버 구현(브랜치 `feat(be)/series-paywall`, PR: PR_URL_PLACEHOLDER). **pending 유지** — 개발계 확인(스위치 켜고 무료·프로 계정으로 시리즈 화면·재생·다음 날 드립)이 남았다. 운영 스위치는 KAN-300 표.
+- 2026-10-30 서버 구현(브랜치 `feat(be)/series-paywall`, PR: [#2175](https://github.com/swm-runtime/ear_project/pull/2175)). **pending 유지** — 개발계 확인(스위치 켜고 무료·프로 계정으로 시리즈 화면·재생·다음 날 드립)이 남았다. 운영 스위치는 KAN-300 표.
   - 판정 한 곳: `subscription/policies/series-paywall.policy.ts`(규칙·SQL판) + `SeriesPaywallService`(설정·요금제). "열리는 사람" = 저장 티어가 **최상위 유료 요금제**(`plans` 데이터의 `isTopTier` — 현재 pro, 초대 코드 Pro 포함) 또는 가입 체험 중. 데일리는 잠긴다. 스위치 `SERIES_PAYWALL_ENABLED`(true 명시만) · `SERIES_FREE_EPISODES`(1~99, 비우면 3).
   - 재생 게이트: `PlayPolicyService.assertPlayable`의 첫 단계(한도·재청취 창보다 먼저 → 차감 없음, 한도와 겹치면 잠금이 이김). 오디오 URL·재생 시작·대본이 공유하고, `replay`(한도 판정 없음)는 같은 `assertSeriesEpisodeUnlocked`를 부른다. 403 `SERIES_EPISODE_LOCKED`(retryable false, "이 편은 프로 구독에서 들을 수 있어요").
   - `is_locked`: 탐색 피드·주제·인기·검색·관련(`content.is_locked`) · `GET /series/:id` 편(`content.is_locked`) · `GET /contents/:id`(최상위 + `content`) · 라이브러리 목록·미니플레이어 복원(`content.is_locked`). 요청당 한 번 판정(`PlayPolicyService.resolveSeriesAccess`) 후 편마다 비교.
