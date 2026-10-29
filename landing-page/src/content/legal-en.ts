@@ -135,7 +135,7 @@ export const privacyBlocksEn: Block[] = [
       },
       {
         term: "Improving content quality — [legitimate interests]",
-        desc: "Reading and aggregating the content reviews (star rating and text) you leave to check and improve the quality of our episodes. Reviews are not shown to other users and are not used to choose or recommend episodes.",
+        desc: "Reading and aggregating the content reviews (star rating and text) you leave to check and improve the quality of our episodes, and counting how many reviews you have left to decide whether you qualify for the review promotion. Reviews are not shown to other users and are not used to choose or recommend episodes.",
       },
       {
         term: "Notifications and marketing — [consent]",
