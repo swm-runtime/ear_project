@@ -1,3 +1,5 @@
+"use client";
+import { useState } from "react";
 import { fmtInt, fmtPct } from "@/lib/insights-format";
 
 /**
@@ -8,6 +10,8 @@ import { fmtInt, fmtPct } from "@/lib/insights-format";
  *   "좋아짐"의 방향은 행이 정한다(`better` — 완청률은 높을수록, 이탈률은 낮을수록).
  * - 표본이 작은 묶음은 머리에 배지를 단다 — 그 열의 차이는 흐리게 그린다(우연일 수 있다).
  * - 비율 · 표본 기준은 서버 값이고 이 표는 표시만 한다.
+ * - [표 | 그래프] 토글 — 그래프는 지표마다 묶음 막대를 가로로 나란히 둔다(같은 지표 안에서 묶음끼리 길이로 비교).
+ *   막대 축은 하나다(0 ~ 이 표의 가장 큰 비율을 10%p 단위로 올림). 색은 묶음(열) 순서대로 고정 — 기준 열이 늘 첫 색이다.
  */
 export interface CompareColumn {
   key: string;
@@ -37,7 +41,31 @@ export type CompareRow =
 
 const DIFF_EPSILON = 0.0005;
 
+/** 묶음 색 — 기본 범주 팔레트 1~3번(파랑 · 주황 · 청록, 색각 이상 구분 검증 통과). 값은 막대 옆 글자로도 적는다 */
+const SERIES_COLORS = ["#2a78d6", "#eb6834", "#1baf7a"] as const;
+
+const toggleChip = (on: boolean) =>
+  `px-2.5 py-0.5 text-[11px] ${on ? "bg-ink text-white" : "bg-white text-ink-soft hover:bg-[#f7f9fb]"}`;
+
 export function ExperimentCompareTable({ columns, rows, caption }: { columns: CompareColumn[]; rows: CompareRow[]; caption?: string }) {
+  const [view, setView] = useState<"table" | "chart">("table");
+  const hasRates = rows.some((r) => r.kind === "rate");
+  return (
+    <div className="space-y-1">
+      {hasRates && (
+        <div className="flex justify-end">
+          <div className="inline-flex overflow-hidden rounded-full border border-line" role="group" aria-label="보기 방식">
+            <button type="button" className={toggleChip(view === "table")} aria-pressed={view === "table"} onClick={() => setView("table")}>표</button>
+            <button type="button" className={toggleChip(view === "chart")} aria-pressed={view === "chart"} onClick={() => setView("chart")}>그래프</button>
+          </div>
+        </div>
+      )}
+      {view === "chart" && hasRates ? <CompareChart columns={columns} rows={rows} caption={caption} /> : <CompareTableView columns={columns} rows={rows} caption={caption} />}
+    </div>
+  );
+}
+
+function CompareTableView({ columns, rows, caption }: { columns: CompareColumn[]; rows: CompareRow[]; caption?: string }) {
   return (
     <div className="overflow-x-auto">
       <table className="w-full border-separate border-spacing-0 text-sm">
@@ -96,5 +124,65 @@ function Diff({ base, value, better, muted }: { base: number | null; value: numb
       {diff > 0 ? "+" : "−"}
       {(Math.abs(diff) * 100).toFixed(1)}%p
     </span>
+  );
+}
+
+/**
+ * 묶음 가로 막대 — 지표(비율 행)마다 묶음 막대를 열 순서대로 쌓는다. 막대 끝 옆에 값(%)과 기준 대비 차이를 적고, 범례는 위에 둔다.
+ * 값이 없는 묶음은 막대 없이 "-"만 적는다. 표본이 작은 묶음은 막대를 흐리게 그린다.
+ */
+function CompareChart({ columns, rows, caption }: { columns: CompareColumn[]; rows: CompareRow[]; caption?: string }) {
+  const rateRows = rows.filter((r): r is Extract<CompareRow, { kind: "rate" }> => r.kind === "rate");
+  const maxRate = Math.max(0, ...rateRows.flatMap((r) => r.cells.map((c) => c.rate ?? 0)));
+  const axisMax = Math.max(0.1, Math.ceil(maxRate * 10) / 10);
+  return (
+    <figure className="space-y-2">
+      {caption && <figcaption className="text-xs text-ink-soft">{caption}</figcaption>}
+      <div className="flex flex-wrap gap-3 text-[11px] text-ink-soft" aria-hidden="true">
+        {columns.map((c, i) => (
+          <span key={c.key} className="inline-flex items-center gap-1">
+            <span className="inline-block h-2.5 w-2.5 rounded-sm" style={{ background: SERIES_COLORS[i % SERIES_COLORS.length] }} />
+            <span className="text-ink">{c.title}</span>
+            {i === 0 ? " (기준)" : c.subtitle ? ` · ${c.subtitle}` : ""}
+            {c.smallSample && <span className="rounded bg-amber-100 px-1 text-[10px] text-amber-900">표본 작음</span>}
+          </span>
+        ))}
+        <span className="ml-auto">축 0 ~ {fmtPct(axisMax, 0)}</span>
+      </div>
+      <div className="space-y-3">
+        {rateRows.map((r) => (
+          <div key={r.label} className="grid grid-cols-[7rem_1fr] items-center gap-x-3">
+            <div className="text-xs text-ink-soft">{r.label}</div>
+            <div className="space-y-[2px]">
+              {r.cells.map((cell, i) => {
+                const col = columns[i];
+                const width = cell.rate == null ? 0 : (cell.rate / axisMax) * 100;
+                const tip = `${r.label} · ${col?.title ?? ""}: ${fmtPct(cell.rate, r.digits ?? 1)}${cell.count != null ? ` (${fmtInt(cell.count)}건)` : ""}`;
+                return (
+                  <div key={col?.key ?? i} className="flex items-center gap-2" title={tip} aria-label={tip}>
+                    <div className="relative h-3 flex-1">
+                      {cell.rate != null && (
+                        <div
+                          className="absolute inset-y-0 left-0 rounded-r-[4px]"
+                          style={{ width: `${Math.max(width, cell.rate > 0 ? 0.5 : 0)}%`, background: SERIES_COLORS[i % SERIES_COLORS.length], opacity: col?.smallSample ? 0.45 : 1 }}
+                        />
+                      )}
+                    </div>
+                    <div className="w-28 shrink-0 text-[11px] tabular-nums">
+                      <span className="font-semibold text-ink">{fmtPct(cell.rate, r.digits ?? 1)}</span>
+                      {i > 0 && (
+                        <span className="ml-1">
+                          <Diff base={r.cells[0]?.rate ?? null} value={cell.rate} better={r.better} muted={!!col?.smallSample || !!columns[0]?.smallSample} />
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        ))}
+      </div>
+    </figure>
   );
 }
