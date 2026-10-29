@@ -18,6 +18,10 @@ export interface PlanOffer {
   name: string;
   description: string;
   priceKrw: number;
+  /** 취소선으로 그릴 정가(참고값) — 할인 표시가 아니면 `null`(KAN-286, `PlanDiscountService`) */
+  originalPriceKrw: number | null;
+  /** 할인 표시를 하는가 — 서버 스위치·정가 설정으로 정한다. 결제 가격은 언제나 스토어 가격이다 */
+  isDiscounted: boolean;
   /** 무료 요금제인가 — `isFreePlan`(가격 0 이하). 시장·플랫폼·구독 상태와 무관하다 */
   isFree: boolean;
   /** 요청 플랫폼의 상품 ID. 무료·그 플랫폼에 상품이 없으면 `null` */

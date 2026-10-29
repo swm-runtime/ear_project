@@ -51,6 +51,7 @@ import { PlayPurchaseService } from './services/play-purchase.service';
 import { SubscriptionReconcileService } from './services/subscription-reconcile.service';
 import { BillingAlertService } from './services/billing-alert.service';
 import { BillingEventAlertService } from './services/billing-event-alert.service';
+import { PlanDiscountService } from './services/plan-discount.service';
 
 const STORE_BY_PLATFORM: Readonly<Record<DevicePlatform, SubscriptionStore>> = {
   [DevicePlatform.IOS]: SubscriptionStore.APP_STORE,
@@ -80,6 +81,7 @@ export class BillingOrchestrator {
     private readonly billingAlertService: BillingAlertService,
     private readonly inviteCodeService: InviteCodeService,
     private readonly billingEventAlertService: BillingEventAlertService,
+    private readonly planDiscountService: PlanDiscountService,
   ) {}
 
   /** 4.1 — 요금제 목록 + 그 사용자가 각 요금제에 할 수 있는 일 */
@@ -102,6 +104,13 @@ export class BillingOrchestrator {
       const storeProductId = productIdOf(plan, platform);
       // 이름·설명은 사용자 시장의 언어다 — 앱은 받은 문구를 그대로 그린다(KAN-192 일부)
       const text = planTextOf(plan, user.market);
+      const isFree = isFreePlan(plan);
+      // 정가 취소선·"지금 할인 중" 표시(KAN-286, experiments-api.md 4.4) — 서버 스위치로 켜고 끈다
+      const discount = this.planDiscountService.resolve({
+        tier: plan.tier,
+        priceKrw: plan.priceKrw,
+        isFree,
+      });
 
       return {
         planId: plan.id,
@@ -109,7 +118,9 @@ export class BillingOrchestrator {
         name: text.name,
         description: text.description,
         priceKrw: plan.priceKrw,
-        isFree: isFreePlan(plan),
+        originalPriceKrw: discount.originalPriceKrw,
+        isDiscounted: discount.isDiscounted,
+        isFree,
         storeProductId,
         entitlements: toEntitlements(plan),
         action: resolvePlanAction({

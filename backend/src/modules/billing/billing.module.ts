@@ -18,6 +18,7 @@ import { BillingSyncService } from './services/billing-sync.service';
 import { InviteGrantExpiryScheduler } from './services/invite-grant-expiry.scheduler';
 import { InviteGrantExpiryService } from './services/invite-grant-expiry.service';
 import { PlayPurchaseService } from './services/play-purchase.service';
+import { PlanDiscountService } from './services/plan-discount.service';
 import { PlayStoreWebhookService } from './services/play-store-webhook.service';
 import { GooglePlayStoreGateway } from './play-store/google-play-store.gateway';
 import { PlayStoreGateway } from './play-store/play-store.gateway';
@@ -55,6 +56,7 @@ import { SubscriptionReconcileService } from './services/subscription-reconcile.
     { provide: AppStoreGateway, useClass: AppleAppStoreGateway },
     PlayPurchaseService,
     PlayStoreWebhookService,
+    PlanDiscountService,
     { provide: PlayStoreGateway, useClass: GooglePlayStoreGateway },
   ],
 })

@@ -225,6 +225,25 @@ describe('validateEnv', () => {
     }
   });
 
+  it('PLAN_DISCOUNT_* — 스위치는 true·false·빈 값만, 정가는 양의 정수이거나 빈 값이다(KAN-286)', () => {
+    expect(() =>
+      validateEnv({ ...validEnv, PLAN_DISCOUNT_DISPLAY_ENABLED: 'yes' }),
+    ).toThrow(/PLAN_DISCOUNT_DISPLAY_ENABLED/);
+    for (const key of [
+      'PLAN_DISCOUNT_ORIGINAL_PRICE_DAILY_KRW',
+      'PLAN_DISCOUNT_ORIGINAL_PRICE_PRO_KRW',
+    ]) {
+      for (const value of ['0', '-1', '3,900', '3900.5', 'abc']) {
+        expect(() => validateEnv({ ...validEnv, [key]: value })).toThrow(
+          new RegExp(key),
+        );
+      }
+      for (const value of ['', '3900', '9900']) {
+        expect(() => validateEnv({ ...validEnv, [key]: value })).not.toThrow();
+      }
+    }
+  });
+
   it('SIGNUP_TRIAL_DAYS 는 1~30 정수이고 비워도 된다 — 배포 스크립트가 빈 값으로 선언해 둔다', () => {
     for (const value of ['0', '31', '7.5', 'week', '-1']) {
       expect(() =>

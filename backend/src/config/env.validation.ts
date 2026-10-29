@@ -270,6 +270,32 @@ export class EnvironmentVariables {
   FIRST_DRIP_RANDOM_ENABLED?: string;
 
   /**
+   * 요금제 할인 표시(KAN-286 — 단기 실험 ① 가격 인하, `experiments-api.md` 4.4)의 서버 스위치. `true`/`false`.
+   * **`true`를 명시했을 때만 켜진다.** 켜면 `GET /plans`의 유료 요금제에 정가(`original_price_krw`)와
+   * `is_discounted`를 실어 앱이 정가 취소선 + "지금 할인 중"을 그린다. 끄면 앱 배포 없이 할인 표시가 사라진다
+   */
+  @IsOptional()
+  @IsIn(['true', 'false', ''])
+  PLAN_DISCOUNT_DISPLAY_ENABLED?: string;
+
+  /**
+   * 할인 표시의 정가(원, 양의 정수) — daily·pro 티어별. 비우면 그 티어는 정가가 없어 할인 표시를 하지 않는다.
+   * 정가가 `plans.price_krw` 이하이면 할인이 아니다. **문자열로 받는다**(`SIGNUP_TRIAL_DAYS`와 같은 이유 — 빈 값 선언)
+   */
+  @IsOptional()
+  @Matches(/^$|^[1-9]\d*$/, {
+    message:
+      'PLAN_DISCOUNT_ORIGINAL_PRICE_DAILY_KRW must be a positive integer',
+  })
+  PLAN_DISCOUNT_ORIGINAL_PRICE_DAILY_KRW?: string;
+
+  @IsOptional()
+  @Matches(/^$|^[1-9]\d*$/, {
+    message: 'PLAN_DISCOUNT_ORIGINAL_PRICE_PRO_KRW must be a positive integer',
+  })
+  PLAN_DISCOUNT_ORIGINAL_PRICE_PRO_KRW?: string;
+
+  /**
    * 저녁 리텐션 알림(`notification.md` 4.6, KAN-272)의 서버 스위치. `off`(기본·빈 값) · `dry_run` · `on`.
    * `dry_run`은 대상·문구까지 정하고 **보내지 않는다** — 규칙별 건수와 문구 예시를 API 로그에 남긴다(임계값을 실제
    * 숫자로 맞춰 보는 단계). `on`은 마케팅 수신 동의자에게 그룹 현지 18:00에 보낸다.
