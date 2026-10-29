@@ -16,6 +16,9 @@ export interface SeriesRow {
   thumb_layers?: string | null;
   /** 간행물 키(0034, KAN-247 — @ear/pipeline publication.ts) — 발행 이름(서버 publisher_name)과 썸네일 스타일. null = 없음 */
   publication: string | null;
+  /** 짧은 판 시리즈(0041, KAN-296) — short 면 원본 시리즈(remake_of)의 5~12분 판. 실험 탭에서 관리하고 BE 코호트 분리(KAN-298) 전엔 발행하지 않는다 */
+  length_profile?: string | null;
+  remake_of?: string | null;
 }
 
 /** 간행물·썸네일 글자 칸 검증 (KAN-247) — 간행물은 이 판의 목록에서만, keyword 스타일 간행물은 큰 단어가 필요하다. 큰 단어는 영문(손글씨로 얹는다), 라벨·박스는 짧게(코드가 한 줄로 얹는다) */

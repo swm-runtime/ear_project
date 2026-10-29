@@ -60,6 +60,8 @@ create table if not exists series (
   thumb_base_key      text,                                -- 시리즈 바탕 그림 s3 키 — 편마다 재사용 · 0031
   publication         text,                                -- 간행물 키(@ear/pipeline publication.ts 상수 또는 publications.key — 발행 이름·썸네일 스타일) · null = 없음 · 0034·0036
   thumb_layers        text,                                -- 계층 쌓기 디자인의 층 "이름:시작-끝, …" · 0038
+  length_profile      text not null default 'standard' check (length_profile in ('standard', 'short')), -- 0041 (KAN-296): short = 발행된 시리즈의 짧은 판
+  remake_of           uuid references series(id),           -- 0041: 짧은 판 시리즈면 원본 시리즈 id. 일반 시리즈는 null
   created_at          timestamptz not null default now(),
   updated_at          timestamptz not null default now()
 );

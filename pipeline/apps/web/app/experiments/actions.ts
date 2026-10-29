@@ -40,3 +40,26 @@ export async function requestRemakes(ids: string[]): Promise<Result<{ queued: st
   revalidatePath("/experiments");
   return { ok: true, queued, skipped };
 }
+
+/**
+ * [시리즈 짧게 다시 만들기] (0041, 2026-10-30): 발행된 파이프라인 시리즈 하나를 통째로 짧은 판으로. 워커(stages/remake.ts runSeriesRemake)가 새 시리즈와 편별 후보를 만들고,
+ * 초안은 화 순서대로 집는다. 원본에 살아 있는 짧은 판 시리즈가 있거나 요청이 큐에 있으면 거절한다
+ */
+export async function requestSeriesRemake(seriesId: string): Promise<Result> {
+  if (pipelineLocale() !== "ko") return { ok: false, reason: "짧은 판 실험은 한국판 파이프라인에만 있다" };
+  const sb = await supabaseServer();
+  const [{ data: s, error }, { data: live }, { data: jobs }] = await Promise.all([
+    sb.from("series").select("id,name,status,total_episodes,remake_of").eq("id", seriesId).maybeSingle(),
+    sb.from("series").select("id,status").eq("remake_of", seriesId).not("status", "in", "(cancelled,withdrawn)"),
+    sb.from("jobs").select("id").eq("type", "remake").eq("payload->>series_id", seriesId).in("status", ["queued", "claimed", "running"]),
+  ]);
+  if (error) return { ok: false, reason: error.message };
+  if (!s) return { ok: false, reason: "없는 시리즈" };
+  if (s.remake_of) return { ok: false, reason: "이미 짧은 판 시리즈다" };
+  if (s.status !== "published") return { ok: false, reason: `발행된 시리즈만 (${s.status})` };
+  if (live?.length) return { ok: false, reason: "짧은 판 시리즈가 이미 있다" };
+  if (jobs?.length) return { ok: false, reason: "요청이 이미 큐에 있다" };
+  await enqueueJob("remake", { series_id: seriesId });
+  revalidatePath("/experiments");
+  return { ok: true };
+}

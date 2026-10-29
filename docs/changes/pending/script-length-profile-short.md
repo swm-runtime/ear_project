@@ -51,3 +51,8 @@ KAN-296(단기 실험 ④) — 짧은 길이와 새 도입 훅이 완청률을 �
 - `spec/09-quality-cycle.md`: 짧은 판은 짧은 판 루브릭으로 채점 · 관문 기준 `settings.automation.short_threshold`(보정 전 비움) · 사람 판정 3편으로 보정.
 - 근거: `docs/ai/skills/draft/CHANGELOG.md` short-v1.
 
+## 추가 (2026-10-30) — 시리즈 단위 짧은 판 (0041)
+
+- `spec/11-series.md`: 짧은 판 시리즈 절 — 발행된 파이프라인 시리즈를 실험 탭에서 통째로 다시 만든다. 새 시리즈 행(`series.length_profile='short'`·`remake_of`=원본, 0041)은 이름·소개·설계안·편수·간행물·썸네일 설정을 그대로 쓰고 status approved(게이트 S 생략). 편마다 원본 편의 소스를 물려받은 짧은 판 후보(같은 화 번호, `backlog.remake_of`=원본 편)를 approved 로 만들고, 초안은 화 순서대로(5.3). 편 썸네일·표지는 원본 복사. 짧은 판 시리즈는 시리즈 목록에서 빠지고 실험 탭에서 관리하며, BE 코호트 분리(KAN-298) 전엔 [시리즈 발행]을 막는다. 파이프라인 밖에서 묶인 시리즈(CS·철학·경제 상식)는 백로그·소스가 없어 대상이 아니다.
+- `spec/10-webapp.md`: 작업 `remake` 의 payload 에 `series_id` 분기.
+
