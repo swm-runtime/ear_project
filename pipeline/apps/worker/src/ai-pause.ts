@@ -76,7 +76,7 @@ export async function pauseForLimit(e: ApiLimit, job: { type: string; id: string
      returning key`, [reason, job.type]);
   dbCache = { at: Date.now(), paused: true, reason };
   log(`⏸ AI 집기 멈춤 (잔액·예산 소진) — 콘솔 설정에서 재개할 때까지. ${job.type} ${job.id.slice(0, 8)} 은 큐로: ${reason}`);
-  if (r.rowCount) await notifyOps(`:octagonal_sign: *OpenAI 잔액·예산 소진 — AI 작업 멈춤* (되돌린 작업: ${job.type}, 큐는 그대로)\n${reason}\n충전·예산 조정 뒤 설정 화면에서 [AI 작업 재개]: ${consoleUrl("/settings")}`);
+  if (r.rowCount) await notifyOps(`:octagonal_sign: *OpenAI 잔액·예산 소진 — AI 작업 멈춤* (되돌린 작업: ${job.type}, 큐는 그대로)\n${reason}\n충전·예산 조정 뒤 설정 화면에서 [AI 작업 재개]: ${consoleUrl("/settings")}`, { critical: true });
 }
 
 async function pauseTtsForLimit(e: ApiLimit, job: { type: string; id: string }): Promise<void> {
@@ -96,5 +96,5 @@ async function pauseTtsForLimit(e: ApiLimit, job: { type: string; id: string }):
      returning key`, [reason, job.type]);
   ttsDbCache = { at: Date.now(), paused: true, reason };
   log(`⏸ TTS 집기 멈춤 (ElevenLabs 크레딧 소진) — 콘솔 설정에서 재개할 때까지. ${job.type} ${job.id.slice(0, 8)} 은 큐로: ${reason}`);
-  if (r.rowCount) await notifyOps(`:octagonal_sign: *ElevenLabs 크레딧 소진 — TTS 멈춤* (되돌린 작업: ${job.type}, 큐는 그대로. 초안·QA·비평은 계속)\n${reason}\n충전 뒤 설정 화면에서 [TTS 재개]: ${consoleUrl("/settings")}`);
+  if (r.rowCount) await notifyOps(`:octagonal_sign: *ElevenLabs 크레딧 소진 — TTS 멈춤* (되돌린 작업: ${job.type}, 큐는 그대로. 초안·QA·비평은 계속)\n${reason}\n충전 뒤 설정 화면에서 [TTS 재개]: ${consoleUrl("/settings")}`, { critical: true });
 }
