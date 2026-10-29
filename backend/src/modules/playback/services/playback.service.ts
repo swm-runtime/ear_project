@@ -437,6 +437,33 @@ export class PlaybackService {
     }
   }
 
+  /**
+   * 이 편의 **재생을 시작한 적 있는가** — 재생 위치(`playback_progresses`) 또는 재생 기록(`play_records`)이 있다
+   * (`content-review-api.md` 4.1 — 후기를 쓸 수 있는 편). 라이브러리에 담기만 한 편은 아니고, 라이브러리에서 지운 편도
+   * 들은 적 있으면 맞다.
+   */
+  async hasStartedPlaying(
+    userId: string,
+    contentId: string,
+    manager?: EntityManager,
+  ): Promise<boolean> {
+    if (
+      await this.playbackProgressRepository.existsByUserIdAndContentId(
+        userId,
+        contentId,
+        manager,
+      )
+    ) {
+      return true;
+    }
+
+    return this.playRecordRepository.existsByUserIdAndContentId(
+      userId,
+      contentId,
+      manager,
+    );
+  }
+
   /** 그 편에 이 행동의 신호가 이미 있는가 — 라이브러리 행 없는 완청의 최초 1회 판정(KAN-248) */
   async hasSignal(
     userId: string,

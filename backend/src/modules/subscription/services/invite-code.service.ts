@@ -3,6 +3,7 @@ import { EntityManager } from 'typeorm';
 
 import { BusinessException } from '@/common/exceptions/business.exception';
 import { ErrorCode } from '@/common/exceptions/error-code.enum';
+import { UserTier } from '@/modules/user/user.enum';
 
 import { InviteCodeRedemption } from '../entities/invite-code-redemption.entity';
 import { InviteCode } from '../entities/invite-code.entity';
@@ -16,6 +17,7 @@ import {
   InviteCodeRepository,
   InviteCodeWithUsage,
 } from '../repositories/invite-code.repository';
+import { REVIEW_REWARD_INVITE_CODE } from '../subscription.constant';
 import {
   ActiveInviteGrant,
   UpdateInviteCodeCommand,
@@ -71,10 +73,12 @@ export class InviteCodeService {
     now: Date,
     manager: EntityManager,
   ): Promise<InviteRedeemResult> {
-    const code = await this.inviteCodeRepository.lockByCode(
-      normalizeInviteCode(rawCode),
-      manager,
-    );
+    const normalized = normalizeInviteCode(rawCode);
+    // 내부 캠페인 행은 `is_active`와 무관하게 없는 코드다 — 운영자가 실수로 켜도 입력으로 열리지 않는다(domain.md 8.5)
+    const code =
+      normalized === REVIEW_REWARD_INVITE_CODE
+        ? null
+        : await this.inviteCodeRepository.lockByCode(normalized, manager);
 
     if (code === null || !code.isActive) {
       throw inviteError(
@@ -154,6 +158,49 @@ export class InviteCodeService {
   }
 
   /**
+   * 후기 참여 프로모션의 지급(`content-review-api.md` 4.7 · domain.md 8.6) — 내부 캠페인 행 `REVIEW-REWARD`를 가리키는 지급 행을
+   * 만든다. **초대 코드 입력과 같은 지급 규칙**(쓴 서비스 날짜를 1일째로 `grantDays`일 · 05:00 경계 · `subscribed_at_start`)이고,
+   * 입력 기간 · `is_active` · 한도 판정만 건너뛴다. 다른 지급 진행 중 · 구독 판정은 호출자(billing)가 먼저 한다.
+   *
+   * 요금제 · 일수는 프로모션 행의 사본(발급 때 값)을 받는다. **호출자가 사용자 행 → 프로모션 행을 먼저 잠가야 한다.**
+   * 코드 행이 없으면(마이그레이션 누락) 지급을 만들 수 없어 예외다.
+   */
+  async grantReviewReward(
+    userId: string,
+    grant: { tier: UserTier; grantDays: number },
+    subscribedAtStart: boolean,
+    now: Date,
+    manager: EntityManager,
+  ): Promise<ActiveInviteGrant> {
+    const code = await this.inviteCodeRepository.lockByCode(
+      REVIEW_REWARD_INVITE_CODE,
+      manager,
+    );
+    if (code === null) {
+      throw new Error('internal invite code REVIEW-REWARD is missing');
+    }
+
+    const redemption = await this.inviteCodeRepository.createRedemption(
+      {
+        inviteCodeId: code.id,
+        userId,
+        tier: grant.tier,
+        startsAt: now,
+        endsAt: resolveInviteGrantEndsAt(
+          { grantDays: grant.grantDays, grantUntilDate: null },
+          now,
+        ),
+        subscribedAtStart,
+      },
+      manager,
+    );
+    code.redeemedCount += 1;
+    await this.inviteCodeRepository.saveCode(code, manager);
+
+    return toActiveGrant(redemption, code);
+  }
+
+  /**
    * 지급을 지금 끝낸다 — 지급 기간 중 결제한 구독이 생겼을 때(결제가 지급을 대체한다, `subscription-api.md` 4.8).
    * 캐시는 호출자가 같은 트랜잭션에서 다시 맞추므로 `tier_released_at`도 함께 찍는다.
    */
@@ -227,6 +274,14 @@ export class InviteCodeService {
         '초대 코드를 찾을 수 없어요',
       );
     }
+    // 내부 캠페인 행은 고치지 않는다 — 켜면 입력할 수 있는 코드처럼 보이지만 입력 경로가 막고 있어 혼란만 생긴다(domain.md 8.5)
+    if (code.code === REVIEW_REWARD_INVITE_CODE) {
+      throw inviteError(
+        HttpStatus.CONFLICT,
+        ErrorCode.CONFLICT,
+        '내부 캠페인 코드는 수정할 수 없어요',
+      );
+    }
     const before = { ...code };
 
     if (command.name !== undefined) code.name = command.name;
@@ -263,7 +318,7 @@ function toActiveGrant(
   redemption: InviteCodeRedemption,
   code: InviteCode,
 ): ActiveInviteGrant {
-  return { redemption, codeName: code.name };
+  return { redemption, codeName: code.name, code: code.code };
 }
 
 function expired(): BusinessException {

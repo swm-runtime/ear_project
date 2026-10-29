@@ -5,7 +5,7 @@ import {
   isSignupTrialActive,
   toSignupTrialLastFreeDate,
 } from '@/common/utils/signup-trial.util';
-import { UserTier } from '@/modules/user/user.enum';
+import { UserMarket, UserTier } from '@/modules/user/user.enum';
 
 import { Plan } from '../entities/plan.entity';
 import { Subscription } from '../entities/subscription.entity';
@@ -19,11 +19,16 @@ import {
   SubscriptionRepository,
 } from '../repositories/subscription.repository';
 import {
+  REVIEW_REWARD_GRANT_NAME,
+  REVIEW_REWARD_INVITE_CODE,
+} from '../subscription.constant';
+import {
   NON_TERMINAL_SUBSCRIPTION_STATUSES,
   PlanStatus,
   SubscriptionStatus,
 } from '../subscription.enum';
 import {
+  ActiveInviteGrant,
   InviteGrantView,
   PendingPlanView,
   PlanView,
@@ -147,7 +152,7 @@ export class SubscriptionService {
       : null;
     const grant: InviteGrantView | null = activeGrant
       ? {
-          name: activeGrant.codeName,
+          name: grantNameOf(activeGrant, market),
           tier: activeGrant.redemption.tier,
           planName: nameOf(grantPlan, activeGrant.redemption.tier),
           endsAt: activeGrant.redemption.endsAt,
@@ -415,4 +420,14 @@ function byLatestExpiry(a: Subscription, b: Subscription): number {
     return byExpiry;
   }
   return b.startedAt.getTime() - a.startedAt.getTime();
+}
+
+/**
+ * 지급의 표시 이름 — 초대 코드는 코드 행의 이름 그대로, 후기 참여 지급(내부 캠페인 `REVIEW-REWARD`)은 사용자 시장의 언어
+ * (KR "후기 참여" · GLOBAL "Review" — `content-review-api.md` 4.7). 구독 조회 · 프로필 · 설정이 이 조립을 함께 쓴다.
+ */
+function grantNameOf(grant: ActiveInviteGrant, market: UserMarket): string {
+  return grant.code === REVIEW_REWARD_INVITE_CODE
+    ? REVIEW_REWARD_GRANT_NAME[market]
+    : grant.codeName;
 }

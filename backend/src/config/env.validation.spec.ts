@@ -244,6 +244,28 @@ describe('validateEnv', () => {
     }
   });
 
+  it('CONTENT_REVIEW_ENABLED 는 true·false·빈 값만 받는다 — 오타로 후기가 처리방침 시행 전에 켜지지 않게', () => {
+    expect(() =>
+      validateEnv({ ...validEnv, CONTENT_REVIEW_ENABLED: 'on' }),
+    ).toThrow(/CONTENT_REVIEW_ENABLED/);
+    for (const value of ['true', 'false', '']) {
+      expect(() =>
+        validateEnv({ ...validEnv, CONTENT_REVIEW_ENABLED: value }),
+      ).not.toThrow();
+    }
+  });
+
+  it('CONTENT_REVIEW_REWARD_ENABLED 는 true·false·빈 값만 받는다 — 오타로 보상이 조용히 나가거나 멈추지 않게', () => {
+    expect(() =>
+      validateEnv({ ...validEnv, CONTENT_REVIEW_REWARD_ENABLED: 'yes' }),
+    ).toThrow(/CONTENT_REVIEW_REWARD_ENABLED/);
+    for (const value of ['true', 'false', '']) {
+      expect(() =>
+        validateEnv({ ...validEnv, CONTENT_REVIEW_REWARD_ENABLED: value }),
+      ).not.toThrow();
+    }
+  });
+
   it('SIGNUP_TRIAL_DAYS 는 1~30 정수이고 비워도 된다 — 배포 스크립트가 빈 값으로 선언해 둔다', () => {
     for (const value of ['0', '31', '7.5', 'week', '-1']) {
       expect(() =>

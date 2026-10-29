@@ -1,5 +1,6 @@
 import {
   ContentLanguage,
+  ContentLengthProfile,
   ContentOrigin,
   ContentStatus,
 } from '@/modules/content/content.enum';
@@ -46,6 +47,12 @@ export interface UploadContentCommand {
   /** 시장·언어(`global-api.md` 4.9). 컨트롤러가 기본값(kr·ko)을 채워 넘긴다 */
   market: UserMarket;
   language: ContentLanguage;
+  /**
+   * 길이 프로필(KAN-298). null = 보내지 않음 — 시리즈 편이면 시리즈의 값, 단편이면 `standard`다
+   */
+  lengthProfile: ContentLengthProfile | null;
+  /** 짧은 판의 원본 콘텐츠 — short 단편이면 필수, 짧은 시리즈 편이면 선택, standard면 없어야 한다 */
+  variantOfContentId: string | null;
   /** 압축 음질(`compressed`) — 필수 */
   audio: UploadedFileInput;
   /** 고음질(`aac`) · 무손실(`lossless`) — 선택(admin-api.md 4.6, KAN-141). 길이가 `audio`와 ±1초 안이어야 한다 */

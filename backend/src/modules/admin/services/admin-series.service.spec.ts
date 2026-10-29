@@ -5,7 +5,10 @@ import { BusinessException } from '@/common/exceptions/business.exception';
 import { ErrorCode } from '@/common/exceptions/error-code.enum';
 import { ExternalServiceException } from '@/common/exceptions/external-service.exception';
 import { BusinessNotFoundException } from '@/common/exceptions/business-not-found.exception';
-import { SeriesStatus } from '@/modules/content/content.enum';
+import {
+  ContentLengthProfile,
+  SeriesStatus,
+} from '@/modules/content/content.enum';
 import { Series } from '@/modules/content/entities/series.entity';
 import { SeriesService } from '@/modules/content/services/series.service';
 import { AuditLogService } from '@/modules/partner/audit-log.service';
@@ -38,6 +41,8 @@ function buildSeries(overrides: Partial<Series> = {}): Series {
     status: SeriesStatus.ONGOING,
     coverUrl: null,
     publisherName: null,
+    lengthProfile: ContentLengthProfile.STANDARD,
+    variantOfSeriesId: null,
     createdAt: NOW,
     updatedAt: NOW,
     ...overrides,

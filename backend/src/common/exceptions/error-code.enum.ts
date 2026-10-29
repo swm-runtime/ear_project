@@ -216,6 +216,22 @@ export enum ErrorCode {
   /** 관리자 — 같은 값의 코드가 이미 있다 */
   INVITE_CODE_DUPLICATE = 'INVITE_CODE_DUPLICATE',
 
+  // --- 콘텐츠 후기 (content-review-api.md 5장, 2026-10-29 — KAN-279) ---
+  /** 후기 기능 서버 스위치(`CONTENT_REVIEW_ENABLED`)가 꺼져 있다 — 앱은 [후기]를 숨기고 큐의 후기를 버린다 */
+  CONTENT_REVIEW_DISABLED = 'CONTENT_REVIEW_DISABLED',
+  /** 재생을 시작한 적 없는 편이다 — 들어 본 편에만 후기를 남길 수 있다 */
+  CONTENT_REVIEW_NOT_PLAYED = 'CONTENT_REVIEW_NOT_PLAYED',
+
+  // --- 후기 참여 프로모션 (content-review-api.md 4.7 · 5장, 2026-10-29 — KAN-279) ---
+  /** 없는 프로모션이거나 내 것이 아니다 */
+  PROMOTION_NOT_FOUND = 'PROMOTION_NOT_FOUND',
+  /** 이미 쓴 프로모션이다 — 두 기기 동시 요청의 늦은 쪽 · 응답 유실 뒤의 재전송 포함 */
+  PROMOTION_ALREADY_USED = 'PROMOTION_ALREADY_USED',
+  /** 사용 기한이 지났다(`now ≥ expires_at`) */
+  PROMOTION_EXPIRED = 'PROMOTION_EXPIRED',
+  /** Pro 구독 중(해지 예약 · 결제 유예 · 다운그레이드 예약 포함)에는 쓸 수 없다 — 결제일 연장을 하지 않는다 */
+  PROMOTION_PRO_SUBSCRIBED = 'PROMOTION_PRO_SUBSCRIBED',
+
   // --- 콘텐츠 (공용 — common-error-handling.md 4.1) ---
   /** 담기 등에서 **건별 결과**로도 전달된다 (onboarding-api.md 4.6 `failed[]`) */
   CONTENT_NOT_FOUND = 'CONTENT_NOT_FOUND',

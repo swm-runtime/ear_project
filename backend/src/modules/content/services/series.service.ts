@@ -19,6 +19,11 @@ import { Series } from '../entities/series.entity';
 import { ContentRepository } from '../repositories/content.repository';
 import { ContentTopicRepository } from '../repositories/content-topic.repository';
 import { SeriesRepository } from '../repositories/series.repository';
+import {
+  assertVariantOrigin,
+  assertVariantPairing,
+  variantValidationFailed,
+} from '../content-variant.policy';
 
 /** 관리자 시리즈 목록의 한 행 */
 export interface SeriesWithCounts {
@@ -69,6 +74,23 @@ export class SeriesService {
     command: CreateSeriesCommand,
     manager: EntityManager,
   ): Promise<Series> {
+    // 짧은 시리즈(KAN-298)는 원본 시리즈가 필요하고, 원본은 standard여야 한다
+    assertVariantPairing({
+      lengthProfile: command.lengthProfile,
+      variantOfId: command.variantOfSeriesId,
+      field: 'variant_of_series_id',
+      originRequired: true,
+    });
+    if (command.variantOfSeriesId !== null) {
+      assertVariantOrigin(
+        await this.seriesRepository.findById(
+          command.variantOfSeriesId,
+          manager,
+        ),
+        'variant_of_series_id',
+      );
+    }
+
     return this.seriesRepository.save(
       this.seriesRepository.create({
         title: normalizeStoredText(command.title),
@@ -76,6 +98,8 @@ export class SeriesService {
         totalEpisodes: command.totalEpisodes,
         status: command.status,
         publisherName: command.publisherName,
+        lengthProfile: command.lengthProfile,
+        variantOfSeriesId: command.variantOfSeriesId,
       }),
       manager,
     );
@@ -252,6 +276,16 @@ export class SeriesService {
     }
     if (markets.some((market) => market !== upload.market)) {
       throw validationFailed('series_id', '다른 시장의 편이 있는 시리즈예요');
+    }
+    // 편의 길이 프로필은 시리즈가 정한다(KAN-298) — 짧은 시리즈에 standard 편이 섞이면 코호트 노출이 시리즈 안에서 갈린다
+    if (
+      upload.lengthProfile !== null &&
+      upload.lengthProfile !== series.lengthProfile
+    ) {
+      throw variantValidationFailed(
+        'length_profile',
+        `이 시리즈의 편은 length_profile이 ${series.lengthProfile}이어야 해요`,
+      );
     }
 
     return series;

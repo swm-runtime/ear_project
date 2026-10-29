@@ -80,6 +80,8 @@ function buildDefaultSettings() {
     isDripNotificationEnabled: true,
     dripFeedbackMutedUntil: null,
     dripFeedbackLastPromptedDate: null,
+    contentReviewLastPromptedDate: null,
+    contentReviewMutedUntil: null,
     preferredAudioQuality: null,
   };
 }
@@ -499,6 +501,8 @@ describe('SettingsOrchestrator', () => {
         isDripNotificationEnabled: true,
         dripFeedbackMutedUntil: null,
         dripFeedbackLastPromptedDate: null,
+        contentReviewLastPromptedDate: null,
+        contentReviewMutedUntil: null,
         preferredAudioQuality: null,
       });
     });

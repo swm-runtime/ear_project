@@ -1,5 +1,8 @@
 import { AdminContentView } from '../admin.types';
-import { ContentLanguage } from '@/modules/content/content.enum';
+import {
+  ContentLanguage,
+  ContentLengthProfile,
+} from '@/modules/content/content.enum';
 import { UserMarket } from '@/modules/user/user.enum';
 
 export class AdminContentTopicDto {
@@ -27,6 +30,9 @@ export class AdminContentItemDto {
   readonly language: ContentLanguage;
   /** 시장(`global-api.md` 4.10) */
   readonly market: UserMarket;
+  /** 길이 프로필(KAN-298) · 짧은 판의 원본 콘텐츠(없으면 null) */
+  readonly length_profile: ContentLengthProfile;
+  readonly variant_of_content_id: string | null;
   readonly content_version: number;
   readonly license_expires_at: string | null;
   readonly published_at: string;
@@ -72,6 +78,8 @@ export class AdminContentItemDto {
       thumbnail_url: content.thumbnailUrl,
       language: content.language,
       market: content.market,
+      length_profile: content.lengthProfile ?? ContentLengthProfile.STANDARD,
+      variant_of_content_id: content.variantOfContentId ?? null,
       content_version: content.contentVersion,
       license_expires_at: content.licenseExpiresAt?.toISOString() ?? null,
       published_at: content.publishedAt.toISOString(),
