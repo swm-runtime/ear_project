@@ -332,6 +332,15 @@ export class EnvironmentVariables {
   RETENTION_PUSH_MODE?: string;
 
   /**
+   * 아침 알림(KAN-288 — 단기 실험 ③, 드립이 없는 날 그룹 현지 08:00 미청취 유도)의 서버 스위치. `off`(기본·빈 값) · `dry_run` · `on`.
+   * 저녁(`RETENTION_PUSH_MODE`)과 따로 둔다 — 저녁이 켜진 환경에 배포되자마자 아침이 나가지 않게. `dry_run`은 대상·문구까지 정하고
+   * 시험 대상(`RETENTION_PUSH_TEST_USER_IDS`)에게만 보낸다 — 사유별 건수·문구 예시를 로그 `retention morning push processed`에 남긴다
+   */
+  @IsOptional()
+  @IsIn(['off', 'dry_run', 'on', ''])
+  RETENTION_MORNING_PUSH_MODE?: string;
+
+  /**
    * 리텐션 알림 시험 대상(`notification.md` 4.6) — 쉼표로 구분한 사용자 id(uuid). `RETENTION_PUSH_MODE=dry_run`일 때 **이 사용자에게만
    * 실제로 보낸다**(나머지는 종전처럼 로그만). 켜기 전에 운영에서 실제 문구·도착을 본인 기기로 확인하려고 둔다. 대상 조건(마케팅 동의 ·
    * 보낼 기기)과 규칙 판정은 그대로라, 성립하는 규칙이 없으면 시험 대상도 받지 않는다. `on`·`off`에서는 쓰지 않는다

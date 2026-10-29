@@ -74,6 +74,7 @@ import {
   UserDripPlan,
 } from './drip-batch.types';
 import { UserMarket } from '@/modules/user/user.enum';
+import { MorningPushService } from '@/modules/retention-push/morning-push.service';
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
@@ -147,6 +148,7 @@ export class DripBatchOrchestrator {
     private readonly userSettingService: UserSettingService,
     private readonly configService: ConfigService<EnvironmentVariables, true>,
     private readonly contentCohortService: ContentCohortService,
+    private readonly morningPushService: MorningPushService,
   ) {
     // **`true`를 명시했을 때만 켠다**(2026-10-14). 종전 "운영(SENTRY_ENVIRONMENT=production)만 기본 꺼짐"은 운영의
     // 환경 이름이 비거나 오타면 자동 확장이 조용히 켜지는 구조였다 — 추천 테스트 콘솔과 같은 함정(2026-10-13 수정).
@@ -310,6 +312,14 @@ export class DripBatchOrchestrator {
             abEnabled,
           );
         }
+
+        // 아침 알림(KAN-288)도 같은 규칙이다 — 08:00 뒤에 끝났으면 08:00 크론은 건너뛰었으니 여기서 보낸다
+        if (
+          this.morningPushService.isGroupActive(group) &&
+          isAfterArrivalPushTime(finishedAt, group, MORNING_PUSH_SLOT)
+        ) {
+          await this.sendMorningPush(run, finishedAt, finishedAt, group);
+        }
       } else {
         this.logger.error(
           'drip batch aborted — run left open for the resume slot',
@@ -406,8 +416,13 @@ export class DripBatchOrchestrator {
     slot: DripArrivalSlot = DripArrivalSlot.H0700,
   ): Promise<void> {
     const abEnabled = this.isArrivalAbEnabled();
+    const sendsArrivals = isArrivalSlotActive(slot, abEnabled);
+    // 아침 알림(KAN-288)은 08:00 크론에서만 — 스위치가 꺼져 있거나 다른 시각이면 하지 않는다
+    const sendsMorning =
+      slot === MORNING_PUSH_SLOT &&
+      this.morningPushService.isGroupActive(group);
 
-    if (!isArrivalSlotActive(slot, abEnabled)) {
+    if (!sendsArrivals && !sendsMorning) {
       return;
     }
 
@@ -438,7 +453,51 @@ export class DripBatchOrchestrator {
       return;
     }
 
-    await this.sendArrivals(run, run.finishedAt, now, group, [slot], abEnabled);
+    if (sendsArrivals) {
+      await this.sendArrivals(
+        run,
+        run.finishedAt,
+        now,
+        group,
+        [slot],
+        abEnabled,
+      );
+    }
+
+    // 도착 알림을 먼저 보낸다 — 아침 알림은 오늘 적립받은 사용자와 이미 도착 알림을 받은 사용자를 뺀다(하루 1건)
+    if (sendsMorning) {
+      await this.sendMorningPush(run, run.finishedAt, now, group);
+    }
+  }
+
+  /**
+   * 아침 알림(KAN-288) — **드립이 없는 날**의 미청취 유도. 오늘 그 그룹 배치가 적립한 사용자(드립이 있는 날)는 도착 알림 몫이라
+   * 뺀다. 실패해도 던지지 않는다 — 도착 알림·편성과 무관하다.
+   */
+  private async sendMorningPush(
+    run: DripBatchRun,
+    finishedAt: Date,
+    now: Date,
+    group: DripGroup,
+  ): Promise<void> {
+    try {
+      const items = await this.libraryService.findPlacementsAddedBetween(
+        run.createdAt,
+        new Date(finishedAt.getTime() + 1),
+      );
+
+      await this.morningPushService.run(
+        group,
+        now,
+        new Set(items.map((item) => item.userId)),
+      );
+    } catch (error) {
+      this.logger.error('retention morning push failed', {
+        run_date: run.runDate,
+        group,
+        error: toErrorMessage(error),
+      });
+    }
   }
 
   /**
@@ -1357,6 +1416,8 @@ function round(value: number | null): number | null {
 
 /** 한 번에 알림 서비스로 넘기는 사용자 수 — 발송 요청을 이 크기로 나눈다 */
 const ARRIVAL_PUSH_CHUNK = 100;
+/** 아침 알림(KAN-288)의 시각 — 광고성이라 야간 금지(21~08시) 밖인 08:00. A/B의 B 그룹 도착 알림과 같은 크론이다 */
+const MORNING_PUSH_SLOT = DripArrivalSlot.H0800;
 
 /** 적립 행 → 사용자별 도착 1건(정규·탐험) */
 function groupArrivals(items: LibraryItem[]): DripArrival[] {

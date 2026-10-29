@@ -13,6 +13,7 @@ import {
   dripArrivalBucketOf,
 } from '@/modules/drip/drip-group.policy';
 import { DripGroup } from '@/modules/drip/drip.enum';
+import { MorningPushService } from '@/modules/retention-push/morning-push.service';
 import { DripBatchRun } from '@/modules/drip/entities/drip-batch-run.entity';
 import { UserInterest } from '@/modules/interest/entities/user-interest.entity';
 import { UserInterestSource } from '@/modules/interest/interest.enum';
@@ -81,6 +82,9 @@ describe('DripBatchOrchestrator', () => {
   let dripArrivalNotificationService: jest.Mocked<DripArrivalNotificationService>;
   let topicService: jest.Mocked<TopicService>;
   let userSettingService: jest.Mocked<UserSettingService>;
+  let morningPushService: jest.Mocked<MorningPushService>;
+  /** 아침 알림 스위치(KAN-288) — 기본 꺼짐 */
+  let morningActive = false;
   let run: DripBatchRun;
 
   // 정규 후보 2편(주제 A·B) + 탐험 후보 1편(주제 B — 관심 밖)
@@ -223,6 +227,12 @@ describe('DripBatchOrchestrator', () => {
       }),
     } as unknown as jest.Mocked<DripArrivalNotificationService>;
 
+    morningActive = false;
+    morningPushService = {
+      isGroupActive: jest.fn(() => morningActive),
+      run: jest.fn().mockResolvedValue(undefined),
+    } as unknown as jest.Mocked<MorningPushService>;
+
     // 스위치는 `true` 명시일 때만 켜진다(2026-10-14) — 자동 확장 테스트는 켜진 상태를 기본으로 본다
     orchestrator = createOrchestrator({ AUTO_EXPAND_ENABLED: 'true' });
   });
@@ -249,6 +259,7 @@ describe('DripBatchOrchestrator', () => {
       new ContentCohortService({
         get: (key: string) => env[key],
       } as never),
+      morningPushService,
     );
   }
 
@@ -651,6 +662,7 @@ describe('DripBatchOrchestrator', () => {
           ),
         } as never,
         new ContentCohortService({ get: () => undefined } as never),
+        morningPushService,
       );
 
       const plan = await production.planForUser(buildUser(), NOW, new Map(), {
@@ -1446,6 +1458,142 @@ describe('DripBatchOrchestrator', () => {
         [[USER_A], 'a'],
         [[USER_B], 'b'],
       ]);
+    });
+
+    describe('아침 알림(KAN-288) — 08:00 크론 안에서, 드립이 없는 날만', () => {
+      it('스위치가 켜져 있으면 A/B 가 꺼져 있어도 08:00 크론이 아침 알림을 부르고, 오늘 적립받은 사용자를 넘긴다', async () => {
+        // given
+        orchestrator = createOrchestrator({});
+        morningActive = true;
+
+        // when
+        await orchestrator.notifyTodayArrivals(
+          AT_0800,
+          DripGroup.ASIA,
+          DripArrivalSlot.H0800,
+        );
+
+        // then — 도착 알림은 07:00 몫이라 보내지 않는다
+        expect(dripArrivalNotificationService.notify).not.toHaveBeenCalled();
+        expect(morningPushService.run).toHaveBeenCalledTimes(1);
+        const [group, at, placed] = morningPushService.run.mock.calls[0];
+        expect(group).toBe(DripGroup.ASIA);
+        expect(at).toBe(AT_0800);
+        expect([...placed].sort()).toEqual([USER_A, USER_B].sort());
+      });
+
+      it('07:00 · 07:30 크론에서는 부르지 않는다 — 광고성이라 08:00 전에 보내지 않는다', async () => {
+        // given
+        orchestrator = createOrchestrator({ DRIP_ARRIVAL_AB_ENABLED: 'true' });
+        morningActive = true;
+
+        // when
+        await orchestrator.notifyTodayArrivals(AT_0700);
+        await orchestrator.notifyTodayArrivals(
+          AT_0730,
+          DripGroup.ASIA,
+          DripArrivalSlot.H0730,
+        );
+
+        // then
+        expect(morningPushService.run).not.toHaveBeenCalled();
+      });
+
+      it('A/B 가 켜져 있으면 08:00 에 B 그룹 도착 알림을 먼저 보내고 아침 알림을 부른다', async () => {
+        // given
+        orchestrator = createOrchestrator({ DRIP_ARRIVAL_AB_ENABLED: 'true' });
+        morningActive = true;
+
+        // when
+        await orchestrator.notifyTodayArrivals(
+          AT_0800,
+          DripGroup.ASIA,
+          DripArrivalSlot.H0800,
+        );
+
+        // then
+        expect(notifiedUsers()).toEqual([[[USER_B], 'b']]);
+        expect(
+          dripArrivalNotificationService.notify.mock.invocationCallOrder[0],
+        ).toBeLessThan(morningPushService.run.mock.invocationCallOrder[0]);
+      });
+
+      it('스위치가 꺼져 있으면 08:00 크론은 (A/B 도 꺼져 있을 때) 실행 기록조차 읽지 않는다', async () => {
+        // given
+        orchestrator = createOrchestrator({});
+
+        // when
+        await orchestrator.notifyTodayArrivals(
+          AT_0800,
+          DripGroup.ASIA,
+          DripArrivalSlot.H0800,
+        );
+
+        // then
+        expect(
+          dripBatchRunService.findByRunDateAndGroup,
+        ).not.toHaveBeenCalled();
+        expect(morningPushService.run).not.toHaveBeenCalled();
+      });
+
+      it('배치가 08:00 뒤에 끝나면 08:00 크론은 건너뛰고 배치가 끝나자마자 아침 알림을 부른다', async () => {
+        // given
+        orchestrator = createOrchestrator({});
+        morningActive = true;
+        dripBatchRunService.findByRunDateAndGroup.mockResolvedValue({
+          ...run,
+          finishedAt: new Date(AT_0800.getTime() + 60_000),
+        });
+
+        // when — 크론
+        await orchestrator.notifyTodayArrivals(
+          AT_0800,
+          DripGroup.ASIA,
+          DripArrivalSlot.H0800,
+        );
+        // then
+        expect(morningPushService.run).not.toHaveBeenCalled();
+
+        // when — 배치 종료(08:01)
+        jest
+          .useFakeTimers({ doNotFake: ['nextTick', 'setImmediate'] })
+          .setSystemTime(new Date(AT_0800.getTime() + 60_000));
+        await orchestrator.run(AT_0800);
+
+        // then
+        expect(morningPushService.run).toHaveBeenCalledTimes(1);
+      });
+
+      it('08:00 전에 끝난 배치는 아침 알림을 부르지 않는다 — 08:00 크론 몫이다', async () => {
+        // given
+        orchestrator = createOrchestrator({});
+        morningActive = true;
+        jest
+          .useFakeTimers({ doNotFake: ['nextTick', 'setImmediate'] })
+          .setSystemTime(AT_0500);
+
+        // when
+        await orchestrator.run(AT_0500);
+
+        // then
+        expect(morningPushService.run).not.toHaveBeenCalled();
+      });
+
+      it('아침 알림이 실패해도 던지지 않는다', async () => {
+        // given
+        orchestrator = createOrchestrator({});
+        morningActive = true;
+        morningPushService.run.mockRejectedValue(new Error('db down'));
+
+        // when / then
+        await expect(
+          orchestrator.notifyTodayArrivals(
+            AT_0800,
+            DripGroup.ASIA,
+            DripArrivalSlot.H0800,
+          ),
+        ).resolves.toBeUndefined();
+      });
     });
   });
 

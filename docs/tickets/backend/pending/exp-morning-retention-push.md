@@ -51,3 +51,12 @@
 
 - 2026-10-29 발행(마크다운 + Jira KAN-288).
 - 2026-10-29 결정 반영(Jira 댓글).
+- 2026-10-29 결정 추가(사용자): 별도 크론이 아니라 **같은 아침 도착 알림 크론 안에서**, 그날 드립을 받지 않은 사용자에게만 보낸다(하루 1건). 광고성이라 08:00 슬롯에서만(A/B 두 그룹 모두 08:00 — 07:30 없음).
+- 2026-10-29 구현(BE, 브랜치 `feat(be)/morning-retention-push` — KAN-289 PR 위에 쌓음, PR은 아래):
+  - 스위치는 **전용 키 `RETENTION_MORNING_PUSH_MODE`**(`off` 기본 · `dry_run` · `on`)로 정했다 — 저녁 `RETENTION_PUSH_MODE`를 따르면 저녁이 이미 켜진 환경에서 배포 즉시 아침이 나가고, 두 실험을 따로 켜고 끌 수 없다. `dry_run`은 저녁과 같이 시험 대상(`RETENTION_PUSH_TEST_USER_IDS`)에게만 보낸다(없으면 무발송, 로그만).
+  - 크론: 도착 알림 08:00 크론(`DripBatchOrchestrator.notifyTodayArrivals` 슬롯 `08:00`) 안에서 B 그룹 도착 알림 뒤에 `MorningPushService.run`. A/B가 꺼져 있어도 08:00 크론이 돈다(도착 알림은 07:00 그대로, 08:00은 아침 알림만). 배치가 08:00 뒤에 끝나면 배치 종료 직후 보낸다.
+  - 대상: 마케팅 최신 동의 · 온보딩 완료 · 보낼 기기 · 오늘 그 그룹 배치 적립 없음 · 오늘 `drip_arrival%` sent 없음 · 최근 20시간 `retention.morning.%` sent 없음 · 현지 05:00 이후 안 들음 · **최근 7일 안에 받은 드립·탐험 미청취(`unplayed`) 편 ≥ 1** · **사용자 현지 08~21시**(그룹 안 시차 — 방콕 07:00·미국 서부 06:00은 건너뜀).
+  - 1편 → 그 콘텐츠(본문 = 제목), 여러 편 → 라이브러리. 문구 KO 2변형·EN 1변형, 변형 = `experimentBucket(userId, 'retention.morning.<주 시작>')`. `(광고)`·수신거부 안내는 저녁과 같은 렌더러(`withAdNotice`). `ttl` 4시간. 기록 `retention.morning.<변형>`.
+  - 상한: 저녁 판정(`RetentionPushService.findHistory`)이 `retention.morning.*`을 빼고 센다 — 아침·저녁이 서로를 막지 않는다. 아침 자체 주간 상한 없음.
+  - 문서 수정은 `changes/pending/exp-morning-push.md`.
+  - 남은 일: 개발계 `RETENTION_MORNING_PUSH_MODE=dry_run`으로 08:00 로그(`retention morning push processed` — 사유별 건수·예시) 확인 → 시험 대상 본인 기기 수신 확인 → 운영 켠 시각 기록. 개발계 확인 전까지 `pending/`에 둔다.

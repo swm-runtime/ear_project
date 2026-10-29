@@ -434,6 +434,8 @@ export class EvalWorld {
       } as never,
       // 짧은 판 코호트(KAN-298) — 평가는 경계 설정 없이(전원 standard) 돈다. 페르소나·백테스트 카탈로그는 전부 standard다
       new ContentCohortService({ get: () => undefined } as never),
+      // 아침 알림(KAN-288) — `planForUser`는 부르지 않는다
+      {} as never,
     );
   }
 
