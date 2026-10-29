@@ -23,7 +23,6 @@ import { useAnimatedValue } from '@/shared/hooks/useAnimatedValue';
 import { useDelayedVisible } from '@/shared/hooks/useDelayedVisible';
 import { tickHaptic } from '@/shared/lib/haptics';
 import { motion, theme } from '@/shared/theme';
-import RemoteImage from '@/shared/ui/RemoteImage';
 import { SkeletonBlock, SkeletonGroup, SkeletonLine } from '@/shared/ui/Skeleton';
 import { Text } from '@/shared/ui/Typography';
 
@@ -32,6 +31,7 @@ import { formatPlaybackTime } from '../player.format';
 import { playerColor } from '../player.theme';
 import type { QueueEntry } from '../player.types';
 import { PlusIcon, ReorderIcon, TrashIcon } from './PlayerIcons';
+import QueueThumbnail from './QueueThumbnail';
 import {
   applyKeyOrder,
   hoverIndexOf,
@@ -651,15 +651,12 @@ function QueueRowBase({
             if (event.nativeEvent.actionName === 'save' && canSave) onSave?.(item);
           }}
         >
-          {item.thumbnailUrl ? (
-            <RemoteImage
-              uri={item.thumbnailUrl}
-              recyclingKey={item.contentId}
-              style={styles.thumbnail}
-            />
-          ) : (
-            <View style={styles.thumbnail} />
-          )}
+          {/* 받는 동안 목록 스켈레톤과 같은 숨쉬기(KAN-283) — 빈 문자열 주소도 "없음"이다 */}
+          <QueueThumbnail
+            uri={item.thumbnailUrl || null}
+            recyclingKey={item.contentId}
+            size={THUMBNAIL_SIZE}
+          />
           <View style={styles.rowMeta}>
             <Text style={[styles.rowTitle, isCurrent && styles.rowTitleCurrent]} numberOfLines={1}>
               {item.title}
@@ -1639,13 +1636,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: theme.spacing.sm,
     borderRadius: theme.radius.md,
     borderCurve: 'continuous',
-  },
-  thumbnail: {
-    width: THUMBNAIL_SIZE,
-    height: THUMBNAIL_SIZE,
-    borderRadius: theme.radius.sm,
-    borderCurve: 'continuous',
-    backgroundColor: playerColor.surface,
   },
   rowMeta: {
     flex: 1,

@@ -238,3 +238,14 @@ export const SHORT_VARIANT_DROP_30_SEC = 30;
 export const SHORT_VARIANT_DROP_60_SEC = 60;
 /** 시작자가 이보다 적은 행은 콘솔이 "표본 작음"으로 표시한다 */
 export const SHORT_VARIANT_MIN_SAMPLE = 20;
+
+/**
+ * 도착 알림 시각 실험(`GET /admin/insights/drip-arrival-time`, KAN-289, 2026-10-30) — 07:00 기준선 · 07:30(A) · 08:00(B)의
+ * 재생률. 2시간 반응 정의는 알림 반응(`pushReactions`)과 같은 쿼리 조각을 쓴다.
+ */
+export const DRIP_ARRIVAL_TIME_DEFAULT_DAYS = 14;
+export const DRIP_ARRIVAL_TIME_MAX_DAYS = 90;
+/** 반응 창(시간) — 알림 반응과 같은 값. 표시용(쿼리는 `playedBetween` 조각의 창을 쓴다) */
+export const DRIP_ARRIVAL_TIME_REACTION_HOURS = 2;
+/** 보낸 알림이 이보다 적은 행은 콘솔이 "표본 작음"으로 표시한다 — 기준선 재생률이 10% 안팎이라 20건이면 1~2건이 5~10%p를 움직인다 */
+export const DRIP_ARRIVAL_TIME_MIN_SAMPLE = 100;

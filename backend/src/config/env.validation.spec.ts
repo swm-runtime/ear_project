@@ -225,6 +225,28 @@ describe('validateEnv', () => {
     }
   });
 
+  it('RETENTION_MORNING_PUSH_MODE 는 off·dry_run·on·빈 값만 받는다(KAN-288)', () => {
+    expect(() =>
+      validateEnv({ ...validEnv, RETENTION_MORNING_PUSH_MODE: 'true' }),
+    ).toThrow(/RETENTION_MORNING_PUSH_MODE/);
+    for (const value of ['off', 'dry_run', 'on', '']) {
+      expect(() =>
+        validateEnv({ ...validEnv, RETENTION_MORNING_PUSH_MODE: value }),
+      ).not.toThrow();
+    }
+  });
+
+  it('DRIP_ARRIVAL_AB_ENABLED 는 true·false·빈 값만 받는다(KAN-289)', () => {
+    expect(() =>
+      validateEnv({ ...validEnv, DRIP_ARRIVAL_AB_ENABLED: 'on' }),
+    ).toThrow(/DRIP_ARRIVAL_AB_ENABLED/);
+    for (const value of ['true', 'false', '']) {
+      expect(() =>
+        validateEnv({ ...validEnv, DRIP_ARRIVAL_AB_ENABLED: value }),
+      ).not.toThrow();
+    }
+  });
+
   it('PLAN_DISCOUNT_* — 스위치는 true·false·빈 값만, 정가는 양의 정수이거나 빈 값이다(KAN-286)', () => {
     expect(() =>
       validateEnv({ ...validEnv, PLAN_DISCOUNT_DISPLAY_ENABLED: 'yes' }),

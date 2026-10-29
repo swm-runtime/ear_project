@@ -13,7 +13,7 @@ export * from "./series.js";
 export * from "./publication.js";
 export * from "./length-profile.js";
 import { seriesDesignBlock, seriesWriteBlock, type SeriesDraftContext } from "./series.js";
-import { lengthCriticNote, lengthDesignBanner, lengthDesignBlock, lengthProfileOf, lengthWriteBlock, SHORT_HOOKS, type ShortHook } from "./length-profile.js";
+import { lengthCriticNote, lengthDesignBanner, lengthDesignBlock, lengthProfileOf, lengthWriteBlock, SHORT_HOOKS, type ShortHook, type ShortRules } from "./length-profile.js";
 const SHORT_HOOKS_DEFAULT = SHORT_HOOKS[0];
 import { INTRO_STYLES_EN } from "./global-prompts.js";
 
@@ -431,8 +431,10 @@ export interface CriticInlineInput {
   episodeId: string; title: string; midTopic: MidTopic;
   rubricV2Md: string; guidelines: string; goldFullEum: string; goldFullYuna: string; scriptMd: string;
   preTemplate?: boolean;
-  /** 길이 프로필(0040, KAN-296) — short 면 규격 알림 한 절을 덧붙인다. 생성 맥락은 넘기지 않는다 */
+  /** 길이 프로필(0040, KAN-296) — short 면 짧은 판 루브릭 절(rubricShortMd)을 덧붙인다. 생성 맥락은 넘기지 않는다 */
   lengthProfile?: string | null;
+  /** 짧은 판 비평 루브릭(skills/critic/rubric-short.md) — v2 3장 대신 채점. 없으면 규격 알림 한 절 */
+  rubricShortMd?: string | null;
 }
 
 export function buildCriticPromptInlineParts(i: CriticInlineInput): PromptParts {
@@ -466,7 +468,7 @@ report_md 에 루브릭 v2 4장 규격의 리포트 전문을 넣는다 — 첫 
 3. **⭐ 잘된 지점** 3~7건 (빈 판정 열 포함).
 4. **집계** 행은 사람 판정 후 채우므로 플래그·⭐ 수만 적는다.
 
-## 5. 완료 보고 — 반드시 요청된 JSON 스키마 형식으로만 출력한다. scores·evidence 의 각 항목은 report_md 의 점수·인용과 같아야 한다. 완료 보고 전에 다른 텍스트를 출력하지 않는다.${lengthCriticNote(lengthProfileOf(i.lengthProfile))}`;
+## 5. 완료 보고 — 반드시 요청된 JSON 스키마 형식으로만 출력한다. scores·evidence 의 각 항목은 report_md 의 점수·인용과 같아야 한다. 완료 보고 전에 다른 텍스트를 출력하지 않는다.${lengthCriticNote(lengthProfileOf(i.lengthProfile), i.rubricShortMd)}`;
   const pre = i.preTemplate
     ? `## 이 대본은 tpl-v1 이전 세대다
 인트로·마무리에 \`{인트로 시그니처 …}\` \`{클로징 …}\` 같은 자리표기가 있다. 생성 당시 템플릿이 없었던 것이지 대본 결함이 아니다.
@@ -756,6 +758,8 @@ export interface WriteInput {
   series?: SeriesDraftContext;
   /** 짧은 판 도입 훅 형태(0040, KAN-296) — short 편만. 없으면 선취형 */
   shortHook?: ShortHook;
+  /** 짧은 판 규칙 자산(skills/draft/short.md) — short 편만 */
+  shortRules?: ShortRules | null;
   /** 인라인 반입 — 이 단계는 파일을 읽지 않는다 (도구 없음) */
   guidelines: string;
   specScript: string;
@@ -857,7 +861,7 @@ ${WRITE_FACT_RULES}
 - 제목은 구성안의 축에 맞게 새로 지어도 된다 (클릭베이트 금지).
 ${templateBlock({ templates: i.templates, majorTopic: i.majorTopic, signoffSeed: i.signoffSeed, series: i.series } as DraftInput)}
 ${lengthProfileOf(i.candidate.length_profile) === "short" ? `- 도입 (규칙 13): 이 편은 짧은 판이다 — 아래 "짧은 판" 블록의 **${(i.shortHook ?? SHORT_HOOKS_DEFAULT).label} 훅** 두 턴이 도입의 전부다(진입 방식 로테이션은 쓰지 않는다).` : `- 도입 (규칙 13): 주제 선언 뒤 첫 해설 턴 사이에 청취자가 "대화에 앉는" 두세 턴. 주제를 다시 발견하는 척 금지. 이 에피소드의 진입 방식: **${i.introStyle.label}** — ${i.introStyle.hint}`}${isHistoryTopic(i.candidate.mid_topic) ? "\n" + HISTORY_WRITE_RULE : ""}
-- **이 에피소드의 목표: 약 ${i.estimatedMinutes ?? 15}분 = 공백·기호 제외 약 ${Math.round((i.estimatedMinutes ?? 15) * 341)}자 (±15%)** — 구성안의 "예상 분량"이다 (341자/분). 하한 13분(약 4,300자)은 필수이고 상한을 규칙으로 두지는 않지만, **예상 분량은 설계가 재료 총량으로 이미 정한 크기다** — 그보다 크게 쓰는 것은 재료가 많아서가 아니라 풀어 쓰기가 길어진 것이다.${seriesWriteBlock(i.series, false)}${lengthWriteBlock(lengthProfileOf(i.candidate.length_profile), i.shortHook)}
+- **이 에피소드의 목표: 약 ${i.estimatedMinutes ?? 15}분 = 공백·기호 제외 약 ${Math.round((i.estimatedMinutes ?? 15) * 341)}자 (±15%)** — 구성안의 "예상 분량"이다 (341자/분). 하한 13분(약 4,300자)은 필수이고 상한을 규칙으로 두지는 않지만, **예상 분량은 설계가 재료 총량으로 이미 정한 크기다** — 그보다 크게 쓰는 것은 재료가 많아서가 아니라 풀어 쓰기가 길어진 것이다.${seriesWriteBlock(i.series, false)}${lengthWriteBlock(lengthProfileOf(i.candidate.length_profile), i.shortHook, i.shortRules)}
 
 ## 이 에피소드의 재료
 ### 구성안 — outline.md (계약: 구간 순서·목적·재료·진행자 질문·전환 장치를 그대로 실행한다)
@@ -1047,6 +1051,8 @@ export interface DesignInlineInput {
   series?: SeriesDraftContext;
   /** 재제작 원본(0040, KAN-296) — short 프로필 편이 발행된 편의 짧은 판일 때 그 제목·축. 축을 같은 질문으로 묶는다 */
   remakeOf?: { title: string; axis?: string | null } | null;
+  /** 짧은 판 규칙 자산(skills/draft/short.md) — short 편만 */
+  shortRules?: ShortRules | null;
 }
 
 export function buildDesignPromptInlineParts(i: DesignInlineInput): PromptParts {
@@ -1143,7 +1149,7 @@ ${fence(explainer === "이음" ? i.goldFullEum : i.goldFullYuna)}` : `### 1.3 �
 - 해설: **${explainer}** / 진행: **${host}** — 역할 고정
 - 청취자: 이 주제를 처음 듣는 일반 청취자 (특정 집단으로 좁히지 않는다 — 전문가 대상 표현만 금지). 편당 15분 안팎.
 ${candidateAxisBlock(i.candidate)}
-- 타깃 정합 메모: ${i.candidate.target_fit ?? "-"}${seriesDesignBlock(i.series, false)}${lengthDesignBlock(lengthProfileOf(i.candidate.length_profile), i.remakeOf)}
+- 타깃 정합 메모: ${i.candidate.target_fit ?? "-"}${seriesDesignBlock(i.series, false)}${lengthDesignBlock(lengthProfileOf(i.candidate.length_profile), i.remakeOf, i.shortRules)}
 
 ## 소스 본문 (${i.sources.length}건 — 문단 ID 로 인용한다)
 ${srcBlocks}

@@ -75,12 +75,18 @@ export class DripArrivalNotificationService {
     private readonly uninstallEstimateService: UninstallEstimateService,
   ) {}
 
-  /** `nextBatchAt` — 이 사용자들 그룹의 다음 편성 배치 시각. 알림 보관 시한(`ttl`)이 여기까지다 */
+  /**
+   * `nextBatchAt` — 이 사용자들 그룹의 다음 편성 배치 시각. 알림 보관 시한(`ttl`)이 여기까지다.
+   * `variant` — 시각 A/B(KAN-289)의 그룹 표기(`a`·`b`). 있으면 기록 종류가 `drip_arrival.<variant>`, 없으면 `drip_arrival`(종전).
+   * 앱으로 가는 푸시 `data.type`은 어느 쪽이든 `drip_arrival`이다 — 앱은 그 값을 그대로 비교한다(`push-link.ts`)
+   */
   async notify(
     arrivals: DripArrival[],
     now: Date,
     nextBatchAt: Date,
+    variant: string | null = null,
   ): Promise<DripArrivalNotifySummary> {
+    const logType = dripArrivalLogType(variant);
     const summary: DripArrivalNotifySummary = {
       sentCount: 0,
       failedCount: 0,
@@ -107,7 +113,8 @@ export class DripArrivalNotificationService {
     const { start, end } = toServiceDayRange(now);
     const [alreadySent, disabled] = await Promise.all([
       this.notificationLogRepository
-        .findUserIdsWithStatusBetween(
+        // 종류 머리로 센다 — 같은 날 07:00(`drip_arrival`)과 07:30·08:00(`drip_arrival.a`·`.b`)이 섞여도 하루 1건이다
+        .findUserIdsWithTypePrefixStatusBetween(
           userIds,
           NotificationType.DRIP_ARRIVAL,
           NotificationStatus.SENT,
@@ -138,7 +145,7 @@ export class DripArrivalNotificationService {
             : null;
 
       if (skipReason) {
-        logs.push(buildLog(arrival.userId, deepLink, now, skipReason));
+        logs.push(buildLog(arrival.userId, logType, deepLink, now, skipReason));
         summary.skippedCount += 1;
         continue;
       }
@@ -171,7 +178,7 @@ export class DripArrivalNotificationService {
     for (const [userId, deepLink] of deepLinkByUserId) {
       const accepted = acceptedUserIds.has(userId);
       logs.push({
-        ...buildLog(userId, deepLink, now, null),
+        ...buildLog(userId, logType, deepLink, now, null),
         status: accepted ? NotificationStatus.SENT : NotificationStatus.FAILED,
         sentAt: accepted ? now : null,
       });
@@ -346,15 +353,25 @@ function buildMessage(
   };
 }
 
+/** `drip_arrival` 또는 `drip_arrival.<그룹>` — 어드민 알림 반응이 그룹별로 나눠 센다 */
+export function dripArrivalLogType(
+  variant: string | null,
+): NotificationLog['type'] {
+  return variant === null
+    ? NotificationType.DRIP_ARRIVAL
+    : `${NotificationType.DRIP_ARRIVAL}.${variant}`;
+}
+
 function buildLog(
   userId: string,
+  type: NotificationLog['type'],
   deepLink: string,
   now: Date,
   skipReason: NotificationSkipReason | null,
 ): Partial<NotificationLog> {
   return {
     userId,
-    type: NotificationType.DRIP_ARRIVAL,
+    type,
     deepLink,
     scheduledAt: now,
     sentAt: null,

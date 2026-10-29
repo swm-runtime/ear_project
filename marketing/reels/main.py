@@ -122,7 +122,12 @@ def build(args) -> None:
         raise RuntimeError(f"{episode_id} 고를 줄이 없다")
 
     use_ai = bool(config.OPENAI_API_KEY) and not args.no_ai
-    pick = ai.pick_clip(material, cands) if use_ai else heuristic_pick(material, cands)
+    if args.pick:
+        # 사람이 고른 구간·문구 — {start_idx, end_idx, title, caption, reason, image_prompts?}
+        with open(args.pick, encoding="utf-8") as f:
+            pick = {"image_prompts": [], "reason": "사람이 고름", **json.load(f)}
+    else:
+        pick = ai.pick_clip(material, cands) if use_ai else heuristic_pick(material, cands)
     start, end = fit_span(segs, {c["idx"] for c in cands}, int(pick["start_idx"]), int(pick["end_idx"]))
     clip_start = max(0.0, segs[start]["start_sec"] - 0.1)
     speech_end = segs[end]["end_sec"] + 0.25
@@ -220,6 +225,7 @@ def main() -> None:
     b.add_argument("--no-ai", action="store_true", help="모델 없이 첫 본문 단락으로")
     b.add_argument("--no-images", action="store_true", help="그림 대신 편 썸네일")
     b.add_argument("--local", action="store_true", help="S3 업로드·상태·Slack 없이 로컬에만")
+    b.add_argument("--pick", help="사람이 고른 구간·문구 JSON 파일(모델 대신)")
     b.set_defaults(fn=build)
     pb = sub.add_parser("publish")
     pb.add_argument("--date", required=True)

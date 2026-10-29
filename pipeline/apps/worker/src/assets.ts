@@ -67,6 +67,11 @@ export const SECTION_SUMMARY_PROMPT_KEY = "skills/tts/section-summary.md";
 /** 시리즈 편 규칙 (spec/11 5.1, KAN-136) — 13번째 DB 자산. 시리즈 편 설계·작성에만 붙는다 — 번들에 넣지 않아 일반 편 스냅샷이 바뀌지 않는다. 항상 active */
 export const SERIES_PROMPT_KEY = "skills/draft/series.md";
 
+/** 짧은 판 규칙 (KAN-296, 2026-10-30) — 15번째 DB 자산. 짧은 판(length_profile short) 설계·작성에만 붙는다. 번들에 넣지 않는다(일반 편 스냅샷 불변). 항상 active */
+export const SHORT_PROMPT_KEY = "skills/draft/short.md";
+/** 짧은 판 비평 루브릭 (KAN-296, 2026-10-30) — 16번째 DB 자산. 짧은 판 비평에서 v2 3장(점수)을 바꾼다. 항상 active */
+export const SHORT_RUBRIC_KEY = "skills/critic/rubric-short.md";
+
 /** 시리즈 썸네일 바탕 그림 (KAN-136, 2026-10-20) — 14번째 DB 자산. 시리즈 편의 썸네일만 읽는다(시리즈당 한 번 그리고 편마다 번호만 얹는다, thumbnail-series.ts). 항상 active */
 export const SERIES_THUMBNAIL_PROMPT_KEY = "skills/thumbnail/series.md";
 
@@ -113,7 +118,7 @@ export function versionOf(key: string, content: string): string {
     const d = head.match(/\d{4}-\d{2}-\d{2}/);
     return `gold@${d ? d[0] : new Date().toISOString().slice(0, 10)}`;
   }
-  const m = head.match(/(full|qa|critic|seriesthumb|thumb|anchor|scene|summary|series)(?:-en)?-v\d+(?:\.\d+)*/); // -en: 글로벌판 자산(full-en-v0.1 — 한국판 라벨과 섞여 읽히지 않게)
+  const m = head.match(/(full|qa|shortcritic|critic|seriesthumb|thumb|anchor|scene|summary|series|short)(?:-en)?-v\d+(?:\.\d+)*/); // short: 짧은 판 규칙 · shortcritic: 짧은 판 루브릭 (2026-10-30) // -en: 글로벌판 자산(full-en-v0.1 — 한국판 라벨과 섞여 읽히지 않게)
   if (!m) throw new Error(`${key}: 헤더에서 버전 라벨을 찾지 못했다 (full-vN · qa-vN · critic-vN · thumb-vN · anchor-vN · scene-vN · summary-vN · series-vN · seriesthumb-vN)`);
   return m[0];
 }

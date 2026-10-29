@@ -1,7 +1,8 @@
 /**
  * English Terms of Use and Privacy Policy for the GLOBAL market (KAN-199 · `docs/spec/api/global-api.md`).
  *
- * Built from the Korean documents (`legal.ts`, `privacy-2026-11-01.ts`) plus the items foreign law requires:
+ * Built from the Korean documents (`legal.ts`, `privacy-2026-11-01.ts`, `privacy-2026-12-01.ts` — content reviews,
+ * KAN-285) plus the items foreign law requires:
  * - Privacy: the common items of Southeast Asian data protection laws (Singapore · Thailand · Malaysia ·
  *   Philippines · Indonesia · Vietnam — purposes, legal basis, recipients, cross-border transfer, retention,
  *   rights, complaint to an authority) and California CCPA/CPRA (sale/sharing disclosure, Meta ad measurement
@@ -83,7 +84,7 @@ export const privacyBlocksEn: Block[] = [
       },
       {
         term: "Your choices in the app",
-        desc: "Topics you follow and notification settings.",
+        desc: "Topics you follow, notification settings and the content reviews (star rating and text) you choose to leave on episodes.",
       },
       {
         term: "Usage (generated automatically)",
@@ -131,6 +132,10 @@ export const privacyBlocksEn: Block[] = [
       {
         term: "Improving and protecting the Service — [legitimate interests]",
         desc: "Aggregated statistics on which content is played, app analytics to find where people get stuck, crash reports, fraud and abuse prevention. Our interest is a working, safe Service; you can object at any time (section 8).",
+      },
+      {
+        term: "Improving content quality — [legitimate interests]",
+        desc: "Reading and aggregating the content reviews (star rating and text) you leave to check and improve the quality of our episodes, and counting how many reviews you have left to decide whether you qualify for the review promotion. Reviews are not shown to other users and are not used to choose or recommend episodes.",
       },
       {
         term: "Notifications and marketing — [consent]",
@@ -181,7 +186,7 @@ export const privacyBlocksEn: Block[] = [
       },
       {
         term: "When you delete your account — with purchase history",
-        desc: "Your library, topics, listening history and device tokens are deleted immediately. Purchase and subscription records, the email address linked to them and consent records are kept for **5 years** in a separate storage area, because Korean consumer-protection law (Enforcement Decree of the Act on Consumer Protection in Electronic Commerce, Art. 6) requires it, and are then deleted.",
+        desc: "Your library, topics, content reviews, listening history and device tokens are deleted immediately. Purchase and subscription records, the email address linked to them and consent records are kept for **5 years** in a separate storage area, because Korean consumer-protection law (Enforcement Decree of the Act on Consumer Protection in Electronic Commerce, Art. 6) requires it, and are then deleted.",
       },
       { term: "Analytics data", desc: "Up to 14 months, after which only aggregated statistics remain." },
       { term: "Email verification records", desc: "Deleted once verification completes or expires." },

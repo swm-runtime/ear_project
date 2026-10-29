@@ -270,6 +270,15 @@ export class EnvironmentVariables {
   FIRST_DRIP_RANDOM_ENABLED?: string;
 
   /**
+   * 드립 도착 알림 시각 A/B(KAN-289 — 단기 실험 ③-1)의 서버 스위치. `true`/`false`. **`true`를 명시했을 때만 켜진다.**
+   * 꺼져 있으면 종전과 같다(그룹 현지 07:00 전원). 켜면 **전 사용자**를 사용자 id 해시로 A/B에 나눠 A는 07:30 · B는 08:00(그룹 현지)에
+   * 보내고, `notification_logs.type`을 `drip_arrival.a`·`.b`로 남긴다(앱으로 가는 `data.type`은 `drip_arrival` 그대로). 대상·문구는 같다
+   */
+  @IsOptional()
+  @IsIn(['true', 'false', ''])
+  DRIP_ARRIVAL_AB_ENABLED?: string;
+
+  /**
    * 요금제 할인 표시(KAN-286 — 단기 실험 ① 가격 인하, `experiments-api.md` 4.4)의 서버 스위치. `true`/`false`.
    * **`true`를 명시했을 때만 켜진다.** 켜면 `GET /plans`의 유료 요금제에 정가(`original_price_krw`)와
    * `is_discounted`를 실어 앱이 정가 취소선 + "지금 할인 중"을 그린다. 끄면 앱 배포 없이 할인 표시가 사라진다
@@ -321,6 +330,15 @@ export class EnvironmentVariables {
   @IsOptional()
   @IsIn(['off', 'dry_run', 'on', ''])
   RETENTION_PUSH_MODE?: string;
+
+  /**
+   * 아침 알림(KAN-288 — 단기 실험 ③, 드립이 없는 날 그룹 현지 08:00 미청취 유도)의 서버 스위치. `off`(기본·빈 값) · `dry_run` · `on`.
+   * 저녁(`RETENTION_PUSH_MODE`)과 따로 둔다 — 저녁이 켜진 환경에 배포되자마자 아침이 나가지 않게. `dry_run`은 대상·문구까지 정하고
+   * 시험 대상(`RETENTION_PUSH_TEST_USER_IDS`)에게만 보낸다 — 사유별 건수·문구 예시를 로그 `retention morning push processed`에 남긴다
+   */
+  @IsOptional()
+  @IsIn(['off', 'dry_run', 'on', ''])
+  RETENTION_MORNING_PUSH_MODE?: string;
 
   /**
    * 리텐션 알림 시험 대상(`notification.md` 4.6) — 쉼표로 구분한 사용자 id(uuid). `RETENTION_PUSH_MODE=dry_run`일 때 **이 사용자에게만

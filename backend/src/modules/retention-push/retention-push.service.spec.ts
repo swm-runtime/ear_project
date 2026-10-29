@@ -197,6 +197,28 @@ describe('RetentionPushService', () => {
     // then
     expect(plans.items.map((plan) => plan.userId)).toEqual([GLOBAL_USER]);
   });
+
+  it('같은 날 아침 알림(retention.morning.*)은 저녁 상한에 세지 않는다 — 08:00 알림이 18:00 을 막지 않는다(KAN-288)', async () => {
+    // given — 10시간 전(08:00)에 아침 알림, 사흘 동안 아침 알림 3건
+    const hoursAgo = (hours: number) =>
+      new Date(NOW.getTime() - hours * 60 * 60 * 1000);
+    targetedPushService.findSentHistory.mockResolvedValue(
+      [10, 34, 58].map((hours) => ({
+        userId: KR_USER,
+        type: 'retention.morning.a',
+        sentAt: hoursAgo(hours),
+      })),
+    );
+    const service = build({ RETENTION_PUSH_MODE: 'dry_run' });
+
+    // when
+    const plans = await service.planGroup(DripGroup.ASIA, NOW);
+
+    // then — 20시간 1건·주 3건 어느 쪽에도 걸리지 않는다
+    expect(plans.items.map((plan) => plan.userId).sort()).toEqual(
+      [KR_USER, GLOBAL_USER].sort(),
+    );
+  });
 });
 
 describe('countStreak', () => {

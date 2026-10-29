@@ -30,6 +30,8 @@
 | `PLAN_DISCOUNT_ORIGINAL_PRICE_DAILY_KRW` | `3900` | ① | 위와 함께 | 비어 있음 |
 | `PLAN_DISCOUNT_ORIGINAL_PRICE_PRO_KRW` | `9900` | ① | 위와 함께 | 비어 있음 |
 | `FIRST_DRIP_RANDOM_ENABLED` | `true` | ⑥ 첫 드립 랜덤 KAN-291 | 가능하면 코호트 분리일과 **다른 날** | `true` (Secrets) |
+| `DRIP_ARRIVAL_AB_ENABLED` | `true` | ③-1 도착 알림 시각 A/B KAN-289 | 개발계 07:30·08:00 로그 확인 뒤. 켠 시각을 티켓에 기록(07:00 기준선은 처리 기록에 고정됨) | 구현 중 |
+| `RETENTION_MORNING_PUSH_MODE` | `dry_run` → `on` | ③ 아침 알림 KAN-288 | 개발계 dry_run 08:00 로그·시험 기기 확인 뒤. 저녁 `RETENTION_PUSH_MODE`와 따로 켠다 | 구현 중 |
 | `SIGNUP_TRIAL_DAYS` | `3` | ⑦ 체험 3일 KAN-287 | 바꾼 시각 기록(가입 코호트 기준점). 기존 체험자는 그대로 | `3` (host `.env.prod`, 백업 `.env.prod.bak-20261029-trial3`) |
 | `SHORT_CONTENT_COHORT_SINCE` | 새 앱 스토어 배포 시각(ISO) | ④ 짧은 판 KAN-298 | 심사 통과·배포 시각. **짧은 판 재고를 먼저 채운다**(폴백 없음) | 구현 중 |
 | `CONTENT_REVIEW_ENABLED` | `true` | 콘텐츠 후기 KAN-279 | 개인정보 처리방침 시행일(KAN-285) 이후 + FE KAN-280 배포 | 꺼짐 |
