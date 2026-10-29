@@ -239,7 +239,7 @@ export function twoStageViolations(scriptMd: string, outlineMd: string, opts: { 
   let run = 0, maxRun = 0, runEnd: string | null = null;
   for (const t of eTurns) { if (attributionRe.test(t.text)) { run++; if (run > maxRun) { maxRun = run; runEnd = t.id; } } else run = 0; }
   // full-v8.3: 임계 5→4 — 확장 정규식으로 9편·골드 2편 실측, 판정 동의 구간(001·003) 둘만 4연속, 오탐 0
-  if (maxRun >= 4) v.push(`해설 턴 ${maxRun}개가 연속으로 귀속·전언 표현("~라고요"·"~라고 해요"·"~라고 불러요"·"그가 말하는 건")을 담음 (${runEnd} 까지) — 한 소스를 옮겨 적는 구간이다. 소스가 말한 것을 해설자가 아는 것으로 바꾸어 말하고, 귀속은 직접 인용·수치·특정인 의견에만 (규칙 20~23)`);
+  if (maxRun >= 4) v.push(`해설 턴 ${maxRun}개가 연속으로 귀속·전언 표현("~라고요"·"~라고 해요"·"~라고 불러요"·"그가 말하는 건")을 담음 (${runEnd} 까지) — 한 소스를 옮겨 적는 구간이다. 소스가 말한 것을 해설자가 아는 것으로 바꾸어 말한다. 출처는 이름 자체가 정보일 때만 한 번 (규칙 12·20~23)`);
   // full-v6.4 (2026-09-12 직접 수정 43건): 기원 서사 틀 반복 · 턴 끝 미완결 · 비유 표지 밀도
   const originRe = /(아까|방금|앞에서)[^.!?]{0,25}(때부터|부터)[^.!?]{0,8}(걸리|걸렸|궁금|정리)|(아까|방금)부터 (궁금|정리|걸리)/;
   const origin = p.turns.filter((t) => t.id?.startsWith("Y") && originRe.test(t.text)).map((t) => t.id ?? "?");
@@ -276,10 +276,10 @@ export function twoStageViolations(scriptMd: string, outlineMd: string, opts: { 
   const numCount = (t: string) => (t.match(/\d[\d,.]*\s*(퍼센트|%|명|원|배|년|개|곳|건|시간|분|달|주|센트|달러)?/g) ?? []).length;
   const dense = expl.map((t) => ({ id: t.id!, n: numCount(t.text) })).filter((x) => x.n >= 5);
   if (dense.length) v.push(`해설 턴 ${dense.length}개에 수치가 5개 이상 (${dense.slice(0, 6).map((x) => `${x.id}: ${x.n}개`).join(", ")}) — 한 턴에 수치는 3개 이하. 극적 대비·설득에 필요 없는 수치부터 뺀다 (규칙 17)`);
-  // 주어형 귀속 (규칙 8·20): "이 글은 …해요", "저자는", "연구진은", "이 연구에서는" 가 해설 턴 4개 이상이면 소스를 읽어 주는 대본이다 (연속이 아니어도)
+  // 주어형 귀속 (규칙 8·20): "이 글은 …해요", "저자는", "연구진은", "이 연구에서는" — full-v9.12(2026-10-30) 출처는 소개하지 않으므로 해설 턴 2개 이상이면 잡는다(종전 4개 — 블록 소개 뒤 한두 문장을 허용하던 때)
   const subjRe = /(이 글|그 글|이 기사|글쓴이|저자들?|필자|연구진|연구자들?|연구팀|이 연구|그 연구|이 조사|이 실험|이 보고서|이 논문)(은|는|이|가|에서는|에서도)\s|(이 글|그 글|이 연구|이 조사)의 (주장|출발점|결론|해석|권고|제안|핵심)/;
   const subj = expl.filter((t) => subjRe.test(t.text)).map((t) => t.id);
-  if (subj.length >= 4) v.push(`해설 턴 ${subj.length}개가 주어형 귀속("이 글은"·"저자는"·"연구진은"·"이 연구에서는")으로 말함 (${subj.slice(0, 8).join(", ")}) — 블록 소개 한 문장 뒤에는 주어 없이 내용을 말한다 (규칙 8·20)`);
+  if (subj.length >= 2) v.push(`해설 턴 ${subj.length}개가 주어형 귀속("이 글은"·"저자는"·"연구진은"·"이 연구에서는")으로 말함 (${subj.slice(0, 8).join(", ")}) — 출처를 주어로 세우지 않는다. 내용을 해설자의 말로 한다 (규칙 8·20, v9.12)`);
   // 마무리 정리 턴 (규칙 22·tpl-v2): 마지막 해설 턴이 3문장 미만이면 수렴이 없다 — 수정 재생성이 claims 를 지우며 문장까지 깎은 사례(T260922-007 E28)
   const closingE = [...expl].reverse().find((t) => t.section === "마무리");
   if (closingE) { const n = closingE.text.split(/(?<=[.?!])\s+/).filter((x) => x.trim()).length; if (n < 3) v.push(`마무리 정리 턴 ${closingE.id} 이 ${n}문장 — 정리 턴은 3~5문장이다. 구간마다 한 문장을 답의 단계로 잇고 마지막 문장이 축 (규칙 22). 사실 주장을 지울 때도 문장 수를 줄이지 않는다`); }
@@ -669,7 +669,7 @@ export function v94Violations(turns: ScriptTurn[]): string[] {
   // 규칙 20: 이미 아는 것처럼 소스를 행위의 주어로 세운 소개("조사는 …살폈어요", "모의실험이 이 질문을 나눠 봤습니다") — 직접 수정 4건이 "한 조사가"·"~이 하나 있어요"·"글이 있는데"로 바꿨다. "한 ~"·"어떤 ~"으로 처음 소개하는 문장은 통과
   const srcActRe = /(?<!한 )(?<!어떤 )(글|조사|연구|해설|자료|모의실험|분석|보고서|검토)(이|가|은|는) [^.!?]{0,45}(살폈|살핍니|다뤘|다룹니|다뤄요|풀어냈|나눠 봤|권합니다|권해요|예측합니다|연결합니다|정리했)/;
   const srcAct = E.filter((t) => srcActRe.test(t.text));
-  if (srcAct.length) v.push(`해설 턴 ${srcAct.length}개가 글·조사·연구를 행위의 주어로 세움 (${ids(srcAct)}) — 소개는 처음 듣는 사람에게 "그런 글·조사·연구가 하나 있다"고 알리는 한 문장이고, 그 뒤는 주어 없이 내용을 말한다. 실험 하나의 결과는 사례 하나로 소개한다 (규칙 20)`);
+  if (srcAct.length) v.push(`해설 턴 ${srcAct.length}개가 글·조사·연구를 행위의 주어로 세움 (${ids(srcAct)}) — 출처를 소개하거나 주어로 세우지 않는다. 결과는 무엇을 했더니 무엇이 나왔는지 해설자의 말로 한다 (규칙 20, v9.12)`);
   // ── v9.7 (2026-10-01, v9.5 판정 3편) ──
   // 규칙 4: 내용 없는 한 마디 진행 턴("네.") — 사람: "차라리 없는 게 나을 정도의 무의미한 턴"
   const emptyY = bodyY.filter((t) => !/\?/.test(t.text) && t.text.replace(/[\s.,!…"'“”‘’]/g, "").length <= 4);
@@ -901,7 +901,7 @@ export function attributionViolations(scriptMd: string, turns: { id: string | nu
       seen.add(sec);
       if (/^(그|이) (교수|연구|연구팀|연구진|팀|사람|글|보고서|회장|저자|연구자|기사|논문)/.test(t[2].trim())) bad.push(`${t[1]}(#${sec})`);
     }
-    if (bad.length) v.push(`블록의 첫 해설 턴이 앞 블록의 지시어로 시작 (${bad.join(", ")}) — 새 블록은 소개 한 문장으로 연다. 익명이어도 된다("미국의 한 대학 연구팀이") (규칙 22)`);
+    if (bad.length) v.push(`블록의 첫 해설 턴이 앞 블록의 지시어로 시작 (${bad.join(", ")}) — 새 블록은 그 블록의 내용으로 연다. 앞 블록의 인물·연구를 지시어로 부르지 않는다 (규칙 22)`);
   }
   // 이름 형태: 풀네임(두 토큰 이상)이 한 번이라도 나왔으면 성만 따로 부르지 않는다 (직접 수정 "Sucher 교수 → Sandra Sucher 교수")
   for (const list of names.values()) for (const n of list) {
