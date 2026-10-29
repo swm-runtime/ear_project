@@ -6,6 +6,7 @@
 |---|---|---|---|
 | 4.1 | ⑧ 온보딩 완료 후 플레이어 띄우기 | KAN-292 | KAN-295 (FE) |
 | 4.2 | ⑤ 시리즈 유료화 — 4편부터 프로 전용 | KAN-290 | KAN-294 (FE) |
+| 4.4 | ① 구독 가격 인하 — 할인 표시(정가 취소선 + "지금 할인 중") | KAN-286 | FE 티켓(발행 예정) |
 
 판정은 서버가 한다 — 앱은 서버가 준 값(`first_content_id`, `is_locked`, 에러 코드)으로만 그린다. 티어명으로 분기하지 않는다(루트 `CLAUDE.md`).
 
@@ -115,6 +116,56 @@
 
 ---
 
+## 4.4 `GET /plans` — 정가·할인 표시 필드 추가 (KAN-286 ↔ FE 티켓 발행 예정)
+
+스토어 가격을 실제로 내렸다(2026-10-29 — daily 3,900 → 1,900원 · pro 9,900 → 3,900원, `plans.price_krw`도 같은 값). 앱은 이를 **할인처럼** 보여 준다: ~~3,900원~~ **1,900원** + "지금 할인 중". **종료일은 표시하지 않는다**(종료일 미정). 앱은 스토어 `displayPrice`만 알고 정가를 모르므로 **정가와 할인 여부를 서버가 준다.** 실험을 끝낼 때 앱 배포 없이 끌 수 있도록 표시 여부는 서버 스위치로 둔다.
+
+**Response 200** — 기존 요금제 항목(`subscription-api.md` 4.1)에 필드 둘을 더한다
+
+```json
+{
+  "plans": [
+    { "tier": "light", "price_krw": 0, "is_free": true, "original_price_krw": null, "is_discounted": false, "...": "..." },
+    { "tier": "daily", "price_krw": 1900, "is_free": false, "original_price_krw": 3900, "is_discounted": true, "...": "..." },
+    { "tier": "pro", "price_krw": 3900, "is_free": false, "original_price_krw": 9900, "is_discounted": true, "...": "..." }
+  ],
+  "is_email_verified": true
+}
+```
+
+| 필드 | 타입 | 비고 |
+|---|---|---|
+| `original_price_krw` | number \| null | 취소선으로 그릴 정가(원). **`is_discounted = true`일 때만 값이 있다** — 아니면 `null` |
+| `is_discounted` | boolean | 정가 취소선 + "지금 할인 중"을 그리는가. **서버 판정** |
+
+**판정 규칙 (서버)**
+
+- `is_discounted = true` ⇔ 서버 스위치가 켜져 있고 · 유료 요금제이고(`is_free = false`) · 그 티어에 설정된 정가가 있고 · 정가 **>** `price_krw`. 이때 `original_price_krw` = 설정된 정가.
+- 그 밖은 전부 `is_discounted = false` · `original_price_krw = null`. 무료(light) 요금제는 언제나 `false`/`null`.
+- 정가가 `price_krw` 이하이면(가격을 되돌리고 설정을 안 지운 경우) 할인이 아니다.
+- 시장·플랫폼·구독 상태와 무관하다. 스키마 변경 없음 — 설정은 서버 env다.
+
+| env 키 | 값 | 비고 |
+|---|---|---|
+| `PLAN_DISCOUNT_DISPLAY_ENABLED` | `true` / `false` / 빈 값 | **정확히 `true`일 때만 켜진다.** 기본 꺼짐 |
+| `PLAN_DISCOUNT_ORIGINAL_PRICE_DAILY_KRW` | 양의 정수 / 빈 값 | daily 정가. 비우면 정가 없음 → 할인 아님. 실험 값 `3900` |
+| `PLAN_DISCOUNT_ORIGINAL_PRICE_PRO_KRW` | 양의 정수 / 빈 값 | pro 정가. 실험 값 `9900` |
+
+값을 바꾸면 API를 다시 띄운다(다른 서버 스위치와 같다). 앱 배포는 필요 없다.
+
+**클라이언트 동작**
+
+| 응답 | 동작 |
+|---|---|
+| `is_discounted = true` | 스토어 `displayPrice` 옆에 `original_price_krw`를 원화 형식으로 **취소선** 표시 + "지금 할인 중" 배지. 정확한 카피·배치는 `spec/uiux`(FE 티켓) 소관 |
+| `is_discounted = false` | 지금처럼 `displayPrice`만 |
+| 옛 서버(필드 없음) | `false`와 같이 다룬다 — 할인 UI 없음 |
+
+- **취소선 정가는 서버가 소유한 참고값이다.** 결제되는 가격은 언제나 스토어 가격이다(`displayPrice`). 앱이 `price_krw`·`original_price_krw`로 할인율을 계산하거나 결제 가격을 그리지 않는다.
+- 할인 여부를 티어명이나 기기 시각으로 판정하지 않는다(루트 `CLAUDE.md`). 종료일을 추정해 표시하지 않는다.
+
+---
+
 ## 미결 · 확인 필요
 
 | 항목 | 상태 |
@@ -122,3 +173,5 @@
 | 4.1 "짧은 편 먼저" 선정 | 이 문서에서 정했다 — 다르게 하려면 KAN-292 처리 기록에 남기고 이 절을 고친다 |
 | 4.2 차단 시트 카피·잠금 아이콘 | `spec/uiux`(FE·KAN-294) 소관 |
 | 4.2 탐색 피드에서 잠긴 편을 뺄지 보여 줄지 | 보여 준다(잠금 표시) — 유료 동기가 실험 목적이다. 바꾸려면 이 절을 고친다 |
+| 4.4 "지금 할인 중" 카피·취소선 배치 | `spec/uiux`(FE 티켓 — 발행 예정) 소관 |
+| 4.4 할인 표시 기간 | **실험 기간 한정이다.** 인하 가격을 장기간 유지하면 정가가 사실상 사라져 "할인" 표시가 부당 할인 표시(표시·광고 관련 위험)가 될 수 있다 — 가격을 유지하기로 하면 스위치를 끄고(`PLAN_DISCOUNT_DISPLAY_ENABLED`) 이 표시를 없앤다 |
