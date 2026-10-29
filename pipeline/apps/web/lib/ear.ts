@@ -651,6 +651,23 @@ export interface EarShortVariant {
 export const getEarShortVariant = (ch: EarChannel, market: EarInsightsMarket | null = null) =>
   earFetch<EarShortVariant>(`/admin/insights/short-variant${market ? `?market=${market}` : ""}`, { cache: "no-store" }, ch);
 
+// ── 도착 알림 시각 실험 (실험 지표 탭 — `GET /admin/insights/drip-arrival-time`, KAN-289, 2026-10-30) ── 집계만(사용자는 수로만)
+/** baseline 07:00(스위치 전) · a 07:30 · b 08:00 · morning 참고 행(아침 알림 — A/B 비교 아님). 비율은 보낸 알림 0이면 null */
+export interface EarDripArrivalTimeArm {
+  key: "baseline" | "a" | "b" | "morning"; send_time: string; reference: boolean;
+  sent: number; users: number; played_2h: number; played_same_day: number;
+  play_rate_2h: number | null; play_rate_same_day: number | null;
+  first_sent_at: string | null; last_sent_at: string | null;
+}
+export interface EarDripArrivalTime {
+  generated_at: string; market: EarInsightsMarket | null; days: number; since: string;
+  /** 보낸 알림이 이보다 적은 행은 "표본 작음" — 서버가 정한 값 */
+  min_sample: number; reaction_window_hours: number;
+  arms: EarDripArrivalTimeArm[];
+}
+export const getEarDripArrivalTime = (ch: EarChannel, days: number, market: EarInsightsMarket | null = null) =>
+  earFetch<EarDripArrivalTime>(`/admin/insights/drip-arrival-time?days=${days}${market ? `&market=${market}` : ""}`, { cache: "no-store" }, ch);
+
 // ── 추천 검증 (서비스 지표 — `GET /admin/insights/recommendations/*`, 2026-10-22) ──
 // 사용자는 user_id 로만 온다 — 서버가 이름·이메일·제공자 ID·프로필 사진을 조회하지도 싣지도 않는다(루트 CLAUDE.md 개인정보 원칙).
 
