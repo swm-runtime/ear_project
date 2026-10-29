@@ -47,3 +47,4 @@
 
 - 2026-10-29 발행(마크다운 + Jira KAN-286).
 - 2026-10-29 결정 반영(Jira 댓글).
+- 2026-10-29 서버 데이터 마이그레이션 PR(`1791800000000-LowerPaidPlanPrices` — `plans.price_krw` daily 1900 · pro 3900, `name`·`description`에는 가격 문구가 없어 그대로) — 스토어 콘솔 가격 변경(사람 손)은 미착수. 문서 반영은 `changes/pending/exp-price-discount.md`.
