@@ -59,6 +59,8 @@ export interface PlanView {
 export interface ActiveInviteGrant {
   redemption: InviteCodeRedemption;
   codeName: string;
+  /** 코드 값 — 내부 캠페인(`REVIEW-REWARD`)의 표시 이름을 시장 언어로 바꾸는 데 쓴다. 응답에 싣지 않는다 */
+  code: string;
 }
 
 /**

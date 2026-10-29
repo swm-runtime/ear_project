@@ -10,3 +10,8 @@ export enum ContentReviewUnreviewableReason {
   /** 재생을 시작한 적 없음 */
   NOT_PLAYED = 'not_played',
 }
+
+/** 프로모션 종류(domain.md 8.7 `promotions.kind`) — 지금은 한 값. 앱은 모르는 값이면 카드를 그리지 않는다 */
+export enum PromotionKind {
+  REVIEW_REWARD = 'review_reward',
+}

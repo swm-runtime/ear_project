@@ -33,10 +33,10 @@ export class ContentReviewAdminController {
     @Query() query: AdminContentReviewSummaryQueryRequestDto,
   ): Promise<AdminContentReviewSummaryResponseDto> {
     return AdminContentReviewSummaryResponseDto.from(
-      await this.contentReviewService.getAdminSummary({
-        contentId: query.content_id ?? null,
-        market: query.market ?? null,
-      }),
+      await this.contentReviewService.getAdminSummary(
+        { contentId: query.content_id ?? null, market: query.market ?? null },
+        new Date(),
+      ),
     );
   }
 
