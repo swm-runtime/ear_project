@@ -3,7 +3,8 @@ import { useCallback, useEffect, useState } from "react";
 import { btnCls } from "@/components/ui";
 import { EarApiError, type EarChannel, type EarInsightsMarket, type EarShortVariant, type EarVariantMetrics, type EarVariantSplit, earChannelLabel, getEarShortVariant } from "@/lib/ear";
 import { EarGate, EarSession, earErrMsg } from "@/app/publish/ear-connect";
-import { fmtInt, fmtKstDate, fmtPct } from "@/lib/insights-format";
+import { ExperimentCompareTable, type CompareColumn, type CompareRow } from "@/components/experiment-compare-table";
+import { fmtKstDate } from "@/lib/insights-format";
 
 const MARKET_OPTIONS = [
   { value: null, label: "통합" },
@@ -14,8 +15,8 @@ const MARKET_OPTIONS = [
 const chip = (on: boolean) =>
   `rounded-full border px-3 py-1 text-xs ${on ? "border-brand bg-brand text-white" : "border-line bg-white text-ink hover:bg-[#f7f9fb]"}`;
 
-const COHORT_LABEL: Record<string, string> = { standard: "경계 전 가입 (기존 판)", short: "경계 뒤 가입 (짧은 판)" };
-const PROFILE_LABEL: Record<string, string> = { standard: "기존 판 (standard)", short: "짧은 판 (short)" };
+const COHORT_LABEL: Record<string, string> = { standard: "경계 전 가입", short: "경계 뒤 가입" };
+const PROFILE_LABEL: Record<string, string> = { standard: "기존 판", short: "짧은 판" };
 const introLabel = (key: string | null) => (key === null ? "기존 도입부" : key);
 
 /**
@@ -113,19 +114,19 @@ function ShortVariantView({ channel, market, onSwitchToDev }: { channel: EarChan
             <p className="text-xs text-ink-soft">
               경계 {fmtKstDate(data.cohort_since)} — 경계 전 코호트는 경계 직전 {windowDays == null ? "-" : windowDays.toFixed(1)}일 안 가입자만, 두 코호트 모두 가입 뒤 같은 기간 안에 시작한 편만 센다(오래된 사용자와 섞지 않는다).
             </p>
-            <MetricsTable rows={data.by_cohort.map((g) => ({ key: g.key, label: COHORT_LABEL[g.key] ?? g.key, m: pick(g) }))} minSample={data.min_sample} />
+            <MetricsTable rows={standardFirst(data.by_cohort).map((g) => ({ key: g.key, label: COHORT_LABEL[g.key] ?? g.key, m: pick(g) }))} minSample={data.min_sample} />
           </>
         )}
       </section>
 
       <section className="space-y-1">
         <h3 className="text-sm font-semibold">콘텐츠 길이 프로필 — 기존 판 vs 짧은 판</h3>
-        <MetricsTable rows={data.by_length_profile.map((g) => ({ key: g.key, label: PROFILE_LABEL[g.key] ?? g.key, m: pick(g) }))} minSample={data.min_sample} />
+        <MetricsTable rows={standardFirst(data.by_length_profile).map((g) => ({ key: g.key, label: PROFILE_LABEL[g.key] ?? g.key, m: pick(g) }))} minSample={data.min_sample} />
       </section>
 
       <section className="space-y-1">
         <h3 className="text-sm font-semibold">도입부 버전 — 기존 도입부 vs 바뀐 도입부</h3>
-        <MetricsTable rows={data.by_intro_version.map((g) => ({ key: g.key ?? "__legacy", label: introLabel(g.key), m: pick(g) }))} minSample={data.min_sample} />
+        <MetricsTable rows={[...data.by_intro_version].sort((x, y) => Number(x.key !== null) - Number(y.key !== null)).map((g) => ({ key: g.key ?? "__legacy", label: introLabel(g.key), m: pick(g) }))} minSample={data.min_sample} />
       </section>
 
       <section className="space-y-1">
@@ -134,37 +135,21 @@ function ShortVariantView({ channel, market, onSwitchToDev }: { channel: EarChan
         {data.pairs.length === 0 ? (
           <p className="text-[13px] text-ink-soft">원본이 연결된 짧은 판이 아직 없다.</p>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-xs">
-              <thead>
-                <tr className="text-left text-[11px] text-ink-soft">
-                  <th className="py-1 font-semibold">편</th>
-                  <th className="py-1 text-right font-semibold">길이</th>
-                  <th className="py-1 text-right font-semibold">시작</th>
-                  <th className="py-1 text-right font-semibold">완청률</th>
-                  <th className="py-1 text-right font-semibold">10초 이탈</th>
-                  <th className="py-1 text-right font-semibold">30초 이탈</th>
-                  <th className="py-1 text-right font-semibold">1분 이탈</th>
-                </tr>
-              </thead>
-              <tbody>
-                {data.pairs.map((p) => (
-                  [
-                    { side: p.short, tag: "짧은 판" },
-                    { side: p.original, tag: "원본" },
-                  ].map(({ side, tag }, i) => (
-                    <tr key={`${p.short.content_id}-${tag}`} className={i === 0 ? "border-t border-line" : ""}>
-                      <td className="py-1 pr-2">
-                        <span className="mr-1 text-[11px] text-ink-soft">{tag}</span>{side.title}
-                        <span className="ml-1 text-[11px] text-ink-soft">· {introLabel(side.intro_version)}</span>
-                      </td>
-                      <td className="py-1 text-right tabular-nums">{Math.round(side.duration_sec / 60)}분</td>
-                      <MetricCells m={side.all} minSample={data.min_sample} />
-                    </tr>
-                  ))
-                ))}
-              </tbody>
-            </table>
+          <div className="space-y-4">
+            {data.pairs.map((p) => (
+              <ExperimentCompareTable
+                key={p.short.content_id}
+                caption={p.short.title}
+                columns={[
+                  { key: "original", title: "원본", subtitle: introLabel(p.original.intro_version), smallSample: isSmall(p.original.all, data.min_sample) },
+                  { key: "short", title: "짧은 판", subtitle: introLabel(p.short.intro_version), smallSample: isSmall(p.short.all, data.min_sample) },
+                ]}
+                rows={[
+                  { kind: "text", label: "길이", cells: [`${Math.round(p.original.duration_sec / 60)}분`, `${Math.round(p.short.duration_sec / 60)}분`] },
+                  ...metricRows([p.original.all, p.short.all]),
+                ]}
+              />
+            ))}
           </div>
         )}
       </section>
@@ -177,54 +162,25 @@ function ShortVariantView({ channel, market, onSwitchToDev }: { channel: EarChan
   );
 }
 
-function MetricsTable({ rows, minSample }: { rows: { key: string; label: string; m: EarVariantMetrics }[]; minSample: number }) {
-  return (
-    <div className="overflow-x-auto">
-      <table className="w-full text-xs">
-        <thead>
-          <tr className="text-left text-[11px] text-ink-soft">
-            <th className="py-1 font-semibold">묶음</th>
-            <th className="py-1 text-right font-semibold">시작</th>
-            <th className="py-1 text-right font-semibold">완청률</th>
-            <th className="py-1 text-right font-semibold">10초 이탈</th>
-            <th className="py-1 text-right font-semibold">30초 이탈</th>
-            <th className="py-1 text-right font-semibold">1분 이탈</th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((r) => (
-            <tr key={r.key} className="border-t border-line">
-              <td className="py-1 pr-2">{r.label}</td>
-              <MetricCells m={r.m} minSample={minSample} />
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
+/** 기준 열(기존 판 · 경계 전)이 먼저 오게 */
+const standardFirst = <T extends { key: string }>(groups: T[]): T[] => [...groups].sort((x, y) => Number(x.key !== "standard") - Number(y.key !== "standard"));
+
+const isSmall = (m: EarVariantMetrics, minSample: number) => m.starters > 0 && m.starters < minSample;
+
+/** 완청률(높을수록 좋음) · 10초·30초·1분 이탈(낮을수록 좋음) · 시작 수 — 열 순서대로 */
+function metricRows(ms: EarVariantMetrics[]): CompareRow[] {
+  return [
+    { kind: "rate", label: "완청률", better: "higher", cells: ms.map((m) => ({ rate: m.completion_rate, count: m.completers })) },
+    { kind: "rate", label: "10초 안 이탈", better: "lower", cells: ms.map((m) => ({ rate: m.rate_10s })) },
+    { kind: "rate", label: "30초 안 이탈", better: "lower", cells: ms.map((m) => ({ rate: m.rate_30s })) },
+    { kind: "rate", label: "1분 안 이탈", better: "lower", cells: ms.map((m) => ({ rate: m.rate_60s })) },
+    { kind: "count", label: "시작한 (사용자, 편)", cells: ms.map((m) => m.starters) },
+  ];
 }
 
-/** 시작 · 완청률(막대) · 10초 · 30초 · 1분 이탈 — 표본이 작으면 시작 칸에 표시 */
-function MetricCells({ m, minSample }: { m: EarVariantMetrics; minSample: number }) {
-  const small = m.starters > 0 && m.starters < minSample;
-  return (
-    <>
-      <td className="py-1 text-right tabular-nums">
-        {fmtInt(m.starters)}
-        {small && <span className="ml-1 rounded bg-amber-100 px-1 text-[10px] text-amber-900">표본 작음</span>}
-      </td>
-      <td className="py-1 text-right tabular-nums">
-        <span className="inline-flex items-center justify-end gap-1">
-          <span className="inline-block h-1.5 w-14 overflow-hidden rounded bg-line" aria-hidden="true">
-            <span className="block h-full bg-brand" style={{ width: `${Math.round((m.completion_rate ?? 0) * 100)}%` }} />
-          </span>
-          {fmtPct(m.completion_rate, 0)}
-          <span className="text-ink-soft">({fmtInt(m.completers)})</span>
-        </span>
-      </td>
-      <td className="py-1 text-right tabular-nums">{fmtPct(m.rate_10s, 0)}</td>
-      <td className="py-1 text-right tabular-nums">{fmtPct(m.rate_30s, 0)}</td>
-      <td className="py-1 text-right tabular-nums">{fmtPct(m.rate_60s, 0)}</td>
-    </>
-  );
+/** 첫 행이 기준 열이다 — 기존 판 · 기존 도입부 · 경계 전 코호트를 먼저 넘긴다 */
+function MetricsTable({ rows, minSample }: { rows: { key: string; label: string; m: EarVariantMetrics }[]; minSample: number }) {
+  if (rows.length === 0) return <p className="text-[13px] text-ink-soft">아직 값이 없다.</p>;
+  const columns: CompareColumn[] = rows.map((r) => ({ key: r.key, title: r.label, smallSample: isSmall(r.m, minSample) }));
+  return <ExperimentCompareTable columns={columns} rows={metricRows(rows.map((r) => r.m))} />;
 }
