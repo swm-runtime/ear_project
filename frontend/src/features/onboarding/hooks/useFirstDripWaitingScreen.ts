@@ -23,6 +23,7 @@ export const useFirstDripWaitingScreen = () => {
     useNavigation<NativeStackNavigationProp<OnboardingStackParamList, 'FirstDripWaiting'>>();
   const completionStatus = useOnboardingStore((s) => s.completionStatus);
   const completionResult = useOnboardingStore((s) => s.completionResult);
+  const setFirstContentId = useOnboardingStore((s) => s.setFirstContentId);
   const hasFinishedRef = useRef(false);
 
   // 완료 요청 발사 — 아직 안 쏜 상태(idle)일 때만. 진행 중·성공·실패(재시도 버튼이 맡는다)는 건드리지 않는다
@@ -48,12 +49,18 @@ export const useFirstDripWaitingScreen = () => {
     completionStatus === 'success' && completionResult?.awaitsFirstDrip === true;
   const pollIntervalSec = completionResult?.firstDrip?.pollIntervalSec ?? 1;
   const maxWaitSec = completionResult?.firstDrip?.maxWaitSec ?? FIRST_DRIP_MAX_WAIT_FALLBACK_SEC;
+  const respondedStatus = completionResult?.firstDrip?.status;
+  /*
+   * 완료 응답이 이미 `completed`여도(재개 진입 등) 한 번은 조회한다 — 열 편(`first_content_id`)은 first-drip 응답에만
+   * 있다(experiments-api.md 4.1 — KAN-295). `no_candidates`·`queued`는 열 편이 없으므로 묻지 않고 곧바로 나간다
+   */
+  const needsFirstDripPoll = respondedStatus === 'pending' || respondedStatus === 'completed';
 
   // 폴링 간격·대기 상한은 서버가 내려준 값을 쓴다 — 클라이언트에 하드코딩하지 않는다(onboarding-api.md 2)
   const firstDripQuery = useQuery({
     queryKey: onboardingKeys.firstDrip(),
     queryFn: fetchFirstDripState,
-    enabled: awaitsFirstDrip && completionResult?.firstDrip?.status === 'pending',
+    enabled: awaitsFirstDrip && needsFirstDripPoll,
     gcTime: 0,
     refetchInterval: (query) => {
       const status = query.state.data?.status;
@@ -70,17 +77,27 @@ export const useFirstDripWaitingScreen = () => {
       goComplete();
       return;
     }
-    // 완료 시점에 이미 편성이 끝났거나(completed) 기다릴 이유가 없는 상태(no_candidates·queued)
-    if (completionResult?.firstDrip && completionResult.firstDrip.status !== 'pending') {
+    // 기다릴 이유가 없는 상태(no_candidates·queued) — 열 편도 없다. `completed`는 열 편을 받으러 한 번 조회한다(위)
+    if (completionResult?.firstDrip && !needsFirstDripPoll) {
       goComplete();
       return;
     }
-    // 폴링 종료 상태 — completed·no_candidates·queued 전부 완료 화면으로 진행한다(onboarding-api.md 4.8)
-    const polledStatus = firstDripQuery.data?.status;
-    if (polledStatus !== undefined && polledStatus !== 'pending') {
+    // 폴링 종료 상태 — completed·no_candidates·queued 전부 완료 화면으로 진행한다(onboarding-api.md 4.8).
+    // 열 편은 `completed`일 때만 서버가 준다 — 적어 두면 온보딩 종료가 착지로 넘긴다(KAN-295)
+    const polled = firstDripQuery.data;
+    if (polled !== undefined && polled.status !== 'pending') {
+      setFirstContentId(polled.status === 'completed' ? polled.firstContentId : null);
       goComplete();
     }
-  }, [completionStatus, awaitsFirstDrip, completionResult, firstDripQuery.data, goComplete]);
+  }, [
+    completionStatus,
+    awaitsFirstDrip,
+    completionResult,
+    needsFirstDripPoll,
+    firstDripQuery.data,
+    goComplete,
+    setFirstContentId,
+  ]);
 
   // 대기 상한 초과 시 status와 무관하게 진행한다 — 사용자를 로딩 화면에 가두지 않는다(onboarding.md 4 [완료])
   useEffect(() => {

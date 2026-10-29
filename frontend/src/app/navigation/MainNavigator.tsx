@@ -47,6 +47,7 @@ import { isDripFeedbackPromptReady, isSignupTrialNoticeReady } from './launch-di
 import NativeMainTabs from './NativeMainTabs';
 import PlaceholderScreen from './PlaceholderScreen';
 import type { MainStackParamList, MainTabParamList } from './types';
+import { useOnboardingLanding } from './useOnboardingLanding';
 
 const MainTab = createBottomTabNavigator<MainTabParamList>();
 const MainStack = createNativeStackNavigator<MainStackParamList>();
@@ -135,8 +136,17 @@ function MainTabs() {
 export default function MainNavigator() {
   const clearPrePromptPending = useNotificationStore((s) => s.clearPrePromptPending);
   const isPrePromptPending = useNotificationStore((s) => s.isPrePromptPending);
-  // 착지 뒤 한 박자 쉬고 열린다(usePrePromptGate) — 화면 전환 직후 바로 튀면 같은 팝업의 연속으로 읽힌다
-  const isPrePromptVisible = usePrePromptGate();
+  // 플레이어(네이티브 모달)가 스택에 있는가 — 그 위에 RN 모달(O10·P11·별점)을 겹치지 않는다(iOS 에서 화면이 굳는다)
+  const [isPlayerInStack, setIsPlayerInStack] = useState(false);
+  // 온보딩 직후 첫 콘텐츠를 멈춘 플레이어로 연다(KAN-295) — 여는 중에도 안내들을 붙든다(곧 플레이어가 오른다)
+  const onboardingLanding = useOnboardingLanding(isPlayerInStack);
+  const isPlayerOpen = isPlayerInStack || onboardingLanding.isOpening;
+  /*
+   * 착지 뒤 한 박자 쉬고 열린다(usePrePromptGate) — 화면 전환 직후 바로 튀면 같은 팝업의 연속으로 읽힌다.
+   * 온보딩 직후 플레이어가 열리면 **플레이어를 닫은 뒤** 연다(KAN-295) — 먼저 띄우면 사용자가 고르지 않은 안내 두 장이 첫 재생을
+   * 가로막고(실험이 줄이려는 이탈), 여는 중에 띄우면 발급 뒤 올라오는 플레이어 모달과 겹친다
+   */
+  const isPrePromptVisible = usePrePromptGate(isPlayerOpen);
   // 탭된 알림의 목적지로 보낸다 — Main 이 떴다는 것이 관문 통과다(notification.md 4.4)
   const pushGate = usePushLinkGate();
   // 관문을 통과한 공유 링크 목적지를 상세로 보낸다 — 복원한 탭 위에 얹힌다(share.md 4.3 · splash.md 4 5단계)
@@ -153,6 +163,7 @@ export default function MainNavigator() {
     isPushPlayConfirmVisible: pushGate.confirmState !== null,
     isLimitNoticeVisible,
     isDripFeedbackVisible,
+    isPlayerOpen,
   });
   const isDripFeedbackReady = isDripFeedbackPromptReady({
     isPrePromptPending,
@@ -160,11 +171,22 @@ export default function MainNavigator() {
     isPushPlayConfirmVisible: pushGate.confirmState !== null,
     isLimitNoticeVisible,
     isSignupTrialNoticeActive: isSignupTrialActive,
+    isPlayerOpen,
   });
 
   return (
     <>
-      <MainStack.Navigator screenOptions={{ headerShown: false }}>
+      <MainStack.Navigator
+        screenOptions={{ headerShown: false }}
+        screenListeners={{
+          // 플레이어가 스택에 있는 동안(그 위에 상세가 쌓여도) 안내 모달들을 붙든다 — 라우트가 빠지면 푼다
+          state: (e) => {
+            setIsPlayerInStack(
+              e.data.state?.routes.some((route) => route.name === 'Player') ?? false,
+            );
+          },
+        }}
+      >
         {/* iOS 26 은 시스템 탭 바(NativeMainTabs) — 알약 애니메이션·미니플레이어 액세서리를 애플이 그린다.
           그 밑·Android 는 JS 캡슐(MainTabs + CapsuleTabBar) */}
         <MainStack.Screen name="Tabs" component={HAS_NATIVE_TAB_BAR ? NativeMainTabs : MainTabs} />

@@ -15,8 +15,14 @@ interface OnboardingStore {
   selectedTopicIds: string[];
   completionStatus: CompletionStatus;
   completionResult: OnboardingCompleteResult | null;
+  /**
+   * 첫 드립이 끝났을 때 서버가 정해 준 "온보딩 직후 열 콘텐츠"(experiments-api.md 4.1 — KAN-295). 완료 대기(O13)가 적고
+   * 온보딩 종료(`exitOnboarding`)가 착지 store 로 옮긴다. null 이면 탐색으로 착지한다
+   */
+  firstContentId: string | null;
   setSelectedTopicIds: (topicIds: string[]) => void;
   setCompletion: (status: CompletionStatus, result?: OnboardingCompleteResult | null) => void;
+  setFirstContentId: (contentId: string | null) => void;
   reset: () => void;
 }
 
@@ -24,6 +30,7 @@ const initialState = {
   selectedTopicIds: [] as string[],
   completionStatus: 'idle' as CompletionStatus,
   completionResult: null,
+  firstContentId: null as string | null,
 };
 
 export const useOnboardingStore = create<OnboardingStore>((set) => ({
@@ -34,5 +41,6 @@ export const useOnboardingStore = create<OnboardingStore>((set) => ({
       completionStatus: status,
       completionResult: result === undefined ? prev.completionResult : result,
     })),
+  setFirstContentId: (contentId) => set({ firstContentId: contentId }),
   reset: () => set(initialState),
 }));

@@ -10,6 +10,8 @@
  *   푸시를 눌러 들어온 재생 확인 팝업·한도 안내 시트가 떠 있으면 그것이 끝난 뒤다 — 사용자가 고른 동작이 우선이다.
  *
  * - **추천 별점 팝업(KAN-224)이 떠 있으면** 그것이 끝난 뒤다(아래 `isDripFeedbackPromptReady`의 비대칭 규칙).
+ * - **플레이어가 떠 있거나 여는 중이면** 그것이 닫힌 뒤다(KAN-295). 온보딩 직후 첫 콘텐츠를 멈춘 플레이어로 열고, 푸시도
+ *   멈춘 플레이어를 연다(KAN-273) — 플레이어는 네이티브 모달이라 그 위에 RN 모달을 띄우면 iOS 에서 화면이 굳는다.
  *
  * 신호들은 각 feature 소유라(app-update·player·notification·library) 묶는 일은 app 이 한다 —
  * profile 은 `isReady` 하나만 받는다(architecture.md 4.4 profile 행).
@@ -25,12 +27,15 @@ export const isSignupTrialNoticeReady = (signals: {
   isLimitNoticeVisible: boolean;
   /** 추천 별점 팝업(KAN-224)이 떠 있다 — 먼저 뜬 쪽이 끝난 뒤에 연다 */
   isDripFeedbackVisible: boolean;
+  /** 플레이어(네이티브 모달)가 스택에 있거나 온보딩 착지가 여는 중이다(KAN-295) */
+  isPlayerOpen: boolean;
 }): boolean =>
   !signals.isPrePromptPending &&
   !signals.isUpdateRecommendVisible &&
   !signals.isPushPlayConfirmVisible &&
   !signals.isLimitNoticeVisible &&
-  !signals.isDripFeedbackVisible;
+  !signals.isDripFeedbackVisible &&
+  !signals.isPlayerOpen;
 
 /**
  * 추천 별점 팝업(KAN-224 — drip-feedback.md 5장)이 열려도 되는 자리인가. 라이브러리 진입 때 서버가 `show=true`를 준 뒤의
@@ -48,9 +53,12 @@ export const isDripFeedbackPromptReady = (signals: {
   isLimitNoticeVisible: boolean;
   /** 가입 체험 안내(P11)가 뜰 차례이거나 떠 있다 */
   isSignupTrialNoticeActive: boolean;
+  /** 플레이어(네이티브 모달)가 스택에 있거나 온보딩 착지가 여는 중이다 — P11 과 같은 이유로 기다린다(KAN-295) */
+  isPlayerOpen: boolean;
 }): boolean =>
   !signals.isPrePromptPending &&
   !signals.isUpdateRecommendVisible &&
   !signals.isPushPlayConfirmVisible &&
   !signals.isLimitNoticeVisible &&
-  !signals.isSignupTrialNoticeActive;
+  !signals.isSignupTrialNoticeActive &&
+  !signals.isPlayerOpen;

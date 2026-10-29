@@ -13,7 +13,7 @@
 | 선행 | **API 명세 선행** — KAN-292(BE)의 첫 콘텐츠 id 필드 명세 확정 후 착수 |
 | 근거 문서 | `features/onboarding.md` 4·5 · `spec/uiux/onboarding-uiux.md` 4.6~4.7 · `features/analytics.md` |
 | 중요도 | High |
-| 상태 | 발행 |
+| 상태 | 반영 |
 
 > 단기 실험 8종(2026-10-29 확정) 중 하나다. A/B 그룹별 지표를 어드민 "실험 지표" 탭에서 보는 일은 실험 전체에 걸친 별도 정리 대상이다(아직 티켓 없음).
 
@@ -43,3 +43,4 @@
 
 - 2026-10-29 발행(마크다운 + Jira KAN-295).
 - 2026-10-29 결정: 멈춘 상태로 연다 — 사용자가 직접 누르는 흐름을 유지해야 콘텐츠 이탈률을 제대로 잰다(자동재생은 누르지 않은 재생이 섞인다).
+- 2026-10-29 반영: 완료 대기(O13)가 첫 드립 `completed` 응답의 `first_content_id`를 적고(완료 응답이 이미 `completed`여도 한 번 조회), 온보딩 종료가 착지 store 로 넘긴다 → Main 의 `useOnboardingLanding`이 푸시 탭과 같은 `requestPlay(..., { openAfterIssue, openPaused })`로 멈춘 플레이어를 연다(진입점 `onboarding`). 열 편이 없거나 발급이 실패하면 탐색 착지 그대로. O10·P11·추천 별점은 **플레이어를 닫은 뒤** 연다 — 여는 중(발급 대기)에도 붙들고 15초 상한으로 푼다(`usePrePromptGate(isHeld)` · `launch-dialog-gate` `isPlayerOpen`). `PlayEntryPoint`·GA4 `entry`에 `onboarding` 추가(`analytics.md` 3.4) — 서버 `entry_point` enum 에는 없어 `library`로 보낸다(400 회피). 화면 문서 반영은 `changes/pending/exp-onboarding-open-player.md`.

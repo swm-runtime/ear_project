@@ -76,7 +76,7 @@
 
 | 이벤트 | 파라미터 | 시점 |
 |---|---|---|
-| `play_start` | `content_id` · `entry`: `PlayEntryPoint` 값 그대로 · `origin`: `ai_generated` \| `partner` · `resumed`(bool) | 재생 시작(차감 성공 뒤) · **계정의 첫 재생 1회만 Meta 로도**(커스텀 `first_play` — 3.5) |
+| `play_start` | `content_id` · `entry`: `PlayEntryPoint` 값 그대로(`onboarding` — 온보딩 직후 멈춘 채 연 첫 콘텐츠에서 누른 ▶, 2026-10-29 KAN-295. 서버 `entry_point` enum 에는 없어 서버에는 `library`로 보낸다) · `origin`: `ai_generated` \| `partner` · `resumed`(bool) | 재생 시작(차감 성공 뒤) · **계정의 첫 재생 1회만 Meta 로도**(커스텀 `first_play` — 3.5) |
 | `play_progress` | `content_id` · `percent`: `25` \| `50` \| `75` | 구간 통과, 한 세션에 각 1회 |
 | `play_complete` | `content_id` · `listen_sec` | 완청 판정(서버 기준과 같은 값 — `player.md` 4장) |
 | `play_abandon` | `content_id` · `percent`(정수) · `reason`: `pause_timeout` \| `switch` \| `background` | 완청 전 이탈 |

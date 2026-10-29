@@ -38,6 +38,11 @@ export interface FirstDripState {
   status: FirstDripStatus;
   libraryItemCount: number | null;
   completedAt: string | null;
+  /**
+   * 온보딩 직후 멈춘 플레이어로 열 콘텐츠(experiments-api.md 4.1 — KAN-295). `completed`일 때만 값이 있다.
+   * 열 편의 제안일 뿐 재생 허가가 아니다 — 판정은 ▶ 때 서버가 한다. 옛 서버(필드 없음)는 null
+   */
+  firstContentId: string | null;
 }
 
 /** POST /onboarding/complete 응답(onboarding-api.md 4.7) */
