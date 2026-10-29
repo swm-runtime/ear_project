@@ -24,6 +24,13 @@ export interface PlanDto {
    * 이 필드 배포 전 서버는 보내지 않는다 — 없으면 앱이 `store_product_id`·`action`으로 추정한다(`isFreePlan`)
    */
   is_free?: boolean;
+  /**
+   * 취소선으로 그릴 정가(원) — **`is_discounted = true` 일 때만 값이 있다**(experiments-api.md 4.4, KAN-286). 서버가 소유한
+   * 참고값이라 결제 가격·할인율 계산에 쓰지 않는다. 이 필드 배포 전 서버는 보내지 않는다(없음 = null)
+   */
+  original_price_krw?: number | null;
+  /** 정가 취소선 + "지금 할인 중"을 그리는가 — **서버 판정**(experiments-api.md 4.4). 없으면(옛 서버) false 와 같다 */
+  is_discounted?: boolean;
   store_product_id: string | null;
   entitlements: EntitlementsDto;
   /** `cancel`(2026-10-08 — KAN-159): 유료 구독자의 무료 요금제. 고르면 스토어 구독 관리(해지)로 보낸다 */

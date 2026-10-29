@@ -28,6 +28,10 @@ import {
   INSIGHTS_SUMMARY_MAX_DAYS,
   INSIGHTS_WEEKDAY_LABELS,
   SERIES_EPISODES_MIN_AGE_HOURS,
+  SHORT_VARIANT_DROP_10_SEC,
+  SHORT_VARIANT_DROP_30_SEC,
+  SHORT_VARIANT_DROP_60_SEC,
+  SHORT_VARIANT_MIN_AGE_HOURS,
 } from '../admin.constant';
 import {
   InsightsCohortCounts,
@@ -41,12 +45,19 @@ import {
   InsightsInviteCodeCohort,
   InsightsMarketTotals,
   InsightsSeriesEpisodes,
+  InsightsShortVariant,
   InsightsSummary,
   InsightsWeekday,
 } from '../admin.types';
 import { AdminInsightsRepository } from '../repositories/admin-insights.repository';
 import { summarizeCompletionByLength } from './admin-insights-completion.calc';
 import { groupSeriesEpisodes } from './admin-insights-series.calc';
+import {
+  byCohort,
+  byIntroVersion,
+  byLengthProfile,
+  variantPairs,
+} from './admin-insights-short-variant.calc';
 import {
   buildFunnelCohort,
   summarizeFunnelSteps,
@@ -181,6 +192,43 @@ export class AdminInsightsService {
       reachedRatio: COMPLETION_REACHED_RATIO,
     });
     return { generatedAt: now, market, series: groupSeriesEpisodes(rows) };
+  }
+
+  /**
+   * 짧은 판·도입부 실험(`GET /admin/insights/short-variant`, KAN-298 · KAN-296, 2026-10-29) — 기존 판 vs 짧은 판 완청률,
+   * 기존 도입부 vs 바뀐 도입부의 10초·30초·1분 이탈. `cohortSince`는 호출자가 `ContentCohortService.cohortSince()`로 넘긴다
+   * (판정 규칙을 다시 만들지 않는다). 질의는 순차로 부른다.
+   */
+  async shortVariant(
+    now: Date,
+    cohortSince: Date | null,
+    market: UserMarket | null = null,
+  ): Promise<InsightsShortVariant> {
+    const rows = await this.repository.shortVariantRows(now, {
+      market,
+      minAgeHours: SHORT_VARIANT_MIN_AGE_HOURS,
+      reachedRatio: COMPLETION_REACHED_RATIO,
+      cohortSince,
+      dropSec: [
+        SHORT_VARIANT_DROP_10_SEC,
+        SHORT_VARIANT_DROP_30_SEC,
+        SHORT_VARIANT_DROP_60_SEC,
+      ],
+    });
+    const pairs = await this.repository.shortVariantPairs(market);
+    return {
+      generatedAt: now,
+      market,
+      cohortSince,
+      cohortWindowHours:
+        cohortSince === null
+          ? null
+          : Math.max(0, (now.getTime() - cohortSince.getTime()) / 3_600_000),
+      byCohort: byCohort(rows, cohortSince !== null),
+      byLengthProfile: byLengthProfile(rows),
+      byIntroVersion: byIntroVersion(rows),
+      pairs: variantPairs(rows, pairs),
+    };
   }
 
   async summarize(

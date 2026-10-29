@@ -9,6 +9,8 @@ export { default as CompleteScreen } from './screens/CompleteScreen';
 export { default as TopicSelectSkeleton } from './components/TopicSelectSkeleton';
 export { useOnboardingStateQuery } from './hooks/useOnboardingStateQuery';
 export { useOnboardingStore } from './store/onboarding.store';
+/** 온보딩 직후 멈춘 플레이어로 열 콘텐츠(KAN-295) — Main(app)이 집어 재생 게이트로 연다 */
+export { useOnboardingLandingStore } from './store/onboarding-landing.store';
 export { exitOnboarding } from './services/onboarding-exit.service';
 /** 재개 지점 → 시작 단계 — 서버 steps[]에 없는 단계는 띄우지 않는다(global-api.md 4.4) */
 export { resumeOnboardingTarget } from './services/onboarding-steps';

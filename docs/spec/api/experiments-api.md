@@ -8,6 +8,7 @@
 | 4.2 | ⑤ 시리즈 유료화 — 4편부터 프로 전용 | KAN-290 | KAN-294 (FE) |
 | 4.3 | ④ 짧은 판 코호트 — 가입 시점으로 노출 분리 | KAN-298 | 없음(앱 변경 없음) · 업로드 필드는 파이프라인(KAN-296) |
 | 4.4 | ① 구독 가격 인하 — 할인 표시(정가 취소선 + "지금 할인 중") | KAN-286 | FE 티켓(발행 예정) |
+| 4.5 | ④ 짧은 판·도입부 — 실험 지표 조회 `GET /admin/insights/short-variant` | KAN-298 · KAN-296 | 없음(관리자 콘솔 "실험 지표" 탭 — 같은 PR) |
 
 판정은 서버가 한다 — 앱은 서버가 준 값(`first_content_id`, `is_locked`, 에러 코드)으로만 그린다. 티어명으로 분기하지 않는다(루트 `CLAUDE.md`).
 
@@ -216,6 +217,57 @@
 
 - **취소선 정가는 서버가 소유한 참고값이다.** 결제되는 가격은 언제나 스토어 가격이다(`displayPrice`). 앱이 `price_krw`·`original_price_krw`로 할인율을 계산하거나 결제 가격을 그리지 않는다.
 - 할인 여부를 티어명이나 기기 시각으로 판정하지 않는다(루트 `CLAUDE.md`). 종료일을 추정해 표시하지 않는다.
+
+---
+
+## 4.5 `GET /admin/insights/short-variant` — 짧은 판·도입부 실험 지표 (KAN-298 · KAN-296, 2026-10-29)
+
+4.3의 실험을 읽는 관리자 조회다. **기존 판 vs 짧은 판 완청률**과 **기존 도입부 vs 바뀐 도입부의 10초·30초·1분 이탈률**을 낸다. 관리자 전용(`JwtAuthGuard` + `AdminRoleGuard`, 아니면 403), 읽기 전용, `Cache-Control: no-store`. 집계뿐이다 — 사용자는 수로만 들어 있고 `user_id`·이름·이메일은 없다. 로그 콘솔 "실험 지표" 탭이 열 때 1회 + [새로고침]으로 읽는다.
+
+**요청** — `market` `kr` | `global` | 없음(전부). **콘텐츠 시장**(`contents.market`)으로 거른다. 모르는 값은 400 `VALIDATION_FAILED`.
+
+**정의**
+
+| 항목 | 정의 |
+|---|---|
+| 단위 | (사용자, 편) |
+| 시작 | 0초가 아닌 재생 행(`play_records.listened_sec > 0`)이 있고, 첫 재생이 24시간(`SHORT_VARIANT_MIN_AGE_HOURS` = 길이별 완청률과 같은 값) 전 |
+| 완청 | 공용 정의(`domain.md` 6장) — 라이브러리 `completed` · 최대 도달 ≥ 길이 × 90% · 완청 신호 중 하나 |
+| 초반 이탈 | 그 (사용자, 편)의 청취 합(`listened_sec` 합)이 10 · 30 · 60초 이하. 비율의 분모는 시작자 |
+| 첫 편 | 그 사용자가 처음 0초 아닌 재생을 한 편(시장·시점 무관). **`excluding_first`** = 이 편을 뺀 값 — 같은 날 시작한 다른 실험(첫 드립 무작위 · 온보딩 뒤 플레이어)이 첫 편 행동을 바꾸기 때문이다 |
+| 가입 코호트 | 4.3-1 판정(`content-cohort.policy.ts`의 SQL판)을 그대로 쓴다. 경계 뒤 가입 = `short`, 전 = `standard`. 비교를 맞추려고 **`standard`는 경계 직전 같은 길이 창(지금 − 경계) 안 가입자만**, 두 코호트 모두 **가입 뒤 그 길이 안에 시작한 편만** 센다. 창 밖 가입자는 코호트 비교에서 빠지고 콘텐츠 단위 비교에는 들어간다 |
+| 경계 미설정 | `SHORT_CONTENT_COHORT_SINCE`가 비면 `cohort_since`·`cohort_window_hours`·`by_cohort`가 null. 콘텐츠 단위 비교만 나온다 |
+
+**Response 200**
+
+```jsonc
+{
+  "generated_at": "2026-10-29T09:00:00.000Z",
+  "market": null,                    // 요청값, 없으면 null
+  "min_age_hours": 24,
+  "min_sample": 20,                  // 시작자가 이보다 적은 행은 콘솔이 "표본 작음"으로 표시
+  "drop_thresholds_sec": [10, 30, 60],
+  "cohort_since": "2026-11-05T01:00:00.000Z",   // null = 경계 미설정
+  "cohort_window_hours": 192.0,                 // 지금 − 경계(경계가 미래면 0). 경계가 없으면 null
+  "by_cohort": [                                // 경계가 없으면 null. 늘 standard · short 두 행
+    { "key": "standard", "all": Metrics, "excluding_first": Metrics },
+    { "key": "short", "all": Metrics, "excluding_first": Metrics }
+  ],
+  "by_length_profile": [ { "key": "standard", ... }, { "key": "short", ... } ],   // 늘 두 행
+  "by_intro_version": [ { "key": null, ... }, { "key": "hook-v2", ... } ],        // null(기존 도입부) 먼저, 나머지 이름 순
+  "pairs": [                                    // variant_of_content_id 가 있는 short 편 — 짧은 판 시작자 많은 순
+    {
+      "short":    { "content_id": "…", "title": "…", "duration_sec": 420, "intro_version": "hook-v2", "all": Metrics, "excluding_first": Metrics },
+      "original": { "content_id": "…", "title": "…", "duration_sec": 900, "intro_version": null, "all": Metrics, "excluding_first": Metrics }
+    }
+  ]
+}
+```
+
+`Metrics` = `{ starters, completers, completion_rate, drop_10s, drop_30s, drop_60s, rate_10s, rate_30s, rate_60s }` — 비율은 시작자가 0이면 `null`(0%와 "잴 사람이 없다"를 구분).
+
+- 콘텐츠 단위 묶음(`by_length_profile` · `by_intro_version` · `pairs`)은 코호트와 무관하게 전 사용자 값이다. 짝은 상태를 따지지 않는다(회수된 편도 지난 재생은 남는다). `market`은 짧은 판의 시장으로 거른다.
+- **한계** — 코호트 비교는 같은 날 시작한 다른 실험과 섞인다(위 "첫 편"). 짝 비교도 두 편을 듣는 사람(코호트)이 달라 사람 차이가 남는다. 인과 판정이 아니라 방향 확인용이다.
 
 ---
 

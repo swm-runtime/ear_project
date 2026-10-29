@@ -19,7 +19,15 @@ type ContentOrigin = 'ai_generated' | 'partner';
  * (player.types 의 PlayEntryPoint · content-detail.types 의 ContentDetailEntryPoint)과 같은 값을
  * 여기 다시 적는다. 원본이 바뀌면 호출부 타입 오류로 드러난다.
  */
-type PlayEntry = 'library' | 'explore' | 'miniplayer' | 'push' | 'player' | 'share';
+type PlayEntry =
+  | 'library'
+  | 'explore'
+  | 'miniplayer'
+  | 'push'
+  | 'player'
+  | 'share'
+  // 온보딩 직후 멈춘 채 연 첫 콘텐츠(KAN-295 — analytics.md 3.4)
+  | 'onboarding';
 type DetailEntry = 'library' | 'explore' | 'player' | 'share';
 
 export interface AnalyticsEvents {

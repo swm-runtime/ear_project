@@ -8,6 +8,7 @@ const IDLE = {
   isPushPlayConfirmVisible: false,
   isLimitNoticeVisible: false,
   isDripFeedbackVisible: false,
+  isPlayerOpen: false,
 };
 
 describe('isSignupTrialNoticeReady — P11 이 열려도 되는 자리', () => {
@@ -30,6 +31,10 @@ describe('isSignupTrialNoticeReady — P11 이 열려도 되는 자리', () => {
   it('한도 안내 시트가 떠 있으면 겹치지 않게 기다린다', () => {
     expect(isSignupTrialNoticeReady({ ...IDLE, isLimitNoticeVisible: true })).toBe(false);
   });
+
+  it('플레이어가 떠 있거나 온보딩 착지가 여는 중이면 닫힌 뒤에 연다 — 네이티브 모달 위에 겹치지 않는다(KAN-295)', () => {
+    expect(isSignupTrialNoticeReady({ ...IDLE, isPlayerOpen: true })).toBe(false);
+  });
 });
 
 describe('isDripFeedbackPromptReady — 추천 별점 팝업(KAN-224)이 열려도 되는 자리', () => {
@@ -39,6 +44,7 @@ describe('isDripFeedbackPromptReady — 추천 별점 팝업(KAN-224)이 열려�
     isPushPlayConfirmVisible: false,
     isLimitNoticeVisible: false,
     isSignupTrialNoticeActive: false,
+    isPlayerOpen: false,
   };
 
   it('앞서 뜬 팝업이 하나도 없으면 열린다', () => {
@@ -56,6 +62,10 @@ describe('isDripFeedbackPromptReady — 추천 별점 팝업(KAN-224)이 열려�
     expect(isDripFeedbackPromptReady({ ...DRIP_IDLE, isSignupTrialNoticeActive: true })).toBe(
       false,
     );
+  });
+
+  it('플레이어가 떠 있거나 여는 중이면 기다린다(KAN-295)', () => {
+    expect(isDripFeedbackPromptReady({ ...DRIP_IDLE, isPlayerOpen: true })).toBe(false);
   });
 
   it('별점 팝업이 떠 있으면 가입 체험 안내가 기다린다 — 둘이 동시에 뜨지 않는다', () => {

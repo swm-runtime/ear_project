@@ -5,7 +5,18 @@ import type { AudioQuality } from '@/features/settings';
  * share는 공유 링크 수신 상세의 [재생](share.md 4.3, P1) — library-api.md 4.4 enum에는 아직
  * 없는 **가정 계약**이다(changes/pending 기록 — content-detail-api.md 9장 미결과 함께 백엔드 협의).
  */
-export type PlayEntryPoint = 'library' | 'explore' | 'miniplayer' | 'push' | 'player' | 'share';
+export type PlayEntryPoint =
+  | 'library'
+  | 'explore'
+  | 'miniplayer'
+  | 'push'
+  | 'player'
+  | 'share'
+  /**
+   * 온보딩 직후 멈춘 채 연 첫 콘텐츠(KAN-295 — analytics.md 3.4). **분석 전용 값이다** — 서버 `entry_point` enum
+   * (library-api.md 4.4)에는 없어 보낼 때 `library`로 바꾼다(`toServerEntryPoint`). 첫 드립 편은 라이브러리 항목이다
+   */
+  | 'onboarding';
 
 /**
  * 잔여 재생 표시값 — 판정이 아니라 힌트다(library-api.md 2).

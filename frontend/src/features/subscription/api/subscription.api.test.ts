@@ -90,6 +90,7 @@ describe('subscription.api 서버 계약(subscription-api.md)', () => {
           description: '…',
           storeProductId: 'com.runtime.ear.subscription.pro.monthly',
           isFree: false,
+          discountOriginalPriceKrw: null,
           entitlements: {
             dailyPlayLimit: null,
             dailyDripCount: 2,
@@ -133,6 +134,7 @@ describe('subscription.api 서버 계약(subscription-api.md)', () => {
       description: 'Listen without limits',
       storeProductId: 'com.runtime.ear.subscription.pro.monthly',
       isFree: null,
+      discountOriginalPriceKrw: null,
       entitlements: {
         dailyPlayLimit: null,
         dailyDripCount: 2,
@@ -175,6 +177,45 @@ describe('subscription.api 서버 계약(subscription-api.md)', () => {
       ['free', true],
       ['paid', false],
       ['legacy', null],
+    ]);
+  });
+
+  it('4.1 정가는 서버가 할인이라고 판정했을 때만 옮기고, false·필드 없음(옛 서버)·정가 null 은 할인 아님이다(KAN-299 · experiments-api.md 4.4)', async () => {
+    // given
+    const base = {
+      tier: 'daily',
+      name: 'Daily',
+      description: '하루 5편까지 들을 수 있어요',
+      price_krw: 1900,
+      is_free: false,
+      store_product_id: 'com.runtime.ear.subscription.daily.monthly',
+      entitlements: SUBSCRIPTION_DTO.entitlements,
+      action: 'purchase' as const,
+    };
+    const dto: PlansResponseDto = {
+      plans: [
+        { ...base, plan_id: 'discounted', original_price_krw: 3900, is_discounted: true },
+        { ...base, plan_id: 'off', original_price_krw: null, is_discounted: false },
+        { ...base, plan_id: 'legacy' },
+        // 계약상 없는 조합 — 정가 없이 true 만 와도 취소선을 지어내지 않는다
+        { ...base, plan_id: 'no-original', original_price_krw: null, is_discounted: true },
+        // 계약상 없는 조합 — 판정이 false 면 정가가 실려도 그리지 않는다(판정은 서버)
+        { ...base, plan_id: 'stray-original', original_price_krw: 3900, is_discounted: false },
+      ],
+      is_email_verified: true,
+    };
+    mockGet.mockResolvedValue({ data: dto });
+
+    // when
+    const catalog = await fetchPlans('ios');
+
+    // then
+    expect(catalog.plans.map((plan) => [plan.planId, plan.discountOriginalPriceKrw])).toEqual([
+      ['discounted', 3900],
+      ['off', null],
+      ['legacy', null],
+      ['no-original', null],
+      ['stray-original', null],
     ]);
   });
 

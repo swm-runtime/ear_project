@@ -13,7 +13,7 @@
 | 선행 | KAN-286(BE) — `GET /plans`의 `original_price_krw` · `is_discounted` 계약(`spec/api/experiments-api.md` 4.4, BE PR 진행 중) · 스토어 콘솔 가격 변경(사람 손, 미착수) |
 | 근거 문서 | `spec/api/experiments-api.md` 4.4 · `spec/uiux/subscription-uiux.md` 4.2 · `features/subscription.md` |
 | 중요도 | Medium |
-| 상태 | 발행 |
+| 상태 | 완료 — 반영 2026-10-29 |
 
 > 단기 실험 8종(2026-10-29 확정) 중 ①의 FE 몫이다.
 
@@ -43,3 +43,4 @@
 ## 처리 기록
 
 - 2026-10-29 발행(마크다운 + Jira KAN-299, KAN-286 blocks).
+- 2026-10-29 반영: 브랜치 `feat(fe)/exp-price-discount-badge`. `GET /plans`의 `original_price_krw`·`is_discounted`를 모델에 옮기고(옛 서버·`false`·정가 `null` = 할인 아님), 요금제 카드(SB1 요금제 관리 · PW1 페이월 — 같은 `PlanList`)에 취소선 정가(`₩3,900`) + 스토어 `displayPrice` + [지금 할인 중](en "On sale now") 배지. 할인율·종료일 없음, 판정은 서버 값 그대로. **표기 가드**: 스토어 가격이 원화가 아니면(상품 `currency ≠ KRW`) 긋지 않는다 — 계약 표와 다른 점은 `changes/pending/exp-price-discount-badge.md`에 기록. 카피·배치는 `spec/uiux/subscription-uiux.md` 4.2·4.6·5·6장. **남은 선행: 스토어 콘솔 가격 변경(사람 손, 미착수)** — 바뀌기 전에는 스토어가 옛 가격(₩3,900)을 줘 서버 스위치를 켜면 정가와 가격이 같게 보이므로, 콘솔 가격 반영 뒤에 `PLAN_DISCOUNT_DISPLAY_ENABLED`를 켠다.
