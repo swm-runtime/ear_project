@@ -6,10 +6,10 @@ export const CONTENT_REVIEW_MAX_STARS = 5;
 export const CONTENT_REVIEW_MAX_TEXT = 500;
 
 /**
- * 먼저 묻는 간격(서비스 날짜) — 마지막으로 물은 날 + 5일부터 다시 묻는다(`content-review.md` 4.3, 결정 2026-10-28).
- * 10-28에 물었으면 11-02부터 — 11-01(4일째)은 묻지 않는다
+ * 먼저 묻는 간격(서비스 날짜) — 마지막으로 물은 날 + 2일부터 다시 묻는다(`content-review.md` 4.3, 결정 2026-10-28 · 5일 → 2일 2026-10-30).
+ * 10-28에 물었으면 10-30부터 — 10-29(다음 날)는 묻지 않는다. 완청률이 낮아(약 19%) 물을 편 자체가 적어 5일은 너무 드물었다
  */
-export const CONTENT_REVIEW_PROMPT_INTERVAL_DAYS = 5;
+export const CONTENT_REVIEW_PROMPT_INTERVAL_DAYS = 2;
 
 /** 먼저 묻는 대상 — 최근 14 서비스 날짜 안(오늘 포함)에 끝까지 들은 편(4.3-4) */
 export const CONTENT_REVIEW_PROMPT_RECENT_DAYS = 14;

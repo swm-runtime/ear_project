@@ -522,9 +522,9 @@ describe('ContentReviewService', () => {
       expect(prompt).toMatchObject({ enabled: true, show: false, item: null });
     });
 
-    it('마지막으로 물은 지 4일이면 후보를 찾지 않고 show=false', async () => {
+    it('마지막으로 물은 지 1일이면 후보를 찾지 않고 show=false', async () => {
       userSettingService.getSettings.mockResolvedValue({
-        contentReviewLastPromptedDate: '2026-10-25',
+        contentReviewLastPromptedDate: '2026-10-28',
         contentReviewMutedUntil: null,
       });
 

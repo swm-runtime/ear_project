@@ -74,7 +74,7 @@ export function resolvePromptGate(state: {
     return { open: false, mutedUntil: state.mutedUntil };
   }
 
-  // 3. 마지막으로 물은 날 + 5 서비스 날짜가 아직 안 됨 — 오늘 ≥ 물은 날 + 5 여야 다시 묻는다
+  // 3. 마지막으로 물은 날 + 2 서비스 날짜가 아직 안 됨 — 오늘 ≥ 물은 날 + 2 여야 다시 묻는다
   if (
     state.lastPromptedDate !== null &&
     state.today <
