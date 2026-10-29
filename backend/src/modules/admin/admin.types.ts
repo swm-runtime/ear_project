@@ -685,3 +685,92 @@ export interface InsightsSeriesEpisodes {
   market: UserMarket | null;
   series: InsightsSeriesEpisodesSeries[];
 }
+
+/* ───────────── 짧은 판·도입부 실험 (`GET /admin/insights/short-variant`, KAN-298 · KAN-296, 2026-10-29) ───────────── */
+
+/** 가입 코호트 — 받는 길이 프로필 이름 그대로(`content-cohort.policy.ts`). 경계 전 가입 = standard, 경계 이후 = short */
+export type InsightsShortVariantCohort = 'standard' | 'short';
+
+/**
+ * 원본(Repository) — (콘텐츠, 코호트, 첫 편 여부) 묶음의 (사용자, 편) 수. 사용자는 수로만 들어 있다.
+ * `cohort`는 경계가 없거나 비교 창 밖 가입자면 null(콘텐츠 단위 비교에만 들어간다).
+ */
+export interface InsightsShortVariantRow {
+  contentId: string;
+  lengthProfile: string;
+  /** NULL = 기존 도입부 */
+  introVersion: string | null;
+  cohort: InsightsShortVariantCohort | null;
+  /** 이 사용자가 처음 시작한 편인가(시장·시점 무관 첫 0초 아닌 재생) */
+  isFirst: boolean;
+  starters: number;
+  completers: number;
+  /** 그 (사용자, 편)의 청취 합이 10·30·60초 이하 */
+  drop10: number;
+  drop30: number;
+  drop60: number;
+}
+
+/** 짧은 판 ↔ 원본 짝(Repository) — `contents.variant_of_content_id`가 있는 short 편 */
+export interface InsightsShortVariantPairRow {
+  shortContentId: string;
+  shortTitle: string;
+  shortDurationSec: number;
+  shortIntroVersion: string | null;
+  originalContentId: string;
+  originalTitle: string;
+  originalDurationSec: number;
+  originalIntroVersion: string | null;
+}
+
+export interface InsightsVariantMetrics {
+  starters: number;
+  completers: number;
+  /** 분모(시작자)가 0이면 null */
+  completionRate: number | null;
+  drop10: number;
+  drop30: number;
+  drop60: number;
+  rate10: number | null;
+  rate30: number | null;
+  rate60: number | null;
+}
+
+/** 전체와 "첫 편 제외"(사용자마다 처음 시작한 편을 뺀 값) */
+export interface InsightsVariantSplit {
+  all: InsightsVariantMetrics;
+  excludingFirst: InsightsVariantMetrics;
+}
+
+export interface InsightsVariantGroup<K> extends InsightsVariantSplit {
+  key: K;
+}
+
+export interface InsightsVariantPairSide extends InsightsVariantSplit {
+  contentId: string;
+  title: string;
+  durationSec: number;
+  introVersion: string | null;
+}
+
+export interface InsightsVariantPair {
+  short: InsightsVariantPairSide;
+  original: InsightsVariantPairSide;
+}
+
+export interface InsightsShortVariant {
+  generatedAt: Date;
+  market: UserMarket | null;
+  /** `SHORT_CONTENT_COHORT_SINCE` — 비면 null(경계 미설정 → 코호트 비교 없음) */
+  cohortSince: Date | null;
+  /** 코호트 비교 창(시간) = 지금 − 경계. 경계가 없으면 null, 경계가 미래면 0 */
+  cohortWindowHours: number | null;
+  /** 경계가 없으면 null. 있으면 standard·short 두 행 */
+  byCohort: InsightsVariantGroup<InsightsShortVariantCohort>[] | null;
+  /** standard·short 두 행 */
+  byLengthProfile: InsightsVariantGroup<string>[];
+  /** 기존 도입부(null) 먼저, 그 뒤 버전 이름 순 */
+  byIntroVersion: InsightsVariantGroup<string | null>[];
+  /** 짧은 판 시작자 많은 순 */
+  pairs: InsightsVariantPair[];
+}

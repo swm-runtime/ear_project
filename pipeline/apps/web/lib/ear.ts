@@ -625,6 +625,32 @@ export interface EarCompletionByLength {
 export const getEarCompletionByLength = (ch: EarChannel) =>
   earFetch<EarCompletionByLength>("/admin/insights/completion-by-length", { cache: "no-store" }, ch);
 
+// ── 짧은 판·도입부 실험 (실험 지표 탭 — `GET /admin/insights/short-variant`, KAN-298 · KAN-296, 2026-10-29) ── 집계만(사용자는 수로만)
+/** 시작·완청·초반 이탈 한 묶음. 단위는 (사용자, 편). 비율은 시작자 0이면 null */
+export interface EarVariantMetrics {
+  starters: number; completers: number; completion_rate: number | null;
+  drop_10s: number; drop_30s: number; drop_60s: number;
+  rate_10s: number | null; rate_30s: number | null; rate_60s: number | null;
+}
+/** `excluding_first` = 사용자마다 처음 시작한 편을 뺀 값 */
+export interface EarVariantSplit { all: EarVariantMetrics; excluding_first: EarVariantMetrics }
+export interface EarVariantPairSide extends EarVariantSplit { content_id: string; title: string; duration_sec: number; intro_version: string | null }
+export interface EarShortVariant {
+  generated_at: string; market: EarInsightsMarket | null; min_age_hours: number;
+  /** 시작자가 이보다 적은 행은 "표본 작음" — 서버가 정한 값 */
+  min_sample: number; drop_thresholds_sec: number[];
+  /** 코호트 경계(`SHORT_CONTENT_COHORT_SINCE`) — null 이면 경계 미설정 */
+  cohort_since: string | null; cohort_window_hours: number | null;
+  /** 경계가 없으면 null. standard = 경계 전 가입(기존 판을 받는 쪽), short = 경계 뒤 가입 */
+  by_cohort: (EarVariantSplit & { key: "standard" | "short" })[] | null;
+  by_length_profile: (EarVariantSplit & { key: string })[];
+  /** key null = 기존 도입부 */
+  by_intro_version: (EarVariantSplit & { key: string | null })[];
+  pairs: { short: EarVariantPairSide; original: EarVariantPairSide }[];
+}
+export const getEarShortVariant = (ch: EarChannel, market: EarInsightsMarket | null = null) =>
+  earFetch<EarShortVariant>(`/admin/insights/short-variant${market ? `?market=${market}` : ""}`, { cache: "no-store" }, ch);
+
 // ── 추천 검증 (서비스 지표 — `GET /admin/insights/recommendations/*`, 2026-10-22) ──
 // 사용자는 user_id 로만 온다 — 서버가 이름·이메일·제공자 ID·프로필 사진을 조회하지도 싣지도 않는다(루트 CLAUDE.md 개인정보 원칙).
 
