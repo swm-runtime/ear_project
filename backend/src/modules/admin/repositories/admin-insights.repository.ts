@@ -16,6 +16,7 @@ import {
   InsightsRegionTotals,
   InsightsPushReaction,
   InsightsRetention,
+  InsightsSeriesEpisodeRow,
   InsightsTopContent,
   InsightsTopicSupply,
   InsightsTopUser,
@@ -1225,6 +1226,120 @@ export class AdminInsightsRepository {
       durationSec: r.duration_sec,
       starters: r.starters,
       completers: r.completers,
+    }));
+  }
+
+  /**
+   * 시리즈 편별 완청·이탈 재료(KAN-293) — `series_id`·`episode_no`가 있는 콘텐츠만(단일 콘텐츠는 나오지 않는다). 단위는
+   * (사용자, 시리즈, 편 번호)다 — 같은 편 번호의 콘텐츠 행이 여럿이면(철회 뒤 다시 올림) 합쳐 센다.
+   * - 시작·완청은 `completionByContent`와 같다(0초가 아닌 재생 · 첫 재생이 `minAgeHours` 전 · 완청 공용 정의).
+   * - 다음 편 = 이 시리즈에 있는 편 번호 중 이 편 다음으로 큰 것(번호가 비어도 건너뛴다). 다음 편 시작은 시점을 따지지 않는다.
+   * - `market`이 있으면 그 시장 콘텐츠만. 시작자 0인 편도 행으로 나온다(어느 편이 아무도 안 들었는지가 보이게).
+   * 사용자는 수만 낸다.
+   */
+  async seriesEpisodes(
+    now: Date,
+    options: {
+      market: UserMarket | null;
+      minAgeHours: number;
+      reachedRatio: number;
+    },
+  ): Promise<InsightsSeriesEpisodeRow[]> {
+    const rows = await this.dataSource.query<
+      {
+        series_id: string;
+        series_title: string;
+        total_episodes: number;
+        episode_no: number;
+        content_id: string;
+        title: string;
+        duration_sec: number;
+        market: string;
+        status: string;
+        next_episode_no: number | null;
+        starters: number;
+        completers: number;
+        next_started_of_starters: number;
+        next_started_of_completers: number;
+      }[]
+    >(
+      `with eps as (
+         select c.id, c.series_id, c.episode_no, c.duration_sec
+           from contents c
+          where c.series_id is not null and c.episode_no is not null
+            and ($1::varchar is null or c.market = $1)
+       ),
+       meta as (
+         select distinct on (c.series_id, c.episode_no)
+                c.series_id, c.episode_no, c.id, c.title, c.duration_sec, c.market, c.status
+           from contents c
+           join eps e on e.id = c.id
+          order by c.series_id, c.episode_no, (c.status = 'published') desc, c.created_at desc, c.id
+       ),
+       nexts as (
+         select m.*, lead(m.episode_no) over (partition by m.series_id order by m.episode_no) as next_episode_no
+           from meta m
+       ),
+       any_starts as (
+         select distinct p.user_id, e.series_id, e.episode_no
+           from play_records p
+           join eps e on e.id = p.content_id
+          where p.listened_sec > 0
+       ),
+       starts as (
+         select p.user_id, p.content_id
+           from play_records p
+           join eps e on e.id = p.content_id
+          where p.listened_sec > 0 and e.duration_sec > 0
+          group by p.user_id, p.content_id
+         having min(p.played_at) < $2::timestamptz - make_interval(hours => $3::int)
+       ),
+       flagged as (
+         select s.user_id, e.series_id, e.episode_no,
+                bool_or(
+                  exists (select 1 from library_items i
+                           where i.user_id = s.user_id and i.content_id = s.content_id and i.status = 'completed')
+                  or exists (select 1 from playback_progresses g
+                              where g.user_id = s.user_id and g.content_id = s.content_id
+                                and g.max_reached_sec >= e.duration_sec * $4::numeric)
+                  or exists (select 1 from user_signals u
+                              where u.user_id = s.user_id and u.content_id = s.content_id and u.action = 'complete')
+                ) as completed
+           from starts s
+           join eps e on e.id = s.content_id
+          group by s.user_id, e.series_id, e.episode_no
+       )
+       select n.series_id, sr.title as series_title, sr.total_episodes, n.episode_no,
+              n.id as content_id, n.title, n.duration_sec, n.market, n.status, n.next_episode_no,
+              count(f.user_id)::int as starters,
+              count(f.user_id) filter (where f.completed)::int as completers,
+              count(f.user_id) filter (where x.user_id is not null)::int as next_started_of_starters,
+              count(f.user_id) filter (where f.completed and x.user_id is not null)::int as next_started_of_completers
+         from nexts n
+         join series sr on sr.id = n.series_id
+         left join flagged f on f.series_id = n.series_id and f.episode_no = n.episode_no
+         left join any_starts x
+                on x.user_id = f.user_id and x.series_id = n.series_id and x.episode_no = n.next_episode_no
+        group by n.series_id, sr.title, sr.total_episodes, n.episode_no, n.id, n.title, n.duration_sec,
+                 n.market, n.status, n.next_episode_no
+        order by n.series_id, n.episode_no`,
+      [options.market, now, options.minAgeHours, options.reachedRatio],
+    );
+    return rows.map((r) => ({
+      seriesId: r.series_id,
+      seriesTitle: r.series_title,
+      totalEpisodes: r.total_episodes,
+      episodeNo: r.episode_no,
+      contentId: r.content_id,
+      title: r.title,
+      durationSec: r.duration_sec,
+      market: r.market,
+      status: r.status,
+      nextEpisodeNo: r.next_episode_no,
+      starters: r.starters,
+      completers: r.completers,
+      nextStartedOfStarters: r.next_started_of_starters,
+      nextStartedOfCompleters: r.next_started_of_completers,
     }));
   }
 }

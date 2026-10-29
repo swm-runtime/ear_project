@@ -27,6 +27,7 @@ import {
   INSIGHTS_RETENTION_DAYS,
   INSIGHTS_SUMMARY_MAX_DAYS,
   INSIGHTS_WEEKDAY_LABELS,
+  SERIES_EPISODES_MIN_AGE_HOURS,
 } from '../admin.constant';
 import {
   InsightsCohortCounts,
@@ -39,11 +40,13 @@ import {
   InsightsInviteCodeBaseline,
   InsightsInviteCodeCohort,
   InsightsMarketTotals,
+  InsightsSeriesEpisodes,
   InsightsSummary,
   InsightsWeekday,
 } from '../admin.types';
 import { AdminInsightsRepository } from '../repositories/admin-insights.repository';
 import { summarizeCompletionByLength } from './admin-insights-completion.calc';
+import { groupSeriesEpisodes } from './admin-insights-series.calc';
 import {
   buildFunnelCohort,
   summarizeFunnelSteps,
@@ -162,6 +165,22 @@ export class AdminInsightsService {
       slopeStepMin: COMPLETION_LENGTH_SLOPE_STEP_MIN,
       minContents: COMPLETION_LENGTH_MIN_CONTENTS,
     });
+  }
+
+  /**
+   * 시리즈 편별 완청·이탈(`GET /admin/insights/series-episodes`, KAN-293, 2026-10-29) — 편마다 시작·완청·다음 편 진행 수를 읽어
+   * 비율을 붙이고 시리즈로 묶는다(`admin-insights-series.calc.ts`). 시작·완청 정의는 길이별 완청률과 같다.
+   */
+  async seriesEpisodes(
+    now: Date,
+    market: UserMarket | null = null,
+  ): Promise<InsightsSeriesEpisodes> {
+    const rows = await this.repository.seriesEpisodes(now, {
+      market,
+      minAgeHours: SERIES_EPISODES_MIN_AGE_HOURS,
+      reachedRatio: COMPLETION_REACHED_RATIO,
+    });
+    return { generatedAt: now, market, series: groupSeriesEpisodes(rows) };
   }
 
   async summarize(
