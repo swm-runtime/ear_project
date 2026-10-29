@@ -1,5 +1,6 @@
 import { CollapsiblePanel, PageHeader } from "@/components/ui";
 import { CompletionByLength } from "@/components/completion-by-length";
+import { ShortVariantExperiment } from "@/components/short-variant-experiment";
 import { SignupFunnel } from "@/components/signup-funnel";
 
 export const dynamic = "force-dynamic";
@@ -29,6 +30,7 @@ export const dynamic = "force-dynamic";
  * ## 숫자가 붙은 지표
  * - 가입 퍼널(`GET /admin/insights/funnel`, 2026-10-28) — 가입한 사람이 어느 단계에서 가장 많이 빠지나. `components/signup-funnel.tsx`
  * - 길이별 완청률(`GET /admin/insights/completion-by-length`, 2026-10-28) — 길수록 진짜 덜 끝까지 듣나(한국 콘텐츠). `components/completion-by-length.tsx`
+ * - 짧은 판·도입부 실험(`GET /admin/insights/short-variant`, KAN-298 · KAN-296, 2026-10-29) — 기존 판 vs 짧은 판 완청률, 기존 vs 바뀐 도입부의 초반 이탈. `components/short-variant-experiment.tsx`
  */
 interface ExperimentMetric {
   name: string;
@@ -100,6 +102,15 @@ export default function ExperimentMetricsPage() {
           definition="한국 콘텐츠, 0초가 아닌 재생을 시작한 (사용자, 편) 중 완청(라이브러리 완료 · 90% 도달 · 완청 신호)한 비율. 시작한 지 24시간 지난 것만. 추세는 로지스틱 회귀, 편별 점은 경험적 베이즈로 축소한 값"
         />
         <div className="mt-3"><CompletionByLength /></div>
+      </CollapsiblePanel>
+
+      <CollapsiblePanel title="짧은 판·도입부 실험 — 완청률·초반 이탈 비교">
+        <MetricInfo
+          why="짧은 판(5~12분 · 새 도입부)이 기존 판보다 끝까지 더 듣게 하는지, 바뀐 도입부가 앞 10초·30초·1분 이탈을 줄이는지 본다. 결과로 짧은 판을 전원에게 넓힐지, 도입부만 기존 편에 옮길지 정한다"
+          owner="박준현"
+          definition="(사용자, 편) 단위 — 0초가 아닌 재생으로 시작하고 시작한 지 24시간 지난 것. 완청 = 라이브러리 완료 · 90% 도달 · 완청 신호. 이탈 = 그 편 청취 합 10·30·60초 이하. 가입 코호트(SHORT_CONTENT_COHORT_SINCE 전·뒤, 같은 길이 창) · 콘텐츠 길이 프로필 · 도입부 버전(비면 기존) · 짧은 판↔원본 짝으로 나눈다. 첫 편 제외 = 사용자마다 처음 시작한 편을 뺀 값"
+        />
+        <div className="mt-3"><ShortVariantExperiment /></div>
       </CollapsiblePanel>
 
       <CollapsiblePanel title={`등록된 지표 ${EXPERIMENT_METRICS.length}개`}>
