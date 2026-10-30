@@ -1,6 +1,7 @@
 import { CloudWatchClient, PutMetricDataCommand } from "@aws-sdk/client-cloudwatch";
 import { CloudWatchLogsClient, FilterLogEventsCommand } from "@aws-sdk/client-cloudwatch-logs";
 import { log } from "./util.js";
+import { holdLease, leaseValue, setLeaseValue } from "./lease.js";
 import { pipelineLocale } from "@ear/pipeline";
 
 /**
@@ -16,6 +17,9 @@ import { pipelineLocale } from "@ear/pipeline";
  * - 자격은 AI 서버 인스턴스 롤(logs:FilterLogEvents — ear-logs-read 정책). 키를 env 에 두지 않는다
  * - 같은 유형(가변값을 지운 시그니처)은 틱당 한 줄로 묶는다 — 에러 폭풍이 Slack 도배가 되지 않게
  * - 재시작 시 시작 시점 이후만 본다 — 과거분 재알림 방지 (놓친 창은 어드민 웹 에러 모아보기에서)
+ *
+ * **복제 (2026-10-30)**: 한국판 워커를 복제로 돌리면 읽은 위치(cursorTs)가 프로세스마다 따로라 같은 오류가 복제 수만큼 올라간다 —
+ * 임대(lease.ts "log-watch")를 쥔 복제 하나만 읽고, 읽은 위치는 임대 줄에 남겨 넘겨받은 복제가 이어 읽는다(최대 1시간 전부터).
  *
  * **생존 신호**: 틱마다 `ear/ops` 의 `CronSuccess{Job=log-watch}` 에 1을 찍는다. 이 감시자가 죽으면
  * 백엔드가 500 을 뿜어도 Slack 이 조용해지는데, **그 조용함이 "정상"과 구분되지 않는다.** 작업 큐의
@@ -37,6 +41,8 @@ const ANSI_RE = /\[[0-9;]*m/g;
 let client: CloudWatchLogsClient | undefined;
 let metrics: CloudWatchClient | undefined;
 let cursorTs = Date.now();
+let leader = false;
+const TAKEOVER_MAX_BACK_MS = 60 * 60_000;
 
 /** 워커 기동 시 1회 호출 — 켜졌는지 여부만 돌려준다 */
 export function startLogWatch(): "on" | "off" {
@@ -52,6 +58,14 @@ export function startLogWatch(): "on" | "off" {
 
 async function tick(): Promise<void> {
   try {
+    // 복제 중 하나만 — 대기 복제는 건너뛴다. 넘겨받는 순간 앞 주인이 남긴 읽은 위치에서 잇는다(없으면 이 프로세스의 시작 시점)
+    if (!(await holdLease("log-watch", INTERVAL_MS * 3))) { leader = false; return; }
+    if (!leader) {
+      leader = true;
+      const saved = Number(await leaseValue<number>("log-watch", "cursor")) || 0;
+      if (saved) cursorTs = Math.max(saved, Date.now() - TAKEOVER_MAX_BACK_MS);
+      log(`백엔드 ERROR 감시 — 이 복제가 맡음 (읽은 위치 ${new Date(cursorTs).toISOString().slice(0, 16)})`);
+    }
     client ??= new CloudWatchLogsClient({ region: process.env.AWS_REGION || "ap-northeast-2" });
     const out = await client.send(
       new FilterLogEventsCommand({
@@ -72,6 +86,7 @@ async function tick(): Promise<void> {
     if (events.length === 0) return;
 
     cursorTs = Math.max(...events.map((e) => e.t)); // limit 초과분은 다음 틱이 이어받는다
+    await setLeaseValue("log-watch", "cursor", cursorTs); // 다른 복제가 넘겨받을 때 이어 읽는 위치
 
     const groups = new Map<string, { count: number; sample: string }>();
     for (const e of events) {
