@@ -290,8 +290,10 @@ export function twoStageViolations(scriptMd: string, outlineMd: string, opts: { 
   const pubDateRe = /20\d\d년(?: \d{1,2}월)?에 [^.!?…]{0,14}(?:낸|발표한|실린|나온|쓴|펴낸|출간한|발행한|올린|내놓은) /;
   const pubDate = eTurns.filter((t) => pubDateRe.test(t.text)).map((t) => t.id ?? "?");
   if (pubDate.length) v.push(`해설 턴 ${pubDate.length}개가 소스의 발행 시기를 말함 (${pubDate.slice(0, 6).join(", ")}) — "2026년 8월에 낸"은 각주다. 시점이 축에 필요한 비교가 아니면 뺀다 (규칙 21)`);
-  const handoffRe = /(다음 (질문|얘기|이야기)(은|는|이) (이거|이건|이렇)|다음 (얘기|이야기|질문)(예요|이에요|입니다)|다음으로 넘어가)/;
-  const handoff = eTurns.filter((t) => handoffRe.test(t.text)).map((t) => t.id ?? "?");
+  // "다음으로 넘어가"는 문장 첫머리(그럼·자·이제 뒤 포함)일 때만 전환 선언이다 — "라우터를 거쳐 다음으로 넘어가요"(패킷 전달)는 내용이다(2026-10-30 네트워크 짧은 판 6·7화 오탐 → 수정 0건으로 L0 재시도 소진).
+  // 지적에 걸린 대목을 그대로 적는다 — 예시 문구만 보면 수정 단계가 걸린 문장을 찾지 못한다
+  const handoffRe = /(다음 (질문|얘기|이야기)(은|는|이) (이거|이건|이렇)|다음 (얘기|이야기|질문)(예요|이에요|입니다)|(?:^|[.?!…]\s+)(?:(?:그럼|그러면|자|이제)[,\s]+)?다음으로 넘어가)/;
+  const handoff = eTurns.flatMap((t) => { const m = handoffRe.exec(t.text); return m ? [`${t.id ?? "?"} "${m[0].replace(/^[.?!…\s]+/, "")}"`] : []; });
   if (handoff.length) v.push(`해설 턴 ${handoff.length}개가 구간 전환을 선언함 (${handoff.slice(0, 6).join(", ")}) — "그럼 다음 질문은 이거죠"는 대본 진행을 알리는 말이다. 앞 구간이 남긴 질문에서 진행자가 묻거나 내용으로 잇는다 (규칙 1)`);
   const midDot = p.turns.filter((t) => /[가-힣A-Za-z)]·[가-힣A-Za-z(]/.test(t.text)).map((t) => t.id ?? "?");
   if (midDot.length) v.push(`턴 ${midDot.length}개의 발화 안에 가운뎃점(·) 나열 (${midDot.slice(0, 6).join(", ")}) — 귀로는 낱말이 붙어 들린다. 쉼표로 나누거나 둘로 줄인다 (규칙 14)`);
