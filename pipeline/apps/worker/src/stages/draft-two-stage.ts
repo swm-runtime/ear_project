@@ -182,7 +182,7 @@ export function scriptStats(md: string): { turns: number; chars: number; minutes
 /** 2단계 L0 — 구성안 계약(구간 수·순서)과 분량 하한(13분 ≈ 4,300자)을 기계로 검사한다. 위반은 재생성 연쇄로. 하한은 2026-10-08 박수헌: eleven_v4 말 속도(실측 341자/분)에 맞춰 4,000 → 4,300 */
 /** @param opts.signoffHeads 템플릿 클로징 인사 골격들의 고정 머리(첫 {슬롯} 앞 문구, tpl-v2). 있으면 마지막 턴이 진행(Y) 턴이고 그중 하나를 담아야 한다 */
 export interface L0AttributionInput { claimsMd?: string; sourcesMd?: string; notesMd?: string; pronunciations?: Record<string, string> }
-export function twoStageViolations(scriptMd: string, outlineMd: string, opts: { signoffHeads?: string[]; /** 0040: short 면 하한 1,700자·상한 4,100자 */ lengthProfile?: string | null } & L0AttributionInput = {}): string[] {
+export function twoStageViolations(scriptMd: string, outlineMd: string, opts: { signoffHeads?: string[]; /** 0040: short 면 하한 1,700자·상한 4,100자 */ lengthProfile?: string | null; /** 짧은 판 이 편의 훅(shortHookFor) — 약속형이면 약속 문장 형식을 본다 */ shortHook?: { key: string } | null; /** 시리즈 화 번호 — 2화부터 첫 해설 턴의 첫 문장은 회상 */ seriesNo?: number | null } & L0AttributionInput = {}): string[] {
   if (pipelineLocale() === "en") return twoStageViolationsEn(scriptMd, outlineMd, opts);
   const v: string[] = [];
   const spec = lengthSpecOf(opts.lengthProfile);
@@ -302,7 +302,9 @@ export function twoStageViolations(scriptMd: string, outlineMd: string, opts: { 
   v.push(...v98Violations(scriptMd, p.turns));
   v.push(...v99Violations(p.turns));
   v.push(...v910Violations(p.turns));
-  v.push(...v911Violations(p.turns));
+  // 짧은 판: 도입 구분 예고 지적의 고치는 법을 바꾼다 — 일반 편 안내("질문 하나로 열어라")가 약속 문장을 질문형 도입으로 바꿔 버렸다(2026-10-30 네트워크 2화)
+  v.push(...v911Violations(p.turns).map((m) => spec.key === "short" ? shortPreviewFix(m) : m));
+  if (spec.key === "short" && opts.shortHook?.key === "promise") v.push(...shortPromiseViolations(p.turns, opts.seriesNo ?? null));
   // full-v7 (2026-09-15): 귀속 표현 턴 비율 검사는 폐지 — 32~36% 인 편에서도 소스 순회(재식별 15건)가 있었다. 구조 검사로 대체
   v.push(...attributionViolations(scriptMd, p.turns, opts));
   return v;
@@ -589,7 +591,9 @@ export const RATIO_RULE_MARKS = ["셋 중 하나가 상한이다", "질문은 �
   // 글로벌판 문체 위반(enStyleViolations) — 한국판 메시지와 겹치지 않는 영어 머리
   "Style limit:",
   // 시리즈 범위 검사(spec/11 6장, 2026-10-17) — 다른 편 몫을 풀어 쓴 곳. 판단 검사라 한도 뒤엔 QA 로
-  "시리즈 범위:", "Series scope:"] as const;
+  "시리즈 범위:", "Series scope:",
+  // 짧은 판 약속형 형식(2026-10-30, short-v1.5) — 말맛·형식이라 한도 뒤엔 QA·비평으로 넘긴다(초안을 멈추지 않는다)
+  "짧은 판 약속형:"] as const;
 export const isRatioViolation = (v: string): boolean => RATIO_RULE_MARKS.some((m) => v.includes(m));
 
 /** L0 수정 한도 (2026-10-07: 2 → 3) — QA 회차(qa.ts MAX_ATTEMPTS = QA 실행 3회, 실패 뒤 수정 2회)와 따로 센다 */
@@ -992,6 +996,31 @@ export function v910Violations(turns: ScriptTurn[]): string[] {
  * - 도입 구분 예고: 도입에서 "나눠 보다·나누어 묻다"로 답의 틀을 미리 말한다(규칙 13) — v9.10 19% · 골드 0
  * 뺀 것: "짧은 교환 구간마다"(골드도 본문 2문장 이하 해설 턴 0 — 리듬의 원인이 아니었다) · "다른 질문이에요"로 맺는 턴(편당 0.6회로 드물다 — 규칙 29·critic 이 본다)
  */
+/** 짧은 판의 "도입 구분 예고" 지적 — 훅 문장은 두고 구분 예고 표현만 빼게 한다 */
+export function shortPreviewFix(m: string): string {
+  return m.includes("답의 틀을 미리 말함") ? m.replace(/"나눠 보자" 대신[\s\S]*$/, '짧은 판: 훅 문장(선취형의 결과·약속형의 약속)은 그대로 두고 "나눠"류 구분 예고 표현만 뺀다. 질문형 도입으로 바꾸지 않는다 (규칙 13 · 짧은 판 규칙)') : m;
+}
+
+/**
+ * 짧은 판 약속형 형식 (2026-10-30, short-v1.5) — 규칙 글만으로는 지켜지지 않았다(v1.4 10편 전부 "여러분" 시작 · v1.5 12화 두 문장).
+ * 도입 첫 해설 턴에서 회상 한 문장(시리즈 2화부터)을 뺀 나머지가 약속이다: 첫 문장이 이번 편을 가리키는 말로 시작 · "여러분"으로 시작하지 않음 · 두 문장 이하(약속 문장 + 풀어 주는 문장 하나 — short-v1.6 "순서만 맞으면")
+ */
+export function shortPromiseViolations(turns: ScriptTurn[], seriesNo: number | null): string[] {
+  const e1 = turns.find((t) => t.section === "도입" && t.id?.startsWith("E"));
+  if (!e1) return [];
+  let ss = e1.text.replace(/\.{3}|…/g, " ").split(/(?<=[.?!])\s+/).map((x) => x.trim()).filter(Boolean);
+  if ((seriesNo ?? 0) >= 2 && ss.length && /^(앞|지난)\s?(편|시간|회)|^앞선/.test(ss[0])) ss = ss.slice(1);
+  const mark = "짧은 판 약속형:";
+  const how = "이번 편을 가리키는 말(\"이번 편\"·\"이 편\")로 시작해 이번 편의 주요 내용을 개념 이름으로 부르고, 듣고 나서 청취자가 실제 상황에서 얻는 결정·능력으로 맺는 한 문장으로 고친다";
+  if (!ss.length) return [`${mark} 도입 첫 해설 턴 ${e1.id} 에 약속 문장이 없다 — ${how}`];
+  const v: string[] = [];
+  const first = ss[0];
+  if (/^(청취자\s*)?여러분/.test(first)) v.push(`${mark} 약속 문장이 "여러분"으로 시작 (${e1.id}) — ${how}`);
+  else if (!/^(이번|이|오늘)\s?(편|시간|회)/.test(first)) v.push(`${mark} 약속 문장이 이번 편을 가리키는 말로 시작하지 않음 (${e1.id}) — ${how}`);
+  if (ss.length > 2) v.push(`${mark} 약속 부분이 ${ss.length}문장 (${e1.id}) — 약속 문장 뒤 덧붙임은 한 문장까지다. 약속 문장을 먼저 두고 풀어 주는 문장 하나만 남긴다${(seriesNo ?? 0) >= 2 ? " (회상 한 문장은 그대로 둔다)" : ""}`);
+  return v;
+}
+
 export function v911Violations(turns: ScriptTurn[]): string[] {
   const v: string[] = [];
   const sents = (t: string) => t.replace(/\.{3}|…/g, " ").split(/(?<=[.?!])\s+/).map((s) => s.trim()).filter(Boolean);
