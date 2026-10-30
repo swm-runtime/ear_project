@@ -60,7 +60,9 @@ test("길이 프로필 — short 는 설계·대본에 숫자 줄(코드)과 짧
   const w2 = wr(P.pickShortHook(1));
   assert.match(w2.user, /### 도입 훅 — 약속형/);
   assert.match(w2.user, /실제로 겪는 상황 하나/);
-  assert.match(w2.user, /판단·생각·이해가 바뀌는 것은 결과가 아니다/);
+  assert.match(w2.user, /약속 문장 한 문장에 이번 편의 주요 내용과, 그 내용을 듣고 나서 청취자가 얻는 것을 함께 담는다/, "약속형은 한 문장에 내용과 얻는 것(short-v1.4)");
+  assert.match(w2.user, /약속은 한 문장이다/);
+  assert.match(w2.user, /내릴 수 있게 되는 결정이나 할 수 있게 되는 일/);
   assert.match(w2.user, /문장의 주어는 청취자다/);
   assert.match(w2.user, /훅 문장은 청취자가 보거나 겪는 일을 말한다/, "훅은 장치 안의 동작이 아니라 청취자 장면(short-v1.3)");
   assert.equal(P.pickShortHook(600).key, "payoff"); assert.equal(P.pickShortHook(601).key, "promise");
