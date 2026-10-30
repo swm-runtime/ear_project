@@ -4,7 +4,7 @@ import { cfg, executedBy } from "../config.js";
 import { blockedTierHosts, insertRun, pool, priorEpisodesUsingUrls, recordFetchStatus, refreshDomainFetchBlock, setJobProgress, type Job } from "../db.js";
 import { getFile } from "../storage.js";
 import type { Executor } from "../executors/index.js";
-import { assetPaths, AXIS_CHECK_SCHEMA, AXIS_CHECK_SCHEMA_EN, buildAxisCheckPromptParts, buildAxisCheckPromptPartsEn, buildDesignPromptInlineParts, buildDesignPromptInlinePartsEn, DESIGN_INLINE_SCHEMA, DESIGN_INLINE_SCHEMA_EN, designAxisRejectEn, designMissingQuestionsEn, isHistoryCandidateEn, lengthSpecOf, pipelineLocale, shortTrimFeedback, type ShortRules, type BacklogCandidate, type InlineSource, type SeriesDraftContext } from "@ear/pipeline";
+import { assetPaths, AXIS_CHECK_SCHEMA, AXIS_CHECK_SCHEMA_EN, buildAxisCheckPromptParts, buildAxisCheckPromptPartsEn, buildDesignPromptInlineParts, buildDesignPromptInlinePartsEn, DESIGN_INLINE_SCHEMA, DESIGN_INLINE_SCHEMA_EN, designAxisRejectEn, designMissingQuestionsEn, isHistoryCandidateEn, lengthSpecOf, pipelineLocale, shortTrimFeedback, type ShortRules, type BacklogCandidate, type InlineSource, type SeriesDraftContext, lengthProfileOf, shortHookFor } from "@ear/pipeline";
 import { fetchArticle, fetchStatusOf, type FetchedSource } from "../sources/fetch.js";
 import { log } from "../util.js";
 import { addPronunciations } from "../tts/normalize.js";
@@ -146,7 +146,7 @@ export async function runDesignSingle(a: { job: Job; ex: Executor; episodeId: st
   const sources: InlineSource[] = fetched.map((f, i) => ({ n: f.n, url: f.url, publisher: cand.sources[i].publisher, title: cand.sources[i].title || f.title || "", published: cand.sources[i].published, backbone: cand.sources[i].backbone, ok: f.ok, byline: f.byline, note: f.note,
     blocks: f.blocks.filter((b) => !usedBlocks.has(b.id)), usedBlocks: f.blocks.filter((b) => usedBlocks.has(b.id)).map((b) => ({ id: b.id, by: usedBlocks.get(b.id)! })) }));
   const en = pipelineLocale() === "en"; // 글로벌판: 영어 설계 프롬프트·스키마·산출물 표기 (global-prompts.ts, KAN-201)
-  const parts = (en ? buildDesignPromptInlinePartsEn : buildDesignPromptInlineParts)({ episodeId, candidate: cand, promptVersion: a.promptVersion, guidelines, specScript, goldFullEum, goldFullYuna, sources, series: a.series, remakeOf: a.remakeOf, shortRules: a.shortRules });
+  const parts = (en ? buildDesignPromptInlinePartsEn : buildDesignPromptInlineParts)({ episodeId, candidate: cand, promptVersion: a.promptVersion, guidelines, specScript, goldFullEum, goldFullYuna, sources, series: a.series, remakeOf: a.remakeOf, shortRules: a.shortRules, shortHook: !en && lengthProfileOf(cand.length_profile) === "short" ? shortHookFor(cand.id) : null });
   const normOutline = en ? normalizeOutlineEn : normalizeOutline;
   log(`  design ${episodeId}: 단발 호출 (공유 ${Math.round(parts.system.length / 1000)}K + 편별 ${Math.round(parts.user.length / 1000)}K자)`);
   const runDesign = (userPrompt: string, phase: string) => ex.run<DesignInlineOut>({
