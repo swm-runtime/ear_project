@@ -1,6 +1,6 @@
 import fs from "node:fs/promises";
 import path from "node:path";
-import { buildSeriesOverlapPrompt, normalizeSeriesPlan, pipelineLocale, promptBody, SERIES_OVERLAP_SCHEMA, seriesOverlapMessages, type SeriesOverlapFinding, seriesRecapMaterial, seriesSentences, type BacklogCandidate, type SeriesDraftContext, type SeriesPlanEpisode, type SeriesTemplates, type Templates } from "@ear/pipeline";
+import { buildSeriesOverlapPrompt, normalizeSeriesPlan, pipelineLocale, planRecap, promptBody, SERIES_OVERLAP_SCHEMA, seriesOverlapMessages, type SeriesOverlapFinding, seriesRecapMaterial, seriesSentences, type BacklogCandidate, type SeriesDraftContext, type SeriesPlanEpisode, type SeriesTemplates, type Templates } from "@ear/pipeline";
 import { activePromptAsset, getSeries, seriesPrevEpisodeId } from "../db.js";
 import { getFile } from "../storage.js";
 import { parseScriptForTts } from "../tts/script.js";
@@ -34,7 +34,12 @@ export async function buildSeriesContext(cand: BacklogCandidate, templates: Temp
   if (!ep) throw new Error(`시리즈 ${s.name} 설계안에 ${no}화가 없다`);
   const total = s.total_episodes ?? plan.length;
   let prev: SeriesDraftContext["prev"] = null;
-  if (no > 1) {
+  if (no > 1 && s.length_profile === "short") {
+    // 짧은 판 시리즈(2026-10-30): 회상 재료를 설계안에서 — 앞 편 초안을 기다리지 않는다(seriesPrevReady)
+    const pe = plan.find((e) => e.no === no - 1);
+    if (!pe) throw new Error(`시리즈 ${s.name} 설계안에 ${no - 1}화가 없다`);
+    prev = planRecap(pe);
+  } else if (no > 1) {
     const prevId = await seriesPrevEpisodeId(cand.series_id, no - 1);
     if (!prevId) throw new Error(`${no - 1}화 에피소드가 아직 없다 — 앞 편 설계 뒤에 집는다(spec/11 5.3)`);
     const md = await getFile(`s3:episodes/${prevId}/outline.md`);

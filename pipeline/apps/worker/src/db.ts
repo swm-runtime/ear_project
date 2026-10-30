@@ -462,11 +462,12 @@ export async function seriesPrevEpisodeId(seriesId: string, no: number): Promise
 export const SERIES_PREV_READY = ["drafted", "qa_passed", "review_required", "packaged", "published"];
 export async function seriesPrevReady(backlogId: string): Promise<boolean> {
   const r = await pool.query(
-    "select b.series_no, p.status from public.backlog b left join public.backlog p on p.series_id = b.series_id and p.series_no = b.series_no - 1 and p.status <> 'rejected' where b.id = $1",
+    "select b.series_no, p.status, s.length_profile slp from public.backlog b left join public.series s on s.id = b.series_id left join public.backlog p on p.series_id = b.series_id and p.series_no = b.series_no - 1 and p.status <> 'rejected' where b.id = $1",
     [backlogId],
   ); // 반려된 앞 편 후보는 빼고 본다 — 콘솔 [이 편 다시 기획] 뒤 같은 화 번호에 후보가 둘일 수 있다(2026-10-27). 살아 있는 후보 중 하나라도 초안을 마쳤으면 참
   const row = r.rows[0];
   if (!row || !row.series_no || row.series_no <= 1) return true;
+  if (row.slp === "short") return true; // 짧은 판 시리즈(2026-10-30): 회상을 설계안에서 가져와(series-draft planRecap) 편끼리 기다리지 않는다 — 워커 복제가 동시에 집는다
   return r.rows.some((x) => SERIES_PREV_READY.includes(x.status));
 }
 /** DB 가 진실인 프롬프트 자산의 active 본 (spec/10 3.2) — git 사본으로 폴백하지 않는다 */
