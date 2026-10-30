@@ -182,7 +182,7 @@ export class AdminInsightsSummaryResponseDto {
   readonly withdrawal_reasons: { reason_code: string | null; count: number }[];
   /**
    * 창 안에 보낸 알림의 종류별 반응(2026-10-26) — `type`이 `retention.<규칙>.<변형>`이면 `rule`·`variant`가 채워진다
-   * (`drip_arrival`은 둘 다 null — 비교 기준선). 반응 = 보낸 뒤 2시간 안 재생
+   * (`drip_arrival`은 둘 다 null — 비교 기준선. 시각 A/B의 `drip_arrival.a`·`.b`는 `variant`만 `a`·`b` — KAN-289). 반응 = 보낸 뒤 2시간 안 재생
    */
   readonly push_reactions: {
     type: string;
@@ -238,7 +238,7 @@ export class AdminInsightsSummaryResponseDto {
     plays: number;
     paid_active: number;
   }[];
-  /** 나라별(`users.region_code`, 없으면 unknown) — 글로벌을 골랐을 때만, 그 밖은 빈 배열. 가입자 많은 나라 먼저 */
+  /** 나라별(기기 시간대에서 추정, 없으면 unknown · 모르는 시간대는 그 이름) — 글로벌을 골랐을 때만, 그 밖은 빈 배열. 가입자 많은 나라 먼저 */
   readonly by_region: {
     region: string;
     users: number;
@@ -342,9 +342,12 @@ export class AdminInsightsSummaryResponseDto {
       recent_top_contents: summary.recentTopContents.map(toTopContent),
       recent_since: summary.recentSince.toISOString(),
       push_reactions: summary.pushReactions.map((r) => {
+        // `retention.<규칙>.<변형>` → 규칙·변형, `drip_arrival.<그룹>`(시각 A/B — KAN-289) → 변형만(규칙 null = 드립 도착)
         const [, rule = null, variant = null] = r.type.startsWith('retention.')
           ? r.type.split('.')
-          : [];
+          : r.type.startsWith('drip_arrival.')
+            ? [null, null, r.type.slice('drip_arrival.'.length)]
+            : [];
 
         return {
           type: r.type,

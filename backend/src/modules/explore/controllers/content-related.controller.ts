@@ -15,6 +15,7 @@ import { RelatedContentListResponseDto } from '../dto/related-content-list-respo
 import { RelatedContentQueryRequestDto } from '../dto/related-content-query-request.dto';
 import { DEFAULT_RELATED_CONTENT_LIMIT } from '../explore.constant';
 import { ExploreOrchestrator } from '../explore.orchestrator';
+import { ContentCohortService } from '@/modules/content/services/content-cohort.service';
 import { toUserMarket } from '@/modules/user/policies/market.policy';
 
 /**
@@ -29,7 +30,10 @@ import { toUserMarket } from '@/modules/user/policies/market.policy';
 @Controller('contents')
 @UseGuards(JwtAuthGuard)
 export class ContentRelatedController {
-  constructor(private readonly exploreOrchestrator: ExploreOrchestrator) {}
+  constructor(
+    private readonly exploreOrchestrator: ExploreOrchestrator,
+    private readonly contentCohortService: ContentCohortService,
+  ) {}
 
   @Get(':contentId/related')
   async getRelated(
@@ -41,6 +45,10 @@ export class ContentRelatedController {
       await this.exploreOrchestrator.getRelated(currentUser.id, {
         baseContentId: contentId,
         market: toUserMarket(currentUser.market),
+        // 추천 블록은 노출면이다 — 기준 편은 막지 않고 후보만 코호트로 거른다(KAN-298)
+        lengthProfile: this.contentCohortService.resolve(
+          currentUser.signedUpAt,
+        ),
         excludeIds: query.exclude_ids ?? [],
         // 기본값은 서버가 정한다 — 클라이언트에 상수로 두면 서버가 바꿀 때 어긋난다
         limit: query.limit ?? DEFAULT_RELATED_CONTENT_LIMIT,

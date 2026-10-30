@@ -19,6 +19,7 @@ import {
   useSessionStore,
 } from '@/features/auth';
 import { registerCareerSavedListener } from '@/features/career';
+import { resetContentReviewSession, startContentReviewOutboxSync } from '@/features/content-review';
 import { fetchUpNext, saveContent } from '@/features/explore';
 import { registerInterestSavedListener } from '@/features/interest';
 import {
@@ -207,6 +208,8 @@ export const bootstrapApp = (): void => {
         isCountedToday: item.isCountedToday,
         isCompleted: item.status === 'completed',
         topicIds: item.content.topicIds,
+        // 잠긴 편 — 패널 탭은 잠금 시트, 자동 재생은 여기서 멈춘다(KAN-294)
+        isLocked: item.content.isLocked,
       }));
     },
     saveQueueOrder: (itemIds) => saveQueueOrder({ itemIds }),
@@ -244,6 +247,10 @@ export const bootstrapApp = (): void => {
    * (진입 때의 재전송은 라이브러리가 판정 조회 직전에 한다)
    */
   startDripFeedbackOutboxSync(() =>
+    isSignedIn() ? (useSessionStore.getState().user?.id ?? null) : null,
+  );
+  // 콘텐츠 후기의 미전송 보관함(KAN-280) — 추천 별점과 같은 규칙. 진입 때의 재전송은 판정 조회 직전에 서비스가 한다
+  startContentReviewOutboxSync(() =>
     isSignedIn() ? (useSessionStore.getState().user?.id ?? null) : null,
   );
 
@@ -308,6 +315,8 @@ export const bootstrapApp = (): void => {
       useLibraryArrivalStore.getState().reset();
       // 추천 별점 팝업은 계정마다 이번 세션에 한 번 — 다음 계정은 새로 묻는다
       resetDripFeedbackSession();
+      // 콘텐츠 후기의 켜짐 여부 · 먼저 묻기도 계정마다 이번 세션에 한 번 — 다음 계정은 새로 묻는다
+      resetContentReviewSession();
       resetDeviceSync();
       // 반영이 미뤄진 거래의 재시도를 멈춘다 — 다음 계정의 세션으로 앞 사용자의 거래를 제출하지 않는다
       stopSubscriptionSync();

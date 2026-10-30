@@ -148,6 +148,11 @@ describe('LibraryScreenOrchestrator', () => {
       dripExclusionService,
       dataSource,
       seriesService,
+      {
+        resolveSeriesAccess: jest
+          .fn()
+          .mockResolvedValue({ lockedAfterEpisodeNo: null }),
+      } as never,
     );
   });
 

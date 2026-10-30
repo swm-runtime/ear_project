@@ -214,6 +214,145 @@ describe('validateEnv', () => {
     expect(() => validateEnv(validEnv)).not.toThrow();
   });
 
+  it('FIRST_DRIP_RANDOM_ENABLED 는 true·false·빈 값만 받는다 — 오타로 실험이 조용히 켜지거나 꺼지지 않게', () => {
+    expect(() =>
+      validateEnv({ ...validEnv, FIRST_DRIP_RANDOM_ENABLED: 'on' }),
+    ).toThrow(/FIRST_DRIP_RANDOM_ENABLED/);
+    for (const value of ['true', 'false', '']) {
+      expect(() =>
+        validateEnv({ ...validEnv, FIRST_DRIP_RANDOM_ENABLED: value }),
+      ).not.toThrow();
+    }
+  });
+
+  it('RETENTION_MORNING_PUSH_MODE 는 off·dry_run·on·빈 값만 받는다(KAN-288)', () => {
+    expect(() =>
+      validateEnv({ ...validEnv, RETENTION_MORNING_PUSH_MODE: 'true' }),
+    ).toThrow(/RETENTION_MORNING_PUSH_MODE/);
+    for (const value of ['off', 'dry_run', 'on', '']) {
+      expect(() =>
+        validateEnv({ ...validEnv, RETENTION_MORNING_PUSH_MODE: value }),
+      ).not.toThrow();
+    }
+  });
+
+  it('DRIP_ARRIVAL_AB_ENABLED 는 true·false·빈 값만 받는다(KAN-289)', () => {
+    expect(() =>
+      validateEnv({ ...validEnv, DRIP_ARRIVAL_AB_ENABLED: 'on' }),
+    ).toThrow(/DRIP_ARRIVAL_AB_ENABLED/);
+    for (const value of ['true', 'false', '']) {
+      expect(() =>
+        validateEnv({ ...validEnv, DRIP_ARRIVAL_AB_ENABLED: value }),
+      ).not.toThrow();
+    }
+  });
+
+  it('SERIES_PAYWALL_ENABLED 는 true·false·빈 값만, SERIES_FREE_EPISODES 는 1~99 정수이거나 빈 값이다(KAN-290)', () => {
+    expect(() =>
+      validateEnv({ ...validEnv, SERIES_PAYWALL_ENABLED: 'on' }),
+    ).toThrow(/SERIES_PAYWALL_ENABLED/);
+    for (const value of ['true', 'false', '']) {
+      expect(() =>
+        validateEnv({ ...validEnv, SERIES_PAYWALL_ENABLED: value }),
+      ).not.toThrow();
+    }
+    // 0이면 1편(탐험·첫 드립이 주는 시리즈 도입부)까지 잠긴다 — 받지 않는다
+    for (const value of ['0', '-1', '3.5', 'three', '100']) {
+      expect(() =>
+        validateEnv({ ...validEnv, SERIES_FREE_EPISODES: value }),
+      ).toThrow(/SERIES_FREE_EPISODES/);
+    }
+    for (const value of ['1', '3', '99', '']) {
+      expect(() =>
+        validateEnv({ ...validEnv, SERIES_FREE_EPISODES: value }),
+      ).not.toThrow();
+    }
+  });
+
+  it('PLAN_DISCOUNT_* — 스위치는 true·false·빈 값만, 정가는 양의 정수이거나 빈 값이다(KAN-286)', () => {
+    expect(() =>
+      validateEnv({ ...validEnv, PLAN_DISCOUNT_DISPLAY_ENABLED: 'yes' }),
+    ).toThrow(/PLAN_DISCOUNT_DISPLAY_ENABLED/);
+    for (const key of [
+      'PLAN_DISCOUNT_ORIGINAL_PRICE_DAILY_KRW',
+      'PLAN_DISCOUNT_ORIGINAL_PRICE_PRO_KRW',
+    ]) {
+      for (const value of ['0', '-1', '3,900', '3900.5', 'abc']) {
+        expect(() => validateEnv({ ...validEnv, [key]: value })).toThrow(
+          new RegExp(key),
+        );
+      }
+      for (const value of ['', '3900', '9900']) {
+        expect(() => validateEnv({ ...validEnv, [key]: value })).not.toThrow();
+      }
+    }
+  });
+
+  it('SHORT_CONTENT_COHORT_SINCE · PLAN_DISCOUNT_ENDS_AT — 없는 날짜(13월 · 2월 30일 · 11월 31일)는 부팅에서 거부한다(조용히 꺼지거나 날짜가 넘어가지 않게)', () => {
+    for (const key of ['SHORT_CONTENT_COHORT_SINCE', 'PLAN_DISCOUNT_ENDS_AT']) {
+      for (const value of [
+        '2026-13-05T10:00+09:00',
+        '2026-02-30T10:00:00+09:00',
+        '2026-11-31T00:00:00+09:00',
+        '2026-12-01T24:30:00+09:00',
+        '2026-11-05',
+        '2026-11-05T10:00:00',
+      ]) {
+        expect(() => validateEnv({ ...validEnv, [key]: value })).toThrow(
+          new RegExp(key),
+        );
+      }
+      for (const value of [
+        '',
+        '2026-11-05T10:00:00+09:00',
+        '2026-11-05T10:00+09:00',
+        '2026-11-30T15:00:00.000Z',
+        '2026-03-08T02:30:00-05:00',
+      ]) {
+        expect(() => validateEnv({ ...validEnv, [key]: value })).not.toThrow();
+      }
+    }
+  });
+
+  it('PLAN_DISCOUNT_ENDS_AT 는 오프셋 있는 ISO 시각이거나 빈 값이다 — 기간 한정 할인(11월 한 달)', () => {
+    for (const value of ['2026-12-01', '2026-12-01T00:00:00', 'december']) {
+      expect(() =>
+        validateEnv({ ...validEnv, PLAN_DISCOUNT_ENDS_AT: value }),
+      ).toThrow(/PLAN_DISCOUNT_ENDS_AT/);
+    }
+    for (const value of [
+      '',
+      '2026-12-01T00:00:00+09:00',
+      '2026-11-30T15:00:00Z',
+    ]) {
+      expect(() =>
+        validateEnv({ ...validEnv, PLAN_DISCOUNT_ENDS_AT: value }),
+      ).not.toThrow();
+    }
+  });
+
+  it('CONTENT_REVIEW_ENABLED 는 true·false·빈 값만 받는다 — 오타로 후기가 처리방침 시행 전에 켜지지 않게', () => {
+    expect(() =>
+      validateEnv({ ...validEnv, CONTENT_REVIEW_ENABLED: 'on' }),
+    ).toThrow(/CONTENT_REVIEW_ENABLED/);
+    for (const value of ['true', 'false', '']) {
+      expect(() =>
+        validateEnv({ ...validEnv, CONTENT_REVIEW_ENABLED: value }),
+      ).not.toThrow();
+    }
+  });
+
+  it('CONTENT_REVIEW_REWARD_ENABLED 는 true·false·빈 값만 받는다 — 오타로 보상이 조용히 나가거나 멈추지 않게', () => {
+    expect(() =>
+      validateEnv({ ...validEnv, CONTENT_REVIEW_REWARD_ENABLED: 'yes' }),
+    ).toThrow(/CONTENT_REVIEW_REWARD_ENABLED/);
+    for (const value of ['true', 'false', '']) {
+      expect(() =>
+        validateEnv({ ...validEnv, CONTENT_REVIEW_REWARD_ENABLED: value }),
+      ).not.toThrow();
+    }
+  });
+
   it('SIGNUP_TRIAL_DAYS 는 1~30 정수이고 비워도 된다 — 배포 스크립트가 빈 값으로 선언해 둔다', () => {
     for (const value of ['0', '31', '7.5', 'week', '-1']) {
       expect(() =>

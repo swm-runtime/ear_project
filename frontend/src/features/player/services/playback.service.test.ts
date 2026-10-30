@@ -10,7 +10,7 @@ import { ApiError } from '@/shared/api/api-error';
 import { ERROR_CODES } from '@/shared/api/error-codes';
 
 import type { AudioIssueResult } from '../player.types';
-import { playbackService } from './playback.service';
+import { issueBlockOf, playbackService } from './playback.service';
 import { usePlaybackStore } from '../store/playback.store';
 import { useSleepTimerStore } from '../store/sleep-timer.store';
 
@@ -784,5 +784,184 @@ describe('듣던 편을 지키는 시작(KAN-257 — keepCurrentUntilIssued)', (
     await jest.advanceTimersByTimeAsync(0);
     expect(onIssueBlocked).toHaveBeenCalledTimes(1);
     expect(usePlaybackStore.getState().session).toBeNull();
+  });
+});
+
+describe('시리즈 잠긴 편(KAN-294 — SERIES_EPISODE_LOCKED, experiments-api.md 4.2-3)', () => {
+  const LOCKED_ID = 'c0ffee00-0000-4000-8000-00000000000b';
+  const lockedError = () =>
+    new ApiError(
+      ERROR_CODES.SERIES_EPISODE_LOCKED,
+      '이 편은 프로 구독에서 들을 수 있어요',
+      false,
+      null,
+      null,
+      403,
+    );
+  const entryOf = (contentId: string, isLocked?: boolean) => ({
+    itemId: null,
+    contentId,
+    title: contentId,
+    authorName: null,
+    sourceName: null,
+    thumbnailUrl: null,
+    durationSec: 600,
+    isCountedToday: false,
+    isCompleted: false,
+    topicIds: [],
+    ...(isLocked === undefined ? {} : { isLocked }),
+  });
+
+  /** 탐색 맥락 목록으로 재생하다가 끝까지 간다(자동 재생 켬) */
+  const playToEnd = async (items: ReturnType<typeof entryOf>[]): Promise<void> => {
+    mockAutoplay.enabled = true;
+    mockIssue.mockResolvedValue(issueOf('https://example.com/audio'));
+    const player = await startPlaying(playbackService);
+    usePlaybackStore.getState().setQueueContext({
+      kind: 'explore',
+      source: { type: 'series', title: '시리즈' },
+      items,
+    });
+    player.currentTime = 600;
+    player.playing = false;
+    player.emit({
+      didJustFinish: true,
+      currentTime: 600,
+      duration: 600,
+      playing: false,
+      isLoaded: true,
+    });
+    await jest.advanceTimersByTimeAsync(600);
+  };
+
+  afterEach(() => {
+    mockBridge.current = null;
+  });
+
+  it('잠금 403 은 series_locked 로, 한도 403 은 종전 갈래로 읽고 그 밖의 에러는 차단이 아니다', () => {
+    // given
+    const reached = new ApiError(ERROR_CODES.PLAY_LIMIT_REACHED, '한도', false, null, null, 403);
+    const withdrawn = new ApiError(ERROR_CODES.CONTENT_WITHDRAWN, '회수', false, null, null, 403);
+
+    // when · then
+    expect(issueBlockOf(lockedError())).toEqual({
+      kind: 'series_locked',
+      message: '이 편은 프로 구독에서 들을 수 있어요',
+    });
+    expect(issueBlockOf(reached)).toEqual({ kind: 'paid_limit', message: '한도' });
+    expect(issueBlockOf(withdrawn)).toBeNull();
+    expect(issueBlockOf(new Error('x'))).toBeNull();
+  });
+
+  it('발급이 잠금 403 이면 세션을 series_locked 로 막는다 — 로드 실패 화면이 아니다', async () => {
+    // given
+    mockIssue.mockRejectedValueOnce(lockedError());
+
+    // when
+    playbackService.start({ contentId: LOCKED_ID, entryPoint: 'explore' });
+    await jest.advanceTimersByTimeAsync(0);
+
+    // then
+    const session = usePlaybackStore.getState().session;
+    expect(session?.state).toBe('blocked');
+    expect(session?.blocked).toEqual({
+      kind: 'series_locked',
+      message: '이 편은 프로 구독에서 들을 수 있어요',
+    });
+    expect(mockPlayers).toHaveLength(0);
+  });
+
+  it('듣던 편을 지키는 시작에서 잠금 403 이면 듣던 편을 그대로 두고 onIssueBlocked 에 series_locked 를 넘긴다', async () => {
+    // given — 한 편을 듣는 중
+    mockIssue.mockResolvedValue(issueOf('https://example.com/audio'));
+    const player = await startPlaying(playbackService);
+    const onIssueBlocked = jest.fn();
+    mockIssue.mockRejectedValueOnce(lockedError());
+
+    // when
+    playbackService.start({
+      contentId: LOCKED_ID,
+      entryPoint: 'explore',
+      autoplay: false,
+      keepCurrentUntilIssued: true,
+      callbacks: { onIssueBlocked },
+    });
+    await jest.advanceTimersByTimeAsync(0);
+
+    // then
+    expect(onIssueBlocked).toHaveBeenCalledWith({
+      kind: 'series_locked',
+      message: '이 편은 프로 구독에서 들을 수 있어요',
+    });
+    expect(usePlaybackStore.getState().session?.contentId).toBe(CONTENT_ID);
+    expect(player.pause).not.toHaveBeenCalled();
+  });
+
+  it('재생 시작 기록(POST /play)이 잠금 403 이면 멈추고 series_locked 로 막는다 — 재시도하지 않는다', async () => {
+    // given
+    mockStartPlay.mockImplementation(() => Promise.reject(lockedError()));
+    mockIssue.mockResolvedValue(issueOf('https://example.com/audio'));
+
+    // when
+    const player = await startPlaying(playbackService);
+    await jest.advanceTimersByTimeAsync(5_000);
+
+    // then
+    expect(usePlaybackStore.getState().session?.blocked?.kind).toBe('series_locked');
+    expect(player.pause).toHaveBeenCalled();
+    expect(mockStartPlay).toHaveBeenCalledTimes(1);
+  });
+
+  it('자동 재생의 다음 줄이 잠긴 편이면 넘어가지 않고 끝난 자리에 멈춘다 — 잠금 시트를 띄울 기록을 남긴다(KAN-302)', async () => {
+    // when
+    await playToEnd([entryOf(CONTENT_ID), entryOf(LOCKED_ID, true)]);
+
+    // then
+    expect(mockIssue.mock.calls.map(([input]) => input.contentId)).toEqual([CONTENT_ID]);
+    expect(usePlaybackStore.getState().session?.state).toBe('ended');
+    const pending = usePlaybackStore.getState().lockedNext;
+    expect(pending?.afterContentId).toBe(CONTENT_ID);
+    expect(pending?.entry.contentId).toBe(LOCKED_ID);
+    expect(pending?.queue.kind).toBe('explore');
+  });
+
+  it('잠긴 편 앞에서 멈춘 뒤 다른 편을 틀면 그 기록을 지운다(KAN-302)', async () => {
+    // given
+    await playToEnd([entryOf(CONTENT_ID), entryOf(LOCKED_ID, true)]);
+
+    // when
+    playbackService.start({
+      contentId: 'c0ffee00-0000-4000-8000-00000000000d',
+      entryPoint: 'explore',
+    });
+
+    // then
+    expect(usePlaybackStore.getState().lockedNext).toBeNull();
+  });
+
+  it('잠금 필드가 없거나 false 면(옛 서버) 종전처럼 다음 편을 튼다', async () => {
+    // when
+    await playToEnd([entryOf(CONTENT_ID), entryOf(LOCKED_ID)]);
+
+    // then
+    expect(mockIssue.mock.calls.map(([input]) => input.contentId)).toEqual([CONTENT_ID, LOCKED_ID]);
+  });
+
+  it('목록이 끝나 추천으로 갈아탈 때 잠긴 추천 편은 빼고 잠기지 않은 첫 편을 튼다', async () => {
+    // given
+    const OPEN_ID = 'c0ffee00-0000-4000-8000-00000000000c';
+    mockBridge.current = {
+      fetchUpNext: jest.fn(async () => [entryOf(LOCKED_ID, true), entryOf(OPEN_ID, false)]),
+    };
+
+    // when
+    await playToEnd([entryOf(CONTENT_ID)]);
+
+    // then
+    expect(mockIssue.mock.calls.map(([input]) => input.contentId)).toEqual([CONTENT_ID, OPEN_ID]);
+    const context = usePlaybackStore.getState().queueContext;
+    expect(context.kind === 'explore' ? context.items.map((item) => item.contentId) : []).toEqual([
+      OPEN_ID,
+    ]);
   });
 });

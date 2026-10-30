@@ -68,6 +68,8 @@ const toLibraryItem = (dto: LibraryItemDto): LibraryItem => ({
     contentVersion: dto.content.content_version,
     topicIds: dto.content.topic_ids,
     language: dto.content.language ?? null,
+    // 잠긴 편(KAN-294) — 옛 서버(필드 없음)는 잠기지 않은 것으로 읽는다
+    isLocked: dto.content.is_locked === true,
   },
   progress: toProgress(dto.progress),
 });
@@ -95,6 +97,7 @@ const toResumeResult = (dto: ResumeResponseDto): ResumeResult => ({
           // 옛 서버 응답(필드 이전)도 깨지지 않게 — 없으면 카테고리 줄만 비운다
           topicIds: dto.resume_target.content.topic_ids ?? [],
           language: dto.resume_target.content.language ?? null,
+          isLocked: dto.resume_target.content.is_locked === true,
         },
         progress: toProgress(dto.resume_target.progress),
       }

@@ -206,6 +206,8 @@ src/
 | MarketChange | User, Interest, Drip, Auth | **Entity를 소유하지 않는 유스케이스 모듈**, 아래 참고 — 신설 2026-10-19(KAN-227). Auth는 바뀐 시장을 담은 access token 재발급(`TokenService` — Auth가 export하는 유일한 Service) |
 | Notification | User | `notification_logs` 소유(`domain.md` 2장). 발송 대상 판정에 기기 토큰(`device_tokens`)·알림 토글(`user_settings`)이 필요하다. `User`는 `Notification`을 모르므로 순환은 없다 — 신설 2026-09-17(KAN-68) |
 | Notice | *(없음)* | `notices` 소유(`domain.md` 9.2). 관리자 쓰기의 감사 기록은 admin 모듈이 조합한다 — 신설 2026-09-17(KAN-67) |
+| ContentReview | Content, Library, Playback, User | `content_reviews` · `promotions` 소유(`domain.md` 6.8 · 8.7). 쓸 수 있는 편 · 완청 판정에 라이브러리 · 재생 기록을 읽는다. `promotions` 엔티티는 지급 표 엔티티(`InviteCodeRedemption`)를 **FK 선언용으로만** 참조한다 — 스키마 비교(`migration:generate`)가 FK · 부분 유니크를 지우지 않게. 그 표를 읽고 쓰는 일은 `billing`이 `InviteCodeService`로 한다 — 신설 2026-10-29(KAN-279) |
+| Billing | Subscription, User, Alert, **ContentReview** | 구독 · 스토어 알림 · 초대 코드 · 프로모션 경로. **후기 저장(`PUT /contents/:contentId/review`)은 여기서 받는다**(`ContentReviewSaveController`) — 응답의 `issued_promotion`(쓸 수 있는지 · 사유 · 요금제 이름 · 체험 겹침)이 구독 · 지급 상태로 조립되는데 `content-review`는 `subscription`을 의존하지 않기 때문이다(`domain.md` 2장). 저장 판정 · 발급은 `ContentReviewService`가 그대로 하고, 시트 열기 · 먼저 묻기 · 관리자 조회는 `content-review`에 남는다 — 2026-10-29(KAN-279) |
 | Retention | *(없음)* | **Entity도 다른 모듈도 갖지 않는 정책 집행 모듈**, 아래 참고 |
 | *(도메인 확정 시 계속 추가)* | | |
 
@@ -306,7 +308,7 @@ Error
 └── HttpException (Nest)
     └── BusinessException              # 우리가 던지는 모든 도메인 예외의 부모
         ├── BusinessNotFoundException  # 예: CONTENT_NOT_FOUND
-        ├── BusinessForbiddenException # 예: PLAY_LIMIT_EXCEEDED, CONTENT_WITHDRAWN
+        ├── BusinessForbiddenException # 예: PLAY_LIMIT_EXCEEDED, CONTENT_WITHDRAWN, SERIES_EPISODE_LOCKED
         ├── BusinessConflictException  # 예: DUPLICATE_REQUEST
         └── ExternalServiceException   # AI 서버·스토어 연동 실패
 ```
@@ -494,6 +496,8 @@ async withdraw(userId: string) {
 |---|---|---|
 | access token | 30분 | 저장하지 않음(stateless 검증) |
 | refresh token | 30일 | **해시**해서 DB 저장. 원문 저장 금지 |
+
+- **access token 클레임에 시장(`market`)과 가입 시각(`signed_up_at`, epoch ms)을 싣는다.** 요청마다 `users`를 읽지 않고 시장 · 짧은 판 코호트(KAN-298 — `domain.md` 5.1 노출 조건)를 판정하기 위해서다. 코호트가 아니라 **가입 시각**을 실어, 경계 설정(`SHORT_CONTENT_COHORT_SINCE`) 변경 · 롤백이 토큰 수명(30분)을 기다리지 않는다. `signed_up_at` 클레임이 없는 옛 토큰은 `standard` 코호트다(2026-10-29).
 
 - **refresh token은 사용 시 회전(rotation)한다.** 이전 토큰은 즉시 무효화하고, 이미 쓰인 토큰이 재사용되면 해당 사용자의 세션 전체를 무효화한다(탈취 감지).
   - **회전은 원자적이어야 한다**(반영 2026-09-09). 조회 → 무효화 → 발급을 나눠 하면 완전 동시 요청 둘이 **모두 통과해 탐지를 우회**하고, 근소 직렬 요청은 **정상 사용자를 강제 로그아웃**시킨다. 실서버에서 두 사례 모두 발생했다. 무효화를 `revoked_at IS NULL` 조건부 갱신으로 두고 **그 성공 여부로 판정한다.**

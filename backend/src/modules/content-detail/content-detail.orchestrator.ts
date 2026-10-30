@@ -5,6 +5,8 @@ import { ContentService } from '@/modules/content/services/content.service';
 import { SeriesService } from '@/modules/content/services/series.service';
 import { LibraryService } from '@/modules/library/library.service';
 import { PlaybackService } from '@/modules/playback/services/playback.service';
+import { PlayPolicyService } from '@/modules/playback/services/play-policy.service';
+import { isSeriesEpisodeLocked } from '@/modules/subscription/policies/series-paywall.policy';
 
 import { ContentDetailView } from './content-detail.types';
 import { UserMarket } from '@/modules/user/user.enum';
@@ -27,6 +29,7 @@ export class ContentDetailOrchestrator {
     private readonly libraryService: LibraryService,
     private readonly playbackService: PlaybackService,
     private readonly seriesService: SeriesService,
+    private readonly playPolicyService: PlayPolicyService,
   ) {}
 
   /**
@@ -58,6 +61,7 @@ export class ContentDetailOrchestrator {
       sources,
       seriesRefs,
       completedIds,
+      seriesAccess,
     ] = await Promise.all([
       this.contentService.findTopicViews([contentId]),
       this.libraryService.findActiveItems(userId, [contentId]),
@@ -72,6 +76,8 @@ export class ContentDetailOrchestrator {
       // "N부작 중 M화" 줄 — 총 편수는 시리즈 표가 기준이다(KAN-134)
       this.seriesService.findRefs([content]),
       this.libraryService.findCompletedContentIds(userId, [contentId]),
+      // 잠금 표시(KAN-290) — 재생 게이트와 같은 판정
+      this.playPolicyService.resolveSeriesAccess(userId, now),
     ]);
 
     return {
@@ -82,6 +88,7 @@ export class ContentDetailOrchestrator {
       libraryItem: libraryItems[0] ?? null,
       isCompleted: completedIds.has(contentId),
       isCountedToday: countedContentIds.has(contentId),
+      isLocked: isSeriesEpisodeLocked(content, seriesAccess),
     };
   }
 }

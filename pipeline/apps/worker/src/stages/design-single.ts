@@ -1,10 +1,10 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import { cfg, executedBy } from "../config.js";
-import { blockedTierHosts, insertRun, priorEpisodesUsingUrls, recordFetchStatus, refreshDomainFetchBlock, setJobProgress, type Job } from "../db.js";
+import { blockedTierHosts, insertRun, pool, priorEpisodesUsingUrls, recordFetchStatus, refreshDomainFetchBlock, setJobProgress, type Job } from "../db.js";
 import { getFile } from "../storage.js";
 import type { Executor } from "../executors/index.js";
-import { assetPaths, AXIS_CHECK_SCHEMA, AXIS_CHECK_SCHEMA_EN, buildAxisCheckPromptParts, buildAxisCheckPromptPartsEn, buildDesignPromptInlineParts, buildDesignPromptInlinePartsEn, DESIGN_INLINE_SCHEMA, DESIGN_INLINE_SCHEMA_EN, designAxisRejectEn, designMissingQuestionsEn, isHistoryCandidateEn, pipelineLocale, type BacklogCandidate, type InlineSource, type SeriesDraftContext } from "@ear/pipeline";
+import { assetPaths, AXIS_CHECK_SCHEMA, AXIS_CHECK_SCHEMA_EN, buildAxisCheckPromptParts, buildAxisCheckPromptPartsEn, buildDesignPromptInlineParts, buildDesignPromptInlinePartsEn, DESIGN_INLINE_SCHEMA, DESIGN_INLINE_SCHEMA_EN, designAxisRejectEn, designMissingQuestionsEn, isHistoryCandidateEn, lengthSpecOf, pipelineLocale, shortTrimFeedback, type ShortRules, type BacklogCandidate, type InlineSource, type SeriesDraftContext, lengthProfileOf, shortHookFor } from "@ear/pipeline";
 import { fetchArticle, fetchStatusOf, type FetchedSource } from "../sources/fetch.js";
 import { log } from "../util.js";
 import { addPronunciations } from "../tts/normalize.js";
@@ -51,6 +51,16 @@ export function deriveAttribution(claims: DesignInlineOut["claims"]): Map<string
 /** 구성안 정규화 (2026-09-10, T260910-007/C77): 모델이 "**축:**"·"### 구간 #1"·"- 예상 분량:"·"구간 1 —" 처럼 장식을 붙이면 줄머리 검사(`^축:`·`^구간 #1`)와
  *  L0 의 `^예상 분량:`·`^구간 #n` 이 전부 어긋나 $1.3 짜리 설계를 통째로 버렸다. 알려진 키 줄의 장식만 벗기고 정본 형태로 맞춘다 — 내용은 손대지 않는다 */
 const OUTLINE_KEYS = /^(축 해설|축|착지 구간|예상 분량|역할표|역할 없는 소스|연결·비유|마무리 한 줄|비율 합계|구간\s*#?\s*\d)/; // \b 는 한글 뒤에서 안 잡힌다 — 키 목록으로
+/** 설계 결과에 한자·가나가 네 자 이상 이어진 칸 (한국판, 2026-10-30) — 소스 제목 속 한두 자는 걸리지 않는다 */
+const FOREIGN_SCRIPT_RE = /[\u4E00-\u9FFF\u3040-\u30FF]{4,}/;
+export function foreignScriptFields(o: { axis?: string | null; outline_md?: string | null; claims?: { text?: string | null }[] | null }): string[] {
+  const out: string[] = [];
+  if (FOREIGN_SCRIPT_RE.test(o.axis ?? "")) out.push("축");
+  if ((o.claims ?? []).some((c) => FOREIGN_SCRIPT_RE.test(c.text ?? ""))) out.push("claims");
+  if (FOREIGN_SCRIPT_RE.test(o.outline_md ?? "")) out.push("구성안");
+  return out;
+}
+
 export function normalizeOutline(md: string): string {
   return md.split(/\r?\n/).map((raw) => {
     let l = raw.replace(/^\s*(?:#{1,6}\s*|[-*>]\s+)?/, "").replace(/\*\*/g, "").replace(/^\s+/, "");
@@ -97,7 +107,7 @@ export function isUsedBlock(text: string, used: string[]): boolean {
   return used.some((u) => { const b = normText(u); return b.length >= 40 && (a === b || a.includes(b) || b.includes(a)); });
 }
 
-export async function runDesignSingle(a: { job: Job; ex: Executor; episodeId: string; candidate: BacklogCandidate; dir: string; assetRoot: string; promptVersion: string; noGold?: boolean; series?: SeriesDraftContext }):
+export async function runDesignSingle(a: { job: Job; ex: Executor; episodeId: string; candidate: BacklogCandidate; dir: string; assetRoot: string; promptVersion: string; noGold?: boolean; series?: SeriesDraftContext; /** 재제작 원본(0040) — short 프로필 편의 축을 원본 질문에 묶는다 */ remakeOf?: { title: string; axis?: string | null } | null; /** 짧은 판 규칙 자산(short-v1) */ shortRules?: ShortRules }):
   Promise<{ design: DesignOut; model: string | null; costUsd: number; tokens: unknown; fetched: FetchedSource[] }> {
   const { job, ex, episodeId, candidate: cand, dir } = a;
   await setJobProgress(job.id, { phase: "설계 1/2 — 소스 본문 가져오기", detail: `${cand.sources.length}건 fetch`, toolCounts: {}, turns: 0, elapsedMs: 0 }).catch(() => {});
@@ -112,12 +122,16 @@ export async function runDesignSingle(a: { job: Job; ex: Executor; episodeId: st
   await refreshDomainFetchBlock(fetched.map((f) => f.url)).catch(() => {}); // 도메인째 반복되면 군집화 제외 표시
   const okCount = fetched.filter((f) => f.ok).length;
   log(`  design ${episodeId}: 소스 ${okCount}/${fetched.length} 본문 확보 (${fetched.map((f) => `S${f.n} ${f.ok ? `${f.chars}자/${f.blocks.length}문단` : `✗ ${f.status}`}`).join(" · ")})`);
-  if (okCount < 3) throw new Error(`소스 본문 ${okCount}건 — 3건 하한 미달 (${fetched.filter((f) => !f.ok).map((f) => `S${f.n} ${f.status} ${f.note ?? ""}`).join("; ")})`);
+  const minSrc = pipelineLocale() === "en" ? 3 : lengthSpecOf(cand.length_profile).minSources; // 2026-10-30: 짧은 판은 사용 소스 2건 하한 (후보 단계 3건 규칙은 그대로)
+  if (okCount < minSrc) throw new Error(`소스 본문 ${okCount}건 — ${minSrc}건 하한 미달 (${fetched.filter((f) => !f.ok).map((f) => `S${f.n} ${f.status} ${f.note ?? ""}`).join("; ")})`);
 
   // 이미 쓴 문단 제외 (2026-09-10, T260910-005↔013 — 같은 소스 2건에서 같은 문단을 골라 두 편의 구간이 거의 같은 대사가 됐다):
   // 다른 후보의 편이 같은 URL 에서 발췌한 문단은 프롬프트에서 본문을 빼고 자리만 남긴다 — 모델은 고를 수 없고, 남은 대목이 얇으면 그 소스를 제외한다.
   // 소스 단위로 막지 않는 이유: 풀이 작은 대분류는 소스 금지가 곧 편수 제한이다. 막는 단위는 문단이다.
-  const prior = await priorEpisodesUsingUrls(cand.sources.map((s) => s.url), cand.id).catch((e) => { log(`  design ${episodeId}: 이전 편 조회 실패 (${String(e?.message ?? e).slice(0, 80)}) — 문단 제외 없이 진행`); return []; });
+  // 짧은 판(0040·0041): 원본 편의 문단은 쓸 수 있다. 짧은 판 시리즈는 원본 편 하나를 1~3편으로 나눠 형제 편이 같은 소스를 쓰므로, 형제 편끼리도 막지 않는다 —
+  // 막으면 먼저 설계한 편이 넉넉히 발췌한 문단 때문에 뒤 편이 재료 부족으로 멈춘다. 형제 편의 겹침은 설계안의 "이 편에서만" 경계와 시리즈 겹침 검사(L1)가 막는다
+  const exemptIds = cand.remake_of ? [cand.id, cand.remake_of, ...(cand.series_id ? (await pool.query("select id from public.backlog where series_id = $1 and remake_of = $2 and id <> $3", [cand.series_id, cand.remake_of, cand.id])).rows.map((r) => r.id as string) : [])] : [cand.id];
+  const prior = await priorEpisodesUsingUrls(cand.sources.map((s) => s.url), exemptIds.length > 1 ? exemptIds : cand.id).catch((e) => { log(`  design ${episodeId}: 이전 편 조회 실패 (${String(e?.message ?? e).slice(0, 80)}) — 문단 제외 없이 진행`); return []; });
   const usedByUrl = new Map<string, { episode: string; title: string; texts: string[] }[]>();
   for (const pe of prior) {
     const md = pe.sources_key ? await getFile(pe.sources_key) : null;
@@ -142,7 +156,7 @@ export async function runDesignSingle(a: { job: Job; ex: Executor; episodeId: st
   const sources: InlineSource[] = fetched.map((f, i) => ({ n: f.n, url: f.url, publisher: cand.sources[i].publisher, title: cand.sources[i].title || f.title || "", published: cand.sources[i].published, backbone: cand.sources[i].backbone, ok: f.ok, byline: f.byline, note: f.note,
     blocks: f.blocks.filter((b) => !usedBlocks.has(b.id)), usedBlocks: f.blocks.filter((b) => usedBlocks.has(b.id)).map((b) => ({ id: b.id, by: usedBlocks.get(b.id)! })) }));
   const en = pipelineLocale() === "en"; // 글로벌판: 영어 설계 프롬프트·스키마·산출물 표기 (global-prompts.ts, KAN-201)
-  const parts = (en ? buildDesignPromptInlinePartsEn : buildDesignPromptInlineParts)({ episodeId, candidate: cand, promptVersion: a.promptVersion, guidelines, specScript, goldFullEum, goldFullYuna, sources, series: a.series });
+  const parts = (en ? buildDesignPromptInlinePartsEn : buildDesignPromptInlineParts)({ episodeId, candidate: cand, promptVersion: a.promptVersion, guidelines, specScript, goldFullEum, goldFullYuna, sources, series: a.series, remakeOf: a.remakeOf, shortRules: a.shortRules, shortHook: !en && lengthProfileOf(cand.length_profile) === "short" ? shortHookFor(cand.id) : null });
   const normOutline = en ? normalizeOutlineEn : normalizeOutline;
   log(`  design ${episodeId}: 단발 호출 (공유 ${Math.round(parts.system.length / 1000)}K + 편별 ${Math.round(parts.user.length / 1000)}K자)`);
   const runDesign = (userPrompt: string, phase: string) => ex.run<DesignInlineOut>({
@@ -151,11 +165,23 @@ export async function runDesignSingle(a: { job: Job; ex: Executor; episodeId: st
   });
   let r = await runDesign(parts.user, "설계 1/2 — 발췌 선택·claims·구성안 (단발)");
   let o = { ...r.output, outline_md: normOutline(r.output.outline_md) };
+  // 언어 흔들림 (2026-10-30): 단발 호출이라도 한 응답 안에서 언어를 바꿔 쓴다 — 10-15~10-30 설계 기록 14건에 중국어·일본어가 섞였고 축 문장 자체가 중국어인 것이 3건(C631 두 번·C583).
+  // 축·claims·구성안에 한자·가나가 네 자 이상 이어지면 한 번 재설계한다. 제외 사유·메모는 대본에 들어가지 않아 기록만 남는다
+  let langExtra = 0;
+  if (!en) {
+    const where = foreignScriptFields(o);
+    if (where.length) {
+      log(`  design ${episodeId}: ${where.join("·")}에 한자·가나 — 재설계 1회`);
+      langExtra = r.listCostUsd ?? 0;
+      r = await runDesign(parts.user + `\n\n## 언어 반려 — 1차 설계\n${where.join("·")}에 한자·가나 문장이 섞였다. 축·claims·구성안·메모는 전부 한국어로 쓴다. 같은 설계를 한국어로 다시 낸다.`, "설계 1/2 — 언어 반려 → 재설계 (단발)");
+      o = { ...r.output, outline_md: normOutline(r.output.outline_md) };
+    }
+  }
   // 축 심사 (full-v8.1, 2026-09-19): 구성안의 구간이 축의 하위 질문에 답하는지 값싼 단발 호출로 본다. fail 이면 반려 사유를 붙여 한 번 재설계하고,
   // 그래도 fail 이면 기록만 남기고 진행한다(설계를 막지 않는다 — 사람 판정 3.6 이 최종). T260918-003: #3~#5 가 "리뷰"에서 "통계의 함정"으로 번져 3.6 사람 4점
   let axisNote = "축 심사 끔";
   let axisCost = 0;
-  let extraCost = 0; // 재설계 앞 실행의 비용 (full-v8.3)
+  let extraCost = langExtra; // 재설계 앞 실행의 비용 (full-v8.3) — 언어 반려 재설계 포함
   if (cfg.axisCheck) {
     const check = async (outlineMd: string) => {
       const ap2 = en ? buildAxisCheckPromptPartsEn({ outlineMd, history: isHistoryCandidateEn(cand) }) : buildAxisCheckPromptParts({ outlineMd, midTopic: cand.mid_topic });
@@ -193,6 +219,18 @@ export async function runDesignSingle(a: { job: Job; ex: Executor; episodeId: st
     r = await runDesign(parts.user + fb, "설계 1/2 — 질문 누락 → 재설계 (단발)");
     o = { ...r.output, outline_md: normOutline(r.output.outline_md) };
     q = countQ(o.outline_md);
+  }
+  // 짧은 판 (0040, KAN-296 — 2026-10-29 C601·C602): 예상 분량·구간 수가 규격을 넘으면 실패 대신 "덜어내라" 피드백으로 한 번 재설계. 그래도 넘으면 아래 fail
+  const spec = lengthSpecOf(cand.length_profile);
+  if (!en && spec.key === "short") {
+    const over = (o.estimated_minutes && spec.maxMin && o.estimated_minutes > spec.maxMin) || o.sections.length > spec.sections[1];
+    if (over) {
+      log(`  design ${episodeId}: 짧은 판 초과 — 예상 ${o.estimated_minutes}분 · 구간 ${o.sections.length}개 (규격 ${spec.floorMin}~${spec.maxMin}분 · ${spec.sections[0]}~${spec.sections[1]}개) — 재설계 1회`);
+      extraCost += r.listCostUsd ?? 0;
+      r = await runDesign(parts.user + shortTrimFeedback(o.estimated_minutes, o.sections.length), "설계 1/2 — 짧은 판 분량 초과 → 재설계 (단발)");
+      o = { ...r.output, outline_md: normOutline(r.output.outline_md) };
+      q = countQ(o.outline_md);
+    }
   }
   // 검증 실패도 비용이 든 실행이다 — 원본 출력을 남기고 runs 에 기록한 뒤 실패시킨다 (재현·진단용. 이전엔 흔적 없이 버려졌다)
   const fail = async (msg: string): Promise<never> => {
@@ -252,7 +290,8 @@ export async function runDesignSingle(a: { job: Job; ex: Executor; episodeId: st
     set.add(c.section);
     sectionsOf.set(s, set);
   }
-  const spread = [...sectionsOf].filter(([s, secs]) => secs.size > (s === axis ? 2 : 1)).map(([s, secs]) => `S${s}→#${[...secs].sort((a, b) => a - b).join(",#")}`);
+  const axisSpan = !en && lengthSpecOf(cand.length_profile).key === "short" ? Infinity : 2; // 짧은 판(short-v1): 축 소스가 모든 구간을 이끌 수 있다
+  const spread = [...sectionsOf].filter(([s, secs]) => secs.size > (s === axis ? axisSpan : 1)).map(([s, secs]) => `S${s}→#${[...secs].sort((a, b) => a - b).join(",#")}`);
   // 글로벌판 full-en-v0.12 (2026-10-18): 구간당 소스 하나를 폐지했다 — 구간은 관행의 순서를 따르고 여러 소스를 섞는다. 한국판만 검사한다 (G261018-004 이 이 검사로 실패)
   if (spread.length && !en) await fail(`소스가 여러 구간에 배정됨: ${spread.join(" · ")} — 소스는 한 구간에만(축 소스 ${axis ? `S${axis}` : "없음"}만 둘). 한 구간으로 모으거나 소스를 제외한다 (규칙 22, full-v7)`);
   // full-v8.1: "사용 소스 ≤ 구간 + 1" 상한 폐지 — 소스를 소화하려고 구간이 생기는 것이 축 이탈의 원인이었다. 대신 구간마다 축의 하위 질문(`질문:`) 이 있어야 한다
@@ -261,11 +300,15 @@ export async function runDesignSingle(a: { job: Job; ex: Executor; episodeId: st
   if (en ? !/^Axis:/m.test(o.outline_md) || !/^Section #1/m.test(o.outline_md) : !/^축:/m.test(o.outline_md) || !/^구간 #1/m.test(o.outline_md)) {
     // 2026-10-01 (T261001-003/C100): 설계가 "유효 소스 2건뿐 — 구성안 보류"를 outline 자리에 적었다. 소스 부족은 접근 실패와 같은 경로(자동 반려)로 보낸다 — onDraftFailed 가 이 메시지 꼴을 본다
     const used = (o.sources_used ?? []).length;
-    if (used < 3 || /보류/.test(o.outline_md.slice(0, 200))) await fail(`소스 본문 ${used}건 — 3건 하한 미달 (설계 판단: ${(o.notes || o.outline_md).replace(/\s+/g, " ").slice(0, 200)})`);
+    if (used < minSrc || /보류/.test(o.outline_md.slice(0, 200))) await fail(`소스 본문 ${used}건 — ${minSrc}건 하한 미달 (설계 판단: ${(o.notes || o.outline_md).replace(/\s+/g, " ").slice(0, 200)})`);
     await fail(`outline_md 형식 위반 — ${en ? "'Axis:' 또는 'Section #1'" : "'축:' 또는 '구간 #1'"} 줄이 없음 (정규화 후). 앞부분: ${o.outline_md.replace(/\s+/g, " ").slice(0, 160)}`);
   }
-  const floorMin = en ? MIN_MINUTES_EN : 13;
+  const floorMin = en ? MIN_MINUTES_EN : spec.floorMin; // 0040: short 프로필은 5~12분 (한국판만 — 글로벌은 MIN_MINUTES_EN)
   if (o.estimated_minutes && o.estimated_minutes < floorMin) await fail(`재료 부족 — 설계 예상 분량 ${o.estimated_minutes}분 < 하한 ${floorMin}분. ${o.notes.slice(0, 200)}`);
+  if (!en && spec.key === "short") { // standard 는 종전 검사 그대로(구간 수·상한 검사 없음)
+    if (spec.maxMin && o.estimated_minutes && o.estimated_minutes > spec.maxMin) await fail(`분량 초과 — 설계 예상 분량 ${o.estimated_minutes}분 > 상한 ${spec.maxMin}분 (${spec.label}). 구간을 덜어내 다시 설계한다`);
+    if (o.sections.length > spec.sections[1]) await fail(`구간 ${o.sections.length}개 — ${spec.label} 규격 상한 ${spec.sections[1]}개 초과. 축을 바로 증명하는 구간만 남긴다`);
+  }
 
   if (en) await writeDesignArtifactsEn({ dir, episodeId, cand, fetched, o, chosen, priorNotes, attribution, sectionsOf, axis });
   else {

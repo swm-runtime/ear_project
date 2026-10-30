@@ -22,6 +22,12 @@ export interface PlayGateTarget {
   contentId: string;
   /** 팝업 여부 힌트(library-api.md 4.1). 판정이 아니다 — 최종 판단은 서버가 한다 */
   isCountedToday: boolean;
+  /**
+   * 서버가 이 사용자에게 잠갔다고 준 편(`is_locked` — experiments-api.md 4.2-2, KAN-294). true 면 **발급도 하지 않고** 잠금 시트를
+   * 띄운다(소리가 나지 않는다). 표시용 값이라 false·없음이면 종전 그대로 가고, 낡은 값은 서버가 `SERIES_EPISODE_LOCKED` 로 다시
+   * 막는다. 티어·화수를 앱이 보지 않는다 — 이 값만 본다
+   */
+  isLocked?: boolean;
   /** 목록이 이미 들고 있는 메타 — 플레이어가 진입과 동시에 그린다(player-uiux.md 4.3) */
   meta?: PlaybackStartMeta;
   /** 완료 화면 ▶ 재청취 — 위치 0부터 재생 + replay 신호(player.md 5장) */
@@ -97,6 +103,7 @@ export const usePlayGate = (options?: PlayGateOptions) => {
   const navigation = useNavigation();
   const showLimitNotice = useLimitNoticeStore((s) => s.show);
   const showPaywall = useLimitNoticeStore((s) => s.showPaywall);
+  const showSeriesLock = useLimitNoticeStore((s) => s.showSeriesLock);
   const playLimit = usePlayLimitStore((s) => s.playLimit);
   const [confirmState, setConfirmState] = useState<ConfirmState | null>(null);
   const queryClient = useQueryClient();
@@ -107,8 +114,8 @@ export const usePlayGate = (options?: PlayGateOptions) => {
    * 모른다). 재요청도 같은 게이트라 서버가 다시 판정한다
    */
   const openPaywall = (entry: PlayEntryPoint, message?: string, blocked?: PlayGateTarget) => {
-    // 노출 자체가 퍼널의 끝점이다 — 바텀시트로 바뀌어도 같은 이벤트(analytics.md 3.4)
-    track('paywall_view', { entry });
+    // 노출 자체가 퍼널의 끝점이다 — 바텀시트로 바뀌어도 같은 이벤트(analytics.md 3.4). 막힌 콘텐츠 없이 열렸으면 잔여 링 탭
+    track('paywall_view', { entry, reason: blocked ? 'play_limit' : 'ring_tap' });
     // 막힌 콘텐츠 없이 열렸고(잔여 링 탭) 아직 남았으면 시트가 남은 횟수를 말한다 — 표시값(힌트)일 뿐 판정이 아니다
     const limit = playLimit?.dailyPlayLimit ?? null;
     const count = playLimit?.dailyPlayCount ?? null;
@@ -117,6 +124,19 @@ export const usePlayGate = (options?: PlayGateOptions) => {
       message,
       blocked ? () => requestPlay(blocked, entry) : null,
       blocked === undefined && limit !== null && left > 0 ? { remaining: left, limit } : null,
+    );
+  };
+
+  /**
+   * 잠금 시트(PW2 — KAN-294) — 시리즈 잠긴 편. 페이월과 같은 자리(요금제·결제·복원)에 잔여 링 대신 자물쇠를 얹는다. 결제가 확정되면
+   * 막힌 편을 **잠금 힌트를 떼고** 다시 요청한다 — 목록이 준 `isLocked` 는 결제 전 값이라 그대로 넘기면 같은 시트가 다시 뜬다.
+   * 재요청도 같은 게이트라 서버가 다시 판정한다(아직 잠겼으면 `SERIES_EPISODE_LOCKED` 로 이 시트가 다시 뜬다)
+   */
+  const openSeriesLock = (entry: PlayEntryPoint, message?: string, blocked?: PlayGateTarget) => {
+    track('paywall_view', { entry, reason: 'series_locked' });
+    showSeriesLock(
+      message,
+      blocked ? () => requestPlay({ ...blocked, isLocked: false }, entry) : null,
     );
   };
 
@@ -231,7 +251,9 @@ export const usePlayGate = (options?: PlayGateOptions) => {
         onNotFound: target.onNotFound,
         // 플레이어 화면이 하던 차단 처리(usePlayerScreen)를 여기서 대신한다 — 같은 문구·같은 분기다
         onIssueBlocked: (blocked) => {
-          if (blocked.kind === 'paywall')
+          if (blocked.kind === 'series_locked')
+            openSeriesLock(entryPoint, blocked.message ?? undefined, target);
+          else if (blocked.kind === 'paywall')
             openPaywall(entryPoint, blocked.message ?? undefined, target);
           else showLimitNotice(blocked.message ?? PLAYER_COPY.paidLimitReachedToast);
         },
@@ -267,6 +289,12 @@ export const usePlayGate = (options?: PlayGateOptions) => {
    * 플레이어 없이 페이월 안내, 허용이면 그때 연다(경합·힌트 노후를 서버 판정이 흡수한다, 2026-09-28).
    */
   const requestPlay = (target: PlayGateTarget, entryPoint: PlayEntryPoint) => {
+    // 서버가 잠갔다고 준 편(KAN-294) — 발급·팝업·플레이어 없이 잠금 시트만. 소리가 나지 않고 차감도 없다. 판정은 여전히 서버다:
+    // 이 값이 낡았으면(결제 직후 등) 시트의 결제 뒤 재요청이 힌트를 떼고 서버에 다시 묻는다
+    if (target.isLocked === true) {
+      openSeriesLock(entryPoint, undefined, target);
+      return;
+    }
     // 소진 힌트(서버가 준 잔여 0)면 **플레이어를 먼저 열지 않고** 발급부터 받는다 — 403(한도)이면 플레이어 없이 바로 페이월
     // 안내가 뜨고, 서버가 허용하면(힌트가 낡았거나 오늘 이미 들은 편) 그때 연다. 종전엔 플레이어가 떴다가 "오늘 이미 다
     // 들었어요"로 닫혔다(PM 2026-09-28 00:01). 차단 판정은 여전히 서버다 — 클라이언트는 여는 순서만 바꾼다
@@ -353,5 +381,6 @@ export const usePlayGate = (options?: PlayGateOptions) => {
     cancelConfirm,
     suppressAndPlay,
     openPaywall,
+    openSeriesLock,
   };
 };

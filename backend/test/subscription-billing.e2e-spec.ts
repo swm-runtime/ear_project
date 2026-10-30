@@ -9,7 +9,12 @@ import { AppModule } from '@/app.module';
 import { ErrorCode } from '@/common/exceptions/error-code.enum';
 import { traceIdMiddleware } from '@/common/middlewares/trace-id.middleware';
 import { AppStoreGateway } from '@/modules/billing/app-store/app-store.gateway';
+import {
+  PlanDiscountConfig,
+  resolvePlanDiscount,
+} from '@/modules/billing/plan-discount.policy';
 import { PlayStoreGateway } from '@/modules/billing/play-store/play-store.gateway';
+import { PlanDiscountService } from '@/modules/billing/services/plan-discount.service';
 import {
   FAKE_PLAY_PUSH_TOKEN,
   FakeAppStoreGateway,
@@ -22,7 +27,7 @@ import {
   PRODUCT_PRO,
   signTransaction,
 } from '@/modules/billing/testing/billing-test-world';
-import { SocialProvider } from '@/modules/user/user.enum';
+import { SocialProvider, UserTier } from '@/modules/user/user.enum';
 
 interface SignUpBody {
   access_token: string;
@@ -39,6 +44,8 @@ interface PlanBody {
   plan_id: string;
   tier: string;
   price_krw: number;
+  original_price_krw: number | null;
+  is_discounted: boolean;
   is_free: boolean;
   store_product_id: string | null;
   entitlements: {
@@ -95,6 +102,17 @@ describe('구독·인앱 결제 E2E', () => {
   const userIds: string[] = [];
   /** 가짜 Google Play — 기본은 꺼져 있다(운영의 현재 상태). Play 테스트만 켠다 */
   const play = new FakePlayStoreGateway();
+  /**
+   * 할인 표시 설정(KAN-286) — 운영처럼 기동 때 env 를 읽는 대신 테스트가 켜고 끈다. 판정은 진짜 정책 함수다.
+   * 기본은 꺼짐(운영 기본값)
+   */
+  let discountConfig: PlanDiscountConfig = {
+    enabled: false,
+    originalPriceKrw: {},
+  };
+  const planDiscount: Pick<PlanDiscountService, 'resolve'> = {
+    resolve: (plan) => resolvePlanDiscount(plan, discountConfig, new Date()),
+  };
   /** 이 실행의 스토어 구독·알림 ID 접두사 — 다른 실행·다른 테스트와 겹치지 않게 한다 */
   const RUN = `e2e-sub-${Date.now()}-${Math.floor(Math.random() * 1_000_000)}`;
   const now = Date.now();
@@ -109,6 +127,8 @@ describe('구독·인앱 결제 E2E', () => {
       .useValue(new FakeAppStoreGateway())
       .overrideProvider(PlayStoreGateway)
       .useValue(play)
+      .overrideProvider(PlanDiscountService)
+      .useValue(planDiscount)
       .compile();
     app = moduleRef.createNestApplication();
     app.use(traceIdMiddleware);
@@ -166,8 +186,17 @@ describe('구독·인앱 결제 E2E', () => {
     ).toEqual([
       // 구독이 없으면 무료 요금제가 "이용 중"이다(KAN-147)
       ['light', 0, true, null, 2, true, 'current'],
-      ['daily', 3900, false, PRODUCT_DAILY, 5, false, 'purchase'],
-      ['pro', 9900, false, PRODUCT_PRO, null, false, 'purchase'],
+      ['daily', 1900, false, PRODUCT_DAILY, 5, false, 'purchase'],
+      ['pro', 3900, false, PRODUCT_PRO, null, false, 'purchase'],
+    ]);
+
+    // 할인 표시 스위치가 꺼져 있으면(기본) 정가 없음·할인 아님(KAN-286)
+    expect(
+      body.plans.map((plan) => [plan.original_price_krw, plan.is_discounted]),
+    ).toEqual([
+      [null, false],
+      [null, false],
+      [null, false],
     ]);
 
     // Android 는 구현 전 — 상품 ID 가 없고 살 수 없다
@@ -193,6 +222,38 @@ describe('구독·인앱 결제 E2E', () => {
       HttpStatus.BAD_REQUEST,
       ErrorCode.VALIDATION_FAILED,
     );
+  }, 60_000);
+
+  it('요금제 목록 — 할인 표시를 켜면 유료 요금제에 정가와 할인 여부를 준다 — 무료·정가 없는 요금제는 아니다(KAN-286)', async () => {
+    const { auth } = await createUser('plans-discount');
+    // pro 만 정가를 두고 daily 는 비운다 — 시드 가격은 daily 1,900 · pro 3,900
+    discountConfig = {
+      enabled: true,
+      originalPriceKrw: { [UserTier.PRO]: 9900 },
+    };
+
+    try {
+      const body = (
+        await get('/plans', auth)
+          .query({ platform: 'ios' })
+          .expect(HttpStatus.OK)
+      ).body as PlansBody;
+
+      expect(
+        body.plans.map((plan) => [
+          plan.tier,
+          plan.price_krw,
+          plan.original_price_krw,
+          plan.is_discounted,
+        ]),
+      ).toEqual([
+        ['light', 0, null, false],
+        ['daily', 1900, null, false],
+        ['pro', 3900, 9900, true],
+      ]);
+    } finally {
+      discountConfig = { enabled: false, originalPriceKrw: {} };
+    }
   }, 60_000);
 
   it('구매 — 이메일 인증 관문 → 결제 의도 → 영수증 제출로 구독과 사용자 티어가 함께 반영된다', async () => {

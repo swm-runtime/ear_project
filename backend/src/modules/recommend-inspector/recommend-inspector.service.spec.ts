@@ -61,6 +61,7 @@ function profile(): InspectorProfileRow {
     tier: 'light',
     market: 'kr',
     signedUpAt: new Date('2026-10-01T00:00:00.000Z'),
+    trialEndsAt: null,
     onboardingCompleted: true,
     onboardingStep: 'done',
     onboardingCompletedAt: new Date('2026-10-01T00:10:00.000Z'),
@@ -239,7 +240,7 @@ describe('RecommendInspectorService', () => {
     expect(AUDIT_ACTION_INSIGHTS_RECOMMENDATION_VIEW).toBe(
       'insights.recommendation_view',
     );
-    // 편성 계산기에는 계산이 읽는 다섯 필드만 간다 — 이메일·닉네임 칸 자체가 없다
+    // 편성 계산기에는 계산이 읽는 필드만 간다 — 이메일·닉네임 칸 자체가 없다
     expect(dripPreviewService.explain).toHaveBeenCalledWith(
       {
         id: USER_ID,
@@ -247,6 +248,9 @@ describe('RecommendInspectorService', () => {
         market: 'kr',
         jobCategory: 'developer',
         yearsOfExperience: 2,
+        createdAt: new Date('2026-10-01T00:00:00.000Z'),
+        // 시리즈 유료화(KAN-290)의 체험 판정 입력
+        trialEndsAt: null,
       },
       NOW,
     );

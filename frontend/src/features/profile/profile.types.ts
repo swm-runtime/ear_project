@@ -45,7 +45,7 @@ export interface ProfilePlan {
   trial: PlanTrial | null;
   /** 예약된 요금제 변경(다운그레이드) — 다음 요금제 이름과 적용 시각. 없으면 null */
   pendingPlan: { planName: string; effectiveAt: string } | null;
-  /** 초대 코드 지급(KAN-182) — 지급 중이 아니면 null. 표시는 "{이름} 이벤트 이용 중" 줄 하나(설정·요금제 관리와 같은 문자열) */
+  /** 초대 코드 지급(KAN-182) — 지급 중이 아니면 null. 표시는 "{이름} 프로모션 이용 중" 줄 하나(설정·요금제 관리와 같은 문자열) */
   grant: PlanGrant | null;
 }
 

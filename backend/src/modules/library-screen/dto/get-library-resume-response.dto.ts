@@ -21,6 +21,8 @@ class ResumeContentDto {
   readonly topic_ids: string[];
   /** 목록 응답(4.1)의 `content.series`와 같은 모양 — 단일 콘텐츠는 null (KAN-134, 추가 필드) */
   readonly series: ContentSeriesDto | null;
+  /** 목록 응답(4.1)의 `content.is_locked`와 같은 값(KAN-290) — 미니플레이어도 재생 버튼을 그린다 */
+  readonly is_locked: boolean;
 }
 
 class ResumeProgressDto {
@@ -79,6 +81,7 @@ function toResumeTarget(view: ResumeTargetView): ResumeTargetDto {
       content_version: view.content.contentVersion,
       topic_ids: view.content.topicIds,
       series: ContentSeriesDto.from(view.content.series),
+      is_locked: view.content.isLocked,
     },
     progress: view.progress
       ? {

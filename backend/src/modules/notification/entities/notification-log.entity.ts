@@ -42,11 +42,15 @@ export class NotificationLog extends BaseEntity {
   user: User;
 
   /**
-   * `NotificationType`(드립 도착) 또는 리텐션 알림의 `retention.<규칙>.<변형>`(`notification.md` 4.6) — 규칙·변형이
-   * 늘어도 컬럼을 바꾸지 않으려고 varchar 다. 40자 안에 든다(`retention-push.enum.ts` 규칙 이름은 짧게 둔다)
+   * `NotificationType`(드립 도착) · 시각 A/B 그룹이 붙은 드립 도착 `drip_arrival.<그룹>`(KAN-289 — `a` 07:30 · `b` 08:00) ·
+   * 리텐션 알림의 `retention.<규칙>.<변형>`(`notification.md` 4.6) — 규칙·변형이 늘어도 컬럼을 바꾸지 않으려고 varchar 다.
+   * 40자 안에 든다(`retention-push.enum.ts` 규칙 이름은 짧게 둔다)
    */
   @Column({ name: 'type', type: 'varchar', length: 40 })
-  type: NotificationType | `retention.${string}`;
+  type:
+    | NotificationType
+    | `${NotificationType.DRIP_ARRIVAL}.${string}`
+    | `retention.${string}`;
 
   @Column({ name: 'deep_link', type: 'varchar', length: 2048, nullable: true })
   deepLink: string | null;

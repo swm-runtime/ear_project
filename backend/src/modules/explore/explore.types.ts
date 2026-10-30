@@ -75,6 +75,8 @@ export interface ExploreItemView {
    * 재생 확인 팝업을 **탭한 직후 즉시** 띄우기 위해 목록에 함께 싣는다.
    */
   isCountedToday: boolean;
+  /** 이 사용자에게 잠긴 시리즈 편인가(KAN-290 — `experiments-api.md` 4.2-2). 재생 게이트와 같은 판정이다 */
+  isLocked: boolean;
 }
 
 /**

@@ -17,10 +17,10 @@ export class NotificationLogRepository {
   }
 
   /**
-   * 기간 `[start, end)` 안에 같은 종류·상태의 기록이 있는 사용자.
-   * `(user_id, scheduled_at DESC)` 인덱스를 그대로 탄다.
+   * 기간 `[start, end)` 안에 종류가 `type`이거나 `type.`으로 시작하는(실험 그룹이 붙은 — `drip_arrival.a`) 같은 상태의
+   * 기록이 있는 사용자. `(user_id, scheduled_at DESC)` 인덱스를 그대로 탄다.
    */
-  async findUserIdsWithStatusBetween(
+  async findUserIdsWithTypePrefixStatusBetween(
     userIds: string[],
     type: NotificationType,
     status: NotificationStatus,
@@ -38,7 +38,10 @@ export class NotificationLogRepository {
       .where('log.user_id IN (:...userIds)', { userIds })
       .andWhere('log.scheduled_at >= :start', { start })
       .andWhere('log.scheduled_at < :end', { end })
-      .andWhere('log.type = :type', { type })
+      .andWhere('(log.type = :type OR log.type LIKE :typePrefix)', {
+        type,
+        typePrefix: `${type}.%`,
+      })
       .andWhere('log.status = :status', { status })
       .getRawMany<{ user_id: string }>();
 

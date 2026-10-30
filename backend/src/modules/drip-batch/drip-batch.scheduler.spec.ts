@@ -1,3 +1,4 @@
+import { DripArrivalSlot } from '@/modules/drip/drip-group.policy';
 import { DripGroup } from '@/modules/drip/drip.enum';
 
 import { DripBatchOrchestrator } from './drip-batch.orchestrator';
@@ -83,6 +84,7 @@ describe('DripBatchScheduler — 재시작 시 미완료 실행 재개', () => {
     expect(orchestrator.notifyTodayArrivals).toHaveBeenCalledWith(
       expect.any(Date),
       DripGroup.SOUTHEAST_ASIA,
+      DripArrivalSlot.H0700,
     );
   });
 
@@ -138,6 +140,49 @@ describe('DripBatchScheduler — 시간대 그룹 크론', () => {
     expect(orchestrator.notifyTodayArrivals).toHaveBeenCalledWith(
       expect.any(Date),
       DripGroup.AMERICAS,
+      DripArrivalSlot.H0700,
     );
+  });
+});
+
+describe('DripBatchScheduler — 도착 알림 시각 A/B 크론(KAN-289)', () => {
+  it('07:00 · 07:30 · 08:00 크론이 그룹마다 자기 시각으로 알림을 부른다 — 어느 시각이 실제로 보낼지는 오케스트레이터가 스위치로 정한다', async () => {
+    // given
+    const orchestrator = buildOrchestrator(Object.values(DripGroup));
+    const scheduler = new DripBatchScheduler(orchestrator);
+
+    // when
+    await scheduler.pushDripArrivals();
+    await scheduler.pushDripArrivals0730();
+    await scheduler.pushDripArrivals0800();
+    await scheduler.pushEuropeArrivals0730();
+    await scheduler.pushAmericasArrivals0800();
+
+    // then
+    expect(
+      orchestrator.notifyTodayArrivals.mock.calls.map(([, group, slot]) => [
+        group,
+        slot,
+      ]),
+    ).toEqual([
+      [DripGroup.ASIA, DripArrivalSlot.H0700],
+      [DripGroup.ASIA, DripArrivalSlot.H0730],
+      [DripGroup.ASIA, DripArrivalSlot.H0800],
+      [DripGroup.EUROPE, DripArrivalSlot.H0730],
+      [DripGroup.AMERICAS, DripArrivalSlot.H0800],
+    ]);
+  });
+
+  it('꺼진 그룹은 07:30 · 08:00 크론도 아무것도 하지 않는다', async () => {
+    // given — 기본 그룹만 켜져 있다
+    const orchestrator = buildOrchestrator();
+    const scheduler = new DripBatchScheduler(orchestrator);
+
+    // when
+    await scheduler.pushSoutheastAsiaArrivals0730();
+    await scheduler.pushEuropeArrivals0800();
+
+    // then
+    expect(orchestrator.notifyTodayArrivals).not.toHaveBeenCalled();
   });
 });

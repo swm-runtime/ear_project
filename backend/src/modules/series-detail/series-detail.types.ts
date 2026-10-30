@@ -18,6 +18,8 @@ export interface SeriesEpisodeView {
   /** 완청했는가 — 라이브러리 `completed` ∪ 재생 위치가 기준 이상(KAN-248). 담지 않고 끝까지 들은 편도 true */
   isCompleted: boolean;
   isCountedToday: boolean;
+  /** 이 사용자에게 잠긴 편인가(KAN-290 — `experiments-api.md` 4.2-2). 재생 게이트와 같은 판정이다 */
+  isLocked: boolean;
 }
 
 /** `GET /series/:id`(KAN-134 확정 설계 3번)의 조립 재료 */

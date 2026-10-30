@@ -7,7 +7,7 @@ export const pool = new pg.Pool({ connectionString: cfg.databaseUrl, max: 3, idl
 // Supabase 풀러가 유휴 연결을 끊으면 풀이 'error' 를 낸다 — 받지 않으면 EventEmitter 규칙상 프로세스가 죽는다 (2026-08-31 워커 사망 원인 후보)
 pool.on("error", (e) => console.error(`[pg pool] 연결 오류 (무시하고 재연결): ${e.message}`));
 
-export type JobType = "sweep" | "cluster" | "draft" | "qa" | "critic" | "tts" | "package" | "domain_check" | "thumbnail" | "critic_measure" | "enrich" | "script_align" | "series_plan" | "judge_loop"; // judge_loop: 글로벌 판정·재작성 루프 (0033, 명세 6.10)
+export type JobType = "sweep" | "cluster" | "draft" | "qa" | "critic" | "tts" | "package" | "domain_check" | "thumbnail" | "critic_measure" | "enrich" | "script_align" | "series_plan" | "judge_loop" | "remake"; // remake: 짧은 판 재제작 후보 생성 (0040, KAN-296) // judge_loop: 글로벌 판정·재작성 루프 (0033, 명세 6.10)
 export interface Job {
   id: string;
   type: JobType;
@@ -103,10 +103,10 @@ export async function sweepClusterState(jobId: string, major: string): Promise<{
   } catch (e) { await c.query("rollback").catch(() => {}); throw e; } finally { c.release(); }
 }
 export async function getBacklog(id: string): Promise<BacklogCandidate | null> {
-  const r = await pool.query("select id, mid_topic, title, target_fit, angle, sources, axis, axis_type, gaps, series_id, series_no from public.backlog where id = $1", [id]);
+  const r = await pool.query("select id, mid_topic, title, target_fit, angle, sources, axis, axis_type, gaps, series_id, series_no, length_profile, remake_of from public.backlog where id = $1", [id]);
   if (!r.rows[0]) return null;
   const row = r.rows[0];
-  return { id: row.id, mid_topic: row.mid_topic, title: row.title, target_fit: row.target_fit, angle: row.angle, sources: (row.sources ?? []) as SourceRef[], axis: row.axis, axis_type: row.axis_type, gaps: row.gaps ?? [], series_id: row.series_id ?? null, series_no: row.series_no ?? null };
+  return { id: row.id, mid_topic: row.mid_topic, title: row.title, target_fit: row.target_fit, angle: row.angle, sources: (row.sources ?? []) as SourceRef[], axis: row.axis, axis_type: row.axis_type, gaps: row.gaps ?? [], series_id: row.series_id ?? null, series_no: row.series_no ?? null, length_profile: row.length_profile ?? "standard", remake_of: row.remake_of ?? null }; // 0040: 명시 매핑이라 컬럼을 더하면 여기도 더한다 — 2026-10-29 첫 재제작 3편이 standard 로 돌아간 원인
 }
 export async function setBacklogStatus(id: string, status: string, extra: Record<string, unknown> = {}) {
   const sets = ["status = $2", "updated_at = now()"];
@@ -253,16 +253,17 @@ export async function liveCandidateSources(): Promise<Map<string, string[]>> {
   return m;
 }
 /** 이 URL 들을 소스로 쓴 **다른 후보의 에피소드** (설계 산출물이 있는 것만): 설계 단계가 그 편의 발췌 문단을 제외한다 — 같은 소스를 써도 같은 대목은 두 번 풀지 않게 */
-export async function priorEpisodesUsingUrls(urls: string[], excludeBacklogId: string): Promise<{ episode_id: string; backlog_id: string; title: string; sources_key: string | null; urls: string[] }[]> {
+export async function priorEpisodesUsingUrls(urls: string[], excludeBacklogId: string | string[]): Promise<{ episode_id: string; backlog_id: string; title: string; sources_key: string | null; urls: string[] }[]> {
   if (!urls.length) return [];
+  const exclude = Array.isArray(excludeBacklogId) ? excludeBacklogId : [excludeBacklogId]; // 0040: 재제작 후보는 원본 편의 문단도 쓸 수 있어야 한다
   const r = await pool.query(
     `select e.id as episode_id, b.id as backlog_id, b.title, e.sources_key,
             array(select s->>'url' from jsonb_array_elements(b.sources) s where s->>'url' = any($1)) as urls
        from public.episodes e join public.backlog b on b.id = e.backlog_id
-      where b.id <> $2 and b.status not in ('rejected','expired') and e.sources_key is not null
+      where b.id <> all($2) and b.status not in ('rejected','expired') and e.sources_key is not null
         and exists (select 1 from jsonb_array_elements(b.sources) s where s->>'url' = any($1))
       order by e.id`,
-    [urls, excludeBacklogId],
+    [urls, exclude],
   );
   return r.rows;
 }
@@ -381,9 +382,9 @@ export async function countReinforceRuns(backlogId: string): Promise<number> {
   return Number(r.rows[0]?.n ?? 0);
 }
 export async function getBacklogFull(id: string): Promise<(BacklogCandidate & { status: string; dedup_note: string | null; reinforced_at: string | null }) | null> {
-  const r = await pool.query("select id, mid_topic, title, target_fit, angle, sources, axis, axis_type, gaps, status, dedup_note, reinforced_at from public.backlog where id = $1", [id]);
+  const r = await pool.query("select id, mid_topic, title, target_fit, angle, sources, axis, axis_type, gaps, status, dedup_note, reinforced_at, length_profile, remake_of from public.backlog where id = $1", [id]);
   const row = r.rows[0]; if (!row) return null;
-  return { id: row.id, mid_topic: row.mid_topic, title: row.title, target_fit: row.target_fit, angle: row.angle, sources: (row.sources ?? []) as SourceRef[], axis: row.axis, axis_type: row.axis_type, gaps: row.gaps ?? [], status: row.status, dedup_note: row.dedup_note, reinforced_at: row.reinforced_at };
+  return { id: row.id, mid_topic: row.mid_topic, title: row.title, target_fit: row.target_fit, angle: row.angle, sources: (row.sources ?? []) as SourceRef[], axis: row.axis, axis_type: row.axis_type, gaps: row.gaps ?? [], status: row.status, dedup_note: row.dedup_note, reinforced_at: row.reinforced_at , length_profile: row.length_profile ?? "standard", remake_of: row.remake_of ?? null };
 }
 export async function recentSourcesForTopic(midTopic: string, days: number, limit: number) {
   const r = await pool.query(
@@ -417,9 +418,9 @@ export async function domainTierByHost(): Promise<Map<string, string>> {
 }
 
 // ── 기획 시리즈 (0029, spec/11 · 글로벌 명세 6.11) ──
-export interface SeriesRow { id: string; name: string; mid_topic: string; intro_line: string | null; scope_note: string | null; plan: unknown; total_episodes: number | null; status: string; thumb_word: string | null; thumb_label: string | null; thumb_box: string | null; thumb_base_key: string | null; /** 간행물 키(0034, KAN-247) — null = 없음 */ publication: string | null }
+export interface SeriesRow { id: string; name: string; mid_topic: string; intro_line: string | null; scope_note: string | null; plan: unknown; total_episodes: number | null; status: string; thumb_word: string | null; thumb_label: string | null; thumb_box: string | null; thumb_base_key: string | null; /** 간행물 키(0034, KAN-247) — null = 없음 */ publication: string | null; thumb_layers: string | null; /** 0041 짧은 판 시리즈 */ length_profile: string; remake_of: string | null }
 export async function getSeries(id: string): Promise<SeriesRow | null> {
-  const r = await pool.query("select id, name, mid_topic, intro_line, scope_note, plan, total_episodes, status, thumb_word, thumb_label, thumb_box, thumb_base_key, publication from public.series where id = $1", [id]);
+  const r = await pool.query("select id, name, mid_topic, intro_line, scope_note, plan, total_episodes, status, thumb_word, thumb_label, thumb_box, thumb_base_key, publication, thumb_layers, length_profile, remake_of from public.series where id = $1", [id]);
   return r.rows[0] ?? null;
 }
 /** 설계안 저장 — 기획 중(planning)일 때만. 사람이 그 사이 승인·중단했으면 덮어쓰지 않는다 */
@@ -461,11 +462,12 @@ export async function seriesPrevEpisodeId(seriesId: string, no: number): Promise
 export const SERIES_PREV_READY = ["drafted", "qa_passed", "review_required", "packaged", "published"];
 export async function seriesPrevReady(backlogId: string): Promise<boolean> {
   const r = await pool.query(
-    "select b.series_no, p.status from public.backlog b left join public.backlog p on p.series_id = b.series_id and p.series_no = b.series_no - 1 and p.status <> 'rejected' where b.id = $1",
+    "select b.series_no, p.status, s.length_profile slp from public.backlog b left join public.series s on s.id = b.series_id left join public.backlog p on p.series_id = b.series_id and p.series_no = b.series_no - 1 and p.status <> 'rejected' where b.id = $1",
     [backlogId],
   ); // 반려된 앞 편 후보는 빼고 본다 — 콘솔 [이 편 다시 기획] 뒤 같은 화 번호에 후보가 둘일 수 있다(2026-10-27). 살아 있는 후보 중 하나라도 초안을 마쳤으면 참
   const row = r.rows[0];
   if (!row || !row.series_no || row.series_no <= 1) return true;
+  if (row.slp === "short") return true; // 짧은 판 시리즈(2026-10-30): 회상을 설계안에서 가져와(series-draft planRecap) 편끼리 기다리지 않는다 — 워커 복제가 동시에 집는다
   return r.rows.some((x) => SERIES_PREV_READY.includes(x.status));
 }
 /** DB 가 진실인 프롬프트 자산의 active 본 (spec/10 3.2) — git 사본으로 폴백하지 않는다 */

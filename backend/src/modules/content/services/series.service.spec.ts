@@ -3,7 +3,7 @@ import { EntityManager } from 'typeorm';
 import { ErrorCode } from '@/common/exceptions/error-code.enum';
 import { UserMarket } from '@/modules/user/user.enum';
 
-import { SeriesStatus } from '../content.enum';
+import { ContentLengthProfile, SeriesStatus } from '../content.enum';
 import { Content } from '../entities/content.entity';
 import { Series } from '../entities/series.entity';
 import { ContentRepository } from '../repositories/content.repository';
@@ -28,6 +28,8 @@ function buildSeries(overrides: Partial<Series> = {}): Series {
     status: SeriesStatus.ONGOING,
     coverUrl: null,
     publisherName: null,
+    lengthProfile: ContentLengthProfile.STANDARD,
+    variantOfSeriesId: null,
     createdAt: NOW,
     updatedAt: NOW,
     ...overrides,
@@ -84,6 +86,7 @@ describe('SeriesService', () => {
       episodeNo: 2,
       totalEpisodes: 3,
       market: UserMarket.KR,
+      lengthProfile: null,
       ...overrides,
     });
 
@@ -113,6 +116,36 @@ describe('SeriesService', () => {
         null,
         manager,
       );
+    });
+
+    it('편의 길이 프로필이 시리즈와 다르면 400(length_profile)이다 — KAN-298', async () => {
+      // given
+      seriesRepository.findById.mockResolvedValue(
+        buildSeries({ lengthProfile: ContentLengthProfile.SHORT }),
+      );
+
+      // when
+      const act = service.assertEpisodeUploadable(
+        upload({ lengthProfile: ContentLengthProfile.STANDARD }),
+      );
+
+      // then
+      await expect(act).rejects.toMatchObject({
+        details: { field: 'length_profile' },
+      });
+    });
+
+    it('편이 길이 프로필을 보내지 않으면 시리즈 값을 따르므로 통과한다 — KAN-298', async () => {
+      // given
+      seriesRepository.findById.mockResolvedValue(
+        buildSeries({ lengthProfile: ContentLengthProfile.SHORT }),
+      );
+
+      // when
+      const series = await service.assertEpisodeUploadable(upload());
+
+      // then
+      expect(series.lengthProfile).toBe(ContentLengthProfile.SHORT);
     });
 
     it('없는 시리즈면 400(series_id)이다', async () => {
@@ -368,6 +401,7 @@ describe('SeriesService', () => {
         [SERIES_ID, SERIES_ID, OTHER_SERIES_ID],
         NOW,
         UserMarket.KR,
+        ContentLengthProfile.STANDARD,
       );
 
       // then — 노출 편이 없는 시리즈는 맵에 없다
@@ -381,6 +415,7 @@ describe('SeriesService', () => {
         [SERIES_ID, OTHER_SERIES_ID],
         NOW,
         UserMarket.KR,
+        ContentLengthProfile.STANDARD,
         undefined,
       );
     });
@@ -395,7 +430,12 @@ describe('SeriesService', () => {
       ] as Content[]);
 
       // when
-      const cards = await service.findCards([SERIES_ID], NOW, UserMarket.KR);
+      const cards = await service.findCards(
+        [SERIES_ID],
+        NOW,
+        UserMarket.KR,
+        ContentLengthProfile.STANDARD,
+      );
 
       // then
       expect(cards.get(SERIES_ID)?.coverThumbnailUrl).toBe(
@@ -475,6 +515,7 @@ describe('SeriesService', () => {
         SERIES_ID,
         NOW,
         UserMarket.KR,
+        ContentLengthProfile.STANDARD,
       );
 
       // then
@@ -490,6 +531,7 @@ describe('SeriesService', () => {
         [OTHER_SERIES_ID, THIRD_SERIES_ID],
         NOW,
         UserMarket.KR,
+        ContentLengthProfile.STANDARD,
         undefined,
       );
     });
@@ -505,6 +547,7 @@ describe('SeriesService', () => {
         SERIES_ID,
         NOW,
         UserMarket.KR,
+        ContentLengthProfile.STANDARD,
       );
 
       // then
@@ -521,6 +564,7 @@ describe('SeriesService', () => {
         SERIES_ID,
         NOW,
         UserMarket.GLOBAL,
+        ContentLengthProfile.STANDARD,
       );
 
       // then
@@ -628,6 +672,78 @@ describe('SeriesService', () => {
       await expect(
         service.assertRestorable(buildEpisode('c1', SERIES_ID, 2), manager),
       ).resolves.toBeUndefined();
+    });
+  });
+
+  describe('create — 짧은 시리즈(KAN-298)', () => {
+    const command = (overrides = {}) => ({
+      title: '짧게 듣는 CS',
+      description: '',
+      totalEpisodes: 3,
+      status: SeriesStatus.ONGOING,
+      publisherName: null,
+      lengthProfile: ContentLengthProfile.SHORT,
+      variantOfSeriesId: OTHER_SERIES_ID,
+      ...overrides,
+    });
+
+    it('원본이 standard 시리즈면 원본 id와 함께 저장한다', async () => {
+      // when
+      const saved = await service.create(command(), manager);
+
+      // then
+      expect(seriesRepository.findById).toHaveBeenCalledWith(
+        OTHER_SERIES_ID,
+        manager,
+      );
+      expect(saved).toMatchObject({
+        lengthProfile: ContentLengthProfile.SHORT,
+        variantOfSeriesId: OTHER_SERIES_ID,
+      });
+    });
+
+    it('short인데 원본 id가 없으면 400(variant_of_series_id)', async () => {
+      await expect(
+        service.create(command({ variantOfSeriesId: null }), manager),
+      ).rejects.toMatchObject({ details: { field: 'variant_of_series_id' } });
+      expect(seriesRepository.save).not.toHaveBeenCalled();
+    });
+
+    it('원본 시리즈가 없으면 400(variant_of_series_id)', async () => {
+      // given
+      seriesRepository.findById.mockResolvedValue(null);
+
+      // then
+      await expect(service.create(command(), manager)).rejects.toMatchObject({
+        details: { field: 'variant_of_series_id' },
+      });
+    });
+
+    it('원본이 이미 짧은 시리즈면 400(variant_of_series_id)', async () => {
+      // given
+      seriesRepository.findById.mockResolvedValue(
+        buildSeries({ lengthProfile: ContentLengthProfile.SHORT }),
+      );
+
+      // then
+      await expect(service.create(command(), manager)).rejects.toMatchObject({
+        details: { field: 'variant_of_series_id' },
+      });
+    });
+
+    it('standard 시리즈는 원본을 보지 않고 저장한다', async () => {
+      // when
+      await service.create(
+        command({
+          lengthProfile: ContentLengthProfile.STANDARD,
+          variantOfSeriesId: null,
+        }),
+        manager,
+      );
+
+      // then
+      expect(seriesRepository.findById).not.toHaveBeenCalled();
+      expect(seriesRepository.save).toHaveBeenCalled();
     });
   });
 });

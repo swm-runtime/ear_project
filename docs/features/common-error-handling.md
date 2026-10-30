@@ -89,6 +89,7 @@ GET 요청은 기본 자동 재시도 대상, POST/PUT/DELETE는 멱등키 또�
 | 원문 유입 클릭 | 전부 보존, 순서대로 전송 (편입 확정 2026-08-10 — 정산 지표 원천(`content_stats.source_link_click_count`)이라 유실을 감수하지 않는다. 재전송 중복 방어는 `player-api.md` 4.5) |
 | 담기·삭제 | 마지막 상태만 유지 |
 | 설정 토글(`settings.md` 7장) | 마지막 상태만 유지 |
+| 콘텐츠 후기 저장 · 먼저 묻기 닫기 · 그만 보기(`content-review-api.md` 4.2 · 4.4 · 4.5) | 같은 편의 후기는 마지막 값만 유지(덮어쓰기 upsert). `CONTENT_REVIEW_DISABLED` · `CONTENT_REVIEW_NOT_PLAYED` · `CONTENT_WITHDRAWN` · `CONTENT_NOT_FOUND`는 조용히 버린다(2026-10-28 — KAN-279). **프로모션 사용(4.7)은 큐 대상이 아니다** — 지급 시작일이 보낸 날로 정해진다 |
 | 영수증 검증 | 성공할 때까지 무기한 재시도 — **즉시 자동 재시도는 하지 않되**(4.2, 중복 결제 방지) **오프라인 큐·백그라운드 재검증 경로의 재시도는 허용**(멱등키 보호) |
 
 - **단일 값 토글은 큐 적재 대상이고, 폼 제출(관심사·커리어 저장)은 큐에 넣지 않는다** — 즉시 실패 + [다시 시도]로 처리하고 편집 상태를 유지한다(`interest-management.md` 7장, `career.md` 7장)
@@ -263,6 +264,7 @@ NetworkState  { reachable, connection_type }                        // 클라이
 | `LIBRARY_COMPLETION_NOT_REACHED` | 409 | false | **조용히 무시.** 상태를 바꾸지 않는다 |
 | `PLAY_LIMIT_EXCEEDED` | 403 | false | **페이월 바텀시트**(`paywall.md` 4.5) |
 | `PLAY_LIMIT_REACHED` | 403 | false | "오늘 청취 한도를 모두 사용했어요" 안내. **페이월 아님** |
+| `SERIES_EPISODE_LOCKED` | 403 | false | **잠금 차단 시트**(카피는 `spec/uiux` — KAN-294). 플레이어를 열었으면 닫고 구독 화면으로 이어 준다. 재생 횟수를 차감하지 않고 한도보다 먼저 판정된다(`player-api.md` 5장 · `paywall.md` 4.1 — 시리즈 유료화, 2026-10-29 KAN-290) |
 
 - **`PLAY_LIMIT_EXCEEDED`와 `PLAY_LIMIT_REACHED`를 합치지 않는다.** 한도 티어는 결제 유도, 최상위 티어는 안내다 — 더 팔 것이 없는 사용자에게 페이월을 띄우지 않는다.
 - **`LIBRARY_ITEM_NOT_FOUND`는 남의 항목에도 나간다.** 403을 주면 "그 항목이 존재한다"를 알려주게 되어, id를 넣어보는 것만으로 남의 라이브러리 구성을 탐지할 수 있다(`library-api.md` 7장).
@@ -352,6 +354,21 @@ NetworkState  { reachable, connection_type }                        // 클라이
 
 - 신설 2026-10-02(KAN-106 · KAN-40). 계약을 먼저 확정하고(`architecture.md` 7.5의 순서와 달리 — `interest-management` 때와 같은 방식) enum은 구현 PR에서 반영했다(구독 코드 2026-10-02 `4db2445f` · `SUBSCRIPTION_ALREADY_SUBSCRIBED` 2026-10-07 · 초대 코드 2026-10-10). 지금은 이 표의 코드가 전부 enum에 있다.
 - `SUBSCRIPTION_STORE_UNAVAILABLE`은 9.11의 "retryable은 5xx·429·외부 연동 실패뿐" 규칙의 외부 연동 실패다.
+
+### 9.10-4 콘텐츠 후기 · 프로모션 (`content-review-api.md` 5장)
+
+| error_code | HTTP | retryable | 클라이언트 동작 |
+|---|---|---|---|
+| `CONTENT_REVIEW_DISABLED` | 409 | false | [후기]를 숨기고 큐의 후기를 버린다 |
+| `CONTENT_REVIEW_NOT_PLAYED` | 409 | false | "들어 본 편에만 후기를 남길 수 있어요" · 큐에서 버린다 |
+| `PROMOTION_NOT_FOUND` | 404 | false | S12 재조회 |
+| `PROMOTION_ALREADY_USED` | 409 | false | S12 · 구독 조회 재조회 — `grant`가 있으면 성공으로 그린다 |
+| `PROMOTION_EXPIRED` | 409 | false | "사용 기한이 지난 프로모션이에요" + S12 재조회 |
+| `PROMOTION_PRO_SUBSCRIBED` | 409 | false | "Pro 구독 중에는 쓸 수 없어요. 구독이 끝난 뒤 쓸 수 있어요" + S12 재조회 |
+
+- 신설 2026-10-28(KAN-279). 계약을 먼저 확정하고 enum은 서버 구현 PR(#2141 외)에서 반영했다.
+- 재사용: `INVITE_GRANT_ALREADY_ACTIVE`(9.10-3)가 프로모션 사용(다른 지급 이용 중)에도 온다 — 이 화면에서는 "이용 중인 프로모션이 끝난 뒤 쓸 수 있어요"를 쓴다. `CONTENT_WITHDRAWN`(9.2)이 후기 저장에도 온다(큐에서 버림).
+- 후기 저장 · 먼저 묻기 닫기 · 그만 보기는 오프라인 큐 대상이고, 프로모션 사용은 아니다(4.5).
 
 ### 9.11 이 표를 읽는 규칙
 

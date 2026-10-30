@@ -61,6 +61,8 @@ export const ERROR_MESSAGES_EN: Readonly<Record<string, string>> = {
   LIBRARY_COMPLETION_NOT_REACHED: 'Keep listening to finish this episode.',
   PLAY_LIMIT_EXCEEDED: "You've used today's listens.",
   PLAY_LIMIT_REACHED: "You've used today's listens.",
+  // experiments-api.md 4.2-3 — 시리즈 잠긴 편(KAN-294). 9장 등재는 changes/pending/exp-contracts.md
+  SERIES_EPISODE_LOCKED: 'This episode is available with a subscription.',
   // 9.6 탐색 · 9.7 프로필
   EXPLORE_CURSOR_INVALID: 'Something went wrong. Please try again.',
   STATS_WEEK_OUT_OF_RANGE: "That week isn't available.",
@@ -97,6 +99,13 @@ export const ERROR_MESSAGES_EN: Readonly<Record<string, string>> = {
   INVITE_CODE_EXHAUSTED: 'This code has reached its limit.',
   INVITE_CODE_ALREADY_USED: "You've already used this code.",
   INVITE_GRANT_ALREADY_ACTIVE: 'Another code is still active on your account.',
+  // 콘텐츠 후기 · 후기 참여 프로모션(content-review-api.md 5장 — KAN-280). 화면은 자기 문구를 쓰고, 이 값은 폴백이다
+  CONTENT_REVIEW_DISABLED: "Reviews aren't available right now.",
+  CONTENT_REVIEW_NOT_PLAYED: "You can only review episodes you've listened to.",
+  PROMOTION_NOT_FOUND: "This promotion can't be found.",
+  PROMOTION_ALREADY_USED: "You've already used this promotion.",
+  PROMOTION_EXPIRED: 'This promotion has expired.',
+  PROMOTION_PRO_SUBSCRIBED: "You can't use this promotion while subscribed.",
 };
 
 /** 표에 없는 코드(새로 생겼는데 앱이 아직 모름)에 쓰는 문구 — 한국어 서버 문구 대신 */

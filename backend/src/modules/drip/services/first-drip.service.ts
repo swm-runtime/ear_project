@@ -1,13 +1,18 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { DataSource, EntityManager } from 'typeorm';
+
+import { EnvironmentVariables } from '@/config/env.validation';
 
 import { Content } from '@/modules/content/entities/content.entity';
 import { ContentStatService } from '@/modules/content/services/content-stat.service';
+import { ContentCohortService } from '@/modules/content/services/content-cohort.service';
 import { ContentService } from '@/modules/content/services/content.service';
 import { UserInterestService } from '@/modules/interest/services/user-interest.service';
 import { LibraryItemSource } from '@/modules/library/library.enum';
 import { LibraryService } from '@/modules/library/library.service';
 import { PlanService } from '@/modules/subscription/services/plan.service';
+import { User } from '@/modules/user/entities/user.entity';
 import { UserService } from '@/modules/user/services/user.service';
 
 import {
@@ -21,6 +26,8 @@ import { DripExclusionReason, FirstDripJobStatus } from '../drip.enum';
 import { FirstDripState, ScoringCandidate } from '../drip.types';
 import { scoringCareerOf } from '../drip-career.policy';
 import { FirstDripJob } from '../entities/first-drip-job.entity';
+import { pickRandomFirstDrip } from '../first-drip-random.policy';
+import type { RandomSource } from '../first-drip-random.policy';
 import { DripExcludedContentRepository } from '../repositories/drip-excluded-content.repository';
 import { FirstDripJobRepository } from '../repositories/first-drip-job.repository';
 import { DripScoringService } from './drip-scoring.service';
@@ -32,9 +39,15 @@ import { DripScoringService } from './drip-scoring.service';
  * 신규 사용자(신호 0건)의 콜드스타트 편성(FR-17)뿐이며, 후보 필터(FR-16)와 원자적 적립은
  * 일일 배치와 같은 규칙을 쓴다.
  */
+/** 첫 드립 무작위 선정의 난수 주입 토큰 — 운영은 비워 `Math.random`, 테스트는 시드 난수를 넣는다 */
+export const FIRST_DRIP_RANDOM_SOURCE = Symbol('FIRST_DRIP_RANDOM_SOURCE');
+
 @Injectable()
 export class FirstDripService {
   private readonly logger = new Logger(FirstDripService.name);
+  /** 첫 드립 무작위 스위치(`FIRST_DRIP_RANDOM_ENABLED`, KAN-291) — `true`를 명시했을 때만 켜진다 */
+  private readonly randomEnabled: boolean;
+  private readonly random: RandomSource;
 
   constructor(
     private readonly firstDripJobRepository: FirstDripJobRepository,
@@ -47,7 +60,18 @@ export class FirstDripService {
     private readonly dripScoringService: DripScoringService,
     private readonly libraryService: LibraryService,
     private readonly dataSource: DataSource,
-  ) {}
+    configService: ConfigService<EnvironmentVariables, true>,
+    private readonly contentCohortService: ContentCohortService,
+    @Optional()
+    @Inject(FIRST_DRIP_RANDOM_SOURCE)
+    random?: RandomSource,
+  ) {
+    this.randomEnabled =
+      configService
+        .get('FIRST_DRIP_RANDOM_ENABLED', { infer: true })
+        ?.trim() === 'true';
+    this.random = random ?? Math.random;
+  }
 
   /**
    * 편성 작업 행을 만든다. **온보딩 완료와 같은 트랜잭션에서 호출한다** —
@@ -260,6 +284,9 @@ export class FirstDripService {
    * 2편을 그대로 잘라 같은 주제를 고른 신규 가입자 전원이 같은 2편을 받았고, 운영 첫 드립
    * 편성의 쏠림(지니 0.75, 한 편이 2주 124회)이 여기서 나왔다(2026-10-13 추천 검증).
    *
+   * **무작위 실험(KAN-291 — `FIRST_DRIP_RANDOM_ENABLED=true`)**: 같은 필터의 후보를 `ORDER BY random()`으로 잘라
+   * 스코어링 대신 주제 순환 + 주제 안 균등 무작위로 고른다(`first-drip-random.policy.ts`). 꺼져 있으면 위 경로 그대로다.
+   *
    * 관심 주제 안에서 편수를 채우지 못하면 **인기 콘텐츠로 대체 편성한다** —
    * 라이브러리가 비는 것보다 관련성이 조금 낮은 편이 낫다(`drip-scheduling.md` 7).
    */
@@ -278,15 +305,88 @@ export class FirstDripService {
       return [];
     }
 
+    // 짧은 판 코호트(KAN-298) — 첫 드립·인기 대체 편성 모두 같은 길이 프로필 안에서만 고른다(standard로 폴백하지 않는다)
+    const lengthProfile = this.contentCohortService.resolve(user.createdAt);
     const pool = await this.contentService.findCandidates({
       market: user.market,
+      lengthProfile,
       includeTopicIds: topicIds,
       excludeSeenByUserId: userId,
       seriesStartOnly: true,
+      // 무작위 실험은 인기순 상한이 후보를 좁히지 않게 무작위로 자른다(KAN-291)
+      randomOrder: this.randomEnabled,
       limit: SCORING_POOL_LIMIT,
       now,
     });
 
+    const selected = this.randomEnabled
+      ? await this.selectRandomly(pool, topicIds, dripCount)
+      : await this.selectByScoring(pool, topicIds, dripCount, user, now);
+
+    if (selected.length >= dripCount) {
+      return selected;
+    }
+
+    const fallback = await this.contentService.findCandidates({
+      market: user.market,
+      lengthProfile,
+      excludeSeenByUserId: userId,
+      // 방금 뽑은 것만 넘긴다 — 누적 이력은 위와 같은 NOT EXISTS가 본다
+      excludeContentIds: selected,
+      seriesStartOnly: true,
+      limit: dripCount - selected.length,
+      now,
+    });
+
+    // 두 조회의 결과가 겹치지 않도록 제외 목록을 넘기지만, 같은 콘텐츠를 두 번 적립하려는
+    // 시도 자체를 남기지 않는다 — 편수가 부풀어 보이는 것을 막는다
+    return [
+      ...new Set([...selected, ...fallback.map((content) => content.id)]),
+    ];
+  }
+
+  /**
+   * 주제 안 무작위 선정(KAN-291 — `first-drip-random.policy.ts`). 주제를 돌아가며 각 주제 안에서 균등 무작위로 고른다.
+   * 스코어링 입력(집계·임베딩)은 쓰지 않으므로 주제 연결만 읽는다
+   */
+  private async selectRandomly(
+    pool: Content[],
+    topicIds: string[],
+    dripCount: number,
+  ): Promise<string[]> {
+    if (pool.length === 0) {
+      return [];
+    }
+
+    const topicViews = await this.contentService.findTopicViews(
+      pool.map((content) => content.id),
+    );
+    const topicIdsByContentId = new Map<string, string[]>();
+    for (const view of topicViews) {
+      const ids = topicIdsByContentId.get(view.contentId) ?? [];
+      ids.push(view.topicId);
+      topicIdsByContentId.set(view.contentId, ids);
+    }
+
+    return pickRandomFirstDrip(
+      pool.map((content) => ({
+        contentId: content.id,
+        topicIds: topicIdsByContentId.get(content.id) ?? [],
+      })),
+      topicIds,
+      dripCount,
+      this.random,
+    );
+  }
+
+  /** 종전 경로 — 콜드스타트 스코어링 + 다양성 선정 */
+  private async selectByScoring(
+    pool: Content[],
+    topicIds: string[],
+    dripCount: number,
+    user: User,
+    now: Date,
+  ): Promise<string[]> {
     const scored = this.dripScoringService.scoreRegularCandidates(
       await this.buildScoringCandidates(pool),
       {
@@ -303,29 +403,9 @@ export class FirstDripService {
       },
     );
 
-    const selected = this.dripScoringService
+    return this.dripScoringService
       .selectWithDiversity(scored, dripCount)
       .map((pick) => pick.content.id);
-
-    if (selected.length >= dripCount) {
-      return selected;
-    }
-
-    const fallback = await this.contentService.findCandidates({
-      market: user.market,
-      excludeSeenByUserId: userId,
-      // 방금 뽑은 것만 넘긴다 — 누적 이력은 위와 같은 NOT EXISTS가 본다
-      excludeContentIds: selected,
-      seriesStartOnly: true,
-      limit: dripCount - selected.length,
-      now,
-    });
-
-    // 두 조회의 결과가 겹치지 않도록 제외 목록을 넘기지만, 같은 콘텐츠를 두 번 적립하려는
-    // 시도 자체를 남기지 않는다 — 편수가 부풀어 보이는 것을 막는다
-    return [
-      ...new Set([...selected, ...fallback.map((content) => content.id)]),
-    ];
   }
 
   /** 배치(`DripBatchOrchestrator.buildScoringCandidates`)와 같은 입력 — 집계·주제·임베딩 */

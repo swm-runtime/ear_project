@@ -17,6 +17,7 @@ import {
   SearchCursorPosition,
   SearchEngine,
 } from '@/modules/content/content.types';
+import { ContentLengthProfile } from '@/modules/content/content.enum';
 import { Content } from '@/modules/content/entities/content.entity';
 import { ContentService } from '@/modules/content/services/content.service';
 import { SearchQueryLogService } from '@/modules/content/services/search-query-log.service';
@@ -36,6 +37,8 @@ import { LibraryItem } from '@/modules/library/library-item.entity';
 import { LibraryService } from '@/modules/library/library.service';
 import { UserSignalAction } from '@/modules/playback/playback.enum';
 import { PlaybackService } from '@/modules/playback/services/playback.service';
+import { PlayPolicyService } from '@/modules/playback/services/play-policy.service';
+import { isSeriesEpisodeLocked } from '@/modules/subscription/policies/series-paywall.policy';
 
 import {
   DEFAULT_POPULAR_PERIOD,
@@ -111,6 +114,7 @@ export class ExploreOrchestrator {
     private readonly seriesService: SeriesService,
     configService: ConfigService<EnvironmentVariables, true>,
     private readonly queryEmbeddingClient: QueryEmbeddingClient,
+    private readonly playPolicyService: PlayPolicyService,
   ) {
     // **`true`를 명시했을 때만 켠다**(env.validation.ts) — 1.2.x 앱은 `type: "series"` 항목을 모른다. 꺼져 있으면 응답이 이 기능
     // 전과 바이트 단위로 같다(분기는 전부 이 값 하나로 갈린다)
@@ -134,6 +138,7 @@ export class ExploreOrchestrator {
     userId: string,
     now: Date,
     market: UserMarket,
+    lengthProfile: ContentLengthProfile,
   ): Promise<ExploreFeedResult> {
     // 취향은 **읽기만 한다** — 신호 재집계는 편성 배치가 하루 한 번 수행하고 피드는 그
     // 결과(`user_preference_vectors`)를 읽는다(domain.md 7.2). 콜드스타트 판정에 쓰는
@@ -160,6 +165,7 @@ export class ExploreOrchestrator {
           isColdStart,
           now,
           market,
+          lengthProfile,
           sectionLimit,
         ),
         // 시리즈 카드 모드는 SQL이 시리즈마다 대표 편 하나만 남긴다 — 접은 뒤에도 10칸이 찬다
@@ -168,6 +174,7 @@ export class ExploreOrchestrator {
               EXPLORE_SECTION_ITEM_COUNT,
               now,
               market,
+              lengthProfile,
               undefined,
               true,
             )
@@ -175,18 +182,26 @@ export class ExploreOrchestrator {
               EXPLORE_SECTION_ITEM_COUNT,
               now,
               market,
+              lengthProfile,
             ),
         // 피드는 **기본 구간**으로만 만든다. 구간을 바꾸면 피드를 다시 부르지 않고
         // `getPopular`가 그 섹션만 갈아끼운다(`explore.md` 4.1-1)
         this.contentService.findPopularPage({
           market,
+          lengthProfile,
           periodType: DEFAULT_POPULAR_PERIOD,
           cursor: null,
           limit: EXPLORE_SECTION_ITEM_COUNT,
           now,
           ...this.seriesAnchorsQuery(),
         }),
-        this.findTopicGroupDrafts(activeTopicIds, now, market, sectionLimit),
+        this.findTopicGroupDrafts(
+          activeTopicIds,
+          now,
+          market,
+          lengthProfile,
+          sectionLimit,
+        ),
       ]);
 
     const interest: ExploreSectionDraft = {
@@ -235,6 +250,7 @@ export class ExploreOrchestrator {
         drafts.filter((draft) => draft.contents.length > 0),
         now,
         market,
+        lengthProfile,
       ),
       this.playbackService.buildQuotaForUser(userId, now),
     ]);
@@ -258,9 +274,11 @@ export class ExploreOrchestrator {
     query: ExploreContentListQuery,
     now: Date,
     market: UserMarket,
+    lengthProfile: ContentLengthProfile,
   ): Promise<ExploreContentListResult> {
     const page = await this.contentService.findExplorePage({
       market,
+      lengthProfile,
       topicIds: query.topicIds,
       cursor: query.cursor
         ? decodeExploreCursor(query.cursor, query.topicIds)
@@ -276,6 +294,7 @@ export class ExploreOrchestrator {
         page.items.map((ranked) => ranked.content),
         now,
         market,
+        lengthProfile,
       ),
       this.playbackService.buildQuotaForUser(userId, now),
     ]);
@@ -329,9 +348,11 @@ export class ExploreOrchestrator {
     query: ExplorePopularListQuery,
     now: Date,
     market: UserMarket,
+    lengthProfile: ContentLengthProfile,
   ): Promise<ExplorePopularListResult> {
     const page = await this.contentService.findPopularPage({
       market,
+      lengthProfile,
       periodType: query.period,
       cursor: query.cursor
         ? decodePopularCursor(query.cursor, query.period)
@@ -347,6 +368,7 @@ export class ExploreOrchestrator {
         page.items.map((ranked) => ranked.content),
         now,
         market,
+        lengthProfile,
       ),
       this.playbackService.buildQuotaForUser(userId, now),
     ]);
@@ -451,6 +473,7 @@ export class ExploreOrchestrator {
     query: ExploreSearchQuery,
     now: Date,
     market: UserMarket,
+    lengthProfile: ContentLengthProfile,
   ): Promise<ExploreSearchResult> {
     const { normalizedQuery, term, tagOnly } = parseSearchQuery(query.query);
 
@@ -467,7 +490,7 @@ export class ExploreOrchestrator {
     }
 
     if (tagOnly) {
-      return this.searchKeywordOnly(userId, query, now, market, {
+      return this.searchKeywordOnly(userId, query, now, market, lengthProfile, {
         normalizedQuery,
         term,
         tagOnly: true,
@@ -487,7 +510,7 @@ export class ExploreOrchestrator {
       );
 
       return decoded.kind === 'legacy'
-        ? this.searchKeywordOnly(userId, query, now, market, {
+        ? this.searchKeywordOnly(userId, query, now, market, lengthProfile, {
             normalizedQuery,
             term,
             tagOnly: false,
@@ -498,6 +521,7 @@ export class ExploreOrchestrator {
             query,
             now,
             market,
+            lengthProfile,
             normalizedQuery,
             decoded,
           );
@@ -508,6 +532,7 @@ export class ExploreOrchestrator {
       query,
       now,
       market,
+      lengthProfile,
       normalizedQuery,
     );
   }
@@ -518,14 +543,23 @@ export class ExploreOrchestrator {
     query: ExploreSearchQuery,
     now: Date,
     market: UserMarket,
+    lengthProfile: ContentLengthProfile,
     normalizedQuery: string,
   ): Promise<ExploreSearchResult> {
     let queryUsed = normalizedQuery;
-    let run = await this.runHybrid(query, now, market, normalizedQuery, true);
+    let run = await this.runHybrid(
+      query,
+      now,
+      market,
+      lengthProfile,
+      normalizedQuery,
+      true,
+    );
 
     if (!query.exact && !run.page.keywordMatched) {
       const correction = await this.contentService.findSearchCorrection({
         market,
+        lengthProfile,
         normalizedQuery,
         includeSeriesTitles: this.seriesCardsEnabled,
         now,
@@ -536,6 +570,7 @@ export class ExploreOrchestrator {
           query,
           now,
           market,
+          lengthProfile,
           correction,
           true,
         );
@@ -584,6 +619,7 @@ export class ExploreOrchestrator {
         page.items.map((ranked) => ranked.content),
         now,
         market,
+        lengthProfile,
       ),
       matchedBy,
       queryUsed,
@@ -609,7 +645,13 @@ export class ExploreOrchestrator {
       // **첫 페이지의 빈 결과에만 대체 콘텐츠를 조립한다** — 관련 주제는 입력(원문)으로 찾는다
       fallback:
         page.items.length === 0
-          ? await this.buildSearchFallback(userId, normalizedQuery, now, market)
+          ? await this.buildSearchFallback(
+              userId,
+              normalizedQuery,
+              now,
+              market,
+              lengthProfile,
+            )
           : null,
     };
   }
@@ -620,6 +662,7 @@ export class ExploreOrchestrator {
     query: ExploreSearchQuery,
     now: Date,
     market: UserMarket,
+    lengthProfile: ContentLengthProfile,
     normalizedQuery: string,
     decoded: Extract<DecodedSearchCursor, { kind: 'hybrid' }>,
   ): Promise<ExploreSearchResult> {
@@ -628,6 +671,7 @@ export class ExploreOrchestrator {
       query,
       now,
       market,
+      lengthProfile,
       state.queryUsed,
       state.semantic,
       position,
@@ -640,6 +684,7 @@ export class ExploreOrchestrator {
         page.items.map((ranked) => ranked.content),
         now,
         market,
+        lengthProfile,
       ),
       matchedBy: page.items.map((ranked) => ranked.matchedBy),
       queryUsed: state.queryUsed,
@@ -671,6 +716,7 @@ export class ExploreOrchestrator {
     query: ExploreSearchQuery,
     now: Date,
     market: UserMarket,
+    lengthProfile: ContentLengthProfile,
     queryUsed: string,
     useSemantic: boolean,
     cursor: HybridSearchCursorPosition | null = null,
@@ -680,6 +726,7 @@ export class ExploreOrchestrator {
       : null;
     const page = await this.contentService.findHybridSearchPage({
       market,
+      lengthProfile,
       normalizedQuery: queryUsed,
       queryVector,
       topicIds: query.topicIds,
@@ -709,6 +756,7 @@ export class ExploreOrchestrator {
     query: ExploreSearchQuery,
     now: Date,
     market: UserMarket,
+    lengthProfile: ContentLengthProfile,
     keyword: {
       normalizedQuery: string;
       term: string;
@@ -721,6 +769,7 @@ export class ExploreOrchestrator {
 
     const page = await this.contentService.findSearchPage({
       market,
+      lengthProfile,
       normalizedQuery: term,
       tagOnly,
       topicIds: query.topicIds,
@@ -767,7 +816,13 @@ export class ExploreOrchestrator {
         // **첫 페이지의 빈 결과에만 대체 콘텐츠를 조립한다.** 커서 페이지의 빈 응답은
         // "결과 없음" 화면이 아니라 목록의 끝이다(explore-api.md 4.5)
         fallback: isFirstPage
-          ? await this.buildSearchFallback(userId, term, now, market)
+          ? await this.buildSearchFallback(
+              userId,
+              term,
+              now,
+              market,
+              lengthProfile,
+            )
           : null,
       };
     }
@@ -777,6 +832,7 @@ export class ExploreOrchestrator {
       page.items.map((ranked) => ranked.content),
       now,
       market,
+      lengthProfile,
     );
     const lastItem = page.items.at(-1);
 
@@ -813,6 +869,7 @@ export class ExploreOrchestrator {
     normalizedQuery: string,
     now: Date,
     market: UserMarket,
+    lengthProfile: ContentLengthProfile,
   ): Promise<ExploreSearchFallback> {
     const [relatedTopics, popularPage] = await Promise.all([
       this.topicService.findVisibleRelatedByName(
@@ -822,6 +879,7 @@ export class ExploreOrchestrator {
       ),
       this.contentService.findPopularPage({
         market,
+        lengthProfile,
         periodType: DEFAULT_POPULAR_PERIOD,
         cursor: null,
         limit: SEARCH_FALLBACK_POPULAR_COUNT,
@@ -840,6 +898,7 @@ export class ExploreOrchestrator {
         popularPage.items.map((ranked) => ranked.content),
         now,
         market,
+        lengthProfile,
       ),
     };
   }
@@ -860,9 +919,10 @@ export class ExploreOrchestrator {
     contents: Content[],
     now: Date,
     market: UserMarket,
+    lengthProfile: ContentLengthProfile,
   ): Promise<ExploreListItemView[]> {
     return this.seriesCardsEnabled
-      ? this.decorateGrouped(userId, contents, now, market)
+      ? this.decorateGrouped(userId, contents, now, market, lengthProfile)
       : this.decorate(userId, contents, now);
   }
 
@@ -878,6 +938,7 @@ export class ExploreOrchestrator {
     contents: Content[],
     now: Date,
     market: UserMarket,
+    lengthProfile: ContentLengthProfile,
   ): Promise<ExploreListItemView[]> {
     const cards = await this.seriesService.findCards(
       contents
@@ -885,6 +946,7 @@ export class ExploreOrchestrator {
         .filter((seriesId) => typeof seriesId === 'string'),
       now,
       market,
+      lengthProfile,
     );
     const cardOf = (content: Content) =>
       typeof content.seriesId === 'string'
@@ -1023,6 +1085,7 @@ export class ExploreOrchestrator {
     isColdStart: boolean,
     now: Date,
     market: UserMarket,
+    lengthProfile: ContentLengthProfile,
     sectionLimit: number,
   ): Promise<Content[]> {
     if (activeTopicIds.length === 0) {
@@ -1031,6 +1094,7 @@ export class ExploreOrchestrator {
 
     const pool = await this.contentService.findCandidates({
       market,
+      lengthProfile,
       includeTopicIds: activeTopicIds,
       limit: EXPLORE_RANKING_POOL_SIZE,
       now,
@@ -1080,6 +1144,7 @@ export class ExploreOrchestrator {
     activeTopicIds: string[],
     now: Date,
     market: UserMarket,
+    lengthProfile: ContentLengthProfile,
     sectionLimit: number,
   ): Promise<ExploreSectionDraft[]> {
     if (activeTopicIds.length === 0) {
@@ -1100,6 +1165,7 @@ export class ExploreOrchestrator {
 
           const contents = await this.contentService.findCandidates({
             market,
+            lengthProfile,
             includeTopicIds: [topicId],
             limit: sectionLimit,
             now,
@@ -1132,6 +1198,7 @@ export class ExploreOrchestrator {
     drafts: ExploreSectionDraft[],
     now: Date,
     market: UserMarket,
+    lengthProfile: ContentLengthProfile,
   ): Promise<ExploreSectionView[]> {
     if (drafts.length === 0) {
       return [];
@@ -1149,6 +1216,7 @@ export class ExploreOrchestrator {
         unique,
         now,
         market,
+        lengthProfile,
       );
       const groupedByContentId = new Map(
         unique.map((content, index) => [content.id, decoratedGrouped[index]]),
@@ -1205,6 +1273,7 @@ export class ExploreOrchestrator {
       countedContentIds,
       seriesRefs,
       completedIds,
+      seriesAccess,
     ] = await Promise.all([
       this.contentService.findTopicViews(contentIds, manager),
       this.libraryService.findActiveItems(userId, contentIds, manager),
@@ -1213,6 +1282,8 @@ export class ExploreOrchestrator {
       this.seriesService.findRefs(contents, manager),
       // 완청 표시(KAN-248) — 담지 않고 끝까지 들은 편도 완청이다
       this.libraryService.findCompletedContentIds(userId, contentIds, manager),
+      // 잠금 표시(KAN-290) — 요청당 한 번 판정하고 편마다 비교만 한다
+      this.playPolicyService.resolveSeriesAccess(userId, now, manager),
     ]);
 
     const topicIdsByContentId = groupTopicIds(topicViews);
@@ -1247,6 +1318,7 @@ export class ExploreOrchestrator {
           : null,
         isCompleted: completedIds.has(content.id),
         isCountedToday: countedContentIds.has(content.id),
+        isLocked: isSeriesEpisodeLocked(content, seriesAccess),
       };
     });
   }

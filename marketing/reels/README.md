@@ -1,0 +1,84 @@
+# 이어 릴스·쇼츠 자동화
+
+매일 08:00(KST) 앱에 발행된 편 하나로 30~60초 영상을 만들어 **승인 없이** 인스타 릴스와 유튜브 쇼츠에 올린다(2026-10-30 PM 지시 — 그전엔 사람 승인 뒤 인스타만).
+인스타 팔로워를 늘리는 마케팅 도구다 — 제품 코드(`frontend/`·`backend/`)·콘텐츠 파이프라인(`pipeline/`)과 섞지 않는다.
+
+```
+GitHub Actions(reels-daily, 매일 08:00)
+  build ─ 발행된 편 고르기(안 쓴 편 중 최근 발행 — Supabase backlog.status=published, 자격이 없거나 실패하면
+          운영 오디오 버킷에 같은 크기의 m4a 가 있는 편을 발행된 편으로 본다)
+        ─ 재료 받기(파이프라인 S3 episodes/<id>/: script-segments.json · script-sections.json · audio/dist.m4a · thumbnail.png)
+        ─ 구간·문구 고르기(OpenAI 텍스트 모델 — 인트로·마무리 제외, 앞 맥락 없이 이해되는 25~60초.
+          키가 없거나 실패하면 규칙: 앞을 가리키지 않는 윤아의 질문에서 시작해 이음의 답으로 끝나는 30~56초,
+          화면 문구는 그 단락 요약)
+        ─ 그림 3장(OpenAI 이미지 모델, 브랜드 색·글자 없음) — 실패하면 편 원본 그림(thumbnail-raw.png, 없으면 thumbnail.png)
+        ─ 합성(ffmpeg: 천천히 확대되는 그림 + 제목 + 화자별 자막 + 파형 + 끝 카드)
+        ─ S3 marketing/reels/<날짜>/ 업로드
+  publish ─ 인스타 릴스 게시 · 유튜브 쇼츠 게시(따로 시도 — 한쪽 자격이 없거나 실패해도 다른 쪽은 올린다) → Slack 에 주소
+```
+
+- **같은 편은 다시 쓰지 않는다.** 게시한 편은 영영, 제안만 하고 게시 안 한 편은 30일 동안 건너뛴다(`marketing/reels/state.json`).
+- **인트로를 쓰지 않는다.** 첫 재생의 45%가 30초 안에 끄는데, 그 30초가 고정 인사말이다(2026-10-28 운영 DB 집계).
+- 글로벌판(`G…` 편)은 영어라 건너뛴다.
+
+## 처음 한 번 설정 (사람 손)
+
+1. **인스타 계정을 프로페셔널(비즈니스 또는 크리에이터)로 바꾼다.** 인스타 앱 → 설정 → 계정 유형.
+2. **Meta 앱과 토큰.** [developers.facebook.com](https://developers.facebook.com) → 앱 만들기 → 제품 "Instagram" →
+   "Instagram API with Instagram login". 권한 `instagram_business_basic` · `instagram_business_content_publish`.
+   앱 역할(Instagram 테스터)에 우리 계정을 넣고 토큰을 만든다 — **장기 토큰(60일)** 과 **Instagram 사용자 ID** 가 나온다.
+   자기 계정에만 올리므로 앱 검수 없이 개발 모드로 쓴다.
+3. **토큰을 AWS SSM 에 넣는다.** 채팅·Slack·커밋에 붙이지 않는다.
+   ```
+   aws ssm put-parameter --name /earcast/reels/ig-token --type SecureString --value '<장기 토큰>'
+   ```
+   이후 갱신은 게시할 때 자동이다(7일 넘으면 새 토큰으로 덮어쓴다). 60일 넘게 한 번도 게시하지 않으면 만료되니 다시 넣는다.
+4. **GitHub 설정** (Settings → Secrets and variables → Actions)
+   | 종류 | 이름 | 값 |
+   |---|---|---|
+   | secret | `PIPELINE_SUPABASE_URL` | (선택) 파이프라인 Supabase 주소 — 없으면 운영 오디오 버킷으로 가린다 |
+   | secret | `PIPELINE_SUPABASE_SERVICE_ROLE_KEY` | (선택) 파이프라인 Supabase 서비스 키(읽기만 쓴다) |
+   | secret | `OPENAI_API_KEY` | (선택) OpenAI 키 — 없으면 규칙으로 고르고 그림은 편 원본 그림 |
+   | secret | `REELS_SLACK_WEBHOOK_URL` | 미리보기를 받을 채널의 Incoming Webhook |
+   | variable | `IG_USER_ID` | 2번의 Instagram 사용자 ID |
+   | variable | `REELS_ENABLED` | `true` — 이게 있어야 매일 예약 실행한다 |
+5. **유튜브** (2026-10-30 완료) — runtime364 계정, GCP 프로젝트 earcast 에 YouTube Data API v3 사용 설정,
+   OAuth 클라이언트(데스크톱 앱) `ear-reels-youtube-upload`. 채널 계정으로 한 번 승인하면 자격이 SSM `/earcast/reels/yt-oauth` 에 들어간다.
+   ```
+   python youtube.py auth --client-secret client_secret.json   # 브라우저에서 채널 계정으로 승인
+   ```
+   권한은 `youtube.upload`(올리기)·`youtube.force-ssl`(공개 범위 바꾸기). 올린 영상에는 'AI 생성 콘텐츠' 표시(`containsSyntheticMedia`)를 켠다.
+6. **AWS 역할 `ear-ci-reels`** (2026-10-30 생성 — OIDC, dev 브랜치만 신뢰). 권한은 아래뿐이다.
+   - 파이프라인 버킷 `episodes/*` 읽기, `marketing/reels/*` 읽기·쓰기
+   - 운영 오디오 버킷 `audio/*` 목록만(내용은 못 읽는다 — 발행 여부를 크기로 가리는 데만)
+   - SSM 파라미터 `/earcast/reels/*` 읽기·쓰기(인스타 토큰 갱신·유튜브 자격)
+
+## 유튜브 수동 업로드·공개
+
+```
+python youtube.py upload --manifest uploads.json --out result.json   # [{file,title,description,tags,privacy,thumbnail?}] — 기본 비공개
+python youtube.py privacy public <영상ID> ...                         # 확인한 뒤 공개로
+```
+
+## 수동 실행
+
+- GitHub → Actions → reels-daily → Run workflow. 편 ID 를 넣으면 그 편으로, `no_images` 를 켜면 그림 없이 썸네일로.
+- 로컬에서 영상만 확인 (AWS SSO 로그인, ffmpeg 필요):
+  ```
+  pip install -r requirements.txt
+  python main.py build --local --episode X260919-001 --no-ai     # 모델 없이 첫 본문 단락, 썸네일 배경
+  OPENAI_API_KEY=... python main.py build --local --episode X260919-001   # 모델이 구간·문구·그림
+  python main.py build --local --episode S261003-012 --pick pick.json   # 사람이 고른 구간·문구
+  ```
+  `pick.json` 은 `{start_idx, end_idx, title, caption, reason}` — 줄 번호는 `script-segments.json` 순서다.
+  결과는 `out/<날짜>/reel.mp4` (커밋하지 않는다).
+
+## 조절 값 (환경 변수)
+
+| 변수 | 기본 | 뜻 |
+|---|---|---|
+| `REELS_CLIP_MIN_SEC` · `REELS_CLIP_MAX_SEC` | 25 · 60 | 구간 길이(끝 카드 2.8초 별도) |
+| `REELS_IMAGE_COUNT` | 3 | 그림 수 |
+| `REELS_TEXT_MODEL` · `REELS_IMAGE_MODEL` · `REELS_IMAGE_QUALITY` | gpt-6.1-sol · gpt-image-2 · medium | 파이프라인과 같은 모델 |
+| `REELS_REPROPOSE_AFTER_DAYS` | 30 | 게시 안 한 후보를 다시 제안하기까지 |
+| `IG_API_VERSION` | v23.0 | Graph API 버전 |

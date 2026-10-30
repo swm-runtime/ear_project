@@ -107,6 +107,7 @@ export class RecommendInspectorRepository {
         tier: string;
         market: string;
         signed_up_at: Date;
+        trial_ends_at: Date | null;
         onboarding_completed: boolean;
         onboarding_step: string;
         onboarding_completed_at: Date | null;
@@ -119,6 +120,7 @@ export class RecommendInspectorRepository {
               u.tier,
               u.market,
               u.created_at as signed_up_at,
+              u.trial_ends_at,
               u.onboarding_completed,
               u.onboarding_step,
               u.onboarding_completed_at,
@@ -141,6 +143,7 @@ export class RecommendInspectorRepository {
       tier: r.tier,
       market: r.market,
       signedUpAt: r.signed_up_at,
+      trialEndsAt: r.trial_ends_at,
       onboardingCompleted: r.onboarding_completed,
       onboardingStep: r.onboarding_step,
       onboardingCompletedAt: r.onboarding_completed_at,

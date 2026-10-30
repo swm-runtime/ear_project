@@ -7,6 +7,7 @@ import { ErrorCode } from '@/common/exceptions/error-code.enum';
 import { normalizeStoredText } from '@/common/utils/search-text.util';
 import { UserMarket } from '@/modules/user/user.enum';
 
+import { ContentLengthProfile } from '../content.enum';
 import {
   ContentSeriesRef,
   CreateSeriesCommand,
@@ -19,6 +20,11 @@ import { Series } from '../entities/series.entity';
 import { ContentRepository } from '../repositories/content.repository';
 import { ContentTopicRepository } from '../repositories/content-topic.repository';
 import { SeriesRepository } from '../repositories/series.repository';
+import {
+  assertVariantOrigin,
+  assertVariantPairing,
+  variantValidationFailed,
+} from '../content-variant.policy';
 
 /** 관리자 시리즈 목록의 한 행 */
 export interface SeriesWithCounts {
@@ -69,6 +75,23 @@ export class SeriesService {
     command: CreateSeriesCommand,
     manager: EntityManager,
   ): Promise<Series> {
+    // 짧은 시리즈(KAN-298)는 원본 시리즈가 필요하고, 원본은 standard여야 한다
+    assertVariantPairing({
+      lengthProfile: command.lengthProfile,
+      variantOfId: command.variantOfSeriesId,
+      field: 'variant_of_series_id',
+      originRequired: true,
+    });
+    if (command.variantOfSeriesId !== null) {
+      assertVariantOrigin(
+        await this.seriesRepository.findById(
+          command.variantOfSeriesId,
+          manager,
+        ),
+        'variant_of_series_id',
+      );
+    }
+
     return this.seriesRepository.save(
       this.seriesRepository.create({
         title: normalizeStoredText(command.title),
@@ -76,6 +99,8 @@ export class SeriesService {
         totalEpisodes: command.totalEpisodes,
         status: command.status,
         publisherName: command.publisherName,
+        lengthProfile: command.lengthProfile,
+        variantOfSeriesId: command.variantOfSeriesId,
       }),
       manager,
     );
@@ -253,6 +278,16 @@ export class SeriesService {
     if (markets.some((market) => market !== upload.market)) {
       throw validationFailed('series_id', '다른 시장의 편이 있는 시리즈예요');
     }
+    // 편의 길이 프로필은 시리즈가 정한다(KAN-298) — 짧은 시리즈에 standard 편이 섞이면 코호트 노출이 시리즈 안에서 갈린다
+    if (
+      upload.lengthProfile !== null &&
+      upload.lengthProfile !== series.lengthProfile
+    ) {
+      throw variantValidationFailed(
+        'length_profile',
+        `이 시리즈의 편은 length_profile이 ${series.lengthProfile}이어야 해요`,
+      );
+    }
 
     return series;
   }
@@ -334,12 +369,23 @@ export class SeriesService {
     seriesIds: string[],
     now: Date,
     market: UserMarket,
+    /**
+     * 짧은 판 코호트(KAN-298) — 시리즈 목록(탐색 카드·같은 간행물의 다른 시리즈)은 사용자 코호트와 같은 길이 프로필의 편만 센다.
+     * 다른 프로필의 시리즈는 노출 편이 없어 맵에 없다 — 호출부가 그 시리즈를 목록에서 뺀다
+     */
+    lengthProfile: ContentLengthProfile,
     manager?: EntityManager,
   ): Promise<Map<string, SeriesCardView>> {
     const ids = [...new Set(seriesIds)];
     const [allSeries, episodes] = await Promise.all([
       this.seriesRepository.findAllByIds(ids, manager),
-      this.contentRepository.findVisibleBySeriesIds(ids, now, market, manager),
+      this.contentRepository.findVisibleBySeriesIds(
+        ids,
+        now,
+        market,
+        lengthProfile,
+        manager,
+      ),
     ]);
     const topicViews = await this.contentTopicRepository.findViewsByContentIds(
       episodes.map((episode) => episode.id),
@@ -390,6 +436,8 @@ export class SeriesService {
     seriesId: string,
     now: Date,
     market: UserMarket,
+    /** 짧은 판 코호트(KAN-298) — 기준 시리즈(직접 연 화면)는 막지 않고, 다른 시리즈 목록만 코호트로 거른다 */
+    lengthProfile: ContentLengthProfile,
     manager?: EntityManager,
   ): Promise<{ publisherName: string | null; cards: SeriesCardView[] }> {
     const { series } = await this.getVisibleForUser(
@@ -412,6 +460,7 @@ export class SeriesService {
       siblings.map((sibling) => sibling.id),
       now,
       market,
+      lengthProfile,
       manager,
     );
 

@@ -7,7 +7,20 @@ import { create } from 'zustand';
 
 import type { PlaybackRate } from '@/features/settings';
 
-import type { PlaybackSession, PlayQueueContext } from '../player.types';
+import type { PlaybackSession, PlayQueueContext, QueueEntry } from '../player.types';
+
+/**
+ * 자동 재생이 **잠긴 다음 편 앞에서 멈췄다**(KAN-302 — 결정 2026-10-30 박준현). 건너뛰지 않고 잠금 시트(PW2)를 띄운다 — 화면이 앞에
+ * 있을 때 호스트(useLockedPlaybackHost · 열린 플레이어)가 꺼내 쓴다. 화면 밖에서 끝났으면 앱이 앞으로 올 때까지 기다린다
+ */
+export interface LockedNextPending {
+  /** 끝난 편 — 그사이 다른 편을 틀었거나 다시 듣기를 눌렀으면 이 기록의 몫은 끝났다 */
+  afterContentId: string;
+  /** 잠긴 다음 줄 — 결제하면 이 편을 이어서 튼다 */
+  entry: QueueEntry;
+  /** 멈춘 순간의 재생 목록 맥락 — 결제 뒤 다시 틀어도 같은 목록이다 */
+  queue: PlayQueueContext;
+}
 
 const LIBRARY_QUEUE_CONTEXT: PlayQueueContext = { kind: 'library' };
 
@@ -35,6 +48,7 @@ interface PlaybackStore {
    * 재생 게이트의 확인 팝업을 거친다(차감되는 재생이면). 소리가 나면(서비스) 지운다
    */
   confirmBeforePlayContentId: string | null;
+  lockedNext: LockedNextPending | null;
   setSession: (session: PlaybackSession | null) => void;
   patchSession: (patch: Partial<PlaybackSession>) => void;
   setRate: (rate: PlaybackRate) => void;
@@ -42,6 +56,7 @@ interface PlaybackStore {
   setMiniPlayerDismissed: (dismissed: boolean) => void;
   setQueueContext: (context: PlayQueueContext) => void;
   setConfirmBeforePlay: (contentId: string | null) => void;
+  setLockedNext: (pending: LockedNextPending | null) => void;
 }
 
 export const usePlaybackStore = create<PlaybackStore>((set) => ({
@@ -51,6 +66,7 @@ export const usePlaybackStore = create<PlaybackStore>((set) => ({
   isRateHydrated: false,
   isMiniPlayerDismissed: false,
   confirmBeforePlayContentId: null,
+  lockedNext: null,
   setSession: (session) => set({ session }),
   patchSession: (patch) =>
     set((prev) => (prev.session ? { session: { ...prev.session, ...patch } } : prev)),
@@ -59,4 +75,5 @@ export const usePlaybackStore = create<PlaybackStore>((set) => ({
   setMiniPlayerDismissed: (dismissed) => set({ isMiniPlayerDismissed: dismissed }),
   setQueueContext: (queueContext) => set({ queueContext }),
   setConfirmBeforePlay: (confirmBeforePlayContentId) => set({ confirmBeforePlayContentId }),
+  setLockedNext: (lockedNext) => set({ lockedNext }),
 }));

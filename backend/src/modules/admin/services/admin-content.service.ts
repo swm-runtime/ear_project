@@ -9,9 +9,11 @@ import { ExternalServiceException } from '@/common/exceptions/external-service.e
 import { isUniqueViolation } from '@/common/utils/unique-violation.util';
 import {
   ContentLanguage,
+  ContentLengthProfile,
   ContentOrigin,
   ContentStatus,
 } from '@/modules/content/content.enum';
+import { assertVariantPairing } from '@/modules/content/content-variant.policy';
 import { Content } from '@/modules/content/entities/content.entity';
 import { AudioQuality } from '@/modules/content/content.enum';
 import {
@@ -156,8 +158,25 @@ export class AdminContentService {
     // 시리즈 편이면 시리즈 존재·총 편수 일치·번호 범위·발행 번호 중복·시장을 먼저 본다(KAN-134) — 저장소에 올리기 전에
     // 거절한다. 최종 판정은 발행 트랜잭션 안에서 시리즈 행을 잠그고 다시 한다
     const seriesEpisode = toSeriesEpisodeUpload(command);
-    if (seriesEpisode) {
-      await this.seriesService.assertEpisodeUploadable(seriesEpisode);
+    const series = seriesEpisode
+      ? await this.seriesService.assertEpisodeUploadable(seriesEpisode)
+      : null;
+    // 길이 프로필·짧은 판의 원본(KAN-298) — 시리즈 편은 시리즈의 값을 따르고(다르면 위에서 400), 원본 화는 선택이다.
+    // 단편 short는 원본이 필수다. 원본은 있어야 하고 standard여야 한다 — 전부 저장소에 올리기 전에 거절한다
+    const lengthProfile =
+      command.lengthProfile ??
+      series?.lengthProfile ??
+      ContentLengthProfile.STANDARD;
+    assertVariantPairing({
+      lengthProfile,
+      variantOfId: command.variantOfContentId,
+      field: 'variant_of_content_id',
+      originRequired: seriesEpisode === null,
+    });
+    if (command.variantOfContentId !== null) {
+      await this.contentService.assertVariantOriginContent(
+        command.variantOfContentId,
+      );
     }
     this.assertNoGlobalTargetAudiences(command.market, enrichment);
 
@@ -230,6 +249,9 @@ export class AdminContentService {
                 : [],
             market: command.market,
             language: command.language,
+            lengthProfile,
+            variantOfContentId: command.variantOfContentId,
+            introVersion: command.introVersion,
           },
           now,
           manager,
@@ -271,6 +293,9 @@ export class AdminContentService {
               source_name: command.sourceName,
               review_confirmed: command.reviewConfirmed,
               duration_sec: durationSec,
+              length_profile: lengthProfile,
+              variant_of_content_id: command.variantOfContentId,
+              intro_version: command.introVersion,
               ...(enrichment && {
                 enrichment_applied: enrichment.data !== null,
               }),
@@ -1533,6 +1558,7 @@ function toSeriesEpisodeUpload(
     episodeNo: command.episodeNo,
     totalEpisodes: command.totalEpisodes,
     market: command.market,
+    lengthProfile: command.lengthProfile,
   };
 }
 

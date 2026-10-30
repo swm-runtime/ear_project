@@ -2,6 +2,7 @@ import { Platform, Pressable, StyleSheet, View, useWindowDimensions } from 'reac
 import Animated, { type SharedValue, useAnimatedStyle } from 'react-native-reanimated';
 
 import { theme, useResolvedColor } from '@/shared/theme';
+import LockIcon from '@/shared/ui/LockIcon';
 import { pillButton } from '@/shared/ui/pill-button.styles';
 import PlayIcon from '@/shared/ui/PlayIcon';
 import RemoteImage from '@/shared/ui/RemoteImage';
@@ -24,6 +25,8 @@ const PLAY_BUTTON_WIDTH = 150;
 const PLAY_BUTTON_HEIGHT = 52;
 /** 아이콘·글자는 버튼 크기 그대로 두고 키웠다(PM 2026-10-22 "재생, +, 셔플 아이콘 글자 크기 키우자" — 종전 아이콘 22 · 글자 17) */
 const PLAY_ICON_SIZE = 26;
+/** 틀 편이 잠겼을 때 삼각형 자리의 자물쇠 — SF `lock.fill` 은 같은 크기면 삼각형보다 커 보여 한 단 줄인다 */
+const LOCK_ICON_SIZE = 20;
 const PLAY_LABEL_SIZE = theme.font.size.lg;
 /** [재생] 양옆 원(셔플 · 담기) — 알약과 같은 높이의 원 */
 const SIDE_BUTTON_SIZE = PLAY_BUTTON_HEIGHT;
@@ -42,8 +45,11 @@ interface SeriesHeaderProps {
   series: SeriesDetail['series'];
   /** 목록 맨 위에서 더 당긴 거리(pt, 0 이상) — 표지가 손을 따라 커졌다가 돌아온다(PM 2026-10-22) */
   overscroll: SharedValue<number>;
-  /** [재생]이 틀 편(낭독용) — 없으면(편 0개) 버튼을 그리지 않는다 */
-  playTarget: { episodeNo: number; title: string } | null;
+  /**
+   * [재생]이 틀 편(낭독용) — 없으면(편 0개) 버튼을 그리지 않는다. `isLocked`(서버 `is_locked` — KAN-294)면 삼각형 대신 자물쇠를
+   * 그리고 낭독 끝에 "잠김" — 누르면 잠금 시트다(판정은 게이트·서버)
+   */
+  playTarget: { episodeNo: number; title: string; isLocked: boolean } | null;
   onPlay: () => void;
   /** 셔플 — 무작위 한 편 + 재생 목록 순서 섞기(자동 다음 재생 없음) */
   onShuffle: () => void;
@@ -120,12 +126,17 @@ export default function SeriesHeader({
             ]}
             onPress={onPlay}
             accessibilityRole="button"
-            accessibilityLabel={EXPLORE_COPY.series.playA11y(
-              playTarget.episodeNo,
-              playTarget.title,
-            )}
+            accessibilityLabel={(playTarget.isLocked
+              ? EXPLORE_COPY.series.playLockedA11y
+              : EXPLORE_COPY.series.playA11y)(playTarget.episodeNo, playTarget.title)}
           >
-            <PlayIcon size={PLAY_ICON_SIZE} color={playIconColor} />
+            {playTarget.isLocked ? (
+              <View testID="series-play-lock">
+                <LockIcon size={LOCK_ICON_SIZE} color={playIconColor} />
+              </View>
+            ) : (
+              <PlayIcon size={PLAY_ICON_SIZE} color={playIconColor} />
+            )}
             <Text style={styles.playLabel}>{EXPLORE_COPY.series.play}</Text>
           </Pressable>
           <Pressable

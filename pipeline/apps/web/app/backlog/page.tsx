@@ -35,7 +35,7 @@ export default async function BacklogPage({ searchParams }: { searchParams: Prom
   // 글로벌판만 0028 칸(sub_topic)과 도메인 판정을 읽어 판정 대기 도메인을 참고로 보인다 — 승인 조건은 없다(2026-10-17, 한국판과 같게). 한국판 쿼리는 종전 그대로
   const en = pipelineLocale() === "en";
   const [{ data: rows }, { data: eps }, { data: rjobs }, { data: domains }, { data: jjobs }] = await Promise.all([
-    sb.from("backlog").select(`id,mid_topic,title,target_fit,angle,sources,status,dedup_note,approved_by,approved_at,axis,axis_type,gaps,cluster_version,reinforced_at,reinforce_note,created_at${en ? ",sub_topic" : ""}` as "*").order("created_at", { ascending: false }),
+    sb.from("backlog").select(`id,mid_topic,title,target_fit,angle,sources,status,dedup_note,approved_by,approved_at,axis,axis_type,gaps,cluster_version,reinforced_at,reinforce_note,created_at${en ? ",sub_topic" : ""}` as "*").is("remake_of", null).order("created_at", { ascending: false }),
     sb.from("episodes").select(`id,backlog_id,regression_kind${en ? ",critic_verdicts" : ""}` as "id,backlog_id,regression_kind"),
     sb.from("jobs").select("payload").eq("type", "sweep").in("status", ["queued", "claimed", "running"]).eq("payload->>mode", "B"), // 보강 스윕 진행 중 (0019)
     en ? sb.from("domains").select("id,domain,tier") : Promise.resolve({ data: null }),

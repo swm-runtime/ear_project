@@ -46,6 +46,11 @@ export const ERROR_CODES = {
   /** 무료 티어 한도 소진 → 페이월. PLAY_LIMIT_REACHED(유료 한도 안내)와 화면이 다르다 */
   PLAY_LIMIT_EXCEEDED: 'PLAY_LIMIT_EXCEEDED',
   PLAY_LIMIT_REACHED: 'PLAY_LIMIT_REACHED',
+  /**
+   * 시리즈 유료화(experiments-api.md 4.2-3 — KAN-290 ↔ KAN-294) — 잠긴 편의 발급·재생·재청취·대본 403. 차감하지 않고
+   * 한도(`PLAY_LIMIT_*`)보다 먼저 본다. 화면은 한도 시트가 아니라 **잠금 시트**다(남은 횟수 링이 오해를 만든다)
+   */
+  SERIES_EPISODE_LOCKED: 'SERIES_EPISODE_LOCKED',
 
   // explore-api.md 5장
   EXPLORE_CURSOR_INVALID: 'EXPLORE_CURSOR_INVALID',
@@ -85,6 +90,17 @@ export const ERROR_CODES = {
 
   /** drip-feedback-api.md 4.2 — 내 편성분이 아니거나 접수 기간(7일)이 지난 별점. 조용히 버린다(common-error-handling.md 9장) */
   DRIP_FEEDBACK_NOT_RATEABLE: 'DRIP_FEEDBACK_NOT_RATEABLE',
+
+  /**
+   * 콘텐츠 후기 · 후기 참여 프로모션(content-review-api.md 5장 — KAN-279/280). 후기의 두 코드는 큐의 후기를 버리고,
+   * 프로모션 코드는 S12 를 다시 받는다. 다른 지급 이용 중은 기존 `INVITE_GRANT_ALREADY_ACTIVE` 다
+   */
+  CONTENT_REVIEW_DISABLED: 'CONTENT_REVIEW_DISABLED',
+  CONTENT_REVIEW_NOT_PLAYED: 'CONTENT_REVIEW_NOT_PLAYED',
+  PROMOTION_NOT_FOUND: 'PROMOTION_NOT_FOUND',
+  PROMOTION_ALREADY_USED: 'PROMOTION_ALREADY_USED',
+  PROMOTION_EXPIRED: 'PROMOTION_EXPIRED',
+  PROMOTION_PRO_SUBSCRIBED: 'PROMOTION_PRO_SUBSCRIBED',
 
   // 공용 코드(common-error-handling.md 4.1)
   VALIDATION_FAILED: 'VALIDATION_FAILED',

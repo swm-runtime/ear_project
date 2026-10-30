@@ -440,6 +440,27 @@ export class LibraryService {
    * 한 구간에 적립된 편성분(드립·탐험)을 콘텐츠와 함께 — 추천 별점 팝업(`drip-feedback.md` 4.1)의 재료.
    * 삭제분은 뺀다: 사용자가 지운 편은 이미 반응한 것이라 다시 묻지 않는다.
    */
+  /**
+   * 첫 드립이 적립한 편 중 온보딩 직후 열 편(`experiments-api.md` 4.1). 첫 드립은 적립 행의 `added_at`을
+   * 작업의 `completed_at`과 같은 시각으로 쓰므로 그 시각으로 행을 찾는다. 짧은 편 먼저 — 남은 편이 없으면 `null`
+   */
+  async findFirstDripOpenContentId(
+    userId: string,
+    completedAt: Date,
+    now: Date,
+    market: UserMarket,
+    manager?: EntityManager,
+  ): Promise<string | null> {
+    return this.libraryItemRepository.findShortestUntouchedContentIdAddedAt(
+      userId,
+      LibraryItemSource.DRIP,
+      completedAt,
+      now,
+      market,
+      manager,
+    );
+  }
+
   /** 기간 안의 편성분(정규·탐험) 전체 — 드립 도착 알림(07:00)이 그날 배치 결과를 읽는다 */
   async findPlacementsAddedBetween(
     start: Date,

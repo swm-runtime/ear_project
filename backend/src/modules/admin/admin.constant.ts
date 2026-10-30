@@ -217,3 +217,35 @@ export const COMPLETION_LENGTH_MIN_AGE_HOURS = 24;
 export const COMPLETION_LENGTH_SLOPE_STEP_MIN = 5;
 /** 추세를 낼 최소 편 수 — 이보다 적으면 선을 긋지 않는다 */
 export const COMPLETION_LENGTH_MIN_CONTENTS = 5;
+
+/**
+ * 시리즈 편별 완청·이탈(`GET /admin/insights/series-episodes`, KAN-293, 2026-10-29) — "몇 편에서 빠지는가".
+ * 시작·완청 정의는 길이별 완청률과 같다(0초가 아닌 재생 = 시작 · 완청 공용 정의). 다음 편 진행은 시작 시점을 따지지 않는다 —
+ * 다음 편을 방금 시작한 사람도 "넘어간 사람"이다.
+ */
+/** 이 편을 시작한 지 이만큼 지난 (사용자, 편)만 센다 — 길이별 완청률과 같은 값(방금 시작한 사람은 끝까지 들을 시간이 없었다) */
+export const SERIES_EPISODES_MIN_AGE_HOURS = COMPLETION_LENGTH_MIN_AGE_HOURS;
+
+/**
+ * 짧은 판·도입부 실험(`GET /admin/insights/short-variant`, KAN-298 · KAN-296, 2026-10-29) — 기존 판 vs 짧은 판 완청률,
+ * 기존 도입부 vs 바뀐 도입부의 초반 이탈. 시작·완청 정의는 길이별 완청률과 같다.
+ */
+/** 시작한 지 이만큼 지난 (사용자, 편)만 센다 — 길이별 완청률과 같은 값 */
+export const SHORT_VARIANT_MIN_AGE_HOURS = COMPLETION_LENGTH_MIN_AGE_HOURS;
+/** 초반 이탈 기준(초) — 그 (사용자, 편)의 청취 합이 이 값 이하면 이탈. "첫 편 1분 안 이탈 54%" 분석과 같은 정의 */
+export const SHORT_VARIANT_DROP_10_SEC = 10;
+export const SHORT_VARIANT_DROP_30_SEC = 30;
+export const SHORT_VARIANT_DROP_60_SEC = 60;
+/** 시작자가 이보다 적은 행은 콘솔이 "표본 작음"으로 표시한다 */
+export const SHORT_VARIANT_MIN_SAMPLE = 20;
+
+/**
+ * 도착 알림 시각 실험(`GET /admin/insights/drip-arrival-time`, KAN-289, 2026-10-30) — 07:00 기준선 · 07:30(A) · 08:00(B)의
+ * 재생률. 2시간 반응 정의는 알림 반응(`pushReactions`)과 같은 쿼리 조각을 쓴다.
+ */
+export const DRIP_ARRIVAL_TIME_DEFAULT_DAYS = 14;
+export const DRIP_ARRIVAL_TIME_MAX_DAYS = 90;
+/** 반응 창(시간) — 알림 반응과 같은 값. 표시용(쿼리는 `playedBetween` 조각의 창을 쓴다) */
+export const DRIP_ARRIVAL_TIME_REACTION_HOURS = 2;
+/** 보낸 알림이 이보다 적은 행은 콘솔이 "표본 작음"으로 표시한다 — 기준선 재생률이 10% 안팎이라 20건이면 1~2건이 5~10%p를 움직인다 */
+export const DRIP_ARRIVAL_TIME_MIN_SAMPLE = 100;

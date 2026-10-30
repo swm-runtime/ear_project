@@ -152,3 +152,39 @@ describe('요약 — 옵션이 다른 기준선이면 Δ를 찍지 않는다', (
     expect(summary).not.toMatch(/ \((?:=|[+-]\d)/);
   });
 });
+
+/**
+ * 시리즈 유료화(KAN-290) 스위치를 켠 조건 — 무료 편수(3) 뒤 편이 프로 아닌 페르소나에게 가지 않는지(`series-paywall` 불변식)와,
+ * 시리즈 순서 불변식이 잠긴 편을 "줄 수 없는 편"으로 본 편성 계산과 어긋나지 않는지 본다
+ */
+describe('추천 평가 — 시리즈 유료화 켬 (CI 게이트)', () => {
+  let report: EvalReport;
+
+  beforeAll(async () => {
+    report = await runEvaluation(buildSyntheticSnapshot(NOW), {
+      simulationDays: 7,
+      autoExpandFeature: true,
+      seriesPaywall: true,
+      gitSha: null,
+      baseline: null,
+    });
+  }, 60_000);
+
+  it('불변식을 전부 지킨다 — series-paywall 포함', () => {
+    const violated = report.invariants.filter((row) => !row.passed);
+    expect(violated.map((row) => `${row.name}: ${row.detail}`)).toEqual([]);
+    expect(report.invariants.some((row) => row.name.includes('KAN-290'))).toBe(
+      true,
+    );
+    expect(report.options.seriesPaywall).toBe(true);
+  });
+
+  it('페르소나 검사(hard)를 전부 통과한다', () => {
+    const failed = report.personas.flatMap((persona) =>
+      persona.checks
+        .filter((check) => !check.passed && check.severity !== 'soft')
+        .map((check) => `${persona.name}: ${check.name} — ${check.detail}`),
+    );
+    expect(failed).toEqual([]);
+  });
+});

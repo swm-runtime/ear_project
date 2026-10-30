@@ -1,10 +1,14 @@
 import { toServiceDayRange } from '@/common/utils/service-date.util';
-import { ContentStatus } from '@/modules/content/content.enum';
+import {
+  ContentLengthProfile,
+  ContentStatus,
+} from '@/modules/content/content.enum';
 import {
   ContentCandidateQuery,
   SeriesEpisodeState,
 } from '@/modules/content/content.types';
 import { Content } from '@/modules/content/entities/content.entity';
+import { ContentCohortService } from '@/modules/content/services/content-cohort.service';
 import { DripBatchOrchestrator } from '@/modules/drip-batch/drip-batch.orchestrator';
 import { UserDripPlan } from '@/modules/drip-batch/drip-batch.types';
 import { DripScoringService } from '@/modules/drip/services/drip-scoring.service';
@@ -16,8 +20,9 @@ import {
   LibraryItemStatus,
 } from '@/modules/library/library.enum';
 import { UserSignalAction } from '@/modules/playback/playback.enum';
+import { SeriesPaywallService } from '@/modules/subscription/services/series-paywall.service';
 import { User } from '@/modules/user/entities/user.entity';
-import { UserMarket } from '@/modules/user/user.enum';
+import { UserMarket, UserTier } from '@/modules/user/user.enum';
 
 import { EvalSnapshot } from './recommend-eval.types';
 
@@ -402,7 +407,10 @@ export class EvalWorld {
    * 이 세계를 데이터 원천으로 삼는 **제품 편성기**. 적립·알림·배치 기록 쪽 의존은 비워 둔다 —
    * `planForUser`는 그것들을 부르지 않는다.
    */
-  planner(autoExpandFeature: boolean): DripBatchOrchestrator {
+  planner(
+    autoExpandFeature: boolean,
+    seriesPaywall = false,
+  ): DripBatchOrchestrator {
     const preferenceVectorService = new PreferenceVectorService({
       upsert: () => Promise.resolve(),
     } as never);
@@ -428,6 +436,20 @@ export class EvalWorld {
             ? String(autoExpandFeature)
             : undefined,
       } as never,
+      // 짧은 판 코호트(KAN-298) — 평가는 경계 설정 없이(전원 standard) 돈다. 페르소나·백테스트 카탈로그는 전부 standard다
+      new ContentCohortService({ get: () => undefined } as never),
+      // 아침 알림(KAN-288) — `planForUser`는 부르지 않는다
+      {} as never,
+      // 시리즈 유료화(KAN-290) — 제품 판정 그대로. 스위치만 평가 옵션으로 바꾼다(무료 편수는 기본 3)
+      new SeriesPaywallService(
+        {
+          get: (name: string) =>
+            name === 'SERIES_PAYWALL_ENABLED'
+              ? String(seriesPaywall)
+              : undefined,
+        } as never,
+        this.planService() as never,
+      ),
     );
   }
 
@@ -438,17 +460,26 @@ export class EvalWorld {
   async plan(
     key: string,
     now: Date,
-    options: { commit: boolean; autoExpandFeature: boolean },
+    options: {
+      commit: boolean;
+      autoExpandFeature: boolean;
+      seriesPaywall?: boolean;
+    },
   ): Promise<UserDripPlan> {
     const user = this.user(key);
 
-    return this.planner(options.autoExpandFeature).planForUser(
+    return this.planner(
+      options.autoExpandFeature,
+      options.seriesPaywall ?? false,
+    ).planForUser(
       {
         id: key,
         tier: user.tier,
         market: user.market,
         jobCategory: user.jobCategory,
         yearsOfExperience: user.yearsOfExperience,
+        // 평가 세계는 가입 체험을 두지 않는다 — 시리즈 유료화는 티어로만 갈린다
+        trialEndsAt: null,
       } as unknown as User,
       now,
       new Map(),
@@ -564,6 +595,11 @@ export class EvalWorld {
       getDailyDripCount: (tier: string) => Promise.resolve(counts(tier).drip),
       getDailyDiscoveryCount: (tier: string) =>
         Promise.resolve(counts(tier).discovery),
+      // 시리즈 유료화(KAN-290)의 "유료 요금제" — 평가 세계의 요금제는 편수만 들고 있어 유료를 daily · pro로 둔다(운영 요금제 가격과 같다)
+      isPaidTier: (tier: string) =>
+        Promise.resolve(
+          [UserTier.DAILY, UserTier.PRO].includes(tier as UserTier),
+        ),
     };
   }
 
@@ -593,6 +629,9 @@ export class EvalWorld {
           .filter(
             ({ content, topicIds }) =>
               content.market === query.market &&
+              // 짧은 판 코호트(KAN-298) — SQL의 `content.length_profile = :lengthProfile`. 칸이 없는 픽스처는 standard
+              (content.lengthProfile ?? ContentLengthProfile.STANDARD) ===
+                query.lengthProfile &&
               (!query.seriesStartOnly ||
                 content.episodeNo === null ||
                 content.episodeNo === 1) &&

@@ -72,6 +72,8 @@ const toFirstDripState = (dto: FirstDripResponseDto): FirstDripState => ({
   status: dto.status,
   libraryItemCount: dto.library_item_count,
   completedAt: dto.completed_at,
+  // 옛 서버(필드 없음)는 null 과 같다 — 탐색으로 폴백한다(experiments-api.md 4.1)
+  firstContentId: dto.first_content_id ?? null,
 });
 
 /* ── 엔드포인트 — mock 분기는 각 함수 진입점 한 곳에서만 한다 ── */

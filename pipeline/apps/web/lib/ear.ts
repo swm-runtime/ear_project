@@ -210,6 +210,8 @@ export interface UploadPayload {
   series_id?: string; episode_no?: number; total_episodes?: number;
   review_confirmed: boolean;
   market?: "kr" | "global"; language?: "ko" | "en"; // 비우면 uploadEarContent 가 이 콘솔 인스턴스의 값으로 채운다 (contentMarket)
+  /** 짧은 판(KAN-298 — admin-api 4.6) — 기존 판은 넣지 않는다. 값은 lib/short-publish.ts 가 만든다 */
+  length_profile?: "standard" | "short"; variant_of_content_id?: string; intro_version?: string;
 }
 
 /** 재발행 — 같은 content_id 에 오디오(·메타) 교체, content_version +1 (admin-api 4.10 — 백엔드 구현 대기: 404 면 아직 없는 것) */
@@ -230,6 +232,8 @@ export interface EarSeries {
   episode_counts: { published: number; withdrawn: number; expired: number }; max_published_episode_no: number | null;
   cover_url: string | null; // 시리즈 표지 (KAN-234, 2026-10-21) — 없으면 앱이 가장 앞 편 썸네일을 쓴다
   publisher_name: string | null; // 발행 이름 = 간행물 (BE #1883, KAN-247) — 앱 시리즈 화면 제목 아래 줄. 콘솔은 @ear/pipeline PUBLICATIONS 의 name 만 보낸다
+  /** 짧은 시리즈와 그 원본 (KAN-298). 서버가 이 칸을 안 주면 짧은 판을 모르는 서버(배포 전)다 */
+  length_profile?: "standard" | "short"; variant_of_series_id?: string | null;
   created_at: string; updated_at: string;
 }
 export const listEarSeries = () => earFetch<{ items: EarSeries[] }>("/admin/series");
@@ -247,7 +251,7 @@ export async function uploadPipelineSeriesCover(pipelineSeriesId: string, produc
   const cover = new File([await res.blob()], `series-${pipelineSeriesId}-cover.png`, { type: "image/png" });
   return putEarSeriesCover(productSeriesId, cover);
 }
-export const createEarSeries = (body: { title: string; description: string; total_episodes: number; status?: "ongoing" | "completed"; publisher_name?: string | null }) =>
+export const createEarSeries = (body: { title: string; description: string; total_episodes: number; status?: "ongoing" | "completed"; publisher_name?: string | null; length_profile?: "standard" | "short"; variant_of_series_id?: string }) =>
   earFetch<EarSeries>("/admin/series", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
 export const patchEarSeries = (id: string, fields: Partial<{ title: string; description: string; total_episodes: number; status: "ongoing" | "completed"; publisher_name: string | null }>) =>
   earFetch<EarSeries>(`/admin/series/${id}`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify(fields) });
@@ -501,7 +505,7 @@ export interface EarInsightsSummary {
   market?: EarInsightsMarket | null;
   /** 시장별 비교(global-api 4.10) — 배포 전 서버면 없다 */
   by_market?: EarInsightsMarketRow[];
-  /** 나라별(`users.region_code`, 없으면 unknown) — 글로벌을 골랐을 때만 채워진다. 배포 전 서버면 없다(2026-10-29) */
+  /** 나라별(기기 시간대에서 추정한 코드, 없으면 unknown · 모르는 시간대는 그 이름) — 글로벌을 골랐을 때만 채워진다. 배포 전 서버면 없다(2026-10-29) */
   by_region?: (Omit<EarInsightsMarketRow, "market"> & { region: string })[];
   users: {
     total_signups: number; current: number; withdrawals: number; withdrawal_rate: number | null;
@@ -625,6 +629,49 @@ export interface EarCompletionByLength {
 export const getEarCompletionByLength = (ch: EarChannel) =>
   earFetch<EarCompletionByLength>("/admin/insights/completion-by-length", { cache: "no-store" }, ch);
 
+// ── 짧은 판·도입부 실험 (실험 지표 탭 — `GET /admin/insights/short-variant`, KAN-298 · KAN-296, 2026-10-29) ── 집계만(사용자는 수로만)
+/** 시작·완청·초반 이탈 한 묶음. 단위는 (사용자, 편). 비율은 시작자 0이면 null */
+export interface EarVariantMetrics {
+  starters: number; completers: number; completion_rate: number | null;
+  drop_10s: number; drop_30s: number; drop_60s: number;
+  rate_10s: number | null; rate_30s: number | null; rate_60s: number | null;
+}
+/** `excluding_first` = 사용자마다 처음 시작한 편을 뺀 값 */
+export interface EarVariantSplit { all: EarVariantMetrics; excluding_first: EarVariantMetrics }
+export interface EarVariantPairSide extends EarVariantSplit { content_id: string; title: string; duration_sec: number; intro_version: string | null }
+export interface EarShortVariant {
+  generated_at: string; market: EarInsightsMarket | null; min_age_hours: number;
+  /** 시작자가 이보다 적은 행은 "표본 작음" — 서버가 정한 값 */
+  min_sample: number; drop_thresholds_sec: number[];
+  /** 코호트 경계(`SHORT_CONTENT_COHORT_SINCE`) — null 이면 경계 미설정 */
+  cohort_since: string | null; cohort_window_hours: number | null;
+  /** 경계가 없으면 null. standard = 경계 전 가입(기존 판을 받는 쪽), short = 경계 뒤 가입 */
+  by_cohort: (EarVariantSplit & { key: "standard" | "short" })[] | null;
+  by_length_profile: (EarVariantSplit & { key: string })[];
+  /** key null = 기존 도입부 */
+  by_intro_version: (EarVariantSplit & { key: string | null })[];
+  pairs: { short: EarVariantPairSide; original: EarVariantPairSide }[];
+}
+export const getEarShortVariant = (ch: EarChannel, market: EarInsightsMarket | null = null) =>
+  earFetch<EarShortVariant>(`/admin/insights/short-variant${market ? `?market=${market}` : ""}`, { cache: "no-store" }, ch);
+
+// ── 도착 알림 시각 실험 (실험 지표 탭 — `GET /admin/insights/drip-arrival-time`, KAN-289, 2026-10-30) ── 집계만(사용자는 수로만)
+/** baseline 07:00(스위치 전) · a 07:30 · b 08:00 · morning 참고 행(아침 알림 — A/B 비교 아님). 비율은 보낸 알림 0이면 null */
+export interface EarDripArrivalTimeArm {
+  key: "baseline" | "a" | "b" | "morning"; send_time: string; reference: boolean;
+  sent: number; users: number; played_2h: number; played_same_day: number;
+  play_rate_2h: number | null; play_rate_same_day: number | null;
+  first_sent_at: string | null; last_sent_at: string | null;
+}
+export interface EarDripArrivalTime {
+  generated_at: string; market: EarInsightsMarket | null; days: number; since: string;
+  /** 보낸 알림이 이보다 적은 행은 "표본 작음" — 서버가 정한 값 */
+  min_sample: number; reaction_window_hours: number;
+  arms: EarDripArrivalTimeArm[];
+}
+export const getEarDripArrivalTime = (ch: EarChannel, days: number, market: EarInsightsMarket | null = null) =>
+  earFetch<EarDripArrivalTime>(`/admin/insights/drip-arrival-time?days=${days}${market ? `&market=${market}` : ""}`, { cache: "no-store" }, ch);
+
 // ── 추천 검증 (서비스 지표 — `GET /admin/insights/recommendations/*`, 2026-10-22) ──
 // 사용자는 user_id 로만 온다 — 서버가 이름·이메일·제공자 ID·프로필 사진을 조회하지도 싣지도 않는다(루트 CLAUDE.md 개인정보 원칙).
 
@@ -702,3 +749,36 @@ export const getEarInspectorUsers = (ch: EarChannel, sort: EarInspectorSort, lim
 /** 상세는 열 때마다 서버가 감사 로그 1행을 남긴다(insights.recommendation_view) — 사용자를 고를 때만 부른다 */
 export const getEarInspectorDetail = (ch: EarChannel, userId: string) =>
   earFetch<EarInspectorDetail>(`/admin/insights/recommendations/users/${encodeURIComponent(userId)}`, { cache: "no-store" }, ch);
+
+// ── 콘텐츠 후기 (KAN-284 ↔ BE KAN-279, spec/api/content-review-api.md 4.8 · 4.9) ──
+// 작성자 계정(user_id)·닉네임·이메일은 API 가 주지 않는다. 원문은 이 응답으로만 읽어 화면에 그리고, 파이프라인 Supabase·로그에 남기지 않는다(content-review.md 4.7)
+export type EarReviewMarket = "kr" | "global";
+export interface EarReviewSummaryItem {
+  content_id: string; title: string; market: EarReviewMarket; status: string; content_version: number;
+  reviews: number; average_stars: number | null; distribution: Record<"1" | "2" | "3" | "4" | "5", number>;
+  text_reviews: number; completed_reviews: number; last_reviewed_at: string | null;
+  by_version: { content_version: number; reviews: number; average_stars: number | null }[];
+}
+export interface EarReviewSummary {
+  totals: { reviews: number; average_stars: number | null; text_reviews: number; reviewed_contents: number };
+  promotions: { issued: number; redeemed: number; expired: number; unused: number };
+  items: EarReviewSummaryItem[];
+}
+export interface EarReview {
+  id: string; content_id: string; content_title: string; content_status: string;
+  stars: number; text: string | null; is_completed: boolean; content_version: number; market: EarReviewMarket;
+  created_date: string; updated_date: string;
+}
+const reviewQs = (q: Record<string, string | number | boolean | undefined | null>) => {
+  const u = new URLSearchParams();
+  for (const [k, v] of Object.entries(q)) if (v !== undefined && v !== null && v !== "") u.set(k, String(v));
+  const s = u.toString(); return s ? `?${s}` : "";
+};
+/** 편별 집계 · 프로모션 건수 (4.8) — content_id 를 주면 그 편만 */
+export function getEarReviewSummary(q: { content_id?: string; market?: EarReviewMarket } = {}, ch: EarChannel = "prod") {
+  return earFetch<EarReviewSummary>(`/admin/content-reviews/summary${reviewQs(q)}`, {}, ch);
+}
+/** 후기 글 목록 (4.9) — 마지막으로 고친 순 최신순, 커서 페이지 */
+export function listEarReviews(q: { content_id?: string; market?: EarReviewMarket; has_text?: boolean; cursor?: string | null; limit?: number } = {}, ch: EarChannel = "prod") {
+  return earFetch<{ items: EarReview[]; next_cursor: string | null }>(`/admin/content-reviews${reviewQs(q)}`, {}, ch);
+}

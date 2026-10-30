@@ -16,6 +16,7 @@ import {
   ValidateIf,
   validateSync,
   ValidatorConstraint,
+  type ValidationArguments,
   type ValidatorConstraintInterface,
 } from 'class-validator';
 
@@ -42,6 +43,47 @@ export class ServiceDayBoundarySwitchConstraint implements ValidatorConstraintIn
 
   defaultMessage(): string {
     return 'SERVICE_DAY_BOUNDARY_05_FROM must be an ISO 8601 datetime whose KST hour is not 04 (05:00 KST recommended)';
+  }
+}
+
+/**
+ * 오프셋을 적은 ISO 8601 시각(`2026-11-05T10:00:00+09:00`)이 **실제로 있는 시각**인가 — 비어 있으면 통과(=꺼짐).
+ * `new Date()`는 `2026-02-30`을 오류 없이 3월 2일로 넘기고 `2026-13-05`는 Invalid Date라 소비 쪽에서 조용히 null(꺼짐)이 된다 —
+ * 실험 경계(`SHORT_CONTENT_COHORT_SINCE`)·할인 종료(`PLAN_DISCOUNT_ENDS_AT`)를 오타로 넣으면 실험이 꺼지거나 엉뚱한 날짜가 된 채
+ * 아무도 모르게 지나간다. 그래서 적은 연·월·일·시·분이 해석된 시각을 그 오프셋으로 되돌린 값과 같아야 통과한다.
+ */
+@ValidatorConstraint({ name: 'isoInstantWithOffset', async: false })
+export class IsoInstantWithOffsetConstraint implements ValidatorConstraintInterface {
+  validate(value: unknown): boolean {
+    if (value === undefined || value === null) return true;
+    if (typeof value !== 'string') return false;
+    const trimmed = value.trim();
+    if (trimmed === '') return true;
+    const match =
+      /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::\d{2}(?:\.\d+)?)?(Z|([+-])(\d{2}):(\d{2}))$/.exec(
+        trimmed,
+      );
+    if (!match) return false;
+    const parsed = new Date(trimmed);
+    if (Number.isNaN(parsed.getTime())) return false;
+    const offsetMinutes =
+      match[6] === 'Z'
+        ? 0
+        : (match[7] === '-' ? -1 : 1) *
+          (Number(match[8]) * 60 + Number(match[9]));
+    const local = new Date(parsed.getTime() + offsetMinutes * 60_000);
+
+    return (
+      local.getUTCFullYear() === Number(match[1]) &&
+      local.getUTCMonth() + 1 === Number(match[2]) &&
+      local.getUTCDate() === Number(match[3]) &&
+      local.getUTCHours() === Number(match[4]) &&
+      local.getUTCMinutes() === Number(match[5])
+    );
+  }
+
+  defaultMessage(args?: ValidationArguments): string {
+    return `${args?.property ?? 'value'} must be an existing ISO 8601 datetime with offset (e.g. 2026-11-05T10:00:00+09:00)`;
   }
 }
 
@@ -260,6 +302,97 @@ export class EnvironmentVariables {
   DRIP_TIMEZONE_GROUPS_ENABLED?: string;
 
   /**
+   * 첫 드립 주제 안 무작위 선정(KAN-291 — 단기 실험 ⑥)의 서버 스위치. `true`/`false`. **`true`를 명시했을 때만 켜진다.**
+   * 꺼져 있으면 첫 드립은 종전과 같다(콜드스타트 스코어링 + 다양성 선정). 켜면 관심 주제 안의 후보(시리즈는 1편만 · 시장 ·
+   * 본 것 제외 등 같은 필터)를 무작위로 잘라 주제를 돌아가며 균등 무작위로 고른다. 모자라면 인기 대체 편성은 그대로다.
+   * 정규 편성(2일차 이후)과는 무관하다
+   */
+  @IsOptional()
+  @IsIn(['true', 'false', ''])
+  FIRST_DRIP_RANDOM_ENABLED?: string;
+
+  /**
+   * 드립 도착 알림 시각 A/B(KAN-289 — 단기 실험 ③-1)의 서버 스위치. `true`/`false`. **`true`를 명시했을 때만 켜진다.**
+   * 꺼져 있으면 종전과 같다(그룹 현지 07:00 전원). 켜면 **전 사용자**를 사용자 id 해시로 A/B에 나눠 A는 07:30 · B는 08:00(그룹 현지)에
+   * 보내고, `notification_logs.type`을 `drip_arrival.a`·`.b`로 남긴다(앱으로 가는 `data.type`은 `drip_arrival` 그대로). 대상·문구는 같다
+   */
+  @IsOptional()
+  @IsIn(['true', 'false', ''])
+  DRIP_ARRIVAL_AB_ENABLED?: string;
+
+  /**
+   * 요금제 할인 표시(KAN-286 — 단기 실험 ① 가격 인하, `experiments-api.md` 4.4)의 서버 스위치. `true`/`false`.
+   * **`true`를 명시했을 때만 켜진다.** 켜면 `GET /plans`의 유료 요금제에 정가(`original_price_krw`)와
+   * `is_discounted`를 실어 앱이 정가 취소선 + "지금 할인 중"을 그린다. 끄면 앱 배포 없이 할인 표시가 사라진다
+   */
+  @IsOptional()
+  @IsIn(['true', 'false', ''])
+  PLAN_DISCOUNT_DISPLAY_ENABLED?: string;
+
+  /**
+   * 시리즈 유료화(KAN-290 — 단기 실험 ⑤, `experiments-api.md` 4.2)의 서버 스위치. `true`/`false`. **`true`를 명시했을 때만 켜진다.**
+   * 꺼져 있으면 모든 응답의 `is_locked = false`이고 `SERIES_EPISODE_LOCKED`도 나지 않는다(종전과 같다). 켜면 시리즈의
+   * `SERIES_FREE_EPISODES`편 뒤 편을 유료 요금제(daily · pro — 초대 코드 Pro 포함)·가입 체험 중이 아닌 사용자에게 잠근다(2026-10-30 데일리 개방)
+   */
+  @IsOptional()
+  @IsIn(['true', 'false', ''])
+  SERIES_PAYWALL_ENABLED?: string;
+
+  /**
+   * 시리즈 유료화의 무료 편수(양의 정수, 1~99). 비우면 3 — 1~3편은 누구나, 4편부터 잠긴다. 시리즈별로 다르게 두지 않는다.
+   * **1 이상이다** — 1편(탐험·첫 드립이 주는 시리즈 도입부)은 늘 열려 있다. **문자열로 받는다**(`SIGNUP_TRIAL_DAYS`와 같은 이유 — 빈 값 선언)
+   */
+  @IsOptional()
+  @Matches(/^$|^[1-9]\d?$/, {
+    message: 'SERIES_FREE_EPISODES must be an integer between 1 and 99',
+  })
+  SERIES_FREE_EPISODES?: string;
+
+  /**
+   * 할인 표시의 정가(원, 양의 정수) — daily·pro 티어별. 비우면 그 티어는 정가가 없어 할인 표시를 하지 않는다.
+   * 정가가 `plans.price_krw` 이하이면 할인이 아니다. **문자열로 받는다**(`SIGNUP_TRIAL_DAYS`와 같은 이유 — 빈 값 선언)
+   */
+  @IsOptional()
+  @Matches(/^$|^[1-9]\d*$/, {
+    message:
+      'PLAN_DISCOUNT_ORIGINAL_PRICE_DAILY_KRW must be a positive integer',
+  })
+  PLAN_DISCOUNT_ORIGINAL_PRICE_DAILY_KRW?: string;
+
+  @IsOptional()
+  @Matches(/^$|^[1-9]\d*$/, {
+    message: 'PLAN_DISCOUNT_ORIGINAL_PRICE_PRO_KRW must be a positive integer',
+  })
+  PLAN_DISCOUNT_ORIGINAL_PRICE_PRO_KRW?: string;
+
+  /**
+   * 할인 표시를 끄는 시각(ISO 8601 + 오프셋, 예 2026-12-01T00:00:00+09:00) — 기간 한정 할인(11월 한 달, 2026-10-30 결정).
+   * 이 시각부터는 `PLAN_DISCOUNT_DISPLAY_ENABLED`와 무관하게 `is_discounted = false`다(스토어 가격을 되돌린 뒤 "할인 중"이 남지 않게).
+   * 비우면 끝나는 시각이 없다
+   */
+  @IsOptional()
+  @Validate(IsoInstantWithOffsetConstraint)
+  PLAN_DISCOUNT_ENDS_AT?: string;
+
+  /**
+   * 콘텐츠 후기(`content-review-api.md` 2.1 — KAN-279)의 서버 스위치. `true`/`false`. **`true`를 명시했을 때만 켜진다.**
+   * 꺼져 있으면 후기 저장은 409 `CONTENT_REVIEW_DISABLED`, 먼저 묻기는 `show=false`, 모든 후기 응답의 `enabled=false`다.
+   * 받은 후기·프로모션은 그대로다. **개인정보 처리방침 시행일 이후에 켠다**(KAN-285)
+   */
+  @IsOptional()
+  @IsIn(['true', 'false', ''])
+  CONTENT_REVIEW_ENABLED?: string;
+
+  /**
+   * 후기 참여 프로모션 발급(`content-review-api.md` 2.1 — KAN-279)의 서버 스위치. `true`/`false`. **`true`를 명시했을 때만 켜진다**
+   * — 키가 빠진 채 배포됐을 때 보상이 조용히 나가는 쪽보다 멈추는 쪽이 되돌리기 쉽다. 끄면 **새 발급만** 멈추고
+   * `reward_progress=null`이다. 이미 받은 프로모션은 기한까지 쓸 수 있다. 운영 · 개발계는 상시 `true`
+   */
+  @IsOptional()
+  @IsIn(['true', 'false', ''])
+  CONTENT_REVIEW_REWARD_ENABLED?: string;
+
+  /**
    * 저녁 리텐션 알림(`notification.md` 4.6, KAN-272)의 서버 스위치. `off`(기본·빈 값) · `dry_run` · `on`.
    * `dry_run`은 대상·문구까지 정하고 **보내지 않는다** — 규칙별 건수와 문구 예시를 API 로그에 남긴다(임계값을 실제
    * 숫자로 맞춰 보는 단계). `on`은 마케팅 수신 동의자에게 그룹 현지 18:00에 보낸다.
@@ -267,6 +400,15 @@ export class EnvironmentVariables {
   @IsOptional()
   @IsIn(['off', 'dry_run', 'on', ''])
   RETENTION_PUSH_MODE?: string;
+
+  /**
+   * 아침 알림(KAN-288 — 단기 실험 ③, 드립이 없는 날 그룹 현지 08:00 미청취 유도)의 서버 스위치. `off`(기본·빈 값) · `dry_run` · `on`.
+   * 저녁(`RETENTION_PUSH_MODE`)과 따로 둔다 — 저녁이 켜진 환경에 배포되자마자 아침이 나가지 않게. `dry_run`은 대상·문구까지 정하고
+   * 시험 대상(`RETENTION_PUSH_TEST_USER_IDS`)에게만 보낸다 — 사유별 건수·문구 예시를 로그 `retention morning push processed`에 남긴다
+   */
+  @IsOptional()
+  @IsIn(['off', 'dry_run', 'on', ''])
+  RETENTION_MORNING_PUSH_MODE?: string;
 
   /**
    * 리텐션 알림 시험 대상(`notification.md` 4.6) — 쉼표로 구분한 사용자 id(uuid). `RETENTION_PUSH_MODE=dry_run`일 때 **이 사용자에게만
@@ -326,6 +468,16 @@ export class EnvironmentVariables {
   @IsOptional()
   @Validate(ServiceDayBoundarySwitchConstraint)
   SERVICE_DAY_BOUNDARY_05_FROM?: string;
+
+  /**
+   * 짧은 판 코호트 경계(KAN-298 — 단기 실험 ④). 이 시각(ISO 8601, 예 `2026-11-05T10:00:00+09:00`) **이후** 가입한 사용자에게는
+   * 짧은 판(`length_profile = short`)만, 그 전 가입자에게는 기존 편(`standard`)만 노출한다(`content-cohort.policy.ts`).
+   * **비우면 전원 standard** — 롤백 스위치다. 값은 새 앱의 스토어 배포 시각으로 운영이 넣는다.
+   * 날짜만 적은 값은 거부한다 — `new Date('2026-11-05')`는 UTC 자정(KST 09:00)으로 조용히 해석된다
+   */
+  @IsOptional()
+  @Validate(IsoInstantWithOffsetConstraint)
+  SHORT_CONTENT_COHORT_SINCE?: string;
 
   /**
    * App Store 인앱 결제 검증(`subscription-api.md` 7장 — KAN-106). **전부 선택이고, `APP_STORE_BUNDLE_ID`나

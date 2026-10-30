@@ -125,6 +125,47 @@ describe('BillingOrchestrator — 요금제 목록(4.1)', () => {
     expect(catalog.isEmailVerified).toBe(true);
   });
 
+  it('할인 표시 스위치가 꺼져 있으면(기본) 모든 요금제가 정가 없음·할인 아님이다(KAN-286)', async () => {
+    const { orchestrator } = setup();
+
+    const catalog = await orchestrator.listPlans(USER, DevicePlatform.IOS);
+
+    expect(
+      catalog.plans.map((plan) => [plan.originalPriceKrw, plan.isDiscounted]),
+    ).toEqual([
+      [null, false],
+      [null, false],
+      [null, false],
+    ]);
+  });
+
+  it('할인 표시 스위치를 켜고 정가를 주면 유료 요금제에 정가와 할인 여부를 준다 — 무료와 정가가 가격 이하인 요금제는 아니다(KAN-286)', async () => {
+    // given — 시험 세계의 가격은 daily 3,900 · pro 9,900. daily 정가는 가격과 같게 둔다
+    const { orchestrator, world } = assembleBilling(undefined, {
+      PLAN_DISCOUNT_DISPLAY_ENABLED: 'true',
+      PLAN_DISCOUNT_ORIGINAL_PRICE_DAILY_KRW: '3900',
+      PLAN_DISCOUNT_ORIGINAL_PRICE_PRO_KRW: '19900',
+    });
+    world.addUser(USER);
+
+    // when
+    const catalog = await orchestrator.listPlans(USER, DevicePlatform.IOS);
+
+    // then
+    expect(
+      catalog.plans.map((plan) => [
+        plan.tier,
+        plan.priceKrw,
+        plan.originalPriceKrw,
+        plan.isDiscounted,
+      ]),
+    ).toEqual([
+      [UserTier.LIGHT, 0, null, false],
+      [UserTier.DAILY, 3900, null, false],
+      [UserTier.PRO, 9900, 19900, true],
+    ]);
+  });
+
   it('GLOBAL 사용자에게는 요금제 이름·설명을 영어로 준다 — KR 사용자는 종전 한국어 그대로다(KAN-192 일부)', async () => {
     // given
     const { world, orchestrator } = setup();

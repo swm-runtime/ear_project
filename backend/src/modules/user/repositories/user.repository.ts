@@ -121,6 +121,8 @@ export class UserRepository {
         jobCategory: true,
         yearsOfExperience: true,
         onboardingCompleted: true,
+        createdAt: true,
+        trialEndsAt: true,
       },
       where: { id, status: UserStatus.ACTIVE },
     });

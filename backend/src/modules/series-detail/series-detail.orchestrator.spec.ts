@@ -118,6 +118,11 @@ describe('SeriesDetailOrchestrator', () => {
       librarySeriesService,
       dripExclusionService,
       dataSource,
+      {
+        resolveSeriesAccess: jest
+          .fn()
+          .mockResolvedValue({ lockedAfterEpisodeNo: null }),
+      } as never,
     );
   });
 

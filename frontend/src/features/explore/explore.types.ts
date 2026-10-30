@@ -23,6 +23,11 @@ export interface ExploreContent {
    * 아직 안 보내는 서버(구버전)도 null 로 읽는다. 탐색 행은 이 값으로 모양을 바꾸지 않는다 — 시리즈 화면(편 목록)만 쓴다
    */
   series: ExploreContentSeries | null;
+  /**
+   * 서버가 이 사용자에게 잠갔다고 준 편(`is_locked` — experiments-api.md 4.2-2, KAN-294). 잠금 표시와 재생 게이트의 미리 막기에만
+   * 쓴다 — 판정은 서버다. 티어·화수로 앱이 다시 계산하지 않는다. 옛 서버(필드 없음)는 false
+   */
+  isLocked: boolean;
 }
 
 /** 편이 속한 시리즈(explore-api.md 4.1 `content.series`) — `totalEpisodes` 는 시리즈 표의 계획 편수다 */

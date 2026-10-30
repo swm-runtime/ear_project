@@ -1,12 +1,16 @@
 import { Injectable } from '@nestjs/common';
 import { DataSource } from 'typeorm';
 
+import { cohortLengthProfileSql } from '@/modules/content/content-cohort.policy';
+import { ContentLengthProfile } from '@/modules/content/content.enum';
 import { UserMarket } from '@/modules/user/user.enum';
 
 import {
   InsightsCohortCounts,
   InsightsCompletionContentRow,
   InsightsDailyRows,
+  InsightsDripArrivalTimeKey,
+  InsightsDripArrivalTimeRow,
   InsightsFunnelCohortCounts,
   InsightsHourly,
   InsightsInviteCodeBaseline,
@@ -16,12 +20,16 @@ import {
   InsightsRegionTotals,
   InsightsPushReaction,
   InsightsRetention,
+  InsightsSeriesEpisodeRow,
+  InsightsShortVariantPairRow,
+  InsightsShortVariantRow,
   InsightsTopContent,
   InsightsTopicSupply,
   InsightsTopUser,
   InsightsUserTotals,
   InsightsWithdrawalReason,
 } from '../admin.types';
+import { countryOfTimezone } from '../timezone-country';
 
 /** 합계는 `::float8`로 받는다 — pg 드라이버가 `bigint`(sum 의 기본 타입)는 문자열로 돌려준다 */
 interface UserTotalsRow {
@@ -157,6 +165,28 @@ const marketIs = (column: string, param: string): string =>
 /** `userIdColumn`의 사용자가 그 시장인가 — `users`를 직접 읽지 않는 표(재생·세션·신호·구독)용 */
 const userInMarket = (userIdColumn: string, param: string): string =>
   `(${param}::varchar is null or ${userIdColumn} in (select mu.id from users mu where mu.market = ${param}))`;
+
+/**
+ * 알림 뒤 재생 판정(알림 반응 · 도착 알림 시각 실험 공용) — `[from, to)` 사이에 그 사용자의 새 재생 행(`play_records.played_at`)
+ * 또는 재생 위치 저장(`playback_progresses.updated_at`)이 있는가. 앱이 알림 탭을 서버에 알리지 않아(`opened_at` 비어 있음)
+ * 탭 대신 재생으로 역산한다. 인자는 이 파일의 리터럴(열 이름·SQL 식)뿐이다.
+ */
+const playedBetween = (
+  userIdColumn: string,
+  from: string,
+  to: string,
+): string =>
+  `(exists (
+     select 1 from play_records p
+      where p.user_id = ${userIdColumn}
+        and p.played_at >= ${from} and p.played_at < ${to}
+   ) or exists (
+     select 1 from playback_progresses pp
+      where pp.user_id = ${userIdColumn}
+        and pp.updated_at >= ${from} and pp.updated_at < ${to}
+   ))`;
+/** 알림 반응 창의 끝 — 보낸 뒤 2시간(`DRIP_ARRIVAL_TIME_REACTION_HOURS`와 같은 값) */
+const PUSH_REACTION_END = `l.sent_at + interval '2 hours'`;
 
 /**
  * 서비스 지표 요약(`admin-api.md` 4.22)의 집계 — 로그 콘솔 "서비스 지표" 탭이 읽는다.
@@ -301,8 +331,10 @@ export class AdminInsightsRepository {
   }
 
   /**
-   * 나라별 같은 지표(2026-10-29, 글로벌 탭 맨 위) — `marketTotals`와 같은 정의를 `users.region_code`(지금 기기 지역)로 나눈다.
-   * `market`이 있으면 그 시장 계정만. 지역이 없으면 `unknown`. 가입자 많은 나라 먼저
+   * 나라별 같은 지표(2026-10-29, 글로벌 탭 맨 위) — `marketTotals`와 같은 정의를 **기기 시간대에서 추정한 나라**로 나눈다
+   * (`countryOfTimezone` — 기기 언어 지역 `region_code`는 필리핀의 en-GB·en-US 기기를 영국·미국으로 잡아 버렸다).
+   * 질의는 시간대별로 세고, 같은 나라의 시간대(예: 말레이시아 Kuala_Lumpur·Kuching)를 여기서 더한다 — 값이 전부 사람 수·합이라
+   * 더해도 같다. `market`이 있으면 그 시장 계정만. 시간대가 없으면 `unknown`. 가입자 많은 나라 먼저
    */
   async regionTotals(
     since: Date,
@@ -311,16 +343,39 @@ export class AdminInsightsRepository {
   ): Promise<InsightsRegionTotals[]> {
     const rows = await this.groupedUserTotals<
       Omit<MarketTotalsRow, 'market'> & { region: string }
-    >("coalesce(u.region_code, 'unknown')", since, now, market);
+    >("coalesce(u.timezone, 'unknown')", since, now, market);
 
-    return rows
-      .map((r) => ({ region: r.region, ...toTotals(r) }))
-      .sort((a, b) => b.users - a.users || a.region.localeCompare(b.region));
+    const byCountry = new Map<string, InsightsRegionTotals>();
+    for (const r of rows) {
+      const region = countryOfTimezone(r.region);
+      const t = toTotals(r);
+      const prev = byCountry.get(region);
+      byCountry.set(
+        region,
+        prev
+          ? {
+              region,
+              users: prev.users + t.users,
+              signupsInWindow: prev.signupsInWindow + t.signupsInWindow,
+              onboardingCompleted:
+                prev.onboardingCompleted + t.onboardingCompleted,
+              active7d: prev.active7d + t.active7d,
+              listeners7d: prev.listeners7d + t.listeners7d,
+              listenSec: prev.listenSec + t.listenSec,
+              plays: prev.plays + t.plays,
+              paidActive: prev.paidActive + t.paidActive,
+            }
+          : { region, ...t },
+      );
+    }
+    return [...byCountry.values()].sort(
+      (a, b) => b.users - a.users || a.region.localeCompare(b.region),
+    );
   }
 
   /** 시장·나라 비교의 공통 질의 — `groupBy` 식마다 한 줄. 별칭은 `market`(시장) 또는 `region`(나라) */
   private groupedUserTotals<T>(
-    groupBy: 'u.market' | "coalesce(u.region_code, 'unknown')",
+    groupBy: 'u.market' | "coalesce(u.timezone, 'unknown')",
     since: Date,
     now: Date,
     market: UserMarket | null,
@@ -633,7 +688,7 @@ export class AdminInsightsRepository {
 
   /**
    * 알림 반응(2026-10-26 — `notification.md` 4.6 성과). 창(`since` 이후) 안에 **보낸**(`sent`) 드립 도착·리텐션 알림을
-   * 종류(`notification_logs.type` — 리텐션은 `retention.<규칙>.<변형>`)별로 세고, 그중 **보낸 뒤 2시간 안에 재생**한 건을 센다.
+   * 종류(`notification_logs.type` — 리텐션은 `retention.<규칙>.<변형>`, 도착 알림 시각 A/B는 `drip_arrival.<그룹>`)별로 세고, 그중 **보낸 뒤 2시간 안에 재생**한 건을 센다.
    * 재생 = 그 사이 새 재생 행(`play_records.played_at`) 또는 재생 위치 저장(`playback_progresses.updated_at`). 앱이 알림 탭을
    * 서버에 알리지 않아(`opened_at`은 비어 있다) 탭 대신 재생으로 역산한다 — 탭 없이 앱을 열어 들은 것도 반응으로 잡히고,
    * 2시간 안에 들은 뒤 더 늦게 다시 들어 위치 저장 시각이 밀린 경우는 새 재생 행이 없으면 빠진다(근사).
@@ -647,18 +702,10 @@ export class AdminInsightsRepository {
     >(
       `select l.type,
               count(*)::int as sent,
-              count(*) filter (where exists (
-                select 1 from play_records p
-                 where p.user_id = l.user_id
-                   and p.played_at >= l.sent_at and p.played_at < l.sent_at + interval '2 hours'
-              ) or exists (
-                select 1 from playback_progresses pp
-                 where pp.user_id = l.user_id
-                   and pp.updated_at >= l.sent_at and pp.updated_at < l.sent_at + interval '2 hours'
-              ))::int as reacted
+              count(*) filter (where ${playedBetween('l.user_id', 'l.sent_at', PUSH_REACTION_END)})::int as reacted
          from notification_logs l
         where l.status = 'sent' and l.sent_at >= $1
-          and (l.type = 'drip_arrival' or l.type like 'retention.%')
+          and (l.type = 'drip_arrival' or l.type like 'drip_arrival.%' or l.type like 'retention.%')
           and ${userInMarket('l.user_id', '$2')}
         group by l.type
         order by l.type`,
@@ -668,6 +715,83 @@ export class AdminInsightsRepository {
       type: r.type,
       sent: r.sent,
       reacted: r.reacted,
+    }));
+  }
+
+  /**
+   * 도착 알림 시각 실험 재료(KAN-289, 2026-10-30) — 창(`since` 이후) 안에 **보낸**(`sent`) 알림을 묶음별로 센다.
+   * - 묶음: `baseline` = `drip_arrival`(07:00) · `a` = `drip_arrival.a`(07:30) · `b` = `drip_arrival.b`(08:00) ·
+   *   `morning` = `retention.morning.*`(참고 행). 종류 문자열은 Service 가 정책 함수로 만들어 넘긴다.
+   * - 2시간 재생 = 알림 반응(`pushReactions`)과 같은 조각(`playedBetween`) · 보낸 뒤 2시간.
+   * - 당일 재생 = 같은 조각 · 보낸 시각부터 **그 서비스 날짜의 끝**까지. 날짜 경계(04:00 → 05:00 전환)는 Service 가
+   *   `toServiceDayRange`로 계산한 `[start, end)` 배열로 넘긴다 — 이 파일이 경계를 다시 계산하지 않는다.
+   * - `market`은 사용자의 지금 시장(`userInMarket`). 사용자는 수로만 낸다.
+   */
+  async dripArrivalTimeRows(
+    since: Date,
+    options: {
+      market: UserMarket | null;
+      types: { baseline: string; a: string; b: string; morningPrefix: string };
+      serviceDays: { start: Date; end: Date }[];
+    },
+  ): Promise<InsightsDripArrivalTimeRow[]> {
+    const rows = await this.dataSource.query<
+      {
+        key: InsightsDripArrivalTimeKey;
+        sent: number;
+        users: number;
+        played_2h: number;
+        played_same_day: number;
+        first_sent_at: Date;
+        last_sent_at: Date;
+      }[]
+    >(
+      `with days as (
+         select * from unnest($7::timestamptz[], $8::timestamptz[]) as d(start_at, end_at)
+       ),
+       l as (
+         select n.user_id, n.sent_at, d.end_at as day_end,
+                case
+                  when n.type = $3 then 'baseline'
+                  when n.type = $4 then 'a'
+                  when n.type = $5 then 'b'
+                  else 'morning'
+                end as key
+           from notification_logs n
+           join days d on n.sent_at >= d.start_at and n.sent_at < d.end_at
+          where n.status = 'sent' and n.sent_at >= $1
+            and (n.type in ($3, $4, $5) or n.type like $6 || '%')
+            and ${userInMarket('n.user_id', '$2')}
+       )
+       select l.key,
+              count(*)::int as sent,
+              count(distinct l.user_id)::int as users,
+              count(*) filter (where ${playedBetween('l.user_id', 'l.sent_at', PUSH_REACTION_END)})::int as played_2h,
+              count(*) filter (where ${playedBetween('l.user_id', 'l.sent_at', 'l.day_end')})::int as played_same_day,
+              min(l.sent_at) as first_sent_at,
+              max(l.sent_at) as last_sent_at
+         from l
+        group by l.key
+        order by l.key`,
+      [
+        since,
+        options.market,
+        options.types.baseline,
+        options.types.a,
+        options.types.b,
+        options.types.morningPrefix,
+        options.serviceDays.map((d) => d.start),
+        options.serviceDays.map((d) => d.end),
+      ],
+    );
+    return rows.map((r) => ({
+      key: r.key,
+      sent: r.sent,
+      users: r.users,
+      played2h: r.played_2h,
+      playedSameDay: r.played_same_day,
+      firstSentAt: r.first_sent_at,
+      lastSentAt: r.last_sent_at,
     }));
   }
 
@@ -1199,6 +1323,269 @@ export class AdminInsightsRepository {
       durationSec: r.duration_sec,
       starters: r.starters,
       completers: r.completers,
+    }));
+  }
+
+  /**
+   * 시리즈 편별 완청·이탈 재료(KAN-293) — `series_id`·`episode_no`가 있는 콘텐츠만(단일 콘텐츠는 나오지 않는다). 단위는
+   * (사용자, 시리즈, 편 번호)다 — 같은 편 번호의 콘텐츠 행이 여럿이면(철회 뒤 다시 올림) 합쳐 센다.
+   * - 시작·완청은 `completionByContent`와 같다(0초가 아닌 재생 · 첫 재생이 `minAgeHours` 전 · 완청 공용 정의).
+   * - 다음 편 = 이 시리즈에 있는 편 번호 중 이 편 다음으로 큰 것(번호가 비어도 건너뛴다). 다음 편 시작은 시점을 따지지 않는다.
+   * - `market`이 있으면 그 시장 콘텐츠만. 시작자 0인 편도 행으로 나온다(어느 편이 아무도 안 들었는지가 보이게).
+   * 사용자는 수만 낸다.
+   */
+  async seriesEpisodes(
+    now: Date,
+    options: {
+      market: UserMarket | null;
+      minAgeHours: number;
+      reachedRatio: number;
+    },
+  ): Promise<InsightsSeriesEpisodeRow[]> {
+    const rows = await this.dataSource.query<
+      {
+        series_id: string;
+        series_title: string;
+        total_episodes: number;
+        episode_no: number;
+        content_id: string;
+        title: string;
+        duration_sec: number;
+        market: string;
+        status: string;
+        next_episode_no: number | null;
+        starters: number;
+        completers: number;
+        next_started_of_starters: number;
+        next_started_of_completers: number;
+      }[]
+    >(
+      `with eps as (
+         select c.id, c.series_id, c.episode_no, c.duration_sec
+           from contents c
+          where c.series_id is not null and c.episode_no is not null
+            and ($1::varchar is null or c.market = $1)
+       ),
+       meta as (
+         select distinct on (c.series_id, c.episode_no)
+                c.series_id, c.episode_no, c.id, c.title, c.duration_sec, c.market, c.status
+           from contents c
+           join eps e on e.id = c.id
+          order by c.series_id, c.episode_no, (c.status = 'published') desc, c.created_at desc, c.id
+       ),
+       nexts as (
+         select m.*, lead(m.episode_no) over (partition by m.series_id order by m.episode_no) as next_episode_no
+           from meta m
+       ),
+       any_starts as (
+         select distinct p.user_id, e.series_id, e.episode_no
+           from play_records p
+           join eps e on e.id = p.content_id
+          where p.listened_sec > 0
+       ),
+       starts as (
+         select p.user_id, p.content_id
+           from play_records p
+           join eps e on e.id = p.content_id
+          where p.listened_sec > 0 and e.duration_sec > 0
+          group by p.user_id, p.content_id
+         having min(p.played_at) < $2::timestamptz - make_interval(hours => $3::int)
+       ),
+       flagged as (
+         select s.user_id, e.series_id, e.episode_no,
+                bool_or(
+                  exists (select 1 from library_items i
+                           where i.user_id = s.user_id and i.content_id = s.content_id and i.status = 'completed')
+                  or exists (select 1 from playback_progresses g
+                              where g.user_id = s.user_id and g.content_id = s.content_id
+                                and g.max_reached_sec >= e.duration_sec * $4::numeric)
+                  or exists (select 1 from user_signals u
+                              where u.user_id = s.user_id and u.content_id = s.content_id and u.action = 'complete')
+                ) as completed
+           from starts s
+           join eps e on e.id = s.content_id
+          group by s.user_id, e.series_id, e.episode_no
+       )
+       select n.series_id, sr.title as series_title, sr.total_episodes, n.episode_no,
+              n.id as content_id, n.title, n.duration_sec, n.market, n.status, n.next_episode_no,
+              count(f.user_id)::int as starters,
+              count(f.user_id) filter (where f.completed)::int as completers,
+              count(f.user_id) filter (where x.user_id is not null)::int as next_started_of_starters,
+              count(f.user_id) filter (where f.completed and x.user_id is not null)::int as next_started_of_completers
+         from nexts n
+         join series sr on sr.id = n.series_id
+         left join flagged f on f.series_id = n.series_id and f.episode_no = n.episode_no
+         left join any_starts x
+                on x.user_id = f.user_id and x.series_id = n.series_id and x.episode_no = n.next_episode_no
+        group by n.series_id, sr.title, sr.total_episodes, n.episode_no, n.id, n.title, n.duration_sec,
+                 n.market, n.status, n.next_episode_no
+        order by n.series_id, n.episode_no`,
+      [options.market, now, options.minAgeHours, options.reachedRatio],
+    );
+    return rows.map((r) => ({
+      seriesId: r.series_id,
+      seriesTitle: r.series_title,
+      totalEpisodes: r.total_episodes,
+      episodeNo: r.episode_no,
+      contentId: r.content_id,
+      title: r.title,
+      durationSec: r.duration_sec,
+      market: r.market,
+      status: r.status,
+      nextEpisodeNo: r.next_episode_no,
+      starters: r.starters,
+      completers: r.completers,
+      nextStartedOfStarters: r.next_started_of_starters,
+      nextStartedOfCompleters: r.next_started_of_completers,
+    }));
+  }
+
+  /**
+   * 짧은 판·도입부 실험 재료(KAN-298 · KAN-296) — (콘텐츠, 가입 코호트, 첫 편 여부)마다 (사용자, 편)의 시작·완청·초반 이탈 수.
+   * - 시작·완청은 `completionByContent`와 같다(0초가 아닌 재생 · 첫 재생이 `minAgeHours` 전 · 완청 공용 정의).
+   * - 초반 이탈 = 그 (사용자, 편)의 청취 합(`play_records.listened_sec` 합)이 10·30·60초 이하.
+   * - 첫 편 = 그 사용자가 처음 0초 아닌 재생을 한 편(시장·시점 무관). "첫 편 제외" 비교용이다.
+   * - 코호트는 `content-cohort.policy.ts`의 SQL판으로 가른다. 경계(`cohortSince`)가 없으면 전부 null. 비교를 공정하게 하려고
+   *   경계 전 코호트는 **경계 직전 같은 길이 창**(지금 − 경계)에 가입한 사람만, 두 코호트 모두 **가입 뒤 같은 길이 안에** 시작한
+   *   편만 넣는다(오래된 사용자·오래 쓴 뒤의 재생이 섞이지 않게). 창 밖은 null — 콘텐츠 단위 비교에만 들어간다.
+   * - `market`이 있으면 그 시장 콘텐츠만. 사용자는 수만 낸다.
+   */
+  async shortVariantRows(
+    now: Date,
+    options: {
+      market: UserMarket | null;
+      minAgeHours: number;
+      reachedRatio: number;
+      cohortSince: Date | null;
+      dropSec: [number, number, number];
+    },
+  ): Promise<InsightsShortVariantRow[]> {
+    const rows = await this.dataSource.query<
+      {
+        content_id: string;
+        length_profile: string;
+        intro_version: string | null;
+        cohort: 'standard' | 'short' | null;
+        is_first: boolean;
+        starters: number;
+        completers: number;
+        drop_10: number;
+        drop_30: number;
+        drop_60: number;
+      }[]
+    >(
+      `with pairs as (
+         select p.user_id, p.content_id, min(p.played_at) as first_played_at, sum(p.listened_sec)::int as listened
+           from play_records p
+           join contents c on c.id = p.content_id
+          where p.listened_sec > 0 and c.duration_sec > 0
+            and ($1::varchar is null or c.market = $1)
+          group by p.user_id, p.content_id
+         having min(p.played_at) < $2::timestamptz - make_interval(hours => $3::int)
+       ),
+       firsts as (
+         select distinct on (p.user_id) p.user_id, p.content_id
+           from play_records p
+          where p.listened_sec > 0 and p.user_id in (select user_id from pairs)
+          order by p.user_id, p.played_at, p.content_id
+       ),
+       flagged as (
+         select s.content_id, s.listened,
+                coalesce(f.content_id = s.content_id, false) as is_first,
+                (exists (select 1 from library_items i
+                          where i.user_id = s.user_id and i.content_id = s.content_id and i.status = 'completed')
+                 or exists (select 1 from playback_progresses g
+                             join contents c on c.id = g.content_id
+                             where g.user_id = s.user_id and g.content_id = s.content_id
+                               and g.max_reached_sec >= c.duration_sec * $4::numeric)
+                 or exists (select 1 from user_signals x
+                             where x.user_id = s.user_id and x.content_id = s.content_id and x.action = 'complete')
+                ) as completed,
+                case
+                  when $5::timestamptz is null then null
+                  when ${cohortLengthProfileSql('u.created_at', '$5')} = '${ContentLengthProfile.SHORT}'
+                    then '${ContentLengthProfile.SHORT}'
+                  when u.created_at >= $5::timestamptz - ($2::timestamptz - $5::timestamptz)
+                   and s.first_played_at < u.created_at + ($2::timestamptz - $5::timestamptz)
+                    then '${ContentLengthProfile.STANDARD}'
+                  else null
+                end as cohort
+           from pairs s
+           join users u on u.id = s.user_id
+           left join firsts f on f.user_id = s.user_id
+       )
+       select c.id as content_id, c.length_profile, c.intro_version, f.cohort, f.is_first,
+              count(*)::int as starters,
+              count(*) filter (where f.completed)::int as completers,
+              count(*) filter (where f.listened <= $6::int)::int as drop_10,
+              count(*) filter (where f.listened <= $7::int)::int as drop_30,
+              count(*) filter (where f.listened <= $8::int)::int as drop_60
+         from flagged f
+         join contents c on c.id = f.content_id
+        group by c.id, c.length_profile, c.intro_version, f.cohort, f.is_first
+        order by c.id, f.cohort, f.is_first`,
+      [
+        options.market,
+        now,
+        options.minAgeHours,
+        options.reachedRatio,
+        options.cohortSince,
+        ...options.dropSec,
+      ],
+    );
+    return rows.map((r) => ({
+      contentId: r.content_id,
+      lengthProfile: r.length_profile,
+      introVersion: r.intro_version,
+      cohort: r.cohort,
+      isFirst: r.is_first,
+      starters: r.starters,
+      completers: r.completers,
+      drop10: r.drop_10,
+      drop30: r.drop_30,
+      drop60: r.drop_60,
+    }));
+  }
+
+  /**
+   * 짧은 판 ↔ 원본 짝(KAN-298) — 원본(`variant_of_content_id`)이 있는 short 편 전부(상태 무관 — 회수된 편도 지난 재생은 남는다).
+   * `market`은 짧은 판의 시장으로 거른다.
+   */
+  async shortVariantPairs(
+    market: UserMarket | null,
+  ): Promise<InsightsShortVariantPairRow[]> {
+    const rows = await this.dataSource.query<
+      {
+        short_id: string;
+        short_title: string;
+        short_duration_sec: number;
+        short_intro_version: string | null;
+        original_id: string;
+        original_title: string;
+        original_duration_sec: number;
+        original_intro_version: string | null;
+      }[]
+    >(
+      `select s.id as short_id, s.title as short_title, s.duration_sec as short_duration_sec,
+              s.intro_version as short_intro_version,
+              o.id as original_id, o.title as original_title, o.duration_sec as original_duration_sec,
+              o.intro_version as original_intro_version
+         from contents s
+         join contents o on o.id = s.variant_of_content_id
+        where s.length_profile = '${ContentLengthProfile.SHORT}'
+          and ($1::varchar is null or s.market = $1)
+        order by s.created_at, s.id`,
+      [market],
+    );
+    return rows.map((r) => ({
+      shortContentId: r.short_id,
+      shortTitle: r.short_title,
+      shortDurationSec: r.short_duration_sec,
+      shortIntroVersion: r.short_intro_version,
+      originalContentId: r.original_id,
+      originalTitle: r.original_title,
+      originalDurationSec: r.original_duration_sec,
+      originalIntroVersion: r.original_intro_version,
     }));
   }
 }

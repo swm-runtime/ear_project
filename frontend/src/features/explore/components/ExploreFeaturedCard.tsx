@@ -1,6 +1,7 @@
 import { Pressable, StyleSheet, useWindowDimensions, View } from 'react-native';
 
 import { theme } from '@/shared/theme';
+import LockIcon from '@/shared/ui/LockIcon';
 import MoreIcon from '@/shared/ui/MoreIcon';
 import RemoteImage from '@/shared/ui/RemoteImage';
 import { Text } from '@/shared/ui/Typography';
@@ -11,6 +12,8 @@ import FeaturedCardBackdrop, { ON_ART_TEXT, ON_ART_TEXT_SECONDARY } from './Feat
 
 /** 하단 줄에 적는 주제 수 — 그 이상은 길이를 밀어낸다(플레이어 제목 줄과 같은 규칙) */
 const MAX_TOPIC_TAGS = 2;
+/** 하단 줄 앞 자물쇠 — 하단 글자(sm)와 같은 높이 */
+const LOCK_ICON_SIZE = 13;
 
 interface ExploreFeaturedCardProps {
   item: ExploreItem;
@@ -73,6 +76,7 @@ export default function ExploreFeaturedCard({
           title: item.content.title,
           minutes,
           completed: isCompleted,
+          locked: item.content.isLocked,
         })}
       >
         <View style={styles.artworkFrame}>
@@ -89,6 +93,17 @@ export default function ExploreFeaturedCard({
       </Pressable>
 
       <View style={styles.footer}>
+        {/* 잠긴 편(KAN-294 — 서버 `is_locked`) — 하단 줄 앞 작은 자물쇠. 사진 위에 얹지 않는다. 낭독은 본문 라벨의 "잠김" */}
+        {item.content.isLocked ? (
+          <View
+            style={styles.lock}
+            testID="explore-featured-lock"
+            accessibilityElementsHidden
+            importantForAccessibility="no-hide-descendants"
+          >
+            <LockIcon size={LOCK_ICON_SIZE} color={ON_ART_TEXT_SECONDARY} />
+          </View>
+        ) : null}
         {/*
           **재생 버튼을 두지 않는다.** 타일의 히트 영역은 둘뿐이다 — 본문 탭 = 재생, ⋯ 만 별도
           (explore-uiux.md 5장). 09-27 에 길이 알약을 원 버튼으로 바꿨다가 09-28 에 걷었다:
@@ -193,6 +208,10 @@ const styles = StyleSheet.create({
     gap: theme.spacing.sm + theme.spacing.xs,
     marginTop: theme.spacing.xs,
     marginHorizontal: theme.spacing.md,
+  },
+  // 줄 간격(sm+xs)은 글자 덩어리 사이 몫이다 — 자물쇠는 뒤 글자에 붙여 읽히게 당긴다
+  lock: {
+    marginRight: -theme.spacing.sm,
   },
   /** 저자 · 길이 — 정보지 버튼 성분이 아니라 보조 글자. 더보기 점을 오른쪽 끝으로 민다 */
   meta: {

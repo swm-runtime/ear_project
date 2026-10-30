@@ -1,3 +1,4 @@
+import { ContentCohortService } from '@/modules/content/services/content-cohort.service';
 import { ConfigService } from '@nestjs/config';
 
 import { EnvironmentVariables } from '@/config/env.validation';
@@ -15,6 +16,7 @@ import {
   RetentionPushService,
   sampleCopies,
 } from './retention-push.service';
+import { SeriesPaywallService } from '@/modules/subscription/services/series-paywall.service';
 
 // 2026-10-27(화) 18:00 KST
 const NOW = new Date('2026-10-27T09:00:00.000Z');
@@ -42,9 +44,20 @@ describe('RetentionPushService', () => {
   let targetedPushService: jest.Mocked<TargetedPushService>;
 
   const build = (env: Record<string, string>): RetentionPushService =>
-    new RetentionPushService(repository, targetedPushService, {
-      get: (key: string) => env[key],
-    } as unknown as ConfigService<EnvironmentVariables, true>);
+    new RetentionPushService(
+      repository,
+      targetedPushService,
+      {
+        get: (key: string) => env[key],
+      } as unknown as ConfigService<EnvironmentVariables, true>,
+      new ContentCohortService({
+        get: (key: string) => env[key],
+      } as never),
+      new SeriesPaywallService(
+        { get: (key: string) => env[key] } as never,
+        {} as never,
+      ),
+    );
 
   beforeEach(() => {
     repository = {
@@ -188,6 +201,28 @@ describe('RetentionPushService', () => {
 
     // then
     expect(plans.items.map((plan) => plan.userId)).toEqual([GLOBAL_USER]);
+  });
+
+  it('같은 날 아침 알림(retention.morning.*)은 저녁 상한에 세지 않는다 — 08:00 알림이 18:00 을 막지 않는다(KAN-288)', async () => {
+    // given — 10시간 전(08:00)에 아침 알림, 사흘 동안 아침 알림 3건
+    const hoursAgo = (hours: number) =>
+      new Date(NOW.getTime() - hours * 60 * 60 * 1000);
+    targetedPushService.findSentHistory.mockResolvedValue(
+      [10, 34, 58].map((hours) => ({
+        userId: KR_USER,
+        type: 'retention.morning.a',
+        sentAt: hoursAgo(hours),
+      })),
+    );
+    const service = build({ RETENTION_PUSH_MODE: 'dry_run' });
+
+    // when
+    const plans = await service.planGroup(DripGroup.ASIA, NOW);
+
+    // then — 20시간 1건·주 3건 어느 쪽에도 걸리지 않는다
+    expect(plans.items.map((plan) => plan.userId).sort()).toEqual(
+      [KR_USER, GLOBAL_USER].sort(),
+    );
   });
 });
 

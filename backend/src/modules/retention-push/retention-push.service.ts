@@ -1,6 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 
+import { ContentCohortService } from '@/modules/content/services/content-cohort.service';
+import { SeriesPaywallService } from '@/modules/subscription/services/series-paywall.service';
 import { EnvironmentVariables } from '@/config/env.validation';
 import {
   serviceDateStart,
@@ -20,6 +22,7 @@ import { messageLanguageOf } from '@/modules/user/policies/market.policy';
 import { UserMarket } from '@/modules/user/user.enum';
 
 import {
+  MORNING_PUSH_LOG_TYPE_PREFIX,
   RETENTION_DRY_RUN_SAMPLES_PER_RULE,
   RETENTION_LOG_TYPE_PREFIX,
   RETENTION_PUSH_LISTENED_WINDOW_HOURS,
@@ -72,6 +75,8 @@ export class RetentionPushService {
     private readonly repository: RetentionPushRepository,
     private readonly targetedPushService: TargetedPushService,
     configService: ConfigService<EnvironmentVariables, true>,
+    private readonly contentCohortService: ContentCohortService,
+    private readonly seriesPaywallService: SeriesPaywallService,
   ) {
     this.mode = toMode(
       configService.get('RETENTION_PUSH_MODE', { infer: true }),
@@ -239,6 +244,11 @@ export class RetentionPushService {
     const byUser = new Map<string, RetentionSentRecord[]>();
 
     for (const row of rows) {
+      // 아침 알림(KAN-288)은 저녁 상한(20시간 1건 · 주 3건)에 세지 않는다 — 08:00 알림이 같은 날 18:00을 막지 않게(결정 2026-10-29)
+      if (row.type.startsWith(MORNING_PUSH_LOG_TYPE_PREFIX)) {
+        continue;
+      }
+
       const ruleKey = parseRetentionLogType(row.type);
 
       // 지운 규칙의 지난 기록도 하루·주간 상한에는 센다 — 쿨다운만 의미가 없다
@@ -270,6 +280,8 @@ export class RetentionPushService {
       string,
       Awaited<ReturnType<RetentionPushRepository['findUserFacts']>>[number]
     >();
+    // 시리즈 유료화(KAN-290 — `experiments-api.md` 4.2-4) — "듣던 콘텐츠"는 이 사용자에게 잠긴 편을 고르지 않는다. 판정 입력은 실행당 한 번
+    const seriesLock = await this.seriesPaywallService.resolveSqlParams();
 
     for (let i = 0; i < userIds.length; i += FACTS_CHUNK_SIZE) {
       const rows = await this.repository.findUserFacts({
@@ -280,6 +292,10 @@ export class RetentionPushService {
         resumeSince: new Date(
           now.getTime() - RESUME_CONTENT_RECENT_DAYS * 24 * HOUR_MS,
         ),
+        // 짧은 판 코호트(KAN-298) — "듣던 콘텐츠"는 사용자 코호트와 같은 길이 프로필만 고른다
+        shortCohortSince: this.contentCohortService.cohortSince(),
+        seriesLock,
+        now,
       });
 
       for (const row of rows) {
@@ -334,7 +350,7 @@ export function countStreak(
   return streak;
 }
 
-function toMode(value: string | undefined): RetentionPushMode {
+export function toMode(value: string | undefined): RetentionPushMode {
   const normalized = value?.trim();
 
   return (Object.values(RetentionPushMode) as string[]).includes(

@@ -79,12 +79,15 @@ function PlanCard({
   const price = priceText(card);
   const isCurrent = plan.action === 'current';
   const isSelectable = onSelect !== undefined;
+  // 할인 표시(KAN-299) — 서버가 할인이라고 판정했고 스토어 가격이 있을 때만. 정가는 서버 값, 가격은 스토어 값 그대로다
+  const originalPriceKrw = price !== null ? (card.originalPriceKrw ?? null) : null;
   const a11yLabel = SUBSCRIPTION_COPY.plans.cardA11y(
     plan.name,
     price ?? '',
     plan.description,
     isCurrent,
     isScheduled,
+    originalPriceKrw,
   );
 
   const summary = (
@@ -114,9 +117,27 @@ function PlanCard({
               <Text style={styles.currentBadgeLabel}>{SUBSCRIPTION_COPY.plans.current}</Text>
             </View>
           ) : null}
+          {originalPriceKrw !== null ? (
+            // "지금 할인 중" — 앱에 유채색 강조가 없어(design.md §1) 주 동작 색을 뒤집은 알약으로 띄운다. 이용 중 카드는 회색 단계
+            <View style={[styles.discountBadge, isCurrent ? styles.currentBadge : null]}>
+              <Text
+                style={[styles.discountBadgeLabel, isCurrent ? styles.currentBadgeLabel : null]}
+              >
+                {SUBSCRIPTION_COPY.plans.onSale}
+              </Text>
+            </View>
+          ) : null}
         </View>
         {price !== null ? (
-          <Text style={[styles.price, isCurrent ? styles.textMuted : null]}>{price}</Text>
+          <View style={styles.priceGroup}>
+            {originalPriceKrw !== null ? (
+              // 정가 — 취소선. 낭독은 카드 라벨이 "정가 …"로 따로 말한다
+              <Text style={[styles.originalPrice, isCurrent ? styles.descriptionMuted : null]}>
+                {SUBSCRIPTION_COPY.plans.originalPrice(originalPriceKrw)}
+              </Text>
+            ) : null}
+            <Text style={[styles.price, isCurrent ? styles.textMuted : null]}>{price}</Text>
+          </View>
         ) : null}
       </View>
       {plan.description ? (
@@ -308,7 +329,8 @@ interface PlanListProps {
 /**
  * 요금제 비교 카드(SB2 · 페이월) — 고를 수 있는 카드는 라디오(카드 전체를 눌러 고른다), 결제는 목록 아래 버튼 하나
  * "<이름> 구독하기"(KAN-146 PM 미리보기 확정 2026-10-07). 이름·설명은 서버 값 그대로다(티어명 하드코딩 금지).
- * 이용 중 카드는 회색 + 이름 옆 [이용 중] 배지, 라디오 칸은 비워 둔다. 가격은 스토어 현지 가격만 그린다.
+ * 이용 중 카드는 회색 + 이름 옆 [이용 중] 배지, 라디오 칸은 비워 둔다. 가격은 스토어 현지 가격만 그린다 — 서버가 할인이라고
+ * 판정한 요금제는 그 위에 취소선 정가, 이름 옆에 [지금 할인 중](KAN-299).
  * 조회 실패면 카드 대신 "요금제를 불러올 수 없어요" + [다시 시도].
  */
 export default function PlanList({
@@ -424,8 +446,11 @@ const styles = StyleSheet.create({
   nameGroup: {
     flex: 1,
     flexDirection: 'row',
+    // 배지가 둘(이용 중 + 지금 할인 중)이면 좁은 화면에서 다음 줄로 내린다 — 가격 칸을 밀어내지 않게
+    flexWrap: 'wrap',
     alignItems: 'center',
-    gap: theme.spacing.sm,
+    columnGap: theme.spacing.sm,
+    rowGap: theme.spacing.xs,
   },
   // 설명·구독 정보는 이름 밑에서 시작한다 — 라디오 칸 + 간격만큼 들인다
   indent: {
@@ -437,10 +462,20 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: theme.color.textPrimary,
   },
+  // 가격 칸 — 할인 중이면 취소선 정가를 가격 위에 쌓는다(한 줄로 두면 이름·배지와 겹쳐 좁은 화면에서 넘친다)
+  priceGroup: {
+    alignItems: 'flex-end',
+  },
   price: {
     fontSize: theme.font.size.md,
     fontWeight: '700',
     color: theme.color.textPrimary,
+    fontVariant: ['tabular-nums'],
+  },
+  originalPrice: {
+    fontSize: theme.font.size.xs,
+    color: theme.color.textSecondary,
+    textDecorationLine: 'line-through',
     fontVariant: ['tabular-nums'],
   },
   description: {
@@ -466,6 +501,19 @@ const styles = StyleSheet.create({
     fontSize: theme.font.size.xs,
     fontWeight: '600',
     color: theme.color.textMuted,
+  },
+  // [지금 할인 중](KAN-299) — [이용 중]과 같은 알약 크기, 면만 주 동작 색(라이트 검정·다크 흰)으로 뒤집는다. 누를 수 없음
+  discountBadge: {
+    paddingHorizontal: theme.spacing.sm,
+    paddingVertical: 3,
+    borderRadius: theme.radius.full,
+    borderCurve: 'continuous',
+    backgroundColor: theme.color.primary,
+  },
+  discountBadgeLabel: {
+    fontSize: theme.font.size.xs,
+    fontWeight: '600',
+    color: theme.color.onPrimary,
   },
   // 크기만 — 모양·색은 공용 알약(pillButton)
   button: {

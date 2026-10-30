@@ -1,6 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { DataSource } from 'typeorm';
 
+import { cohortLengthProfileSql } from '@/modules/content/content-cohort.policy';
+import { seriesEpisodeUnlockedSql } from '@/modules/subscription/policies/series-paywall.policy';
 import { UserMarket } from '@/modules/user/user.enum';
 
 import {
@@ -12,6 +14,15 @@ export interface RetentionAudienceRow {
   userId: string;
   market: UserMarket;
   timezone: string | null;
+}
+
+export interface MorningFactRow {
+  userId: string;
+  /** `addedSince` 이후 받은(드립·탐험) 아직 안 들은(`unplayed`) 편 수 — 라이브러리에 살아 있고 같은 시장 공개 콘텐츠만 */
+  unplayedCount: number;
+  /** 그 편이 1편이면 그 편, 아니면 null */
+  single: { contentId: string; title: string } | null;
+  listenedRecently: boolean;
 }
 
 export interface RetentionUserFactRow {
@@ -71,6 +82,18 @@ export class RetentionPushRepository {
     listenedSince: Date;
     playDatesSince: string;
     resumeSince: Date;
+    /** 짧은 판 코호트 경계(`SHORT_CONTENT_COHORT_SINCE`) — null이면 전원 standard */
+    shortCohortSince: Date | null;
+    /**
+     * 시리즈 유료화(KAN-290) 판정 입력(`SeriesPaywallService.resolveSqlParams`) — 이 사용자에게 잠긴 편은 "듣던 콘텐츠"가 아니다.
+     * 빠지면(옛 호출) 잠그지 않는다
+     */
+    seriesLock?: {
+      lockedAfterEpisodeNo: number | null;
+      unlockedTiers: string[];
+    };
+    /** 체험 판정 시각(시리즈 유료화 — 체험 중이면 열림) */
+    now?: Date;
   }): Promise<RetentionUserFactRow[]> {
     if (params.userIds.length === 0) {
       return [];
@@ -119,8 +142,20 @@ export class RetentionPushRepository {
               and li.status = 'in_progress'
               and c.status = 'published'
               and c.market = u.market
+              -- 짧은 판 코호트(KAN-298) — 규칙은 content-cohort.policy.ts 한 곳(SQL판)
+              and c.length_profile = ${cohortLengthProfileSql('u.created_at', '$8')}
               and pp.updated_at >= $5
               and c.duration_sec - pp.position_sec between $6 and $7
+              -- 시리즈 유료화(KAN-290) — 규칙은 series-paywall.policy.ts 한 곳(SQL판)
+              and ${seriesEpisodeUnlockedSql({
+                seriesId: 'c.series_id',
+                episodeNo: 'c.episode_no',
+                userTier: 'u.tier',
+                userTrialEndsAt: 'u.trial_ends_at',
+                lockedAfterParam: '$9',
+                unlockedTiersParam: '$10',
+                nowParam: '$11',
+              })}
             order by pp.updated_at desc
             limit 1
          ) resume on true
@@ -133,6 +168,10 @@ export class RetentionPushRepository {
         params.resumeSince,
         RESUME_CONTENT_MIN_REMAINING_SEC,
         RESUME_CONTENT_MAX_REMAINING_SEC,
+        params.shortCohortSince,
+        params.seriesLock?.lockedAfterEpisodeNo ?? null,
+        params.seriesLock?.unlockedTiers ?? [],
+        params.now ?? new Date(),
       ],
     );
 
@@ -149,6 +188,67 @@ export class RetentionPushRepository {
               remainingSec: Number(row.resume_remaining_sec),
             }
           : null,
+    }));
+  }
+
+  /**
+   * 아침 알림(KAN-288)의 사용자별 사실 — 최근 받은 미청취 편 수·1편이면 그 편·오늘 들었는지. 사용자당 한 행이고
+   * `library_items`(user, deleted_at, added_at)·`playback_progresses`(user) 인덱스를 탄다. 담은 편(`save`·`onboarding`)은 세지
+   * 않는다 — "추천받은 콘텐츠"를 말하는 알림이라 이어가 보낸 편(드립·탐험)만이다.
+   */
+  async findMorningFacts(params: {
+    userIds: string[];
+    addedSince: Date;
+    listenedSince: Date;
+  }): Promise<MorningFactRow[]> {
+    if (params.userIds.length === 0) {
+      return [];
+    }
+
+    const rows = await this.dataSource.query<
+      {
+        user_id: string;
+        unplayed_count: number;
+        single_content_id: string | null;
+        single_title: string | null;
+        listened_recently: boolean;
+      }[]
+    >(
+      `select u.id as user_id,
+              coalesce(unplayed.count, 0)::int as unplayed_count,
+              case when unplayed.count = 1 then unplayed.content_id end as single_content_id,
+              case when unplayed.count = 1 then unplayed.title end as single_title,
+              exists (
+                select 1 from playback_progresses pp
+                 where pp.user_id = u.id and pp.updated_at >= $3
+              ) as listened_recently
+         from users u
+         left join lateral (
+           select count(*)::int as count,
+                  (array_agg(c.id order by li.added_at desc))[1] as content_id,
+                  (array_agg(c.title order by li.added_at desc))[1] as title
+             from library_items li
+             join contents c on c.id = li.content_id
+            where li.user_id = u.id
+              and li.deleted_at is null
+              and li.source in ('drip', 'discovery')
+              and li.status = 'unplayed'
+              and li.added_at >= $2
+              and c.status = 'published'
+              and c.market = u.market
+         ) unplayed on true
+        where u.id = any($1::uuid[])`,
+      [params.userIds, params.addedSince, params.listenedSince],
+    );
+
+    return rows.map((row) => ({
+      userId: row.user_id,
+      unplayedCount: Number(row.unplayed_count),
+      single:
+        row.single_content_id && row.single_title !== null
+          ? { contentId: row.single_content_id, title: row.single_title }
+          : null,
+      listenedRecently: row.listened_recently,
     }));
   }
 

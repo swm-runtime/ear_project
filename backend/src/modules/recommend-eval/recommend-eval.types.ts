@@ -186,7 +186,12 @@ export interface EvalReport {
     topics: number;
     users: number;
   };
-  options: { simulationDays: number; autoExpandFeature: boolean };
+  options: {
+    simulationDays: number;
+    autoExpandFeature: boolean;
+    /** 시리즈 유료화 스위치(KAN-290). 이 필드 전에 만든 리포트에는 없다 — 없으면 꺼짐으로 읽는다 */
+    seriesPaywall?: boolean;
+  };
   /** 실사용자 백테스트 — 스냅샷에 사용자 행동이 없으면(합성 카탈로그) null */
   backtest: BacktestReport | null;
   /** 실사용자의 "지금 배치를 돌리면" 편성분 지표. 사용자가 없으면 null */

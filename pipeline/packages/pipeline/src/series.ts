@@ -14,7 +14,7 @@ export interface SeriesPlanInput {
   episodes?: number | null;
 }
 
-export interface SeriesPlanEpisode { no: number; title: string; scope: string; carries: string; only_here: string; minutes: number }
+export interface SeriesPlanEpisode { no: number; title: string; scope: string; carries: string; only_here: string; minutes: number; /** 짧은 판 시리즈(0041): 이 편이 나온 원본 편 번호 — 소스를 그 편에서 물려받는다. 일반 시리즈는 없다 */ from_no?: number }
 export interface SeriesPlanOut { name: string; intro_line: string; episodes: SeriesPlanEpisode[]; notes: string }
 
 export const SERIES_PLAN_SCHEMA = {
@@ -112,6 +112,133 @@ export function normalizeSeriesPlan(eps: SeriesPlanEpisode[]): SeriesPlanEpisode
     .map((e, k) => ({ no: k + 1, title: String(e.title).trim(), scope: String(e.scope ?? "").trim(), carries: k === 0 ? "" : String(e.carries ?? "").trim(), only_here: String(e.only_here ?? "").trim(), minutes: Number(e.minutes) > 0 ? Math.round(Number(e.minutes)) : 0 }));
 }
 
+// ── 짧은 판 시리즈 설계안 (KAN-296, 0041 — 2026-10-30 박수헌 "편을 나눠 설계안을 다시 짠다") ──────────────────
+// 원본 시리즈의 편 하나는 13~24분 분량이라 짧은 판(5~12분·핵심 하나)으로 1:1 줄이면 "이 편에서만 다룰 것"이 빠지고, 다른 편은 그 개념을 다루지 않으니 시리즈에서 사라진다.
+// 원본 편을 개념 단위로 1~3편으로 나눠 범위를 지킨다. 새 편은 원본 편 하나에서만 나온다(from_no) — 후보가 그 편의 소스를 물려받기 때문이다.
+
+export const SHORT_SERIES_PLAN_SCHEMA = {
+  type: "object",
+  additionalProperties: false,
+  required: ["episodes", "notes"],
+  properties: {
+    episodes: {
+      type: "array",
+      items: {
+        type: "object",
+        additionalProperties: false,
+        required: ["no", "from_no", "title", "scope", "carries", "only_here", "minutes"],
+        properties: {
+          no: { type: "integer" },
+          from_no: { type: "integer" },
+          title: { type: "string" },
+          scope: { type: "string" },
+          carries: { type: "string" },
+          only_here: { type: "string" },
+          minutes: { type: "number" },
+        },
+      },
+    },
+    notes: { type: "string" },
+  },
+} as const;
+
+export interface ShortSeriesPlanInput {
+  name: string;
+  midTopic: string;
+  /** 원본 시리즈 설계안 */
+  original: SeriesPlanEpisode[];
+  /** 원본 편 번호 → 그 편 소스의 "발행처 — 제목" 목록 */
+  sources: Record<number, string[]>;
+  /** 짧은 판 분량 범위(분) */
+  minMinutes: number;
+  maxMinutes: number;
+}
+
+export function buildShortSeriesPlanPrompt(i: ShortSeriesPlanInput): string {
+  const orig = i.original.map((e) => `### 원본 ${e.no}화 — ${e.title} (${e.minutes}분)
+- 범위: ${e.scope}
+- 이 편에서만 자세히: ${e.only_here}
+- 소스: ${(i.sources[e.no] ?? []).join(" / ") || "없음"}`).join("\n\n");
+  return `너는 오디오 콘텐츠 서비스 "이어(ear)"의 시리즈 기획자다. 대본은 쓰지 않는다. 발행된 시리즈를 짧은 편들로 다시 나눈 편 목록을 짠다.
+
+## 입력 — 원본 시리즈 "${i.name}" (중분류 ${i.midTopic}, ${i.original.length}편)
+${orig}
+
+## 규칙
+- 새 시리즈의 편은 ${i.minMinutes}분 이상 ${i.maxMinutes}분 이하다. 한 편은 핵심 개념 하나를 기제까지 설명한다.
+- 원본 편 하나를 개념 단위로 1편 이상 3편 이하로 나눈다. 원본 편의 "이 편에서만 자세히" 개념은 하나도 빠뜨리지 않는다.
+- 원본 시리즈가 다룬 범위를 넓히지 않는다. 원본 범위에 없는 개념은 새 편으로 만들지 않는다.
+- 새 편은 원본 편 하나에서만 나온다. from_no 에 그 원본 편 번호를 적는다. 두 원본 편의 개념을 한 편에 섞지 않는다.
+- 편 순서는 원본 편 순서를 따른다. from_no 는 줄어들지 않는다.
+- 같은 개념은 한 편에서만 자세히 다룬다. 다른 편에서는 한 문장으로 가리키기만 한다.
+- 범위가 얇아 ${i.minMinutes}분이 안 되는 개념은 같은 원본 편의 이웃 개념과 합친다.
+- 편 제목은 주제 이름으로 쓴다. 장면·질문·낚시 제목은 쓰지 않는다.
+- scope 와 only_here 에는 개념만 적는다. 사례는 "예: ○○" 로만 적는다.
+
+## 출력 — 요청한 JSON만
+- episodes: 1화부터 순서대로. no 는 1부터 이어지는 번호다.
+  - from_no: 이 편이 나온 원본 편 번호.
+  - scope: 이 편이 다룰 개념을 쉼표로 나열한다. 2개 이상 4개 이하.
+  - carries: 앞 편에서 이어받는 것. 1화는 빈 문자열이다.
+  - only_here: 이 편에서만 자세히 다룰 개념. 1개 이상 2개 이하.
+  - minutes: 예상 분량(분).
+- notes: 원본 편마다 몇 편으로 나눴는지와 이유, 합친 것. 없으면 빈 문자열.`;
+}
+
+/** 짧은 판 설계안 정리 — 번호를 다시 매기고, from_no 를 원본 범위로 묶고, from_no 가 줄어드는 편을 앞 편 원본에 붙인다. 원본 편 가운데 빠진 번호를 돌려준다 */
+export function normalizeShortSeriesPlan(eps: SeriesPlanEpisode[], originalTotal: number, maxMinutes: number): { plan: SeriesPlanEpisode[]; missing: number[] } {
+  let last = 1;
+  const plan = eps
+    .filter((e) => String(e.title ?? "").trim())
+    .map((e, k) => {
+      let from = Math.round(Number(e.from_no));
+      if (!Number.isFinite(from) || from < 1 || from > originalTotal) from = last;
+      if (from < last) from = last;
+      last = from;
+      const min = Number(e.minutes) > 0 ? Math.round(Number(e.minutes)) : maxMinutes;
+      return { no: k + 1, from_no: from, title: String(e.title).trim(), scope: String(e.scope ?? "").trim(), carries: k === 0 ? "" : String(e.carries ?? "").trim(), only_here: String(e.only_here ?? "").trim(), minutes: Math.min(min, maxMinutes) };
+    });
+  const seen = new Set(plan.map((e) => e.from_no));
+  const missing = Array.from({ length: originalTotal }, (_, k) => k + 1).filter((n) => !seen.has(n));
+  return { plan, missing };
+}
+
+/**
+ * 짧은 판 시리즈 편 기획 (2026-10-30 박수헌 "재제작도 기획부터 하고 거기에 맞는 자료를 찾는다") — 편 후보는 일반 시리즈 편과 같은 주제 기획(B-②)이 만든다.
+ * 원본 편(from_no)의 소스는 버리지 않고 판정에 우선 후보로 함께 넣는다. 아래는 그 기획 작업이 쓰는 값들이다(stages/topic-seed.ts).
+ */
+export function shortSeriesFromNo(plan: SeriesPlanEpisode[], no: number): number {
+  const ep = plan.find((e) => e.no === no);
+  if (!ep?.from_no) throw new Error(`짧은 판 시리즈 설계안에 ${no}화의 원본 편 번호(from_no)가 없다`);
+  return ep.from_no;
+}
+/** 짧은 판 시리즈 편의 콘텐츠 제목 — 원본 시리즈 편과 같은 꼴 */
+export function shortSeriesEpisodeTitle(name: string, no: number, title: string): string {
+  return `${name} ${no} — ${title}`;
+}
+/** 검색·판정 힌트에 덧붙이는 줄 — 검색은 원본 소스가 다루지 않는 개념을 찾고, 판정은 범위에 맞는 원본 소스를 먼저 쓴다 */
+export function shortSeriesSeedHint(origTitle: string, seeds: { title: string; publisher: string }[]): string {
+  const list = seeds.map((x) => `${x.publisher} — ${x.title}`).join(" · ");
+  return `짧은 판(5~12분) 편이다. 원본 편 "${origTitle}"의 소스 ${seeds.length}건이 판정 후보에 함께 들어간다${list ? `: ${list}` : ""}.\n검색은 이 소스들이 다루지 않는 이 편 범위의 개념을 찾는다.\n판정은 이 편 범위에 맞는 원본 소스를 먼저 쓰고, 범위에 맞지 않는 원본 소스는 뺀다.`;
+}
+
+/**
+ * 계층 쌓기 층(series.thumb_layers "이름:시작-끝, …")을 짧은 판 시리즈의 새 편 번호로 옮긴다 — 원본 편 범위에 속한 새 편들의 최소~최대 번호.
+ * fromNos[k] = 새 (k+1)화의 원본 편 번호. 새 편이 하나도 없는 층은 뺀다. 입력이 비거나 형식이 아니면 null
+ */
+export function remapLayers(text: string | null | undefined, fromNos: number[]): string | null {
+  const parts = String(text ?? "").split(/[,\n]/).map((x) => x.trim()).filter(Boolean);
+  const out: string[] = [];
+  for (const part of parts) {
+    const m = part.match(/^(.+?)\s*[:：]\s*(\d+)\s*[-~–]\s*(\d+)$/);
+    if (!m) return null;
+    const a = Number(m[2]), b = Number(m[3]);
+    const news = fromNos.map((f, k) => (f >= a && f <= b ? k + 1 : 0)).filter(Boolean);
+    if (news.length) out.push(`${m[1].trim()}:${Math.min(...news)}-${Math.max(...news)}`);
+  }
+  return out.length ? out.join(", ") : null;
+}
+
 // ── 시리즈 편 대본 (spec/11 5장 · 글로벌 명세 6.11, KAN-136 4단계) ──────────────────
 
 /** 시리즈 편 하나의 대본 맥락 — 워커가 시리즈 행·설계안·앞 편 구성안에서 만든다. 일반 편은 undefined 라 프롬프트가 바뀌지 않는다 */
@@ -125,8 +252,8 @@ export interface SeriesDraftContext {
   carries: string;
   /** 형제 편이 자세히 다룰 것 — 이 편은 구간으로 잡지 않는다 */
   elsewhere: { no: number; title: string; onlyHere: string }[];
-  /** 앞 편(2화부터) — 제목 + 구성안의 축·구간 질문. 회상의 유일한 재료 */
-  prev: { title: string; axis: string; questions: string[] } | null;
+  /** 앞 편(2화부터) — 제목 + 구성안의 축·구간 질문. 회상의 유일한 재료. fromPlan 이면 앞 편 구성안 대신 시리즈 설계안의 범위(짧은 판 시리즈 — 편끼리 기다리지 않는다, 2026-10-30) */
+  prev: { title: string; axis: string; questions: string[]; fromPlan?: boolean } | null;
   /** 다음 편 제목(마지막 화 제외) — 예고 문장에 워커가 넣는다 */
   nextTitle: string | null;
   /** 인트로 시리즈 줄 — 대주제 줄({대주제 한 줄} · {topic_line}) 자리에 토씨 그대로 */
@@ -203,13 +330,23 @@ ${s.prev && s.recapClaimId ? `- 회상: 도입의 첫 해설 턴은 ${s.no - 1}�
 - 다른 편이 다루는 것이니 이 편에서 자세히 풀지 않는다: ${others}`;
 }
 
-/** 회상 재료 — claims 행 문장과 sources.md 절. 앞 편 구성안의 축·구간 질문만 싣는다(QA 독립성: 다른 편의 대본·리포트는 넣지 않는다) */
+/**
+ * 짧은 판 시리즈의 회상 재료 — 앞 편의 구성안 대신 시리즈 설계안의 그 편 범위 (2026-10-30 박수헌 "2번으로").
+ * 앞 편을 기다리는 이유가 회상 한 문장뿐이라, 설계안에서 가져오면 편들이 동시에 초안을 잡는다(db.ts seriesPrevReady 가 짧은 판 시리즈는 기다리지 않는다)
+ */
+export function planRecap(prevEp: Pick<SeriesPlanEpisode, "title" | "scope" | "only_here">): { title: string; axis: string; questions: string[]; fromPlan: true } {
+  const axis = (prevEp.only_here || prevEp.scope || prevEp.title).trim();
+  const questions = prevEp.scope && prevEp.scope.trim() !== axis ? [prevEp.scope.trim()] : [];
+  return { title: prevEp.title, axis, questions, fromPlan: true };
+}
+
+/** 회상 재료 — claims 행 문장과 sources.md 절. 앞 편 구성안의 축·구간 질문만 싣는다(QA 독립성: 다른 편의 대본·리포트는 넣지 않는다). 짧은 판 시리즈는 설계안의 범위(planRecap) */
 export function seriesRecapMaterial(s: Pick<SeriesDraftContext, "name" | "no" | "prev">, en: boolean): { claim: string; section: string } | null {
   if (!s.prev) return null;
   const q = s.prev.questions.map((x) => `- ${x}`).join("\n");
   return en
     ? { claim: `Episode ${s.no - 1} of the series, "${s.prev.title}", explained: ${s.prev.axis}`, section: `## Series link — episode ${s.no - 1} (pipeline record of the previous episode's outline, not a source)\n- Series: ${s.name}\n- Title: ${s.prev.title}\n- Axis: ${s.prev.axis}\n- Section questions:\n${q}` }
-    : { claim: `시리즈 ${s.no - 1}화 "${s.prev.title}"는 이것을 다뤘다: ${s.prev.axis}`, section: `## 시리즈 연결 재료 — ${s.no - 1}화 (앞 편 구성안의 파이프라인 기록, 소스 아님)\n- 시리즈: ${s.name}\n- 제목: ${s.prev.title}\n- 축: ${s.prev.axis}\n- 구간 질문:\n${q}` };
+    : { claim: `시리즈 ${s.no - 1}화 "${s.prev.title}"는 이것을 다뤘다: ${s.prev.axis}`, section: `## 시리즈 연결 재료 — ${s.no - 1}화 (앞 편 ${s.prev.fromPlan ? "시리즈 설계안" : "구성안"}의 파이프라인 기록, 소스 아님)\n- 시리즈: ${s.name}\n- 제목: ${s.prev.title}\n- 축: ${s.prev.axis}\n- 구간 질문:\n${q}` };
 }
 
 // ── 시리즈 범위 검사 (spec/11 6장 "L1 겹침 항목", 2026-10-17) ──────────────────────

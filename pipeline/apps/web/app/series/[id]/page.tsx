@@ -32,6 +32,10 @@ export default async function SeriesPage({ params }: { params: Promise<{ id: str
   const shown = (eps ?? []).filter((e) => e.status !== "rejected" || !liveNos.has(e.series_no));
   const hidden = (eps?.length ?? 0) - shown.length;
   const pubEps = ["approved", "published"].includes(s.status) ? await seriesPublishEpisodes(id) : [];
+  // 짧은 판 시리즈(KAN-296)는 원본 시리즈의 제품 id 를 변형 연결(variant_of_series_id)로 보낸다 — 원본이 아직 제품에 없으면 발행 화면이 막는다
+  const shortOrigin = s.length_profile === "short" && s.remake_of
+    ? ((await sb.from("series").select("published_series_id").eq("id", s.remake_of).maybeSingle()).data?.published_series_id as string | null | undefined) ?? null
+    : null;
   const planning = s.status === "planning";
   return (
     <div className="space-y-6">
@@ -45,8 +49,8 @@ export default async function SeriesPage({ params }: { params: Promise<{ id: str
         </div>
       )}
       <Panel title="범위 (관리자 입력)" className="text-[13px] whitespace-pre-wrap">{s.scope_note ?? "-"}</Panel>
-      {!["cancelled", "withdrawn"].includes(s.status) && <SeriesThumb id={s.id} locale={pipelineLocale()} publication={s.publication ?? null} word={s.thumb_word ?? ""} label={s.thumb_label ?? ""} box={s.thumb_box ?? ""} hasBase={!!s.thumb_base_key} productSeriesId={s.published_series_id ?? null} publications={publications} />}
-      <SeriesEditor id={s.id} status={s.status} name={s.name} introLine={s.intro_line ?? ""} plan={Array.isArray(s.plan) ? s.plan : []} />
+      {!["cancelled", "withdrawn"].includes(s.status) && <SeriesThumb id={s.id} locale={pipelineLocale()} publication={s.publication ?? null} word={s.thumb_word ?? ""} label={s.thumb_label ?? ""} box={s.thumb_box ?? ""} hasBase={!!s.thumb_base_key} productSeriesId={s.published_series_id ?? null} publications={publications} layers={s.thumb_layers ?? ""} />}
+      <SeriesEditor id={s.id} status={s.status} name={s.name} introLine={s.intro_line ?? ""} plan={Array.isArray(s.plan) ? s.plan : []} short={s.length_profile === "short"} />
       {!planning && (
         <Panel title={`편 후보 (${(eps ?? []).filter((e) => e.status !== "rejected").length}/${s.total_episodes ?? "-"})`} flush>
           <Table head={["화", "후보", "상태", "메모", ""]} empty="아직 후보가 없다 — 승인하면 편마다 주제 기획 작업이 걸린다">
@@ -63,8 +67,13 @@ export default async function SeriesPage({ params }: { params: Promise<{ id: str
           <p className="px-4 py-2 text-[11px] text-ink-soft">게이트 1은 편마다 백로그에서 승인한다. 승인해도 k화 초안은 k-1화 초안이 끝난 뒤에 시작한다(spec/11 5.3). 반려·보류된 편은 [다시 기획]으로 같은 화 번호에 후보를 새로 만들거나, 반려를 [보류로] 되돌려 백로그에서 [보강]한다 — 반려된 편이 남아 있으면 뒤 편 초안이 시작되지 않는다. 시리즈 편에는 개별 [발행]이 없다 — 전 편이 패키지까지 끝나면 아래 [시리즈 발행]으로 한꺼번에 올린다(7장).{hidden > 0 && ` 다시 기획으로 대체된 반려 후보 ${hidden}건은 숨겼다(백로그 종료 탭에 있다).`}</p>
         </Panel>
       )}
+      {s.length_profile === "short" && (
+        <Panel title="짧은 판 시리즈 (KAN-296 실험)">
+          <p className="text-[12.5px] leading-relaxed text-ink-soft">발행된 시리즈 <Link href={`/series/${s.remake_of}`} className="text-brand-ink underline">원본</Link>을 5~12분 편으로 다시 만든 시리즈다. 원본 편 하나를 개념 단위로 1~3편으로 나눈 설계안을 워커가 짠다 — 위 설계안의 원본 열이 각 편이 나온 원본 편이다. 설계안을 보고 [승인]하면 일반 시리즈처럼 편마다 주제 기획이 돌아 자료를 찾는다 — 원본 편의 소스는 우선 후보로 함께 들어간다. 성립한 편은 바로 승인되고 1화부터 순서대로 초안이 돈다. 보류된 편은 아래 표의 [다시 기획]으로 다시 찾는다. [시리즈 발행]은 원본 시리즈의 변형(짧은 시리즈)을 만들어 전 편을 올린다 — 서버가 새 앱 배포 뒤 가입한 사용자에게만 보여 준다(KAN-298). 진행은 <Link href="/experiments" className="text-brand-ink underline">실험 탭</Link>에서도 본다.</p>
+        </Panel>
+      )}
       {["approved", "published"].includes(s.status) && s.total_episodes && (
-        <SeriesPublish id={s.id} name={s.name} introLine={s.intro_line ?? ""} total={s.total_episodes} status={s.status} productSeriesId={s.published_series_id ?? null} publisherName={publicationOf(s.publication ?? null, publications)?.name ?? null} episodes={pubEps} />
+        <SeriesPublish id={s.id} name={s.name} introLine={s.intro_line ?? ""} total={s.total_episodes} status={s.status} productSeriesId={s.published_series_id ?? null} publisherName={publicationOf(s.publication ?? null, publications)?.name ?? null} episodes={pubEps} short={s.length_profile === "short" ? { variantOfSeriesId: shortOrigin } : null} />
       )}
     </div>
   );

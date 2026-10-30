@@ -17,6 +17,7 @@ import {
   DEFAULT_POPULAR_PERIOD,
 } from '../explore.constant';
 import { ExploreOrchestrator } from '../explore.orchestrator';
+import { ContentCohortService } from '@/modules/content/services/content-cohort.service';
 import { toUserMarket } from '@/modules/user/policies/market.policy';
 
 /**
@@ -34,7 +35,10 @@ import { toUserMarket } from '@/modules/user/policies/market.policy';
 @Controller('explore')
 @UseGuards(JwtAuthGuard)
 export class ExploreController {
-  constructor(private readonly exploreOrchestrator: ExploreOrchestrator) {}
+  constructor(
+    private readonly exploreOrchestrator: ExploreOrchestrator,
+    private readonly contentCohortService: ContentCohortService,
+  ) {}
 
   /** 파라미터가 없다 — 주제 필터가 걸리면 아래 `contents`로 전환한다 */
   @Get('feed')
@@ -46,6 +50,8 @@ export class ExploreController {
         currentUser.id,
         new Date(),
         toUserMarket(currentUser.market),
+        // 짧은 판 코호트(KAN-298) — 판정은 서버 한 곳(`ContentCohortService`)
+        this.contentCohortService.resolve(currentUser.signedUpAt),
       ),
     );
   }
@@ -70,6 +76,8 @@ export class ExploreController {
         },
         new Date(),
         toUserMarket(currentUser.market),
+        // 짧은 판 코호트(KAN-298) — 판정은 서버 한 곳(`ContentCohortService`)
+        this.contentCohortService.resolve(currentUser.signedUpAt),
       ),
     );
   }
@@ -108,6 +116,8 @@ export class ExploreController {
         },
         new Date(),
         toUserMarket(currentUser.market),
+        // 짧은 판 코호트(KAN-298) — 판정은 서버 한 곳(`ContentCohortService`)
+        this.contentCohortService.resolve(currentUser.signedUpAt),
       ),
     );
   }
@@ -127,6 +137,8 @@ export class ExploreController {
         },
         new Date(),
         toUserMarket(currentUser.market),
+        // 짧은 판 코호트(KAN-298) — 판정은 서버 한 곳(`ContentCohortService`)
+        this.contentCohortService.resolve(currentUser.signedUpAt),
       ),
     );
   }

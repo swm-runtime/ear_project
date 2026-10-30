@@ -11,20 +11,25 @@ import { useNotificationStore } from '../store/notification.store';
  */
 const REVEAL_DELAY_MS = 400;
 
-export function usePrePromptGate(): boolean {
+/**
+ * @param isHeld 다른 화면이 먼저 떠 있어 기다려야 하는가 — 온보딩 직후 멈춘 채 연 플레이어(KAN-295)처럼 네이티브 모달이 떠
+ *   있거나 뜨는 중이면 그 위에 이 모달을 겹치지 않는다(iOS 는 모달 위 모달에서 화면이 굳는다). 풀리면 지연을 처음부터 센다
+ */
+export function usePrePromptGate(isHeld = false): boolean {
   const isPrePromptPending = useNotificationStore((s) => s.isPrePromptPending);
   const [isRevealed, setIsRevealed] = useState(false);
+  const isWaiting = isPrePromptPending && !isHeld;
 
   // 무엇과 동기화하나: 신호 → 한 박자 쉬고 모달을 연다
   useEffect(() => {
-    if (!isPrePromptPending) return;
+    if (!isWaiting) return;
     const timer = setTimeout(() => setIsRevealed(true), REVEAL_DELAY_MS);
     // 조건이 닫히면 지연을 처음부터 다시 센다 — 되돌아온 뒤 곧바로 튀지 않게
     return () => {
       clearTimeout(timer);
       setIsRevealed(false);
     };
-  }, [isPrePromptPending]);
+  }, [isWaiting]);
 
-  return isPrePromptPending && isRevealed;
+  return isWaiting && isRevealed;
 }

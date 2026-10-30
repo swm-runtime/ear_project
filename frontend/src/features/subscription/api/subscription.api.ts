@@ -61,6 +61,11 @@ const toPlan = (dto: PlanDto): Plan => ({
   description: dto.description,
   storeProductId: dto.store_product_id,
   isFree: dto.is_free ?? null,
+  // 할인 표시는 서버 판정(is_discounted)이 true 이고 정가가 실린 때만 — 옛 서버(필드 없음)·false·정가 null 은 전부 할인 아님
+  discountOriginalPriceKrw:
+    dto.is_discounted === true && typeof dto.original_price_krw === 'number'
+      ? dto.original_price_krw
+      : null,
   entitlements: toEntitlements(dto.entitlements),
   action: dto.action,
 });

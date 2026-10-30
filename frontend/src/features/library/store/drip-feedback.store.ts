@@ -20,6 +20,8 @@ interface DripFeedbackState {
   phase: DripFeedbackPhase;
   /** 띄운 팝업의 내용 — 닫은 뒤에도 남겨 퇴장 페이드 동안 빈 상자가 보이지 않게 한다 */
   prompt: DripFeedbackPrompt | null;
+  /** 이 세션에 팝업이 떴다 — 같은 세션에는 콘텐츠 후기의 먼저 묻는 시트(L18)를 띄우지 않는다(content-review.md 4.3-5, KAN-280) */
+  wasShown: boolean;
   startLoading: () => void;
   /** 판정이 `show=true` — 띄울 차례로 둔다 */
   hold: (prompt: DripFeedbackPrompt) => void;
@@ -33,13 +35,14 @@ interface DripFeedbackState {
 export const useDripFeedbackStore = create<DripFeedbackState>((set, get) => ({
   phase: 'idle',
   prompt: null,
+  wasShown: false,
   startLoading: () => set({ phase: 'loading', prompt: null }),
   hold: (prompt) => set({ phase: 'pending', prompt }),
   reveal: () => {
-    if (get().phase === 'pending') set({ phase: 'visible' });
+    if (get().phase === 'pending') set({ phase: 'visible', wasShown: true });
   },
   finish: () => set({ phase: 'done' }),
-  reset: () => set({ phase: 'idle', prompt: null }),
+  reset: () => set({ phase: 'idle', prompt: null, wasShown: false }),
 }));
 
 /**
@@ -48,3 +51,10 @@ export const useDripFeedbackStore = create<DripFeedbackState>((set, get) => ({
  */
 export const selectIsDripFeedbackVisible = (state: DripFeedbackState): boolean =>
   state.phase === 'visible';
+
+/** 이 세션의 판정이 끝났다(보냄 · 닫음 · 그만 보기 · show=false · 조회 실패) — 먼저 묻는 시트(L18)가 이 뒤에 차례를 본다(KAN-280) */
+export const selectIsDripFeedbackSettled = (state: DripFeedbackState): boolean =>
+  state.phase === 'done';
+
+/** 이 세션에 팝업이 떴다 — 떴으면 먼저 묻는 시트(L18)를 띄우지 않는다(한 세션에 하나 · 추천 별점 우선) */
+export const selectWasDripFeedbackShown = (state: DripFeedbackState): boolean => state.wasShown;

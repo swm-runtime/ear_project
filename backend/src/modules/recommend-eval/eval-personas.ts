@@ -33,6 +33,8 @@ export interface PersonaSetup {
 
 export interface PersonaCheckOptions {
   autoExpandFeature: boolean;
+  /** 시리즈 유료화(KAN-290) 스위치를 켜고 평가하는가 — 없으면 꺼짐 */
+  seriesPaywall?: boolean;
 }
 
 export interface PersonaContext {
@@ -369,7 +371,7 @@ export const PERSONAS: Persona[] = [
         key: 'p-series',
         likedTopicIds: second.topicIds,
         react: () => 'complete',
-        check: (days) => [
+        check: (days, options) => [
           // 4.2-3 시리즈 연속 우선 선정(2026-09-30) — 평가기 첫 실행이 잡은 19위 문제를 고친 뒤 hard 로 올렸다
           ok(
             '시리즈 1편을 완청한 사용자는 첫날 정규 편성에 2편을 받는다',
@@ -378,6 +380,31 @@ export const PERSONAS: Persona[] = [
             ),
             '첫날 정규 편성에 다음 편이 없다',
           ),
+          // 시리즈 유료화(KAN-290) — 무료 사용자는 3편까지 이어 받고 4편은 받지 않는다. 꺼져 있으면 4편까지 이어 받는다
+          // (켠 평가의 불변식 `series-paywall`이 헛돌지 않는다는 증거 — 같은 카탈로그에서 꺼면 4편이 실제로 간다)
+          (() => {
+            const receivedEpisodes = days
+              .flatMap((day) => day.regular)
+              .map(
+                (pick) =>
+                  context.world.contents.get(pick.contentId)?.content ?? null,
+              )
+              .filter((content) => content?.seriesId === first.content.seriesId)
+              .map((content) => content!.episodeNo!);
+            const gotFourth = receivedEpisodes.some((no) => no >= 4);
+
+            return options.seriesPaywall
+              ? ok(
+                  '시리즈 유료화가 켜져 있으면 무료 사용자는 3편 완청 뒤 4편을 드립으로 받지 않는다',
+                  receivedEpisodes.includes(3) && !gotFourth,
+                  `받은 편 ${receivedEpisodes.join(',') || '없음'}`,
+                )
+              : ok(
+                  '시리즈 유료화가 꺼져 있으면 4편까지 이어 받는다',
+                  gotFourth || days.length < 3,
+                  `받은 편 ${receivedEpisodes.join(',') || '없음'}`,
+                );
+          })(),
         ],
       };
     },

@@ -1,14 +1,14 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import { cfg, executedBy } from "../config.js";
-import { getBacklog, getEpisode, insertRun, setJobProgress, upsertEpisode, type Job } from "../db.js";
+import { activePromptAsset, getBacklog, getEpisode, insertRun, setBacklogStatus, setJobProgress, upsertEpisode, type Job } from "../db.js";
 import type { Executor } from "../executors/index.js";
-import { assetPaths, buildCriticPrompt, buildCriticPromptInlineParts, buildCriticPromptInlinePartsEn, CRITIC_INLINE_SCHEMA, CRITIC_INLINE_SCHEMA_EN, CRITIC_SCHEMA, CRITIC_SCHEMA_V2, pipelineLocale } from "@ear/pipeline";
+import { assetPaths, buildCriticPrompt, buildCriticPromptInlineParts, buildCriticPromptInlinePartsEn, CRITIC_INLINE_SCHEMA, CRITIC_INLINE_SCHEMA_EN, CRITIC_SCHEMA, CRITIC_SCHEMA_V2, lengthProfileOf, pipelineLocale, promptBody, SHORT_CRITIC_AXIS_MAX, V2_CRITIC_AXIS_MAX } from "@ear/pipeline";
 import { readFile } from "node:fs/promises";
-import { startPublishPrepIfEnabled } from "../automation.js";
+import { readAutomation, startPublishPrepIfEnabled } from "../automation.js";
 import { enqueueJudgeLoop } from "./judge-loop.js";
 import { log } from "../util.js";
-import { prepareAssets, workerRev, type AssetBundle } from "../assets.js";
+import { prepareAssets, workerRev, type AssetBundle, SHORT_RUBRIC_KEY } from "../assets.js";
 import { localPathOf, pullPrefix, pushPrefix, s3Key } from "../storage.js";
 
 interface CriticOut { scores: { immersion: number; naturalness: number; density: number; persona: number; structure: number }; violations: number; suspects: number; stars: number; report_written: boolean; summary: string }
@@ -33,7 +33,7 @@ export async function runCritic(job: Job, ex: Executor) {
   if (!ep.asset_versions) await upsertEpisode({ id: episodeId, backlog_id: backlogId, prompt_version: ep.prompt_version, asset_versions: bundle.versions });
 
   const rubric: "v1" | "v2" = job.payload.rubric === "v1" ? "v1" : job.payload.rubric === "v2" ? "v2" : cfg.criticRubric; // 지정 없으면 설정 기본(v2)
-  if (rubric === "v2") return runCriticV2(job, ex, { episodeId, backlogId, rel, dir, scriptFile, title: cand.title, midTopic: cand.mid_topic, assetRoot, bundle });
+  if (rubric === "v2") return runCriticV2(job, ex, { episodeId, backlogId, rel, dir, scriptFile, title: cand.title, midTopic: cand.mid_topic, assetRoot, bundle, lengthProfile: cand.length_profile });
 
   const prompt = buildCriticPrompt({ assetRoot, workRoot: cfg.workRoot, episodeId, title: cand.title, midTopic: cand.mid_topic, scriptFile });
   log(`  critic ${episodeId}`);
@@ -79,11 +79,11 @@ export async function runCriticMeasure(job: Job, ex: Executor) {
   const { assetRoot, bundle } = await prepareAssets({ ...(ep.asset_versions ?? {}), "skills/critic/rubric-v2.md": rubricVersion });
   const variant = `${job.payload.mode === "single" ? "-single" : ""}${job.payload.effort ? `-${String(job.payload.effort)}` : ""}`; // 실행 형태·effort 측정 (2026-09-16)
   const reportFile = `critic-measure-${rubricVersion.replace(/[^A-Za-z0-9.-]+/g, "_")}${variant}.md`;
-  return runCriticV2(job, ex, { episodeId, backlogId, rel, dir, scriptFile, title: cand.title, midTopic: cand.mid_topic, assetRoot, bundle, measure: { rubricVersion: rubricVersion + variant, reportFile } });
+  return runCriticV2(job, ex, { episodeId, backlogId, rel, dir, scriptFile, title: cand.title, midTopic: cand.mid_topic, assetRoot, bundle, measure: { rubricVersion: rubricVersion + variant, reportFile }, lengthProfile: cand.length_profile });
 }
 
 /** critic-v2 초안 실행 (spec/09 v2 · rubric-v2.md). 리포트는 critic-report-v2.md — v1 스냅샷은 보존. 앵커 없음 기준선. measure 가 있으면 측정 모드(위) */
-async function runCriticV2(job: Job, ex: Executor, e: { episodeId: string; backlogId: string; rel: string; dir: string; scriptFile?: string; title: string; midTopic: string; assetRoot: string; bundle: AssetBundle; measure?: { rubricVersion: string; reportFile: string } }) {
+async function runCriticV2(job: Job, ex: Executor, e: { episodeId: string; backlogId: string; rel: string; dir: string; scriptFile?: string; title: string; midTopic: string; assetRoot: string; bundle: AssetBundle; measure?: { rubricVersion: string; reportFile: string }; /** 0040: short 면 규격 알림 한 절 */ lengthProfile?: string | null }) {
   const scriptPath = e.scriptFile ?? path.join(e.dir, "script.md");
   const scriptText = await readFile(scriptPath, "utf8").catch(() => "");
   const preTemplate = /\{인트로[^}]*\}|\{클로징[^}]*\}/.test(scriptText); // tpl-v1 이전 세대: 자리표기 감점 금지
@@ -91,13 +91,15 @@ async function runCriticV2(job: Job, ex: Executor, e: { episodeId: string; backl
   const mode: "single" | "agent" = job.payload.mode === "single" ? "single" : job.payload.mode === "agent" ? "agent" : cfg.criticMode;
   const effort = (typeof job.payload.effort === "string" ? (job.payload.effort as typeof cfg.effortCritic) : undefined) ?? cfg.effortCritic;
   let r: Awaited<ReturnType<typeof ex.run<CriticV2Out>>>;
+  // 짧은 판 루브릭(shortcritic-v1, 2026-10-30): 짧은 판은 v2 3장 대신 이 루브릭으로 채점한다 — 항상 active. 단발 모드만(에이전트 모드는 v2 그대로)
+  const shortRubric = pipelineLocale() === "ko" && lengthProfileOf(e.lengthProfile) === "short" && mode === "single" ? await activePromptAsset(SHORT_RUBRIC_KEY) : null;
   if (mode === "single") {
     // 단발 (2026-09-16): 루브릭·규칙·골드는 시스템 블록(캐시), 대본은 사용자 메시지, 리포트는 report_md 로 받아 워커가 쓴다
     const ap = assetPaths(e.assetRoot, cfg.workRoot);
     const en = pipelineLocale() === "en"; // 글로벌판: 영어 루브릭·프롬프트, 골드 없음 (global-prompts.ts, 글로벌 명세 6.6)
     if (en && !e.bundle.contents["skills/critic/rubric-v2.md"]) throw new Error("글로벌 DB 에 비평 루브릭(skills/critic/rubric-v2.md)이 없다 — assets-global import 로 시딩 (KAN-201)");
     const [rubricV2Md, guidelines, goldFullEum, goldFullYuna] = await Promise.all([ap.criticRubricV2, ap.guidelines, ...(en ? [] : [ap.goldFullEum, ap.goldFullYuna])].map((p) => readFile(p, "utf8")));
-    const parts = en ? buildCriticPromptInlinePartsEn({ episodeId: e.episodeId, title: e.title, midTopic: e.midTopic, rubricV2Md, guidelines, scriptMd: scriptText }) : buildCriticPromptInlineParts({ episodeId: e.episodeId, title: e.title, midTopic: e.midTopic as never, rubricV2Md, guidelines, goldFullEum, goldFullYuna, scriptMd: scriptText, preTemplate });
+    const parts = en ? buildCriticPromptInlinePartsEn({ episodeId: e.episodeId, title: e.title, midTopic: e.midTopic, rubricV2Md, guidelines, scriptMd: scriptText }) : buildCriticPromptInlineParts({ episodeId: e.episodeId, title: e.title, midTopic: e.midTopic as never, rubricV2Md, guidelines, goldFullEum, goldFullYuna, scriptMd: scriptText, preTemplate, lengthProfile: e.lengthProfile, rubricShortMd: shortRubric ? promptBody(shortRubric.content) : null });
     log(`  critic v2 ${e.episodeId} (단발, 공유 ${Math.round(parts.system.length / 1000)}K + 편별 ${Math.round(parts.user.length / 1000)}K자${preTemplate ? " · tpl 이전 세대" : ""}${e.measure ? ` · 측정 ${e.measure.rubricVersion}` : ""})`);
     r = await ex.run<CriticV2Out>({
       prompt: parts.user, systemPrompt: parts.system, schema: en ? CRITIC_INLINE_SCHEMA_EN : CRITIC_INLINE_SCHEMA, tools: [], allowedTools: [], cwd: cfg.workRoot, timeoutMs: 45 * 60_000, model: cfg.criticModel, maxThinkingTokens: cfg.thinkingCritic, effort,
@@ -125,6 +127,7 @@ async function runCriticV2(job: Job, ex: Executor, e: { episodeId: string; backl
   const o = r.output; const s = o.scores;
   const sum = { content: s.content.value + s.content.argument + s.content.perspective + s.content.resonance, structure: s.structure.opening + s.structure.flow + s.structure.ending, naturalness: s.naturalness.spoken + s.naturalness.exchange, immersion: s.immersion, persona: s.persona.voice + s.persona.listener };
   const total = sum.content + sum.structure + sum.naturalness + sum.immersion + sum.persona;
+  const axMax = shortRubric ? SHORT_CRITIC_AXIS_MAX : V2_CRITIC_AXIS_MAX; // 결과 요약의 축 배점 — 칸은 같고 배점만 다르다
   if (total !== o.total) log(`  ⚠ total 불일치: 보고 ${o.total} vs 합산 ${total} — 합산값 기록`);
   await pushPrefix(`${e.rel}/`); // 리포트 — 먼저 S3 에
   const reportKey = s3Key(`${e.rel}/${reportFile}`);
@@ -140,9 +143,20 @@ async function runCriticV2(job: Job, ex: Executor, e: { episodeId: string; backl
   await upsertEpisode({ id: e.episodeId, backlog_id: e.backlogId, prompt_version: ep?.prompt_version ?? "unknown", critic_report_key: reportKey });
   await insertRun({
     backlog_id: e.backlogId, phase: "critic", attempt: 1,
-    result: `비평 v2 완료 (앵커 없음 기준선${preTemplate ? " · tpl 이전 세대" : ""}). 합계 ${total}/100 — 내용 ${sum.content}/35 · 구성 ${sum.structure}/20 · 자연 ${sum.naturalness}/20 · 몰입 ${sum.immersion}/15 · 페르소나 ${sum.persona}/10. 플래그 위반 ${o.violations}·의심 ${o.suspects}, ⭐${o.stars}. ${o.summary} · 사람 판정 대기`,
-    prompt_version: `${e.bundle.labels.criticV2} (worker)`, artifacts: [reportKey], executed_by: executedBy, model: r.model, cost_usd: r.listCostUsd, tokens: (r.raw as { usage?: unknown } | undefined)?.usage, worker_rev: workerRev(),
+    result: `비평 v2 완료 (앵커 없음 기준선${preTemplate ? " · tpl 이전 세대" : ""}${shortRubric ? ` · 짧은 판 루브릭 ${shortRubric.version}` : ""}). 합계 ${total}/100 — 내용 ${sum.content}/${axMax.content} · 구성 ${sum.structure}/${axMax.structure} · 자연 ${sum.naturalness}/${axMax.naturalness} · 몰입 ${sum.immersion}/${axMax.immersion} · 페르소나 ${sum.persona}/${axMax.persona}. 플래그 위반 ${o.violations}·의심 ${o.suspects}, ⭐${o.stars}. ${o.summary} · 사람 판정 대기`,
+    prompt_version: `${shortRubric ? shortRubric.version : e.bundle.labels.criticV2} (worker)`, artifacts: [reportKey], executed_by: executedBy, model: r.model, cost_usd: r.listCostUsd, tokens: (r.raw as { usage?: unknown } | undefined)?.usage, worker_rev: workerRev(),
   });
+  // 짧은 판 관문 (KAN-296): 짧은 판 루브릭 합계가 settings.automation.short_threshold 미만이면 발행 준비를 걸지 않고 사람 검토로 둔다.
+  // 2026-10-30 박수헌: 짧은 판 루브릭(shortcritic-v1)은 사람 판정 3편으로 보정하기 전이라 기준값을 두지 않는다 — 비어 있으면 기록만 하고 발행 준비로 넘긴다. standard 는 관문 없음
+  if (pipelineLocale() === "ko" && lengthProfileOf(e.lengthProfile) === "short") {
+    const th = (await readAutomation()).short_threshold;
+    if (typeof th === "number" && total < th) {
+      await setBacklogStatus(e.backlogId, "review_required");
+      log(`  critic ${e.episodeId}: 짧은 판 관문 미달 — 비평 ${total} < ${th} → 사람 검토 (발행 준비 안 걺)`);
+      return { episode_id: e.episodeId, rubric: shortRubric ? shortRubric.version : "v2", pre_template: preTemplate, short_gate: `비평 ${total} < ${th}`, scores: s, sums: sum, total, violations: o.violations, suspects: o.suspects, stars: o.stars, summary: o.summary, model: r.model };
+    }
+    if (typeof th !== "number") log(`  critic ${e.episodeId}: 짧은 판 ${total}점 — 관문 기준 없음(루브릭 보정 중), 기록만 하고 발행 준비로`);
+  }
   // 자동화 (2026-09-23): 비평까지 끝나면 발행 준비 연쇄(tts → thumbnail → package)를 바로 건다 — settings.automation.auto_publish_prep 이 켜져 있을 때만
   const prepJobId = await startPublishPrepIfEnabled(e.episodeId, e.backlogId, job.id).catch((err) => { log(`  자동 발행 준비 걸기 실패: ${err?.message ?? err}`); return null; });
   // 글로벌판(2026-10-22, 명세 6.10): 비평 뒤 판정·재작성 루프를 워커가 잇는다 — 판정이 발행 가능이면 자동 발행 준비(스위치)가 그다음을 건다

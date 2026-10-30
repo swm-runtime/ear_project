@@ -10,7 +10,7 @@ import {
   inviteErrorMessage,
   inviteSuccessMessage,
   subscriberConfirmPlanName,
-} from './useInviteCodeScreen';
+} from './useInviteCodeForm';
 import { toEventNotice } from './useSubscriptionScreen';
 
 const GRANT: PlanGrant = {

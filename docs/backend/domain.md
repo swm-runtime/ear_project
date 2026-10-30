@@ -616,6 +616,9 @@ contents
   withdrawn_at              timestamptz     NULL
   market                    enum            kr | global   DEFAULT 'kr'   ★노출 쿼리 전부가 users.market과 대조 — 시장이 다른 콘텐츠는 어떤 응답에도 나오지 않는다 (global-api.md 4.7, 2026-10-14 — KAN-188)
   language                  varchar(8)      DEFAULT 'ko'  콘텐츠 언어(ko | en). 표시용으로 응답에 싣는다. 필터는 market이 한다
+  length_profile            varchar(16)     NOT NULL DEFAULT 'standard'  standard | short  ★KAN-298 짧은 판 코호트 (2026-10-29)
+  variant_of_content_id     uuid            FK → contents, NULL 허용 — 짧은 판의 원본 콘텐츠
+  intro_version             varchar(32)     NULL 허용 — 도입부 버전(지표 전용). NULL = 기존 도입부  ★KAN-298 (2026-10-29)
 
 idx_contents_status_published_at (status, published_at DESC)
 idx_contents_market_status_published_at (market, status, published_at)
@@ -633,6 +636,11 @@ chk_contents_partner_disclosure
       AND partner_id IS NOT NULL AND license_expires_at IS NOT NULL)
 
 fk_contents_series  series_id → series.id  ON DELETE RESTRICT   (2026-10-17 — KAN-134)
+
+ck_contents_length_profile      CHECK (length_profile IN ('standard','short'))                                                    (2026-10-29 — KAN-298)
+ck_contents_variant_of_content  CHECK (variant_of_content_id IS NULL OR (length_profile = 'short' AND variant_of_content_id <> id))
+fk_contents_variant_of_content  variant_of_content_id → contents.id  ON DELETE RESTRICT
+ck_contents_intro_version       CHECK (intro_version IS NULL OR intro_version ~ '^[a-z0-9][a-z0-9._-]{0,31}$')
 ```
 
 - **해시태그 검색에 인덱스를 두지 않는다**(2026-10-16 — KAN-218). 검색은 `tags`의 항목 하나라도 부분 일치(`#` 없는 질의)하거나 정확 일치(`#태그`)하면 매칭한다(`explore.md` 4.5-5). 태그는 콘텐츠당 4개 이하이고 운영 콘텐츠가 71편이라, jsonb 배열 펼침 비교의 순차 탐색 비용이 무시할 만하다(2자 질의 순차 탐색과 같은 논리). 콘텐츠가 수천 편으로 늘면 정규화 컬럼 + `gin_trgm_ops`(부분 일치)와 jsonb 포함 인덱스(정확 일치)를 다시 본다. 저장된 태그는 정규화하지 않고 비교한다 — 적재 검증(`CONTENT_TAG_PATTERN`)이 완성형 한글·ASCII 영숫자·공백만 받아 NFC가 보장되고, 그 범위에서 SQL `lower()`와 앱의 소문자 변환이 같다. 태그 문자 범위를 넓히면 이 가정을 다시 본다.
@@ -647,6 +655,15 @@ fk_contents_series  series_id → series.id  ON DELETE RESTRICT   (2026-10-17 �
   - 배치가 도는 것과 무관하게 필터가 먼저 막으므로 **둘 중 하나가 빠져도 노출되지 않는다** — 의도된 이중 방어다.
 - **시장 격리 — 노출 조건의 세 번째 항 `market = users.market`**(2026-10-14 — KAN-188, 마이그레이션 `1790000000000-AddCatalogMarket`). 노출 조건은 "published + 라이선스 유효 + `market = users.market`" 세 조건을 한 곳(`content.visibility.ts` `CONTENT_SCOPE_CONDITION`)에서만 조립한다. 목록류(탐색·검색·인기·최신·드립 후보·온보딩 추천·라이브러리 목록·주제별 건수)는 이 조건을 SQL에 싣고, ID 단건 경로(상세·재생 시작·서명 URL·대본·탐색 담기·온보딩 담기)는 `ContentService.getPublishedById(…, market)`의 같은 판정을 쓴다 — 다른 시장 ID는 404 `CONTENT_NOT_FOUND`. 격리 누락은 데이터 유출로 본다(`global-api.md` 7장). 기존 행은 전부 `kr`/`ko`.
   - 사용자 시장은 요청마다 `users`를 읽지 않고 **access token 클레임 `market`** 으로 전달한다. 클레임이 없는 옛 토큰은 `kr`. 시장 전환(`global-api.md` 4.11)은 응답에 새 access token을 주고, 같은 계정의 다른 기기는 다음 갱신(최대 30분)까지 이전 시장 클레임을 쓴다(같은 문서 7장의 예외).
+- **짧은 판 코호트 — 노출면(발견 경로)만의 넷째 항 `length_profile = 사용자 코호트`**(2026-10-29 — KAN-298 단기 실험 ④, 마이그레이션 `1792100000000-AddContentLengthProfile`. 실험 기간 원문 `experiments-api.md` 4.3).
+  - `length_profile = short`는 기존 발행 편의 주제를 재활용해 5~12분으로 다시 만든 **짧은 판**이다(파이프라인 KAN-296). 원본은 늘 `standard`다(변형의 변형 없음 — 업로드가 본다. 행 사이 조건이라 CHECK로 못 건다). `short` 단편은 원본이 필수, 짧은 시리즈의 편은 원본 시리즈의 같은 화(없으면 NULL), `standard`는 늘 NULL(CHECK). 시리즈 편의 `length_profile`은 `series.length_profile`과 같다(업로드가 맞춘다 — `admin-api.md` 4.6). 재발행은 이 칸을 바꾸지 않는다(4.10).
+  - **코호트**: 가입 시각 ≥ `SHORT_CONTENT_COHORT_SINCE`(서버 설정, ISO 8601 + 오프셋)면 `short`, 아니면 `standard`. **설정이 비면 전원 `standard`**(롤백 스위치 — 짧은 판은 아무에게도 노출되지 않는다). 판정은 `content-cohort.policy.ts` · `ContentCohortService` 한 곳이다 — 요청 경로는 access token 클레임 `signed_up_at`(`architecture.md` 9.1, 없는 옛 토큰은 `standard`), 배치는 `users.created_at`으로 같은 함수를 부른다.
+  - 이 항은 `content.visibility.ts` `contentExposureScope`가 조립하고, 저장소의 `applyVisibility`가 위치 인자로 **필수**로 받는다 — 새 조회는 넘길지 `null`일지 컴파일러가 묻는다.
+  - **붙는 곳**: 드립 후보(첫 드립 · 정규 · 탐험 — 시리즈 연속 편 포함, 첫 드립의 인기 대체 편성 포함), 탐색 피드 · 주제 목록 · 인기 · 새로 나온, 검색(키워드 · 의미 · 교정어 어휘 · 빈 결과 대체), 관련 콘텐츠 후보, 온보딩 추천, 시리즈 카드 · 같은 간행물의 다른 시리즈, 리텐션 알림 "듣던 콘텐츠"(같은 규칙의 SQL판 `cohortLengthProfileSql`).
+  - **붙지 않는 곳**(단건 · 이미 가진 것 — 노출 실험이지 접근 제한이 아니다): 상세 · 재생 · 서명 URL · 대본 · 담기(`getPublishedById`), 시리즈 화면 편 목록, 관련 콘텐츠의 기준 편, 라이브러리 목록, 드립 시리즈 다음 편 판정의 편 상태 조회(대상 시리즈가 이미 코호트로 거른 풀에서 온다). 재생 거절 에러는 없다.
+  - **폴백 없음** — 짧은 판이 없는 주제는 그 코호트에게 비어 있다(재고는 배포 전에 채운다). 주제 칩 · 주제별 건수는 코호트로 거르지 않는다.
+  - 인덱스 없음 — 노출 필터는 기존 `(market, status, published_at)` 위에서 거르는 값 2개짜리 조건이고, 원본으로 변형을 찾는 질의가 아직 없다.
+- **`intro_version`**(2026-10-29 — KAN-298, 마이그레이션 `1792200000000-AddContentIntroVersion`) — 도입부(훅) 버전. **지표 전용**이다 — 실험 지표(`admin-api.md` 4.22-6)가 초반 이탈을 이 값으로 묶는다. 노출 조건에 쓰지 않는다(노출은 `length_profile`만). 짧은 판은 길이와 함께 새 도입부를 쓰고 standard 편에도 새 도입부가 들어갈 수 있어, `length_profile`만으로는 초반 이탈의 원인을 가를 수 없어서 따로 둔다. NULL = 기존 도입부(이 칸 이전 발행분 전부 · 값을 보내지 않은 업로드). 사용자 응답에는 싣지 않는다. 인덱스 없음.
 - `series_id` / `episode_no` / `total_episodes`는 `Episode` 테이블을 폐기하면서 흡수했다. 드립 스코어링의 시리즈 연속성 가점과 편성 순서 판정이 Content 단위 조회를 요구한다(`drip-scheduling.md` 4.2, 7).
 - 분할되지 않은 단일 콘텐츠는 `series_id = NULL`, `episode_no = NULL`이다. 조회 코드는 이 분기를 처리해야 한다.
 - **`series_id`는 `series.id`를 가리킨다**(`fk_contents_series`, `ON DELETE RESTRICT` — 개정 2026-10-17, KAN-134, 마이그레이션 `1790700000000-AddSeries`). 종전에는 가리키는 테이블 없이 "같은 값을 공유한다"는 표시였다. 시리즈의 주인은 [5.9](#59-series-신설-2026-10-17--kan-134-시리즈)다.
@@ -942,10 +959,15 @@ series
   status          varchar(20)   NOT NULL   CHECK IN ('ongoing','completed')
   cover_url       text          NULL       ★신설 2026-10-21 (KAN-234) — 올린 표지의 공개 URL. contents.thumbnail_url 과 같은 종류
   publisher_name  varchar(50)   NULL       발행 이름(예: "키워드") — 2026-10-22
+  length_profile        varchar(16)   NOT NULL DEFAULT 'standard'  standard | short  ★KAN-298 (2026-10-29)
+  variant_of_series_id  uuid          FK → series, NULL 허용 — 짧은 시리즈의 원본 시리즈
   created_at · updated_at
 
 ck_series_total_episodes  CHECK (total_episodes >= 1)
 ck_series_status          CHECK (status IN ('ongoing', 'completed'))
+ck_series_length_profile     CHECK (length_profile IN ('standard','short'))
+ck_series_variant_of_series  CHECK (variant_of_series_id IS NULL OR (length_profile = 'short' AND variant_of_series_id <> id))
+fk_series_variant_of_series  variant_of_series_id → series.id  ON DELETE RESTRICT
 ```
 
 - **표지** — `cover_url`이 있으면 그것, 없으면(NULL·빈 문자열) 노출 중인 가장 앞 편(보통 1화)의 썸네일이다(결정 2026-10-09 → 표지 칸 신설 2026-10-21 — KAN-234). 관리자 `PUT /admin/series/:id/cover`(`admin-api.md` 4.24)로만 채운다. 백필 없음 — 기존 CS·경제·철학 시리즈는 올리기 전까지 종전 그대로다. 마이그레이션 `1791200000000-AddSeriesCoverUrl`. *(개정 2026-10-21 — 종전 "표지 칸이 없다". 파이프라인이 시리즈 편 썸네일을 같은 그림에 편 번호만 다르게 만들어 1화 썸네일을 표지로 쓰면 "01"이 찍힌다)*
@@ -953,6 +975,7 @@ ck_series_status          CHECK (status IN ('ongoing', 'completed'))
 - `status`는 표시용 구분이다 — 업로드·노출을 막지 않는다. `ongoing`이면 편수를 늘려 편을 더한다.
 - **`publisher_name`**(2026-10-22 PM, 마이그레이션 `1791500000000-AddSeriesPublisherName`) — 시리즈를 낸 이름. 시리즈 화면 제목 아래 줄(애플 뮤직 앨범의 아티스트 자리)에 나가고, 없으면(NULL) 앱이 그 줄을 생략한다. 관리자 시리즈 만들기·고치기(`publisher_name`)로 넣고, 빈 문자열은 NULL로 저장한다. 마이그레이션이 제목이 "키워드로"로 시작하는 시리즈를 "키워드"로 채웠다.
 - `total_episodes`는 발행 중인 가장 큰 편 번호보다 작게 줄일 수 없다(`admin-api.md` 4.24).
+- **`length_profile` · `variant_of_series_id`**(2026-10-29 — KAN-298, 5.1 짧은 판 코호트): 짧은 시리즈와 그 원본. 만든 뒤 바꾸지 않는다(`PATCH /admin/series/:id`는 이 칸을 받지 않는다). 편의 `length_profile`은 시리즈의 값과 같다.
 - 삭제 API가 없다. 편이 FK로 가리킨다(`ON DELETE RESTRICT`).
 - 담기·재생 위치·완청·통계·페이월 차감은 편 단위 그대로다 — 그 테이블들은 `series`를 참조하지 않는다. **+ 시리즈째 담기 기록 `library_series`**(2026-10-22 — KAN-245, [6.1-1](#61-1-library_series-신설-2026-10-22--kan-245-시리즈째-담기)) — 새 편 자동 적립의 근거이고, 라이브러리 목록은 이 표를 읽지 않는다(편 단위 `library_items` 그대로).
 - **CS 키워드 시리즈(데이터)** — 마이그레이션 `1790700100000-SeedCsKeywordSeries`가 시리즈 행 하나(id **`7de91e6e-2e96-4aea-9ddb-80fe99179c2e`** 고정, "키워드로 빠르게 배우는 CS 지식", 16편, `completed`)를 만들고 해당 16개 콘텐츠에 `series_id`·`episode_no`(1~16)·`total_episodes`(16)를 채웠다. `content_id`·`content_version`·제목·오디오는 그대로다. id를 고정한 이유는 운영 → 개발계 콘텐츠 동기화가 행을 id로 맞추기 때문이다(동기화 스크립트가 `series`를 `contents`보다 먼저 upsert한다).
@@ -1336,7 +1359,7 @@ uq_drip_batch_runs_run_date_group (run_date, group)
 ```
 
 - `uq_drip_batch_runs_run_date_group`이 **배치 중복 실행을 막는다** (A-5). 종전 `(run_date)`에서 2026-10-14 그룹 축을 더했다(KAN-191).
-- **`group`은 발송 그룹이다**(`asia`·`europe`·`americas` — `spec/api/global-api.md` 2.4). 그룹마다 현지 05:00에 그 그룹 사용자만 편성하므로 하루에 그룹 수만큼 행이 생긴다. 시간대 그룹 스위치(`DRIP_TIMEZONE_GROUPS_ENABLED`)가 꺼져 있으면 언제나 `asia` 한 행이다. 기존 행은 전부 `asia`다. 사용자 단위 중복은 편성 배치의 **`already_placed` 스킵**(오늘 서비스 날짜에 편성분이 있으면 건너뜀 — `drip-scheduling.md` 4.6-5)이 막는다(정정 2026-09-26 — 종전 "`library_items` 유니크가 막는다"는 틀렸다. 유니크는 같은 콘텐츠의 중복만 막는다).
+- **`group`은 발송 그룹이다**(`asia`·`southeast_asia`·`europe`·`americas` — `spec/api/global-api.md` 2.4. `southeast_asia`는 2026-10-26 추가 — varchar(16) 안이라 마이그레이션 없음). 그룹마다 현지 05:00에 그 그룹 사용자만 편성하므로 하루에 그룹 수만큼 행이 생긴다. 시간대 그룹 스위치(`DRIP_TIMEZONE_GROUPS_ENABLED`)가 꺼져 있으면 언제나 `asia` 한 행이다. 기존 행은 전부 `asia`다. 사용자 단위 중복은 편성 배치의 **`already_placed` 스킵**(오늘 서비스 날짜에 편성분이 있으면 건너뜀 — `drip-scheduling.md` 4.6-5)이 막는다(정정 2026-09-26 — 종전 "`library_items` 유니크가 막는다"는 틀렸다. 유니크는 같은 콘텐츠의 중복만 막는다).
 - **`finished_at` NULL은 "진행 중 또는 중단됨"이다**(명시 2026-09-26). 루프가 끝까지 돌았을 때만 닫는다 — 프로세스가 죽었거나 사용자 페이지 조회가 끝내 실패한 실행은 NULL로 남고, **다음 재시작 때 재개되어 닫힌다**(`drip-scheduling.md` 7장). **카운트는 마지막 패스 기준이다** — 재개 패스가 덮어쓰며, 먼저 받은 사용자는 그 패스에서 `skipped`로 집계된다.
 - 운영 콘솔 조회용으로 DB에 유지한다 (B-8).
 - **네 카운트의 합이 `target_count`다.** `success`(1편 이상 적립) · `skipped`(관심 주제 0 · 오늘 이미 편성(`already_placed`) · 미청취 재고 ≥ 5 · 플랜 0으로 애초에 편성하지 않음 — `drip-scheduling.md` 4.1) · `exhausted`(편성 대상이었으나 **후보 고갈**로 0편 — 4.6-3 "대체 없음") · `failed`(예외).
@@ -1549,7 +1572,7 @@ ck_invite_codes_grant_period — grant_days 와 grant_until_date 중 정확히 �
 - **코드 하나가 캠페인 하나다.** 제휴·PoC가 여럿이라 코드도 여럿이고 코드마다 지급 요금제·기간·한도가 다르다.
 - `redeemed_count`를 두는 이유: 한도 판정을 **코드 행 잠금 하나**로 끝내려고 — 같은 코드에 동시에 들어온 입력이 한도를 넘지 않는다.
 - 만든 뒤 바꿀 수 있는 것은 이름·켜기/끄기·한도·입력 기간뿐이다. 코드 값·지급 요금제·기간은 바꾸지 않는다(이미 받은 사람과 조건이 갈린다).
-- **내부 캠페인 행 `REVIEW-REWARD`**(2026-10-28 — KAN-279, 8.6 · 8.7): 후기 참여 프로모션의 지급이 가리키는 행 하나를 마이그레이션이 넣는다 — `code = 'REVIEW-REWARD'` · `name = '후기 참여'` · `tier = pro` · `grant_days = 7` · `max_redemptions = NULL` · `redeemable_from/until = NULL` · **`is_active = false`**. 사용자가 입력할 수 없어야 하므로 **코드 입력 경로(`subscription-api.md` 4.8-1)는 `is_active`와 무관하게 이 코드를 "없는 코드"(404 `INVITE_CODE_NOT_FOUND`)로 본다** — 운영자가 실수로 켜도 열리지 않는다. 프로모션 사용 경로만 이 행으로 지급을 만들며 `is_active` · 입력 기간 판정을 건너뛴다(다른 지급 진행 중 판정은 그대로 한다). `redeemed_count`는 사용 수만큼 오른다. 관리자 콘솔에서 이 행의 수정은 거부한다(`changes/pending/content-review-contract.md` — `admin-api.md` 4.23 후속).
+- **내부 캠페인 행 `REVIEW-REWARD`**(2026-10-28 — KAN-279, 8.6 · 8.7): 후기 참여 프로모션의 지급이 가리키는 행 하나를 마이그레이션이 넣는다 — `code = 'REVIEW-REWARD'` · `name = '후기 참여'` · `tier = pro` · `grant_days = 7` · `max_redemptions = NULL` · `redeemable_from/until = NULL` · **`is_active = false`**. 사용자가 입력할 수 없어야 하므로 **코드 입력 경로(`subscription-api.md` 4.8-1)는 `is_active`와 무관하게 이 코드를 "없는 코드"(404 `INVITE_CODE_NOT_FOUND`)로 본다** — 운영자가 실수로 켜도 열리지 않는다. 프로모션 사용 경로만 이 행으로 지급을 만들며 `is_active` · 입력 기간 판정을 건너뛴다(다른 지급 진행 중 판정은 그대로 한다). `redeemed_count`는 사용 수만큼 오른다. 관리자 콘솔에서 이 행의 수정(PATCH)은 409 `CONFLICT`로 거부한다(`admin-api.md` 4.23). 마이그레이션 `down`은 이 행을 가리키는 지급이 있으면 코드 행을 남긴다 — 지급 기록을 지우면서 되돌리지 않는다(2026-10-29 서버 결정).
 
 ### 8.6 `invite_code_redemptions` — 초대 코드 사용·지급 기간 (2026-10-10)
 
@@ -1615,7 +1638,7 @@ ck_promotions_grant_days  grant_days >= 1
 notification_logs
   id                        bigserial       PK
   user_id                   uuid            FK → users
-  type                      varchar(40)     `drip_arrival` 또는 `retention.<규칙>.<변형>`(저녁 리텐션 알림 — `notification.md` 4.6, 2026-10-26)
+  type                      varchar(40)     `drip_arrival` · `drip_arrival.<그룹>`(도착 알림 시각 A/B — 2026-10-29) · `retention.<규칙>.<변형>`(저녁 리텐션 알림 — `notification.md` 4.6, 2026-10-26 · 아침 알림 `retention.morning.<변형>` — 4.6-1, 2026-10-29)
   deep_link                 varchar         NULL
   scheduled_at              timestamptz
   sent_at                   timestamptz     NULL
@@ -1627,6 +1650,7 @@ idx_notification_logs_user_id_scheduled_at (user_id, scheduled_at DESC)
 ```
 
 - **중복 발송 방지에 필요하므로** 구조화 로그가 아니라 DB 테이블로 유지한다 (B-8).
+- **`type`의 값**: `drip_arrival` · **`drip_arrival.<그룹>`**(도착 알림 시각 A/B — `a` 07:30 · `b` 08:00, KAN-289, 2026-10-29) · `retention.<규칙>.<변형>`. 그룹은 컬럼을 늘리지 않고 종류에 붙인다 — 리텐션 변형과 같은 방식이고, 앱으로 가는 푸시 `data.type`과는 별개라 앱 변경이 없다. 하루 1건 판정과 집계는 `drip_arrival` 머리로 묶는다. `retention.<규칙>.<변형>`의 규칙에는 **`morning`**(아침 알림, KAN-288 — `notification.md` 4.6-1)이 있고, 저녁 규칙 표와 따로 센다(빈도 상한도 서로 세지 않는다).
 - `skip_reason`에서 `free_tier`를 **제거했다.** 무료 티어도 드립을 받으므로(PRD 미확정 3번) 이 사유가 발생하지 않는다.
 - `skip_reason`에서 `quiet_hours`도 **제거했다**(합의 2026-08-06 — `notification.md` 4.3). 방해금지 개념 자체를 폐기했으므로(전역·사용자별 모두) 이 사유가 발생하지 않는다. 드립 도착은 순수 정보성 알림이라 편성 직후(05:00 확정 배치) 야간 제한 없이 발송한다.
 - **탈퇴 시 즉시 파기한다.** 보존해야 할 법령 근거가 없고(개인정보보호법 제21조 제1항 — 원칙은 파기), 이 테이블의 목적인 중복 발송 방지는 탈퇴한 사용자에게 성립하지 않는다. 발송량·개봉률 같은 운영 지표가 필요하면 개인 식별자가 없는 집계로 따로 남긴다.

@@ -10,6 +10,7 @@ import { useDelayedVisible } from '@/shared/hooks/useDelayedVisible';
 import { toTab } from '@/shared/navigation/to-tab';
 import { useToastStore } from '@/shared/ui/toast.store';
 
+import { useContentReviewLauncher } from '@/features/content-review';
 import { toTagQuery } from '@/features/explore';
 import { libraryKeys } from '@/features/library';
 import { usePlaybackStore, usePlayGate } from '@/features/player';
@@ -132,6 +133,17 @@ export const useContentDetailScreen = () => {
 
   const detail = detailQuery.data;
 
+  /* ── "내 후기"(KAN-280) — 줄을 누르면 후기 시트(L17)를 이 화면 안에 연다. 앞에 닫힐 시트가 없어 바로 연다 ── */
+  const reviewLauncher = useContentReviewLauncher();
+  const openReview = () => {
+    if (!detail) return;
+    reviewLauncher.request({
+      contentId,
+      title: detail.content.title,
+      thumbnailUrl: detail.content.thumbnailUrl,
+    });
+  };
+
   const requestPlay = () => {
     if (!detail) return;
     // 현재 재생 중인 콘텐츠면 새 재생 없이 플레이어로 복귀한다 — 판정·차감이 다시 일어나지
@@ -145,6 +157,8 @@ export const useContentDetailScreen = () => {
       {
         contentId,
         isCountedToday: detail.isCountedToday,
+        // 서버가 잠갔다고 준 편이면 게이트가 발급 없이 잠금 시트를 띄운다(KAN-294)
+        isLocked: detail.isLocked,
         // 상세가 이미 아는 메타 — 플레이어가 진입과 동시에 그린다(player-uiux.md 4.3)
         meta: {
           title: detail.content.title,
@@ -273,6 +287,10 @@ export const useContentDetailScreen = () => {
     requestDelete,
     // [공유](SH2, P1)
     shareDetail,
+    // "내 후기" — 줄은 후기 기능이 켜졌을 때만 그려진다(MyContentReviewRow 가 판정 값을 본다)
+    contentId,
+    openReview,
+    reviewLauncher,
     // 복귀 — 공유 링크 수신은 뒤로 갈 원 화면이 없어 라이브러리로 간다(share-uiux.md 4.4)
     goBack: () => (isShareLinkEntry ? goToLibrary() : navigation.goBack()),
   };

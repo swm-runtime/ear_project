@@ -43,6 +43,7 @@ import {
 } from '../player.constants';
 import type {
   AudioIssueResult,
+  PlaybackBlockedKind,
   PlaybackSession,
   PlayEntryPoint,
   PlaybackStartMeta,
@@ -114,10 +115,10 @@ export interface PlaybackCallbacks {
    */
   onIssued?: (info: { isReusedSession: boolean }) => void;
   /**
-   * 발급 시점의 한도 403. **넘기면 세션을 내리고 이것만 부른다** — 플레이어가 떠 있지 않은 진입점이
-   * 페이월·한도 안내를 직접 띄운다. 안 넘기면 종전대로 세션을 `blocked`로 두고 플레이어 화면이 처리한다.
+   * 발급 시점의 한도·잠금 403. **넘기면 세션을 내리고 이것만 부른다** — 플레이어가 떠 있지 않은 진입점이
+   * 페이월·한도 안내·잠금 시트를 직접 띄운다. 안 넘기면 종전대로 세션을 `blocked`로 두고 플레이어 화면이 처리한다.
    */
-  onIssueBlocked?: (blocked: { kind: 'paywall' | 'paid_limit'; message: string | null }) => void;
+  onIssueBlocked?: (blocked: { kind: PlaybackBlockedKind; message: string | null }) => void;
   /**
    * 이 요청이 **지금 세션이 되는 순간** — 새 세션을 세우거나 같은 편의 살아 있는 세션을 넘겨받을 때. 듣던 편을 지키는
    * 시작(`keepCurrentUntilIssued`)은 발급 결과가 나온 뒤에야 세션을 바꾸므로, 재생 목록 맥락처럼 "재생이 바뀔 때 같이
@@ -175,11 +176,16 @@ interface SessionContext {
 
 const store = usePlaybackStore;
 
-/** 발급 실패가 한도 403 이면 그 종류 — `handleIssueError` 의 한도 분기와 같은 판별이다 */
-const issueLimitBlockOf = (
+/**
+ * 발급 실패가 한도·잠금 403 이면 그 종류 — `handleIssueError` 의 차단 분기와 같은 판별이다. 잠금(`SERIES_EPISODE_LOCKED`)은
+ * 한도보다 먼저 본다 — 서버도 잠금을 먼저 판정하지만(experiments-api.md 4.2-3) 앱도 같은 순서로 읽는다
+ */
+export const issueBlockOf = (
   error: unknown,
-): { kind: 'paywall' | 'paid_limit'; message: string | null } | null => {
+): { kind: PlaybackBlockedKind; message: string | null } | null => {
   if (!isApiError(error)) return null;
+  if (error.errorCode === ERROR_CODES.SERIES_EPISODE_LOCKED)
+    return { kind: 'series_locked', message: error.message };
   if (error.errorCode === ERROR_CODES.PLAY_LIMIT_EXCEEDED)
     return { kind: 'paywall', message: error.message };
   if (error.errorCode === ERROR_CODES.PLAY_LIMIT_REACHED)
@@ -276,6 +282,8 @@ class PlaybackService {
   start(request: StartPlaybackRequest): void {
     // 새 요청이 왔다 — 듣던 편을 지키며 발급을 기다리던 앞 요청의 결과는 버린다
     this.pendingIssueSeq += 1;
+    // 잠긴 다음 편 앞에서 멈춘 기록(KAN-302)도 — 사용자가 다른 편을 골랐다
+    store.getState().setLockedNext(null);
     const session = store.getState().session;
     const isSameContent =
       this.ctx !== null && session !== null && session.contentId === request.contentId;
@@ -448,7 +456,7 @@ class PlaybackService {
       issue = await issueAudioUrls({ contentId: request.contentId });
     } catch (error) {
       if (isStale()) return;
-      const blocked = issueLimitBlockOf(error);
+      const blocked = issueBlockOf(error);
       const onIssueBlocked = request.callbacks?.onIssueBlocked;
       if (blocked !== null && onIssueBlocked) {
         onIssueBlocked(blocked);
@@ -475,6 +483,10 @@ class PlaybackService {
   private handleIssueError(error: unknown): void {
     if (isApiError(error)) {
       switch (error.errorCode) {
+        case ERROR_CODES.SERIES_EPISODE_LOCKED:
+          // 잠긴 편(experiments-api.md 4.2-3) — 차감 없이 막혔다. 화면이 닫고 잠금 시트로 전환한다
+          this.blockAtIssue('series_locked', error.message);
+          return;
         case ERROR_CODES.PLAY_LIMIT_EXCEEDED:
           // 발급 시점의 한도 403은 경합·딥링크에서만 난다 — 화면이 닫고 페이월로 전환(player-api.md 5장)
           this.blockAtIssue('paywall', error.message);
@@ -747,6 +759,10 @@ class PlaybackService {
       if (generation !== this.generation || !this.ctx) return;
       if (isApiError(error)) {
         switch (error.errorCode) {
+          case ERROR_CODES.SERIES_EPISODE_LOCKED:
+            // 발급 뒤 잠긴 경합(발급과 재생 사이에 구독이 끝남 등) — 한도 소진이 아니라 `play_limit_hit` 을 세지 않는다
+            this.markBlocked('series_locked', error.message);
+            return;
           case ERROR_CODES.PLAY_LIMIT_EXCEEDED:
             // 경합(다른 기기 소진)에서만 나는 경로 — 화면이 닫고 페이월로 전환한다
             track('play_limit_hit', { remaining: 0 });
@@ -989,6 +1005,8 @@ class PlaybackService {
    * - 맥락은 바뀌지 않는다 — 같은 목록 안에서 다음 줄로 옮겨 간 것이다. 진입점은 `player`
    * - 오늘 남은 횟수 힌트가 0이고 다음 편이 오늘 차감 전이면 넘어가지 않는다 — 듣는 도중(화면 밖일 수도 있다)에 페이월을
    *   들이밀지 않는다. 힌트가 틀려 서버가 막으면 종전 차단 처리를 그대로 탄다
+   * - 다음 편이 잠긴 편(`isLocked` — 서버 값)이면 넘어가지도 건너뛰지도 않고 **잠금 시트를 띄울 기록**을 남긴다(KAN-302 — 화면이
+   *   앞에 있을 때 호스트가 띄운다). 추천 목록에서는 잠긴 편을 뺀다(KAN-294)
    * - 받는 사이 사용자가 다른 편을 틀었거나 다시 듣기를 눌렀으면 아무것도 하지 않는다
    * - **목록이 끝나면 추천 편으로 이어 간다**(PM 2026-10-23 "유튜브 뮤직처럼") — 플레이어 [자동 재생] 칩(추천 이어 틀기, 기본 켜짐)이
    *   켜져 있을 때만. 지금 편이 목록의 마지막 줄이거나 목록에
@@ -1031,7 +1049,10 @@ class PlaybackService {
             ended.contentId,
             items.map((item) => item.contentId),
           )) ?? [];
-        recommendedQueue = recommended.filter((item) => !item.isCompleted);
+        // 잠긴 편(서버 `is_locked`)은 추천 목록에 넣지 않는다 — 추천은 고른 목록이 아니라 틀 수 있는 편을 이어 주는 자리다
+        recommendedQueue = recommended.filter(
+          (item) => !item.isCompleted && item.isLocked !== true,
+        );
         next = recommendedQueue[0] ?? null;
       } catch (error) {
         logger.debug('[player] autoplay up-next fetch failed', error);
@@ -1040,6 +1061,18 @@ class PlaybackService {
       if (!isStillEnded()) return;
     }
     if (next === null) return;
+    // 다음 줄이 잠긴 편이면(서버 `is_locked` — KAN-294) 여기서 멈추고 건너뛰지 않는다(시리즈 3화 → 4화가 잠기면 뒤 편도 잠겨 있다 —
+    // 건너뛰면 엉뚱한 편이 이어진다). 듣던 흐름에서 바로 구독을 권하도록 잠금 시트를 띄울 기록을 남긴다(KAN-302 — 결정 2026-10-30
+    // 박준현). 시트는 화면이 앞에 있을 때 호스트가 띄운다 — 화면 밖에서 끝났으면 앱이 앞으로 올 때. 값이 낡아 서버가 막으면 종전
+    // 차단 처리(잠금 시트)를 그대로 탄다
+    if (next.isLocked === true) {
+      store.getState().setLockedNext({
+        afterContentId: ended.contentId,
+        entry: next,
+        queue: store.getState().queueContext,
+      });
+      return;
+    }
     const { playLimit: limit } = usePlayLimitStore.getState();
     const isExhausted =
       limit !== null &&
@@ -1259,6 +1292,11 @@ class PlaybackService {
         this.markWithdrawn();
         return;
       }
+      if (isApiError(error) && error.errorCode === ERROR_CODES.SERIES_EPISODE_LOCKED) {
+        // 듣는 사이 잠겼다(구독 만료 등) — 다시 받아도 같은 답이라 재시도하지 않고 잠금 시트로 넘긴다(experiments-api.md 4.2-3)
+        this.markBlocked('series_locked', error.message);
+        return;
+      }
       // 갱신 실패 — 버퍼가 이어지는 동안 재시도하고, 배너 자리에 재시도 안내를 둔다(uiux 4.9)
       store.getState().patchSession({ banner: 'refresh_failed' });
       this.refreshTimer = setTimeout(() => void this.refreshAudioUrl(), URL_REFRESH_RETRY_DELAY_MS);
@@ -1321,7 +1359,7 @@ class PlaybackService {
   /* ── 상태 전이·정리 ── */
 
   /** 발급 시점의 차단 — 진입점이 직접 처리하겠다고 했으면(플레이어가 안 떠 있다) 세션을 내리고 넘긴다 */
-  private blockAtIssue(kind: 'paywall' | 'paid_limit', message: string | null): void {
+  private blockAtIssue(kind: PlaybackBlockedKind, message: string | null): void {
     const onIssueBlocked = this.ctx?.callbacks.onIssueBlocked;
     if (!onIssueBlocked) {
       this.markBlocked(kind, message);
@@ -1331,7 +1369,7 @@ class PlaybackService {
     onIssueBlocked({ kind, message });
   }
 
-  private markBlocked(kind: 'paywall' | 'paid_limit', message: string | null): void {
+  private markBlocked(kind: PlaybackBlockedKind, message: string | null): void {
     this.player?.pause();
     store.getState().patchSession({
       state: 'blocked',

@@ -14,8 +14,10 @@ import { normalizeStoredText } from '@/common/utils/search-text.util';
 
 import { WITHDRAWN_SYNC_MAX_LIMIT } from '../content.constant';
 import { isContentVisibleAt } from '../content.visibility';
+import { assertVariantOrigin } from '../content-variant.policy';
 import {
   ALL_TIME_PERIOD_START,
+  ContentLengthProfile,
   ContentStatus,
   StatsPeriodType,
 } from '../content.enum';
@@ -365,6 +367,8 @@ export class ContentService {
     limit: number,
     now: Date,
     market: UserMarket,
+    /** 짧은 판 코호트(KAN-298) — 사용자 코호트의 길이 프로필 */
+    lengthProfile: ContentLengthProfile,
     manager?: EntityManager,
     /** 시리즈 카드 모드(KAN-134) — 시리즈마다 가장 최신 편 하나만 */
     seriesAnchorsOnly = false,
@@ -373,6 +377,7 @@ export class ContentService {
       limit,
       now,
       market,
+      lengthProfile,
       manager,
       seriesAnchorsOnly,
     );
@@ -504,6 +509,7 @@ export class ContentService {
     const rows = await this.contentRepository.findSearchPage(
       {
         market: query.market,
+        lengthProfile: query.lengthProfile,
         normalizedQuery: query.normalizedQuery,
         tagOnly: false,
         matchSeriesTitle: query.matchSeriesTitle,
@@ -586,6 +592,20 @@ export class ContentService {
    * 있어야 한다. 회수를 이유로 막으면 사용자는 목록에 남은 항목을 영영 치울 수 없다.
    * 노출·재생 경로는 `getPublishedById`를 쓴다.
    */
+  /**
+   * 짧은 판의 원본 콘텐츠 확인(KAN-298 — 업로드 `variant_of_content_id`). 없거나 원본이 이미 짧은 판이면 400
+   * `VALIDATION_FAILED`(`details.field = "variant_of_content_id"`). 원본의 상태(회수·만료)는 보지 않는다 — 짝 기록이지 노출이 아니다
+   */
+  async assertVariantOriginContent(
+    contentId: string,
+    manager?: EntityManager,
+  ): Promise<void> {
+    assertVariantOrigin(
+      await this.contentRepository.findById(contentId, manager),
+      'variant_of_content_id',
+    );
+  }
+
   async getById(contentId: string, manager?: EntityManager): Promise<Content> {
     const content = await this.contentRepository.findById(contentId, manager);
 
@@ -775,6 +795,9 @@ export class ContentService {
       withdrawnAt: null,
       market: command.market,
       language: command.language,
+      lengthProfile: command.lengthProfile,
+      variantOfContentId: command.variantOfContentId,
+      introVersion: command.introVersion,
     });
     const [saved] = await this.contentRepository.saveAll([content], manager);
 

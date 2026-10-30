@@ -4,9 +4,10 @@ import { DataSource } from 'typeorm';
 import { BusinessException } from '@/common/exceptions/business.exception';
 import { ErrorCode } from '@/common/exceptions/error-code.enum';
 import { FirstDripJobStatus } from '@/modules/drip/drip.enum';
-import { FirstDripState } from '@/modules/drip/drip.types';
 import { FirstDripService } from '@/modules/drip/services/first-drip.service';
 import { Content } from '@/modules/content/entities/content.entity';
+import { ContentLengthProfile } from '@/modules/content/content.enum';
+import { ContentCohortService } from '@/modules/content/services/content-cohort.service';
 import { ContentService } from '@/modules/content/services/content.service';
 import { ContentStatService } from '@/modules/content/services/content-stat.service';
 import { TopicListResult } from '@/modules/interest/interest.types';
@@ -34,6 +35,7 @@ import {
 import { RecommendationSectionType } from './onboarding.enum';
 import {
   CompleteResult,
+  FirstDripView,
   OnboardingState,
   PickResult,
   RecommendationItem,
@@ -64,6 +66,7 @@ export class OnboardingOrchestrator {
     private readonly libraryService: LibraryService,
     private readonly firstDripService: FirstDripService,
     private readonly dataSource: DataSource,
+    private readonly contentCohortService: ContentCohortService,
   ) {}
 
   /**
@@ -239,10 +242,13 @@ export class OnboardingOrchestrator {
       });
     }
 
+    // 온보딩 추천(담기)도 노출면이다 — 짧은 판 코호트와 같은 길이 프로필만 권한다(KAN-298)
+    const lengthProfile = this.contentCohortService.resolve(user.createdAt);
     const interestContents = await this.selectInterestContents(
       topicIds,
       now,
       user.market,
+      lengthProfile,
     );
     const discoverySize = RECOMMENDATION_TOTAL_SIZE - interestContents.length;
     const { contents: discoveryContents, sectionType } =
@@ -253,6 +259,7 @@ export class OnboardingOrchestrator {
         discoverySize,
         now,
         user.market,
+        lengthProfile,
       );
 
     const sections = await this.toSections(
@@ -381,8 +388,11 @@ export class OnboardingOrchestrator {
     };
   }
 
-  /** onboarding-api.md 4.8 — 0건 담기 경로에서 완료 화면을 언제 띄울지 판정한다 */
-  async getFirstDripState(userId: string): Promise<FirstDripState> {
+  /**
+   * onboarding-api.md 4.8 — 0건 담기 경로에서 완료 화면을 언제 띄울지 판정한다.
+   * `completed`면 온보딩 직후 열 편을 함께 정한다(`experiments-api.md` 4.1 — KAN-292).
+   */
+  async getFirstDripState(userId: string, now: Date): Promise<FirstDripView> {
     const user = await this.userOnboardingService.getUser(userId);
     this.userOnboardingService.assertCompleted(user);
 
@@ -399,10 +409,21 @@ export class OnboardingOrchestrator {
         status: FirstDripJobStatus.QUEUED,
         itemCount: 0,
         completedAt: null,
+        firstContentId: null,
       };
     }
 
-    return state;
+    const firstContentId =
+      state.status === FirstDripJobStatus.COMPLETED && state.completedAt
+        ? await this.libraryService.findFirstDripOpenContentId(
+            userId,
+            state.completedAt,
+            now,
+            user.market,
+          )
+        : null;
+
+    return { ...state, firstContentId };
   }
 
   /**
@@ -413,6 +434,7 @@ export class OnboardingOrchestrator {
     topicIds: string[],
     now: Date,
     market: UserMarket,
+    lengthProfile: ContentLengthProfile,
   ): Promise<Content[]> {
     const quotaPerTopic = Math.max(
       1,
@@ -427,6 +449,7 @@ export class OnboardingOrchestrator {
 
       const contents = await this.contentService.findCandidates({
         market,
+        lengthProfile,
         includeTopicIds: [topicId],
         excludeContentIds: selected.map((content) => content.id),
         // 1편을 듣지 않은 신규 사용자에게 시리즈 중간 편을 권하지 않는다
@@ -444,6 +467,7 @@ export class OnboardingOrchestrator {
 
     const filler = await this.contentService.findCandidates({
       market,
+      lengthProfile,
       includeTopicIds: topicIds,
       excludeContentIds: selected.map((content) => content.id),
       seriesStartOnly: true,
@@ -467,6 +491,7 @@ export class OnboardingOrchestrator {
     size: number,
     now: Date,
     market: UserMarket,
+    lengthProfile: ContentLengthProfile,
   ): Promise<{ contents: Content[]; sectionType: RecommendationSectionType }> {
     if (size <= 0) {
       return {
@@ -477,6 +502,7 @@ export class OnboardingOrchestrator {
 
     const pool = await this.contentService.findCandidates({
       market,
+      lengthProfile,
       excludeTopicIds: interestTopicIds,
       excludeContentIds,
       seriesStartOnly: true,

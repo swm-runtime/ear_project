@@ -8,6 +8,7 @@ import { getPublishHistory, markPublished, type PublishAction, type PublishLogRo
 import { Badge, PageHeader, Panel, btnCls } from "@/components/ui";
 import { fmtTime } from "@/lib/format";
 import { EarGate, EarSession, earErrMsg } from "../ear-connect";
+import { ReviewPanel } from "../review-panel";
 
 /**
  * 제품 콘텐츠 상세 — 발행된 콘텐츠의 메타(제목·설명·출처 표기·주제)·썸네일 수정과 발행 이력 (2026-09-08 박수헌 요청).
@@ -151,6 +152,8 @@ function Detail({ id }: { id: string }) {
           {busy ? "반영 중…" : changes.parts.length === 0 ? "바뀐 것 없음" : `재발행 — ${changes.parts.map((p) => PART_LABEL[p] ?? p).join(", ")} 반영 (v${c.content_version + 1})`}
         </button>
         {msg && <p className={`rounded-md border p-3 text-[13px] ${msg.kind === "ok" ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-rose-200 bg-rose-50 text-rose-700"}`}>{msg.text}</p>}
+
+        <ReviewPanel contentId={c.id} currentVersion={c.content_version} />
 
         <Panel title="발행 이력" right={hist?.episode_id && <Link href={`/episodes/${hist.episode_id}`} className="text-[11px] text-brand-ink underline">에피소드 {hist.episode_id}</Link>}>
           {hist?.backlog && <p className="mb-2 text-[11.5px] text-ink-soft">백로그 {hist.backlog.id} · 기록 v{hist.backlog.published_version ?? "?"} · {fmtTime(hist.backlog.published_at)}</p>}

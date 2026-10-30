@@ -33,6 +33,11 @@ import type { PurchasePlatform } from '../subscription.types';
 export interface StoreProduct {
   productId: string;
   displayPrice: string;
+  /**
+   * 그 가격의 통화(ISO 4217 — `KRW`·`USD`). 계산에 쓰지 않는다 — 서버가 준 원화 정가 취소선(KAN-299)을 **원화 가격 옆에만**
+   * 그리는 표기 가드다(`$1.99` 옆에 `₩3,900` 을 긋지 않는다). 모르면 생략(= 원화로 보지 않는다)
+   */
+  currency?: string;
 }
 
 /** 스토어 거래 — 서버 제출과 finish 에 필요한 것만 추린다 */
@@ -258,6 +263,7 @@ export const createExpoIapAdapter = (platform: PurchasePlatform): IapAdapter => 
       return products.map((product) => ({
         productId: product.id,
         displayPrice: product.displayPrice,
+        currency: product.currency,
       }));
     } catch (error) {
       throw toStoreError(error);

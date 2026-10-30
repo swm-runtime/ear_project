@@ -12,6 +12,7 @@ import { cfg } from "../config.js";
 import { getSetting, pool } from "../db.js";
 import { notifyOps } from "../notify.js";
 import { log } from "../util.js";
+import { holdLease } from "../lease.js";
 
 const BASE = "https://api.elevenlabs.io/v1";
 export const CHECK_EVERY_MS = 30 * 60_000;
@@ -71,6 +72,8 @@ export async function maybeCheckTtsQuota(opts: { force?: boolean } = {}): Promis
   if (!cfg.elevenLabsKey) return null;
   if (!opts.force && Date.now() - lastCheck < CHECK_EVERY_MS) return null;
   lastCheck = Date.now();
+  // 복제 중 하나만 (lease.ts, 2026-10-30) — 복제가 동시에 뜨면(배포 직후) 같은 문턱 알림이 겹쳐 간다. force(콘솔 다시 보기)는 그대로
+  if (!opts.force && !(await holdLease("tts-quota", CHECK_EVERY_MS * 2))) return null;
   try {
     const res = await fetch(`${BASE}/user/subscription`, { headers: { "xi-api-key": cfg.elevenLabsKey }, signal: AbortSignal.timeout(15_000) });
     if (!res.ok) { log(`ElevenLabs 잔량 조회 실패 (계속 진행): HTTP ${res.status}`); return null; }

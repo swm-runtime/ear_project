@@ -1,16 +1,27 @@
 import { BusinessException } from '@/common/exceptions/business.exception';
 import { ErrorCode } from '@/common/exceptions/error-code.enum';
 import { PlanService } from '@/modules/subscription/services/plan.service';
+import { SeriesPaywallService } from '@/modules/subscription/services/series-paywall.service';
 import { User } from '@/modules/user/entities/user.entity';
 import { UserService } from '@/modules/user/services/user.service';
 import { UserTier } from '@/modules/user/user.enum';
 
 import { PlaybackService } from './playback.service';
-import { PLAY_LIMIT_MESSAGE, PlayPolicyService } from './play-policy.service';
+import {
+  PLAY_LIMIT_MESSAGE,
+  PlayPolicyService,
+  SERIES_EPISODE_LOCKED_MESSAGE,
+} from './play-policy.service';
 
 const NOW = new Date('2026-08-05T09:00:00.000Z');
 const USER_ID = '11111111-1111-4111-8111-111111111111';
 const CONTENT_ID = 'aaaaaaaa-1111-4111-8111-111111111111';
+const SERIES_ID = 'bbbbbbbb-1111-4111-8111-111111111111';
+/** 시리즈가 아닌 콘텐츠 — 종전 판정 테스트는 이 콘텐츠로 본다 */
+const CONTENT = { id: CONTENT_ID, seriesId: null, episodeNo: null };
+/** 시리즈 편 — 무료 편수(3) 안 / 밖 */
+const EPISODE_3 = { id: CONTENT_ID, seriesId: SERIES_ID, episodeNo: 3 };
+const EPISODE_4 = { id: CONTENT_ID, seriesId: SERIES_ID, episodeNo: 4 };
 
 const FREE_LIMIT = 2;
 
@@ -35,8 +46,11 @@ describe('PlayPolicyService', () => {
   let playbackService: jest.Mocked<PlaybackService>;
   let userService: jest.Mocked<UserService>;
   let planService: jest.Mocked<PlanService>;
+  /** 시리즈 유료화 스위치(KAN-290) — 기본은 꺼짐(종전과 같다) */
+  let env: Record<string, string>;
 
   beforeEach(() => {
+    env = {};
     playbackService = {
       isWithinReplayWindow: jest.fn().mockResolvedValue(false),
       countPlays: jest.fn().mockResolvedValue(0),
@@ -54,9 +68,21 @@ describe('PlayPolicyService', () => {
       getEffectivePlayLimitPolicy: jest
         .fn()
         .mockResolvedValue({ dailyPlayLimit: FREE_LIMIT, isTopTier: false }),
+      // 저장 티어가 유료 요금제인가 — 시리즈 유료화의 "열리는 사람" 판정 입력(데일리·프로)
+      isPaidTier: jest.fn((tier: UserTier) =>
+        Promise.resolve(tier === UserTier.PRO || tier === UserTier.DAILY),
+      ),
     } as unknown as jest.Mocked<PlanService>;
 
-    service = new PlayPolicyService(playbackService, userService, planService);
+    service = new PlayPolicyService(
+      playbackService,
+      userService,
+      planService,
+      new SeriesPaywallService(
+        { get: (key: string) => env[key] } as never,
+        planService,
+      ),
+    );
   });
 
   describe('assertPlayable', () => {
@@ -65,7 +91,7 @@ describe('PlayPolicyService', () => {
       playbackService.countPlays.mockResolvedValue(1);
 
       // when
-      const permission = await service.assertPlayable(USER_ID, CONTENT_ID, NOW);
+      const permission = await service.assertPlayable(USER_ID, CONTENT, NOW);
 
       // then
       expect(permission).toEqual({
@@ -81,7 +107,7 @@ describe('PlayPolicyService', () => {
 
       // when
       const error = await catchError(
-        service.assertPlayable(USER_ID, CONTENT_ID, NOW),
+        service.assertPlayable(USER_ID, CONTENT, NOW),
       );
 
       // then
@@ -99,7 +125,7 @@ describe('PlayPolicyService', () => {
 
       // when
       const error = await catchError(
-        service.assertPlayable(USER_ID, CONTENT_ID, NOW),
+        service.assertPlayable(USER_ID, CONTENT, NOW),
       );
 
       // then
@@ -113,7 +139,7 @@ describe('PlayPolicyService', () => {
       playbackService.countPlays.mockResolvedValue(FREE_LIMIT);
 
       // when
-      const permission = await service.assertPlayable(USER_ID, CONTENT_ID, NOW);
+      const permission = await service.assertPlayable(USER_ID, CONTENT, NOW);
 
       // then
       expect(permission.deductsQuota).toBe(false);
@@ -129,7 +155,7 @@ describe('PlayPolicyService', () => {
       });
 
       // when
-      const permission = await service.assertPlayable(USER_ID, CONTENT_ID, NOW);
+      const permission = await service.assertPlayable(USER_ID, CONTENT, NOW);
 
       // then
       expect(permission).toEqual({
@@ -150,7 +176,7 @@ describe('PlayPolicyService', () => {
       });
 
       // when
-      const permission = await service.assertPlayable(USER_ID, CONTENT_ID, NOW);
+      const permission = await service.assertPlayable(USER_ID, CONTENT, NOW);
 
       // then — 차감(counted 응답)과 기산점(is_counted 행)이 갈라지는 지점이다
       expect(permission.deductsQuota).toBe(false);
@@ -176,7 +202,7 @@ describe('PlayPolicyService', () => {
       });
 
       // when
-      const permission = await service.assertPlayable(USER_ID, CONTENT_ID, NOW);
+      const permission = await service.assertPlayable(USER_ID, CONTENT, NOW);
 
       // then — 무제한이라 카운트를 세지 않고, 재생은 재청취 창의 기산점이 된다
       expect(planService.getEffectivePlayLimitPolicy).toHaveBeenCalledWith(
@@ -201,7 +227,7 @@ describe('PlayPolicyService', () => {
       } as User);
 
       // when
-      await service.assertPlayable(USER_ID, CONTENT_ID, NOW);
+      await service.assertPlayable(USER_ID, CONTENT, NOW);
 
       // then
       expect(planService.getEffectivePlayLimitPolicy).toHaveBeenCalledWith(
@@ -212,13 +238,137 @@ describe('PlayPolicyService', () => {
     });
 
     it('체험을 받지 않은 사용자는 종전과 같다', async () => {
-      await service.assertPlayable(USER_ID, CONTENT_ID, NOW);
+      await service.assertPlayable(USER_ID, CONTENT, NOW);
 
       expect(planService.getEffectivePlayLimitPolicy).toHaveBeenCalledWith(
         UserTier.LIGHT,
         false,
         undefined,
       );
+    });
+  });
+
+  describe('시리즈 유료화(KAN-290 — experiments-api.md 4.2)', () => {
+    const activeTrial = new Date(NOW.getTime() + 60 * 60 * 1000);
+
+    function givenUser(tier: UserTier, trialEndsAt: Date | null = null) {
+      userService.getById.mockResolvedValue({
+        id: USER_ID,
+        tier,
+        trialEndsAt,
+      } as User);
+    }
+
+    beforeEach(() => {
+      env.SERIES_PAYWALL_ENABLED = 'true';
+    });
+
+    it('무료 사용자의 4편은 SERIES_EPISODE_LOCKED로 막고 한도 판정까지 가지 않는다(차감 없음)', async () => {
+      // given
+      givenUser(UserTier.LIGHT);
+
+      // when
+      const error = await catchError(
+        service.assertPlayable(USER_ID, EPISODE_4, NOW),
+      );
+
+      // then
+      expect(error.errorCode).toBe(ErrorCode.SERIES_EPISODE_LOCKED);
+      expect(error.message).toBe(SERIES_EPISODE_LOCKED_MESSAGE);
+      expect(error.retryable).toBe(false);
+      expect(error.getStatus()).toBe(403);
+      expect(planService.getEffectivePlayLimitPolicy).not.toHaveBeenCalled();
+      expect(playbackService.countPlays).not.toHaveBeenCalled();
+    });
+
+    it('한도를 소진했고 잠긴 편이면 잠금이 이긴다', async () => {
+      // given
+      givenUser(UserTier.LIGHT);
+      playbackService.countPlays.mockResolvedValue(FREE_LIMIT);
+
+      // when
+      const error = await catchError(
+        service.assertPlayable(USER_ID, EPISODE_4, NOW),
+      );
+
+      // then
+      expect(error.errorCode).toBe(ErrorCode.SERIES_EPISODE_LOCKED);
+    });
+
+    it('데일리 구독자도 4편 이후를 듣는다 — 유료 요금제면 열린다(2026-10-30 팀 결정)', async () => {
+      givenUser(UserTier.DAILY);
+
+      await expect(
+        service.assertPlayable(USER_ID, EPISODE_4, NOW),
+      ).resolves.toBeDefined();
+    });
+
+    it('1~3편은 무료 사용자도 종전 판정 그대로 듣는다', async () => {
+      givenUser(UserTier.LIGHT);
+
+      const permission = await service.assertPlayable(USER_ID, EPISODE_3, NOW);
+
+      expect(permission.deductsQuota).toBe(true);
+    });
+
+    it('프로(초대 코드 Pro 포함 — users.tier 가 pro)는 4편 이후도 듣는다', async () => {
+      givenUser(UserTier.PRO);
+
+      await expect(
+        service.assertPlayable(USER_ID, EPISODE_4, NOW),
+      ).resolves.toBeDefined();
+    });
+
+    it('가입 체험 중이면 4편 이후도 듣는다', async () => {
+      givenUser(UserTier.LIGHT, activeTrial);
+
+      await expect(
+        service.assertPlayable(USER_ID, EPISODE_4, NOW),
+      ).resolves.toBeDefined();
+    });
+
+    it('스위치가 꺼져 있으면 잠그지 않는다 — true 명시만 켠다', async () => {
+      givenUser(UserTier.LIGHT);
+
+      for (const value of ['', 'false', 'TRUE', 'yes']) {
+        env.SERIES_PAYWALL_ENABLED = value;
+        await expect(
+          service.assertPlayable(USER_ID, EPISODE_4, NOW),
+        ).resolves.toBeDefined();
+      }
+    });
+
+    it('무료 편수 설정을 따른다 — SERIES_FREE_EPISODES=4 면 4편은 열리고 5편이 잠긴다', async () => {
+      givenUser(UserTier.LIGHT);
+      env.SERIES_FREE_EPISODES = '4';
+
+      await expect(
+        service.assertPlayable(USER_ID, EPISODE_4, NOW),
+      ).resolves.toBeDefined();
+      const error = await catchError(
+        service.assertPlayable(USER_ID, { ...EPISODE_4, episodeNo: 5 }, NOW),
+      );
+      expect(error.errorCode).toBe(ErrorCode.SERIES_EPISODE_LOCKED);
+    });
+
+    it('목록 표시용 접근(resolveSeriesAccess)은 재생 게이트와 같은 판정이다', async () => {
+      givenUser(UserTier.LIGHT);
+      await expect(service.resolveSeriesAccess(USER_ID, NOW)).resolves.toEqual({
+        lockedAfterEpisodeNo: 3,
+      });
+
+      givenUser(UserTier.PRO);
+      await expect(service.resolveSeriesAccess(USER_ID, NOW)).resolves.toEqual({
+        lockedAfterEpisodeNo: null,
+      });
+
+      env.SERIES_PAYWALL_ENABLED = '';
+      userService.getById.mockClear();
+      await expect(service.resolveSeriesAccess(USER_ID, NOW)).resolves.toEqual({
+        lockedAfterEpisodeNo: null,
+      });
+      // 꺼져 있으면 사용자를 읽지 않는다
+      expect(userService.getById).not.toHaveBeenCalled();
     });
   });
 });

@@ -1,0 +1,111 @@
+name: reels-daily
+# 이어 릴스·쇼츠 — 매일 08:00 KST 에 발행된 편 하나로 30~60초 영상을 만들고(build),
+# 승인 없이 인스타 릴스와 유튜브 쇼츠에 바로 게시한다(publish, 2026-10-30 PM 지시). 결과는 Slack 으로 알린다.
+# 두 곳은 따로 시도한다 — 인스타 자격(IG_USER_ID·SSM 토큰)이 없으면 유튜브만 올린다.
+# 코드·설정 안내는 marketing/reels/README.md.
+#
+# 켜기: 저장소 변수 REELS_ENABLED=true 일 때만 예약 실행한다(설정이 끝나기 전 매일 실패하지 않게).
+# 수동 실행(workflow_dispatch)은 변수와 상관없이 돈다.
+
+on:
+  schedule:
+    - cron: '0 23 * * *' # UTC 23:00 = KST 08:00
+  workflow_dispatch:
+    inputs:
+      episode:
+        description: '편 ID(비우면 자동 선택, 예: X260919-001)'
+        required: false
+        default: ''
+      no_images:
+        description: '그림 생성 없이 편 썸네일로'
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: reels
+  cancel-in-progress: false
+
+env:
+  AWS_REGION: ap-northeast-2
+  ROLE_ARN: arn:aws:iam::639177726357:role/ear-ci-reels
+
+jobs:
+  build:
+    if: github.event_name == 'workflow_dispatch' || vars.REELS_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    outputs:
+      date: ${{ steps.build.outputs.date }}
+      episode: ${{ steps.build.outputs.episode }}
+    defaults:
+      run:
+        working-directory: marketing/reels
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: marketing/reels/requirements.txt
+
+      - name: ffmpeg
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg
+
+      - run: pip install -r requirements.txt
+
+      - name: AWS 자격 (OIDC — 릴스 전용 역할)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ env.ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: 릴스 만들기
+        id: build
+        env:
+          SUPABASE_URL: ${{ secrets.PIPELINE_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.PIPELINE_SUPABASE_SERVICE_ROLE_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          SLACK_WEBHOOK_URL: ${{ secrets.REELS_SLACK_WEBHOOK_URL }}
+          EPISODE: ${{ inputs.episode }}
+          NO_IMAGES: ${{ inputs.no_images }}
+        run: |
+          ARGS=""
+          [ -n "$EPISODE" ] && ARGS="$ARGS --episode $EPISODE"
+          [ "$NO_IMAGES" = "true" ] && ARGS="$ARGS --no-images"
+          python main.py build $ARGS
+
+  publish:
+    needs: build
+    if: needs.build.outputs.date != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: marketing/reels
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: marketing/reels/requirements.txt
+
+      - run: pip install -r requirements.txt
+
+      - name: AWS 자격 (OIDC — 릴스 전용 역할)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ env.ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: 인스타·유튜브 게시
+        env:
+          IG_USER_ID: ${{ vars.IG_USER_ID }}
+          SLACK_WEBHOOK_URL: ${{ secrets.REELS_SLACK_WEBHOOK_URL }}
+        run: python main.py publish --date "${{ needs.build.outputs.date }}"

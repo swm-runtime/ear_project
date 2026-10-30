@@ -68,3 +68,4 @@ KAN-279로 콘텐츠 후기 · 후기 참여 프로모션의 HTTP 계약을 `spe
 ## 처리 기록
 
 - 2026-10-28 발행 — 계약 · 스키마와 함께 올림(KAN-279)
+- 2026-10-30 **부분 반영 · 보류(pending 유지)** — 1~5를 반영했다: 1 `spec/api/subscription-api.md` 1장 "다루지 않는 것" · 3장 목록 아래 참조 줄 · 4.8 `plan.grant.name`(후기 참여 "후기 참여"/"Review") · 4.8-1(`REVIEW-REWARD`는 없는 코드) · 2 `features/common-error-handling.md` 9.10-4 신설 + 4.5 오프라인 큐 행(이 기록은 FE 소유로 적었으나 같은 표의 BE 코드 등재 선례대로 BE가 반영했다) · 3 `spec/api/admin-api.md` 4.25 신설(참조) · 3장 목록 행 · 4.23 `REVIEW-REWARD` PATCH 409 · 4 `features/content-review.md` 머리말 · 4.3 · 4.9 · 6장(domain 절 번호, ① 확정) · 미결 해소 · 5 루트 `CLAUDE.md` `spec/api/` 줄. **보류한 것 — 6 `features/backend-monitoring.md` 일일 Slack 보고 "후기 …건 · 평균 …" 줄**: 서버 구현이 아직 없다(`daily-metrics.format.ts`에 줄 없음 · `tickets/backend/pending/content-rating-feedback.md` "일일 Slack 보고" 미완). 문서와 충돌하는 구현을 만들지 않는다는 원칙의 반대 방향(구현 없는 문서)이라 구현 PR과 함께 넣는다. 남은 결정 없음 — 구현되면 3-3 표에 한 줄 더하고 archive로 옮긴다.

@@ -61,6 +61,8 @@ export interface ContentDetailContentDto {
    * **앱은 읽지 않는 선택 필드다**(KAN-221) — 서버가 빼거나 바꿔도 화면이 깨지지 않게 optional로 둔다
    */
   sources?: ContentDetailSourceDto[] | null;
+  /** 잠긴 편(experiments-api.md 4.2-2 — KAN-294). 계약 문장이 "콘텐츠 객체"라 여기도 읽는다 — 최상위 값과 둘 중 하나만 와도 된다 */
+  is_locked?: boolean;
 }
 
 /** GET /contents/:content_id (content-detail-api.md 4.1) */
@@ -69,4 +71,9 @@ export interface ContentDetailResponseDto {
   /** null이면 미담김(살아 있는 행 없음) — 별도 is_saved 불리언을 두지 않는다 */
   library_item: { id: string; source: LibrarySource; status: LibraryItemStatus } | null;
   is_counted_today: boolean;
+  /**
+   * 이 사용자에게 잠긴 편인가(experiments-api.md 4.2-2 "상세 최상위" — KAN-294). 추가 필드라 옛 서버는 없다 → false.
+   * 위치가 확정되기 전이라 `content.is_locked` 도 함께 읽는다(어느 쪽이든 true 면 잠금)
+   */
+  is_locked?: boolean;
 }

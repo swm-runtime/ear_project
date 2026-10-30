@@ -102,6 +102,7 @@ const episode = (episodeNo: number, isCountedToday = false): SeriesEpisode => ({
       topicIds: ['t1'],
       tags: [],
       language: 'ko',
+      isLocked: false,
       series: { id: 's1', title: '키워드로 빠르게 배우는 CS 지식', episodeNo, totalEpisodes: 16 },
     },
     library: null,
@@ -255,5 +256,90 @@ describe('useSeriesScreen — 시리즈째 담기(KAN-246, explore-api.md 4.8)',
 
     // then
     expect(screen.isSeriesSaved).toBe(false);
+  });
+});
+
+describe('useSeriesScreen — 잠긴 편(KAN-294)', () => {
+  const locked = (episodeNo: number, isCompleted = false): SeriesEpisode => {
+    const base = episode(episodeNo);
+    return {
+      ...base,
+      item: { ...base.item, isCompleted, content: { ...base.item.content, isLocked: true } },
+    };
+  };
+  const done = (episodeNo: number): SeriesEpisode => {
+    const base = episode(episodeNo);
+    return { ...base, item: { ...base.item, isCompleted: true } };
+  };
+
+  it('편 행 탭은 서버 잠금 값을 게이트에 넘긴다 — 판정·시트는 게이트 몫이다', async () => {
+    // given
+    mockQueryState = {
+      data: detail([episode(1), locked(4)]),
+      error: null,
+      isError: false,
+      isPending: false,
+    };
+    await render();
+
+    // when
+    await act(() => screen.handleEpisodePress(screen.episodes[1].item));
+
+    // then
+    const [target] = mockRequestPlay.mock.calls[0] as [{ contentId: string; isLocked: boolean }];
+    expect(target).toMatchObject({ contentId: 'e4', isLocked: true });
+  });
+
+  it('머리 [재생]이 틀 편(다 듣지 않은 가장 앞 편)이 잠겼으면 playTarget 이 잠금이다', async () => {
+    // given — 1~3화 완청, 4화 잠금
+    mockQueryState = {
+      data: detail([done(1), done(2), done(3), locked(4)]),
+      error: null,
+      isError: false,
+      isPending: false,
+    };
+
+    // when
+    await render();
+
+    // then
+    expect(screen.playTarget).toMatchObject({ episodeNo: 4, isLocked: true });
+  });
+
+  it('틀 편이 잠기지 않았으면 playTarget 은 잠금이 아니다', async () => {
+    mockQueryState = {
+      data: detail([episode(1), locked(4)]),
+      error: null,
+      isError: false,
+      isPending: false,
+    };
+
+    await render();
+
+    expect(screen.playTarget).toMatchObject({ episodeNo: 1, isLocked: false });
+  });
+
+  it('셔플은 섞인 순서에서 잠기지 않은 첫 편부터 튼다 — 재생 목록은 섞인 그대로 전부다', async () => {
+    // given — 잠긴 편이 맨 앞으로 섞여도
+    const random = jest.spyOn(Math, 'random').mockReturnValue(0);
+    mockQueryState = {
+      data: detail([episode(1), locked(4), locked(5)]),
+      error: null,
+      isError: false,
+      isPending: false,
+    };
+    await render();
+
+    // when
+    await act(() => screen.shuffleSeries());
+
+    // then
+    const [target] = mockRequestPlay.mock.calls[0] as [
+      { contentId: string; queue: { items: { contentId: string }[] } },
+    ];
+    expect(target.contentId).toBe('e1');
+    expect(target.queue.items[0].contentId).toBe('e1');
+    expect(target.queue.items).toHaveLength(3);
+    random.mockRestore();
   });
 });

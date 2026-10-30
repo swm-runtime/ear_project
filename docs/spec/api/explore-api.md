@@ -132,7 +132,8 @@
             "topic_ids": ["uuid"],
             "tags": ["협상", "앵커링"],
             "language": "ko",
-            "series": null
+            "series": null,
+            "is_locked": false
           },
           "library": null,
           "is_counted_today": false
@@ -168,6 +169,7 @@
 | `content.tags` | 화면 해시태그('#' 없이 — **'#'은 화면이 붙인다**). 2~4개, 받은 적 없는 콘텐츠는 **빈 배열**(`null`이 아니다). 검색(4.5)이 매칭하는 필드다. 탭하면 `#태그`로 검색을 연다(KAN-219 반영 2026-10-17 — 인기 대표 카드·콘텐츠 상세 헤더, `explore.md` 4.5-1)(추가 2026-10-08 KAN-162, 검색 연결 2026-10-16 KAN-218 · 저장은 `domain.md` 5.1 `contents.tags`). 4.2·4.4·검색 결과도 같은 항목 모양이라 함께 실린다 |
 | `content.series` | **시리즈 편이면 `{ id, title, episode_no, total_episodes }`, 단일 콘텐츠면 `null`**(추가 2026-10-17 — KAN-134). `total_episodes`는 시리즈 표(`series.total_episodes` — `domain.md` 5.9)의 값이다. 라이브러리(`library-api.md` 4.1·4.3)·플레이어(`player-api.md` 4.1)·상세(`content-detail-api.md` 4.1)·시리즈 화면(4.7)이 같은 모양을 싣는다. 목록은 시리즈 행을 한 번에 읽는다(항목 수만큼 조회하지 않는다). **추가 필드뿐이라 설치된 앱(1.2.1)은 무시한다.** 4.2·4.2-1·4.5의 행(검색 `fallback.popular_items` 포함)도 같은 항목 모양이라 함께 실린다 |
 | `content.language` | 콘텐츠 언어 `ko` / `en`(추가 2026-10-14 — KAN-188, `global-api.md` 4.7). **표시 전용** — 클라이언트는 이 값으로 목록을 거르지 않는다(시장 필터는 서버가 한다). 4.2·4.2-1·4.5의 행(검색 `fallback.popular_items` 포함)도 같은 항목 모양이라 함께 실린다 |
+| `content.is_locked` | **이 사용자가 이 편을 재생할 수 없는가**(boolean — 시리즈 유료화, 추가 2026-10-29 KAN-290 · 판정 `paywall.md` 4.1). `true`면 잠금 아이콘 · 차단 시트를 그린다. 사용자마다 값이 다르고(데일리 · 프로 · 체험에게는 `false`), 시리즈가 아닌 콘텐츠 · 무료 편은 늘 `false`, 서버 스위치가 꺼져 있으면 전부 `false`다. 앱 값은 표시용이고 재생은 서버가 다시 판정한다(`player-api.md` 5장 `SERIES_EPISODE_LOCKED`). 옛 서버(필드 없음)는 `false`로 다룬다. 4.2 · 4.2-1 · 4.5(검색 `fallback.popular_items` 포함) · 4.7 편 목록 · 관련 콘텐츠(`player-api.md` 4.8)의 콘텐츠 객체에도 같은 정의로 실린다. **시리즈 카드(4.1-1 `type: "series"`)에는 싣지 않는다** — 편이 아니라 시리즈 단위 항목이고, 편별 잠금은 시리즈 화면(4.7)이 준다 |
 | `library` | 이 콘텐츠의 라이브러리 상태. **없으면 `null`** — 라이브러리에 담기지 않은 상태다 |
 | `library.item_id` / `source` / `status` | `library_items` 원값. **더보기 시트의 담기/제거 분기**에 쓴다(`explore-uiux.md` 4.1). **행에 담김 표시는 두지 않는다**. 완청 체크 마킹은 `is_completed`로 가른다(개정 2026-10-23 — 종전 `status == 'completed'`, 담지 않은 편의 완청이 빠졌다) |
 | `is_completed` | **완청했는가** — 라이브러리 `completed` 행(삭제분 포함) ∪ 재생 위치의 최대 도달이 기준 이상(`max_reached_sec` ≥ 길이 × 90%, `player.md` 4.4)인 편 ∪ **완청 신호(`user_signals.action = 'complete'`, 180일 보존)가 남은 편**(추가 2026-10-23 — KAN-248. 신호는 같은 날 추가 — 위치는 다른 기기의 저장이 덮어쓰고 오디오 재발행이 지워 완청이 풀렸다). **담지 않고 끝까지 들은 편도 `true`다** — 탐색 재생은 라이브러리 행을 만들지 않는다(`explore.md` 4.4). 완청 체크 마킹·시리즈 편 상태·연속 재생의 건너뛰기는 `library.status`가 아니라 이 값으로 가른다. **추가 필드뿐이라 설치된 앱은 무시한다**. 4.2·4.2-1·4.5·4.7·관련 콘텐츠(`player-api.md` 4.8)·상세(`content-detail-api.md` 4.1)도 같은 정의로 싣는다 |
@@ -641,7 +643,8 @@ POST /contents/:content_id/play  (entry_point = "explore" — library-api 4.4)
         "content_version": 1,
         "topic_ids": ["uuid"],
         "tags": ["CS", "개발"],
-        "series": { "id": "7de9…", "title": "키워드로 빠르게 배우는 CS 지식", "episode_no": 1, "total_episodes": 16 }
+        "series": { "id": "7de9…", "title": "키워드로 빠르게 배우는 CS 지식", "episode_no": 1, "total_episodes": 16 },
+        "is_locked": false            // 이 사용자에게 잠긴 편인가(4.1 — KAN-290). 무료 편수 뒤 편은 유료 요금제·체험이 아니면 true
       },
       "library": { "item_id": "uuid", "source": "save", "status": "completed" },  // 담지 않았으면 null. 완청은 is_completed로 본다
       "progress": { "position_sec": 372, "max_reached_sec": 372 },             // 재생 위치 행이 없으면 null(0으로 채우지 않는다)

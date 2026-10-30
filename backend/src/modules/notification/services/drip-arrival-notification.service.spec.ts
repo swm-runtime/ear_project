@@ -80,7 +80,7 @@ describe('DripArrivalNotificationService', () => {
 
   beforeEach(() => {
     notificationLogRepository = {
-      findUserIdsWithStatusBetween: jest.fn().mockResolvedValue([]),
+      findUserIdsWithTypePrefixStatusBetween: jest.fn().mockResolvedValue([]),
       insertAll: jest.fn().mockResolvedValue(undefined),
     } as unknown as jest.Mocked<NotificationLogRepository>;
 
@@ -272,6 +272,38 @@ describe('DripArrivalNotificationService', () => {
     expect(summary.sentCount).toBe(1);
   });
 
+  it('시각 A/B 그룹(variant)이 있으면 기록 종류에만 붙고 앱으로 가는 data.type 은 drip_arrival 그대로다(KAN-289)', async () => {
+    // when
+    await service.notify([buildArrival()], NOW, NEXT_BATCH_AT, 'b');
+
+    // then
+    expect(sentMessages()[0].data.type).toBe('drip_arrival');
+    expect(insertedLogs()).toEqual([
+      expect.objectContaining({
+        type: 'drip_arrival.b',
+        status: NotificationStatus.SENT,
+      }),
+    ]);
+  });
+
+  it('건너뛴 기록에도 그룹이 남는다', async () => {
+    // given
+    userSettingService.findDripNotificationDisabledUserIds.mockResolvedValue(
+      new Set([USER_ID]),
+    );
+
+    // when
+    await service.notify([buildArrival()], NOW, NEXT_BATCH_AT, 'a');
+
+    // then
+    expect(insertedLogs()).toEqual([
+      expect.objectContaining({
+        type: 'drip_arrival.a',
+        skipReason: NotificationSkipReason.TOGGLE_OFF,
+      }),
+    ]);
+  });
+
   it('탐험 편만 1편 적립되면 그 콘텐츠를 대표로 삼고 콘텐츠로 이동한다', async () => {
     // given — 정규 후보가 고갈됐다
     const arrival = buildArrival({ regular: [] });
@@ -289,16 +321,16 @@ describe('DripArrivalNotificationService', () => {
 
   it('오늘 이미 보낸 사용자는 보내지 않고 daily_cap 으로 기록한다', async () => {
     // given
-    notificationLogRepository.findUserIdsWithStatusBetween.mockResolvedValue([
-      USER_ID,
-    ]);
+    notificationLogRepository.findUserIdsWithTypePrefixStatusBetween.mockResolvedValue(
+      [USER_ID],
+    );
 
     // when
     await service.notify([buildArrival()], NOW, NEXT_BATCH_AT);
 
     // then — 판정 창은 서비스 날짜(04:00 KST 경계)다
     expect(
-      notificationLogRepository.findUserIdsWithStatusBetween,
+      notificationLogRepository.findUserIdsWithTypePrefixStatusBetween,
     ).toHaveBeenCalledWith(
       [USER_ID],
       NotificationType.DRIP_ARRIVAL,
@@ -529,7 +561,7 @@ describe('DripArrivalNotificationService', () => {
 
     // then
     expect(
-      notificationLogRepository.findUserIdsWithStatusBetween,
+      notificationLogRepository.findUserIdsWithTypePrefixStatusBetween,
     ).not.toHaveBeenCalled();
     expect(notificationLogRepository.insertAll).not.toHaveBeenCalled();
   });

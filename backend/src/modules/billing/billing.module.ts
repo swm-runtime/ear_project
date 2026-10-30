@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 
 import { AlertModule } from '@/modules/alert/alert.module';
+import { ContentReviewModule } from '@/modules/content-review/content-review.module';
 import { SubscriptionModule } from '@/modules/subscription/subscription.module';
 import { UserModule } from '@/modules/user/user.module';
 
@@ -10,14 +11,20 @@ import { BillingOrchestrator } from './billing.orchestrator';
 import { AppStoreWebhookController } from './controllers/app-store-webhook.controller';
 import { PlayStoreWebhookController } from './controllers/play-store-webhook.controller';
 import { PlanController } from './controllers/plan.controller';
+import {
+  ContentReviewSaveController,
+  PromotionController,
+} from './controllers/promotion.controller';
 import { SubscriptionController } from './controllers/subscription.controller';
 import { AppStoreWebhookService } from './services/app-store-webhook.service';
 import { BillingAlertService } from './services/billing-alert.service';
 import { BillingEventAlertService } from './services/billing-event-alert.service';
+import { PromotionOrchestrator } from './promotion.orchestrator';
 import { BillingSyncService } from './services/billing-sync.service';
 import { InviteGrantExpiryScheduler } from './services/invite-grant-expiry.scheduler';
 import { InviteGrantExpiryService } from './services/invite-grant-expiry.service';
 import { PlayPurchaseService } from './services/play-purchase.service';
+import { PlanDiscountService } from './services/plan-discount.service';
 import { PlayStoreWebhookService } from './services/play-store-webhook.service';
 import { GooglePlayStoreGateway } from './play-store/google-play-store.gateway';
 import { PlayStoreGateway } from './play-store/play-store.gateway';
@@ -35,17 +42,21 @@ import { SubscriptionReconcileService } from './services/subscription-reconcile.
  * 둘 위에 선 이 모듈이 그 반영을 맡는다(architecture.md 4.3).
  */
 @Module({
-  imports: [SubscriptionModule, UserModule, AlertModule],
+  // 후기 참여 프로모션(KAN-279) — 프로모션 행은 content-review 가 소유하고, 화면 값 · 지급(결제 반영 경로)은 여기서 조합한다
+  imports: [SubscriptionModule, UserModule, AlertModule, ContentReviewModule],
   controllers: [
     PlanController,
     SubscriptionController,
     AppStoreWebhookController,
     PlayStoreWebhookController,
+    PromotionController,
+    ContentReviewSaveController,
   ],
   providers: [
     BillingAlertService,
     BillingEventAlertService,
     BillingOrchestrator,
+    PromotionOrchestrator,
     BillingSyncService,
     SubscriptionReconcileService,
     SubscriptionReconcileScheduler,
@@ -55,6 +66,7 @@ import { SubscriptionReconcileService } from './services/subscription-reconcile.
     { provide: AppStoreGateway, useClass: AppleAppStoreGateway },
     PlayPurchaseService,
     PlayStoreWebhookService,
+    PlanDiscountService,
     { provide: PlayStoreGateway, useClass: GooglePlayStoreGateway },
   ],
 })

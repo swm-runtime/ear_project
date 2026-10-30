@@ -4,7 +4,7 @@
 import { publicationOf, type Publication } from "@ear/pipeline/publication";
 import type { PipelineLocale } from "./locale";
 
-export interface SeriesEpisode { no: number; title: string; scope: string; carries: string; only_here: string; minutes: number }
+export interface SeriesEpisode { no: number; title: string; scope: string; carries: string; only_here: string; minutes: number; /** 짧은 판 시리즈(0041): 이 편이 나온 원본 편 번호 — 일반 시리즈는 없다 */ from_no?: number }
 export interface SeriesRow {
   id: string; name: string; mid_topic: string; intro_line: string | null; scope_note: string | null; plan: SeriesEpisode[];
   total_episodes: number | null; status: SeriesStatus; approved_by: string | null; approved_at: string | null; published_at: string | null; created_at: string; updated_at: string;
@@ -12,8 +12,13 @@ export interface SeriesRow {
   published_series_id: string | null;
   /** 시리즈 썸네일 글자 칸(0031, 2026-10-20) — 큰 단어는 이미지 모델이 바탕에 그리고, 라벨·박스는 코드가 얹는다. thumb_base_key = 바탕 그림 s3 키 */
   thumb_word: string | null; thumb_label: string | null; thumb_box: string | null; thumb_base_key: string | null;
+  /** 계층 쌓기(layers) 디자인의 층 "이름:시작-끝, …"(0038, 2026-10-29) */
+  thumb_layers?: string | null;
   /** 간행물 키(0034, KAN-247 — @ear/pipeline publication.ts) — 발행 이름(서버 publisher_name)과 썸네일 스타일. null = 없음 */
   publication: string | null;
+  /** 짧은 판 시리즈(0041, KAN-296) — short 면 원본 시리즈(remake_of)의 5~12분 판. 실험 탭에서 관리하고, [시리즈 발행]이 원본의 변형으로 올린다(KAN-298) */
+  length_profile?: string | null;
+  remake_of?: string | null;
 }
 
 /** 간행물·썸네일 글자 칸 검증 (KAN-247) — 간행물은 이 판의 목록에서만, keyword 스타일 간행물은 큰 단어가 필요하다. 큰 단어는 영문(손글씨로 얹는다), 라벨·박스는 짧게(코드가 한 줄로 얹는다) */
@@ -34,9 +39,10 @@ export type SeriesStatus = "planning" | "approved" | "published" | "withdrawn" |
 export const SERIES_STATUS_LABEL: Record<SeriesStatus, string> = { planning: "기획 중", approved: "승인", published: "발행", withdrawn: "회수", cancelled: "중단" };
 
 /** 저장·승인 전 검증 — 편이 1개 이상, 제목이 비어 있지 않고 서로 다르다. 번호는 순서대로 다시 매긴다(편수 상한 없음) */
+/** from_no(짧은 판 시리즈, 0041)는 있을 때만 남긴다 — 일반 시리즈 설계안은 결과 모양이 그대로다 */
 export function cleanPlan(plan: SeriesEpisode[]): { plan: SeriesEpisode[]; problems: string[] } {
   const out = plan
-    .map((e) => ({ title: String(e.title ?? "").trim(), scope: String(e.scope ?? "").trim(), carries: String(e.carries ?? "").trim(), only_here: String(e.only_here ?? "").trim(), minutes: Number(e.minutes) > 0 ? Math.round(Number(e.minutes)) : 0 }))
+    .map((e) => ({ title: String(e.title ?? "").trim(), scope: String(e.scope ?? "").trim(), carries: String(e.carries ?? "").trim(), only_here: String(e.only_here ?? "").trim(), minutes: Number(e.minutes) > 0 ? Math.round(Number(e.minutes)) : 0 , ...(Number(e.from_no) >= 1 ? { from_no: Math.round(Number(e.from_no)) } : {}) }))
     .filter((e) => e.title || e.scope)
     .map((e, k) => ({ no: k + 1, ...e, carries: k === 0 ? "" : e.carries }));
   const problems: string[] = [];

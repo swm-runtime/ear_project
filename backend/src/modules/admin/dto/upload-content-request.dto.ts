@@ -11,12 +11,18 @@ import {
   IsOptional,
   IsString,
   IsUUID,
+  Matches,
   MaxLength,
   Min,
   ValidateNested,
 } from 'class-validator';
 
-import { ContentLanguage, ContentOrigin } from '@/modules/content/content.enum';
+import {
+  ContentLanguage,
+  ContentLengthProfile,
+  ContentOrigin,
+} from '@/modules/content/content.enum';
+import { INTRO_VERSION_PATTERN } from '@/modules/content/content-variant.policy';
 import { UserMarket } from '@/modules/user/user.enum';
 
 /** admin.md 3.1 `sources[]` — 소스마다 제목(필수) · 저자(선택) · 링크(선택) */
@@ -120,6 +126,33 @@ export class UploadContentRequestDto {
   /** `global-api.md` 4.9 — 콘텐츠 언어. **필수**(2단계). 시장과 조합이 맞아야 한다 */
   @IsEnum(ContentLanguage)
   readonly language: ContentLanguage;
+
+  /**
+   * 길이 프로필(KAN-298 — 짧은 판 코호트). 생략하면 단편은 `standard`, 시리즈 편은 시리즈의 값이다(값이 있으면 시리즈와
+   * 같아야 한다). 파이프라인 `upload-meta.json`의 `length_profile`이 그대로 온다
+   */
+  @IsOptional()
+  @IsEnum(ContentLengthProfile)
+  readonly length_profile?: ContentLengthProfile;
+
+  /**
+   * 짧은 판의 원본 콘텐츠 id(KAN-298). short 단편이면 필수, 짧은 시리즈의 편이면 원본 시리즈의 같은 화(없으면 생략),
+   * standard면 넣지 않는다. 파이프라인 `upload-meta.json`의 `remake_of_content_ref` 값이다(키 이름은 이 계약을 따른다)
+   */
+  @IsOptional()
+  @IsUUID()
+  readonly variant_of_content_id?: string;
+
+  /**
+   * 도입부 버전(KAN-298 범위 추가 — `experiments-api.md` 4.3-4). **지표 전용**이고 노출에 쓰지 않는다. 생략하면 NULL(기존
+   * 도입부)이다. 32자 이하, 소문자·숫자로 시작하고 소문자·숫자·`.`·`_`·`-`만(`INTRO_VERSION_PATTERN`). 값 이름은 파이프라인이
+   * 정한다(예 `hook-v2`)
+   */
+  @IsOptional()
+  @IsString()
+  @MaxLength(32)
+  @Matches(INTRO_VERSION_PATTERN)
+  readonly intro_version?: string;
 }
 
 /** multipart 본문의 텍스트 필드. 파일은 여기 오지 않는다 */

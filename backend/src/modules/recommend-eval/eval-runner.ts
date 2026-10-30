@@ -2,9 +2,14 @@ import { SeriesEpisodeState } from '@/modules/content/content.types';
 import { UserDripPlan } from '@/modules/drip-batch/drip-batch.types';
 import { ScoredCandidate } from '@/modules/drip/drip.types';
 import { pickSeriesEpisode } from '@/modules/drip/services/drip-scoring.service';
+import {
+  DEFAULT_SERIES_FREE_EPISODES,
+  isSeriesEpisodeLocked,
+  resolveSeriesEpisodeAccess,
+} from '@/modules/subscription/policies/series-paywall.policy';
 import { UserInterestSource } from '@/modules/interest/interest.enum';
 import { LibraryItemSource } from '@/modules/library/library.enum';
-import { UserMarket } from '@/modules/user/user.enum';
+import { UserMarket, UserTier } from '@/modules/user/user.enum';
 
 import {
   HIT_KS,
@@ -49,6 +54,11 @@ export interface EvalOptions {
    * `AUTO_EXPAND_ENABLED=true`, runbook). 스위치를 끈 운영과 같은 조건은 `--no-auto-expand`로 본다
    */
   autoExpandFeature: boolean;
+  /**
+   * 시리즈 유료화 서버 스위치(`SERIES_PAYWALL_ENABLED`, KAN-290)를 켠 것으로 평가할지. **기본은 끔** — 운영 스위치가 꺼진 동안은
+   * 운영과 같은 조건이다. 켤 때는 `--series-paywall`로 무료 편수(3) 뒤 편이 프로 아닌 사용자에게 가지 않는지 함께 본다
+   */
+  seriesPaywall?: boolean;
   gitSha: string | null;
   baseline: EvalReport | null;
 }
@@ -56,6 +66,7 @@ export interface EvalOptions {
 export const DEFAULT_EVAL_OPTIONS: EvalOptions = {
   simulationDays: 7,
   autoExpandFeature: true,
+  seriesPaywall: false,
   gitSha: null,
   baseline: null,
 };
@@ -77,7 +88,7 @@ export async function runEvaluation(
 ): Promise<EvalReport> {
   const exportedAt = new Date(snapshot.exported_at);
   const world = EvalWorld.fromSnapshot(snapshot);
-  const invariants = new InvariantCollector();
+  const invariants = new InvariantCollector(options.seriesPaywall);
   const hasUsers = world.users.size > 0;
 
   const backtest = hasUsers
@@ -106,6 +117,7 @@ export async function runEvaluation(
     options: {
       simulationDays: options.simulationDays,
       autoExpandFeature: options.autoExpandFeature,
+      seriesPaywall: options.seriesPaywall,
     },
     backtest,
     lists,
@@ -154,6 +166,7 @@ async function runBacktest(
       const plan = await past.plan(user.key, item.addedAt, {
         commit: false,
         autoExpandFeature: options.autoExpandFeature,
+        seriesPaywall: options.seriesPaywall,
       });
 
       if (plan.skipReason === 'no_interests') {
@@ -218,6 +231,7 @@ async function runLists(
     const plan = await world.plan(user.key, now, {
       commit: false,
       autoExpandFeature: options.autoExpandFeature,
+      seriesPaywall: options.seriesPaywall,
     });
 
     if (plan.skipReason === 'no_interests') {
@@ -286,6 +300,7 @@ async function runSimulation(
       const plan = await world.plan(key, now, {
         commit: true,
         autoExpandFeature: options.autoExpandFeature,
+        seriesPaywall: options.seriesPaywall,
       });
       invariants.check(world, key, plan, `sim:${entry.persona.name}:day${day}`);
 
@@ -375,6 +390,7 @@ async function runSimulation(
       autoExpandOnDay: autoSlotDay?.day ?? null,
       checks: entry.setup.check(entry.days, {
         autoExpandFeature: options.autoExpandFeature,
+        seriesPaywall: options.seriesPaywall,
       }),
     });
   }
@@ -458,6 +474,7 @@ const INVARIANTS = [
   'discovery-respects-removed-topics',
   'auto-expand-keeps-declared-interests',
   'same-market',
+  'series-paywall',
 ] as const;
 
 type InvariantName = (typeof INVARIANTS)[number];
@@ -476,6 +493,8 @@ const INVARIANT_LABEL: Record<InvariantName, string> = {
   'auto-expand-keeps-declared-interests':
     '자동 확장은 직접 고른 관심 주제를 빼지 않고 자동 슬롯은 1개를 넘지 않는다',
   'same-market': '정규·탐험 편성분은 전부 사용자 시장의 콘텐츠다',
+  'series-paywall':
+    '시리즈 유료화가 켜져 있으면 무료 편수 뒤 편은 유료 요금제(데일리·프로)·체험이 아닌 사용자에게 정규·탐험으로 가지 않는다(KAN-290)',
 };
 
 /**
@@ -484,6 +503,9 @@ const INVARIANT_LABEL: Record<InvariantName, string> = {
  */
 class InvariantCollector {
   private readonly violations = new Map<InvariantName, string[]>();
+
+  /** 시리즈 유료화(KAN-290) 스위치를 켜고 평가하는가 — 켰으면 잠금 판정을 편성 계산과 **따로** 다시 한다 */
+  constructor(private readonly seriesPaywall: boolean = false) {}
 
   check(
     world: EvalWorld,
@@ -558,6 +580,25 @@ class InvariantCollector {
     for (const pick of discovery) {
       if (pick.content.episodeNo !== null && pick.content.episodeNo > 1) {
         fail('series-order', `탐험 ${pick.content.title}`);
+      }
+    }
+
+    // 시리즈 유료화(KAN-290) — 편성 계산이 쓴 접근을 믿지 않고 사용자 티어로 다시 판정한다. 평가 세계는 체험을 두지 않고,
+    // 유료 요금제는 daily · pro다(평가 세계의 요금제 대역과 같은 정의)
+    const seriesAccess = resolveSeriesEpisodeAccess({
+      enabled: this.seriesPaywall,
+      freeEpisodes: DEFAULT_SERIES_FREE_EPISODES,
+      isPaidSubscriber: [UserTier.DAILY, UserTier.PRO].includes(
+        user.tier as UserTier,
+      ),
+      isTrialActive: false,
+    });
+    for (const pick of [...regular, ...discovery]) {
+      if (isSeriesEpisodeLocked(pick.content, seriesAccess)) {
+        fail(
+          'series-paywall',
+          `${pick.content.title} (${pick.content.episodeNo}편 · ${user.tier})`,
+        );
       }
     }
 

@@ -5,7 +5,11 @@ import { EnvironmentVariables } from '@/config/env.validation';
 
 import { BusinessException } from '@/common/exceptions/business.exception';
 import { ErrorCode } from '@/common/exceptions/error-code.enum';
-import { ContentStatus, StatsPeriodType } from '@/modules/content/content.enum';
+import {
+  ContentLengthProfile,
+  ContentStatus,
+  StatsPeriodType,
+} from '@/modules/content/content.enum';
 import {
   RankedPopularContent,
   RrfSearchCursorPosition,
@@ -273,10 +277,49 @@ describe('ExploreOrchestrator', () => {
       seriesService,
       configWith(),
       queryEmbeddingClient,
+      {
+        resolveSeriesAccess: jest
+          .fn()
+          .mockResolvedValue({ lockedAfterEpisodeNo: null }),
+      } as never,
     );
   });
 
   describe('getFeed', () => {
+    it('짧은 판 코호트(KAN-298) — 피드의 모든 후보 조회(관심사·새로 나온·인기·주제별)에 코호트의 길이 프로필을 싣는다', async () => {
+      // given
+      userInterestService.findActiveTopicIds.mockResolvedValue([TOPIC_ID]);
+      preferenceVectorService.findWeights.mockResolvedValue(
+        buildPreference(5, { [TOPIC_ID]: 2 }),
+      );
+      contentService.findCandidates.mockResolvedValue([
+        buildContent(CONTENT_ID),
+      ]);
+
+      // when
+      await orchestrator.getFeed(
+        USER_ID,
+        NOW,
+        UserMarket.KR,
+        ContentLengthProfile.SHORT,
+      );
+
+      // then
+      expect(contentService.findCandidates).toHaveBeenCalled();
+      for (const [query] of contentService.findCandidates.mock.calls) {
+        expect(query.lengthProfile).toBe(ContentLengthProfile.SHORT);
+      }
+      expect(contentService.findRecent).toHaveBeenCalledWith(
+        expect.any(Number),
+        NOW,
+        UserMarket.KR,
+        ContentLengthProfile.SHORT,
+      );
+      expect(contentService.findPopularPage).toHaveBeenCalledWith(
+        expect.objectContaining({ lengthProfile: ContentLengthProfile.SHORT }),
+      );
+    });
+
     it('관심 주제가 있으면 관심사 섹션이 피드에 포함된다', async () => {
       // given — 캐시의 완청 수가 3건 이상이라 콜드스타트가 아니다
       userInterestService.findActiveTopicIds.mockResolvedValue([TOPIC_ID]);
@@ -288,7 +331,12 @@ describe('ExploreOrchestrator', () => {
       ]);
 
       // when
-      const result = await orchestrator.getFeed(USER_ID, NOW, UserMarket.KR);
+      const result = await orchestrator.getFeed(
+        USER_ID,
+        NOW,
+        UserMarket.KR,
+        ContentLengthProfile.STANDARD,
+      );
 
       // then
       expect(result.sections[0].key).toBe(ExploreSectionKey.INTEREST);
@@ -313,7 +361,12 @@ describe('ExploreOrchestrator', () => {
       ]);
 
       // when
-      const result = await orchestrator.getFeed(USER_ID, NOW, UserMarket.KR);
+      const result = await orchestrator.getFeed(
+        USER_ID,
+        NOW,
+        UserMarket.KR,
+        ContentLengthProfile.STANDARD,
+      );
 
       // then
       expect(result.sections.map((section) => section.key).slice(0, 2)).toEqual(
@@ -332,7 +385,12 @@ describe('ExploreOrchestrator', () => {
       ]);
 
       // when
-      await orchestrator.getFeed(USER_ID, NOW, UserMarket.KR);
+      await orchestrator.getFeed(
+        USER_ID,
+        NOW,
+        UserMarket.KR,
+        ContentLengthProfile.STANDARD,
+      );
 
       // then
       expect(playbackService.findRecentSignals).not.toHaveBeenCalled();
@@ -364,7 +422,12 @@ describe('ExploreOrchestrator', () => {
       );
 
       // when
-      const result = await orchestrator.getFeed(USER_ID, NOW, UserMarket.KR);
+      const result = await orchestrator.getFeed(
+        USER_ID,
+        NOW,
+        UserMarket.KR,
+        ContentLengthProfile.STANDARD,
+      );
 
       // then — 종전(주제 가중치만)이면 인기순 그대로 CONTENT_ID가 먼저였다
       const interest = result.sections.find(
@@ -395,7 +458,12 @@ describe('ExploreOrchestrator', () => {
       ] as never);
 
       // when
-      const result = await orchestrator.getFeed(USER_ID, NOW, UserMarket.KR);
+      const result = await orchestrator.getFeed(
+        USER_ID,
+        NOW,
+        UserMarket.KR,
+        ContentLengthProfile.STANDARD,
+      );
 
       // then
       const interest = result.sections.find(
@@ -422,7 +490,12 @@ describe('ExploreOrchestrator', () => {
       ]);
 
       // when
-      const result = await orchestrator.getFeed(USER_ID, NOW, UserMarket.KR);
+      const result = await orchestrator.getFeed(
+        USER_ID,
+        NOW,
+        UserMarket.KR,
+        ContentLengthProfile.STANDARD,
+      );
 
       // then
       expect(result.sections.map((section) => section.key).slice(0, 2)).toEqual(
@@ -436,7 +509,12 @@ describe('ExploreOrchestrator', () => {
       libraryService.findActiveItems.mockResolvedValue([buildLibraryItem()]);
 
       // when
-      const result = await orchestrator.getFeed(USER_ID, NOW, UserMarket.KR);
+      const result = await orchestrator.getFeed(
+        USER_ID,
+        NOW,
+        UserMarket.KR,
+        ContentLengthProfile.STANDARD,
+      );
 
       // then
       const item = asContent(result.sections[0].items[0]);
@@ -453,7 +531,12 @@ describe('ExploreOrchestrator', () => {
       contentService.findRecent.mockResolvedValue([buildContent(CONTENT_ID)]);
 
       // when
-      const result = await orchestrator.getFeed(USER_ID, NOW, UserMarket.KR);
+      const result = await orchestrator.getFeed(
+        USER_ID,
+        NOW,
+        UserMarket.KR,
+        ContentLengthProfile.STANDARD,
+      );
 
       // then
       expect(result.sections).toHaveLength(1);
@@ -464,7 +547,12 @@ describe('ExploreOrchestrator', () => {
       // given — 빈 피드는 정상 상태다. 404가 아니다
 
       // when
-      const result = await orchestrator.getFeed(USER_ID, NOW, UserMarket.KR);
+      const result = await orchestrator.getFeed(
+        USER_ID,
+        NOW,
+        UserMarket.KR,
+        ContentLengthProfile.STANDARD,
+      );
 
       // then
       expect(result.sections).toEqual([]);
@@ -474,7 +562,12 @@ describe('ExploreOrchestrator', () => {
       // given — 피드를 여는 시점이 곧 이 값을 갱신하는 시점이다
 
       // when
-      const result = await orchestrator.getFeed(USER_ID, NOW, UserMarket.KR);
+      const result = await orchestrator.getFeed(
+        USER_ID,
+        NOW,
+        UserMarket.KR,
+        ContentLengthProfile.STANDARD,
+      );
 
       // then
       expect(result.quota).toEqual(QUOTA);
@@ -484,7 +577,12 @@ describe('ExploreOrchestrator', () => {
       // given — 주간은 초기에 표본이 너무 적고, 온보딩 추천도 직전 확정 월을 쓴다
 
       // when
-      await orchestrator.getFeed(USER_ID, NOW, UserMarket.KR);
+      await orchestrator.getFeed(
+        USER_ID,
+        NOW,
+        UserMarket.KR,
+        ContentLengthProfile.STANDARD,
+      );
 
       // then
       expect(contentService.findPopularPage).toHaveBeenCalledWith(
@@ -502,7 +600,12 @@ describe('ExploreOrchestrator', () => {
       contentService.findRecent.mockResolvedValue([buildContent(CONTENT_ID)]);
 
       // when
-      const result = await orchestrator.getFeed(USER_ID, NOW, UserMarket.KR);
+      const result = await orchestrator.getFeed(
+        USER_ID,
+        NOW,
+        UserMarket.KR,
+        ContentLengthProfile.STANDARD,
+      );
       const popular = result.sections.find(
         (section) => section.key === ExploreSectionKey.POPULAR,
       );
@@ -526,7 +629,12 @@ describe('ExploreOrchestrator', () => {
       ]);
 
       // when
-      const result = await orchestrator.getFeed(USER_ID, NOW, UserMarket.KR);
+      const result = await orchestrator.getFeed(
+        USER_ID,
+        NOW,
+        UserMarket.KR,
+        ContentLengthProfile.STANDARD,
+      );
       const topicGroup = result.sections.find(
         (section) => section.key === ExploreSectionKey.TOPIC_GROUP,
       );
@@ -553,6 +661,7 @@ describe('ExploreOrchestrator', () => {
         POPULAR_QUERY,
         NOW,
         UserMarket.KR,
+        ContentLengthProfile.STANDARD,
       );
 
       // then
@@ -579,6 +688,7 @@ describe('ExploreOrchestrator', () => {
         POPULAR_QUERY,
         NOW,
         UserMarket.KR,
+        ContentLengthProfile.STANDARD,
       );
 
       // then
@@ -611,6 +721,7 @@ describe('ExploreOrchestrator', () => {
           { ...POPULAR_QUERY, period: StatsPeriodType.MONTH, cursor },
           NOW,
           UserMarket.KR,
+          ContentLengthProfile.STANDARD,
         ),
       );
 
@@ -627,6 +738,7 @@ describe('ExploreOrchestrator', () => {
         POPULAR_QUERY,
         NOW,
         UserMarket.KR,
+        ContentLengthProfile.STANDARD,
       );
 
       // then
@@ -747,6 +859,7 @@ describe('ExploreOrchestrator', () => {
         { topicIds: [TOPIC_ID], cursor: null, limit: 20 },
         NOW,
         UserMarket.KR,
+        ContentLengthProfile.STANDARD,
       );
 
       // then
@@ -772,6 +885,7 @@ describe('ExploreOrchestrator', () => {
         { topicIds: [TOPIC_ID], cursor: null, limit: 20 },
         NOW,
         UserMarket.KR,
+        ContentLengthProfile.STANDARD,
       );
 
       // then
@@ -795,6 +909,7 @@ describe('ExploreOrchestrator', () => {
         { topicIds: [TOPIC_ID], cursor: null, limit: 20 },
         NOW,
         UserMarket.KR,
+        ContentLengthProfile.STANDARD,
       );
 
       // then
@@ -810,6 +925,7 @@ describe('ExploreOrchestrator', () => {
         { topicIds: [TOPIC_ID], cursor: null, limit: 20 },
         NOW,
         UserMarket.KR,
+        ContentLengthProfile.STANDARD,
       );
 
       // then
@@ -1032,6 +1148,7 @@ describe('ExploreOrchestrator', () => {
         query({ query: nfd }),
         NOW,
         UserMarket.KR,
+        ContentLengthProfile.STANDARD,
       );
 
       // then
@@ -1048,7 +1165,13 @@ describe('ExploreOrchestrator', () => {
     ])('%s이면 조회 없이 거절한다', async (_label, raw) => {
       // when
       const error = await catchError(
-        orchestrator.search(USER_ID, query({ query: raw }), NOW, UserMarket.KR),
+        orchestrator.search(
+          USER_ID,
+          query({ query: raw }),
+          NOW,
+          UserMarket.KR,
+          ContentLengthProfile.STANDARD,
+        ),
       );
 
       // then
@@ -1071,6 +1194,7 @@ describe('ExploreOrchestrator', () => {
           query({ query: '#뱅크런', exact: true }),
           NOW,
           UserMarket.KR,
+          ContentLengthProfile.STANDARD,
         );
 
         // then
@@ -1104,6 +1228,7 @@ describe('ExploreOrchestrator', () => {
           query({ query: '#커리어' }),
           NOW,
           UserMarket.KR,
+          ContentLengthProfile.STANDARD,
         );
 
         // then
@@ -1127,6 +1252,7 @@ describe('ExploreOrchestrator', () => {
           query({ query: '#커리어', limit: 1 }),
           NOW,
           UserMarket.KR,
+          ContentLengthProfile.STANDARD,
         );
 
         // then
@@ -1158,6 +1284,7 @@ describe('ExploreOrchestrator', () => {
           query(),
           NOW,
           UserMarket.KR,
+          ContentLengthProfile.STANDARD,
         );
 
         // then
@@ -1192,6 +1319,7 @@ describe('ExploreOrchestrator', () => {
           query(),
           NOW,
           UserMarket.KR,
+          ContentLengthProfile.STANDARD,
         );
 
         // then
@@ -1216,6 +1344,7 @@ describe('ExploreOrchestrator', () => {
           query({ query: '이직' }),
           NOW,
           UserMarket.KR,
+          ContentLengthProfile.STANDARD,
         );
 
         // then
@@ -1238,6 +1367,7 @@ describe('ExploreOrchestrator', () => {
           query({ query: ' 커리어 ', topicIds: [TOPIC_ID], limit: 2 }),
           NOW,
           UserMarket.KR,
+          ContentLengthProfile.STANDARD,
         );
 
         // then
@@ -1274,6 +1404,7 @@ describe('ExploreOrchestrator', () => {
           query({ query: '없는검색어' }),
           NOW,
           UserMarket.KR,
+          ContentLengthProfile.STANDARD,
         );
 
         // then
@@ -1300,6 +1431,7 @@ describe('ExploreOrchestrator', () => {
           query({ query: '없는말', cursor: '' }),
           NOW,
           UserMarket.KR,
+          ContentLengthProfile.STANDARD,
         );
 
         // then
@@ -1322,6 +1454,7 @@ describe('ExploreOrchestrator', () => {
           query({ limit: 1 }),
           NOW,
           UserMarket.KR,
+          ContentLengthProfile.STANDARD,
         );
 
         // then
@@ -1372,6 +1505,7 @@ describe('ExploreOrchestrator', () => {
           query({ limit: 1 }),
           NOW,
           UserMarket.KR,
+          ContentLengthProfile.STANDARD,
         );
         queryEmbeddingClient.embed.mockClear();
         const next = await orchestrator.search(
@@ -1379,6 +1513,7 @@ describe('ExploreOrchestrator', () => {
           query({ limit: 1, cursor: first.nextCursor as string }),
           NOW,
           UserMarket.KR,
+          ContentLengthProfile.STANDARD,
         );
 
         // then
@@ -1433,11 +1568,13 @@ describe('ExploreOrchestrator', () => {
           query({ query: '커리오' }),
           NOW,
           UserMarket.KR,
+          ContentLengthProfile.STANDARD,
         );
 
         // then
         expect(contentService.findSearchCorrection).toHaveBeenCalledWith({
           market: UserMarket.KR,
+          lengthProfile: ContentLengthProfile.STANDARD,
           normalizedQuery: '커리오',
           includeSeriesTitles: false,
           now: NOW,
@@ -1483,6 +1620,7 @@ describe('ExploreOrchestrator', () => {
           query({ query: '커리오' }),
           NOW,
           UserMarket.KR,
+          ContentLengthProfile.STANDARD,
         );
 
         // then
@@ -1500,6 +1638,7 @@ describe('ExploreOrchestrator', () => {
           query({ query: '커리오' }),
           NOW,
           UserMarket.KR,
+          ContentLengthProfile.STANDARD,
         );
 
         // then
@@ -1515,6 +1654,7 @@ describe('ExploreOrchestrator', () => {
           query({ query: '커리오', exact: true }),
           NOW,
           UserMarket.KR,
+          ContentLengthProfile.STANDARD,
         );
 
         // then
@@ -1535,7 +1675,13 @@ describe('ExploreOrchestrator', () => {
         });
 
         // when
-        await orchestrator.search(USER_ID, query(), NOW, UserMarket.KR);
+        await orchestrator.search(
+          USER_ID,
+          query(),
+          NOW,
+          UserMarket.KR,
+          ContentLengthProfile.STANDARD,
+        );
 
         // then
         expect(contentService.findSearchCorrection).not.toHaveBeenCalled();
@@ -1587,6 +1733,7 @@ describe('ExploreOrchestrator', () => {
           query({ query: '커리오', cursor }),
           NOW,
           UserMarket.KR,
+          ContentLengthProfile.STANDARD,
         );
 
         // then
@@ -1627,6 +1774,7 @@ describe('ExploreOrchestrator', () => {
           query({ query: '커리오', cursor }),
           NOW,
           UserMarket.KR,
+          ContentLengthProfile.STANDARD,
         );
 
         // then
@@ -1652,6 +1800,7 @@ describe('ExploreOrchestrator', () => {
             query({ query: '커리오', cursor, exact: true }),
             NOW,
             UserMarket.KR,
+            ContentLengthProfile.STANDARD,
           ),
         );
 
@@ -1674,6 +1823,7 @@ describe('ExploreOrchestrator', () => {
           query({ query: '커리오', cursor }),
           NOW,
           UserMarket.KR,
+          ContentLengthProfile.STANDARD,
         );
 
         // then
@@ -1706,6 +1856,7 @@ describe('ExploreOrchestrator', () => {
           query({ cursor, limit: 1 }),
           NOW,
           UserMarket.KR,
+          ContentLengthProfile.STANDARD,
         );
 
         // then
@@ -1768,6 +1919,11 @@ describe('ExploreOrchestrator', () => {
         seriesService,
         configWith('true'),
         queryEmbeddingClient,
+        {
+          resolveSeriesAccess: jest
+            .fn()
+            .mockResolvedValue({ lockedAfterEpisodeNo: null }),
+        } as never,
       );
     });
 
@@ -1784,6 +1940,7 @@ describe('ExploreOrchestrator', () => {
       const query = {
         baseContentId: CONTENT_ID,
         market: UserMarket.KR,
+        lengthProfile: ContentLengthProfile.STANDARD,
         excludeIds: [],
         limit: 5,
         now: NOW,
@@ -1821,6 +1978,7 @@ describe('ExploreOrchestrator', () => {
         { topicIds: [TOPIC_ID], cursor: null, limit: 20 },
         NOW,
         UserMarket.KR,
+        ContentLengthProfile.STANDARD,
       );
 
       // then
@@ -1837,6 +1995,7 @@ describe('ExploreOrchestrator', () => {
         [SERIES_ID],
         NOW,
         UserMarket.KR,
+        ContentLengthProfile.STANDARD,
       );
     });
 
@@ -1853,6 +2012,7 @@ describe('ExploreOrchestrator', () => {
         { topicIds: [TOPIC_ID], cursor: null, limit: 1 },
         NOW,
         UserMarket.KR,
+        ContentLengthProfile.STANDARD,
       );
 
       // then
@@ -1900,6 +2060,7 @@ describe('ExploreOrchestrator', () => {
         },
         NOW,
         UserMarket.KR,
+        ContentLengthProfile.STANDARD,
       );
 
       // then
@@ -1937,6 +2098,7 @@ describe('ExploreOrchestrator', () => {
         { query: '시리즈', topicIds: [], cursor, limit: 20, exact: false },
         NOW,
         UserMarket.KR,
+        ContentLengthProfile.STANDARD,
       );
 
       // then
@@ -1978,6 +2140,7 @@ describe('ExploreOrchestrator', () => {
         },
         NOW,
         UserMarket.KR,
+        ContentLengthProfile.STANDARD,
       );
 
       // then
@@ -2011,13 +2174,19 @@ describe('ExploreOrchestrator', () => {
       contentService.findCandidates.mockResolvedValue(candidates);
 
       // when
-      const result = await cards.getFeed(USER_ID, NOW, UserMarket.KR);
+      const result = await cards.getFeed(
+        USER_ID,
+        NOW,
+        UserMarket.KR,
+        ContentLengthProfile.STANDARD,
+      );
 
       // then
       expect(contentService.findRecent).toHaveBeenCalledWith(
         10,
         NOW,
         UserMarket.KR,
+        ContentLengthProfile.STANDARD,
         undefined,
         true,
       );

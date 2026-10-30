@@ -40,6 +40,7 @@ import RemoteImage from '@/shared/ui/RemoteImage';
 import Snackbar from '@/shared/ui/Snackbar';
 import { Text, AnimatedText } from '@/shared/ui/Typography';
 
+import { ContentReviewSheets } from '@/features/content-review';
 import { useTopicsQuery } from '@/features/interest';
 import {
   setAutoplayRecommendedEnabled,
@@ -2775,12 +2776,16 @@ export default function PlayerScreen() {
         sourceUrl={session.meta.sourceUrl}
         canDelete={session.libraryItem !== null}
         onDetailPress={screen.openDetail}
+        onReviewPress={screen.openReview}
         onSourceLinkPress={screen.openSourceLink}
         onDeletePress={screen.requestDelete}
         onSharePress={screen.sharePress}
         onClose={screen.closeMoreSheet}
         onDismissed={screen.handleMoreSheetDismiss}
       />
+
+      {/* 후기 시트(L17) · 발급 안내(L19) — 더보기 시트가 내려간 뒤에 열린다(KAN-280). 플레이어 화면 · 완청 순간에 스스로 뜨지 않는다 */}
+      <ContentReviewSheets launcher={screen.reviewLauncher} />
 
       {/* 재청취 창 밖 ▶의 확인 팝업 — 정의는 paywall 소유, 이 화면은 호스트만 맡는다 */}
       <PlayConfirmDialog

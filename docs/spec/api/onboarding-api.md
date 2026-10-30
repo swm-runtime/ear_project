@@ -458,9 +458,27 @@
 {
   "status": "completed",
   "library_item_count": 2,
-  "completed_at": "2026-08-04T09:12:03Z"
+  "completed_at": "2026-08-04T09:12:03Z",
+  "first_content_id": "6c0f0f1e-2c2a-4a0e-9f3b-6a9d6c1c2b11"
 }
 ```
+
+| 필드 | 타입 | 비고 |
+|---|---|---|
+| `first_content_id` | uuid \| null | 온보딩 직후 **멈춘 플레이어**로 열 콘텐츠(2026-10-29 — 단기 실험 ⑧ KAN-292 ↔ KAN-295, 실험 기간 원문 `experiments-api.md` 4.1). **`status = completed`일 때만 값이 있다** — `pending` · `no_candidates` · `queued`면 `null`. 옛 서버(필드 없음)는 `null`과 같이 다룬다 |
+
+**`first_content_id` 선정 규칙(서버)**
+
+- 첫 드립이 적립한 편(라이브러리 `source = drip`, 첫 드립 완료 시각에 적립된 행) 중에서 고른다.
+- **길이가 짧은 편 먼저**, 같으면 콘텐츠 id 순. 근거: 길이가 5분 늘 때 완청 오즈가 0.62배(실험 지표 "길이별 완청률" — `admin-api.md` 4.22-4, 2026-10-28) — 첫 편은 끝까지 들을 가능성이 높은 쪽을 연다.
+- 사용자가 그 사이 지웠거나(소프트 삭제) 이미 재생한 편, 회수 · 만료된 편은 건너뛴다. 남은 편이 없으면 `null`.
+- 이 필드는 **열 편의 제안**이지 재생 허가가 아니다. 재생 판정은 ▶ 때 `POST /contents/:id/play`가 한다(한도 · 잠금 포함).
+
+| 응답 | `first_content_id` 클라이언트 동작 |
+|---|---|
+| `status = completed` · `first_content_id` 있음 | 그 콘텐츠의 플레이어를 **멈춘 상태**로 연다(알림 탭과 같은 경로 — 차감 확인은 ▶ 때) |
+| `status = completed` · `first_content_id = null` | 지금처럼 탐색 탭 |
+| `no_candidates` · `queued` · 대기 상한 초과 | 지금처럼 탐색 탭 |
 
 | `status` | 의미 | 클라이언트 동작 |
 |---|---|---|

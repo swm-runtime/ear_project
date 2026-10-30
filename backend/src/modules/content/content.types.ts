@@ -7,6 +7,7 @@ import {
   ContentDifficulty,
   ContentFormat,
   ContentLanguage,
+  ContentLengthProfile,
   ContentOrigin,
   ContentStatus,
   SeriesStatus,
@@ -19,6 +20,11 @@ import { UserMarket } from '@/modules/user/user.enum';
 export interface ContentCandidateQuery {
   /** 사용자 시장(`global-api.md` 4.7) — 다른 시장의 콘텐츠는 후보가 아니다 */
   market: UserMarket;
+  /**
+   * 짧은 판 코호트(KAN-298) — 사용자 코호트의 길이 프로필(`ContentCohortService`). 같은 프로필의 콘텐츠만 노출 후보다.
+   * 필수다 — 빠뜨리면 standard 사용자에게 짧은 판이 샌다
+   */
+  lengthProfile: ContentLengthProfile;
   /** 이 주제 중 하나라도 걸리는 콘텐츠만. 비우면 주제 조건을 적용하지 않는다 */
   includeTopicIds?: string[];
   /** 이 주제에 걸리는 콘텐츠는 제외한다 (관심 주제 밖에서 뽑을 때) */
@@ -51,6 +57,12 @@ export interface ContentCandidateQuery {
    * 콘텐츠는 후보에 들어오지도 못한다 — 4.8이 깨려던 콘텐츠 콜드스타트 고리가 그대로 남는다.
    */
   lowExposureFirst?: boolean;
+  /**
+   * **무작위로 자른다**(KAN-291 — 첫 드립 무작위 실험, `FIRST_DRIP_RANDOM_ENABLED`). 기본 정렬은 인기순이라 `limit`으로
+   * 자르면 카탈로그가 상한을 넘는 순간 인기 하위 편은 무작위 선정의 후보에 들어오지도 못한다. 켜면 `ORDER BY random()`으로
+   * 자른다 — 결과 순서는 의미가 없고, 최종 선정은 호출자가 주입한 난수로 한다. `lowExposureFirst`와 함께 쓰지 않는다
+   */
+  randomOrder?: boolean;
   limit: number;
   now: Date;
 }
@@ -150,6 +162,11 @@ export interface ExploreCursorPosition {
 export interface ExplorePageQuery {
   /** 사용자 시장(`global-api.md` 4.7) — 다른 시장의 콘텐츠는 후보가 아니다 */
   market: UserMarket;
+  /**
+   * 짧은 판 코호트(KAN-298) — 사용자 코호트의 길이 프로필(`ContentCohortService`). 같은 프로필의 콘텐츠만 노출 후보다.
+   * 필수다 — 빠뜨리면 standard 사용자에게 짧은 판이 샌다
+   */
+  lengthProfile: ContentLengthProfile;
   /** 비울 수 없다. 필터가 없는 상태는 피드(4.1)가 담당한다. **주제끼리는 OR다** */
   topicIds: string[];
   cursor: ExploreCursorPosition | null;
@@ -194,6 +211,11 @@ export interface PopularCursorPosition {
 export interface PopularPageQuery {
   /** 사용자 시장(`global-api.md` 4.7) — 다른 시장의 콘텐츠는 후보가 아니다 */
   market: UserMarket;
+  /**
+   * 짧은 판 코호트(KAN-298) — 사용자 코호트의 길이 프로필(`ContentCohortService`). 같은 프로필의 콘텐츠만 노출 후보다.
+   * 필수다 — 빠뜨리면 standard 사용자에게 짧은 판이 샌다
+   */
+  lengthProfile: ContentLengthProfile;
   /** 사용자가 고른 집계 구간. `period_start`는 `ContentService`가 이 값으로 환산한다 */
   periodType: StatsPeriodType;
   cursor: PopularCursorPosition | null;
@@ -240,6 +262,11 @@ export interface SearchCursorPosition {
 export interface SearchPageQuery {
   /** 사용자 시장(`global-api.md` 4.7) — 다른 시장의 콘텐츠는 후보가 아니다 */
   market: UserMarket;
+  /**
+   * 짧은 판 코호트(KAN-298) — 사용자 코호트의 길이 프로필(`ContentCohortService`). 같은 프로필의 콘텐츠만 노출 후보다.
+   * 필수다 — 빠뜨리면 standard 사용자에게 짧은 판이 샌다
+   */
+  lengthProfile: ContentLengthProfile;
   /**
    * **이미 정규화된 검색어다**(NFC + 소문자 + 트림 — `explore.md` 4.5-5). 호출부가 정규화하고,
    * 태그 전용 검색이면 앞의 `#`을 뗀 값이다(`parseSearchQuery`)
@@ -301,6 +328,11 @@ export type HybridSearchCursorPosition =
 
 export interface HybridSearchPageQuery {
   market: UserMarket;
+  /**
+   * 짧은 판 코호트(KAN-298) — 사용자 코호트의 길이 프로필(`ContentCohortService`). 같은 프로필의 콘텐츠만 노출 후보다.
+   * 필수다 — 빠뜨리면 standard 사용자에게 짧은 판이 샌다
+   */
+  lengthProfile: ContentLengthProfile;
   /** 실제 검색어 — 정규화 끝난 값(원문 또는 교정어) */
   normalizedQuery: string;
   /**
@@ -349,6 +381,11 @@ export interface SearchCorrectionCandidate {
 export interface RelatedContentQuery {
   baseContentId: string;
   market: UserMarket;
+  /**
+   * 짧은 판 코호트(KAN-298) — 사용자 코호트의 길이 프로필(`ContentCohortService`). 같은 프로필의 콘텐츠만 노출 후보다.
+   * 필수다 — 빠뜨리면 standard 사용자에게 짧은 판이 샌다
+   */
+  lengthProfile: ContentLengthProfile;
   /** 결과에서 뺄 편 — 재생 목록 스냅샷에 이미 있는 편. 기준 편은 따로 빠진다 */
   excludeIds: string[];
   limit: number;
@@ -357,6 +394,11 @@ export interface RelatedContentQuery {
 
 export interface SearchCorrectionQuery {
   market: UserMarket;
+  /**
+   * 짧은 판 코호트(KAN-298) — 사용자 코호트의 길이 프로필(`ContentCohortService`). 같은 프로필의 콘텐츠만 노출 후보다.
+   * 필수다 — 빠뜨리면 standard 사용자에게 짧은 판이 샌다
+   */
+  lengthProfile: ContentLengthProfile;
   normalizedQuery: string;
   /** 시리즈 제목도 어휘에 넣는다 — 탐색 시리즈 카드 스위치가 켜졌을 때만(키워드 엔진과 같은 조건) */
   includeSeriesTitles: boolean;
@@ -385,6 +427,11 @@ export interface PublishContentCommand {
   topicIds: string[];
   /** `ai_generated`만. 배열 순서가 곧 `position`이다 (domain.md 5.5) */
   sources: { title: string; author: string | null; url: string | null }[];
+  /** 길이 프로필·짧은 판의 원본(KAN-298) — 호출부(admin)가 검증을 끝내고 넘긴다 */
+  lengthProfile: ContentLengthProfile;
+  variantOfContentId: string | null;
+  /** 도입부 버전 — 지표 전용(노출 무관). null = 기존 도입부 */
+  introVersion: string | null;
 }
 
 /**
@@ -542,6 +589,10 @@ export interface CreateSeriesCommand {
   status: SeriesStatus;
   /** 발행 이름(예: "키워드") — 없으면 null */
   publisherName: string | null;
+  /** 길이 프로필(KAN-298) — 없으면 standard */
+  lengthProfile: ContentLengthProfile;
+  /** 짧은 시리즈의 원본 시리즈 — short면 필수, standard면 null */
+  variantOfSeriesId: string | null;
 }
 
 /** 시리즈 수정(`PATCH /admin/series/:id`) — `undefined`는 "안 바꾼다" */
@@ -582,4 +633,6 @@ export interface SeriesEpisodeUpload {
   episodeNo: number;
   totalEpisodes: number;
   market: UserMarket;
+  /** 편의 길이 프로필(KAN-298). null = 보내지 않음 — 시리즈의 값을 따른다. 값이 있으면 시리즈와 같아야 한다 */
+  lengthProfile: ContentLengthProfile | null;
 }

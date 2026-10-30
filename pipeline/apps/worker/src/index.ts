@@ -27,7 +27,7 @@ async function main() {
   if (argv[0] === "--enqueue") {
     const type = argv[1] as any;
     const payload = argv[2] ? JSON.parse(argv[2]) : {};
-    const requiresAi = !["sweep", "tts", "package", "thumbnail"].includes(type);
+    const requiresAi = !["sweep", "tts", "package", "thumbnail", "remake"].includes(type);
     const id = await enqueue({ type, requires_ai: requiresAi, payload });
     log(`작업 생성: ${type} ${id}`, payload);
     await pool.end();

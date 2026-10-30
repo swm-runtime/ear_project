@@ -58,6 +58,8 @@ class ContentDetailContentDto {
   readonly source_name: string;
   readonly source_url: string | null;
   readonly sources: ContentDetailSourceDto[] | null;
+  /** 최상위 `is_locked`와 같은 값 — "모든 콘텐츠 객체"에 붙는 계약이라 여기도 싣는다(`experiments-api.md` 4.2-2) */
+  readonly is_locked: boolean;
 }
 
 /**
@@ -75,6 +77,8 @@ export class GetContentDetailResponseDto {
   /** 완청했는가 — 담지 않고 끝까지 들은 편도 true(KAN-248) */
   readonly is_completed: boolean;
   readonly is_counted_today: boolean;
+  /** 이 사용자에게 잠긴 시리즈 편인가(KAN-290 — `experiments-api.md` 4.2-2 "상세 최상위"). 재생 게이트와 같은 판정 */
+  readonly is_locked: boolean;
 
   static from(view: ContentDetailView): GetContentDetailResponseDto {
     const { content } = view;
@@ -114,6 +118,7 @@ export class GetContentDetailResponseDto {
             author: source.author,
             url: source.url,
           })) ?? null,
+        is_locked: view.isLocked,
       },
       library_item: view.libraryItem
         ? {
@@ -124,6 +129,7 @@ export class GetContentDetailResponseDto {
         : null,
       is_completed: view.isCompleted,
       is_counted_today: view.isCountedToday,
+      is_locked: view.isLocked,
     };
   }
 }

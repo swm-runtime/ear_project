@@ -4,7 +4,15 @@ import { EntityManager } from 'typeorm';
 import { BusinessForbiddenException } from '@/common/exceptions/business-forbidden.exception';
 import { ErrorCode } from '@/common/exceptions/error-code.enum';
 import { isSignupTrialActive } from '@/common/utils/signup-trial.util';
+import { Content } from '@/modules/content/entities/content.entity';
+import {
+  SERIES_ALL_UNLOCKED,
+  SeriesEpisodeAccess,
+  isSeriesEpisodeLocked,
+} from '@/modules/subscription/policies/series-paywall.policy';
 import { PlanService } from '@/modules/subscription/services/plan.service';
+import { SeriesPaywallService } from '@/modules/subscription/services/series-paywall.service';
+import { User } from '@/modules/user/entities/user.entity';
 import { resolveEffectiveTier } from '@/modules/user/policies/effective-tier.policy';
 import { UserService } from '@/modules/user/services/user.service';
 
@@ -19,6 +27,7 @@ import { PlaybackService } from './playback.service';
  * 차이는 판정 **이후**에만 있다 — 재생 시작은 차감하고, 발급은 허용·거부만 한다.
  *
  * ```
+ * 잠긴 시리즈 편 (KAN-290)        → SERIES_EPISODE_LOCKED (한도보다 먼저 — 차감 없음)
  * limit == null                 → ALLOW (무제한)
  * 재청취 창 내 (15일, 4.3-1)     → ALLOW (차감 없음 — 한도 소진 상태에서도 허용)
  * count < limit                 → ALLOW (차감 발생)
@@ -33,6 +42,12 @@ import { PlaybackService } from './playback.service';
 /** 한도 소진 안내 — 확정 문구(`paywall.md` 4.1 · 5장). 앱의 한도 안내 시트 제목과 같다 */
 export const PLAY_LIMIT_MESSAGE = '오늘 청취 한도를 모두 사용했어요';
 
+/** 잠긴 시리즈 편 — 확정 문구(`experiments-api.md` 4.2-3) */
+export const SERIES_EPISODE_LOCKED_MESSAGE = '이 편은 구독하면 들을 수 있어요';
+
+/** 재생 게이트가 보는 콘텐츠 — 시리즈 편 판정(KAN-290)에 편 번호가 필요하다 */
+export type PlayableContent = Pick<Content, 'id' | 'seriesId' | 'episodeNo'>;
+
 @Injectable()
 export class PlayPolicyService {
   private readonly logger = new Logger(PlayPolicyService.name);
@@ -41,7 +56,72 @@ export class PlayPolicyService {
     private readonly playbackService: PlaybackService,
     private readonly userService: UserService,
     private readonly planService: PlanService,
+    private readonly seriesPaywallService: SeriesPaywallService,
   ) {}
+
+  /**
+   * 이 사용자의 시리즈 편 접근(KAN-290) — 목록 응답의 `is_locked`가 쓴다. **요청당 한 번** 부르고 편마다
+   * `isSeriesEpisodeLocked`로 비교한다. 재생 게이트(`assertPlayable`)와 같은 판정이다 — 목록에 열려 보이는 편이 재생에서 막히지 않는다
+   */
+  async resolveSeriesAccess(
+    userId: string,
+    now: Date,
+    manager?: EntityManager,
+  ): Promise<SeriesEpisodeAccess> {
+    // 꺼져 있으면 사용자를 읽지 않는다
+    if (!this.seriesPaywallService.isEnabled()) {
+      return SERIES_ALL_UNLOCKED;
+    }
+
+    const user = await this.userService.getById(userId, manager);
+
+    return this.seriesPaywallService.resolveAccess(user, now, manager);
+  }
+
+  /**
+   * 잠긴 시리즈 편이면 403 `SERIES_EPISODE_LOCKED`를 던진다(`experiments-api.md` 4.2-3). `assertPlayable`의 첫 단계이고,
+   * 한도 판정이 없는 `replay` 신호(4.4)는 이것만 부른다. `user`를 넘기면 다시 읽지 않는다
+   */
+  async assertSeriesEpisodeUnlocked(
+    userId: string,
+    content: PlayableContent,
+    now: Date,
+    manager?: EntityManager,
+    user?: Pick<User, 'tier' | 'trialEndsAt'>,
+  ): Promise<void> {
+    // 시리즈 편이 아니면 사용자를 읽을 필요가 없다
+    if (content.seriesId === null || content.episodeNo === null) {
+      return;
+    }
+    if (!this.seriesPaywallService.isEnabled()) {
+      return;
+    }
+
+    const access = await this.seriesPaywallService.resolveAccess(
+      user ?? (await this.userService.getById(userId, manager)),
+      now,
+      manager,
+    );
+
+    if (!isSeriesEpisodeLocked(content, access)) {
+      return;
+    }
+
+    // 결제 유도도 서비스가 의도한 정상 분기다(한도 페이월과 같은 info — convention.md 8.2)
+    this.logger.log('play blocked by series paywall', {
+      user_id: userId,
+      content_id: content.id,
+      error_code: ErrorCode.SERIES_EPISODE_LOCKED,
+      episode_no: content.episodeNo,
+      free_episodes: access.lockedAfterEpisodeNo,
+    });
+
+    throw new BusinessForbiddenException({
+      errorCode: ErrorCode.SERIES_EPISODE_LOCKED,
+      message: SERIES_EPISODE_LOCKED_MESSAGE,
+      logLevel: 'info',
+    });
+  }
 
   /**
    * 허용되면 결과를 돌려주고, 아니면 403을 던진다.
@@ -51,7 +131,7 @@ export class PlayPolicyService {
    */
   async assertPlayable(
     userId: string,
-    contentId: string,
+    content: PlayableContent,
     now: Date,
     manager?: EntityManager,
   ): Promise<PlayPermission> {
@@ -69,6 +149,14 @@ export class PlayPolicyService {
     const user = manager
       ? await this.userService.getByIdForUpdate(userId, manager)
       : await this.userService.getById(userId);
+
+    /**
+     * **시리즈 잠금을 한도보다 먼저 본다**(KAN-290 — `experiments-api.md` 4.2-3). 잠긴 편에 한도 시트가 뜨지 않고,
+     * 둘 다 해당하면 잠금이 이긴다. 차감은 이 함수가 통과한 뒤에만 일어나므로 여기서 던지면 차감되지 않는다
+     */
+    await this.assertSeriesEpisodeUnlocked(userId, content, now, manager, user);
+
+    const contentId = content.id;
     // 가입 체험 중이면 체험 한도(무제한)가 얹힌다 — 잔여 표시(`buildQuotaForUser`)와 같은 조립이다
     const policy = await this.planService.getEffectivePlayLimitPolicy(
       user.tier,

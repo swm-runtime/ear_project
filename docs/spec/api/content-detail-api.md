@@ -105,7 +105,8 @@
     "sources": null
   },
   "library_item": { "id": "uuid", "source": "save", "status": "in_progress" },
-  "is_counted_today": false
+  "is_counted_today": false,
+  "is_locked": false
 }
 ```
 
@@ -133,7 +134,8 @@
     ]
   },
   "library_item": null,
-  "is_counted_today": false
+  "is_counted_today": false,
+  "is_locked": false
 }
 ```
 
@@ -151,6 +153,7 @@
 | `content.sources[]` | **비고(2026-10-17 — KAN-221)**: FE는 2026-10-17부터 이 필드를 읽지 않는다(상세 화면 출처 표시 중단 — `content-detail.md` 4.3). 응답에서 빠져도 FE는 깨지지 않는다(앱 DTO에서 선택 필드). 계약·데이터(`content_sources`)는 그대로다. **확정 (2026-08-24 — `domain.md` 5.5 `content_sources`).** `ai_generated`의 참고 소스 **전수** — 소스마다 `title`(필수) · `author`(선택 — 없으면 `null`) · `url`(선택 — 없으면 `null`). 서버가 정한 순서(`content_sources.position`)대로 나열하고 "외 N건" 생략이 없다 — 클라이언트는 재배열하지 않는다. URL 문자열은 화면에 노출하지 않으며, `url`이 있는 항목만 탭 대상이다(`content-detail.md` 4.3). 소스 항목에 식별자(`id`)를 싣지 않는다 — 소스별 클릭 기록을 하지 않기 때문이다(4.2). **`partner`는 `null`이다** (확정 2026-08-24) |
 | `library_item` | 요청자의 라이브러리 상태. **`null`이면 미담김**(살아 있는 행 없음 — 소프트 삭제된 행 포함)이라 버튼이 [담기], 값이 있으면 [삭제]다(`content-detail.md` 4.4). **별도 `is_saved` 불리언을 두지 않는다** — null 판정 하나로 분기한다(4.3-1과 같은 원칙). `id`는 [삭제](`library-api.md` 4.6) 호출에 쓴다. `source` · `status`는 `library_items` 원값(`player-api.md` 4.1과 같은 모양) |
 | `is_completed` | **완청했는가** — `explore-api.md` 4.1과 같은 필드·같은 정의(추가 2026-10-23 — KAN-248). 담지 않고 끝까지 들은 편도 `true`다. **추가 필드뿐이라 설치된 앱은 무시한다** |
+| `is_locked` · `content.is_locked` | **이 사용자가 이 편을 재생할 수 없는가**(boolean — 시리즈 유료화, 추가 2026-10-29 KAN-290). `explore-api.md` 4.1 `content.is_locked`와 같은 정의이고, 상세는 **최상위와 `content` 안 둘 다** 싣는다(같은 값). 판정은 `paywall.md` 4.1, 재생은 서버가 다시 판정한다(`player-api.md` 5장 `SERIES_EPISODE_LOCKED`). 옛 서버(필드 없음)는 `false`로 다룬다 |
 | `is_counted_today` | 이 콘텐츠가 **재청취 창 안**에 있는가 — 목록 행과 같은 필드·같은 정의(`library-api.md` 4.1 · `explore-api.md` 4.1 · `paywall.md` 4.3-1). [재생] 탭 시 확인 팝업을 **탭 즉시** 띄우기 위한 힌트이며, 판정이 아니다 |
 
 > **`sources`는 확정 계약이다** (확정 2026-08-24 — 티켓 `tickets/backend/archive/content-sources-structured-list.md` 처리 완료). 저장 구조는 `content_sources` 테이블 승격으로 결정됐고(`domain.md` 5.5), 가정 계약의 모양(`[{title, author|null, url|null}]`)이 **그대로 확정됐다** — FE mock에서 바꿀 필드가 없다.

@@ -76,8 +76,8 @@ const AVATAR_ICON_SIZE = 36;
  * 진입점이다 — 프로필의 이메일 등록·인증 진입은 profile.md 4.3이 소유한다.
  */
 /**
- * 플랜 줄들 — 초대 코드 지급 중이면 이벤트 줄을 더한다(KAN-182). 구독 없이(무료) 지급 중이면 이벤트 줄 하나만
- * ("무료 이용 중"과 "Pro 이벤트 이용 중"이 함께 보이면 어긋난다). 설정 요약 카드(planLines)와 같은 규칙이다
+ * 플랜 줄들 — 초대 코드 지급 중이면 프로모션 줄을 더한다(KAN-182). 구독 없이(무료) 지급 중이면 프로모션 줄 하나만
+ * ("무료 이용 중"과 "Pro 프로모션 이용 중"이 함께 보이면 어긋난다). 설정 요약 카드(planLines)와 같은 규칙이다
  */
 export const planLines = (vm: PlanCardVM): string[] => {
   if (vm.eventLine === null) return [planText(vm)];
@@ -299,7 +299,7 @@ const styles = StyleSheet.create({
     paddingRight: theme.spacing.md,
     paddingBottom: theme.spacing.sm,
   },
-  /** 상태 줄 + 이벤트 줄(KAN-182) — [>] 와 나란히 남은 폭을 쓴다 */
+  /** 상태 줄 + 프로모션 줄(KAN-182) — [>] 와 나란히 남은 폭을 쓴다 */
   planLines: {
     flexShrink: 1,
     gap: 2,

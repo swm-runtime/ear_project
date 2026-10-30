@@ -1,5 +1,8 @@
+import { ContentCohortService } from '@/modules/content/services/content-cohort.service';
+import { ConfigService } from '@nestjs/config';
 import { DataSource } from 'typeorm';
 
+import { EnvironmentVariables } from '@/config/env.validation';
 import { Content } from '@/modules/content/entities/content.entity';
 import { ContentStatService } from '@/modules/content/services/content-stat.service';
 import { ContentService } from '@/modules/content/services/content.service';
@@ -15,12 +18,34 @@ import { FirstDripService } from './first-drip.service';
 import { SCORING_POOL_LIMIT } from '../drip.constant';
 import { DripExclusionReason, FirstDripJobStatus } from '../drip.enum';
 import { FirstDripJob } from '../entities/first-drip-job.entity';
+import { RandomSource } from '../first-drip-random.policy';
 import { DripExcludedContentRepository } from '../repositories/drip-excluded-content.repository';
 import { FirstDripJobRepository } from '../repositories/first-drip-job.repository';
 
 const NOW = new Date('2026-08-05T09:00:00.000Z');
 const USER_ID = '11111111-1111-4111-8111-111111111111';
 const TOPIC_ID = 'aaaaaaaa-1111-4111-8111-111111111111';
+const TOPIC_ID_2 = 'bbbbbbbb-1111-4111-8111-111111111111';
+
+/** 시드 고정 난수(mulberry32) — 무작위 선정 테스트를 결정적으로 만든다 */
+function seededRandom(seed: number): RandomSource {
+  let state = seed >>> 0;
+  return () => {
+    state = (state + 0x6d2b79f5) >>> 0;
+    let t = state;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+function configOf(
+  env: Partial<EnvironmentVariables>,
+): ConfigService<EnvironmentVariables, true> {
+  return {
+    get: (key: keyof EnvironmentVariables) => env[key],
+  } as unknown as ConfigService<EnvironmentVariables, true>;
+}
 
 function buildJob(): FirstDripJob {
   return {
@@ -57,7 +82,29 @@ describe('FirstDripService', () => {
   let contentService: jest.Mocked<ContentService>;
   let contentStatService: jest.Mocked<ContentStatService>;
   let libraryService: jest.Mocked<LibraryService>;
+  let dataSource: DataSource;
   let job: FirstDripJob;
+
+  function buildService(
+    env: Partial<EnvironmentVariables> = {},
+    random?: RandomSource,
+  ): FirstDripService {
+    return new FirstDripService(
+      jobRepository,
+      excludedRepository,
+      userService,
+      planService,
+      userInterestService,
+      contentService,
+      contentStatService,
+      new DripScoringService(),
+      libraryService,
+      dataSource,
+      configOf(env),
+      new ContentCohortService(configOf(env)),
+      random,
+    );
+  }
 
   beforeEach(() => {
     job = buildJob();
@@ -108,24 +155,13 @@ describe('FirstDripService', () => {
       countBySource: jest.fn(),
     } as unknown as jest.Mocked<LibraryService>;
 
-    const dataSource = {
+    dataSource = {
       transaction: jest.fn((callback: (manager: unknown) => Promise<unknown>) =>
         callback({}),
       ),
     } as unknown as DataSource;
 
-    service = new FirstDripService(
-      jobRepository,
-      excludedRepository,
-      userService,
-      planService,
-      userInterestService,
-      contentService,
-      contentStatService,
-      new DripScoringService(),
-      libraryService,
-      dataSource,
-    );
+    service = buildService();
   });
 
   describe('schedule', () => {
@@ -294,6 +330,157 @@ describe('FirstDripService', () => {
       const query = contentService.findCandidates.mock.calls[0][0];
       expect(query.excludeSeenByUserId).toBe(USER_ID);
       expect(query.excludeContentIds).toBeUndefined();
+    });
+  });
+
+  describe('첫 드립 무작위 실험(KAN-291 — FIRST_DRIP_RANDOM_ENABLED)', () => {
+    const POOL_IDS = Array.from({ length: 20 }, (_, i) => `content-${i + 1}`);
+    const topicByIndex = (contentId: string) =>
+      Number(contentId.split('-')[1]) <= 15 ? TOPIC_ID : TOPIC_ID_2;
+
+    function givenPool(
+      topicOf: (contentId: string) => string = () => TOPIC_ID,
+    ): void {
+      contentService.findCandidates.mockImplementation((query) =>
+        Promise.resolve(
+          query.includeTopicIds ? POOL_IDS.map((id) => buildContent(id)) : [],
+        ),
+      );
+      contentService.findTopicViews.mockResolvedValue(
+        POOL_IDS.map((contentId) => ({
+          contentId,
+          topicId: topicOf(contentId),
+        })) as never,
+      );
+    }
+
+    async function pickedWith(
+      env: Partial<EnvironmentVariables>,
+      random?: RandomSource,
+    ): Promise<string[]> {
+      job = buildJob();
+      libraryService.addItems.mockClear();
+      await buildService(env, random).schedule(USER_ID, NOW);
+      return libraryService.addItems.mock.calls[0][1];
+    }
+
+    it('스위치가 꺼져 있으면 종전 경로 그대로다 — 스코어링으로 고르고 무작위 정렬을 요청하지 않는다', async () => {
+      // given
+      givenPool();
+
+      // when
+      const off = await pickedWith({ FIRST_DRIP_RANDOM_ENABLED: 'false' });
+      const unset = await pickedWith({}, seededRandom(1));
+
+      // then — 주입한 난수와 무관하게 스코어링 결과다
+      for (const [query] of contentService.findCandidates.mock.calls) {
+        expect(query.randomOrder).toBe(false);
+      }
+      expect(unset).toEqual(off);
+      expect(contentStatService.findAllTimeCounts).toHaveBeenCalled();
+    });
+
+    it('"true"를 적었을 때만 켜진다 — 다른 값은 꺼짐이다', async () => {
+      givenPool();
+
+      await pickedWith({ FIRST_DRIP_RANDOM_ENABLED: 'yes' });
+      expect(contentService.findCandidates.mock.calls[0][0].randomOrder).toBe(
+        false,
+      );
+
+      contentService.findCandidates.mockClear();
+      await pickedWith({ FIRST_DRIP_RANDOM_ENABLED: 'true' }, seededRandom(1));
+      expect(contentService.findCandidates.mock.calls[0][0].randomOrder).toBe(
+        true,
+      );
+    });
+
+    it('켜면 같은 필터(시리즈 1편만·시장·본 것 제외)의 풀을 무작위로 잘라 받는다', async () => {
+      // given
+      givenPool();
+
+      // when
+      await pickedWith({ FIRST_DRIP_RANDOM_ENABLED: 'true' }, seededRandom(7));
+
+      // then — 인기순 300 상한이 무작위 범위를 좁히지 않게 자르는 기준이 무작위다
+      const query = contentService.findCandidates.mock.calls[0][0];
+      expect(query).toMatchObject({
+        includeTopicIds: [TOPIC_ID],
+        excludeSeenByUserId: USER_ID,
+        seriesStartOnly: true,
+        randomOrder: true,
+        limit: SCORING_POOL_LIMIT,
+      });
+      // 스코어링 입력(집계)은 읽지 않는다
+      expect(contentStatService.findAllTimeCounts).not.toHaveBeenCalled();
+    });
+
+    it('같은 시드면 같은 편, 시드가 다르면 사람마다 다른 편이 나온다 — 풀 앞 2편에 고정되지 않는다', async () => {
+      // given
+      givenPool();
+      const env = { FIRST_DRIP_RANDOM_ENABLED: 'true' };
+
+      // when
+      const first = await pickedWith(env, seededRandom(42));
+      const again = await pickedWith(env, seededRandom(42));
+      const others: string[] = [];
+      for (const seed of [1, 2, 3, 4, 5, 6, 7, 8]) {
+        others.push((await pickedWith(env, seededRandom(seed))).join(','));
+      }
+
+      // then
+      expect(first).toHaveLength(2);
+      expect(again).toEqual(first);
+      expect(new Set(others).size).toBeGreaterThan(1);
+      expect(others.every((pair) => pair === 'content-1,content-2')).toBe(
+        false,
+      );
+    });
+
+    it('관심 주제가 여럿이면 주제를 돌아가며 뽑는다 — 한 주제에서 2편을 다 가져오지 않는다', async () => {
+      // given — 앞 15편은 주제 1, 뒤 5편은 주제 2
+      userInterestService.findActiveTopicIds.mockResolvedValue([
+        TOPIC_ID,
+        TOPIC_ID_2,
+      ]);
+      givenPool(topicByIndex);
+
+      for (const seed of [1, 2, 3, 4, 5]) {
+        // when
+        const picked = await pickedWith(
+          { FIRST_DRIP_RANDOM_ENABLED: 'true' },
+          seededRandom(seed),
+        );
+
+        // then
+        expect(new Set(picked.map(topicByIndex)).size).toBe(2);
+      }
+    });
+
+    it('켜져 있어도 주제 안 후보가 모자라면 인기 대체 편성이 채운다', async () => {
+      // given
+      contentService.findCandidates
+        .mockResolvedValueOnce([buildContent('content-1')])
+        .mockResolvedValueOnce([buildContent('content-9')]);
+      contentService.findTopicViews.mockResolvedValue([
+        { contentId: 'content-1', topicId: TOPIC_ID },
+      ] as never);
+
+      // when
+      const picked = await pickedWith(
+        { FIRST_DRIP_RANDOM_ENABLED: 'true' },
+        seededRandom(3),
+      );
+
+      // then — 대체 편성은 무작위가 아니라 종전 인기순 조회 그대로다(시리즈 1편만)
+      expect(picked).toEqual(['content-1', 'content-9']);
+      const fallbackQuery = contentService.findCandidates.mock.calls[1][0];
+      expect(fallbackQuery).toMatchObject({
+        excludeContentIds: ['content-1'],
+        seriesStartOnly: true,
+        limit: 1,
+      });
+      expect(fallbackQuery.randomOrder).toBeUndefined();
     });
   });
 

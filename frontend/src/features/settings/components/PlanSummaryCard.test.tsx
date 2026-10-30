@@ -33,8 +33,8 @@ describe('PlanSummaryCard valueText — 설정 요금제 요약 줄', () => {
   });
 });
 
-describe('PlanSummaryCard planLines — 초대 코드 지급 이벤트 줄(KAN-182)', () => {
-  const EVENT = 'SANKUN 이벤트 이용 중 · Pro · 12월 10일까지';
+describe('PlanSummaryCard planLines — 초대 코드 지급 프로모션 줄(KAN-182)', () => {
+  const EVENT = 'SANKUN 프로모션 이용 중 · Pro · 12월 10일까지';
 
   it('지급이 없으면 상태 줄 하나', () => {
     // given
@@ -52,7 +52,7 @@ describe('PlanSummaryCard planLines — 초대 코드 지급 이벤트 줄(KAN-1
     expect(lines).toEqual([SETTINGS_COPY.plan.free(3)]);
   });
 
-  it('구독 없이 지급 중이면 "무료 이용 중" 대신 이벤트 줄 하나만 그린다', () => {
+  it('구독 없이 지급 중이면 "무료 이용 중" 대신 프로모션 줄 하나만 그린다', () => {
     // given
     const vm = {
       kind: 'free' as const,
@@ -68,7 +68,7 @@ describe('PlanSummaryCard planLines — 초대 코드 지급 이벤트 줄(KAN-1
     expect(lines).toEqual([EVENT]);
   });
 
-  it('구독 중에 지급도 받았으면 구독 줄 밑에 이벤트 줄을 더한다', () => {
+  it('구독 중에 지급도 받았으면 구독 줄 밑에 프로모션 줄을 더한다', () => {
     // given
     const vm = {
       kind: 'subscribed' as const,

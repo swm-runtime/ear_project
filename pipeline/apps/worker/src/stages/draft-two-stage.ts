@@ -12,6 +12,7 @@ import { exists, hostOf, log } from "../util.js";
 import { parseScriptForTts, type ScriptTurn } from "../tts/script.js";
 import { runDesignSingle } from "./design-single.js";
 import { countWords, MIN_MINUTES_EN, MIN_WORDS_EN, WORDS_PER_MIN_EN } from "../script-length.js";
+import { lengthProfileOf, lengthSpecOf, shortHookFor, type ShortRules } from "@ear/pipeline";
 import { addPronunciations } from "../tts/normalize.js";
 
 /**
@@ -32,6 +33,10 @@ export interface TwoStageArgs {
   signoffSeed?: number;
   /** 실험 no-gold (2026-09-15): 설계·대본 프롬프트에서 골드 예시를 뺀다 — settings.experiments.no_gold_backlog_ids 에 든 후보만 */
   noGold?: boolean;
+  /** 재제작 원본(0040, KAN-296) — short 프로필 편이면 원본 제목·축. 설계가 같은 질문을 유지하게 한다 */
+  remakeOf?: { title: string; axis?: string | null } | null;
+  /** 짧은 판 규칙 자산(skills/draft/short.md, 2026-10-30) — short 편만 */
+  shortRules?: ShortRules;
   /** 시리즈 편(spec/11 5장) — 설계·작성 블록, 설계 뒤 연결 재료 */
   series?: SeriesDraftContext;
   seriesId?: string;
@@ -53,7 +58,7 @@ export async function runTwoStageDraft(a: TwoStageArgs): Promise<TwoStageResult>
     designSummary = "설계 이어받기(기존 산출물)";
   } else if (cfg.designMode === "single") {
     log(`  draft ${episodeId} ← ${cand.id} "${cand.title}" · 1/2 설계 (단발, 소스 ${cand.sources.length})`);
-    const d = await runDesignSingle({ job, ex, episodeId, candidate: cand, dir, assetRoot: a.assetRoot, promptVersion: a.promptVersion, noGold: a.noGold || pipelineLocale() === "en", series: a.series }); // 글로벌판 설계는 골드를 쓰지 않는다(대본 단계만)
+    const d = await runDesignSingle({ job, ex, episodeId, candidate: cand, dir, assetRoot: a.assetRoot, promptVersion: a.promptVersion, noGold: a.noGold || pipelineLocale() === "en", series: a.series, remakeOf: a.remakeOf, shortRules: a.shortRules }); // 글로벌판 설계는 골드를 쓰지 않는다(대본 단계만)
     design = d.design; designCost = d.costUsd; designTokens = d.tokens; designModel = d.model;
     designSummary = `설계(단발): 축 [${design.axis_type}] ${design.axis} · 구간 ${design.sections.length} (착지 #${design.landing_section}) · 발췌 ${design.excerpts}·claims ${design.claims} · 예상 ${design.estimated_minutes}분 · 본문 ${d.fetched.filter((f) => f.ok).length}/${d.fetched.length}${design.gaps.length ? ` · 빈 역할 ${design.gaps.join("/")}` : ""}${design.sources_excluded.length ? ` · 제외 ${design.sources_excluded.map((x) => `${hostOf(x.url)} ${x.reason}`).join("; ").slice(0, 200)}` : ""}${design.split_proposal ? ` · ⚠ 분할 제안: ${design.split_proposal.slice(0, 200)}` : ""}`;
   } else {
@@ -76,7 +81,7 @@ export async function runTwoStageDraft(a: TwoStageArgs): Promise<TwoStageResult>
     const missing: string[] = [];
     for (const f of DESIGN_FILES) if (!(await exists(path.join(dir, f)))) missing.push(f);
     if (missing.length) throw new Error(`설계 산출물 누락: ${missing.join(", ")} — 모델은 완료 보고를 냈으나 파일 없음 (turns=${r.numTurns ?? "?"}, notes="${design.notes.slice(0, 160)}")`);
-    const floorMin = pipelineLocale() === "en" ? MIN_MINUTES_EN : 13;
+    const floorMin = pipelineLocale() === "en" ? MIN_MINUTES_EN : lengthSpecOf(cand.length_profile).floorMin; // 0040: short 프로필은 5분
     if (design.estimated_minutes && design.estimated_minutes < floorMin) {
       throw new Error(`재료 부족 — 설계 예상 분량 ${design.estimated_minutes}분 < 하한 ${floorMin}분. ${design.notes.slice(0, 200)}`);
     }
@@ -101,7 +106,8 @@ export async function runTwoStageDraft(a: TwoStageArgs): Promise<TwoStageResult>
   const pronunciationsJson = (await exists(pronFile)) ? await read(pronFile) : "{}";
   const estimatedMinutes = design?.estimated_minutes || Number(outlineMd.match(outlineMarks().estimate)?.[1]) || 15; // 설계 이어받기면 outline.md 에서 읽는다
   const en = pipelineLocale() === "en"; // 글로벌판: 영어 대본 프롬프트·스키마 (global-prompts.ts)
-  const parts = (en ? buildWritePromptPartsEn : buildWritePromptParts)({ episodeId, candidate: cand, introStyle: a.introStyle, promptVersion: a.promptVersion, templates: a.templates, majorTopic: a.majorTopic, signoffSeed: a.signoffSeed, estimatedMinutes, guidelines, specScript, goldFullEum, goldFullYuna, sourcesMd, claimsMd, outlineMd, pronunciationsJson, series });
+  const shortHook = !en && lengthProfileOf(cand.length_profile) === "short" ? shortHookFor(cand.id) : undefined; // 0040: 짧은 판 도입 훅 — 후보 번호로 번갈아(선취형·약속형). 설계 단계도 같은 값을 받는다(short-v1.2)
+  const parts = (en ? buildWritePromptPartsEn : buildWritePromptParts)({ episodeId, candidate: cand, introStyle: a.introStyle, promptVersion: a.promptVersion, templates: a.templates, majorTopic: a.majorTopic, signoffSeed: a.signoffSeed, estimatedMinutes, guidelines, specScript, goldFullEum, goldFullYuna, sourcesMd, claimsMd, outlineMd, pronunciationsJson, series, shortHook, shortRules: a.shortRules });
   log(`  draft ${episodeId} · 2/2 대본 (단발, 공유 ${Math.round(parts.system.length / 1000)}K + 편별 ${Math.round(parts.user.length / 1000)}K자)`);
   let w: Awaited<ReturnType<typeof ex.run<WriteOut>>>;
   try {
@@ -153,7 +159,7 @@ export async function runTwoStageDraft(a: TwoStageArgs): Promise<TwoStageResult>
 
   const stats = scriptStats(o.script);
   const writeCost = w.listCostUsd ?? 0;
-  const summary = `${episodeId} 초안 완료 (2단계 · ${ex.kind}, 도입 ${a.introStyle.label}, 템플릿 ${a.templates?.version ?? "미적용"}). ${designSummary}. 대본: "${o.title}" ${stats.turns}턴·${stats.words !== undefined ? `${stats.words}단어` : `${stats.chars}자`}·약 ${stats.minutes}분 · claims 대응 턴 ${o.turn_claims.length} · 새 연결 ${o.bridges.length} · 자기 점검 수정 ${o.self_check_fixes.length}건 · 구간 준수 ${o.sections_followed ? "예" : "아니오"}. 비용 설계 $${designCost.toFixed(2)} + 대본 $${writeCost.toFixed(2)} (effort ${cfg.effortDesign ?? "기본"}/${cfg.effortWrite ?? "기본"}). ${o.notes}`;
+  const summary = `${episodeId} 초안 완료 (2단계 · ${ex.kind}, 도입 ${shortHook ? `짧은 판 ${shortHook.label} 훅 · ${a.shortRules?.version ?? "규칙 없음"}` : a.introStyle.label}, 템플릿 ${a.templates?.version ?? "미적용"}). ${designSummary}. 대본: "${o.title}" ${stats.turns}턴·${stats.words !== undefined ? `${stats.words}단어` : `${stats.chars}자`}·약 ${stats.minutes}분 · claims 대응 턴 ${o.turn_claims.length} · 새 연결 ${o.bridges.length} · 자기 점검 수정 ${o.self_check_fixes.length}건 · 구간 준수 ${o.sections_followed ? "예" : "아니오"}. 비용 설계 $${designCost.toFixed(2)} + 대본 $${writeCost.toFixed(2)} (effort ${cfg.effortDesign ?? "기본"}/${cfg.effortWrite ?? "기본"}). ${o.notes}`;
   return {
     summary, model: w.model ?? designModel, costUsd: designCost + writeCost,
     tokens: { design: designTokens, write: (w.raw as { usage?: unknown } | undefined)?.usage, design_model: designModel, write_model: w.model },
@@ -176,15 +182,17 @@ export function scriptStats(md: string): { turns: number; chars: number; minutes
 /** 2단계 L0 — 구성안 계약(구간 수·순서)과 분량 하한(13분 ≈ 4,300자)을 기계로 검사한다. 위반은 재생성 연쇄로. 하한은 2026-10-08 박수헌: eleven_v4 말 속도(실측 341자/분)에 맞춰 4,000 → 4,300 */
 /** @param opts.signoffHeads 템플릿 클로징 인사 골격들의 고정 머리(첫 {슬롯} 앞 문구, tpl-v2). 있으면 마지막 턴이 진행(Y) 턴이고 그중 하나를 담아야 한다 */
 export interface L0AttributionInput { claimsMd?: string; sourcesMd?: string; notesMd?: string; pronunciations?: Record<string, string> }
-export function twoStageViolations(scriptMd: string, outlineMd: string, opts: { signoffHeads?: string[] } & L0AttributionInput = {}): string[] {
+export function twoStageViolations(scriptMd: string, outlineMd: string, opts: { signoffHeads?: string[]; /** 0040: short 면 하한 1,700자·상한 4,100자 */ lengthProfile?: string | null; /** 짧은 판 이 편의 훅(shortHookFor) — 약속형이면 약속 문장 형식을 본다 */ shortHook?: { key: string } | null; /** 시리즈 화 번호 — 2화부터 첫 해설 턴의 첫 문장은 회상 */ seriesNo?: number | null } & L0AttributionInput = {}): string[] {
   if (pipelineLocale() === "en") return twoStageViolationsEn(scriptMd, outlineMd, opts);
   const v: string[] = [];
+  const spec = lengthSpecOf(opts.lengthProfile);
   const planned = [...outlineMd.matchAll(/^구간 #(\d+)/gm)].map((m) => Number(m[1]));
   const written = [...scriptMd.matchAll(/^### #(\d+)/gm)].map((m) => Number(m[1]));
   if (planned.length && written.length !== planned.length) v.push(`구성안 구간 ${planned.length}개인데 대본의 "### #n" 헤더가 ${written.length}개 — 구간 계약 위반 (outline.md 순서대로 전 구간을 써야 한다)`);
   else if (planned.length && written.some((n, i) => n !== planned[i])) v.push(`구간 번호 순서가 구성안과 다름 (구성안 ${planned.join(",")} / 대본 ${written.join(",")})`);
   const s = scriptStats(scriptMd);
-  if (s.chars < 4300) v.push(`분량 ${s.chars}자(약 ${s.minutes}분) — 하한 13분(약 4,300자) 미달. 채우기 없이 구성안 재료(예비 재료·역사 맥락)를 더 실행해 늘린다`);
+  if (s.chars < spec.floorChars) v.push(`분량 ${s.chars}자(약 ${s.minutes}분) — 하한 ${spec.floorMin}분(약 ${spec.floorChars.toLocaleString()}자) 미달. 채우기 없이 구성안 재료(예비 재료·역사 맥락)를 더 실행해 늘린다`);
+  if (spec.maxChars && s.chars > spec.maxChars) v.push(`분량 ${s.chars}자(약 ${s.minutes}분) — ${spec.label} 상한 ${spec.maxMin}분(약 ${spec.maxChars.toLocaleString()}자) 초과. 재료를 빼지 말고 해설 턴의 풀어 쓰기를 줄인다`);
   // 과다 분량: 설계 예상의 1.6배를 넘으면 풀어 쓰기가 길어진 것 (T260908-001: 예상 17분 → 31분). 초과 구간의 긴 해설 턴을 줄이는 방향으로 재생성
   const est = Number(outlineMd.match(/^예상 분량:\s*(\d+(?:\.\d+)?)\s*분/m)?.[1]);
   if (est && s.minutes > est * 1.6) v.push(`분량 ${s.chars}자(약 ${s.minutes}분) — 구성안 예상 ${est}분의 1.6배 초과. 재료를 빼지 말고 해설 턴의 풀어 쓰기를 줄여 예상 분량(±15%)에 맞춘다 (긴 턴부터: 7문장 이상 턴, 같은 말의 재서술)`);
@@ -231,7 +239,7 @@ export function twoStageViolations(scriptMd: string, outlineMd: string, opts: { 
   let run = 0, maxRun = 0, runEnd: string | null = null;
   for (const t of eTurns) { if (attributionRe.test(t.text)) { run++; if (run > maxRun) { maxRun = run; runEnd = t.id; } } else run = 0; }
   // full-v8.3: 임계 5→4 — 확장 정규식으로 9편·골드 2편 실측, 판정 동의 구간(001·003) 둘만 4연속, 오탐 0
-  if (maxRun >= 4) v.push(`해설 턴 ${maxRun}개가 연속으로 귀속·전언 표현("~라고요"·"~라고 해요"·"~라고 불러요"·"그가 말하는 건")을 담음 (${runEnd} 까지) — 한 소스를 옮겨 적는 구간이다. 소스가 말한 것을 해설자가 아는 것으로 바꾸어 말하고, 귀속은 직접 인용·수치·특정인 의견에만 (규칙 20~23)`);
+  if (maxRun >= 4) v.push(`해설 턴 ${maxRun}개가 연속으로 귀속·전언 표현("~라고요"·"~라고 해요"·"~라고 불러요"·"그가 말하는 건")을 담음 (${runEnd} 까지) — 한 소스를 옮겨 적는 구간이다. 소스가 말한 것을 해설자가 아는 것으로 바꾸어 말한다. 출처는 이름 자체가 정보일 때만 한 번 (규칙 12·20~23)`);
   // full-v6.4 (2026-09-12 직접 수정 43건): 기원 서사 틀 반복 · 턴 끝 미완결 · 비유 표지 밀도
   const originRe = /(아까|방금|앞에서)[^.!?]{0,25}(때부터|부터)[^.!?]{0,8}(걸리|걸렸|궁금|정리)|(아까|방금)부터 (궁금|정리|걸리)/;
   const origin = p.turns.filter((t) => t.id?.startsWith("Y") && originRe.test(t.text)).map((t) => t.id ?? "?");
@@ -268,13 +276,19 @@ export function twoStageViolations(scriptMd: string, outlineMd: string, opts: { 
   const numCount = (t: string) => (t.match(/\d[\d,.]*\s*(퍼센트|%|명|원|배|년|개|곳|건|시간|분|달|주|센트|달러)?/g) ?? []).length;
   const dense = expl.map((t) => ({ id: t.id!, n: numCount(t.text) })).filter((x) => x.n >= 5);
   if (dense.length) v.push(`해설 턴 ${dense.length}개에 수치가 5개 이상 (${dense.slice(0, 6).map((x) => `${x.id}: ${x.n}개`).join(", ")}) — 한 턴에 수치는 3개 이하. 극적 대비·설득에 필요 없는 수치부터 뺀다 (규칙 17)`);
-  // 주어형 귀속 (규칙 8·20): "이 글은 …해요", "저자는", "연구진은", "이 연구에서는" 가 해설 턴 4개 이상이면 소스를 읽어 주는 대본이다 (연속이 아니어도)
+  // 주어형 귀속 (규칙 8·20): "이 글은 …해요", "저자는", "연구진은", "이 연구에서는" — full-v9.12(2026-10-30) 출처는 소개하지 않으므로 해설 턴 2개 이상이면 잡는다(종전 4개 — 블록 소개 뒤 한두 문장을 허용하던 때)
   const subjRe = /(이 글|그 글|이 기사|글쓴이|저자들?|필자|연구진|연구자들?|연구팀|이 연구|그 연구|이 조사|이 실험|이 보고서|이 논문)(은|는|이|가|에서는|에서도)\s|(이 글|그 글|이 연구|이 조사)의 (주장|출발점|결론|해석|권고|제안|핵심)/;
   const subj = expl.filter((t) => subjRe.test(t.text)).map((t) => t.id);
-  if (subj.length >= 4) v.push(`해설 턴 ${subj.length}개가 주어형 귀속("이 글은"·"저자는"·"연구진은"·"이 연구에서는")으로 말함 (${subj.slice(0, 8).join(", ")}) — 블록 소개 한 문장 뒤에는 주어 없이 내용을 말한다 (규칙 8·20)`);
+  if (subj.length >= 2) v.push(`해설 턴 ${subj.length}개가 주어형 귀속("이 글은"·"저자는"·"연구진은"·"이 연구에서는")으로 말함 (${subj.slice(0, 8).join(", ")}) — 출처를 주어로 세우지 않는다. 내용을 해설자의 말로 한다 (규칙 8·20, v9.12)`);
   // 마무리 정리 턴 (규칙 22·tpl-v2): 마지막 해설 턴이 3문장 미만이면 수렴이 없다 — 수정 재생성이 claims 를 지우며 문장까지 깎은 사례(T260922-007 E28)
   const closingE = [...expl].reverse().find((t) => t.section === "마무리");
-  if (closingE) { const n = closingE.text.split(/(?<=[.?!])\s+/).filter((x) => x.trim()).length; if (n < 3) v.push(`마무리 정리 턴 ${closingE.id} 이 ${n}문장 — 정리 턴은 3~5문장이다. 구간마다 한 문장을 답의 단계로 잇고 마지막 문장이 축 (규칙 22). 사실 주장을 지울 때도 문장 수를 줄이지 않는다`); }
+  if (closingE) {
+    const n = closingE.text.split(/(?<=[.?!])\s+/).filter((x) => x.trim()).length;
+    // 짧은 판(short-v1.7, 2026-10-30): 정리 턴은 2~3문장 — 3~5문장 정리가 구간이 2~3개뿐인 편에서 본문을 다시 늘어놓았다
+    if (spec.key === "short") { if (n < 2) v.push(`마무리 정리 턴 ${closingE.id} 이 ${n}문장 — 짧은 판 정리 턴은 2~3문장이다. 마지막 문장이 들고 갈 한 문장 (짧은 판 규칙)`); else if (n > 3) v.push(`짧은 판 되짚기: 마무리 정리 턴 ${closingE.id} 이 ${n}문장 — 짧은 판 정리 턴은 2~3문장이다. 본문 설명을 다시 늘어놓은 문장부터 지운다`); }
+    else if (n < 3) v.push(`마무리 정리 턴 ${closingE.id} 이 ${n}문장 — 정리 턴은 3~5문장이다. 구간마다 한 문장을 답의 단계로 잇고 마지막 문장이 축 (규칙 22). 사실 주장을 지울 때도 문장 수를 줄이지 않는다`);
+  }
+  if (spec.key === "short") v.push(...shortRecapViolations(p.turns));
   // full-v7.1 판정 반영 (2026-09-15, T260915-001~004 직접 수정 85건): 화자 없는 인용 예고 · 발행 시기 · 해설자 전환 선언 · 발화 안 가운뎃점
   const quoteCueRe = /((이런|그런|이) (문장|표현|구절|말)(이|도|을|가) (있어요|있는데요|있습니다|나와요|하나 있|있거든요)|(글|기사|책|보고서|논문|연구)(도|은|는|이|가|에서)? ?이렇게 (말해요|말합니다|적어요|적었어요|씁니다|썼어요|써요))/;
   const quoteCue = eTurns.filter((t) => quoteCueRe.test(t.text)).map((t) => t.id ?? "?");
@@ -282,8 +296,10 @@ export function twoStageViolations(scriptMd: string, outlineMd: string, opts: { 
   const pubDateRe = /20\d\d년(?: \d{1,2}월)?에 [^.!?…]{0,14}(?:낸|발표한|실린|나온|쓴|펴낸|출간한|발행한|올린|내놓은) /;
   const pubDate = eTurns.filter((t) => pubDateRe.test(t.text)).map((t) => t.id ?? "?");
   if (pubDate.length) v.push(`해설 턴 ${pubDate.length}개가 소스의 발행 시기를 말함 (${pubDate.slice(0, 6).join(", ")}) — "2026년 8월에 낸"은 각주다. 시점이 축에 필요한 비교가 아니면 뺀다 (규칙 21)`);
-  const handoffRe = /(다음 (질문|얘기|이야기)(은|는|이) (이거|이건|이렇)|다음 (얘기|이야기|질문)(예요|이에요|입니다)|다음으로 넘어가)/;
-  const handoff = eTurns.filter((t) => handoffRe.test(t.text)).map((t) => t.id ?? "?");
+  // "다음으로 넘어가"는 문장 첫머리(그럼·자·이제 뒤 포함)일 때만 전환 선언이다 — "라우터를 거쳐 다음으로 넘어가요"(패킷 전달)는 내용이다(2026-10-30 네트워크 짧은 판 6·7화 오탐 → 수정 0건으로 L0 재시도 소진).
+  // 지적에 걸린 대목을 그대로 적는다 — 예시 문구만 보면 수정 단계가 걸린 문장을 찾지 못한다
+  const handoffRe = /(다음 (질문|얘기|이야기)(은|는|이) (이거|이건|이렇)|다음 (얘기|이야기|질문)(예요|이에요|입니다)|(?:^|[.?!…]\s+)(?:(?:그럼|그러면|자|이제)[,\s]+)?다음으로 넘어가)/;
+  const handoff = eTurns.flatMap((t) => { const m = handoffRe.exec(t.text); return m ? [`${t.id ?? "?"} "${m[0].replace(/^[.?!…\s]+/, "")}"`] : []; });
   if (handoff.length) v.push(`해설 턴 ${handoff.length}개가 구간 전환을 선언함 (${handoff.slice(0, 6).join(", ")}) — "그럼 다음 질문은 이거죠"는 대본 진행을 알리는 말이다. 앞 구간이 남긴 질문에서 진행자가 묻거나 내용으로 잇는다 (규칙 1)`);
   const midDot = p.turns.filter((t) => /[가-힣A-Za-z)]·[가-힣A-Za-z(]/.test(t.text)).map((t) => t.id ?? "?");
   if (midDot.length) v.push(`턴 ${midDot.length}개의 발화 안에 가운뎃점(·) 나열 (${midDot.slice(0, 6).join(", ")}) — 귀로는 낱말이 붙어 들린다. 쉼표로 나누거나 둘로 줄인다 (규칙 14)`);
@@ -292,7 +308,9 @@ export function twoStageViolations(scriptMd: string, outlineMd: string, opts: { 
   v.push(...v98Violations(scriptMd, p.turns));
   v.push(...v99Violations(p.turns));
   v.push(...v910Violations(p.turns));
-  v.push(...v911Violations(p.turns));
+  // 짧은 판: 도입 구분 예고 지적의 고치는 법을 바꾼다 — 일반 편 안내("질문 하나로 열어라")가 약속 문장을 질문형 도입으로 바꿔 버렸다(2026-10-30 네트워크 2화)
+  v.push(...v911Violations(p.turns).map((m) => spec.key === "short" ? shortPreviewFix(m) : m));
+  if (spec.key === "short" && opts.shortHook?.key === "promise") v.push(...shortPromiseViolations(p.turns, opts.seriesNo ?? null));
   // full-v7 (2026-09-15): 귀속 표현 턴 비율 검사는 폐지 — 32~36% 인 편에서도 소스 순회(재식별 15건)가 있었다. 구조 검사로 대체
   v.push(...attributionViolations(scriptMd, p.turns, opts));
   return v;
@@ -579,7 +597,9 @@ export const RATIO_RULE_MARKS = ["셋 중 하나가 상한이다", "질문은 �
   // 글로벌판 문체 위반(enStyleViolations) — 한국판 메시지와 겹치지 않는 영어 머리
   "Style limit:",
   // 시리즈 범위 검사(spec/11 6장, 2026-10-17) — 다른 편 몫을 풀어 쓴 곳. 판단 검사라 한도 뒤엔 QA 로
-  "시리즈 범위:", "Series scope:"] as const;
+  "시리즈 범위:", "Series scope:",
+  // 짧은 판 약속형 형식(2026-10-30, short-v1.5) — 말맛·형식이라 한도 뒤엔 QA·비평으로 넘긴다(초안을 멈추지 않는다)
+  "짧은 판 약속형:", "짧은 판 되짚기:"] as const;
 export const isRatioViolation = (v: string): boolean => RATIO_RULE_MARKS.some((m) => v.includes(m));
 
 /** L0 수정 한도 (2026-10-07: 2 → 3) — QA 회차(qa.ts MAX_ATTEMPTS = QA 실행 3회, 실패 뒤 수정 2회)와 따로 센다 */
@@ -661,7 +681,7 @@ export function v94Violations(turns: ScriptTurn[]): string[] {
   // 규칙 20: 이미 아는 것처럼 소스를 행위의 주어로 세운 소개("조사는 …살폈어요", "모의실험이 이 질문을 나눠 봤습니다") — 직접 수정 4건이 "한 조사가"·"~이 하나 있어요"·"글이 있는데"로 바꿨다. "한 ~"·"어떤 ~"으로 처음 소개하는 문장은 통과
   const srcActRe = /(?<!한 )(?<!어떤 )(글|조사|연구|해설|자료|모의실험|분석|보고서|검토)(이|가|은|는) [^.!?]{0,45}(살폈|살핍니|다뤘|다룹니|다뤄요|풀어냈|나눠 봤|권합니다|권해요|예측합니다|연결합니다|정리했)/;
   const srcAct = E.filter((t) => srcActRe.test(t.text));
-  if (srcAct.length) v.push(`해설 턴 ${srcAct.length}개가 글·조사·연구를 행위의 주어로 세움 (${ids(srcAct)}) — 소개는 처음 듣는 사람에게 "그런 글·조사·연구가 하나 있다"고 알리는 한 문장이고, 그 뒤는 주어 없이 내용을 말한다. 실험 하나의 결과는 사례 하나로 소개한다 (규칙 20)`);
+  if (srcAct.length) v.push(`해설 턴 ${srcAct.length}개가 글·조사·연구를 행위의 주어로 세움 (${ids(srcAct)}) — 출처를 소개하거나 주어로 세우지 않는다. 결과는 무엇을 했더니 무엇이 나왔는지 해설자의 말로 한다 (규칙 20, v9.12)`);
   // ── v9.7 (2026-10-01, v9.5 판정 3편) ──
   // 규칙 4: 내용 없는 한 마디 진행 턴("네.") — 사람: "차라리 없는 게 나을 정도의 무의미한 턴"
   const emptyY = bodyY.filter((t) => !/\?/.test(t.text) && t.text.replace(/[\s.,!…"'“”‘’]/g, "").length <= 4);
@@ -893,7 +913,7 @@ export function attributionViolations(scriptMd: string, turns: { id: string | nu
       seen.add(sec);
       if (/^(그|이) (교수|연구|연구팀|연구진|팀|사람|글|보고서|회장|저자|연구자|기사|논문)/.test(t[2].trim())) bad.push(`${t[1]}(#${sec})`);
     }
-    if (bad.length) v.push(`블록의 첫 해설 턴이 앞 블록의 지시어로 시작 (${bad.join(", ")}) — 새 블록은 소개 한 문장으로 연다. 익명이어도 된다("미국의 한 대학 연구팀이") (규칙 22)`);
+    if (bad.length) v.push(`블록의 첫 해설 턴이 앞 블록의 지시어로 시작 (${bad.join(", ")}) — 새 블록은 그 블록의 내용으로 연다. 앞 블록의 인물·연구를 지시어로 부르지 않는다 (규칙 22)`);
   }
   // 이름 형태: 풀네임(두 토큰 이상)이 한 번이라도 나왔으면 성만 따로 부르지 않는다 (직접 수정 "Sucher 교수 → Sandra Sucher 교수")
   for (const list of names.values()) for (const n of list) {
@@ -982,6 +1002,43 @@ export function v910Violations(turns: ScriptTurn[]): string[] {
  * - 도입 구분 예고: 도입에서 "나눠 보다·나누어 묻다"로 답의 틀을 미리 말한다(규칙 13) — v9.10 19% · 골드 0
  * 뺀 것: "짧은 교환 구간마다"(골드도 본문 2문장 이하 해설 턴 0 — 리듬의 원인이 아니었다) · "다른 질문이에요"로 맺는 턴(편당 0.6회로 드물다 — 규칙 29·critic 이 본다)
  */
+/**
+ * 짧은 판 되짚기 자리 (short-v1.7, 2026-10-30) — 일반 대본 규칙 25("질문 턴의 3분의 1~절반은 앞 해설을 한 문장으로 받은 뒤 묻는다")가
+ * 구간 2~3개짜리 편에서 반복의 큰 몫이 됐다(비평 3.6 득점률 47%). 본문 진행 턴 가운데 "받는 문장 + 질문"(앞 문장은 질문이 아니고 끝이 질문)인 턴은 편에 두 번까지
+ */
+export function shortRecapViolations(turns: ScriptTurn[]): string[] {
+  const recapQ = turns.filter((t) => t.id?.startsWith("Y") && t.section === "본문").filter((t) => {
+    const ss = t.text.replace(/\.{3}|…/g, " ").split(/(?<=[.?!])\s+/).map((x) => x.trim()).filter(Boolean);
+    return ss.length >= 2 && /\?$/.test(ss[ss.length - 1]) && !/\?$/.test(ss[0]);
+  }).map((t) => t.id ?? "?");
+  return recapQ.length > 2 ? [`짧은 판 되짚기: 앞 해설을 받아 말한 뒤 묻는 진행 턴 ${recapQ.length}개 (${recapQ.join(", ")}) — 편에 두 번까지다. ${recapQ.slice(2).join(", ")} 는 받는 문장을 지우고 질문 한 문장으로 둔다`] : [];
+}
+
+/** 짧은 판의 "도입 구분 예고" 지적 — 훅 문장은 두고 구분 예고 표현만 빼게 한다 */
+export function shortPreviewFix(m: string): string {
+  return m.includes("답의 틀을 미리 말함") ? m.replace(/"나눠 보자" 대신[\s\S]*$/, '짧은 판: 훅 문장(선취형의 결과·약속형의 약속)은 그대로 두고 "나눠"류 구분 예고 표현만 뺀다. 질문형 도입으로 바꾸지 않는다 (규칙 13 · 짧은 판 규칙)') : m;
+}
+
+/**
+ * 짧은 판 약속형 형식 (2026-10-30, short-v1.5) — 규칙 글만으로는 지켜지지 않았다(v1.4 10편 전부 "여러분" 시작 · v1.5 12화 두 문장).
+ * 도입 첫 해설 턴에서 회상 한 문장(시리즈 2화부터)을 뺀 나머지가 약속이다: 첫 문장이 이번 편을 가리키는 말로 시작 · "여러분"으로 시작하지 않음 · 두 문장 이하(약속 문장 + 풀어 주는 문장 하나 — short-v1.6 "순서만 맞으면")
+ */
+export function shortPromiseViolations(turns: ScriptTurn[], seriesNo: number | null): string[] {
+  const e1 = turns.find((t) => t.section === "도입" && t.id?.startsWith("E"));
+  if (!e1) return [];
+  let ss = e1.text.replace(/\.{3}|…/g, " ").split(/(?<=[.?!])\s+/).map((x) => x.trim()).filter(Boolean);
+  if ((seriesNo ?? 0) >= 2 && ss.length && /^(앞|지난)\s?(편|시간|회)|^앞선/.test(ss[0])) ss = ss.slice(1);
+  const mark = "짧은 판 약속형:";
+  const how = "이번 편을 가리키는 말(\"이번 편\"·\"이 편\")로 시작해 이번 편의 주요 내용을 개념 이름으로 부르고, 듣고 나서 청취자가 실제 상황에서 얻는 결정·능력으로 맺는 한 문장으로 고친다";
+  if (!ss.length) return [`${mark} 도입 첫 해설 턴 ${e1.id} 에 약속 문장이 없다 — ${how}`];
+  const v: string[] = [];
+  const first = ss[0];
+  if (/^(청취자\s*)?여러분/.test(first)) v.push(`${mark} 약속 문장이 "여러분"으로 시작 (${e1.id}) — ${how}`);
+  else if (!/^(이번|이|오늘)\s?(편|시간|회)/.test(first)) v.push(`${mark} 약속 문장이 이번 편을 가리키는 말로 시작하지 않음 (${e1.id}) — ${how}`);
+  if (ss.length > 2) v.push(`${mark} 약속 부분이 ${ss.length}문장 (${e1.id}) — 약속 문장 뒤 덧붙임은 한 문장까지다. 약속 문장을 먼저 두고 풀어 주는 문장 하나만 남긴다${(seriesNo ?? 0) >= 2 ? " (회상 한 문장은 그대로 둔다)" : ""}`);
+  return v;
+}
+
 export function v911Violations(turns: ScriptTurn[]): string[] {
   const v: string[] = [];
   const sents = (t: string) => t.replace(/\.{3}|…/g, " ").split(/(?<=[.?!])\s+/).map((s) => s.trim()).filter(Boolean);

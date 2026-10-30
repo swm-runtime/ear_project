@@ -1,7 +1,7 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
 import { Panel, Stat, Table, Td, Tr, btnCls } from "@/components/ui";
-import { EarApiError, type EarChannel, type EarInsightsCohortTable, type EarInsightsMarket, type EarInsightsMarketRow, type EarInsightsSummary, type EarInsightsWeekday, earChannelLabel, getEarInsightsSummary } from "@/lib/ear";
+import { EarApiError, type EarChannel, type EarReviewSummary, getEarReviewSummary, type EarInsightsCohortTable, type EarInsightsMarket, type EarInsightsMarketRow, type EarInsightsSummary, type EarInsightsWeekday, earChannelLabel, getEarInsightsSummary } from "@/lib/ear";
 import { EarGate, EarSession, earErrMsg } from "@/app/publish/ear-connect";
 import { fmtTime } from "@/lib/format";
 import {
@@ -227,7 +227,7 @@ function InsightsView({ channel, days, market, onSwitchToDev }: { channel: EarCh
       )}
 
       {data.market === "global" && data.by_region && data.by_region.length > 0 && (
-        <Panel title={`나라별 — 활성·청취자는 최근 7일, 가입·청취는 ${winLabel}`} flush>
+        <Panel title={`나라별(기기 시간대 기준) — 활성·청취자는 최근 7일, 가입·청취는 ${winLabel}`} flush>
           <RegionTable rows={data.by_region} />
         </Panel>
       )}
@@ -436,6 +436,7 @@ function InsightsView({ channel, days, market, onSwitchToDev }: { channel: EarCh
           )}
         </Panel>
       </div>
+      <ReviewPromotionsPanel channel={channel} />
       {data.push_reactions && (
         <Panel title={`알림 반응 — 보낸 뒤 2시간 안에 재생 (${winLabel})`} flush>
           <Table head={["알림", "문구", "발송", "반응", "반응률"]} empty="이 기간에 보낸 알림이 없다">
@@ -541,8 +542,9 @@ function MarketTable({ rows }: { rows: EarInsightsMarketRow[] }) {
 }
 
 /**
- * 글로벌 화면 맨 위 나라별 표(2026-10-29) — 시장 비교표와 같은 열. 나라는 기기 지역(`region_code`, 가입·로그인마다 갱신)이라
- * "지금 있는 나라"다. 이름은 브라우저 `Intl.DisplayNames`(한국어)로 바꾸고, 모르는 코드는 그대로 둔다
+ * 글로벌 화면 맨 위 나라별 표(2026-10-29) — 시장 비교표와 같은 열. 나라는 서버가 **기기 시간대**에서 추정한 코드다
+ * (기기 언어 지역은 필리핀의 en-GB 폰을 영국으로 잡았다). 이름은 브라우저 `Intl.DisplayNames`(한국어)로 바꾸고, 표에 없는
+ * 시간대(예: Africa/Lagos)는 서버가 보낸 이름 그대로 둔다
  */
 function RegionTable({ rows }: { rows: NonNullable<EarInsightsSummary["by_region"]> }) {
   const total = rows.reduce((sum, r) => sum + r.users, 0);
@@ -751,4 +753,33 @@ function PlatformLine({ rows, extra }: { rows?: { platform: string; count: numbe
   const parts = sorted.filter((r) => r.count > 0).map((r) => `${PLATFORM_LABEL[r.platform] ?? r.platform} ${fmtInt(r.count)}`);
   if (extra) parts.push(extra);
   return <span className="mt-0.5 block text-[11px] text-ink-soft">{parts.join(" · ")}</span>;
+}
+
+/**
+ * 콘텐츠 후기 · 후기 참여 프로모션 (KAN-284 ↔ KAN-279, content-review-api.md 4.8) — 건수만. 기간·시장 필터와 무관한 전체 값이다.
+ * 후기 API 가 없는 서버(운영 배포 전)면 안내만 보인다
+ */
+function ReviewPromotionsPanel({ channel }: { channel: EarChannel }) {
+  const [d, setD] = useState<EarReviewSummary | null>(null);
+  const [msg, setMsg] = useState<string | null>(null);
+  useEffect(() => {
+    let alive = true;
+    getEarReviewSummary({}, channel).then((r) => { if (alive) { setD(r); setMsg(null); } })
+      .catch((e) => { if (alive) setMsg(e instanceof EarApiError && e.status === 404 ? "후기 API 가 이 서버에 아직 없다 (백엔드 KAN-279 배포 전)" : earErrMsg(e)); });
+    return () => { alive = false; };
+  }, [channel]);
+  return (
+    <Panel title="콘텐츠 후기 · 참여 프로모션 (전체 기간 · 전 시장)">
+      {msg && <p className="text-[12.5px] text-ink-soft">{msg}</p>}
+      {!msg && !d && <p className="text-[12.5px] text-ink-soft">불러오는 중…</p>}
+      {d && (
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+          <Stat label="후기" value={`${fmtInt(d.totals.reviews)}건`} sub={`평균 ★ ${d.totals.average_stars == null ? "-" : d.totals.average_stars.toFixed(1)} · 후기 있는 편 ${fmtInt(d.totals.reviewed_contents)}`} />
+          <Stat label="글 있는 후기" value={`${fmtInt(d.totals.text_reviews)}건`} />
+          <Stat label="프로모션 발급" value={`${fmtInt(d.promotions.issued)}건`} sub={`미사용 ${fmtInt(d.promotions.unused)}`} />
+          <Stat label="사용 · 소멸" value={`${fmtInt(d.promotions.redeemed)} · ${fmtInt(d.promotions.expired)}건`} />
+        </div>
+      )}
+    </Panel>
+  );
 }

@@ -21,6 +21,7 @@ import type {
   PlaybackProgressPutRequestDto,
   PlaybackProgressPutResponseDto,
   PlayLimitFieldsDto,
+  PlayStartRequestDto,
   PlayStartResponseDto,
   ScriptResponseDto,
   WithdrawnContentsResponseDto,
@@ -46,6 +47,14 @@ export const toPlayLimitSnapshot = (dto: PlayLimitFieldsDto): PlayLimitSnapshot 
 
 export const toPlaybackProgress = (dto: PlaybackProgressDto | null): PlaybackProgress | null =>
   dto ? { positionSec: dto.position_sec, maxReachedSec: dto.max_reached_sec } : null;
+
+/**
+ * 앱의 진입점 → 서버 `entry_point`(library-api.md 4.4 enum). `onboarding`(KAN-295)은 분석 전용이라 서버 enum 에 없다 —
+ * 그대로 보내면 400 으로 재생이 막힌다. 첫 드립 편은 라이브러리 항목이므로 `library`로 보낸다(판정에 쓰이지 않는 값이다)
+ */
+export const toServerEntryPoint = (
+  entryPoint: PlayEntryPoint,
+): PlayStartRequestDto['entry_point'] => (entryPoint === 'onboarding' ? 'library' : entryPoint);
 
 const toPlayStartResult = (dto: PlayStartResponseDto): PlayStartResult => ({
   counted: dto.counted,
@@ -134,7 +143,7 @@ export const startPlay = async (input: {
     : (
         await apiClient.post<PlayStartResponseDto>(
           `/contents/${input.contentId}/play`,
-          { entry_point: input.entryPoint },
+          { entry_point: toServerEntryPoint(input.entryPoint) } satisfies PlayStartRequestDto,
           { noAutoRetry: true },
         )
       ).data;

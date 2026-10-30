@@ -2,9 +2,19 @@ import { Injectable } from '@nestjs/common';
 
 import {
   serviceDateStart,
+  shiftServiceDate,
   shiftWeekStart,
   toCurrentWeekStart,
+  toServiceDate,
+  toServiceDayRange,
 } from '@/common/utils/service-date.util';
+import {
+  DRIP_ARRIVAL_SLOT_TIMES,
+  DripArrivalSlot,
+  dripArrivalVariantOf,
+} from '@/modules/drip/drip-group.policy';
+import { dripArrivalLogType } from '@/modules/notification/services/drip-arrival-notification.service';
+import { MORNING_PUSH_LOG_TYPE_PREFIX } from '@/modules/retention-push/retention-push.constant';
 import { UserMarket } from '@/modules/user/user.enum';
 
 import { COMPLETION_REACHED_RATIO } from '@/modules/library/library.constant';
@@ -27,6 +37,12 @@ import {
   INSIGHTS_RETENTION_DAYS,
   INSIGHTS_SUMMARY_MAX_DAYS,
   INSIGHTS_WEEKDAY_LABELS,
+  SERIES_EPISODES_MIN_AGE_HOURS,
+  SHORT_VARIANT_DROP_10_SEC,
+  SHORT_VARIANT_DROP_30_SEC,
+  SHORT_VARIANT_DROP_60_SEC,
+  SHORT_VARIANT_MIN_AGE_HOURS,
+  DRIP_ARRIVAL_TIME_MAX_DAYS,
 } from '../admin.constant';
 import {
   InsightsCohortCounts,
@@ -34,16 +50,30 @@ import {
   InsightsCompletionByLength,
   InsightsDaily,
   InsightsDailyRows,
+  InsightsDripArrivalTime,
   InsightsFunnel,
   InsightsHourly,
   InsightsInviteCodeBaseline,
   InsightsInviteCodeCohort,
   InsightsMarketTotals,
+  InsightsSeriesEpisodes,
+  InsightsShortVariant,
   InsightsSummary,
   InsightsWeekday,
 } from '../admin.types';
 import { AdminInsightsRepository } from '../repositories/admin-insights.repository';
 import { summarizeCompletionByLength } from './admin-insights-completion.calc';
+import {
+  DripArrivalTimeArmSpec,
+  dripArrivalTimeArms,
+} from './admin-insights-drip-arrival-time.calc';
+import { groupSeriesEpisodes } from './admin-insights-series.calc';
+import {
+  byCohort,
+  byIntroVersion,
+  byLengthProfile,
+  variantPairs,
+} from './admin-insights-short-variant.calc';
 import {
   buildFunnelCohort,
   summarizeFunnelSteps,
@@ -51,6 +81,50 @@ import {
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const KST_OFFSET_MS = 9 * 60 * 60 * 1000;
+
+const hhmm = ({ hour, minute }: { hour: number; minute: number }): string =>
+  `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
+
+/** 도착 알림 시각 실험의 네 행 — 순서·발송 시각·참고 여부. 아침 알림은 08:00(KAN-288) · 드립 없는 날만이라 A/B 비교가 아니다 */
+const DRIP_ARRIVAL_TIME_ARMS: DripArrivalTimeArmSpec[] = [
+  {
+    key: 'baseline',
+    sendTime: hhmm(DRIP_ARRIVAL_SLOT_TIMES[DripArrivalSlot.H0700]),
+    reference: false,
+  },
+  {
+    key: 'a',
+    sendTime: hhmm(DRIP_ARRIVAL_SLOT_TIMES[DripArrivalSlot.H0730]),
+    reference: false,
+  },
+  {
+    key: 'b',
+    sendTime: hhmm(DRIP_ARRIVAL_SLOT_TIMES[DripArrivalSlot.H0800]),
+    reference: false,
+  },
+  {
+    key: 'morning',
+    sendTime: hhmm(DRIP_ARRIVAL_SLOT_TIMES[DripArrivalSlot.H0800]),
+    reference: true,
+  },
+];
+
+/** `[from, to]`가 걸친 서비스 날짜마다 `[start, end)` — 전환일(25시간)도 `toServiceDayRange`가 맞춘다 */
+export function serviceDayRangesBetween(
+  from: Date,
+  to: Date,
+): { start: Date; end: Date }[] {
+  const last = toServiceDate(to);
+  const ranges: { start: Date; end: Date }[] = [];
+  for (
+    let label = toServiceDate(from);
+    label <= last;
+    label = shiftServiceDate(label, 1)
+  ) {
+    ranges.push(toServiceDayRange(serviceDateStart(label)));
+  }
+  return ranges;
+}
 
 /**
  * 서비스 지표 요약(`admin-api.md` 4.22) — 집계는 Repository 가, 여기서는 창을 정하고 빈 날짜·시간대를 0 으로 채운다.
@@ -162,6 +236,93 @@ export class AdminInsightsService {
       slopeStepMin: COMPLETION_LENGTH_SLOPE_STEP_MIN,
       minContents: COMPLETION_LENGTH_MIN_CONTENTS,
     });
+  }
+
+  /**
+   * 시리즈 편별 완청·이탈(`GET /admin/insights/series-episodes`, KAN-293, 2026-10-29) — 편마다 시작·완청·다음 편 진행 수를 읽어
+   * 비율을 붙이고 시리즈로 묶는다(`admin-insights-series.calc.ts`). 시작·완청 정의는 길이별 완청률과 같다.
+   */
+  async seriesEpisodes(
+    now: Date,
+    market: UserMarket | null = null,
+  ): Promise<InsightsSeriesEpisodes> {
+    const rows = await this.repository.seriesEpisodes(now, {
+      market,
+      minAgeHours: SERIES_EPISODES_MIN_AGE_HOURS,
+      reachedRatio: COMPLETION_REACHED_RATIO,
+    });
+    return { generatedAt: now, market, series: groupSeriesEpisodes(rows) };
+  }
+
+  /**
+   * 짧은 판·도입부 실험(`GET /admin/insights/short-variant`, KAN-298 · KAN-296, 2026-10-29) — 기존 판 vs 짧은 판 완청률,
+   * 기존 도입부 vs 바뀐 도입부의 10초·30초·1분 이탈. `cohortSince`는 호출자가 `ContentCohortService.cohortSince()`로 넘긴다
+   * (판정 규칙을 다시 만들지 않는다). 질의는 순차로 부른다.
+   */
+  async shortVariant(
+    now: Date,
+    cohortSince: Date | null,
+    market: UserMarket | null = null,
+  ): Promise<InsightsShortVariant> {
+    const rows = await this.repository.shortVariantRows(now, {
+      market,
+      minAgeHours: SHORT_VARIANT_MIN_AGE_HOURS,
+      reachedRatio: COMPLETION_REACHED_RATIO,
+      cohortSince,
+      dropSec: [
+        SHORT_VARIANT_DROP_10_SEC,
+        SHORT_VARIANT_DROP_30_SEC,
+        SHORT_VARIANT_DROP_60_SEC,
+      ],
+    });
+    const pairs = await this.repository.shortVariantPairs(market);
+    return {
+      generatedAt: now,
+      market,
+      cohortSince,
+      cohortWindowHours:
+        cohortSince === null
+          ? null
+          : Math.max(0, (now.getTime() - cohortSince.getTime()) / 3_600_000),
+      byCohort: byCohort(rows, cohortSince !== null),
+      byLengthProfile: byLengthProfile(rows),
+      byIntroVersion: byIntroVersion(rows),
+      pairs: variantPairs(rows, pairs),
+    };
+  }
+
+  /**
+   * 도착 알림 시각 실험(`GET /admin/insights/drip-arrival-time`, KAN-289, 2026-10-30) — 07:00 기준선 · 07:30(A) · 08:00(B)와
+   * 참고 행(아침 알림)의 2시간·당일 재생률. 종류 문자열은 보내는 쪽 정책 함수로 만들고(`dripArrivalLogType` ·
+   * `dripArrivalVariantOf`), 당일 경계는 `toServiceDayRange`로 넘긴다(경계 규칙을 다시 만들지 않는다).
+   */
+  async dripArrivalTime(
+    now: Date,
+    days: number,
+    market: UserMarket | null = null,
+  ): Promise<InsightsDripArrivalTime> {
+    const clamped = Math.min(Math.max(1, days), DRIP_ARRIVAL_TIME_MAX_DAYS);
+    const since = new Date(now.getTime() - clamped * DAY_MS);
+    const typeOf = (slot: DripArrivalSlot) =>
+      dripArrivalLogType(dripArrivalVariantOf(slot, true));
+
+    const rows = await this.repository.dripArrivalTimeRows(since, {
+      market,
+      types: {
+        baseline: dripArrivalLogType(null),
+        a: typeOf(DripArrivalSlot.H0730),
+        b: typeOf(DripArrivalSlot.H0800),
+        morningPrefix: MORNING_PUSH_LOG_TYPE_PREFIX,
+      },
+      serviceDays: serviceDayRangesBetween(since, now),
+    });
+    return {
+      generatedAt: now,
+      market,
+      days: clamped,
+      since,
+      arms: dripArrivalTimeArms(rows, DRIP_ARRIVAL_TIME_ARMS),
+    };
   }
 
   async summarize(

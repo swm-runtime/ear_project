@@ -6,7 +6,7 @@
 > 오류 · 재시도: [`docs/features/common-error-handling.md`](../../features/common-error-handling.md)
 > 스키마: [`docs/backend/domain.md`](../../backend/domain.md) 3.5 · 6.8 · 8.5 · 8.6 · 8.7 · 12.3
 
-작성: 2026-10-28 (KAN-279 — 박준현). 구현은 이 계약을 따른다(서버 구현 전 — FE KAN-280 · 콘솔 KAN-284가 이 문서로 붙는다).
+작성: 2026-10-28 (KAN-279 — 박준현). 구현은 이 계약을 따른다(FE KAN-280 · 콘솔 KAN-284가 이 문서로 붙는다). 2026-10-30 통합 — 서버 구현(PR #2141 외)이 계약 밖에서 정한 세부(`changes/archive/content-review-implementation-decisions.md`)와 먼저 묻는 간격 2일(`changes/archive/content-review-prompt-interval.md`)을 반영했다.
 
 ## 1. 범위
 
@@ -37,7 +37,7 @@
 | 필드 | snake_case · 시각 ISO 8601 UTC · 서비스 날짜는 `YYYY-MM-DD` 라벨(05:00 KST 경계 — `domain.md` 1.2) |
 | 캐시 | 전부 `Cache-Control: no-store` |
 | 멱등키 | **없다.** 후기는 `(user_id, content_id)` upsert라 재전송이 같은 상태로 수렴하고, 닫기 · 그만 보기는 절대값 저장이다. 프로모션 사용은 프로모션 행 잠금으로 한 번만 지급된다(4.7) |
-| 시장 | access token의 `market`으로 정한다. 다른 시장 콘텐츠는 없는 것과 같다(404 `CONTENT_NOT_FOUND` — `global-api.md` 4.7) |
+| 시장 | access token의 `market`으로 정한다. 다른 시장 콘텐츠는 없는 것과 같다(404 `CONTENT_NOT_FOUND` — `global-api.md` 4.7). 후기 행의 `market`(6.8)도 이 값으로 적는다(편 시장 판정과 같은 값). **프로모션 `name` · `plan_name` · `plan.grant.name`의 언어만은 `users.market`**으로 고른다 — 구독 조회의 요금제 이름 규칙과 같은 값이다 |
 
 ### 2.1 서버 스위치와 앱 노출 — `enabled`
 
@@ -152,7 +152,7 @@
 | `reward_progress` | 2.2 — `null`이면 보상 줄 없음 |
 
 - **"재생을 시작한 적 있음"** = 그 편의 재생 위치(`playback_progresses`) 또는 재생 기록(`play_records`)이 있다. 라이브러리에 담기만 한 편은 아니다. 라이브러리에서 지운 편도 들은 적 있으면 쓸 수 있다.
-- 콘텐츠가 없거나 다른 시장이면 404 `CONTENT_NOT_FOUND`.
+- 콘텐츠가 없거나 다른 시장이면 404 `CONTENT_NOT_FOUND`. **이 판정은 스위치보다 먼저다** — 스위치가 꺼져 있어도 없는 편 · 다른 시장 편은 404이고, 있는 편이면 이미 쓴 후기(`review`)를 싣고 `reason: disabled`로 준다(2026-10-29 서버 결정).
 
 ### 4.2 `PUT /contents/:contentId/review`
 
@@ -168,6 +168,9 @@
 | `text` | string \| null | 선택 | 서버가 앞뒤 공백을 뺀다. 뺀 뒤 0~500자(코드 포인트). 빈 값 · `null` · 생략 = **글 없음**(있던 글을 지운다). 뺀 뒤 500자를 넘으면 400 — 잘라 저장하지 않는다 |
 
 - **덮어쓰기다.** 같은 편의 재전송 · 수정은 마지막 값이 이긴다. `is_completed` · `content_version`은 서버가 **이 저장 시점의 값으로** 다시 적는다(2.2).
+- **동시 저장** — 저장 트랜잭션은 사용자 행을 먼저 잠근다(같은 계정의 두 기기 저장을 직렬로). 발급 단계의 "서로 다른 편 3개" 셈을 두 저장이 모두 2로 보고 지나치지 않게 하기 위해서다.
+- **보상 셈의 글자 수** — 글에서 공백(JS `\s` — NBSP · 전각 공백을 포함한 유니코드 공백 전부)을 뺀 코드 포인트 수다. DB 로케일에 맡기지 않는다.
+- 이 경로는 서버의 `billing` 모듈이 받는다(`ContentReviewSaveController` — `issued_promotion`이 구독 · 지급 상태로 조립되기 때문. `backend/architecture.md` 4.5). 저장 판정 · 발급은 `ContentReviewService`가 하고, 시트 열기(GET 같은 경로)는 `content-review` 모듈에 있다. 계약에는 영향이 없다.
 
 **Response 200**
 
@@ -232,10 +235,10 @@
 
 **판정**(`content-review.md` 4.3 — 앞에서 걸리면 `show=false`)
 
-1. 스위치 꺼짐 → `enabled=false` · `show=false` · `item=null` · `reward_progress=null`.
+1. 스위치 꺼짐 → `enabled=false` · `show=false` · `item=null` · `reward_progress=null` · `muted_until=null`(그만 보기 상태를 읽지 않는다).
 2. 그만 보기 중(오늘 서비스 날짜 < `muted_until`).
-3. 마지막으로 물은 날 + **5 서비스 날짜**가 아직 안 됨(오늘 < 물은 날 + 5). 물은 날이 10-28이면 11-02부터 다시 묻는다 — 11-01(4일째)은 묻지 않는다. 상수 `CONTENT_REVIEW_PROMPT_INTERVAL_DAYS = 5`.
-4. **최근 14 서비스 날짜 안(오늘 포함)에 끝까지 들었고 아직 후기가 없는 편**이 없음. 있으면 그중 가장 최근에 끝까지 들은 편 하나다. 현재 시장 · 노출 조건(회수 · 만료 제외) · 재생 시작을 만족하는 편만 본다. 상수 `CONTENT_REVIEW_PROMPT_RECENT_DAYS = 14`. "끝까지 들은 시각"은 라이브러리 행의 완청 시각, 없으면 완청 신호(`user_signals.action = complete`)의 시각이다.
+3. 마지막으로 물은 날 + **2 서비스 날짜**가 아직 안 됨(오늘 < 물은 날 + 2). 물은 날이 10-28이면 10-30부터 다시 묻는다 — 10-29는 묻지 않는다. 상수 `CONTENT_REVIEW_PROMPT_INTERVAL_DAYS = 2`(2026-10-30 — 종전 5).
+4. **최근 14 서비스 날짜 안(오늘 포함)에 끝까지 들었고 아직 후기가 없는 편**이 없음. 있으면 그중 가장 최근에 끝까지 들은 편 하나다. 현재 시장 · 노출 조건(회수 · 만료 제외) · 재생 시작을 만족하는 편만 본다. 상수 `CONTENT_REVIEW_PROMPT_RECENT_DAYS = 14`. "끝까지 들은 시각"은 라이브러리 행의 `completed_at`(지운 행 포함, 여러 행이면 가장 늦은 값), 없으면 그 편 완청 신호(`user_signals.action = complete`)의 **가장 늦은** 시각이다. 위치만 90%를 넘고 완청 신호가 없는 편은 시각이 없어 묻지 않는다(완청 신호는 완청 때 함께 남으므로 실제로는 드물다).
 
 - 이 조회는 **상태를 바꾸지 않는다**("물었다"는 4.4 · 4.5가 적는다). 앱이 `show=true`를 받고도 띄우지 않았으면(추천 별점 우선) 아무것도 보내지 않는다 — 다음 진입에 다시 묻는다.
 
@@ -245,6 +248,7 @@
 
 - 먼저 묻는 시트가 **닫힐 때 한 번** 부른다 — [닫기]든, [보내기]로 저장(4.2)한 뒤 닫혔든 같다("닫든 보내든 물었다로 친다" — 4.3-3). 저장은 이 호출을 대신하지 않는다(상시 진입점의 저장과 구분할 수 없어서다).
 - 오늘 서비스 날짜를 "마지막으로 물은 날"로 적는다. 뒤로 가지 않고, 같은 날 재전송은 무해하다.
+- **스위치가 꺼져 있어도 거부하지 않고 그대로 적는다**(204 — 4.5도 같다, 200). 상태만 바꾸는 무해한 호출이라 오프라인 큐의 재전송을 실패로 만들지 않는다.
 
 ### 4.5 `POST /users/me/content-review/prompt/mute`
 
@@ -279,7 +283,7 @@
 | `grant` | **이용 중** 섹션 — `subscription-api.md` 4.8 `plan.grant`와 같은 모양 · 같은 값(초대 코드 지급이든 후기 참여든). 없으면 `null` |
 | `promotions[]` | 사용 가능한 프로모션(2.2) — 쓰지 않았고 소멸 전인 것만, 발급 최신순. 없으면 빈 배열 |
 | `has_unused` | `promotions`가 하나라도 있는가 — 설정 [프로모션] 행의 점 배지. `redeemable=false`여도 `true`다(가진 것이 있다는 표시) |
-| `reward_progress` | **아직 받지 않았을 때** 섹션("끝까지 들은 편 3개에 후기를 남기면 … · 지금 N/3") — 2.2. 두 스위치가 모두 켜져 있고 받은 적이 없을 때만 채워진다 |
+| `reward_progress` | **아직 받지 않았을 때** 섹션("끝까지 들은 편 3개에 후기를 남기면 … · 지금 N/3") — 2.2. 두 스위치가 모두 켜져 있고 받은 적이 없을 때만 채워진다. 시트(4.1) · 저장(4.2) · 먼저 묻기(4.3) · 이 화면이 **한 함수**로 계산한다 — 후기 스위치가 꺼지면 여기서도 `null`이다 |
 
 ### 4.7 `POST /users/me/promotions/:promotionId/redeem`
 
@@ -315,6 +319,7 @@
 | 5 | 다른 지급 이용 중(초대 코드 등) — `reason: grant_active` | `INVITE_GRANT_ALREADY_ACTIVE` (기존 — 계정당 지급은 동시에 하나, 같은 판정) | 409 |
 
 - 무료 · 가입 체험 중 · 데일리 구독 중은 쓸 수 있다(`content-review.md` 4.5).
+- "쓸 때 구독 중"(`subscribed_at_start`)과 4의 Pro 구독 판정은 `SubscriptionService.findEntitled`(해지 예약 · 결제 유예 포함 — 초대 코드 입력과 같은 술어)의 행으로 본다. 다운그레이드 예약은 지금 Pro라 거부된다.
 - 사용자 행 → 프로모션 행 순으로 잠그고 판정한다 — 두 기기가 동시에 [쓰기]를 눌러도 지급은 하나이고 늦은 쪽은 `PROMOTION_ALREADY_USED`다. **응답이 유실된 뒤의 재전송도 이 409**다 — 앱은 이 코드를 받으면 오류 문구 대신 S12 · 구독 조회를 다시 받아 `grant`가 있으면 사용 성공으로 그린다.
 - 4 · 5의 사유는 4.6 목록의 `reason`과 같은 판정이다 — 정상 앱은 흐린 버튼으로 먼저 막으므로 드물다(그사이 결제 · 코드 입력이 있었을 때).
 
@@ -362,6 +367,7 @@
 | `items[].text_reviews` · `completed_reviews` | 글 있는 후기 수 · 쓸 때 끝까지 들은 후기 수 |
 | `items[].by_version[]` | 후기를 쓴(고친) 시점의 버전별 수 · 평균, 버전 역순 — 재합성 효과 비교 |
 
+- 평균 별점은 소수 둘째 자리에서 반올림한다(`3.8` · `4.33`). `totals.average_stars`는 편 평균의 평균이 아니라 **후기 단위 가중 평균**이다.
 - **사용자 식별값(`user_id` · 닉네임 · 이메일)은 싣지 않는다.**
 
 ### 4.9 `GET /admin/content-reviews` — 글 목록 (읽기 전용)
@@ -375,7 +381,7 @@
 | `content_id` | uuid | 선택 | 한 편만(편별 목록) |
 | `market` | `kr` \| `global` | 선택 | 후기를 쓴 때의 사용자 시장 |
 | `has_text` | `true` \| `false` | 선택 | `true`면 글 있는 후기만 |
-| `cursor` | string | 선택 | 직전 응답의 `next_cursor` 그대로(같은 필터로 이어 받는다). 해석할 수 없는 값이면 400 `VALIDATION_FAILED` |
+| `cursor` | string | 선택 | 직전 응답의 `next_cursor` 그대로(같은 필터로 이어 받는다). 해석할 수 없는 값, **발급 때의 필터(`content_id` · `market` · `has_text`)와 다른 요청**이면 400 `VALIDATION_FAILED`. 커서의 시각은 마이크로초까지 담는다 |
 | `limit` | int 1~100 | 선택 | 기본 20 |
 
 **Response 200**
@@ -414,7 +420,7 @@
 
 ## 5. 에러 코드 표
 
-**신설 코드** — `common-error-handling.md`(FE 소유) 등재는 `changes/pending/content-review-contract.md`로 요청한다. enum 반영은 서버 구현 PR에서 한다.
+**신설 코드** — `common-error-handling.md` 9.10-4에 등재했다(2026-10-30 통합 — `changes/pending/content-review-contract.md` 2절).
 
 | error_code | HTTP | retryable | 클라이언트 동작 |
 |---|---|---|---|

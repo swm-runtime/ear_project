@@ -41,6 +41,7 @@ jest.mock('@/features/player', () => ({
   PlayConfirmDialog: () => null,
   useBottomDockInset: () => 80,
 }));
+jest.mock('@/features/content-review', () => ({ ContentReviewSheets: () => null }));
 jest.mock('../hooks/useExploreSearchScreen', () => ({ useExploreSearchScreen: jest.fn() }));
 jest.mock('../components/SearchInputRow', () => jest.fn(() => null));
 jest.mock('../components/SearchToolbar', () => jest.fn(() => null));

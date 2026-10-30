@@ -1,3 +1,4 @@
+import { ContentCohortService } from '@/modules/content/services/content-cohort.service';
 import { BusinessException } from '@/common/exceptions/business.exception';
 import { ErrorCode } from '@/common/exceptions/error-code.enum';
 import { LibraryItemStatus } from '@/modules/library/library.enum';
@@ -106,6 +107,7 @@ function build(env: Record<string, string | undefined>) {
     { replaceCareer: jest.fn() } as never,
     { findAllByIds: jest.fn().mockResolvedValue([]) } as never,
     deps.contentService as never,
+    new ContentCohortService({ get: () => undefined } as never),
     deps.libraryService as never,
     deps.playService as never,
     deps.playbackProgressService as never,

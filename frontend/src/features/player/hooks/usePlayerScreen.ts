@@ -14,6 +14,7 @@ import {
 } from '@/shared/navigation/zoom-transition';
 import { useToastStore } from '@/shared/ui/toast.store';
 
+import { useContentReviewLauncher } from '@/features/content-review';
 import {
   settingsKeys,
   updateUserSettings,
@@ -25,6 +26,7 @@ import { useDeferredSheetShare } from '@/features/share';
 import { BUFFERING_INDICATOR_DELAY_MS, PLAYER_DELETE_UNDO_DURATION_MS } from '../player.constants';
 import { PLAYER_COPY } from '../player.copy';
 import type { PlayEntryPoint, PlaybackStartMeta, QueueEntry, QueueItem } from '../player.types';
+import { takeLockedNextTarget, useIsAppActive } from './useLockedPlaybackHost';
 import { usePlayGate } from './usePlayGate';
 import { queueKeys } from './useQueueQuery';
 import { upNextKeys } from './useUpNextQuery';
@@ -246,7 +248,7 @@ export const usePlayerScreen = () => {
     playbackService.applyRate(serverRate);
   }, [serverRate]);
 
-  /* ── 발급·재생 시작의 한도 403 — 플레이어를 닫고 페이월/한도 안내로 전환(player-api.md 5장) ── */
+  /* ── 발급·재생 시작의 한도·잠금 403 — 플레이어를 닫고 페이월/한도 안내/잠금 시트로 전환(player-api.md 5장 · experiments-api.md 4.2-3) ── */
   const blockedState = isActiveSession && session.state === 'blocked' ? session.blocked : null;
   useEffect(() => {
     if (!blockedState) return;
@@ -257,7 +259,14 @@ export const usePlayerScreen = () => {
     const blockedQueue = blockedStore.queueContext;
     playbackService.clearSession();
     close();
-    if (blockedState.kind === 'paywall') {
+    if (blockedState.kind === 'series_locked') {
+      // 잠긴 편(KAN-294) — 한도 시트가 아니라 잠금 시트. 결제 뒤 다시 틀 편은 페이월과 같이 넘긴다
+      playGate.openSeriesLock('player', blockedState.message ?? undefined, {
+        contentId: blockedContentId,
+        isCountedToday: false,
+        queue: blockedQueue,
+      });
+    } else if (blockedState.kind === 'paywall') {
       // 세션이 어디서 왔든 사용자가 본 것은 플레이어 화면이다
       playGate.openPaywall('player', blockedState.message ?? undefined, {
         contentId: blockedContentId,
@@ -271,6 +280,22 @@ export const usePlayerScreen = () => {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- blocked 전이 1회에만 반응한다
   }, [blockedState]);
+
+  /*
+   * ── 자동 재생이 잠긴 다음 편 앞에서 멈췄다(KAN-302) — 플레이어를 닫고 잠금 시트로. 차단 403 과 같은 순서다(플레이어 모달 위에 시트를
+   * 겹치지 않는다). 듣던 편 세션은 남긴다 — 미니플레이어에 끝난 편이 그대로 있다. 위에 상세가 쌓였으면 돌아왔을 때, 화면 밖이면
+   * 앱이 앞으로 올 때 ──
+   */
+  const lockedNext = usePlaybackStore((s) => s.lockedNext);
+  const isAppActive = useIsAppActive();
+  useEffect(() => {
+    if (lockedNext === null || !isAppActive || !isFocused) return;
+    const target = takeLockedNextTarget();
+    if (target === null) return;
+    close();
+    playGate.openSeriesLock('player', undefined, target);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- 기록이 생기거나 화면이 앞으로 온 때에만 반응한다
+  }, [lockedNext, isAppActive, isFocused]);
 
   /* ── 삭제 — 스낵바 5초가 사라진 뒤에 서버 요청을 보낸다(library.md 4.5 규칙 준용) ── */
   const commitDelete = (itemId: string) => {
@@ -417,6 +442,8 @@ export const usePlayerScreen = () => {
   const queueEntryTarget = (item: QueueEntry) => ({
     contentId: item.contentId,
     isCountedToday: item.isCountedToday,
+    // 잠긴 줄은 게이트가 잠금 시트로 받는다(KAN-294) — 듣던 편은 그대로다
+    isLocked: item.isLocked,
     meta: {
       title: item.title,
       authorName: item.authorName ?? undefined,
@@ -472,14 +499,11 @@ export const usePlayerScreen = () => {
   const reflectSavedItemId = (contentId: string, itemId: string | null) => {
     const latest = usePlaybackStore.getState();
     latest.setQueueContext(withSnapshotItemId(latest.queueContext, contentId, itemId));
-    queryClient.setQueriesData<InfiniteData<QueueEntry[]>>(
-      { queryKey: upNextKeys.all },
-      (data) => {
-        if (data === undefined) return data;
-        const pages = withPagesItemId(data.pages, contentId, itemId);
-        return pages === data.pages ? data : { ...data, pages };
-      },
-    );
+    queryClient.setQueriesData<InfiniteData<QueueEntry[]>>({ queryKey: upNextKeys.all }, (data) => {
+      if (data === undefined) return data;
+      const pages = withPagesItemId(data.pages, contentId, itemId);
+      return pages === data.pages ? data : { ...data, pages };
+    });
   };
   const saveQueueItem = (item: QueueEntry) => {
     if (item.itemId !== null) return;
@@ -522,6 +546,8 @@ export const usePlayerScreen = () => {
       공유는 시트가 닫힌 뒤 열린다 — iOS의
       Modal dismiss ↔ 시스템 시트 present 경합 우회(useDeferredSheetShare) */
   const { requestShare, handleSheetDismiss } = useDeferredSheetShare();
+  // PL7 [후기] → 후기 시트(L17) · 발급 안내(L19) — 플레이어(네이티브 모달) 안에 그려 같은 층에 뜬다(KAN-280)
+  const reviewLauncher = useContentReviewLauncher();
   const handleMoreSheetDismiss = () => {
     const detailContentId = pendingDetailRef.current;
     pendingDetailRef.current = null;
@@ -533,6 +559,17 @@ export const usePlayerScreen = () => {
       return;
     }
     handleSheetDismiss();
+    reviewLauncher.handleHostSheetClosed();
+  };
+  /** PL7 [후기](KAN-280) — 시트를 닫고 닫힘이 끝나면 후기 시트를 연다. 제목이 아직 없으면 열지 않는다(공유와 같은 원칙) */
+  const openReview = () => {
+    const meta = session?.meta;
+    if (!meta?.title) return;
+    setIsMoreSheetVisible(false);
+    reviewLauncher.request(
+      { contentId, title: meta.title, thumbnailUrl: meta.thumbnailUrl ?? null },
+      { afterHostSheetClosed: true },
+    );
   };
   const sharePress = () => {
     const meta = session?.meta;
@@ -626,6 +663,9 @@ export const usePlayerScreen = () => {
     openDetail,
     sharePress,
     handleMoreSheetDismiss,
+    /** [후기] 행 — 서버가 후기 기능을 켜 줬을 때만 그린다(받은 적 없거나 실패면 없음) */
+    openReview: reviewLauncher.isEnabled ? openReview : undefined,
+    reviewLauncher,
     requestDelete,
     pendingDeleteItemId,
     hiddenQueueItemIds,

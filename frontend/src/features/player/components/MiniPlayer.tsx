@@ -19,6 +19,7 @@ import {
 } from '@/shared/navigation/zoom-transition';
 import { motion, theme } from '@/shared/theme';
 import GlassSurface from '@/shared/ui/GlassSurface';
+import LockIcon from '@/shared/ui/LockIcon';
 import MarqueeText from '@/shared/ui/MarqueeText';
 import RemoteImage from '@/shared/ui/RemoteImage';
 import { Text } from '@/shared/ui/Typography';
@@ -89,6 +90,8 @@ const MINI_ACCESSORY_ROW_PADDING = 4;
 const MINI_PLAYER_DISMISSABLE = false;
 /** 캡슐 탭 바와 미니플레이어 카드 사이(mini-player-layout.store 의 DOCK_GAP 과 같다) */
 const DOCK_GAP = 8;
+/** 잠긴 편의 자물쇠 — SF `lock.fill` 은 같은 크기면 삼각형보다 커 보여 한 단 줄인다(SeriesHeader 와 같은 비율) */
+const MINI_LOCK_ICON_SIZE = Math.round(MINI_PLAY_ICON_SIZE * 0.78);
 
 /** 앱 재실행 복원 대상(library-api.md 4.3) — 노출·대상 판정은 라이브러리 소유(library.md 4.2) */
 export interface MiniPlayerResumeFallback {
@@ -99,6 +102,8 @@ export interface MiniPlayerResumeFallback {
   durationSec: number;
   /** 카테고리 줄용 주제 id — 복원 응답엔 아직 없어(library-api.md 4.3) 생략되고, 그러면 제목만 그린다 */
   topicIds?: string[];
+  /** 잠긴 시리즈 편(서버 `is_locked` — KAN-302) — ▶ 자리에 자물쇠. 누르면 라이브러리가 발급 없이 잠금 시트를 띄운다 */
+  isLocked?: boolean;
 }
 
 interface MiniPlayerProps {
@@ -172,6 +177,11 @@ export default function MiniPlayer({
     });
   };
   const expandResume = () => {
+    // 잠긴 편(KAN-302)은 플레이어를 열지 않고 잠금 시트로 간다 — 줌 전환을 걸어 두지 않는다(안 쓰인 줌이 다음 열림에 남지 않게)
+    if (resumeFallback?.isLocked === true) {
+      onResumeExpandPress?.();
+      return;
+    }
     void armPlayerZoom().then(() => onResumeExpandPress?.());
   };
   // 썸네일·제목의 실제 자리 — 상수로 추정하면 몇 px 어긋나 착지 순간 잔상이 겹친다(2026-09-17)
@@ -359,6 +369,8 @@ export default function MiniPlayer({
         positionSec: session.positionSec,
         durationSec: session.durationSec,
         isPlaying: session.isPlaying,
+        // 살아 있는 세션은 이미 받은 URL 로 끝까지 듣는다(KAN-302) — 잠기면 서버 403 이 세션을 막고 잠금 시트로 넘어간다
+        isLocked: false,
         onBodyPress: () => {
           // 확대는 재생 상태 그대로다 — 재생을 시작시키지 않는다(uiux 4.8)
           openPlayer({ contentId: session.contentId });
@@ -385,6 +397,7 @@ export default function MiniPlayer({
         durationSec: resumeFallback!.durationSec,
         // 복원은 일시정지 상태로만 뜬다 — ▶ 아이콘(일시정지 아이콘은 재생 중으로 읽힌다)
         isPlaying: false,
+        isLocked: resumeFallback!.isLocked === true,
         onBodyPress: expandResume,
         onButtonPress: () => onResumePlayPress?.(),
       };
@@ -489,14 +502,25 @@ export default function MiniPlayer({
           onPress={view.onButtonPress}
           accessibilityRole="button"
           accessibilityLabel={
-            view.isPlaying ? PLAYER_COPY.miniPlayer.pauseA11y : PLAYER_COPY.miniPlayer.playA11y
+            view.isLocked
+              ? PLAYER_COPY.miniPlayer.lockedPlayA11y
+              : view.isPlaying
+                ? PLAYER_COPY.miniPlayer.pauseA11y
+                : PLAYER_COPY.miniPlayer.playA11y
           }
         >
-          <PlayPauseSymbol
-            kind={view.isPlaying ? 'pause' : 'play'}
-            size={MINI_PLAY_ICON_SIZE}
-            color={theme.color.textPrimary}
-          />
+          {view.isLocked ? (
+            // 시리즈 머리 [재생]과 같은 규칙 — 누르기 전에 잠긴 줄 보이게 한다(KAN-302)
+            <View testID="mini-player-lock">
+              <LockIcon size={MINI_LOCK_ICON_SIZE} color={theme.color.textPrimary} />
+            </View>
+          ) : (
+            <PlayPauseSymbol
+              kind={view.isPlaying ? 'pause' : 'play'}
+              size={MINI_PLAY_ICON_SIZE}
+              color={theme.color.textPrimary}
+            />
+          )}
         </Pressable>
       </View>
       {/* 진행바는 **아래 변**(2026-09-25 PM) — 유리 위 림의 흰 하이라이트 밑에 검정 선을 두면 테두리가 두 겹으로 읽혔다.

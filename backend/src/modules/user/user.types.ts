@@ -28,6 +28,10 @@ export type UserPlanProfile = Pick<
   | 'jobCategory'
   | 'yearsOfExperience'
   | 'onboardingCompleted'
+  // 가입 시각 — 짧은 판 코호트(KAN-298) 판정 입력. 편성 미리보기가 배치와 같은 후보를 보려면 필요하다
+  | 'createdAt'
+  // 가입 체험 종료 시각 — 시리즈 유료화(KAN-290) 판정 입력. 미리보기가 배치와 같은 시리즈 편 후보를 보려면 필요하다
+  | 'trialEndsAt'
 >;
 
 /** 소셜 프로필에서 환산한 계정 생성 입력 (auth.md 4.1) */
@@ -172,6 +176,10 @@ export interface UserSettingView {
   dripFeedbackMutedUntil: string | null;
   /** 마지막으로 별점을 물은 편성분의 서비스 날짜(`drip-feedback.md` 4.1). 설정 화면 응답에는 싣지 않는다 */
   dripFeedbackLastPromptedDate: string | null;
+  /** 마지막으로 후기를 먼저 물은 서비스 날짜(`content-review.md` 4.3). 설정 화면 응답에는 싣지 않는다 */
+  contentReviewLastPromptedDate: string | null;
+  /** 후기 먼저 묻기 그만 보기 종료 서비스 날짜(`content-review.md` 4.3). 설정 화면 응답에는 싣지 않는다 */
+  contentReviewMutedUntil: string | null;
   /** 사용자가 고른 음질(`player.md` 4.9 — KAN-141). **`null` = 고른 적 없음(티어 허용 최고로 판정)**. 허용 밖 값도 그대로 둔다 — 재생은 서버가 깎는다 */
   preferredAudioQuality: AudioQuality | null;
 }
@@ -183,6 +191,8 @@ export interface UpdateUserSettingCommand {
   isDripNotificationEnabled?: boolean;
   dripFeedbackMutedUntil?: string | null;
   dripFeedbackLastPromptedDate?: string | null;
+  contentReviewLastPromptedDate?: string | null;
+  contentReviewMutedUntil?: string | null;
   /** `null`을 보내면 "고른 적 없음"으로 되돌린다(자동) */
   preferredAudioQuality?: AudioQuality | null;
 }

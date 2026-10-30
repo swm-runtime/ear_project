@@ -12,6 +12,7 @@ import { logger } from '@/shared/lib/logger';
 import { toTab } from '@/shared/navigation/to-tab';
 import { useToastStore } from '@/shared/ui/toast.store';
 
+import { useContentReviewEntry, useContentReviewLauncher } from '@/features/content-review';
 import {
   hydrateSuppressedServiceDate,
   sendSourceLinkClick,
@@ -60,6 +61,10 @@ export const useLibraryScreen = () => {
 
   // 추천 별점 팝업의 노출 판정 — 진입 시 한 세션에 한 번(KAN-224). 팝업은 MainNavigator 가 그리고, 실패는 조용하다
   useDripFeedbackEntry();
+  // 콘텐츠 후기의 먼저 묻기 판정 · 켜짐 여부 — 같은 진입에 한 세션 한 번(KAN-280). 시트는 MainNavigator 가 추천 별점 뒤에 그린다
+  useContentReviewEntry();
+  // L4 [후기] → 후기 시트(L17) · 발급 안내(L19) — 이 화면 안에 그린다
+  const reviewLauncher = useContentReviewLauncher();
 
   /* ── 필터 상태 — 앱을 종료하면 초기화된다(메모리 보관, library.md 7) ── */
   const [filter, setFilter] = useState<LibraryFilter>('all');
@@ -288,7 +293,24 @@ export const useLibraryScreen = () => {
   /** L4 [공유](SH1, P1) — 시트를 닫고 OS 공유 시트를 연다. 목록이 이미 든 값으로 조립하고
       전송·취소 어느 쪽에도 후속 동작이 없다(share.md 4.1·4.4). 공유는 시트가 닫힌 뒤 열린다
       — iOS의 Modal dismiss ↔ 시스템 시트 present 경합 우회(useDeferredSheetShare) */
-  const { requestShare, handleSheetDismiss } = useDeferredSheetShare();
+  const { requestShare, handleSheetDismiss: handleShareSheetDismiss } = useDeferredSheetShare();
+  /** 더보기 시트가 완전히 내려갔다 — 보류된 공유 · 후기 시트를 이 뒤에 연다(모달 둘을 겹치지 않는다) */
+  const handleSheetDismiss = () => {
+    handleShareSheetDismiss();
+    reviewLauncher.handleHostSheetClosed();
+  };
+  /** L4 [후기](KAN-280) — 시트를 닫고, 닫힘이 끝나면 후기 시트를 연다. 쓸 수 있는 편인지는 서버가 정한다 */
+  const openReview = (item: LibraryItem) => {
+    setMoreSheetItem(null);
+    reviewLauncher.request(
+      {
+        contentId: item.content.id,
+        title: item.content.title,
+        thumbnailUrl: item.content.thumbnailUrl,
+      },
+      { afterHostSheetClosed: true },
+    );
+  };
   const shareItem = (item: LibraryItem) => {
     setMoreSheetItem(null);
     requestShare({ contentId: item.content.id, title: item.content.title });
@@ -346,6 +368,8 @@ export const useLibraryScreen = () => {
       {
         contentId: item.content.id,
         isCountedToday: item.isCountedToday,
+        // 서버가 잠갔다고 준 편이면 게이트가 발급 없이 잠금 시트를 띄운다(KAN-294)
+        isLocked: item.content.isLocked,
         // 목록이 이미 아는 메타 — 플레이어가 진입과 동시에 그린다(player-uiux.md 4.3)
         meta: {
           title: item.content.title,
@@ -377,6 +401,8 @@ export const useLibraryScreen = () => {
           durationSec: target.content.durationSec,
           topicIds: resumeTopicIds,
         },
+        // 잠긴 편(KAN-302) — 게이트가 발급 없이 잠금 시트를 띄운다. 결제하면 힌트를 떼고 이 편을 다시 요청한다
+        isLocked: target.content.isLocked,
         // 회수된 콘텐츠면 미니플레이어를 내리고 같은 안내를 띄운다(uiux 4.11)
         onWithdrawn: () => dismissResume(target.content.id),
       },
@@ -387,6 +413,11 @@ export const useLibraryScreen = () => {
   /** 복원 본문 탭 — 확대는 재생을 시작시키지 않는다(uiux 4.4). autoplay 없이 연다(FR-24) */
   const handleMiniPlayerExpand = () => {
     if (!visibleResumeTarget) return;
+    // 잠긴 편(KAN-302)은 플레이어를 열지 않고 ▶와 같은 잠금 시트로 — 연 플레이어의 ▶가 403 으로 다시 닫히는 길을 만들지 않는다
+    if (visibleResumeTarget.content.isLocked) {
+      handleMiniPlayerPlay();
+      return;
+    }
     navigation.navigate('Main', {
       screen: 'Player',
       params: {
@@ -521,6 +552,9 @@ export const useLibraryScreen = () => {
     openSourceLink,
     shareItem,
     handleSheetDismiss,
+    /** [후기] 행 — 서버가 후기 기능을 켜 줬을 때만 그린다(받은 적 없거나 실패면 없음) */
+    openReview: reviewLauncher.isEnabled ? openReview : undefined,
+    reviewLauncher,
     requestDelete,
     pendingDeleteItem,
     undoDelete,

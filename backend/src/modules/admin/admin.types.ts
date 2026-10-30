@@ -1,5 +1,6 @@
 import {
   ContentLanguage,
+  ContentLengthProfile,
   ContentOrigin,
   ContentStatus,
 } from '@/modules/content/content.enum';
@@ -46,6 +47,14 @@ export interface UploadContentCommand {
   /** 시장·언어(`global-api.md` 4.9). 컨트롤러가 기본값(kr·ko)을 채워 넘긴다 */
   market: UserMarket;
   language: ContentLanguage;
+  /**
+   * 길이 프로필(KAN-298). null = 보내지 않음 — 시리즈 편이면 시리즈의 값, 단편이면 `standard`다
+   */
+  lengthProfile: ContentLengthProfile | null;
+  /** 짧은 판의 원본 콘텐츠 — short 단편이면 필수, 짧은 시리즈 편이면 선택, standard면 없어야 한다 */
+  variantOfContentId: string | null;
+  /** 도입부 버전(KAN-298 범위 추가) — 지표 전용. null = 보내지 않음 = 기존 도입부 */
+  introVersion: string | null;
   /** 압축 음질(`compressed`) — 필수 */
   audio: UploadedFileInput;
   /** 고음질(`aac`) · 무손실(`lossless`) — 선택(admin-api.md 4.6, KAN-141). 길이가 `audio`와 ±1초 안이어야 한다 */
@@ -319,7 +328,7 @@ export interface InsightsWithdrawalReason {
   count: number;
 }
 
-/** 알림 종류 하나의 반응 — `type`은 `drip_arrival` 또는 `retention.<규칙>.<변형>` */
+/** 알림 종류 하나의 반응 — `type`은 `drip_arrival` · `drip_arrival.<그룹>`(시각 A/B) · `retention.<규칙>.<변형>` */
 export interface InsightsPushReaction {
   type: string;
   sent: number;
@@ -434,8 +443,8 @@ export interface InsightsMarketTotals {
 }
 
 /**
- * 나라별 같은 지표(2026-10-29, 글로벌 탭 맨 위) — 나라는 `users.region_code`(기기 지역 ISO 3166-1 alpha-2, 가입·로그인마다
- * 갱신 — 지금 나라). 값이 없으면 `unknown`
+ * 나라별 같은 지표(2026-10-29, 글로벌 탭 맨 위) — 나라는 기기 시간대(`users.timezone`)에서 추정한 ISO 3166-1 alpha-2
+ * (`timezone-country.ts`). 시간대가 없으면 `unknown`, 표에 없는 시간대는 시간대 이름 그대로
  */
 export type InsightsRegionTotals = Omit<InsightsMarketTotals, 'market'> & {
   region: string;
@@ -622,4 +631,194 @@ export interface InsightsCompletionByLength {
   contents: InsightsCompletionContentPoint[];
   /** 편이 적거나 길이가 다 같으면 null */
   trend: InsightsCompletionTrend | null;
+}
+
+/* ───────────── 시리즈 편별 완청·이탈 (`GET /admin/insights/series-episodes`, KAN-293, 2026-10-29) ───────────── */
+
+/**
+ * 편 하나의 원본(Repository) — (시리즈, 편 번호) 단위. 같은 편 번호에 콘텐츠 행이 여럿이면(철회 뒤 다시 올림) 사람을 합쳐 센다.
+ * 사용자는 수로만 들어 있다.
+ */
+export interface InsightsSeriesEpisodeRow {
+  seriesId: string;
+  seriesTitle: string;
+  totalEpisodes: number;
+  episodeNo: number;
+  /** 대표 콘텐츠 — 발행 중인 행, 없으면 가장 최근 행 */
+  contentId: string;
+  title: string;
+  durationSec: number;
+  market: string;
+  status: string;
+  /** 이 시리즈에서 이 편 다음으로 있는 편 번호 — 없으면 null(마지막 편) */
+  nextEpisodeNo: number | null;
+  starters: number;
+  completers: number;
+  /** 이 편을 시작한 사람 중 다음 편을 시작한 사람 */
+  nextStartedOfStarters: number;
+  /** 이 편을 완청한 사람 중 다음 편을 시작한 사람 */
+  nextStartedOfCompleters: number;
+}
+
+export interface InsightsSeriesEpisode extends InsightsSeriesEpisodeRow {
+  /** `completers / starters` — 시작자 0이면 null */
+  completionRate: number | null;
+  /** `nextStartedOfStarters / starters` — 다음 편이 없거나 시작자 0이면 null */
+  nextRateOfStarters: number | null;
+  /** `nextStartedOfCompleters / completers` — 다음 편이 없거나 완청자 0이면 null */
+  nextRateOfCompleters: number | null;
+}
+
+export interface InsightsSeriesEpisodesSeries {
+  seriesId: string;
+  title: string;
+  market: string;
+  totalEpisodes: number;
+  /** 가장 앞 편의 시작자 — 시리즈 정렬 기준 */
+  firstEpisodeStarters: number;
+  /** 편 번호 순 */
+  episodes: InsightsSeriesEpisode[];
+}
+
+export interface InsightsSeriesEpisodes {
+  generatedAt: Date;
+  market: UserMarket | null;
+  series: InsightsSeriesEpisodesSeries[];
+}
+
+/* ───────────── 짧은 판·도입부 실험 (`GET /admin/insights/short-variant`, KAN-298 · KAN-296, 2026-10-29) ───────────── */
+
+/** 가입 코호트 — 받는 길이 프로필 이름 그대로(`content-cohort.policy.ts`). 경계 전 가입 = standard, 경계 이후 = short */
+export type InsightsShortVariantCohort = 'standard' | 'short';
+
+/**
+ * 원본(Repository) — (콘텐츠, 코호트, 첫 편 여부) 묶음의 (사용자, 편) 수. 사용자는 수로만 들어 있다.
+ * `cohort`는 경계가 없거나 비교 창 밖 가입자면 null(콘텐츠 단위 비교에만 들어간다).
+ */
+export interface InsightsShortVariantRow {
+  contentId: string;
+  lengthProfile: string;
+  /** NULL = 기존 도입부 */
+  introVersion: string | null;
+  cohort: InsightsShortVariantCohort | null;
+  /** 이 사용자가 처음 시작한 편인가(시장·시점 무관 첫 0초 아닌 재생) */
+  isFirst: boolean;
+  starters: number;
+  completers: number;
+  /** 그 (사용자, 편)의 청취 합이 10·30·60초 이하 */
+  drop10: number;
+  drop30: number;
+  drop60: number;
+}
+
+/** 짧은 판 ↔ 원본 짝(Repository) — `contents.variant_of_content_id`가 있는 short 편 */
+export interface InsightsShortVariantPairRow {
+  shortContentId: string;
+  shortTitle: string;
+  shortDurationSec: number;
+  shortIntroVersion: string | null;
+  originalContentId: string;
+  originalTitle: string;
+  originalDurationSec: number;
+  originalIntroVersion: string | null;
+}
+
+export interface InsightsVariantMetrics {
+  starters: number;
+  completers: number;
+  /** 분모(시작자)가 0이면 null */
+  completionRate: number | null;
+  drop10: number;
+  drop30: number;
+  drop60: number;
+  rate10: number | null;
+  rate30: number | null;
+  rate60: number | null;
+}
+
+/** 전체와 "첫 편 제외"(사용자마다 처음 시작한 편을 뺀 값) */
+export interface InsightsVariantSplit {
+  all: InsightsVariantMetrics;
+  excludingFirst: InsightsVariantMetrics;
+}
+
+export interface InsightsVariantGroup<K> extends InsightsVariantSplit {
+  key: K;
+}
+
+export interface InsightsVariantPairSide extends InsightsVariantSplit {
+  contentId: string;
+  title: string;
+  durationSec: number;
+  introVersion: string | null;
+}
+
+export interface InsightsVariantPair {
+  short: InsightsVariantPairSide;
+  original: InsightsVariantPairSide;
+}
+
+export interface InsightsShortVariant {
+  generatedAt: Date;
+  market: UserMarket | null;
+  /** `SHORT_CONTENT_COHORT_SINCE` — 비면 null(경계 미설정 → 코호트 비교 없음) */
+  cohortSince: Date | null;
+  /** 코호트 비교 창(시간) = 지금 − 경계. 경계가 없으면 null, 경계가 미래면 0 */
+  cohortWindowHours: number | null;
+  /** 경계가 없으면 null. 있으면 standard·short 두 행 */
+  byCohort: InsightsVariantGroup<InsightsShortVariantCohort>[] | null;
+  /** standard·short 두 행 */
+  byLengthProfile: InsightsVariantGroup<string>[];
+  /** 기존 도입부(null) 먼저, 그 뒤 버전 이름 순 */
+  byIntroVersion: InsightsVariantGroup<string | null>[];
+  /** 짧은 판 시작자 많은 순 */
+  pairs: InsightsVariantPair[];
+}
+
+/* ───────────── 도착 알림 시각 실험 (`GET /admin/insights/drip-arrival-time`, KAN-289, 2026-10-30) ───────────── */
+
+/**
+ * 비교 묶음 — `baseline` 07:00(스위치 꺼짐 · `drip_arrival`) · `a` 07:30(`drip_arrival.a`) · `b` 08:00(`drip_arrival.b`) ·
+ * `morning` 참고 행(아침 알림 `retention.morning.*` — 드립 없는 날에만 가서 대상이 다르다. A/B 비교가 아니다)
+ */
+export type InsightsDripArrivalTimeKey = 'baseline' | 'a' | 'b' | 'morning';
+
+/** 원본(Repository) — 묶음마다 보낸 알림 수·받은 사람 수·재생으로 이어진 알림 수. 사용자는 수로만 들어 있다 */
+export interface InsightsDripArrivalTimeRow {
+  key: InsightsDripArrivalTimeKey;
+  sent: number;
+  users: number;
+  /** 보낸 뒤 2시간 안 재생 */
+  played2h: number;
+  /** 보낸 뒤 같은 서비스 날짜 안 재생 */
+  playedSameDay: number;
+  firstSentAt: Date;
+  lastSentAt: Date;
+}
+
+export interface InsightsDripArrivalTimeArm {
+  key: InsightsDripArrivalTimeKey;
+  /** 그룹 현지 발송 시각(`HH:MM`) — 서버 정책값 */
+  sendTime: string;
+  /** true = 참고 행(A/B 비교 아님) */
+  reference: boolean;
+  sent: number;
+  users: number;
+  played2h: number;
+  playedSameDay: number;
+  /** 분모(보낸 알림)가 0이면 null */
+  playRate2h: number | null;
+  playRateSameDay: number | null;
+  /** 창 안에서 처음·마지막으로 보낸 시각 — 보낸 게 없으면 null. 07:00은 스위치 전 기간이라 묶음마다 기간이 다르다 */
+  firstSentAt: Date | null;
+  lastSentAt: Date | null;
+}
+
+export interface InsightsDripArrivalTime {
+  generatedAt: Date;
+  market: UserMarket | null;
+  days: number;
+  since: Date;
+  /** baseline · a · b · morning 순서로 늘 네 행 */
+  arms: InsightsDripArrivalTimeArm[];
 }

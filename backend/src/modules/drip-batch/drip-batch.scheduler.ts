@@ -3,9 +3,10 @@ import { Cron } from '@nestjs/schedule';
 
 import { isSchedulerProcess } from '@/common/cluster.util';
 import {
-  DRIP_ARRIVAL_PUSH_LOCAL_HOUR,
+  DRIP_ARRIVAL_SLOT_TIMES,
   DRIP_BATCH_LOCAL_HOUR,
   DRIP_GROUP_SCHEDULES,
+  DripArrivalSlot,
 } from '@/modules/drip/drip-group.policy';
 import { DripGroup } from '@/modules/drip/drip.enum';
 
@@ -13,8 +14,18 @@ import { DripBatchOrchestrator } from './drip-batch.orchestrator';
 
 /** `drip-scheduling.md` 2 — 일일 편성 배치는 **매일 현지 05:00**이다(KR = 05:00 KST, 합의 2026-08-06) */
 const DAILY_DRIP_CRON = `0 0 ${DRIP_BATCH_LOCAL_HOUR} * * *`;
-/** 드립 도착 알림 — **현지 07:00**(2026-10-14). 편성(05:00)과 떼어 낸다 — 새벽 5시 알림은 잠금화면에 묻혔다 */
-const DRIP_ARRIVAL_PUSH_CRON = `0 0 ${DRIP_ARRIVAL_PUSH_LOCAL_HOUR} * * *`;
+/**
+ * 드립 도착 알림 — **현지 07:00**(2026-10-14). 편성(05:00)과 떼어 낸다 — 새벽 5시 알림은 잠금화면에 묻혔다.
+ * 시각 A/B(KAN-289, 2026-10-29)로 07:30·08:00 크론을 더 둔다 — 세 크론이 늘 등록되고, 스위치(`DRIP_ARRIVAL_AB_ENABLED`)에 따라
+ * 07:00만(꺼짐) 또는 07:30·08:00만(켜짐) 보낸다(`DripBatchOrchestrator.notifyTodayArrivals`)
+ */
+const arrivalCron = (slot: DripArrivalSlot): string => {
+  const { hour, minute } = DRIP_ARRIVAL_SLOT_TIMES[slot];
+  return `0 ${minute} ${hour} * * *`;
+};
+const DRIP_ARRIVAL_PUSH_CRON = arrivalCron(DripArrivalSlot.H0700);
+const DRIP_ARRIVAL_PUSH_0730_CRON = arrivalCron(DripArrivalSlot.H0730);
+const DRIP_ARRIVAL_PUSH_0800_CRON = arrivalCron(DripArrivalSlot.H0800);
 
 /**
  * 일일 편성 배치의 트리거. 서비스 날짜 경계(05:00 — domain.md 1.2)와 같은 시각(경계 정각이라 새 서비스 날짜로 편성된다. 2026-10-12 전환 전에는 경계 04:00 이후)에 실행되도록
@@ -109,6 +120,76 @@ export class DripBatchScheduler implements OnApplicationBootstrap {
     await this.pushGroupArrivals(DripGroup.AMERICAS);
   }
 
+  @Cron(DRIP_ARRIVAL_PUSH_0730_CRON, {
+    name: 'drip-arrival-push-0730',
+    timeZone: DRIP_GROUP_SCHEDULES[DripGroup.ASIA].timeZone,
+  })
+  async pushDripArrivals0730(): Promise<void> {
+    await this.pushGroupArrivals(DripGroup.ASIA, DripArrivalSlot.H0730);
+  }
+
+  @Cron(DRIP_ARRIVAL_PUSH_0730_CRON, {
+    name: 'drip-arrival-push-0730-southeast-asia',
+    timeZone: DRIP_GROUP_SCHEDULES[DripGroup.SOUTHEAST_ASIA].timeZone,
+  })
+  async pushSoutheastAsiaArrivals0730(): Promise<void> {
+    await this.pushGroupArrivals(
+      DripGroup.SOUTHEAST_ASIA,
+      DripArrivalSlot.H0730,
+    );
+  }
+
+  @Cron(DRIP_ARRIVAL_PUSH_0730_CRON, {
+    name: 'drip-arrival-push-0730-europe',
+    timeZone: DRIP_GROUP_SCHEDULES[DripGroup.EUROPE].timeZone,
+  })
+  async pushEuropeArrivals0730(): Promise<void> {
+    await this.pushGroupArrivals(DripGroup.EUROPE, DripArrivalSlot.H0730);
+  }
+
+  @Cron(DRIP_ARRIVAL_PUSH_0730_CRON, {
+    name: 'drip-arrival-push-0730-americas',
+    timeZone: DRIP_GROUP_SCHEDULES[DripGroup.AMERICAS].timeZone,
+  })
+  async pushAmericasArrivals0730(): Promise<void> {
+    await this.pushGroupArrivals(DripGroup.AMERICAS, DripArrivalSlot.H0730);
+  }
+
+  @Cron(DRIP_ARRIVAL_PUSH_0800_CRON, {
+    name: 'drip-arrival-push-0800',
+    timeZone: DRIP_GROUP_SCHEDULES[DripGroup.ASIA].timeZone,
+  })
+  async pushDripArrivals0800(): Promise<void> {
+    await this.pushGroupArrivals(DripGroup.ASIA, DripArrivalSlot.H0800);
+  }
+
+  @Cron(DRIP_ARRIVAL_PUSH_0800_CRON, {
+    name: 'drip-arrival-push-0800-southeast-asia',
+    timeZone: DRIP_GROUP_SCHEDULES[DripGroup.SOUTHEAST_ASIA].timeZone,
+  })
+  async pushSoutheastAsiaArrivals0800(): Promise<void> {
+    await this.pushGroupArrivals(
+      DripGroup.SOUTHEAST_ASIA,
+      DripArrivalSlot.H0800,
+    );
+  }
+
+  @Cron(DRIP_ARRIVAL_PUSH_0800_CRON, {
+    name: 'drip-arrival-push-0800-europe',
+    timeZone: DRIP_GROUP_SCHEDULES[DripGroup.EUROPE].timeZone,
+  })
+  async pushEuropeArrivals0800(): Promise<void> {
+    await this.pushGroupArrivals(DripGroup.EUROPE, DripArrivalSlot.H0800);
+  }
+
+  @Cron(DRIP_ARRIVAL_PUSH_0800_CRON, {
+    name: 'drip-arrival-push-0800-americas',
+    timeZone: DRIP_GROUP_SCHEDULES[DripGroup.AMERICAS].timeZone,
+  })
+  async pushAmericasArrivals0800(): Promise<void> {
+    await this.pushGroupArrivals(DripGroup.AMERICAS, DripArrivalSlot.H0800);
+  }
+
   /** 켜진 그룹마다 오늘 미완료 실행을 이어받는다 — 한 그룹의 실패가 다른 그룹의 재개를 막지 않는다 */
   async resumeUnfinishedBatch(): Promise<void> {
     for (const group of Object.values(DripGroup)) {
@@ -143,17 +224,25 @@ export class DripBatchScheduler implements OnApplicationBootstrap {
     }
   }
 
-  private async pushGroupArrivals(group: DripGroup): Promise<void> {
+  private async pushGroupArrivals(
+    group: DripGroup,
+    slot: DripArrivalSlot = DripArrivalSlot.H0700,
+  ): Promise<void> {
     if (!this.dripBatchOrchestrator.isGroupActive(group)) {
       return;
     }
 
     try {
-      await this.dripBatchOrchestrator.notifyTodayArrivals(new Date(), group);
+      await this.dripBatchOrchestrator.notifyTodayArrivals(
+        new Date(),
+        group,
+        slot,
+      );
     } catch (error) {
       // 알림 실패는 편성에 영향이 없다 — 적립은 05:00에 이미 끝났다
       this.logger.error('drip arrival push failed', {
         group,
+        slot,
         error: error instanceof Error ? error.message : 'unknown error',
       });
     }

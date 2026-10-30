@@ -15,7 +15,11 @@ import {
   EMBEDDING_DIM,
   EMBEDDING_MODEL_ID,
 } from '@/modules/content/content.constant';
-import { ContentOrigin, ContentStatus } from '@/modules/content/content.enum';
+import {
+  ContentLengthProfile,
+  ContentOrigin,
+  ContentStatus,
+} from '@/modules/content/content.enum';
 import { Content } from '@/modules/content/entities/content.entity';
 import { SearchQueryLog } from '@/modules/content/entities/search-query-log.entity';
 import { ContentService } from '@/modules/content/services/content.service';
@@ -336,6 +340,7 @@ describe('하이브리드 검색·오타 교정 E2E', () => {
     const correct = (normalizedQuery: string, includeSeriesTitles = false) =>
       contentService.findSearchCorrection({
         market: UserMarket.KR,
+        lengthProfile: ContentLengthProfile.STANDARD,
         normalizedQuery,
         includeSeriesTitles,
         now: new Date(),
@@ -431,6 +436,7 @@ describe('하이브리드 검색·오타 교정 E2E', () => {
     const correct = (normalizedQuery: string) =>
       contentService.findSearchCorrection({
         market: UserMarket.KR,
+        lengthProfile: ContentLengthProfile.STANDARD,
         normalizedQuery,
         includeSeriesTitles: false,
         now: new Date(),
@@ -541,6 +547,7 @@ describe('하이브리드 검색·오타 교정 E2E', () => {
       expect(
         await contentService.findSearchCorrection({
           market: UserMarket.KR,
+          lengthProfile: ContentLengthProfile.STANDARD,
           normalizedQuery: TYPO,
           includeSeriesTitles: false,
           now: new Date(),
@@ -755,6 +762,7 @@ describe('하이브리드 검색·오타 교정 E2E', () => {
       const { auth } = await createUser('legacy-cursor');
       const legacyFirst = await contentService.findSearchPage({
         market: UserMarket.KR,
+        lengthProfile: ContentLengthProfile.STANDARD,
         normalizedQuery: WORD,
         tagOnly: false,
         topicIds: [],
@@ -812,6 +820,7 @@ describe('하이브리드 검색·오타 교정 E2E', () => {
     /** 질의 하나의 공통 입력 — 시리즈 카드 모드면 시리즈 제목 일치·대표 편 접기까지 */
     const commonOf = (normalizedQuery: string, seriesAnchorsOnly: boolean) => ({
       market: UserMarket.KR,
+      lengthProfile: ContentLengthProfile.STANDARD,
       normalizedQuery,
       topicIds: [],
       limit: 3,

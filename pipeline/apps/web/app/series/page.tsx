@@ -12,7 +12,7 @@ import { loadPublications } from "@/lib/publications-server";
 export default async function SeriesListPage() {
   const sb = await supabaseServer();
   const [{ data: rows }, { data: eps }] = await Promise.all([
-    sb.from("series").select("*").order("created_at", { ascending: false }).limit(100),
+    sb.from("series").select("*").is("remake_of", null).order("created_at", { ascending: false }).limit(100), // 짧은 판 시리즈(0041)는 실험 탭에서
     sb.from("backlog").select("series_id,status").not("series_id", "is", null),
   ]);
   const publications = await loadPublications();

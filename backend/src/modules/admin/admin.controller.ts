@@ -416,6 +416,9 @@ export class AdminController {
         // 필수(global-api.md 4.9 2단계) — DTO 가 빠진 요청을 400 으로 막는다
         market: payload.market,
         language: payload.language,
+        lengthProfile: payload.length_profile ?? null,
+        variantOfContentId: payload.variant_of_content_id ?? null,
+        introVersion: payload.intro_version ?? null,
         audio: toFileInput(audio),
         audioAac: files.audio_aac?.[0] ? toFileInput(files.audio_aac[0]) : null,
         audioLossless: files.audio_lossless?.[0]

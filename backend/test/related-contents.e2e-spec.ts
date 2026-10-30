@@ -281,6 +281,8 @@ describe('관련 콘텐츠 E2E — GET /contents/:content_id/related', () => {
           'content_version',
           'duration_sec',
           'id',
+          // 시리즈 유료화 잠금 표시(KAN-290 — experiments-api.md 4.2-2)
+          'is_locked',
           'language',
           'series',
           'source_name',
@@ -298,6 +300,7 @@ describe('관련 콘텐츠 E2E — GET /contents/:content_id/related', () => {
         topic_ids: [],
         tags: [],
         series: null,
+        is_locked: false,
       });
       expect(saved.library).toEqual({
         item_id: expect.any(String) as string,

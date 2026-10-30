@@ -19,7 +19,15 @@ type ContentOrigin = 'ai_generated' | 'partner';
  * (player.types 의 PlayEntryPoint · content-detail.types 의 ContentDetailEntryPoint)과 같은 값을
  * 여기 다시 적는다. 원본이 바뀌면 호출부 타입 오류로 드러난다.
  */
-type PlayEntry = 'library' | 'explore' | 'miniplayer' | 'push' | 'player' | 'share';
+type PlayEntry =
+  | 'library'
+  | 'explore'
+  | 'miniplayer'
+  | 'push'
+  | 'player'
+  | 'share'
+  // 온보딩 직후 멈춘 채 연 첫 콘텐츠(KAN-295 — analytics.md 3.4)
+  | 'onboarding';
 type DetailEntry = 'library' | 'explore' | 'player' | 'share';
 
 export interface AnalyticsEvents {
@@ -63,7 +71,11 @@ export interface AnalyticsEvents {
   };
   play_rate_change: { from: number; to: number };
   play_limit_hit: { remaining: 0 };
-  paywall_view: { entry: PlayEntry };
+  /**
+   * reason = 왜 열렸나(analytics.md 3.4 — KAN-294): play_limit(한도 403·소진 힌트로 막힘) · ring_tap(잔여 표시 탭, 막힌 콘텐츠 없음) ·
+   * series_locked(시리즈 잠긴 편의 잠금 시트)
+   */
+  paywall_view: { entry: PlayEntry; reason: 'play_limit' | 'ring_tap' | 'series_locked' };
   play_confirm: { action: 'confirm' | 'cancel' | 'suppress_today'; remaining: number };
   // 탐색·검색
   explore_period_change: { period: Period };

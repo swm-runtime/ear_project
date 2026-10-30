@@ -6,6 +6,7 @@ import {
   ContentDifficulty,
   ContentFormat,
   ContentLanguage,
+  ContentLengthProfile,
   ContentOrigin,
   ContentStatus,
 } from '../content.enum';
@@ -173,4 +174,36 @@ export class Content extends BaseEntity {
     default: ContentLanguage.KO,
   })
   language: ContentLanguage;
+
+  /**
+   * 길이 프로필(KAN-298). 노출은 가입 시점 코호트와 같은 값의 콘텐츠로만 한다(`content-cohort.policy.ts`). 시리즈 편은
+   * 시리즈의 값과 같다(업로드가 맞춘다). 기존 행은 마이그레이션 기본값 `standard`
+   */
+  @Column({
+    name: 'length_profile',
+    type: 'varchar',
+    length: 16,
+    default: ContentLengthProfile.STANDARD,
+  })
+  lengthProfile: ContentLengthProfile;
+
+  /**
+   * 짧은 판의 원본 콘텐츠(KAN-298) — `short` 단편이면 필수, 짧은 시리즈의 편이면 원본 시리즈의 같은 화(없으면 null).
+   * `standard`는 늘 null이다. 원본은 `standard`여야 한다(변형의 변형 없음). FK `fk_contents_variant_of_content`는 마이그레이션 소유
+   */
+  @Column({ name: 'variant_of_content_id', type: 'uuid', nullable: true })
+  variantOfContentId: string | null;
+
+  /**
+   * 도입부 버전(KAN-298 범위 추가 — 2026-10-29). **지표 전용** — 실험 지표 탭이 초반 이탈(10초·30초·1분)을 이 값으로 묶는다.
+   * 노출 규칙은 `length_profile`만 본다. NULL = 기존 도입부(그 전에 발행한 전부). 형식은 `INTRO_VERSION_PATTERN`
+   * (CHECK `ck_contents_intro_version`). 사용자 응답에 싣지 않는다
+   */
+  @Column({
+    name: 'intro_version',
+    type: 'varchar',
+    length: 32,
+    nullable: true,
+  })
+  introVersion: string | null;
 }

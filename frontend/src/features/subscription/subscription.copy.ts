@@ -1,10 +1,15 @@
-import { formatDateLabelMonthDay, formatInstantMonthDay } from '@/shared/i18n/format';
+import {
+  formatDateLabelMonthDay,
+  formatInstantMonthDay,
+  groupThousands,
+} from '@/shared/i18n/format';
 import { localized, type LocalizedCopy } from '@/shared/i18n/localized';
 
 /**
  * 사용자 노출 문구(convention.md 3.5). 확정 카피는 spec/uiux/subscription-uiux.md 와 1:1 대조한다.
  * 서버 오류 문구는 subscription-api.md 5장 그대로다. 내부 용어("티어"·"드립"·"영수증"·"유예")를 노출하지 않는다.
- * 가격 문자열은 스토어가 준 현지 표기를 그대로 받는다 — 여기서 통화·금액을 만들지 않는다.
+ * 가격 문자열은 스토어가 준 현지 표기를 그대로 받는다 — 여기서 통화·금액을 만들지 않는다. 예외는 서버가 준 원화 정가
+ * (`original_price_krw`, KAN-299) 의 표기뿐이다 — 값을 계산하지 않고 쉼표·통화 기호만 붙인다.
  */
 const monthDay = (iso: string): string => formatInstantMonthDay(iso, 'ko');
 
@@ -83,6 +88,12 @@ const ko = {
     current: '이용 중',
     /** 다음 결제일부터 바뀌도록 예약된 요금제 — 이름 옆 배지(누를 수 없음, 2026-10-08) */
     scheduled: '예약됨',
+    /**
+     * 서버가 할인이라고 판정한 요금제(`is_discounted`, KAN-299) — 이름 옆 배지. 종료일·할인율은 붙이지 않는다(종료일 미정)
+     */
+    onSale: '지금 할인 중',
+    /** 취소선 정가 — 서버 원화 값에 스토어 원화 표기(`₩1,900`)와 같은 모양을 입힌다. 계산하지 않는다 */
+    originalPrice: (krw: number) => `₩${groupThousands(krw)}`,
     downgradeHint: '다음 결제일부터 적용돼요',
     /** [변경](다운그레이드)을 누르면 결제 시트 전에 묻는다(PM 2026-10-08 KAN-158) — 시스템 알림창 */
     downgradeConfirmTitle: (name: string) => `${name}${toParticle(name)} 변경할까요?`,
@@ -108,15 +119,27 @@ const ko = {
     },
     /** 고를 수 있는 카드 묶음 — 스크린리더가 "요금제, 라디오 그룹"으로 읽는다 */
     groupA11y: '요금제',
-    /** 카드 요약을 한 문장으로 — 이용 중이면 끝에 "이용 중"(색만으로 구분하지 않는다) */
+    /**
+     * 카드 요약을 한 문장으로 — 이용 중이면 끝에 "이용 중"(색만으로 구분하지 않는다). 할인 중이면 가격 자리를
+     * "정가 3,900원, 지금 ₩1,900/월, 할인 중"으로 읽는다(취소선은 낭독되지 않아 "정가"를 말로 밝힌다 — KAN-299)
+     */
     cardA11y: (
       name: string,
       price: string,
       description: string,
       isCurrent: boolean,
       isScheduled = false,
+      originalPriceKrw: number | null = null,
     ) =>
-      [name, price, description, isCurrent ? '이용 중' : '', isScheduled ? '예약됨' : '']
+      [
+        name,
+        originalPriceKrw !== null && price !== ''
+          ? `정가 ${groupThousands(originalPriceKrw)}원, 지금 ${price}, 할인 중`
+          : price,
+        description,
+        isCurrent ? '이용 중' : '',
+        isScheduled ? '예약됨' : '',
+      ]
         .filter((part) => part !== '')
         .join(', '),
   },
@@ -219,9 +242,11 @@ const ko = {
     purchaseConfirmCancel: '취소',
   },
 
-  /** 프로모션 코드 입력 화면(KAN-182) — 설정 > [프로모션 코드 입력]. 결제 UI 플래그와 무관하게 항상 있다 */
+  /**
+   * 프로모션 코드 입력 칸(KAN-182) — S12 프로모션 화면(KAN-280)의 "프로모션 코드" 섹션. 결제 UI 플래그와 무관하게 항상 있다.
+   * 화면 제목 · 행 이름("프로모션")은 content-review · settings 카피가 갖는다
+   */
   invite: {
-    title: '프로모션 코드 입력',
     description: '받은 프로모션 코드를 입력하면 요금제 혜택이 바로 적용돼요',
     placeholder: '코드 입력',
     inputA11y: '프로모션 코드',
@@ -250,7 +275,6 @@ const ko = {
       '코드를 넣어도 지금 구독은 그대로 이어져요. 코드 혜택이 지금 요금제보다 높을 때만 바로 바뀌고, 아니면 구독이 끝난 뒤 프로모션 기간까지 혜택이 이어져요',
     subscriberConfirmOk: '입력하기',
     subscriberConfirmCancel: '취소',
-    backA11y: '뒤로 가기',
   },
 
   /** 실패 — subscription-api.md 5장 문구 */
@@ -324,6 +348,8 @@ const en: LocalizedCopy<typeof ko> = {
     downgrade: 'Switch',
     current: 'Current',
     scheduled: 'Scheduled',
+    onSale: 'On sale now',
+    originalPrice: (krw: number) => `₩${groupThousands(krw)}`,
     downgradeHint: 'Starts on your next billing date',
     downgradeConfirmTitle: (name: string) => `Switch to ${name}?`,
     downgradeConfirmMessage:
@@ -345,8 +371,17 @@ const en: LocalizedCopy<typeof ko> = {
       description: string,
       isCurrent: boolean,
       isScheduled = false,
+      originalPriceKrw: number | null = null,
     ) =>
-      [name, price, description, isCurrent ? 'Current' : '', isScheduled ? 'Scheduled' : '']
+      [
+        name,
+        originalPriceKrw !== null && price !== ''
+          ? `Regular price ₩${groupThousands(originalPriceKrw)}, now ${price}, on sale`
+          : price,
+        description,
+        isCurrent ? 'Current' : '',
+        isScheduled ? 'Scheduled' : '',
+      ]
         .filter((part) => part !== '')
         .join(', '),
   },
@@ -419,7 +454,6 @@ const en: LocalizedCopy<typeof ko> = {
   },
 
   invite: {
-    title: 'Enter promo code',
     description: 'Enter your promo code to get plan benefits right away',
     placeholder: 'Enter code',
     inputA11y: 'Promo code',
@@ -441,7 +475,6 @@ const en: LocalizedCopy<typeof ko> = {
       'Your current subscription stays as it is. The code’s benefits apply right away only if they’re above your current plan; otherwise they continue after your subscription ends, until the promotion ends',
     subscriberConfirmOk: 'Apply',
     subscriberConfirmCancel: 'Cancel',
-    backA11y: 'Back',
   },
 
   error: {

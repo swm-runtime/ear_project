@@ -4,8 +4,11 @@ import { ConfigService } from '@nestjs/config';
 import { EnvironmentVariables } from '@/config/env.validation';
 
 import { toServiceDate } from '@/common/utils/service-date.util';
+import { ContentLengthProfile } from '@/modules/content/content.enum';
+import { ContentCohortService } from '@/modules/content/services/content-cohort.service';
 import { ContentService } from '@/modules/content/services/content.service';
 import { ContentStatService } from '@/modules/content/services/content-stat.service';
+import { SeriesEpisodeState } from '@/modules/content/content.types';
 import { Content } from '@/modules/content/entities/content.entity';
 import {
   COLD_START_COMPLETE_THRESHOLD,
@@ -25,8 +28,12 @@ import {
 } from '@/modules/drip/auto-expand.policy';
 import {
   DEFAULT_DRIP_GROUP,
+  DripArrivalSlot,
+  dripArrivalSlotOf,
+  dripArrivalVariantOf,
   dripGroupOf,
   isAfterArrivalPushTime,
+  isArrivalSlotActive,
   nextDripBatchAt,
 } from '@/modules/drip/drip-group.policy';
 import { scoringCareerOf } from '@/modules/drip/drip-career.policy';
@@ -54,7 +61,15 @@ import { DripArrival } from '@/modules/notification/notification.types';
 import { DripArrivalNotificationService } from '@/modules/notification/services/drip-arrival-notification.service';
 import { UserSignalAction } from '@/modules/playback/playback.enum';
 import { PlaybackService } from '@/modules/playback/services/playback.service';
+import {
+  SeriesEpisodeAccess,
+  isSeriesEpisodeLocked,
+} from '@/modules/subscription/policies/series-paywall.policy';
 import { PlanService } from '@/modules/subscription/services/plan.service';
+import {
+  SeriesPaywallService,
+  SeriesPaidTierCache,
+} from '@/modules/subscription/services/series-paywall.service';
 import { User } from '@/modules/user/entities/user.entity';
 import { UserSettingService } from '@/modules/user/services/user-setting.service';
 import { UserService } from '@/modules/user/services/user.service';
@@ -68,6 +83,7 @@ import {
   UserDripPlan,
 } from './drip-batch.types';
 import { UserMarket } from '@/modules/user/user.enum';
+import { MorningPushService } from '@/modules/retention-push/morning-push.service';
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
@@ -123,6 +139,14 @@ export class DripBatchOrchestrator {
   private readonly autoExpandEnabled: boolean;
   /** 시간대 그룹 스위치(`DRIP_TIMEZONE_GROUPS_ENABLED`) — 꺼져 있으면 전원이 기본 그룹(05:00 KST)이다 */
   private readonly timezoneGroupsEnabled: boolean;
+  /**
+   * 시리즈 유료화(KAN-290)의 "유료 요금제인가" 캐시 — **실행 1회(`PlanCountCache` 하나)마다 따로 둔다.** 편수 캐시와 같은 수명이라
+   * 사용자마다 요금제를 다시 읽지 않고, 실행이 끝나면 함께 버려진다
+   */
+  private readonly seriesPaidTierCaches = new WeakMap<
+    PlanCountCache,
+    SeriesPaidTierCache
+  >();
 
   constructor(
     private readonly userService: UserService,
@@ -139,7 +163,10 @@ export class DripBatchOrchestrator {
     private readonly dripArrivalNotificationService: DripArrivalNotificationService,
     private readonly topicService: TopicService,
     private readonly userSettingService: UserSettingService,
-    configService: ConfigService<EnvironmentVariables, true>,
+    private readonly configService: ConfigService<EnvironmentVariables, true>,
+    private readonly contentCohortService: ContentCohortService,
+    private readonly morningPushService: MorningPushService,
+    private readonly seriesPaywallService: SeriesPaywallService,
   ) {
     // **`true`를 명시했을 때만 켠다**(2026-10-14). 종전 "운영(SENTRY_ENVIRONMENT=production)만 기본 꺼짐"은 운영의
     // 환경 이름이 비거나 오타면 자동 확장이 조용히 켜지는 구조였다 — 추천 테스트 콘솔과 같은 함정(2026-10-13 수정).
@@ -156,6 +183,19 @@ export class DripBatchOrchestrator {
   /** 그 그룹의 크론이 돌아야 하는가 — 스위치가 꺼져 있으면 기본 그룹만 돈다 */
   isGroupActive(group: DripGroup): boolean {
     return this.timezoneGroupsEnabled || group === DEFAULT_DRIP_GROUP;
+  }
+
+  /**
+   * 도착 알림 시각 A/B(KAN-289) 서버 스위치 `DRIP_ARRIVAL_AB_ENABLED` — `true`를 명시했을 때만 켜진다. **부를 때마다 읽는다** —
+   * 한 서비스 날짜 안에서 07:00·07:30·08:00 크론과 배치 종료가 같은 값을 보게 하는 것은 하루 1건 판정이 맡는다
+   * (도중에 바꿔도 같은 날 두 번 가지 않는다 — 종류 머리 `drip_arrival`로 센다)
+   */
+  isArrivalAbEnabled(): boolean {
+    return (
+      this.configService
+        .get('DRIP_ARRIVAL_AB_ENABLED', { infer: true })
+        ?.trim() === 'true'
+    );
   }
 
   /**
@@ -269,11 +309,34 @@ export class DripBatchOrchestrator {
         const finishedAt = new Date();
         await this.dripBatchRunService.finish(run, counts, finishedAt);
 
-        // 끝난 시각이 알림 시각(현지 07:00) 뒤면 알림 크론은 이미 지나갔다 — 여기서 보낸다. **시작 시각이 아니라 끝난
-        // 시각으로 본다**(2026-10-15) — 05:00에 시작해 07:00을 넘겨 끝난 배치도, 07:00 전에 시작한 재개도 그날 알림이
-        // 빠지지 않게. 크론은 같은 기준(`finished_at`)으로 이 경우를 건너뛰어 정확히 한쪽만 보낸다(`notifyTodayArrivals`)
-        if (isAfterArrivalPushTime(finishedAt, group)) {
-          await this.sendArrivals(run, finishedAt, finishedAt, group);
+        // 끝난 시각이 알림 시각(현지 07:00 — A/B 켜짐이면 07:30·08:00 각각) 뒤면 그 시각의 알림 크론은 이미 지나갔다 —
+        // 여기서 보낸다. **시작 시각이 아니라 끝난 시각으로 본다**(2026-10-15) — 05:00에 시작해 07:00을 넘겨 끝난 배치도,
+        // 07:00 전에 시작한 재개도 그날 알림이 빠지지 않게. 크론은 같은 기준(`finished_at`)으로 이 경우를 건너뛰어 시각마다
+        // 정확히 한쪽만 보낸다(`notifyTodayArrivals`)
+        const abEnabled = this.isArrivalAbEnabled();
+        const dueSlots = Object.values(DripArrivalSlot).filter(
+          (slot) =>
+            isArrivalSlotActive(slot, abEnabled) &&
+            isAfterArrivalPushTime(finishedAt, group, slot),
+        );
+
+        if (dueSlots.length > 0) {
+          await this.sendArrivals(
+            run,
+            finishedAt,
+            finishedAt,
+            group,
+            dueSlots,
+            abEnabled,
+          );
+        }
+
+        // 아침 알림(KAN-288)도 같은 규칙이다 — 08:00 뒤에 끝났으면 08:00 크론은 건너뛰었으니 여기서 보낸다
+        if (
+          this.morningPushService.isGroupActive(group) &&
+          isAfterArrivalPushTime(finishedAt, group, MORNING_PUSH_SLOT)
+        ) {
+          await this.sendMorningPush(run, finishedAt, finishedAt, group);
         }
       } else {
         this.logger.error(
@@ -357,14 +420,30 @@ export class DripBatchOrchestrator {
    * (재개는 `started_at`만 바꾼다) 앞 구간이 빠지지 않고, 같은 날 먼저 돈 다른 그룹의 적립분은 들어오지 않는다.
    * 알림 전에 지운 편은 빠지고(소프트 삭제), 같은 날 두 번 보내지 않는 것은 알림 서비스의 하루 1건 판정이 막는다.
    *
-   * **이 경로는 알림 크론이다.** 배치가 아직 끝나지 않았으면 보내지 않고, 현지 07:00 뒤에 끝난 실행도 건너뛴다 — 그
-   * 경우는 배치가 끝나면서 보낸다(`run`). 두 경로가 같은 `finished_at`으로 판정해 한 실행은 정확히 한쪽만 보낸다
+   * **이 경로는 알림 크론이다.** 배치가 아직 끝나지 않았으면 보내지 않고, 그 시각(`slot`) 뒤에 끝난 실행도 건너뛴다 — 그
+   * 경우는 배치가 끝나면서 보낸다(`run`). 두 경로가 같은 `finished_at`으로 판정해 한 실행은 시각마다 정확히 한쪽만 보낸다
    * (하루 1건 판정은 조회 뒤 발송이라 동시에 불리면 둘 다 통과한다).
+   *
+   * **시각 A/B(KAN-289, 2026-10-29)** — `slot`은 크론의 시각이다. 스위치가 꺼져 있으면 07:00 크론만 전원에게 보내고 07:30·08:00
+   * 크론은 아무것도 하지 않는다(종전 그대로). 켜져 있으면 07:00 크론은 쉬고, 07:30은 A 그룹 · 08:00은 B 그룹에게만 보낸다
+   * (그룹 = 사용자 id 해시, `dripArrivalSlotOf`). 대상·문구는 같고 기록 종류만 `drip_arrival.a`·`.b`로 갈린다.
    */
   async notifyTodayArrivals(
     now: Date,
     group: DripGroup = DEFAULT_DRIP_GROUP,
+    slot: DripArrivalSlot = DripArrivalSlot.H0700,
   ): Promise<void> {
+    const abEnabled = this.isArrivalAbEnabled();
+    const sendsArrivals = isArrivalSlotActive(slot, abEnabled);
+    // 아침 알림(KAN-288)은 08:00 크론에서만 — 스위치가 꺼져 있거나 다른 시각이면 하지 않는다
+    const sendsMorning =
+      slot === MORNING_PUSH_SLOT &&
+      this.morningPushService.isGroupActive(group);
+
+    if (!sendsArrivals && !sendsMorning) {
+      return;
+    }
+
     const runDate = toServiceDate(now);
     const run = await this.dripBatchRunService.findByRunDateAndGroup(
       runDate,
@@ -375,30 +454,81 @@ export class DripBatchOrchestrator {
       this.logger.warn('drip arrival push skipped — batch not finished', {
         run_date: runDate,
         group,
+        slot,
       });
       return;
     }
 
-    if (isAfterArrivalPushTime(run.finishedAt, group)) {
+    if (isAfterArrivalPushTime(run.finishedAt, group, slot)) {
       this.logger.log(
         'drip arrival push left to the batch — it finished after push time',
         {
           run_date: runDate,
           group,
+          slot,
         },
       );
       return;
     }
 
-    await this.sendArrivals(run, run.finishedAt, now, group);
+    if (sendsArrivals) {
+      await this.sendArrivals(
+        run,
+        run.finishedAt,
+        now,
+        group,
+        [slot],
+        abEnabled,
+      );
+    }
+
+    // 도착 알림을 먼저 보낸다 — 아침 알림은 오늘 적립받은 사용자와 이미 도착 알림을 받은 사용자를 뺀다(하루 1건)
+    if (sendsMorning) {
+      await this.sendMorningPush(run, run.finishedAt, now, group);
+    }
   }
 
-  /** 끝난 실행이 적립한 편을 다시 읽어 사용자당 1건으로 보낸다 — 크론·배치 두 경로가 함께 쓴다 */
+  /**
+   * 아침 알림(KAN-288) — **드립이 없는 날**의 미청취 유도. 오늘 그 그룹 배치가 적립한 사용자(드립이 있는 날)는 도착 알림 몫이라
+   * 뺀다. 실패해도 던지지 않는다 — 도착 알림·편성과 무관하다.
+   */
+  private async sendMorningPush(
+    run: DripBatchRun,
+    finishedAt: Date,
+    now: Date,
+    group: DripGroup,
+  ): Promise<void> {
+    try {
+      const items = await this.libraryService.findPlacementsAddedBetween(
+        run.createdAt,
+        new Date(finishedAt.getTime() + 1),
+      );
+
+      await this.morningPushService.run(
+        group,
+        now,
+        new Set(items.map((item) => item.userId)),
+      );
+    } catch (error) {
+      this.logger.error('retention morning push failed', {
+        run_date: run.runDate,
+        group,
+        error: toErrorMessage(error),
+      });
+    }
+  }
+
+  /**
+   * 끝난 실행이 적립한 편을 다시 읽어 사용자당 1건으로 보낸다 — 크론·배치 두 경로가 함께 쓴다. `slots`의 시각을 받는
+   * 사용자만 보낸다(A/B 꺼짐이면 07:00 = 전원)
+   */
   private async sendArrivals(
     run: DripBatchRun,
     finishedAt: Date,
     now: Date,
     group: DripGroup,
+    slots: DripArrivalSlot[],
+    abEnabled: boolean,
   ): Promise<void> {
     const items = await this.libraryService.findPlacementsAddedBetween(
       run.createdAt,
@@ -408,19 +538,33 @@ export class DripBatchOrchestrator {
     const arrivals = groupArrivals(items);
     // 알림 보관 시한 — 그 그룹의 다음 배치까지(americas 알림이 다음 05:00 KST에 만료되지 않게)
     const nextBatchAt = nextDripBatchAt(group, now);
+    const userCountBySlot: Partial<Record<DripArrivalSlot, number>> = {};
 
-    for (let i = 0; i < arrivals.length; i += ARRIVAL_PUSH_CHUNK) {
-      await this.notifyArrivals(
-        arrivals.slice(i, i + ARRIVAL_PUSH_CHUNK),
-        now,
-        nextBatchAt,
+    for (const slot of slots) {
+      const targets = arrivals.filter(
+        (arrival) => dripArrivalSlotOf(arrival.userId, abEnabled) === slot,
       );
+      const variant = dripArrivalVariantOf(slot, abEnabled);
+      userCountBySlot[slot] = targets.length;
+
+      for (let i = 0; i < targets.length; i += ARRIVAL_PUSH_CHUNK) {
+        await this.notifyArrivals(
+          targets.slice(i, i + ARRIVAL_PUSH_CHUNK),
+          now,
+          nextBatchAt,
+          variant,
+        );
+      }
     }
 
     this.logger.log('drip arrival push done', {
       run_date: run.runDate,
       group,
-      user_count: arrivals.length,
+      user_count: Object.values(userCountBySlot).reduce(
+        (sum, count) => sum + (count ?? 0),
+        0,
+      ),
+      user_count_by_slot: userCountBySlot,
     });
   }
 
@@ -429,6 +573,7 @@ export class DripBatchOrchestrator {
     arrivals: DripArrival[],
     now: Date,
     nextBatchAt: Date,
+    variant: string | null,
   ): Promise<void> {
     if (arrivals.length === 0) {
       return;
@@ -439,6 +584,7 @@ export class DripBatchOrchestrator {
         arrivals,
         now,
         nextBatchAt,
+        variant,
       );
     } catch (error) {
       this.logger.warn('drip arrival notification failed', {
@@ -648,9 +794,22 @@ export class DripBatchOrchestrator {
     plan.completedEpisodesBySeries =
       await this.libraryService.findCompletedSeriesMaxEpisodes(user.id);
 
+    // 시리즈 유료화(KAN-290 — `experiments-api.md` 4.2-4) — 잠긴 편은 비프로 사용자에게 드립으로 주지 않는다(3편 완청 → 4편 안 옴)
+    const seriesAccess = await this.seriesPaywallService.resolveAccess(
+      user,
+      now,
+      undefined,
+      this.seriesPaidTierCacheOf(planCounts),
+    );
+
+    // 짧은 판 코호트(KAN-298) — 정규·탐험 편성 모두 가입 시점 코호트와 같은 길이 프로필의 콘텐츠만 후보다(폴백 없음 — 재고가
+    // 없으면 그날은 고갈이다). 시리즈 연속 편도 이 후보 풀에서 나온다
+    const lengthProfile = this.contentCohortService.resolve(user.createdAt);
+
     if (dripCount > 0) {
       plan.regular = await this.planRegular(user.id, {
         market: user.market,
+        lengthProfile,
         activeTopicIds: plan.activeTopicIds,
         completedEpisodesBySeries: plan.completedEpisodesBySeries,
         preference: plan.preference,
@@ -661,6 +820,7 @@ export class DripBatchOrchestrator {
         dripCount,
         loadRecentDripTopics: options.loadRecentDripTopics,
         now,
+        seriesAccess,
       });
     }
 
@@ -671,6 +831,7 @@ export class DripBatchOrchestrator {
 
         plan.discovery = await this.planDiscovery(user.id, {
           market: user.market,
+          lengthProfile,
           activeTopicIds: plan.activeTopicIds,
           // 방금 뽑은 정규 편성분만 넘긴다 — 누적 이력은 SQL의 NOT EXISTS가 본다
           alreadyPickedIds: regularPicks.map((pick) => pick.content.id),
@@ -690,6 +851,19 @@ export class DripBatchOrchestrator {
     }
 
     return plan;
+  }
+
+  private seriesPaidTierCacheOf(
+    planCounts: PlanCountCache,
+  ): SeriesPaidTierCache {
+    let cache = this.seriesPaidTierCaches.get(planCounts);
+
+    if (!cache) {
+      cache = new Map();
+      this.seriesPaidTierCaches.set(planCounts, cache);
+    }
+
+    return cache;
   }
 
   private async resolvePlanCounts(
@@ -985,10 +1159,14 @@ export class DripBatchOrchestrator {
       loadRecentDripTopics: boolean;
       now: Date;
       market: UserMarket;
+      lengthProfile: ContentLengthProfile;
+      /** 시리즈 유료화(KAN-290) — 이 사용자에게 잠긴 편은 후보가 아니다 */
+      seriesAccess: SeriesEpisodeAccess;
     },
   ): Promise<RegularPlan> {
-    const pool = await this.contentService.findCandidates({
+    const fetched = await this.contentService.findCandidates({
       market: input.market,
+      lengthProfile: input.lengthProfile,
       includeTopicIds: input.activeTopicIds,
       excludeSeenByUserId: userId,
       // 시리즈 순서는 아래 filterEpisodeOrder가 판정한다 — 완청한 다음 편은 허용해야 한다
@@ -996,10 +1174,14 @@ export class DripBatchOrchestrator {
       limit: SCORING_POOL_LIMIT,
       now: input.now,
     });
+    // 잠긴 편(KAN-290)은 후보에서 뺀다 — 시리즈 순서 판정은 아래 편 상태에서 잠긴 편을 "줄 수 없는 편"으로 본다
+    const pool = fetched.filter(
+      (content) => !isSeriesEpisodeLocked(content, input.seriesAccess),
+    );
 
     const candidates = await this.buildScoringCandidates(pool);
     // 다음 편 판정은 풀이 아니라 카탈로그의 노출 중인 편과 사용자 상태로 한다(KAN-134 규칙 ②′) — 풀은 상한으로 잘리고 본 편을 뺀다
-    const seriesEpisodesBySeries =
+    const seriesEpisodesBySeries = lockSeriesEpisodes(
       await this.contentService.findSeriesEpisodeStates(
         pool
           .map((content) => content.seriesId)
@@ -1007,7 +1189,9 @@ export class DripBatchOrchestrator {
         userId,
         input.now,
         input.market,
-      );
+      ),
+      input.seriesAccess,
+    );
     const gated = this.dripScoringService.filterEpisodeOrder(
       candidates,
       input.completedEpisodesBySeries,
@@ -1073,10 +1257,12 @@ export class DripBatchOrchestrator {
       discoveryCount: number;
       now: Date;
       market: UserMarket;
+      lengthProfile: ContentLengthProfile;
     },
   ): Promise<DiscoveryPlan> {
     const pool = await this.contentService.findCandidates({
       market: input.market,
+      lengthProfile: input.lengthProfile,
       excludeSeenByUserId: userId,
       excludeContentIds: input.alreadyPickedIds,
       // 탐험 편은 시리즈 도입부만 — 처음 보는 주제를 3편부터 줄 이유가 없다
@@ -1278,6 +1464,8 @@ function round(value: number | null): number | null {
 
 /** 한 번에 알림 서비스로 넘기는 사용자 수 — 발송 요청을 이 크기로 나눈다 */
 const ARRIVAL_PUSH_CHUNK = 100;
+/** 아침 알림(KAN-288)의 시각 — 광고성이라 야간 금지(21~08시) 밖인 08:00. A/B의 B 그룹 도착 알림과 같은 크론이다 */
+const MORNING_PUSH_SLOT = DripArrivalSlot.H0800;
 
 /** 적립 행 → 사용자별 도착 1건(정규·탐험) */
 function groupArrivals(items: LibraryItem[]): DripArrival[] {
@@ -1305,4 +1493,32 @@ function groupArrivals(items: LibraryItem[]): DripArrival[] {
   }
 
   return [...byUser.values()];
+}
+
+/**
+ * 시리즈 유료화(KAN-290) — 잠긴 편을 **줄 수 없는 편**(`excluded`)으로 표시한다. 다음 편 고르기(`pickSeriesEpisode`)가 잠긴 편을
+ * 건너뛰므로, 3편까지 완청한 무료 사용자에게는 4편이 "다음 편"으로 뽑히지 않고(앞쪽 빈 편이 있으면 그 편이 간다), 시리즈가
+ * 그날 아무 편도 내지 않는다. 잠금이 없으면(스위치 꺼짐·열리는 사람) 입력을 그대로 돌려준다
+ */
+export function lockSeriesEpisodes(
+  bySeries: Map<string, SeriesEpisodeState[]>,
+  access: SeriesEpisodeAccess,
+): Map<string, SeriesEpisodeState[]> {
+  if (access.lockedAfterEpisodeNo === null) {
+    return bySeries;
+  }
+
+  return new Map(
+    [...bySeries].map(([seriesId, episodes]) => [
+      seriesId,
+      episodes.map((episode) =>
+        isSeriesEpisodeLocked(
+          { seriesId, episodeNo: episode.episodeNo },
+          access,
+        )
+          ? { ...episode, excluded: true }
+          : episode,
+      ),
+    ]),
+  );
 }

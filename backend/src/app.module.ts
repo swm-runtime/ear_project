@@ -29,6 +29,7 @@ import { RecommendInspectorModule } from '@/modules/recommend-inspector/recommen
 import { RecommendTestModule } from '@/modules/recommend-test/recommend-test.module';
 import { RecommendEvalModule } from '@/modules/recommend-eval/recommend-eval.module';
 import { DripFeedbackModule } from '@/modules/drip-feedback/drip-feedback.module';
+import { ContentReviewModule } from '@/modules/content-review/content-review.module';
 import { ExploreModule } from '@/modules/explore/explore.module';
 import { HealthModule } from '@/modules/health/health.module';
 import { LibraryScreenModule } from '@/modules/library-screen/library-screen.module';
@@ -100,6 +101,8 @@ import { UserModule } from '@/modules/user/user.module';
     RecommendInspectorModule,
     // 추천 온라인 평가 — 어제 추천 별점(drip-feedback.md, KAN-116)
     DripFeedbackModule,
+    // 콘텐츠 후기 — 편 자체의 별점 · 글(content-review.md, KAN-279). 추천 입력이 아니다
+    ContentReviewModule,
     // 구독·인앱 결제(subscription-api.md — KAN-106). 요금제·구독 조회, 결제 의도, 영수증 검증, 스토어 서버 알림
     BillingModule,
     ContentDetailModule,

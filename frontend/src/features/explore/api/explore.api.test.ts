@@ -313,3 +313,54 @@ describe('fetchPublisherSeries — GET /series/:series_id/publisher-series(explo
     expect(result).toEqual({ publisherName: null, series: [] });
   });
 });
+
+describe('잠긴 편 is_locked(experiments-api.md 4.2-2 — KAN-294)', () => {
+  it('콘텐츠 행의 is_locked 가 true 면 잠금, 없거나(옛 서버) false 면 잠기지 않은 것으로 읽는다', () => {
+    // given
+    const locked: ExploreEntryDto = {
+      content: content({ is_locked: true }),
+      library: null,
+      is_counted_today: false,
+    };
+    const absent: ExploreEntryDto = { content: content(), library: null, is_counted_today: false };
+    const open: ExploreEntryDto = {
+      content: content({ is_locked: false }),
+      library: null,
+      is_counted_today: false,
+    };
+
+    // when · then
+    expect((toExploreEntry(locked) as ExploreItem).content.isLocked).toBe(true);
+    expect((toExploreEntry(absent) as ExploreItem).content.isLocked).toBe(false);
+    expect((toExploreEntry(open) as ExploreItem).content.isLocked).toBe(false);
+  });
+
+  it('시리즈 편 목록은 편마다 서버 값 그대로 옮긴다 — 화수로 다시 계산하지 않는다', async () => {
+    // given — 4화가 잠기지 않고 3화가 잠긴, 화수 규칙과 어긋난 응답이라도 서버 값이 이긴다
+    mockGet.mockResolvedValue({
+      data: {
+        series: {
+          id: 's1',
+          title: '시리즈',
+          description: '',
+          total_episodes: 4,
+          status: 'completed',
+          thumbnail_url: 'https://example.com/1.webp',
+        },
+        episodes: [3, 4].map((no) => ({
+          episode_no: no,
+          content: content({ id: `e${no}`, is_locked: no === 3 }),
+          library: null,
+          progress: null,
+          is_counted_today: false,
+        })),
+      },
+    });
+
+    // when
+    const detail = await fetchSeriesDetail({ seriesId: 's1' });
+
+    // then
+    expect(detail.episodes.map((episode) => episode.item.content.isLocked)).toEqual([true, false]);
+  });
+});

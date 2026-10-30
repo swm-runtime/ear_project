@@ -77,7 +77,7 @@ export const useSubscriptionScreen = () => {
     catalog,
     flow,
     /**
-     * 초대 코드 지급 알림(KAN-182) — 지급 중일 때만 값. 첫 줄은 프로필·설정과 같은 이벤트 줄, 둘째 줄은 결제와의 관계
+     * 초대 코드 지급 알림(KAN-182) — 지급 중일 때만 값. 첫 줄은 프로필·설정과 같은 프로모션 줄, 둘째 줄은 결제와의 관계
      * (구독 없이 지급 중이면 "구독을 시작하면 이벤트가 끝나요", 구독 중이면 "구독은 그대로") — 판정이 아니라 안내다
      */
     eventNotice: toEventNotice(subscription),
