@@ -18,6 +18,7 @@ import { messageLanguageOf } from '@/modules/user/policies/market.policy';
 
 import {
   isWithinAdHours,
+  morningListenedSince,
   morningLogType,
   MorningPushPlan,
   MorningSkipReason,
@@ -25,7 +26,6 @@ import {
 } from './morning-push.policy';
 import {
   MORNING_PUSH_DAILY_WINDOW_HOURS,
-  MORNING_PUSH_LISTENED_WINDOW_HOURS,
   MORNING_PUSH_LOG_TYPE_PREFIX,
   MORNING_PUSH_TTL_SEC,
   MORNING_PUSH_UNPLAYED_RECENT_DAYS,
@@ -193,7 +193,7 @@ export class MorningPushService {
         MORNING_PUSH_LOG_TYPE_PREFIX,
         new Date(now.getTime() - MORNING_PUSH_DAILY_WINDOW_HOURS * HOUR_MS),
       ),
-      this.findFacts(userIds, now),
+      this.findFacts(userIds, now, DRIP_GROUP_SCHEDULES[group].timeZone),
     ]);
     const weekStart = toCurrentWeekStart(now);
     const groupTimeZone = DRIP_GROUP_SCHEDULES[group].timeZone;
@@ -257,6 +257,7 @@ export class MorningPushService {
   private async findFacts(
     userIds: string[],
     now: Date,
+    groupTimeZone: string,
   ): Promise<Map<string, MorningFactRow>> {
     const facts = new Map<string, MorningFactRow>();
 
@@ -266,9 +267,7 @@ export class MorningPushService {
         addedSince: new Date(
           now.getTime() - MORNING_PUSH_UNPLAYED_RECENT_DAYS * 24 * HOUR_MS,
         ),
-        listenedSince: new Date(
-          now.getTime() - MORNING_PUSH_LISTENED_WINDOW_HOURS * HOUR_MS,
-        ),
+        listenedSince: morningListenedSince(now, groupTimeZone),
       });
 
       for (const row of rows) {

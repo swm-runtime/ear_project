@@ -1,5 +1,9 @@
 import { experimentBucket } from '@/common/utils/experiment-bucket.util';
-import { utcOffsetMinutes } from '@/modules/drip/drip-group.policy';
+import {
+  DRIP_BATCH_LOCAL_HOUR,
+  localMinutesOf,
+  utcOffsetMinutes,
+} from '@/modules/drip/drip-group.policy';
 import {
   buildContentDeepLink,
   DEEP_LINK_LIBRARY,
@@ -177,4 +181,20 @@ export function isWithinAdHours(
     localMinutes >= AD_PUSH_ALLOWED_FROM_LOCAL_HOUR * 60 &&
     localMinutes < AD_PUSH_ALLOWED_UNTIL_LOCAL_HOUR * 60
   );
+}
+
+/**
+ * "오늘 이미 들었다"를 세기 시작하는 시각 — **그룹 기준 시간대의 오늘 05:00**(편성 시각 · 서비스 날짜 경계). 08:00 크론이면 3시간
+ * 전이지만, 편성 배치가 08:00 뒤에 끝나 그 자리에서 보낼 때(예: 11:00)도 같은 05:00을 본다 — 종전 "보내는 시각 − 3시간"은 늦은
+ * 배치에서 06:30에 들은 사용자를 "안 들음"으로 셌다. 05:00 전이면 전날 05:00이다(아침 알림은 08시 전에 보내지 않아 실제로는 없다).
+ */
+export function morningListenedSince(now: Date, timeZone: string): Date {
+  const minutesSinceDayStart =
+    localMinutesOf(timeZone, now) - DRIP_BATCH_LOCAL_HOUR * 60;
+  const minutes =
+    minutesSinceDayStart >= 0
+      ? minutesSinceDayStart
+      : minutesSinceDayStart + 24 * 60;
+
+  return new Date(now.getTime() - minutes * 60_000 - (now.getTime() % 60_000));
 }
