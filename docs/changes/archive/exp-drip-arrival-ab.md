@@ -5,6 +5,7 @@
 | 대상 문서 | `features/notification.md` 4.3·8·미결 · `features/drip-scheduling.md` 2(트리거 표)·7(재개) · `backend/domain.md` 9.1 `notification_logs.type` · `spec/api/admin-api.md`(알림 반응 `variant`) |
 | 요청 파트 | 백엔드 — 박준현 |
 | 발행 날짜 | 2026-10-29 |
+| 반영 날짜 | 2026-10-30 |
 | 시작 날짜 | 2026-10-29 |
 | 기한 | 2026-11-01 (Medium — 다음 통합 때) |
 | 선행 | 없음 |
@@ -52,3 +53,4 @@
 ## 처리 기록
 
 - 2026-10-29 발행(BE — 구현과 같은 PR).
+- 2026-10-30 반영 — `features/notification.md` 4.3 "시점" 행(시각 A/B — 스위치 · 해시 · 07:30/08:00 · 늦은 배치 · 하루 1건 머리 판정) · 8장 완료 조건 4줄, `features/drip-scheduling.md` 2장 트리거 표(실험 중 07:30 · 08:00 · "현지 05:00~08:00") · 7장 재개, `backend/domain.md` 9.1 `notification_logs.type`(`drip_arrival.<그룹>`), `spec/api/admin-api.md` 4.22 `push_reactions`(`rule` null · `variant` 그룹 · 기준선). `notification.md` 미결에는 더할 항목이 없었다.

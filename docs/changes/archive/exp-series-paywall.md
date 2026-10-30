@@ -5,6 +5,7 @@
 | 대상 문서 | `features/paywall.md` 4.1 · `features/drip-scheduling.md` 4.2-3 · `features/notification.md` 4.6("듣던 콘텐츠") · `spec/api/experiments-api.md` 4.2-1·4.2-2 · `backend/recommendation-evaluation.md` 3.3·5.1·6 · `backend/architecture.md` 7장(에러 코드 예시 — 선택) |
 | 요청 파트 | 백엔드 — 박준현 |
 | 발행 날짜 | 2026-10-30 |
+| 반영 날짜 | 2026-10-30 |
 | 시작 날짜 | 2026-10-30 |
 | 기한 | 2026-11-02 (Medium — 다음 통합 때, `exp-contracts.md`와 함께) |
 | 선행 | 없음 — 계약 자체의 화면 문서 이관은 `changes/pending/exp-contracts.md`가 맡는다. 이 기록은 그 위에 구현이 정한 세부만 더한다 |
@@ -60,3 +61,4 @@
 ## 처리 기록
 
 - 2026-10-30 발행(BE — 구현과 같은 PR).
+- 2026-10-30 반영 — 1 `features/paywall.md` 4.1 "시리즈 유료화 — 잠긴 편"(재생 게이트 첫 단계 · 차감 없음 · 한도보다 먼저 · `replay` 포함) · 2 `SERIES_FREE_EPISODES` 1~99는 `paywall.md` 4.1에, `is_locked` 자리는 `explore-api.md` 4.1(시리즈 카드 제외) · 4.7 · `content-detail-api.md` 4.1(최상위 + `content`) · `library-api.md` 4.1 · 4.3(`resume_target.content`)에 — `experiments-api.md`는 `exp-contracts.md`에 따라 통합 안내로 바꿨다 · 3 `drip-scheduling.md` 4.2(규칙 ②′ 아래 — 잠긴 편은 후보 · 다음 편 판정에서 빠지고 앞쪽 빈 무료 편은 메움) · 4 `notification.md` 4.6 `resume_content` 행 · 5 `recommendation-evaluation.md` 3.2 `series-follower` · 3.3 5부작 · 5.1 불변식 9 · 6 `--series-paywall` · 6(선택) `architecture.md` 7.2 예시. **충돌 처리**: 1 · 3 · 5의 "최상위 유료 요금제(pro) — 데일리 잠김"은 뒤에 나온 팀 결정 `exp-series-paywall-daily.md`(2026-10-30)대로 "유료 요금제(daily · pro) 또는 체험"으로 적었다(코드 `isPaidTier` · 평가 세계 `isPaidTier`와 대조). 평가기 불변식 라벨 문자열(`eval-runner.ts` — "최상위 요금제")은 코드라 고치지 않았다.

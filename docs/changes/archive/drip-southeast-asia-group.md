@@ -5,6 +5,7 @@
 | 대상 문서 | `spec/api/global-api.md` 2.4(발송 그룹 정의) · `features/drip-scheduling.md` 2(그룹 표) · `features/notification.md` 4.3·4.6(그룹 현지 07:00·18:00 — 그룹 이름 나열이 있으면) · `backend/domain.md` 7.3 `drip_batch_runs.group` 값 |
 | 요청 파트 | 백엔드 — 박준현 |
 | 발행 날짜 | 2026-10-26 |
+| 반영 날짜 | 2026-10-30 |
 | 시작 날짜 | 2026-10-26 |
 | 기한 | 다음 통합 |
 | 선행 | 없음 · 코드 `feat(be)/drip-southeast-asia-group` |
@@ -38,3 +39,4 @@
 ## 처리 기록
 
 - 2026-10-26 발행(박준현).
+- 2026-10-30 반영 — `spec/api/global-api.md` 2.4(그룹 4개 표 · 신설 이유 · 크론 이름), `features/drip-scheduling.md` 2장 트리거 표(오프셋 하한 · 기준 시간대 · KST 환산 · 크론), `backend/domain.md` 7.3 `group` 값에 `southeast_asia`. `features/notification.md` 4.3 · 4.6에는 그룹 이름 나열이 없어 고칠 곳이 없었다. 같은 사실이 낡아 있던 `infra/runbook.md` 드립 시간대 그룹 스위치 항목(오프셋 · 기준 시간대 · 확인 SQL)과 `features/README.md` 결정 #66(3그룹 → 4그룹)도 함께 고쳤다. 코드 `drip-group.policy.ts` `DRIP_GROUP_SCHEDULES` · 크론 이름(`daily-drip-batch-southeast-asia` 등 — asia는 접미사 없음)과 대조함. PRD FR-47("3그룹")은 이 기록의 대상이 아니라 그대로 두었다.

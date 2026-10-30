@@ -27,7 +27,8 @@
 | 이메일 등록·인증 | `auth-api.md` 4.8~4.11 | 미인증이면 결제 의도 생성을 거부한다(4.3) |
 | 구독 **해지** | 스토어 구독 관리 화면(`subscription.md` 4.5) | **엔드포인트가 없다.** 앱은 스토어로 딥링크하고, 결과는 S2S로 들어온다 |
 | 탈퇴 시 구독 안내·아카이브 | `auth-api.md` 4.6~4.7 | 재가입 복원 규칙만 소유한다(4.5) |
-| 가격 표기 | 스토어 SDK(현지 통화) | `price_krw`는 참고값이다 — 화면은 SDK가 준 현지 가격을 그린다 |
+| 가격 표기 | 스토어 SDK(현지 통화) | `price_krw`는 참고값이다 — 화면은 SDK가 준 현지 가격을 그린다. 할인 표시(`original_price_krw` · `is_discounted`)만 서버가 판정한다(4.1, 2026-10-29) |
+| 후기 참여 프로모션 조회 · 사용(`GET /users/me/promotions` · `POST /users/me/promotions/:promotionId/redeem`) | `content-review-api.md` 4.6 · 4.7 | 참조만 한다. 사용 응답은 4.2와 같은 본문이고, 지급은 4.8과 같은 경로다(2026-10-28 — KAN-279) |
 
 **플랫폼 범위** — 계약은 iOS(App Store)·Android(Google Play)를 함께 정하고, **서버는 둘 다 구현돼 있다**(iOS 2026-10-02, Android 2026-10-03). 다만 스토어별로 **검증 구성과 상품 ID가 있어야 켜진다**(7장) — 없는 플랫폼의 요청은 `SUBSCRIPTION_PLAN_UNAVAILABLE`로 거부된다(4.3). Android는 Play Console에 구독 상품을 만들고 `plans.store_product_id_android`를 채우기 전까지 꺼져 있다.
 
@@ -79,6 +80,8 @@
 | 7 | POST | `/webhooks/play-store` | Google Play RTDN(Pub/Sub push) 수신 (4.7) | **스토어 서명** |
 | 8 | POST | `/users/me/subscription/invite-codes` | 초대 코드 입력 → 요금제 지급 (4.8, 2026-10-10) | 필요 |
 
+- 후기 참여 프로모션 경로 두 개(`GET /users/me/promotions` · `POST /users/me/promotions/:promotionId/redeem`)는 이 문서가 아니라 `content-review-api.md` 4.6 · 4.7이 소유한다(1장 "다루지 않는 것").
+
 **설계 메모**
 
 - **경로는 `/users/me/subscription`이다.** `subscription.md` 4.3은 `GET /subscription`이라고 적었으나, 사용자 종속 자원은 전부 `/users/me/*` 아래에 둔다는 다른 계약들(`settings`·`interests`·`drip-feedback`)과 맞춘다(기능 문서 4.3을 함께 고쳤다).
@@ -104,19 +107,19 @@
   "plans": [
     {
       "plan_id": "uuid-light", "tier": "light", "name": "Light", "description": "하루 2편까지 들을 수 있어요",
-      "price_krw": 0, "is_free": true, "store_product_id": null,
+      "price_krw": 0, "is_free": true, "original_price_krw": null, "is_discounted": false, "store_product_id": null,
       "entitlements": { "daily_play_limit": 2, "daily_drip_count": 2, "drip_enabled": true, "ads_enabled": true },
       "action": "current"
     },
     {
       "plan_id": "uuid-daily", "tier": "daily", "name": "Daily", "description": "하루 5편까지 들을 수 있어요",
-      "price_krw": 3900, "is_free": false, "store_product_id": "com.runtime.ear.subscription.daily.monthly",
+      "price_krw": 3900, "is_free": false, "original_price_krw": null, "is_discounted": false, "store_product_id": "com.runtime.ear.subscription.daily.monthly",
       "entitlements": { "daily_play_limit": 5, "daily_drip_count": 2, "drip_enabled": true, "ads_enabled": false },
       "action": "purchase"
     },
     {
       "plan_id": "uuid-pro", "tier": "pro", "name": "Pro", "description": "제한 없이 마음껏 들을 수 있어요",
-      "price_krw": 9900, "is_free": false, "store_product_id": "com.runtime.ear.subscription.pro.monthly",
+      "price_krw": 9900, "is_free": false, "original_price_krw": null, "is_discounted": false, "store_product_id": "com.runtime.ear.subscription.pro.monthly",
       "entitlements": { "daily_play_limit": null, "daily_drip_count": 2, "drip_enabled": true, "ads_enabled": false },
       "action": "purchase"
     }
@@ -131,6 +134,8 @@
 | `store_product_id` | 요청 `platform`의 상품 ID(`plans.store_product_id_ios` / `_android`). 무료 티어·그 플랫폼에 상품이 없는 요금제는 `null` |
 | `price_krw` | **참고값.** 화면에는 스토어 SDK가 반환한 현지 가격을 그린다(`subscription.md` 7). SDK 조회가 실패했을 때의 폴백으로도 쓰지 않는다 — "요금제를 불러올 수 없어요"다(5장) |
 | `is_free` | 무료 요금제인가 — **서버가 판정한다.** 요금제 정의의 가격(`plans.price_krw`)이 0 이하면 `true`다. 티어 이름으로 가르지 않는다. 시장·플랫폼·구독 상태와 무관하다. 앱은 "무료" 표시를 이 값으로 한다(`store_product_id`·`action`으로 추정하지 않는다). 추가 필드라 옛 앱은 무시한다(2026-10-18 — KAN-226) |
+| `original_price_krw` | number \| null — 취소선으로 그릴 정가(원). **`is_discounted = true`일 때만 값이 있다** — 아니면 `null`. 서버가 소유한 참고값이다(아래 "할인 표시", 2026-10-29 — KAN-286) |
+| `is_discounted` | 정가 취소선 + "지금 할인 중"을 그리는가 — **서버가 판정한다**(아래 "할인 표시"). 추가 필드라 옛 앱은 무시하고, 옛 서버(필드 없음)는 `false`로 다룬다 |
 | `action` | 이 사용자가 그 요금제에 대해 할 수 있는 일 — **서버가 판정한다**. 아래 표 |
 | `is_email_verified` | `email IS NOT NULL AND is_email_verified = true`. `false`면 [구독하기] 탭 시 이메일 등록·인증 화면을 먼저 연다(FR-39) — 4.3이 다시 판정한다 |
 
@@ -149,6 +154,21 @@
 - **표시 문구는 DB 값이다**(`plans.name`·`description` — `domain.md` 8.1). 2026-10-06 PM 결정으로 `Light` / `Daily` / `Pro`, 설명은 "하루 2편까지 들을 수 있어요" / "하루 5편까지 들을 수 있어요" / "제한 없이 마음껏 들을 수 있어요"(마이그레이션 `RenamePlanDisplayNames`). 화면은 이 값을 그대로 그린다 — 앱에 티어명을 두지 않는다.
 - **`name`·`description`은 사용자 시장의 언어다**(2026-10-16 — KAN-192 일부). KR은 한국어(`name`·`description`), GLOBAL은 영어(`name_en`·`description_en` — `domain.md` 8.1. 비어 있으면 한국어)다. 언어는 기기 언어가 아니라 `users.market`으로 고른다. 앱은 받은 문구를 그대로 그린다.
 - 비활성(`is_active = false`) 요금제는 목록에서 빠진다. 그 요금제의 기존 구독자는 만료까지 유지되며(`subscription.md` 7), 이때 응답에 `current`인 항목이 없을 수 있다 — 현재 구독 표시는 4.2가 한다.
+
+**할인 표시 — `original_price_krw` · `is_discounted`** (2026-10-29 — KAN-286 단기 실험 ① 가격 인하. 원문 `experiments-api.md` 4.4에서 옮김)
+
+앱은 스토어 `displayPrice`만 알고 정가를 모르므로 정가와 할인 여부를 서버가 준다. 실험을 끝낼 때 앱 배포 없이 끌 수 있도록 표시 여부는 서버 스위치로 둔다. **종료일은 표시하지 않는다**(종료일 미정).
+
+```json
+{ "tier": "daily", "price_krw": 1900, "is_free": false, "original_price_krw": 3900, "is_discounted": true, "...": "..." }
+```
+
+- `is_discounted = true` ⇔ 서버 스위치가 켜져 있고 · 유료 요금제이고(`is_free = false`) · 그 티어에 설정된 정가가 있고 · 정가 **>** `price_krw`. 이때 `original_price_krw` = 설정된 정가.
+- 그 밖은 전부 `is_discounted = false` · `original_price_krw = null`. 무료(light) 요금제는 언제나 `false`/`null`. 정가가 `price_krw` 이하이면(가격을 되돌리고 설정을 안 지운 경우) 할인이 아니다.
+- 시장 · 플랫폼 · 구독 상태와 무관하다. 스키마 변경 없음 — 스위치와 티어별 정가는 서버 설정이다(키 이름은 `backend/.env.example`, 기본 꺼짐). 값을 바꾸면 API를 다시 띄운다. 앱 배포는 필요 없다.
+- 클라이언트: `is_discounted = true`면 스토어 `displayPrice` 옆에 `original_price_krw`를 원화 형식으로 **취소선** + "지금 할인 중" 배지(카피 · 배치는 `spec/uiux`). `false` · 필드 없음이면 지금처럼 `displayPrice`만.
+- **취소선 정가는 참고값이고, 결제되는 가격은 언제나 스토어 가격이다**(`displayPrice`). 앱이 `price_krw` · `original_price_krw`로 할인율을 계산하거나 결제 가격을 그리지 않는다. 할인 여부를 티어명이나 기기 시각으로 판정하지 않고, 종료일을 추정해 표시하지 않는다.
+- **실험 기간 한정이다.** 인하 가격을 장기간 유지하면 정가가 사실상 사라져 "할인" 표시가 부당 할인 표시가 될 수 있다 — 가격을 유지하기로 하면 스위치를 끄고 이 표시를 없앤다. 그때 필드를 남길지(언제나 `false`) 지울지 정한다.
 
 **에러** — `VALIDATION_FAILED`(400): `platform` 누락·오값.
 
@@ -442,7 +462,7 @@ Google Cloud Pub/Sub **push 구독**이 호출한다. 본문은 Pub/Sub 메시�
 
 | 필드 | 의미 |
 |---|---|
-| `name` | 코드(캠페인) 이름. 화면에 쓸지는 클라이언트가 정한다 |
+| `name` | 코드(캠페인) 이름. 화면에 쓸지는 클라이언트가 정한다. **후기 참여 프로모션의 지급**(내부 캠페인 행 `REVIEW-REWARD` — `domain.md` 8.5 · 8.6)이면 서버 상수 KR **"후기 참여"** · GLOBAL **"Review"**다 — 이 경우에 한해 "사용자 시장의 언어"(`users.market`) 규칙이 `grant.name`에도 적용된다. 초대 코드 지급의 `name`은 종전대로 코드 행 이름이다(`content-review-api.md` 4.7, 2026-10-28) |
 | `tier` · `plan_name` | 지급 요금제 |
 | `ends_at` | 지급이 끝나는 시각(배타 경계 — 서비스 날짜 경계) |
 | `last_date` | 지급으로 쓸 수 있는 마지막 서비스 날짜(`YYYY-MM-DD`) — "N월 N일까지"는 이 값. 클라이언트가 경계(05시) 보정을 하지 않는다 |
@@ -469,7 +489,7 @@ Google Cloud Pub/Sub **push 구독**이 호출한다. 본문은 Pub/Sub 메시�
 **Response 200** — 4.2와 **같은 본문**이다. `plan.grant`에 지급 내용이 실린다(앱이 4.2를 다시 부르지 않는다).
 
 - **멱등키를 쓰지 않는다.** 같은 계정이 같은 코드를 다시 보내면 지급 중인 한 새로 만들지 않고 같은 결과(200)다 — 응답 유실 뒤 재전송이 안전하다.
-- 판정 순서(앞이 우선): 없음·꺼짐(404) → 이 계정이 쓴 코드(지급 중이면 200, 끝났으면 409 `INVITE_CODE_ALREADY_USED`) → 입력 기간 밖(409 `INVITE_CODE_EXPIRED`) → 다른 지급 진행 중(409 `INVITE_GRANT_ALREADY_ACTIVE`) → 한도 소진(409 `INVITE_CODE_EXHAUSTED`) → 지급 마지막 날 경과(409 `INVITE_CODE_EXPIRED`).
+- 판정 순서(앞이 우선): 없음·꺼짐(404 — **내부 캠페인 코드 `REVIEW-REWARD`는 `is_active`와 무관하게 없는 코드**다, `domain.md` 8.5) → 이 계정이 쓴 코드(지급 중이면 200, 끝났으면 409 `INVITE_CODE_ALREADY_USED`) → 입력 기간 밖(409 `INVITE_CODE_EXPIRED`) → 다른 지급 진행 중(409 `INVITE_GRANT_ALREADY_ACTIVE`) → 한도 소진(409 `INVITE_CODE_EXHAUSTED`) → 지급 마지막 날 경과(409 `INVITE_CODE_EXPIRED`).
 - 유료 구독 중이어도 입력할 수 있다. 지급 요금제가 구독보다 높으면 그 기간 동안 지급 요금제를 쓰고, 낮거나 같으면 표시는 구독 그대로다(`grant`만 실린다). 입력 전부터 있던 구독은 지급을 끝내지 않는다.
 - 지급 행과 `users.tier`는 한 트랜잭션에서 고친다. 코드 행을 잠그고 판정해 동시 입력이 한도를 넘지 않는다.
 

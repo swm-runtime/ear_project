@@ -5,6 +5,7 @@
 | 대상 문서 | `spec/api/admin-api.md` 4.21(응답 `daily[].rescued` · `semantic[]` · `corrections[]`) · `features/backend-monitoring.md`(검색 로그 탭 행) |
 | 요청 파트 | 백엔드 — 박준현 |
 | 발행 날짜 | 2026-10-27 |
+| 반영 날짜 | 2026-10-30 |
 | 시작 날짜 | 2026-10-27 |
 | 기한 | 다음 통합 |
 | 선행 | 없음 · 코드 `feat(be)/search-semantic-insights` |
@@ -30,3 +31,4 @@
 ## 처리 기록
 
 - 2026-10-27 발행(박준현).
+- 2026-10-30 반영 — `spec/api/admin-api.md` 4.21(응답 예시에 `hybrid_searches` · `hybrid_misses` · `daily[].rescued` · `semantic[]` · `corrections[]` + "의미 검색 지표" 정의 소절), `features/backend-monitoring.md` 4장 "검색 로그" 행(카드 · 막대 · 두 표 · 옛 서버 처리).

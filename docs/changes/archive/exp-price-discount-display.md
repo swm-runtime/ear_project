@@ -6,6 +6,7 @@
 | 요청 파트 | 백엔드 — 박준현 |
 | 관련 | 원문 `spec/api/experiments-api.md` 4.4 · 티켓 `tickets/backend/pending/exp-price-discount.md` · Jira [KAN-286](https://runtime364.atlassian.net/browse/KAN-286) · FE 티켓(발행 예정) |
 | 발행 날짜 | 2026-10-29 |
+| 반영 날짜 | 2026-10-30 |
 | 시작 날짜 | 2026-10-29 |
 | 기한 | 없음 — 통합 과정에서 반영 |
 | 선행 | 없음 |
@@ -29,3 +30,4 @@
 ## 처리 기록
 
 - 2026-10-29 발행.
+- 2026-10-30 반영 — `spec/api/subscription-api.md` 4.1(응답 예시에 두 필드 · 필드 표 두 행 · "할인 표시" 소절 — 판정 규칙 · 옛 서버 처리 · "취소선 정가는 참고값, 결제 가격은 스토어" · 실험 기간 한정. env 키 이름은 적지 않고 `backend/.env.example`을 가리킴) · 1장 "가격 표기" 행, `features/subscription.md` 7장 "국가·통화 차이" 뒤에 할인 표시 항목. `experiments-api.md` 4.4는 옮긴 곳 한 줄로 줄였다. 4.1 기본 예시의 가격(3,900 · 9,900)은 `exp-price-discount.md`(보류 — 스토어 가격 변경 전)에 맡기고, 할인 상태 예시만 실험 가격으로 적었다.

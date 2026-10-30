@@ -5,6 +5,7 @@
 | 대상 문서 | `backend/domain.md` 5.1 `contents`(노출 조건) · 5.9 `series` · `spec/api/admin-api.md` 4.6 · 4.10 · 4.24 · 8장 `AdminContentItem` · `features/drip-scheduling.md` 4.2·4.8·7 · `features/explore.md` 노출 조건 · `backend/architecture.md` 9.1(access token 클레임) |
 | 요청 파트 | 백엔드 |
 | 발행 날짜 | 2026-10-29 |
+| 반영 날짜 | 2026-10-30 |
 | 시작 날짜 | 2026-10-29 |
 | 기한 | 다음 통합 |
 | 선행 | 없음 · 근거 티켓 `tickets/backend/pending/exp-short-variant-cohort.md`(KAN-298) |
@@ -121,3 +122,4 @@ ck_contents_intro_version  CHECK (intro_version IS NULL OR intro_version ~ '^[a-
 ## 처리 기록
 
 - 2026-10-29 발행(KAN-298 구현 PR #2147과 함께) · 같은 날 노출 분리 절(7~10) 추가(후속 PR #2150) · 같은 날 도입부 버전 절(11) 추가(#2150 위에 쌓은 PR).
+- 2026-10-30 반영 — 1 · 11 `backend/domain.md` 5.1(`length_profile` · `variant_of_content_id` · `intro_version` 칸 · CHECK · FK · 설명) · 2 5.9(`length_profile` · `variant_of_series_id`) · 3 · 11 `admin-api.md` 4.6(payload 세 필드 · "짧은 판 필드 검증" 400 표 · `remake_of_content_ref` 이름 · 감사 로그) · 4 · 11 4.10(세 필드 받지 않음) · 5 4.24(`AdminSeriesItem` · `POST` 본문 · 400) · 6 · 11 8장 `AdminContentItem` · 7 `domain.md` 5.1 노출 조건 "짧은 판 코호트"(붙는 곳 · 안 붙는 곳 · 폴백 없음) · 8 `drip-scheduling.md` 4.2 후보 필터 · 4.8 · 7장 · 9 `backend/architecture.md` 9.1(`signed_up_at` 클레임) · 10 `features/explore.md` 6장 · `features/README.md` 결정 #69. `experiments-api.md` 4.3은 통합 안내로 바꿨다. 마이그레이션 `1792100000000-AddContentLengthProfile` · `1792200000000-AddContentIntroVersion`의 제약 이름과 대조함. `intro_version` 형식 위반의 `details.field`는 코드에서 확인하지 못해 적지 않았다.

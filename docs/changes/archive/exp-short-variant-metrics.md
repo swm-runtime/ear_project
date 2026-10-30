@@ -5,6 +5,7 @@
 | 대상 문서 | `spec/api/admin-api.md`(4.22 인사이트 계열 다음에 `GET /admin/insights/short-variant` 절 신설) · `features/backend-monitoring.md`(조회 대상 목록·"실험 지표" 탭 패널에 추가) |
 | 요청 파트 | 백엔드 |
 | 발행 날짜 | 2026-10-29 |
+| 반영 날짜 | 2026-10-30 |
 | 시작 날짜 | 2026-10-29 |
 | 기한 | 다음 통합 |
 | 선행 | 없음 · 코드 `feat(be)/exp-short-variant-metrics`(KAN-298 · KAN-296) |
@@ -40,3 +41,4 @@
 ## 처리 기록
 
 - 2026-10-29 발행.
+- 2026-10-30 반영 — `spec/api/admin-api.md` 4.22-6 `GET /admin/insights/short-variant` 신설(`experiments-api.md` 4.5 그대로) + 3장 목록 행, `features/backend-monitoring.md` 4장 "실험 지표" 탭 패널 ③. `experiments-api.md` 4.5는 옮긴 곳 안내만 남겼다.

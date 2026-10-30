@@ -182,6 +182,7 @@
 
 | 코드 | HTTP | 상황 |
 |---|---|---|
+| `SERIES_EPISODE_LOCKED` | 403 | 잠긴 시리즈 편(시리즈 유료화 — `paywall.md` 4.1, KAN-290 · 2026-10-29) → **잠금 차단 시트**. 한도보다 먼저 판정하고 차감하지 않는다 |
 | `PLAY_LIMIT_EXCEEDED` | 403 | 최상위가 아닌 한도 티어의 소진 → **페이월 바텀시트** |
 | `PLAY_LIMIT_REACHED` | 403 | 최상위 티어의 소진 → 한도 안내(페이월 아님) |
 | `CONTENT_WITHDRAWN` | 403 | 파트너 회수 → "제공이 종료된 콘텐츠예요" + 라이브러리에서 제거(PL9) |
@@ -196,6 +197,7 @@
 - **호출 시점은 오디오가 실제로 소리를 낸 시점이다**(`paywall.md` 4.3). 버튼 탭·발급(4.1)·버퍼링 시점이 아니다 — 로드에 실패하면 이 호출 자체가 발생하지 않고, 따라서 차감도 없다.
 - **`entry_point`는 플레이어를 열게 한 진입점 그대로 보낸다**(`library` / `explore` / `miniplayer` / `push`). **예외는 완료 화면의 ▶ 재청취 하나** — 재청취 창 밖의 새 차감 재생은 플레이어가 시작시키는 것이므로 `player`를 보낸다(확정 2026-08-10 — `paywall.md` 4.2 예외 · `library-api.md` 4.4 enum).
 - **재청취도 이 호출을 거친다.** 완료 상태의 ▶(위치 0 재생)든 창 안의 이어듣기든 같은 경로다. 재청취 창(15일) 안이면 서버가 차감 없이 허용하고, 그 재생의 `play_records` 행은 `is_counted = false`로 적재된다(`domain.md` 6.3 — `listened_sec` 적산을 위해 행은 필요하다). 창 밖이면 새 차감이며 판정은 전부 서버 몫이다(`paywall.md` 4.3-1).
+- **잠긴 시리즈 편은 403 `SERIES_EPISODE_LOCKED`로 거절된다**(`library-api.md` 4.4의 한도 판정보다 먼저 — 차감 없음. `paywall.md` 4.1, KAN-290).
 - **응답 사용**: `progress`로 시작 위치를 확정하고, `daily_play_limit` / `daily_play_count` / `service_date`로 잔여 표시를 갱신한다(신선도 규칙은 `paywall.md` 5장).
 - **완료 상태에서 ▶로 시작한 재생이면 `replay` 신호(4.4)를 함께 보낸다.**
 - **05시 경계(개정 2026-10-07 — 2026-10-12 05:00 KST 적용, KAN-149)를 넘겨 듣는 중에는 추가 호출이 없다.** 이미 시작된 재생은 중단하지 않으며(`paywall.md` 7), `listened_sec`은 재생 시작 시점의 서비스 날짜 행에 계속 누적된다(4.3).
@@ -298,6 +300,7 @@
 | `VALIDATION_FAILED` | 400 | `Idempotency-Key` 누락·255자 초과 |
 | `CONFLICT` | 409 | 같은 `Idempotency-Key`에 다른 요청, 또는 같은 키의 첫 요청이 아직 처리 중(`idempotency.service.ts` — 등재 2026-10-10) |
 | `CONTENT_NOT_FOUND` | 404 | `content_id`가 없음 |
+| `SERIES_EPISODE_LOCKED` | 403 | 잠긴 시리즈 편(KAN-290) — 이 신호는 한도 판정이 없지만 잠금만은 재생 게이트와 같은 함수로 본다(`paywall.md` 4.1). 적재하지 않는다 |
 
 ---
 
@@ -387,7 +390,7 @@
 - 응답은 `Cache-Control: no-store`. 대량 수집 방어(레이트 리밋)는 발급과 같은 값이다.
 - **복사·선택 차단은 화면 규칙이다**(`player.md` 4.6 — FR-33). 서버는 텍스트를 그대로 내려준다.
 
-**에러** — 4.1과 같다(`PLAY_LIMIT_EXCEEDED` · `PLAY_LIMIT_REACHED` · `CONTENT_WITHDRAWN` 403, `CONTENT_NOT_FOUND` 404).
+**에러** — 4.1과 같다(`SERIES_EPISODE_LOCKED` · `PLAY_LIMIT_EXCEEDED` · `PLAY_LIMIT_REACHED` · `CONTENT_WITHDRAWN` 403, `CONTENT_NOT_FOUND` 404).
 
 ### 4.8 `GET /contents/:content_id/related` — 관련 콘텐츠
 
@@ -411,7 +414,7 @@
       "content": {
         "id": "uuid", "title": "…", "author_name": "…", "source_name": "…", "source_url": "https://…",
         "duration_sec": 600, "thumbnail_url": "https://…", "language": "ko", "content_version": 1,
-        "topic_ids": ["uuid"], "tags": ["…"], "series": null
+        "topic_ids": ["uuid"], "tags": ["…"], "series": null, "is_locked": false
       },
       "library": { "item_id": "uuid", "source": "save", "status": "unplayed" },
       "is_counted_today": false
@@ -422,6 +425,7 @@
 
 - **행 모양은 탐색 콘텐츠 행(`explore-api.md` 4.1)과 같다** — `content`·`library`(담기지 않았으면 `null`)·`is_completed`(2026-10-23 — KAN-248)·`is_counted_today`. 담기·재생 처리를 탐색 행 처리 그대로 쓴다. **시리즈 카드로 접지 않는다**(편 단위) — 시리즈 카드 스위치와 무관하게 `type` 키가 없다.
 - 커서·`has_next`·잔여 재생 표시값을 싣지 않는다(페이지가 아니고, 잔여 표시는 플레이어가 이미 갖고 있다). 결과가 없으면 `items: []`.
+- **`content.is_locked`**(boolean, 2026-10-29 — KAN-290): 이 사용자가 이 편을 재생할 수 없는가(시리즈 유료화 — `paywall.md` 4.1). 사용자마다 값이 다르고, 시리즈가 아닌 콘텐츠·무료 편은 늘 `false`, 옛 서버(필드 없음)는 `false`로 다룬다. 탐색 행(`explore-api.md` 4.1)과 같은 자리다.
 - **후보** — 사용자 시장 · 노출 조건(발행 상태 · 라이선스 유효 — 회수·만료 제외, `domain.md` 5.1) · 기준 편 제외 · `exclude_ids` 제외 · 임베딩이 **현행 `model` AND `content_version` 일치**(재발행 후 미갱신 벡터 제외 — 검색 의미 엔진·추천 스코어링과 같은 조건, `domain.md` 5.6).
 - **정렬** — 기준 편 임베딩과의 **코사인 유사도 내림차순**(동률은 id). 기준 벡터는 DB의 기준 편 행이다(AI 서버를 부르지 않는다). 유사도가 서버 하한 이하인 편은 뺀다 — **하한 값은 서버 소유**다(계약에 적지 않는다, 반응을 보고 조정). 전수 코사인(ANN 없음 — `domain.md` 5.6). 같은 시리즈 편이 코사인으로 올라오는 것은 막지 않는다(`player.md` 4.2-2).
 - **기준 편에 현행 임베딩이 없으면**(행 없음·모델 불일치·재발행 후 미갱신) 404가 아니라 200 `items: []`다 — 없는 것이 정상 상태다(4.7 `segments: []`와 같은 판단).
@@ -441,10 +445,11 @@
 
 ## 5. 에러 코드 표
 
-**이 표는 `common-error-handling.md` 9장 중앙 표의 발췌다**(재생 계열 9.5 + 공용 콘텐츠 9.2 + 기반 9.1) — 두 곳이 어긋나면 9장이 기준이다. **플레이어 고유의 신규 코드는 없다** — 이 화면의 모든 분기가 기존 코드로 표현된다(9장에 새로 등재할 것이 없다).
+**이 표는 `common-error-handling.md` 9장 중앙 표의 발췌다**(재생 계열 9.5 + 공용 콘텐츠 9.2 + 기반 9.1) — 두 곳이 어긋나면 9장이 기준이다. **플레이어 고유의 신규 코드는 없다** — 이 화면의 모든 분기가 기존 코드로 표현된다. `SERIES_EPISODE_LOCKED`(2026-10-29 — KAN-290 시리즈 유료화)는 9.5에 등재된 재생 계열 코드다.
 
 | error_code | HTTP | retryable | 클라이언트 동작 |
 |---|---|---|---|
+| `SERIES_EPISODE_LOCKED` | 403 | false | **잠금 차단 시트**(카피는 `spec/uiux` — KAN-294). 플레이어를 열었으면 닫고 구독 화면으로 이어 준다. 차감 없음 · 한도보다 먼저 — 잠금과 한도가 둘 다 해당하면 이 코드가 이긴다. 서버 메시지 "이 편은 구독하면 들을 수 있어요"(2026-10-30) |
 | `PLAY_LIMIT_EXCEEDED` | 403 | false | **페이월 바텀시트**(`paywall.md` 4.5). 발급(4.1) 시점이면 플레이어를 닫고 전환 |
 | `PLAY_LIMIT_REACHED` | 403 | false | "오늘 청취 한도를 모두 사용했어요" 안내. 페이월 아님 |
 | `CONTENT_WITHDRAWN` | 403 | false | "제공이 종료된 콘텐츠예요" + [닫기](PL9). 라이브러리에서도 제거, 미니플레이어면 내림 |

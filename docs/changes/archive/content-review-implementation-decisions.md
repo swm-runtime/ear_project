@@ -5,6 +5,7 @@
 | 대상 문서 | `spec/api/content-review-api.md` (4.1~4.9) · `features/content-review.md` 4.3 · `backend/architecture.md` 4.5 |
 | 요청 파트 | 백엔드 — 박준현 (KAN-279) |
 | 발행 날짜 | 2026-10-29 |
+| 반영 날짜 | 2026-10-30 |
 | 시작 날짜 | 2026-10-29 |
 | 기한 | 2026-10-30 (Low — KAN-279와 같다. 이번 주 금요일) |
 | 선행 | 없음 — 서버 구현 PR(`feat(be)/content-review-api`)과 함께 올린다 |
@@ -45,3 +46,4 @@ KAN-279 서버 구현 중 계약(`content-review-api.md`)이 값을 정하지 �
 
 - 2026-10-29 발행 — 1단계(후기 API) 구현과 함께(KAN-279, PR #2141)
 - 2026-10-29 2단계(보상) 결정 9~17 추가
+- 2026-10-30 반영 — 1~17 전부 서버 구현대로 적었다(다르게 정한 항목 없음 — 서버 수정 티켓 없음). `spec/api/content-review-api.md` 머리말 · 2장 시장 행(후기 `market` = token · 프로모션 이름 언어 = `users.market` — 8 · 12) · 4.1(404가 스위치보다 먼저 — 1) · 4.2(동시 저장 사용자 행 잠금 · 공백 셈 `\s` · `billing` 모듈이 받음 — 7 · 13 · 9) · 4.3 판정 1 · 4(`muted_until` null · 끝까지 들은 시각 — 2 · 3) · 4.4(스위치 꺼짐에도 204/200 — 4) · 4.6 `reward_progress` 한 함수(14) · 4.7 `findEntitled`(15) · 4.8 평균 반올림 · 가중 평균(5) · 4.9 커서 필터 불일치 400 · 마이크로초(6) · 4.8 건수는 기존 문구 그대로(16). `features/content-review.md` 4.3(끝까지 들은 시각). `backend/architecture.md` 4.5 의존 표에 `ContentReview`(Content · Library · Playback · User — `promotions`의 FK 선언용 엔티티 참조 10) · `Billing`(Subscription · User · Alert · **ContentReview**) 행 신설. `backend/domain.md` 8.5 `REVIEW-REWARD` PATCH 409 `CONFLICT`(11) · 마이그레이션 `down`(17). 코드 입력 404(11)는 `subscription-api.md` 4.8-1(`content-review-contract.md`와 같이).

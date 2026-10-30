@@ -5,6 +5,7 @@
 | 대상 문서 | `spec/api/admin-api.md`(4.22 다음에 `GET /admin/insights/funnel` · `GET /admin/insights/completion-by-length` 신설) · `features/backend-monitoring.md`(탭 표에 "실험 지표" 행) |
 | 요청 파트 | 백엔드 |
 | 발행 날짜 | 2026-10-28 |
+| 반영 날짜 | 2026-10-30 |
 | 시작 날짜 | 2026-10-28 |
 | 기한 | 다음 통합 |
 | 선행 | 없음 · 코드 `feat(be)/experiment-funnel` |
@@ -58,3 +59,4 @@
 ## 처리 기록
 
 - 2026-10-28 발행.
+- 2026-10-30 반영 — `spec/api/admin-api.md` 4.22-3 `GET /admin/insights/funnel` · 4.22-4 `GET /admin/insights/completion-by-length` 신설(요청 · 응답 · 단계 정의 · 깔때기 · 성숙 규칙 · 축소식 · 회귀) + 3장 목록 행, `features/backend-monitoring.md` 4장 탭 표 "실험 지표" 행(패널 ① · ②, 뒤에 생긴 ③ · ④도 같은 행에).

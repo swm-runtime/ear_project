@@ -75,11 +75,18 @@
 | GET | `/admin/insights/summary` | 서비스 지표 요약 — 가입·탈퇴·활성 사용자·청취 시간·완청률·사용자/콘텐츠 순위·리텐션·탈퇴 사유, 읽기 전용 (4.22) |
 | GET | `/admin/insights/recommendations/users` | 추천 검증 후보 사용자 — `user_id`와 행동 수치만, 청취 순·최근 순, 읽기 전용 (4.22-1, 2026-10-22) |
 | GET | `/admin/insights/recommendations/users/:userId` | 추천 검증 상세 — 프로필·관심 주제·청취·편성 이력·현재 시점 추천 재계산, 읽기 전용 · 감사 로그 (4.22-1) |
+| GET | `/admin/insights/invite-codes` | 초대 코드별 묶음 지표 — 입력·지급·7일 활성·청취·입력 뒤 결제와 기준선, 읽기 전용 (4.22-2, 2026-10-28) |
+| GET | `/admin/insights/funnel` | 가입 퍼널 — 가입 주 코호트 단계별 비율·가장 큰 이탈, 읽기 전용 (4.22-3, 2026-10-28) |
+| GET | `/admin/insights/completion-by-length` | 길이별 완청률 — 한국 콘텐츠 편별 축소 비율·로지스틱 추세, 읽기 전용 (4.22-4, 2026-10-28) |
+| GET | `/admin/insights/series-episodes` | 시리즈 편별 완청·이탈 — 시작·완청·다음 편 진행, 읽기 전용 (4.22-5, 2026-10-29 — KAN-293) |
+| GET | `/admin/insights/short-variant` | 짧은 판·도입부 실험 지표 — 완청률·초반 이탈, 읽기 전용 (4.22-6, 2026-10-29 — KAN-298) |
+| GET | `/admin/insights/drip-arrival-time` | 도착 알림 시각 실험 지표 — 07:00·07:30·08:00 재생률, 읽기 전용 (4.22-7, 2026-10-30 — KAN-289) |
 | GET · POST | `/admin/invite-codes` | 초대 코드 목록(사용 현황 포함)·만들기 (4.23, 2026-10-10) |
 | PATCH | `/admin/invite-codes/:inviteCodeId` | 초대 코드 고치기 — 이름·켜기/끄기·한도·입력 기간만 (4.23) |
 | GET · POST | `/admin/series` | 시리즈 목록(편 현황 포함)·만들기 (4.24, 2026-10-17 — KAN-134) |
 | PATCH | `/admin/series/:seriesId` | 시리즈 고치기 — 제목·소개·총 편수·상태 (4.24) |
 | PUT | `/admin/series/:seriesId/cover` | 시리즈 표지 올리기·교체 — multipart `cover` (4.24, 2026-10-21 — KAN-234) |
+| GET | `/admin/content-reviews/summary` · `/admin/content-reviews` | 콘텐츠 후기 편별 집계 · 글 목록, 읽기 전용 — 상세는 `content-review-api.md` 4.8 · 4.9 (4.25, 2026-10-28 — KAN-279) |
 
 ## 4. 엔드포인트 상세
 
@@ -180,7 +187,10 @@
   "sources": [{ "title": "...", "author": "...", "url": "..." }],  // ai_generated 필수, 최소 1개
   "review_confirmed": true,    // 필수, true여야 한다
   "market": "kr" | "global",   // 필수(2026-10-19 — KAN-190 2단계)
-  "language": "ko" | "en"      // 필수(2026-10-19 — KAN-190 2단계)
+  "language": "ko" | "en",     // 필수(2026-10-19 — KAN-190 2단계)
+  "length_profile": "standard" | "short",   // 선택(2026-10-29 — KAN-298). 생략하면 단편은 standard, 시리즈 편은 시리즈의 값
+  "variant_of_content_id": "uuid",          // short 단편이면 필수 · 짧은 시리즈 편이면 원본 시리즈의 같은 화(선택) · standard면 넣지 않는다
+  "intro_version": "hook-v2"                // 선택(2026-10-29 — KAN-298). 도입부 버전, 생략하면 NULL(기존 도입부)
 }
 ```
 
@@ -193,6 +203,23 @@
   - 조합이 `kr↔ko` · `global↔en`이 아니면 400 `VALIDATION_FAILED`(`details.field = "language"`).
   - `topic_ids`가 전부 같은 시장(`market`)의 주제가 아니면 400 `VALIDATION_FAILED`(`details.field = "topic_ids"`).
   - `market = global`인데 `enrichment_file`에 `target_audiences`가 있으면 400 `VALIDATION_FAILED`(`details.field = "target_audiences"`).
+
+**짧은 판 필드 검증** (추가 2026-10-29 — KAN-298 짧은 판 코호트, `domain.md` 5.1 · 5.9)
+
+`length_profile = short`는 기존 발행 편의 주제를 재활용해 5~12분으로 다시 만든 **짧은 판**이다(파이프라인 KAN-296). 노출은 사용자 가입 코호트로 갈린다(`domain.md` 5.1 노출 조건). 전부 **400 `VALIDATION_FAILED`**이고 **저장소에 파일을 올리기 전에** 거절한다. 원본의 상태(회수·만료)는 보지 않는다.
+
+| 조건 | `details.field` |
+|---|---|
+| `short` 단편인데 `variant_of_content_id` 없음 | `variant_of_content_id` |
+| `standard`인데 `variant_of_content_id` 있음 | `variant_of_content_id` |
+| 원본 콘텐츠가 없다 | `variant_of_content_id` |
+| 원본이 이미 짧은 판(`short`)이다 | `variant_of_content_id` |
+| 시리즈 편인데 `length_profile`이 `series.length_profile`과 다르다 | `length_profile` |
+
+- `intro_version` 형식: 32자 이하 · `^[a-z0-9][a-z0-9._-]{0,31}$`(소문자·숫자로 시작, 소문자·숫자·`.`·`_`·`-`). 어기면 400 `VALIDATION_FAILED`(DB CHECK `ck_contents_intro_version`도 같은 식).
+- 파이프라인 `upload-meta.json`의 `length_profile`은 그대로, `remake_of_content_ref`(원본 제품 content_id)는 **`variant_of_content_id`로 이름을 바꿔** 보낸다.
+- `intro_version`은 **지표 전용**이다 — 실험 지표(4.22-6)가 초반 이탈을 이 값으로 묶는다. 노출 규칙은 `length_profile`만 본다. 사용자 응답에는 싣지 않는다. 값 이름은 파이프라인이 정한다.
+- 감사 로그 `content.upload`의 `after`에 `length_profile` · `variant_of_content_id` · `intro_version`이 남는다.
 
 **시리즈 필드 검증** (추가 2026-10-17 — KAN-134, `domain.md` 5.1·5.9)
 
@@ -334,6 +361,7 @@
 - **`content_version`은 오디오(`audio` — 3종 한 세트)를 바꿀 때만 1 오른다**(개정 2026-10-20 — KAN-236, 종전 "파트가 무엇이든 1 증가"). 썸네일·`payload`(제목·설명·출처명·주제·출처)·`enrichment_file`·`script_file`만 보내는 전송은 버전을 올리지 않고 아래 재생 위치 폐기도 없다 — 오디오가 그대로면 같은 초가 같은 내용이다. 버전은 클라이언트에게 "오디오가 바뀌었다"는 신호이고(`player-api.md` 4.1·4.3 — 바뀌면 재생 중 세션 위치를 폐기한다), 메타만 바꾼 재발행에서 올리면 재생 중이던 사람의 위치가 0으로 돌아간다. 추천 메타·대본 단독 전송의 감사 로그 구분은 그대로다 — 대본 단독은 `content.script`, 추천 메타 단독(기존 발행분 소급 부여가 이 경로를 쓴다)은 `content.enrich`(2026-09-08 · 2026-09-19). 썸네일·메타가 섞인 전송은 `content.republish`로 남는다(이전·이후 버전이 같을 수 있다).
 - **무손실만 교체(`rendition_only=lossless`)는 버전을 올리지 않고 재생 위치·대본을 그대로 둔다**(2026-10-23, KAN-264) — 같은 마스터에서 다시 만든 파일(예: SEEKTABLE 추가)이라 같은 초가 같은 내용이다. 새 파일 길이가 지금 `duration_sec`과 ±1초 안이어야 한다(아니면 400 `audio_lossless` — 다른 내용의 파일은 이 경로로 못 들어온다. 업로드 전과 행 잠금 뒤 두 번 본다). `lossless` 행만 바뀌고 `contents.audio_path`·다른 음질 행은 그대로다. 옛 무손실 파일은 트랜잭션 성공 뒤 지운다. `audit_logs`는 `content.republish`(이전·이후 버전 같음, `changed_parts: ["audio_lossless"]`, `rendition_only: "lossless"`).
 - `origin` · `partner_id` · `series_id` · `episode_no` · `total_episodes` · `license_expires_at`은 **바꾸지 않는다** — 발행 단위의 정체성이라 필요하면 회수 후 새로 올린다.
+- **`length_profile` · `variant_of_content_id` · `intro_version`도 받지 않는다**(보내면 종전 모르는 필드와 같은 400 — 2026-10-29 KAN-298). 같은 발행 단위의 정체성이다. 재발행은 기존 값을 그대로 두므로 짧은 판도 재발행으로 오디오·메타를 갈아끼울 수 있고 프로필은 유지된다. 바꾸려면 회수하고 새로 올린다.
 - `status`가 `published`가 아니면 **409 `CONFLICT`** (회수·만료 상태에서는 재발행하지 않는다 — `admin.md` 4.6 "만료 상태에서는 재발행을 막는다").
 - `topic_ids`를 넘기면 전체 교체다(빈 배열 불가 — 최소 1개, 4.6과 동일). **대상 콘텐츠의 시장과 같은 시장의 주제만 받는다** — 아니면 400 `VALIDATION_FAILED`(`details.field = "topic_ids"`). **시장(`market`·`language`)은 재발행이 바꾸지 않는다** — 바꾸려면 회수 후 새로 올린다(추가 2026-10-14 — KAN-190).
 - **`sources`도 전체 교체이고, 비울 수 있는지는 `origin`이 정한다** — 4.6과 같은 공시 규칙이다(`admin.md` 3.1).
@@ -582,10 +610,12 @@
 {
   "days": 14,
   "since": "2026-09-17T09:00:10.000Z",
-  "totals": { "searches": 120, "misses": 30, "miss_rate": 0.25, "clicked": 54, "users": 18, "short_queries": 12, "filtered_searches": 5, "corrected": 9, "correction_rejected": 1, "keyword_misses": 41, "rescued": 11, "semantic_unavailable": 2 },
-  "daily": [ { "date": "2026-09-30", "searches": 14, "misses": 3, "clicked": 6 } ],
+  "totals": { "searches": 120, "misses": 30, "miss_rate": 0.25, "clicked": 54, "users": 18, "short_queries": 12, "filtered_searches": 5, "corrected": 9, "correction_rejected": 1, "hybrid_searches": 80, "hybrid_misses": 9, "keyword_misses": 41, "rescued": 11, "semantic_unavailable": 2 },
+  "daily": [ { "date": "2026-09-30", "searches": 14, "misses": 3, "clicked": 6, "rescued": 2 } ],
   "missed": [ { "query": "면접", "searches": 6, "misses": 6, "clicked": 0, "result_count": 0, "has_more": false, "query_used": "면접", "keyword_count": 0, "last_searched_at": "…" } ],
-  "top": [ { "query": "커리오", "searches": 20, "misses": 0, "clicked": 12, "result_count": 20, "has_more": true, "query_used": "커리어", "keyword_count": 20, "last_searched_at": "…" } ]
+  "top": [ { "query": "커리오", "searches": 20, "misses": 0, "clicked": 12, "result_count": 20, "has_more": true, "query_used": "커리어", "keyword_count": 20, "last_searched_at": "…" } ],
+  "semantic": [ { "query": "아리스토텔레스", "searches": 3, "clicked": 1, "contents": [ { "content_id": "uuid", "title": "…", "topics": ["철학"] } ], "last_searched_at": "…" } ],
+  "corrections": [ { "query": "커리오", "query_used": "커리어", "searches": 20, "rejected": 1, "clicked": 12, "last_searched_at": "…" } ]
 }
 ```
 
@@ -603,6 +633,12 @@
   - `totals.semantic_unavailable` — 의미 엔진 없이 응답한 검색(`engines`에 `semantic` 없음 — AI 서버 결손·미설정). 태그 전용 검색(`#`)은 의미 엔진을 돌리지 않는 경로라 세지 않는다.
   - `missed[]`·`top[]`의 `query_used`·`keyword_count`는 그 질의의 **가장 최근 검색** 값이다(`result_count`와 같은 원칙). 옛 행이면 `null`.
   - **`misses`·`miss_rate` 정의는 불변**이다 — 하이브리드 첫 페이지 0건(사용자가 본 결과가 없었다).
+- **의미 검색 지표**(추가 2026-10-27 — `changes/archive/search-semantic-insights.md`). 하이브리드 검색(KAN-238)이 잘 되는지 본다.
+  - `totals.hybrid_searches` · `totals.hybrid_misses`(2026-10-27 정정) — 하이브리드 기록이 있는 검색(`keyword_count` 있음, 2026-10-22 뒤)과 그중 결과 없음. `keyword_misses` · `rescued` · `semantic_unavailable` 비율의 **분모**다 — 전체 `searches`로 나누면 옛 행만큼 작게 나온다(첫 화면이 "결과 없음 26.2% / 키워드만이었다면 6.5%"로 거꾸로 보였다). 화면은 "의미 검색 도입 뒤 N회: 키워드만이면 X% → 실제 Y%"로 같은 분모끼리 비교한다.
+  - `daily[].rescued` — 그날 키워드 0건인데 결과가 있던 검색(의미 엔진이 살렸다).
+  - `semantic[]` — **의미 검색만으로 결과가 나온 질의**(`keyword_count = 0`이고 `result_count > 0`)를 실제 쓴 질의(`coalesce(query_used, query)`)로 묶는다. 행: `query` · `searches` · `clicked`(10분 안 재생·담기 — 다른 표와 같은 정의) · `contents[]`(가장 최근 검색의 첫 페이지 앞 3편: `content_id` · `title` · `topics`(그 콘텐츠의 주제 이름) — 회수·만료 편도 싣는다) · `last_searched_at`. 검색 수 내림차순 50개. 키워드·의미가 섞인 검색은 어느 편이 의미 몫인지 기록이 없어 넣지 않는다.
+  - `corrections[]` — 교정된 입력(`query_used <> query`)을 (입력, 교정어)로 묶는다. 행: `query` · `query_used` · `searches` · `rejected`(교정 직후 10분 안 같은 입력의 원문 재검색 — `totals.correction_rejected`와 같은 판정) · `clicked` · `last_searched_at`. 50개.
+  - 계산은 `SearchQueryLogRepository.summarize`.
 - 인증은 다른 `/admin/*`와 같다(2장). 400 `VALIDATION_FAILED` — `days` 범위 밖, `market` 값 밖.
 
 ### 4.22 `GET /admin/insights/summary` — 서비스 지표 요약 (읽기 전용)
@@ -721,7 +757,7 @@
   - **`complete_rate`는 드물게 높게 나올 수 있다.** 재생은 `play_records`(사용자·콘텐츠·서비스 날짜당 1행)의 첫 시작 시각으로, 완청은 신호 시각으로 창에 넣기 때문이다. 서비스 날짜 경계(05:00)를 걸쳐 들은 편은 재생은 창 밖이고 완청만 창 안일 수 있다.
 - `retention`은 D1·D7·D30 — `cohort_size`는 가입한 지 `day`일이 지난 **현재 계정** 수, `returned`는 그중 가입 `day`일 뒤 이후 아무 때나 **앱을 쓴** 사람(토큰 갱신 `sessions.issued_at` 또는 재생 `play_records` — 세션 행은 30일만 보존되므로 영구 보존되는 재생을 합친다. 언바운디드). 탈퇴자는 분모에 없어 실제보다 높게 나온다(생존 편향). 시간이 지날수록 커져 업계 벤치마크와 비교할 수 없다 — 비교는 아래 `bounded_*`로 한다.
   - **`bounded_cohort_size` · `bounded_returned` · `bounded_rate`**(추가 2026-10-26 — 업계 벤치마크와 같은 classic N-day 정의, `changes/archive/insights-bounded-retention.md`): 가입한 KST 달력일 `d`에서 **`d + N`일이 다 지났고**(어제까지) 그날 접속 기록을 믿을 수 있는(`retention_cohorts.*.reliable_since` 이후) 현재 계정 수 · 그중 **정확히 `d + N`일 하루**(KST)에 앱을 쓴(접속 — `user_active_dates`·남은 `sessions` — 또는 재생) 사람 수 · 비율(분모 0이면 null). 원천·신뢰 경계가 `retention_cohorts`와 같아 코호트 표 D1·D7 칸의 전 기간 평균이 된다. `market` 필터를 따르고, 탈퇴자는 분모에 없다(생존 편향).
-- `push_reactions[]`(추가 2026-10-26 — 저녁 리텐션 알림 성과, `changes/archive/insights-push-reactions.md`)는 창(`days`) 안에 **보낸**(`notification_logs.status = sent`) 알림의 종류별 반응이다. 행: `type`(`drip_arrival` 또는 `retention.<규칙>.<변형>`) · `rule`·`variant`(리텐션만 — 드립은 null, 비교 기준선) · `sent` · `reacted`(보낸 뒤 **2시간 안에** 그 사용자의 새 재생 행 `play_records.played_at` 또는 재생 위치 저장 `playback_progresses.updated_at`이 있음) · `reaction_rate`(`reacted / sent`, 분모 0이면 null). `market` 필터(지금 시장)를 따른다. 앱이 알림 탭을 서버에 알리지 않아(`opened_at` 미기록) 탭 대신 재생으로 역산한 근사다 — 알림 없이 앱을 열어 들은 것도 잡히고, 그 뒤 다시 들어 위치 저장 시각이 밀리면 빠질 수 있다.
+- `push_reactions[]`(추가 2026-10-26 — 저녁 리텐션 알림 성과, `changes/archive/insights-push-reactions.md`)는 창(`days`) 안에 **보낸**(`notification_logs.status = sent`) 알림의 종류별 반응이다. 행: `type`(`drip_arrival` 또는 `retention.<규칙>.<변형>`) · `rule`·`variant`(리텐션만 — 드립은 null, 비교 기준선) · `sent` · `reacted`(보낸 뒤 **2시간 안에** 그 사용자의 새 재생 행 `play_records.played_at` 또는 재생 위치 저장 `playback_progresses.updated_at`이 있음) · `reaction_rate`(`reacted / sent`, 분모 0이면 null). `market` 필터(지금 시장)를 따른다. 앱이 알림 탭을 서버에 알리지 않아(`opened_at` 미기록) 탭 대신 재생으로 역산한 근사다 — 알림 없이 앱을 열어 들은 것도 잡히고, 그 뒤 다시 들어 위치 저장 시각이 밀리면 빠질 수 있다. `type`이 `drip_arrival.<그룹>`(도착 알림 시각 A/B — `notification.md` 4.3, KAN-289)이면 `rule`은 null, `variant`는 그룹(`a` · `b`)이다. 반응률 기준선은 그룹 없는 `drip_arrival`(07:00) 줄이다(2026-10-29). 시각별 재생률은 4.22-7이 따로 낸다.
 - `retention_cohorts`(추가 2026-10-18 — 멘토 조언 "D1·D7, W1~4를 절대수치와 비율로 같이", `domain.md` 3.3-2)는 가입일·가입 주로 묶은 **바운디드** 코호트 리텐션이다. `daily`(D1·D7)와 `weekly`(W1~W4) 두 표이고, 각 표는 `span`(1 = 일별 · 7 = 주별)·`offsets`·`reliable_since`·`rows`다. 기존 언바운디드 `retention`은 그대로 두고 화면에 함께 보인다.
   - **묶음**: 현재 계정을 가입한 KST 달력일로 묶는다. `daily`는 최근 14일(어제부터, 오늘 제외), `weekly`는 최근 8주(이번 주 포함, ISO 주 월요일 시작 — `start`는 그 주 월요일)다. 최근 묶음이 먼저 온다. 가입 0명인 묶음도 행을 둔다. **창(`days`)과 무관하다.**
   - **구간**: **사람마다 자기 가입일 기준**이다. `offset`번째 구간은 가입일 + `offset × span`일부터 `span`일이다 — D1 = 가입 다음 날 하루, D7 = 가입 7일 뒤 하루(가입일 + 7), W1 = 7~13일, W2 = 14~20일, W3 = 21~27일, W4 = 28~34일 뒤.
@@ -771,6 +807,199 @@
 
 점수는 저장되지 않는다(`domain.md` 6.1·7장) — 배치가 뽑은 편의 점수는 구조화 로그 `drip pick scored`(CloudWatch, 보존 기간 한정)에만 있다.
 
+### 4.22-2 `GET /admin/insights/invite-codes` — 초대 코드별 묶음 지표 (읽기 전용 · 2026-10-28)
+
+> 추가: 2026-10-28(박준현 — `changes/archive/promotion-cohort-insights.md`). 로그 콘솔 "프로모션" 탭(`backend-monitoring.md` 4장)이 읽는다 — SANKUN 같은 프로모션 사용자만 따로 지표를 본다. 서비스 지표 탭이 이미 정보가 많아 새 탭으로 둔다.
+
+관리자 전용(`JwtAuthGuard` + `AdminRoleGuard`), 읽기 전용, `Cache-Control: no-store`.
+
+**Query** — `days` (선택, 정수 1~90, 기본 14): 청취 시간(`listen_sec`)의 창. 범위 밖은 400 `VALIDATION_FAILED`.
+
+**Response 200**
+
+| 필드 | 설명 |
+|---|---|
+| `codes[]` | 초대 코드마다, 입력 수 많은 순. `code` · `name` · `tier` · `grant_days` · `grant_until_date` · `is_active` · `redeemed`(누적 — `invite_codes.redeemed_count`) · `current`(지금 남은 입력 계정) · `withdrawn`(`redeemed - current`) · `active_grants`(지급 중) · `ended_grants`(지급 끝) · `active_7d`(세션 기준 — 4.22 `active_7d`와 같다) · `listeners_7d`(재생) · `listen_sec`(창 안) · `listen_sec_per_user` · `active_7d_rate` · `paid_after_start`(입력 뒤 실결제 시작 — production · 환불 제외) · `paid_after_start_rate` |
+| `baseline` | 코드를 입력한 적 없는 현재 계정의 같은 값 + `paid_ever` · `paid_ever_rate` |
+
+- **집계값만** — 이름 · 이메일 · `user_id`가 없다. 탈퇴하면 입력 기록이 함께 지워져(CASCADE — `domain.md` 8.6) 지표는 지금 남은 계정 기준이다.
+- 계산은 `AdminInsightsRepository.inviteCodeCohorts`.
+
+### 4.22-3 `GET /admin/insights/funnel` — 가입 퍼널 (읽기 전용 · 2026-10-28)
+
+> 추가: 2026-10-28(`changes/archive/signup-funnel-insights.md`). 로그 콘솔 "실험 지표" 탭(`backend-monitoring.md` 4장)이 읽는다 — 가입한 사람이 어느 단계에서 가장 많이 빠지는지 보고 실험할 곳을 고른다. 보류한 서비스 지표 v2(#2116 — #2118로 되돌림)의 퍼널과 정의가 같다.
+
+관리자 전용(`JwtAuthGuard` + `AdminRoleGuard`), 읽기 전용, `Cache-Control: no-store`. 집계값만 — `user_id` · 이름 · 이메일 없음.
+
+**Query** — `weeks` 4~12(기본 8, 이번 주 포함 가입 주 수) · `market` `kr` | `global` | 없음(통합 — 4.22와 같은 "지금 시장" 규칙). 범위 밖 · 모르는 값은 400 `VALIDATION_FAILED`.
+
+- 가입 주 = **서비스 주**(월요일 05:00 KST 시작, `service-date.util` — 전환 전 시각은 04:00). `users.created_at`으로 묶는다. 현재 계정만(탈퇴자 제외).
+
+**Response 200**
+
+| 필드 | 설명 |
+|---|---|
+| `weeks` · `market` · `generated_at` | 요청값 · 생성 시각 |
+| `habit_min_play_days` | 백엔드 상수 `FUNNEL_HABIT_MIN_PLAY_DAYS = 3` |
+| `reliable_since` | 접속 기록을 믿을 수 있는 첫 날 — 코호트 리텐션 표(4.22)와 같은 `cohortReliableSince` |
+| `steps[]` | 퍼널 순서: `signups` → `onboarding_completed` → `first_play_24h` → `first_complete` → `w1_return` → `habit_14d` → `paid_ever`. 각 `key` · `mature_cohorts` · `rate`(성숙한 묶음 합산 `Σ이 단계 / Σ앞 단계`) · `rate_of_signups`(같은 성숙 묶음의 `Σ이 단계 / Σ가입`) · `drop`(`1 - rate`, 0 아래는 0). 첫 단계는 `rate` · `rate_of_signups` · `drop`이 null |
+| `largest_drop_step` | `drop`이 가장 큰 단계(같으면 앞 단계). 판정할 단계가 없으면 null |
+| `cohorts[]` | 최근 가입 주 먼저: `week_start` · `in_progress` · `signups` · `onboarding_completed` · `first_play_24h` · `first_play_ever`(참고 값, 단계 아님) · `first_complete` · `w1_return` · `w1_partial` · `habit_14d` · `paid_ever` · `rates.<단계>` = `{ count, of_prev, of_signups }` |
+
+**단계 정의**
+
+| 단계 | 정의 |
+|---|---|
+| `first_play_24h` | 가입 시각 + 24시간 안의 재생 행(0초 포함). 묶음 끝 + 24시간이 안 지났으면 null |
+| `first_complete` | 완청 신호(`user_signals.action = complete`)가 한 번이라도 — 신호 180일 보존이라 그보다 오래된 완청은 빠질 수 있다 |
+| `w1_return` | 가입 KST 달력일 + 7~13일에 접속(`user_active_dates` · 남은 `sessions`) 또는 재생 — 코호트 리텐션 W1과 같은 정의. `week_start + 20일 < 오늘(KST)` 전에는 null. `week_start + 7일 < reliable_since`면 `w1_partial`(재생만 잡혀 낮다 — 가장 큰 이탈 판정에서 뺀다) |
+| `habit_14d` | 가입 시각 + 14일 안에 들은(`listened_sec > 0`) 서로 다른 `play_date`가 `habit_min_play_days`일 이상. 묶음 끝 + 14일 전에는 null |
+| `paid_ever` | 실결제(`subscriptions.environment = production`, `status <> refunded`)가 한 번이라도 |
+
+- **단계는 깔때기다** — 각 단계는 앞 단계를 모두 통과한 사람만 센다(예: `w1_return` = 온보딩 · 24시간 첫 재생 · 첫 완청을 모두 한 사람 중 복귀). 비율은 1을 넘지 않는다. `first_play_ever`만 단계가 아닌 참고 값(가입자 중 재생 전체)이다. 처음(2026-10-28 #2120)에는 단계를 따로 세어 "첫 완청 → W1 75%"가 완청 안 한 복귀자까지 넣은 값이 됐다 — 같은 날 깔때기로 고쳤다.
+- **성숙** = `in_progress`가 아니고 이 단계 · 앞 단계가 둘 다 숫자(W1 partial은 null 취급)이며 앞 단계가 1명 이상.
+- 계산은 `AdminInsightsRepository.funnelCohorts` · `admin-insights-funnel.calc.ts`.
+
+### 4.22-4 `GET /admin/insights/completion-by-length` — 길이별 완청률 (읽기 전용 · 2026-10-28)
+
+> 추가: 2026-10-28(`changes/archive/signup-funnel-insights.md`). 로그 콘솔 "실험 지표" 탭이 읽는다.
+
+관리자 전용, 읽기 전용, `Cache-Control: no-store`, 요청 파라미터 없음. 편 단위 집계 — 사용자는 수로만(`user_id` · 이름 · 이메일 없음).
+
+- **대상**: **한국 콘텐츠**(`contents.market = kr`, 백엔드 상수 `COMPLETION_LENGTH_CONTENT_MARKET`) · 길이가 있는 편. 단위는 (사용자, 편) — 0초가 아닌 재생 행이 있으면 "시작", 첫 재생이 24시간(`COMPLETION_LENGTH_MIN_AGE_HOURS`) 전인 것만.
+- **완청** = 공용 정의(`domain.md` 6장 — 라이브러리 `completed` · 최대 도달 ≥ 길이 × 90% · 완청 신호).
+
+**Response 200**
+
+| 필드 | 설명 |
+|---|---|
+| `generated_at` · `content_market` · `min_age_hours` | |
+| `overall_rate` | 전체 완청률(p0) |
+| `prior_strength` | 축소 강도(k) |
+| `starters` · `completers` | 전체 시작 · 완청 (사용자, 편) 수 |
+| `contents[]` | 짧은 편 먼저: `content_id` · `title` · `duration_sec` · `starters` · `completers` · `raw_rate` · `shrunk_rate` |
+| `trend` | 편 5개 미만 · 길이가 다 같음 · 전원 완청/미완청이면 null. 아래 |
+
+- `shrunk_rate` = 경험적 베이즈 축소 `(completers + k·p0) / (starters + k)`. k는 시작자 수로 가중한 편별 비율 분산에서 이항 잡음 몫을 뺀 값으로 적률 추정한다(2~500).
+- `trend`: (사용자, 편) 단위 로지스틱 회귀 `logit p = b0 + b1·분`. `slope_step_min`(5) · `odds_ratio_per_step` = `exp(5·b1)` · `odds_ratio_low/high`(95%, 과분산 보정 — 피어슨 χ²/자유도, 1 아래는 1) · `direction`(구간 상한 < 1 → `down`, 하한 > 1 → `up`, 아니면 `flat`) · `dispersion` · `curve[]`(분 단위 `minute` · `rate` · `low` · `high`).
+- 계산은 `AdminInsightsRepository.completionByContent` · `admin-insights-completion.calc.ts`.
+
+### 4.22-5 `GET /admin/insights/series-episodes` — 시리즈 편별 완청 · 이탈 (읽기 전용 · 2026-10-29)
+
+> 추가: 2026-10-29(KAN-293 — `changes/archive/exp-series-completion-insight.md`). 단기 실험 ② "IT 특화"의 근거인 CS 시리즈 완청률을 "몇 편에서 빠지는가"로 본다 — 4.22-4는 편을 길이로만 묶는다. **콘솔 화면은 없다**(필요하면 콘솔 작업).
+
+관리자 전용(`JwtAuthGuard` + `AdminRoleGuard`), 읽기 전용, `Cache-Control: no-store`. 편 단위 집계 — 사용자는 수로만(`user_id` · 이름 · 이메일 없음).
+
+**Query** — `market` `kr` | `global` | 없음(전부). **콘텐츠 시장**(`contents.market`)으로 거른다 — 시리즈는 시장 칸이 없고 편의 시장을 따른다. 모르는 값은 400 `VALIDATION_FAILED`.
+
+| 항목 | 정의 |
+|---|---|
+| 대상 | `contents.series_id` · `episode_no`가 있는 콘텐츠만 — **단일 콘텐츠는 나오지 않는다**. 단위는 (사용자, 시리즈, 편 번호). 같은 편 번호에 콘텐츠 행이 여럿이면(회수 뒤 다시 올림) 사람을 합쳐 센다. 대표 콘텐츠(`content_id` · `title` · `duration_sec` · `status`)는 발행 중인 행, 없으면 가장 최근 행 |
+| 시작 | 0초가 아닌 재생 행이 있고 첫 재생이 24시간(`SERIES_EPISODES_MIN_AGE_HOURS` = `COMPLETION_LENGTH_MIN_AGE_HOURS`) 전인 (사용자, 편) — 4.22-4와 같다 |
+| 완청 | 공용 정의(`domain.md` 6장) |
+| 다음 편 | 그 시리즈에 있는 편 번호 중 이 편 다음으로 큰 것(번호가 비면 건너뛴다). 다음 편 **시작**은 시점을 따지지 않는다(0초가 아닌 재생 한 번이면 진행) |
+
+**Response 200** — `generated_at` · `market`(요청값, 없으면 null) · `min_age_hours`
+
+- `series[]`(1화 시작자 많은 순, 같으면 제목 순): `series_id` · `title` · `market` · `total_episodes`(`series.total_episodes`) · `first_episode_starters`
+- `series[].episodes[]`(편 번호 순, 시작자 0인 편도 포함): `episode_no` · `content_id` · `title` · `duration_sec` · `status` · `next_episode_no`(마지막 편 null) · `starters` · `completers` · `completion_rate` · `next_started_of_starters` · `next_started_of_completers` · `next_rate_of_starters` · `next_rate_of_completers`
+- 비율은 분모가 0이면 null, 마지막 편의 진행률은 null.
+- 계산은 `AdminInsightsRepository.seriesEpisodes` · `admin-insights-series.calc.ts`.
+
+### 4.22-6 `GET /admin/insights/short-variant` — 짧은 판 · 도입부 실험 지표 (읽기 전용 · 2026-10-29)
+
+> 추가: 2026-10-29(KAN-298 · KAN-296 — `changes/archive/exp-short-variant-metrics.md`, 원문 `experiments-api.md` 4.5에서 옮김). 짧은 판 코호트(`domain.md` 5.1 노출 조건)를 읽는 조회다. **기존 판 vs 짧은 판 완청률**과 **기존 도입부 vs 바뀐 도입부의 10초 · 30초 · 1분 이탈률**을 낸다. 로그 콘솔 "실험 지표" 탭이 열 때 1회 + [새로고침]으로 읽는다.
+
+관리자 전용(`JwtAuthGuard` + `AdminRoleGuard`, 아니면 403), 읽기 전용, `Cache-Control: no-store`. 집계뿐이다 — 사용자는 수로만 들어 있고 `user_id` · 이름 · 이메일은 없다.
+
+**Query** — `market` `kr` | `global` | 없음(전부). **콘텐츠 시장**(`contents.market`)으로 거른다. 모르는 값은 400 `VALIDATION_FAILED`.
+
+| 항목 | 정의 |
+|---|---|
+| 단위 | (사용자, 편) |
+| 시작 | 0초가 아닌 재생 행(`play_records.listened_sec > 0`)이 있고, 첫 재생이 24시간(`SHORT_VARIANT_MIN_AGE_HOURS` = 4.22-4와 같은 값) 전 |
+| 완청 | 공용 정의(`domain.md` 6장) — 라이브러리 `completed` · 최대 도달 ≥ 길이 × 90% · 완청 신호 중 하나 |
+| 초반 이탈 | 그 (사용자, 편)의 청취 합(`listened_sec` 합)이 10 · 30 · 60초 이하. 비율의 분모는 시작자 |
+| 첫 편 | 그 사용자가 처음 0초 아닌 재생을 한 편(시장 · 시점 무관). **`excluding_first`** = 이 편을 뺀 값 — 같은 날 시작한 다른 실험(첫 드립 무작위 · 온보딩 뒤 플레이어)이 첫 편 행동을 바꾸기 때문이다 |
+| 가입 코호트 | 노출 코호트 판정(`content-cohort.policy.ts`의 SQL판)을 그대로 쓴다. 경계 뒤 가입 = `short`, 전 = `standard`. 비교를 맞추려고 **`standard`는 경계 직전 같은 길이 창(지금 − 경계) 안 가입자만**, 두 코호트 모두 **가입 뒤 그 길이 안에 시작한 편만** 센다. 창 밖 가입자는 코호트 비교에서 빠지고 콘텐츠 단위 비교에는 들어간다 |
+| 경계 미설정 | `SHORT_CONTENT_COHORT_SINCE`가 비면 `cohort_since` · `cohort_window_hours` · `by_cohort`가 null. 콘텐츠 단위 비교만 나온다 |
+
+**Response 200**
+
+```jsonc
+{
+  "generated_at": "2026-10-29T09:00:00.000Z",
+  "market": null,                    // 요청값, 없으면 null
+  "min_age_hours": 24,
+  "min_sample": 20,                  // 시작자가 이보다 적은 행은 콘솔이 "표본 작음"으로 표시
+  "drop_thresholds_sec": [10, 30, 60],
+  "cohort_since": "2026-11-05T01:00:00.000Z",   // null = 경계 미설정
+  "cohort_window_hours": 192.0,                 // 지금 − 경계(경계가 미래면 0). 경계가 없으면 null
+  "by_cohort": [                                // 경계가 없으면 null. 늘 standard · short 두 행
+    { "key": "standard", "all": Metrics, "excluding_first": Metrics },
+    { "key": "short", "all": Metrics, "excluding_first": Metrics }
+  ],
+  "by_length_profile": [ { "key": "standard", ... }, { "key": "short", ... } ],   // 늘 두 행
+  "by_intro_version": [ { "key": null, ... }, { "key": "hook-v2", ... } ],        // null(기존 도입부) 먼저, 나머지 이름 순
+  "pairs": [                                    // variant_of_content_id 가 있는 short 편 — 짧은 판 시작자 많은 순
+    {
+      "short":    { "content_id": "…", "title": "…", "duration_sec": 420, "intro_version": "hook-v2", "all": Metrics, "excluding_first": Metrics },
+      "original": { "content_id": "…", "title": "…", "duration_sec": 900, "intro_version": null, "all": Metrics, "excluding_first": Metrics }
+    }
+  ]
+}
+```
+
+`Metrics` = `{ starters, completers, completion_rate, drop_10s, drop_30s, drop_60s, rate_10s, rate_30s, rate_60s }` — 비율은 시작자가 0이면 `null`(0%와 "잴 사람이 없다"를 구분).
+
+- 콘텐츠 단위 묶음(`by_length_profile` · `by_intro_version` · `pairs`)은 코호트와 무관하게 전 사용자 값이다. 짝은 상태를 따지지 않는다(회수된 편도 지난 재생은 남는다). `market`은 짧은 판의 시장으로 거른다.
+- **한계** — 코호트 비교는 같은 날 시작한 다른 실험과 섞인다(위 "첫 편"). 짝 비교도 두 편을 듣는 사람(코호트)이 달라 사람 차이가 남는다. 인과 판정이 아니라 방향 확인용이다.
+- 계산은 `AdminInsightsRepository.shortVariantRows` · `shortVariantPairs` · `admin-insights-short-variant.calc.ts`.
+
+### 4.22-7 `GET /admin/insights/drip-arrival-time` — 도착 알림 시각 실험 지표 (읽기 전용 · 2026-10-30)
+
+> 추가: 2026-10-30(KAN-289 — `changes/archive/exp-drip-arrival-time-insight.md`, 원문 `experiments-api.md` 4.6에서 옮김). 드립 도착 알림 시각 A/B(`notification.md` 4.3 — A 07:30 · B 08:00, 꺼지면 전원 07:00)를 읽는 조회다. **재생률만** 낸다 — 앱이 알림 탭을 서버에 알리지 않아 `notification_logs.opened_at`이 비어 있으므로 클릭률(열람률)은 싣지 않는다. 로그 콘솔 "실험 지표" 탭이 열 때 1회 + [새로고침]으로 읽는다.
+
+관리자 전용(`JwtAuthGuard` + `AdminRoleGuard`, 아니면 403), 읽기 전용, `Cache-Control: no-store`. 집계뿐이다 — 사용자는 수로만 들어 있고 `user_id` · 이름 · 이메일은 없다.
+
+**Query** — `days` 1~90(기본 14, 창 = 지금 − `days`) · `market` `kr` | `global` | 없음(통합). 시장은 **사용자의 지금 시장**(`users.market`)으로 거른다 — 4.22의 알림 반응과 같다. 범위 밖 · 모르는 값은 400 `VALIDATION_FAILED`.
+
+| 항목 | 정의 |
+|---|---|
+| 대상 | 창 안에 **보낸**(`status = 'sent'`, `sent_at ≥ 창 시작`) 알림 |
+| 묶음 | `baseline` 07:00 = `type = 'drip_arrival'`(스위치 꺼짐 기간) · `a` 07:30 = `drip_arrival.a` · `b` 08:00 = `drip_arrival.b` · `morning` 참고 행 = `retention.morning.*`(아침 알림 KAN-288 — 드립 없는 날에만 가서 **대상이 달라 A/B 비교가 아니다**) |
+| 보낸 알림 · 받은 사람 | 행 수 · 서로 다른 `user_id` 수 |
+| 2시간 재생 | 보낸 시각부터 2시간 안(`[sent_at, sent_at + 2h)`)에 그 사용자의 새 재생 행(`play_records.played_at`) 또는 재생 위치 저장(`playback_progresses.updated_at`)이 있다 — 알림 반응(`push_reactions`, 4.22)과 같은 판정(쿼리 조각 하나를 함께 쓴다) |
+| 당일 재생 | 같은 판정 · 보낸 시각부터 **그 서비스 날짜의 끝**까지(05:00 KST 경계, 전환 전 시각은 04:00 — `toServiceDayRange`) |
+| 재생률 | 2시간 · 당일 각각 재생으로 이어진 알림 ÷ 보낸 알림. 보낸 알림이 0이면 `null` |
+| 기간 | 묶음마다 `first_sent_at` · `last_sent_at`을 낸다. **07:00은 스위치를 켜기 전 기간이라 A · B와 기간이 다르다** — 요일 · 계절 차이가 섞인다 |
+
+**Response 200**
+
+```jsonc
+{
+  "generated_at": "2026-10-30T09:00:00.000Z",
+  "market": null,                 // 요청값, 없으면 null
+  "days": 14,
+  "since": "2026-10-16T09:00:00.000Z",
+  "min_sample": 100,              // 보낸 알림이 이보다 적은 행은 콘솔이 "표본 작음"으로 표시
+  "reaction_window_hours": 2,
+  "arms": [                       // 늘 네 행 · 이 순서
+    { "key": "baseline", "send_time": "07:00", "reference": false, "sent": 600, "users": 540,
+      "played_2h": 66, "played_same_day": 120, "play_rate_2h": 0.11, "play_rate_same_day": 0.2,
+      "first_sent_at": "2026-10-16T22:00:03.000Z", "last_sent_at": "2026-10-29T22:00:05.000Z" },
+    { "key": "a", "send_time": "07:30", "reference": false, "sent": 0, "users": 0, "played_2h": 0, "played_same_day": 0,
+      "play_rate_2h": null, "play_rate_same_day": null, "first_sent_at": null, "last_sent_at": null },
+    { "key": "b", "send_time": "08:00", "reference": false, ... },
+    { "key": "morning", "send_time": "08:00", "reference": true, ... }
+  ]
+}
+```
+
+- `send_time`은 그룹 현지 시각(서버 정책값 `DRIP_ARRIVAL_SLOT_TIMES`)이다. 콘솔은 이 값을 그대로 표시한다.
+- **한계** — 재생은 알림 탭이 아니라 "그 사이 들었다"로 역산한다(탭 없이 앱을 열어 들은 것도 든다). 07:00 기준선과 A · B는 기간이 달라 인과 판정이 아니라 방향 확인용이다. A · B끼리는 같은 기간 · 해시 분할이라 직접 비교할 수 있다.
+- 계산은 `AdminInsightsRepository.dripArrivalTimeRows` · `admin-insights-drip-arrival-time.calc.ts`.
+
 ### 4.23 `/admin/invite-codes` — 초대 코드 관리 (2026-10-10)
 
 PoC·제휴 캠페인마다 코드를 만들고, 켜고 끄고, 사용 현황을 본다. 규칙의 원본은 `subscription.md` 4.9, 저장은 `domain.md` 8.5·8.6, 사용자 입력은 `subscription-api.md` 4.8-1이다. 콘솔 화면은 아직 없다(파이프라인 웹 몫 — 화면이 생기기 전에는 API로 직접 만든다). **삭제는 없다** — 끄면 새 입력만 막히고 지급 기록은 남는다.
@@ -816,6 +1045,7 @@ PoC·제휴 캠페인마다 코드를 만들고, 켜고 끄고, 사용 현황을
 - `redeemed_count` — 지금까지 사용한 계정 수(탈퇴해도 줄지 않는다). `active_count` — 지금 지급 중인 계정 수(목록에서만, 만들기·고치기 응답은 `null`).
 - **사용자 식별 정보는 싣지 않는다** — 누가 썼는지는 집계만 본다(CLAUDE.md 개인정보 원칙). PoC 사용 데이터 분석이 계정 단위로 필요해지면 그때 `user_id` 목록 API를 따로 정한다.
 - 같은 코드를 동시에 만들어도 409다(유니크 인덱스). 만들기·고치기는 `audit_logs`에 `invite_code.create` · `invite_code.update`로 남는다(전후 값 — 코드 테이블에 작성자 컬럼이 없다).
+- **내부 캠페인 행 `REVIEW-REWARD`**(2026-10-28 — KAN-279, `domain.md` 8.5): 목록에 이름 "후기 참여" · 꺼짐(`is_active = false`)인 행으로 보인다. 후기 참여 프로모션 사용 수는 이 행의 `redeemed_count`로 보인다. **이 행의 수정(PATCH)은 409 `CONFLICT`로 거부한다**(공용 코드 — 신설하지 않음) — 켜면 사용자가 코드로 입력할 수 있게 보이지만 입력 경로가 `is_active`와 무관하게 막고 있어(404 `INVITE_CODE_NOT_FOUND` — `subscription-api.md` 4.8-1) 혼란만 생긴다.
 
 ### 4.24 `/admin/series` — 시리즈 관리 (2026-10-17 — KAN-134)
 
@@ -834,6 +1064,8 @@ PoC·제휴 캠페인마다 코드를 만들고, 켜고 끄고, 사용 현황을
   "max_published_episode_no": 16,   // 발행 중인 가장 큰 편 번호. 없으면 null — total_episodes 를 줄일 수 있는 하한
   "cover_url": "https://…/thumb/….webp" | null,   // 올린 표지(없으면 null — 빈 문자열도 null 로 낸다). null 이어도 앱에는 가장 앞 편 썸네일이 표지로 나간다 (추가 2026-10-21 — KAN-234)
   "publisher_name": "키워드",       // 발행 이름 — 앱 시리즈 화면 제목 아래 줄. 없으면 null (추가 2026-10-22)
+  "length_profile": "standard" | "short",   // 짧은 시리즈인가 (추가 2026-10-29 — KAN-298)
+  "variant_of_series_id": "uuid" | null,   // 짧은 시리즈의 원본 시리즈. standard 면 null
   "created_at": "2026-10-17T08:00:00.000Z",
   "updated_at": "2026-10-17T08:00:00.000Z"
 }
@@ -849,9 +1081,13 @@ PoC·제휴 캠페인마다 코드를 만들고, 켜고 끄고, 사용 현황을
   "description": "…",      // 필수 키, 빈 문자열 허용, ≤2000자
   "total_episodes": 3,     // 필수, 정수 ≥1 (상한 없음 — int 범위 밖만 400)
   "status": "ongoing",     // 선택, 없으면 ongoing
-  "publisher_name": "키워드" // 선택, ≤50자. 앞뒤 공백은 자르고 빈 문자열·null 은 없음 (추가 2026-10-22)
+  "publisher_name": "키워드", // 선택, ≤50자. 앞뒤 공백은 자르고 빈 문자열·null 은 없음 (추가 2026-10-22)
+  "length_profile": "short",  // 선택, 기본 standard (추가 2026-10-29 — KAN-298)
+  "variant_of_series_id": "uuid" // short 면 필수, standard 면 넣지 않는다
 }
 ```
+
+- `length_profile` · `variant_of_series_id`(2026-10-29 — KAN-298): 원본 시리즈가 없거나 이미 `short`면 400 `VALIDATION_FAILED`(`details.field = "variant_of_series_id"`). **만든 뒤 바꾸지 않는다** — PATCH는 두 칸을 받지 않는다. 감사 로그 `series.create` · `series.update` 스냅숏에도 같은 두 키가 남는다.
 
 - 파이프라인 [시리즈 발행]은 이것을 먼저 부르고 받은 `id`를 업로드(4.6)의 `series_id`로 보낸다(`ai/spec/11-series.md` 7장). 시장을 받지 않는다 — 첫 편이 정한다.
 
@@ -872,6 +1108,18 @@ PoC·제휴 캠페인마다 코드를 만들고, 켜고 끄고, 사용 현황을
 - 표지는 파이프라인 콘솔 [시리즈] 화면의 제품 시리즈 표지 칸에서 파일을 골라 올린다(KAN-136). [시리즈 발행](`POST /admin/series` → 업로드)은 표지를 자동으로 올리지 않는다(코드 대조 2026-10-23).
 
 **에러 코드**: 새 코드 없음 — `VALIDATION_FAILED`(400) · `NOT_FOUND`(404) · `CONFLICT`(409, 4.8 복구) · `ADMIN_STORAGE_FAILED`(502, 표지) · `UNAUTHORIZED`/`FORBIDDEN`.
+
+### 4.25 `/admin/content-reviews/*` — 콘텐츠 후기 집계 · 글 목록 (읽기 전용 · 2026-10-28 — KAN-279)
+
+> 참조 절이다. 상세(요청 · 응답 · 필드)는 데이터 소유 문서 `content-review-api.md` 4.8 · 4.9가 가진다(4.19 추천 별점이 `drip-feedback-api.md`에 상세를 두는 것과 같은 방식). 파이프라인 콘솔 발행 상세(KAN-284)가 읽는다.
+
+| 메서드 | 경로 | 용도 |
+|---|---|---|
+| GET | `/admin/content-reviews/summary` | 편별 후기 수 · 평균 별점 · 분포 · 버전별 평균 + 후기 참여 프로모션 건수(`content-review-api.md` 4.8) |
+| GET | `/admin/content-reviews` | 후기 글 목록 — 최신순 커서(`content-review-api.md` 4.9) |
+
+- 인증 · 인가는 다른 관리자 API와 같다(`JwtAuthGuard` + `AdminRoleGuard`). `Cache-Control: no-store`.
+- **응답에 `user_id` · 닉네임 · 이메일이 없다**(`content-review.md` 4.7). 원문은 이 응답으로만 읽고 Slack · Jira · 문서 · 커밋에 옮기지 않는다.
 
 ## 5. 에러 코드 표
 
@@ -928,6 +1176,8 @@ author_name, source_name, source_url, partner_id,
 series_id, episode_no, total_episodes,
 duration_sec, thumbnail_url, content_version,
 market, language                                 // 시장(kr | global)·콘텐츠 언어(ko | en) (2026-10-14 KAN-190)
+length_profile, variant_of_content_id            // standard | short · 짧은 판의 원본(uuid | null) (2026-10-29 KAN-298)
+intro_version                                    // 도입부 버전(string | null — null = 기존 도입부, 지표 전용) (2026-10-29 KAN-298)
 license_expires_at, published_at, withdrawn_at,
 topics[{ topic_id, name }],
 enrichment_schema_version, enriched_at          // 마지막 적용 메타 파일의 형식 버전·시각. null = 받은 적 없음 (2026-09-11)

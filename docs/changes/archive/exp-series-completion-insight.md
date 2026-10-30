@@ -5,6 +5,7 @@
 | 대상 문서 | `spec/api/admin-api.md`(4.22 인사이트 계열 다음에 `GET /admin/insights/series-episodes` 절 신설) · `features/backend-monitoring.md`(조회 대상 목록에 시리즈 편별 완청·이탈 추가) |
 | 요청 파트 | 백엔드 |
 | 발행 날짜 | 2026-10-29 |
+| 반영 날짜 | 2026-10-30 |
 | 시작 날짜 | 2026-10-29 |
 | 기한 | 다음 통합 |
 | 선행 | 없음 · 코드 `feat(be)/exp-series-completion-insight`(KAN-293) |
@@ -42,3 +43,4 @@
 ## 처리 기록
 
 - 2026-10-29 발행.
+- 2026-10-30 반영 — `spec/api/admin-api.md` 4.22-5 `GET /admin/insights/series-episodes` 신설(대상 · 시작 24시간 · 완청 공용 정의 · 다음 편 · 응답) + 3장 목록 행, `features/backend-monitoring.md` 4장 표 아래 "콘솔 화면이 없는 인사이트 조회" 줄. 컨트롤러 경로와 대조함.
