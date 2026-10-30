@@ -42,20 +42,20 @@ describe('series-paywall.policy (KAN-290)', () => {
     const base = {
       enabled: true,
       freeEpisodes: 3,
-      isTopTier: false,
+      isPaidSubscriber: false,
       isTrialActive: false,
     };
 
-    it('스위치가 켜져 있고 최상위 요금제·체험이 아니면 무료 편수 뒤를 잠근다', () => {
+    it('스위치가 켜져 있고 유료 요금제·체험이 아니면 무료 편수 뒤를 잠근다', () => {
       expect(resolveSeriesEpisodeAccess(base)).toEqual({
         lockedAfterEpisodeNo: 3,
       });
     });
 
-    it('최상위 요금제(프로)·체험 중·스위치 꺼짐은 잠그지 않는다', () => {
-      expect(resolveSeriesEpisodeAccess({ ...base, isTopTier: true })).toBe(
-        SERIES_ALL_UNLOCKED,
-      );
+    it('유료 요금제(데일리·프로)·체험 중·스위치 꺼짐은 잠그지 않는다', () => {
+      expect(
+        resolveSeriesEpisodeAccess({ ...base, isPaidSubscriber: true }),
+      ).toBe(SERIES_ALL_UNLOCKED);
       expect(resolveSeriesEpisodeAccess({ ...base, isTrialActive: true })).toBe(
         SERIES_ALL_UNLOCKED,
       );

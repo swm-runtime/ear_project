@@ -129,6 +129,18 @@ export class PlanService {
   }
 
   /**
+   * 그 저장 티어가 **유료 요금제**인가(`price_krw > 0`) — 시리즈 유료화(KAN-290)의 "열리는 사람" 판정. 티어명이 아니라 가격으로
+   * 본다(요금제가 늘어도 그대로). 행이 없으면 `getPlayLimitPolicy`와 같은 폴백(`light`) — 모를 때는 잠그는 쪽이다.
+   */
+  async isPaidTier(tier: UserTier, manager?: EntityManager): Promise<boolean> {
+    const plan =
+      (await this.findByTier(tier, manager)) ??
+      (await this.findByTier(UserTier.LIGHT, manager));
+
+    return (plan?.priceKrw ?? 0) > 0;
+  }
+
+  /**
    * 가입 체험(`subscription.md` 4.8)을 얹은 재생 한도 정책 — **재생 판정과 잔여 표시가 이 하나를 쓴다.**
    *
    * 체험 중이면 `trial` 요금제 행의 한도와 사용자 티어의 한도 중 **더 넉넉한 쪽**이다. 체험 기간에 한도가

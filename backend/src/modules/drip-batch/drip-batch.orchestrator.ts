@@ -68,7 +68,7 @@ import {
 import { PlanService } from '@/modules/subscription/services/plan.service';
 import {
   SeriesPaywallService,
-  SeriesTopTierCache,
+  SeriesPaidTierCache,
 } from '@/modules/subscription/services/series-paywall.service';
 import { User } from '@/modules/user/entities/user.entity';
 import { UserSettingService } from '@/modules/user/services/user-setting.service';
@@ -140,12 +140,12 @@ export class DripBatchOrchestrator {
   /** 시간대 그룹 스위치(`DRIP_TIMEZONE_GROUPS_ENABLED`) — 꺼져 있으면 전원이 기본 그룹(05:00 KST)이다 */
   private readonly timezoneGroupsEnabled: boolean;
   /**
-   * 시리즈 유료화(KAN-290)의 "최상위 요금제인가" 캐시 — **실행 1회(`PlanCountCache` 하나)마다 따로 둔다.** 편수 캐시와 같은 수명이라
+   * 시리즈 유료화(KAN-290)의 "유료 요금제인가" 캐시 — **실행 1회(`PlanCountCache` 하나)마다 따로 둔다.** 편수 캐시와 같은 수명이라
    * 사용자마다 요금제를 다시 읽지 않고, 실행이 끝나면 함께 버려진다
    */
-  private readonly seriesTopTierCaches = new WeakMap<
+  private readonly seriesPaidTierCaches = new WeakMap<
     PlanCountCache,
-    SeriesTopTierCache
+    SeriesPaidTierCache
   >();
 
   constructor(
@@ -799,7 +799,7 @@ export class DripBatchOrchestrator {
       user,
       now,
       undefined,
-      this.seriesTopTierCacheOf(planCounts),
+      this.seriesPaidTierCacheOf(planCounts),
     );
 
     // 짧은 판 코호트(KAN-298) — 정규·탐험 편성 모두 가입 시점 코호트와 같은 길이 프로필의 콘텐츠만 후보다(폴백 없음 — 재고가
@@ -853,12 +853,14 @@ export class DripBatchOrchestrator {
     return plan;
   }
 
-  private seriesTopTierCacheOf(planCounts: PlanCountCache): SeriesTopTierCache {
-    let cache = this.seriesTopTierCaches.get(planCounts);
+  private seriesPaidTierCacheOf(
+    planCounts: PlanCountCache,
+  ): SeriesPaidTierCache {
+    let cache = this.seriesPaidTierCaches.get(planCounts);
 
     if (!cache) {
       cache = new Map();
-      this.seriesTopTierCaches.set(planCounts, cache);
+      this.seriesPaidTierCaches.set(planCounts, cache);
     }
 
     return cache;

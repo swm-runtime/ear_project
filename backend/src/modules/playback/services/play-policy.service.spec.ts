@@ -68,12 +68,9 @@ describe('PlayPolicyService', () => {
       getEffectivePlayLimitPolicy: jest
         .fn()
         .mockResolvedValue({ dailyPlayLimit: FREE_LIMIT, isTopTier: false }),
-      // 저장 티어의 최상위 여부 — 시리즈 유료화의 "열리는 사람" 판정 입력
-      getPlayLimitPolicy: jest.fn((tier: UserTier) =>
-        Promise.resolve({
-          dailyPlayLimit: tier === UserTier.PRO ? null : FREE_LIMIT,
-          isTopTier: tier === UserTier.PRO,
-        }),
+      // 저장 티어가 유료 요금제인가 — 시리즈 유료화의 "열리는 사람" 판정 입력(데일리·프로)
+      isPaidTier: jest.fn((tier: UserTier) =>
+        Promise.resolve(tier === UserTier.PRO || tier === UserTier.DAILY),
       ),
     } as unknown as jest.Mocked<PlanService>;
 
@@ -298,14 +295,12 @@ describe('PlayPolicyService', () => {
       expect(error.errorCode).toBe(ErrorCode.SERIES_EPISODE_LOCKED);
     });
 
-    it('데일리 구독자도 잠긴다 — 최상위 요금제만 열린다', async () => {
+    it('데일리 구독자도 4편 이후를 듣는다 — 유료 요금제면 열린다(2026-10-30 팀 결정)', async () => {
       givenUser(UserTier.DAILY);
 
-      const error = await catchError(
+      await expect(
         service.assertPlayable(USER_ID, EPISODE_4, NOW),
-      );
-
-      expect(error.errorCode).toBe(ErrorCode.SERIES_EPISODE_LOCKED);
+      ).resolves.toBeDefined();
     });
 
     it('1~3편은 무료 사용자도 종전 판정 그대로 듣는다', async () => {

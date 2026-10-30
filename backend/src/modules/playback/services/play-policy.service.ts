@@ -43,8 +43,7 @@ import { PlaybackService } from './playback.service';
 export const PLAY_LIMIT_MESSAGE = '오늘 청취 한도를 모두 사용했어요';
 
 /** 잠긴 시리즈 편 — 확정 문구(`experiments-api.md` 4.2-3) */
-export const SERIES_EPISODE_LOCKED_MESSAGE =
-  '이 편은 프로 구독에서 들을 수 있어요';
+export const SERIES_EPISODE_LOCKED_MESSAGE = '이 편은 구독하면 들을 수 있어요';
 
 /** 재생 게이트가 보는 콘텐츠 — 시리즈 편 판정(KAN-290)에 편 번호가 필요하다 */
 export type PlayableContent = Pick<Content, 'id' | 'seriesId' | 'episodeNo'>;

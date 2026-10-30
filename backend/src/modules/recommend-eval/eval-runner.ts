@@ -584,11 +584,13 @@ class InvariantCollector {
     }
 
     // 시리즈 유료화(KAN-290) — 편성 계산이 쓴 접근을 믿지 않고 사용자 티어로 다시 판정한다. 평가 세계는 체험을 두지 않고,
-    // 최상위 요금제는 pro다(평가 세계의 요금제 대역과 같은 정의)
+    // 유료 요금제는 daily · pro다(평가 세계의 요금제 대역과 같은 정의)
     const seriesAccess = resolveSeriesEpisodeAccess({
       enabled: this.seriesPaywall,
       freeEpisodes: DEFAULT_SERIES_FREE_EPISODES,
-      isTopTier: user.tier === (UserTier.PRO as string),
+      isPaidSubscriber: [UserTier.DAILY, UserTier.PRO].includes(
+        user.tier as UserTier,
+      ),
       isTrialActive: false,
     });
     for (const pick of [...regular, ...discovery]) {
