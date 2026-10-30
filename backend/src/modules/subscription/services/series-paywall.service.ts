@@ -16,15 +16,15 @@ import {
 } from '../policies/series-paywall.policy';
 import { PlanService } from './plan.service';
 
-/** 배치가 사용자마다 요금제를 다시 읽지 않도록 넘기는 캐시 — 저장 티어 → 최상위 요금제인가 */
-export type SeriesTopTierCache = Map<UserTier, boolean>;
+/** 배치가 사용자마다 요금제를 다시 읽지 않도록 넘기는 캐시 — 저장 티어 → 유료 요금제인가 */
+export type SeriesPaidTierCache = Map<UserTier, boolean>;
 
 /**
  * 시리즈 유료화(KAN-290)의 **서버 한 곳** — 규칙은 `series-paywall.policy.ts`, 이 클래스는 설정값과 요금제를 붙인다.
  *
- * "열리는 사람"을 티어명이 아니라 **요금제 데이터로** 판정한다 — 저장 티어가 최상위 유료 요금제(`isTopTier`: 유료이고 더 높은
- * 판매 요금제가 없음)인가. 재생 한도의 페이월/안내 분기와 같은 정의다(`PlanService.getPlayLimitPolicy`). 요금제 행이 없으면
- * 그 폴백(라이트)대로 최상위가 아니다 — 모를 때는 잠그는 쪽이다.
+ * "열리는 사람"을 티어명이 아니라 **요금제 데이터로** 판정한다 — 저장 티어가 유료 요금제(`PlanService.isPaidTier` — `price_krw > 0`,
+ * 현재 daily · pro)인가(2026-10-30 팀 결정 — 종전 "최상위 요금제만"에서 daily까지 연다). 요금제 행이 없으면 폴백(라이트)대로
+ * 유료가 아니다 — 모를 때는 잠그는 쪽이다.
  *
  * 설정값은 **부를 때마다 읽는다** — 다른 실험 스위치(`DRIP_ARRIVAL_AB_ENABLED`)와 같고, 테스트가 `ConfigService.set`으로 바꾼다.
  */
@@ -56,7 +56,7 @@ export class SeriesPaywallService {
     user: Pick<User, 'tier' | 'trialEndsAt'>,
     now: Date,
     manager?: EntityManager,
-    cache?: SeriesTopTierCache,
+    cache?: SeriesPaidTierCache,
   ): Promise<SeriesEpisodeAccess> {
     if (!this.isEnabled()) {
       return SERIES_ALL_UNLOCKED;
@@ -68,16 +68,16 @@ export class SeriesPaywallService {
       enabled: true,
       freeEpisodes: this.freeEpisodes(),
       // 체험 중이면 요금제를 볼 필요가 없다
-      isTopTier: isTrialActive
+      isPaidSubscriber: isTrialActive
         ? false
-        : await this.isTopTier(user.tier, manager, cache),
+        : await this.isPaidTier(user.tier, manager, cache),
       isTrialActive,
     });
   }
 
   /**
    * SQL판(`seriesEpisodeUnlockedSql`)의 파라미터 — 스위치가 꺼져 있으면 `lockedAfterEpisodeNo = null`(아무것도 잠그지 않음).
-   * 열리는 저장 티어는 결제가 쓰는 세 티어 중 최상위 요금제인 것이다(`trial`은 저장 티어가 아니다 — 체험은 `trial_ends_at`으로 본다)
+   * 열리는 저장 티어는 결제가 쓰는 세 티어 중 유료 요금제인 것이다(`trial`은 저장 티어가 아니다 — 체험은 `trial_ends_at`으로 본다)
    */
   async resolveSqlParams(manager?: EntityManager): Promise<{
     lockedAfterEpisodeNo: number | null;
@@ -90,11 +90,11 @@ export class SeriesPaywallService {
     const storedTiers = Object.values(UserTier).filter(
       (tier) => tier !== UserTier.TRIAL,
     );
-    const cache: SeriesTopTierCache = new Map();
+    const cache: SeriesPaidTierCache = new Map();
     const unlockedTiers: UserTier[] = [];
 
     for (const tier of storedTiers) {
-      if (await this.isTopTier(tier, manager, cache)) {
+      if (await this.isPaidTier(tier, manager, cache)) {
         unlockedTiers.push(tier);
       }
     }
@@ -102,10 +102,10 @@ export class SeriesPaywallService {
     return { lockedAfterEpisodeNo: this.freeEpisodes(), unlockedTiers };
   }
 
-  private async isTopTier(
+  private async isPaidTier(
     tier: UserTier,
     manager: EntityManager | undefined,
-    cache: SeriesTopTierCache | undefined,
+    cache: SeriesPaidTierCache | undefined,
   ): Promise<boolean> {
     const cached = cache?.get(tier);
 
@@ -113,12 +113,9 @@ export class SeriesPaywallService {
       return cached;
     }
 
-    const { isTopTier } = await this.planService.getPlayLimitPolicy(
-      tier,
-      manager,
-    );
-    cache?.set(tier, isTopTier);
+    const isPaid = await this.planService.isPaidTier(tier, manager);
+    cache?.set(tier, isPaid);
 
-    return isTopTier;
+    return isPaid;
   }
 }

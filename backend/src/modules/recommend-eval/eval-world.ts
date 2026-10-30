@@ -595,12 +595,11 @@ export class EvalWorld {
       getDailyDripCount: (tier: string) => Promise.resolve(counts(tier).drip),
       getDailyDiscoveryCount: (tier: string) =>
         Promise.resolve(counts(tier).discovery),
-      // 시리즈 유료화(KAN-290)의 "최상위 요금제" — 평가 세계의 요금제는 편수만 들고 있어 최상위를 pro로 둔다(운영 요금제 순서와 같다)
-      getPlayLimitPolicy: (tier: string) =>
-        Promise.resolve({
-          dailyPlayLimit: null,
-          isTopTier: tier === (UserTier.PRO as string),
-        }),
+      // 시리즈 유료화(KAN-290)의 "유료 요금제" — 평가 세계의 요금제는 편수만 들고 있어 유료를 daily · pro로 둔다(운영 요금제 가격과 같다)
+      isPaidTier: (tier: string) =>
+        Promise.resolve(
+          [UserTier.DAILY, UserTier.PRO].includes(tier as UserTier),
+        ),
     };
   }
 

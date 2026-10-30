@@ -13,11 +13,8 @@ describe('SeriesPaywallService (KAN-290)', () => {
   beforeEach(() => {
     env = { SERIES_PAYWALL_ENABLED: 'true' };
     planService = {
-      getPlayLimitPolicy: jest.fn((tier: UserTier) =>
-        Promise.resolve({
-          dailyPlayLimit: null,
-          isTopTier: tier === UserTier.PRO,
-        }),
+      isPaidTier: jest.fn((tier: UserTier) =>
+        Promise.resolve(tier === UserTier.PRO || tier === UserTier.DAILY),
       ),
     } as unknown as jest.Mocked<PlanService>;
     service = new SeriesPaywallService(
@@ -26,9 +23,12 @@ describe('SeriesPaywallService (KAN-290)', () => {
     );
   });
 
-  it('최상위 요금제 여부는 요금제 데이터(isTopTier)로 판정한다', async () => {
+  it('유료 요금제 여부는 요금제 데이터(isPaidTier)로 판정한다 — 데일리·프로는 열고 라이트는 잠근다', async () => {
     await expect(
       service.resolveAccess({ tier: UserTier.PRO, trialEndsAt: null }, NOW),
+    ).resolves.toEqual({ lockedAfterEpisodeNo: null });
+    await expect(
+      service.resolveAccess({ tier: UserTier.DAILY, trialEndsAt: null }, NOW),
     ).resolves.toEqual({ lockedAfterEpisodeNo: null });
     await expect(
       service.resolveAccess({ tier: UserTier.LIGHT, trialEndsAt: null }, NOW),
@@ -42,7 +42,7 @@ describe('SeriesPaywallService (KAN-290)', () => {
         NOW,
       ),
     ).resolves.toEqual({ lockedAfterEpisodeNo: null });
-    expect(planService.getPlayLimitPolicy).not.toHaveBeenCalled();
+    expect(planService.isPaidTier).not.toHaveBeenCalled();
   });
 
   it('꺼져 있으면 요금제를 읽지 않고 연다', async () => {
@@ -51,7 +51,7 @@ describe('SeriesPaywallService (KAN-290)', () => {
     await expect(
       service.resolveAccess({ tier: UserTier.LIGHT, trialEndsAt: null }, NOW),
     ).resolves.toEqual({ lockedAfterEpisodeNo: null });
-    expect(planService.getPlayLimitPolicy).not.toHaveBeenCalled();
+    expect(planService.isPaidTier).not.toHaveBeenCalled();
   });
 
   it('배치 캐시를 넘기면 같은 티어의 요금제를 한 번만 읽는다', async () => {
@@ -66,16 +66,16 @@ describe('SeriesPaywallService (KAN-290)', () => {
       );
     }
 
-    expect(planService.getPlayLimitPolicy).toHaveBeenCalledTimes(1);
+    expect(planService.isPaidTier).toHaveBeenCalledTimes(1);
   });
 
   it('SQL판 파라미터 — 켜져 있으면 무료 편수와 열리는 저장 티어(trial 제외), 꺼져 있으면 NULL', async () => {
     env.SERIES_FREE_EPISODES = '4';
     await expect(service.resolveSqlParams()).resolves.toEqual({
       lockedAfterEpisodeNo: 4,
-      unlockedTiers: [UserTier.PRO],
+      unlockedTiers: [UserTier.DAILY, UserTier.PRO],
     });
-    expect(planService.getPlayLimitPolicy).not.toHaveBeenCalledWith(
+    expect(planService.isPaidTier).not.toHaveBeenCalledWith(
       UserTier.TRIAL,
       undefined,
     );

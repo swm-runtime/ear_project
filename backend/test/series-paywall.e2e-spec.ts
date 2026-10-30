@@ -133,7 +133,7 @@ describe('시리즈 유료화 E2E (KAN-290)', () => {
     const issued = await issue(free, episode[4]).expect(HttpStatus.FORBIDDEN);
     expect(issued.body as ErrorBody).toMatchObject({
       error_code: ErrorCode.SERIES_EPISODE_LOCKED,
-      message: '이 편은 프로 구독에서 들을 수 있어요',
+      message: '이 편은 구독하면 들을 수 있어요',
       retryable: false,
     });
     await play(free, episode[4])
@@ -198,7 +198,7 @@ describe('시리즈 유료화 E2E (KAN-290)', () => {
     expect(await countPlayRecords(free.user.id)).toBe(2);
   });
 
-  it('프로(초대 코드 Pro 포함)·가입 체험 중이면 4편 이후도 재생된다 — 데일리는 잠긴다', async () => {
+  it('유료 요금제(데일리·프로, 초대 코드 Pro 포함)·가입 체험 중이면 4편 이후도 재생된다', async () => {
     const pro = await createUser('pro', UserTier.PRO);
     const trial = await createUser(
       'trial',
@@ -207,7 +207,7 @@ describe('시리즈 유료화 E2E (KAN-290)', () => {
     );
     const daily = await createUser('daily', UserTier.DAILY);
 
-    for (const actor of [pro, trial]) {
+    for (const actor of [pro, daily, trial]) {
       await play(actor, episode[5]).expect(HttpStatus.OK);
       await issue(actor, episode[4]).expect(HttpStatus.CREATED);
       await request(app.getHttpServer())
@@ -215,7 +215,6 @@ describe('시리즈 유료화 E2E (KAN-290)', () => {
         .set('Authorization', actor.auth)
         .expect(HttpStatus.OK);
     }
-    await play(daily, episode[4]).expect(HttpStatus.FORBIDDEN);
   });
 
   it('응답의 is_locked — 시리즈 편 목록·콘텐츠 상세·탐색 목록·라이브러리가 사용자 티어에 맞게 싣는다', async () => {

@@ -2,7 +2,8 @@
  * 시리즈 유료화(KAN-290 — 단기 실험 ⑤, `experiments-api.md` 4.2)의 **판정 규칙을 이 파일에만 둔다.**
  *
  * - **잠긴 편** = 시리즈 편(`contents.series_id` 있음)이고 `episode_no > 무료 편수`인 편. 모든 시리즈(글로벌 포함)가 대상이다.
- * - **열리는 사람** = 최상위 유료 요금제(현재 pro — 초대 코드 Pro는 `users.tier`에 pro로 적힌다) 이거나 가입 체험 중인 사용자.
+ * - **열리는 사람** = 유료 요금제(`price_krw > 0` — 현재 daily · pro, 초대 코드·후기 프로모션 Pro는 `users.tier`에 pro로 적힌다)
+ *   구독자이거나 가입 체험 중인 사용자(2026-10-30 팀 결정 — 종전 "최상위 요금제(pro)만"에서 daily까지 연다).
  *   그 밖은 잠긴다. 이미 4편 이후를 듣던 사용자도 예외 없다(KAN-290 결정).
  * - 서버 스위치(`SERIES_PAYWALL_ENABLED`)가 꺼져 있으면 아무것도 잠그지 않는다.
  *
@@ -16,7 +17,7 @@ export const DEFAULT_SERIES_FREE_EPISODES = 3;
 
 /** 사용자 한 명의 시리즈 편 접근 — 요청(또는 배치의 사용자) 단위로 한 번 만든다 */
 export interface SeriesEpisodeAccess {
-  /** 이 편 번호보다 **큰** 편이 잠긴다. `null`이면 아무것도 잠그지 않는다(스위치 꺼짐 · 최상위 요금제 · 체험 중) */
+  /** 이 편 번호보다 **큰** 편이 잠긴다. `null`이면 아무것도 잠그지 않는다(스위치 꺼짐 · 유료 요금제 · 체험 중) */
   readonly lockedAfterEpisodeNo: number | null;
 }
 
@@ -61,8 +62,8 @@ export interface SeriesAccessInput {
   /** 스위치 */
   enabled: boolean;
   freeEpisodes: number;
-  /** 저장 티어가 최상위 유료 요금제인가(`PlanService.getPlayLimitPolicy().isTopTier`) */
-  isTopTier: boolean;
+  /** 저장 티어가 유료 요금제인가(`PlanService.isPaidTier`) */
+  isPaidSubscriber: boolean;
   /** 가입 체험 중인가(`isSignupTrialActive`) */
   isTrialActive: boolean;
 }
@@ -71,7 +72,7 @@ export interface SeriesAccessInput {
 export function resolveSeriesEpisodeAccess(
   input: SeriesAccessInput,
 ): SeriesEpisodeAccess {
-  if (!input.enabled || input.isTopTier || input.isTrialActive) {
+  if (!input.enabled || input.isPaidSubscriber || input.isTrialActive) {
     return SERIES_ALL_UNLOCKED;
   }
 
