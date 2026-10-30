@@ -61,7 +61,12 @@ services:
     build: *pipeline-build
     image: ear-pipeline:prod
     restart: unless-stopped
-    command: ['npm', 'run', 'worker']
+    deploy:
+      replicas: ${WORKER_IO_REPLICAS:-1} # 동시에 집는 작업 수 — env.prod 에서 (2026-10-30). 집기는 claim_job 의 skip locked, 부가 작업(백엔드 오류 감시·TTS 잔량)은 임대(lease.ts)로 복제 하나만
+    # node 를 바로 띄운다(2026-10-30) — npm 두 겹·tsx 실행기 래퍼가 컨테이너마다 프로세스 셋을 더 띄웠다(서버 측정 RSS 57+57+46MB). init 은 PID 1 이 된 node 대신 고아 자식(ffmpeg 등)을 거둔다
+    init: true
+    working_dir: /srv/pipeline/apps/worker
+    command: ['node', '--import', 'tsx', 'src/index.ts']
     environment:
       DATABASE_URL: ${DATABASE_URL:?}
       EXECUTOR: ${WORKER_EXECUTOR:-none}       # none(IO 전용, 기본) · openai(AI 단계를 OpenAI API 로 — env.prod, 2026-09-19)
@@ -146,7 +151,9 @@ services:
     restart: unless-stopped
     deploy:
       replicas: ${WORKER_GLOBAL_REPLICAS:-1} # 동시에 집는 작업 수 — env.prod 에서 (2026-10-23: 판정 루프가 편당 1시간이라 워커 하나면 TTS·초안이 그 뒤에 줄 선다, 운영 4). 집기는 claim_job 의 skip locked 라 여러 개가 안전하다. 복제마다 약 110MB
-    command: ['npm', 'run', 'worker']
+    init: true # worker-io 와 같다 — node 를 바로 띄운다(2026-10-30)
+    working_dir: /srv/pipeline/apps/worker
+    command: ['node', '--import', 'tsx', 'src/index.ts']
     env_file: env.global # DATABASE_URL(Session pooler) · PIPELINE_BUCKET · PIPELINE_SPEAKERS · TTS_VOICE_A · TTS_VOICE_B · PIPELINE_CONSOLE_URL · OPENAI_API_KEY
     environment:
       PIPELINE_LOCALE: en
