@@ -55,3 +55,22 @@ test("설계 언어 검사 — 축·claims·구성안의 한자·가나 네 자 
   assert.deepEqual(foreignScriptFields({ axis: "물리 계층은 신호를 읽는 약속이다", outline_md: "구간 #1 — 提供された本文は", claims: [{ text: "ok" }, { text: "暗号化に用いる" }] }), ["claims", "구성안"]);
   assert.deepEqual(foreignScriptFields({ axis: "UTF-8 은 字 하나를 여러 바이트로", outline_md: "", claims: [] }), [], "한두 자는 걸리지 않는다");
 });
+
+// short-v1.7 (2026-10-30) — 짧은 판 되짚기 자리 수
+const body = (ys: string[], closing: string) => `## [인트로]\n[윤아] Y1 · 안녕하세요.\n## [도입]\n[이음] E1 · 이번 편의 라우팅 테이블을 따라가면 목적지에 맞는 항목을 고를 수 있어요.\n[윤아] Y2 · 어떻게요?\n## [본문]\n### #1\n${ys.map((y, k) => `[이음] E${k + 2} · 표에서 목적지에 맞는 항목을 찾아요. 가장 구체적인 항목을 골라요.\n[윤아] Y${k + 3} · ${y}`).join("\n")}\n## [마무리]\n[이음] E${ys.length + 2} · ${closing}\n`;
+const recap = (md: string, lp: string | null = "short") => twoStageViolations(md, "", { lengthProfile: lp }).filter((v) => /짧은 판 되짚기:|마무리 정리 턴/.test(v));
+test("짧은 판 되짚기 — '받는 문장 + 질문' 진행 턴은 편에 두 번까지", () => {
+  const two = ["표를 먼저 본다는 거네요. 그럼 항목이 여럿이면요?", "가장 긴 걸 고른다는 거죠. 왜 그래요?", "그렇군요."];
+  assert.equal(recap(body(two, "표는 길이를 비교해요. 그래서 가장 구체적인 길로 보내요.")).length, 0);
+  const three = [...two, "결국 표가 길을 정하는 거네요. 표가 틀리면요?"];
+  const v = recap(body(three, "표는 길이를 비교해요. 그래서 가장 구체적인 길로 보내요."));
+  assert.equal(v.length, 1); assert.match(v[0], /진행 턴 3개 \(Y3, Y4, Y6\)/); assert.match(v[0], /Y6 는 받는 문장을 지우고/);
+  assert.ok(v.every(isRatioViolation), "말맛 위반 — 한도 뒤엔 QA 로");
+  assert.equal(recap(body(three, "가. 나. 다."), null).filter((x) => x.startsWith("짧은 판")).length, 0, "일반 편은 세지 않는다");
+});
+test("짧은 판 마무리 정리 턴 — 2~3문장(일반 편은 3~5문장 그대로)", () => {
+  assert.equal(recap(body([], "표는 길이를 비교해요. 그래서 가장 구체적인 길로 보내요.")).length, 0, "짧은 판 2문장 통과");
+  assert.match(recap(body([], "하나. 둘. 셋. 넷."))[0], /짧은 판 되짚기: 마무리 정리 턴 .* 4문장/);
+  assert.match(recap(body([], "한 문장뿐이에요."))[0], /짧은 판 정리 턴은 2~3문장/);
+  assert.match(recap(body([], "하나. 둘."), null)[0], /정리 턴은 3~5문장/, "일반 편은 종전대로 3문장 하한");
+});

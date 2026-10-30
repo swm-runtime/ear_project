@@ -282,7 +282,13 @@ export function twoStageViolations(scriptMd: string, outlineMd: string, opts: { 
   if (subj.length >= 2) v.push(`해설 턴 ${subj.length}개가 주어형 귀속("이 글은"·"저자는"·"연구진은"·"이 연구에서는")으로 말함 (${subj.slice(0, 8).join(", ")}) — 출처를 주어로 세우지 않는다. 내용을 해설자의 말로 한다 (규칙 8·20, v9.12)`);
   // 마무리 정리 턴 (규칙 22·tpl-v2): 마지막 해설 턴이 3문장 미만이면 수렴이 없다 — 수정 재생성이 claims 를 지우며 문장까지 깎은 사례(T260922-007 E28)
   const closingE = [...expl].reverse().find((t) => t.section === "마무리");
-  if (closingE) { const n = closingE.text.split(/(?<=[.?!])\s+/).filter((x) => x.trim()).length; if (n < 3) v.push(`마무리 정리 턴 ${closingE.id} 이 ${n}문장 — 정리 턴은 3~5문장이다. 구간마다 한 문장을 답의 단계로 잇고 마지막 문장이 축 (규칙 22). 사실 주장을 지울 때도 문장 수를 줄이지 않는다`); }
+  if (closingE) {
+    const n = closingE.text.split(/(?<=[.?!])\s+/).filter((x) => x.trim()).length;
+    // 짧은 판(short-v1.7, 2026-10-30): 정리 턴은 2~3문장 — 3~5문장 정리가 구간이 2~3개뿐인 편에서 본문을 다시 늘어놓았다
+    if (spec.key === "short") { if (n < 2) v.push(`마무리 정리 턴 ${closingE.id} 이 ${n}문장 — 짧은 판 정리 턴은 2~3문장이다. 마지막 문장이 들고 갈 한 문장 (짧은 판 규칙)`); else if (n > 3) v.push(`짧은 판 되짚기: 마무리 정리 턴 ${closingE.id} 이 ${n}문장 — 짧은 판 정리 턴은 2~3문장이다. 본문 설명을 다시 늘어놓은 문장부터 지운다`); }
+    else if (n < 3) v.push(`마무리 정리 턴 ${closingE.id} 이 ${n}문장 — 정리 턴은 3~5문장이다. 구간마다 한 문장을 답의 단계로 잇고 마지막 문장이 축 (규칙 22). 사실 주장을 지울 때도 문장 수를 줄이지 않는다`);
+  }
+  if (spec.key === "short") v.push(...shortRecapViolations(p.turns));
   // full-v7.1 판정 반영 (2026-09-15, T260915-001~004 직접 수정 85건): 화자 없는 인용 예고 · 발행 시기 · 해설자 전환 선언 · 발화 안 가운뎃점
   const quoteCueRe = /((이런|그런|이) (문장|표현|구절|말)(이|도|을|가) (있어요|있는데요|있습니다|나와요|하나 있|있거든요)|(글|기사|책|보고서|논문|연구)(도|은|는|이|가|에서)? ?이렇게 (말해요|말합니다|적어요|적었어요|씁니다|썼어요|써요))/;
   const quoteCue = eTurns.filter((t) => quoteCueRe.test(t.text)).map((t) => t.id ?? "?");
@@ -593,7 +599,7 @@ export const RATIO_RULE_MARKS = ["셋 중 하나가 상한이다", "질문은 �
   // 시리즈 범위 검사(spec/11 6장, 2026-10-17) — 다른 편 몫을 풀어 쓴 곳. 판단 검사라 한도 뒤엔 QA 로
   "시리즈 범위:", "Series scope:",
   // 짧은 판 약속형 형식(2026-10-30, short-v1.5) — 말맛·형식이라 한도 뒤엔 QA·비평으로 넘긴다(초안을 멈추지 않는다)
-  "짧은 판 약속형:"] as const;
+  "짧은 판 약속형:", "짧은 판 되짚기:"] as const;
 export const isRatioViolation = (v: string): boolean => RATIO_RULE_MARKS.some((m) => v.includes(m));
 
 /** L0 수정 한도 (2026-10-07: 2 → 3) — QA 회차(qa.ts MAX_ATTEMPTS = QA 실행 3회, 실패 뒤 수정 2회)와 따로 센다 */
@@ -996,6 +1002,18 @@ export function v910Violations(turns: ScriptTurn[]): string[] {
  * - 도입 구분 예고: 도입에서 "나눠 보다·나누어 묻다"로 답의 틀을 미리 말한다(규칙 13) — v9.10 19% · 골드 0
  * 뺀 것: "짧은 교환 구간마다"(골드도 본문 2문장 이하 해설 턴 0 — 리듬의 원인이 아니었다) · "다른 질문이에요"로 맺는 턴(편당 0.6회로 드물다 — 규칙 29·critic 이 본다)
  */
+/**
+ * 짧은 판 되짚기 자리 (short-v1.7, 2026-10-30) — 일반 대본 규칙 25("질문 턴의 3분의 1~절반은 앞 해설을 한 문장으로 받은 뒤 묻는다")가
+ * 구간 2~3개짜리 편에서 반복의 큰 몫이 됐다(비평 3.6 득점률 47%). 본문 진행 턴 가운데 "받는 문장 + 질문"(앞 문장은 질문이 아니고 끝이 질문)인 턴은 편에 두 번까지
+ */
+export function shortRecapViolations(turns: ScriptTurn[]): string[] {
+  const recapQ = turns.filter((t) => t.id?.startsWith("Y") && t.section === "본문").filter((t) => {
+    const ss = t.text.replace(/\.{3}|…/g, " ").split(/(?<=[.?!])\s+/).map((x) => x.trim()).filter(Boolean);
+    return ss.length >= 2 && /\?$/.test(ss[ss.length - 1]) && !/\?$/.test(ss[0]);
+  }).map((t) => t.id ?? "?");
+  return recapQ.length > 2 ? [`짧은 판 되짚기: 앞 해설을 받아 말한 뒤 묻는 진행 턴 ${recapQ.length}개 (${recapQ.join(", ")}) — 편에 두 번까지다. ${recapQ.slice(2).join(", ")} 는 받는 문장을 지우고 질문 한 문장으로 둔다`] : [];
+}
+
 /** 짧은 판의 "도입 구분 예고" 지적 — 훅 문장은 두고 구분 예고 표현만 빼게 한다 */
 export function shortPreviewFix(m: string): string {
   return m.includes("답의 틀을 미리 말함") ? m.replace(/"나눠 보자" 대신[\s\S]*$/, '짧은 판: 훅 문장(선취형의 결과·약속형의 약속)은 그대로 두고 "나눠"류 구분 예고 표현만 뺀다. 질문형 도입으로 바꾸지 않는다 (규칙 13 · 짧은 판 규칙)') : m;
