@@ -13,7 +13,7 @@
 | 선행 | 없음 — 서버(KAN-290 · 286 · 279 · 288)와 FE(KAN-294 · 299 · 280 · 295)는 개발계에 있다 |
 | 근거 문서 | `features/paywall.md` 4.1 · `features/content-review.md` · `features/notification.md` 4.6-1 · `tickets/backend/pending/exp-prod-rollout-switches.md` |
 | 중요도 | Medium |
-| 상태 | 발행 |
+| 상태 | 보류 — 8·9만 남음(운영 할인 적용 때 운영 앱에서) |
 
 ## 왜
 
@@ -66,3 +66,4 @@ Android 개발계에서 박준현이 확인한 실험 화면을 iOS에서도 본
 ## 처리 기록
 
 - 2026-10-30 발행(마크다운 + Jira KAN-304).
+- 2026-10-30 iOS 확인 — 8·9 외 전부 확인(항목별 통과 · 실패는 Jira 댓글). **보류: 8·9** — 개발계 iOS(TestFlight)는 스토어가 달러 가격을 돌려준다(팀원 기기도 같음, 운영 앱은 원화). 앱은 원화일 때만 정가 취소선을 그려 개발계에서는 볼 수 없다. **남은 것**: 운영 할인 적용(KAN-286 스토어 가격 변경 + `PLAN_DISCOUNT_DISPLAY_ENABLED` — `tickets/backend/pending/exp-prod-rollout-switches.md`) 때 운영 앱 구독 화면에서 8 확인, 결제 시트는 금액만 보고 취소(9). 추가 발견 — 잠금 시트 [닫기]가 스크롤 경계에서 반쯤 잘림(기능 정상) → `tickets/frontend/pending/paywall-sheet-close-cut.md`.
