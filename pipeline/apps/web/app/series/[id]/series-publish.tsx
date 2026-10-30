@@ -7,11 +7,12 @@ import { listConsoleTopics } from "@/lib/console-topics";
 import { episodePublishFiles } from "@/lib/publish-episode";
 import { seriesContentTitle, seriesPublishBlockers, seriesUploadQueue, type SeriesPublishEpisode, type SeriesStatus } from "@/lib/series";
 import { clampSources } from "@/lib/sources-clamp";
+import { shortSeriesFields, shortUploadFields } from "@/lib/short-publish";
 import { logPublishEvent, markPublished, requestEpisodeEnrich } from "../../actions";
 import { EarGate, earErrMsg } from "../../publish/ear-connect";
 import { finishSeriesPublish, markSeriesWithdrawn, recordProductSeries } from "../actions";
 
-interface Meta { backlog_id: string; title: string; description: string; mid_topic: string; sources: { publisher: string; title: string; url: string }[] }
+interface Meta { backlog_id: string; title: string; description: string; mid_topic: string; sources: { publisher: string; title: string; url: string }[]; remake_of_content_ref?: string | null }
 interface Row {
   meta: Meta; enrichment: boolean; script: boolean; audio: boolean; thumbnail: boolean;
   title: string; description: string; topicIds: string[]; checks: boolean[];
@@ -23,12 +24,15 @@ const inp = "w-full rounded border border-line px-2 py-1 text-[12.5px] outline-n
  * [시리즈 발행]·[시리즈 회수] (spec/11 7장, KAN-136 6단계). 검수는 편마다(아래 표의 체크), 발행은 시리즈 단위다.
  * 1) 제품 시리즈가 없으면 POST /admin/series 로 만들고 id 를 파이프라인에 남긴다 2) 1화부터 순서대로 업로드(series_id·episode_no·total_episodes)
  * 3) 도중에 실패하면 멈추고, 다시 누르면 이미 올린 편(published_content_ref)은 건너뛴다 4) 다 올라가면 제품 시리즈를 completed 로.
+ * 짧은 판 시리즈(KAN-296 · BE KAN-298)는 1)에서 원본 시리즈의 변형(length_profile short · variant_of_series_id)으로 만들고, 편마다 원본 편의
+ * content_id 와 도입 훅을 싣는다(lib/short-publish.ts). 노출은 서버가 가입 코호트로 가른다.
  */
-export function SeriesPublish(props: { id: string; name: string; introLine: string; total: number; status: SeriesStatus; productSeriesId: string | null; publisherName: string | null; episodes: SeriesPublishEpisode[] }) {
+type SeriesPublishProps = { id: string; name: string; introLine: string; total: number; status: SeriesStatus; productSeriesId: string | null; publisherName: string | null; episodes: SeriesPublishEpisode[]; /** 짧은 판 시리즈면 원본 시리즈의 제품 id(없으면 null) */ short: { variantOfSeriesId: string | null } | null };
+export function SeriesPublish(props: SeriesPublishProps) {
   return <EarGate><SeriesPublishInner {...props} /></EarGate>;
 }
 
-function SeriesPublishInner({ id, name, introLine, total, status, productSeriesId, publisherName, episodes }: { id: string; name: string; introLine: string; total: number; status: SeriesStatus; productSeriesId: string | null; publisherName: string | null; episodes: SeriesPublishEpisode[] }) {
+function SeriesPublishInner({ id, name, introLine, total, status, productSeriesId, publisherName, episodes, short }: SeriesPublishProps) {
   const router = useRouter();
   const [topics, setTopics] = useState<EarTopic[]>([]);
   const [rows, setRows] = useState<Record<string, Row>>({});
@@ -64,24 +68,27 @@ function SeriesPublishInner({ id, name, introLine, total, status, productSeriesI
     reviewed: r.checks.every(Boolean) && !!r.title.trim() && !!r.description.trim() && r.topicIds.length > 0 && r.meta.sources.some((s) => s.title.trim()) && r.audio && r.thumbnail,
     enrichment: r.enrichment,
   }])), [rows]);
-  const blockers = seriesPublishBlockers({ status, total_episodes: total }, episodes, ready);
+  const shortSeries = short ? shortSeriesFields(short.variantOfSeriesId) : null;
+  const blockers = [...seriesPublishBlockers({ status, total_episodes: total }, episodes, ready), ...(shortSeries?.blocker && !productSeriesId ? [shortSeries.blocker] : [])];
   const set = (k: string, f: (r: Row) => Row) => setRows((m) => ({ ...m, [k]: f(m[k]) }));
 
   const publish = async () => {
-    if (!confirm(`"${name}" ${total}편을 1화부터 순서대로 발행할까요?\n\n업로드하면 바로 전체 사용자에게 보여요. 도중에 멈추면 다시 눌러 이어서 올립니다.`)) return;
+    if (!confirm(`"${name}" ${total}편을 1화부터 순서대로 발행할까요?\n\n${short ? "짧은 판 시리즈예요 — 원본 시리즈의 변형으로 올라가고, 서버가 새 앱 배포 뒤 가입한 사용자에게만 보여요." : "업로드하면 바로 전체 사용자에게 보여요."} 도중에 멈추면 다시 눌러 이어서 올립니다.`)) return;
     setBusy(true); setLog([]);
     try {
       // 1) 제품 시리즈 — 기록된 id 가 없으면 만든다. 직전 시도가 만들고 기록에 실패했을 수 있어, 같은 제목·편수에 올라간 편이 없는 시리즈가 있으면 그것을 쓴다
       let sid = productSeriesId;
       if (!sid) {
-        const prev = (await listEarSeries()).items.find((x) => x.title === name.trim() && x.total_episodes === total && x.episode_counts.published + x.episode_counts.withdrawn + x.episode_counts.expired === 0);
+        // 길이 프로필도 같아야 재사용한다 — 짧은 판을 기존 판 시리즈에(또는 그 반대로) 올리지 않는다. 칸이 없는 서버(KAN-298 전)의 시리즈는 standard 로 본다
+        const want = short ? "short" : "standard";
+        const prev = (await listEarSeries()).items.find((x) => x.title === name.trim() && x.total_episodes === total && (x.length_profile ?? "standard") === want && x.episode_counts.published + x.episode_counts.withdrawn + x.episode_counts.expired === 0);
         // 간행물(KAN-247) → 발행 이름. 재사용하는 시리즈도 같은 이름으로 맞춘다
         const made = prev
           ? (prev.publisher_name ?? null) === publisherName ? prev : await patchEarSeries(prev.id, { publisher_name: publisherName })
-          : await createEarSeries({ title: name.trim(), description: introLine.trim(), total_episodes: total, status: "ongoing", publisher_name: publisherName });
+          : await createEarSeries({ title: name.trim(), description: introLine.trim(), total_episodes: total, status: "ongoing", publisher_name: publisherName, ...(shortSeries?.fields ?? {}) });
         const r = await recordProductSeries(id, made.id);
         if (!r.ok) throw new Error(`제품 시리즈 ${made.id} 를 ${prev ? "찾았지만" : "만들었지만"} 기록하지 못했어요: ${r.reason}`);
-        sid = made.id; say(`제품 시리즈 ${prev ? "재사용" : "생성"} — ${sid}${publisherName ? ` · 발행 이름 ${publisherName}` : " · 발행 이름 없음"}`);
+        sid = made.id; say(`제품 시리즈 ${prev ? "재사용" : "생성"} — ${sid}${publisherName ? ` · 발행 이름 ${publisherName}` : " · 발행 이름 없음"}${short ? ` · 짧은 판(원본 ${short.variantOfSeriesId})` : ""}`);
         // 표지 (spec/11 7장, 2026-10-28): 파이프라인 표지가 있으면 바로 올린다 — 없으면 앱이 1화 썸네일을 쓴다(글로벌 S01 이 그렇게 나갔다). 실패해도 발행은 계속하고, 시리즈 화면 [표지 서버에 올리기]로 뒤에 올린다
         try { const c = await uploadPipelineSeriesCover(id, sid); say(c ? "시리즈 표지 올림" : "시리즈 표지 파일 없음 — 1화 썸네일로 나간다(키워드·회화집 디자인이면 시리즈 화면에서 다시 만들기 뒤 [표지 서버에 올리기])"); }
         catch (e) { say(`시리즈 표지 업로드 실패: ${earErrMsg(e)} — 발행은 계속, 시리즈 화면 [표지 서버에 올리기]로 다시`, true); }
@@ -97,9 +104,11 @@ function SeriesPublishInner({ id, name, introLine, total, status, productSeriesI
           source_name: `참고한 자료: ${[...new Set(r.meta.sources.map((s) => s.publisher))].join(", ")}`, topic_ids: r.topicIds,
           sources: clampSources(r.meta.sources), // 제품 API 한도 — lib/sources-clamp.ts
           series_id: sid, episode_no: e.no, total_episodes: total, review_confirmed: true,
+          // 짧은 시리즈 편 — 시리즈와 같은 short 를 명시하고, 원본 편 content_id(있으면) · 도입 훅을 싣는다
+          ...(short ? shortUploadFields({ ...r.meta, backlog_id: e.backlog_id, length_profile: "short" }, "series").fields ?? {} : {}),
         }, f.audio, f.thumbnail, f.enrichment, f.script, f.lossless);
         // 이어서 올리기는 이 기록(published_content_ref)으로 올린 편을 가른다 — 실패하면 멈춘다(다시 올리면 서버가 같은 번호를 400 으로 막는다)
-        await markPublished(e.backlog_id, c.id, c.content_version, c.published_at, { action: "publish", parts: ["audio", "thumbnail", "title", "description", "source_name", "topic_ids", "series", ...(f.enrichment ? ["enrichment"] : []), ...(f.script ? ["script"] : [])], note: `시리즈 ${e.no}/${total}`, episodeId: e.episode_id });
+        await markPublished(e.backlog_id, c.id, c.content_version, c.published_at, { action: "publish", parts: ["audio", "thumbnail", "title", "description", "source_name", "topic_ids", "series", ...(f.enrichment ? ["enrichment"] : []), ...(f.script ? ["script"] : [])], note: `시리즈 ${e.no}/${total}${short ? " · 짧은 판" : ""}`, episodeId: e.episode_id });
         say(`${e.no}화 발행 — ${c.id}${f.enrichment && !c.enrichment_applied ? ` · 추천 메타 거부: ${c.enrichment_rejected_reason ?? "사유 없음"}` : ""}${f.script && !c.script_applied ? ` · 자막 거부: ${c.script_rejected_reason ?? "사유 없음"}` : ""}`);
       }
       // 3) 끝 — 제품 시리즈 완결, 파이프라인 시리즈 발행

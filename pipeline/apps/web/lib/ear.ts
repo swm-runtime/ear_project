@@ -210,6 +210,8 @@ export interface UploadPayload {
   series_id?: string; episode_no?: number; total_episodes?: number;
   review_confirmed: boolean;
   market?: "kr" | "global"; language?: "ko" | "en"; // 비우면 uploadEarContent 가 이 콘솔 인스턴스의 값으로 채운다 (contentMarket)
+  /** 짧은 판(KAN-298 — admin-api 4.6) — 기존 판은 넣지 않는다. 값은 lib/short-publish.ts 가 만든다 */
+  length_profile?: "standard" | "short"; variant_of_content_id?: string; intro_version?: string;
 }
 
 /** 재발행 — 같은 content_id 에 오디오(·메타) 교체, content_version +1 (admin-api 4.10 — 백엔드 구현 대기: 404 면 아직 없는 것) */
@@ -230,6 +232,8 @@ export interface EarSeries {
   episode_counts: { published: number; withdrawn: number; expired: number }; max_published_episode_no: number | null;
   cover_url: string | null; // 시리즈 표지 (KAN-234, 2026-10-21) — 없으면 앱이 가장 앞 편 썸네일을 쓴다
   publisher_name: string | null; // 발행 이름 = 간행물 (BE #1883, KAN-247) — 앱 시리즈 화면 제목 아래 줄. 콘솔은 @ear/pipeline PUBLICATIONS 의 name 만 보낸다
+  /** 짧은 시리즈와 그 원본 (KAN-298). 서버가 이 칸을 안 주면 짧은 판을 모르는 서버(배포 전)다 */
+  length_profile?: "standard" | "short"; variant_of_series_id?: string | null;
   created_at: string; updated_at: string;
 }
 export const listEarSeries = () => earFetch<{ items: EarSeries[] }>("/admin/series");
@@ -247,7 +251,7 @@ export async function uploadPipelineSeriesCover(pipelineSeriesId: string, produc
   const cover = new File([await res.blob()], `series-${pipelineSeriesId}-cover.png`, { type: "image/png" });
   return putEarSeriesCover(productSeriesId, cover);
 }
-export const createEarSeries = (body: { title: string; description: string; total_episodes: number; status?: "ongoing" | "completed"; publisher_name?: string | null }) =>
+export const createEarSeries = (body: { title: string; description: string; total_episodes: number; status?: "ongoing" | "completed"; publisher_name?: string | null; length_profile?: "standard" | "short"; variant_of_series_id?: string }) =>
   earFetch<EarSeries>("/admin/series", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
 export const patchEarSeries = (id: string, fields: Partial<{ title: string; description: string; total_episodes: number; status: "ongoing" | "completed"; publisher_name: string | null }>) =>
   earFetch<EarSeries>(`/admin/series/${id}`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify(fields) });

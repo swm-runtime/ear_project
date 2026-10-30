@@ -73,7 +73,7 @@ export default async function ExperimentsPage({ searchParams }: { searchParams: 
     <div className="space-y-6">
       <AutoRefresh seconds={20} />
       <PageHeader title="실험 — 짧은 판" breadcrumb={["파이프라인", "실험"]}
-        desc={`발행된 단편의 주제·소스로 ${s.floorMin}~${s.maxMin}분(본문 구간 ${s.sections[0]}~${s.sections[1]}개, 선취 훅) 짧은 판을 다시 만든다(KAN-296). 설계는 원본 구성안을 보지 않고 소스만 받아 새로 짜고, 축은 원본과 같은 질문을 유지한다. 규칙은 자산 skills/draft/short.md, 비평은 짧은 판 루브릭(skills/critic/rubric-short.md)으로 채점한다. ${typeof shortTh === "number" ? `비평 합계 ${shortTh} 미만이면 발행 준비를 걸지 않고 사람 검토로 둔다.` : "관문 기준은 아직 없다 — 루브릭을 사람 판정 3편으로 보정하는 중이라 점수는 기록만 하고 발행 준비로 넘긴다."} 제목·썸네일은 원본 그대로. 짧은 판은 새 앱 배포 뒤 가입한 사용자에게만 나가므로(BE 코호트 분리) 백로그·일반 발행 목록에는 보이지 않는다 — 발행 준비까지 ${done}/${remakeIds.length}편.`} />
+        desc={`발행된 단편의 주제·소스로 ${s.floorMin}~${s.maxMin}분(본문 구간 ${s.sections[0]}~${s.sections[1]}개, 선취 훅) 짧은 판을 다시 만든다(KAN-296). 설계는 원본 구성안을 보지 않고 소스만 받아 새로 짜고, 축은 원본과 같은 질문을 유지한다. 규칙은 자산 skills/draft/short.md, 비평은 짧은 판 루브릭(skills/critic/rubric-short.md)으로 채점한다. ${typeof shortTh === "number" ? `비평 합계 ${shortTh} 미만이면 발행 준비를 걸지 않고 사람 검토로 둔다.` : "관문 기준은 아직 없다 — 루브릭을 사람 판정 3편으로 보정하는 중이라 점수는 기록만 하고 발행 준비로 넘긴다."} 제목·썸네일은 원본 그대로. 짧은 판은 새 앱 배포 뒤 가입한 사용자에게만 나가므로(BE 코호트 분리) 백로그·일반 발행 목록에는 보이지 않는다 — 발행은 이 표의 [발행](원본의 변형으로 올라간다), 시리즈는 시리즈 화면의 [시리즈 발행]. 발행 준비까지 ${done}/${remakeIds.length}편.`} />
 
       <Panel title={`짧은 판 진행 (${remakeIds.length})`} flush>
         <Table head={["원본 → 짧은 판", "상태", "진행", "막힌 곳 · 다음 행동", "만든 시각", ""]} empty="아직 짧은 판이 없다 — 아래 발행된 편에서 고른다">
@@ -92,7 +92,7 @@ export default async function ExperimentsPage({ searchParams }: { searchParams: 
                 <Td>{st ? <StageTrack stages={st.stages} /> : <span className="text-[11px] text-ink-soft">초안 대기</span>}</Td>
                 <Td className="min-w-[220px] text-[12px]">{e && gateOf.has(e.id) ? <span className="text-rose-700">{gateOf.get(e.id)} — 관문 미달, 사람 검토(에피소드 화면에서 보고 반려하거나 대본을 고친 뒤 [발행 준비])</span> : st?.problem ? <ProblemLine p={st.problem} /> : <span className="text-ink-soft">—</span>}</Td>
                 <Td className="whitespace-nowrap text-ink-soft">{fmtTime(r.created_at)}</Td>
-                <Td><RemakeRowActions id={r.id} status={r.status} /></Td>
+                <Td><RemakeRowActions id={r.id} status={r.status} episodeId={e?.id ?? null} /></Td>
               </tr>
             );
           })}
@@ -122,7 +122,7 @@ export default async function ExperimentsPage({ searchParams }: { searchParams: 
           })}
         </Table>
         {seriesFailed.length > 0 && <div className="border-t border-line px-4 py-2 text-[12px] text-rose-700">요청 실패: {seriesFailed.map((f) => <span key={f.id + f.error} className="mr-3">{origSeries.find((x) => x.id === f.id)?.name ?? f.id} — {f.error}</span>)}</div>}
-        <p className="border-t border-line px-4 py-2 text-[11px] text-ink-soft">파이프라인에서 만든 시리즈만 대상이다(편마다 백로그·소스가 있어야 한다). 원본 편 하나를 개념 단위로 1~3편으로 나눈 설계안을 워커가 짜고, 시리즈 화면에서 검토·[승인]하면 편 후보가 생겨 화 순서대로 만들어진다. 이름·간행물·썸네일 설정은 원본 그대로. 발행은 백엔드 코호트 분리(KAN-298) 뒤.</p>
+        <p className="border-t border-line px-4 py-2 text-[11px] text-ink-soft">파이프라인에서 만든 시리즈만 대상이다(편마다 백로그·소스가 있어야 한다). 원본 편 하나를 개념 단위로 1~3편으로 나눈 설계안을 워커가 짜고, 시리즈 화면에서 검토·[승인]하면 편 후보가 생겨 화 순서대로 만들어진다. 이름·간행물·썸네일 설정은 원본 그대로. 발행은 시리즈 화면의 [시리즈 발행] — 원본 시리즈의 변형(짧은 시리즈)으로 만들어 올린다.</p>
       </Panel>
 
       <Panel title={`발행된 편 (${rows.length}/${(originals ?? []).length})`} flush>
