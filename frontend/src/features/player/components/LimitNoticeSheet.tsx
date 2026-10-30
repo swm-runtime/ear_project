@@ -1,4 +1,4 @@
-import { useRef } from 'react';
+import { useRef, useState } from 'react';
 import { Dimensions, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import Svg, { Circle } from 'react-native-svg';
 
@@ -60,6 +60,10 @@ export default function LimitNoticeSheet() {
   const ratio = left !== null && left.limit > 0 ? Math.min(1, left.remaining / left.limit) : 0;
   /** iOS — 시트가 완전히 내려간 뒤 부를 재생 요청 */
   const pendingResumeRef = useRef<(() => void) | null>(null);
+  /** 요금제 스크롤이 넘치는가 — 넘칠 때만 바닥 [닫기] 위에 구분선·스크롤 막대를 둔다 */
+  const [scrollHeight, setScrollHeight] = useState(0);
+  const [contentHeight, setContentHeight] = useState(0);
+  const isOverflowing = scrollHeight > 0 && contentHeight > scrollHeight + 1;
 
   // 결제 진행 중에는 닫기를 막는다(paywall.md 5장 "결제 진행 중 — 시트 닫기 차단")
   const requestClose = () => {
@@ -96,9 +100,7 @@ export default function LimitNoticeSheet() {
         <LockIcon size={LOCK_GLYPH_SIZE} color={theme.color.textPrimary} />
       </View>
       <Text style={styles.title} accessibilityRole="header">
-        {showPlans
-          ? PLAYER_COPY.seriesLock.title
-          : PLAYER_COPY.seriesLock.unavailableTitle}
+        {showPlans ? PLAYER_COPY.seriesLock.title : PLAYER_COPY.seriesLock.unavailableTitle}
       </Text>
       <Text style={styles.description}>
         {showPlans
@@ -157,31 +159,28 @@ export default function LimitNoticeSheet() {
     </>
   );
 
-  const body = (
-    <View style={styles.body} accessibilityViewIsModal>
-      {isSeriesLock ? lockHeader : limitHeader}
-      {showPlans ? (
-        <PaywallPlansSection onEntitled={handleEntitled} onDelayed={hide} onEmailGate={suspend} />
-      ) : null}
-      <Pressable
-        style={[
-          pillButton.base,
-          showPlans ? pillButton.secondary : pillButton.primary,
-          styles.button,
-        ]}
-        onPress={requestClose}
-        disabled={isPurchasing}
-        accessibilityRole="button"
-        accessibilityLabel={
-          showPlans ? PLAYER_COPY.limitNotice.close : PLAYER_COPY.limitNotice.confirm
-        }
-        accessibilityState={{ disabled: isPurchasing }}
-      >
-        <Text style={showPlans ? pillButton.secondaryLabel : pillButton.primaryLabel}>
-          {showPlans ? PLAYER_COPY.limitNotice.close : PLAYER_COPY.limitNotice.confirm}
-        </Text>
-      </Pressable>
-    </View>
+  const header = isSeriesLock ? lockHeader : limitHeader;
+
+  const closeButton = (
+    <Pressable
+      testID="limit-notice-close"
+      style={[
+        pillButton.base,
+        showPlans ? pillButton.secondary : pillButton.primary,
+        styles.button,
+      ]}
+      onPress={requestClose}
+      disabled={isPurchasing}
+      accessibilityRole="button"
+      accessibilityLabel={
+        showPlans ? PLAYER_COPY.limitNotice.close : PLAYER_COPY.limitNotice.confirm
+      }
+      accessibilityState={{ disabled: isPurchasing }}
+    >
+      <Text style={showPlans ? pillButton.secondaryLabel : pillButton.primaryLabel}>
+        {showPlans ? PLAYER_COPY.limitNotice.close : PLAYER_COPY.limitNotice.confirm}
+      </Text>
+    </Pressable>
   );
 
   return (
@@ -192,11 +191,36 @@ export default function LimitNoticeSheet() {
       sheetStyle={styles.sheet}
     >
       {showPlans ? (
-        <ScrollView style={styles.scroll} showsVerticalScrollIndicator={false}>
-          {body}
-        </ScrollView>
+        // [닫기]는 스크롤 밖 시트 바닥에 고정한다(KAN-305) — 스크롤 안에 두면 72% 경계에 버튼이 반쯤 잘린 채 걸려 깨진 화면처럼
+        // 보였다. 요금제·결제만 스크롤하고, 넘칠 때만 구분선·스크롤 막대로 "더 있다"를 알린다
+        <View style={styles.paywallFrame} accessibilityViewIsModal>
+          <ScrollView
+            style={styles.scroll}
+            showsVerticalScrollIndicator={isOverflowing}
+            onLayout={(e) => setScrollHeight(e.nativeEvent.layout.height)}
+            onContentSizeChange={(_, h) => setContentHeight(h)}
+          >
+            <View style={styles.body}>
+              {header}
+              <PaywallPlansSection
+                onEntitled={handleEntitled}
+                onDelayed={hide}
+                onEmailGate={suspend}
+              />
+            </View>
+          </ScrollView>
+          <View
+            testID="limit-notice-footer"
+            style={[styles.footer, isOverflowing && styles.footerDivider]}
+          >
+            {closeButton}
+          </View>
+        </View>
       ) : (
-        body
+        <View style={styles.body} accessibilityViewIsModal>
+          {header}
+          {closeButton}
+        </View>
       )}
     </BottomSheet>
   );
@@ -213,8 +237,21 @@ const styles = StyleSheet.create({
     paddingBottom: theme.spacing.xl,
     paddingHorizontal: theme.spacing.md,
   },
-  scroll: {
+  // 시트 전체(스크롤 + 바닥 [닫기])가 72% 안 — 넘치면 스크롤만 줄어든다
+  paywallFrame: {
     maxHeight: PAYWALL_MAX_HEIGHT,
+  },
+  scroll: {
+    flexGrow: 0,
+    flexShrink: 1,
+  },
+  // 구분선은 요금제 끝에서 sm 아래, 버튼은 구분선에서 md 아래(버튼 marginTop)
+  footer: {
+    marginTop: theme.spacing.sm,
+  },
+  footerDivider: {
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: theme.color.separator,
   },
   body: {
     alignItems: 'center',
