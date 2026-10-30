@@ -44,8 +44,9 @@ $SSH "ec2-user@$HOST" "
   WORKER_REV=$REV WORKER_REV_TS=$REV_TS docker compose -f deploy/docker-compose.prod.yml --env-file deploy/env.prod \$PROFILE up -d --build
   # 규칙 자산 활성화 + 워커 최소 버전 기록 — 사람이 assets:import 를 따로 돌리지 않아도 머지가 곧 활성화다 (RUNBOOK 7장).
   # import 는 본문이 같으면 건너뛰어 멱등이고, 실패해도 배포는 성립한다(다음 머지에서 재시도).
-  WORKER_REV=$REV WORKER_REV_TS=$REV_TS docker compose -f deploy/docker-compose.prod.yml --env-file deploy/env.prod run --rm --no-deps worker-io npm run assets:import -- --force || echo '⚠ 규칙 자산 활성화 실패 — npm run assets:import -- --force 를 손으로'
-  WORKER_REV=$REV WORKER_REV_TS=$REV_TS docker compose -f deploy/docker-compose.prod.yml --env-file deploy/env.prod run --rm --no-deps worker-io npm run rev:publish || echo '⚠ 워커 최소 버전 기록 실패'
+  # --workdir: 워커 서비스의 작업 폴더가 apps/worker 라(2026-10-30 node 직접 실행) 루트 package.json 의 assets:import·rev:publish 를 못 찾았다 — 루트에서 돌린다
+  WORKER_REV=$REV WORKER_REV_TS=$REV_TS docker compose -f deploy/docker-compose.prod.yml --env-file deploy/env.prod run --rm --no-deps --workdir /srv/pipeline worker-io npm run assets:import -- --force || echo '⚠ 규칙 자산 활성화 실패 — npm run assets:import -- --force 를 손으로'
+  WORKER_REV=$REV WORKER_REV_TS=$REV_TS docker compose -f deploy/docker-compose.prod.yml --env-file deploy/env.prod run --rm --no-deps --workdir /srv/pipeline worker-io npm run rev:publish || echo '⚠ 워커 최소 버전 기록 실패'
   # 옛 빌드 이미지 정리 (2026-09-22): 머지마다 새 이미지를 만들고 이전 것을 남겨 20GB 디스크가 이미지 143개(12GB)로 찼다 — 배포 실패(no space left).
   # dangling(태그 없는 이전 빌드)만 지운다. 실행 중인 컨테이너의 이미지는 남는다. 실패해도 배포는 성립한다.
   docker image prune -f >/dev/null 2>&1 || echo '⚠ 이미지 정리 실패 (배포는 성립)'

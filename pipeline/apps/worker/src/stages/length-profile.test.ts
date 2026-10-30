@@ -42,6 +42,7 @@ test("길이 프로필 — short 는 설계·대본에 숫자 줄(코드)과 짧
   const dh = P.buildDesignPromptInlineParts({ episodeId: "T1", candidate: { ...cand, id: "C601", length_profile: "short" }, promptVersion: "v", guidelines: "g", specScript: "s", goldFullEum: "", goldFullYuna: "", sources: [], shortRules: rules, shortHook: P.shortHookFor("C601") });
   assert.match(dh.user, /### 이 편의 도입 훅 — 약속형/, "설계가 이 편의 훅 형태와 규칙을 본다");
   assert.match(dh.user, /실제로 겪는 상황 하나/);
+  assert.match(dh.user, /청취자 장면은 그 claim 의 결과가 청취자에게 보이거나 청취자가 겪는 일이다/, "설계가 청취자 장면을 정한다(short-v1.3)");
   assert.doesNotMatch(dh.user, /도입 훅 — 선취형/, "다른 형태의 훅 절은 붙지 않는다");
   assert.throws(() => P.buildDesignPromptInlineParts({ episodeId: "T1", candidate: { ...cand, length_profile: "short" }, promptVersion: "v", guidelines: "g", specScript: "s", goldFullEum: "", goldFullYuna: "", sources: [] }), /짧은 판 규칙/);
   assert.match(P.shortTrimFeedback(16, 5), /예상 16분 · 본문 구간 5개/);
@@ -60,6 +61,8 @@ test("길이 프로필 — short 는 설계·대본에 숫자 줄(코드)과 짧
   assert.match(w2.user, /### 도입 훅 — 약속형/);
   assert.match(w2.user, /실제로 겪는 상황 하나/);
   assert.match(w2.user, /판단·생각·이해가 바뀌는 것은 결과가 아니다/);
+  assert.match(w2.user, /문장의 주어는 청취자다/);
+  assert.match(w2.user, /훅 문장은 청취자가 보거나 겪는 일을 말한다/, "훅은 장치 안의 동작이 아니라 청취자 장면(short-v1.3)");
   assert.equal(P.pickShortHook(600).key, "payoff"); assert.equal(P.pickShortHook(601).key, "promise");
   assert.equal(P.shortHookFor("C600").key, "payoff"); assert.equal(P.shortHookFor("C601").key, "promise", "설계·대본이 같은 훅을 쓴다");
   const c = P.buildCriticPromptInlineParts({ episodeId: "T1", title: "t", midTopic: "경제 상식" as never, rubricV2Md: "r", guidelines: "g", goldFullEum: "", goldFullYuna: "", scriptMd: "s", lengthProfile: "short", rubricShortMd: rubricShort });
