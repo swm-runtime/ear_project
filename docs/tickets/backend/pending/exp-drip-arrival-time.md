@@ -61,3 +61,4 @@
   - 문서 수정은 `changes/pending/exp-drip-arrival-ab.md`.
   - 남은 일: 개발계에서 스위치 켜고 07:30·08:00 로그(`drip arrival push done` · `user_count_by_slot`) 확인 → 운영 켠 시각을 여기에 기록. 개발계 확인 전까지 `pending/`에 둔다.
 - 2026-10-29 PR [#2164](https://github.com/swm-runtime/ear_project/pull/2164) → dev(미머지). 아침 알림(KAN-288)은 #2165가 이 위에 쌓였다.
+- 2026-10-30 [#2164](https://github.com/swm-runtime/ear_project/pull/2164) dev 머지 · 개발계 `DRIP_ARRIVAL_AB_ENABLED=true` — 개발계 35명 A 17 / B 18. 10-30 아침: 07:00 미발송(켜짐이라 쉼) · 07:30 A 대상 0 · 08:00 B 1건 `drip_arrival.b` sent. 실험 탭 "도착 알림 시각" 패널([#2170](https://github.com/swm-runtime/ear_project/pull/2170), 재생률만 · [#2181](https://github.com/swm-runtime/ear_project/pull/2181) 그래프 토글). **기준선 정의**: 10-29 고정한 07:00 중간값(10.0% · 19.3%)은 옛 쿼리(재생 행만 · KST 달력일)라 패널(재생 행 + 위치 저장 · 05:00 서비스 날짜)과 다르다 → 운영 켤 때 최종 기준선은 패널 값으로 고정. 남은 일: 07:30 A 실발송 관찰(10-31), 운영 켠 시각 기록.

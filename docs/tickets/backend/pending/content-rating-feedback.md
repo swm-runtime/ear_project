@@ -88,3 +88,4 @@
 
 - 2026-10-29 BE 1단계(후기 API) PR #2141 — 후기 시트 · 저장 · 먼저 묻기 · 관리자 집계/글 목록, `CONTENT_REVIEW_ENABLED`(기본 꺼짐). FE(KAN-280)와의 E2E 전이라 pending 유지
 - 2026-10-29 BE 2단계(보상) PR #2143 — 후기 참여 프로모션 발급(3편 · 10자 · 계정당 1회 · 3개월) · S12 조회/사용(초대 코드 지급 경로 재사용), `CONTENT_REVIEW_REWARD_ENABLED`(기본 꺼짐). #2141 위에 쌓음. FE(KAN-280)와의 E2E 전이라 pending 유지
+- 2026-10-30 개발계 실기기 확인(박준현, FE #2171 OTA `01a1885a`) — 끝까지 들은 편 3개에 별점 + 글 10자 이상 → 3번째 저장에서 `review_reward` 발급 → [사용하기] → Pro 7 서비스 날짜 지급 · `users.tier` 반영 확인. 별점만 · 글 1자 · 완청 아닌 편(다음 편 스킵 = 위치 0~1%)은 셈에서 빠짐. 먼저 묻는 간격 5 → 2 서비스 날짜([#2176](https://github.com/swm-runtime/ear_project/pull/2176) — API로 1일 닫힘 · 2일 열림 확인). Jira 검토 중. 남은 일: 운영 `CONTENT_REVIEW_ENABLED` · `CONTENT_REVIEW_REWARD_ENABLED`(개인정보 처리방침 시행일 뒤, KAN-300).
