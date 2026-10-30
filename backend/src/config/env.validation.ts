@@ -16,6 +16,7 @@ import {
   ValidateIf,
   validateSync,
   ValidatorConstraint,
+  type ValidationArguments,
   type ValidatorConstraintInterface,
 } from 'class-validator';
 
@@ -42,6 +43,47 @@ export class ServiceDayBoundarySwitchConstraint implements ValidatorConstraintIn
 
   defaultMessage(): string {
     return 'SERVICE_DAY_BOUNDARY_05_FROM must be an ISO 8601 datetime whose KST hour is not 04 (05:00 KST recommended)';
+  }
+}
+
+/**
+ * 오프셋을 적은 ISO 8601 시각(`2026-11-05T10:00:00+09:00`)이 **실제로 있는 시각**인가 — 비어 있으면 통과(=꺼짐).
+ * `new Date()`는 `2026-02-30`을 오류 없이 3월 2일로 넘기고 `2026-13-05`는 Invalid Date라 소비 쪽에서 조용히 null(꺼짐)이 된다 —
+ * 실험 경계(`SHORT_CONTENT_COHORT_SINCE`)·할인 종료(`PLAN_DISCOUNT_ENDS_AT`)를 오타로 넣으면 실험이 꺼지거나 엉뚱한 날짜가 된 채
+ * 아무도 모르게 지나간다. 그래서 적은 연·월·일·시·분이 해석된 시각을 그 오프셋으로 되돌린 값과 같아야 통과한다.
+ */
+@ValidatorConstraint({ name: 'isoInstantWithOffset', async: false })
+export class IsoInstantWithOffsetConstraint implements ValidatorConstraintInterface {
+  validate(value: unknown): boolean {
+    if (value === undefined || value === null) return true;
+    if (typeof value !== 'string') return false;
+    const trimmed = value.trim();
+    if (trimmed === '') return true;
+    const match =
+      /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::\d{2}(?:\.\d+)?)?(Z|([+-])(\d{2}):(\d{2}))$/.exec(
+        trimmed,
+      );
+    if (!match) return false;
+    const parsed = new Date(trimmed);
+    if (Number.isNaN(parsed.getTime())) return false;
+    const offsetMinutes =
+      match[6] === 'Z'
+        ? 0
+        : (match[7] === '-' ? -1 : 1) *
+          (Number(match[8]) * 60 + Number(match[9]));
+    const local = new Date(parsed.getTime() + offsetMinutes * 60_000);
+
+    return (
+      local.getUTCFullYear() === Number(match[1]) &&
+      local.getUTCMonth() + 1 === Number(match[2]) &&
+      local.getUTCDate() === Number(match[3]) &&
+      local.getUTCHours() === Number(match[4]) &&
+      local.getUTCMinutes() === Number(match[5])
+    );
+  }
+
+  defaultMessage(args?: ValidationArguments): string {
+    return `${args?.property ?? 'value'} must be an existing ISO 8601 datetime with offset (e.g. 2026-11-05T10:00:00+09:00)`;
   }
 }
 
@@ -329,13 +371,7 @@ export class EnvironmentVariables {
    * 비우면 끝나는 시각이 없다
    */
   @IsOptional()
-  @Matches(
-    /^$|^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:\d{2})$/,
-    {
-      message:
-        'PLAN_DISCOUNT_ENDS_AT must be an ISO 8601 datetime with offset (e.g. 2026-12-01T00:00:00+09:00)',
-    },
-  )
+  @Validate(IsoInstantWithOffsetConstraint)
   PLAN_DISCOUNT_ENDS_AT?: string;
 
   /**
@@ -440,13 +476,7 @@ export class EnvironmentVariables {
    * 날짜만 적은 값은 거부한다 — `new Date('2026-11-05')`는 UTC 자정(KST 09:00)으로 조용히 해석된다
    */
   @IsOptional()
-  @Matches(
-    /^$|^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:\d{2})$/,
-    {
-      message:
-        'SHORT_CONTENT_COHORT_SINCE must be an ISO 8601 datetime with offset (e.g. 2026-11-05T10:00:00+09:00)',
-    },
-  )
+  @Validate(IsoInstantWithOffsetConstraint)
   SHORT_CONTENT_COHORT_SINCE?: string;
 
   /**
