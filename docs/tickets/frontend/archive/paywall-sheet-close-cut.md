@@ -13,7 +13,7 @@
 | 선행 | 없음 |
 | 근거 문서 | `features/paywall.md` 4.5 · 5장 · `spec/uiux/subscription-uiux.md` PW1 · `frontend/design.md` |
 | 중요도 | Low |
-| 상태 | 발행 |
+| 상태 | 반영 (2026-10-30) |
 
 ## 요지 (Jira 본문용)
 
@@ -48,3 +48,4 @@ iOS 개발계(TestFlight) 실기기에서 시리즈 잠긴 편을 탭하면 잠�
 ## 처리 기록
 
 - 2026-10-30 발행(마크다운). KAN-304 iOS 확인 3번(잠금 시트)은 기능 통과, 이 표시 문제만 따로 올린다.
+- 2026-10-30 반영(효헌이 · 이주호 지시 "305티켓처리해줘"). `LimitNoticeSheet` — 요금제가 얹힌 시트(PW1·PW2)는 [닫기]를 `ScrollView` 밖 시트 바닥에 고정했다. 72% 상한은 스크롤 + 바닥 전체에 걸고 넘치면 스크롤만 줄어든다. 넘칠 때만 [닫기] 위에 구분선(`separator`)과 스크롤 막대를 보여 "더 있다"를 알린다. 결제 진행 중 닫기 차단(`isPurchasing` → 비활성 · `requestClose` 무시)은 그대로. 요금제가 없는 한도 안내·구독 UI 꺼진 빌드는 종전 그대로(스크롤 없음, [확인]이 본문 바로 아래). 문서: `spec/uiux/subscription-uiux.md` 4.6 · 4.6-1. 테스트: `LimitNoticeSheet.test.tsx` 4건 추가(잠금·한도 페이월의 바닥 고정, 넘칠 때만 구분선, 요금제 없는 안내는 종전). 실기기(iOS·Android 짧은 화면) 확인은 남음.

@@ -126,3 +126,81 @@ describe('LimitNoticeSheet — 잠금 시트(KAN-294)', () => {
     renderer.unmount();
   });
 });
+
+describe('LimitNoticeSheet — [닫기]는 스크롤 밖 바닥 고정(KAN-305)', () => {
+  const scrollViews = (renderer: Renderer) =>
+    renderer.root.findAll(
+      (node) =>
+        typeof node.type === 'string' && typeof node.props.onContentSizeChange === 'function',
+    );
+  const flatten = (style: unknown): Record<string, unknown> =>
+    Array.isArray(style)
+      ? Object.assign({}, ...style.map(flatten))
+      : style !== null && typeof style === 'object'
+        ? (style as Record<string, unknown>)
+        : {};
+  const footerHasDivider = (renderer: Renderer) =>
+    flatten(byTestId(renderer, 'limit-notice-footer')[0]?.props.style).borderTopWidth !== undefined;
+
+  it('요금제가 얹힌 잠금 시트는 [닫기]를 스크롤 밖 바닥에 둔다', () => {
+    // given
+    act(() => useLimitNoticeStore.getState().showSeriesLock(null, null));
+
+    // when
+    const renderer = render();
+
+    // then
+    const [scroll] = scrollViews(renderer);
+    expect(scroll).toBeDefined();
+    expect(scroll.findAll((node) => node.props.testID === 'limit-notice-close')).toHaveLength(0);
+    const [footer] = byTestId(renderer, 'limit-notice-footer');
+    expect(
+      footer.findAll((node) => node.props.testID === 'limit-notice-close').length,
+    ).toBeGreaterThan(0);
+    act(() => renderer.unmount());
+  });
+
+  it('한도 소진 페이월도 같은 바닥 고정이다', () => {
+    act(() => useLimitNoticeStore.getState().showPaywall(null, null, null));
+
+    const renderer = render();
+
+    const [scroll] = scrollViews(renderer);
+    expect(scroll.findAll((node) => node.props.testID === 'limit-notice-close')).toHaveLength(0);
+    expect(byTestId(renderer, 'limit-notice-footer')).toHaveLength(1);
+    act(() => renderer.unmount());
+  });
+
+  it('요금제가 넘칠 때만 바닥 위에 구분선을 긋는다', () => {
+    // given
+    act(() => useLimitNoticeStore.getState().showSeriesLock(null, null));
+    const renderer = render();
+    const [scroll] = scrollViews(renderer);
+    act(() => {
+      (scroll.props.onLayout as (e: unknown) => void)({ nativeEvent: { layout: { height: 500 } } });
+      (scroll.props.onContentSizeChange as (w: number, h: number) => void)(390, 480);
+    });
+    expect(footerHasDivider(renderer)).toBe(false);
+
+    // when
+    act(() => {
+      (scroll.props.onContentSizeChange as (w: number, h: number) => void)(390, 720);
+    });
+
+    // then
+    expect(footerHasDivider(renderer)).toBe(true);
+    act(() => renderer.unmount());
+  });
+
+  it('요금제가 없는 한도 안내는 종전처럼 [확인]이 본문 바로 아래 — 스크롤도 바닥 고정도 없다', () => {
+    mockFlag.subscriptionUi = false;
+    act(() => useLimitNoticeStore.getState().showPaywall(null, null, null));
+
+    const renderer = render();
+
+    expect(scrollViews(renderer)).toHaveLength(0);
+    expect(byTestId(renderer, 'limit-notice-footer')).toHaveLength(0);
+    expect(byTestId(renderer, 'limit-notice-close').length).toBeGreaterThan(0);
+    act(() => renderer.unmount());
+  });
+});
