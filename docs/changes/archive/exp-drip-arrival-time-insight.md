@@ -5,6 +5,7 @@
 | 대상 문서 | `spec/api/admin-api.md`(4.22 인사이트 계열 다음에 `GET /admin/insights/drip-arrival-time` 절 신설) · `features/backend-monitoring.md`(조회 대상 목록·"실험 지표" 탭 패널에 추가) |
 | 요청 파트 | 백엔드 |
 | 발행 날짜 | 2026-10-30 |
+| 반영 날짜 | 2026-10-30 |
 | 시작 날짜 | 2026-10-30 |
 | 기한 | 다음 통합 |
 | 선행 | 없음 · 코드 `feat(be)/drip-arrival-time-insights`(KAN-289) |
@@ -38,3 +39,4 @@
 ## 처리 기록
 
 - 2026-10-30 발행.
+- 2026-10-30 반영 — `spec/api/admin-api.md` 4.22-7 `GET /admin/insights/drip-arrival-time` 신설(`experiments-api.md` 4.6 그대로 — 대상 · 묶음 네 개 · 2시간 · 당일 재생 · 시장 · 기간 · 응답) + 3장 목록 행, `features/backend-monitoring.md` 4장 "실험 지표" 탭 패널 ④. `experiments-api.md` 4.6은 옮긴 곳 안내만 남겼다. 컨트롤러 `admin-insights.controller.ts` `drip-arrival-time` 경로와 대조함.

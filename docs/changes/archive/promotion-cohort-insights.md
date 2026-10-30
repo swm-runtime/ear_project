@@ -5,6 +5,7 @@
 | 대상 문서 | `spec/api/admin-api.md`(4.22 다음에 `GET /admin/insights/invite-codes` 신설) · `features/backend-monitoring.md`(탭 표에 "프로모션" 행) |
 | 요청 파트 | 백엔드 — 박준현 |
 | 발행 날짜 | 2026-10-28 |
+| 반영 날짜 | 2026-10-30 |
 | 시작 날짜 | 2026-10-28 |
 | 기한 | 다음 통합 |
 | 선행 | 없음 · 코드 `feat(be)/promotion-cohort-insights` |
@@ -29,3 +30,4 @@ SANKUN(Pro, 12-10까지) 같은 프로모션 사용자만 따로 지표를 보�
 ## 처리 기록
 
 - 2026-10-28 발행(박준현).
+- 2026-10-30 반영 — `spec/api/admin-api.md` 4.22-2 `GET /admin/insights/invite-codes` 신설(요청 · `codes[]` · `baseline` · 집계만) + 3장 목록 행, `features/backend-monitoring.md` 4장 탭 표 "프로모션" 행(헤딩 "콘솔 6탭" → "8탭"). 콘솔 경로 `pipeline/apps/web/app/backend-logs/promotions`와 대조함.

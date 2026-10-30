@@ -5,6 +5,7 @@
 | 대상 문서 | `spec/api/onboarding-api.md` 4.8 · `spec/api/player-api.md` 4.1·4.2·4.4·4.7·에러 표 · `spec/api/explore-api.md` 4.1·4.2·4.2-1·4.5·4.7 · `spec/api/content-detail-api.md` 4.1 · `spec/api/library-api.md` 4.1 · `features/common-error-handling.md` 에러 코드 표 · `features/paywall.md` 4.1 · `features/drip-scheduling.md` 4.2 |
 | 요청 파트 | 백엔드 |
 | 발행 날짜 | 2026-10-29 |
+| 반영 날짜 | 2026-10-30 |
 | 시작 날짜 | 2026-10-29 |
 | 기한 | 다음 통합 |
 | 선행 | 없음 · 계약 원본 `spec/api/experiments-api.md` |
@@ -30,3 +31,4 @@
 ## 처리 기록
 
 - 2026-10-29 발행.
+- 2026-10-30 반영 — 1 `onboarding-api.md` 4.8(`first_content_id` 필드 · 선정 규칙 · 클라이언트 동작 표) · 2 `player-api.md` 4.1 에러 표 · 4.2 · 4.4 · 4.7 · 5장 공통 표(`SERIES_EPISODE_LOCKED` — 기록의 "4.9 공통 표"는 5장으로 풀었다) + `library-api.md` 4.4 에러 표 · 3 `is_locked`: `explore-api.md` 4.1(정의) · 4.7 예시 · `content-detail-api.md` 4.1(최상위 + `content`) · `library-api.md` 4.1 · 4.3 · `player-api.md` 4.8 · 4 `common-error-handling.md` 9.5 · 5 `features/paywall.md` 4.1(시리즈 유료화 절) · 6 `drip-scheduling.md` 4.2. **충돌 처리**: 5 · 6의 "프로 · 체험만"은 뒤에 나온 `exp-series-paywall-daily.md`(2026-10-30)대로 "유료 요금제(daily · pro) · 체험"으로 적었다. `experiments-api.md`는 "통합됨" 안내만 남겼다(절 제목은 코드 주석 참조 때문에 유지).

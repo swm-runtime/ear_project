@@ -5,6 +5,7 @@
 | 대상 문서 | `features/drip-scheduling.md` 4.4 콜드스타트(첫 드립 서술) · `backend/recommendation-evaluation.md` 7장 체크리스트 |
 | 요청 파트 | 백엔드 — 박준현 |
 | 발행 날짜 | 2026-10-29 |
+| 반영 날짜 | 2026-10-30 |
 | 시작 날짜 | 2026-10-29 |
 | 기한 | 2026-11-01 (Medium — 다음 통합 때) |
 | 선행 | 없음 |
@@ -42,3 +43,4 @@
 ## 처리 기록
 
 - 2026-10-29 발행(BE — 구현과 같은 PR).
+- 2026-10-30 반영 — 1 `features/drip-scheduling.md` 4.4 콜드스타트에 "첫 드립 무작위 실험" 항목(스위치 · 기본 꺼짐 · 무작위 풀 자르기 · 주제 순환 · 인기 대체 유지 · 정규/탐험 불변), 2 `backend/recommendation-evaluation.md` 7장 체크리스트에 첫 드립 변경 PR의 개발계 수동 확인 줄, 3 `DRIP_ALGORITHM_VERSION`을 올리지 않은 근거는 같은 4.4 항목 끝에 적었다(`drip-feedback.md`는 고치지 않음).

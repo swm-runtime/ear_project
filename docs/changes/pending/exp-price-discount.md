@@ -35,3 +35,4 @@
 ## 처리 기록
 
 - 2026-10-29 발행.
+- 2026-10-30 **보류(pending 유지)** — 선행인 스토어 콘솔 가격 변경(사람 손)이 아직 미착수다(`tickets/backend/pending/exp-price-discount.md` 처리 기록 · `tickets/backend/pending/exp-prod-rollout-switches.md`). 이 기록의 완료 조건 첫 줄이 "스토어 콘솔 가격 변경이 끝남"이고, 먼저 고치면 문서가 실제 결제 가격과 어긋난다. 할인 표시 계약은 `exp-price-discount-display.md`로 따로 반영했다(4.1 할인 상태 예시만 실험 가격). 남은 것: 스토어 가격 변경 확인 뒤 `features/subscription.md` 티어 표 · `backend/domain.md` 8.1 · `spec/api/subscription-api.md` 4.1 기본 예시를 고친다. `spec/uiux/subscription-uiux.md` 4.2는 FE 소관이라 그 파트에 남긴다.

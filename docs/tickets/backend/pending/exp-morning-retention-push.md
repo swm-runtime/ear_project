@@ -58,7 +58,7 @@
   - 대상: 마케팅 최신 동의 · 온보딩 완료 · 보낼 기기 · 오늘 그 그룹 배치 적립 없음 · 오늘 `drip_arrival%` sent 없음 · 최근 20시간 `retention.morning.%` sent 없음 · 현지 05:00 이후 안 들음 · **최근 7일 안에 받은 드립·탐험 미청취(`unplayed`) 편 ≥ 1** · **사용자 현지 08~21시**(그룹 안 시차 — 방콕 07:00·미국 서부 06:00은 건너뜀).
   - 1편 → 그 콘텐츠(본문 = 제목), 여러 편 → 라이브러리. 문구 KO 2변형·EN 1변형, 변형 = `experimentBucket(userId, 'retention.morning.<주 시작>')`. `(광고)`·수신거부 안내는 저녁과 같은 렌더러(`withAdNotice`). `ttl` 4시간. 기록 `retention.morning.<변형>`.
   - 상한: 저녁 판정(`RetentionPushService.findHistory`)이 `retention.morning.*`을 빼고 센다 — 아침·저녁이 서로를 막지 않는다. 아침 자체 주간 상한 없음.
-  - 문서 수정은 `changes/pending/exp-morning-push.md`.
+  - 문서 수정은 `changes/archive/exp-morning-push.md`.
   - 남은 일: 개발계 `RETENTION_MORNING_PUSH_MODE=dry_run`으로 08:00 로그(`retention morning push processed` — 사유별 건수·예시) 확인 → 시험 대상 본인 기기 수신 확인 → 운영 켠 시각 기록. 개발계 확인 전까지 `pending/`에 둔다.
 - 2026-10-29 PR [#2165](https://github.com/swm-runtime/ear_project/pull/2165) → dev(미머지, #2164 KAN-289 먼저 머지).
 - 2026-10-30 [#2165](https://github.com/swm-runtime/ear_project/pull/2165) dev 머지 · 개발계 확인(`RETENTION_MORNING_PUSH_MODE=dry_run`) — 08:00 asia 대상 2 · 예정 1 · 건너뜀 `placed_today` 1, 여러 편 문구 "(광고) 아직 안 들은 콘텐츠 N편이 있어요 / 출근길에 한 편 들어 볼까요? / 수신거부: 설정 > 알림". 실기기(Android): 아침 알림 경로를 일회성 실행으로 돌려 수신 · 탭 시 `ear://library` 확인, 20시간 판정(`already_sent`) 동작. **앱이 화면에 떠 있으면 리텐션·아침 배너는 숨긴다(`push_foreground_suppressed`, 의도)**. 확인 중 다른 개발계 계정 1명에게 1건 실발송(시험 대상 설정 실수, 이후 비움). Jira 검토 중. 남은 일: 운영 dry_run → on, 켠 시각 기록.

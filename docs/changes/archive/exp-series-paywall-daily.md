@@ -6,6 +6,7 @@
 | 요청자 | 박준현(테크리드) — 팀 결정 |
 | 관련 | KAN-290 · KAN-294 |
 | 발행 날짜 | 2026-10-30 |
+| 반영 날짜 | 2026-10-30 |
 
 ## 무엇을 바꾸는가
 
@@ -28,3 +29,4 @@
 ## 처리 기록
 
 - 2026-10-30 발행 — 코드 반영(`feat(be)/series-paywall-daily`), 문서는 통합 때 반영.
+- 2026-10-30 반영 — 열리는 사람(유료 요금제 daily · pro 또는 체험, `PlanService.isPaidTier`, 요금제 행 없으면 잠금)과 메시지("이 편은 구독하면 들을 수 있어요")를 이관된 화면 문서에 적었다: `features/paywall.md` 4.1 · `player-api.md` 5장 · `explore-api.md` 4.1 `is_locked` · `drip-scheduling.md` 4.2 · `recommendation-evaluation.md` 5.1 #9. `experiments-api.md` 4.2-1 · 4.2-3은 `exp-contracts.md`에 따라 "옮김" 안내로 바꾸고 이 개정을 한 줄 남겼다. `tickets/backend/pending/exp-series-paywall.md` 결정 절에 2026-10-30 개정 줄을 더했다. 코드 `series-paywall.service.ts`(`isPaidTier`) · `play-policy.service.ts` 메시지와 대조함. **충돌 처리**: `exp-series-paywall.md`(같은 날, 앞선 구현 — "최상위 유료 요금제, 데일리 잠김")보다 이 기록이 나중 결정이라 이쪽을 따랐다.

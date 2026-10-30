@@ -58,7 +58,7 @@
   - 공용 버킷 `common/utils/experiment-bucket.util.ts` `experimentBucket(userId, experimentKey, buckets)` — FNV-1a 32bit + murmur3 마무리 섞기. 실험 키가 다르면 독립(섞기가 없으면 `% 2`가 글자 홀짝 합이 돼 실험끼리 맞물린다 — 그래서 기존 리텐션 변형 `assignVariant`는 배정이 바뀌지 않게 FNV-1a 그대로 두고 함수만 공유). 이 실험의 키는 `drip_arrival_time`, 0 = A · 1 = B.
   - 크론: 그룹마다 07:00 · 07:30 · 08:00 세 개가 늘 등록된다. 스위치 꺼짐 → 07:00만 전원(종전), 켜짐 → 07:00 쉼 · 07:30 A · 08:00 B. 늦게 끝난 배치는 시각마다 따로 판정해 지난 시각의 그룹을 끝나자마자 보낸다.
   - 기록: 스키마 변경 없이 `notification_logs.type` = `drip_arrival.a` / `drip_arrival.b`(꺼짐이면 `drip_arrival`). 앱으로 가는 푸시 `data.type`은 `drip_arrival` 그대로다 — 앱(`push-link.ts`)은 `data.type === 'drip_arrival'`로 비교하므로 기록 종류만 바꾸면 앱 변경이 없다. 하루 1건 판정은 `type = 'drip_arrival' OR type LIKE 'drip_arrival.%'`, 어드민 알림 반응은 `drip_arrival.%`도 세고 `variant`에 그룹을 싣는다(관리자 웹은 "드립 도착 (기준선) · 변형 A"로 보인다).
-  - 문서 수정은 `changes/pending/exp-drip-arrival-ab.md`.
+  - 문서 수정은 `changes/archive/exp-drip-arrival-ab.md`.
   - 남은 일: 개발계에서 스위치 켜고 07:30·08:00 로그(`drip arrival push done` · `user_count_by_slot`) 확인 → 운영 켠 시각을 여기에 기록. 개발계 확인 전까지 `pending/`에 둔다.
 - 2026-10-29 PR [#2164](https://github.com/swm-runtime/ear_project/pull/2164) → dev(미머지). 아침 알림(KAN-288)은 #2165가 이 위에 쌓였다.
 - 2026-10-30 [#2164](https://github.com/swm-runtime/ear_project/pull/2164) dev 머지 · 개발계 `DRIP_ARRIVAL_AB_ENABLED=true` — 개발계 35명 A 17 / B 18. 10-30 아침: 07:00 미발송(켜짐이라 쉼) · 07:30 A 대상 0 · 08:00 B 1건 `drip_arrival.b` sent. 실험 탭 "도착 알림 시각" 패널([#2170](https://github.com/swm-runtime/ear_project/pull/2170), 재생률만 · [#2181](https://github.com/swm-runtime/ear_project/pull/2181) 그래프 토글). **기준선 정의**: 10-29 고정한 07:00 중간값(10.0% · 19.3%)은 옛 쿼리(재생 행만 · KST 달력일)라 패널(재생 행 + 위치 저장 · 05:00 서비스 날짜)과 다르다 → 운영 켤 때 최종 기준선은 패널 값으로 고정. 남은 일: 07:30 A 실발송 관찰(10-31), 운영 켠 시각 기록.

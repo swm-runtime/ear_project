@@ -188,7 +188,8 @@
         "content_version": 1,
         "topic_ids": ["uuid", "uuid"],
         "language": "ko",
-        "series": null
+        "series": null,
+        "is_locked": false
       },
       "progress": {
         "position_sec": 372,
@@ -213,6 +214,7 @@
 | `content.content_version` | **오디오를 바꾼** 재발행 판정용(썸네일·메타만 바꾼 재발행은 버전을 올리지 않는다 — `admin-api.md` 4.10, 2026-10-20). 올라갔으면 클라이언트가 저장한 위치·오프라인 파일을 폐기한다(`domain.md` 5.1) |
 | `content.language` | 콘텐츠 언어 `ko` / `en`(추가 2026-10-14 — KAN-188, `global-api.md` 4.7). **표시 전용** — 클라이언트는 이 값으로 목록을 거르지 않는다(시장 필터는 서버가 한다). 4.3 `resume_target.content`에도 같은 필드가 실린다 |
 | `content.series` | **시리즈 편이면 `{ id, title, episode_no, total_episodes }`, 단일 콘텐츠면 `null`**(추가 2026-10-17 — KAN-134). 탐색(`explore-api.md` 4.1)·플레이어·상세와 같은 모양이고 `total_episodes`는 시리즈 표(`domain.md` 5.9)의 값이다. 목록은 시리즈 행을 한 번에 읽는다. 라이브러리는 시리즈로 묶지 않는다 — 편 단위 그대로다. 4.3 `resume_target.content`에도 같은 필드가 실린다 |
+| `content.is_locked` | **이 사용자가 이 편을 재생할 수 없는가**(boolean — 시리즈 유료화, 추가 2026-10-29 KAN-290). `explore-api.md` 4.1과 같은 필드 · 같은 정의(판정 `paywall.md` 4.1). 잠긴 편의 재생 시작(4.4)은 한도 판정보다 먼저 403 `SERIES_EPISODE_LOCKED`로 거절되고 차감하지 않는다(`player-api.md` 5장). 4.3 `resume_target.content`(미니플레이어 복원)에도 같은 필드가 실린다 — 미니플레이어도 재생 버튼을 그리기 때문이다. 옛 서버(필드 없음)는 `false`로 다룬다 |
 | `content.source_url` | **`null`이면 더보기 시트(L4)에 [원문 보기]를 노출하지 않는다**(개정 2026-08-24 — 세 화면 더보기 통일(2026-08-10)의 계약 반영. 발급 응답 `player-api.md` 4.1과 같은 규칙). `partner`는 항상 값이 있고(`chk_contents_partner_disclosure` — `domain.md` 5.1), `ai_generated`는 선택 필드라 `null`일 수 있다 |
 
 - **재생 위치를 `library_items`가 아니라 조인으로 가져온다.** 위치의 단독 소유자는 `playback_progresses`다(`domain.md` 6.2 — `resume_position_sec`은 폐기된 컬럼).
@@ -307,7 +309,8 @@
       "content_version": 1,
       "topic_ids": ["uuid", "uuid"],
       "language": "ko",
-      "series": null
+      "series": null,
+      "is_locked": false
     },
     "progress": { "position_sec": 372, "max_reached_sec": 372 }
   },
@@ -407,6 +410,7 @@
 
 | 코드 | HTTP | 상황 |
 |---|---|---|
+| `SERIES_EPISODE_LOCKED` | 403 | 잠긴 시리즈 편(시리즈 유료화 — `paywall.md` 4.1, 2026-10-29 KAN-290). **한도 판정보다 먼저** 보고 차감하지 않는다 → 잠금 차단 시트 |
 | `PLAY_LIMIT_EXCEEDED` | 403 | **최상위가 아닌** 한도 티어(무료 포함 — 예: `light`·`daily`)의 한도 소진 → 클라이언트는 **페이월 바텀시트**를 연다 |
 | `PLAY_LIMIT_REACHED` | 403 | **최상위** 티어의 한도 소진 → 페이월이 아니라 한도 안내(`paywall.md` 2장·4.1). 정정 2026-10-10 — 종전 "한도 있는 유료 티어"는 `paywall.md`·`player-api.md` 4.1·구현(`play-policy.service.ts` `isTopTier`)과 달랐다 |
 | `CONTENT_WITHDRAWN` | 403 | 파트너 회수 → "제공이 종료된 콘텐츠예요" 안내 후 목록에서 제거 |

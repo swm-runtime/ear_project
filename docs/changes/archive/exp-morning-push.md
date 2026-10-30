@@ -5,6 +5,7 @@
 | 대상 문서 | `features/notification.md` 4.6(아침 슬롯 신설 — 4.6-1 또는 표 행 추가)·8·6 · `features/drip-scheduling.md` 2(도착 알림 크론) · `backend/domain.md` 9.1 `notification_logs.type` |
 | 요청 파트 | 백엔드 — 박준현 |
 | 발행 날짜 | 2026-10-29 |
+| 반영 날짜 | 2026-10-30 |
 | 시작 날짜 | 2026-10-29 |
 | 기한 | 2026-11-01 (Medium — 다음 통합 때) |
 | 선행 | `changes/pending/exp-drip-arrival-ab.md`(KAN-289 — 같은 08:00 크론) |
@@ -63,3 +64,4 @@
 ## 처리 기록
 
 - 2026-10-29 발행(BE — 구현과 같은 PR).
+- 2026-10-30 반영 — `features/notification.md` 4.6-1 "아침 알림" 소절 신설(규칙 표 그대로) · 8장 완료 조건 6줄 · 6장 `consents` 행, `features/drip-scheduling.md` 2장(08:00 크론이 아침 알림도 맡는다), `backend/domain.md` 9.1(`retention.morning.<변형>` — 저녁과 따로 센다). 선행 `exp-drip-arrival-ab.md`와 같은 통합에서 반영했다.
