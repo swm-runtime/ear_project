@@ -288,6 +288,23 @@ describe('validateEnv', () => {
     }
   });
 
+  it('PLAN_DISCOUNT_ENDS_AT 는 오프셋 있는 ISO 시각이거나 빈 값이다 — 기간 한정 할인(11월 한 달)', () => {
+    for (const value of ['2026-12-01', '2026-12-01T00:00:00', 'december']) {
+      expect(() =>
+        validateEnv({ ...validEnv, PLAN_DISCOUNT_ENDS_AT: value }),
+      ).toThrow(/PLAN_DISCOUNT_ENDS_AT/);
+    }
+    for (const value of [
+      '',
+      '2026-12-01T00:00:00+09:00',
+      '2026-11-30T15:00:00Z',
+    ]) {
+      expect(() =>
+        validateEnv({ ...validEnv, PLAN_DISCOUNT_ENDS_AT: value }),
+      ).not.toThrow();
+    }
+  });
+
   it('CONTENT_REVIEW_ENABLED 는 true·false·빈 값만 받는다 — 오타로 후기가 처리방침 시행 전에 켜지지 않게', () => {
     expect(() =>
       validateEnv({ ...validEnv, CONTENT_REVIEW_ENABLED: 'on' }),

@@ -111,7 +111,7 @@ describe('구독·인앱 결제 E2E', () => {
     originalPriceKrw: {},
   };
   const planDiscount: Pick<PlanDiscountService, 'resolve'> = {
-    resolve: (plan) => resolvePlanDiscount(plan, discountConfig),
+    resolve: (plan) => resolvePlanDiscount(plan, discountConfig, new Date()),
   };
   /** 이 실행의 스토어 구독·알림 ID 접두사 — 다른 실행·다른 테스트와 겹치지 않게 한다 */
   const RUN = `e2e-sub-${Date.now()}-${Math.floor(Math.random() * 1_000_000)}`;

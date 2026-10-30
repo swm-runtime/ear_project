@@ -25,11 +25,14 @@ export class PlanDiscountService {
     );
   }
 
-  resolve(plan: {
-    tier: UserTier;
-    priceKrw: number;
-    isFree: boolean;
-  }): PlanDiscount {
-    return resolvePlanDiscount(plan, this.config);
+  resolve(
+    plan: {
+      tier: UserTier;
+      priceKrw: number;
+      isFree: boolean;
+    },
+    now: Date = new Date(),
+  ): PlanDiscount {
+    return resolvePlanDiscount(plan, this.config, now);
   }
 }
