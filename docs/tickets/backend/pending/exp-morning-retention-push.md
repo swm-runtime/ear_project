@@ -61,3 +61,4 @@
   - 문서 수정은 `changes/pending/exp-morning-push.md`.
   - 남은 일: 개발계 `RETENTION_MORNING_PUSH_MODE=dry_run`으로 08:00 로그(`retention morning push processed` — 사유별 건수·예시) 확인 → 시험 대상 본인 기기 수신 확인 → 운영 켠 시각 기록. 개발계 확인 전까지 `pending/`에 둔다.
 - 2026-10-29 PR [#2165](https://github.com/swm-runtime/ear_project/pull/2165) → dev(미머지, #2164 KAN-289 먼저 머지).
+- 2026-10-30 [#2165](https://github.com/swm-runtime/ear_project/pull/2165) dev 머지 · 개발계 확인(`RETENTION_MORNING_PUSH_MODE=dry_run`) — 08:00 asia 대상 2 · 예정 1 · 건너뜀 `placed_today` 1, 여러 편 문구 "(광고) 아직 안 들은 콘텐츠 N편이 있어요 / 출근길에 한 편 들어 볼까요? / 수신거부: 설정 > 알림". 실기기(Android): 아침 알림 경로를 일회성 실행으로 돌려 수신 · 탭 시 `ear://library` 확인, 20시간 판정(`already_sent`) 동작. **앱이 화면에 떠 있으면 리텐션·아침 배너는 숨긴다(`push_foreground_suppressed`, 의도)**. 확인 중 다른 개발계 계정 1명에게 1건 실발송(시험 대상 설정 실수, 이후 비움). Jira 검토 중. 남은 일: 운영 dry_run → on, 켠 시각 기록.
