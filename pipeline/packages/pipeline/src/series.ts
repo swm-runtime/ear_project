@@ -252,8 +252,8 @@ export interface SeriesDraftContext {
   carries: string;
   /** 형제 편이 자세히 다룰 것 — 이 편은 구간으로 잡지 않는다 */
   elsewhere: { no: number; title: string; onlyHere: string }[];
-  /** 앞 편(2화부터) — 제목 + 구성안의 축·구간 질문. 회상의 유일한 재료 */
-  prev: { title: string; axis: string; questions: string[] } | null;
+  /** 앞 편(2화부터) — 제목 + 구성안의 축·구간 질문. 회상의 유일한 재료. fromPlan 이면 앞 편 구성안 대신 시리즈 설계안의 범위(짧은 판 시리즈 — 편끼리 기다리지 않는다, 2026-10-30) */
+  prev: { title: string; axis: string; questions: string[]; fromPlan?: boolean } | null;
   /** 다음 편 제목(마지막 화 제외) — 예고 문장에 워커가 넣는다 */
   nextTitle: string | null;
   /** 인트로 시리즈 줄 — 대주제 줄({대주제 한 줄} · {topic_line}) 자리에 토씨 그대로 */
@@ -330,13 +330,23 @@ ${s.prev && s.recapClaimId ? `- 회상: 도입의 첫 해설 턴은 ${s.no - 1}�
 - 다른 편이 다루는 것이니 이 편에서 자세히 풀지 않는다: ${others}`;
 }
 
-/** 회상 재료 — claims 행 문장과 sources.md 절. 앞 편 구성안의 축·구간 질문만 싣는다(QA 독립성: 다른 편의 대본·리포트는 넣지 않는다) */
+/**
+ * 짧은 판 시리즈의 회상 재료 — 앞 편의 구성안 대신 시리즈 설계안의 그 편 범위 (2026-10-30 박수헌 "2번으로").
+ * 앞 편을 기다리는 이유가 회상 한 문장뿐이라, 설계안에서 가져오면 편들이 동시에 초안을 잡는다(db.ts seriesPrevReady 가 짧은 판 시리즈는 기다리지 않는다)
+ */
+export function planRecap(prevEp: Pick<SeriesPlanEpisode, "title" | "scope" | "only_here">): { title: string; axis: string; questions: string[]; fromPlan: true } {
+  const axis = (prevEp.only_here || prevEp.scope || prevEp.title).trim();
+  const questions = prevEp.scope && prevEp.scope.trim() !== axis ? [prevEp.scope.trim()] : [];
+  return { title: prevEp.title, axis, questions, fromPlan: true };
+}
+
+/** 회상 재료 — claims 행 문장과 sources.md 절. 앞 편 구성안의 축·구간 질문만 싣는다(QA 독립성: 다른 편의 대본·리포트는 넣지 않는다). 짧은 판 시리즈는 설계안의 범위(planRecap) */
 export function seriesRecapMaterial(s: Pick<SeriesDraftContext, "name" | "no" | "prev">, en: boolean): { claim: string; section: string } | null {
   if (!s.prev) return null;
   const q = s.prev.questions.map((x) => `- ${x}`).join("\n");
   return en
     ? { claim: `Episode ${s.no - 1} of the series, "${s.prev.title}", explained: ${s.prev.axis}`, section: `## Series link — episode ${s.no - 1} (pipeline record of the previous episode's outline, not a source)\n- Series: ${s.name}\n- Title: ${s.prev.title}\n- Axis: ${s.prev.axis}\n- Section questions:\n${q}` }
-    : { claim: `시리즈 ${s.no - 1}화 "${s.prev.title}"는 이것을 다뤘다: ${s.prev.axis}`, section: `## 시리즈 연결 재료 — ${s.no - 1}화 (앞 편 구성안의 파이프라인 기록, 소스 아님)\n- 시리즈: ${s.name}\n- 제목: ${s.prev.title}\n- 축: ${s.prev.axis}\n- 구간 질문:\n${q}` };
+    : { claim: `시리즈 ${s.no - 1}화 "${s.prev.title}"는 이것을 다뤘다: ${s.prev.axis}`, section: `## 시리즈 연결 재료 — ${s.no - 1}화 (앞 편 ${s.prev.fromPlan ? "시리즈 설계안" : "구성안"}의 파이프라인 기록, 소스 아님)\n- 시리즈: ${s.name}\n- 제목: ${s.prev.title}\n- 축: ${s.prev.axis}\n- 구간 질문:\n${q}` };
 }
 
 // ── 시리즈 범위 검사 (spec/11 6장 "L1 겹침 항목", 2026-10-17) ──────────────────────

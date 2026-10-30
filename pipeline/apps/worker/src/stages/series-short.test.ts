@@ -42,3 +42,14 @@ test("짧은 판 시리즈 편 기획 — 원본 편 번호·콘텐츠 제목·�
   assert.match(h, /범위에 맞지 않는 원본 소스는 뺀다/);
   assert.match(P.shortSeriesSeedHint("x", []), /소스 0건이 판정 후보에 함께 들어간다\.\n/);
 });
+
+test("짧은 판 시리즈 회상 — 앞 편 구성안 대신 설계안 범위(편끼리 기다리지 않는다, 2026-10-30)", () => {
+  const r = P.planRecap({ title: "IP 주소와 네트워크 경계", scope: "IP 주소 체계, NAT", only_here: "서브넷·CIDR 로 경계를 긋는 원리" });
+  assert.deepEqual(r, { title: "IP 주소와 네트워크 경계", axis: "서브넷·CIDR 로 경계를 긋는 원리", questions: ["IP 주소 체계, NAT"], fromPlan: true });
+  assert.deepEqual(P.planRecap({ title: "제목", scope: "범위", only_here: "" }).questions, [], "only_here 가 비면 범위가 축이고 질문은 비운다");
+  const m = P.seriesRecapMaterial({ name: "계층마다 보는 네트워크", no: 6, prev: r }, false)!;
+  assert.match(m.claim, /시리즈 5화 "IP 주소와 네트워크 경계"는 이것을 다뤘다: 서브넷·CIDR 로 경계를 긋는 원리/);
+  assert.match(m.section, /앞 편 시리즈 설계안의 파이프라인 기록, 소스 아님/);
+  const m0 = P.seriesRecapMaterial({ name: "n", no: 2, prev: { title: "t", axis: "a", questions: ["q"] } }, false)!;
+  assert.match(m0.section, /앞 편 구성안의 파이프라인 기록/, "일반 시리즈는 종전 문구 그대로");
+});
