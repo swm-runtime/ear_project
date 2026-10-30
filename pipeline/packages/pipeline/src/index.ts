@@ -1052,6 +1052,8 @@ export interface DesignInlineInput {
   remakeOf?: { title: string; axis?: string | null } | null;
   /** 짧은 판 규칙 자산(skills/draft/short.md) — short 편만 */
   shortRules?: ShortRules | null;
+  /** 짧은 판 이 편의 도입 훅(short-v1.2) — 구성안이 훅 재료와 첫 구간을 정한다. 대본 단계와 같은 값(shortHookFor) */
+  shortHook?: ShortHook | null;
 }
 
 export function buildDesignPromptInlineParts(i: DesignInlineInput): PromptParts {
@@ -1148,7 +1150,7 @@ ${fence(explainer === "이음" ? i.goldFullEum : i.goldFullYuna)}` : `### 1.3 �
 - 해설: **${explainer}** / 진행: **${host}** — 역할 고정
 - 청취자: 이 주제를 처음 듣는 일반 청취자 (특정 집단으로 좁히지 않는다 — 전문가 대상 표현만 금지). 편당 15분 안팎.
 ${candidateAxisBlock(i.candidate)}
-- 타깃 정합 메모: ${i.candidate.target_fit ?? "-"}${seriesDesignBlock(i.series, false)}${lengthDesignBlock(lengthProfileOf(i.candidate.length_profile), i.remakeOf, i.shortRules)}
+- 타깃 정합 메모: ${i.candidate.target_fit ?? "-"}${seriesDesignBlock(i.series, false)}${lengthDesignBlock(lengthProfileOf(i.candidate.length_profile), i.remakeOf, i.shortRules, i.shortHook)}
 
 ## 소스 본문 (${i.sources.length}건 — 문단 ID 로 인용한다)
 ${srcBlocks}

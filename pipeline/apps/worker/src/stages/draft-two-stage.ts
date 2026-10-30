@@ -12,7 +12,7 @@ import { exists, hostOf, log } from "../util.js";
 import { parseScriptForTts, type ScriptTurn } from "../tts/script.js";
 import { runDesignSingle } from "./design-single.js";
 import { countWords, MIN_MINUTES_EN, MIN_WORDS_EN, WORDS_PER_MIN_EN } from "../script-length.js";
-import { lengthProfileOf, lengthSpecOf, pickShortHook, type ShortRules } from "@ear/pipeline";
+import { lengthProfileOf, lengthSpecOf, shortHookFor, type ShortRules } from "@ear/pipeline";
 import { addPronunciations } from "../tts/normalize.js";
 
 /**
@@ -106,7 +106,7 @@ export async function runTwoStageDraft(a: TwoStageArgs): Promise<TwoStageResult>
   const pronunciationsJson = (await exists(pronFile)) ? await read(pronFile) : "{}";
   const estimatedMinutes = design?.estimated_minutes || Number(outlineMd.match(outlineMarks().estimate)?.[1]) || 15; // 설계 이어받기면 outline.md 에서 읽는다
   const en = pipelineLocale() === "en"; // 글로벌판: 영어 대본 프롬프트·스키마 (global-prompts.ts)
-  const shortHook = !en && lengthProfileOf(cand.length_profile) === "short" ? pickShortHook(Number(cand.id.replace(/\D/g, "")) || 0) : undefined; // 0040: 짧은 판 도입 훅 — 후보 번호로 번갈아(선취형·약속형)
+  const shortHook = !en && lengthProfileOf(cand.length_profile) === "short" ? shortHookFor(cand.id) : undefined; // 0040: 짧은 판 도입 훅 — 후보 번호로 번갈아(선취형·약속형). 설계 단계도 같은 값을 받는다(short-v1.2)
   const parts = (en ? buildWritePromptPartsEn : buildWritePromptParts)({ episodeId, candidate: cand, introStyle: a.introStyle, promptVersion: a.promptVersion, templates: a.templates, majorTopic: a.majorTopic, signoffSeed: a.signoffSeed, estimatedMinutes, guidelines, specScript, goldFullEum, goldFullYuna, sourcesMd, claimsMd, outlineMd, pronunciationsJson, series, shortHook, shortRules: a.shortRules });
   log(`  draft ${episodeId} · 2/2 대본 (단발, 공유 ${Math.round(parts.system.length / 1000)}K + 편별 ${Math.round(parts.user.length / 1000)}K자)`);
   let w: Awaited<ReturnType<typeof ex.run<WriteOut>>>;

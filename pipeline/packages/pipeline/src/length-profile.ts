@@ -50,6 +50,8 @@ export const SHORT_HOOKS: readonly ShortHook[] = [
 ];
 /** 편마다 번갈아 — 후보 번호(또는 시드)로 고른다 */
 export function pickShortHook(seed: number): ShortHook { return SHORT_HOOKS[Math.abs(Math.trunc(seed)) % SHORT_HOOKS.length]; }
+/** 후보 ID(C613 …)로 고른 이 편의 훅 — 설계·대본 단계가 같은 값을 쓴다(short-v1.2: 구성안이 훅 재료와 첫 구간을 정한다) */
+export function shortHookFor(candidateId: string): ShortHook { return pickShortHook(Number(candidateId.replace(/\D/g, "")) || 0); }
 
 /**
  * 짧은 판 규칙 자산 (skills/draft/short.md, short-v1 — 2026-10-30). 질적 규칙(설계·대본·훅)은 자산이 진실이고, 분량·구간·소스 하한 숫자는 L0 와 맞물려 여기(LENGTH_SPECS)가 붙인다.
@@ -79,7 +81,7 @@ const originalLine = (original?: { title: string; axis?: string | null } | null)
  * 설계 프롬프트에 덧붙이는 블록 (short 만). 기본 규칙 본문(13분·구간 4~6개)은 그대로 두고 **이 편에 한해** 덮어쓴다 — 시리즈 블록(seriesDesignBlock)과 같은 방식.
  * 숫자 줄(분량·구간·소스 하한)은 코드, 나머지는 자산의 "## 설계" 절.
  */
-export function lengthDesignBlock(profile: LengthProfile, original?: { title: string; axis?: string | null } | null, rules?: ShortRules | null): string {
+export function lengthDesignBlock(profile: LengthProfile, original?: { title: string; axis?: string | null } | null, rules?: ShortRules | null, hook?: ShortHook | null): string {
   if (profile !== "short") return "";
   if (!rules) throw new Error("짧은 판 편인데 짧은 판 규칙(skills/draft/short.md)을 받지 못했다");
   const s = LENGTH_SPECS.short;
@@ -88,7 +90,10 @@ export function lengthDesignBlock(profile: LengthProfile, original?: { title: st
 - 예상 분량은 구간에 실제로 담은 재료만으로 계산한다. 제외한 재료·소스는 세지 않는다.
 - **본문 구간은 ${s.sections[0]}~${s.sections[1]}개**다. 축의 하위 질문도 그 수만큼만 편다.
 - **사용 소스 하한은 ${s.minSources}건**이다. 위의 "소스 3건 하한"은 이 편에 적용하지 않는다.${originalLine(original)}
-${rules.design}`;
+${rules.design}${hook ? `
+
+### 이 편의 도입 훅 — ${hook.label} (대본 단계가 아래 규칙으로 쓴다. 구성안은 "도입 훅:" 줄에 재료 claim 과 훅이 남기는 질문을 정한다)
+${rules.hooks[hook.key]}` : ""}`;
 }
 
 /** 설계 프롬프트 맨 앞에 두는 한 줄 표지 (short 만) — 시스템 프롬프트의 기본 분량 규칙(13분·구간 4~6)보다 먼저 읽히게. 2026-10-29 C601·C602: 끝에 붙인 블록만으로는 모델이 16분·15분 구성안을 냈다 */
