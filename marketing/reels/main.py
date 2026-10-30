@@ -3,8 +3,9 @@
   python main.py build   [--date YYYY-MM-DD] [--episode ID] [--no-ai] [--no-images] [--local]
   python main.py publish --date YYYY-MM-DD
 
-build : 발행된 편 하나를 골라 30~60초 구간을 자르고 영상을 만든다 → S3 업로드 → Slack 미리보기(승인 링크).
-publish: 승인된 날의 영상을 인스타 릴스로 게시한다 → Slack 에 게시 주소.
+build : 발행된 편 하나를 골라 30~60초 구간을 자르고 영상을 만든다 → S3 업로드.
+publish: 그날 영상을 인스타 릴스와 유튜브 쇼츠로 게시한다 → Slack 에 게시 주소.
+          두 곳은 따로 시도한다 — 한쪽이 실패하거나 자격이 없어도 다른 쪽은 올린다.
 --local 은 S3 업로드·상태 기록·Slack 없이 out/<날짜>/ 에 영상만 남긴다(로컬 확인용).
 """
 from __future__ import annotations
@@ -13,6 +14,7 @@ import argparse
 import datetime as dt
 import json
 import os
+import re
 import shutil
 import sys
 
@@ -186,34 +188,74 @@ def build(args) -> None:
     source.upload(os.path.join(work, "meta.json"), source.reels_key(date, "meta.json"), "application/json")
     state["proposed"][episode_id] = date
     source.save_state(state)
-    # 미리보기 주소는 공개 로그에 남기지 않는다(저장소가 공개라 Actions 로그도 공개다) — Slack 으로만 보낸다
-    preview = source.presign(source.reels_key(date, "reel.mp4"), 12 * 3600)
-    approve = f"\n승인하면 게시: {config.RUN_URL}" if config.RUN_URL else ""
-    slack(
-        f":clapper: *오늘의 릴스 후보* ({date})\n"
-        f"편: {material['title']} · {meta['duration_sec']}초 · 그림 {meta['images']}\n"
-        f"화면 문구: {pick['title']}\n고른 이유: {pick['reason']}\n"
-        f"미리보기(12시간): {preview}\n\n캡션:\n```{pick['caption']}```{approve}"
-    )
+    print(f"S3 업로드 완료: {source.reels_key(date, 'reel.mp4')}")
 
 
 # ---------- publish ----------
+
+def youtube_item(meta: dict, path: str) -> dict:
+    """릴스 메타 → 유튜브 쇼츠 업로드 항목. 캡션의 해시태그를 태그로 옮긴다."""
+    series = meta["episode_title"].split(" — ")[0]
+    caption = meta["caption"]
+    return {
+        "file": path,
+        "title": f"{meta['title']} | {series} #Shorts",
+        "description": f"{caption}\n\n원본 편: {meta['episode_title']}\n※ 진행자 목소리와 대본은 AI로 만들었습니다.\n#Shorts",
+        "tags": [t.lstrip("#") for t in re.findall(r"#\S+", caption)] + ["Shorts"],
+        "privacy": "public",
+    }
+
 
 def publish(args) -> None:
     date = args.date
     meta = source.read_json(source.reels_key(date, "meta.json"))
     state = source.load_state()
-    posted = state["posted"].get(meta["episode_id"])
-    if posted and posted.get("date") == date:
-        print(f"이미 게시함: {posted.get('permalink')}")
-        return
-    # 인스타 서버가 받아 갈 주소 — 처리에 몇 분 걸리므로 1시간
-    from instagram import publish_reel
+    rec = state["posted"].get(meta["episode_id"]) or {}
+    if rec.get("date") != date:
+        rec = {"date": date}
+    lines, failed = [], []
 
-    result = publish_reel(source.presign(source.reels_key(date, "reel.mp4"), 3600), meta["caption"])
-    state["posted"][meta["episode_id"]] = {"date": date, **result}
+    # 인스타 — IG_USER_ID 가 없으면(Meta 앱·토큰 설정 전) 건너뛴다
+    if rec.get("instagram"):
+        lines.append(f"인스타: 이미 게시 {rec['instagram'].get('permalink')}")
+    elif not config.IG_USER_ID:
+        lines.append("인스타: 건너뜀(IG_USER_ID 미설정)")
+    else:
+        try:
+            from instagram import publish_reel
+
+            # 인스타 서버가 받아 갈 주소 — 처리에 몇 분 걸리므로 1시간
+            rec["instagram"] = publish_reel(source.presign(source.reels_key(date, "reel.mp4"), 3600), meta["caption"])
+            lines.append(f"인스타: {rec['instagram'].get('permalink')}")
+        except Exception as e:  # 한쪽 실패가 다른 쪽을 막지 않게
+            failed.append("instagram")
+            lines.append(f"인스타 실패: {str(e)[:200]}")
+
+    # 유튜브 — SSM 에 OAuth 자격이 없으면 건너뛴다
+    if rec.get("youtube"):
+        lines.append(f"유튜브: 이미 게시 {rec['youtube'].get('url')}")
+    else:
+        import youtube
+
+        try:
+            path = os.path.join(HERE, "out", f"publish-{date}.mp4")
+            os.makedirs(os.path.dirname(path), exist_ok=True)
+            source.download(source.reels_key(date, "reel.mp4"), path)
+            rec["youtube"] = youtube.upload_one(youtube.access_token(), youtube_item(meta, path))
+            lines.append(f"유튜브: {rec['youtube']['url']}")
+        except youtube.NoCredentials:
+            lines.append("유튜브: 건너뜀(SSM 자격 없음 — youtube.py auth)")
+        except Exception as e:
+            failed.append("youtube")
+            lines.append(f"유튜브 실패: {str(e)[:200]}")
+
+    state["posted"][meta["episode_id"]] = rec
     source.save_state(state)
-    slack(f":white_check_mark: 릴스 게시 완료 ({date}) — {meta['episode_title']}\n{result['permalink']}")
+    icon = ":white_check_mark:" if not failed else ":warning:"
+    slack(f"{icon} 오늘의 릴스 ({date}) — {meta['episode_title']}\n화면 문구: {meta['title']}\n" + "\n".join(lines))
+    print("\n".join(lines))
+    if failed:
+        sys.exit(1)
 
 
 def main() -> None:

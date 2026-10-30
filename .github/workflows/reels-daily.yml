@@ -1,9 +1,8 @@
 name: reels-daily
-# 이어 인스타 릴스 — 매일 08:00 KST 에 발행된 편 하나로 30~60초 릴스를 만들고(build),
-# 사람이 승인하면 인스타에 게시한다(publish). 코드·설정 안내는 marketing/reels/README.md.
-#
-# 승인: publish 잡은 환경 `reels-publish` 의 필수 검토자 승인을 기다린다. Slack 미리보기 메시지의 링크로
-# 이 실행 페이지에 와서 [Review deployments] → 승인하면 게시된다. 거절하거나 두면 게시되지 않는다.
+# 이어 릴스·쇼츠 — 매일 08:00 KST 에 발행된 편 하나로 30~60초 영상을 만들고(build),
+# 승인 없이 인스타 릴스와 유튜브 쇼츠에 바로 게시한다(publish, 2026-10-30 PM 지시). 결과는 Slack 으로 알린다.
+# 두 곳은 따로 시도한다 — 인스타 자격(IG_USER_ID·SSM 토큰)이 없으면 유튜브만 올린다.
+# 코드·설정 안내는 marketing/reels/README.md.
 #
 # 켜기: 저장소 변수 REELS_ENABLED=true 일 때만 예약 실행한다(설정이 끝나기 전 매일 실패하지 않게).
 # 수동 실행(workflow_dispatch)은 변수와 상관없이 돈다.
@@ -64,8 +63,6 @@ jobs:
         with:
           role-to-assume: ${{ env.ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
-          # Slack 미리보기 서명 주소가 이 세션 동안만 유효하다 — 12시간
-          role-duration-seconds: 43200
 
       - name: 릴스 만들기
         id: build
@@ -74,7 +71,6 @@ jobs:
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.PIPELINE_SUPABASE_SERVICE_ROLE_KEY }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           SLACK_WEBHOOK_URL: ${{ secrets.REELS_SLACK_WEBHOOK_URL }}
-          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           EPISODE: ${{ inputs.episode }}
           NO_IMAGES: ${{ inputs.no_images }}
         run: |
@@ -88,7 +84,6 @@ jobs:
     if: needs.build.outputs.date != ''
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    environment: reels-publish
     defaults:
       run:
         working-directory: marketing/reels
@@ -109,7 +104,7 @@ jobs:
           role-to-assume: ${{ env.ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
 
-      - name: 인스타 게시
+      - name: 인스타·유튜브 게시
         env:
           IG_USER_ID: ${{ vars.IG_USER_ID }}
           SLACK_WEBHOOK_URL: ${{ secrets.REELS_SLACK_WEBHOOK_URL }}
