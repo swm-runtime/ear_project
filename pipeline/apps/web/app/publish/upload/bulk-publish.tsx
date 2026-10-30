@@ -10,6 +10,7 @@ import { episodePublishFiles } from "@/lib/publish-episode";
 import { Badge, Panel, btnCls } from "@/components/ui";
 import { earErrMsg } from "../ear-connect";
 import { clampSources } from "@/lib/sources-clamp";
+import { shortUploadFields } from "@/lib/short-publish";
 
 /**
  * 발행 대기 일괄 발행 (2026-10-25 박수헌 — "검수만 쭉 하고 나서 일괄 발행").
@@ -17,11 +18,13 @@ import { clampSources } from "@/lib/sources-clamp";
  * 배포본 오디오(+무손실)·썸네일, 있으면 추천 메타·자막. 게이트 2 체크리스트는 선택한 편 전체에 한 번 확인하고(review_confirmed),
  * 한 편씩 순서대로 올린다 — 한 편이 실패해도 다음 편은 계속하고 끝에 결과를 모아 보여 준다. 시리즈 편은 목록(listPublishableEpisodes)에서 이미 빠져 있다.
  * 제목·설명·소스를 고쳐야 하는 편은 행의 [단일 발행]으로 간다.
+ * `short` — 실험 탭의 짧은 판 일괄 발행(KAN-296 · KAN-298). 편마다 단일 업로드와 같은 짧은 판 필드(lib/short-publish.ts)를 싣고,
+ * 원본 제품 content_id 가 없는 편은 막는다.
  */
 export type PendingEpisode = { id: string; title: string; mid_topic: string; created_at: string };
 
 interface Detail {
-  meta: { episode_id: string; backlog_id: string; title: string; description: string; mid_topic: string; duration_min_estimate: number | null; sources: { publisher: string; title: string; url: string }[] };
+  meta: { episode_id: string; backlog_id: string; title: string; description: string; mid_topic: string; duration_min_estimate: number | null; sources: { publisher: string; title: string; url: string }[]; length_profile?: string | null; remake_of_content_ref?: string | null };
   has_audio: boolean; has_thumbnail: boolean; has_enrichment?: boolean; enrichment_version?: number | null; has_script?: boolean; script_segments?: number | null;
 }
 type Row = PendingEpisode & { d?: Detail; topic?: EarTopic; block?: string; err?: string };
@@ -46,7 +49,7 @@ const CHECKLIST = [
   "제목·설명 — 패키지 제목·설명이 내용과 일치하고 과장이 없다 (#5)",
 ];
 
-export function BulkPublish({ pending, onDone }: { pending: PendingEpisode[]; onDone: () => void }) {
+export function BulkPublish({ pending, onDone, short = false }: { pending: PendingEpisode[]; onDone: () => void; short?: boolean }) {
   const router = useRouter();
   const [rows, setRows] = useState<Row[]>(() => pending.map((p) => ({ ...p })));
   const [topics, setTopics] = useState<EarTopic[] | null>(null);
@@ -75,13 +78,17 @@ export function BulkPublish({ pending, onDone }: { pending: PendingEpisode[]; on
             if (!res.ok) throw new Error((await res.json().catch(() => ({}))).message ?? `HTTP ${res.status}`);
             const d = (await res.json()) as Detail;
             const topic = mine.find((t) => t.name === d.meta.mid_topic);
-            const block = !d.has_audio ? "배포본 오디오 없음 — TTS 먼저"
+            const block = short && d.meta.length_profile !== "short" ? "패키지에 짧은 판 표시(length_profile)가 없음 — 실험 탭에서 [패키지] 다시"
+              : short ? shortUploadFields(d.meta, "single").blocker ?? undefined
+              : d.meta.length_profile === "short" ? "짧은 판 — 실험 탭의 [일괄 발행]으로(여기서 올리면 짧은 판 표시 없이 전체에 나간다)"
+              : undefined;
+            const blockAll = block ?? (!d.has_audio ? "배포본 오디오 없음 — TTS 먼저"
               : !d.has_thumbnail ? "썸네일 없음 — [썸네일 생성] 먼저"
               : !topic ? `중분류 "${d.meta.mid_topic}" 와 이름이 같은 제품 주제 없음 — 단일 발행에서 고르기`
               : !d.meta.title?.trim() || !d.meta.description?.trim() ? "패키지 제목·설명 비어 있음 — 단일 발행에서 입력"
               : !(d.meta.sources ?? []).some((s) => s.title?.trim()) ? "참고 소스 없음 — 단일 발행에서 입력"
-              : undefined;
-            patch = { d, topic, block };
+              : undefined);
+            patch = { d, topic, block: blockAll };
           } catch (e) { patch = { err: earErrMsg(e) }; }
           if (stop) return;
           setRows((rs) => rs.map((r) => (r.id === p.id ? { ...r, ...patch } : r)));
@@ -90,7 +97,7 @@ export function BulkPublish({ pending, onDone }: { pending: PendingEpisode[]; on
       await Promise.all([worker(), worker(), worker(), worker()]);
     })();
     return () => { stop = true; };
-  }, [pending]);
+  }, [pending, short]);
 
   const ready = useMemo(() => rows.filter((r) => r.d && !r.block && !r.err), [rows]);
   const loading = useMemo(() => rows.filter((r) => !r.d && !r.err).length, [rows]);
@@ -107,7 +114,9 @@ export function BulkPublish({ pending, onDone }: { pending: PendingEpisode[]; on
     const noMeta = targets.filter((t) => !t.d?.has_enrichment).length;
     const noScript = targets.filter((t) => !t.d?.has_script).length;
     const lines = [
-      `${targets.length}편을 지금 발행할까요? 업로드는 즉시 전체 사용자에게 공개돼요(중간 상태 없음).`,
+      short
+        ? `짧은 판 ${targets.length}편을 지금 발행할까요? 편마다 원본 콘텐츠의 변형으로 올라가고, 서버가 짧은 판 코호트(가입 시각 ≥ 코호트 경계)에게만 보여요. 경계가 비어 있으면 아무에게도 안 보여요.`
+        : `${targets.length}편을 지금 발행할까요? 업로드는 즉시 전체 사용자에게 공개돼요(중간 상태 없음).`,
       "",
       ...targets.slice(0, 12).map((t) => `· ${t.d!.meta.title}`),
       ...(targets.length > 12 ? [`· … 외 ${targets.length - 12}편`] : []),
@@ -125,14 +134,17 @@ export function BulkPublish({ pending, onDone }: { pending: PendingEpisode[]; on
         const f = await episodePublishFiles(t.id, { enrichment: !!t.d!.has_enrichment, script: !!t.d!.has_script });
         const sources = clampSources(m.sources); // 제품 API 한도(author 100 등) — 2026-10-27 발행처 149자로 400
         const sourceName = `참고한 자료: ${[...new Set((m.sources ?? []).map((s) => s.publisher).filter(Boolean))].join(", ")}`.slice(0, 100);
+        const sf = short ? shortUploadFields(m, "single").fields : null; // 짧은 판 — length_profile · variant_of_content_id · intro_version (KAN-298)
+        if (short && !sf) throw new Error("짧은 판 필드를 만들지 못함 — 원본 content_id 확인");
         const content = await uploadEarContent({
           title: m.title.trim(), description: m.description.trim(), origin: "ai_generated",
           source_name: sourceName, topic_ids: [t.topic!.id], sources, review_confirmed: true,
+          ...(sf ?? {}),
         }, f.audio, f.thumbnail, f.enrichment, f.script, f.lossless);
         await markPublished(m.backlog_id, content.id, content.content_version, content.published_at, {
           action: "publish",
           parts: ["audio", "thumbnail", "title", "description", "source_name", "topic_ids", ...(f.enrichment ? ["enrichment"] : []), ...(f.script ? ["script"] : [])],
-          episodeId: t.id, note: `일괄 발행 ${i + 1}/${targets.length}`,
+          episodeId: t.id, note: sf ? `짧은 판 일괄 발행 ${i + 1}/${targets.length} · 원본 ${sf.variant_of_content_id} · ${sf.intro_version}` : `일괄 발행 ${i + 1}/${targets.length}`,
         }).catch(() => undefined); // 기록 실패해도 발행은 성립 (spec/07 5장) — [발행 연결]로 잇는다
         ok.push(`${t.id} ${m.title.slice(0, 30)}${f.enrichment && !content.enrichment_applied ? " · 추천 메타 거부" : ""}${f.script && !content.script_applied ? " · 자막 거부" : ""}`);
         setSelected((s) => { const n = new Set(s); n.delete(t.id); return n; });
@@ -144,14 +156,14 @@ export function BulkPublish({ pending, onDone }: { pending: PendingEpisode[]; on
     setProgress(null); setBusy(false);
     setReport({ ok, bad });
     onDone();
-    if (ok.length && !bad.length) setTimeout(() => router.push("/publish"), 1500);
-  }, [picked, onDone, router]);
+    if (ok.length && !bad.length) setTimeout(() => router.push(short ? "/experiments" : "/publish"), 1500);
+  }, [picked, onDone, router, short]);
 
   return (
-    <Panel title={`발행 대기 — 패키지 · 오디오 완료 (미발행) ${rows.length}편`}
+    <Panel title={`${short ? "짧은 판 " : ""}발행 대기 — 패키지 · 오디오 완료 (미발행) ${rows.length}편`}
       right={<span className="flex items-center gap-2 text-[11px] text-ink-soft">{loading > 0 && <span>메타 확인 중 {loading}편…</span>}<button className={btnCls()} disabled={busy || !ready.length} onClick={selectAll}>발행 가능 전부 선택</button><button className={btnCls()} disabled={busy || !selected.size} onClick={clearAll}>선택 해제</button></span>}>
       {rows.length === 0 ? (
-        <p className="text-[13px] text-ink-soft">발행 대기 중인(패키지·오디오 완료·미발행) 에피소드가 없어요. 아래에서 파일을 직접 올려도 됩니다.</p>
+        <p className="text-[13px] text-ink-soft">발행 대기 중인(패키지·오디오 완료·미발행) {short ? "짧은 판이" : "에피소드가"} 없어요.{short ? "" : " 아래에서 파일을 직접 올려도 됩니다."}</p>
       ) : (
         <div className="divide-y divide-line">
           {rows.map((r) => {
@@ -197,7 +209,7 @@ export function BulkPublish({ pending, onDone }: { pending: PendingEpisode[]; on
           </div>
           <div className="flex flex-col items-stretch gap-2 lg:w-72">
             <button className={`${btnCls("primary", "md")} justify-center`} disabled={!canRun} onClick={() => void run()}>
-              {busy ? "발행 중… (창을 닫지 마세요)" : `선택 ${picked.length}편 일괄 발행 — 즉시 공개`}
+              {busy ? "발행 중… (창을 닫지 마세요)" : short ? `선택 ${picked.length}편 짧은 판 일괄 발행` : `선택 ${picked.length}편 일괄 발행 — 즉시 공개`}
             </button>
             {progress && <p className="text-[11px] text-ink-soft">{progress}</p>}
             {report && (
