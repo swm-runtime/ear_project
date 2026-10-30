@@ -65,7 +65,7 @@ export default async function SeriesPage({ params }: { params: Promise<{ id: str
       )}
       {s.length_profile === "short" && (
         <Panel title="짧은 판 시리즈 (KAN-296 실험)">
-          <p className="text-[12.5px] leading-relaxed text-ink-soft">발행된 시리즈 <Link href={`/series/${s.remake_of}`} className="text-brand-ink underline">원본</Link>을 5~12분 편으로 다시 만든 시리즈다. 원본 편 하나를 개념 단위로 1~3편으로 나눈 설계안을 워커가 짠다 — 위 설계안의 원본 열이 각 편이 소스를 물려받는 원본 편이다. 설계안을 보고 [승인]하면 편 후보가 생기고 1화부터 순서대로 초안이 돈다. 새 앱 배포 뒤 가입한 사용자에게만 나가야 해서, 백엔드의 코호트 분리·변형 필드(KAN-298)가 생기기 전에는 [시리즈 발행]을 막아 둔다. 진행은 <Link href="/experiments" className="text-brand-ink underline">실험 탭</Link>에서도 본다.</p>
+          <p className="text-[12.5px] leading-relaxed text-ink-soft">발행된 시리즈 <Link href={`/series/${s.remake_of}`} className="text-brand-ink underline">원본</Link>을 5~12분 편으로 다시 만든 시리즈다. 원본 편 하나를 개념 단위로 1~3편으로 나눈 설계안을 워커가 짠다 — 위 설계안의 원본 열이 각 편이 나온 원본 편이다. 설계안을 보고 [승인]하면 일반 시리즈처럼 편마다 주제 기획이 돌아 자료를 찾는다 — 원본 편의 소스는 우선 후보로 함께 들어간다. 성립한 편은 바로 승인되고 1화부터 순서대로 초안이 돈다. 보류된 편은 아래 표의 [다시 기획]으로 다시 찾는다. 새 앱 배포 뒤 가입한 사용자에게만 나가야 해서, 백엔드의 코호트 분리·변형 필드(KAN-298)가 생기기 전에는 [시리즈 발행]을 막아 둔다. 진행은 <Link href="/experiments" className="text-brand-ink underline">실험 탭</Link>에서도 본다.</p>
         </Panel>
       )}
       {["approved", "published"].includes(s.status) && s.total_episodes && s.length_profile !== "short" && (

@@ -96,16 +96,13 @@ export async function approveSeries(id: string): Promise<Result<{ queued: number
   const { data: done, error } = await sb.from("series").update({ status: "approved", total_episodes: plan.length, plan }).eq("id", id).eq("status", "planning").select("id");
   if (error) return { ok: false, reason: error.message };
   if (!done?.length) return { ok: false, reason: "그 사이 다른 사람이 상태를 바꿨다" };
-  // 짧은 판 시리즈(0041): 편마다 주제 기획(스윕) 대신 원본 편(from_no)의 소스를 물려받은 후보를 워커가 만든다(stages/remake.ts materialize)
-  if (s.length_profile === "short") {
-    await enqueueJob("remake", { series_id: id, materialize: true });
-    revalidatePath(`/series/${id}`); revalidatePath("/experiments");
-    return { ok: true, queued: plan.length };
-  }
   const row = { ...s, plan };
   for (const ep of plan) {
     await enqueueJob("sweep", { mode: "B2", mid_topic: s.mid_topic, topic: ep.title, hint: seriesEpisodeHint(row, ep.no, en), series_id: id, series_no: ep.no, ...(en ? { screen: screens.get(ep.no) } : {}) });
   }
+  // 짧은 판 시리즈(0041): 편 기획은 일반 시리즈와 같다(2026-10-30) — 워커 주제 기획이 시리즈 행을 보고 원본 편(from_no)의 소스를 우선 후보로 함께 판정하고, 성립이면 바로 승인한다(topic-seed.ts).
+  // 계층 쌓기 층만 새 편 번호로 옮긴다(remake layers)
+  if (s.length_profile === "short") { await enqueueJob("remake", { series_id: id, layers: true }); revalidatePath("/experiments"); }
   revalidatePath(`/series/${id}`); revalidatePath("/series"); revalidatePath("/backlog");
   return { ok: true, queued: plan.length };
 }
