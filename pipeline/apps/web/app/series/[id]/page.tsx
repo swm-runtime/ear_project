@@ -32,6 +32,10 @@ export default async function SeriesPage({ params }: { params: Promise<{ id: str
   const shown = (eps ?? []).filter((e) => e.status !== "rejected" || !liveNos.has(e.series_no));
   const hidden = (eps?.length ?? 0) - shown.length;
   const pubEps = ["approved", "published"].includes(s.status) ? await seriesPublishEpisodes(id) : [];
+  // 짧은 판 시리즈(KAN-296)는 원본 시리즈의 제품 id 를 변형 연결(variant_of_series_id)로 보낸다 — 원본이 아직 제품에 없으면 발행 화면이 막는다
+  const shortOrigin = s.length_profile === "short" && s.remake_of
+    ? ((await sb.from("series").select("published_series_id").eq("id", s.remake_of).maybeSingle()).data?.published_series_id as string | null | undefined) ?? null
+    : null;
   const planning = s.status === "planning";
   return (
     <div className="space-y-6">
@@ -65,11 +69,11 @@ export default async function SeriesPage({ params }: { params: Promise<{ id: str
       )}
       {s.length_profile === "short" && (
         <Panel title="짧은 판 시리즈 (KAN-296 실험)">
-          <p className="text-[12.5px] leading-relaxed text-ink-soft">발행된 시리즈 <Link href={`/series/${s.remake_of}`} className="text-brand-ink underline">원본</Link>을 5~12분 편으로 다시 만든 시리즈다. 원본 편 하나를 개념 단위로 1~3편으로 나눈 설계안을 워커가 짠다 — 위 설계안의 원본 열이 각 편이 나온 원본 편이다. 설계안을 보고 [승인]하면 일반 시리즈처럼 편마다 주제 기획이 돌아 자료를 찾는다 — 원본 편의 소스는 우선 후보로 함께 들어간다. 성립한 편은 바로 승인되고 1화부터 순서대로 초안이 돈다. 보류된 편은 아래 표의 [다시 기획]으로 다시 찾는다. 새 앱 배포 뒤 가입한 사용자에게만 나가야 해서, 백엔드의 코호트 분리·변형 필드(KAN-298)가 생기기 전에는 [시리즈 발행]을 막아 둔다. 진행은 <Link href="/experiments" className="text-brand-ink underline">실험 탭</Link>에서도 본다.</p>
+          <p className="text-[12.5px] leading-relaxed text-ink-soft">발행된 시리즈 <Link href={`/series/${s.remake_of}`} className="text-brand-ink underline">원본</Link>을 5~12분 편으로 다시 만든 시리즈다. 원본 편 하나를 개념 단위로 1~3편으로 나눈 설계안을 워커가 짠다 — 위 설계안의 원본 열이 각 편이 나온 원본 편이다. 설계안을 보고 [승인]하면 일반 시리즈처럼 편마다 주제 기획이 돌아 자료를 찾는다 — 원본 편의 소스는 우선 후보로 함께 들어간다. 성립한 편은 바로 승인되고 1화부터 순서대로 초안이 돈다. 보류된 편은 아래 표의 [다시 기획]으로 다시 찾는다. [시리즈 발행]은 원본 시리즈의 변형(짧은 시리즈)을 만들어 전 편을 올린다 — 서버가 새 앱 배포 뒤 가입한 사용자에게만 보여 준다(KAN-298). 진행은 <Link href="/experiments" className="text-brand-ink underline">실험 탭</Link>에서도 본다.</p>
         </Panel>
       )}
-      {["approved", "published"].includes(s.status) && s.total_episodes && s.length_profile !== "short" && (
-        <SeriesPublish id={s.id} name={s.name} introLine={s.intro_line ?? ""} total={s.total_episodes} status={s.status} productSeriesId={s.published_series_id ?? null} publisherName={publicationOf(s.publication ?? null, publications)?.name ?? null} episodes={pubEps} />
+      {["approved", "published"].includes(s.status) && s.total_episodes && (
+        <SeriesPublish id={s.id} name={s.name} introLine={s.intro_line ?? ""} total={s.total_episodes} status={s.status} productSeriesId={s.published_series_id ?? null} publisherName={publicationOf(s.publication ?? null, publications)?.name ?? null} episodes={pubEps} short={s.length_profile === "short" ? { variantOfSeriesId: shortOrigin } : null} />
       )}
     </div>
   );

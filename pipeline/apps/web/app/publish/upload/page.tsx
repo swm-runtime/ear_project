@@ -10,12 +10,15 @@ import { PageHeader, Panel, btnCls } from "@/components/ui";
 import { EarGate, EarSession, earErrMsg } from "../ear-connect";
 import { BulkPublish, type PendingEpisode } from "./bulk-publish";
 import { clampSources } from "@/lib/sources-clamp";
+import { shortUploadFields } from "@/lib/short-publish";
 
 interface UploadMeta {
   episode_id: string; backlog_id: string; title: string; description: string;
   major_topic: string | null; mid_topic: string; duration_min_estimate: number | null;
   sources: { publisher: string; title: string; url: string }[];
   artifacts: { audio_dist: string | null };
+  /** 짧은 판(KAN-296, 패키지 0040~) — short 면 원본 제품 content_id 와 함께 변형으로 올린다(lib/short-publish.ts) */
+  length_profile?: string | null; remake_of_content_ref?: string | null;
 }
 
 /**
@@ -126,12 +129,14 @@ function UploadForm({ episodeId }: { episodeId: string | null }) {
     catch (e) { setEnrichMsg(earErrMsg(e)); }
   }, [episodeId, meta]);
 
+  const short = useMemo(() => (meta ? shortUploadFields(meta, "single") : { fields: null, blocker: null }), [meta]);
+
   const canSubmit = useMemo(() =>
-    !seriesOf && title.trim() && description.trim() && sourceName.trim() && topicIds.length > 0 &&
+    !seriesOf && !short.blocker && title.trim() && description.trim() && sourceName.trim() && topicIds.length > 0 &&
     sources.some((s) => s.title.trim()) && checks.every(Boolean) &&
     (thumbFile || (episodeId && hasThumb)) &&
     (audioFile || (episodeId && hasAudio)),
-  [seriesOf, title, description, sourceName, topicIds, sources, checks, thumbFile, hasThumb, audioFile, episodeId, hasAudio]);
+  [seriesOf, short, title, description, sourceName, topicIds, sources, checks, thumbFile, hasThumb, audioFile, episodeId, hasAudio]);
 
   const submit = useCallback(async () => {
     setBusy(true); setMsg(null);
@@ -146,15 +151,16 @@ function UploadForm({ episodeId }: { episodeId: string | null }) {
         source_name: sourceName.trim(), topic_ids: topicIds,
         sources: clampSources(sources), // 제품 API 한도(author 100 등) — lib/sources-clamp.ts
         review_confirmed: true,
+        ...(short.fields ?? {}), // 짧은 판 — length_profile · variant_of_content_id · intro_version (KAN-298)
       }, f.audio, f.thumbnail, enrichment, script, f.lossless);
-      await markPublished(meta?.backlog_id ?? null, content.id, content.content_version, content.published_at, { action: "publish", parts: ["audio", "thumbnail", "title", "description", "source_name", "topic_ids", ...(enrichment ? ["enrichment"] : []), ...(script ? ["script"] : [])], episodeId: episodeId ?? undefined }).catch(() => undefined); // 파이프라인에 content_id·버전·이력 기록 — 실패해도 발행은 성립 (spec/07 5장)
+      await markPublished(meta?.backlog_id ?? null, content.id, content.content_version, content.published_at, { action: "publish", parts: ["audio", "thumbnail", "title", "description", "source_name", "topic_ids", ...(enrichment ? ["enrichment"] : []), ...(script ? ["script"] : [])], ...(short.fields ? { note: `짧은 판 · 원본 ${short.fields.variant_of_content_id} · ${short.fields.intro_version}` } : {}), episodeId: episodeId ?? undefined }).catch(() => undefined); // 파이프라인에 content_id·버전·이력 기록 — 실패해도 발행은 성립 (spec/07 5장)
       setMsg({ kind: "ok", text: `발행되었습니다 — ${content.id}${enrichment ? (content.enrichment_applied ? ` · 추천 메타 v${content.enrichment_schema_version ?? "?"} 반영${embeddingNote ? ` (${embeddingNote})` : ""}` : ` · 추천 메타 거부: ${content.enrichment_rejected_reason ?? "사유 없음"}`) : " · 추천 메타 없음(목록에서 소급 가능)"}${script ? (content.script_applied ? " · 자막 반영" : ` · 자막 거부: ${content.script_rejected_reason ?? "사유 없음"}`) : " · 자막 없음"}` });
-      setTimeout(() => router.push("/publish"), 900);
+      setTimeout(() => router.push(short.fields ? "/experiments" : "/publish"), 900); // 짧은 판은 실험 탭에서 관리한다
     } catch (e) {
       const anyE = e as { field?: string };
       setMsg({ kind: "bad", text: `${earErrMsg(e)}${anyE.field ? ` (필드: ${anyE.field})` : ""}` });
     } finally { setBusy(false); }
-  }, [audioFile, episodeId, title, description, sourceName, topicIds, sources, thumbFile, enrichVer, scriptSegs, meta, router]);
+  }, [audioFile, episodeId, title, description, sourceName, topicIds, sources, thumbFile, enrichVer, scriptSegs, meta, short, router]);
 
   if (loadErr) return <p className="rounded-md border border-rose-200 bg-rose-50 p-3 text-[13px] text-rose-700">{loadErr}</p>;
 
@@ -272,6 +278,8 @@ function UploadForm({ episodeId }: { episodeId: string | null }) {
             </p>
           </Panel>
         )}
+        {short.fields && <p className="rounded-md border border-sky-200 bg-sky-50 p-3 text-[13px] text-sky-900">짧은 판(KAN-296)이에요 — 원본 제품 콘텐츠 <span className="font-mono">{short.fields.variant_of_content_id}</span>의 변형으로 올라가고, 서버가 새 앱 배포 뒤 가입한 사용자에게만 보여요(코호트 경계가 정해지기 전엔 아무에게도 안 보여요). 도입 훅 <span className="font-mono">{short.fields.intro_version}</span>.</p>}
+        {short.blocker && <p className="rounded-md border border-rose-200 bg-rose-50 p-3 text-[13px] text-rose-700">{short.blocker}</p>}
         {seriesOf && <p className="rounded-md border border-amber-200 bg-amber-50 p-3 text-[13px] text-amber-900">시리즈 {seriesOf.series_no}화예요 — 시리즈 편은 개별로 발행하지 않고 <Link className="underline" href={`/series/${seriesOf.series_id}`}>시리즈 화면</Link>의 [시리즈 발행]으로 전 편을 한꺼번에 올려요.</p>}
         <button className={`${btnCls("primary", "md")} w-full justify-center`} disabled={!canSubmit || busy} onClick={() => void submit()}>
           {busy ? "업로드 중… (창을 닫지 마세요)" : "업로드 — 즉시 발행"}
