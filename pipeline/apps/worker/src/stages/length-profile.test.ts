@@ -34,6 +34,8 @@ test("길이 프로필 — short 는 설계·대본에 숫자 줄(코드)과 짧
   assert.match(d.user, /본문 구간은 2~3개/);
   assert.match(d.user, /사용 소스 하한은 2건/);
   assert.match(d.user, /상한 12분/);
+  assert.doesNotMatch(d.user, /목표 9분/, "짧은 판 설계에 분량 목표를 주지 않는다 — 늘 8~9분을 잡고 재확인으로 채웠다(2026-10-30)");
+  assert.match(d.user, /목표 분량은 없다\.\*\* 예상 분량은 담은 재료만으로 계산한다/);
   assert.match(d.user, /"원본 제목"의 짧은 판/);
   assert.match(d.user, /원본의 축: A인데 B/);
   assert.match(d.user, /축 소스는 모든 구간에 배정할 수 있다/, "자산의 설계 절");
@@ -56,6 +58,9 @@ test("길이 프로필 — short 는 설계·대본에 숫자 줄(코드)과 짧
   assert.doesNotMatch(w.user, /### 도입 훅 — 약속형/);
   assert.doesNotMatch(w.user, /진입 방식: \*\*/, "short 편은 진입 방식 로테이션 줄이 빠진다");
   assert.match(w.user, /상한 12분\(약 4,100자\)/);
+  assert.match(w.user, /예상 분량은 목표가 아니라 상한 참고값이다/);
+  assert.doesNotMatch(w.user, /이 에피소드의 목표: 약/, "짧은 판 대본에는 ±15% 목표 줄이 없다");
+  assert.match(w.user, /같은 내용을 다시 말해 분량을 채우지 않는다/);
   assert.match(w.user, /골드 예시는 말투와 주고받기만 따른다/, "자산의 대본 절");
   const w2 = wr(P.pickShortHook(1));
   assert.match(w2.user, /### 도입 훅 — 약속형/);
