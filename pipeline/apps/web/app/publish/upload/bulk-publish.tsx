@@ -18,6 +18,7 @@ import { shortUploadFields } from "@/lib/short-publish";
  * 배포본 오디오(+무손실)·썸네일, 있으면 추천 메타·자막. 게이트 2 체크리스트는 선택한 편 전체에 한 번 확인하고(review_confirmed),
  * 한 편씩 순서대로 올린다 — 한 편이 실패해도 다음 편은 계속하고 끝에 결과를 모아 보여 준다. 시리즈 편은 목록(listPublishableEpisodes)에서 이미 빠져 있다.
  * 제목·설명·소스를 고쳐야 하는 편은 행의 [단일 발행]으로 간다.
+ * 추천 메타·자막은 발행 직전에 편마다 다시 확인한다 — 화면을 연 뒤에 뽑힌 것도 싣는다(2026-10-31 짧은 판 48편이 화면을 연 시점 값으로 메타 없이 나감).
  * `short` — 실험 탭의 짧은 판 일괄 발행(KAN-296 · KAN-298). 편마다 단일 업로드와 같은 짧은 판 필드(lib/short-publish.ts)를 싣고,
  * 원본 제품 content_id 가 없는 편은 막는다.
  */
@@ -109,8 +110,15 @@ export function BulkPublish({ pending, onDone, short = false }: { pending: Pendi
   const clearAll = () => setSelected(new Set());
 
   const run = useCallback(async () => {
-    const targets = picked;
-    if (!targets.length) return;
+    if (!picked.length) return;
+    // 추천 메타·자막 유무는 화면을 연 시점 값이라 발행 직전에 다시 읽는다 — 그사이 [추천 메타 뽑기]가 끝난 편도 싣는다
+    setBusy(true); setProgress("추천 메타·자막 다시 확인 중…");
+    const queue = [...picked]; const fresh = new Map<string, Detail>();
+    const worker = async () => { for (let t = queue.shift(); t; t = queue.shift()) { try { const res = await fetch(`/api/publish/${t.id}`); if (res.ok) fresh.set(t.id, (await res.json()) as Detail); } catch { /* 못 읽으면 처음 값 */ } } };
+    await Promise.all([worker(), worker(), worker(), worker()]);
+    setRows((rs) => rs.map((r) => (fresh.has(r.id) ? { ...r, d: fresh.get(r.id) } : r)));
+    setBusy(false); setProgress(null);
+    const targets = picked.map((t) => ({ ...t, d: fresh.get(t.id) ?? t.d }));
     const noMeta = targets.filter((t) => !t.d?.has_enrichment).length;
     const noScript = targets.filter((t) => !t.d?.has_script).length;
     const lines = [

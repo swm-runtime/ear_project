@@ -148,8 +148,8 @@ export interface EarContent {
   /** 시리즈 편이면 편의 값(admin-api 8장 · 4.6, 2026-10-17 KAN-134). 단일 편은 null */
   series_id?: string | null; episode_no?: number | null; total_episodes?: number | null;
 }
-/** 현재 추천 메타 형식 버전 — 원본은 서버 CURRENT_ENRICHMENT_SCHEMA_VERSION(admin-api 4.6). 3 = 해시태그 포함(KAN-162 운영 배포 뒤 KAN-164). **워커 ENRICH_TAGS=1 과 같은 시점에 움직인다** — 콘솔만 먼저 올리면 발행분 전부가 "구형 v2"로 보이는데 다시 뽑아도 태그가 붙지 않는다(2026-10-13 먼저 올렸다가 되돌림 #1486). 2026-10-14 AI 서버 워커 env.prod 에 ENRICH_TAGS=1 을 넣고 재기동한 뒤 3으로 올렸다 */
-export const ENRICHMENT_SCHEMA_VERSION_FALLBACK = 3;
+/** 현재 추천 메타 형식 버전 — 값과 이력은 lib/enrichment-version.ts */
+export { ENRICHMENT_SCHEMA_VERSION_FALLBACK } from "./enrichment-version"; // 값은 enrichment-version.ts — 서버 액션도 같은 값을 쓴다
 export const listEarJobCategories = () => earFetch<{ items: { name: string }[] }>("/job-categories");
 
 export const listEarTopics = () => earFetch<{ items: EarTopic[] }>("/admin/topics");
