@@ -1,8 +1,8 @@
 import fs from "node:fs/promises";
 import { cfg, executedBy } from "../config.js";
-import { seriesSiblingIds, retireSeriesEpisodeCandidates, domainTierByHost, existingBacklogTitles, findDomainForUrl, insertBacklogAlloc, insertCandidateDomain, insertRun, majorOfMidTopic, midsOfMajor, poolDomainsForTopics, recentSourcesForTopics, recordFetchStatus, setBacklogStatus, setJobProgress, upsertSource, type Job, allTopicMids, tierOfUrl } from "../db.js";
+import { pool, seriesSiblingIds, retireSeriesEpisodeCandidates, domainTierByHost, existingBacklogTitles, findDomainForUrl, insertBacklogAlloc, insertCandidateDomain, insertRun, majorOfMidTopic, midsOfMajor, poolDomainsForTopics, recentSourcesForTopics, recordFetchStatus, setBacklogStatus, setJobProgress, upsertSource, type Job, allTopicMids, tierOfUrl } from "../db.js";
 import type { Executor } from "../executors/index.js";
-import { assetPaths, globalGaps, KOREAN_SOURCE_MIN_EN, buildClusterPromptV2, buildTopicJudgePromptEn, buildTopicSeedSearchPrompt, buildTopicSeedSearchPromptEn, CLUSTER_SCHEMA_V2, CLUSTER_SCHEMA_V2_EN, judgeToInternal, REINFORCE_SEARCH_SCHEMA, REINFORCE_SEARCH_SCHEMA_EN, todayKst, pipelineLocale } from "@ear/pipeline";
+import { assetPaths, globalGaps, KOREAN_SOURCE_MIN_EN, buildClusterPromptV2, buildTopicJudgePromptEn, buildTopicSeedSearchPrompt, buildTopicSeedSearchPromptEn, CLUSTER_SCHEMA_V2, CLUSTER_SCHEMA_V2_EN, judgeToInternal, REINFORCE_SEARCH_SCHEMA, REINFORCE_SEARCH_SCHEMA_EN, todayKst, pipelineLocale, shortSeriesEpisodeTitle, shortSeriesFromNo, shortSeriesSeedHint, type SeriesPlanEpisode } from "@ear/pipeline";
 import { hostOf, log } from "../util.js";
 import { prepareAssets, workerRev } from "../assets.js";
 import { putFile, s3Key } from "../storage.js";
@@ -23,6 +23,7 @@ export const TOPIC_SEED_MARK = "🔎 기획";
  *   1. 검색 — WebSearch 만(본문 안 읽음). **풀에 가두지 않는다**: 어느 발행처든 좋되, 차단·보류 도메인·robots 불허·유료 DB 는 뺀다.
  *      풀 밖 도메인은 candidate 행을 만들고 **소스도 적재한다**(B-① 과 다른 점 — 이 모드 한정, PIPELINE.md 불변 원칙 2 조건부 개정).
  *   2. 판정 — 군집화 v2 를 "주제 고정·축은 소스에서" 모드로 이 후보 하나에 돌린다. 성립이면 proposed, 아니면 held(빈 역할 기록 — [보강] 1회 가능).
+ * 짧은 판 시리즈 편(0041, 2026-10-30): 시리즈 행이 짧은 판이면 원본 편(설계안 from_no)의 소스를 판정에 우선 후보로 함께 넣고(본문이 열리는 것만), 성립이면 바로 승인한다 — shortSeriesSeed.
  * 검색 단계는 WebSearch 만 쓰는 요청이라 웹 검색을 처리하는 실행기만 집는다 — 서버 워커(OpenAI 웹 검색, executors/openai-search.ts)가 운영 경로이고 노트북 Claude CLI 도 집을 수 있다(2026-10-16 KAN-222).
  */
 export async function runTopicSeed(job: Job, ex: Executor) {
@@ -40,28 +41,46 @@ export async function runTopicSeed(job: Job, ex: Executor) {
   if (job.payload.sub_topic || job.payload.screen) await setBacklogStatus(id, "held", { ...(job.payload.sub_topic ? { sub_topic: String(job.payload.sub_topic) } : {}), ...(job.payload.screen ? { gate1_checks: JSON.stringify({ screen: job.payload.screen }) } : {}) });
   // 시리즈 편 (0029, spec/11 4장): 시리즈 승인이 편마다 건 작업 — 후보에 시리즈·화 번호를 단다
   const seriesId = job.payload.series_id ? String(job.payload.series_id) : null;
+  let short: ShortSeed | null = null;
   if (seriesId) {
     const no = Number(job.payload.series_no);
     // 같은 화 번호의 살아 있는 후보는 반려로 비운다(0035, 2026-10-27) — 앞선 시도가 남긴 "검색 진행 중" 행·[다시 기획] 전의 보류 행이 자리를 차지해 duplicate key 로 실패했다. 초안 이후 후보가 있으면 유니크가 막아 이 작업이 실패한다(그 화는 재작성 흐름)
     const retired = await retireSeriesEpisodeCandidates(seriesId, no, id);
     if (retired.length) log(`  topic-seed ${id}: ${no}화 앞선 후보 ${retired.join(", ")} 를 대체(반려)`);
     await setBacklogStatus(id, "held", { series_id: seriesId, series_no: no });
+    try { short = await shortSeriesSeed(seriesId, no); } catch (e: any) {
+      await setBacklogStatus(id, "held", { dedup_note: `⚠️ ${TOPIC_SEED_MARK} 짧은 판 원본 확인 실패 (${todayKst()}): ${String(e?.message ?? e).slice(0, 200)}` }).catch(() => {});
+      throw e;
+    }
+    if (short) await setBacklogStatus(id, "held", { length_profile: "short", remake_of: short.origId, title: short.title, dedup_note: `${TOPIC_SEED_MARK} 검색 진행 중 (${todayKst()}) · 짧은 판 ← ${short.origId}` });
   }
   log(`  topic-seed ${id}: "${topic}" (${midTopic}) — 검색 시작`);
   try {
+    // 짧은 판 시리즈 편: 원본 편 소스를 우선 후보로 — 차단·보류 도메인이 아니고 본문이 열리는 것만(403·robots 는 우회하지 않는다). 검색 힌트는 열리는 원본 소스만 적는다
+    const seeded: string[] = []; const seedDropped: string[] = [];
+    if (short) for (const s of short.seeds) {
+      const d = await findDomainForUrl(s.url);
+      if (d && (d.tier === "blocked" || d.tier === "hold" || d.fetch_blocked_at)) { seedDropped.push(`원본 ${d.domain} (${d.tier === "hold" ? "보류" : "차단"})`); continue; }
+      const f = await fetchArticle(0, s.url).catch(() => null);
+      if (!hasBody(f)) { seedDropped.push(`원본 ${hostOf(s.url)} (본문 ${f ? (f.ok ? `${f.chars}자 — 짧음` : f.status) : "network"})`); continue; }
+      seeded.push(s.url);
+    }
+    if (short) log(`  topic-seed ${id}: 짧은 판 ← ${short.origId} · 원본 소스 ${seeded.length}/${short.seeds.length}건 우선 후보`);
+    const searchHint = short ? [hint, shortSeriesSeedHint(short.origTitle, short.seeds.filter((x) => seeded.includes(x.url)))].filter(Boolean).join("\n") : hint;
+
     // ── 1. 검색
     const mids = await midsOfMajor(major);
     const poolDomains = await poolDomainsForTopics(mids.length ? mids : [midTopic]);
     await setJobProgress(job.id, { phase: `기획 1/2 — 검색 (${id})`, detail: `"${topic.slice(0, 40)}"`, toolCounts: {}, turns: 0, elapsedMs: 0 }).catch(() => {});
     const en = pipelineLocale() === "en"; // 글로벌판: 영어 검색·판정 프롬프트, 판정 결과는 내부 값으로 바꿔 저장 (global-prompts.ts, KAN-209)
     const r1 = await ex.run<SearchOut>({
-      prompt: (en ? buildTopicSeedSearchPromptEn : buildTopicSeedSearchPrompt)({ id, topic, hint, midTopic, poolHosts: poolDomains.map((d) => d.domain), maxSearches }), schema: en ? REINFORCE_SEARCH_SCHEMA_EN : REINFORCE_SEARCH_SCHEMA,
+      prompt: (en ? buildTopicSeedSearchPromptEn : buildTopicSeedSearchPrompt)({ id, topic, hint: searchHint, midTopic, poolHosts: poolDomains.map((d) => d.domain), maxSearches }), schema: en ? REINFORCE_SEARCH_SCHEMA_EN : REINFORCE_SEARCH_SCHEMA,
       allowedTools: ["WebSearch"], cwd: cfg.workRoot, timeoutMs: 20 * 60_000, model: cfg.clusterModel, effort: "medium",
       onProgress: (pr) => setJobProgress(job.id, { ...pr, phase: `기획 1/2 — 검색 (${id})`, detail: pr.toolCounts?.WebSearch ? `검색 ${pr.toolCounts.WebSearch}회` : pr.detail }).catch(() => {}),
     });
     const found = r1.output.sources ?? [];
     const sweptAt = new Date().toISOString();
-    const added: typeof found = []; const dropped: string[] = []; const newDomains: string[] = [];
+    const added: typeof found = []; const dropped: string[] = [...seedDropped]; const newDomains: string[] = [];
     const seenUrl = new Set<string>();
     // 본문 접근 가능성 선검사 (글로벌 2026-10-23 → 한국판도 2026-10-27) — 세기 전에 실제로 열리는지 본다. 못 여는 소스는 적재하되(fetch_status 기록) 역할표에는 넣지 않는다. 403 은 우회하지 않는다.
     // 한국판은 이 검사가 없어 초안 설계에서 "소스 본문 3건 미달"로 자동 반려됐다(10-26·27 창업·마케팅 1화 — 403 소스 3건)
@@ -100,11 +119,13 @@ export async function runTopicSeed(job: Job, ex: Executor) {
     const seen = new Set<string>();
     const tiersPre = null as Awaited<ReturnType<typeof domainTierByHost>> | null; // 판정자에게 도메인 등급을 보이지 않는다(2026-10-17 — 한국판과 같게). 뼈대 1군 검사는 글로벌 게이트 1(명세 6.3)
     const push = (s: { url: string; title: string; summary: string | null; publisher: string; domain: string; published: string | null }) => { if (seen.has(s.url)) return; seen.add(s.url); meta.push({ n: meta.length + 1, ...s, ...(tiersPre ? { tier: tierOfUrl(tiersPre, s.url, s.domain) ?? "candidate" } : {}) }); };
+    if (short) for (const s of short.seeds) if (seeded.includes(s.url)) push({ url: s.url, title: s.title, summary: s.summary, publisher: s.publisher, domain: hostOf(s.url), published: s.published }); // 원본 소스가 먼저(M1~)
     for (const s of added) push({ url: s.url, title: s.title, summary: s.summary, publisher: s.publisher, domain: hostOf(s.url), published: s.published });
     // 한국판만: 풀의 최근 소스 소량 — 검색이 빈 손이어도 채울 수 있게. 글로벌판은 사람이 정한 주제로 찾은 소스만 쓴다 (박수헌 2026-10-15)
     if (!en) for (const s of await recentSourcesForTopics([midTopic], 60, 30)) push({ url: s.url, title: s.title, summary: s.summary, publisher: s.publisher, domain: s.domain, published: s.published }); // 풀의 최근 소스 소량 — 검색이 빈 손이어도 채울 수 있게
     const siblings = seriesId ? await seriesSiblingIds(seriesId) : []; // 형제 편은 겹침 비교에서 뺀다 — 범위 구분은 hint 가 준다(spec/11 4장)
-    const judgePrompt = (en ? buildTopicJudgePromptEn : buildClusterPromptV2)({ midTopics: [midTopic], majorTopic: major, nextIdNumber: Number(id.replace(/\D/g, "")) || 0, sources: meta, existingTitles: (await existingBacklogTitles()).filter((t) => !t.startsWith(`${id} `) && !siblings.some((b) => t.startsWith(`${b} `))) /* 목록은 "C1 [주제] 제목" 형식 — 이 후보 자신을 ID 로 뺀다(제목 비교는 늘 어긋나 자기 자신과 겹친다고 적혔다, 2026-10-15) */, specBacklogExcerpt: excerpt, seed: { id, topic, hint, midTopic }, ...(en ? { subTopicOptions: (await allTopicMids()).filter((t) => t !== midTopic) } : {}) });
+    if (short) siblings.push(...(await seriesSiblingIds(short.origSeriesId))); // 짧은 판은 원본 시리즈 편과 겹치는 것이 의도다
+    const judgePrompt = (en ? buildTopicJudgePromptEn : buildClusterPromptV2)({ midTopics: [midTopic], majorTopic: major, nextIdNumber: Number(id.replace(/\D/g, "")) || 0, sources: meta, existingTitles: (await existingBacklogTitles()).filter((t) => !t.startsWith(`${id} `) && !siblings.some((b) => t.startsWith(`${b} `))) /* 목록은 "C1 [주제] 제목" 형식 — 이 후보 자신을 ID 로 뺀다(제목 비교는 늘 어긋나 자기 자신과 겹친다고 적혔다, 2026-10-15) */, specBacklogExcerpt: excerpt, seed: { id, topic, hint: searchHint, midTopic }, ...(en ? { subTopicOptions: (await allTopicMids()).filter((t) => t !== midTopic) } : {}) });
     const r2raw = await ex.run<JudgeOut>({ prompt: judgePrompt, schema: en ? CLUSTER_SCHEMA_V2_EN : CLUSTER_SCHEMA_V2, tools: [], allowedTools: [], cwd: cfg.workRoot, timeoutMs: 20 * 60_000, model: cfg.clusterModel, maxThinkingTokens: cfg.thinkingDesign,
       onProgress: (pr) => setJobProgress(job.id, { ...pr, phase: `기획 2/2 — 판정 (${id})`, detail: pr.turns > 0 ? "축·역할표 구성 중" : pr.detail }).catch(() => {}) });
     const r2 = en ? { ...r2raw, output: judgeToInternal(r2raw.output) } : r2raw;
@@ -116,19 +137,21 @@ export async function runTopicSeed(job: Job, ex: Executor) {
     const { pubs, maxShare, roleSet, problems, missingCore } = checkCandidateSources(srcs, en ? { minKorean: KOREAN_SOURCE_MIN_EN } : {});
     const gaps = Array.from(new Set([...(en ? globalGaps(c.gaps) : c.gaps), ...missingCore])); // 글로벌판: 반론·한계·수치·조사는 선택 역할 (2026-10-17 소개형 전환)
     const ok = c.verdict === "성립" && problems.length === 0;
+    const status = ok ? (short ? "approved" : "proposed") : "held"; // 짧은 판 시리즈 편은 실험 탭에서 사람이 고른 재제작이라 게이트 1 을 생략한다(종전 재제작과 같다)
     const summary = `${TOPIC_SEED_MARK} ${todayKst()}: 입력 "${topic.slice(0, 60)}" · 검색 ${r1.output.queries?.length ?? 0}회 → 소스 ${added.length}건 적재(새 도메인 ${newDomains.length}, 제외 ${dropped.length}) · 판정 ${ok ? "성립" : `보강 필요 (${[...problems, ...(gaps.length ? ["빈 역할 " + gaps.join("·")] : [])].join(", ")})`}`;
     // 글로벌판 보조 주제: 사람이 고르지 않았을 때만 판정의 제안을 싣는다 — 사람이 고른 값은 바꾸지 않는다 (글로벌 명세 2장·6.1)
     const judgedSub = en && !job.payload.sub_topic ? (c as { sub_topic?: string | null }).sub_topic ?? null : null;
     const subOk = judgedSub && judgedSub !== midTopic && (await allTopicMids()).includes(judgedSub) ? judgedSub : null;
-    await setBacklogStatus(id, ok ? "proposed" : "held", {
+    await setBacklogStatus(id, status, {
       ...(subOk ? { sub_topic: subOk } : {}),
-      title: c.title || topic, summary: c.axis_note, target_fit: c.target_fit, angle: c.landing, axis: c.axis, axis_type: c.axis_type,
+      ...(short && ok ? { approved_by: `remake:${executedBy}`, approved_at: new Date().toISOString() } : {}),
+      title: short ? short.title : c.title || topic, summary: c.axis_note, target_fit: c.target_fit, angle: c.landing, axis: c.axis, axis_type: c.axis_type,
       sources: JSON.stringify(srcs.map((s) => ({ url: s.url, tier: tierOfUrl(tiers, s.url, s.domain) ?? "candidate", title: s.title, backbone: s.roles.includes("근거 앵커"), published: s.published, publisher: s.publisher, roles: s.roles, why: s.why }))),
       gaps: ok ? [] : gaps, reinforce_note: summary,
-      dedup_note: `${TOPIC_SEED_MARK} · ${ok ? "성립" : "보강 필요"} · 발행처 ${pubs.size}곳 · 최다 ${Math.round(maxShare * 100)}% · 역할 ${roleSet.size}종 · ${c.dedup_note}`,
+      dedup_note: `${TOPIC_SEED_MARK} · ${ok ? "성립" : "보강 필요"} · 발행처 ${pubs.size}곳 · 최다 ${Math.round(maxShare * 100)}% · 역할 ${roleSet.size}종${short ? ` · 짧은 판 ← ${short.origId} (원본 소스 ${seeded.length}/${short.seeds.length}건 후보 · 채택 ${srcs.filter((x) => seeded.includes(x.url)).length}건)` : ""} · ${c.dedup_note}`,
     });
     const artifactKey = `sweeps/topic-seed/${todayKst()}-${id}-${job.id.slice(0, 8)}.json`;
-    await putFile(artifactKey, JSON.stringify({ job_id: job.id, backlog_id: id, topic, hint, mid_topic: midTopic, search: r1.output, added: added.map((s) => s.url), dropped, new_domains: newDomains, judge: r2.output, result: summary }, null, 1)).catch((e) => log(`  topic-seed ${id}: 산출물 저장 실패 ${e?.message ?? e}`));
+    await putFile(artifactKey, JSON.stringify({ job_id: job.id, backlog_id: id, topic, hint: searchHint, mid_topic: midTopic, search: r1.output, added: added.map((s) => s.url), dropped, new_domains: newDomains, judge: r2.output, result: summary }, null, 1)).catch((e) => log(`  topic-seed ${id}: 산출물 저장 실패 ${e?.message ?? e}`));
     // 배제 주제 판정(콘솔이 작업 전에 부른 OpenAI 호출) 비용도 이 기획의 비용에 더한다 — 작업이 아니라 따로 남을 자리가 없다 (2026-10-15)
     const screenCost = Number((job.payload.screen as { cost_usd?: number } | undefined)?.cost_usd ?? 0) || 0;
     const cost = (r1.listCostUsd ?? 0) + (r2.listCostUsd ?? 0) + screenCost;
@@ -136,10 +159,26 @@ export async function runTopicSeed(job: Job, ex: Executor) {
       prompt_version: `topic-seed-v1.1 (검색 ${maxSearches}회 상한 · 판정 cluster-v2 seed, spec ${bundle.specDigest})`, artifacts: [s3Key(artifactKey)], executed_by: executedBy, model: r2.model ?? r1.model, cost_usd: cost,
       tokens: { search: (r1.raw as { usage?: unknown } | undefined)?.usage, web_search: (r1.raw as { web_search?: unknown } | undefined)?.web_search, judge: (r2.raw as { usage?: unknown } | undefined)?.usage }, worker_rev: workerRev() }); // web_search: 호출·검색 수·검색어·본 URL (OpenAI 실행기만 — KAN-222)
     log(`  topic-seed ${id}: ${summary} ($${cost.toFixed(2)})`);
-    return { backlog_id: id, status: ok ? "proposed" : "held", added: added.length, dropped, new_domains: newDomains, gaps: ok ? [] : gaps, list_cost_usd: cost };
+    return { backlog_id: id, status, added: added.length, dropped, new_domains: newDomains, gaps: ok ? [] : gaps, list_cost_usd: cost };
   } catch (e: any) {
     // 실패한 후보는 지우지 않고 held 에 사유를 남긴다 — 사람이 [보강]·[반려]로 정리한다
     await setBacklogStatus(id, "held", { dedup_note: `⚠️ ${TOPIC_SEED_MARK} 검색 실패 (${todayKst()}): ${String(e?.message ?? e).slice(0, 200)} · 입력 "${topic.slice(0, 60)}"` }).catch(() => {});
     throw e;
   }
+}
+
+interface ShortSeed { origId: string; origTitle: string; origSeriesId: string; title: string; seeds: { url: string; title: string; publisher: string; published: string | null; summary: string | null }[] }
+/** 짧은 판 시리즈 편이면 그 편이 나온 원본 편과 원본 소스 (0041 · 2026-10-30) — 일반 시리즈면 null. 원본 편이 발행 상태가 아니면 멈춘다 */
+async function shortSeriesSeed(seriesId: string, no: number): Promise<ShortSeed | null> {
+  const s = (await pool.query("select name, plan, length_profile, remake_of from public.series where id = $1", [seriesId])).rows[0];
+  if (!s || s.length_profile !== "short" || !s.remake_of) return null;
+  const plan = (Array.isArray(s.plan) ? s.plan : []) as SeriesPlanEpisode[];
+  const fromNo = shortSeriesFromNo(plan, no);
+  const o = (await pool.query("select id, title, sources from public.backlog where series_id = $1 and series_no = $2 and status = 'published'", [s.remake_of, fromNo])).rows[0];
+  if (!o) throw new Error(`짧은 판 ${no}화의 원본 편(${fromNo}화)이 발행 상태가 아니다`);
+  const seeds = (Array.isArray(o.sources) ? o.sources : [])
+    .filter((x: { url?: unknown }) => /^https?:\/\//.test(String(x?.url ?? "")))
+    .map((x: { url: string; title?: string; publisher?: string; published?: string | null }) => ({ url: x.url, title: String(x.title ?? ""), publisher: String(x.publisher || hostOf(x.url)), published: x.published ?? null, summary: null }));
+  const title = shortSeriesEpisodeTitle(s.name, no, plan.find((e) => e.no === no)!.title);
+  return { origId: o.id, origTitle: o.title, origSeriesId: s.remake_of, title, seeds };
 }

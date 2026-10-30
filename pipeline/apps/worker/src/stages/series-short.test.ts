@@ -29,3 +29,16 @@ test("짧은 판 설계안 프롬프트 — 원본 편·범위·소스·from_no 
   assert.match(p, /5분 이상 12분 이하/);
   assert.match(p, /from_no 에 그 원본 편 번호/);
 });
+
+test("짧은 판 시리즈 편 기획 — 원본 편 번호·콘텐츠 제목·검색 힌트 (2026-10-30 편마다 자료 찾기)", () => {
+  const plan = [{ no: 1, title: "가", scope: "", carries: "", only_here: "", minutes: 9, from_no: 1 }, { no: 2, title: "나", scope: "", carries: "", only_here: "", minutes: 9 }];
+  assert.equal(P.shortSeriesFromNo(plan, 1), 1);
+  assert.throws(() => P.shortSeriesFromNo(plan, 2), /from_no/, "원본 편 번호가 없는 편은 멈춘다");
+  assert.throws(() => P.shortSeriesFromNo(plan, 3), /from_no/, "설계안에 없는 화도 멈춘다");
+  assert.equal(P.shortSeriesEpisodeTitle("계층마다 보는 네트워크", 5, "IP 주소와 네트워크 경계"), "계층마다 보는 네트워크 5 — IP 주소와 네트워크 경계");
+  const h = P.shortSeriesSeedHint("네트워크 계층", [{ title: "RFC 8200", publisher: "IETF" }, { title: "MTU Issues", publisher: "ESnet" }]);
+  assert.match(h, /원본 편 "네트워크 계층"의 소스 2건이 판정 후보에 함께 들어간다: IETF — RFC 8200 · ESnet — MTU Issues\./);
+  assert.match(h, /검색은 이 소스들이 다루지 않는 이 편 범위의 개념을 찾는다/);
+  assert.match(h, /범위에 맞지 않는 원본 소스는 뺀다/);
+  assert.match(P.shortSeriesSeedHint("x", []), /소스 0건이 판정 후보에 함께 들어간다\.\n/);
+});

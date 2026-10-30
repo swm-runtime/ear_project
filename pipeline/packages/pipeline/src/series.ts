@@ -204,6 +204,25 @@ export function normalizeShortSeriesPlan(eps: SeriesPlanEpisode[], originalTotal
 }
 
 /**
+ * 짧은 판 시리즈 편 기획 (2026-10-30 박수헌 "재제작도 기획부터 하고 거기에 맞는 자료를 찾는다") — 편 후보는 일반 시리즈 편과 같은 주제 기획(B-②)이 만든다.
+ * 원본 편(from_no)의 소스는 버리지 않고 판정에 우선 후보로 함께 넣는다. 아래는 그 기획 작업이 쓰는 값들이다(stages/topic-seed.ts).
+ */
+export function shortSeriesFromNo(plan: SeriesPlanEpisode[], no: number): number {
+  const ep = plan.find((e) => e.no === no);
+  if (!ep?.from_no) throw new Error(`짧은 판 시리즈 설계안에 ${no}화의 원본 편 번호(from_no)가 없다`);
+  return ep.from_no;
+}
+/** 짧은 판 시리즈 편의 콘텐츠 제목 — 원본 시리즈 편과 같은 꼴 */
+export function shortSeriesEpisodeTitle(name: string, no: number, title: string): string {
+  return `${name} ${no} — ${title}`;
+}
+/** 검색·판정 힌트에 덧붙이는 줄 — 검색은 원본 소스가 다루지 않는 개념을 찾고, 판정은 범위에 맞는 원본 소스를 먼저 쓴다 */
+export function shortSeriesSeedHint(origTitle: string, seeds: { title: string; publisher: string }[]): string {
+  const list = seeds.map((x) => `${x.publisher} — ${x.title}`).join(" · ");
+  return `짧은 판(5~12분) 편이다. 원본 편 "${origTitle}"의 소스 ${seeds.length}건이 판정 후보에 함께 들어간다${list ? `: ${list}` : ""}.\n검색은 이 소스들이 다루지 않는 이 편 범위의 개념을 찾는다.\n판정은 이 편 범위에 맞는 원본 소스를 먼저 쓰고, 범위에 맞지 않는 원본 소스는 뺀다.`;
+}
+
+/**
  * 계층 쌓기 층(series.thumb_layers "이름:시작-끝, …")을 짧은 판 시리즈의 새 편 번호로 옮긴다 — 원본 편 범위에 속한 새 편들의 최소~최대 번호.
  * fromNos[k] = 새 (k+1)화의 원본 편 번호. 새 편이 하나도 없는 층은 뺀다. 입력이 비거나 형식이 아니면 null
  */

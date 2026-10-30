@@ -42,7 +42,7 @@ export const SHORT_SERIES_PLAN_VERSION = "series-plan-short-v1"; // 2026-10-30 �
 
 /**
  * 짧은 판 시리즈 설계안 (KAN-296, 0041 — 2026-10-30 박수헌). 원본 시리즈의 설계안·편별 소스(발행처·제목)를 받아 원본 편 하나를 개념 단위로 1~3편(5~12분)으로 나눈다.
- * 새 편마다 from_no(원본 편 번호)를 적어 [승인] 때 그 편의 소스를 물려받은 후보가 생긴다(stages/remake.ts materialize). 이름·한 줄 소개는 원본 그대로.
+ * 새 편마다 from_no(원본 편 번호)를 적는다 — [승인] 뒤 편마다 주제 기획이 그 편의 소스를 우선 후보로 함께 판정한다(stages/topic-seed.ts). 이름·한 줄 소개는 원본 그대로.
  * 원본 편 가운데 새 편이 하나도 나오지 않은 번호는 notes 에 경고로 남긴다 — 사람이 시리즈 화면에서 보고 고친다
  */
 async function runShortSeriesPlan(job: Job, ex: Executor, s: NonNullable<Awaited<ReturnType<typeof getSeries>>>) {

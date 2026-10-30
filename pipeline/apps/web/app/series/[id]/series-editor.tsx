@@ -42,7 +42,7 @@ export function SeriesEditor({ id, status, name: name0, introLine, plan: plan0, 
               {plan.map((e, k) => (
                 <tr key={k} className="align-top">
                   <td className="py-1 font-mono text-ink-soft">{k + 1}</td>
-                  {short && <td className="py-1 font-mono text-ink-soft" title="이 편이 나온 원본 편 — 그 편의 소스를 물려받는다">{e.from_no ? `${e.from_no}화` : <span className="text-rose-600">없음</span>}</td>}
+                  {short && <td className="py-1 font-mono text-ink-soft" title="이 편이 나온 원본 편 — 주제 기획이 그 편의 소스를 우선 후보로 쓴다">{e.from_no ? `${e.from_no}화` : <span className="text-rose-600">없음</span>}</td>}
                   <td className="py-1 pr-1"><input className={inp} value={e.title} disabled={!editable} onChange={(v) => set(k, "title", v.target.value)} /></td>
                   <td className="py-1 pr-1"><textarea className={inp} rows={2} value={e.scope} disabled={!editable} onChange={(v) => set(k, "scope", v.target.value)} /></td>
                   <td className="py-1 pr-1"><textarea className={inp} rows={2} value={k === 0 ? "" : e.carries} disabled={!editable || k === 0} onChange={(v) => set(k, "carries", v.target.value)} /></td>
@@ -72,7 +72,7 @@ export function SeriesEditor({ id, status, name: name0, introLine, plan: plan0, 
             <button className={btnCls("danger")} disabled={pending} onClick={() => { if (confirm("시리즈를 중단합니다. 되돌릴 수 없습니다.")) run(() => cancelSeries(id), (r) => `중단 — 반려한 편 후보 ${r.rejected}건`); }}>중단</button>
             <button className={btnCls("primary")} disabled={pending || dirty || !plan.length}
               title={dirty ? "먼저 저장" : "편수를 확정하고 편마다 주제 기획 후보를 만든다"}
-              onClick={() => { if (confirm(short ? `${plan.length}편으로 승인합니다.\n\n짧은 판 시리즈라 편마다 원본 편의 소스를 물려받은 후보가 생기고, 초안은 1화부터 순서대로 돕니다.` : `${plan.length}편으로 승인합니다.\n\n승인하면 편수가 확정되고, 편마다 주제 기획 작업이 걸려 후보가 생깁니다.`)) run(() => approveSeries(id), (r) => `승인 — 편 후보 작업 ${r.queued}건`); }}>{plan.length}편으로 승인</button>
+              onClick={() => { if (confirm(short ? `${plan.length}편으로 승인합니다.\n\n편마다 주제 기획 작업이 걸려 원본 편의 소스와 새로 찾은 자료로 후보가 생깁니다. 짧은 판이라 성립한 편은 바로 승인되고, 초안은 1화부터 순서대로 돕니다.` : `${plan.length}편으로 승인합니다.\n\n승인하면 편수가 확정되고, 편마다 주제 기획 작업이 걸려 후보가 생깁니다.`)) run(() => approveSeries(id), (r) => `승인 — 편 후보 작업 ${r.queued}건`); }}>{plan.length}편으로 승인</button>
           </div>
         )}
         {!editable && status === "approved" && (
