@@ -87,19 +87,61 @@ def fit_span(segs: list[dict], allowed: set[int], start: int, end: int) -> tuple
     return start, end
 
 
+# 앞 내용을 가리키며 시작하는 질문은 혼자 떼어 들으면 무슨 말인지 모른다
+REFERS = ("그래서", "그럼", "그러면", "그렇다면", "그건", "그게", "그런", "그렇게", "그때", "그 ", "이 ", "이건", "이게",
+          "이렇게", "앞에서", "앞서", "방금", "거기", "아까", "여기서", "저라면", "저는", "네,", "맞아요", "다시")
+
+
 def heuristic_pick(material: dict, cands: list[dict]) -> dict:
-    """모델 없이 — 첫 본문 단락 처음부터 40초 남짓. 문구는 단락 제목으로."""
-    body = [s for s in material["sections"] if s.get("kind") == "body"]
-    first = body[0]["start_sec"] if body else cands[0]["start_sec"]
-    start = next(c["idx"] for c in cands if c["start_sec"] >= first - 0.01)
-    end = start
+    """모델 없이 — 윤아의 질문 한 줄로 시작해 이음의 답으로 끝나는 30~56초(사람이 고를 때와 같은 모양).
+    질문은 앞을 가리키지 않는 것만, 길이는 45초에 가깝고 다음 질문 직전에서 끊기는 쪽을 고른다.
+    맞는 구간이 없으면 첫 본문 단락 처음부터 40초 남짓."""
     segs = material["segments"]
-    while end + 1 in {c["idx"] for c in cands} and segs[end]["end_sec"] - segs[start]["start_sec"] < 40:
-        end += 1
-    title = (body[0].get("summary") or body[0]["title"]) if body else material["title"]
-    caption = f"{material['title']}\n\n전체 이야기는 '이어' 앱에서 들을 수 있어요.\n#이어 #팟캐스트 #AI팟캐스트"
+    allowed = {c["idx"] for c in cands}
+    body = sorted([s for s in material["sections"] if s.get("kind") == "body"], key=lambda s: s["start_sec"])
+
+    def dur(a, b):
+        return segs[b]["end_sec"] - segs[a]["start_sec"]
+
+    def is_question(i):
+        return segs[i]["speaker"] == "윤아" and segs[i]["text"].strip().endswith("?")
+
+    best = None
+    for i in sorted(allowed):
+        q = segs[i]["text"].strip()
+        if not is_question(i) or q.startswith(REFERS):
+            continue
+        j = i + 1
+        while j in allowed and dur(i, j) <= 56:
+            if segs[j]["speaker"] == "이음" and dur(i, j) >= 30:
+                natural = j + 1 not in allowed or is_question(j + 1)
+                score = (natural, -abs(dur(i, j) - 45))
+                if best is None or score > best[0]:
+                    best = (score, i, j)
+            j += 1
+    if best:
+        _, start, end = best
+    else:
+        first = body[0]["start_sec"] if body else cands[0]["start_sec"]
+        start = next(c["idx"] for c in cands if c["start_sec"] >= first - 0.01)
+        end = start
+        while end + 1 in allowed and dur(start, end) < 40:
+            end += 1
+
+    sec = None
+    for s in body:
+        if s["start_sec"] <= segs[start]["start_sec"] + 0.01:
+            sec = s
+    title = (sec.get("summary") or sec["title"]) if sec else material["title"]
+    series, _, ep_title = material["title"].partition(" — ")
+    hook = segs[start]["text"].strip() if is_question(start) else title
+    # 해시태그는 글자·숫자만 이어진다 — 공백·괄호·가운뎃점을 지운다
+    tags = " ".join("#" + re.sub(r"[^\w]", "", k) for k in (material.get("keywords") or [])[:5] if re.sub(r"[^\w]", "", k))
+    caption = (f"{hook}\n\n{material.get('one_liner') or ep_title or series}\n"
+               f"'{material['title']}' 중에서.\n\n전체 이야기는 '이어' 앱에서 들을 수 있어요.\n"
+               f"#이어 #팟캐스트 #AI팟캐스트 {tags}").strip()
     return {"start_idx": start, "end_idx": end, "title": title, "caption": caption, "image_prompts": [],
-            "reason": "모델 없이 첫 본문 단락"}
+            "reason": "모델 없이 — 질문에서 시작하는 구간" if best else "모델 없이 첫 본문 단락"}
 
 
 # ---------- build ----------
@@ -128,8 +170,15 @@ def build(args) -> None:
         # 사람이 고른 구간·문구 — {start_idx, end_idx, title, caption, reason, image_prompts?}
         with open(args.pick, encoding="utf-8") as f:
             pick = {"image_prompts": [], "reason": "사람이 고름", **json.load(f)}
+    elif use_ai:
+        try:
+            pick = ai.pick_clip(material, cands)
+        except Exception as e:  # 키가 틀렸거나 모델이 실패해도 규칙으로 고른다
+            print(f"모델 고르기 실패 — 규칙으로 고른다: {type(e).__name__}")
+            use_ai = False
+            pick = heuristic_pick(material, cands)
     else:
-        pick = ai.pick_clip(material, cands) if use_ai else heuristic_pick(material, cands)
+        pick = heuristic_pick(material, cands)
     start, end = fit_span(segs, {c["idx"] for c in cands}, int(pick["start_idx"]), int(pick["end_idx"]))
     clip_start = max(0.0, segs[start]["start_sec"] - 0.1)
     speech_end = segs[end]["end_sec"] + 0.25

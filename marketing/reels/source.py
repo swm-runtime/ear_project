@@ -92,8 +92,41 @@ def _supabase(path: str, params: dict) -> list:
     return res.json()
 
 
+def _published_by_audio() -> list[Episode]:
+    """Supabase 자격이 없을 때 — 발행 업로드는 dist.m4a 를 운영 오디오 버킷에 바이트 그대로 복사한다.
+    그래서 파이프라인 dist.m4a 의 크기가 운영 버킷 .m4a 크기 중에 있으면 발행된 편으로 본다(2026-10-30 실측:
+    알려진 발행 12편 전부 일치, 초안·미발행은 불일치). 발행 시각은 운영 객체의 업로드 시각."""
+    s3c = s3()
+    prod: dict[int, str] = {}
+    for page in s3c.get_paginator("list_objects_v2").paginate(Bucket=config.AUDIO_BUCKET, Prefix="audio/"):
+        for o in page.get("Contents", []):
+            if o["Key"].endswith(".m4a"):
+                t = o["LastModified"].isoformat()
+                prod[o["Size"]] = max(prod.get(o["Size"], ""), t)
+    out = []
+    for page in s3c.get_paginator("list_objects_v2").paginate(Bucket=config.PIPELINE_BUCKET, Prefix="episodes/"):
+        for o in page.get("Contents", []):
+            if not o["Key"].endswith("/audio/dist.m4a"):
+                continue
+            ep = o["Key"].split("/")[1]
+            # 글로벌판(G…)은 영어라 한국어 계정에 올리지 않는다
+            if not ep.startswith("G") and o["Size"] in prod:
+                out.append(Episode(ep, ep, prod[o["Size"]]))
+    return sorted(out, key=lambda e: e.published_at, reverse=True)
+
+
 def published_episodes() -> list[Episode]:
     """앱에 지금 나가 있는 한국판 편 — 최근 발행 순. 후보(backlog) 하나에 대본 버전이 여럿이면 오디오가 있는 가장 최근 것."""
+    if not (config.SUPABASE_URL and config.SUPABASE_KEY):
+        return _published_by_audio()
+    try:
+        return _published_by_supabase()
+    except Exception as e:  # 자격이 틀렸거나 비어 있어도 매일 게시는 멈추지 않는다
+        print(f"Supabase 조회 실패 — 운영 오디오 버킷으로 가린다: {type(e).__name__}")
+        return _published_by_audio()
+
+
+def _published_by_supabase() -> list[Episode]:
     backlogs = _supabase(
         "backlog",
         {"select": "id,published_at", "status": "eq.published", "order": "published_at.desc", "limit": "500"},
@@ -156,6 +189,7 @@ def episode_material(episode_id: str) -> dict:
         "segments": read_json(f"{base}/script-segments.json"),
         "sections": sections,
         "keywords": keywords,
+        "one_liner": meta.get("one_liner") or "",
         "audio_key": audio_key(episode_id),
         # 글자 없는 원본 그림을 먼저 — 시리즈 표지(thumbnail.png)는 글자가 9:16 으로 잘려 자막과 겹친다
         "thumbnail_key": next((f"{base}/{n}" for n in ("thumbnail-raw.png", "thumbnail.png") if exists(f"{base}/{n}")), None),
