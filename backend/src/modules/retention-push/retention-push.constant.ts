@@ -34,8 +34,6 @@ export const MORNING_PUSH_LOG_TYPE_PREFIX = `${RETENTION_LOG_TYPE_PREFIX}${MORNI
 export const MORNING_PUSH_DAILY_WINDOW_HOURS = 20;
 /** "안 들은 콘텐츠" — 이 일수 안에 받은(드립·탐험) 편만 센다. 오래된 미청취까지 세면 "37편"처럼 숫자가 의미를 잃는다 */
 export const MORNING_PUSH_UNPLAYED_RECENT_DAYS = 7;
-/** "오늘 이미 들었다"의 창(시간) — 08:00에서 3시간 전 = 현지 05:00(서비스 날짜 경계) */
-export const MORNING_PUSH_LISTENED_WINDOW_HOURS = 3;
 /** 보관 시한 — 아침 출근길 알림이라 점심 무렵(4시간 뒤)이면 버린다 */
 export const MORNING_PUSH_TTL_SEC = 4 * 60 * 60;
 

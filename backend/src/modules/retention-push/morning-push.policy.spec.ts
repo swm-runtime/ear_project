@@ -2,6 +2,7 @@ import { MessageLanguage } from '@/modules/user/user.enum';
 
 import {
   isWithinAdHours,
+  morningListenedSince,
   morningLogType,
   MORNING_PUSH_COPY,
   MorningUserFacts,
@@ -150,5 +151,28 @@ describe('isWithinAdHours — 광고성 알림 야간 금지(21~08시, 사용자
         new Date('2026-10-30T12:00:00.000Z'),
       ),
     ).toBe(false);
+  });
+});
+
+describe('morningListenedSince — "오늘 이미 들었다"의 시작 = 그룹 기준 시간대의 오늘 05:00', () => {
+  it('08:00 크론이면 3시간 전(05:00 KST)이다', () => {
+    expect(
+      morningListenedSince(new Date('2026-10-30T08:00:12+09:00'), 'Asia/Seoul'),
+    ).toEqual(new Date('2026-10-30T05:00:00+09:00'));
+  });
+
+  it('배치가 늦게 끝나 11:00에 보내도 05:00부터 센다 — 06:30에 들은 사용자는 "들음"이다', () => {
+    expect(
+      morningListenedSince(new Date('2026-10-30T11:07:45+09:00'), 'Asia/Seoul'),
+    ).toEqual(new Date('2026-10-30T05:00:00+09:00'));
+  });
+
+  it('다른 그룹은 그 기준 시간대의 05:00이다(서머타임 포함)', () => {
+    expect(
+      morningListenedSince(
+        new Date('2026-07-15T08:00:00-05:00'),
+        'America/Chicago',
+      ),
+    ).toEqual(new Date('2026-07-15T05:00:00-05:00'));
   });
 });
