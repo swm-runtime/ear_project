@@ -42,7 +42,12 @@ import {
   usePushLinkGate,
   useNotificationStore,
 } from '@/features/notification';
-import { PlayConfirmDialog, PlayerScreen, useLimitNoticeStore } from '@/features/player';
+import {
+  PlayConfirmDialog,
+  PlayerScreen,
+  useLimitNoticeStore,
+  useLockedPlaybackHost,
+} from '@/features/player';
 import { ProfileScreen, SignupTrialNotice } from '@/features/profile';
 import { SettingsScreen } from '@/features/settings';
 import { useShareLinkLanding } from '@/features/share';
@@ -153,6 +158,8 @@ export default function MainNavigator() {
   // 온보딩 직후 첫 콘텐츠를 멈춘 플레이어로 연다(KAN-295) — 여는 중에도 안내들을 붙든다(곧 플레이어가 오른다)
   const onboardingLanding = useOnboardingLanding(isPlayerInStack);
   const isPlayerOpen = isPlayerInStack || onboardingLanding.isOpening;
+  // 플레이어가 안 떠 있을 때(미니플레이어)의 잠금·한도 차단과 자동 재생 잠금 멈춤을 시트로 잇는다(KAN-302)
+  const lockedPlaybackGate = useLockedPlaybackHost(isPlayerInStack);
   /*
    * 착지 뒤 한 박자 쉬고 열린다(usePrePromptGate) — 화면 전환 직후 바로 튀면 같은 팝업의 연속으로 읽힌다.
    * 온보딩 직후 플레이어가 열리면 **플레이어를 닫은 뒤** 연다(KAN-295) — 먼저 띄우면 사용자가 고르지 않은 안내 두 장이 첫 재생을
@@ -347,6 +354,14 @@ export default function MainNavigator() {
         onConfirm={pushGate.confirmPlay}
         onCancel={pushGate.cancelConfirm}
         onSuppressToday={pushGate.suppressAndPlay}
+      />
+      {/* 잠금 시트에서 결제한 뒤 이어 재생의 확인 팝업(KAN-302) — 차감되는 재생일 때만 뜬다 */}
+      <PlayConfirmDialog
+        visible={lockedPlaybackGate.confirmState !== null}
+        remaining={lockedPlaybackGate.confirmState?.remaining ?? 0}
+        onConfirm={lockedPlaybackGate.confirmPlay}
+        onCancel={lockedPlaybackGate.cancelConfirm}
+        onSuppressToday={lockedPlaybackGate.suppressAndPlay}
       />
     </>
   );

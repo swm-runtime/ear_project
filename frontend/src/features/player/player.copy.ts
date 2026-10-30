@@ -234,6 +234,8 @@ const ko = {
   /** 미니플레이어(PL11) 접근성 — 시각 문자열이 아니라 뜻으로 읽힌다(uiux 7장) */
   miniPlayer: {
     playA11y: '재생',
+    /** 잠긴 시리즈 편(KAN-302) — 누르면 잠금 시트가 뜬다 */
+    lockedPlayA11y: '재생, 잠김',
     pauseA11y: '일시정지',
     expandA11y: (title: string) => `${title}, 플레이어 열기`,
     progressA11y: (totalMin: number, currentMin: number) => `${totalMin}분 중 ${currentMin}분 진행`,
@@ -405,6 +407,7 @@ const en: LocalizedCopy<typeof ko> = {
 
   miniPlayer: {
     playA11y: 'Play',
+    lockedPlayA11y: 'Play, locked',
     pauseA11y: 'Pause',
     expandA11y: (title: string) => `${title}, open player`,
     progressA11y: (totalMin: number, currentMin: number) =>

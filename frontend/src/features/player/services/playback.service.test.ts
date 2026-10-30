@@ -912,13 +912,31 @@ describe('시리즈 잠긴 편(KAN-294 — SERIES_EPISODE_LOCKED, experiments-ap
     expect(mockStartPlay).toHaveBeenCalledTimes(1);
   });
 
-  it('자동 재생의 다음 줄이 잠긴 편이면 넘어가지 않고 끝난 자리에 멈춘다', async () => {
+  it('자동 재생의 다음 줄이 잠긴 편이면 넘어가지 않고 끝난 자리에 멈춘다 — 잠금 시트를 띄울 기록을 남긴다(KAN-302)', async () => {
     // when
     await playToEnd([entryOf(CONTENT_ID), entryOf(LOCKED_ID, true)]);
 
     // then
     expect(mockIssue.mock.calls.map(([input]) => input.contentId)).toEqual([CONTENT_ID]);
     expect(usePlaybackStore.getState().session?.state).toBe('ended');
+    const pending = usePlaybackStore.getState().lockedNext;
+    expect(pending?.afterContentId).toBe(CONTENT_ID);
+    expect(pending?.entry.contentId).toBe(LOCKED_ID);
+    expect(pending?.queue.kind).toBe('explore');
+  });
+
+  it('잠긴 편 앞에서 멈춘 뒤 다른 편을 틀면 그 기록을 지운다(KAN-302)', async () => {
+    // given
+    await playToEnd([entryOf(CONTENT_ID), entryOf(LOCKED_ID, true)]);
+
+    // when
+    playbackService.start({
+      contentId: 'c0ffee00-0000-4000-8000-00000000000d',
+      entryPoint: 'explore',
+    });
+
+    // then
+    expect(usePlaybackStore.getState().lockedNext).toBeNull();
   });
 
   it('잠금 필드가 없거나 false 면(옛 서버) 종전처럼 다음 편을 튼다', async () => {

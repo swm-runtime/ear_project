@@ -96,6 +96,11 @@ export interface ResumeContent {
   topicIds: string[];
   /** 콘텐츠 언어(BCP 47 primary — `ko` · `en`). 표시 전용 — 이 값으로 거르지 않는다(global-api.md 4.7). 모르면 null */
   language: string | null;
+  /**
+   * 잠긴 시리즈 편(서버 `is_locked` — KAN-302). true 면 미니플레이어 ▶가 자물쇠가 되고, 누르면 발급 없이 잠금 시트(PW2)가 뜬다.
+   * 힌트다 — 낡았으면 결제 뒤 재요청을 서버가 다시 판정한다
+   */
+  isLocked: boolean;
 }
 
 /** 미니플레이어 복원 대상(library-api.md 4.3). 항상 일시정지 상태로 표시만 한다 */
