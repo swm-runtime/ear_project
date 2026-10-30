@@ -5,9 +5,12 @@
 
 ```
 GitHub Actions(reels-daily, 매일 08:00)
-  build ─ 발행된 편 고르기(파이프라인 Supabase: backlog.status=published, 안 쓴 편 중 최근 발행)
+  build ─ 발행된 편 고르기(안 쓴 편 중 최근 발행 — Supabase backlog.status=published, 자격이 없거나 실패하면
+          운영 오디오 버킷에 같은 크기의 m4a 가 있는 편을 발행된 편으로 본다)
         ─ 재료 받기(파이프라인 S3 episodes/<id>/: script-segments.json · script-sections.json · audio/dist.m4a · thumbnail.png)
-        ─ 구간·문구 고르기(OpenAI 텍스트 모델 — 인트로·마무리 제외, 앞 맥락 없이 이해되는 25~60초)
+        ─ 구간·문구 고르기(OpenAI 텍스트 모델 — 인트로·마무리 제외, 앞 맥락 없이 이해되는 25~60초.
+          키가 없거나 실패하면 규칙: 앞을 가리키지 않는 윤아의 질문에서 시작해 이음의 답으로 끝나는 30~56초,
+          화면 문구는 그 단락 요약)
         ─ 그림 3장(OpenAI 이미지 모델, 브랜드 색·글자 없음) — 실패하면 편 원본 그림(thumbnail-raw.png, 없으면 thumbnail.png)
         ─ 합성(ffmpeg: 천천히 확대되는 그림 + 제목 + 화자별 자막 + 파형 + 끝 카드)
         ─ S3 marketing/reels/<날짜>/ 업로드
@@ -33,9 +36,9 @@ GitHub Actions(reels-daily, 매일 08:00)
 4. **GitHub 설정** (Settings → Secrets and variables → Actions)
    | 종류 | 이름 | 값 |
    |---|---|---|
-   | secret | `PIPELINE_SUPABASE_URL` | 파이프라인 Supabase 주소 |
-   | secret | `PIPELINE_SUPABASE_SERVICE_ROLE_KEY` | 파이프라인 Supabase 서비스 키(읽기만 쓴다) |
-   | secret | `OPENAI_API_KEY` | OpenAI 키 |
+   | secret | `PIPELINE_SUPABASE_URL` | (선택) 파이프라인 Supabase 주소 — 없으면 운영 오디오 버킷으로 가린다 |
+   | secret | `PIPELINE_SUPABASE_SERVICE_ROLE_KEY` | (선택) 파이프라인 Supabase 서비스 키(읽기만 쓴다) |
+   | secret | `OPENAI_API_KEY` | (선택) OpenAI 키 — 없으면 규칙으로 고르고 그림은 편 원본 그림 |
    | secret | `REELS_SLACK_WEBHOOK_URL` | 미리보기를 받을 채널의 Incoming Webhook |
    | variable | `IG_USER_ID` | 2번의 Instagram 사용자 ID |
    | variable | `REELS_ENABLED` | `true` — 이게 있어야 매일 예약 실행한다 |
@@ -47,6 +50,7 @@ GitHub Actions(reels-daily, 매일 08:00)
    권한은 `youtube.upload`(올리기)·`youtube.force-ssl`(공개 범위 바꾸기). 올린 영상에는 'AI 생성 콘텐츠' 표시(`containsSyntheticMedia`)를 켠다.
 6. **AWS 역할 `ear-ci-reels`** (2026-10-30 생성 — OIDC, dev 브랜치만 신뢰). 권한은 아래뿐이다.
    - 파이프라인 버킷 `episodes/*` 읽기, `marketing/reels/*` 읽기·쓰기
+   - 운영 오디오 버킷 `audio/*` 목록만(내용은 못 읽는다 — 발행 여부를 크기로 가리는 데만)
    - SSM 파라미터 `/earcast/reels/*` 읽기·쓰기(인스타 토큰 갱신·유튜브 자격)
 
 ## 유튜브 수동 업로드·공개

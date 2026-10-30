@@ -4,6 +4,8 @@ import os
 AWS_REGION = os.environ.get("AWS_REGION", "ap-northeast-2")
 # 원본(대본·자막·오디오·썸네일)은 콘텐츠 파이프라인 S3 에 있다(docs/ai/spec/07-publish.md)
 PIPELINE_BUCKET = os.environ.get("PIPELINE_BUCKET", "earcast-pipeline-prod")
+# 운영 오디오 버킷 — Supabase 자격이 없을 때 발행 여부를 여기 올라간 파일 크기로 가린다(source._published_by_audio)
+AUDIO_BUCKET = os.environ.get("AUDIO_BUCKET", "earcast-audio-prod")
 # 산출물(영상·메타·상태)은 같은 버킷의 이 접두사 아래에만 쓴다
 REELS_PREFIX = os.environ.get("REELS_PREFIX", "marketing/reels").strip("/")
 
