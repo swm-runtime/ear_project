@@ -288,6 +288,32 @@ describe('validateEnv', () => {
     }
   });
 
+  it('SHORT_CONTENT_COHORT_SINCE · PLAN_DISCOUNT_ENDS_AT — 없는 날짜(13월 · 2월 30일 · 11월 31일)는 부팅에서 거부한다(조용히 꺼지거나 날짜가 넘어가지 않게)', () => {
+    for (const key of ['SHORT_CONTENT_COHORT_SINCE', 'PLAN_DISCOUNT_ENDS_AT']) {
+      for (const value of [
+        '2026-13-05T10:00+09:00',
+        '2026-02-30T10:00:00+09:00',
+        '2026-11-31T00:00:00+09:00',
+        '2026-12-01T24:30:00+09:00',
+        '2026-11-05',
+        '2026-11-05T10:00:00',
+      ]) {
+        expect(() => validateEnv({ ...validEnv, [key]: value })).toThrow(
+          new RegExp(key),
+        );
+      }
+      for (const value of [
+        '',
+        '2026-11-05T10:00:00+09:00',
+        '2026-11-05T10:00+09:00',
+        '2026-11-30T15:00:00.000Z',
+        '2026-03-08T02:30:00-05:00',
+      ]) {
+        expect(() => validateEnv({ ...validEnv, [key]: value })).not.toThrow();
+      }
+    }
+  });
+
   it('PLAN_DISCOUNT_ENDS_AT 는 오프셋 있는 ISO 시각이거나 빈 값이다 — 기간 한정 할인(11월 한 달)', () => {
     for (const value of ['2026-12-01', '2026-12-01T00:00:00', 'december']) {
       expect(() =>
