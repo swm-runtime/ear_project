@@ -90,6 +90,16 @@ describe('아침 알림 E2E', () => {
       await dataSource.query(`DELETE FROM users WHERE id = $1`, [userId]);
     }
     for (const contentId of contentIds) {
+      // 공유 DB 라 다른 e2e(드립 배치)가 이 편을 다른 사용자에게 적립 · 영구 제외했을 수 있다 — 참조 행을 먼저 지운다
+      // (안 지우면 fk_drip_excluded_contents_contents 로 이 파일 전체가 간헐 실패한다)
+      await dataSource.query(
+        `DELETE FROM drip_excluded_contents WHERE content_id = $1`,
+        [contentId],
+      );
+      await dataSource.query(
+        `DELETE FROM library_items WHERE content_id = $1`,
+        [contentId],
+      );
       await dataSource.query(`DELETE FROM contents WHERE id = $1`, [contentId]);
     }
     await app.close();
