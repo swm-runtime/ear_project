@@ -234,7 +234,11 @@ export async function episodeJudgeScores(episodeIds: string[]): Promise<Record<s
   return Object.fromEntries((data ?? []).map((e) => [e.id as string, agentScore(e.critic_verdicts)]));
 }
 
-export async function listPublishableEpisodes(): Promise<{ id: string; title: string; mid_topic: string; created_at: string }[]> {
+/**
+ * 발행 대기(패키지·오디오 완료·미발행) 단편. 시리즈 편은 시리즈 화면의 [시리즈 발행]으로만 (spec/11 7장).
+ * `standard` 는 업로드 화면의 일괄 발행, `short` 는 실험 탭의 짧은 판 일괄 발행이 쓴다 — 짧은 판(0040)은 신규 코호트 전용이라 일반 발행에 섞지 않는다
+ */
+export async function listPublishableEpisodes(kind: "standard" | "short" = "standard"): Promise<{ id: string; title: string; mid_topic: string; created_at: string }[]> {
   const sb = await supabaseServer();
   const { data: eps, error } = await sb.from("episodes").select("id,backlog_id,audio_dist_key,created_at").not("audio_dist_key", "is", null).order("created_at", { ascending: false }).order("id", { ascending: false }); // 최신순 — 접두어(T·X·S)와 무관하게
   if (error) throw new Error(error.message);
@@ -242,8 +246,10 @@ export async function listPublishableEpisodes(): Promise<{ id: string; title: st
   if (ids.length === 0) return [];
   const { data: bls } = await sb.from("backlog").select("id,title,mid_topic,status,series_id,remake_of").in("id", ids);
   const bl = Object.fromEntries((bls ?? []).map((b) => [b.id, b]));
+  const seen = new Set<string>(); // 후보당 최신 에피소드 하나 — 다시 만든 편의 옛 회차를 같이 올리지 않게
   return (eps ?? [])
-    .filter((e) => bl[e.backlog_id]?.status === "packaged" && !bl[e.backlog_id]?.series_id && !bl[e.backlog_id]?.remake_of) // 시리즈 편은 시리즈 화면의 [시리즈 발행]으로만 (spec/11 7장) · 짧은 판(0040)은 실험 탭에서만 — 신규 코호트 전용이라 일반 발행에 섞지 않는다 // 시리즈 편은 시리즈 화면의 [시리즈 발행]으로만 (spec/11 7장)
+    .filter((e) => !seen.has(e.backlog_id) && !!seen.add(e.backlog_id))
+    .filter((e) => bl[e.backlog_id]?.status === "packaged" && !bl[e.backlog_id]?.series_id && !!bl[e.backlog_id]?.remake_of === (kind === "short"))
     .map((e) => ({ id: e.id, title: bl[e.backlog_id]?.title ?? e.id, mid_topic: bl[e.backlog_id]?.mid_topic ?? "", created_at: e.created_at as string }));
 }
 

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { AutoRefresh } from "@/components/auto-refresh";
-import { Badge, PageHeader, Panel, Td } from "@/components/ui";
+import { Badge, PageHeader, Panel, Td, btnCls } from "@/components/ui";
 import { StageTrack, ProblemLine } from "@/components/stage-track";
 import { Table } from "@/components/ui";
 import { computeStages, type JobRow } from "@/lib/stages";
@@ -68,14 +68,16 @@ export default async function ExperimentsPage({ searchParams }: { searchParams: 
     .map((o) => ({ id: o.id, title: o.title, mid_topic: o.mid_topic, published_at: o.published_at, episode_id: origEpOf.get(o.id) ?? null, remake: liveRemake.get(o.id) ?? null, queued: queued.has(o.id) }));
   const s = LENGTH_SPECS.short;
   const done = (remakes ?? []).filter((r) => ["packaged", "published"].includes(r.status)).length;
+  const toPublish = (remakes ?? []).filter((r) => r.status === "packaged").length; // 발행 대기 — [일괄 발행]으로
   const hrefFor = (t: string) => `/experiments${t ? `?topic=${encodeURIComponent(t)}` : ""}${q ? `${t ? "&" : "?"}q=${encodeURIComponent(q)}` : ""}`;
   return (
     <div className="space-y-6">
       <AutoRefresh seconds={20} />
       <PageHeader title="실험 — 짧은 판" breadcrumb={["파이프라인", "실험"]}
-        desc={`발행된 단편의 주제·소스로 ${s.floorMin}~${s.maxMin}분(본문 구간 ${s.sections[0]}~${s.sections[1]}개, 선취 훅) 짧은 판을 다시 만든다(KAN-296). 설계는 원본 구성안을 보지 않고 소스만 받아 새로 짜고, 축은 원본과 같은 질문을 유지한다. 규칙은 자산 skills/draft/short.md, 비평은 짧은 판 루브릭(skills/critic/rubric-short.md)으로 채점한다. ${typeof shortTh === "number" ? `비평 합계 ${shortTh} 미만이면 발행 준비를 걸지 않고 사람 검토로 둔다.` : "관문 기준은 아직 없다 — 루브릭을 사람 판정 3편으로 보정하는 중이라 점수는 기록만 하고 발행 준비로 넘긴다."} 제목·썸네일은 원본 그대로. 짧은 판은 새 앱 배포 뒤 가입한 사용자에게만 나가므로(BE 코호트 분리) 백로그·일반 발행 목록에는 보이지 않는다 — 발행은 이 표의 [발행](원본의 변형으로 올라간다), 시리즈는 시리즈 화면의 [시리즈 발행]. 발행 준비까지 ${done}/${remakeIds.length}편.`} />
+        desc={`발행된 단편의 주제·소스로 ${s.floorMin}~${s.maxMin}분(본문 구간 ${s.sections[0]}~${s.sections[1]}개, 선취 훅) 짧은 판을 다시 만든다(KAN-296). 설계는 원본 구성안을 보지 않고 소스만 받아 새로 짜고, 축은 원본과 같은 질문을 유지한다. 규칙은 자산 skills/draft/short.md, 비평은 짧은 판 루브릭(skills/critic/rubric-short.md)으로 채점한다. ${typeof shortTh === "number" ? `비평 합계 ${shortTh} 미만이면 발행 준비를 걸지 않고 사람 검토로 둔다.` : "관문 기준은 아직 없다 — 루브릭을 사람 판정 3편으로 보정하는 중이라 점수는 기록만 하고 발행 준비로 넘긴다."} 제목·썸네일은 원본 그대로. 짧은 판은 새 앱 배포 뒤 가입한 사용자에게만 나가므로(BE 코호트 분리) 백로그·일반 발행 목록에는 보이지 않는다 — 발행은 이 표의 [발행] 또는 [일괄 발행](원본의 변형으로 올라간다), 시리즈는 시리즈 화면의 [시리즈 발행]. 발행 준비까지 ${done}/${remakeIds.length}편.`} />
 
-      <Panel title={`짧은 판 진행 (${remakeIds.length})`} flush>
+      <Panel title={`짧은 판 진행 (${remakeIds.length})`} flush
+        right={toPublish > 0 ? <Link className={btnCls("primary")} href="/experiments/publish">일괄 발행 ({toPublish}편 대기)</Link> : undefined}>
         <Table head={["원본 → 짧은 판", "상태", "진행", "막힌 곳 · 다음 행동", "만든 시각", ""]} empty="아직 짧은 판이 없다 — 아래 발행된 편에서 고른다">
           {(remakes ?? []).map((r) => {
             const e = epOf.get(r.id);

@@ -120,7 +120,8 @@ TTS 다음에 돌며 정사각형 1024×1024 PNG 한 장을 만든다. 종전에
   제목·설명·소스가 비어 있는 편은 체크할 수 없고 [단일 발행]으로 보낸다. 시리즈 편은 목록에서 빠진다(spec/11 7장). **검수 자체는
   그대로 사람이 편마다 한다**(3장) — 일괄 발행은 업로드 버튼을 모은 것이지 검수를 줄인 것이 아니다.
 - **짧은 판 발행**(2026-10-30, KAN-296 · BE KAN-298): 짧은 판 단편은 일반 발행 목록에 나오지 않고 콘솔 실험 탭(`/experiments`)의
-  [발행]으로 같은 업로드 화면에 들어간다. 업로드 payload에 `length_profile: short` · `variant_of_content_id`(패키지
+  [발행]으로 같은 업로드 화면에 들어가고, 여러 편은 실험 탭의 [일괄 발행](`/experiments/publish` — 위 일괄 발행과 같은 화면·같은
+  게이트 2 확인을 짧은 판 목록으로, 2026-10-31)으로 올린다. 업로드 payload에 `length_profile: short` · `variant_of_content_id`(패키지
   `remake_of_content_ref` — 원본의 제품 content_id) · `intro_version`(도입 훅 형태 `hook-payoff` · `hook-promise`, 후보 번호 홀짝)을
   더한다(`admin-api.md` 4.6, `apps/web/lib/short-publish.ts`). 원본 content_id가 없으면 올리기 전에 막는다. 노출은 서버가 가입
   코호트로 가른다 — `SHORT_CONTENT_COHORT_SINCE`가 비어 있으면 아무에게도 보이지 않는다. 짧은 판 시리즈는 spec/11 7장.
