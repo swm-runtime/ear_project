@@ -282,6 +282,8 @@ class PlaybackService {
   start(request: StartPlaybackRequest): void {
     // 새 요청이 왔다 — 듣던 편을 지키며 발급을 기다리던 앞 요청의 결과는 버린다
     this.pendingIssueSeq += 1;
+    // 잠긴 다음 편 앞에서 멈춘 기록(KAN-302)도 — 사용자가 다른 편을 골랐다
+    store.getState().setLockedNext(null);
     const session = store.getState().session;
     const isSameContent =
       this.ctx !== null && session !== null && session.contentId === request.contentId;
@@ -1003,7 +1005,8 @@ class PlaybackService {
    * - 맥락은 바뀌지 않는다 — 같은 목록 안에서 다음 줄로 옮겨 간 것이다. 진입점은 `player`
    * - 오늘 남은 횟수 힌트가 0이고 다음 편이 오늘 차감 전이면 넘어가지 않는다 — 듣는 도중(화면 밖일 수도 있다)에 페이월을
    *   들이밀지 않는다. 힌트가 틀려 서버가 막으면 종전 차단 처리를 그대로 탄다
-   * - 다음 편이 잠긴 편(`isLocked` — 서버 값)이면 같은 이유로 넘어가지 않는다. 추천 목록에서는 잠긴 편을 뺀다(KAN-294)
+   * - 다음 편이 잠긴 편(`isLocked` — 서버 값)이면 넘어가지도 건너뛰지도 않고 **잠금 시트를 띄울 기록**을 남긴다(KAN-302 — 화면이
+   *   앞에 있을 때 호스트가 띄운다). 추천 목록에서는 잠긴 편을 뺀다(KAN-294)
    * - 받는 사이 사용자가 다른 편을 틀었거나 다시 듣기를 눌렀으면 아무것도 하지 않는다
    * - **목록이 끝나면 추천 편으로 이어 간다**(PM 2026-10-23 "유튜브 뮤직처럼") — 플레이어 [자동 재생] 칩(추천 이어 틀기, 기본 켜짐)이
    *   켜져 있을 때만. 지금 편이 목록의 마지막 줄이거나 목록에
@@ -1058,10 +1061,18 @@ class PlaybackService {
       if (!isStillEnded()) return;
     }
     if (next === null) return;
-    // 다음 줄이 잠긴 편이면(서버 `is_locked` — KAN-294) 여기서 멈춘다. 소진 힌트와 같은 규칙 — 듣는 도중(화면 밖일 수도 있다)에
-    // 잠금 시트를 들이밀지 않고, 건너뛰지도 않는다(시리즈 3화 → 4화가 잠기면 뒤 편도 잠겨 있다 — 건너뛰면 엉뚱한 편이 이어진다).
-    // 값이 낡아 서버가 막으면 종전 차단 처리(잠금 시트)를 그대로 탄다
-    if (next.isLocked === true) return;
+    // 다음 줄이 잠긴 편이면(서버 `is_locked` — KAN-294) 여기서 멈추고 건너뛰지 않는다(시리즈 3화 → 4화가 잠기면 뒤 편도 잠겨 있다 —
+    // 건너뛰면 엉뚱한 편이 이어진다). 듣던 흐름에서 바로 구독을 권하도록 잠금 시트를 띄울 기록을 남긴다(KAN-302 — 결정 2026-10-30
+    // 박준현). 시트는 화면이 앞에 있을 때 호스트가 띄운다 — 화면 밖에서 끝났으면 앱이 앞으로 올 때. 값이 낡아 서버가 막으면 종전
+    // 차단 처리(잠금 시트)를 그대로 탄다
+    if (next.isLocked === true) {
+      store.getState().setLockedNext({
+        afterContentId: ended.contentId,
+        entry: next,
+        queue: store.getState().queueContext,
+      });
+      return;
+    }
     const { playLimit: limit } = usePlayLimitStore.getState();
     const isExhausted =
       limit !== null &&

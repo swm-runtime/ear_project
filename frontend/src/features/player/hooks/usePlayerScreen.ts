@@ -26,6 +26,7 @@ import { useDeferredSheetShare } from '@/features/share';
 import { BUFFERING_INDICATOR_DELAY_MS, PLAYER_DELETE_UNDO_DURATION_MS } from '../player.constants';
 import { PLAYER_COPY } from '../player.copy';
 import type { PlayEntryPoint, PlaybackStartMeta, QueueEntry, QueueItem } from '../player.types';
+import { takeLockedNextTarget, useIsAppActive } from './useLockedPlaybackHost';
 import { usePlayGate } from './usePlayGate';
 import { queueKeys } from './useQueueQuery';
 import { upNextKeys } from './useUpNextQuery';
@@ -280,6 +281,22 @@ export const usePlayerScreen = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- blocked 전이 1회에만 반응한다
   }, [blockedState]);
 
+  /*
+   * ── 자동 재생이 잠긴 다음 편 앞에서 멈췄다(KAN-302) — 플레이어를 닫고 잠금 시트로. 차단 403 과 같은 순서다(플레이어 모달 위에 시트를
+   * 겹치지 않는다). 듣던 편 세션은 남긴다 — 미니플레이어에 끝난 편이 그대로 있다. 위에 상세가 쌓였으면 돌아왔을 때, 화면 밖이면
+   * 앱이 앞으로 올 때 ──
+   */
+  const lockedNext = usePlaybackStore((s) => s.lockedNext);
+  const isAppActive = useIsAppActive();
+  useEffect(() => {
+    if (lockedNext === null || !isAppActive || !isFocused) return;
+    const target = takeLockedNextTarget();
+    if (target === null) return;
+    close();
+    playGate.openSeriesLock('player', undefined, target);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- 기록이 생기거나 화면이 앞으로 온 때에만 반응한다
+  }, [lockedNext, isAppActive, isFocused]);
+
   /* ── 삭제 — 스낵바 5초가 사라진 뒤에 서버 요청을 보낸다(library.md 4.5 규칙 준용) ── */
   const commitDelete = (itemId: string) => {
     const bridge = getPlayerLibraryBridge();
@@ -482,14 +499,11 @@ export const usePlayerScreen = () => {
   const reflectSavedItemId = (contentId: string, itemId: string | null) => {
     const latest = usePlaybackStore.getState();
     latest.setQueueContext(withSnapshotItemId(latest.queueContext, contentId, itemId));
-    queryClient.setQueriesData<InfiniteData<QueueEntry[]>>(
-      { queryKey: upNextKeys.all },
-      (data) => {
-        if (data === undefined) return data;
-        const pages = withPagesItemId(data.pages, contentId, itemId);
-        return pages === data.pages ? data : { ...data, pages };
-      },
-    );
+    queryClient.setQueriesData<InfiniteData<QueueEntry[]>>({ queryKey: upNextKeys.all }, (data) => {
+      if (data === undefined) return data;
+      const pages = withPagesItemId(data.pages, contentId, itemId);
+      return pages === data.pages ? data : { ...data, pages };
+    });
   };
   const saveQueueItem = (item: QueueEntry) => {
     if (item.itemId !== null) return;

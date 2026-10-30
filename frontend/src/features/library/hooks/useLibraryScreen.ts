@@ -401,6 +401,8 @@ export const useLibraryScreen = () => {
           durationSec: target.content.durationSec,
           topicIds: resumeTopicIds,
         },
+        // 잠긴 편(KAN-302) — 게이트가 발급 없이 잠금 시트를 띄운다. 결제하면 힌트를 떼고 이 편을 다시 요청한다
+        isLocked: target.content.isLocked,
         // 회수된 콘텐츠면 미니플레이어를 내리고 같은 안내를 띄운다(uiux 4.11)
         onWithdrawn: () => dismissResume(target.content.id),
       },
@@ -411,6 +413,11 @@ export const useLibraryScreen = () => {
   /** 복원 본문 탭 — 확대는 재생을 시작시키지 않는다(uiux 4.4). autoplay 없이 연다(FR-24) */
   const handleMiniPlayerExpand = () => {
     if (!visibleResumeTarget) return;
+    // 잠긴 편(KAN-302)은 플레이어를 열지 않고 ▶와 같은 잠금 시트로 — 연 플레이어의 ▶가 403 으로 다시 닫히는 길을 만들지 않는다
+    if (visibleResumeTarget.content.isLocked) {
+      handleMiniPlayerPlay();
+      return;
+    }
     navigation.navigate('Main', {
       screen: 'Player',
       params: {

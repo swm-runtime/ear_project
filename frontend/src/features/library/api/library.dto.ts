@@ -98,6 +98,11 @@ export interface ResumeContentDto {
    * 아직 안 보내는 서버에서는 없다 — 없으면 null 로 읽는다
    */
   language?: string | null;
+  /**
+   * 이 사용자에게 잠긴 시리즈 편인가(experiments-api.md 4.2-2 — KAN-290). 표시·미리 막기 힌트일 뿐 판정은 서버가 재생 요청에서 한다.
+   * 옛 서버는 보내지 않는다 — 없으면 false 로 읽는다
+   */
+  is_locked?: boolean;
 }
 
 export interface ResumeTargetDto {

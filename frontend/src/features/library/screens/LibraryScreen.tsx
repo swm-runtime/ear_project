@@ -192,6 +192,8 @@ export default function LibraryScreen() {
             durationSec: resumeTarget.content.durationSec,
             // 카테고리 줄 — 복원 응답의 topic_ids(library-api.md 4.3, KAN-91 반영 2026-09-22 · FE 매핑 09-24)
             topicIds: resumeTarget.content.topicIds,
+            // 잠긴 시리즈 편이면 ▶ 대신 자물쇠(KAN-302)
+            isLocked: resumeTarget.content.isLocked,
           }
         : null,
     [isResumeVisible, resumeTarget],

@@ -13,7 +13,7 @@
 | 선행 | 없음 — 서버 값(`GET /users/me/library-items/resume`의 `content.is_locked`)은 KAN-290(#2175)으로 개발계에 이미 있다 |
 | 근거 문서 | `spec/api/experiments-api.md` 4.2 · `spec/uiux/subscription-uiux.md` 4.6-1(PW2) · KAN-294 |
 | 중요도 | Medium |
-| 상태 | 발행 |
+| 상태 | 반영 (2026-10-30) |
 
 ## 왜
 
@@ -52,3 +52,9 @@
 
 - 2026-10-30 발행(마크다운 + Jira KAN-302, KAN-294와 연결).
 - 2026-10-30 자동재생 항목 추가(다음 줄이 잠긴 편이면 잠금 시트 — Jira KAN-302 댓글). 데일리도 4편 이후가 열린다(KAN-290 #2189).
+- 2026-10-30 반영(반영 날짜 2026-10-30 — PR 아래 커밋). FE 판단 — 화면 밖에서 끝난 자동 재생은 **앱이 앞으로 올 때 시트**를 띄운다(미니플레이어엔 끝난 편이 그대로 남는다 — 잠긴 편으로 바꿔 끼우지 않았다: 그 편은 아직 발급 전이라 세션이 없다).
+  - 복원 응답 `content.is_locked` → `ResumeContent.isLocked`(없으면 false) → 미니플레이어 자물쇠 ▶(`LockIcon`, 낭독 "재생, 잠김"). ▶·본체 탭·끌어올리기 모두 게이트의 미리 막기(`isLocked`)로 잠금 시트 — 발급·플레이어 없음, 잠긴 편은 iOS 줌 전환도 걸지 않는다. 결제 뒤 재요청은 기존 흐름 그대로.
+  - **듣는 도중 잠긴 경우의 구멍을 메웠다** — URL 갱신·재생 시작 403 `SERIES_EPISODE_LOCKED`(한도 403도)가 **플레이어가 닫힌 상태**에서 오면 종전엔 세션이 `blocked`로 바뀌며 미니플레이어만 사라지고 아무 시트도 뜨지 않았다(차단 처리는 플레이어 화면에만 있었다). 새 호스트 `useLockedPlaybackHost`(MainNavigator에 하나)가 플레이어가 안 떠 있을 때 같은 갈래(잠금 시트 · 페이월 · 한도 안내)로 잇는다.
+  - 자동 재생: 다음 줄이 잠긴 편이면 서비스가 `lockedNext`(끝난 편 · 잠긴 줄 · 목록 맥락) 기록을 남기고, 플레이어가 떠 있으면 플레이어 화면이 닫고 시트, 아니면 호스트가 시트를 띄운다(앱이 앞에 있을 때만). 그사이 다른 편을 틀면 기록을 지운다. `paywall_view` 진입은 `player`, 미니플레이어 상태의 403은 `miniplayer` — `reason = series_locked` 그대로.
+  - 문서: `features/player.md` 4.2-4 · `spec/uiux/subscription-uiux.md` 4.6-1 여는 때 · `spec/uiux/player-uiux.md` 4.8.
+  - 테스트: `useLockedPlaybackHost.test.tsx`(6) · `playback.service.test.ts` 자동 재생 잠금 기록 2건.
