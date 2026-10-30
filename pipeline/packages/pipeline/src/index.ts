@@ -860,7 +860,7 @@ ${WRITE_FACT_RULES}
 - 제목은 구성안의 축에 맞게 새로 지어도 된다 (클릭베이트 금지).
 ${templateBlock({ templates: i.templates, majorTopic: i.majorTopic, signoffSeed: i.signoffSeed, series: i.series } as DraftInput)}
 ${lengthProfileOf(i.candidate.length_profile) === "short" ? `- 도입 (규칙 13): 이 편은 짧은 판이다 — 아래 "짧은 판" 블록의 **${(i.shortHook ?? SHORT_HOOKS_DEFAULT).label} 훅** 두 턴이 도입의 전부다(진입 방식 로테이션은 쓰지 않는다).` : `- 도입 (규칙 13): 주제 선언 뒤 첫 해설 턴 사이에 청취자가 "대화에 앉는" 두세 턴. 주제를 다시 발견하는 척 금지. 이 에피소드의 진입 방식: **${i.introStyle.label}** — ${i.introStyle.hint}`}${isHistoryTopic(i.candidate.mid_topic) ? "\n" + HISTORY_WRITE_RULE : ""}
-- **이 에피소드의 목표: 약 ${i.estimatedMinutes ?? 15}분 = 공백·기호 제외 약 ${Math.round((i.estimatedMinutes ?? 15) * 341)}자 (±15%)** — 구성안의 "예상 분량"이다 (341자/분). 하한 13분(약 4,300자)은 필수이고 상한을 규칙으로 두지는 않지만, **예상 분량은 설계가 재료 총량으로 이미 정한 크기다** — 그보다 크게 쓰는 것은 재료가 많아서가 아니라 풀어 쓰기가 길어진 것이다.${seriesWriteBlock(i.series, false)}${lengthWriteBlock(lengthProfileOf(i.candidate.length_profile), i.shortHook, i.shortRules)}
+${lengthProfileOf(i.candidate.length_profile) === "short" ? `- **분량: 구성안 예상 약 ${i.estimatedMinutes ?? 9}분(공백·기호 제외 약 ${Math.round((i.estimatedMinutes ?? 9) * 341)}자)은 상한 참고값이다** — 재료를 다 쓰면 끝낸다. 아래 "짧은 판" 블록의 하한만 넘으면 된다.` : `- **이 에피소드의 목표: 약 ${i.estimatedMinutes ?? 15}분 = 공백·기호 제외 약 ${Math.round((i.estimatedMinutes ?? 15) * 341)}자 (±15%)** — 구성안의 "예상 분량"이다 (341자/분). 하한 13분(약 4,300자)은 필수이고 상한을 규칙으로 두지는 않지만, **예상 분량은 설계가 재료 총량으로 이미 정한 크기다** — 그보다 크게 쓰는 것은 재료가 많아서가 아니라 풀어 쓰기가 길어진 것이다.`}${seriesWriteBlock(i.series, false)}${lengthWriteBlock(lengthProfileOf(i.candidate.length_profile), i.shortHook, i.shortRules)}
 
 ## 이 에피소드의 재료
 ### 구성안 — outline.md (계약: 구간 순서·목적·재료·진행자 질문·전환 장치를 그대로 실행한다)

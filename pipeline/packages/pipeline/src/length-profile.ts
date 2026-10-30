@@ -1,7 +1,7 @@
 /**
  * 길이 프로필 (KAN-296 단기 실험 ④, 2026-10-29) — 한국판 편 하나하나가 어느 분량 규격으로 만들어지는가.
  *   standard — 지금까지의 규격 그대로: 하한 13분(공백·기호 제외 약 4,300자)·평균 목표 15분·상한 없음·26분 이상이면 분할 제안·본문 구간 4~6개.
- *   short    — 짧은 판: 하한 5분(약 1,700자)·목표 9분·상한 12분(약 4,100자)·분할 없음(넘치면 덜어냄)·본문 구간 2~3개.
+ *   short    — 짧은 판: 하한 5분(약 1,700자)·상한 12분(약 4,100자)·목표 분량 없음(재료로 계산, 2026-10-30)·분할 없음(넘치면 덜어냄)·본문 구간 2~3개.
  *              발행된 편의 주제를 다시 만든 재제작 후보(backlog.remake_of)가 쓴다. 새 앱 배포 뒤 가입한 사용자에게만 나간다(BE 코호트 분리).
  * 프로필은 `backlog.length_profile`(0040)에 있고 설계·대본·L0·비평이 읽는다. **standard 경로의 프롬프트·검사는 글자 하나 바뀌지 않는다** — short 일 때만 블록이 덧붙는다.
  * 한국판 전용이다(글로벌판은 MIN_MINUTES_EN 하나로 돈다).
@@ -15,7 +15,7 @@ export interface LengthSpec {
   label: string;
   /** 분량 하한(분) — 설계 예상 분량·L0 모두 이 값 */
   floorMin: number;
-  /** 설계가 목표로 적는 분량(분) — 재료가 충분할 때의 기본값 */
+  /** 설계가 목표로 적는 분량(분) — 재료가 충분할 때의 기본값. 짧은 판은 프롬프트에 목표로 내보내지 않는다(2026-10-30 — 설계가 늘 8~9분을 잡고 대본이 재확인으로 채웠다). 재제작 설계안 편 길이 상한값으로만 쓴다 */
   targetMin: number;
   /** 상한(분). null = 없음 */
   maxMin: number | null;
@@ -86,7 +86,7 @@ export function lengthDesignBlock(profile: LengthProfile, original?: { title: st
   if (!rules) throw new Error("짧은 판 편인데 짧은 판 규칙(skills/draft/short.md)을 받지 못했다");
   const s = LENGTH_SPECS.short;
   return `\n\n## 짧은 판 — 이 편은 아래 규칙이 위 규칙보다 우선한다 (KAN-296, ${rules.version})
-- 분량: **하한 ${s.floorMin}분(약 ${s.floorChars.toLocaleString()}자) · 목표 ${s.targetMin}분 · 상한 ${s.maxMin}분(약 ${s.maxChars!.toLocaleString()}자)**. 위 "분량 규칙"의 13분 하한·26분 분할은 적용하지 않는다. 재료가 ${s.maxMin}분을 넘으면 분할안을 적지 않고 구간을 덜어낸다.
+- 분량: **하한 ${s.floorMin}분(약 ${s.floorChars.toLocaleString()}자) · 상한 ${s.maxMin}분(약 ${s.maxChars!.toLocaleString()}자) · 목표 분량은 없다.** 예상 분량은 담은 재료만으로 계산한다. 재료가 적으면 짧게 잡는다 — 하한만 넘으면 된다. 위 "분량 규칙"의 13분 하한·26분 분할은 적용하지 않는다. 재료가 ${s.maxMin}분을 넘으면 분할안을 적지 않고 구간을 덜어낸다.
 - 예상 분량은 구간에 실제로 담은 재료만으로 계산한다. 제외한 재료·소스는 세지 않는다.
 - **본문 구간은 ${s.sections[0]}~${s.sections[1]}개**다. 축의 하위 질문도 그 수만큼만 편다.
 - **사용 소스 하한은 ${s.minSources}건**이다. 위의 "소스 3건 하한"은 이 편에 적용하지 않는다.${originalLine(original)}
@@ -114,7 +114,7 @@ export function lengthWriteBlock(profile: LengthProfile, hook: ShortHook = SHORT
   if (!rules) throw new Error("짧은 판 편인데 짧은 판 규칙(skills/draft/short.md)을 받지 못했다");
   const s = LENGTH_SPECS.short;
   return `\n\n## 짧은 판 — 이 편은 아래 규칙이 위 규칙보다 우선한다 (KAN-296, ${rules.version})
-- 분량: 하한 ${s.floorMin}분(약 ${s.floorChars.toLocaleString()}자) · 상한 ${s.maxMin}분(약 ${s.maxChars!.toLocaleString()}자). 위 "분량"의 13분 하한은 적용하지 않는다. 목표는 구성안의 예상 분량이다. 상한을 넘기면 해설 턴의 풀어 쓰기를 줄인다.
+- 분량: 하한 ${s.floorMin}분(약 ${s.floorChars.toLocaleString()}자) · 상한 ${s.maxMin}분(약 ${s.maxChars!.toLocaleString()}자). 위 "분량"의 13분 하한은 적용하지 않는다. 구성안의 예상 분량은 목표가 아니라 상한 참고값이다. 재료를 다 쓰면 끝낸다. 하한만 넘으면 예상보다 짧아도 된다. 같은 내용을 다시 말해 분량을 채우지 않는다. 상한을 넘기면 해설 턴의 풀어 쓰기를 줄인다.
 - 이 편의 도입은 **${hook.label} 훅**이다(아래 "도입 훅 — ${hook.label}").
 ${rules.write}
 
