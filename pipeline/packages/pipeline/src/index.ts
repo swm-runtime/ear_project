@@ -1168,7 +1168,7 @@ export const DESIGN_INLINE_SCHEMA = {
   additionalProperties: false,
   required: ["axis", "axis_type", "landing_section", "axis_source", "sections", "excerpt_ids", "gists", "claims", "outline_md", "pronunciations", "estimated_minutes", "split_proposal", "sources_used", "sources_excluded", "gaps", "notes"],
   properties: {
-    axis: { type: "string" },
+    axis: { type: "string", description: "축 한 문장 — 한국어로 쓴다" },
     axis_type: { type: "string", enum: ["대립", "역설", "재정의", "사건"] },
     landing_section: { type: "integer" },
     axis_source: { type: "string", description: "도입과 착지를 잇는 축 소스 하나 — 소스 번호만 \"S3\" 형식으로 적는다 (URL·제목 금지). 없으면 빈 문자열. 이 소스만 두 구간에 걸칠 수 있다" },
@@ -1203,6 +1203,8 @@ export interface RevisionInlineInput {
   sourcesMd: string;
   outlineMd?: string | null;
   pronunciationsJson: string;
+  /** 짧은 판 규칙과 이 편의 훅 절(lengthWriteBlock) — short 편만. 수정해도 짧은 판 형식(특히 도입 훅)을 지키게 (2026-10-30) */
+  shortBlock?: string | null;
 }
 
 export function buildRevisionPromptInlineParts(i: RevisionInlineInput): PromptParts {
@@ -1233,7 +1235,7 @@ ${fence(i.guidelines)}
 
 ## 완료 보고 — 반드시 요청된 JSON 스키마 형식으로만 출력한다. fixes 의 turn 은 "E12"·"Y7" 처럼 턴 번호, after 는 그 턴의 **발화 전문**(화자 라벨·번호·가운뎃점 없이 문장만). before 는 바꾸기 전 발화의 앞 30자. 완료 보고 전에 다른 텍스트를 출력하지 않는다.`;
   const user = `## 이번 수정 — attempt ${i.attempt}/3
-
+${i.shortBlock ? `\n## 이 편은 짧은 판이다 — 고친 턴도 아래 규칙을 지킨다. 도입 첫 해설 턴(훅)을 고칠 때는 아래 "도입 훅" 절의 형식을 그대로 지킨다${i.shortBlock}\n` : ""}
 ## 지적 사항 (전부 해소해야 한다)
 ${failures}
 

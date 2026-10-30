@@ -6,7 +6,7 @@ import type { Executor } from "../executors/index.js";
 import { buildDraftPrompt, buildDraftRevisionPrompt, DRAFT_SCHEMA, DRAFT_REVISION_SCHEMA, episodeDatePrefix, episodeIdLetter, pickIntroStyle, pipelineLocale, signoffVariants, speakerNames, type Templates } from "@ear/pipeline";
 import { exists, hostOf, log, RetryLater } from "../util.js";
 import { prepareAssets, SHORT_PROMPT_KEY, workerRev } from "../assets.js";
-import { lengthProfileOf, parseShortRules, promptBody } from "@ear/pipeline";
+import { lengthProfileOf, lengthWriteBlock, parseShortRules, promptBody, shortHookFor } from "@ear/pipeline";
 import { listPrefix, pullPrefix, pushPrefix, s3Key } from "../storage.js";
 import { parseScriptForTts } from "../tts/script.js";
 import { l0Next, runTwoStageDraft, twoStageViolations } from "./draft-two-stage.js";
@@ -154,7 +154,11 @@ export async function runDraft(job: Job, ex: Executor) {
     summary = `${episodeId} 초안 완료 (${ex.kind}, 도입 ${intro.label}, 템플릿 ${templates?.version ?? "미적용"}). ${o.turns}턴·${o.chars}자·약 ${o.minutes}분. 소스 ${o.sources_used.length}/${cand.sources.length} 사용${o.sources_excluded.length ? ` (제외: ${o.sources_excluded.map((x) => `${hostOf(x.url)} ${x.reason}`).join("; ").slice(0, 300)})` : ""}. 자기 점검 수정 ${o.self_check_fixes.length}건. ${o.notes}`;
   } else if (cfg.revisionMode === "single") {
     const failures = (job.payload.qa_failures ?? []) as { location: string; item: string; reason: string }[];
-    const rv = await runRevisionSingle({ job, ex, episodeId, dir, assetRoot, attempt, qaFailures: failures });
+    // 짧은 판(2026-10-30): 수정 단계에도 짧은 판 규칙과 이 편의 훅 절을 준다 — 없으면 일반 도입 규칙으로 약속 문장을 덮어썼다(네트워크 2화)
+    const shortBlock = pipelineLocale() === "ko" && lengthProfileOf(cand.length_profile) === "short"
+      ? await activePromptAsset(SHORT_PROMPT_KEY).then((a) => lengthWriteBlock("short", shortHookFor(cand.id), parseShortRules(promptBody(a.content), a.version)))
+      : null;
+    const rv = await runRevisionSingle({ job, ex, episodeId, dir, assetRoot, attempt, qaFailures: failures, shortBlock });
     out = rv.output; model = rv.model; costUsd = rv.costUsd; tokens = rv.tokens;
     summary = `${episodeId} 재생성 — 대본 ${attempt}회차 (${revisionWhy(job)} · 단발 · QA 피드백 ${failures.length}건 → 수정 ${rv.output.fixes.length}건${rv.unmatched.length ? `, 못 찾은 턴 ${rv.unmatched.length}` : ""}). ${rv.output.notes}`;
   } else {
@@ -196,7 +200,7 @@ export async function runDraft(job: Job, ex: Executor) {
   const seriesLinks = await readSeriesLinks(dir); // 시리즈 편(spec/11 6장) — series-links.json 이 없으면 시리즈 검사 없음
   const overlap = await seriesOverlapViolations(ex, scriptMd, seriesLinks); // 범위 검사(L1 겹침 항목) — 형제 편 몫을 풀어 쓴 곳. 한도 뒤엔 QA 로
   if (overlap.costUsd) costUsd = (costUsd ?? 0) + overlap.costUsd;
-  const violations = [...formatViolations(scriptMd), ...((await exists(outlineFile)) ? twoStageViolations(scriptMd, await fs.readFile(outlineFile, "utf8"), { signoffHeads, claimsMd, sourcesMd, notesMd, pronunciations, lengthProfile: cand.length_profile }) : []), ...seriesViolations(scriptMd, notesMd, seriesLinks), ...overlap.violations];
+  const violations = [...formatViolations(scriptMd), ...((await exists(outlineFile)) ? twoStageViolations(scriptMd, await fs.readFile(outlineFile, "utf8"), { signoffHeads, claimsMd, sourcesMd, notesMd, pronunciations, lengthProfile: cand.length_profile, shortHook: pipelineLocale() === "ko" && lengthProfileOf(cand.length_profile) === "short" ? shortHookFor(cand.id) : null, seriesNo: cand.series_no ?? null }) : []), ...seriesViolations(scriptMd, notesMd, seriesLinks), ...overlap.violations];
   // L0 수정은 QA 회차와 별도로 센다 (2026-09-09): 같은 카운터를 쓰니 시점 표현 1건 고치는 데 QA 회차 하나가 사라졌고, QA 수정본이 통계 용어로 L0 에 걸리자 attempt 3 한도에 막혀 검토 대기로 빠졌다(T260909-009)
   // 한도 3회 · 한도 뒤 비율 위반만 남으면 QA 로 넘긴다 (2026-10-07 — v9.7 이후 최종 실패 12편 중 7편, 남은 위반이 턴 한두 개짜리 비율·이름 소개였다)
   const l0Fixes = Number(job.payload.l0_fixes ?? 0);

@@ -33,7 +33,7 @@ export function updateNotesClaims(notesMd: string, fixes: { turn: string; after:
   return lines.join("\n");
 }
 
-export async function runRevisionSingle(a: { job: Job; ex: Executor; episodeId: string; dir: string; assetRoot: string; attempt: number; qaFailures: { location: string; item: string; reason: string }[] }):
+export async function runRevisionSingle(a: { job: Job; ex: Executor; episodeId: string; dir: string; assetRoot: string; attempt: number; qaFailures: { location: string; item: string; reason: string }[]; /** 짧은 판 규칙·이 편의 훅 절(lengthWriteBlock) — short 편만 */ shortBlock?: string | null }):
   Promise<{ output: { fixes: { location: string; before: string; after: string }[]; notes: string }; model: string | null; costUsd: number; tokens: unknown; unmatched: string[] }> {
   const { job, ex, episodeId, dir, attempt } = a;
   const read = (p: string) => fs.readFile(p, "utf8");
@@ -46,7 +46,7 @@ export async function runRevisionSingle(a: { job: Job; ex: Executor; episodeId: 
   const notesMd = (await exists(path.join(dir, "script-notes.md"))) ? await read(path.join(dir, "script-notes.md")) : "";
   const trimmed = trimMaterialsForFixes(a.qaFailures, scriptMd, claimsMd, sourcesMd, notesMd);
   const en = pipelineLocale() === "en"; // 글로벌판: 영어 수정 프롬프트·스키마 (global-prompts.ts)
-  const parts = (en ? buildRevisionPromptInlinePartsEn : buildRevisionPromptInlineParts)({ episodeId, attempt, qaFailures: a.qaFailures, guidelines, scriptMd, claimsMd: trimmed.claimsMd, sourcesMd: trimmed.sourcesMd, outlineMd, pronunciationsJson });
+  const parts = (en ? buildRevisionPromptInlinePartsEn : buildRevisionPromptInlineParts)({ episodeId, attempt, qaFailures: a.qaFailures, guidelines, shortBlock: a.shortBlock ?? null, scriptMd, claimsMd: trimmed.claimsMd, sourcesMd: trimmed.sourcesMd, outlineMd, pronunciationsJson });
   if (trimmed.note) log(`  draft(revision ${attempt}) ${episodeId}: ${trimmed.note}`);
   log(`  draft(revision ${attempt}) ${episodeId}: 지적 ${a.qaFailures.length}건 단발 수정 (공유 ${Math.round(parts.system.length / 1000)}K + 편별 ${Math.round(parts.user.length / 1000)}K자)`);
   const r = await ex.run<RevisionInlineOut>({

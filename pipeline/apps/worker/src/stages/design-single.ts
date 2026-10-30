@@ -51,6 +51,16 @@ export function deriveAttribution(claims: DesignInlineOut["claims"]): Map<string
 /** 구성안 정규화 (2026-09-10, T260910-007/C77): 모델이 "**축:**"·"### 구간 #1"·"- 예상 분량:"·"구간 1 —" 처럼 장식을 붙이면 줄머리 검사(`^축:`·`^구간 #1`)와
  *  L0 의 `^예상 분량:`·`^구간 #n` 이 전부 어긋나 $1.3 짜리 설계를 통째로 버렸다. 알려진 키 줄의 장식만 벗기고 정본 형태로 맞춘다 — 내용은 손대지 않는다 */
 const OUTLINE_KEYS = /^(축 해설|축|착지 구간|예상 분량|역할표|역할 없는 소스|연결·비유|마무리 한 줄|비율 합계|구간\s*#?\s*\d)/; // \b 는 한글 뒤에서 안 잡힌다 — 키 목록으로
+/** 설계 결과에 한자·가나가 네 자 이상 이어진 칸 (한국판, 2026-10-30) — 소스 제목 속 한두 자는 걸리지 않는다 */
+const FOREIGN_SCRIPT_RE = /[\u4E00-\u9FFF\u3040-\u30FF]{4,}/;
+export function foreignScriptFields(o: { axis?: string | null; outline_md?: string | null; claims?: { text?: string | null }[] | null }): string[] {
+  const out: string[] = [];
+  if (FOREIGN_SCRIPT_RE.test(o.axis ?? "")) out.push("축");
+  if ((o.claims ?? []).some((c) => FOREIGN_SCRIPT_RE.test(c.text ?? ""))) out.push("claims");
+  if (FOREIGN_SCRIPT_RE.test(o.outline_md ?? "")) out.push("구성안");
+  return out;
+}
+
 export function normalizeOutline(md: string): string {
   return md.split(/\r?\n/).map((raw) => {
     let l = raw.replace(/^\s*(?:#{1,6}\s*|[-*>]\s+)?/, "").replace(/\*\*/g, "").replace(/^\s+/, "");
@@ -155,11 +165,23 @@ export async function runDesignSingle(a: { job: Job; ex: Executor; episodeId: st
   });
   let r = await runDesign(parts.user, "설계 1/2 — 발췌 선택·claims·구성안 (단발)");
   let o = { ...r.output, outline_md: normOutline(r.output.outline_md) };
+  // 언어 흔들림 (2026-10-30): 단발 호출이라도 한 응답 안에서 언어를 바꿔 쓴다 — 10-15~10-30 설계 기록 14건에 중국어·일본어가 섞였고 축 문장 자체가 중국어인 것이 3건(C631 두 번·C583).
+  // 축·claims·구성안에 한자·가나가 네 자 이상 이어지면 한 번 재설계한다. 제외 사유·메모는 대본에 들어가지 않아 기록만 남는다
+  let langExtra = 0;
+  if (!en) {
+    const where = foreignScriptFields(o);
+    if (where.length) {
+      log(`  design ${episodeId}: ${where.join("·")}에 한자·가나 — 재설계 1회`);
+      langExtra = r.listCostUsd ?? 0;
+      r = await runDesign(parts.user + `\n\n## 언어 반려 — 1차 설계\n${where.join("·")}에 한자·가나 문장이 섞였다. 축·claims·구성안·메모는 전부 한국어로 쓴다. 같은 설계를 한국어로 다시 낸다.`, "설계 1/2 — 언어 반려 → 재설계 (단발)");
+      o = { ...r.output, outline_md: normOutline(r.output.outline_md) };
+    }
+  }
   // 축 심사 (full-v8.1, 2026-09-19): 구성안의 구간이 축의 하위 질문에 답하는지 값싼 단발 호출로 본다. fail 이면 반려 사유를 붙여 한 번 재설계하고,
   // 그래도 fail 이면 기록만 남기고 진행한다(설계를 막지 않는다 — 사람 판정 3.6 이 최종). T260918-003: #3~#5 가 "리뷰"에서 "통계의 함정"으로 번져 3.6 사람 4점
   let axisNote = "축 심사 끔";
   let axisCost = 0;
-  let extraCost = 0; // 재설계 앞 실행의 비용 (full-v8.3)
+  let extraCost = langExtra; // 재설계 앞 실행의 비용 (full-v8.3) — 언어 반려 재설계 포함
   if (cfg.axisCheck) {
     const check = async (outlineMd: string) => {
       const ap2 = en ? buildAxisCheckPromptPartsEn({ outlineMd, history: isHistoryCandidateEn(cand) }) : buildAxisCheckPromptParts({ outlineMd, midTopic: cand.mid_topic });
