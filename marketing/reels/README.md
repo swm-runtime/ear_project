@@ -1,6 +1,6 @@
-# 이어 인스타 릴스 자동화
+# 이어 릴스·쇼츠 자동화
 
-매일 08:00(KST) 앱에 발행된 편 하나로 30~60초 릴스를 만들고, 사람이 승인하면 인스타그램에 올린다.
+매일 08:00(KST) 앱에 발행된 편 하나로 30~60초 영상을 만들어 **승인 없이** 인스타 릴스와 유튜브 쇼츠에 올린다(2026-10-30 PM 지시 — 그전엔 사람 승인 뒤 인스타만).
 인스타 팔로워를 늘리는 마케팅 도구다 — 제품 코드(`frontend/`·`backend/`)·콘텐츠 파이프라인(`pipeline/`)과 섞지 않는다.
 
 ```
@@ -10,8 +10,8 @@ GitHub Actions(reels-daily, 매일 08:00)
         ─ 구간·문구 고르기(OpenAI 텍스트 모델 — 인트로·마무리 제외, 앞 맥락 없이 이해되는 25~60초)
         ─ 그림 3장(OpenAI 이미지 모델, 브랜드 색·글자 없음) — 실패하면 편 원본 그림(thumbnail-raw.png, 없으면 thumbnail.png)
         ─ 합성(ffmpeg: 천천히 확대되는 그림 + 제목 + 화자별 자막 + 파형 + 끝 카드)
-        ─ S3 marketing/reels/<날짜>/ 업로드 → Slack 미리보기(12시간 링크 + 승인 링크)
-  publish ─ 환경 reels-publish 승인 대기 → 인스타 릴스 게시 → Slack 에 게시 주소
+        ─ S3 marketing/reels/<날짜>/ 업로드
+  publish ─ 인스타 릴스 게시 · 유튜브 쇼츠 게시(따로 시도 — 한쪽 자격이 없거나 실패해도 다른 쪽은 올린다) → Slack 에 주소
 ```
 
 - **같은 편은 다시 쓰지 않는다.** 게시한 편은 영영, 제안만 하고 게시 안 한 편은 30일 동안 건너뛴다(`marketing/reels/state.json`).
@@ -39,10 +39,22 @@ GitHub Actions(reels-daily, 매일 08:00)
    | secret | `REELS_SLACK_WEBHOOK_URL` | 미리보기를 받을 채널의 Incoming Webhook |
    | variable | `IG_USER_ID` | 2번의 Instagram 사용자 ID |
    | variable | `REELS_ENABLED` | `true` — 이게 있어야 매일 예약 실행한다 |
-5. **승인 환경.** Settings → Environments → `reels-publish` 만들기 → Required reviewers 에 승인할 사람.
-6. **AWS 역할 `ear-ci-reels`** (OIDC — dev 브랜치와 환경 reels-publish 만 신뢰). 권한은 아래 셋뿐이다.
+5. **유튜브** (2026-10-30 완료) — runtime364 계정, GCP 프로젝트 earcast 에 YouTube Data API v3 사용 설정,
+   OAuth 클라이언트(데스크톱 앱) `ear-reels-youtube-upload`. 채널 계정으로 한 번 승인하면 자격이 SSM `/earcast/reels/yt-oauth` 에 들어간다.
+   ```
+   python youtube.py auth --client-secret client_secret.json   # 브라우저에서 채널 계정으로 승인
+   ```
+   권한은 `youtube.upload`(올리기)·`youtube.force-ssl`(공개 범위 바꾸기). 올린 영상에는 'AI 생성 콘텐츠' 표시(`containsSyntheticMedia`)를 켠다.
+6. **AWS 역할 `ear-ci-reels`** (2026-10-30 생성 — OIDC, dev 브랜치만 신뢰). 권한은 아래뿐이다.
    - 파이프라인 버킷 `episodes/*` 읽기, `marketing/reels/*` 읽기·쓰기
-   - SSM 파라미터 `/earcast/reels/ig-token` 읽기·쓰기
+   - SSM 파라미터 `/earcast/reels/*` 읽기·쓰기(인스타 토큰 갱신·유튜브 자격)
+
+## 유튜브 수동 업로드·공개
+
+```
+python youtube.py upload --manifest uploads.json --out result.json   # [{file,title,description,tags,privacy,thumbnail?}] — 기본 비공개
+python youtube.py privacy public <영상ID> ...                         # 확인한 뒤 공개로
+```
 
 ## 수동 실행
 
