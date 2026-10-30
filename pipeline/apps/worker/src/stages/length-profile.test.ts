@@ -63,7 +63,9 @@ test("길이 프로필 — short 는 설계·대본에 숫자 줄(코드)과 짧
   assert.match(w2.user, /약속 문장 한 문장에 이번 편의 주요 내용과, 그 내용을 듣고 나서 청취자가 얻는 것을 함께 담는다/, "약속형은 한 문장에 내용과 얻는 것(short-v1.4)");
   assert.match(w2.user, /약속은 한 문장이다/);
   assert.match(w2.user, /내릴 수 있게 되는 결정이나 할 수 있게 되는 일/);
-  assert.match(w2.user, /문장의 주어는 청취자다/);
+  assert.match(w2.user, /약속 문장은 이번 편을 가리키는 말로 시작한다/, "약속 문장은 이번 편에서 시작(short-v1.5)");
+  assert.match(w2.user, /"여러분"·"청취자 여러분"으로 시작하지 않는다/);
+  assert.doesNotMatch(w2.user, /문장의 주어는 청취자다/, "주어 규칙이 '청취자 여러분은' 시작을 낳았다 — 지운다");
   assert.match(w2.user, /훅 문장은 청취자가 보거나 겪는 일을 말한다/, "훅은 장치 안의 동작이 아니라 청취자 장면(short-v1.3)");
   assert.equal(P.pickShortHook(600).key, "payoff"); assert.equal(P.pickShortHook(601).key, "promise");
   assert.equal(P.shortHookFor("C600").key, "payoff"); assert.equal(P.shortHookFor("C601").key, "promise", "설계·대본이 같은 훅을 쓴다");
