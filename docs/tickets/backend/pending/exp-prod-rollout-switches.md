@@ -29,6 +29,7 @@
 | `PLAN_DISCOUNT_DISPLAY_ENABLED` | `true` | ① 할인 표시 KAN-286 | 스토어 가격 변경 + FE KAN-299 배포와 같은 때 | 꺼짐 |
 | `PLAN_DISCOUNT_ORIGINAL_PRICE_DAILY_KRW` | `3900` | ① | 위와 함께 | 비어 있음 |
 | `PLAN_DISCOUNT_ORIGINAL_PRICE_PRO_KRW` | `9900` | ① | 위와 함께 | 비어 있음 |
+| `PLAN_DISCOUNT_ENDS_AT` | `2026-12-01T00:00:00+09:00` | ① 11월 한 달 기간 한정 할인(2026-10-30 결정) | 위와 함께. 이 시각부터 할인 표시가 자동으로 꺼진다(스토어 가격 원복과 맞춘다). 12-01 뒤 `plans.price_krw`를 3,900 · 9,900원으로 되돌리는 마이그레이션을 따로 낸다 | 비어 있음 |
 | `FIRST_DRIP_RANDOM_ENABLED` | `true` | ⑥ 첫 드립 랜덤 KAN-291 | 가능하면 코호트 분리일과 **다른 날** | `true` (Secrets) |
 | `DRIP_ARRIVAL_AB_ENABLED` | `true` | ③-1 도착 알림 시각 A/B KAN-289 | 개발계 07:30·08:00 로그 확인 뒤. 켠 시각을 티켓에 기록(07:00 기준선은 처리 기록에 고정됨) | 구현 중 |
 | `RETENTION_MORNING_PUSH_MODE` | `dry_run` → `on` | ③ 아침 알림 KAN-288 | 개발계 dry_run 08:00 로그·시험 기기 확인 뒤. 저녁 `RETENTION_PUSH_MODE`와 따로 켠다 | 구현 중 |

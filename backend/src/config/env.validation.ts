@@ -290,7 +290,7 @@ export class EnvironmentVariables {
   /**
    * 시리즈 유료화(KAN-290 — 단기 실험 ⑤, `experiments-api.md` 4.2)의 서버 스위치. `true`/`false`. **`true`를 명시했을 때만 켜진다.**
    * 꺼져 있으면 모든 응답의 `is_locked = false`이고 `SERIES_EPISODE_LOCKED`도 나지 않는다(종전과 같다). 켜면 시리즈의
-   * `SERIES_FREE_EPISODES`편 뒤 편을 최상위 유료 요금제(pro — 초대 코드 Pro 포함)·가입 체험 중이 아닌 사용자에게 잠근다
+   * `SERIES_FREE_EPISODES`편 뒤 편을 유료 요금제(daily · pro — 초대 코드 Pro 포함)·가입 체험 중이 아닌 사용자에게 잠근다(2026-10-30 데일리 개방)
    */
   @IsOptional()
   @IsIn(['true', 'false', ''])
@@ -322,6 +322,21 @@ export class EnvironmentVariables {
     message: 'PLAN_DISCOUNT_ORIGINAL_PRICE_PRO_KRW must be a positive integer',
   })
   PLAN_DISCOUNT_ORIGINAL_PRICE_PRO_KRW?: string;
+
+  /**
+   * 할인 표시를 끄는 시각(ISO 8601 + 오프셋, 예 2026-12-01T00:00:00+09:00) — 기간 한정 할인(11월 한 달, 2026-10-30 결정).
+   * 이 시각부터는 `PLAN_DISCOUNT_DISPLAY_ENABLED`와 무관하게 `is_discounted = false`다(스토어 가격을 되돌린 뒤 "할인 중"이 남지 않게).
+   * 비우면 끝나는 시각이 없다
+   */
+  @IsOptional()
+  @Matches(
+    /^$|^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:\d{2})$/,
+    {
+      message:
+        'PLAN_DISCOUNT_ENDS_AT must be an ISO 8601 datetime with offset (e.g. 2026-12-01T00:00:00+09:00)',
+    },
+  )
+  PLAN_DISCOUNT_ENDS_AT?: string;
 
   /**
    * 콘텐츠 후기(`content-review-api.md` 2.1 — KAN-279)의 서버 스위치. `true`/`false`. **`true`를 명시했을 때만 켜진다.**

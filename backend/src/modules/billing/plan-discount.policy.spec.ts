@@ -14,21 +14,22 @@ const ON: PlanDiscountConfig = {
   enabled: true,
   originalPriceKrw: { [UserTier.DAILY]: 3900, [UserTier.PRO]: 9900 },
 };
+const NOW = new Date('2026-11-10T03:00:00.000Z');
 
 describe('resolvePlanDiscount — 요금제 할인 표시(KAN-286)', () => {
   it('스위치가 켜져 있고 정가가 지금 가격보다 크면 할인이고 정가를 준다', () => {
-    expect(resolvePlanDiscount(DAILY, ON)).toEqual({
+    expect(resolvePlanDiscount(DAILY, ON, NOW)).toEqual({
       originalPriceKrw: 3900,
       isDiscounted: true,
     });
-    expect(resolvePlanDiscount(PRO, ON)).toEqual({
+    expect(resolvePlanDiscount(PRO, ON, NOW)).toEqual({
       originalPriceKrw: 9900,
       isDiscounted: true,
     });
   });
 
   it('스위치가 꺼져 있으면 정가가 설정돼 있어도 할인이 아니다', () => {
-    expect(resolvePlanDiscount(DAILY, { ...ON, enabled: false })).toEqual({
+    expect(resolvePlanDiscount(DAILY, { ...ON, enabled: false }, NOW)).toEqual({
       originalPriceKrw: null,
       isDiscounted: false,
     });
@@ -40,9 +41,11 @@ describe('resolvePlanDiscount — 요금제 할인 표시(KAN-286)', () => {
       originalPriceKrw: { [UserTier.PRO]: 9900 },
     };
 
-    expect(resolvePlanDiscount(DAILY, onlyPro).isDiscounted).toBe(false);
-    expect(resolvePlanDiscount(DAILY, onlyPro).originalPriceKrw).toBeNull();
-    expect(resolvePlanDiscount(PRO, onlyPro).isDiscounted).toBe(true);
+    expect(resolvePlanDiscount(DAILY, onlyPro, NOW).isDiscounted).toBe(false);
+    expect(
+      resolvePlanDiscount(DAILY, onlyPro, NOW).originalPriceKrw,
+    ).toBeNull();
+    expect(resolvePlanDiscount(PRO, onlyPro, NOW).isDiscounted).toBe(true);
   });
 
   it('정가가 지금 가격 이하이면 할인이라고 말하지 않는다', () => {
@@ -51,11 +54,11 @@ describe('resolvePlanDiscount — 요금제 할인 표시(KAN-286)', () => {
       originalPriceKrw: { [UserTier.DAILY]: 1900, [UserTier.PRO]: 2900 },
     };
 
-    expect(resolvePlanDiscount(DAILY, same)).toEqual({
+    expect(resolvePlanDiscount(DAILY, same, NOW)).toEqual({
       originalPriceKrw: null,
       isDiscounted: false,
     });
-    expect(resolvePlanDiscount(PRO, same)).toEqual({
+    expect(resolvePlanDiscount(PRO, same, NOW)).toEqual({
       originalPriceKrw: null,
       isDiscounted: false,
     });
@@ -67,7 +70,7 @@ describe('resolvePlanDiscount — 요금제 할인 표시(KAN-286)', () => {
       originalPriceKrw: { [UserTier.LIGHT]: 1000 },
     };
 
-    expect(resolvePlanDiscount(LIGHT, lightOriginal)).toEqual({
+    expect(resolvePlanDiscount(LIGHT, lightOriginal, NOW)).toEqual({
       originalPriceKrw: null,
       isDiscounted: false,
     });
@@ -108,5 +111,31 @@ describe('planDiscountConfigOf — env 해석', () => {
         }),
       ).originalPriceKrw,
     ).toEqual({ [UserTier.PRO]: 9900 });
+  });
+});
+
+describe('resolvePlanDiscount — 기간 한정 할인 종료 시각(PLAN_DISCOUNT_ENDS_AT, 11월 한 달)', () => {
+  const ENDS = { ...ON, endsAt: new Date('2026-12-01T00:00:00+09:00') };
+
+  it('종료 시각 전에는 할인이고, 그 시각부터는 스위치가 켜져 있어도 할인이 아니다', () => {
+    expect(
+      resolvePlanDiscount(DAILY, ENDS, new Date('2026-11-30T23:59:59+09:00')),
+    ).toEqual({ originalPriceKrw: 3900, isDiscounted: true });
+    expect(
+      resolvePlanDiscount(DAILY, ENDS, new Date('2026-12-01T00:00:00+09:00')),
+    ).toEqual({ originalPriceKrw: null, isDiscounted: false });
+  });
+
+  it('설정 해석 — 오프셋 있는 ISO 시각을 읽고 빈 값은 끝나는 시각 없음이다', () => {
+    const read = (endsAt: string) => (key: string) =>
+      ({
+        PLAN_DISCOUNT_DISPLAY_ENABLED: 'true',
+        PLAN_DISCOUNT_ENDS_AT: endsAt,
+      })[key];
+
+    expect(
+      planDiscountConfigOf(read('2026-12-01T00:00:00+09:00')).endsAt,
+    ).toEqual(new Date('2026-11-30T15:00:00.000Z'));
+    expect(planDiscountConfigOf(read('')).endsAt).toBeNull();
   });
 });
