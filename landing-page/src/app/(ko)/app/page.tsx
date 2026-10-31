@@ -9,8 +9,8 @@ import { androidStoreUrl, iosStoreUrl } from "@/content/site";
 /**
  * 앱 받기 링크 — `https://earcast.co.kr/app/`.
  *
- * 휴대폰으로 열면 `AppStoreRedirect`가 기기에 맞는 스토어로 바로 보낸다. 이 화면은 데스크톱이나
- * 자동 이동이 막힌 인앱 브라우저에서만 보인다 — 그래서 두 스토어 버튼을 둔다.
+ * 휴대폰으로 열면 `AppStoreRedirect`가 기기에 맞는 스토어로 바로 보내고, PC면 랜딩으로 보낸다.
+ * 이 화면은 자동 이동이 막힌 환경에서만 보인다 — 그래서 두 스토어 버튼을 둔다.
  *
  * 인스타그램 프로필 링크 등 "링크 하나" 자리에 쓴다(2026-10-04, 메타 광고·인스타 운영).
  * 출처를 남기려면 `/app/?src=ig_bio` 처럼 붙인다(규칙은 `AppStoreRedirect.tsx`).
