@@ -306,7 +306,10 @@ export class FirstDripService {
     }
 
     // 짧은 판 코호트(KAN-298) — 첫 드립·인기 대체 편성 모두 같은 길이 프로필 안에서만 고른다(standard로 폴백하지 않는다)
-    const lengthProfile = this.contentCohortService.resolve(user.createdAt);
+    const lengthProfile = this.contentCohortService.resolve(
+      user.createdAt,
+      user.market,
+    );
     const pool = await this.contentService.findCandidates({
       market: user.market,
       lengthProfile,

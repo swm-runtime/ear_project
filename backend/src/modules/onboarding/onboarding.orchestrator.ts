@@ -243,7 +243,10 @@ export class OnboardingOrchestrator {
     }
 
     // 온보딩 추천(담기)도 노출면이다 — 짧은 판 코호트와 같은 길이 프로필만 권한다(KAN-298)
-    const lengthProfile = this.contentCohortService.resolve(user.createdAt);
+    const lengthProfile = this.contentCohortService.resolve(
+      user.createdAt,
+      user.market,
+    );
     const interestContents = await this.selectInterestContents(
       topicIds,
       now,

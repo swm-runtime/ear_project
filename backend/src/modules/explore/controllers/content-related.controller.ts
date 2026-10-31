@@ -48,6 +48,7 @@ export class ContentRelatedController {
         // 추천 블록은 노출면이다 — 기준 편은 막지 않고 후보만 코호트로 거른다(KAN-298)
         lengthProfile: this.contentCohortService.resolve(
           currentUser.signedUpAt,
+          toUserMarket(currentUser.market),
         ),
         excludeIds: query.exclude_ids ?? [],
         // 기본값은 서버가 정한다 — 클라이언트에 상수로 두면 서버가 바꿀 때 어긋난다

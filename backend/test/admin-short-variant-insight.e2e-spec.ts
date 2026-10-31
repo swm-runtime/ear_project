@@ -86,6 +86,8 @@ describe('짧은 판·도입부 실험 지표 E2E', () => {
   let original: Content;
   let short: Content;
   let firstOnly: Content;
+  // GLOBAL 가입자만 듣는 편 — 짧은 판 비교는 KR 실험이라 어느 코호트에도 들지 않아야 한다(2026-10-31)
+  let globalOnly: Content;
 
   async function createApp(
     cohortService: ContentCohortService,
@@ -128,6 +130,7 @@ describe('짧은 판·도입부 실험 지표 E2E', () => {
     original = await seedContent('standard', null, null, 600);
     short = await seedContent('short', original.id, 'hook-v2', 300);
     firstOnly = await seedContent('standard', null, null, 600);
+    globalOnly = await seedContent('standard', null, null, 600);
 
     const at = (base: Date, offsetMs: number) =>
       new Date(base.getTime() + offsetMs);
@@ -136,6 +139,11 @@ describe('짧은 판·도입부 실험 지표 E2E', () => {
     const veteran = await seedUser('veteran', at(SINCE, -30 * DAY));
     const new1 = await seedUser('new1', at(SINCE, DAY));
     const new2 = await seedUser('new2', at(SINCE, 2 * DAY));
+    const globalNew = await seedUser(
+      'global-new',
+      at(SINCE, DAY),
+      UserMarket.GLOBAL,
+    );
 
     await play(old1.id, firstOnly.id, at(old1.createdAt, HOUR), 5);
     await play(old1.id, original.id, at(old1.createdAt, 2 * DAY), 600);
@@ -145,6 +153,7 @@ describe('짧은 판·도입부 실험 지표 E2E', () => {
     await play(new1.id, original.id, new Date(NOW - HOUR), 300);
     await play(new2.id, firstOnly.id, at(new2.createdAt, HOUR), 100);
     await play(new2.id, short.id, at(new2.createdAt, 2 * DAY), 300);
+    await play(globalNew.id, globalOnly.id, at(globalNew.createdAt, HOUR), 50);
 
     await dataSource.query(
       `INSERT INTO library_items (user_id, content_id, source, status, added_at)
@@ -184,7 +193,15 @@ describe('짧은 판·도입부 실험 지표 E2E', () => {
     await app.close();
   }, 60_000);
 
+  /** 이 테스트가 심은 편의 행 — GLOBAL 전용 편은 아래 전용 테스트만 본다(집계 기대값을 흔들지 않게) */
   async function mineRows(
+    cohortSince: Date | null,
+  ): Promise<InsightsShortVariantRow[]> {
+    const rows = await allMineRows(cohortSince);
+    return rows.filter((r) => r.contentId !== globalOnly.id);
+  }
+
+  async function allMineRows(
     cohortSince: Date | null,
   ): Promise<InsightsShortVariantRow[]> {
     const rows = await app
@@ -282,6 +299,17 @@ describe('짧은 판·도입부 실험 지표 E2E', () => {
       [null, 5],
       ['hook-v2', 2],
     ]);
+  }, 60_000);
+
+  it('GLOBAL 가입자는 경계 뒤 가입이어도 어느 코호트에도 들지 않는다 — 짧은 판은 KR 실험', async () => {
+    // when
+    const rows = (await allMineRows(SINCE)).filter(
+      (r) => r.contentId === globalOnly.id,
+    );
+
+    // then
+    expect(rows.length).toBeGreaterThan(0);
+    expect(rows.every((r) => r.cohort === null)).toBe(true);
   }, 60_000);
 
   it('경계가 비면 전부 코호트 null 이다', async () => {
@@ -395,7 +423,11 @@ describe('짧은 판·도입부 실험 지표 E2E', () => {
     );
   }
 
-  async function seedUser(label: string, createdAt: Date): Promise<User> {
+  async function seedUser(
+    label: string,
+    createdAt: Date,
+    market: UserMarket = UserMarket.KR,
+  ): Promise<User> {
     const repository = dataSource.getRepository(User);
     const user = await repository.save(
       repository.create({
@@ -403,7 +435,7 @@ describe('짧은 판·도입부 실험 지표 E2E', () => {
         providerUserId: `${STAMP}-${label}`,
         role: UserRole.USER,
         onboardingCompleted: true,
-        market: UserMarket.KR,
+        market,
       }),
     );
     userIds.push(user.id);
