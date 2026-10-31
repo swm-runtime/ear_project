@@ -156,6 +156,7 @@ describe('AdminInsightsService.dripArrivalTime', () => {
       a: 'drip_arrival.a',
       b: 'drip_arrival.b',
       morningPrefix: 'retention.morning.',
+      morningHoldout: 'retention.morning.holdout',
     });
     expect(options.serviceDays.length).toBeGreaterThanOrEqual(90);
     expect(options.serviceDays[0].start.getTime()).toBeLessThanOrEqual(
@@ -169,6 +170,7 @@ describe('AdminInsightsService.dripArrivalTime', () => {
       ['a', '07:30', false],
       ['b', '08:00', false],
       ['morning', '08:00', true],
+      ['morning_holdout', '08:00', true],
     ]);
     expect(result.arms[2].playRate2h).toBe(1 / 3);
   });

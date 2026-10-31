@@ -721,7 +721,8 @@ export class AdminInsightsRepository {
   /**
    * 도착 알림 시각 실험 재료(KAN-289, 2026-10-30) — 창(`since` 이후) 안에 **보낸**(`sent`) 알림을 묶음별로 센다.
    * - 묶음: `baseline` = `drip_arrival`(07:00) · `a` = `drip_arrival.a`(07:30) · `b` = `drip_arrival.b`(08:00) ·
-   *   `morning` = `retention.morning.*`(참고 행). 종류 문자열은 Service 가 정책 함수로 만들어 넘긴다.
+   *   `morning` = `retention.morning.*`(참고 행) · `morning_holdout` = 아침 알림 비교 그룹(보낼 대상이었지만 보내지 않은 `skipped` 기록 —
+   *   보낸 시각 대신 정했던 시각으로 센다, 2026-10-31). 종류 문자열은 Service 가 정책 함수로 만들어 넘긴다.
    * - 2시간 재생 = 알림 반응(`pushReactions`)과 같은 조각(`playedBetween`) · 보낸 뒤 2시간.
    * - 당일 재생 = 같은 조각 · 보낸 시각부터 **그 서비스 날짜의 끝**까지. 날짜 경계(04:00 → 05:00 전환)는 Service 가
    *   `toServiceDayRange`로 계산한 `[start, end)` 배열로 넘긴다 — 이 파일이 경계를 다시 계산하지 않는다.
@@ -731,7 +732,14 @@ export class AdminInsightsRepository {
     since: Date,
     options: {
       market: UserMarket | null;
-      types: { baseline: string; a: string; b: string; morningPrefix: string };
+      types: {
+        baseline: string;
+        a: string;
+        b: string;
+        morningPrefix: string;
+        /** 아침 알림 비교 그룹(보내지 않음 — `skipped`) 종류 */
+        morningHoldout: string;
+      };
       serviceDays: { start: Date; end: Date }[];
     },
   ): Promise<InsightsDripArrivalTimeRow[]> {
@@ -750,17 +758,21 @@ export class AdminInsightsRepository {
          select * from unnest($7::timestamptz[], $8::timestamptz[]) as d(start_at, end_at)
        ),
        l as (
-         select n.user_id, n.sent_at, d.end_at as day_end,
+         -- 아침 알림 비교 그룹은 보내지 않은(skipped) 기록이라 sent_at 이 비어 있다 — 정했던 시각(scheduled_at)을 보낸 시각 자리에 쓴다
+         select n.user_id, coalesce(n.sent_at, n.scheduled_at) as sent_at, d.end_at as day_end,
                 case
+                  when n.type = $9 then 'morning_holdout'
                   when n.type = $3 then 'baseline'
                   when n.type = $4 then 'a'
                   when n.type = $5 then 'b'
                   else 'morning'
                 end as key
            from notification_logs n
-           join days d on n.sent_at >= d.start_at and n.sent_at < d.end_at
-          where n.status = 'sent' and n.sent_at >= $1
-            and (n.type in ($3, $4, $5) or n.type like $6 || '%')
+           join days d on coalesce(n.sent_at, n.scheduled_at) >= d.start_at
+                      and coalesce(n.sent_at, n.scheduled_at) < d.end_at
+          where ((n.status = 'sent' and n.sent_at >= $1
+                  and (n.type in ($3, $4, $5) or n.type like $6 || '%'))
+                 or (n.status = 'skipped' and n.type = $9 and n.scheduled_at >= $1))
             and ${userInMarket('n.user_id', '$2')}
        )
        select l.key,
@@ -782,6 +794,7 @@ export class AdminInsightsRepository {
         options.types.morningPrefix,
         options.serviceDays.map((d) => d.start),
         options.serviceDays.map((d) => d.end),
+        options.types.morningHoldout,
       ],
     );
     return rows.map((r) => ({

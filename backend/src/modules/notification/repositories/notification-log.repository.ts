@@ -80,6 +80,30 @@ export class NotificationLogRepository {
     }));
   }
 
+  /** `since` 이후 종류가 `type`이고 상태가 `status`인 기록이 있는 사용자 — 보내지 않은 기록(비교 그룹)의 하루 1건 판정 */
+  async findUserIdsByTypeAndStatusSince(
+    userIds: string[],
+    type: string,
+    status: NotificationStatus,
+    since: Date,
+    manager?: EntityManager,
+  ): Promise<string[]> {
+    if (userIds.length === 0) {
+      return [];
+    }
+
+    const rows = await this.scoped(manager)
+      .createQueryBuilder('log')
+      .select('DISTINCT log.user_id', 'user_id')
+      .where('log.user_id IN (:...userIds)', { userIds })
+      .andWhere('log.scheduled_at >= :since', { since })
+      .andWhere('log.type = :type', { type })
+      .andWhere('log.status = :status', { status })
+      .getRawMany<{ user_id: string }>();
+
+    return rows.map((row) => row.user_id);
+  }
+
   async insertAll(
     logs: Partial<NotificationLog>[],
     manager?: EntityManager,

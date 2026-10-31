@@ -14,7 +14,10 @@ import {
   dripArrivalVariantOf,
 } from '@/modules/drip/drip-group.policy';
 import { dripArrivalLogType } from '@/modules/notification/services/drip-arrival-notification.service';
-import { MORNING_PUSH_LOG_TYPE_PREFIX } from '@/modules/retention-push/retention-push.constant';
+import {
+  MORNING_PUSH_HOLDOUT_LOG_TYPE,
+  MORNING_PUSH_LOG_TYPE_PREFIX,
+} from '@/modules/retention-push/retention-push.constant';
 import { UserMarket } from '@/modules/user/user.enum';
 
 import { COMPLETION_REACHED_RATIO } from '@/modules/library/library.constant';
@@ -104,6 +107,12 @@ const DRIP_ARRIVAL_TIME_ARMS: DripArrivalTimeArmSpec[] = [
   },
   {
     key: 'morning',
+    sendTime: hhmm(DRIP_ARRIVAL_SLOT_TIMES[DripArrivalSlot.H0800]),
+    reference: true,
+  },
+  // 아침 알림 비교 그룹(2026-10-31) — 받은 쪽(morning)과 견주는 행이다. 도착 알림 A/B 비교에는 들지 않는다
+  {
+    key: 'morning_holdout',
     sendTime: hhmm(DRIP_ARRIVAL_SLOT_TIMES[DripArrivalSlot.H0800]),
     reference: true,
   },
@@ -313,6 +322,7 @@ export class AdminInsightsService {
         a: typeOf(DripArrivalSlot.H0730),
         b: typeOf(DripArrivalSlot.H0800),
         morningPrefix: MORNING_PUSH_LOG_TYPE_PREFIX,
+        morningHoldout: MORNING_PUSH_HOLDOUT_LOG_TYPE,
       },
       serviceDays: serviceDayRangesBetween(since, now),
     });

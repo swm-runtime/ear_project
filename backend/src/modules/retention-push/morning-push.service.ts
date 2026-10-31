@@ -12,11 +12,15 @@ import {
   dripGroupOf,
 } from '@/modules/drip/drip-group.policy';
 import { DripGroup } from '@/modules/drip/drip.enum';
-import { NotificationType } from '@/modules/notification/notification.enum';
+import {
+  NotificationStatus,
+  NotificationType,
+} from '@/modules/notification/notification.enum';
 import { TargetedPushService } from '@/modules/notification/services/targeted-push.service';
 import { messageLanguageOf } from '@/modules/user/policies/market.policy';
 
 import {
+  isMorningPushHoldout,
   isWithinAdHours,
   morningListenedSince,
   morningLogType,
@@ -26,6 +30,7 @@ import {
 } from './morning-push.policy';
 import {
   MORNING_PUSH_DAILY_WINDOW_HOURS,
+  MORNING_PUSH_HOLDOUT_LOG_TYPE,
   MORNING_PUSH_LOG_TYPE_PREFIX,
   MORNING_PUSH_TTL_SEC,
   MORNING_PUSH_UNPLAYED_RECENT_DAYS,
@@ -47,6 +52,8 @@ export interface MorningPushSummary {
   skipped: Partial<Record<MorningSkipReason, number>>;
   sent: number;
   failed: number;
+  /** 비교 그룹이라 보내지 않고 기록만 남긴 수(`on` + 비교 그룹 켜짐일 때만) */
+  holdout: number;
 }
 
 /**
@@ -61,6 +68,9 @@ export interface MorningPushSummary {
  * 이미 켜진 환경에서 이 코드가 배포되자마자 아침 알림이 나가지 않게, 그리고 두 실험을 따로 켜고 끌 수 있게 한다.
  * `dry_run`은 대상·문구까지 정하고 시험 대상(`RETENTION_PUSH_TEST_USER_IDS`, 저녁과 공유)에게만 실제로 보낸다 — 시험 대상이
  * 없으면 아무에게도 보내지 않고 건수만 로그에 남긴다.
+ *
+ * **비교 그룹(2026-10-31)** — `RETENTION_MORNING_HOLDOUT_ENABLED=true`이고 `on`이면, 보낼 대상 중 사용자 해시 반(`isMorningPushHoldout`)은
+ * 보내지 않고 `retention.morning.holdout` · `skipped`로 기록만 남긴다. 받은 쪽과 안 받은 쪽의 당일 재생률을 견줘 아침 알림의 효과를 본다.
  */
 @Injectable()
 export class MorningPushService {
@@ -102,9 +112,15 @@ export class MorningPushService {
     const testUserIds = parseTestUserIds(
       this.configService.get('RETENTION_PUSH_TEST_USER_IDS', { infer: true }),
     );
+    const holdoutEnabled = this.holdoutEnabled();
+    const holdout =
+      mode === RetentionPushMode.ON && holdoutEnabled
+        ? items.filter((plan) => isMorningPushHoldout(plan.userId))
+        : [];
+    const holdoutUserIds = new Set(holdout.map((plan) => plan.userId));
     const sending =
       mode === RetentionPushMode.ON
-        ? items
+        ? items.filter((plan) => !holdoutUserIds.has(plan.userId))
         : mode === RetentionPushMode.DRY_RUN
           ? items.filter((plan) => testUserIds.has(plan.userId))
           : [];
@@ -114,7 +130,19 @@ export class MorningPushService {
       skipped,
       sent: 0,
       failed: 0,
+      holdout: holdout.length,
     };
+
+    if (holdout.length > 0) {
+      await this.targetedPushService.recordSkipped(
+        holdout.map((plan) => ({
+          userId: plan.userId,
+          type: MORNING_PUSH_HOLDOUT_LOG_TYPE,
+          deepLink: plan.deepLink,
+        })),
+        now,
+      );
+    }
 
     if (sending.length > 0) {
       const result = await this.targetedPushService.send(
@@ -141,12 +169,18 @@ export class MorningPushService {
       by_variant: countByVariant(items),
       sent: summary.sent,
       failed: summary.failed,
+      holdout_enabled: holdoutEnabled,
+      holdout: summary.holdout,
       ...(mode === RetentionPushMode.DRY_RUN
         ? {
             // 사용자 식별값은 싣지 않는다 — 문구 예시(콘텐츠 제목은 콘텐츠 정보)와 시험 대상 수만
             samples: sampleMorningCopies(items),
             test_users: testUserIds.size,
             test_sending: sending.length,
+            // 켰을 때 비교 그룹이 될 수 — 사용자 식별값 없이 수만
+            holdout_would_be: holdoutEnabled
+              ? items.filter((plan) => isMorningPushHoldout(plan.userId)).length
+              : 0,
           }
         : {}),
     });
@@ -182,16 +216,22 @@ export class MorningPushService {
     }
 
     const userIds = targets.map((user) => user.userId);
-    const [arrivalSent, morningSent, facts] = await Promise.all([
+    const windowStart = new Date(
+      now.getTime() - MORNING_PUSH_DAILY_WINDOW_HOURS * HOUR_MS,
+    );
+    const [arrivalSent, morningSent, holdoutLogged, facts] = await Promise.all([
       this.sentUserIds(
         userIds,
         NotificationType.DRIP_ARRIVAL,
         toServiceDayRange(now).start,
       ),
-      this.sentUserIds(
+      this.sentUserIds(userIds, MORNING_PUSH_LOG_TYPE_PREFIX, windowStart),
+      // 비교 그룹 기록도 하루 1건 — 재시작 등으로 같은 그룹이 두 번 돌아도 두 번 남기지 않는다
+      this.targetedPushService.findLoggedUserIds(
         userIds,
-        MORNING_PUSH_LOG_TYPE_PREFIX,
-        new Date(now.getTime() - MORNING_PUSH_DAILY_WINDOW_HOURS * HOUR_MS),
+        MORNING_PUSH_HOLDOUT_LOG_TYPE,
+        NotificationStatus.SKIPPED,
+        windowStart,
       ),
       this.findFacts(userIds, now, DRIP_GROUP_SCHEDULES[group].timeZone),
     ]);
@@ -215,7 +255,8 @@ export class MorningPushService {
           listenedRecently: fact.listenedRecently,
           placedToday: placedUserIds.has(user.userId),
           arrivalSentToday: arrivalSent.has(user.userId),
-          morningSentRecently: morningSent.has(user.userId),
+          morningSentRecently:
+            morningSent.has(user.userId) || holdoutLogged.has(user.userId),
           withinAdHours: isWithinAdHours(user.timezone, groupTimeZone, now),
         },
         weekStart,
@@ -229,6 +270,15 @@ export class MorningPushService {
     }
 
     return { audience: targets.length, items, skipped };
+  }
+
+  /** 비교 그룹 스위치 — `true`를 명시했을 때만 켜진다. 부를 때마다 읽는다(`mode`와 같은 이유) */
+  private holdoutEnabled(): boolean {
+    return (
+      this.configService
+        .get('RETENTION_MORNING_HOLDOUT_ENABLED', { infer: true })
+        ?.trim() === 'true'
+    );
   }
 
   private timezoneGroupsEnabled(): boolean {

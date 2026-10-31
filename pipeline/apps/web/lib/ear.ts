@@ -656,9 +656,12 @@ export const getEarShortVariant = (ch: EarChannel, market: EarInsightsMarket | n
   earFetch<EarShortVariant>(`/admin/insights/short-variant${market ? `?market=${market}` : ""}`, { cache: "no-store" }, ch);
 
 // ── 도착 알림 시각 실험 (실험 지표 탭 — `GET /admin/insights/drip-arrival-time`, KAN-289, 2026-10-30) ── 집계만(사용자는 수로만)
-/** baseline 07:00(스위치 전) · a 07:30 · b 08:00 · morning 참고 행(아침 알림 — A/B 비교 아님). 비율은 보낸 알림 0이면 null */
+/**
+ * baseline 07:00(스위치 전) · a 07:30 · b 08:00 · morning 아침 알림 받음 · morning_holdout 아침 알림 비교 그룹(보내지 않음 — 2026-10-31).
+ * morning·morning_holdout 은 도착 알림 A/B 비교가 아니다(reference). 비율은 보낸(정한) 알림 0이면 null
+ */
 export interface EarDripArrivalTimeArm {
-  key: "baseline" | "a" | "b" | "morning"; send_time: string; reference: boolean;
+  key: "baseline" | "a" | "b" | "morning" | "morning_holdout"; send_time: string; reference: boolean;
   sent: number; users: number; played_2h: number; played_same_day: number;
   play_rate_2h: number | null; play_rate_same_day: number | null;
   first_sent_at: string | null; last_sent_at: string | null;
