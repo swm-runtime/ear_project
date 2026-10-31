@@ -4,8 +4,10 @@ import { useEffect } from "react";
 import { androidStoreUrl, iosStoreUrl } from "@/content/site";
 
 /**
- * `/app/` 방문자를 기기에 맞는 스토어로 바로 보낸다 — 아이폰은 App Store, 안드로이드는 Google Play.
- * 데스크톱 등 판별할 수 없는 환경은 이동하지 않고 페이지의 두 스토어 버튼이 남는다.
+ * `/app/` 방문자를 기기에 맞는 스토어로 바로 보낸다 — 아이폰·아이패드는 App Store, 안드로이드는 Google Play.
+ * 휴대폰이 아닌 환경(PC)은 랜딩(`/`)으로 보낸다(2026-10-31 — 커뮤니티 글의 앱 링크를 PC로 누르면 스토어 버튼만
+ * 덩그러니 남았다). 출처는 랜딩 주소의 UTM으로 넘겨 GA4에 남긴다. 스크립트가 막힌 환경에서만 페이지의 두 스토어 버튼이 남는다.
+ * 아이패드 사파리는 맥과 같은 UA를 보내서 터치 지원으로 가른다.
  *
  * 인스타그램 프로필처럼 링크를 하나만 걸 수 있는 곳에 쓰는 주소다. 랜딩(`/`)을 걸면 스토어 버튼을
  * 한 번 더 눌러야 하고, 스토어 한쪽을 걸면 다른 OS 사용자가 막힌다.
@@ -46,11 +48,24 @@ export function storeUrlFor(store: "ios" | "android", src: string | null): strin
   return `${iosStoreUrl}?${query}`;
 }
 
+/** 휴대폰이 아닐 때 갈 랜딩 주소. 출처가 있으면 스토어 링크와 같은 UTM 값으로 붙인다 */
+export function landingUrlFor(src: string | null): string {
+  if (!src) return "/";
+  const query = new URLSearchParams({
+    utm_source: src,
+    utm_medium: "app_link",
+    utm_campaign: "earcast_app",
+  }).toString();
+  return `/?${query}`;
+}
+
 export function AppStoreRedirect() {
   useEffect(() => {
     const ua = navigator.userAgent;
-    const store = /android/i.test(ua) ? "android" : /iphone|ipad|ipod/i.test(ua) ? "ios" : null;
-    if (store) window.location.replace(storeUrlFor(store, readSource(window.location.search)));
+    const iPadOS = /macintosh/i.test(ua) && navigator.maxTouchPoints > 1;
+    const store = /android/i.test(ua) ? "android" : /iphone|ipad|ipod/i.test(ua) || iPadOS ? "ios" : null;
+    const src = readSource(window.location.search);
+    window.location.replace(store ? storeUrlFor(store, src) : landingUrlFor(src));
   }, []);
 
   return null;
