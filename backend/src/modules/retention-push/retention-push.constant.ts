@@ -30,6 +30,14 @@ export const RETENTION_DRY_RUN_SAMPLES_PER_RULE = 1;
 export const MORNING_PUSH_RULE = 'morning';
 /** `retention.morning.` — 저녁 빈도 판정에서 이 머리의 기록은 뺀다 */
 export const MORNING_PUSH_LOG_TYPE_PREFIX = `${RETENTION_LOG_TYPE_PREFIX}${MORNING_PUSH_RULE}.`;
+/**
+ * 아침 알림 비교 그룹(2026-10-31 — 받은 날 vs 안 받은 날 당일 재생률). 보낼 대상이었지만 비교 그룹이라 보내지 않은 건을
+ * 이 종류 · `skipped`로 남긴다 — 다른 집계는 모두 `sent`만 세므로 섞이지 않는다
+ */
+export const MORNING_PUSH_HOLDOUT_LOG_TYPE =
+  `${MORNING_PUSH_LOG_TYPE_PREFIX}holdout` as const;
+/** 비교 그룹 실험 키 — 도착 알림 시각 A/B(`drip_arrival_time`)와 그룹이 독립이게. 바꾸면 전원의 그룹이 다시 섞인다 */
+export const MORNING_PUSH_HOLDOUT_EXPERIMENT_KEY = 'morning_push_holdout';
 /** 아침 알림 하루 1건 — 재시작 등으로 같은 그룹이 두 번 돌아도 두 번째를 막는다. 저녁 알림과는 머리가 달라 섞이지 않는다 */
 export const MORNING_PUSH_DAILY_WINDOW_HOURS = 20;
 /** "안 들은 콘텐츠" — 이 일수 안에 받은(드립·탐험) 편만 센다. 오래된 미청취까지 세면 "37편"처럼 숫자가 의미를 잃는다 */

@@ -781,7 +781,9 @@ export interface InsightsShortVariant {
  * 비교 묶음 — `baseline` 07:00(스위치 꺼짐 · `drip_arrival`) · `a` 07:30(`drip_arrival.a`) · `b` 08:00(`drip_arrival.b`) ·
  * `morning` 참고 행(아침 알림 `retention.morning.*` — 드립 없는 날에만 가서 대상이 다르다. A/B 비교가 아니다)
  */
-export type InsightsDripArrivalTimeKey = 'baseline' | 'a' | 'b' | 'morning';
+/** `morning_holdout` — 아침 알림 비교 그룹(보내지 않음, 2026-10-31). `morning`(받음)과 견준다 */
+export type InsightsDripArrivalTimeKey =
+  'baseline' | 'a' | 'b' | 'morning' | 'morning_holdout';
 
 /** 원본(Repository) — 묶음마다 보낸 알림 수·받은 사람 수·재생으로 이어진 알림 수. 사용자는 수로만 들어 있다 */
 export interface InsightsDripArrivalTimeRow {
@@ -819,6 +821,6 @@ export interface InsightsDripArrivalTime {
   market: UserMarket | null;
   days: number;
   since: Date;
-  /** baseline · a · b · morning 순서로 늘 네 행 */
+  /** baseline · a · b · morning · morning_holdout 순서로 늘 다섯 행 */
   arms: InsightsDripArrivalTimeArm[];
 }

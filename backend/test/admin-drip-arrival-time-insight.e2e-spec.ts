@@ -97,6 +97,7 @@ describe('도착 알림 시각 실험 지표 E2E', () => {
     const u5 = await seedUser('u5', UserMarket.KR);
     const u6 = await seedUser('u6', UserMarket.KR);
     const u7 = await seedUser('u7', UserMarket.KR);
+    const u8 = await seedUser('u8', UserMarket.KR);
     const g1 = await seedUser('g1', UserMarket.GLOBAL);
 
     // 07:00 기준선
@@ -126,12 +127,26 @@ describe('도착 알림 시각 실험 지표 E2E', () => {
     await log(u6.id, 'retention.morning.b', at(D1_0700, HOUR));
     await play(u6.id, content.id, at(D1_0700, 2 * HOUR));
     await log(u6.id, 'retention.inactive.a', at(D1_0700, 12 * HOUR));
+    // 아침 알림 비교 그룹 — u8 은 보낼 대상이었지만 보내지 않았다(skipped · 사유 없음). 3시간 뒤 재생 → 2시간 ✗ · 당일 ✓
+    await log(
+      u8.id,
+      'retention.morning.holdout',
+      at(D1_0700, HOUR),
+      'skipped',
+      null,
+    );
+    await play(u8.id, content.id, at(D1_0700, 4 * HOUR));
     // 글로벌 사용자 — market=kr 이면 빠진다
     await log(g1.id, 'drip_arrival', D1_0700);
     await play(g1.id, content.id, at(D1_0700, 30 * MIN));
   }, 120_000);
 
   afterAll(async () => {
+    // 재생이 드립 제외 행을 남길 수 있다 — 콘텐츠를 지우기 전에 지운다(외래키, 2026-10-31 dev CI 간헐 실패)
+    await dataSource.query(
+      `DELETE FROM drip_excluded_contents WHERE user_id = ANY($1::uuid[]) OR content_id = ANY($2::uuid[])`,
+      [userIds, contentIds],
+    );
     for (const table of [
       'notification_logs',
       'play_records',
@@ -163,6 +178,7 @@ describe('도착 알림 시각 실험 지표 E2E', () => {
           a: 'drip_arrival.a',
           b: 'drip_arrival.b',
           morningPrefix: 'retention.morning.',
+          morningHoldout: 'retention.morning.holdout',
         },
         serviceDays: SEEDED_DAYS,
       });
@@ -199,7 +215,19 @@ describe('도착 알림 시각 실험 지표 E2E', () => {
       played2h: 1,
       playedSameDay: 1,
     });
-    expect([...rows.keys()].sort()).toEqual(['a', 'b', 'baseline', 'morning']);
+    expect(rows.get('morning_holdout')).toMatchObject({
+      sent: 1,
+      users: 1,
+      played2h: 0,
+      playedSameDay: 1,
+    });
+    expect([...rows.keys()].sort()).toEqual([
+      'a',
+      'b',
+      'baseline',
+      'morning',
+      'morning_holdout',
+    ]);
   }, 60_000);
 
   it('시장을 고르지 않으면 글로벌 사용자도 들어간다', async () => {
@@ -241,6 +269,7 @@ describe('도착 알림 시각 실험 지표 E2E', () => {
       ['a', '07:30', false],
       ['b', '08:00', false],
       ['morning', '08:00', true],
+      ['morning_holdout', '08:00', true],
     ]);
     expect(body.arms[0].sent).toBeGreaterThanOrEqual(1);
     expect(body.arms[0].play_rate_2h).not.toBeNull();
@@ -273,6 +302,7 @@ describe('도착 알림 시각 실험 지표 E2E', () => {
     type: string,
     sentAt: Date,
     status: 'sent' | 'skipped' = 'sent',
+    skipReason: string | null = 'daily_cap',
   ): Promise<void> {
     await dataSource.query(
       `INSERT INTO notification_logs (user_id, type, deep_link, scheduled_at, sent_at, status, skip_reason)
@@ -283,7 +313,7 @@ describe('도착 알림 시각 실험 지표 E2E', () => {
         sentAt,
         status === 'sent' ? sentAt : null,
         status,
-        status === 'sent' ? null : 'daily_cap',
+        status === 'sent' ? null : skipReason,
       ],
     );
   }

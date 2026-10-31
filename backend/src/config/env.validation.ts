@@ -411,6 +411,15 @@ export class EnvironmentVariables {
   RETENTION_MORNING_PUSH_MODE?: string;
 
   /**
+   * 아침 알림 비교 그룹(2026-10-31) — `true`를 명시했을 때만 켜진다. 켜지면 `RETENTION_MORNING_PUSH_MODE=on`에서 보낼 대상 중 사용자 해시
+   * 반은 보내지 않고 `retention.morning.holdout` · `skipped`로 기록만 남긴다(받은 날 vs 안 받은 날 당일 재생률 비교). 효과를 확인한 뒤
+   * 끄면 전원에게 보낸다
+   */
+  @IsOptional()
+  @IsIn(['true', 'false', ''])
+  RETENTION_MORNING_HOLDOUT_ENABLED?: string;
+
+  /**
    * 리텐션 알림 시험 대상(`notification.md` 4.6) — 쉼표로 구분한 사용자 id(uuid). `RETENTION_PUSH_MODE=dry_run`일 때 **이 사용자에게만
    * 실제로 보낸다**(나머지는 종전처럼 로그만). 켜기 전에 운영에서 실제 문구·도착을 본인 기기로 확인하려고 둔다. 대상 조건(마케팅 동의 ·
    * 보낼 기기)과 규칙 판정은 그대로라, 성립하는 규칙이 없으면 시험 대상도 받지 않는다. `on`·`off`에서는 쓰지 않는다

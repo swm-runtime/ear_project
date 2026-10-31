@@ -1,6 +1,8 @@
+import { dripArrivalBucketOf } from '@/modules/drip/drip-group.policy';
 import { MessageLanguage } from '@/modules/user/user.enum';
 
 import {
+  isMorningPushHoldout,
   isWithinAdHours,
   morningListenedSince,
   morningLogType,
@@ -174,5 +176,36 @@ describe('morningListenedSince — "오늘 이미 들었다"의 시작 = 그룹 
         'America/Chicago',
       ),
     ).toEqual(new Date('2026-07-15T05:00:00-05:00'));
+  });
+});
+
+describe('isMorningPushHoldout — 아침 알림 비교 그룹(2026-10-31)', () => {
+  const ids = Array.from(
+    { length: 4000 },
+    (_, i) => `00000000-0000-4000-8000-${i.toString(16).padStart(12, '0')}`,
+  );
+
+  it('사용자를 반(50:50)에 가깝게 나눈다', () => {
+    const held = ids.filter((id) => isMorningPushHoldout(id)).length;
+
+    expect(held / ids.length).toBeGreaterThan(0.45);
+    expect(held / ids.length).toBeLessThan(0.55);
+  });
+
+  it('같은 사용자는 늘 같은 쪽이다', () => {
+    for (const id of ids.slice(0, 50)) {
+      expect(isMorningPushHoldout(id)).toBe(isMorningPushHoldout(id));
+    }
+  });
+
+  it('도착 알림 시각 A/B 그룹과 독립이다 — 네 칸이 고르게 나뉜다', () => {
+    const cells = [0, 0, 0, 0];
+    for (const id of ids) {
+      cells[dripArrivalBucketOf(id) * 2 + (isMorningPushHoldout(id) ? 1 : 0)]++;
+    }
+    for (const count of cells) {
+      expect(count / ids.length).toBeGreaterThan(0.2);
+      expect(count / ids.length).toBeLessThan(0.3);
+    }
   });
 });

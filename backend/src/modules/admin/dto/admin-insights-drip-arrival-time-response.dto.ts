@@ -31,7 +31,7 @@ export class AdminInsightsDripArrivalTimeResponseDto {
   /** 보낸 알림이 이보다 적은 행은 "표본 작음" */
   readonly min_sample: number;
   readonly reaction_window_hours: number;
-  /** baseline · a · b · morning 순서로 늘 네 행 */
+  /** baseline · a · b · morning · morning_holdout 순서로 늘 다섯 행 */
   readonly arms: AdminDripArrivalTimeArmDto[];
 
   static from(
