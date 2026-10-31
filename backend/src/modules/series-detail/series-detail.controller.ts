@@ -76,7 +76,10 @@ export class SeriesDetailController {
         new Date(),
         toUserMarket(currentUser.market),
         // 다른 시리즈 목록은 노출면이다 — 짧은 판 코호트로 거른다(KAN-298). 기준 시리즈 화면 자체는 막지 않는다
-        this.contentCohortService.resolve(currentUser.signedUpAt),
+        this.contentCohortService.resolve(
+          currentUser.signedUpAt,
+          toUserMarket(currentUser.market),
+        ),
       ),
     );
   }

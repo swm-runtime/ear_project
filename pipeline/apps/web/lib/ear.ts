@@ -148,8 +148,8 @@ export interface EarContent {
   /** 시리즈 편이면 편의 값(admin-api 8장 · 4.6, 2026-10-17 KAN-134). 단일 편은 null */
   series_id?: string | null; episode_no?: number | null; total_episodes?: number | null;
 }
-/** 현재 추천 메타 형식 버전 — 원본은 서버 CURRENT_ENRICHMENT_SCHEMA_VERSION(admin-api 4.6). 3 = 해시태그 포함(KAN-162 운영 배포 뒤 KAN-164). **워커 ENRICH_TAGS=1 과 같은 시점에 움직인다** — 콘솔만 먼저 올리면 발행분 전부가 "구형 v2"로 보이는데 다시 뽑아도 태그가 붙지 않는다(2026-10-13 먼저 올렸다가 되돌림 #1486). 2026-10-14 AI 서버 워커 env.prod 에 ENRICH_TAGS=1 을 넣고 재기동한 뒤 3으로 올렸다 */
-export const ENRICHMENT_SCHEMA_VERSION_FALLBACK = 3;
+/** 현재 추천 메타 형식 버전 — 값과 이력은 lib/enrichment-version.ts */
+export { ENRICHMENT_SCHEMA_VERSION_FALLBACK } from "./enrichment-version"; // 값은 enrichment-version.ts — 서버 액션도 같은 값을 쓴다
 export const listEarJobCategories = () => earFetch<{ items: { name: string }[] }>("/job-categories");
 
 export const listEarTopics = () => earFetch<{ items: EarTopic[] }>("/admin/topics");
@@ -656,9 +656,12 @@ export const getEarShortVariant = (ch: EarChannel, market: EarInsightsMarket | n
   earFetch<EarShortVariant>(`/admin/insights/short-variant${market ? `?market=${market}` : ""}`, { cache: "no-store" }, ch);
 
 // ── 도착 알림 시각 실험 (실험 지표 탭 — `GET /admin/insights/drip-arrival-time`, KAN-289, 2026-10-30) ── 집계만(사용자는 수로만)
-/** baseline 07:00(스위치 전) · a 07:30 · b 08:00 · morning 참고 행(아침 알림 — A/B 비교 아님). 비율은 보낸 알림 0이면 null */
+/**
+ * baseline 07:00(스위치 전) · a 07:30 · b 08:00 · morning 아침 알림 받음 · morning_holdout 아침 알림 비교 그룹(보내지 않음 — 2026-10-31).
+ * morning·morning_holdout 은 도착 알림 A/B 비교가 아니다(reference). 비율은 보낸(정한) 알림 0이면 null
+ */
 export interface EarDripArrivalTimeArm {
-  key: "baseline" | "a" | "b" | "morning"; send_time: string; reference: boolean;
+  key: "baseline" | "a" | "b" | "morning" | "morning_holdout"; send_time: string; reference: boolean;
   sent: number; users: number; played_2h: number; played_same_day: number;
   play_rate_2h: number | null; play_rate_same_day: number | null;
   first_sent_at: string | null; last_sent_at: string | null;
@@ -671,6 +674,28 @@ export interface EarDripArrivalTime {
 }
 export const getEarDripArrivalTime = (ch: EarChannel, days: number, market: EarInsightsMarket | null = null) =>
   earFetch<EarDripArrivalTime>(`/admin/insights/drip-arrival-time?days=${days}${market ? `&market=${market}` : ""}`, { cache: "no-store" }, ch);
+
+// ── 시리즈 편별 완청·다음 편 진행 (실험 지표 탭 — `GET /admin/insights/series-episodes`, KAN-293, 2026-10-29) ── 집계만(사용자는 수로만)
+/** 비율은 분모가 0이면 null. 다음 편 진행 = 이 편을 시작한(또는 완청한) 사람 중 다음 편을 시작한 비율 */
+export interface EarSeriesEpisodeRow {
+  episode_no: number; content_id: string; title: string; duration_sec: number; status: string;
+  next_episode_no: number | null;
+  starters: number; completers: number; completion_rate: number | null;
+  next_started_of_starters: number; next_started_of_completers: number;
+  next_rate_of_starters: number | null; next_rate_of_completers: number | null;
+}
+export interface EarSeriesEpisodesSeries {
+  series_id: string; title: string; market: string; total_episodes: number; first_episode_starters: number;
+  /** 편 번호 순 */
+  episodes: EarSeriesEpisodeRow[];
+}
+export interface EarSeriesEpisodes {
+  generated_at: string; market: EarInsightsMarket | null; min_age_hours: number;
+  /** 1화 시작자가 많은 시리즈 먼저 */
+  series: EarSeriesEpisodesSeries[];
+}
+export const getEarSeriesEpisodes = (ch: EarChannel, market: EarInsightsMarket | null = null) =>
+  earFetch<EarSeriesEpisodes>(`/admin/insights/series-episodes${market ? `?market=${market}` : ""}`, { cache: "no-store" }, ch);
 
 // ── 추천 검증 (서비스 지표 — `GET /admin/insights/recommendations/*`, 2026-10-22) ──
 // 사용자는 user_id 로만 온다 — 서버가 이름·이메일·제공자 ID·프로필 사진을 조회하지도 싣지도 않는다(루트 CLAUDE.md 개인정보 원칙).

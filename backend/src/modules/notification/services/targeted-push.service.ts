@@ -77,6 +77,49 @@ export class TargetedPushService {
     );
   }
 
+  /**
+   * 보낼 대상이었지만 보내지 않은 건을 `skipped`로 남긴다 — 실험 비교 그룹(아침 알림 2026-10-31)의 재료다. 사유 칸은 비운다
+   * (`skip_reason`은 수신 설정·권한 사유 enum 이고 실험은 그 사유가 아니다 — 종류(`type`)가 비교 그룹임을 말한다)
+   */
+  async recordSkipped(
+    entries: {
+      userId: string;
+      type: `retention.${string}`;
+      deepLink: string;
+    }[],
+    now: Date,
+  ): Promise<void> {
+    await this.notificationLogRepository.insertAll(
+      entries.map((entry) => ({
+        userId: entry.userId,
+        type: entry.type,
+        deepLink: entry.deepLink,
+        scheduledAt: now,
+        sentAt: null,
+        status: NotificationStatus.SKIPPED,
+        skipReason: null,
+        openedAt: null,
+      })),
+    );
+  }
+
+  /** `since` 이후 종류가 `type`이고 상태가 `status`인 기록이 있는 사용자 */
+  async findLoggedUserIds(
+    userIds: string[],
+    type: string,
+    status: NotificationStatus,
+    since: Date,
+  ): Promise<Set<string>> {
+    return new Set(
+      await this.notificationLogRepository.findUserIdsByTypeAndStatusSince(
+        userIds,
+        type,
+        status,
+        since,
+      ),
+    );
+  }
+
   async send(pushes: TargetedPush[], now: Date): Promise<TargetedPushSummary> {
     const summary: TargetedPushSummary = { sent: 0, failed: 0, noDevice: 0 };
 

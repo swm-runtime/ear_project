@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 
 import { EnvironmentVariables } from '@/config/env.validation';
+import { UserMarket } from '@/modules/user/user.enum';
 
 import {
   parseShortContentCohortSince,
@@ -23,9 +24,12 @@ export class ContentCohortService {
     );
   }
 
-  /** 가입 시각 → 길이 프로필. 요청 경로는 `AuthenticatedUser.signedUpAt`, 배치는 `users.created_at`을 넘긴다 */
-  resolve(signedUpAt: Date | null | undefined): ContentLengthProfile {
-    return resolveContentLengthProfile(signedUpAt, this.since);
+  /** 가입 시각·시장 → 길이 프로필. 요청 경로는 `AuthenticatedUser.signedUpAt`, 배치는 `users.created_at`을 넘긴다 */
+  resolve(
+    signedUpAt: Date | null | undefined,
+    market: UserMarket,
+  ): ContentLengthProfile {
+    return resolveContentLengthProfile(signedUpAt, this.since, market);
   }
 
   /** 원시 SQL 판정(`cohortLengthProfileSql`)의 파라미터 — 비어 있으면 null(전원 standard) */

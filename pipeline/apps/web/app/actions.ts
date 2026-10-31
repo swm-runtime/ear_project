@@ -7,6 +7,7 @@ import { deletePrefix, getBytes, getText, putBytes, putText } from "@/lib/storag
 import { readScriptFileBody } from "@/lib/script-file";
 import { majorOrder, majorTopicsFor } from "@/lib/taxonomy";
 import { ensureEmbedding } from "@/lib/embedding";
+import { currentEpisodeEnrichments } from "@/lib/enrich-fallback";
 import { agentGate, agentScore, type AgentScore } from "@/lib/agent-verdict";
 import { screenGlobalTopic } from "@/lib/topic-screen";
 
@@ -234,7 +235,11 @@ export async function episodeJudgeScores(episodeIds: string[]): Promise<Record<s
   return Object.fromEntries((data ?? []).map((e) => [e.id as string, agentScore(e.critic_verdicts)]));
 }
 
-export async function listPublishableEpisodes(): Promise<{ id: string; title: string; mid_topic: string; created_at: string }[]> {
+/**
+ * 발행 대기(패키지·오디오 완료·미발행) 단편. 시리즈 편은 시리즈 화면의 [시리즈 발행]으로만 (spec/11 7장).
+ * `standard` 는 업로드 화면의 일괄 발행, `short` 는 실험 탭의 짧은 판 일괄 발행이 쓴다 — 짧은 판(0040)은 신규 코호트 전용이라 일반 발행에 섞지 않는다
+ */
+export async function listPublishableEpisodes(kind: "standard" | "short" = "standard"): Promise<{ id: string; title: string; mid_topic: string; created_at: string }[]> {
   const sb = await supabaseServer();
   const { data: eps, error } = await sb.from("episodes").select("id,backlog_id,audio_dist_key,created_at").not("audio_dist_key", "is", null).order("created_at", { ascending: false }).order("id", { ascending: false }); // 최신순 — 접두어(T·X·S)와 무관하게
   if (error) throw new Error(error.message);
@@ -242,8 +247,10 @@ export async function listPublishableEpisodes(): Promise<{ id: string; title: st
   if (ids.length === 0) return [];
   const { data: bls } = await sb.from("backlog").select("id,title,mid_topic,status,series_id,remake_of").in("id", ids);
   const bl = Object.fromEntries((bls ?? []).map((b) => [b.id, b]));
+  const seen = new Set<string>(); // 후보당 최신 에피소드 하나 — 다시 만든 편의 옛 회차를 같이 올리지 않게
   return (eps ?? [])
-    .filter((e) => bl[e.backlog_id]?.status === "packaged" && !bl[e.backlog_id]?.series_id && !bl[e.backlog_id]?.remake_of) // 시리즈 편은 시리즈 화면의 [시리즈 발행]으로만 (spec/11 7장) · 짧은 판(0040)은 실험 탭에서만 — 신규 코호트 전용이라 일반 발행에 섞지 않는다 // 시리즈 편은 시리즈 화면의 [시리즈 발행]으로만 (spec/11 7장)
+    .filter((e) => !seen.has(e.backlog_id) && !!seen.add(e.backlog_id))
+    .filter((e) => bl[e.backlog_id]?.status === "packaged" && !bl[e.backlog_id]?.series_id && !!bl[e.backlog_id]?.remake_of === (kind === "short"))
     .map((e) => ({ id: e.id, title: bl[e.backlog_id]?.title ?? e.id, mid_topic: bl[e.backlog_id]?.mid_topic ?? "", created_at: e.created_at as string }));
 }
 
@@ -303,10 +310,25 @@ export async function enrichStates(contentIds: string[]): Promise<Record<string,
   const out: Record<string, { status: string; error: string | null; at: string | null; ready: boolean }> = {};
   const want = new Set(contentIds);
   for (const j of jobs ?? []) { const cid = String((j.payload as { content_id?: string } | null)?.content_id ?? ""); if (!want.has(cid) || out[cid]) continue; out[cid] = { status: j.status, error: j.error ? String(j.error).split("\n")[0].slice(0, 200) : null, at: j.finished_at ?? j.created_at, ready: false }; }
-  const { data: runs } = await sb.from("runs").select("artifacts").eq("phase", "enrich").order("executed_at", { ascending: false }).limit(500);
+  const { data: runs } = await sb.from("runs").select("artifacts,prompt_version").eq("phase", "enrich").order("executed_at", { ascending: false }).limit(500);
   const ready = new Set<string>();
   for (const r of runs ?? []) for (const a of (r.artifacts as string[] | null) ?? []) { const m = String(a).match(/datasets\/enrichment\/([A-Za-z0-9-]+)\.json$/); if (m) ready.add(m[1]); }
+  // 발행분 산출물이 없으면 발행 전에 뽑아 둔 에피소드 모드 산출물(현행 형식)로 대체 — lib/enrich-fallback.ts, readEnrichment 와 같은 규칙
+  const missing = contentIds.filter((cid) => !ready.has(cid));
+  const epReady = missing.length ? currentEpisodeEnrichments((runs ?? []) as { artifacts: string[] | null; prompt_version: string | null }[]) : new Set<string>();
+  if (epReady.size) for (const [cid, ep] of await publishedEpisodeOf(missing)) if (epReady.has(ep)) ready.add(cid);
   for (const cid of contentIds) { if (ready.has(cid)) { (out[cid] ??= { status: "done", error: null, at: null, ready: true }).ready = true; } }
+  return out;
+}
+/** 발행 콘텐츠 → 그 후보의 최신 에피소드 id (수동 업로드처럼 파이프라인 후보가 없으면 빠진다) */
+async function publishedEpisodeOf(contentIds: string[]): Promise<Map<string, string>> {
+  const sb = await supabaseServer();
+  const { data: bls } = await sb.from("backlog").select("id,published_content_ref").in("published_content_ref", contentIds);
+  const contentOf = new Map((bls ?? []).map((b) => [b.id as string, String(b.published_content_ref)]));
+  if (!contentOf.size) return new Map();
+  const { data: eps } = await sb.from("episodes").select("id,backlog_id").in("backlog_id", [...contentOf.keys()]).order("created_at", { ascending: false });
+  const out = new Map<string, string>();
+  for (const e of eps ?? []) { const cid = contentOf.get(e.backlog_id); if (cid && !out.has(cid)) out.set(cid, e.id as string); }
   return out;
 }
 /** 자막 세그먼트 소급 요청 (0022, KAN-72 후속 · spec/06 7장): 발행 콘텐츠 → 연결된 에피소드의 dist.mp3·대본을 강제 정렬. 에피소드 연결이 없으면(수동 업로드) 못 뽑는다 */
@@ -390,12 +412,13 @@ export async function readScriptSegments(episodeId: string): Promise<string | nu
 /** 산출물 본문 — 브라우저가 File 로 감싸 PATCH 한다 (S3 는 서버가 중계) */
 export async function readEnrichment(contentId: string): Promise<{ text: string; note: string } | null> {
   if (!/^[A-Za-z0-9-]{1,64}$/.test(contentId)) throw new Error("잘못된 content_id");
-  const text = await getText(`datasets/enrichment/${contentId}.json`);
-  if (!text) return null;
-  // 임베딩이 비어 있으면 그 콘텐츠의 에피소드 대본으로 AI 서버에서 받아 합친다 (소급 경로 — lib/embedding.ts). 에피소드 연결이 없으면(수동 업로드) 그대로
   const sb = await supabaseServer();
   const { data: bl } = await sb.from("backlog").select("id").eq("published_content_ref", contentId).maybeSingle();
-  const { data: ep } = bl ? await sb.from("episodes").select("script_key").eq("backlog_id", bl.id).order("created_at", { ascending: false }).limit(1).maybeSingle() : { data: null };
+  const { data: ep } = bl ? await sb.from("episodes").select("id,script_key").eq("backlog_id", bl.id).order("created_at", { ascending: false }).limit(1).maybeSingle() : { data: null };
+  // 발행분 산출물이 먼저, 없으면 발행 전에 뽑아 둔 에피소드 모드 산출물 — 발행 때 못 실은 편(lib/enrich-fallback.ts). 형식 버전은 enrichStates 가 거른다
+  const text = (await getText(`datasets/enrichment/${contentId}.json`)) ?? (ep?.id ? await getText(`episodes/${ep.id}/enrichment.json`) : null);
+  if (!text) return null;
+  // 임베딩이 비어 있으면 그 콘텐츠의 에피소드 대본으로 AI 서버에서 받아 합친다 (소급 경로 — lib/embedding.ts). 에피소드 연결이 없으면(수동 업로드) 그대로
   const script = ep?.script_key ? await loadArtifact(ep.script_key) : null;
   return ensureEmbedding(text, script);
 }

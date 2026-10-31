@@ -51,7 +51,10 @@ export class ExploreController {
         new Date(),
         toUserMarket(currentUser.market),
         // 짧은 판 코호트(KAN-298) — 판정은 서버 한 곳(`ContentCohortService`)
-        this.contentCohortService.resolve(currentUser.signedUpAt),
+        this.contentCohortService.resolve(
+          currentUser.signedUpAt,
+          toUserMarket(currentUser.market),
+        ),
       ),
     );
   }
@@ -77,7 +80,10 @@ export class ExploreController {
         new Date(),
         toUserMarket(currentUser.market),
         // 짧은 판 코호트(KAN-298) — 판정은 서버 한 곳(`ContentCohortService`)
-        this.contentCohortService.resolve(currentUser.signedUpAt),
+        this.contentCohortService.resolve(
+          currentUser.signedUpAt,
+          toUserMarket(currentUser.market),
+        ),
       ),
     );
   }
@@ -117,7 +123,10 @@ export class ExploreController {
         new Date(),
         toUserMarket(currentUser.market),
         // 짧은 판 코호트(KAN-298) — 판정은 서버 한 곳(`ContentCohortService`)
-        this.contentCohortService.resolve(currentUser.signedUpAt),
+        this.contentCohortService.resolve(
+          currentUser.signedUpAt,
+          toUserMarket(currentUser.market),
+        ),
       ),
     );
   }
@@ -138,7 +147,10 @@ export class ExploreController {
         new Date(),
         toUserMarket(currentUser.market),
         // 짧은 판 코호트(KAN-298) — 판정은 서버 한 곳(`ContentCohortService`)
-        this.contentCohortService.resolve(currentUser.signedUpAt),
+        this.contentCohortService.resolve(
+          currentUser.signedUpAt,
+          toUserMarket(currentUser.market),
+        ),
       ),
     );
   }

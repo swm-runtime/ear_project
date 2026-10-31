@@ -5,6 +5,7 @@ import { DripGroup } from '@/modules/drip/drip.enum';
 import { TargetedPushService } from '@/modules/notification/services/targeted-push.service';
 import { UserMarket } from '@/modules/user/user.enum';
 
+import { isMorningPushHoldout } from './morning-push.policy';
 import { MorningPushService } from './morning-push.service';
 import { RetentionPushMode } from './retention-push.enum';
 import {
@@ -45,6 +46,8 @@ describe('MorningPushService — 아침 알림(KAN-288)', () => {
   let targetedPushService: jest.Mocked<TargetedPushService>;
   /** `findSentHistory`가 머리로 걸러 돌려줄 보낸 기록 */
   let sentLogs: { userId: string; type: string; sentAt: Date }[];
+  /** `findLoggedUserIds`가 돌려줄 비교 그룹 기록(보내지 않음) */
+  let holdoutLogs: { userId: string; type: string; at: Date }[];
 
   const build = (env: Record<string, string>): MorningPushService =>
     new MorningPushService(repository, targetedPushService, {
@@ -54,6 +57,7 @@ describe('MorningPushService — 아침 알림(KAN-288)', () => {
 
   beforeEach(() => {
     sentLogs = [];
+    holdoutLogs = [];
     repository = {
       // 대상(마케팅 동의 · 온보딩 완료)은 SQL 이 거른다 — e2e 가 본다
       findAudience: jest.fn().mockResolvedValue(
@@ -89,6 +93,24 @@ describe('MorningPushService — 아침 알림(KAN-288)', () => {
             ),
           ),
         ),
+      findLoggedUserIds: jest
+        .fn()
+        .mockImplementation(
+          (userIds: string[], type: string, _status: string, since: Date) =>
+            Promise.resolve(
+              new Set(
+                holdoutLogs
+                  .filter(
+                    (log) =>
+                      userIds.includes(log.userId) &&
+                      log.type === type &&
+                      log.at >= since,
+                  )
+                  .map((log) => log.userId),
+              ),
+            ),
+        ),
+      recordSkipped: jest.fn().mockResolvedValue(undefined),
       send: jest
         .fn()
         .mockImplementation((pushes: unknown[]) =>
@@ -134,6 +156,104 @@ describe('MorningPushService — 아침 알림(KAN-288)', () => {
       skipped: { placed_today: 1 },
       sent: 2,
     });
+  });
+
+  it('비교 그룹이 켜지면 보낼 대상 중 해시 반은 보내지 않고 holdout 으로 기록만 남긴다', async () => {
+    // given
+    const service = build({
+      RETENTION_MORNING_PUSH_MODE: 'on',
+      RETENTION_MORNING_HOLDOUT_ENABLED: 'true',
+    });
+    const planned = [SINGLE_USER, MANY_USER];
+    const held = planned.filter((id) => isMorningPushHoldout(id));
+    const sent = planned.filter((id) => !isMorningPushHoldout(id));
+
+    // when
+    const summary = await service.run(
+      DripGroup.ASIA,
+      NOW,
+      new Set([PLACED_USER]),
+    );
+
+    // then
+    const sentIds =
+      targetedPushService.send.mock.calls.length > 0
+        ? sentPushes().map((push) => push.userId)
+        : [];
+    expect(sentIds.sort()).toEqual([...sent].sort());
+    const recorded =
+      targetedPushService.recordSkipped.mock.calls.length > 0
+        ? targetedPushService.recordSkipped.mock.calls[0][0]
+        : [];
+    expect(recorded.map((entry) => entry.userId).sort()).toEqual(
+      [...held].sort(),
+    );
+    for (const entry of recorded) {
+      expect(entry.type).toBe('retention.morning.holdout');
+    }
+    expect(summary).toMatchObject({
+      planned: 2,
+      holdout: held.length,
+      sent: sent.length,
+    });
+  });
+
+  it('비교 그룹 스위치가 없으면 전원에게 보내고 holdout 기록을 남기지 않는다', async () => {
+    // given
+    const service = build({ RETENTION_MORNING_PUSH_MODE: 'on' });
+
+    // when
+    const summary = await service.run(DripGroup.ASIA, NOW, new Set());
+
+    // then
+    expect(summary.holdout).toBe(0);
+    expect(sentPushes()).toHaveLength(3);
+    expect(targetedPushService.recordSkipped).not.toHaveBeenCalled();
+  });
+
+  it('dry_run 은 비교 그룹이 켜져 있어도 holdout 기록을 남기지 않는다', async () => {
+    // given
+    const service = build({
+      RETENTION_MORNING_PUSH_MODE: 'dry_run',
+      RETENTION_MORNING_HOLDOUT_ENABLED: 'true',
+    });
+
+    // when
+    const summary = await service.run(DripGroup.ASIA, NOW, new Set());
+
+    // then
+    expect(summary.holdout).toBe(0);
+    expect(targetedPushService.recordSkipped).not.toHaveBeenCalled();
+  });
+
+  it('최근 20시간 안에 holdout 기록이 있으면 다시 정하지 않는다 — 같은 그룹이 두 번 돌아도 하루 1건', async () => {
+    // given
+    holdoutLogs = [
+      {
+        userId: SINGLE_USER,
+        type: 'retention.morning.holdout',
+        at: new Date(NOW.getTime() - 60 * 60 * 1000),
+      },
+    ];
+    const service = build({
+      RETENTION_MORNING_PUSH_MODE: 'on',
+      RETENTION_MORNING_HOLDOUT_ENABLED: 'true',
+    });
+
+    // when
+    const summary = await service.run(DripGroup.ASIA, NOW, new Set());
+
+    // then
+    expect(summary.skipped.already_sent).toBe(1);
+    const touched = [
+      ...(targetedPushService.send.mock.calls[0]?.[0] ?? []).map(
+        (push) => push.userId,
+      ),
+      ...(targetedPushService.recordSkipped.mock.calls[0]?.[0] ?? []).map(
+        (entry) => entry.userId,
+      ),
+    ];
+    expect(touched).not.toContain(SINGLE_USER);
   });
 
   it('dry_run 은 정하기만 하고 보내지 않는다 — 시험 대상이 없으면 아무에게도', async () => {

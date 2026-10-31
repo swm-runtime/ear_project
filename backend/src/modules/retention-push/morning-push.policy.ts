@@ -13,6 +13,7 @@ import { MessageLanguage } from '@/modules/user/user.enum';
 import {
   AD_PUSH_ALLOWED_FROM_LOCAL_HOUR,
   AD_PUSH_ALLOWED_UNTIL_LOCAL_HOUR,
+  MORNING_PUSH_HOLDOUT_EXPERIMENT_KEY,
   MORNING_PUSH_LOG_TYPE_PREFIX,
   MORNING_PUSH_RULE,
 } from './retention-push.constant';
@@ -153,6 +154,14 @@ export function planMorningPush(
         ? buildContentDeepLink(user.single.contentId)
         : DEEP_LINK_LIBRARY,
   };
+}
+
+/**
+ * 아침 알림 비교 그룹(2026-10-31)인가 — 사용자 id 해시로 반(50:50)을 나눠 매일 같은 쪽이다. 비교 그룹은 보낼 대상이어도 보내지 않고
+ * 기록만 남겨, 받은 쪽과 당일 재생률을 견준다
+ */
+export function isMorningPushHoldout(userId: string): boolean {
+  return experimentBucket(userId, MORNING_PUSH_HOLDOUT_EXPERIMENT_KEY, 2) === 1;
 }
 
 export function morningLogType(variant: number): `retention.${string}` {

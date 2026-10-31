@@ -20,7 +20,8 @@ const ARM_LABEL: Record<EarDripArrivalTimeArm["key"], string> = {
   baseline: "기준선 (스위치 전)",
   a: "A 그룹",
   b: "B 그룹",
-  morning: "참고: 아침 알림",
+  morning: "아침 알림 받음",
+  morning_holdout: "아침 알림 안 받음 (비교 그룹)",
 };
 
 /**
@@ -114,8 +115,10 @@ function DripArrivalTimeView({ channel, market, days, onSwitchToDev }: { channel
       </section>
 
       <section className="space-y-1">
-        <h3 className="text-sm font-semibold">참고 — A/B 비교에 들지 않는다</h3>
-        <p className="text-xs text-ink-soft">아침 알림(KAN-288)은 드립이 없는 날에만 가서 받는 사람이 다르다. 같은 정의로 센 값을 참고로만 둔다.</p>
+        <h3 className="text-sm font-semibold">아침 알림 — 받은 날 vs 안 받은 날 (드립이 없는 날)</h3>
+        <p className="text-xs text-ink-soft">
+          아침 알림(KAN-288)은 드립이 없는 날 08:00에만 간다. 보낼 대상 중 사용자 해시 반은 비교 그룹이라 보내지 않고 기록만 남긴다(2026-10-31, 스위치 RETENTION_MORNING_HOLDOUT_ENABLED). 두 열의 당일 재생률 차이가 아침 알림의 효과다. 도착 알림 시각 A/B와는 받는 날이 달라 섞어 보지 않는다.
+        </p>
         <ArmTable arms={references} minSample={data.min_sample} reactionHours={data.reaction_window_hours} />
       </section>
 
@@ -138,7 +141,7 @@ function ArmTable({ arms, minSample, reactionHours }: { arms: EarDripArrivalTime
   const rows: CompareRow[] = [
     { kind: "rate", label: `${reactionHours}시간 안 재생률`, better: "higher", cells: arms.map((a) => ({ rate: a.play_rate_2h, count: a.played_2h })) },
     { kind: "rate", label: "당일 재생률", better: "higher", cells: arms.map((a) => ({ rate: a.play_rate_same_day, count: a.played_same_day })) },
-    { kind: "count", label: "보낸 알림", cells: arms.map((a) => a.sent) },
+    { kind: "count", label: "보낸 알림 (비교 그룹은 정한 수)", cells: arms.map((a) => a.sent) },
     { kind: "count", label: "받은 사람", cells: arms.map((a) => a.users) },
     { kind: "text", label: "보낸 기간", cells: arms.map((a) => (a.first_sent_at ? `${fmtKstDate(a.first_sent_at)} ~ ${fmtKstDate(a.last_sent_at)}` : "보낸 기록 없음")) },
   ];
