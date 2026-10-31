@@ -672,6 +672,28 @@ export interface EarDripArrivalTime {
 export const getEarDripArrivalTime = (ch: EarChannel, days: number, market: EarInsightsMarket | null = null) =>
   earFetch<EarDripArrivalTime>(`/admin/insights/drip-arrival-time?days=${days}${market ? `&market=${market}` : ""}`, { cache: "no-store" }, ch);
 
+// ── 시리즈 편별 완청·다음 편 진행 (실험 지표 탭 — `GET /admin/insights/series-episodes`, KAN-293, 2026-10-29) ── 집계만(사용자는 수로만)
+/** 비율은 분모가 0이면 null. 다음 편 진행 = 이 편을 시작한(또는 완청한) 사람 중 다음 편을 시작한 비율 */
+export interface EarSeriesEpisodeRow {
+  episode_no: number; content_id: string; title: string; duration_sec: number; status: string;
+  next_episode_no: number | null;
+  starters: number; completers: number; completion_rate: number | null;
+  next_started_of_starters: number; next_started_of_completers: number;
+  next_rate_of_starters: number | null; next_rate_of_completers: number | null;
+}
+export interface EarSeriesEpisodesSeries {
+  series_id: string; title: string; market: string; total_episodes: number; first_episode_starters: number;
+  /** 편 번호 순 */
+  episodes: EarSeriesEpisodeRow[];
+}
+export interface EarSeriesEpisodes {
+  generated_at: string; market: EarInsightsMarket | null; min_age_hours: number;
+  /** 1화 시작자가 많은 시리즈 먼저 */
+  series: EarSeriesEpisodesSeries[];
+}
+export const getEarSeriesEpisodes = (ch: EarChannel, market: EarInsightsMarket | null = null) =>
+  earFetch<EarSeriesEpisodes>(`/admin/insights/series-episodes${market ? `?market=${market}` : ""}`, { cache: "no-store" }, ch);
+
 // ── 추천 검증 (서비스 지표 — `GET /admin/insights/recommendations/*`, 2026-10-22) ──
 // 사용자는 user_id 로만 온다 — 서버가 이름·이메일·제공자 ID·프로필 사진을 조회하지도 싣지도 않는다(루트 CLAUDE.md 개인정보 원칙).
 
