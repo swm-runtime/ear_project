@@ -62,3 +62,8 @@
 ## 처리 기록
 
 - 2026-10-29 발행(마크다운 + Jira KAN-300).
+- 2026-10-31 운영 반영 기록(Jira 댓글에서 옮김)
+  - 02:55 KST #2211(dev → main) 머지 → 03:05 운영 API `64b6f5a2`(v1.3.0+11) · 마이그레이션 5개 · 운영 OTA `01a18df7` · ERROR·5xx 0.
+  - 03:37 `SIGNUP_TRIAL_DAYS=3`(KAN-287 — 완료) · `FIRST_DRIP_RANDOM_ENABLED=true`(KAN-291 — 켠 뒤 10시간 첫 드립 서로 다른 편 27→41, 1위 비중 12.5%→6.5%).
+  - 13:32 `SERIES_PAYWALL_ENABLED=true`(KAN-290 — 운영 실기기 확인 · 완료).
+  - 남은 키: 할인 `PLAN_DISCOUNT_*`(스토어 가격 11-01 적용과 함께) · `DRIP_ARRIVAL_AB_ENABLED` · `RETENTION_MORNING_PUSH_MODE` · `SHORT_CONTENT_COHORT_SINCE`(KR 한정 판정 #2215 dev 머지 — 재고 판단 뒤) · 후기 2개(12-01 이후).
