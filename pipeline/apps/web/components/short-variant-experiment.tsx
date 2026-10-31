@@ -1,7 +1,7 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
 import { btnCls } from "@/components/ui";
-import { EarApiError, type EarChannel, type EarInsightsMarket, type EarShortVariant, type EarVariantMetrics, type EarVariantSplit, earChannelLabel, getEarShortVariant } from "@/lib/ear";
+import { EarApiError, type EarChannel, type EarInsightsMarket, type EarShortVariant, type EarVariantMetrics, type EarVariantPairSide, type EarVariantSplit, earChannelLabel, getEarShortVariant } from "@/lib/ear";
 import { EarGate, EarSession, earErrMsg } from "@/app/publish/ear-connect";
 import { ExperimentCompareTable, type CompareColumn, type CompareRow } from "@/components/experiment-compare-table";
 import { fmtKstDate } from "@/lib/insights-format";
@@ -131,27 +131,11 @@ function ShortVariantView({ channel, market, onSwitchToDev }: { channel: EarChan
 
       <section className="space-y-1">
         <h3 className="text-sm font-semibold">짝 비교 — 짧은 판과 그 원본 (전체 값)</h3>
-        <p className="text-xs text-ink-soft">같은 주제의 두 편을 나란히 둔다 — 가장 깨끗한 비교. 다만 두 편을 듣는 사람(코호트)이 달라 사람 차이는 남는다.</p>
-        {data.pairs.length === 0 ? (
-          <p className="text-[13px] text-ink-soft">원본이 연결된 짧은 판이 아직 없다.</p>
-        ) : (
-          <div className="space-y-4">
-            {data.pairs.map((p) => (
-              <ExperimentCompareTable
-                key={p.short.content_id}
-                caption={p.short.title}
-                columns={[
-                  { key: "original", title: "원본", subtitle: introLabel(p.original.intro_version), smallSample: isSmall(p.original.all, data.min_sample) },
-                  { key: "short", title: "짧은 판", subtitle: introLabel(p.short.intro_version), smallSample: isSmall(p.short.all, data.min_sample) },
-                ]}
-                rows={[
-                  { kind: "text", label: "길이", cells: [`${Math.round(p.original.duration_sec / 60)}분`, `${Math.round(p.short.duration_sec / 60)}분`] },
-                  ...metricRows([p.original.all, p.short.all]),
-                ]}
-              />
-            ))}
-          </div>
-        )}
+        <p className="text-xs text-ink-soft">
+          같은 주제의 두 편을 나란히 둔다 — 가장 깨끗한 비교. 다만 두 편을 듣는 사람(코호트)이 달라 사람 차이는 남는다.
+          완청률 차이가 <b>확실한 짝부터</b>(두 비율 차이의 z값이 큰 순 — 차이가 커도 몇 명뿐이면 뒤로 간다) {PAIR_PREVIEW}개만 먼저 보인다.
+        </p>
+        <PairList pairs={data.pairs} minSample={data.min_sample} />
       </section>
 
       <p className="text-xs text-ink-soft">
@@ -183,4 +167,62 @@ function MetricsTable({ rows, minSample }: { rows: { key: string; label: string;
   if (rows.length === 0) return <p className="text-[13px] text-ink-soft">아직 값이 없다.</p>;
   const columns: CompareColumn[] = rows.map((r) => ({ key: r.key, title: r.label, smallSample: isSmall(r.m, minSample) }));
   return <ExperimentCompareTable columns={columns} rows={metricRows(rows.map((r) => r.m))} />;
+}
+
+/** 처음에 보여 줄 짝 수 — 나머지는 [더 보기] */
+const PAIR_PREVIEW = 5;
+
+/**
+ * 짝의 완청률 차이가 얼마나 확실한가 — 두 비율 차이의 z값(합친 비율로 표준오차). 표본이 작으면 차이가 커도 작게 나온다.
+ * 순서를 정하는 데만 쓴다(판정·유의성 표기는 하지 않는다). 시작이 없는 쪽이 있으면 0
+ */
+function completionDiffZ(original: EarVariantMetrics, short: EarVariantMetrics): number {
+  const n1 = original.starters;
+  const n2 = short.starters;
+  if (n1 === 0 || n2 === 0) return 0;
+  const p1 = original.completers / n1;
+  const p2 = short.completers / n2;
+  const pooled = (original.completers + short.completers) / (n1 + n2);
+  const se = Math.sqrt(pooled * (1 - pooled) * (1 / n1 + 1 / n2));
+  return se === 0 ? 0 : (p2 - p1) / se;
+}
+
+function PairList({ pairs, minSample }: { pairs: { short: EarVariantPairSide; original: EarVariantPairSide }[]; minSample: number }) {
+  const [expanded, setExpanded] = useState(false);
+  if (pairs.length === 0) return <p className="text-[13px] text-ink-soft">원본이 연결된 짧은 판이 아직 없다.</p>;
+
+  const ranked = pairs
+    .map((p) => ({ p, z: completionDiffZ(p.original.all, p.short.all) }))
+    .sort((x, y) => Math.abs(y.z) - Math.abs(x.z) || y.p.short.all.starters + y.p.original.all.starters - (x.p.short.all.starters + x.p.original.all.starters));
+  const shown = expanded ? ranked : ranked.slice(0, PAIR_PREVIEW);
+  const diffPp = (p: { short: EarVariantPairSide; original: EarVariantPairSide }) =>
+    p.short.all.completion_rate === null || p.original.all.completion_rate === null ? null : (p.short.all.completion_rate - p.original.all.completion_rate) * 100;
+
+  return (
+    <div className="space-y-4">
+      {shown.map(({ p, z }) => {
+        const d = diffPp(p);
+        const verdict = d === null ? "비교할 값 없음" : `짧은 판 완청률 ${d >= 0 ? "+" : ""}${d.toFixed(1)}%p · 확실도 z ${Math.abs(z).toFixed(1)}`;
+        return (
+          <ExperimentCompareTable
+            key={p.short.content_id}
+            caption={`${p.short.title} — ${verdict}`}
+            columns={[
+              { key: "original", title: "원본", subtitle: introLabel(p.original.intro_version), smallSample: isSmall(p.original.all, minSample) },
+              { key: "short", title: "짧은 판", subtitle: introLabel(p.short.intro_version), smallSample: isSmall(p.short.all, minSample) },
+            ]}
+            rows={[
+              { kind: "text", label: "길이", cells: [`${Math.round(p.original.duration_sec / 60)}분`, `${Math.round(p.short.duration_sec / 60)}분`] },
+              ...metricRows([p.original.all, p.short.all]),
+            ]}
+          />
+        );
+      })}
+      {ranked.length > PAIR_PREVIEW && (
+        <button type="button" className={btnCls("ghost")} onClick={() => setExpanded((v) => !v)}>
+          {expanded ? "접기" : `더 보기 (${ranked.length - PAIR_PREVIEW}개 더)`}
+        </button>
+      )}
+    </div>
+  );
 }
