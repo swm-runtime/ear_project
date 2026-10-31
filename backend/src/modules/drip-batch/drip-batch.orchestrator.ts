@@ -804,7 +804,10 @@ export class DripBatchOrchestrator {
 
     // 짧은 판 코호트(KAN-298) — 정규·탐험 편성 모두 가입 시점 코호트와 같은 길이 프로필의 콘텐츠만 후보다(폴백 없음 — 재고가
     // 없으면 그날은 고갈이다). 시리즈 연속 편도 이 후보 풀에서 나온다
-    const lengthProfile = this.contentCohortService.resolve(user.createdAt);
+    const lengthProfile = this.contentCohortService.resolve(
+      user.createdAt,
+      user.market,
+    );
 
     if (dripCount > 0) {
       plan.regular = await this.planRegular(user.id, {

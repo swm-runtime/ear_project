@@ -143,7 +143,7 @@ export class RetentionPushRepository {
               and c.status = 'published'
               and c.market = u.market
               -- 짧은 판 코호트(KAN-298) — 규칙은 content-cohort.policy.ts 한 곳(SQL판)
-              and c.length_profile = ${cohortLengthProfileSql('u.created_at', '$8')}
+              and c.length_profile = ${cohortLengthProfileSql('u.created_at', '$8', 'u.market')}
               and pp.updated_at >= $5
               and c.duration_sec - pp.position_sec between $6 and $7
               -- 시리즈 유료화(KAN-290) — 규칙은 series-paywall.policy.ts 한 곳(SQL판)

@@ -151,7 +151,7 @@ export class RecommendTestService {
       user.id,
       now,
       user.market,
-      this.contentCohortService.resolve(user.createdAt),
+      this.contentCohortService.resolve(user.createdAt, user.market),
     );
   }
 

@@ -58,6 +58,9 @@ describe('짧은 판 코호트 노출 E2E', () => {
   let shortContent: Content;
   let newUser: User;
   let oldUser: User;
+  let globalTopic: Topic;
+  let globalStandardContent: Content;
+  let globalNewUser: User;
 
   async function createApp(
     cohortService?: ContentCohortService,
@@ -101,6 +104,20 @@ describe('짧은 판 코호트 노출 E2E', () => {
     shortContent = await seedContent('short', standardContent.id);
     newUser = await seedUser('new', null);
     oldUser = await seedUser('old', new Date('2025-12-01T00:00:00.000Z'));
+    // 짧은 판은 KR 실험이다 — GLOBAL은 짧은 판이 없으므로 경계 뒤 가입자도 standard를 봐야 한다(2026-10-31)
+    globalTopic = await seedTopic(UserMarket.GLOBAL);
+    globalStandardContent = await seedContent(
+      'standard',
+      null,
+      UserMarket.GLOBAL,
+      globalTopic,
+    );
+    globalNewUser = await seedUser(
+      'global-new',
+      null,
+      UserMarket.GLOBAL,
+      globalTopic,
+    );
   }, 120_000);
 
   afterAll(async () => {
@@ -147,6 +164,16 @@ describe('짧은 판 코호트 노출 E2E', () => {
 
     expect(forNew).toEqual([shortContent.id]);
     expect(forOld).toEqual([standardContent.id]);
+  }, 60_000);
+
+  it('탐색 목록 — GLOBAL 시장은 경계 이후 가입자도 standard 를 본다(짧은 판은 KR 실험)', async () => {
+    const forGlobalNew = await list(
+      app,
+      globalNewUser,
+      `/explore/contents?topic_ids=${globalTopic.id}`,
+    );
+
+    expect(forGlobalNew).toEqual([globalStandardContent.id]);
   }, 60_000);
 
   it('검색 — 같은 규칙이다', async () => {
@@ -208,19 +235,21 @@ describe('짧은 판 코호트 노출 E2E', () => {
 
   it('리텐션 알림의 SQL 판정이 애플리케이션 판정과 같고, 듣던 콘텐츠 조회가 그 조건으로 돈다', async () => {
     const since = new Date(SINCE);
-    const cases: [Date, Date | null][] = [
-      [new Date(since.getTime() - 1), since],
-      [since, since],
-      [new Date(since.getTime() + 1), since],
-      [since, null],
+    const cases: [Date, Date | null, UserMarket][] = [
+      [new Date(since.getTime() - 1), since, UserMarket.KR],
+      [since, since, UserMarket.KR],
+      [new Date(since.getTime() + 1), since, UserMarket.KR],
+      [since, null, UserMarket.KR],
+      [since, since, UserMarket.GLOBAL],
+      [new Date(since.getTime() + 1), since, UserMarket.GLOBAL],
     ];
-    for (const [signedUpAt, boundary] of cases) {
+    for (const [signedUpAt, boundary, market] of cases) {
       const [row] = await dataSource.query<{ profile: string }[]>(
-        `SELECT ${cohortLengthProfileSql('$1::timestamptz', '$2')} AS profile`,
-        [signedUpAt, boundary],
+        `SELECT ${cohortLengthProfileSql('$1::timestamptz', '$2', '$3::varchar')} AS profile`,
+        [signedUpAt, boundary, market],
       );
       expect(row.profile).toBe(
-        resolveContentLengthProfile(signedUpAt, boundary),
+        resolveContentLengthProfile(signedUpAt, boundary, market),
       );
     }
 
@@ -267,6 +296,8 @@ describe('짧은 판 코호트 노출 E2E', () => {
   async function seedUser(
     label: string,
     createdAt: Date | null,
+    market: UserMarket = UserMarket.KR,
+    interestTopic: Topic = topic,
   ): Promise<User> {
     const repository = dataSource.getRepository(User);
     const user = await repository.save(
@@ -275,7 +306,7 @@ describe('짧은 판 코호트 노출 E2E', () => {
         providerUserId: `${STAMP}-${label}`,
         role: UserRole.USER,
         onboardingCompleted: true,
-        market: UserMarket.KR,
+        market,
       }),
     );
     userIds.push(user.id);
@@ -289,7 +320,7 @@ describe('짧은 판 코호트 노출 E2E', () => {
     await interests.save(
       interests.create({
         userId: user.id,
-        topicId: topic.id,
+        topicId: interestTopic.id,
         source: UserInterestSource.ONBOARDING,
         isActive: true,
       }),
@@ -297,15 +328,15 @@ describe('짧은 판 코호트 노출 E2E', () => {
     return repository.findOneByOrFail({ id: user.id });
   }
 
-  async function seedTopic(): Promise<Topic> {
+  async function seedTopic(market: UserMarket = UserMarket.KR): Promise<Topic> {
     const repository = dataSource.getRepository(Topic);
     const created = await repository.save(
       repository.create({
-        name: `${STAMP}-topic`,
+        name: `${STAMP}-topic-${market}`,
         parentCategory: STAMP,
         isVisible: true,
         displayOrder: 972,
-        market: UserMarket.KR,
+        market,
       }),
     );
     topicIds.push(created.id);
@@ -315,11 +346,13 @@ describe('짧은 판 코호트 노출 E2E', () => {
   async function seedContent(
     profile: 'standard' | 'short',
     variantOf: string | null,
+    market: UserMarket = UserMarket.KR,
+    contentTopic: Topic = topic,
   ): Promise<Content> {
     const repository = dataSource.getRepository(Content);
     const content = await repository.save(
       repository.create({
-        title: `${STAMP} ${profile}`,
+        title: `${STAMP} ${profile} ${market}`,
         description: 'e2e 짧은 판 코호트 전용',
         authorName: null,
         sourceName: 'E2E',
@@ -329,7 +362,7 @@ describe('짧은 판 코호트 노출 E2E', () => {
         seriesId: null,
         episodeNo: null,
         totalEpisodes: null,
-        audioPath: `${STAMP}/${profile}.mp3`,
+        audioPath: `${STAMP}/${profile}-${market}.mp3`,
         durationSec: profile === 'short' ? 540 : 900,
         thumbnailUrl: 'https://example.com/e2e.png',
         contentVersion: 1,
@@ -337,8 +370,9 @@ describe('짧은 판 코호트 노출 E2E', () => {
         status: ContentStatus.PUBLISHED,
         publishedAt: new Date(),
         withdrawnAt: null,
-        market: UserMarket.KR,
-        language: ContentLanguage.KO,
+        market,
+        language:
+          market === UserMarket.KR ? ContentLanguage.KO : ContentLanguage.EN,
         lengthProfile:
           profile === 'short'
             ? ContentLengthProfile.SHORT
@@ -349,7 +383,7 @@ describe('짧은 판 코호트 노출 E2E', () => {
     contentIds.push(content.id);
     const contentTopics = dataSource.getRepository(ContentTopic);
     await contentTopics.save(
-      contentTopics.create({ contentId: content.id, topicId: topic.id }),
+      contentTopics.create({ contentId: content.id, topicId: contentTopic.id }),
     );
     return content;
   }

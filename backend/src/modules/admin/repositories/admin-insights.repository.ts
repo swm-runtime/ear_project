@@ -1503,7 +1503,9 @@ export class AdminInsightsRepository {
                 ) as completed,
                 case
                   when $5::timestamptz is null then null
-                  when ${cohortLengthProfileSql('u.created_at', '$5')} = '${ContentLengthProfile.SHORT}'
+                  -- 짧은 판은 KR 실험이다 — GLOBAL 가입자는 어느 비교 그룹에도 넣지 않는다
+                  when u.market <> '${UserMarket.KR}' then null
+                  when ${cohortLengthProfileSql('u.created_at', '$5', 'u.market')} = '${ContentLengthProfile.SHORT}'
                     then '${ContentLengthProfile.SHORT}'
                   when u.created_at >= $5::timestamptz - ($2::timestamptz - $5::timestamptz)
                    and s.first_played_at < u.created_at + ($2::timestamptz - $5::timestamptz)
