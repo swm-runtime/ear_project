@@ -278,6 +278,20 @@ export async function listPipelineTopicsForSync(): Promise<{ major: string; mid:
 /** 도메인 판정 (사람): tier·license_basis. decided_by·decided_at 는 트리거가 찍는다. */
 /** 소스 풀 확인 항목 ①~④ 자동 수집 — AI 없이 HTTP만 (robots·홈·약관·표본 기사). 판정은 여전히 사람. */
 /**
+ * 발행 콘텐츠 id 목록 → backlog 행. 100개씩 나눠 읽는다 — 서비스 중 콘텐츠가 420편을 넘자 `in.(…)` 한 요청이 16KB 를 넘어 fetch 자체가 실패했다
+ * (2026-11-01 [구형 전체 재발행] React #441, 콘솔 서버 로그 "TypeError: fetch failed"). 실패는 삼키지 않고 던진다.
+ */
+type ContentRefRow = { id: string; published_content_ref: string | null; published_at: string | null };
+async function backlogByContentRefs(sb: Awaited<ReturnType<typeof supabaseServer>>, contentIds: string[]): Promise<ContentRefRow[]> {
+  const out: ContentRefRow[] = [];
+  for (let i = 0; i < contentIds.length; i += 100) {
+    const { data, error } = await sb.from("backlog").select("id,published_content_ref,published_at").in("published_content_ref", contentIds.slice(i, i + 100));
+    if (error) throw new Error(error.message);
+    out.push(...((data ?? []) as ContentRefRow[]));
+  }
+  return out;
+}
+/**
  * 추천 메타 재부여 (KAN-53, 0021): 발행 콘텐츠마다 enrich 작업을 큐에 넣는다. 대본은 그 콘텐츠를 발행한 백로그의 에피소드에서 찾고(없으면 폴백),
  * 산출물은 워커가 S3 datasets/enrichment/<content_id>.json 에 둔다. 제품 반영은 브라우저가 [반영]으로 PATCH(enrichment_file 단독)한다.
  */
@@ -285,7 +299,7 @@ export async function requestEnrich(items: { content_id: string; title: string; 
   const sb = await supabaseServer();
   const ids = items.map((i) => i.content_id);
   const [{ data: bls }, { data: active }] = await Promise.all([
-    sb.from("backlog").select("id,published_content_ref").in("published_content_ref", ids),
+    backlogByContentRefs(sb, ids).then((data) => ({ data })),
     sb.from("jobs").select("payload").eq("type", "enrich").in("status", ["queued", "claimed", "running"]),
   ]);
   const backlogOf = new Map((bls ?? []).map((b) => [String(b.published_content_ref), b.id]));
@@ -323,7 +337,7 @@ export async function enrichStates(contentIds: string[]): Promise<Record<string,
 /** 발행 콘텐츠 → 그 후보의 최신 에피소드 id (수동 업로드처럼 파이프라인 후보가 없으면 빠진다) */
 async function publishedEpisodeOf(contentIds: string[]): Promise<Map<string, string>> {
   const sb = await supabaseServer();
-  const { data: bls } = await sb.from("backlog").select("id,published_content_ref").in("published_content_ref", contentIds);
+  const bls = await backlogByContentRefs(sb, contentIds);
   const contentOf = new Map((bls ?? []).map((b) => [b.id as string, String(b.published_content_ref)]));
   if (!contentOf.size) return new Map();
   const { data: eps } = await sb.from("episodes").select("id,backlog_id").in("backlog_id", [...contentOf.keys()]).order("created_at", { ascending: false });
@@ -335,7 +349,7 @@ async function publishedEpisodeOf(contentIds: string[]): Promise<Map<string, str
 export async function requestScriptAlign(contentIds: string[]) {
   const sb = await supabaseServer();
   const [{ data: bls }, { data: active }] = await Promise.all([
-    sb.from("backlog").select("id,published_content_ref").in("published_content_ref", contentIds),
+    backlogByContentRefs(sb, contentIds).then((data) => ({ data })),
     sb.from("jobs").select("payload").eq("type", "script_align").in("status", ["queued", "claimed", "running"]),
   ]);
   const backlogOf = new Map((bls ?? []).map((b) => [String(b.published_content_ref), b.id]));
@@ -357,7 +371,7 @@ export async function requestScriptAlign(contentIds: string[]) {
 export async function scriptAlignStates(contentIds: string[]): Promise<Record<string, { status: string; error: string | null; episode_id: string | null; ready: boolean }>> {
   if (!contentIds.length) return {};
   const sb = await supabaseServer();
-  const { data: bls } = await sb.from("backlog").select("id,published_content_ref").in("published_content_ref", contentIds);
+  const bls = await backlogByContentRefs(sb, contentIds);
   const backlogOf = new Map((bls ?? []).map((b) => [String(b.published_content_ref), b.id]));
   const { data: eps } = backlogOf.size ? await sb.from("episodes").select("id,backlog_id").in("backlog_id", [...backlogOf.values()]) : { data: [] as { id: string; backlog_id: string }[] };
   const episodeOf = new Map((eps ?? []).map((e) => [e.backlog_id, e.id]));
@@ -381,8 +395,7 @@ export type RepublishPlan = { backlogId: string; episodeId: string; audio: boole
 export async function republishPlans(contentIds: string[]): Promise<Record<string, RepublishPlan>> {
   if (!contentIds.length) return {};
   const sb = await supabaseServer();
-  const { data: bls, error } = await sb.from("backlog").select("id,published_content_ref,published_at").in("published_content_ref", contentIds);
-  if (error) throw new Error(error.message);
+  const bls = await backlogByContentRefs(sb, contentIds);
   const bids = (bls ?? []).map((b) => b.id as string);
   if (!bids.length) return {};
   const [{ data: eps }, { data: runs }, { data: jobs }] = await Promise.all([
