@@ -3,7 +3,7 @@ import path from "node:path";
 import { cfg, executedBy } from "../config.js";
 import { getBacklog, getEpisode, getSeries, getSetting, insertRun, majorOfMidTopic, pool, setJobProgress, type Job, listPublications } from "../db.js";
 import { mergePublications, parseLayers, pipelineLocale, promptBody, publicationOf, publicationStyle } from "@ear/pipeline";
-import { CODE_STYLE_LABEL, composeLayersThumb, composeNotesThumb, composeTvThumb, composeWaveThumb, nameLines, titleToLines } from "./thumbnail-code.js";
+import { CODE_STYLE_LABEL, composeLayersThumb, composeNotesThumb, composeSproutThumb, composeTvThumb, composeWaveThumb, nameLines, titleToLines } from "./thumbnail-code.js";
 import { SERIES_THUMBNAIL_PROMPT_KEY, THUMBNAIL_ANCHOR_PROMPT_KEY, THUMBNAIL_PROMPT_KEY, THUMBNAIL_SCENE_PROMPT_KEY, workerRev } from "../assets.js";
 import { makeExecutor } from "../executors/index.js";
 import { bookmarkFile, composeBookmark, composeCorner, cornerContrast } from "./thumbnail-compose.js";
@@ -97,8 +97,8 @@ export async function runThumbnail(job: Job) {
   );
   const existingKey = row.rows[0]?.thumbnail_key as string | null;
   // 0040 (KAN-296): 짧은 판 재제작 편은 원본 편의 썸네일을 그대로 쓴다 — 비교 변수를 길이 하나로 남긴다. 원본에 썸네일이 없으면 종전 경로로 새로 만든다
-  // 짧은 판 시리즈(0041)는 편을 나눠 화 번호·편수가 원본과 다르다 — 화 번호를 그리는 코드 합성 디자인(tv·notes·layers·wave)은 복사하지 않고 아래 시리즈 경로로 새 번호를 그린다(비용 0). 장면·키워드 디자인은 원본 그림을 복사한다
-  const remakeCodeStyle = cand.remake_of && cand.series_id ? await getSeries(cand.series_id).then(async (ser) => (ser ? ["tv", "notes", "layers", "wave"].includes(publicationStyle(ser.publication, mergePublications(await listPublications()))) : false)) : false;
+  // 짧은 판 시리즈(0041)는 편을 나눠 화 번호·편수가 원본과 다르다 — 화 번호를 그리는 코드 합성 디자인(tv·notes·layers·wave·sprout)은 복사하지 않고 아래 시리즈 경로로 새 번호를 그린다(비용 0). 장면·키워드 디자인은 원본 그림을 복사한다
+  const remakeCodeStyle = cand.remake_of && cand.series_id ? await getSeries(cand.series_id).then(async (ser) => (ser ? ["tv", "notes", "layers", "wave", "sprout"].includes(publicationStyle(ser.publication, mergePublications(await listPublications()))) : false)) : false;
   if (cand.remake_of && !remakeCodeStyle) {
     const copied = await copyOriginalThumbnail(cand.remake_of, rel, outFile).catch((e) => { log(`  thumbnail ${episodeId}: 원본 복사 실패 (${String(e?.message ?? e).slice(0, 120)}) — 새로 만든다`); return null; });
     if (copied) {
@@ -126,7 +126,7 @@ export async function runThumbnail(job: Job) {
   const series = sr.rows[0]?.series_id ? await getSeries(sr.rows[0].series_id as string) : null;
   const pubs = series ? mergePublications(await listPublications()) : []; // 상수 + 콘솔에서 만든 간행물(0036)
   const style = series ? publicationStyle(series.publication, pubs) : "scene";
-  if (series && (style === "tv" || style === "notes" || style === "layers" || style === "wave")) {
+  if (series && (style === "tv" || style === "notes" || style === "layers" || style === "wave" || style === "sprout")) {
     return runCodeSeriesThumbnail({ job, episodeId, backlogId, rel, outFile, progress, series, style, no: sr.rows[0].series_no as number, candTitle: cand.title });
   }
   if (series && style === "phrasebook") {
@@ -374,10 +374,10 @@ async function runPhrasebookThumbnail(a: { job: Job; episodeId: string; backlogI
 }
 
 /**
- * 코드 합성 시리즈 디자인 — tv·notes(2026-10-28)·layers·wave(2026-10-29) (thumbnail-code.ts). 이미지 모델·텍스트 모델 없음.
+ * 코드 합성 시리즈 디자인 — tv·notes(2026-10-28)·layers·wave(2026-10-29)·sprout(2026-11-01) (thumbnail-code.ts). 이미지 모델·텍스트 모델 없음.
  * 편 글자는 설계안(series.plan)의 편 제목. 없으면 백로그 제목에서 "시리즈 N — " 머리와 ": 부제"를 뗀 것. 표지는 편마다 같이 다시 그린다(회화집과 같음).
  */
-async function runCodeSeriesThumbnail(a: { job: Job; episodeId: string; backlogId: string; rel: string; outFile: string; progress: (detail: string) => Promise<unknown>; series: NonNullable<Awaited<ReturnType<typeof getSeries>>>; style: "tv" | "notes" | "layers" | "wave"; no: number; candTitle: string }) {
+async function runCodeSeriesThumbnail(a: { job: Job; episodeId: string; backlogId: string; rel: string; outFile: string; progress: (detail: string) => Promise<unknown>; series: NonNullable<Awaited<ReturnType<typeof getSeries>>>; style: "tv" | "notes" | "layers" | "wave" | "sprout"; no: number; candTitle: string }) {
   const s = a.series;
   const baseRel = `datasets/series/${s.id}`;
   const coverFile = path.join(cfg.workRoot, baseRel, "thumb-cover.png");
@@ -392,7 +392,7 @@ async function runCodeSeriesThumbnail(a: { job: Job; episodeId: string; backlogI
   const label = (s.thumb_label ?? "").trim() || CODE_STYLE_LABEL[a.style].defaultLabel;
   const layers = parseLayers(s.thumb_layers);
   if (a.style === "layers" && !layers.length) throw new Error(`시리즈 "${s.name}" 는 간행물 ${pubName}(계층 쌓기)인데 층(thumb_layers)이 비었다 — 시리즈 화면에서 "연결:1-6, …" 형식으로 채운 뒤 다시 건다`);
-  const compose = a.style === "tv" ? composeTvThumb : a.style === "notes" ? composeNotesThumb : a.style === "wave" ? composeWaveThumb : (t: Parameters<typeof composeTvThumb>[0], size?: number) => composeLayersThumb({ ...t, layers }, size);
+  const compose = a.style === "tv" ? composeTvThumb : a.style === "notes" ? composeNotesThumb : a.style === "wave" ? composeWaveThumb : a.style === "sprout" ? composeSproutThumb : (t: Parameters<typeof composeTvThumb>[0], size?: number) => composeLayersThumb({ ...t, layers }, size);
   await a.progress(`${CODE_STYLE_LABEL[a.style].name} 합성`);
   const size = Number(String(cfg.thumbnailSize).split("x")[0]) || 1024;
   const started = Date.now();

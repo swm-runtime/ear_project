@@ -9,6 +9,7 @@ import sharp from "sharp";
  *   notes  — "사례로 알아보는 창업": 회의실 벽의 포스트잇 세 장. 노랑(제목)·분홍(번호)·민트(시리즈명). 표지는 제목 자리에 시리즈 이름, 번호 자리에 편수.
  *   layers — "탑다운 백엔드": 층을 쌓고 이번 편의 층만 밝게 (2026-10-29).
  *   wave   — "계층마다 보는 네트워크": 오실로스코프 — 편마다 채널(파형) 하나, 이번 편 채널만 밝게 (2026-10-29).
+ *   sprout — "미래를 바꾸는 습관": 화분의 줄기에 편마다 잎이 하나씩 늘고 이번 편 잎만 진하게 (2026-11-01).
  * 회화집(thumbnail-phrasebook.ts)과 같은 방식 — 이미지 모델을 부르지 않고 글꼴 윤곽을 SVG 경로로 그려 sharp 로 래스터화한다. 편마다 결과가 흔들리지 않고 비용이 0.
  * 편마다 다른 글자는 설계안(series.plan)의 편 제목이다 — 백로그 제목("시리즈 N — 제목: 부제")이 아니라 짧은 주제 이름.
  */
@@ -251,10 +252,58 @@ export async function composeWaveThumb(t: CodeThumbText, size = 1024): Promise<B
   return sharp(Buffer.from(svg)).png().toBuffer();
 }
 
-export const CODE_STYLE_LABEL: Record<"tv" | "notes" | "layers" | "wave", { name: string; defaultLabel: string }> = {
+/**
+ * 자라는 새싹 — 정사각 PNG. 하늘색→연두 그라디언트 바탕 오른쪽에 화분, 줄기에 편 번호만큼 잎이 좌우로 번갈아 나고 이번 편 잎만 진한 초록 + 번호 꼬리표.
+ * 줄기 높이도 편 번호에 비례(끝이 위쪽 진행 막대 아래에 머문다). 왼쪽 위 진행 막대는 편수만큼 칸, 지난 편까지 연두·이번 편 진초록.
+ * 표지는 다 자란 줄기(잎 = 편수, 꼬리표 없음). 왼쪽 아래에 "05화 / 13편"(표지 "전 13편")과 편 제목(표지는 시리즈 이름) — 화분과 겹치지 않게 폭을 0.55로 묶는다.
+ */
+export async function composeSproutThumb(t: CodeThumbText, size = 1024): Promise<Buffer> {
+  const { bold, display } = loadFonts();
+  const S = size;
+  const cover = t.no == null;
+  const total = Math.max(1, t.total ?? t.no ?? 1);
+  const done = cover ? total : Math.min(t.no!, total);
+  const INK = "#1E3324", DIM = "#4F6B55", LEAF = "#7CC36A", LEAF_NEW = "#2F9E44", STEM = "#4F8A3C", POT = "#C8693A", RIM = "#B05A2F", TODO = "#CBD8CC";
+  const pad = (n: number) => String(n).padStart(2, "0");
+  const cx = S * 0.73, potTop = S * 0.66, h = S * (0.1 + (0.3 * done) / total);
+  let g = `<defs><linearGradient id="bg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#E8F4FB"/><stop offset="1" stop-color="#EEF7E4"/></linearGradient></defs><rect width="${S}" height="${S}" fill="url(#bg)"/>`;
+  g += `<path d="M${cx} ${potTop} C${cx - S * 0.04} ${potTop - h * 0.4} ${cx + S * 0.04} ${potTop - h * 0.7} ${cx} ${potTop - h}" stroke="${STEM}" stroke-width="${S * 0.012}" fill="none" stroke-linecap="round"/>`;
+  const scale = Math.min(1, 13 / total); // 편이 많으면 잎을 줄여 겹침을 막는다
+  for (let k = 1; k <= done; k++) {
+    const y = potTop - (h * k) / (done + 0.6), side = k % 2 ? 1 : -1, cur = !cover && k === t.no;
+    const L = S * (cur ? 0.1 : 0.075 * scale), Wd = L * 0.45;
+    const lx = cx + side * S * 0.006, ex = lx + side * L;
+    g += `<path d="M${lx} ${y} Q${lx + side * L * 0.5} ${y - Wd} ${ex} ${y - Wd * 0.3} Q${lx + side * L * 0.5} ${y + Wd * 0.6} ${lx} ${y} Z" fill="${cur ? LEAF_NEW : LEAF}"/>`;
+    if (cur) {
+      const tx = ex + (side > 0 ? S * 0.01 : -S * 0.1);
+      g += `<rect x="${tx}" y="${y - S * 0.06}" width="${S * 0.09}" height="${S * 0.06}" rx="${S * 0.012}" fill="${INK}"/><path d="${centered(display, pad(k), tx + S * 0.045, y - S * 0.016, S * 0.042)}" fill="#FFFFFF"/>`;
+    }
+  }
+  g += `<path d="M${cx - S * 0.11} ${potTop} L${cx + S * 0.11} ${potTop} L${cx + S * 0.085} ${potTop + S * 0.13} L${cx - S * 0.085} ${potTop + S * 0.13} Z" fill="${POT}"/><rect x="${cx - S * 0.125}" y="${potTop - S * 0.005}" width="${S * 0.25}" height="${S * 0.035}" rx="${S * 0.008}" fill="${RIM}"/>`;
+  const bx = S * 0.06, by = S * 0.2, bw = S * 0.5, gap = S * 0.006, seg = (bw - gap * (total - 1)) / total;
+  for (let k = 1; k <= total; k++) g += `<rect x="${bx + (k - 1) * (seg + gap)}" y="${by}" width="${seg}" height="${S * 0.022}" rx="${Math.min(S * 0.006, seg / 2)}" fill="${k <= done ? (!cover && k === t.no ? LEAF_NEW : LEAF) : TODO}"/>`;
+  const logo = await logoSvg(S, false);
+  const label = t.label.trim() ? `<path d="${rightAligned(bold, t.label.trim().toUpperCase(), S * 0.948, S * 0.082, S * 0.032, 0.12)}" fill="${DIM}"/>` : "";
+  const k = cover ? `전 ${total}편` : `${pad(t.no!)}화 / ${total}편`;
+  // 화분 때문에 글자 폭이 좁다 — 2줄·3줄로 나눠 보고 글자가 10% 넘게 커질 때만 3줄
+  const fitted = (ls: string[]) => ({ ls, big: Math.min(...ls.map((l) => fitSize(display, l, S * 0.55, S * 0.1))) });
+  const text = t.lines.join(" ").trim();
+  const two = fitted(text ? titleToLines(text, 2) : [""]), three = fitted(text ? titleToLines(text, 3) : [""]);
+  const { ls: lines, big } = three.big > two.big * 1.1 ? three : two;
+  const lh = big * 1.04;
+  const baseY = S * 0.94 - big * 0.18;
+  const head = lines.map((l, i) => `<path d="${textPath(display, l, S * 0.06, baseY - (lines.length - 1 - i) * lh, big).d}" fill="${INK}"/>`).join("");
+  const kY = baseY - (lines.length - 1) * lh - big * 0.82 - S * 0.02;
+  const kPath = `<path d="${textPath(bold, k, S * 0.06, kY, S * 0.032, 0.08).d}" fill="${DIM}"/>`;
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${S}" height="${S}">${g}${logo}${label}${kPath}${head}</svg>`;
+  return sharp(Buffer.from(svg)).png().toBuffer();
+}
+
+export const CODE_STYLE_LABEL: Record<"tv" | "notes" | "layers" | "wave" | "sprout", { name: string; defaultLabel: string }> = {
   tv: { name: "TV 정지 화면", defaultLabel: "AD SERIES" },
   notes: { name: "포스트잇 벽", defaultLabel: "CASE SERIES" },
   layers: { name: "계층 쌓기", defaultLabel: "TOP-DOWN SERIES" },
   wave: { name: "파형 그래프", defaultLabel: "NETWORK" },
+  sprout: { name: "자라는 새싹", defaultLabel: "HABIT SERIES" },
 };
 
