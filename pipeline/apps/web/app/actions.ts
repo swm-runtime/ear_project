@@ -291,6 +291,20 @@ async function backlogByContentRefs(sb: Awaited<ReturnType<typeof supabaseServer
   }
   return out;
 }
+/** 후보 id 100개씩 · 1000행씩 끝까지 읽는다 — 한 요청은 Supabase 최대 행 수(1000)에서 말없이 잘린다. 실패는 던진다 */
+async function rowsByBacklog<T>(bids: string[], page: (chunk: string[], from: number) => PromiseLike<{ data: unknown; error: { message: string } | null }>): Promise<T[]> {
+  const out: T[] = [];
+  for (let i = 0; i < bids.length; i += 100) {
+    for (let from = 0; ; from += 1000) {
+      const { data, error } = await page(bids.slice(i, i + 100), from);
+      if (error) throw new Error(error.message);
+      const rows = (data ?? []) as T[];
+      out.push(...rows);
+      if (rows.length < 1000) break;
+    }
+  }
+  return out;
+}
 /**
  * 추천 메타 재부여 (KAN-53, 0021): 발행 콘텐츠마다 enrich 작업을 큐에 넣는다. 대본은 그 콘텐츠를 발행한 백로그의 에피소드에서 찾고(없으면 폴백),
  * 산출물은 워커가 S3 datasets/enrichment/<content_id>.json 에 둔다. 제품 반영은 브라우저가 [반영]으로 PATCH(enrichment_file 단독)한다.
@@ -398,9 +412,11 @@ export async function republishPlans(contentIds: string[]): Promise<Record<strin
   const bls = await backlogByContentRefs(sb, contentIds);
   const bids = (bls ?? []).map((b) => b.id as string);
   if (!bids.length) return {};
-  const [{ data: eps }, { data: runs }, { data: jobs }] = await Promise.all([
-    sb.from("episodes").select("id,backlog_id,created_at").in("backlog_id", bids).order("created_at", { ascending: false }),
-    sb.from("runs").select("backlog_id,phase,executed_at,result").in("backlog_id", bids).in("phase", ["tts", "thumbnail"]),
+  // 에피소드·실행 기록은 후보 100개씩, 1000행씩 끝까지 읽는다 — 한 요청은 Supabase 최대 행 수(1000)에서 잘린다.
+  // 2026-11-01: tts·thumbnail 실행 기록이 1,382행이 되자 뒤쪽(최근) 기록이 빠져, 썸네일을 다시 만든 13편 중 4편만 구형으로 잡혔다
+  const [eps, runs, { data: jobs }] = await Promise.all([
+    rowsByBacklog<{ id: string; backlog_id: string; created_at: string }>(bids, (ch, from) => sb.from("episodes").select("id,backlog_id,created_at").in("backlog_id", ch).order("created_at", { ascending: false }).range(from, from + 999)),
+    rowsByBacklog<{ backlog_id: string; phase: string; executed_at: string; result: string | null }>(bids, (ch, from) => sb.from("runs").select("backlog_id,phase,executed_at,result").in("backlog_id", ch).in("phase", ["tts", "thumbnail"]).order("executed_at").range(from, from + 999)),
     sb.from("jobs").select("payload").in("type", ["tts", "thumbnail", "package"]).in("status", ["queued", "claimed", "running"]),
   ]);
   const episodeOf = new Map<string, string>();
