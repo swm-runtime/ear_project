@@ -69,5 +69,5 @@
   - **같은 사용자는 같은 그룹**: 기록된 58건 전부를 `experimentBucket(userId, 'drip_arrival_time', 2)`로 다시 계산해 `type` 끝 글자와 58/58 일치. 해시라 저장 없이 매일 같다. 온보딩 완료 활성 사용자 전체 분할 A 1,103 / B 1,129.
   - **그룹 기록**: `notification_logs.type` = `drip_arrival.a`/`.b`.
   - **드립 없는 날**: 도착 알림을 받은 58명은 전원 오늘 드립 적립이 있었고, 아침 알림 대상(발송 47 + 비교 그룹 56)은 전원 오늘 드립 적립이 없었다. 아침 슬롯에 도착 알림과 아침 알림을 둘 다 받은 사람 0명.
-  - 확인 못 한 것: CloudWatch 로그(`drip arrival push done`의 `user_count_by_slot`)는 SSO 만료로 못 봤다. DB 발송 기록으로 판정했다. 그룹별 재생률은 표본이 하루치라 실험 지표 패널에서 계속 본다(이 티켓 범위 밖 — 실험 판정).
+  - 로그(CloudWatch `/ear/api`, 11-01 06:50~09:30 KST — 같은 날 SSO 재로그인 뒤 확인): `drip arrival push done` asia `user_count_by_slot` 07:30 23 · 08:00 20, southeast_asia 07:30 14 · 08:00 1 — DB 기록(A 37 · B 21)과 같다. 07:00 실행 없음, `failed_count` 0, 이 구간 ERROR 0. 그룹별 재생률은 표본이 하루치라 실험 지표 패널에서 계속 본다(이 티켓 범위 밖 — 실험 판정).
 - 2026-11-01 반영 — `archive/`로 옮기고 Jira KAN-289 완료.
