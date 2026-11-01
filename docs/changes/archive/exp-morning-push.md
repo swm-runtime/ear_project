@@ -10,7 +10,7 @@
 | 기한 | 2026-11-01 (Medium — 다음 통합 때) |
 | 선행 | `changes/pending/exp-drip-arrival-ab.md`(KAN-289 — 같은 08:00 크론) |
 | 중요도 | Medium — 서술 추가. 스위치가 꺼져 있으면(기본) 동작 변화 없음 |
-| 관련 | [KAN-288](https://runtime364.atlassian.net/browse/KAN-288) · 브랜치 `feat(be)/morning-retention-push` · 티켓 `tickets/backend/pending/exp-morning-retention-push.md` |
+| 관련 | [KAN-288](https://runtime364.atlassian.net/browse/KAN-288) · 브랜치 `feat(be)/morning-retention-push` · 티켓 `tickets/backend/archive/exp-morning-retention-push.md` |
 
 ## 배경
 
