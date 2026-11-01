@@ -1397,6 +1397,8 @@ export const ROLE_INTENT: Record<string, string> = {
   "수치·조사": "설문·통계·실험 수치가 있는 조사 결과, 기관 통계",
   "역사·맥락": "이 현상의 기원·연혁·과거 사례, 개념이 생긴 배경",
 };
+// 소스 나이 규칙 — 보강(B-①)·주제 기획(B-②) 검색 공용. 2026-11-01 박수헌: 습관·동기처럼 핵심 연구가 2년을 넘은 개념 주제는 근거 앵커를 못 채워 보강 뒤에도 보류만 났다(「미래를 바꾸는 습관」 3·12화)
+const SOURCE_AGE_RULE = "2년 넘게 지난 글은 역사·맥락 역할일 때만 쓴다. 예외로, 지금도 기준으로 인용되는 연구를 다룬 리뷰 논문·전문가 해설·기관 자료는 근거 앵커로 쓸 수 있다. 같은 주장을 받치는 최근 글이 있으면 최근 글을 고른다.";
 export interface ReinforceSearchInput {
   candidate: { id: string; title: string; mid_topic: string; axis: string | null; axis_type: string | null; gaps: string[]; sources: { publisher: string; title: string }[] };
   /** 우선 검색 대상 — 풀 도메인(차단 제외). 검색어에 site: 로 묶어 쓴다 */
@@ -1424,7 +1426,7 @@ export function buildReinforceSearchPrompt(i: ReinforceSearchInput): string {
 - **우선 검색 사이트** (소스 풀 — 여기서 나온 결과만 바로 쓸 수 있다). 검색어에 \`site:\` 로 2~3곳씩 묶어서 넣는다. 사이트 한정은 \`site:도메인\` 형식(콜론, 공백 없음)으로만 쓴다 — 점이나 공백으로 쓰면 일반 검색어가 된다:
   ${i.poolHosts.join(", ")}
 - 풀 밖 사이트의 결과는 버리지 말고 in_pool=false 로 돌려준다 — 워커가 도메인 후보로만 등록하고 소스로는 쓰지 않는다(사람이 판정한 뒤 다음 보강에서 쓴다).
-- 뉴스 속보·보도자료·상품 페이지·SNS·위키는 제외. **논문 저장소·유료 DB(researchgate, ssrn, academia.edu, semanticscholar, sciencedirect, springer/wiley 유료 페이지)도 제외** — 본문을 못 가져온다. 2년 넘게 지난 글은 역사·맥락 역할일 때만.
+- 뉴스 속보·보도자료·상품 페이지·SNS·위키는 제외. **논문 저장소·유료 DB(researchgate, ssrn, academia.edu, semanticscholar, sciencedirect, springer/wiley 유료 페이지)도 제외** — 본문을 못 가져온다. ${SOURCE_AGE_RULE}
 - 한 소스가 두 역할을 겸할 수 있다. 축에 맞지 않는데 키워드만 겹치는 글은 넣지 않는다 — 빈 손으로 돌아오는 것이 억지 소스보다 낫다.
 
 ## 완료 보고 — 반드시 요청된 JSON 스키마 형식으로만 출력한다. sources 는 최대 8건, 각 항목에 url(검색 결과의 실제 URL 그대로) · title · publisher(사이트/발행처명) · published(YYYY-MM-DD 또는 null) · summary(검색 결과 요약을 한국어 두 문장으로) · roles · why(이 역할을 채우는 이유 한 줄) · in_pool. queries 에는 실제로 쓴 검색어를 전부 적는다.`;
@@ -1449,7 +1451,7 @@ export function buildTopicSeedSearchPrompt(i: TopicSeedSearchInput): string {
   ${i.poolHosts.slice(0, 40).join(", ")}
 - **접근이 막힌 곳은 제외** — 워커가 본문을 가져와야 한다: 논문 저장소·유료 DB(researchgate, ssrn, academia.edu, semanticscholar, sciencedirect 유료 페이지, springer/wiley 유료, jstor 본문), 로그인·구독 벽 뒤의 기사, PDF 만 있는 링크, SNS·위키·커뮤니티·상품 페이지·보도자료 단신은 넣지 않는다.
 - 뉴스 속보 하나를 소스로 삼지 않는다 — 이어는 소식이 아니라 축(대립·역설·재정의, 역사는 사건형)을 다룬다. 사건성 글은 사례 재료로만.
-- 2년 넘게 지난 글은 역사·맥락 역할일 때만.
+- ${SOURCE_AGE_RULE}
 - 한 소스가 두 역할을 겸할 수 있다. 주제와 어긋나는데 키워드만 겹치는 글은 넣지 않는다 — 빈 손이 억지 소스보다 낫다.
 
 ## 완료 보고 — 반드시 요청된 JSON 스키마 형식으로만 출력한다. sources 는 최대 10건, 각 항목에 url(검색 결과의 실제 URL 그대로) · title · publisher(사이트/발행처명) · published(YYYY-MM-DD 또는 null) · summary(검색 결과 요약을 한국어 두 문장으로) · roles · why(이 역할을 채우는 이유 한 줄) · in_pool(위 풀 사이트 목록에 있으면 true). queries 에는 실제로 쓴 검색어를 전부 적고, notes 에는 못 채운 역할과 이유를 적는다.`;
