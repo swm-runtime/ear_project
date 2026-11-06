@@ -35,6 +35,8 @@ const LOG_NAV: NavItem[] = [
   { href: "/backend-logs/promotions", label: "프로모션", icon: Chart, note: "실배포" },
   // 실험 지표 — 발표 전 2주 실험마다 필요한 지표를 모으는 자리(2026-10-28, 지금은 틀만)
   { href: "/backend-logs/experiments", label: "실험 지표", icon: Chart, note: "실배포" },
+  // 성과 카드 — 핵심 지표가 가장 좋았던 한 주를 900×650 카드로(2026-11-06, 발표·포트폴리오용)
+  { href: "/backend-logs/performance", label: "성과 카드", icon: Chart, note: "실배포" },
 ];
 
 /**
