@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 import { Sidebar } from "@/components/sidebar";
 import { pipelineLocale } from "@/lib/locale";
-import { Topbar } from "@/components/topbar";
+import { Topbar, type WorkerState } from "@/components/topbar";
 import { DeployBanner } from "@/components/deploy-banner";
 import { currentUser, supabaseServer } from "@/lib/supabase-server";
 
@@ -14,7 +14,7 @@ export const dynamic = "force-dynamic";
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   const user = await currentUser().catch(() => null);
-  let workerOn = false;
+  let worker: WorkerState = "off";
   let queuedAi = 0;
   let pending = { backlog: 0, review: 0 };
   if (user) {
@@ -24,10 +24,11 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       sb.from("backlog").select("status").in("status", ["proposed", "review_required"]),
       sb.from("settings").select("updated_at").eq("key", "worker.alive").maybeSingle(),
     ]);
-    // 워커 동작 여부 (2026-11-11 — 운영은 서버 워커뿐이라 누가 띄웠는지는 보이지 않는다): 워커가 30초마다 찍는 생존 신호(settings worker.alive)가 2분 안이면 동작 중.
-    // 작업 heartbeat(3분 안)도 함께 본다 — 생존 신호를 찍기 전 버전의 워커가 일하는 중에도 꺼짐으로 보이지 않게
+    // 워커 상태 세 갈래 (2026-11-11 — 운영은 서버 워커뿐이라 누가 띄웠는지는 보이지 않는다):
+    // 작업 중 = 집은 작업의 heartbeat 가 3분 안 · 동작 중 = 작업은 없고 생존 신호(settings worker.alive, 30초마다)가 2분 안 · 중단 = 둘 다 없음
     const fresh = (at: string | null | undefined, ms: number) => !!at && Date.now() - new Date(at).getTime() < ms;
-    workerOn = fresh(alive?.updated_at, 2 * 60_000) || (jobs ?? []).some((j) => j.claimed_by && fresh(j.heartbeat_at, 3 * 60_000));
+    const busy = (jobs ?? []).some((j) => j.claimed_by && fresh(j.heartbeat_at, 3 * 60_000));
+    worker = busy ? "busy" : fresh(alive?.updated_at, 2 * 60_000) ? "idle" : "off";
     queuedAi = (jobs ?? []).filter((j) => j.status === "queued" && j.requires_ai).length;
     pending = { backlog: (bl ?? []).filter((b) => b.status === "proposed").length, review: (bl ?? []).filter((b) => b.status === "review_required").length };
   }
@@ -40,7 +41,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             <Sidebar pending={pending} locale={pipelineLocale()} />
             <div className="pl-[188px]">
               <DeployBanner />
-              <Topbar email={user.email ?? null} workerOn={workerOn} queuedAi={queuedAi} />
+              <Topbar email={user.email ?? null} worker={worker} queuedAi={queuedAi} />
               <main className="px-6 py-6">{children}</main>
             </div>
           </>
