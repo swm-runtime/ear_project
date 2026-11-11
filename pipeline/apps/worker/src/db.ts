@@ -76,6 +76,14 @@ export async function getSetting<T = any>(key: string): Promise<T | null> {
   const r = await pool.query("select value from public.settings where key = $1", [key]);
   return (r.rows[0]?.value as T) ?? null;
 }
+/** 워커 생존 신호 (2026-11-11) — 큐가 비어 놀고 있어도 찍는다. 콘솔 상단바의 "워커 동작 중·멈춤"이 이 줄의 updated_at 으로 판정한다.
+ *  jobs.heartbeat_at 은 작업을 집었을 때만 찍혀 "살아있지만 대기 중"을 나타내지 못한다. 복제가 여럿이면 마지막에 찍은 쪽이 남는다(켜짐 여부만 본다) */
+export async function markWorkerAlive(name: string): Promise<void> {
+  await pool.query(
+    "insert into public.settings (key, value, updated_by, updated_at) values ('worker.alive', $1::jsonb, $2, now()) on conflict (key) do update set value = excluded.value, updated_by = excluded.updated_by, updated_at = now()",
+    [JSON.stringify({ name }), `worker:${name}`],
+  );
+}
 export async function majorOfMidTopic(mid: string): Promise<string | null> {
   const r = await pool.query("select major from public.topics where mid = $1", [mid]);
   return r.rows[0]?.major ?? null;

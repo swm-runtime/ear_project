@@ -1,6 +1,6 @@
 import fs from "node:fs/promises";
 import { cfg, canAi, canTts, canThumbnail, executedBy } from "./config.js";
-import { claimJob, enqueue, failJob, getBacklog, finishJob, getSetting, hasActiveDraftJob, hasOtherActiveEpisodeJob, seriesPrevReady, heartbeat, listApprovedBacklog, pool, requeueJob, startJob } from "./db.js";
+import { claimJob, enqueue, failJob, getBacklog, finishJob, getSetting, hasActiveDraftJob, hasOtherActiveEpisodeJob, seriesPrevReady, heartbeat, listApprovedBacklog, markWorkerAlive, pool, requeueJob, startJob } from "./db.js";
 import { workerRev, workerRevTime } from "./assets.js";
 import { probeStorage } from "./storage.js";
 import { executorHandlesWebSearch, makeExecutor, setJobAbort } from "./executors/index.js";
@@ -41,6 +41,10 @@ async function main() {
   log(`워커 시작 — ${executedBy} · locale=${pipelineLocale()}(${allSpeakerNames().join("·")}) · capabilities=${cfg.capabilities.join(",")} · AI=${canAi ? "on" : "off"} · TTS=${canTts ? "on" : "off(키 없음 — 서버가 집음)"} · 썸네일=${canThumbnail ? "on" : "off(키 없음 — 서버가 집음)"} · assets=DB(${cfg.assetProfile})+${cfg.assetSourceRoot} · work=${cfg.workRoot} · storage=${storageInfo} · rev=${workerRev()}`);
   // 백엔드 ERROR → Slack 감시 (log-watch.ts) — 자체 타이머·전부 try/catch·unref 로 작업 큐와 완전 분리. env 없으면 off
   log(`백엔드 ERROR 감시: ${startLogWatch()}`);
+  // 생존 신호 (2026-11-11): 작업 유무와 무관하게 30초마다 — 콘솔 상단바 "워커 동작 중" 판정. 자체 타이머·unref·오류 무시로 작업 큐와 분리
+  const beat = () => void markWorkerAlive(cfg.workerName).catch(() => {});
+  beat();
+  setInterval(beat, 30_000).unref();
 
   let current: string | null = null;
   const stop = async () => {
