@@ -8,12 +8,23 @@ import { DiscoverForm } from "./discover-form";
 
 const TIERS: [string, string][] = [["candidate", "판정 대기"], ["allow_open", "1군"], ["allow_support", "2군"], ["hold", "보류"], ["blocked", "차단"], ["all", "전체"]];
 
+/** 1,000행씩 끝까지 읽는다 — 한 요청은 Supabase 최대 행 수(1,000)에서 말없이 잘린다(2026-11-11: 도메인 1,222곳 중 이름순 앞 1,000곳만 보였다). 실패는 던진다 */
+async function allRows<T>(page: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: { message: string } | null }>): Promise<T[]> {
+  const out: T[] = [];
+  for (let from = 0; ; from += 1000) {
+    const { data, error } = await page(from, from + 999);
+    if (error) throw new Error(error.message);
+    out.push(...(data ?? []));
+    if ((data ?? []).length < 1000) return out;
+  }
+}
+
 export default async function DomainsPage({ searchParams }: { searchParams: Promise<{ tier?: string; topic?: string; q?: string }> }) {
   const { tier = "candidate", topic, q } = await searchParams;
   const sb = await supabaseServer();
-  const [{ data: all }, { data: statRows }, { data: topicRows }] = await Promise.all([
-    sb.from("domains").select("id,domain,publisher,tier,category,feed_url,topic_coverage,decided_by,decided_at,license_basis,note,evidence,fetch_blocked_at").order("domain"),
-    sb.from("domain_stats").select("domain_id,source_count,last_swept,blocked_count,ok_count"),
+  const [all, statRows, { data: topicRows }] = await Promise.all([
+    allRows((a, b) => sb.from("domains").select("id,domain,publisher,tier,category,feed_url,topic_coverage,decided_by,decided_at,license_basis,note,evidence,fetch_blocked_at").order("domain").order("id").range(a, b)),
+    allRows((a, b) => sb.from("domain_stats").select("domain_id,source_count,last_swept,blocked_count,ok_count").order("domain_id").range(a, b)),
     sb.from("topics").select("mid,ai_generation,active"), // 소스 풀 채우기(모드 P)의 중분류 선택 — 제작 대상 중분류만
   ]);
   const mids = (topicRows ?? []).filter((t: any) => t.ai_generation && t.active !== false).map((t: any) => t.mid as string).sort();
