@@ -18,7 +18,10 @@ export default async function DomainsPage({ searchParams }: { searchParams: Prom
   ]);
   const mids = (topicRows ?? []).filter((t: any) => t.ai_generation && t.active !== false).map((t: any) => t.mid as string).sort();
   const stats = Object.fromEntries((statRows ?? []).map((s: any) => [s.domain_id, s]));
-  const rows = (all ?? []).filter((r) => (tier === "all" || r.tier === tier) && (!topic || (r.topic_coverage ?? []).includes(topic)) && (!q || `${r.domain} ${r.publisher} ${r.note ?? ""}`.toLowerCase().includes(q.toLowerCase())));
+  // 수집 소스가 많은 도메인부터 (2026-11-11) — 같은 건수는 도메인 이름순(조회 순서 유지, sort 는 안정 정렬)
+  const srcCount = (id: string) => Number(stats[id]?.source_count ?? 0);
+  const rows = (all ?? []).filter((r) => (tier === "all" || r.tier === tier) && (!topic || (r.topic_coverage ?? []).includes(topic)) && (!q || `${r.domain} ${r.publisher} ${r.note ?? ""}`.toLowerCase().includes(q.toLowerCase())))
+    .sort((a, b) => srcCount(b.id) - srcCount(a.id));
   const topics = Array.from(new Set((all ?? []).flatMap((r) => r.topic_coverage ?? []))).sort();
   const counts = Object.fromEntries(TIERS.map(([t]) => [t, t === "all" ? (all ?? []).length : (all ?? []).filter((r) => r.tier === t).length]));
   // 중분류 탭 개수는 현재 티어 기준 — 티어를 고른 뒤 주제를 좁힐 때 "이 티어에 몇 개"가 보이게 (검색어 q 는 무시)
