@@ -14,21 +14,20 @@ export const dynamic = "force-dynamic";
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   const user = await currentUser().catch(() => null);
-  let workers: [string, string][] = [];
+  let workerOn = false;
   let queuedAi = 0;
   let pending = { backlog: 0, review: 0 };
   if (user) {
     const sb = await supabaseServer();
-    const [{ data: jobs }, { data: bl }] = await Promise.all([
+    const [{ data: jobs }, { data: bl }, { data: alive }] = await Promise.all([
       sb.from("jobs").select("status,requires_ai,claimed_by,heartbeat_at").in("status", ["queued", "claimed", "running"]),
       sb.from("backlog").select("status").in("status", ["proposed", "review_required"]),
+      sb.from("settings").select("updated_at").eq("key", "worker.alive").maybeSingle(),
     ]);
-    const seen = new Map<string, string>();
-    for (const j of jobs ?? []) if (j.claimed_by && j.heartbeat_at && Date.now() - new Date(j.heartbeat_at).getTime() < 3 * 60_000) {
-      const prev = seen.get(j.claimed_by);
-      if (!prev || prev < j.heartbeat_at) seen.set(j.claimed_by, j.heartbeat_at);
-    }
-    workers = [...seen];
+    // 워커 동작 여부 (2026-11-11 — 운영은 서버 워커뿐이라 누가 띄웠는지는 보이지 않는다): 워커가 30초마다 찍는 생존 신호(settings worker.alive)가 2분 안이면 동작 중.
+    // 작업 heartbeat(3분 안)도 함께 본다 — 생존 신호를 찍기 전 버전의 워커가 일하는 중에도 꺼짐으로 보이지 않게
+    const fresh = (at: string | null | undefined, ms: number) => !!at && Date.now() - new Date(at).getTime() < ms;
+    workerOn = fresh(alive?.updated_at, 2 * 60_000) || (jobs ?? []).some((j) => j.claimed_by && fresh(j.heartbeat_at, 3 * 60_000));
     queuedAi = (jobs ?? []).filter((j) => j.status === "queued" && j.requires_ai).length;
     pending = { backlog: (bl ?? []).filter((b) => b.status === "proposed").length, review: (bl ?? []).filter((b) => b.status === "review_required").length };
   }
@@ -41,7 +40,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             <Sidebar pending={pending} locale={pipelineLocale()} />
             <div className="pl-[188px]">
               <DeployBanner />
-              <Topbar email={user.email ?? null} workers={workers} queuedAi={queuedAi} />
+              <Topbar email={user.email ?? null} workerOn={workerOn} queuedAi={queuedAi} />
               <main className="px-6 py-6">{children}</main>
             </div>
           </>
