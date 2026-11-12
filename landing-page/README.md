@@ -47,6 +47,10 @@ npm run build    # out/ 에 정적 파일 생성 (prebuild가 og:image를 먼저
 
 세 주소 모두 `noindex`이고 `routes.ts`에 넣지 않는다 — 내비·사이트맵에 나올 페이지가 아니다.
 
+### `/llms.txt` — AI 검색용 요약본
+
+ChatGPT·Perplexity·Gemini 같은 답변 엔진이 이어를 설명할 때 읽는 텍스트 요약이다(llmstxt.org 형식, 2026-11-12). `src/app/llms.txt/route.ts`가 빌드 때 `out/llms.txt`로 굽는다. **문장을 따로 쓰지 않고 `site.ts`·`routes.ts`의 값(요약·핵심 수치·기능·하지 않는 것·요금제·FAQ)과 공개 주제 목록을 그대로 옮긴다** — 화면과 다른 말을 하면 AI 답변이 화면에 없는 정책을 사실처럼 옮기기 때문이다. 그래서 요금·편수·FAQ를 고치면 이 파일은 손대지 않아도 따라온다. robots.txt는 모든 크롤러에 `/`를 열어 두고 있어 AI 크롤러도 읽을 수 있다.
+
 **중복 콘텐츠를 만들지 않는 것이 규칙이다.** 홈에도 기능·요금제·FAQ가 나오지만 전부 짧은 판본이고, 전용 페이지는 문장 자체가 다르다(`features[].body` vs `features[].detail`). 같은 문단을 두 주소에 그대로 실으면 어느 쪽을 대표로 볼지 흔들린다.
 
 페이지를 추가할 때는 **`src/content/routes.ts`에만 넣으면 된다.** 내비게이션·바닥글·사이트맵·breadcrumb이 전부 거기서 나온다.

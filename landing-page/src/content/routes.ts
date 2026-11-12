@@ -96,7 +96,7 @@ export const routes: Record<RouteKey, RouteMeta> = {
     footerGroup: "product",
     priority: 0.9,
     changeFrequency: "monthly",
-    lastModified: "2026-10-02",
+    lastModified: "2026-11-12",
   },
 
   blog: {
@@ -125,7 +125,7 @@ export const routes: Record<RouteKey, RouteMeta> = {
     footerGroup: "resources",
     priority: 0.8,
     changeFrequency: "monthly",
-    lastModified: "2026-10-02",
+    lastModified: "2026-11-12",
   },
 
   privacy: {
