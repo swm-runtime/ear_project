@@ -315,7 +315,7 @@ export const plans = [
     id: "daily",
     name: "데일리",
     price: "월 3,900원",
-    priceNote: "앱 결제 준비 중",
+    priceNote: "앱에서 바로 결제",
     summary: "매일 출퇴근길에 꾸준히 듣고 싶은 분께 적합해요",
     featured: true,
     items: [
@@ -329,7 +329,7 @@ export const plans = [
     id: "pro",
     name: "프로",
     price: "월 9,900원",
-    priceNote: "앱 결제 준비 중",
+    priceNote: "앱에서 바로 결제",
     summary: "하루에도 여러 편을 넉넉히 듣고 싶은 분께 적합해요",
     featured: false,
     items: [
@@ -467,7 +467,7 @@ export const faqs: {
   {
     category: "요금·결제",
     q: "유료 요금제는 얼마인가요?",
-    a: "데일리는 월 3,900원에 하루 5편까지, 프로는 월 9,900원에 편수 제한 없이 들을 수 있어요. 앱 안에서 결제하는 기능은 준비 중이라, 열리기 전까지는 무료 요금제(라이트)로 이용할 수 있어요.",
+    a: "데일리는 월 3,900원에 하루 5편까지, 프로는 월 9,900원에 편수 제한 없이 들을 수 있어요. 앱 안에서 App Store·Google Play 인앱 결제로 바로 구독할 수 있어요.",
   },
   {
     category: "요금·결제",
