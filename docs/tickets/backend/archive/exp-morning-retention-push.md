@@ -13,7 +13,7 @@
 | 선행 | 없음 |
 | 근거 문서 | `features/notification.md` 4.6 |
 | 중요도 | High |
-| 상태 | 발행 |
+| 상태 | 완료(운영 켜짐 — 2026-10-31 18:16) |
 
 > 단기 실험 8종(2026-10-29 확정) 중 하나다. A/B 그룹별 지표를 어드민 "실험 지표" 탭에서 보는 일은 실험 전체에 걸친 별도 정리 대상이다(아직 티켓 없음).
 
@@ -62,3 +62,10 @@
   - 남은 일: 개발계 `RETENTION_MORNING_PUSH_MODE=dry_run`으로 08:00 로그(`retention morning push processed` — 사유별 건수·예시) 확인 → 시험 대상 본인 기기 수신 확인 → 운영 켠 시각 기록. 개발계 확인 전까지 `pending/`에 둔다.
 - 2026-10-29 PR [#2165](https://github.com/swm-runtime/ear_project/pull/2165) → dev(미머지, #2164 KAN-289 먼저 머지).
 - 2026-10-30 [#2165](https://github.com/swm-runtime/ear_project/pull/2165) dev 머지 · 개발계 확인(`RETENTION_MORNING_PUSH_MODE=dry_run`) — 08:00 asia 대상 2 · 예정 1 · 건너뜀 `placed_today` 1, 여러 편 문구 "(광고) 아직 안 들은 콘텐츠 N편이 있어요 / 출근길에 한 편 들어 볼까요? / 수신거부: 설정 > 알림". 실기기(Android): 아침 알림 경로를 일회성 실행으로 돌려 수신 · 탭 시 `ear://library` 확인, 20시간 판정(`already_sent`) 동작. **앱이 화면에 떠 있으면 리텐션·아침 배너는 숨긴다(`push_foreground_suppressed`, 의도)**. 확인 중 다른 개발계 계정 1명에게 1건 실발송(시험 대상 설정 실수, 이후 비움). Jira 검토 중. 남은 일: 운영 dry_run → on, 켠 시각 기록.
+- 2026-10-31 18:16 KST **운영 켬** `RETENTION_MORNING_PUSH_MODE=on` · `RETENTION_MORNING_HOLDOUT_ENABLED=true`(50:50 비교 그룹, #2219 · v1.3.0+12). `.env.prod`만 바꿨고 백업은 `.env.prod.bak-20261031-morning-push`, 이미지 `ba4084f8`로 고정해 재생성했다(health 200). 비교 그룹은 보내지 않고 `retention.morning.holdout` · `skipped`로 기록만 남긴다.
+- 2026-11-01 **운영 첫날 확인 — 완료 조건 전부 충족**(운영 DB 읽기 전용 집계, `user_id`·건수만):
+  - **08:00(그룹 현지) · 하루 1건 이하**: asia 08:00 KST · 동남아 09:00 KST(= 현지 08:00)에 발송. 발송 47건(문구 변형 a 31 · b 16), 비교 그룹 56건(대상 103명 중 발송 46% / 비교 54%). 아침 슬롯에 2건 이상 받은 사람 0명. 대상 전원이 오늘 드립 적립이 없었다(드립 있는 날은 도착 알림만 — KAN-289).
+  - **마케팅 미동의자 제외**: 발송 47명과 비교 그룹 56명 모두 `consents`의 최신 마케팅 동의가 `is_agreed = true`다(미동의 0명).
+  - **두 슬롯 상한이 서로 막지 않음**: 아침 알림을 받은 47명 중 8명이 같은 날 18:00 저녁 리텐션(`retention.weekly_rank_gap` 등)도 받았다. 아침 기록이 저녁 판정을 막지 않았다.
+  - 로그(CloudWatch `/ear/api`, 11-01 — 같은 날 SSO 재로그인 뒤 확인): `retention morning push processed` asia `mode: on` · 대상 263 · 예정 73(건너뜀 `no_unplayed` 177 · `ad_hours` 4 · `placed_today` 9) · 발송 34 · 비교 그룹 39 · 실패 0 / southeast_asia 대상 33 · 예정 30(`placed_today` 3) · 발송 13 · 비교 그룹 17 · 실패 0 — 합계 발송 47 · 비교 그룹 56으로 DB와 같다. 06:50~09:30 ERROR 0. 아침 알림의 효과(받음 / 안 받음 재생률)는 표본이 하루치라 실험 지표 패널에서 계속 본다(이 티켓 범위 밖 — 실험 판정).
+- 2026-11-01 반영 — `archive/`로 옮기고 Jira KAN-288 완료.

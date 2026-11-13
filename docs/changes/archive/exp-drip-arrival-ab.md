@@ -10,7 +10,7 @@
 | 기한 | 2026-11-01 (Medium — 다음 통합 때) |
 | 선행 | 없음 |
 | 중요도 | Medium — 서술 추가. 스위치가 꺼져 있으면 동작은 종전(07:00)과 같다 |
-| 관련 | [KAN-289](https://runtime364.atlassian.net/browse/KAN-289) · 브랜치 `feat(be)/drip-arrival-ab` · 티켓 `tickets/backend/pending/exp-drip-arrival-time.md` |
+| 관련 | [KAN-289](https://runtime364.atlassian.net/browse/KAN-289) · 브랜치 `feat(be)/drip-arrival-ab` · 티켓 `tickets/backend/archive/exp-drip-arrival-time.md` |
 
 ## 배경
 

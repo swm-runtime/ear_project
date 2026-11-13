@@ -13,7 +13,7 @@
 | 선행 | 없음 |
 | 근거 문서 | `features/notification.md` 4.3 · `features/drip-scheduling.md` |
 | 중요도 | High |
-| 상태 | 발행 |
+| 상태 | 완료(운영 켜짐 — 2026-10-31 15:28) |
 
 > 단기 실험 8종(2026-10-29 확정) 중 하나다. A/B 그룹별 지표를 어드민 "실험 지표" 탭에서 보는 일은 실험 전체에 걸친 별도 정리 대상이다(아직 티켓 없음).
 
@@ -62,3 +62,12 @@
   - 남은 일: 개발계에서 스위치 켜고 07:30·08:00 로그(`drip arrival push done` · `user_count_by_slot`) 확인 → 운영 켠 시각을 여기에 기록. 개발계 확인 전까지 `pending/`에 둔다.
 - 2026-10-29 PR [#2164](https://github.com/swm-runtime/ear_project/pull/2164) → dev(미머지). 아침 알림(KAN-288)은 #2165가 이 위에 쌓였다.
 - 2026-10-30 [#2164](https://github.com/swm-runtime/ear_project/pull/2164) dev 머지 · 개발계 `DRIP_ARRIVAL_AB_ENABLED=true` — 개발계 35명 A 17 / B 18. 10-30 아침: 07:00 미발송(켜짐이라 쉼) · 07:30 A 대상 0 · 08:00 B 1건 `drip_arrival.b` sent. 실험 탭 "도착 알림 시각" 패널([#2170](https://github.com/swm-runtime/ear_project/pull/2170), 재생률만 · [#2181](https://github.com/swm-runtime/ear_project/pull/2181) 그래프 토글). **기준선 정의**: 10-29 고정한 07:00 중간값(10.0% · 19.3%)은 옛 쿼리(재생 행만 · KST 달력일)라 패널(재생 행 + 위치 저장 · 05:00 서비스 날짜)과 다르다 → 운영 켤 때 최종 기준선은 패널 값으로 고정. 남은 일: 07:30 A 실발송 관찰(10-31), 운영 켠 시각 기록.
+- 2026-10-31 15:28 KST **운영 켬** `DRIP_ARRIVAL_AB_ENABLED=true`(`.env.prod`만, SM 키 없음 · 백업 `.env.prod.bak-20261031-arrival-ab` · 이미지 `64b6f5a2` 고정 재생성 · health 200). 이 시각이 07:00 기간의 끝이자 A/B 기간의 시작이다(KAN-300 · Jira 댓글).
+- 2026-10-31 **07:00 최종 기준선 고정**(켜기 직전, 실험 지표 패널과 같은 정의 — 보낸 뒤 새 재생 또는 재생 위치 저장 ÷ 보낸 알림, 05:00 서비스 날짜): 기간 2026-10-18 ~ 10-31 · `drip_arrival` 보낸 알림 **507건 · 460명** · **2시간 안 재생 58건(11.4%)** · **당일 재생 114건(22.5%)**. 동남아 그룹은 현지 07:00 = 08:00 KST라 08:00 KST 발송분이 섞여 있다. 10-29의 중간값(10.0% · 19.3%)은 옛 쿼리라 비교 기준으로 쓰지 않는다.
+- 2026-11-01 **운영 첫날 확인 — 완료 조건 전부 충족**(운영 DB 읽기 전용 집계, `user_id`·건수만):
+  - **A 07:30 · B 08:00(그룹 현지)**: asia 그룹(KR 시장 전원 + 한국 시간대) A `drip_arrival.a` 07:30 KST · B `drip_arrival.b` 08:00 KST, 동남아 그룹(기준 `Asia/Singapore` +8) A 08:30 KST(= 현지 07:30) · B 09:00 KST(= 현지 08:00). 07:00 발송(`drip_arrival`) 0건. 발송 A 16 · B 8, 건너뜀은 전부 `no_permission`(A 21 · B 13 — 알림 권한 없음, 종전과 같은 판정).
+  - **같은 사용자는 같은 그룹**: 기록된 58건 전부를 `experimentBucket(userId, 'drip_arrival_time', 2)`로 다시 계산해 `type` 끝 글자와 58/58 일치. 해시라 저장 없이 매일 같다. 온보딩 완료 활성 사용자 전체 분할 A 1,103 / B 1,129.
+  - **그룹 기록**: `notification_logs.type` = `drip_arrival.a`/`.b`.
+  - **드립 없는 날**: 도착 알림을 받은 58명은 전원 오늘 드립 적립이 있었고, 아침 알림 대상(발송 47 + 비교 그룹 56)은 전원 오늘 드립 적립이 없었다. 아침 슬롯에 도착 알림과 아침 알림을 둘 다 받은 사람 0명.
+  - 로그(CloudWatch `/ear/api`, 11-01 06:50~09:30 KST — 같은 날 SSO 재로그인 뒤 확인): `drip arrival push done` asia `user_count_by_slot` 07:30 23 · 08:00 20, southeast_asia 07:30 14 · 08:00 1 — DB 기록(A 37 · B 21)과 같다. 07:00 실행 없음, `failed_count` 0, 이 구간 ERROR 0. 그룹별 재생률은 표본이 하루치라 실험 지표 패널에서 계속 본다(이 티켓 범위 밖 — 실험 판정).
+- 2026-11-01 반영 — `archive/`로 옮기고 Jira KAN-289 완료.
