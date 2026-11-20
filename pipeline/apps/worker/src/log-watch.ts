@@ -2,6 +2,7 @@ import { CloudWatchClient, PutMetricDataCommand } from "@aws-sdk/client-cloudwat
 import { CloudWatchLogsClient, FilterLogEventsCommand } from "@aws-sdk/client-cloudwatch-logs";
 import { log } from "./util.js";
 import { holdLease, leaseValue, setLeaseValue } from "./lease.js";
+import { clampCursor, formatGap, scanWindow, type LogPage } from "./log-watch-scan.js";
 import { pipelineLocale } from "@ear/pipeline";
 
 /**
@@ -16,21 +17,28 @@ import { pipelineLocale } from "@ear/pipeline";
  * - `SLACK_ERROR_WEBHOOK_URL` 이 없으면(노트북 워커) 타이머 자체를 만들지 않는다 — 서버 env.prod 에만 넣는다
  * - 자격은 AI 서버 인스턴스 롤(logs:FilterLogEvents — ear-logs-read 정책). 키를 env 에 두지 않는다
  * - 같은 유형(가변값을 지운 시그니처)은 틱당 한 줄로 묶는다 — 에러 폭풍이 Slack 도배가 되지 않게
- * - 재시작 시 시작 시점 이후만 본다 — 과거분 재알림 방지 (놓친 창은 어드민 웹 에러 모아보기에서)
+ * - 틱마다 창 `(읽은 위치, 지금 − 1분]` 을 `nextToken` 끝까지 읽는다(log-watch-scan.ts — 첫 페이지만 읽다 일주일 넘게 멈춘 사고, 2026-11-20)
+ * - 읽은 위치가 1시간보다 뒤처지면(재시작·넘겨받기·장애) 그 구간은 건너뛰고 Slack 에 한 줄로 알린다 — 과거분 재알림 방지
+ *   (놓친 창은 어드민 웹 에러 모아보기에서)
  *
  * **복제 (2026-10-30)**: 한국판 워커를 복제로 돌리면 읽은 위치(cursorTs)가 프로세스마다 따로라 같은 오류가 복제 수만큼 올라간다 —
  * 임대(lease.ts "log-watch")를 쥔 복제 하나만 읽고, 읽은 위치는 임대 줄에 남겨 넘겨받은 복제가 이어 읽는다(최대 1시간 전부터).
  *
- * **생존 신호**: 틱마다 `ear/ops` 의 `CronSuccess{Job=log-watch}` 에 1을 찍는다. 이 감시자가 죽으면
+ * **생존 신호**: 읽은 위치가 앞으로 간 틱마다 `ear/ops` 의 `CronSuccess{Job=log-watch}` 에 1을 찍는다. 이 감시자가 죽으면
  * 백엔드가 500 을 뿜어도 Slack 이 조용해지는데, **그 조용함이 "정상"과 구분되지 않는다.** 작업 큐의
  * `jobs.heartbeat_at` 은 작업을 집었을 때만 찍혀 "살아있지만 놀고 있음"을 나타내지 못하므로 쓸 수 없다.
- * 백업·스냅샷 크론과 같은 방식이고, 알람이 "일정 시간 지표 없음"을 잡는다(2026-09-20).
+ * 백업·스냅샷 크론과 같은 방식이고, 알람이 "일정 시간 지표 없음"을 잡는다(2026-09-20). 종전에는 조회 호출이 성공하면
+ * 찍어서, 같은 자리를 맴돌던 일주일 넘게 살아 있는 것으로 보였다(2026-11-20).
  */
 const WEBHOOK_URL = process.env.SLACK_ERROR_WEBHOOK_URL || "";
 const INTERVAL_MS = Number(process.env.LOG_WATCH_INTERVAL_MS || 5 * 60_000);
 const LOG_GROUP = process.env.BACKEND_LOG_GROUP_API || "/ear/api";
 const LOG_STREAM = "api";
 const MAX_EVENTS_PER_TICK = 500;
+/** 한 틱의 페이지 상한 — 한 장에 오류가 20건 안팎이라(11-20 실측 18건) 500건 상한까지 읽을 수 있게. 넘기면 남은 것은 다음 틱이 잇는다 */
+const MAX_PAGES_PER_TICK = 30;
+/** 창 끝을 지금보다 이만큼 앞에 둔다 — 막 쓰인 로그가 CloudWatch 에 늦게 닿아도 창 안에 들어오게 */
+const INGEST_LAG_MS = 60_000;
 const MAX_GROUPS_PER_MESSAGE = 8;
 const SAMPLE_MAX_CHARS = 180;
 const ADMIN_ERRORS_URL = `https://${process.env.PIPELINE_DOMAIN || "admin.earcast.co.kr"}/backend-logs/errors`;
@@ -42,7 +50,8 @@ let client: CloudWatchLogsClient | undefined;
 let metrics: CloudWatchClient | undefined;
 let cursorTs = Date.now();
 let leader = false;
-const TAKEOVER_MAX_BACK_MS = 60 * 60_000;
+/** 읽은 위치가 이보다 뒤처지면 그 구간은 건너뛴다 — 넘겨받기·재시작·장애 모두 같은 상한 */
+const MAX_BACK_MS = 60 * 60_000;
 
 /** 워커 기동 시 1회 호출 — 켜졌는지 여부만 돌려준다 */
 export function startLogWatch(): "on" | "off" {
@@ -63,30 +72,26 @@ async function tick(): Promise<void> {
     if (!leader) {
       leader = true;
       const saved = Number(await leaseValue<number>("log-watch", "cursor")) || 0;
-      if (saved) cursorTs = Math.max(saved, Date.now() - TAKEOVER_MAX_BACK_MS);
-      log(`백엔드 ERROR 감시 — 이 복제가 맡음 (읽은 위치 ${new Date(cursorTs).toISOString().slice(0, 16)})`);
+      if (saved) cursorTs = saved; // 너무 오래됐으면 아래 clampCursor 가 당기고 Slack 에 알린다
+      log(`백엔드 ERROR 감시 — 이 복제가 맡음 (읽은 위치 ${isoMinute(cursorTs)})`);
     }
-    client ??= new CloudWatchLogsClient({ region: process.env.AWS_REGION || "ap-northeast-2" });
-    const out = await client.send(
-      new FilterLogEventsCommand({
-        logGroupName: LOG_GROUP,
-        logStreamNames: [LOG_STREAM],
-        startTime: cursorTs + 1,
-        filterPattern: "?ERROR ?FATAL",
-        limit: MAX_EVENTS_PER_TICK,
-      }),
-    );
 
-    // 로그를 읽는 데 성공한 뒤에 찍는다 — "프로세스가 살아있다"가 아니라 "감시가 동작한다"가 신호다
-    await putAlive();
+    const windowEnd = Date.now() - INGEST_LAG_MS;
+    const { cursor: from, skippedMs } = clampCursor(cursorTs, windowEnd, MAX_BACK_MS);
+    if (skippedMs > 0) log(`백엔드 ERROR 감시 — 읽은 위치가 ${formatGap(skippedMs)} 밀려 그 구간을 건너뜀`);
 
-    const events = (out.events ?? [])
-      .map((e) => ({ t: e.timestamp ?? 0, message: (e.message ?? "").replace(ANSI_RE, "").trim() }))
-      .filter((e) => e.message);
-    if (events.length === 0) return;
-
-    cursorTs = Math.max(...events.map((e) => e.t)); // limit 초과분은 다음 틱이 이어받는다
+    const scan = await scanWindow(fetchPage, from, windowEnd, { maxEvents: MAX_EVENTS_PER_TICK, maxPages: MAX_PAGES_PER_TICK });
+    cursorTs = scan.cursor;
     await setLeaseValue("log-watch", "cursor", cursorTs); // 다른 복제가 넘겨받을 때 이어 읽는 위치
+
+    // "조회 호출이 성공했다"가 아니라 "읽은 위치가 앞으로 갔다"가 신호다 — 같은 자리를 맴도는 감시는 알람이 잡아야 한다
+    if (scan.cursor > from) await putAlive();
+    else log(`백엔드 ERROR 감시 — 페이지 ${MAX_PAGES_PER_TICK}장 안에 진척 없음 (읽은 위치 ${isoMinute(cursorTs)})`);
+
+    const events = scan.events
+      .map((e) => ({ t: e.t, message: e.message.replace(ANSI_RE, "").trim() }))
+      .filter((e) => e.message);
+    if (events.length === 0 && skippedMs === 0) return;
 
     const groups = new Map<string, { count: number; sample: string }>();
     for (const e of events) {
@@ -96,13 +101,35 @@ async function tick(): Promise<void> {
       else groups.set(sig, { count: 1, sample: e.message });
     }
 
-    await postToSlack(events.length, [...groups.values()]);
+    await postToSlack(events.length, [...groups.values()], skippedMs);
     log(`백엔드 ERROR ${events.length}건 → Slack 알림 (유형 ${groups.size}개)`);
   } catch (e) {
     // 감시 실패는 작업 처리와 무관 — 조용히 다음 틱을 기다린다
     log(`백엔드 로그 감시 실패 (다음 틱에 재시도): ${e instanceof Error ? e.message : e}`);
   }
 }
+
+/** CloudWatch 한 페이지 — `scanWindow` 가 `nextToken` 이 없을 때까지 부른다 */
+async function fetchPage(startTime: number, endTime: number, nextToken?: string): Promise<LogPage> {
+  client ??= new CloudWatchLogsClient({ region: process.env.AWS_REGION || "ap-northeast-2" });
+  const out = await client.send(
+    new FilterLogEventsCommand({
+      logGroupName: LOG_GROUP,
+      logStreamNames: [LOG_STREAM],
+      startTime,
+      endTime,
+      nextToken,
+      filterPattern: "?ERROR ?FATAL",
+      limit: MAX_EVENTS_PER_TICK,
+    }),
+  );
+  return {
+    events: (out.events ?? []).map((e) => ({ t: e.timestamp ?? 0, message: e.message ?? "" })),
+    nextToken: out.nextToken,
+  };
+}
+
+const isoMinute = (t: number) => new Date(t).toISOString().slice(0, 16);
 
 /**
  * 생존 신호 한 점. **실패해도 감시를 멈추지 않는다** — 지표를 못 찍는 것은 알람의 문제이지
@@ -133,12 +160,15 @@ function signatureOf(message: string): string {
     .trim();
 }
 
-async function postToSlack(total: number, groups: { count: number; sample: string }[]): Promise<void> {
+async function postToSlack(total: number, groups: { count: number; sample: string }[], skippedMs: number): Promise<void> {
   const top = groups.sort((a, b) => b.count - a.count).slice(0, MAX_GROUPS_PER_MESSAGE);
   const lines = top.map((g) => `• [${g.count}건] ${g.sample.slice(0, SAMPLE_MAX_CHARS)}`);
   if (groups.length > top.length) lines.push(`… 외 ${groups.length - top.length}개 유형`);
 
-  const text = [`:rotating_light: *백엔드 ERROR ${total}건* (api 로그)`, ...lines, `자세히: ${ADMIN_ERRORS_URL}`].join("\n");
+  const head = total > 0 ? [`:rotating_light: *백엔드 ERROR ${total}건* (api 로그)`] : [];
+  // 건너뛴 구간은 알리지 않은 것이지 오류가 없던 것이 아니다 — 조용함으로 보이지 않게 한 줄 남긴다
+  const skipped = skippedMs > 0 ? [`:warning: 감시가 ${formatGap(skippedMs)} 밀려 그 구간의 오류는 알리지 않았다 — 에러 모아보기에서 확인`] : [];
+  const text = [...head, ...lines, ...skipped, `자세히: ${ADMIN_ERRORS_URL}`].join("\n");
 
   const res = await fetch(WEBHOOK_URL, {
     method: "POST",
